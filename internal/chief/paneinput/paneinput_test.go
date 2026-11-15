@@ -232,3 +232,37 @@ func TestRouteModelText(t *testing.T) {
 		}
 	}
 }
+
+// TestRelayKeysFromNumbersOnly checks that a relay key is made only from an
+// agent whose keys were checked and an option number of one digit, and that
+// its key is that number.
+func TestRelayKeysFromNumbersOnly(t *testing.T) {
+	for _, agent := range []paneinput.AgentKind{paneinput.AgentClaudeCode, paneinput.AgentOpenCode} {
+		for n := 1; n <= paneinput.MaxOptionNumber; n++ {
+			k, err := paneinput.SelectOption(agent, n)
+			if err != nil {
+				t.Fatalf("SelectOption(%d, %d): %v", agent, n, err)
+			}
+			if key, err := k.Key(); err != nil || key != string(rune('0'+n)) {
+				t.Errorf("SelectOption(%d, %d).Key() = %q, %v", agent, n, key, err)
+			}
+		}
+	}
+	for _, c := range []struct {
+		agent  paneinput.AgentKind
+		number int
+	}{
+		{paneinput.AgentClaudeCode, 0},
+		{paneinput.AgentClaudeCode, -1},
+		{paneinput.AgentOpenCode, paneinput.MaxOptionNumber + 1},
+		{paneinput.AgentUnknown, 1},
+		{paneinput.AgentKind(9), 1},
+	} {
+		if _, err := paneinput.SelectOption(c.agent, c.number); !errors.Is(err, paneinput.ErrInvalid) {
+			t.Errorf("SelectOption(%d, %d) error = %v, want ErrInvalid", c.agent, c.number, err)
+		}
+	}
+	if _, err := (paneinput.RelayKey{}).Key(); !errors.Is(err, paneinput.ErrInvalid) {
+		t.Errorf("zero RelayKey Key error = %v, want ErrInvalid", err)
+	}
+}

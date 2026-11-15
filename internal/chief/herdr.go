@@ -386,8 +386,9 @@ func ParsePaneID(s string) (PaneID, error) {
 var errWriteRefused = errors.New("the pane writer refused the input")
 
 // PaneWriter types into task agents' panes. It is the only part of the tool
-// that writes to Herdr. Contract: it takes a paneinput.Prompt and never a
-// string, so only an input of the routing table's kinds can be typed; it
+// that writes to Herdr. Contract: it takes a paneinput.Prompt or a
+// paneinput.RelayKey and never a string, so only an input of the routing
+// table's kinds or an option number's key can be sent; it
 // refuses chief's own pane and every pane of chief's workspace; and it never
 // passes --wait, whose wait ends at the first matching state after the input
 // and so says nothing about the input's own run.
@@ -411,11 +412,8 @@ func NewPaneWriter(cmds Commands, chiefPane PaneID, chiefWorkspace string) (Pane
 // it. target is the agent as Herdr reported it just before; its workspace is
 // what tells it from chief's.
 func (w PaneWriter) Prompt(ctx context.Context, target Agent, p paneinput.Prompt) error {
-	if w.chiefPane.id == "" {
-		return fmt.Errorf("%w: the writer was not made by NewPaneWriter", errWriteRefused)
-	}
-	if target.Pane.id == "" || target.Pane == w.chiefPane || target.Workspace == "" || target.Workspace == w.chiefWorkspace {
-		return fmt.Errorf("%w: pane %q of workspace %q", errWriteRefused, target.Pane.id, target.Workspace)
+	if err := w.refuse(target); err != nil {
+		return err
 	}
 	text, err := p.Text()
 	if err != nil {
@@ -423,4 +421,32 @@ func (w PaneWriter) Prompt(ctx context.Context, target Agent, p paneinput.Prompt
 	}
 	_, err = w.cmds.herdr(ctx, herdrAgent, "prompt", target.Pane.id, text)
 	return err
+}
+
+// SendKeys presses k in target's pane with `herdr agent send-keys`, the
+// only way to answer a question: `herdr agent prompt` refuses a blocked
+// agent. It refuses the same panes as Prompt.
+func (w PaneWriter) SendKeys(ctx context.Context, target Agent, k paneinput.RelayKey) error {
+	if err := w.refuse(target); err != nil {
+		return err
+	}
+	key, err := k.Key()
+	if err != nil {
+		return fmt.Errorf("%w: %w", errWriteRefused, err)
+	}
+	_, err = w.cmds.herdr(ctx, herdrAgent, "send-keys", target.Pane.id, key)
+	return err
+}
+
+// refuse returns errWriteRefused for a writer no constructor made and for a
+// target that is no task pane: one without an ID or a workspace, chief's own
+// pane, or any pane of chief's workspace.
+func (w PaneWriter) refuse(target Agent) error {
+	if w.chiefPane.id == "" {
+		return fmt.Errorf("%w: the writer was not made by NewPaneWriter", errWriteRefused)
+	}
+	if target.Pane.id == "" || target.Pane == w.chiefPane || target.Workspace == "" || target.Workspace == w.chiefWorkspace {
+		return fmt.Errorf("%w: pane %q of workspace %q", errWriteRefused, target.Pane.id, target.Workspace)
+	}
+	return nil
 }

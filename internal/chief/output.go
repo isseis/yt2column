@@ -52,14 +52,17 @@ type NextOutput struct {
 
 // QuestionOutput is one agent's question.
 type QuestionOutput struct {
-	Pane      string         `json:"pane"`
-	Agent     string         `json:"agent"`
-	Kind      string         `json:"kind"`
-	Merge     bool           `json:"merge"`
-	Relayable bool           `json:"relayable"`
-	Text      string         `json:"text"`
-	Options   []OptionOutput `json:"options"`
-	Tabs      []string       `json:"tabs"`
+	Pane      string `json:"pane"`
+	Agent     string `json:"agent"`
+	Kind      string `json:"kind"`
+	Merge     bool   `json:"merge"`
+	Relayable bool   `json:"relayable"`
+	// Check is the value `chief relay --check` takes for this question,
+	// absent when the question is not relayed.
+	Check   CheckValue     `json:"check,omitempty"`
+	Text    string         `json:"text"`
+	Options []OptionOutput `json:"options"`
+	Tabs    []string       `json:"tabs"`
 }
 
 // OptionOutput is one option of a question.
@@ -132,7 +135,8 @@ func questionOutput(q QuestionItem) QuestionOutput {
 		Agent:     agentLabel(q.Agent),
 		Kind:      questionKindName(q.Question.Kind),
 		Merge:     q.Question.Merge,
-		Relayable: q.Question.Relay == RelayAllowed,
+		Relayable: q.Check != "",
+		Check:     q.Check,
 		Text:      Sanitize(q.Question.Text),
 		Options:   []OptionOutput{},
 		Tabs:      sanitizeAll(q.Question.Tabs),
@@ -332,7 +336,7 @@ func actionOutput(a ActionResult) ActionOutput {
 		Workspace: Sanitize(a.Workspace),
 		Pane:      Sanitize(a.Pane),
 		Input:     a.Input.String(),
-		Command:   a.Command,
+		Command:   Sanitize(a.Command),
 		Agent:     agentLabel(a.Agent),
 		Model:     Sanitize(a.Model),
 		Outcome:   a.Outcome.String(),

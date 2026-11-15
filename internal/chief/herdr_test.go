@@ -174,14 +174,19 @@ func TestHerdrCommandLines(t *testing.T) {
 }
 
 // TestWriterRefuses checks that the pane writer types only a constructed
-// prompt into a task pane: the zero prompt, chief's own pane, another pane of chief's workspace, a pane without an ID,
-// and a writer no constructor made all send nothing, while a valid prompt is
-// submitted without --wait.
+// prompt or relay key into a task pane: the zero prompt or key, chief's own
+// pane, another pane of chief's workspace, a pane without an ID, and a
+// writer no constructor made all send nothing, while a valid prompt is
+// submitted without --wait and a valid key is pressed.
 func TestWriterRefuses(t *testing.T) {
 	ctx := context.Background()
 	chiefPane := PaneID{id: "wc:p1"}
 	task := Agent{Pane: PaneID{id: "w1:p2"}, Workspace: "w1"}
 	clearPrompt := paneinput.ClearSession()
+	relayKey, err := paneinput.SelectOption(paneinput.AgentClaudeCode, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cases := []struct {
 		name   string
 		writer func(Commands) PaneWriter
@@ -210,11 +215,33 @@ func TestWriterRefuses(t *testing.T) {
 			if err := w.Prompt(ctx, c.target, c.prompt); !errors.Is(err, errWriteRefused) {
 				t.Errorf("Prompt = %v, want errWriteRefused", err)
 			}
+			key := relayKey
+			if c.prompt == (paneinput.Prompt{}) {
+				key = paneinput.RelayKey{}
+			}
+			if err := w.SendKeys(ctx, c.target, key); !errors.Is(err, errWriteRefused) {
+				t.Errorf("SendKeys = %v, want errWriteRefused", err)
+			}
 			if calls := rec.recorded(); len(calls) != 0 {
 				t.Errorf("the writer ran %v", calls)
 			}
 		})
 	}
+	t.Run("a constructed key is pressed", func(t *testing.T) {
+		rec := newRecorder(t)
+		rec.onKeys = func(string, string) error { return nil }
+		w, err := NewPaneWriter(rec.commands(nil), chiefPane, "wc")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := w.SendKeys(ctx, task, relayKey); err != nil {
+			t.Fatal(err)
+		}
+		calls := rec.recorded()
+		if len(calls) != 1 || calls[0].line() != "herdr agent send-keys w1:p2 2" {
+			t.Errorf("calls = %v, want one key press", calls)
+		}
+	})
 	t.Run("a constructed prompt is submitted", func(t *testing.T) {
 		rec := newRecorder(t)
 		rec.onPrompt = func(string, string) error { return nil }

@@ -79,6 +79,11 @@ type Question struct {
 	// Tabs names the tabs of a tabbed question, the current one included, in
 	// screen order; the other tabs' questions are not on the screen.
 	Tabs []string
+	// Cursor is the number of the option the selection is on, read for a
+	// single-select question only; 0 when it is not read. It only goes into
+	// the check value of a relay: the keys a relay sends select an option
+	// by its number wherever the selection is.
+	Cursor int
 }
 
 // InputLine is the agent's input line. Empty is true only when the line was
@@ -147,10 +152,9 @@ func joinTexts(texts []string) string {
 	return strings.Join(texts, "\n")
 }
 
-// maxOptionNumber is the highest option number a question may have. The
-// samples showed that one digit key selects its option at once, so an option
-// numbered 10 or more could not be chosen by its number.
-const maxOptionNumber = 9
+// maxOptionNumber is the highest option number a question may have: the
+// highest a relay key can select.
+const maxOptionNumber = paneinput.MaxOptionNumber
 
 // finishQuestion settles what the readers leave to one place: only a
 // single-select question the reader allowed keeps its relayable options (the

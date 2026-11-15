@@ -37,6 +37,8 @@ type sendWorld struct {
 	sessions int
 	// react is what typing text into p does.
 	react func(p *simPane, text string) error
+	// keyReact is what pressing key in p does.
+	keyReact func(p *simPane, key string) error
 }
 
 // sessionPrefix makes the session IDs of the simulated Claude Code panes.
@@ -48,7 +50,29 @@ func newSendWorld(t *testing.T) *sendWorld {
 	sw := &sendWorld{world: w, byPane: map[string]*simPane{}, config: filepath.Join(filepath.Dir(w.chiefTree), "claude")}
 	w.env.ClaudeConfigDir = sw.config
 	sw.react = sw.realReact
+	sw.keyReact = sw.realKeyReact
 	return sw
+}
+
+// realKeyReact is what the sampled agents did with an option's number key on
+// a question: they answered it and worked on.
+func (sw *sendWorld) realKeyReact(p *simPane, _ string) error {
+	p.Status, p.Seq = "working", p.Seq+1
+	if p.Kind == "claude" {
+		p.screen = readScreenSample(sw.t, "claude-working.ansi")
+	} else {
+		// No working OpenCode screen was sampled; its prompt screen stands
+		// for the question gone.
+		p.screen = readScreenSample(sw.t, "opencode-done.ansi")
+	}
+	return nil
+}
+
+// ask makes pane p show the question of a screen sample, blocked on it.
+func (sw *sendWorld) ask(p *simPane, sample string) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	p.Status, p.Seq, p.screen = "blocked", p.Seq+1, readScreenSample(sw.t, sample)
 }
 
 // addTask adds a task workspace with one pane of each kind given ("claude",
@@ -209,6 +233,16 @@ func (sw *sendWorld) finish() Deps {
 			return errNoReply
 		}
 		return sw.react(p, text)
+	}
+	sw.rec.onKeys = func(pane, key string) error {
+		sw.mu.Lock()
+		defer sw.mu.Unlock()
+		p, ok := sw.byPane[pane]
+		if !ok {
+			sw.t.Errorf("a key went to %s, which is no task pane", pane)
+			return errNoReply
+		}
+		return sw.keyReact(p, key)
 	}
 	deps.Sleep = func(context.Context, time.Duration) error { return nil }
 	return deps

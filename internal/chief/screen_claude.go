@@ -240,9 +240,12 @@ func claudeOneQuestion(lines []screenLine, tabbed bool) *Question {
 		text = append(text, l.text)
 	}
 	q.Text = joinTexts(text)
-	cursors, ok := claudeOptions(q, body[first:], multi)
+	cursor, cursors, ok := claudeOptions(q, body[first:], multi)
 	if !ok || cursors+boolCount(w.chat.cursor) != 1 || w.chat.number != len(q.Options)+1 {
 		return nil
+	}
+	if w.chat.cursor {
+		cursor = w.chat.number
 	}
 	q.Options = append(q.Options, Option{Number: w.chat.number, Label: w.chat.label})
 	switch {
@@ -251,7 +254,7 @@ func claudeOneQuestion(lines []screenLine, tabbed bool) *Question {
 	case multi:
 		q.Kind, q.Relay = QuestionMulti, RelayBlockMulti
 	default:
-		q.Kind, q.Relay = QuestionSingle, RelayAllowed
+		q.Kind, q.Relay, q.Cursor = QuestionSingle, RelayAllowed, cursor
 	}
 	return q
 }
@@ -281,26 +284,28 @@ func boolCount(b bool) int {
 }
 
 // claudeOptions reads numbered options, each followed by its description
-// lines, ending with the free-text option, into q. It returns how many
-// options carry the cursor.
-func claudeOptions(q *Question, lines []screenLine, multi bool) (int, bool) {
+// lines, ending with the free-text option, into q. It returns the number of
+// the last option that carries the cursor and how many carry it.
+func claudeOptions(q *Question, lines []screenLine, multi bool) (cursor, cursors int, ok bool) {
 	descIndent, freeTextLabel := claudeDescIndent, claudeFreeText
 	if multi {
 		descIndent, freeTextLabel = claudeMultiDescIndent, claudeFreeTextMulti
 	}
-	cursors := 0
 	freeText := false
 	for i := 0; i < len(lines); {
 		o, isOption := claudeOption(lines[i].text, "")
 		if freeText || !isOption || o.number != len(q.Options)+1 {
-			return 0, false
+			return 0, 0, false
 		}
 		cursors += boolCount(o.cursor)
+		if o.cursor {
+			cursor = o.number
+		}
 		label := o.label
 		if multi {
 			var boxed bool
 			if label, boxed = strings.CutPrefix(label, claudeMultiBox); !boxed {
-				return 0, false
+				return 0, 0, false
 			}
 		}
 		freeText = label == freeTextLabel
@@ -319,7 +324,7 @@ func claudeOptions(q *Question, lines []screenLine, multi bool) (int, bool) {
 		// the label shown to the human, as the screen draws it.
 		q.Options[len(q.Options)-1].Label = claudeMultiBox + freeTextLabel
 	}
-	return cursors, freeText && len(q.Options) > claudeMinOptions
+	return cursor, cursors, freeText && len(q.Options) > claudeMinOptions
 }
 
 // claudeTabsReview reads the last page of a tabbed question, which asks to

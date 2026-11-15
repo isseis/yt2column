@@ -49,6 +49,9 @@ type wantScreen struct {
 	inputLeft  string
 	model      string
 	newSession bool
+	// cursor is the option the selection is on, read for single-select
+	// questions only.
+	cursor int
 }
 
 const sampleModel = "DeepSeek V4.1 Flash 1017 OpenCode Go"
@@ -60,12 +63,14 @@ var (
 		text:      "Which fruit do you prefer?",
 		labels:    append(append([]string{}, fruitLabels...), "Type something.", "Chat about this"),
 		relayable: fruitLabels,
+		cursor:    1,
 	}
 	openCodeFruitSingle = wantScreen{
 		kind: ScreenQuestion, question: QuestionSingle, relay: RelayAllowed,
 		text:      "Which fruit do you prefer?",
 		labels:    append(append([]string{}, fruitLabels...), "Type your own answer"),
 		relayable: fruitLabels,
+		cursor:    1,
 	}
 	mergeText   = "PR #123 をどうしますか（第 1 回。要約と詳細ファイルを確認のうえ）"
 	mergeLabels = []string{"マージ", "マージしない"}
@@ -81,7 +86,7 @@ var claudeScreenWants = map[string]wantScreen{
 	"claude-command-report.ansi":         {kind: ScreenPrompt, inputEmpty: true},
 	"claude-input-left.ansi":             {kind: ScreenPrompt, inputLeft: "unsent draft text"},
 	"claude-question-single.ansi":        claudeFruitSingle,
-	"claude-question-single-cursor.ansi": claudeFruitSingle,
+	"claude-question-single-cursor.ansi": withCursor(claudeFruitSingle, 3),
 	"claude-question-multi.ansi": {
 		kind: ScreenQuestion, question: QuestionMulti, relay: RelayBlockMulti,
 		text: "Which colors do you like?", tabs: []string{"Colors"},
@@ -115,6 +120,7 @@ var claudeScreenWants = map[string]wantScreen{
 		text:      mergeText,
 		labels:    append(append([]string{}, mergeLabels...), "Type something.", "Chat about this"),
 		relayable: mergeLabels,
+		cursor:    1,
 	},
 }
 
@@ -124,7 +130,7 @@ var openCodeScreenWants = map[string]wantScreen{
 	"opencode-input-left.ansi":             {kind: ScreenPrompt, inputLeft: "unsent draft text", model: sampleModel},
 	"opencode-runpr-report.txt":            {kind: ScreenPrompt, inputEmpty: true, model: sampleModel},
 	"opencode-question-single.ansi":        openCodeFruitSingle,
-	"opencode-question-single-cursor.ansi": openCodeFruitSingle,
+	"opencode-question-single-cursor.ansi": withCursor(openCodeFruitSingle, 3),
 	"opencode-question-multi.ansi": {
 		kind: ScreenQuestion, question: QuestionMulti, relay: RelayBlockMulti,
 		text: "Which colors do you like?", tabs: []string{"Color preferences"},
@@ -149,7 +155,14 @@ var openCodeScreenWants = map[string]wantScreen{
 		text:      mergeText,
 		labels:    append(append([]string{}, mergeLabels...), "Type your own answer"),
 		relayable: mergeLabels,
+		cursor:    1,
 	},
+}
+
+// withCursor returns want with the selection on option n.
+func withCursor(want wantScreen, n int) wantScreen {
+	want.cursor = n
+	return want
 }
 
 func TestParseScreenSamples(t *testing.T) {
@@ -205,6 +218,9 @@ func checkScreen(t *testing.T, got Screen, want wantScreen) {
 	if !reflect.DeepEqual(q.Tabs, want.tabs) {
 		t.Errorf("Tabs = %q, want %q", q.Tabs, want.tabs)
 	}
+	if q.Cursor != want.cursor {
+		t.Errorf("Cursor = %d, want %d", q.Cursor, want.cursor)
+	}
 	var labels, relayable []string
 	for i, o := range q.Options {
 		if o.Number != i+1 {
@@ -220,6 +236,67 @@ func checkScreen(t *testing.T, got Screen, want wantScreen) {
 	}
 	if !reflect.DeepEqual(relayable, want.relayable) {
 		t.Errorf("relayable = %q, want %q", relayable, want.relayable)
+	}
+}
+
+// TestOpenCodeCursorNeedsOneMark recolors the option numbers of an OpenCode
+// question so that two options, or none, are drawn in the selection's color:
+// the question still reads, with no cursor.
+func TestOpenCodeCursorNeedsOneMark(t *testing.T) {
+	const (
+		gray   = "\x1b[38;2;138;138;138m\x1b[48;2;250;250;250m"
+		accent = "\x1b[38;2;59;125;216m\x1b[48;2;250;250;250m"
+	)
+	base := readScreenSample(t, "opencode-question-single.ansi")
+	for name, edit := range map[string][2]string{
+		"two marked":  {gray + "2.", accent + "2."},
+		"none marked": {accent + "1.", gray + "1."},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if strings.Count(base, edit[0]) != 1 {
+				t.Fatalf("the sample does not hold %q once", edit[0])
+			}
+			got := parseOpenCodeScreen(strings.Replace(base, edit[0], edit[1], 1))
+			if got.Question == nil || got.Question.Kind != QuestionSingle || got.Question.Cursor != 0 {
+				t.Errorf("question = %+v, want a single-select question with no cursor", got.Question)
+			}
+		})
+	}
+}
+
+// TestOpenCodeCursorSkipsQuestionText makes an OpenCode question's text
+// read like its first option, drawn in a color other than the gray: the
+// cursor is still read from the options alone.
+func TestOpenCodeCursorSkipsQuestionText(t *testing.T) {
+	const old = "\x1b[38;2;26;26;26m\x1b[48;2;250;250;250mWhich fruit do you prefer?"
+	base := readScreenSample(t, "opencode-question-single-cursor.ansi")
+	if strings.Count(base, old) != 1 {
+		t.Fatalf("the sample does not hold %q once", old)
+	}
+	edited := strings.Replace(base, old, "\x1b[38;2;26;26;26m\x1b[48;2;250;250;250m1. Apple"+strings.Repeat(" ", 18), 1)
+	got := parseOpenCodeScreen(edited)
+	if got.Question == nil || got.Question.Text != "1. Apple" || got.Question.Cursor != 3 {
+		t.Errorf("question = %+v, want the text 1. Apple and the cursor on 3", got.Question)
+	}
+}
+
+// TestClaudeCursorOnChat moves Claude Code's cursor mark from option 1 to the
+// chat option below the widget's rule: the cursor reads as that option.
+func TestClaudeCursorOnChat(t *testing.T) {
+	base := plainSample(t, "claude-question-single.ansi")
+	if q := parseClaudeScreen(base).Question; q == nil || q.Cursor != 1 {
+		t.Fatalf("the plain sample reads as %+v, want the cursor on 1", q)
+	}
+	edits := [][2]string{{"❯ 1. Apple", "  1. Apple"}, {"  5. Chat about this", "❯ 5. Chat about this"}}
+	for _, e := range edits {
+		if strings.Count(base, e[0]) != 1 {
+			t.Fatalf("the sample does not hold %q once", e[0])
+		}
+		base = strings.Replace(base, e[0], e[1], 1)
+	}
+	got := parseClaudeScreen(base)
+	if got.Question == nil || got.Question.Kind != QuestionSingle || got.Question.Cursor != 5 {
+		t.Errorf("question = %+v, want a single-select question with the cursor on 5", got.Question)
 	}
 }
 

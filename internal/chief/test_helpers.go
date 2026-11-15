@@ -229,6 +229,9 @@ type recorder struct {
 	// tool makes) and answers it; a test that leaves it nil fails on any
 	// write.
 	onPrompt func(pane, text string) error
+	// onKeys, when set, allows `herdr agent send-keys` with one key (the
+	// relay's write) and answers it; a test that leaves it nil fails on it.
+	onKeys func(pane, key string) error
 }
 
 func newRecorder(t *testing.T) *recorder {
@@ -271,6 +274,22 @@ func (r *recorder) prompts() []string {
 // isPrompt reports whether c is `herdr agent prompt <pane> <text>`.
 func isPrompt(c recordedCall) bool {
 	return c.name == herdrProgram && len(c.args) == 4 && c.args[0] == herdrAgent && c.args[1] == "prompt"
+}
+
+// isKeys reports whether c is `herdr agent send-keys <pane> <key>`.
+func isKeys(c recordedCall) bool {
+	return c.name == herdrProgram && len(c.args) == 4 && c.args[0] == herdrAgent && c.args[1] == "send-keys"
+}
+
+// keys returns the keys sent to panes so far, as "pane key".
+func (r *recorder) keys() []string {
+	var out []string
+	for _, c := range r.recorded() {
+		if isKeys(c) {
+			out = append(out, c.args[2]+" "+c.args[3])
+		}
+	}
+	return out
 }
 
 // fail makes the command line fail with err, wherever it runs.
@@ -323,11 +342,14 @@ func (rr recordingRunner) Run(ctx context.Context, name string, args ...string) 
 		}
 	}
 	r.mu.Lock()
-	onPrompt := r.onPrompt
+	onPrompt, onKeys := r.onPrompt, r.onKeys
 	r.calls = append(r.calls, call)
 	r.mu.Unlock()
 	if isPrompt(call) && onPrompt != nil {
 		return nil, onPrompt(call.args[2], call.args[3])
+	}
+	if isKeys(call) && onKeys != nil {
+		return nil, onKeys(call.args[2], call.args[3])
 	}
 	if !isReadOnly(call) {
 		r.t.Errorf("the tool ran a command outside the read-only list: %s", call.line())
