@@ -22,11 +22,13 @@ type TickOutcome struct {
 // PR that is not sent is shown as a proposal with the conditions that did
 // not hold.
 func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
-	start, roundErr := deps.Store.BeginRound(owner.Session, deps.Now())
 	view, err := readRound(ctx, deps)
 	if err != nil {
+		// No round is recorded: a round that read nothing would become the
+		// next tick's previous round and drop every observation before it.
 		return TickOutcome{}, err
 	}
+	start, roundErr := deps.Store.BeginRound(owner.Session, deps.Now())
 	if roundErr != nil {
 		view.problems = append(view.problems, "the round cannot be recorded, so nothing is observed or sent automatically: "+roundErr.Error())
 		return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, nil)}, nil

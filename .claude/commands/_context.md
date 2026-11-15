@@ -136,8 +136,8 @@ PR boundary markers embedded in the implementation plan use these labels:
   A section without such a line, and a single-phase plan with no `PR 構成`
   section, read as `auto`, so a plan written before the field existed is
   sent as before. Any other value, two such lines, two places that could
-  hold the field, or a value line inside a fenced code block of the place
-  is unreadable, and `chief` sends nothing by itself for that PR; there are
+  hold the field, a value line inside a fenced code block of the place, or
+  a code fence the plan never closes is unreadable, and `chief` sends nothing by itself for that PR; there are
   no old values. Only `chief` reads the field (`internal/chief/task.go`);
   `_lib/opus-review-decision.sh` does not.
 

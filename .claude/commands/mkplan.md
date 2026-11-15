@@ -204,8 +204,8 @@ Work in the following order.
    chapter (no other place: `/runplan` reads the value only from there) instead: it says
    the work is one PR, and it ends with the three lines `**実装モデル要件**: <value>`,
    `**判定理由**: <one line>`, and `**自動送信**: <value>`, each starting in the
-   first column, in this order, with a blank line between each two. `/runplan`,
-   `/runpr`, and the `chief` tool read the values
+   first column, in this order, with a blank line between each two. `/runplan`
+   and `/runpr` read the model requirement, and the `chief` tool reads both values,
    from the subsection whose heading text, without its number, is `PR 構成`. Decide the first value and write the
    `判定理由` as `mkplan2.md` step 4, "Model requirement", says, and the last
    value as its "Auto-send" says, applied to the

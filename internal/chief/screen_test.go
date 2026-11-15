@@ -776,6 +776,10 @@ func TestReadRunprReport(t *testing.T) {
 	if !ok || report.Next != (RunprNext{Kind: NextCommand, Command: NextCommandRunplan, Task: taskID(t, "0088")}) || !slices.Contains(report.PRs, 42) {
 		t.Errorf("edited OpenCode report = %+v, %v", report, ok)
 	}
+	spaced := strings.Replace(runprReportScreen(t, 42, ""), "PR #42 のマージまで", "PR #42 1 件のマージまで", 1)
+	if report, ok := readRunprReport(paneinput.AgentOpenCode, spaced); !ok || !slices.Contains(report.PRs, 42) || slices.Contains(report.PRs, 421) {
+		t.Errorf("a number after a space = %+v, %v; want #42 and not #421", report, ok)
+	}
 	report, ok = readRunprReport(paneinput.AgentClaudeCode, readScreenSample(t, "claude-command-report.ansi"))
 	if !ok || report.Next.Kind != NextAbsent || !slices.Contains(report.PRs, 867) {
 		t.Errorf("Claude Code report = %+v, %v; want no NEXT naming #867", report, ok)

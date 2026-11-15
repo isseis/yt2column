@@ -308,7 +308,7 @@ func readRunprReport(agent paneinput.AgentKind, raw string) (RunprReport, bool) 
 		return RunprReport{}, false
 	}
 	report := RunprReport{Next: readRunprNext(joinTexts(texts))}
-	squeezed := strings.Join(strings.Fields(squeeze(texts)), "")
+	squeezed := squeeze(texts)
 	for _, m := range prReference.FindAllStringSubmatchIndex(squeezed, -1) {
 		n, err := strconv.Atoi(squeezed[m[2]:m[3]])
 		if err == nil && !slices.Contains(report.PRs, n) {

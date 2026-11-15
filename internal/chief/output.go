@@ -429,7 +429,7 @@ type AutoSendOutput struct {
 func (o TickOutcome) Output() TickOutput {
 	out := TickOutput{SnapshotOutput: o.Snapshot.Output(), AutoSends: []AutoSendOutput{}}
 	for _, r := range o.AutoSends {
-		a := AutoSendOutput{Workspace: Sanitize(r.Workspace), Label: Sanitize(r.Label), PR: r.PR, Task: r.Task, Proposal: nextOutput(r.Proposal), Reasons: sanitizeAll(r.Reasons), Actions: []ActionOutput{}}
+		a := AutoSendOutput{Workspace: Sanitize(r.Workspace), Label: Sanitize(r.Label), PR: r.PR, Task: Sanitize(r.Task), Proposal: nextOutput(r.Proposal), Reasons: sanitizeAll(r.Reasons), Actions: []ActionOutput{}}
 		for _, act := range r.Actions {
 			a.Actions = append(a.Actions, actionOutput(act))
 		}

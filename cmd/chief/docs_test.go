@@ -159,8 +159,8 @@ func singleForm(t *testing.T, label, value string) string {
 		}
 		lines = append(lines, f)
 	}
-	if !slices.ContainsFunc(lines, func(l string) bool { return l == label+value }) {
-		t.Fatalf("mkplan.md step 8.5 names the field lines %v, none of them %q", fields, label)
+	if n := len(slices.DeleteFunc(slices.Clone(lines), func(l string) bool { return l != label+value })); n != 1 {
+		t.Fatalf("mkplan.md step 8.5 names the field lines %v, %d of them %q; want one", fields, n, label)
 	}
 	chapter, _, _ := strings.Cut(strings.TrimPrefix(heading, "### "), ".")
 	return "## " + chapter + ". x\n\n" + heading + "\n\n" + strings.Join(lines, "\n\n") + "\n"

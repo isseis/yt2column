@@ -985,9 +985,8 @@ func (s Store) pruneRounds(session, keep string) error {
 
 // Observation is what one round saw of one open PR in one workspace: the PR,
 // the worktree, its task, and the PR's head branch. MergedSince is set on an
-// observation carried into a round after the PR was seen merged (or its
-// state could not be read): the time that was first seen, kept as it was
-// through every carry.
+// observation carried into a round after the PR was seen merged: the time
+// that was first seen, kept as it was through every carry.
 type Observation struct {
 	Session     string     `json:"session"`
 	Round       string     `json:"round"`

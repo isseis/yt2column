@@ -28,6 +28,10 @@ type autoSendFacts struct {
 	obs Observation
 	// expired is true when the observation was carried past carryWindow.
 	expired bool
+	// partial is true when the reads stopped after the PR's state: the
+	// workspace is gone, or the PR is not known to be merged, so the other
+	// facts were not read and say nothing.
+	partial bool
 	// present is true when Herdr still has a task workspace at the
 	// observation's worktree.
 	present bool
@@ -85,6 +89,13 @@ type autoSendFacts struct {
 // every fact read with an error, or left at its zero value, gives a reason;
 // a condition is never assumed to hold.
 func autoSendConditions(f autoSendFacts) []string {
+	if f.partial {
+		why := mergeConditions(f)
+		if len(why) == 0 {
+			why = []string{"the merge could not be confirmed"}
+		}
+		return append(why, "the other conditions were not checked, since the merge could not be confirmed")
+	}
 	var why []string
 	for _, group := range []func(autoSendFacts) []string{mergeConditions, gitConditions, headConditions, nextConditions, recordConditions} {
 		why = append(why, group(f)...)
@@ -286,6 +297,7 @@ func (a *autoSender) gather(ctx context.Context, obs Observation, ws *TaskWorksp
 	facts.state, facts.headRef, facts.stateErr = a.git.PRStateOf(ctx, dir, obs.PR)
 	facts.sent, facts.sentErr = a.deps.Store.AutoSent(obs.PR)
 	if ws == nil || facts.stateErr != nil || facts.state != PRStateMerged {
+		facts.partial = true
 		return facts
 	}
 	remote := a.checkRemote(ctx)
@@ -529,7 +541,9 @@ func (a *autoSender) consider(ctx context.Context, obs Observation) (*AutoSendRe
 	}
 	res.Reasons = autoSendConditions(facts)
 	if len(res.Reasons) > 0 {
-		return res, !facts.sent && !facts.expired && !facts.done && facts.sentErr == nil
+		// Only a PR seen merged is carried (the design, 3.5): one whose state
+		// could not be read is proposed, not tried again.
+		return res, facts.stateErr == nil && !facts.sent && !facts.expired && !facts.done && facts.sentErr == nil
 	}
 	recorded := a.send(ctx, *ws, obs, res)
 	return res, !recorded
@@ -557,7 +571,13 @@ func (a *autoSender) send(ctx context.Context, ws TaskWorkspace, obs Observation
 	f := readWorkspace(ctx, a.herdr, a.git, a.tasks, loc.ws)
 	f.Routing, f.RoutingErr, f.FetchFailed = a.view.routing, a.view.routingErr, a.view.fetchFailed
 	facts := a.gather(ctx, obs, &loc.ws, f)
-	later, err := held.SentSince(a.round.At)
+	// A send made since the merge was first seen (by the human, between
+	// rounds of a carry) or during this round may have sent the command.
+	since := a.round.At
+	if obs.MergedSince != nil && obs.MergedSince.Before(since) {
+		since = *obs.MergedSince
+	}
+	later, err := held.SentSince(since)
 	facts.laterSend = err != nil || later
 	if why := autoSendConditions(facts); len(why) > 0 {
 		res.Reasons = why

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
+	"github.com/isseis/yt2column/internal/cmdrunner"
 )
 
 // passingFacts returns the facts of an automatic send of /runplan 0001 after
@@ -574,5 +575,65 @@ func TestTickWithoutRound(t *testing.T) {
 	mw.merge(nextBranch, "`/mkarch 0001`")
 	if out := mw.tick(time.Minute); len(out.AutoSends) != 0 || len(mw.rec.prompts()) != 0 {
 		t.Errorf("a tick without its round considered %+v", out.AutoSends)
+	}
+}
+
+// TestGitClean runs the clean check on a real repository: clean, an
+// ignored file, an untracked file, and a changed tracked file.
+func TestGitClean(t *testing.T) {
+	repo := newTestRepo(t)
+	repo.Write(".gitignore", "ignored.txt\n")
+	repo.CommitAll("ignore")
+	// The real git runs from the test tools only for this test; herdr and
+	// gh are still not found.
+	t.Setenv("PATH", testToolsDir)
+	git := NewGitReader(NewCommands(func(o cmdrunner.Options) cmdrunner.Runner { return cmdrunner.NewOS(o) }, repo.Env()))
+	clean := func() bool {
+		t.Helper()
+		ok, err := git.Clean(context.Background(), repo.Dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+	if !clean() {
+		t.Fatal("a clean worktree reads as changed")
+	}
+	repo.Write("ignored.txt", "x\n")
+	if !clean() {
+		t.Error("an ignored file reads as a change")
+	}
+	repo.Write("new.txt", "x\n")
+	if clean() {
+		t.Error("an untracked file reads as clean")
+	}
+	if err := os.Remove(filepath.Join(repo.Dir, "new.txt")); err != nil {
+		t.Fatal(err)
+	}
+	repo.Write("README.md", "changed\n")
+	if clean() {
+		t.Error("a changed tracked file reads as clean")
+	}
+}
+
+// TestParsePRState reads the state of a PR as gh gives it, and rejects a
+// view of another PR, of an unknown state, or without a head branch.
+func TestParsePRState(t *testing.T) {
+	cases := map[string]struct {
+		out     string
+		want    PRState
+		wantErr bool
+	}{
+		"merged":           {prMergedJSON, PRStateMerged, false},
+		"open":             {prOpenJSON, PRStateOpen, false},
+		"another PR":       {strings.Replace(prMergedJSON, `42`, `43`, 1), PRStateUnknown, true},
+		"an unknown state": {strings.Replace(prMergedJSON, `MERGED`, `DRAFT`, 1), PRStateUnknown, true},
+		"no head branch":   {strings.Replace(prMergedJSON, `"headRefName":"user/0001-test-task-02",`, ``, 1), PRStateUnknown, true},
+	}
+	for name, c := range cases {
+		got, head, err := parsePRState([]byte(c.out), 42)
+		if got != c.want || (err != nil) != c.wantErr || (err == nil && head != taskBranch) {
+			t.Errorf("%s: %d, %q, %v; want %d, error %v", name, got, head, err, c.want, c.wantErr)
+		}
 	}
 }
