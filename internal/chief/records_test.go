@@ -189,35 +189,149 @@ func TestTakeoverRechecksUnderTheExclusion(t *testing.T) {
 	}
 }
 
-// TestStartCleansFinishedSessionNotices checks that start removes the notice
-// records of other sessions and keeps the current session's and every file
-// that is not a notice record.
+// TestStartCleansFinishedSessionNotices checks that start removes the notice,
+// round, and observation records of other sessions and keeps the current
+// session's, the automatic-send records, and every file of no record form.
 func TestStartCleansFinishedSessionNotices(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	store := newStore(t)
-	if _, _, err := store.Observe("old-session", "item-1", now); err != nil {
+	var kept, gone []string
+	for _, session := range []string{"old-session", ownerA().Session} {
+		if _, _, err := store.Observe(session, "item", now); err != nil {
+			t.Fatal(err)
+		}
+		start, err := store.BeginRound(session, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		obs := Observation{Session: session, Round: start.Cur.ID, PR: 42, Worktree: "/w", Task: "0001", Branch: taskBranch}
+		if err := store.RecordObservation(obs); err != nil {
+			t.Fatal(err)
+		}
+		names := []string{noticeName(session, "item"), roundPrefix + hashName(session) + "-" + start.Cur.ID + recordSuffix, observeName(session, start.Cur.ID, "/w", 42)}
+		if session == ownerA().Session {
+			kept = append(kept, names...)
+		} else {
+			gone = append(gone, names...)
+		}
+	}
+	if err := store.recordAutoSend(autoSendRecord{PR: 42, Worktree: "/w", Task: "0001", Command: "/mkarch 0001", At: now}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := store.Observe(ownerA().Session, "item-2", now); err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"notes.txt", "notice-backup.json"} {
+	for _, name := range []string{"notes.txt", "notice-backup.json", "round-backup.json"} {
 		if err := os.WriteFile(filepath.Join(store.Dir(), name), []byte("x"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
 	res, err := store.Start(ctx, herdrWith(t, liveAgent(ownerA())), ownerA(), now)
-	if err != nil || res.Removed != 1 {
-		t.Fatalf("Start = %+v, %v; want one notice removed", res, err)
+	if err != nil || res.Removed != len(gone) {
+		t.Fatalf("Start = %+v, %v; want %d records removed", res, err, len(gone))
 	}
-	for _, name := range []string{noticeName(ownerA().Session, "item-2"), "notes.txt", "notice-backup.json", lockFile} {
+	for _, name := range append(kept, autoSendName(42), "notes.txt", "notice-backup.json", "round-backup.json", lockFile) {
 		if _, err := os.Lstat(filepath.Join(store.Dir(), name)); err != nil {
 			t.Errorf("%s was removed: %v", name, err)
 		}
 	}
-	if _, err := os.Lstat(filepath.Join(store.Dir(), noticeName("old-session", "item-1"))); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("the finished session's notice is still there: %v", err)
+	for _, name := range gone {
+		if _, err := os.Lstat(filepath.Join(store.Dir(), name)); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("the finished session's %s is still there: %v", name, err)
+		}
+	}
+}
+
+// TestBeginRound checks that a round returns the session's newest round
+// before it, never another session's, removes the records of the rounds
+// before that one, and refuses a previous round it cannot read and a clock
+// that did not move on.
+func TestBeginRound(t *testing.T) {
+	store := newStore(t)
+	t0 := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
+	session := ownerA().Session
+	var rounds []Round
+	for i := range 3 {
+		start, err := store.BeginRound(session, t0.Add(time.Duration(i)*time.Minute))
+		if err != nil || start.PruneErr != nil {
+			t.Fatalf("round %d: %+v, %v", i, start, err)
+		}
+		if i == 0 && start.Prev != nil {
+			t.Fatalf("the first round has a previous round %+v", start.Prev)
+		}
+		if i > 0 && (start.Prev == nil || *start.Prev != rounds[i-1]) {
+			t.Fatalf("round %d: previous %+v, want %+v", i, start.Prev, rounds[i-1])
+		}
+		if err := store.RecordObservation(Observation{Session: session, Round: start.Cur.ID, PR: 42, Worktree: "/w", Task: "0001", Branch: taskBranch}); err != nil {
+			t.Fatal(err)
+		}
+		rounds = append(rounds, start.Cur)
+		if _, err := store.BeginRound("other", t0.Add(time.Duration(i)*time.Minute+time.Second)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if obs, _ := store.Observations(session, rounds[0].ID); len(obs) != 0 {
+		t.Errorf("the observations of the round before the previous one were kept: %+v", obs)
+	}
+	if obs, errs := store.Observations(session, rounds[1].ID); len(obs) != 1 || len(errs) != 0 {
+		t.Errorf("the previous round's observations = %+v, %v; want one", obs, errs)
+	}
+	if _, err := store.BeginRound(session, rounds[2].At); !errors.Is(err, errRecord) {
+		t.Errorf("a round at the previous round's time = %v; want errRecord", err)
+	}
+	name := filepath.Join(store.Dir(), roundPrefix+hashName(session)+"-"+rounds[2].ID+recordSuffix)
+	if err := os.Chmod(name, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BeginRound(session, rounds[2].At.Add(time.Minute)); err == nil {
+		t.Error("a previous round that cannot be read was skipped")
+	}
+}
+
+// TestObservationsSkipUnreadable checks that an observation record that
+// cannot be read, or whose content names another PR than its file name, is
+// reported and never returned.
+func TestObservationsSkipUnreadable(t *testing.T) {
+	store := newStore(t)
+	good := Observation{Session: "s", Round: "00000000000000000001-0000000000000000", PR: 42, Worktree: "/w", Task: "0001", Branch: taskBranch}
+	if err := store.RecordObservation(good); err != nil {
+		t.Fatal(err)
+	}
+	moved := good
+	moved.PR = 43
+	if err := store.create(observeName("s", good.Round, "/w", 44), moved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(store.Dir(), observeName("s", good.Round, "/w", 45)), []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	obs, errs := store.Observations("s", good.Round)
+	if len(obs) != 1 || obs[0].PR != 42 || len(errs) != 2 {
+		t.Fatalf("Observations = %+v, %v; want only #42 and two errors", obs, errs)
+	}
+}
+
+// TestAutoSentRecord checks the automatic-send record: absent is not sent,
+// a written record is sent and cannot be written again, and a record that
+// cannot be read counts as sent with its error.
+func TestAutoSentRecord(t *testing.T) {
+	store := newStore(t)
+	if sent, err := store.AutoSent(42); sent || err != nil {
+		t.Fatalf("AutoSent before the record = %v, %v", sent, err)
+	}
+	rec := autoSendRecord{PR: 42, Worktree: "/w", Task: "0001", Command: "/mkarch 0001", At: time.Now()}
+	if err := store.recordAutoSend(rec); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.recordAutoSend(rec); !errors.Is(err, privatefile.ErrExist) {
+		t.Errorf("a second record = %v; want ErrExist", err)
+	}
+	if sent, err := store.AutoSent(42); !sent || err != nil {
+		t.Errorf("AutoSent after the record = %v, %v", sent, err)
+	}
+	if err := os.WriteFile(filepath.Join(store.Dir(), autoSendName(43)), []byte("not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if sent, err := store.AutoSent(43); !sent || err == nil {
+		t.Errorf("AutoSent of an unreadable record = %v, %v; want sent with an error", sent, err)
 	}
 }
 

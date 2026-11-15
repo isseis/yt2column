@@ -56,6 +56,9 @@ type PendingItem struct {
 	Question  *QuestionItem
 	PR        *OpenPR
 	Proposal  *Next
+	// Reasons are why a proposal was not sent by itself after a merge: the
+	// conditions of the automatic send that did not hold.
+	Reasons []string
 	// FirstSeen is when chief first found the item in this session; the
 	// time of the observation when no record could be made.
 	FirstSeen time.Time
@@ -113,9 +116,30 @@ func buildPending(rows []Row) []PendingItem {
 				if n == nil {
 					continue
 				}
-				add(PendingItem{ID: itemID("proposal", r.Workspace, strconv.Itoa(int(n.Kind)), n.Text, n.Key), Kind: PendingProposal, Workspace: r.Workspace, Label: r.Label, Proposal: n})
+				add(PendingItem{ID: proposalID(r.Workspace, n), Kind: PendingProposal, Workspace: r.Workspace, Label: r.Label, Proposal: n})
 			}
 		}
+	}
+	return items
+}
+
+// proposalID is the identity of a proposal of n for a workspace: the same
+// command proposed again is the same item.
+func proposalID(workspace string, n *Next) ItemID {
+	return itemID("proposal", workspace, strconv.Itoa(int(n.Kind)), n.Text, n.Key)
+}
+
+// mergePending adds extra to items: an extra item of the identity of an item
+// already listed gives that item its reasons, and any other is appended.
+// Contract: no item is listed twice and none is dropped.
+func mergePending(items, extra []PendingItem) []PendingItem {
+	for _, e := range extra {
+		i := slices.IndexFunc(items, func(it PendingItem) bool { return it.ID == e.ID })
+		if i < 0 {
+			items = append(items, e)
+			continue
+		}
+		items[i].Reasons = append(items[i].Reasons, e.Reasons...)
 	}
 	return items
 }

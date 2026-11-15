@@ -2,7 +2,7 @@
 // session drives to watch the Herdr workspaces of this repository.
 //
 // The command line is `chief <subcommand> [flags] --protocol N`, the
-// subcommands start, snapshot, send, relay, detail, and release. Standard output is
+// subcommands start, snapshot, tick, wait, send, relay, detail, and release. Standard output is
 // one JSON value. The exit code is 0 for a finished run (a decision not to
 // send is a finished run), 1 for a failure of the tool, 2 for a wrong
 // command line, and 3 for a refusal that did nothing: outside Herdr, another
@@ -39,6 +39,8 @@ const (
 const (
 	cmdStart    = "start"
 	cmdSnapshot = "snapshot"
+	cmdTick     = "tick"
+	cmdWait     = "wait"
 	cmdSend     = "send"
 	cmdRelay    = "relay"
 	cmdDetail   = "detail"
@@ -54,19 +56,24 @@ const (
 	flagPR        = "--pr"
 	flagCheck     = "--check"
 	flagAnswer    = "--answer"
+	flagSince     = "--since"
+	flagTimeout   = "--timeout"
 )
 
 // subcommandFlags lists each subcommand's required and optional flags.
 var subcommandFlags = map[string]struct{ required, optional []string }{
 	cmdStart:    {required: []string{flagProtocol}},
 	cmdSnapshot: {required: []string{flagProtocol}},
+	cmdTick:     {required: []string{flagProtocol}},
+	cmdWait:     {required: []string{flagProtocol, flagSince}, optional: []string{flagTimeout}},
 	cmdSend:     {required: []string{flagProtocol, flagWorkspace, flagCommand}, optional: []string{flagIssue, flagPR}},
 	cmdRelay:    {required: []string{flagProtocol, flagWorkspace, flagCheck, flagAnswer}},
 	cmdDetail:   {required: []string{flagProtocol, flagWorkspace}},
 	cmdRelease:  {required: []string{flagProtocol, flagWorkspace}},
 }
 
-var errUsage = errors.New("usage: chief start|snapshot --protocol N | " +
+var errUsage = errors.New("usage: chief start|snapshot|tick --protocol N | " +
+	"wait --since B [--timeout S] --protocol N | " +
 	"send --workspace W --command K [--issue N|--pr N] --protocol N | " +
 	"relay --workspace W --check C --answer 1=N --protocol N | " +
 	"detail --workspace W --protocol N | release --workspace W --protocol N")
@@ -86,7 +93,9 @@ type result struct {
 	Message  string `json:"message,omitempty"`
 	StateDir string `json:"state_dir,omitempty"`
 	TookOver bool   `json:"took_over,omitempty"`
-	Removed  int    `json:"removed_notices,omitempty"`
+	// Removed counts the notice, round, and observation records of finished
+	// sessions that start removed.
+	Removed int `json:"removed_session_records,omitempty"`
 	// Stopped counts the workspaces' sends found without an end, each of
 	// which stopped its workspace; RemovedSends the send and detail records
 	// removed.
@@ -145,6 +154,8 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 		req.send, err = chief.ParseSendRequest(flags[flagWorkspace], flags[flagCommand], flags[flagIssue], flags[flagPR])
 	case cmdRelay:
 		req.relay, err = chief.ParseRelayRequest(flags[flagWorkspace], flags[flagCheck], flags[flagAnswer])
+	case cmdWait:
+		req.wait, err = chief.ParseWaitRequest(flags[flagSince], flags[flagTimeout])
 	}
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "chief:", err)
@@ -190,7 +201,15 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 	}
 	deps := chief.Deps{Env: env, Cmds: cmds, Store: store, Now: now, Sleep: sleep}
 	out, err := dispatch(ctx, subcommand, flags, req, deps, owner)
-	if err != nil {
+	switch {
+	case errors.Is(err, chief.ErrWaitTimeout):
+		return write(stdout, stderr, result{Protocol: chief.Protocol, Outcome: "timeout", Message: err.Error()}, exitFailure)
+	case err != nil:
+		// A wait that runs on can find the lock taken over by another
+		// session; that is a refusal, as at the start of any subcommand.
+		if code, refused := refuseOwner(err, refuse); refused {
+			return code
+		}
 		return fail(err)
 	}
 	return write(stdout, stderr, out, exitOK)
@@ -200,6 +219,7 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 type requests struct {
 	send  chief.SendRequest
 	relay chief.RelayRequest
+	wait  chief.WaitRequest
 }
 
 // dispatch runs a subcommand other than start, once its caller is known to
@@ -209,6 +229,12 @@ func dispatch(ctx context.Context, subcommand string, flags map[string]string, r
 	case cmdSnapshot:
 		snap, err := chief.TakeSnapshot(ctx, deps, owner)
 		return snap.Output(), err
+	case cmdTick:
+		out, err := chief.Tick(ctx, deps, owner)
+		return out.Output(), err
+	case cmdWait:
+		out, err := chief.Wait(ctx, deps, owner, req.wait)
+		return out.Output(), err
 	case cmdSend:
 		out, err := chief.Send(ctx, deps, req.send)
 		return out.Output(), err
@@ -230,17 +256,27 @@ func dispatch(ctx context.Context, subcommand string, flags map[string]string, r
 // in this session or the caller is not the lock's owner.
 func requireOwner(store chief.Store, owner chief.Owner, refuse func(string, string) int, fail func(error) int) (int, bool) {
 	err := store.Require(owner)
-	switch {
-	case err == nil:
+	if err == nil {
 		return 0, true
+	}
+	if code, refused := refuseOwner(err, refuse); refused {
+		return code, false
+	}
+	return fail(err), false
+}
+
+// refuseOwner refuses for an error that says the caller does not own the
+// lock: start has not run, another session owns it, or it cannot be read.
+func refuseOwner(err error, refuse func(string, string) int) (int, bool) {
+	switch {
 	case errors.Is(err, chief.ErrNotStarted):
-		return refuse("not_started", err.Error()), false
+		return refuse("not_started", err.Error()), true
 	case errors.Is(err, chief.ErrNotOwner):
-		return refuse("not_owner", err.Error()), false
+		return refuse("not_owner", err.Error()), true
 	case errors.Is(err, chief.ErrLockUnverifiable):
-		return refuse("lock_unverifiable", err.Error()), false
+		return refuse("lock_unverifiable", err.Error()), true
 	default:
-		return fail(err), false
+		return 0, false
 	}
 }
 

@@ -208,6 +208,9 @@ func TestRunRefusals(t *testing.T) {
 // testCheck has the shape of a check value and is no question's.
 const testCheck = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
+// testBaseline is a value of the form `chief wait --since` takes.
+const testBaseline = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
 func TestRunUsageErrors(t *testing.T) {
 	for _, args := range [][]string{
 		nil,
@@ -215,7 +218,13 @@ func TestRunUsageErrors(t *testing.T) {
 		{"start", "--protocol"},
 		{"start", "--protocol", "1", "extra"},
 		{"snapshot", "1", "--protocol"},
-		{"tick", "--protocol", "1"},
+		{"weakreview", "--protocol", "1"},
+		{"tick", "--since", testBaseline, "--protocol", "1"},
+		{"wait", "--protocol", "1"},
+		{"wait", "--since", "not-a-baseline", "--protocol", "1"},
+		{"wait", "--since", testBaseline, "--timeout", "0", "--protocol", "1"},
+		{"wait", "--since", testBaseline, "--timeout", "3601", "--protocol", "1"},
+		{"wait", "--since", testBaseline, "--timeout", "07", "--protocol", "1"},
 		{"--protocol", "1", "start"},
 		{"start", "--protocol", "1", "--protocol", "1"},
 		{"snapshot", "--workspace", "/w", "--protocol", "1"},
@@ -267,6 +276,46 @@ func TestStartThenSnapshot(t *testing.T) {
 	}
 	if out["state_dir"] != filepath.Join(h.state, "yt2column", "chief") {
 		t.Errorf("state_dir = %v", out["state_dir"])
+	}
+}
+
+// TestStartThenTickAndWait runs tick and wait after start: the tick prints
+// the snapshot's members with its automatic sends and a baseline, and a
+// wait on that baseline with nothing changing ends at its time limit with
+// exit 1 and the outcome "timeout".
+func TestStartThenTickAndWait(t *testing.T) {
+	h := newHarness(t)
+	if code, out := h.run("start", "--protocol", "1"); code != exitOK {
+		t.Fatalf("start = %d, %v", code, out)
+	}
+	code, out := h.run("tick", "--protocol", "1")
+	if code != exitOK {
+		t.Fatalf("tick = %d, %v", code, out)
+	}
+	for _, key := range []string{"rows", "pending", "new_notices", "problems", "auto_sends"} {
+		if list, ok := out[key].([]any); !ok || len(list) != 0 {
+			t.Errorf("%s = %v, want an empty list and not null", key, out[key])
+		}
+	}
+	baseline, ok := out["baseline"].(string)
+	if !ok || baseline == "" {
+		t.Fatalf("baseline = %v", out["baseline"])
+	}
+	clock := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
+	sleeps := 0
+	sleep := func(_ context.Context, d time.Duration) error {
+		sleeps++
+		clock = clock.Add(d)
+		return nil
+	}
+	var stdout, stderr bytes.Buffer
+	code = run(context.Background(), []string{"wait", "--since", baseline, "--timeout", "6", "--protocol", "1"}, h.env, nil, h.fake.factory, func() time.Time { return clock }, sleep, &stdout, &stderr)
+	var res map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
+		t.Fatalf("wait output %q: %v", stdout.String(), err)
+	}
+	if code != exitFailure || res["outcome"] != "timeout" || sleeps != 2 {
+		t.Errorf("wait = %d, %v after %d sleeps; want exit 1, timeout, after 2", code, res, sleeps)
 	}
 }
 

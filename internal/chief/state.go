@@ -154,6 +154,8 @@ type workspaceFacts struct {
 	Unreadable []string
 	// Head is what the worktree's HEAD is; a task is read only from a branch.
 	Head headState
+	// Branch is the checked-out branch, empty unless Head is headBranch.
+	Branch string
 	// Task is the task of the branch, zero when the branch names none.
 	Task paneinput.TaskID
 	// Docs is origin/main's documents of the task, nil when there is no task.
