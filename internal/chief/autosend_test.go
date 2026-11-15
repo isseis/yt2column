@@ -139,7 +139,7 @@ func newMergeWorld(t *testing.T, docs fakeDocs) *mergeWorld {
 	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON, Docs: &docs}, "claude", "opencode")
 	sw.git(sw.chiefTree, "rev-parse "+originMain, mainCommit+"\n")
 	sw.git(sw.chiefTree, "ls-remote origin "+remoteMainRef, mainCommit+"\trefs/heads/main\n")
-	sw.git(tree, "status --porcelain", "")
+	sw.git(tree, "status --porcelain --untracked-files=all", "")
 	sw.git(tree, "rev-list --count "+originMain+"..HEAD", "0\n")
 	sw.git(tree, "rev-parse HEAD", mainCommit+"\n")
 	sw.git(tree, "rev-parse "+originMain, mainCommit+"\n")
@@ -516,6 +516,23 @@ func TestResetAfterAutoSend(t *testing.T) {
 			t.Errorf("reset = %+v; want none, for the same pane", res.Actions[1:])
 		}
 	})
+	t.Run("the report names another command", func(t *testing.T) {
+		mw := newMergeWorld(t, mkarchDocs)
+		mw.tick(time.Minute)
+		mw.merge(nextBranch, "")
+		// The /runpr pane's last message names the PR but no NEXT, which
+		// lets the send go on (no report disagrees) and is no report of the
+		// command sent, so the pane is not emptied.
+		screen := strings.Replace(runprReportScreen(t, 42, ""), runprNoneLine+"\n", "", 1)
+		if !strings.Contains(screen, "#42") || strings.Contains(screen, "NEXT:") {
+			t.Fatal("the edited report still has its NEXT line or lost its PR")
+		}
+		mw.byPane["w1:p2"].screen = screen
+		res := only(t, mw.tick(time.Minute))
+		if !sentCommand(res) || len(res.Actions) != 2 || res.Actions[1].Reason != NotSentNoReport {
+			t.Fatalf("auto send = %+v; want the command sent and no reset", res)
+		}
+	})
 	t.Run("the report names another PR", func(t *testing.T) {
 		mw := newMergeWorld(t, mkarchDocs)
 		mw.tick(time.Minute)
@@ -537,8 +554,20 @@ func TestResetAfterAutoSend(t *testing.T) {
 // session took it over) and, on its own, by the session chief's pane has
 // now (the session was cleared and nothing took the lock yet).
 func TestAutoSendStopsForANewOwner(t *testing.T) {
-	for _, paneToo := range []bool{false, true} {
-		t.Run(map[bool]string{false: "the lock is taken over", true: "only the pane's session changes"}[paneToo], func(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		paneToo bool
+		// call is the read of the merged PR's state before which the
+		// change comes: 1, before the exclusion; 2, while the conditions
+		// are read again under it.
+		call int
+	}{
+		{"the lock is taken over", false, 1},
+		{"only the pane's session changes", true, 1},
+		{"the lock is taken over under the exclusion", false, 2},
+	} {
+		paneToo := c.paneToo
+		t.Run(c.name, func(t *testing.T) {
 			mw := newMergeWorld(t, mkarchDocs)
 			mw.tick(time.Minute)
 			mw.merge(nextBranch, "`/mkarch 0001`")
@@ -546,9 +575,10 @@ func TestAutoSendStopsForANewOwner(t *testing.T) {
 			// The change comes while the tick reads the merged PR, after
 			// it read the previous round's observations and before it takes
 			// the exclusion.
-			took := false
+			took, calls := false, 0
 			mw.rec.replyFunc(prStateLine, func() reply {
-				if !took {
+				calls++
+				if calls == c.call {
 					took = true
 					cleared := mw.chief
 					cleared.Session = "00000000-0000-4000-8000-0000000000c9"
@@ -567,7 +597,7 @@ func TestAutoSendStopsForANewOwner(t *testing.T) {
 				t.Fatal(err)
 			}
 			res := only(t, out)
-			if !took || len(res.Actions) != 1 || res.Actions[0].Reason != NotSentConditions || len(mw.rec.prompts()) != 0 {
+			if !took || len(res.Actions) != 1 || res.Actions[0].Outcome != OutcomeNotSent || len(mw.rec.prompts()) != 0 {
 				t.Fatalf("auto send of the replaced owner = %+v (took over %v), prompts %v", res, took, mw.rec.prompts())
 			}
 			if sent, _ := mw.store.AutoSent(42); sent {
@@ -641,6 +671,7 @@ func TestGitClean(t *testing.T) {
 	if !clean() {
 		t.Error("an ignored file reads as a change")
 	}
+	repo.Git("config", "status.showUntrackedFiles", "no")
 	repo.Write("new.txt", "x\n")
 	if clean() {
 		t.Error("an untracked file reads as clean")
@@ -685,10 +716,15 @@ func TestAutoSendRechecksUnderTheExclusion(t *testing.T) {
 		name string
 		// call is the read of the merged PR's state (1: the first reading,
 		// 2: the reading under the exclusion) before which change runs.
-		call   int
+		call int
+		// docs are the documents before the change; empty is mkarchDocs.
+		docs   *fakeDocs
 		change func(mw *mergeWorld)
 		check  func(t *testing.T, res AutoSendResult)
 	}{
+		{name: "the route of the next command changes", call: 2, docs: new(runplanDocs(t, "marker-opus.md")), change: func(mw *mergeWorld) {
+			mw.docs(mw.tree, runplanDocs(mw.t, "marker-sonnet.md"))
+		}},
 		{name: "an agent starts", call: 1, change: func(mw *mergeWorld) { mw.byPane["w1:p1"].Status = "working" }},
 		{name: "another send starts", call: 1, change: func(mw *mergeWorld) {
 			records, err := mw.store.Records(Worktree{path: mw.tree})
@@ -718,9 +754,13 @@ func TestAutoSendRechecksUnderTheExclusion(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			mw := newMergeWorld(t, mkarchDocs)
+			docs := mkarchDocs
+			if c.docs != nil {
+				docs = *c.docs
+			}
+			mw := newMergeWorld(t, docs)
 			mw.tick(time.Minute)
-			mw.merge(nextBranch, "`/mkarch 0001`")
+			mw.merge(nextBranch, "")
 			// A pane with no NEXT line agrees with any next command.
 			mw.byPane["w1:p2"].screen = readScreenSample(t, "opencode-done.ansi")
 			calls := 0
@@ -876,5 +916,37 @@ func TestAutoSendStateUnreadable(t *testing.T) {
 	mw.rec.replyIn(mw.tree, prStateLine, []byte(prMergedJSON))
 	if out := mw.tick(time.Minute); len(out.AutoSends) != 0 {
 		t.Errorf("an unread state was carried: %+v", out.AutoSends)
+	}
+}
+
+// TestAutoSendAfterAManualSend checks that a command the human sent by hand
+// after the round that saw the PR open is not sent again by itself, though
+// the command ended and left the workspace waiting.
+func TestAutoSendAfterAManualSend(t *testing.T) {
+	mw := newMergeWorld(t, mkarchDocs)
+	mw.tick(time.Minute)
+	mw.now = mw.now.Add(time.Second)
+	records, err := mw.store.Records(Worktree{path: mw.tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	held, err := records.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := held.BeginSend(SendRecord{Pane: "w1:p1", Input: InputCommand.String(), Command: "/mkarch 0001"}, mw.now)
+	if err == nil {
+		err = held.EndSend(id, OutcomeSent.String(), "", mw.now)
+	}
+	if cerr := held.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	mw.merge(nextBranch, "`/mkarch 0001`")
+	res := only(t, mw.tick(time.Minute))
+	if sentCommand(res) || len(mw.rec.prompts()) != 0 {
+		t.Errorf("the command sent by hand was sent again: %+v", res)
 	}
 }

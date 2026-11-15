@@ -225,6 +225,7 @@ func TestRunUsageErrors(t *testing.T) {
 		{"wait", "--since", testBaseline, "--timeout", "0", "--protocol", "1"},
 		{"wait", "--since", testBaseline, "--timeout", "3601", "--protocol", "1"},
 		{"wait", "--since", testBaseline, "--timeout", "07", "--protocol", "1"},
+		{"wait", "--since", testBaseline, "--timeout", "9223372036854775807", "--protocol", "1"},
 		{"--protocol", "1", "start"},
 		{"start", "--protocol", "1", "--protocol", "1"},
 		{"snapshot", "--workspace", "/w", "--protocol", "1"},

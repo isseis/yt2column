@@ -236,9 +236,11 @@ func taskOfBranch(branch string) (paneinput.TaskID, bool) {
 }
 
 // Clean reports whether worktree has no uncommitted change and no untracked
-// file that is not ignored, by `git status --porcelain`.
+// file that is not ignored, by `git status --porcelain`. Untracked files are
+// asked for by the option, so a configuration that hides them does not make
+// a worktree read as clean.
 func (g GitReader) Clean(ctx context.Context, worktree string) (bool, error) {
-	out, err := g.cmds.git(ctx, worktree, "status", "--porcelain")
+	out, err := g.cmds.git(ctx, worktree, "status", "--porcelain", "--untracked-files=all")
 	if err != nil {
 		return false, err
 	}

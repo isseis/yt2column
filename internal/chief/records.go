@@ -770,6 +770,29 @@ func (r WorkspaceRecords) SentSince(t time.Time) (bool, error) {
 	return slices.ContainsFunc(starts, func(id string) bool { return id >= since }), nil
 }
 
+// SentCommandSince reports whether a send of the command line started at t
+// or later.
+func (r WorkspaceRecords) SentCommandSince(t time.Time, command string) (bool, error) {
+	starts, _, err := r.sendFiles()
+	if err != nil {
+		return false, err
+	}
+	since := fmt.Sprintf("%020d", t.UnixNano())
+	for _, id := range starts {
+		if id < since {
+			continue
+		}
+		var rec SendRecord
+		if err := r.store().read(sendPrefix+id+startSuffix, &rec); err != nil {
+			return false, err
+		}
+		if rec.Command == command {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // cleanup removes the sends whose start and end are both written and the PR
 // details older than detailMaxAge. A start without an end is never removed.
 func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {

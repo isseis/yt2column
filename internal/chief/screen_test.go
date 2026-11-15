@@ -780,6 +780,11 @@ func TestReadRunprReport(t *testing.T) {
 	if report, ok := readRunprReport(paneinput.AgentOpenCode, spaced); !ok || !slices.Contains(report.PRs, 42) || slices.Contains(report.PRs, 421) {
 		t.Errorf("a number after a space = %+v, %v; want #42 and not #421", report, ok)
 	}
+	// Only this line names #42; the sample's other mentions stay #867.
+	split := strings.Replace(readScreenSample(t, "opencode-runpr-report.txt"), "     PR #867 のマージまで完了しました。\n", "     PR #42\n     1 件のマージまで完了しました。\n", 1)
+	if report, ok := readRunprReport(paneinput.AgentOpenCode, split); !ok || !slices.Contains(report.PRs, 42) {
+		t.Errorf("a number at a line end followed by a line of digits = %+v, %v; want #42", report, ok)
+	}
 	report, ok = readRunprReport(paneinput.AgentClaudeCode, readScreenSample(t, "claude-command-report.ansi"))
 	if !ok || report.Next.Kind != NextAbsent || !slices.Contains(report.PRs, 867) {
 		t.Errorf("Claude Code report = %+v, %v; want no NEXT naming #867", report, ok)

@@ -3,6 +3,7 @@ package chief
 import (
 	"context"
 	"strconv"
+	"time"
 )
 
 // TickOutcome is what `chief tick` did: the snapshot of the round, read
@@ -49,14 +50,16 @@ func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 		}
 	}
 	var prev []Observation
+	var prevAt time.Time
 	if start.Prev != nil && start.Cur.At.Sub(start.Prev.At) < observeWindow {
+		prevAt = start.Prev.At
 		var errs []error
 		prev, errs = deps.Store.Observations(owner.Session, start.Prev.ID)
 		for _, err := range errs {
 			view.problems = append(view.problems, "an observation of the previous round cannot be read: "+err.Error())
 		}
 	}
-	a := &autoSender{deps: deps, view: &view, owner: owner, round: start.Cur, herdr: NewHerdr(deps.Cmds), git: NewGitReader(deps.Cmds), tasks: NewTasks(deps.Cmds)}
+	a := &autoSender{deps: deps, view: &view, owner: owner, round: start.Cur, prevAt: prevAt, herdr: NewHerdr(deps.Cmds), git: NewGitReader(deps.Cmds), tasks: NewTasks(deps.Cmds)}
 	results := a.run(ctx, prev, open)
 	extra := applyAutoSends(&view, results)
 	return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, extra), AutoSends: results}, nil

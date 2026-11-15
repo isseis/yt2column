@@ -283,7 +283,8 @@ func openCodeLastMessage(raw string) ([]string, bool) {
 type RunprReport struct {
 	Next RunprNext
 	// PRs are the numbers the report names as "#N" or as a PR URL's
-	// "/pull/N", read with the lines the terminal wrapped joined again.
+	// "/pull/N", read from each line and from the lines joined again, since a
+	// line break may be the terminal's wrap or the report's own.
 	PRs []int
 }
 
@@ -308,11 +309,12 @@ func readRunprReport(agent paneinput.AgentKind, raw string) (RunprReport, bool) 
 		return RunprReport{}, false
 	}
 	report := RunprReport{Next: readRunprNext(joinTexts(texts))}
-	squeezed := squeeze(texts)
-	for _, m := range prReference.FindAllStringSubmatchIndex(squeezed, -1) {
-		n, err := strconv.Atoi(squeezed[m[2]:m[3]])
-		if err == nil && !slices.Contains(report.PRs, n) {
-			report.PRs = append(report.PRs, n)
+	for _, text := range append(slices.Clone(texts), squeeze(texts)) {
+		for _, m := range prReference.FindAllStringSubmatch(text, -1) {
+			n, err := strconv.Atoi(m[1])
+			if err == nil && !slices.Contains(report.PRs, n) {
+				report.PRs = append(report.PRs, n)
+			}
 		}
 	}
 	return report, true

@@ -55,7 +55,7 @@ func ParseWaitRequest(since, timeout string) (WaitRequest, error) {
 	req := WaitRequest{since: WaitBaseline(since), timeout: waitDefaultTimeout}
 	if timeout != "" {
 		n, err := strconv.Atoi(timeout)
-		if err != nil || n < 1 || time.Duration(n)*time.Second > waitMaxTimeout || strconv.Itoa(n) != timeout {
+		if err != nil || n < 1 || n > int(waitMaxTimeout/time.Second) || strconv.Itoa(n) != timeout {
 			return WaitRequest{}, fmt.Errorf("%w: --timeout is not a number of seconds from 1 to %d", ErrBadWait, int(waitMaxTimeout/time.Second))
 		}
 		req.timeout = time.Duration(n) * time.Second

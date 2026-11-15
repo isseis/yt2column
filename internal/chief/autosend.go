@@ -246,9 +246,12 @@ type autoSender struct {
 	view  *roundView
 	owner Owner
 	round Round
-	herdr Herdr
-	git   GitReader
-	tasks Tasks
+	// prevAt is when the previous round, whose observations are considered,
+	// began.
+	prevAt time.Time
+	herdr  Herdr
+	git    GitReader
+	tasks  Tasks
 	// remote is origin/main compared with the remote once per round: the
 	// first candidate reads it and the others reuse it.
 	remote *remoteCheck
@@ -570,6 +573,9 @@ func (a *autoSender) send(ctx context.Context, ws TaskWorkspace, obs Observation
 	}
 	f := readWorkspace(ctx, a.herdr, a.git, a.tasks, loc.ws)
 	f.Routing, f.RoutingErr, f.FetchFailed = a.view.routing, a.view.routingErr, a.view.fetchFailed
+	// The remote is compared again: it may have moved since the first
+	// reading of this round.
+	a.remote = nil
 	facts := a.gather(ctx, obs, &loc.ws, f)
 	// A send made since the merge was first seen (by the human, between
 	// rounds of a carry) or during this round may have sent the command.
@@ -579,14 +585,20 @@ func (a *autoSender) send(ctx context.Context, ws TaskWorkspace, obs Observation
 	}
 	later, err := held.SentSince(since)
 	facts.laterSend = err != nil || later
+	// The same command sent by hand since the round that saw the PR open,
+	// before this round saw it merged, is not sent again.
+	if !facts.laterSend {
+		again, err := held.SentCommandSince(a.prevAt, res.Proposal.Text)
+		facts.laterSend = err != nil || again
+	}
 	if why := autoSendConditions(facts); len(why) > 0 {
 		res.Reasons = why
 		res.Actions = append(res.Actions, notSent(base, NotSentConditions, "a condition no longer held once the workspace's exclusion was taken"))
 		return false
 	}
-	if facts.next.Text != res.Proposal.Text {
+	if facts.next.Text != res.Proposal.Text || facts.next.Command.Route() != cmd.Route() {
 		res.Proposal = facts.next
-		res.Reasons = []string{"the next command changed to " + facts.next.Text + " while the workspace's exclusion was taken"}
+		res.Reasons = []string{"the next command or its route changed to " + facts.next.Text + " while the workspace's exclusion was taken"}
 		return false
 	}
 	route, err := a.view.routing.Route(cmd.Route())
@@ -601,6 +613,10 @@ func (a *autoSender) send(ctx context.Context, ws TaskWorkspace, obs Observation
 	}
 	recorded := false
 	sc := sendContext{deps: a.deps, herdr: a.herdr, writer: writer, held: held, ws: loc.ws, beforeBegin: func() error {
+		// The owner may have changed while the conditions were read again.
+		if err := checkOwner(ctx, a.deps, a.owner); err != nil {
+			return err
+		}
 		err := a.deps.Store.recordAutoSend(autoSendRecord{PR: obs.PR, Worktree: obs.Worktree, Task: obs.Task, Command: res.Proposal.Text, Round: a.round.ID, At: a.deps.Now()})
 		if errors.Is(err, privatefile.ErrExist) {
 			return fmt.Errorf("#%d was already sent automatically: %w", obs.PR, err)
@@ -615,7 +631,7 @@ func (a *autoSender) send(ctx context.Context, ws TaskWorkspace, obs Observation
 	res.Actions = append(res.Actions, sent)
 	switch sent.Outcome {
 	case OutcomeSent:
-		res.Actions = append(res.Actions, a.resetRunpr(ctx, sc, obs, sent.Pane))
+		res.Actions = append(res.Actions, a.resetRunpr(ctx, sc, obs, res.Proposal, sent.Pane))
 	case OutcomeRecordedNotSent:
 		res.Reasons = []string{"the automatic send was recorded, but nothing was typed: " + sent.Detail}
 	case OutcomeNotSent:
@@ -646,9 +662,10 @@ func checkOwner(ctx context.Context, deps Deps, owner Owner) error {
 // to sentPane, so /runpr's context is not carried into the pane's next
 // command. Contract: the candidate is the one pane of the agent /runpr is
 // routed to, never chosen by a screen; it is emptied only when it is not
-// sentPane and its last report still names the merged PR, and it is checked
-// and recorded like any send.
-func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observation, sentPane string) ActionResult {
+// sentPane and its last message is still the /runpr report naming the
+// merged PR and the command sent, and it is checked and recorded like any
+// send.
+func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observation, next *Next, sentPane string) ActionResult {
 	res := ActionResult{Workspace: sc.ws.Worktree, Input: InputReset}
 	// The automatic-send record belongs to the command; the reset writes
 	// only its own send record.
@@ -686,8 +703,10 @@ func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observa
 	if err != nil {
 		return notSent(res, NotSentUnreadable, "herdr agent read failed: "+err.Error())
 	}
-	if report, ok := readRunprReport(agent.Kind, raw); !ok || !slices.Contains(report.PRs, obs.PR) {
-		return notSent(res, NotSentNoReport, fmt.Sprintf("the pane's last report does not name #%d", obs.PR))
+	// The last message must still be /runpr's report of this merge, its PR
+	// and the command sent: a later answer in the pane is not emptied.
+	if report, ok := readRunprReport(agent.Kind, raw); !ok || !slices.Contains(report.PRs, obs.PR) || !agrees(report.Next, next, obs.Task) {
+		return notSent(res, NotSentNoReport, fmt.Sprintf("the pane's last message is not the /runpr report of #%d naming %s", obs.PR, next.Text))
 	}
 	seq := agent.StateChangeSeq
 	return sc.run(ctx, res, agent, []step{st}, paneCheck{session: agent.Session, seq: &seq}, route)
