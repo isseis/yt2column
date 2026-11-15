@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-15 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-15 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -301,3 +301,7 @@ CLI を変えずに記事を作る処理を共有し、料金をかけずに開�
 -   **仕様の文書:** 0090 設計書 §3.14.2 の表の各文書。
 -   **記録・ジョブの状態:** 本書では、ジョブの記録（0090 設計書 §3.2.1）と、その `state` の値（`running`・`done`・`failed`・`stopped`）を指す。用語集の「記録」（記事のキャッシュの値の組）と「ジョブの状態」（`unknown` を含む）は今のサーバの意味で、本タスクで改める（AC-33）。
 -   **食い違いの記述:** ADR の決定が、仕様の文書やコードとまだ食い違っていることを述べ、それを解消する issue にリンクする記述（[adr.md](../../dev/conventions/adr.md)「Writing an ADR」）。
+
+## 変更履歴
+
+- 2026-11-15 承認（isseis、#885）
