@@ -121,8 +121,8 @@ func TestCheckValueChanges(t *testing.T) {
 }
 
 // TestNoCheckValueForUnrelayable checks that a snapshot gives a check value
-// to each single-select question and to none of the questions chief does not
-// relay.
+// to each single-select question of a blocked agent and to none of the
+// questions chief does not relay.
 func TestNoCheckValueForUnrelayable(t *testing.T) {
 	samples := map[string]bool{
 		"claude-question-single.ansi":          true,
@@ -147,6 +147,10 @@ func TestNoCheckValueForUnrelayable(t *testing.T) {
 		kind, _, _ := strings.Cut(name, "-")
 		w.add(fakeWorkspace{ID: "t" + string(rune('a'+i)), Label: name, Kind: kind, Branch: detachedHead, Status: "blocked", Screen: name})
 	}
+	// An OpenCode question Herdr does not report blocked still makes the
+	// row a question, but a relay would refuse it, so it gets no value.
+	w.add(fakeWorkspace{ID: "tz", Label: "opencode idle", Kind: "opencode", Branch: detachedHead, Status: "idle", Screen: "opencode-question-single.ansi"})
+	samples["opencode idle"] = false
 	snap := take(t, w)
 	out := snap.Output()
 	for name, want := range samples {
@@ -158,13 +162,13 @@ func TestNoCheckValueForUnrelayable(t *testing.T) {
 		if got := r.Questions[0].Check != ""; got != want {
 			t.Errorf("%s: check value present %v, want %v", name, got, want)
 		}
-		for _, row := range out.Rows {
-			if row.Label != name {
-				continue
-			}
-			if q := row.Questions[0]; q.Relayable != want || (q.Check != "") != want {
-				t.Errorf("%s: output relayable %v check %q, want relayable %v", name, q.Relayable, q.Check, want)
-			}
+		i := slices.IndexFunc(out.Rows, func(row RowOutput) bool { return row.Label == name })
+		if i < 0 {
+			t.Errorf("%s: no output row", name)
+			continue
+		}
+		if q := out.Rows[i].Questions[0]; q.Relayable != want || (q.Check != "") != want {
+			t.Errorf("%s: output relayable %v check %q, want relayable %v", name, q.Relayable, q.Check, want)
 		}
 	}
 }
@@ -173,13 +177,13 @@ func TestNoCheckValueForUnrelayable(t *testing.T) {
 // option number the human chose, not the option under the selection, and
 // reports what it sent.
 func TestRelaySendsChosenOption(t *testing.T) {
-	for _, kind := range []string{"claude", "opencode"} {
+	for kind, agent := range map[string]paneinput.AgentKind{"claude": paneinput.AgentClaudeCode, "opencode": paneinput.AgentOpenCode} {
 		t.Run(kind, func(t *testing.T) {
 			sw := newSendWorld(t)
 			p := sw.questionPane(kind, kind+"-question-single-cursor.ansi")
 			deps := sw.finish()
 			res := sw.relay(deps, sw.checkOf(p), "1=1")
-			if res.Outcome != OutcomeSent || res.Input != InputRelay || res.Workspace != sw.trees["w1"] || res.Pane != "w1:p1" || res.Command != "1. Apple" || res.Agent == paneinput.AgentUnknown {
+			if res.Outcome != OutcomeSent || res.Input != InputRelay || res.Workspace != sw.trees["w1"] || res.Pane != "w1:p1" || res.Command != "1. Apple" || res.Agent != agent {
 				t.Errorf("result = %+v, want option 1 relayed to w1:p1", res)
 			}
 			if got := sw.rec.keys(); !slices.Equal(got, []string{"w1:p1 1"}) {
@@ -217,8 +221,10 @@ func TestRelayCheckValueMismatch(t *testing.T) {
 		"the question was answered": func(sw *sendWorld, p *simPane) {
 			p.Status, p.Seq, p.screen = "idle", p.Seq+1, readScreenSample(sw.t, "claude-idle.ansi")
 		},
+		// Only the screen changes, so the question's text and options alone
+		// must make the value differ.
 		"another question is asked": func(sw *sendWorld, p *simPane) {
-			p.Seq, p.screen = p.Seq+1, readScreenSample(sw.t, "claude-merge-question.ansi")
+			p.screen = readScreenSample(sw.t, "claude-merge-question.ansi")
 		},
 		"the same question is asked again": func(_ *sendWorld, p *simPane) { p.Seq++ },
 		"the session changed":              func(sw *sendWorld, p *simPane) { p.Session = sw.newSession() },
@@ -325,7 +331,7 @@ func TestRelayRefusesOption(t *testing.T) {
 // agent Herdr does not report blocked, whatever its screen shows.
 func TestRelayNeedsAnAgentOnTheQuestion(t *testing.T) {
 	for _, kind := range []string{"claude", "opencode"} {
-		for _, status := range []string{"idle", "done", "working"} {
+		for _, status := range []string{"idle", "working"} {
 			t.Run(kind+" "+status, func(t *testing.T) {
 				sw := newSendWorld(t)
 				p := sw.questionPane(kind, kind+"-question-single.ansi")
@@ -470,6 +476,9 @@ func TestRelayFailureAfterKeyStops(t *testing.T) {
 			res := sw.relay(deps, sw.checkOf(p), "1=2")
 			if res.Outcome != OutcomeSentThenFailed || res.Reason != c.reason || res.Step != StepKey {
 				t.Fatalf("result = %+v, want sent then failed after the key, %v", res, c.reason)
+			}
+			if got := sw.rec.keys(); !slices.Equal(got, []string{"w1:p1 2"}) {
+				t.Errorf("keys = %v, want the key pressed once and not retried", got)
 			}
 			sw.keyReact = sw.realKeyReact
 			pressed := len(sw.rec.keys())

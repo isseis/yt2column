@@ -69,9 +69,10 @@ func relayable(a Agent, q Question) bool {
 }
 
 // relayCheck returns the check value a snapshot shows for q in a's pane, or
-// "" for a question chief does not relay.
+// "" for a question chief does not relay or an agent Herdr does not report
+// blocked, which a relay would refuse.
 func relayCheck(a Agent, q Question) CheckValue {
-	if !relayable(a, q) {
+	if !relayable(a, q) || a.Status != AgentBlocked {
 		return ""
 	}
 	return checkValue(a, q)

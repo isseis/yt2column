@@ -264,6 +264,26 @@ func TestOpenCodeCursorNeedsOneMark(t *testing.T) {
 	}
 }
 
+// TestClaudeCursorOnChat moves Claude Code's cursor mark from option 1 to the
+// chat option below the widget's rule: the cursor reads as that option.
+func TestClaudeCursorOnChat(t *testing.T) {
+	base := plainSample(t, "claude-question-single.ansi")
+	if q := parseClaudeScreen(base).Question; q == nil || q.Cursor != 1 {
+		t.Fatalf("the plain sample reads as %+v, want the cursor on 1", q)
+	}
+	edits := [][2]string{{"❯ 1. Apple", "  1. Apple"}, {"  5. Chat about this", "❯ 5. Chat about this"}}
+	for _, e := range edits {
+		if strings.Count(base, e[0]) != 1 {
+			t.Fatalf("the sample does not hold %q once", e[0])
+		}
+		base = strings.Replace(base, e[0], e[1], 1)
+	}
+	got := parseClaudeScreen(base)
+	if got.Question == nil || got.Question.Kind != QuestionSingle || got.Question.Cursor != 5 {
+		t.Errorf("question = %+v, want a single-select question with the cursor on 5", got.Question)
+	}
+}
+
 func TestParseScreenOptionDescriptions(t *testing.T) {
 	for _, c := range []struct {
 		name  string
