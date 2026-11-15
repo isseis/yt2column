@@ -283,6 +283,16 @@ func TestSendStopsBetweenInputs(t *testing.T) {
 			}
 			return sw.realReact(p, text)
 		}, 3, StepCommand, NotSentNoStep},
+		// Seen in the live check: the command was typed but not submitted,
+		// and the pane's state changed for another reason.
+		{"the command stays in the input line", func(sw *sendWorld, p *simPane, text string) error {
+			if strings.HasPrefix(text, "/runplan") {
+				p.Seq++
+				p.screen = readScreenSample(sw.t, "claude-input-left.ansi")
+				return nil
+			}
+			return sw.realReact(p, text)
+		}, 3, StepCommand, NotSentNoStep},
 		{"herdr fails to type the command", func(sw *sendWorld, p *simPane, text string) error {
 			if strings.HasPrefix(text, "/runplan") {
 				return errNoReply

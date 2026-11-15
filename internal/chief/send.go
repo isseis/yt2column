@@ -540,8 +540,12 @@ func (s sendContext) await(ctx context.Context, before Agent, st step, route pan
 	case StepModel:
 		return s.awaitModel(ctx, before, route.ClaudeModel())
 	case StepCommand:
+		// Only the agent's status shows that the command started: a changed
+		// state_change_seq alone does not, since a command typed but not
+		// submitted can sit in the input line while the state changes for
+		// another reason.
 		return s.poll(ctx, before, "the agent did not start the command", func(a Agent, _ string) bool {
-			return a.Status == AgentWorking || a.Status == AgentBlocked || a.StateChangeSeq != before.StateChangeSeq
+			return a.Status == AgentWorking || a.Status == AgentBlocked
 		})
 	default:
 		return before, &checkFailure{reason: NotSentUnreadable, detail: "an input of no known kind", agent: before}
