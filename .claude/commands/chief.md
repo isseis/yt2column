@@ -193,8 +193,12 @@ modes, since the human has just chosen and is answering.
 - **何もしない**: nothing. Go on watching (step 5), or stop with `once`.
 - **A question** (`question` or `merge_confirmation`): show the workspace's
   label, the pane, the question's `text`, and every option's number, label,
-  and description, as the tool gave them (requirements AC-25). When `tabs` is
-  not empty, say that the screen has more questions than this one.
+  and description, as the tool gave them (requirements AC-25). Write each
+  option as one plain line, `[<number>] <label>: <description>`, with the
+  tool's number, never a letter or a number of your own and never
+  `<number>.` or `<number>)` (step 3 says why): the human who answers in
+  the pane chooses by the number the pane shows. When `tabs` is not empty,
+  say that the screen has more questions than this one.
   - When `relayable` is false, say that chief does not relay this question
     and that the human answers it in that pane directly.
   - Otherwise ask the human which option to choose, with an
