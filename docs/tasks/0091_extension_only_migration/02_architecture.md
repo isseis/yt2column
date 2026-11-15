@@ -22,7 +22,7 @@
 本書の用語は、要件書 §6 と 0090 設計書 §1 による。加えて、次の語を使う。
 
 -   **LLM の実装:** 記事生成モジュールの `main` が `internal/extjob` に渡す、LLM のクライアントを作る関数と、API キーを確かめる関数の組（`extjob.Backend`、§3.3）。公開用の記事生成モジュールは Claude の実装（`internal/extjob/claudebackend`）を、開発用の記事生成モジュールは fake の実装（`internal/extjob/devbackend`）を渡す。
--   **ビルドの種類:** 公開用のビルド（`release`）か開発用のビルド（`dev`）か。拡張のビルドが成果物に書く 1 つのモジュールで宣言する（§3.5）。
+-   **ビルドの種類:** 公開用のビルド（`release`）か開発用のビルド（`dev`）か。`static/` に置く 1 つのモジュール（`buildKind.js`）で宣言する。公開用のビルドはそれを写し、開発用のビルドは `dev` の値に置き換える（§3.5）。
 -   **保存した設定:** 実行するビューアが `chrome.storage.local` から読んだ、`anthropic.apiKey` と `anthropic.workspaceId` の 2 つの項目の値。検査する前の値である（§3.3）。
 -   **キーの確かめ:** オプションページの保存のボタンが、保存の前に Models API を 1 回呼んで API キーを確かめること（0090 設計書 §3.6）。
 -   **変更の知らせ:** `chrome.storage` の `onChanged` のイベント。変わった項目の値を載せる（要件書 AC-20 の語）。
@@ -42,7 +42,7 @@
 -   **ポップアップのオプションページへのリンクは、詳細の節の後に置く（§3.7、申し送り H-04）。** 主ボタンの操作と紛れず、フォーカスの順が「主ボタン → 詳細 → 設定」になるためである。API キーが設定されていないときのオプションページを開く操作は、状態の表示の中に置き、リンクの位置には置かない。採らなかった案は、ポップアップの上部に置く案である。見つけやすいが、フォーカスの順で主ボタンより前に来る。ADR: なし（ポップアップの表示の決定で、[ADR-0008](../../dev/adr/0008-launch-path.md) の起動の経路を変えない）。
 -   **記録がないビューアのページのタイトルは、2 つの案を本書で決めておき、どちらで実装するかは、ページのタイトルを実装する PR より前の手動の確認で決める（§3.8.2、申し送り H-05）。** 上書きされないなら案 A（状態の分かる固定のタイトル）、上書きされるなら案 B（ビューアの URL に、動画のタイトルを 64 コードポイントまでに切った値をクエリ `t` で加える）で実装する。設計を止めずに書き進められ、どちらの結果でも設計を作り直さないためである。採らなかった案は、人が先に Chrome と Brave で確かめ、当たる案だけを書く案である。設計は短くなるが、確かめにはブラウザの再起動とセッションの復元が要り、設計の作業を止める。ADR: なし（案 B で実装するときは、その PR で [ADR-0010](../../dev/adr/0010-extension-stores-nothing.md) を改める。要件書 §1）。
 -   **文字を伏せた API キーの欄を支援技術が読み上げるかは、オプションページを実装する PR で VoiceOver で確かめ、読み上げるときだけ欄の説明に注意を添える（§3.6、申し送り H-12）。** 読み上げないのに注意を添えると、利用者に誤ったことを伝えるためである。採らなかった案は、確かめずに注意を添える案である。ADR: なし（オプションページの表示の決定である）。
--   **拡張の送信で Anthropic の 401 を読めるかは、オプションページを実装する PR より前に、Chrome と Brave で手で確かめる（§7.2）。** 公開用のビルドは `host_permissions` を持たないので、送信はどれも CORS の対象になる。PoC が 401 を見たのは、`host_permissions` を付けて事前の確認がなかった試行だけである（[調査記録](../../research/wasm_pipeline_poc/README.md)「測定 3」の 3-b）。401 の応答が CORS の許可を持たなければ、Go は通信の失敗として受け取り、キーの確かめは `unverified` になって誤ったキーを保存し、記事の生成は `api_key_rejected` でなく `llm_failed` になる（要件書 AC-02・AC-12 を満たさない）。確かめは、誤ったキーで `GET /v1/models` と `POST /v1/messages` を呼ぶもので、401 には料金がかからない。読めないと分かったときは、人と決め直し、ADR-0010 の保存のときの確かめを改める。採らなかった案は、設計の承認の前に試作で確かめる案である。ADR: なし（確かめの時期の決定で、本タスクの中で閉じる）。
+-   **拡張の送信で Anthropic の 401 を読めるかは、オプションページを実装する PR より前に、Chrome と Brave で手で確かめる（§7.2）。** 公開用のビルドは `host_permissions` を持たないので、送信はどれも CORS の対象になる。PoC が 401 を見たのは、`host_permissions` を付けて事前の確認がなかった試行だけである（[調査記録](../../research/wasm_pipeline_poc/README.md)「測定 3」の 3-b）。401 の応答が CORS の許可を持たなければ、Go は通信の失敗として受け取り、キーの確かめは `unverified` になって誤ったキーを保存し、記事の生成は `api_key_rejected` でなく `llm_failed` になる（要件書 AC-02・AC-12 を満たさない）。確かめは、公開用のビルドと同じヘッダの組（`anthropic-workspace-id` のありとなし）で、誤ったキーで `GET /v1/models` と `POST /v1/messages` を呼ぶもので、401 には料金がかからない。読めないと分かったときは、人と決め直し、ADR-0010 の保存のときの確かめを改める。採らなかった案は、設計の承認の前に試作で確かめる案である。ADR: なし（確かめの時期の決定で、本タスクの中で閉じる）。
 -   **`internal/config` は、サーバとホストの設定の読み込みのファイルに `!js` のビルドタグを付けて、WASM でビルドできるようにし、撤去の PR でそのファイルごと除く（§3.2、申し送り H-02）。** 撤去の前の PR で記事生成モジュールをビルドするのに要るためである。撤去の PR の完了の条件に、`internal/config` に `!js` のビルドタグが残らないことを入れる。採らなかった案は、記事生成モジュール用の関数を `internal/privatefile` に依存しない別のパッケージに置く案である。CLI と同じ値の読み込みの関数（`loadLLM` など、`internal/config` の公開しない関数）を使えず、公開するか写すことになる。ADR: なし（撤去までの間だけの手段で、本タスクの中で閉じる）。
 -   **今のサーバのテストの行を、サーバを撤去する前の PR で `internal/extjob` のテストに写し、両方が同じ行で通ることを確かめてから、撤去の PR でサーバのテストを削除する（§7.4、申し送り H-03）。** サーバを撤去した後は、比べる相手がないためである。ADR: なし（テストの進め方で、本タスクの中で閉じる）。
 -   **実行するビューアは、保存した設定を検査せずにそのまま `generate` に渡し、記事生成モジュールが形を検査して、合わなければ `settings_invalid` にする（§3.3、申し送り H-08）。** 0090 設計書 §3.1.2 の `GenerateRequest` は API キーとワークスペース ID を文字列として受け取るので、ワークスペース ID の項目がないことと、文字列でない値が保存されていることを表せず、ビューアが型を確かめることになる。設定の規則を Go の 1 か所に置くため（要件書 §3.2）、受け渡しの形を変えた。ADR: [ADR-0049](../../dev/adr/0049-wasm-core-sharing.md) を更新した（`generate` は保存した設定を検査前の値で受け取り、記事生成モジュールが形を検査する）。
@@ -50,10 +50,10 @@
 -   **拡張のページと SW は、変更の知らせを `chrome.storage.session.onChanged` だけで受け取り、`chrome.storage.onChanged` と `chrome.storage.local.onChanged` を使わない（§3.8.1・§5.4、申し送り H-11）。** `chrome.storage.onChanged` と `chrome.storage.local.onChanged` は、オプションページが保存した API キーの値を、ポップアップ、表示するビューア、SW に届けてしまうからである（要件書 AC-20）。0090 設計書 §1.2 と ADR は `chrome.storage.onChanged` で表示を更新するとしていた。採らなかった案は、`chrome.storage.onChanged` で受け取り、`local` の変更を無視する案である。無視しても値はページに届く。ADR: [ADR-0031](../../dev/adr/0031-secret-closure.md) に規則と理由を置き、[ADR-0027](../../dev/adr/0027-article-job-api.md)・[ADR-0008](../../dev/adr/0008-launch-path.md)・[ADR-0009](../../dev/adr/0009-viewer-opening.md)・[ADR-0028](../../dev/adr/0028-no-automatic-resend.md) を更新した。
 -   **拡張のコードは、`chrome.storage` を `browser/chromeDeps.ts` の決まった関数だけを通して使い、lint で強いる（§5.4）。** 今の ESLint の規則は、`storage` と `session` の名前の参照と、`fetch` などの送信を、拡張のすべてのコードで拒否している（`extension/eslint.config.js`。拡張が設定を持たず送信しなかったときの規則である）。この規則を外すだけでは、拡張の TypeScript が Anthropic の API を直接呼び、Go の送信の守り（§5.3）を通らない道ができ、`StorageArea` を渡せば API キーを読む呼び出しがソースの検査をすり抜ける。採らなかった案は、`anthropic.apiKey` の名前を手がかりにするソースの検査だけにする案である。`get(null)` のような、名前を書かずに全部を読む呼び出しを見逃す。ADR: なし（ADR-0031 の「経路を限ってテストで確かめる」の手段である）。
 -   **LLM の実装（`extjob.Backend`）は、記事生成モジュールの `main` が `internal/extjob` に渡す。Claude の実装は `internal/extjob/claudebackend`、fake の実装は `internal/extjob/devbackend` に置く（§3.3、申し送り H-10）。** `internal/extjob` は、渡された実装を呼ぶだけで、どちらの実装も import しない。開発用の記事生成モジュールの依存に `internal/llm/claude` が入らないことを、公開用に fake が入らないことと同じ `go list -deps` の検査で確かめる。開発用のビルドが Anthropic の API を呼ばないこと（要件書 AC-29）を、構成で保つためである。保存した設定の形の検査は、どちらの実装でも `internal/extjob` が同じように行う。ADR: なし（ADR-0045 の規則を当てるだけである）。
--   **ビルドの種類は、拡張のビルドが成果物に書く 1 つのモジュールで宣言し、入口のページのスクリプトだけがそれを読む（§3.5）。** 開発用の印、ページのタイトルに添える名前は、この宣言で決める。manifest の `key` の有無や名前から推し量らない（CLAUDE.md「Declare, don't infer」）。開発用の manifest は、ビルドが公開用の manifest から作る。ADR: なし（[ADR-0026](../../dev/adr/0026-extension-platform.md) が定める開発用のビルドの規則の中の手段である）。
+-   **ビルドの種類は、`static/buildKind.js` の 1 つのモジュールで宣言し、入口のページのスクリプトだけがそれを読む（§3.5）。** 開発用の印、ページのタイトルに添える名前は、この宣言で決める。manifest の `key` の有無や名前から推し量らない（CLAUDE.md「Declare, don't infer」）。公開用のビルドは `static/` の写しのまま（値は `release`）で、要件書 AC-25 の成果物の種類を増やさない。開発用のビルドは、このモジュールを `dev` の値に置き換え、manifest を公開用の manifest から作る。ADR: なし（[ADR-0026](../../dev/adr/0026-extension-platform.md) が定める開発用のビルドの規則の中の手段である）。
 -   **成果物の検査は、WASM の出どころを、Node で記事生成モジュールを読み込んで `buildInfo` を呼んで確かめる（§3.5）。** 0090 設計書 §3.9 と ADR-0026 は `go version -m` で main のパッケージのパスを確かめるとしたが、`go version -m` は WASM のビルドの情報を読めない（go1.27.1 で `GOOS=js GOARCH=wasm` のビルドに `go version -m` を走らせると `unrecognized file format` で失敗した。2026-11-15 に確かめた）。`buildInfo` は、記事生成モジュールの中で Go のビルドの情報を読み、main のパッケージのパス、Go の版、開発用のビルドが埋め込んだシナリオを返す。採らなかった案は、拡張のスクリプトで WASM の中のビルドの情報の形を解析する案である。Go の内部の形に依存する。ADR: [ADR-0026](../../dev/adr/0026-extension-platform.md) を更新した。
 -   **拡張のビルドは、記事生成モジュールを `go.mod` の `go` の行の版のツールチェーンでビルドする（§3.5）。** `go.mod` の `go 1.26.5` は最小の版で、手元の `go` は別の版でありうる（2026-11-15 の手元は go1.27.1、`GOTOOLCHAIN=auto`）。そのままでは、成果物の WASM と `wasm_exec.js` がビルドする機械で変わり、要件書 AC-25 の「`go.mod` が定める Go の版」に合わない。ビルドのスクリプトが `GOTOOLCHAIN` にその版を与え、成果物の検査が `buildInfo` の Go の版を確かめる。その版のツールチェーンがなければ、初めのビルドで `go` がダウンロードする（ネットワークを使う）。ADR: なし（AC-25 の手段で、ADR-0026 の決定を変えない）。
--   **fake のシナリオは、`make ext-build-dev` の 5 つの変数で受け取り、変数ごとに 1 つの `-ldflags -X` で開発用の記事生成モジュールに埋め込む（§3.4）。** 記事生成モジュールは、起動のときに埋め込んだ値を解析し、空の値と合わない値では関数を登録しない。WASM をビルドする前にネイティブのビルドで同じ値を解析し、ビルドの後に成果物の検査が `buildInfo` のシナリオを確かめる。リンカーは存在しない名前への `-X` を黙って無視するので、合わない値でビルドした拡張が既定のシナリオで動くことを、ビルドの時点で止めるためである。ADR: なし（ADR-0045 の「シナリオはビルドの引数で選ぶ」の手段である）。
+-   **fake のシナリオは、`make ext-build-dev` の 5 つの変数で受け取り、1 つの `-ldflags` の文字列に 5 つの `-X` を並べて開発用の記事生成モジュールに埋め込む（§3.4）。** 記事生成モジュールは、起動のときに埋め込んだ値を解析し、空の値と合わない値では関数を登録しない。WASM をビルドする前にネイティブのビルドで同じ値を解析し、ビルドの後に成果物の検査が `buildInfo` のシナリオを確かめる。リンカーは存在しない名前への `-X` を黙って無視し、`-ldflags` を 2 回渡すと後のものだけが効くので、合わない値でビルドした拡張が既定のシナリオで動くことを、ビルドの時点で止めるためである。ADR: なし（ADR-0045 の「シナリオはビルドの引数で選ぶ」の手段である）。
 -   **開発用のコマンド `cmd/yt2column-extjob` は、LLM を `-llm=claude` か `-llm=fake` で必ず指定させ、既定の値を持たない（§3.4）。** 指定を忘れた実行が料金のかかる呼び出しにならないためである（CLAUDE.md「Tool Execution Safety」）。ADR: なし（開発用のコマンドの引数の決定である）。
 -   **CI は、記事生成モジュールの依存を `go list -deps` で求め、そのディレクトリの下のファイル（サブディレクトリの中のファイル、埋め込むファイル、削除したファイルを含む）が変わったときに拡張の検査を走らせる（§3.10）。** 依存の一覧を手で書くと、依存が増えたときに漏れる。採らなかった案は、`internal/` のどのファイルの変更でも拡張の検査を走らせる案である。依存でない `internal/chief` などの変更でも走る。ADR: なし（CI の手段で、本タスクの中で閉じる）。
 
@@ -178,7 +178,7 @@ flowchart LR
 | `internal/llm` | 番兵 `ErrAuthRejected` を加える | 新しい番兵 |
 | `internal/llm/claude` | 401 のエラーが `llm.ErrAuthRejected` に当たるようにする。キーの確かめの関数を加える | 分類の方法を変える |
 | `internal/llm/llmhttp` | 本文を読まずに状態コードだけを返す送信を加える。`js` のビルドでリダイレクトに従わない指定を付ける | 送信の種類を足す |
-| 拡張のビルドのスクリプト（`extension/scripts/`） | `go` を呼んで記事生成モジュールをビルドし、`wasm_exec.js` を写し、ビルドの種類のモジュールを書く。開発用のビルドでは、開発用の manifest を作る | 0090 設計書は `make ext-build` が Go を呼ぶとだけ決めた |
+| 拡張のビルドのスクリプト（`extension/scripts/`） | `go` を呼んで記事生成モジュールをビルドし、`wasm_exec.js` を写す。開発用のビルドでは、ビルドの種類のモジュールを `dev` の値に置き換え、開発用の manifest を作る | 0090 設計書は `make ext-build` が Go を呼ぶとだけ決めた |
 | `extension/src/browser/chromeDeps.ts` | `chrome.storage` を使う決まった関数（§5.4） | 0090 設計書 §3.11 の依存の追加を、決まった関数に限る |
 | オプションページ | 0090 設計書 §3.6 のとおり。保存も削除も 1 回の書き込み、検査の 3 つの期限、保存した値を読まないこと | §3.6 を一部変える |
 | ポップアップ | 0090 設計書 §3.5 のとおり。加えて、いつもオプションページへのリンクを持つ | リンクを加える |
@@ -232,7 +232,7 @@ flowchart LR
 ```
 
 -   `wasm_exec.js` は、`go.mod` の版の Go のツールチェーンのものである（§3.5）。
--   どちらのビルドも、同じ `tsc` の出力と `static/` を使う。違いは、記事生成モジュールの `main`、manifest（開発用は `key` を持たない）、ビルドの種類のモジュール（`release` か `dev`）の 3 つだけである（§3.5）。
+-   どちらのビルドも、同じ `tsc` の出力と `static/` を使う。違いは、記事生成モジュールの `main`、manifest（開発用は `key` を持たない）、ビルドの種類のモジュール（公開用は `static/` の写しの `release`、開発用は置き換えた `dev`）の 3 つだけである（§3.5）。
 -   どちらのビルドも、出力のディレクトリを空にしてから始め、最後に成果物の検査（`extension/scripts/check-dist.ts`）を、それぞれの種類の期待で走らせる。
 
 ### 2.4. データの流れ
@@ -299,7 +299,7 @@ type KeyCheckOptions struct {
 }
 ```
 
--   **状態だけを返す送信。** 今の `llmhttp.Post`（`internal/llm/llmhttp/llmhttp.go:94`）は 200 の応答の本文を読む。キーの確かめは本文を読まないので、`internal/llm/llmhttp` に、同じ期限、リダイレクトの拒否、失敗の分類（`Errors` の `Transport` と、期限切れの `context.DeadlineExceeded`）を通し、状態コードを返して本文を読まない送信を加える。
+-   **状態だけを返す送信。** 今の `llmhttp.Post`（`internal/llm/llmhttp/llmhttp.go:94`）は 200 の応答の本文を読む。キーの確かめは本文を読まないので、`internal/llm/llmhttp` に、同じ期限、リダイレクトの拒否、失敗の分類（`Errors` の `Transport` と、期限切れの `context.DeadlineExceeded`）を通し、状態コードを返して本文を読まない送信を加える。本文は読まずに閉じる（`Post` と同じく `Close` を呼ぶ）。閉じないと、`js` のビルドでは `fetch` の本文の流れが取り消されずに残る。
 
 ```go
 // Status sends one request like Post and returns the response's status code
@@ -370,10 +370,9 @@ type FakeScenario = {
 ```
 
 -   `GenerateRequest` と `StoredSettings` のメンバは閉じた集合で、知らないメンバと重複したメンバは拒否する（`internal/strictjson`）。この拒否は、ビューアが形を誤って組み立てたことを表すので、`internal`（`internalDetail` は `request_shape`）にする。
--   `generate` の引数の JSON が 64 KiB を超えるときは、解析せずに `settings_invalid` にする。引数で大きくなりうるのは保存した設定だけで、開発者ツールで大きな値を書いたときに、解析の前に止めるためである。
 -   保存した設定の検査は、次のどれかに当たれば `settings_invalid` にする。`anthropicApiKey` が文字列でないか、`llmhttp.CheckAPIKey` の規則（空でない印字可能な ASCII）に合わない。`anthropicWorkspaceId` がないか、文字列でないか、空でなくて `claudeparam.ParseWorkspaceID` の規則に合わない。前後の空白を除くなどの補正はしない（要件書 §3.2）。検査は、文字列であることを確かめた後、`config.LoadExtension(config.ExtensionLookup(...))` と `llmhttp.CheckAPIKey` を通す。この 2 つは、`checkSettings` が使うのと同じ関数である（0090 設計書 §3.1.3）。
 -   `settings_invalid` の結果は、LLM の API を呼ぶ前に返る。`steps` はすべて `pending` のままである。
--   API キーの値は、検査の後すぐに `secret.Secret` にし、JSON の文字列も `StoredSettings` の値も保持しない（[ADR-0031](../../dev/adr/0031-secret-closure.md)）。結果と進み具合には入らない。
+-   API キーの値は、文字列であることを確かめた直後に `config.LoadExtension` が `secret.Secret` にし、`internal/extjob` は JSON の文字列も `StoredSettings` の値も保持しない（[ADR-0031](../../dev/adr/0031-secret-closure.md)）。結果と進み具合には入らない。
 
 **Go の型の追加。**
 
@@ -425,9 +424,9 @@ package claudebackend
 func New() extjob.Backend
 ```
 
--   **失敗の分類。** 0090 設計書 §2.3 の分類（今の `classifyWrite`。`internal/server/generation.go:146`）に、`errors.Is(err, llm.ErrAuthRejected)` を `api_key_rejected` にする規則を、`llm.ErrEmptyResponse` などと同じ並びに加える。
+-   **失敗の分類。** 0090 設計書 §2.3 の分類（今の `classifyWrite`。`internal/server/generation.go:146`）に、`errors.Is(err, llm.ErrAuthRejected)` を `api_key_rejected` にする規則を、`llm.ErrEmptyResponse` などと同じ並びに加える。401 の `HTTPStatusError` は `ErrHTTPStatus` にも当たるので、HTTP の状態で分ける規則を後で加えるときも、この規則をそれより前に置く。
 -   **`checkSettings` の分類。** 形が合わなければ `rejected`（合わない欄）、`CheckKey` が `nil` なら `ok`、`llm.ErrAuthRejected` に当たれば `key_rejected`、ほかは `unverified` である（0090 設計書 §3.6）。キーの確かめの呼び出しの期限は 30 秒である（§1.2）。
--   **期限の定数。** 記事の生成の呼び出しごとの期限（15 分。0090 設計書 §2.3）と、キーの確かめの呼び出しの期限（30 秒）は、`internal/extjob` に置き、`Backend` に設定とともに渡す。
+-   **期限の定数。** 記事の生成の呼び出しごとの期限（15 分。0090 設計書 §2.3）は、Claude のクライアントの組み立ての値なので `claudebackend` に置く（下の `provider` との一致のテストで確かめる）。キーの確かめの呼び出しの期限（30 秒）は、`internal/extjob` が `CheckKey` に渡す `ctx` の期限として持つ。
 -   **CLI の組み立てとの一致。** `claudebackend` の Claude のクライアントの組み立ては、`internal/llm/provider` の Claude の組み立て（`claude.Options` の値、検証・推敲のクライアントの選び方）と同じでなければならない。記事生成モジュールは `provider` を使えないので（0090 設計書 §2.3）、ネイティブのビルドのテストで、`claudebackend` の組み立てと期限が `provider` と同じことを確かめる。
 -   **`cmd/yt2column-wasm`。** `extjob.NewModule(claudebackend.New())` を作り、`syscall/js` で 4 つの関数を登録するだけを持つ（0090 設計書 §2.3）。
 
@@ -451,7 +450,7 @@ func ParseScenario(s ScenarioSpelling) (Scenario, error) // error wraps ErrInval
 ```
 
 -   **`internal/extjob/devbackend`（新しい）。** `devfake.Scenario` から `extjob.Backend` を作る。`NewClients` は、渡された設定を使わず、シナリオの fake のクライアントを返す。`CheckKey` は、シナリオのキーの確かめの結果を返す。どちらも、Anthropic の API を呼ばない。`Info` は fake とシナリオの値を返す。
--   **`cmd/yt2column-wasm-dev`（新しい）。** シナリオの 5 つの値を、それぞれ 1 つの文字列の変数として持ち、`-ldflags -X` で受け取る。起動のときに `ParseScenario` で解析し、合えば `extjob.NewModule(devbackend.New(scenario))` の 4 つの関数を登録する。空の値と合わない値では関数を登録しない（ページは Worker の読み込みの失敗として扱う）。`syscall/js` を使う登録のファイルだけを `js` のビルドにし、ネイティブのビルドでは、同じ変数を解析して結果だけを返す `main` を持つ。
+-   **`cmd/yt2column-wasm-dev`（新しい）。** シナリオの 5 つの値を、それぞれ `main` のパッケージの 1 つの文字列の変数として持ち、1 つの `-ldflags` の文字列に並べた 5 つの `-X main.<変数>=<値>` で受け取る。起動のときに `ParseScenario` で解析し、合えば `extjob.NewModule(devbackend.New(scenario))` の 4 つの関数を登録する。空の値と合わない値では関数を登録しない（ページは Worker の読み込みの失敗として扱う）。`syscall/js` を使う登録のファイルだけを `js` のビルドにし、ネイティブのビルドでは、同じ変数を解析して結果だけを返す `main` を持つ。
 -   **`make ext-build-dev` の変数。** `FAKE_ARTICLE`・`FAKE_FAILURE`・`FAKE_FAIL_AT`・`FAKE_DELAY`・`FAKE_SETTINGS_CHECK` の 5 つとする。`Makefile` が既定の値（`standard`・`none`・`none`・`0`・`ok`）を持ち、ビルドのスクリプトにはいつも 5 つとも渡す。
 -   **`cmd/yt2column-extjob`（新しい）。** 0090 設計書 §7.2 のとおり。次のとおりにする。
     -   LLM は `-llm=claude` か `-llm=fake` で必ず指定する。指定がないか、ほかの値なら、何もせずに終わる（§1.2）。
@@ -463,8 +462,8 @@ func ParseScenario(s ScenarioSpelling) (Scenario, error) // error wraps ErrInval
 ### 3.5. 拡張のビルド
 
 -   **ビルドが `go` を呼ぶ。** 拡張のビルドのスクリプト（`extension/scripts/` に置く）が、`tsc` と `static/` の写しの後に、`GOOS=js GOARCH=wasm go build -trimpath` で記事生成モジュールを成果物の直下にビルドし、同じツールチェーンの `$(go env GOROOT)/lib/wasm/wasm_exec.js` を成果物の直下に写す（ADR-0026、0090 設計書 §3.1.4）。`npm run build` は、Go を呼ぶ手順まで含めて、検査の済んだ成果物を作る。`make ext-build` はそれを呼ぶ。
--   **ツールチェーンの版。** ビルドのスクリプトは、`go.mod` の `go` の行の版を読み、`go build` と `go env GOROOT` の両方に `GOTOOLCHAIN=go<版>` を与える（§1.2）。
--   **ビルドの種類のモジュール。** ビルドのスクリプトは、成果物の直下に、ビルドの種類だけを書き出す 1 つの ES モジュール（`buildKind.js`）を書く。`extension/src/buildKind.d.ts` に、その型だけを置く。`tsc` は `.d.ts` から `.js` を出さないので、種類によって `tsc` の出力は変わらない。このモジュールを import してよいのは、入口のページのスクリプト（`popup.ts`・`viewer.ts`・`options.ts`）だけである。入口は、読んだ値を `BuildKind` として、テストできる関数（表示を決める関数、§3.8.2 のタイトルを決める関数）に渡す。単体テストは入口を import しないので、生成されるモジュールがなくても動く。
+-   **ツールチェーンの版。** ビルドのスクリプトは、`go.mod` の `go` の行の版を読み、`go build` と `go env GOROOT` の両方に `GOTOOLCHAIN=go<版>` を与える（§1.2）。`go` の行がパッチの版を持たない（`go 1.26` など）ときはツールチェーンの名前にならないので、理由を示してビルドを止める。
+-   **ビルドの種類のモジュール。** `extension/static/buildKind.js` に、ビルドの種類（`release`）だけを書き出す 1 つの ES モジュールを置き、`extension/src/buildKind.d.ts` に、その型だけを置く。公開用のビルドは、ほかの `static/` のファイルと同じく写すだけなので、成果物は要件書 AC-25 の 4 種類（`tsc` の出力、`static/` の写し、記事生成モジュール、`wasm_exec.js`）のままである。開発用のビルドは、写した後に、このファイルを `dev` の値に置き換える。`tsc` は `.d.ts` から `.js` を出さないので、種類によって `tsc` の出力は変わらない。このモジュールを import してよいのは、入口のページのスクリプト（`popup.ts`・`viewer.ts`・`options.ts`）だけである。入口は、読んだ値を `BuildKind` として、テストできる関数（表示を決める関数、§3.8.2 のタイトルを決める関数）に渡す。単体テストは入口を import しない。
 
 ```typescript
 // The build's kind, declared by the module the build writes.
@@ -474,9 +473,9 @@ type BuildKind = "release" | "dev";
 -   **開発用の manifest。** `make ext-build-dev` は、`static/manifest.json` から `key` を除き、名前を、開発用の印を付けた名前を持つ `_locales` の新しいメッセージに替えた manifest を書く。ほかのメンバは公開用と同じである。開発用のビルドの ID は公開用と別になり、`chrome.storage.local` も別になる（要件書 AC-17）。
 -   **開発用の印と名前。** ポップアップとビューアは、ビルドの種類が `dev` のとき、文字の印（「開発用のビルド」）を示す。色だけで示さない（要件書 AC-18）。ビューアのページのタイトルに添える名前は、`release` では `yt2column`、`dev` では開発用の印の付いた名前である（§3.8.2）。オプションページは、加えて `buildInfo` の `llm`（fake とシナリオ）を、調査の手がかりとして示す。
 -   **成果物の検査。** `check-dist.ts` は、ビルドの種類を引数で受け取り、種類ごとの期待で成果物を検査する。
-    -   どちらの種類でも、成果物は、`tsc` の出力、`static/` の写し、記事生成モジュール、`wasm_exec.js`、`buildKind.js` だけである。
+    -   どちらの種類でも、成果物は、`tsc` の出力、`static/` の写し、記事生成モジュール、`wasm_exec.js` だけである。`src/` の `.d.ts` には `.js` を期待しない。開発用では、`buildKind.js` と manifest だけが `static/` と違ってよい。
     -   `release` の期待は `extension/dist/` にだけ、`dev` の期待は `extension/dist-dev/` にだけ当てる。ほかの組み合わせは検査の失敗にする。
-    -   `buildKind.js` の値は、引数の種類と一致する。
+    -   `buildKind.js` の値は、引数の種類と一致する。`buildInfo` の `vcsModified` は、手元の作業ツリーの状態で変わるので確かめない（Git の外でのビルドでは `vcsRevision` もないので、`buildInfo` は値がないことを表す）。
     -   manifest は、`release` では `static/manifest.json` の写しのまま（今の検査。`extension/scripts/check-dist.ts:1-4`）、`dev` では上の変換の結果と一致する。
     -   記事生成モジュールを Node で `wasm_exec.js` とともに読み込み、`buildInfo` を呼ぶ。`mainPath` は、モジュールのパスを含む main のパッケージのパスで、`release` では `github.com/isseis/yt2column/cmd/yt2column-wasm`、`dev` では `github.com/isseis/yt2column/cmd/yt2column-wasm-dev` である。期待の値は `go.mod` の `module` の行から作る。`goVersion` は `go.mod` の版と一致する。`llm` は、`release` では `claude`、`dev` では `fake` である。`dev` では、そのシナリオの 5 つの値が、ビルドに渡した値と一致する。
     -   `wasm_exec.js` は、`go.mod` の版のツールチェーンのものと中身が一致する。
@@ -556,7 +555,13 @@ type BuildKind = "release" | "dev";
 #### 3.8.4. Worker の呼び出し
 
 -   ページの側の Worker の呼び出し（`workerClient.ts`）は、0090 設計書 §3.3.1 の `WorkerCall` と `WorkerMessage` で、1 度に 1 つの呼び出しを送り、`callId` で応答を対応させる。実行するビューアとオプションページが同じものを使う。
--   **Go の実行の終了。** Go の実行が終わると（回復しない panic か、ランタイムの致命的な失敗）、`wasm_exec.js` の `go.run()` は終わるが、登録した関数の返した Promise は決まらず、Worker の `error` イベントも起きない。Worker の中の読み込みのスクリプト（`worker.ts`）は、`go.run()` の終わりを見張り、応答を待っている `callId` に `kind: "error"` を送る。ページは、これを `internal`（`internalDetail` は `runtime_exit`）にする。呼び出し全体の期限（50 分）まで待たずに、失敗を示すためである。
+-   **Go の実行の終了。** Go のプログラムが終わると（goroutine の回復しない panic、`js.FuncOf` の中の panic、ランタイムの致命的な失敗、`main` の終わり）、`wasm_exec.js` の `go.run()` の Promise は解決するが、登録した関数が返した Promise は決まらないまま残り、その後の呼び出しは同期的に例外を投げる。Worker の中の読み込みのスクリプト（`worker.ts`）は、次のとおりにする。
+    -   `go.run()` の解決を見張り、応答を待っている `callId` に、0090 設計書 §3.3.1 の `WorkerMessage` に加える `{ callId; kind: "exit" }` を送る。
+    -   関数の呼び出しを `try`/`catch` で囲み、例外か、Promise でない戻り値（`js.FuncOf` の中の panic）でも `exit` を送る。
+    -   ページは、`exit` を `internal`（`internalDetail` は `runtime_exit`）にする。`generate` の Promise の拒否（`kind: "error"`）は、0090 設計書 §4.2 のとおり `internal`（`panic`）のままである。
+    -   Go の終わりの後に、残った Go のタイマーから Worker の `error` イベントが遅れて起きうる。ページは、呼び出しごとに最初の失敗だけを使い、Worker を止め、その後の知らせを無視する。
+    -   Go のプログラムが終わらない JavaScript の側の失敗（スタックの溢れなど）では `go.run()` が解決しないので、今までどおり Worker の `error` イベント（`worker_error`）か呼び出し全体の期限（50 分）で失敗にする。
+    -   `wasm_exec.js` を読み込むために、その型の宣言（`.d.ts`）を `src/` に置く。
 
 ### 3.9. SW
 
@@ -567,10 +572,11 @@ type BuildKind = "release" | "dev";
 ### 3.10. CI と lint
 
 -   **拡張の検査を走らせる変更。**
-    -   `check-changes` の手順に Go を用意し、`GOOS=js GOARCH=wasm go list -deps -f` で、公開用と開発用の記事生成モジュールが依存するこのモジュールのパッケージのディレクトリを求める。
-    -   `extension/scripts/has-extension-changes.sh` は、変わったファイルの一覧に加えて、その一覧を受け取り、依存のディレクトリの下のファイルが変わったときにも `true` を出す。サブディレクトリの中のファイルも数える。埋め込むファイル（`prompts/*.tmpl`、`internal/llm/devfake/articles/*.md` など）はパッケージのディレクトリの下にしか置けないので、この規則で漏れない。削除したファイルも、変わったファイルの一覧にパスが残るので数える。依存のディレクトリの下にほかのパッケージ（`internal/llm` の下の `internal/llm/deepseek` など）があっても数え、検査を走らせ過ぎるほうへ倒す。スクリプトは、パスだけから決める今の作り（`extension/scripts/has-extension-changes.sh:20`）を保ち、`go` を呼ばない。`go.sum` を加える。
+    -   `check-changes` の手順に Go を用意し、`GOOS=js GOARCH=wasm go list -deps -f` で、公開用と開発用の記事生成モジュールが依存するこのモジュールのパッケージのディレクトリを求める。標準ライブラリのディレクトリは除き（`.Module.Main` で絞る）、リポジトリからの相対のパスにする。`-e` は付けない（付けると失敗が成功に見える）。
+    -   `extension/scripts/has-extension-changes.sh` は、変わったファイルの一覧に加えて、その一覧を受け取り、依存のディレクトリの下のファイルが変わったときにも `true` を出す。ディレクトリは末尾に `/` を付けて比べ、`internal/llm` が `internal/llmx` に当たらないようにする。サブディレクトリの中のファイルも数える。埋め込むファイル（`prompts/*.tmpl`、`internal/llm/devfake/articles/*.md` など）はパッケージのディレクトリの下にしか置けないので、この規則で漏れない。削除したファイルも、変わったファイルの一覧にパスが残るので数える。依存のディレクトリの下にほかのパッケージ（`internal/llm` の下の `internal/llm/deepseek` など）があっても数え、検査を走らせ過ぎるほうへ倒す。スクリプトは、パスだけから決める今の作り（`extension/scripts/has-extension-changes.sh:20`）を保ち、`go` を呼ばない。`go.sum` を加える。
     -   依存を求める手順が失敗したときは、`true` として扱う。検査を走らせ過ぎるほうへ倒す。
     -   今の `check-changes` は、`.md` のファイルの変更をコードの変更に数えない（`.github/workflows/ci.yml:36`）。埋め込む `.md`（fake の記事）は WASM を変えるので、拡張の検査を走らせる判定は、この除外より前の、変わったファイルのすべての一覧で行う。
+    -   埋め込む `.md` だけの変更で Go のテストの手順が走らないこと（`.github/workflows/ci.yml:36` の除外）は、今もある差で、本タスクでは直さない。
     -   `internal/server/response.go` を一覧から除くのは、それと `extension/test/serverReasons.test.ts` を撤去する PR である。それより前は、一覧に残す。
 -   **拡張の検査の手順。** 拡張のビルドが Go を呼ぶので、`extension` の手順で、`ext-build` の前に Go を用意する（0090 設計書 §3.11）。
 -   **`doc-guard`。** 対象から撤去したパッケージを除く。
@@ -587,7 +593,7 @@ type BuildKind = "release" | "dev";
 
 ### 3.12. コンポーネントの責務（新しいファイルと変わるファイル）
 
-0090 設計書 §3.11 の表の変更は、すべて行う。ただし、`internal/privatefile` は撤去しない（要件書 AC-31）。次の表は、本書が加えるか、0090 設計書の表から変えるものである。ファイルの名前は、0090 設計書と同じく「または同等のもの」とし、実装計画書で決める。
+0090 設計書 §3.11 の表の変更は、すべて行う。ただし、`internal/privatefile` は撤去しない（要件書 AC-31）。§3.11 の `internal/llm/claude` と `internal/llm/llmhttp` の行は §3.1 の `CheckKey` と `Status` で、`extension/src/browser/chromeDeps.ts` と `extension/test/entryPoints.test.ts` の行は §5.4 の決まった関数で、具体的に定める。次の表は、本書が加えるか、0090 設計書の表から変えるものである。ファイルの名前は、0090 設計書と同じく「または同等のもの」とし、実装計画書で決める。
 
 | 区分 | 対象 | 責務または変更 |
 |---|---|---|
@@ -604,9 +610,9 @@ type BuildKind = "release" | "dev";
 | 変える | `cmd/yt2column-devserver/args.go` | 撤去までの間、`devfake.ParseScenario` を使う（§3.4） |
 | 新しい | `cmd/yt2column-wasm/`・`cmd/yt2column-wasm-dev/`・`cmd/yt2column-extjob/` | 0090 設計書 §3.11 のとおり。開発用の 2 つは `devbackend` を使う（§3.3・§3.4） |
 | 変える | `internal/godepstest` の使い手 | 0090 設計書 §3.11 のとおり。加えて、§2.1 の依存の検査（§7.3） |
-| 新しい | `extension/scripts/` のビルドのスクリプト | `go` を呼ぶ、ツールチェーンの版を与える、`wasm_exec.js` を写す、`buildKind.js` を書く、開発用の manifest を作る（§3.5） |
+| 新しい | `extension/scripts/` のビルドのスクリプト | `go` を呼ぶ、ツールチェーンの版を与える、`wasm_exec.js` を写す、開発用のビルドで `buildKind.js` を置き換えて開発用の manifest を作る（§3.5） |
 | 変える | `extension/scripts/check-dist.ts` | ビルドの種類ごとの期待で検査し、Node で `buildInfo` を呼ぶ（§3.5） |
-| 新しい | `extension/src/buildKind.d.ts` | ビルドの種類のモジュールの型（§3.5） |
+| 新しい | `extension/static/buildKind.js`・`extension/src/buildKind.d.ts` | ビルドの種類のモジュール（値は `release`）と、その型（§3.5） |
 | 変える | `extension/package.json`・`Makefile` | 開発用のビルドの手順と `ext-build-dev` を加え、`ext-build` が Go を呼ぶようにする（§3.5） |
 | 変える | `extension/static/_locales/*/messages.json` | 開発用の名前のメッセージを加え、`extDescription` を改める（§3.5） |
 | 変える | `.gitignore` | `extension/dist-dev/` を加える（§3.5） |
@@ -685,7 +691,7 @@ type RecordFailure = WasmFailure | "api_key_missing" | "run_timeout";
 
 // Added request_shape (generate's request did not match its shape),
 // settings_read (reading the two settings items failed in the running viewer),
-// and runtime_exit (the Go program ended while a call was pending).
+// and runtime_exit (the Worker reported kind "exit": the Go program ended while a call was pending).
 type InternalDetail =
   | "panic" | "worker_error" | "worker_load" | "result_shape"
   | "store_failed" | "input_mismatch" | "request_shape" | "settings_read"
@@ -786,7 +792,7 @@ flowchart LR
 | 境界 | 本書の扱い |
 |---|---|
 | `chrome.storage.local` から読み戻す設定 | 実行するビューアは型も形も確かめずに `StoredSettings` として渡し、記事生成モジュールが §3.3 の規則で検査する。合わなければ `settings_invalid`。補正しない |
-| `generate` の引数の JSON | 64 KiB を超えれば `settings_invalid`。`GenerateRequest` と `StoredSettings` の閉じたメンバの集合に合わなければ `internal`（`request_shape`） |
+| `generate` の引数の JSON | `GenerateRequest` と `StoredSettings` の閉じたメンバの集合に合わなければ `internal`（`request_shape`） |
 | ビューアの URL（案 B） | `t` は §3.8.2 の規則。合わなければ記事を表示せず何も送らない |
 | fake のシナリオ（ビルドの変数、開発用のコマンドの引数、埋め込んだ値） | `devfake.ParseScenario`。合わなければ、ビルドかコマンドが失敗するか、記事生成モジュールが関数を登録しない。補正しない |
 | 開発用のコマンドが読む JSON のファイル | 要件書 §3.2 のとおり。保存した設定のメンバを持たない `PrepareRequest` の形で、API キーは環境変数から読む |
@@ -807,15 +813,16 @@ flowchart LR
 | `writeAnthropicSettings`・`removeAnthropicSettings` | 2 つの項目を 1 回の `set` で書く、1 回の `remove` で消す | オプションページ |
 | `localKeys` | `chrome.storage.local.getKeys()` で項目の名前だけを得る | SW、オプションページ |
 | `setLocalAccessLevel` | `chrome.storage.local.setAccessLevel`（0090 設計書 §3.6） | SW、ポップアップ |
-| ジョブの記録と開始の文脈の読み書き、`onSessionChanged` | `chrome.storage.session` の `get`・`set`・`remove`、`chrome.storage.session.onChanged` | 書くのは SW、読むのと知らせを受け取るのはポップアップとビューア |
+| ジョブの記録と開始の文脈の読み書き、`onSessionChanged` | `chrome.storage.session` の `get`・`set`・`remove`、`chrome.storage.session.onChanged` | 読み書きは SW、読むのと知らせを受け取るのはポップアップとビューア |
 
 -   **lint の規則。** 今の ESLint の規則（`extension/eslint.config.js`）を、次のとおりに改める。今の規則と同じく、ドットの参照、計算した名前の参照、分割代入を拒否する形で書く（今の `memberNameSelectors`）。
     -   `storage` の名前の参照は、`browser/chromeDeps.ts` のほかで拒否する。
     -   `session` の名前を拒否する規則は、`chrome.session` だけに狭める。
     -   `fetch` は、Worker の中の読み込みのスクリプト（`worker.ts`）のほかで拒否し、`XMLHttpRequest`・`WebSocket`・`EventSource` は今のまま拒否する。
-    -   上の表の関数を import してよいファイルを、表の「使ってよい入口」に限る。
+    -   上の表の関数を import してよいファイルを、表の「使ってよい入口」に限る。lint が見分けるのはファイルの単位なので、実行するビューアと表示するビューアのように同じファイルが担う役割は、ファイルの単位で許す。型だけの import は、`@typescript-eslint/no-restricted-imports` の `allowTypeImports` で許す。
+    -   この規則は、うっかりの使用を止めるもので、別名を通した意図的な回避までは止めない（今の規則と同じ）。
     -   `sendNativeMessage` を許していた規則は、ホストを撤去する PR で除く。
--   **ソースの検査。** 拡張のソースが `onChanged` を参照するのは `chromeDeps.ts` の `chrome.storage.session.onChanged` だけであること。`chrome.storage.local.get` を呼ぶのは `readAnthropicSettings` だけで、その引数が固定の 2 つの名前であること。`chrome.storage.sync` を参照しないこと。どれも `extension/test/lintRules.test.ts` と、置き換えたソースの検査のテストで確かめる。
+-   **ソースの検査。** 拡張のソースが `onChanged` を参照するのは `chromeDeps.ts` の `chrome.storage.session.onChanged` だけであること。`chrome.storage.local.get` を呼ぶのは `readAnthropicSettings` だけで、その引数が固定の 2 つの名前であること（`get()`・`get(null)`・`get(undefined)` のような、全部を読む呼び出しがないこと）。ログの関数に API キーを渡さないこと（0090 設計書 §7.3 のまま）。`chrome.storage.sync` を参照しないこと。どれも `extension/test/lintRules.test.ts` と、置き換えたソースの検査のテストで確かめる。
 
 ### 5.5. 方針の例外
 
@@ -928,7 +935,7 @@ flowchart TD
     S2["ネイティブのビルドで、シナリオの値を解析する"]
     S3["dist-dev/ を空にし、tsc と static/ を写す"]
     S4["開発用の manifest を書く"]
-    S5["buildKind.js（dev）を書く"]
+    S5["buildKind.js を dev に置き換える"]
     S6["cmd/yt2column-wasm-dev をビルドする<br>（go.mod の版、-ldflags -X）"]
     S7["wasm_exec.js を写す"]
     S8["check-dist（dev の期待、Node で buildInfo）"]
@@ -951,7 +958,7 @@ flowchart TD
     class L2 problem
 ```
 
--   公開用のビルド（`make ext-build`）は、S2 と S4 を行わず、`dist/` を空にして、S5 で `release` を書き、S6 で `cmd/yt2column-wasm` をシナリオなしでビルドし、S8 を `release` の期待で行う。
+-   公開用のビルド（`make ext-build`）は、S2 と S4 を行わず、`dist/` を空にして、S5 を行わず（`release` の値は `static/` の写しのまま）、S6 で `cmd/yt2column-wasm` をシナリオなしでビルドし、S8 を `release` の期待で行う。
 
 ## 7. テスト戦略 (Test Strategy)
 
@@ -962,7 +969,7 @@ flowchart TD
 -   **Go の `internal/llm`・`internal/llm/claude`・`internal/llm/llmhttp`。** 401 の `HTTPStatusError` が `llm.ErrAuthRejected` に当たり、ほかの状態（400・403・429・500 など）で当たらないこと。`CheckKey` が、200 で `nil`、401 で `llm.ErrAuthRejected`、ほかの状態・通信の失敗・期限切れで別のエラーを返すこと。`Status` が応答の本文を読まず、リダイレクトに従わないこと（`net/http/httptest` で確かめる）。
 -   **Go の `internal/extjob`。** 0090 設計書 §7.1 の項目に加えて、次を確かめる。
     -   今のサーバのテスト（`internal/server` の `request_test.go`・`status_test.go`・`generation_test.go`）の行を写し、同じ入力と fake の LLM の出力に対して、表示用の Markdown、保存するファイルのバイト列、推定の料金、入力の受理、完了の時点の検査、失敗の分類が同じになること（要件書 AC-19、申し送り H-03）。失敗の値は、0090 設計書 §4.1 と本書の値の集合にする。
-    -   保存した設定の検査：API キーの項目が文字列でない、印字可能な ASCII でない、ワークスペース ID の項目がない、文字列でない、形が合わないときに `settings_invalid` になり、LLM の実装を呼ばないこと。ワークスペース ID の空の文字列が指定なしになること。前後に空白のある値を補正しないこと。64 KiB を超える引数を解析しないこと。
+    -   保存した設定の検査：API キーの項目が文字列でない、印字可能な ASCII でない、ワークスペース ID の項目がない、文字列でない、形が合わないときに `settings_invalid` になり、LLM の実装を呼ばないこと。ワークスペース ID の空の文字列が指定なしになること。前後に空白のある値を補正しないこと。
     -   `GenerateRequest` の知らないメンバと重複したメンバが `request_shape` になること。
     -   `llm.ErrAuthRejected` を返す fake で `api_key_rejected` になること。
     -   `checkSettings` の 4 つの結果と、キーの確かめを呼ぶのが形の検査を通った後だけであること。
@@ -987,7 +994,7 @@ flowchart TD
 
 要件書 §5「受け入れ基準の確かめ方」のとおりにする。本書が加えるものは、次のとおりである。
 
--   **オプションページを実装する PR より前の確認（§1.2）。** Chrome と Brave で、公開用のビルドと同じ送信の形（`host_permissions` なし）で、誤ったキーで `GET /v1/models` と `POST /v1/messages` を呼び、Go が状態 401 を受け取ること（通信の失敗でないこと）を確かめる。401 には料金がかからない。実 API の呼び出しなので、人の承認を得る。読めないときは、人と決め直す（§3.14）。
+-   **オプションページを実装する PR より前の確認（§1.2）。** Chrome と Brave で、公開用のビルドと同じ送信の形（`host_permissions` なし）で、誤ったキーで `GET /v1/models` と `POST /v1/messages` を呼び、Go が状態 401 を受け取ること（通信の失敗でないこと）を確かめる。ヘッダは公開用のビルドが送るものと同じにし、`anthropic-workspace-id` を付けた場合と付けない場合の両方を確かめる。401 が読めれば、そのヘッダの組の事前の確認（CORS の preflight）も通っている。401 には料金がかからない。実 API の呼び出しなので、人の承認を得る。読めないときは、人と決め直す（§3.14）。
 -   **ページのタイトルを実装する PR より前の確認（§3.8.2）。** 記録がないビューアが固定のタイトルを出したときに、履歴の項目の動画のタイトルが書き換わるかを、Chrome と Brave で確かめ、実装する案を決める。
 -   **オプションページを実装する PR での確認（§3.6）。** VoiceOver で、API キーの欄の名前と、入力した文字の読み上げを確かめる。ログインして同期を有効にしたプロファイルで、パスワードの保存を勧められないことを確かめる（0090 設計書 §7.2）。
 -   **開発用のビルドでの確認。** 要件書 AC-29 の各状態を、シナリオを替えてビルドし直して出す。`settings_invalid` は、開発者ツールで `chrome.storage.local` の値を書き換えて出す。ブラウザを再起動した後も注入した関数から `chrome.storage.local` を読めないことを確かめる（0090 設計書 §7.2）。
@@ -1043,28 +1050,29 @@ PR の区切りは、実装計画書で決める。依存の順は次のとお�
 
 ## 付録 B. 0090 設計書から変える点
 
-要件書 §1「0090 設計書から変える点」の各行の扱いと、本書が加えて変える点である。
+要件書 §1「0090 設計書から変える点」の各行の扱いと、本書が加えて変える点である。「本書（追加）」の行は、0090 設計書が決めていなかったことを本書が定めた行で、0090 設計書の記述を書き換えないが、その記述の読み方に関わるので挙げる。
 
 | 0090 設計書 | 0090 設計書の記述 | 変えたもの | 本書の扱い |
 |---|---|---|---|
-| §2.3 | 撤去するパッケージに `internal/privatefile` を含む | 要件書 | 撤去しない。撤去の PR の完了の条件に、`internal/config` が依存しないことを入れる（§3.2） |
+| §2.3・§3.11 | 撤去するパッケージに `internal/privatefile` を含む | 要件書 | 撤去しない。撤去の PR の完了の条件に、`internal/config` が依存しないことを入れる（§3.2） |
 | §3.5 | API キーが設定されていないときだけ、オプションページを開く操作を示す | 要件書 | いつもリンクを置き、置き場所を詳細の節の後にした（§3.7） |
 | §3.6 | ワークスペース ID は空でないときだけ保存し、欄が空なら保存済みの値を消す | 要件書 | 1 回の `set` で 2 つの項目を書き、削除は 1 回の `remove` にした（§3.6） |
 | §3.9・§7.2 | fake のシナリオは記事の生成の結果だけ。開発用のビルドで §3.8 のすべての状態を確かめる | 要件書 | `FailureAPIKeyRejected` とキーの確かめの結果を加え、手で出せない状態は単体テストに割り当てた（§3.4・§7.1） |
 | §3.13 | 履歴のタイトルが上書きされるなら、記録がないときはタイトルを書き換えない（空のままにするなど） | 要件書 | 空にしない。2 つの案を決め、確かめで選ぶ（§3.8.2） |
-| §1.2・§5.2 | ビューアの URL は `r`・`k`・`u`・`e` だけを持ち、動画のタイトルを URL に入れない | 要件書（条件つき） | 案 B で実装するときだけ、`t` を加え、その PR で ADR-0010 を改める（§3.8.2） |
+| §1.2・§3.4・§3.11・§5.2・§5.4 | ビューアの URL は `r`・`k`・`u`・`e` だけを持ち、動画のタイトルを URL に入れない | 要件書（条件つき） | 案 B で実装するときだけ、`t` を加え、その PR で ADR-0010 を改める（§3.8.2） |
 | §3.14.1 | 出典の確かめ直しを、本タスクの要件定義の前に行う | 要件書 | 要件書の PR で済んだ（要件書 §5）。本書は扱わない |
 | §3.14.2 | 書き換える仕様の文書の表 | 要件書 | 加えた文書と、本書が加える要点を §3.13 に挙げた |
-| §4.1・§5.2 | 読み戻した設定が形に合わないときは `internal` | 要件書 | `settings_invalid` を加え、記事生成モジュールが決める（§3.3・§4.1） |
+| §3.8・§4.1・§5.2 | 読み戻した設定が形に合わないときは `internal` | 要件書 | `settings_invalid` を加え、記事生成モジュールが決める（§3.3・§4.1） |
 | §1.2・§3.4・§3.5 | 表示の更新に `chrome.storage.onChanged` を使う | 本書 | `chrome.storage.session.onChanged` だけを使う（§3.8.1） |
-| §3.1.2 | `GenerateRequest` は API キーとワークスペース ID を文字列で受け取る。`BuildInfo` は版とコミットだけ | 本書 | 保存した設定を検査前の値で受け取る。`BuildInfo` に main のパッケージと LLM の実装を加える（§3.3） |
+| §3.1.2 | `GenerateRequest` は API キーとワークスペース ID を文字列で受け取る。`BuildInfo` は版とコミットだけ | 本書 | 保存した設定を検査前の値で受け取り、API キーを `secret.Secret` にするのは文字列であることを確かめた直後になる。`BuildInfo` に main のパッケージと LLM の実装を加える（§3.3） |
 | §2.3 | 公開用の記事生成モジュールが `internal/config` と `internal/llm/claude` を直接 import し、Claude のクライアントを作る | 本書 | Claude のクライアントの組み立てを `internal/extjob/claudebackend` に置き、`main` は LLM の実装を渡すだけにする（§2.1・§3.3） |
 | §3.9・§7.3 | 成果物の検査は、`go version -m` が示す main のパッケージのパスで WASM の出どころを確かめる | 本書 | `go version -m` は WASM を読めないので、Node で `buildInfo` を呼んで確かめる（§3.5） |
-| §3.1.4 | `wasm_exec.js` は `go.mod` が定める版のものと一致することを検査する | 本書 | ビルドが `GOTOOLCHAIN` で版を与え、成果物の検査が `buildInfo` の Go の版も確かめる（§3.5） |
-| §3.1.3 | 名前を引く関数を作る場所を決めていない | 本書 | `config.ExtensionLookup` が作り、秘密情報の変数名を `internal/config` の外に書かない（§3.2） |
+| §3.1.4 | `wasm_exec.js` は `go.mod` が定める版のものと一致することを検査する | 本書（追加） | ビルドが `GOTOOLCHAIN` で版を与え、成果物の検査が `buildInfo` の Go の版も確かめる（§3.5） |
+| §3.1.3 | 名前を引く関数を作る場所を決めていない | 本書（追加） | `config.ExtensionLookup` が作り、秘密情報の変数名を `internal/config` の外に書かない（§3.2） |
 | §4.1 | `api_key_rejected` を `errors.AsType` の状態コードで決める | 本書 | `llm.ErrAuthRejected` で決める（§3.1・§4.1） |
-| §4.1 | `InternalDetail` の値の集合 | 本書 | `request_shape`・`settings_read`・`runtime_exit` を加える（§4.1） |
-| §7.3 | API キーの経路を lint かソースの検査で確かめる | 本書 | `chrome.storage` を `chromeDeps.ts` の決まった関数に限り、今の ESLint の規則を改める（§5.4） |
+| §3.3.1・§4.1・§4.2 | `InternalDetail` の値の集合。`WorkerMessage` は `reply`・`progress`・`error`。Go の panic は `generate` の Promise の拒否になる | 本書 | `request_shape`・`settings_read`・`runtime_exit` を加える。`WorkerMessage` に `exit` を加え、Go のプログラムの終わりを `runtime_exit` にする（§3.8.4・§4.1） |
+| §3.6・§5.3 | キーの確かめは記事の生成と同じ送信の守り（期限は 15 分）を通る | 要件書 AC-21・本書 | 期限を 30 秒にする（要件書 AC-21 が値を設計に委ねた。§1.2・§3.3） |
+| §7.3 | API キーの経路を lint かソースの検査で確かめる | 本書（追加） | `chrome.storage` を `chromeDeps.ts` の決まった関数に限り、今の ESLint の規則を改める（§5.4） |
 
 ## 付録 C. 受け入れ基準と本書の箇所
 
