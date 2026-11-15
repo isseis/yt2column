@@ -21,6 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [OpenAI Output Limit](docs/dev/guides/openai_output_limit.md) - When and how to re-measure the basis of the OpenAI adapter's default output limit (`max_output_tokens`)
 - [mergepr Guide](docs/dev/guides/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool
 - [fixprguard Guide](docs/dev/guides/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool for `/fixpr` and `/runpr`
+- [chief Guide](docs/dev/guides/chief_guide.md) - Setup, usage, subcommands, guarantees, the settings' herdr denials, the state directory, and known limits of the `chief` tool that `/chief` drives
 
 ## Documents
 
@@ -78,8 +79,8 @@ Exceptions:
 - **Japanese guides an agent reads.** A command definition under
   `.claude/commands/` (`_context.md` and `_lib/` included) may refer an agent to
   a Japanese guide under `docs/dev/guides/` as the manual of a tool the command
-  drives (today `fixpr.md` and `_context.md` refer to `fixprguard_guide.md`, and
-  `mergepr.md` to `mergepr_guide.md`), an exception to principle (b), because
+  drives (today `fixpr.md` and `_context.md` refer to `fixprguard_guide.md`,
+  `mergepr.md` to `mergepr_guide.md`, and `chief.md` to `chief_guide.md`), an exception to principle (b), because
   the agent follows the guide as instructions rather than reading it as
   material. Scope: only a command definition's reference to a guide under
   `docs/dev/guides/`; every other instruction an agent follows stays English.
@@ -181,6 +182,7 @@ change, retire, and withdraw an ADR is in the convention,
 - `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
 - `make install-fixprguard` - Install the `fixprguard` guard tool (`go install ./cmd/fixprguard`); rerun it after a merge that changes the tool
 - `make install-codexreview` - Install the `codexreview` developer tool, which runs Codex CLI's local review when the CodeRabbit CLI fails (`go install ./cmd/codexreview`); rerun it after a merge that changes the tool
+- `make install-chief` - Install the `chief` developer tool that `/chief` drives (`go install ./cmd/chief`); rerun it after a merge that changes the tool
 
 ### Test Commands
 - `make test` - Run all tests with race detection, then `make test-parse-norace`
@@ -211,6 +213,7 @@ Project-specific values these commands depend on are defined once in
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/japrose <file>` - Japanese prose-quality pass
 - `/mktrans README.md` - Carry `README.md` changes into `README.en.md` (the only translation pair)
+- `/chief [once]` - Show the task workspaces in Herdr, ask the human about what waits on them, and keep watching, sending the next command after a merge by itself; `once` shows and asks once without watching. Run it in a Claude Code pane of its own Herdr workspace ([chief_guide.md](docs/dev/guides/chief_guide.md))
 
 Each task PR is handled by two commands. The command that produces it —
 `/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
@@ -883,3 +886,9 @@ section of the Requirements Process Guide.
   during the review to OpenAI's service and spends the Codex allowance the PR
   review shares. Codex CLI itself is never run directly, and the agents never
   install or build `codexreview`: the user installs it from `main`
+- Invoking `/chief` approves, for that session, the read-only network operations
+  the `chief` tool runs while it shows the status and watches: `git fetch origin
+  main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`. It
+  approves no write (push, merge, comment, or issue operation); the tool runs
+  none. The tool is called only in the form `.claude/commands/chief.md` gives,
+  and the agents never install or build it: the user installs it from `main`

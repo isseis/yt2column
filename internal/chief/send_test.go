@@ -536,6 +536,47 @@ func TestMkreqTarget(t *testing.T) {
 // (another next command, a PR number that is not the open PR, a takeover
 // not proposed, a path that is no task workspace), none of which types
 // anything.
+// TestRequestNameSendsTheOffer: the --command value the output names for
+// each kind of offer makes a request that send reads as that offer, so the
+// /chief session never derives it from the command line.
+func TestRequestNameSendsTheOffer(t *testing.T) {
+	task, err := paneinput.ParseTaskID("0088")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd, err := paneinput.NewMkarch(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for kind := TaskNextMkreq; kind <= TaskNextRunpr; kind++ {
+		name, ok := requestNames[kind]
+		if !ok {
+			t.Errorf("offer kind %d has no --command value", kind)
+			continue
+		}
+		row := Row{State: StateProposeNext}
+		issue, pr := "", ""
+		switch kind {
+		case TaskNextMkreq:
+			issue, row.Next = "12", &Next{Kind: kind}
+		case TaskNextRunpr:
+			pr, row.State, row.PR = "34", StateAwaitingReview, &OpenPR{Number: 34}
+		case TaskNextRunplanTakeover:
+			row.Next, row.Takeover = &Next{Kind: TaskNextRunplan, Command: &cmd}, &Next{Kind: kind, Command: &cmd}
+		default:
+			row.Next = &Next{Kind: kind, Command: &cmd}
+		}
+		req, err := ParseSendRequest("/w", name, issue, pr)
+		if err != nil {
+			t.Errorf("offer kind %d: --command %q is refused: %v", kind, name, err)
+			continue
+		}
+		if _, why := offered(row, req); why != "" {
+			t.Errorf("offer kind %d: --command %q does not send the offer: %s", kind, name, why)
+		}
+	}
+}
+
 func TestSendArgumentValidation(t *testing.T) {
 	for _, c := range []struct{ workspace, command, issue, pr string }{
 		{"/w", "weakreview", "", ""},

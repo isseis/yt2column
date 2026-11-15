@@ -3,9 +3,11 @@
 package main
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -185,3 +187,253 @@ func contextFields(t *testing.T) []string {
 	t.Fatal("_context.md's PR marker conventions have no field list")
 	return nil
 }
+
+// definitionPath is the /chief definition, the document that runs the tool.
+const definitionPath = ".claude/commands/chief.md"
+
+// toolWord is the tool's command name, which go install gives the binary
+// built from this package's directory.
+const toolWord = "chief"
+
+// wantProtocolFlag is the one --protocol form the tool accepts.
+func wantProtocolFlag() string { return "--protocol " + strconv.Itoa(chief.Protocol) }
+
+// TestDocumentedProtocolMatches: every --protocol N of a chief call in the
+// command documents, prose included, is the binary's Protocol in the form
+// the tool reads, so the installed tool refuses a definition written for
+// another contract and accepts one written for its own.
+func TestDocumentedProtocolMatches(t *testing.T) {
+	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
+		for _, f := range doctestutil.ProtocolFlags(readRepoFile(t, rel)) {
+			if f.Tool == doctestutil.ToolChief && f.Text != wantProtocolFlag() {
+				t.Errorf("%s: %q, want %q", rel, f.Text, wantProtocolFlag())
+			}
+		}
+	}
+}
+
+// placeholderValues are the values a call's placeholders stand for, by the
+// flag they follow: each passes the tool's own check of that flag.
+var placeholderValues = map[string]string{
+	flagWorkspace: "/w",
+	flagCommand:   "mkarch",
+	flagIssue:     "12",
+	flagPR:        "34",
+	flagCheck:     strings.Repeat("a", 64),
+	flagAnswer:    "1=1",
+	flagSince:     strings.Repeat("b", 64),
+	flagTimeout:   "60",
+}
+
+// placeholder is a value a document leaves for the session to fill in, such
+// as <workspace>, alone or inside a value such as 1=<number>.
+var placeholder = regexp.MustCompile(`<[a-z_]+>`)
+
+// fillPlaceholders returns args with each value that holds a placeholder
+// replaced by the value its flag stands for.
+func fillPlaceholders(args []string) []string {
+	filled := slices.Clone(args)
+	for i := 1; i < len(filled); i++ {
+		if placeholder.MatchString(filled[i]) {
+			filled[i] = placeholderValues[filled[i-1]]
+		}
+	}
+	return filled
+}
+
+// TestDocumentedInvocationsParse: every chief call in the command documents
+// is written in the form the permission rule Bash(chief *) allows without
+// the prompt, and passes the tool's own checks of its subcommand, flags, and
+// request with its placeholders filled in, so the installed tool runs it
+// instead of stopping at the prompt or returning a usage error. The /chief
+// definition must hold a call of every subcommand: one that lost a call
+// would pass every check of the calls left.
+func TestDocumentedInvocationsParse(t *testing.T) {
+	called := map[string]struct{}{}
+	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
+		for _, call := range doctestutil.Invocations(readRepoFile(t, rel), toolWord) {
+			if !doctestutil.PromptFree(call, toolWord) {
+				t.Errorf("%s: %q %s %q is not the bare tool name alone in its command", rel, call.Lead, call.Word, call.Args)
+			}
+			args := fillPlaceholders(call.Args)
+			subcommand, flags, err := parse(args)
+			if err != nil {
+				t.Errorf("%s: %s %q is a usage error: %v", rel, toolWord, call.Args, err)
+				continue
+			}
+			if err := checkRequest(subcommand, flags); err != nil {
+				t.Errorf("%s: %s %q is a malformed request: %v", rel, toolWord, call.Args, err)
+			}
+			if rel == definitionPath {
+				called[subcommand] = struct{}{}
+			}
+		}
+	}
+	for subcommand := range subcommandFlags {
+		if _, ok := called[subcommand]; !ok {
+			t.Errorf("%s writes no call of %s %s", definitionPath, toolWord, subcommand)
+		}
+	}
+}
+
+// checkRequest runs the request check run gives the subcommands that take
+// one.
+func checkRequest(subcommand string, flags map[string]string) error {
+	var err error
+	switch subcommand {
+	case cmdSend:
+		_, err = chief.ParseSendRequest(flags[flagWorkspace], flags[flagCommand], flags[flagIssue], flags[flagPR])
+	case cmdRelay:
+		_, err = chief.ParseRelayRequest(flags[flagWorkspace], flags[flagCheck], flags[flagAnswer])
+	case cmdWait:
+		_, err = chief.ParseWaitRequest(flags[flagSince], flags[flagTimeout])
+	}
+	return err
+}
+
+// TestNoDirectHerdrInvocation: no command document writes herdr as a command
+// to run, so the /chief session reaches the panes only through the tool,
+// which builds every input from its types. The settings deny the calls that
+// send input (TestSettingsDeniesPaneInput); this keeps the definition from
+// asking for one.
+func TestNoDirectHerdrInvocation(t *testing.T) {
+	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
+		for _, text := range doctestutil.CommandTexts(readRepoFile(t, rel)) {
+			if doctestutil.RunsCommand(text, "herdr") {
+				t.Errorf("%s runs herdr directly: %q", rel, text)
+			}
+		}
+	}
+}
+
+// settings is the part of .claude/settings.json the guards read.
+type settings struct {
+	Permissions struct {
+		Allow []string `json:"allow"`
+		Deny  []string `json:"deny"`
+	} `json:"permissions"`
+}
+
+func readSettings(t *testing.T) settings {
+	t.Helper()
+	var s settings
+	if err := json.Unmarshal([]byte(readRepoFile(t, ".claude/settings.json")), &s); err != nil {
+		t.Fatalf("parse .claude/settings.json: %v", err)
+	}
+	return s
+}
+
+// deniedHerdr are the herdr calls the settings must deny (ADR-0046): the
+// calls that type into a pane, run a command in it, or route its input; the
+// calls that report an agent's state or session to Herdr, which chief's
+// checks read; and the global flags before a subcommand that point at
+// another session or machine, which would get past the prefixes above. A
+// rule ending in " *" matches the call with arguments; one ending in "*"
+// right after the flag also matches the flag's =value form and its longer
+// spellings such as --remote-keybindings.
+var deniedHerdr = []string{
+	"Bash(herdr agent prompt *)",
+	"Bash(herdr agent send-keys *)",
+	"Bash(herdr agent start *)",
+	"Bash(herdr agent attach *)",
+	"Bash(herdr pane send-text *)",
+	"Bash(herdr pane send-keys *)",
+	"Bash(herdr pane run *)",
+	"Bash(herdr pane input *)",
+	"Bash(herdr pane report-agent *)",
+	"Bash(herdr pane report-agent-session *)",
+	"Bash(herdr pane release-agent *)",
+	"Bash(herdr --session*)",
+	"Bash(herdr --machine*)",
+	"Bash(herdr --remote*)",
+}
+
+// TestSettingsDeniesPaneInput: .claude/settings.json denies every herdr
+// call of deniedHerdr and allows no herdr rule, so a session that follows an
+// instruction written on a screen or in a PR cannot type into another pane,
+// or forge the state chief checks, without the tool.
+func TestSettingsDeniesPaneInput(t *testing.T) {
+	s := readSettings(t)
+	for _, rule := range deniedHerdr {
+		if !slices.Contains(s.Permissions.Deny, rule) {
+			t.Errorf("permissions.deny %q does not contain %q", s.Permissions.Deny, rule)
+		}
+	}
+	for _, rule := range s.Permissions.Allow {
+		if strings.HasPrefix(rule, "Bash(herdr") {
+			t.Errorf("permissions.allow has %q, which may reach a pane without the tool", rule)
+		}
+	}
+}
+
+// TestSettingsAllowsTool: .claude/settings.json allows the tool under the
+// name go install gives it, so the watching session calls it without a
+// prompt.
+func TestSettingsAllowsTool(t *testing.T) {
+	want := "Bash(" + toolWord + " *)"
+	if allow := readSettings(t).Permissions.Allow; !slices.Contains(allow, want) {
+		t.Errorf("permissions.allow %q does not contain %q", allow, want)
+	}
+}
+
+// TestInstallTargetInMakefile: the Makefile's install-chief target installs
+// this package, so make install-chief installs the tool the definition runs.
+func TestInstallTargetInMakefile(t *testing.T) {
+	target := "install-" + toolWord
+	lines := strings.Split(readRepoFile(t, "Makefile"), "\n")
+	i := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(line, target+":") })
+	if i < 0 || i+1 >= len(lines) || lines[i+1] != "\t$(GOCMD) install ./cmd/"+toolWord {
+		t.Errorf("Makefile has no %s target whose recipe is $(GOCMD) install ./cmd/%s", target, toolWord)
+	}
+}
+
+// guidePath is the human guide, whose values the tool defines.
+const guidePath = "docs/dev/guides/chief_guide.md"
+
+// TestGuideValuesMatchTool: the guide's table of subcommands names exactly
+// the tool's subcommands, its table of exit codes exactly the tool's codes,
+// its protocol number is the tool's Protocol, and the state directory it
+// names is the one the tool opens below XDG_STATE_HOME, so the guide is not
+// left describing another version of the tool.
+func TestGuideValuesMatchTool(t *testing.T) {
+	guide := readRepoFile(t, guidePath)
+	var subcommands []string
+	for subcommand := range subcommandFlags {
+		subcommands = append(subcommands, subcommand)
+	}
+	codes := []string{strconv.Itoa(exitOK), strconv.Itoa(exitFailure), strconv.Itoa(exitUsage), strconv.Itoa(exitRefused)}
+	for header, want := range map[string][]string{"サブコマンド": subcommands, "終了コード": codes} {
+		table := doctestutil.FindTable(guide, header)
+		if table == nil {
+			t.Errorf("%s has no table with a %s column", guidePath, header)
+			continue
+		}
+		var got []string
+		for _, row := range table[1:] {
+			got = append(got, doctestutil.StripBackticks(row[0]))
+		}
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Errorf("%s: the %s table lists %q, the tool has %q", guidePath, header, got, want)
+		}
+	}
+	if m := guideProtocol.FindStringSubmatch(guide); m == nil || m[1] != strconv.Itoa(chief.Protocol) {
+		t.Errorf("%s: protocol number %q, want %d", guidePath, m, chief.Protocol)
+	}
+	base := t.TempDir()
+	store, err := chief.OpenStore(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rel, err := filepath.Rel(base, store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "`$XDG_STATE_HOME/" + filepath.ToSlash(rel) + "/`"; !strings.Contains(guide, want) {
+		t.Errorf("%s does not name the state directory %s", guidePath, want)
+	}
+}
+
+// guideProtocol finds the guide's statement of the current protocol number.
+var guideProtocol = regexp.MustCompile("現在の番号は `([0-9]+)`")

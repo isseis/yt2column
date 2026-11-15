@@ -80,6 +80,18 @@ func TestProtocolFlags(t *testing.T) {
 			[]ProtocolFlag{{"--protocol 1junk", "1junk", ToolCodexreview}, {"--protocol=4x", "4x", ToolFixprguard}},
 		},
 		{
+			// chief's flag is its own, next to another tool's.
+			"chief_and_codexreview",
+			"chief snapshot --protocol 1 && codexreview --protocol 1 --base " + sha + "\n",
+			[]ProtocolFlag{{"--protocol 1", "1", ToolChief}, {"--protocol 1", "1", ToolCodexreview}},
+		},
+		{
+			// A longer word that contains chief's name is not chief.
+			"chief_name_inside_a_word",
+			"chiefs --protocol 2\n",
+			[]ProtocolFlag{{"--protocol 2", "2", ""}},
+		},
+		{
 			// A flag in prose with no tool before it is the fixprguard
 			// guard's, as all flags were.
 			"no_tool",

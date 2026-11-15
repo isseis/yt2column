@@ -44,6 +44,9 @@ type NextOutput struct {
 	// Command is the command line, such as "/runplan 0088". A /mkreq has no
 	// issue number: the human names it.
 	Command string `json:"command"`
+	// Request is the --command value `chief send` takes to send this
+	// command; a /mkreq is sent with the issue number the human names.
+	Request string `json:"request"`
 	// Sendable is true when the command can be sent with the agent and model
 	// shown; false means Problem says why not.
 	Sendable bool   `json:"sendable"`
@@ -127,6 +130,7 @@ func nextOutput(n *Next) *NextOutput {
 	}
 	return &NextOutput{
 		Command:  n.Text,
+		Request:  requestNames[n.Kind],
 		Sendable: n.Command != nil,
 		Agent:    agentLabel(n.Agent),
 		Model:    Sanitize(n.Model),
