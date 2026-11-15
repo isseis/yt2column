@@ -32,9 +32,11 @@ type autoSendFacts struct {
 	// workspace is gone, or the PR is not known to be merged, so the other
 	// facts were not read and say nothing.
 	partial bool
-	// present is true when Herdr still has a task workspace at the
-	// observation's worktree.
+	// present is true when Herdr still has one task workspace at the
+	// observation's worktree; shared counts the workspaces there when more
+	// than one has it, so that none is chosen between them.
 	present bool
+	shared  int
 	state   PRState
 	// headRef is the merged PR's head branch.
 	headRef  string
@@ -111,7 +113,10 @@ func mergeConditions(f autoSendFacts) []string {
 	if f.expired {
 		why = append(why, fmt.Sprintf("the merge was first seen more than %s ago", carryWindow))
 	}
-	if !f.present {
+	switch {
+	case f.shared > 1:
+		why = append(why, fmt.Sprintf("%d Herdr workspaces are at %s, so none is chosen between them", f.shared, f.obs.Worktree))
+	case !f.present:
 		why = append(why, "no task workspace is at "+f.obs.Worktree+" now")
 	}
 	switch {
@@ -280,10 +285,18 @@ func (a *autoSender) checkRemote(ctx context.Context) remoteCheck {
 	return c
 }
 
-// workspaceAt returns the index of the round's task workspace at worktree.
-func (a *autoSender) workspaceAt(worktree string) (int, bool) {
-	i := slices.IndexFunc(a.view.found, func(w TaskWorkspace) bool { return w.Worktree == worktree })
-	return i, i >= 0
+// workspaceAt returns the index of the round's task workspace at worktree
+// and how many of the round's task workspaces are there. Contract: the index
+// is valid only when exactly one is, as for a send the human asks for
+// (locate): a worktree two Herdr workspaces hold names no one workspace.
+func (a *autoSender) workspaceAt(worktree string) (int, int) {
+	i, n := -1, 0
+	for j, w := range a.view.found {
+		if w.Worktree == worktree {
+			i, n = j, n+1
+		}
+	}
+	return i, n
 }
 
 // gather reads the facts of the conditions for obs in the workspace ws
@@ -513,16 +526,28 @@ type observedPR struct {
 }
 
 // carry writes obs into the current round with the time the merge was first
-// seen, so the next round considers it again.
+// seen and the time of the round that last saw the PR open, so the next
+// round considers it again and still counts a send made since that round.
 func (a *autoSender) carry(obs Observation, res **AutoSendResult) {
 	since := a.round.At
 	if obs.MergedSince != nil {
 		since = *obs.MergedSince
 	}
-	obs.Round, obs.MergedSince = a.round.ID, &since
+	open := a.openAt(obs)
+	obs.Round, obs.MergedSince, obs.OpenAt = a.round.ID, &since, &open
 	if err := a.deps.Store.RecordObservation(obs); err != nil && *res != nil {
 		(*res).Reasons = append((*res).Reasons, "the observation could not be carried to the next round: "+err.Error())
 	}
+}
+
+// openAt returns when the round that last saw obs's PR open began: the
+// previous round for a first consideration, the time a carry kept
+// otherwise.
+func (a *autoSender) openAt(obs Observation) time.Time {
+	if obs.OpenAt != nil {
+		return *obs.OpenAt
+	}
+	return a.prevAt
 }
 
 // consider decides one PR: the result to show (nil for none) and whether it
@@ -530,10 +555,12 @@ func (a *autoSender) carry(obs Observation, res **AutoSendResult) {
 func (a *autoSender) consider(ctx context.Context, obs Observation) (*AutoSendResult, bool) {
 	var ws *TaskWorkspace
 	var f workspaceFacts
-	if i, ok := a.workspaceAt(obs.Worktree); ok {
+	i, n := a.workspaceAt(obs.Worktree)
+	if n == 1 {
 		ws, f = &a.view.found[i], a.view.facts[i]
 	}
 	facts := a.gather(ctx, obs, ws, f)
+	facts.shared = n
 	if facts.stateErr == nil && facts.state != PRStateMerged {
 		// Still open (in another branch now) or closed: nothing to send.
 		return nil, false
@@ -567,38 +594,7 @@ func (a *autoSender) send(ctx context.Context, ws TaskWorkspace, obs Observation
 		return false
 	}
 	defer func() { _ = held.Close() }()
-	if err := checkOwner(ctx, a.deps, a.owner); err != nil {
-		res.Actions = append(res.Actions, notSent(base, NotSentConditions, "chief's lock or session changed: "+err.Error()))
-		return false
-	}
-	f := readWorkspace(ctx, a.herdr, a.git, a.tasks, loc.ws)
-	f.Routing, f.RoutingErr, f.FetchFailed = a.view.routing, a.view.routingErr, a.view.fetchFailed
-	// The remote is compared again: it may have moved since the first
-	// reading of this round.
-	a.remote = nil
-	facts := a.gather(ctx, obs, &loc.ws, f)
-	// A send made since the merge was first seen (by the human, between
-	// rounds of a carry) or during this round may have sent the command.
-	since := a.round.At
-	if obs.MergedSince != nil && obs.MergedSince.Before(since) {
-		since = *obs.MergedSince
-	}
-	later, err := held.SentSince(since)
-	facts.laterSend = err != nil || later
-	// The same command sent by hand since the round that saw the PR open,
-	// before this round saw it merged, is not sent again.
-	if !facts.laterSend {
-		again, err := held.SentCommandSince(a.prevAt, res.Proposal.Text)
-		facts.laterSend = err != nil || again
-	}
-	if why := autoSendConditions(facts); len(why) > 0 {
-		res.Reasons = why
-		res.Actions = append(res.Actions, notSent(base, NotSentConditions, "a condition no longer held once the workspace's exclusion was taken"))
-		return false
-	}
-	if facts.next.Text != res.Proposal.Text || facts.next.Command.Route() != cmd.Route() {
-		res.Proposal = facts.next
-		res.Reasons = []string{"the next command or its route changed to " + facts.next.Text + " while the workspace's exclusion was taken"}
+	if !a.recheck(ctx, held, &loc, obs, res, base) {
 		return false
 	}
 	route, err := a.view.routing.Route(cmd.Route())
@@ -612,17 +608,20 @@ func (a *autoSender) send(ctx context.Context, ws TaskWorkspace, obs Observation
 		return false
 	}
 	recorded := false
-	sc := sendContext{deps: a.deps, herdr: a.herdr, writer: writer, held: held, ws: loc.ws, beforeBegin: func() error {
+	sc := sendContext{deps: a.deps, herdr: a.herdr, writer: writer, held: held, ws: loc.ws, beforeBegin: func() (NotSentReason, error) {
 		// The owner may have changed while the conditions were read again.
-		if err := checkOwner(ctx, a.deps, a.owner); err != nil {
-			return err
+		if reason, err := a.ownerStill(ctx); err != nil {
+			return reason, err
 		}
 		err := a.deps.Store.recordAutoSend(autoSendRecord{PR: obs.PR, Worktree: obs.Worktree, Task: obs.Task, Command: res.Proposal.Text, Round: a.round.ID, At: a.deps.Now()})
 		if errors.Is(err, privatefile.ErrExist) {
-			return fmt.Errorf("#%d was already sent automatically: %w", obs.PR, err)
+			return NotSentAutoSendRecord, fmt.Errorf("#%d was already sent automatically: %w", obs.PR, err)
 		}
 		recorded = err == nil
-		return err
+		if err != nil {
+			return NotSentAutoSendRecord, fmt.Errorf("the automatic-send record cannot be written: %w", err)
+		}
+		return NotSentAutoSendRecord, nil
 	}}
 	sent := sc.sendCommand(ctx, cmd, route)
 	if recorded && sent.Outcome == OutcomeNotSent {
@@ -640,6 +639,65 @@ func (a *autoSender) send(ctx context.Context, ws TaskWorkspace, obs Observation
 		res.Reasons = []string{"the send failed after an input, so the workspace is stopped: " + sent.Detail}
 	}
 	return recorded
+}
+
+// recheck reads every condition of the automatic send of res.Proposal
+// again once the workspace's exclusion is held: chief's owner, the one
+// Herdr workspace at the worktree, the facts of the conditions, the sends
+// since the PR was seen, and the next command and its route. It reports
+// whether the send may go on, and otherwise says why in res.
+func (a *autoSender) recheck(ctx context.Context, held *HeldWorkspace, loc *located, obs Observation, res *AutoSendResult, base ActionResult) bool {
+	if err := checkOwner(ctx, a.deps, a.owner); err != nil {
+		res.Actions = append(res.Actions, notSent(base, NotSentConditions, "chief's lock or session changed: "+err.Error()))
+		return false
+	}
+	// The worktree must still be held by this one Herdr workspace: another
+	// opened on it since the round was read would not be read below.
+	if now, err := locate(ctx, a.deps, loc.ws.Worktree); err != nil || !now.found || now.ws.ID != loc.ws.ID {
+		res.Actions = append(res.Actions, notSent(base, NotSentConditions, "the worktree is no longer held by this one Herdr workspace alone"))
+		return false
+	}
+	f := readWorkspace(ctx, a.herdr, a.git, a.tasks, loc.ws)
+	f.Routing, f.RoutingErr, f.FetchFailed = a.view.routing, a.view.routingErr, a.view.fetchFailed
+	// The remote is compared again: it may have moved since the first
+	// reading of this round.
+	a.remote = nil
+	facts := a.gather(ctx, obs, &loc.ws, f)
+	// A send made since the merge was first seen (by the human, between
+	// rounds of a carry) or during this round may have sent the command.
+	since := a.round.At
+	if obs.MergedSince != nil && obs.MergedSince.Before(since) {
+		since = *obs.MergedSince
+	}
+	later, err := held.SentSince(since)
+	facts.laterSend = err != nil || later
+	// The same command sent by hand since the round that last saw the PR
+	// open, before a round saw it merged, is not sent again; a carry keeps
+	// that round's time.
+	if !facts.laterSend {
+		again, err := held.SentCommandSince(a.openAt(obs), res.Proposal.Text)
+		facts.laterSend = err != nil || again
+	}
+	if why := autoSendConditions(facts); len(why) > 0 {
+		res.Reasons = why
+		res.Actions = append(res.Actions, notSent(base, NotSentConditions, "a condition no longer held once the workspace's exclusion was taken"))
+		return false
+	}
+	if facts.next.Text != res.Proposal.Text || facts.next.Command.Route() != res.Proposal.Command.Route() {
+		res.Proposal = facts.next
+		res.Reasons = []string{"the next command or its route changed to " + facts.next.Text + " while the workspace's exclusion was taken"}
+		return false
+	}
+	return true
+}
+
+// ownerStill checks before an input of the automatic send that this tick's
+// owner still holds chief: the reason to report with the error, if any.
+func (a *autoSender) ownerStill(ctx context.Context) (NotSentReason, error) {
+	if err := checkOwner(ctx, a.deps, a.owner); err != nil {
+		return NotSentConditions, fmt.Errorf("chief's lock or session changed: %w", err)
+	}
+	return NotSentConditions, nil
 }
 
 // checkOwner checks that owner still holds the lock and that chief's pane
@@ -663,13 +721,16 @@ func checkOwner(ctx context.Context, deps Deps, owner Owner) error {
 // command. Contract: the candidate is the one pane of the agent /runpr is
 // routed to, never chosen by a screen; it is emptied only when it is not
 // sentPane and its last message is still the /runpr report naming the
-// merged PR and the command sent, and it is checked and recorded like any
+// merged PR and the command sent, its state_change_seq unchanged since the
+// workspace's agents were read under the exclusion, before the command was
+// sent, and chief's owner unchanged; it is checked and recorded like any
 // send.
 func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observation, next *Next, sentPane string) ActionResult {
 	res := ActionResult{Workspace: sc.ws.Worktree, Input: InputReset}
 	// The automatic-send record belongs to the command; the reset writes
-	// only its own send record.
-	sc.beforeBegin = nil
+	// only its own send record, once the owner is checked again: the
+	// command's inputs may have taken long enough for chief to change hands.
+	sc.beforeBegin = func() (NotSentReason, error) { return a.ownerStill(ctx) }
 	if stop, err := sc.held.Stopped(); err != nil || stop != nil {
 		return notSent(res, NotSentStopped, "the workspace was stopped by the automatic send")
 	}
@@ -708,6 +769,9 @@ func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observa
 	if report, ok := readRunprReport(agent.Kind, raw); !ok || !slices.Contains(report.PRs, obs.PR) || !agrees(report.Next, next, obs.Task) {
 		return notSent(res, NotSentNoReport, fmt.Sprintf("the pane's last message is not the /runpr report of #%d naming %s", obs.PR, next.Text))
 	}
-	seq := agent.StateChangeSeq
+	// The pane must not have moved since its agent was read under the
+	// exclusion, before the command was sent: the report read now may be a
+	// new answer of the same shape.
+	seq := candidate.StateChangeSeq
 	return sc.run(ctx, res, agent, []step{st}, paneCheck{session: agent.Session, seq: &seq}, route)
 }

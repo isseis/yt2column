@@ -921,32 +921,161 @@ func TestAutoSendStateUnreadable(t *testing.T) {
 
 // TestAutoSendAfterAManualSend checks that a command the human sent by hand
 // after the round that saw the PR open is not sent again by itself, though
-// the command ended and left the workspace waiting.
+// the command ended and left the workspace waiting: when the next round sees
+// the merge at once, when the merge is carried through a round in which the
+// command ran, and when a start of the same session ran before the tick.
 func TestAutoSendAfterAManualSend(t *testing.T) {
-	mw := newMergeWorld(t, mkarchDocs)
-	mw.tick(time.Minute)
-	mw.now = mw.now.Add(time.Second)
-	records, err := mw.store.Records(Worktree{path: mw.tree})
-	if err != nil {
-		t.Fatal(err)
+	for _, c := range []struct {
+		name         string
+		carry, start bool
+	}{
+		{name: "the next round"},
+		{name: "after a carry", carry: true},
+		{name: "after a start", start: true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			mw := newMergeWorld(t, mkarchDocs)
+			mw.tick(time.Minute)
+			mw.now = mw.now.Add(time.Second)
+			records, err := mw.store.Records(Worktree{path: mw.tree})
+			if err != nil {
+				t.Fatal(err)
+			}
+			held, err := records.Lock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			id, err := held.BeginSend(SendRecord{Pane: "w1:p1", Input: InputCommand.String(), Command: "/mkarch 0001"}, mw.now)
+			if err == nil {
+				err = held.EndSend(id, OutcomeSent.String(), "", mw.now)
+			}
+			if cerr := held.Close(); err == nil {
+				err = cerr
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			mw.merge(nextBranch, "`/mkarch 0001`")
+			if c.carry {
+				// The command sent by hand runs through the round that first
+				// sees the merge, so the merge is carried.
+				mw.byPane["w1:p1"].Status = "working"
+				if res := only(t, mw.tick(time.Minute)); sentCommand(res) {
+					t.Fatalf("sent with a running agent: %+v", res)
+				}
+				mw.byPane["w1:p1"].Status = "idle"
+			}
+			if c.start {
+				if _, err := mw.store.Start(context.Background(), NewHerdr(mw.deps.Cmds), mw.owner(), mw.now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			res := only(t, mw.tick(time.Minute))
+			if sentCommand(res) || len(mw.rec.prompts()) != 0 {
+				t.Errorf("the command sent by hand was sent again: %+v", res)
+			}
+		})
 	}
-	held, err := records.Lock()
-	if err != nil {
-		t.Fatal(err)
+}
+
+// addSharingWorkspace adds a Herdr workspace w2 on the worktree of w1, with
+// a Claude Code agent of status, to the replies of Herdr from now on.
+func (mw *mergeWorld) addSharingWorkspace(status string) {
+	mw.t.Helper()
+	p := &simPane{fakeAgent: fakeAgent{Pane: "w2:p1", Workspace: "w2", Kind: "claude", Status: status, Dir: mw.tree, Seq: 10, Session: mw.newSession()}, screen: readScreenSample(mw.t, "claude-idle.ansi")}
+	if err := mw.writeTranscript(p, p.Session, modeLine(p.Session)); err != nil {
+		mw.t.Fatal(err)
 	}
-	id, err := held.BeginSend(SendRecord{Pane: "w1:p1", Input: InputCommand.String(), Command: "/mkarch 0001"}, mw.now)
-	if err == nil {
-		err = held.EndSend(id, OutcomeSent.String(), "", mw.now)
+	for _, src := range []string{"visible", "recent"} {
+		mw.rec.replyFunc("herdr agent read "+p.Pane+" --source "+src+" --lines 200 --format ansi", func() reply { return reply{out: []byte(p.screen)} })
 	}
-	if cerr := held.Close(); err == nil {
-		err = cerr
+	mw.rec.replyFunc("herdr agent get "+p.Pane, func() reply { return reply{out: agentGetOutput(p.fakeAgent)} })
+	mw.panes = append(mw.panes, p)
+	mw.byPane[p.Pane] = p
+	mw.labels = append(mw.labels, [2]string{"w2", "ws2"})
+	mw.rec.reply("herdr workspace list", workspaceListOutput(mw.labels))
+}
+
+// TestAutoSendSharedWorktree checks that a worktree two Herdr workspaces
+// hold gets no automatic send, whichever is listed first, as a send the
+// human asks for does not: when the round sees both, and when the second
+// opens after the round read Herdr, which only the reading under the
+// exclusion sees.
+func TestAutoSendSharedWorktree(t *testing.T) {
+	for _, underExclusion := range []bool{false, true} {
+		t.Run(map[bool]string{false: "in the round", true: "under the exclusion"}[underExclusion], func(t *testing.T) {
+			mw := newMergeWorld(t, mkarchDocs)
+			mw.tick(time.Minute)
+			mw.merge(nextBranch, "`/mkarch 0001`")
+			if underExclusion {
+				// The second opens after the round read Herdr, while the
+				// first reading of the merge runs.
+				calls := 0
+				mw.rec.replyFunc(prStateLine, func() reply {
+					calls++
+					if calls == 1 {
+						mw.mu.Lock()
+						mw.addSharingWorkspace("idle")
+						mw.mu.Unlock()
+					}
+					return reply{out: []byte(prMergedJSON)}
+				})
+			} else {
+				mw.addSharingWorkspace("working")
+				// With no one workspace there, the state is read in chief's
+				// worktree, as for a workspace that is gone.
+				mw.rec.replyIn(mw.chiefTree, prStateLine, []byte(prMergedJSON))
+			}
+			res := only(t, mw.tick(time.Minute))
+			if sentCommand(res) || len(mw.rec.prompts()) != 0 {
+				t.Fatalf("sent to a worktree two workspaces hold: %+v, prompts %v", res, mw.rec.prompts())
+			}
+			if sent, _ := mw.store.AutoSent(42); sent {
+				t.Error("the automatic send was recorded")
+			}
+			if !underExclusion && !slices.ContainsFunc(res.Reasons, func(r string) bool { return strings.Contains(r, "2 Herdr workspaces") }) {
+				t.Errorf("reasons = %v; want the two workspaces named", res.Reasons)
+			}
+		})
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	mw.merge(nextBranch, "`/mkarch 0001`")
-	res := only(t, mw.tick(time.Minute))
-	if sentCommand(res) || len(mw.rec.prompts()) != 0 {
-		t.Errorf("the command sent by hand was sent again: %+v", res)
+}
+
+// TestResetChecksAgain checks that the /runpr pane is not emptied when,
+// while the command was typed, the pane moved (its last message still the
+// report) or chief's session changed.
+func TestResetChecksAgain(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		change func(mw *mergeWorld)
+	}{
+		{"the /runpr pane moved", func(mw *mergeWorld) { mw.byPane["w1:p2"].Seq++ }},
+		{"chief's session changed", func(mw *mergeWorld) {
+			cleared := mw.chief
+			cleared.Session = "00000000-0000-4000-8000-0000000000c9"
+			mw.chief = cleared
+			mw.rec.reply("herdr agent get "+worldChiefPane, agentGetOutput(cleared))
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			mw := newMergeWorld(t, mkarchDocs)
+			mw.tick(time.Minute)
+			mw.merge(nextBranch, "`/mkarch 0001`")
+			mw.react = func(p *simPane, text string) error {
+				if text == "/mkarch 0001" {
+					c.change(mw)
+				}
+				return mw.realReact(p, text)
+			}
+			res := only(t, mw.tick(time.Minute))
+			if !sentCommand(res) {
+				t.Fatalf("auto send = %+v; want the command sent", res)
+			}
+			if len(res.Actions) != 2 || res.Actions[1].Input != InputReset || res.Actions[1].Outcome != OutcomeNotSent {
+				t.Errorf("reset = %+v; want none", res.Actions[1:])
+			}
+			if slices.Contains(mw.rec.prompts(), "w1:p2 /new") {
+				t.Error("the /runpr pane was emptied")
+			}
+		})
 	}
 }

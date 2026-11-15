@@ -574,19 +574,25 @@ func TestWorkspaceBusy(t *testing.T) {
 	}
 }
 
-// TestStartCleansSendsAndDetails checks start's cleanup: a finished send's
-// records and a detail older than the kept days are removed, while an
-// unfinished send's start, a recent detail, and a stop stay.
+// TestStartCleansSendsAndDetails checks start's cleanup: the records of a
+// send finished more than sendKeepAge ago and a detail older than the kept
+// days are removed, while a send finished within sendKeepAge (which the
+// automatic send still reads), an unfinished send's start, a recent detail,
+// and a stop stay.
 func TestStartCleansSendsAndDetails(t *testing.T) {
 	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	store := newStore(t)
 	held := heldRecords(t, store, "/work/a")
-	done, err := held.BeginSend(SendRecord{Pane: "w1:p1"}, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := held.EndSend(done, OutcomeSent.String(), "", now); err != nil {
-		t.Fatal(err)
+	var recent string
+	for _, at := range []time.Time{now.Add(-sendKeepAge - time.Second), now.Add(-sendKeepAge + time.Second)} {
+		done, err := held.BeginSend(SendRecord{Pane: "w1:p1"}, at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := held.EndSend(done, OutcomeSent.String(), "", at); err != nil {
+			t.Fatal(err)
+		}
+		recent = done
 	}
 	open, err := held.BeginSend(SendRecord{Pane: "w1:p1"}, now.Add(time.Second))
 	if err != nil {
@@ -613,8 +619,8 @@ func TestStartCleansSendsAndDetails(t *testing.T) {
 		t.Fatal(err)
 	}
 	starts, ends, err := records.sendFiles()
-	if err != nil || !slices.Equal(starts, []string{open}) || len(ends) != 0 {
-		t.Errorf("send records = %v %v %v; want only the unfinished start", starts, ends, err)
+	if _, kept := ends[recent]; err != nil || !slices.Equal(starts, []string{recent, open}) || len(ends) != 1 || !kept {
+		t.Errorf("send records = %v %v %v; want the recent finished send and the unfinished start", starts, ends, err)
 	}
 	if _, ok, _ := records.readDetail(1, head); ok {
 		t.Error("the old detail was kept")

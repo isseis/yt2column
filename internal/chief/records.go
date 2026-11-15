@@ -793,8 +793,14 @@ func (r WorkspaceRecords) SentCommandSince(t time.Time, command string) (bool, e
 	return false, nil
 }
 
-// cleanup removes the sends whose start and end are both written and the PR
-// details older than detailMaxAge. A start without an end is never removed.
+// sendKeepAge is how long a finished send is kept: the automatic send reads
+// the sends since the round that last saw a PR open, which is less than
+// observeWindow plus carryWindow before the round that sends.
+const sendKeepAge = observeWindow + carryWindow
+
+// cleanup removes the sends whose start and end are both written and that
+// started more than sendKeepAge before now, and the PR details older than
+// detailMaxAge. A start without an end is never removed.
 func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 	starts, ends, err := h.sendFiles()
 	if err != nil {
@@ -809,8 +815,9 @@ func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 		}
 		removed++
 	}
+	keepFrom := fmt.Sprintf("%020d", now.Add(-sendKeepAge).UnixNano())
 	for _, id := range starts {
-		if _, ok := ends[id]; !ok {
+		if _, ok := ends[id]; !ok || id >= keepFrom {
 			continue
 		}
 		// The start goes first: an end left alone is harmless, while a
@@ -1009,7 +1016,8 @@ func (s Store) pruneRounds(session, keep string) error {
 // Observation is what one round saw of one open PR in one workspace: the PR,
 // the worktree, its task, and the PR's head branch. MergedSince is set on an
 // observation carried into a round after the PR was seen merged: the time
-// that was first seen, kept as it was through every carry.
+// that was first seen, kept as it was through every carry. OpenAt is set
+// with it: when the round that last saw the PR open began, kept likewise.
 type Observation struct {
 	Session     string     `json:"session"`
 	Round       string     `json:"round"`
@@ -1018,6 +1026,7 @@ type Observation struct {
 	Task        string     `json:"task"`
 	Branch      string     `json:"branch"`
 	MergedSince *time.Time `json:"merged_since,omitempty"`
+	OpenAt      *time.Time `json:"open_at,omitempty"`
 }
 
 // observeName is the file name of an observation of pr in worktree.

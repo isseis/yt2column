@@ -264,9 +264,10 @@ type sendContext struct {
 	held   *HeldWorkspace
 	ws     TaskWorkspace
 	// beforeBegin, when set, runs once the check before the first input
-	// passed and before the send record is written; an error sends nothing.
-	// The automatic send writes its own record there.
-	beforeBegin func() error
+	// passed and before the send record is written; an error sends nothing
+	// and is reported with the reason returned. The automatic send checks
+	// chief's owner and writes its own record there.
+	beforeBegin func() (NotSentReason, error)
 }
 
 // paneCheck is what the check before an input asks for besides a pane that
@@ -446,8 +447,8 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 		return res
 	}
 	if s.beforeBegin != nil {
-		if err := s.beforeBegin(); err != nil {
-			return notSent(res, NotSentAutoSendRecord, "the automatic-send record cannot be written: "+err.Error())
+		if reason, err := s.beforeBegin(); err != nil {
+			return notSent(res, reason, err.Error())
 		}
 	}
 	var prompts []string
