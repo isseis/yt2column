@@ -165,9 +165,12 @@ How to offer them depends on the argument:
   first sees it and keeps it for the session, and never gives it to another
   item. 何もしない is `0`. An item whose `number` is `0` has none; list it
   without a number, to be chosen by its label. Write each choice as one
-  plain line, `<number>. <description>`, in the tool's order, with no bullet
-  before it and no line break inside it. Write nothing about numbers that
-  are no longer listed.
+  plain line, `[<number>] <description>`, in the tool's order, with no bullet
+  before it and no line break inside it. Never write `<number>.` or
+  `<number>)`: the terminal renders such lines as a Markdown ordered list
+  and renumbers them from the first number, so the human would see numbers
+  the tool did not give. Write nothing about numbers that are no longer
+  listed.
 - **With `once`**, ask with `AskUserQuestion`. A question has at most four
   options, so show the first three items and 何もしない; name every item left
   out by its label in the question text, and say that the human can write
