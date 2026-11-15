@@ -651,11 +651,13 @@ type BuildKind = "release" | "dev";
 | 文書 | 加える要点 |
 |---|---|
 | [development.md](../../dev/guides/development.md) | `make ext-build-dev` の 5 つの変数と綴り、開発用のビルドの見分け方（開発用の印、別の拡張の ID）、`cmd/yt2column-extjob` の使い方（`-llm` の指定が要ること）、`settings_invalid` を含む失敗の値の表、初めの拡張のビルドが `go.mod` の版のツールチェーンをダウンロードしうること |
-| [package_reference.md](../../dev/conventions/package_reference.md) | `internal/extjob/claudebackend`・`internal/extjob/devbackend`・`cmd/yt2column-extjob` の行。`internal/llm` の行の `ErrAuthRejected` と返すアダプタ、`internal/llm/claude` の行の `CheckKey`、`internal/llm/llmhttp` の行の `Status`、`internal/llm/devfake` の行の追加の値と `ParseScenario`、`internal/config` の行の `LoadExtension`・`ExtensionLookup`・`ReadExtensionSettings` |
+| [package_reference.md](../../dev/conventions/package_reference.md) | `internal/extjob/claudebackend`・`internal/extjob/devbackend`・`cmd/yt2column-extjob` の行。`internal/llm` の行の `ErrAuthRejected` と返すアダプタ、`internal/llm/claude` の行の `CheckKey`、`internal/llm/llmhttp` の行の `Status`、`internal/llm/devfake` の行の追加の値と `ParseScenario`、`internal/config` の行の `LoadExtension`・`ExtensionLookup`・`ReadExtensionSettings`。`internal/privatefile` の行の規則のリンク先を、撤去で除く security.md §8.2 から、下の security.md の行で残す規則の箇所に改める |
+| [project_overview.md](../../dev/project_overview.md) | ディレクトリの構成に、`internal/extjob`・`internal/extjob/claudebackend`・`internal/extjob/devbackend` を加える。`internal/privatefile` の説明を、サーバの設定ファイルのためのものから、`internal/chief` が使う、所有者だけが読めるファイルの検査付きの読み込みと作成に改める（§3.2、要件書 AC-31） |
+| [CLAUDE.md](../../../CLAUDE.md) の「Architecture Overview」 | `internal/privatefile` の説明を、サーバの設定ファイルのためのものから、`internal/chief` が使うものに改める（§3.2、要件書 AC-31） |
 | [docs/translation_glossary.md](../../translation_glossary.md) | 「主経路」「ビューアの URL」「記録」「ジョブの状態」を、拡張だけの経路の意味で定義し直す（要件書 §1）。「オプションページ」「開発用のビルド」「記事生成モジュール」の語を加える |
 | [cli.md](../../dev/guides/cli.md) | localhost サーバとその設定ファイルの記述を除く（要件書 §1） |
 | [fixprguard_guide.md](../../dev/guides/fixprguard_guide.md)・`.claude/commands/_lib/task-pr-handoff.md`・`.claude/commands/_lib/simple-process.md`・[CLAUDE.md](../../../CLAUDE.md) の「Development Notes」の `doc-guard` のコマンド | 文書のガードのコマンドから `./cmd/yt2column-server` を除く。サーバを撤去する PR で行う（要件書 §1） |
-| [security.md](../../dev/security.md) | 変更の知らせを `chrome.storage.session.onChanged` だけで受け取ること、`chrome.storage` を決まった関数だけで使うこと（§5.4）、開発用のコマンドの入力のファイルをリポジトリに入れないこと（§7） |
+| [security.md](../../dev/security.md) | 変更の知らせを `chrome.storage.session.onChanged` だけで受け取ること、`chrome.storage` を決まった関数だけで使うこと（§5.4）、開発用のコマンドの入力のファイルをリポジトリに入れないこと（§7）。§8.2 のサーバの節を除くときに、`internal/privatefile` の検査の規則（検査した記述子から読むこと、所有者とモードの検査、作成の規則）は、`internal/chief` が使う規則として残す（§3.2、要件書 AC-31） |
 | README・`README.en.md` | 要件書 AC-34 のとおり。移行の手順では、`~/.config/yt2column/config.env` を消すのを、拡張だけの経路で記事を 1 本作れた後にするよう勧める。そこまでは、今のサーバとホストに戻る手段が残るためである |
 
 `README.md` を先に書き換え、`README.en.md` は `/mktrans` で同期する。
