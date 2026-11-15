@@ -919,6 +919,30 @@ func TestAutoSendStateUnreadable(t *testing.T) {
 	}
 }
 
+// sendByHand records a command the human sent by hand to pane at, as a run of
+// chief's send would.
+func (mw *mergeWorld) sendByHand(pane, command string, at time.Time) {
+	mw.t.Helper()
+	records, err := mw.store.Records(Worktree{path: mw.tree})
+	if err != nil {
+		mw.t.Fatal(err)
+	}
+	held, err := records.Lock()
+	if err != nil {
+		mw.t.Fatal(err)
+	}
+	id, err := held.BeginSend(SendRecord{Pane: pane, Input: InputCommand.String(), Command: command}, at)
+	if err == nil {
+		err = held.EndSend(id, OutcomeSent.String(), "", at)
+	}
+	if cerr := held.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		mw.t.Fatal(err)
+	}
+}
+
 // TestAutoSendAfterAManualSend checks that a command the human sent by hand
 // after the round that saw the PR open is not sent again by itself, though
 // the command ended and left the workspace waiting: when the next round sees
@@ -937,24 +961,7 @@ func TestAutoSendAfterAManualSend(t *testing.T) {
 			mw := newMergeWorld(t, mkarchDocs)
 			mw.tick(time.Minute)
 			mw.now = mw.now.Add(time.Second)
-			records, err := mw.store.Records(Worktree{path: mw.tree})
-			if err != nil {
-				t.Fatal(err)
-			}
-			held, err := records.Lock()
-			if err != nil {
-				t.Fatal(err)
-			}
-			id, err := held.BeginSend(SendRecord{Pane: "w1:p1", Input: InputCommand.String(), Command: "/mkarch 0001"}, mw.now)
-			if err == nil {
-				err = held.EndSend(id, OutcomeSent.String(), "", mw.now)
-			}
-			if cerr := held.Close(); err == nil {
-				err = cerr
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
+			mw.sendByHand("w1:p1", "/mkarch 0001", mw.now)
 			mw.merge(nextBranch, "`/mkarch 0001`")
 			if c.carry {
 				// The command sent by hand runs through the round that first
@@ -975,6 +982,34 @@ func TestAutoSendAfterAManualSend(t *testing.T) {
 				t.Errorf("the command sent by hand was sent again: %+v", res)
 			}
 		})
+	}
+}
+
+// TestTickRecordsTheRoundBeforeItReads checks that a round is recorded with
+// the time its reading began: when the PR merges and the human sends the next
+// command by hand while the round reads the workspace, the round that sends
+// next still sees the send, so the same command is not sent again.
+func TestTickRecordsTheRoundBeforeItReads(t *testing.T) {
+	mw := newMergeWorld(t, mkarchDocs)
+	mw.tick(time.Minute)
+	// The second round reads the PR open; while it reads the rest, the PR
+	// merges and the human sends the next command by hand.
+	reads := 0
+	mw.rec.replyFunc("gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", func() reply {
+		reads++
+		if reads > 1 {
+			return reply{out: []byte(openPRJSON)}
+		}
+		mw.now = mw.now.Add(time.Second)
+		mw.sendByHand("w1:p1", "/mkarch 0001", mw.now)
+		mw.merge(nextBranch, "`/mkarch 0001`")
+		mw.now = mw.now.Add(time.Second)
+		return reply{out: []byte(openPRJSON)}
+	})
+	mw.tick(time.Minute)
+	res := only(t, mw.tick(time.Minute))
+	if sentCommand(res) || len(mw.rec.prompts()) != 0 {
+		t.Fatalf("the command sent by hand during the read was sent again: %+v", res)
 	}
 }
 

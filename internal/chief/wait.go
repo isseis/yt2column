@@ -90,6 +90,42 @@ func workspaceIDs(found []TaskWorkspace) map[string]struct{} {
 	return ids
 }
 
+// taskWorkspaceIDs reads Herdr's workspace list and returns the IDs of the
+// task workspaces among agents.
+func taskWorkspaceIDs(ctx context.Context, deps Deps, herdr Herdr, chiefPane PaneID, agents []Agent) (map[string]struct{}, error) {
+	workspaces, err := herdr.Workspaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+	found, err := FindTaskWorkspaces(ctx, NewGitReader(deps.Cmds), deps.Cmds, agents, workspaces, chiefPane)
+	if err != nil {
+		return nil, err
+	}
+	return workspaceIDs(found), nil
+}
+
+// listedWorkspaces returns, sorted, the IDs of the workspaces the agent list
+// holds other than chief's own: the membership a wait compares to tell when
+// the workspaces it watches must be decided again.
+func listedWorkspaces(agents []Agent, chiefPane PaneID) []string {
+	chief := ""
+	for _, a := range agents {
+		if a.Pane == chiefPane {
+			chief = a.Workspace
+			break
+		}
+	}
+	ids := make([]string, 0, len(agents))
+	for _, a := range agents {
+		if a.Workspace == chief || slices.Contains(ids, a.Workspace) {
+			continue
+		}
+		ids = append(ids, a.Workspace)
+	}
+	slices.Sort(ids)
+	return ids
+}
+
 // WaitOutcome is what `chief wait` saw: the baseline of the change.
 type WaitOutcome struct {
 	Baseline WaitBaseline
@@ -97,7 +133,8 @@ type WaitOutcome struct {
 
 // Wait waits until the agents of the task workspaces differ from the
 // baseline (the design, 3.1.1). Contract: it returns at once when they
-// differ already; an agent that stays blocked, and any change in chief's
+// differ already; a task workspace opened during the wait is watched from the
+// read that lists it; an agent that stays blocked, and any change in chief's
 // own workspace, does not end it; it reads Herdr only and sends nothing; a
 // Herdr failure, and the time limit, end it with an error. Before each read
 // it checks that owner still holds the lock and that chief's pane still has
@@ -116,15 +153,11 @@ func Wait(ctx context.Context, deps Deps, owner Owner, req WaitRequest) (WaitOut
 	if err != nil {
 		return WaitOutcome{}, err
 	}
-	workspaces, err := herdr.Workspaces(ctx)
+	ids, err := taskWorkspaceIDs(ctx, deps, herdr, chiefPane, agents)
 	if err != nil {
 		return WaitOutcome{}, err
 	}
-	found, err := FindTaskWorkspaces(ctx, NewGitReader(deps.Cmds), deps.Cmds, agents, workspaces, chiefPane)
-	if err != nil {
-		return WaitOutcome{}, err
-	}
-	ids := workspaceIDs(found)
+	listed := listedWorkspaces(agents, chiefPane)
 	start := deps.Now()
 	for {
 		if err := stillOwner(deps.Store, owner, agents, chiefPane); err != nil {
@@ -141,6 +174,15 @@ func Wait(ctx context.Context, deps Deps, owner Owner, req WaitRequest) (WaitOut
 		}
 		if agents, err = herdr.Agents(ctx); err != nil {
 			return WaitOutcome{}, err
+		}
+		// A workspace opened during the wait brings an agent the baseline
+		// compared so far does not cover, so the list's workspaces changing
+		// decides the watched set again.
+		if now := listedWorkspaces(agents, chiefPane); !slices.Equal(now, listed) {
+			listed = now
+			if ids, err = taskWorkspaceIDs(ctx, deps, herdr, chiefPane, agents); err != nil {
+				return WaitOutcome{}, err
+			}
 		}
 	}
 }

@@ -16,20 +16,26 @@ type TickOutcome struct {
 // Tick is one round of chief's wait (the design, 3.1.1 and 3.7): it records
 // the round, takes the snapshot, records an observation of every open PR of
 // a task workspace, and considers each PR the previous round of this session
-// saw open for an automatic send. Contract: only a PR the previous round saw
-// open, when that round is less than observeWindow before this one, can be
-// sent automatically; a round that cannot be recorded, or a previous round
-// that cannot be read, makes no observation and sends nothing; every merged
+// saw open for an automatic send. The round is recorded with the time its
+// reading began, so a send made by hand while the reading runs counts as made
+// since this round. Contract: only a PR the previous round saw open, when
+// that round is less than observeWindow before this one, can be sent
+// automatically; a round that cannot be recorded, or a previous round that
+// cannot be read, makes no observation and sends nothing; every merged
 // PR that is not sent is shown as a proposal with the conditions that did
 // not hold.
 func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
+	// The round's time is taken before the reading it covers starts, so a
+	// command the human sends by hand while the workspaces are read counts as
+	// sent since this round, and the round that sends next sees it.
+	at := deps.Now()
 	view, err := readRound(ctx, deps)
 	if err != nil {
 		// No round is recorded: a round that read nothing would become the
 		// next tick's previous round and drop every observation before it.
 		return TickOutcome{}, err
 	}
-	start, roundErr := deps.Store.BeginRound(owner.Session, deps.Now())
+	start, roundErr := deps.Store.BeginRound(owner.Session, at)
 	if roundErr != nil {
 		view.problems = append(view.problems, "the round cannot be recorded, so nothing is observed or sent automatically: "+roundErr.Error())
 		return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, nil)}, nil

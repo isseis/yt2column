@@ -5,6 +5,7 @@ package chief
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 )
@@ -114,6 +115,43 @@ func TestWaitReturnsOnChange(t *testing.T) {
 				t.Errorf("the wait's baseline %s is not the snapshot's %s of the same state", out.Baseline, again)
 			}
 		})
+	}
+}
+
+// openTaskWorkspace opens a task workspace in the middle of a wait: it adds
+// the workspace to the world and refreshes the workspace list, and returns
+// the agent list that holds it.
+func (ww *waitWorld) openTaskWorkspace(ws fakeWorkspace) []fakeAgent {
+	ww.t.Helper()
+	ww.add(ws)
+	ww.rec.reply("herdr workspace list", workspaceListOutput(ww.labels))
+	return ww.agents
+}
+
+// TestWaitWatchesAWorkspaceOpenedDuringTheWait checks that a task workspace
+// opened while the wait runs is compared from the read that lists it: its
+// agent alone, with every earlier task workspace unchanged, ends the wait
+// instead of letting it time out.
+func TestWaitWatchesAWorkspaceOpenedDuringTheWait(t *testing.T) {
+	ww := newWaitWorld(t, fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON})
+	since := ww.baseline()
+	before := slices.Clone(ww.agents)
+	opened := ww.openTaskWorkspace(fakeWorkspace{ID: "w2", Label: "ws2", Branch: taskBranch})
+	ww.changeAgents(func(read int) []fakeAgent {
+		if read < 2 {
+			return before
+		}
+		return opened
+	})
+	out, err := ww.wait(since, "30")
+	if err != nil || out.Baseline == since {
+		t.Fatalf("Wait = %+v, %v after %d sleeps; a task workspace opened during the wait did not end it", out, err, ww.sleeps)
+	}
+	if ww.sleeps != 1 {
+		t.Errorf("the wait slept %d times; want it to return at the read that first listed the workspace", ww.sleeps)
+	}
+	if again := ww.baseline(); again != out.Baseline {
+		t.Errorf("the wait's baseline %s is not the snapshot's %s of the same state", out.Baseline, again)
 	}
 }
 
