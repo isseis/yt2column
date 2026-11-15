@@ -165,12 +165,14 @@ How to offer them depends on the argument:
   the label in the free-text answer to choose it (requirements AC-14).
 
 **Reading the answer.** With `once`, the answer is to the question just
-asked. While watching, a number chooses that item of the last list written;
-when a later round changed the list, read the answer against the newest
-list and ask again when it no longer names the same item. A label
+asked. While watching, the human may have read any list written since
+their previous message. A number chooses an item only when every such list
+gives that number the same item; otherwise ask which item they meant, with
+an `AskUserQuestion` naming the items those lists give it, and send nothing
+until they answer. A label
 chooses the item of that label; when several items share it (for example
 two questions in one workspace, or a next command and a takeover), ask again
-listing only those. An answer that names no item of the last list is not a
+listing only those. An answer that names no item of those lists is not a
 choice: say so and send nothing.
 
 ## 4. Acting on the answer
