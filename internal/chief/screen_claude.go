@@ -366,7 +366,7 @@ func claudeTabsReview(lines []screenLine) *Question {
 }
 
 // claudePermission reads a permission prompt: from a rule, a tool header and
-// its details, the proceed line, numbered options indented by one space, a
+// its details (blank lines among them), the proceed line, numbered options indented by one space, a
 // blank line, and the footer.
 func claudePermission(lines []screenLine) *Question {
 	end := len(lines) - claudePermissionTail
@@ -390,8 +390,10 @@ func claudePermission(lines []screenLine) *Question {
 	q := &Question{Kind: QuestionPermission, Relay: RelayBlockPermission}
 	var text []string
 	for _, l := range lines[top+1 : first] {
+		// A blank line separates a warning from the proceed line, as in
+		// claude-permission-warning.ansi.
 		t, ok := strings.CutPrefix(l.text, claudePermissionIndent)
-		if !ok && !isRule(l.text, '╌') {
+		if !ok && !isRule(l.text, '╌') && l.text != "" {
 			return nil
 		}
 		text = append(text, t)

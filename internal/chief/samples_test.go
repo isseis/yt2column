@@ -101,7 +101,7 @@ var screenRows = map[string]map[string][]string{
 	"question shapes": {
 		"claude": {
 			"claude-question-single.ansi", "claude-question-single-cursor.ansi", "claude-question-multi.ansi",
-			"claude-question-tabs.ansi", "claude-question-tabs-second.ansi", "claude-question-tabs-review.ansi", "claude-permission.ansi",
+			"claude-question-tabs.ansi", "claude-question-tabs-second.ansi", "claude-question-tabs-review.ansi", "claude-permission.ansi", "claude-permission-warning.ansi",
 		},
 		"opencode": {
 			"opencode-question-single.ansi", "opencode-question-single-cursor.ansi", "opencode-question-multi.ansi",

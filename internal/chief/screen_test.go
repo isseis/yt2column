@@ -117,6 +117,23 @@ var claudeScreenWants = map[string]wantScreen{
 			strings.Repeat("╌", 83) + "\nDo you want to proceed?",
 		labels: []string{"Yes", "Yes, and always allow access to /tmp from this project", "Yes, and switch to auto mode · auto mode handles these prompts for you", "No"},
 	},
+	// A permission prompt whose command wraps onto lines marked "│" and
+	// that ends with a warning and a blank line before the proceed line.
+	"claude-permission-warning.ansi": {
+		kind: ScreenQuestion, question: QuestionPermission, relay: RelayBlockPermission,
+		text: "Bash command\nTip: auto mode handles these prompts for you — choose \"switch to auto mode\" below\n" +
+			"Read sshd configuration and service status\n" + strings.Repeat("╌", 83) + "\n" +
+			"│ echo \"=== sshd_config (non-comment) ===\"; grep -vE '^\\s*(#|$)'\n" +
+			"│ /etc/ssh/sshd_config; echo; echo \"=== sshd_config.d ===\"; ls -la\n" +
+			"│ /etc/ssh/sshd_config.d/ 2>&1; for f in /etc/ssh/sshd_config.d/*; do [ -f \"$f\" ]\n" +
+			"│ && { echo \"--- $f\"; grep -vE '^\\s*(#|$)' \"$f\"; }; done; echo; echo \"=== Remote\n" +
+			"│ Login status ===\"; launchctl print-disabled system 2>/dev/null | grep -i ssh;\n" +
+			"│ launchctl list 2>/dev/null | grep -i ssh; echo; echo \"=== listening on 22 ===\";\n" +
+			"│ netstat -an -p tcp 2>/dev/null | grep -E '\\.22 .*LISTEN'; echo; echo \"=== ssh\n" +
+			"│ version ===\"; ssh -V 2>&1\n" + strings.Repeat("╌", 83) + "\n" +
+			"Contains brace with quote character (expansion obfuscation)\n\nDo you want to proceed?",
+		labels: []string{"Yes", "Yes, and switch to auto mode · auto mode handles these prompts for you", "No"},
+	},
 	"claude-merge-question.ansi": {
 		kind: ScreenQuestion, question: QuestionSingle, relay: RelayAllowed, merge: true,
 		text:      mergeText,
@@ -347,6 +364,7 @@ func TestParseScreenRejectsNonMatching(t *testing.T) {
 		{"claude chat label", parseClaudeScreen, cq, "  5. Chat about this", "  5. Chat about that"},
 		{"claude multi-select with two tabs", parseClaudeScreen, "claude-question-multi.ansi", "☐ Colors  ✔ Submit", "☐ Colors  ☐ More  ✔ Submit"},
 		{"claude permission without proceed line", parseClaudeScreen, "claude-permission.ansi", " Do you want to proceed?", " Proceed?"},
+		{"claude permission with an unindented warning", parseClaudeScreen, "claude-permission-warning.ansi", " Contains brace", "Contains brace"},
 		{"claude tab bar without submit", parseClaudeScreen, "claude-question-tabs.ansi", "✔ Submit", "✔ Send"},
 		{"claude prompt with a line after the status line", parseClaudeScreen, "claude-idle.ansi", "auto mode on", "auto mode on\nunexpected"},
 		{"opencode option number gap", parseOpenCodeScreen, oq, "2. Banana", "3. Banana"},

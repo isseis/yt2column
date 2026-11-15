@@ -52,6 +52,7 @@
 | `claude-question-tabs-second.ansi` | 1 つめに答えた後の 2 つめ |
 | `claude-question-tabs-review.ansi` | 両方に答えた後の確かめ（`Submit answers`） |
 | `claude-permission.ansi` | 権限の確認（`Bash command`、`Do you want to proceed?`） |
+| `claude-permission-warning.ansi` | 権限の確認。折り返したコマンドの行に `│` が付き、`Do you want to proceed?` の前に警告の行と空行がある。タスク 0088 の PR-7 の実地の確かめで、2026-11-15 に Claude Code 2.1.325 の画面から採った |
 | `claude-input-left.ansi` | 入力欄に送っていない文字が残っている |
 | `claude-working.ansi` | 実行中 |
 | `claude-after-clear.ansi` | `/clear` の後 |
