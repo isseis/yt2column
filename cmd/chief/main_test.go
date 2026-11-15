@@ -205,6 +205,9 @@ func TestRunRefusals(t *testing.T) {
 	})
 }
 
+// testCheck has the shape of a check value and is no question's.
+const testCheck = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
 func TestRunUsageErrors(t *testing.T) {
 	for _, args := range [][]string{
 		nil,
@@ -222,6 +225,12 @@ func TestRunUsageErrors(t *testing.T) {
 		{"detail", "--protocol", "1"},
 		{"detail", "--workspace", "/w", "--command", "runpr", "--protocol", "1"},
 		{"release", "--protocol", "1"},
+		{"relay", "--workspace", "/w", "--answer", "1=1", "--protocol", "1"},
+		{"relay", "--workspace", "/w", "--check", testCheck, "--answer", "1=1", "--answer", "1=2", "--protocol", "1"},
+		{"relay", "--workspace", "/w", "--check", "not-a-check", "--answer", "1=1", "--protocol", "1"},
+		{"relay", "--workspace", "/w", "--check", testCheck, "--answer", "2=1", "--protocol", "1"},
+		{"relay", "--workspace", "/w", "--check", testCheck, "--answer", "1=0", "--protocol", "1"},
+		{"relay", "--workspace", "w", "--check", testCheck, "--answer", "1=1", "--protocol", "1"},
 	} {
 		h := newHarness(t)
 		var stdout bytes.Buffer
@@ -261,7 +270,18 @@ func TestStartThenSnapshot(t *testing.T) {
 	}
 }
 
-// TestRunWorkspaceSubcommands runs send, detail, and release after start
+// noWorkspace reports whether out is one action not sent for want of a task
+// workspace.
+func noWorkspace(out map[string]any) bool {
+	actions, ok := out["actions"].([]any)
+	if !ok || len(actions) != 1 {
+		return false
+	}
+	a, ok := actions[0].(map[string]any)
+	return ok && a["outcome"] == "not_sent" && a["reason"] == "no_workspace"
+}
+
+// TestRunWorkspaceSubcommands runs send, relay, detail, and release after start
 // with a --workspace that is no task workspace: each finishes (exit 0) and
 // says so, and nothing is typed into a pane (the fake fails on any command it
 // does not answer, prompt among them).
@@ -270,14 +290,8 @@ func TestRunWorkspaceSubcommands(t *testing.T) {
 		args  []string
 		check func(map[string]any) bool
 	}{
-		{[]string{"send", "--workspace", "/nowhere", "--command", "mkarch", "--protocol", "1"}, func(out map[string]any) bool {
-			actions, ok := out["actions"].([]any)
-			if !ok || len(actions) != 1 {
-				return false
-			}
-			a, ok := actions[0].(map[string]any)
-			return ok && a["outcome"] == "not_sent" && a["reason"] == "no_workspace"
-		}},
+		{[]string{"send", "--workspace", "/nowhere", "--command", "mkarch", "--protocol", "1"}, noWorkspace},
+		{[]string{"relay", "--workspace", "/nowhere", "--check", testCheck, "--answer", "1=1", "--protocol", "1"}, noWorkspace},
 		{[]string{"detail", "--workspace", "/nowhere", "--protocol", "1"}, func(out map[string]any) bool {
 			p, ok := out["problem"].(string)
 			return ok && p != "" && out["pr"] == nil

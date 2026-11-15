@@ -2,7 +2,7 @@
 // session drives to watch the Herdr workspaces of this repository.
 //
 // The command line is `chief <subcommand> [flags] --protocol N`, the
-// subcommands start, snapshot, send, detail, and release. Standard output is
+// subcommands start, snapshot, send, relay, detail, and release. Standard output is
 // one JSON value. The exit code is 0 for a finished run (a decision not to
 // send is a finished run), 1 for a failure of the tool, 2 for a wrong
 // command line, and 3 for a refusal that did nothing: outside Herdr, another
@@ -40,6 +40,7 @@ const (
 	cmdStart    = "start"
 	cmdSnapshot = "snapshot"
 	cmdSend     = "send"
+	cmdRelay    = "relay"
 	cmdDetail   = "detail"
 	cmdRelease  = "release"
 )
@@ -51,6 +52,8 @@ const (
 	flagCommand   = "--command"
 	flagIssue     = "--issue"
 	flagPR        = "--pr"
+	flagCheck     = "--check"
+	flagAnswer    = "--answer"
 )
 
 // subcommandFlags lists each subcommand's required and optional flags.
@@ -58,12 +61,14 @@ var subcommandFlags = map[string]struct{ required, optional []string }{
 	cmdStart:    {required: []string{flagProtocol}},
 	cmdSnapshot: {required: []string{flagProtocol}},
 	cmdSend:     {required: []string{flagProtocol, flagWorkspace, flagCommand}, optional: []string{flagIssue, flagPR}},
+	cmdRelay:    {required: []string{flagProtocol, flagWorkspace, flagCheck, flagAnswer}},
 	cmdDetail:   {required: []string{flagProtocol, flagWorkspace}},
 	cmdRelease:  {required: []string{flagProtocol, flagWorkspace}},
 }
 
 var errUsage = errors.New("usage: chief start|snapshot --protocol N | " +
 	"send --workspace W --command K [--issue N|--pr N] --protocol N | " +
+	"relay --workspace W --check C --answer 1=N --protocol N | " +
 	"detail --workspace W --protocol N | release --workspace W --protocol N")
 
 func main() {
@@ -133,15 +138,17 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 		return exitUsage
 	}
 	protocol := flags[flagProtocol]
-	var sendReq chief.SendRequest
-	if subcommand == cmdSend {
-		// A malformed request is a usage error, found before anything is
-		// read.
-		sendReq, err = chief.ParseSendRequest(flags[flagWorkspace], flags[flagCommand], flags[flagIssue], flags[flagPR])
-		if err != nil {
-			_, _ = fmt.Fprintln(stderr, "chief:", err)
-			return exitUsage
-		}
+	var req requests
+	// A malformed request is a usage error, found before anything is read.
+	switch subcommand {
+	case cmdSend:
+		req.send, err = chief.ParseSendRequest(flags[flagWorkspace], flags[flagCommand], flags[flagIssue], flags[flagPR])
+	case cmdRelay:
+		req.relay, err = chief.ParseRelayRequest(flags[flagWorkspace], flags[flagCheck], flags[flagAnswer])
+	}
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, "chief:", err)
+		return exitUsage
 	}
 	refuse := func(reason, message string) int {
 		return write(stdout, stderr, result{Protocol: chief.Protocol, Outcome: "refused", Reason: reason, Message: message}, exitRefused)
@@ -182,22 +189,31 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 		return code
 	}
 	deps := chief.Deps{Env: env, Cmds: cmds, Store: store, Now: now, Sleep: sleep}
-	out, err := dispatch(ctx, subcommand, flags, sendReq, deps, owner)
+	out, err := dispatch(ctx, subcommand, flags, req, deps, owner)
 	if err != nil {
 		return fail(err)
 	}
 	return write(stdout, stderr, out, exitOK)
 }
 
+// requests are the validated requests of the subcommands that take one.
+type requests struct {
+	send  chief.SendRequest
+	relay chief.RelayRequest
+}
+
 // dispatch runs a subcommand other than start, once its caller is known to
 // own the lock, and returns its output.
-func dispatch(ctx context.Context, subcommand string, flags map[string]string, sendReq chief.SendRequest, deps chief.Deps, owner chief.Owner) (any, error) {
+func dispatch(ctx context.Context, subcommand string, flags map[string]string, req requests, deps chief.Deps, owner chief.Owner) (any, error) {
 	switch subcommand {
 	case cmdSnapshot:
 		snap, err := chief.TakeSnapshot(ctx, deps, owner)
 		return snap.Output(), err
 	case cmdSend:
-		out, err := chief.Send(ctx, deps, sendReq)
+		out, err := chief.Send(ctx, deps, req.send)
+		return out.Output(), err
+	case cmdRelay:
+		out, err := chief.Relay(ctx, deps, req.relay)
 		return out.Output(), err
 	case cmdDetail:
 		out, err := chief.Detail(ctx, deps, flags[flagWorkspace])

@@ -266,7 +266,7 @@ sequenceDiagram
 | `tick` | `snapshot` に加え、観測の記録を作り、自動送信の条件を満たすものを送る（F-007、F-010）。待ち受けの基準を返す | 自動送信のコマンドと、その後のリセット | 同上 |
 | `detail --workspace <W>` | その workspace の開いている PR の詳細の材料を集め、控える（F-004） | なし | `gh pr view`・`gh pr checks`（読み取り） |
 | `send --workspace <W> --command <種類> [--issue N｜--pr N]` | 人の選んだコマンドを送る（F-006）。`/runpr` の後は、PR を作ったコマンドの pane をリセットする（F-009） | F-006 の表の入力 | PR の詳細の控えがないときだけ、それを作る `gh pr view`・`gh pr checks`（読み取り） |
-| `relay --workspace <W> --check <照合値> --answer <問い>=<番号> …` | 人の選んだ答えを中継する（F-005） | 選択肢を選ぶキー入力 | なし |
+| `relay --workspace <W> --check <照合値> --answer 1=<番号>` | 人の選んだ答えを中継する（F-005） | 選択肢を選ぶキー入力 | なし |
 | `wait --since <基準> [--timeout <秒>]` | 基準から、タスクの workspace のエージェントの状態か `state_change_seq` が変わるまで待つ。chief の workspace の変化では戻らない（F-010） | なし | なし |
 | `release --workspace <W>` | 人の選択で、その workspace の送信の停止を解く（AC-37） | なし | なし |
 

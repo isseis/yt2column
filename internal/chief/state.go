@@ -104,6 +104,9 @@ type QuestionItem struct {
 	Pane     string
 	Agent    paneinput.AgentKind
 	Question Question
+	// Check is the value a relay of the question passes back, empty for a
+	// question chief does not relay.
+	Check CheckValue
 }
 
 // Row is one task workspace as the status table shows it.
@@ -375,7 +378,8 @@ func classify(f workspaceFacts) Row {
 		case !a.ScreenRead:
 			unreadable = append(unreadable, "screen of pane "+a.Agent.Pane.String())
 		case a.Screen.Kind == ScreenQuestion && a.Screen.Question != nil:
-			row.Questions = append(row.Questions, QuestionItem{Pane: a.Agent.Pane.String(), Agent: a.Agent.Kind, Question: *a.Screen.Question})
+			q := *a.Screen.Question
+			row.Questions = append(row.Questions, QuestionItem{Pane: a.Agent.Pane.String(), Agent: a.Agent.Kind, Question: q, Check: relayCheck(a.Agent, q)})
 			if a.Screen.Question.Merge {
 				row.MergeQuestion = true
 			}

@@ -354,11 +354,11 @@
 
 ### フェーズ 5: 答えの中継と `relay`（設計書 8 章の 5）
 
-**変更するファイル:** `internal/chief/relay.go` とそのテスト、`internal/chief/state.go`、`internal/chief/paneinput/`、`cmd/chief/main.go`・`main_test.go`
+**変更するファイル:** `internal/chief/relay.go` とそのテスト、`internal/chief/state.go`・`output.go`・`send.go`・`request.go`・`herdr.go` とそのテスト、`internal/chief/screen.go`・`screen_claude.go`・`screen_opencode.go` とそのテスト（照合値に入れる選択の位置の読み取り）、`internal/chief/sim_test.go`・`test_helpers.go`、`internal/chief/paneinput/`、`cmd/chief/main.go`・`main_test.go`
 
--   [ ] **ステップ 5-1**: 照合値を作る部品を書く（設計書 3.6）。`snapshot` の出力の中継できる質問に照合値を足し、中継しない質問には照合値を返さない（質問の文と選択肢は PR-3 から返している）。テストは、照合値が `state_change_seq`・セッション・問いの文・選択肢・選択の位置のどれが変わっても変わること、中継しない質問の種類ごとに照合値がないことを確かめる。
--   [ ] **ステップ 5-2**: 入力の型のパッケージに中継のキー入力の型を足し、選択肢の番号とステップ 1-4 で確かめたキー入力からだけ作る。`herdr.go` に、その型だけを取り `herdr agent send-keys` で書く部品を足す（ステップ 4-1 と同じく、chief の workspace の pane を拒む）。`relay.go` に中継を書く（設計書 3.6）。排他、読み直し、照合値の比較、Claude Code の `blocked` の確かめ、問いが 1 つであること、選択肢の範囲、除く選択肢（自分で書く選択肢）、送信の記録、送った後の失敗での停止を持つ。
--   [ ] **ステップ 5-3**: `cmd/chief` に `relay` を足す。テストは次を確かめる。
+-   [x] **ステップ 5-1**: 照合値を作る部品を書く（設計書 3.6）。`snapshot` の出力の中継できる質問に照合値を足し、中継しない質問には照合値を返さない（質問の文と選択肢は PR-3 から返している）。テストは、照合値が `state_change_seq`・セッション・問いの文・選択肢・選択の位置のどれが変わっても変わること、中継しない質問の種類ごとに照合値がないことを確かめる。
+-   [x] **ステップ 5-2**: 入力の型のパッケージに中継のキー入力の型を足し、選択肢の番号とステップ 1-4 で確かめたキー入力からだけ作る。`herdr.go` に、その型だけを取り `herdr agent send-keys` で書く部品を足す（ステップ 4-1 と同じく、chief の workspace の pane を拒む）。`relay.go` に中継を書く（設計書 3.6）。排他、読み直し、照合値の比較、Claude Code の `blocked` の確かめ、問いが 1 つであること、選択肢の範囲、除く選択肢（自分で書く選択肢）、送信の記録、送った後の失敗での停止を持つ。
+-   [x] **ステップ 5-3**: `cmd/chief` に `relay` を足す。テストは次を確かめる。
     -   照合値が違うとき、複数の問い（タブ）の質問、範囲の外の番号、除いた選択肢を選んだときに、何も送らないこと。
     -   キー入力を送り始めた後の失敗で、停止の記録を作ること。
     -   送った結果を返すこと。

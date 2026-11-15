@@ -22,6 +22,9 @@ const (
 	InputCommand
 	// InputReset is the /clear or /new that empties a pane.
 	InputReset
+	// InputRelay is the key that answers a question with the human's
+	// option.
+	InputRelay
 )
 
 // String names the input kind for the output.
@@ -31,6 +34,8 @@ func (k InputKind) String() string {
 		return "command"
 	case InputReset:
 		return "reset"
+	case InputRelay:
+		return "relay"
 	default:
 		return unknownName
 	}
@@ -120,6 +125,15 @@ const (
 	// input is not the command that created the PR: the human went on in
 	// that pane after it.
 	NotSentOtherInput
+	// NotSentCheckMismatch is a relay whose check value no pane's question
+	// gives now: the question changed, was answered, or the agent moved.
+	NotSentCheckMismatch
+	// NotSentNotRelayable is a relay to a question chief does not relay: a
+	// multi-select, tabbed, or permission question.
+	NotSentNotRelayable
+	// NotSentBadOption is a relay of an option number the question does not
+	// have, or of an option that is not relayed (free text, chat).
+	NotSentBadOption
 )
 
 // String names the reason for the output.
@@ -141,6 +155,9 @@ func (r NotSentReason) String() string {
 		NotSentNoStep:          "step_not_finished",
 		NotSentOtherInput:      "other_input",
 		NotSentPathUnsupported: "unsupported_path",
+		NotSentCheckMismatch:   "check_mismatch",
+		NotSentNotRelayable:    "not_relayable",
+		NotSentBadOption:       "bad_option",
 	}
 	if name, ok := names[r]; ok {
 		return name
@@ -163,6 +180,8 @@ const (
 	StepNew
 	// StepCommand is the task command.
 	StepCommand
+	// StepKey is the key of a relay.
+	StepKey
 )
 
 // String names the step for the output.
@@ -176,6 +195,8 @@ func (s SentStep) String() string {
 		return "new"
 	case StepCommand:
 		return "command"
+	case StepKey:
+		return "key"
 	default:
 		return ""
 	}

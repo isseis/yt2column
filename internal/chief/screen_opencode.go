@@ -169,12 +169,49 @@ func openCodeQuestion(lines []screenLine) (*Question, bool) {
 	if start < 0 {
 		return nil, true
 	}
+	var panels []panelLine
 	for _, l := range lines[start+1 : footerAt] {
 		p, _ := asPanel(l)
 		c, _ := panelContent(p)
 		contents = append(contents, c)
+		panels = append(panels, p)
 	}
-	return openCodeQuestionBody(contents, kind, review), true
+	q := openCodeQuestionBody(contents, kind, review)
+	if q != nil && q.Kind == QuestionSingle {
+		q.Cursor = openCodeCursor(q, panels)
+	}
+	return q, true
+}
+
+// openCodeCursor returns the number of the option the selection is on.
+// OpenCode marks it by color only: the selected option's number is drawn in
+// another color than the placeholder gray every other option's number has.
+// An option line is the panel line whose content is exactly the option's
+// number and label. Contract: anything but exactly one option drawn so is
+// 0, the reading of no cursor; the cursor only goes into a relay's check
+// value, so a wrong reading can refuse a relay but never choose a key.
+func openCodeCursor(q *Question, panels []panelLine) int {
+	cursor := 0
+	for _, p := range panels {
+		c, ok := panelContent(p)
+		if !ok {
+			continue
+		}
+		for _, o := range q.Options {
+			if c != strconv.Itoa(o.Number)+". "+o.Label {
+				continue
+			}
+			numberCell := p.cells[len(openCodePad)]
+			if numberCell.fg == openCodePlaceholderColor {
+				continue
+			}
+			if cursor != 0 {
+				return 0
+			}
+			cursor = o.Number
+		}
+	}
+	return cursor
 }
 
 // openCodeQuestionBody reads the panel between "Questions" and the footer:

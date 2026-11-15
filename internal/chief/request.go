@@ -193,38 +193,14 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 	if routingErr != nil {
 		return one(notSent(base, NotSentUnreadable, "the routing table cannot be read: "+routingErr.Error())), nil
 	}
-	records, err := deps.Store.Records(loc.ws.Tree)
-	if err != nil {
-		return one(notSent(base, NotSentUnreadable, "the workspace's records cannot be opened: "+err.Error())), nil
-	}
-	held, err := records.Lock()
-	if errors.Is(err, ErrWorkspaceBusy) {
-		return one(notSent(base, NotSentBusy, "another send to the workspace is under way")), nil
-	}
-	if err != nil {
-		return one(notSent(base, NotSentUnreadable, "the workspace's exclusion cannot be taken: "+err.Error())), nil
+	held, refused := holdWorkspace(ctx, deps, &loc, base)
+	if refused != nil {
+		return one(*refused), nil
 	}
 	defer func() { _ = held.Close() }()
-	if _, err := held.SettleUnfinished(deps.Now()); err != nil {
-		return one(notSent(base, NotSentUnreadable, "an unfinished send cannot be settled: "+err.Error())), nil
-	}
-	stop, err := held.Stopped()
-	switch {
-	case err != nil:
-		return one(notSent(base, NotSentStopped, "the stop record cannot be read, so the workspace counts as stopped: "+err.Error())), nil
-	case stop != nil:
-		return one(notSent(base, NotSentStopped, "the workspace is stopped until release: "+stop.Reason)), nil
-	}
 	tasks := NewTasks(deps.Cmds)
 	git := NewGitReader(deps.Cmds)
 	herdr := NewHerdr(deps.Cmds)
-	// The agents were listed before the exclusion was taken; the row is
-	// classified from a list read under it.
-	agents, err := herdr.Agents(ctx)
-	if err != nil {
-		return one(notSent(base, NotSentUnreadable, "herdr agent list failed: "+err.Error())), nil
-	}
-	loc.ws.Agents = slices.DeleteFunc(agents, func(a Agent) bool { return a.Workspace != loc.ws.ID })
 	old, oldErr := readOldValues(ctx, tasks, loc.chiefTree.String())
 	f := readWorkspace(ctx, herdr, git, tasks, loc.ws)
 	f.Routing = routing
@@ -259,6 +235,51 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 		out.Actions = append(out.Actions, sc.resetMaker(ctx, f, res.Pane, *row.PR, rec, routing))
 	}
 	return out, nil
+}
+
+// holdWorkspace takes the exclusion of the located workspace for a send or a
+// relay and re-reads its agents under it. Contract: nothing is sent unless
+// it returns a held workspace: another send holding it, an unfinished send
+// it cannot settle, and a stop (or a stop record it cannot read) each
+// return the result of nothing sent; the agents of loc are replaced by a
+// list read once the exclusion is held, so a send never acts on a list read
+// before another send ended.
+func holdWorkspace(ctx context.Context, deps Deps, loc *located, base ActionResult) (*HeldWorkspace, *ActionResult) {
+	refused := func(reason NotSentReason, detail string) *ActionResult {
+		r := notSent(base, reason, detail)
+		return &r
+	}
+	records, err := deps.Store.Records(loc.ws.Tree)
+	if err != nil {
+		return nil, refused(NotSentUnreadable, "the workspace's records cannot be opened: "+err.Error())
+	}
+	held, err := records.Lock()
+	if errors.Is(err, ErrWorkspaceBusy) {
+		return nil, refused(NotSentBusy, "another send to the workspace is under way")
+	}
+	if err != nil {
+		return nil, refused(NotSentUnreadable, "the workspace's exclusion cannot be taken: "+err.Error())
+	}
+	release := func(reason NotSentReason, detail string) (*HeldWorkspace, *ActionResult) {
+		_ = held.Close()
+		return nil, refused(reason, detail)
+	}
+	if _, err := held.SettleUnfinished(deps.Now()); err != nil {
+		return release(NotSentUnreadable, "an unfinished send cannot be settled: "+err.Error())
+	}
+	stop, err := held.Stopped()
+	switch {
+	case err != nil:
+		return release(NotSentStopped, "the stop record cannot be read, so the workspace counts as stopped: "+err.Error())
+	case stop != nil:
+		return release(NotSentStopped, "the workspace is stopped until release: "+stop.Reason)
+	}
+	agents, err := NewHerdr(deps.Cmds).Agents(ctx)
+	if err != nil {
+		return release(NotSentUnreadable, "herdr agent list failed: "+err.Error())
+	}
+	loc.ws.Agents = slices.DeleteFunc(agents, func(a Agent) bool { return a.Workspace != loc.ws.ID })
+	return held, nil
 }
 
 // resetMaker resets the pane of the command that created pr after /runpr

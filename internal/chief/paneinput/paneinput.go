@@ -440,3 +440,43 @@ func (p Prompt) Text() (string, error) {
 		return "", fmt.Errorf("%w: prompt %d", ErrInvalid, int(p.kind))
 	}
 }
+
+// MaxOptionNumber is the highest option number a relay can select. The
+// samples showed that one digit key selects its option at once, so an option
+// numbered 10 or more could not be chosen by its number.
+const MaxOptionNumber = 9
+
+// RelayKey is the key press that answers a single-select question with one
+// of its options. Contract: it is made only from an agent whose keys were
+// checked on its real screens and an option number, never from an option's
+// text; the key selects the option by its number wherever the selection is,
+// as both agents did when sampled.
+type RelayKey struct {
+	agent  AgentKind
+	number int
+}
+
+// SelectOption returns the key that selects option number of a question in
+// agent's pane.
+func SelectOption(agent AgentKind, number int) (RelayKey, error) {
+	k := RelayKey{agent: agent, number: number}
+	if _, err := k.Key(); err != nil {
+		return RelayKey{}, err
+	}
+	return k, nil
+}
+
+// Key returns the key name herdr agent send-keys takes. It rejects the zero
+// value, an agent outside the range, and a number outside 1 to
+// MaxOptionNumber.
+func (k RelayKey) Key() (string, error) {
+	switch k.agent {
+	case AgentClaudeCode, AgentOpenCode:
+		if k.number < 1 || k.number > MaxOptionNumber {
+			return "", fmt.Errorf("%w: option number %d", ErrInvalid, k.number)
+		}
+		return strconv.Itoa(k.number), nil
+	default:
+		return "", fmt.Errorf("%w: relay to agent %d", ErrInvalid, int(k.agent))
+	}
+}
