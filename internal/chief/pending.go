@@ -59,6 +59,9 @@ type PendingItem struct {
 	// Reasons are why a proposal was not sent by itself after a merge: the
 	// conditions of the automatic send that did not hold.
 	Reasons []string
+	// ReviewSkippable marks a review item whose PR detail, kept for the
+	// worktree's HEAD, judged the review skippable.
+	ReviewSkippable bool
 	// FirstSeen is when chief first found the item in this session; the
 	// time of the observation when no record could be made.
 	FirstSeen time.Time
@@ -84,7 +87,9 @@ func questionID(workspace string, q Question) ItemID {
 
 // buildPending lists the items waiting on the human in rows: a question or a
 // merge confirmation for each distinct question, a review item for each open
-// PR, and a proposal for each next command or takeover that can be sent.
+// PR, and a proposal for each next command or takeover, including one that
+// cannot be sent as it is: a /mkreq waits for the human's issue number, and
+// any other says why in its Problem.
 // Times are not set. Contract: a needs-check row yields no item.
 func buildPending(rows []Row) []PendingItem {
 	var items []PendingItem
@@ -109,7 +114,7 @@ func buildPending(rows []Row) []PendingItem {
 			}
 		case StateAwaitingReview:
 			if r.PR != nil {
-				add(PendingItem{ID: itemID("review", r.Workspace, strconv.Itoa(r.PR.Number)), Kind: PendingReview, Workspace: r.Workspace, Label: r.Label, PR: r.PR})
+				add(PendingItem{ID: itemID("review", r.Workspace, strconv.Itoa(r.PR.Number)), Kind: PendingReview, Workspace: r.Workspace, Label: r.Label, PR: r.PR, ReviewSkippable: r.ReviewSkippable})
 			}
 		case StateProposeNext:
 			for _, n := range []*Next{r.Next, r.Takeover} {

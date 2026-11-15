@@ -133,6 +133,9 @@ type Row struct {
 	Running *SendRecord
 	// Stopped is the workspace's stop, nil when it takes input.
 	Stopped *StopRecord
+	// ReviewSkippable is the review-skippable judgment of the PR detail kept
+	// for the worktree's HEAD; false when no detail is kept for it.
+	ReviewSkippable bool
 }
 
 // agentFacts is one agent with the reading of its screen.

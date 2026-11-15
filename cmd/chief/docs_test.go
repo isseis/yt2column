@@ -418,8 +418,8 @@ func TestGuideValuesMatchTool(t *testing.T) {
 			t.Errorf("%s: the %s table lists %q, the tool has %q", guidePath, header, got, want)
 		}
 	}
-	if m := guideProtocol.FindStringSubmatch(guide); m == nil || m[1] != strconv.Itoa(chief.Protocol) {
-		t.Errorf("%s: protocol number %q, want %d", guidePath, m, chief.Protocol)
+	if got := guideValue(guide, "プロトコル番号"); got != strconv.Itoa(chief.Protocol) {
+		t.Errorf("%s: protocol number %q, want %d", guidePath, got, chief.Protocol)
 	}
 	base := t.TempDir()
 	store, err := chief.OpenStore(base)
@@ -435,5 +435,17 @@ func TestGuideValuesMatchTool(t *testing.T) {
 	}
 }
 
-// guideProtocol finds the guide's statement of the current protocol number.
-var guideProtocol = regexp.MustCompile("現在の番号は `([0-9]+)`")
+// guideValue returns the value cell of the guide's value table (the table
+// with a 値 column) in the row whose first cell is item, or "".
+func guideValue(guide, item string) string {
+	table := doctestutil.FindTable(guide, "値")
+	if table == nil {
+		return ""
+	}
+	col := doctestutil.ColumnIndex(table[0], "値")
+	row := doctestutil.TableRow(table, item)
+	if row == nil || col >= len(row) {
+		return ""
+	}
+	return doctestutil.StripBackticks(row[col])
+}

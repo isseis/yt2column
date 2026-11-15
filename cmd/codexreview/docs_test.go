@@ -203,6 +203,7 @@ func TestInvocations(t *testing.T) {
 	}
 }
 
+// TestDocumentedInvocationsParse: every call of the tool in the command
 // documents is written in the form the permission rule allows without the
 // prompt and passes the tool's own argument check, with each placeholder
 // filled in as a full commit ID, so the installed tool runs the review

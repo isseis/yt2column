@@ -531,14 +531,9 @@ func TestMkreqTarget(t *testing.T) {
 	}
 }
 
-// TestSendArgumentValidation checks the arguments of a send: the parser's
-// combinations, then requests the tool does not offer for the workspace now
-// (another next command, a PR number that is not the open PR, a takeover
-// not proposed, a path that is no task workspace), none of which types
-// anything.
-// TestRequestNameSendsTheOffer: the --command value the output names for
-// each kind of offer makes a request that send reads as that offer, so the
-// /chief session never derives it from the command line.
+// TestRequestNameSendsTheOffer: the --command value the output gives each
+// kind of offer (NextOutput.Request) makes a request that send reads as that
+// offer, so the /chief session never derives it from the command line.
 func TestRequestNameSendsTheOffer(t *testing.T) {
 	task, err := paneinput.ParseTaskID("0088")
 	if err != nil {
@@ -548,23 +543,25 @@ func TestRequestNameSendsTheOffer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for kind := TaskNextMkreq; kind <= TaskNextRunpr; kind++ {
-		name, ok := requestNames[kind]
-		if !ok {
-			t.Errorf("offer kind %d has no --command value", kind)
-			continue
-		}
-		row := Row{State: StateProposeNext}
+	// Every kind of offer but none, listed by name so a kind added later
+	// fails here until it is given a value.
+	kinds := []TaskNextKind{TaskNextMkreq, TaskNextMkarch, TaskNextMkplan, TaskNextRunplan, TaskNextRunplanTakeover, TaskNextRunpr}
+	for _, kind := range kinds {
+		offer := &Next{Kind: kind, Command: &cmd}
+		row := Row{State: StateProposeNext, Next: offer}
 		issue, pr := "", ""
 		switch kind {
 		case TaskNextMkreq:
-			issue, row.Next = "12", &Next{Kind: kind}
+			issue, offer.Command = "12", nil
 		case TaskNextRunpr:
 			pr, row.State, row.PR = "34", StateAwaitingReview, &OpenPR{Number: 34}
 		case TaskNextRunplanTakeover:
-			row.Next, row.Takeover = &Next{Kind: TaskNextRunplan, Command: &cmd}, &Next{Kind: kind, Command: &cmd}
-		default:
-			row.Next = &Next{Kind: kind, Command: &cmd}
+			row.Next, row.Takeover = &Next{Kind: TaskNextRunplan, Command: &cmd}, offer
+		}
+		name := nextOutput(offer).Request
+		if name == "" {
+			t.Errorf("offer kind %d has no --command value in the output", kind)
+			continue
 		}
 		req, err := ParseSendRequest("/w", name, issue, pr)
 		if err != nil {
@@ -577,6 +574,11 @@ func TestRequestNameSendsTheOffer(t *testing.T) {
 	}
 }
 
+// TestSendArgumentValidation checks the arguments of a send: the parser's
+// combinations, then requests the tool does not offer for the workspace now
+// (another next command, a PR number that is not the open PR, a takeover
+// not proposed, a path that is no task workspace), none of which types
+// anything.
 func TestSendArgumentValidation(t *testing.T) {
 	for _, c := range []struct{ workspace, command, issue, pr string }{
 		{"/w", "weakreview", "", ""},

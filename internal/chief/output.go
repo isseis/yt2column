@@ -95,9 +95,12 @@ type PendingOutput struct {
 	Proposal  *NextOutput     `json:"proposal"`
 	// Reasons are the conditions of the automatic send that did not hold
 	// for a proposal after a merge.
-	Reasons   []string  `json:"reasons"`
-	FirstSeen time.Time `json:"first_seen"`
-	New       bool      `json:"new"`
+	Reasons []string `json:"reasons"`
+	// ReviewSkippable is set on a review item whose PR detail was gathered
+	// for the current head and judged the review skippable.
+	ReviewSkippable bool      `json:"review_skippable"`
+	FirstSeen       time.Time `json:"first_seen"`
+	New             bool      `json:"new"`
 }
 
 // questionKindName names a question shape for the output.
@@ -201,15 +204,16 @@ func (s Snapshot) Output() SnapshotOutput {
 	}
 	for _, p := range s.Pending {
 		item := PendingOutput{
-			ID:        p.ID,
-			Kind:      p.Kind.String(),
-			Workspace: p.Workspace,
-			Label:     Sanitize(p.Label),
-			PR:        prOutput(p.PR),
-			Proposal:  nextOutput(p.Proposal),
-			Reasons:   sanitizeAll(p.Reasons),
-			FirstSeen: p.FirstSeen,
-			New:       p.New,
+			ID:              p.ID,
+			Kind:            p.Kind.String(),
+			Workspace:       p.Workspace,
+			Label:           Sanitize(p.Label),
+			PR:              prOutput(p.PR),
+			Proposal:        nextOutput(p.Proposal),
+			Reasons:         sanitizeAll(p.Reasons),
+			ReviewSkippable: p.ReviewSkippable,
+			FirstSeen:       p.FirstSeen,
+			New:             p.New,
 		}
 		if p.Question != nil {
 			q := questionOutput(*p.Question)

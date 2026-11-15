@@ -163,6 +163,11 @@
 -   **`/runpr` の後のリセットに、候補の Claude Code のセッションで人が最後に入力した行が PR を作ったコマンドであるという条件を足す（ステップ 4-5、設計書 1.3.2）。** PR-4 のコードレビューで、画面の最後のメッセージが PR の URL を含むだけで報告と読むため、PR を作った後に人が同じ pane で始めた会話を消しうることが分かり、人と決めた。人の入力は、transcript が行ごとに宣言する `origin` の `kind` で見分ける。そのサンプル `internal/chief/testdata/transcript/claude-human-input.jsonl` は、PR-4 の `/runplan` のセッションの transcript から採った。理由: 人が対話に使っている pane の文脈を黙って失わないため。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
 -   **PR を作ったコマンドは、`origin/main` の文書が示す次のコマンドから決め、人の最後の入力と名前も引数も照らす（ステップ 4-5、設計書 1.3.2）。** PR の種類からでは、タスクの文書の PR のコマンドを 1 つに絞れず、同じタスクの別の文書作成コマンドの後でも空にしうることが、PR-4 のローカル CLI レビューで分かり、人と決めた。ADR: なし（設計書 1.3.2 のとおり）。
 
+### 1.8. 実装の際に決めたこと（2026-11-15、PR-7）
+
+-   **待ち受けの間は、人の判断を待つものを `AskUserQuestion` で尋ねず、番号つきの一覧で示す（ステップ 7-2、設計書 1.3.3）。** 問いを開いている間は待ち受けの周が走らず、マージの後の自動送信が提案に変わりうるためである。引数 `once` と、選んだ後の問いは `AskUserQuestion` のままとする。理由: 人の判断を待つ間も自動送信を止めないため（PR-7 のコードレビューの指摘で、人と決めた）。ADR: なし。
+-   **「レビュー省略可」を、PR の詳細の控えに残した判定から、レビュー待ちの選択肢にも示す（ステップ 7-2、設計書 1.3.3・3.1.6）。** 控えがワークツリーの今の HEAD のものとしてあるときだけ示す。理由: AC-23 の「選択肢」に示すことを、周ごとのネットワークの読み取りを増やさずに満たすため（PR-7 のコードレビューの指摘で、人と決めた）。ADR: なし。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 画面のサンプルと画面の読み取り（設計書 8 章の 1、2 のうち画面の読み取りと文字の無害化）
@@ -427,12 +432,12 @@
 
 ### フェーズ 7: `/chief` の定義、設定、文書、移行、実地の確かめ（設計書 8 章の 7）
 
-**変更するファイル:** `.claude/commands/chief.md`（新規）、`.claude/settings.json`、`internal/chief/output.go`・`request.go`・`send_test.go`（出力の `request`）、`internal/doctestutil/protocol.go`・`protocol_test.go`・`commands.go`（新規）、`cmd/fixprguard/docs_test.go`、`cmd/codexreview/docs_test.go`、`cmd/chief/docs_test.go`、`Makefile`、`CLAUDE.md`、`docs/dev/guides/chief_guide.md`（新規）、`docs/dev/adr/0014-deterministic-checks-in-go.md`・`0046-chief-of-staff.md`、本計画
+**変更するファイル:** `.claude/commands/chief.md`（新規）、`.claude/settings.json`、`internal/chief/output.go`・`request.go`・`send_test.go`（出力の `request`）、`internal/chief/detail.go`・`snapshot.go`・`state.go`・`pending.go`・`detail_test.go`（選択肢の「レビュー省略可」）、`docs/dev/conventions/package_reference.md`、設計書、`internal/doctestutil/protocol.go`・`protocol_test.go`・`commands.go`（新規）、`cmd/fixprguard/docs_test.go`、`cmd/codexreview/docs_test.go`、`cmd/chief/docs_test.go`、`Makefile`、`CLAUDE.md`、`docs/dev/guides/chief_guide.md`（新規）、`docs/dev/adr/0014-deterministic-checks-in-go.md`・`0046-chief-of-staff.md`、本計画
 
 -   [x] **ステップ 7-1**: 試作をリポジトリの外へ移す（決定 16）。
     -   人の承認を得て、この worktree の試作の `.claude/commands/chief.md` と `.claude/chief/` をリポジトリの外へ移し、git の共通ディレクトリの `info/exclude` の試作の 3 行を消す。
     -   `.claude/chief/hold.tsv` の行（`0084_wasm_pipeline_poc` の `PR-1` の後）について、0084 の計画書にまだ止める必要があるかを人に確かめる。要るなら、0084 の計画書に `**自動送信**: hold` を足す PR を、ステップ 7-6 の実地の確かめの前に別に作る（設計書 8 章の 7）。
--   [x] **ステップ 7-2**: `.claude/commands/chief.md` を書く（設計書 3.2）。`chief` の呼び出しは `--protocol 1` を書く。セッションがコマンドの文から `--command` の値を読み取らないよう、道具の出力の次のコマンドに、`chief send` の `--command` の値 `request` を足す（`internal/chief/output.go`・`request.go`、`send_test.go` の `TestRequestNameSendsTheOffer`）。次のガードを足す。
+-   [x] **ステップ 7-2**: `.claude/commands/chief.md` を書く（設計書 3.2）。`chief` の呼び出しは `--protocol 1` を書く。セッションがコマンドの文から `--command` の値を読み取らないよう、道具の出力の次のコマンドに、`chief send` の `--command` の値 `request` を足す（`internal/chief/output.go`・`request.go`、`send_test.go` の `TestRequestNameSendsTheOffer`）。レビュー待ちの選択肢に、PR の詳細の控えの「レビュー省略可」を足す（§1.8、`internal/chief/detail.go`・`snapshot.go`・`state.go`・`pending.go`・`output.go`、`detail_test.go` の `TestReviewItemShowsKeptSkippable`）。待ち受けの間は、人の判断を待つものを番号つきの一覧で示す（§1.8）。次のガードを足す。
     -   `internal/doctestutil/protocol.go` に `ToolChief` を足し、`protocol_test.go` に chief の行を足す。
     -   `cmd/fixprguard/docs_test.go` の数える条件を直し（決定 8）、chief の場合を足す。
     -   `cmd/chief/docs_test.go` に、`--protocol` の番号が道具と合うこと、定義の中の呼び出しが道具の引数の解析を通ること、定義が `herdr` を直接呼ばないことのガードを書く（設計書 7.2 の 1 項目め、`cmd/codexreview/docs_test.go:158,255,554` と同じ形）。コマンドの文の読み取り（呼び出しの抽出、許可の規則の形、コマンドを走らせる位置の判定）は、`cmd/codexreview/docs_test.go` から `internal/doctestutil/commands.go` に移し、両方のガードが使う。
@@ -596,7 +601,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-20 | `ic/detail_test.go::TestDetailOmitsReviewBody` | test | 4-4 | PR-4 |
 | AC-21 | `ic/detail_test.go::TestDetailPartialFailure` | test | 4-4 | PR-4 |
 | AC-22 | `ic/detail_test.go::TestDetailItems`（送り先の表示）、`/chief` の定義（問い） | test、manual | 4-4・7-2 | PR-4、PR-7 |
-| AC-23 | `ic/detail_test.go::TestReviewSkippable` | test | 4-4 | PR-4 |
+| AC-23 | `ic/detail_test.go::TestReviewSkippable`、`ic/detail_test.go::TestReviewItemShowsKeptSkippable`（選択肢） | test | 4-4・7-2 | PR-4、PR-7 |
 | AC-24 | `ic/records_test.go::TestWorkspaceBusy`、`/chief` の定義（バックグラウンド） | test、manual | 4-3・7-2 | PR-4、PR-7 |
 | AC-25 | `ic/sanitize_test.go::TestSanitize`、`ic/screen_test.go::TestParseScreenSamples`（タブの画面は見える問いとほかの問いがあること） | test | 1-5・1-6 | PR-1 |
 | AC-26 | `ic/screen_test.go::TestParseScreenRejectsNonMatching`、`ic/relay_test.go::TestNoCheckValueForUnrelayable` | test | 1-6・5-1 | PR-1、PR-5 |
@@ -653,7 +658,8 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 
 ### PR-7 の実行の記録
 
-（ステップ 7-6 で書く）
+-   **ステップ 7-1（2026-11-15）。** 試作の `.claude/commands/chief.md` と `.claude/chief/` を、人の承認を得てリポジトリの外（`~/chief-prototype/`）へ移し、git の共通ディレクトリの `info/exclude` の試作の 3 行を消した。`hold.tsv` の `0084_wasm_pipeline_poc` の `PR-1` の行は、0084 の PR-1（#843）と PR-2（#858）がマージ済みで、作られていない PR マーカーが残っていないので、止める対象がない。人が要らないと答えたので、0084 の計画書を直す PR は作らない。
+-   **ステップ 7-6。** （実地の確かめの後に書く）
 
 ## 8. 成功の基準 (Success Criteria)
 
@@ -676,3 +682,4 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 - 2026-11-14 セッション中の再承認：長く走るサブコマンドがロックの持ち主を周ごとに確かめ直す申し送りを PR-6 に足す（§1.6・6-4）（isseis、#876）
 - 2026-11-15 セッション中の再承認：`/runpr` の後のリセットに、候補の Claude Code のセッションで人が最後に入力した行が PR を作ったコマンドであるという条件を足す（§1.7・4-5・§7）（isseis、#880）
 - 2026-11-15 セッション中の再承認：PR を作ったコマンドを `origin/main` の文書が示す次のコマンドから決め、人の最後の入力と名前も引数も照らす（§1.7・4-5）（isseis、#880）
+- 2026-11-15 セッション中の再承認：待ち受けの間は人の判断を待つものを番号つきの一覧で示し、「レビュー省略可」を PR の詳細の控えがあるときに選択肢にも示す（§1.8・7-2・§7）（isseis、#未記入）

@@ -291,6 +291,9 @@ type detailRecord struct {
 	Truncated bool      `json:"truncated"`
 	Pane      string    `json:"pane"`
 	Seq       int64     `json:"seq"`
+	// Skippable is the PR's review-skippable judgment at Head, kept so a
+	// snapshot can show it on the PR's item without reading GitHub.
+	Skippable bool `json:"review_skippable"`
 }
 
 func detailName(pr int, head string) string {
@@ -380,7 +383,7 @@ func CollectDetail(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, 
 	if d.View != nil {
 		d.ReviewSkippable = reviewSkippable(*d.View, docsDir)
 	}
-	rec, err := keptReport(ctx, deps, herdr, ws, pr, d.View)
+	rec, err := keptReport(ctx, deps, herdr, ws, pr, d.View, d.ReviewSkippable)
 	if err != nil {
 		d.RecordErr = err.Error()
 	}
@@ -411,9 +414,11 @@ func readChecks(ctx context.Context, cmds Commands, worktree, number string) ([]
 // when there is one, else the one read now from the panes (or the
 // description), which is then kept. Contract: a kept detail is never
 // replaced, so the report read before a pane was emptied wins over a later
-// reading of the emptied pane.
-func keptReport(ctx context.Context, deps Deps, herdr Herdr, ws TaskWorkspace, pr OpenPR, view *prView) (detailRecord, error) {
+// reading of the emptied pane. skippable is the review-skippable judgment of
+// view, kept with the report.
+func keptReport(ctx context.Context, deps Deps, herdr Herdr, ws TaskWorkspace, pr OpenPR, view *prView, skippable bool) (detailRecord, error) {
 	rec := readReport(ctx, herdr, ws, pr, view, deps.Now())
+	rec.Skippable = skippable
 	if view == nil {
 		return rec, errNoHead
 	}

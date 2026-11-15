@@ -132,7 +132,7 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 		f := readWorkspace(ctx, herdr, git, tasks, w)
 		f.Routing, f.RoutingErr, f.FetchFailed = view.routing, view.routingErr, view.fetchFailed
 		row := classifyWorkspace(ctx, git, tasks, f, view.old, view.oldErr)
-		if err := addRecords(deps.Store, w, &row); err != nil {
+		if err := addRecords(ctx, git, deps.Store, w, &row); err != nil {
 			view.problems = append(view.problems, "the records of "+w.Worktree+" cannot be read: "+err.Error())
 		}
 		view.facts = append(view.facts, f)
@@ -156,10 +156,13 @@ func finishSnapshot(deps Deps, owner Owner, view roundView, extra []PendingItem)
 	return snap
 }
 
-// addRecords shows a workspace's stop and, on a running row, what chief last
-// sent to its working pane. It reads records only; a workspace never sent
-// to has no records and nothing is created for it.
-func addRecords(store Store, w TaskWorkspace, row *Row) error {
+// addRecords shows a workspace's stop, on a running row what chief last
+// sent to its working pane, and on a row awaiting review the review-skippable
+// judgment of the PR detail kept for the worktree's HEAD. It reads records
+// only; a workspace never sent to has no records and nothing is created for
+// it. Contract: the judgment is shown only from a detail of the same PR at
+// the same HEAD, never from an older one.
+func addRecords(ctx context.Context, git GitReader, store Store, w TaskWorkspace, row *Row) error {
 	records, ok, err := store.existingRecords(w.Tree)
 	if err != nil || !ok {
 		return err
@@ -169,6 +172,16 @@ func addRecords(store Store, w TaskWorkspace, row *Row) error {
 		return err
 	}
 	row.Stopped = stop
+	if row.State == StateAwaitingReview && row.PR != nil {
+		// A HEAD that cannot be read only leaves the mark off.
+		if head, err := git.Head(ctx, w.Worktree); err == nil {
+			rec, ok, err := records.readDetail(row.PR.Number, head)
+			if err != nil {
+				return err
+			}
+			row.ReviewSkippable = ok && rec.Skippable
+		}
+	}
 	if row.State != StateRunning {
 		return nil
 	}
