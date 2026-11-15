@@ -247,7 +247,7 @@ sequenceDiagram
     T->>HD: herdr agent prompt (自動送信)
     HD->>P: /clear・/model・コマンド
     T-->>S: 状況の表、人の判断を待つもの、送信の結果、新しい通知、待ち受けの基準
-    S->>H: 表と選択肢 (AskUserQuestion)、通知 (PushNotification)
+    S->>H: 表と選択肢 (待ち受けの間は番号つきの一覧、once では AskUserQuestion)、通知 (PushNotification)
     S->>T: chief wait --since 基準 (バックグラウンド)
     T->>HD: herdr agent list (決まった間隔)
     T-->>S: 変化があった、または時間切れ

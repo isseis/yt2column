@@ -155,8 +155,8 @@ How to offer them depends on the argument:
 
 - **While watching (no argument)**, never hold the session on a question: a
   question left open stops the rounds, and with them the automatic sends.
-  Write the choices as a numbered list at the end of the round's report and
-  end the turn. The human answers whenever they like, with a number or an
+  Write the choices as a numbered list at the end of the round's report,
+  start the wait (step 5), and end the turn. The human answers whenever they like, with a number or an
   item's label. Write the list in every round that has `pending` items; the
   list of the last round is the one an answer refers to.
 - **With `once`**, ask with `AskUserQuestion`. A question has at most four
@@ -164,7 +164,10 @@ How to offer them depends on the argument:
   out by its label in the question text, and say that the human can write
   the label in the free-text answer to choose it (requirements AC-14).
 
-**Reading the answer.** A number chooses that item of the last list. A label
+**Reading the answer.** With `once`, the answer is to the question just
+asked. While watching, a number chooses that item of the last list written;
+when a later round changed the list, read the answer against the newest
+list and ask again when it no longer names the same item. A label
 chooses the item of that label; when several items share it (for example
 two questions in one workspace, or a next command and a takeover), ask again
 listing only those. An answer that names no item of the last list is not a
@@ -203,7 +206,9 @@ modes, since the human has just chosen and is answering.
     show its results as step 2 does.
   - ほかの PR を見る: offer the remaining items again (step 3).
 - **A proposal** (`proposal`): `<request>` below is always the chosen item's
-  `proposal.request`, a takeover included. When it is `mkreq`, ask the human
+  `proposal.request`, a takeover included. When the proposal is not
+  `sendable` and `<request>` is not `mkreq`, send nothing: show its
+  `problem`. When it is `mkreq`, ask the human
   for the issue number first, then run
   `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 1`.
   Otherwise run
