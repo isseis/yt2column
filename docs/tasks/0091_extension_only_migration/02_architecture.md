@@ -55,7 +55,7 @@
 -   **拡張のビルドは、記事生成モジュールを `go.mod` の `go` の行の版のツールチェーンでビルドする（§3.5）。** `go.mod` の `go 1.26.5` は最小の版で、手元の `go` は別の版でありうる（2026-11-15 の手元は go1.27.1、`GOTOOLCHAIN=auto`）。そのままでは、成果物の WASM と `wasm_exec.js` がビルドする機械で変わり、要件書 AC-25 の「`go.mod` が定める Go の版」に合わない。ビルドのスクリプトが `GOTOOLCHAIN` にその版を与え、成果物の検査が `buildInfo` の Go の版を確かめる。その版のツールチェーンがなければ、初めのビルドで `go` がダウンロードする（ネットワークを使う）。ADR: なし（AC-25 の手段で、ADR-0026 の決定を変えない）。
 -   **fake のシナリオは、`make ext-build-dev` の 5 つの変数で受け取り、変数ごとに 1 つの `-ldflags -X` で開発用の記事生成モジュールに埋め込む（§3.4）。** 記事生成モジュールは、起動のときに埋め込んだ値を解析し、空の値と合わない値では関数を登録しない。WASM をビルドする前にネイティブのビルドで同じ値を解析し、ビルドの後に成果物の検査が `buildInfo` のシナリオを確かめる。リンカーは存在しない名前への `-X` を黙って無視するので、合わない値でビルドした拡張が既定のシナリオで動くことを、ビルドの時点で止めるためである。ADR: なし（ADR-0045 の「シナリオはビルドの引数で選ぶ」の手段である）。
 -   **開発用のコマンド `cmd/yt2column-extjob` は、LLM を `-llm=claude` か `-llm=fake` で必ず指定させ、既定の値を持たない（§3.4）。** 指定を忘れた実行が料金のかかる呼び出しにならないためである（CLAUDE.md「Tool Execution Safety」）。ADR: なし（開発用のコマンドの引数の決定である）。
--   **CI は、記事生成モジュールの依存を `go list -deps` で求め、そのディレクトリの下のファイルか埋め込むファイルが変わったときに拡張の検査を走らせる（§3.10）。** 依存の一覧を手で書くと、依存が増えたときに漏れる。採らなかった案は、`internal/` のどのファイルの変更でも拡張の検査を走らせる案である。依存でない `internal/chief` などの変更でも走る。ADR: なし（CI の手段で、本タスクの中で閉じる）。
+-   **CI は、記事生成モジュールの依存を `go list -deps` で求め、そのディレクトリの下のファイル（サブディレクトリの中のファイル、埋め込むファイル、削除したファイルを含む）が変わったときに拡張の検査を走らせる（§3.10）。** 依存の一覧を手で書くと、依存が増えたときに漏れる。採らなかった案は、`internal/` のどのファイルの変更でも拡張の検査を走らせる案である。依存でない `internal/chief` などの変更でも走る。ADR: なし（CI の手段で、本タスクの中で閉じる）。
 
 ### 1.3. 概念モデル
 
@@ -456,7 +456,7 @@ func ParseScenario(s ScenarioSpelling) (Scenario, error) // error wraps ErrInval
 -   **`cmd/yt2column-extjob`（新しい）。** 0090 設計書 §7.2 のとおり。次のとおりにする。
     -   LLM は `-llm=claude` か `-llm=fake` で必ず指定する。指定がないか、ほかの値なら、何もせずに終わる（§1.2）。
     -   `-llm=fake` では、シナリオを `-article`・`-failure`・`-fail-at`・`-delay`・`-settings-check` の 5 つの引数で受け取り、`ParseScenario` で解析する。
-    -   `-llm=claude` では、`main` がプロセスの環境から名前を引く関数を作って `config.ReadExtensionSettings`（§3.2）に渡し、返った 2 つの値を `StoredSettings` にして、拡張と同じく `Module.GenerateJSON` に渡す。秘密情報の変数名は `internal/config` にだけ現れ、`main` は環境を `internal/config` に渡すためだけに参照する（[ADR-0024](../../dev/adr/0024-env-access-in-config.md)）。空のワークスペース ID は、拡張と同じく指定なしになる。
+    -   `-llm=claude` では、`main` がプロセスの環境から名前を引く関数を作って `config.ReadExtensionSettings`（§3.2）に渡し、返った 2 つの値を `StoredSettings` にして（`ANTHROPIC_WORKSPACE_ID` が未設定のときは、`anthropicWorkspaceId` を空の文字列にする。拡張のオプションページがいつも項目を書くのと同じ形にするためである）、拡張と同じく `Module.GenerateJSON` に渡す。秘密情報の変数名は `internal/config` にだけ現れ、`main` は環境を `internal/config` に渡すためだけに参照する（[ADR-0024](../../dev/adr/0024-env-access-in-config.md)）。空のワークスペース ID は、拡張と同じく指定なしになる。
     -   入力のファイル（`PrepareRequest` の形）は `Module.PrepareJSON` に渡す。記事生成モジュールと同じ入口を通るので、`settings_invalid` を含む同じ検査を通る。
 -   **撤去までの間の開発用のビルド。** 切り替えの PR より前の開発用のビルドは、`key` を持たず ID が違うので、ホストの manifest の `allowed_origins` に入らず、今のホストとサーバの経路でも動かない。切り替えの PR までは、開発用のビルドで画面を確かめない。
 
@@ -478,7 +478,7 @@ type BuildKind = "release" | "dev";
     -   `release` の期待は `extension/dist/` にだけ、`dev` の期待は `extension/dist-dev/` にだけ当てる。ほかの組み合わせは検査の失敗にする。
     -   `buildKind.js` の値は、引数の種類と一致する。
     -   manifest は、`release` では `static/manifest.json` の写しのまま（今の検査。`extension/scripts/check-dist.ts:1-4`）、`dev` では上の変換の結果と一致する。
-    -   記事生成モジュールを Node で `wasm_exec.js` とともに読み込み、`buildInfo` を呼ぶ。`mainPath` は、`release` では `cmd/yt2column-wasm`、`dev` では `cmd/yt2column-wasm-dev` である。`goVersion` は `go.mod` の版と一致する。`llm` は、`release` では `claude`、`dev` では `fake` である。`dev` では、そのシナリオの 5 つの値が、ビルドに渡した値と一致する。
+    -   記事生成モジュールを Node で `wasm_exec.js` とともに読み込み、`buildInfo` を呼ぶ。`mainPath` は、モジュールのパスを含む main のパッケージのパスで、`release` では `github.com/isseis/yt2column/cmd/yt2column-wasm`、`dev` では `github.com/isseis/yt2column/cmd/yt2column-wasm-dev` である。期待の値は `go.mod` の `module` の行から作る。`goVersion` は `go.mod` の版と一致する。`llm` は、`release` では `claude`、`dev` では `fake` である。`dev` では、そのシナリオの 5 つの値が、ビルドに渡した値と一致する。
     -   `wasm_exec.js` は、`go.mod` の版のツールチェーンのものと中身が一致する。
 -   **`.gitignore`。** `extension/dist-dev/` を加える。`.gitignore` の変更は、拡張の node のテストの無視の規則の検査を壊しうるので、`make ext-test` を走らせる（CLAUDE.md「Development Notes」）。
 -   **拡張の説明の文。** `_locales` の `extDescription` は、今はローカルのサーバに送ると述べている（`extension/static/_locales/en/messages.json:5-7`）。切り替えの PR で、拡張だけの経路の説明に改める。
@@ -567,8 +567,8 @@ type BuildKind = "release" | "dev";
 ### 3.10. CI と lint
 
 -   **拡張の検査を走らせる変更。**
-    -   `check-changes` の手順に Go を用意し、`GOOS=js GOARCH=wasm go list -deps -f` で、公開用と開発用の記事生成モジュールが依存するこのモジュールのパッケージのディレクトリと、その埋め込むファイル（`EmbedFiles`。`prompts/*.tmpl`、`internal/llm/devfake/articles/*.md` など）を求める。
-    -   `extension/scripts/has-extension-changes.sh` は、変わったファイルの一覧に加えて、その一覧を受け取り、依存のディレクトリの直下のファイルか、埋め込むファイルが変わったときにも `true` を出す。スクリプトは、パスだけから決める今の作り（`extension/scripts/has-extension-changes.sh:20`）を保ち、`go` を呼ばない。`go.sum` を加える。
+    -   `check-changes` の手順に Go を用意し、`GOOS=js GOARCH=wasm go list -deps -f` で、公開用と開発用の記事生成モジュールが依存するこのモジュールのパッケージのディレクトリを求める。
+    -   `extension/scripts/has-extension-changes.sh` は、変わったファイルの一覧に加えて、その一覧を受け取り、依存のディレクトリの下のファイルが変わったときにも `true` を出す。サブディレクトリの中のファイルも数える。埋め込むファイル（`prompts/*.tmpl`、`internal/llm/devfake/articles/*.md` など）はパッケージのディレクトリの下にしか置けないので、この規則で漏れない。削除したファイルも、変わったファイルの一覧にパスが残るので数える。依存のディレクトリの下にほかのパッケージ（`internal/llm` の下の `internal/llm/deepseek` など）があっても数え、検査を走らせ過ぎるほうへ倒す。スクリプトは、パスだけから決める今の作り（`extension/scripts/has-extension-changes.sh:20`）を保ち、`go` を呼ばない。`go.sum` を加える。
     -   依存を求める手順が失敗したときは、`true` として扱う。検査を走らせ過ぎるほうへ倒す。
     -   今の `check-changes` は、`.md` のファイルの変更をコードの変更に数えない（`.github/workflows/ci.yml:36`）。埋め込む `.md`（fake の記事）は WASM を変えるので、拡張の検査を走らせる判定は、この除外より前の、変わったファイルのすべての一覧で行う。
     -   `internal/server/response.go` を一覧から除くのは、それと `extension/test/serverReasons.test.ts` を撤去する PR である。それより前は、一覧に残す。
@@ -634,7 +634,7 @@ type BuildKind = "release" | "dev";
 | `internal/llm/devfake/deps_test.go` | fake がサーバだけが使うパッケージに依存しないこと | 撤去したパッケージを一覧から除く（§3.11） |
 | `cmd/yt2column-devserver` の引数のテスト | 綴りからシナリオを作ること | 綴りの行を `ParseScenario` のテストに写し、開発用のサーバとともに撤去する（§3.4） |
 | `extension/test/lintRules.test.ts` | `storage`・`session`・送信の名前を拒否する規則 | §5.4 の規則に直す |
-| `extension/test/ciChanges.test.ts` | 拡張の検査を走らせる変更 | 依存のディレクトリと埋め込むファイルの一覧を受け取る形に直し、`.tmpl` と fake の記事の `.md` の行を加える（§3.10） |
+| `extension/test/ciChanges.test.ts` | 拡張の検査を走らせる変更 | 依存のディレクトリの一覧を受け取る形に直し、`.tmpl` と、fake の記事の `.md` の変更と削除の行を加える（§3.10） |
 | `extension/test/checkDist.test.ts` | 成果物の検査 | ビルドの種類ごとの期待と、出力のディレクトリとの組み合わせを加える（§3.5） |
 | `extension/test/popupHtml.test.ts` | ポップアップの HTML の構造 | オプションページへのリンクを加える（§3.7） |
 
@@ -999,7 +999,7 @@ flowchart TD
 
 -   **依存の検査。** `cmd/yt2column` と、`GOOS=js GOARCH=wasm` を付けた `cmd/yt2column-wasm` の `go list -deps` に、`internal/llm/devfake` と `internal/extjob/devbackend` が出ないこと（ADR-0045）。`GOOS=js GOARCH=wasm` を付けた `cmd/yt2column-wasm-dev` の `go list -deps` に、`internal/llm/claude` と `internal/extjob/claudebackend` が出ないこと（§2.1）。
 -   **API キーの経路。** §5.4 の lint の規則とソースの検査。
--   **成果物。** §3.5 の成果物の検査。公開用の成果物の `buildKind.js` が `release` で、`buildInfo` の `mainPath` が `cmd/yt2column-wasm` で `llm` が `claude` であること。開発用の成果物の manifest が `key` を持たず、`buildInfo` のシナリオがビルドに渡した値であること。
+-   **成果物。** §3.5 の成果物の検査。公開用の成果物の `buildKind.js` が `release` で、`buildInfo` の `mainPath` が `github.com/isseis/yt2column/cmd/yt2column-wasm` で `llm` が `claude` であること。開発用の成果物の manifest が `key` を持たず、`buildInfo` のシナリオがビルドに渡した値であること。
 
 ### 7.4. テストの削除
 
@@ -1010,7 +1010,7 @@ flowchart TD
 PR の区切りは、実装計画書で決める。依存の順は次のとおりである。0090 設計書 §8 の順を、本書の決定で具体的に定めた。
 
 1.  **Go の部品。** `llm.ErrAuthRejected` と Claude アダプタの分類、`llmhttp.Status` と `js` のビルドの指定、`CheckKey`、`internal/config` の `LoadExtension` と `!js` のタグ、`internal/extjob`（今のサーバのテストの行を写したテストを含む）、`claudebackend`、`devfake` の追加と `ParseScenario`（開発用のサーバもこれを使う）、`devbackend`、3 つの `main`、`make wasm-check` の対象、§7.3 の依存の検査。サーバは動いたままである。
-2.  **拡張のビルド。** ビルドのスクリプトが Go を呼ぶこと、ツールチェーンの版、`buildKind.js`、`make ext-build-dev` と開発用の manifest、成果物の検査、CI（Go の用意、依存のディレクトリと埋め込むファイルによる変更の検出）、`.gitignore`。拡張はまだホストを使い、開発用のビルドはまだ画面で使えない（§3.4）。
+2.  **拡張のビルド。** ビルドのスクリプトが Go を呼ぶこと、ツールチェーンの版、`buildKind.js`、`make ext-build-dev` と開発用の manifest、成果物の検査、CI（Go の用意、依存のディレクトリによる変更の検出）、`.gitignore`。拡張はまだホストを使い、開発用のビルドはまだ画面で使えない（§3.4）。
 3.  **手動の確認。** 4 の切り替えより前に、401 を読めるかの確認（§7.2）と、ページのタイトルの確認（§3.8.2）を行い、結果を実装計画書に記録する。確かめるためのコードを `main` に入れるかは、実装計画書で決める。
 4.  **切り替え。** manifest、`chromeDeps.ts` の決まった関数と lint の規則、オプションページ、SW の調停、実行するビューアと Worker、ジョブの記録を読む表示、ポップアップのリンク、ページのタイトル、拡張のホストとの送信とポーリングの撤去。この PR のマージの後は、サーバとホストを主経路として述べる文書を残さない（要件書 AC-33）。
 5.  **撤去と文書。** サーバ、ホスト、開発用のサーバとそれだけが使うパッケージ、`internal/config` の `!js` のファイル、`make build` の 2 つのバイナリと `build-dev`、拡張の検査を走らせる一覧の `internal/server/response.go`、文書のガードのコマンド、残りの仕様の文書の書き換え。4 と同じ PR にするかは、実装計画書で決める。
