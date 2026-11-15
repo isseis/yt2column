@@ -14,7 +14,9 @@ never decide any of these yourself, and you never type into another pane.
 How the tool works, what it guarantees, and how to install it are in the
 guide, [chief_guide.md](../../docs/dev/guides/chief_guide.md) (Japanese).
 
-Talk to the human in Japanese (`CLAUDE.md`, "Language").
+Talk to the human in Japanese (`CLAUDE.md`, "Language"). Show the tool's
+agent values as their names: `claude_code` as Claude Code, `opencode` as
+OpenCode.
 
 ## Rules
 
@@ -159,9 +161,12 @@ How to offer them depends on the argument:
   start the wait (step 5), and end the turn. The human answers whenever they
   like, with a number or an item's label. Write the list in every round that
   has `pending` items. An item keeps its number for the whole session, by
-  its `id`: a new item takes the next number not used yet, and a number is
-  never given to another item, even after its item is gone. 何もしない is
-  `0`. So a number always means the item it was written for.
+  its `id`: a new item takes the next number not used yet (1, 2, 3, ...;
+  decimal digits, never letters), and a number is never given to another
+  item, even after its item is gone. 何もしない is `0`. So a number always
+  means the item it was written for. Write each choice as one plain line,
+  `<number>. <description>`, with no bullet before it and no line break
+  inside it.
 - **With `once`**, ask with `AskUserQuestion`. A question has at most four
   options, so show the first three items and 何もしない; name every item left
   out by its label in the question text, and say that the human can write
