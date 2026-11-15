@@ -119,7 +119,7 @@ var screenRows = map[string]map[string][]string{
 		"claude": {"claude-command-report.ansi"},
 	},
 	"model line and new session": {
-		"opencode": {"opencode-after-new.ansi", "opencode-done.ansi"},
+		"opencode": {"opencode-after-new.ansi", "opencode-done.ansi", "opencode-model-no-effort.ansi"},
 	},
 	"input line": {
 		"claude":   {"claude-idle.ansi", "claude-input-left.ansi", "claude-working.ansi", "claude-after-clear.ansi", "claude-after-model.ansi"},

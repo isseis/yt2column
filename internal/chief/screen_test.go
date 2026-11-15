@@ -144,8 +144,10 @@ var claudeScreenWants = map[string]wantScreen{
 }
 
 var openCodeScreenWants = map[string]wantScreen{
-	"opencode-done.ansi":                   {kind: ScreenPrompt, inputEmpty: true, model: sampleModel},
-	"opencode-after-new.ansi":              {kind: ScreenPrompt, inputEmpty: true, model: sampleModel, newSession: true},
+	"opencode-done.ansi":      {kind: ScreenPrompt, inputEmpty: true, model: sampleModel},
+	"opencode-after-new.ansi": {kind: ScreenPrompt, inputEmpty: true, model: sampleModel, newSession: true},
+	// A model with no reasoning effort: one separator on the status line.
+	"opencode-model-no-effort.ansi":        {kind: ScreenPrompt, inputEmpty: true, model: "DeepSeek V4 Pro OpenCode Go", newSession: true},
 	"opencode-input-left.ansi":             {kind: ScreenPrompt, inputLeft: "unsent draft text", model: sampleModel},
 	"opencode-runpr-report.txt":            {kind: ScreenPrompt, inputEmpty: true, model: sampleModel},
 	"opencode-question-single.ansi":        openCodeFruitSingle,
@@ -375,6 +377,8 @@ func TestParseScreenRejectsNonMatching(t *testing.T) {
 		{"opencode tab bar on single footer", parseOpenCodeScreen, oq, "┃  Which fruit do you prefer?", "┃  Fruit  Submit\n  ┃\n  ┃  Which fruit do you prefer?"},
 		{"opencode prompt without bottom edge", parseOpenCodeScreen, "opencode-done.ansi", "╹▀▀▀▀", "x▀▀▀▀"},
 		{"opencode status line without model", parseOpenCodeScreen, "opencode-done.ansi", "Build · DeepSeek V4.1 Flash 1017 OpenCode Go · high", "Build"},
+		{"opencode status line with an empty model", parseOpenCodeScreen, "opencode-model-no-effort.ansi", "Build · DeepSeek V4 Pro OpenCode Go", "Build · · high"},
+		{"opencode status line without agent", parseOpenCodeScreen, "opencode-model-no-effort.ansi", "Build · DeepSeek V4 Pro OpenCode Go", " · DeepSeek V4 Pro OpenCode Go"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

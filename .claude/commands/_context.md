@@ -167,7 +167,8 @@ This section stays outside "PR marker conventions", whose two-cell rows
 - **Agent** is `Claude Code` or `OpenCode`.
 - **Model** is, for Claude Code, the argument of `/model` (`opus` or
   `sonnet`); for OpenCode, the whole text its status line shows between the
-  first and the last ` · `, printable ASCII words separated by single spaces.
+  first and the last ` · ` (after the only ` · ` for a model with no
+  reasoning effort), printable ASCII words separated by single spaces.
 - A table `chief` cannot read (a missing or repeated row, another column, an
   agent or a model outside these sets) makes it send nothing.
 

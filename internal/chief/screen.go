@@ -99,7 +99,8 @@ type Screen struct {
 	Kind     ScreenKind
 	Question *Question
 	Input    InputLine
-	// OpenCodeModel is the text between the first and the last " · " of an
+	// OpenCodeModel is the text between the first and the last " · " (after
+	// the only one, for a model with no reasoning effort) of an
 	// OpenCode status line, compared whole with the routing table.
 	OpenCodeModel string
 	// NewSession is true when an OpenCode prompt screen holds no

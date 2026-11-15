@@ -68,6 +68,7 @@
 | `opencode-input-left.ansi` | 入力欄に送っていない文字が残っている |
 | `opencode-done.ansi` | 応答を終えた後の入力待ち（入力欄は空で、案内文がない） |
 | `opencode-after-new.ansi` | `/new` の後。灰色の案内文がある |
+| `opencode-model-no-effort.ansi` | 推論の強さを持たないモデル（DeepSeek V4 Pro）の入力待ち。状態の行の区切り ` · ` が 1 つだけ。タスク 0088 の PR-7 の実地の確かめで、2026-11-15 に OpenCode v2.2.6 の画面から採った |
 | `opencode-merge-question.ansi` | マージの確認（上の「マージの確認」のとおり再現したもの） |
 | `opencode-runpr-report.txt` | `/runpr` の最後の報告（テキストだけ） |
 

@@ -272,7 +272,9 @@ reasons need the human to act, so give the remedy too:
 | `stopped` | Sends to the workspace are stopped until the human releases them (`停止を解く`) |
 | `busy` | Another call of this chief works on the workspace; it is shown again in the next round |
 
-For any other reason, give `detail` in Japanese.
+For any other reason, give `detail` in Japanese. Never add a cause the
+tool did not give: when `detail` names the row's state, say that state and
+show the row in the next round.
 
 ## 5. Watching
 
