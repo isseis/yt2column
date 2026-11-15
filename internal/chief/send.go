@@ -273,8 +273,8 @@ type sendContext struct {
 // paneCheck is what the check before an input asks for besides a pane that
 // accepts input with an empty input line.
 type paneCheck struct {
-	// transcript asks that a Claude Code pane's transcript can be found and
-	// opened: before the first input of a command.
+	// transcript asks that the location of a Claude Code pane's transcript
+	// can be found: before the first input of a command.
 	transcript bool
 	// model asks that an OpenCode pane shows the route's model: before the
 	// first input and before the command after /new.
@@ -341,11 +341,10 @@ func (s sendContext) checkPane(ctx context.Context, target Agent, check paneChec
 		return a, f
 	}
 	if check.transcript {
-		path, err := transcriptPath(s.deps.Env, a.Dir, a.Session)
-		if err == nil {
-			err = transcriptOpens(path)
-		}
-		if err != nil {
+		// Only the location is checked: a session nobody has typed into yet
+		// has no transcript file, and /clear starts a new session whose
+		// transcript the /model check reads.
+		if _, err := transcriptPath(s.deps.Env, a.Dir, a.Session); err != nil {
 			return fail(transcriptFailure(err))
 		}
 	}

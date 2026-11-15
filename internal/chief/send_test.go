@@ -160,11 +160,6 @@ func TestSendChecksBeforeFirstInput(t *testing.T) {
 			p.screen = readScreenSample(sw.t, "claude-input-left.ansi")
 		}, NotSentInputLeft, "unsent draft text"},
 		{"no agent session", "claude", opus, func(_ *sendWorld, p *simPane) { p.Session = "" }, NotSentNoTranscript, ""},
-		{"no transcript", "claude", opus, func(sw *sendWorld, p *simPane) {
-			if err := os.Remove(sw.transcript(p, p.Session)); err != nil {
-				sw.t.Fatal(err)
-			}
-		}, NotSentNoTranscript, ""},
 		{"OpenCode unsent text", "opencode", flash, func(sw *sendWorld, p *simPane) {
 			p.screen = readScreenSample(sw.t, "opencode-input-left.ansi")
 		}, NotSentInputLeft, "unsent draft text"},
@@ -230,6 +225,26 @@ func TestSendInputsInOrder(t *testing.T) {
 				t.Errorf("records = %v %v %v, want one start and its end", starts, ends, err)
 			}
 		})
+	}
+}
+
+// TestSendToNewSession checks that a Claude Code session nobody has typed
+// into yet, which has no transcript file, is sent to: /clear starts a new
+// session, and the /model check reads that session's transcript.
+func TestSendToNewSession(t *testing.T) {
+	sw := newSendWorld(t)
+	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
+	deps := sw.finish()
+	p := sw.firstPane()
+	if err := os.Remove(sw.transcript(p, p.Session)); err != nil {
+		t.Fatal(err)
+	}
+	res := sw.sendContextOf(deps).sendCommand(context.Background(), runplanCmd(t), opus(t))
+	if res.Outcome != OutcomeSent {
+		t.Errorf("result = %+v, want sent", res)
+	}
+	if got, want := sw.rec.prompts(), []string{"w1:p1 /clear", "w1:p1 /model opus", "w1:p1 /runplan 0001"}; !slices.Equal(got, want) {
+		t.Errorf("typed %v, want %v", got, want)
 	}
 }
 
@@ -676,10 +691,7 @@ func TestActionResults(t *testing.T) {
 	})
 	t.Run("not sent", func(t *testing.T) {
 		got := run(t, nil, func(sw *sendWorld) {
-			p := sw.firstPane()
-			if err := os.Remove(sw.transcript(p, p.Session)); err != nil {
-				t.Fatal(err)
-			}
+			sw.firstPane().Session = ""
 		})
 		if got.Outcome != "not_sent" || got.Reason != "no_transcript" || got.Step != "" {
 			t.Errorf("result = %+v, want not sent, no_transcript, no step", got)
@@ -813,13 +825,12 @@ func TestTranscriptFIFORefused(t *testing.T) {
 	if err := syscall.Mkfifo(path, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	done := make(chan error, 2)
+	done := make(chan error, 1)
 	go func() {
-		done <- transcriptOpens(path)
 		_, err := readTranscript(path, transcriptLimit)
 		done <- err
 	}()
-	for range 2 {
+	for range 1 {
 		select {
 		case err := <-done:
 			if !errors.Is(err, errTranscript) {
