@@ -370,7 +370,7 @@ type FakeScenario = {
 ```
 
 -   `GenerateRequest` と `StoredSettings` のメンバは閉じた集合で、知らないメンバと重複したメンバは拒否する（`internal/strictjson`）。この拒否は、ビューアが形を誤って組み立てたことを表すので、`internal`（`internalDetail` は `request_shape`）にする。
--   保存した設定の検査は、次のどれかに当たれば `settings_invalid` にする。`anthropicApiKey` が文字列でないか、`llmhttp.CheckAPIKey` の規則（空でない印字可能な ASCII）に合わない。`anthropicWorkspaceId` がないか、文字列でないか、空でなくて `claudeparam.ParseWorkspaceID` の規則に合わない。前後の空白を除くなどの補正はしない（要件書 §3.2）。検査は、文字列であることを確かめた後、`config.LoadExtension(config.ExtensionLookup(...))` と `llmhttp.CheckAPIKey` を通す。この 2 つは、`checkSettings` が使うのと同じ関数である（0090 設計書 §3.1.3）。
+-   保存した設定の検査は、次のどれかに当たれば `settings_invalid` にする。`anthropicApiKey` が文字列でないか、`llmhttp.CheckAPIKey` の規則（空でない印字可能な ASCII）に合わない。`anthropicWorkspaceId` がないか、文字列でないか、空でなくて `claudeparam.ParseWorkspaceID` の規則に合わない。`anthropicWorkspaceId` の空の文字列は、ワークスペース ID の指定なしで、受理する（要件書 AC-02・AC-04）。オプションページは指定なしのときも空の文字列の項目を書くので（§3.6）、項目がないのはオプションページが書かない形で、指定なしとは扱わない（要件書 §3.2）。前後の空白を除くなどの補正はしない（要件書 §3.2）。検査は、文字列であることを確かめた後、`config.LoadExtension(config.ExtensionLookup(...))` と `llmhttp.CheckAPIKey` を通す。この 2 つは、`checkSettings` が使うのと同じ関数である（0090 設計書 §3.1.3）。
 -   `settings_invalid` の結果は、LLM の API を呼ぶ前に返る。`steps` はすべて `pending` のままである。
 -   API キーの値は、文字列であることを確かめた直後に `config.LoadExtension` が `secret.Secret` にし、`internal/extjob` は JSON の文字列も `StoredSettings` の値も保持しない（[ADR-0031](../../dev/adr/0031-secret-closure.md)）。結果と進み具合には入らない。
 
