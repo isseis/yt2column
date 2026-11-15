@@ -183,18 +183,31 @@ func openCodeQuestion(lines []screenLine) (*Question, bool) {
 	return q, true
 }
 
+// openCodeBlanksBeforeOptions is how many blank lines a single-select panel
+// has before its options: one before the question text and one after it
+// (openCodeQuestionBody).
+const openCodeBlanksBeforeOptions = 2
+
 // openCodeCursor returns the number of the option the selection is on.
 // OpenCode marks it by color only: the selected option's number is drawn in
 // another color than the placeholder gray every other option's number has.
-// An option line is the panel line whose content is exactly the option's
-// number and label. Contract: anything but exactly one option drawn so is
+// An option line is a panel line after the blank line that ends the
+// question text whose content is exactly the option's number and label, so a
+// line of the question text is never read as one. Contract: anything but exactly one option drawn so is
 // 0, the reading of no cursor; the cursor only goes into a relay's check
 // value, so a wrong reading can refuse a relay but never choose a key.
 func openCodeCursor(q *Question, panels []panelLine) int {
 	cursor := 0
+	blanks := 0
 	for _, p := range panels {
 		c, ok := panelContent(p)
 		if !ok {
+			continue
+		}
+		if blanks < openCodeBlanksBeforeOptions {
+			if c == "" {
+				blanks++
+			}
 			continue
 		}
 		for _, o := range q.Options {

@@ -264,6 +264,22 @@ func TestOpenCodeCursorNeedsOneMark(t *testing.T) {
 	}
 }
 
+// TestOpenCodeCursorSkipsQuestionText makes an OpenCode question's text
+// read like its first option, drawn in a color other than the gray: the
+// cursor is still read from the options alone.
+func TestOpenCodeCursorSkipsQuestionText(t *testing.T) {
+	const old = "\x1b[38;2;26;26;26m\x1b[48;2;250;250;250mWhich fruit do you prefer?"
+	base := readScreenSample(t, "opencode-question-single-cursor.ansi")
+	if strings.Count(base, old) != 1 {
+		t.Fatalf("the sample does not hold %q once", old)
+	}
+	edited := strings.Replace(base, old, "\x1b[38;2;26;26;26m\x1b[48;2;250;250;250m1. Apple"+strings.Repeat(" ", 18), 1)
+	got := parseOpenCodeScreen(edited)
+	if got.Question == nil || got.Question.Text != "1. Apple" || got.Question.Cursor != 3 {
+		t.Errorf("question = %+v, want the text 1. Apple and the cursor on 3", got.Question)
+	}
+}
+
 // TestClaudeCursorOnChat moves Claude Code's cursor mark from option 1 to the
 // chat option below the widget's rule: the cursor reads as that option.
 func TestClaudeCursorOnChat(t *testing.T) {

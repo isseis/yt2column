@@ -222,6 +222,11 @@ func (s sendContext) relay(ctx context.Context, res ActionResult, req RelayReque
 		return notSent(res, NotSentUnreadable, "the option's key cannot be made: "+err.Error())
 	}
 	keyName, _ := key.Key()
+	// The pane is read once more just before the key, so a question answered
+	// or asked again since it was matched is not given the key.
+	if now, err := s.herdr.Agent(ctx, a.Pane); err != nil || now != a {
+		return notSent(res, NotSentCheckMismatch, "the pane changed after its question was matched")
+	}
 	id, err := s.held.BeginSend(SendRecord{Pane: res.Pane, Input: res.Input.String(), Command: res.Command, Agent: agentLabel(a.Kind), Prompts: []string{"key " + keyName}}, s.deps.Now())
 	if err != nil {
 		return notSent(res, NotSentUnreadable, "the send record cannot be written: "+err.Error())

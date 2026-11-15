@@ -274,6 +274,33 @@ func TestRelayCheckValueMismatch(t *testing.T) {
 	})
 }
 
+// TestRelayRereadsBeforeTheKey checks that a pane whose agent changes after
+// its question was matched, and before the key, gets no key.
+func TestRelayRereadsBeforeTheKey(t *testing.T) {
+	sw := newSendWorld(t)
+	p := sw.questionPane("claude", "claude-question-single.ansi")
+	deps := sw.finish()
+	check := sw.checkOf(p)
+	gets := 0
+	sw.rec.replyFunc("herdr agent get w1:p1", func() reply {
+		sw.mu.Lock()
+		defer sw.mu.Unlock()
+		gets++
+		if gets == 2 {
+			// The question is answered and asked again after the match.
+			p.Seq += 2
+		}
+		return reply{out: agentGetOutput(p.fakeAgent)}
+	})
+	res := sw.relay(deps, check, "1=1")
+	if res.Outcome != OutcomeNotSent || res.Reason != NotSentCheckMismatch || gets != 2 {
+		t.Errorf("result = %+v after %d agent reads, want not sent, check mismatch, after the second", res, gets)
+	}
+	if got := sw.rec.keys(); len(got) != 0 {
+		t.Errorf("keys = %v", got)
+	}
+}
+
 // TestRelayRefusesTabbedQuestion checks that a relay sends nothing to a
 // tabbed question even with the check value of the question as it is, and
 // likewise to the other shapes chief does not relay.
