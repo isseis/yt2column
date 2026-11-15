@@ -192,8 +192,8 @@ func TestRelaySendsChosenOption(t *testing.T) {
 			if got := sw.rec.prompts(); len(got) != 0 {
 				t.Errorf("typed %v", got)
 			}
-			if a := actionOutput(res); a.Input != "relay" || a.Outcome != "sent" || a.Command != "1. Apple" {
-				t.Errorf("output = %+v", a)
+			if a := actionOutput(res); a.Input != "relay" || a.Outcome != "sent" || a.Command != "1. Apple" || a.Detail != relaySentDetail {
+				t.Errorf("output = %+v, want a detail that claims only the key and the question left", a)
 			}
 			records, err := deps.Store.Records(Worktree{path: sw.trees["w1"]})
 			if err != nil {
@@ -207,8 +207,46 @@ func TestRelaySendsChosenOption(t *testing.T) {
 			if err := records.store().read(sendPrefix+starts[0]+startSuffix, &rec); err != nil || rec.Input != "relay" || !slices.Equal(rec.Prompts, []string{"key 1"}) {
 				t.Errorf("send record = %+v, %v; want the relay's key", rec, err)
 			}
+			var end sendEnd
+			if err := records.store().read(sendPrefix+starts[0]+endSuffix, &end); err != nil || end.Outcome != "sent" || end.Reason != relaySentDetail {
+				t.Errorf("end record = %+v, %v; want sent with the relay's detail", end, err)
+			}
 			if stop, err := records.Stopped(); err != nil || stop != nil {
 				t.Errorf("stop = %+v, %v; want none", stop, err)
+			}
+		})
+	}
+}
+
+// TestRelayRereadsTheScreenBeforeTheKey checks that a relay reads the screen
+// again just before the key: a question redrawn after the match while
+// Herdr's agent reading stays the same is not given the key.
+func TestRelayRereadsTheScreenBeforeTheKey(t *testing.T) {
+	for _, kind := range []string{"claude", "opencode"} {
+		t.Run(kind, func(t *testing.T) {
+			sw := newSendWorld(t)
+			p := sw.questionPane(kind, kind+"-question-single.ansi")
+			deps := sw.finish()
+			check := sw.checkOf(p)
+			other := readScreenSample(t, kind+"-merge-question.ansi")
+			reads := 0
+			sw.rec.replyFunc("herdr agent read w1:p1 --source visible --lines 200 --format ansi", func() reply {
+				sw.mu.Lock()
+				defer sw.mu.Unlock()
+				reads++
+				if reads == 2 {
+					// Another question is drawn after the match; the agent
+					// reading does not change.
+					p.screen = other
+				}
+				return reply{out: []byte(p.screen)}
+			})
+			res := sw.relay(deps, check, "1=1")
+			if res.Outcome != OutcomeNotSent || res.Reason != NotSentCheckMismatch || reads != 2 {
+				t.Errorf("result = %+v after %d screen reads, want not sent, check mismatch, after the second", res, reads)
+			}
+			if got := sw.rec.keys(); len(got) != 0 {
+				t.Errorf("keys = %v", got)
 			}
 		})
 	}

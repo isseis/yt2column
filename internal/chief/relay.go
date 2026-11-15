@@ -116,37 +116,48 @@ type relayTarget struct {
 	question Question
 }
 
+// paneQuestion reads listed's pane screen, then its agent, and returns that
+// agent reading with the question the screen shows. Contract: the screen is
+// read before the agent, so a question answered and asked again with the
+// same text before its screen was read carries the new state_change_seq;
+// the question is nil when the pane is no longer listed's agent or shows no
+// question.
+func (s sendContext) paneQuestion(ctx context.Context, listed Agent) (Agent, *Question, error) {
+	raw, err := s.herdr.Screen(ctx, listed.Pane, ScreenVisible)
+	if err != nil {
+		return Agent{}, nil, err
+	}
+	after, err := s.herdr.Agent(ctx, listed.Pane)
+	if err != nil {
+		return Agent{}, nil, err
+	}
+	if !sameAgent(after, listed) {
+		return after, nil, nil
+	}
+	screen := readScreen(after.Kind, raw)
+	if screen.Kind != ScreenQuestion {
+		return after, nil, nil
+	}
+	return after, screen.Question, nil
+}
+
 // findRelayTarget reads every agent pane of the workspace again and returns
 // the one whose question gives check now, or whether a read failed when none
-// does. Contract: each pane's screen is
-// read before its agent, and the value is made from that agent reading, so a
-// question answered and asked again with the same text before its screen was
-// read carries the new state_change_seq and does not match the value of the
-// first; a pane whose directory is not the worktree's root is never read.
+// does. Contract: the value is made from paneQuestion's agent reading, which
+// follows the screen; a pane whose directory is not the worktree's root is
+// never read.
 func (s sendContext) findRelayTarget(ctx context.Context, check CheckValue) (target relayTarget, found, readFailed bool) {
 	for _, listed := range s.ws.Agents {
 		if listed.Kind == paneinput.AgentUnknown || !inWorktree(listed.Dir, s.ws.Worktree) {
 			continue
 		}
-		raw, err := s.herdr.Screen(ctx, listed.Pane, ScreenVisible)
+		after, q, err := s.paneQuestion(ctx, listed)
 		if err != nil {
 			readFailed = true
 			continue
 		}
-		after, err := s.herdr.Agent(ctx, listed.Pane)
-		if err != nil {
-			readFailed = true
-			continue
-		}
-		if !sameAgent(after, listed) {
-			continue
-		}
-		screen := readScreen(after.Kind, raw)
-		if screen.Kind != ScreenQuestion || screen.Question == nil {
-			continue
-		}
-		if checkValue(after, *screen.Question) == check {
-			return relayTarget{agent: after, question: *screen.Question}, true, false
+		if q != nil && checkValue(after, *q) == check {
+			return relayTarget{agent: after, question: *q}, true, false
 		}
 	}
 	return relayTarget{}, false, readFailed
@@ -156,11 +167,13 @@ func (s sendContext) findRelayTarget(ctx context.Context, check CheckValue) (tar
 // (the design, 3.6). Contract: it holds the workspace's exclusion, settles
 // unfinished sends, and sends nothing to a stopped workspace; it reads the
 // panes again and sends only to the one pane whose question gives the check
-// value now; it sends only to a relayable question, only while Herdr reports
+// value now and again just before the key; it sends only to a relayable question, only while Herdr reports
 // the agent blocked, and only an option the question has and
 // relays; what it sends is the key of the option's number, never a text; the
 // start record is written before the key, and a failure once the key may
-// have been pressed is never retried but stops the workspace.
+// have been pressed is never retried but stops the workspace; a sent result
+// says that the key was pressed and the agent left the question, never that
+// the question took the relayed answer.
 func Relay(ctx context.Context, deps Deps, req RelayRequest) (SendOutcome, error) {
 	if req.check == "" {
 		return SendOutcome{}, fmt.Errorf("%w: a request no parser made", ErrBadRequest)
@@ -187,6 +200,11 @@ func Relay(ctx context.Context, deps Deps, req RelayRequest) (SendOutcome, error
 	sc := sendContext{deps: deps, herdr: NewHerdr(deps.Cmds), writer: writer, held: held, ws: loc.ws}
 	return one(sc.relay(ctx, base, req)), nil
 }
+
+// relaySentDetail is a sent relay's detail: what the tool saw, which does
+// not tell its key from an answer the human gave in the pane.
+const relaySentDetail = "the key of the option was pressed and the agent left the question; " +
+	"an answer given in the pane at the same moment would look the same"
 
 // relay checks the target and presses its key, for Relay.
 func (s sendContext) relay(ctx context.Context, res ActionResult, req RelayRequest) ActionResult {
@@ -222,9 +240,11 @@ func (s sendContext) relay(ctx context.Context, res ActionResult, req RelayReque
 		return notSent(res, NotSentUnreadable, "the option's key cannot be made: "+err.Error())
 	}
 	keyName, _ := key.Key()
-	// The pane is read once more just before the key, so a question answered
-	// or asked again since it was matched is not given the key.
-	if now, err := s.herdr.Agent(ctx, a.Pane); err != nil || now != a {
+	// The pane's screen and agent are read once more just before the key,
+	// in the order the match read them, so a question answered, asked again,
+	// or redrawn since it was matched is not given the key, even when Herdr's
+	// agent reading did not change.
+	if now, nq, err := s.paneQuestion(ctx, a); err != nil || nq == nil || now != a || checkValue(now, *nq) != req.check {
 		return notSent(res, NotSentCheckMismatch, "the pane changed after its question was matched")
 	}
 	id, err := s.held.BeginSend(SendRecord{Pane: res.Pane, Input: res.Input.String(), Command: res.Command, Agent: agentLabel(a.Kind), Prompts: []string{"key " + keyName}}, s.deps.Now())
@@ -250,9 +270,12 @@ func (s sendContext) relay(ctx context.Context, res ActionResult, req RelayReque
 	}); failed != nil {
 		return s.fail(res, id, StepKey, failed)
 	}
-	res.Outcome = OutcomeSent
-	if err := s.held.EndSend(id, res.Outcome.String(), "", s.deps.Now()); err != nil {
-		res.Detail = "sent, but the end record cannot be written, so the workspace is stopped: " + err.Error()
+	// Leaving the question shows that the key was pressed and the question
+	// is gone, not whose answer took it: an answer the human gave in the pane
+	// at the same moment looks the same, so the result says no more.
+	res.Outcome, res.Detail = OutcomeSent, relaySentDetail
+	if err := s.held.EndSend(id, res.Outcome.String(), relaySentDetail, s.deps.Now()); err != nil {
+		res.Detail = relaySentDetail + "; the end record cannot be written, so the workspace is stopped: " + err.Error()
 		_ = s.held.Stop(res.Detail, "", id, s.deps.Now())
 	}
 	return res
