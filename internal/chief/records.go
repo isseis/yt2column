@@ -367,6 +367,9 @@ type noticeRecord struct {
 	Session   string    `json:"session"`
 	Item      ItemID    `json:"item"`
 	FirstSeen time.Time `json:"first_seen"`
+	// Number is the item's number in the session's lists, 0 when none
+	// could be given.
+	Number int `json:"number"`
 }
 
 // Observe records that item was seen in session. It returns when the item
@@ -386,7 +389,13 @@ func (s Store) Observe(session string, item ItemID, now time.Time) (first time.T
 	if !errors.Is(err, privatefile.ErrNotExist) {
 		return now, false, err
 	}
-	if err := s.create(name, noticeRecord{Session: session, Item: item, FirstSeen: now.UTC()}); err != nil {
+	// A number that cannot be found leaves the item unnumbered; it is still
+	// shown and chosen by its label.
+	number, nerr := s.nextNoticeNumber(session)
+	if nerr != nil {
+		number = 0
+	}
+	if err := s.create(name, noticeRecord{Session: session, Item: item, FirstSeen: now.UTC(), Number: number}); err != nil {
 		if errors.Is(err, privatefile.ErrExist) {
 			// Another chief process made it first; read what it wrote.
 			if rerr := s.read(name, &rec); rerr != nil {
@@ -397,6 +406,41 @@ func (s Store) Observe(session string, item ItemID, now time.Time) (first time.T
 		return now, true, err
 	}
 	return now, true, nil
+}
+
+// nextNoticeNumber returns the number for a new item of session: one above
+// the highest number the session's notice records hold. Contract: a number
+// is never given to two items of one session, as long as one round stamps
+// its items at a time (the /chief definition runs one round at a time), and
+// a number stays with its item for the session, after the item is gone too.
+func (s Store) nextNoticeNumber(session string) (int, error) {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return 0, err
+	}
+	highest := 0
+	for _, e := range entries {
+		name := e.Name()
+		if !noticeFileName.MatchString(name) || !strings.HasPrefix(name, noticePrefix+hashName(session)+"-") {
+			continue
+		}
+		var rec noticeRecord
+		if err := s.read(name, &rec); err != nil {
+			return 0, err
+		}
+		highest = max(highest, rec.Number)
+	}
+	return highest + 1, nil
+}
+
+// NoticeNumber returns the number the notice record of item in session
+// holds, 0 when it holds none.
+func (s Store) NoticeNumber(session string, item ItemID) (int, error) {
+	var rec noticeRecord
+	if err := s.read(noticeName(session, item), &rec); err != nil {
+		return 0, err
+	}
+	return rec.Number, nil
 }
 
 // sessionRecordKinds are the records kept per chief session, each with the

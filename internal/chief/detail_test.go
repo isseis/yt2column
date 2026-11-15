@@ -347,6 +347,10 @@ func TestReviewItemShowsKeptSkippable(t *testing.T) {
 		if len(out.Pending) != 1 || out.Pending[0].Kind != "review" {
 			t.Fatalf("pending = %+v, want one review item", out.Pending)
 		}
+		// The one item keeps the session's first number in every round.
+		if out.Pending[0].Number != 1 {
+			t.Errorf("the review item's number is %d, want 1", out.Pending[0].Number)
+		}
 		return out.Pending[0].ReviewSkippable
 	}
 	if skippable() {

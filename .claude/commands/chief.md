@@ -160,22 +160,23 @@ How to offer them depends on the argument:
   Write the choices as a numbered list at the end of the round's report,
   start the wait (step 5), and end the turn. The human answers whenever they
   like, with a number or an item's label. Write the list in every round that
-  has `pending` items. An item keeps its number for the whole session, by
-  its `id`: a new item takes the next number not used yet (1, 2, 3, ...;
-  decimal digits, never letters), and a number is never given to another
-  item, even after its item is gone. 何もしない is `0`. So a number always
-  means the item it was written for. Write each choice as one plain line,
-  `<number>. <description>`, with no bullet before it and no line break
-  inside it.
+  has `pending` items. Number each item with its `number` from the tool,
+  never with a number of your own: the tool gives an item its number when it
+  first sees it and keeps it for the session, and never gives it to another
+  item. 何もしない is `0`. An item whose `number` is `0` has none; list it
+  without a number, to be chosen by its label. Write each choice as one
+  plain line, `<number>. <description>`, in the tool's order, with no bullet
+  before it and no line break inside it. Write nothing about numbers that
+  are no longer listed.
 - **With `once`**, ask with `AskUserQuestion`. A question has at most four
   options, so show the first three items and 何もしない; name every item left
   out by its label in the question text, and say that the human can write
   the label in the free-text answer to choose it (requirements AC-14).
 
 **Reading the answer.** With `once`, the answer is to the question just
-asked. While watching, a number chooses the item it was given to; when
-that item is no longer in `pending` (answered, merged, or gone), say so and
-send nothing. A label
+asked. While watching, a number chooses the item of the latest `pending`
+whose `number` it is; when none has it (answered, merged, or gone), say so
+and send nothing. A label
 chooses the item of that label; when several items share it (for example
 two questions in one workspace, or a next command and a takeover), ask again
 listing only those. An answer that names no current item is not a choice:

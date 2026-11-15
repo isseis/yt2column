@@ -361,6 +361,42 @@ func TestObserve(t *testing.T) {
 	})
 }
 
+// TestNoticeNumbers checks that each item of a session gets the next number
+// when first seen and keeps it, that a number is not given again after its
+// item stopped being seen, and that each session counts from 1.
+func TestNoticeNumbers(t *testing.T) {
+	store := newStore(t)
+	now := time.Date(2026, 11, 15, 9, 0, 0, 0, time.UTC)
+	number := func(session string, item ItemID) int {
+		t.Helper()
+		if _, _, err := store.Observe(session, item, now); err != nil {
+			t.Fatal(err)
+		}
+		n, err := store.NoticeNumber(session, item)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	for _, step := range []struct {
+		session string
+		item    ItemID
+		want    int
+	}{
+		{"s", "a", 1},
+		{"s", "b", 2},
+		{"s", "a", 1},
+		// b is not seen again; a new item does not take its number.
+		{"s", "c", 3},
+		{"other", "a", 1},
+		{"s", "d", 4},
+	} {
+		if got := number(step.session, step.item); got != step.want {
+			t.Errorf("session %s item %s: number %d, want %d", step.session, step.item, got, step.want)
+		}
+	}
+}
+
 // TestCanonicalWorktreeResolvesLinks checks that the same worktree reached
 // through a symbolic link has one records directory.
 func TestCanonicalWorktreeResolvesLinks(t *testing.T) {

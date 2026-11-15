@@ -101,6 +101,9 @@ type PendingOutput struct {
 	ReviewSkippable bool      `json:"review_skippable"`
 	FirstSeen       time.Time `json:"first_seen"`
 	New             bool      `json:"new"`
+	// Number is the item's number in this session's lists, kept for the
+	// session and never reused; 0 when none could be given.
+	Number int `json:"number"`
 }
 
 // questionKindName names a question shape for the output.
@@ -213,6 +216,7 @@ func (s Snapshot) Output() SnapshotOutput {
 			Reasons:         sanitizeAll(p.Reasons),
 			ReviewSkippable: p.ReviewSkippable,
 			FirstSeen:       p.FirstSeen,
+			Number:          p.Number,
 			New:             p.New,
 		}
 		if p.Question != nil {

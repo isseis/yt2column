@@ -67,6 +67,10 @@ type PendingItem struct {
 	FirstSeen time.Time
 	// New is true when the item was not announced before in this session.
 	New bool
+	// Number is the item's number in this session's lists: given when the
+	// item is first seen and kept, never given to another item; 0 when none
+	// could be given.
+	Number int
 }
 
 // itemID builds an opaque identity from parts. The parts are joined with a
@@ -191,6 +195,10 @@ func stampPending(store Store, session string, items []PendingItem, now time.Tim
 		items[i].FirstSeen = first
 		items[i].New = isNew
 		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if items[i].Number, err = store.NoticeNumber(session, items[i].ID); err != nil {
 			errs = append(errs, err)
 		}
 	}
