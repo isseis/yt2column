@@ -427,23 +427,23 @@
 
 ### フェーズ 7: `/chief` の定義、設定、文書、移行、実地の確かめ（設計書 8 章の 7）
 
-**変更するファイル:** `.claude/commands/chief.md`（新規）、`.claude/settings.json`、`internal/doctestutil/protocol.go`・`protocol_test.go`、`cmd/fixprguard/docs_test.go`、`cmd/codexreview/docs_test.go`、`cmd/chief/docs_test.go`、`Makefile`、`CLAUDE.md`、`docs/dev/guides/chief_guide.md`（新規）、`docs/dev/adr/0014-deterministic-checks-in-go.md`・`0046-chief-of-staff.md`、本計画
+**変更するファイル:** `.claude/commands/chief.md`（新規）、`.claude/settings.json`、`internal/chief/output.go`・`request.go`・`send_test.go`（出力の `request`）、`internal/doctestutil/protocol.go`・`protocol_test.go`・`commands.go`（新規）、`cmd/fixprguard/docs_test.go`、`cmd/codexreview/docs_test.go`、`cmd/chief/docs_test.go`、`Makefile`、`CLAUDE.md`、`docs/dev/guides/chief_guide.md`（新規）、`docs/dev/adr/0014-deterministic-checks-in-go.md`・`0046-chief-of-staff.md`、本計画
 
--   [ ] **ステップ 7-1**: 試作をリポジトリの外へ移す（決定 16）。
+-   [x] **ステップ 7-1**: 試作をリポジトリの外へ移す（決定 16）。
     -   人の承認を得て、この worktree の試作の `.claude/commands/chief.md` と `.claude/chief/` をリポジトリの外へ移し、git の共通ディレクトリの `info/exclude` の試作の 3 行を消す。
     -   `.claude/chief/hold.tsv` の行（`0084_wasm_pipeline_poc` の `PR-1` の後）について、0084 の計画書にまだ止める必要があるかを人に確かめる。要るなら、0084 の計画書に `**自動送信**: hold` を足す PR を、ステップ 7-6 の実地の確かめの前に別に作る（設計書 8 章の 7）。
--   [ ] **ステップ 7-2**: `.claude/commands/chief.md` を書く（設計書 3.2）。`chief` の呼び出しは `--protocol 1` を書く。次のガードを足す。
+-   [x] **ステップ 7-2**: `.claude/commands/chief.md` を書く（設計書 3.2）。`chief` の呼び出しは `--protocol 1` を書く。セッションがコマンドの文から `--command` の値を読み取らないよう、道具の出力の次のコマンドに、`chief send` の `--command` の値 `request` を足す（`internal/chief/output.go`・`request.go`、`send_test.go` の `TestRequestNameSendsTheOffer`）。次のガードを足す。
     -   `internal/doctestutil/protocol.go` に `ToolChief` を足し、`protocol_test.go` に chief の行を足す。
     -   `cmd/fixprguard/docs_test.go` の数える条件を直し（決定 8）、chief の場合を足す。
-    -   `cmd/chief/docs_test.go` に、`--protocol` の番号が道具と合うこと、定義の中の呼び出しが道具の引数の解析を通ること、定義が `herdr` を直接呼ばないことのガードを書く（設計書 7.2 の 1 項目め、`cmd/codexreview/docs_test.go:158,255,554` と同じ形）。
--   [ ] **ステップ 7-3**: `.claude/settings.json` に `Bash(chief *)` を `allow` に、決定 9 の呼び出しを `deny` に足す。
+    -   `cmd/chief/docs_test.go` に、`--protocol` の番号が道具と合うこと、定義の中の呼び出しが道具の引数の解析を通ること、定義が `herdr` を直接呼ばないことのガードを書く（設計書 7.2 の 1 項目め、`cmd/codexreview/docs_test.go:158,255,554` と同じ形）。コマンドの文の読み取り（呼び出しの抽出、許可の規則の形、コマンドを走らせる位置の判定）は、`cmd/codexreview/docs_test.go` から `internal/doctestutil/commands.go` に移し、両方のガードが使う。
+-   [x] **ステップ 7-3**: `.claude/settings.json` に `Bash(chief *)` を `allow` に、決定 9 の呼び出しを `deny` に足す。
     -   `chief` が codex を走らせないことを確かめ、`cmd/codexreview/docs_test.go` の `launchFree` にその旨の注記とともに `chief` を足し、`TestMayBypassTool` に行を足す。
     -   `cmd/chief/docs_test.go` に、許可の規則と、拒否の規則の決まった形のそれぞれがあることを確かめるガードを書く（設計書 7.2 の 3 項目め）。
--   [ ] **ステップ 7-4**: 文書と導入の手順を足す。
+-   [x] **ステップ 7-4**: 文書と導入の手順を足す。
     -   `Makefile` に `install-chief` を足し、`cmd/chief/docs_test.go` に `cmd/codexreview/docs_test.go:655` と同じ形のガードを書く。
     -   `docs/dev/guides/chief_guide.md` を書く（設計書 2.2 の表の行）。chief の `/model` が利用者の Claude Code の既定のモデルも書き換えることを書く（§1.5）。手引きが持つ値（サブコマンド、終了コード、`--protocol`、状態のディレクトリ）を道具の定義と比べるガードを `cmd/chief/docs_test.go` に書く。
     -   `CLAUDE.md` の「Quick Links」「Build Commands」「Claude Commands」「Tool Execution Safety」（設計書 3.9）を直し、`/chief` の定義が手引きを参照するときは「Japanese guides an agent reads」の一覧を直す。
--   [ ] **ステップ 7-5**: ADR-0014 の 19 行のずれの記述を消し、道具の一覧とインストールの項目に `chief` を足す。ADR-0046 の「この決定は、まだ」で始まるずれの記述を消す。どちらも commit のメッセージと PR の説明に訂正を書く。
+-   [x] **ステップ 7-5**: ADR-0014 の 19 行のずれの記述を消し、道具の一覧とインストールの項目に `chief` を足す。ADR-0046 の「この決定は、まだ」で始まるずれの記述を消す。どちらも commit のメッセージと PR の説明に訂正を書く。
 -   [ ] **ステップ 7-6**: 実地の確かめを行う（設計書 7.3、決定 21）。結果を §7 の「PR-7 の実行の記録」に書く。
     -   人がこのブランチで `make install-chief` を行い、`/chief` を新しいセッションで動かす。
     -   採取用の workspace に向けて、中継、モデルの確かめ（Claude Code と OpenCode）、リセット、ロック（2 つ目の chief が拒まれる）、送信の停止と `release` を、それぞれ 1 回以上行う。
