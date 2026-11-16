@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -184,3 +184,7 @@ N/A。調査は製品の処理の速さを変えない。
 -   **使い捨ての worktree:** 調査のためだけに `origin/main` から detached で作り、調査の後に消す worktree。HEAD が detached で PR がないので、`/runpr` は PR を探した後に止まる（要件定義の際に決めたこと）。
 -   **書き込みの呼び出し:** サーバのセッションの状態を変える呼び出し（プロンプトやコマンドの送信、モデルの切り替え、セッションの作成、問いや権限の確認への答え）。読み取りの呼び出しと区別する。
 -   **`form`:** OpenCode のサーバが、セッションが答えを待っている入力の欄として返すもの（`session.form.list`）。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#911）

@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -166,3 +166,7 @@ flowchart LR
 ## 9. 将来の拡張性
 
 #906・#907 は、記録の問いの節を引用して設計する。OpenCode の版が上がったときに同じ確かめをやり直せるよう、記録の再現の手順はコマンドの形で残す。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#911）
