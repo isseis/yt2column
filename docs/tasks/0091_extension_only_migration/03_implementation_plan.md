@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-16 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。「0090 設計書」は [タスク 0090 の設計書](../0090_extension_only_architecture/02_architecture.md) を指し、設計書と同じく手段と値の正本とする。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。既存のファイルの内容と `file:line` の行番号は、コミット `bac09b3f` で確かめた。
@@ -639,3 +639,7 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 -   PR-1 の前に、ステップ 1-1 の確認のセッションを人と行い、その後 PR-1 から順に `/runplan` で実装する。PR-6 の前にも、ステップ 6-1 の確認のセッションを行う。
 -   最後の PR のマージの後、issue #773 を閉じる（`/runpr` が案内する）。
 -   Web Store の掲載と申請（#869）、シークレットモード（#874）は、本タスクの外で扱う（要件書 §2.3）。
+
+## 変更履歴
+
+- 2026-11-16 承認（isseis、#891）
