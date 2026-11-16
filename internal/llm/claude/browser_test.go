@@ -27,6 +27,16 @@ func TestEveryRequestGetsTheBrowserAccessHeader(t *testing.T) {
 	if got, want := llmhttptest.Callers(funcs, "setBrowserAccess"), []string{"setRequestHeaders"}; !slices.Equal(got, want) {
 		t.Errorf("callers of setBrowserAccess = %v, want only %v", got, want)
 	}
+
+	// The header is for every request, so the call must not sit inside an if
+	// or a closure, where a path could skip it.
+	setHeaders := llmhttptest.Named(funcs, "setRequestHeaders")
+	if len(setHeaders) != 1 {
+		t.Fatalf("declarations of setRequestHeaders = %d, want 1", len(setHeaders))
+	}
+	if setHeaders[0].TopLevelCall("setBrowserAccess") < 0 {
+		t.Error("setRequestHeaders does not call setBrowserAccess as an unconditional statement")
+	}
 }
 
 // TestJSBrowserAccessHeader checks that the js build's setBrowserAccess sets

@@ -82,3 +82,64 @@ func notLiteral(r *http.Request, v string) { r.Header.Set("Name", v) }
 		}
 	}
 }
+
+func TestTopLevelCallAndFirstStatementCalling(t *testing.T) {
+	dir := writeGo(t, "a.go", `package a
+
+func inOrder() {
+	setup()
+	_, _ = x.send()
+}
+
+func reversed() {
+	_, _ = x.send()
+	setup()
+}
+
+func conditional(ok bool) {
+	if ok {
+		setup()
+	}
+	_, _ = x.send()
+}
+
+func inClosure() {
+	func() { setup() }()
+	_, _ = x.send()
+}
+
+func neverSends() { setup() }
+
+func sendsInsideAnIf(ok bool) {
+	setup()
+	if ok {
+		x.send()
+	}
+}
+`)
+	funcs := ParseDir(t, dir)
+	cases := []struct {
+		name      string
+		wantSetup int
+		wantSend  int
+	}{
+		{name: "inOrder", wantSetup: 0, wantSend: 1},
+		{name: "reversed", wantSetup: 1, wantSend: 0},
+		{name: "conditional", wantSetup: noIndex, wantSend: 1},
+		{name: "inClosure", wantSetup: noIndex, wantSend: 1},
+		{name: "neverSends", wantSetup: 0, wantSend: noIndex},
+		{name: "sendsInsideAnIf", wantSetup: 0, wantSend: 1},
+	}
+	for _, tc := range cases {
+		decls := Named(funcs, tc.name)
+		if len(decls) != 1 {
+			t.Fatalf("declarations of %s = %d, want 1", tc.name, len(decls))
+		}
+		if got := decls[0].TopLevelCall("setup"); got != tc.wantSetup {
+			t.Errorf("%s: TopLevelCall(setup) = %d, want %d", tc.name, got, tc.wantSetup)
+		}
+		if got := decls[0].FirstStatementCalling("send"); got != tc.wantSend {
+			t.Errorf("%s: FirstStatementCalling(send) = %d, want %d", tc.name, got, tc.wantSend)
+		}
+	}
+}

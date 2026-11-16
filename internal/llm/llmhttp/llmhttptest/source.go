@@ -26,6 +26,9 @@ type Func struct {
 	body *ast.BlockStmt
 }
 
+// noIndex is what TopLevelCall and FirstStatementCalling return for no match.
+const noIndex = -1
+
 // ParseDir reads every non-test Go file of dir and returns the functions and
 // methods they declare, whatever their build constraints are, so a file that
 // only a js build compiles is read too. Several files may declare the same
@@ -61,19 +64,61 @@ func ParseDir(t testing.TB, dir string) []Func {
 func (f Func) Calls(name string) bool {
 	found := false
 	ast.Inspect(f.body, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
+		if call, ok := n.(*ast.CallExpr); ok && calleeName(call) == name {
+			found = true
 		}
-		switch fun := call.Fun.(type) {
-		case *ast.Ident:
-			found = found || fun.Name == name
-		case *ast.SelectorExpr:
-			found = found || fun.Sel.Name == name
-		}
-		return true
+		return !found
 	})
 	return found
+}
+
+// TopLevelCall returns the index, among the statements written directly in the
+// function body, of the first one that is a call statement `name(...)` or
+// `x.name(...)`, and -1 when there is none. A call nested in an if, a loop, a
+// closure, or any other block does not count: a call that sits there may be
+// skipped, so it is not a call every path makes.
+func (f Func) TopLevelCall(name string) int {
+	for i, stmt := range f.body.List {
+		expr, ok := stmt.(*ast.ExprStmt)
+		if !ok {
+			continue
+		}
+		if call, ok := expr.X.(*ast.CallExpr); ok && calleeName(call) == name {
+			return i
+		}
+	}
+	return noIndex
+}
+
+// FirstStatementCalling returns the index, among the statements written
+// directly in the function body, of the first one that contains a call to name
+// anywhere inside it (an assignment, an if, a closure), and -1 when none does.
+func (f Func) FirstStatementCalling(name string) int {
+	for i, stmt := range f.body.List {
+		found := false
+		ast.Inspect(stmt, func(n ast.Node) bool {
+			if call, ok := n.(*ast.CallExpr); ok && calleeName(call) == name {
+				found = true
+			}
+			return !found
+		})
+		if found {
+			return i
+		}
+	}
+	return noIndex
+}
+
+// calleeName returns the name a call goes through: `name(...)` or
+// `x.name(...)`. It is empty for any other callee.
+func calleeName(call *ast.CallExpr) string {
+	switch fun := call.Fun.(type) {
+	case *ast.Ident:
+		return fun.Name
+	case *ast.SelectorExpr:
+		return fun.Sel.Name
+	}
+	return ""
 }
 
 // SetsHeader reports whether the function body calls `<x>.Header.Set(name,
