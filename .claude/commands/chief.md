@@ -42,6 +42,10 @@ OpenCode.
 5. **The tool's word is final.** When the tool did not send, say what it
    said and why; do not retry by another route, and do not send again
    unless the human chooses it again.
+6. **Add no cause or guess.** Explain only what the tool's output says, in
+   the table, under it, and in the results of the sends alike. When a row
+   is 要確認 or a send did not happen, give its `unreadable`, `reason`, or
+   `detail`, and never add why you think it happened.
 
 ## Calling the tool
 
@@ -54,7 +58,7 @@ value on standard output.
 | Exit code | Meaning | What you do |
 |---|---|---|
 | `0` | Done (a decision not to send is done too) | Read the JSON |
-| `1` | The tool failed (`outcome` `failed`, or `timeout` from `wait`) | Show `message`; the workspaces it concerns count as 要確認 |
+| `1` | The tool failed (`outcome` `failed`, or `timeout` from `wait`) | Show `message`, and say that this call's result could not be read (for a round, that its table was not updated; for `wait`, step 5 says what to do). Do not judge from `message` which workspaces it concerns |
 | `2` | Usage error | A mistake in this definition or in your arguments: stop and report the call and its standard error |
 | `3` | Refused, nothing done (`outcome` `refused`, `reason`) | See below |
 
@@ -294,9 +298,8 @@ reasons need the human to act, so give the remedy too:
 | `stopped` | Sends to the workspace are stopped until the human releases them (`停止を解く`) |
 | `busy` | Another call of this chief works on the workspace; it is shown again in the next round |
 
-For any other reason, give `detail` in Japanese. Never add a cause the
-tool did not give: when `detail` names the row's state, say that state and
-show the row in the next round.
+For any other reason, give `detail` in Japanese (rule 6): when `detail`
+names the row's state, say that state and show the row in the next round.
 
 ## 5. Watching
 
