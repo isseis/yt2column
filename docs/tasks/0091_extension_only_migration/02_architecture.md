@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-15 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-16 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
@@ -1115,3 +1115,7 @@ PR の区切りは、実装計画書で決める。依存の順は次のとお�
 | AC-33 | §3.13、§8 |
 | AC-34 | §3.13 |
 | AC-35 | §3.14、§8 |
+
+## 変更履歴
+
+- 2026-11-16 承認（isseis、#889）
