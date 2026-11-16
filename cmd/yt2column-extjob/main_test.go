@@ -3,7 +3,10 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -72,6 +75,7 @@ func TestRunCallsNoBackendBeforeAccepting(t *testing.T) {
 		{"a repeated -llm", []string{"-llm=fake", "-llm=claude", "-input=" + input}, withKey},
 		{"a repeated scenario argument", append(fakeArgs(standardSpelling), "-article=long", "-input="+input), nil},
 		{"a missing input file named after the key", []string{"-llm=claude", "-input=" + input + "." + markerKey}, withKey},
+		{"a stray word holding the key", []string{"-llm=claude", input + "." + markerKey}, withKey},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -242,5 +246,49 @@ func TestRunClaudeEmptyKey(t *testing.T) {
 	}
 	if status, reason := resultStatus(t, got.stdout); status != "failed" || reason != "settings_invalid" {
 		t.Errorf("result = %q %q, want failed settings_invalid", status, reason)
+	}
+}
+
+// TestRunClaudeWarnsOfHTTP2Debug checks that a -llm=claude run warns, before
+// it calls the API, when GODEBUG turns on the HTTP/2 log, which may write the
+// key's header to stderr, and does not warn otherwise.
+func TestRunClaudeWarnsOfHTTP2Debug(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		godebug string
+		warn    bool
+	}{
+		{"http2debug on", "http2debug=2", true},
+		{"GODEBUG without http2debug", "panicnil=1", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := map[string]string{"ANTHROPIC_API_KEY": markerKey, "GODEBUG": tc.godebug}
+			r := &recordingBackends{claudeScenario: mustScenario(t, standardSpelling)}
+			got := runWith(t, []string{"-llm=claude", "-input=" + writeInput(t, testInput)}, env, r)
+			if got.code != exitDone {
+				t.Fatalf("run() = %d, want %d; stderr:\n%s", got.code, exitDone, got.stderr)
+			}
+			// The warning's wording is what the developer reads; its mention
+			// of http2debug is the observable contract.
+			if warned := strings.Contains(got.stderr, "warning: GODEBUG enables http2debug"); warned != tc.warn {
+				t.Errorf("warned = %v, want %v; stderr:\n%s", warned, tc.warn, got.stderr)
+			}
+		})
+	}
+}
+
+// failingWriter fails every write.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
+
+// TestRunResultNotWritten checks that a generation whose result cannot be
+// written to stdout does not end with the success code.
+func TestRunResultNotWritten(t *testing.T) {
+	var stderr bytes.Buffer
+	r := &recordingBackends{}
+	args := append(fakeArgs(standardSpelling), "-input="+writeInput(t, testInput))
+	if code := run(context.Background(), args, lookupOf(nil), failingWriter{}, &stderr, r.backends()); code != exitFailed {
+		t.Errorf("run() = %d, want %d; stderr:\n%s", code, exitFailed, stderr.String())
 	}
 }

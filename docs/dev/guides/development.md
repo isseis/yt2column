@@ -95,9 +95,12 @@ time=... level=INFO msg=listening socket=/… llm=fake model=yt2column-devfake s
 `cmd/yt2column-extjob` は、拡張の記事生成モジュールが登録する JSON の入口（`internal/extjob` の `prepare` と `generate`）を、ブラウザの外でネイティブに動かす開発用のコマンドである。拡張で起きた記事の生成の不具合を、同じ入力で再現し、デバッガで追うために使う。本番のバイナリではなく、`make build` は作らない。
 
 ```sh
-go run ./cmd/yt2column-extjob -llm=fake -article=standard -failure=none -fail-at=none -delay=0 -settings-check=ok -input=/tmp/request.json
-go run ./cmd/yt2column-extjob -llm=claude -input=/tmp/request.json
+go build -o /tmp/yt2column-extjob ./cmd/yt2column-extjob
+/tmp/yt2column-extjob -llm=fake -article=standard -failure=none -fail-at=none -delay=0 -settings-check=ok -input=/tmp/request.json
+/tmp/yt2column-extjob -llm=claude -input=/tmp/request.json
 ```
+
+終了コードを見るときは、ビルドしたバイナリを直接動かす。`go run` は、終了コードが `0` でないときに自分の終了コード `1` で終わり、このコマンドの終了コードを返さない。
 
 `-llm` は必ず指定する。既定の値はない。指定を忘れた実行が、料金のかかる呼び出しにならないためである。`-llm` がないかほかの値のとき、`-input` がないとき、同じ引数を 2 回以上与えたとき、余分な語があるときは、何も呼ばずに終了コード `2` で終わる。
 
@@ -112,11 +115,11 @@ go run ./cmd/yt2column-extjob -llm=claude -input=/tmp/request.json
     | `-settings-check` | 設定の検査（`checkSettings`）の結果 | `ok`・`key_rejected`・`unverified` |
 
     `-delay` の値は、`05` のように先頭が `0` の 2 桁以上の数も受理しない。`-failure` と `-fail-at` は、どちらも `none` か、どちらも `none` でないかの組で指定する。`-fail-at shorten` は `-article long` のときだけ受理する。`-settings-check` は、このコマンドが呼ばない設定の検査の結果なので結果を変えないが、ほかの 4 つと同じく省けない。
--   **`-llm=claude`**: 本番の構成の Claude を呼ぶ（料金がかかる）。API キーとワークスペース ID は、CLI と同じ環境変数 `ANTHROPIC_API_KEY`・`ANTHROPIC_WORKSPACE_ID` から読み、拡張のオプションページが保存したのと同じ形で記事生成モジュールに渡す。ワークスペース ID が未設定なら、指定なしになる。ほかの環境変数（`YT2COLUMN_LLM` など）は読まないので、3 つの工程は本番の構成になる。シナリオの引数は受け付けない。`ANTHROPIC_API_KEY` が未設定なら、何も呼ばずに終了コード `2` で終わる。空の値は未設定とせずに記事生成モジュールに渡すので、`settings_invalid` の結果になる。
+-   **`-llm=claude`**: 本番の構成の Claude を呼ぶ（料金がかかる）。API キーとワークスペース ID は、CLI と同じ環境変数 `ANTHROPIC_API_KEY`・`ANTHROPIC_WORKSPACE_ID` から読み、拡張のオプションページが保存したのと同じ形で記事生成モジュールに渡す。ワークスペース ID が未設定なら、指定なしになる。ほかの環境変数（`YT2COLUMN_LLM` など）は読まないので、3 つの工程は本番の構成になる。シナリオの引数は受け付けない。`GODEBUG` に `http2debug` があるときは、CLI と同じく、API キーが標準エラー出力に書かれうることを警告してから呼ぶ（[security.md](../security.md) の §2）。`ANTHROPIC_API_KEY` が未設定なら、何も呼ばずに終了コード `2` で終わる。空の値は未設定とせずに記事生成モジュールに渡すので、`settings_invalid` の結果になる。
 
 `-input` は、生成の開始の入力のファイルである。形は記事生成モジュールの `prepare` が受け取る JSON（`videoUrl`・`transcript` と、省ける `title`・`channelName`・`description`）で、4 MiB までである。読めないファイルは、何も呼ばずに終了コード `2` で終わる。**入力のファイルはリポジトリに入れない。** 利用者がコピーした字幕を含みうるためである（[security.md](../security.md) の §7）。
 
-標準出力には、結果の JSON を 1 行書く。記事生成モジュールが入力を受理しなければ `prepare` の拒否の結果を、受理すれば `generate` の結果を書く。標準エラー出力には、工程が変わるごとの進み具合の JSON と、メッセージを書く。API キーは、どちらにも出ない。終了コードは、記事ができたときに `0`、入力が拒否されたか生成が失敗したときに `1` である。
+標準出力には、結果の JSON を 1 行書く。記事生成モジュールが入力を受理しなければ `prepare` の拒否の結果を、受理すれば `generate` の結果を書く。標準エラー出力には、工程が変わるごとの進み具合の JSON と、メッセージを書く。API キーは、どちらにも出ない。終了コードは、記事ができたときに `0`、入力が拒否されたか生成が失敗したとき、または結果を標準出力に書けなかったときに `1` である。
 
 ブラウザに固有の部分（`fetch` を通した送信、Worker、`syscall/js` の受け渡し）は、このコマンドでは再現できない。
 

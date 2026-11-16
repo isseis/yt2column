@@ -192,12 +192,17 @@ func readInput(path string) (string, error) {
 //
 // Contract: no LLM implementation is constructed before the arguments, the
 // scenario, the API key's variable, and the input file are accepted; and the
-// API key reaches only the module's request, never stdout or stderr. The key
-// is read before anything else can fail, and every message written to stderr
-// after that is passed through redact.Line with the key as a secret; the
-// results and progress events the module built never carry it.
+// API key reaches only the module's request, never stdout or stderr. The key's
+// variable is read first, whatever -llm says, so every message written to
+// stderr (an argument error may echo an argument that holds the key) is
+// passed through redact.Line with the key as a secret; the results and
+// progress events the module built never carry it.
 func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, stderr io.Writer, b backends) int {
+	read := config.ReadExtensionSettings(lookup)
 	var secrets []string
+	if key, _ := read.APIKey(); key != "" {
+		secrets = append(secrets, key)
+	}
 	errorf := func(format string, a ...any) {
 		_, _ = io.WriteString(stderr, redact.Line(programName+": "+fmt.Sprintf(format, a...), secrets...)+"\n")
 	}
@@ -216,14 +221,13 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	}
 	settings := storedSettings{APIKey: fakeAPIKey}
 	if opts.llm == llmClaude {
-		read := config.ReadExtensionSettings(lookup)
 		key, set := read.APIKey()
 		if !set {
 			errorf("the Anthropic API key variable is not set")
 			return exitUsage
 		}
-		if key != "" {
-			secrets = append(secrets, key)
+		if config.HTTP2DebugRequested(lookup) {
+			errorf("warning: GODEBUG enables http2debug, so the Go HTTP/2 log may write the API key to standard error")
 		}
 		// An unset workspace ID is the empty string, as the options page
 		// always writes the item; the module reads it as no workspace.
@@ -266,7 +270,10 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 		// control character, so it is written as it is, one line per event.
 		_, _ = io.WriteString(stderr, programName+": progress "+event+"\n")
 	})
-	_, _ = io.WriteString(stdout, result+"\n")
+	if _, err := io.WriteString(stdout, result+"\n"); err != nil {
+		errorf("writing the result failed: %v", err)
+		return exitFailed
+	}
 	var generated statusOnly
 	if err := json.Unmarshal([]byte(result), &generated); err != nil || generated.Status != "done" {
 		errorf("the generation did not produce an article")
