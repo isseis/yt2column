@@ -148,10 +148,14 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 func finishSnapshot(deps Deps, owner Owner, view roundView, extra []PendingItem) Snapshot {
 	snap := Snapshot{StateDir: deps.Store.Dir(), Rows: view.rows, Problems: view.problems, Baseline: baselineOf(view.agents, workspaceIDs(view.found))}
 	snap.Pending = mergePending(buildPending(snap.Rows), extra)
+	idle := idleWorkspaces(snap.Rows)
+	// Sorting before stamping gives the items first seen in this round
+	// their numbers in the order they are listed.
+	sortPending(snap.Pending, idle)
 	for _, err := range stampPending(deps.Store, owner.Session, snap.Pending, deps.Now()) {
 		snap.Problems = append(snap.Problems, "a notice record failed: "+err.Error())
 	}
-	sortPending(snap.Pending, idleWorkspaces(snap.Rows))
+	sortPending(snap.Pending, idle)
 	sortRows(snap.Rows, snap.Pending)
 	return snap
 }
@@ -298,28 +302,20 @@ func mergeOnlyRank(r Row) int {
 	return 0
 }
 
-// idleRow reports whether a row is a workspace with no task that waits on
-// nothing: no task, and either the proposal of /mkreq or a state that could
-// not be told. Such a worktree is left over or not yet used, so it lists
-// after every other row. A row with no task that runs or asks a question
-// (a /mkreq at work, before its task exists) is not idle.
-func idleRow(r Row) bool {
-	return r.Task == "" && (r.State == StateProposeNext || r.State == StateNeedsCheck)
-}
-
-// idleRank is 1 for an idle row and 0 otherwise.
+// idleRank is 1 for an idle row (Row.Idle), which lists after every other
+// row, and 0 otherwise.
 func idleRank(r Row) int {
-	if idleRow(r) {
+	if r.Idle {
 		return 1
 	}
 	return 0
 }
 
-// idleWorkspaces returns the workspaces of the idle rows.
+// idleWorkspaces returns the workspaces of the idle rows (Row.Idle).
 func idleWorkspaces(rows []Row) map[string]struct{} {
 	idle := map[string]struct{}{}
 	for _, r := range rows {
-		if idleRow(r) {
+		if r.Idle {
 			idle[r.Workspace] = struct{}{}
 		}
 	}

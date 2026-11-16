@@ -830,15 +830,13 @@ func TestTranscriptFIFORefused(t *testing.T) {
 		_, err := readTranscript(path, transcriptLimit)
 		done <- err
 	}()
-	for range 1 {
-		select {
-		case err := <-done:
-			if !errors.Is(err, errTranscript) {
-				t.Errorf("err = %v, want errTranscript", err)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatal("the open of a FIFO blocked")
+	select {
+	case err := <-done:
+		if !errors.Is(err, errTranscript) {
+			t.Errorf("err = %v, want errTranscript", err)
 		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the open of a FIFO blocked")
 	}
 }
 

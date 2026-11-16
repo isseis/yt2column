@@ -208,7 +208,10 @@ func ResolveOwner(ctx context.Context, cmds Commands, env Env) (Owner, error) {
 		return Owner{}, fmt.Errorf("read the working directory's worktree: %w", err)
 	}
 	panes, err := CanonicalWorktree(ctx, cmds, agent.Dir)
-	if err != nil || panes != own {
+	if err != nil {
+		return Owner{}, fmt.Errorf("read the worktree of pane %s: %w", pane, err)
+	}
+	if panes != own {
 		return Owner{}, fmt.Errorf("%w: pane %s works in %s, this process in %s", ErrPaneMismatch, pane, agent.Dir, own)
 	}
 	if agent.Session == "" {
@@ -413,10 +416,12 @@ func (s Store) Observe(session string, item ItemID, now time.Time) (first time.T
 		return now, false, err
 	}
 	// A number that cannot be found leaves the item unnumbered; it is still
-	// shown and chosen by its label.
+	// shown and chosen by its label, and the failure is returned so the
+	// round reports it.
 	number, nerr := s.nextNoticeNumber(session)
 	if nerr != nil {
 		number = 0
+		nerr = fmt.Errorf("number the item: %w", nerr)
 	}
 	if err := s.create(name, noticeRecord{Session: session, Item: item, FirstSeen: now.UTC(), Number: number}); err != nil {
 		if errors.Is(err, privatefile.ErrExist) {
@@ -428,7 +433,7 @@ func (s Store) Observe(session string, item ItemID, now time.Time) (first time.T
 		}
 		return now, true, err
 	}
-	return now, true, nil
+	return now, true, nerr
 }
 
 // nextNoticeNumber returns the number for a new item of session: one above

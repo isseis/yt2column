@@ -329,7 +329,8 @@ func TestTakeoverProposal(t *testing.T) {
 }
 
 // TestTakeSnapshotOrder checks the row order and the pending order across
-// kinds and waiting time.
+// kinds and waiting time, and that items first seen in one round get their
+// numbers in that order.
 func TestTakeSnapshotOrder(t *testing.T) {
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "running", Branch: taskBranch, Status: "working"})
@@ -351,9 +352,13 @@ func TestTakeSnapshotOrder(t *testing.T) {
 	if want := []PendingKind{PendingQuestion, PendingReview, PendingProposal}; !slices.Equal(kinds, want) {
 		t.Errorf("pending kinds = %v, want %v", kinds, want)
 	}
-	for _, p := range snap.Pending {
+	for i, p := range snap.Pending {
 		if !p.New {
 			t.Errorf("first sighting of %v is not new", p.Kind)
+		}
+		// Items first seen together are numbered in the order they list.
+		if p.Number != i+1 {
+			t.Errorf("item %d (%v) has number %d, want %d", i, p.Kind, p.Number, i+1)
 		}
 	}
 	again := take(t, w)
@@ -454,12 +459,14 @@ func TestFetchUsesItsOwnTimeLimit(t *testing.T) {
 // TestRowOrderRules checks the order of rows by state, by waiting time inside
 // one state, and plain questions before merge confirmations; a workspace with
 // no task that waits on nothing (a /mkreq proposal, a detached HEAD) lists
-// after every other row, while one with no task that asks a question does not.
+// after every other row, while one with no task that asks a question, or
+// whose pane is blocked on a screen of no known shape, does not.
 func TestRowOrderRules(t *testing.T) {
 	w := newWorld(t)
 	// The earlier sighting has the later path, so only the waiting time puts it first.
 	w.add(fakeWorkspace{ID: "w9", Label: "review-old", Branch: taskBranch, PRs: openPRJSON})
 	w.add(fakeWorkspace{ID: "w5", Label: "needs-check", Branch: taskBranch})
+	w.add(fakeWorkspace{ID: "wa", Label: "no-task-blocked", Branch: "main", Status: "blocked", Screen: "claude-idle.ansi"})
 	w.add(fakeWorkspace{ID: "w6", Label: "done", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")}})
 	w.add(fakeWorkspace{ID: "w4", Label: "running", Branch: taskBranch, Status: "working"})
 	w.add(fakeWorkspace{ID: "w3", Label: "proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
@@ -475,7 +482,7 @@ func TestRowOrderRules(t *testing.T) {
 	for _, r := range snap.Rows {
 		labels = append(labels, r.Label)
 	}
-	want := []string{"question", "merge", "review-old", "review-new", "proposal", "needs-check", "running", "done", "idle-mkreq", "idle-detached"}
+	want := []string{"question", "merge", "review-old", "review-new", "proposal", "needs-check", "no-task-blocked", "running", "done", "idle-mkreq", "idle-detached"}
 	if !slices.Equal(labels, want) {
 		t.Errorf("row order = %v, want %v", labels, want)
 	}

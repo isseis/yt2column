@@ -170,7 +170,7 @@ var kindOrder = []PendingKind{PendingQuestion, PendingMergeConfirmation, Pending
 const nameQuestion = "question"
 
 // sortPending orders items by kind, then the items of other workspaces
-// before those of idle ones (see idleRow), then by how long they have
+// before those of idle ones (Row.Idle), then by how long they have
 // waited, longest first; ties keep a fixed order (workspace, then ID) so a listing
 // does not shuffle between two reads of the same state.
 func sortPending(items []PendingItem, idle map[string]struct{}) {

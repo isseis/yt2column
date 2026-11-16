@@ -461,6 +461,24 @@ func TestObserveUnreadableRecord(t *testing.T) {
 	}
 }
 
+// TestObserveReportsANumberThatCannotBeGiven checks that a new item whose
+// number cannot be found (another notice record of the session is
+// unreadable) is still recorded as new, unnumbered, and the failure is
+// returned so the round reports it.
+func TestObserveReportsANumberThatCannotBeGiven(t *testing.T) {
+	store := newStore(t)
+	now := time.Date(2026, 11, 16, 9, 0, 0, 0, time.UTC)
+	if _, err := privatefile.Create(filepath.Join(store.Dir(), noticeName("s", "broken")), []byte("not json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, isNew, err := store.Observe("s", "item", now); err == nil || !isNew {
+		t.Errorf("Observe = new %v, error %v; want new and an error", isNew, err)
+	}
+	if n, err := store.NoticeNumber("s", "item"); err != nil || n != 0 {
+		t.Errorf("NoticeNumber = %d, %v; want 0, the item unnumbered", n, err)
+	}
+}
+
 // heldRecords returns the records of a worktree with its exclusion held.
 func heldRecords(t *testing.T, store Store, path string) *HeldWorkspace {
 	t.Helper()
@@ -672,7 +690,9 @@ func TestStartCleansSendsAndDetails(t *testing.T) {
 // TestResolveOwnerChecksTheWorktree checks that HERDR_PANE_ID is trusted
 // only when its pane's agent works in the caller's worktree: a pane of
 // another workspace (an environment inherited from another pane) and a
-// working directory that is not absolute are ErrPaneMismatch.
+// working directory that is not absolute are ErrPaneMismatch; a working
+// directory below the worktree is accepted; a pane whose worktree cannot be
+// read is a failure, not a mismatch.
 func TestResolveOwnerChecksTheWorktree(t *testing.T) {
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "other", Branch: taskBranch})
@@ -691,5 +711,20 @@ func TestResolveOwnerChecksTheWorktree(t *testing.T) {
 	relative.WorkDir = "chief"
 	if _, err := ResolveOwner(ctx, deps.Cmds, relative); !errors.Is(err, ErrPaneMismatch) {
 		t.Errorf("a relative working directory = %v, want ErrPaneMismatch", err)
+	}
+	below := deps.Env
+	below.WorkDir = filepath.Join(w.chiefTree, "internal")
+	w.git(below.WorkDir, "rev-parse --show-toplevel", w.chiefTree)
+	if got, err := ResolveOwner(ctx, deps.Cmds, below); err != nil || got != w.owner() {
+		t.Errorf("a directory below the worktree = %+v, %v; want the owner", got, err)
+	}
+	unread := deps.Env
+	unread.PaneID = "w2:p1"
+	gone := w.agents[0]
+	gone.Pane, gone.Dir = "w2:p1", filepath.Join(w.chiefTree, "..", "gone")
+	w.rec.reply("herdr agent get w2:p1", agentGetOutput(gone))
+	w.rec.failIn(gone.Dir, "git rev-parse --show-toplevel", errors.New("not a git repository"))
+	if _, err := ResolveOwner(ctx, deps.Cmds, unread); err == nil || errors.Is(err, ErrPaneMismatch) {
+		t.Errorf("a pane whose worktree cannot be read = %v, want a failure that is not ErrPaneMismatch", err)
 	}
 }

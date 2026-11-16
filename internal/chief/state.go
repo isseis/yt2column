@@ -136,6 +136,11 @@ type Row struct {
 	// ReviewSkippable is the review-skippable judgment of the PR detail kept
 	// for the worktree's HEAD; false when no detail is kept for it.
 	ReviewSkippable bool
+	// Idle marks a worktree left over or not yet used, which waits on
+	// nothing: no agent works or asks, every read succeeded, and either the
+	// next command is /mkreq or the only problem is a detached HEAD. It
+	// orders the row last; it never decides a send.
+	Idle bool
 }
 
 // agentFacts is one agent with the reading of its screen.
@@ -422,6 +427,7 @@ func classify(f workspaceFacts) Row {
 	case next == nil:
 		row.State = StateNeedsCheck
 		row.Unreadable = []string{why}
+		row.Idle = f.Head == headDetached
 	case f.FetchFailed:
 		row.State = StateNeedsCheck
 		row.Unreadable = []string{"git fetch origin main failed, so the documents may be stale"}
@@ -429,6 +435,7 @@ func classify(f workspaceFacts) Row {
 		row.State = StateProposeNext
 		row.Next = next
 		row.Takeover = takeoverProposal(f, next)
+		row.Idle = next.Kind == TaskNextMkreq
 	}
 	return row
 }

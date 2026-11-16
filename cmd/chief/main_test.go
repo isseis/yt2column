@@ -40,6 +40,10 @@ type fakeHerdr struct {
 	both bool
 	// sessionless makes the chief pane report no agent session.
 	sessionless bool
+	// paneDir, when set, is the working directory Herdr reports for every
+	// agent, and git reports each directory as its own worktree, so the
+	// pane's worktree differs from the process's.
+	paneDir string
 }
 
 // agent returns the Herdr JSON of the agent in pane with session; the
@@ -49,13 +53,36 @@ func (f *fakeHerdr) agent(pane, session string) string {
 	if f.sessionless && pane == testPane {
 		sessionJSON = ""
 	}
-	return fmt.Sprintf(`{"agent":"claude",%s"agent_status":"working","cwd":%q,"pane_id":%q,"state_change_seq":1,"workspace_id":%q}`, sessionJSON, f.dir, pane, strings.Split(pane, ":")[0])
+	dir := f.dir
+	if f.paneDir != "" {
+		dir = f.paneDir
+	}
+	return fmt.Sprintf(`{"agent":"claude",%s"agent_status":"working","cwd":%q,"pane_id":%q,"state_change_seq":1,"workspace_id":%q}`, sessionJSON, dir, pane, strings.Split(pane, ":")[0])
 }
 
 // sessions maps each pane the fake Herdr lists to its session.
 var sessions = map[string]string{testPane: testSession, otherPane: otherSession}
 
-func (f *fakeHerdr) factory(cmdrunner.Options) cmdrunner.Runner { return f }
+func (f *fakeHerdr) factory(o cmdrunner.Options) cmdrunner.Runner {
+	if f.paneDir != "" {
+		return dirRunner{f: f, dir: o.Dir}
+	}
+	return f
+}
+
+// dirRunner answers git's worktree question with the directory it runs in
+// and leaves every other command to f.
+type dirRunner struct {
+	f   *fakeHerdr
+	dir string
+}
+
+func (d dirRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if name == "git" && slices.Contains(args, "--show-toplevel") {
+		return []byte(d.dir + "\n"), nil
+	}
+	return d.f.Run(ctx, name, args...)
+}
 
 func (f *fakeHerdr) Run(_ context.Context, name string, args ...string) ([]byte, error) {
 	f.calls = append(f.calls, name+" "+strings.Join(args, " "))
@@ -187,6 +214,14 @@ func TestRunRefusals(t *testing.T) {
 		code, out := h.run("start", "--protocol", "1")
 		if code != exitRefused || out["reason"] != "no_session" {
 			t.Errorf("run = %d, %v", code, out)
+		}
+	})
+	t.Run("a pane of another worktree", func(t *testing.T) {
+		h := newHarness(t)
+		h.fake.paneDir = t.TempDir()
+		code, out := h.run("start", "--protocol", "1")
+		if code != exitRefused || out["reason"] != "pane_mismatch" {
+			t.Errorf("run = %d, %v; want refused, pane_mismatch", code, out)
 		}
 	})
 	t.Run("the lock belongs to a live chief", func(t *testing.T) {
