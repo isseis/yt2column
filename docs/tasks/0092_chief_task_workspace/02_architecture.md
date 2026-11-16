@@ -583,7 +583,7 @@ type RemoveOutcome struct {
     -   5 章: 保証すること・しないこと（作ることと消すことの範囲、消す前の確かめ、`ask` の規則）。
     -   6 章: 拒否の表に足したものと `ask`。
     -   7 章: 記録の表（`created.json`、作るときと消すときに workspace ごとの記録を消すこと）。
-    -   8 章: 既知の制限。エージェントのいない workspace は提案されないこと。作ったことの記録だけが残った worktree（作成が止まった、消す途中で止まった）は表に出ないこと。シェルの背景のジョブと Claude Code の背景の実行は確かめられず、workspace を閉じると終わること。別の workspace で `make coverage-compare` が動いている間に作るか消すと、その比較が `git worktree list` の変化で止まること（`internal/coveragecompare/userstate.go`）。
+    -   8 章: 既知の制限。エージェントのいない workspace は提案されないこと。作ったことの記録だけが残った worktree（作成が止まった、消す途中で止まった）は表に出ないこと。シェルの背景のジョブと止めたジョブ、Claude Code の背景の実行は確かめられず、workspace を閉じると終わること。別の workspace で `make coverage-compare` が動いている間に作るか消すと、その比較が `git worktree list` の変化で止まること（`internal/coveragecompare/userstate.go`）。
 
 ### 3.9. 既存のテストと既存の読み手への影響
 
@@ -744,7 +744,7 @@ flowchart LR
 -   0088 と同じく、同じ利用者のほかのプロセスは、`chief`・`herdr`・`git` を直接呼べ、状態のディレクトリも書ける。chief の守りは、chief のセッションが信頼できない文字列に従っても、決まった範囲の外の操作をしないことにあり、悪意のあるプロセスを防ぐことにはない。
 -   拒否と `ask` は前方一致の規則なので、`git -C <dir> worktree add`、`env chief remove …`、インストール先のパスで書いた `chief`、`sh -c` の中の呼び出しなどは拒めず、確認も出ない。0088 で、パスで書いた呼び出しを残る危険としたのと同じである。
 -   `ask` の規則が chief の pane の許可の設定（auto mode を含む）で確認を出すかは、実装の最初のフェーズで確かめる（1.2）。出さないときは、要件書 4.2 のとおり、人の確認は `/chief` の問いだけになる。
--   シェルの背景のジョブと Claude Code の背景の実行は、前面のプロセスとエージェントの状態に現れないので確かめられず、workspace を閉じると終わる。
+-   シェルの背景のジョブと止めたジョブ（保存していないエディタを中断したものなど）、Claude Code の背景の実行は、前面のプロセスとエージェントの状態に現れないので確かめられず、workspace を閉じると終わる。
 -   `git worktree add` は、リポジトリに設定された `post-checkout` のフックを走らせる。人が手で `git worktree add` を実行するときと同じで、chief が新しく信頼を与えるものではない。
 -   git が無視するファイル（ビルドの成果物など）は、worktree とともに消える（要件書 4.2）。
 
