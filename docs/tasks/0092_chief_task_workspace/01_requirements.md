@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-16 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -274,3 +274,7 @@ F-003 を終えた workspace へ、`/mkreq` を送る。
 -   **タスクの完了**: 計画のすべての PR がマージされていること（3 章、0088 要件定義書の F-001 の「タスク完了」）。
 -   **人の確認**: 人が chief の問いに答えて、操作をしてよいと示すこと。chief が機械的に調べる「確かめ」と区別する（3 章）。
 -   **`issue-<N>`**: issue 番号 `<N>` から決まる、作った worktree のディレクトリの名前と workspace の名前（F-003）。
+
+## 変更履歴
+
+- 2026-11-16 承認（isseis、#897）
