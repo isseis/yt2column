@@ -56,14 +56,45 @@ func productionBackends() backends {
 // errUsage reports arguments run does not accept.
 var errUsage = errors.New("usage")
 
+// errRepeated reports an argument given more than once.
+var errRepeated = errors.New("given more than once")
+
+// mebibyte converts the module's size limit for the usage text.
+const mebibyte = 1 << 20
+
 // usage is the text written for an argument error. It names every argument
-// and that -llm has no default.
-const usage = `usage: yt2column-extjob -llm=claude -input=<file>
+// and that -llm has no default; the size limit comes from the module.
+var usage = fmt.Sprintf(`usage: yt2column-extjob -llm=claude -input=<file>
        yt2column-extjob -llm=fake -article=<a> -failure=<f> -fail-at=<s> -delay=<seconds> -settings-check=<c> -input=<file>
 -llm is required. claude calls the Claude API with the Anthropic API key and
 workspace ID variables the CLI reads (the workspace ID only when it is set);
-fake calls nothing and takes all five scenario arguments. The input file is a prepare request (JSON) of at most
-4 MiB. Do not commit an input file: it may hold a copied transcript.`
+fake calls nothing and takes all five scenario arguments. Each argument is
+given at most once. The input file is a prepare request (JSON) of at most
+%d MiB. Do not commit an input file: it may hold a copied transcript.`, extjob.MaxPrepareRequestBytes/mebibyte)
+
+// onceString is a string flag that rejects a second value, so a repeated
+// argument (such as -llm=fake -llm=claude) is an error rather than the last
+// value silently winning.
+type onceString struct {
+	value *string
+	set   bool
+}
+
+func (o *onceString) String() string {
+	if o.value == nil {
+		return ""
+	}
+	return *o.value
+}
+
+func (o *onceString) Set(v string) error {
+	if o.set {
+		return errRepeated
+	}
+	o.set = true
+	*o.value = v
+	return nil
+}
 
 // options are the parsed arguments.
 type options struct {
@@ -74,18 +105,23 @@ type options struct {
 
 // parseArgs reads the arguments. It accepts -llm=claude without any scenario
 // argument and -llm=fake with any of them (the scenario parser rejects a
-// missing one), and rejects everything else, including extra words.
+// missing one), and rejects everything else, including extra words and an
+// argument given twice.
 func parseArgs(args []string) (options, error) {
 	var opts options
 	fs := flag.NewFlagSet(programName, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	fs.StringVar(&opts.llm, "llm", "", "")
-	fs.StringVar(&opts.input, "input", "", "")
-	fs.StringVar(&opts.scenario.Article, "article", "", "")
-	fs.StringVar(&opts.scenario.Failure, "failure", "", "")
-	fs.StringVar(&opts.scenario.FailAt, "fail-at", "", "")
-	fs.StringVar(&opts.scenario.DelaySeconds, "delay", "", "")
-	fs.StringVar(&opts.scenario.SettingsCheck, "settings-check", "", "")
+	for name, value := range map[string]*string{
+		"llm":            &opts.llm,
+		"input":          &opts.input,
+		"article":        &opts.scenario.Article,
+		"failure":        &opts.scenario.Failure,
+		"fail-at":        &opts.scenario.FailAt,
+		"delay":          &opts.scenario.DelaySeconds,
+		"settings-check": &opts.scenario.SettingsCheck,
+	} {
+		fs.Var(&onceString{value: value}, name, "")
+	}
 	if err := fs.Parse(args); err != nil {
 		return options{}, fmt.Errorf("%w: %w", errUsage, err)
 	}
@@ -155,13 +191,15 @@ func readInput(path string) (string, error) {
 // stderr.
 //
 // Contract: no LLM implementation is constructed before the arguments, the
-// scenario, the input file, and the API key's variable are accepted; and the
-// API key reaches only the module's request, never stdout or stderr. Every
-// message written to stderr is passed through redact.Line, and the results and
-// progress events the module built never carry the key.
+// scenario, the API key's variable, and the input file are accepted; and the
+// API key reaches only the module's request, never stdout or stderr. The key
+// is read before anything else can fail, and every message written to stderr
+// after that is passed through redact.Line with the key as a secret; the
+// results and progress events the module built never carry it.
 func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, stderr io.Writer, b backends) int {
+	var secrets []string
 	errorf := func(format string, a ...any) {
-		_, _ = io.WriteString(stderr, redact.Line(programName+": "+fmt.Sprintf(format, a...))+"\n")
+		_, _ = io.WriteString(stderr, redact.Line(programName+": "+fmt.Sprintf(format, a...), secrets...)+"\n")
 	}
 	opts, err := parseArgs(args)
 	if err != nil {
@@ -176,11 +214,6 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 			return exitUsage
 		}
 	}
-	input, err := readInput(opts.input)
-	if err != nil {
-		errorf("reading the input file: %v", err)
-		return exitUsage
-	}
 	settings := storedSettings{APIKey: fakeAPIKey}
 	if opts.llm == llmClaude {
 		read := config.ReadExtensionSettings(lookup)
@@ -189,10 +222,18 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 			errorf("the Anthropic API key variable is not set")
 			return exitUsage
 		}
+		if key != "" {
+			secrets = append(secrets, key)
+		}
 		// An unset workspace ID is the empty string, as the options page
 		// always writes the item; the module reads it as no workspace.
 		workspaceID, _ := read.WorkspaceID()
 		settings = storedSettings{APIKey: key, WorkspaceID: workspaceID}
+	}
+	input, err := readInput(opts.input)
+	if err != nil {
+		errorf("reading the input file: %v", err)
+		return exitUsage
 	}
 
 	var backend extjob.Backend

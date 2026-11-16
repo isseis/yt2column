@@ -99,7 +99,7 @@ go run ./cmd/yt2column-extjob -llm=fake -article=standard -failure=none -fail-at
 go run ./cmd/yt2column-extjob -llm=claude -input=/tmp/request.json
 ```
 
-`-llm` は必ず指定する。既定の値はない。指定を忘れた実行が、料金のかかる呼び出しにならないためである。`-llm` がないかほかの値のとき、`-input` がないとき、余分な語があるときは、何も呼ばずに終了コード `2` で終わる。
+`-llm` は必ず指定する。既定の値はない。指定を忘れた実行が、料金のかかる呼び出しにならないためである。`-llm` がないかほかの値のとき、`-input` がないとき、同じ引数を 2 回以上与えたとき、余分な語があるときは、何も呼ばずに終了コード `2` で終わる。
 
 -   **`-llm=fake`**: fake の LLM（`internal/llm/devfake`）で動き、API を呼ばない。シナリオを次の 5 つの引数で指定する。どれも省けず、空の値と受理しない綴りでは、何も呼ばずに終了コード `2` で終わる。
 
@@ -111,8 +111,8 @@ go run ./cmd/yt2column-extjob -llm=claude -input=/tmp/request.json
     | `-delay` | LLM の呼び出し 1 回ごとの遅れ（秒） | `0` から `600` までの 10 進の整数 |
     | `-settings-check` | 設定の検査（`checkSettings`）の結果 | `ok`・`key_rejected`・`unverified` |
 
-    `-failure` と `-fail-at` は、どちらも `none` か、どちらも `none` でないかの組で指定する。`-fail-at shorten` は `-article long` のときだけ受理する。`-settings-check` は、このコマンドが呼ばない設定の検査の結果なので結果を変えないが、ほかの 4 つと同じく省けない。
--   **`-llm=claude`**: 本番の構成の Claude を呼ぶ（料金がかかる）。API キーとワークスペース ID は、CLI と同じ環境変数 `ANTHROPIC_API_KEY`・`ANTHROPIC_WORKSPACE_ID` から読み、拡張のオプションページが保存したのと同じ形で記事生成モジュールに渡す。ワークスペース ID が未設定なら、指定なしになる。ほかの環境変数（`YT2COLUMN_LLM` など）は読まないので、3 つの工程は本番の構成になる。シナリオの引数は受け付けない。`ANTHROPIC_API_KEY` が未設定なら、何も呼ばずに終了コード `2` で終わる。
+    `-delay` の値は、`05` のように先頭が `0` の 2 桁以上の数も受理しない。`-failure` と `-fail-at` は、どちらも `none` か、どちらも `none` でないかの組で指定する。`-fail-at shorten` は `-article long` のときだけ受理する。`-settings-check` は、このコマンドが呼ばない設定の検査の結果なので結果を変えないが、ほかの 4 つと同じく省けない。
+-   **`-llm=claude`**: 本番の構成の Claude を呼ぶ（料金がかかる）。API キーとワークスペース ID は、CLI と同じ環境変数 `ANTHROPIC_API_KEY`・`ANTHROPIC_WORKSPACE_ID` から読み、拡張のオプションページが保存したのと同じ形で記事生成モジュールに渡す。ワークスペース ID が未設定なら、指定なしになる。ほかの環境変数（`YT2COLUMN_LLM` など）は読まないので、3 つの工程は本番の構成になる。シナリオの引数は受け付けない。`ANTHROPIC_API_KEY` が未設定なら、何も呼ばずに終了コード `2` で終わる。空の値は未設定とせずに記事生成モジュールに渡すので、`settings_invalid` の結果になる。
 
 `-input` は、生成の開始の入力のファイルである。形は記事生成モジュールの `prepare` が受け取る JSON（`videoUrl`・`transcript` と、省ける `title`・`channelName`・`description`）で、4 MiB までである。読めないファイルは、何も呼ばずに終了コード `2` で終わる。**入力のファイルはリポジトリに入れない。** 利用者がコピーした字幕を含みうるためである（[security.md](../security.md) の §7）。
 

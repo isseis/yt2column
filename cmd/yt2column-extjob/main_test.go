@@ -48,7 +48,8 @@ func resultStatus(t *testing.T, stdout string) (status, reason string) {
 
 // TestRunCallsNoBackendBeforeAccepting checks that a run whose arguments,
 // scenario, input file, or API key variable is not accepted constructs no
-// LLM implementation and writes no result.
+// LLM implementation, writes no result, and does not write the API key, even
+// in a message that would hold it (an input path that contains it).
 func TestRunCallsNoBackendBeforeAccepting(t *testing.T) {
 	input := writeInput(t, testInput)
 	withKey := map[string]string{"ANTHROPIC_API_KEY": markerKey}
@@ -68,6 +69,9 @@ func TestRunCallsNoBackendBeforeAccepting(t *testing.T) {
 		{"no -input", fakeArgs(standardSpelling), nil},
 		{"an extra word", append(fakeArgs(standardSpelling), "-input="+input, "extra"), nil},
 		{"a missing input file", append(fakeArgs(standardSpelling), "-input="+input+".missing"), nil},
+		{"a repeated -llm", append(fakeArgs(standardSpelling), "-llm=claude", "-input="+input), withKey},
+		{"a repeated scenario argument", append(fakeArgs(standardSpelling), "-article=long", "-input="+input), nil},
+		{"a missing input file named after the key", []string{"-llm=claude", "-input=" + input + "." + markerKey}, withKey},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -82,12 +86,16 @@ func TestRunCallsNoBackendBeforeAccepting(t *testing.T) {
 			if got.stdout != "" {
 				t.Errorf("stdout = %q, want nothing", got.stdout)
 			}
+			if strings.Contains(got.stderr, markerKey) {
+				t.Errorf("the API key reached stderr:\n%s", got.stderr)
+			}
 		})
 	}
 }
 
 // TestRunFake checks that -llm=fake runs the scenario its arguments name and
-// writes the module's result, with the exit code its status gives.
+// writes the module's result, with the exit code its status gives, and the
+// progress events to stderr.
 func TestRunFake(t *testing.T) {
 	failing := devfake.ScenarioSpelling{Article: "long", Failure: "empty", FailAt: "shorten", DelaySeconds: "0", SettingsCheck: "unverified"}
 	tests := []struct {
@@ -115,17 +123,23 @@ func TestRunFake(t *testing.T) {
 			if status, _ := resultStatus(t, got.stdout); status != tc.status {
 				t.Errorf("result status = %q, want %q", status, tc.status)
 			}
+			if !strings.Contains(got.stderr, programName+": progress {") {
+				t.Errorf("stderr has no progress event:\n%s", got.stderr)
+			}
 		})
 	}
 }
 
 // TestRunInputRejected checks that an input the module does not accept,
 // including one over its size limit, is reported with the module's rejection
-// and generates nothing.
+// and generates nothing. The over-limit file is a valid request of exactly the
+// limit followed by one space, so a read that stopped at the limit would pass
+// the module a request it accepts.
 func TestRunInputRejected(t *testing.T) {
+	atLimit := strings.Repeat(" ", extjob.MaxPrepareRequestBytes-len(testInput)) + testInput
 	tests := map[string]string{
 		"not a prepare request": `{"videoUrl":1}`,
-		"over the size limit":   strings.Repeat(" ", extjob.MaxPrepareRequestBytes-len(testInput)+1) + testInput,
+		"over the size limit":   atLimit + " ",
 	}
 	for name, data := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -216,5 +230,19 @@ func TestRunClaudeKeepsKeyOutOfOutput(t *testing.T) {
 				t.Errorf("the API key reached the output:\nstdout:\n%s\nstderr:\n%s", got.stdout, got.stderr)
 			}
 		})
+	}
+}
+
+// TestRunClaudeEmptyKey checks that an API key variable that is set but
+// empty is passed on, not treated as unset: the module rejects the settings,
+// and the run ends with a failed result rather than a usage error.
+func TestRunClaudeEmptyKey(t *testing.T) {
+	r := &recordingBackends{claudeScenario: mustScenario(t, standardSpelling)}
+	got := runWith(t, []string{"-llm=claude", "-input=" + writeInput(t, testInput)}, map[string]string{"ANTHROPIC_API_KEY": ""}, r)
+	if got.code != exitFailed {
+		t.Errorf("run() = %d, want %d; stderr:\n%s", got.code, exitFailed, got.stderr)
+	}
+	if status, reason := resultStatus(t, got.stdout); status != "failed" || reason != "settings_invalid" {
+		t.Errorf("result = %q %q, want failed settings_invalid", status, reason)
 	}
 }
