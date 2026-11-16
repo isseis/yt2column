@@ -70,7 +70,8 @@ With no argument, use the current branch.
 **Authorization.** Invoking this command approves, for this PR only, the
 network operations it names: `git fetch origin main`, `git pull --ff-only`,
 `git push` (including `-u`), `gh pr view`, `gh pr list`, `gh pr checkout`,
-`gh pr checks`, `gh pr create` (standalone change only), `gh pr comment` (the
+`gh pr checks`, `gh pr create` and `gh issue view` for the labels it carries
+over (standalone change only), `gh pr comment` (the
 PR review request to Codex), `gh api` (in step 3, the PR's comments, line
 comments, and PR reviews, and, with `gh api -i`, the `Date` header),
 `git fetch origin` (before step 3's ancestor checks), `gh api user`, the operations `fixprguard` makes for `head`,
@@ -154,8 +155,13 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
 
     ```bash
     git push -u origin <target-branch>
-    gh pr create --base main --head <target-branch> --title "$(cat "<title-file>")" --body-file <body-file>
+    gh pr create --base main --head <target-branch> --title "$(cat "<title-file>")" --body-file <body-file> --assignee @me <label-flags>
     ```
+
+    `--assignee @me` and `<label-flags>` are as `_lib/task-pr-handoff.md`
+    Part B step 3 says: the PR is assigned to the user `gh` is authenticated
+    as, and when the body names an issue with `Refs #<issue>` (below), it
+    carries over that issue's labels; otherwise `<label-flags>` is empty.
 
     Draft a PR title in the form that `_context.md`, "PR title and squash
     subject", gives: an accepted prefix with a `<scope>`, its
