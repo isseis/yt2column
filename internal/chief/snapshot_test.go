@@ -553,3 +553,56 @@ func TestRunningRowShowsTheLastSend(t *testing.T) {
 		t.Errorf("problems = %v", snap.Problems)
 	}
 }
+
+// TestIdleClearedByWhatTheHumanMustSee checks that an idle row stops being
+// idle when its workspace gets something to look at after classify: each
+// outcome of an automatic send, its proposal, and a stop of the workspace.
+// A stopped row then lists before a running row instead of after it.
+func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
+	proposal := &Next{Kind: TaskNextRunplan, Text: "/runplan 0001"}
+	for _, tc := range []struct {
+		name   string
+		result AutoSendResult
+	}{
+		{"sent", AutoSendResult{Workspace: "/idle", Actions: []ActionResult{{Input: InputCommand, Outcome: OutcomeSent}}}},
+		{"sent then failed", AutoSendResult{Workspace: "/idle", Actions: []ActionResult{{Input: InputCommand, Outcome: OutcomeSentThenFailed}}}},
+		{"a proposal", AutoSendResult{Workspace: "/idle", Proposal: proposal}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			view := roundView{rows: []Row{
+				{Workspace: "/idle", State: StateNeedsCheck, Idle: true},
+				{Workspace: "/busy", Task: "0002", State: StateRunning},
+			}}
+			applyAutoSends(&view, []AutoSendResult{tc.result})
+			if view.rows[0].Idle {
+				t.Fatalf("row after %s is still idle", tc.name)
+			}
+		})
+	}
+	t.Run("a stop", func(t *testing.T) {
+		w := newWorld(t)
+		tree := w.add(fakeWorkspace{ID: "w1", Label: "stopped", Branch: "main"})
+		records, err := w.store.Records(Worktree{path: tree})
+		if err != nil {
+			t.Fatal(err)
+		}
+		held, err := records.Lock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := held.Stop("why", "", "", w.now); err != nil {
+			t.Fatal(err)
+		}
+		if err := held.Close(); err != nil {
+			t.Fatal(err)
+		}
+		w.add(fakeWorkspace{ID: "w2", Label: "running", Branch: taskBranch, Status: "working"})
+		snap := take(t, w)
+		if row := rowOf(t, snap, "stopped"); row.Idle {
+			t.Errorf("stopped row = %+v, want not idle", row)
+		}
+		if last := snap.Rows[len(snap.Rows)-1]; last.Label != "running" {
+			t.Errorf("last row = %s, want the running row after the stopped one", last.Label)
+		}
+	})
+}

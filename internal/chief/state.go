@@ -138,8 +138,10 @@ type Row struct {
 	ReviewSkippable bool
 	// Idle marks a worktree left over or not yet used, which waits on
 	// nothing: no agent works or asks, every read succeeded, and either the
-	// next command is /mkreq or the only problem is a detached HEAD. It
-	// orders the row last; it never decides a send.
+	// next command is /mkreq or the only problem is a detached HEAD. A stop
+	// of the workspace (addRecords) and an automatic send or its proposal
+	// (applyAutoSends) clear it. It orders the row last; it never decides a
+	// send.
 	Idle bool
 }
 

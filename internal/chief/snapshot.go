@@ -176,6 +176,10 @@ func addRecords(ctx context.Context, git GitReader, store Store, w TaskWorkspace
 		return err
 	}
 	row.Stopped = stop
+	if stop != nil {
+		// A stopped workspace waits on the human's release.
+		row.Idle = false
+	}
 	if row.State == StateAwaitingReview && row.PR != nil {
 		// A HEAD that cannot be read only leaves the mark off.
 		if head, err := git.Head(ctx, w.Worktree); err == nil {
