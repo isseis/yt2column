@@ -601,7 +601,18 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 
 各 PR のブランチで `_checks/cli_unchanged.sh` を走らせ、PR ごとに次の形で書く（PR の番号、merge-base、比べたコミット、出力）。
 
-（まだない）
+**PR-1**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
+
+-   merge-base: `9ef11235d31bc1cdd0c8368e7c14903859215500`
+-   比べたコミット: `53f9c2a769010d78a29a678a692bd3eb13ba574c`
+-   出力（終了コード 0）:
+
+    ```text
+    merge-base 9ef11235d31bc1cdd0c8368e7c14903859215500 head 53f9c2a769010d78a29a678a692bd3eb13ba574c
+    ok: no non-test file under cmd/yt2column/ changed
+    ```
+
+-   スクリプトは、`cmd/yt2column/main.go` の変更で終了コード 1、`_test.go` だけの変更で 0、`main.go` を `_test.go` の名前に変えるリネームで 1 になることを、使い捨ての worktree で確かめた（ステップ 1-7）。
 
 ### PR-1 の前の手動の確認の記録
 
