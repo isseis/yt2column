@@ -139,8 +139,8 @@ type Row struct {
 	// Idle marks a worktree left over or not yet used, which waits on
 	// nothing: no agent works or asks, every read succeeded, and either the
 	// next command is /mkreq or the only problem is a detached HEAD. A stop
-	// of the workspace (addRecords) and an automatic send or its proposal
-	// (applyAutoSends) clear it. It orders the row last; it never decides a
+	// of the workspace or a stop record that cannot be read (addRecords) and
+	// any automatic-send result of the round (applyAutoSends) clear it. It orders the row last; it never decides a
 	// send.
 	Idle bool
 }
@@ -429,7 +429,9 @@ func classify(f workspaceFacts) Row {
 	case next == nil:
 		row.State = StateNeedsCheck
 		row.Unreadable = []string{why}
-		row.Idle = f.Head == headDetached
+		// A failed fetch is a read that did not succeed, so the row is not
+		// idle even when the detached HEAD is its only shown problem.
+		row.Idle = f.Head == headDetached && !f.FetchFailed
 	case f.FetchFailed:
 		row.State = StateNeedsCheck
 		row.Unreadable = []string{"git fetch origin main failed, so the documents may be stale"}

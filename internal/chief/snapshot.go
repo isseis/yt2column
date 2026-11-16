@@ -168,11 +168,17 @@ func finishSnapshot(deps Deps, owner Owner, view roundView, extra []PendingItem)
 // the same HEAD, never from an older one.
 func addRecords(ctx context.Context, git GitReader, store Store, w TaskWorkspace, row *Row) error {
 	records, ok, err := store.existingRecords(w.Tree)
-	if err != nil || !ok {
+	if err != nil {
+		// Whether the workspace is stopped cannot be told, so it is not idle.
+		row.Idle = false
 		return err
+	}
+	if !ok {
+		return nil
 	}
 	stop, err := records.Stopped()
 	if err != nil {
+		row.Idle = false
 		return err
 	}
 	row.Stopped = stop

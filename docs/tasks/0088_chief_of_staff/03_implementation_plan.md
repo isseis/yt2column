@@ -178,7 +178,7 @@
 -   **Claude Code の pane へ送る前は、transcript の場所を求められることだけを確かめ、ファイルを開けることは確かめない（ステップ 7-6、設計書 3.1.7・1.3.4）。** 実地の確かめで、起動したばかりでまだ何も入力していない Claude Code のセッションには transcript のファイルがなく、chief がその pane へ一度も送れなかった（`no_transcript`）。`/clear` の後の `/model` の確かめは、新しいセッションの transcript を今までどおり読む（`f53f405f`）。場所の規則が変わったときは、`/clear` と `/model` を送った後のこの確かめで止まり、その workspace の送信を止める。理由: 起動したばかりの pane にも送れるようにし、モデルの確かめは保つため（人が、より厳しい確かめを残す案よりこちらを選んだ）。ADR: なし。
 -   **`HERDR_PANE_ID` の pane のエージェントが、道具を呼んだプロセスと同じ worktree で動いていることを確かめ、違えば何もせずに拒む（`pane_mismatch`、`internal/chief/records.go` の `ResolveOwner`）。** 実地の確かめで、Herdr を起動し直した後の chief のセッションが、ほかの pane（`chief-of-staff` の pane）の `HERDR_PANE_ID` を引き継いでいた。chief は自分の workspace を表に出して `chief-of-staff` を除き、ロックの持ち主もその pane として記録したので、前の chief を終えても新しい chief が `lock_held` で拒まれた。理由: chief の workspace に送らないという約束を、環境変数を信じるだけでなく確かめて守るため（人と決めた）。ADR: なし。
 -   **`.claude/settings.json` で拒む herdr の呼び出しに、pane・タブ・workspace・セッション・worktree を閉じるか消す操作、エージェントの連携を変える操作、Herdr を止めるか入れ替える操作を足す（決定 9）。** PR のレビューで、これらは入力を送らずにタスクの作業を失わせうるのに拒まれておらず、chief の pane を auto mode で動かすと確認なしに通りうることが分かった。理由: 信頼できない文の指示に従ったセッションが、タスクの pane を閉じないため（人と決めた）。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
--   **タスクのない行を「なし」と示し、使っていないか残った worktree の行を表の最後に、その workspace の `/mkreq` の提案を提案の中の最後に並べる（要件 AC-02・AC-03 を変えた）。** 実地の確かめで、使っていない workspace（`chief-poc`）が実際のタスクの行より上に並び、「タスクなし」の 5 文字が表の幅を取ったためである。最後に並べるのは、次のコマンドが `/mkreq` の「次を提案」の行と、HEAD が detached なことだけによる「要確認」の行で、`classify` が `Row.Idle` として宣言する。送信の停止と、その周の自動送信やマージの後の提案は、この印を外す。質問で止まっている行、実行中の行、画面や git を読めずに「要確認」になった行は、タスクがなくてもふつうの順のままとする（`internal/chief/state.go`、`snapshot.go`、`pending.go`、`tick.go`）。初めの広い条件から狭めたことは、人と決めた。理由: 人の判断を待つ行を先に見せるため（人と決めた）。ADR: なし。
+-   **タスクのない行を「なし」と示し、使っていないか残った worktree の行を表の最後に、その workspace の `/mkreq` の提案を提案の中の最後に並べる（要件 AC-02・AC-03 を変えた）。** 実地の確かめで、使っていない workspace（`chief-poc`）が実際のタスクの行より上に並び、「タスクなし」の 5 文字が表の幅を取ったためである。最後に並べるのは、次のコマンドが `/mkreq` の「次を提案」の行と、HEAD が detached なことだけによる「要確認」の行で、`classify` が `Row.Idle` として宣言する。送信の停止とその記録を読めないことと、その周の自動送信の結果は、この印を外し、HEAD が detached でも fetch に失敗した行には付けない。質問で止まっている行、実行中の行、画面や git を読めずに「要確認」になった行は、タスクがなくてもふつうの順のままとする（`internal/chief/state.go`、`snapshot.go`、`pending.go`、`tick.go`）。初めの広い条件から狭めたことは、人と決めた。理由: 人の判断を待つ行を先に見せるため（人と決めた）。ADR: なし。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -593,7 +593,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 |---|---|---|---|---|
 | AC-01 | `ic/workspace_test.go::TestFindTaskWorkspaces` | test | 3-3・3-4 | PR-3 |
 | AC-02 | `ic/snapshot_test.go::TestTakeSnapshotStates`、`ic/snapshot_test.go::TestRunningRowShowsTheLastSend`（実行中の行は送信の記録から） | test | 3-4・4-6 | PR-3、PR-4 |
-| AC-03 | `ic/snapshot_test.go::TestTakeSnapshotOrder`、`ic/snapshot_test.go::TestRowOrderRules` | test | 3-4 | PR-3 |
+| AC-03 | `ic/snapshot_test.go::TestTakeSnapshotOrder`、`ic/snapshot_test.go::TestRowOrderRules`、`ic/snapshot_test.go::TestIdleClearedByWhatTheHumanMustSee`、`ic/snapshot_test.go::TestDetachedRowIdleOnlyWhenEverythingWasRead` | test | 3-4・7-6 | PR-3・PR-7 |
 | AC-04 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`、`/chief` の定義 | test、manual | 3-7・7-2 | PR-3、PR-7 |
 | AC-05 | `ic/snapshot_test.go::TestTakeSnapshotStates`、`/chief` の定義 | test、manual | 1-6・3-4・7-2 | PR-1、PR-3、PR-7 |
 | AC-06 | `ic/snapshot_test.go::TestTakeSnapshotUnreadable` | test | 3-3・3-4 | PR-3 |
@@ -718,5 +718,6 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 - 2026-11-15 セッション中の再承認：PR を作ったコマンドを `origin/main` の文書が示す次のコマンドから決め、人の最後の入力と名前も引数も照らす（§1.7・4-5）（isseis、#880）
 - 2026-11-15 セッション中の再承認：待ち受けの間は人の判断を待つものを番号つきの一覧で示し、「レビュー省略可」を PR の詳細の控えがあるときに選択肢にも示す（§1.8・7-2・§7）（isseis、#未記入）
 - 2026-11-15 セッション中の再承認：OpenCode の状態の行の区切りが 1 つだけのとき、その後ろをモデルとして読む（§1.8）（isseis、#未記入）
+- 2026-11-16 セッション中の再承認：使っていない行の印を、fetch に失敗した行と停止の記録を読めない行に付けず、自動送信の結果があれば外す（§1.9・§7）（isseis、#未記入）
 - 2026-11-16 セッション中の再承認：拒む herdr の呼び出しに、閉じるか消す操作、連携を変える操作、Herdr を止めるか入れ替える操作を足す（決定 9・§1.9）（isseis、#未記入）
 - 2026-11-16 セッション中の再承認：実地の確かめの一部を 0091 の workspace で行い、`※ recap:` を読み飛ばし、長い報告を読めないことを既知の制限とし、`HERDR_PANE_ID` の pane の worktree を確かめ、タスクのない行の示し方と並べ方を変える（§1.9）（isseis、#未記入）

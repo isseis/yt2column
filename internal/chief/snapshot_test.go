@@ -5,12 +5,14 @@ package chief
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
+	"github.com/isseis/yt2column/internal/privatefile"
 )
 
 const (
@@ -500,6 +502,27 @@ func TestRowOrderRules(t *testing.T) {
 	}
 }
 
+// TestDetachedRowIdleOnlyWhenEverythingWasRead checks that a row whose only
+// problem is a detached HEAD is idle, and is not when the fetch of
+// origin/main failed too.
+func TestDetachedRowIdleOnlyWhenEverythingWasRead(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		fetchFailed bool
+		want        bool
+	}{
+		{"fetched", false, true},
+		{"fetch failed", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := classify(workspaceFacts{Head: headDetached, FetchFailed: tc.fetchFailed})
+			if r.State != StateNeedsCheck || r.Idle != tc.want {
+				t.Errorf("row = %+v, want needs check with Idle %v", r, tc.want)
+			}
+		})
+	}
+}
+
 // TestClassifyZeroFacts checks classify's contract that facts nobody read
 // assume nothing: no HEAD read gives no next command.
 func TestClassifyZeroFacts(t *testing.T) {
@@ -579,6 +602,24 @@ func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
 			}
 		})
 	}
+	t.Run("a stop that cannot be read", func(t *testing.T) {
+		w := newWorld(t)
+		tree := w.add(fakeWorkspace{ID: "w1", Label: "unread", Branch: "main"})
+		dir, err := w.store.WorkspaceDir(Worktree{path: tree})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := privatefile.Create(filepath.Join(dir, stopFile), []byte("not json")); err != nil {
+			t.Fatal(err)
+		}
+		snap, err := TakeSnapshot(context.Background(), w.finish(), w.owner())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if row := rowOf(t, snap, "unread"); row.Idle {
+			t.Errorf("row with an unreadable stop = %+v, want not idle", row)
+		}
+	})
 	t.Run("a stop", func(t *testing.T) {
 		w := newWorld(t)
 		tree := w.add(fakeWorkspace{ID: "w1", Label: "stopped", Branch: "main"})
