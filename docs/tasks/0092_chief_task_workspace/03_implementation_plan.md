@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。既存のファイルの内容と `file:line` の行番号は、コミット `30bb673c` で確かめた。設計書が確かめたコミット `bc41cf17` から、`internal/chief`・`cmd/chief`・`internal/strictjson`・`internal/cmdrunner`・`internal/privatefile`・`internal/cachelock`・`.claude/settings.json`・`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` は変わっていない（`git diff --stat bc41cf17 30bb673c -- <これらのパス>` の出力が空だった）。そのため、設計書が引くこれらの行番号は今も合う。
@@ -504,3 +504,7 @@
 
 -   PR-7 のマージの後、人が決定 12 のとおり chief の worktree を `main` に戻し、`main` から `make install-chief` で入れ直して `/chief` を起動し直す。
 -   設計書 9 章の将来の拡張（エージェントのいない workspace の削除、リポジトリの名前、作成の途中で止まった workspace の片付け）は、別のタスクで扱う。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#915）
