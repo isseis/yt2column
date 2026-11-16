@@ -104,7 +104,6 @@ func TestRunArgsAccepted(t *testing.T) {
 // scenario are devfake.ParseScenario's rules and are tested there; one row per
 // rejection class shows that its message reaches this path unchanged.
 func TestRunArgsRejected(t *testing.T) {
-	const bigNumber = "99999999999999999999999"
 	for _, tc := range []struct {
 		name   string
 		args   []string
@@ -112,20 +111,7 @@ func TestRunArgsRejected(t *testing.T) {
 	}{
 		{"unknown argument", []string{"-port", "8765"}, "flag provided but not defined"},
 		{"unknown article", []string{"-article", "short"}, "is not an accepted value; accepted: standard|long|elements"},
-		{"unknown failure", []string{"-fail", "crash", "-fail-step", "draft"}, "not an accepted value"},
-		{"unknown call", []string{"-fail", "empty", "-fail-step", "write"}, "not an accepted value"},
-		{"failure without a call", []string{"-fail", "empty"}, "given together"},
-		{"call without a failure", []string{"-fail-step", "draft"}, "given together"},
-		{"shorten call of the standard article", []string{"-fail", "empty", "-fail-step", "shorten"}, "only the long article"},
-		{"shorten call of the elements article", []string{"-article", "elements", "-fail", "empty", "-fail-step", "shorten"}, "only the long article"},
 		{"delay over the longest", []string{"-delay", "601"}, "over the longest delay"},
-		{"delay that overflows a duration", []string{"-delay", "18446744074"}, "over the longest delay"},
-		{"delay that does not fit an integer", []string{"-delay", bigNumber}, "over the longest delay"},
-		{"delay with a leading zero", []string{"-delay", "01"}, "leading zero"},
-		{"empty delay", []string{"-delay", ""}, "decimal digits"},
-		{"negative delay", []string{"-delay", "-1"}, "decimal digits"},
-		{"fractional delay", []string{"-delay", "1.5"}, "decimal digits"},
-		{"delay with a unit", []string{"-delay", "1s"}, "decimal digits"},
 		{"missing value", []string{"-article"}, "flag needs an argument"},
 		{"extra word", []string{"extra"}, "unexpected extra argument"},
 		{"extra word after an argument", []string{"-article", "long", "extra"}, "unexpected extra argument"},
