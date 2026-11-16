@@ -21,8 +21,6 @@
 -   **パーサの時間の期限は、`-race` なしのビルドだけで確かめる。** `make test` は、`-race` 付きの実行の後に `make test-parse-norace` を実行し、そこで時間を確かめる。CI の `Test` ジョブも別の手順として同じターゲットを実行する（[.github/workflows/ci.yml](../../../.github/workflows/ci.yml)）。期限が守るのは本番の解析（拡張の記事生成モジュールと CLI）で、本番は `-race` なしでビルドされ、`-race` 付きのビルドの時間は本番のパーサの性能を表さないためである（[0039 要件定義書](../../tasks/0039_large_input_test_timeout/01_requirements.md)「要件定義の際に決めたこと（2026-10-23）」）。`make test` と `make test-parse-norace` の振る舞いは、[CLAUDE.md](../../../CLAUDE.md) の「Test Commands」の `make test` と `make test-parse-norace` の項に従う。
 -   **`-race` 付きのビルドでも、時間以外は確かめ続ける。** どちらのビルドでも、解析の成功、セグメントの数、メモリの確保量の上限を確かめる。ビルドごとに違う値は、ビルドタグ `race` と `!race` のテストのファイルに置く。手元の計測ではメモリの確保量が単独の実行と並行の実行で 1% 未満しか違わず、0015 が確かめようとした性質（メモリの確保量が入力の長さに比例すること）を、時間の上限を持たずに確かめ続けられるためである（0039 要件定義書「要件定義の際に決めたこと（2026-10-23）」）。
 
-拡張の記事生成モジュールは、まだコードにない。今、予算が守るのは localhost サーバの解析である。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
-
 ## 採らなかった案
 
 -   **`make deadcode` の解析の起点を CLI の `main` パッケージ（`./cmd/yt2column`）とそのテストに限る。** ほかの `main` パッケージかほかのパッケージのテストから届く関数まで報告し、本当の候補を数百件の報告から探すことになる（[0047 要件定義書](../../tasks/0047_deadcode_scope/01_requirements.md) §1）。

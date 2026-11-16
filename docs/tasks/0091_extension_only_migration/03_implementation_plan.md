@@ -124,6 +124,10 @@
 | `extension/src/startCoordinator.ts` | `extension/src/jobCoordinator.ts` | PR-7 | PR-9 |
 | 記事のキー（`extension/src/core/articleKey.ts`） | ジョブ ID | PR-7 | PR-9 |
 
+### 1.6. 実装の際に決めたこと（2026-11-16）
+
+1.  **2 つの記事生成モジュールが共有する `syscall/js` の登録を、`js` のビルドだけのパッケージ `internal/extjob/jsmodule` に置く（ステップ 4-1・4-2・4-4・4-7）。** 2 つの `main` は、LLM の実装から作った `extjob.Module` を `jsmodule.Serve` に渡すだけを持つ。理由: 登録の処理（約 50 行）は 2 つの `main` で同じで、それぞれに置くと片方だけを直す誤りが起きる。採らなかった案は、登録の処理をそれぞれの `main` に置く案（本計画の当初の形）である。人が 2026-11-16 に、PR-4 の実装の際に選んだ。設計は設計書 §1.4 にある。ADR: [ADR-0049](../../dev/adr/0049-wasm-core-sharing.md) を更新した。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: LLM の失敗の分類と、キーの確かめ（設計書 §8 の 1 のうち LLM の層）
@@ -231,18 +235,18 @@
 
 ### フェーズ 4: 3 つの `main`、`make wasm-check`、依存の検査（設計書 §8 の 1 の残り）
 
-**変更するファイル:** `cmd/yt2column-wasm/`・`cmd/yt2column-wasm-dev/`・`cmd/yt2column-extjob/`（新規）とそのテスト、`internal/godepstest/` とそのテスト、`internal/extjob/deps_test.go`（新規）、`cmd/yt2column/devdeps_test.go`、`cmd/yt2column/makefile_test.go`、`internal/config/envaccess_test.go`、`Makefile`、`CLAUDE.md`、`docs/dev/guides/development.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/project_overview.md`、ADR（§3.3）
+**変更するファイル:** `cmd/yt2column-wasm/`・`cmd/yt2column-wasm-dev/`・`cmd/yt2column-extjob/`・`internal/extjob/jsmodule/`（新規）とそのテスト、`internal/godepstest/` とそのテスト、`internal/extjob/deps_test.go`（新規）、`cmd/yt2column/devdeps_test.go`、`cmd/yt2column/makefile_test.go`、`internal/config/envaccess_test.go`、`Makefile`、`CLAUDE.md`、`docs/dev/guides/development.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/project_overview.md`、ADR（§3.3）
 
--   [ ] **ステップ 4-1**: `cmd/yt2column-wasm` を作る（設計書 §3.3、0090 設計書 §3.1.2）。`extjob.NewModule(claudebackend.New())` の 4 つの関数を `syscall/js` で 1 つの名前空間のオブジェクトに登録するだけを持ち、`js` のビルドだけでビルドする。
--   [ ] **ステップ 4-2**: `cmd/yt2column-wasm-dev` を作る（設計書 §3.4）。シナリオの 5 つの値を `main` のパッケージの文字列の変数で持ち、起動のときに `ParseScenario` で解析して、合えば `extjob.NewModule(devbackend.New(scenario))` の関数を登録し、合わなければ登録しない。`syscall/js` を使う登録のファイルだけを `js` のビルドにし、ネイティブのビルドでは、同じ変数を解析して結果だけを返す `main` を持つ（PR-5 のビルドのスクリプトが使う）。ネイティブのテストで、解析の受理と拒否を確かめる。
--   [ ] **ステップ 4-3**: `cmd/yt2column-extjob` を作る（設計書 §3.4、0090 設計書 §7.2）。`-llm=claude` か `-llm=fake` を必ず指定させ、指定がないかほかの値なら何もせずに終わる。`-llm=fake` は 5 つの引数を `ParseScenario` で解析する。`-llm=claude` は `config.ReadExtensionSettings` で読んだ 2 つの値を `StoredSettings` にする。入力のファイル（4 MiB まで）を `Module.PrepareJSON` に、続けて `Module.GenerateJSON` に渡し、`GenerateResult` の JSON を出す。テストのために、`main` の処理は LLM の実装を作る関数を差し替えられる形にする。テストは、`-llm` の指定がないときと合わないシナリオで実装の関数を 1 度も呼ばないこと、`-llm=claude` で環境に置いた目印のキーが、成功と拒否のどちらの道でも標準出力と標準エラーに出ないこと、ワークスペース ID が未設定のときに空の文字列を渡すこと、合わない入力のファイルと 4 MiB を超えるファイルで拒否の理由を出すこと、結果の JSON を出すことを確かめる。
--   [ ] **ステップ 4-4**: `make wasm-check` の対象を、`cmd/yt2column-wasm` と `cmd/yt2column-wasm-dev` のビルド（それぞれの依存を含む）にし、`vet` の対象を `internal/llm/llmhttp`・`internal/llm/claude`・2 つの `main`・`internal/writer`・`internal/transcript` にする（設計書 §3.10）。PR-1〜PR-3 で `WASM_PACKAGES` に加えたパッケージは、2 つの `main` の依存に含まれるので、ビルドの対象からは除く。`cmd/yt2column/makefile_test.go` に、`make -n wasm-check` が 2 つの記事生成モジュールを `GOOS=js GOARCH=wasm` でビルドし、挙げたパッケージを `vet` することを確かめるテストを加える（今の `makeDryRun` の補助を使う）。CLAUDE.md の説明を直す。
--   [ ] **ステップ 4-5**: 依存の検査を加える（設計書 §7.3）。
+-   [x] **ステップ 4-1**: `internal/extjob/jsmodule` と `cmd/yt2column-wasm` を作る（設計書 §1.4・§3.3、0090 設計書 §3.1.2）。`jsmodule` は、`extjob.Module` の 4 つの関数を `syscall/js` で 1 つの名前空間のオブジェクトに登録する（§1.6）。`cmd/yt2column-wasm` は、`extjob.NewModule(claudebackend.New())` を `jsmodule.Serve` に渡すだけを持つ。どちらも `js` のビルドだけでビルドする。
+-   [x] **ステップ 4-2**: `cmd/yt2column-wasm-dev` を作る（設計書 §3.4）。シナリオの 5 つの値を `main` のパッケージの文字列の変数で持ち、起動のときに `ParseScenario` で解析して、合えば `extjob.NewModule(devbackend.New(scenario))` を `jsmodule.Serve` に渡して関数を登録し、合わなければ登録しない。`syscall/js` を使う登録のファイルだけを `js` のビルドにし、ネイティブのビルドでは、同じ変数を解析して結果だけを返す `main` を持つ（PR-5 のビルドのスクリプトが使う）。ネイティブのテストで、解析の受理と拒否を確かめる。
+-   [x] **ステップ 4-3**: `cmd/yt2column-extjob` を作る（設計書 §3.4、0090 設計書 §7.2）。`-llm=claude` か `-llm=fake` を必ず指定させ、指定がないかほかの値なら何もせずに終わる。`-llm=fake` は 5 つの引数を `ParseScenario` で解析する。`-llm=claude` は `config.ReadExtensionSettings` で読んだ 2 つの値を `StoredSettings` にする。入力のファイル（4 MiB まで）を `Module.PrepareJSON` に、続けて `Module.GenerateJSON` に渡し、`GenerateResult` の JSON を出す。テストのために、`main` の処理は LLM の実装を作る関数を差し替えられる形にする。テストは、`-llm` の指定がないときと合わないシナリオで実装の関数を 1 度も呼ばないこと、`-llm=claude` で環境に置いた目印のキーが、成功と拒否のどちらの道でも標準出力と標準エラーに出ないこと、ワークスペース ID が未設定のときに空の文字列を渡すこと、合わない入力のファイルと 4 MiB を超えるファイルで拒否の理由を出すこと、結果の JSON を出すことを確かめる。
+-   [x] **ステップ 4-4**: `make wasm-check` の対象を、`cmd/yt2column-wasm` と `cmd/yt2column-wasm-dev` のビルド（それぞれの依存を含む）にし、`vet` の対象を `internal/llm/llmhttp`・`internal/llm/claude`・`internal/extjob/jsmodule`・2 つの `main`・`internal/writer`・`internal/transcript` にする（設計書 §3.10）。PR-1〜PR-3 で `WASM_PACKAGES` に加えたパッケージは、2 つの `main` の依存に含まれるので、ビルドの対象からは除く。`cmd/yt2column/makefile_test.go` に、`make -n wasm-check` が 2 つの記事生成モジュールを `GOOS=js GOARCH=wasm` でビルドし、挙げたパッケージを `vet` することを確かめるテストを加える（今の `makeDryRun` の補助を使う）。CLAUDE.md の説明を直す。
+-   [x] **ステップ 4-5**: 依存の検査を加える（設計書 §7.3）。
     -   `internal/godepstest` が `GOOS=js GOARCH=wasm` の依存を求められるようにし、`godepstest_test.go` に、`js` の対象で `js` のビルドだけのファイルの依存が出ることを確かめる行を加える。
     -   `internal/extjob/deps_test.go` に、公開用の記事生成モジュールの `js` の依存が `internal/extjob/claudebackend` を含み `internal/llm/devfake` と `internal/extjob/devbackend` を含まないこと、開発用の記事生成モジュールの `js` の依存が `internal/extjob/devbackend` を含み `internal/llm/claude` と `internal/extjob/claudebackend` を含まないことを確かめるテストを置く。
     -   `cmd/yt2column/devdeps_test.go` の許さない依存に `internal/extjob/devbackend`・`cmd/yt2column-wasm-dev`・`cmd/yt2column-extjob` を加える。サーバとホストの `devdeps_test.go` は、撤去の PR まで今のまま残す。
--   [ ] **ステップ 4-6**: `envaccess_test.go` の入口の一覧に `cmd/yt2column-extjob/main.go` を加え、その観測を確かめる。記事生成モジュールは環境を参照しない（0090 設計書 §3.11 のテストの表）。
--   [ ] **ステップ 4-7**: 文書を書き換える。package_reference.md に 3 つの `main` の行を、project_overview.md のディレクトリの構成に 3 つの `main` を加える。development.md に `cmd/yt2column-extjob` の使い方（`-llm` の指定が要ること、入力のファイルをリポジトリに入れないこと）を書く（設計書 §3.13）。ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。
+-   [x] **ステップ 4-6**: `envaccess_test.go` の入口の一覧に `cmd/yt2column-extjob/main.go` を加え、その観測を確かめる。記事生成モジュールは環境を参照しない（0090 設計書 §3.11 のテストの表）。
+-   [x] **ステップ 4-7**: 文書を書き換える。package_reference.md に 3 つの `main` と `internal/extjob/jsmodule` の行を、project_overview.md のディレクトリの構成に 3 つの `main` と `internal/extjob/jsmodule` を加える。development.md に `cmd/yt2column-extjob` の使い方（`-llm` の指定が要ること、入力のファイルをリポジトリに入れないこと）を書く（設計書 §3.13）。ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。
 
 **完了の条件:** `make test`・`make lint`（新しい `make wasm-check` を含む）・`make deadcode` が通る。ネイティブの `go build ./...`・`go vet ./...` が、`js` だけの `main` で失敗しない。`_checks/cli_unchanged.sh` が通り、§7 の AC-26 の記録に書いた。
 
@@ -706,3 +710,4 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 ## 変更履歴
 
 - 2026-11-16 承認（isseis、#891）
+- 2026-11-16 セッション中の再承認：2 つの記事生成モジュールが共有する `syscall/js` の登録を `internal/extjob/jsmodule` に置いた（isseis、#未記入）

@@ -24,7 +24,7 @@ fake を本番の成果物に入れて設定で選べるようにすると、設
 -   **料金の単価の表（`internal/pricing`）に fake のモデルを入れない。fake の記事の料金が不明と表示されるようにする。** 本番の単価の表に開発用の値を持ち込まないためである。規則は 0086 要件定義書の「F-003: fake の記事」にある。
 -   **開発用のサーバ（`cmd/yt2column-devserver`）と `make build-dev` は、拡張だけの構成への移行で、本番のサーバとホストと一緒に撤去し、開発用の拡張のビルドに置き換える。** 開発用のサーバは本番のサーバの API を真似るもので、サーバを撤去した後は拡張から使えないためである。撤去までの間は、開発用のサーバで拡張を料金をかけずに確かめる。fake の構成要素は残し、開発用の記事生成モジュールから使う。撤去と置き換えは [#773](https://github.com/isseis/yt2column/issues/773) が行う。規則は 0090 設計書の「設計の際に決めたこと（2026-11-12）」と「料金をかけずに拡張を動かす方法」にある。
 
-この決定のうち、本番の成果物の検査の対象、開発用の拡張のビルド、開発用のサーバの撤去は、まだコードと仕様の文書に反映していない。今は、開発用のサーバ（`cmd/yt2column-devserver`）と `make build-dev` があり、その使い方は [development.md](../guides/development.md)・[security.md](../security.md)・[project_overview.md](../project_overview.md)・[CLAUDE.md](../../../CLAUDE.md) に書かれている。本番の成果物の検査は `yt2column`・`yt2column-server`・`yt2column-nmhost` を対象にし、開発用の拡張のビルドと `cmd/yt2column-wasm-dev` はまだない。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
+この決定のうち、開発用の拡張のビルドと開発用のサーバの撤去は、まだコードと仕様の文書に反映していない。今は、開発用のサーバ（`cmd/yt2column-devserver`）と `make build-dev` があり、その使い方は [development.md](../guides/development.md)・[security.md](../security.md)・[project_overview.md](../project_overview.md)・[CLAUDE.md](../../../CLAUDE.md) に書かれている。開発用の拡張のビルド（`make ext-build-dev`）はまだなく、開発用の記事生成モジュール（`cmd/yt2column-wasm-dev`）はどのビルドからも使われていない。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 
 ## 採らなかった案
 
