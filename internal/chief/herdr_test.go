@@ -45,6 +45,7 @@ func TestReadHerdrSamples(t *testing.T) {
 	}{
 		"agent-get-claude-blocked.json":   {paneinput.AgentClaudeCode, AgentBlocked, true},
 		"agent-get-claude-idle.json":      {paneinput.AgentClaudeCode, AgentIdle, true},
+		"agent-get-claude-started.json":   {paneinput.AgentClaudeCode, AgentIdle, true},
 		"agent-get-opencode-blocked.json": {paneinput.AgentOpenCode, AgentBlocked, false},
 		"agent-get-opencode-done.json":    {paneinput.AgentOpenCode, AgentDone, false},
 	}
@@ -327,15 +328,6 @@ func TestReadHerdrCreationSamples(t *testing.T) {
 			}
 		})
 	}
-	t.Run("agent get right after start", func(t *testing.T) {
-		a, err := parseAgentGet(readTestdata(t, "herdr/agent-get-claude-started.json"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if a.Kind != paneinput.AgentClaudeCode || a.Status != AgentIdle || a.Session == "" || a.Dir != dir {
-			t.Errorf("agent = %+v, want an idle Claude Code agent with a session in %s", a, dir)
-		}
-	})
 	lists := map[string][]listedPane{
 		"pane-list-shells.json": {
 			{ID: PaneID{id: "w1Y:p1"}, Workspace: "w1Y", Tab: tabID{id: "w1Y:t1"}, Dir: dir},
@@ -421,7 +413,7 @@ func TestShellInForeground(t *testing.T) {
 		"shell group with a child":   {processInfo{ShellPID: 10, ForegroundGroup: 10, ForegroundPIDs: []int64{10, 12}}, false},
 		"shell group, other process": {processInfo{ShellPID: 10, ForegroundGroup: 10, ForegroundPIDs: []int64{12}}, false},
 		"no process":                 {processInfo{ShellPID: 10, ForegroundGroup: 10}, false},
-		"zero value":                 {processInfo{}, false},
+		"no shell pid":               {processInfo{ForegroundPIDs: []int64{0}}, false},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -452,78 +444,66 @@ func TestHerdrRejectsUnknownCreationShapes(t *testing.T) {
 			return err
 		},
 	}
+	// count is how many times from occurs in the sample: 0 replaces its one
+	// occurrence; a count replaces every occurrence, for an ID the sample
+	// names in more than one object.
 	edits := []struct {
 		name, file, from, to string
+		count                int
 	}{
-		{"workspace of another tab", "workspace-create.json", `"tab_id":"w1Y:t1","workspace_id":"w1Y"},"type"`, `"tab_id":"w1Y:t1","workspace_id":"w1X"},"type"`},
-		{"pane of another workspace", "workspace-create.json", `"terminal_id":"term_6606c93acb11142","workspace_id":"w1Y"`, `"terminal_id":"term_6606c93acb11142","workspace_id":"w1X"`},
-		{"pane of another tab", "workspace-create.json", `"tab_id":"w1Y:t1","terminal_id"`, `"tab_id":"w1Y:t9","terminal_id"`},
-		{"missing workspace label", "workspace-create.json", `"label":"probe-0092",`, ``},
-		{"duplicate workspace", "workspace-create.json", `"type":"workspace_created",`, `"type":"workspace_created","workspace":{},`},
-		{"tab of another workspace", "tab-create.json", `"tab_id":"w1Y:t2","workspace_id":"w1Y"},"type"`, `"tab_id":"w1Y:t2","workspace_id":"w1X"},"type"`},
-		{"pane of another workspace", "tab-create.json", `"terminal_id":"term_6606c93f0ceaf43","workspace_id":"w1Y"`, `"terminal_id":"term_6606c93f0ceaf43","workspace_id":"w1X"`},
-		{"duplicate root pane", "tab-create.json", `"type":"tab_created"`, `"type":"tab_created","root_pane":null`},
-		{"relative cwd", "tab-create.json", `"cwd":"/Users/user/.herdr/worktrees/yt2column/probe-0092"`, `"cwd":"probe-0092"`},
-		{"another envelope", "tab-create.json", `"cli:tab:create"`, `"cli:workspace:create"`},
-		{"malformed tab", "tab-rename.json", `"tab_id":"w1Y:t1"`, `"tab_id":"w1Y"`},
-		{"another result type", "tab-rename.json", `"type":"tab_info"`, `"type":"tab_created"`},
-		{"malformed workspace", "tab-rename.json", `"workspace_id":"w1Y"`, `"workspace_id":"w1Y:t1"`},
-		{"option-like pane", "tab-create.json", `"pane_id":"w1Y:p2"`, `"pane_id":"--pane"`},
-		{"option-like pane", "pane-list-agents.json", `"pane_id":"w1S:p2"`, `"pane_id":"--pane"`},
-		{"malformed tab", "pane-list-agents.json", `"tab_id":"w1S:t2"`, `"tab_id":"w1S"`},
-		{"malformed workspace", "pane-list-agents.json", `"tab_id":"w1S:t1","terminal_id":"term_6606008f2268731","workspace_id":"w1S"`, `"tab_id":"w1S:t1","terminal_id":"term_6606008f2268731","workspace_id":"w1S:p1"`},
-		{"relative cwd", "pane-list-agents.json", `"agent_status":"unknown","cwd":"/Users/user/.herdr/worktrees/yt2column/chief-task-worktree"`, `"agent_status":"unknown","cwd":"chief-task-worktree"`},
-		{"option-like pane", "pane-process-info-shell.json", `"pane_id":"w1Y:p1"`, `"pane_id":"--x"`},
-		{"missing name", "agent-start-claude.json", `"name":"probe-0092-claude",`, ``},
-		{"unknown status", "agent-start-claude.json", `"agent_status":"idle"`, `"agent_status":"starting"`},
-		{"another result type", "agent-start-claude.json", `"type":"agent_started"`, `"type":"agent_info"`},
-		{"empty agent name", "pane-list-agents.json", `"agent":"opencode",`, `"agent":"",`},
-		{"null agent", "pane-list-agents.json", `"agent":"opencode",`, `"agent":null,`},
-		{"missing cwd", "pane-list-agents.json", `"agent_status":"unknown","cwd":"/Users/user/.herdr/worktrees/yt2column/chief-task-worktree",`, `"agent_status":"unknown",`},
-		{"duplicate workspace", "pane-list-agents.json", `"workspace_id":"w1S"}`, `"workspace_id":"w1S","workspace_id":"w1T"}`},
-		{"missing tab", "pane-list-agents.json", `"tab_id":"w1S:t1",`, ``},
-		{"zero shell pid", "pane-process-info-shell.json", `"shell_pid":64286`, `"shell_pid":0`},
-		{"fractional group", "pane-process-info-shell.json", `"foreground_process_group_id":64286`, `"foreground_process_group_id":64286.5`},
-		{"process without pid", "pane-process-info-shell.json", `"name":"zsh","pid":64286`, `"name":"zsh"`},
-		{"processes not an array", "pane-process-info-shell.json", `"foreground_processes":[`, `"foreground_processes":{"x":`},
-		{"another result type", "workspace-close.json", `"type":"ok"`, `"type":"workspace_closed"`},
-		{"another envelope", "workspace-close.json", `"cli:workspace:close"`, `"cli:workspace:list"`},
-		{"another command's error", "agent-start-timeout.stderr", `"cli:agent:start"`, `"cli:agent:prompt"`},
-		{"code of another shape", "agent-start-timeout.stderr", `"code":"timeout"`, `"code":"Timeout Error"`},
-		{"missing message", "agent-start-timeout.stderr", `,"message":"timed out waiting for agent startup"`, ``},
-		{"duplicate code", "agent-start-timeout.stderr", `"code":"timeout"`, `"code":"timeout","code":"timeout"`},
+		{"option-like workspace of its tab and pane too", "workspace-create.json", `"workspace_id":"w1Y"`, `"workspace_id":"--group"`, 3},
+		{"option-like tab of its pane too", "tab-create.json", `"tab_id":"w1Y:t2"`, `"tab_id":"--tab"`, 2},
+		{"workspace of another tab", "workspace-create.json", `"tab_id":"w1Y:t1","workspace_id":"w1Y"},"type"`, `"tab_id":"w1Y:t1","workspace_id":"w1X"},"type"`, 0},
+		{"pane of another workspace", "workspace-create.json", `"terminal_id":"term_6606c93acb11142","workspace_id":"w1Y"`, `"terminal_id":"term_6606c93acb11142","workspace_id":"w1X"`, 0},
+		{"pane of another tab", "workspace-create.json", `"tab_id":"w1Y:t1","terminal_id"`, `"tab_id":"w1Y:t9","terminal_id"`, 0},
+		{"missing workspace label", "workspace-create.json", `"label":"probe-0092",`, ``, 0},
+		{"duplicate workspace", "workspace-create.json", `"type":"workspace_created",`, `"type":"workspace_created","workspace":{},`, 0},
+		{"tab of another workspace", "tab-create.json", `"tab_id":"w1Y:t2","workspace_id":"w1Y"},"type"`, `"tab_id":"w1Y:t2","workspace_id":"w1X"},"type"`, 0},
+		{"pane of another workspace", "tab-create.json", `"terminal_id":"term_6606c93f0ceaf43","workspace_id":"w1Y"`, `"terminal_id":"term_6606c93f0ceaf43","workspace_id":"w1X"`, 0},
+		{"relative cwd", "tab-create.json", `"cwd":"/Users/user/.herdr/worktrees/yt2column/probe-0092"`, `"cwd":"probe-0092"`, 0},
+		{"malformed tab", "tab-rename.json", `"tab_id":"w1Y:t1"`, `"tab_id":"w1Y"`, 0},
+		{"malformed workspace", "tab-rename.json", `"workspace_id":"w1Y"`, `"workspace_id":"w1Y:t1"`, 0},
+		{"option-like pane", "tab-create.json", `"pane_id":"w1Y:p2"`, `"pane_id":"--pane"`, 0},
+		{"option-like pane", "pane-list-agents.json", `"pane_id":"w1S:p2"`, `"pane_id":"--pane"`, 0},
+		{"malformed tab", "pane-list-agents.json", `"tab_id":"w1S:t2"`, `"tab_id":"w1S"`, 0},
+		{"malformed workspace", "pane-list-agents.json", `"tab_id":"w1S:t1","terminal_id":"term_6606008f2268731","workspace_id":"w1S"`, `"tab_id":"w1S:t1","terminal_id":"term_6606008f2268731","workspace_id":"w1S:p1"`, 0},
+		{"relative cwd", "pane-list-agents.json", `"agent_status":"unknown","cwd":"/Users/user/.herdr/worktrees/yt2column/chief-task-worktree"`, `"agent_status":"unknown","cwd":"chief-task-worktree"`, 0},
+		{"option-like pane", "pane-process-info-shell.json", `"pane_id":"w1Y:p1"`, `"pane_id":"--x"`, 0},
+		{"missing name", "agent-start-claude.json", `"name":"probe-0092-claude",`, ``, 0},
+		{"empty agent name", "pane-list-agents.json", `"agent":"opencode",`, `"agent":"",`, 0},
+		{"null agent", "pane-list-agents.json", `"agent":"opencode",`, `"agent":null,`, 0},
+		{"missing cwd", "pane-list-agents.json", `"agent_status":"unknown","cwd":"/Users/user/.herdr/worktrees/yt2column/chief-task-worktree",`, `"agent_status":"unknown",`, 0},
+		{"duplicate workspace", "pane-list-agents.json", `"workspace_id":"w1S"}`, `"workspace_id":"w1S","workspace_id":"w1T"}`, 0},
+		{"zero shell pid", "pane-process-info-shell.json", `"shell_pid":64286`, `"shell_pid":0`, 0},
+		{"fractional group", "pane-process-info-shell.json", `"foreground_process_group_id":64286`, `"foreground_process_group_id":64286.5`, 0},
+		{"process without pid", "pane-process-info-shell.json", `"name":"zsh","pid":64286`, `"name":"zsh"`, 0},
+		{"processes not an array", "pane-process-info-shell.json", `"foreground_processes":[`, `"foreground_processes":{"x":`, 0},
+		{"another command's error", "agent-start-timeout.stderr", `"cli:agent:start"`, `"cli:agent:prompt"`, 0},
+		{"code of another shape", "agent-start-timeout.stderr", `"code":"timeout"`, `"code":"Timeout Error"`, 0},
+		{"missing message", "agent-start-timeout.stderr", `,"message":"timed out waiting for agent startup"`, ``, 0},
+		{"duplicate code", "agent-start-timeout.stderr", `"code":"timeout"`, `"code":"timeout","code":"timeout"`, 0},
 	}
-	t.Run("workspace-create.json/option-like workspace of its tab and pane too", func(t *testing.T) {
-		sample := string(readTestdata(t, "herdr/workspace-create.json"))
-		if strings.Count(sample, `"workspace_id":"w1Y"`) != 3 {
-			t.Fatal("the sample does not name the workspace in the workspace, its tab, and its pane")
-		}
-		edited := strings.ReplaceAll(sample, `"workspace_id":"w1Y"`, `"workspace_id":"--group"`)
-		if _, err := parseWorkspaceCreate([]byte(edited)); !errors.Is(err, errHerdrOutput) {
-			t.Errorf("error = %v, want errHerdrOutput", err)
-		}
-	})
-	t.Run("tab-create.json/option-like tab of its pane too", func(t *testing.T) {
-		sample := string(readTestdata(t, "herdr/tab-create.json"))
-		edited := strings.ReplaceAll(sample, `"tab_id":"w1Y:t2"`, `"tab_id":"--tab"`)
-		if strings.Count(sample, `"tab_id":"w1Y:t2"`) != 2 {
-			t.Fatal("the sample does not name the tab in both the tab and its pane")
-		}
-		if _, err := parseTabCreate([]byte(edited), "w1Y"); !errors.Is(err, errHerdrOutput) {
-			t.Errorf("error = %v, want errHerdrOutput", err)
-		}
-	})
 	for _, e := range edits {
 		t.Run(e.file+"/"+e.name, func(t *testing.T) {
+			parse, ok := parsers[e.file]
+			if !ok {
+				t.Fatalf("no parser for %s", e.file)
+			}
 			sample := string(readTestdata(t, "herdr/"+e.file))
-			if err := parsers[e.file]([]byte(sample)); err != nil {
+			if err := parse([]byte(sample)); err != nil {
 				t.Fatalf("the unedited sample is unreadable: %v", err)
 			}
 			edited := strings.Replace(sample, e.from, e.to, 1)
+			if e.count > 0 {
+				if n := strings.Count(sample, e.from); n != e.count {
+					t.Fatalf("the sample has %d of %q, want %d", n, e.from, e.count)
+				}
+				edited = strings.ReplaceAll(sample, e.from, e.to)
+			}
 			if edited == sample {
 				t.Fatalf("the sample has no %q", e.from)
 			}
-			if err := parsers[e.file]([]byte(edited)); !errors.Is(err, errHerdrOutput) {
+			if err := parse([]byte(edited)); !errors.Is(err, errHerdrOutput) {
 				t.Errorf("error = %v, want errHerdrOutput", err)
 			}
 		})
