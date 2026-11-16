@@ -61,7 +61,8 @@ Invoking a calling command approves, for its task and its PR only, the network
 operations this file names: `gh api user`, `gh pr list`, `gh pr view`,
 `git fetch origin main`, `gh issue develop` and the issue operations of
 "Choosing the issue to link" (Part A step 4, for the task's issue and its link
-sub-issues only), `git push` (including `-u`), `gh pr create`, `gh api` to
+sub-issues only), `gh issue view` to read the labels of the task's issue
+(Part B step 3), `git push` (including `-u`), `gh pr create`, `gh api` to
 read the PR's comments and, with `gh api -i`, the `Date` header (Part B step
 5), and `gh pr comment` for the PR review request to Codex. `coderabbit review`
 and `codexreview` have standing approval (`CLAUDE.md`, "Tool Execution
@@ -209,9 +210,14 @@ Run this after the calling command's last commit, with a clean working tree.
    check failed. Never rewrite the text to get past the check.
    When the check fails, do not create the PR: stop and report. Otherwise run
    `git push -u origin <current-branch>` and
-   `gh pr create --base main --head <current-branch> --title "$(cat "<title-file>")" --body-file <file>`,
+   `gh pr create --base main --head <current-branch> --title "$(cat "<title-file>")" --body-file <file> --assignee @me <label-flags>`,
    writing the title and the body to files in the scratchpad with the Write tool
-   (`_context.md`, "Passing a title to `gh`"). Do not pause for the user to
+   (`_context.md`, "Passing a title to `gh`"). `--assignee @me` assigns the PR
+   to the GitHub user `gh` is authenticated as, the user who runs the command.
+   `<label-flags>` carries over the labels of the task's issue (ISSUE, or the
+   `対応 issue` Part A read; not LINK_ISSUE, a link sub-issue): read them with
+   `gh issue view <issue> --json labels --jq '.labels[].name'` and pass one
+   `--label "<name>"` per line printed. With no issue or no label, it is empty. Do not pause for the user to
    adjust the title or body; the reviewer can edit them on GitHub. The title is
    PR_TEXT's and follows `_context.md`, "PR title and squash subject". The title
    and the body use the terms of the translation glossary, as `_context.md`,
