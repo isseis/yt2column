@@ -317,8 +317,13 @@ func readSettings(t *testing.T) settings {
 // deniedHerdr are the herdr calls the settings must deny (ADR-0046): the
 // calls that type into a pane, run a command in it, or route its input; the
 // calls that report an agent's state or session to Herdr, which chief's
-// checks read; and the global flags before a subcommand that point at
-// another session or machine, which would get past the prefixes above. A
+// checks read; the calls that close or remove a pane, tab, workspace,
+// session, or worktree, change Herdr's agent integration, or stop or
+// replace Herdr, which would end the work of a task without typing into it;
+// and the global flags before a subcommand that point at another session or
+// machine, which would get past the prefixes above. A rule of the closing
+// group ends in "*" with no space, so it also matches the call with no
+// argument, which acts on the current pane, tab, or workspace. A
 // rule ending in " *" matches the call with arguments; one ending in "*"
 // right after the flag also matches the flag's =value form and its longer
 // spellings such as --remote-keybindings.
@@ -334,6 +339,16 @@ var deniedHerdr = []string{
 	"Bash(herdr pane report-agent *)",
 	"Bash(herdr pane report-agent-session *)",
 	"Bash(herdr pane release-agent *)",
+	"Bash(herdr pane close*)",
+	"Bash(herdr tab close*)",
+	"Bash(herdr workspace close*)",
+	"Bash(herdr session stop*)",
+	"Bash(herdr session delete*)",
+	"Bash(herdr worktree remove*)",
+	"Bash(herdr integration install*)",
+	"Bash(herdr integration uninstall*)",
+	"Bash(herdr server stop*)",
+	"Bash(herdr update*)",
 	"Bash(herdr --session*)",
 	"Bash(herdr --machine*)",
 	"Bash(herdr --remote*)",

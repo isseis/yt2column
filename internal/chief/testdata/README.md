@@ -12,7 +12,7 @@
 
 ## 採り方
 
--   **採取用の workspace。** 人が Herdr に使い捨ての workspace を用意し、Claude Code と OpenCode の pane を 1 つずつ起動した。エージェント（PR-1 の `/runplan` のセッション）が、その pane にだけ `herdr agent prompt` で頼んで状態を作り、`herdr agent send-keys` でキー入力を確かめた。
+-   **採取用の workspace。** 人が Herdr に使い捨ての workspace を用意し、Claude Code と OpenCode の pane を 1 つずつ起動した。エージェント（PR-1 の `/runplan` のセッション）が、その pane にだけ `herdr agent prompt` で頼んで状態を作り、`herdr agent send-keys` でキー入力を確かめた。今はリポジトリの `.claude/settings.json` がこの 2 つを拒む（[chief_guide.md](../../../docs/dev/guides/chief_guide.md) §6）。拒否は許可の設定より強いので、採り直すときは、人が採取用の pane で入力し、エージェントは画面を読む `herdr agent read`（拒まれない）だけを使う。
 -   **画面。** `herdr agent read <pane> --format ansi` で読んだ。エージェントが `blocked` の間は `--source recent` を Herdr が拒むので、`--source visible --lines 200` で読んだ（pane に見えている行だけになる）。それ以外は `--source recent --lines 200` で読んだ。
 -   **マージの確認。** 採った日には、どのタスクの workspace にも `/runpr` のマージの質問が出ていなかった。採取用の pane に、`.claude/commands/runpr.md` の step 4 の item 3 と同じ問いの文・選択肢の名前と説明・要約の行の形で問いを出させて採った。問いの部品の形は本物の `/runpr` と同じだが、要約の値（PR #123 など）は作ったものである。
 -   **報告。** `claude-command-report.ansi` と `opencode-runpr-report.txt` は、実際のタスクの workspace に残っていた報告を、読み取りだけで採った。`opencode-runpr-report.txt` は、ANSI の形で採る前に pane が空にされたので、テキストの形だけである。

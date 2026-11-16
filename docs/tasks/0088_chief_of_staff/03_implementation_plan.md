@@ -72,9 +72,10 @@
 
     理由: どれも、実地の確かめで観測した遅れに余裕を持たせた値で、変えるときは定数 1 か所を直す。ADR: なし。
 8.  **`--protocol` の番号は 1 から始める。** `internal/doctestutil/protocol.go:17-22` の道具の一覧に `chief` を足す。今の `fixprguard` のガードは `codexreview` のものでないすべての `--protocol` を数える（`cmd/fixprguard/docs_test.go:380-388`）ので、道具が `fixprguard` の呼び出しと、どの道具の呼び出しにも属さない `--protocol` だけを数えるように直す。ADR: なし。
-9.  **`.claude/settings.json` で拒む herdr の呼び出しを、次の 3 つの組とする（2026-11-12、人が選んだ）。**
+9.  **`.claude/settings.json` で拒む herdr の呼び出しを、次の 4 つの組とする（2026-11-12、人が選んだ。2026-11-16 に閉じる操作の組を足した）。**
     -   pane へ入力を送るか、pane でコマンドを走らせるか、pane の入力の経路を変える操作: `herdr agent prompt`・`herdr agent send-keys`・`herdr agent start`・`herdr agent attach`・`herdr pane send-text`・`herdr pane send-keys`・`herdr pane run`・`herdr pane input`。`agent attach` はエージェントの端末に直接つなぐ操作、`pane input` は pane の入力の振り分けを設定する操作で、どちらも pane に入力を届ける経路になりうる。
     -   エージェントの状態とセッションを Herdr に報告する操作: `herdr pane report-agent`・`herdr pane report-agent-session`・`herdr pane release-agent`。chief は、入力を受け付ける状態、ロックの持ち主、`/clear` の確かめをこれらの値で行うので、偽られると確かめが外れる。
+    -   pane・タブ・workspace・セッション・worktree を閉じるか消す操作、エージェントの連携を変える操作、Herdr を止めるか入れ替える操作: `herdr pane close`・`herdr tab close`・`herdr workspace close`・`herdr session stop`・`herdr session delete`・`herdr worktree remove`・`herdr integration install`・`herdr integration uninstall`・`herdr server stop`・`herdr update`。入力を送らずにタスクの作業を失わせうるためである。引数のない形は今の pane やタブに効くので、規則は空白を置かずに `*` で終える（2026-11-16 に足した。§1.9）。
     -   サブコマンドの前に、別のセッションか別の機械を指す引数を書く形: `herdr --session`・`herdr --machine`・`herdr --remote`（`--remote-keybindings` を含む）で始まるもの。上の規則の前方一致を外せるため。`herdr --help`・`--version`・`--skill`・`--default-config` は読み取りなので拒まない。
 
     読み取りの呼び出し（`list`・`get`・`read`・`api`、`--help` など）は拒まない。ほかのセッションが読むために使うことがあり、送ることも偽ることもできないためである。どれも Herdr 0.9.1 の `herdr --help`・`herdr agent --help`・`herdr pane --help` で確かめた。パスで書いた呼び出しなど、規則の外の書き方は残る危険とする（設計書 5.2 の残る危険のまとめ）。設計書 3.9・5.2 は入力を送る呼び出しだけを挙げており、この決定はそれを人の選択で広げる。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する（リポジトリのすべてのセッションに効く守りの前提であるため）。
@@ -176,6 +177,7 @@
 -   **画面より長い報告を読めないことは、0088 では直さず既知の制限とする（ステップ 7-6）。** Herdr の `agent read` は pane の高さの分の行しか返さないので、`/mkarch`・`/mkplan` の長い報告は始まりが画面の外に出て読めず、PR の詳細は PR の説明から要約され、リセットは `no_report` で行われない。どちらも安全側の失敗である。直し方（報告を transcript から読む）は、画面の読み取りの例外と設計を変えるので、#892 で扱う。手引きの「既知の制限」に書いた。理由: 確かめの途中で読み取りの範囲を広げないため（人と決めた）。ADR: なし。
 -   **Claude Code の pane へ送る前は、transcript の場所を求められることだけを確かめ、ファイルを開けることは確かめない（ステップ 7-6、設計書 3.1.7・1.3.4）。** 実地の確かめで、起動したばかりでまだ何も入力していない Claude Code のセッションには transcript のファイルがなく、chief がその pane へ一度も送れなかった（`no_transcript`）。`/clear` の後の `/model` の確かめは、新しいセッションの transcript を今までどおり読む（`f53f405f`）。場所の規則が変わったときは、`/clear` と `/model` を送った後のこの確かめで止まり、その workspace の送信を止める。理由: 起動したばかりの pane にも送れるようにし、モデルの確かめは保つため（人が、より厳しい確かめを残す案よりこちらを選んだ）。ADR: なし。
 -   **`HERDR_PANE_ID` の pane のエージェントが、道具を呼んだプロセスと同じ worktree で動いていることを確かめ、違えば何もせずに拒む（`pane_mismatch`、`internal/chief/records.go` の `ResolveOwner`）。** 実地の確かめで、Herdr を起動し直した後の chief のセッションが、ほかの pane（`chief-of-staff` の pane）の `HERDR_PANE_ID` を引き継いでいた。chief は自分の workspace を表に出して `chief-of-staff` を除き、ロックの持ち主もその pane として記録したので、前の chief を終えても新しい chief が `lock_held` で拒まれた。理由: chief の workspace に送らないという約束を、環境変数を信じるだけでなく確かめて守るため（人と決めた）。ADR: なし。
+-   **`.claude/settings.json` で拒む herdr の呼び出しに、pane・タブ・workspace・セッション・worktree を閉じるか消す操作、エージェントの連携を変える操作、Herdr を止めるか入れ替える操作を足す（決定 9）。** PR のレビューで、これらは入力を送らずにタスクの作業を失わせうるのに拒まれておらず、chief の pane を auto mode で動かすと確認なしに通りうることが分かった。理由: 信頼できない文の指示に従ったセッションが、タスクの pane を閉じないため（人と決めた）。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
 -   **タスクのない行を「なし」と示し、使っていないか残った worktree の行を表の最後に、その workspace の `/mkreq` の提案を提案の中の最後に並べる（要件 AC-02・AC-03 を変えた）。** 実地の確かめで、使っていない workspace（`chief-poc`）が実際のタスクの行より上に並び、「タスクなし」の 5 文字が表の幅を取ったためである。最後に並べるのは、次のコマンドが `/mkreq` の「次を提案」の行と、HEAD が detached なことだけによる「要確認」の行で、`classify` が `Row.Idle` として宣言する。送信の停止と、その周の自動送信やマージの後の提案は、この印を外す。質問で止まっている行、実行中の行、画面や git を読めずに「要確認」になった行は、タスクがなくてもふつうの順のままとする（`internal/chief/state.go`、`snapshot.go`、`pending.go`、`tick.go`）。初めの広い条件から狭めたことは、人と決めた。理由: 人の判断を待つ行を先に見せるため（人と決めた）。ADR: なし。
 
 ## 2. 実装のステップ (Implementation Steps)
@@ -715,4 +717,5 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 - 2026-11-15 セッション中の再承認：PR を作ったコマンドを `origin/main` の文書が示す次のコマンドから決め、人の最後の入力と名前も引数も照らす（§1.7・4-5）（isseis、#880）
 - 2026-11-15 セッション中の再承認：待ち受けの間は人の判断を待つものを番号つきの一覧で示し、「レビュー省略可」を PR の詳細の控えがあるときに選択肢にも示す（§1.8・7-2・§7）（isseis、#未記入）
 - 2026-11-15 セッション中の再承認：OpenCode の状態の行の区切りが 1 つだけのとき、その後ろをモデルとして読む（§1.8）（isseis、#未記入）
+- 2026-11-16 セッション中の再承認：拒む herdr の呼び出しに、閉じるか消す操作、連携を変える操作、Herdr を止めるか入れ替える操作を足す（決定 9・§1.9）（isseis、#未記入）
 - 2026-11-16 セッション中の再承認：実地の確かめの一部を 0091 の workspace で行い、`※ recap:` を読み飛ばし、長い報告を読めないことを既知の制限とし、`HERDR_PANE_ID` の pane の worktree を確かめ、タスクのない行の示し方と並べ方を変える（§1.9）（isseis、#未記入）

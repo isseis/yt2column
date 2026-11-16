@@ -85,12 +85,13 @@ chief は同時に 1 つだけ動く。別のセッションで動いている c
 
 ## 6. `.claude/settings.json` の拒否
 
-chief のセッションが道具を通さずに入力を送らないよう、リポジトリの `.claude/settings.json` は次の herdr の呼び出しを拒む（ADR-0046）。この拒否は、リポジトリで動くすべての Claude Code のセッションに効く。道具は子のプロセスとして `herdr` を呼ぶので、影響を受けない。
+chief のセッションが道具を通さずに入力を送らず、タスクの作業を壊さないよう、リポジトリの `.claude/settings.json` は次の herdr の呼び出しを拒む（ADR-0046）。この拒否は、リポジトリで動くすべての Claude Code のセッションに効く。道具は子のプロセスとして `herdr` を呼ぶので、影響を受けない。
 
 | 種類 | 拒む呼び出し |
 |---|---|
 | pane へ入力を送るか、pane でコマンドを走らせるか、pane の入力の経路を変える | `herdr agent prompt`・`herdr agent send-keys`・`herdr agent start`・`herdr agent attach`・`herdr pane send-text`・`herdr pane send-keys`・`herdr pane run`・`herdr pane input` |
 | エージェントの状態とセッションを Herdr に報告する | `herdr pane report-agent`・`herdr pane report-agent-session`・`herdr pane release-agent` |
+| pane・タブ・workspace・セッション・worktree を閉じるか消す、エージェントの連携を変える、Herdr を止めるか入れ替える | `herdr pane close`・`herdr tab close`・`herdr workspace close`・`herdr session stop`・`herdr session delete`・`herdr worktree remove`・`herdr integration install`・`herdr integration uninstall`・`herdr server stop`・`herdr update` |
 | サブコマンドの前に、別のセッションか別の機械を指す引数を書く | `herdr --session`・`herdr --machine`・`herdr --remote` で始まるもの |
 
 読み取りの呼び出し（`list`・`get`・`read` など）は拒まない。人がこれらの操作を Claude Code に頼むと拒まれるので、その操作は人が端末で直接行う。画面のサンプルを採り直すときのキー入力も、人が行う。
