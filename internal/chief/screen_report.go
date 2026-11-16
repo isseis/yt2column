@@ -118,17 +118,21 @@ func readNextValue(value string) RunprNext {
 }
 
 // Fixed marks of a Claude Code 2.1.322 screen around a command's final
-// report, as the sample shows them.
+// report, as the samples show them. claudeRecapMark starts the recap Claude
+// Code draws under the done line after the session has been idle for a
+// while (claude-command-report-recap.ansi).
 const (
 	claudeMessageMark = "⏺ "
 	claudeDoneMark    = "✻ "
 	claudeIndent      = "  "
+	claudeRecapMark   = "※ recap: "
 )
 
 // readCommandReport returns the final report of the command that ran in a
 // pane when it names the PR at url, read from the pane's screen. Contract: it
 // reads only the sampled Claude Code shape (the last message, its lines
-// indented under its mark, then the run's done line and the input box) and
+// indented under its mark, then the run's done line, at most one recap, and
+// the input box) and
 // returns false for any other screen; it never reads an OpenCode screen,
 // since no OpenCode report of a command that created a PR was sampled. The
 // report is used to show, to summarize, and to narrow a reset, never to
@@ -160,8 +164,9 @@ func squeeze(texts []string) string {
 
 // claudeLastMessage returns the lines of the last message of a Claude Code
 // screen in the sampled shape: the message under its mark, the run's done
-// line, and the input box, with nothing else between them. Each line has its
-// mark or indent removed.
+// line, at most one recap, and the input box, with nothing else between
+// them. Each line has its mark or indent removed; the recap is not part of
+// the message.
 func claudeLastMessage(raw string) ([]string, bool) {
 	all, err := parseANSIScreen(raw)
 	if err != nil {
@@ -171,12 +176,19 @@ func claudeLastMessage(raw string) ([]string, bool) {
 	if claudePrompt(lines).Kind != ScreenPrompt {
 		return nil, false
 	}
-	top := lastRuleBefore(lines, lastRuleBefore(lines, len(lines)))
+	top := boxTopBefore(lines, lastRuleBefore(lines, len(lines)))
 	done := -1
+	recaps := 0
 	for i := top - 1; i >= 0 && done < 0; i-- {
 		switch text := lines[i].text; {
 		case strings.HasPrefix(text, claudeDoneMark):
 			done = i
+		case strings.HasPrefix(text, claudeRecapMark):
+			// The recap's further lines are indented, as the report's are.
+			recaps++
+			if recaps > 1 {
+				return nil, false
+			}
 		case text != "" && !strings.HasPrefix(text, claudeIndent):
 			return nil, false
 		}

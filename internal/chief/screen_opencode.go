@@ -372,12 +372,23 @@ func openCodePrompt(lines []screenLine) Screen {
 	if !ok {
 		return unmatched
 	}
+	// The model is the text between the first and the last separator, or,
+	// for a model with no reasoning effort and so one separator (as in
+	// opencode-model-no-effort.ansi), all the text after it.
 	firstSep := strings.Index(status, openCodeModelSeparator)
 	lastSep := strings.LastIndex(status, openCodeModelSeparator)
-	if firstSep < 1 || lastSep <= firstSep {
+	if firstSep < 1 {
 		return unmatched
 	}
-	model := status[firstSep+len(openCodeModelSeparator) : lastSep]
+	start := firstSep + len(openCodeModelSeparator)
+	if lastSep == firstSep {
+		lastSep = len(status)
+	}
+	// Separators that overlap or touch leave no model.
+	if lastSep <= start {
+		return unmatched
+	}
+	model := status[start:lastSep]
 	input, ok := openCodeInput(box[1 : len(box)-openCodeBoxPadding])
 	if !ok {
 		return unmatched

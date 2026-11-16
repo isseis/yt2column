@@ -44,6 +44,9 @@ type NextOutput struct {
 	// Command is the command line, such as "/runplan 0088". A /mkreq has no
 	// issue number: the human names it.
 	Command string `json:"command"`
+	// Request is the --command value `chief send` takes to send this
+	// command; a /mkreq is sent with the issue number the human names.
+	Request string `json:"request"`
 	// Sendable is true when the command can be sent with the agent and model
 	// shown; false means Problem says why not.
 	Sendable bool   `json:"sendable"`
@@ -92,9 +95,15 @@ type PendingOutput struct {
 	Proposal  *NextOutput     `json:"proposal"`
 	// Reasons are the conditions of the automatic send that did not hold
 	// for a proposal after a merge.
-	Reasons   []string  `json:"reasons"`
-	FirstSeen time.Time `json:"first_seen"`
-	New       bool      `json:"new"`
+	Reasons []string `json:"reasons"`
+	// ReviewSkippable is set on a review item whose PR detail was gathered
+	// for the current head and judged the review skippable.
+	ReviewSkippable bool      `json:"review_skippable"`
+	FirstSeen       time.Time `json:"first_seen"`
+	New             bool      `json:"new"`
+	// Number is the item's number in this session's lists, kept for the
+	// session and never reused; 0 when none could be given.
+	Number int `json:"number"`
 }
 
 // questionKindName names a question shape for the output.
@@ -127,6 +136,7 @@ func nextOutput(n *Next) *NextOutput {
 	}
 	return &NextOutput{
 		Command:  n.Text,
+		Request:  requestNames[n.Kind],
 		Sendable: n.Command != nil,
 		Agent:    agentLabel(n.Agent),
 		Model:    Sanitize(n.Model),
@@ -197,15 +207,17 @@ func (s Snapshot) Output() SnapshotOutput {
 	}
 	for _, p := range s.Pending {
 		item := PendingOutput{
-			ID:        p.ID,
-			Kind:      p.Kind.String(),
-			Workspace: p.Workspace,
-			Label:     Sanitize(p.Label),
-			PR:        prOutput(p.PR),
-			Proposal:  nextOutput(p.Proposal),
-			Reasons:   sanitizeAll(p.Reasons),
-			FirstSeen: p.FirstSeen,
-			New:       p.New,
+			ID:              p.ID,
+			Kind:            p.Kind.String(),
+			Workspace:       p.Workspace,
+			Label:           Sanitize(p.Label),
+			PR:              prOutput(p.PR),
+			Proposal:        nextOutput(p.Proposal),
+			Reasons:         sanitizeAll(p.Reasons),
+			ReviewSkippable: p.ReviewSkippable,
+			FirstSeen:       p.FirstSeen,
+			Number:          p.Number,
+			New:             p.New,
 		}
 		if p.Question != nil {
 			q := questionOutput(*p.Question)

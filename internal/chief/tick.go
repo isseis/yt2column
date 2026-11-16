@@ -74,7 +74,8 @@ func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 // applyAutoSends updates the rows of the workspaces an automatic send went
 // to, read before it, and returns the proposals of the PRs not sent. A row
 // sent to is running what was sent; a row whose send failed after an input
-// needs a check, since its workspace is stopped.
+// needs a check, since its workspace is stopped. No row an automatic send
+// concerns stays idle.
 func applyAutoSends(view *roundView, results []AutoSendResult) []PendingItem {
 	var extra []PendingItem
 	for _, r := range results {
@@ -83,6 +84,11 @@ func applyAutoSends(view *roundView, results []AutoSendResult) []PendingItem {
 			sent = &r.Actions[0]
 		}
 		row := rowAt(view.rows, r.Workspace)
+		if row != nil {
+			// An automatic send or its proposal is something to look at, so
+			// the workspace is no longer idle.
+			row.Idle = false
+		}
 		switch {
 		case sent != nil && sent.Outcome == OutcomeSent && row != nil:
 			row.State, row.Next, row.Takeover, row.Unreadable = StateRunning, nil, nil, nil

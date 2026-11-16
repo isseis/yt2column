@@ -326,3 +326,60 @@ func TestDetailMarksCappedCommits(t *testing.T) {
 		}
 	}
 }
+
+// TestReviewItemShowsKeptSkippable checks that a review item is marked
+// review-skippable only from a detail kept for the worktree's HEAD that
+// judged it so: not before a detail is gathered, not from a detail that
+// judged it not skippable, and not after HEAD moves on.
+func TestReviewItemShowsKeptSkippable(t *testing.T) {
+	plan := "docs/tasks/" + taskDir + "/" + planFile
+	file := func(path string) any {
+		return map[string]any{"path": path, "additions": 1, "deletions": 0, "changeType": "MODIFIED"}
+	}
+	for _, tc := range []struct {
+		name  string
+		files []any
+		want  bool
+	}{
+		{"the plan alone", []any{file(plan)}, true},
+		// A kept detail that judged the review not skippable never marks it.
+		{"the plan and code", []any{file(plan), file("cmd/chief/main.go")}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sw, tree := detailWorld(t)
+			sw.rec.replyIn(tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", func(v map[string]any) {
+				v["files"], v["changedFiles"] = tc.files, len(tc.files)
+			}))
+			deps := sw.finish()
+			skippable := func() bool {
+				t.Helper()
+				snap, err := TakeSnapshot(context.Background(), deps, sw.owner())
+				if err != nil {
+					t.Fatal(err)
+				}
+				out := snap.Output()
+				if len(out.Pending) != 1 || out.Pending[0].Kind != "review" {
+					t.Fatalf("pending = %+v, want one review item", out.Pending)
+				}
+				// The one item keeps the session's first number in every round.
+				if out.Pending[0].Number != 1 {
+					t.Errorf("the review item's number is %d, want 1", out.Pending[0].Number)
+				}
+				return out.Pending[0].ReviewSkippable
+			}
+			if skippable() {
+				t.Error("the review item is skippable before any detail was gathered")
+			}
+			if d := detailOf(t, deps, tree); d.ReviewSkippable != tc.want {
+				t.Fatalf("detail = %+v, want review skippable %v", d, tc.want)
+			}
+			if got := skippable(); got != tc.want {
+				t.Errorf("the review item's skippable = %v after its detail, want %v", got, tc.want)
+			}
+			sw.git(tree, "rev-parse HEAD", strings.Repeat("f", 40)+"\n")
+			if skippable() {
+				t.Error("the review item is skippable from a detail of another HEAD")
+			}
+		})
+	}
+}

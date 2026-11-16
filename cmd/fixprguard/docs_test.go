@@ -375,21 +375,22 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 }
 
 // fixprguardProtocolMismatches returns the --protocol flags of doc that this
-// guard checks, every one doctestutil.ProtocolFlags does not give to
-// codexreview, whose value is not Protocol.
+// guard checks, every one doctestutil.ProtocolFlags gives to fixprguard or to
+// no tool, whose value is not Protocol. Another tool's flags are its own
+// guard's.
 func fixprguardProtocolMismatches(doc string) []string {
 	var mismatches []string
 	for _, f := range doctestutil.ProtocolFlags(doc) {
-		if f.Tool != doctestutil.ToolCodexreview && f.Value != strconv.Itoa(fixprguard.Protocol) {
+		if (f.Tool == doctestutil.ToolFixprguard || f.Tool == "") && f.Value != strconv.Itoa(fixprguard.Protocol) {
 			mismatches = append(mismatches, f.Text)
 		}
 	}
 	return mismatches
 }
 
-// TestFixprguardProtocolMismatches: the check skips codexreview's flags
+// TestFixprguardProtocolMismatches: the check skips the other tools' flags
 // only, so a wrong number in a fixprguard call, or in prose naming no tool,
-// is still found next to a codexreview call.
+// is still found next to a codexreview or a chief call.
 func TestFixprguardProtocolMismatches(t *testing.T) {
 	const sha = "0123456789abcdef0123456789abcdef01234567"
 	right := strconv.Itoa(fixprguard.Protocol)
@@ -401,6 +402,8 @@ func TestFixprguardProtocolMismatches(t *testing.T) {
 	}{
 		{"codexreview_call_skipped", "codexreview --protocol " + wrong + " --base " + sha + "\n", nil},
 		{"wrong_fixprguard_call_after_codexreview", "codexreview --protocol " + wrong + " --base " + sha + " && fixprguard head --protocol " + wrong + "\n", []string{"--protocol " + wrong}},
+		{"chief_call_skipped", "chief snapshot --protocol " + wrong + "\n", nil},
+		{"wrong_fixprguard_call_after_chief", "chief snapshot --protocol " + wrong + " && fixprguard head --protocol " + wrong + "\n", []string{"--protocol " + wrong}},
 		{"wrong_number_in_prose", "pass `--protocol=" + wrong + "`\n", []string{"--protocol=" + wrong}},
 		{"right_number", "fixprguard head --protocol " + right + "\n", nil},
 	} {

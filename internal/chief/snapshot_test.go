@@ -5,12 +5,14 @@ package chief
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
+	"github.com/isseis/yt2column/internal/privatefile"
 )
 
 const (
@@ -329,11 +331,12 @@ func TestTakeoverProposal(t *testing.T) {
 }
 
 // TestTakeSnapshotOrder checks the row order and the pending order across
-// kinds and waiting time.
+// kinds and waiting time, and that items first seen in one round get their
+// numbers in that order.
 func TestTakeSnapshotOrder(t *testing.T) {
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "running", Branch: taskBranch, Status: "working"})
-	w.add(fakeWorkspace{ID: "w2", Label: "proposal", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w2", Label: "proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
 	w.add(fakeWorkspace{ID: "w3", Label: "review", Branch: taskBranch, PRs: openPRJSON})
 	w.add(fakeWorkspace{ID: "w4", Label: "question", Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
 	snap := take(t, w)
@@ -351,9 +354,13 @@ func TestTakeSnapshotOrder(t *testing.T) {
 	if want := []PendingKind{PendingQuestion, PendingReview, PendingProposal}; !slices.Equal(kinds, want) {
 		t.Errorf("pending kinds = %v, want %v", kinds, want)
 	}
-	for _, p := range snap.Pending {
+	for i, p := range snap.Pending {
 		if !p.New {
 			t.Errorf("first sighting of %v is not new", p.Kind)
+		}
+		// Items first seen together are numbered in the order they list.
+		if p.Number != i+1 {
+			t.Errorf("item %d (%v) has number %d, want %d", i, p.Kind, p.Number, i+1)
 		}
 	}
 	again := take(t, w)
@@ -452,28 +459,67 @@ func TestFetchUsesItsOwnTimeLimit(t *testing.T) {
 }
 
 // TestRowOrderRules checks the order of rows by state, by waiting time inside
-// one state, and plain questions before merge confirmations.
+// one state, and plain questions before merge confirmations; a workspace with
+// no task that waits on nothing (a /mkreq proposal, a detached HEAD) lists
+// after every other row, while one with no task that asks a question, or
+// whose pane is blocked on a screen of no known shape, does not; the idle
+// workspace's /mkreq proposal lists after the other proposal.
 func TestRowOrderRules(t *testing.T) {
 	w := newWorld(t)
 	// The earlier sighting has the later path, so only the waiting time puts it first.
 	w.add(fakeWorkspace{ID: "w9", Label: "review-old", Branch: taskBranch, PRs: openPRJSON})
 	w.add(fakeWorkspace{ID: "w5", Label: "needs-check", Branch: taskBranch})
+	w.add(fakeWorkspace{ID: "wa", Label: "no-task-blocked", Branch: "main", Status: "blocked", Screen: "claude-idle.ansi"})
 	w.add(fakeWorkspace{ID: "w6", Label: "done", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")}})
 	w.add(fakeWorkspace{ID: "w4", Label: "running", Branch: taskBranch, Status: "working"})
-	w.add(fakeWorkspace{ID: "w3", Label: "proposal", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w3", Label: "proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
+	w.add(fakeWorkspace{ID: "w0", Label: "idle-mkreq", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w2", Label: "idle-detached", Branch: detachedHead})
 	w.add(fakeWorkspace{ID: "w7", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
 	take(t, w)
 	w.now = w.now.Add(time.Hour)
 	w.add(fakeWorkspace{ID: "w1", Label: "review-new", Branch: taskBranch, PRs: openPRJSON})
-	w.add(fakeWorkspace{ID: "w8", Label: "question", Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
+	w.add(fakeWorkspace{ID: "w8", Label: "question", Branch: "main", Status: "blocked", Screen: "claude-question-single.ansi"})
 	snap := take(t, w)
 	var labels []string
 	for _, r := range snap.Rows {
 		labels = append(labels, r.Label)
 	}
-	want := []string{"question", "merge", "review-old", "review-new", "proposal", "needs-check", "running", "done"}
+	want := []string{"question", "merge", "review-old", "review-new", "proposal", "needs-check", "no-task-blocked", "running", "done", "idle-mkreq", "idle-detached"}
 	if !slices.Equal(labels, want) {
 		t.Errorf("row order = %v, want %v", labels, want)
+	}
+	// Both proposals were first seen together and the idle one has the
+	// lower path, so only the idle rank lists it after the other.
+	var proposals []string
+	for _, p := range snap.Pending {
+		if p.Kind == PendingProposal {
+			proposals = append(proposals, p.Label)
+		}
+	}
+	if want := []string{"proposal", "idle-mkreq"}; !slices.Equal(proposals, want) {
+		t.Errorf("proposal order = %v, want %v", proposals, want)
+	}
+}
+
+// TestDetachedRowIdleOnlyWhenEverythingWasRead checks that a row whose only
+// problem is a detached HEAD is idle, and is not when the fetch of
+// origin/main failed too.
+func TestDetachedRowIdleOnlyWhenEverythingWasRead(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		fetchFailed bool
+		want        bool
+	}{
+		{"fetched", false, true},
+		{"fetch failed", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := classify(workspaceFacts{Head: headDetached, FetchFailed: tc.fetchFailed})
+			if r.State != StateNeedsCheck || r.Idle != tc.want {
+				t.Errorf("row = %+v, want needs check with Idle %v", r, tc.want)
+			}
+		})
 	}
 }
 
@@ -529,4 +575,75 @@ func TestRunningRowShowsTheLastSend(t *testing.T) {
 	if len(snap.Problems) != 0 {
 		t.Errorf("problems = %v", snap.Problems)
 	}
+}
+
+// TestIdleClearedByWhatTheHumanMustSee checks that an idle row stops being
+// idle when its workspace gets something to look at after classify: each
+// outcome of an automatic send, its proposal, and a stop of the workspace.
+// A stopped row then lists before a running row instead of after it.
+func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
+	proposal := &Next{Kind: TaskNextRunplan, Text: "/runplan 0001"}
+	for _, tc := range []struct {
+		name   string
+		result AutoSendResult
+	}{
+		{"sent", AutoSendResult{Workspace: "/idle", Actions: []ActionResult{{Input: InputCommand, Outcome: OutcomeSent}}}},
+		{"sent then failed", AutoSendResult{Workspace: "/idle", Actions: []ActionResult{{Input: InputCommand, Outcome: OutcomeSentThenFailed}}}},
+		{"a proposal", AutoSendResult{Workspace: "/idle", Proposal: proposal}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			view := roundView{rows: []Row{
+				{Workspace: "/idle", State: StateNeedsCheck, Idle: true},
+				{Workspace: "/busy", Task: "0002", State: StateRunning},
+			}}
+			applyAutoSends(&view, []AutoSendResult{tc.result})
+			if view.rows[0].Idle {
+				t.Fatalf("row after %s is still idle", tc.name)
+			}
+		})
+	}
+	t.Run("a stop that cannot be read", func(t *testing.T) {
+		w := newWorld(t)
+		tree := w.add(fakeWorkspace{ID: "w1", Label: "unread", Branch: "main"})
+		dir, err := w.store.WorkspaceDir(Worktree{path: tree})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := privatefile.Create(filepath.Join(dir, stopFile), []byte("not json")); err != nil {
+			t.Fatal(err)
+		}
+		snap, err := TakeSnapshot(context.Background(), w.finish(), w.owner())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if row := rowOf(t, snap, "unread"); row.Idle {
+			t.Errorf("row with an unreadable stop = %+v, want not idle", row)
+		}
+	})
+	t.Run("a stop", func(t *testing.T) {
+		w := newWorld(t)
+		tree := w.add(fakeWorkspace{ID: "w1", Label: "stopped", Branch: "main"})
+		records, err := w.store.Records(Worktree{path: tree})
+		if err != nil {
+			t.Fatal(err)
+		}
+		held, err := records.Lock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := held.Stop("why", "", "", w.now); err != nil {
+			t.Fatal(err)
+		}
+		if err := held.Close(); err != nil {
+			t.Fatal(err)
+		}
+		w.add(fakeWorkspace{ID: "w2", Label: "running", Branch: taskBranch, Status: "working"})
+		snap := take(t, w)
+		if row := rowOf(t, snap, "stopped"); row.Idle {
+			t.Errorf("stopped row = %+v, want not idle", row)
+		}
+		if last := snap.Rows[len(snap.Rows)-1]; last.Label != "running" {
+			t.Errorf("last row = %s, want the running row after the stopped one", last.Label)
+		}
+	})
 }

@@ -5,7 +5,6 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -42,11 +41,12 @@ var bashRule = regexp.MustCompile(`^Bash\((.*)\)$`)
 
 // launchFree are the only command words a Bash rule of the settings may
 // allow. Each was checked not to run a command it is given: coderabbit runs
-// a review, and codexreview runs codex only with its fixed arguments. A rule
+// a review, codexreview runs codex only with its fixed arguments, and chief
+// runs only herdr, git, and gh with arguments it builds, never codex. A rule
 // for any other word may run codex unprompted (a wrapper such as env, a
 // shell, an interpreter, a wildcard that matches one of them), so adding one
 // means checking the command and naming it here.
-var launchFree = set("coderabbit", "codexreview")
+var launchFree = set("coderabbit", "codexreview", "chief")
 
 // mayBypassTool reports whether a permission rule may let codex run without the
 // approval prompt: a Bash rule whose command word is not one of launchFree,
@@ -104,7 +104,7 @@ func TestSettingsAllowsTool(t *testing.T) {
 func isSetMember(m map[string]struct{}, key string) bool { _, ok := m[key]; return ok }
 
 // TestMayBypassTool: the rules that may let codex run without the tool are
-// found, and the two existing Bash rules are not.
+// found, and the existing Bash rules are not.
 func TestMayBypassTool(t *testing.T) {
 	for _, tc := range []struct {
 		rule string
@@ -125,6 +125,9 @@ func TestMayBypassTool(t *testing.T) {
 		// git runs a command through an alias starting with "!".
 		{"Bash(git status*)", true},
 		{"Bash(codexreview *)", false},
+		{"Bash(chief *)", false},
+		// A word that starts with the name is another command.
+		{"Bash(chiefx *)", true},
 		{"Bash(coderabbit review *)", false},
 		{"Read(codex)", false},
 	} {
@@ -173,42 +176,6 @@ var placeholder = regexp.MustCompile(`<[A-Za-z_]+>`)
 // placeholderSHA is the full commit ID a placeholder stands for in a call.
 const placeholderSHA = "0123456789abcdef0123456789abcdef01234567"
 
-// invocation is one call of the tool a document writes as a command.
-type invocation struct {
-	// lead is the words of the command before the tool's word.
-	lead []string
-	// word is the tool's word as written: its name, a path, or quoted.
-	word string
-	// args is the words after the tool's word, up to the end of its command.
-	args []string
-	// joined reports that the command is one of several in its text (after
-	// cd x && or before a pipe), which the Bash tool runs as one call.
-	joined bool
-}
-
-// invocations returns each call of tool that doc writes as a command
-// (commandTexts): a command (doctestutil.CommandBoundary) holding a word that
-// is the tool by name or path.
-func invocations(doc, tool string) []invocation {
-	var calls []invocation
-	for _, text := range commandTexts(doc) {
-		commands := doctestutil.CommandBoundary.Split(text, -1)
-		for _, command := range commands {
-			words := strings.Fields(command)
-			i := slices.IndexFunc(words, func(w string) bool { return path.Base(strings.Trim(w, `"'`)) == tool })
-			if i < 0 {
-				continue
-			}
-			call := invocation{word: words[i], args: words[i+1:], joined: len(commands) > 1}
-			if i > 0 {
-				call.lead = words[:i]
-			}
-			calls = append(calls, call)
-		}
-	}
-	return calls
-}
-
 // TestInvocations: a call is found in a code block and in a code span, by
 // name or path, after a separator or a prefix, and a word that only contains
 // the name is not a call.
@@ -216,32 +183,24 @@ func TestInvocations(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		doc  string
-		want []invocation
+		want []doctestutil.Invocation
 	}{
-		{"block", "```bash\ncodexreview --protocol 1 --base <BASE_SHA>\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1", "--base", "<BASE_SHA>"}, false}}},
-		{"span", "Run `codexreview --base x --protocol 1` once.\n", []invocation{{nil, "codexreview", []string{"--base", "x", "--protocol", "1"}, false}}},
-		{"after_separator", "```bash\ncd x && codexreview --protocol 1\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1"}, true}}},
-		{"before_pipe", "```bash\ncodexreview --protocol 1 | jq .kind\n```\n", []invocation{{nil, "codexreview", []string{"--protocol", "1"}, true}}},
-		{"by_path", "```bash\n~/go/bin/codexreview --protocol 1\n```\n", []invocation{{nil, "~/go/bin/codexreview", []string{"--protocol", "1"}, false}}},
-		{"quoted", "```bash\n\"codexreview\" --protocol 1\n```\n", []invocation{{nil, `"codexreview"`, []string{"--protocol", "1"}, false}}},
-		{"after_prefix", "```bash\ntimeout 600 codexreview --protocol 1\n```\n", []invocation{{[]string{"timeout", "600"}, "codexreview", []string{"--protocol", "1"}, false}}},
+		{"block", "```bash\ncodexreview --protocol 1 --base <BASE_SHA>\n```\n", []doctestutil.Invocation{{Word: "codexreview", Args: []string{"--protocol", "1", "--base", "<BASE_SHA>"}}}},
+		{"span", "Run `codexreview --base x --protocol 1` once.\n", []doctestutil.Invocation{{Word: "codexreview", Args: []string{"--base", "x", "--protocol", "1"}}}},
+		{"after_separator", "```bash\ncd x && codexreview --protocol 1\n```\n", []doctestutil.Invocation{{Word: "codexreview", Args: []string{"--protocol", "1"}, Joined: true}}},
+		{"before_pipe", "```bash\ncodexreview --protocol 1 | jq .kind\n```\n", []doctestutil.Invocation{{Word: "codexreview", Args: []string{"--protocol", "1"}, Joined: true}}},
+		{"by_path", "```bash\n~/go/bin/codexreview --protocol 1\n```\n", []doctestutil.Invocation{{Word: "~/go/bin/codexreview", Args: []string{"--protocol", "1"}}}},
+		{"quoted", "```bash\n\"codexreview\" --protocol 1\n```\n", []doctestutil.Invocation{{Word: `"codexreview"`, Args: []string{"--protocol", "1"}}}},
+		{"after_prefix", "```bash\ntimeout 600 codexreview --protocol 1\n```\n", []doctestutil.Invocation{{Lead: []string{"timeout", "600"}, Word: "codexreview", Args: []string{"--protocol", "1"}}}},
 		{"install_target", "Run `make install-codexreview` first.\n", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := invocations(tc.doc, "codexreview")
+			got := doctestutil.Invocations(tc.doc, "codexreview")
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("invocations = %+v, want %+v", got, tc.want)
 			}
 		})
 	}
-}
-
-// promptFree reports whether call is written in the one form the permission
-// rule Bash(<tool> *) allows without the prompt: the tool's bare name first
-// in its command, with nothing before it, and no other command in the same
-// text.
-func promptFree(call invocation, tool string) bool {
-	return len(call.lead) == 0 && call.word == tool && !call.joined
 }
 
 // TestDocumentedInvocationsParse: every call of the tool in the command
@@ -253,14 +212,14 @@ func promptFree(call invocation, tool string) bool {
 // or a command boundary. The shared procedure must hold a call: a procedure
 // that lost its call would pass every check of the calls.
 func TestDocumentedInvocationsParse(t *testing.T) {
-	if len(invocations(readRepoFile(t, procedurePath), toolName(t))) == 0 {
+	if len(doctestutil.Invocations(readRepoFile(t, procedurePath), toolName(t))) == 0 {
 		t.Errorf("%s writes no %s call", procedurePath, toolName(t))
 	}
 	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
-		for _, call := range invocations(readRepoFile(t, rel), toolName(t)) {
-			args := call.args
-			if !promptFree(call, toolName(t)) {
-				t.Errorf("%s: %q %s %q is not the bare tool name alone in its command", rel, call.lead, call.word, call.args)
+		for _, call := range doctestutil.Invocations(readRepoFile(t, rel), toolName(t)) {
+			args := call.Args
+			if !doctestutil.PromptFree(call, toolName(t)) {
+				t.Errorf("%s: %q %s %q is not the bare tool name alone in its command", rel, call.Lead, call.Word, call.Args)
 			}
 			filled := make([]string, len(args))
 			for i, arg := range args {
@@ -398,40 +357,6 @@ func TestCodexreviewProtocolMismatches(t *testing.T) {
 	}
 }
 
-var (
-	// assignment is a variable assignment before a command word.
-	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
-	// redirection is a redirection word, which may come before a command.
-	redirection = regexp.MustCompile(`^[0-9]*[<>]`)
-	// shellScriptFlag is a shell option cluster that holds -c, such as -lc.
-	shellScriptFlag = regexp.MustCompile(`^-[A-Za-z]*c[A-Za-z]*$`)
-	// optionValue is a number or a duration, the value an option such as
-	// xargs -n or timeout takes before the command.
-	optionValue = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?[smhd]?$`)
-	// codeSpan matches one inline code span.
-	codeSpan = regexp.MustCompile("`([^`\n]+)`")
-	// quoteMarker is the blockquote marker of a line inside an agent prompt.
-	quoteMarker = regexp.MustCompile(`^\s*(>\s?)+`)
-)
-
-var (
-	// wrappers run the command named by their first argument that is not an
-	// option or an option's value; each maps to its options that take the
-	// next word as their value (env -u NAME, xargs -I REPLACE, timeout -k
-	// DURATION).
-	wrappers = map[string]map[string]struct{}{
-		"env": set("-u", "-C", "-P"), "xargs": set("-I", "-n", "-P", "-L", "-s", "-E", "-d"),
-		"timeout": set("-k", "-s"), "gtimeout": set("-k", "-s"), "nice": set("-n"),
-		"sudo": set("-u", "-g", "-C", "-h", "-p"), "exec": set("-a"),
-		"command": nil, "builtin": nil, "time": nil, "nohup": nil, "stdbuf": nil, "caffeinate": nil,
-		"npx": nil, "bunx": nil, "pnpx": nil, "pnpm": nil, "dlx": nil,
-	}
-	// shells run the script given after -c.
-	shells = set("sh", "bash", "zsh", "dash")
-	// reservedWords may come before a command at a command position.
-	reservedWords = set("if", "then", "else", "elif", "while", "until", "do", "!")
-)
-
 func set(words ...string) map[string]struct{} {
 	m := make(map[string]struct{}, len(words))
 	for _, w := range words {
@@ -440,112 +365,8 @@ func set(words ...string) map[string]struct{} {
 	return m
 }
 
-func isWrapper(name string) bool { _, ok := wrappers[name]; return ok }
-func isShell(name string) bool   { _, ok := shells[name]; return ok }
-
-// runsCodex reports whether text, a code block line or a command written as
-// a code span, has codex at a command position: the start of a command,
-// after a separator (doctestutil.CommandBoundary), after the reserved words,
-// variable assignments, and redirections that may precede a command, or as
-// the command a wrapper, env -S's split string, or a shell's -c script
-// runs. codex counts by name, by path (/opt/homebrew/bin/codex, ./codex,
-// @openai/codex), quoted, escaped with a backslash, or opening a group. The
-// list of wrappers and of options with a value is not complete; the
-// permission prompt stops a form it misses.
-func runsCodex(text string) bool {
-	for _, command := range doctestutil.CommandBoundary.Split(text, -1) {
-		if commandRunsCodex(strings.Fields(command)) {
-			return true
-		}
-	}
-	return false
-}
-
-// commandRunsCodex reports whether the command made of words runs codex.
-func commandRunsCodex(words []string) bool {
-	for i := 0; i < len(words); i++ {
-		word := strings.TrimLeft(strings.Trim(words[i], `"'`), `({\`)
-		word = strings.TrimRight(strings.Trim(word, `"'`), `)};`)
-		name := path.Base(word)
-		switch {
-		case word == "", isSetMember(reservedWords, word), assignment.MatchString(word), redirection.MatchString(word):
-		case isWrapper(name):
-			valued := wrappers[name]
-			for i+1 < len(words) && (strings.HasPrefix(words[i+1], "-") || optionValue.MatchString(words[i+1])) {
-				if split, ok := envSplitString(name, words[i+1]); ok {
-					// The split string is env's own arguments, so read it
-					// and the words after it as one env command.
-					rest := slices.Concat([]string{"env"}, strings.Fields(strings.Trim(split, `"'`)), words[i+2:])
-					return commandRunsCodex(rest)
-				}
-				if isSetMember(valued, words[i+1]) {
-					i++
-				}
-				i++
-			}
-		case isShell(name):
-			j := slices.IndexFunc(words[i+1:], shellScriptFlag.MatchString)
-			if j < 0 {
-				return false
-			}
-			script := strings.Join(words[i+2+j:], " ")
-			return runsCodex(strings.Trim(script, `"'`))
-		default:
-			return name == "codex"
-		}
-	}
-	return false
-}
-
-// envSplitString reports whether opt is env's -S (alone, in an option
-// cluster such as -iS, or as --split-string), and returns the part of its
-// value written in opt; the rest of the value is the words after opt.
-func envSplitString(wrapper, opt string) (string, bool) {
-	if wrapper != "env" {
-		return "", false
-	}
-	if v, ok := strings.CutPrefix(opt, "--split-string"); ok && (v == "" || v[0] == '=') {
-		return strings.TrimPrefix(v, "="), true
-	}
-	if !strings.HasPrefix(opt, "-") || strings.HasPrefix(opt, "--") {
-		return "", false
-	}
-	for j, c := range opt[1:] {
-		switch {
-		case c == 'S':
-			return opt[j+2:], true
-		case isSetMember(wrappers["env"], "-"+string(c)):
-			return "", false
-		}
-	}
-	return "", false
-}
-
-// commandTexts returns the texts of doc that are written as commands: each
-// line of a fenced code block, and each code span outside the blocks that
-// holds an argument after a space. Blockquote markers are dropped first, so
-// the blocks of an agent prompt are read too.
-func commandTexts(doc string) []string {
-	var lines []string
-	for line := range strings.Lines(doc) {
-		lines = append(lines, quoteMarker.ReplaceAllString(line, ""))
-	}
-	var texts []string
-	for _, line := range doctestutil.ScanDocLines(lines) {
-		switch {
-		case line.Fence:
-		case line.Block:
-			texts = append(texts, line.Text)
-		default:
-			for _, m := range codeSpan.FindAllStringSubmatch(line.Text, -1) {
-				if strings.Contains(strings.TrimSpace(m[1]), " ") {
-					texts = append(texts, m[1])
-				}
-			}
-		}
-	}
-	return texts
-}
+// runsCodex reports whether text runs codex (doctestutil.RunsCommand).
+func runsCodex(text string) bool { return doctestutil.RunsCommand(text, "codex") }
 
 // TestNoDirectCodexInvocation: no command document writes codex as a
 // command to run, so every run of Codex CLI goes through the tool and its
@@ -553,7 +374,7 @@ func commandTexts(doc string) []string {
 // names it in prose as Codex CLI.
 func TestNoDirectCodexInvocation(t *testing.T) {
 	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
-		for _, text := range commandTexts(readRepoFile(t, rel)) {
+		for _, text := range doctestutil.CommandTexts(readRepoFile(t, rel)) {
 			if runsCodex(text) {
 				t.Errorf("%s runs codex directly: %q", rel, text)
 			}
@@ -594,6 +415,18 @@ func TestRunsCodex(t *testing.T) {
 		{"env_unset_cluster_holds_s", "```bash\nenv -uScodex echo\n```\n", false},
 		{"assignment", "```bash\nFOO=1 codex review\n```\n", true},
 		{"redirection", "```bash\n2>/dev/null codex review\n```\n", true},
+		// A redirection written as its own word takes the next word as its
+		// target, so the command after them is the one that runs.
+		{"redirection_word", "```bash\n> /tmp/log codex review\n```\n", true},
+		{"redirection_append_word", "```bash\n2>> /tmp/log codex review\n```\n", true},
+		{"redirection_both", "```bash\n&>/tmp/log codex review\n```\n", true},
+		{"redirection_both_word", "```bash\n&> /tmp/log codex review\n```\n", true},
+		{"redirection_both_append_word", "```bash\n&>> /tmp/log codex review\n```\n", true},
+		{"heredoc_word", "```bash\n<< EOF codex review\n```\n", true},
+		{"heredoc", "```bash\n<<EOF codex review\n```\n", true},
+		{"herestring_word", "```bash\n<<< input codex review\n```\n", true},
+		// The target is consumed, so a word after it is the command.
+		{"redirection_target_named_codex", "```bash\n> codex echo x\n```\n", false},
 		{"exec", "```bash\nexec codex review\n```\n", true},
 		{"command", "```bash\ncommand codex review\n```\n", true},
 		{"xargs", "```bash\nprintf x | xargs -n 1 codex review\n```\n", true},
@@ -623,6 +456,9 @@ func TestRunsCodex(t *testing.T) {
 		{"bunx", "```bash\nbunx @openai/codex review\n```\n", true},
 		{"pnpm_dlx", "```bash\npnpm dlx @openai/codex review\n```\n", true},
 		{"blockquoted_block", "> ```bash\n> codex review\n> ```\n", true},
+		// In a block that is not quoted, a leading '>' is a redirection.
+		{"block_line_starts_with_redirection", "```bash\n> /tmp/log codex review\n```\n", true},
+		{"blockquoted_block_redirection", "> ```bash\n> > /tmp/log codex review\n> ```\n", true},
 		{"code_span", "Run `codex exec review --base <BASE>` once.\n", true},
 		{"other_language_block", "```text\ncodex exec review --base <BASE>\n```\n", true},
 		// A block line that starts with the quoted word is read as a command,
@@ -641,9 +477,9 @@ func TestRunsCodex(t *testing.T) {
 		{"prose_without_span", "Codex CLI runs codex exec review.\n", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := slices.ContainsFunc(commandTexts(tc.doc), runsCodex)
+			got := slices.ContainsFunc(doctestutil.CommandTexts(tc.doc), runsCodex)
 			if got != tc.want {
-				t.Errorf("runs codex = %v, want %v (texts %q)", got, tc.want, commandTexts(tc.doc))
+				t.Errorf("runs codex = %v, want %v (texts %q)", got, tc.want, doctestutil.CommandTexts(tc.doc))
 			}
 		})
 	}

@@ -59,11 +59,18 @@ type PendingItem struct {
 	// Reasons are why a proposal was not sent by itself after a merge: the
 	// conditions of the automatic send that did not hold.
 	Reasons []string
+	// ReviewSkippable marks a review item whose PR detail, kept for the
+	// worktree's HEAD, judged the review skippable.
+	ReviewSkippable bool
 	// FirstSeen is when chief first found the item in this session; the
 	// time of the observation when no record could be made.
 	FirstSeen time.Time
 	// New is true when the item was not announced before in this session.
 	New bool
+	// Number is the item's number in this session's lists: given when the
+	// item is first seen and kept, never given to another item; 0 when none
+	// could be given.
+	Number int
 }
 
 // itemID builds an opaque identity from parts. The parts are joined with a
@@ -84,7 +91,9 @@ func questionID(workspace string, q Question) ItemID {
 
 // buildPending lists the items waiting on the human in rows: a question or a
 // merge confirmation for each distinct question, a review item for each open
-// PR, and a proposal for each next command or takeover that can be sent.
+// PR, and a proposal for each next command or takeover, including one that
+// cannot be sent as it is: a /mkreq waits for the human's issue number, and
+// any other says why in its Problem.
 // Times are not set. Contract: a needs-check row yields no item.
 func buildPending(rows []Row) []PendingItem {
 	var items []PendingItem
@@ -109,7 +118,7 @@ func buildPending(rows []Row) []PendingItem {
 			}
 		case StateAwaitingReview:
 			if r.PR != nil {
-				add(PendingItem{ID: itemID("review", r.Workspace, strconv.Itoa(r.PR.Number)), Kind: PendingReview, Workspace: r.Workspace, Label: r.Label, PR: r.PR})
+				add(PendingItem{ID: itemID("review", r.Workspace, strconv.Itoa(r.PR.Number)), Kind: PendingReview, Workspace: r.Workspace, Label: r.Label, PR: r.PR, ReviewSkippable: r.ReviewSkippable})
 			}
 		case StateProposeNext:
 			for _, n := range []*Next{r.Next, r.Takeover} {
@@ -160,13 +169,21 @@ var kindOrder = []PendingKind{PendingQuestion, PendingMergeConfirmation, Pending
 // nameQuestion names the question state and kind in the output.
 const nameQuestion = "question"
 
-// sortPending orders items by kind and then by how long they have waited,
-// longest first; ties keep a fixed order (workspace, then ID) so a listing
+// sortPending orders items by kind, then the items of other workspaces
+// before those of idle ones (Row.Idle), then by how long they have
+// waited, longest first; ties keep a fixed order (workspace, then ID) so a listing
 // does not shuffle between two reads of the same state.
-func sortPending(items []PendingItem) {
+func sortPending(items []PendingItem, idle map[string]struct{}) {
+	rank := func(p PendingItem) int {
+		if _, ok := idle[p.Workspace]; ok {
+			return 1
+		}
+		return 0
+	}
 	slices.SortStableFunc(items, func(a, b PendingItem) int {
 		return cmp.Or(
 			cmp.Compare(kindRank(a.Kind), kindRank(b.Kind)),
+			cmp.Compare(rank(a), rank(b)),
 			a.FirstSeen.Compare(b.FirstSeen),
 			strings.Compare(a.Workspace, b.Workspace),
 			strings.Compare(string(a.ID), string(b.ID)),
@@ -186,6 +203,10 @@ func stampPending(store Store, session string, items []PendingItem, now time.Tim
 		items[i].FirstSeen = first
 		items[i].New = isNew
 		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if items[i].Number, err = store.NoticeNumber(session, items[i].ID); err != nil {
 			errs = append(errs, err)
 		}
 	}

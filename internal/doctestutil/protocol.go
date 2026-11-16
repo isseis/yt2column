@@ -17,9 +17,10 @@ import (
 const (
 	ToolFixprguard  = "fixprguard"
 	ToolCodexreview = "codexreview"
+	ToolChief       = "chief"
 )
 
-var protocolTools = []string{ToolFixprguard, ToolCodexreview}
+var protocolTools = []string{ToolFixprguard, ToolCodexreview, ToolChief}
 
 // ProtocolFlag is one --protocol N, or --protocol=N, that a document writes.
 type ProtocolFlag struct {
@@ -29,8 +30,8 @@ type ProtocolFlag struct {
 	// which the tool rejects, is not read as 1.
 	Value string
 	// Tool is the tool whose call the flag belongs to: the nearest of
-	// ToolFixprguard and ToolCodexreview written as a word before it in the
-	// same command, or "" when neither is.
+	// ToolFixprguard, ToolCodexreview, and ToolChief written as a word before
+	// it in the same command, or "" when none is.
 	Tool string
 }
 
@@ -49,8 +50,8 @@ var (
 // ProtocolFlags returns every --protocol flag of doc, prose included, in
 // order, each with the tool it belongs to. A flag outside any command of a
 // known tool has Tool "": the fixprguard guard checks it, as it checked every
-// flag before codexreview had calls, so each flag is checked by exactly one
-// guard. A command substitution between the tool and its flag ends the
+// flag before the other tools had calls, so each flag is checked by exactly
+// one guard. A command substitution between the tool and its flag ends the
 // command, so the documents write a call's values literally.
 func ProtocolFlags(doc string) []ProtocolFlag {
 	var flags []ProtocolFlag
@@ -68,7 +69,7 @@ func ProtocolFlags(doc string) []ProtocolFlag {
 
 // lastTool returns the known tool written last as a word in text, or "".
 // A word is the tool's name alone or a path ending in it, with optional
-// quotes: "codexreview-x" or "my_fixprguard" is not one.
+// quotes: "codexreview-x", "my_fixprguard", or "chiefs" is not one.
 func lastTool(text string) string {
 	for _, word := range slices.Backward(strings.Fields(text)) {
 		word = path.Base(strings.Trim(word, `"'`))

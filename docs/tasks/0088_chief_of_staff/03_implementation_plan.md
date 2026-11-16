@@ -72,9 +72,10 @@
 
     理由: どれも、実地の確かめで観測した遅れに余裕を持たせた値で、変えるときは定数 1 か所を直す。ADR: なし。
 8.  **`--protocol` の番号は 1 から始める。** `internal/doctestutil/protocol.go:17-22` の道具の一覧に `chief` を足す。今の `fixprguard` のガードは `codexreview` のものでないすべての `--protocol` を数える（`cmd/fixprguard/docs_test.go:380-388`）ので、道具が `fixprguard` の呼び出しと、どの道具の呼び出しにも属さない `--protocol` だけを数えるように直す。ADR: なし。
-9.  **`.claude/settings.json` で拒む herdr の呼び出しを、次の 3 つの組とする（2026-11-12、人が選んだ）。**
+9.  **`.claude/settings.json` で拒む herdr の呼び出しを、次の 4 つの組とする（2026-11-12、人が選んだ。2026-11-16 に閉じる操作の組を足した）。**
     -   pane へ入力を送るか、pane でコマンドを走らせるか、pane の入力の経路を変える操作: `herdr agent prompt`・`herdr agent send-keys`・`herdr agent start`・`herdr agent attach`・`herdr pane send-text`・`herdr pane send-keys`・`herdr pane run`・`herdr pane input`。`agent attach` はエージェントの端末に直接つなぐ操作、`pane input` は pane の入力の振り分けを設定する操作で、どちらも pane に入力を届ける経路になりうる。
     -   エージェントの状態とセッションを Herdr に報告する操作: `herdr pane report-agent`・`herdr pane report-agent-session`・`herdr pane release-agent`。chief は、入力を受け付ける状態、ロックの持ち主、`/clear` の確かめをこれらの値で行うので、偽られると確かめが外れる。
+    -   pane・タブ・workspace・セッション・worktree を閉じるか消す操作、エージェントの連携を変える操作、Herdr を止めるか入れ替える操作: `herdr pane close`・`herdr tab close`・`herdr workspace close`・`herdr session stop`・`herdr session delete`・`herdr worktree remove`・`herdr integration install`・`herdr integration uninstall`・`herdr server stop`・`herdr update`。入力を送らずにタスクの作業を失わせうるためである。引数のない形は今の pane やタブに効くので、規則は空白を置かずに `*` で終える（2026-11-16 に足した。§1.9）。
     -   サブコマンドの前に、別のセッションか別の機械を指す引数を書く形: `herdr --session`・`herdr --machine`・`herdr --remote`（`--remote-keybindings` を含む）で始まるもの。上の規則の前方一致を外せるため。`herdr --help`・`--version`・`--skill`・`--default-config` は読み取りなので拒まない。
 
     読み取りの呼び出し（`list`・`get`・`read`・`api`、`--help` など）は拒まない。ほかのセッションが読むために使うことがあり、送ることも偽ることもできないためである。どれも Herdr 0.9.1 の `herdr --help`・`herdr agent --help`・`herdr pane --help` で確かめた。パスで書いた呼び出しなど、規則の外の書き方は残る危険とする（設計書 5.2 の残る危険のまとめ）。設計書 3.9・5.2 は入力を送る呼び出しだけを挙げており、この決定はそれを人の選択で広げる。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する（リポジトリのすべてのセッションに効く守りの前提であるため）。
@@ -162,6 +163,22 @@
 
 -   **`/runpr` の後のリセットに、候補の Claude Code のセッションで人が最後に入力した行が PR を作ったコマンドであるという条件を足す（ステップ 4-5、設計書 1.3.2）。** PR-4 のコードレビューで、画面の最後のメッセージが PR の URL を含むだけで報告と読むため、PR を作った後に人が同じ pane で始めた会話を消しうることが分かり、人と決めた。人の入力は、transcript が行ごとに宣言する `origin` の `kind` で見分ける。そのサンプル `internal/chief/testdata/transcript/claude-human-input.jsonl` は、PR-4 の `/runplan` のセッションの transcript から採った。理由: 人が対話に使っている pane の文脈を黙って失わないため。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
 -   **PR を作ったコマンドは、`origin/main` の文書が示す次のコマンドから決め、人の最後の入力と名前も引数も照らす（ステップ 4-5、設計書 1.3.2）。** PR の種類からでは、タスクの文書の PR のコマンドを 1 つに絞れず、同じタスクの別の文書作成コマンドの後でも空にしうることが、PR-4 のローカル CLI レビューで分かり、人と決めた。ADR: なし（設計書 1.3.2 のとおり）。
+
+### 1.8. 実装の際に決めたこと（2026-11-15、PR-7）
+
+-   **待ち受けの間は、人の判断を待つものを `AskUserQuestion` で尋ねず、番号つきの一覧で示す（ステップ 7-2、設計書 1.3.3）。** 問いを開いている間は待ち受けの周が走らず、マージの後の自動送信が提案に変わりうるためである。引数 `once` と、選んだ後の問いは `AskUserQuestion` のままとする。理由: 人の判断を待つ間も自動送信を止めないため（PR-7 のコードレビューの指摘で、人と決めた）。ADR: なし。
+-   **「レビュー省略可」を、PR の詳細の控えに残した判定から、レビュー待ちの選択肢にも示す（ステップ 7-2、設計書 1.3.3・3.1.6）。** 控えがワークツリーの今の HEAD のものとしてあるときだけ示す。理由: AC-23 の「選択肢」に示すことを、周ごとのネットワークの読み取りを増やさずに満たすため（PR-7 のコードレビューの指摘で、人と決めた）。ADR: なし。
+-   **OpenCode の状態の行の区切り ` · ` が 1 つだけのときは、その後ろの文字列全体をモデルとして読む（ステップ 7-6、設計書 1.3.3）。** 実地の確かめで、推論の強さを持たないモデルの状態の行を読めず、workspace が「要確認」になったためである（サンプル `opencode-model-no-effort.ansi`、`internal/chief/screen_opencode.go`）。あわせて、区切りが重なる行で範囲の外を切り出す誤りを直した。理由: 違うモデルを送らない理由として正しく示すため（人と決めた）。ADR: なし。
+
+### 1.9. 実装の際に決めたこと（2026-11-16、PR-7 の実地の確かめ）
+
+-   **実地の確かめのうち、OpenCode のモデルの確かめ、リセット、自動送信、fetch の重なりは、実際のタスク 0091 の workspace `process` で行う（ステップ 7-6）。** 採取用の workspace `chief-poc` には、OpenCode へ送る `/runpr` の対象になる開いた PR がなく、リセットの条件（PR を作ったコマンドの報告）も起こせないためである。0091 の PR #889 と #891 を、人がふだんどおりにレビューする流れの中で使った。理由: 確かめのために本物の PR を作って Codex の PR レビューの枠を使わないため（人と決めた）。ADR: なし。
+-   **報告を読むとき、実行の終わりの行と入力欄の間にある `※ recap:` の段落を 1 つだけ読み飛ばす（ステップ 7-6、設計書 3.3）。** Claude Code はしばらく操作がないとこの要約を出すので、人が PR をレビューしてから `/runpr` を選ぶころには、たいてい出ている（サンプル `claude-command-report-recap.ansi`、`internal/chief/screen_report.go`）。理由: PR の詳細とリセットが報告を読めるようにするため（人と決めた）。ADR: なし。
+-   **画面より長い報告を読めないことは、0088 では直さず既知の制限とする（ステップ 7-6）。** Herdr の `agent read` は pane の高さの分の行しか返さないので、`/mkarch`・`/mkplan` の長い報告は始まりが画面の外に出て読めず、PR の詳細は PR の説明から要約され、リセットは `no_report` で行われない。どちらも安全側の失敗である。直し方（報告を transcript から読む）は、画面の読み取りの例外と設計を変えるので、#892 で扱う。手引きの「既知の制限」に書いた。理由: 確かめの途中で読み取りの範囲を広げないため（人と決めた）。ADR: なし。
+-   **Claude Code の pane へ送る前は、transcript の場所を求められることだけを確かめ、ファイルを開けることは確かめない（ステップ 7-6、設計書 3.1.7・1.3.4）。** 実地の確かめで、起動したばかりでまだ何も入力していない Claude Code のセッションには transcript のファイルがなく、chief がその pane へ一度も送れなかった（`no_transcript`）。`/clear` の後の `/model` の確かめは、新しいセッションの transcript を今までどおり読む（`f53f405f`）。場所の規則が変わったときは、`/clear` と `/model` を送った後のこの確かめで止まり、その workspace の送信を止める。理由: 起動したばかりの pane にも送れるようにし、モデルの確かめは保つため（人が、より厳しい確かめを残す案よりこちらを選んだ）。ADR: なし。
+-   **`HERDR_PANE_ID` の pane のエージェントが、道具を呼んだプロセスと同じ worktree で動いていることを確かめ、違えば何もせずに拒む（`pane_mismatch`、`internal/chief/records.go` の `ResolveOwner`）。** 実地の確かめで、Herdr を起動し直した後の chief のセッションが、ほかの pane（`chief-of-staff` の pane）の `HERDR_PANE_ID` を引き継いでいた。chief は自分の workspace を表に出して `chief-of-staff` を除き、ロックの持ち主もその pane として記録したので、前の chief を終えても新しい chief が `lock_held` で拒まれた。理由: chief の workspace に送らないという約束を、環境変数を信じるだけでなく確かめて守るため（人と決めた）。ADR: なし。
+-   **`.claude/settings.json` で拒む herdr の呼び出しに、pane・タブ・workspace・セッション・worktree を閉じるか消す操作、エージェントの連携を変える操作、Herdr を止めるか入れ替える操作を足す（決定 9）。** PR のレビューで、これらは入力を送らずにタスクの作業を失わせうるのに拒まれておらず、chief の pane を auto mode で動かすと確認なしに通りうることが分かった。理由: 信頼できない文の指示に従ったセッションが、タスクの pane を閉じないため（人と決めた）。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
+-   **タスクのない行を「なし」と示し、使っていないか残った worktree の行を表の最後に、その workspace の `/mkreq` の提案を提案の中の最後に並べる（要件 AC-02・AC-03 を変えた）。** 実地の確かめで、使っていない workspace（`chief-poc`）が実際のタスクの行より上に並び、「タスクなし」の 5 文字が表の幅を取ったためである。最後に並べるのは、次のコマンドが `/mkreq` の「次を提案」の行と、HEAD が detached なことだけによる「要確認」の行で、`classify` が `Row.Idle` として宣言する。送信の停止とその記録を読めないことと、その周の自動送信の結果は、この印を外し、HEAD が detached でも fetch に失敗した行には付けない。質問で止まっている行、実行中の行、画面や git を読めずに「要確認」になった行は、タスクがなくてもふつうの順のままとする（`internal/chief/state.go`、`snapshot.go`、`pending.go`、`tick.go`）。初めの広い条件から狭めたことは、人と決めた。理由: 人の判断を待つ行を先に見せるため（人と決めた）。ADR: なし。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -427,24 +444,24 @@
 
 ### フェーズ 7: `/chief` の定義、設定、文書、移行、実地の確かめ（設計書 8 章の 7）
 
-**変更するファイル:** `.claude/commands/chief.md`（新規）、`.claude/settings.json`、`internal/doctestutil/protocol.go`・`protocol_test.go`、`cmd/fixprguard/docs_test.go`、`cmd/codexreview/docs_test.go`、`cmd/chief/docs_test.go`、`Makefile`、`CLAUDE.md`、`docs/dev/guides/chief_guide.md`（新規）、`docs/dev/adr/0014-deterministic-checks-in-go.md`・`0046-chief-of-staff.md`、本計画
+**変更するファイル:** `.claude/commands/chief.md`（新規）、`.claude/settings.json`、`internal/chief/output.go`・`request.go`・`send_test.go`（出力の `request`）、`internal/chief/detail.go`・`snapshot.go`・`state.go`・`pending.go`・`detail_test.go`（選択肢の「レビュー省略可」）、`docs/dev/conventions/package_reference.md`、設計書、`internal/doctestutil/protocol.go`・`protocol_test.go`・`commands.go`（新規）、`cmd/fixprguard/docs_test.go`、`cmd/codexreview/docs_test.go`、`cmd/chief/docs_test.go`、`Makefile`、`CLAUDE.md`、`docs/dev/guides/chief_guide.md`（新規）、`docs/dev/adr/0014-deterministic-checks-in-go.md`・`0046-chief-of-staff.md`、本計画
 
--   [ ] **ステップ 7-1**: 試作をリポジトリの外へ移す（決定 16）。
+-   [x] **ステップ 7-1**: 試作をリポジトリの外へ移す（決定 16）。
     -   人の承認を得て、この worktree の試作の `.claude/commands/chief.md` と `.claude/chief/` をリポジトリの外へ移し、git の共通ディレクトリの `info/exclude` の試作の 3 行を消す。
     -   `.claude/chief/hold.tsv` の行（`0084_wasm_pipeline_poc` の `PR-1` の後）について、0084 の計画書にまだ止める必要があるかを人に確かめる。要るなら、0084 の計画書に `**自動送信**: hold` を足す PR を、ステップ 7-6 の実地の確かめの前に別に作る（設計書 8 章の 7）。
--   [ ] **ステップ 7-2**: `.claude/commands/chief.md` を書く（設計書 3.2）。`chief` の呼び出しは `--protocol 1` を書く。次のガードを足す。
+-   [x] **ステップ 7-2**: `.claude/commands/chief.md` を書く（設計書 3.2）。`chief` の呼び出しは `--protocol 1` を書く。セッションがコマンドの文から `--command` の値を読み取らないよう、道具の出力の次のコマンドに、`chief send` の `--command` の値 `request` を足す（`internal/chief/output.go`・`request.go`、`send_test.go` の `TestRequestNameSendsTheOffer`）。レビュー待ちの選択肢に、PR の詳細の控えの「レビュー省略可」を足す（§1.8、`internal/chief/detail.go`・`snapshot.go`・`state.go`・`pending.go`・`output.go`、`detail_test.go` の `TestReviewItemShowsKeptSkippable`）。待ち受けの間は、人の判断を待つものを番号つきの一覧で示す（§1.8）。一覧の番号は、道具が項目を最初に見たときに付けてセッションの間保つ `number` とする（`internal/chief/records.go`・`pending.go`・`output.go`、`records_test.go` の `TestNoticeNumbers`）。次のガードを足す。
     -   `internal/doctestutil/protocol.go` に `ToolChief` を足し、`protocol_test.go` に chief の行を足す。
     -   `cmd/fixprguard/docs_test.go` の数える条件を直し（決定 8）、chief の場合を足す。
-    -   `cmd/chief/docs_test.go` に、`--protocol` の番号が道具と合うこと、定義の中の呼び出しが道具の引数の解析を通ること、定義が `herdr` を直接呼ばないことのガードを書く（設計書 7.2 の 1 項目め、`cmd/codexreview/docs_test.go:158,255,554` と同じ形）。
--   [ ] **ステップ 7-3**: `.claude/settings.json` に `Bash(chief *)` を `allow` に、決定 9 の呼び出しを `deny` に足す。
+    -   `cmd/chief/docs_test.go` に、`--protocol` の番号が道具と合うこと、定義の中の呼び出しが道具の引数の解析を通ること、定義が `herdr` を直接呼ばないことのガードを書く（設計書 7.2 の 1 項目め、`cmd/codexreview/docs_test.go:158,255,554` と同じ形）。コマンドの文の読み取り（呼び出しの抽出、許可の規則の形、コマンドを走らせる位置の判定）は、`cmd/codexreview/docs_test.go` から `internal/doctestutil/commands.go` に移し、両方のガードが使う。
+-   [x] **ステップ 7-3**: `.claude/settings.json` に `Bash(chief *)` を `allow` に、決定 9 の呼び出しを `deny` に足す。
     -   `chief` が codex を走らせないことを確かめ、`cmd/codexreview/docs_test.go` の `launchFree` にその旨の注記とともに `chief` を足し、`TestMayBypassTool` に行を足す。
     -   `cmd/chief/docs_test.go` に、許可の規則と、拒否の規則の決まった形のそれぞれがあることを確かめるガードを書く（設計書 7.2 の 3 項目め）。
--   [ ] **ステップ 7-4**: 文書と導入の手順を足す。
+-   [x] **ステップ 7-4**: 文書と導入の手順を足す。
     -   `Makefile` に `install-chief` を足し、`cmd/chief/docs_test.go` に `cmd/codexreview/docs_test.go:655` と同じ形のガードを書く。
     -   `docs/dev/guides/chief_guide.md` を書く（設計書 2.2 の表の行）。chief の `/model` が利用者の Claude Code の既定のモデルも書き換えることを書く（§1.5）。手引きが持つ値（サブコマンド、終了コード、`--protocol`、状態のディレクトリ）を道具の定義と比べるガードを `cmd/chief/docs_test.go` に書く。
     -   `CLAUDE.md` の「Quick Links」「Build Commands」「Claude Commands」「Tool Execution Safety」（設計書 3.9）を直し、`/chief` の定義が手引きを参照するときは「Japanese guides an agent reads」の一覧を直す。
--   [ ] **ステップ 7-5**: ADR-0014 の 19 行のずれの記述を消し、道具の一覧とインストールの項目に `chief` を足す。ADR-0046 の「この決定は、まだ」で始まるずれの記述を消す。どちらも commit のメッセージと PR の説明に訂正を書く。
--   [ ] **ステップ 7-6**: 実地の確かめを行う（設計書 7.3、決定 21）。結果を §7 の「PR-7 の実行の記録」に書く。
+-   [x] **ステップ 7-5**: ADR-0014 の 19 行のずれの記述を消し、道具の一覧とインストールの項目に `chief` を足す。ADR-0046 の「この決定は、まだ」で始まるずれの記述を消す。どちらも commit のメッセージと PR の説明に訂正を書く。
+-   [x] **ステップ 7-6**: 実地の確かめを行う（設計書 7.3、決定 21）。結果を §7 の「PR-7 の実行の記録」に書く。
     -   人がこのブランチで `make install-chief` を行い、`/chief` を新しいセッションで動かす。
     -   採取用の workspace に向けて、中継、モデルの確かめ（Claude Code と OpenCode）、リセット、ロック（2 つ目の chief が拒まれる）、送信の停止と `release` を、それぞれ 1 回以上行う。
     -   自動送信は、人が通常の `/runpr` でマージする実際のタスクの PR で確かめる。マージの直後に `/runpr` と chief の fetch が重なっても、どちらも失敗しないか、失敗したら次の周で確かめ直すことを確かめる（決定 20）。
@@ -465,10 +482,10 @@
 
 **判定理由**: ステップ 7-6 は本物の Herdr のほかのエージェントへ入力を送る確かめ（外部の資源に触れる面）で、7-3 は信頼の境界のガードである。Sonnet では、確かめの範囲を落とすか、採取用の workspace の外の pane に送る誤りが起きやすい。
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/894
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -560,7 +577,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 -   [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
 -   [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3）
 -   [x] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7）
--   [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5 / 7-6）
+-   [x] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5 / 7-6）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -576,7 +593,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 |---|---|---|---|---|
 | AC-01 | `ic/workspace_test.go::TestFindTaskWorkspaces` | test | 3-3・3-4 | PR-3 |
 | AC-02 | `ic/snapshot_test.go::TestTakeSnapshotStates`、`ic/snapshot_test.go::TestRunningRowShowsTheLastSend`（実行中の行は送信の記録から） | test | 3-4・4-6 | PR-3、PR-4 |
-| AC-03 | `ic/snapshot_test.go::TestTakeSnapshotOrder`、`ic/snapshot_test.go::TestRowOrderRules` | test | 3-4 | PR-3 |
+| AC-03 | `ic/snapshot_test.go::TestTakeSnapshotOrder`、`ic/snapshot_test.go::TestRowOrderRules`、`ic/snapshot_test.go::TestIdleClearedByWhatTheHumanMustSee`、`ic/snapshot_test.go::TestDetachedRowIdleOnlyWhenEverythingWasRead` | test | 3-4・7-6 | PR-3・PR-7 |
 | AC-04 | `ic/network_test.go::TestSnapshotRunsOnlyReadsInTheRightPlaces`、`/chief` の定義 | test、manual | 3-7・7-2 | PR-3、PR-7 |
 | AC-05 | `ic/snapshot_test.go::TestTakeSnapshotStates`、`/chief` の定義 | test、manual | 1-6・3-4・7-2 | PR-1、PR-3、PR-7 |
 | AC-06 | `ic/snapshot_test.go::TestTakeSnapshotUnreadable` | test | 3-3・3-4 | PR-3 |
@@ -596,7 +613,7 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 | AC-20 | `ic/detail_test.go::TestDetailOmitsReviewBody` | test | 4-4 | PR-4 |
 | AC-21 | `ic/detail_test.go::TestDetailPartialFailure` | test | 4-4 | PR-4 |
 | AC-22 | `ic/detail_test.go::TestDetailItems`（送り先の表示）、`/chief` の定義（問い） | test、manual | 4-4・7-2 | PR-4、PR-7 |
-| AC-23 | `ic/detail_test.go::TestReviewSkippable` | test | 4-4 | PR-4 |
+| AC-23 | `ic/detail_test.go::TestReviewSkippable`、`ic/detail_test.go::TestReviewItemShowsKeptSkippable`（選択肢） | test | 4-4・7-2 | PR-4、PR-7 |
 | AC-24 | `ic/records_test.go::TestWorkspaceBusy`、`/chief` の定義（バックグラウンド） | test、manual | 4-3・7-2 | PR-4、PR-7 |
 | AC-25 | `ic/sanitize_test.go::TestSanitize`、`ic/screen_test.go::TestParseScreenSamples`（タブの画面は見える問いとほかの問いがあること） | test | 1-5・1-6 | PR-1 |
 | AC-26 | `ic/screen_test.go::TestParseScreenRejectsNonMatching`、`ic/relay_test.go::TestNoCheckValueForUnrelayable` | test | 1-6・5-1 | PR-1、PR-5 |
@@ -653,7 +670,30 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 
 ### PR-7 の実行の記録
 
-（ステップ 7-6 で書く）
+-   **ステップ 7-1（2026-11-15）。** 試作の `.claude/commands/chief.md` と `.claude/chief/` を、人の承認を得てリポジトリの外（`~/chief-prototype/`）へ移し、git の共通ディレクトリの `info/exclude` の試作の 3 行を消した。`hold.tsv` の `0084_wasm_pipeline_poc` の `PR-1` の行は、0084 の PR-1（#843）と PR-2（#858）がマージ済みで、作られていない PR マーカーが残っていないので、止める対象がない。人が要らないと答えたので、0084 の計画書を直す PR は作らない。
+-   **ステップ 7-6（2026-11-15〜16）。** 人がこのブランチで `make install-chief` を行い、chief の workspace の新しいセッションで `/chief` を動かして確かめた。版は Herdr 0.9.1、Claude Code 2.1.322〜2.1.325、OpenCode v2.2.6、gh 2.96.0 である。採取用の workspace `chief-poc` のほかに、§1.9 の決定のとおり、実際のタスク 0091 の workspace `process` と、その PR #889・#891 を使った。
+    -   **設計書 7.3 の項目。**
+
+        | 項目 | 結果 | 確かめた場所 |
+        |---|---|---|
+        | 中継（1 問の質問） | 通った。選んだ選択肢が pane に届いた | `chief-poc` |
+        | 中継しない質問 | 通った。権限の確認、タブの質問（`chief-poc` と `process` の `/mkplan`）は中身を示すだけで、pane で答えるよう示した | `chief-poc`・`process` |
+        | モデルの確かめ（Claude Code） | 通った。`/clear` → `/model opus` → コマンドの順に送り、モデルが変わった | `chief-poc` |
+        | モデルの確かめ（OpenCode） | 通った。違うモデル（DeepSeek V4 Pro）では `model_mismatch` で何も入力せず、送り直すかの問いを残した。モデルを戻した後の送り直しで `/new` → `/runpr 891` を送った | `process` |
+        | リセット（空にしない側） | 通った。PR #889 では、`/mkarch` の後に人が同じ pane で会話を続けていたので空にしなかった | `process` |
+        | リセット（空にする側） | 実地では確かめられなかった。PR #891 では報告が画面より長く読めず、`no_report` で空にしなかった（§1.9、#892）。単体テストで確かめてある | `process` |
+        | ロック | 通った。待ち受けの間に別のセッションの `/chief once` が `lock_held` で拒まれ、表を出さなかった | `chief-poc` |
+        | 送信の停止と `release` | 通った。`Esc` で送信を途中で止める確かめは間に合わなかったので、終わりの記録のない送信の記録を置き、`start` が停止に変え、停止中は `stopped` で送らず、`停止を解く` で `released` になることを確かめた | `chief-poc` |
+        | 自動送信 | 通った。PR #889 のマージ（00:20:14Z）を待ち受けの中で見て、00:21:37Z に `/clear` → `/model opus` → `/mkplan 0091` を送り、`autosend-889.json` を 1 件残した | `process` |
+        | fetch の重なり | 重なっても `/runpr`・`/mergepr` の fetch は失敗しなかった。chief の fetch の失敗は起きなかったので、次の周で確かめ直す動きは単体テストでだけ確かめてある | `process` |
+        | 自動送信をしない条件 | PR #891 のマージは chief が動いていない間に起きたので、自動では送らず提案として示した（AC-59）。`hold` による停止は、そこまで届かなかったので実地では確かめられず、単体テストで確かめてある | `process` |
+        | 読めない画面で止まること（PR を開いた後） | 0091 の PR-1（#893）のマージの後、Claude Code が入力欄の上の罫線にセッションの名前を描き、chief はその pane を読めずに `process` を「要確認」とし、提案も自動送信もしなかった（安全側）。読み取りを直した（`493e6f14`）。直した道具では、同じ画面のまま `process` が「実行中」と読まれた。人が先に `/runplan 0091` を OpenCode で始めたので、提案が出ることは確かめていない | `process` |
+
+    -   **§1.3 の決定 14 の振る舞い。** 表の下の質問の要点と pane（AC-05）、選択肢の順（AC-13）と、待ち受けの間に変わらない番号、示せる数を超えたときに名前で挙げて選べること（AC-14、質問 3 つと提案 1 つで `/chief once`）、まだ答えのない問い（AC-16）、PR の詳細の後の問い（AC-22）、`/runpr` の送信をバックグラウンドで呼ぶこと（AC-24）、通知（AC-58。新しく増えた項目ごとに 1 回送り、この環境では Herdr のベルと状態の色として届いた）を確かめた。Herdr の操作か `wait` の失敗（AC-60）は、Herdr を止めると他の作業に響くので起こさず、単体テストで確かめてある。マージの確認を chief から中継することは、2 回とも人が pane で答えたので確かめていない。
+    -   **PR-4 で申し送った事項。** `unsupported_path` は、`_` を含むパスの workspace を作らず、単体テストでだけ確かめた（人と決めた）。100 件以上のコミットは、該当する PR がなく単体テストでだけ確かめた。OpenCode の `/runplan`（要件が `sonnet`）が PR を開いた直後の画面は、その PR がまだないので採っていない。0091 の PR-2 を OpenCode で動かすときに採るよう、申し送る。
+    -   **見つけて直したもの。** 権限の確認の読み取り（警告のある形、折り返した選択肢、`2a5129c0`・`b5ed7b41`）、待ち受けの一覧の番号を道具が付け、画面で振り直されない形で書くこと（`824da4d3`・`8d1a8cce`・`62104998`）、OpenCode の区切りが 1 つの状態の行（`3ef6f036`）、コマンドが始まったことをエージェントの状態だけで判断すること（`c4932cc2`）、transcript がまだない新しいセッションへ送ること（`f53f405f`）、質問の選択肢を道具の番号で示すこと（`a71a5b09`）、送り直しの問いの答えを選択肢に出すこと（`2ecd2a5d`）、`※ recap:` の読み飛ばし（`8ec7c160`）、長い報告を読めないことを既知の制限に書くこと（`1d0cb08c`）、タスクのない行の示し方と並べ方（`450dda0b`・`5f683c77`）、`HERDR_PANE_ID` の pane の worktree を確かめること（`e4de8b93`）、入力欄の上の罫線にセッションの名前が入った画面を読むこと（`493e6f14`、PR を開いた後）。
+    -   **別の issue にしたもの。** 表の急ぎの度合いの印、タスクの段階とどちらの番か、「質問で停止」の行の「次」の列（#890）。報告を transcript から読むこと（#892）。
+    -   **マージの後。** 人が `main` から `make install-chief` で入れ直し、chief の worktree を `main` に合わせてから `/chief` を起動し直す（手引きの「試作から移る」と同じ順）。
 
 ## 8. 成功の基準 (Success Criteria)
 
@@ -676,3 +716,8 @@ $ rg -n 'on Sonnet|to Sonnet|implement.*Sonnet|Model to start|model each reading
 - 2026-11-14 セッション中の再承認：長く走るサブコマンドがロックの持ち主を周ごとに確かめ直す申し送りを PR-6 に足す（§1.6・6-4）（isseis、#876）
 - 2026-11-15 セッション中の再承認：`/runpr` の後のリセットに、候補の Claude Code のセッションで人が最後に入力した行が PR を作ったコマンドであるという条件を足す（§1.7・4-5・§7）（isseis、#880）
 - 2026-11-15 セッション中の再承認：PR を作ったコマンドを `origin/main` の文書が示す次のコマンドから決め、人の最後の入力と名前も引数も照らす（§1.7・4-5）（isseis、#880）
+- 2026-11-15 セッション中の再承認：待ち受けの間は人の判断を待つものを番号つきの一覧で示し、「レビュー省略可」を PR の詳細の控えがあるときに選択肢にも示す（§1.8・7-2・§7）（isseis、#894）
+- 2026-11-15 セッション中の再承認：OpenCode の状態の行の区切りが 1 つだけのとき、その後ろをモデルとして読む（§1.8）（isseis、#894）
+- 2026-11-16 セッション中の再承認：使っていない行の印を、fetch に失敗した行と停止の記録を読めない行に付けず、自動送信の結果があれば外す（§1.9・§7）（isseis、#894）
+- 2026-11-16 セッション中の再承認：拒む herdr の呼び出しに、閉じるか消す操作、連携を変える操作、Herdr を止めるか入れ替える操作を足す（決定 9・§1.9）（isseis、#894）
+- 2026-11-16 セッション中の再承認：実地の確かめの一部を 0091 の workspace で行い、`※ recap:` を読み飛ばし、長い報告を読めないことを既知の制限とし、`HERDR_PANE_ID` の pane の worktree を確かめ、タスクのない行の示し方と並べ方を変える（§1.9）（isseis、#894）

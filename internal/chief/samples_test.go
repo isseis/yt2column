@@ -101,7 +101,7 @@ var screenRows = map[string]map[string][]string{
 	"question shapes": {
 		"claude": {
 			"claude-question-single.ansi", "claude-question-single-cursor.ansi", "claude-question-multi.ansi",
-			"claude-question-tabs.ansi", "claude-question-tabs-second.ansi", "claude-question-tabs-review.ansi", "claude-permission.ansi",
+			"claude-question-tabs.ansi", "claude-question-tabs-second.ansi", "claude-question-tabs-review.ansi", "claude-permission.ansi", "claude-permission-warning.ansi", "claude-permission-wrapped.ansi",
 		},
 		"opencode": {
 			"opencode-question-single.ansi", "opencode-question-single-cursor.ansi", "opencode-question-multi.ansi",
@@ -116,13 +116,13 @@ var screenRows = map[string]map[string][]string{
 		"opencode": {"opencode-runpr-report.txt"},
 	},
 	"command report": {
-		"claude": {"claude-command-report.ansi"},
+		"claude": {"claude-command-report.ansi", "claude-command-report-recap.ansi"},
 	},
 	"model line and new session": {
-		"opencode": {"opencode-after-new.ansi", "opencode-done.ansi"},
+		"opencode": {"opencode-after-new.ansi", "opencode-done.ansi", "opencode-model-no-effort.ansi"},
 	},
 	"input line": {
-		"claude":   {"claude-idle.ansi", "claude-input-left.ansi", "claude-working.ansi", "claude-after-clear.ansi", "claude-after-model.ansi"},
+		"claude":   {"claude-idle.ansi", "claude-input-left.ansi", "claude-working.ansi", "claude-after-clear.ansi", "claude-after-model.ansi", "claude-titled-rule.ansi"},
 		"opencode": {"opencode-input-left.ansi", "opencode-done.ansi", "opencode-after-new.ansi"},
 	},
 }

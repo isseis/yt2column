@@ -132,7 +132,7 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 		f := readWorkspace(ctx, herdr, git, tasks, w)
 		f.Routing, f.RoutingErr, f.FetchFailed = view.routing, view.routingErr, view.fetchFailed
 		row := classifyWorkspace(ctx, git, tasks, f, view.old, view.oldErr)
-		if err := addRecords(deps.Store, w, &row); err != nil {
+		if err := addRecords(ctx, git, deps.Store, w, &row); err != nil {
 			view.problems = append(view.problems, "the records of "+w.Worktree+" cannot be read: "+err.Error())
 		}
 		view.facts = append(view.facts, f)
@@ -148,27 +148,54 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 func finishSnapshot(deps Deps, owner Owner, view roundView, extra []PendingItem) Snapshot {
 	snap := Snapshot{StateDir: deps.Store.Dir(), Rows: view.rows, Problems: view.problems, Baseline: baselineOf(view.agents, workspaceIDs(view.found))}
 	snap.Pending = mergePending(buildPending(snap.Rows), extra)
+	idle := idleWorkspaces(snap.Rows)
+	// Sorting before stamping gives the items first seen in this round
+	// their numbers in the order they are listed.
+	sortPending(snap.Pending, idle)
 	for _, err := range stampPending(deps.Store, owner.Session, snap.Pending, deps.Now()) {
 		snap.Problems = append(snap.Problems, "a notice record failed: "+err.Error())
 	}
-	sortPending(snap.Pending)
+	sortPending(snap.Pending, idle)
 	sortRows(snap.Rows, snap.Pending)
 	return snap
 }
 
-// addRecords shows a workspace's stop and, on a running row, what chief last
-// sent to its working pane. It reads records only; a workspace never sent
-// to has no records and nothing is created for it.
-func addRecords(store Store, w TaskWorkspace, row *Row) error {
+// addRecords shows a workspace's stop, on a running row what chief last
+// sent to its working pane, and on a row awaiting review the review-skippable
+// judgment of the PR detail kept for the worktree's HEAD. It reads records
+// only; a workspace never sent to has no records and nothing is created for
+// it. Contract: the judgment is shown only from a detail of the same PR at
+// the same HEAD, never from an older one.
+func addRecords(ctx context.Context, git GitReader, store Store, w TaskWorkspace, row *Row) error {
 	records, ok, err := store.existingRecords(w.Tree)
-	if err != nil || !ok {
+	if err != nil {
+		// Whether the workspace is stopped cannot be told, so it is not idle.
+		row.Idle = false
 		return err
+	}
+	if !ok {
+		return nil
 	}
 	stop, err := records.Stopped()
 	if err != nil {
+		row.Idle = false
 		return err
 	}
 	row.Stopped = stop
+	if stop != nil {
+		// A stopped workspace waits on the human's release.
+		row.Idle = false
+	}
+	if row.State == StateAwaitingReview && row.PR != nil {
+		// A HEAD that cannot be read only leaves the mark off.
+		if head, err := git.Head(ctx, w.Worktree); err == nil {
+			rec, ok, err := records.readDetail(row.PR.Number, head)
+			if err != nil {
+				return err
+			}
+			row.ReviewSkippable = ok && rec.Skippable
+		}
+	}
 	if row.State != StateRunning {
 		return nil
 	}
@@ -285,9 +312,30 @@ func mergeOnlyRank(r Row) int {
 	return 0
 }
 
-// sortRows orders the rows as the table is shown: by state, then, for the
-// states that wait on the human, by how long their first item has waited,
-// then by workspace path. pending must already carry its times.
+// idleRank is 1 for an idle row (Row.Idle), which lists after every other
+// row, and 0 otherwise.
+func idleRank(r Row) int {
+	if r.Idle {
+		return 1
+	}
+	return 0
+}
+
+// idleWorkspaces returns the workspaces of the idle rows (Row.Idle).
+func idleWorkspaces(rows []Row) map[string]struct{} {
+	idle := map[string]struct{}{}
+	for _, r := range rows {
+		if r.Idle {
+			idle[r.Workspace] = struct{}{}
+		}
+	}
+	return idle
+}
+
+// sortRows orders the rows as the table is shown: idle rows last, then by
+// state, then, for the states that wait on the human, by how long their
+// first item has waited, then by workspace path. pending must already carry
+// its times.
 func sortRows(rows []Row, pending []PendingItem) {
 	first := map[string]time.Time{}
 	for _, p := range pending {
@@ -297,6 +345,7 @@ func sortRows(rows []Row, pending []PendingItem) {
 	}
 	slices.SortStableFunc(rows, func(a, b Row) int {
 		return cmp.Or(
+			cmp.Compare(idleRank(a), idleRank(b)),
 			cmp.Compare(a.State.rank(), b.State.rank()),
 			cmp.Compare(mergeOnlyRank(a), mergeOnlyRank(b)),
 			first[a.Workspace].Compare(first[b.Workspace]),

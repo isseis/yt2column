@@ -28,6 +28,7 @@ const (
 	claudeMultiDescIndent  = "         "
 	claudeMultiBox         = "[ ] "
 	claudePermissionIndent = " "
+	claudePermissionWrap   = "      "
 	claudeTabSubmit        = "✔ Submit"
 	claudeTabOpen          = "☐ "
 	claudeTabAnswered      = "☒ "
@@ -133,6 +134,22 @@ func claudeOption(text, indent string) (claudeOptionLine, bool) {
 func lastRuleBefore(lines []screenLine, end int) int {
 	for i := end - 1; i >= 0; i-- {
 		if isRule(lines[i].text, '─') {
+			return i
+		}
+	}
+	return -1
+}
+
+// claudeTitledRule matches the input box's top rule when Claude Code draws
+// the session's title in it (claude-titled-rule.ansi): rules, a space, the
+// title, a space, and rules.
+var claudeTitledRule = regexp.MustCompile(`^─{3,} [^─]*[^─ ] ─+$`)
+
+// boxTopBefore returns the index of the input box's top rule above bottom: the
+// last line before it that is a rule, plain or with a title, or -1.
+func boxTopBefore(lines []screenLine, bottom int) int {
+	for i := bottom - 1; i >= 0; i-- {
+		if isRule(lines[i].text, '─') || claudeTitledRule.MatchString(lines[i].text) {
 			return i
 		}
 	}
@@ -366,8 +383,9 @@ func claudeTabsReview(lines []screenLine) *Question {
 }
 
 // claudePermission reads a permission prompt: from a rule, a tool header and
-// its details, the proceed line, numbered options indented by one space, a
-// blank line, and the footer.
+// its details (blank lines among them), the proceed line, numbered options indented by one space
+// (a long label wrapped onto lines indented to its column), a blank line,
+// and the footer.
 func claudePermission(lines []screenLine) *Question {
 	end := len(lines) - claudePermissionTail
 	if end < 1 || lines[end].text != "" {
@@ -375,7 +393,8 @@ func claudePermission(lines []screenLine) *Question {
 	}
 	first := end
 	for first > 0 {
-		if _, ok := claudeOption(lines[first-1].text, claudePermissionIndent); !ok {
+		text := lines[first-1].text
+		if _, ok := claudeOption(text, claudePermissionIndent); !ok && !isPermissionWrap(text) {
 			break
 		}
 		first--
@@ -390,8 +409,10 @@ func claudePermission(lines []screenLine) *Question {
 	q := &Question{Kind: QuestionPermission, Relay: RelayBlockPermission}
 	var text []string
 	for _, l := range lines[top+1 : first] {
+		// A blank line separates a warning from the proceed line, as in
+		// claude-permission-warning.ansi.
 		t, ok := strings.CutPrefix(l.text, claudePermissionIndent)
-		if !ok && !isRule(l.text, '╌') {
+		if !ok && !isRule(l.text, '╌') && l.text != "" {
 			return nil
 		}
 		text = append(text, t)
@@ -399,6 +420,17 @@ func claudePermission(lines []screenLine) *Question {
 	q.Text = joinTexts(text)
 	cursors := 0
 	for _, l := range lines[first:end] {
+		if isPermissionWrap(l.text) {
+			// The rest of the previous option's label, as in
+			// claude-permission-wrapped.ansi; the terminal broke it at a
+			// blank.
+			if len(q.Options) == 0 {
+				return nil
+			}
+			last := &q.Options[len(q.Options)-1]
+			last.Label += " " + strings.TrimPrefix(l.text, claudePermissionWrap)
+			continue
+		}
 		o, _ := claudeOption(l.text, claudePermissionIndent)
 		if o.number != len(q.Options)+1 {
 			return nil
@@ -410,6 +442,13 @@ func claudePermission(lines []screenLine) *Question {
 		return nil
 	}
 	return q
+}
+
+// isPermissionWrap reports whether text continues a permission option's
+// label: indented to the label's column, then a non-blank character.
+func isPermissionWrap(text string) bool {
+	rest, ok := strings.CutPrefix(text, claudePermissionWrap)
+	return ok && rest != "" && rest[0] != ' '
 }
 
 // claudePrompt reads the input box at the bottom of a Claude Code screen: a
@@ -426,7 +465,7 @@ func claudePrompt(lines []screenLine) Screen {
 			return unmatched
 		}
 	}
-	top := lastRuleBefore(lines, bottom)
+	top := boxTopBefore(lines, bottom)
 	if top < 0 || top+1 == bottom {
 		return unmatched
 	}

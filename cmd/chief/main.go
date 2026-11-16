@@ -81,6 +81,9 @@ var errUsage = errors.New("usage: chief start|snapshot|tick --protocol N | " +
 func main() {
 	os.Exit(signalrun.Run(func(ctx context.Context) int {
 		env := chief.ReadEnv(os.LookupEnv)
+		// A working directory that cannot be read stays empty, which
+		// ResolveOwner reports as a failure of the tool.
+		env.WorkDir, _ = os.Getwd()
 		return run(ctx, os.Args[1:], env, os.Environ(), func(o cmdrunner.Options) cmdrunner.Runner { return cmdrunner.NewOS(o) }, time.Now, chief.SleepContext, os.Stdout, os.Stderr)
 	}))
 }
@@ -147,16 +150,8 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 		return exitUsage
 	}
 	protocol := flags[flagProtocol]
-	var req requests
 	// A malformed request is a usage error, found before anything is read.
-	switch subcommand {
-	case cmdSend:
-		req.send, err = chief.ParseSendRequest(flags[flagWorkspace], flags[flagCommand], flags[flagIssue], flags[flagPR])
-	case cmdRelay:
-		req.relay, err = chief.ParseRelayRequest(flags[flagWorkspace], flags[flagCheck], flags[flagAnswer])
-	case cmdWait:
-		req.wait, err = chief.ParseWaitRequest(flags[flagSince], flags[flagTimeout])
-	}
+	req, err := parseRequests(subcommand, flags)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "chief:", err)
 		return exitUsage
@@ -186,10 +181,12 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 		return fail(err)
 	}
 	cmds := chief.NewCommands(factory, environ)
-	owner, err := chief.ResolveOwner(ctx, chief.NewHerdr(cmds), env.PaneID)
+	owner, err := chief.ResolveOwner(ctx, cmds, env)
 	switch {
 	case errors.Is(err, chief.ErrNoSession):
 		return refuse("no_session", err.Error())
+	case errors.Is(err, chief.ErrPaneMismatch):
+		return refuse("pane_mismatch", chief.Sanitize(err.Error()))
 	case err != nil:
 		return fail(err)
 	}
@@ -220,6 +217,22 @@ type requests struct {
 	send  chief.SendRequest
 	relay chief.RelayRequest
 	wait  chief.WaitRequest
+}
+
+// parseRequests validates the request of a subcommand that takes one; the
+// other subcommands have none and pass.
+func parseRequests(subcommand string, flags map[string]string) (requests, error) {
+	var req requests
+	var err error
+	switch subcommand {
+	case cmdSend:
+		req.send, err = chief.ParseSendRequest(flags[flagWorkspace], flags[flagCommand], flags[flagIssue], flags[flagPR])
+	case cmdRelay:
+		req.relay, err = chief.ParseRelayRequest(flags[flagWorkspace], flags[flagCheck], flags[flagAnswer])
+	case cmdWait:
+		req.wait, err = chief.ParseWaitRequest(flags[flagSince], flags[flagTimeout])
+	}
+	return req, err
 }
 
 // dispatch runs a subcommand other than start, once its caller is known to

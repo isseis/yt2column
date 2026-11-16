@@ -86,6 +86,8 @@ var claudeScreenWants = map[string]wantScreen{
 	"claude-after-clear.ansi":            {kind: ScreenPrompt, inputEmpty: true},
 	"claude-after-model.ansi":            {kind: ScreenPrompt, inputEmpty: true},
 	"claude-command-report.ansi":         {kind: ScreenPrompt, inputEmpty: true},
+	"claude-titled-rule.ansi":            {kind: ScreenPrompt, inputEmpty: true},
+	"claude-command-report-recap.ansi":   {kind: ScreenPrompt, inputEmpty: true},
 	"claude-input-left.ansi":             {kind: ScreenPrompt, inputLeft: "unsent draft text"},
 	"claude-question-single.ansi":        claudeFruitSingle,
 	"claude-question-single-cursor.ansi": withCursor(claudeFruitSingle, 3),
@@ -117,6 +119,38 @@ var claudeScreenWants = map[string]wantScreen{
 			strings.Repeat("╌", 83) + "\nDo you want to proceed?",
 		labels: []string{"Yes", "Yes, and always allow access to /tmp from this project", "Yes, and switch to auto mode · auto mode handles these prompts for you", "No"},
 	},
+	// A permission prompt whose command wraps onto lines marked "│" and
+	// that ends with a warning and a blank line before the proceed line.
+	"claude-permission-warning.ansi": {
+		kind: ScreenQuestion, question: QuestionPermission, relay: RelayBlockPermission,
+		text: "Bash command\nTip: auto mode handles these prompts for you — choose \"switch to auto mode\" below\n" +
+			"Read sshd configuration and service status\n" + strings.Repeat("╌", 83) + "\n" +
+			"│ echo \"=== sshd_config (non-comment) ===\"; grep -vE '^\\s*(#|$)'\n" +
+			"│ /etc/ssh/sshd_config; echo; echo \"=== sshd_config.d ===\"; ls -la\n" +
+			"│ /etc/ssh/sshd_config.d/ 2>&1; for f in /etc/ssh/sshd_config.d/*; do [ -f \"$f\" ]\n" +
+			"│ && { echo \"--- $f\"; grep -vE '^\\s*(#|$)' \"$f\"; }; done; echo; echo \"=== Remote\n" +
+			"│ Login status ===\"; launchctl print-disabled system 2>/dev/null | grep -i ssh;\n" +
+			"│ launchctl list 2>/dev/null | grep -i ssh; echo; echo \"=== listening on 22 ===\";\n" +
+			"│ netstat -an -p tcp 2>/dev/null | grep -E '\\.22 .*LISTEN'; echo; echo \"=== ssh\n" +
+			"│ version ===\"; ssh -V 2>&1\n" + strings.Repeat("╌", 83) + "\n" +
+			"Contains brace with quote character (expansion obfuscation)\n\nDo you want to proceed?",
+		labels: []string{"Yes", "Yes, and switch to auto mode · auto mode handles these prompts for you", "No"},
+	},
+	// A permission prompt whose second option's label wraps onto a line
+	// indented to the label's column.
+	"claude-permission-wrapped.ansi": {
+		kind: ScreenQuestion, question: QuestionPermission, relay: RelayBlockPermission,
+		text: "Bash command\nTip: auto mode handles these prompts for you — choose \"switch to auto mode\" below\n" +
+			"Fetch main, fast-forward, show latest commit and task identification guide\n" + strings.Repeat("╌", 83) + "\n" +
+			"│ git fetch origin main 2>&1 | tail -2; git merge --ff-only origin/main 2>&1 |\n" +
+			"│ tail -2; git log --oneline -1 --no-show-signature; cat\n" +
+			"│ docs/dev/conventions/task_identification.md | head -40\n" + strings.Repeat("╌", 83) + "\n" +
+			"This command requires approval\n\nDo you want to proceed?",
+		labels: []string{
+			"Yes", "Yes, and don't ask again for git merge and git log commands in /Users/user/.herdr/worktrees/yt2column/chief-poc",
+			"Yes, and switch to auto mode · auto mode handles these prompts for you", "No",
+		},
+	},
 	"claude-merge-question.ansi": {
 		kind: ScreenQuestion, question: QuestionSingle, relay: RelayAllowed, merge: true,
 		text:      mergeText,
@@ -127,8 +161,10 @@ var claudeScreenWants = map[string]wantScreen{
 }
 
 var openCodeScreenWants = map[string]wantScreen{
-	"opencode-done.ansi":                   {kind: ScreenPrompt, inputEmpty: true, model: sampleModel},
-	"opencode-after-new.ansi":              {kind: ScreenPrompt, inputEmpty: true, model: sampleModel, newSession: true},
+	"opencode-done.ansi":      {kind: ScreenPrompt, inputEmpty: true, model: sampleModel},
+	"opencode-after-new.ansi": {kind: ScreenPrompt, inputEmpty: true, model: sampleModel, newSession: true},
+	// A model with no reasoning effort: one separator on the status line.
+	"opencode-model-no-effort.ansi":        {kind: ScreenPrompt, inputEmpty: true, model: "DeepSeek V4 Pro OpenCode Go", newSession: true},
 	"opencode-input-left.ansi":             {kind: ScreenPrompt, inputLeft: "unsent draft text", model: sampleModel},
 	"opencode-runpr-report.txt":            {kind: ScreenPrompt, inputEmpty: true, model: sampleModel},
 	"opencode-question-single.ansi":        openCodeFruitSingle,
@@ -347,6 +383,9 @@ func TestParseScreenRejectsNonMatching(t *testing.T) {
 		{"claude chat label", parseClaudeScreen, cq, "  5. Chat about this", "  5. Chat about that"},
 		{"claude multi-select with two tabs", parseClaudeScreen, "claude-question-multi.ansi", "☐ Colors  ✔ Submit", "☐ Colors  ☐ More  ✔ Submit"},
 		{"claude permission without proceed line", parseClaudeScreen, "claude-permission.ansi", " Do you want to proceed?", " Proceed?"},
+		{"claude permission with an unindented warning", parseClaudeScreen, "claude-permission-warning.ansi", " Contains brace", "Contains brace"},
+		{"claude permission with a wrapped label left of its column", parseClaudeScreen, "claude-permission-wrapped.ansi", "      /Users/user", "     /Users/user"},
+		{"claude permission with a wrapped label right of its column", parseClaudeScreen, "claude-permission-wrapped.ansi", "      /Users/user", "       /Users/user"},
 		{"claude tab bar without submit", parseClaudeScreen, "claude-question-tabs.ansi", "✔ Submit", "✔ Send"},
 		{"claude prompt with a line after the status line", parseClaudeScreen, "claude-idle.ansi", "auto mode on", "auto mode on\nunexpected"},
 		{"opencode option number gap", parseOpenCodeScreen, oq, "2. Banana", "3. Banana"},
@@ -357,6 +396,8 @@ func TestParseScreenRejectsNonMatching(t *testing.T) {
 		{"opencode tab bar on single footer", parseOpenCodeScreen, oq, "┃  Which fruit do you prefer?", "┃  Fruit  Submit\n  ┃\n  ┃  Which fruit do you prefer?"},
 		{"opencode prompt without bottom edge", parseOpenCodeScreen, "opencode-done.ansi", "╹▀▀▀▀", "x▀▀▀▀"},
 		{"opencode status line without model", parseOpenCodeScreen, "opencode-done.ansi", "Build · DeepSeek V4.1 Flash 1017 OpenCode Go · high", "Build"},
+		{"opencode status line with an empty model", parseOpenCodeScreen, "opencode-model-no-effort.ansi", "Build · DeepSeek V4 Pro OpenCode Go", "Build · · high"},
+		{"opencode status line without agent", parseOpenCodeScreen, "opencode-model-no-effort.ansi", "Build · DeepSeek V4 Pro OpenCode Go", " · DeepSeek V4 Pro OpenCode Go"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -645,6 +686,59 @@ func TestReadCommandReport(t *testing.T) {
 				t.Errorf("report = %q, want the last message alone", report)
 			}
 		})
+	}
+}
+
+// TestReadCommandReportUnderRecap reads the report of the sampled screen
+// whose done line is followed by Claude Code's recap: the recap is skipped
+// and is not part of the report, and a second recap is a shape no sample
+// shows, so nothing is read.
+func TestReadCommandReportUnderRecap(t *testing.T) {
+	const (
+		url     = "https://github.com/owner/repo/pull/42"
+		mention = "3 つのコミットは push しました。"
+		// recap is the recap line's start as the raw screen draws it: the
+		// mark and the word in separate colors.
+		recap = "\x1b[0m\x1b[38;5;8m※ \x1b[0m\x1b[1m\x1b[38;5;8mrecap: "
+	)
+	sample := readScreenSample(t, "claude-command-report-recap.ansi")
+	if !strings.Contains(sample, mention) || strings.Count(sample, recap) != 1 {
+		t.Fatal("the recap sample no longer holds its PR mention and one recap")
+	}
+	screen := strings.Replace(sample, mention, url+" に push しました。", 1)
+	report, ok := readCommandReport(paneinput.AgentClaudeCode, screen, url)
+	if !ok {
+		t.Fatal("readCommandReport = false, want the report above the recap")
+	}
+	if !strings.HasPrefix(report, "付録 B の 19 行は") || !strings.HasSuffix(report, "そう言ってください。") {
+		t.Errorf("report = %q, want the last message alone, without the recap", report)
+	}
+	twice := strings.Replace(screen, recap, "※ recap: a\r\n"+recap, 1)
+	if _, ok := readCommandReport(paneinput.AgentClaudeCode, twice, url); ok {
+		t.Error("two recaps were read, want no report")
+	}
+}
+
+// TestReadCommandReportUnderTitledBox reads the sampled report when Claude
+// Code draws the session's title in the input box's top rule, as
+// claude-titled-rule.ansi shows it.
+func TestReadCommandReportUnderTitledBox(t *testing.T) {
+	const url = "https://github.com/owner/repo/pull/42"
+	lines := strings.Split(reportScreen(t, url), "\n")
+	var rules []int
+	for i, l := range lines {
+		if strings.Contains(l, strings.Repeat("─", 20)) {
+			rules = append(rules, i)
+		}
+	}
+	if len(rules) < 2 {
+		t.Fatal("the report sample no longer has the input box's two rules")
+	}
+	top := rules[len(rules)-2]
+	lines[top] = "\x1b[0m\x1b[38;5;7m" + strings.Repeat("─", 40) + " Plan 0001 work ─"
+	report, ok := readCommandReport(paneinput.AgentClaudeCode, strings.Join(lines, "\n"), url)
+	if !ok || !isSampleReport(report) {
+		t.Errorf("readCommandReport = %q, %v; want the sampled report", report, ok)
 	}
 }
 

@@ -46,16 +46,32 @@ const (
 	nameMkarch  = "mkarch"
 	nameMkplan  = "mkplan"
 	nameRunplan = "runplan"
+	// The --command values that are no command name of their own.
+	nameRunplanTakeover = "runplan-takeover"
+	nameRunpr           = "runpr"
 )
 
 // requestKinds are the --command values.
 var requestKinds = map[string]RequestKind{
-	nameMkreq:          RequestMkreq,
-	nameMkarch:         RequestMkarch,
-	nameMkplan:         RequestMkplan,
-	nameRunplan:        RequestRunplan,
-	"runplan-takeover": RequestRunplanTakeover,
-	"runpr":            RequestRunpr,
+	nameMkreq:           RequestMkreq,
+	nameMkarch:          RequestMkarch,
+	nameMkplan:          RequestMkplan,
+	nameRunplan:         RequestRunplan,
+	nameRunplanTakeover: RequestRunplanTakeover,
+	nameRunpr:           RequestRunpr,
+}
+
+// requestNames are the --command values that send each kind of offer, so the
+// /chief session passes back the value the output names instead of reading
+// it from the command line. Contract: every kind of offer but none has one,
+// and `chief send` with it sends that offer (offered).
+var requestNames = map[TaskNextKind]string{
+	TaskNextMkreq:           nameMkreq,
+	TaskNextMkarch:          nameMkarch,
+	TaskNextMkplan:          nameMkplan,
+	TaskNextRunplan:         nameRunplan,
+	TaskNextRunplanTakeover: nameRunplanTakeover,
+	TaskNextRunpr:           nameRunpr,
 }
 
 // SendRequest is a validated `chief send`: the workspace, the command kind,

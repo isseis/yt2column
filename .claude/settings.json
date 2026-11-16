@@ -2,7 +2,34 @@
   "permissions": {
     "allow": [
       "Bash(coderabbit review *)",
-      "Bash(codexreview *)"
+      "Bash(codexreview *)",
+      "Bash(chief *)"
+    ],
+    "deny": [
+      "Bash(herdr agent prompt *)",
+      "Bash(herdr agent send-keys *)",
+      "Bash(herdr agent start *)",
+      "Bash(herdr agent attach *)",
+      "Bash(herdr pane send-text *)",
+      "Bash(herdr pane send-keys *)",
+      "Bash(herdr pane run *)",
+      "Bash(herdr pane input *)",
+      "Bash(herdr pane report-agent *)",
+      "Bash(herdr pane report-agent-session *)",
+      "Bash(herdr pane release-agent *)",
+      "Bash(herdr pane close*)",
+      "Bash(herdr tab close*)",
+      "Bash(herdr workspace close*)",
+      "Bash(herdr session stop*)",
+      "Bash(herdr session delete*)",
+      "Bash(herdr worktree remove*)",
+      "Bash(herdr integration install*)",
+      "Bash(herdr integration uninstall*)",
+      "Bash(herdr server stop*)",
+      "Bash(herdr update*)",
+      "Bash(herdr --session*)",
+      "Bash(herdr --machine*)",
+      "Bash(herdr --remote*)"
     ]
   }
 }

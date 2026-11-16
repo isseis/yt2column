@@ -124,7 +124,7 @@ func newWorld(t *testing.T) *world {
 			t.Fatal(err)
 		}
 	}
-	w.env = Env{PaneID: worldChiefPane, XDGStateHome: filepath.Join(root, "state"), Home: root}
+	w.env = Env{PaneID: worldChiefPane, WorkDir: w.chiefTree, XDGStateHome: filepath.Join(root, "state"), Home: root}
 	w.store, err = OpenStore(w.env.XDGStateHome)
 	if err != nil {
 		t.Fatal(err)

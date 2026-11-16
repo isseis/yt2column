@@ -45,6 +45,13 @@ var (
 	ErrLockUnverifiable = errors.New("the owner of the chief lock cannot be checked")
 	// ErrNoSession reports a caller whose Herdr agent session is unknown.
 	ErrNoSession = errors.New("the calling pane has no agent session")
+	// ErrPaneMismatch reports a HERDR_PANE_ID that names a pane whose agent
+	// works in another worktree than the caller: the environment was
+	// inherited from another pane, so chief cannot tell its own workspace.
+	ErrPaneMismatch = errors.New("HERDR_PANE_ID names a pane in another worktree than this process")
+	// errWorkDir reports a working directory that could not be read; it is
+	// a failure of the tool, not a refusal.
+	errWorkDir = errors.New("the working directory cannot be read")
 )
 
 // Env is the part of the process environment the tool reads. The entry point
@@ -52,6 +59,9 @@ var (
 type Env struct {
 	// PaneID is HERDR_PANE_ID: the pane chief runs in, empty outside Herdr.
 	PaneID string
+	// WorkDir is the process's working directory, which ResolveOwner checks
+	// against the worktree of PaneID's agent. The entry point sets it.
+	WorkDir string
 	// XDGStateHome, Home, and ClaudeConfigDir are the variables of the same
 	// names.
 	XDGStateHome    string
@@ -179,14 +189,37 @@ type lockRecord struct {
 // ResolveOwner returns the caller's owner identity: its pane and the session
 // Herdr holds for the pane. A pane without a session cannot own the lock,
 // since the session is what tells a cleared chief session from the same one.
-func ResolveOwner(ctx context.Context, herdr Herdr, paneID string) (Owner, error) {
-	pane, err := ParsePaneID(paneID)
+// Contract: HERDR_PANE_ID is trusted only when its pane's agent works in the
+// caller's worktree. A process can inherit HERDR_PANE_ID from another pane
+// (seen in the PR-7 live check after Herdr was restarted); chief would then
+// take that pane's workspace for its own, leave it out of the table, and
+// list its own workspace as a task workspace, so it is ErrPaneMismatch. A
+// working directory that is not absolute (os.Getwd failed) is a failure,
+// not a mismatch.
+func ResolveOwner(ctx context.Context, cmds Commands, env Env) (Owner, error) {
+	pane, err := ParsePaneID(env.PaneID)
 	if err != nil {
 		return Owner{}, err
 	}
-	agent, err := herdr.Agent(ctx, pane)
+	agent, err := NewHerdr(cmds).Agent(ctx, pane)
 	if err != nil {
 		return Owner{}, err
+	}
+	if !filepath.IsAbs(env.WorkDir) {
+		// The working directory could not be read (or was set wrong): a
+		// failure of the tool, not an inherited HERDR_PANE_ID.
+		return Owner{}, fmt.Errorf("%w (got %q)", errWorkDir, env.WorkDir)
+	}
+	own, err := CanonicalWorktree(ctx, cmds, env.WorkDir)
+	if err != nil {
+		return Owner{}, fmt.Errorf("read the working directory's worktree: %w", err)
+	}
+	panes, err := CanonicalWorktree(ctx, cmds, agent.Dir)
+	if err != nil {
+		return Owner{}, fmt.Errorf("read the worktree of pane %s: %w", pane, err)
+	}
+	if panes != own {
+		return Owner{}, fmt.Errorf("%w: pane %s works in %s, this process in %s", ErrPaneMismatch, pane, agent.Dir, own)
 	}
 	if agent.Session == "" {
 		return Owner{}, ErrNoSession
@@ -367,6 +400,9 @@ type noticeRecord struct {
 	Session   string    `json:"session"`
 	Item      ItemID    `json:"item"`
 	FirstSeen time.Time `json:"first_seen"`
+	// Number is the item's number in the session's lists, 0 when none
+	// could be given.
+	Number int `json:"number"`
 }
 
 // Observe records that item was seen in session. It returns when the item
@@ -386,7 +422,15 @@ func (s Store) Observe(session string, item ItemID, now time.Time) (first time.T
 	if !errors.Is(err, privatefile.ErrNotExist) {
 		return now, false, err
 	}
-	if err := s.create(name, noticeRecord{Session: session, Item: item, FirstSeen: now.UTC()}); err != nil {
+	// A number that cannot be found leaves the item unnumbered; it is still
+	// shown and chosen by its label, and the failure is returned so the
+	// round reports it.
+	number, nerr := s.nextNoticeNumber(session)
+	if nerr != nil {
+		number = 0
+		nerr = fmt.Errorf("number the item: %w", nerr)
+	}
+	if err := s.create(name, noticeRecord{Session: session, Item: item, FirstSeen: now.UTC(), Number: number}); err != nil {
 		if errors.Is(err, privatefile.ErrExist) {
 			// Another chief process made it first; read what it wrote.
 			if rerr := s.read(name, &rec); rerr != nil {
@@ -396,7 +440,42 @@ func (s Store) Observe(session string, item ItemID, now time.Time) (first time.T
 		}
 		return now, true, err
 	}
-	return now, true, nil
+	return now, true, nerr
+}
+
+// nextNoticeNumber returns the number for a new item of session: one above
+// the highest number the session's notice records hold. Contract: a number
+// is never given to two items of one session, as long as one round stamps
+// its items at a time (the /chief definition runs one round at a time), and
+// a number stays with its item for the session, after the item is gone too.
+func (s Store) nextNoticeNumber(session string) (int, error) {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return 0, err
+	}
+	highest := 0
+	for _, e := range entries {
+		name := e.Name()
+		if !noticeFileName.MatchString(name) || !strings.HasPrefix(name, noticePrefix+hashName(session)+"-") {
+			continue
+		}
+		var rec noticeRecord
+		if err := s.read(name, &rec); err != nil {
+			return 0, err
+		}
+		highest = max(highest, rec.Number)
+	}
+	return highest + 1, nil
+}
+
+// NoticeNumber returns the number the notice record of item in session
+// holds, 0 when it holds none.
+func (s Store) NoticeNumber(session string, item ItemID) (int, error) {
+	var rec noticeRecord
+	if err := s.read(noticeName(session, item), &rec); err != nil {
+		return 0, err
+	}
+	return rec.Number, nil
 }
 
 // sessionRecordKinds are the records kept per chief session, each with the

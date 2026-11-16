@@ -5,6 +5,7 @@ package chief
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -160,11 +161,6 @@ func TestSendChecksBeforeFirstInput(t *testing.T) {
 			p.screen = readScreenSample(sw.t, "claude-input-left.ansi")
 		}, NotSentInputLeft, "unsent draft text"},
 		{"no agent session", "claude", opus, func(_ *sendWorld, p *simPane) { p.Session = "" }, NotSentNoTranscript, ""},
-		{"no transcript", "claude", opus, func(sw *sendWorld, p *simPane) {
-			if err := os.Remove(sw.transcript(p, p.Session)); err != nil {
-				sw.t.Fatal(err)
-			}
-		}, NotSentNoTranscript, ""},
 		{"OpenCode unsent text", "opencode", flash, func(sw *sendWorld, p *simPane) {
 			p.screen = readScreenSample(sw.t, "opencode-input-left.ansi")
 		}, NotSentInputLeft, "unsent draft text"},
@@ -233,6 +229,26 @@ func TestSendInputsInOrder(t *testing.T) {
 	}
 }
 
+// TestSendToNewSession checks that a Claude Code session nobody has typed
+// into yet, which has no transcript file, is sent to: /clear starts a new
+// session, and the /model check reads that session's transcript.
+func TestSendToNewSession(t *testing.T) {
+	sw := newSendWorld(t)
+	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
+	deps := sw.finish()
+	p := sw.firstPane()
+	if err := os.Remove(sw.transcript(p, p.Session)); err != nil {
+		t.Fatal(err)
+	}
+	res := sw.sendContextOf(deps).sendCommand(context.Background(), runplanCmd(t), opus(t))
+	if res.Outcome != OutcomeSent {
+		t.Errorf("result = %+v, want sent", res)
+	}
+	if got, want := sw.rec.prompts(), []string{"w1:p1 /clear", "w1:p1 /model opus", "w1:p1 /runplan 0001"}; !slices.Equal(got, want) {
+		t.Errorf("typed %v, want %v", got, want)
+	}
+}
+
 // TestSendStopsBetweenInputs checks a failure after an input: nothing more
 // is typed, the workspace is stopped, the send ends as sent-then-failed with
 // the last input typed, and the pane's state and screen are returned.
@@ -279,6 +295,16 @@ func TestSendStopsBetweenInputs(t *testing.T) {
 		}, 1, StepClear, NotSentNoStep},
 		{"the command does not start", func(sw *sendWorld, p *simPane, text string) error {
 			if strings.HasPrefix(text, "/runplan") {
+				return nil
+			}
+			return sw.realReact(p, text)
+		}, 3, StepCommand, NotSentNoStep},
+		// Seen in the live check: the command was typed but not submitted,
+		// and the pane's state changed for another reason.
+		{"the command stays in the input line", func(sw *sendWorld, p *simPane, text string) error {
+			if strings.HasPrefix(text, "/runplan") {
+				p.Seq++
+				p.screen = readScreenSample(sw.t, "claude-input-left.ansi")
 				return nil
 			}
 			return sw.realReact(p, text)
@@ -531,6 +557,49 @@ func TestMkreqTarget(t *testing.T) {
 	}
 }
 
+// TestRequestNameSendsTheOffer: the --command value the output gives each
+// kind of offer (NextOutput.Request) makes a request that send reads as that
+// offer, so the /chief session never derives it from the command line.
+func TestRequestNameSendsTheOffer(t *testing.T) {
+	task, err := paneinput.ParseTaskID("0088")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd, err := paneinput.NewMkarch(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Every kind of offer but none; a kind added to TaskNextKind must be
+	// added here.
+	kinds := []TaskNextKind{TaskNextMkreq, TaskNextMkarch, TaskNextMkplan, TaskNextRunplan, TaskNextRunplanTakeover, TaskNextRunpr}
+	for _, kind := range kinds {
+		offer := &Next{Kind: kind, Command: &cmd}
+		row := Row{State: StateProposeNext, Next: offer}
+		issue, pr := "", ""
+		switch kind {
+		case TaskNextMkreq:
+			issue, offer.Command = "12", nil
+		case TaskNextRunpr:
+			pr, row.State, row.PR = "34", StateAwaitingReview, &OpenPR{Number: 34}
+		case TaskNextRunplanTakeover:
+			row.Next, row.Takeover = &Next{Kind: TaskNextRunplan, Command: &cmd}, offer
+		}
+		name := nextOutput(offer).Request
+		if name == "" {
+			t.Errorf("offer kind %d has no --command value in the output", kind)
+			continue
+		}
+		req, err := ParseSendRequest("/w", name, issue, pr)
+		if err != nil {
+			t.Errorf("offer kind %d: --command %q is refused: %v", kind, name, err)
+			continue
+		}
+		if _, why := offered(row, req); why != "" {
+			t.Errorf("offer kind %d: --command %q does not send the offer: %s", kind, name, why)
+		}
+	}
+}
+
 // TestSendArgumentValidation checks the arguments of a send: the parser's
 // combinations, then requests the tool does not offer for the workspace now
 // (another next command, a PR number that is not the open PR, a takeover
@@ -623,10 +692,7 @@ func TestActionResults(t *testing.T) {
 	})
 	t.Run("not sent", func(t *testing.T) {
 		got := run(t, nil, func(sw *sendWorld) {
-			p := sw.firstPane()
-			if err := os.Remove(sw.transcript(p, p.Session)); err != nil {
-				t.Fatal(err)
-			}
+			sw.firstPane().Session = ""
 		})
 		if got.Outcome != "not_sent" || got.Reason != "no_transcript" || got.Step != "" {
 			t.Errorf("result = %+v, want not sent, no_transcript, no step", got)
@@ -753,6 +819,16 @@ func TestSendStopUnwritten(t *testing.T) {
 	}
 }
 
+// TestTranscriptMissingRefused checks that a transcript that does not exist
+// (the location changed, or the session wrote none yet) is errTranscript, so
+// the check after /model fails instead of reading nothing as no switch.
+func TestTranscriptMissingRefused(t *testing.T) {
+	_, err := readTranscript(filepath.Join(t.TempDir(), "missing.jsonl"), transcriptLimit)
+	if !errors.Is(err, errTranscript) || !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("err = %v, want errTranscript caused by a missing file", err)
+	}
+}
+
 // TestTranscriptFIFORefused checks that a FIFO in the transcript's place is
 // refused at once instead of blocking the open until a writer comes.
 func TestTranscriptFIFORefused(t *testing.T) {
@@ -760,21 +836,18 @@ func TestTranscriptFIFORefused(t *testing.T) {
 	if err := syscall.Mkfifo(path, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	done := make(chan error, 2)
+	done := make(chan error, 1)
 	go func() {
-		done <- transcriptOpens(path)
 		_, err := readTranscript(path, transcriptLimit)
 		done <- err
 	}()
-	for range 2 {
-		select {
-		case err := <-done:
-			if !errors.Is(err, errTranscript) {
-				t.Errorf("err = %v, want errTranscript", err)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatal("the open of a FIFO blocked")
+	select {
+	case err := <-done:
+		if !errors.Is(err, errTranscript) {
+			t.Errorf("err = %v, want errTranscript", err)
 		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the open of a FIFO blocked")
 	}
 }
 

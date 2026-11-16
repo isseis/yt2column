@@ -12,7 +12,7 @@
 
 ## 採り方
 
--   **採取用の workspace。** 人が Herdr に使い捨ての workspace を用意し、Claude Code と OpenCode の pane を 1 つずつ起動した。エージェント（PR-1 の `/runplan` のセッション）が、その pane にだけ `herdr agent prompt` で頼んで状態を作り、`herdr agent send-keys` でキー入力を確かめた。
+-   **採取用の workspace。** 人が Herdr に使い捨ての workspace を用意し、Claude Code と OpenCode の pane を 1 つずつ起動した。エージェント（PR-1 の `/runplan` のセッション）が、その pane にだけ `herdr agent prompt` で頼んで状態を作り、`herdr agent send-keys` でキー入力を確かめた。今はリポジトリの `.claude/settings.json` がこの 2 つを拒む（[chief_guide.md](../../../docs/dev/guides/chief_guide.md) §6）。拒否は許可の設定より強いので、採り直すときは、人が採取用の pane で入力し、エージェントは画面を読む `herdr agent read`（拒まれない）だけを使う。
 -   **画面。** `herdr agent read <pane> --format ansi` で読んだ。エージェントが `blocked` の間は `--source recent` を Herdr が拒むので、`--source visible --lines 200` で読んだ（pane に見えている行だけになる）。それ以外は `--source recent --lines 200` で読んだ。
 -   **マージの確認。** 採った日には、どのタスクの workspace にも `/runpr` のマージの質問が出ていなかった。採取用の pane に、`.claude/commands/runpr.md` の step 4 の item 3 と同じ問いの文・選択肢の名前と説明・要約の行の形で問いを出させて採った。問いの部品の形は本物の `/runpr` と同じだが、要約の値（PR #123 など）は作ったものである。
 -   **報告。** `claude-command-report.ansi` と `opencode-runpr-report.txt` は、実際のタスクの workspace に残っていた報告を、読み取りだけで採った。`opencode-runpr-report.txt` は、ANSI の形で採る前に pane が空にされたので、テキストの形だけである。
@@ -52,12 +52,16 @@
 | `claude-question-tabs-second.ansi` | 1 つめに答えた後の 2 つめ |
 | `claude-question-tabs-review.ansi` | 両方に答えた後の確かめ（`Submit answers`） |
 | `claude-permission.ansi` | 権限の確認（`Bash command`、`Do you want to proceed?`） |
+| `claude-permission-warning.ansi` | 権限の確認。折り返したコマンドの行に `│` が付き、`Do you want to proceed?` の前に警告の行と空行がある。タスク 0088 の PR-7 の実地の確かめで、2026-11-15 に Claude Code 2.1.325 の画面から採った |
+| `claude-permission-wrapped.ansi` | 権限の確認。選択肢 2 のラベルが pane の幅を超え、ラベルの開始の桁に字下げした行に折り返している。タスク 0088 の PR-7 の実地の確かめで、2026-11-15 に Claude Code 2.1.322 の画面から採った |
 | `claude-input-left.ansi` | 入力欄に送っていない文字が残っている |
 | `claude-working.ansi` | 実行中 |
 | `claude-after-clear.ansi` | `/clear` の後 |
+| `claude-titled-rule.ansi` | `/clear` の後の入力待ち。入力欄の上の罫線に、セッションの名前（`Plan 0091 phase group`）が入っている。タスク 0088 の PR-7 の後、2026-11-16 に Claude Code 2.1.325 の画面から、読み取りだけで採った |
 | `claude-after-model.ansi` | `/model sonnet` の後 |
 | `claude-merge-question.ansi` | マージの確認（上の「マージの確認」のとおり再現したもの） |
 | `claude-command-report.ansi` | PR に関わるコマンドの最後の報告 |
+| `claude-command-report-recap.ansi` | PR に関わるコマンドの最後の報告。実行の終わりの行と入力欄の間に、しばらく操作がなかった後の `※ recap:` の要約がある。タスク 0088 の PR-7 の実地の確かめで、2026-11-16 に Claude Code 2.1.325 の画面から、読み取りだけで採った |
 | `opencode-question-single.ansi` | 1 つを選ぶ問い。選択の位置は 1（色だけで示される） |
 | `opencode-question-single-cursor.ansi` | 同じ問いで、選択の位置を 3 に動かしたもの |
 | `opencode-question-multi.ansi` | 複数を選ぶ問い |
@@ -67,6 +71,7 @@
 | `opencode-input-left.ansi` | 入力欄に送っていない文字が残っている |
 | `opencode-done.ansi` | 応答を終えた後の入力待ち（入力欄は空で、案内文がない） |
 | `opencode-after-new.ansi` | `/new` の後。灰色の案内文がある |
+| `opencode-model-no-effort.ansi` | 推論の強さを持たないモデル（DeepSeek V4 Pro）の入力待ち。状態の行の区切り ` · ` が 1 つだけ。タスク 0088 の PR-7 の実地の確かめで、2026-11-15 に OpenCode v2.2.6 の画面から採った |
 | `opencode-merge-question.ansi` | マージの確認（上の「マージの確認」のとおり再現したもの） |
 | `opencode-runpr-report.txt` | `/runpr` の最後の報告（テキストだけ） |
 

@@ -97,18 +97,6 @@ func readTranscript(path string, limit int64) ([]byte, error) {
 	return data, nil
 }
 
-// transcriptOpens reports whether the transcript at path can be opened as a
-// regular file, without reading it: the transcript of a long session may be
-// larger than the read cap, and only its place is checked before the first
-// input.
-func transcriptOpens(path string) error {
-	f, err := openTranscript(path)
-	if err != nil {
-		return err
-	}
-	return f.Close()
-}
-
 // openTranscript opens a transcript that is a regular file.
 func openTranscript(path string) (*os.File, error) {
 	// O_NONBLOCK keeps the open of a FIFO from waiting for a writer; the
