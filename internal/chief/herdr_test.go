@@ -5,6 +5,7 @@ package chief
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -267,4 +268,231 @@ func TestWriterRefuses(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestReadHerdrCreationSamples reads the real outputs of the Herdr commands
+// that make and close a task's workspace, taken in task 0092's field check.
+func TestReadHerdrCreationSamples(t *testing.T) {
+	const dir = "/Users/user/.herdr/worktrees/yt2column/probe-0092"
+	t.Run("workspace create", func(t *testing.T) {
+		got, err := parseWorkspaceCreate(readTestdata(t, "herdr/workspace-create.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := createdWorkspace{Label: "probe-0092", First: createdTab{Workspace: "w1Y", Tab: TabID{id: "w1Y:t1"}, Pane: PaneID{id: "w1Y:p1"}, Dir: dir}}
+		if got != want {
+			t.Errorf("workspace = %+v, want %+v", got, want)
+		}
+	})
+	t.Run("tab create", func(t *testing.T) {
+		got, err := parseTabCreate(readTestdata(t, "herdr/tab-create.json"), "w1Y")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := createdTab{Workspace: "w1Y", Tab: TabID{id: "w1Y:t2"}, Pane: PaneID{id: "w1Y:p2"}, Dir: dir}
+		if got != want {
+			t.Errorf("tab = %+v, want %+v", got, want)
+		}
+	})
+	t.Run("tab rename", func(t *testing.T) {
+		got, err := parseTabRename(readTestdata(t, "herdr/tab-rename.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := (tabInfo{Workspace: "w1Y", Tab: TabID{id: "w1Y:t1"}, Label: "cmd"}); got != want {
+			t.Errorf("tab = %+v, want %+v", got, want)
+		}
+	})
+	starts := map[string]struct {
+		name    string
+		kind    paneinput.AgentKind
+		pane    string
+		session bool
+	}{
+		"agent-start-claude.json":   {"probe-0092-claude", paneinput.AgentClaudeCode, "w1Y:p3", true},
+		"agent-start-opencode.json": {"probe-0092-opencode", paneinput.AgentOpenCode, "w1Y:p2", false},
+	}
+	for file, want := range starts {
+		t.Run(file, func(t *testing.T) {
+			got, err := parseAgentStart(readTestdata(t, "herdr/"+file))
+			if err != nil {
+				t.Fatal(err)
+			}
+			a := got.Agent
+			if got.Name != want.name || a.Kind != want.kind || a.Pane.String() != want.pane || a.Status != AgentIdle || a.Dir != dir || (a.Session != "") != want.session {
+				t.Errorf("started = %+v, want name %q kind %d pane %s idle in %s, session %v", got, want.name, want.kind, want.pane, dir, want.session)
+			}
+		})
+	}
+	t.Run("agent get right after start", func(t *testing.T) {
+		a, err := parseAgentGet(readTestdata(t, "herdr/agent-get-claude-started.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Kind != paneinput.AgentClaudeCode || a.Status != AgentIdle || a.Session == "" || a.Dir != dir {
+			t.Errorf("agent = %+v, want an idle Claude Code agent with a session in %s", a, dir)
+		}
+	})
+	t.Run("pane list of shells", func(t *testing.T) {
+		panes, err := parsePaneList(readTestdata(t, "herdr/pane-list-shells.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(panes) != 3 {
+			t.Fatalf("read %d panes, want 3", len(panes))
+		}
+		want := Pane{ID: PaneID{id: "w1Y:p2"}, Workspace: "w1Y", Tab: TabID{id: "w1Y:t2"}, Dir: dir}
+		if panes[1] != want {
+			t.Errorf("pane 1 = %+v, want %+v", panes[1], want)
+		}
+	})
+	t.Run("pane list with agents", func(t *testing.T) {
+		panes, err := parsePaneList(readTestdata(t, "herdr/pane-list-agents.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var kinds []paneinput.AgentKind
+		var agents []bool
+		for _, p := range panes {
+			kinds = append(kinds, p.Kind)
+			agents = append(agents, p.HasAgent)
+		}
+		wantKinds := []paneinput.AgentKind{paneinput.AgentUnknown, paneinput.AgentOpenCode, paneinput.AgentClaudeCode}
+		if !slices.Equal(kinds, wantKinds) || !slices.Equal(agents, []bool{false, true, true}) {
+			t.Errorf("kinds = %v, agents = %v, want %v and a shell then two agents", kinds, agents, wantKinds)
+		}
+	})
+	infos := map[string]bool{
+		"pane-process-info-shell.json": true,
+		"pane-process-info-busy.json":  false,
+	}
+	for file, shell := range infos {
+		t.Run(file, func(t *testing.T) {
+			info, err := parsePaneProcessInfo(readTestdata(t, "herdr/"+file))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Pane.String() != "w1Y:p1" || info.ShellInForeground() != shell {
+				t.Errorf("info = %+v, ShellInForeground = %v, want %v", info, info.ShellInForeground(), shell)
+			}
+		})
+	}
+	t.Run("workspace close", func(t *testing.T) {
+		if err := parseWorkspaceClose(readTestdata(t, "herdr/workspace-close.json")); err != nil {
+			t.Error(err)
+		}
+	})
+	errs := map[string]struct{ id, code string }{
+		"agent-start-name-taken.stderr":    {"cli:agent:start", "agent_name_taken"},
+		"agent-start-pane-busy.stderr":     {"cli:agent:start", "agent_pane_busy"},
+		"agent-start-timeout.stderr":       {"cli:agent:start", "timeout"},
+		"workspace-close-not-found.stderr": {"cli:workspace:close", "workspace_not_found"},
+	}
+	for file, want := range errs {
+		t.Run(file, func(t *testing.T) {
+			got, err := parseHerdrError(readTestdata(t, "herdr/"+file), want.id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Code != want.code || got.Message == "" {
+				t.Errorf("error = %+v, want code %q with a message", got, want.code)
+			}
+		})
+	}
+}
+
+// TestShellInForeground checks the shell-at-its-prompt rule on process
+// information the samples did not show: each case breaks one of its
+// conditions.
+func TestShellInForeground(t *testing.T) {
+	cases := map[string]struct {
+		info processInfo
+		want bool
+	}{
+		"shell alone":                {processInfo{ShellPID: 10, ForegroundGroup: 10, ForegroundPIDs: []int64{10}}, true},
+		"another group":              {processInfo{ShellPID: 10, ForegroundGroup: 11, ForegroundPIDs: []int64{10}}, false},
+		"shell group with a child":   {processInfo{ShellPID: 10, ForegroundGroup: 10, ForegroundPIDs: []int64{10, 12}}, false},
+		"shell group, other process": {processInfo{ShellPID: 10, ForegroundGroup: 10, ForegroundPIDs: []int64{12}}, false},
+		"no process":                 {processInfo{ShellPID: 10, ForegroundGroup: 10}, false},
+		"zero value":                 {processInfo{}, false},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := c.info.ShellInForeground(); got != c.want {
+				t.Errorf("ShellInForeground() = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// TestHerdrRejectsUnknownCreationShapes edits the real samples of the
+// creation and removal commands into shapes the samples did not show and
+// checks each is unreadable rather than defaulted.
+func TestHerdrRejectsUnknownCreationShapes(t *testing.T) {
+	parsers := map[string]func([]byte) error{
+		"workspace-create.json": func(b []byte) error { _, err := parseWorkspaceCreate(b); return err },
+		"tab-create.json":       func(b []byte) error { _, err := parseTabCreate(b, "w1Y"); return err },
+		"tab-rename.json":       func(b []byte) error { _, err := parseTabRename(b); return err },
+		"agent-start-claude.json": func(b []byte) error {
+			_, err := parseAgentStart(b)
+			return err
+		},
+		"pane-list-agents.json":        func(b []byte) error { _, err := parsePaneList(b); return err },
+		"pane-process-info-shell.json": func(b []byte) error { _, err := parsePaneProcessInfo(b); return err },
+		"workspace-close.json":         parseWorkspaceClose,
+		"agent-start-timeout.stderr": func(b []byte) error {
+			_, err := parseHerdrError(b, "cli:agent:start")
+			return err
+		},
+	}
+	edits := []struct {
+		name, file, from, to string
+	}{
+		{"workspace of another tab", "workspace-create.json", `"tab_id":"w1Y:t1","workspace_id":"w1Y"},"type"`, `"tab_id":"w1Y:t1","workspace_id":"w1X"},"type"`},
+		{"pane of another workspace", "workspace-create.json", `"terminal_id":"term_6606c93acb11142","workspace_id":"w1Y"`, `"terminal_id":"term_6606c93acb11142","workspace_id":"w1X"`},
+		{"pane of another tab", "workspace-create.json", `"tab_id":"w1Y:t1","terminal_id"`, `"tab_id":"w1Y:t9","terminal_id"`},
+		{"missing workspace label", "workspace-create.json", `"label":"probe-0092",`, ``},
+		{"duplicate workspace", "workspace-create.json", `"type":"workspace_created",`, `"type":"workspace_created","workspace":{},`},
+		{"option-like workspace", "workspace-create.json", `"tab_count":1,"workspace_id":"w1Y"`, `"tab_count":1,"workspace_id":"--group"`},
+		{"tab of another workspace", "tab-create.json", `"tab_id":"w1Y:t2","workspace_id":"w1Y"},"type"`, `"tab_id":"w1Y:t2","workspace_id":"w1X"},"type"`},
+		{"pane of another workspace", "tab-create.json", `"terminal_id":"term_6606c93f0ceaf43","workspace_id":"w1Y"`, `"terminal_id":"term_6606c93f0ceaf43","workspace_id":"w1X"`},
+		{"duplicate root pane", "tab-create.json", `"type":"tab_created"`, `"type":"tab_created","root_pane":null`},
+		{"relative cwd", "tab-create.json", `"cwd":"/Users/user/.herdr/worktrees/yt2column/probe-0092"`, `"cwd":"probe-0092"`},
+		{"another envelope", "tab-create.json", `"cli:tab:create"`, `"cli:workspace:create"`},
+		{"malformed tab", "tab-rename.json", `"tab_id":"w1Y:t1"`, `"tab_id":"w1Y"`},
+		{"another result type", "tab-rename.json", `"type":"tab_info"`, `"type":"tab_created"`},
+		{"missing name", "agent-start-claude.json", `"name":"probe-0092-claude",`, ``},
+		{"unknown status", "agent-start-claude.json", `"agent_status":"idle"`, `"agent_status":"starting"`},
+		{"another result type", "agent-start-claude.json", `"type":"agent_started"`, `"type":"agent_info"`},
+		{"empty agent name", "pane-list-agents.json", `"agent":"opencode",`, `"agent":"",`},
+		{"null agent", "pane-list-agents.json", `"agent":"opencode",`, `"agent":null,`},
+		{"missing cwd", "pane-list-agents.json", `"agent_status":"unknown","cwd":"/Users/user/.herdr/worktrees/yt2column/chief-task-worktree",`, `"agent_status":"unknown",`},
+		{"duplicate workspace", "pane-list-agents.json", `"workspace_id":"w1S"}`, `"workspace_id":"w1S","workspace_id":"w1T"}`},
+		{"missing tab", "pane-list-agents.json", `"tab_id":"w1S:t1",`, ``},
+		{"zero shell pid", "pane-process-info-shell.json", `"shell_pid":64286`, `"shell_pid":0`},
+		{"fractional group", "pane-process-info-shell.json", `"foreground_process_group_id":64286`, `"foreground_process_group_id":64286.5`},
+		{"process without pid", "pane-process-info-shell.json", `"name":"zsh","pid":64286`, `"name":"zsh"`},
+		{"processes not an array", "pane-process-info-shell.json", `"foreground_processes":[`, `"foreground_processes":{"x":`},
+		{"another result type", "workspace-close.json", `"type":"ok"`, `"type":"workspace_closed"`},
+		{"another envelope", "workspace-close.json", `"cli:workspace:close"`, `"cli:workspace:list"`},
+		{"another command's error", "agent-start-timeout.stderr", `"cli:agent:start"`, `"cli:agent:prompt"`},
+		{"code of another shape", "agent-start-timeout.stderr", `"code":"timeout"`, `"code":"Timeout Error"`},
+		{"missing message", "agent-start-timeout.stderr", `,"message":"timed out waiting for agent startup"`, ``},
+		{"duplicate code", "agent-start-timeout.stderr", `"code":"timeout"`, `"code":"timeout","code":"timeout"`},
+	}
+	for _, e := range edits {
+		t.Run(e.file+"/"+e.name, func(t *testing.T) {
+			sample := string(readTestdata(t, "herdr/"+e.file))
+			if err := parsers[e.file]([]byte(sample)); err != nil {
+				t.Fatalf("the unedited sample is unreadable: %v", err)
+			}
+			edited := strings.Replace(sample, e.from, e.to, 1)
+			if edited == sample {
+				t.Fatalf("the sample has no %q", e.from)
+			}
+			if err := parsers[e.file]([]byte(edited)); !errors.Is(err, errHerdrOutput) {
+				t.Errorf("error = %v, want errHerdrOutput", err)
+			}
+		})
+	}
 }
