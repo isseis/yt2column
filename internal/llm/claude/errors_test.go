@@ -3,7 +3,9 @@
 package claude
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"testing"
@@ -12,10 +14,10 @@ import (
 	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
 )
 
-// TestGenerateAuthRejected checks that only a 401 response matches
-// llm.ErrAuthRejected, and that every status keeps matching ErrHTTPStatus and
-// keeps its status code reachable with errors.AsType.
-func TestGenerateAuthRejected(t *testing.T) {
+// TestHTTPStatusErrorAuthRejected checks that only a 401 matches
+// llm.ErrAuthRejected, through wrapping as the adapter wraps it, and that
+// every status keeps matching ErrHTTPStatus.
+func TestHTTPStatusErrorAuthRejected(t *testing.T) {
 	cases := []struct {
 		status       int
 		wantRejected bool
@@ -25,21 +27,35 @@ func TestGenerateAuthRejected(t *testing.T) {
 		{http.StatusForbidden, false},
 		{http.StatusTooManyRequests, false},
 		{http.StatusInternalServerError, false},
+		{statusOverloaded, false},
 	}
 	for _, tc := range cases {
 		t.Run(strconv.Itoa(tc.status), func(t *testing.T) {
-			server := llmhttptest.NewResponseServer(t, tc.status, []byte("{}"))
-			_, err := generateAgainst(t, server.URL, validRequest(), nil)
+			err := fmt.Errorf("claude: context: %w", &HTTPStatusError{StatusCode: tc.status})
 			if got := errors.Is(err, llm.ErrAuthRejected); got != tc.wantRejected {
-				t.Errorf("errors.Is(err, llm.ErrAuthRejected) = %t, want %t (error: %v)", got, tc.wantRejected, err)
+				t.Errorf("errors.Is(err, llm.ErrAuthRejected) = %t, want %t", got, tc.wantRejected)
 			}
 			if !errors.Is(err, ErrHTTPStatus) {
 				t.Errorf("error = %v, want it to match ErrHTTPStatus", err)
 			}
-			statusErr, ok := errors.AsType[*HTTPStatusError](err)
-			if !ok || statusErr.StatusCode != tc.status {
-				t.Errorf("errors.AsType[*HTTPStatusError] = %+v, %t, want status %d", statusErr, ok, tc.status)
+			// A 401 must not match an unrelated target.
+			if errors.Is(err, context.Canceled) {
+				t.Errorf("error = %v, must not match context.Canceled", err)
 			}
 		})
+	}
+}
+
+// TestGenerateAuthRejected checks the same through Generate, so the error
+// Generate builds around HTTPStatusError keeps the match.
+func TestGenerateAuthRejected(t *testing.T) {
+	server := llmhttptest.NewResponseServer(t, http.StatusUnauthorized, []byte("{}"))
+	_, err := generateAgainst(t, server.URL, validRequest(), nil)
+	if !errors.Is(err, llm.ErrAuthRejected) {
+		t.Errorf("Generate() error = %v, want it to match llm.ErrAuthRejected", err)
+	}
+	statusErr, ok := errors.AsType[*HTTPStatusError](err)
+	if !ok || statusErr.StatusCode != http.StatusUnauthorized {
+		t.Errorf("errors.AsType[*HTTPStatusError] = %+v, %t, want status 401", statusErr, ok)
 	}
 }

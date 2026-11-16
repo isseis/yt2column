@@ -47,7 +47,8 @@ var (
 var elapsedPattern = regexp.MustCompile(` \(\d+ ms elapsed\)`)
 
 // assertNamesElapsed checks that err names the elapsed time as an integer
-// count of milliseconds.
+// count of milliseconds. The wording is the contract here: the elapsed time is
+// text in the message, with no error type to check instead.
 func assertNamesElapsed(t *testing.T, err error) {
 	t.Helper()
 	if !elapsedPattern.MatchString(err.Error()) {
@@ -631,7 +632,8 @@ func (b *trackingBody) Close() error {
 
 func TestStatusReturnsStatusCode(t *testing.T) {
 	// Every status is a result, not an error, because the caller decides what a
-	// status means; that includes 200 and a redirect.
+	// status means; that includes 200 and 307. The server sends no Location, so
+	// this table says nothing about redirects: TestStatusNoRedirect does.
 	statuses := []int{
 		http.StatusOK,
 		http.StatusNoContent,

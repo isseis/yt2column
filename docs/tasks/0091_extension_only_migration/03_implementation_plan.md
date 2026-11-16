@@ -570,7 +570,7 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 | AC-09 | `et/jobCoordinator.test.ts`（上限の境界と捨てる順、上限での拒否）、`et/jobRecord.test.ts`（記録の型が字幕と概要欄を持たない）、PR-8 の手動の確認 | test、manual | 6-7・7-4・8-7 | PR-6、PR-7、PR-8 |
 | AC-10 | `et/jobCoordinator.test.ts`（同じ入力と同じ動画の照会、API キーがないときの順） | test | 7-4 | PR-7 |
 | AC-11 | `et/viewerApp.test.ts`（3 つの状態で不明と示し、金額を示さない。`api_key_missing`・`settings_invalid` で触れない）、PR-8 の手動の確認 | test、manual | 8-3・8-7 | PR-8 |
-| AC-12 | `internal/llm/claude/errors_test.go::TestGenerateAuthRejected`、`ej/run_test.go::TestRunAuthRejected`（3 つの工程のそれぞれ）、`et/viewerApp.test.ts`（キーが拒まれた状態と操作）、`et/jobCoordinator.test.ts`（同じジョブ ID でやり直す）、§7 の 2 つの前の確認 | test、manual | 1-1・1-2・3-2・6-1・7-4・8-3 | PR-1、PR-3、PR-6、PR-7、PR-8 |
+| AC-12 | `internal/llm/claude/errors_test.go::TestHTTPStatusErrorAuthRejected`・`TestGenerateAuthRejected`、`ej/run_test.go::TestRunAuthRejected`（3 つの工程のそれぞれ）、`et/viewerApp.test.ts`（キーが拒まれた状態と操作）、`et/jobCoordinator.test.ts`（同じジョブ ID でやり直す）、§7 の 2 つの前の確認 | test、manual | 1-1・1-2・3-2・6-1・7-4・8-3 | PR-1、PR-3、PR-6、PR-7、PR-8 |
 | AC-13 | `et/jobCoordinator.test.ts`（3 つ目の開始の拒否）、`et/popupView.test.ts`（開始が拒否された状態） | test | 7-4・8-3 | PR-7、PR-8 |
 | AC-14 | `et/viewerApp.test.ts`・`et/popupView.test.ts`（状態ごとの固定の文言、例外の文を含まない）、`et/catalog.test.ts`（英語と日本語の文言が同じ項目を持つ）、文言の読み合わせ | test、manual | 8-3 | PR-8 |
 | AC-15 | 文言の読み合わせ（PR のレビュー） | manual | 8-3 | PR-8 |

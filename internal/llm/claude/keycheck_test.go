@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
-	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/llmhttp"
 	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
 	"github.com/isseis/yt2column/internal/secret"
@@ -42,7 +41,6 @@ func TestCheckKeyStatus(t *testing.T) {
 		{http.StatusForbidden, false},
 		{http.StatusTooManyRequests, false},
 		{http.StatusInternalServerError, false},
-		{http.StatusTemporaryRedirect, false},
 	}
 	for _, tc := range cases {
 		t.Run(strconv.Itoa(tc.status), func(t *testing.T) {
@@ -74,13 +72,14 @@ func TestCheckKeyStatus(t *testing.T) {
 }
 
 func TestCheckKeyDoesNotReadTheBody(t *testing.T) {
-	// The server sends the status line and then no body at all. A check that
-	// waited for the body would run into its own deadline.
-	server := llmhttptest.NewStatusStallingServer(t, http.StatusUnauthorized)
+	// The server answers 200 and then never finishes the body. A check that
+	// read the body, as llmhttp.Post does for a 200, would run into its own
+	// deadline instead of returning nil as soon as the status arrives.
+	server := llmhttptest.NewPartialStallingServer(t)
 	start := time.Now()
 	err := checkKeyAgainst(t, server.URL, func(opts *KeyCheckOptions) { opts.Timeout = testClientTimeout * 2 })
-	if !errors.Is(err, llm.ErrAuthRejected) {
-		t.Errorf("CheckKey() error = %v, want llm.ErrAuthRejected", err)
+	if err != nil {
+		t.Errorf("CheckKey() error = %v, want nil", err)
 	}
 	if elapsed := time.Since(start); elapsed >= testClientTimeout {
 		t.Errorf("CheckKey() took %v; it must return without reading the body", elapsed)
@@ -88,6 +87,8 @@ func TestCheckKeyDoesNotReadTheBody(t *testing.T) {
 }
 
 func TestCheckKeyNotRejected(t *testing.T) {
+	// shortTimeout makes the stalling server hit the check's own deadline.
+	const shortTimeout = 100 * time.Millisecond
 	// A key check that could not be made is not a rejected key: neither a
 	// send failure nor a timeout matches llm.ErrAuthRejected.
 	t.Run("send failure", func(t *testing.T) {
@@ -102,13 +103,14 @@ func TestCheckKeyNotRejected(t *testing.T) {
 	})
 	t.Run("timeout", func(t *testing.T) {
 		server := llmhttptest.NewStallingServer(t)
-		err := checkKeyAgainst(t, server.URL, func(opts *KeyCheckOptions) { opts.Timeout = 100 * time.Millisecond })
+		err := checkKeyAgainst(t, server.URL, func(opts *KeyCheckOptions) { opts.Timeout = shortTimeout })
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Errorf("CheckKey() error = %v, want context.DeadlineExceeded", err)
 		}
 		if errors.Is(err, llm.ErrAuthRejected) {
 			t.Errorf("CheckKey() error = %v, must not match llm.ErrAuthRejected", err)
 		}
+		assertErrorPrefix(t, err)
 	})
 }
 
@@ -217,9 +219,8 @@ func TestCheckKeyUsesProxyForProductionEndpoint(t *testing.T) {
 	// and the proxy sees the attempt. Nothing reaches the network.
 	before := testProxy.Accepted()
 	err := CheckKey(context.Background(), KeyCheckOptions{
-		APIKey:      mustSecret(t, testAPIKey),
-		WorkspaceID: claudeparam.WorkspaceID{},
-		Timeout:     testClientTimeout,
+		APIKey:  mustSecret(t, testAPIKey),
+		Timeout: testClientTimeout,
 	})
 	if !errors.Is(err, ErrTransport) {
 		t.Errorf("CheckKey() error = %v, want ErrTransport", err)
