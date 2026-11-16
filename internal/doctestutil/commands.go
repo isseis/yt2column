@@ -62,6 +62,10 @@ var (
 	assignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
 	// redirection is a redirection word, which may come before a command.
 	redirection = regexp.MustCompile(`^[0-9]*[<>]`)
+	// bareRedirection is a redirection operator written as a word of its
+	// own, whose target is the next word (> file, 2>> file), unlike a word
+	// that holds its target (>file, 2>&1).
+	bareRedirection = regexp.MustCompile(`^[0-9]*(?:<|>|>>|>\|)$`)
 	// shellScriptFlag is a shell option cluster that holds -c, such as -lc.
 	shellScriptFlag = regexp.MustCompile(`^-[A-Za-z]*c[A-Za-z]*$`)
 	// optionValue is a number or a duration, the value an option such as
@@ -131,6 +135,9 @@ func commandRuns(words []string, name string) bool {
 		word = strings.TrimRight(strings.Trim(word, `"'`), `)};`)
 		base := path.Base(word)
 		switch {
+		case bareRedirection.MatchString(word):
+			// The next word is the redirection's target, not a command.
+			i++
 		case word == "", isSetMember(reservedWords, word), assignment.MatchString(word), redirection.MatchString(word):
 		case isWrapper(base):
 			valued := wrappers[base]

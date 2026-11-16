@@ -16,6 +16,12 @@ func TestRunsCommandHonoursTheName(t *testing.T) {
 		{"env FOO=1 herdr pane run x", "herdr", true},
 		{"codex exec review", "herdr", false},
 		{"herdr agent prompt x", "codex", false},
+		// A redirection written as its own word takes the next word as its
+		// target, so the command after them is the one that runs.
+		{"> /tmp/chief-log codex exec review", "codex", true},
+		{"2>> /tmp/chief-log codex exec review", "codex", true},
+		{">/tmp/chief-log codex exec review", "codex", true},
+		{"> codex herdr agent prompt x", "codex", false},
 	} {
 		if got := RunsCommand(tc.text, tc.name); got != tc.want {
 			t.Errorf("RunsCommand(%q, %q) = %v, want %v", tc.text, tc.name, got, tc.want)
