@@ -156,7 +156,7 @@
 
 **自動送信**: hold
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -604,14 +604,15 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 **PR-1**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
 
 -   merge-base: `9ef11235d31bc1cdd0c8368e7c14903859215500`
--   比べたコミット: `53f9c2a769010d78a29a678a692bd3eb13ba574c`
+-   比べたコミット: `946f01d4691dbc78660475b2e0e585b1bd40394f`
 -   出力（終了コード 0）:
 
     ```text
-    merge-base 9ef11235d31bc1cdd0c8368e7c14903859215500 head 53f9c2a769010d78a29a678a692bd3eb13ba574c
+    merge-base 9ef11235d31bc1cdd0c8368e7c14903859215500 head 946f01d4691dbc78660475b2e0e585b1bd40394f
     ok: no non-test file under cmd/yt2column/ changed
     ```
 
+-   この記録より後の commit は、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
 -   スクリプトは、`cmd/yt2column/main.go` の変更で終了コード 1、`_test.go` だけの変更で 0、`main.go` を `_test.go` の名前に変えるリネームで 1 になることを、使い捨ての worktree で確かめた（ステップ 1-7）。
 
 ### PR-1 の前の手動の確認の記録
