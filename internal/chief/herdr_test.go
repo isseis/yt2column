@@ -460,7 +460,6 @@ func TestHerdrRejectsUnknownCreationShapes(t *testing.T) {
 		{"pane of another tab", "workspace-create.json", `"tab_id":"w1Y:t1","terminal_id"`, `"tab_id":"w1Y:t9","terminal_id"`},
 		{"missing workspace label", "workspace-create.json", `"label":"probe-0092",`, ``},
 		{"duplicate workspace", "workspace-create.json", `"type":"workspace_created",`, `"type":"workspace_created","workspace":{},`},
-		{"option-like workspace", "workspace-create.json", `"tab_count":1,"workspace_id":"w1Y"`, `"tab_count":1,"workspace_id":"--group"`},
 		{"tab of another workspace", "tab-create.json", `"tab_id":"w1Y:t2","workspace_id":"w1Y"},"type"`, `"tab_id":"w1Y:t2","workspace_id":"w1X"},"type"`},
 		{"pane of another workspace", "tab-create.json", `"terminal_id":"term_6606c93f0ceaf43","workspace_id":"w1Y"`, `"terminal_id":"term_6606c93f0ceaf43","workspace_id":"w1X"`},
 		{"duplicate root pane", "tab-create.json", `"type":"tab_created"`, `"type":"tab_created","root_pane":null`},
@@ -494,6 +493,16 @@ func TestHerdrRejectsUnknownCreationShapes(t *testing.T) {
 		{"missing message", "agent-start-timeout.stderr", `,"message":"timed out waiting for agent startup"`, ``},
 		{"duplicate code", "agent-start-timeout.stderr", `"code":"timeout"`, `"code":"timeout","code":"timeout"`},
 	}
+	t.Run("workspace-create.json/option-like workspace of its tab and pane too", func(t *testing.T) {
+		sample := string(readTestdata(t, "herdr/workspace-create.json"))
+		if strings.Count(sample, `"workspace_id":"w1Y"`) != 3 {
+			t.Fatal("the sample does not name the workspace in the workspace, its tab, and its pane")
+		}
+		edited := strings.ReplaceAll(sample, `"workspace_id":"w1Y"`, `"workspace_id":"--group"`)
+		if _, err := parseWorkspaceCreate([]byte(edited)); !errors.Is(err, errHerdrOutput) {
+			t.Errorf("error = %v, want errHerdrOutput", err)
+		}
+	})
 	t.Run("tab-create.json/option-like tab of its pane too", func(t *testing.T) {
 		sample := string(readTestdata(t, "herdr/tab-create.json"))
 		edited := strings.ReplaceAll(sample, `"tab_id":"w1Y:t2"`, `"tab_id":"--tab"`)
