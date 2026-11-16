@@ -47,7 +47,7 @@
 4.  **Worker のファイルの名前を、`extension/src/wasmWorker.ts`（Worker の中の読み込み）と `extension/src/wasmWorkerClient.ts`（ページの側の呼び出し）にする。** 設計書 §3.12 の `worker.ts`・`workerClient.ts` に当たる（設計書は「または同等のもの」とした）。理由: 今のコードの「Worker」は SW を指す（`createWorkerSend`、`extension/src/browser/chromeDeps.ts:320`、`pendingWorker`、`extension/test/helpers/chrome.ts:131`）。ADR: なし（ファイルの名前の決定である）。
 5.  **まだ使われない部品のうち、今のファイルを書き換えると今の経路が壊れるものは、新しいファイルに作る。** 新しい SW の調停（`extension/src/jobCoordinator.ts`）、実行するビューアの流れ（`extension/src/viewerRunner.ts`）、オプションページの保存と削除の流れ（`extension/src/optionsFlow.ts`）、ページの間のメッセージと生成の開始の入力の大きさの検査（`extension/src/core/jobMessages.ts`）、ビューアの URL の組み立てと解析（`extension/src/core/jobViewerUrl.ts`）、ジョブ ID でビューアを探す問い（`extension/src/jobViewerQuery.ts`）である。0090 設計書 §3.11 の `startCoordinator.ts`・`viewerUrl.ts`・`viewerQuery.ts`・`extensionMessages.ts`・`prepare.ts` を「変える」に当たる。今のファイルは、切り替えの後に呼ばれなくなり、撤去の PR で除く（決定 10）。理由: 決定 1 で、まだ使われない部品を切り替えより前に入れるためである。今のファイルは今の SW の調停とビューアが使っている。ADR: なし（ファイルの分け方の決定である）。
 6.  **設計書 §8 の挙げ方とは次の 2 点で区切りを変え、計画の決定として記録する（設計書は変えない）。** 1 つ目は、拡張のホストとの送信とポーリングの撤去を、§8 の 4（切り替え）でなく 5（撤去）の PR で行うこと（決定 10）。2 つ目は、サーバ、ホスト、開発用のサーバの文書のガードのテストを、それぞれのバイナリと一緒でなく（0090 設計書 §3.11 のテストの表）、文書の節を除く切り替えの PR で除くこと（決定 2）。理由: §8 は「PR の区切りは、実装計画書で決める。依存の順は次のとおりである」とし、どちらの変更も依存の順を保つ（撤去は切り替えの後、ガードの撤去は、ガードが読む節を除くのと同時）。`internal/server/response.go` を拡張の検査を走らせる変更の一覧から除くのは、設計書 §3.10 のとおり、`response.go` と `serverReasons.test.ts` の両方がなくなる撤去の PR にする。人が 2026-11-16 に、設計書を先に直さずに計画の決定として記録することを選んだ。ADR: なし（PR の区切りの決定で、本タスクの中で閉じる）。
-7.  **今のサーバのテストの行は、PR-3 で `internal/extjob` のテストに写し、撤去の PR まで両方を走らせる（設計書 §1.2、H-03）。加えて、同じ入力をサーバの関数と `internal/extjob` の関数に通して出力を比べる一時的なテストを、`internal/server` のテストに置く。** 比べるテストは、`internal/server` の公開しない関数を呼べるサーバのパッケージのテストに置き、撤去の PR でサーバとともに除く。写した行の対応（サーバのテストの名前 → `internal/extjob` のテストの名前）を、PR-3 の説明に表で書く。撤去までの間、サーバの関数と `internal/extjob` の関数は重複する。`.golangci.yml:36` が有効にする `dupl` に当たる組には、両側に `//nolint:dupl` を関数の単位で付け、理由に写した元と撤去の PR を書く。撤去の PR で `internal/extjob` の側の抑止を除く。理由: 写した期待の値の誤りは、写したテストだけでは見つからない（両方のテストが、それぞれのコードに対して通る）。比べるテストなら、同じ入力で 2 つの実装の出力が違えば失敗する。ADR: なし（設計書の決定を確かめる手段の追加で、本タスクの中で閉じる）。
+7.  **今のサーバのテストの行は、PR-3 で `internal/extjob` のテストに写し、撤去の PR まで両方を走らせる（設計書 §1.2、H-03）。加えて、同じ入力をサーバの関数と `internal/extjob` の関数に通して出力を比べる一時的なテストを、`internal/server` のテストに置く。** 比べるテストは、`internal/server` の公開しない関数を呼べるサーバのパッケージのテストに置き、撤去の PR でサーバとともに除く。写した行の対応（サーバのテストの名前 → `internal/extjob` のテストの名前）を、PR-3 の説明に表で書く。撤去までの間、サーバの関数と `internal/extjob` の関数は重複する。`.golangci.yml:36` が有効にする `dupl` は、実装では写した関数の組を指摘しなかったので、`//nolint:dupl` は付けない。理由: 写した期待の値の誤りは、写したテストだけでは見つからない（両方のテストが、それぞれのコードに対して通る）。比べるテストなら、同じ入力で 2 つの実装の出力が違えば失敗する。ADR: なし（設計書の決定を確かめる手段の追加で、本タスクの中で閉じる）。
 8.  **AC-26 は、各 PR で、`docs/tasks/0091_extension_only_migration/_checks/cli_unchanged.sh` を走らせて確かめる。** 要件書の「`cmd/yt2column/` の `_test.go` でないファイルの差分はない」は、変更の前後の関係を述べる基準である。スクリプトは PR-1 で作る。各 PR の完了の条件として、そのブランチで走らせ、出力と 2 つのコミット ID を §7 に書く。ADR: なし（受け入れ基準の確かめ方の決定である）。
 9.  **撤去の PR は、ADR の決定の文のうち、撤去をこれから行うこととして #773 にリンクする 2 か所を、撤去した後の形に直す。** ADR-0045 の「撤去と置き換えは #773 が行う」（`docs/dev/adr/0045-dev-fake-llm.md:25`）と、ADR-0048 の「結果」の「#773 で撤去する」（`docs/dev/adr/0048-extension-only-generation.md:48`）である。どちらも食い違いの記述ではないが、撤去の後は事実と合わなくなる。決定は変わらないので、編集上の訂正として行う。廃止した ADR-0005・ADR-0018 の「廃止の理由」の行は、廃止の時点の記録なので直さない。ADR: なし（編集上の訂正である）。
 10. **呼ばれなくなった拡張のコードとそのテストは、撤去の PR（PR-9）で除く。** 対象は、0090 設計書 §3.11 の「撤去」の行（`send.ts`・`poller.ts`・`core/native.ts`・`core/hostMessage.ts`・`core/exchange.ts`・`core/response.ts`・`core/poll.ts`）と、決定 5 で新しいファイルに置き換えた今のファイル、`core/articleKey.ts`、`test/helpers/native.ts`、それらのテストと、拡張と `internal/nmhost` の取り決めを確かめる `TestNativeHostContract`（`cmd/yt2column/extension_docs_test.go:159`。拡張の `send.ts`・`core/native.ts`・`core/exchange.ts` を読む）である。切り替えの PR で直すファイルの型が変わり、そのために型の検査を通らなくなるものだけは、切り替えの PR で除く（そのファイルを `TestNativeHostContract` が読むときは、そのテストも同じ commit で除く）。理由: 切り替えの PR を、配線、文書のガード、文書に絞るためである。呼ばれないファイルは、残っていてもビルドとテストを通る。人が 2026-11-16 に選んだ。ADR: なし（PR の区切りの決定で、本タスクの中で閉じる）。
@@ -194,19 +194,19 @@
 
 ### フェーズ 3: `internal/extjob` と 2 つの LLM の実装（設計書 §8 の 1 のうち `internal/extjob`）
 
-**変更するファイル:** `internal/extjob/`（新規）、`internal/extjob/claudebackend/`（新規）、`internal/extjob/devbackend/`（新規）とそのテスト、`internal/server/`（`//nolint:dupl` と、比べるテスト）、`Makefile`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/project_overview.md`
+**変更するファイル:** `internal/extjob/`（新規）、`internal/extjob/claudebackend/`（新規）、`internal/extjob/devbackend/`（新規）とそのテスト、`internal/server/`（比べるテスト）、`Makefile`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/project_overview.md`
 
--   [ ] **ステップ 3-1**: `internal/extjob` に、`Prepare`・`Prepared`・`Run`・`Result`・`Failure`・`Observer`・`Deps`・`ErrInvalidInput` と、`Backend` の interface を作る（0090 設計書 §2.3・§3.1.2、設計書 §3.3）。入力の検査は今の `validateBody` を、`inputDigest` は `Keyer.Key` から秘密の鍵を除いたものを、完了の時点の検査は `completeGeneration` を、結果は `articleStatus` の規則を、それぞれ写す（§1.3 の決定 7）。失敗の分類は `classifyWrite` に、`llm.ErrAuthRejected` を `FailureAPIKeyRejected` にする規則を、設計書 §3.3 の位置に加える。`Run` は panic を `FailureInternal` にする。`dupl` に当たる組には、§1.3 の決定 7 のとおり `//nolint:dupl` を付ける。
--   [ ] **ステップ 3-2**: サーバの `request_test.go`・`status_test.go`・`generation_test.go` の行を、`internal/extjob` のテスト（`prepare_test.go`・`result_test.go`・`run_test.go`）に写す（要件書 AC-19、H-03）。補助は `internal/extjob/test_helpers.go`（`//go:build test`）に置く。失敗の値は 0090 設計書 §4.1 と設計書 §4.1 の集合にする。加えて、`inputDigest` が同じ入力で同じで、どの値を変えても変わること、工程の進み具合の通知、3 つの工程のどれで `llm.ErrAuthRejected` が返っても `api_key_rejected` になること、入力の 4 MiB の境界を確かめる（0090 設計書 §7.1）。同じ入力をサーバの関数と `internal/extjob` の関数に通して、拒否の理由、表示用の Markdown、保存するファイルのバイト列、推定の料金、失敗の分類が同じであることを確かめる一時的なテストを（失敗の分類は、値の集合の違いを対応させて比べ、`llm.ErrAuthRejected` の入力は比べない。サーバはそれを `llm_failed` にし、`internal/extjob` は `api_key_rejected` にするので、こちらは上の写したテストで確かめる）、`internal/server` のテストに置く（§1.3 の決定 7）。写した行の対応表を PR の説明に書く。
--   [ ] **ステップ 3-3**: `claudebackend.New` を作る（設計書 §3.3）。本番の構成の Claude のクライアントと `claude.CheckKey` を使い、呼び出しごとの期限 15 分を持つ。テストは、クライアントの組み立て（`claude.Options` の値、検証・推敲のクライアントの選び方）と期限が `internal/llm/provider` と同じであることを、ネイティブのビルドで確かめる。
--   [ ] **ステップ 3-4**: `devbackend.New` を作る（設計書 §3.4）。テストは、シナリオごとのクライアントとキーの確かめの結果と、`devbackend` の依存に `internal/llm/claude` と `net` が入らないことを確かめる。
--   [ ] **ステップ 3-5**: `BackendInfo`・`ClaudeInfo`・`FakeInfo`・`Module` と 4 つの JSON の入口を、設計書 §3.3 と 0090 設計書 §3.1.2 のとおりに作る。テストは次を確かめる。
+-   [x] **ステップ 3-1**: `internal/extjob` に、`Prepare`・`Prepared`・`Run`・`Result`・`Failure`・`Observer`・`Deps`・`ErrInvalidInput` と、`Backend` の interface を作る（0090 設計書 §2.3・§3.1.2、設計書 §3.3）。入力の検査は今の `validateBody` を、`inputDigest` は `Keyer.Key` から秘密の鍵を除いたものを、完了の時点の検査は `completeGeneration` を、結果は `articleStatus` の規則を、それぞれ写す（§1.3 の決定 7）。失敗の分類は `classifyWrite` に、`llm.ErrAuthRejected` を `FailureAPIKeyRejected` にする規則を、設計書 §3.3 の位置に加える。`Run` は panic を `FailureInternal` にする。`dupl` は写した関数の組を指摘しなかったので、`//nolint:dupl` は付けない（§1.3 の決定 7）。
+-   [x] **ステップ 3-2**: サーバの `request_test.go`・`status_test.go`・`generation_test.go` の行を、`internal/extjob` のテスト（`prepare_test.go`・`result_test.go`・`run_test.go`）に写す（要件書 AC-19、H-03）。補助は `internal/extjob/test_helpers.go`（`//go:build test`）に置く。失敗の値は 0090 設計書 §4.1 と設計書 §4.1 の集合にする。加えて、`inputDigest` が同じ入力で同じで、どの値を変えても変わること、工程の進み具合の通知、3 つの工程のどれで `llm.ErrAuthRejected` が返っても `api_key_rejected` になること、入力の 4 MiB の境界を確かめる（0090 設計書 §7.1）。同じ入力をサーバの関数と `internal/extjob` の関数に通して、拒否の理由、表示用の Markdown、保存するファイルのバイト列、推定の料金、失敗の分類が同じであることを確かめる一時的なテストを（失敗の分類は、値の集合の違いを対応させて比べ、`llm.ErrAuthRejected` の入力は比べない。サーバはそれを `llm_failed` にし、`internal/extjob` は `api_key_rejected` にするので、こちらは上の写したテストで確かめる）、`internal/server` のテストに置く（§1.3 の決定 7）。写した行の対応表を PR の説明に書く。
+-   [x] **ステップ 3-3**: `claudebackend.New` を作る（設計書 §3.3）。本番の構成の Claude のクライアントと `claude.CheckKey` を使い、呼び出しごとの期限 15 分を持つ。テストは、クライアントの組み立て（`claude.Options` の値、検証・推敲のクライアントの選び方）と期限が `internal/llm/provider` と同じであることを、ネイティブのビルドで確かめる。
+-   [x] **ステップ 3-4**: `devbackend.New` を作る（設計書 §3.4）。テストは、シナリオごとのクライアントとキーの確かめの結果と、`devbackend` の依存に `internal/llm/claude` と `os/exec` が入らないこと（`go list -deps`）と、`devbackend` 自身のファイルが `net` と `internal/llm/claude` を import しないことを確かめる。`net` を依存の全体から除くことはできない（`internal/extjob` が API キーの検査に使う `llmhttp` が `net/http` を import する）。
+-   [x] **ステップ 3-5**: `BackendInfo`・`ClaudeInfo`・`FakeInfo`・`Module` と 4 つの JSON の入口を、設計書 §3.3 と 0090 設計書 §3.1.2 のとおりに作る。テストは次を確かめる。
     -   閉じたメンバの集合の拒否（`prepare` の拒否と `generate` の `request_shape`）。
     -   保存した設定の検査の各規則（`settings_invalid` で LLM の実装を呼ばないこと、ワークスペース ID の空の文字列が指定なしになること、前後に空白のある値を補正しないこと）と、`input_mismatch`。
     -   `checkSettings` の 4 つの結果、形の検査を通った後だけ `Backend.CheckKey` を呼ぶこと、キーの確かめの 30 秒の期限が `unverified` になること。
     -   結果と進み具合の JSON に API キーが入らないこと。
     -   `BackendInfo` のゼロ値で `buildInfo` が実装を名乗らないこと。`BackendInfo` を作るのは 2 つの関数だけで、同じパッケージの中のゼロ値の組み立ては、このテストで確かめる。
--   [ ] **ステップ 3-6**: `Makefile` の `WASM_PACKAGES` に `./internal/extjob/...` を加え、CLAUDE.md の `make wasm-check` の説明を直す。package_reference.md に 3 つのパッケージの行を加え、`internal/strictjson` の利用者に `internal/extjob` を加える（`TestPackageReferenceStrictjsonUsers`）。project_overview.md のディレクトリの構成に 3 つのパッケージを加える（設計書 §3.13）。
+-   [x] **ステップ 3-6**: `Makefile` の `WASM_PACKAGES` に `./internal/extjob/...` を加え、CLAUDE.md の `make wasm-check` の説明を直す。package_reference.md に 3 つのパッケージの行を加え、`internal/strictjson` の利用者に `internal/extjob` を加える（`TestPackageReferenceStrictjsonUsers`）。project_overview.md のディレクトリの構成に 3 つのパッケージを加える（設計書 §3.13）。
 
 **完了の条件:** `make test`・`make lint`・`make deadcode` が通る。サーバのテスト、写した `internal/extjob` のテスト、比べるテストが通る。`_checks/cli_unchanged.sh` が通り、§7 の AC-26 の記録に書いた。
 
@@ -224,10 +224,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/901
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 3 つの `main`、`make wasm-check`、依存の検査（設計書 §8 の 1 の残り）
 
@@ -417,11 +417,11 @@
 
 ### フェーズ 9: 撤去と文書（設計書 §8 の 5）
 
-**変更するファイル:** 撤去するパッケージ（要件書 AC-31）、呼ばれなくなった拡張のコードとそのテスト（§1.3 の決定 10）、`extension/eslint.config.js`、`extension/scripts/has-extension-changes.sh`・`extension/test/ciChanges.test.ts`、`internal/config/`（`!js` のファイル、そのテストと補助、`LoadServer` を使う行）、`internal/llm/provider/provider_test.go`、`cmd/yt2column/`（`_test.go` だけ）、`internal/extjob/`（`//nolint:dupl`）、`internal/llm/devfake/`（`deps_test.go`、`articles/elements.md`）、`internal/godepstest/godepstest_test.go`、`internal/pipeline/`（`relay_guard_test.go`、必要なら `pipeline_test.go` の `testOnlyPackageDirs`）、`internal/config/envaccess_test.go`、`Makefile`、`.golangci.yml`、`.github/workflows/ci.yml`、文書のガードのコマンドの写し、`CLAUDE.md`、`docs/dev/`、ADR（§3.3）、`docs/tasks/0091_extension_only_migration/_checks/removal.sh`（新規）
+**変更するファイル:** 撤去するパッケージ（要件書 AC-31）、呼ばれなくなった拡張のコードとそのテスト（§1.3 の決定 10）、`extension/eslint.config.js`、`extension/scripts/has-extension-changes.sh`・`extension/test/ciChanges.test.ts`、`internal/config/`（`!js` のファイル、そのテストと補助、`LoadServer` を使う行）、`internal/llm/provider/provider_test.go`、`cmd/yt2column/`（`_test.go` だけ）、`internal/llm/devfake/`（`deps_test.go`、`articles/elements.md`）、`internal/godepstest/godepstest_test.go`、`internal/pipeline/`（`relay_guard_test.go`、必要なら `pipeline_test.go` の `testOnlyPackageDirs`）、`internal/config/envaccess_test.go`、`Makefile`、`.golangci.yml`、`.github/workflows/ci.yml`、文書のガードのコマンドの写し、`CLAUDE.md`、`docs/dev/`、ADR（§3.3）、`docs/tasks/0091_extension_only_migration/_checks/removal.sh`（新規）
 
 -   [ ] **ステップ 9-1**: サーバの設定の読み込みを使う行を直す。`TestLoadClaudeEffortDefault` と `TestLoadHTTP2Debug` のサーバの行は、同じ値の CLI の行があるので、削除だけの commit で除き、`make coverage-compare` で比べる。`TestNewSendsStageEffort` は CLI の読み込みに改める。
 -   [ ] **ステップ 9-2**: 要件書 AC-31 のパッケージ、`internal/config` の `!js` のファイルとそのテストと補助、呼ばれなくなった拡張のコードとそのテスト、`TestNativeHostContract` とその定数を除く。除く前に、ステップ 8-4 と同じく仮の commit で比べ、残るパッケージ（`internal/job`・`internal/redact`・`internal/signalrun`・`internal/cachelock`・`internal/privatefile`・`internal/publisher`・`internal/writer`・`internal/config` など）の関数のカバレッジが下がるなら、そのテストを先に足す。削除の commit には、コンパイルに要る次の直しも入れる: `devfake/deps_test.go` の一覧（`internal/privatefile` は残す）、`godepstest_test.go` の例、`cmd/yt2column/devdeps_test.go` の許さない依存、`relay_guard_test.go` のホストの 2 つのテスト、`envaccess_test.go` の入口の一覧と `:407-411` の観測、比べるテスト（§1.3 の決定 7）、`package_reference.md` の撤去したパッケージの行と `internal/strictjson` の利用者の一覧（§1.2）。どのパッケージからも import されなくなるテストの補助があれば、`go list -deps -test` で確かめてから除き、`testOnlyPackageDirs` を直す。削除の commit を `make coverage-compare` と `make ext-coverage-compare` で比べる。
--   [ ] **ステップ 9-3**: `make build` を `yt2column` だけにし、`build-dev` とその変数を除く。`makefile_test.go` を直す。`.golangci.yml` の撤去したパッケージを指す規則を、`ci.yml` の `doc-guard` の対象から `./cmd/yt2column-server` を、`has-extension-changes.sh` と `ciChanges.test.ts` から `internal/server/response.go` を除く（設計書 §3.10・§3.11、§1.3 の決定 6）。lint の `sendNativeMessage` の規則は、`chromeDeps.ts` に許していた例外だけを除き、禁止は残す（設計書 §5.4）。`lintRules.test.ts` の行を直す。`internal/extjob` の `//nolint:dupl` を除く（§1.3 の決定 7）。
+-   [ ] **ステップ 9-3**: `make build` を `yt2column` だけにし、`build-dev` とその変数を除く。`makefile_test.go` を直す。`.golangci.yml` の撤去したパッケージを指す規則を、`ci.yml` の `doc-guard` の対象から `./cmd/yt2column-server` を、`has-extension-changes.sh` と `ciChanges.test.ts` から `internal/server/response.go` を除く（設計書 §3.10・§3.11、§1.3 の決定 6）。lint の `sendNativeMessage` の規則は、`chromeDeps.ts` に許していた例外だけを除き、禁止は残す（設計書 §5.4）。`lintRules.test.ts` の行を直す。
 -   [ ] **ステップ 9-4**: 文書を書き換える（設計書 §3.13）。文書のガードのコマンドの 4 つの写し（CLAUDE.md「Development Notes」、`.claude/commands/_lib/task-pr-handoff.md`、`.claude/commands/_lib/simple-process.md`、`docs/dev/guides/fixprguard_guide.md`）から `./cmd/yt2column-server` を、それぞれの今の形のまま除く。CLAUDE.md の「Build Commands」と「Architecture Overview」に残る撤去したバイナリとパッケージ、package_reference.md の `internal/privatefile` の規則のリンク先、project_overview.md のディレクトリの構成、development.md の `make` の目標、security.md に残る撤去したコードの記述を直す。`devfake/articles/elements.md` の `make build-dev` の例を、残る目標の例に替える。
 -   [ ] **ステップ 9-5**: `_checks/removal.sh` を作る。撤去したパッケージのディレクトリがないこと、`internal/job`・`internal/privatefile`・`internal/cachelock`・`internal/signalrun`・`internal/redact` が残ること、`internal/config` の Go のファイルに `!js` のビルドタグがないこと、`GOOS=js GOARCH=wasm go list -deps ./internal/config` が `internal/privatefile` を含まないこと、`make -n build-dev` が失敗すること、`Makefile`・`.golangci.yml`・`ci.yml`・`has-extension-changes.sh` が撤去したパッケージを指さないこと、追跡している文書（README、CLAUDE.md、AGENTS.md、`docs/dev/` の ADR を除く文書、`.claude/commands/`）のコマンドの例のうち、`go` のコマンドが挙げるパッケージが `go list` で見つかり、`make` のコマンドの目標が `make -n` で通ることを確かめる。各検査が、少なくとも 1 つの壊し方で失敗することを確かめる。出力とコミット ID を §7 に書く。
 -   [ ] **ステップ 9-6**: ADR の食い違いの記述を §3.3 のとおりに除き、§1.3 の決定 9 の 2 か所を直す。
@@ -538,7 +538,7 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
 -   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
--   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
+-   [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
 -   [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 -   [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9）
@@ -560,17 +560,17 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 | AC | 確かめ | 種類 | 実装 | PR |
 |---|---|---|---|---|
 | AC-01 | `cy/makefile_test.go::TestMakeBuildBuildsEveryBinary`（`yt2column` だけ）、`et/manifest.test.ts`（権限）、PR-8 の手動の確認（ホストもサーバもないプロファイルで記事が完成する） | test、manual | 8-1・8-7・9-3 | PR-8、PR-9 |
-| AC-02 | `ej/module_test.go::TestCheckSettings`（形の検査、4 つの結果、30 秒）、`internal/llm/claude/keycheck_test.go::TestCheckKeyStatus`・`TestCheckKeyNotRejected`・`TestCheckKeySendsRequest`、`ej/devbackend/devbackend_test.go`、`et/optionsFlow.test.ts`（期限、1 回の書き込み、保存しないときに書かない、検査できない場合、書き込みの失敗）、`et/optionsView.test.ts`、§7 の 2 つの前の確認、PR-8 の手動の確認 | test、manual | 1-1・1-4・3-4・3-5・6-1・6-9・7-2・8-2 | PR-1、PR-3、PR-6、PR-7、PR-8 |
+| AC-02 | `ej/module_test.go::TestCheckSettingsRejectsShape`・`TestCheckSettingsOutcomes`（形の検査、4 つの結果、30 秒）、`internal/llm/claude/keycheck_test.go::TestCheckKeyStatus`・`TestCheckKeyNotRejected`・`TestCheckKeySendsRequest`、`ej/devbackend/devbackend_test.go`、`et/optionsFlow.test.ts`（期限、1 回の書き込み、保存しないときに書かない、検査できない場合、書き込みの失敗）、`et/optionsView.test.ts`、§7 の 2 つの前の確認、PR-8 の手動の確認 | test、manual | 1-1・1-4・3-4・3-5・6-1・6-9・7-2・8-2 | PR-1、PR-3、PR-6、PR-7、PR-8 |
 | AC-03 | `et/optionsFlow.test.ts`（保存の後に欄を空にする、保存した値を読まない）、`et/optionsHtml.test.ts`（文字を伏せた欄）、PR-8 の手動の確認（パスワードの保存を勧めない） | test、manual | 7-2・8-2・8-7 | PR-7、PR-8 |
-| AC-04 | `et/optionsFlow.test.ts`（空のワークスペース ID を空の文字列で書く、1 回の `remove`）、`ej/module_test.go::TestStoredSettingsCheck`（空の文字列は指定なし）、PR-8 の手動の確認（再起動の後も残る） | test、manual | 3-5・7-2・8-7 | PR-3、PR-7、PR-8 |
+| AC-04 | `et/optionsFlow.test.ts`（空のワークスペース ID を空の文字列で書く、1 回の `remove`）、`ej/module_test.go::TestGenerateAcceptsEmptyWorkspace`（空の文字列は指定なし）、PR-8 の手動の確認（再起動の後も残る） | test、manual | 3-5・7-2・8-7 | PR-3、PR-7、PR-8 |
 | AC-05 | `ej/claudebackend/claudebackend_test.go::TestClientsMatchProvider`、`internal/config/extension_test.go::TestLoadExtensionProductionProfile`、`et/optionsHtml.test.ts`（欄が 2 つだけ） | test | 2-2・3-3・8-2 | PR-2、PR-3、PR-8 |
-| AC-06 | `et/popupHtml.test.ts`（いつもあるリンク）、`et/popupView.test.ts`（API キーがないときにビューアを開かない）、`et/viewerRunner.test.ts`（`api_key_missing`）、`ej/module_test.go::TestStoredSettingsCheck`（`settings_invalid` で LLM を呼ばない）、`et/viewerApp.test.ts`（設定が要る状態と料金に触れないこと） | test | 3-5・7-3・8-2・8-3 | PR-3、PR-7、PR-8 |
+| AC-06 | `et/popupHtml.test.ts`（いつもあるリンク）、`et/popupView.test.ts`（API キーがないときにビューアを開かない）、`et/viewerRunner.test.ts`（`api_key_missing`）、`ej/module_test.go::TestGenerateSettingsInvalid`（`settings_invalid` で LLM を呼ばない）、`et/viewerApp.test.ts`（設定が要る状態と料金に触れないこと） | test | 3-5・7-3・8-2・8-3 | PR-3、PR-7、PR-8 |
 | AC-07 | `et/jobCoordinator.test.ts`（生成の開始はポップアップからだけ、自動で送り直さない）、`et/viewerRunner.test.ts`（記録やビューアの URL を開くだけでは始めない）、PR-8 の手動の確認 | test、manual | 7-3・7-4・8-7 | PR-7、PR-8 |
 | AC-08 | `et/jobCoordinator.test.ts`（止まった実行の 4 つの経路）、`et/viewerRunner.test.ts`（実行の間だけ読み込み直しの確認）、PR-8 の手動の確認 | test、manual | 7-3・7-4・8-7 | PR-7、PR-8 |
 | AC-09 | `et/jobCoordinator.test.ts`（上限の境界と捨てる順、上限での拒否）、`et/jobRecord.test.ts`（記録の型が字幕と概要欄を持たない）、PR-8 の手動の確認 | test、manual | 6-7・7-4・8-7 | PR-6、PR-7、PR-8 |
 | AC-10 | `et/jobCoordinator.test.ts`（同じ入力と同じ動画の照会、API キーがないときの順） | test | 7-4 | PR-7 |
 | AC-11 | `et/viewerApp.test.ts`（3 つの状態で不明と示し、金額を示さない。`api_key_missing`・`settings_invalid` で触れない）、PR-8 の手動の確認 | test、manual | 8-3・8-7 | PR-8 |
-| AC-12 | `internal/llm/claude/errors_test.go::TestHTTPStatusErrorAuthRejected`・`TestGenerateAuthRejected`、`ej/run_test.go::TestRunAuthRejected`（3 つの工程のそれぞれ）、`et/viewerApp.test.ts`（キーが拒まれた状態と操作）、`et/jobCoordinator.test.ts`（同じジョブ ID でやり直す）、§7 の 2 つの前の確認 | test、manual | 1-1・1-2・3-2・6-1・7-4・8-3 | PR-1、PR-3、PR-6、PR-7、PR-8 |
+| AC-12 | `internal/llm/claude/errors_test.go::TestHTTPStatusErrorAuthRejected`・`TestGenerateAuthRejected`、`ej/run_test.go::TestRunAuthRejectedAtEveryStep`（3 つの工程のそれぞれ）、`et/viewerApp.test.ts`（キーが拒まれた状態と操作）、`et/jobCoordinator.test.ts`（同じジョブ ID でやり直す）、§7 の 2 つの前の確認 | test、manual | 1-1・1-2・3-2・6-1・7-4・8-3 | PR-1、PR-3、PR-6、PR-7、PR-8 |
 | AC-13 | `et/jobCoordinator.test.ts`（3 つ目の開始の拒否）、`et/popupView.test.ts`（開始が拒否された状態） | test | 7-4・8-3 | PR-7、PR-8 |
 | AC-14 | `et/viewerApp.test.ts`・`et/popupView.test.ts`（状態ごとの固定の文言、例外の文を含まない）、`et/catalog.test.ts`（英語と日本語の文言が同じ項目を持つ）、文言の読み合わせ | test、manual | 8-3 | PR-8 |
 | AC-15 | 文言の読み合わせ（PR のレビュー） | manual | 8-3 | PR-8 |
@@ -578,7 +578,7 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 | AC-17 | `et/checkDist.test.ts`（開発用の manifest に `key` がない、`buildKind.js` が `dev`）、`et/popupView.test.ts`・`et/viewerApp.test.ts`（開発用の印の表示）、PR-8 の手動の確認 | test、manual | 5-3・5-4・8-2 | PR-5、PR-8 |
 | AC-18 | `et/popupHtml.test.ts`・`et/optionsHtml.test.ts`（`lang`、名前、状態の領域、フォーカスの順）、`et/style.test.ts`（押せる領域、動きを止める指定。オプションページのスタイルシートを含む）、PR-8 の手動の確認（キーボード、コントラスト、VoiceOver） | test、manual | 8-2・8-7 | PR-8 |
 | AC-19 | `ej/prepare_test.go`・`ej/result_test.go`・`ej/run_test.go`（サーバの 3 つのテストの行を写したもの）、`internal/server` の比べるテスト（PR-9 で除く） | test | 3-1・3-2 | PR-3 |
-| AC-20 | `et/apiKeyPath.test.ts`、`et/lintRules.test.ts`（`storage` と決まった関数の規則）、`et/jobCoordinator.test.ts`（SW が値を読まない）、`et/wasmResult.test.ts`、`ej/module_test.go::TestResultHasNoAPIKey`、`cmd/yt2column-extjob/main_test.go`（目印のキーが出力に出ない）、PR-8 の手動の確認（ログ、URL、`storage.session`） | test、manual | 3-5・4-3・6-2・6-3・6-4・6-6・7-4・8-7 | PR-3、PR-4、PR-6、PR-7、PR-8 |
+| AC-20 | `et/apiKeyPath.test.ts`、`et/lintRules.test.ts`（`storage` と決まった関数の規則）、`et/jobCoordinator.test.ts`（SW が値を読まない）、`et/wasmResult.test.ts`、`ej/module_test.go::TestGenerateKeepsKeyOutOfOutput`、`cmd/yt2column-extjob/main_test.go`（目印のキーが出力に出ない）、PR-8 の手動の確認（ログ、URL、`storage.session`） | test、manual | 3-5・4-3・6-2・6-3・6-4・6-6・7-4・8-7 | PR-3、PR-4、PR-6、PR-7、PR-8 |
 | AC-21 | `internal/llm/llmhttp/llmhttp_test.go::TestStatusNoRedirect`・`TestPostNoRedirect`、ステップ 1-5 の共通の関数と `js` のファイルのテスト、`ej/claudebackend/claudebackend_test.go::TestClientsMatchProvider`（15 分）、`et/viewerRunner.test.ts`（50 分で `run_timeout`）、`et/lintRules.test.ts`（`fetch` は `wasmWorker.ts` だけ）、`et/manifest.test.ts`（CSP の `connect-src`） | test | 1-3・1-5・3-3・6-4・7-3・8-1 | PR-1、PR-3、PR-6、PR-7、PR-8 |
 | AC-22 | `et/manifest.test.ts`（権限、キーの集合、CSP、`incognito`、`minimum_chrome_version`、`key`、オプションページ） | test | 8-1 | PR-8 |
 | AC-23 | `et/launch.test.ts`（`setLocalAccessLevel` が失敗したら注入しない）、PR-8 の手動の確認（再起動の後） | test、manual | 8-2・8-7 | PR-8 |
@@ -627,6 +627,20 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
     ```
 
 -   この記録より後の commit は、テストの行の移動、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
+-   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
+
+**PR-3**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
+
+-   merge-base: `d731f09fdf32727c210db854b1acbf1240a399bf`
+-   比べたコミット: `f359e30893d75d88d4fa75dcffb5966b8d6b852a`
+-   出力（終了コード 0）:
+
+    ```text
+    merge-base d731f09fdf32727c210db854b1acbf1240a399bf head f359e30893d75d88d4fa75dcffb5966b8d6b852a
+    ok: no non-test file under cmd/yt2column/ changed
+    ```
+
+-   この記録より後の commit は、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
 -   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
 
 ### PR-1 の前の手動の確認の記録

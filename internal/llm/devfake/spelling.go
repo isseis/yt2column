@@ -115,3 +115,16 @@ func parseDelaySeconds(text string) (time.Duration, error) {
 	}
 	return time.Duration(seconds) * time.Second, nil
 }
+
+// Spelling returns the scenario as the five spellings ParseScenario accepts, so
+// a scenario parsed from them reports the same values back. The failure and the
+// failing call are "none" when no call fails, and the delay is in whole seconds.
+func (s Scenario) Spelling() ScenarioSpelling {
+	return ScenarioSpelling{
+		Article:       s.article.String(),
+		Failure:       s.failure.String(),
+		FailAt:        s.failAt.String(),
+		DelaySeconds:  strconv.FormatInt(int64(s.delay/time.Second), 10),
+		SettingsCheck: s.settingsCheck.String(),
+	}
+}

@@ -285,3 +285,21 @@ func checkSpellings[T interface{ String() string }](t *testing.T, name string, v
 		t.Errorf("%s() spellings = %q, want %q", name, got, want)
 	}
 }
+
+// TestScenarioSpelling checks Spelling reports the five values a scenario was
+// parsed from, so parsing the report again gives the same scenario, for a
+// scenario with a failure and a delay and for the default one.
+func TestScenarioSpelling(t *testing.T) {
+	for _, in := range []ScenarioSpelling{
+		{Article: "long", Failure: "timeout", FailAt: "shorten", DelaySeconds: "12", SettingsCheck: "unverified"},
+		{Article: "standard", Failure: "none", FailAt: "none", DelaySeconds: "0", SettingsCheck: "ok"},
+	} {
+		scenario, err := ParseScenario(in)
+		if err != nil {
+			t.Fatalf("ParseScenario(%+v): %v", in, err)
+		}
+		if got := scenario.Spelling(); got != in {
+			t.Errorf("Spelling = %+v, want %+v", got, in)
+		}
+	}
+}
