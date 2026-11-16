@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -230,3 +230,7 @@ chief がコマンドを送る前、自動送信の前、workspace を消す前�
 -   **権限の確認**：Claude Code が道具を使う前に、人に許可を求める確認。
 -   **中継**：人が chief の選択肢で選んだ答えを、質問で止まっているエージェントの pane へキー入力で送ること（0088 要件定義書の F-005）。
 -   **照合値**：中継の直前に、人に示したときと同じ問いであることを確かめるために chief が作る値（ADR-0046）。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#913）
