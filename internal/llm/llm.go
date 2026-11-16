@@ -18,6 +18,12 @@ var (
 	ErrEmptyResponse          = errors.New("empty generation")
 )
 
+// ErrAuthRejected reports that the provider rejected the credentials. Callers
+// classify with errors.Is, without importing an adapter. Only the adapters
+// listed in docs/dev/conventions/package_reference.md return it: today, the
+// Claude adapter.
+var ErrAuthRejected = errors.New("the provider rejected the credentials")
+
 // GenerateRequest is the provider-common request.
 // It must not carry provider-specific fields (e.g. DeepSeek thinking).
 // MaxOutputTokens == 0 leaves the output limit to the provider default;
@@ -67,7 +73,9 @@ type GenerateResponse struct {
 // a truncated generation is an error. They report a failure with
 // ErrInvalidRequest, ErrTruncated, ErrUnexpectedFinishReason, or
 // ErrEmptyResponse, and report a timeout or cancellation with an error that
-// matches context.DeadlineExceeded or context.Canceled.
+// matches context.DeadlineExceeded or context.Canceled. An adapter that can
+// tell that the provider rejected the credentials also matches
+// ErrAuthRejected, in addition to its own HTTP status sentinel.
 //
 // With ErrTruncated, ErrUnexpectedFinishReason, or ErrEmptyResponse, the
 // returned response carries the Model and the Usage of the rejected response,
