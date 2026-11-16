@@ -460,7 +460,8 @@ func TestFetchUsesItsOwnTimeLimit(t *testing.T) {
 // one state, and plain questions before merge confirmations; a workspace with
 // no task that waits on nothing (a /mkreq proposal, a detached HEAD) lists
 // after every other row, while one with no task that asks a question, or
-// whose pane is blocked on a screen of no known shape, does not.
+// whose pane is blocked on a screen of no known shape, does not; the idle
+// workspace's /mkreq proposal lists after the other proposal.
 func TestRowOrderRules(t *testing.T) {
 	w := newWorld(t)
 	// The earlier sighting has the later path, so only the waiting time puts it first.
@@ -485,6 +486,17 @@ func TestRowOrderRules(t *testing.T) {
 	want := []string{"question", "merge", "review-old", "review-new", "proposal", "needs-check", "no-task-blocked", "running", "done", "idle-mkreq", "idle-detached"}
 	if !slices.Equal(labels, want) {
 		t.Errorf("row order = %v, want %v", labels, want)
+	}
+	// Both proposals were first seen together and the idle one has the
+	// lower path, so only the idle rank lists it after the other.
+	var proposals []string
+	for _, p := range snap.Pending {
+		if p.Kind == PendingProposal {
+			proposals = append(proposals, p.Label)
+		}
+	}
+	if want := []string{"proposal", "idle-mkreq"}; !slices.Equal(proposals, want) {
+		t.Errorf("proposal order = %v, want %v", proposals, want)
 	}
 }
 

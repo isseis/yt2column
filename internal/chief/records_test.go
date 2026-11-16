@@ -723,8 +723,9 @@ func TestResolveOwnerChecksTheWorktree(t *testing.T) {
 	gone := w.agents[0]
 	gone.Pane, gone.Dir = "w2:p1", filepath.Join(w.chiefTree, "..", "gone")
 	w.rec.reply("herdr agent get w2:p1", agentGetOutput(gone))
-	w.rec.failIn(gone.Dir, "git rev-parse --show-toplevel", errors.New("not a git repository"))
-	if _, err := ResolveOwner(ctx, deps.Cmds, unread); err == nil || errors.Is(err, ErrPaneMismatch) {
-		t.Errorf("a pane whose worktree cannot be read = %v, want a failure that is not ErrPaneMismatch", err)
+	errNotRepo := errors.New("not a git repository")
+	w.rec.failIn(gone.Dir, "git rev-parse --show-toplevel", errNotRepo)
+	if _, err := ResolveOwner(ctx, deps.Cmds, unread); !errors.Is(err, errNotRepo) || errors.Is(err, ErrPaneMismatch) {
+		t.Errorf("a pane whose worktree cannot be read = %v, want the read's failure, not ErrPaneMismatch", err)
 	}
 }
