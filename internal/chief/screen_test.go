@@ -86,6 +86,7 @@ var claudeScreenWants = map[string]wantScreen{
 	"claude-after-clear.ansi":            {kind: ScreenPrompt, inputEmpty: true},
 	"claude-after-model.ansi":            {kind: ScreenPrompt, inputEmpty: true},
 	"claude-command-report.ansi":         {kind: ScreenPrompt, inputEmpty: true},
+	"claude-command-report-recap.ansi":   {kind: ScreenPrompt, inputEmpty: true},
 	"claude-input-left.ansi":             {kind: ScreenPrompt, inputLeft: "unsent draft text"},
 	"claude-question-single.ansi":        claudeFruitSingle,
 	"claude-question-single-cursor.ansi": withCursor(claudeFruitSingle, 3),
@@ -684,6 +685,36 @@ func TestReadCommandReport(t *testing.T) {
 				t.Errorf("report = %q, want the last message alone", report)
 			}
 		})
+	}
+}
+
+// TestReadCommandReportUnderRecap reads the report of the sampled screen
+// whose done line is followed by Claude Code's recap: the recap is skipped
+// and is not part of the report, and a second recap is a shape no sample
+// shows, so nothing is read.
+func TestReadCommandReportUnderRecap(t *testing.T) {
+	const (
+		url     = "https://github.com/owner/repo/pull/42"
+		mention = "3 つのコミットは push しました。"
+		// recap is the recap line's start as the raw screen draws it: the
+		// mark and the word in separate colors.
+		recap = "\x1b[0m\x1b[38;5;8m※ \x1b[0m\x1b[1m\x1b[38;5;8mrecap: "
+	)
+	sample := readScreenSample(t, "claude-command-report-recap.ansi")
+	if !strings.Contains(sample, mention) || strings.Count(sample, recap) != 1 {
+		t.Fatal("the recap sample no longer holds its PR mention and one recap")
+	}
+	screen := strings.Replace(sample, mention, url+" に push しました。", 1)
+	report, ok := readCommandReport(paneinput.AgentClaudeCode, screen, url)
+	if !ok {
+		t.Fatal("readCommandReport = false, want the report above the recap")
+	}
+	if !strings.HasPrefix(report, "付録 B の 19 行は") || !strings.HasSuffix(report, "そう言ってください。") {
+		t.Errorf("report = %q, want the last message alone, without the recap", report)
+	}
+	twice := strings.Replace(screen, recap, "※ recap: a\r\n"+recap, 1)
+	if _, ok := readCommandReport(paneinput.AgentClaudeCode, twice, url); ok {
+		t.Error("two recaps were read, want no report")
 	}
 }
 

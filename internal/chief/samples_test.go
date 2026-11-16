@@ -116,7 +116,7 @@ var screenRows = map[string]map[string][]string{
 		"opencode": {"opencode-runpr-report.txt"},
 	},
 	"command report": {
-		"claude": {"claude-command-report.ansi"},
+		"claude": {"claude-command-report.ansi", "claude-command-report-recap.ansi"},
 	},
 	"model line and new session": {
 		"opencode": {"opencode-after-new.ansi", "opencode-done.ansi", "opencode-model-no-effort.ansi"},
