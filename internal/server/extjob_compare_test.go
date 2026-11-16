@@ -38,12 +38,14 @@ func TestExtjobAcceptsWhatTheServerAccepts(t *testing.T) {
 		{VideoURL: "   ", Transcript: testValidRaw},
 		{VideoURL: testValidVideoURL, Transcript: ""},
 		{VideoURL: testValidVideoURL, Transcript: " \t "},
-		{VideoURL: "http://example.com/watch?v=dQw4w9WgXcQ", Transcript: testValidRaw},
-		{VideoURL: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&v=abcdefghijk", Transcript: testValidRaw},
-		{VideoURL: " https://www.youtube.com/watch?v=dQw4w9WgXcQ", Transcript: testValidRaw},
-		{VideoURL: testValidVideoURL, Transcript: "not a transcript"},
-		{VideoURL: testValidVideoURL, Transcript: "0:00\n"},
-		{VideoURL: testValidVideoURL, Transcript: "0:24MARKER_BODY"},
+	}
+	// Every row of the server's rejection tables goes through both, so a row
+	// added there is compared too.
+	for _, raw := range invalidVideoURLs {
+		inputs = append(inputs, extjob.StartInput{VideoURL: raw, Transcript: testValidRaw})
+	}
+	for _, raw := range invalidTranscriptRaws {
+		inputs = append(inputs, extjob.StartInput{VideoURL: testValidVideoURL, Transcript: raw})
 	}
 	for _, in := range inputs {
 		body, err := json.Marshal(map[string]string{
