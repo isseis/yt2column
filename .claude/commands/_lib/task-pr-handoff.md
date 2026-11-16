@@ -217,7 +217,9 @@ Run this after the calling command's last commit, with a clean working tree.
    `<label-flags>` carries over the labels of the task's issue (ISSUE, or the
    `対応 issue` Part A read; not LINK_ISSUE, a link sub-issue): read them with
    `gh issue view <issue> --json labels --jq '.labels[].name'` and pass one
-   `--label "<name>"` per line printed. With no issue or no label, it is empty. Do not pause for the user to
+   `--label '<name>'` per line printed, in single quotes so the shell expands
+   nothing in the name (write each `'` in a name as `'\''`). With no issue or no
+   label, it is empty. Do not pause for the user to
    adjust the title or body; the reviewer can edit them on GitHub. The title is
    PR_TEXT's and follows `_context.md`, "PR title and squash subject". The title
    and the body use the terms of the translation glossary, as `_context.md`,
