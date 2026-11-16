@@ -576,7 +576,7 @@ func questionStop(f workspaceFacts) string
 
 ### 3.7. 待ち受け
 
-`chief wait`（`internal/chief/wait.go`）は、Herdr のエージェントの一覧の変化で戻る。Claude Code が質問を出すと、Herdr の状態が `working` から `blocked` に変わるので、transcript を見なくても待ち受けは戻る。変えない。
+`chief wait`（`internal/chief/wait.go`）は、Herdr のエージェントの一覧の変化で戻る。Claude Code が質問を出すと、Herdr の状態が `working` から `blocked` に変わるので、transcript を見なくても待ち受けは戻る。Herdr が `working` と報告したまま質問が transcript に書かれたとき（AC-06）は、待ち受けは戻らない。その質問は、ほかの変化か待ち受けの時間切れ（既定で 10 分、`internal/chief/wait.go:26`）の後の周で示される。AC-06 の質問は中継しないので、示すのが遅れても送るものは変わらない。待ち受けは変えない。
 
 ### 3.8. 文書の更新（F-006）
 
