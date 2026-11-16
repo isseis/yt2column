@@ -109,7 +109,7 @@ show, in this order:
    `reasons` and no sent action, say that the command after the merge was not
    sent and why: it is offered as a proposal instead.
 2. **The table**: one line per row of `rows`, in the tool's order, with the
-   label, the task (`task`, or タスクなし when empty), the state, and what is
+   label, the task (`task`, or なし when empty), the state, and what is
    next. The state names are: `needs_check` 要確認, `question` 質問で停止,
    `running` 実行中, `awaiting_review` レビュー待ち, `propose_next`
    次を提案, `task_done` タスク完了. What is next is:
