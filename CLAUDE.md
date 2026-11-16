@@ -192,7 +192,7 @@ change, retire, and withdraw an ADR is in the convention,
 
 ### Code Quality
 - `make lint` - Run golangci-lint (version pinned in `Makefile`; includes `govet`) and `make wasm-check`
-- `make wasm-check` - Build `internal/transcript`, `internal/writer`, `internal/llm/claude`, `internal/llm/llmhttp`, `internal/pricing`, and `internal/llm/devfake` for `GOOS=js GOARCH=wasm` and vet `internal/writer`, `internal/transcript`, `internal/llm/llmhttp`, and `internal/llm/claude` (the last two have files only a js build compiles), so the core stays buildable as WebAssembly (it checks the build only, not run-time behavior); CI's `lint` job runs it too
+- `make wasm-check` - Build `internal/transcript`, `internal/writer`, `internal/llm/claude`, `internal/llm/llmhttp`, `internal/pricing`, `internal/llm/devfake`, and `internal/config` for `GOOS=js GOARCH=wasm` and vet `internal/writer`, `internal/transcript`, `internal/llm/llmhttp`, and `internal/llm/claude` (the last two have files only a js build compiles), so the core stays buildable as WebAssembly (it checks the build only, not run-time behavior); CI's `lint` job runs it too
 - `make fmt` - Format changed Go files with gofumpt (`make fmt-all` for every file)
 - `make deadcode` - Report unreachable functions across the whole module and its
   tests (`test` and `integration` tags); any output or non-zero exit status fails

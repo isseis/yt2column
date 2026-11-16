@@ -321,13 +321,14 @@ lint: wasm-check
 
 # The packages the WebAssembly core is built from (the transcript types and
 # CopiedSource, the article writer, the Claude adapter and the HTTP send path it
-# uses, and the pricing table), and the development fake LLM, must keep
-# compiling for js/wasm. This checks only that they build; behavior that fails
-# at run time in a browser (file system access) is not found here.
+# uses, the pricing table, the extension's configuration loading), and the
+# development fake LLM, must keep compiling for js/wasm. This checks only that
+# they build; behavior that fails at run time in a browser (file system access)
+# is not found here.
 # The vet run also compiles the js-only files, which `make test` and
 # golangci-lint skip: the two packages with a file only a js build compiles
 # (llmhttp and claude) are vetted along with the others.
-WASM_PACKAGES = ./internal/transcript ./internal/writer ./internal/llm/claude ./internal/llm/llmhttp ./internal/pricing ./internal/llm/devfake
+WASM_PACKAGES = ./internal/transcript ./internal/writer ./internal/llm/claude ./internal/llm/llmhttp ./internal/pricing ./internal/llm/devfake ./internal/config
 WASM_VET_PACKAGES = ./internal/writer ./internal/transcript ./internal/llm/llmhttp ./internal/llm/claude
 
 wasm-check:

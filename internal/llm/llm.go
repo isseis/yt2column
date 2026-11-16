@@ -21,7 +21,8 @@ var (
 // ErrAuthRejected reports that the provider rejected the credentials. Callers
 // classify with errors.Is, without importing an adapter. Only the adapters
 // listed in docs/dev/conventions/package_reference.md return it: today, the
-// Claude adapter.
+// Claude adapter. The development fake wraps it too, so a development build
+// reaches the same failure without a provider.
 var ErrAuthRejected = errors.New("the provider rejected the credentials")
 
 // GenerateRequest is the provider-common request.
