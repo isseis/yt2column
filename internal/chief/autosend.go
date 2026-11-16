@@ -706,7 +706,7 @@ func checkOwner(ctx context.Context, deps Deps, owner Owner) error {
 	if err := deps.Store.Require(owner); err != nil {
 		return err
 	}
-	current, err := ResolveOwner(ctx, NewHerdr(deps.Cmds), deps.Env.PaneID)
+	current, err := ResolveOwner(ctx, deps.Cmds, deps.Env)
 	if err != nil {
 		return err
 	}

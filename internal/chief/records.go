@@ -45,6 +45,10 @@ var (
 	ErrLockUnverifiable = errors.New("the owner of the chief lock cannot be checked")
 	// ErrNoSession reports a caller whose Herdr agent session is unknown.
 	ErrNoSession = errors.New("the calling pane has no agent session")
+	// ErrPaneMismatch reports a HERDR_PANE_ID that names a pane whose agent
+	// works in another worktree than the caller: the environment was
+	// inherited from another pane, so chief cannot tell its own workspace.
+	ErrPaneMismatch = errors.New("HERDR_PANE_ID names a pane in another worktree than this process")
 )
 
 // Env is the part of the process environment the tool reads. The entry point
@@ -52,6 +56,9 @@ var (
 type Env struct {
 	// PaneID is HERDR_PANE_ID: the pane chief runs in, empty outside Herdr.
 	PaneID string
+	// WorkDir is the process's working directory, which ResolveOwner checks
+	// against the worktree of PaneID's agent. The entry point sets it.
+	WorkDir string
 	// XDGStateHome, Home, and ClaudeConfigDir are the variables of the same
 	// names.
 	XDGStateHome    string
@@ -179,14 +186,30 @@ type lockRecord struct {
 // ResolveOwner returns the caller's owner identity: its pane and the session
 // Herdr holds for the pane. A pane without a session cannot own the lock,
 // since the session is what tells a cleared chief session from the same one.
-func ResolveOwner(ctx context.Context, herdr Herdr, paneID string) (Owner, error) {
-	pane, err := ParsePaneID(paneID)
+// Contract: HERDR_PANE_ID is trusted only when its pane's agent works in the
+// caller's worktree. A process can inherit HERDR_PANE_ID from another pane
+// (seen in the PR-7 live check after Herdr was restarted); chief would then
+// take that pane's workspace for its own, leave it out of the table, and
+// list its own workspace as a task workspace, so it is ErrPaneMismatch.
+func ResolveOwner(ctx context.Context, cmds Commands, env Env) (Owner, error) {
+	pane, err := ParsePaneID(env.PaneID)
 	if err != nil {
 		return Owner{}, err
 	}
-	agent, err := herdr.Agent(ctx, pane)
+	agent, err := NewHerdr(cmds).Agent(ctx, pane)
 	if err != nil {
 		return Owner{}, err
+	}
+	if !filepath.IsAbs(env.WorkDir) {
+		return Owner{}, fmt.Errorf("%w: the working directory %q is not absolute", ErrPaneMismatch, env.WorkDir)
+	}
+	own, err := CanonicalWorktree(ctx, cmds, env.WorkDir)
+	if err != nil {
+		return Owner{}, fmt.Errorf("read the working directory's worktree: %w", err)
+	}
+	panes, err := CanonicalWorktree(ctx, cmds, agent.Dir)
+	if err != nil || panes != own {
+		return Owner{}, fmt.Errorf("%w: pane %s works in %s, this process in %s", ErrPaneMismatch, pane, agent.Dir, own)
 	}
 	if agent.Session == "" {
 		return Owner{}, ErrNoSession

@@ -73,6 +73,12 @@ The refusals (`reason`):
   definition. Tell the human to reinstall it from `main` with
   `make install-chief`, and stop.
 - `no_state_base`, `no_session`: show `message` and stop.
+- `pane_mismatch`: `HERDR_PANE_ID` of this session names a pane that works
+  in another worktree, so the session inherited it from another pane and
+  chief cannot tell its own workspace. Show `message`. Tell the human to
+  end this Claude Code session, check with `echo $HERDR_PANE_ID` in the
+  pane's shell that it names this pane, start `claude` from that shell,
+  and run `/chief` again. Stop.
 
 ## Arguments
 

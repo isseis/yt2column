@@ -81,6 +81,9 @@ var errUsage = errors.New("usage: chief start|snapshot|tick --protocol N | " +
 func main() {
 	os.Exit(signalrun.Run(func(ctx context.Context) int {
 		env := chief.ReadEnv(os.LookupEnv)
+		// A working directory that cannot be read stays empty, which
+		// ResolveOwner refuses.
+		env.WorkDir, _ = os.Getwd()
 		return run(ctx, os.Args[1:], env, os.Environ(), func(o cmdrunner.Options) cmdrunner.Runner { return cmdrunner.NewOS(o) }, time.Now, chief.SleepContext, os.Stdout, os.Stderr)
 	}))
 }
@@ -178,10 +181,12 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 		return fail(err)
 	}
 	cmds := chief.NewCommands(factory, environ)
-	owner, err := chief.ResolveOwner(ctx, chief.NewHerdr(cmds), env.PaneID)
+	owner, err := chief.ResolveOwner(ctx, cmds, env)
 	switch {
 	case errors.Is(err, chief.ErrNoSession):
 		return refuse("no_session", err.Error())
+	case errors.Is(err, chief.ErrPaneMismatch):
+		return refuse("pane_mismatch", chief.Sanitize(err.Error()))
 	case err != nil:
 		return fail(err)
 	}

@@ -668,3 +668,28 @@ func TestStartCleansSendsAndDetails(t *testing.T) {
 		t.Error("the stop of the unfinished send is missing")
 	}
 }
+
+// TestResolveOwnerChecksTheWorktree checks that HERDR_PANE_ID is trusted
+// only when its pane's agent works in the caller's worktree: a pane of
+// another workspace (an environment inherited from another pane) and a
+// working directory that is not absolute are ErrPaneMismatch.
+func TestResolveOwnerChecksTheWorktree(t *testing.T) {
+	w := newWorld(t)
+	w.add(fakeWorkspace{ID: "w1", Label: "other", Branch: taskBranch})
+	deps := w.finish()
+	w.rec.reply("herdr agent get w1:p1", agentGetOutput(w.agents[1]))
+	ctx := context.Background()
+	if got, err := ResolveOwner(ctx, deps.Cmds, deps.Env); err != nil || got != w.owner() {
+		t.Fatalf("own pane = %+v, %v; want the owner", got, err)
+	}
+	inherited := deps.Env
+	inherited.PaneID = "w1:p1"
+	if _, err := ResolveOwner(ctx, deps.Cmds, inherited); !errors.Is(err, ErrPaneMismatch) {
+		t.Errorf("a pane of another worktree = %v, want ErrPaneMismatch", err)
+	}
+	relative := deps.Env
+	relative.WorkDir = "chief"
+	if _, err := ResolveOwner(ctx, deps.Cmds, relative); !errors.Is(err, ErrPaneMismatch) {
+		t.Errorf("a relative working directory = %v, want ErrPaneMismatch", err)
+	}
+}

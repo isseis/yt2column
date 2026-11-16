@@ -116,7 +116,7 @@ func newHarness(t *testing.T) *harness {
 	return &harness{
 		t:     t,
 		fake:  &fakeHerdr{t: t, dir: dir, context: contextDoc},
-		env:   chief.Env{PaneID: testPane, XDGStateHome: filepath.Join(root, "state"), Home: root},
+		env:   chief.Env{PaneID: testPane, WorkDir: dir, XDGStateHome: filepath.Join(root, "state"), Home: root},
 		state: filepath.Join(root, "state"),
 	}
 }
