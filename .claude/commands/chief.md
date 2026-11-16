@@ -76,9 +76,10 @@ The refusals (`reason`):
 - `pane_mismatch`: `HERDR_PANE_ID` of this session names a pane that works
   in another worktree, so the session inherited it from another pane and
   chief cannot tell its own workspace. Show `message`. Tell the human to
-  end this Claude Code session, check with `echo $HERDR_PANE_ID` in the
-  pane's shell that it names this pane, start `claude` from that shell,
-  and run `/chief` again. Stop.
+  end this Claude Code session and follow the guide's known limit on a
+  session that inherited `HERDR_PANE_ID` (`docs/dev/guides/chief_guide.md`
+  §8), which says how to check the pane's shell and where to start
+  `claude` again; then run `/chief` again. Run nothing yourself. Stop.
 
 ## Arguments
 
@@ -99,8 +100,10 @@ send there did not finish (they are listed in the table); and when
 
 A round reads the status and shows it. With the argument `once`, read it with
 `chief snapshot --protocol 1`; otherwise with `chief tick --protocol 1`,
-which also sends the command after a merge when every condition holds. Then
-show, in this order:
+which also sends the command after a merge when every condition holds. Run
+one round at a time: never start a `snapshot` or `tick` while another is
+running, since the tool numbers the new items of a round on the premise that
+no other round numbers at once. Then show, in this order:
 
 1. **The results of the sends** (requirements F-011): every action of the
    `auto_sends` of the `tick` subcommand, and of each `send` and `relay`
@@ -204,10 +207,12 @@ modes, since the human has just chosen and is answering.
 - **A question** (`question` or `merge_confirmation`): show the workspace's
   label, the pane, the question's `text`, and every option's number, label,
   and description, as the tool gave them (requirements AC-25). Write each
-  option as one plain line, `[<number>] <label>: <description>`, with the
-  tool's number, never a letter or a number of your own and never
-  `<number>.` or `<number>)` (step 3 says why): the human who answers in
-  the pane chooses by the number the pane shows. When `tabs` is not empty,
+  option as one plain line, `pane の選択肢 <number>: <label>: <description>`,
+  with the tool's number, never a letter or a number of your own: the human
+  who answers in the pane chooses by the number the pane shows. Never write
+  it as `[<number>]`, the form of chief's own choices, so a number the human
+  types into this session is never taken for a pane's option, and never as
+  `<number>.` or `<number>)` (step 3 says why). When `tabs` is not empty,
   say that the screen has more questions than this one.
   - When `relayable` is false, say that chief does not relay this question
     and that the human answers it in that pane directly.

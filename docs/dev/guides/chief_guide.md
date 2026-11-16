@@ -102,7 +102,7 @@ chief のセッションが道具を通さずに入力を送らないよう、�
 | 記録 | 置き場所 | 何のためか |
 |---|---|---|
 | ロック | `lock.json` | chief を 1 つに限る |
-| 通知の記録 | `notice-*.json` | 同じものを 2 回通知しない。待っている時間による並べ方 |
+| 通知の記録 | `notice-*.json` | 同じものを 2 回通知しない。待っている時間による並べ方。セッションの中の項目の番号（人が番号で答えた項目を見分ける） |
 | 周の記録・PR が開いているのを見た記録 | `round-*.json`・`observe-*.json` | 自動送信の条件（chief の待ち受けの中でマージを見たこと） |
 | 自動送信の記録 | `autosend-<PR 番号>.json` | マージした PR 1 件につき 1 回に限る |
 | workspace ごとの記録 | worktree の正規のパスの SHA-256 の 16 進を名前にした下のディレクトリ | 送信の記録（`send-*.json`）、PR の詳細の控え（`detail-*.json`）、送信の停止（`stop.json`） |
@@ -118,7 +118,7 @@ chief のセッションが道具を通さずに入力を送らないよう、�
 -   **worktree のパスの文字。** Claude Code の pane へ送るときは、モデルが切り替わったことを Claude Code の transcript で確かめる。worktree のパスが英数字・`/`・`.`・`-` 以外の文字（たとえば `_`）を含むと transcript の場所を求められないので、その pane には何も送らない（`unsupported_path`）。その文字だけのパスの worktree を使うか、その pane でコマンドを打つ。
 -   **コミットの数の上限。** gh は 1 つの PR のコミットを 100 件までしか返さない。PR の詳細は、100 件のときに「100 件以上」と示す。全体の数は GitHub の PR のページ（`gh pr view <番号> --web`）で確かめる。
 -   **選んだ後の問いが開いている間は待ち受けが止まる。** 中継する選択肢や `/runpr` を送るかの問いに答えるまで、次の周は走らない。そのため、その問いを開いたまま離れると、その間のマージの次のコマンドは自動では送られず、提案として示される。離れるときは問いに答えてから離れる。
--   **`HERDR_PANE_ID` を引き継いだセッション。** chief は、自分の pane を環境変数 `HERDR_PANE_ID` で知り、その pane の workspace を表から除く。Claude Code のプロセスがほかの pane の `HERDR_PANE_ID` を引き継いで動いていると（PR-7 の実地の確かめで、Herdr を起動し直した後に起きた）、chief は自分の workspace を取り違える。そのため道具は、`HERDR_PANE_ID` の pane のエージェントが、道具を呼んだプロセスと同じ worktree で動いていることを確かめ、違えば何もせずに拒む（`pane_mismatch`）。拒まれたら、その Claude Code を終了し、pane のシェルで `echo $HERDR_PANE_ID` がその pane を指すことを確かめてから、`claude` を起動し直す。取り違えた chief のロックが残ったときは、ほかに chief が動いていないことを確かめてから、状態のディレクトリの `lock.json` だけを消す。
+-   **`HERDR_PANE_ID` を引き継いだセッション。** chief は、自分の pane を環境変数 `HERDR_PANE_ID` で知り、その pane の workspace を表から除く。Claude Code のプロセスがほかの pane の `HERDR_PANE_ID` を引き継いで動いていると（PR-7 の実地の確かめで、Herdr を起動し直した後に起きた）、chief は自分の workspace を取り違える。そのため道具は、`HERDR_PANE_ID` の pane のエージェントが、道具を呼んだプロセスと同じ worktree で動いていることを確かめ、違えば何もせずに拒む（`pane_mismatch`）。同じ worktree のほかの pane を指す取り違えは、この確かめでは見分けられない。拒まれたら、その Claude Code を終了し、pane のシェルで `herdr agent get "$HERDR_PANE_ID"` を実行して、出力の `cwd` が chief の worktree で、`workspace_id` が chief の workspace であることを確かめる。違えば、そのシェルも古い値を持っているので、Herdr で新しい pane を開き、そこから `claude` を起動する。取り違えた chief のロックが残ったときは、ほかに chief が動いていないことを確かめてから、状態のディレクトリの `lock.json` だけを消す。
 -   **長い報告は画面から読めない。** chief は、PR を作ったコマンドの最後の報告を Claude Code の pane の画面から読み、PR の詳細の要約とリセットに使う。Herdr は pane の高さの分の行しか返さないので、報告が画面より長いと（`/mkarch`・`/mkplan`・`/runplan` の報告はたいていそうである）、報告の始まりが画面の外に出て読めない。そのとき、PR の詳細は PR の説明から要約され、`/runpr` の後のリセットは `no_report` で行われない。どちらも安全側の失敗で、PR を作った pane は空にされずに残る。直し方は #892 で扱う。
 -   **中継しない質問。** 権限の確認、自由に書く答え、複数を選ぶ問い、1 つの画面に複数の問い（タブ）がある質問、読む量の上限で切った質問は、中身を示すだけで中継しない。人がその pane で直接答える。
 
