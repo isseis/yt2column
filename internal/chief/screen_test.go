@@ -86,6 +86,7 @@ var claudeScreenWants = map[string]wantScreen{
 	"claude-after-clear.ansi":            {kind: ScreenPrompt, inputEmpty: true},
 	"claude-after-model.ansi":            {kind: ScreenPrompt, inputEmpty: true},
 	"claude-command-report.ansi":         {kind: ScreenPrompt, inputEmpty: true},
+	"claude-titled-rule.ansi":            {kind: ScreenPrompt, inputEmpty: true},
 	"claude-command-report-recap.ansi":   {kind: ScreenPrompt, inputEmpty: true},
 	"claude-input-left.ansi":             {kind: ScreenPrompt, inputLeft: "unsent draft text"},
 	"claude-question-single.ansi":        claudeFruitSingle,
@@ -715,6 +716,29 @@ func TestReadCommandReportUnderRecap(t *testing.T) {
 	twice := strings.Replace(screen, recap, "※ recap: a\r\n"+recap, 1)
 	if _, ok := readCommandReport(paneinput.AgentClaudeCode, twice, url); ok {
 		t.Error("two recaps were read, want no report")
+	}
+}
+
+// TestReadCommandReportUnderTitledBox reads the sampled report when Claude
+// Code draws the session's title in the input box's top rule, as
+// claude-titled-rule.ansi shows it.
+func TestReadCommandReportUnderTitledBox(t *testing.T) {
+	const url = "https://github.com/owner/repo/pull/42"
+	lines := strings.Split(reportScreen(t, url), "\n")
+	var rules []int
+	for i, l := range lines {
+		if strings.Contains(l, strings.Repeat("─", 20)) {
+			rules = append(rules, i)
+		}
+	}
+	if len(rules) < 2 {
+		t.Fatal("the report sample no longer has the input box's two rules")
+	}
+	top := rules[len(rules)-2]
+	lines[top] = "\x1b[0m\x1b[38;5;7m" + strings.Repeat("─", 40) + " Plan 0001 work ─"
+	report, ok := readCommandReport(paneinput.AgentClaudeCode, strings.Join(lines, "\n"), url)
+	if !ok || !isSampleReport(report) {
+		t.Errorf("readCommandReport = %q, %v; want the sampled report", report, ok)
 	}
 }
 

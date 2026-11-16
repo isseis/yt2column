@@ -140,6 +140,22 @@ func lastRuleBefore(lines []screenLine, end int) int {
 	return -1
 }
 
+// claudeTitledRule matches the input box's top rule when Claude Code draws
+// the session's title in it (claude-titled-rule.ansi): rules, a space, the
+// title, a space, and rules.
+var claudeTitledRule = regexp.MustCompile(`^─{3,} [^─]*[^─ ] ─+$`)
+
+// boxTopBefore returns the index of the input box's top rule above bottom: the
+// last line before it that is a rule, plain or with a title, or -1.
+func boxTopBefore(lines []screenLine, bottom int) int {
+	for i := bottom - 1; i >= 0; i-- {
+		if isRule(lines[i].text, '─') || claudeTitledRule.MatchString(lines[i].text) {
+			return i
+		}
+	}
+	return -1
+}
+
 // nonBlank returns the lines of a widget without its blank spacer lines.
 func nonBlank(lines []screenLine) []screenLine {
 	out := make([]screenLine, 0, len(lines))
@@ -449,7 +465,7 @@ func claudePrompt(lines []screenLine) Screen {
 			return unmatched
 		}
 	}
-	top := lastRuleBefore(lines, bottom)
+	top := boxTopBefore(lines, bottom)
 	if top < 0 || top+1 == bottom {
 		return unmatched
 	}

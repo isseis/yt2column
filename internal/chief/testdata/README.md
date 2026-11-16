@@ -57,6 +57,7 @@
 | `claude-input-left.ansi` | 入力欄に送っていない文字が残っている |
 | `claude-working.ansi` | 実行中 |
 | `claude-after-clear.ansi` | `/clear` の後 |
+| `claude-titled-rule.ansi` | `/clear` の後の入力待ち。入力欄の上の罫線に、セッションの名前（`Plan 0091 phase group`）が入っている。タスク 0088 の PR-7 の後、2026-11-16 に Claude Code 2.1.325 の画面から、読み取りだけで採った |
 | `claude-after-model.ansi` | `/model sonnet` の後 |
 | `claude-merge-question.ansi` | マージの確認（上の「マージの確認」のとおり再現したもの） |
 | `claude-command-report.ansi` | PR に関わるコマンドの最後の報告 |

@@ -122,7 +122,7 @@ var screenRows = map[string]map[string][]string{
 		"opencode": {"opencode-after-new.ansi", "opencode-done.ansi", "opencode-model-no-effort.ansi"},
 	},
 	"input line": {
-		"claude":   {"claude-idle.ansi", "claude-input-left.ansi", "claude-working.ansi", "claude-after-clear.ansi", "claude-after-model.ansi"},
+		"claude":   {"claude-idle.ansi", "claude-input-left.ansi", "claude-working.ansi", "claude-after-clear.ansi", "claude-after-model.ansi", "claude-titled-rule.ansi"},
 		"opencode": {"opencode-input-left.ansi", "opencode-done.ansi", "opencode-after-new.ansi"},
 	},
 }

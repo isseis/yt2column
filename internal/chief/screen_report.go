@@ -176,7 +176,7 @@ func claudeLastMessage(raw string) ([]string, bool) {
 	if claudePrompt(lines).Kind != ScreenPrompt {
 		return nil, false
 	}
-	top := lastRuleBefore(lines, lastRuleBefore(lines, len(lines)))
+	top := boxTopBefore(lines, lastRuleBefore(lines, len(lines)))
 	done := -1
 	recaps := 0
 	for i := top - 1; i >= 0 && done < 0; i-- {
