@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -244,3 +244,7 @@ Claude Code の pane の transcript を読めないときは、画面の読み�
 -   **最後の報告**: pane のエージェントが最後に終えた応答の本文。Claude Code の pane では transcript から（F-001）、OpenCode の pane では画面から読む。
 -   **終わった応答**: エージェントがその応答を書き終え、人の入力を待つ状態に戻ったときの応答。途中で止められた応答、ツールを呼ぶために中断した応答、ほかの理由で止まった応答は含まない（4.2）。
 -   **PR の記録**: セッションが PR を作ったときに、Claude Code が transcript に残す、その PR の番号と URL の記録（`pr-link` の行）。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#912）
