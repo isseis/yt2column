@@ -333,7 +333,7 @@ func TestTakeoverProposal(t *testing.T) {
 func TestTakeSnapshotOrder(t *testing.T) {
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "running", Branch: taskBranch, Status: "working"})
-	w.add(fakeWorkspace{ID: "w2", Label: "proposal", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w2", Label: "proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
 	w.add(fakeWorkspace{ID: "w3", Label: "review", Branch: taskBranch, PRs: openPRJSON})
 	w.add(fakeWorkspace{ID: "w4", Label: "question", Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
 	snap := take(t, w)
@@ -452,7 +452,9 @@ func TestFetchUsesItsOwnTimeLimit(t *testing.T) {
 }
 
 // TestRowOrderRules checks the order of rows by state, by waiting time inside
-// one state, and plain questions before merge confirmations.
+// one state, and plain questions before merge confirmations; a workspace with
+// no task that waits on nothing (a /mkreq proposal, a detached HEAD) lists
+// after every other row, while one with no task that asks a question does not.
 func TestRowOrderRules(t *testing.T) {
 	w := newWorld(t)
 	// The earlier sighting has the later path, so only the waiting time puts it first.
@@ -460,18 +462,20 @@ func TestRowOrderRules(t *testing.T) {
 	w.add(fakeWorkspace{ID: "w5", Label: "needs-check", Branch: taskBranch})
 	w.add(fakeWorkspace{ID: "w6", Label: "done", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")}})
 	w.add(fakeWorkspace{ID: "w4", Label: "running", Branch: taskBranch, Status: "working"})
-	w.add(fakeWorkspace{ID: "w3", Label: "proposal", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w3", Label: "proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
+	w.add(fakeWorkspace{ID: "w0", Label: "idle-mkreq", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w2", Label: "idle-detached", Branch: detachedHead})
 	w.add(fakeWorkspace{ID: "w7", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
 	take(t, w)
 	w.now = w.now.Add(time.Hour)
 	w.add(fakeWorkspace{ID: "w1", Label: "review-new", Branch: taskBranch, PRs: openPRJSON})
-	w.add(fakeWorkspace{ID: "w8", Label: "question", Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
+	w.add(fakeWorkspace{ID: "w8", Label: "question", Branch: "main", Status: "blocked", Screen: "claude-question-single.ansi"})
 	snap := take(t, w)
 	var labels []string
 	for _, r := range snap.Rows {
 		labels = append(labels, r.Label)
 	}
-	want := []string{"question", "merge", "review-old", "review-new", "proposal", "needs-check", "running", "done"}
+	want := []string{"question", "merge", "review-old", "review-new", "proposal", "needs-check", "running", "done", "idle-mkreq", "idle-detached"}
 	if !slices.Equal(labels, want) {
 		t.Errorf("row order = %v, want %v", labels, want)
 	}

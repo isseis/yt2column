@@ -8,10 +8,12 @@ import (
 	"time"
 )
 
-// TestSortPending checks the order: kind first, then the longest wait.
+// TestSortPending checks the order: kind first, then an idle workspace's
+// items last within their kind, then the longest wait.
 func TestSortPending(t *testing.T) {
 	t0 := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	items := []PendingItem{
+		{ID: "p-idle", Kind: PendingProposal, Workspace: "/idle", FirstSeen: t0.Add(-time.Hour)},
 		{ID: "p-new", Kind: PendingProposal, FirstSeen: t0},
 		{ID: "r-new", Kind: PendingReview, FirstSeen: t0.Add(time.Hour)},
 		{ID: "m", Kind: PendingMergeConfirmation, FirstSeen: t0.Add(3 * time.Hour)},
@@ -19,12 +21,12 @@ func TestSortPending(t *testing.T) {
 		{ID: "q-old", Kind: PendingQuestion, FirstSeen: t0.Add(time.Hour)},
 		{ID: "r-old", Kind: PendingReview, FirstSeen: t0},
 	}
-	sortPending(items)
+	sortPending(items, map[string]struct{}{"/idle": {}})
 	var ids []ItemID
 	for _, it := range items {
 		ids = append(ids, it.ID)
 	}
-	if want := []ItemID{"q-old", "q-new", "m", "r-old", "r-new", "p-new"}; !slices.Equal(ids, want) {
+	if want := []ItemID{"q-old", "q-new", "m", "r-old", "r-new", "p-new", "p-idle"}; !slices.Equal(ids, want) {
 		t.Errorf("order = %v, want %v", ids, want)
 	}
 }

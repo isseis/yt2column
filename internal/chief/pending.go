@@ -169,13 +169,21 @@ var kindOrder = []PendingKind{PendingQuestion, PendingMergeConfirmation, Pending
 // nameQuestion names the question state and kind in the output.
 const nameQuestion = "question"
 
-// sortPending orders items by kind and then by how long they have waited,
-// longest first; ties keep a fixed order (workspace, then ID) so a listing
+// sortPending orders items by kind, then the items of other workspaces
+// before those of idle ones (see idleRow), then by how long they have
+// waited, longest first; ties keep a fixed order (workspace, then ID) so a listing
 // does not shuffle between two reads of the same state.
-func sortPending(items []PendingItem) {
+func sortPending(items []PendingItem, idle map[string]struct{}) {
+	rank := func(p PendingItem) int {
+		if _, ok := idle[p.Workspace]; ok {
+			return 1
+		}
+		return 0
+	}
 	slices.SortStableFunc(items, func(a, b PendingItem) int {
 		return cmp.Or(
 			cmp.Compare(kindRank(a.Kind), kindRank(b.Kind)),
+			cmp.Compare(rank(a), rank(b)),
 			a.FirstSeen.Compare(b.FirstSeen),
 			strings.Compare(a.Workspace, b.Workspace),
 			strings.Compare(string(a.ID), string(b.ID)),
