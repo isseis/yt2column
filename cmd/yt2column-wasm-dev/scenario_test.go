@@ -31,20 +31,15 @@ func TestEmbeddedScenarioAccepted(t *testing.T) {
 }
 
 // TestEmbeddedScenarioRejected checks that a variable the build did not set
-// and a value no scenario has stop the module instead of selecting a default.
+// stops the module instead of selecting a default. The other rejections are
+// devfake.ParseScenario's, which its own tests cover.
 func TestEmbeddedScenarioRejected(t *testing.T) {
 	valid := devfake.ScenarioSpelling{Article: "standard", Failure: "none", FailAt: "none", DelaySeconds: "0", SettingsCheck: "ok"}
 	unset := valid
 	unset.SettingsCheck = ""
-	misspelled := valid
-	misspelled.Article = "Standard"
-	for name, s := range map[string]devfake.ScenarioSpelling{"unset variable": unset, "misspelled value": misspelled} {
-		t.Run(name, func(t *testing.T) {
-			setEmbedded(t, s)
-			var stderr bytes.Buffer
-			if code := checkEmbedded(&stderr); code != exitInvalid || stderr.Len() == 0 {
-				t.Errorf("checkEmbedded() = %d with stderr %q, want %d and a reason", code, stderr.String(), exitInvalid)
-			}
-		})
+	setEmbedded(t, unset)
+	var stderr bytes.Buffer
+	if code := checkEmbedded(&stderr); code != exitInvalid || stderr.Len() == 0 {
+		t.Errorf("checkEmbedded() = %d with stderr %q, want %d and a reason", code, stderr.String(), exitInvalid)
 	}
 }

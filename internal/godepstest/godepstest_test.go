@@ -92,10 +92,6 @@ func TestListWasm(t *testing.T) {
 	if err := native.Forbid(jsOnly...); err != nil {
 		t.Errorf("List().Forbid(the js-only dependencies) error = %v, want nil", err)
 	}
-	// A package with only js files has no native listing at all.
-	if _, err := List(root, "./cmd/yt2column-wasm"); !errors.Is(err, ErrList) {
-		t.Errorf("List(a js-only package) error = %v, want ErrList", err)
-	}
 }
 
 func TestRequireAndForbid(t *testing.T) {

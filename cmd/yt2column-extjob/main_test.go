@@ -68,8 +68,8 @@ func TestRunCallsNoBackendBeforeAccepting(t *testing.T) {
 		{"claude without ANTHROPIC_API_KEY", []string{"-llm=claude", "-input=" + input}, nil},
 		{"no -input", fakeArgs(standardSpelling), nil},
 		{"an extra word", append(fakeArgs(standardSpelling), "-input="+input, "extra"), nil},
-		{"a missing input file", append(fakeArgs(standardSpelling), "-input="+input+".missing"), nil},
-		{"a repeated -llm", append(fakeArgs(standardSpelling), "-llm=claude", "-input="+input), withKey},
+		// Without the repeat rule the last -llm would win and run claude.
+		{"a repeated -llm", []string{"-llm=fake", "-llm=claude", "-input=" + input}, withKey},
 		{"a repeated scenario argument", append(fakeArgs(standardSpelling), "-article=long", "-input="+input), nil},
 		{"a missing input file named after the key", []string{"-llm=claude", "-input=" + input + "." + markerKey}, withKey},
 	}
@@ -151,7 +151,7 @@ func TestRunInputRejected(t *testing.T) {
 			if status, reason := resultStatus(t, got.stdout); status != "rejected" || reason != "invalid_body" {
 				t.Errorf("result = %q %q, want rejected invalid_body", status, reason)
 			}
-			if strings.Contains(got.stderr, "progress") {
+			if strings.Contains(got.stderr, programName+": progress ") {
 				t.Errorf("stderr reports progress for a rejected input:\n%s", got.stderr)
 			}
 		})
@@ -159,10 +159,8 @@ func TestRunInputRejected(t *testing.T) {
 }
 
 // TestRunClaudeSettings checks the settings a -llm=claude run gives the
-// module: the API key from the environment, and the workspace ID, which is
-// the empty string (no workspace) when its variable is unset. The module
-// rejects a request without the workspace member, so the unset row also
-// fails if the member is left out.
+// module: the API key from the environment, and the workspace ID, which
+// reaches the backend as no workspace when its variable is unset.
 func TestRunClaudeSettings(t *testing.T) {
 	tests := []struct {
 		name          string

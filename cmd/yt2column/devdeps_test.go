@@ -12,9 +12,10 @@ import (
 )
 
 // TestNoDevDependency checks that this production binary does not link the
-// fake LLM, the development backend of the article generation module, the
-// development server, the development article generation module, or the
-// development command. godepstest reads the sources of the packages it lists,
+// fake LLM, the development backend of the article generation module, or the
+// development server. The development article generation module and the
+// development command are main packages, which Go cannot import, so they need
+// no entry. godepstest reads the sources of the packages it lists,
 // so a change to them, for any target OS, invalidates the cached result. The
 // fake's path comes from its type, and the others' from a lookup that fails
 // when the package is gone, so a rename cannot empty the check.
@@ -28,7 +29,5 @@ func TestNoDevDependency(t *testing.T) {
 			// lookup fails when the package is gone.
 			godepstest.MustPackagePath(t, "./internal/extjob/devbackend"),
 			godepstest.MustPackagePath(t, "./cmd/yt2column-devserver"),
-			godepstest.MustPackagePath(t, "./cmd/yt2column-wasm-dev"),
-			godepstest.MustPackagePath(t, "./cmd/yt2column-extjob"),
 		})
 }
