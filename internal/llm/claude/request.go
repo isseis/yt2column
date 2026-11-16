@@ -9,6 +9,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
+	"github.com/isseis/yt2column/internal/secret"
 )
 
 // Fixed request values of the Messages API.
@@ -98,10 +99,9 @@ func newRequestBody(model string, effort claudeparam.Effort, req llm.GenerateReq
 }
 
 // newRequest builds the POST request with the JSON body and the required
-// headers. It sets x-api-key through the package's only Reveal call site; the
-// revealed string is used for the header and discarded. The anthropic-workspace-id
-// header is set only when a workspace ID was specified. A header failure
-// returns without sending the request.
+// headers: Content-Type here, and the rest through setRequestHeaders, which
+// every request to the API shares. A header failure returns without sending
+// the request.
 func (c *client) newRequest(ctx context.Context, body []byte) (*http.Request, error) {
 	//nolint:gosec // the endpoint is the fixed production URL or a loopback URL checked by the test helper
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
@@ -109,14 +109,28 @@ func (c *client) newRequest(ctx context.Context, body []byte) (*http.Request, er
 		return nil, fmt.Errorf("build request: %w", err)
 	}
 	request.Header.Set("Content-Type", contentTypeJSON)
-	request.Header.Set(headerVersion, anthropicVersion)
-	apiKey, err := c.apiKey.Reveal()
-	if err != nil {
-		return nil, errRevealAPIKey
-	}
-	request.Header.Set(headerAPIKey, apiKey)
-	if workspaceID, ok := c.workspaceID.Value(); ok {
-		request.Header.Set(headerWorkspace, workspaceID)
+	if err := setRequestHeaders(request, c.apiKey, c.workspaceID); err != nil {
+		return nil, err
 	}
 	return request, nil
+}
+
+// setRequestHeaders sets the headers every request to the API carries: the API
+// version, the API key, the workspace ID when one was specified, and the
+// header a browser build needs (setBrowserAccess). Generate and CheckKey both
+// build their requests through it, so none of them can leave one out. It is
+// the package's only Reveal call site; the revealed string is used for the
+// header and discarded.
+func setRequestHeaders(request *http.Request, apiKey secret.Secret, workspaceID claudeparam.WorkspaceID) error {
+	request.Header.Set(headerVersion, anthropicVersion)
+	revealed, err := apiKey.Reveal()
+	if err != nil {
+		return errRevealAPIKey
+	}
+	request.Header.Set(headerAPIKey, revealed)
+	if id, ok := workspaceID.Value(); ok {
+		request.Header.Set(headerWorkspace, id)
+	}
+	setBrowserAccess(request)
+	return nil
 }

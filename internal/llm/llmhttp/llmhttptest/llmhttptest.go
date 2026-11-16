@@ -1,9 +1,11 @@
 //go:build test
 
 // Package llmhttptest provides the test servers and loopback listeners that
-// the llmhttp tests and the LLM adapters' tests share. It is built only with
-// the test tag and deliberately does not import llmhttp, so a test in the
-// llmhttp package can import it without an import cycle.
+// the llmhttp tests and the LLM adapters' tests share, and a reader of an
+// adapter package's Go source (ParseDir) for checks that a native test cannot
+// run. It is built only with the test tag and deliberately does not import
+// llmhttp, so a test in the llmhttp package can import it without an import
+// cycle.
 package llmhttptest
 
 import (
