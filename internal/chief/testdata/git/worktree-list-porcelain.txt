@@ -24,3 +24,4 @@ locked
 worktree /Users/user/src/repo/onbranch
 HEAD 6f1d533b44a679422b9544f3d041cb489298f6e1
 branch refs/heads/topic
+

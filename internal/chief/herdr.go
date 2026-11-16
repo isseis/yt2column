@@ -451,14 +451,14 @@ func (w PaneWriter) refuse(target Agent) error {
 	return nil
 }
 
-// TabID is a Herdr tab ID read from Herdr's own output, such as "w1Y:t2".
+// tabID is a Herdr tab ID read from Herdr's own output, such as "w1Y:t2".
 // The zero value names no tab.
-type TabID struct {
+type tabID struct {
 	id string
 }
 
 // String returns the ID as Herdr wrote it.
-func (t TabID) String() string { return t.id }
+func (t tabID) String() string { return t.id }
 
 // tabIDForm is the tab ID shape Herdr wrote in the samples, the same shape as
 // a pane ID.
@@ -468,7 +468,7 @@ var tabIDForm = paneIDForm
 // workspace create or of a tab create.
 type createdTab struct {
 	Workspace string
-	Tab       TabID
+	Tab       tabID
 	Pane      PaneID
 	// Dir is the root pane's working directory.
 	Dir string
@@ -535,17 +535,18 @@ func parseCreatedTab(members map[string]strictjson.Value, workspace string) (cre
 	if !filepath.IsAbs(pane["cwd"]) {
 		return createdTab{}, fmt.Errorf("%w: cwd is not absolute", errHerdrOutput)
 	}
-	return createdTab{Workspace: workspace, Tab: TabID{id: tab["tab_id"]}, Pane: PaneID{id: pane["pane_id"]}, Dir: pane["cwd"]}, nil
+	return createdTab{Workspace: workspace, Tab: tabID{id: tab["tab_id"]}, Pane: PaneID{id: pane["pane_id"]}, Dir: pane["cwd"]}, nil
 }
 
 // tabInfo is a tab as `herdr tab rename` reports it after the rename.
 type tabInfo struct {
 	Workspace string
-	Tab       TabID
+	Tab       tabID
 	Label     string
 }
 
-// parseTabRename reads `herdr tab rename`.
+// parseTabRename reads `herdr tab rename`. The caller compares the tab and
+// label it returns with the ones it asked for.
 func parseTabRename(out []byte) (tabInfo, error) {
 	members, err := herdrResult(out, "cli:tab:rename", "tab_info", "tab")
 	if err != nil {
@@ -558,7 +559,7 @@ func parseTabRename(out []byte) (tabInfo, error) {
 	if !tabIDForm.MatchString(tab["tab_id"]) || !workspaceIDForm.MatchString(tab["workspace_id"]) {
 		return tabInfo{}, fmt.Errorf("%w: tab or workspace ID", errHerdrOutput)
 	}
-	return tabInfo{Workspace: tab["workspace_id"], Tab: TabID{id: tab["tab_id"]}, Label: tab["label"]}, nil
+	return tabInfo{Workspace: tab["workspace_id"], Tab: tabID{id: tab["tab_id"]}, Label: tab["label"]}, nil
 }
 
 // startedAgent is the agent a `herdr agent start` reports as started, with
@@ -569,7 +570,8 @@ type startedAgent struct {
 }
 
 // parseAgentStart reads a successful `herdr agent start`. The agent is read
-// as parseAgent reads every agent, and it must carry a name.
+// as parseAgent reads every agent, and it must carry a name. The caller
+// compares the name, kind, and pane with the ones it asked for.
 func parseAgentStart(out []byte) (startedAgent, error) {
 	members, err := herdrResult(out, "cli:agent:start", "agent_started", "agent")
 	if err != nil {
@@ -590,12 +592,12 @@ func parseAgentStart(out []byte) (startedAgent, error) {
 	return startedAgent{Agent: a, Name: named["name"]}, nil
 }
 
-// Pane is one pane as `herdr pane list` reports it, with or without an
+// listedPane is one pane as `herdr pane list` reports it, with or without an
 // agent.
-type Pane struct {
+type listedPane struct {
 	ID        PaneID
 	Workspace string
-	Tab       TabID
+	Tab       tabID
 	// Dir is the pane's working directory.
 	Dir string
 	// HasAgent reports whether Herdr names an agent in the pane; Kind is
@@ -606,8 +608,9 @@ type Pane struct {
 
 // parsePaneList reads `herdr pane list`. Contract: a pane with a missing or
 // malformed member, or an agent member that is not a non-empty string, makes
-// the whole list unreadable; nothing is defaulted.
-func parsePaneList(out []byte) ([]Pane, error) {
+// the whole list unreadable; nothing is defaulted. Every pane is returned with
+// its own workspace, so a caller that asked for one workspace filters by it.
+func parsePaneList(out []byte) ([]listedPane, error) {
 	members, err := herdrResult(out, "cli:pane:list", "pane_list", "panes")
 	if err != nil {
 		return nil, err
@@ -616,7 +619,7 @@ func parsePaneList(out []byte) ([]Pane, error) {
 	if err != nil {
 		return nil, err
 	}
-	panes := make([]Pane, 0, len(items))
+	panes := make([]listedPane, 0, len(items))
 	for i, item := range items {
 		object, err := item.AsObject()
 		if err != nil {
@@ -644,10 +647,10 @@ func parsePaneList(out []byte) ([]Pane, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: pane %d agent: %w", errHerdrOutput, i, err)
 		}
-		panes = append(panes, Pane{
+		panes = append(panes, listedPane{
 			ID:        PaneID{id: strs["pane_id"]},
 			Workspace: strs["workspace_id"],
-			Tab:       TabID{id: strs["tab_id"]},
+			Tab:       tabID{id: strs["tab_id"]},
 			Dir:       strs["cwd"],
 			HasAgent:  hasAgent,
 			Kind:      agentKinds[agent],
@@ -673,7 +676,8 @@ func (p processInfo) ShellInForeground() bool {
 	return p.ShellPID > 0 && p.ForegroundGroup == p.ShellPID && len(p.ForegroundPIDs) == 1 && p.ForegroundPIDs[0] == p.ShellPID
 }
 
-// parsePaneProcessInfo reads `herdr pane process-info`.
+// parsePaneProcessInfo reads `herdr pane process-info`. The caller compares
+// the pane it returns with the one it asked about.
 func parsePaneProcessInfo(out []byte) (processInfo, error) {
 	members, err := herdrResult(out, "cli:pane:process_info", "pane_process_info", "process_info")
 	if err != nil {

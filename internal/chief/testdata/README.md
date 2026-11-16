@@ -98,10 +98,10 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 
 タスク 0092 の PR-1（実装計画書のステップ 1-2〜1-4）で、2026-11-17 に採った。版は Herdr 0.9.1、Claude Code 2.1.326、OpenCode v2.2.6、gh 2.96.0、git 2.50.1 である。
 
--   **採り方。** `/runplan` のセッションが、使い捨ての worktree（`~/.herdr/worktrees/yt2column/probe-0092`）を `origin/main` で detached に作り、それを開いた workspace（`probe-0092`）とタブを `herdr workspace create`・`herdr tab rename`・`herdr tab create` で作った。`.claude/settings.json` が拒む `herdr agent start` と `herdr workspace close` は、人がその workspace の外のシェルで打ち、標準出力・標準エラー・終了コードを保存した。エラーの応答は、名前の重なり、エージェントのいる pane への起動、`--timeout 3001` の時間切れ、存在しない workspace を閉じることで起こした。`pane-process-info-busy.json` は、人がシェルの pane で `sleep 600` を走らせている間に読んだ。確かめた後、workspace は閉じ、worktree は消した。
+-   **採り方。** `/runplan` のセッションが、使い捨ての worktree（`~/.herdr/worktrees/yt2column/probe-0092`）を `origin/main` で detached に作り、それを開いた workspace（`probe-0092`）とタブを `herdr workspace create`・`herdr tab rename`・`herdr tab create` で作った。`.claude/settings.json` が拒む `herdr agent start` と `herdr workspace close` は、人がその workspace の外のシェルで打ち、標準出力・標準エラー・終了コードを保存した。エラーの応答は、名前の重なり、エージェントのいる pane への起動、`--timeout 3001` の時間切れ、存在しない workspace を閉じることで起こした。`pane-process-info-busy.json` は、人がシェルの pane で `sleep 600` を走らせている間に読んだ。確かめた後、workspace は閉じ、worktree は消した。`herdr/pane-list-agents.json` だけは、確かめ用の workspace でエージェントを起動した後の `herdr pane list` を採っていなかったので、`/runplan` のセッション自身のタスクの workspace（シェル、OpenCode、Claude Code の pane を 1 つずつ持つ）で、読み取りだけで採った。
 -   **起動したばかりの Claude Code。** 新しい worktree でも、Claude Code はフォルダの信頼を問う画面を出さなかったので、その画面は採っていない。
 -   **gh の応答。** chief の worktree で、`gh api graphql` の `issueOrPullRequest` の問い合わせ（タスク 0092 の設計書 3.3.1 の形。変数は `-F owner={owner} -F repo={repo} -F n=<番号>`）を走らせた出力である。閉じた issue #838、開いた issue #839、PR #897、存在しない #999999 を読んだ。
--   **git の出力。** 一時的なリポジトリに、detached の worktree、ブランチの worktree、理由のあるものとないものの 2 つの固定した（`locked`）worktree、ディレクトリを消して登録だけを残した worktree を作り、`git worktree list --porcelain` を走らせた出力である。リポジトリのパスは `/Users/user/src/repo` に置き換えた。git が最後に書く空行は、リポジトリの pre-commit のフック（ファイルの末尾の改行をそろえる）が除いた。gh の出力の末尾には、同じフックが改行を足した。
+-   **git の出力。** 一時的なリポジトリに、detached の worktree、ブランチの worktree、理由のあるものとないものの 2 つの固定した（`locked`）worktree、ディレクトリを消して登録だけを残した worktree を作り、`git worktree list --porcelain` を走らせた出力である。リポジトリのパスは `/Users/user/src/repo` に置き換えた。`herdr/`・`gh/`・`git/` のファイルは、コマンドが書いたバイトのまま置き、pre-commit の空白と末尾の改行のフックから外している（`.pre-commit-config.yaml`）。git が最後に書く空行も、gh の出力の末尾に改行がないことも、そのままである。
 -   **置き換え。** 上の「置き換えたもの」の表の規則に加えて、issue の題名の中身を英語の文（`Sample title of a closed issue` など）に置き換えた。題名の置き換えは機械では確かめられないので、レビューで確かめる。UUID の通し番号は `101` から使った。
 
 | ファイル | 中身 |
@@ -109,7 +109,7 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 | `herdr/workspace-create.json`・`herdr/tab-create.json`・`herdr/tab-rename.json` | `herdr workspace create --cwd <パス> --label probe-0092 --no-focus`、`herdr tab create --workspace <ID> --cwd <パス> --label opencode --no-focus`、`herdr tab rename <タブ> cmd` の出力 |
 | `herdr/agent-start-claude.json`・`herdr/agent-start-opencode.json` | `herdr agent start <名前> --kind <種類> --pane <ID> --timeout 60000` の成功の出力。起動にかかった時間は、どちらも約 4 秒だった |
 | `herdr/agent-get-claude-started.json` | 起動した直後の Claude Code の `herdr agent get` の出力 |
-| `herdr/pane-list-shells.json`・`herdr/pane-list-agents.json` | `herdr pane list --workspace <ID>` の出力。前者はシェルだけの 3 つの pane、後者はシェルと OpenCode と Claude Code の pane |
+| `herdr/pane-list-shells.json`・`herdr/pane-list-agents.json` | `herdr pane list --workspace <ID>` の出力。前者は確かめ用の workspace のシェルだけの 3 つの pane、後者は `/runplan` のセッションのタスクの workspace のシェルと OpenCode と Claude Code の pane |
 | `herdr/pane-process-info-shell.json`・`herdr/pane-process-info-busy.json` | `herdr pane process-info --pane <ID>` の出力。前者は前面がシェルだけ、後者は前面で `sleep` が動いている |
 | `herdr/workspace-close.json` | `herdr workspace close <ID>` の出力 |
 | `herdr/*.stderr` | エラーの応答（標準エラー）。`agent-start-name-taken`・`agent-start-pane-busy`・`agent-start-timeout`・`workspace-close-not-found` |

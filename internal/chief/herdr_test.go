@@ -273,13 +273,16 @@ func TestWriterRefuses(t *testing.T) {
 // TestReadHerdrCreationSamples reads the real outputs of the Herdr commands
 // that make and close a task's workspace, taken in task 0092's field check.
 func TestReadHerdrCreationSamples(t *testing.T) {
-	const dir = "/Users/user/.herdr/worktrees/yt2column/probe-0092"
+	const (
+		dir        = "/Users/user/.herdr/worktrees/yt2column/probe-0092"
+		sessionDir = "/Users/user/.herdr/worktrees/yt2column/chief-task-worktree"
+	)
 	t.Run("workspace create", func(t *testing.T) {
 		got, err := parseWorkspaceCreate(readTestdata(t, "herdr/workspace-create.json"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := createdWorkspace{Label: "probe-0092", First: createdTab{Workspace: "w1Y", Tab: TabID{id: "w1Y:t1"}, Pane: PaneID{id: "w1Y:p1"}, Dir: dir}}
+		want := createdWorkspace{Label: "probe-0092", First: createdTab{Workspace: "w1Y", Tab: tabID{id: "w1Y:t1"}, Pane: PaneID{id: "w1Y:p1"}, Dir: dir}}
 		if got != want {
 			t.Errorf("workspace = %+v, want %+v", got, want)
 		}
@@ -289,7 +292,7 @@ func TestReadHerdrCreationSamples(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := createdTab{Workspace: "w1Y", Tab: TabID{id: "w1Y:t2"}, Pane: PaneID{id: "w1Y:p2"}, Dir: dir}
+		want := createdTab{Workspace: "w1Y", Tab: tabID{id: "w1Y:t2"}, Pane: PaneID{id: "w1Y:p2"}, Dir: dir}
 		if got != want {
 			t.Errorf("tab = %+v, want %+v", got, want)
 		}
@@ -299,7 +302,7 @@ func TestReadHerdrCreationSamples(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if want := (tabInfo{Workspace: "w1Y", Tab: TabID{id: "w1Y:t1"}, Label: "cmd"}); got != want {
+		if want := (tabInfo{Workspace: "w1Y", Tab: tabID{id: "w1Y:t1"}, Label: "cmd"}); got != want {
 			t.Errorf("tab = %+v, want %+v", got, want)
 		}
 	})
@@ -333,33 +336,37 @@ func TestReadHerdrCreationSamples(t *testing.T) {
 			t.Errorf("agent = %+v, want an idle Claude Code agent with a session in %s", a, dir)
 		}
 	})
-	t.Run("pane list of shells", func(t *testing.T) {
-		panes, err := parsePaneList(readTestdata(t, "herdr/pane-list-shells.json"))
+	lists := map[string][]listedPane{
+		"pane-list-shells.json": {
+			{ID: PaneID{id: "w1Y:p1"}, Workspace: "w1Y", Tab: tabID{id: "w1Y:t1"}, Dir: dir},
+			{ID: PaneID{id: "w1Y:p2"}, Workspace: "w1Y", Tab: tabID{id: "w1Y:t2"}, Dir: dir},
+			{ID: PaneID{id: "w1Y:p3"}, Workspace: "w1Y", Tab: tabID{id: "w1Y:t3"}, Dir: dir},
+		},
+		"pane-list-agents.json": {
+			{ID: PaneID{id: "w1S:p1"}, Workspace: "w1S", Tab: tabID{id: "w1S:t1"}, Dir: sessionDir},
+			{ID: PaneID{id: "w1S:p2"}, Workspace: "w1S", Tab: tabID{id: "w1S:t2"}, Dir: sessionDir, HasAgent: true, Kind: paneinput.AgentOpenCode},
+			{ID: PaneID{id: "w1S:p3"}, Workspace: "w1S", Tab: tabID{id: "w1S:t3"}, Dir: sessionDir, HasAgent: true, Kind: paneinput.AgentClaudeCode},
+		},
+	}
+	for file, want := range lists {
+		t.Run(file, func(t *testing.T) {
+			panes, err := parsePaneList(readTestdata(t, "herdr/"+file))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(panes, want) {
+				t.Errorf("panes = %+v, want %+v", panes, want)
+			}
+		})
+	}
+	t.Run("pane of an agent chief does not route to", func(t *testing.T) {
+		sample := strings.Replace(string(readTestdata(t, "herdr/pane-list-agents.json")), `"agent":"opencode",`, `"agent":"codex",`, 1)
+		panes, err := parsePaneList([]byte(sample))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(panes) != 3 {
-			t.Fatalf("read %d panes, want 3", len(panes))
-		}
-		want := Pane{ID: PaneID{id: "w1Y:p2"}, Workspace: "w1Y", Tab: TabID{id: "w1Y:t2"}, Dir: dir}
-		if panes[1] != want {
-			t.Errorf("pane 1 = %+v, want %+v", panes[1], want)
-		}
-	})
-	t.Run("pane list with agents", func(t *testing.T) {
-		panes, err := parsePaneList(readTestdata(t, "herdr/pane-list-agents.json"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		var kinds []paneinput.AgentKind
-		var agents []bool
-		for _, p := range panes {
-			kinds = append(kinds, p.Kind)
-			agents = append(agents, p.HasAgent)
-		}
-		wantKinds := []paneinput.AgentKind{paneinput.AgentUnknown, paneinput.AgentOpenCode, paneinput.AgentClaudeCode}
-		if !slices.Equal(kinds, wantKinds) || !slices.Equal(agents, []bool{false, true, true}) {
-			t.Errorf("kinds = %v, agents = %v, want %v and a shell then two agents", kinds, agents, wantKinds)
+		if !panes[1].HasAgent || panes[1].Kind != paneinput.AgentUnknown {
+			t.Errorf("pane 1 = %+v, want an agent of no kind", panes[1])
 		}
 	})
 	infos := map[string]bool{
@@ -461,6 +468,13 @@ func TestHerdrRejectsUnknownCreationShapes(t *testing.T) {
 		{"another envelope", "tab-create.json", `"cli:tab:create"`, `"cli:workspace:create"`},
 		{"malformed tab", "tab-rename.json", `"tab_id":"w1Y:t1"`, `"tab_id":"w1Y"`},
 		{"another result type", "tab-rename.json", `"type":"tab_info"`, `"type":"tab_created"`},
+		{"malformed workspace", "tab-rename.json", `"workspace_id":"w1Y"`, `"workspace_id":"w1Y:t1"`},
+		{"option-like pane", "tab-create.json", `"pane_id":"w1Y:p2"`, `"pane_id":"--pane"`},
+		{"option-like pane", "pane-list-agents.json", `"pane_id":"w1S:p2"`, `"pane_id":"--pane"`},
+		{"malformed tab", "pane-list-agents.json", `"tab_id":"w1S:t2"`, `"tab_id":"w1S"`},
+		{"malformed workspace", "pane-list-agents.json", `"tab_id":"w1S:t1","terminal_id":"term_6606008f2268731","workspace_id":"w1S"`, `"tab_id":"w1S:t1","terminal_id":"term_6606008f2268731","workspace_id":"w1S:p1"`},
+		{"relative cwd", "pane-list-agents.json", `"agent_status":"unknown","cwd":"/Users/user/.herdr/worktrees/yt2column/chief-task-worktree"`, `"agent_status":"unknown","cwd":"chief-task-worktree"`},
+		{"option-like pane", "pane-process-info-shell.json", `"pane_id":"w1Y:p1"`, `"pane_id":"--x"`},
 		{"missing name", "agent-start-claude.json", `"name":"probe-0092-claude",`, ``},
 		{"unknown status", "agent-start-claude.json", `"agent_status":"idle"`, `"agent_status":"starting"`},
 		{"another result type", "agent-start-claude.json", `"type":"agent_started"`, `"type":"agent_info"`},
@@ -480,6 +494,16 @@ func TestHerdrRejectsUnknownCreationShapes(t *testing.T) {
 		{"missing message", "agent-start-timeout.stderr", `,"message":"timed out waiting for agent startup"`, ``},
 		{"duplicate code", "agent-start-timeout.stderr", `"code":"timeout"`, `"code":"timeout","code":"timeout"`},
 	}
+	t.Run("tab-create.json/option-like tab of its pane too", func(t *testing.T) {
+		sample := string(readTestdata(t, "herdr/tab-create.json"))
+		edited := strings.ReplaceAll(sample, `"tab_id":"w1Y:t2"`, `"tab_id":"--tab"`)
+		if strings.Count(sample, `"tab_id":"w1Y:t2"`) != 2 {
+			t.Fatal("the sample does not name the tab in both the tab and its pane")
+		}
+		if _, err := parseTabCreate([]byte(edited), "w1Y"); !errors.Is(err, errHerdrOutput) {
+			t.Errorf("error = %v, want errHerdrOutput", err)
+		}
+	})
 	for _, e := range edits {
 		t.Run(e.file+"/"+e.name, func(t *testing.T) {
 			sample := string(readTestdata(t, "herdr/"+e.file))
