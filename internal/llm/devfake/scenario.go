@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/isseis/yt2column/internal/llm"
 )
 
 var (
@@ -40,11 +42,23 @@ type Failure int
 
 // The Failure values.
 const (
-	FailureNone      Failure = iota // the zero value: no call fails
-	FailureEmpty                    // wraps llm.ErrEmptyResponse
-	FailureTruncated                // wraps llm.ErrTruncated
-	FailureAPIError                 // wraps ErrSimulatedAPIFailure and no llm sentinel
-	FailureTimeout                  // wraps context.DeadlineExceeded
+	FailureNone           Failure = iota // the zero value: no call fails
+	FailureEmpty                         // wraps llm.ErrEmptyResponse
+	FailureTruncated                     // wraps llm.ErrTruncated
+	FailureAPIError                      // wraps ErrSimulatedAPIFailure and no llm sentinel
+	FailureTimeout                       // wraps context.DeadlineExceeded
+	FailureAPIKeyRejected                // wraps llm.ErrAuthRejected
+)
+
+// SettingsCheck selects the result the fake's key check reports. It is the
+// check the options page makes before it saves a key.
+type SettingsCheck int
+
+// The SettingsCheck values.
+const (
+	SettingsCheckOK          SettingsCheck = iota // the zero value: the key is accepted
+	SettingsCheckKeyRejected                      // the key is rejected (llm.ErrAuthRejected)
+	SettingsCheckUnverified                       // the check could not tell (ErrSimulatedAPIFailure)
 )
 
 // FailAt is the call a failure is returned at. It names a call of a Job's
@@ -85,10 +99,18 @@ const (
 	spellingTruncated = "truncated"
 	spellingAPIError  = "api-error"
 	spellingTimeout   = "timeout"
+	// spellingAPIKeyRejected and spellingKeyRejected use underscores, unlike
+	// the hyphenated spellings above, because they equal the JSON values the
+	// article generation module reports (api_key_rejected, key_rejected).
+	spellingAPIKeyRejected = "api_key_rejected"
 
 	spellingDraft   = "draft"
 	spellingShorten = "shorten"
 	spellingReview  = "review"
+
+	spellingOK          = "ok"
+	spellingKeyRejected = "key_rejected"
+	spellingUnverified  = "unverified"
 )
 
 // String returns the article's command-line spelling. A value outside the
@@ -121,8 +143,25 @@ func (f Failure) String() string {
 		return spellingAPIError
 	case FailureTimeout:
 		return spellingTimeout
+	case FailureAPIKeyRejected:
+		return spellingAPIKeyRejected
 	default:
 		return fmt.Sprintf("Failure(%d)", int(f))
+	}
+}
+
+// String returns the settings check's command-line spelling. A value outside
+// the enumeration returns a string no accepted spelling equals.
+func (c SettingsCheck) String() string {
+	switch c {
+	case SettingsCheckOK:
+		return spellingOK
+	case SettingsCheckKeyRejected:
+		return spellingKeyRejected
+	case SettingsCheckUnverified:
+		return spellingUnverified
+	default:
+		return fmt.Sprintf("SettingsCheck(%d)", int(c))
 	}
 }
 
@@ -152,7 +191,7 @@ func Articles() []Article {
 // Failures returns every failure a caller may select, in declaration order.
 // FailureNone is not in it: no failure is selected by omitting one.
 func Failures() []Failure {
-	return []Failure{FailureEmpty, FailureTruncated, FailureAPIError, FailureTimeout}
+	return []Failure{FailureEmpty, FailureTruncated, FailureAPIError, FailureTimeout, FailureAPIKeyRejected}
 }
 
 // FailAts returns every call a caller may select a failure at, in declaration
@@ -161,18 +200,26 @@ func FailAts() []FailAt {
 	return []FailAt{FailAtDraft, FailAtShorten, FailAtReview}
 }
 
+// SettingsChecks returns every settings check result a caller may select, in
+// declaration order. SettingsCheckOK is in it: unlike a failure, the accepted
+// result is a choice, and it is the one a caller normally makes.
+func SettingsChecks() []SettingsCheck {
+	return []SettingsCheck{SettingsCheckOK, SettingsCheckKeyRejected, SettingsCheckUnverified}
+}
+
 // waitFunc waits for one call's delay. It returns when the delay has passed
 // or ctx is done, whichever comes first; the caller checks ctx afterwards.
 type waitFunc func(ctx context.Context, delay time.Duration)
 
 // Scenario is a checked scenario. Its fields are unexported, so a Scenario
-// can only come from NewScenario; the zero value is the standard article
-// with no failure and no delay.
+// can only come from NewScenario or ParseScenario; the zero value is the
+// standard article with no failure, no delay, and an accepted key.
 type Scenario struct {
-	article Article
-	failure Failure
-	failAt  FailAt
-	delay   time.Duration
+	article       Article
+	failure       Failure
+	failAt        FailAt
+	delay         time.Duration
+	settingsCheck SettingsCheck
 	// wait is nil except in a copy a test made; nil selects sleepContext.
 	wait waitFunc
 }
@@ -181,7 +228,8 @@ type Scenario struct {
 // with an error wrapping ErrInvalidScenario, a value outside an enumeration,
 // a failure without a FailAt or a FailAt without a failure, FailAtShorten
 // with an article other than ArticleLong, and a delay that is negative or
-// over MaxDelay.
+// over MaxDelay. The settings check is SettingsCheckOK, its zero value;
+// ParseScenario is the constructor that selects another one.
 func NewScenario(article Article, failure Failure, failAt FailAt, delay time.Duration) (Scenario, error) {
 	switch article {
 	case ArticleStandard, ArticleLong, ArticleElements:
@@ -189,7 +237,7 @@ func NewScenario(article Article, failure Failure, failAt FailAt, delay time.Dur
 		return Scenario{}, fmt.Errorf("%w: unknown article %d", ErrInvalidScenario, int(article))
 	}
 	switch failure {
-	case FailureNone, FailureEmpty, FailureTruncated, FailureAPIError, FailureTimeout:
+	case FailureNone, FailureEmpty, FailureTruncated, FailureAPIError, FailureTimeout, FailureAPIKeyRejected:
 	default:
 		return Scenario{}, fmt.Errorf("%w: unknown failure %d", ErrInvalidScenario, int(failure))
 	}
@@ -228,3 +276,27 @@ func (s Scenario) LogValue() slog.Value {
 }
 
 var _ slog.LogValuer = Scenario{}
+
+// CheckKeyResult returns what a key check reports for the scenario: nil for
+// SettingsCheckOK, an error matching llm.ErrAuthRejected for
+// SettingsCheckKeyRejected, and an error wrapping ErrSimulatedAPIFailure for
+// SettingsCheckUnverified. A value outside the enumeration returns an error,
+// so an unknown result never reads as accepted.
+func (s Scenario) CheckKeyResult() error {
+	switch s.settingsCheck {
+	case SettingsCheckOK:
+		return nil
+	case SettingsCheckKeyRejected:
+		return errSimulatedAuthRejected()
+	case SettingsCheckUnverified:
+		return fmt.Errorf("devfake: %w", ErrSimulatedAPIFailure)
+	default:
+		return fmt.Errorf("devfake: unknown settings check %d: %w", int(s.settingsCheck), ErrUnexpectedCall)
+	}
+}
+
+// errSimulatedAuthRejected is the error both the rejected-key failure and the
+// rejected-key settings check return, so the two cannot diverge.
+func errSimulatedAuthRejected() error {
+	return fmt.Errorf("devfake: simulated: %w", llm.ErrAuthRejected)
+}

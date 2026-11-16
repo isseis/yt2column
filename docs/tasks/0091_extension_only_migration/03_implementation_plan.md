@@ -165,11 +165,11 @@
 
 **変更するファイル:** `internal/config/`（`config.go`、`!js` のタグを付けるファイル、拡張用の読み込みのファイルとそのテスト）、`internal/llm/devfake/`、`cmd/yt2column-devserver/args.go` とそのテスト、`Makefile`、`CLAUDE.md`、`docs/dev/guides/development.md`、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 2-1**: `LoadServer`・`LoadHost`・`LoadHostHome` と `ServerConfig`・`HostConfig` を、`//go:build !js` を付けた新しいファイルに移し、`serverfile.go`・`configpath.go`・`socketpath.go` にも同じタグを付ける（設計書 §3.2）。テストの補助のファイルにはタグを付けない（§1.4）。これで `GOOS=js GOARCH=wasm go build ./internal/config` が通る。続けて `Makefile` の `WASM_PACKAGES` に `./internal/config` を加え、CLAUDE.md の `make wasm-check` の説明を直す。
--   [ ] **ステップ 2-2**: `LoadExtension`・`ExtensionLookup`・`ReadExtensionSettings` を加える（設計書 §3.2、0090 設計書 §3.1.2・§3.1.3）。テストは、`LoadExtension` が 2 つの名前のほかを読まず、本番の構成になり、CLI と同じ値を拒否すること（0090 設計書 §7.1）、`ExtensionLookup` が 2 つの名前のほかに答えないこと、`ReadExtensionSettings` が 2 つの値とあるかどうかを検査せずに返すことを確かめる。秘密情報の変数名は `internal/config` の外に書かない（`TestEnvAccessConfined`）。
--   [ ] **ステップ 2-3**: `devfake` に、失敗の種類 `FailureAPIKeyRejected`（綴りは `api_key_rejected`、エラーは `llm.ErrAuthRejected` に当たる）、キーの確かめの結果 `SettingsCheck`（`ok`・`key_rejected`・`unverified`、ゼロ値は `ok`）とそれを返す関数、`ScenarioSpelling` と `ParseScenario` を加える（設計書 §3.4）。依存は `internal/llm` と標準ライブラリのままである。テストは、追加した値の振る舞い、シナリオの 5 つの値のそれぞれで、空の値と合わない綴りを拒否すること（`ErrInvalidScenario`）、遅れの上限の境界、補正しないことを確かめる。
--   [ ] **ステップ 2-4**: 開発用のサーバの引数の解析を `devfake.ParseScenario` に替える（設計書 §3.4）。開発用のサーバには、キーの確かめの結果の引数を加えず、`ok` を渡す。開発用のサーバの引数のテストは、引数の解析の経路を確かめるので残し、綴りの規則の行は `ParseScenario` のテストに置く。`-fail` が `api_key_rejected` を受理するようになるので、`TestScenarioCombinations` の数と失敗の値の対応（開発用のサーバでは `llm_failed` になる）と、development.md の開発用のサーバの受理する値の表を直す（`TestDevelopmentDocsDevServer` が確かめる）。
--   [ ] **ステップ 2-5**: package_reference.md の `internal/config`（3 つの関数と、`!js` のファイルが撤去までの間だけのものであること）と `internal/llm/devfake`（追加した値と `ParseScenario`）の行を改める。
+-   [x] **ステップ 2-1**: `LoadServer`・`LoadHost`・`LoadHostHome` と `ServerConfig`・`HostConfig` を、`//go:build !js` を付けた新しいファイルに移し、`serverfile.go`・`configpath.go`・`socketpath.go` にも同じタグを付ける（設計書 §3.2）。テストの補助のファイルにはタグを付けない（§1.4）。これで `GOOS=js GOARCH=wasm go build ./internal/config` が通る。続けて `Makefile` の `WASM_PACKAGES` に `./internal/config` を加え、CLAUDE.md の `make wasm-check` の説明を直す。
+-   [x] **ステップ 2-2**: `LoadExtension`・`ExtensionLookup`・`ReadExtensionSettings` を加える（設計書 §3.2、0090 設計書 §3.1.2・§3.1.3）。テストは、`LoadExtension` が 2 つの名前のほかを読まず、本番の構成になり、CLI と同じ値を拒否すること（0090 設計書 §7.1）、`ExtensionLookup` が 2 つの名前のほかに答えないこと、`ReadExtensionSettings` が 2 つの値とあるかどうかを検査せずに返すことを確かめる。秘密情報の変数名は `internal/config` の外に書かない（`TestEnvAccessConfined`）。
+-   [x] **ステップ 2-3**: `devfake` に、失敗の種類 `FailureAPIKeyRejected`（綴りは `api_key_rejected`、エラーは `llm.ErrAuthRejected` に当たる）、キーの確かめの結果 `SettingsCheck`（`ok`・`key_rejected`・`unverified`、ゼロ値は `ok`）とそれを返す関数、`ScenarioSpelling` と `ParseScenario` を加える（設計書 §3.4）。依存は `internal/llm` と標準ライブラリのままである。テストは、追加した値の振る舞い、シナリオの 5 つの値のそれぞれで、空の値と合わない綴りを拒否すること（`ErrInvalidScenario`）、遅れの上限の境界、補正しないことを確かめる。
+-   [x] **ステップ 2-4**: 開発用のサーバの引数の解析を `devfake.ParseScenario` に替える（設計書 §3.4）。開発用のサーバには、キーの確かめの結果の引数を加えず、`ok` を渡す。開発用のサーバの引数のテストは、引数の解析の経路を確かめるので残し、綴りの規則の行は `ParseScenario` のテストに置く。`-fail` が `api_key_rejected` を受理するようになるので、`TestScenarioCombinations` の数と失敗の値の対応（開発用のサーバでは `llm_failed` になる）と、development.md の開発用のサーバの受理する値の表を直す（`TestDevelopmentDocsDevServer` が確かめる）。
+-   [x] **ステップ 2-5**: package_reference.md の `internal/config`（3 つの関数と、`!js` のファイルが撤去までの間だけのものであること）と `internal/llm/devfake`（追加した値と `ParseScenario`）の行を改める。
 
 **完了の条件:** `make test`・`make lint`（`GOOS=js GOARCH=wasm` での `internal/config` のビルドを含む）・`make deadcode` が通る。`_checks/cli_unchanged.sh` が通り、§7 の AC-26 の記録に書いた。
 
@@ -187,10 +187,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/896
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: `internal/extjob` と 2 つの LLM の実装（設計書 §8 の 1 のうち `internal/extjob`）
 
@@ -537,7 +537,7 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
--   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
+-   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
 -   [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
@@ -614,6 +614,20 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 
 -   この記録より後の commit は、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
 -   スクリプトは、`cmd/yt2column/main.go` の変更で終了コード 1、`_test.go` だけの変更で 0、`main.go` を `_test.go` の名前に変えるリネームで 1 になることを、使い捨ての worktree で確かめた（ステップ 1-7）。
+
+**PR-2**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
+
+-   merge-base: `6d9bdfa951602b7d9815b6f3d8c6bb87e5ee73a2`
+-   比べたコミット: `6843188e51fb55986f36633a26d50476f6e431f3`
+-   出力（終了コード 0）:
+
+    ```text
+    merge-base 6d9bdfa951602b7d9815b6f3d8c6bb87e5ee73a2 head 6843188e51fb55986f36633a26d50476f6e431f3
+    ok: no non-test file under cmd/yt2column/ changed
+    ```
+
+-   この記録より後の commit は、テストの行の移動、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
+-   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
 
 ### PR-1 の前の手動の確認の記録
 

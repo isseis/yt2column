@@ -70,11 +70,11 @@ HOME="$HOME" ./build/dev/yt2column-devserver
 | 引数 | 意味 | 受理する値 | 省いたとき |
 |---|---|---|---|
 | `-article` | 記事の種類 | `standard`・`long`・`elements` | `standard` |
-| `-fail` | 失敗の種類。`-fail-step` と組で指定する | `empty`・`truncated`・`api-error`・`timeout` | 2 つとも省くと失敗しない |
+| `-fail` | 失敗の種類。`-fail-step` と組で指定する | `empty`・`truncated`・`api-error`・`timeout`・`api_key_rejected` | 2 つとも省くと失敗しない |
 | `-fail-step` | 失敗させる工程。`-fail` と組で指定する | `draft`・`shorten`・`review` | 2 つとも省くと失敗しない |
 | `-delay` | LLM の呼び出し 1 回ごとの遅れ（秒） | `0` から `600` までの 10 進の整数 | `0` |
 
-`-fail-step shorten` は、本文が 4,000 字を超える `-article long` のときだけ受理する。`-h`・`-help` は標準エラー出力に案内を出して終了コード `0` で終わる。
+`-fail-step shorten` は、本文が 4,000 字を超える `-article long` のときだけ受理する。`-fail api_key_rejected` は、API が API キーを拒んだことを模す。開発用のサーバはその拒否を区別しないので、ジョブの失敗は `llm_failed` になる（記事生成モジュールは `api_key_rejected` にする）。`-h`・`-help` は標準エラー出力に案内を出して終了コード `0` で終わる。
 
 記事のタイトルは `[FAKE] ` で始まる。記事のモデル名は `yt2column-devfake` で単価の表にないので、ビューアは料金を不明として表示する。
 

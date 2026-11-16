@@ -162,6 +162,8 @@ func (s Scenario) fail() (llm.GenerateResponse, error) {
 		return llm.GenerateResponse{}, fmt.Errorf("devfake: %w", ErrSimulatedAPIFailure)
 	case FailureTimeout:
 		return llm.GenerateResponse{}, fmt.Errorf("devfake: simulated: %w", context.DeadlineExceeded)
+	case FailureAPIKeyRejected:
+		return llm.GenerateResponse{}, fmt.Errorf("devfake: simulated: %w", llm.ErrAuthRejected)
 	default:
 		return llm.GenerateResponse{}, fmt.Errorf("devfake: unknown failure %d: %w", int(s.failure), ErrUnexpectedCall)
 	}

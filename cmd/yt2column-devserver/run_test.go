@@ -65,6 +65,7 @@ func TestRunArgsAccepted(t *testing.T) {
 		{"each article", []string{"-article", "elements"}, mustScenario(t, devfake.ArticleElements, devfake.FailureNone, devfake.FailAtNone, 0)},
 		{"two dashes and an equals sign", []string{"--article=long"}, mustScenario(t, devfake.ArticleLong, devfake.FailureNone, devfake.FailAtNone, 0)},
 		{"a failure and its call", []string{"-fail", "api-error", "-fail-step", "review"}, mustScenario(t, devfake.ArticleStandard, devfake.FailureAPIError, devfake.FailAtReview, 0)},
+		{"a rejected key", []string{"-fail", "api_key_rejected", "-fail-step", "draft"}, mustScenario(t, devfake.ArticleStandard, devfake.FailureAPIKeyRejected, devfake.FailAtDraft, 0)},
 		{"the shorten call of the long article", []string{"-article", "long", "-fail", "truncated", "-fail-step", "shorten"}, mustScenario(t, devfake.ArticleLong, devfake.FailureTruncated, devfake.FailAtShorten, 0)},
 		{"delay 0", []string{"-delay", "0"}, mustScenario(t, devfake.ArticleStandard, devfake.FailureNone, devfake.FailAtNone, 0)},
 		{"the longest delay", []string{"-delay", "600"}, mustScenario(t, devfake.ArticleStandard, devfake.FailureNone, devfake.FailAtNone, devfake.MaxDelay)},
@@ -79,43 +80,46 @@ func TestRunArgsAccepted(t *testing.T) {
 			}
 		})
 	}
+
+	// Every argument path passes the accepted settings check; LogValue does
+	// not report it, so this pins the value once.
+	t.Run("passes the accepted settings check", func(t *testing.T) {
+		got, err := parseArgs([]string{"-article", "elements"})
+		if err != nil {
+			t.Fatalf("parseArgs() = %v, want no error", err)
+		}
+		if err := got.CheckKeyResult(); err != nil {
+			t.Errorf("key check = %v, want the accepted result", err)
+		}
+	})
 }
 
 // TestRunArgsRejected checks that a rejected specification makes run exit with
 // usage, print the usage after the reason, and create nothing under HOME. The
 // reason's wording is matched because the diagnostic is what the operator
 // reads; run returns only an exit code otherwise.
+//
+// The rows cover the command line itself and the wording the operator reads.
+// The spellings, the delay's form and range, and the combinations of the
+// scenario are devfake.ParseScenario's rules and are tested there; one row per
+// rejection class shows that its message reaches this path unchanged.
 func TestRunArgsRejected(t *testing.T) {
-	const bigNumber = "99999999999999999999999"
 	for _, tc := range []struct {
 		name   string
 		args   []string
 		reason string
 	}{
 		{"unknown argument", []string{"-port", "8765"}, "flag provided but not defined"},
-		{"unknown article", []string{"-article", "short"}, "not an accepted value"},
-		{"unknown failure", []string{"-fail", "crash", "-fail-step", "draft"}, "not an accepted value"},
-		{"unknown call", []string{"-fail", "empty", "-fail-step", "write"}, "not an accepted value"},
-		{"none is not a failure", []string{"-fail", "none", "-fail-step", "draft"}, "not an accepted value"},
-		{"none is not a call", []string{"-fail", "empty", "-fail-step", "none"}, "not an accepted value"},
+		{"unknown article", []string{"-article", "short"}, "is not an accepted value; accepted: standard|long|elements"},
+		{"delay over the longest", []string{"-delay", "601"}, "over the longest delay"},
 		{"missing value", []string{"-article"}, "flag needs an argument"},
 		{"extra word", []string{"extra"}, "unexpected extra argument"},
 		{"extra word after an argument", []string{"-article", "long", "extra"}, "unexpected extra argument"},
 		{"bare double dash", []string{"--"}, "unexpected extra argument"},
 		{"repeated article", []string{"-article", "long", "-article", "long"}, "given more than once"},
 		{"repeated delay", []string{"-delay", "1", "-delay", "1"}, "given more than once"},
-		{"failure without a call", []string{"-fail", "empty"}, "given together"},
-		{"call without a failure", []string{"-fail-step", "draft"}, "given together"},
-		{"shorten call of the standard article", []string{"-fail", "empty", "-fail-step", "shorten"}, "only the long article"},
-		{"shorten call of the elements article", []string{"-article", "elements", "-fail", "empty", "-fail-step", "shorten"}, "only the long article"},
-		{"delay over the longest", []string{"-delay", "601"}, "over the longest delay"},
-		{"delay that overflows a duration", []string{"-delay", "18446744074"}, "over the longest delay"},
-		{"delay that does not fit an integer", []string{"-delay", bigNumber}, "over the longest delay"},
-		{"delay with a leading zero", []string{"-delay", "01"}, "leading zero"},
-		{"empty delay", []string{"-delay", ""}, "decimal digits"},
-		{"negative delay", []string{"-delay", "-1"}, "decimal digits"},
-		{"fractional delay", []string{"-delay", "1.5"}, "decimal digits"},
-		{"delay with a unit", []string{"-delay", "1s"}, "decimal digits"},
+		{"none is not a failure", []string{"-fail", "none", "-fail-step", "draft"}, "leave both arguments out"},
+		{"none is not a call", []string{"-fail", "empty", "-fail-step", "none"}, "leave both arguments out"},
 		{"non-printable value", []string{"-article", "a\x1bb"}, "not an accepted value"},
 		// The flag package reports an unknown name raw, so only run's own
 		// escaping of the reason line keeps the escape character out.
@@ -156,7 +160,7 @@ func TestRunHelp(t *testing.T) {
 			if code != exitOK {
 				t.Errorf("exit code = %d, want %d", code, exitOK)
 			}
-			for _, want := range []string{"usage: " + programName, spellings(devfake.Articles()), spellings(devfake.Failures()), spellings(devfake.FailAts())} {
+			for _, want := range []string{"usage: " + programName, devfake.Spellings(devfake.Articles()), devfake.Spellings(devfake.Failures()), devfake.Spellings(devfake.FailAts())} {
 				if !strings.Contains(stderr, want) {
 					t.Errorf("the usage lacks %q:\n%s", want, stderr)
 				}
@@ -293,16 +297,20 @@ func scenarioCombinations(t *testing.T) []devfake.Scenario {
 // article or the failure the combination selects, and that the calls waited
 // the number of times the combination's call count says.
 func TestScenarioCombinations(t *testing.T) {
-	const count = 31 // 9 for the standard and the elements article each, 13 for the long one
+	const count = 38 // 11 for the standard and the elements article each, 16 for the long one
 	combos := scenarioCombinations(t)
 	if len(combos) != count {
 		t.Fatalf("the accepted combinations number %d, want %d", len(combos), count)
 	}
+	// The server has no rule for a rejected key, so it reports that failure as
+	// any other LLM failure; the article generation module classifies it as
+	// api_key_rejected after the switch.
 	failureCodes := map[devfake.Failure]string{
-		devfake.FailureEmpty:     "llm_empty",
-		devfake.FailureTruncated: "llm_truncated",
-		devfake.FailureAPIError:  "llm_failed",
-		devfake.FailureTimeout:   "llm_timeout",
+		devfake.FailureEmpty:          "llm_empty",
+		devfake.FailureTruncated:      "llm_truncated",
+		devfake.FailureAPIError:       "llm_failed",
+		devfake.FailureTimeout:        "llm_timeout",
+		devfake.FailureAPIKeyRejected: "llm_failed",
 	}
 	for _, a := range devfake.Articles() {
 		for _, f := range append([]devfake.Failure{devfake.FailureNone}, devfake.Failures()...) {

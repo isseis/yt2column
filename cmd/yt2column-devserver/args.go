@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/isseis/yt2column/internal/llm/devfake"
 )
@@ -21,93 +18,54 @@ const (
 	argDelay    = "delay"
 )
 
-var (
-	errRepeated     = errors.New("given more than once")
-	errUnknownValue = errors.New("not an accepted value")
-	errDelayForm    = errors.New("not a whole number of seconds written in decimal digits without a leading zero")
-	errDelayRange   = errors.New("over the longest delay")
-	errExtraWord    = errors.New("unexpected extra argument")
-)
+// defaultDelaySeconds is the delay of a start that gives none.
+const defaultDelaySeconds = "0"
 
-// enumFlag is a flag.Value that accepts the spellings of one devfake
-// enumeration, and only once. Its zero value is "not given", and value then
-// holds the enumeration's zero value, which means no choice.
-type enumFlag[T interface {
-	comparable
-	fmt.Stringer
-}] struct {
-	accepted []T
-	value    T
-	set      bool
-}
+// errRepeated is the rejection of an argument given twice. The spellings and
+// the combination rules are devfake.ParseScenario's, so this package keeps only
+// the rejections of the command line itself.
+var errRepeated = errors.New("given more than once")
 
-// Set implements flag.Value. It rejects a second call and any spelling that
-// is not the String of an accepted value; it never repairs a spelling.
-func (f *enumFlag[T]) Set(s string) error {
-	if f.set {
-		return errRepeated
-	}
-	i := slices.IndexFunc(f.accepted, func(v T) bool { return v.String() == s })
-	if i < 0 {
-		return fmt.Errorf("%w %q; accepted: %s", errUnknownValue, s, spellings(f.accepted))
-	}
-	f.value = f.accepted[i]
-	f.set = true
-	return nil
-}
+// errNoneSelected is the rejection of an explicit "none". A start selects no
+// failure by leaving both arguments out; the parser's none spelling exists for
+// the development build's defaults, not for this command line.
+var errNoneSelected = errors.New(`"none" is not an accepted value; leave both arguments out to select no failure`)
 
-// String implements flag.Value.
-func (f *enumFlag[T]) String() string {
-	if f == nil || !f.set {
-		return ""
-	}
-	return f.value.String()
-}
+// errExtraWord is the rejection of a word left after the arguments.
+var errExtraWord = errors.New("unexpected extra argument")
 
-// spellings returns the accepted values' spellings, separated by "|".
-func spellings[T fmt.Stringer](values []T) string {
-	names := make([]string, len(values))
-	for i, v := range values {
-		names[i] = v.String()
-	}
-	return strings.Join(names, "|")
-}
-
-// delayFlag is a flag.Value for the delay in whole seconds.
-type delayFlag struct {
-	value time.Duration
+// stringFlag is a flag.Value that keeps the value as it was written and
+// rejects a second call, so an argument given twice is an error instead of the
+// last value winning. ParseScenario checks the value.
+type stringFlag struct {
+	value string
 	set   bool
 }
 
-// maxDelaySeconds is the longest delay in seconds. Set compares the number
-// with it before it multiplies, so a huge number cannot overflow into a value
-// devfake.NewScenario's range check accepts.
-const maxDelaySeconds = uint64(devfake.MaxDelay / time.Second)
-
-// Set implements flag.Value. It accepts decimal digits only, with no leading
-// zero on a number of two or more digits, and at most maxDelaySeconds.
-func (f *delayFlag) Set(s string) error {
+// Set implements flag.Value.
+func (f *stringFlag) Set(s string) error {
 	if f.set {
 		return errRepeated
 	}
-	if s == "" || strings.TrimLeft(s, "0123456789") != "" || (len(s) > 1 && s[0] == '0') {
-		return errDelayForm
-	}
-	seconds, err := strconv.ParseUint(s, 10, 64)
-	if err != nil || seconds > maxDelaySeconds {
-		return errDelayRange
-	}
-	f.value = time.Duration(seconds) * time.Second
+	f.value = s
 	f.set = true
 	return nil
 }
 
 // String implements flag.Value.
-func (f *delayFlag) String() string {
+func (f *stringFlag) String() string {
 	if f == nil || !f.set {
 		return ""
 	}
-	return strconv.FormatInt(int64(f.value/time.Second), 10)
+	return f.value
+}
+
+// or returns the value as written, or fallback when the argument was left out.
+func (f *stringFlag) or(fallback string) string {
+	if !f.set {
+		return fallback
+	}
+	return f.value
 }
 
 // usageText is what -h prints and what follows a rejected argument.
@@ -118,20 +76,24 @@ func usageText() string {
   -%[4]s    the call that fails; %[10]s needs -%[2]s %[11]s
   -%[5]s        seconds each call waits before it answers, a whole number from 0 to %[12]d (default 0)
 `, programName, argArticle, argFail, argFailStep, argDelay,
-		spellings(devfake.Articles()), spellings(devfake.Failures()), spellings(devfake.FailAts()),
-		devfake.ArticleStandard, devfake.FailAtShorten, devfake.ArticleLong, maxDelaySeconds)
+		devfake.Spellings(devfake.Articles()), devfake.Spellings(devfake.Failures()), devfake.Spellings(devfake.FailAts()),
+		devfake.ArticleStandard, devfake.FailAtShorten, devfake.ArticleLong, devfake.MaxDelaySeconds)
 }
 
 // parseArgs reads the command line into a checked Scenario. Contract: it
-// touches no file and no network. It rejects an unknown argument, a value that
-// is not an accepted spelling, a repeated argument, a missing value, and any
-// word left after the arguments, and it leaves the combination and range
-// rules to devfake.NewScenario. It returns flag.ErrHelp for -h and -help.
+// touches no file and no network. It rejects an unknown argument, a repeated
+// argument, a missing value, and any word left after the arguments; it leaves
+// the spellings and the combination and range rules to
+// devfake.ParseScenario, which the development build also uses. It returns
+// flag.ErrHelp for -h and -help.
+//
+// The development server has no argument for the settings check: it passes
+// the accepted result, because it never calls the API.
 func parseArgs(args []string) (devfake.Scenario, error) {
-	article := &enumFlag[devfake.Article]{accepted: devfake.Articles()}
-	failure := &enumFlag[devfake.Failure]{accepted: devfake.Failures()}
-	failAt := &enumFlag[devfake.FailAt]{accepted: devfake.FailAts()}
-	delay := &delayFlag{}
+	article := &stringFlag{}
+	failure := &stringFlag{}
+	failAt := &stringFlag{}
+	delay := &stringFlag{}
 
 	fs := flag.NewFlagSet(programName, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -150,5 +112,17 @@ func parseArgs(args []string) (devfake.Scenario, error) {
 	if slices.Contains(args, "--") {
 		return devfake.Scenario{}, fmt.Errorf("%w %q", errExtraWord, "--")
 	}
-	return devfake.NewScenario(article.value, failure.value, failAt.value, delay.value)
+	if failure.set && failure.value == devfake.FailureNone.String() {
+		return devfake.Scenario{}, fmt.Errorf("%w; accepted: %s", errNoneSelected, devfake.Spellings(devfake.Failures()))
+	}
+	if failAt.set && failAt.value == devfake.FailAtNone.String() {
+		return devfake.Scenario{}, fmt.Errorf("%w; accepted: %s", errNoneSelected, devfake.Spellings(devfake.FailAts()))
+	}
+	return devfake.ParseScenario(devfake.ScenarioSpelling{
+		Article:       article.or(devfake.ArticleStandard.String()),
+		Failure:       failure.or(devfake.FailureNone.String()),
+		FailAt:        failAt.or(devfake.FailAtNone.String()),
+		DelaySeconds:  delay.or(defaultDelaySeconds),
+		SettingsCheck: devfake.SettingsCheckOK.String(),
+	})
 }

@@ -32,10 +32,21 @@ func acceptedScenarios(t *testing.T) []Scenario {
 
 // failureSentinel is the error each failure must wrap.
 var failureSentinel = map[Failure]error{
-	FailureEmpty:     llm.ErrEmptyResponse,
-	FailureTruncated: llm.ErrTruncated,
-	FailureAPIError:  ErrSimulatedAPIFailure,
-	FailureTimeout:   context.DeadlineExceeded,
+	FailureEmpty:          llm.ErrEmptyResponse,
+	FailureTruncated:      llm.ErrTruncated,
+	FailureAPIError:       ErrSimulatedAPIFailure,
+	FailureTimeout:        context.DeadlineExceeded,
+	FailureAPIKeyRejected: llm.ErrAuthRejected,
+}
+
+// failureExcluded is the sentinel each failure must not also wrap, so two
+// scenarios cannot read as the same failure.
+var failureExcluded = map[Failure][]error{
+	FailureAPIError: {
+		llm.ErrInvalidRequest, llm.ErrTruncated, llm.ErrUnexpectedFinishReason, llm.ErrEmptyResponse,
+		context.DeadlineExceeded, context.Canceled, llm.ErrAuthRejected,
+	},
+	FailureAPIKeyRejected: {ErrSimulatedAPIFailure},
 }
 
 // checkCall checks one call's result: the scenario's failure when it fails at
@@ -61,14 +72,9 @@ func checkCall(t *testing.T, s Scenario, at FailAt, resp llm.GenerateResponse, e
 	if resp != want0 {
 		t.Errorf("call %v failure response = %+v, want %+v", at, resp, want0)
 	}
-	if s.failure == FailureAPIError {
-		for _, other := range []error{
-			llm.ErrInvalidRequest, llm.ErrTruncated, llm.ErrUnexpectedFinishReason, llm.ErrEmptyResponse,
-			context.DeadlineExceeded, context.Canceled,
-		} {
-			if errors.Is(err, other) {
-				t.Errorf("API error %v also wraps %v", err, other)
-			}
+	for _, other := range failureExcluded[s.failure] {
+		if errors.Is(err, other) {
+			t.Errorf("%v failure %v also wraps %v", s.failure, err, other)
 		}
 	}
 }
@@ -102,7 +108,7 @@ func TestJobResponses(t *testing.T) {
 	}
 
 	t.Run("unknown failure fails secure", func(t *testing.T) {
-		s := Scenario{failure: FailureTimeout + 1, failAt: FailAtDraft}
+		s := Scenario{failure: FailureAPIKeyRejected + 1, failAt: FailAtDraft}
 		if _, err := s.NewJob().Generation().Generate(ctx, llm.GenerateRequest{}); !errors.Is(err, ErrUnexpectedCall) {
 			t.Errorf("Generate() error = %v, want ErrUnexpectedCall", err)
 		}
