@@ -105,7 +105,7 @@
 - [ ] 設計書 3.5 節の構成で記録を書く（AC-01〜AC-17）。答えが出なかった問いは、その理由を書く（AC-03）
 - [ ] 記録を読み直し、API の応答・画面から写した本文がないことを確かめる（AC-17）
 - [ ] 片付ける。実験のセッションを API で消す（消せなければ人に示す）。一時的な設定ファイルとイベントの控えを消し、購読のプロセスが残っていないことを確かめる。人に、使い捨ての workspace と worktree を消すよう頼む。片付けの手順を記録に書く（設計書 2 章の表）
-- [ ] AC-19 の差分の記録を 7 章に書く
+- [ ] 記録をコミットした後、7 章の AC-19 の diff の記録を、[requirements_process.md](../../dev/conventions/requirements_process.md) §4「`diff` verification」の固定コマンドと記録の形で、別のコミットで書く（ファイルの一覧を含む）
 
 **完了の条件:** 記録がコミットされ、7 章の AC-19 の記録がある。
 
@@ -131,7 +131,7 @@
 
 -   **単体テスト・統合テスト:** 足さない。コードを変えない。
 -   **既存のテスト:** PR のグリーンゲート（`make test && make lint`）は、コードを変えないので今のまま通る。
--   **記録した diff の読み取り:** AC-19 を、マージベースとの差分のファイルの一覧で確かめる。
+-   **記録した diff の読み取り:** AC-19 を、[requirements_process.md](../../dev/conventions/requirements_process.md) §4「`diff` verification」の記録した diff の読み取りで確かめる。比べるパスと判定は 7 章に書く。
 -   **読んで確かめる:** 記録の内容（AC-01〜AC-18）は、PR のレビューで読む。
 -   **後方互換のテスト:** N/A。
 
@@ -171,11 +171,11 @@
 | AC-16 | `manual` | PR のレビューで、問い 7 の節を読む |
 | AC-17 | `manual` | PR のレビューで、記録が API の応答と画面の本文・秘密を含まないかを読む |
 | AC-18 | `manual` | PR のレビューで、再現の手順の書き込みの呼び出しが実験のセッションを宛先にし、宛先の確かめを含むかを読む |
-| AC-19 | `diff` | 記録した diff の読み取り。PR のブランチで、マージベースと記録のコミットの間の `git diff --name-status` を 1 回取り、下に結果と 2 つのコミットの ID を記録する。比べるパスは `docs/research/opencode_server_api/` と本タスクのディレクトリの外のすべてで、本計画は含まない |
+| AC-19 | `diff` | 記録した diff の読み取り（requirements_process.md §4「`diff` verification」）。比べるパスは `docs/tasks/0094_opencode_server_api_probe/01_requirements.md` と `docs/tasks/0094_opencode_server_api_probe/02_architecture.md` で、本計画は含まない。AC-19 は変わるファイルを限るので、記録は差分全体のファイルの一覧も持つ。コマンドと記録の形は同節の「Fixed commands」と「Diff record form」により、記録は `/runplan` が下に書く。ファイルの一覧が `docs/research/opencode_server_api/README.md`（新規）と本タスクのディレクトリの中のファイルだけを挙げるなら、AC-19 を満たす。調査記録は比べるパスに入れない。その中身は AC-01〜AC-18 として PR のレビューで読み、ほかのパスの変更はファイルの一覧に現れるためである |
 
-実行の記録（ステップ 1-6）：
+Diff record (AC-19):
 
-（未記入）
+- Compared paths: `docs/tasks/0094_opencode_server_api_probe/01_requirements.md` `docs/tasks/0094_opencode_server_api_probe/02_architecture.md`
 
 ## 8. 成功の基準 (Success Criteria)
 
