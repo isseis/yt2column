@@ -16,7 +16,7 @@ LLM の API キーは、ログやエラーメッセージに漏れてはなら�
 
 -   **秘密は `secret.Secret` で持つ。** API キーは、設定を読むところで `secret.Secret` に包み、秘密を使う部品は `secret.Secret` のまま受け取って持つ。漏らさないことを各実装者の注意に頼らず、型で保証するためである（背景）。`internal/secret` の役割は [package_reference.md](../conventions/package_reference.md) の `internal/secret` の行に従う。
 -   **API キーは、送信先へのリクエストを除き、エラー・ログ・標準出力を含むどの出力にも出さない。** 秘密がログやエラーメッセージに漏れてはならないためである（背景）。秘密の扱いは [security.md](../security.md) の §2 に従う。
--   **拡張では、API キーは決めた経路だけを通り、記事生成モジュールが受け取った直後に `secret.Secret` に包む。** API キーは、オプションページから `chrome.storage.local` へ、そこから記事の生成を実行するビューアのメインスレッドへ、`postMessage` で Worker へ、Worker の中の記事生成モジュールへと渡り、Anthropic の API のリクエストのヘッダに入る。設定の検査のときは、オプションページから Worker の検査の関数へ渡り、記事生成モジュールの中で、保存の前にキーを確かめる Models API のリクエストのヘッダに入る。SW へのメッセージ、ジョブの記録、`BroadcastChannel`、記事生成モジュールの結果と進み具合、ログ、画面には入れない。SW は API キーの値を読まず、`chrome.storage.local.getKeys()` で項目の名前だけを得る（[ADR-0010](0010-extension-stores-nothing.md)）。TypeScript の側は型で守れないので経路を限ってテストで確かめ、Go の側に入った後は型で守るためである。規則は [0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「API キーを出さない先（要件書 AC-06）」にある。
+-   **拡張では、API キーは決めた経路だけを通り、記事生成モジュールが文字列であることを確かめた直後に `secret.Secret` に包む。** API キーは、オプションページから `chrome.storage.local` へ、そこから記事の生成を実行するビューアのメインスレッドへ、`postMessage` で Worker へ、Worker の中の記事生成モジュールへと渡り、Anthropic の API のリクエストのヘッダに入る。設定の検査のときは、オプションページから Worker の検査の関数へ渡り、記事生成モジュールの中で、保存の前にキーを確かめる Models API のリクエストのヘッダに入る。SW へのメッセージ、ジョブの記録、`BroadcastChannel`、記事生成モジュールの結果と進み具合、ポップアップ・表示するビューア・SW が受け取る `chrome.storage` の変更の知らせ、ログ、画面には入れない。そのため、拡張のページと SW は、変更の知らせを `chrome.storage.session.onChanged` だけで受け取り、`chrome.storage.onChanged` と `chrome.storage.local.onChanged` を使わない。`chrome.storage.onChanged` と `chrome.storage.local.onChanged` は、オプションページが `chrome.storage.local` に保存した API キーの値を、登録したページと SW に届けてしまうからである。拡張のコードは `chrome.storage` を決まった関数だけを通して使い、lint で強いる。SW は API キーの値を読まず、`chrome.storage.local.getKeys()` で項目の名前だけを得る（[ADR-0010](0010-extension-stores-nothing.md)）。TypeScript の側は型で守れないので経路を限ってテストで確かめ、Go の側に入った後は型で守るためである。規則は [0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「API キーを出さない先（要件書 AC-06）」と、[0091 設計書](../../tasks/0091_extension_only_migration/02_architecture.md) の「`chrome.storage` と送信の決まった入口」にある。
 
 拡張が API キーを保存して記事生成モジュールに渡すことは、まだコードと security.md に反映していない。今の拡張は API キーを持たず、サーバが設定ファイルから読む。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 
@@ -28,6 +28,7 @@ LLM の API キーは、ログやエラーメッセージに漏れてはなら�
 ## 採らなかった案
 
 -   **元の値を素の文字列のフィールドで持ち、`Format`・`String()` などのメソッドだけで隠す。** `fmt` と slog の TextHandler は、構造体の非公開フィールドではメソッドを呼ばずにリフレクションで表示するので、メソッドの実装だけでは隠せない（[0001 要件定義書](../../tasks/0001_pipeline_skeleton/01_requirements.md) §5、[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §3.3）。
+-   **拡張のページが `chrome.storage.onChanged` で知らせを受け取り、`chrome.storage.local` の変更を無視する。** 無視しても、API キーの値はページに届く（[0091 設計書](../../tasks/0091_extension_only_migration/02_architecture.md)「設計の際に決めたこと（2026-11-15）」）。
 -   **値を出力しない等値の判定のメソッド（例：`Matches(plaintext string) bool`）を足す。** 等値の判定の要件がないので、YAGNI により足さない。設定の検証やテストで要るようになったときに足す（[0001 設計書](../../tasks/0001_pipeline_skeleton/02_architecture.md) §3.3・§9）。
 
 ## 結果
@@ -41,3 +42,4 @@ LLM の API キーは、ログやエラーメッセージに漏れてはなら�
 - 2026-09-29 秘密を持つ型 `Secret` を `internal/secret` に置いた。元の値を `func() string` のクロージャで持ち、`fmt`・`log/slog`・`encoding/json` のどの経路でも元の値を出さず、元の値は `Reveal()` でだけ取り出せる。空の値とゼロ値は拒否する（[0001 要件定義書](../../tasks/0001_pipeline_skeleton/01_requirements.md) F-005・§5）
 - 2026-11-11 Webhook への投稿の機能の廃止に合わせて、秘密から Webhook URL を除いた（[0083 要件定義書](../../tasks/0083_remove_slack_webhook/01_requirements.md) F-001）
 - 2026-11-12 拡張が API キーを保存して使う構成で、API キーが通る経路を決め、記事生成モジュールが受け取った直後に `secret.Secret` に包むことにした（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）
+- 2026-11-15 API キーを入れない先に `chrome.storage` の変更の知らせを加え、拡張のページと SW が `chrome.storage.onChanged` と `chrome.storage.local.onChanged` を使わないことにした。記事生成モジュールが保存した設定を検査前の値で受け取るので、`secret.Secret` に包むのを、API キーが文字列であることを確かめた直後にした（[0091 設計書](../../tasks/0091_extension_only_migration/02_architecture.md)「設計の際に決めたこと（2026-11-15）」）
