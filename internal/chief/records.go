@@ -49,6 +49,9 @@ var (
 	// works in another worktree than the caller: the environment was
 	// inherited from another pane, so chief cannot tell its own workspace.
 	ErrPaneMismatch = errors.New("HERDR_PANE_ID names a pane in another worktree than this process")
+	// errWorkDir reports a working directory that could not be read; it is
+	// a failure of the tool, not a refusal.
+	errWorkDir = errors.New("the working directory cannot be read")
 )
 
 // Env is the part of the process environment the tool reads. The entry point
@@ -190,7 +193,9 @@ type lockRecord struct {
 // caller's worktree. A process can inherit HERDR_PANE_ID from another pane
 // (seen in the PR-7 live check after Herdr was restarted); chief would then
 // take that pane's workspace for its own, leave it out of the table, and
-// list its own workspace as a task workspace, so it is ErrPaneMismatch.
+// list its own workspace as a task workspace, so it is ErrPaneMismatch. A
+// working directory that is not absolute (os.Getwd failed) is a failure,
+// not a mismatch.
 func ResolveOwner(ctx context.Context, cmds Commands, env Env) (Owner, error) {
 	pane, err := ParsePaneID(env.PaneID)
 	if err != nil {
@@ -201,7 +206,9 @@ func ResolveOwner(ctx context.Context, cmds Commands, env Env) (Owner, error) {
 		return Owner{}, err
 	}
 	if !filepath.IsAbs(env.WorkDir) {
-		return Owner{}, fmt.Errorf("%w: the working directory %q is not absolute", ErrPaneMismatch, env.WorkDir)
+		// The working directory could not be read (or was set wrong): a
+		// failure of the tool, not an inherited HERDR_PANE_ID.
+		return Owner{}, fmt.Errorf("%w (got %q)", errWorkDir, env.WorkDir)
 	}
 	own, err := CanonicalWorktree(ctx, cmds, env.WorkDir)
 	if err != nil {

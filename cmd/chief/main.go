@@ -82,7 +82,7 @@ func main() {
 	os.Exit(signalrun.Run(func(ctx context.Context) int {
 		env := chief.ReadEnv(os.LookupEnv)
 		// A working directory that cannot be read stays empty, which
-		// ResolveOwner refuses.
+		// ResolveOwner reports as a failure of the tool.
 		env.WorkDir, _ = os.Getwd()
 		return run(ctx, os.Args[1:], env, os.Environ(), func(o cmdrunner.Options) cmdrunner.Runner { return cmdrunner.NewOS(o) }, time.Now, chief.SleepContext, os.Stdout, os.Stderr)
 	}))

@@ -224,6 +224,14 @@ func TestRunRefusals(t *testing.T) {
 			t.Errorf("run = %d, %v; want refused, pane_mismatch", code, out)
 		}
 	})
+	t.Run("a working directory that cannot be read", func(t *testing.T) {
+		h := newHarness(t)
+		h.env.WorkDir = ""
+		code, out := h.run("start", "--protocol", "1")
+		if code != exitFailure || out["outcome"] != "failed" {
+			t.Errorf("run = %d, %v; want failed, not a refusal", code, out)
+		}
+	})
 	t.Run("the lock belongs to a live chief", func(t *testing.T) {
 		h := newHarness(t)
 		if code, out := h.run("start", "--protocol", "1"); code != exitOK {

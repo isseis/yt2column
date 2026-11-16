@@ -689,8 +689,9 @@ func TestStartCleansSendsAndDetails(t *testing.T) {
 
 // TestResolveOwnerChecksTheWorktree checks that HERDR_PANE_ID is trusted
 // only when its pane's agent works in the caller's worktree: a pane of
-// another workspace (an environment inherited from another pane) and a
-// working directory that is not absolute are ErrPaneMismatch; a working
+// another workspace (an environment inherited from another pane) is
+// ErrPaneMismatch, and a working directory that is not absolute (one that
+// could not be read) is a failure, not a mismatch; a working
 // directory below the worktree is accepted; a pane whose worktree cannot be
 // read is a failure, not a mismatch.
 func TestResolveOwnerChecksTheWorktree(t *testing.T) {
@@ -709,8 +710,8 @@ func TestResolveOwnerChecksTheWorktree(t *testing.T) {
 	}
 	relative := deps.Env
 	relative.WorkDir = "chief"
-	if _, err := ResolveOwner(ctx, deps.Cmds, relative); !errors.Is(err, ErrPaneMismatch) {
-		t.Errorf("a relative working directory = %v, want ErrPaneMismatch", err)
+	if _, err := ResolveOwner(ctx, deps.Cmds, relative); !errors.Is(err, errWorkDir) || errors.Is(err, ErrPaneMismatch) {
+		t.Errorf("a relative working directory = %v, want a failure that is not ErrPaneMismatch", err)
 	}
 	below := deps.Env
 	below.WorkDir = filepath.Join(w.chiefTree, "internal")
