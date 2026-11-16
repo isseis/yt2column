@@ -13,9 +13,9 @@ import (
 
 // TestNoDevDependency checks that this production binary does not link the
 // fake LLM, the development backend of the article generation module, or the
-// development server. The development article generation module and the
-// development command are main packages, which Go cannot import, so they need
-// no entry. godepstest reads the sources of the packages it lists,
+// development server. A main package cannot be imported, so the development
+// server's entry guards only its listing, and the development article
+// generation module and the development command get none. godepstest reads the sources of the packages it lists,
 // so a change to them, for any target OS, invalidates the cached result. The
 // fake's path comes from its type, and the others' from a lookup that fails
 // when the package is gone, so a rename cannot empty the check.

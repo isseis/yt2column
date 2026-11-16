@@ -28,9 +28,9 @@ func LoadExtension(lookup LookupFunc) (LLMConfig, error) {
 // Contract: the API key is answered as stored, even when empty, so the loader
 // decides whether it is acceptable (an empty one is rejected). An empty
 // workspace ID, which is how the options page stores "no workspace", is
-// answered as unset, so the extension never passes an empty value and the
-// rule that an empty value is a configuration error stays as it is for the
-// CLI. Neither string is trimmed or otherwise changed.
+// answered as unset, as ADR-0003 states, so the extension never passes an
+// empty value; the loader reads unset as no workspace. Neither string is
+// trimmed or otherwise changed.
 func ExtensionLookup(apiKey, workspaceID string) LookupFunc {
 	return func(name string) (string, bool) {
 		switch name {

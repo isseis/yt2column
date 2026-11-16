@@ -244,7 +244,7 @@
 -   [x] **ステップ 4-5**: 依存の検査を加える（設計書 §7.3）。
     -   `internal/godepstest` が `GOOS=js GOARCH=wasm` の依存を求められるようにし、`godepstest_test.go` に、`js` の対象で `js` のビルドだけのファイルの依存が出ることを確かめる行を加える。
     -   `internal/extjob/deps_test.go` に、公開用の記事生成モジュールの `js` の依存が `internal/extjob/claudebackend` を含み `internal/llm/devfake` と `internal/extjob/devbackend` を含まないこと、開発用の記事生成モジュールの `js` の依存が `internal/extjob/devbackend` を含み `internal/llm/claude` と `internal/extjob/claudebackend` を含まないことを確かめるテストを置く。
-    -   `cmd/yt2column/devdeps_test.go` の許さない依存に `internal/extjob/devbackend`・`cmd/yt2column-wasm-dev`・`cmd/yt2column-extjob` を加える。サーバとホストの `devdeps_test.go` は、撤去の PR まで今のまま残す。
+    -   `cmd/yt2column/devdeps_test.go` の許さない依存に `internal/extjob/devbackend` を加える。`cmd/yt2column-wasm-dev`・`cmd/yt2column-extjob` は `main` のパッケージで import できないので加えない。サーバとホストの `devdeps_test.go` は、撤去の PR まで今のまま残す。
 -   [x] **ステップ 4-6**: `envaccess_test.go` の入口の一覧に `cmd/yt2column-extjob/main.go` を加え、その観測を確かめる。記事生成モジュールは環境を参照しない（0090 設計書 §3.11 のテストの表）。
 -   [x] **ステップ 4-7**: 文書を書き換える。package_reference.md に 3 つの `main` と `internal/extjob/jsmodule` の行を、project_overview.md のディレクトリの構成に 3 つの `main` と `internal/extjob/jsmodule` を加える。development.md に `cmd/yt2column-extjob` の使い方（`-llm` の指定が要ること、入力のファイルをリポジトリに入れないこと）を、security.md の §7 に開発用のコマンドの入力のファイルをリポジトリに入れないことを書く（設計書 §3.13）。ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。
 

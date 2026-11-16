@@ -2,7 +2,8 @@
 // extension: the extension job (internal/extjob) with the fake LLM of one
 // scenario (internal/extjob/devbackend), registered for JavaScript. The
 // scenario is embedded at build time, one -X main.<variable>=<value> per
-// variable below in a single -ldflags string, by make ext-build-dev.
+// variable below in a single -ldflags string, by the extension's development
+// build (make ext-build-dev, which the extension build task adds).
 //
 // A js build registers the module's functions only when the embedded values
 // parse; a native build parses the same values and reports the result, so the

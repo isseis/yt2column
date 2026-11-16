@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/extjob"
@@ -201,7 +202,12 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 	read := config.ReadExtensionSettings(lookup)
 	var secrets []string
 	if key, _ := read.APIKey(); key != "" {
-		secrets = append(secrets, key)
+		// A message may quote an argument with %q (the flag package and the
+		// scenario parser do) before redact.Line escapes the whole line
+		// again; the quoted spelling is a secret too, so its escaped form is
+		// hidden as well.
+		quoted := strconv.Quote(key)
+		secrets = append(secrets, key, quoted[1:len(quoted)-1])
 	}
 	errorf := func(format string, a ...any) {
 		_, _ = io.WriteString(stderr, redact.Line(programName+": "+fmt.Sprintf(format, a...), secrets...)+"\n")

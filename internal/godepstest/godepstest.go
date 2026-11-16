@@ -229,8 +229,13 @@ func matches(pattern, path string) bool {
 
 // Require reports every path that is not a dependency on some target
 // platform. It is checked before Forbid, so a listing that missed the
-// packages it should hold cannot pass by holding nothing forbidden.
+// packages it should hold cannot pass by holding nothing forbidden. A Deps
+// with no target platform (the zero value) is reported as missing every path,
+// so it cannot pass vacuously.
 func (d Deps) Require(paths ...string) error {
+	if len(d.targets) == 0 {
+		return fmt.Errorf("%w: %s was listed for no target platform", ErrMissing, d.pkg)
+	}
 	var errs []error
 	for _, t := range d.targets {
 		for _, path := range paths {

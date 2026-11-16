@@ -18,6 +18,13 @@ import (
 // accepts it, and a run must never write it.
 const markerKey = "sk-ant-marker-5f1c0e7a" //nolint:gosec // a test marker, not a credential
 
+// quotedKey is a printable-ASCII key with a quote, which %q escapes, and
+// quotedKeyHead is its part before the quote, which no escaping changes.
+const (
+	quotedKey     = `sk-ant-quoted"5f1c0e7a` //nolint:gosec // a test marker, not a credential
+	quotedKeyHead = "sk-ant-quoted"
+)
+
 // testWorkspaceID is a workspace ID claudeparam.ParseWorkspaceID accepts.
 const testWorkspaceID = "wrkspc_01ABC"
 
@@ -76,6 +83,9 @@ func TestRunCallsNoBackendBeforeAccepting(t *testing.T) {
 		{"a repeated scenario argument", append(fakeArgs(standardSpelling), "-article=long", "-input="+input), nil},
 		{"a missing input file named after the key", []string{"-llm=claude", "-input=" + input + "." + markerKey}, withKey},
 		{"a stray word holding the key", []string{"-llm=claude", input + "." + markerKey}, withKey},
+		// %q escapes the quote and redact.Line escapes the line again, so
+		// only a check of the key's head shows whether it was hidden.
+		{"a stray word holding a key with a quote", []string{"-llm=claude", input + "." + quotedKey}, map[string]string{"ANTHROPIC_API_KEY": quotedKey}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -90,7 +100,7 @@ func TestRunCallsNoBackendBeforeAccepting(t *testing.T) {
 			if got.stdout != "" {
 				t.Errorf("stdout = %q, want nothing", got.stdout)
 			}
-			if strings.Contains(got.stderr, markerKey) {
+			if strings.Contains(got.stderr, markerKey) || strings.Contains(got.stderr, quotedKeyHead) {
 				t.Errorf("the API key reached stderr:\n%s", got.stderr)
 			}
 		})

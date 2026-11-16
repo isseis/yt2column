@@ -99,6 +99,9 @@ func TestRequireAndForbid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
+	if err := (Deps{}).Require("fmt"); !errors.Is(err, ErrMissing) {
+		t.Errorf("Require on a Deps listed for no platform error = %v, want ErrMissing", err)
+	}
 	if err := deps.Require(module + "/internal/server"); !errors.Is(err, ErrMissing) {
 		t.Errorf("Require(a package that is not a dependency) error = %v, want ErrMissing", err)
 	}
