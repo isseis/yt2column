@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-16 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -255,3 +255,7 @@ chief の状況の表は、workspace ごとに状態を示す。chief の今の�
 -   **番**: 次に動くのが人か AI か。動く者がいないときは「なし」（F-002）。
 -   **進行の位置**: タスクの文書と進み具合の組（F-003）。
 -   **セッションの記録**: Claude Code の transcript。0088 要件定義書と同じ語である。
+
+## 変更履歴
+
+-   2026-11-16 承認（isseis、#909）
