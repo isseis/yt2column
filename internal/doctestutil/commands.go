@@ -63,9 +63,10 @@ var (
 	// redirection is a redirection word, which may come before a command.
 	redirection = regexp.MustCompile(`^[0-9]*[<>]`)
 	// bareRedirection is a redirection operator written as a word of its
-	// own, whose target is the next word (> file, 2>> file), unlike a word
-	// that holds its target (>file, 2>&1).
-	bareRedirection = regexp.MustCompile(`^[0-9]*(?:<|>|>>|>\|)$`)
+	// own, whose target is the next word (> file, 2>> file, << EOF,
+	// <<< word), unlike a word that holds its target (>file, 2>&1). The '&'
+	// of &> needs no rule: CommandBoundary splits there.
+	bareRedirection = regexp.MustCompile(`^[0-9]*(?:<|>|>>|>\||<>|<<|<<-|<<<)$`)
 	// shellScriptFlag is a shell option cluster that holds -c, such as -lc.
 	shellScriptFlag = regexp.MustCompile(`^-[A-Za-z]*c[A-Za-z]*$`)
 	// optionValue is a number or a duration, the value an option such as
@@ -194,18 +195,30 @@ func envSplitString(wrapper, opt string) (string, bool) {
 // CommandTexts returns the texts of doc that are written as commands: each
 // line of a fenced code block, and each code span outside the blocks that
 // holds an argument after a space. Blockquote markers are dropped first, so
-// the blocks of an agent prompt are read too.
+// the blocks of an agent prompt are read too; inside a block whose opening
+// fence is not quoted, a line keeps its leading '>', which is then a
+// redirection (> file codex ...), not a quote marker.
 func CommandTexts(doc string) []string {
-	var lines []string
+	var raw, lines []string
 	for line := range strings.Lines(doc) {
+		raw = append(raw, strings.TrimSuffix(line, "\n"))
 		lines = append(lines, quoteMarker.ReplaceAllString(line, ""))
 	}
 	var texts []string
-	for _, line := range ScanDocLines(lines) {
+	// open is true between an opening and a closing fence; depth is the
+	// number of quote markers before that opening fence, which are the only
+	// ones a line of the block has; a '>' after them is a redirection.
+	open, depth := false, 0
+	for i, line := range ScanDocLines(lines) {
 		switch {
 		case line.Fence:
+			open = !open
+			depth = 0
+			if open {
+				depth = quoteDepth(raw[i])
+			}
 		case line.Block:
-			texts = append(texts, line.Text)
+			texts = append(texts, stripQuotes(raw[i], depth))
 		default:
 			for _, m := range codeSpan.FindAllStringSubmatch(line.Text, -1) {
 				if strings.Contains(strings.TrimSpace(m[1]), " ") {
@@ -215,6 +228,24 @@ func CommandTexts(doc string) []string {
 		}
 	}
 	return texts
+}
+
+// quoteDepth returns how many blockquote markers start line.
+func quoteDepth(line string) int {
+	return strings.Count(quoteMarker.FindString(line), ">")
+}
+
+// stripQuotes removes up to depth blockquote markers, each with one space
+// after it, from the start of line, and the blanks before each.
+func stripQuotes(line string, depth int) string {
+	for range depth {
+		rest, ok := strings.CutPrefix(strings.TrimLeft(line, " \t"), ">")
+		if !ok {
+			break
+		}
+		line = strings.TrimPrefix(rest, " ")
+	}
+	return line
 }
 
 func isSetMember(m map[string]struct{}, key string) bool { _, ok := m[key]; return ok }

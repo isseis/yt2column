@@ -415,6 +415,18 @@ func TestRunsCodex(t *testing.T) {
 		{"env_unset_cluster_holds_s", "```bash\nenv -uScodex echo\n```\n", false},
 		{"assignment", "```bash\nFOO=1 codex review\n```\n", true},
 		{"redirection", "```bash\n2>/dev/null codex review\n```\n", true},
+		// A redirection written as its own word takes the next word as its
+		// target, so the command after them is the one that runs.
+		{"redirection_word", "```bash\n> /tmp/log codex review\n```\n", true},
+		{"redirection_append_word", "```bash\n2>> /tmp/log codex review\n```\n", true},
+		{"redirection_both", "```bash\n&>/tmp/log codex review\n```\n", true},
+		{"redirection_both_word", "```bash\n&> /tmp/log codex review\n```\n", true},
+		{"redirection_both_append_word", "```bash\n&>> /tmp/log codex review\n```\n", true},
+		{"heredoc_word", "```bash\n<< EOF codex review\n```\n", true},
+		{"heredoc", "```bash\n<<EOF codex review\n```\n", true},
+		{"herestring_word", "```bash\n<<< input codex review\n```\n", true},
+		// The target is consumed, so a word after it is the command.
+		{"redirection_target_named_codex", "```bash\n> codex echo x\n```\n", false},
 		{"exec", "```bash\nexec codex review\n```\n", true},
 		{"command", "```bash\ncommand codex review\n```\n", true},
 		{"xargs", "```bash\nprintf x | xargs -n 1 codex review\n```\n", true},
@@ -444,6 +456,9 @@ func TestRunsCodex(t *testing.T) {
 		{"bunx", "```bash\nbunx @openai/codex review\n```\n", true},
 		{"pnpm_dlx", "```bash\npnpm dlx @openai/codex review\n```\n", true},
 		{"blockquoted_block", "> ```bash\n> codex review\n> ```\n", true},
+		// In a block that is not quoted, a leading '>' is a redirection.
+		{"block_line_starts_with_redirection", "```bash\n> /tmp/log codex review\n```\n", true},
+		{"blockquoted_block_redirection", "> ```bash\n> > /tmp/log codex review\n> ```\n", true},
 		{"code_span", "Run `codex exec review --base <BASE>` once.\n", true},
 		{"other_language_block", "```text\ncodex exec review --base <BASE>\n```\n", true},
 		// A block line that starts with the quoted word is read as a command,
