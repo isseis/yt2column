@@ -130,7 +130,7 @@
 
 **変更するファイル:** `internal/llm/llm.go`、`internal/llm/claude/`（`errors.go`・`request.go`、キーの確かめのファイル、`js` と `!js` のファイルの組）、`internal/llm/llmhttp/`（`llmhttp.go`、`js` と `!js` のファイルの組）とそのテスト、`Makefile`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`、`docs/tasks/0091_extension_only_migration/_checks/cli_unchanged.sh`（新規）、本計画
 
--   [ ] **ステップ 1-1**（PR-1 の `/runplan` の前に、確認のセッションで行う。§1.3 の決定 3）: 次の 2 つを確かめ、結果を §7 の「PR-1 の前の手動の確認の記録」に書き、PR-1 のブランチに commit する。このステップのチェックボックスに印を付けて同じ commit に入れ、commit の件名は `docs(0091): draft` で始めない（`_lib/task-pr-handoff.md` Part A）。
+-   [x] **ステップ 1-1**（PR-1 の `/runplan` の前に、確認のセッションで行う。§1.3 の決定 3）: 次の 2 つを確かめ、結果を §7 の「PR-1 の前の手動の確認の記録」に書き、PR-1 のブランチに commit する。このステップのチェックボックスに印を付けて同じ commit に入れ、commit の件名は `docs(0091): draft` で始めない（`_lib/task-pr-handoff.md` Part A）。
     -   401 を読めるか（設計書 §1.2・§7.2）。試作の拡張に、`host_permissions` を持たず、CSP を 0090 設計書 §3.7.2 の値にしたページを置く。Chrome と Brave で、誤ったキーで `GET /v1/models?limit=1` と `POST /v1/messages` を `fetch` で送り、`anthropic-workspace-id` のありとなしの両方で、状態コード 401 を読める（通信の失敗にならない）ことを確かめる。ヘッダは、公開用のビルドが送るもの（`x-api-key`・`anthropic-version`・`content-type`・`anthropic-dangerous-direct-browser-access`）と同じにする。実 API の呼び出しなので、人の承認を得る。料金はかからない。読めないときは、先へ進まない。人と決め直し、設計書と本計画を決定の変更として改め、ADR-0010 の保存のときの確かめを改める（設計書 §3.14）。
     -   履歴の項目のタイトルが書き換わるか（設計書 §3.8.2、H-05）。試作の拡張に、`chrome.storage.session` に値があれば動画のタイトルを、なければ固定のタイトルを出すページを置く。Chrome と Brave で、ページを開き、ブラウザを再起動してセッションを復元し、履歴の項目のタイトルを読む。上書きされなければ案 A、されれば案 B で実装すると決める。
 -   [ ] **ステップ 1-2**: `llm.ErrAuthRejected` を加え、`LLMClient` の doc コメントの番兵の一覧を改める（設計書 §3.1）。Claude アダプタの状態コード 401 の `HTTPStatusError` が `errors.Is(err, llm.ErrAuthRejected)` に当たるようにする。`errors.AsType[*claude.HTTPStatusError]` で状態コードを取れること、`ErrHTTPStatus` に当たること、エラーの文は、いずれも変えない（要件書 AC-26）。テストは `internal/llm/claude/errors_test.go` に置き、401 で当たり、400・403・429・500 で当たらないことと、どの状態コードでも `ErrHTTPStatus` に当たることを確かめる。
@@ -607,7 +607,30 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 
 ステップ 1-1 で書く。ブラウザの名前と版、確かめた組み合わせ（`GET /v1/models` と `POST /v1/messages`、`anthropic-workspace-id` のありとなし）、見たもの、履歴のタイトルの確かめの手順と結果、決めた案（A か B）を書く。
 
-（まだない）
+2026-11-16 に、リポジトリの外に作った試作の拡張（`host_permissions` なし、CSP は 0090 設計書 §3.7.2 の値、確認用に `storage` と `history` の権限を加えた）で確かめた。実 API の呼び出しは、人の承認を得て、ダミーのキーだけで行った（401 と 400 は料金がかからない）。
+
+-   **ブラウザ。** Chrome 157 と Brave（Chromium 157）。どちらも macOS。版は `navigator.userAgentData.brands` の値で、細かい版（ビルド番号）は記録していない。Brave のユーザエージェントは Chrome と同じなので、`brands` の `Brave` で区別した。
+-   **401 を読めるか（設計書 §1.2・§7.2）。** 拡張のページから、公開用のビルドが送る 4 つのヘッダ（`x-api-key`・`anthropic-version`・`content-type`〔POST のみ〕・`anthropic-dangerous-direct-browser-access`）と `redirect: "error"` で `fetch` を送った。**Chrome と Brave の両方で、通信の失敗にならず、状態コードを読めた。**
+
+    | 組み合わせ | Chrome | Brave |
+    |---|---|---|
+    | `GET /v1/models?limit=1`、ワークスペース ID なし | 401 `authentication_error`（`invalid x-api-key`） | 同じ |
+    | `POST /v1/messages`、ワークスペース ID なし | 401 `authentication_error` | 同じ |
+    | `GET`、形式の整った ID（`wrkspc_01AbCdEfGhJkLmNpQrStUvWx`） | 401 `authentication_error` | 同じ |
+    | `POST`、形式の整った ID | 401 `authentication_error` | 同じ |
+    | `GET`、形式不正な ID（`wrkspc_probe_invalid`） | 400 `invalid_request_error`（`anthropic-workspace-id header must be a valid workspace ID.`） | 同じ |
+    | `POST`、形式不正な ID | 400 `invalid_request_error`（同上） | 同じ |
+
+    最初の試行は、形式不正な ID だけを「あり」として送ったので 400 になった。ID の形式の検査は、キーの検査より前に行われる。形式の整った ID なら、誤ったキーは 401 になる。401 を読めたので、事前の確認（CORS の preflight）も通っている。形式不正な ID は 400 になり、`CheckKey` は `llm.ErrAuthRejected` に当たらないエラーを返すので、`checkSettings` は `unverified` として保存する（設計書の分類のとおり。変更は要らない）。
+-   **履歴の項目のタイトルが書き換わるか（設計書 §3.8.2、H-05）。** 試作のページは、`chrome.storage.session` に値があれば `VIDEO: <値> - yt2column` を、なければ `FIXED: lost - yt2column` を `document.title` にする。両方のブラウザで、(1) 値を置いてページを読み込み、履歴の項目（`chrome.history.search`）のタイトルが `VIDEO: Probe Video Title ABC - yt2column` であることを確かめ、(2) ブラウザを完全に終了し、前回のタブを復元して、タブを前面にして読み込ませた。`storage.session` は再起動で消えるので、ページは `FIXED: lost - yt2column` を出した。
+
+    | | 再起動の前の履歴のタイトル | 復元した後の履歴のタイトル |
+    |---|---|---|
+    | Chrome | `VIDEO: Probe Video Title ABC - yt2column` | `FIXED: lost - yt2column` |
+    | Brave | `VIDEO: Probe Video Title ABC - yt2column` | `FIXED: lost - yt2column` |
+
+    **両方のブラウザで、履歴の項目のタイトルが固定のタイトルに上書きされた。**
+-   **決めた案。** **案 B** で実装する（設計書 §3.8.2）。ビューアの URL にクエリ `t` を加える。PR-6 のタイトルを決める関数と、PR-7 のビューアの URL の組み立てと解析（`core/jobViewerUrl.ts`）は、案 B の規則（64 コードポイント、制御文字なし、`r` か `k` と一緒にだけ持つ）で実装する。案 B のコードを入れる PR で、ADR-0010 の「ビューアの URL」の決定を改め、要件書 §3.2 の「ビューアの URL」の行の扱いを PR の説明に書く（設計書 §3.8.2）。
 
 ### PR-6 の前の手動の確認の記録
 
