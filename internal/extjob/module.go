@@ -179,11 +179,18 @@ func marshalFixed(v any) string {
 // Models API call. The request is {anthropicApiKey, anthropicWorkspaceId},
 // both strings; a request of another shape is rejected with both fields.
 func (m *Module) CheckSettingsJSON(ctx context.Context, request string) (out string) {
+	shapeAccepted := false
 	defer func() {
 		if recover() != nil {
-			// A panic of the Backend must not end the Go program, which
-			// would fail every later call; the check could not be made.
-			out = marshalFixed(settingsCheckResult{Status: "unverified"})
+			// A panic must not end the Go program, which would fail every
+			// later call. One before the shape was accepted means the
+			// values were never checked, so they are rejected; one after
+			// it comes from the Backend, so the check could not be made.
+			if shapeAccepted {
+				out = marshalFixed(settingsCheckResult{Status: "unverified"})
+			} else {
+				out = marshalFixed(settingsCheckResult{Status: statusRejected, Fields: []string{memberAPIKey, memberWorkspaceID}})
+			}
 		}
 	}()
 	both := []string{memberAPIKey, memberWorkspaceID}
@@ -211,6 +218,7 @@ func (m *Module) CheckSettingsJSON(ctx context.Context, request string) (out str
 	if len(rejected) != 0 {
 		return marshalFixed(settingsCheckResult{Status: statusRejected, Fields: rejected})
 	}
+	shapeAccepted = true
 	ctx, cancel := context.WithTimeout(ctx, keyCheckTimeout)
 	defer cancel()
 	switch err := m.backend.CheckKey(ctx, cfg); {
@@ -257,7 +265,14 @@ func optionalString(members map[string]strictjson.Value, key string) (string, bo
 // transcript, title?, channelName?, description?}, a closed set of members of
 // at most 4 MiB. A rejection keeps nothing and leaves the input an earlier
 // prepare kept as it was.
-func (m *Module) PrepareJSON(request string) string {
+func (m *Module) PrepareJSON(request string) (out string) {
+	defer func() {
+		if recover() != nil {
+			// The parser reads untrusted input; a panic must not end the
+			// Go program, and the input is not accepted.
+			out = rejectedPrepare()
+		}
+	}()
 	if len(request) > maxRequestBytes {
 		return rejectedPrepare()
 	}

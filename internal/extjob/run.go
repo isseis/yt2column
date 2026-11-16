@@ -120,7 +120,7 @@ func Run(ctx context.Context, p Prepared, deps Deps, obs Observer) Result {
 			Shorten: writer.ShortenOptions{Enabled: true},
 			Review:  writer.ReviewOptions{Enabled: true, Client: deps.Review},
 		})
-	}, deps.now, obs)
+	}, time.Now, obs)
 }
 
 // run is Run with the writer's construction and the clock as parameters, so a

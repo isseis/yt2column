@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/transcript"
@@ -108,7 +107,8 @@ const digestDomain = "yt2column extension input digest v1"
 // values in field order, each as its byte length in 8 big-endian bytes
 // followed by its bytes. The length prefix keeps the encoding unambiguous:
 // moving the boundary between two values changes the bytes. It is the
-// article key of the localhost server without the per-process secret.
+// article key of the localhost server without the per-process secret and
+// with its own domain string.
 func inputDigest(videoURL, transcriptText, title, channelName, description string) string {
 	h := sha256.New()
 	h.Write([]byte(digestDomain))
@@ -133,17 +133,6 @@ type Observer interface {
 type Deps struct {
 	Generation llm.LLMClient
 	Review     llm.LLMClient
-	// Clock returns the current time, read at the start of a run and when it
-	// ends. nil selects time.Now.
-	Clock func() time.Time
-}
-
-// now returns the time the run's duration is measured with.
-func (d Deps) now() time.Time {
-	if d.Clock == nil {
-		return time.Now()
-	}
-	return d.Clock()
 }
 
 // The status values of the JSON results.

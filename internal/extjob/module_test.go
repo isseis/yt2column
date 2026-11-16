@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/devfake"
 )
@@ -152,22 +153,22 @@ var pendingSteps = stepsJSON{Draft: "pending", Shorten: "pending", Review: "pend
 func TestGenerateRejectsShape(t *testing.T) {
 	settings := `{"anthropicApiKey":` + quote(testKey) + `,"anthropicWorkspaceId":""}`
 	cases := map[string]string{
-		"not json":                 `x`,
-		"not object":               `[]`,
-		"missing digest":           `{"settings":` + settings + `}`,
-		"missing settings":         `{"inputDigest":"x"}`,
-		"digest not a string":      `{"inputDigest":1,"settings":` + settings + `}`,
-		"settings not an object":   `{"inputDigest":"x","settings":"s"}`,
-		"unknown member":           `{"inputDigest":"x","settings":` + settings + `,"extra":1}`,
-		"duplicate member":         `{"inputDigest":"x","inputDigest":"y","settings":` + settings + `}`,
-		"unknown settings member":  `{"inputDigest":"x","settings":{"anthropicApiKey":"k","anthropicWorkspaceId":"","model":"m"}}`,
-		"duplicate settings key":   `{"inputDigest":"x","settings":{"anthropicApiKey":"k","anthropicApiKey":"j"}}`,
-		"missing api key":          `{"inputDigest":"x","settings":{"anthropicWorkspaceId":""}}`,
-		"legacy flat credentials":  `{"inputDigest":"x","anthropicApiKey":"k","anthropicWorkspaceId":""}`,
-		"settings with trailing":   `{"inputDigest":"x","settings":` + settings + `}{}`,
-		"settings null":            `{"inputDigest":"x","settings":null}`,
-		"unpaired surrogate":       `{"inputDigest":"\ud800","settings":` + settings + `}`,
-		"api key null is a shape ": `{"inputDigest":"x","settings":{"anthropicApiKey":,"anthropicWorkspaceId":""}}`,
+		"not json":                      `x`,
+		"not object":                    `[]`,
+		"missing digest":                `{"settings":` + settings + `}`,
+		"missing settings":              `{"inputDigest":"x"}`,
+		"digest not a string":           `{"inputDigest":1,"settings":` + settings + `}`,
+		"settings not an object":        `{"inputDigest":"x","settings":"s"}`,
+		"unknown member":                `{"inputDigest":"x","settings":` + settings + `,"extra":1}`,
+		"duplicate member":              `{"inputDigest":"x","inputDigest":"y","settings":` + settings + `}`,
+		"unknown settings member":       `{"inputDigest":"x","settings":{"anthropicApiKey":"k","anthropicWorkspaceId":"","model":"m"}}`,
+		"duplicate settings key":        `{"inputDigest":"x","settings":{"anthropicApiKey":"k","anthropicApiKey":"j"}}`,
+		"missing api key":               `{"inputDigest":"x","settings":{"anthropicWorkspaceId":""}}`,
+		"legacy flat credentials":       `{"inputDigest":"x","anthropicApiKey":"k","anthropicWorkspaceId":""}`,
+		"settings with trailing":        `{"inputDigest":"x","settings":` + settings + `}{}`,
+		"settings null":                 `{"inputDigest":"x","settings":null}`,
+		"unpaired surrogate":            `{"inputDigest":"\ud800","settings":` + settings + `}`,
+		"settings with a missing value": `{"inputDigest":"x","settings":{"anthropicApiKey":,"anthropicWorkspaceId":""}}`,
 	}
 	for name, request := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -335,5 +336,29 @@ func TestBuildInfo(t *testing.T) {
 				t.Errorf("llm = %s, want %s", llmMember, tc.want)
 			}
 		})
+	}
+}
+
+// panickingBackend panics in the two calls Module makes to a Backend.
+type panickingBackend struct{ fakeBackend }
+
+func (*panickingBackend) NewClients(config.LLMConfig) (Deps, error) { panic("boom-clients") }
+func (*panickingBackend) CheckKey(context.Context, config.LLMConfig) error {
+	panic("boom-check")
+}
+
+// TestModuleRecoversBackendPanics checks a Backend panic does not escape the
+// entry points: the settings check reports unverified (the call could not be
+// made), and generate reports an internal failure with the panic detail.
+func TestModuleRecoversBackendPanics(t *testing.T) {
+	b := &panickingBackend{}
+	m, digest := preparedModule(t, b)
+	if got := m.CheckSettingsJSON(context.Background(), settingsRequest(quote(testKey), `""`)); got != `{"status":"unverified"}` {
+		t.Errorf("settings check = %s, want unverified", got)
+	}
+	settings := `{"anthropicApiKey":` + quote(testKey) + `,"anthropicWorkspaceId":""}`
+	got := decodeResult(t, m.GenerateJSON(context.Background(), generateBody(digest, settings), nil))
+	if got.Failure != "internal" || got.InternalDetail != DetailPanic {
+		t.Errorf("generate = %+v, want internal with the panic detail", got)
 	}
 }
