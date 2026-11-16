@@ -16,7 +16,7 @@ set -eu
 root=$(git rev-parse --show-toplevel) || exit 2
 base=$(git -C "$root" merge-base origin/main HEAD) || exit 2
 head=$(git -C "$root" rev-parse HEAD) || exit 2
-changed=$(git -C "$root" diff --name-only "$base" "$head" -- cmd/yt2column/) || exit 2
+changed=$(git -C "$root" diff --no-renames --name-only "$base" "$head" -- cmd/yt2column/) || exit 2
 changed=$(printf '%s\n' "$changed" | grep -v -e '^$' -e '_test\.go$' || true)
 
 echo "merge-base $base head $head"
