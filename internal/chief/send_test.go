@@ -5,6 +5,7 @@ package chief
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -815,6 +816,16 @@ func TestSendStopUnwritten(t *testing.T) {
 	}
 	if stop, _ := sc.held.Stopped(); stop == nil {
 		t.Error("the start did not stop the workspace")
+	}
+}
+
+// TestTranscriptMissingRefused checks that a transcript that does not exist
+// (the location changed, or the session wrote none yet) is errTranscript, so
+// the check after /model fails instead of reading nothing as no switch.
+func TestTranscriptMissingRefused(t *testing.T) {
+	_, err := readTranscript(filepath.Join(t.TempDir(), "missing.jsonl"), transcriptLimit)
+	if !errors.Is(err, errTranscript) || !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("err = %v, want errTranscript caused by a missing file", err)
 	}
 }
 
