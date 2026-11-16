@@ -618,15 +618,15 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 **PR-2**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
 
 -   merge-base: `6d9bdfa951602b7d9815b6f3d8c6bb87e5ee73a2`
--   比べたコミット: `452cfedd864ca72a5818cd7565feaeaf55878030`
+-   比べたコミット: `6843188e51fb55986f36633a26d50476f6e431f3`
 -   出力（終了コード 0）:
 
     ```text
-    merge-base 6d9bdfa951602b7d9815b6f3d8c6bb87e5ee73a2 head 452cfedd864ca72a5818cd7565feaeaf55878030
+    merge-base 6d9bdfa951602b7d9815b6f3d8c6bb87e5ee73a2 head 6843188e51fb55986f36633a26d50476f6e431f3
     ok: no non-test file under cmd/yt2column/ changed
     ```
 
--   この記録より後の commit は、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
+-   この記録より後の commit は、テストの行の移動、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
 -   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
 
 ### PR-1 の前の手動の確認の記録
