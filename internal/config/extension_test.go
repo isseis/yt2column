@@ -71,11 +71,6 @@ func TestLoadExtensionProductionProfile(t *testing.T) {
 	}{
 		{"empty API key", ExtensionLookup("", workspaceID), ErrMissing},
 		{"no API key", func(string) (string, bool) { return "", false }, ErrMissing},
-		{
-			"empty workspace ID stored as present",
-			envLookup(map[string]string{anthropicAPIKeyEnv: apiKey, anthropicWorkspaceIDEnv: ""}),
-			ErrMissing,
-		},
 		{"workspace ID with a space", ExtensionLookup(apiKey, "wrkspc_test 0123456789"), ErrInvalid},
 		{"padded workspace ID", ExtensionLookup(apiKey, " "+workspaceID), ErrInvalid},
 	}
@@ -127,8 +122,8 @@ func TestExtensionLookup(t *testing.T) {
 		if got, ok := empty(anthropicAPIKeyEnv); got != "" || !ok {
 			t.Errorf("lookup of the API key = (%q, %v), want (\"\", true): the loader decides whether it is accepted", got, ok)
 		}
-		if got, ok := empty(anthropicWorkspaceIDEnv); got != "" || ok {
-			t.Errorf("lookup of the workspace ID = (%q, %v), want (\"\", false): an empty stored value means not specified", got, ok)
+		if got, ok := empty(anthropicWorkspaceIDEnv); got != "" || !ok {
+			t.Errorf("lookup of the workspace ID = (%q, %v), want (\"\", true): the loader reads an empty value as none", got, ok)
 		}
 	})
 }

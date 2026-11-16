@@ -22,23 +22,19 @@ func LoadExtension(lookup LookupFunc) (LLMConfig, error) {
 }
 
 // ExtensionLookup returns the lookup LoadExtension takes for the extension's
-// two stored values: it answers ANTHROPIC_API_KEY and, when workspaceID is not
-// empty, ANTHROPIC_WORKSPACE_ID, and no other name.
+// two stored values: it answers ANTHROPIC_API_KEY and ANTHROPIC_WORKSPACE_ID,
+// and no other name.
 //
-// Contract: an empty workspaceID is answered as unset, because the extension
-// stores an empty string for "no workspace ID" and the CLI's loader rejects a
-// present empty value. The API key is answered even when it is empty, so the
-// loader, not this function, decides whether the stored value is acceptable.
-// Neither string is trimmed or otherwise changed.
+// Contract: both values are answered as stored, even when empty, so the
+// loader, not this function, decides whether a stored value is acceptable (an
+// empty API key is rejected, an empty workspace ID means none). Neither string
+// is trimmed or otherwise changed.
 func ExtensionLookup(apiKey, workspaceID string) LookupFunc {
 	return func(name string) (string, bool) {
 		switch name {
 		case anthropicAPIKeyEnv:
 			return apiKey, true
 		case anthropicWorkspaceIDEnv:
-			if workspaceID == "" {
-				return "", false
-			}
 			return workspaceID, true
 		default:
 			return "", false

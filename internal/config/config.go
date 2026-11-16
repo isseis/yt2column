@@ -599,15 +599,15 @@ const defaultOpenAIEffort = openaiparam.EffortMedium
 
 // loadAnthropicWorkspaceID validates ANTHROPIC_WORKSPACE_ID, which is optional
 // when the generation or the review provider is claude. It is called only when
-// one of them is: unset is accepted, and a present value must satisfy
+// one of them is: unset and empty are both accepted as "no workspace ID" (the
+// API has no meaning for an empty workspace ID, and the adapter sends the
+// header only for a specified one), and any other value must satisfy
 // claudeparam.ParseWorkspaceID.
 func loadAnthropicWorkspaceID(lookup LookupFunc, cfg *LLMConfig) error {
 	value, ok := lookup(anthropicWorkspaceIDEnv)
 	switch {
-	case !ok:
+	case !ok, value == "":
 		return nil
-	case value == "":
-		return missingVar(anthropicWorkspaceIDEnv)
 	default:
 		workspaceID, err := claudeparam.ParseWorkspaceID(value)
 		if err != nil {

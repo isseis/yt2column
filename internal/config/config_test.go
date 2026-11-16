@@ -239,7 +239,6 @@ func TestLoadClaudeMissing(t *testing.T) {
 	}{
 		{"API key unset", without(validClaudeEnv(), anthropicAPIKeyEnv), anthropicAPIKeyEnv},
 		{"API key empty", with(validClaudeEnv(), anthropicAPIKeyEnv, ""), anthropicAPIKeyEnv},
-		{"workspace id empty", with(validClaudeEnv(), anthropicWorkspaceIDEnv, ""), anthropicWorkspaceIDEnv},
 		{
 			"only the deepseek key",
 			with(without(validClaudeEnv(), anthropicAPIKeyEnv), deepSeekAPIKeyEnv, "sk-test-key"),
@@ -2410,5 +2409,18 @@ func TestLoadForIgnoresServerFile(t *testing.T) {
 				t.Errorf("Load() = %+v, want %+v as without the file", viewLLM(got.LLM()), viewLLM(want.LLM()))
 			}
 		})
+	}
+}
+
+// TestLoadClaudeEmptyWorkspaceID checks that an empty ANTHROPIC_WORKSPACE_ID
+// is read as "no workspace ID", the same as an unset one, and that Load does
+// not reject it.
+func TestLoadClaudeEmptyWorkspaceID(t *testing.T) {
+	cfg, err := Load(envLookup(with(validClaudeEnv(), anthropicWorkspaceIDEnv, "")))
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if got, ok := cfg.LLM().AnthropicWorkspaceID().Value(); ok || got != "" {
+		t.Errorf("workspace ID = (%q, %v), want none", got, ok)
 	}
 }
