@@ -93,7 +93,7 @@ func TestDevelopmentDocsDevServer(t *testing.T) {
 	checkAccepted(argArticle, articles)
 	checkAccepted(argFail, failures)
 	checkAccepted(argFailStep, failAts)
-	checkAccepted(argDelay, []string{"0", strconv.FormatUint(maxDelaySeconds, 10)})
+	checkAccepted(argDelay, []string{"0", strconv.FormatUint(devfake.MaxDelaySeconds, 10)})
 
 	for _, want := range []string{
 		"`" + devfake.ModelName + "`",

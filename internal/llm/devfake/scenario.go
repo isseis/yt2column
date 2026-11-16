@@ -95,10 +95,13 @@ const (
 	spellingLong     = "long"
 	spellingElements = "elements"
 
-	spellingEmpty          = "empty"
-	spellingTruncated      = "truncated"
-	spellingAPIError       = "api-error"
-	spellingTimeout        = "timeout"
+	spellingEmpty     = "empty"
+	spellingTruncated = "truncated"
+	spellingAPIError  = "api-error"
+	spellingTimeout   = "timeout"
+	// spellingAPIKeyRejected and spellingKeyRejected use underscores, unlike
+	// the hyphenated spellings above, because they equal the JSON values the
+	// article generation module reports (api_key_rejected, key_rejected).
 	spellingAPIKeyRejected = "api_key_rejected"
 
 	spellingDraft   = "draft"
@@ -284,10 +287,16 @@ func (s Scenario) CheckKeyResult() error {
 	case SettingsCheckOK:
 		return nil
 	case SettingsCheckKeyRejected:
-		return fmt.Errorf("devfake: simulated: %w", llm.ErrAuthRejected)
+		return errSimulatedAuthRejected()
 	case SettingsCheckUnverified:
 		return fmt.Errorf("devfake: %w", ErrSimulatedAPIFailure)
 	default:
 		return fmt.Errorf("devfake: unknown settings check %d: %w", int(s.settingsCheck), ErrUnexpectedCall)
 	}
+}
+
+// errSimulatedAuthRejected is the error both the rejected-key failure and the
+// rejected-key settings check return, so the two cannot diverge.
+func errSimulatedAuthRejected() error {
+	return fmt.Errorf("devfake: simulated: %w", llm.ErrAuthRejected)
 }

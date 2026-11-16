@@ -1,6 +1,10 @@
 package config
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"log/slog"
+)
 
 // LoadExtension reads the LLM configuration of the article generation module
 // through lookup, with the same loaders and checks as Load: the generation and
@@ -79,3 +83,30 @@ func (s ExtensionSettings) APIKey() (string, bool) {
 func (s ExtensionSettings) WorkspaceID() (string, bool) {
 	return s.workspaceID, s.workspaceIDSet
 }
+
+// redactedPresence describes a value by whether it was set, never by its text.
+func redactedPresence(set bool) string {
+	if set {
+		return "set"
+	}
+	return "unset"
+}
+
+// String describes the settings without the API key or the workspace ID, so a
+// %v, %+v, or %s of the struct, in an error path or a log, cannot print them.
+func (s ExtensionSettings) String() string {
+	return fmt.Sprintf("ExtensionSettings{apiKey: %s, workspaceID: %s}",
+		redactedPresence(s.apiKeySet), redactedPresence(s.workspaceIDSet))
+}
+
+// GoString makes %#v print the same redacted form as String.
+func (s ExtensionSettings) GoString() string { return s.String() }
+
+// LogValue makes slog print the same redacted form as String.
+func (s ExtensionSettings) LogValue() slog.Value { return slog.StringValue(s.String()) }
+
+var (
+	_ fmt.Stringer   = ExtensionSettings{}
+	_ fmt.GoStringer = ExtensionSettings{}
+	_ slog.LogValuer = ExtensionSettings{}
+)

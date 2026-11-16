@@ -8,10 +8,11 @@ import (
 	"time"
 )
 
-// maxDelaySeconds is the longest delay in seconds. ParseScenario compares the
+// MaxDelaySeconds is the longest delay in seconds. ParseScenario compares the
 // number of seconds with it before multiplying, so a huge number cannot
-// overflow into a duration NewScenario accepts.
-const maxDelaySeconds = uint64(MaxDelay / time.Second)
+// overflow into a duration NewScenario accepts. The development server's usage
+// text prints it, so the text and the rule cannot drift apart.
+const MaxDelaySeconds = uint64(MaxDelay / time.Second)
 
 // The reasons a delay spelling is rejected, one per class: its form, and its
 // range.
@@ -89,11 +90,12 @@ func parseSpelling[T interface {
 		}
 	}
 	var zero T
-	return zero, fmt.Errorf("%w: %s %q is not an accepted value; accepted: %s", ErrInvalidScenario, kind, text, acceptedSpellings(values))
+	return zero, fmt.Errorf("%w: %s %q is not an accepted value; accepted: %s", ErrInvalidScenario, kind, text, Spellings(values))
 }
 
-// acceptedSpellings returns the values' spellings, separated by "|".
-func acceptedSpellings[T fmt.Stringer](values []T) string {
+// Spellings returns the values' spellings, separated by "|". The development
+// server's usage text uses it, so the text lists what ParseScenario accepts.
+func Spellings[T fmt.Stringer](values []T) string {
 	names := make([]string, len(values))
 	for i, value := range values {
 		names[i] = value.String()
@@ -102,13 +104,13 @@ func acceptedSpellings[T fmt.Stringer](values []T) string {
 }
 
 // parseDelaySeconds parses the delay spelling: decimal digits, no leading zero
-// on a number of two or more digits, and at most maxDelaySeconds.
+// on a number of two or more digits, and at most MaxDelaySeconds.
 func parseDelaySeconds(text string) (time.Duration, error) {
 	if text == "" || strings.TrimLeft(text, "0123456789") != "" || (len(text) > 1 && text[0] == '0') {
 		return 0, fmt.Errorf("%w: delay %q: %w", ErrInvalidScenario, text, errDelayForm)
 	}
 	seconds, err := strconv.ParseUint(text, 10, 64)
-	if err != nil || seconds > maxDelaySeconds {
+	if err != nil || seconds > MaxDelaySeconds {
 		return 0, fmt.Errorf("%w: delay %q: %w", ErrInvalidScenario, text, errDelayRange)
 	}
 	return time.Duration(seconds) * time.Second, nil

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strings"
-	"time"
 
 	"github.com/isseis/yt2column/internal/llm/devfake"
 )
@@ -70,18 +68,6 @@ func (f *stringFlag) or(fallback string) string {
 	return f.value
 }
 
-// maxDelaySeconds is the longest delay in seconds, for the usage text.
-const maxDelaySeconds = uint64(devfake.MaxDelay / time.Second)
-
-// spellings returns the values' spellings, separated by "|".
-func spellings[T fmt.Stringer](values []T) string {
-	names := make([]string, len(values))
-	for i, v := range values {
-		names[i] = v.String()
-	}
-	return strings.Join(names, "|")
-}
-
 // usageText is what -h prints and what follows a rejected argument.
 func usageText() string {
 	return fmt.Sprintf(`usage: %[1]s [-%[2]s %[6]s] [-%[3]s %[7]s -%[4]s %[8]s] [-%[5]s SECONDS]
@@ -90,8 +76,8 @@ func usageText() string {
   -%[4]s    the call that fails; %[10]s needs -%[2]s %[11]s
   -%[5]s        seconds each call waits before it answers, a whole number from 0 to %[12]d (default 0)
 `, programName, argArticle, argFail, argFailStep, argDelay,
-		spellings(devfake.Articles()), spellings(devfake.Failures()), spellings(devfake.FailAts()),
-		devfake.ArticleStandard, devfake.FailAtShorten, devfake.ArticleLong, maxDelaySeconds)
+		devfake.Spellings(devfake.Articles()), devfake.Spellings(devfake.Failures()), devfake.Spellings(devfake.FailAts()),
+		devfake.ArticleStandard, devfake.FailAtShorten, devfake.ArticleLong, devfake.MaxDelaySeconds)
 }
 
 // parseArgs reads the command line into a checked Scenario. Contract: it
@@ -127,10 +113,10 @@ func parseArgs(args []string) (devfake.Scenario, error) {
 		return devfake.Scenario{}, fmt.Errorf("%w %q", errExtraWord, "--")
 	}
 	if failure.set && failure.value == devfake.FailureNone.String() {
-		return devfake.Scenario{}, fmt.Errorf("%w; accepted: %s", errNoneSelected, spellings(devfake.Failures()))
+		return devfake.Scenario{}, fmt.Errorf("%w; accepted: %s", errNoneSelected, devfake.Spellings(devfake.Failures()))
 	}
 	if failAt.set && failAt.value == devfake.FailAtNone.String() {
-		return devfake.Scenario{}, fmt.Errorf("%w; accepted: %s", errNoneSelected, spellings(devfake.FailAts()))
+		return devfake.Scenario{}, fmt.Errorf("%w; accepted: %s", errNoneSelected, devfake.Spellings(devfake.FailAts()))
 	}
 	return devfake.ParseScenario(devfake.ScenarioSpelling{
 		Article:       article.or(devfake.ArticleStandard.String()),

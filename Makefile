@@ -329,7 +329,7 @@ lint: wasm-check
 # golangci-lint skip: the two packages with a file only a js build compiles
 # (llmhttp and claude) are vetted along with the others.
 WASM_PACKAGES = ./internal/transcript ./internal/writer ./internal/llm/claude ./internal/llm/llmhttp ./internal/pricing ./internal/llm/devfake ./internal/config
-WASM_VET_PACKAGES = ./internal/writer ./internal/transcript ./internal/llm/llmhttp ./internal/llm/claude
+WASM_VET_PACKAGES = ./internal/writer ./internal/transcript ./internal/llm/llmhttp ./internal/llm/claude ./internal/config
 
 wasm-check:
 	GOOS=js GOARCH=wasm $(GOCMD) build $(WASM_PACKAGES)

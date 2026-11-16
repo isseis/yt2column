@@ -4,6 +4,9 @@ package config
 
 import (
 	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
@@ -157,5 +160,23 @@ func TestReadExtensionSettings(t *testing.T) {
 				t.Errorf("WorkspaceID() = (%q, %v), want (%q, %v)", got, ok, tc.wantWorkspace, tc.wantWorkspaceSet)
 			}
 		})
+	}
+}
+
+// TestExtensionSettingsDoNotPrintValues checks that formatting the settings
+// with any verb, or logging them, never prints the API key or the workspace ID.
+func TestExtensionSettingsDoNotPrintValues(t *testing.T) {
+	const key, workspace = "sk-ant-secret-key", "wrkspc_secret"
+	settings := ReadExtensionSettings(ExtensionLookup(key, workspace))
+	var logged strings.Builder
+	slog.New(slog.NewTextHandler(&logged, nil)).Info("settings", "settings", settings)
+	for name, got := range map[string]string{
+		"%v": fmt.Sprintf("%v", settings), "%+v": fmt.Sprintf("%+v", settings),
+		"%#v": fmt.Sprintf("%#v", settings), "%q": fmt.Sprintf("%q", settings),
+		"slog": logged.String(),
+	} {
+		if strings.Contains(got, key) || strings.Contains(got, workspace) {
+			t.Errorf("%s printed a stored value: %q", name, got)
+		}
 	}
 }

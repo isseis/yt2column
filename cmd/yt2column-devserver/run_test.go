@@ -160,7 +160,7 @@ func TestRunHelp(t *testing.T) {
 			if code != exitOK {
 				t.Errorf("exit code = %d, want %d", code, exitOK)
 			}
-			for _, want := range []string{"usage: " + programName, spellings(devfake.Articles()), spellings(devfake.Failures()), spellings(devfake.FailAts())} {
+			for _, want := range []string{"usage: " + programName, devfake.Spellings(devfake.Articles()), devfake.Spellings(devfake.Failures()), devfake.Spellings(devfake.FailAts())} {
 				if !strings.Contains(stderr, want) {
 					t.Errorf("the usage lacks %q:\n%s", want, stderr)
 				}
