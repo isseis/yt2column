@@ -3,6 +3,7 @@
 package claude
 
 import (
+	"context"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/llm"
@@ -31,4 +32,17 @@ func NewForLoopbackTest(t testing.TB, opts Options, endpoint string) llm.LLMClie
 	}
 	client.endpoint = endpoint
 	return client
+}
+
+// CheckKeyForLoopbackTest runs CheckKey against endpoint, so a test in another
+// package can point the key check at a loopback server. The endpoint must be a
+// loopback URL: every other endpoint fails the test without sending anything.
+// It is built only with the test tag.
+func CheckKeyForLoopbackTest(ctx context.Context, t testing.TB, opts KeyCheckOptions, endpoint string) error {
+	t.Helper()
+	if err := loopbacktest.ValidateURL(endpoint); err != nil {
+		t.Fatalf("CheckKeyForLoopbackTest endpoint: %v", err)
+		return nil
+	}
+	return checkKey(ctx, opts, endpoint)
 }

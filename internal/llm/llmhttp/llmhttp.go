@@ -1,11 +1,13 @@
-// Package llmhttp performs one HTTP POST for an LLM adapter: it applies the
-// adapter's timeout over the caller's context, sends a request, reads the
-// response body under a size cap, and classifies a send or read failure into a
-// context error or one of the adapter's own sentinels. It returns the body of a
-// 200 response without reading the body of a non-200 response, and it never
-// follows a redirect. It defines no sentinel for a send failure, so each
-// adapter keeps the sentinels that name its provider. It also checks the shape
-// of an API key before an adapter is built.
+// Package llmhttp sends one HTTP request for an LLM adapter: it applies the
+// adapter's timeout over the caller's context, sends the request, and
+// classifies a send or read failure into a context error or one of the
+// adapter's own sentinels. Post sends a POST and returns the body of a 200
+// response, read under a size cap, without reading the body of a non-200
+// response. Status sends a request and returns only the response's status code,
+// without reading the body. Neither follows a redirect. The package defines no
+// sentinel for a send failure, so each adapter keeps the sentinels that name
+// its provider. It also checks the shape of an API key before an adapter is
+// built.
 package llmhttp
 
 import (
@@ -76,13 +78,61 @@ type Errors struct {
 	Status          func(statusCode int) error
 }
 
-// Call describes one POST. NewRequest must build the request with the ctx it
-// receives, which carries the call deadline.
+// Call describes one request. NewRequest must build the request with the ctx
+// it receives, which carries the call deadline. Post uses every field; Status
+// uses Timeout, NewRequest, Client, and Errors.Transport only.
 type Call struct {
 	Client     *http.Client
 	Timeout    time.Duration
 	NewRequest func(ctx context.Context) (*http.Request, error)
 	Errors     Errors
+}
+
+// exchange is a request that has been sent and whose response headers have
+// arrived. callCtx and start let the handler classify a later failure.
+type exchange struct {
+	response *http.Response
+	callCtx  context.Context
+	start    time.Time
+}
+
+// roundTrip is the only place this package sends a request, so everything that
+// must hold for every request holds in one place: the single deadline, the
+// no-redirect policy, the options a browser build needs (setFetchOptions), and
+// the response body being closed. It hands the response to handle and returns
+// what handle returns. It does not read the body itself.
+func roundTrip[T any](ctx context.Context, call Call, handle func(exchange) (T, error)) (T, error) {
+	var zero T
+	if err := ctx.Err(); err != nil {
+		return zero, err
+	}
+
+	// The single deadline roundTrip adds covers the send and the whole
+	// response body read. http.Client.Timeout is deliberately not used: it
+	// would make a timeout indistinguishable from other transport failures.
+	callCtx, cancel := context.WithTimeoutCause(ctx, call.Timeout, errAdapterTimeout)
+	defer cancel()
+
+	request, err := call.NewRequest(callCtx)
+	if err != nil {
+		return zero, err
+	}
+	// The deadline must be on the request itself, so NewRequest has to use
+	// the context roundTrip passes rather than one of its own. A nil request
+	// or a different context is treated as an incomplete Call.
+	if request == nil || request.Context() != callCtx {
+		return zero, errIncompleteCall
+	}
+	setFetchOptions(request)
+	// start marks when the send begins, so a timeout or transport failure
+	// can report how long the attempt lasted.
+	start := time.Now()
+	response, err := newNoRedirectClient(call.Client).Do(request)
+	if err != nil {
+		return zero, classifyFailure(callCtx, call, start, err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	return handle(exchange{response: response, callCtx: callCtx, start: start})
 }
 
 // Post sends one request and returns the body of a 200 response, at most
@@ -95,53 +145,49 @@ func Post(ctx context.Context, call Call) ([]byte, error) {
 	if err := checkCall(call); err != nil {
 		return nil, err
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
-	// The single deadline Post adds covers the send and the whole response
-	// body read. http.Client.Timeout is deliberately not used: it would make
-	// a timeout indistinguishable from other transport failures.
-	callCtx, cancel := context.WithTimeoutCause(ctx, call.Timeout, errAdapterTimeout)
-	defer cancel()
-
-	request, err := call.NewRequest(callCtx)
-	if err != nil {
-		return nil, err
-	}
-	// The deadline must be on the request itself, so NewRequest has to use
-	// the context Post passes rather than one of its own. A nil request or a
-	// different context is treated as an incomplete Call.
-	if request == nil || request.Context() != callCtx {
-		return nil, errIncompleteCall
-	}
-	// start marks when the send begins, so a timeout or transport failure
-	// can report how long the attempt lasted.
-	start := time.Now()
-	response, err := newNoRedirectClient(call.Client).Do(request)
-	if err != nil {
-		return nil, classifyFailure(callCtx, call, start, err)
-	}
-	defer func() { _ = response.Body.Close() }()
-
-	if response.StatusCode != http.StatusOK {
-		// The body of a non-200 response is never read: it is untrusted
-		// text that can even contain a fragment of the API key.
-		return nil, call.Errors.Status(response.StatusCode)
-	}
-	data, err := readResponseBody(response.Body, call.Errors.InvalidResponse)
-	if err != nil {
-		return nil, classifyFailure(callCtx, call, start, err)
-	}
-	return data, nil
+	return roundTrip(ctx, call, func(ex exchange) ([]byte, error) {
+		if ex.response.StatusCode != http.StatusOK {
+			// The body of a non-200 response is never read: it is untrusted
+			// text that can even contain a fragment of the API key.
+			return nil, call.Errors.Status(ex.response.StatusCode)
+		}
+		data, err := readResponseBody(ex.response.Body, call.Errors.InvalidResponse)
+		if err != nil {
+			return nil, classifyFailure(ex.callCtx, call, ex.start, err)
+		}
+		return data, nil
+	})
 }
 
-// checkCall rejects a Call that is incomplete. Timeout must be positive,
+// Status sends one request like Post and returns the response's status code
+// without reading the body. Send failures and timeouts are reported as Post
+// reports them; it never follows a redirect. The body is closed unread, so a
+// browser build cancels the response stream.
+func Status(ctx context.Context, call Call) (int, error) {
+	if err := checkStatusCall(call); err != nil {
+		return 0, err
+	}
+	return roundTrip(ctx, call, func(ex exchange) (int, error) {
+		return ex.response.StatusCode, nil
+	})
+}
+
+// checkCall rejects a Call that Post cannot send. Timeout must be positive,
 // NewRequest must be set, and every Errors field must be non-nil: a missing
 // one would turn a failure into a nil error or a panic.
 func checkCall(call Call) error {
-	if call.Timeout <= 0 || call.NewRequest == nil ||
-		call.Errors.Transport == nil || call.Errors.InvalidResponse == nil || call.Errors.Status == nil {
+	if checkStatusCall(call) != nil || call.Errors.InvalidResponse == nil || call.Errors.Status == nil {
+		return errIncompleteCall
+	}
+	return nil
+}
+
+// checkStatusCall rejects a Call that Status cannot send. Status reports a
+// send failure with Errors.Transport and reads neither a body nor the Status
+// and InvalidResponse errors, so only the timeout, NewRequest, and Transport
+// have to be set.
+func checkStatusCall(call Call) error {
+	if call.Timeout <= 0 || call.NewRequest == nil || call.Errors.Transport == nil {
 		return errIncompleteCall
 	}
 	return nil

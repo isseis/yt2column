@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -46,7 +47,8 @@ var (
 var elapsedPattern = regexp.MustCompile(` \(\d+ ms elapsed\)`)
 
 // assertNamesElapsed checks that err names the elapsed time as an integer
-// count of milliseconds.
+// count of milliseconds. The wording is the contract here: the elapsed time is
+// text in the message, with no error type to check instead.
 func assertNamesElapsed(t *testing.T, err error) {
 	t.Helper()
 	if !elapsedPattern.MatchString(err.Error()) {
@@ -121,6 +123,27 @@ type countingTransport struct {
 func (c *countingTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	c.calls.Add(1)
 	return nil, errors.New("RoundTrip must not be called")
+}
+
+// sender is Post or Status behind one signature, so the checks of what the
+// two share (the deadline, cancellation, and the classification of a send
+// failure) run once over both. readsBody is true for the one that reads a
+// response body, which only matters to a failure in the middle of a body.
+type sender struct {
+	name      string
+	readsBody bool
+	send      func(ctx context.Context, call Call) error
+}
+
+var senders = []sender{
+	{"Post", true, func(ctx context.Context, call Call) error {
+		_, err := Post(ctx, call)
+		return err
+	}},
+	{"Status", false, func(ctx context.Context, call Call) error {
+		_, err := Status(ctx, call)
+		return err
+	}},
 }
 
 func TestPostSuccess(t *testing.T) {
@@ -214,131 +237,146 @@ func TestPostNon200(t *testing.T) {
 	})
 }
 
-func TestPostTimeout(t *testing.T) {
+func TestSendTimeout(t *testing.T) {
 	cases := []struct {
 		name      string
+		bodyOnly  bool
 		newServer func(t *testing.T) *httptest.Server
 	}{
-		{"no response headers", llmhttptest.NewStallingServer},
-		{"partial response body", llmhttptest.NewPartialStallingServer},
+		{"no response headers", false, llmhttptest.NewStallingServer},
+		{"partial response body", true, llmhttptest.NewPartialStallingServer},
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			server := tc.newServer(t)
-			start := time.Now()
-			_, err := Post(context.Background(), Call{
-				Client:     NewClient(),
-				Timeout:    testShortTimeout,
-				NewRequest: postRequest(server.URL),
-				Errors:     testErrors(),
+	for _, snd := range senders {
+		for _, tc := range cases {
+			if tc.bodyOnly && !snd.readsBody {
+				continue
+			}
+			t.Run(snd.name+"/"+tc.name, func(t *testing.T) {
+				server := tc.newServer(t)
+				start := time.Now()
+				err := snd.send(context.Background(), Call{
+					Client:     NewClient(),
+					Timeout:    testShortTimeout,
+					NewRequest: postRequest(server.URL),
+					Errors:     testErrors(),
+				})
+				elapsed := time.Since(start)
+				if !errors.Is(err, context.DeadlineExceeded) {
+					t.Errorf("%s() error = %v, want context.DeadlineExceeded", snd.name, err)
+				}
+				assertSingleSentinel(t, err)
+				assertNamesElapsed(t, err)
+				if elapsed > testShortTimeout+testGrace {
+					t.Errorf("%s() took %v, want at most %v", snd.name, elapsed, testShortTimeout+testGrace)
+				}
 			})
-			elapsed := time.Since(start)
-			if !errors.Is(err, context.DeadlineExceeded) {
-				t.Errorf("Post() error = %v, want context.DeadlineExceeded", err)
-			}
-			assertSingleSentinel(t, err)
-			assertNamesElapsed(t, err)
-			if elapsed > testShortTimeout+testGrace {
-				t.Errorf("Post() took %v, want at most %v", elapsed, testShortTimeout+testGrace)
-			}
-		})
+		}
 	}
 }
 
-func TestPostCallerDeadline(t *testing.T) {
-	server := llmhttptest.NewStallingServer(t)
-	ctx, cancel := context.WithTimeout(context.Background(), testShortTimeout)
-	defer cancel()
-	start := time.Now()
-	_, err := Post(ctx, Call{
-		Client:     NewClient(),
-		Timeout:    testTimeout,
-		NewRequest: postRequest(server.URL),
-		Errors:     testErrors(),
-	})
-	elapsed := time.Since(start)
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Errorf("Post() error = %v, want context.DeadlineExceeded", err)
-	}
-	assertSingleSentinel(t, err)
-	if strings.Contains(err.Error(), "ms elapsed") {
-		t.Errorf("error %q must not include the adapter's elapsed time", err)
-	}
-	if elapsed > testShortTimeout+testGrace {
-		t.Errorf("Post() took %v, want at most %v", elapsed, testShortTimeout+testGrace)
-	}
-}
-
-func TestPostCanceled(t *testing.T) {
-	t.Run("cancel while running", func(t *testing.T) {
-		server, entered := llmhttptest.NewGateServer(t)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		var (
-			err  error
-			done = make(chan struct{})
-		)
-		go func() {
-			_, err = Post(ctx, Call{
+func TestSendCallerDeadline(t *testing.T) {
+	for _, snd := range senders {
+		t.Run(snd.name, func(t *testing.T) {
+			server := llmhttptest.NewStallingServer(t)
+			ctx, cancel := context.WithTimeout(context.Background(), testShortTimeout)
+			defer cancel()
+			start := time.Now()
+			err := snd.send(ctx, Call{
 				Client:     NewClient(),
 				Timeout:    testTimeout,
 				NewRequest: postRequest(server.URL),
 				Errors:     testErrors(),
 			})
-			close(done)
-		}()
-		<-entered
-		cancel()
-		<-done
-
-		if !errors.Is(err, context.Canceled) {
-			t.Errorf("Post() error = %v, want context.Canceled", err)
-		}
-		assertSingleSentinel(t, err)
-		if strings.Contains(err.Error(), "ms elapsed") {
-			t.Errorf("error %q must not include the adapter's elapsed time", err)
-		}
-	})
-
-	t.Run("pre-canceled context sends nothing", func(t *testing.T) {
-		var newRequestCalls atomic.Int64
-		transport := &countingTransport{}
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		_, err := Post(ctx, Call{
-			Client:  &http.Client{Transport: transport},
-			Timeout: testTimeout,
-			NewRequest: func(context.Context) (*http.Request, error) {
-				newRequestCalls.Add(1)
-				return nil, errors.New("NewRequest must not be called")
-			},
-			Errors: testErrors(),
+			elapsed := time.Since(start)
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("%s() error = %v, want context.DeadlineExceeded", snd.name, err)
+			}
+			assertSingleSentinel(t, err)
+			if strings.Contains(err.Error(), "ms elapsed") {
+				t.Errorf("error %q must not include the adapter's elapsed time", err)
+			}
+			if elapsed > testShortTimeout+testGrace {
+				t.Errorf("%s() took %v, want at most %v", snd.name, elapsed, testShortTimeout+testGrace)
+			}
 		})
-		if !errors.Is(err, context.Canceled) {
-			t.Errorf("Post() error = %v, want context.Canceled", err)
-		}
-		if got := newRequestCalls.Load(); got != 0 {
-			t.Errorf("NewRequest calls = %d, want 0", got)
-		}
-		if got := transport.calls.Load(); got != 0 {
-			t.Errorf("RoundTrip calls = %d, want 0", got)
-		}
-	})
+	}
 }
 
-func TestPostTransportFailure(t *testing.T) {
-	t.Run("listener closes the connection", func(t *testing.T) {
-		_, err := Post(context.Background(), Call{
-			Client:     NewClient(),
-			Timeout:    testTimeout,
-			NewRequest: postRequest(llmhttptest.NewClosedListener(t)),
-			Errors:     testErrors(),
-		})
-		assertTransportFailure(t, err)
-	})
+func TestSendCanceled(t *testing.T) {
+	for _, snd := range senders {
+		t.Run(snd.name+"/cancel while running", func(t *testing.T) {
+			server, entered := llmhttptest.NewGateServer(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-	t.Run("body truncated before Content-Length", func(t *testing.T) {
+			var (
+				err  error
+				done = make(chan struct{})
+			)
+			go func() {
+				err = snd.send(ctx, Call{
+					Client:     NewClient(),
+					Timeout:    testTimeout,
+					NewRequest: postRequest(server.URL),
+					Errors:     testErrors(),
+				})
+				close(done)
+			}()
+			<-entered
+			cancel()
+			<-done
+
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("%s() error = %v, want context.Canceled", snd.name, err)
+			}
+			assertSingleSentinel(t, err)
+			if strings.Contains(err.Error(), "ms elapsed") {
+				t.Errorf("error %q must not include the adapter's elapsed time", err)
+			}
+		})
+
+		t.Run(snd.name+"/pre-canceled context sends nothing", func(t *testing.T) {
+			var newRequestCalls atomic.Int64
+			transport := &countingTransport{}
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			err := snd.send(ctx, Call{
+				Client:  &http.Client{Transport: transport},
+				Timeout: testTimeout,
+				NewRequest: func(context.Context) (*http.Request, error) {
+					newRequestCalls.Add(1)
+					return nil, errors.New("NewRequest must not be called")
+				},
+				Errors: testErrors(),
+			})
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("%s() error = %v, want context.Canceled", snd.name, err)
+			}
+			if got := newRequestCalls.Load(); got != 0 {
+				t.Errorf("NewRequest calls = %d, want 0", got)
+			}
+			if got := transport.calls.Load(); got != 0 {
+				t.Errorf("RoundTrip calls = %d, want 0", got)
+			}
+		})
+	}
+}
+
+func TestSendTransportFailure(t *testing.T) {
+	for _, snd := range senders {
+		t.Run(snd.name+"/listener closes the connection", func(t *testing.T) {
+			err := snd.send(context.Background(), Call{
+				Client:     NewClient(),
+				Timeout:    testTimeout,
+				NewRequest: postRequest(llmhttptest.NewClosedListener(t)),
+				Errors:     testErrors(),
+			})
+			assertTransportFailure(t, err)
+		})
+	}
+
+	// Only a send that reads the body can see a body cut short.
+	t.Run("Post/body truncated before Content-Length", func(t *testing.T) {
 		_, err := Post(context.Background(), Call{
 			Client:     NewClient(),
 			Timeout:    testTimeout,
@@ -353,13 +391,13 @@ func TestPostTransportFailure(t *testing.T) {
 func assertTransportFailure(t *testing.T, err error) {
 	t.Helper()
 	if !errors.Is(err, errTestTransport) {
-		t.Errorf("Post() error = %v, want the transport sentinel", err)
+		t.Errorf("error = %v, want the transport sentinel", err)
 	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		t.Errorf("Post() error = %v, must not match a context error", err)
+		t.Errorf("error = %v, must not match a context error", err)
 	}
 	if errors.Is(err, errTestInvalidResponse) {
-		t.Errorf("Post() error = %v, must not match the invalid-response sentinel", err)
+		t.Errorf("error = %v, must not match the invalid-response sentinel", err)
 	}
 	assertSingleSentinel(t, err)
 	assertNamesElapsed(t, err)
@@ -554,4 +592,194 @@ func TestNewClient(t *testing.T) {
 	if err := client.CheckRedirect(&http.Request{}, nil); !errors.Is(err, http.ErrUseLastResponse) {
 		t.Errorf("CheckRedirect() = %v, want http.ErrUseLastResponse", err)
 	}
+}
+
+// trackingTransport answers every request with a fixed status and a body that
+// records whether it was read and whether it was closed.
+type trackingTransport struct {
+	status int
+	body   *trackingBody
+}
+
+// RoundTrip implements http.RoundTripper.
+func (tr *trackingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: tr.status,
+		Header:     http.Header{},
+		Body:       tr.body,
+		Request:    req,
+	}, nil
+}
+
+// trackingBody is a response body that notes the first Read and the first
+// Close.
+type trackingBody struct {
+	read   atomic.Bool
+	closed atomic.Bool
+}
+
+// Read implements io.Reader.
+func (b *trackingBody) Read([]byte) (int, error) {
+	b.read.Store(true)
+	return 0, io.EOF
+}
+
+// Close implements io.Closer.
+func (b *trackingBody) Close() error {
+	b.closed.Store(true)
+	return nil
+}
+
+func TestStatusReturnsStatusCode(t *testing.T) {
+	// Every status is a result, not an error, because the caller decides what a
+	// status means; that includes 200 and 307. The server sends no Location, so
+	// this table says nothing about redirects: TestStatusNoRedirect does.
+	statuses := []int{
+		http.StatusOK,
+		http.StatusNoContent,
+		http.StatusTemporaryRedirect,
+		http.StatusBadRequest,
+		http.StatusUnauthorized,
+		http.StatusForbidden,
+		http.StatusTooManyRequests,
+		http.StatusInternalServerError,
+	}
+	for _, status := range statuses {
+		t.Run(strconv.Itoa(status), func(t *testing.T) {
+			server := llmhttptest.NewResponseServer(t, status, []byte("{ not json }"))
+			got, err := Status(context.Background(), Call{
+				Client:     NewClient(),
+				Timeout:    testTimeout,
+				NewRequest: postRequest(server.URL),
+				Errors:     Errors{Transport: errTestTransport},
+			})
+			if err != nil {
+				t.Fatalf("Status() error = %v, want nil", err)
+			}
+			if got != status {
+				t.Errorf("Status() = %d, want %d", got, status)
+			}
+		})
+	}
+}
+
+func TestStatusDoesNotReadTheBody(t *testing.T) {
+	t.Run("returns before a body that never arrives", func(t *testing.T) {
+		server := llmhttptest.NewStatusStallingServer(t, http.StatusUnauthorized)
+		start := time.Now()
+		got, err := Status(context.Background(), Call{
+			Client:     NewClient(),
+			Timeout:    testStallTimeout,
+			NewRequest: postRequest(server.URL),
+			Errors:     testErrors(),
+		})
+		elapsed := time.Since(start)
+		if err != nil || got != http.StatusUnauthorized {
+			t.Errorf("Status() = %d, %v, want %d, nil", got, err, http.StatusUnauthorized)
+		}
+		if elapsed >= testStallTimeout {
+			t.Errorf("Status() took %v; it must return without reading the body", elapsed)
+		}
+	})
+
+	t.Run("closes the body unread", func(t *testing.T) {
+		body := &trackingBody{}
+		_, err := Status(context.Background(), Call{
+			Client:     &http.Client{Transport: &trackingTransport{status: http.StatusOK, body: body}},
+			Timeout:    testTimeout,
+			NewRequest: postRequest("http://127.0.0.1:1/"),
+			Errors:     testErrors(),
+		})
+		if err != nil {
+			t.Fatalf("Status() error = %v", err)
+		}
+		if body.read.Load() {
+			t.Error("Status read the response body")
+		}
+		if !body.closed.Load() {
+			t.Error("Status did not close the response body")
+		}
+	})
+}
+
+func TestStatusNoRedirect(t *testing.T) {
+	var hits atomic.Int64
+	mux := http.NewServeMux()
+	mux.HandleFunc("/primary", func(w http.ResponseWriter, req *http.Request) {
+		http.Redirect(w, req, "/secondary", http.StatusTemporaryRedirect)
+	})
+	mux.HandleFunc("/secondary", func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusOK)
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	cases := map[string]*http.Client{
+		"client that follows redirects": {},
+		"nil client":                    nil,
+	}
+	for name, client := range cases {
+		t.Run(name, func(t *testing.T) {
+			before := hits.Load()
+			got, err := Status(context.Background(), Call{
+				Client:     client,
+				Timeout:    testTimeout,
+				NewRequest: postRequest(server.URL + "/primary"),
+				Errors:     testErrors(),
+			})
+			if err != nil || got != http.StatusTemporaryRedirect {
+				t.Errorf("Status() = %d, %v, want %d, nil", got, err, http.StatusTemporaryRedirect)
+			}
+			if hits.Load() != before {
+				t.Error("the redirect target was requested; Status must not follow redirects")
+			}
+		})
+	}
+}
+
+func TestStatusIncompleteCall(t *testing.T) {
+	valid := func() Call {
+		return Call{
+			Client:     NewClient(),
+			Timeout:    testTimeout,
+			NewRequest: postRequest("http://127.0.0.1:1/"),
+			Errors:     Errors{Transport: errTestTransport},
+		}
+	}
+	cases := map[string]func(call *Call){
+		"zero timeout":   func(call *Call) { call.Timeout = 0 },
+		"nil NewRequest": func(call *Call) { call.NewRequest = nil },
+		"nil Transport":  func(call *Call) { call.Errors.Transport = nil },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			call := valid()
+			mutate(&call)
+			transport := &countingTransport{}
+			call.Client = &http.Client{Transport: transport}
+			_, err := Status(context.Background(), call)
+			if !errors.Is(err, errIncompleteCall) {
+				t.Errorf("Status() error = %v, want errIncompleteCall", err)
+			}
+			if got := transport.calls.Load(); got != 0 {
+				t.Errorf("RoundTrip calls = %d, want 0", got)
+			}
+		})
+	}
+
+	// Status never builds the status or invalid-response errors, so a Call
+	// that leaves them out is complete.
+	t.Run("only Transport is required", func(t *testing.T) {
+		server := llmhttptest.NewResponseServer(t, http.StatusOK, nil)
+		got, err := Status(context.Background(), Call{
+			Client:     NewClient(),
+			Timeout:    testTimeout,
+			NewRequest: postRequest(server.URL),
+			Errors:     Errors{Transport: errTestTransport},
+		})
+		if err != nil || got != http.StatusOK {
+			t.Errorf("Status() = %d, %v, want %d, nil", got, err, http.StatusOK)
+		}
+	})
 }

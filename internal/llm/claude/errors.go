@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/isseis/yt2column/internal/llm"
 )
 
 // Sentinel errors for failures that depend on the HTTP and JSON shape of the
@@ -43,6 +45,15 @@ func (e *HTTPStatusError) Error() string {
 // Unwrap returns ErrHTTPStatus.
 func (e *HTTPStatusError) Unwrap() error {
 	return ErrHTTPStatus
+}
+
+// Is reports whether the error matches target. Besides the ErrHTTPStatus that
+// Unwrap returns, a 401 response matches llm.ErrAuthRejected, so a caller can
+// tell a rejected key from another failure without importing this package.
+// Only 401 means rejected credentials: 403 is a permission problem, and a
+// malformed anthropic-workspace-id gets 400.
+func (e *HTTPStatusError) Is(target error) bool {
+	return target == llm.ErrAuthRejected && e.StatusCode == http.StatusUnauthorized
 }
 
 // statusOverloaded is the Messages API's 529 status, which has no net/http

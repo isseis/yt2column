@@ -130,15 +130,15 @@
 
 **変更するファイル:** `internal/llm/llm.go`、`internal/llm/claude/`（`errors.go`・`request.go`、キーの確かめのファイル、`js` と `!js` のファイルの組）、`internal/llm/llmhttp/`（`llmhttp.go`、`js` と `!js` のファイルの組）とそのテスト、`Makefile`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`、`docs/tasks/0091_extension_only_migration/_checks/cli_unchanged.sh`（新規）、本計画
 
--   [ ] **ステップ 1-1**（PR-1 の `/runplan` の前に、確認のセッションで行う。§1.3 の決定 3）: 次の 2 つを確かめ、結果を §7 の「PR-1 の前の手動の確認の記録」に書き、PR-1 のブランチに commit する。このステップのチェックボックスに印を付けて同じ commit に入れ、commit の件名は `docs(0091): draft` で始めない（`_lib/task-pr-handoff.md` Part A）。
+-   [x] **ステップ 1-1**（PR-1 の `/runplan` の前に、確認のセッションで行う。§1.3 の決定 3）: 次の 2 つを確かめ、結果を §7 の「PR-1 の前の手動の確認の記録」に書き、PR-1 のブランチに commit する。このステップのチェックボックスに印を付けて同じ commit に入れ、commit の件名は `docs(0091): draft` で始めない（`_lib/task-pr-handoff.md` Part A）。
     -   401 を読めるか（設計書 §1.2・§7.2）。試作の拡張に、`host_permissions` を持たず、CSP を 0090 設計書 §3.7.2 の値にしたページを置く。Chrome と Brave で、誤ったキーで `GET /v1/models?limit=1` と `POST /v1/messages` を `fetch` で送り、`anthropic-workspace-id` のありとなしの両方で、状態コード 401 を読める（通信の失敗にならない）ことを確かめる。ヘッダは、公開用のビルドが送るもの（`x-api-key`・`anthropic-version`・`content-type`・`anthropic-dangerous-direct-browser-access`）と同じにする。実 API の呼び出しなので、人の承認を得る。料金はかからない。読めないときは、先へ進まない。人と決め直し、設計書と本計画を決定の変更として改め、ADR-0010 の保存のときの確かめを改める（設計書 §3.14）。
     -   履歴の項目のタイトルが書き換わるか（設計書 §3.8.2、H-05）。試作の拡張に、`chrome.storage.session` に値があれば動画のタイトルを、なければ固定のタイトルを出すページを置く。Chrome と Brave で、ページを開き、ブラウザを再起動してセッションを復元し、履歴の項目のタイトルを読む。上書きされなければ案 A、されれば案 B で実装すると決める。
--   [ ] **ステップ 1-2**: `llm.ErrAuthRejected` を加え、`LLMClient` の doc コメントの番兵の一覧を改める（設計書 §3.1）。Claude アダプタの状態コード 401 の `HTTPStatusError` が `errors.Is(err, llm.ErrAuthRejected)` に当たるようにする。`errors.AsType[*claude.HTTPStatusError]` で状態コードを取れること、`ErrHTTPStatus` に当たること、エラーの文は、いずれも変えない（要件書 AC-26）。テストは `internal/llm/claude/errors_test.go` に置き、401 で当たり、400・403・429・500 で当たらないことと、どの状態コードでも `ErrHTTPStatus` に当たることを確かめる。
--   [ ] **ステップ 1-3**: `llmhttp.Status` を加え、パッケージの doc コメントを「1 回の POST」から改める（設計書 §3.1）。テストは `llmhttptest` の送り先で、状態コードを返すこと、本文を読まずに閉じること、リダイレクトに従わないことを確かめる。期限切れと通信の失敗の分類は、`Post` の今のテストの行を、表を共有して `Status` にも当てる。
--   [ ] **ステップ 1-4**: `claude.CheckKey` と `KeyCheckOptions` を加える（設計書 §3.1）。`GET https://api.anthropic.com/v1/models?limit=1` を `llmhttp.Status` で 1 回送る。ヘッダは、`newRequest` のヘッダを付ける部分を切り出した 1 つの関数で付け、`Reveal` の呼び出しを 1 か所に保つ。テストは、ループバックの送り先の差し替え（`test_helpers_endpoint.go`）を使い、200 で `nil`、401 で `llm.ErrAuthRejected` に当たるエラー、ほかの状態・通信の失敗・期限切れで当たらないエラーを返すこと、`anthropic-version` を送ること、ワークスペース ID を指定したときだけ `anthropic-workspace-id` を送ること、API キーを `x-api-key` だけで送ることを確かめる。
--   [ ] **ステップ 1-5**: ブラウザから呼ぶための指定を、`js` と `!js` のファイルの組で加える（設計書 §3.1、0090 設計書 §5.3）。`llmhttp` は、`Post` と `Status` が同じ 1 つの関数を通してリクエストに `js.fetch:redirect: error` を付け、`internal/llm/claude` は、`Generate` と `CheckKey` のリクエストの組み立てが同じ 1 つの関数を通して `anthropic-dangerous-direct-browser-access` のヘッダを付ける。`!js` の側は何もしない。テストは、ネイティブのテストで `Post`・`Status`・`Generate`・`CheckKey` がその関数を通ることと、`go/parser` で `js` のファイルを読み、それぞれの関数が決まった値を付けることを確かめる。`Makefile` の `WASM_PACKAGES` に `./internal/llm/llmhttp` を、`vet` の対象に `internal/llm/llmhttp` と `internal/llm/claude` を加え（設計書 §3.10）、CLAUDE.md の `make wasm-check` の説明を同じ対象に直す。
--   [ ] **ステップ 1-6**: package_reference.md の `internal/llm`（`ErrAuthRejected` と、それを返すアダプタが Claude だけであること）、`internal/llm/claude`（`CheckKey`）、`internal/llm/llmhttp`（`Status`）の行を改める（設計書 §3.13）。
--   [ ] **ステップ 1-7**: `_checks/cli_unchanged.sh` を作る（§1.3 の決定 8）。merge-base と `HEAD` の間で、`cmd/yt2column/` の `_test.go` でないファイルの差分がないことを確かめ、差分があれば失敗する。検査が、少なくとも 1 つの壊し方で失敗することを確かめる。
+-   [x] **ステップ 1-2**: `llm.ErrAuthRejected` を加え、`LLMClient` の doc コメントの番兵の一覧を改める（設計書 §3.1）。Claude アダプタの状態コード 401 の `HTTPStatusError` が `errors.Is(err, llm.ErrAuthRejected)` に当たるようにする。`errors.AsType[*claude.HTTPStatusError]` で状態コードを取れること、`ErrHTTPStatus` に当たること、エラーの文は、いずれも変えない（要件書 AC-26）。テストは `internal/llm/claude/errors_test.go` に置き、401 で当たり、400・403・429・500 で当たらないことと、どの状態コードでも `ErrHTTPStatus` に当たることを確かめる。
+-   [x] **ステップ 1-3**: `llmhttp.Status` を加え、パッケージの doc コメントを「1 回の POST」から改める（設計書 §3.1）。テストは `llmhttptest` の送り先で、状態コードを返すこと、本文を読まずに閉じること、リダイレクトに従わないことを確かめる。期限切れと通信の失敗の分類は、`Post` の今のテストの行を、表を共有して `Status` にも当てる。
+-   [x] **ステップ 1-4**: `claude.CheckKey` と `KeyCheckOptions` を加える（設計書 §3.1）。`GET https://api.anthropic.com/v1/models?limit=1` を `llmhttp.Status` で 1 回送る。ヘッダは、`newRequest` のヘッダを付ける部分を切り出した 1 つの関数で付け、`Reveal` の呼び出しを 1 か所に保つ。テストは、ループバックの送り先の差し替え（`test_helpers_endpoint.go`）を使い、200 で `nil`、401 で `llm.ErrAuthRejected` に当たるエラー、ほかの状態・通信の失敗・期限切れで当たらないエラーを返すこと、`anthropic-version` を送ること、ワークスペース ID を指定したときだけ `anthropic-workspace-id` を送ること、API キーを `x-api-key` だけで送ることを確かめる。
+-   [x] **ステップ 1-5**: ブラウザから呼ぶための指定を、`js` と `!js` のファイルの組で加える（設計書 §3.1、0090 設計書 §5.3）。`llmhttp` は、`Post` と `Status` が同じ 1 つの関数を通してリクエストに `js.fetch:redirect: error` を付け、`internal/llm/claude` は、`Generate` と `CheckKey` のリクエストの組み立てが同じ 1 つの関数を通して `anthropic-dangerous-direct-browser-access` のヘッダを付ける。`!js` の側は何もしない。テストは、ネイティブのテストで `Post`・`Status`・`Generate`・`CheckKey` がその関数を通ることと、`go/parser` で `js` のファイルを読み、それぞれの関数が決まった値を付けることを確かめる。`Makefile` の `WASM_PACKAGES` に `./internal/llm/llmhttp` を、`vet` の対象に `internal/llm/llmhttp` と `internal/llm/claude` を加え（設計書 §3.10）、CLAUDE.md の `make wasm-check` の説明を同じ対象に直す。
+-   [x] **ステップ 1-6**: package_reference.md の `internal/llm`（`ErrAuthRejected` と、それを返すアダプタが Claude だけであること）、`internal/llm/claude`（`CheckKey`）、`internal/llm/llmhttp`（`Status`）の行を改める（設計書 §3.13）。
+-   [x] **ステップ 1-7**: `_checks/cli_unchanged.sh` を作る（§1.3 の決定 8）。merge-base と `HEAD` の間で、`cmd/yt2column/` の `_test.go` でないファイルの差分がないことを確かめ、差分があれば失敗する。検査が、少なくとも 1 つの壊し方で失敗することを確かめる。
 
 **完了の条件:** `make test`・`make lint`（`make wasm-check` を含む）・`make deadcode` が通る。`_checks/cli_unchanged.sh` が通り、§7 の AC-26 の記録に書いた。§7 に PR-1 の前の手動の確認の記録がある。
 
@@ -156,10 +156,10 @@
 
 **自動送信**: hold
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/893
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 設定の読み込みと fake のシナリオ（設計書 §8 の 1 のうち `internal/config` と `devfake`）
 
@@ -536,7 +536,7 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
 -   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
@@ -560,7 +560,7 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 | AC | 確かめ | 種類 | 実装 | PR |
 |---|---|---|---|---|
 | AC-01 | `cy/makefile_test.go::TestMakeBuildBuildsEveryBinary`（`yt2column` だけ）、`et/manifest.test.ts`（権限）、PR-8 の手動の確認（ホストもサーバもないプロファイルで記事が完成する） | test、manual | 8-1・8-7・9-3 | PR-8、PR-9 |
-| AC-02 | `ej/module_test.go::TestCheckSettings`（形の検査、4 つの結果、30 秒）、`internal/llm/claude/checkkey_test.go::TestCheckKey`、`ej/devbackend/devbackend_test.go`、`et/optionsFlow.test.ts`（期限、1 回の書き込み、保存しないときに書かない、検査できない場合、書き込みの失敗）、`et/optionsView.test.ts`、§7 の 2 つの前の確認、PR-8 の手動の確認 | test、manual | 1-1・1-4・3-4・3-5・6-1・6-9・7-2・8-2 | PR-1、PR-3、PR-6、PR-7、PR-8 |
+| AC-02 | `ej/module_test.go::TestCheckSettings`（形の検査、4 つの結果、30 秒）、`internal/llm/claude/keycheck_test.go::TestCheckKeyStatus`・`TestCheckKeyNotRejected`・`TestCheckKeySendsRequest`、`ej/devbackend/devbackend_test.go`、`et/optionsFlow.test.ts`（期限、1 回の書き込み、保存しないときに書かない、検査できない場合、書き込みの失敗）、`et/optionsView.test.ts`、§7 の 2 つの前の確認、PR-8 の手動の確認 | test、manual | 1-1・1-4・3-4・3-5・6-1・6-9・7-2・8-2 | PR-1、PR-3、PR-6、PR-7、PR-8 |
 | AC-03 | `et/optionsFlow.test.ts`（保存の後に欄を空にする、保存した値を読まない）、`et/optionsHtml.test.ts`（文字を伏せた欄）、PR-8 の手動の確認（パスワードの保存を勧めない） | test、manual | 7-2・8-2・8-7 | PR-7、PR-8 |
 | AC-04 | `et/optionsFlow.test.ts`（空のワークスペース ID を空の文字列で書く、1 回の `remove`）、`ej/module_test.go::TestStoredSettingsCheck`（空の文字列は指定なし）、PR-8 の手動の確認（再起動の後も残る） | test、manual | 3-5・7-2・8-7 | PR-3、PR-7、PR-8 |
 | AC-05 | `ej/claudebackend/claudebackend_test.go::TestClientsMatchProvider`、`internal/config/extension_test.go::TestLoadExtensionProductionProfile`、`et/optionsHtml.test.ts`（欄が 2 つだけ） | test | 2-2・3-3・8-2 | PR-2、PR-3、PR-8 |
@@ -570,7 +570,7 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 | AC-09 | `et/jobCoordinator.test.ts`（上限の境界と捨てる順、上限での拒否）、`et/jobRecord.test.ts`（記録の型が字幕と概要欄を持たない）、PR-8 の手動の確認 | test、manual | 6-7・7-4・8-7 | PR-6、PR-7、PR-8 |
 | AC-10 | `et/jobCoordinator.test.ts`（同じ入力と同じ動画の照会、API キーがないときの順） | test | 7-4 | PR-7 |
 | AC-11 | `et/viewerApp.test.ts`（3 つの状態で不明と示し、金額を示さない。`api_key_missing`・`settings_invalid` で触れない）、PR-8 の手動の確認 | test、manual | 8-3・8-7 | PR-8 |
-| AC-12 | `internal/llm/claude/errors_test.go::TestHTTPStatusErrorAuthRejected`、`ej/run_test.go::TestRunAuthRejected`（3 つの工程のそれぞれ）、`et/viewerApp.test.ts`（キーが拒まれた状態と操作）、`et/jobCoordinator.test.ts`（同じジョブ ID でやり直す）、§7 の 2 つの前の確認 | test、manual | 1-1・1-2・3-2・6-1・7-4・8-3 | PR-1、PR-3、PR-6、PR-7、PR-8 |
+| AC-12 | `internal/llm/claude/errors_test.go::TestHTTPStatusErrorAuthRejected`・`TestGenerateAuthRejected`、`ej/run_test.go::TestRunAuthRejected`（3 つの工程のそれぞれ）、`et/viewerApp.test.ts`（キーが拒まれた状態と操作）、`et/jobCoordinator.test.ts`（同じジョブ ID でやり直す）、§7 の 2 つの前の確認 | test、manual | 1-1・1-2・3-2・6-1・7-4・8-3 | PR-1、PR-3、PR-6、PR-7、PR-8 |
 | AC-13 | `et/jobCoordinator.test.ts`（3 つ目の開始の拒否）、`et/popupView.test.ts`（開始が拒否された状態） | test | 7-4・8-3 | PR-7、PR-8 |
 | AC-14 | `et/viewerApp.test.ts`・`et/popupView.test.ts`（状態ごとの固定の文言、例外の文を含まない）、`et/catalog.test.ts`（英語と日本語の文言が同じ項目を持つ）、文言の読み合わせ | test、manual | 8-3 | PR-8 |
 | AC-15 | 文言の読み合わせ（PR のレビュー） | manual | 8-3 | PR-8 |
@@ -601,13 +601,48 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 
 各 PR のブランチで `_checks/cli_unchanged.sh` を走らせ、PR ごとに次の形で書く（PR の番号、merge-base、比べたコミット、出力）。
 
-（まだない）
+**PR-1**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
+
+-   merge-base: `9ef11235d31bc1cdd0c8368e7c14903859215500`
+-   比べたコミット: `946f01d4691dbc78660475b2e0e585b1bd40394f`
+-   出力（終了コード 0）:
+
+    ```text
+    merge-base 9ef11235d31bc1cdd0c8368e7c14903859215500 head 946f01d4691dbc78660475b2e0e585b1bd40394f
+    ok: no non-test file under cmd/yt2column/ changed
+    ```
+
+-   この記録より後の commit は、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
+-   スクリプトは、`cmd/yt2column/main.go` の変更で終了コード 1、`_test.go` だけの変更で 0、`main.go` を `_test.go` の名前に変えるリネームで 1 になることを、使い捨ての worktree で確かめた（ステップ 1-7）。
 
 ### PR-1 の前の手動の確認の記録
 
 ステップ 1-1 で書く。ブラウザの名前と版、確かめた組み合わせ（`GET /v1/models` と `POST /v1/messages`、`anthropic-workspace-id` のありとなし）、見たもの、履歴のタイトルの確かめの手順と結果、決めた案（A か B）を書く。
 
-（まだない）
+2026-11-16 に、リポジトリの外に作った試作の拡張（`host_permissions` なし、CSP は 0090 設計書 §3.7.2 の値、確認用に `storage` と `history` の権限を加えた）で確かめた。実 API の呼び出しは、人の承認を得て、ダミーのキーだけで行った（401 と 400 は料金がかからない）。
+
+-   **ブラウザ。** Chrome 157 と Brave（Chromium 157）。どちらも macOS。版は `navigator.userAgentData.brands` の値で、細かい版（ビルド番号）は記録していない。Brave のユーザエージェントは Chrome と同じなので、`brands` の `Brave` で区別した。
+-   **401 を読めるか（設計書 §1.2・§7.2）。** 拡張のページから、公開用のビルドが送る 4 つのヘッダ（`x-api-key`・`anthropic-version`・`content-type`〔POST のみ〕・`anthropic-dangerous-direct-browser-access`）と `redirect: "error"` で `fetch` を送った。**Chrome と Brave の両方で、通信の失敗にならず、状態コードを読めた。**
+
+    | 組み合わせ | Chrome | Brave |
+    |---|---|---|
+    | `GET /v1/models?limit=1`、ワークスペース ID なし | 401 `authentication_error`（`invalid x-api-key`） | 同じ |
+    | `POST /v1/messages`、ワークスペース ID なし | 401 `authentication_error` | 同じ |
+    | `GET`、形式の整った ID（`wrkspc_01AbCdEfGhJkLmNpQrStUvWx`） | 401 `authentication_error` | 同じ |
+    | `POST`、形式の整った ID | 401 `authentication_error` | 同じ |
+    | `GET`、形式不正な ID（`wrkspc_probe_invalid`） | 400 `invalid_request_error`（`anthropic-workspace-id header must be a valid workspace ID.`） | 同じ |
+    | `POST`、形式不正な ID | 400 `invalid_request_error`（同上） | 同じ |
+
+    最初の試行は、形式不正な ID だけを「あり」として送ったので 400 になった。ID の形式の検査は、キーの検査より前に行われる。形式の整った ID なら、誤ったキーは 401 になる。401 を読めたので、事前の確認（CORS の preflight）も通っている。形式不正な ID は 400 になり、`CheckKey` は `llm.ErrAuthRejected` に当たらないエラーを返すので、`checkSettings` は `unverified` として保存する（設計書の分類のとおり。変更は要らない）。
+-   **履歴の項目のタイトルが書き換わるか（設計書 §3.8.2、H-05）。** 試作のページは、`chrome.storage.session` に値があれば `VIDEO: <値> - yt2column` を、なければ `FIXED: lost - yt2column` を `document.title` にする。両方のブラウザで、(1) 値を置いてページを読み込み、履歴の項目（`chrome.history.search`）のタイトルが `VIDEO: Probe Video Title ABC - yt2column` であることを確かめ、(2) ブラウザを完全に終了し、前回のタブを復元して、タブを前面にして読み込ませた。`storage.session` は再起動で消えるので、ページは `FIXED: lost - yt2column` を出した。
+
+    | | 再起動の前の履歴のタイトル | 復元した後の履歴のタイトル |
+    |---|---|---|
+    | Chrome | `VIDEO: Probe Video Title ABC - yt2column` | `FIXED: lost - yt2column` |
+    | Brave | `VIDEO: Probe Video Title ABC - yt2column` | `FIXED: lost - yt2column` |
+
+    **両方のブラウザで、履歴の項目のタイトルが固定のタイトルに上書きされた。**
+-   **決めた案。** **案 B** で実装する（設計書 §3.8.2）。ビューアの URL にクエリ `t` を加える。PR-6 のタイトルを決める関数と、PR-7 のビューアの URL の組み立てと解析（`core/jobViewerUrl.ts`）は、案 B の規則（64 コードポイント、制御文字なし、`r` か `k` と一緒にだけ持つ）で実装する。案 B のコードを入れる PR で、ADR-0010 の「ビューアの URL」の決定を改め、要件書 §3.2 の「ビューアの URL」の行の扱いを PR の説明に書く（設計書 §3.8.2）。
 
 ### PR-6 の前の手動の確認の記録
 

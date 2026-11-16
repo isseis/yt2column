@@ -320,13 +320,15 @@ lint: wasm-check
 	$(GOCMD) vet -tags integration ./...
 
 # The packages the WebAssembly core is built from (the transcript types and
-# CopiedSource, the article writer, the Claude adapter, and the pricing table),
-# and the development fake LLM, must keep compiling for js/wasm. This checks
-# only that they build; behavior that fails at run time in a browser (file
-# system access) is not found here.
-# The two vet runs also compile the js-only files, which `make test` skips.
-WASM_PACKAGES = ./internal/transcript ./internal/writer ./internal/llm/claude ./internal/pricing ./internal/llm/devfake
-WASM_VET_PACKAGES = ./internal/writer ./internal/transcript
+# CopiedSource, the article writer, the Claude adapter and the HTTP send path it
+# uses, and the pricing table), and the development fake LLM, must keep
+# compiling for js/wasm. This checks only that they build; behavior that fails
+# at run time in a browser (file system access) is not found here.
+# The vet run also compiles the js-only files, which `make test` and
+# golangci-lint skip: the two packages with a file only a js build compiles
+# (llmhttp and claude) are vetted along with the others.
+WASM_PACKAGES = ./internal/transcript ./internal/writer ./internal/llm/claude ./internal/llm/llmhttp ./internal/pricing ./internal/llm/devfake
+WASM_VET_PACKAGES = ./internal/writer ./internal/transcript ./internal/llm/llmhttp ./internal/llm/claude
 
 wasm-check:
 	GOOS=js GOARCH=wasm $(GOCMD) build $(WASM_PACKAGES)
