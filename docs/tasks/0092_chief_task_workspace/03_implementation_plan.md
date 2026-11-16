@@ -84,7 +84,7 @@
 | 厳密な JSON | `Object.Collect` は名前の完全一致で重なりを拒む（`internal/strictjson/strictjson.go:91-103`）。大文字と小文字だけ違う名前は拒まない | それを拒む新しいメソッド。今の `Collect`・`CollectOnly` は変えない。PR-2 |
 | 作る場所 | `Worktree` は `CanonicalWorktree` だけが作る（`internal/chief/records.go:519-548`）。送れない文字の規則 `transcriptDirChars`（`internal/chief/transcript.go:45`）。`Env.Home`（`internal/chief/records.go:68`） | `TaskSpace` と、作る前の正規のパスの作り方（設計書 3.2）。PR-2 |
 | issue | `paneinput.ParseIssueNumber`（`internal/chief/paneinput/paneinput.go:66`）と `NewMkreq`（`internal/chief/paneinput/paneinput.go:297`）。無害化 `Sanitize`（`internal/chief/sanitize.go:75`）。外部のコマンドの出力の上限は 4 MiB（`internal/chief/runner.go:48`） | `gh api graphql` の問い合わせと応答の読み取り、応答の 64 KiB の上限、題名の上限。PR-2 |
-| git | `GitReader` の `Fetch`・`Branch`・`Head`・`Clean`・`RemoteMain`（`internal/chief/workspace.go:86-280`）。`Clean` を本物の git で確かめるテストはない（`internal/chief/workspace_test.go`） | `worktree add --detach`・`worktree remove`・`worktree list --porcelain`・`merge-base --is-ancestor`。`Clean` の本物の git のテスト。PR-2 |
+| git | `GitReader` の `Fetch`・`Branch`・`Head`・`Clean`・`RemoteMain`（`internal/chief/workspace.go:86-280`）。どれも読み取りである。`Clean` を本物の git で確かめるテストはない（`internal/chief/workspace_test.go`） | `worktree list --porcelain`・`merge-base --is-ancestor` と `Clean` の本物の git のテスト（PR-2）。`worktree add --detach` は作成の中で `TaskSpace` を取って（PR-4）、`worktree remove` は `WorkspaceCloser` のメソッドで（PR-6）呼ぶ |
 | タスクの文書 | `Tasks.Read` はブランチ名からディレクトリを探す（`internal/chief/task.go:786-855`）。`Plan.Done`（`internal/chief/task.go:693`） | `対応 issue:` の行の読み方と、ディレクトリの名前から読む口。`Tasks.Read` と同じ読み方を使う。PR-2 |
 | 記録 | 記録は同じ名前を置き換えない（`internal/chief/records.go:144-157`、`privatefile.Create`）。消すのは `privatefile.Remove`（`internal/privatefile/privatefile.go:485`。`internal/chief/records.go:890` が使う）。記録の名前は `internal/chief/records.go:572-578`、排他は `WorkspaceRecords.Lock`（`internal/chief/records.go:642`）。記録のディレクトリを作らずに読む `existingRecords`（`internal/chief/records.go:615`） | `created.json` の作る・読む・消す、ディレクトリの記録を消す操作（PR-3）、作成の排他（決定 5。PR-4） |
 | 送信 | `Send` は `offered` で行の状態を確かめる（`internal/chief/request.go:224-227`）。`holdWorkspace` は自分で排他を取る（`internal/chief/request.go:263-298`）。`sendCommand`（`internal/chief/send.go:399`）は最初の確かめで transcript を読む（`internal/chief/send.go:423`） | すでに持っている排他を受け取る入口 `sendAfterCreate`。`holdWorkspace` の排他を取った後の部分を共有する。PR-3 |
@@ -148,9 +148,7 @@
 -   [ ] **ステップ 2-3**: `taskspace.go` に `TaskSpace`・`NewTaskSpace`・`TaskSpace.Worktree` を書き、`records.go` の `Worktree` の型のコメントに 2 つめの作り方を書く（設計書 3.2）。テストは、番号からパスと名前が決まること、`$HOME` が相対パスのとき、送れない文字を含むとき（リンクを解決した後に含むときを含む）、途中にディレクトリでないものがあるとき、ゼロ値が何も返さないことを確かめる。一時的なディレクトリとシンボリックリンクで確かめる。`construction_test.go` に決定 11 のガードを作り、`TaskSpace` を対象にする。
 -   [ ] **ステップ 2-4**: `taskspace.go` に、`herdr pane list` からパスの workspace を求める読み方を書く（設計書 3.3.2）。テストは、パスそのもの・その下・その外（名前の前方だけ一致するパスを含む）の pane、chief の workspace、シェルだけの pane を確かめる。
 -   [ ] **ステップ 2-5**: `issue.go` に、`gh api graphql` の `issueOrPullRequest` の問い合わせと応答の読み取りを書く（設計書 3.3.1）。問い合わせの変数は `-F` で渡す（`{owner}`・`{repo}` を gh が埋め、`$n` を数として渡すため。`gh api --help`）。応答は 64 KiB を上限とする。結果は、ゼロ値を読めないものとする列挙の型で返す。題名は無害化して上限で切り、切ったことを返す（決定 6）。テストは、PR-1 のサンプルで 4 つの形を見分けること、設計書 7.1 の拒む形を 1 つずつ拒むこと、64 KiB の境界、題名の上限の境界を確かめる。題名の境界のテストは、日本語でない複数バイトの文字を使う。`--jq` を使わないこと、chief の worktree で `GH_REPO`・`GH_HOST` なしに走ること、問い合わせが `mutation` を含まないことを確かめる（決定 7）。
--   [ ] **ステップ 2-6**: `workspace.go` の `GitReader` に、`worktree add --detach`・`worktree remove`（`--force` なし）・`worktree list --porcelain` の読み取り（パス、`locked`、ディレクトリのない登録）・`merge-base --is-ancestor`（0・1・それ以外を分ける）を足す。`newTestRepo` の一時的なリポジトリの本物の git で、次を確かめる。
-    -   `worktree add --detach` がブランチを作らない。
-    -   `worktree remove` が変更のある worktree と追跡していないファイルのある worktree を拒む。detached の worktree でブランチを作ってから detached に戻した worktree を消しても、そのブランチは残る。
+-   [ ] **ステップ 2-6**: `workspace.go` の `GitReader` に、`worktree list --porcelain` の読み取り（パス、`locked`、ディレクトリのない登録）と `merge-base --is-ancestor`（0・1・それ以外を分ける）を足す。`GitReader` は読み取りだけを持ち、`worktree add`・`worktree remove` は持たない（生のパスで worktree を作るか消す口を作らないため。書き込みは、ステップ 4-2 の `TaskSpace` を取る作成と、ステップ 6-1 の `WorkspaceCloser` が持つ）。`newTestRepo` の一時的なリポジトリの本物の git で、次を確かめる。
     -   PR-1 のサンプルと本物の git の出力で、porcelain を読める。
     -   `merge-base --is-ancestor` の、祖先・祖先でない・ないコミットの 3 つ。
     -   今の `Clean` が、ステージした変更と入れ子のディレクトリの追跡していないファイルを数え、git が無視するファイルを数えない。
@@ -224,6 +222,7 @@
     -   ゼロ値は何も走らせない（決定 11）。`construction_test.go` のガードの対象に足す。`PaneWriter` のコメントを「pane へ入力を送る唯一の部品」に直す（設計書 2.2）。
     -   テストは、herdr のすべての書き込みが自分の作った ID だけを持ち、`--session` などの引数を持たないこと（AC-09・AC-13）、`agent start` の時間の上限が 75 秒であること（記録係が記録する上限で確かめる）を確かめる。
 -   [ ] **ステップ 4-2**: `create.go` に `Create` を書く（設計書 3.3.2・3.3.3・3.3.4・4.1）。
+    -   worktree は、`TaskSpace` を取る unexported の関数で `git worktree add --detach` を呼んで作り、生のパスを取らない。`newTestRepo` の一時的なリポジトリの本物の git で、ブランチを作らないことを確かめる。
     -   確かめの順、作る段、`agent start` のエラーの応答の扱い（`agent get` でエージェントの有無を確かめる）、全体の時間の上限（決定 6）、結果の型（`CreateOutcome` など、設計書 3.6）と、その出力（`output.go`）を書く。
     -   テストは設計書 7.1 の「作成」の項目と 7.4 を受け持つ。各段を 1 つずつ失敗させ、後の段の呼び出しと `/mkreq` がなく、作ったものを示すことを確かめる。結果の出力も確かめる。
     -   `network_test.go` に、`create` が gh を chief の worktree の `api graphql` の決まった形でだけ、git を chief の worktree と作った worktree でだけ走らせることを確かめるテストを足す。
@@ -297,7 +296,7 @@
 
 **変更するファイル:** `internal/chief/removal.go`・`removal_test.go`、`internal/chief/output.go`、`internal/chief/network_test.go`、`internal/chief/world_test.go`・`sim_test.go`、`internal/chief/construction_test.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 6-1**: `removal.go` に `WorkspaceCloser` を書く（設計書 3.6）。削除の確かめをすべて通った `RemovalCandidate` からだけ作り、`herdr workspace close <ID>` を `--group` なしで呼ぶ。ゼロ値は何も走らせず、`construction_test.go` のガードの対象に足す（決定 11）。テストは、確かめが 1 つでも通らない候補から作れないこと、ゼロ値が herdr を呼ばないこと、呼び出しの引数を確かめる。
+-   [ ] **ステップ 6-1**: `removal.go` に `WorkspaceCloser` を書く（設計書 3.6）。削除の確かめをすべて通った `RemovalCandidate` からだけ作り、`herdr workspace close <ID>` を `--group` なしで呼ぶ。`git worktree remove`（`--force` なし）も `WorkspaceCloser` のメソッドだけが、候補の worktree のパスで呼ぶ。`newTestRepo` の一時的なリポジトリの本物の git で、変更のある worktree と追跡していないファイルのある worktree を git が拒むこと、detached の worktree でブランチを作ってから detached に戻した worktree を消してもそのブランチが残ることを確かめる。ゼロ値は何も走らせず、`construction_test.go` のガードの対象に足す（決定 11）。テストは、確かめが 1 つでも通らない候補から作れないこと、ゼロ値が herdr を呼ばないこと、呼び出しの引数を確かめる。
 -   [ ] **ステップ 6-2**: `removal.go` に `Remove` を書く（設計書 3.4.3・4.1）。
     -   `--workspace` を `locate`（`internal/chief/request.go:134`）で今のタスクの workspace と比べる。排他、fetch、確かめ、閉じる直前の読み直し、閉じる、pane が消えるのを待つ（決定 6）、HEAD の確かめ直し、`git worktree remove`、記録を消す（作ったことの記録を最後に）の順に行う。
     -   全体の時間の上限と、結果の型（`RemoveOutcome` など）とその出力を書く。
@@ -409,7 +408,7 @@
 
 -   **ユニットテスト:** 判定と副作用は `internal/chief` と `cmd/chief` のユニットテストで確かめる。外部のコマンドは呼び出しの記録係で、Herdr・gh・git の出力は `testdata/` のサンプルで、要件定義書と計画書は `testdata/requirements/`・`testdata/plans/` のサンプルで、時刻・待ち・時間の上限は差し込んだ fake で置き換える。設計書 7.1 の各項目は、§2 の各ステップのテストが受け持つ。
 -   **書き込みの確かめ:** 呼び出しの記録係は、テストが操作ごとに置いた書き込みの許可だけを通し、ほかの書き込みでテストを失敗にする（決定 7）。`gh api graphql` は、決まった形のほかを通さない。そのため、`internal/chief` のテストでは、`snapshot`・`tick`・`targets` と、確かめを通らない作成と削除が書き込みをしないことを確かめられる。状態のディレクトリの記録を消さないことは、テストがディスクの記録を読んで確かめる（ステップ 5-4）。
--   **本物の git:** `worktree add --detach`・`worktree remove`・porcelain・`merge-base --is-ancestor`・`status --porcelain`・`git grep` の振る舞いは、`newTestRepo` の一時的なリポジトリでも確かめる（ステップ 2-6・2-7）。利用者の git の設定と署名には触れない（0088 計画書の決定 19）。
+-   **本物の git:** `worktree add --detach`・`worktree remove`・porcelain・`merge-base --is-ancestor`・`status --porcelain`・`git grep` の振る舞いは、`newTestRepo` の一時的なリポジトリでも確かめる（ステップ 2-6・2-7・4-2・6-1）。利用者の git の設定と署名には触れない（0088 計画書の決定 19）。
 -   **書く部品の型:** ゼロ値が何も走らせないことと、構文木のガード（決定 11）で確かめる。
 -   **並行の処理:** 作成の排他と workspace ごとの排他は、テストが排他を持ったまま相手を呼ぶ形で、決まった順に起こす（ステップ 4-4）。ゴルーチンの競争の結果には頼らない。
 -   **境界の値:** 題名の上限、issue の応答の 64 KiB、`agent start` の時間の上限、全体の時間の上限、pane が消えるのを待つ回数は、境界の前後をテストする。
@@ -457,7 +456,7 @@
 | AC-05 | `ic/issue_test.go::TestReadIssueSamples`、`ic/issue_test.go::TestReadIssueRejects`、`ic/create_test.go::TestCreateRefusesIssue`（何も作らない） | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-06 | `ic/create_test.go::TestCreateIssueForm`、`ic/create_test.go::TestTargets`（`issue_form`）、`cc/main_test.go::TestIssueFormIsNoUsageError` | test | 4-2・4-3・7-1 | PR-4、PR-7 |
 | AC-07 | `ic/issue_test.go::TestIssueTitleSanitizedAndCapped`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
-| AC-08 | `ic/workspace_test.go::TestWorktreeAddDetached`（本物の git でブランチを作らない）、`ic/create_test.go::TestCreateStages`（fetch の後のコミットで作る） | test | 2-6・4-2 | PR-2、PR-4 |
+| AC-08 | `ic/create_test.go::TestWorktreeAddDetached`（本物の git でブランチを作らない）、`ic/create_test.go::TestCreateStages`（fetch の後のコミットで作る） | test | 4-2 | PR-4 |
 | AC-09 | `ic/create_test.go::TestCreateStages`（workspace とタブ 3 つ、`--session` なし）、`ic/create_test.go::TestCreateChecksPanes`、実地の確かめ | test、manual | 4-2・7-5 | PR-4、PR-7 |
 | AC-10 | `ic/create_test.go::TestWorkspaceMakerStartsAgentsWithoutArguments`、`ic/send_test.go::TestSendAfterCreateInputs` | test | 3-3・4-1 | PR-3、PR-4 |
 | AC-11 | `ic/create_test.go::TestCreateRefusesExisting`（ファイル・ディレクトリ・リンク、登録だけの worktree、パスの workspace）、`ic/taskspace_test.go::TestTaskSpaceRefusesUnsupportedPath`、`ic/create_test.go::TestCreateFetchFailure` | test | 2-3・4-2 | PR-2、PR-4 |
@@ -480,7 +479,7 @@
 | AC-28 | `ic/removal_test.go::TestRemovalChecks`、`ic/workspace_test.go::TestCleanRealGit`、`ic/workspace_test.go::TestIsAncestorRealGit`、`ic/removal_test.go::TestRemoveRefusesOnEachCheck`（何も閉じず消さない）、`ic/removal_test.go::TestRemoveRefusesWhenChanged` | test | 2-6・5-2・6-2 | PR-2、PR-5、PR-6 |
 | AC-29 | `ic/removal_test.go::TestRemoveFetchFailure` | test | 6-2 | PR-6 |
 | AC-30 | `ic/removal_test.go::TestRemoveClosesThenRemoves`、`ic/sim_test.go::TestCreateToRemove`、実地の確かめ | test、manual | 6-2・6-3・7-5 | PR-6、PR-7 |
-| AC-31 | `ic/removal_test.go::TestRemoveLeavesTheRest`（`--force` なし、その workspace の記録だけを消す）、`ic/workspace_test.go::TestWorktreeRemoveKeepsBranch`（本物の git） | test | 2-6・6-2 | PR-2、PR-6 |
+| AC-31 | `ic/removal_test.go::TestRemoveLeavesTheRest`（`--force` なし、その workspace の記録だけを消す）、`ic/removal_test.go::TestWorktreeRemoveKeepsBranch`（本物の git） | test | 6-1・6-2 | PR-6 |
 | AC-32 | `ic/removal_test.go::TestRemoveStopsAtEachStage`、`ic/removal_test.go::TestRemoveStopsWhenHeadMoved`、`ic/removal_test.go::TestRemoveDeadline` | test | 6-2 | PR-6 |
 | AC-33 | `ic/sim_test.go::TestCreateToRemove`（消した後の周で行も項目もない） | test | 6-3 | PR-6 |
 
