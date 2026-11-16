@@ -209,7 +209,7 @@ flowchart TB
 | `internal/chief/detail.go` | 変更 | `readReport` が報告の入口で Claude Code の pane の報告を読む。`keptReport` が報告の控えを作る。`ReportFromScreen` の名前を `ReportFromPane` にする（記録の値 `report` は変えない）。PR の詳細に、PR の説明を示した理由を足す（3.6・4.2） |
 | `internal/chief/request.go` | 変更 | `ensureDetail` が、控えを `keptPaneReport` で読む（3.6）。`--command reset` と `--offer` を受け付け、提案の記録で確かめてから送る（3.12） |
 | `internal/chief/reset.go` | 変更 | `resetAfterRunpr` の画面の確かめを、報告の入口の確かめに替える。控えを `keptPaneReport` で読む（3.7）。提案の記録を作る（3.12） |
-| `internal/chief/records.go` | 変更 | 報告の控えと提案の記録の名前の形（`report-<PR 番号>-<head>.json`・`offer-<hash>-<番号>.json`）と、PR の詳細の控えと報告の控えを決まった順に読む `keptPaneReport` を足す。古い記録を消す処理と、workspace を消したときに記録を消す処理が、報告の控えと提案の記録も消す（3.6・3.12） |
+| `internal/chief/records.go` | 変更 | 報告の控えと提案の記録の名前の形（`report-<PR 番号>-<head>.json`・`offer-<hash>-<番号>.json`）と、PR の詳細の控えと報告の控えを決まった順に読む `keptPaneReport` を足す。古い記録を消す処理が報告の控えも消し、workspace を消したときに記録を消す処理が報告の控えと提案の記録も消す（3.6・3.12） |
 | `internal/chief/offer.go` | 新規 | 提案の記録の型、作る関数、状況の表を作るときに今の状態と比べて示すかを決める関数（3.12） |
 | `internal/chief/pending.go`・`internal/chief/snapshot.go` | 変更 | 人の判断を待つものの種類 `reset` を足し、提案の記録から空にする提案を作る（3.12） |
 | `cmd/chief/main.go` | 変更 | `send` の `--offer` の引数（`subcommandFlags`、`cmd/chief/main.go:69`）（3.12） |
@@ -499,7 +499,7 @@ func CapHead(text string) Capped
 
 | 空にしなかった場合 | Claude Code の pane | OpenCode の pane |
 |---|---|---|
-| transcript を読めない（`no_transcript`・`unsupported_path`） | 作る | 関係しない |
+| transcript を読めない（`no_transcript`・`unsupported_path`） | 作る。ただし、Herdr がセッションを報告していないときは作らない（要件書 AC-20 の「同じセッション」を確かめられないため） | 関係しない |
 | ④で、控えがないか、出どころが pane の報告でない（`no_report`） | transcript を読み、人の最後の入力がもとのコマンドなら作る。違えば作らず、理由を `other_input` にする | 作る（③は OpenCode の pane から報告を控えない） |
 | ④で、控えの pane が候補の pane と違う（`no_report`） | 作らない（報告はほかの pane にある） | 作らない |
 | ④で、最後の報告がないか PR の記録が PR を名指さない（`no_report`） | 人の最後の入力がもとのコマンドなら作る。違えば作らず、`other_input` にする | 関係しない |
@@ -548,7 +548,7 @@ type resetOffer struct {
 -   新しい理由の値は足さない。
 -   `send` の引数と出力の種類が増えるので、道具の `Protocol`（`internal/chief/records.go:25-28`）を 1 つ上げ、`/chief` の定義の値も合わせる。今の `TestDocumentedProtocolMatches` が、2 つが等しいことを確かめる。
 
-**記録を消すとき。** 提案の記録は、PR の詳細の控えと同じ期限（`detailMaxAge`）で、古い記録を消す処理が消す。workspace を消したときにも消す（0092）。状態が変わった記録は示さないだけで、期限まで残す。
+**記録を消すとき。** 提案の記録は、期限では消さない。期限で消すと、pane の状態が変わらないまま期限を過ぎた提案を示せなくなり、要件書 AC-21 に反するためである。workspace を消したときに、その workspace の記録とともに消す（0092）。状態が変わった記録は示さないだけで残す。記録は空にしなかったリセット 1 回につき 1 つで、大きさは数百バイトなので、溜まっても害はない。
 
 **OpenCode の pane の残る危険。** OpenCode の pane は、Herdr がセッションを報告しないので、同じ pane かどうかを、pane の識別子・作業ディレクトリ・状態の変化の番号で確かめる。Herdr が pane の識別子を使い回し、新しい pane の状態の変化の番号が偶然等しいときは、人が開いたばかりの pane を空にする提案を示しうる。2026-11-17 の `herdr agent list` では、pane ごとの番号が 5,165〜5,400 で、Herdr 全体の通し番号のように見えた。そうであれば、偶然等しくなることはまれである。Herdr を起動し直したときに番号が戻るかは確かめていない。送るのは人が選んだときだけで、示す提案には pane と理由が出るので、これを残る危険として受け入れる。計画の最初のフェーズで、Herdr を起動し直したときの番号を確かめる。
 
