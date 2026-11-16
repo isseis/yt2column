@@ -111,7 +111,9 @@ func buildInfo(info BackendInfo) buildInfoJSON {
 
 // Module holds one Worker's state: the Backend and the input Prepare kept. Its
 // methods are the four JavaScript functions' JSON entry points. It is safe for
-// concurrent use.
+// concurrent use. Only PrepareJSON bounds its request (4 MiB); the other
+// requests are small and come from the same page. The kept input stays until
+// the next accepted prepare, so a retry with the same digest can run again.
 type Module struct {
 	backend Backend
 
@@ -176,7 +178,14 @@ func marshalFixed(v any) string {
 // their shape, then, only when the shape is accepted, the API key with one
 // Models API call. The request is {anthropicApiKey, anthropicWorkspaceId},
 // both strings; a request of another shape is rejected with both fields.
-func (m *Module) CheckSettingsJSON(ctx context.Context, request string) string {
+func (m *Module) CheckSettingsJSON(ctx context.Context, request string) (out string) {
+	defer func() {
+		if recover() != nil {
+			// A panic of the Backend must not end the Go program, which
+			// would fail every later call; the check could not be made.
+			out = marshalFixed(settingsCheckResult{Status: "unverified"})
+		}
+	}()
 	both := []string{memberAPIKey, memberWorkspaceID}
 	object, err := strictjson.ParseObject([]byte(request))
 	if err != nil {
@@ -386,7 +395,14 @@ func failedGenerate(failure Failure, detail InternalDetail) string {
 // kept input (internal, input_mismatch), and the settings (settings_invalid,
 // every step pending). The result and the progress events never carry the API
 // key.
-func (m *Module) GenerateJSON(ctx context.Context, request string, onProgress func(event string)) string {
+func (m *Module) GenerateJSON(ctx context.Context, request string, onProgress func(event string)) (out string) {
+	defer func() {
+		if recover() != nil {
+			// Run recovers its own panics; this covers the Backend's
+			// NewClients and the marshaling.
+			out = failedGenerate(FailureInternal, DetailPanic)
+		}
+	}()
 	req, ok := parseGenerateRequest(request)
 	if !ok {
 		return failedGenerate(FailureInternal, DetailRequestShape)
