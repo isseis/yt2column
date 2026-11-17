@@ -6,8 +6,6 @@ import type { Catalog, Message } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import { maxBodyBytes } from "../src/core/prepare.ts";
-import { failureCodes, startRejectStatus } from "../src/core/response.ts";
-import type { ServerRejectReason } from "../src/core/response.ts";
 
 const localeList = Object.keys(locales) as Locale[];
 
@@ -19,12 +17,12 @@ function textOf(message: Message): string {
 // Slack, in either script: the start's messages must name it in neither locale.
 const slackWord = /slack|\u30b9\u30e9\u30c3\u30af/iu;
 
-// No text mentions an options page, a token or a port. The ja words are
-// whole terms: the bare katakana for "port" would also match words such as
-// "support" and "report".
+// No text mentions a token or a port, the values of a version that talked to
+// a local server. The ja words are whole terms: the bare katakana for "port"
+// would also match words such as "support" and "report".
 const forbiddenWords: Record<Locale, RegExp> = {
-  en: /option|token|\bport\b/iu,
-  ja: /オプション|トークン|ポート番号/u,
+  en: /token|\bport\b/iu,
+  ja: /トークン|ポート番号/u,
 };
 
 interface Entries {
@@ -188,10 +186,10 @@ describe("catalogs", () => {
   });
 
   for (const locale of localeList) {
-    it(`never mentions an options page, a token or a port in ${locale}`, () => {
+    it(`never mentions a token or a port in ${locale}`, () => {
       const { messages, labels } = entries(catalogs[locale]);
-      // Precondition: the walk reached the job API's sections too.
-      assert.ok(messages.has("startExchange.noResponse"));
+      // Precondition: the walk reached the start's and the job's sections too.
+      assert.ok(messages.has("startRejected.internal"));
       assert.ok(labels.has("viewer.save"));
       for (const [path, message] of messages) {
         assert.doesNotMatch(textOf(message), forbiddenWords[locale], path);
@@ -202,39 +200,33 @@ describe("catalogs", () => {
     });
 
     it(`gives every failure code a distinct message in ${locale}`, () => {
-      const codes = Object.keys(failureCodes) as (keyof typeof failureCodes)[];
-      const texts = codes.map((code) => catalogs[locale].failure[code].text);
-      assert.equal(new Set(texts).size, codes.length);
+      const failures = Object.values(catalogs[locale].failure);
+      const texts = failures.map((message) => message.text);
+      assert.equal(new Set(texts).size, failures.length);
     });
 
-    it(`never mentions Slack while sending or for a start's result in ${locale}`, () => {
+    it(`never mentions Slack while starting or for a start's result in ${locale}`, () => {
       const catalog = catalogs[locale];
-      const startReasons = Object.keys(
-        startRejectStatus,
-      ) as ServerRejectReason[];
       const walked = entries(catalog).messages;
       const checked: [string, Message][] = [
         ["popup.sending", catalog.popup.sending],
         ["popup.viewerNotice", catalog.popup.viewerNotice],
-        ["viewer.sending", catalog.viewer.sending],
+        ["viewer.preparing", catalog.viewer.preparing],
         ...[...walked].filter(
           ([path]) =>
-            path.startsWith("startExchange.") ||
-            path.startsWith("startResult."),
+            path.startsWith("startRejected.") ||
+            path === "startUnknown" ||
+            path === "inputUnavailable",
         ),
-        ...startReasons.map((reason): [string, Message] => [
-          `jobReject.${reason}`,
-          catalog.jobReject[reason],
-        ]),
       ];
-      // Precondition: the walk went down into the nested not-sent messages
-      // and reached the results.
+      // Precondition: the walk went down into the nested rejections and
+      // reached the results.
       const paths = checked.map(([path]) => path);
       for (const path of [
-        "startExchange.notSent.server-unavailable",
-        "startExchange.notSent.message-too-large",
-        "startExchange.unexpected",
-        "startResult.noResult",
+        "startRejected.invalid_body",
+        "startRejected.too_many_requests",
+        "startUnknown",
+        "inputUnavailable",
       ]) {
         assert.ok(paths.includes(path), path);
       }

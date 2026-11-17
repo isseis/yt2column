@@ -280,7 +280,7 @@ typecheckSuite(
     complete: { body: "export const c: Catalog = full;\n" },
     // A top-level item is missing.
     missingTopLevel: {
-      body: 'export const c: Catalog = full as Omit<Catalog, "startResult">;\n',
+      body: 'export const c: Catalog = full as Omit<Catalog, "startUnknown">;\n',
       code: "TS2741",
     },
     // One key of a Record section is missing.

@@ -10,8 +10,7 @@
 import type { ArticleKey } from "./core/articleKey.ts";
 import { statusMessage } from "./core/hostMessage.ts";
 import { afterStatus, pollIntervalMs } from "./core/poll.ts";
-import type { PollStep } from "./core/poll.ts";
-import type { JobDisplay } from "./core/jobView.ts";
+import type { JobDisplay, PollStep } from "./core/poll.ts";
 import {
   classifyStatus,
   isExchangeFailureView,

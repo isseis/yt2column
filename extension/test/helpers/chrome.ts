@@ -37,6 +37,7 @@ import type {
   AwaitStart,
   StartRequest,
 } from "../../src/core/extensionMessages.ts";
+import type { SwRequest } from "../../src/core/jobMessages.ts";
 import { settle } from "./clock.ts";
 
 export const fakeExtensionId = "abcdefghijklmnopabcdefghijklmnop";
@@ -160,6 +161,38 @@ export function pendingWorker(): PendingWorker {
       resolve(reply);
       await settle();
     },
+  };
+}
+
+/** The service worker side of a page's requests in the extension-only path, answered by the test. */
+export interface PendingSw {
+  readonly send: (request: SwRequest) => Promise<BrowserCall<unknown>>;
+  /** Every request sent, in order. */
+  readonly sent: SwRequest[];
+  /** Answers the oldest open request and lets the page run. */
+  answer(reply: BrowserCall<unknown>): Promise<void>;
+  /** How many requests wait for an answer. */
+  open(): number;
+}
+
+export function pendingSw(): PendingSw {
+  const sent: SwRequest[] = [];
+  const waiting: ((reply: BrowserCall<unknown>) => void)[] = [];
+  return {
+    sent,
+    send: (request) => {
+      sent.push(structuredClone(request));
+      return new Promise((resolve) => waiting.push(resolve));
+    },
+    answer: async (reply) => {
+      const resolve = waiting.shift();
+      if (resolve === undefined) {
+        throw new Error("no service worker request is open");
+      }
+      resolve(reply);
+      await settle();
+    },
+    open: () => waiting.length,
   };
 }
 

@@ -8,19 +8,11 @@ import { catalogs } from "../core/i18n/catalog.ts";
 import type { Message } from "../core/i18n/catalog.ts";
 import { formatDuration, formatUsd } from "../core/i18n/locale.ts";
 import type { Locale } from "../core/i18n/locale.ts";
-import type {
-  JobDisplay,
-  PollNotice,
-  StartFailure,
-  ViewerState,
-} from "../core/jobView.ts";
+import { costUnknown } from "../core/jobView.ts";
+import type { JobDisplay, StartFailure, ViewerState } from "../core/jobView.ts";
 import type { PopupJobState } from "../core/popupView.ts";
-import { stepNames } from "../core/response.ts";
-import type { Article, RequestId, StepName, Steps } from "../core/response.ts";
-import {
-  startResultMessage,
-  statusNoticeMessage,
-} from "../core/sendMessages.ts";
+import { jobMessage, startFailureMessage } from "../core/sendMessages.ts";
+import type { ArticleResult, StepName, Steps } from "../core/wasmResult.ts";
 import { drawOnKeyChange } from "./drawOnChange.ts";
 import { loadingIcon, stepIcon } from "./icons.ts";
 import { messageNodes } from "./message.ts";
@@ -33,12 +25,11 @@ import { messageNodes } from "./message.ts";
 export type ElapsedTime =
   { readonly kind: "shown"; readonly ms: number } | { readonly kind: "hidden" };
 
-// The steps in the order the server runs them, which is the order of the
-// record every step name is checked against.
-const stepOrder = Object.keys(stepNames) as StepName[];
+// The steps in the order the module runs them.
+const stepOrder: readonly StepName[] = ["draft", "shorten", "review"];
 
 /**
- * The generation steps as a list, one item per step in the order the server
+ * The generation steps as a list, one item per step in the order the module
  * runs them. Each item holds, in the order assistive technology reads them,
  * the symbol (aria-hidden), the step's name and the state's word (visually
  * hidden), like a check row of the popup.
@@ -103,7 +94,7 @@ function elapsedTime(
 /** The finished article's time taken and its estimated cost. */
 function articleFacts(
   doc: Document,
-  article: Article,
+  article: ArticleResult,
   locale: Locale,
 ): HTMLDListElement {
   const viewer = catalogs[locale].viewer;
@@ -147,10 +138,16 @@ export function stepsSummary(steps: Steps, locale: Locale): string {
   );
 }
 
+/** The cost of a job that called the LLM API but made no article: always unknown, never an amount. */
+function unknownCost(doc: Document, locale: Locale): HTMLDListElement {
+  const viewer = catalogs[locale].viewer;
+  return factList(doc, "job-result", [[viewer.cost, viewer.costUnknown]]);
+}
+
 /**
  * The job's part of a state summary. The done sentences differ between the
  * popup and the viewer, so the caller supplies them; every other kind reads
- * the same catalog entries in both pages.
+ * the same catalog entries in both pages. A job whose cost is unknown says so.
  */
 export function jobStateSummary(
   job: JobDisplay,
@@ -158,126 +155,48 @@ export function jobStateSummary(
   locale: Locale,
 ): string[] {
   const catalog = catalogs[locale];
-  switch (job.kind) {
-    case "running":
-      return [catalog.viewer.running, stepsSummary(job.steps, locale)];
-    case "done":
-      return [...done];
-    case "failed":
-      return [catalog.failure[job.failure].text];
-    case "lost":
-      return [catalog.viewer.lost.text];
+  if (job.kind === "running") {
+    return [catalog.viewer.running, stepsSummary(job.steps, locale)];
   }
-}
-
-/** The summary while a key waits for its first status, plus a failed exchange's notice. */
-export function waitingSummary(notice: PollNotice, locale: Locale): string[] {
+  if (job.kind === "done") {
+    return [...done];
+  }
+  const message = jobMessage(job, locale);
   return [
-    ...(waitsForStatus(notice) ? [catalogs[locale].viewer.loading.text] : []),
-    ...noticeSummary(notice, locale),
+    ...(message === undefined ? [] : [message.text]),
+    ...(costUnknown(job)
+      ? [`${catalog.viewer.cost} ${catalog.viewer.costUnknown}`]
+      : []),
   ];
 }
 
-/** The summary of a start that gave no key. */
+/** The summary of a start that gave no job. */
 export function startFailureSummary(
   failure: StartFailure,
   locale: Locale,
 ): string[] {
-  return [startResultMessage(failure, locale).text];
+  return [startFailureMessage(failure, locale).text];
 }
 
-/** The server's request id as text, one click away from a full copy. */
-export function requestIdNode(
-  doc: Document,
-  requestId: RequestId,
-): HTMLParagraphElement {
-  const id = doc.createElement("p");
-  id.className = "send-request-id";
-  id.textContent = requestId;
-  return id;
-}
-
-/** A message followed, when the server gave one, by its request id as text. */
-function messageWithRequestId(
+/** A message in a block of its class. */
+function messageBlock(
   doc: Document,
   className: string,
   message: Message,
-  requestId: RequestId | undefined,
 ): HTMLDivElement {
   const block = doc.createElement("div");
   block.className = className;
   block.append(...messageNodes(doc, message));
-  if (requestId !== undefined) {
-    block.append(requestIdNode(doc, requestId));
-  }
   return block;
 }
 
-/** A start that gave no key: its reason and steps, and a rejection's request id. */
+/** A start that gave no job: its reason and steps. */
 export function startFailure(
   doc: Document,
   failure: StartFailure,
   locale: Locale,
 ): HTMLDivElement {
-  return messageWithRequestId(
-    doc,
-    "failure",
-    startResultMessage(failure, locale),
-    failure.kind === "rejected" ? failure.requestId : undefined,
-  );
-}
-
-/** The notice of a failed status exchange, or nothing when there is none. */
-export function pollNotice(
-  doc: Document,
-  notice: PollNotice,
-  locale: Locale,
-): HTMLDivElement[] {
-  if (notice.kind === "none") {
-    return [];
-  }
-  const { outcome } = notice;
-  return [
-    messageWithRequestId(
-      doc,
-      "job-notice",
-      statusNoticeMessage(outcome, locale),
-      outcome.kind === "rejected" ? outcome.requestId : undefined,
-    ),
-  ];
-}
-
-/**
- * Whether a state that has no status yet still waits for one: a stopped poll
- * waits for nothing, so its loading mark and sentence are dropped.
- */
-export function waitsForStatus(notice: PollNotice): boolean {
-  return notice.kind !== "stopped";
-}
-
-/**
- * The nodes while a key waits for its first status: the loading mark, then a
- * failed exchange's notice. A stopped poll waits for nothing, so its notice
- * stands alone.
- */
-export function waitingNodes(
-  doc: Document,
-  notice: PollNotice,
-  locale: Locale,
-): HTMLElement[] {
-  return [
-    ...(waitsForStatus(notice)
-      ? loadingIndicator(doc, catalogs[locale].viewer.loading)
-      : []),
-    ...pollNotice(doc, notice, locale),
-  ];
-}
-
-/** The notice's part of a state summary: that the status could not be read. */
-export function noticeSummary(notice: PollNotice, locale: Locale): string[] {
-  return notice.kind === "none"
-    ? []
-    : [statusNoticeMessage(notice.outcome, locale).text];
+  return messageBlock(doc, "failure", startFailureMessage(failure, locale));
 }
 
 /** Writes the summary, one paragraph per sentence, only when it changed. */
@@ -302,14 +221,17 @@ export function writeStatusSummary(
   );
 }
 
-/** The job's own nodes: the steps and, by kind, the elapsed time, the facts or the failure. */
-function jobNodes(
+/**
+ * The job's own nodes: the steps and, by kind, the elapsed time, the facts, or
+ * the message with an unknown cost. A job that ended before the LLM API was
+ * called shows its message alone, with no steps and no cost.
+ */
+export function jobStateNodes(
   doc: Document,
   job: JobDisplay,
   elapsed: ElapsedTime,
   locale: Locale,
 ): HTMLElement[] {
-  const catalog = catalogs[locale];
   switch (job.kind) {
     case "running": {
       const checklist = stepChecklist(doc, job.steps, locale);
@@ -322,49 +244,54 @@ function jobNodes(
         stepChecklist(doc, job.steps, locale),
         articleFacts(doc, job.article, locale),
       ];
-    case "failed":
+    case "unstored":
       return [
         stepChecklist(doc, job.steps, locale),
-        messageWithRequestId(
-          doc,
-          "failure",
-          catalog.failure[job.failure],
-          undefined,
-        ),
+        articleFacts(doc, job.article, locale),
+        messageBlock(doc, "job-notice", catalogs[locale].viewer.unstored),
       ];
-    case "lost":
+    case "setup":
       return [
-        messageWithRequestId(doc, "failure", catalog.viewer.lost, undefined),
+        messageBlock(doc, "failure", catalogs[locale].setup[job.failure]),
       ];
+    case "key-rejected":
+    case "failed":
+    case "stopped": {
+      const message = jobMessage(job, locale);
+      return [
+        stepChecklist(doc, job.steps, locale),
+        ...(message === undefined
+          ? []
+          : [messageBlock(doc, "failure", message)]),
+        unknownCost(doc, locale),
+      ];
+    }
+    case "lost":
+      return [messageBlock(doc, "failure", catalogs[locale].viewer.lost)];
   }
 }
 
 /**
- * Replaces the container's children with the job's state and the notice of a
- * failed status exchange, if any. A shown elapsed time is drawn only while the
- * job runs. Drawing again replaces everything, so nothing from an earlier
- * state stays.
+ * Replaces the container's children with the job's state. A shown elapsed
+ * time is drawn only while the job runs. Drawing again replaces everything,
+ * so nothing from an earlier state stays.
  */
 export function renderJobState(
   container: HTMLElement,
   job: JobDisplay,
-  notice: PollNotice,
   elapsed: ElapsedTime,
   locale: Locale,
 ): void {
   const doc = container.ownerDocument;
-  container.replaceChildren(
-    ...jobNodes(doc, job, elapsed, locale),
-    ...pollNotice(doc, notice, locale),
-  );
+  container.replaceChildren(...jobStateNodes(doc, job, elapsed, locale));
 }
 
 /**
  * Draws a state into its container only when the state, the locale or
  * whether the elapsed time is shown changed, or when something else replaced
  * what was drawn. Otherwise only the elapsed time's value is written, so a
- * redraw each second while a job runs keeps a selection (such as a request id
- * being copied) and the focus inside the container. The key is the state's
+ * redraw each second while a job runs keeps a selection and the focus inside
+ * the container. The key is the state's
  * JSON: the state is plain data, and values that serialize the same draw the
  * same.
  */

@@ -56,7 +56,7 @@ const popupSheets = ["theme.css", "style.css"];
 const viewerSheets = ["theme.css", "viewer.css"];
 
 /** Every stylesheet under static/, each once. */
-const everySheet = ["theme.css", "style.css", "viewer.css"];
+const everySheet = ["theme.css", "style.css", "viewer.css", "options.css"];
 
 /**
  * The style rules of the given files under static/, in that order, parsed by
@@ -374,7 +374,7 @@ const contrastPairs = [
 
 describe("colour variables", () => {
   // Every stylesheet at once: the variables live in theme.css, and a pair's
-  // rules may be in any of the three files.
+  // rules may be in any of the four files.
   const { onScreen } = parseStyleSheet(everySheet);
   const light = onScreen.filter((entry) => !isDark(entry));
   const dark = onScreen.filter(isDark);

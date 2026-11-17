@@ -5,12 +5,8 @@ import { catalogs } from "../src/core/i18n/catalog.ts";
 import type { Message } from "../src/core/i18n/catalog.ts";
 import { formatDuration, locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
-import type {
-  JobDisplay,
-  PollNotice,
-  ViewerState,
-} from "../src/core/jobView.ts";
-import { startResultMessage } from "../src/core/sendMessages.ts";
+import type { JobDisplay, ViewerState } from "../src/core/jobView.ts";
+import { startFailureMessage } from "../src/core/sendMessages.ts";
 import {
   renderActionNotice,
   renderViewer,
@@ -18,6 +14,7 @@ import {
 } from "../src/ui/renderViewer.ts";
 import type {
   ActionNotice,
+  ViewerControls,
   ViewerElements,
   ViewerView,
 } from "../src/ui/renderViewer.ts";
@@ -27,37 +24,38 @@ import {
   query,
   viewerElements,
 } from "./helpers/dom.ts";
-import { article, doneJob, requestId, runningSteps } from "./helpers/job.ts";
+import {
+  article,
+  doneJob,
+  failedSteps,
+  runningSteps,
+} from "./helpers/record.ts";
 
 const localeList = Object.keys(locales) as Locale[];
 const malicious = "<img src=x onerror=alert(1)>";
 const watchUrl = "https://www.youtube.com/watch?v=abc";
-const none: PollNotice = { kind: "none" };
 const running: JobDisplay = { kind: "running", steps: runningSteps };
-const loading: ViewerState = { kind: "loading", notice: none };
-const retrying: PollNotice = {
-  kind: "retrying",
-  outcome: { kind: "no-response" },
-};
-const stopped: PollNotice = {
-  kind: "stopped",
-  outcome: { kind: "unexpected", check: "syntax" },
-};
+const loading: ViewerState = { kind: "loading" };
+const noControls: ViewerControls = { openOptions: () => {} };
 
-/** A view of state, with the elapsed time and the existing-article mark. */
+/** A view of state in a release build, with the elapsed time and the existing-article mark. */
 function view(state: ViewerState, elapsedMs = 0, existing = false): ViewerView {
-  return { state, elapsedMs, existing };
+  return { state, elapsedMs, existing, buildKind: "release" };
 }
 
-/** A job state with no notice. */
-function jobState(job: JobDisplay, notice: PollNotice = none): ViewerState {
-  return { kind: "job", job, notice };
+/** A job state. */
+function jobState(job: JobDisplay): ViewerState {
+  return { kind: "job", job };
 }
 
 /** Fresh skeleton elements with the view drawn into them. */
-function drawn(viewerView: ViewerView, locale: Locale): ViewerElements {
+function drawn(
+  viewerView: ViewerView,
+  locale: Locale,
+  controls: ViewerControls = noControls,
+): ViewerElements {
   const elements = viewerElements();
-  renderViewer(elements, viewerView, locale);
+  renderViewer(elements, viewerView, locale, controls);
   return elements;
 }
 
@@ -73,11 +71,11 @@ function shownControls(elements: ViewerElements): Element[] {
 
 describe("renderViewerHeader", () => {
   for (const locale of localeList) {
-    it(`shows the URL's heading and channel name as text in ${locale}`, () => {
+    it(`shows the header's heading and channel name as text in ${locale}`, () => {
       const elements = viewerElements();
       renderViewerHeader(
         elements,
-        { heading: malicious, channelName: "A channel", url: watchUrl },
+        { heading: malicious, channelName: "A channel", videoUrl: watchUrl },
         locale,
         undefined,
       );
@@ -88,11 +86,11 @@ describe("renderViewerHeader", () => {
       assert.equal(elements.channel.textContent, "A channel");
     });
 
-    it(`hides the channel name the URL does not hold in ${locale}`, () => {
+    it(`hides the channel name the header does not hold in ${locale}`, () => {
       const elements = viewerElements();
       renderViewerHeader(
         elements,
-        { heading: "A video", url: watchUrl },
+        { heading: "A video", videoUrl: watchUrl },
         locale,
         undefined,
       );
@@ -103,7 +101,7 @@ describe("renderViewerHeader", () => {
       const elements = viewerElements();
       renderViewerHeader(
         elements,
-        { heading: "A video", url: watchUrl },
+        { heading: "A video", videoUrl: watchUrl },
         locale,
         undefined,
       );
@@ -123,7 +121,7 @@ describe("renderViewerHeader", () => {
         const elements = viewerElements();
         renderViewerHeader(
           elements,
-          { heading: "A video", url },
+          { heading: "A video", videoUrl: url },
           locale,
           undefined,
         );
@@ -132,11 +130,11 @@ describe("renderViewerHeader", () => {
       });
     }
 
-    it(`hides the whole header without the URL's values in ${locale}`, () => {
+    it(`hides the whole header without its values in ${locale}`, () => {
       const elements = viewerElements();
       renderViewerHeader(
         elements,
-        { heading: "A video", channelName: "A channel", url: watchUrl },
+        { heading: "A video", channelName: "A channel", videoUrl: watchUrl },
         locale,
         undefined,
       );
@@ -150,7 +148,7 @@ describe("renderViewerHeader", () => {
       const elements = viewerElements();
       renderViewerHeader(
         elements,
-        { heading: "Live @here", channelName: "@handle", url: watchUrl },
+        { heading: "Live @here", channelName: "@handle", videoUrl: watchUrl },
         locale,
         {
           ...article,
@@ -163,11 +161,15 @@ describe("renderViewerHeader", () => {
       assert.equal(elements.channel.textContent, "@\u200bhandle");
     });
 
-    it(`keeps the URL's heading for an empty video title and hides an empty channel name in ${locale}`, () => {
+    it(`keeps the header's heading for an empty video title and hides an empty channel name in ${locale}`, () => {
       const elements = viewerElements();
       renderViewerHeader(
         elements,
-        { heading: "A tab title", channelName: "A channel", url: watchUrl },
+        {
+          heading: "A tab title",
+          channelName: "A channel",
+          videoUrl: watchUrl,
+        },
         locale,
         { ...article, videoTitle: "", channelName: "" },
       );
@@ -196,9 +198,9 @@ describe("renderViewer states", () => {
 
     for (const [kind, state, messageFor] of [
       [
-        "sending",
-        { kind: "sending" },
-        (l: Locale) => catalogs[l].viewer.sending,
+        "preparing",
+        { kind: "preparing" },
+        (l: Locale) => catalogs[l].viewer.preparing,
       ],
       ["loading", loading, (l: Locale) => catalogs[l].viewer.loading],
     ] as const) {
@@ -211,54 +213,28 @@ describe("renderViewer states", () => {
       });
     }
 
-    it(`keeps the loading mark beside a retrying notice while loading in ${locale}`, () => {
-      const elements = drawn(
-        view({ kind: "loading", notice: retrying }),
-        locale,
-      );
-      assert.ok(elements.state.querySelector(".loading") !== null);
-      expectLocaleMessage(
-        query(elements.state, ".job-notice"),
-        locale,
-        (l) => catalogs[l].statusExchange.noResponse,
-      );
-    });
-
-    it(`shows a stopped notice without the loading mark while loading in ${locale}`, () => {
-      const elements = drawn(
-        view({ kind: "loading", notice: stopped }),
-        locale,
-      );
-      assert.equal(elements.state.querySelector(".loading"), null);
-      expectLocaleMessage(
-        query(elements.state, ".job-notice"),
-        locale,
-        (l) => catalogs[l].statusExchange.unexpected,
-      );
-      assert.equal(
-        (elements.stateStatus.textContent ?? "").includes(
-          catalogs[locale].viewer.loading.text,
-        ),
-        false,
-      );
-    });
-
-    it(`replaces the loading mark with the first status in ${locale}`, () => {
+    it(`replaces the loading mark with the record's state in ${locale}`, () => {
       const elements = drawn(view(loading), locale);
-      renderViewer(elements, view(jobState(running)), locale);
+      renderViewer(elements, view(jobState(running)), locale, noControls);
       assert.equal(elements.state.querySelector(".loading"), null);
       assert.ok(elements.state.querySelector(".step-list") !== null);
     });
 
-    it(`shows a start that gave no result without the loading mark in ${locale}`, () => {
-      const failure = { kind: "no-result" } as const;
-      const elements = drawn(view({ kind: "start-failed", failure }), locale);
-      assert.equal(elements.state.querySelector(".loading"), null);
-      expectLocaleMessage(elements.state, locale, (l) =>
-        startResultMessage(failure, l),
-      );
-      assert.equal(elements.actions.hidden, true);
-    });
+    for (const failure of [
+      { kind: "unknown" },
+      { kind: "input-unavailable" },
+      { kind: "rejected", reason: "invalid_body" },
+    ] as const) {
+      it(`shows the start failure ${JSON.stringify(failure)} without the loading mark or a setup operation in ${locale}`, () => {
+        const elements = drawn(view({ kind: "start-failed", failure }), locale);
+        assert.equal(elements.state.querySelector(".loading"), null);
+        expectLocaleMessage(elements.state, locale, (l) =>
+          startFailureMessage(failure, l),
+        );
+        assert.equal(elements.state.querySelector("button"), null);
+        assert.equal(elements.actions.hidden, true);
+      });
+    }
 
     it(`shows a running job's steps without an article or operation in ${locale}`, () => {
       const elements = drawn(view(jobState(running), 3_000), locale);
@@ -281,12 +257,12 @@ describe("renderViewer states", () => {
       assert.equal(elements.copy.disabled, false);
     });
 
-    it(`keeps a lost job's article, saving and copying, in ${locale}`, () => {
+    it(`shows an article its record could not hold, with saving and copying and the warning, in ${locale}`, () => {
       const elements = drawn(
-        view(jobState({ kind: "lost", kept: article })),
+        view(jobState({ kind: "unstored", steps: doneJob.steps, article })),
         locale,
       );
-      expectMessage(elements.state, viewer.lost);
+      expectMessage(elements.state, viewer.unstored);
       assert.equal(
         query(elements.article, ".article-body").textContent,
         "TitleBody",
@@ -295,9 +271,14 @@ describe("renderViewer states", () => {
       assert.equal(elements.copy.disabled, false);
     });
 
-    it(`shows a lost job without a kept article without an article or operation in ${locale}`, () => {
+    it(`shows a lost job without an article or operation in ${locale}`, () => {
       const elements = drawn(view(jobState(doneJob)), locale);
-      renderViewer(elements, view(jobState({ kind: "lost" })), locale);
+      renderViewer(
+        elements,
+        view(jobState({ kind: "lost" })),
+        locale,
+        noControls,
+      );
       expectMessage(elements.state, viewer.lost);
       assert.equal(elements.article.hidden, true);
       assert.equal(elements.article.textContent, "");
@@ -311,7 +292,7 @@ describe("renderViewer states", () => {
         view(
           jobState({
             kind: "failed",
-            steps: runningSteps,
+            steps: failedSteps,
             failure: "internal",
           }),
         ),
@@ -322,7 +303,69 @@ describe("renderViewer states", () => {
         locale,
         (l) => catalogs[l].failure.internal,
       );
+      assert.equal(elements.state.querySelector("button"), null);
       assert.equal(elements.actions.hidden, true);
+    });
+
+    // The states that need a setting offer the operation that opens the
+    // options page, inside the state section, after the message.
+    const setupStates: readonly [
+      string,
+      ViewerState,
+      (l: Locale) => Message,
+    ][] = [
+      [
+        "a start refused for a missing API key",
+        {
+          kind: "start-failed",
+          failure: { kind: "rejected", reason: "api_key_missing" },
+        },
+        (l) => catalogs[l].setup.api_key_missing,
+      ],
+      [
+        "a run without an API key",
+        jobState({ kind: "setup", failure: "api_key_missing" }),
+        (l) => catalogs[l].setup.api_key_missing,
+      ],
+      [
+        "a run with unusable settings",
+        jobState({ kind: "setup", failure: "settings_invalid" }),
+        (l) => catalogs[l].setup.settings_invalid,
+      ],
+      [
+        "a run whose key was rejected",
+        jobState({ kind: "key-rejected", steps: failedSteps }),
+        (l) => catalogs[l].keyRejected,
+      ],
+    ];
+    for (const [name, state, message] of setupStates) {
+      it(`offers the setup operation after the message of ${name} in ${locale}`, () => {
+        let opened = 0;
+        const elements = drawn(view(state), locale, {
+          openOptions: () => {
+            opened += 1;
+          },
+        });
+        expectLocaleMessage(elements.state, locale, message);
+        const button = query<HTMLButtonElement>(elements.state, "button");
+        assert.equal(button.type, "button");
+        assert.equal(button.textContent, catalogs[locale].openOptions.setup);
+        assert.equal(elements.state.lastElementChild, button);
+        button.click();
+        assert.equal(opened, 1);
+      });
+    }
+
+    it(`shows the development build's mark first in the state section, as text, in ${locale}`, () => {
+      const elements = drawn(
+        { ...view(jobState(running)), buildKind: "dev" },
+        locale,
+      );
+      const mark = elements.state.firstElementChild;
+      assert.ok(mark !== null && mark.classList.contains("build-mark"));
+      assert.equal(mark.textContent, catalogs[locale].buildMark);
+      const release = drawn(view(jobState(running)), locale);
+      assert.equal(release.state.querySelector(".build-mark"), null);
     });
   }
 });
@@ -357,7 +400,12 @@ describe("existing-article notice", () => {
     it(`draws a running job without its elapsed time once the mark is added in ${locale}`, () => {
       const elements = drawn(view(jobState(running), 65_000), locale);
       assert.ok(elements.state.querySelector(".job-elapsed") !== null);
-      renderViewer(elements, view(jobState(running), 66_000, true), locale);
+      renderViewer(
+        elements,
+        view(jobState(running), 66_000, true),
+        locale,
+        noControls,
+      );
       assert.equal(elements.state.querySelector(".job-elapsed"), null);
       assert.equal(elements.state.querySelectorAll(".step-row").length, 3);
     });
@@ -366,7 +414,7 @@ describe("existing-article notice", () => {
   it("keeps the notice's nodes when it is drawn again unchanged", () => {
     const elements = drawn(view(jobState(running), 0, true), "en");
     const text = elements.existing.firstChild;
-    renderViewer(elements, view(loading, 0, true), "en");
+    renderViewer(elements, view(loading, 0, true), "en", noControls);
     assert.equal(elements.existing.firstChild, text);
   });
 });
@@ -399,7 +447,12 @@ describe("status regions", () => {
           catalogs[locale].viewer.running,
         ),
       );
-      renderViewer(elements, view(jobState(running), 2_000), locale);
+      renderViewer(
+        elements,
+        view(jobState(running), 2_000),
+        locale,
+        noControls,
+      );
       assert.equal(elements.stateStatus.firstChild, written);
 
       renderViewer(
@@ -412,19 +465,21 @@ describe("status regions", () => {
           3_000,
         ),
         locale,
+        noControls,
       );
       assert.notEqual(elements.stateStatus.firstChild, written);
     });
 
     it(`keeps the state's nodes and writes only the elapsed time when nothing else changes in ${locale}`, () => {
-      const rejected: PollNotice = {
-        kind: "stopped",
-        outcome: { kind: "rejected", reason: "internal_error", requestId },
-      };
-      const elements = drawn(view(jobState(running, rejected), 1_000), locale);
-      const id = query(elements.state, ".send-request-id");
-      renderViewer(elements, view(jobState(running, rejected), 2_000), locale);
-      assert.equal(query(elements.state, ".send-request-id"), id);
+      const elements = drawn(view(jobState(running), 1_000), locale);
+      const list = query(elements.state, ".step-list");
+      renderViewer(
+        elements,
+        view(jobState(running), 2_000),
+        locale,
+        noControls,
+      );
+      assert.equal(query(elements.state, ".step-list"), list);
       assert.equal(
         query(elements.state, ".job-elapsed dd").textContent,
         formatDuration(2_000, locale),
@@ -433,15 +488,16 @@ describe("status regions", () => {
       renderViewer(
         elements,
         view(
-          jobState(
-            { kind: "running", steps: { ...runningSteps, shorten: "done" } },
-            rejected,
-          ),
+          jobState({
+            kind: "running",
+            steps: { ...runningSteps, shorten: "done" },
+          }),
           3_000,
         ),
         locale,
+        noControls,
       );
-      assert.notEqual(query(elements.state, ".send-request-id"), id);
+      assert.notEqual(query(elements.state, ".step-list"), list);
     });
 
     it(`keeps the elapsed time out of both status regions in ${locale}`, () => {
@@ -461,21 +517,11 @@ describe("status regions", () => {
 
     for (const [name, state, text] of [
       [
-        "sending",
-        { kind: "sending" },
-        (l: Locale) => catalogs[l].viewer.sending.text,
+        "preparing",
+        { kind: "preparing" },
+        (l: Locale) => catalogs[l].viewer.preparing.text,
       ],
       ["loading", loading, (l: Locale) => catalogs[l].viewer.loading.text],
-      [
-        "status not read while loading",
-        { kind: "loading", notice: retrying },
-        (l: Locale) => catalogs[l].statusExchange.noResponse.text,
-      ],
-      [
-        "status checks stopped while loading",
-        { kind: "loading", notice: stopped },
-        (l: Locale) => catalogs[l].statusExchange.unexpected.text,
-      ],
       [
         "done",
         jobState(doneJob),
@@ -483,8 +529,14 @@ describe("status regions", () => {
       ],
       [
         "failed",
-        jobState({ kind: "failed", steps: runningSteps, failure: "llm_empty" }),
+        jobState({ kind: "failed", steps: failedSteps, failure: "llm_empty" }),
         (l: Locale) => catalogs[l].failure.llm_empty.text,
+      ],
+      [
+        "an unknown cost",
+        jobState({ kind: "stopped", steps: failedSteps }),
+        (l: Locale) =>
+          `${catalogs[l].viewer.cost} ${catalogs[l].viewer.costUnknown}`,
       ],
       [
         "invalid link",
@@ -492,30 +544,14 @@ describe("status regions", () => {
         (l: Locale) => catalogs[l].viewer.invalidLink.text,
       ],
       [
-        "start without a result",
-        { kind: "start-failed", failure: { kind: "no-result" } },
-        (l: Locale) => catalogs[l].startResult.noResult.text,
+        "an unknown start",
+        { kind: "start-failed", failure: { kind: "unknown" } },
+        (l: Locale) => catalogs[l].startUnknown.text,
       ],
       [
         "lost",
         jobState({ kind: "lost" }),
         (l: Locale) => catalogs[l].viewer.lost.text,
-      ],
-      [
-        "status checks stopped",
-        jobState(running, {
-          kind: "stopped",
-          outcome: { kind: "unexpected", check: "syntax" },
-        }),
-        (l: Locale) => catalogs[l].statusExchange.unexpected.text,
-      ],
-      [
-        "status not read",
-        jobState(running, {
-          kind: "retrying",
-          outcome: { kind: "no-response" },
-        }),
-        (l: Locale) => catalogs[l].statusExchange.noResponse.text,
       ],
     ] as const satisfies readonly (readonly [
       string,
@@ -550,8 +586,9 @@ describe("status regions", () => {
       elements.save.focus();
       renderViewer(
         elements,
-        view(jobState({ kind: "lost", kept: article })),
+        view(jobState({ kind: "unstored", steps: doneJob.steps, article })),
         locale,
+        noControls,
       );
       renderActionNotice(elements, { kind: "saved" }, locale);
       assert.equal(elements.save.ownerDocument.activeElement, elements.save);
@@ -572,9 +609,9 @@ describe("article redraw", () => {
   it("keeps the drawn article for the same Markdown and draws it again when the Markdown changes", () => {
     const elements = drawn(withMarkdown("# Title\n\nBody"), "en");
     const body = query(elements.article, ".article-body");
-    renderViewer(elements, withMarkdown("# Title\n\nBody"), "en");
+    renderViewer(elements, withMarkdown("# Title\n\nBody"), "en", noControls);
     assert.equal(query(elements.article, ".article-body"), body);
-    renderViewer(elements, withMarkdown("# Another"), "en");
+    renderViewer(elements, withMarkdown("# Another"), "en", noControls);
     const replaced = query(elements.article, ".article-body");
     assert.notEqual(replaced, body);
     assert.equal(replaced.textContent, "Another");
@@ -583,9 +620,9 @@ describe("article redraw", () => {
   it("draws the same article again after it was hidden", () => {
     const elements = drawn(withMarkdown("# Title"), "en");
     const body = query(elements.article, ".article-body");
-    renderViewer(elements, view(loading), "en");
+    renderViewer(elements, view(loading), "en", noControls);
     assert.equal(elements.article.childElementCount, 0);
-    renderViewer(elements, withMarkdown("# Title"), "en");
+    renderViewer(elements, withMarkdown("# Title"), "en", noControls);
     const again = query(elements.article, ".article-body");
     assert.notEqual(again, body);
     assert.equal(again.textContent, "Title");
@@ -603,7 +640,7 @@ describe("article redraw", () => {
     const textNode = query(elements.article, "p").firstChild;
     assert.ok(textNode !== null);
     selection.setBaseAndExtent(textNode, 0, textNode, 4);
-    renderViewer(elements, withMarkdown(markdown), "en");
+    renderViewer(elements, withMarkdown(markdown), "en", noControls);
     assert.equal(doc.activeElement, link);
     assert.equal(selection.anchorNode, textNode);
     assert.equal(selection.toString(), "Read");
@@ -624,7 +661,7 @@ describe("article redraw", () => {
       }
       replace(...nodes);
     };
-    renderViewer(elements, withMarkdown("# Title"), "en");
+    renderViewer(elements, withMarkdown("# Title"), "en", noControls);
     assert.ok(drawnWithArticle);
   });
 });
@@ -704,11 +741,11 @@ describe("order and controls", () => {
       const elements = viewerElements();
       renderViewerHeader(
         elements,
-        { heading: "A video", url: watchUrl },
+        { heading: "A video", videoUrl: watchUrl },
         locale,
         undefined,
       );
-      renderViewer(elements, view(jobState(doneJob)), locale);
+      renderViewer(elements, view(jobState(doneJob)), locale, noControls);
       // Compared by id: deepEqual finds two of jsdom's elements equal
       // whichever elements they are.
       assert.deepEqual(

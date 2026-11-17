@@ -1,4 +1,4 @@
-import type { UsdAmount } from "../response.ts";
+import type { UsdAmount } from "../wasmResult.ts";
 
 /** The language the extension displays in. */
 export type Locale = "en" | "ja";
@@ -61,9 +61,9 @@ export function formatDuration(milliseconds: number, locale: Locale): string {
 }
 
 /**
- * Formats the server's cost in US dollars with its four decimal places. The
+ * Formats the module's cost in US dollars with its four decimal places. The
  * text is passed to the formatter as it is, never as a float, so the digits
- * shown are the server's.
+ * shown are the module's.
  */
 export function formatUsd(usd: UsdAmount, locale: Locale): string {
   return new Intl.NumberFormat(locale, {

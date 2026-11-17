@@ -171,3 +171,10 @@ body {
 #action-status {
   flex-basis: 100%;
 }
+
+/* The operation that opens the options page, under the message of a state
+   that needs a setting; its size and shape are theme.css's shared button
+   rule. */
+.setup-button {
+  margin-top: 0.75rem;
+}

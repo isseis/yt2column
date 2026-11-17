@@ -10,7 +10,7 @@ import {
   locales,
   resolveLocale,
 } from "../src/core/i18n/locale.ts";
-import type { UsdAmount } from "../src/core/response.ts";
+import type { UsdAmount } from "../src/core/wasmResult.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import { applyPageLocale } from "../src/ui/pageLocale.ts";
 

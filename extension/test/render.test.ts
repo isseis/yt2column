@@ -5,7 +5,7 @@ import type { CollectedInput } from "../src/core/collect.ts";
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import { formatDuration, formatUsd, locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
-import type { JobDisplay, PollNotice } from "../src/core/jobView.ts";
+import type { JobDisplay } from "../src/core/jobView.ts";
 import { acceptMetadata } from "../src/core/metadata.ts";
 import { expandPromptMessage, rejectionMessage } from "../src/core/messages.ts";
 import { buildCollectedView } from "../src/core/popupView.ts";
@@ -18,14 +18,11 @@ import type {
   SecondaryAction,
 } from "../src/core/popupView.ts";
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
-import {
-  startResultMessage,
-  statusNoticeMessage,
-} from "../src/core/sendMessages.ts";
+import { startFailureMessage } from "../src/core/sendMessages.ts";
 import { rejectionReasons } from "../src/core/types.ts";
 import type { RejectionReason } from "../src/core/types.ts";
 import { checkIcon } from "../src/ui/icons.ts";
-import { renderPopup } from "../src/ui/render.ts";
+import { renderPopup, renderPopupFrame } from "../src/ui/render.ts";
 import type { PopupElements } from "../src/ui/render.ts";
 import { stepsSummary } from "../src/ui/renderJob.ts";
 import {
@@ -36,7 +33,12 @@ import {
   otherLocales,
   popupElements,
 } from "./helpers/dom.ts";
-import { article, doneJob, requestId, runningSteps } from "./helpers/job.ts";
+import {
+  article,
+  doneJob,
+  failedSteps,
+  runningSteps,
+} from "./helpers/record.ts";
 
 const malicious = "<img src=x onerror=alert(1)>";
 const localeList = Object.keys(locales) as Locale[];
@@ -629,31 +631,23 @@ describe("renderPopup", () => {
 });
 
 describe("job view", () => {
-  const none: PollNotice = { kind: "none" };
-  const stopped: PollNotice = {
-    kind: "stopped",
-    outcome: { kind: "unexpected", check: "syntax" },
-  };
-  const retrying: PollNotice = {
-    kind: "retrying",
-    outcome: { kind: "no-response" },
-  };
   const runningJob: JobDisplay = { kind: "running", steps: runningSteps };
   const failedJob: JobDisplay = {
     kind: "failed",
-    steps: runningSteps,
+    steps: failedSteps,
     failure: "llm_failed",
   };
   const lostJob: JobDisplay = { kind: "lost" };
-  const startFailed = {
+  const unknownStart = {
     kind: "start-failed",
-    failure: { kind: "no-result" },
+    failure: { kind: "unknown" },
+  } as const;
+  const keyMissingStart = {
+    kind: "start-failed",
+    failure: { kind: "rejected", reason: "api_key_missing" },
   } as const;
 
-  const jobState = (
-    job: JobDisplay,
-    notice: PollNotice = none,
-  ): PopupJobState => ({ kind: "job", job, notice });
+  const jobState = (job: JobDisplay): PopupJobState => ({ kind: "job", job });
 
   /** A job view whose video section and details are the collected view's. */
   function jobPopup(state: PopupJobState): JobPopupView {
@@ -698,6 +692,8 @@ describe("job view", () => {
     readonly action: PrimaryAction;
     /** The secondary button's action; none unless given. */
     readonly secondary?: SecondaryAction;
+    /** Whether the setup operation is shown; not unless given. */
+    readonly setup?: true;
   }
 
   const choiceChecks = (locale: Locale): string[] => [
@@ -705,32 +701,44 @@ describe("job view", () => {
     ...catalogs[locale].popup.choice.steps,
   ];
 
+  /** The wording of a message, its text then its steps. */
+  const wording = (message: {
+    readonly text: string;
+    readonly steps: readonly string[];
+  }): string[] => [message.text, ...message.steps];
+
+  const costUnknown = (locale: Locale): string =>
+    `${catalogs[locale].viewer.cost} ${catalogs[locale].viewer.costUnknown}`;
+
   const states: readonly StateExpectation[] = [
     {
       name: "sending",
       state: { kind: "sending" },
-      checks: (locale) => [
-        catalogs[locale].popup.sending.text,
-        ...catalogs[locale].popup.sending.steps,
-      ],
+      checks: (locale) => wording(catalogs[locale].popup.sending),
       status: (locale) => [catalogs[locale].popup.sending.text],
       action: "none",
     },
     {
-      name: "start failed",
-      state: startFailed,
-      checks: (locale) => [
-        startResultMessage(startFailed.failure, locale).text,
-        ...startResultMessage(startFailed.failure, locale).steps,
-      ],
+      name: "start unknown",
+      state: unknownStart,
+      checks: (locale) =>
+        wording(startFailureMessage(unknownStart.failure, locale)),
       status: (locale) => [
-        startResultMessage(startFailed.failure, locale).text,
+        startFailureMessage(unknownStart.failure, locale).text,
       ],
       action: "none",
     },
     {
+      name: "start refused for a missing API key",
+      state: keyMissingStart,
+      checks: (locale) => wording(catalogs[locale].setup.api_key_missing),
+      status: (locale) => [catalogs[locale].setup.api_key_missing.text],
+      action: "none",
+      setup: true,
+    },
+    {
       name: "loading",
-      state: { kind: "loading", notice: none },
+      state: { kind: "loading" },
       checks: (locale) => [
         catalogs[locale].viewer.loading.text,
         catalogs[locale].popup.viewerNotice.text,
@@ -769,26 +777,58 @@ describe("job view", () => {
       name: "failed",
       state: jobState(failedJob),
       checks: (locale) => [
-        catalogs[locale].failure.llm_failed.text,
-        ...catalogs[locale].failure.llm_failed.steps,
+        ...wording(catalogs[locale].failure.llm_failed),
+        catalogs[locale].viewer.costUnknown,
       ],
-      status: (locale) => [catalogs[locale].failure.llm_failed.text],
+      status: (locale) => [
+        catalogs[locale].failure.llm_failed.text,
+        costUnknown(locale),
+      ],
+      action: "retry",
+    },
+    {
+      name: "setting needed after the reservation",
+      state: jobState({ kind: "setup", failure: "settings_invalid" }),
+      checks: (locale) => wording(catalogs[locale].setup.settings_invalid),
+      status: (locale) => [catalogs[locale].setup.settings_invalid.text],
+      action: "retry",
+      setup: true,
+    },
+    {
+      name: "key rejected",
+      state: jobState({ kind: "key-rejected", steps: failedSteps }),
+      checks: (locale) => [
+        ...wording(catalogs[locale].keyRejected),
+        catalogs[locale].viewer.costUnknown,
+      ],
+      status: (locale) => [
+        catalogs[locale].keyRejected.text,
+        costUnknown(locale),
+      ],
+      action: "retry",
+      setup: true,
+    },
+    {
+      name: "stopped",
+      state: jobState({ kind: "stopped", steps: failedSteps }),
+      checks: (locale) => [
+        ...wording(catalogs[locale].stopped),
+        catalogs[locale].viewer.costUnknown,
+      ],
+      status: (locale) => [catalogs[locale].stopped.text, costUnknown(locale)],
       action: "retry",
     },
     {
       name: "lost",
       state: jobState(lostJob),
-      checks: (locale) => [
-        catalogs[locale].viewer.lost.text,
-        ...catalogs[locale].viewer.lost.steps,
-      ],
+      checks: (locale) => wording(catalogs[locale].viewer.lost),
       status: (locale) => [catalogs[locale].viewer.lost.text],
       action: "retry",
     },
     ...(["loading", "running", "done"] as const).map(
       (existing): StateExpectation => ({
         name: `choice ${existing}`,
-        state: { kind: "choice", existing, notice: none },
+        state: { kind: "choice", existing },
         checks: (locale) => [
           ...choiceChecks(locale),
           catalogs[locale].popup.existingStates[existing],
@@ -804,10 +844,7 @@ describe("job view", () => {
     {
       name: "choice ended",
       state: { kind: "choice-ended" },
-      checks: (locale) => [
-        catalogs[locale].popup.choiceEnded.text,
-        ...catalogs[locale].popup.choiceEnded.steps,
-      ],
+      checks: (locale) => wording(catalogs[locale].popup.choiceEnded),
       status: (locale) => [catalogs[locale].popup.choiceEnded.text],
       action: "start-inquiry",
     },
@@ -847,6 +884,14 @@ describe("job view", () => {
         expected.action === "none",
         expected.name,
       );
+      // The setup operation is shown, with its name, exactly beside a
+      // missing or rejected setting.
+      assert.equal(
+        elements.setup.hidden,
+        expected.setup !== true,
+        expected.name,
+      );
+      assert.equal(elements.setup.textContent, "Set API key", expected.name);
       // A shown secondary button is always pressable; with no action it is
       // hidden instead of disabled.
       const shown = (expected.secondary ?? "none") !== "none";
@@ -869,10 +914,7 @@ describe("job view", () => {
   ];
   for (const [name, next] of nextViews) {
     it(`hides a shown secondary button for ${name}`, () => {
-      const elements = drawn(
-        { kind: "choice", existing: "done", notice: none },
-        "en",
-      );
+      const elements = drawn({ kind: "choice", existing: "done" }, "en");
       // Precondition: the choice showed the button.
       assert.equal(elements.secondary.hidden, false);
       renderPopup(elements, next, "en");
@@ -890,7 +932,7 @@ describe("job view", () => {
   ] as const;
   for (const [existing, symbolClass] of existingSymbols) {
     it(`marks the ${existing} existing article with its symbol and sentence`, () => {
-      const elements = drawn({ kind: "choice", existing, notice: none }, "en");
+      const elements = drawn({ kind: "choice", existing }, "en");
       const row = elements.checks.querySelector(".existing-state");
       assert.ok(row !== null);
       const icon = row.querySelector("svg");
@@ -901,45 +943,26 @@ describe("job view", () => {
     });
   }
 
-  it("shows a stopped poll's notice in a loading choice without the existing article's state", () => {
-    const notice = statusNoticeMessage(stopped.outcome, "en");
-    const elements = drawn(
-      { kind: "choice", existing: "loading", notice: stopped },
-      "en",
-    );
-    assert.equal(elements.checks.querySelector(".existing-state"), null);
-    assert.ok((elements.checks.textContent ?? "").includes(notice.text));
-    assert.deepEqual(
-      Array.from(elements.status.children, (child) => child.textContent),
-      [catalogs.en.popup.choice.text, notice.text],
-    );
-  });
-
-  // Once a status was read, the article's state stays beside any notice,
-  // whether polling goes on or stopped.
-  for (const [noticeName, polled] of [
-    ["retrying", retrying],
-    ["stopped", stopped],
-  ] as const) {
-    for (const existing of ["running", "done"] as const) {
-      it(`keeps a ${existing} existing article's state beside a ${noticeName} notice`, () => {
-        const notice = statusNoticeMessage(polled.outcome, "en");
-        const elements = drawn(
-          { kind: "choice", existing, notice: polled },
-          "en",
-        );
-        assert.ok(elements.checks.querySelector(".existing-state") !== null);
-        assert.deepEqual(
-          Array.from(elements.status.children, (child) => child.textContent),
-          [
-            catalogs.en.popup.choice.text,
-            catalogs.en.popup.existingStates[existing],
-            notice.text,
-          ],
-        );
-      });
-    }
+  const setupHidingViews: readonly [string, PopupView][] = [
+    ["a running job", jobPopup(jobState(runningJob))],
+    ["a collected view", collectedView()],
+    ["a rejected view", { kind: "rejected", reason: "empty-selection" }],
+  ];
+  for (const [name, next] of setupHidingViews) {
+    it(`hides a shown setup operation for ${name}`, () => {
+      const elements = drawn(keyMissingStart, "en");
+      // Precondition: the refused start showed the operation.
+      assert.equal(elements.setup.hidden, false);
+      renderPopup(elements, next, "en");
+      assert.equal(elements.setup.hidden, true);
+    });
   }
+
+  it("puts the setup operation right after the state's message and before the primary button", () => {
+    const elements = drawn(keyMissingStart, "en");
+    assert.equal(elements.action.firstElementChild, elements.setup);
+    assert.equal(elements.setup.nextElementSibling, elements.primary);
+  });
 
   it("keeps the collected sections and their order, the video section and the details for every state", () => {
     const collected = popupElements();
@@ -1006,31 +1029,6 @@ describe("job view", () => {
     }
   }
 
-  it("shows a stopped poll's notice in the loading state without the loading mark", () => {
-    const notice = statusNoticeMessage(stopped.outcome, "en");
-    const elements = drawn({ kind: "loading", notice: stopped }, "en");
-    assert.equal(elements.checks.querySelector(".loading"), null);
-    assert.ok((elements.checks.textContent ?? "").includes(notice.text));
-    assert.deepEqual(
-      Array.from(elements.status.children, (child) => child.textContent),
-      [notice.text],
-    );
-  });
-
-  it("shows a status notice beside a running job in both regions", () => {
-    const notice = statusNoticeMessage(retrying.outcome, "en");
-    const elements = drawn(jobState(runningJob, retrying), "en");
-    assert.ok((elements.checks.textContent ?? "").includes(notice.text));
-    assert.deepEqual(
-      Array.from(elements.status.children, (child) => child.textContent),
-      [
-        catalogs.en.viewer.running,
-        stepsSummary(runningSteps, "en"),
-        notice.text,
-      ],
-    );
-  });
-
   it("writes the state summary only when it changes, not when the elapsed time does", () => {
     const elements = drawn(jobState(runningJob), "en", 1_000);
     const written = elements.status.firstChild;
@@ -1065,20 +1063,11 @@ describe("job view", () => {
   });
 
   it("keeps the checks' nodes and writes only the elapsed time when nothing else changes", () => {
-    const rejected: PollNotice = {
-      kind: "stopped",
-      outcome: { kind: "rejected", reason: "internal_error", requestId },
-    };
-    const elements = drawn(jobState(runningJob, rejected), "en", 1_000);
-    const id = elements.checks.querySelector(".send-request-id");
-    assert.ok(id !== null);
-    renderPopup(
-      elements,
-      jobPopup(jobState(runningJob, rejected)),
-      "en",
-      2_000,
-    );
-    assert.equal(elements.checks.querySelector(".send-request-id"), id);
+    const elements = drawn(jobState(runningJob), "en", 1_000);
+    const list = elements.checks.querySelector(".step-list");
+    assert.ok(list !== null);
+    renderPopup(elements, jobPopup(jobState(runningJob)), "en", 2_000);
+    assert.equal(elements.checks.querySelector(".step-list"), list);
     assert.equal(
       elements.checks.querySelector(".job-elapsed dd")?.textContent,
       formatDuration(2_000, "en"),
@@ -1120,5 +1109,41 @@ describe("job view", () => {
       ),
       false,
     );
+  });
+});
+
+describe("renderPopupFrame", () => {
+  for (const locale of localeList) {
+    it(`shows the options operation with its name and no build mark in a release build in ${locale}`, () => {
+      const elements = popupElements();
+      renderPopupFrame(elements, locale, "release");
+      assert.equal(elements.options.hidden, false);
+      assert.equal(
+        elements.options.textContent,
+        catalogs[locale].openOptions.link,
+      );
+      assert.equal(elements.buildMark.hidden, true);
+      assert.equal(elements.buildMark.textContent, "");
+    });
+
+    it(`shows the build mark's words in a development build in ${locale}`, () => {
+      const elements = popupElements();
+      renderPopupFrame(elements, locale, "dev");
+      assert.equal(elements.buildMark.hidden, false);
+      assert.equal(elements.buildMark.textContent, catalogs[locale].buildMark);
+    });
+  }
+
+  it("names the English options operation and build mark literally", () => {
+    const elements = popupElements();
+    renderPopupFrame(elements, "en", "dev");
+    assert.equal(elements.options.textContent, "Settings");
+    assert.equal(elements.buildMark.textContent, "Development build");
+  });
+
+  it("keeps the options operation after the details, at the end of the popup", () => {
+    const elements = popupElements();
+    renderPopupFrame(elements, "en", "release");
+    assert.equal(elements.details.nextElementSibling, elements.options);
   });
 });

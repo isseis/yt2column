@@ -1,188 +1,193 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type {
-  BrowserCall,
-  TabPlace,
-  ViewerChannel,
-  WriteClipboard,
-} from "../src/browser/chromeDeps.ts";
-import type { ArticleKey } from "../src/core/articleKey.ts";
-import { parseViewerChannelMessage } from "../src/core/extensionMessages.ts";
-import type { ViewerChannelMessage } from "../src/core/extensionMessages.ts";
+import type { BrowserCall, TabPlace } from "../src/browser/chromeDeps.ts";
 import { articleFileName } from "../src/core/fileName.ts";
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import { formatDuration } from "../src/core/i18n/locale.ts";
+import { parseJobChannelMessage } from "../src/core/jobMessages.ts";
+import type { SwRequest } from "../src/core/jobMessages.ts";
+import { jobItemName, startItemName } from "../src/core/jobRecord.ts";
+import type { JobRecord } from "../src/core/jobRecord.ts";
+import { jobViewerQuery, parseJobViewerUrl } from "../src/core/jobViewerUrl.ts";
+import type { JobViewerParams } from "../src/core/jobViewerUrl.ts";
+import { elapsedRedrawMs } from "../src/core/jobView.ts";
 import type { ViewerState } from "../src/core/jobView.ts";
-import type { NativeReply } from "../src/core/native.ts";
-import {
-  elapsedRedrawMs,
-  pollIntervalMs,
-  startResultDeadlineMs,
-} from "../src/core/poll.ts";
-import { statusNoticeMessage } from "../src/core/sendMessages.ts";
-import { parseViewerUrl, viewerQuery } from "../src/core/viewerUrl.ts";
-import type { ViewerParams } from "../src/core/viewerUrl.ts";
 import { renderViewer } from "../src/ui/renderViewer.ts";
 import { startViewer } from "../src/viewerApp.ts";
+import { startWasmWorker } from "../src/wasmWorkerClient.ts";
 import {
   fakeChannels,
   fakeClipboard,
+  fakeLocal,
   fakeSaves,
+  fakeSession,
   fakeTabs,
-  pendingWorker,
   type FakeChannels,
   type FakeClipboard,
+  type FakeLocal,
   type FakeSaves,
-  type PendingWorker,
+  type FakeSession,
+  type FakeTabs,
 } from "./helpers/chrome.ts";
 import { fakeClock, settle, type FakeClock } from "./helpers/clock.ts";
 import { viewerDocument, viewerElements } from "./helpers/dom.ts";
 import { recordingLogger, type RecordingLogger } from "./helpers/logger.ts";
-import { doneSteps, requestId, runningSteps } from "./helpers/job.ts";
 import {
-  errorReply,
-  pendingHost,
-  responseReply,
-  type PendingHost,
-} from "./helpers/native.ts";
+  article,
+  doneRecord,
+  failedRecord,
+  jobId,
+  runningRecord,
+  startContext,
+  startId,
+  watchUrl,
+} from "./helpers/record.ts";
+import { fakeWorkers, type FakeWorkers } from "./helpers/worker.ts";
 
-const sentAt = 1_700_000_000_000;
-/** When the page loads in most cases: a second after the send. */
-const loadedAt = sentAt + 1_000;
-const key = "key-1" as ArticleKey;
-const watchUrl = "https://www.youtube.com/watch?v=abc";
-const ownTab: TabPlace = { tabId: 5, windowId: 2 };
-
-const seed = {
-  heading: "Heading",
-  channelName: "Channel",
-  title: "Video title",
-  url: watchUrl,
-  sentAt,
+const ownTab: TabPlace = { tabId: 7, windowId: 2 };
+const otherJob = "fedcba9876543210fedcba9876543210";
+const newIds = ["a".repeat(32), "b".repeat(32), "c".repeat(32)];
+const secret = "sk-ant-secret-value";
+const digest = "ab".repeat(32);
+const input = {
+  videoUrl: watchUrl,
+  transcript: "0:00\nHello\n",
+  title: "A video title",
+  channelName: "A channel",
 };
+const preparedOk = JSON.stringify({
+  status: "ok",
+  inputDigest: digest,
+  videoId: "dQw4w9WgXcQ",
+});
 
-const article = {
-  markdown: "# Title\n\nBody\r\nmore",
-  mentionsNeutralized: false,
-  videoTitle: "Video title",
-  channelName: "Channel",
-  file: "---\ntitle: Title\n---\n\nBody\r\nmore\n",
-  cost: { state: "known", usd: "0.1234" },
-  durationMs: 65_000,
-};
+const ok = <T>(value: T): BrowserCall<T> => ({ ok: true, value });
+/** A video title as the module neutralizes it: U+200B after the '@'. */
+const neutralTitle = "Neutral @\u200btitle";
+const queryA = "1".repeat(32);
+const queryB = "2".repeat(32);
 
-type Json = Record<string, unknown>;
-
-const runningJob: Json = { state: "running", steps: runningSteps };
-const failedJob: Json = {
-  state: "failed",
-  steps: doneSteps,
-  failure: "llm_failed",
-};
-const doneJob: Json = { state: "done", steps: doneSteps, article };
-
-/** The host's reply to a status query that found job. */
-function statusReply(job: Json): NativeReply {
-  return responseReply(200, JSON.stringify({ status: "ok", requestId, job }));
-}
-
-/** The host's reply rejecting a status query: polling stops. */
-const statusRejected = responseReply(
-  400,
-  JSON.stringify({ status: "rejected", reason: "invalid_key", requestId }),
-);
-
-/** The running job of runningJob as the viewer shows it, with no notice. */
-const runningState: ViewerState = {
-  kind: "job",
-  job: { kind: "running", steps: runningSteps },
-  notice: { kind: "none" },
-};
+type Replies = Partial<Record<SwRequest["type"], () => BrowserCall<unknown>>>;
 
 interface Viewer {
   readonly doc: Document;
   readonly clock: FakeClock;
-  readonly host: PendingHost;
-  readonly worker: PendingWorker;
+  readonly session: FakeSession;
+  readonly local: FakeLocal;
+  readonly tabs: FakeTabs;
   readonly channels: FakeChannels;
+  readonly workers: FakeWorkers;
   readonly clipboard: FakeClipboard;
   readonly saves: FakeSaves;
   readonly logger: RecordingLogger;
+  /** Every request to the service worker, in order. */
+  readonly requests: SwRequest[];
+  /** The service worker's replies by request type; a test may change them. */
+  readonly replies: Replies;
   /** Each query the page wrote into its URL, in order. */
   readonly replaced: string[];
+  readonly options: { opened: number };
   /** Makes the page hidden or visible; becoming visible fires its listeners. */
   setVisible(visible: boolean): void;
-  /** The viewer's state section and status regions, found in doc. */
   readonly elements: ReturnType<typeof viewerElements>;
-  /** An endpoint of the viewers' channel the test posts on, and what it received. */
-  readonly peer: ViewerChannel;
-  readonly received: ViewerChannelMessage[];
+  /** The end of startViewer, which waits for the run of a start URL. */
+  readonly done: Promise<void>;
 }
 
 interface Options {
-  readonly query?: string;
+  readonly query: string;
   readonly hash?: string;
-  readonly now?: number;
   readonly uiLanguage?: string;
+  readonly buildKind?: "release" | "dev";
   /** The page's own tab; undefined outside a tab. */
   readonly tab?: TabPlace | undefined;
-  /** Timers that never fire, as a throttled page's timer may run late. */
-  readonly lateTimers?: boolean;
-  /** Replaces the fake clipboard's write. */
-  readonly writeClipboard?: WriteClipboard;
+  /** Items in chrome.storage.session before the page loads. */
+  readonly items?: readonly (readonly [string, unknown])[];
+  readonly replies?: Replies;
 }
 
-function queryOf(params: Partial<ViewerParams> = {}): string {
-  return viewerQuery({ ...seed, ...params });
+/** The query of a viewer URL. */
+function queryOf(params: Partial<JobViewerParams> = {}): string {
+  return jobViewerQuery({
+    target: { kind: "job", jobId },
+    videoUrl: watchUrl,
+    title: "A URL title",
+    ...params,
+  });
 }
+
+const startQuery = queryOf({ target: { kind: "start", startId } });
 
 /** Starts a viewer on a fresh viewer.html and lets it run until it waits. */
-async function open(options: Options = {}): Promise<Viewer> {
+async function open(options: Options): Promise<Viewer> {
   const doc = viewerDocument();
-  const clock = fakeClock(options.now ?? loadedAt);
+  const clock = fakeClock(10_000);
+  const session = fakeSession();
+  for (const [name, value] of options.items ?? []) {
+    session.items.set(name, value);
+  }
+  const local = fakeLocal();
+  local.items.set("anthropic.apiKey", secret);
+  local.items.set("anthropic.workspaceId", "");
   const tabs = fakeTabs();
   tabs.current = "tab" in options ? options.tab : ownTab;
+  if (tabs.current !== undefined) {
+    tabs.open.set(tabs.current.tabId, tabs.current.windowId);
+  }
   const channels = fakeChannels();
+  const workers = fakeWorkers();
   const clipboard = fakeClipboard();
   const saves = fakeSaves();
   const logger = recordingLogger();
+  const requests: SwRequest[] = [];
+  const replies: Replies = {
+    claimInput: () => ok({ status: "ok", input }),
+    reserve: () => ok({ status: "new_run", jobId }),
+    prepareRejected: () => ok({ status: "stored" }),
+    progress: () => ok({ status: "stored" }),
+    result: () => ok({ status: "stored" }),
+    runnerReloaded: () => ok({ status: "stored" }),
+    ...options.replies,
+  };
   const replaced: string[] = [];
+  const options$ = { opened: 0 };
   let visible = true;
   const visibleListeners: (() => void)[] = [];
-
-  const host = pendingHost();
-  const worker = pendingWorker();
-
-  const opened = channels.open();
-  assert.ok(opened.ok);
-  const peer = opened.value;
-  const received: ViewerChannelMessage[] = [];
-  peer.listen((data) => {
-    const message = parseViewerChannelMessage(data);
-    assert.ok(message, "the viewer posted a message that fails the check");
-    received.push(message);
-  });
-
-  void startViewer(doc, {
+  const ids = [...newIds];
+  const done = startViewer(doc, {
     uiLanguage: () => options.uiLanguage ?? "en-US",
+    buildKind: options.buildKind ?? "release",
     page: {
-      search: `?${options.query ?? queryOf()}`,
+      search: `?${options.query}`,
       hash: options.hash ?? "",
-      replaceQuery: (written) => void replaced.push(written),
+      replaceQuery: (query) => replaced.push(query),
       isVisible: () => visible,
-      onVisible: (listener) => void visibleListeners.push(listener),
+      onVisible: (listener) => visibleListeners.push(listener),
     },
     tabs,
-    sendToWorker: worker.send,
-    openChannel: channels.open,
-    send: {
-      sendNative: host.sendNative,
-      schedule:
-        options.lateTimers === true ? () => () => undefined : clock.schedule,
+    sendToSw: async (request) => {
+      requests.push(structuredClone(request));
+      const reply = replies[request.type];
+      return reply === undefined ? { ok: false, error: "no reply" } : reply();
     },
+    readSession: session.read,
+    onSessionChanged: session.onChanged,
+    openChannel: channels.open,
+    newId: () => ids.shift() ?? "f".repeat(32),
+    runner: {
+      startWorker: () => startWasmWorker(workers.create, clock.schedule),
+      connectPort: () => () => {},
+      readSettings: local.read,
+      confirmUnload: () => {},
+    },
+    schedule: clock.schedule,
     now: clock.now,
-    writeClipboard: options.writeClipboard ?? clipboard.write,
+    openOptions: async () => {
+      options$.opened += 1;
+      return ok(undefined);
+    },
+    writeClipboard: clipboard.write,
     saveFile: saves.save,
     log: logger.log,
   });
@@ -190,13 +195,18 @@ async function open(options: Options = {}): Promise<Viewer> {
   return {
     doc,
     clock,
-    host,
-    worker,
+    session,
+    local,
+    tabs,
     channels,
+    workers,
     clipboard,
     saves,
     logger,
+    requests,
+    replies,
     replaced,
+    options: options$,
     setVisible: (next) => {
       visible = next;
       if (next) {
@@ -206,795 +216,580 @@ async function open(options: Options = {}): Promise<Viewer> {
       }
     },
     elements: viewerElements(doc),
-    peer,
-    received,
+    done,
   };
 }
 
-/** The state section's text drawn for state on a fresh skeleton, to compare with the page. */
+/** Puts record into the session area as the worker writes it, which announces it. */
+async function store(viewer: Viewer, record: JobRecord): Promise<void> {
+  await viewer.session.write({ [jobItemName(record.jobId)]: record });
+  await settle();
+}
+
+/** The state section's text renderViewer draws for state in a fresh skeleton. */
 function drawnState(
   state: ViewerState,
   elapsedMs = 0,
   existing = false,
 ): string {
   const elements = viewerElements();
-  renderViewer(elements, { state, elapsedMs, existing }, "en");
+  renderViewer(
+    elements,
+    { state, elapsedMs, existing, buildKind: "release" },
+    "en",
+    { openOptions: () => {} },
+  );
   return elements.state.textContent ?? "";
 }
 
-/** The page's state section text. */
 function stateText(viewer: Viewer): string {
   return viewer.elements.state.textContent ?? "";
 }
 
-/** A viewer opened on a key URL that has shown job. */
-async function showing(job: Json): Promise<Viewer> {
-  const viewer = await open({ query: queryOf({ key }) });
-  await viewer.host.answer(statusReply(job));
-  return viewer;
-}
+const types = (viewer: Viewer): string[] =>
+  viewer.requests.map((request) => request.type);
 
-/** Posts message on the test's endpoint and lets the page answer. */
-async function post(
-  viewer: Viewer,
-  message: ViewerChannelMessage,
-): Promise<void> {
-  assert.ok(viewer.peer.post(message));
-  await settle();
-}
-
-const queryId = "0".repeat(31) + "1";
-
-/** A take-over of the test's tab for queryId, from a send at newSentAt answered with answer. */
-function takeOver(
-  newSentAt = sentAt + 50_000,
-  answer: "accepted" | "same-video" = "accepted",
-): ViewerChannelMessage {
+/** The running record of this page's own run, as the worker writes it on the reservation. */
+function ownRunning(acceptedAt = 10_000): JobRecord {
+  const record = runningRecord(ownTab.tabId, acceptedAt);
+  assert.ok(record.state === "running");
   return {
-    type: "take-over",
-    queryId,
-    tabId: 5,
-    sentAt: newSentAt,
-    answer,
+    ...record,
+    runner: { tabId: ownTab.tabId, instanceId: newIds[0] ?? "" },
   };
 }
 
-describe("startViewer: display and URL", () => {
-  for (const [name, options] of [
-    ["an unknown name", { query: `${queryOf()}&x=1` }],
-    ["a fragment", { hash: "#x" }],
-    [
-      "a send time after the load",
-      { query: queryOf({ sentAt: loadedAt + 1 }) },
-    ],
-    ["an empty key", { query: `${queryOf()}&k=` }],
-    ["an e without a key", { query: `${queryOf()}&e=1` }],
+/** Lets the run's Worker load and answers prepare. */
+async function prepared(viewer: Viewer, reply = preparedOk): Promise<void> {
+  const worker = viewer.workers.created[0];
+  assert.ok(worker !== undefined, "no Worker was started");
+  worker.send({ kind: "ready" });
+  worker.send({ callId: 1, kind: "reply", value: reply });
+  await settle();
+}
+
+describe("startViewer: links", () => {
+  for (const [name, query] of [
+    ["an empty query", ""],
+    ["an unknown name", `${queryOf()}&x=1`],
+    ["a start and a job together", `${queryOf()}&r=${startId}`],
+    ["a title too long", queryOf({ title: "t".repeat(65) })],
   ] as const) {
-    it(`shows an invalid link and sends nothing for ${name}`, async () => {
-      const viewer = await open(options);
+    it(`shows an invalid link with its fixed title and reads and sends nothing for ${name}`, async () => {
+      const viewer = await open({ query });
       assert.equal(stateText(viewer), drawnState({ kind: "invalid-link" }));
+      assert.equal(viewer.doc.title, "Invalid link - yt2column");
+      assert.deepEqual(viewer.requests, []);
+      assert.deepEqual(viewer.session.calls, []);
+      assert.equal(viewer.workers.created.length, 0);
       assert.equal(viewer.elements.heading.hidden, true);
-      assert.equal(viewer.elements.article.hidden, true);
-      assert.deepEqual(viewer.host.sent, []);
-      assert.deepEqual(viewer.worker.sent, []);
-      assert.equal(viewer.doc.title, "yt2column");
-      assert.deepEqual(
-        viewer.logger.errors.map(({ label }) => label),
-        ["yt2column viewer url"],
-      );
-      viewer.clock.advance(startResultDeadlineMs);
-      await settle();
-      assert.deepEqual(viewer.host.sent, []);
-    });
-  }
-
-  it("polls a URL that holds a key at once and shows its status", async () => {
-    const viewer = await open({ query: queryOf({ key }) });
-    assert.equal(
-      stateText(viewer),
-      drawnState({ kind: "loading", notice: { kind: "none" } }),
-    );
-    assert.deepEqual(viewer.host.sent, [{ v: 1, op: "status", key }]);
-    assert.deepEqual(viewer.worker.sent, []);
-    await viewer.host.answer(statusReply(runningJob));
-    assert.ok(viewer.elements.state.querySelector(".step-list") !== null);
-  });
-
-  for (const [kind, existing] of [
-    ["accepted", false],
-    ["same-video", true],
-  ] as const) {
-    it(`waits for the start result, adds the key${existing ? " and e=1" : ""} to the URL on ${kind} and polls it`, async () => {
-      const viewer = await open();
-      assert.equal(stateText(viewer), drawnState({ kind: "sending" }));
-      assert.deepEqual(viewer.worker.sent, [{ type: "await-start", sentAt }]);
-      await viewer.worker.answer({
-        ok: true,
-        value: { kind: "result", outcome: { kind, key, requestId } },
-      });
-      assert.equal(viewer.replaced.length, 1);
-      const written = parseViewerUrl(`?${viewer.replaced[0]}`, "", loadedAt);
-      assert.ok(written.ok);
-      assert.deepEqual(
-        written.params,
-        existing ? { ...seed, key, existing: true } : { ...seed, key },
-      );
-      assert.deepEqual(viewer.host.sent, [{ v: 1, op: "status", key }]);
-      // Only an existing article's page shows the notice.
-      assert.equal(viewer.elements.existing.hidden, !existing);
-    });
-  }
-
-  for (const [name, finish] of [
-    [
-      "the worker holds no send",
-      (viewer: Viewer) =>
-        viewer.worker.answer({ ok: true, value: { kind: "none" } }),
-    ],
-    [
-      "the message fails",
-      (viewer: Viewer) =>
-        viewer.worker.answer({ ok: false, error: "no receiving end" }),
-    ],
-    [
-      "the reply fails its check",
-      (viewer: Viewer) =>
-        viewer.worker.answer({ ok: true, value: { kind: "result" } }),
-    ],
-    [
-      "the deadline passes first, and the late result",
-      async (viewer: Viewer) => {
-        viewer.clock.advance(startResultDeadlineMs - (loadedAt - sentAt));
-        await viewer.worker.answer({
-          ok: true,
-          value: {
-            kind: "result",
-            outcome: { kind: "accepted", key, requestId },
-          },
-        });
-      },
-    ],
-  ] as const) {
-    it(`shows no result and sends no status query when ${name}`, async () => {
-      const viewer = await open();
-      await finish(viewer);
       assert.equal(
-        stateText(viewer),
-        drawnState({ kind: "start-failed", failure: { kind: "no-result" } }),
+        viewer.logger.errors.map((entry) => entry.label).join(),
+        "yt2column viewer url",
       );
-      assert.deepEqual(viewer.host.sent, []);
-      assert.deepEqual(viewer.replaced, []);
     });
   }
 
-  it("shows no result for a result that arrives after the deadline before its late timer", async () => {
-    const viewer = await open({ lateTimers: true });
-    viewer.clock.advance(startResultDeadlineMs - (loadedAt - sentAt));
-    await viewer.worker.answer({
-      ok: true,
-      value: { kind: "result", outcome: { kind: "accepted", key, requestId } },
-    });
-    assert.equal(
-      stateText(viewer),
-      drawnState({ kind: "start-failed", failure: { kind: "no-result" } }),
-    );
-    assert.deepEqual(viewer.host.sent, []);
-    assert.deepEqual(viewer.replaced, []);
+  it("rejects a link with a fragment", async () => {
+    const viewer = await open({ query: queryOf(), hash: "#x" });
+    assert.equal(stateText(viewer), drawnState({ kind: "invalid-link" }));
   });
 
-  it("does not wait at all when the page loads after the deadline", async () => {
-    const viewer = await open({ now: sentAt + startResultDeadlineMs });
-    assert.deepEqual(viewer.worker.sent, []);
-    assert.equal(
-      stateText(viewer),
-      drawnState({ kind: "start-failed", failure: { kind: "no-result" } }),
-    );
-  });
-
-  it("waits only until the deadline counted from the URL's send time", async () => {
-    const viewer = await open({ now: sentAt + 30_000 });
-    viewer.clock.advance(startResultDeadlineMs - 30_000 - 1);
-    assert.equal(stateText(viewer), drawnState({ kind: "sending" }));
-    viewer.clock.advance(1);
-    assert.equal(
-      stateText(viewer),
-      drawnState({ kind: "start-failed", failure: { kind: "no-result" } }),
-    );
-  });
-
-  for (const outcome of [
-    { kind: "rejected", reason: "invalid_transcript", requestId },
-    { kind: "not-sent", cause: "server-unavailable" },
-    { kind: "no-response" },
-  ] as const) {
-    it(`shows a start that was ${outcome.kind} with its reason and polls nothing`, async () => {
-      const viewer = await open();
-      await viewer.worker.answer({
-        ok: true,
-        value: { kind: "result", outcome },
-      });
-      assert.equal(
-        stateText(viewer),
-        drawnState({ kind: "start-failed", failure: outcome }),
-      );
-      viewer.clock.advance(startResultDeadlineMs);
-      await settle();
-      assert.deepEqual(viewer.host.sent, []);
-    });
-  }
-
-  it("counts the elapsed time from the URL's send time after a reload, and redraws it each second while visible", async () => {
-    const reloadedAt = sentAt + 65_000;
-    const viewer = await open({ query: queryOf({ key }), now: reloadedAt });
-    await viewer.host.answer(statusReply(runningJob));
-    assert.equal(stateText(viewer), drawnState(runningState, 65_000));
-    viewer.clock.advance(elapsedRedrawMs);
-    assert.equal(stateText(viewer), drawnState(runningState, 66_000));
-
-    viewer.setVisible(false);
-    viewer.clock.advance(elapsedRedrawMs);
-    viewer.clock.advance(elapsedRedrawMs);
-    assert.equal(stateText(viewer), drawnState(runningState, 67_000));
-    // Becoming visible draws the time at once, before the next second.
-    viewer.setVisible(true);
-    assert.equal(stateText(viewer), drawnState(runningState, 68_000));
-  });
-
-  it("shows an existing article after a reload of an e=1 URL: no elapsed time or its redraw while running, the time taken when done", async () => {
+  it("sets the page language and a development build's name in the title", async () => {
     const viewer = await open({
-      query: queryOf({ key, existing: true }),
-      now: sentAt + 65_000,
+      query: "",
+      uiLanguage: "ja-JP",
+      buildKind: "dev",
     });
-    await viewer.host.answer(statusReply(runningJob));
-    assert.equal(stateText(viewer), drawnState(runningState, 0, true));
-    assert.equal(viewer.elements.existing.hidden, false);
-    assert.deepEqual(viewer.replaced, []);
-    // Only the next poll is armed: no per-second redraw beside it.
-    assert.equal(viewer.clock.pending(), 1);
-
-    viewer.clock.advance(pollIntervalMs);
-    await viewer.host.answer(statusReply(doneJob));
-    assert.equal(
-      viewer.elements.state.querySelector(".job-result dd")?.textContent,
-      formatDuration(article.durationMs, "en"),
-    );
-    assert.equal(viewer.elements.existing.hidden, false);
-  });
-
-  for (const [name, reply, notice] of [
-    [
-      "a retryable failure, beside the loading mark",
-      errorReply("server_unavailable"),
-      {
-        kind: "retrying",
-        outcome: { kind: "not-sent", cause: "server-unavailable" },
-      },
-    ],
-    [
-      "a rejection, alone since polling stopped",
-      statusRejected,
-      {
-        kind: "stopped",
-        outcome: { kind: "rejected", reason: "invalid_key", requestId },
-      },
-    ],
-  ] as const) {
-    it(`shows a failed first status: ${name}`, async () => {
-      const viewer = await open({ query: queryOf({ key }) });
-      await viewer.host.answer(reply);
-      assert.equal(stateText(viewer), drawnState({ kind: "loading", notice }));
-      // A failed exchange is logged as an error; a server's rejection is its answer.
-      const level =
-        notice.kind === "retrying" ? viewer.logger.errors : viewer.logger.infos;
-      assert.equal(level.at(-1)?.label, "yt2column status result");
-      assert.equal(
-        (level.at(-1)?.data as { decision: string }).decision,
-        notice.kind === "retrying" ? "continue" : "stop",
-      );
-    });
-  }
-
-  it("titles the page with the URL's heading and sets its language", async () => {
-    const viewer = await open({ uiLanguage: "ja" });
-    assert.equal(viewer.doc.title, "Heading - yt2column");
     assert.equal(viewer.doc.documentElement.lang, "ja");
-    assert.equal(viewer.elements.heading.textContent, "Heading");
-    assert.equal(viewer.elements.channel.textContent, "Channel");
-  });
-
-  it("keeps the state shown, without the loading mark, during later status queries", async () => {
-    const viewer = await showing(runningJob);
-    viewer.clock.advance(pollIntervalMs);
-    assert.equal(viewer.host.count("status"), 2);
-    assert.equal(viewer.elements.state.querySelector(".loading"), null);
-    assert.ok(viewer.elements.state.querySelector(".step-list") !== null);
-  });
-
-  // renderViewer writes the summary only when it changes; this checks that
-  // the viewer's redraw on every poll and every second keeps that property.
-  it("writes the state summary only when the state changes", async () => {
-    const viewer = await showing(runningJob);
-    const summary = viewer.elements.stateStatus.firstChild;
-    assert.ok(summary !== null);
-    viewer.clock.advance(pollIntervalMs);
-    await viewer.host.answer(statusReply(runningJob));
-    viewer.clock.advance(elapsedRedrawMs);
-    assert.equal(viewer.elements.stateStatus.firstChild, summary);
-    viewer.clock.advance(pollIntervalMs);
-    await viewer.host.answer(statusReply(doneJob));
-    assert.notEqual(viewer.elements.stateStatus.firstChild, summary);
-  });
-
-  it("fetches once at once when the page becomes visible", async () => {
-    const viewer = await showing(runningJob);
-    viewer.setVisible(false);
-    viewer.setVisible(true);
-    assert.equal(viewer.host.count("status"), 2);
-    await viewer.host.answer(statusReply(runningJob));
-    const last = viewer.logger.infos.at(-1);
-    assert.equal(last?.label, "yt2column status result");
-    assert.equal((last?.data as { visible: boolean }).visible, true);
+    assert.equal(
+      viewer.doc.title,
+      `${catalogs.ja.viewerTitle.invalidLink} - ${catalogs.ja.viewerTitle.name.dev}`,
+    );
   });
 });
 
-describe("startViewer: operations", () => {
-  for (const [name, reply] of [
-    ["not sent", errorReply("server_unavailable")],
-    ["host failed", { kind: "failed", lastError: "host exited" }],
-    ["rejected", statusRejected],
-  ] as const) {
-    it(`sends no start on a failed status (${name})`, async () => {
-      // A take-over of a done job restarts its stopped poller, so the status
-      // fails while the article is shown.
-      const viewer = await showing(doneJob);
-      await post(viewer, { type: "find", queryId, key });
-      await post(viewer, takeOver());
-      await viewer.host.answer(reply);
-      viewer.clock.advance(10 * pollIntervalMs);
-      await settle();
-      assert.deepEqual(viewer.worker.sent, []);
+describe("startViewer: a job URL", () => {
+  it("shows the record's running job with the time since the reservation, redrawn each second while visible", async () => {
+    const viewer = await open({
+      query: queryOf(),
+      items: [[jobItemName(jobId), runningRecord(99, 4_000)]],
     });
-  }
-
-  it("shows a failed status beside the job and keeps polling a retryable one", async () => {
-    const viewer = await showing(runningJob);
-    viewer.clock.advance(pollIntervalMs);
-    await viewer.host.answer(errorReply("server_unavailable"));
-    assert.ok(viewer.elements.state.querySelector(".step-list") !== null);
-    assert.ok(
-      stateText(viewer).includes(
-        statusNoticeMessage(
-          { kind: "not-sent", cause: "server-unavailable" },
-          "en",
-        ).text,
-      ),
-    );
-    viewer.clock.advance(pollIntervalMs);
-    assert.equal(viewer.host.count("status"), 3);
+    const running: ViewerState = {
+      kind: "job",
+      job: { kind: "running", steps: runningRecord().steps },
+    };
+    assert.equal(stateText(viewer), drawnState(running, 6_000));
+    viewer.clock.advance(elapsedRedrawMs);
+    assert.equal(stateText(viewer), drawnState(running, 7_000));
+    viewer.setVisible(false);
+    viewer.clock.advance(elapsedRedrawMs);
+    assert.equal(viewer.clock.pending(), 0);
+    viewer.setVisible(true);
+    assert.equal(viewer.clock.pending(), 1);
   });
 
-  it("shows the article as lost, still saveable, when the server no longer holds it", async () => {
-    // A take-over of a done job restarts its stopped poller, and the server
-    // answers that it holds no job for the key.
-    const viewer = await showing(doneJob);
-    await post(viewer, { type: "find", queryId, key });
-    await post(viewer, takeOver());
-    await viewer.host.answer(statusReply({ state: "unknown" }));
-    assert.ok(stateText(viewer).includes(catalogs.en.viewer.lost.text));
-    // The kept article still gives the heading its values.
-    assert.equal(viewer.elements.heading.textContent, article.videoTitle);
-    assert.equal(viewer.elements.channel.textContent, article.channelName);
+  it("titles the page and heads it with the record's values", async () => {
+    const viewer = await open({
+      query: queryOf(),
+      items: [[jobItemName(jobId), runningRecord(99)]],
+    });
+    assert.equal(viewer.doc.title, "A video title - yt2column");
+    assert.equal(viewer.elements.heading.textContent, "A video title");
+    assert.equal(viewer.elements.channel.textContent, "A channel");
+    assert.equal(viewer.elements.videoLink.getAttribute("href"), watchUrl);
+  });
+
+  it("uses the URL's title for the heading and the page title when the record collected no video title", async () => {
+    const record = runningRecord(99);
+    const viewer = await open({
+      query: queryOf(),
+      items: [
+        [
+          jobItemName(jobId),
+          { ...record, heading: { videoTitle: "", channelName: "" } },
+        ],
+      ],
+    });
+    assert.equal(viewer.elements.heading.textContent, "A URL title");
+    assert.equal(viewer.elements.channel.hidden, true);
+    assert.equal(viewer.doc.title, "A URL title - yt2column");
+  });
+
+  it("follows the record's change events to the done article, with saving and copying", async () => {
+    const viewer = await open({
+      query: queryOf(),
+      items: [[jobItemName(jobId), runningRecord(99)]],
+    });
+    const done = doneRecord() as Extract<JobRecord, { state: "done" }>;
+    await store(viewer, {
+      ...done,
+      article: { ...article, videoTitle: neutralTitle },
+    });
+    assert.equal(viewer.elements.article.hidden, false);
+    assert.equal(viewer.elements.heading.textContent, neutralTitle);
+    assert.equal(viewer.doc.title, `${neutralTitle} - yt2column`);
+    assert.equal(viewer.clock.pending(), 0);
     viewer.elements.save.click();
-    assert.deepEqual(
-      viewer.saves.saved.map(({ text }) => text),
-      [article.file],
-    );
-  });
-
-  it("saves the article's file text unchanged under the title's file name", async () => {
-    const viewer = await showing(doneJob);
-    viewer.elements.save.click();
-    assert.deepEqual(viewer.saves.saved, [
-      { fileName: articleFileName("Video title", "abc"), text: article.file },
-    ]);
-    assert.equal(
-      viewer.elements.actionStatus.textContent,
-      catalogs.en.viewer.saved,
-    );
-  });
-
-  it("copies the display Markdown and says so, without moving focus", async () => {
-    const viewer = await showing(doneJob);
-    const focused = viewer.doc.activeElement;
     viewer.elements.copy.click();
     await settle();
+    assert.deepEqual(viewer.saves.saved, [
+      {
+        fileName: articleFileName("A video title", "dQw4w9WgXcQ"),
+        text: article.file,
+      },
+    ]);
     assert.deepEqual(viewer.clipboard.written, [article.markdown]);
     assert.equal(
       viewer.elements.actionStatus.textContent,
       catalogs.en.viewer.copied,
     );
-    assert.equal(viewer.doc.activeElement, focused);
   });
 
-  it("changes nothing shown for a copy that finishes after the send restarted", async () => {
-    let finishCopy: ((result: BrowserCall<undefined>) => void) | undefined;
+  it("shows a lost article with the URL's title and link when no record holds the job", async () => {
+    const viewer = await open({ query: queryOf() });
+    assert.equal(
+      stateText(viewer),
+      drawnState({ kind: "job", job: { kind: "lost" } }),
+    );
+    assert.equal(viewer.doc.title, "A URL title - yt2column");
+    assert.equal(viewer.elements.heading.textContent, "A URL title");
+    assert.equal(viewer.elements.videoLink.getAttribute("href"), watchUrl);
+    assert.equal(viewer.elements.actions.hidden, true);
+  });
+
+  it("shows a record removed later as lost", async () => {
     const viewer = await open({
-      query: queryOf({ key }),
-      writeClipboard: () =>
-        new Promise((resolve) => {
-          finishCopy = resolve;
-        }),
+      query: queryOf(),
+      items: [[jobItemName(jobId), doneRecord()]],
     });
-    await viewer.host.answer(statusReply(doneJob));
-    // A done job whose polling stopped restarts on a take-over.
-    await post(viewer, { type: "find", queryId, key });
-    await post(viewer, takeOver());
-    await viewer.host.answer(statusRejected);
-    viewer.elements.copy.click();
-    await settle();
-    assert.ok(finishCopy, "the copy did not start");
-    await post(viewer, { type: "find", queryId, key });
-    await post(viewer, takeOver(sentAt + 60_000));
-    finishCopy({ ok: true, value: undefined });
-    await settle();
-    assert.equal(viewer.elements.actionStatus.textContent, "");
-  });
-
-  it("says when the copy fails", async () => {
-    const viewer = await showing(doneJob);
-    viewer.clipboard.fail();
-    viewer.elements.copy.click();
+    await viewer.session.remove([jobItemName(jobId)]);
     await settle();
     assert.equal(
-      viewer.elements.actionStatus.textContent,
-      catalogs.en.viewer.copyFailed,
+      stateText(viewer),
+      drawnState({ kind: "job", job: { kind: "lost" } }),
     );
+    assert.equal(viewer.elements.article.hidden, true);
   });
 
-  for (const locale of ["en", "ja"] as const) {
-    it(`says a copy neutralized mentions, with no count, without moving focus in ${locale}`, async () => {
+  it("follows only its own job's record", async () => {
+    const viewer = await open({
+      query: queryOf(),
+      items: [[jobItemName(jobId), runningRecord(99)]],
+    });
+    const before = stateText(viewer);
+    await store(viewer, { ...doneRecord(), jobId: otherJob });
+    assert.equal(stateText(viewer), before);
+  });
+
+  it("starts no run: it takes no input and starts no Worker", async () => {
+    for (const record of [undefined, failedRecord("llm_failed")]) {
       const viewer = await open({
-        query: queryOf({ key }),
-        uiLanguage: locale,
+        query: queryOf(),
+        items: record === undefined ? [] : [[jobItemName(jobId), record]],
       });
-      await viewer.host.answer(
-        statusReply({
-          ...doneJob,
-          article: { ...article, mentionsNeutralized: true },
-        }),
-      );
-      const focused = viewer.doc.activeElement;
-      viewer.elements.copy.click();
+      assert.deepEqual(types(viewer), []);
+      assert.equal(viewer.workers.created.length, 0);
+      assert.equal(viewer.local.calls.length, 0);
+    }
+  });
+
+  it("tells the worker that the running page was reloaded when its record names this tab", async () => {
+    const viewer = await open({
+      query: queryOf(),
+      items: [[jobItemName(jobId), runningRecord(ownTab.tabId)]],
+    });
+    assert.deepEqual(viewer.requests, [
+      { type: "runnerReloaded", jobId, instanceId: newIds[0] },
+    ]);
+  });
+
+  it("tells the worker nothing when the running page is in another tab", async () => {
+    const viewer = await open({
+      query: queryOf(),
+      items: [[jobItemName(jobId), runningRecord(99)]],
+    });
+    assert.deepEqual(viewer.requests, []);
+  });
+
+  it("shows an existing article without the elapsed time, with its notice", async () => {
+    const viewer = await open({
+      query: queryOf({ target: { kind: "job", jobId, existing: true } }),
+      items: [[jobItemName(jobId), runningRecord(99)]],
+    });
+    assert.equal(viewer.elements.existing.hidden, false);
+    assert.equal(viewer.elements.state.querySelector(".job-elapsed"), null);
+    assert.equal(viewer.clock.pending(), 0);
+  });
+
+  for (const [name, record] of [
+    ["a missing API key", failedRecord("api_key_missing")],
+    ["a rejected key", failedRecord("api_key_rejected")],
+  ] as const) {
+    it(`offers the setup operation for ${name}, which opens the options page`, async () => {
+      const viewer = await open({
+        query: queryOf(),
+        items: [[jobItemName(jobId), record]],
+      });
+      const button = viewer.elements.state.querySelector("button");
+      assert.ok(button !== null);
+      button.click();
       await settle();
-      assert.deepEqual(viewer.clipboard.written, [article.markdown]);
-      assert.equal(
-        viewer.elements.actionStatus.textContent,
-        catalogs[locale].viewer.copiedNeutralized,
-      );
-      assert.equal(viewer.doc.activeElement, focused);
+      assert.equal(viewer.options.opened, 1);
     });
   }
 
-  it("does not say a failed copy neutralized mentions", async () => {
-    const viewer = await showing({
-      ...doneJob,
-      article: { ...article, mentionsNeutralized: true },
+  it("answers present to a query for its job, and nothing to a query for another", async () => {
+    const viewer = await open({
+      query: queryOf(),
+      items: [[jobItemName(jobId), runningRecord(99)]],
     });
-    viewer.clipboard.fail();
-    viewer.elements.copy.click();
+    const opened = viewer.channels.open();
+    assert.ok(opened.ok);
+    const received: unknown[] = [];
+    opened.value.listen((data) => received.push(data));
+    opened.value.post({ type: "find", queryId: queryA, jobId: otherJob });
+    opened.value.post({ type: "find", queryId: queryB, jobId });
     await settle();
-    assert.equal(
-      viewer.elements.actionStatus.textContent,
-      catalogs.en.viewer.copyFailed,
-    );
-  });
-
-  // The viewer has no copy listener: a reader's own copy of a selection
-  // must not touch the operation result's region.
-  it("leaves the operation result alone when the reader copies a selection", async () => {
-    const viewer = await showing(doneJob);
-    viewer.elements.save.click();
-    const status = viewer.elements.actionStatus;
-    const before = { text: status.textContent, first: status.firstChild };
-    for (const target of [viewer.doc, viewer.elements.article]) {
-      target.dispatchEvent(
-        new viewer.doc.defaultView!.Event("copy", { bubbles: true }),
-      );
-    }
-    await settle();
-    assert.equal(status.textContent, before.text);
-    assert.equal(status.firstChild, before.first);
-    assert.deepEqual(viewer.clipboard.written, []);
-  });
-
-  it("neither shows nor copies a done article without mentionsNeutralized", async () => {
-    const older: Json = { ...article };
-    delete older.mentionsNeutralized;
-    const viewer = await showing({
-      ...doneJob,
-      article: older,
-    });
-    assert.equal(viewer.elements.article.hidden, true);
-    assert.equal(viewer.elements.article.textContent, "");
-    viewer.elements.copy.click();
-    await settle();
-    assert.deepEqual(viewer.clipboard.written, []);
-  });
-
-  it("keeps the heading's text through the redraw each second of a running job", async () => {
-    const viewer = await showing(runningJob);
-    const node = viewer.elements.heading.firstChild;
-    assert.ok(node !== null);
-    const before = stateText(viewer);
-    viewer.clock.advance(elapsedRedrawMs);
-    await settle();
-    // The elapsed time changed, so the page was drawn again.
-    assert.notEqual(stateText(viewer), before);
-    assert.equal(viewer.elements.heading.firstChild, node);
-  });
-
-  it("shows the done article's video title and channel name in the heading", async () => {
-    const viewer = await open({ query: queryOf({ key }) });
-    assert.equal(viewer.elements.heading.textContent, "Heading");
-    await viewer.host.answer(
-      statusReply({
-        ...doneJob,
-        article: {
-          ...article,
-          videoTitle: "Live @\u200bhere",
-          channelName: "@\u200bhandle",
-        },
-      }),
-    );
-    assert.equal(viewer.elements.heading.textContent, "Live @\u200bhere");
-    assert.equal(viewer.elements.channel.textContent, "@\u200bhandle");
-    // The tab title keeps the URL's heading.
-    assert.equal(viewer.doc.title, "Heading - yt2column");
-  });
-});
-
-describe("startViewer: queries, take-over and logs", () => {
-  it("answers present for its key, nothing for another key, and waiting while it has none", async () => {
-    const viewer = await showing(runningJob);
-    await post(viewer, { type: "find", queryId, key });
-    await post(viewer, {
-      type: "find",
-      queryId,
-      key: "other" as ArticleKey,
-    });
-    assert.deepEqual(viewer.received, [
-      { type: "present", queryId, tabId: 5, windowId: 2, sentAt },
-    ]);
-
-    const waiting = await open();
-    await post(waiting, { type: "find", queryId, key });
-    assert.deepEqual(waiting.received, [
-      { type: "waiting", queryId, tabId: 5, sentAt },
+    assert.deepEqual(received.map(parseJobChannelMessage), [
+      {
+        type: "present",
+        queryId: queryB,
+        tabId: ownTab.tabId,
+        windowId: ownTab.windowId,
+      },
     ]);
   });
 
   it("answers nothing when it does not know its own tab", async () => {
-    const viewer = await open({ query: queryOf({ key }), tab: undefined });
-    await post(viewer, { type: "find", queryId, key });
-    assert.deepEqual(viewer.received, []);
+    const viewer = await open({
+      query: queryOf(),
+      tab: undefined,
+      items: [[jobItemName(jobId), runningRecord(99)]],
+    });
+    const opened = viewer.channels.open();
+    assert.ok(opened.ok);
+    const received: unknown[] = [];
+    opened.value.listen((data) => received.push(data));
+    opened.value.post({ type: "find", queryId: queryB, jobId });
+    await settle();
+    assert.deepEqual(received, []);
+  });
+});
+
+describe("startViewer: a start URL", () => {
+  it("shows the start context's values while it prepares, and runs the job it was handed", async () => {
+    const viewer = await open({
+      query: startQuery,
+      items: [[startItemName(startId), startContext(ownTab.tabId, 9_000)]],
+    });
+    assert.equal(stateText(viewer), drawnState({ kind: "preparing" }));
+    assert.equal(viewer.doc.title, "A video title - yt2column");
+    assert.equal(viewer.elements.heading.textContent, "A video title");
+    assert.deepEqual(types(viewer), ["claimInput"]);
+    await prepared(viewer);
+    assert.deepEqual(types(viewer), ["claimInput", "reserve"]);
+    // The reservation turns the URL into the job's, keeping u and t.
+    assert.deepEqual(
+      viewer.replaced.map((query) => parseJobViewerUrl(`?${query}`, "")),
+      [
+        {
+          ok: true,
+          params: {
+            target: { kind: "job", jobId },
+            videoUrl: watchUrl,
+            title: "A URL title",
+          },
+        },
+      ],
+    );
+    // The worker writes the record; the viewer follows it.
+    await store(viewer, ownRunning());
+    assert.equal(
+      stateText(viewer),
+      drawnState(
+        { kind: "job", job: { kind: "running", steps: runningRecord().steps } },
+        0,
+      ),
+    );
   });
 
-  for (const answer of ["accepted", "same-video"] as const) {
-    it(`goes on as it is when ${answer === "accepted" ? "an" : "a"} ${answer} send takes over a running job, and a status sent before cannot stop it`, async () => {
-      const viewer = await showing(runningJob);
-      viewer.clock.advance(pollIntervalMs);
-      await post(viewer, { type: "find", queryId, key });
-      await post(viewer, takeOver(undefined, answer));
-      assert.deepEqual(viewer.received.at(-1), {
-        type: "took-over",
-        queryId,
-        tabId: 5,
+  it("shows the done article its record holds at the end of the run", async () => {
+    const viewer = await open({
+      query: startQuery,
+      items: [[startItemName(startId), startContext(ownTab.tabId)]],
+    });
+    await prepared(viewer);
+    await store(viewer, ownRunning());
+    const worker = viewer.workers.created[0];
+    assert.ok(worker !== undefined);
+    worker.send({
+      callId: 2,
+      kind: "reply",
+      value: JSON.stringify({
+        status: "done",
+        steps: doneRecord().steps,
+        article,
+      }),
+    });
+    await settle();
+    await store(viewer, doneRecord());
+    await viewer.done;
+    assert.ok(types(viewer).includes("result"));
+    assert.equal(viewer.elements.article.hidden, false);
+    assert.equal(viewer.elements.save.disabled, false);
+  });
+
+  it("keeps showing the article it holds when the worker could not store it, whatever the record says", async () => {
+    const viewer = await open({
+      query: startQuery,
+      items: [[startItemName(startId), startContext(ownTab.tabId)]],
+      replies: { result: () => ok({ status: "not_stored" }) },
+    });
+    await prepared(viewer);
+    await store(viewer, ownRunning());
+    const worker = viewer.workers.created[0];
+    assert.ok(worker !== undefined);
+    worker.send({
+      callId: 2,
+      kind: "reply",
+      value: JSON.stringify({
+        status: "done",
+        steps: doneRecord().steps,
+        article,
+      }),
+    });
+    await viewer.done;
+    await settle();
+    const unstored: ViewerState = {
+      kind: "job",
+      job: { kind: "unstored", steps: doneRecord().steps, article },
+    };
+    assert.equal(stateText(viewer), drawnState(unstored));
+    // The worker's mark of the failed store does not replace the article.
+    await store(viewer, {
+      ...failedRecord("internal"),
+      internalDetail: "store_failed",
+    } as JobRecord);
+    assert.equal(stateText(viewer), drawnState(unstored));
+    assert.equal(viewer.elements.save.disabled, false);
+  });
+
+  for (const [status, existing] of [
+    ["existing", false],
+    ["same_video", true],
+  ] as const) {
+    it(`shows the ${status} job it was handed${existing ? ", marked as an existing article," : ""} when no other viewer shows it`, async () => {
+      const viewer = await open({
+        query: startQuery,
+        items: [
+          [startItemName(startId), startContext(ownTab.tabId)],
+          [jobItemName(otherJob), { ...doneRecord(), jobId: otherJob }],
+        ],
+        replies: { reserve: () => ok({ status, jobId: otherJob }) },
       });
-      await viewer.host.answer(statusReply(failedJob));
+      await prepared(viewer);
+      viewer.clock.advance(1_000);
+      await viewer.done;
+      await settle();
+      const [query] = viewer.replaced;
+      assert.ok(query !== undefined);
+      assert.deepEqual(parseJobViewerUrl(`?${query}`, ""), {
+        ok: true,
+        params: {
+          target: existing
+            ? { kind: "job", jobId: otherJob, existing: true }
+            : { kind: "job", jobId: otherJob },
+          videoUrl: watchUrl,
+          title: "A URL title",
+        },
+      });
+      assert.equal(viewer.elements.article.hidden, false);
+      assert.equal(viewer.elements.existing.hidden, !existing);
+      assert.equal(viewer.workers.created[0]?.terminations, 1);
       assert.equal(
-        viewer.host.count("status"),
-        3,
-        "a new epoch's query follows at once",
+        viewer.tabs.calls.some((call) => call.op === "remove"),
+        false,
       );
     });
   }
 
-  // Design's take-over table: what the viewer shows when the take-over
-  // arrives decides whether it goes on or restarts. Each setup leaves no
-  // status exchange open.
-  for (const [name, setup, restarts] of [
-    ["a running job", () => showing(runningJob), false],
-    ["a done job", () => showing(doneJob), false],
-    [
-      "a first status still awaited after a retryable failure",
-      async () => {
-        const viewer = await open({ query: queryOf({ key }) });
-        await viewer.host.answer(errorReply("server_unavailable"));
-        return viewer;
-      },
-      false,
-    ],
-    ["a failed job", () => showing(failedJob), true],
-    ["a lost job", () => showing({ state: "unknown" }), true],
-    [
-      "a first status that stopped polling",
-      async () => {
-        const viewer = await open({ query: queryOf({ key }) });
-        await viewer.host.answer(statusRejected);
-        return viewer;
-      },
-      true,
-    ],
-    [
-      "a running job whose polling stopped",
-      async () => {
-        const viewer = await showing(runningJob);
-        viewer.clock.advance(pollIntervalMs);
-        await viewer.host.answer(statusRejected);
-        return viewer;
-      },
-      true,
-    ],
-    [
-      "a done job whose polling stopped",
-      async () => {
-        // A done job stops polling at once; a take-over that goes on fetches
-        // again, and that fetch is rejected.
-        const viewer = await showing(doneJob);
-        await post(viewer, { type: "find", queryId, key });
-        await post(viewer, takeOver());
-        await viewer.host.answer(statusRejected);
-        return viewer;
-      },
-      true,
-    ],
-  ] as const) {
-    // An accepted send leaves the URL's mark as it is; a same-video send
-    // adds e=1 whether the send goes on or restarts.
-    for (const answer of ["accepted", "same-video"] as const) {
-      const existing = answer === "same-video";
-      it(`${restarts ? "restarts from the new send time" : "goes on as it is"} when ${answer === "accepted" ? "an" : "a"} ${answer} send takes over ${name}`, async () => {
-        const viewer = await setup();
-        const statuses = viewer.host.count("status");
-        const shown = stateText(viewer);
-        const timers = viewer.clock.pending();
-        const redrawArmed =
-          viewer.elements.state.querySelector(".job-elapsed") !== null;
-        await post(viewer, { type: "find", queryId, key });
-        const newSentAt = viewer.clock.now() - 3_000;
-        await post(viewer, takeOver(newSentAt, answer));
-        assert.deepEqual(viewer.received.at(-1), {
-          type: "took-over",
-          queryId,
-          tabId: 5,
+  it("closes its own tab when another viewer already shows the job it was handed", async () => {
+    const viewer = await open({
+      query: startQuery,
+      items: [[startItemName(startId), startContext(ownTab.tabId)]],
+      replies: { reserve: () => ok({ status: "existing", jobId: otherJob }) },
+    });
+    const peer = viewer.channels.open();
+    assert.ok(peer.ok);
+    peer.value.listen((data) => {
+      const message = parseJobChannelMessage(data);
+      if (message?.type === "find" && message.jobId === otherJob) {
+        peer.value.post({
+          type: "present",
+          queryId: message.queryId,
+          tabId: 40,
+          windowId: 3,
         });
-        assert.deepEqual(viewer.logger.infos.at(-1), {
-          label: "yt2column take over",
-          data: { accepted: true, restarted: restarts },
-        });
-        assert.equal(viewer.elements.existing.hidden, !existing);
-        if (!restarts && !existing) {
-          assert.deepEqual(viewer.replaced, []);
-          assert.equal(stateText(viewer), shown);
-          return;
-        }
-        const written = parseViewerUrl(
-          `?${viewer.replaced.at(-1)}`,
-          "",
-          viewer.clock.now(),
-        );
-        assert.ok(written.ok);
-        assert.deepEqual(written.params, {
-          ...seed,
-          key,
-          sentAt: restarts ? newSentAt : sentAt,
-          ...(existing ? { existing: true } : {}),
-        });
-        if (!restarts) {
-          // The marked page drops the elapsed time and, for a running job,
-          // its per-second redraw; the poll of a running job is unchanged.
-          assert.equal(
-            viewer.elements.state.querySelector(".job-elapsed"),
-            null,
-          );
-          if (redrawArmed) {
-            assert.equal(viewer.clock.pending(), timers - 1);
-          }
-          return;
-        }
-        assert.equal(
-          stateText(viewer),
-          drawnState({ kind: "loading", notice: { kind: "none" } }),
-        );
-        assert.equal(viewer.host.count("status"), statuses + 1);
-        // The elapsed time now counts from the take-over's send time, unless
-        // the page shows an existing article.
-        await viewer.host.answer(statusReply(runningJob));
-        assert.equal(
-          stateText(viewer),
-          drawnState(runningState, existing ? 0 : 3_000, existing),
-        );
+      }
+    });
+    await prepared(viewer);
+    viewer.clock.advance(1_000);
+    await settle();
+    assert.deepEqual(
+      viewer.tabs.calls.filter((call) => call.op === "remove"),
+      [{ op: "remove", tabId: ownTab.tabId }],
+    );
+  });
+
+  const ends: {
+    name: string;
+    replies?: Replies;
+    prepare?: string;
+    state: ViewerState;
+  }[] = [
+    {
+      name: "the input was already taken",
+      replies: { claimInput: () => ok({ status: "gone" }) },
+      state: { kind: "start-failed", failure: { kind: "input-unavailable" } },
+    },
+    {
+      name: "the input is not accepted",
+      prepare: JSON.stringify({ status: "rejected", reason: "invalid_body" }),
+      state: {
+        kind: "start-failed",
+        failure: { kind: "rejected", reason: "invalid_body" },
+      },
+    },
+    {
+      name: "the reservation is refused",
+      replies: {
+        reserve: () => ok({ status: "rejected", reason: "too_many_requests" }),
+      },
+      state: {
+        kind: "start-failed",
+        failure: { kind: "rejected", reason: "too_many_requests" },
+      },
+    },
+    {
+      name: "the reservation's reply cannot be read",
+      replies: { reserve: () => ok({ status: "new_run" }) },
+      state: { kind: "start-failed", failure: { kind: "unknown" } },
+    },
+  ];
+  for (const { name, replies, prepare, state } of ends) {
+    it(`shows the start's end, keeping the start context's title, when ${name}`, async () => {
+      const viewer = await open({
+        query: startQuery,
+        items: [[startItemName(startId), startContext(ownTab.tabId)]],
+        ...(replies === undefined ? {} : { replies }),
       });
-    }
+      if (viewer.workers.created.length > 0) {
+        await prepared(viewer, prepare);
+      }
+      await viewer.done;
+      assert.equal(stateText(viewer), drawnState(state));
+      assert.equal(viewer.doc.title, "A video title - yt2column");
+      assert.deepEqual(viewer.replaced, []);
+    });
   }
 
-  it("keeps e=1 when an accepted send takes over a page that shows an existing article", async () => {
-    const viewer = await open({ query: queryOf({ key, existing: true }) });
-    await viewer.host.answer(statusReply(failedJob));
-    await post(viewer, { type: "find", queryId, key });
-    const newSentAt = viewer.clock.now() - 3_000;
-    await post(viewer, takeOver(newSentAt));
-    const written = parseViewerUrl(`?${viewer.replaced.at(-1)}`, "", newSentAt);
-    assert.ok(written.ok);
-    assert.deepEqual(written.params, {
-      ...seed,
-      key,
-      existing: true,
-      sentAt: newSentAt,
-    });
-    assert.equal(viewer.elements.existing.hidden, false);
-  });
-
-  it("ignores a take-over meant for another tab, even for a query it answered", async () => {
-    const viewer = await showing(failedJob);
-    await post(viewer, { type: "find", queryId, key });
-    await post(viewer, { ...takeOver(), tabId: 6 } as ViewerChannelMessage);
-    assert.deepEqual(
-      viewer.received.map((message) => message.type),
-      ["present"],
-    );
-    assert.deepEqual(viewer.replaced, []);
-    assert.equal(viewer.host.count("status"), 1);
-  });
-
-  it("ignores a take-over for a query it did not answer present to", async () => {
-    const viewer = await showing(failedJob);
-    await post(viewer, takeOver());
-    await post(viewer, { type: "find", queryId: "f".repeat(32), key });
-    await post(viewer, takeOver());
-    assert.deepEqual(
-      viewer.received.map((message) => message.type),
-      ["present"],
-    );
-    assert.deepEqual(viewer.replaced, []);
-    assert.equal(viewer.host.count("status"), 1);
-  });
-
-  it("logs none of the key, the article or the URL's values", async () => {
-    const marker = "MARKER-7f3a";
+  it("uses the URL's title once the start context is gone, and starts no Worker without the input", async () => {
     const viewer = await open({
-      query: viewerQuery({
-        heading: `${marker} heading`,
-        channelName: `${marker} channel`,
-        title: `${marker} title`,
-        url: watchUrl,
-        sentAt,
-      }),
+      query: startQuery,
+      replies: { claimInput: () => ok({ status: "gone" }) },
     });
-    const markedKey = `${marker}-key` as ArticleKey;
-    await viewer.worker.answer({
-      ok: true,
-      value: {
-        kind: "result",
-        outcome: { kind: "accepted", key: markedKey, requestId },
+    await viewer.done;
+    assert.equal(viewer.doc.title, "A URL title - yt2column");
+    assert.equal(viewer.workers.created.length, 0);
+    assert.equal(
+      stateText(viewer),
+      drawnState({
+        kind: "start-failed",
+        failure: { kind: "input-unavailable" },
+      }),
+    );
+  });
+
+  it("logs the run's outcome kind and none of the input, the key, the job or the URL's values", async () => {
+    const viewer = await open({
+      query: startQuery,
+      items: [[startItemName(startId), startContext(ownTab.tabId)]],
+      replies: {
+        reserve: () => ok({ status: "rejected", reason: "internal" }),
       },
     });
-    await viewer.host.answer(
-      statusReply({
-        ...doneJob,
-        article: { ...article, markdown: marker, file: marker },
-      }),
-    );
-    await post(viewer, { type: "find", queryId, key: markedKey });
-    await post(viewer, takeOver());
-    await viewer.host.answer({ kind: "failed", lastError: "host exited" });
-    const logged = JSON.stringify([
-      ...viewer.logger.infos,
-      ...viewer.logger.errors,
+    await prepared(viewer);
+    await viewer.done;
+    assert.deepEqual(viewer.logger.infos, [
+      { label: "yt2column viewer run", data: { outcome: "not_run" } },
     ]);
-    assert.ok(logged.includes("yt2column status result"));
-    assert.ok(logged.includes("yt2column take over"));
-    assert.ok(!logged.includes(marker), logged);
-    assert.ok(!logged.includes(watchUrl), logged);
+    const serialized = JSON.stringify([
+      viewer.logger.infos,
+      viewer.logger.errors,
+    ]);
+    for (const value of [
+      secret,
+      input.transcript,
+      input.title,
+      watchUrl,
+      startId,
+      digest,
+    ]) {
+      assert.equal(serialized.includes(value), false, value);
+    }
+  });
+
+  it("counts the elapsed time from the reservation once the record is read", async () => {
+    const viewer = await open({
+      query: startQuery,
+      items: [[startItemName(startId), startContext(ownTab.tabId, 9_000)]],
+    });
+    await prepared(viewer);
+    await store(viewer, ownRunning(9_500));
+    assert.equal(
+      viewer.elements.state.querySelector(".job-elapsed dd")?.textContent,
+      formatDuration(500, "en"),
+    );
   });
 });

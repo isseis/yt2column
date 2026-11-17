@@ -11,6 +11,8 @@
 // popup cannot build. A rejected case builds the RejectedView the launch path
 // returns for a collection it refuses. A viewer page draws a ViewerView with
 // renderViewerHeader and renderViewer, the functions the viewer uses. The
+// popup's options operation is drawn by renderPopupFrame for every page, and
+// its development build mark on the pages named for it. The
 // skeletons are the shipped popup.html and viewer.html, the stylesheets are
 // copied next to the pages, and the written pages load no external resource
 // and run no script. This file never reaches dist/: the build
@@ -39,12 +41,12 @@ import type {
 } from "../src/core/popupView.ts";
 import type { RejectionReason } from "../src/core/types.ts";
 import { jobArticle } from "../src/core/jobView.ts";
-import type { JobDisplay, PollNotice } from "../src/core/jobView.ts";
-import { classifyStatus, parseRequestId } from "../src/core/response.ts";
-import type { Article, Steps } from "../src/core/response.ts";
+import type { JobDisplay } from "../src/core/jobView.ts";
+import { readGenerateResult } from "../src/core/wasmResult.ts";
+import type { ArticleResult, Steps } from "../src/core/wasmResult.ts";
 import { findPopupElements } from "../src/launch.ts";
 import { applyPageLocale } from "../src/ui/pageLocale.ts";
-import { renderPopup } from "../src/ui/render.ts";
+import { renderPopup, renderPopupFrame } from "../src/ui/render.ts";
 import { renderViewer, renderViewerHeader } from "../src/ui/renderViewer.ts";
 import type { ViewerHeader, ViewerView } from "../src/ui/renderViewer.ts";
 import { findViewerElements } from "../src/viewerApp.ts";
@@ -195,16 +197,6 @@ const failedSteps: Steps = {
   review: "pending",
 };
 
-/**
- * A request id made up for the preview pages, in the server's form (16
- * lowercase hexadecimal digits). The server draws its ids at random from every
- * value of that form, so no value is reserved; this one is a placeholder only
- * because the preview never talks to a server. It is the id of every status
- * response the preview builds, and a rejected notice shows it after its
- * message.
- */
-const previewRequestId = "0123456789abcdef";
-
 /** Japanese "the article's title". */
 const japaneseArticleTitle = "\u8a18\u4e8b\u306e\u30bf\u30a4\u30c8\u30eb";
 
@@ -271,15 +263,14 @@ const previewMarkdown = [
 ].join("\n");
 
 /**
- * The article of a done status response, checked by classifyStatus as the
- * viewer checks every status, so its branded cost is built by its parser.
+ * The article of a done generate result, read by readGenerateResult as the
+ * running viewer reads every result, so its branded cost is built by its
+ * parser.
  */
-function previewArticleFrom(): Article {
-  const body = {
-    status: "ok",
-    requestId: previewRequestId,
-    job: {
-      state: "done",
+function previewArticleFrom(): ArticleResult {
+  const result = readGenerateResult(
+    JSON.stringify({
+      status: "done",
       steps: doneSteps,
       article: {
         markdown: previewMarkdown,
@@ -290,17 +281,12 @@ function previewArticleFrom(): Article {
         cost: { state: "known", usd: "0.1234" },
         durationMs: 81_234,
       },
-    },
-  };
-  const result = classifyStatus({
-    kind: "response",
-    status: 200,
-    bytes: new TextEncoder().encode(JSON.stringify(body)),
-  });
-  if (result.kind !== "ok" || result.job.state !== "done") {
-    throw new Error(`the preview article was refused: ${result.kind}`);
+    }),
+  );
+  if (!result.ok || result.value.status !== "done") {
+    throw new Error("the preview article was refused");
   }
-  return result.job.article;
+  return result.value.article;
 }
 
 const previewArticle = previewArticleFrom();
@@ -323,78 +309,66 @@ export interface ViewerPreviewCase {
 const viewerHeader: ViewerHeader = {
   heading: "A video title",
   channelName: "A channel",
-  url: watchUrl,
+  videoUrl: watchUrl,
 };
 
-/** A job view with no notice. */
+/** A view of state in a release build. */
+function stateView(state: ViewerView["state"], elapsedMs = 0): ViewerView {
+  return { state, elapsedMs, existing: false, buildKind: "release" };
+}
+
+/** A job view. */
 function jobView(job: JobDisplay, elapsedMs = 0): ViewerView {
-  return {
-    state: { kind: "job", job, notice: { kind: "none" } },
-    elapsedMs,
-    existing: false,
-  };
+  return stateView({ kind: "job", job }, elapsedMs);
 }
 
 /**
  * Every viewer state kind and every job kind, one page each; the running job
- * also in Japanese, a loading state whose polling stopped, and an existing
- * article's running and done jobs in both locales.
+ * also in Japanese and in a development build, the states with the setup
+ * operation in both locales, and an existing article's running and done jobs
+ * in both locales.
  */
 export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
   {
     name: "viewer-invalid-link-en",
     locale: "en",
-    view: {
-      state: { kind: "invalid-link" },
-      elapsedMs: 0,
-      existing: false,
-    },
+    view: stateView({ kind: "invalid-link" }),
   },
   {
-    name: "viewer-sending-en",
+    name: "viewer-preparing-en",
     locale: "en",
     header: viewerHeader,
-    view: {
-      state: { kind: "sending" },
-      elapsedMs: 0,
-      existing: false,
-    },
+    view: stateView({ kind: "preparing" }),
   },
   {
-    name: "viewer-start-failed-en",
+    name: "viewer-start-unknown-en",
     locale: "en",
     header: viewerHeader,
-    view: {
-      state: { kind: "start-failed", failure: { kind: "no-result" } },
-      elapsedMs: 0,
-      existing: false,
-    },
+    view: stateView({ kind: "start-failed", failure: { kind: "unknown" } }),
+  },
+  {
+    name: "viewer-input-unavailable-en",
+    locale: "en",
+    header: viewerHeader,
+    view: stateView({
+      kind: "start-failed",
+      failure: { kind: "input-unavailable" },
+    }),
+  },
+  {
+    name: "viewer-start-rejected-en",
+    locale: "en",
+    header: viewerHeader,
+    view: stateView({
+      kind: "start-failed",
+      failure: { kind: "rejected", reason: "too_many_requests" },
+    }),
   },
   {
     name: "viewer-loading-en",
     locale: "en",
     header: viewerHeader,
-    view: {
-      state: { kind: "loading", notice: { kind: "none" } },
-      elapsedMs: 0,
-      existing: false,
-    },
-  },
-  {
-    name: "viewer-loading-stopped-en",
-    locale: "en",
-    header: viewerHeader,
-    view: {
-      state: {
-        kind: "loading",
-        notice: {
-          kind: "stopped",
-          outcome: { kind: "unexpected", check: "syntax" },
-        },
-      },
-      elapsedMs: 0,
-      existing: false,
-    },
+    view: stateView({ kind: "loading" }),
   },
   {
     name: "viewer-running-en",
@@ -409,6 +383,15 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
     view: jobView({ kind: "running", steps: runningSteps }, 65_000),
   },
   {
+    name: "viewer-running-dev-en",
+    locale: "en",
+    header: viewerHeader,
+    view: {
+      ...jobView({ kind: "running", steps: runningSteps }, 65_000),
+      buildKind: "dev",
+    },
+  },
+  {
     name: "viewer-failed-en",
     locale: "en",
     header: viewerHeader,
@@ -419,16 +402,46 @@ export const viewerPreviewCases: readonly ViewerPreviewCase[] = [
     }),
   },
   {
+    name: "viewer-stopped-en",
+    locale: "en",
+    header: viewerHeader,
+    view: jobView({ kind: "stopped", steps: failedSteps }),
+  },
+  ...(["en", "ja"] as const).flatMap((locale) => [
+    {
+      name: `viewer-setup-${locale}`,
+      locale,
+      header: viewerHeader,
+      view: jobView({ kind: "setup", failure: "api_key_missing" }),
+    },
+    {
+      name: `viewer-key-rejected-${locale}`,
+      locale,
+      header: viewerHeader,
+      view: jobView({ kind: "key-rejected", steps: failedSteps }),
+    },
+  ]),
+  {
     name: "viewer-lost-en",
     locale: "en",
     header: viewerHeader,
-    view: jobView({ kind: "lost", kept: previewArticle }),
+    view: jobView({ kind: "lost" }),
   },
   {
     name: "viewer-done-en",
     locale: "en",
     header: viewerHeader,
     view: jobView(doneJob),
+  },
+  {
+    name: "viewer-unstored-en",
+    locale: "en",
+    header: viewerHeader,
+    view: jobView({
+      kind: "unstored",
+      steps: doneSteps,
+      article: previewArticle,
+    }),
   },
   // A viewer of an existing article of the same video (its URL holds e=1),
   // running and done, in both locales.
@@ -463,85 +476,50 @@ export interface PopupJobPreviewCase {
    * buttons fit without scrolling.
    */
   readonly base?: "worst-case-en" | "worst-case-ja";
-}
-
-const noNotice = { kind: "none" } as const;
-const retryingNotice = {
-  kind: "retrying",
-  outcome: { kind: "not-sent", cause: "server-unavailable" },
-} as const;
-const stoppedNotice = {
-  kind: "stopped",
-  outcome: { kind: "unexpected", check: "syntax" },
-} as const;
-
-/**
- * The tallest notice the choice can show beside a running article: a
- * rejected status, whose message is followed by its request id.
- */
-function rejectedNotice(): PollNotice {
-  const requestId = parseRequestId(previewRequestId);
-  if (requestId === undefined) {
-    throw new Error("the preview request id was refused");
-  }
-  return {
-    kind: "stopped",
-    outcome: { kind: "rejected", reason: "internal_error", requestId },
-  };
+  /** Draws the development build's mark; absent for a release build. */
+  readonly dev?: true;
 }
 
 /**
- * The choice with each existing-article state and each poll notice, the
- * ended choice, and the worst case of the choice in both locales.
+ * The choice with each existing-article state, the ended choice, and the
+ * worst case of the choice in both locales.
  */
 const choicePreviewCases: readonly PopupJobPreviewCase[] = [
   {
     name: "popup-choice-loading-en",
     locale: "en",
-    state: { kind: "choice", existing: "loading", notice: noNotice },
+    state: { kind: "choice", existing: "loading" },
     elapsedMs: 0,
   },
   {
     name: "popup-choice-running-en",
     locale: "en",
-    state: { kind: "choice", existing: "running", notice: noNotice },
+    state: { kind: "choice", existing: "running" },
     elapsedMs: 0,
   },
   {
     name: "popup-choice-done-en",
     locale: "en",
-    state: { kind: "choice", existing: "done", notice: noNotice },
+    state: { kind: "choice", existing: "done" },
     elapsedMs: 0,
   },
   {
     name: "popup-choice-done-ja",
     locale: "ja",
-    state: { kind: "choice", existing: "done", notice: noNotice },
-    elapsedMs: 0,
-  },
-  {
-    name: "popup-choice-retrying-en",
-    locale: "en",
-    state: { kind: "choice", existing: "running", notice: retryingNotice },
-    elapsedMs: 0,
-  },
-  {
-    name: "popup-choice-stopped-en",
-    locale: "en",
-    state: { kind: "choice", existing: "loading", notice: stoppedNotice },
+    state: { kind: "choice", existing: "done" },
     elapsedMs: 0,
   },
   {
     name: "popup-choice-worst-case-en",
     locale: "en",
-    state: { kind: "choice", existing: "running", notice: rejectedNotice() },
+    state: { kind: "choice", existing: "running" },
     elapsedMs: 0,
     base: "worst-case-en",
   },
   {
     name: "popup-choice-worst-case-ja",
     locale: "ja",
-    state: { kind: "choice", existing: "running", notice: rejectedNotice() },
+    state: { kind: "choice", existing: "running" },
     elapsedMs: 0,
     base: "worst-case-ja",
   },
@@ -561,7 +539,8 @@ const choicePreviewCases: readonly PopupJobPreviewCase[] = [
 
 /**
  * Every popup job state kind and every job kind, with the running state also
- * in Japanese, then the choice's pages.
+ * in Japanese and in a development build, the setup states in both locales
+ * and in the worst case, then the choice's pages.
  */
 export const popupJobPreviewCases: readonly PopupJobPreviewCase[] = [
   {
@@ -571,57 +550,68 @@ export const popupJobPreviewCases: readonly PopupJobPreviewCase[] = [
     elapsedMs: 0,
   },
   {
-    name: "popup-job-start-failed-en",
+    name: "popup-job-start-unknown-en",
     locale: "en",
-    state: { kind: "start-failed", failure: { kind: "no-result" } },
+    state: { kind: "start-failed", failure: { kind: "unknown" } },
     elapsedMs: 0,
+  },
+  {
+    name: "popup-job-start-rejected-en",
+    locale: "en",
+    state: {
+      kind: "start-failed",
+      failure: { kind: "rejected", reason: "too_many_requests" },
+    },
+    elapsedMs: 0,
+  },
+  ...(["en", "ja"] as const).map((locale): PopupJobPreviewCase => ({
+    name: `popup-job-key-missing-${locale}`,
+    locale,
+    state: {
+      kind: "start-failed",
+      failure: { kind: "rejected", reason: "api_key_missing" },
+    },
+    elapsedMs: 0,
+  })),
+  {
+    name: "popup-job-key-missing-worst-case-ja",
+    locale: "ja",
+    state: {
+      kind: "start-failed",
+      failure: { kind: "rejected", reason: "api_key_missing" },
+    },
+    elapsedMs: 0,
+    base: "worst-case-ja",
   },
   {
     name: "popup-job-loading-en",
     locale: "en",
-    state: { kind: "loading", notice: noNotice },
-    elapsedMs: 0,
-  },
-  {
-    name: "popup-job-loading-stopped-en",
-    locale: "en",
-    state: {
-      kind: "loading",
-      notice: {
-        kind: "stopped",
-        outcome: { kind: "unexpected", check: "syntax" },
-      },
-    },
+    state: { kind: "loading" },
     elapsedMs: 0,
   },
   {
     name: "popup-job-running-en",
     locale: "en",
-    state: {
-      kind: "job",
-      job: { kind: "running", steps: runningSteps },
-      notice: noNotice,
-    },
+    state: { kind: "job", job: { kind: "running", steps: runningSteps } },
     elapsedMs: 65_000,
   },
   {
     name: "popup-job-running-ja",
     locale: "ja",
-    state: {
-      kind: "job",
-      job: { kind: "running", steps: runningSteps },
-      notice: noNotice,
-    },
+    state: { kind: "job", job: { kind: "running", steps: runningSteps } },
     elapsedMs: 65_000,
+  },
+  {
+    name: "popup-job-running-dev-en",
+    locale: "en",
+    state: { kind: "job", job: { kind: "running", steps: runningSteps } },
+    elapsedMs: 65_000,
+    dev: true,
   },
   {
     name: "popup-job-done-en",
     locale: "en",
-    state: {
-      kind: "job",
-      job: doneJob,
-      notice: noNotice,
-    },
+    state: { kind: "job", job: doneJob },
     elapsedMs: 81_000,
   },
   {
@@ -630,18 +620,31 @@ export const popupJobPreviewCases: readonly PopupJobPreviewCase[] = [
     state: {
       kind: "job",
       job: { kind: "failed", steps: failedSteps, failure: "llm_failed" },
-      notice: noNotice,
     },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-job-setup-en",
+    locale: "en",
+    state: { kind: "job", job: { kind: "setup", failure: "settings_invalid" } },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-job-stopped-en",
+    locale: "en",
+    state: { kind: "job", job: { kind: "stopped", steps: failedSteps } },
+    elapsedMs: 0,
+  },
+  {
+    name: "popup-job-key-rejected-en",
+    locale: "en",
+    state: { kind: "job", job: { kind: "key-rejected", steps: failedSteps } },
     elapsedMs: 0,
   },
   {
     name: "popup-job-lost-en",
     locale: "en",
-    state: {
-      kind: "job",
-      job: { kind: "lost", kept: previewArticle },
-      notice: noNotice,
-    },
+    state: { kind: "job", job: { kind: "lost" } },
     elapsedMs: 0,
   },
   ...choicePreviewCases,
@@ -681,6 +684,7 @@ function renderPage(
   view: PopupView,
   locale: Locale,
   elapsedMs = 0,
+  dev = false,
 ): string {
   const dom = new JSDOM(skeleton);
   const doc = dom.window.document;
@@ -689,6 +693,7 @@ function renderPage(
   if (elements === undefined) {
     throw new Error("popup.html does not have the skeleton's elements");
   }
+  renderPopupFrame(elements, locale, dev ? "dev" : "release");
   renderPopup(elements, view, locale, elapsedMs);
   // The preview is a static page: no script runs next to the rendered state.
   for (const script of doc.querySelectorAll("script")) {
@@ -698,7 +703,9 @@ function renderPage(
 }
 
 /** The article a viewer case shows, which its heading then shows the values of. */
-export function shownPreviewArticle(view: ViewerView): Article | undefined {
+export function shownPreviewArticle(
+  view: ViewerView,
+): ArticleResult | undefined {
   return view.state.kind === "job" ? jobArticle(view.state.job) : undefined;
 }
 
@@ -720,7 +727,9 @@ function renderViewerPage(
     previewCase.locale,
     shownPreviewArticle(previewCase.view),
   );
-  renderViewer(elements, previewCase.view, previewCase.locale);
+  renderViewer(elements, previewCase.view, previewCase.locale, {
+    openOptions: () => {},
+  });
   for (const script of doc.querySelectorAll("script")) {
     script.remove();
   }
@@ -793,7 +802,13 @@ async function writePreviews(outputDir: string): Promise<void> {
     };
     writeFileSync(
       path.join(outputDir, `${previewCase.name}.html`),
-      renderPage(skeleton, view, previewCase.locale, previewCase.elapsedMs),
+      renderPage(
+        skeleton,
+        view,
+        previewCase.locale,
+        previewCase.elapsedMs,
+        previewCase.dev === true,
+      ),
     );
   }
   const viewerSkeleton = readFileSync(

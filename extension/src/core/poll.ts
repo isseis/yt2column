@@ -4,9 +4,55 @@
 // repeating cannot change stops it. A failed exchange never replaces the
 // state shown: it adds a notice beside it.
 
-import { jobArticle } from "./jobView.ts";
-import type { JobDisplay, PollNotice } from "./jobView.ts";
-import type { StatusOutcome } from "./response.ts";
+import { elapsedRedrawMs as jobElapsedRedrawMs } from "./jobView.ts";
+import type { Article, FailureCode, StatusOutcome, Steps } from "./response.ts";
+
+/** A job as the server's status shows it; built from a StatusOutcome by afterStatus alone. */
+export type JobDisplay =
+  | { readonly kind: "running"; readonly steps: Steps }
+  | {
+      readonly kind: "done";
+      readonly steps: Steps;
+      readonly article: Article;
+    }
+  | {
+      readonly kind: "failed";
+      readonly steps: Steps;
+      readonly failure: FailureCode;
+    }
+  // The server holds no job for the key; kept when a done article was shown.
+  | { readonly kind: "lost"; readonly kept?: Article };
+
+/** The article a polled job shows: a done job's, or the one a lost job kept. */
+function jobArticle(job: JobDisplay | undefined): Article | undefined {
+  switch (job?.kind) {
+    case "done":
+      return job.article;
+    case "lost":
+      return job.kept;
+    case "running":
+    case "failed":
+    case undefined:
+      return undefined;
+  }
+}
+
+/** Status results that leave the state shown and keep polling; derived from StatusOutcome, never re-listed. */
+export type RetryingStatus =
+  | Extract<StatusOutcome, { kind: "no-response" | "host-failed" }>
+  | { readonly kind: "not-sent"; readonly cause: "server-unavailable" };
+
+/** Status results that leave the state shown and stop polling. */
+export type StoppingStatus =
+  | Extract<StatusOutcome, { kind: "rejected" | "unexpected" }>
+  | { readonly kind: "not-sent"; readonly cause: "message-too-large" };
+
+/** The notice beside the state when a status exchange failed; the state itself is kept. */
+export type PollNotice =
+  | { readonly kind: "none" }
+  | { readonly kind: "retrying"; readonly outcome: RetryingStatus }
+  // A rejection keeps its requestId.
+  | { readonly kind: "stopped"; readonly outcome: StoppingStatus };
 
 /** The fixed polling interval: each status query starts one host process. */
 export const pollIntervalMs = 2_000;
@@ -26,7 +72,7 @@ export const viewerQueryWindowMs = 1_000;
 export const viewerLoadWindowMs = 5_000;
 
 /** How often a page draws a running job's elapsed time again while it is visible. */
-export const elapsedRedrawMs = 1_000;
+export const elapsedRedrawMs = jobElapsedRedrawMs;
 
 export interface PollStep {
   readonly decision: "continue" | "stop";

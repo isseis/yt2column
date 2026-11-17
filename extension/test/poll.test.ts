@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { JobDisplay } from "../src/core/jobView.ts";
 import { afterStatus } from "../src/core/poll.ts";
-import type { PollStep } from "../src/core/poll.ts";
+import type { JobDisplay, PollStep } from "../src/core/poll.ts";
 import type { JobStatus, StatusOutcome } from "../src/core/response.ts";
 import {
   article,

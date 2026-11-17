@@ -1,27 +1,15 @@
 import type { Catalog } from "./catalog.ts";
 import { formatCount } from "./locale.ts";
 
-// Steps several job API messages share; each mirrors the English one of the
-// same name.
-const sameVersionStep =
-  "拡張・ホスト・サーバを同じビルドのものにそろえてください。ビルドしたバイナリから yt2column-nmhost install をもう一度実行してください。";
-const startServerStep =
-  "yt2column-server を起動してください。終了処理中のサーバはジョブの完了を待つので、完了するまで新しいサーバは起動できません。";
-const serverPermissionsStep =
-  "サーバが動いている場合は、サーバが自分のユーザーアカウントで動いていること、ソケットのディレクトリの権限が README の説明どおりであることを確かめてください。";
-const installHostStep =
-  "多くの場合、ホストがインストールされていないか、そのバイナリが移動されています。ビルドしたバイナリから yt2column-nmhost install chrome（または brave）を実行してください。バイナリを移動した後も、もう一度実行してください。";
-// The server returns the existing article of the same input while it is
-// generating or done; any other case generates again, so this is not promised.
-const sendSameInputStep =
-  "ポップアップから同じ入力をもう一度送信できます。サーバがその記事を生成している間か、生成した記事を持っている間は、生成し直さずにその記事を返します。入力が変わった場合、記事が失敗していた場合、サーバが再起動した場合は、生成し直します。";
-const sendAgainStep =
-  "ポップアップから同じ入力をもう一度送信すると、記事を生成し直します。";
-const checksAgainStep = "状態は自動でもう一度取得します。";
 // Button names a step quotes, kept in one place with the button's own name.
 const generateButton = "記事を生成する";
 const generateFromSelectionButton = "現在の選択範囲で生成する";
 const openExistingButton = "既存の記事を表示する";
+const setupButton = "API キーを設定する";
+// Steps several messages share; each mirrors the English one of the same name.
+const pressAgainStep = `動画のタブでポップアップを開き、「${generateButton}」をもう一度押してください。`;
+const fewerLinesStep =
+  "選択する字幕の行を減らして、動画のタブでポップアップを開き、ボタンをもう一度押してください。";
 const closePopupStep =
   "このポップアップは閉じてかまいません。結果はビューアのタブに表示されます。";
 
@@ -51,6 +39,13 @@ export const ja: Catalog = {
     "collection-failed": {
       text: "このタブから選択範囲を読み取れませんでした（ページが変わった可能性があります）。",
       steps: [],
+    },
+    "settings-unprotected": {
+      text: "保存した設定をウェブページから読めないようにできなかったため、このタブを読み取りませんでした。",
+      steps: [
+        "このポップアップを閉じて、開き直してください。",
+        "繰り返す場合は、拡張を再読み込みしてください。",
+      ],
     },
   },
   preflight: {
@@ -87,151 +82,99 @@ export const ja: Catalog = {
     url: "URL",
     tabTitle: "タブのタイトル",
   },
-  jobReject: {
-    too_many_requests: {
-      text: "サーバはほかの記事を処理しているため、この記事の生成を始めませんでした。",
-      steps: ["しばらく待ってから、ポップアップからもう一度送信してください。"],
-    },
-    body_too_large: {
-      text: "リクエストが大きすぎるため、サーバが拒否しました。",
-      steps: ["選択する字幕の行を減らして、もう一度試してください。"],
-    },
+  startRejected: {
     invalid_body: {
-      text: "サーバがリクエストを受け付けませんでした。",
-      steps: [
-        sameVersionStep,
-        "すでに同じビルドのものである場合は、拡張の不具合の可能性があります。",
-      ],
-    },
-    invalid_video_url: {
-      text: "サーバが動画の URL を受け付けませんでした。",
-      steps: [],
-    },
-    invalid_transcript: {
-      text: "選択したテキストが、文字起こしパネルの字幕の書式ではありません。",
+      text: "選択したテキストがこの動画の字幕として受け付けられなかったため、記事の生成を始めませんでした。",
       steps: [
         "文字起こしパネルを開き、字幕の行を選択して、もう一度試してください。",
       ],
     },
-    invalid_key: {
-      text: "サーバが記事のキーを受け付けませんでした。",
+    too_many_requests: {
+      text: "すでに 2 つの記事を生成しているため、この記事の生成を始めませんでした。",
       steps: [
-        sameVersionStep,
-        "ポップアップから記事をもう一度送信してください。",
+        "どちらかの生成が終わるまで待ってから、もう一度ボタンを押してください。",
       ],
     },
-    internal_error: {
-      text: "サーバで内部エラーが起きました。",
-      steps: ["サーバのログを確かめてください。"],
+    internal: {
+      text: "拡張の内部で失敗が起きたため、記事の生成を始めませんでした。",
+      steps: [pressAgainStep, "繰り返す場合は、拡張を再読み込みしてください。"],
     },
   },
-  startExchange: {
-    notSent: {
-      "server-unavailable": {
-        text: "yt2column のサーバに接続できなかったため、何も送信していません。",
-        steps: [startServerStep, serverPermissionsStep],
-      },
-      "message-too-large": {
-        text: "リクエストがホストには大きすぎるため、何も送信していません。",
-        steps: ["選択する字幕の行を減らして、もう一度試してください。"],
-      },
-    },
-    noResponse: {
-      text: "サーバが時間内に応答しませんでした。サーバはリクエストを受け取り、記事を生成している可能性があります。",
-      steps: [sendSameInputStep],
-    },
-    hostFailed: {
-      text: "Native Messaging のホストを起動できなかったか、ホストが応答せずに終了しました。リクエストはすでに送信された可能性があります。",
-      steps: [installHostStep, sendSameInputStep],
-    },
-    unexpected: {
-      text: "応答を解釈できませんでした。サーバはリクエストを受け取り、記事を生成している可能性があります。",
-      steps: [sameVersionStep, sendSameInputStep],
-    },
+  startUnknown: {
+    text: "開始の結果が届かなかったため、記事の生成が始まったかどうか分かりません。",
+    steps: [
+      "ビューアのタブで記事の状態を確かめてください。",
+      "同じ選択範囲でもう一度ボタンを押しても、その記事が処理中か完成している間は、二重に生成しません。それ以外のときは、新しく記事の生成を始めます。",
+    ],
   },
-  statusExchange: {
-    notSent: {
-      "server-unavailable": {
-        text: "状態の取得のために yt2column のサーバに接続できませんでした。",
-        steps: [startServerStep, checksAgainStep],
-      },
-      "message-too-large": {
-        text: "ホストが状態の取得のリクエストを大きすぎるとして拒否したため、状態の取得を止めました。",
-        steps: [
-          sameVersionStep,
-          "ポップアップから記事をもう一度送信してください。",
-        ],
-      },
-    },
-    noResponse: {
-      text: "サーバが状態の取得に時間内に応答しませんでした。",
-      steps: [checksAgainStep],
-    },
-    hostFailed: {
-      text: "状態の取得のための Native Messaging のホストを起動できなかったか、ホストが応答せずに終了しました。",
-      steps: [installHostStep, checksAgainStep],
-    },
-    unexpected: {
-      text: "状態の取得の応答を解釈できなかったため、状態の取得を止めました。",
+  inputUnavailable: {
+    text: "ビューアが選択した字幕を受け取れなかったため、記事の生成を始めていません。料金はかかっていません。",
+    steps: [pressAgainStep],
+  },
+  setup: {
+    api_key_missing: {
+      text: "記事を生成するには、Anthropic の API キーの設定が必要です。",
       steps: [
-        sameVersionStep,
-        "ポップアップから記事をもう一度送信してください。",
+        `「${setupButton}」を押して、API キーを保存してください。`,
+        pressAgainStep,
+      ],
+    },
+    settings_invalid: {
+      text: "保存した設定を使えないため、設定し直す必要があります。",
+      steps: [
+        `「${setupButton}」を押して、API キーを保存し直してください。`,
+        pressAgainStep,
       ],
     },
   },
-  startResult: {
-    accepted: {
-      text: "サーバが記事を受け付けました。進み具合はビューアのタブに表示されます。",
-      steps: [],
-    },
-    noResult: {
-      text: "送信の結果が届かなかったため、サーバが記事の生成を始めたかどうか分かりません。",
-      steps: [sendSameInputStep],
-    },
+  keyRejected: {
+    text: "Anthropic が API キーを拒みました。キーの期限切れ、失効、誤りか、組織がブラウザからの呼び出しを許していない可能性があります。",
+    steps: [
+      `「${setupButton}」を押して、新しい API キーを保存してください。`,
+      `${pressAgainStep}同じ選択範囲なら、同じジョブのまま記事を生成し直します。`,
+    ],
   },
   failure: {
     internal: {
-      text: "記事の生成中にサーバで失敗が起きました。",
-      steps: ["サーバのログを確かめてください。", sendAgainStep],
+      text: "記事の生成中に、拡張の内部で失敗が起きました。",
+      steps: [pressAgainStep],
     },
     transcript_too_long: {
       text: "文字起こしがプロンプトに対して長すぎます。",
-      steps: [
-        "選択する字幕の行を減らして、ポップアップからもう一度送信してください。",
-      ],
+      steps: [fewerLinesStep],
     },
     llm_timeout: {
       text: "LLM の呼び出しが時間切れになりました。",
-      steps: [sendAgainStep],
+      steps: [pressAgainStep],
     },
     llm_empty: {
       text: "LLM が空の応答を返しました。",
-      steps: [sendAgainStep],
+      steps: [pressAgainStep],
     },
     llm_truncated: {
       text: "LLM の応答が途中で切れました。",
-      steps: [
-        sendAgainStep,
-        "繰り返す場合は、サーバのログを確かめてください。",
-      ],
+      steps: [pressAgainStep],
     },
     llm_failed: {
       text: "LLM の呼び出しが失敗しました。",
-      steps: [
-        "サーバのログで、プロバイダのエラーを確かめてください。",
-        sendAgainStep,
-      ],
+      steps: [pressAgainStep],
     },
     article_invalid: {
       text: "生成した記事が、完了の時点の検査に通りませんでした。",
-      steps: [sendAgainStep],
+      steps: [pressAgainStep],
     },
     article_too_large: {
-      text: "生成した記事が大きすぎて表示できません。",
-      steps: [
-        "選択する字幕の行を減らして、ポップアップからもう一度送信してください。",
-      ],
+      text: "生成した記事が大きすぎて保持できません。",
+      steps: [fewerLinesStep],
     },
+    run_timeout: {
+      text: "50 分たっても記事が完成しなかったため、生成を止めました。",
+      steps: [pressAgainStep],
+    },
+  },
+  stopped: {
+    text: "記事の生成がページとともに止まりました。生成していたビューアのタブが閉じられたか読み込み直されたか、拡張がそのタブと連絡を取れなくなりました。",
+    steps: [pressAgainStep],
   },
   stepNames: {
     draft: "下書きの生成",
@@ -246,16 +189,22 @@ export const ja: Catalog = {
     failed: "失敗",
   },
   viewer: {
-    sending: { text: "リクエストをサーバに送信しています…", steps: [] },
+    preparing: { text: "記事の生成を準備しています…", steps: [] },
     loading: { text: "記事の状態を読み込んでいます…", steps: [] },
     invalidLink: {
       text: "このビューアのリンクは正しくないため、記事を表示しません。",
-      steps: ["ポップアップから記事をもう一度送信してください。"],
+      steps: [pressAgainStep],
     },
     running: "記事を生成しています",
     lost: {
-      text: "サーバがこの記事をもう持っていません。サーバが再起動したか、記事をキャッシュから捨てました。",
-      steps: [sendAgainStep],
+      text: "この記事はもう保持されていません。ブラウザが終了したか、拡張が再読み込みか更新されたか、新しい記事のために捨てられました。",
+      steps: [
+        "上のリンクから動画を開き、字幕の行を選択して、記事を生成し直してください。",
+      ],
+    },
+    unstored: {
+      text: "記事は完成しましたが、拡張が保持できませんでした。記事を持っているのはこのページだけで、読み込み直すか閉じると失われます。",
+      steps: ["今のうちに保存するかコピーしてください。"],
     },
     existing: {
       text: "このビューアは、同じ動画の既存の記事を表示しています。現在の選択範囲から生成した記事ではありません。",
@@ -327,6 +276,37 @@ export const ja: Catalog = {
     invalidLink: "正しくないリンク",
     untitled: "タイトルのない動画",
   },
+  openOptions: {
+    link: "設定",
+    setup: setupButton,
+  },
+  buildMark: "開発用のビルド",
+  optionsPage: {
+    title: "yt2column の設定",
+    heading: "設定",
+    apiKey: "Anthropic の API キー",
+    apiKeyHint:
+      "キーはこのブラウザにだけ保存し、再び表示しません。スクリーンリーダーは、入力した文字を読み上げることがあります。",
+    workspaceId: "ワークスペース ID（任意）",
+    workspaceIdHint:
+      "空のままにすると、API キーが属するワークスペースを使います。",
+    save: "保存する",
+    remove: "削除する",
+    keyState: {
+      set: "API キーが設定されています。",
+      notSet: "API キーが設定されていません。",
+      unknown: "API キーが設定されているかを読み取れませんでした。",
+    },
+    buildInfo: {
+      heading: "ビルド",
+      commit: "コミット",
+      goVersion: "Go の版",
+      llm: "LLM",
+      modified: "（変更あり）",
+      none: "なし",
+      unreadable: "ビルドの情報を読み取れませんでした。",
+    },
+  },
   popup: {
     primary: {
       generate: generateButton,
@@ -336,13 +316,13 @@ export const ja: Catalog = {
     },
     secondary: generateFromSelectionButton,
     sending: {
-      text: "リクエストをサーバに送信しています…",
+      text: "記事の生成を始めています…",
       steps: [closePopupStep],
     },
     viewerNotice: { text: closePopupStep, steps: [] },
     articleReady: { text: "記事ができました。", steps: [] },
     choice: {
-      text: "このサーバに、同じ動画の記事があります。",
+      text: "拡張に、同じ動画の記事があります。",
       steps: [
         `「${openExistingButton}」でその記事を表示します。「${generateFromSelectionButton}」で、選択した字幕から新しく記事を生成します。`,
       ],

@@ -6,26 +6,15 @@ function englishCount(count: number, noun: string): string {
   return `${formatCount(count, "en")} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-// Steps several job API messages share.
-const sameVersionStep =
-  "Update the extension, the host and the server to the same build; run yt2column-nmhost install again from the built binary.";
-const startServerStep =
-  "Start yt2column-server. A server that is stopping waits for its jobs, and a new one cannot start until they finish.";
-const serverPermissionsStep =
-  "If the server is running, check that it runs as your user and that its socket directory has the permissions README.en.md describes.";
-const installHostStep =
-  "Most often the host is not installed or its binary was moved: run yt2column-nmhost install chrome (or brave) from the built binary, and again after moving it.";
-// The server returns the existing article of the same input while it is
-// generating or done; any other case generates again, so this is not promised.
-const sendSameInputStep =
-  "You can send the same input again from the popup. While the server is generating or holds that article, it returns it instead of generating it again; a changed input, a failed article or a restarted server generates it again.";
-const sendAgainStep =
-  "Send the same input again from the popup to generate the article again.";
-const checksAgainStep = "The status is checked again automatically.";
 // Button names a step quotes, kept in one place with the button's own name.
 const generateButton = "Generate article";
 const generateFromSelectionButton = "Generate from current selection";
 const openExistingButton = "Open existing article";
+const setupButton = "Set API key";
+// Steps several messages share.
+const pressAgainStep = `On the video's tab, open the popup and press "${generateButton}" again.`;
+const fewerLinesStep =
+  "Select fewer caption lines, then open the popup on the video's tab and press the button again.";
 const closePopupStep =
   "You can close this popup: the result appears in the viewer tab.";
 
@@ -52,6 +41,13 @@ export const en: Catalog = {
     "collection-failed": {
       text: "The selection could not be read from this tab (the page may have changed).",
       steps: [],
+    },
+    "settings-unprotected": {
+      text: "The extension could not keep its saved settings from web pages, so it did not read this tab.",
+      steps: [
+        "Close this popup and open it again.",
+        "If it happens again, reload the extension.",
+      ],
     },
   },
   preflight: {
@@ -85,130 +81,92 @@ export const en: Catalog = {
     url: "URL",
     tabTitle: "Tab title",
   },
-  jobReject: {
-    too_many_requests: {
-      text: "The server is busy with other articles, so it did not start this one.",
-      steps: ["Wait a while, then send again from the popup."],
-    },
-    body_too_large: {
-      text: "The server rejected the request as too large.",
-      steps: ["Select fewer caption lines and try again."],
-    },
+  startRejected: {
     invalid_body: {
-      text: "The server did not accept the request.",
-      steps: [
-        sameVersionStep,
-        "If they already come from the same build, the extension may have a bug.",
-      ],
-    },
-    invalid_video_url: {
-      text: "The server did not accept the video URL.",
-      steps: [],
-    },
-    invalid_transcript: {
-      text: "The selected text is not in the transcript panel's caption format.",
+      text: "The selected text was not accepted as captions of this video, so no article was started.",
       steps: ["Open the transcript panel, select caption lines and try again."],
     },
-    invalid_key: {
-      text: "The server did not accept the article key.",
-      steps: [sameVersionStep, "Send the article again from the popup."],
+    too_many_requests: {
+      text: "Two articles are being generated already, so this one was not started.",
+      steps: ["Wait until one of them ends, then press the button again."],
     },
-    internal_error: {
-      text: "The server hit an internal error.",
-      steps: ["Check the server log."],
-    },
-  },
-  startExchange: {
-    notSent: {
-      "server-unavailable": {
-        text: "Could not connect to the yt2column server, so nothing was sent.",
-        steps: [startServerStep, serverPermissionsStep],
-      },
-      "message-too-large": {
-        text: "The request is too large for the host, so nothing was sent.",
-        steps: ["Select fewer caption lines and try again."],
-      },
-    },
-    noResponse: {
-      text: "The server did not respond in time. It may have received the request and be generating the article.",
-      steps: [sendSameInputStep],
-    },
-    hostFailed: {
-      text: "The native messaging host could not be started, or it exited without replying. The request may have been sent.",
-      steps: [installHostStep, sendSameInputStep],
-    },
-    unexpected: {
-      text: "Could not interpret the reply. The server may have received the request and be generating the article.",
-      steps: [sameVersionStep, sendSameInputStep],
+    internal: {
+      text: "The extension hit an internal error, so no article was started.",
+      steps: [pressAgainStep, "If it happens again, reload the extension."],
     },
   },
-  statusExchange: {
-    notSent: {
-      "server-unavailable": {
-        text: "Could not connect to the yt2column server to read the article's status.",
-        steps: [startServerStep, checksAgainStep],
-      },
-      "message-too-large": {
-        text: "The host refused the status request as too large, so status checks stopped.",
-        steps: [sameVersionStep, "Send the article again from the popup."],
-      },
+  startUnknown: {
+    text: "The result of the start did not arrive, so it is unknown whether the article was started.",
+    steps: [
+      "Check the viewer tab for the article's state.",
+      "Pressing the button again with the same selection does not generate it twice while that article is being generated or is done. In any other case it starts a new article.",
+    ],
+  },
+  inputUnavailable: {
+    text: "The viewer could not take the selected captions, so no article was started and nothing was charged.",
+    steps: [pressAgainStep],
+  },
+  setup: {
+    api_key_missing: {
+      text: "An Anthropic API key needs to be set to generate articles.",
+      steps: [`Press "${setupButton}" and save your API key.`, pressAgainStep],
     },
-    noResponse: {
-      text: "The server did not answer the status request in time.",
-      steps: [checksAgainStep],
-    },
-    hostFailed: {
-      text: "The native messaging host could not be started to read the status, or it exited without replying.",
-      steps: [installHostStep, checksAgainStep],
-    },
-    unexpected: {
-      text: "Could not interpret the status reply, so status checks stopped.",
-      steps: [sameVersionStep, "Send the article again from the popup."],
+    settings_invalid: {
+      text: "The saved settings cannot be used, so they need to be set again.",
+      steps: [
+        `Press "${setupButton}" and save your API key again.`,
+        pressAgainStep,
+      ],
     },
   },
-  startResult: {
-    accepted: {
-      text: "The server accepted the article. Its progress appears in the viewer tab.",
-      steps: [],
-    },
-    noResult: {
-      text: "The result of the send did not arrive, so it is unknown whether the server started the article.",
-      steps: [sendSameInputStep],
-    },
+  keyRejected: {
+    text: "Anthropic rejected the API key: it may have expired, been revoked or be wrong, or your organization may not allow calls from a browser.",
+    steps: [
+      `Press "${setupButton}" and save a new API key.`,
+      `${pressAgainStep} With the same selection, the article is generated again under the same job.`,
+    ],
   },
   failure: {
     internal: {
-      text: "The server failed while generating the article.",
-      steps: ["Check the server log.", sendAgainStep],
+      text: "The extension hit an internal error while generating the article.",
+      steps: [pressAgainStep],
     },
     transcript_too_long: {
       text: "The transcript is too long for the prompt.",
-      steps: ["Select fewer caption lines and send again from the popup."],
+      steps: [fewerLinesStep],
     },
     llm_timeout: {
       text: "The LLM call timed out.",
-      steps: [sendAgainStep],
+      steps: [pressAgainStep],
     },
     llm_empty: {
       text: "The LLM returned an empty response.",
-      steps: [sendAgainStep],
+      steps: [pressAgainStep],
     },
     llm_truncated: {
       text: "The LLM's response was cut off before it ended.",
-      steps: [sendAgainStep, "If it happens again, check the server log."],
+      steps: [pressAgainStep],
     },
     llm_failed: {
       text: "The LLM call failed.",
-      steps: ["Check the server log for the provider's error.", sendAgainStep],
+      steps: [pressAgainStep],
     },
     article_invalid: {
-      text: "The generated article did not pass the server's completion check.",
-      steps: [sendAgainStep],
+      text: "The generated article did not pass the completion check.",
+      steps: [pressAgainStep],
     },
     article_too_large: {
-      text: "The generated article is too large to show.",
-      steps: ["Select fewer caption lines and send again from the popup."],
+      text: "The generated article is too large to keep.",
+      steps: [fewerLinesStep],
     },
+    run_timeout: {
+      text: "The article was not finished within 50 minutes, so it was stopped.",
+      steps: [pressAgainStep],
+    },
+  },
+  stopped: {
+    text: "The article stopped with its page: the viewer tab running it was closed or reloaded, or the extension lost contact with it.",
+    steps: [pressAgainStep],
   },
   stepNames: {
     draft: "Draft",
@@ -223,16 +181,22 @@ export const en: Catalog = {
     failed: "Failed",
   },
   viewer: {
-    sending: { text: "Sending the request to the server...", steps: [] },
-    loading: { text: "Loading the article's status...", steps: [] },
+    preparing: { text: "Preparing the article...", steps: [] },
+    loading: { text: "Loading the article's state...", steps: [] },
     invalidLink: {
       text: "This viewer link is not valid, so no article is shown.",
-      steps: ["Send the article again from the popup."],
+      steps: [pressAgainStep],
     },
     running: "Generating the article",
     lost: {
-      text: "The server no longer has this article: it restarted, or dropped the article from its cache.",
-      steps: [sendAgainStep],
+      text: "This article is no longer kept: the browser was closed, the extension was reloaded or updated, or the article was dropped to make room for newer ones.",
+      steps: [
+        "Open the video from the link above, select caption lines and generate the article again.",
+      ],
+    },
+    unstored: {
+      text: "The article is done, but the extension could not keep it: only this page holds it, and reloading or closing the page loses it.",
+      steps: ["Save it or copy it now."],
     },
     existing: {
       text: "This viewer shows an existing article of the same video. It was not generated from your current selection.",
@@ -301,6 +265,37 @@ export const en: Catalog = {
     invalidLink: "Invalid link",
     untitled: "Untitled video",
   },
+  openOptions: {
+    link: "Settings",
+    setup: setupButton,
+  },
+  buildMark: "Development build",
+  optionsPage: {
+    title: "yt2column settings",
+    heading: "Settings",
+    apiKey: "Anthropic API key",
+    apiKeyHint:
+      "The key is stored in this browser only and is not shown again. A screen reader may read out the characters you type.",
+    workspaceId: "Workspace ID (optional)",
+    workspaceIdHint:
+      "Leave it empty to use the workspace the API key belongs to.",
+    save: "Save",
+    remove: "Delete",
+    keyState: {
+      set: "An API key is set.",
+      notSet: "No API key is set.",
+      unknown: "Whether an API key is set could not be read.",
+    },
+    buildInfo: {
+      heading: "Build",
+      commit: "Commit",
+      goVersion: "Go version",
+      llm: "LLM",
+      modified: "(modified)",
+      none: "None",
+      unreadable: "The build information could not be read.",
+    },
+  },
   popup: {
     primary: {
       generate: generateButton,
@@ -310,19 +305,19 @@ export const en: Catalog = {
     },
     secondary: generateFromSelectionButton,
     sending: {
-      text: "Sending the request to the server...",
+      text: "Starting the article...",
       steps: [closePopupStep],
     },
     viewerNotice: { text: closePopupStep, steps: [] },
     articleReady: { text: "The article is ready.", steps: [] },
     choice: {
-      text: "This server has an article of the same video.",
+      text: "The extension has an article of the same video.",
       steps: [
         `"${openExistingButton}" shows it. "${generateFromSelectionButton}" generates a new article from the captions you selected.`,
       ],
     },
     existingStates: {
-      loading: "Loading the article's status...",
+      loading: "Loading the article's state...",
       running: "The article is being generated.",
       done: "The article is ready.",
     },

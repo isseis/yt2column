@@ -176,6 +176,27 @@ body {
   border: 1px solid var(--link);
 }
 
+/* The operations that open the options page: the setup button above the
+   primary button, beside the state that needs a setting, and the options
+   button at the end of the popup. Both are as wide as the primary button and
+   outlined like the secondary one; their size and shape are theme.css's
+   shared button rule. */
+#setup,
+#options {
+  width: 100%;
+  color: var(--link);
+  background-color: transparent;
+  border: 1px solid var(--link);
+}
+
+#setup {
+  margin-bottom: 0.5rem;
+}
+
+#options {
+  margin-top: 0.5rem;
+}
+
 /* The existing article's state in the choice, laid out like the loading row
    in theme.css; the symbol's motion is the shared rule's, which reduced
    motion stops. */
