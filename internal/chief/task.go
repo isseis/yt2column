@@ -12,6 +12,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/cmdrunner"
+	"github.com/isseis/yt2column/internal/tasknaming"
 )
 
 // This file reads a task's documents by the grammar the repository defines
@@ -733,27 +734,33 @@ func (p Plan) StepsDone(target string) (bool, error) {
 	return true, nil
 }
 
-// featureBranch is the feature branch name of _context.md: a GitHub user
-// name, the task directory name with "_" replaced by "-", and a two-digit
-// sequence number. A branch follows the convention only when its slug is the
-// directory's name, so Read checks the directory it finds against it.
-var featureBranch = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/(([0-9]{4})(?:-[a-z0-9]+)+)-[0-9]{2}$`)
-
-// taskDirName is the form of a task directory name.
-var taskDirName = regexp.MustCompile(`^[0-9]{4}_[a-z0-9]+(?:_[a-z0-9]+)*$`)
-
 // branchTask returns the task of a feature branch name and the slug the
-// directory name must give. ok is false for any other name.
+// directory name must give. A branch follows the convention only when its
+// slug is the directory's name, so Read checks the directory it finds against
+// it. ok is false for any other name.
 func branchTask(branch string) (task paneinput.TaskID, slug string, ok bool) {
-	m := featureBranch.FindStringSubmatch(branch)
-	if m == nil {
+	number, slug, ok := tasknaming.ParseBranch(branch)
+	if !ok {
 		return paneinput.TaskID{}, "", false
 	}
-	task, err := paneinput.ParseTaskID(m[2])
+	task, err := paneinput.ParseTaskID(number.String())
 	if err != nil {
 		return paneinput.TaskID{}, "", false
 	}
-	return task, m[1], true
+	return task, slug, true
+}
+
+// isTaskDir reports whether name is a task directory name.
+func isTaskDir(name string) bool {
+	_, ok := tasknaming.ParseTaskDir(name)
+	return ok
+}
+
+// taskDirMatches reports whether dir is a task directory whose name gives the
+// slug of the branch: the directory form holds, and "_" replaced by "-" is the
+// slug.
+func taskDirMatches(dir, slug string) bool {
+	return isTaskDir(dir) && strings.ReplaceAll(dir, "_", "-") == slug
 }
 
 // TaskDocs is what origin/main holds for a task.
@@ -782,8 +789,9 @@ var errNotTaskBranch = errors.New("not a feature branch")
 // Read reads, from origin/main in worktree, the documents of the task the
 // feature branch names. Contract: the task comes from the branch name and the
 // one directory of its number on origin/main, never from a screen; a
-// directory whose name does not give the branch's slug, or two directories of
-// one number, make the task unreadable.
+// directory that is not a task directory name, one whose "_"-to-"-" form does
+// not give the branch's slug, or two directories of one number, make the task
+// unreadable.
 func (t Tasks) Read(ctx context.Context, worktree, branch string) (TaskDocs, error) {
 	task, slug, ok := branchTask(branch)
 	if !ok {
@@ -806,7 +814,7 @@ func (t Tasks) Read(ctx context.Context, worktree, branch string) (TaskDocs, err
 		return docs, nil
 	case len(dirs) > 1:
 		return TaskDocs{}, fmt.Errorf("%w: %d directories for task %s", errTaskDocument, len(dirs), task)
-	case !taskDirName.MatchString(dirs[0]) || strings.ReplaceAll(dirs[0], "_", "-") != slug:
+	case !taskDirMatches(dirs[0], slug):
 		return TaskDocs{}, fmt.Errorf("%w: directory %q does not match branch %q", errTaskDocument, dirs[0], branch)
 	}
 	docs.Dir = taskRoot + "/" + dirs[0]
@@ -819,7 +827,7 @@ func (t Tasks) Read(ctx context.Context, worktree, branch string) (TaskDocs, err
 // name must be a task directory's form and a directory of origin/main, or the
 // task is unreadable.
 func (t Tasks) ReadDir(ctx context.Context, worktree, dirName string) (TaskDocs, error) {
-	if !taskDirName.MatchString(dirName) {
+	if !isTaskDir(dirName) {
 		return TaskDocs{}, fmt.Errorf("%w: %q is not a task directory name", errTaskDocument, dirName)
 	}
 	task, err := paneinput.ParseTaskID(dirName[:4])
@@ -969,7 +977,7 @@ func (t Tasks) IssueTasks(ctx context.Context, worktree string, issue paneinput.
 			continue
 		}
 		m := issueLineForm.FindStringSubmatch(line)
-		if m == nil || !taskDirName.MatchString(m[1]) {
+		if m == nil || !isTaskDir(m[1]) {
 			return nil, fmt.Errorf("%w: a line of git grep that is not an issue line of a requirements document", errTaskDocument)
 		}
 		if _, cited := issueNumbersOf(m[2])[issue.String()]; cited && !slices.Contains(dirs, m[1]) {
