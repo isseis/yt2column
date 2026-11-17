@@ -67,6 +67,11 @@
 -   **ステップ 1-1 のサンプルは、runpr.md に NEXT の行を定めた PR の `/runpr` を、人が本タスクの worktree の Claude Code の pane で走らせて採る（人が選んだ）。** 本計画の PR（#935）の `/runpr` は Claude Code で走らず、本タスクの worktree の transcript にサンプルがなかった。代わりに、ほかの worktree で Claude Code で走った #925 の `/runpr` の報告を見たところ、`NEXT:` の行がなく、今の文法で読めなかった。そこで、報告に今の文法で読める NEXT の行を書くことを runpr.md で定めた（要件書の「実装の際に決めたこと（2026-11-17）」）。その PR の `/runpr` は runpr.md を変えたブランチで走るので、定めた形の報告が残る。§1.3 の決定 1 の、`/runpr` を余分に走らせずにサンプルを採るという考えは変わらず、使う PR だけが変わる。ADR: ADR-0046 を更新する（要件書の同じ項のため）。
 -   **`readLastHumanInput` と `TestReadLastHumanInput` は、ステップ 5-2 で消さずに残す（人が選んだ）。** 本計画の承認の後にマージされた 0093（#955）の `readRunningCommand` がこの関数を呼び、④が呼ばなくなった後も呼ぶ所が残ったためである。`readRunningCommand` を `readSessionReport` に替える案は、0093 の振る舞いを変えるので採らない（設計書 1.5）。ADR: なし（消す部品の範囲で、このタスクの中で閉じるため）。
 
+### 1.6. 実装の際に決めたこと（2026-11-18）
+
+-   **ADR-0046 の「決定」の、合わないセッションの記録を「要確認」か「送らない」にする項に、例外を書き足す（人が選んだ）。** Claude Code の transcript の値や種類の名前だけが変わったときと、transcript のファイルがないときは、その pane に報告がないものとして読み、自動送信の前の NEXT の照合は通る。この振る舞いは設計書 1.2 で決め、ADR-0046 の「結果」と「経緯」には書かれていたが、「決定」の文は例外のない規則のままだった。ステップ 6-3 の確かめのレビューで見つかった。「結果」に任せて「決定」を残す案は採らない。「決定」だけを読む人が、照合が必ず止まると読み違えるためである。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
+-   **ADR-0046 の 0097 の見送ったリセットの文に、Claude Code の pane の transcript を読めずに見送ったリセットは人の選択肢として示さないことを書く（人が選んだ）。** `main` の実装（`notOffered("the transcript of the pane cannot be read")`）はそう振る舞うが、「報告が見つからないか読めないことで見送ったリセット」という文は、それも示すと読める。ステップ 6-3 の確かめの中で見つかったので、別の issue にせず、この PR で直す。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 **改名の一覧。** 本計画が変える名前は次の表がすべてである。各ステップ、受け入れ基準の表、文書は、この表に従う。
@@ -436,7 +441,7 @@ index f8556c8637c6db209cd41e94d9a2627fd6de5f31..4f5a770f9dd259a6750d89b1cd82a80b
     ```
 
     `readRunprReport`（`internal/chief/screen_report.go`）は、OpenCode でないエージェントに偽を返し、`openCodeLastMessage` だけを読む。`TestReadRunprReport` は、OpenCode の行を残し、OpenCode の画面を Claude Code として与える行と、OpenCode の画面を知らないエージェントとして与える行で、読まないことを確かめる。Claude Code のサンプルを Claude Code として与える 2 つの行は、エージェントの確かめがなくても通るので、別のコミット（`test(0095): drop the Claude Code sample rows of TestReadRunprReport`）で消し、`make coverage-compare` は `PASS` だった（出力はそのコミットのメッセージにある。1 回目は、上と同じ `signalGroup` の 1 行で `FAIL` だった）。`readLastHumanInput` と `TestReadLastHumanInput` は、§1.5 のとおり残した。
--   **ステップ 6-3（2026-11-17）。** ADR-0046 を読み、実装した振る舞いと食い違う文はなかった。「決定」の画面とセッションの記録の文字列から判断する項（範囲と境界の置き場所として 0095 要件定義書と CLAUDE.md を挙げる）、リセットの項、Claude Code の pane の最後の報告を transcript から読む項と、「結果」の transcript の値や種類の名前が変わったとき、NEXT の照合を最後の報告に限ること、transcript を読めない pane が workspace の自動送信を止めること、PR の記録が PR を作らなかったセッションにも書かれることの各項は、PR-1〜PR-4 の実装と合う。ADR は変えていない。
+-   **ステップ 6-3（2026-11-18）。** `origin/main`（`552d7cd8`、0097 の #963 を含む）を取り込んだ後の実装と ADR-0046 を比べた。食い違いは 2 つあり、§1.6 のとおり直した。「決定」の、合わないセッションの記録を「要確認」か「送らない」にする項は、transcript の値や種類の名前だけが変わったときと、ファイルがないときの例外を書いていなかった。0097 の見送ったリセットの文（「決定」と「結果」）は、transcript を読めずに見送ったリセットも示すと読めた。そのほか、Claude Code の pane の最後の報告を transcript から読む項、リセットの項、「結果」の、NEXT の照合を最後の報告に限ること、transcript を読めない pane が workspace の自動送信を止めること、PR の記録が PR を作らなかったセッションにも書かれることの各項は、実装と合う。
 
 ## 8. 成功の基準 (Success Criteria)
 
@@ -456,3 +461,4 @@ index f8556c8637c6db209cd41e94d9a2627fd6de5f31..4f5a770f9dd259a6750d89b1cd82a80b
 - 2026-11-17 承認（isseis、#935）
 - 2026-11-17 セッション中の再承認：ステップ 1-1 のサンプルを、runpr.md に NEXT の行を定めた PR の `/runpr` から採ることにした（isseis、#940）
 - 2026-11-17 セッション中の再承認：`readLastHumanInput` を、0093 の `readRunningCommand` が呼ぶので消さずに残すことにした（isseis、#未記入）
+- 2026-11-18 セッション中の再承認：ADR-0046 の「決定」に、transcript の名前の変化とファイルがないときに NEXT の照合が通る例外を書き、transcript を読めずに見送ったリセットは示さないことを明示することにした（isseis、#未記入）
