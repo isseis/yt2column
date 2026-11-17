@@ -20,10 +20,10 @@
 -   **順序を、コマンドの定義ではなく道具の中で強制する。** 確認より前に build checks を動かさないこと、commit と push の間で hooks や config が変わっていたら push しないこと、は道具のコードが守る。コマンドの定義に残るのは、サブコマンドを呼ぶ順序と、利用者への確認だけである。エージェントが手順を読み違えても、範囲外の変更が commit されたり、信頼の境界が迂回されたりしないためである。保証の内容は [fixprguard_guide.md](../guides/fixprguard_guide.md) の「7. ツールが保証すること・しないこと」にある。
 -   **拡張の関数の範囲だけは、TypeScript の補助に求める。** `coveragecompare` は Go と拡張の両方の比較を受け持つが、拡張の関数の終わりの行は node の lcov が出さないので、`extension/scripts/function-ranges.ts` が入っている `typescript` の構文木から求める。新しい npm のパッケージは加えない。拡張の関数の終わりの行を、lcov からは求められないためである。規則は [0055 設計書](../../tasks/0055_coverage_compare/02_architecture.md) の 3.5「拡張の測り方」にある。
 -   **道具は `main` からインストールして使う。** `mergepr`・`fixprguard`・`codexreview`・`chief` は `make install-mergepr`・`make install-fixprguard`・`make install-codexreview`・`make install-chief` で入れ、道具を変えたマージの後は再インストールする。`--protocol` の番号を上げる PR では、その PR の `/runpr` の前に、その PR のブランチで再インストールする（[fixprguard_guide.md](../guides/fixprguard_guide.md) §3）。`coveragecompare` は `make coverage-compare` と `make ext-coverage-compare` が、そのつど一時ディレクトリにビルドして実行する。`fixprguard` は `--protocol` の番号で、呼び出し側の文書と道具の版が合っているかを照合する。あわせて、文書と道具を変える順序は、両方が動き続ける形にする（[fixprguard_guide.md](../guides/fixprguard_guide.md) §9）。インストール済みの古い道具が、古い想定で黙って判定しないようにするためである。
--   **`--protocol` の番号（プロトコル番号）を上げる PR は、番号を実装の時点の `origin/main` の値にちょうど 1 を足した値にし、マージの時点でも `origin/main` の値 + 1 であることを確かめる。食い違えばマージしない。タスク文書には上げた後の番号を書かず、「`main` の値 + 1」と書く。確かめは、`/runpr` からのマージにも `/mergepr` を単独で使うマージにも当てはめる。** 並行する 2 つのブランチが同じ番号に上げると、git は定数の行の同じ変更を衝突なしにまとめ、文書のガードテストも通る。その結果、違う約束が 1 つの番号を共有したまま `main` に入り、古い文書と新しい道具が黙って違う規則で動きうるためである。対象は、道具とそれを呼ぶ文書の版を照合する番号で、今は `fixprguard`・`codexreview`・`chief` の 3 つである。規則の正本は [CLAUDE.md](../../../CLAUDE.md) にあり、確かめの要件は [0099 要件定義書](../../tasks/0099_protocol_number_rule/01_requirements.md) の F-003 にある。
+-   **`--protocol` の番号（プロトコル番号）を上げる PR は、番号を実装の時点の `origin/main` の値にちょうど 1 を足した値にし、マージの時点でも `origin/main` の値 + 1 であることを確かめる。食い違えばマージしない。タスク文書には上げた後の番号を書かず、「`main` の値 + 1」と書く。確かめは、`/runpr` からのマージにも `/mergepr` を単独で使うマージにも当てはめ、最初に確かめた後に `origin/main` が動いていても見落とさないように確かめ直す。** 並行する 2 つのブランチが同じ番号に上げると、git は定数の行の同じ変更を衝突なしにまとめ、文書のガードテストも通る。その結果、違う約束が 1 つの番号を共有したまま `main` に入り、古い文書と新しい道具が黙って違う規則で動きうるためである。対象は、道具とそれを呼ぶ文書の版を照合する番号で、今は `fixprguard`・`codexreview`・`chief` の 3 つである。マージの前は、同じ道具の番号を上げる並行するブランチが同じ番号を共有する。その間、片方のブランチから入れた道具がもう片方の文書を受け付けうることは、受け入れた危険である。ブランチごとに一意の番号を配る仕組みが要り、その費用に見合わないためである。規則の正本は [CLAUDE.md](../../../CLAUDE.md) にあり、確かめの要件は [0099 要件定義書](../../tasks/0099_protocol_number_rule/01_requirements.md) の F-003 にある。
 -   **道具の引数・出力・終了コードは、コマンドの定義と文書のガードが読む契約にする。** 変えたときは、道具と、それを呼ぶ文書と、ガードを同じ PR で変える。契約が食い違うと、レビューの信頼の境界が実行時に働かなくなるためである。契約は、[CLAUDE.md](../../../CLAUDE.md) の「Build Commands」「Test Commands」「Development Notes」、[.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Guard tool」の行、[fixprguard_guide.md](../guides/fixprguard_guide.md)、[mergepr_guide.md](../guides/mergepr_guide.md)、[chief_guide.md](../guides/chief_guide.md) にある。
 
-この決定は、まだ CLAUDE.md と道具に反映していない。今は、`fixprguard` についてだけ、番号を上げるだけで並行するブランチが同じ番号を使わないという規則が [fixprguard_guide.md](../guides/fixprguard_guide.md) の「9. ツールを変更する場合」にあり、マージの時点の確かめはない。この差分は [#933](https://github.com/isseis/yt2column/issues/933) の実装で解消する。
+この決定は、まだ CLAUDE.md と道具に反映していない。今は、`fixprguard` についてだけ、番号を上げるだけで再び使わず、並行するブランチも同じ番号を使わないという規則が [fixprguard_guide.md](../guides/fixprguard_guide.md) の「9. ツールを変更する場合」にあり、マージの時点の確かめはない。この差分は [#933](https://github.com/isseis/yt2column/issues/933) の実装で解消する。
 
 ## 採らなかった案
 
@@ -35,14 +35,19 @@
 -   **カバレッジの比較を node のスクリプトで書く、または Go と拡張で別の道具にする。** 差分による関数の対応、分類、比較、結果の出し方を 1 か所に保てない。判定の論理は Go に置き、TypeScript は拡張の関数の範囲だけを求める（[0055 設計書](../../tasks/0055_coverage_compare/02_architecture.md) §1.3）。
 -   **`ext-coverage-compare` を node だけで完結させる。** 拡張の lcov は関数の終わりの行を出さないので、関数の範囲を求めるのに TypeScript の構文解析が要る。それは node の側でしか行えない（[0055 設計書](../../tasks/0055_coverage_compare/02_architecture.md) §1.3、§3.5）。
 -   **プロトコル番号のマージの時点の確かめを、CLAUDE.md に人の手順として書くだけにする。** 確かめを忘れたときに、同じ番号の衝突を防げない（[0099 要件定義書](../../tasks/0099_protocol_number_rule/01_requirements.md)「要件定義の際に決めたこと（2026-11-17）」）。
+-   **マージの前も、並行するブランチが同じ番号を使わないようにする。** ブランチごとに一意の番号を配る仕組みが要り、issue #933 の範囲を超える（[0099 要件定義書](../../tasks/0099_protocol_number_rule/01_requirements.md)「要件定義の際に決めたこと（2026-11-17）」）。
+-   **プロトコル番号の確かめを `/runpr` だけに入れる。** `/mergepr` を直接使うと確かめが抜ける（[0099 要件定義書](../../tasks/0099_protocol_number_rule/01_requirements.md)「要件定義の際に決めたこと（2026-11-17）」）。
+-   **プロトコル番号を、CI の必須チェックと「ブランチを最新にする」設定で確かめる。** すべての PR で、マージの前に更新が要る（[0099 要件定義書](../../tasks/0099_protocol_number_rule/01_requirements.md)「要件定義の際に決めたこと（2026-11-17）」）。
+-   **プロトコル番号の決め方を、新しい ADR にする。** 同じ主題の決定が 2 つの ADR に分かれる（[0099 要件定義書](../../tasks/0099_protocol_number_rule/01_requirements.md)「要件定義の際に決めたこと（2026-11-17）」）。
 -   **プロトコル番号が食い違ったとき、`/runpr` が番号と文書の `--protocol` を書き換えて自動で直す。** `/runpr` を受け持つモデルに複数の文書を書き換えさせると誤りうる（[0099 要件定義書](../../tasks/0099_protocol_number_rule/01_requirements.md)「要件定義の際に決めたこと（2026-11-17）」）。
 
 ## 結果
 
 -   判定の誤りは、道具のテストで見つかる。壊して失敗を確かめた結果は、そのテストを加えたコミットのメッセージに残る。
 -   エージェントが手順を読み違えても、範囲外の commit・push や、信頼の境界の迂回は、道具が実行時に止める。
--   道具を変えたマージの後は、利用者が `make install-<tool>` を実行し直す必要がある（`mergepr`・`fixprguard`・`codexreview`・`chief`）。再インストールを忘れると、`fixprguard` は `--protocol` の食い違いで止まる。
+-   道具を変えたマージの後は、利用者が `make install-<tool>` を実行し直す必要がある（`mergepr`・`fixprguard`・`codexreview`・`chief`）。再インストールを忘れると、`fixprguard` は `--protocol` の食い違いで止まる。ただし、同じ道具の番号を上げる並行するブランチの間では、番号が同じなので止まらない。
 -   拡張のカバレッジの比較には Go と node の両方が要る。`make ext-coverage-compare` も Go の道具を呼ぶ。
+-   プロトコル番号を上げるタスクの文書は、上げた後の番号を書かず「`main` の値 + 1」と書く。マージの時点で番号が食い違えば、マージは止まる。番号と文書を直し、道具を入れ直してから、マージをやり直す。
 -   道具の引数・出力・終了コードは、コマンドの定義と文書のガードが前提にする契約になる。変えるときは、道具・文書・ガードを同じ PR で変える。
 
 ## 経緯
