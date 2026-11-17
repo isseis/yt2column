@@ -290,7 +290,7 @@
 
 **0092 の確かめ（ステップ 3-1、2026-11-17）。** `git fetch origin main` の後に `git grep -n PendingRemoval origin/main -- internal/chief` を走らせた。`origin/main` は `d23784ec` で、終了コードは 0 だった。ただし当たったのは `internal/chief/testdata/transcript/claude-synthetic.jsonl` の 1 行だけである。これはタスク 0095 が足したセッションの記録のサンプルで、PR-1 の報告の文がこの確かめのコマンドを引いているために当たった。Go のコードに絞った `git grep -n PendingRemoval origin/main -- 'internal/chief/*.go'` の終了コードは 1（見つからない）だった（この pathspec の `*` は `/` にも当たり、`internal/chief/paneinput/` の Go のファイルも対象に含む）。0092 の削除の提案はまだ `main` にないと判断し、決定 6 の 3 つは足さず、AC-05 は 0092 が後に入るときの扱い（決定 9）のままとする。マージの前の確かめは、PR の説明に人の項目として、Go のコードに絞ったコマンドで書く。
 
-**AC-19 の確かめ（ステップ 3-8・3-13、2026-11-17）。** ステップ 3-13 で、行に収まらないもの（引き継ぎと送信の停止）の行ごとの一覧を表の下の最初に足したので、AC-19 とスクリプトをそれに合わせた。`_checks/ac19_under_the_table.sh` を、merge-base `d23784eca522cc21fb72e1d9c5f7d7e7a24e7142` と、`.claude/commands/chief.md` を最後に変えたコミット `53f15510dd92eb93c76cb55459e89105904cb1c3` で走らせた。終了コードは 0 で、出力は次のとおりである。
+**AC-19 の確かめ（ステップ 3-8・3-13、2026-11-17）。** ステップ 3-13 で、行に収まらないもの（引き継ぎと送信の停止）の行ごとの一覧を表の下の最初に足したので、AC-19 とスクリプトをそれに合わせた。`_checks/ac19_under_the_table.sh` を、merge-base `d23784eca522cc21fb72e1d9c5f7d7e7a24e7142` と、`.claude/commands/chief.md` を最後に変えたコミット `385887cd67caa57b9151195ae9009393a1697fa2` で走らせた。終了コードは 0 で、出力は次のとおりである。
 
 ```text
 base d23784eca522cc21fb72e1d9c5f7d7e7a24e7142 items:
@@ -298,7 +298,7 @@ for each row in 質問で停止, each question's gist and its pane;
 each question of this session not answered yet (for example, whether to send again after the human switched an OpenCode pane's model), one per line; keep this list yourself across rounds;
 each of `problems`.
 
-head 53f15510dd92eb93c76cb55459e89105904cb1c3 items:
+head 385887cd67caa57b9151195ae9009393a1697fa2 items:
 for each row, by its 名前, what does not fit on its line: a `takeover` that is set; and, when `stopped` is set, that sends to the workspace are stopped, with its `reason` and `at`, or, when its `unreadable` is true, that sends are stopped and the stop record could not be read;
 each question of this session not answered yet (for example, whether to send again after the human switched an OpenCode pane's model), one per line; keep this list yourself across rounds;
 each of `problems`.
