@@ -3,6 +3,10 @@
 // the test decide when and how the browser answers, so the order of tab
 // creation, runtime messages and channel messages can be set case by case.
 
+import {
+  localItems,
+  storedAnthropicSettings,
+} from "../../src/browser/chromeDeps.ts";
 import type {
   BrowserCall,
   ExtensionIdentity,
@@ -17,6 +21,17 @@ import type {
   ViewerChannel,
   ViewerTabs,
   WriteClipboard,
+  localKeys,
+  onSessionChanged,
+  readAnthropicSettings,
+  readSessionItems,
+  removeAnthropicSettings,
+  removeSessionItems,
+  SessionChanges,
+  SessionItemChange,
+  setLocalAccessLevel,
+  writeAnthropicSettings,
+  writeSessionItems,
 } from "../../src/browser/chromeDeps.ts";
 import type {
   AwaitStart,
@@ -370,6 +385,159 @@ export function fakeSaves(): FakeSaves {
     save: (fileName, text) => {
       saved.push({ fileName, text });
       return ok(undefined);
+    },
+  };
+}
+
+/** The fixed chrome.storage.local functions a fake answers. */
+export type LocalOperation =
+  "read" | "write" | "remove" | "keys" | "setAccessLevel";
+
+/** The fixed chrome.storage.local functions of browser/chromeDeps.ts, over items the test holds. */
+export interface FakeLocal {
+  readonly read: typeof readAnthropicSettings;
+  readonly write: typeof writeAnthropicSettings;
+  readonly remove: typeof removeAnthropicSettings;
+  readonly keys: typeof localKeys;
+  readonly setAccessLevel: typeof setLocalAccessLevel;
+  /**
+   * The stored items by name. A test may put any value in, as the developer
+   * tools can; write and remove change only the two settings items.
+   */
+  readonly items: Map<string, unknown>;
+  /** Every call, in order. */
+  readonly calls: LocalOperation[];
+  /** Makes every later call of op fail; a failed write or remove changes nothing. */
+  fail(op: LocalOperation): void;
+}
+
+export function fakeLocal(): FakeLocal {
+  const items = new Map<string, unknown>();
+  const calls: LocalOperation[] = [];
+  const failing = new Set<LocalOperation>();
+  /** Records the call and answers it with value, or with a failure when op fails. */
+  const answer = async <T>(
+    op: LocalOperation,
+    value: () => T,
+  ): Promise<BrowserCall<T>> => {
+    calls.push(op);
+    return failing.has(op)
+      ? failed(`${op} failed`)
+      : ok(structuredClone(value()));
+  };
+  return {
+    items,
+    calls,
+    fail: (op) => {
+      failing.add(op);
+    },
+    read: () =>
+      answer("read", () => storedAnthropicSettings(Object.fromEntries(items))),
+    write: (apiKey, workspaceId) =>
+      answer("write", () => {
+        items.set("anthropic.apiKey", apiKey);
+        items.set("anthropic.workspaceId", workspaceId);
+        return undefined;
+      }),
+    remove: () =>
+      answer("remove", () => {
+        items.delete("anthropic.apiKey");
+        items.delete("anthropic.workspaceId");
+        return undefined;
+      }),
+    keys: () => answer("keys", () => localItems([...items.keys()])),
+    setAccessLevel: () => answer("setAccessLevel", () => undefined),
+  };
+}
+
+/** The chrome.storage.session functions a fake answers. */
+export type SessionOperation = "read" | "write" | "remove";
+
+/** The fixed chrome.storage.session functions of browser/chromeDeps.ts, over items the test holds. */
+export interface FakeSession {
+  readonly read: typeof readSessionItems;
+  readonly write: typeof writeSessionItems;
+  readonly remove: typeof removeSessionItems;
+  readonly onChanged: typeof onSessionChanged;
+  /** The stored items by name; a test may put any value in. */
+  readonly items: Map<string, unknown>;
+  /** Every call, in order. */
+  readonly calls: SessionOperation[];
+  /** Makes every later call of op fail; a failed write or remove changes nothing. */
+  fail(op: SessionOperation): void;
+}
+
+/**
+ * Session storage as the browser keeps it: values are stored and read as
+ * copies, and each write or remove that changes items is announced to every
+ * listener registered at that time, as a task, with copies of the new values.
+ * A remove announces only the items that existed.
+ */
+export function fakeSession(): FakeSession {
+  const items = new Map<string, unknown>();
+  const calls: SessionOperation[] = [];
+  const failing = new Set<SessionOperation>();
+  const listeners = new Set<(changes: SessionChanges) => void>();
+  const announce = (changes: Map<string, SessionItemChange>): void => {
+    if (changes.size === 0) {
+      return;
+    }
+    for (const listener of [...listeners]) {
+      setImmediate(() => {
+        if (listeners.has(listener)) {
+          listener(structuredClone(changes));
+        }
+      });
+    }
+  };
+  return {
+    items,
+    calls,
+    fail: (op) => {
+      failing.add(op);
+    },
+    read: async (names) => {
+      calls.push("read");
+      if (failing.has("read")) {
+        return failed("read failed");
+      }
+      const selected = [...items].filter(
+        ([name]) => names === "every" || names.includes(name),
+      );
+      return ok(structuredClone(Object.fromEntries(selected)));
+    },
+    write: async (written) => {
+      calls.push("write");
+      if (failing.has("write")) {
+        return failed("write failed");
+      }
+      const changes = new Map<string, SessionItemChange>();
+      for (const [name, value] of Object.entries(structuredClone(written))) {
+        items.set(name, value);
+        changes.set(name, { removed: false, newValue: value });
+      }
+      announce(changes);
+      return ok(undefined);
+    },
+    remove: async (names) => {
+      calls.push("remove");
+      if (failing.has("remove")) {
+        return failed("remove failed");
+      }
+      const changes = new Map<string, SessionItemChange>();
+      for (const name of names) {
+        if (items.delete(name)) {
+          changes.set(name, { removed: true });
+        }
+      }
+      announce(changes);
+      return ok(undefined);
+    },
+    onChanged: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }

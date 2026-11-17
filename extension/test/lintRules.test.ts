@@ -353,17 +353,112 @@ function expectReferenceForms(obj: string, name: string): void {
   }
 }
 
+const chromeDeps = "src/browser/chromeDeps.ts";
+const wasmWorker = "src/wasmWorker.ts";
+
 describe("chrome.storage", () => {
-  // Every area is forbidden, not only sync: the extension has no storage
-  // permission.
+  // Every area is forbidden outside browser/chromeDeps.ts, sources and tests
+  // alike: only its fixed functions use chrome.storage.
   expectViolation([
     {
       name: "chrome.storage.local",
       code: 'export const p = chrome.storage.local.get("x");\n',
       rule: "no-restricted-syntax",
     },
+    {
+      name: "chrome.storage.session",
+      code: "export const p = chrome.storage.session.get(null);\n",
+      rule: "no-restricted-syntax",
+    },
   ]);
   expectReferenceForms("chrome", "storage");
+
+  for (const code of [
+    'export const p = chrome.storage.local.get(["anthropic.apiKey", "anthropic.workspaceId"]);\n',
+    "export const p = chrome.storage.session.get(null);\n",
+    "chrome.storage.session.onChanged.addListener(() => {});\n",
+  ]) {
+    it(`allows ${code.trim()} in ${chromeDeps}`, async () => {
+      assert.deepEqual(await ruleIds(code, chromeDeps), []);
+    });
+  }
+
+  for (const filePath of [
+    wasmWorker,
+    "src/core/creator.ts",
+    "src/options.ts",
+  ]) {
+    it(`forbids chrome.storage in ${filePath}`, async () => {
+      const code = "export const p = chrome.storage.local.getKeys();\n";
+      assert.ok(
+        (await ruleIds(code, filePath)).includes("no-restricted-syntax"),
+      );
+    });
+  }
+});
+
+// The fixed chrome.storage functions and the entry page scripts that may
+// import each; eslint.config.js holds the same table.
+const storageFunctionImporters: Readonly<Record<string, readonly string[]>> = {
+  readAnthropicSettings: ["src/viewer.ts"],
+  writeAnthropicSettings: ["src/options.ts"],
+  removeAnthropicSettings: ["src/options.ts"],
+  localKeys: ["src/background.ts", "src/options.ts"],
+  setLocalAccessLevel: ["src/background.ts", "src/popup.ts"],
+  readSessionItems: ["src/background.ts", "src/popup.ts", "src/viewer.ts"],
+  writeSessionItems: ["src/background.ts"],
+  removeSessionItems: ["src/background.ts"],
+  onSessionChanged: ["src/popup.ts", "src/viewer.ts"],
+};
+const entryFiles = [
+  "src/background.ts",
+  "src/popup.ts",
+  "src/viewer.ts",
+  "src/options.ts",
+];
+
+describe("importing the chrome.storage functions", () => {
+  for (const [name, importers] of Object.entries(storageFunctionImporters)) {
+    const code = `import { ${name} } from "./browser/chromeDeps.ts";\nexport const f = ${name};\n`;
+    for (const filePath of entryFiles) {
+      if (importers.includes(filePath)) {
+        it(`allows importing ${name} in ${filePath}`, async () => {
+          assert.deepEqual(await ruleIds(code, filePath), []);
+        });
+      } else {
+        it(`forbids importing ${name} in ${filePath}`, async () => {
+          assert.ok(
+            (await ruleIds(code, filePath)).includes("no-restricted-imports"),
+          );
+        });
+      }
+    }
+    it(`forbids importing ${name} in src/sample.ts`, async () => {
+      assert.ok(
+        (await ruleIds(code, "src/sample.ts")).includes(
+          "no-restricted-imports",
+        ),
+      );
+    });
+    it(`forbids importing ${name} from a nested module`, async () => {
+      const nested = `import { ${name} } from "../browser/chromeDeps.ts";\nexport const f = ${name};\n`;
+      assert.ok(
+        (await ruleIds(nested, "src/core/sample.ts")).includes(
+          "no-restricted-imports",
+        ),
+      );
+    });
+    it(`allows a type-only import of ${name} in src/sample.ts`, async () => {
+      const typeOnly = `import type { ${name} } from "./browser/chromeDeps.ts";\nexport type F = typeof ${name};\n`;
+      assert.deepEqual(await ruleIds(typeOnly, "src/sample.ts"), []);
+    });
+  }
+
+  it("allows importing the other chromeDeps.ts functions in src/sample.ts", async () => {
+    const code =
+      'import { createLogger, storedAnthropicSettings } from "./browser/chromeDeps.ts";\nexport const f = [createLogger, storedAnthropicSettings];\n';
+    assert.deepEqual(await ruleIds(code, "src/sample.ts"), []);
+  });
 });
 
 describe("connections", () => {
@@ -415,6 +510,119 @@ describe("connections", () => {
       });
     }
   }
+
+  // The Worker's loader fetches the article generation module; the other
+  // connections stay forbidden there.
+  for (const code of [
+    'export const p = fetch("yt2column.wasm");\n',
+    "declare const self: Record<string, unknown>;\nexport const p = self.fetch;\n",
+  ]) {
+    it(`allows ${code.trim().split("\n").at(-1)} in ${wasmWorker}`, async () => {
+      assert.deepEqual(await ruleIds(code, wasmWorker), []);
+    });
+  }
+  for (const name of ["XMLHttpRequest", "WebSocket", "EventSource"]) {
+    it(`forbids the global ${name} in ${wasmWorker}`, async () => {
+      assert.ok(
+        (await ruleIds(`export const p = ${name};\n`, wasmWorker)).includes(
+          "no-restricted-globals",
+        ),
+      );
+    });
+    it(`forbids self.${name} in ${wasmWorker}`, async () => {
+      const code = `declare const self: Record<string, unknown>;\nexport const p = self.${name};\n`;
+      assert.ok(
+        (await ruleIds(code, wasmWorker)).includes("no-restricted-syntax"),
+      );
+    });
+  }
+  for (const filePath of [chromeDeps, "src/wasmWorkerClient.ts"]) {
+    it(`forbids fetch in ${filePath}`, async () => {
+      assert.ok(
+        (await ruleIds("export const p = fetch;\n", filePath)).includes(
+          "no-restricted-globals",
+        ),
+      );
+    });
+  }
+});
+
+describe("the other rules in the files with an exception", () => {
+  // browser/chromeDeps.ts may use storage, windows and sendNativeMessage, and
+  // src/wasmWorker.ts may fetch; every other rule still applies to both.
+  const violations: { name: string; code: string; files: string[] }[] = [
+    {
+      name: "innerHTML",
+      code: "declare const el: HTMLElement;\ndeclare const s: string;\nexport const f = (): void => {\n  el.innerHTML = s;\n};\n",
+      files: [chromeDeps, wasmWorker],
+    },
+    {
+      name: "import()",
+      code: 'export const m = import("./x.js");\n',
+      files: [chromeDeps, wasmWorker],
+    },
+    {
+      name: "chrome.session",
+      code: "export const p = chrome.session;\n",
+      files: [chromeDeps, wasmWorker],
+    },
+    {
+      name: "connectNative",
+      code: 'export const p = chrome.runtime.connectNative("h");\n',
+      files: [chromeDeps, wasmWorker],
+    },
+    {
+      name: "window.fetch",
+      code: "declare const window: Record<string, unknown>;\nexport const p = window.fetch;\n",
+      files: [chromeDeps],
+    },
+    {
+      name: "chrome.storage",
+      code: "export const p = chrome.storage.local.getKeys();\n",
+      files: [wasmWorker],
+    },
+    {
+      name: "chrome.windows",
+      code: "export const p = chrome.windows;\n",
+      files: [wasmWorker],
+    },
+    {
+      name: "sendNativeMessage",
+      code: "export const p = chrome.runtime.sendNativeMessage;\n",
+      files: [wasmWorker],
+    },
+  ];
+  for (const { name, code, files } of violations) {
+    for (const filePath of files) {
+      it(`forbids ${name} in ${filePath}`, async () => {
+        assert.ok(
+          (await ruleIds(code, filePath)).includes("no-restricted-syntax"),
+          name,
+        );
+      });
+    }
+  }
+});
+
+describe("html parsing APIs in the extension-only path's files", () => {
+  // The new pages and modules hold the API key or the module's results, so
+  // the ban on parsing strings as HTML covers them as it covers every file.
+  const code =
+    "declare const el: HTMLElement;\ndeclare const s: string;\nexport const f = (): void => {\n  el.innerHTML = s;\n};\n";
+  for (const filePath of [
+    "src/options.ts",
+    "src/wasmWorkerClient.ts",
+    "src/core/optionsView.ts",
+    "src/core/wasmResult.ts",
+    "src/core/jobRecord.ts",
+    "src/core/viewerTitle.ts",
+  ]) {
+    it(`forbids innerHTML in ${filePath}`, async () => {
+      assert.ok(
+        (await ruleIds(code, filePath)).includes("no-restricted-syntax"),
+      );
+    });
+  }
 });
 
 describe("chrome.runtime.connectNative", () => {
@@ -454,15 +662,6 @@ describe("chrome.runtime.sendNativeMessage", () => {
     assert.deepEqual(await ruleIds(call, "src/browser/chromeDeps.ts"), []);
   });
 
-  it("still applies the other rules in src/browser/chromeDeps.ts", async () => {
-    const code = 'export const p = chrome.storage.local.get("x");\n';
-    assert.ok(
-      (await ruleIds(code, "src/browser/chromeDeps.ts")).includes(
-        "no-restricted-syntax",
-      ),
-    );
-  });
-
   it("allows a fake with the name in a test", async () => {
     const code = "export const fake = { sendNativeMessage() {} };\n";
     assert.deepEqual(await ruleIds(code, "test/sample.test.ts"), []);
@@ -472,7 +671,7 @@ describe("chrome.runtime.sendNativeMessage", () => {
 describe("removed menu-path APIs", () => {
   const references: { api: string; name: string }[] = [
     { api: "chrome", name: "contextMenus" },
-    { api: "chrome.x", name: "session" },
+    { api: "chrome", name: "session" },
     { api: "chrome", name: "windows" },
     { api: "chrome.action", name: "setBadgeText" },
   ];
@@ -514,7 +713,6 @@ describe("removed menu-path APIs", () => {
   // may reference windows; the other names stay forbidden there. The forms
   // come from the same selector generator as above, so one form proves each
   // forbidden name and every form is tried for the allowed one.
-  const chromeDeps = "src/browser/chromeDeps.ts";
   for (const { api, name } of references) {
     const forms = referenceForms(api, name);
     for (const { form, code } of name === "windows"
@@ -534,6 +732,31 @@ describe("removed menu-path APIs", () => {
     }
   }
 
+  // session is forbidden only on chrome itself: chrome.storage.session holds
+  // the job records, and another object's session member is not the API.
+  for (const code of [
+    "declare const globalThis: { chrome: unknown };\nexport const p = globalThis.chrome.session;\n",
+    "export const { session } = chrome;\n",
+  ]) {
+    for (const filePath of paths) {
+      it(`forbids ${code.trim().split("\n").at(-1)} in ${filePath}`, async () => {
+        assert.ok(
+          (await ruleIds(code, filePath)).includes("no-restricted-syntax"),
+        );
+      });
+    }
+  }
+  for (const code of [
+    "declare const deps: { session: number };\nexport const p = deps.session;\n",
+    "declare const x: { session: number };\nexport const { session } = x;\n",
+  ]) {
+    for (const filePath of paths) {
+      it(`allows ${code.trim().split("\n").at(-1)} in ${filePath}`, async () => {
+        assert.deepEqual(await ruleIds(code, filePath), []);
+      });
+    }
+  }
+
   // The pattern is anchored at both ends: a longer name that only starts or
   // ends with a forbidden one stays allowed.
   const longerNames = [
@@ -541,6 +764,7 @@ describe("removed menu-path APIs", () => {
     "export const { sessionId } = chrome.x;\n",
     "export const { usersession } = chrome.x;\n",
     "export const p = chrome.x.subwindows;\n",
+    "export const p = chrome.sessions;\n",
   ];
   for (const code of longerNames) {
     for (const filePath of paths) {
@@ -553,7 +777,7 @@ describe("removed menu-path APIs", () => {
   // A type-only reference does not call the API, so it stays allowed.
   const typeReferences = [
     "export type T = chrome.contextMenus.OnClickData;\n",
-    "export type T = typeof chrome.x.session;\n",
+    "export type T = typeof chrome.session;\n",
     "export type T = chrome.windows.Window;\n",
     "export type T = typeof chrome.action.setBadgeText;\n",
   ];

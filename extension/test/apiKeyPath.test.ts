@@ -280,6 +280,28 @@ function apiKeyPathViolations(file: string, text: string): string[] {
   return violations;
 }
 
+/** How many calls of each chrome.storage.local method text makes. */
+function localCallCounts(file: string, text: string): Record<string, number> {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+  const counts: Record<string, number> = {};
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      const method = dottedName(callee);
+      if (
+        method !== undefined &&
+        ts.isPropertyAccessExpression(callee) &&
+        chainText(callee.expression) === "chrome.storage.local"
+      ) {
+        counts[method] = (counts[method] ?? 0) + 1;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return counts;
+}
+
 /** The words in text, compared case-insensitively. */
 function wordsIn(text: string, words: readonly string[]): string[] {
   const lower = text.toLowerCase();
@@ -356,6 +378,21 @@ const sourceFiles = listFiles("src").filter((file) => file.endsWith(".ts"));
 describe("the API key path in the extension's source", () => {
   it("has no API key path violation in src/", () => {
     expectNone(sourceFiles, apiKeyPathViolations);
+  });
+
+  it("makes each fixed chrome.storage.local call once, in chromeDeps.ts", () => {
+    // The check above passes vacuously on a source that makes none of the
+    // calls; this pins that it read the calls the extension makes.
+    const expected = Object.fromEntries(
+      Object.keys(localCalls).map((method) => [method, 1]),
+    );
+    assert.deepEqual(
+      localCallCounts(
+        chromeDepsFile,
+        readFileSync(path.join(extensionDir, chromeDepsFile), "utf8"),
+      ),
+      expected,
+    );
   });
 
   it("names no absent setting in src/ or static/", () => {

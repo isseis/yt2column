@@ -17,8 +17,11 @@ import {
   createWindowFocus,
   createWorkerSend,
   listenForMessages,
+  localItems,
   objectUrlLifetimeMs,
   readUiLanguage,
+  sessionChanges,
+  storedAnthropicSettings,
   type I18nApi,
   type MessageEventsApi,
   type MessageListener,
@@ -879,5 +882,74 @@ describe("file saver", () => {
     });
     assert.equal(save("a.md", "x").ok, false);
     assert.deepEqual(clicks, []);
+  });
+});
+
+describe("stored Anthropic settings", () => {
+  it("is no_api_key only when the API key item is absent", () => {
+    assert.deepEqual(storedAnthropicSettings({}), { kind: "no_api_key" });
+    assert.deepEqual(
+      storedAnthropicSettings({ "anthropic.workspaceId": "wrkspc_1" }),
+      { kind: "no_api_key" },
+    );
+  });
+
+  it("passes on the values as read, unchecked, even empty or null", () => {
+    for (const apiKey of ["", null, 7, "sk-1"]) {
+      assert.deepEqual(
+        storedAnthropicSettings({
+          "anthropic.apiKey": apiKey,
+          "anthropic.workspaceId": "",
+        }),
+        {
+          kind: "found",
+          settings: { anthropicApiKey: apiKey, anthropicWorkspaceId: "" },
+        },
+      );
+    }
+  });
+
+  it("leaves the workspace ID out when its item is absent", () => {
+    const stored = storedAnthropicSettings({ "anthropic.apiKey": "sk-1" });
+    assert.deepEqual(stored, {
+      kind: "found",
+      settings: { anthropicApiKey: "sk-1" },
+    });
+    assert.ok(stored.kind === "found");
+    assert.equal(Object.hasOwn(stored.settings, "anthropicWorkspaceId"), false);
+  });
+
+  it("ignores every other item", () => {
+    assert.deepEqual(
+      storedAnthropicSettings({ "anthropic.apiKey": "k", sharedToken: "t" }),
+      { kind: "found", settings: { anthropicApiKey: "k" } },
+    );
+  });
+});
+
+describe("local item names", () => {
+  it("tells whether the API key item is among the names", () => {
+    assert.deepEqual(localItems(["anthropic.apiKey"]), { apiKeySet: true });
+    assert.deepEqual(localItems(["anthropic.workspaceId", "serverPort"]), {
+      apiKeySet: false,
+    });
+    assert.deepEqual(localItems([]), { apiKeySet: false });
+  });
+});
+
+describe("session changes", () => {
+  it("reads a change with newValue as a new value and one without as removed", () => {
+    assert.deepEqual(
+      sessionChanges({
+        "job:a": { newValue: { n: 1 } },
+        "job:b": {},
+        "job:c": { newValue: undefined },
+      }),
+      new Map([
+        ["job:a", { removed: false, newValue: { n: 1 } }],
+        ["job:b", { removed: true }],
+        ["job:c", { removed: false, newValue: undefined }],
+      ]),
+    );
   });
 });

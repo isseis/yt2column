@@ -41,45 +41,55 @@ function memberNameSelectors(names, message) {
   ];
 }
 
-// The extension has no storage permission and keeps no settings. The type
-// declarations still contain chrome.storage, so tsc would accept a reference
-// the browser then fails at run time; this rule rejects it. The destructuring
-// form matches any { storage } key by name, so the rule is intentionally
-// name-based and would also reject an unrelated property named storage.
+// chrome.storage holds the API key, so only browser/chromeDeps.ts may use it,
+// through the fixed functions it exports; their importers are limited below.
+// The type declarations contain chrome.storage, so tsc alone would accept a
+// reference anywhere. The destructuring form matches any { storage } key by
+// name, so the rule is intentionally name-based and would also reject an
+// unrelated property named storage.
 const storageSelectors = memberNameSelectors(
   ["storage"],
-  "Do not use chrome.storage; the extension has no storage permission and keeps no settings.",
+  "Use chrome.storage only through the fixed functions of browser/chromeDeps.ts.",
 );
 
-// The only connection the extension makes is one chrome.runtime.sendNativeMessage
-// call in browser/chromeDeps.ts. These are the other ways to reach a network
-// or a long-lived host connection. Like the storage rule, they guard against
+// The extension sends to the network only from the article generation
+// module, which runs in the Worker that src/wasmWorker.ts loads: the module's
+// Go code keeps the API key in a secret and refuses redirects, which a fetch
+// in the extension's TypeScript would bypass. src/wasmWorker.ts may use fetch
+// to load the module; the other names stay forbidden there, and the native
+// messaging host is reached only through chrome.runtime.sendNativeMessage in
+// browser/chromeDeps.ts. Like the storage rule, these guard against
 // accidental reuse, not deliberate evasion.
 const networkNames = ["fetch", "XMLHttpRequest", "WebSocket", "EventSource"];
 const networkMessage =
-  "Do not open connections; the extension only calls chrome.runtime.sendNativeMessage in browser/chromeDeps.ts.";
-const networkGlobals = networkNames.map((name) => ({
-  name,
-  message: networkMessage,
-}));
-const networkPattern = `/^(${networkNames.join("|")})$/`;
+  "Do not open connections; only src/wasmWorker.ts may fetch, to load the article generation module.";
+/** no-restricted-globals entries for names. */
+function networkGlobals(names) {
+  return names.map((name) => ({ name, message: networkMessage }));
+}
 const globalObject = "/^(window|self|globalThis)$/";
-const networkSelectors = [
-  {
-    // window.fetch, self.fetch and globalThis.fetch, dotted or computed.
-    selector: `MemberExpression:matches([property.name=${networkPattern}], [property.value=${networkPattern}])[object.name=${globalObject}]`,
-    message: networkMessage,
-  },
-  {
-    selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked=${networkPattern}][object.name=${globalObject}]`,
-    message: networkMessage,
-  },
-  {
-    // const { fetch } = window;
-    selector: `VariableDeclarator[init.name=${globalObject}] > ObjectPattern > Property:matches([key.name=${networkPattern}], [key.value=${networkPattern}])`,
-    message: networkMessage,
-  },
-];
+/** Selectors that forbid names as members of the global objects, dotted, computed or destructured. */
+function networkSelectors(names) {
+  const pattern = `/^(${names.join("|")})$/`;
+  return [
+    {
+      // window.fetch, self.fetch and globalThis.fetch, dotted or computed.
+      selector: `MemberExpression:matches([property.name=${pattern}], [property.value=${pattern}])[object.name=${globalObject}]`,
+      message: networkMessage,
+    },
+    {
+      selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked=${pattern}][object.name=${globalObject}]`,
+      message: networkMessage,
+    },
+    {
+      // const { fetch } = window;
+      selector: `VariableDeclarator[init.name=${globalObject}] > ObjectPattern > Property:matches([key.name=${pattern}], [key.value=${pattern}])`,
+      message: networkMessage,
+    },
+  ];
+}
+// The names src/wasmWorker.ts still may not use.
+const workerNetworkNames = networkNames.filter((name) => name !== "fetch");
 const connectNativeSelectors = memberNameSelectors(
   ["connectNative"],
   "Do not use chrome.runtime.connectNative; send with sendNativeMessage in browser/chromeDeps.ts.",
@@ -97,9 +107,28 @@ const sendNativeSelectors = memberNameSelectors(
 // rule, it guards against accidental reuse, not deliberate evasion. The one
 // exception is windows in browser/chromeDeps.ts, whose wrapper brings a viewer
 // tab's window to the front; its config below leaves windows out of the list.
-const menuPathNames = ["contextMenus", "session", "windows", "setBadgeText"];
+// session is forbidden only as chrome.session, the sessions API of that path:
+// chrome.storage.session holds the job records.
+const menuPathNames = ["contextMenus", "windows", "setBadgeText"];
 const menuPathMessage =
   "Do not use chrome.contextMenus, chrome.session or chrome.action.setBadgeText, or chrome.windows outside browser/chromeDeps.ts; they served the removed context-menu path.";
+const chromeObject =
+  ':matches([object.name="chrome"], [object.property.name="chrome"])';
+/** Selectors that forbid chrome.session, dotted, computed or destructured from chrome. */
+const chromeSessionSelectors = [
+  {
+    selector: `MemberExpression${chromeObject}:matches([computed=false][property.name="session"], [computed=true][property.value="session"])`,
+    message: menuPathMessage,
+  },
+  {
+    selector: `MemberExpression${chromeObject}[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked="session"]`,
+    message: menuPathMessage,
+  },
+  {
+    selector: `VariableDeclarator:matches([init.name="chrome"], [init.property.name="chrome"]) > ObjectPattern > Property:matches([key.name="session"], [key.value="session"])`,
+    message: menuPathMessage,
+  },
+];
 
 // The branded types hide their brand symbol, so only the function named here
 // may assert the type to create a value. Every other reference form (an alias
@@ -172,9 +201,9 @@ const brandNames = [
   "LinkUrl",
 ];
 
-// Selectors shared by every file but the menu-path names. The files-scoped
-// configs below reuse these lists because a later config with files/ignores
-// replaces the whole rule.
+// Selectors shared by every file. The files-scoped configs below reuse this
+// list through syntaxRules because a later config with files/ignores replaces
+// the whole rule.
 const commonSyntax = [
   {
     selector: `MemberExpression[computed=false][property.name=${htmlParsingPattern}]`,
@@ -214,22 +243,78 @@ const commonSyntax = [
     selector: "ImportExpression",
     message: "Use a static import; import() is not allowed in the extension.",
   },
-  ...storageSelectors,
-  ...networkSelectors,
   ...connectNativeSelectors,
+  ...chromeSessionSelectors,
 ];
-const restrictedSyntax = [
-  ...commonSyntax,
-  ...memberNameSelectors(menuPathNames, menuPathMessage),
+
+/**
+ * The no-restricted-syntax selectors of a file. Every file gets the common
+ * ones; the options name the exceptions one file has: browser/chromeDeps.ts
+ * may use storage, windows and sendNativeMessage, and src/wasmWorker.ts may
+ * fetch.
+ */
+function syntaxRules({
+  allowStorage = false,
+  allowWindows = false,
+  allowFetch = false,
+  allowSendNative = false,
+} = {}) {
+  return [
+    ...commonSyntax,
+    ...(allowStorage ? [] : storageSelectors),
+    ...networkSelectors(allowFetch ? workerNetworkNames : networkNames),
+    ...memberNameSelectors(
+      allowWindows
+        ? menuPathNames.filter((name) => name !== "windows")
+        : menuPathNames,
+      menuPathMessage,
+    ),
+    ...(allowSendNative ? [] : sendNativeSelectors),
+  ];
+}
+
+// The fixed chrome.storage functions of browser/chromeDeps.ts and the entry
+// page scripts that may import each. An import elsewhere fails, so the API key
+// is read only by the running viewer and written only by the options page;
+// the service worker learns only whether the key item exists. A type-only
+// import stays allowed, so a module can take a function as a dependency. Like
+// the other rules, this one sees files, not roles: the running viewer and the
+// displaying viewer are the same file.
+const storageFunctionImporters = {
+  readAnthropicSettings: ["src/viewer.ts"],
+  writeAnthropicSettings: ["src/options.ts"],
+  removeAnthropicSettings: ["src/options.ts"],
+  localKeys: ["src/background.ts", "src/options.ts"],
+  setLocalAccessLevel: ["src/background.ts", "src/popup.ts"],
+  readSessionItems: ["src/background.ts", "src/popup.ts", "src/viewer.ts"],
+  writeSessionItems: ["src/background.ts"],
+  removeSessionItems: ["src/background.ts"],
+  onSessionChanged: ["src/popup.ts", "src/viewer.ts"],
+};
+const storageEntryFiles = [
+  ...new Set(Object.values(storageFunctionImporters).flat()),
 ];
-// browser/chromeDeps.ts may reference windows; the other names stay forbidden.
-const chromeDepsSyntax = [
-  ...commonSyntax,
-  ...memberNameSelectors(
-    menuPathNames.filter((name) => name !== "windows"),
-    menuPathMessage,
-  ),
-];
+
+/** The no-restricted-imports options that forbid every storage function file may not import. */
+function storageImportRule(file) {
+  const forbidden = Object.entries(storageFunctionImporters)
+    .filter(([, files]) => !files.includes(file))
+    .map(([name]) => name);
+  return [
+    "error",
+    {
+      patterns: [
+        {
+          regex: "(^|/)browser/chromeDeps\\.ts$",
+          importNames: forbidden,
+          allowTypeImports: true,
+          message:
+            "Only the entry page scripts listed in eslint.config.js may import this chrome.storage function.",
+        },
+      ],
+    },
+  ];
+}
 
 /** A config that forbids the listed brands (and the common selectors) in file. */
 function creatorConfig(file, own) {
@@ -239,8 +324,7 @@ function creatorConfig(file, own) {
     rules: {
       "no-restricted-syntax": [
         "error",
-        ...restrictedSyntax,
-        ...sendNativeSelectors,
+        ...syntaxRules(),
         ...brandSelectors(forbidden),
       ],
     },
@@ -266,8 +350,11 @@ export default defineConfig(
       "no-eval": "error",
       "no-implied-eval": "error",
       "no-new-func": "error",
-      "no-restricted-globals": ["error", ...networkGlobals],
-      "no-restricted-syntax": ["error", ...restrictedSyntax],
+      "no-restricted-globals": ["error", ...networkGlobals(networkNames)],
+      "no-restricted-syntax": [
+        "error",
+        ...syntaxRules({ allowSendNative: true }),
+      ],
     },
   },
   {
@@ -277,20 +364,41 @@ export default defineConfig(
     rules: {
       "no-restricted-syntax": [
         "error",
-        ...restrictedSyntax,
-        ...sendNativeSelectors,
+        ...syntaxRules(),
+        ...brandSelectors(brandNames),
+      ],
+      "no-restricted-imports": storageImportRule(""),
+    },
+  },
+  ...storageEntryFiles.map((file) => ({
+    files: [file],
+    rules: { "no-restricted-imports": storageImportRule(file) },
+  })),
+  {
+    // The one file that uses chrome.storage, calls
+    // chrome.runtime.sendNativeMessage and references chrome.windows.
+    files: ["src/browser/chromeDeps.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...syntaxRules({
+          allowStorage: true,
+          allowWindows: true,
+          allowSendNative: true,
+        }),
         ...brandSelectors(brandNames),
       ],
     },
   },
   {
-    // The one file that calls chrome.runtime.sendNativeMessage and the one
-    // that references chrome.windows.
-    files: ["src/browser/chromeDeps.ts"],
+    // The Worker's loader, the one file that may fetch: it loads the article
+    // generation module, whose Go code sends to the API.
+    files: ["src/wasmWorker.ts"],
     rules: {
+      "no-restricted-globals": ["error", ...networkGlobals(workerNetworkNames)],
       "no-restricted-syntax": [
         "error",
-        ...chromeDepsSyntax,
+        ...syntaxRules({ allowFetch: true }),
         ...brandSelectors(brandNames),
       ],
     },
