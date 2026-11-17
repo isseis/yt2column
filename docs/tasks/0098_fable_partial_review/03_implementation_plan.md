@@ -328,13 +328,13 @@ Diff record (AC-37):
 
 - Compared paths: `.claude/commands/_lib/pr-review-escalation.md`
 - Merge-base: `eb054b00ee149df0f180348165a905b8da6f0297`
-- Compared commit: `42f23dd9e221398e7beca55237e9748ce3e84f68`
+- Compared commit: `aed0841b72d00236fa3b07806fa365cec1f323ee`
 
 Path diff:
 
 ````text
 diff --git a/.claude/commands/_lib/pr-review-escalation.md b/.claude/commands/_lib/pr-review-escalation.md
-index 887ba06b82968e76cffdb8a65ecf4c0d32c3fafb..9bb9944c8d0b40b522de9407c74fbc6539d5bf88 100644
+index 887ba06b82968e76cffdb8a65ecf4c0d32c3fafb..952bcb97ea288418cc0d90eb5a37c71262d4c34a 100644
 --- a/.claude/commands/_lib/pr-review-escalation.md
 +++ b/.claude/commands/_lib/pr-review-escalation.md
 @@ -31,7 +31,11 @@ step 3 invokes this file.
@@ -350,7 +350,7 @@ index 887ba06b82968e76cffdb8a65ecf4c0d32c3fafb..9bb9944c8d0b40b522de9407c74fbc65
 
  1. **Change behavior or a contract.** Observable behavior changes — error
     handling, an exported API, a wire format, configuration, the cache format —
-@@ -41,19 +45,32 @@ Request a PR review when the changes in LAST_REVIEWED..HEAD do any of these:
+@@ -41,19 +45,34 @@ Request a PR review when the changes in LAST_REVIEWED..HEAD do any of these:
  3. **Touch a requirement or a design decision.** They change or reinterpret an
     acceptance criterion, a decision recorded in a task document, or what a test
     asserts.
@@ -366,13 +366,15 @@ index 887ba06b82968e76cffdb8a65ecf4c0d32c3fafb..9bb9944c8d0b40b522de9407c74fbc65
 +   counts too: a step or code that handles a secret, sends data off the
 +   machine, posts to GitHub, types into another agent's pane, deletes a file
 +   or a ref, or has another side effect that cannot be undone. So does a
-+   change to a review gate itself: this file's criteria; `runpr.md` step 3's
-+   rules that turn this file's answer into a decision, and its comparison of
-+   the PR's `headRefOid` with the local head; `_lib/review-records.sh` and the
-+   way the command documents run it from `origin/main`; the sections that
-+   define the forms of the review record lines and how they are read; and
-+   `fixprguard`. A change to another part of a command document is judged by
-+   the other criteria.
++   change to a review gate itself: this file's criteria and its Procedure;
++   `runpr.md` step 3's definition of LAST_REVIEWED, its rules that turn this
++   file's answer into a decision, and its comparison of the PR's
++   `headRefOid` with the local head; `_lib/review-records.sh` and the way
++   the command documents run it from `origin/main`; the steps of
++   `_lib/local-cli-review.md` that decide an attempt's result and the ranges
++   it covers (steps 2, 3, and 6); the sections that define the forms of the
++   review record lines and how they are read; and `fixprguard`. A change to
++   another part of a command document is judged by the other criteria.
  5. **Add a mechanism the earlier review never saw.** A new code path, concurrency,
     or state that did not exist at LAST_REVIEWED.
 
@@ -397,16 +399,16 @@ Diff record (AC-38):
 
 - Compared paths: `.claude/commands/runpr.md`
 - Merge-base: `eb054b00ee149df0f180348165a905b8da6f0297`
-- Compared commit: `28a4f5da6e130e53c2e741892b3d5d444d19ddc4`
+- Compared commit: `aed0841b72d00236fa3b07806fa365cec1f323ee`
 
 Path diff:
 
 ````text
 diff --git a/.claude/commands/runpr.md b/.claude/commands/runpr.md
-index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22f3fd9070 100644
+index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..0272906cd5e302e840457f8f3b6de61c9f449d54 100644
 --- a/.claude/commands/runpr.md
 +++ b/.claude/commands/runpr.md
-@@ -663,11 +663,57 @@ finished review observed had and every review in progress lacked, so that a
+@@ -663,11 +663,66 @@ finished review observed had and every review in progress lacked, so that a
    (`_lib/simple-process.md`, "When an excluded decision appears"); until it
    is resolved, every run stops here.
  - **Escalation.** When the PR has been reviewed and no unseen thread is left,
@@ -441,7 +443,8 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22
 +    `ALL` or `PARTIAL <n>`; it is `PARTIAL` (no count) when the first or
 +    second line fails, the third exits with another status, or the first line
 +    is of another form. Keep the output's first line, or that it failed, for
-+    step 4's summary. The script carries out the reading of the seen-range
++    step 4's summary, and for `PARTIAL <n>` the `<n>` lines after it, the
++    commits not known to be seen, for the report below. The script carries out the reading of the seen-range
 +    lines (`_lib/local-cli-review.md`, "Reading the record lines").
 +  - **The answer.** Follow `.claude/commands/_lib/pr-review-escalation.md`
 +    with **PR** = `<number>`, **LAST_REVIEWED** as above, **HEAD** = the
@@ -465,11 +468,19 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22
 +    no `criteria`: `skip` and `ask` stand as they are.
 +
 +  Report the escalation file's reason, COVERAGE, and the rule that decided,
-+  whatever the decision is, then:
++  whatever the decision is. When COVERAGE is `PARTIAL <n>`, also report each
++  commit the script listed, oldest first: its ID and subject as the script
++  printed them, the files it changes
++  (`git --no-replace-objects diff --ignore-submodules=none --stat <id>^1 <id>`),
++  and one line, in your own words, of what it changes, read from
++  `git --no-replace-objects diff --ignore-submodules=none <id>^1 <id>`, so
++  that, as in the script, no replace ref or submodule setting hides a
++  change; for a merge commit, say what the merged side brings in. The user reads these before answering the merge question, which
++  shows only their count. Then:
    - `request`: post a request as "Requesting the review" says, wait until it
      is Completed (stopping as that bullet says), and handle the threads it
      opens with `fixpr`. Do this at most once
-@@ -973,7 +1019,7 @@ character as 2); the line shapes below are the examples to follow.
+@@ -973,7 +1028,7 @@ character as 2); the line shapes below are the examples to follow.
       when this question is asked more than once, it uses the ones shown in the
       round that decided the merge.
     - **Summary.** Show in the conversation these lines only, in this order,
@@ -478,7 +489,7 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22
       condition in parentheses (an example of each line is given, and the
       example's words are the fixed text):
 
-@@ -990,6 +1036,7 @@ character as 2); the line shapes below are the examples to follow.
+@@ -990,6 +1045,7 @@ character as 2); the line shapes below are the examples to follow.
       要確認: 操作制限の期限が近い（2026-11-20、詳細ファイル）      (when there is a LIMITS_NOTE)
       自由記述: メッセージの修正 ／ 除外スレッドの判定を半角の番号で覆す (always; the second half only with the excluded-threads line)
       詳細: /tmp/runpr.Ab12Cd/merge-3.md                          (always)
@@ -486,7 +497,7 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22
       ```
 
       - Line 2 shows the subject in full and has no width limit, and so does
-@@ -1003,6 +1050,16 @@ character as 2); the line shapes below are the examples to follow.
+@@ -1003,6 +1059,16 @@ character as 2); the line shapes below are the examples to follow.
         there are changes Codex has not reviewed when LAST_REVIEWED is behind
         the head or none, with the Escalation decision (`ask`, `skip`, ...) on
         the same line; the reason is in the detail file.
@@ -503,7 +514,7 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22
       - Kinds 7 to 10 appear only for what exists. Kinds 7 to 9 give a kind and
         a count; kind 10 gives the state and the expiry date, not a count.
       - Kind 6 is `NEXT: なし` when there is none; `NEXT: /mkarch 0089` for
-@@ -1130,7 +1187,8 @@ character as 2); the line shapes below are the examples to follow.
+@@ -1130,7 +1196,8 @@ character as 2); the line shapes below are the examples to follow.
        full process", with REASON, ADR_SPLIT, and THREADS.
     3. **Local review.** Follow `.claude/commands/_lib/local-cli-review.md` with
        **BASE** = the parent of the return commit (the head before the return),
@@ -521,16 +532,16 @@ PR-1:
 
 - Compared paths: `.claude/commands/runpr.md`
 - Merge-base: `eb054b00ee149df0f180348165a905b8da6f0297`
-- Compared commit: `28a4f5da6e130e53c2e741892b3d5d444d19ddc4`
+- Compared commit: `aed0841b72d00236fa3b07806fa365cec1f323ee`
 
 Path diff:
 
 ````text
 diff --git a/.claude/commands/runpr.md b/.claude/commands/runpr.md
-index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22f3fd9070 100644
+index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..0272906cd5e302e840457f8f3b6de61c9f449d54 100644
 --- a/.claude/commands/runpr.md
 +++ b/.claude/commands/runpr.md
-@@ -663,11 +663,57 @@ finished review observed had and every review in progress lacked, so that a
+@@ -663,11 +663,66 @@ finished review observed had and every review in progress lacked, so that a
    (`_lib/simple-process.md`, "When an excluded decision appears"); until it
    is resolved, every run stops here.
  - **Escalation.** When the PR has been reviewed and no unseen thread is left,
@@ -565,7 +576,8 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22
 +    `ALL` or `PARTIAL <n>`; it is `PARTIAL` (no count) when the first or
 +    second line fails, the third exits with another status, or the first line
 +    is of another form. Keep the output's first line, or that it failed, for
-+    step 4's summary. The script carries out the reading of the seen-range
++    step 4's summary, and for `PARTIAL <n>` the `<n>` lines after it, the
++    commits not known to be seen, for the report below. The script carries out the reading of the seen-range
 +    lines (`_lib/local-cli-review.md`, "Reading the record lines").
 +  - **The answer.** Follow `.claude/commands/_lib/pr-review-escalation.md`
 +    with **PR** = `<number>`, **LAST_REVIEWED** as above, **HEAD** = the
@@ -589,11 +601,19 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22
 +    no `criteria`: `skip` and `ask` stand as they are.
 +
 +  Report the escalation file's reason, COVERAGE, and the rule that decided,
-+  whatever the decision is, then:
++  whatever the decision is. When COVERAGE is `PARTIAL <n>`, also report each
++  commit the script listed, oldest first: its ID and subject as the script
++  printed them, the files it changes
++  (`git --no-replace-objects diff --ignore-submodules=none --stat <id>^1 <id>`),
++  and one line, in your own words, of what it changes, read from
++  `git --no-replace-objects diff --ignore-submodules=none <id>^1 <id>`, so
++  that, as in the script, no replace ref or submodule setting hides a
++  change; for a merge commit, say what the merged side brings in. The user reads these before answering the merge question, which
++  shows only their count. Then:
    - `request`: post a request as "Requesting the review" says, wait until it
      is Completed (stopping as that bullet says), and handle the threads it
      opens with `fixpr`. Do this at most once
-@@ -973,7 +1019,7 @@ character as 2); the line shapes below are the examples to follow.
+@@ -973,7 +1028,7 @@ character as 2); the line shapes below are the examples to follow.
       when this question is asked more than once, it uses the ones shown in the
       round that decided the merge.
     - **Summary.** Show in the conversation these lines only, in this order,
@@ -602,7 +622,7 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22
       condition in parentheses (an example of each line is given, and the
       example's words are the fixed text):
 
-@@ -990,6 +1036,7 @@ character as 2); the line shapes below are the examples to follow.
+@@ -990,6 +1045,7 @@ character as 2); the line shapes below are the examples to follow.
       要確認: 操作制限の期限が近い（2026-11-20、詳細ファイル）      (when there is a LIMITS_NOTE)
       自由記述: メッセージの修正 ／ 除外スレッドの判定を半角の番号で覆す (always; the second half only with the excluded-threads line)
       詳細: /tmp/runpr.Ab12Cd/merge-3.md                          (always)
@@ -610,7 +630,7 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22
       ```
 
       - Line 2 shows the subject in full and has no width limit, and so does
-@@ -1003,6 +1050,16 @@ character as 2); the line shapes below are the examples to follow.
+@@ -1003,6 +1059,16 @@ character as 2); the line shapes below are the examples to follow.
         there are changes Codex has not reviewed when LAST_REVIEWED is behind
         the head or none, with the Escalation decision (`ask`, `skip`, ...) on
         the same line; the reason is in the detail file.
@@ -627,7 +647,7 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..2a8c391dec04d6e3830456df1c87da22
       - Kinds 7 to 10 appear only for what exists. Kinds 7 to 9 give a kind and
         a count; kind 10 gives the state and the expiry date, not a count.
       - Kind 6 is `NEXT: なし` when there is none; `NEXT: /mkarch 0089` for
-@@ -1130,7 +1187,8 @@ character as 2); the line shapes below are the examples to follow.
+@@ -1130,7 +1196,8 @@ character as 2); the line shapes below are the examples to follow.
        full process", with REASON, ADR_SPLIT, and THREADS.
     3. **Local review.** Follow `.claude/commands/_lib/local-cli-review.md` with
        **BASE** = the parent of the return commit (the head before the return),
