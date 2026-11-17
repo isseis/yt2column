@@ -271,16 +271,13 @@ type writeAllowance struct {
 	dir  string
 	args []string
 	rep  reply
+	// act, when set, is run when the write runs and gives its reply, for a
+	// fake whose state the write changes.
+	act func() reply
 }
-
-// gitWorktree is the git subcommand the worktree operations share.
-const gitWorktree = "worktree"
 
 // agentStartTimeoutMS is the --timeout the tool gives `herdr agent start`.
 const agentStartTimeoutMS = "60000"
-
-// herdrWorkspace is the herdr command group of the workspace operations.
-const herdrWorkspace = "workspace"
 
 // allowWrite allows the command name with exactly args (in dir, when dir is
 // not empty) and answers it with rep.
@@ -288,6 +285,14 @@ func (r *recorder) allowWrite(name, dir string, args []string, rep reply) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.writes = append(r.writes, writeAllowance{name: name, dir: dir, args: slices.Clone(args), rep: rep})
+}
+
+// allowWriteDo allows the command name with exactly args (in dir, when dir
+// is not empty) and answers it with what act returns when it runs.
+func (r *recorder) allowWriteDo(name, dir string, args []string, act func() reply) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.writes = append(r.writes, writeAllowance{name: name, dir: dir, args: slices.Clone(args), act: act})
 }
 
 // allowWorkspaceCreate allows `herdr workspace create` for exactly this
@@ -298,13 +303,13 @@ func (r *recorder) allowWorkspaceCreate(cwd, label string, out []byte) {
 
 // allowTabRename allows renaming exactly this tab to label.
 func (r *recorder) allowTabRename(tab, label string, out []byte) {
-	r.allowWrite(herdrProgram, "", []string{"tab", "rename", tab, label}, reply{out: out})
+	r.allowWrite(herdrProgram, "", []string{herdrTab, "rename", tab, label}, reply{out: out})
 }
 
 // allowTabCreate allows creating a tab in exactly this workspace, at this
 // path, with this label.
 func (r *recorder) allowTabCreate(workspace, cwd, label string, out []byte) {
-	r.allowWrite(herdrProgram, "", []string{"tab", "create", "--workspace", workspace, "--cwd", cwd, "--label", label, "--no-focus"}, reply{out: out})
+	r.allowWrite(herdrProgram, "", []string{herdrTab, "create", "--workspace", workspace, "--cwd", cwd, "--label", label, "--no-focus"}, reply{out: out})
 }
 
 // allowAgentStart allows starting exactly this agent in exactly this pane.
@@ -334,13 +339,23 @@ func (r *recorder) allowWorktreeRemove(dir, path string) {
 // allowed.
 func (r *recorder) allowedWrite(c recordedCall) (reply, bool) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, w := range r.writes {
+	var found *writeAllowance
+	for i, w := range r.writes {
 		if w.name == c.name && (w.dir == "" || w.dir == c.dir) && slices.Equal(w.args, c.args) {
-			return w.rep, true
+			found = &r.writes[i]
+			break
 		}
 	}
-	return reply{}, false
+	r.mu.Unlock()
+	switch {
+	case found == nil:
+		return reply{}, false
+	case found.act != nil:
+		// The act runs without the lock, so it may read the recorder.
+		return found.act(), true
+	default:
+		return found.rep, true
+	}
 }
 
 func newRecorder(t *testing.T) *recorder {

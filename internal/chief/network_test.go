@@ -183,3 +183,39 @@ func TestTickRunsOnlyReadsInTheRightPlaces(t *testing.T) {
 		t.Errorf("gh pr view ran %v, git ls-remote ran %v; the test reached no merge check", sawView, sawRemote)
 	}
 }
+
+// TestCreateRunsOnlyInTheRightPlaces runs a whole creation with the
+// target-redirecting variables set and checks every command: gh runs only
+// the one issue read, in chief's worktree and without GH_REPO or GH_HOST;
+// git runs only in chief's worktree and in the worktree made; and every
+// write is one the test allowed (the recorder fails any other).
+func TestCreateRunsOnlyInTheRightPlaces(t *testing.T) {
+	t.Setenv("GH_REPO", "other/repo")
+	t.Setenv("GH_HOST", "ghe.example.com")
+	cw := newCreateWorld(t, nil)
+	if out := cw.create(createIssue); out.Result != CreateMade || out.Mkreq == nil || out.Mkreq.Outcome != OutcomeSent {
+		t.Fatalf("Create = %+v; the test reached no send", out)
+	}
+	sawGH := false
+	for _, c := range cw.rec.recorded() {
+		switch c.name {
+		case ghProgram:
+			sawGH = true
+			if !isIssueRead(c.args) || c.dir != cw.chiefTree {
+				t.Errorf("gh ran %s in %q; a creation reads only the issue, in chief's worktree", c.line(), c.dir)
+			}
+			for _, e := range c.env {
+				if name, _, _ := strings.Cut(e, "="); name == "GH_REPO" || name == "GH_HOST" {
+					t.Errorf("%s ran with %s", c.line(), name)
+				}
+			}
+		case gitProgram:
+			if c.dir != cw.chiefTree && c.dir != cw.tree {
+				t.Errorf("%s ran in %q, not in chief's worktree or the one made", c.line(), c.dir)
+			}
+		}
+	}
+	if !sawGH {
+		t.Fatal("no gh ran; the test reached no issue read")
+	}
+}

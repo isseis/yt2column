@@ -236,24 +236,24 @@
 
 ### フェーズ 4: 作る部品、`create`・`targets`、作成の排他（設計書 8 章の 3 のうち作成）
 
-**変更するファイル:** `internal/chief/create.go`・`create_test.go`（新規）、`internal/chief/herdr.go`（`PaneWriter` のコメント）、`internal/chief/runner.go`・`runner_test.go`、`internal/chief/records.go`、`internal/chief/output.go`、`internal/chief/tick.go`・`autosend_test.go`、`internal/chief/network_test.go`、`internal/chief/construction_test.go`、`docs/dev/conventions/package_reference.md`
+**変更するファイル:** `internal/chief/create.go`・`create_test.go`（新規）、`internal/chief/herdr.go`（`PaneWriter` のコメント）、`internal/chief/runner.go`、`internal/chief/records.go`、`internal/chief/output.go`、`internal/chief/tick.go`・`autosend.go`・`autosend_test.go`、`internal/chief/network_test.go`、`internal/chief/construction_test.go`、`internal/chief/test_helpers.go`・`sim_test.go`、`internal/chief/workspace.go`・`taskspace.go`・`skiprecord.go`（コマンドとメンバーの名前の定数）、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 4-1**: `runner.go` に、時間の上限を取る herdr の呼び出しを足す（決定 6）。`create.go` に `WorkspaceMaker` を書く（設計書 3.3.3・3.6）。
+-   [x] **ステップ 4-1**: `runner.go` に、時間の上限を取る herdr の呼び出しを足す（決定 6）。`create.go` に `WorkspaceMaker` を書く（設計書 3.3.3・3.6）。
     -   `TaskSpace` からだけ作り、`workspace create` の応答の ID だけを、後の `tab rename`・`tab create`・`pane process-info`・`agent start` に使う。`tab create` の応答のタブと pane が自分の workspace のものでなければ、その段の失敗とする。
     -   `agent start` には、名前・種類・pane・`--timeout` のほかの引数を付けない（AC-10）。
     -   ゼロ値は何も走らせない（決定 11）。`construction_test.go` のガードの対象に足す。`PaneWriter` のコメントを「pane へ入力を送る唯一の部品」に直す（設計書 2.2）。
     -   テストは、herdr のすべての書き込みが自分の作った ID だけを持ち、`--session` などの引数を持たないこと（AC-09・AC-13）、`agent start` の時間の上限が 75 秒であること（記録係が記録する上限で確かめる）を確かめる。
--   [ ] **ステップ 4-2**: `create.go` に `Create` を書く（設計書 3.3.2・3.3.3・3.3.4・4.1）。
+-   [x] **ステップ 4-2**: `create.go` に `Create` を書く（設計書 3.3.2・3.3.3・3.3.4・4.1）。
     -   worktree は、`TaskSpace` を取る unexported の関数で `git worktree add --detach` を呼んで作り、生のパスを取らない。`newTestRepo` の一時的なリポジトリの本物の git で、ブランチを作らないことを確かめる。
     -   確かめの順、作る段、`agent start` のエラーの応答の扱い（`agent get` でエージェントの有無を確かめる）、全体の時間の上限（決定 6）、結果の型（`CreateOutcome` など、設計書 3.6）と、その出力（`output.go`）を書く。
     -   テストは設計書 7.1 の「作成」の項目と 7.4 を受け持つ。各段を 1 つずつ失敗させ、後の段の呼び出しと `/mkreq` がなく、作ったものを示すことを確かめる。結果の出力も確かめる。
     -   `network_test.go` に、`create` が gh を chief の worktree の `api graphql` の決まった形でだけ、git を chief の worktree と作った worktree でだけ走らせることを確かめるテストを足す。
--   [ ] **ステップ 4-3**: `create.go` に `Targets` を書く（設計書 3.3.5）。`readRound` で読み、行が `/mkreq` を提案している workspace を返す。番号の形が違えば `issue_form` を返す。テストは、候補があるとき・ないとき、形の違う番号、記録を作らないこと、書き込みをしないこと、`gh api graphql`（F-002 の issue の読み取り）を走らせないこと（AC-04）、結果の出力を確かめる。
--   [ ] **ステップ 4-4**: 作成の排他を足す（決定 5、設計書 3.1）。`Create` は作り始める前に作成の排他を取る。`tick` は自動送信の前に作成の排他を取り、自動送信を終えるまで持つ。取れない周は自動送信をせず、出力の問題に示す。今の `autosend_test.go` のテストは変えずに通す。テストは次を確かめる。
+-   [x] **ステップ 4-3**: `create.go` に `Targets` を書く（設計書 3.3.5）。`readRound` で読み、行が `/mkreq` を提案している workspace を返す。番号の形が違えば `issue_form` を返す。テストは、候補があるとき・ないとき、形の違う番号、記録を作らないこと、書き込みをしないこと、`gh api graphql`（F-002 の issue の読み取り）を走らせないこと（AC-04）、結果の出力を確かめる。
+-   [x] **ステップ 4-4**: 作成の排他を足す（決定 5、設計書 3.1）。`Create` は作り始める前に作成の排他を取る。`tick` は自動送信の前に作成の排他を取り、自動送信を終えるまで持つ。取れない周は自動送信をせず、出力の問題に示す。今の `autosend_test.go` のテストは変えずに通す。テストは次を確かめる。
     -   作成の排他が持たれている周で、自動送信をしない。
     -   `tick` が持つ間に、`Create` が `busy` で拒む。
     -   `tick` を終えた後に、`Create` が排他を取れる。
--   [ ] **ステップ 4-5**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
+-   [x] **ステップ 4-5**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -499,11 +499,11 @@
 | AC-06 | `ic/create_test.go::TestCreateIssueForm`、`ic/create_test.go::TestTargets`（`issue_form`）、`cc/main_test.go::TestIssueFormIsNoUsageError` | test | 4-2・4-3・7-1 | PR-4、PR-7 |
 | AC-07 | `ic/issue_test.go::TestParseIssueTitle`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-08 | `ic/create_test.go::TestWorktreeAddDetached`（本物の git でブランチを作らない）、`ic/create_test.go::TestCreateStages`（fetch の後のコミットで作る） | test | 4-2 | PR-4 |
-| AC-09 | `ic/create_test.go::TestCreateStages`（workspace とタブ 3 つ、`--session` なし）、`ic/create_test.go::TestCreateChecksPanes`、実地の確かめ | test、manual | 4-2・7-5 | PR-4、PR-7 |
+| AC-09 | `ic/create_test.go::TestCreateStages`（workspace とタブ 3 つ、`--session` なし）、`ic/create_test.go::TestCreateStopsAtEachStage`（段 `panes`）、実地の確かめ | test、manual | 4-2・7-5 | PR-4、PR-7 |
 | AC-10 | `ic/create_test.go::TestWorkspaceMakerStartsAgentsWithoutArguments`、`ic/create_send_test.go::TestSendAfterCreate` | test | 3-3・4-1 | PR-3、PR-4 |
 | AC-11 | `ic/create_test.go::TestCreateRefusesExisting`（ファイル・ディレクトリ・リンク、登録だけの worktree、パスの workspace）、`ic/taskspace_test.go::TestNewTaskSpace`、`ic/create_test.go::TestCreateFetchFailure` | test | 2-3・4-2 | PR-2、PR-4 |
 | AC-12 | `ic/create_test.go::TestCreateStopsAtEachStage`、`ic/create_test.go::TestCreateDeadline` | test | 4-2 | PR-4 |
-| AC-13 | `ic/create_test.go::TestWorkspaceMakerUsesOnlyItsIDs`、`ic/construction_test.go::TestWriterTypesOnlyFromConstructors`、`ic/autosend_test.go::TestTickSkipsAutoSendWhileCreating`、`ic/create_test.go::TestCreateBusyDuringTick`、定義が `create` を前景で呼ぶこと | test、manual | 4-1・4-4・7-2 | PR-4、PR-7 |
+| AC-13 | `ic/create_test.go::TestWorkspaceMakerUsesOnlyItsIDs`、`ic/construction_test.go::TestGuardedTypesAreBuiltOnlyByTheirConstructors`、`ic/autosend_test.go::TestTickSkipsAutoSendWhileCreating`、`ic/create_test.go::TestCreateBusyDuringTick`、定義が `create` を前景で呼ぶこと | test、manual | 4-1・4-4・7-2 | PR-4、PR-7 |
 | AC-14 | `ic/records_test.go::TestCreatedRecordRoundTrip`、`ic/create_test.go::TestCreateReplacesOldRecords`、`ic/create_test.go::TestCreateStopsAtEachStage`（記録が残る） | test | 3-2・4-2 | PR-3、PR-4 |
 | AC-15 | `ic/create_send_test.go::TestSendAfterCreate`、`ic/create_test.go::TestCreateSendsMkreq` | test | 3-3・4-2 | PR-3、PR-4 |
 | AC-16 | `ic/screen_test.go` の起動したばかりの画面のサンプルの読み取り（信頼を問う画面が採れれば、それを質問と読むこと）、`ic/create_send_test.go::TestSendAfterCreate`（起動したばかりの状態で送る前の確かめを通る）、`ic/create_test.go::TestCreateAgentNotReady`（エラーの応答でエージェントがいるとき、`blocked` のとき）、実地の確かめ | test、manual | 1-5・3-3・4-2・7-5 | PR-1、PR-3、PR-4、PR-7 |

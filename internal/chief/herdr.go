@@ -48,9 +48,16 @@ var agentStatuses = map[string]AgentStatus{
 // agent of another name is read with paneinput.AgentUnknown, so it is listed
 // but never chosen as a target.
 var agentKinds = map[string]paneinput.AgentKind{
-	"claude":   paneinput.AgentClaudeCode,
-	"opencode": paneinput.AgentOpenCode,
+	herdrClaude:   paneinput.AgentClaudeCode,
+	herdrOpenCode: paneinput.AgentOpenCode,
 }
+
+// Herdr's names of the agents chief routes to, as `herdr agent start
+// --kind` takes them.
+const (
+	herdrClaude   = "claude"
+	herdrOpenCode = "opencode"
+)
 
 // PaneID is a Herdr pane ID read from Herdr's own output, such as "w1N:p3".
 // The zero value names no pane.
@@ -103,8 +110,15 @@ const (
 	ScreenRecent
 )
 
-// herdrAgent is the herdr command group of the agent operations.
-const herdrAgent = "agent"
+// The herdr command groups: herdrAgent of the agent operations,
+// herdrWorkspace, herdrTab, and herdrPane of the workspace, tab, and pane
+// operations.
+const (
+	herdrAgent     = "agent"
+	herdrWorkspace = "workspace"
+	herdrTab       = "tab"
+	herdrPane      = "pane"
+)
 
 // screenLines is how many lines a screen read asks for; Herdr returns at
 // most the pane's height.
@@ -141,7 +155,7 @@ func (h Herdr) Agent(ctx context.Context, pane PaneID) (Agent, error) {
 
 // Workspaces returns every workspace `herdr workspace list` reports.
 func (h Herdr) Workspaces(ctx context.Context) ([]Workspace, error) {
-	out, err := h.cmds.herdr(ctx, "workspace", "list")
+	out, err := h.cmds.herdr(ctx, herdrWorkspace, "list")
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +280,7 @@ func parseAgent(v strictjson.Value) (Agent, error) {
 		return Agent{}, fmt.Errorf("%w: %w", errHerdrOutput, err)
 	}
 	strs := map[string]string{}
-	for _, key := range []string{"agent", "agent_status", "cwd", "pane_id", "workspace_id"} {
+	for _, key := range []string{memberAgent, "agent_status", "cwd", "pane_id", "workspace_id"} {
 		s, err := strictjson.RequiredString(members, key)
 		if err != nil {
 			return Agent{}, fmt.Errorf("%w: %w", errHerdrOutput, err)
@@ -389,7 +403,8 @@ func ParsePaneID(s string) (PaneID, error) {
 var errWriteRefused = errors.New("the pane writer refused the input")
 
 // PaneWriter types into task agents' panes. It is the only part of the tool
-// that writes to Herdr. Contract: it takes a paneinput.Prompt or a
+// that sends input to a pane; WorkspaceMaker is the one that makes a
+// workspace. Contract: it takes a paneinput.Prompt or a
 // paneinput.RelayKey and never a string, so only an input of the routing
 // table's kinds or an option number's key can be sent; it
 // refuses chief's own pane and every pane of chief's workspace; and it never

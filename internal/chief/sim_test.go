@@ -226,6 +226,23 @@ func (sw *sendWorld) firstPane() *simPane {
 	return p
 }
 
+// servePane sets the replies of a pane's screen and agent reads, read from
+// the pane as it is when read.
+func (sw *sendWorld) servePane(p *simPane) {
+	for _, src := range []string{"visible", "recent"} {
+		sw.rec.replyFunc("herdr agent read "+p.Pane+" --source "+src+" --lines 200 --format ansi", func() reply {
+			sw.mu.Lock()
+			defer sw.mu.Unlock()
+			return reply{out: []byte(p.screen)}
+		})
+	}
+	sw.rec.replyFunc("herdr agent get "+p.Pane, func() reply {
+		sw.mu.Lock()
+		defer sw.mu.Unlock()
+		return reply{out: agentGetOutput(p.fakeAgent)}
+	})
+}
+
 // finish sets the replies: the Herdr reads come from the panes as they are
 // when read, a prompt changes its pane through react, and the transcripts of
 // the panes' first sessions exist.
@@ -242,18 +259,7 @@ func (sw *sendWorld) finish() Deps {
 				sw.t.Fatal(err)
 			}
 		}
-		for _, src := range []string{"visible", "recent"} {
-			sw.rec.replyFunc("herdr agent read "+p.Pane+" --source "+src+" --lines 200 --format ansi", func() reply {
-				sw.mu.Lock()
-				defer sw.mu.Unlock()
-				return reply{out: []byte(p.screen)}
-			})
-		}
-		sw.rec.replyFunc("herdr agent get "+p.Pane, func() reply {
-			sw.mu.Lock()
-			defer sw.mu.Unlock()
-			return reply{out: agentGetOutput(p.fakeAgent)}
-		})
+		sw.servePane(p)
 	}
 	sw.rec.replyFunc("herdr agent list", func() reply {
 		sw.mu.Lock()
