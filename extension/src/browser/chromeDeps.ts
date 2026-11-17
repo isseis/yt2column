@@ -442,9 +442,19 @@ export function createRunnerPortConnector(
     let port: PortApi;
     try {
       port = runtime.connect({ name: runnerPortName });
+    } catch {
+      return undefined;
+    }
+    try {
       port.onDisconnect.addListener(onDisconnect);
       port.postMessage(hello);
     } catch {
+      // A Port the caller is told was never connected must not stay open.
+      try {
+        port.disconnect();
+      } catch {
+        // Already closed.
+      }
       return undefined;
     }
     return () => {

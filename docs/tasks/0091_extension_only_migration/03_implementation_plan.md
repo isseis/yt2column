@@ -565,21 +565,21 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 |---|---|---|---|---|
 | AC-01 | `cy/makefile_test.go::TestMakeBuildBuildsEveryBinary`（`yt2column` だけ）、`et/manifest.test.ts`（権限）、PR-8 の手動の確認（ホストもサーバもないプロファイルで記事が完成する） | test、manual | 8-1・8-7・9-3 | PR-8、PR-9 |
 | AC-02 | `ej/module_test.go::TestCheckSettingsRejectsShape`・`TestCheckSettingsOutcomes`（形の検査、4 つの結果、30 秒）、`internal/llm/claude/keycheck_test.go::TestCheckKeyStatus`・`TestCheckKeyNotRejected`・`TestCheckKeySendsRequest`、`ej/devbackend/devbackend_test.go`、`et/optionsFlow.test.ts`（期限、1 回の書き込み、保存しないときに書かない、検査できない場合、書き込みの失敗）、`et/optionsView.test.ts`、§7 の 2 つの前の確認、PR-8 の手動の確認 | test、manual | 1-1・1-4・3-4・3-5・6-1・6-9・7-2・8-2 | PR-1、PR-3、PR-6、PR-7、PR-8 |
-| AC-03 | `et/optionsFlow.test.ts`（保存の後に欄を空にする、保存した値を読まない）、`et/optionsHtml.test.ts`（文字を伏せた欄）、PR-8 の手動の確認（パスワードの保存を勧めない） | test、manual | 7-2・8-2・8-7 | PR-7、PR-8 |
+| AC-03 | `et/optionsFlow.test.ts`（保存の後に欄を空にする、保存した値を読まない）、`et/optionsHtml.test.ts`（パスワードの欄にしない）、`et/style.test.ts`（文字を伏せた欄）、PR-8 の手動の確認（パスワードの保存を勧めない） | test、manual | 7-2・8-2・8-7 | PR-7、PR-8 |
 | AC-04 | `et/optionsFlow.test.ts`（空のワークスペース ID を空の文字列で書く、1 回の `remove`）、`ej/module_test.go::TestGenerateAcceptsEmptyWorkspace`（空の文字列は指定なし）、PR-8 の手動の確認（再起動の後も残る） | test、manual | 3-5・7-2・8-7 | PR-3、PR-7、PR-8 |
 | AC-05 | `ej/claudebackend/claudebackend_test.go::TestClientsMatchProvider`、`internal/config/extension_test.go::TestLoadExtensionProductionProfile`、`et/optionsHtml.test.ts`（欄が 2 つだけ） | test | 2-2・3-3・8-2 | PR-2、PR-3、PR-8 |
-| AC-06 | `et/popupHtml.test.ts`（いつもあるリンク）、`et/popupView.test.ts`（API キーがないときにビューアを開かない）、`et/viewerRunner.test.ts`（`api_key_missing`）、`ej/module_test.go::TestGenerateSettingsInvalid`（`settings_invalid` で LLM を呼ばない）、`et/viewerApp.test.ts`（設定が要る状態と料金に触れないこと） | test | 3-5・7-3・8-2・8-3 | PR-3、PR-7、PR-8 |
+| AC-06 | `et/popupHtml.test.ts`（いつもあるリンク）、`et/popupView.test.ts`（API キーがないときにビューアを開かない）、`et/viewerRunner.test.ts`（`api_key_missing`）、`ej/module_test.go::TestGenerateSettingsInvalid`（`settings_invalid` で LLM を呼ばない）、`et/renderJob.test.ts`・`et/renderViewer.test.ts`（設定が要る状態と料金に触れないこと） | test | 3-5・7-3・8-2・8-3 | PR-3、PR-7、PR-8 |
 | AC-07 | `et/jobCoordinator.test.ts`（生成の開始はポップアップからだけ、自動で送り直さない）、`et/viewerRunner.test.ts`（記録やビューアの URL を開くだけでは始めない）、PR-8 の手動の確認 | test、manual | 7-3・7-4・8-7 | PR-7、PR-8 |
 | AC-08 | `et/jobCoordinator.test.ts`（止まった実行の 4 つの経路）、`et/viewerRunner.test.ts`（実行の間だけ読み込み直しの確認）、PR-8 の手動の確認 | test、manual | 7-3・7-4・8-7 | PR-7、PR-8 |
 | AC-09 | `et/jobCoordinator.test.ts`（上限の境界と捨てる順、上限での拒否）、`et/jobRecord.test.ts`（記録の型が字幕と概要欄を持たない）、PR-8 の手動の確認 | test、manual | 6-7・7-4・8-7 | PR-6、PR-7、PR-8 |
 | AC-10 | `et/jobCoordinator.test.ts`（同じ入力と同じ動画の照会、API キーがないときの順） | test | 7-4 | PR-7 |
-| AC-11 | `et/viewerApp.test.ts`（3 つの状態で不明と示し、金額を示さない。`api_key_missing`・`settings_invalid` で触れない）、PR-8 の手動の確認 | test、manual | 8-3・8-7 | PR-8 |
+| AC-11 | `et/renderJob.test.ts`・`et/render.test.ts`・`et/renderViewer.test.ts`（3 つの状態で不明と示し、金額を示さない。`api_key_missing`・`settings_invalid` で触れない）、PR-8 の手動の確認 | test、manual | 8-3・8-7 | PR-8 |
 | AC-12 | `internal/llm/claude/errors_test.go::TestHTTPStatusErrorAuthRejected`・`TestGenerateAuthRejected`、`ej/run_test.go::TestRunAuthRejectedAtEveryStep`（3 つの工程のそれぞれ）、`et/viewerApp.test.ts`（キーが拒まれた状態と操作）、`et/jobCoordinator.test.ts`（同じジョブ ID でやり直す）、§7 の 2 つの前の確認 | test、manual | 1-1・1-2・3-2・6-1・7-4・8-3 | PR-1、PR-3、PR-6、PR-7、PR-8 |
 | AC-13 | `et/jobCoordinator.test.ts`（3 つ目の開始の拒否）、`et/popupView.test.ts`（開始が拒否された状態） | test | 7-4・8-3 | PR-7、PR-8 |
-| AC-14 | `et/viewerApp.test.ts`・`et/popupView.test.ts`（状態ごとの固定の文言、例外の文を含まない）、`et/catalog.test.ts`（英語と日本語の文言が同じ項目を持つ）、文言の読み合わせ | test、manual | 8-3 | PR-8 |
+| AC-14 | `et/renderJob.test.ts`・`et/render.test.ts`・`et/renderViewer.test.ts`（状態ごとの固定の文言、例外の文を含まない）、`et/catalog.test.ts`（英語と日本語の文言が同じ項目を持つ）、文言の読み合わせ | test、manual | 8-3 | PR-8 |
 | AC-15 | 文言の読み合わせ（PR のレビュー） | manual | 8-3 | PR-8 |
 | AC-16 | `et/viewerTitle.test.ts`（設計書 §3.8.2 の表の各行、空にしない）、`et/jobViewerUrl.test.ts`（案 B の `t`）、`et/popupHtml.test.ts`（`viewer.html` の静的なタイトル）、§7 の PR-1 の前の確認、PR-8 の手動の確認（再起動の後の履歴） | test、manual | 1-1・6-8・7-1・7-4・8-2・8-7 | PR-1、PR-6、PR-7、PR-8 |
-| AC-17 | `et/checkDist.test.ts`（開発用の manifest に `key` がない、`buildKind.js` が `dev`）、`et/popupView.test.ts`・`et/viewerApp.test.ts`（開発用の印の表示）、PR-8 の手動の確認 | test、manual | 5-3・5-4・8-2 | PR-5、PR-8 |
+| AC-17 | `et/checkDist.test.ts`（開発用の manifest に `key` がない、`buildKind.js` が `dev`）、`et/launch.test.ts`・`et/render.test.ts`・`et/renderViewer.test.ts`・`et/viewerApp.test.ts`（開発用の印の表示）、PR-8 の手動の確認 | test、manual | 5-3・5-4・8-2 | PR-5、PR-8 |
 | AC-18 | `et/popupHtml.test.ts`・`et/optionsHtml.test.ts`（`lang`、名前、状態の領域、フォーカスの順）、`et/style.test.ts`（押せる領域、動きを止める指定。オプションページのスタイルシートを含む）、PR-8 の手動の確認（キーボード、コントラスト、VoiceOver） | test、manual | 8-2・8-7 | PR-8 |
 | AC-19 | `ej/prepare_test.go`・`ej/result_test.go`・`ej/run_test.go`（サーバの 3 つのテストの行を写したもの）、`internal/server` の比べるテスト（PR-9 で除く） | test | 3-1・3-2 | PR-3 |
 | AC-20 | `et/apiKeyPath.test.ts`、`et/lintRules.test.ts`（`storage` と決まった関数の規則）、`et/jobCoordinator.test.ts`（SW が値を読まない）、`et/wasmResult.test.ts`、`ej/module_test.go::TestGenerateKeepsKeyOutOfOutput`、`cmd/yt2column-extjob/main_test.go`（目印のキーが出力に出ない）、PR-8 の手動の確認（ログ、URL、`storage.session`） | test、manual | 3-5・4-3・6-2・6-3・6-4・6-6・7-4・8-7 | PR-3、PR-4、PR-6、PR-7、PR-8 |

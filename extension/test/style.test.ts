@@ -55,6 +55,9 @@ const popupSheets = ["theme.css", "style.css"];
 /** The stylesheets viewer.html loads, in its order. */
 const viewerSheets = ["theme.css", "viewer.css"];
 
+/** The stylesheets options.html loads, in its order. */
+const optionsSheets = ["theme.css", "options.css"];
+
 /** Every stylesheet under static/, each once. */
 const everySheet = ["theme.css", "style.css", "viewer.css", "options.css"];
 
@@ -560,7 +563,7 @@ describe("layout", () => {
   });
 
   it("fills the action section with each button and keeps it 44px tall", () => {
-    for (const selector of ["#primary", "#secondary"]) {
+    for (const selector of ["#primary", "#secondary", "#setup", "#options"]) {
       assert.equal(effectiveValue(onScreen, selector, "width"), "100%");
       assert.ok(
         atLeast44(effectiveValue(onScreen, selector, "min-height")),
@@ -724,6 +727,43 @@ describe("layout", () => {
     assert.equal(
       effectiveValue(onScreen, ":focus-visible", "outline-offset"),
       "2px",
+    );
+  });
+});
+
+describe("options layout", () => {
+  const { onScreen } = parseStyleSheet(optionsSheets);
+
+  it("makes every button and field at least 44 CSS pixels tall, and the buttons as wide", () => {
+    // Both buttons carry the action-button class.
+    assert.ok(
+      atLeast44(effectiveValue(onScreen, ".action-button", "min-height")),
+      ".action-button min-height",
+    );
+    assert.ok(
+      atLeast44(effectiveValue(onScreen, ".action-button", "min-width")),
+      ".action-button min-width",
+    );
+    assert.ok(
+      atLeast44(effectiveValue(onScreen, ".field input", "min-height")),
+      ".field input min-height",
+    );
+  });
+
+  it("masks the characters of the API key field", () => {
+    // The field is type="text" so the browser does not offer to save it as a
+    // password; this rule is what keeps the key off the screen. jsdom's CSS
+    // parser drops a vendor-prefixed property, so the declaration is read from
+    // the file's text: the one rule whose whole selector, at the start of a line, is #api-key.
+    const css = readFileSync(
+      path.join(extensionDir, "static", "options.css"),
+      "utf8",
+    );
+    const blocks = [...css.matchAll(/^#api-key\s*\{([^}]*)\}/gm)];
+    assert.equal(blocks.length, 1);
+    assert.match(
+      blocks[0]?.[1] ?? "",
+      /(?:^|;)\s*-webkit-text-security:\s*disc\s*;/,
     );
   });
 });

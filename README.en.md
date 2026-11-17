@@ -1,4 +1,4 @@
-<!-- translated-from: README.md fac259c55bd6f1cef8ad7d6e2590eeb7ce25b0f9 -->
+<!-- translated-from: README.md c398b6396391e436a24192d18874cb14f9b9e87d -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -267,8 +267,8 @@ information of the extension's build (the commit, the Go version, and the LLM).
 When you press **Save**, the extension checks the form of the values in the two
 fields, calls Anthropic's Models API once to check the API key, and then saves.
 This call uses no tokens, so it costs nothing. While it checks, the fields and
-the buttons cannot be changed. The result is one of the following, shown at the
-top of the page.
+the buttons cannot be changed. The result is one of the following, shown below the
+buttons.
 
 - The API key was accepted: saved, and the fields are emptied.
 - It could not be checked (a network failure, a timeout, a rejection other than
@@ -283,7 +283,9 @@ top of the page.
 - It may not have been saved: check whether the page shows an API key as set,
   and save again.
 
-**Delete** deletes both the API key and the workspace ID.
+**Delete** deletes both the API key and the workspace ID. When it shows that the
+settings may not have been deleted, check whether the page shows an API key as
+set, and delete again.
 
 The API key and the workspace ID are saved only in `chrome.storage.local` of
 this browser profile. They survive a browser restart and are not synced to other
@@ -433,7 +435,8 @@ and reopening it starts again from the screen before generating.
 
 In every state except an invalid link, the viewer shows a link to the original
 video, and before the article is finished it shows the same heading and channel
-name as the popup. Once the article is finished, it shows the video title and
+name as the popup (when the video title could not be read, the heading is the
+video URL instead of the tab title). Once the article is finished, it shows the video title and
 channel name the article generation module neutralized (without a video title,
 the heading stays as it was). The page title is "`<video title> - yt2column`",
 and it appears in the browser's history and on the tab. Without a video title,
