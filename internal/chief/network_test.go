@@ -196,11 +196,11 @@ func TestCreateRunsOnlyInTheRightPlaces(t *testing.T) {
 	if out := cw.create(createIssue); out.Result != CreateMade || out.Mkreq == nil || out.Mkreq.Outcome != OutcomeSent {
 		t.Fatalf("Create = %+v; the test reached no send", out)
 	}
-	sawGH := false
+	ghCalls := 0
 	for _, c := range cw.rec.recorded() {
 		switch c.name {
 		case ghProgram:
-			sawGH = true
+			ghCalls++
 			if !isIssueRead(c.args) || c.dir != cw.chiefTree {
 				t.Errorf("gh ran %s in %q; a creation reads only the issue, in chief's worktree", c.line(), c.dir)
 			}
@@ -215,7 +215,7 @@ func TestCreateRunsOnlyInTheRightPlaces(t *testing.T) {
 			}
 		}
 	}
-	if !sawGH {
-		t.Fatal("no gh ran; the test reached no issue read")
+	if ghCalls != 1 {
+		t.Errorf("gh ran %d times, want once", ghCalls)
 	}
 }

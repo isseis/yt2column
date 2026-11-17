@@ -282,7 +282,12 @@ func Create(ctx context.Context, deps Deps, issueArg string) (CreateOutcome, err
 	}
 	out.Title, out.TitleCut = found.Title, found.TitleCut
 	if found.Status != IssueOpen {
-		return refusedCreate(out, issueRefusals[found.Status], ""), nil
+		refusal, ok := issueRefusals[found.Status]
+		if !ok {
+			// A status this map does not know is not read more widely.
+			refusal = CreateRefusalIssueUnreadable
+		}
+		return refusedCreate(out, refusal, ""), nil
 	}
 	if err := git.Fetch(ctx, chiefTree.String()); err != nil {
 		return refusedCreate(out, CreateRefusalFetchFailed, err.Error()), nil
@@ -601,45 +606,24 @@ func (m WorkspaceMaker) makeWorkspace(ctx context.Context, made func(Made)) (mad
 	}
 	created, err := parseWorkspaceCreate(out)
 	if err != nil {
+		// Herdr made a workspace whose ID cannot be read: it is named by
+		// its label, so the human still sees that it exists.
+		made(Made{Kind: MadeWorkspace, ID: m.space.Label()})
 		return madeWorkspace{}, CreateStageWorkspace, err
 	}
 	ws := madeWorkspace{ID: created.First.Workspace}
 	made(Made{Kind: MadeWorkspace, ID: ws.ID})
 	made(Made{Kind: MadeTab, ID: created.First.Tab.String()})
 	made(Made{Kind: MadePane, ID: created.First.Pane.String()})
-	if created.Label != m.space.Label() {
-		return ws, CreateStageWorkspace, fmt.Errorf("%w: the workspace was labelled %q", errMakerRefused, created.Label)
+	if created.Label != m.space.Label() || !inWorktree(created.First.Dir, m.tree.path) {
+		return ws, CreateStageWorkspace, fmt.Errorf("%w: the workspace was labelled %q at %q", errMakerRefused, created.Label, created.First.Dir)
 	}
 	if err := ctx.Err(); err != nil {
 		return ws, CreateStageTabs, err
 	}
-	out, err = m.cmds.herdr(ctx, herdrTab, "rename", created.First.Tab.String(), tabShell)
+	tabs, err := m.makeTabs(ctx, created, made)
 	if err != nil {
 		return ws, CreateStageTabs, err
-	}
-	renamed, err := parseTabRename(out)
-	if err != nil {
-		return ws, CreateStageTabs, err
-	}
-	if renamed.Tab != created.First.Tab || renamed.Workspace != ws.ID || renamed.Label != tabShell {
-		return ws, CreateStageTabs, fmt.Errorf("%w: the rename reported tab %s of %s labelled %q", errMakerRefused, renamed.Tab, renamed.Workspace, renamed.Label)
-	}
-	tabs := map[string]createdTab{}
-	for _, label := range []string{tabOpenCode, tabClaude} {
-		if err := ctx.Err(); err != nil {
-			return ws, CreateStageTabs, err
-		}
-		out, err := m.cmds.herdr(ctx, herdrTab, "create", "--workspace", ws.ID, "--cwd", m.tree.path, "--label", label, "--no-focus")
-		if err != nil {
-			return ws, CreateStageTabs, err
-		}
-		tab, err := parseTabCreate(out, ws.ID)
-		if err != nil {
-			return ws, CreateStageTabs, err
-		}
-		made(Made{Kind: MadeTab, ID: tab.Tab.String()})
-		made(Made{Kind: MadePane, ID: tab.Pane.String()})
-		tabs[label] = tab
 	}
 	for _, step := range []struct {
 		stage CreateStage
@@ -663,6 +647,46 @@ func (m WorkspaceMaker) makeWorkspace(ctx context.Context, made func(Made)) (mad
 		}
 	}
 	return ws, CreateStageUnknown, nil
+}
+
+// makeTabs renames the first tab of the workspace created and creates the
+// tabs of the two agents in it, returning those by label.
+func (m WorkspaceMaker) makeTabs(ctx context.Context, created createdWorkspace, made func(Made)) (map[string]createdTab, error) {
+	out, err := m.cmds.herdr(ctx, herdrTab, "rename", created.First.Tab.String(), tabShell)
+	if err != nil {
+		return nil, err
+	}
+	renamed, err := parseTabRename(out)
+	if err != nil {
+		return nil, err
+	}
+	if renamed.Tab != created.First.Tab || renamed.Workspace != created.First.Workspace || renamed.Label != tabShell {
+		return nil, fmt.Errorf("%w: the rename reported tab %s of %s labelled %q", errMakerRefused, renamed.Tab, renamed.Workspace, renamed.Label)
+	}
+	tabs := map[string]createdTab{}
+	for _, label := range []string{tabOpenCode, tabClaude} {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		out, err := m.cmds.herdr(ctx, herdrTab, "create", "--workspace", created.First.Workspace, "--cwd", m.tree.path, "--label", label, "--no-focus")
+		if err != nil {
+			return nil, err
+		}
+		tab, err := parseTabCreate(out, created.First.Workspace)
+		if err != nil {
+			// Herdr made a tab whose ID cannot be read, or one it reports
+			// in another workspace: it is named by its label.
+			made(Made{Kind: MadeTab, ID: label})
+			return nil, err
+		}
+		made(Made{Kind: MadeTab, ID: tab.Tab.String()})
+		made(Made{Kind: MadePane, ID: tab.Pane.String()})
+		if !inWorktree(tab.Dir, m.tree.path) {
+			return nil, fmt.Errorf("%w: tab %s was opened at %q", errMakerRefused, tab.Tab, tab.Dir)
+		}
+		tabs[label] = tab
+	}
+	return tabs, nil
 }
 
 // startAgent starts the agent of kind (Herdr's name herdrKind) in pane of
@@ -689,6 +713,9 @@ func (m WorkspaceMaker) startAgent(ctx context.Context, pane PaneID, herdrKind s
 	// the agent starts with no permission or trust granted for the human.
 	out, err = m.cmds.herdrLimit(ctx, agentStartTimeout, herdrAgent, "start", name, "--kind", herdrKind, "--pane", pane.String(), "--timeout", agentStartWait)
 	if err == nil {
+		// Herdr started an agent, whatever its output says: it is listed by
+		// the name asked for before the output is checked.
+		made(Made{Kind: MadeAgent, ID: name})
 		started, err := parseAgentStart(out)
 		if err != nil {
 			return nil, err
@@ -697,7 +724,6 @@ func (m WorkspaceMaker) startAgent(ctx context.Context, pane PaneID, herdrKind s
 		if started.Name != name || a.Kind != kind || a.Pane != pane || a.Workspace != ws {
 			return nil, fmt.Errorf("%w: herdr reported agent %q in pane %s of %s", errMakerRefused, started.Name, a.Pane, a.Workspace)
 		}
-		made(Made{Kind: MadeAgent, ID: name})
 		return nil, nil
 	}
 	exitErr, ok := errors.AsType[*cmdrunner.ExitError](err)
@@ -750,7 +776,9 @@ func Targets(ctx context.Context, deps Deps, issueArg string) (TargetsOutcome, e
 	}
 	out := TargetsOutcome{Issue: issue}
 	for _, row := range view.rows {
-		if row.State == StateProposeNext && row.Next != nil && row.Next.Kind == TaskNextMkreq {
+		// The same check as the send of /mkreq, so every workspace listed
+		// is one `chief send --command mkreq` accepts.
+		if _, why := offeredMkreq(row, issue); why == "" {
 			out.Workspaces = append(out.Workspaces, TargetWorkspace{Workspace: row.Workspace, Label: row.Label})
 		}
 	}

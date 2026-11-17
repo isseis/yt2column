@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -47,7 +48,10 @@ func rootPane(ws, tab, pane, cwd string) string {
 	return fmt.Sprintf(`"root_pane":{"cwd":%q,"pane_id":%q,"tab_id":%q,"workspace_id":%q}`, cwd, pane, tab, ws)
 }
 
-func workspaceCreateOutput(ws, tab, pane, cwd, label string) []byte {
+// workspaceCreateOutput is the output of creating workspace w1 with its
+// first tab w1:t1 and pane w1:p1.
+func workspaceCreateOutput(cwd, label string) []byte {
+	const ws, tab, pane = "w1", "w1:t1", "w1:p1"
 	return fmt.Appendf(nil, `{"id":"cli:workspace:create","result":{%s,"tab":{"tab_id":%q,"workspace_id":%q},"type":"workspace_created","workspace":{"label":%q,"workspace_id":%q}}}`,
 		rootPane(ws, tab, pane, cwd), tab, ws, label, ws)
 }
@@ -159,7 +163,7 @@ func (cw *createWorld) allowCreation() {
 	name, args = writeArgs(lines[1])
 	cw.rec.allowWriteDo(name, "", args, func() reply {
 		cw.list(fakePane{Pane: "w1:p1", Tab: "w1:t1", Workspace: "w1", Dir: cw.tree})
-		return reply{out: workspaceCreateOutput("w1", "w1:t1", "w1:p1", cw.tree, "issue-"+createIssue)}
+		return reply{out: workspaceCreateOutput(cw.tree, "issue-"+createIssue)}
 	})
 	cw.rec.allowTabRename("w1:t1", tabShell, tabRenameOutput("w1", "w1:t1", tabShell))
 	for i, line := range lines[3:5] {
@@ -274,6 +278,10 @@ func stateEntries(t *testing.T, dir string) []string {
 	return names
 }
 
+// herdrIDShape is the shape of the workspace, tab, and pane IDs the fake
+// Herdr gives.
+var herdrIDShape = regexp.MustCompile(`^w[A-Za-z0-9]*(:[tp][0-9]+)?$`)
+
 // fullMade is what a whole creation makes, by kind.
 var fullMade = []string{"worktree", "record", "workspace", "tab", "pane", "tab", "pane", "tab", "pane", "agent", "agent"}
 
@@ -372,7 +380,7 @@ func TestWorkspaceMakerUsesOnlyItsIDs(t *testing.T) {
 		cw.create(createIssue)
 		for _, line := range cw.writes()[2:] {
 			for word := range strings.FieldsSeq(line) {
-				if strings.HasPrefix(word, "w") && strings.Contains(word, ":") && !strings.HasPrefix(word, "w1:") || word == "wc" {
+				if herdrIDShape.MatchString(word) && word != "w1" && !strings.HasPrefix(word, "w1:") {
 					t.Errorf("%s names %s, which the create did not return", line, word)
 				}
 			}
@@ -380,7 +388,7 @@ func TestWorkspaceMakerUsesOnlyItsIDs(t *testing.T) {
 	})
 	t.Run("the zero maker runs nothing", func(t *testing.T) {
 		rec := newRecorder(t)
-		var m WorkspaceMaker
+		m := WorkspaceMaker{cmds: rec.commands(nil)}
 		if _, _, err := m.makeWorkspace(context.Background(), func(Made) {}); !errors.Is(err, errMakerRefused) {
 			t.Errorf("Make = %v, want errMakerRefused", err)
 		}
@@ -439,6 +447,15 @@ func TestCreateStopsAtEachStage(t *testing.T) {
 				return reply{}
 			})
 		}, nil, CreateStageWorktree, 1, 1},
+		{"git stops halfway and leaves the directory", func(cw *createWorld) {
+			name, args := writeArgs(cw.writeLines()[0])
+			cw.rec.allowWriteDo(name, cw.chiefTree, args, func() reply {
+				if err := os.MkdirAll(cw.tree, 0o700); err != nil {
+					return reply{err: err}
+				}
+				return reply{err: errInjected}
+			})
+		}, nil, CreateStageWorktree, 1, 1},
 		{"the created record cannot be written", nil, func(cw *createWorld) {
 			cw.deps.Store.beforeCreate = func(name string) error {
 				if name == createdFile {
@@ -451,15 +468,50 @@ func TestCreateStopsAtEachStage(t *testing.T) {
 			name, args := writeArgs(cw.writeLines()[1])
 			cw.rec.allowWrite(name, "", args, reply{err: errInjected})
 		}, nil, CreateStageWorkspace, 2, 2},
+		{"the workspace's output cannot be read", func(cw *createWorld) {
+			name, args := writeArgs(cw.writeLines()[1])
+			cw.rec.allowWrite(name, "", args, reply{out: []byte("{}")})
+		}, nil, CreateStageWorkspace, 2, 3},
+		{"the workspace is labelled otherwise", func(cw *createWorld) {
+			name, args := writeArgs(cw.writeLines()[1])
+			cw.rec.allowWrite(name, "", args, reply{out: workspaceCreateOutput(cw.tree, "other")})
+		}, nil, CreateStageWorkspace, 2, 5},
+		{"the workspace is opened elsewhere", func(cw *createWorld) {
+			name, args := writeArgs(cw.writeLines()[1])
+			cw.rec.allowWrite(name, "", args, reply{out: workspaceCreateOutput(cw.chiefTree, "issue-"+createIssue)})
+		}, nil, CreateStageWorkspace, 2, 5},
 		{"herdr cannot rename the first tab", func(cw *createWorld) {
 			cw.rec.allowWrite(herdrProgram, "", []string{"tab", "rename", "w1:t1", tabShell}, reply{err: errInjected})
 		}, nil, CreateStageTabs, 3, 5},
 		{"the rename reports another label", func(cw *createWorld) {
 			cw.rec.allowTabRename("w1:t1", tabShell, tabRenameOutput("w1", "w1:t1", "other"))
 		}, nil, CreateStageTabs, 3, 5},
+		{"herdr cannot create a tab", func(cw *createWorld) {
+			name, args := writeArgs(cw.writeLines()[3])
+			cw.rec.allowWrite(name, "", args, reply{err: errInjected})
+		}, nil, CreateStageTabs, 4, 5},
+		{"a tab's output cannot be read", func(cw *createWorld) {
+			name, args := writeArgs(cw.writeLines()[3])
+			cw.rec.allowWrite(name, "", args, reply{out: []byte("{}")})
+		}, nil, CreateStageTabs, 4, 6},
+		{"a tab is opened elsewhere", func(cw *createWorld) {
+			name, args := writeArgs(cw.writeLines()[3])
+			cw.rec.allowWrite(name, "", args, reply{out: tabCreateOutput("w1", "w1:t2", "w1:p2", cw.chiefTree)})
+		}, nil, CreateStageTabs, 4, 7},
 		{"OpenCode's shell is busy", func(cw *createWorld) {
 			cw.rec.reply("herdr pane process-info --pane w1:p2", processInfoOutput("w1:p2", 100, 200, 200))
 		}, nil, CreateStageOpenCode, 5, 9},
+		{"OpenCode's start output cannot be read", func(cw *createWorld) {
+			name, args := writeArgs(cw.writeLines()[5])
+			cw.rec.allowWrite(name, "", args, reply{out: []byte("{}")})
+		}, nil, CreateStageOpenCode, 6, 10},
+		{"OpenCode is reported under another name", func(cw *createWorld) {
+			name, args := writeArgs(cw.writeLines()[5])
+			cw.rec.allowWriteDo(name, "", args, func() reply {
+				p := cw.startAgent("w1:p2", "opencode", "idle", cw.tree)
+				return reply{out: agentStartOutput(p.fakeAgent, "someone-else")}
+			})
+		}, nil, CreateStageOpenCode, 6, 10},
 		{"Claude Code fails to start and no agent is there", func(cw *createWorld) {
 			name, args := writeArgs(cw.writeLines()[6])
 			cw.rec.allowWrite(name, "", args, reply{err: &cmdrunner.ExitError{Code: 1, Stderr: readTestdata(cw.t, "herdr/agent-start-name-taken.stderr")}})
@@ -471,6 +523,10 @@ func TestCreateStopsAtEachStage(t *testing.T) {
 				p := cw.startAgent("w1:p3", "claude", "idle", filepath.Join(cw.tree, "elsewhere"))
 				return reply{out: agentStartOutput(p.fakeAgent, "issue-"+createIssue+"-claude")}
 			})
+		}, nil, CreateStagePanes, 7, 11},
+		{"Claude Code is reported but not listed", func(cw *createWorld) {
+			name, args := writeArgs(cw.writeLines()[6])
+			cw.rec.allowWrite(name, "", args, reply{out: agentStartOutput(fakeAgent{Pane: "w1:p3", Workspace: "w1", Kind: "claude", Status: "idle", Dir: cw.tree, Seq: 10}, "issue-"+createIssue+"-claude")})
 		}, nil, CreateStagePanes, 7, 11},
 	}
 	for _, c := range cases {
@@ -515,7 +571,7 @@ func TestCreateDeadline(t *testing.T) {
 		cw.rec.allowWriteDo(name, "", args, func() reply {
 			cancel()
 			cw.list(fakePane{Pane: "w1:p1", Tab: "w1:t1", Workspace: "w1", Dir: cw.tree})
-			return reply{out: workspaceCreateOutput("w1", "w1:t1", "w1:p1", cw.tree, "issue-"+createIssue)}
+			return reply{out: workspaceCreateOutput(cw.tree, "issue-"+createIssue)}
 		})
 	})
 	out, err := Create(ctx, cw.deps, createIssue)
@@ -629,7 +685,7 @@ func TestCreateRefusesExisting(t *testing.T) {
 			if err := os.Symlink(cw.chiefTree, cw.tree); err != nil {
 				cw.t.Fatal(err)
 			}
-		}, ""},
+		}, "<the path itself>"},
 		{"a registration whose directory is gone", func(cw *createWorld) {
 			cw.git(cw.chiefTree, "worktree list --porcelain", "worktree "+cw.chiefTree+"\nHEAD "+cw.commit+"\nbranch refs/heads/main\n\nworktree "+cw.tree+"\nHEAD "+cw.commit+"\ndetached\nprunable gitdir file points to non-existent location\n\n")
 		}, "worktree "},
@@ -644,7 +700,13 @@ func TestCreateRefusesExisting(t *testing.T) {
 			if out.Result != CreateRefused || out.Refusal != CreateRefusalTargetExists {
 				t.Fatalf("Create = %+v, want refused target_exists", out)
 			}
-			if !slices.ContainsFunc(out.Existing, func(e string) bool { return strings.HasPrefix(e, c.want) }) {
+			if c.want == "<the path itself>" {
+				// A link is refused when the space is resolved, before the
+				// issue is read, naming the path.
+				if !slices.Equal(out.Existing, []string{cw.tree}) {
+					t.Errorf("existing = %v, want [%s]", out.Existing, cw.tree)
+				}
+			} else if !slices.ContainsFunc(out.Existing, func(e string) bool { return strings.HasPrefix(e, c.want) }) {
 				t.Errorf("existing = %v, want an entry starting %q", out.Existing, c.want)
 			}
 			if got := cw.writes(); len(got) != 0 {
@@ -666,6 +728,27 @@ func TestCreateRefusesExisting(t *testing.T) {
 	})
 }
 
+// TestCreateRechecksTheSpaceUnderTheExclusions puts a link at the path
+// while origin/main is fetched, after the first check of the space and
+// before the exclusions, and checks that the check made under them refuses.
+func TestCreateRechecksTheSpaceUnderTheExclusions(t *testing.T) {
+	cw := newCreateWorld(t, nil)
+	cw.rec.replyFunc("git fetch origin main", func() reply {
+		mkParent(cw)
+		if err := os.Symlink(cw.chiefTree, cw.tree); err != nil {
+			return reply{err: err}
+		}
+		return reply{}
+	})
+	out := cw.create(createIssue)
+	if out.Result != CreateRefused || out.Refusal != CreateRefusalTargetExists || !slices.Equal(out.Existing, []string{cw.tree}) {
+		t.Fatalf("Create = %+v, want refused target_exists naming the path", out)
+	}
+	if got := cw.writes(); len(got) != 0 {
+		t.Errorf("wrote %v", got)
+	}
+}
+
 // TestCreateFetchFailure checks that a failed fetch refuses the creation
 // before the exclusions are taken and anything is written.
 func TestCreateFetchFailure(t *testing.T) {
@@ -680,6 +763,16 @@ func TestCreateFetchFailure(t *testing.T) {
 	if _, err := os.Lstat(filepath.Join(cw.deps.Store.Dir(), creationDir)); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("the creation exclusion's directory: %v, want none", err)
 	}
+	t.Run("origin/main cannot be read after the fetch", func(t *testing.T) {
+		cw := newCreateWorld(t, func(cw *createWorld) { cw.git(cw.chiefTree, "rev-parse "+originMain, "not a commit\n") })
+		out := cw.create(createIssue)
+		if out.Result != CreateRefused || out.Refusal != CreateRefusalFetchFailed {
+			t.Fatalf("Create = %+v, want refused fetch_failed", out)
+		}
+		if got := cw.writes(); len(got) != 0 {
+			t.Errorf("wrote %v", got)
+		}
+	})
 }
 
 // TestCreateReplacesOldRecords leaves the records of an earlier use of the
