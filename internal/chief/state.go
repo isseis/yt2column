@@ -133,6 +133,9 @@ type Row struct {
 	Running *SendRecord
 	// Stopped is the workspace's stop, nil when it takes input.
 	Stopped *StopRecord
+	// StopUnreadable is true when the workspace's stop record could not be
+	// read; the row is treated like a stopped one in the urgency table.
+	StopUnreadable bool
 	// ReviewSkippable is the review-skippable judgment of the PR detail kept
 	// for the worktree's HEAD; false when no detail is kept for it.
 	ReviewSkippable bool
@@ -143,6 +146,9 @@ type Row struct {
 	// any automatic-send result of the round (applyAutoSends) clear it. It orders the row last; it never decides a
 	// send.
 	Idle bool
+	// position is what the document rule reads, kept by classify on every
+	// path it returns by.
+	position positionFacts
 }
 
 // agentFacts is one agent with the reading of its screen.
@@ -170,7 +176,10 @@ type workspaceFacts struct {
 	Task paneinput.TaskID
 	// Docs is origin/main's documents of the task, nil when there is no task.
 	Docs *TaskDocs
-	PR   *OpenPR
+	// DocsUnreadable is true when the documents of the task could not be
+	// read, so Docs is nil although the branch names a task.
+	DocsUnreadable bool
+	PR             *OpenPR
 	// Routing is the routing table, RoutingErr why it could not be read.
 	Routing    Routing
 	RoutingErr error
@@ -278,31 +287,29 @@ func decideNext(f workspaceFacts) (next *Next, done bool, why string) {
 		return &Next{Kind: TaskNextMkreq, Text: "/mkreq"}, false, ""
 	}
 	docs := f.Docs
-	if docs == nil || docs.Dir == "" || docs.Requirements == nil {
-		return nil, false, "no requirements document of the task on origin/main"
-	}
-	req, arch, plan := docs.Requirements, docs.Architecture, docs.Plan
-	switch {
-	case plan != nil && plan.Status == DocApproved:
-		return nextFromPlan(f, plan)
-	case plan != nil:
+	switch stageOf(docs) {
+	case stagePlanApproved:
+		return nextFromPlan(f, docs.Plan)
+	case stagePlanNotApproved:
 		return nil, false, "the plan is not approved"
-	case arch != nil && arch.Status == DocApproved:
+	case stageArchApproved:
 		cmd, err := paneinput.NewMkplan(f.Task)
 		if err != nil {
 			return nil, false, "the /mkplan command cannot be built"
 		}
 		return makeNext(TaskNextMkplan, cmd, paneinput.RouteTaskDocuments, f.Routing, f.RoutingErr), false, ""
-	case arch != nil:
+	case stageArchNotApproved:
 		return nil, false, "the architecture document is not approved"
-	case req.Status == DocApproved && (req.Process == ProcessFull || req.Process == ProcessUnrecorded):
+	case stageReqApprovedFull:
 		cmd, err := paneinput.NewMkarch(f.Task)
 		if err != nil {
 			return nil, false, "the /mkarch command cannot be built"
 		}
 		return makeNext(TaskNextMkarch, cmd, paneinput.RouteTaskDocuments, f.Routing, f.RoutingErr), false, ""
-	case req.Status == DocApproved && req.Process == ProcessUnreadable:
+	case stageProcessUnreadable:
 		return nil, false, "the process record of the requirements document is unreadable"
+	case stageNoRequirements:
+		return nil, false, "no requirements document of the task on origin/main"
 	default:
 		return nil, false, "no rule gives a next command"
 	}
@@ -380,7 +387,7 @@ func takeoverTargetReady(agents []agentFacts) bool {
 // no shape is StateNeedsCheck with its names in Unreadable, never another
 // state guessed from the rest; the zero facts classify as StateNeedsCheck.
 func classify(f workspaceFacts) Row {
-	row := Row{Workspace: f.Workspace, Label: f.Label, PR: f.PR}
+	row := Row{Workspace: f.Workspace, Label: f.Label, PR: f.PR, position: positionFactsOf(f)}
 	if !f.Task.IsZero() {
 		row.Task = f.Task.String()
 	}

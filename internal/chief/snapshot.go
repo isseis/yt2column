@@ -262,6 +262,7 @@ func readWorkspace(ctx context.Context, herdr Herdr, git GitReader, tasks Tasks,
 		docs, err := tasks.Read(ctx, w.Worktree, branch)
 		if err != nil {
 			f.Unreadable = append(f.Unreadable, "task documents on origin/main")
+			f.DocsUnreadable = true
 		} else {
 			f.Docs = &docs
 		}
@@ -306,7 +307,7 @@ func classifyWorkspace(ctx context.Context, git GitReader, tasks Tasks, f worksp
 // which list after the rows with another question (the order of pending
 // items), and 0 otherwise.
 func mergeOnlyRank(r Row) int {
-	if r.State == StateQuestion && r.MergeQuestion && !slices.ContainsFunc(r.Questions, func(q QuestionItem) bool { return !q.Question.Merge }) {
+	if onlyMergeQuestions(r) {
 		return 1
 	}
 	return 0

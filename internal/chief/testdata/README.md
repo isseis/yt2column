@@ -108,3 +108,12 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 各行は、`type`、`isMeta`、`origin`、`promptSource`、`turnOrigin`、`message` の `role` と `content` の種類、`attachment` の `type`・`commandMode`・`origin` だけに絞った。コマンドの行（`<command-message>`・`<command-name>`・`<command-args>` の 3 つ組）は採ったままで、それ以外の行の本文と `tool_use` の入力、`tool_result` の内容は、同じ形の短い文に置き換えた。`tool_use` の ID と task-notification の ID は、上の表の規則の形で置き換えた。transcript に付く `uuid`・`sessionId`・`cwd`・`timestamp` などの項目は残していない。`mode`・`session-owner`・`system`・`api-request` などの `message` を持たない種類の行は、`type` だけの行にした。
 
 採る前の元の記録で、次の前提を確かめた（結果は実装計画書 §7「PR-1 の実行の記録」）。サンプルは、削った後のものなので、前提の確かめに使わない。
+
+### 作ったサンプルの計画書
+
+タスク 0093 の PR-1 で、`plans/` に次の 2 つを足した。実物から採ったものではなく、既存のサンプルから作った。
+
+| ファイル | 作り方と目的 |
+|---|---|
+| `plans/marker-opus-pr-open.md` | `marker-opus.md` の PR-2 の「PR を作成した」だけを済ませた形。`origin/main` では PR を開いている間にしか現れない状態で、進行の位置の PR 番号（PR-2）が変わらないことを確かめる |
+| `plans/marker-merged-not-created.md` | `marker-all-merged.md` の PR-3 の「PR を作成した」を外した形。すべての PR が「マージされた」なのに作られていない PR があり、計画が完了ともマージしていない PR があるとも言えない場合を確かめる |

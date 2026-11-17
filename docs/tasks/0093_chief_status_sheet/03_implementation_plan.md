@@ -73,10 +73,10 @@
 
 -   [x] **ステップ 1-1**: 実行中のセッションの記録のサンプルを採る（§1.3 の決定 5、設計書 7.1）。前提は元の記録で確かめ、結果を §7 に書く。`auto-continuation` の行（§1.3 の決定 10）を含むサンプルも採り、`otherOrigins` に `auto-continuation` を足す。コマンドが走っている途中の記録と、chief が答えを中継した後の記録を `testdata/transcript/` に置き、採った日・版・置き換えを `testdata/README.md` に足す。`screen_test.go` に、各サンプルの期待する結果を確かめるテスト（`TestReadLastHumanInputOfRunningSessions`）を足す。
 -   [x] **ステップ 1-2**: 0092 の確かめを行い（§1.3 の決定 6）、結果を §7 の「PR-1 の実行の記録」に書く。見つかったときは、決定 6 の 3 つを、このフェーズのステップ 1-5・1-6 に含める。
--   [ ] **ステップ 1-3**: `position.go` に、設計書 3.1 の `Urgency`・`Turn`・`PositionDocument`・`Progress`・`Position` と、文書の段を返す関数を書き、`decideNext` が段を読むようにする（設計書 3.3）。`TestNextCommandRules` は、「要確認」の行の理由を段ごとに確かめる形に強め、取り出しの前に強めた版が通ることを確かめてから取り出す。
--   [ ] **ステップ 1-4**: `running.go` に、設計書 3.1 の `RunningCommand` と、種類と引数から作る構築関数を書く。引数は設計書 3.5 の「引数」の表の型で検証する。構築関数は、検証できない引数を落としたことを呼び出し側へ返す（AC-12 のまとめ方が、落とした引数を見分けるため）。出力の文字列を作るメソッドは、§1.4 の最後の段落のとおり検証し直す。テストは、5 つの種類、空の引数、検証できない引数（制御文字、数でない文字列、2 つ目の引数）、0 の値、範囲の外の種類、検証していない引数を複合リテラルで入れた値を確かめる。
--   [ ] **ステップ 1-5**: `positionFacts` を `Row` に足し、`classify` がどの経路で返す場合にも残すようにする（設計書 3.1・3.3）。文書を読めないことは、`readWorkspace` が `workspaceFacts` に真偽値で残す。`Row.StopUnreadable` も足す（値を入れるのは PR-3）。テストは、6 つの状態のそれぞれについて、`classify` が fetch の失敗、文書を読めないこと、HEAD の 3 つの状態、命名に合うかどうか、段、計画の完了、PR の番号を残すことを確かめる。
--   [ ] **ステップ 1-6**: `position.go` に、急ぎの度合いの対応表（設計書 3.2）、文書の規則（設計書 3.3、§1.3 の決定 4・7）、進み具合（設計書 3.4）の関数を書く。「すべての質問がマージの確認」を 1 つの関数に取り出し、`mergeOnlyRank` もそれを使う。
+-   [x] **ステップ 1-3**: `position.go` に、設計書 3.1 の `Urgency`・`Turn`・`PositionDocument`・`Progress`・`Position` と、文書の段を返す関数を書き、`decideNext` が段を読むようにする（設計書 3.3）。`TestNextCommandRules` は、「要確認」の行の理由を段ごとに確かめる形に強め、取り出しの前に強めた版が通ることを確かめてから取り出す。
+-   [x] **ステップ 1-4**: `running.go` に、設計書 3.1 の `RunningCommand` と、種類と引数から作る構築関数を書く。引数は設計書 3.5 の「引数」の表の型で検証する。構築関数は、検証できない引数を落としたことを呼び出し側へ返す（AC-12 のまとめ方が、落とした引数を見分けるため）。出力の文字列を作るメソッドは、§1.4 の最後の段落のとおり検証し直す。テストは、5 つの種類、空の引数、検証できない引数（制御文字、数でない文字列、2 つ目の引数）、0 の値、範囲の外の種類、検証していない引数を複合リテラルで入れた値を確かめる。
+-   [x] **ステップ 1-5**: `positionFacts` を `Row` に足し、`classify` がどの経路で返す場合にも残すようにする（設計書 3.1・3.3）。文書を読めないことは、`readWorkspace` が `workspaceFacts` に真偽値で残す。`Row.StopUnreadable` も足す（値を入れるのは PR-3）。テストは、6 つの状態のそれぞれについて、`classify` が fetch の失敗、文書を読めないこと、HEAD の 3 つの状態、命名に合うかどうか、段、計画の完了、PR の番号を残すことを確かめる。
+-   [x] **ステップ 1-6**: `position.go` に、急ぎの度合いの対応表（設計書 3.2）、文書の規則（設計書 3.3、§1.3 の決定 4・7）、進み具合（設計書 3.4）の関数を書く。「すべての質問がマージの確認」を 1 つの関数に取り出し、`mergeOnlyRank` もそれを使う。
     -   対応表のテストは、6 つの状態 × 送信の停止（なし・あり・読めない）× `Idle` の有無のすべてと、範囲の外の状態を確かめる。「要確認」の行は `Unreadable` の中身を変えても結果が変わらないことを確かめる（AC-01〜AC-04・AC-06）。
     -   文書の規則のテストは、規則 1・3〜10 のそれぞれだけに当たる事実を作る。命名に合わないブランチの「次を提案」（`/mkreq`）と「レビュー待ち」の行、detached の行（`/mkreq` の実行中とそれ以外）、決定 7 の場合、AC-08 の 2 つの場合を含める。規則 7 は `testdata/plans/` のサンプルを `ParsePlan` で読んで確かめる。PR を作成したがマージしていない状態のサンプルは今なく、`origin/main` では短い間しか現れないので、`marker-opus.md` から PR-2 の「PR を作成した」だけを済ませた形で作り、作ったサンプルであることを `testdata/README.md` に書く（AC-07・AC-08）。
     -   進み具合のテストは、AC-09 の表の各行と、質問のない「質問で停止」の行を確かめる。
@@ -107,7 +107,7 @@
 
 **変更するファイル:** `internal/chief/paneinput/paneinput.go`・`paneinput_test.go`、`internal/chief/records.go`・`records_test.go`、`internal/chief/send.go`・`send_test.go`、`internal/chief/transcript.go`、`internal/chief/screen_transcript.go`・`screen_test.go`、`internal/chief/running.go`・`running_test.go`、`internal/chief/reset_test.go`、`internal/chief/world_test.go`、`internal/chief/testdata/transcript/`
 
--   [ ] **ステップ 2-1**: `paneinput` に、`CommandKind` の名前の表（`mkreq`・`mkarch`・`mkplan`・`runplan`・`runpr`）と、`Command` の種類と検証した引数の文字列を読む関数を足す（設計書 3.1）。テストは、名前と種類の往復、表にない名前、0 の値の `Command` を確かめる。
+-   [ ] **ステップ 2-1**: `paneinput` に、名前から `CommandKind` を読む表（種類から名前を返す `CommandKind.Name` は、ステップ 1-4 で足した）と、`Command` の種類と検証した引数の文字列を読む関数を足す（設計書 3.1）。テストは、名前と種類の往復、表にない名前、0 の値の `Command` を確かめる。
 -   [ ] **ステップ 2-2**: `SendRecord` に `Kind`・`Arg` を足し、`sendCommand` の経路だけが書く。引き継ぎの `/runplan` も `runplan` と書く。送信の終わりの記録の結果を読む関数を足す（設計書 3.1・3.5）。テストは、コマンドの送信と引き継ぎの送信（`TestSendTakeover` を広げる）が欄を書くこと、リセットと中継が書かないこと、欄のない記録が読めること、終わりの記録がない送信と結果ごとの読み取りを確かめる。
 -   [ ] **ステップ 2-3**: `transcript.go` に、改行で終わるまで読み直す読み取り（§1.3 の決定 2）と、上限を超えたことを表す番兵のエラーを足す（`errors.Is` で確かめるため。上限のテストは小さな上限を渡す）。`world_test.go` の偽の `Deps` に、待たない `Sleep` を足す。
     -   テストは、`Deps.Sleep` の差し込みで、3 回目の読み直しで改行で終わる場合と、終わらずに決まらない場合、待ちの間隔が 200 ms であること、待ちが失敗した場合を確かめる。
