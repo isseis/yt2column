@@ -41,6 +41,7 @@
 7.  **計画書が `approved` で、マージしていない最初の PR の番号を決められないときは、文書の規則の規則 10（「要確認」）とする。** `ParsePlan` の出力でこれに当たるのは、すべての PR が `Merged` なのに、`Created` でない PR があるため `Plan.Done`（`internal/chief/task.go:693-703`）が偽になる計画書である。AC-07 の規則 7 は N を求めるので、N のないまま「PR-N」と示さず、要確認の側に倒す。ADR: なし（AC-07 の読み方の細部のため）。
 8.  **送信の記録を読めないことは、`problems` に足さず、`running_unknown` の `unreadable` にだけ出す。** 今の `addRecords` は、「実行中」の行の `LastSend` が失敗すると、`problems` に「the records of … cannot be read」を足す（`internal/chief/snapshot.go:206-209`、`internal/chief/snapshot.go:135-137`）。設計書 3.5 の「失敗のとき」（申し送りの H-02）は、表示のための読み取りの失敗が `problems` を変えないとしている。送信の停止の記録を読めないことは、今までどおり `problems` に出す。ADR: なし（設計書の決定の範囲のため）。
 9.  **0092 への申し送り（H-09・H-10）は、人が 0092 のタスクに直接渡す（2026-11-17、人が選んだ）。** 0092 の 3 文書はすでに `approved` で、H-09・H-10 を取り込んでいない。`/runplan 0092` は計画書を読み、`design_handoff.md` は読まない。0093 の計画書は 0092 の計画書を直さず、0093 の側の手順（決定 1・6）だけを持つ。0093 が先に入り、0092 が H-09 を取り込まないまま削除の提案を実装すると、AC-05 は確かめられない。そのときは §7 の AC-05 の行のとおり、人に示す。ADR: なし（タスクの間の受け渡しのため）。
+10. **セッションの記録の origin の `kind` に `auto-continuation` を足し、人でない kind として受け付ける（2026-11-17、人が選んだ）。** ステップ 1-1 で、決定 5 の前提「どの行も採取した種類の origin を持つ」を元の記録で確かめたところ、この計算機の 612 ファイルのうち 12 ファイルに `kind` が `auto-continuation` の行があった（使用量の上限が解けた後の続行の入力）。ほかの前提（すべての行が改行で終わる 612 ファイル中 612、すべての行が JSON として読める）は成り立った。決定 5 のとおり止まって人と決め直し、設計書 1.2.1 のとおり、`screen_transcript.go` の人でない kind の一覧（`otherOrigins`）に足し、PR-1 のステップ 1-1 に含める。ADR: なし（設計書 1.2.1 と同じ）。
 
 ### 1.4. 既存コード調査結果
 
@@ -70,8 +71,8 @@
 
 **変更するファイル:** `internal/chief/testdata/transcript/`・`testdata/plans/`・`testdata/README.md`、`internal/chief/position.go`・`position_test.go`（新規）、`internal/chief/running.go`・`running_test.go`（新規。型と構築関数だけ）、`internal/chief/state.go`、`internal/chief/snapshot.go`、`internal/chief/screen_test.go`、`internal/chief/snapshot_test.go`、本計画（§7 の実行の記録）
 
--   [ ] **ステップ 1-1**: 実行中のセッションの記録のサンプルを採る（§1.3 の決定 5、設計書 7.1）。前提は元の記録で確かめ、結果を §7 に書く。コマンドが走っている途中の記録と、chief が答えを中継した後の記録を `testdata/transcript/` に置き、採った日・版・置き換えを `testdata/README.md` に足す。`screen_test.go::TestReadLastHumanInput` に、各サンプルの期待する結果の行を足す。
--   [ ] **ステップ 1-2**: 0092 の確かめを行い（§1.3 の決定 6）、結果を §7 の「PR-1 の実行の記録」に書く。見つかったときは、決定 6 の 3 つを、このフェーズのステップ 1-5・1-6 に含める。
+-   [x] **ステップ 1-1**: 実行中のセッションの記録のサンプルを採る（§1.3 の決定 5、設計書 7.1）。前提は元の記録で確かめ、結果を §7 に書く。`auto-continuation` の行（§1.3 の決定 10）を含むサンプルも採り、`otherOrigins` に `auto-continuation` を足す。コマンドが走っている途中の記録と、chief が答えを中継した後の記録を `testdata/transcript/` に置き、採った日・版・置き換えを `testdata/README.md` に足す。`screen_test.go` に、各サンプルの期待する結果を確かめるテスト（`TestReadLastHumanInputOfRunningSessions`）を足す。
+-   [x] **ステップ 1-2**: 0092 の確かめを行い（§1.3 の決定 6）、結果を §7 の「PR-1 の実行の記録」に書く。見つかったときは、決定 6 の 3 つを、このフェーズのステップ 1-5・1-6 に含める。
 -   [ ] **ステップ 1-3**: `position.go` に、設計書 3.1 の `Urgency`・`Turn`・`PositionDocument`・`Progress`・`Position` と、文書の段を返す関数を書き、`decideNext` が段を読むようにする（設計書 3.3）。`TestNextCommandRules` は、「要確認」の行の理由を段ごとに確かめる形に強め、取り出しの前に強めた版が通ることを確かめてから取り出す。
 -   [ ] **ステップ 1-4**: `running.go` に、設計書 3.1 の `RunningCommand` と、種類と引数から作る構築関数を書く。引数は設計書 3.5 の「引数」の表の型で検証する。構築関数は、検証できない引数を落としたことを呼び出し側へ返す（AC-12 のまとめ方が、落とした引数を見分けるため）。出力の文字列を作るメソッドは、§1.4 の最後の段落のとおり検証し直す。テストは、5 つの種類、空の引数、検証できない引数（制御文字、数でない文字列、2 つ目の引数）、0 の値、範囲の外の種類、検証していない引数を複合リテラルで入れた値を確かめる。
 -   [ ] **ステップ 1-5**: `positionFacts` を `Row` に足し、`classify` がどの経路で返す場合にも残すようにする（設計書 3.1・3.3）。文書を読めないことは、`readWorkspace` が `workspaceFacts` に真偽値で残す。`Row.StopUnreadable` も足す（値を入れるのは PR-3）。テストは、6 つの状態のそれぞれについて、`classify` が fetch の失敗、文書を読めないこと、HEAD の 3 つの状態、命名に合うかどうか、段、計画の完了、PR の番号を残すことを確かめる。
@@ -252,7 +253,7 @@
 | AC-08 | `ic/position_test.go::TestDocumentRule`（状態が「要確認」で文書が読める、文書が「要確認」で状態が変わらない） | test | 1-6 | PR-1 |
 | AC-09 | `ic/position_test.go::TestProgress` | test | 1-6 | PR-1 |
 | AC-10 | `ic/autosend_test.go::TestAutoSendAfterMerge`（送ったコマンドとモデル、進み具合が「作成中」） | test | 3-3・3-4 | PR-3 |
-| AC-11 | `ic/running_test.go::TestRunningCommandPerPane`、`ic/screen_test.go::TestReadRunningCommand`、`ic/screen_test.go::TestReadLastHumanInput`（新しいサンプル）、`ic/snapshot_test.go::TestRunningRowShowsTheLastSend`（記録のない workspace の Claude Code の pane） | test | 1-1・2-4・2-5・3-2 | PR-1、PR-2、PR-3 |
+| AC-11 | `ic/running_test.go::TestRunningCommandPerPane`、`ic/screen_test.go::TestReadRunningCommand`、`ic/screen_test.go::TestReadLastHumanInputOfRunningSessions`（新しいサンプル）、`ic/snapshot_test.go::TestRunningRowShowsTheLastSend`（記録のない workspace の Claude Code の pane） | test | 1-1・2-4・2-5・3-2 | PR-1、PR-2、PR-3 |
 | AC-12 | `ic/running_test.go::TestRunningCommandPanes` | test | 2-5 | PR-2 |
 | AC-13 | `ic/running_test.go::TestNewRunningCommand`、`ic/screen_test.go::TestReadRunningCommand`（検証できない引数）、`ic/snapshot_test.go::TestRunningOutputHasNoRawText` | test | 1-4・2-4・3-5 | PR-1、PR-2、PR-3 |
 | AC-14 | `ic/running_test.go::TestRunningModel`、`ic/snapshot_test.go::TestRunningRowShowsTheLastSend`（書き直したもの）、定義の「次」の列 | test、manual | 2-5・3-2・3-6 | PR-2、PR-3 |
@@ -267,7 +268,17 @@
 
 ### PR-1 の実行の記録
 
-（`/runplan` が、0092 の確かめの結果と、元の記録で確かめたサンプルの前提の結果を書く）
+**0092 の確かめ（ステップ 1-2、2026-11-17）。** `git fetch origin main` の後に `git grep -n PendingRemoval origin/main -- internal/chief` を走らせた。`origin/main` は `12fdc257` で、終了コードは 1（見つからない）だった。0092 の削除の提案はまだ `main` にない。決定 6 の 3 つは足さず、AC-05 は 0092 が後に入るときの扱い（決定 9）のままとする。マージの前の確かめは、PR の説明に人の項目として書く。
+
+**サンプルの前提の確かめ（ステップ 1-1、2026-11-17、元の記録のまま、リポジトリの外で行った）。** 対象は `~/.claude/projects/*/*.jsonl` の 612 ファイル（Claude Code 2.1.306〜2.1.326）である。
+
+| 前提 | 結果 |
+|---|---|
+| すべての行が改行で終わる | 612 ファイルのすべてが改行で終わり、どの行も JSON として読めた（読めない行は 0） |
+| どの行も採取した種類の origin を持つ | 最上位か `attachment` の `origin` の `kind` は、`task-notification` 3726 行、`human` 2608 行、`peer` 2182 行、`auto-continuation` 12 行だった。`auto-continuation` は採取した種類にないので、前提は成り立たなかった。12 行は 12 ファイルにあり、`/runplan`・`/mkplan`・`/mkarch`・`/runpr` のセッションを含む。人が決め直した（§1.3 の決定 10、2026-11-17） |
+| `readLastHumanInput` が読める | 決定 10 の前: 読めない記録は 12 ファイルで、すべて `auto-continuation` の行を持つファイルだった。読めたのは、人の入力なし 37、コマンド 228、そのほか 335。決定 10 の後（`otherOrigins` に足した後）: 読めない記録は 0、人の入力なし 37、コマンド 232、そのほか 343 |
+
+サンプルは次の 2 つである。コマンドが走っている途中の記録（`claude-running-command.jsonl`、`/runplan 0060`、`auto-continuation` の行を含む）と、`AskUserQuestion` の問いに答えた後の記録（`claude-running-after-answer.jsonl`、`/runplan 0093`）である。chief が答えを中継した後の記録は、中継も人が答えた場合も、transcript の上では同じ形（`origin` を持たない `tool_result` の行）なので、後者を中継の後の記録のサンプルとして使う。採取用の workspace での作り直しは要らなかった。どちらも、読み取りの結果は最後のコマンドである（`TestReadLastHumanInputOfRunningSessions`）。
 
 ### PR-3 の実行の記録
 
@@ -288,3 +299,4 @@
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#926）
+- 2026-11-17 セッション中の再承認：セッションの記録の origin の `kind` に `auto-continuation` を人でない kind として足す（isseis、#未記入）

@@ -1,0 +1,21 @@
+{"type":"mode"}
+{"type":"session-owner"}
+{"type":"file-history-snapshot"}
+{"type":"user","isMeta":true,"message":{"role":"user","content":"<local-command-caveat>The command below was run directly in Claude Code, not sent to you as a request, and its output goes straight to the user. It's recorded here as context for later messages.</local-command-caveat>"}}
+{"type":"user","message":{"role":"user","content":"<command-name>/clear</command-name>\n            <command-message>clear</command-message>\n            <command-args></command-args>"}}
+{"type":"system"}
+{"type":"file-history-snapshot"}
+{"type":"user","isMeta":true,"message":{"role":"user","content":"<local-command-caveat>The command below was run directly in Claude Code, not sent to you as a request, and its output goes straight to the user. It's recorded here as context for later messages.</local-command-caveat>"}}
+{"type":"user","message":{"role":"user","content":"<command-name>/model</command-name>\n            <command-message>model</command-message>\n            <command-args>sonnet</command-args>"}}
+{"type":"user","message":{"role":"user","content":"<local-command-stdout>Set model to `Sonnet 5.5` and saved as your default for new sessions</local-command-stdout>"}}
+{"type":"file-history-snapshot"}
+{"type":"user","origin":{"kind":"human"},"turnOrigin":"human","message":{"role":"user","content":"<command-message>runplan</command-message>\n<command-name>/runplan</command-name>\n<command-args>0093</command-args>"}}
+{"type":"user","isMeta":true,"message":{"role":"user","content":[{"type":"text","text":"Command body."}]}}
+{"type":"attachment","attachment":{"type":"environment"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":""}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Working on the plan."}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_00000000000000000000000001","name":"AskUserQuestion","input":{}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_00000000000000000000000001","content":"Your questions have been answered: \"Question?\"=\"Answer\""}]}}
+{"type":"api-request"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":""}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_00000000000000000000000002","name":"Bash","input":{}}]}}

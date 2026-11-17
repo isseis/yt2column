@@ -144,13 +144,14 @@ type HumanInput struct {
 var customCommandRecord = regexp.MustCompile(`^<command-message>([a-z0-9-]+)</command-message>\n<command-name>/([a-z0-9-]+)</command-name>\n<command-args>([^<\n]*)</command-args>$`)
 
 // humanOrigin is the origin kind Claude Code declares on a line the human
-// typed; a peer's message and a task notification declare the others the
-// sample shows. A line of another kind is not read more widely: it makes the
-// transcript unreadable.
+// typed; a peer's message, a task notification, and the continuation Claude
+// Code adds when a usage limit resets declare the others the samples show. A
+// line of another kind is not read more widely: it makes the transcript
+// unreadable.
 const humanOrigin = "human"
 
 // otherOrigins are the sampled origin kinds of lines the human did not type.
-var otherOrigins = []string{"peer", "task-notification"}
+var otherOrigins = []string{"peer", "task-notification", "auto-continuation"}
 
 // queuedCommand is the attachment type of a message delivered while the
 // agent works: the human's text typed mid-turn, a peer's message, or a task

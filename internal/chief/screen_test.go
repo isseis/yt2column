@@ -837,6 +837,34 @@ func TestReadLastHumanInput(t *testing.T) {
 	}
 }
 
+// TestReadLastHumanInputOfRunningSessions reads the sampled records of a
+// command that is still running: the human's command stays the last human
+// input however many lines the run adds after it.
+func TestReadLastHumanInputOfRunningSessions(t *testing.T) {
+	running := string(readTestdata(t, "transcript/claude-running-command.jsonl"))
+	afterAnswer := string(readTestdata(t, "transcript/claude-running-after-answer.jsonl"))
+	if !strings.Contains(running, `"kind":"auto-continuation"`) {
+		t.Fatal("the running-command sample no longer holds its auto-continuation line")
+	}
+	cases := []struct {
+		name string
+		text string
+		want HumanInput
+	}{
+		{"a running command with a usage-limit continuation and a task notification after it", running, HumanInput{Kind: HumanInputCommand, Name: "runplan", Args: "0060"}},
+		{"a running command after an answered question", afterAnswer, HumanInput{Kind: HumanInputCommand, Name: "runplan", Args: "0093"}},
+		{"a continuation of an unsampled origin", strings.Replace(running, `"kind":"auto-continuation"`, `"kind":"scheduled"`, 1), HumanInput{}},
+	}
+	for _, c := range cases {
+		if !strings.HasSuffix(c.text, "\n") && c.want.Kind != HumanInputUnreadable {
+			t.Fatalf("%s: the sample does not end in a newline", c.name)
+		}
+		if got := readLastHumanInput([]byte(c.text)); got != c.want {
+			t.Errorf("%s: readLastHumanInput = %+v, want %+v", c.name, got, c.want)
+		}
+	}
+}
+
 // runprNoneLine is the NEXT line of the sampled OpenCode /runpr report.
 const runprNoneLine = "     - NEXT: なし（タスク 0087 の最終 PR のため）。worktree は origin/"
 
