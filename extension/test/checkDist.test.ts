@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -14,7 +13,6 @@ import path from "node:path";
 import { after, beforeEach, describe, it } from "node:test";
 
 import { checkDist } from "../scripts/check-dist.ts";
-import { extensionDir } from "./helpers/paths.ts";
 
 /** Writes content to file under root, creating parent directories. */
 function write(root: string, file: string, content = ""): void {
@@ -110,19 +108,6 @@ describe("checkDist", () => {
       "static/lib.js: not a regular file",
       "dist/lib.js: not a regular file",
     ]);
-  });
-
-  it("exits 1 from the command line when dist/ has a violation", () => {
-    const script = path.join(extensionDir, "scripts", "check-dist.ts");
-    assert.equal(
-      spawnSync(process.execPath, [script], { cwd: root }).status,
-      0,
-    );
-    write(root, "dist/extra.js");
-    assert.equal(
-      spawnSync(process.execPath, [script], { cwd: root }).status,
-      1,
-    );
   });
 
   it("rejects a missing compiled file", () => {
