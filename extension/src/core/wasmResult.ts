@@ -210,7 +210,8 @@ function readResult<T>(
     : { ok: true, value };
 }
 
-function steps(value: JsonValue): Steps {
+/** Reads a run's steps: exactly the three, each in its closed set. */
+export function readSteps(value: JsonValue): Steps {
   const members = exactMembers(value, ["draft", "shorten", "review"]);
   return {
     draft: codeMember(members, "draft", stepStates),
@@ -219,9 +220,9 @@ function steps(value: JsonValue): Steps {
   };
 }
 
-/** A done run's steps: every step finished or was not needed. */
-function finishedSteps(value: JsonValue): Steps {
-  const result = steps(value);
+/** Reads a done run's steps: every step finished or was not needed. */
+export function readFinishedSteps(value: JsonValue): Steps {
+  const result = readSteps(value);
   for (const state of Object.values(result)) {
     if (state !== "done" && state !== "skipped") {
       throw new ShapeMismatch();
@@ -317,8 +318,10 @@ export function readSettingsCheckResult(
   });
 }
 
-const inputDigestPattern = /^[0-9a-f]{64}$/;
-const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
+/** An input digest: 64 lowercase hexadecimal characters. */
+export const inputDigestPattern = /^[0-9a-f]{64}$/;
+/** A YouTube video ID: 11 characters of [A-Za-z0-9_-]. */
+export const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
 
 /** Reads prepare's result. */
 export function readPrepareResult(text: string): WasmRead<PrepareResult> {
@@ -365,7 +368,7 @@ export function readGenerateResult(text: string): WasmRead<GenerateResult> {
         const members = exactMembers(value, ["status", "steps", "article"]);
         return {
           status,
-          steps: finishedSteps(member(members, "steps")),
+          steps: readFinishedSteps(member(members, "steps")),
           article: articleResult(member(members, "article")),
         };
       }
@@ -380,7 +383,7 @@ export function readGenerateResult(text: string): WasmRead<GenerateResult> {
             : ["status", "steps", "failure"],
         );
         const failure = codeMember(members, "failure", wasmFailures);
-        const runSteps = steps(member(members, "steps"));
+        const runSteps = readSteps(member(members, "steps"));
         if (!withDetail) {
           return { status, steps: runSteps, failure };
         }
@@ -407,7 +410,7 @@ export function readGenerateResult(text: string): WasmRead<GenerateResult> {
 /** Reads one of generate's progress events. */
 export function readProgressEvent(text: string): WasmRead<ProgressEvent> {
   return readResult(text, (value) => ({
-    steps: steps(member(exactMembers(value, ["steps"]), "steps")),
+    steps: readSteps(member(exactMembers(value, ["steps"]), "steps")),
   }));
 }
 
