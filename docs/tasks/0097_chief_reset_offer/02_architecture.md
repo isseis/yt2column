@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -334,3 +334,7 @@ sequenceDiagram
 #905・#906・#907 が報告を transcript や OpenCode の API から読むようになると、「報告がない」見送りは減る。それでも、報告がない見送りの受け皿として、この仕組みは変えずに残る。
 
 タスク 0095 の実装は、3.2 の表の①の箇所（`reset.go:118-120`・`reset.go:135-137`）を書き換える。後にマージされる方の PR は、`origin/main` を取り込み、3.2 の規則（「報告がない」箇所だけが `skipReportAbsent` を返す）を保ったまま、表の箇所を付け替える。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#922）

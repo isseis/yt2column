@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -200,3 +200,7 @@ issue #919 によれば、2026-11-16〜17 の chief のセッションでは、�
 -   **見送り**: chief がリセットの条件を確かめて、送らなかったこと。
 -   **見送りの記録**: 見送りを後の round で項目にするために、状態のディレクトリに残す記録。形は設計で決める。
 -   **状態の変化の番号**: Herdr がエージェントの pane ごとに報告する `state_change_seq`。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#922）

@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。本タスクに `design_handoff.md` と `implementation_handoff.md` はない。
@@ -194,3 +194,7 @@
 
 -   PR のマージの後、`make install-chief` で chief を入れ直し、`/chief` を起動し直す。次に chief を使うとき、長い報告の後の `/runpr` で `reset` の項目が出るかを観察する。
 -   タスクの最後の PR のマージの後、`/runpr` が issue #919 を閉じる。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#922）
