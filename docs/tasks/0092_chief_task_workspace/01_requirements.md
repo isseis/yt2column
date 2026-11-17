@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：作る前の issue の確かめで、ラベル `draft` が付いた issue も拒む |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -278,4 +278,5 @@ F-003 を終えた workspace へ、`/mkreq` を送る。
 ## 変更履歴
 
 - 2026-11-16 承認（isseis、#897）
-- 2026-11-17 draft への戻し：作る前の issue の確かめで、ラベル `draft` が付いた issue も拒むことにした（#未記入）
+- 2026-11-17 draft への戻し：作る前の issue の確かめで、ラベル `draft` が付いた issue も拒むことにした（#939）
+- 2026-11-17 承認（isseis、#939）
