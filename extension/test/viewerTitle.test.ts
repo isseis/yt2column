@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 
 import type { BuildKind } from "../src/buildKind.d.ts";
@@ -6,6 +8,7 @@ import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import { viewerTitle } from "../src/core/viewerTitle.ts";
 import type { TitleSource } from "../src/core/viewerTitle.ts";
+import { extensionDir } from "./helpers/paths.ts";
 
 const localeList = Object.keys(locales) as Locale[];
 const buildKinds: BuildKind[] = ["release", "dev"];
@@ -68,6 +71,49 @@ describe("viewerTitle", () => {
     assert.equal(
       viewerTitle(source, "dev", "ja"),
       "Video - yt2column（開発用のビルド）",
+    );
+  });
+
+  it("names a build as its manifest does, in each locale", () => {
+    // The development manifest's name is the extNameDev message (the build
+    // writes it), and the release one is extName.
+    for (const locale of localeList) {
+      const messages = JSON.parse(
+        readFileSync(
+          path.join(
+            extensionDir,
+            "static",
+            "_locales",
+            locale,
+            "messages.json",
+          ),
+          "utf8",
+        ),
+      ) as Record<string, { message: string }>;
+      const source: TitleSource = { kind: "url", urlTitle: "V" };
+      assert.equal(
+        viewerTitle(source, "release", locale),
+        `V - ${messages["extName"]?.message}`,
+      );
+      assert.equal(
+        viewerTitle(source, "dev", locale),
+        `V - ${messages["extNameDev"]?.message}`,
+      );
+    }
+  });
+
+  it("treats a white-space title as no title", () => {
+    assert.equal(
+      viewerTitle(
+        { kind: "start", videoTitle: "  ", heading: "Tab" },
+        "release",
+        "en",
+      ),
+      "Tab - yt2column",
+    );
+    assert.equal(
+      viewerTitle({ kind: "url", urlTitle: " " }, "release", "en"),
+      "Untitled video - yt2column",
     );
   });
 

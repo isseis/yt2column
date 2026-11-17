@@ -63,33 +63,73 @@ const storageSelectors = memberNameSelectors(
 const networkNames = ["fetch", "XMLHttpRequest", "WebSocket", "EventSource"];
 const networkMessage =
   "Do not open connections; only src/wasmWorker.ts may fetch, to load the article generation module.";
+// The names src/wasmWorker.ts still may not use.
+const workerNetworkNames = networkNames.filter((name) => name !== "fetch");
 /** no-restricted-globals entries for names. */
-function networkGlobals(names) {
-  return names.map((name) => ({ name, message: networkMessage }));
+function globalEntries(names, message) {
+  return names.map((name) => ({ name, message }));
 }
 const globalObject = "/^(window|self|globalThis)$/";
 /** Selectors that forbid names as members of the global objects, dotted, computed or destructured. */
-function networkSelectors(names) {
+function globalMemberSelectors(names, message) {
   const pattern = `/^(${names.join("|")})$/`;
   return [
     {
       // window.fetch, self.fetch and globalThis.fetch, dotted or computed.
       selector: `MemberExpression:matches([property.name=${pattern}], [property.value=${pattern}])[object.name=${globalObject}]`,
-      message: networkMessage,
+      message,
     },
     {
       selector: `MemberExpression[computed=true][property.type="TemplateLiteral"][property.quasis.0.value.cooked=${pattern}][object.name=${globalObject}]`,
-      message: networkMessage,
+      message,
     },
     {
       // const { fetch } = window;
       selector: `VariableDeclarator[init.name=${globalObject}] > ObjectPattern > Property:matches([key.name=${pattern}], [key.value=${pattern}])`,
-      message: networkMessage,
+      message,
     },
   ];
 }
-// The names src/wasmWorker.ts still may not use.
-const workerNetworkNames = networkNames.filter((name) => name !== "fetch");
+/** no-restricted-globals entries for the network names. */
+function networkGlobals(names) {
+  return globalEntries(names, networkMessage);
+}
+/** The member selectors for the network names. */
+function networkSelectors(names) {
+  return globalMemberSelectors(names, networkMessage);
+}
+
+// The other places the extension's source could keep a value or pass it to
+// every page: web storage, and a BroadcastChannel. The settings live only in
+// chrome.storage, through the fixed functions of browser/chromeDeps.ts, which
+// also opens the viewers' one channel. These apply to src/ only: tests build
+// channels to test that wrapper.
+const webStoreNames = ["localStorage", "sessionStorage", "indexedDB", "caches"];
+const webStoreMessage =
+  "Do not use web storage; the extension keeps settings only in chrome.storage through browser/chromeDeps.ts.";
+const channelNames = ["BroadcastChannel"];
+const channelMessage =
+  "Only browser/chromeDeps.ts may open a BroadcastChannel; use its viewer channel.";
+
+/** The no-restricted-globals entries of a src/ file: fetch, and the channel, as its exceptions allow. */
+function sourceGlobals({ allowFetch = false, allowChannel = false } = {}) {
+  return [
+    ...networkGlobals(allowFetch ? workerNetworkNames : networkNames),
+    ...globalEntries(webStoreNames, webStoreMessage),
+    ...(allowChannel ? [] : globalEntries(channelNames, channelMessage)),
+  ];
+}
+
+/** The member selectors of a src/ file for web storage and, unless allowed, the channel. */
+function sourceStoreSelectors({ allowChannel = false } = {}) {
+  return [
+    ...globalMemberSelectors(webStoreNames, webStoreMessage),
+    ...(allowChannel
+      ? []
+      : globalMemberSelectors(channelNames, channelMessage)),
+  ];
+}
+
 const connectNativeSelectors = memberNameSelectors(
   ["connectNative"],
   "Do not use chrome.runtime.connectNative; send with sendNativeMessage in browser/chromeDeps.ts.",
@@ -249,18 +289,22 @@ const commonSyntax = [
 
 /**
  * The no-restricted-syntax selectors of a file. Every file gets the common
- * ones; the options name the exceptions one file has: browser/chromeDeps.ts
- * may use storage, windows and sendNativeMessage, and src/wasmWorker.ts may
- * fetch.
+ * ones; a source file (src/ and scripts/, not tests) also gets the web
+ * storage and channel ones. The options name the exceptions one file has:
+ * browser/chromeDeps.ts may use storage, windows, sendNativeMessage and the
+ * channel, and src/wasmWorker.ts may fetch.
  */
 function syntaxRules({
   allowStorage = false,
   allowWindows = false,
   allowFetch = false,
   allowSendNative = false,
+  allowChannel = false,
+  source = true,
 } = {}) {
   return [
     ...commonSyntax,
+    ...(source ? sourceStoreSelectors({ allowChannel }) : []),
     ...(allowStorage ? [] : storageSelectors),
     ...networkSelectors(allowFetch ? workerNetworkNames : networkNames),
     ...memberNameSelectors(
@@ -305,7 +349,7 @@ function storageImportRule(file) {
     {
       patterns: [
         {
-          regex: "(^|/)browser/chromeDeps\\.ts$",
+          regex: "(^|/)browser/chromeDeps\\.(ts|js)$",
           importNames: forbidden,
           allowTypeImports: true,
           message:
@@ -353,7 +397,7 @@ export default defineConfig(
       "no-restricted-globals": ["error", ...networkGlobals(networkNames)],
       "no-restricted-syntax": [
         "error",
-        ...syntaxRules({ allowSendNative: true }),
+        ...syntaxRules({ allowSendNative: true, source: false }),
       ],
     },
   },
@@ -367,6 +411,7 @@ export default defineConfig(
         ...syntaxRules(),
         ...brandSelectors(brandNames),
       ],
+      "no-restricted-globals": ["error", ...sourceGlobals()],
       "no-restricted-imports": storageImportRule(""),
     },
   },
@@ -385,8 +430,13 @@ export default defineConfig(
           allowStorage: true,
           allowWindows: true,
           allowSendNative: true,
+          allowChannel: true,
         }),
         ...brandSelectors(brandNames),
+      ],
+      "no-restricted-globals": [
+        "error",
+        ...sourceGlobals({ allowChannel: true }),
       ],
     },
   },
@@ -395,7 +445,10 @@ export default defineConfig(
     // generation module, whose Go code sends to the API.
     files: ["src/wasmWorker.ts"],
     rules: {
-      "no-restricted-globals": ["error", ...networkGlobals(workerNetworkNames)],
+      "no-restricted-globals": [
+        "error",
+        ...sourceGlobals({ allowFetch: true }),
+      ],
       "no-restricted-syntax": [
         "error",
         ...syntaxRules({ allowFetch: true }),

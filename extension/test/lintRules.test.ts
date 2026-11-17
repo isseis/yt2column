@@ -453,6 +453,19 @@ describe("importing the chrome.storage functions", () => {
         ),
       );
     });
+    it(`forbids importing ${name} with a .js specifier`, async () => {
+      // nodenext resolves "./browser/chromeDeps.js" to the .ts file too.
+      for (const [specifier, filePath] of [
+        ["./browser/chromeDeps.js", "src/sample.ts"],
+        ["../browser/chromeDeps.js", "src/core/sample.ts"],
+      ] as const) {
+        const js = `import { ${name} } from "${specifier}";\nexport const f = ${name};\n`;
+        assert.ok(
+          (await ruleIds(js, filePath)).includes("no-restricted-imports"),
+          specifier,
+        );
+      }
+    });
     it(`allows a type-only import of ${name} in src/sample.ts`, async () => {
       const typeOnly = `import type { ${name} } from "./browser/chromeDeps.ts";\nexport type F = typeof ${name};\n`;
       assert.deepEqual(await ruleIds(typeOnly, "src/sample.ts"), []);
@@ -609,25 +622,60 @@ describe("the other rules in the files with an exception", () => {
   }
 });
 
-describe("html parsing APIs in the extension-only path's files", () => {
-  // The new pages and modules hold the API key or the module's results, so
-  // the ban on parsing strings as HTML covers them as it covers every file.
-  const code =
-    "declare const el: HTMLElement;\ndeclare const s: string;\nexport const f = (): void => {\n  el.innerHTML = s;\n};\n";
-  for (const filePath of [
-    "src/options.ts",
-    "src/wasmWorkerClient.ts",
-    "src/core/optionsView.ts",
-    "src/core/wasmResult.ts",
-    "src/core/jobRecord.ts",
-    "src/core/viewerTitle.ts",
-  ]) {
-    it(`forbids innerHTML in ${filePath}`, async () => {
+describe("web storage and channels", () => {
+  // The settings live only in chrome.storage, and only browser/chromeDeps.ts
+  // opens the viewers' channel; src/ files are covered, tests are not.
+  const stores = ["localStorage", "sessionStorage", "indexedDB", "caches"];
+  for (const filePath of ["src/sample.ts", chromeDeps, wasmWorker]) {
+    for (const name of stores) {
+      it(`forbids the global ${name} in ${filePath}`, async () => {
+        assert.ok(
+          (await ruleIds(`export const p = ${name};\n`, filePath)).includes(
+            "no-restricted-globals",
+          ),
+        );
+      });
+    }
+    it(`forbids window.localStorage in ${filePath}`, async () => {
+      const code =
+        "declare const window: Record<string, unknown>;\nexport const p = window.localStorage;\n";
       assert.ok(
         (await ruleIds(code, filePath)).includes("no-restricted-syntax"),
       );
     });
   }
+  const channel = 'export const c = new BroadcastChannel("c");\n';
+  for (const filePath of [
+    "src/sample.ts",
+    wasmWorker,
+    "src/core/wasmResult.ts",
+  ]) {
+    it(`forbids a BroadcastChannel in ${filePath}`, async () => {
+      assert.ok(
+        (await ruleIds(channel, filePath)).includes("no-restricted-globals"),
+      );
+    });
+  }
+  it(`allows a BroadcastChannel in ${chromeDeps}`, async () => {
+    assert.deepEqual(await ruleIds(channel, chromeDeps), []);
+  });
+  it("allows a BroadcastChannel in a test", async () => {
+    assert.deepEqual(await ruleIds(channel, "test/sample.test.ts"), []);
+  });
+});
+
+describe("html parsing APIs in a creator file of the extension-only path", () => {
+  // wasmResult.ts has a config of its own (it creates UsdAmount), which must
+  // keep the common rules.
+  it("forbids innerHTML in src/core/wasmResult.ts", async () => {
+    const code =
+      "declare const el: HTMLElement;\ndeclare const s: string;\nexport const f = (): void => {\n  el.innerHTML = s;\n};\n";
+    assert.ok(
+      (await ruleIds(code, "src/core/wasmResult.ts")).includes(
+        "no-restricted-syntax",
+      ),
+    );
+  });
 });
 
 describe("chrome.runtime.connectNative", () => {

@@ -201,7 +201,7 @@ describe("the size limit", () => {
   // three-byte characters so a character count would differ.
   const sized = (bytes: number): string => {
     const base = done(article({ markdown: '"#"' }));
-    let pad = "あ".repeat(Math.floor((bytes - base.length) / 3));
+    let pad = "\u3042".repeat(Math.floor((bytes - base.length) / 3));
     pad += "a".repeat(bytes - base.length - 3 * [...pad].length);
     const text = done(article({ markdown: `"#${pad}"` }));
     assert.equal(new TextEncoder().encode(text).length, bytes);

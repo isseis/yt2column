@@ -9,20 +9,31 @@ import {
 import type { LoadedModule, WorkerMessage } from "../src/core/workerCalls.ts";
 import { settle } from "./helpers/clock.ts";
 
-/** Serves calls against a module that loads as load decides. */
+/**
+ * Serves calls against a module that loads as load decides. posted holds the
+ * answers and progress; readies counts the ready messages.
+ */
 function serve(load: () => Promise<LoadedModule>): {
   handle: (data: unknown) => void;
   posted: WorkerMessage[];
+  readies: () => number;
   reported: unknown[];
 } {
   const posted: WorkerMessage[] = [];
   const reported: unknown[] = [];
+  let readies = 0;
   const handle = serveWorkerCalls({
     load,
-    post: (message) => posted.push(message),
+    post: (message) => {
+      if (message.kind === "ready") {
+        readies += 1;
+      } else {
+        posted.push(message);
+      }
+    },
     reportError: (error) => reported.push(error),
   });
-  return { handle, posted, reported };
+  return { handle, posted, readies: () => readies, reported };
 }
 
 /** Serves calls against a module that loads at once with namespace; exit ends its Go program. */
@@ -49,6 +60,29 @@ const call = (callId: number, fn: string, request = "r"): unknown => ({
 });
 
 describe("serveWorkerCalls", () => {
+  it("says ready once, when the module has set its namespace", async () => {
+    const { handle, readies } = serve(async () => ({
+      namespace: () => ({ buildInfo: () => "info" }),
+      exited: new Promise<void>(() => {}),
+    }));
+    assert.equal(readies(), 0, "ready before the load");
+    await settle();
+    handle(call(1, "buildInfo", ""));
+    await settle();
+    assert.equal(readies(), 1);
+  });
+
+  it("never says ready for a module that registered nothing, nor for a failed load", async () => {
+    const empty = serve(async () => ({
+      namespace: () => undefined,
+      exited: Promise.resolve(),
+    }));
+    const failed = serve(() => Promise.reject(new Error("no module")));
+    await settle();
+    assert.equal(empty.readies(), 0);
+    assert.equal(failed.readies(), 0);
+  });
+
   it("replies with the string each function returns", async () => {
     const { handle, posted } = serveLoaded({
       prepare: (request: string) => `prepared ${request}`,
@@ -284,6 +318,7 @@ describe("parseWorkerCall", () => {
 describe("parseWorkerMessage", () => {
   it("accepts each kind with exactly its members", () => {
     const messages: WorkerMessage[] = [
+      { kind: "ready" },
       { callId: 1, kind: "reply", value: "v" },
       { callId: 2, kind: "progress", event: "e" },
       { callId: 3, kind: "error" },
@@ -309,7 +344,8 @@ describe("parseWorkerMessage", () => {
       data: { callId: 1, kind: "exit", value: "v" },
     },
     { name: "an error without a callId", data: { kind: "error" } },
-    { name: "an unknown kind", data: { callId: 1, kind: "ready" } },
+    { name: "a ready with a callId", data: { callId: 1, kind: "ready" } },
+    { name: "an unknown kind", data: { callId: 1, kind: "loaded" } },
     { name: "a string", data: "reply" },
   ];
   for (const { name, data } of refused) {

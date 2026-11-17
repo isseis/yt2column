@@ -9,9 +9,11 @@ import {
 import type { JobRecord, StartContext } from "../src/core/jobRecord.ts";
 
 // The record holds neither the copied transcript nor the description: a type
-// that gained either member fails this file's type check.
+// that gained either member, in any variant, fails this file's type check.
+// keyof distributes over the union, so a member of one variant counts.
+type AnyKey<T> = T extends unknown ? keyof T : never;
 type NoInput<T> =
-  Extract<keyof T, "transcript" | "description"> extends never ? true : false;
+  Extract<AnyKey<T>, "transcript" | "description"> extends never ? true : false;
 const recordHoldsNoInput: NoInput<JobRecord> = true;
 const contextHoldsNoInput: NoInput<StartContext> = true;
 void [recordHoldsNoInput, contextHoldsNoInput];
@@ -275,7 +277,7 @@ describe("readJobRecord", () => {
       const empty = { ...article, markdown: "#" };
       const record = { ...records["done"], article: empty };
       const baseBytes = new TextEncoder().encode(JSON.stringify(record)).length;
-      let pad = "あ".repeat(Math.floor((bytes - baseBytes) / 3));
+      let pad = "\u3042".repeat(Math.floor((bytes - baseBytes) / 3));
       pad += "a".repeat(bytes - baseBytes - 3 * pad.length);
       const result = { ...record, article: { ...empty, markdown: `#${pad}` } };
       assert.equal(

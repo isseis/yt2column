@@ -1,10 +1,12 @@
 // The calls between a page and the Worker that runs the article generation
-// module, and the Worker's side of them. A page sends one call at a time and
-// matches the answer by callId; the Worker answers each call exactly once,
-// with a reply, an error (the function's Promise rejected), or an exit (the
-// Go program ended, or a function could not be called), and may send progress
-// before the answer. src/wasmWorker.ts wires serveWorkerCalls to the Worker's
-// globals; this module touches none, so its rules are tested here.
+// module, and the Worker's side of them. The Worker says once that the module
+// is running (ready), which ends the page's load deadline. A page sends one
+// call at a time and matches the answer by callId; the Worker answers each
+// call exactly once, with a reply, an error (the function's Promise rejected
+// or resolved to a non-string), or an exit (the Go program ended, or a
+// function could not be called), and may send progress before the answer.
+// src/wasmWorker.ts wires serveWorkerCalls to the Worker's globals; this
+// module touches none, so its rules are tested here.
 
 /** The article generation module's file in the build output; scripts/build-variant.ts writes it there. */
 export const wasmModuleFile = "yt2column.wasm";
@@ -30,8 +32,9 @@ export interface WorkerCall {
   readonly request: string;
 }
 
-/** What the Worker posts to the page about a call. */
+/** What the Worker posts to the page: that the module runs, or about a call. */
 export type WorkerMessage =
+  | { readonly kind: "ready" }
   | { readonly callId: number; readonly kind: "reply"; readonly value: string }
   | {
       readonly callId: number;
@@ -86,6 +89,8 @@ export function parseWorkerMessage(data: unknown): WorkerMessage | undefined {
   }
   const kind = (data as { readonly kind?: unknown }).kind;
   switch (kind) {
+    case "ready":
+      return exactRecord(data, ["kind"]) === undefined ? undefined : { kind };
     case "reply": {
       const record = exactRecord(data, ["callId", "kind", "value"]);
       return record !== undefined &&
@@ -134,7 +139,9 @@ export interface WorkerHost {
 
 /**
  * Starts loading the module through host and returns the handler of the
- * page's messages. Contract: every well-formed call is answered exactly once,
+ * page's messages. Contract: ready is posted once, when the module has loaded
+ * and set its namespace (a module that registered nothing never sends it);
+ * every well-formed call is answered exactly once,
  * after the module has loaded: with the function's string result (reply),
  * with error when its Promise rejects or resolves to a non-string, and with
  * exit when the Go program has ended or ends before the answer, when the
@@ -149,7 +156,7 @@ export interface WorkerHost {
 export function serveWorkerCalls(host: WorkerHost): (data: unknown) => void {
   const unanswered = new Set<number>();
   let exited = false;
-  const answer = (message: WorkerMessage): void => {
+  const answer = (message: Exclude<WorkerMessage, { kind: "ready" }>): void => {
     if (unanswered.delete(message.callId)) {
       host.post(message);
     }
@@ -162,6 +169,10 @@ export function serveWorkerCalls(host: WorkerHost): (data: unknown) => void {
   };
   const loading = host.load().then((loaded) => {
     loaded.exited.then(exitAll, exitAll);
+    const namespace = loaded.namespace();
+    if (typeof namespace === "object" && namespace !== null) {
+      host.post({ kind: "ready" });
+    }
     return loaded;
   });
   loading.catch((error: unknown) => host.reportError(error));

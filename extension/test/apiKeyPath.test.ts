@@ -36,8 +36,23 @@ const localCalls: Readonly<Record<string, string>> = {
 /** The chrome.storage areas the extension uses. sync is not one of them. */
 const areas = new Set(["local", "session"]);
 
-/** Method names that write a log line: console's and the Logger's. */
-const logMethods = new Set(["log", "info", "warn", "error", "debug"]);
+/**
+ * Method names that write a log line: console's and the Logger's. The log
+ * check reads names only: it refuses an argument whose identifier or member
+ * name ends with the API key's name, not a value that holds the key under
+ * another name.
+ */
+const logMethods = new Set([
+  "log",
+  "info",
+  "warn",
+  "error",
+  "debug",
+  "dir",
+  "table",
+  "trace",
+  "assert",
+]);
 
 /** An identifier that would hold the API key's value: apiKey, anthropicApiKey, api_key. */
 const apiKeyName = /api_?key$/i;

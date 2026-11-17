@@ -282,10 +282,7 @@ export const en: Catalog = {
     },
     write_uncertain: {
       text: "The settings may not have been saved.",
-      steps: [
-        "Check whether the page shows an API key as set.",
-        "Enter the values and save again.",
-      ],
+      steps: ["Check whether the page shows an API key as set.", "Save again."],
     },
     deleted: {
       text: "The API key and the workspace ID are deleted.",

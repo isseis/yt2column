@@ -40,13 +40,14 @@ function track(promise: Promise<WorkerCallResult>): {
   return { result: () => result };
 }
 
-/** Makes the first call and answers it, so the Worker counts as loaded. */
+/** Makes the first call and answers it after the Worker said ready. */
 async function loaded(): Promise<{
   client: WasmWorker;
   worker: FakeWorker;
   clock: FakeClock;
 }> {
   const parts = started();
+  parts.worker.send({ kind: "ready" });
   const first = parts.client.call("buildInfo", "");
   parts.worker.send({ callId: 1, kind: "reply", value: "{}" });
   assert.deepEqual(await first, { kind: "reply", value: "{}" });
@@ -94,7 +95,7 @@ describe("wasm Worker client", () => {
     assert.deepEqual(events, ["p1", "p2"]);
   });
 
-  it("fails as worker_load when the first answer does not come within the load deadline", async () => {
+  it("fails as worker_load when the Worker does not say ready within the load deadline", async () => {
     const { client, worker, clock } = started();
     const call = track(client.call("prepare", "p"));
     clock.advance(workerLoadTimeoutMs - 1);
@@ -109,14 +110,50 @@ describe("wasm Worker client", () => {
     assert.equal(worker.terminations, 1);
   });
 
-  it("stops the load deadline at the first answer, even a progress event", async () => {
+  it("stops the load deadline at ready, so a long first call is not cut", async () => {
     const { client, worker, clock } = started();
-    const call = track(client.call("generate", "g"));
-    worker.send({ callId: 1, kind: "progress", event: "e" });
+    worker.send({ kind: "ready" });
+    // checkSettings may take the module's own 30 seconds after the load.
+    const call = track(client.call("checkSettings", "c"));
     clock.advance(workerLoadTimeoutMs * 2);
     await settle();
     assert.equal(call.result(), undefined);
     assert.equal(worker.terminations, 0);
+  });
+
+  it("keeps the load deadline running through an answer before ready", async () => {
+    const { client, worker, clock } = started();
+    const first = client.call("buildInfo", "");
+    worker.send({ callId: 1, kind: "reply", value: "{}" });
+    await first;
+    const second = track(client.call("checkSettings", "c"));
+    clock.advance(workerLoadTimeoutMs);
+    await settle();
+    assert.deepEqual(second.result(), {
+      kind: "failed",
+      detail: "worker_load",
+    });
+  });
+
+  it("keeps a failure that comes while no call waits for the next call", async () => {
+    const { client, worker } = started();
+    worker.fail();
+    assert.equal(worker.terminations, 1);
+    assert.deepEqual(await client.call("prepare", "p"), {
+      kind: "failed",
+      detail: "worker_load",
+    });
+    assert.equal(worker.posted.length, 0);
+  });
+
+  it("ends as worker_load when the Worker cannot be created", async () => {
+    const client = startWasmWorker(() => {
+      throw new Error("Failed to construct 'Worker'");
+    }, fakeClock().schedule);
+    assert.deepEqual(await client.call("buildInfo", ""), {
+      kind: "failed",
+      detail: "worker_load",
+    });
   });
 
   const failures: {
@@ -226,13 +263,13 @@ describe("wasm Worker client", () => {
     assert.equal(worker.posted.length, 1);
   });
 
-  it("answers a call made after a failure as stopped without posting it", async () => {
-    const { client, worker } = started();
-    const call = client.call("prepare", "p");
-    worker.fail();
-    await call;
-    assert.deepEqual(await client.call("prepare", "p"), { kind: "stopped" });
-    assert.equal(worker.posted.length, 1);
+  it("answers a call made after the end with the end's result, without posting it", async () => {
+    const { client, worker, clock } = await loaded();
+    const call = client.call("generate", "g", { timeoutMs: 10 });
+    clock.advance(10);
+    assert.deepEqual(await call, { kind: "timeout" });
+    assert.deepEqual(await client.call("prepare", "p"), { kind: "timeout" });
+    assert.equal(worker.posted.length, 2);
   });
 
   it("refuses a second call while one waits", () => {

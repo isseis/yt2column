@@ -35,7 +35,7 @@ export type TitleSource =
 /**
  * The page title for source, in locale, ending with the name of buildKind:
  * "<part> - <name>". The part is the video title, then the heading when the
- * video title is empty, then a fixed text when both are; an invalid link's
+ * video title is empty or white space, then a fixed text when both are; an invalid link's
  * part is the fixed text of that state.
  */
 export function viewerTitle(
@@ -45,7 +45,7 @@ export function viewerTitle(
 ): string {
   const texts = catalogs[locale].viewerTitle;
   const firstNonEmpty = (...values: string[]): string =>
-    values.find((value) => value !== "") ?? texts.untitled;
+    values.find((value) => value.trim() !== "") ?? texts.untitled;
   let part: string;
   switch (source.kind) {
     case "record":
