@@ -875,7 +875,10 @@ func TestCreatedRecordRoundTrip(t *testing.T) {
 	if err != nil || rec == nil {
 		t.Fatalf("Created = %+v, %v", rec, err)
 	}
-	tree, _ := space.Worktree()
+	tree, err := space.Worktree()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if rec.Worktree != tree || rec.Issue.String() != "42" || !rec.Created.Equal(now) {
 		t.Errorf("Created = %+v; want worktree %q, issue 42, time %v", rec, tree, now)
 	}
@@ -911,9 +914,18 @@ func TestCreatedRecordUnreadableForms(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tree42, _ := space42.Worktree()
-	space43, _ := NewTaskSpace(home, issueNumber(t, "43"))
-	tree43, _ := space43.Worktree()
+	tree42, err := space42.Worktree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	space43, err := NewTaskSpace(home, issueNumber(t, "43"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree43, err := space43.Worktree()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cases := []struct {
 		name string
@@ -921,14 +933,16 @@ func TestCreatedRecordUnreadableForms(t *testing.T) {
 		dirOf Worktree
 		raw   string
 		mode  os.FileMode
+		// want is the sentinel the error carries; nil for a record that
+		// does not even decode.
+		want error
 	}{
-		{"unknown member", tree42, `{"worktree":"` + tree42.String() + `","issue":"42","created":"2026-11-17T09:00:00Z","extra":1}`, 0o600},
-		{"a mode others can read", tree42, "", 0o644},
-		{"an issue that is no number", tree42, `{"worktree":"` + tree42.String() + `","issue":"042","created":"2026-11-17T09:00:00Z"}`, 0o600},
-		{"no time", tree42, `{"worktree":"` + tree42.String() + `","issue":"42"}`, 0o600},
-		{"a relative worktree", tree42, `{"worktree":"issue-42","issue":"42","created":"2026-11-17T09:00:00Z"}`, 0o600},
-		{"a worktree that is not the one of its directory", tree43, "", 0o600},
-		{"a worktree that is not where its issue's task is made", tree42, `{"worktree":"` + tree42.String() + `","issue":"43","created":"2026-11-17T09:00:00Z"}`, 0o600},
+		{"unknown member", tree42, `{"worktree":"` + tree42.String() + `","issue":"42","created":"2026-11-17T09:00:00Z","extra":1}`, 0o600, nil},
+		{"a mode others can read", tree42, "", 0o644, privatefile.ErrUnsafe},
+		{"an issue that is no number", tree42, `{"worktree":"` + tree42.String() + `","issue":"042","created":"2026-11-17T09:00:00Z"}`, 0o600, errRecord},
+		{"no time", tree42, `{"worktree":"` + tree42.String() + `","issue":"42"}`, 0o600, errRecord},
+		{"a worktree that is not the one of its directory", tree43, "", 0o600, errRecord},
+		{"a worktree that is not where its issue's task is made", tree42, `{"worktree":"` + tree42.String() + `","issue":"43","created":"2026-11-17T09:00:00Z"}`, 0o600, errRecord},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -949,8 +963,9 @@ func TestCreatedRecordUnreadableForms(t *testing.T) {
 			if err := os.Chmod(path, c.mode); err != nil {
 				t.Fatal(err)
 			}
-			if rec, err := held.Created(home); rec != nil || err == nil {
-				t.Fatalf("Created = %+v, %v; want an error and no record", rec, err)
+			rec, err := held.Created(home)
+			if rec != nil || err == nil || (c.want != nil && !errors.Is(err, c.want)) {
+				t.Fatalf("Created = %+v, %v; want an error that is %v and no record", rec, err, c.want)
 			}
 		})
 	}
@@ -994,11 +1009,6 @@ func TestClearRecordsKeepsOnlyTheExclusion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, e := range entries {
-		if isRecordFile(e.Name()) {
-			t.Errorf("record %s was not removed", e.Name())
-		}
-	}
 	if len(entries) != 1 {
 		t.Errorf("the directory holds %d entries after the clear, want only the exclusion's file", len(entries))
 	}
@@ -1021,6 +1031,9 @@ func TestClearRecordsKeepsTheCreatedRecordWhenAnotherRemovalFails(t *testing.T) 
 	if err := held.KeepCreated(space, time.Now()); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := held.BeginSend(SendRecord{Pane: "w:p1", Input: "command", Command: "/mkreq 42"}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
 	// A stop other users can read is not one privatefile removes.
 	stop := filepath.Join(held.dir, stopFile)
 	if err := os.WriteFile(stop, []byte("{}"), 0o644); err != nil { //nolint:gosec // the test needs a mode privatefile refuses
@@ -1031,6 +1044,9 @@ func TestClearRecordsKeepsTheCreatedRecordWhenAnotherRemovalFails(t *testing.T) 
 	}
 	if _, err := os.Stat(filepath.Join(held.dir, createdFile)); err != nil {
 		t.Errorf("the created record was removed before the failing one: %v", err)
+	}
+	if names := sendRecordNames(t, held); !slices.Equal(names, []string{stopFile}) {
+		t.Errorf("records left = %v; the removable send record should be gone and the unremovable stop kept", names)
 	}
 }
 

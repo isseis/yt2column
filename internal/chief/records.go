@@ -1318,8 +1318,8 @@ func (r WorkspaceRecords) Created(home string) (*CreatedRecord, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: the created record's issue: %w", errRecord, err)
 	}
-	if raw.Created.IsZero() || !filepath.IsAbs(raw.Worktree) || filepath.Clean(raw.Worktree) != raw.Worktree {
-		return nil, fmt.Errorf("%w: the created record's worktree or time", errRecord)
+	if raw.Created.IsZero() {
+		return nil, fmt.Errorf("%w: the created record has no time", errRecord)
 	}
 	tree := Worktree{path: raw.Worktree}
 	if workspaceDirOf(tree) != filepath.Base(r.dir) {

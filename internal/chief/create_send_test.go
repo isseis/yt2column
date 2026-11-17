@@ -44,7 +44,7 @@ func TestSendAfterCreate(t *testing.T) {
 		// The offer is the one check left out: the workspace is on a
 		// detached HEAD, so Send itself would not type /mkreq into it.
 		out, err := Send(ctx, deps, sendReq(t, tree, "mkreq", "12", ""))
-		if err != nil || out.Actions[0].Reason != NotSentNotOffered {
+		if err != nil || len(out.Actions) != 1 || out.Actions[0].Reason != NotSentNotOffered {
 			t.Fatalf("Send to the detached workspace = %+v, %v; want not offered", out, err)
 		}
 		held := holdFor(t, deps, tree)
@@ -84,6 +84,21 @@ func TestSendAfterCreate(t *testing.T) {
 		res := sendAfterCreate(ctx, deps, held, Worktree{path: tree}, "w1", issueNumber(t, "12"))
 		if res.Outcome != OutcomeNotSent || res.Reason != NotSentStopped {
 			t.Fatalf("sendAfterCreate = %+v, want not sent, stopped", res)
+		}
+		if stop, err := held.Stopped(); err != nil || stop == nil {
+			t.Errorf("Stopped = %+v, %v; want a stop record made from the unfinished send", stop, err)
+		}
+		if got := sw.rec.prompts(); len(got) != 0 {
+			t.Errorf("typed %v", got)
+		}
+	})
+	t.Run("text left in the input line is not typed over", func(t *testing.T) {
+		sw, tree, deps := createdWorld(t)
+		sw.panes[0].screen = readScreenSample(t, "claude-input-left.ansi")
+		held := holdFor(t, deps, tree)
+		res := sendAfterCreate(ctx, deps, held, Worktree{path: tree}, "w1", issueNumber(t, "12"))
+		if res.Outcome != OutcomeNotSent || res.Reason != NotSentInputLeft {
+			t.Fatalf("sendAfterCreate = %+v, want not sent, input left", res)
 		}
 		if got := sw.rec.prompts(); len(got) != 0 {
 			t.Errorf("typed %v", got)
