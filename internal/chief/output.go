@@ -303,9 +303,30 @@ type DetailOutput struct {
 	ReportSource string         `json:"report_source"`
 	Report       string         `json:"report"`
 	ReportCut    bool           `json:"report_truncated"`
-	RecordError  string         `json:"record_error"`
-	Skippable    bool           `json:"review_skippable"`
-	Runpr        *NextOutput    `json:"runpr"`
+	// DescriptionReason is why no pane's report is shown, null when one is
+	// or when a kept detail was used without the panes being read again.
+	DescriptionReason *DescriptionReasonOutput `json:"description_reason"`
+	RecordError       string                   `json:"record_error"`
+	Skippable         bool                     `json:"review_skippable"`
+	Runpr             *NextOutput              `json:"runpr"`
+}
+
+// DescriptionReasonOutput is why a PR detail shows no pane's report:
+// no_claude_pane, no_candidate (no Claude Code pane's last report has a PR
+// record naming the PR), or several_candidates, with what was found on each
+// Claude Code pane.
+type DescriptionReasonOutput struct {
+	Reason string                  `json:"reason"`
+	Panes  []DescriptionPaneOutput `json:"panes"`
+}
+
+// DescriptionPaneOutput is what a PR detail found on one Claude Code pane:
+// unreadable, no_report, not_named, or candidate, with why it is unreadable
+// or has no report and the transcript's path.
+type DescriptionPaneOutput struct {
+	Pane   string `json:"pane"`
+	Result string `json:"result"`
+	Detail string `json:"detail"`
 }
 
 // SizeOutput is a PR's size.
@@ -408,6 +429,13 @@ func (o DetailOutcome) Output() DetailOutput {
 		out.Reviews = nil
 	}
 	out.ReportSource, out.Report, out.ReportCut = d.Report.String(), Sanitize(d.ReportText), d.ReportTruncated
+	if d.DescriptionReason != DescriptionReasonNone {
+		reason := &DescriptionReasonOutput{Reason: d.DescriptionReason.String(), Panes: []DescriptionPaneOutput{}}
+		for _, p := range d.ReportPanes {
+			reason.Panes = append(reason.Panes, DescriptionPaneOutput{Pane: Sanitize(p.Pane), Result: p.Kind.String(), Detail: Sanitize(p.Detail)})
+		}
+		out.DescriptionReason = reason
+	}
 	out.Skippable = d.ReviewSkippable
 	out.Runpr = nextOutput(d.Runpr)
 	return out

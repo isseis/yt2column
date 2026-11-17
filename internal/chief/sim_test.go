@@ -162,6 +162,22 @@ func prRecordLine(pr int) string {
 	return fmt.Sprintf(`{"type":"pr-link","prNumber":%d,"prUrl":"https://github.com/owner/yt2column/pull/%d","prRepository":"owner/yt2column"}`, pr, pr)
 }
 
+// prURLRecordLine is the transcript record Claude Code writes for the PR with
+// this number and URL of the repository owner/repo (that of openPRJSON), in
+// the sampled form.
+func prURLRecordLine(pr int, url string) string {
+	return fmt.Sprintf(`{"type":"pr-link","prNumber":%d,"prUrl":%q,"prRepository":"owner/repo"}`, pr, url)
+}
+
+// appendTranscript appends lines to the transcript of a pane's current
+// session.
+func (sw *sendWorld) appendTranscript(p *simPane, lines ...string) {
+	sw.t.Helper()
+	if err := sw.writeTranscript(p, p.Session, lines...); err != nil {
+		sw.t.Fatal(err)
+	}
+}
+
 // setTranscript replaces the transcript of a pane's current session with
 // its first line followed by lines.
 func (sw *sendWorld) setTranscript(p *simPane, lines ...string) {
