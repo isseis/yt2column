@@ -416,6 +416,9 @@ func TestResetAfterRunprSkipOffer(t *testing.T) {
 				return reply{out: agentGetOutput(pane.fakeAgent)}
 			})
 		}},
+		{name: "the idle pane shows a question", react: func(sw *sendWorld, _ *simPane, _ string) {
+			sw.byPane["w1:p1"].screen = readScreenSample(sw.t, "claude-question-single.ansi")
+		}},
 		{name: "the pane cannot be read again", react: func(sw *sendWorld, _ *simPane, _ string) {
 			sw.rec.replyFunc("herdr agent get w1:p1", func() reply { return reply{err: errNoReply} })
 		}},

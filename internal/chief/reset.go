@@ -265,6 +265,15 @@ func (s sendContext) offerSkip(ctx context.Context, res ActionResult, skip reset
 	case skip.seq != nil && a.StateChangeSeq != *skip.seq:
 		return not("the pane changed state since it was read")
 	}
+	// An idle agent may still show a question; the pane must wait at its
+	// prompt.
+	raw, err := s.herdr.Screen(ctx, a.Pane, ScreenVisible)
+	switch {
+	case err != nil:
+		return not("herdr agent read failed: " + err.Error())
+	case readScreen(a.Kind, raw).Kind != ScreenPrompt:
+		return not("the pane does not wait at its prompt")
+	}
 	if why := check(a); why != "" {
 		return not(why)
 	}
