@@ -25,7 +25,7 @@ import (
 // Protocol is the number of the command-line and output contract. The skill
 // that drives the tool passes the same number with --protocol, so an old
 // install is refused instead of misread.
-const Protocol = 1
+const Protocol = 2
 
 // errRecord reports a record that is not in the accepted form.
 var errRecord = errors.New("unreadable record")
@@ -691,6 +691,10 @@ type StopRecord struct {
 // kind's known values.
 const unknownName = "unknown"
 
+// noReportName is the output's name of a pane with no last report, the
+// same in a send's reason and in what a check found on a pane.
+const noReportName = "no_report"
+
 // outcomeUnknown is the end a send gets when its own end was never written:
 // whether it was sent cannot be told.
 const outcomeUnknown = unknownName
@@ -1212,7 +1216,7 @@ func (r WorkspaceRecords) keptPaneReport(pr int, head string) (detailRecord, boo
 		return detailRecord{}, false, err
 	case rec.PR != pr || rec.Head != head:
 		return detailRecord{}, false, fmt.Errorf("%w: report of PR %d at %s names another", errRecord, pr, head)
-	case rec.Source != ReportFromScreen.String():
+	case rec.Source != ReportFromPane.String():
 		return detailRecord{}, false, fmt.Errorf("%w: report of PR %d at %s is not from a pane", errRecord, pr, head)
 	}
 	return rec, true, nil

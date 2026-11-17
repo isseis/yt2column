@@ -161,7 +161,7 @@ func (r NotSentReason) String() string {
 		NotSentNotOffered:      "not_offered",
 		NotSentNoWorkspace:     "no_workspace",
 		NotSentSamePane:        "same_pane",
-		NotSentNoReport:        "no_report",
+		NotSentNoReport:        noReportName,
 		NotSentPaneChanged:     "pane_changed",
 		NotSentNoStep:          "step_not_finished",
 		NotSentOtherInput:      "other_input",

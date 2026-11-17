@@ -43,24 +43,12 @@ func prMaker(f workspaceFacts) (maker, string) {
 	return maker{route: next.Command.Route(), name: name, args: args}, ""
 }
 
-// lastInputMadePR checks that the last line the human typed into the
-// candidate's Claude Code session is the command that created the PR, its
+// lastInputMadePR checks that in, the last line the human typed into the
+// candidate's Claude Code session, is the command that created the PR, its
 // name and argument compared whole: a pane the human went on using after
 // that command, even with another command of the same task, is never
 // emptied. It returns NotSentUnknown when the check passes.
-func (s sendContext) lastInputMadePR(a Agent, made maker) (NotSentReason, string) {
-	if a.Kind != paneinput.AgentClaudeCode {
-		return NotSentNoReport, "only a Claude Code session records its human input"
-	}
-	path, err := transcriptPath(s.deps.Env, a.Dir, a.Session)
-	if err != nil {
-		return transcriptFailure(err)
-	}
-	data, err := readTranscript(path, sessionTranscriptLimit)
-	if err != nil {
-		return NotSentNoTranscript, err.Error()
-	}
-	in := readLastHumanInput(data)
+func lastInputMadePR(in HumanInput, made maker) (NotSentReason, string) {
 	switch {
 	case in.Kind == HumanInputUnreadable:
 		return NotSentNoTranscript, "a line of the transcript cannot be read"
@@ -87,10 +75,13 @@ func resetPrompt(agent paneinput.AgentKind) (step, bool) {
 // resetAfterRunpr empties the pane of the command that created the PR, after
 // /runpr went to runprPane (the design, 3.1.3). Contract: the candidate is
 // chosen by the routing table (the one pane of the maker's agent), never by
-// a screen; it is emptied only when it is not runprPane, the kept detail
+// a screen; it is emptied only when it is not runprPane, the kept record
 // read the PR's report from it, its state has not changed since, and its
-// screen still shows that report; every other case is OutcomeNotSent with
-// its reason. The reset is checked and recorded like any send.
+// session's transcript, read once after that state, still ends in a last
+// report, has a PR record naming the PR, and has the command that created
+// the PR as the human's last input; every other case is OutcomeNotSent with
+// its reason, and a transcript that cannot be read is never replaced by the
+// screen. The reset is checked and recorded like any send.
 func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr OpenPR, rec *detailRecord, made maker, why string, routing Routing) ActionResult {
 	res := ActionResult{Workspace: s.ws.Worktree, Input: InputReset}
 	if made.route == paneinput.RouteUnknown {
@@ -115,7 +106,7 @@ func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr O
 	if res.Pane == runprPane {
 		return notSent(res, NotSentSamePane, "the pane that created the PR runs /runpr now")
 	}
-	if rec == nil || rec.Source != ReportFromScreen.String() || rec.Pane != res.Pane {
+	if rec == nil || rec.Source != ReportFromPane.String() || rec.Pane != res.Pane {
 		return notSent(res, NotSentNoReport, "the PR detail kept no report from this pane")
 	}
 	a, err := s.herdr.Agent(ctx, candidate.Pane)
@@ -128,14 +119,21 @@ func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr O
 	if a.StateChangeSeq != rec.Seq {
 		return notSent(res, NotSentPaneChanged, "the pane changed state since its report was kept")
 	}
-	raw, err := s.herdr.Screen(ctx, a.Pane, reportSource(a))
-	if err != nil {
-		return notSent(res, NotSentUnreadable, "herdr agent read failed: "+err.Error())
+	if a.Kind != paneinput.AgentClaudeCode {
+		return notSent(res, NotSentNoReport, "only a Claude Code session records its last report and human input")
 	}
-	if _, ok := readCommandReport(a.Kind, raw, pr.URL); !ok {
-		return notSent(res, NotSentNoReport, "the pane no longer shows the PR's report")
+	cr := readClaudeReport(s.deps.Env, a)
+	switch cr.Report.Kind {
+	case SessionReportFound:
+	case SessionReportAbsent:
+		return notSent(res, NotSentNoReport, "the pane has no last report: "+cr.Detail)
+	default:
+		return notSent(res, cr.Reason, "the transcript of the pane cannot be read: "+cr.Detail)
 	}
-	if reason, detail := s.lastInputMadePR(a, made); reason != NotSentUnknown {
+	if !cr.Report.Names(pr.Number, pr.URL) {
+		return notSent(res, NotSentNoReport, "the pane's session has no PR record naming the PR")
+	}
+	if reason, detail := lastInputMadePR(cr.Report.LastHuman, made); reason != NotSentUnknown {
 		return notSent(res, reason, detail)
 	}
 	seq := a.StateChangeSeq

@@ -5,11 +5,16 @@ package chief
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/cmdrunner"
+	"github.com/isseis/yt2column/internal/privatefile"
 )
 
 // prURL is the URL of the open PR of openPRJSON.
@@ -42,15 +47,66 @@ func viewOf(t *testing.T, sample string, edit func(map[string]any)) []byte {
 // checks.
 func detailWorld(t *testing.T) (*sendWorld, string) {
 	t.Helper()
+	return detailWorldAt(t, "", "claude", "opencode")
+}
+
+// detailWorldAt is detailWorld with the worktree directory named tree (""
+// for the default name) and one pane of each kind given.
+func detailWorldAt(t *testing.T, tree string, kinds ...string) (*sendWorld, string) {
+	t.Helper()
 	sw := newSendWorld(t)
 	// origin/main has the approved requirements, so the open PR is /mkarch's.
-	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}}, "claude", "opencode")
+	tree = sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}, Tree: tree}, kinds...)
 	sw.rec.replyIn(tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", nil))
 	sw.rec.replyIn(tree, "gh pr checks 42 --json "+prChecksFields, readTestdata(t, "gh/pr-checks-200-fail.json"))
 	sw.git(tree, "rev-parse HEAD", prHead+"\n")
 	// The Claude Code pane is the one that created the PR.
-	sw.byPane["w1:p1"].ran = "/mkarch 0001"
+	if p := sw.byPane["w1:p1"]; p.Kind == "claude" {
+		p.ran = "/mkarch 0001"
+	}
 	return sw, tree
+}
+
+// addClaudePane adds an idle Claude Code pane w1:p<n> to the workspace at
+// tree; call it before finish.
+func (sw *sendWorld) addClaudePane(tree string, n int) *simPane {
+	sw.t.Helper()
+	p := &simPane{fakeAgent: fakeAgent{Pane: fmt.Sprintf("w1:p%d", n), Workspace: "w1", Kind: "claude", Status: "idle", Session: sw.newSession(), Dir: tree, Seq: 10}}
+	p.screen = readScreenSample(sw.t, "claude-idle.ansi")
+	sw.panes = append(sw.panes, p)
+	sw.byPane[p.Pane] = p
+	return p
+}
+
+// makerReport is the last report of the command that created PR 42 in the
+// detail and reset tests. It names the PR by its number alone, never by its
+// URL, so only the session's PR record ties it to the PR.
+const makerReport = "Opened PR 42 with the architecture document of task 0001 for review."
+
+// openPRLink is the transcript's PR record of the open PR 42.
+var openPRLink = prURLRecordLine(42, prURL)
+
+// endWithReport appends to the transcript of p's session the PR record of
+// PR 42 and a finished last report of text.
+func (sw *sendWorld) endWithReport(p *simPane, text string) {
+	sw.t.Helper()
+	sw.appendTranscript(p, openPRLink, answerLine("msg_report", text))
+}
+
+// breakTranscript appends to the transcript of p's session a line cut off
+// while it was written, which makes the transcript unreadable.
+func (sw *sendWorld) breakTranscript(p *simPane) {
+	sw.t.Helper()
+	sw.appendTranscript(p, `{"type":"assistant"`)
+}
+
+// removeTranscript removes the transcript of p's session, which Herdr still
+// reports.
+func (sw *sendWorld) removeTranscript(p *simPane) {
+	sw.t.Helper()
+	if err := os.Remove(sw.transcript(p, p.Session)); err != nil {
+		sw.t.Fatal(err)
+	}
 }
 
 func detailOf(t *testing.T, deps Deps, tree string) PRDetail {
@@ -159,47 +215,141 @@ func TestDetailOmitsReviewBody(t *testing.T) {
 	}
 }
 
-// TestDetailReportSource checks where the summary comes from: the one pane
-// whose screen holds the command's report naming the PR, else the PR
-// description, and that the source says which.
+// TestDetailReportSource checks where the summary comes from: the last
+// report of the one Claude Code pane whose session has a PR record naming
+// the PR, read from its transcript, else the PR description with why, and
+// what was found on each Claude Code pane. The report's own text never
+// makes a pane a candidate, a screen is never read, and a pane whose
+// transcript cannot be read counts as one with no report.
 func TestDetailReportSource(t *testing.T) {
 	cases := []struct {
-		name   string
-		screen func(t *testing.T) string
-		both   bool
+		name string
+		// kinds are the panes of the workspace, nil for detailWorld's.
+		kinds []string
+		// extra adds a second Claude Code pane, w1:p3.
+		extra bool
+		// set writes the Claude Code panes' transcripts and screens after
+		// the world is finished.
+		set    func(sw *sendWorld, panes []*simPane)
 		want   ReportSource
+		pane   string
+		reason DescriptionReason
+		found  []PaneReportKind
 	}{
-		{"the report on one pane", func(t *testing.T) string { return reportScreen(t, prURL) }, false, ReportFromScreen},
-		{"a report naming another PR", func(t *testing.T) string { return reportScreen(t, prURL+"0") }, false, ReportFromDescription},
-		{"no report", func(t *testing.T) string { return readScreenSample(t, "claude-idle.ansi") }, false, ReportFromDescription},
-		{"the report on two panes", func(t *testing.T) string { return reportScreen(t, prURL) }, true, ReportFromDescription},
+		{name: "the report on one pane", set: func(sw *sendWorld, ps []*simPane) {
+			sw.endWithReport(ps[0], makerReport)
+		}, want: ReportFromPane, pane: "w1:p1"},
+		{name: "a PR record naming another PR", set: func(sw *sendWorld, ps []*simPane) {
+			sw.appendTranscript(ps[0], prURLRecordLine(43, prURL[:len(prURL)-2]+"43"), answerLine("msg_report", makerReport))
+		}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportNotNamed}},
+		{name: "a report naming the PR's URL, with no PR record", set: func(sw *sendWorld, ps []*simPane) {
+			sw.appendTranscript(ps[0], answerLine("msg_report", makerReport+" "+prURL))
+		}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportNotNamed}},
+		{name: "no report", set: func(*sendWorld, []*simPane) {}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportAbsent}},
+		{name: "a report on the screen alone", set: func(sw *sendWorld, ps []*simPane) {
+			ps[0].screen = readScreenSample(sw.t, "claude-command-report.ansi")
+		}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportAbsent}},
+		{name: "no transcript file", set: func(sw *sendWorld, ps []*simPane) {
+			sw.removeTranscript(ps[0])
+		}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportAbsent}},
+		{name: "an unreadable transcript", set: func(sw *sendWorld, ps []*simPane) {
+			sw.endWithReport(ps[0], makerReport)
+			sw.breakTranscript(ps[0])
+		}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportUnreadable}},
+		{name: "an unreadable pane and a pane with the report", extra: true, set: func(sw *sendWorld, ps []*simPane) {
+			sw.breakTranscript(ps[0])
+			sw.endWithReport(ps[1], makerReport)
+		}, want: ReportFromPane, pane: "w1:p3"},
+		{name: "the report on two panes", extra: true, set: func(sw *sendWorld, ps []*simPane) {
+			sw.endWithReport(ps[0], makerReport)
+			sw.endWithReport(ps[1], makerReport)
+		}, want: ReportFromDescription, reason: DescriptionReasonSeveralCandidates, found: []PaneReportKind{PaneReportCandidate, PaneReportCandidate}},
+		{name: "no Claude Code pane", kinds: []string{"opencode"}, set: func(*sendWorld, []*simPane) {}, want: ReportFromDescription, reason: DescriptionReasonNoClaudePane},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			sw, tree := detailWorld(t)
-			if c.both {
-				p := &simPane{fakeAgent: fakeAgent{Pane: "w1:p3", Workspace: "w1", Kind: "claude", Status: "idle", Session: sw.newSession(), Dir: tree, Seq: 10}}
-				sw.panes = append(sw.panes, p)
-				sw.byPane[p.Pane] = p
-				p.screen = c.screen(t)
+			kinds := c.kinds
+			if kinds == nil {
+				kinds = []string{"claude", "opencode"}
+			}
+			sw, tree := detailWorldAt(t, "", kinds...)
+			if c.extra {
+				sw.addClaudePane(tree, 3)
 			}
 			deps := sw.finish()
-			sw.firstPane().screen = c.screen(t)
-			d := detailOf(t, deps, tree)
-			if d.Report != c.want {
-				t.Fatalf("source = %s, want %s", d.Report, c.want)
+			var claude []*simPane
+			for _, p := range sw.panes {
+				if p.Kind == "claude" {
+					claude = append(claude, p)
+				}
 			}
+			c.set(sw, claude)
+			out, err := Detail(context.Background(), deps, tree)
+			if err != nil || out.Detail == nil {
+				t.Fatalf("Detail = %+v, %v", out, err)
+			}
+			d := *out.Detail
+			if d.Report != c.want || d.RecordErr != "" {
+				t.Fatalf("source = %s, record error %q; want %s", d.Report, d.RecordErr, c.want)
+			}
+			var found []PaneReportKind
+			for _, p := range d.ReportPanes {
+				found = append(found, p.Kind)
+			}
+			if d.DescriptionReason != c.reason || !slices.Equal(found, c.found) {
+				t.Errorf("reason = %s, panes %+v; want %s, %v", d.DescriptionReason, d.ReportPanes, c.reason, c.found)
+			}
+			reason := out.Output().DescriptionReason
 			switch c.want {
-			case ReportFromScreen:
-				if !isSampleReport(d.ReportText) {
-					t.Errorf("report = %q", d.ReportText)
+			case ReportFromPane:
+				if d.ReportText != makerReport || d.record == nil || d.record.Pane != c.pane || reason != nil {
+					t.Errorf("report = %q from %+v, output reason %+v; want the report of %s", d.ReportText, d.record, reason, c.pane)
 				}
 			case ReportFromDescription:
 				if !strings.HasPrefix(d.ReportText, "## ") {
 					t.Errorf("description = %q", d.ReportText)
 				}
+				if reason == nil || reason.Reason != c.reason.String() || len(reason.Panes) != len(c.found) {
+					t.Errorf("output reason = %+v; want %s with %d panes", reason, c.reason, len(c.found))
+				}
 			}
 		})
+	}
+}
+
+// TestDetailCapsALongReport checks that a report longer than the cap is
+// shown from its head, cut at the cap and marked so, still as the pane's
+// report.
+func TestDetailCapsALongReport(t *testing.T) {
+	sw, tree := detailWorld(t)
+	deps := sw.finish()
+	long := makerReport + "\n\n" + strings.Repeat("x", headMaxBytes)
+	sw.endWithReport(sw.firstPane(), long)
+	d := detailOf(t, deps, tree)
+	if d.Report != ReportFromPane || !d.ReportTruncated || len(d.ReportText) > headMaxBytes || !strings.HasPrefix(d.ReportText, makerReport) {
+		t.Errorf("source %s, truncated %v, %d bytes; want the report's head, cut at %d bytes", d.Report, d.ReportTruncated, len(d.ReportText), headMaxBytes)
+	}
+}
+
+// TestDetailKeepsTheListedState checks that the kept report holds the
+// pane's state as the workspace's list gave it before the transcript was
+// read, not as a later read of the pane gives it, so a later reset of the
+// pane stops as one that changed.
+func TestDetailKeepsTheListedState(t *testing.T) {
+	sw, tree := detailWorld(t)
+	deps := sw.finish()
+	p := sw.firstPane()
+	sw.endWithReport(p, makerReport)
+	later := p.fakeAgent
+	later.Seq += 5
+	sw.rec.replyFunc("herdr agent get w1:p1", func() reply { return reply{out: agentGetOutput(later)} })
+	d := detailOf(t, deps, tree)
+	if d.Report != ReportFromPane || d.record == nil || d.record.Seq != int64(p.Seq) {
+		t.Fatalf("detail = %s, record %+v; want the report kept with state %d", d.Report, d.record, p.Seq)
+	}
+	out := sendRunpr(t, deps, tree)
+	if len(out.Actions) != 2 || out.Actions[1].Outcome != OutcomeNotSent || out.Actions[1].Reason != NotSentPaneChanged {
+		t.Errorf("actions = %+v; want the reset not sent, pane_changed", out.Actions)
 	}
 }
 
@@ -267,20 +417,103 @@ func TestReviewSkippable(t *testing.T) {
 
 // TestDetailAfterReset checks that the report kept by a detail is returned
 // by a later detail for the same head after the pane was emptied, with its
-// source still the report.
+// source still the pane's report.
 func TestDetailAfterReset(t *testing.T) {
 	sw, tree := detailWorld(t)
 	deps := sw.finish()
-	sw.firstPane().screen = reportScreen(t, prURL)
+	p := sw.firstPane()
+	sw.endWithReport(p, makerReport)
 	first := detailOf(t, deps, tree)
-	if first.Report != ReportFromScreen || first.RecordErr != "" {
+	if first.Report != ReportFromPane || first.RecordErr != "" {
 		t.Fatalf("first detail = %+v", first)
 	}
-	sw.firstPane().screen = readScreenSample(t, "claude-after-clear.ansi")
+	if err := sw.realReact(p, "/clear"); err != nil {
+		t.Fatal(err)
+	}
 	second := detailOf(t, deps, tree)
-	if second.Report != ReportFromScreen || second.ReportText != first.ReportText {
+	if second.Report != ReportFromPane || second.ReportText != first.ReportText {
 		t.Errorf("second detail = %s %q, want the kept report", second.Report, second.ReportText)
 	}
+}
+
+// TestDetailReportRecord checks the report record: when only a detail of the
+// description is kept and the report is written later, chief detail keeps a
+// report record once, which a later detail and the reset use and a third
+// detail never replaces; a reading that finds no single report keeps none;
+// and the detail gathered just before /runpr never keeps one.
+func TestDetailReportRecord(t *testing.T) {
+	setup := func(t *testing.T) (*sendWorld, string, Deps, WorkspaceRecords) {
+		t.Helper()
+		sw, tree := detailWorld(t)
+		deps := sw.finish()
+		if d := detailOf(t, deps, tree); d.Report != ReportFromDescription || d.RecordErr != "" {
+			t.Fatalf("first detail = %s, record error %q; want the description kept", d.Report, d.RecordErr)
+		}
+		records, err := deps.Store.Records(Worktree{path: tree})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sw, tree, deps, records
+	}
+	reportKept := func(t *testing.T, records WorkspaceRecords) (detailRecord, bool) {
+		t.Helper()
+		var rec detailRecord
+		err := records.store().read(reportName(42, prHead), &rec)
+		if err != nil && !errors.Is(err, privatefile.ErrNotExist) {
+			t.Fatal(err)
+		}
+		return rec, err == nil
+	}
+	t.Run("kept once and used", func(t *testing.T) {
+		sw, tree, deps, records := setup(t)
+		p := sw.firstPane()
+		sw.endWithReport(p, makerReport)
+		if d := detailOf(t, deps, tree); d.Report != ReportFromPane || d.ReportText != makerReport || d.RecordErr != "" {
+			t.Fatalf("second detail = %s %q, record error %q; want the report", d.Report, d.ReportText, d.RecordErr)
+		}
+		first, ok := reportKept(t, records)
+		if !ok || first.Source != ReportFromPane.String() || first.Pane != "w1:p1" {
+			t.Fatalf("report record = %+v, %v; want one from w1:p1", first, ok)
+		}
+		sw.appendTranscript(p, typedLine("and once more"), answerLine("msg_again", "Another report."))
+		if d := detailOf(t, deps, tree); d.ReportText != makerReport {
+			t.Errorf("third detail = %q; want the kept report", d.ReportText)
+		}
+		if again, _ := reportKept(t, records); again != first {
+			t.Errorf("the report record changed to %+v", again)
+		}
+		// The pane's last report is the kept one again, as /mkarch left it.
+		sw.setTranscript(p, commandLine("/mkarch 0001"), openPRLink, answerLine("msg_report", makerReport))
+		out := sendRunpr(t, deps, tree)
+		if len(out.Actions) != 2 || out.Actions[1].Outcome != OutcomeSent || out.Actions[1].Pane != "w1:p1" {
+			t.Errorf("actions = %+v; want the reset of w1:p1 sent", out.Actions)
+		}
+	})
+	t.Run("no single report", func(t *testing.T) {
+		sw, tree, deps, records := setup(t)
+		sw.appendTranscript(sw.firstPane(), answerLine("msg_report", makerReport))
+		d := detailOf(t, deps, tree)
+		if d.Report != ReportFromDescription || d.DescriptionReason != DescriptionReasonNoCandidate {
+			t.Errorf("detail = %s, reason %s; want the kept description, no candidate", d.Report, d.DescriptionReason)
+		}
+		if _, ok := reportKept(t, records); ok {
+			t.Error("a report record was kept without a report")
+		}
+	})
+	t.Run("not before /runpr", func(t *testing.T) {
+		sw, tree, deps, records := setup(t)
+		sw.endWithReport(sw.firstPane(), makerReport)
+		// The worktree's HEAD moved past the PR's head, so the detail before
+		// /runpr finds no record for it and gathers one of the PR's head.
+		sw.git(tree, "rev-parse HEAD", strings.Repeat("f", 40)+"\n")
+		out := sendRunpr(t, deps, tree)
+		if _, ok := reportKept(t, records); ok {
+			t.Error("the detail before /runpr kept a report record")
+		}
+		if len(out.Actions) != 2 || out.Actions[1].Reason != NotSentNoReport {
+			t.Errorf("actions = %+v; want the reset not sent for no kept report", out.Actions)
+		}
+	})
 }
 
 // TestDetailKeepsALargeDescription checks that a detail whose description
