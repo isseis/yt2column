@@ -500,7 +500,7 @@
 | AC-07 | `ic/issue_test.go::TestParseIssueTitle`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-08 | `ic/create_test.go::TestWorktreeAddDetached`（本物の git でブランチを作らない）、`ic/create_test.go::TestCreateStages`（fetch の後のコミットで作る） | test | 4-2 | PR-4 |
 | AC-09 | `ic/create_test.go::TestCreateStages`（workspace とタブ 3 つ、`--session` なし）、`ic/create_test.go::TestCreateStopsAtEachStage`（段 `panes`）、実地の確かめ | test、manual | 4-2・7-5 | PR-4、PR-7 |
-| AC-10 | `ic/create_test.go::TestWorkspaceMakerStartsAgentsWithoutArguments`、`ic/create_send_test.go::TestSendAfterCreate` | test | 3-3・4-1 | PR-3、PR-4 |
+| AC-10 | `ic/create_test.go::TestCreateStages`（`agent start` の書き込みの行を完全に比べ、ほかの引数がない）、`ic/create_test.go::TestWorkspaceMakerStartsAgentsWithoutArguments`（時間の上限）、`ic/create_send_test.go::TestSendAfterCreate` | test | 3-3・4-1 | PR-3、PR-4 |
 | AC-11 | `ic/create_test.go::TestCreateRefusesExisting`（ファイル・ディレクトリ・リンク、登録だけの worktree、パスの workspace）、`ic/taskspace_test.go::TestNewTaskSpace`、`ic/create_test.go::TestCreateFetchFailure` | test | 2-3・4-2 | PR-2、PR-4 |
 | AC-12 | `ic/create_test.go::TestCreateStopsAtEachStage`、`ic/create_test.go::TestCreateDeadline` | test | 4-2 | PR-4 |
 | AC-13 | `ic/create_test.go::TestWorkspaceMakerUsesOnlyItsIDs`、`ic/construction_test.go::TestGuardedTypesAreBuiltOnlyByTheirConstructors`、`ic/autosend_test.go::TestTickSkipsAutoSendWhileCreating`、`ic/create_test.go::TestCreateBusyDuringTick`、定義が `create` を前景で呼ぶこと | test、manual | 4-1・4-4・7-2 | PR-4、PR-7 |
