@@ -181,8 +181,8 @@ const (
 | ① | `reset.go:118-120` で、`rec.Source` が `ReportFromScreen` で `rec.Pane` が候補でない | `skipNotOffered` | — |
 | ① | `reset.go:135-137`（控えた後に状態は変わっていないが、画面から報告が読めない） | 候補が Claude Code なら `skipReportAbsent`、OpenCode なら `skipNotOffered` | 入力を待っている。`lastInputMadePR` が通る |
 | ① | `reset.go:52-54`（OpenCode の pane の `lastInputMadePR`） | `skipNotOffered` | — |
-| ② | `autosend.go:769` で、`readRunprReport` が報告を読めない（`!ok`）か、OpenCode の pane で最後のメッセージの始まりが画面の外に出ていて、見えている部分が PR を名指さない（NEXT は違わない） | `skipReportAbsent` | 今読んだ状態の変化の番号が、排他の下で読んだ `candidate.StateChangeSeq` と等しい。入力を待っている。Claude Code では、transcript の人の最後の入力の名前が `runpr` である |
-| ② | `autosend.go:769` で、最後のメッセージの全体が画面にあり、マージした PR を名指さない。または、NEXT が送ったコマンドと違う（始まりが画面の外でも） | `skipNotOffered` | — |
+| ② | `runprPaneReport` が `no_report` で報告を読めない（Claude Code の pane では transcript に最後の報告がなく、OpenCode の pane では `readRunprReport` が `!ok`）か、OpenCode の pane で最後のメッセージの始まりが画面の外に出ていて、見えている部分が PR を名指さない（NEXT は違わない） | `skipReportAbsent` | 今読んだ状態の変化の番号が、排他の下で読んだ `candidate.StateChangeSeq` と等しい。入力を待っている。Claude Code では、transcript の人の最後の入力の名前が `runpr` である |
+| ② | 最後のメッセージの全体が読め、マージした PR を名指さない。または、NEXT が送ったコマンドと違う（始まりが画面の外でも） | `skipNotOffered` | — |
 
 -   OpenCode の最後のメッセージを読む `openCodeLastMessage`（`internal/chief/screen_report.go:264-289`）は、上へたどって入力欄の枠の行に当たらずに画面の先頭まで来ても、見えている残りを返す。この変更では、メッセージの始まりが画面にあるか（枠の行で区切られているか）も返すようにし、`RunprReport` に持たせる。`readRunprReport` の `ok` の意味と、ほかの呼び出し元の振る舞いは変えない。Claude Code の最後のメッセージは `⏺ ` の印が要るので、始まりが画面の外に出ると `!ok` になる（`screen_report.go:170-213`）。
 -   ②の `no_report` の `Detail` は、報告として読めない・始まりが画面の外・PR を名指さない・NEXT が違う、のどれかを見分けられる文言にする（要件定義書の AC-07）。
@@ -234,7 +234,7 @@ type OfferedResetRequest struct {
 }
 
 func ParseOfferedResetRequest(workspace, check string) (OfferedResetRequest, error)
-func SendOfferedReset(ctx context.Context, deps Deps, req OfferedResetRequest) (SendOutcome, error)
+func SendOfferedReset(ctx context.Context, deps Deps, owner Owner, req OfferedResetRequest) (SendOutcome, error)
 ```
 
 `SendOfferedReset` は次の順で動く。

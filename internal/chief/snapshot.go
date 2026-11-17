@@ -134,6 +134,8 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 		row := classifyWorkspace(ctx, git, tasks, f, view.old, view.oldErr)
 		if err := addRecords(ctx, git, deps.Store, w, &row); err != nil {
 			view.problems = append(view.problems, "the records of "+w.Worktree+" cannot be read: "+err.Error())
+		} else {
+			view.problems = append(view.problems, addResets(deps.Store, w, &row, view.routing)...)
 		}
 		view.facts = append(view.facts, f)
 		view.rows = append(view.rows, row)
@@ -213,6 +215,37 @@ func addRecords(ctx context.Context, git GitReader, store Store, w TaskWorkspace
 		}
 	}
 	return nil
+}
+
+// addResets offers on the row the resets its skip records name, as
+// resetItemOf allows, and returns the problems of the records it could not
+// read. Contract: it reads only, so a record is never created or removed by
+// a round; a row that needs a check or is stopped gets no item; a record
+// that cannot be read is named with its path and never offered.
+func addResets(store Store, w TaskWorkspace, row *Row, routing Routing) []string {
+	records, ok, err := store.existingRecords(w.Tree)
+	if err != nil || !ok {
+		// addRecords read the same directory and reported its failure.
+		return nil
+	}
+	found, err := records.skipRecords()
+	if err != nil {
+		return []string{"the skip records of " + w.Worktree + " cannot be listed: " + err.Error()}
+	}
+	var problems []string
+	for _, f := range found {
+		if f.err != nil {
+			problems = append(problems, "the skip record "+f.path+" cannot be read, so it is not offered (remove it by hand): "+f.err.Error())
+			continue
+		}
+		if row.State == StateNeedsCheck || row.Stopped != nil {
+			continue
+		}
+		if item, _, ok := resetItemOf(w, f.rec, routing); ok {
+			row.Resets = append(row.Resets, item)
+		}
+	}
+	return problems
 }
 
 // readOldValues reads the old-value table of origin/main's _context.md.

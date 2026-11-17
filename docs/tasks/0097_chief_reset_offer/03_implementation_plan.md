@@ -55,9 +55,9 @@
 
 **変えるファイル:** `internal/chief/skiprecord.go`（新規）、`internal/chief/skiprecord_test.go`（新規）、`internal/chief/records.go`
 
-- [ ] 設計書 3.1 節の記録の型（JSON の形と、確かめを通った値の型）、作る・一覧する・使い済みにする操作を足す
-- [ ] 作る・読む・同じ名前の 2 回目（すでに記録したものとして扱う）のテストと、設計書 3.1 節の読めない記録の各場合（重なった欄を含む）のテストを書く
-- [ ] 設計書 3.1 節のとおり、`HeldWorkspace.cleanup`（`internal/chief/records.go`）が 14 日を過ぎた見送りの記録を消すようにし、過ぎた記録（読めない記録を含む）が消え、過ぎていない記録が残るテストを書く
+- [x] 設計書 3.1 節の記録の型（JSON の形と、確かめを通った値の型）、作る・一覧する・使い済みにする操作を足す
+- [x] 作る・読む・同じ名前の 2 回目（すでに記録したものとして扱う）のテストと、設計書 3.1 節の読めない記録の各場合（重なった欄を含む）のテストを書く
+- [x] 設計書 3.1 節のとおり、`HeldWorkspace.cleanup`（`internal/chief/records.go`）が 14 日を過ぎた見送りの記録を消すようにし、過ぎた記録（読めない記録を含む）が消え、過ぎていない記録が残るテストを書く
 
 **完了の条件:** 記録のテストが通る。
 
@@ -65,13 +65,13 @@
 
 **変えるファイル:** `internal/chief/reset.go`、`internal/chief/request.go`、`internal/chief/autosend.go`、`internal/chief/screen_report.go`、`internal/chief/reset_test.go`、`internal/chief/autosend_test.go`
 
-- [ ] 設計書 3.2 節のとおり、`resetAfterRunpr` と `resetRunpr` が見送りの種類を返すようにする。`reset.go:118-120` と `autosend.go:769-771` は、設計書 3.2 節の表の行ごとに条件を分ける
-- [ ] 設計書 3.2 節のとおり、`openCodeLastMessage`（`internal/chief/screen_report.go`）がメッセージの始まりが画面にあるかも返すようにし、②の `Detail` を条件ごとに分ける。始まりが画面の外に出た OpenCode の報告（`testdata/screens/opencode-runpr-report.txt` の先頭を切ったもの）が `skipReportAbsent` になり、全体が見える別の PR の報告と、NEXT が違う報告が `skipNotOffered` になるテストを書く。`readRunprReport` のほかの呼び出し元の今のテストが変わらずに通ることを確かめる
-- [ ] `skipReportAbsent` のときにそのほかの条件を評価し、`resetMaker` と `autoSender.send` が記録を書いて `Detail` に添えるようにする
-- [ ] 表の各行について、見送りの種類と記録の有無を確かめるテストを書く。①の OpenCode の行は、送り先の表で `runpr` を Claude Code に差し替えて（`send_test.go:720-725` の形）テストする
-- [ ] `skipReportAbsent` の行で、そのほかの条件を 1 つずつ崩したとき、その読み取り（Herdr・transcript）を失敗させたとき、記録の書き込みを失敗させたとき（`Store.beforeCreate`）のテストを書く。どれも `Outcome`・`Reason` が `not_sent`・`no_report` のままで、打った入力が変わらないことを確かめる
-- [ ] `no_report` 以外の理由で見送る今のテストの行に、記録が書かれないことの確かめを足す
-- [ ] 今のリセットのテストが、`Outcome`・`Reason` の期待値を変えずに通ることを確かめる
+- [x] 設計書 3.2 節のとおり、`resetAfterRunpr` と `resetRunpr` が見送りの種類を返すようにする。`reset.go:118-120` と `autosend.go:769-771` は、設計書 3.2 節の表の行ごとに条件を分ける
+- [x] 設計書 3.2 節のとおり、`openCodeLastMessage`（`internal/chief/screen_report.go`）がメッセージの始まりが画面にあるかも返すようにし、②の `Detail` を条件ごとに分ける。始まりが画面の外に出た OpenCode の報告（`testdata/screens/opencode-runpr-report.txt` の先頭を切ったもの）が `skipReportAbsent` になり、全体が見える別の PR の報告と、NEXT が違う報告が `skipNotOffered` になるテストを書く。`readRunprReport` のほかの呼び出し元の今のテストが変わらずに通ることを確かめる
+- [x] `skipReportAbsent` のときにそのほかの条件を評価し、`resetMaker` と `autoSender.send` が記録を書いて `Detail` に添えるようにする
+- [x] 表の各行について、見送りの種類と記録の有無を確かめるテストを書く。①の OpenCode の行は、送り先の表で `runpr` を Claude Code に差し替えて（`send_test.go:720-725` の形）テストする
+- [x] `skipReportAbsent` の行で、そのほかの条件を 1 つずつ崩したとき、その読み取り（Herdr・transcript）を失敗させたとき、記録の書き込みを失敗させたとき（`Store.beforeCreate`）のテストを書く。どれも `Outcome`・`Reason` が `not_sent`・`no_report` のままで、打った入力が変わらないことを確かめる
+- [x] `no_report` 以外の理由で見送る今のテストの行に、記録が書かれないことの確かめを足す
+- [x] 今のリセットのテストが、`Outcome`・`Reason` の期待値を変えずに通ることを確かめる
 
 **完了の条件:** 新しいテストと今のリセットのテストが通る。
 
@@ -79,12 +79,12 @@
 
 **変えるファイル:** `internal/chief/state.go`、`internal/chief/snapshot.go`、`internal/chief/pending.go`、`internal/chief/output.go`、`internal/chief/relay.go`、`internal/chief/send.go`、そのテスト
 
-- [ ] 確かめの値を作る部分を `relay.go` から共有の関数に切り出し、`CheckValue` と `NotSentCheckMismatch` の説明をリセットの項目にも広げる
-- [ ] 設計書 3.3 節のとおり、記録から項目を作る関数（条件の確かめと確かめの値）を足し、`addRecords` で `Row.Resets` に入れる。round は記録を消さない
-- [ ] `buildPending` が、「要確認」の行を除き、`Row.State` によらず `Row.Resets` を `PendingReset` の項目にするようにする。`kindRank` が `PendingReset` に `PendingProposal` と同じ順位を返すようにする。出力に `reset` の欄を足す
-- [ ] 設計書 3.3 節の条件を 1 つずつ崩すと項目が出ないこと、round が記録を消さないこと、読めない記録が `problems` に出て消されないことのテストを書く
-- [ ] 条件を満たさない間は項目が出ないこと、「実行中」の行でも項目が出ること、同じ見送りが 1 つの項目になること、並び順と番号、`snapshot` と `tick` の両方に出ることのテストを書く
-- [ ] 見送りの後に `Store.Start` で別のセッションが chief を起動し直しても、項目が出て、番号と通知が付くことのテストを書く
+- [x] 確かめの値を作る部分を `relay.go` から共有の関数に切り出し、`CheckValue` と `NotSentCheckMismatch` の説明をリセットの項目にも広げる
+- [x] 設計書 3.3 節のとおり、記録から項目を作る関数（条件の確かめと確かめの値）を足し、`addRecords` で `Row.Resets` に入れる。round は記録を消さない
+- [x] `buildPending` が、「要確認」の行を除き、`Row.State` によらず `Row.Resets` を `PendingReset` の項目にするようにする。`kindRank` が `PendingReset` に `PendingProposal` と同じ順位を返すようにする。出力に `reset` の欄を足す
+- [x] 設計書 3.3 節の条件を 1 つずつ崩すと項目が出ないこと、round が記録を消さないこと、読めない記録が `problems` に出て消されないことのテストを書く
+- [x] 条件を満たさない間は項目が出ないこと、「実行中」の行でも項目が出ること、同じ見送りが 1 つの項目になること、並び順と番号、`snapshot` と `tick` の両方に出ることのテストを書く
+- [x] 見送りの後に `Store.Start` で別のセッションが chief を起動し直しても、項目が出て、番号と通知が付くことのテストを書く
 
 **完了の条件:** `snapshot` と `tick` の結果に、条件どおりに項目が出る。
 
@@ -92,15 +92,15 @@
 
 **変えるファイル:** `internal/chief/resetoffer.go`（新規）、`internal/chief/resetoffer_test.go`（新規）、`internal/chief/send.go`、`cmd/chief/main.go`、`cmd/chief/main_test.go`
 
-- [ ] 設計書 3.4 節の `ParseOfferedResetRequest` と `SendOfferedReset` を足す。項目はステップ 1-3 の関数で作り、transcript の確かめは `readLastHumanInput` を使う（OpenCode の pane では `lastInputMadePR` を呼ばない）
-- [ ] `cmd/chief/main.go` に `reset` の定数、引数（必須の `--protocol`・`--workspace`・`--check`）、`parseRequests` の場合分け（`ParseOfferedResetRequest` を呼ぶ）、`dispatch` の場合分け、使い方の文言、パッケージの説明の更新を足す
-- [ ] round が示した確かめの値で送れること（往復）と、pane・セッション・状態の変化の番号のそれぞれが変わると `check_mismatch` になることのテストを書く
-- [ ] 送り先の表を読めないとき（`unreadable`）、経路が引けないか合わないとき（`check_mismatch`）、transcript の確かめ（①は記録のコマンドの名前と引数、②は名前だけ）が通らないとき、`checkPane` の各理由、使い済みにできないときに何も打たないことのテストを書く。①では、PR がマージされて `prMaker` が別のコマンドを返す状態でも、記録のコマンドで確かめて送れることと、`/mkreq` の記録では引数のある `/mkreq` の入力で送れることを確かめる
-- [ ] 送れたときに送信の記録があり、記録が消え、次の round に項目が出ないこと、`checkPane` で止まったときは項目が残ること、打った後の失敗で送信が止まることのテストを書く
-- [ ] `beforeBegin` で chief の持ち主の確かめ直しが通らないときに記録が残って何も打たないこと、使い済みにした後に送信の記録を書けないとき（`Store.beforeCreate`）に `not_sent` で項目が戻らないこと、マージを見た後に人がリセットを選ぶと次の自動送信が提案に変わることのテストを書く
-- [ ] 設計書 3.1 節のとおり、`sendContext.run` が pane へ最初の入力を打てたときにその pane の見送りの記録を消すようにし、そのテストを書く
-- [ ] `snapshot`・`tick` が項目のリセットを送らないことのテストを書く
-- [ ] `TestRunUsageErrors` に `reset` の行（`--check` がない、形に合わない、`--workspace` が相対パス）、`TestRunWorkspaceSubcommands` に workspace がない行、`TestRunRefusals` に `start` の前とロックを持たないときの行を足す
+- [x] 設計書 3.4 節の `ParseOfferedResetRequest` と `SendOfferedReset` を足す。項目はステップ 1-3 の関数で作り、transcript の確かめは `readLastHumanInput` を使う（OpenCode の pane では `lastInputMadePR` を呼ばない）
+- [x] `cmd/chief/main.go` に `reset` の定数、引数（必須の `--protocol`・`--workspace`・`--check`）、`parseRequests` の場合分け（`ParseOfferedResetRequest` を呼ぶ）、`dispatch` の場合分け、使い方の文言、パッケージの説明の更新を足す
+- [x] round が示した確かめの値で送れること（往復）と、pane・セッション・状態の変化の番号のそれぞれが変わると `check_mismatch` になることのテストを書く
+- [x] 送り先の表を読めないとき（`unreadable`）、経路が引けないか合わないとき（`check_mismatch`）、transcript の確かめ（①は記録のコマンドの名前と引数、②は名前だけ）が通らないとき、`checkPane` の各理由、使い済みにできないときに何も打たないことのテストを書く。①では、PR がマージされて `prMaker` が別のコマンドを返す状態でも、記録のコマンドで確かめて送れることと、`/mkreq` の記録では引数のある `/mkreq` の入力で送れることを確かめる
+- [x] 送れたときに送信の記録があり、記録が消え、次の round に項目が出ないこと、`checkPane` で止まったときは項目が残ること、打った後の失敗で送信が止まることのテストを書く
+- [x] `beforeBegin` で chief の持ち主の確かめ直しが通らないときに記録が残って何も打たないこと、使い済みにした後に送信の記録を書けないとき（`Store.beforeCreate`）に `not_sent` で項目が戻らないこと、マージを見た後に人がリセットを選ぶと次の自動送信が提案に変わることのテストを書く
+- [x] 設計書 3.1 節のとおり、`sendContext.run` が pane へ最初の入力を打てたときにその pane の見送りの記録を消すようにし、そのテストを書く
+- [x] `snapshot`・`tick` が項目のリセットを送らないことのテストを書く
+- [x] `TestRunUsageErrors` に `reset` の行（`--check` がない、形に合わない、`--workspace` が相対パス）、`TestRunWorkspaceSubcommands` に workspace がない行、`TestRunRefusals` に `start` の前とロックを持たないときの行を足す
 
 **完了の条件:** `chief reset` のテストと `cmd/chief` のテストが通る。
 
@@ -108,15 +108,15 @@
 
 **変えるファイル:** `.claude/commands/chief.md`、`docs/dev/guides/chief_guide.md`
 
-- [ ] 設計書 3.5 節のとおり、`chief.md` に項目の示し方（要件書の AC-03 の添え書き）、選んだときの `chief reset` の呼び出し、結果の示し方、`check_mismatch` の説明を足す
-- [ ] 利用ガイドのサブコマンドの表、状態のディレクトリの表（`skip-*.json` と、読めない記録を手で消してよいこと）、既知の制限「長い報告は画面から読めない」を直し、道具を入れ直した後に `/chief` を起動し直すことも書く
-- [ ] `go test -tags test ./cmd/chief` を通す
+- [x] 設計書 3.5 節のとおり、`chief.md` に項目の示し方（要件書の AC-03 の添え書き）、選んだときの `chief reset` の呼び出し、結果の示し方、`check_mismatch` の説明を足す
+- [x] 利用ガイドのサブコマンドの表、状態のディレクトリの表（`skip-*.json` と、読めない記録を手で消してよいこと）、既知の制限「長い報告は画面から読めない」を直し、道具を入れ直した後に `/chief` を起動し直すことも書く
+- [x] `go test -tags test ./cmd/chief` を通す
 
 **完了の条件:** 文書のガードが通る。
 
 #### ステップ 1-6: 仕上げ
 
-- [ ] `make fmt`・`make test`・`make lint`・`make deadcode` を通す
+- [x] `make fmt`・`make test`・`make lint`・`make deadcode` を通す
 
 **完了の条件:** 4 つのコマンドがすべて通る。
 

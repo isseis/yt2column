@@ -15,8 +15,9 @@ import (
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
 
-// CheckValue is the opaque check value of a relayable question. The session
-// passes back the value a snapshot gave and never builds or parses one.
+// CheckValue is the opaque check value of a relayable question or of a
+// reset item. The session passes back the value a snapshot gave and never
+// builds or parses one.
 type CheckValue string
 
 // checkVersion is the first part of every check value, so a value made by
@@ -45,6 +46,13 @@ func checkValue(a Agent, q Question) CheckValue {
 	for _, o := range q.Options {
 		parts = append(parts, strconv.Itoa(o.Number), o.Label, o.Description, strconv.FormatBool(o.Relayable))
 	}
+	return checkValueOf(parts)
+}
+
+// checkValueOf returns the check value of parts, whose first part names the
+// rule that chose them. Contract: each part is written with its length, so
+// two different part lists never give one value.
+func checkValueOf(parts []string) CheckValue {
 	var b strings.Builder
 	for _, p := range parts {
 		b.WriteString(strconv.Itoa(len(p)))

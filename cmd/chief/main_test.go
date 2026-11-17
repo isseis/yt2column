@@ -208,6 +208,13 @@ func TestRunRefusals(t *testing.T) {
 			t.Errorf("run = %d, %v", code, out)
 		}
 	})
+	t.Run("reset before start", func(t *testing.T) {
+		h := newHarness(t)
+		code, out := h.run("reset", "--workspace", "/w", "--check", testCheck, "--protocol", "1")
+		if code != exitRefused || out["reason"] != "not_started" {
+			t.Errorf("run = %d, %v", code, out)
+		}
+	})
 	t.Run("a pane without a session", func(t *testing.T) {
 		h := newHarness(t)
 		h.fake.sessionless = true
@@ -244,6 +251,9 @@ func TestRunRefusals(t *testing.T) {
 		}
 		if code, out := h.run("snapshot", "--protocol", "1"); code != exitRefused || out["reason"] != "not_owner" {
 			t.Errorf("snapshot by another chief = %d, %v; want refused, not_owner", code, out)
+		}
+		if code, out := h.run("reset", "--workspace", "/w", "--check", testCheck, "--protocol", "1"); code != exitRefused || out["reason"] != "not_owner" {
+			t.Errorf("reset by another chief = %d, %v; want refused, not_owner", code, out)
 		}
 	})
 }
@@ -284,6 +294,10 @@ func TestRunUsageErrors(t *testing.T) {
 		{"relay", "--workspace", "/w", "--check", testCheck, "--answer", "2=1", "--protocol", "1"},
 		{"relay", "--workspace", "/w", "--check", testCheck, "--answer", "1=0", "--protocol", "1"},
 		{"relay", "--workspace", "w", "--check", testCheck, "--answer", "1=1", "--protocol", "1"},
+		{"reset", "--workspace", "/w", "--protocol", "1"},
+		{"reset", "--workspace", "/w", "--check", "not-a-check", "--protocol", "1"},
+		{"reset", "--workspace", "w", "--check", testCheck, "--protocol", "1"},
+		{"reset", "--workspace", "/w", "--check", testCheck, "--answer", "1=1", "--protocol", "1"},
 	} {
 		h := newHarness(t)
 		var stdout bytes.Buffer
@@ -402,7 +416,7 @@ func noWorkspace(out map[string]any) bool {
 	return ok && a["outcome"] == "not_sent" && a["reason"] == "no_workspace"
 }
 
-// TestRunWorkspaceSubcommands runs send, relay, detail, and release after start
+// TestRunWorkspaceSubcommands runs send, relay, reset, detail, and release after start
 // with a --workspace that is no task workspace: each finishes (exit 0) and
 // says so, and nothing is typed into a pane (the fake fails on any command it
 // does not answer, prompt among them).
@@ -413,6 +427,7 @@ func TestRunWorkspaceSubcommands(t *testing.T) {
 	}{
 		{[]string{"send", "--workspace", "/nowhere", "--command", "mkarch", "--protocol", "1"}, noWorkspace},
 		{[]string{"relay", "--workspace", "/nowhere", "--check", testCheck, "--answer", "1=1", "--protocol", "1"}, noWorkspace},
+		{[]string{"reset", "--workspace", "/nowhere", "--check", testCheck, "--protocol", "1"}, noWorkspace},
 		{[]string{"detail", "--workspace", "/nowhere", "--protocol", "1"}, func(out map[string]any) bool {
 			p, ok := out["problem"].(string)
 			return ok && p != "" && out["pr"] == nil

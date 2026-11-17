@@ -2,6 +2,7 @@ package chief
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -92,6 +93,12 @@ func applyAutoSends(view *roundView, results []AutoSendResult) []PendingItem {
 		switch {
 		case sent != nil && sent.Outcome == OutcomeSent && row != nil:
 			row.State, row.Next, row.Takeover, row.Unreadable = StateRunning, nil, nil, nil
+			// A pane the send typed into has no skipped reset left.
+			row.Resets = slices.DeleteFunc(row.Resets, func(it ResetItem) bool {
+				return slices.ContainsFunc(r.Actions, func(a ActionResult) bool {
+					return a.Pane == it.Pane.String() && a.Outcome == OutcomeSent
+				})
+			})
 			row.Running = &SendRecord{Pane: sent.Pane, Input: InputCommand.String(), Command: sent.Command, Agent: agentLabel(sent.Agent), Model: sent.Model}
 		case sent != nil && sent.Outcome == OutcomeSentThenFailed && row != nil:
 			row.State, row.Next, row.Takeover = StateNeedsCheck, nil, nil

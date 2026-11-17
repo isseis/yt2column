@@ -131,7 +131,9 @@ const (
 	// that pane after it.
 	NotSentOtherInput
 	// NotSentCheckMismatch is a relay whose check value no pane's question
-	// gives now: the question changed, was answered, or the agent moved.
+	// gives now (the question changed, was answered, or the agent moved), or
+	// a chosen reset whose check value no reset item gives now (the pane
+	// changed, was sent to, or the item was used).
 	NotSentCheckMismatch
 	// NotSentNotRelayable is a relay to a question chief does not relay: a
 	// multi-select, tabbed, or permission question.
@@ -487,6 +489,12 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 			// Herdr may have typed the input before it failed, so a failed
 			// write counts as typed.
 			return s.fail(res, id, st.kind, &checkFailure{reason: NotSentUnreadable, detail: "herdr agent prompt failed: " + err.Error(), agent: agent})
+		}
+		if last == StepUnknown {
+			// A reset skipped for this pane is outdated once an input
+			// reached it; a record left behind only waits for start's
+			// cleanup, so a failure here does not change the send.
+			_ = s.held.removePaneSkips(agent.Pane)
 		}
 		agent, failed = s.await(ctx, agent, st, route)
 		if failed != nil {

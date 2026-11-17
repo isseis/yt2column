@@ -846,6 +846,8 @@ func TestResetAfterAutoSend(t *testing.T) {
 		if !sentCommand(res) || len(res.Actions) != 2 || res.Actions[1].Reason != NotSentNoReport {
 			t.Fatalf("auto send = %+v; want the command sent and no reset", res)
 		}
+		// A report read whole is another report, not a missing one.
+		checkOffered(t, mw.deps.Store, mw.tree, res.Actions[1], false)
 	})
 	t.Run("the report names another PR", func(t *testing.T) {
 		mw := newMergeWorld(t, mkarchDocs)
@@ -859,6 +861,7 @@ func TestResetAfterAutoSend(t *testing.T) {
 		if slices.Contains(mw.rec.prompts(), "w1:p2 /new") {
 			t.Error("the /runpr pane was emptied")
 		}
+		checkOffered(t, mw.deps.Store, mw.tree, res.Actions[1], false)
 	})
 	testClaudeResetAfterAutoSend(t)
 }
@@ -908,6 +911,9 @@ func testClaudeResetAfterAutoSend(t *testing.T) {
 			if reset.Input != InputReset || reset.Pane != "w1:p1" {
 				t.Fatalf("reset = %+v; want the reset of w1:p1", reset)
 			}
+			// None of these is offered: no report after a human input that
+			// is not /runpr, another report, or another reason.
+			checkOffered(t, mw.deps.Store, mw.tree, reset, false)
 			if c.reason == NotSentUnknown {
 				if reset.Outcome != OutcomeSent || !cleared {
 					t.Errorf("reset = %+v; want w1:p1 emptied", reset)
@@ -1507,6 +1513,163 @@ func TestResetChecksAgain(t *testing.T) {
 		}
 		if slices.Contains(mw.rec.prompts(), "w1:p1 /clear") {
 			t.Error("the /runpr pane was emptied")
+		}
+	})
+}
+
+// noNextReport returns the sampled OpenCode /runpr report of pr with no
+// NEXT line, which lets the automatic send go on and names no command.
+func noNextReport(t *testing.T, pr int) string {
+	t.Helper()
+	screen := strings.Replace(runprReportScreen(t, pr, ""), runprNoneLine+"\n", "", 1)
+	if strings.Contains(screen, "NEXT:") {
+		t.Fatal("the edited report still has its NEXT line")
+	}
+	return screen
+}
+
+// clippedRunprReport returns the sampled OpenCode /runpr report of #42 with
+// next as its NEXT ("" for no NEXT line), its start above the screen: the
+// lines before its cleanup item are gone, and with them every mention of
+// #42.
+func clippedRunprReport(t *testing.T, next string) string {
+	t.Helper()
+	screen := runprReportScreen(t, 42, next)
+	if next == "" {
+		screen = noNextReport(t, 42)
+	}
+	i := strings.Index(screen, "     - cleanup:")
+	if i < 0 {
+		t.Fatal("the /runpr report sample no longer holds its cleanup item")
+	}
+	clipped := strings.Replace(screen[i:], "#未記入 を #42 に", "#未記入 を記入", 1)
+	report, ok := readRunprReport(paneinput.AgentOpenCode, clipped)
+	if !ok || !report.HeadClipped || slices.Contains(report.PRs, 42) {
+		t.Fatalf("the clipped report reads %+v, %v; want a clipped report not naming #42", report, ok)
+	}
+	return clipped
+}
+
+// TestResetAfterAutoSendSkipOffer checks which skips of the reset of the
+// /runpr pane after an automatic send are kept as reset items: an OpenCode
+// pane showing no report, or a report whose start is above the screen and
+// whose rest names the command sent but not the PR, and a Claude Code pane
+// whose transcript holds no report after /runpr, are kept, and the next
+// round offers the item; a report read whole naming another PR, a report
+// naming another NEXT (clipped or not), and a skip whose other conditions
+// do not hold or whose record cannot be written are not. Every one keeps
+// the reset's outcome and reason, and the detail of each no_report differs
+// by what the report lacked.
+func TestResetAfterAutoSendSkipOffer(t *testing.T) {
+	const mkarch = "`/mkarch 0001`"
+	opencode := func(screen func(t *testing.T) string, react func(mw *mergeWorld)) func(t *testing.T) (*mergeWorld, string) {
+		return func(t *testing.T) (*mergeWorld, string) {
+			mw := newMergeWorld(t, mkarchDocs)
+			mw.tick(time.Minute)
+			mw.merge(nextBranch, mkarch)
+			mw.byPane["w1:p2"].screen = screen(t)
+			if react != nil {
+				mw.react = func(p *simPane, text string) error {
+					if text == "/mkarch 0001" {
+						react(mw)
+					}
+					return mw.realReact(p, text)
+				}
+			}
+			return mw, "w1:p2"
+		}
+	}
+	clipped := func(next string) func(t *testing.T) string {
+		return func(t *testing.T) string { return clippedRunprReport(t, next) }
+	}
+	sample := func(name string) func(t *testing.T) string {
+		return func(t *testing.T) string { return readScreenSample(t, name) }
+	}
+	whole := func(pr int, next string) func(t *testing.T) string {
+		return func(t *testing.T) string {
+			if next == "" {
+				return noNextReport(t, pr)
+			}
+			return runprReportScreen(t, pr, next)
+		}
+	}
+	claude := func(lines ...string) func(t *testing.T) (*mergeWorld, string) {
+		return func(t *testing.T) (*mergeWorld, string) {
+			mw := newClaudeRunprWorld(t, runplanDocs(t, "marker-sonnet.md"), "")
+			mw.tick(time.Minute)
+			// PR 42 merged as /runpr in w1:p1 leaves it, with lines as its
+			// transcript.
+			mw.merge(nextBranch, "")
+			mw.byPane["w1:p2"].Status, mw.byPane["w1:p2"].screen = "idle", readScreenSample(t, "opencode-done.ansi")
+			mw.claudeTranscript(lines...)
+			return mw, "w1:p1"
+		}
+	}
+	for _, c := range []struct {
+		name    string
+		world   func(t *testing.T) (*mergeWorld, string)
+		offered bool
+		// unwritten is true when the record could not be written.
+		unwritten bool
+	}{
+		{name: "OpenCode: the start of the report is above the screen", world: opencode(clipped(mkarch), nil), offered: true},
+		{name: "OpenCode: no report on the screen", world: opencode(sample("opencode-after-new.ansi"), nil), offered: true},
+		{name: "OpenCode: a clipped report with no NEXT", world: opencode(clipped(""), nil)},
+		{name: "OpenCode: the pane moved while the command was typed", world: opencode(clipped(mkarch), func(mw *mergeWorld) { mw.byPane["w1:p2"].Seq++ })},
+		{name: "OpenCode: the pane works by then", world: opencode(clipped(mkarch), func(mw *mergeWorld) { mw.byPane["w1:p2"].Status = "working" })},
+		{name: "OpenCode: the record cannot be written", world: func(t *testing.T) (*mergeWorld, string) {
+			mw, pane := opencode(clipped(mkarch), nil)(t)
+			mw.deps.Store.beforeCreate = func(name string) error {
+				if strings.HasPrefix(name, skipPrefix) {
+					return errNoReply
+				}
+				return nil
+			}
+			return mw, pane
+		}, unwritten: true},
+		{name: "Claude Code: no report after /runpr", world: claude(commandLine("/runpr 42"), prRecordLine(42)), offered: true},
+		{name: "Claude Code: no report after another command", world: claude(commandLine("/runplan 0001"))},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			mw, pane := c.world(t)
+			res := only(t, mw.tick(time.Minute))
+			if !sentCommand(res) || len(res.Actions) != 2 {
+				t.Fatalf("auto send = %+v; want the command sent and a reset result", res)
+			}
+			reset := res.Actions[1]
+			if reset.Pane != pane || reset.Outcome != OutcomeNotSent || reset.Reason != NotSentNoReport {
+				t.Fatalf("reset = %+v; want %s not sent, no_report", reset, pane)
+			}
+			mw.deps.Store.beforeCreate = nil
+			checkOffered(t, mw.deps.Store, mw.tree, reset, c.offered)
+			if c.unwritten && !strings.Contains(reset.Detail, skipUnwrittenNote) {
+				t.Errorf("detail %q; want it to say the record could not be written", reset.Detail)
+			}
+			if !c.offered {
+				return
+			}
+			next := mw.tick(time.Minute).Snapshot.Pending
+			i := slices.IndexFunc(next, func(p PendingItem) bool { return p.Kind == PendingReset })
+			if i < 0 || next[i].Reset.Pane.String() != pane || next[i].Reset.Scene != sceneAfterAutoSend || next[i].Reset.Command.text() != "/runpr 42" {
+				t.Errorf("the next round's pending = %+v; want the reset of %s after the automatic send", next, pane)
+			}
+		})
+	}
+	t.Run("the details tell the skips apart", func(t *testing.T) {
+		details := map[string]bool{}
+		for _, screen := range []func(t *testing.T) string{sample("opencode-after-new.ansi"), clipped(mkarch), whole(43, mkarch), whole(42, "")} {
+			mw, _ := opencode(screen, nil)(t)
+			res := only(t, mw.tick(time.Minute))
+			if len(res.Actions) != 2 || res.Actions[1].Reason != NotSentNoReport {
+				t.Fatalf("auto send = %+v; want a reset skipped with no_report", res)
+			}
+			// The detail before the note on the offer says what the report
+			// lacked.
+			lacked, _, _ := strings.Cut(res.Actions[1].Detail, "; ")
+			details[lacked] = true
+		}
+		if len(details) != 4 {
+			t.Errorf("details = %v; want four different ones", details)
 		}
 	})
 }
