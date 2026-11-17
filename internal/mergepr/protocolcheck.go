@@ -6,11 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
 )
@@ -35,19 +34,10 @@ const (
 
 	// protocolWord is the identifier a tool declares its number with.
 	protocolWord = "Protocol"
-	// acceptedPrefix starts the only line form whose number is read.
-	acceptedPrefix = "const " + protocolWord + " = "
-	// maxProtocolDigits bounds the number so that adding one cannot overflow.
-	maxProtocolDigits = 9
-
-	// revListLinesPerCommit is the lines git rev-list prints per commit with
-	// revListFormat: the "commit" header with the parents, then the subject
-	// line.
-	revListLinesPerCommit = 2
-	// revListFormat starts the subject line with a NUL. git rev-list prints no
-	// line at all for a format that expands to nothing, so an empty subject
-	// would shift every later header into a subject; the NUL keeps the line.
-	revListFormat = "--format=%x00%s"
+	// revListFormat prints one line per commit: the commit ID and its parents,
+	// separated by spaces, then a NUL and the subject. The ID keeps the line
+	// from being empty, which git rev-list would not print at all.
+	revListFormat = "--format=%H %P%x00%s"
 
 	// toolDir is the directory whose direct subdirectories are tools.
 	toolDir = "internal"
@@ -330,7 +320,7 @@ func classifyProtocolLines(lines []protocolLine) (map[string]protocolReading, er
 		if !ok {
 			return nil, &protocolUnreadableError{Kind: unreadableCommits, Path: l.Path, Detail: "a path outside internal/<name>/*.go was read"}
 		}
-		if !isDeclarationLine(l.Text) {
+		if !declarationLine.MatchString(l.Text) {
 			continue
 		}
 		prev, seen := readings[pkg]
@@ -364,106 +354,28 @@ func toolPackage(path string) (string, bool) {
 	return parts[1], true
 }
 
-// isDeclarationLine reports whether line looks like it declares Protocol:
-// after leading blanks and an optional const keyword it starts with the word
-// Protocol, and an = follows that is not part of ==, !=, <=, >= or :=, nor
-// inside a string, a struct tag or a comment. A struct field and a composite
-// literal element have no such =, and a short variable declaration has :=.
-func isDeclarationLine(line string) bool {
-	rest := strings.TrimLeft(line, " \t")
-	if after, ok := strings.CutPrefix(rest, "const"); ok && after != "" && (after[0] == ' ' || after[0] == '\t') {
-		rest = strings.TrimLeft(after, " \t")
-	}
-	after, ok := strings.CutPrefix(rest, protocolWord)
-	if !ok {
-		return false
-	}
-	if r, _ := utf8.DecodeRuneInString(after); after != "" && isIdentRune(r) {
-		return false
-	}
-	return hasAssignment(after)
-}
+// declarationLine matches a line that looks like it declares Protocol: after
+// leading blanks and an optional const keyword (or "const (") comes the word
+// Protocol, then an = that is not part of ==, !=, <=, >= or :=. Only
+// identifiers, a type, commas and blanks may stand between the word and the =,
+// so an = inside a string, a struct tag or a comment is never reached: a
+// struct field and a composite literal element have no such =, and a short
+// variable declaration has :=.
+var declarationLine = regexp.MustCompile(`^[ \t]*(?:const(?:[ \t]+|[ \t]*\([ \t]*))?` + protocolWord + "(?:[ \t,][^\"'`/=:!<>]*)?=(?:[^=]|$)")
 
-func isIdentRune(r rune) bool {
-	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
-}
+// acceptedLine matches the only line form whose number is read: exactly
+// "const Protocol = " and a decimal of one to nine digits without a leading
+// 0, so adding one cannot overflow.
+var acceptedLine = regexp.MustCompile(`^const ` + protocolWord + ` = ([1-9][0-9]{0,8})$`)
 
-// hasAssignment reports whether s holds an = that is not part of a comparison
-// or :=, outside strings, struct tags and comments.
-func hasAssignment(s string) bool {
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '/':
-			if i+1 < len(s) && s[i+1] == '/' {
-				return false
-			}
-			if i+1 < len(s) && s[i+1] == '*' {
-				start := i + len("/*")
-				end := strings.Index(s[start:], "*/")
-				if end < 0 {
-					return false
-				}
-				i = start + end + len("*/") - 1
-			}
-		case '`':
-			end := strings.IndexByte(s[i+1:], '`')
-			if end < 0 {
-				return false
-			}
-			i += end + 1
-		case '"', '\'':
-			end := quotedEnd(s, i)
-			if end < 0 {
-				return false
-			}
-			i = end
-		case '=':
-			if i > 0 && strings.IndexByte("=!<>:", s[i-1]) >= 0 {
-				continue
-			}
-			if i+1 < len(s) && s[i+1] == '=' {
-				i++
-				continue
-			}
-			return true
-		}
-	}
-	return false
-}
-
-// quotedEnd returns the index of the quote that closes the string or rune
-// literal opened at s[start], skipping escaped characters, or -1.
-func quotedEnd(s string, start int) int {
-	quote := s[start]
-	for i := start + 1; i < len(s); i++ {
-		switch s[i] {
-		case '\\':
-			i++
-		case quote:
-			return i
-		}
-	}
-	return -1
-}
-
-// acceptedNumber returns the number of an accepted line: exactly
-// "const Protocol = " followed by a decimal of 1 to maxProtocolDigits digits
-// that does not start with 0, and nothing else.
+// acceptedNumber returns the number of an accepted line.
 func acceptedNumber(line string) (int, bool) {
-	digits, ok := strings.CutPrefix(line, acceptedPrefix)
-	if !ok || digits == "" || len(digits) > maxProtocolDigits || digits[0] == '0' {
+	m := acceptedLine.FindStringSubmatch(line)
+	if m == nil {
 		return 0, false
 	}
-	for i := range len(digits) {
-		if digits[i] < '0' || digits[i] > '9' {
-			return 0, false
-		}
-	}
-	n, err := strconv.Atoi(digits)
-	if err != nil {
-		return 0, false
-	}
-	return n, true
+	n, err := strconv.Atoi(m[1])
+	return n, err == nil
 }
 
 // protocolCheck reads protocol numbers from git trees and checks a PR head
@@ -490,7 +402,7 @@ func (c *protocolCheck) git(ctx context.Context, args ...string) ([]byte, error)
 // error, never an empty result.
 func (c *protocolCheck) readRevision(ctx context.Context, rev string) (map[string]protocolReading, error) {
 	args := []string{
-		"grep", "-z", "-n", "--text", "-F", "--full-name",
+		"grep", "-z", "--text", "-F", "--full-name",
 		"--no-color", "--no-column", "--no-textconv", "--no-recurse-submodules",
 		"-e", protocolWord, rev, "--",
 	}
@@ -508,9 +420,9 @@ func (c *protocolCheck) readRevision(ctx context.Context, rev string) (map[strin
 	return classifyProtocolLines(lines)
 }
 
-// parseGrepOutput reads git grep -z -n output for one revision: each record
-// is "<rev>:<path>\0<line number>\0<text>\n". The text may hold NUL bytes
-// (--text), so it is everything after the second NUL.
+// parseGrepOutput reads git grep -z output for one revision: each record is
+// "<rev>:<path>\0<text>\n". The text may hold NUL bytes (--text), so it is
+// everything after the first NUL.
 func parseGrepOutput(out []byte, rev string) ([]protocolLine, error) {
 	if len(out) == 0 {
 		return nil, fmt.Errorf("%w: git grep succeeded without output", errUnexpectedGitOutput)
@@ -525,13 +437,9 @@ func parseGrepOutput(out []byte, rev string) ([]protocolLine, error) {
 		if !ok {
 			return nil, fmt.Errorf("%w: git grep record %q does not start with %s", errUnexpectedGitOutput, record, prefix)
 		}
-		path, rest, ok := bytes.Cut(rest, []byte{0})
+		path, text, ok := bytes.Cut(rest, []byte{0})
 		if !ok {
 			return nil, fmt.Errorf("%w: git grep record %q has no path separator", errUnexpectedGitOutput, record)
-		}
-		number, text, ok := bytes.Cut(rest, []byte{0})
-		if !ok || len(number) == 0 || bytes.ContainsFunc(number, func(r rune) bool { return r < '0' || r > '9' }) {
-			return nil, fmt.Errorf("%w: git grep record %q has no line number", errUnexpectedGitOutput, record)
 		}
 		lines = append(lines, protocolLine{Path: string(path), Text: string(text)})
 	}
@@ -576,16 +484,15 @@ type prCommit struct {
 // listPRCommits lists the commits reachable from head but not from main,
 // oldest first, with their parents.
 func (c *protocolCheck) listPRCommits(ctx context.Context, head, main string) ([]prCommit, error) {
-	out, err := c.git(ctx, "rev-list", "--parents", "--reverse", revListFormat, head, "^"+main)
+	out, err := c.git(ctx, "rev-list", "--reverse", "--no-commit-header", revListFormat, head, "^"+main)
 	if err != nil {
 		return nil, err
 	}
 	return parseRevList(out)
 }
 
-// parseRevList reads git rev-list --parents output with revListFormat: for
-// each commit, "commit <oid> <parent>..." and then a NUL followed by the
-// subject. Any other shape is an error, never a shorter list.
+// parseRevList reads git rev-list output with revListFormat. Any other shape
+// is an error, never a shorter list.
 func parseRevList(out []byte) ([]prCommit, error) {
 	if len(out) == 0 {
 		return nil, nil
@@ -594,27 +501,19 @@ func parseRevList(out []byte) ([]prCommit, error) {
 	if !ok {
 		return nil, fmt.Errorf("%w: git rev-list output does not end with a newline", errUnexpectedGitOutput)
 	}
-	lines := strings.Split(text, "\n")
-	if len(lines)%revListLinesPerCommit != 0 {
-		return nil, fmt.Errorf("%w: git rev-list printed %d lines, not header and subject pairs", errUnexpectedGitOutput, len(lines))
-	}
-	commits := make([]prCommit, 0, len(lines)/revListLinesPerCommit)
-	for i := 0; i < len(lines); i += revListLinesPerCommit {
-		header, ok := strings.CutPrefix(lines[i], "commit ")
+	var commits []prCommit
+	for line := range strings.SplitSeq(text, "\n") {
+		ids, subject, ok := strings.Cut(line, "\x00")
 		if !ok {
-			return nil, fmt.Errorf("%w: git rev-list line %q is not a commit header", errUnexpectedGitOutput, lines[i])
+			return nil, fmt.Errorf("%w: git rev-list line %q has no subject separator", errUnexpectedGitOutput, line)
 		}
-		ids := strings.Split(header, " ")
-		for _, id := range ids {
+		oids := strings.Split(strings.TrimSuffix(ids, " "), " ")
+		for _, id := range oids {
 			if !isObjectID(id) {
-				return nil, fmt.Errorf("%w: git rev-list header %q holds %q, not a commit ID", errUnexpectedGitOutput, lines[i], id)
+				return nil, fmt.Errorf("%w: git rev-list line %q holds %q, not a commit ID", errUnexpectedGitOutput, line, id)
 			}
 		}
-		subject, ok := strings.CutPrefix(lines[i+1], "\x00")
-		if !ok {
-			return nil, fmt.Errorf("%w: git rev-list line %q is not a subject line", errUnexpectedGitOutput, lines[i+1])
-		}
-		commits = append(commits, prCommit{oid: ids[0], parents: ids[1:], subject: subject})
+		commits = append(commits, prCommit{oid: oids[0], parents: oids[1:], subject: subject})
 	}
 	return commits, nil
 }

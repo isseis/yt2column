@@ -76,6 +76,7 @@ func TestClassifyProtocolLines(t *testing.T) {
 		{"trailing comment", one("const Protocol = 1 // note"), bad},
 		{"trailing carriage return", one("const Protocol = 1\r"), bad},
 		{"two spaces", one("const  Protocol = 1"), bad},
+		{"const block on one line", one("const (Protocol = 1)"), bad},
 		{"struct field", one("\tProtocol int `json:\"protocol\"`"), none},
 		{"struct tag holding =", one("\tProtocol int `x:\"a=b\"`"), none},
 		{"quoted tag holding =", one("\tProtocol int \"a=b\""), none},
@@ -607,11 +608,9 @@ func TestParseGrepOutputRejectsMalformed(t *testing.T) {
 		out  string
 	}{
 		{"empty", ""},
-		{"no final newline", parseRev + ":internal/a/a.go\x001\x00const Protocol = 1"},
-		{"other revision", parseParent + ":internal/a/a.go\x001\x00const Protocol = 1\n"},
-		{"no path separator", parseRev + ":internal/a/a.go 1 const Protocol = 1\n"},
-		{"no line number", parseRev + ":internal/a/a.go\x00const Protocol = 1\n"},
-		{"line number not digits", parseRev + ":internal/a/a.go\x001a\x00const Protocol = 1\n"},
+		{"no final newline", parseRev + ":internal/a/a.go\x00const Protocol = 1"},
+		{"other revision", parseParent + ":internal/a/a.go\x00const Protocol = 1\n"},
+		{"no path separator", parseRev + ":internal/a/a.go const Protocol = 1\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -623,21 +622,23 @@ func TestParseGrepOutputRejectsMalformed(t *testing.T) {
 }
 
 func TestParseRevList(t *testing.T) {
-	good := "commit " + parseRev + " " + parseParent + "\n\x00subject\n"
+	good := parseRev + " " + parseParent + "\x00subject\n" + parseParent + " \x00\n"
 	got, err := parseRevList([]byte(good))
-	if err != nil || len(got) != 1 || got[0].oid != parseRev || !slices.Equal(got[0].parents, []string{parseParent}) || got[0].subject != "subject" {
-		t.Fatalf("parseRevList = %+v, %v; want one commit with its parent and subject", got, err)
+	want := []prCommit{{oid: parseRev, parents: []string{parseParent}, subject: "subject"}, {oid: parseParent, parents: []string{}}}
+	if err != nil || !slices.EqualFunc(got, want, func(a, b prCommit) bool {
+		return a.oid == b.oid && slices.Equal(a.parents, b.parents) && a.subject == b.subject
+	}) {
+		t.Fatalf("parseRevList = %+v, %v; want %+v", got, err, want)
 	}
 	tests := []struct {
 		name string
 		out  string
 	}{
-		{"no final newline", "commit " + parseRev + "\n\x00s"},
-		{"odd line count", "commit " + parseRev + "\n\x00s\ncommit " + parseParent + "\n"},
-		{"subject line without NUL", "commit " + parseRev + "\ns\n"},
-		{"parent not a commit ID", "commit " + parseRev + " zzz\n\x00s\n"},
-		{"header without the commit word", parseRev + "\n\x00s\n"},
-		{"abbreviated ID", "commit 1111111\n\x00s\n"},
+		{"no final newline", parseRev + "\x00s"},
+		{"line without NUL", parseRev + " s\n"},
+		{"empty line", parseRev + "\x00s\n\n"},
+		{"parent not a commit ID", parseRev + " zzz\x00s\n"},
+		{"abbreviated ID", "1111111\x00s\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
