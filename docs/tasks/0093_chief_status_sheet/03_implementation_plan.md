@@ -142,21 +142,21 @@
 
 **変更するファイル:** `internal/chief/state.go`・`snapshot.go`・`tick.go`・`output.go`・`records.go`・`position.go`・`running.go` とそのテスト、`internal/chief/output_test.go`（新規）、`internal/chief/relay_test.go`・`autosend_test.go`・`reset_test.go`、`.claude/commands/chief.md`、`docs/dev/guides/chief_guide.md`、`cmd/chief/docs_test.go`、`docs/dev/conventions/package_reference.md`、`docs/tasks/0093_chief_status_sheet/_checks/`（新規）、本計画（§7 の実行の記録）
 
--   [ ] **ステップ 3-1**: 0092 の確かめを行い（§1.3 の決定 6）、結果を §7 の「PR-3 の実行の記録」に書く。見つかったときは、決定 6 の 3 つをこのフェーズで足し、AC-05 を確かめる。
--   [ ] **ステップ 3-2**: `Row` を設計書 3.1 のとおりにする（`Running` を `*RunningShown` に、`RunningUnknown`・`Urgency`・`Turn`・`Position` を足し、`MergeQuestion` を外す）。`addRecords` は `Deps` を受け取り、送信の停止を読めないことを `StopUnreadable` に残す。「実行中」の行の処理は実行中のコマンドの決定に置き換え、送信の記録がない workspace でも走らせる（Claude Code の pane は、送信の記録がなくても決まるため）。設計書 3.11 の 3 つのテストと `snapshot_test.go:60`・`:65` を直す。
+-   [x] **ステップ 3-1**: 0092 の確かめを行い（§1.3 の決定 6）、結果を §7 の「PR-3 の実行の記録」に書く。見つかったときは、決定 6 の 3 つをこのフェーズで足し、AC-05 を確かめる。
+-   [x] **ステップ 3-2**: `Row` を設計書 3.1 のとおりにする（`Running` を `*RunningShown` に、`RunningUnknown`・`Urgency`・`Turn`・`Position` を足し、`MergeQuestion` を外す）。`addRecords` は `Deps` を受け取り、送信の停止を読めないことを `StopUnreadable` に残す。「実行中」の行の処理は実行中のコマンドの決定に置き換え、送信の記録がない workspace でも走らせる（Claude Code の pane は、送信の記録がなくても決まるため）。設計書 3.11 の 3 つのテストと `snapshot_test.go:60`・`:65` を直す。
     -   テストは、送信の記録を読めないときに `problems` に足されず `running_unknown` が `unreadable` になることと、送信の停止の記録を読めないときは今までどおり `problems` に出て `StopUnreadable` が真になることの両方を確かめる（§1.3 の決定 8、H-02）。後者は `TestIdleClearedByWhatTheHumanMustSee` の「読めない停止」の場合を広げる。
--   [ ] **ステップ 3-3**: `applyAutoSends` を設計書 3.5 の「自動送信の周」のとおりにし、入力を打った workspace の送信の停止を読み直す（設計書 1.2）。テストは次の 3 つを確かめる（AC-03・AC-10）。`TestAutoSendAfterMerge` では、送った行に実行中のコマンドとモデルが示されること。`TestAutoSendFailureAfterInput` では、入力を打った後に送信が失敗した行が、その周から「🔴 すぐ」になること。`TestResetChecksAgain` では、コマンドの後のリセットが失敗した行が、その周から「🔴 すぐ」になること。
--   [ ] **ステップ 3-4**: `position.go` に行の仕上げを書き、`finishSnapshot` が人の判断を待つものを並べる前に呼ぶようにする。`sortRows` の 2 番目に急ぎの度合いを足す（設計書 3.6・3.7）。
+-   [x] **ステップ 3-3**: `applyAutoSends` を設計書 3.5 の「自動送信の周」のとおりにし、入力を打った workspace の送信の停止を読み直す（設計書 1.2）。テストは次の 3 つを確かめる（AC-03・AC-10）。`TestAutoSendAfterMerge` では、送った行に実行中のコマンドとモデルが示されること。`TestAutoSendFailureAfterInput` では、入力を打った後に送信が失敗した行が、その周から「🔴 すぐ」になること。`TestResetChecksAgain` では、コマンドの後のリセットが失敗した行が、その周から「🔴 すぐ」になること。
+-   [x] **ステップ 3-4**: `position.go` に行の仕上げを書き、`finishSnapshot` が人の判断を待つものを並べる前に呼ぶようにする。`sortRows` の 2 番目に急ぎの度合いを足す（設計書 3.6・3.7）。
     -   テストは、送信が止まった「実行中」の行、停止を読めない行、送信が止まった「レビュー待ち」の行が「すぐ」の位置へ移ること、`tick` で送った行の進み具合が「作成中」になることを確かめる。
     -   送信が止まった「次を提案」の行と、止まっていない「レビュー待ち」の行を並べ（`TestPendingOrderIgnoresUrgency`）、行は入れ替わるが人の判断を待つものはレビュー → 提案の順のままであることを確かめる（AC-17）。`TestRowOrderRules`・`TestTakeSnapshotOrder` は変えずに通す。
--   [ ] **ステップ 3-5**: 出力を設計書 3.8 のとおりにし、`Protocol` を §1.3 の決定 1 の値にする。値の名前の集合を返す関数を公開する（設計書 7.2）。集合は `Output` が使う名前の関数から、各型の値を 0 から順に `unknown` になるまでたどって作り、`unknown` は含めない。
+-   [x] **ステップ 3-5**: 出力を設計書 3.8 のとおりにし、`Protocol` を §1.3 の決定 1 の値にする。値の名前の集合を返す関数を公開する（設計書 7.2）。集合は `Output` が使う名前の関数から、各型の値を 0 から順に `unknown` になるまでたどって作り、`unknown` は含めない。
     -   テストは、`snapshot` と `tick` の JSON が行ごとに `urgency`・`turn`・`position`・`idle`・`running_unknown` を持ち `merge_question` を持たないこと、範囲の外の値が `unknown` になること、質問ごとの `merge` が残ること、偽った送信の記録の `Arg` とセッションの記録の検証できない引数が `running.command` に入らないことを確かめる（AC-13・AC-18・AC-20）。
     -   値の名前の集合の各名前が出力の名前の関数から返り、各型の範囲のすぐ外の値が `unknown` になることを確かめる。
--   [ ] **ステップ 3-6**: `.claude/commands/chief.md` を設計書 3.9 のとおりに直す。値から日本語の表示への対応は、ステップ 3-7 のテストが読める 1 つの Markdown の表に置く。
--   [ ] **ステップ 3-7**: `cmd/chief/docs_test.go` に、`/chief` の定義の値の対応表が、ステップ 3-5 の集合（`state`・`urgency`・`turn`・`position.document`・`position.progress`）をちょうど持つことを確かめるテストを足す（設計書 7.2）。
--   [ ] **ステップ 3-8**: AC-19 の `diff` の確かめのスクリプトを `docs/tasks/0093_chief_status_sheet/_checks/` に shell で書く。merge-base とこの PR のコミットで `.claude/commands/chief.md` の「Under the table」の項目を取り出して比べ、「質問で停止」の行ごとの質問の要点と pane の項目がなくなり、ほかの項目が同じ順で残ることを確かめる。スクリプトの各検査は、少なくとも 1 つの壊し方で失敗することを確かめる。PR のブランチで走らせ、出力と 2 つのコミットの ID を §7 の「PR-3 の実行の記録」に書く（AC-19 の行はそこを指す）。その後に `.claude/commands/chief.md` を変えるコミットを足したときは、走らせ直して書き直す。
--   [ ] **ステップ 3-9**: `docs/dev/guides/chief_guide.md` を設計書 3.10 のとおりに直す（既知の制限は、決定 11 の引数なしのコマンドを含む 3 つ）。古い版に戻す手順は、道具と `/chief` の定義を同じコミットから入れることと、送信の記録の新しい欄を古い道具が読めないので記録を消すことを書く。
--   [ ] **ステップ 3-10**: `package_reference.md` の `internal/chief` と `internal/chief/paneinput` の行に、このタスクで exported にした名前を足す。
+-   [x] **ステップ 3-6**: `.claude/commands/chief.md` を設計書 3.9 のとおりに直す。値から日本語の表示への対応は、ステップ 3-7 のテストが読める 1 つの Markdown の表に置く。
+-   [x] **ステップ 3-7**: `cmd/chief/docs_test.go` に、`/chief` の定義の値の対応表が、ステップ 3-5 の集合（`state`・`urgency`・`turn`・`position.document`・`position.progress`）をちょうど持つことを確かめるテストを足す（設計書 7.2）。
+-   [x] **ステップ 3-8**: AC-19 の `diff` の確かめのスクリプトを `docs/tasks/0093_chief_status_sheet/_checks/` に shell で書く。merge-base とこの PR のコミットで `.claude/commands/chief.md` の「Under the table」の項目を取り出して比べ、「質問で停止」の行ごとの質問の要点と pane の項目がなくなり、ほかの項目が同じ順で残ることを確かめる。スクリプトの各検査は、少なくとも 1 つの壊し方で失敗することを確かめる。PR のブランチで走らせ、出力と 2 つのコミットの ID を §7 の「PR-3 の実行の記録」に書く（AC-19 の行はそこを指す）。その後に `.claude/commands/chief.md` を変えるコミットを足したときは、走らせ直して書き直す。
+-   [x] **ステップ 3-9**: `docs/dev/guides/chief_guide.md` を設計書 3.10 のとおりに直す（既知の制限は、決定 11 の引数なしのコマンドを含む 3 つ）。古い版に戻す手順は、道具と `/chief` の定義を同じコミットから入れることと、送信の記録の新しい欄を古い道具が読めないので記録を消すことを書く。
+-   [x] **ステップ 3-10**: `package_reference.md` の `internal/chief` と `internal/chief/paneinput` の行に、このタスクで exported にした名前を足す。
 -   [ ] **ステップ 3-11**: PR の説明に、人がマージの直前に行う 2 つの項目を書く。0092 の確かめ（§1.3 の決定 6）と、`origin/main` の `Protocol` がこの PR の値と同じなら 1 つ上げること（§1.3 の決定 1）である。`main` はマージで取り込み、rebase しない（0099 の規則。rebase すると、同じ値への書き換えが履歴から消えるため）。上げるときは、人が `/runpr` かこの PR のセッションに、`Protocol` と `/chief` の定義と手引きの番号を直すコミットを頼む。今の `Protocol` のガードテストが、番号の変え残しを見つける。
 -   [ ] **ステップ 3-12**: 実地の確かめを、人と行う（§1.3 の決定 3）。動いている `/chief` を人が止め、chief の worktree をこの PR のブランチの先頭（detached）にして `make install-chief` を行い、`/chief` と `/chief once` を起動し直す。設計書 7.3 の 5 つの項目を見る。`working` の Claude Code の pane が数個あり、記録が数十 MB ある状態で、1 周の時間を測る。結果と確かめたコミットを §7 の「PR-3 の実行の記録」に書く。その後に `internal/chief` か `.claude/commands/chief.md` を変えるコミットを足したときは、確かめ直す。マージの後、人が chief の worktree を `main` に戻し、`main` から入れ直す。
 
@@ -283,7 +283,24 @@
 
 ### PR-3 の実行の記録
 
-（`/runplan` が、0092 の確かめの結果、AC-19 のスクリプトの出力と 2 つのコミットの ID、実地の確かめの結果と確かめたコミット、1 周の時間を書く）
+**0092 の確かめ（ステップ 3-1、2026-11-17）。** `git fetch origin main` の後に `git grep -n PendingRemoval origin/main -- internal/chief` を走らせた。`origin/main` は `d23784ec` で、終了コードは 0 だった。ただし当たったのは `internal/chief/testdata/transcript/claude-synthetic.jsonl` の 1 行だけである。これはタスク 0095 が足したセッションの記録のサンプルで、PR-1 の報告の文がこの確かめのコマンドを引いているために当たった。Go のコードに絞った `git grep -n PendingRemoval origin/main -- 'internal/chief/*.go'` の終了コードは 1（見つからない）だった（この pathspec の `*` は `/` にも当たり、`internal/chief/paneinput/` の Go のファイルも対象に含む）。0092 の削除の提案はまだ `main` にないと判断し、決定 6 の 3 つは足さず、AC-05 は 0092 が後に入るときの扱い（決定 9）のままとする。マージの前の確かめは、PR の説明に人の項目として、Go のコードに絞ったコマンドで書く。
+
+**AC-19 の確かめ（ステップ 3-8、2026-11-17）。** `_checks/ac19_under_the_table.sh` を、merge-base `d23784eca522cc21fb72e1d9c5f7d7e7a24e7142` と、`.claude/commands/chief.md` を変えたコミット `ef80839d5cc8e84145eb0056f35fdb2a54bbdb98` で走らせた。終了コードは 0 で、出力は次のとおりである。
+
+```text
+base d23784eca522cc21fb72e1d9c5f7d7e7a24e7142 items:
+for each row in 質問で停止, each question's gist and its pane;
+each question of this session not answered yet (for example, whether to send again after the human switched an OpenCode pane's model), one per line; keep this list yourself across rounds;
+each of `problems`.
+
+head ef80839d5cc8e84145eb0056f35fdb2a54bbdb98 items:
+each question of this session not answered yet (for example, whether to send again after the human switched an OpenCode pane's model), one per line; keep this list yourself across rounds;
+each of `problems`.
+
+PASS: only the per-row question list was removed; the other 2 items stay in order
+```
+
+スクリプトの各検査は、次の壊し方で失敗することを確かめた（壊した版は一時的なコミットオブジェクトで作り、ブランチには置いていない）。base と head に同じコミットを渡す（質問の一覧が残る）、残る 2 つの項目の順を入れ替える、`problems` の項目も消す、質問の一覧のない版を base に渡す。
 
 ## 8. 成功の基準 (Success Criteria)
 
