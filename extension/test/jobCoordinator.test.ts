@@ -278,7 +278,7 @@ describe("a generation start", () => {
     );
     assert.equal(s.tabs.calls.length, 0);
     s.local.items.set("anthropic.apiKey", "x");
-    const f = await startFlow(s);
+    await startFlow(s);
     assert.deepEqual(new Set(s.local.calls), new Set(["keys"]));
   });
 
@@ -358,7 +358,7 @@ describe("a generation start", () => {
 
   it("keeps the page title the URL carries to 64 code points, taken from the video title, else from the heading", async () => {
     const long = setup();
-    const f = await startFlow(long, "plain", {
+    await startFlow(long, "plain", {
       ...input,
       title: "t".repeat(100),
     });
