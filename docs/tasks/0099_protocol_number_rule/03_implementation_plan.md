@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を指す。[02_architecture.md](02_architecture.md) を以下、設計書と呼ぶ。「設計書 3.1」のように「設計書」を付けた節番号は設計書の節を、「§1.3」のように § を付けた節番号は本計画の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。既存のファイルの内容と `file:line` の行番号は、コミット `160435ca` で確かめた。設計書が確かめたコミットは `e638505d` である。設計書が引く `internal/mergepr`・`cmd/mergepr`・`internal/cmdrunner`・`internal/doctestutil` の行番号は、`160435ca` でも同じ行を指す（§1.4 で引いた行を開いて確かめた）。
@@ -322,3 +322,7 @@ Diff record (AC-18):
 -   PR-2 のマージの直後に、`main` から `make install-mergepr` で入れ直す（§5 の R-03）。
 -   進行中のタスク（0092・0093・0095・0096）の、番号を決め打ちした文書は、それぞれのタスクが実装の PR の前に直す（要件書 2.3・4.4）。
 -   「番号を変えた PR」の定義の見直し（設計書 3.2 の末尾の既知の限界）は、[#947](https://github.com/isseis/yt2column/issues/947) で扱う。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#951）
