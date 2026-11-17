@@ -420,6 +420,9 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
     const created = await deps.tabs.create({
       url: `${viewerPage}?${query}`,
       active: false,
+      windowId: request.source.windowId,
+      index: request.source.index + 1,
+      openerTabId: request.source.tabId,
     });
     if (!created.ok) {
       reject("internal");
@@ -681,9 +684,15 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
   async function report(
     request: Extract<SwRequest, { type: "progress" | "result" }>,
     tabId: number,
-  ): Promise<WriteReply> {
+  ): Promise<WriteReply | undefined> {
     const records = await loadRecords(deps);
-    const record = records?.get(request.jobId);
+    if (records === undefined) {
+      // The area could not be read: that is not "this sender is not the
+      // runner". No reply is given, so the runner ignores a progress and
+      // sends a result again.
+      return undefined;
+    }
+    const record = records.get(request.jobId);
     if (record === undefined) {
       return { status: "not_runner" };
     }

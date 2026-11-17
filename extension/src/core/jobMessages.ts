@@ -68,12 +68,20 @@ export interface ReserveHeading {
   readonly channelName: string;
 }
 
+/** Where the YouTube tab is, so the viewer opens next to it. */
+export interface SourceTab {
+  readonly tabId: number;
+  readonly windowId: number;
+  readonly index: number;
+}
+
 /** A request to the service worker (chrome.runtime.sendMessage). */
 export type SwRequest =
   | {
       readonly type: "start";
       readonly mode: SendMode;
       readonly input: StartPayload;
+      readonly source: SourceTab;
     }
   | { readonly type: "claimInput"; readonly startId: string }
   | {
@@ -304,11 +312,21 @@ function swRequest(value: JsonValue): SwRequest {
   const type = discriminant(value, "type");
   switch (type) {
     case "start": {
-      const members = exactMembers(value, ["type", "mode", "input"]);
+      const members = exactMembers(value, ["type", "mode", "input", "source"]);
+      const source = exactMembers(member(members, "source"), [
+        "tabId",
+        "windowId",
+        "index",
+      ]);
       return {
         type,
         mode: codeMember(members, "mode", sendModes),
         input: payload(member(members, "input")),
+        source: {
+          tabId: safeInteger(member(source, "tabId")),
+          windowId: safeInteger(member(source, "windowId")),
+          index: safeInteger(member(source, "index")),
+        },
       };
     }
     case "claimInput": {

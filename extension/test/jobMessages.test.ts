@@ -31,12 +31,15 @@ const input = {
   transcript: "0:00\nHi\n",
 };
 
+const source = { tabId: 4, windowId: 2, index: 9 };
+
 const requests: Record<string, unknown> = {
-  start: { type: "start", mode: "inquiry", input },
+  start: { type: "start", mode: "inquiry", input, source },
   startWithMetadata: {
     type: "start",
     mode: "plain",
     input: { ...input, title: "T", channelName: "C", description: "D" },
+    source,
   },
   claimInput: { type: "claimInput", startId: jobId },
   prepareRejected: {
@@ -131,6 +134,9 @@ describe("parseSwRequest", () => {
       mutated("start", "input.extra", "x"),
       mutated("start", "input.title", 5),
       mutated("start", "input.transcript", remove),
+      mutated("start", "source", remove),
+      mutated("start", "source.index", -1),
+      mutated("start", "source.extra", 1),
       mutated("claimInput", "startId", "XYZ"),
       mutated("prepareRejected", "internalDetail", "worker_load"),
       mutated("prepareInternal", "internalDetail", "nope"),
@@ -171,6 +177,7 @@ describe("parseSwRequest", () => {
       type: "start",
       mode: "plain",
       input: { ...input, transcript: atLimit },
+      source,
     };
     assert.ok(parseSwRequest(at).ok);
     const over = { ...at, input: { ...at.input, transcript: `${atLimit}a` } };

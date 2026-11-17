@@ -58,6 +58,7 @@ const article = {
   durationMs: 1,
 } as const;
 const NO_REPLY = Symbol("no reply");
+const source = { tabId: 40, windowId: 3, index: 5 };
 
 interface FakePort extends RunnerPort {
   disconnected: boolean;
@@ -203,7 +204,10 @@ async function startFlow(
     channelName?: string;
   } = input,
 ) {
-  const popup = s.ask({ type: "start", mode, input: payload }, popupSender);
+  const popup = s.ask(
+    { type: "start", mode, input: payload, source },
+    popupSender,
+  );
   await settle();
   const create = [...s.tabs.calls].reverse().find((c) => c.op === "create");
   assert.ok(create?.op === "create");
@@ -235,6 +239,10 @@ describe("a generation start", () => {
     const create = s.tabs.calls.find((c) => c.op === "create");
     assert.ok(create?.op === "create");
     assert.equal(create.tab.active, false);
+    // Next to the YouTube tab the start came from.
+    assert.equal(create.tab.windowId, source.windowId);
+    assert.equal(create.tab.index, source.index + 1);
+    assert.equal(create.tab.openerTabId, source.tabId);
     const parsed = parseJobViewerUrl(new URL(create.tab.url).search, "");
     assert.ok(parsed.ok);
     assert.deepEqual(parsed.params.target, {
@@ -273,7 +281,7 @@ describe("a generation start", () => {
     const s = setup();
     s.local.items.clear();
     assert.deepEqual(
-      await s.ask({ type: "start", mode: "plain", input }, popupSender),
+      await s.ask({ type: "start", mode: "plain", input, source }, popupSender),
       { status: "rejected", reason: "api_key_missing" },
     );
     assert.equal(s.tabs.calls.length, 0);
@@ -286,7 +294,7 @@ describe("a generation start", () => {
     const s = setup();
     s.local.fail("keys");
     assert.deepEqual(
-      await s.ask({ type: "start", mode: "plain", input }, popupSender),
+      await s.ask({ type: "start", mode: "plain", input, source }, popupSender),
       { status: "rejected", reason: "internal" },
     );
     assert.equal(s.tabs.calls.length, 0);
@@ -294,7 +302,7 @@ describe("a generation start", () => {
 
   it("accepts the start only from the popup, and only in the exact request shape", async () => {
     const s = setup();
-    const message = { type: "start", mode: "plain", input };
+    const message = { type: "start", mode: "plain", input, source };
     const senders: MessageSender[] = [
       { ...popupSender, tab: { id: 3 } },
       viewerSender(4),
@@ -319,7 +327,10 @@ describe("a generation start", () => {
     const s = setup();
     const big = { ...input, transcript: "a".repeat(4 * 1024 * 1024) };
     assert.equal(
-      await s.ask({ type: "start", mode: "plain", input: big }, popupSender),
+      await s.ask(
+        { type: "start", mode: "plain", input: big, source },
+        popupSender,
+      ),
       NO_REPLY,
     );
     assert.equal(s.tabs.calls.length, 0);
@@ -332,6 +343,7 @@ describe("a generation start", () => {
         type: "start",
         mode: "plain",
         input: { ...input, videoUrl: "https://example.com/" },
+        source,
       },
       popupSender,
     );
@@ -343,13 +355,19 @@ describe("a generation start", () => {
     const noTab = setup();
     noTab.tabs.fail("create");
     assert.deepEqual(
-      await noTab.ask({ type: "start", mode: "plain", input }, popupSender),
+      await noTab.ask(
+        { type: "start", mode: "plain", input, source },
+        popupSender,
+      ),
       { status: "rejected", reason: "internal" },
     );
 
     const noContext = setup({ failWrites: [1] });
     assert.deepEqual(
-      await noContext.ask({ type: "start", mode: "plain", input }, popupSender),
+      await noContext.ask(
+        { type: "start", mode: "plain", input, source },
+        popupSender,
+      ),
       { status: "rejected", reason: "internal" },
     );
     assert.equal(noContext.tabs.open.size, 0);
@@ -1279,6 +1297,7 @@ describe("review fixes", () => {
         type: "start",
         mode: "plain",
         input: { ...input, title: "t".repeat(600 * 1024) },
+        source,
       },
       popupSender,
     );
@@ -1315,5 +1334,27 @@ describe("review fixes", () => {
       status: "existing",
       jobId: jobId(1),
     });
+  });
+});
+
+describe("a session area that cannot be read", () => {
+  it("leaves a progress and a result unanswered, not answered as not_runner", async () => {
+    const s = setup();
+    seed(s, jobId(1), { state: "running" });
+    s.session.fail("read");
+    const progress = {
+      type: "progress",
+      jobId: jobId(1),
+      instanceId: instance(7),
+      steps: doneSteps,
+    };
+    const result = {
+      type: "result",
+      jobId: jobId(1),
+      instanceId: instance(7),
+      result: { state: "done", steps: doneSteps, article },
+    };
+    assert.equal(await s.ask(progress, viewerSender(7)), undefined);
+    assert.equal(await s.ask(result, viewerSender(7)), undefined);
   });
 });
