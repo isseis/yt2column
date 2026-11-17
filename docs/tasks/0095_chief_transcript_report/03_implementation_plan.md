@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。既存のファイルの内容と `file:line` の行番号は、コミット `4b7e1831` で確かめた。設計書が確かめたコミットは `41683512` である。このコミットから `4b7e1831` までの間に、`internal/chief`・`cmd/chief`・`internal/strictjson`・`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` は変わっていない（`git diff --stat 41683512 4b7e1831 -- <これらのパス> CLAUDE.md` の出力は `CLAUDE.md` の `make wasm-check` の 1 行だけだった）。そのため、設計書が引く `internal/chief` の行番号は今も合う。
@@ -390,3 +390,7 @@ Diff record (AC-17):
 -   PR-4 のマージの後、issue #905 と #892 を閉じる（要件書の「要件定義の際に決めたこと」）。
 -   Claude Code の版が上がったときは、transcript のサンプルを採り直す（chief 利用ガイドの「1. 前提条件」）。
 -   0096（Claude Code の質問の判定）の設計で、本タスクの報告の読み取り部品を使うかを決める（設計書 9 章）。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#935）
