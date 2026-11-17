@@ -439,7 +439,14 @@ func TestRelayTakesTheSnapshotsValue(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			id, err := held.BeginSend(SendRecord{Pane: "w1:p2", Input: InputCommand.String(), Command: "/runpr 42", Model: "m"}, sw.now)
+			agent := openCodeLabel
+			if c.asking == "claude" {
+				// A Claude Code pane's running command is its session's last
+				// human input, which chief's send typed.
+				agent = claudeCodeLabel
+				sw.setTranscript(p, commandLine("/runpr 42"))
+			}
+			id, err := held.BeginSend(SendRecord{Pane: "w1:p2", Input: InputCommand.String(), Command: "/runpr 42", Agent: agent, Model: "m", Kind: "runpr", Arg: "42"}, sw.now)
 			if err == nil {
 				err = held.EndSend(id, OutcomeSent.String(), "", sw.now)
 			}
@@ -468,7 +475,7 @@ func TestRelayTakesTheSnapshotsValue(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if r := snap.Rows[0]; r.State != StateRunning || r.Running == nil || r.Running.Command != "/runpr 42" {
+			if r := snap.Rows[0]; r.State != StateRunning || r.Running == nil || r.Running.Command.Text() != "/runpr 42" {
 				t.Errorf("row after the relay = %+v, running %+v; want the command sent before", r, r.Running)
 			}
 		})

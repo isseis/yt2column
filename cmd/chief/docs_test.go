@@ -456,3 +456,48 @@ func guideValue(guide, item string) string {
 	}
 	return doctestutil.StripBackticks(row[col])
 }
+
+// displayTableHeader is the header cell of the /chief definition's value
+// table, which maps each value of a row item to its display.
+const displayTableHeader = "Shown as"
+
+// TestDisplayValuesMatchTool: the /chief definition's value table maps
+// exactly the values the tool can give each row item it shows (state,
+// urgency, turn, position.document, and position.progress), with no value
+// missing, extra, or repeated and no other item, so the session never meets
+// a value its definition does not map nor maps one the tool never gives.
+func TestDisplayValuesMatchTool(t *testing.T) {
+	table := doctestutil.FindTable(readRepoFile(t, definitionPath), displayTableHeader)
+	if table == nil {
+		t.Fatalf("%s has no table with a %s column", definitionPath, displayTableHeader)
+	}
+	itemCol, valueCol := doctestutil.ColumnIndex(table[0], "Item"), doctestutil.ColumnIndex(table[0], "Value")
+	if itemCol < 0 || valueCol < 0 {
+		t.Fatalf("%s: the value table's header %q has no Item or Value column", definitionPath, table[0])
+	}
+	got := map[string][]string{}
+	for _, row := range table[1:] {
+		if itemCol >= len(row) || valueCol >= len(row) {
+			t.Errorf("%s: value table row %q is short", definitionPath, row)
+			continue
+		}
+		item := doctestutil.StripBackticks(row[itemCol])
+		got[item] = append(got[item], doctestutil.StripBackticks(row[valueCol]))
+	}
+	want := chief.OutputValueNames()
+	for item := range got {
+		if _, ok := want[item]; !ok {
+			t.Errorf("%s maps %s, which the tool does not give", definitionPath, item)
+		}
+	}
+	for item, names := range want {
+		// A repeated value makes the sorted lists differ in length.
+		values := slices.Clone(got[item])
+		slices.Sort(values)
+		names = slices.Clone(names)
+		slices.Sort(names)
+		if !slices.Equal(values, names) {
+			t.Errorf("%s maps %s values %q, the tool gives %q", definitionPath, item, values, names)
+		}
+	}
+}

@@ -148,7 +148,7 @@
 -   [ ] **ステップ 3-3**: `applyAutoSends` を設計書 3.5 の「自動送信の周」のとおりにし、入力を打った workspace の送信の停止を読み直す（設計書 1.2）。テストは次の 3 つを確かめる（AC-03・AC-10）。`TestAutoSendAfterMerge` では、送った行に実行中のコマンドとモデルが示されること。`TestAutoSendFailureAfterInput` では、入力を打った後に送信が失敗した行が、その周から「🔴 すぐ」になること。`TestResetChecksAgain` では、コマンドの後のリセットが失敗した行が、その周から「🔴 すぐ」になること。
 -   [ ] **ステップ 3-4**: `position.go` に行の仕上げを書き、`finishSnapshot` が人の判断を待つものを並べる前に呼ぶようにする。`sortRows` の 2 番目に急ぎの度合いを足す（設計書 3.6・3.7）。
     -   テストは、送信が止まった「実行中」の行、停止を読めない行、送信が止まった「レビュー待ち」の行が「すぐ」の位置へ移ること、`tick` で送った行の進み具合が「作成中」になることを確かめる。
-    -   送信が止まった「レビュー待ち」の行と、止まっていない「質問で停止」の行を並べ（`TestPendingOrderIgnoresUrgency`）、行は入れ替わるが人の判断を待つものは質問 → レビューの順のままであることを確かめる（AC-17）。`TestRowOrderRules`・`TestTakeSnapshotOrder` は変えずに通す。
+    -   送信が止まった「次を提案」の行と、止まっていない「レビュー待ち」の行を並べ（`TestPendingOrderIgnoresUrgency`）、行は入れ替わるが人の判断を待つものはレビュー → 提案の順のままであることを確かめる（AC-17）。`TestRowOrderRules`・`TestTakeSnapshotOrder` は変えずに通す。
 -   [ ] **ステップ 3-5**: 出力を設計書 3.8 のとおりにし、`Protocol` を §1.3 の決定 1 の値にする。値の名前の集合を返す関数を公開する（設計書 7.2）。集合は `Output` が使う名前の関数から、各型の値を 0 から順に `unknown` になるまでたどって作り、`unknown` は含めない。
     -   テストは、`snapshot` と `tick` の JSON が行ごとに `urgency`・`turn`・`position`・`idle`・`running_unknown` を持ち `merge_question` を持たないこと、範囲の外の値が `unknown` になること、質問ごとの `merge` が残ること、偽った送信の記録の `Arg` とセッションの記録の検証できない引数が `running.command` に入らないことを確かめる（AC-13・AC-18・AC-20）。
     -   値の名前の集合の各名前が出力の名前の関数から返り、各型の範囲のすぐ外の値が `unknown` になることを確かめる。

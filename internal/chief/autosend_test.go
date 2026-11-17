@@ -329,8 +329,10 @@ func TestAutoSendAfterMerge(t *testing.T) {
 	if got := mw.rec.prompts(); !slices.Equal(got, want) {
 		t.Errorf("prompts = %v, want %v", got, want)
 	}
-	if row := rowOf(t, out.Snapshot, "ws"); row.State != StateRunning || row.Running == nil || row.Running.Command != "/mkarch 0001" {
-		t.Errorf("row = %+v; want running /mkarch 0001", row)
+	// The row shows the command sent and its model in the round it was
+	// sent, though the transcript read before the send does not hold it.
+	if row := rowOf(t, out.Snapshot, "ws"); row.State != StateRunning || row.Running == nil || row.Running.Command.Text() != "/mkarch 0001" || row.Running.Model != "opus" || row.Position.Progress != ProgressCreating {
+		t.Errorf("row = %+v; want running /mkarch 0001 on opus, creating", row)
 	}
 	if slices.ContainsFunc(out.Snapshot.Pending, func(p PendingItem) bool { return p.Kind == PendingProposal }) {
 		t.Errorf("the command sent is still proposed: %+v", out.Snapshot.Pending)
@@ -1262,8 +1264,9 @@ func TestAutoSendFailureAfterInput(t *testing.T) {
 	if len(res.Actions) != 1 || res.Actions[0].Outcome != OutcomeSentThenFailed {
 		t.Fatalf("auto send = %+v; want sent, then failed", res)
 	}
-	if row := rowOf(t, out.Snapshot, "ws"); row.State != StateNeedsCheck {
-		t.Errorf("row = %+v; want needs check", row)
+	// The stop the failed send made calls the human in this round.
+	if row := rowOf(t, out.Snapshot, "ws"); row.State != StateNeedsCheck || row.Stopped == nil || row.Urgency != UrgencyNow || row.Turn != TurnHuman {
+		t.Errorf("row = %+v; want needs check, stopped, now, human", row)
 	}
 	if records, ok, err := mw.store.existingRecords(Worktree{path: mw.tree}); err != nil || !ok {
 		t.Fatalf("records = %v, %v", ok, err)
@@ -1486,6 +1489,28 @@ func TestResetChecksAgain(t *testing.T) {
 			}
 		})
 	}
+	// A reset that fails after its input stops the workspace: the row of
+	// the command it follows calls the human in the round of the send,
+	// though the command runs.
+	t.Run("the reset fails after its input", func(t *testing.T) {
+		mw := newMergeWorld(t, mkarchDocs)
+		mw.tick(time.Minute)
+		mw.merge(nextBranch, "`/mkarch 0001`")
+		mw.react = func(p *simPane, text string) error {
+			if text == "/new" {
+				return errors.New("herdr lost the pane")
+			}
+			return mw.realReact(p, text)
+		}
+		out := mw.tick(time.Minute)
+		res := only(t, out)
+		if !sentCommand(res) || len(res.Actions) != 2 || res.Actions[1].Input != InputReset || res.Actions[1].Outcome != OutcomeSentThenFailed {
+			t.Fatalf("auto send = %+v; want the command sent and the reset failed after its input", res)
+		}
+		if row := rowOf(t, out.Snapshot, "ws"); row.State != StateRunning || row.Stopped == nil || row.Urgency != UrgencyNow || row.Turn != TurnHuman {
+			t.Errorf("row = %+v; want running, stopped, now, human", row)
+		}
+	})
 	// With /runpr routed to Claude Code, its pane w1:p1 still holds the
 	// report in its transcript but moved while the command was typed.
 	t.Run("the Claude Code /runpr pane moved", func(t *testing.T) {
@@ -1509,4 +1534,28 @@ func TestResetChecksAgain(t *testing.T) {
 			t.Error("the /runpr pane was emptied")
 		}
 	})
+}
+
+// TestTickOutputRows checks the JSON of tick's rows: the same members as
+// snapshot's, with the row an automatic send went to showing the command
+// sent and its model, its progress creating, and its urgency wait.
+func TestTickOutputRows(t *testing.T) {
+	mw := newMergeWorld(t, mkarchDocs)
+	mw.tick(time.Minute)
+	mw.merge(nextBranch, "`/mkarch 0001`")
+	out := mw.tick(time.Minute)
+	if !sentCommand(only(t, out)) {
+		t.Fatalf("auto send = %+v; want the command sent", out.AutoSends)
+	}
+	rows := rowsJSON(t, out.Output())
+	checkRowMembers(t, rows)
+	if len(rows) != 1 {
+		t.Fatalf("rows = %v, want one", rows)
+	}
+	r := rows[0]
+	running, _ := r["running"].(map[string]any)
+	pos, _ := r["position"].(map[string]any)
+	if running["command"] != "/mkarch 0001" || running["model"] != "opus" || pos["progress"] != "creating" || pos["document"] != "architecture" || r["urgency"] != "wait" || r["turn"] != "ai" {
+		t.Errorf("row = %v; want /mkarch 0001 on opus, creating the architecture document, wait, ai", r)
+	}
 }

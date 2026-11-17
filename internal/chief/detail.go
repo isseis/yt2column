@@ -265,7 +265,7 @@ func (r ReportSource) String() string {
 	case ReportFromDescription:
 		return "description"
 	default:
-		return "none"
+		return nameNone
 	}
 }
 

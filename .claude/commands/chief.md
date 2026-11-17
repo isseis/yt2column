@@ -8,8 +8,9 @@ argument-hint: "[once]"
 You are the chief session: you show the human where each task workspace in
 Herdr stands, ask about what waits on the human, and pass the human's choices
 to the `chief` tool. The tool decides everything else: the state of each
-workspace, the next command, the agent and model it goes to, the pane, the
-automatic send after a merge, and every input typed into another pane. You
+workspace, its urgency, turn, and position, the order of the rows, the next
+command, the agent and model it goes to, the pane, the automatic send after a
+merge, and every input typed into another pane. You
 never decide any of these yourself, and you never type into another pane.
 How the tool works, what it guarantees, and how to install it are in the
 guide, [chief_guide.md](../../docs/dev/guides/chief_guide.md) (Japanese).
@@ -94,7 +95,7 @@ The refusals (`reason`):
 
 ## 1. Start
 
-Run `chief start --protocol 1`. On exit `3`, handle the refusal as above and
+Run `chief start --protocol 2`. On exit `3`, handle the refusal as above and
 stop. On `0`, note `state_dir` for the guide's questions; when
 `stopped_sends` is above 0, say that many workspaces were stopped because a
 send there did not finish (they are listed in the table); and when
@@ -103,7 +104,7 @@ send there did not finish (they are listed in the table); and when
 ## 2. One round
 
 A round reads the status and shows it. With the argument `once`, read it with
-`chief snapshot --protocol 1`; otherwise with `chief tick --protocol 1`,
+`chief snapshot --protocol 2`; otherwise with `chief tick --protocol 2`,
 which also sends the command after a merge when every condition holds. Run
 one round at a time: never start a `snapshot` or `tick` while another is
 running, since the tool numbers the new items of a round on the premise that
@@ -121,23 +122,75 @@ no other round numbers at once. Then show, in this order:
    the pane's input line) when it is set. For an `auto_sends` entry with
    `reasons` and no sent action, say that the command after the merge was not
    sent and why: it is offered as a proposal instead.
-2. **The table**: one line per row of `rows`, in the tool's order, with the
-   label, the task (`task`, or なし when empty), the state, and what is
-   next. The state names are: `needs_check` 要確認, `question` 質問で停止,
-   `running` 実行中, `awaiting_review` レビュー待ち, `propose_next`
-   次を提案, `task_done` タスク完了. What is next is:
+2. **The table**: a Markdown table with one line per row of `rows`, in the
+   tool's order. Never reorder the rows. Show each row's urgency, turn, and
+   position as the tool gave them (`urgency`, `turn`, `position`), mapped
+   by the value table below; never decide them yourself from the state or
+   anything else (requirements AC-21). The columns, in this order:
+
+   | Column | Content |
+   |---|---|
+   | 急ぎ | `urgency` |
+   | 名前 | `label` |
+   | タスク | `task`, or なし when empty |
+   | 状態 | `state` |
+   | 番 | `turn` |
+   | 文書 | `position.document` |
+   | 進み具合 | `position.progress` |
+   | 次 | what is next (below) |
+
+   Each value is shown as this table says:
+
+   | Item | Value | Shown as |
+   |---|---|---|
+   | `state` | `needs_check` | 要確認 |
+   | `state` | `question` | 質問で停止 |
+   | `state` | `running` | 実行中 |
+   | `state` | `awaiting_review` | レビュー待ち |
+   | `state` | `propose_next` | 次を提案 |
+   | `state` | `task_done` | タスク完了 |
+   | `urgency` | `now` | 🔴 すぐ |
+   | `urgency` | `later` | 🟡 あとで |
+   | `urgency` | `wait` | 🟢 待つ |
+   | `turn` | `human` | 人 |
+   | `turn` | `ai` | AI |
+   | `turn` | `none` | なし |
+   | `position.document` | `needs_check` | 要確認 |
+   | `position.document` | `no_task` | - |
+   | `position.document` | `requirements` | 要件定義書 |
+   | `position.document` | `architecture` | 設計書 |
+   | `position.document` | `plan` | 計画書 |
+   | `position.document` | `plan_pr` | PR-N, with N the `position.plan_pr` |
+   | `position.document` | `none` | なし |
+   | `position.progress` | `needs_check` | 要確認 |
+   | `position.progress` | `awaiting_creation` | 作成待ち |
+   | `position.progress` | `creating` | 作成中 |
+   | `position.progress` | `runpr_running` | `/runpr` 実行中 |
+   | `position.progress` | `running` | 実行中 |
+   | `position.progress` | `merge_confirmation` | マージの確認待ち |
+   | `position.progress` | `question` | 質問で停止 |
+   | `position.progress` | `awaiting_review` | レビュー待ち |
+   | `position.progress` | `task_done` | タスク完了 |
+
+   Show a value this table does not have as it is written, followed by
+   （定義にない値）, and never guess what it means. What is next is:
    - for 要確認, `unreadable` (what could not be read);
-   - for 質問で停止, whether it is `/runpr`'s merge question
-     (`merge_question`);
-   - for 実行中, `running` (command and model) when it is set;
+   - for 質問で停止, for each of its `questions`, the question's gist and its
+     pane, adding マージの確認 to a question whose `merge` is true. Never
+     write that a question is not a merge confirmation;
+   - for 実行中, the `running` command, and its model when `model` is not
+     empty, when `running` is set; nothing when it is null;
    - for レビュー待ち, the PR's number and title;
    - for 次を提案, `next` (command, agent, model), or its `problem` when it
      is not `sendable` (a `/mkreq` is not sendable until the human names the
      issue); and `takeover` when it is set;
    - when `stopped` is set, that sends to the workspace are stopped, with
-     its `reason` and `at`.
+     its `reason` and `at`; when its `unreadable` is true, that sends are
+     stopped and that the stop record could not be read.
+
+   Do not show `idle` or `running_unknown`: they are for looking into a row,
+   and the guide says how to read them.
 3. **Under the table:**
-   - for each row in 質問で停止, each question's gist and its pane;
    - each question of this session not answered yet (for example, whether to
      send again after the human switched an OpenCode pane's model), one per
      line; keep this list yourself across rounds;
@@ -225,17 +278,17 @@ modes, since the human has just chosen and is answering.
     three, the rest named in the question text with their numbers) and
     答えない. A free-text answer is an option only when it is one of the
     question's option numbers. When the human chooses an option, run
-    `chief relay --workspace <workspace> --check <check> --answer 1=<number> --protocol 1`,
+    `chief relay --workspace <workspace> --check <check> --answer 1=<number> --protocol 2`,
     with `<number>` the option's number. Show its results as step 2 does.
     The tool sends nothing when the question changed since it was shown
     (`check_mismatch`); say so.
-- **A review** (`review`): run `chief detail --workspace <workspace> --protocol 1`
+- **A review** (`review`): run `chief detail --workspace <workspace> --protocol 2`
   and show the detail (below). Then ask with `AskUserQuestion`:
   `/runpr` を送る (with `runpr`'s agent and model; offered only when the
   detail's `runpr` is `sendable`, otherwise show its `problem`), 送らない,
   and ほかの PR を見る (requirements AC-22).
   - `/runpr` を送る: run
-    `chief send --workspace <workspace> --command runpr --pr <pr> --protocol 1`
+    `chief send --workspace <workspace> --command runpr --pr <pr> --protocol 2`
     with `<pr>` the detail's PR number, in the background (`run_in_background`),
     and go on without waiting for it (requirements AC-24). When it ends,
     show its results as step 2 does.
@@ -245,13 +298,13 @@ modes, since the human has just chosen and is answering.
   `sendable` and `<request>` is not `mkreq`, send nothing: show its
   `problem`. When it is `mkreq`, ask the human
   for the issue number first, then run
-  `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 1`.
+  `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 2`.
   Otherwise run
-  `chief send --workspace <workspace> --command <request> --protocol 1`.
+  `chief send --workspace <workspace> --command <request> --protocol 2`.
   Show the results as step 2 does.
 - **`停止を解く: <label>`**: show the row's `stopped` (reason, screen, time)
   and ask whether to release it. On yes, run
-  `chief release --workspace <workspace> --protocol 1` and show `released`
+  `chief release --workspace <workspace> --protocol 2` and show `released`
   and `problem`.
 
 **Sending again after a model switch** (requirements AC-16). When a send
@@ -304,7 +357,7 @@ names the row's state, say that state and show the row in the next round.
 ## 5. Watching
 
 Without `once`, keep one wait running in the background: after each round,
-run `chief wait --since <baseline> --protocol 1` with `run_in_background`,
+run `chief wait --since <baseline> --protocol 2` with `run_in_background`,
 `<baseline>` being the round's `baseline`. Never run two waits at once.
 
 - When it ends with exit `0` (`outcome` `changed`), or with `outcome`
