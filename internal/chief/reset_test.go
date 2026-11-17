@@ -89,11 +89,16 @@ func TestResetAfterRunpr(t *testing.T) {
 		react     func(sw *sendWorld, p *simPane, text string) error
 		reason    NotSentReason
 	}{
+		// The pane's screen is idle, so only its transcript holds the report.
 		{name: "a task-document PR's pane"},
 		{name: "a /mkreq PR's pane", plan: "none", ran: "/mkreq 12"},
 		{name: "a plan PR made on Claude Code", plan: "marker-opus.md", ran: "/runplan 0001"},
 		{name: "another document command of the task", ran: "/mkplan 0001", reason: NotSentOtherInput},
 		{name: "a plan PR whose pane last ran another command", plan: "marker-opus.md", reason: NotSentOtherInput},
+		// The detail gathered before /runpr already finds no last report and
+		// keeps the description, so these two stop at the kept record; the
+		// rows "then answered" and "after the report was kept" reach the
+		// reset's own reading of the transcript.
 		{name: "text typed after the report", typed: "what is the state of PR 42?", reason: NotSentNoReport},
 		{name: "text typed after the report, then answered", typed: "what is the state of PR 42?", answered: true, reason: NotSentOtherInput},
 		{name: "text queued while the command worked", queued: true, reason: NotSentNoReport},

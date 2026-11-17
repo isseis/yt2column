@@ -252,7 +252,7 @@ func TestDetailReportSource(t *testing.T) {
 			sw.endWithReport(ps[0], makerReport)
 		}, want: ReportFromPane, pane: "w1:p1"},
 		{name: "a PR record naming another PR", set: func(sw *sendWorld, ps []*simPane) {
-			sw.appendTranscript(ps[0], prURLRecordLine(43, prURL[:len(prURL)-2]+"43"), answerLine("msg_report", makerReport))
+			sw.appendTranscript(ps[0], prURLRecordLine(43, strings.TrimSuffix(prURL, "42")+"43"), answerLine("msg_report", makerReport))
 		}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportNotNamed}},
 		{name: "a report naming the PR's URL, with no PR record", set: func(sw *sendWorld, ps []*simPane) {
 			sw.appendTranscript(ps[0], answerLine("msg_report", makerReport+" "+prURL))
@@ -321,22 +321,37 @@ func TestDetailReportSource(t *testing.T) {
 				if !strings.HasPrefix(d.ReportText, "## ") {
 					t.Errorf("description = %q", d.ReportText)
 				}
-				var results []string
-				if reason != nil {
-					for _, p := range reason.Panes {
-						results = append(results, p.Result)
-					}
-				}
+				// The names are the output's contract, which chief.md
+				// documents, so they are written out here.
+				reasons := map[DescriptionReason]string{DescriptionReasonNoClaudePane: "no_claude_pane", DescriptionReasonNoCandidate: "no_candidate", DescriptionReasonSeveralCandidates: "several_candidates"}
+				results := map[PaneReportKind]string{PaneReportUnreadable: "unreadable", PaneReportAbsent: "no_report", PaneReportNotNamed: "not_named", PaneReportCandidate: "candidate"}
 				var want []string
 				for _, k := range c.found {
-					want = append(want, k.String())
+					want = append(want, results[k])
 				}
-				if reason == nil || reason.Reason != c.reason.String() || !slices.Equal(results, want) {
-					t.Errorf("output reason = %+v; want %s with %v", reason, c.reason, want)
+				var got []string
+				for i, p := range reasonPanes(reason) {
+					got = append(got, p.Result)
+					// A pane with no report or an unreadable one says why, with
+					// its transcript's path.
+					if i < len(c.found) && (c.found[i] == PaneReportAbsent || c.found[i] == PaneReportUnreadable) && !strings.Contains(p.Detail, sw.config) {
+						t.Errorf("pane %s detail = %q; want the transcript's path", p.Pane, p.Detail)
+					}
+				}
+				if reason == nil || reason.Reason != reasons[c.reason] || !slices.Equal(got, want) {
+					t.Errorf("output reason = %+v; want %s with %v", reason, reasons[c.reason], want)
 				}
 			}
 		})
 	}
+}
+
+// reasonPanes returns the panes of a description reason, none for nil.
+func reasonPanes(r *DescriptionReasonOutput) []DescriptionPaneOutput {
+	if r == nil {
+		return nil
+	}
+	return r.Panes
 }
 
 // TestDetailCapsALongReport checks that a report longer than the cap is
