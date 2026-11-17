@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -193,3 +193,7 @@
 -   **プロトコル番号**: 3 章の冒頭の定義のとおり。`docs/dev/guides/chief_guide.md` §2 の「プロトコル番号」と同じものを指す。
 -   **道具**、**期待する値**、**番号を変えた PR**、**PR のコミット**: 3 章の冒頭の定義のとおり。
 -   用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+-   2026-11-17 承認（isseis、#937）
