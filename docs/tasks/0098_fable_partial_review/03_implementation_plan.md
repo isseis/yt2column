@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号と「決定 N」は [02_architecture.md](02_architecture.md)（以下、設計書）の節と 1.2 の決定を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。既存のファイルの内容と `file:line` の行番号は、コミット `20c8b986`（`origin/main`）で確かめた。設計書が確かめたコミットは `d76547e1` である。その後に変わったのは、`runpr.md` の step 5 の報告（1302 行目より後）、`CLAUDE.md` の拡張のコマンドの一覧（258 行目付近で 1 行増えた）、`cmd/yt2column/devbuild_docs_test.go`、`docs/dev/guides/development.md` である（`git diff --stat d76547e1 20c8b986 -- .claude CLAUDE.md cmd docs/dev/guides`）。このうち後ろの 2 つは、本タスクが触れないファイルである。そのため、設計書が引く行番号は、`CLAUDE.md` の 258 行目より後を除いて今も合う。
@@ -350,3 +350,7 @@ PR-2:
 
 -   PR-3 のマージの後、効果の分類と集計（[#936](https://github.com/isseis/yt2column/issues/936)）が、PR の説明の `Fable の行` のコードブロックを読む。
 -   実地の確かめで設計と違う振る舞いが見つかり、本タスクの中で扱わなかったものは、issue にする。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#958）
