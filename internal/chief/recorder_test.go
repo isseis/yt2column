@@ -109,6 +109,9 @@ func TestRecorderAllowsOnlyTheExactWrite(t *testing.T) {
 	}
 }
 
+// The rule that `gh api graphql` passes only in the tool's one shape is
+// checked by TestRecorderPassesOnlyTheFixedIssueRead in issue_test.go.
+
 // TestRecorderAnswersAnAllowedWrite runs an allowed write through the
 // commands the code under test uses, so the answer reaches it.
 func TestRecorderAnswersAnAllowedWrite(t *testing.T) {

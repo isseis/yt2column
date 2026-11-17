@@ -1340,7 +1340,7 @@ func (r WorkspaceRecords) Created(home string) (*CreatedRecord, error) {
 }
 
 // isRecordFile reports whether name is one of the records of a worktree's
-// directory. The exclusion's file is not one: it is not a record.
+// directory (a temporary file a failed create left is not one). The exclusion's file is not one: it is not a record.
 func isRecordFile(name string) bool {
 	return name == stopFile || name == createdFile ||
 		sendFileName.MatchString(name) || detailFileName.MatchString(name) || reportFileName.MatchString(name)
