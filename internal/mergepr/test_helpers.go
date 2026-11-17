@@ -72,10 +72,55 @@ func (f *fakeRunner) done() {
 	}
 }
 
+// checkCall records one call of the protocol-number check: the head and base
+// it was given and how many scripted commands had run before it.
+type checkCall struct {
+	head, base string
+	index      int
+}
+
+// fakeChecker stands in for the protocol-number check. It returns the result
+// it was given and records each call with the fake runner's position, so a
+// test can tell which commands ran before the check.
+type fakeChecker struct {
+	runner  *fakeRunner
+	summary protocolSummary
+	err     error
+	calls   []checkCall
+}
+
+func (f *fakeChecker) check(_ context.Context, headOID, baseRefName string) (protocolSummary, error) {
+	f.calls = append(f.calls, checkCall{head: headOID, base: baseRefName, index: f.runner.index})
+	return f.summary, f.err
+}
+
+// testSummary is the summary the passing fake check returns.
+var testSummary = protocolSummary{
+	MainOID:   testOtherOID,
+	HeadOID:   testHeadOID,
+	MainTools: map[string]protocolValue{"alpha": {State: protocolPresent, Value: 1}},
+}
+
+// newTool returns a Tool on a scripted runner whose protocol-number check
+// passes with testSummary.
 func newTool(t testing.TB, steps ...commandStep) (*Tool, *fakeRunner) {
 	t.Helper()
+	tool, runner, _ := newCheckedTool(t, nil, steps...)
+	return tool, runner
+}
+
+// newCheckedTool returns a Tool on a scripted runner whose protocol-number
+// check returns checkErr, or passes with testSummary when checkErr is nil.
+func newCheckedTool(t testing.TB, checkErr error, steps ...commandStep) (*Tool, *fakeRunner, *fakeChecker) {
+	t.Helper()
 	runner := &fakeRunner{t: t, steps: steps}
-	return New(runner), runner
+	checker := &fakeChecker{runner: runner, summary: testSummary, err: checkErr}
+	if checkErr != nil {
+		checker.summary = protocolSummary{}
+	}
+	tool := New(runner)
+	tool.protocol = checker
+	return tool, runner, checker
 }
 
 func writeTempFile(t testing.TB, dir, name, content string) string {

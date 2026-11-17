@@ -283,6 +283,22 @@ type protocolSummary struct {
 	Changed          []string
 }
 
+// String is the one line Prepare and Merge report on a pass: the commits
+// compared, each tool origin/main has with its number, and the tools the PR
+// changed, so what the check saw can be traced from the report after the
+// merge.
+func (s protocolSummary) String() string {
+	tools := make([]string, 0, len(s.MainTools))
+	for _, pkg := range slices.Sorted(maps.Keys(s.MainTools)) {
+		tools = append(tools, pkg+" "+s.MainTools[pkg].String())
+	}
+	changed := "none"
+	if len(s.Changed) > 0 {
+		changed = strings.Join(s.Changed, ", ")
+	}
+	return fmt.Sprintf("passed; origin/main %s, head %s; origin/main tools: %s; changed: %s", s.MainOID, s.HeadOID, strings.Join(tools, ", "), changed)
+}
+
 // protocolLine is one line of a .go file that holds the word Protocol.
 type protocolLine struct {
 	Path string // relative to the top of the work tree, slash-separated

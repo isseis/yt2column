@@ -125,35 +125,35 @@
 
 **変更するファイル:** `internal/mergepr/mergepr.go`、`internal/mergepr/protocolcheck.go`、`internal/mergepr/test_helpers.go`
 
-- [ ] 設計書 3.5 の `Protocol` の定数を、受け付ける行の形で `mergepr.go` に足す。値は `origin/main` の値 + 1 で、今の `origin/main` に定数がないので `1` になる（AC-10）。
-- [ ] 設計書 3.7 の `protocolChecker` を足し、`Tool` に持たせる。`New` で本番の確かめの本体を組み立てる（§1.3 の決定 2）。
-- [ ] `test_helpers.go` に、確かめの本体の差し替えを足し、`newTool` で使う。差し替えは、決めた結果（通す・食い違い・読めない）を返し、受け取った head と base と、呼ばれた時点の `fakeRunner` の `index` を記録する。
-- [ ] パッケージの説明（`mergepr.go:1-7`）の安全上の約束に、番号の確かめを足す。
+- [x] 設計書 3.5 の `Protocol` の定数を、受け付ける行の形で `mergepr.go` に足す。値は `origin/main` の値 + 1 で、今の `origin/main` に定数がないので `1` になる（AC-10）。
+- [x] 設計書 3.7 の `protocolChecker` を足し、`Tool` に持たせる。`New` で本番の確かめの本体を組み立てる（§1.3 の決定 2）。
+- [x] `test_helpers.go` に、確かめの本体の差し替えを足し、`newTool` で使う。差し替えは、決めた結果（通す・食い違い・読めない）を返し、受け取った head と base と、呼ばれた時点の `fakeRunner` の `index` を記録する。
+- [x] パッケージの説明（`mergepr.go:1-7`）の安全上の約束に、番号の確かめを足す。
 
 #### ステップ 2-2: `Prepare` と `Merge` への組み込み
 
 **変更するファイル:** `internal/mergepr/mergepr.go`、`internal/mergepr/mergepr_test.go`
 
-- [ ] `Prepare` で、`git fetch origin` の後に、`main` を `refs/remotes/origin/main` へ取り込む refspec を明示した取得を足し、その後、CI を待つ前に、PR の head と base で確かめる（設計書 3.3）。止まれば作業ディレクトリを作らない。通れば、要約を `Prepared` に入れて返す。
-- [ ] `Merge` で、base の名前を確かめた後、`gh pr merge` の前に、同じ取得と、`state.json` の head と base での確かめを行う（設計書 3.4）。通れば要約を `Report` に入れる。
-- [ ] `main` の取得の失敗は、AC-13(1) の種類の `protocolUnreadableError` として返す。
-- [ ] 示すコマンドを組み立てる公開の関数を足し（§1.3 の決定 6）、`:246`・`:249`・`:255` と、`Merge` の確かめで止まったときの `discard` に使う。どれも `--protocol <Protocol>` を付ける（設計書 3.4・3.5）。
-- [ ] `Prepare` と `Merge` を最後まで通す既存のテストの台本に、`main` の取得を足す。
-- [ ] `mergepr_test.go::TestPrepareRunsProtocolCheck` で、確かめの本体が `main` の取得の後に、`gh pr view` の head と base で呼ばれることを、差し替えの記録で確かめる。食い違いと読めないでは、`gh pr checks` を呼ばずに止まり、作業ディレクトリを作らないことも確かめる（AC-14）。
-- [ ] `mergepr_test.go::TestMergeRunsProtocolCheck` で、確かめの本体が `main` の取得の後に、`state.json` の head と base で呼ばれることを確かめる。食い違いと読めないの両方で、`gh pr merge` を呼ばずに止まることも確かめる（AC-16）。
-- [ ] `mergepr_test.go::TestProtocolFetchFailureStops` で、`Prepare` と `Merge` の `main` の取得が失敗すると、確かめの本体もその後のコマンドも呼ばずに、AC-13(1) の種類の誤りで止まることを確かめる。
-- [ ] 確かめの本体を呼ぶ位置を取得の前に移すことと、渡す head を変えることで、`TestPrepareRunsProtocolCheck` と `TestMergeRunsProtocolCheck` が失敗することを確かめ、コミットのメッセージに書く。
+- [x] `Prepare` で、`git fetch origin` の後に、`main` を `refs/remotes/origin/main` へ取り込む refspec を明示した取得を足し、その後、CI を待つ前に、PR の head と base で確かめる（設計書 3.3）。止まれば作業ディレクトリを作らない。通れば、要約を `Prepared` に入れて返す。
+- [x] `Merge` で、base の名前を確かめた後、`gh pr merge` の前に、同じ取得と、`state.json` の head と base での確かめを行う（設計書 3.4）。通れば要約を `Report` に入れる。
+- [x] `main` の取得の失敗は、AC-13(1) の種類の `protocolUnreadableError` として返す。
+- [x] 示すコマンドを組み立てる公開の関数を足し（§1.3 の決定 6）、`:246`・`:249`・`:255` と、`Merge` の確かめで止まったときの `discard` に使う。どれも `--protocol <Protocol>` を付ける（設計書 3.4・3.5）。
+- [x] `Prepare` と `Merge` を最後まで通す既存のテストの台本に、`main` の取得を足す。
+- [x] `mergepr_test.go::TestPrepareRunsProtocolCheck` で、確かめの本体が `main` の取得の後に、`gh pr view` の head と base で呼ばれることを、差し替えの記録で確かめる。食い違いと読めないでは、`gh pr checks` を呼ばずに止まり、作業ディレクトリを作らないことも確かめる（AC-14）。
+- [x] `mergepr_test.go::TestMergeRunsProtocolCheck` で、確かめの本体が `main` の取得の後に、`state.json` の head と base で呼ばれることを確かめる。食い違いと読めないの両方で、`gh pr merge` を呼ばずに止まることも確かめる（AC-16）。
+- [x] `mergepr_test.go::TestProtocolFetchFailureStops` で、`Prepare` と `Merge` の `main` の取得が失敗すると、確かめの本体もその後のコマンドも呼ばずに、AC-13(1) の種類の誤りで止まることを確かめる。
+- [x] 確かめの本体を呼ぶ位置を取得の前に移すことと、渡す head を変えることで、`TestPrepareRunsProtocolCheck` と `TestMergeRunsProtocolCheck` が失敗することを確かめ、コミットのメッセージに書く。
 
 #### ステップ 2-3: `cmd/mergepr` の `--protocol`
 
 **変更するファイル:** `cmd/mergepr/main.go`、`cmd/mergepr/main_test.go`
 
-- [ ] `run` から、引数を読むだけの関数を分ける（§1.3 の決定 6）。`run` は、その関数を `mergepr.New` の前に呼ぶ。
-- [ ] 4 つのサブコマンドで `--protocol` を必須にし、`mergepr.Protocol` と文字列として照合する（§1.4 の `cmd/mergepr`）。違うか、渡されないときは、何も読まず、何も書かずに、`errUsage` を元のエラーとして含めた誤りで止まる。誤りの文は、道具が古ければ `main` から入れ直すこと、定義が古ければ `main` を取り込むことの 2 つを示す（設計書 3.5）。
-- [ ] `errUsage` の使い方の文の 4 つの形に `--protocol N` を足す。
-- [ ] `prepare` と `merge` が、通ったときの要約を 1 行で示す（設計書 3.3）。
-- [ ] `main_test.go::TestParseRequiresProtocol` で、4 つのサブコマンドについて、ほかの引数が正しい呼び出しを基準の呼び出しとする。基準の呼び出しが通ることと、`--protocol` を違う値（`01`・`+1`・`0x1`・`1junk` を含む）にした場合と外した場合に `errUsage` で拒むことを確かめる（AC-16a）。`TestRunRejectsExtraArguments` の引数に `--protocol` を足す。
-- [ ] `main_test.go::TestShownCommandsParse` で、§1.3 の決定 6 の関数が組み立てるすべての示すコマンドが、引数を読むだけの関数を通ることを確かめる。
+- [x] `run` から、引数を読むだけの関数を分ける（§1.3 の決定 6）。`run` は、その関数を `mergepr.New` の前に呼ぶ。
+- [x] 4 つのサブコマンドで `--protocol` を必須にし、`mergepr.Protocol` と文字列として照合する（§1.4 の `cmd/mergepr`）。違うか、渡されないときは、何も読まず、何も書かずに、`errUsage` を元のエラーとして含めた誤りで止まる。誤りの文は、道具が古ければ `main` から入れ直すこと、定義が古ければ `main` を取り込むことの 2 つを示す（設計書 3.5）。
+- [x] `errUsage` の使い方の文の 4 つの形に `--protocol N` を足す。
+- [x] `prepare` と `merge` が、通ったときの要約を 1 行で示す（設計書 3.3）。
+- [x] `main_test.go::TestParseRequiresProtocol` で、4 つのサブコマンドについて、ほかの引数が正しい呼び出しを基準の呼び出しとする。基準の呼び出しが通ることと、`--protocol` を違う値（`01`・`+1`・`0x1`・`1junk` を含む）にした場合と外した場合に `errUsage` で拒むことを確かめる（AC-16a）。`TestRunRejectsExtraArguments` の引数に `--protocol` を足す。
+- [x] `main_test.go::TestShownCommandsParse` で、§1.3 の決定 6 の関数が組み立てるすべての示すコマンドが、引数を読むだけの関数を通ることを確かめる。
 
 **完了の条件:** `go test -tags test ./internal/mergepr ./cmd/mergepr` が通る。このフェーズだけでは `mergepr.md`・`runpr.md` がまだ `--protocol` を渡さないので、フェーズ 3 を同じ PR に入れる。
 

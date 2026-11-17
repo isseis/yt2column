@@ -506,6 +506,16 @@ func TestCheckProtocolSummary(t *testing.T) {
 	if summary.MainOID != m0 || summary.HeadOID != head || !maps.Equal(summary.MainTools, wantTools) || !slices.Equal(summary.Changed, []string{"alpha"}) {
 		t.Errorf("summary = %+v, want main %s head %s tools %v changed [alpha]", summary, m0, head, wantTools)
 	}
+	// The line Prepare and Merge print is the operator's record of what the
+	// check compared, so its content is the contract.
+	want := "passed; origin/main " + m0 + ", head " + head + "; origin/main tools: alpha 1, beta 6; changed: alpha"
+	if got := summary.String(); got != want {
+		t.Errorf("summary line = %q, want %q", got, want)
+	}
+	unchanged := protocolSummary{MainOID: m0, HeadOID: m0, MainTools: wantTools}
+	if got, want := unchanged.String(), "passed; origin/main "+m0+", head "+m0+"; origin/main tools: alpha 1, beta 6; changed: none"; got != want {
+		t.Errorf("summary line without a change = %q, want %q", got, want)
+	}
 }
 
 func TestCheckProtocolUnreadable(t *testing.T) {
