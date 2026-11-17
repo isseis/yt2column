@@ -125,6 +125,21 @@ func (k CommandKind) Name() string {
 	}
 }
 
+// commandKinds are the five task command kinds, the only ones with a name.
+var commandKinds = []CommandKind{CommandMkreq, CommandMkarch, CommandMkplan, CommandRunplan, CommandRunpr}
+
+// ParseCommandKind returns the kind whose Name is name. Contract: only the
+// five names Name returns are accepted, compared whole; any other text, ""
+// included, is ErrInvalid, never a guessed kind.
+func ParseCommandKind(name string) (CommandKind, error) {
+	for _, k := range commandKinds {
+		if k.Name() == name {
+			return k, nil
+		}
+	}
+	return CommandUnknown, fmt.Errorf("%w: command name %q", ErrInvalid, name)
+}
+
 // RouteKey names one row of the routing table in _context.md. The zero value
 // has no route, so nothing is sent.
 type RouteKey int
@@ -383,6 +398,26 @@ func (c Command) Text() (string, error) {
 		return "/runpr " + c.pr.String(), nil
 	}
 	return "", fmt.Errorf("%w: command %d", ErrInvalid, int(c.kind))
+}
+
+// Parts returns the command's kind and its argument as Text types it, such
+// as CommandRunplan and "0093". It rejects the zero value and a kind outside
+// the range, as Text does, so the parts of a Command no constructor made are
+// never read.
+func (c Command) Parts() (CommandKind, string, error) {
+	if _, err := c.Text(); err != nil {
+		return CommandUnknown, "", err
+	}
+	switch c.kind {
+	case CommandMkreq:
+		return c.kind, c.issue.String(), nil
+	case CommandMkarch, CommandMkplan, CommandRunplan:
+		return c.kind, c.task.String(), nil
+	case CommandRunpr:
+		return c.kind, c.pr.String(), nil
+	default:
+		return CommandUnknown, "", fmt.Errorf("%w: command %d", ErrInvalid, int(c.kind))
+	}
 }
 
 func (c Command) taskText(prefix string) (string, error) {

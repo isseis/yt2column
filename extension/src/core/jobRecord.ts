@@ -44,7 +44,7 @@ const recordVersion = 1;
 /** Why a run recorded in a job record failed: the module's failures and the two the running viewer decides. */
 export type RecordFailure = WasmFailure | "api_key_missing" | "run_timeout";
 
-const recordFailures: Readonly<Record<RecordFailure, true>> = {
+export const recordFailures: Readonly<Record<RecordFailure, true>> = {
   ...wasmFailures,
   api_key_missing: true,
   run_timeout: true,
@@ -87,6 +87,19 @@ interface RecordBase {
   /** When this run was reserved, in ms since the epoch. */
   readonly acceptedAt: number;
   readonly steps: Steps;
+}
+
+/** The prefix of the item names of job records. */
+export const jobItemPrefix = "job:";
+
+/** The chrome.storage.session item name of the job record of jobId. */
+export function jobItemName(jobId: string): string {
+  return `${jobItemPrefix}${jobId}`;
+}
+
+/** The chrome.storage.session item name of the start context of startId. */
+export function startItemName(startId: string): string {
+  return `start:${startId}`;
 }
 
 /** One job record, in chrome.storage.session under "job:" and its job ID. */

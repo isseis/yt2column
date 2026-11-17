@@ -427,7 +427,7 @@ func (s sendContext) sendCommand(ctx context.Context, cmd paneinput.Command, rou
 	default:
 		return notSent(res, NotSentUnreadable, "the route has no agent")
 	}
-	return s.run(ctx, res, target, steps, first, route)
+	return s.run(ctx, res, target, steps, first, route, &cmd)
 }
 
 // notSent fills a result for nothing typed.
@@ -437,8 +437,10 @@ func notSent(res ActionResult, reason NotSentReason, detail string) ActionResult
 }
 
 // run types steps into target after checking it before each, waiting for
-// each to finish.
-func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, steps []step, first paneCheck, route paneinput.Route) ActionResult {
+// each to finish. cmd is the task command the steps end with, nil for a
+// reset; its kind and argument go into the send's start record, the only
+// record that declares them.
+func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, steps []step, first paneCheck, route paneinput.Route, cmd *paneinput.Command) ActionResult {
 	agent, failed := s.checkPane(ctx, target, first)
 	if failed != nil {
 		res = notSent(res, failed.reason, failed.detail)
@@ -458,7 +460,15 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 		}
 		prompts = append(prompts, line)
 	}
-	id, err := s.held.BeginSend(SendRecord{Pane: res.Pane, Input: res.Input.String(), Command: res.Command, Agent: agentLabel(res.Agent), Model: res.Model, Prompts: prompts}, s.deps.Now())
+	rec := SendRecord{Pane: res.Pane, Input: res.Input.String(), Command: res.Command, Agent: agentLabel(res.Agent), Model: res.Model, Prompts: prompts}
+	if cmd != nil {
+		kind, arg, err := cmd.Parts()
+		if err != nil {
+			return notSent(res, NotSentUnreadable, "the command cannot be typed: "+err.Error())
+		}
+		rec.Kind, rec.Arg = kind.Name(), arg
+	}
+	id, err := s.held.BeginSend(rec, s.deps.Now())
 	if err != nil {
 		return notSent(res, NotSentUnreadable, "the send record cannot be written: "+err.Error())
 	}

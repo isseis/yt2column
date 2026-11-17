@@ -38,6 +38,7 @@ var (
 	errNonStringKey      = errors.New("JSON object key is not a string")
 	errDuplicateMember   = errors.New("duplicate consumed member")
 	errUnlistedMember    = errors.New("unlisted member")
+	errCaseVariantMember = errors.New("member named like a consumed one except for letter case")
 	errValueNotString    = errors.New("value is not a string")
 	errValueNotNumber    = errors.New("value is not a number")
 	errValueNotBool      = errors.New("value is not a boolean")
@@ -112,6 +113,28 @@ func (o Object) CollectOnly(keys ...string) (map[string]Value, error) {
 	for _, member := range o.members {
 		if !slices.Contains(keys, member.key) {
 			return nil, errUnlistedMember
+		}
+		if _, ok := consumed[member.key]; ok {
+			return nil, errDuplicateMember
+		}
+		consumed[member.key] = Value{raw: member.raw}
+	}
+	return consumed, nil
+}
+
+// CollectExactCase is Collect that also rejects a member whose key is not
+// listed but equals a listed key once letter case is ignored (a "Title" next
+// to a listed "title"). Members whose keys are unrelated to the listed ones
+// are ignored. The errors name the broken rule only, never a key, because
+// keys are untrusted and unbounded in length.
+func (o Object) CollectExactCase(keys ...string) (map[string]Value, error) {
+	consumed := make(map[string]Value, len(keys))
+	for _, member := range o.members {
+		if !slices.Contains(keys, member.key) {
+			if slices.ContainsFunc(keys, func(key string) bool { return strings.EqualFold(key, member.key) }) {
+				return nil, errCaseVariantMember
+			}
+			continue
 		}
 		if _, ok := consumed[member.key]; ok {
 			return nil, errDuplicateMember

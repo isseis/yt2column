@@ -3,7 +3,9 @@
 package chief
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -217,6 +219,18 @@ func TestResetAfterRunpr(t *testing.T) {
 				if reset.Outcome != OutcomeSent || reset.Input != InputReset || reset.Pane != "w1:p1" || !slices.Equal(typed, want) {
 					t.Errorf("reset = %+v, typed %v; want /clear sent to w1:p1 after %v", reset, typed, want[:2])
 				}
+				// Only the command's record declares a command; the reset's
+				// does not.
+				// Both sends start at the same time, so their order is not
+				// read.
+				recs := startRecords(t, deps, tree)
+				declared := map[string][2]string{}
+				for _, r := range recs {
+					declared[r.Input] = [2]string{r.Kind, r.Arg}
+				}
+				if len(recs) != 2 || declared[InputCommand.String()] != [2]string{"runpr", "42"} || declared[InputReset.String()] != [2]string{} {
+					t.Errorf("start records = %+v; want /runpr 42 declared and the reset without a command", recs)
+				}
 				return
 			}
 			if reset.Outcome != OutcomeNotSent || reset.Reason != c.reason || len(typed) != 2 {
@@ -346,5 +360,35 @@ func TestNoResetAfterAnUnrecordedRunpr(t *testing.T) {
 	}
 	if typed := sw.rec.prompts(); len(typed) != 2 {
 		t.Errorf("typed %v; want only /new and /runpr", typed)
+	}
+}
+
+// TestResetCheckDoesNotWaitForALine checks that the re-reads for display do
+// not reach the reset's check: a transcript whose last line is whole JSON
+// without its newline is read by the check as before, through the report's
+// entry, which takes no sleep, while the read for display finds it still
+// ends inside a line.
+func TestResetCheckDoesNotWaitForALine(t *testing.T) {
+	sw := newSendWorld(t)
+	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
+	sw.firstPane().ran = "/mkarch 0001"
+	deps := sw.finish()
+	p := sw.firstPane()
+	path := sw.transcript(p, p.Session)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, bytes.TrimSuffix(data, []byte("\n")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deps.Sleep = func(context.Context, time.Duration) error { return nil }
+	sc := sw.sendContextOf(deps)
+	cr := readClaudeReport(deps.Env, sc.ws.Agents[0])
+	if reason, detail := lastInputMadePR(cr.Report.LastHuman, maker{name: "mkarch", args: "0001"}); reason != NotSentUnknown || cr.Report.Kind == SessionReportUnreadable {
+		t.Errorf("lastInputMadePR = %s %q, report %v %q; want the transcript read and the check passed", reason, detail, cr.Report.Kind, cr.Detail)
+	}
+	if _, err := readCompleteTranscript(context.Background(), deps.Sleep, path, sessionTranscriptLimit); !errors.Is(err, errPartialLine) {
+		t.Errorf("readCompleteTranscript error = %v, want errPartialLine", err)
 	}
 }
