@@ -184,13 +184,13 @@
 
 **変更するファイル:** `internal/chief/detail.go`・`detail_test.go`、`internal/chief/request.go`、`internal/chief/reset.go`・`reset_test.go`、`internal/chief/network_test.go`、`internal/chief/sim_test.go`、`internal/chief/autosend.go`（`reportSource` の移動）、`internal/chief/output.go`、`internal/chief/records.go`（`Protocol`）、`.claude/commands/chief.md`、`docs/dev/guides/chief_guide.md`（プロトコル番号の行だけ）
 
--   [ ] **ステップ 4-1**: `readReport` を、Claude Code の pane で報告の入口を呼び、最後の報告があり `Names` がその PR（`OpenPR` の番号と URL）について真の pane を候補にするように変える。候補がちょうど 1 つならその報告を `CapHead` で切って示し、そうでなければ PR の説明を示す。控えに残す `StateChangeSeq` は、transcript を読む前に読んだ `ws.Agents` の値とする（設計書 3.6）。`readReport`・`keptReport`・`CollectDetail` のコメントのうち、画面を読むことと、控えを 1 回だけ作ることを述べる文を、報告の控えを含む今の振る舞いに直す。`reportSource` は、使う所が `autosend.go` の OpenCode の分だけになるので、`autosend.go` に移す。
--   [ ] **ステップ 4-2**: 改名の一覧の `ReportFromScreen` を `ReportFromPane` に改名する。記録と出力の値 `report` は変えない（要件書 4.4）。
--   [ ] **ステップ 4-3**: PR の説明を示したときの理由（Claude Code の pane がない、各 pane が読めない・報告がない・PR の記録が名指さない、候補が 2 つ以上）を `PRDetail` と `DetailOutput` に足す（設計書 3.6・4.2）。項目の名前は実装で決める。
--   [ ] **ステップ 4-4**: `keptReport` を `keptPaneReport` で控えを読むように変え、出どころが pane の報告でない控えしかないときは pane を読み直して、報告がちょうど 1 つ読めれば報告の控えを作る（設計書 3.6）。`ensureDetail` を `keptPaneReport` で控えを読むように変える。`ensureDetail` は、控えが読めないとき（HEAD を読めない、記録を読めない、手元の HEAD が PR の head と違うなど）に `CollectDetail` を呼ぶので、`CollectDetail` と `keptReport` に、報告の控えを作ってよいかを呼ぶ側が型で渡す引数を足す。ゼロ値は「作らない」とし、`chief detail` だけが「作る」を渡す（設計書 1.2・3.6）。
--   [ ] **ステップ 4-5**: `resetAfterRunpr` の画面の確かめ（`internal/chief/reset.go:131-137`）と、`lastInputMadePR` の中の transcript の読み込み（同 55-62）を、どちらも設計書 3.7 の 1〜4 の確かめに替える。`lastInputMadePR` は人の最後の入力を引数で受け取る。控えの出どころの比べ（同 118）は `ReportFromPane` にする。`resetAfterRunpr` の契約のコメント（画面がまだ報告を示すこと）を、transcript の確かめに直す。
--   [ ] **ステップ 4-6**: `Protocol` を、実装の時点の値に 1 を足した値にする（§1.3 の決定 3）。`.claude/commands/chief.md` のすべての `--protocol` の値と、`docs/dev/guides/chief_guide.md` の `プロトコル番号` の行を合わせる。`chief.md` の、人に示す項目の説明に、①の pane ごとの結果（PR-2 で足した項目）と、PR の説明を示した理由を足す（設計書 4.2）。
--   [ ] **ステップ 4-7**: `TestDetailReportSource`・`TestDetailAfterReset`（`internal/chief/detail_test.go`）を、transcript の報告と PR の記録で与えるように直し、次の行を足す。各行で、示した出どころと、PR の説明を示した理由を確かめる。
+-   [x] **ステップ 4-1**: `readReport` を、Claude Code の pane で報告の入口を呼び、最後の報告があり `Names` がその PR（`OpenPR` の番号と URL）について真の pane を候補にするように変える。候補がちょうど 1 つならその報告を `CapHead` で切って示し、そうでなければ PR の説明を示す。控えに残す `StateChangeSeq` は、transcript を読む前に読んだ `ws.Agents` の値とする（設計書 3.6）。`readReport`・`keptReport`・`CollectDetail` のコメントのうち、画面を読むことと、控えを 1 回だけ作ることを述べる文を、報告の控えを含む今の振る舞いに直す。`reportSource` は、使う所が `autosend.go` の OpenCode の分だけになるので、`autosend.go` に移す。
+-   [x] **ステップ 4-2**: 改名の一覧の `ReportFromScreen` を `ReportFromPane` に改名する。記録と出力の値 `report` は変えない（要件書 4.4）。
+-   [x] **ステップ 4-3**: PR の説明を示したときの理由（Claude Code の pane がない、各 pane が読めない・報告がない・PR の記録が名指さない、候補が 2 つ以上）を `PRDetail` と `DetailOutput` に足す（設計書 3.6・4.2）。項目の名前は実装で決める。
+-   [x] **ステップ 4-4**: `keptReport` を `keptPaneReport` で控えを読むように変え、出どころが pane の報告でない控えしかないときは pane を読み直して、報告がちょうど 1 つ読めれば報告の控えを作る（設計書 3.6）。`ensureDetail` を `keptPaneReport` で控えを読むように変える。`ensureDetail` は、控えが読めないとき（HEAD を読めない、記録を読めない、手元の HEAD が PR の head と違うなど）に `CollectDetail` を呼ぶので、`CollectDetail` と `keptReport` に、報告の控えを作ってよいかを呼ぶ側が型で渡す引数を足す。ゼロ値は「作らない」とし、`chief detail` だけが「作る」を渡す（設計書 1.2・3.6）。
+-   [x] **ステップ 4-5**: `resetAfterRunpr` の画面の確かめ（`internal/chief/reset.go:131-137`）と、`lastInputMadePR` の中の transcript の読み込み（同 55-62）を、どちらも設計書 3.7 の 1〜4 の確かめに替える。`lastInputMadePR` は人の最後の入力を引数で受け取る。控えの出どころの比べ（同 118）は `ReportFromPane` にする。`resetAfterRunpr` の契約のコメント（画面がまだ報告を示すこと）を、transcript の確かめに直す。
+-   [x] **ステップ 4-6**: `Protocol` を、実装の時点の値に 1 を足した値にする（§1.3 の決定 3）。`.claude/commands/chief.md` のすべての `--protocol` の値と、`docs/dev/guides/chief_guide.md` の `プロトコル番号` の行を合わせる。`chief.md` の、人に示す項目の説明に、①の pane ごとの結果（PR-2 で足した項目）と、PR の説明を示した理由を足す（設計書 4.2）。
+-   [x] **ステップ 4-7**: `TestDetailReportSource`・`TestDetailAfterReset`（`internal/chief/detail_test.go`）を、transcript の報告と PR の記録で与えるように直し、次の行を足す。各行で、示した出どころと、PR の説明を示した理由を確かめる。
     -   PR の記録が名指す pane が 1 つ・2 つ・ないとき。PR の記録が別の PR を名指すとき。
     -   PR の記録と本文を分けた行（AC-05）。本文が PR の URL を含み、PR の記録がないか別の PR を名指す pane は候補にならない。本文が URL を含まず、PR の記録がその PR を名指す pane は候補になる。
     -   読めない pane だけのときと、読めない pane と候補になる pane が 1 つずつあるとき（AC-14 の③。後者は報告を示す）。transcript のファイルがない pane。
@@ -198,8 +198,8 @@
     -   Claude Code の pane がない workspace（`detailWorld` は Claude Code の pane を必ず持つので、OpenCode の pane だけの workspace を作る）。
     -   64 KiB を超える報告。示す本文が `headMaxBytes` 以下で、切ったことが示され、出どころが `report` であること（要件書 4.2 の示す量の上限）。
     -   `herdr agent get` が workspace の一覧と違う `StateChangeSeq` を返すとき、控えの `Seq` が一覧の値であり、続く `/runpr` の後のリセットが `pane_changed` で止まること（設計書 3.6 の pane の状態の番号を読む順）。
--   [ ] **ステップ 4-8**: 報告の控えのテスト `TestDetailReportRecord` を `detail_test.go` に足す。PR の説明から PR の詳細の控えを作った後に報告が書かれたとき、`chief detail` が報告の控えを 1 回だけ作り、④がそれを使うこと、2 回目の `chief detail` が控えを上書きしないこと、読み直しても報告がちょうど 1 つ見つからないときは今の控えを使い報告の控えを作らないことを確かめる（設計書 7.1）。`ensureDetail` が報告の控えを作らないことは、手元の HEAD が PR の head と違い、PR の head に PR の説明から作った控えがあるとき（`CollectDetail` を呼ぶ経路）に、`report-*.json` ができないことで確かめる。
--   [ ] **ステップ 4-9**: `TestResetAfterRunpr`・`TestResetChecks`・`TestDetailSavedBeforeReset`・`TestResetFailureAfterClear`・`TestNoResetAfterAnUnrecordedRunpr`（`internal/chief/reset_test.go`）を、transcript の報告と PR の記録で与えるように直す。「text typed after the command」「text typed while the command worked」の行（`internal/chief/reset_test.go:70-71`）の理由を `no_report` に直し、入力の後に終わった応答を置いて `other_input` を確かめる行を足す（設計書 3.11）。「the report left the screen」の行（同 101-104）は、画面を `claude-idle.ansi` に替えても transcript に報告が残るので、今の期待（`no_report`）では通らなくなる。この行は消さず、下の AC-06 の行（画面にだけ報告があるときは空にせず、transcript にだけ報告があるときは空にする）の組に書き換える。`TestResetChecks` の「unsent text」の行が使う `withInput(reportScreen(...))` は、`claude-idle.ansi` に入力を残した画面に替える（`reportScreen` は PR-4 で消すため）。次の行も足す。
+-   [x] **ステップ 4-8**: 報告の控えのテスト `TestDetailReportRecord` を `detail_test.go` に足す。PR の説明から PR の詳細の控えを作った後に報告が書かれたとき、`chief detail` が報告の控えを 1 回だけ作り、④がそれを使うこと、2 回目の `chief detail` が控えを上書きしないこと、読み直しても報告がちょうど 1 つ見つからないときは今の控えを使い報告の控えを作らないことを確かめる（設計書 7.1）。`ensureDetail` が報告の控えを作らないことは、手元の HEAD が PR の head と違い、PR の head に PR の説明から作った控えがあるとき（`CollectDetail` を呼ぶ経路）に、`report-*.json` ができないことで確かめる。
+-   [x] **ステップ 4-9**: `TestResetAfterRunpr`・`TestResetChecks`・`TestDetailSavedBeforeReset`・`TestResetFailureAfterClear`・`TestNoResetAfterAnUnrecordedRunpr`（`internal/chief/reset_test.go`）を、transcript の報告と PR の記録で与えるように直す。「text typed after the command」「text typed while the command worked」の行（`internal/chief/reset_test.go:70-71`）の理由を `no_report` に直し、入力の後に終わった応答を置いて `other_input` を確かめる行を足す（設計書 3.11）。「the report left the screen」の行（同 101-104）は、画面を `claude-idle.ansi` に替えても transcript に報告が残るので、今の期待（`no_report`）では通らなくなる。この行は消さず、下の AC-06 の行（画面にだけ報告があるときは空にせず、transcript にだけ報告があるときは空にする）の組に書き換える。`TestResetChecks` の「unsent text」の行が使う `withInput(reportScreen(...))` は、`claude-after-clear.ansi` に入力を残した画面に替える（`claude-idle.ansi` の入力欄にはヒントの文字があり、入力を書けないため）（`reportScreen` は PR-4 で消すため）。次の行も足す。
     -   transcript のファイルがないとき `no_report` になる（設計書 3.7）。
     -   読めないとき `no_transcript`、作業ディレクトリの文字では `unsupported_path` になる（AC-14 の④）。
     -   PR の記録と本文を分けた行（AC-05・AC-10）。本文が PR の URL を含み PR の記録が名指さないときは空にせず、本文が URL を含まず PR の記録が名指すときは空にする。
@@ -207,8 +207,8 @@
     -   送り先の表が選ばない pane の PR の記録がその PR を名指していても、リセットの候補は送り先の表の pane のままである（AC-11）。
     -   pane の状態を読んでから transcript を読むまでの間に状態が変わったとき、空にしない（設計書 7.1）。
     -   このタスクの前に画面から作った形の控えでも、同じ条件で空にする（要件書 4.4）。控えは新しいコードで作らず、このタスクの前の形の JSON（`Source` が `report`）を記録のディレクトリに直に書いて与える。
--   [ ] **ステップ 4-10**: `TestDetailAndSendRunOnlyReadsInTheRightPlaces`（`internal/chief/network_test.go:64`）で、画面の報告の代わりに transcript を与えるように直す。`Detail` の呼び出しが `herdr agent read` を 1 回も走らせないことと、リセットが `w1:p1` の画面を読むのが入力の直前の確かめ（`checkPane`、`internal/chief/send.go:320`）の 1 回だけであることを確かめる。
--   [ ] **ステップ 4-11**: `chief.md` に書いた 2 つの項目の名前が、`output.go` の `json` のタグと同じであることを、PR のレビューで読んで確かめる（§7）。
+-   [x] **ステップ 4-10**: `TestDetailAndSendRunOnlyReadsInTheRightPlaces`（`internal/chief/network_test.go:64`）で、画面の報告の代わりに transcript を与えるように直す。`Detail` の呼び出しが `herdr agent read` を 1 回も走らせないことと、リセットが `w1:p1` の画面を読むのが入力の直前の確かめ（`checkPane`、`internal/chief/send.go:320`）の 1 回だけであることを確かめる。
+-   [x] **ステップ 4-11**: `chief.md` に書いた 2 つの項目の名前が、`output.go` の `json` のタグと同じであることを、PR のレビューで読んで確かめる（§7）。
 
 **完了の条件:** グリーンゲートが通る（`TestDocumentedProtocolMatches`・`TestGuideValuesMatchTool` を含む）。③④は、Claude Code の pane で画面を読まない。
 
