@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -97,10 +98,11 @@ func TestCollectSpacesIndependent(t *testing.T) {
 
 // The step indexes of collectSteps.
 const (
-	taskRemote = 0
-	taskFetch  = 1
-	taskMain   = 2
-	taskLocal  = 3
+	taskRoot   = 0
+	taskRemote = 1
+	taskFetch  = 2
+	taskMain   = 3
+	taskLocal  = 4
 	adrRoot    = 0
 	adrRemote  = 1
 	adrFetch   = 2
@@ -123,7 +125,7 @@ func TestCollectRejects(t *testing.T) {
 	tooLarge := fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge)
 	remoteOnly := func(out string) func(t *testing.T) []cmdrunnertestutil.Step {
 		return func(_ *testing.T) []cmdrunnertestutil.Step {
-			return []cmdrunnertestutil.Step{lsRemoteStep(task.tagPrefix(), out, nil)}
+			return []cmdrunnertestutil.Step{rootStep(t.TempDir(), nil), lsRemoteStep(task.tagPrefix(), out, nil)}
 		}
 	}
 	withRemote := func(s scenario) func(t *testing.T) []cmdrunnertestutil.Step {
@@ -153,16 +155,16 @@ func TestCollectRejects(t *testing.T) {
 			steps: withRemote(scenario{space: SpaceTask, branches: []remoteBranch{{name: "x", sha: otherSHA}}}), want: StopListLimit,
 		},
 		{name: "ls-remote output exceeds the cap", space: SpaceTask, steps: func(_ *testing.T) []cmdrunnertestutil.Step {
-			return []cmdrunnertestutil.Step{lsRemoteStep(task.tagPrefix(), "", tooLarge)}
+			return upTo(t, task, taskRemote, lsRemoteStep(task.tagPrefix(), "", tooLarge))
 		}, want: StopListLimit},
 		{name: "ls-remote fails", space: SpaceTask, steps: func(_ *testing.T) []cmdrunnertestutil.Step {
-			return []cmdrunnertestutil.Step{lsRemoteStep(task.tagPrefix(), "", gitFailed(128))}
+			return upTo(t, task, taskRemote, lsRemoteStep(task.tagPrefix(), "", gitFailed(128)))
 		}, want: StopNetworkOrGitHub},
 		{name: "ls-remote times out", space: SpaceTask, steps: func(_ *testing.T) []cmdrunnertestutil.Step {
-			return []cmdrunnertestutil.Step{lsRemoteStep(task.tagPrefix(), "", context.DeadlineExceeded)}
+			return upTo(t, task, taskRemote, lsRemoteStep(task.tagPrefix(), "", context.DeadlineExceeded))
 		}, want: StopNetworkOrGitHub},
 		{name: "git cannot be run", space: SpaceTask, steps: func(_ *testing.T) []cmdrunnertestutil.Step {
-			return []cmdrunnertestutil.Step{lsRemoteStep(task.tagPrefix(), "", os.ErrNotExist)}
+			return upTo(t, task, taskRemote, lsRemoteStep(task.tagPrefix(), "", os.ErrNotExist))
 		}, want: StopLocalGit},
 		{name: "fetch fails with a head missing", space: SpaceADR, steps: func(t *testing.T) []cmdrunnertestutil.Step {
 			return upTo(t, two, adrFetch, fetchStep(gitFailed(128), mainSHA, otherSHA),
@@ -203,6 +205,9 @@ func TestCollectRejects(t *testing.T) {
 		{name: "local branch listing exceeds the cap", space: SpaceTask, steps: func(t *testing.T) []cmdrunnertestutil.Step {
 			return upTo(t, task, taskLocal, localStep("", tooLarge))
 		}, want: StopListLimit},
+		{name: "task run outside a repository", space: SpaceTask, steps: func(_ *testing.T) []cmdrunnertestutil.Step {
+			return []cmdrunnertestutil.Step{rootStep("", gitFailed(128))}
+		}, want: StopLocalGit},
 		{name: "work tree root not found", space: SpaceADR, steps: func(_ *testing.T) []cmdrunnertestutil.Step {
 			return []cmdrunnertestutil.Step{rootStep("", gitFailed(128))}
 		}, want: StopLocalGit},
@@ -291,5 +296,41 @@ func TestRealListingSamples(t *testing.T) {
 	refs, err := newTestTool(fake, defaultBounds()).listRemote(ctx, "refs/tags/task-number/")
 	if err != nil || len(refs.branches) != 12 || len(refs.tags) != 0 || refs.mainSHA != "424dc7dc47527e37ab65eaf3f3f76567d596fe45" {
 		t.Errorf("listRemote(task) = %d branches, %d tags, main %s, %v; want 12, 0, 424dc7dc4752", len(refs.branches), len(refs.tags), refs.mainSHA, err)
+	}
+}
+
+// TestBranchBoundEdge checks a run with exactly maxBranches origin branches
+// still decides a number; one more stops (TestCollectRejects).
+func TestBranchBoundEdge(t *testing.T) {
+	s := scenario{space: SpaceTask, branches: []remoteBranch{{name: "x", sha: otherSHA}}}
+	b := defaultBounds()
+	b.maxBranches = 2
+	got, err := run(t, SpaceTask, b, append(s.collectSteps(t), postStep(s.tag("0101"), created(t), nil))...)
+	if err != nil || got.Number.String() != "0101" {
+		t.Errorf("Reserve = %+v, %v; want 0101", got, err)
+	}
+}
+
+// TestStopDetailBoundsValues checks an untrusted value is cut to 200 bytes
+// before it is quoted, and a list of inputs names at most ten of them.
+func TestStopDetailBoundsValues(t *testing.T) {
+	long := strings.Repeat("x", 300)
+	s := scenario{space: SpaceTask, tags: []string{long}}
+	_, err := run(t, SpaceTask, defaultBounds(), upTo(t, s, taskRemote+1)...)
+	stopKind(t, err)
+	if text := err.Error(); !strings.Contains(text, strconv.Quote(s.tag(long)[:200])) || strings.Contains(text, s.tag(long)[:201]) {
+		t.Errorf("stop %q does not carry the value cut to 200 bytes", text)
+	}
+
+	var local []string
+	for i := range 11 {
+		local = append(local, fmt.Sprintf("owner/%04d-stray-01", 200+i))
+	}
+	s = scenario{space: SpaceTask, local: local}
+	_, err = run(t, SpaceTask, defaultBounds(), s.collectSteps(t)...)
+	stopKind(t, err)
+	text := err.Error()
+	if !strings.Contains(text, "and 1 more") || !strings.Contains(text, local[9]) || strings.Contains(text, local[10]) {
+		t.Errorf("stop %q does not name exactly ten inputs and count the rest", text)
 	}
 }

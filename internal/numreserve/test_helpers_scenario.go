@@ -83,10 +83,16 @@ func gitStep(out string, err error, args ...string) cmdrunnertestutil.Step {
 	return cmdrunnertestutil.Step{Name: "git", Args: append(cmdrunner.GitHardening(), args...), Out: out, Err: err}
 }
 
+// scriptedGH spells out the gh api -i arguments the tool must run, apart
+// from ghArgs, so a change to ghArgs fails the scripts.
+func scriptedGH(args ...string) []string {
+	return append([]string{"api", "--hostname", "github.com", "-i"}, args...)
+}
+
 func postStep(tag, out string, err error) cmdrunnertestutil.Step {
 	return cmdrunnertestutil.Step{
 		Name: "gh",
-		Args: []string{"api", "--hostname", "github.com", "-i", "-X", "POST", "repos/isseis/yt2column/git/refs", "-f", "ref=" + tag, "-f", "sha=" + mainSHA},
+		Args: scriptedGH("-X", "POST", "repos/isseis/yt2column/git/refs", "-f", "ref="+tag, "-f", "sha="+mainSHA),
 		Out:  out, Err: err,
 	}
 }
@@ -94,7 +100,7 @@ func postStep(tag, out string, err error) cmdrunnertestutil.Step {
 func getStep(tag, out string, err error) cmdrunnertestutil.Step {
 	return cmdrunnertestutil.Step{
 		Name: "gh",
-		Args: []string{"api", "--hostname", "github.com", "-i", "repos/isseis/yt2column/git/ref/" + strings.TrimPrefix(tag, "refs/")},
+		Args: scriptedGH("repos/isseis/yt2column/git/ref/" + strings.TrimPrefix(tag, "refs/")),
 		Out:  out, Err: err,
 	}
 }
@@ -207,6 +213,7 @@ func (s scenario) collectSteps(t *testing.T) []cmdrunnertestutil.Step {
 			local.WriteString("refs/heads/" + name + "\n")
 		}
 		return []cmdrunnertestutil.Step{
+			rootStep(t.TempDir(), nil),
 			lsRemoteStep(s.tagPrefix(), s.lsRemote(), nil),
 			fetchStep(nil, mainSHA),
 			treeStep(mainSHA, tasksDir, s.mainTaskList(), nil),
@@ -215,7 +222,7 @@ func (s scenario) collectSteps(t *testing.T) []cmdrunnertestutil.Step {
 	case SpaceADR:
 		root := t.TempDir()
 		dir := filepath.Join(root, "docs", "dev", "adr")
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			t.Fatal(err)
 		}
 		for _, name := range append([]string{"README.md", "0051-number-reservation.md"}, s.workADRs...) {

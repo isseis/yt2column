@@ -84,6 +84,13 @@ func TestReserveCreateOutcomes(t *testing.T) {
 			wantStop(StopNetworkOrGitHub),
 		},
 		{"no status line", posts(func(*testing.T) (string, error) { return "", ghFailed(1, leak) }), wantStop(StopNetworkOrGitHub)},
+		{
+			"status line wins over gh's exit status", posts(func(t *testing.T) (string, error) { return "", ghFailed(4, created(t)) }),
+			wantNumber(true),
+		},
+		{"422 then 200 with an unreadable header block", afterTaken(func(_ *testing.T, tag string) (string, error) {
+			return "HTTP/2.0 200 OK\n" + `{"ref":"` + tag + `"}`, nil
+		}), wantStop(StopMalformed)},
 		{"gh not authenticated", posts(func(*testing.T) (string, error) { return "", ghFailed(4, "") }), wantStop(StopPermission)},
 		{"gh times out", posts(func(*testing.T) (string, error) { return "", context.DeadlineExceeded }), wantStop(StopNetworkOrGitHub)},
 		{"gh cannot be run", posts(func(*testing.T) (string, error) { return "", os.ErrNotExist }), wantStop(StopNetworkOrGitHub)},

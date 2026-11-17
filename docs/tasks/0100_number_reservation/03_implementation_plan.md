@@ -168,7 +168,7 @@
 -   対象ファイル：`internal/numreserve/collect.go`、`internal/numreserve/collect_test.go`
 -   [x] 設計書 3.2 の表の入力を、空間ごとに読む。`git ls-remote` の行の分け方、SHA だけの取得、`origin/main` の一覧の形（3.2.1）、記録の tag の名前の拒否（3.3.3）、上限の超過（3.4）を、設計書のとおりにする
 -   [x] ブランチの木を読む部分は、ステップ 6-2 が `docs/tasks/` にも使えるように、1 つの関数にまとめる。読むディレクトリを引数にするのは、2 つ目の呼び出し側が加わるステップ 6-2 で行う
--   [x] 作業ツリーの `docs/dev/adr/` は、`Tool` が持つ作業ツリーの根から読む。テストは根を `t.TempDir()` にできる
+-   [x] 作業ツリーの `docs/dev/adr/` は、`git rev-parse --show-toplevel` が返す作業ツリーの根から読む。テストは、その応答を `t.TempDir()` にできる
 -   [x] 名前の形の判定は `internal/tasknaming` を呼ぶ。同じ判定を書き直さない
 -   完了の基準：このステップの判定のテスト（ステップ 3-6 の規則に従う）を、このステップで書いて通す
 
@@ -185,7 +185,7 @@
 -   [x] 本番の Runner の `cmdrunner.Options` と、git と gh の環境（設計書 3.2 の「git と gh の環境」）を返す純粋な関数を作り、値と外す変数をテストで確かめる。git と gh は Runner を分ける。git の引数の前に `GitHardening` を付ける
 -   [x] コマンド 1 つと 1 回の実行の時間の上限は、`context.WithTimeout` で課す。テストの補助に、呼び出しごとの `ctx` の期限を記録する、Runner を包む部品を置き、各呼び出しの期限と全体の期限を確かめる
 -   [x] `New` は、`testing.Testing()` が真なら git と gh を呼ばずに誤りを返す `Tool` を作る（§1.3 の決定 8）。この拒否のテストは、テストの中で（`t.Setenv`）`PATH` を失敗するだけの `git`・`gh` の置き場所にし、`GH_TOKEN`・`GITHUB_TOKEN` を外してから `New` を呼ぶ。拒否を壊して失敗を確かめる作業も、このテストの中の環境で行う。実の GitHub に届かないためである
--   [x] テストの補助で、`cmdrunner/testutil` の `Fake` と作業ツリーの根から `Tool` を作る関数を置く（テストの組み立ての指針の Classification B）
+-   [x] テストの補助で、`cmdrunner/testutil` の `Fake` と上限から `Tool` を作る関数を置く（テストの組み立ての指針の Classification B）
 -   完了の基準：ステップ 3-6 のテストが通る
 
 **ステップ 3-5: `cmd/numreserve`**

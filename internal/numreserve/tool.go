@@ -40,16 +40,18 @@ func New(environ []string) *Tool {
 // ghRemoved are the variables taken out of gh's environment before ghAdded
 // is appended. Forced color would wrap header names in escape sequences and
 // make the rate-limit headers unreadable; a prompt would wait for a user who
-// is not there.
+// is not there; GH_REPO and GH_HOST would point gh elsewhere, as fixprguard
+// and chief also refuse.
 var (
-	ghRemoved = []string{"CLICOLOR_FORCE", "GH_FORCE_TTY", "NO_COLOR", "GH_PROMPT_DISABLED"}
+	ghRemoved = []string{"CLICOLOR_FORCE", "GH_FORCE_TTY", "NO_COLOR", "GH_PROMPT_DISABLED", "GH_REPO", "GH_HOST"}
 	ghAdded   = []string{"NO_COLOR=1", "GH_PROMPT_DISABLED=1"}
 )
 
 // runnerOptions returns the options of the git runner and of the gh runner.
-// git runs in cmdrunner.GitEnv's environment; gh runs without color and
-// without prompts. Both cap their output; the time limits are put on each
-// call's context, not here.
+// git runs in cmdrunner.GitEnv's environment, in a process group of its own
+// so a time limit also stops the transport git starts (ssh, a remote
+// helper); gh runs without color and without prompts. Both cap their output;
+// the time limits are put on each call's context, not here.
 func runnerOptions(environ []string, b bounds) (git, gh cmdrunner.Options) {
 	ghEnv := make([]string, 0, len(environ)+len(ghAdded))
 	for _, entry := range environ {
@@ -59,7 +61,10 @@ func runnerOptions(environ []string, b bounds) (git, gh cmdrunner.Options) {
 		}
 	}
 	ghEnv = append(ghEnv, ghAdded...)
-	git = cmdrunner.Options{MaxOutput: b.maxOutput, WaitDelay: b.waitDelay, Env: cmdrunner.GitEnv(environ)}
+	git = cmdrunner.Options{
+		MaxOutput: b.maxOutput, WaitDelay: b.waitDelay, Env: cmdrunner.GitEnv(environ),
+		ProcessGroup: true, GroupStopGrace: b.waitDelay,
+	}
 	gh = cmdrunner.Options{MaxOutput: b.maxOutput, WaitDelay: b.waitDelay, Env: ghEnv}
 	return git, gh
 }
@@ -86,7 +91,12 @@ func (t *Tool) runGitInput(ctx context.Context, stdin []byte, args ...string) ([
 func (t *Tool) runGH(ctx context.Context, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, t.bounds.commandTimeout)
 	defer cancel()
-	return t.gh.Run(ctx, "gh", append([]string{"api", "--hostname", "github.com", "-i"}, args...)...)
+	return t.gh.Run(ctx, "gh", ghArgs(args...)...)
+}
+
+// ghArgs returns the arguments of one gh api -i call against github.com.
+func ghArgs(args ...string) []string {
+	return append([]string{"api", "--hostname", "github.com", "-i"}, args...)
 }
 
 // isTimeout reports whether err comes from a context that ended: the

@@ -87,8 +87,13 @@ func (t *Tool) collect(ctx context.Context, space Space, tagPrefix string) (coll
 }
 
 // collectTask reads origin/main's docs/tasks/, the origin and local branch
-// names, and the task record tags.
+// names, and the task record tags. It finds the work tree root first, as
+// collectADR does, so a run outside a repository stops as local-git before
+// git ls-remote could fail for the same reason and read as a network failure.
 func (t *Tool) collectTask(ctx context.Context, tagPrefix string) (collected, error) {
+	if _, err := t.workTreeRoot(ctx); err != nil {
+		return collected{}, err
+	}
 	refs, err := t.listRemote(ctx, tagPrefix)
 	if err != nil {
 		return collected{}, err
@@ -227,9 +232,10 @@ func (t *Tool) listRemote(ctx context.Context, tagPrefix string) (remoteRefs, er
 // any ref, local tag, or FETCH_HEAD, so two runs in worktrees of one
 // repository never contend for a ref lock.
 //
-// Contract: a failure stops the run; the detail names the branches whose
-// heads are still missing, read with git cat-file, never git's standard
-// error.
+// Contract: a failure stops the run. The detail names the branches whose
+// heads are not present after the failed fetch, read with git cat-file,
+// never git's standard error; a fetch fails as a whole, so in a clone that
+// lacked other heads too, it names those as well as the one that caused it.
 func (t *Tool) fetch(ctx context.Context, branches []branch) error {
 	const step = "fetching branch heads from origin"
 	var shas []string
@@ -262,7 +268,9 @@ func (t *Tool) fetch(ctx context.Context, branches []branch) error {
 	return stop(StopNetworkOrGitHub, step, "could not fetch the head of origin branch %s", listed(names))
 }
 
-// missingObjects returns the SHAs git cat-file reports missing.
+// missingObjects returns the SHAs git cat-file reports missing. Its result
+// only shapes the detail of a stop that happens either way, so a line of any
+// other form is not counted as missing.
 func (t *Tool) missingObjects(ctx context.Context, shas []string) ([]string, error) {
 	const step = "checking which branch heads are missing"
 	stdin := []byte(strings.Join(shas, "\n") + "\n")

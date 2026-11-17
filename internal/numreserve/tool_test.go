@@ -22,6 +22,7 @@ func TestRunnerOptions(t *testing.T) {
 	environ := []string{
 		"HOME=/home/user", "GH_TOKEN=token", "GIT_DIR=/elsewhere",
 		"CLICOLOR_FORCE=1", "GH_FORCE_TTY=1", "NO_COLOR=", "GH_PROMPT_DISABLED=0",
+		"GH_REPO=other/repo", "GH_HOST=example.invalid",
 	}
 	b := bounds{maxOutput: 123, waitDelay: 7 * time.Second}
 	git, gh := runnerOptions(environ, b)
@@ -33,6 +34,9 @@ func TestRunnerOptions(t *testing.T) {
 		if o.maxOutput != b.maxOutput || o.waitDelay != b.waitDelay {
 			t.Errorf("%s runner: MaxOutput %d, WaitDelay %v; want the bounds' %d, %v", o.name, o.maxOutput, o.waitDelay, b.maxOutput, b.waitDelay)
 		}
+	}
+	if !git.ProcessGroup || git.GroupStopGrace <= 0 {
+		t.Errorf("git runner: ProcessGroup %v, GroupStopGrace %v; want its own group with a grace", git.ProcessGroup, git.GroupStopGrace)
 	}
 	if slices.Contains(git.Env, "GIT_DIR=/elsewhere") || !slices.Contains(git.Env, "GIT_TERMINAL_PROMPT=0") || !slices.Contains(git.Env, "HOME=/home/user") {
 		t.Errorf("git env = %q", git.Env)
