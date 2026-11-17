@@ -51,7 +51,7 @@ func TestCollectEachInputRaisesCandidate(t *testing.T) {
 		}}, "0056"},
 		{"adr names of other forms are not counted", scenario{
 			space:    SpaceADR,
-			branches: []remoteBranch{{name: "a", sha: otherSHA, adrs: []string{"README.md", "0060_bad.md", "notes.txt", "0061-dir/"}}},
+			branches: []remoteBranch{{name: "a", sha: otherSHA, adrs: []string{"README.md", "0060_bad.md", "notes.txt", "0061-dir/", "notes\nold.txt"}}},
 			workADRs: []string{"0062-Draft.md", "0063.md"},
 		}, "0052"},
 	}

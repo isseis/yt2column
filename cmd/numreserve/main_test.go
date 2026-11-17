@@ -53,6 +53,26 @@ func TestRunDecides(t *testing.T) {
 	}
 }
 
+// failingWriter fails every write, as standard output on a full device does.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("no space left") }
+
+// TestRunFailsWhenTheNumberCannotBeWritten checks a number decided but not
+// written exits 1 and still names the created tag on stderr.
+func TestRunFailsWhenTheNumberCannotBeWritten(t *testing.T) {
+	n, err := tasknaming.ParseNumber("0101")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &fakeReserver{reservation: numreserve.Reservation{Number: n, Tag: "refs/tags/task-number/0101", Commit: "abc"}}
+	var errOut bytes.Buffer
+	code := run(context.Background(), []string{"task"}, r, failingWriter{}, &errOut)
+	if code != exitStopped || !strings.HasPrefix(errOut.String(), "numreserve: created refs/tags/task-number/0101 at abc, but") {
+		t.Errorf("run = %d, stderr %q; want 1 naming the created tag", code, errOut.String())
+	}
+}
+
 // TestRunStops checks every way of deciding no number exits 1 with standard
 // output empty and one standard-error line, which carries the reason word
 // only for a StopError of a declared kind.

@@ -294,8 +294,9 @@ type treeEntry struct {
 }
 
 // lsTreeEntry is the one accepted entry form of git ls-tree -z: a mode, a
-// space, the object type, a space, 40 hexadecimal digits, a tab, and the path.
-var lsTreeEntry = regexp.MustCompile(`^[0-7]{6} (blob|tree|commit) [0-9a-f]{40}\t(.+)$`)
+// space, the object type, a space, 40 hexadecimal digits, a tab, and the path,
+// which -z leaves unquoted and may hold a newline.
+var lsTreeEntry = regexp.MustCompile(`^[0-7]{6} (blob|tree|commit) [0-9a-f]{40}\t(?s:(.+))$`)
 
 // listTree lists the entries directly under dir in rev.
 //

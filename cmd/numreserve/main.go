@@ -43,8 +43,8 @@ func main() {
 
 // run parses args, decides a number with r, and prints the result.
 //
-// Contract: standard output holds the number only when the exit code is 0;
-// every other outcome leaves it empty and writes one line to stderr.
+// Contract: the exit code is 0 only when the number was written to stdout;
+// every other outcome writes one line to stderr.
 func run(ctx context.Context, args []string, r reserver, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
 		_, _ = fmt.Fprintln(stderr, usage)
@@ -64,8 +64,15 @@ func run(ctx context.Context, args []string, r reserver, stdout, stderr io.Write
 		_, _ = fmt.Fprintln(stderr, "numreserve: no number was decided")
 		return exitStopped
 	}
-	_, _ = fmt.Fprintln(stdout, reservation.Number.String())
-	_, _ = fmt.Fprintf(stderr, "numreserve: created %s at %s\n", reservation.Tag, reservation.Commit)
+	created := fmt.Sprintf("numreserve: created %s at %s", reservation.Tag, reservation.Commit)
+	if _, err := fmt.Fprintln(stdout, reservation.Number.String()); err != nil {
+		// The tag exists, so the number is used up either way: name it on
+		// stderr and fail, rather than let a caller read an empty stdout as
+		// success.
+		_, _ = fmt.Fprintf(stderr, "%s, but the number could not be written to standard output\n", created)
+		return exitStopped
+	}
+	_, _ = fmt.Fprintln(stderr, created)
 	return exitDecided
 }
 
