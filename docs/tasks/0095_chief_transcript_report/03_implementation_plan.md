@@ -377,17 +377,17 @@ PR の分け方の理由は §1.3 の決定 3 にある。各 PR は単独でグ
 Diff record (AC-17):
 
 - Compared paths: `CLAUDE.md`
-- Merge-base: `ff086711dc86c27c40f6efea1206164fd5d2a8bb`
-- Compared commit: `af02d83f230e613d6050a4e76c115a341d64a2bc`
+- Merge-base: `552d7cd89972087c7de0054171e064d494f8ba77`
+- Compared commit: `75fadade02d64701341d8457c8f69b903f662c4f`
 
 Path diff:
 
 ````text
 diff --git a/CLAUDE.md b/CLAUDE.md
-index f8556c8637c6db209cd41e94d9a2627fd6de5f31..4f5a770f9dd259a6750d89b1cd82a80bcbbaf568 100644
+index a46c545c7f17d825a27faf6d3f281b982d424ec0..bffca1246d9d4975d0610a969e3bb26745edaa54 100644
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
-@@ -493,11 +493,15 @@ for the packages that exist today. The server's startup is documented in the
+@@ -493,11 +493,14 @@ for the packages that exist today. The server's startup is documented in the
    (single-select, multi-select, tabbed, permission), the question and option
    texts, whether it is `/runpr`'s merge question, the unsent text left in the
    input line, OpenCode's model line and its screen after `/new`, the NEXT of a
@@ -398,24 +398,25 @@ index f8556c8637c6db209cd41e94d9a2627fd6de5f31..4f5a770f9dd259a6750d89b1cd82a80b
 -  declares on it, never by its text); the chief session's summary of that report is in scope too. Every other file of the tool chooses behavior only
 +  `/runpr` report, the last report on a pane and the PR numbers it names
 +  (an OpenCode pane's from its screen, a Claude Code pane's from the last
-+  finished response of its transcript), the report of the command that
-+  created a PR, and the transcript's record of a model switch, of the
-+  human's last command (a line is the human's only by the origin Claude
-+  Code declares on it, never by its text), and of the text of the last
-+  finished response; a PR record is a value the transcript declares and is
-+  not in scope; the chief session's summary of the report of the command
-+  that created a PR is in scope too. Every other file of the tool chooses behavior only
++  finished response of its transcript), and the transcript's record of a
++  model switch, of the human's last command (a line is the human's only by
++  the origin Claude Code declares on it, never by its text), and of the
++  text of the last finished response; a PR record is a value the transcript
++  declares and is not in scope; the chief session's summary of the report
++  of the command that created a PR is in scope too. Every other file of the tool chooses behavior only
    by the types the screen readers return. Reason: the screens are drawn by
    Claude Code and OpenCode and the transcript is written by Claude Code,
    external values the tool cannot express in a type, and OpenCode's question
-@@ -505,7 +509,9 @@ for the packages that exist today. The server's startup is documented in the
+@@ -505,7 +508,11 @@ for the packages that exist today. The server's startup is documented in the
    from the real samples under `internal/chief/testdata/screens/` is not read
    more widely but read as unmatched, which marks the workspace as needing a
    check or sends nothing (a transcript line likewise, from the samples under
 -  `internal/chief/testdata/transcript/`); and the trigger of chief's automatic send is the
-+  `internal/chief/testdata/transcript/`, and a report in a transcript that
-+  matches no shape read from those samples is read as no report or as
-+  unreadable); and the trigger of chief's automatic send is the
++  `internal/chief/testdata/transcript/`); a report in a transcript is read
++  only in a shape read from those samples, and any other is read as no
++  report (a kind or a value the samples do not show) or as unreadable (a
++  line the reader uses that lacks a member or holds one of another type);
++  and the trigger of chief's automatic send is the
    state of GitHub and git, never a screen: a screen reading only stops a send
    or narrows its conditions.
  - **Enforce invariants with the type, not with convention**: if a value must pass
