@@ -82,11 +82,11 @@
 
 **変更するファイル:** `internal/chief/testdata/transcript/`（サンプルを足す）、`internal/chief/testdata/README.md`、本計画（§7 の「PR-1 の実行の記録」）
 
--   [ ] **ステップ 1-1**: runpr.md に NEXT の行を定めた PR の `/runpr` を走らせた Claude Code のセッションの transcript から、今の形の `/runpr` の報告を含むサンプルを採る（§1.3 の決定 1、§1.5 の決定）。その transcript は、本タスクの worktree の transcript のディレクトリ（`<設定のディレクトリ>/projects/<worktree のパスの / と . を - にした名前>/`）から探す。探すのは、人が入力したコマンドの行が `/runpr <その PR の番号>` であるセッションである。chief が後で同じ pane に `/clear` を送るので、pane の今のセッションとは限らない。見つからないとき、または 2 つ以上見つかるときは、採らずに止まり、サンプルの出どころを人に尋ねる。採った報告の NEXT の行が、今の文法（`nextLine`・`readNextValue`）で読めるかを確かめ、結果を §7 の「PR-1 の実行の記録」に書く。読めなければ、それ以上進まずに止まり、要件に戻って文法を決め直すことを人に尋ねる（設計書 1.2・8 章の 1）。
--   [ ] **ステップ 1-2**: 設計書 7.1 の 1 つ目の項のサンプルを、手元の transcript から読み取りだけで採る。PR を作ったコマンドの実行の終わり（最後の報告と PR の記録があるもの）、合成の応答、recap、compact の要約、task-notification に応えた応答、`auto-continuation` の行を含むものである。1 つのファイルが複数を兼ねてよい。
--   [ ] **ステップ 1-3**: 各サンプルを、テストが読む行に絞る。今の transcript のサンプルと同じく、ツールの結果の行（`gh pr view` の JSON や git の出力を含む）など、報告の読み取り部品が読まない行は削り、残す行も、受け付ける形の表（設計書 3.1）の項目と、拡張を許す部分を確かめるのに要る項目だけにしてよい（`cwd`・`gitBranch` など、採った人を特定しうる項目を残さない）。そのうえで、採った人を特定できる値を `testdata/README.md` の「置き換えたもの」の表のとおりに置き換える。PR の記録の `prUrl`・`prRepository` と報告の本文の GitHub のログイン名も `owner` に置き換える。
--   [ ] **ステップ 1-4**: 置き換えの後に、`TestSamplesFollowReplacementRules` が通ることと、足したサンプルに GitHub のログイン名と利用者の氏名が残っていないことを、手元で一度だけ探して確かめる。後者は、探す値をリポジトリに書かず、探したことと結果（0 件）だけを §7 の「PR-1 の実行の記録」に書く。`TestSamplesFollowReplacementRules` はログイン名と氏名を見つけないためである（`internal/chief/samples_test.go:22-31` の規則は、ホームのパス・UUID・noreply のアドレス・`/home/` のパスだけを見る）。
--   [ ] **ステップ 1-5**: `testdata/README.md` に、足したサンプルの採った日と Claude Code の版、採り方、削った行と項目、置き換えた値（PR の記録の URL を含む）を書く。「Claude Code の `/runpr` の報告は、`/runpr` を OpenCode で走らせるので要らない」の文（同 78 行）を、今のサンプルに合わせて書き直す。
+-   [x] **ステップ 1-1**: runpr.md に NEXT の行を定めた PR の `/runpr` を走らせた Claude Code のセッションの transcript から、今の形の `/runpr` の報告を含むサンプルを採る（§1.3 の決定 1、§1.5 の決定）。その transcript は、本タスクの worktree の transcript のディレクトリ（`<設定のディレクトリ>/projects/<worktree のパスの / と . を - にした名前>/`）から探す。探すのは、人が入力したコマンドの行が `/runpr <その PR の番号>` であるセッションである。chief が後で同じ pane に `/clear` を送るので、pane の今のセッションとは限らない。見つからないとき、または 2 つ以上見つかるときは、採らずに止まり、サンプルの出どころを人に尋ねる。採った報告の NEXT の行が、今の文法（`nextLine`・`readNextValue`）で読めるかを確かめ、結果を §7 の「PR-1 の実行の記録」に書く。読めなければ、それ以上進まずに止まり、要件に戻って文法を決め直すことを人に尋ねる（設計書 1.2・8 章の 1）。
+-   [x] **ステップ 1-2**: 設計書 7.1 の 1 つ目の項のサンプルを、手元の transcript から読み取りだけで採る。PR を作ったコマンドの実行の終わり（最後の報告と PR の記録があるもの）、合成の応答、recap、compact の要約、task-notification に応えた応答、`auto-continuation` の行を含むものである。1 つのファイルが複数を兼ねてよい。
+-   [x] **ステップ 1-3**: 各サンプルを、テストが読む行に絞る。今の transcript のサンプルと同じく、ツールの結果の行（`gh pr view` の JSON や git の出力を含む）など、報告の読み取り部品が読まない行は削り、残す行も、受け付ける形の表（設計書 3.1）の項目と、拡張を許す部分を確かめるのに要る項目だけにしてよい（`cwd`・`gitBranch` など、採った人を特定しうる項目を残さない）。そのうえで、採った人を特定できる値を `testdata/README.md` の「置き換えたもの」の表のとおりに置き換える。PR の記録の `prUrl`・`prRepository` と報告の本文の GitHub のログイン名も `owner` に置き換える。
+-   [x] **ステップ 1-4**: 置き換えの後に、`TestSamplesFollowReplacementRules` が通ることと、足したサンプルに GitHub のログイン名と利用者の氏名が残っていないことを、手元で一度だけ探して確かめる。後者は、探す値をリポジトリに書かず、探したことと結果（0 件）だけを §7 の「PR-1 の実行の記録」に書く。`TestSamplesFollowReplacementRules` はログイン名と氏名を見つけないためである（`internal/chief/samples_test.go:22-31` の規則は、ホームのパス・UUID・noreply のアドレス・`/home/` のパスだけを見る）。
+-   [x] **ステップ 1-5**: `testdata/README.md` に、足したサンプルの採った日と Claude Code の版、採り方、削った行と項目、置き換えた値（PR の記録の URL を含む）を書く。「Claude Code の `/runpr` の報告は、`/runpr` を OpenCode で走らせるので要らない」の文（同 78 行）を、今のサンプルに合わせて書き直す。
 
 **完了の条件:** サンプルが置かれ、`TestSamplesFollowReplacementRules` が通り、ステップ 1-1 と 1-4 の結果が記録されている。
 
@@ -376,7 +376,8 @@ Diff record (AC-17):
 
 ### PR-1 の実行の記録
 
-（ステップ 1-1 の、`/runpr` の報告の NEXT の読み取りの結果、ステップ 1-4 の探索の結果、ステップ 2-9 の読む時間の測定の結果を、`/runplan` が書く。）
+-   **ステップ 1-1（2026-11-17）。** 本タスクの worktree の transcript のディレクトリで、人が入力したコマンドの行が `/runpr 940` であるセッションは 1 つだけだった（Claude Code 2.1.325）。その最後の報告の NEXT の行は `NEXT: なし（タスク文書の承認がない PR のため）` で、今の文法で読めた（`nextLine` に合い、`readNextValue` が「なし」と読む）。この報告を `testdata/transcript/claude-runpr-report.jsonl` に採った。
+-   **ステップ 1-4（2026-11-17）。** 足した 6 つのサンプルで、利用者の GitHub のログイン名、氏名、名前の小文字の綴りを、大文字と小文字を区別せずに探した。見つかったのは 0 件だった。`TestSamplesFollowReplacementRules` も通った。
 
 ### PR-4 の実行の記録
 
