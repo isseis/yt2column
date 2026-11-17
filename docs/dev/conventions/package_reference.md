@@ -138,7 +138,7 @@ add a kind here or to widen one of these definitions.
 | `internal/codexreview` | The checks behind the `codexreview` tool: `Run`, `Result`, `Kind`, `Protocol`. |
 | `internal/coveragecompare` | The coverage comparison tool's core: `Run`, `Write`, `ExitCode`, `StopError`, and the input parsers. |
 | `internal/fixprguard` | The deterministic checks for `/fixpr` and `/runpr`: `GitHub`, `NewGitHub`, `ParseReviewers`, `CheckState`, `Worktree.Baseline`. Usage: [fixprguard guide](../guides/fixprguard_guide.md). |
-| `internal/mergepr` | Implements the `/mergepr` mechanics: prepares the drafting material after CI passes, squash-merges with `--match-head-commit`, and updates the local base and deletes the local head branch only while it still points at the merged head. Before CI is awaited and again right before the merge, it fetches `main` and runs the protocol-number check, which stops a PR that changed a tool's `Protocol` to anything but `origin/main`'s value plus one. Exports `Protocol`, `ShownCommands`, and `WorktreeProtocolTools`. Usage: [mergepr guide](../guides/mergepr_guide.md). |
+| `internal/mergepr` | Implements the `/mergepr` mechanics: prepares the drafting material after CI passes, squash-merges with `--match-head-commit`, and updates the local base and deletes the local head branch only while it still points at the merged head. Before CI is awaited and again right before the merge, it fetches `main` and runs the protocol-number check, which stops a PR that changed a tool's `Protocol` to anything but `origin/main`'s value plus one. Besides `New`, `Tool`, and `Discard`, it exports `Protocol`, `ShownCommands`, and `WorktreeProtocolTools`. Usage: [mergepr guide](../guides/mergepr_guide.md). |
 
 ## Test-Only Packages
 

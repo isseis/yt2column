@@ -739,8 +739,11 @@ A protocol number is the number a developer tool and the documents that call
 it compare to agree on a version: the documents pass it with `--protocol`,
 and the tool refuses a number that is not its own. The rules below cover
 every tool that has one: today `fixprguard`, `codexreview`, `chief`, and
-`mergepr`. A tool declares it in one line,
-`const Protocol = <number>`, in a file directly inside `internal/<name>/`.
+`mergepr`. A tool declares it in exactly one line,
+`const Protocol = <number>`, in a file directly inside `internal/<name>/`
+that is not a `_test.go` file; any other form, or a second declaration,
+stops the merge check as unreadable (the form is in
+[mergepr_guide.md](docs/dev/guides/mergepr_guide.md) section 6.3).
 
 - **Task documents do not write the raised number.** A requirements,
   architecture, or implementation plan document, or a handoff document, of a
@@ -757,8 +760,8 @@ every tool that has one: today `fixprguard`, `codexreview`, `chief`, and
   rebasing onto it or by rewriting its history. The one exception to "never
   reuse": a tool removed from `main` and added back under the same name starts
   again at `1`.
-- **The merge checks it.** `mergepr prepare` and `mergepr merge` (so both
-  `/runpr` and `/mergepr` on their own) check, on a freshly fetched
+- **The merge checks it.** `mergepr prepare` and `mergepr merge` (so every merge,
+  through `/runpr` or through `/mergepr` alone) check, on a freshly fetched
   `origin/main`, that every tool the PR's commits changed the number of has
   `origin/main`'s value plus one at the PR head, and stop the merge
   otherwise. How to fix a stop is in

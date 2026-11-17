@@ -256,7 +256,7 @@ note: main is checked out in another worktree; update it there and remove this w
 | `invalid state` | `merge`、`cleanup`、`discard` | `--state` に `prepare` が書いたファイル以外を指定した | `prepare` が表示したパスを指定する |
 | `state file does not name a generated work directory it lives in` | `discard` | `--state` が、`prepare` が作ったディレクトリの外へ移動・コピーされた state ファイルを指している、またはそのディレクトリ名が `mergepr-` 接頭辞を持たない | `prepare` が表示したパスを指定する。安全と分かっているなら準備したディレクトリを自分で削除する |
 
-`merge` の確かめ直しで止まったときは、マージしていない。表示された `mergepr discard --protocol 1 --state ...` で準備を捨ててから直す。
+`merge` の確かめ直しで止まったときは、マージしていない。`origin/main` の取得に失敗したとき（`could not fetch origin/main`）は、準備はそのまま使えるので、`origin` に届くようになってから同じ `merge` を実行し直す。それ以外で止まったときは、表示された `mergepr discard --protocol 1 --state ...` で準備を捨ててから直す。
 
 **番号が食い違ったとき.** 誤りの文は、食い違った道具ごとに、`origin/main` の値、head の値、期待する値と、番号を変えたコミットを示す。そのコミットがこの PR 自身のものか、ほかのブランチから来たものかを見て、直し方を選ぶ。
 
@@ -269,9 +269,9 @@ note: main is checked out in another worktree; update it there and remove this w
 
 head の値が `origin/main` の値と同じ道具があるとき（上げた番号が `main` の取り込みで吸収された場合と、上げてから元に戻した場合）は、`origin/main` の上で PR の履歴をまとめ直し、番号を変えたコミットを残さないことも直し方になる。まとめ直してよいのは、この PR 自身の変更が道具の約束を変えないとき（番号を変えたコミットがほかのブランチから来たか、上げてから元に戻したとき）に限る。そうでなければ、まとめ直しは衝突を隠すので、上の手順だけが直し方である。
 
-**番号を読めないとき.** 表示された理由に応じて直す。shallow なリポジトリなら `git fetch --unshallow` を実行する。`main` の取得に失敗したなら、ネットワークと `origin` を確かめてやり直す。読めない宣言の行なら、表示されたファイルの行を `const Protocol = <整数>` の形に直す。PR の base が `main` でないなら、番号を変えるコミットは `main` を base にした PR でマージする。
+**番号を読めないとき.** 表示された理由に応じて直す。shallow なリポジトリなら `git fetch --unshallow` を実行する。`main` の取得に失敗したなら、ネットワークと `origin` を確かめてから、止まったサブコマンド（`prepare` か `merge`）を同じ引数で実行し直す。読めない宣言の行なら、表示されたファイルの行を `const Protocol = <整数>` の形に直す。PR の base が `main` でないなら、番号を変えるコミットは `main` を base にした PR でマージする。
 
-**`main` に読めない値が入ったとき.** `origin/main` の番号が読めないと、それを直す PR を含め、すべての PR の `mergepr` が止まる。この場合に限り、次の手順で直す PR をマージしてよい。直す PR は、読めない宣言の行を受け付ける形に直す変更だけを含むこと。`origin/main` の各道具の番号と、PR の head の番号を `git grep -n 'const Protocol' <commit> -- 'internal/*/*.go'` で手で確かめ、番号を変えた道具が `origin/main` の値 + 1 であるか、番号を変えていないことを確かめる。そのうえで、`gh pr merge <PR> --squash --match-head-commit <headOID>` でマージし、マージの後に `/mergepr` が通ることを確かめる。
+**`main` に読めない値が入ったとき.** `origin/main` の番号が読めないと、それを直す PR を含め、すべての PR の `mergepr` が止まる。この場合に限り、次の手順で直す PR をマージしてよい。直す PR は、読めない宣言の行を受け付ける形に直す変更だけを含むこと。`origin/main` の各道具の番号と、PR の head の番号を `git grep -n -F Protocol <commit> -- ':(glob)internal/*/*.go' ':(glob,exclude)internal/*/*_test.go'` で手で確かめ、番号を変えた道具が `origin/main` の値 + 1 であるか、番号を変えていないことを確かめる。そのうえで、`gh pr merge <PR> --squash --match-head-commit <headOID>` でマージし、マージの後に `/mergepr` が通ることを確かめる。
 
 `merge` は取り消せない段階である。その後に止まっても、マージ自体は完了していることがある。GitHub で PR の状態を確認し、マージ済みなら `cleanup` で片付けを再開する。`state.json` はチェックアウト内の作業ディレクトリ（本体のチェックアウトでは `.git/mergepr-*`、worktree では `mergepr-*`）にあるため、片付けが終わるまで削除しない。片付けが成功すると、ツールがディレクトリを削除する。使えなくなった準備（head がマージ前に動いた場合など）は、チェックアウト内に残さず `discard` で削除する。
 

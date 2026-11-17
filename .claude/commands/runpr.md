@@ -1251,8 +1251,9 @@ character as 2); the line shapes below are the examples to follow.
    return to step 2 rather than re-running `mergepr.md` from its step 1: the
    new commits need review, and step 4 asks again. If the repeated protocol
    number check of `merge` stops it (its error starts with `protocol check: `),
-   nothing is merged: discard the preparation as `mergepr.md` step 4 says, stop,
-   and report what `mergepr` showed, that the PRE_MERGE commit stays on the
+   nothing is merged: discard the preparation (also after a fetch of
+   `origin/main` that fails again; `mergepr.md` step 4), stop, and report what
+   `mergepr` showed, that the PRE_MERGE commit stays on the
    branch, pushed, and that a rerun of this command after the fix finds
    PRE_MERGE already recorded.
 

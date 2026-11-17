@@ -18,11 +18,12 @@ approve the commit message first (CLAUDE.md, "Tool Execution Safety").
 The mechanics live in the `mergepr` binary (package `internal/mergepr`). Install
 it with `make install-mergepr` from an up-to-date `main` checkout. Every call
 below passes, with `--protocol`, the protocol number of the `mergepr` these
-steps are written for. When `mergepr` refuses it (`--protocol is missing or does not
-match`, or `flag provided but not defined: -protocol` from a `mergepr` older
-than the protocol number), report the error and the two fixes it names
-(reinstall `mergepr` from `main`, or merge `origin/main` into the branch whose
-command documents are older), and stop.
+steps are written for. When `mergepr` refuses it with `--protocol is missing or does
+not match`, report the error and the two fixes it names (reinstall `mergepr`
+from `main`, or merge `origin/main` into the branch whose command documents
+are older), and stop. When it refuses with
+`flag provided but not defined: -protocol`, the installed `mergepr` predates
+protocol numbers: report that it must be reinstalled from `main`, and stop.
 The developer-facing guide (setup, guarantees, troubleshooting) is
 `docs/dev/guides/mergepr_guide.md`.
 
@@ -148,8 +149,12 @@ around it with your own shell commands. Work in order; do not skip a step.
    discard it with `mergepr discard --protocol 1 --state <state-file>` so its material does
    not linger inside the checkout, then re-run from step 1. When the repeated
    protocol number check stops it (its error starts with `protocol check: `),
-   nothing is merged: discard the preparation with the `discard` command the
-   error shows, and report as step 1 says. Then it cleans up:
+   nothing is merged. When the error is `could not fetch origin/main`, the
+   preparation still holds: run the same `merge` command once more, and when it
+   fails again, discard the preparation with
+   `mergepr discard --protocol 1 --state <state-file>` and report the error.
+   Otherwise discard the preparation with the `discard` command the error
+   shows, and report as step 1 says. Then it cleans up:
    it fast-forwards the local base branch from `origin/<baseRefName>` and deletes
    the local head branch only while it still points at `headRefOid` (and stops
    without touching local branches if the merged head is not `headRefOid`). When

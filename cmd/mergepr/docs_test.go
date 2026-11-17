@@ -56,7 +56,10 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 	guideFlags := 0
 	for _, rel := range docs {
 		for _, f := range doctestutil.ProtocolFlags(readRepoFile(t, rel)) {
-			if f.Tool != doctestutil.ToolMergepr {
+			// In the guide, a flag written with no tool before it, as in its
+			// prose, is mergepr's too: the guide is mergepr's alone.
+			mine := f.Tool == doctestutil.ToolMergepr || (rel == guidePath && f.Tool == "")
+			if !mine {
 				continue
 			}
 			if rel == guidePath {
@@ -70,7 +73,20 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 	if guideFlags == 0 {
 		t.Errorf("%s writes no %s call with --protocol", guidePath, toolWord)
 	}
+	// The guide states the current number in prose; it must be this binary's.
+	current := currentNumber.FindAllStringSubmatch(readRepoFile(t, guidePath), -1)
+	if len(current) == 0 {
+		t.Errorf("%s does not state the current number (%s)", guidePath, currentNumber)
+	}
+	for _, m := range current {
+		if m[1] != strconv.Itoa(mergepr.Protocol) {
+			t.Errorf("%s: %q, want %d", guidePath, m[0], mergepr.Protocol)
+		}
+	}
 }
+
+// currentNumber matches the guide's statement of the current number.
+var currentNumber = regexp.MustCompile("現在の番号は `([0-9]+)`")
 
 // placeholderValues are the values the documents' placeholders stand for.
 var placeholderValues = map[string]string{
