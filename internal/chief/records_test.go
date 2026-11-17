@@ -4,9 +4,11 @@ package chief
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -840,6 +842,210 @@ func TestSendEnded(t *testing.T) {
 	for _, id := range []string{other, "../stop", "", open + "x"} {
 		if end, err := held.sendEnded(id); !errors.Is(err, errRecord) {
 			t.Errorf("sendEnded(%q) = %+v, %v; want errRecord", id, end, err)
+		}
+	}
+}
+
+// createdSpace returns the task space of issue 42 under a fresh home and the
+// held records of its worktree.
+func createdSpace(t *testing.T, store Store, home string) (TaskSpace, *HeldWorkspace) {
+	t.Helper()
+	space, err := NewTaskSpace(home, issueNumber(t, "42"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := space.Worktree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return space, heldRecords(t, store, tree.String())
+}
+
+func TestCreatedRecordRoundTrip(t *testing.T) {
+	store, home := newStore(t), spaceHome(t)
+	space, held := createdSpace(t, store, home)
+	if rec, err := held.Created(home); rec != nil || err != nil {
+		t.Fatalf("Created before any record = %+v, %v; want nil, nil", rec, err)
+	}
+	now := time.Date(2026, 11, 17, 9, 0, 0, 0, time.UTC)
+	if err := held.KeepCreated(space, now); err != nil {
+		t.Fatalf("KeepCreated: %v", err)
+	}
+	rec, err := held.Created(home)
+	if err != nil || rec == nil {
+		t.Fatalf("Created = %+v, %v", rec, err)
+	}
+	tree, _ := space.Worktree()
+	if rec.Worktree != tree || rec.Issue.String() != "42" || !rec.Created.Equal(now) {
+		t.Errorf("Created = %+v; want worktree %q, issue 42, time %v", rec, tree, now)
+	}
+	// A record is never replaced: a second one is refused.
+	if err := held.KeepCreated(space, now.Add(time.Hour)); !errors.Is(err, privatefile.ErrExist) {
+		t.Errorf("a second KeepCreated = %v, want privatefile.ErrExist", err)
+	}
+}
+
+func TestKeepCreatedWritesOnlyIntoItsOwnWorktreeDirectory(t *testing.T) {
+	store, home := newStore(t), spaceHome(t)
+	_, held := createdSpace(t, store, home)
+	other, err := NewTaskSpace(home, issueNumber(t, "43"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := held.KeepCreated(other, time.Now()); !errors.Is(err, errRecord) {
+		t.Fatalf("KeepCreated of another worktree's space = %v, want errRecord", err)
+	}
+	if _, err := os.Stat(filepath.Join(held.dir, createdFile)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a record was written for another worktree: %v", err)
+	}
+}
+
+// TestCreatedRecordUnreadableForms keeps a valid record, then breaks it in
+// one way at a time: each must read as an error, never as a record.
+func TestCreatedRecordUnreadableForms(t *testing.T) {
+	home := spaceHome(t)
+	valid := func(tree Worktree) createdJSON {
+		return createdJSON{Worktree: tree.String(), Issue: "42", Created: time.Date(2026, 11, 17, 9, 0, 0, 0, time.UTC)}
+	}
+	space42, err := NewTaskSpace(home, issueNumber(t, "42"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree42, _ := space42.Worktree()
+	space43, _ := NewTaskSpace(home, issueNumber(t, "43"))
+	tree43, _ := space43.Worktree()
+
+	cases := []struct {
+		name string
+		// dirOf is the worktree whose directory holds the record.
+		dirOf Worktree
+		raw   string
+		mode  os.FileMode
+	}{
+		{"unknown member", tree42, `{"worktree":"` + tree42.String() + `","issue":"42","created":"2026-11-17T09:00:00Z","extra":1}`, 0o600},
+		{"a mode others can read", tree42, "", 0o644},
+		{"an issue that is no number", tree42, `{"worktree":"` + tree42.String() + `","issue":"042","created":"2026-11-17T09:00:00Z"}`, 0o600},
+		{"no time", tree42, `{"worktree":"` + tree42.String() + `","issue":"42"}`, 0o600},
+		{"a relative worktree", tree42, `{"worktree":"issue-42","issue":"42","created":"2026-11-17T09:00:00Z"}`, 0o600},
+		{"a worktree that is not the one of its directory", tree43, "", 0o600},
+		{"a worktree that is not where its issue's task is made", tree42, `{"worktree":"` + tree42.String() + `","issue":"43","created":"2026-11-17T09:00:00Z"}`, 0o600},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			store := newStore(t)
+			held := heldRecords(t, store, c.dirOf.String())
+			raw := c.raw
+			if raw == "" {
+				data, err := json.Marshal(valid(tree42))
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw = string(data)
+			}
+			path := filepath.Join(held.dir, createdFile)
+			if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(path, c.mode); err != nil {
+				t.Fatal(err)
+			}
+			if rec, err := held.Created(home); rec != nil || err == nil {
+				t.Fatalf("Created = %+v, %v; want an error and no record", rec, err)
+			}
+		})
+	}
+	// The same record in its own directory, owner and mode as KeepCreated
+	// writes them, is read: the cases above fail for their own breakage.
+	t.Run("the valid record is read", func(t *testing.T) {
+		store := newStore(t)
+		held := heldRecords(t, store, tree42.String())
+		if err := held.KeepCreated(space42, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		if rec, err := held.Created(home); err != nil || rec == nil {
+			t.Fatalf("Created = %+v, %v", rec, err)
+		}
+	})
+}
+
+func TestClearRecordsKeepsOnlyTheExclusion(t *testing.T) {
+	store, home := newStore(t), spaceHome(t)
+	space, held := createdSpace(t, store, home)
+	now := time.Now()
+	if err := held.KeepCreated(space, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := held.BeginSend(SendRecord{Pane: "w:p1", Input: "command", Command: "/mkreq 42"}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := held.Stop("a stop", "screen", "id", now); err != nil {
+		t.Fatal(err)
+	}
+	sha := strings.Repeat("a", 40)
+	for _, name := range []string{"detail-7-" + sha + ".json", "report-7-" + sha + ".json"} {
+		if _, err := privatefile.Create(filepath.Join(held.dir, name), []byte("{}")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := held.ClearRecords(); err != nil {
+		t.Fatalf("ClearRecords: %v", err)
+	}
+	entries, err := os.ReadDir(held.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if isRecordFile(e.Name()) {
+			t.Errorf("record %s was not removed", e.Name())
+		}
+	}
+	if len(entries) != 1 {
+		t.Errorf("the directory holds %d entries after the clear, want only the exclusion's file", len(entries))
+	}
+	// The exclusion is still held by this holder: another cannot take it.
+	if _, err := held.Lock(); !errors.Is(err, ErrWorkspaceBusy) {
+		t.Errorf("Lock after the clear = %v, want ErrWorkspaceBusy", err)
+	}
+	// A clear of an empty directory is no error.
+	if err := held.ClearRecords(); err != nil {
+		t.Errorf("a second ClearRecords = %v", err)
+	}
+}
+
+// TestClearRecordsKeepsTheCreatedRecordWhenAnotherRemovalFails checks the
+// order: a clear that stops on a record it cannot remove still names the
+// worktree by its created record.
+func TestClearRecordsKeepsTheCreatedRecordWhenAnotherRemovalFails(t *testing.T) {
+	store, home := newStore(t), spaceHome(t)
+	space, held := createdSpace(t, store, home)
+	if err := held.KeepCreated(space, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	// A stop other users can read is not one privatefile removes.
+	stop := filepath.Join(held.dir, stopFile)
+	if err := os.WriteFile(stop, []byte("{}"), 0o644); err != nil { //nolint:gosec // the test needs a mode privatefile refuses
+		t.Fatal(err)
+	}
+	if err := held.ClearRecords(); !errors.Is(err, privatefile.ErrUnsafe) {
+		t.Fatalf("ClearRecords = %v, want privatefile.ErrUnsafe", err)
+	}
+	if _, err := os.Stat(filepath.Join(held.dir, createdFile)); err != nil {
+		t.Errorf("the created record was removed before the failing one: %v", err)
+	}
+}
+
+// TestRecordsAreClearedOnlyUnderTheExclusion checks that the writes of the
+// created record and the clear are methods of the held workspace only: the
+// records a send path reads without the exclusion cannot make or remove them.
+func TestRecordsAreClearedOnlyUnderTheExclusion(t *testing.T) {
+	plain := reflect.TypeFor[WorkspaceRecords]()
+	held := reflect.TypeFor[*HeldWorkspace]()
+	for _, name := range []string{"KeepCreated", "ClearRecords"} {
+		if _, ok := plain.MethodByName(name); ok {
+			t.Errorf("WorkspaceRecords has %s, which needs the exclusion", name)
+		}
+		if _, ok := held.MethodByName(name); !ok {
+			t.Errorf("*HeldWorkspace has no %s", name)
 		}
 	}
 }

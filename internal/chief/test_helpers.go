@@ -216,7 +216,7 @@ var errNoReply = errors.New("no reply recorded for the command")
 // or types into a pane. The recorder fails a test that runs anything else.
 var readOnlyCommands = map[string][][]string{
 	herdrProgram: {{herdrAgent, "list"}, {herdrAgent, "get"}, {herdrAgent, "read"}, {"workspace", "list"}, {"pane", "list"}, {"pane", "process-info"}}, //nolint:goconst // each pair names one herdr operation
-	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}, {"rev-list", "--count"}, {"fetch", "origin", "main"}, {"ls-remote", "origin", "refs/heads/main"}, {"status", "--porcelain"}, {"worktree", "list"}, {"merge-base", "--is-ancestor"}},
+	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}, {"rev-list", "--count"}, {"fetch", "origin", "main"}, {"ls-remote", "origin", "refs/heads/main"}, {"status", "--porcelain"}, {gitWorktree, "list"}, {"merge-base", "--is-ancestor"}},
 	ghProgram:    {{"pr", "list"}, {"pr", "view"}, {"pr", "checks"}},
 }
 
@@ -250,13 +250,94 @@ type recorder struct {
 	// dynamic are replies computed when the line runs, for a fake whose state
 	// changes; they win over the fixed replies.
 	dynamic map[string]func() reply
-	// onPrompt, when set, allows `herdr agent prompt` (the only write the
-	// tool makes) and answers it; a test that leaves it nil fails on any
-	// write.
+	// onPrompt, when set, allows `herdr agent prompt` (the write of a send)
+	// and answers it; a test that leaves it nil fails on it.
 	onPrompt func(pane, text string) error
 	// onKeys, when set, allows `herdr agent send-keys` with one key (the
 	// relay's write) and answers it; a test that leaves it nil fails on it.
 	onKeys func(pane, key string) error
+	// writes are the writes the test allows, each for one exact command
+	// line (see writeAllowance). A write no entry matches fails the test.
+	writes []writeAllowance
+}
+
+// writeAllowance allows one write: the command, its working directory, and
+// its arguments, all compared whole. A write whose ID or path differs from
+// the one the test expects is therefore not allowed, which is what makes
+// the tests fail when code closes or removes something it was not meant
+// to. dir "" allows any working directory.
+type writeAllowance struct {
+	name string
+	dir  string
+	args []string
+	rep  reply
+}
+
+// gitWorktree is the git subcommand the worktree operations share.
+const gitWorktree = "worktree"
+
+// agentStartTimeoutMS is the --timeout the tool gives `herdr agent start`.
+const agentStartTimeoutMS = "60000"
+
+// allowWrite allows the command name with exactly args (in dir, when dir is
+// not empty) and answers it with rep.
+func (r *recorder) allowWrite(name, dir string, args []string, rep reply) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.writes = append(r.writes, writeAllowance{name: name, dir: dir, args: slices.Clone(args), rep: rep})
+}
+
+// allowWorkspaceCreate allows `herdr workspace create` for exactly this
+// path and label.
+func (r *recorder) allowWorkspaceCreate(cwd, label string, out []byte) {
+	r.allowWrite(herdrProgram, "", []string{"workspace", "create", "--cwd", cwd, "--label", label, "--no-focus"}, reply{out: out})
+}
+
+// allowTabRename allows renaming exactly this tab to label.
+func (r *recorder) allowTabRename(tab, label string, out []byte) {
+	r.allowWrite(herdrProgram, "", []string{"tab", "rename", tab, label}, reply{out: out})
+}
+
+// allowTabCreate allows creating a tab in exactly this workspace, at this
+// path, with this label.
+func (r *recorder) allowTabCreate(workspace, cwd, label string, out []byte) {
+	r.allowWrite(herdrProgram, "", []string{"tab", "create", "--workspace", workspace, "--cwd", cwd, "--label", label, "--no-focus"}, reply{out: out})
+}
+
+// allowAgentStart allows starting exactly this agent in exactly this pane.
+func (r *recorder) allowAgentStart(name, kind, pane string, out []byte) {
+	r.allowWrite(herdrProgram, "", []string{herdrAgent, "start", name, "--kind", kind, "--pane", pane, "--timeout", agentStartTimeoutMS}, reply{out: out})
+}
+
+// allowWorkspaceClose allows closing exactly this workspace, with no
+// --group.
+func (r *recorder) allowWorkspaceClose(id string, out []byte) {
+	r.allowWrite(herdrProgram, "", []string{"workspace", "close", id}, reply{out: out})
+}
+
+// allowWorktreeAdd allows `git worktree add --detach` of exactly this path
+// at exactly this commit, run in exactly dir.
+func (r *recorder) allowWorktreeAdd(dir, path, commit string) {
+	r.allowWrite(gitProgram, dir, []string{gitWorktree, "add", "--detach", path, commit}, reply{})
+}
+
+// allowWorktreeRemove allows `git worktree remove` of exactly this path,
+// without --force, run in exactly dir.
+func (r *recorder) allowWorktreeRemove(dir, path string) {
+	r.allowWrite(gitProgram, dir, []string{gitWorktree, "remove", path}, reply{})
+}
+
+// allowedWrite returns the allowance's reply when c is a write the test
+// allowed.
+func (r *recorder) allowedWrite(c recordedCall) (reply, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, w := range r.writes {
+		if w.name == c.name && (w.dir == "" || w.dir == c.dir) && slices.Equal(w.args, c.args) {
+			return w.rep, true
+		}
+	}
+	return reply{}, false
 }
 
 func newRecorder(t *testing.T) *recorder {
@@ -376,8 +457,11 @@ func (rr recordingRunner) Run(ctx context.Context, name string, args ...string) 
 	if isKeys(call) && onKeys != nil {
 		return nil, onKeys(call.args[2], call.args[3])
 	}
+	if rep, ok := r.allowedWrite(call); ok && !isReadOnly(call) {
+		return rep.out, rep.err
+	}
 	if !isReadOnly(call) {
-		r.t.Errorf("the tool ran a command outside the read-only list: %s", call.line())
+		r.t.Errorf("the tool ran a command that is neither read-only nor an allowed write: %s", call.line())
 	}
 	r.mu.Lock()
 	dyn, isDynamic := r.dynamic[call.line()]

@@ -204,14 +204,14 @@
 
 **変更するファイル:** `internal/chief/records.go`・`records_test.go`、`internal/chief/request.go`・`send.go`・`send_test.go`、`internal/chief/test_helpers.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 3-1**: 呼び出しの記録係に、決定 7 の書き込みの許可を足す。`onPrompt` のコメント（「the only write the tool makes」。`internal/chief/test_helpers.go:228`）を直す。記録係そのもののテストを書き、許可のない書き込みがテストを失敗にすること、`workspace close` と `worktree remove` の許可が期待と違う ID とパスで失敗にすること、`gh api graphql` の決まった形でない呼び出しを読み取りとして通さないことを確かめる（使う部品は PR-4・PR-6 で作るので、この PR の `make deadcode` もこのテストで通す）。
--   [ ] **ステップ 3-2**: `records.go` に、作ったことの記録（`created.json`）を作る・読む・消す操作と、workspace ごとの記録のディレクトリから排他のファイルのほかの記録を消す操作を足す（設計書 3.5）。読むときは、形・権限・記録のパスとディレクトリの名前・記録のパスと記録の issue 番号の作る場所の一致を確かめ、合わなければ読めないものとする（AC-24）。テストは、それぞれの合わない記録と、排他を持たずには消せないことを確かめる。
--   [ ] **ステップ 3-3**: `request.go`・`send.go` に、すでに持っている排他を受け取って `/mkreq` を送る入口 `sendAfterCreate` を書く（設計書 3.3.4）。`holdWorkspace` の、排他を取った後の部分（終わりのない送信の停止への変換、送信の停止の確かめ、エージェントの読み直し）を、`holdWorkspace` と共有する。`offered` の確かめだけを省き、送り先と入力の確かめは `sendCommand` のままにする。今の `send_test.go`・`autosend_test.go`・`relay_test.go` のテストは変えずに通す。テストは次を確かめる。
+-   [x] **ステップ 3-1**: 呼び出しの記録係に、決定 7 の書き込みの許可を足す。`onPrompt` のコメント（「the only write the tool makes」。`internal/chief/test_helpers.go:228`）を直す。記録係そのもののテストを書き、許可のない書き込みがテストを失敗にすること、`workspace close` と `worktree remove` の許可が期待と違う ID とパスで失敗にすること、`gh api graphql` の決まった形でない呼び出しを読み取りとして通さないことを確かめる（使う部品は PR-4・PR-6 で作るので、この PR の `make deadcode` もこのテストで通す）。
+-   [x] **ステップ 3-2**: `records.go` に、作ったことの記録（`created.json`）を作る・読む・消す操作と、workspace ごとの記録のディレクトリから排他のファイルのほかの記録を消す操作を足す（設計書 3.5）。読むときは、形・権限・記録のパスとディレクトリの名前・記録のパスと記録の issue 番号の作る場所の一致を確かめ、合わなければ読めないものとする（AC-24）。テストは、それぞれの合わない記録と、排他を持たずには消せないことを確かめる。
+-   [x] **ステップ 3-3**: `request.go`・`send.go` に、すでに持っている排他を受け取って `/mkreq` を送る入口 `sendAfterCreate` を書く（設計書 3.3.4）。`holdWorkspace` の、排他を取った後の部分（終わりのない送信の停止への変換、送信の停止の確かめ、エージェントの読み直し）を、`holdWorkspace` と共有する。`offered` の確かめだけを省き、送り先と入力の確かめは `sendCommand` のままにする。今の `send_test.go`・`autosend_test.go`・`relay_test.go` のテストは変えずに通す。テストは次を確かめる。
     -   `/clear`・`/model opus`・`/mkreq <N>` をこの順に送る。
     -   送信の停止があれば送らない。
     -   最初の入力の後に確かめが外れれば、送信の停止を作る（AC-18）。
     -   PR-1 の起動したばかりの Claude Code の画面とエージェントの状態で、送る前の確かめを通る。
--   [ ] **ステップ 3-4**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
+-   [x] **ステップ 3-4**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。
 
