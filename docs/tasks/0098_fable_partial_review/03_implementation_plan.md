@@ -328,13 +328,13 @@ Diff record (AC-37):
 
 - Compared paths: `.claude/commands/_lib/pr-review-escalation.md`
 - Merge-base: `eb054b00ee149df0f180348165a905b8da6f0297`
-- Compared commit: `28a4f5da6e130e53c2e741892b3d5d444d19ddc4`
+- Compared commit: `42f23dd9e221398e7beca55237e9748ce3e84f68`
 
 Path diff:
 
 ````text
 diff --git a/.claude/commands/_lib/pr-review-escalation.md b/.claude/commands/_lib/pr-review-escalation.md
-index 887ba06b82968e76cffdb8a65ecf4c0d32c3fafb..7ec1ce3537ad83df00a51688604a6a08bd0fd7c5 100644
+index 887ba06b82968e76cffdb8a65ecf4c0d32c3fafb..9bb9944c8d0b40b522de9407c74fbc6539d5bf88 100644
 --- a/.claude/commands/_lib/pr-review-escalation.md
 +++ b/.claude/commands/_lib/pr-review-escalation.md
 @@ -31,7 +31,11 @@ step 3 invokes this file.
@@ -350,7 +350,7 @@ index 887ba06b82968e76cffdb8a65ecf4c0d32c3fafb..7ec1ce3537ad83df00a51688604a6a08
 
  1. **Change behavior or a contract.** Observable behavior changes — error
     handling, an exported API, a wire format, configuration, the cache format —
-@@ -41,19 +45,31 @@ Request a PR review when the changes in LAST_REVIEWED..HEAD do any of these:
+@@ -41,19 +45,32 @@ Request a PR review when the changes in LAST_REVIEWED..HEAD do any of these:
  3. **Touch a requirement or a design decision.** They change or reinterpret an
     acceptance criterion, a decision recorded in a task document, or what a test
     asserts.
@@ -381,8 +381,9 @@ index 887ba06b82968e76cffdb8a65ecf4c0d32c3fafb..7ec1ce3537ad83df00a51688604a6a08
 -applies a finding as stated once the local review has converged.
 +None applies to: mechanical changes (rename, move, formatting); wording in
 +documents (a change to what a review gate does is not wording); tests added in
-+an existing pattern; deleted code; a local fix that applies a finding as
-+stated once the local review has converged.
++an existing pattern; deleted code, unless it removes part of a review gate or
++of a trust boundary's checks (criterion 4); a local fix that applies a finding
++as stated once the local review has converged.
 
  Size is not a criterion. A large rename touches none of the five; a three-line
 -change to a cache write touches the fourth.
