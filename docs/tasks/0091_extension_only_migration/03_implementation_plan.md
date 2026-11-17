@@ -309,7 +309,7 @@
 
 **変更するファイル:** `extension/test/apiKeyPath.test.ts`（新規）、`extension/test/secretsAbsent.test.ts`（削除）、`extension/src/browser/chromeDeps.ts`、`extension/eslint.config.js`、`extension/src/wasmWorker.ts`・`extension/src/wasmWorkerClient.ts`・`extension/src/core/wasmResult.ts`・`extension/src/core/jobRecord.ts`・`extension/src/core/viewerTitle.ts`・`extension/src/core/optionsView.ts`（新規）、`wasm_exec.js` の型の宣言（新規）、Worker の型を確かめる `tsconfig` の設定と、それを走らせる `package.json` の `typecheck` と `build`、`extension/src/core/i18n/*`、`extension/test/`（新しいテスト、`lintRules.test.ts`、`helpers/chrome.ts`、`helpers/worker.ts`（新規））、本計画
 
--   [ ] **ステップ 6-1**（PR-6 の `/runplan` の前に、確認のセッションで行う。§1.3 の決定 3）: `make ext-build` が作った公開用の記事生成モジュールを、試作の拡張の Worker で読み込み、Chrome と Brave で、誤ったキーで `checkSettings` と `generate` を `anthropic-workspace-id` のありとなしの両方で呼び、`key_rejected` と `api_key_rejected` になることを確かめる。実 API の呼び出しなので、人の承認を得る。結果を §7 の「PR-6 の前の手動の確認の記録」に書き、ステップ 1-1 と同じ形で PR-6 のブランチに commit する。読めないときは、先へ進まず、ステップ 1-1 と同じく人と決め直す。
+-   [x] **ステップ 6-1**（PR-6 の `/runplan` の前に、確認のセッションで行う。§1.3 の決定 3）: `make ext-build` が作った公開用の記事生成モジュールを、試作の拡張の Worker で読み込み、Chrome と Brave で、誤ったキーで `checkSettings` と `generate` を `anthropic-workspace-id` のありとなしの両方で呼び、`key_rejected` と `api_key_rejected` になることを確かめる。実 API の呼び出しなので、人の承認を得る。結果を §7 の「PR-6 の前の手動の確認の記録」に書き、ステップ 1-1 と同じ形で PR-6 のブランチに commit する。読めないときは、先へ進まず、ステップ 1-1 と同じく人と決め直す。
 -   [ ] **ステップ 6-2**: `secretsAbsent.test.ts` を `apiKeyPath.test.ts` に置き換える（設計書 §5.4 の「ソースの検査」、0090 設計書 §7.3）。この PR のほかのどのファイルよりも前に行う。
     -   先に `apiKeyPath.test.ts` を加える。`onChanged` を参照するのが `chromeDeps.ts` の `chrome.storage.session.onChanged` だけであること、`chrome.storage.local.get` と `chrome.storage.local.remove` を呼ぶのは決まった関数だけで、その引数が固定の 2 つの名前だけであること、`chrome.storage.local.clear` と `chrome.storage.sync` を参照しないこと、ログの関数に API キーを渡さないこと、古い版の値の名前（`sharedToken`・`serverPort`）を参照しないこと（要件書 AC-32）を確かめる。今の `secretsAbsent.test.ts` の確かめのうち、Webhook の URL と、トークンとポートの設定がないことの確かめも引き継ぐ。
     -   次に、`secretsAbsent.test.ts` を削除だけの commit で除き、`make ext-coverage-compare` で比べる。
@@ -708,7 +708,20 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 
 ステップ 6-1 で書く。ブラウザの名前と版、確かめた組み合わせ、`checkSettings` と `generate` の結果を書く。
 
-（まだない）
+2026-11-17 に、リポジトリの外に作った試作の拡張で確かめた。試作の拡張は、`host_permissions` を持たず、CSP を 0090 設計書 §3.7.2 の値にした manifest と、拡張のページ、そのページが作る Worker からなる。Worker は `wasm_exec.js` を読み込み、記事生成モジュールを `fetch` で読んで動かし、ページからのメッセージで 4 つの関数を呼ぶ。記事生成モジュールと `wasm_exec.js` は、`main`（`e638505d`）で `make ext-build` が作った `extension/dist/` のものを写した。実 API の呼び出しは、人の承認を得て、誤ったダミーのキーだけで行った（401 は料金がかからない）。
+
+-   **ブラウザ。** Chrome 157 と Brave（Chromium 157）。どちらも macOS。版は `navigator.userAgentData.brands` の値である（Chrome は `Google Chrome 157`、Brave は `Brave 157`）。
+-   **読み込んだ記事生成モジュール。** `buildInfo` は、両方のブラウザで `{"goVersion":"go1.26.5","vcsRevision":"","vcsModified":false,"mainPath":"github.com/isseis/yt2column/cmd/yt2column-wasm","llm":{"kind":"claude"}}` を返した。公開用の記事生成モジュールである。
+-   **呼び出し。** ワークスペース ID のなし（空の文字列）とあり（形式の整った `wrkspc_01AbCdEfGhJkLmNpQrStUvWx`）のそれぞれで、`checkSettings` を呼び、続けて `prepare`（`videoUrl` は `https://www.youtube.com/watch?v=dQw4w9WgXcQ`、`transcript` は `0:00\nHello\n`）で入力を渡し、`generate` を呼んだ。**Chrome と Brave の両方で、4 つとも通信の失敗にならず、期待した結果になった。**
+
+    | 呼び出し | ワークスペース ID | 期待 | Chrome | Brave |
+    |---|---|---|---|---|
+    | `checkSettings`（`GET /v1/models?limit=1`） | なし | `key_rejected` | `{"status":"key_rejected"}` | 同じ |
+    | `generate`（`POST /v1/messages`） | なし | `failed`・`api_key_rejected` | `failed`、`failure` は `api_key_rejected`、`steps` は `draft` が `failed`、ほかは `pending` | 同じ |
+    | `checkSettings` | あり | `key_rejected` | `{"status":"key_rejected"}` | 同じ |
+    | `generate` | あり | `failed`・`api_key_rejected` | `failed`、`failure` は `api_key_rejected`、`steps` は `draft` が `failed`、ほかは `pending` | 同じ |
+
+    `prepare` は、どちらのブラウザでも `ok` を返した。`generate` は、進み具合の関数を `draft` が `running` の知らせで 1 回呼んでから結果を返した。各呼び出しは 0.4〜0.6 秒で返った。ステップ 1-1 の `fetch` での結果と同じく、Worker の中の Go の送信でも 401 を読めたので、設計書の `CheckKey` と `api_key_rejected` の分類は変えない。
 
 ### PR-8 の手動の確認の記録
 
