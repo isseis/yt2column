@@ -634,7 +634,7 @@ type StopOutput struct {
     -   `urgency`: `now` 🔴 今、`later` 🟡 後、`wait` 🟢 待
     -   `position.document`: `needs_check` 要確認、`no_task` -、`requirements` 要件定義書、`architecture` 設計書、`plan` 計画書、`plan_pr` PR-N、`none` なし
     -   `position.progress`: `needs_check` 要確認、`awaiting_creation` 次を提案、`creating` 作成中、`runpr_running` `/runpr` 実行中、`running` 実行中、`merge_confirmation` マージの確認待ち、`question` 質問で停止、`awaiting_review` レビュー待ち、`task_done` タスク完了
-    -   `running_unknown`: `no_session` セッション不明、`unsupported_path` 記録の場所が不明、`unreadable` 記録を読めない、`over_cap` 記録が大きすぎる、`partial_line` 記録の書き込み中、`not_task_command` タスクのコマンドではない、`no_sent_command` 人が打ったコマンド（OpenCode）、`panes_disagree` pane ごとに異なる
+    -   `running_unknown`: `no_session` セッション不明、`unsupported_path` 記録の場所が不明、`unreadable` 記録を読めない、`over_cap` 記録が大きすぎる、`partial_line` 記録の書き込み中、`not_task_command` 読めるタスクのコマンドなし、`no_sent_command` 送ったコマンドの記録なし（OpenCode）、`panes_disagree` pane ごとに異なる
 -   `state`・`turn`・`idle` は示さない。「状態」の列の進み具合が、`state` と `turn` の示すことを含むためである。
 -   表にない値は、書かれたままの値に「（定義にない値）」を添えて示し、自分で意味を推し量らない。`--protocol` の照合があるので、ふつうは起こらない。
 -   「内容」の列は、`state` ごとに 1 つを示す。
