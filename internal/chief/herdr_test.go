@@ -483,6 +483,8 @@ func TestHerdrRejectsUnknownCreationShapes(t *testing.T) {
 		{"code of another shape", "agent-start-timeout.stderr", `"code":"timeout"`, `"code":"Timeout Error"`, 0},
 		{"missing message", "agent-start-timeout.stderr", `,"message":"timed out waiting for agent startup"`, ``, 0},
 		{"duplicate code", "agent-start-timeout.stderr", `"code":"timeout"`, `"code":"timeout","code":"timeout"`, 0},
+		{"error with a result", "agent-start-timeout.stderr", `"id":"cli:agent:start"`, `"id":"cli:agent:start","result":{"type":"agent_started"}`, 0},
+		{"result with an error", "workspace-close.json", `"result":{"type":"ok"}`, `"result":{"type":"ok"},"error":{"code":"workspace_not_found","message":"workspace w1Y not found"}`, 0},
 	}
 	for _, e := range edits {
 		t.Run(e.file+"/"+e.name, func(t *testing.T) {

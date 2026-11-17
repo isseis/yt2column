@@ -171,12 +171,15 @@ func (h Herdr) Screen(ctx context.Context, pane PaneID, source ScreenSource) (st
 }
 
 // herdrResult reads Herdr's envelope {"id": id, "result": {"type": kind, ...}}
-// and returns the result's members named by keys. Output of another command
-// is rejected.
+// and returns the result's members named by keys. Output of another command,
+// and an envelope that also holds an error, is rejected.
 func herdrResult(out []byte, id, kind string, keys ...string) (map[string]strictjson.Value, error) {
 	envelope, err := strictjson.ParseObject(out)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	if envelope.Has("error") {
+		return nil, fmt.Errorf("%w: result envelope holds an error", errHerdrOutput)
 	}
 	top, err := envelope.Collect("id", "result")
 	if err != nil {
@@ -764,12 +767,15 @@ type herdrError struct {
 var herdrErrorCodeForm = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 // parseHerdrError reads the error response of the command whose envelope id
-// is id. Contract: another command's response, a code of another shape, or a
-// missing member is unreadable.
+// is id. Contract: another command's response, a code of another shape, a
+// missing member, or an envelope that also holds a result is unreadable.
 func parseHerdrError(stderr []byte, id string) (herdrError, error) {
 	envelope, err := strictjson.ParseObject(stderr)
 	if err != nil {
 		return herdrError{}, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	if envelope.Has("result") {
+		return herdrError{}, fmt.Errorf("%w: error envelope holds a result", errHerdrOutput)
 	}
 	top, err := envelope.Collect("id", "error")
 	if err != nil {
