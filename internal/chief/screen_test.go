@@ -979,8 +979,8 @@ func claudeReportScreenNaming(t *testing.T, pr int, next string) string {
 }
 
 // TestReadRunprReport reads the last report of the sampled OpenCode /runpr
-// report and Claude Code command report, and checks that a screen whose last
-// response is not in the sampled shape gives none.
+// report, and checks that a screen whose last response is not in the sampled
+// shape, or a pane of another agent, gives none.
 func TestReadRunprReport(t *testing.T) {
 	report, ok := readRunprReport(paneinput.AgentOpenCode, readScreenSample(t, "opencode-runpr-report.txt"))
 	if !ok || report.Next != (RunprNext{Kind: NextNone}) || !slices.Contains(report.PRs, 867) {
@@ -1001,10 +1001,6 @@ func TestReadRunprReport(t *testing.T) {
 	split := strings.Replace(readScreenSample(t, "opencode-runpr-report.txt"), "     PR #867 のマージまで完了しました。\n", "     PR #42\n     1 件のマージまで完了しました。\n", 1)
 	if report, ok := readRunprReport(paneinput.AgentOpenCode, split); !ok || !slices.Contains(report.PRs, 42) {
 		t.Errorf("a number at a line end followed by a line of digits = %+v, %v; want #42", report, ok)
-	}
-	report, ok = readRunprReport(paneinput.AgentClaudeCode, readScreenSample(t, "claude-command-report.ansi"))
-	if !ok || report.Next.Kind != NextAbsent || !slices.Contains(report.PRs, 867) {
-		t.Errorf("Claude Code report = %+v, %v; want no NEXT naming #867", report, ok)
 	}
 	plain := readScreenSample(t, "opencode-runpr-report.txt")
 	end := "     Build · DeepSeek V4.1 Flash 1017 · 31m 33s · 59.8 tok/s\n"
@@ -1035,6 +1031,7 @@ func TestReadRunprReport(t *testing.T) {
 	}{
 		"an OpenCode screen read as Claude Code": {paneinput.AgentClaudeCode, "opencode-runpr-report.txt"},
 		"a Claude Code screen with no message":   {paneinput.AgentClaudeCode, "claude-idle.ansi"},
+		"a Claude Code command report screen":    {paneinput.AgentClaudeCode, "claude-command-report.ansi"},
 		"an agent chief does not know":           {paneinput.AgentUnknown, "claude-command-report.ansi"},
 	} {
 		if got, ok := readRunprReport(c.agent, readScreenSample(t, c.sample)); ok {

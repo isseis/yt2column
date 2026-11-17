@@ -243,16 +243,10 @@ func (mw *mergeWorld) runprTranscript(pr int, next string) {
 }
 
 // screenOnlyReport makes w1:p1 show, on its screen alone, a Claude Code
-// report naming #42 and /runplan 0001 that the screen reader reads, while
-// its transcript has no report.
+// report naming #42 and /runplan 0001, while its transcript has no report.
 func (mw *mergeWorld) screenOnlyReport() {
 	mw.t.Helper()
-	screen := claudeReportScreenNaming(mw.t, 42, "`/runplan 0001`")
-	report, ok := readRunprReport(paneinput.AgentClaudeCode, screen)
-	if !ok || !slices.Contains(report.PRs, 42) || report.Next.Kind != NextCommand || report.Next.Command != NextCommandRunplan {
-		mw.t.Fatalf("the screen reader reads %+v, %v; want a report naming #42 and /runplan 0001", report, ok)
-	}
-	mw.byPane["w1:p1"].screen = screen
+	mw.byPane["w1:p1"].screen = claudeReportScreenNaming(mw.t, 42, "`/runplan 0001`")
 	mw.claudeTranscript()
 }
 

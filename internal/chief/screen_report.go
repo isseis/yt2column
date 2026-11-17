@@ -304,19 +304,16 @@ type RunprReport struct {
 // are taken whole, so "#42" is never read from "#421".
 var prReference = regexp.MustCompile(`(?:#|/pull/)([1-9][0-9]*)`)
 
-// readRunprReport reads the last report on an agent's pane, by the sampled
-// shape of the agent's last message. Contract: a screen of any other shape,
-// or of an agent chief does not know, gives false; the report's NEXT is read
-// as readRunprNext reads it, from the report alone.
+// readRunprReport reads the last report on an OpenCode pane's screen, by the
+// sampled shape of OpenCode's last response; a Claude Code pane's report is
+// read from its transcript instead (readClaudeReport). Contract: a screen of
+// any other shape, or of any agent but OpenCode, gives false; the report's
+// NEXT is read as readRunprNext reads it, from the report alone.
 func readRunprReport(agent paneinput.AgentKind, raw string) (RunprReport, bool) {
-	var texts []string
-	var ok bool
-	switch agent {
-	case paneinput.AgentClaudeCode:
-		texts, ok = claudeLastMessage(raw)
-	case paneinput.AgentOpenCode:
-		texts, ok = openCodeLastMessage(raw)
+	if agent != paneinput.AgentOpenCode {
+		return RunprReport{}, false
 	}
+	texts, ok := openCodeLastMessage(raw)
 	if !ok {
 		return RunprReport{}, false
 	}
