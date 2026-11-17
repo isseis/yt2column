@@ -865,6 +865,26 @@ func claudeReportScreenNaming(t *testing.T, pr int, next string) string {
 	return strings.ReplaceAll(screen, "867", strconv.Itoa(pr))
 }
 
+// claudeReportMention is the PR mention of the sampled Claude Code command
+// report.
+const claudeReportMention = "PR #867 に push しました"
+
+// claudeReportScreenNamingURL returns the sampled Claude Code command report
+// with its PR mention replaced by url, so the screen alone shows a report
+// naming that PR's URL, as a reader matching a PR by its URL would read it.
+func claudeReportScreenNamingURL(t *testing.T, url string) string {
+	t.Helper()
+	screen := readScreenSample(t, "claude-command-report.ansi")
+	if !strings.Contains(screen, claudeReportMention) {
+		t.Fatal("the report sample no longer holds its PR mention")
+	}
+	screen = strings.Replace(screen, claudeReportMention, url+" に push しました", 1)
+	if !strings.Contains(screen, url) {
+		t.Fatal("the report screen does not name the URL")
+	}
+	return screen
+}
+
 // TestReadRunprReport reads the last report of the sampled OpenCode /runpr
 // report, and checks that a screen whose last response is not in the sampled
 // shape, or a pane of another agent, gives none.
@@ -919,7 +939,7 @@ func TestReadRunprReport(t *testing.T) {
 		"an OpenCode screen read as Claude Code": {paneinput.AgentClaudeCode, "opencode-runpr-report.txt"},
 		"a Claude Code screen with no message":   {paneinput.AgentClaudeCode, "claude-idle.ansi"},
 		"a Claude Code command report screen":    {paneinput.AgentClaudeCode, "claude-command-report.ansi"},
-		"an agent chief does not know":           {paneinput.AgentUnknown, "claude-command-report.ansi"},
+		"an agent chief does not know":           {paneinput.AgentUnknown, "opencode-runpr-report.txt"},
 	} {
 		if got, ok := readRunprReport(c.agent, readScreenSample(t, c.sample)); ok {
 			t.Errorf("%s: read as %+v", name, got)

@@ -247,7 +247,7 @@ func TestDetailReportSource(t *testing.T) {
 		}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportNotNamed}},
 		{name: "no report", set: func(*sendWorld, []*simPane) {}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportAbsent}},
 		{name: "a report on the screen alone", set: func(sw *sendWorld, ps []*simPane) {
-			ps[0].screen = readScreenSample(sw.t, "claude-command-report.ansi")
+			ps[0].screen = claudeReportScreenNamingURL(sw.t, prURL)
 		}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportAbsent}},
 		{name: "no transcript file", set: func(sw *sendWorld, ps []*simPane) {
 			sw.removeTranscript(ps[0])

@@ -7,9 +7,10 @@ import (
 	"unicode/utf8"
 )
 
-// Read caps for text other agents and outside services write. A screen keeps
-// its last lines (the newest output and the input line are at the bottom); a
-// PR description and a report read from a transcript keep their head.
+// Read caps for text other agents and outside services write. A screen over
+// screenMaxLines lines or screenMaxBytes bytes of text is refused whole
+// (parseANSIScreen); a PR description and a report read from a transcript
+// keep their head (CapHead).
 const (
 	screenMaxLines       = 200
 	screenMaxBytes       = 64 << 10

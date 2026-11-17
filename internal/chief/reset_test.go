@@ -168,7 +168,7 @@ func TestResetAfterRunpr(t *testing.T) {
 		{name: "a report on the screen alone", react: func(sw *sendWorld, p *simPane, text string) error {
 			if text == "/runpr 42" {
 				pane := sw.byPane["w1:p1"]
-				pane.screen = readScreenSample(sw.t, "claude-command-report.ansi")
+				pane.screen = claudeReportScreenNamingURL(sw.t, prURL)
 				sw.setTranscript(pane, commandLine("/mkarch 0001"))
 			}
 			return sw.realReact(p, text)
