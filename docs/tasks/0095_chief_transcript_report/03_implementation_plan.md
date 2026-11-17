@@ -251,7 +251,7 @@
     -   [ ] テストの補助関数 `reportScreen`・`reportMention`・`isSampleReport`（同 785-805）。呼ぶ所が残らないことを確かめる（`TestResetChecks` の呼び出しは、ステップ 4-9 で替えてある）
 -   [ ] **ステップ 5-3**: 消すコミットの親を BASE として `make coverage-compare` を走らせる（10 分以上の時間の上限か、バックグラウンドで）。最後の行が `coverage-compare: PASS` であることを確かめ、最後の行までの出力を、木の ID を変えずに消すコミットのメッセージに書き、PR の説明にも書く（CLAUDE.md の「Testing Strategy」）。`PASS` でなければ止まり、人に尋ねる。
 -   [ ] **ステップ 5-4**: `samples_test.go` の `command report` の行の 2 つのサンプルを `input line` の行に移し、`command report` の行を消す（設計書 3.9）。`RunprReport.PRs` のコメントを、画面と transcript の両方に合うように直す（設計書 2.2）。`package_reference.md` の `internal/chief` の行から `CapScreen` を消す。`testdata/README.md` の `claude-command-report.ansi`・`claude-command-report-recap.ansi` の行に、今は入力欄の判定のテストが使うことを書く。
--   [ ] **ステップ 5-5**: 消した名前（ステップ 5-2 の一覧）で、製品のコード・テスト・コメント・`docs/dev/conventions/package_reference.md` を探し、残っていないことを確かめる。走らせたコマンドと出力を §7 の「PR-4 の実行の記録」に書く（設計書 7.3。`make deadcode` はテストが呼ぶ部品を報告しないため）。
+-   [ ] **ステップ 5-5**: ステップ 5-2 の一覧のうち、名前ごと消したもので、製品のコード・テスト・コメント・`docs/dev/conventions/package_reference.md` を探し、残っていないことを確かめる。一部だけを消した `readRunprReport`・`TestReadRunprReport` は、Claude Code の分の読み取りと行が残っておらず、OpenCode の分が残っていることを読んで確かめる。走らせたコマンドと出力を §7 の「PR-4 の実行の記録」に書く（設計書 7.3。`make deadcode` はテストが呼ぶ部品を報告しないため）。
 
 **完了の条件:** グリーンゲートと `make deadcode` が通る。消すコミットに `coverage-compare: PASS` の出力がある。
 
@@ -320,7 +320,7 @@ PR の分け方の理由は §1.3 の決定 3 にある。各 PR は単独でグ
 
 | リスク | 対策 |
 |---|---|
-| 今の Claude Code の `/runpr` の報告の NEXT が、今の文法で読めない | ステップ 1-1 で止まり、要件に戻る（設計書 1.2）。その間も、①は送らず、②は送らないか空にしないので、安全側に倒れる |
+| 今の Claude Code の `/runpr` の報告の NEXT が、今の文法で読めない | ステップ 1-1 で止まり、要件に戻る（設計書 1.2）。PR-1 の前の製品のコードは①②で画面を読んだままなので、止まっている間の振る舞いは変わらない |
 | 本計画の PR の `/runpr` が Claude Code で走らず、サンプルがない | ステップ 1-1 で止まり、サンプルの出どころ（ほかの PR の `/runpr` を Claude Code で走らせるなど）を人に選んでもらう |
 | 報告の読み取り部品が遅く、25 MB の transcript で 1 秒を超える | ステップ 2-9 で止まり、人に尋ねる。末尾から読む仕組みは足さない（設計書 1.2） |
 | 0092・0093 も `Protocol` を上げ、同時に進むと値が衝突する | ステップ 4-6 で、実装の時点の値に 1 を足す。後からマージする PR は、`main` を取り込んだときに値を合わせ、`TestDocumentedProtocolMatches` が食い違いを拾う |
