@@ -3,6 +3,7 @@
 package mergepr
 
 import (
+	"context"
 	"errors"
 	"maps"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"regexp"
 	"slices"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/cmdrunner"
 )
 
 // protocolSource returns a tool file that declares the number n. Declaration
@@ -198,7 +201,7 @@ func TestReadRevisionProtocols(t *testing.T) {
 	}
 
 	t.Run("no declaration line", func(t *testing.T) {
-		bare := r.Commit("bare", map[string]string{"README.md": "x\n", "internal/alpha/alpha.go": "package alpha\n"})
+		bare := r.withT(t).Commit("bare", map[string]string{"README.md": "x\n", "internal/alpha/alpha.go": "package alpha\n"})
 		if got := readValues(t, r.Dir, bare); len(got) != 0 {
 			t.Errorf("values = %v, want none", got)
 		}
@@ -222,8 +225,9 @@ func TestReadRevisionProtocols(t *testing.T) {
 		}
 	})
 	t.Run("replace ref", func(t *testing.T) {
-		r.Git("replace", head, other)
-		t.Cleanup(func() { r.Git("replace", "-d", head) })
+		rt := r.withT(t)
+		rt.Git("replace", head, other)
+		t.Cleanup(func() { rt.Git("replace", "-d", head) })
 		if got := readValues(t, r.Dir, head); !maps.Equal(got, want) {
 			t.Errorf("values = %v, want %v", got, want)
 		}
@@ -248,14 +252,12 @@ func TestReadRevisionProtocols(t *testing.T) {
 }
 
 // wantMismatch is one expected mismatch: the tool, origin/main's value, the
-// head value, the commits that changed it, and whether the history rewrite is
-// offered.
+// head value, and the commits that changed it.
 type wantMismatch struct {
 	pkg     string
 	main    protocolValue
 	head    int
 	commits []string
-	rewrite bool
 }
 
 // historyWant is a built history and the expected result: a pass with the
@@ -295,19 +297,19 @@ func TestCheckProtocolHistories(t *testing.T) {
 		{"raised by two", func(r *gitRepo) historyWant {
 			m0 := start(r)
 			p1 := r.Commit("raise", snapshot(map[string]string{"alpha": "3", "beta": "6"}), m0)
-			return fail(p1, wantMismatch{"alpha", present(1), 3, []string{p1}, false})
+			return fail(p1, wantMismatch{"alpha", present(1), 3, []string{p1}})
 		}},
 		{"lowered", func(r *gitRepo) historyWant {
 			m0 := r.Commit("main", snapshot(map[string]string{"alpha": "5"}))
 			r.SetMain(m0)
 			p1 := r.Commit("lower", snapshot(map[string]string{"alpha": "3"}), m0)
-			return fail(p1, wantMismatch{"alpha", present(5), 3, []string{p1}, false})
+			return fail(p1, wantMismatch{"alpha", present(5), 3, []string{p1}})
 		}},
 		{"raised and restored", func(r *gitRepo) historyWant {
 			m0 := start(r)
 			p1 := r.Commit("raise", snapshot(map[string]string{"alpha": "2", "beta": "6"}), m0)
 			p2 := r.Commit("restore", snapshot(baseTools), p1)
-			return fail(p2, wantMismatch{"alpha", present(1), 1, []string{p1, p2}, true})
+			return fail(p2, wantMismatch{"alpha", present(1), 1, []string{p1, p2}})
 		}},
 		{"same number merged first", func(r *gitRepo) historyWant {
 			m0 := start(r)
@@ -316,7 +318,7 @@ func TestCheckProtocolHistories(t *testing.T) {
 			r.SetMain(m1)
 			b1 := r.Commit("B raises alpha", raised, m0)
 			b2 := r.Commit("merge main", raised, b1, m1)
-			return fail(b2, wantMismatch{"alpha", present(2), 2, []string{b1}, true})
+			return fail(b2, wantMismatch{"alpha", present(2), 2, []string{b1}})
 		}},
 		{"merged main only", func(r *gitRepo) historyWant {
 			m0 := start(r)
@@ -332,7 +334,7 @@ func TestCheckProtocolHistories(t *testing.T) {
 		{"new tool not at one", func(r *gitRepo) historyWant {
 			m0 := start(r)
 			p1 := r.Commit("add gamma", snapshot(map[string]string{"alpha": "1", "beta": "6", "gamma": "2"}), m0)
-			return fail(p1, wantMismatch{"gamma", absent, 2, []string{p1}, false})
+			return fail(p1, wantMismatch{"gamma", absent, 2, []string{p1}})
 		}},
 		{"existing package gains the constant", func(r *gitRepo) historyWant {
 			m0 := r.Commit("main", snapshot(baseTools, "internal/delta/delta.go", "package delta\n"))
@@ -343,7 +345,7 @@ func TestCheckProtocolHistories(t *testing.T) {
 			m0 := r.Commit("main", snapshot(baseTools, "internal/delta/delta.go", "package delta\n"))
 			r.SetMain(m0)
 			p1 := r.Commit("add protocol", snapshot(baseTools, "internal/delta/delta.go", "package delta\n", "internal/delta/protocol.go", protocolSource("4")), m0)
-			return fail(p1, wantMismatch{"delta", absent, 4, []string{p1}, false})
+			return fail(p1, wantMismatch{"delta", absent, 4, []string{p1}})
 		}},
 		{"re-added tool", func(r *gitRepo) historyWant {
 			m0 := r.Commit("main", snapshot(map[string]string{"alpha": "1", "gamma": "2"}))
@@ -356,7 +358,7 @@ func TestCheckProtocolHistories(t *testing.T) {
 			m1 := r.Commit("remove gamma", snapshot(map[string]string{"alpha": "1"}), m0)
 			r.SetMain(m1)
 			p1 := r.Commit("re-add gamma", snapshot(map[string]string{"alpha": "1", "gamma": "3"}), m1)
-			return fail(p1, wantMismatch{"gamma", absent, 3, []string{p1}, false})
+			return fail(p1, wantMismatch{"gamma", absent, 3, []string{p1}})
 		}},
 		{"removed tool", func(r *gitRepo) historyWant {
 			m0 := start(r)
@@ -365,7 +367,7 @@ func TestCheckProtocolHistories(t *testing.T) {
 		{"removed tool next to a mismatch", func(r *gitRepo) historyWant {
 			m0 := start(r)
 			p1 := r.Commit("remove beta, raise alpha", snapshot(map[string]string{"alpha": "3"}), m0)
-			return fail(p1, wantMismatch{"alpha", present(1), 3, []string{p1}, false})
+			return fail(p1, wantMismatch{"alpha", present(1), 3, []string{p1}})
 		}},
 		{"branch older than the tool", func(r *gitRepo) historyWant {
 			m0 := r.Commit("main", snapshot(map[string]string{"alpha": "1"}))
@@ -384,8 +386,8 @@ func TestCheckProtocolHistories(t *testing.T) {
 			m0 := start(r)
 			p1 := r.Commit("raise both", snapshot(map[string]string{"alpha": "3", "beta": "8"}), m0)
 			return fail(p1,
-				wantMismatch{"alpha", present(1), 3, []string{p1}, false},
-				wantMismatch{"beta", present(6), 8, []string{p1}, false})
+				wantMismatch{"alpha", present(1), 3, []string{p1}},
+				wantMismatch{"beta", present(6), 8, []string{p1}})
 		}},
 		{"unreadable midway then raised", func(r *gitRepo) historyWant {
 			m0 := start(r)
@@ -396,7 +398,7 @@ func TestCheckProtocolHistories(t *testing.T) {
 			m0 := start(r)
 			p1 := r.Commit("typo", snapshot(map[string]string{"alpha": "02", "beta": "6"}), m0)
 			p2 := r.Commit("restore", snapshot(baseTools), p1)
-			return fail(p2, wantMismatch{"alpha", present(1), 1, []string{p1, p2}, true})
+			return fail(p2, wantMismatch{"alpha", present(1), 1, []string{p1, p2}})
 		}},
 		{"unreadable value rewritten on a branch from an old main", func(r *gitRepo) historyWant {
 			// An old main commit held an unreadable value; the branch rewrote
@@ -407,7 +409,16 @@ func TestCheckProtocolHistories(t *testing.T) {
 			r.SetMain(m1)
 			p1 := r.Commit("rewrite", snapshot(map[string]string{"alpha": "03"}), m0)
 			p2 := r.Commit("merge main", snapshot(map[string]string{"alpha": "1"}), p1, m1)
-			return fail(p2, wantMismatch{"alpha", present(1), 1, []string{p1}, true})
+			return fail(p2, wantMismatch{"alpha", present(1), 1, []string{p1}})
+		}},
+		{"commits with empty messages", func(r *gitRepo) historyWant {
+			// git rev-list prints no line for an empty subject in a plain
+			// %s format; the second empty commit raises the number.
+			m0 := start(r)
+			p1 := r.Commit("", snapshot(baseTools, "docs/a.md", "a\n"), m0)
+			p2 := r.Commit("", snapshot(map[string]string{"alpha": "3", "beta": "6"}, "docs/a.md", "a\n"), p1)
+			p3 := r.Commit("docs", snapshot(map[string]string{"alpha": "3", "beta": "6"}, "docs/a.md", "b\n"), p2)
+			return fail(p3, wantMismatch{"alpha", present(1), 3, []string{p2}})
 		}},
 		{"root commit merged", func(r *gitRepo) historyWant {
 			m0 := start(r)
@@ -456,9 +467,9 @@ func TestCheckProtocolHistories(t *testing.T) {
 				for _, c := range got.Changes {
 					commits = append(commits, c.Commit)
 				}
-				if got.Package != w.pkg || got.Main != w.main || got.Head != w.head || !slices.Equal(commits, w.commits) || offersHistoryRewrite(got) != w.rewrite {
-					t.Errorf("mismatch %d = {%s %v %d %v rewrite=%v}, want {%s %v %d %v rewrite=%v}",
-						i, got.Package, got.Main, got.Head, commits, offersHistoryRewrite(got), w.pkg, w.main, w.head, w.commits, w.rewrite)
+				if got.Package != w.pkg || got.Main != w.main || got.Head != w.head || !slices.Equal(commits, w.commits) {
+					t.Errorf("mismatch %d = {%s %v %d %v}, want {%s %v %d %v}",
+						i, got.Package, got.Main, got.Head, commits, w.pkg, w.main, w.head, w.commits)
 				}
 			}
 		})
@@ -528,6 +539,14 @@ func TestCheckProtocolUnreadable(t *testing.T) {
 			r.SetMain(m0)
 			return "", r.Commit("raise", snapshot(map[string]string{"alpha": "2"}), m0), "release"
 		}, unreadableBase},
+		{"number changed on the base branch", func(r *gitRepo) (string, string, string) {
+			// The release branch raised the number; the PR into it does not
+			// touch it, but its commits are counted from origin/main.
+			m0 := r.Commit("main", snapshot(baseTools))
+			r.SetMain(m0)
+			rel := r.Commit("release raises alpha", snapshot(map[string]string{"alpha": "2"}), m0)
+			return "", r.Commit("docs", snapshot(map[string]string{"alpha": "2"}, "docs/a.md", "a\n"), rel), "release"
+		}, unreadableBase},
 		{"shallow clone", func(r *gitRepo) (string, string, string) {
 			m0 := r.Commit("main", snapshot(baseTools))
 			m1 := r.Commit("raise", snapshot(map[string]string{"alpha": "2"}), m0)
@@ -559,5 +578,101 @@ func TestCheckProtocolUnreadable(t *testing.T) {
 				t.Errorf("check error = %#v, want kind %v", err, tt.want)
 			}
 		})
+	}
+}
+
+const (
+	parseRev    = "1111111111111111111111111111111111111111"
+	parseParent = "2222222222222222222222222222222222222222"
+)
+
+func TestParseGrepOutputRejectsMalformed(t *testing.T) {
+	tests := []struct {
+		name string
+		out  string
+	}{
+		{"empty", ""},
+		{"no final newline", parseRev + ":internal/a/a.go\x001\x00const Protocol = 1"},
+		{"other revision", parseParent + ":internal/a/a.go\x001\x00const Protocol = 1\n"},
+		{"no path separator", parseRev + ":internal/a/a.go 1 const Protocol = 1\n"},
+		{"no line number", parseRev + ":internal/a/a.go\x00const Protocol = 1\n"},
+		{"line number not digits", parseRev + ":internal/a/a.go\x001a\x00const Protocol = 1\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := parseGrepOutput([]byte(tt.out), parseRev); !errors.Is(err, errUnexpectedGitOutput) {
+				t.Errorf("parseGrepOutput error = %v, want errUnexpectedGitOutput", err)
+			}
+		})
+	}
+}
+
+func TestParseRevList(t *testing.T) {
+	good := "commit " + parseRev + " " + parseParent + "\n\x00subject\n"
+	got, err := parseRevList([]byte(good))
+	if err != nil || len(got) != 1 || got[0].oid != parseRev || !slices.Equal(got[0].parents, []string{parseParent}) || got[0].subject != "subject" {
+		t.Fatalf("parseRevList = %+v, %v; want one commit with its parent and subject", got, err)
+	}
+	tests := []struct {
+		name string
+		out  string
+	}{
+		{"no final newline", "commit " + parseRev + "\n\x00s"},
+		{"odd line count", "commit " + parseRev + "\n\x00s\ncommit " + parseParent + "\n"},
+		{"subject line without NUL", "commit " + parseRev + "\ns\n"},
+		{"header in the subject place", "commit " + parseRev + "\ncommit " + parseParent + "\n"},
+		{"header without the commit word", parseRev + "\n\x00s\n"},
+		{"abbreviated ID", "commit 1111111\n\x00s\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := parseRevList([]byte(tt.out)); !errors.Is(err, errUnexpectedGitOutput) {
+				t.Errorf("parseRevList error = %v, want errUnexpectedGitOutput", err)
+			}
+		})
+	}
+}
+
+// runnerFunc adapts a function to Runner.
+type runnerFunc func() ([]byte, error)
+
+func (f runnerFunc) Run(context.Context, string, ...string) ([]byte, error) { return f() }
+
+func TestReadRevisionExitStatus(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     error
+		wantErr bool
+	}{
+		{"exit 1 without output means no line", &cmdrunner.ExitError{Code: 1}, false},
+		{"exit 1 with output", &cmdrunner.ExitError{Code: 1, Stdout: []byte("x")}, true},
+		{"exit 128", &cmdrunner.ExitError{Code: 128}, true},
+		{"not an exit", errors.New("start failed"), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newProtocolCheck(runnerFunc(func() ([]byte, error) { return nil, tt.err }))
+			got, err := c.readRevision(t.Context(), parseRev)
+			if (err != nil) != tt.wantErr || (!tt.wantErr && len(got) != 0) {
+				t.Errorf("readRevision = %v, %v; want error %v", got, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestProtocolErrorsRender(t *testing.T) {
+	// Every kind has its own description; the zero kind is the only invalid one.
+	for k := unreadableKind(1); k <= unreadableNoTools; k++ {
+		if k.String() == unreadableKind(0).String() {
+			t.Errorf("kind %d has no description", k)
+		}
+		e := &protocolUnreadableError{Kind: k, Rev: parseRev, Path: "internal/a/a.go", Line: "const Protocol = 01"}
+		if !errors.Is(e, errProtocolUnreadable) {
+			t.Errorf("kind %d does not wrap errProtocolUnreadable", k)
+		}
+	}
+	m := &protocolMismatchError{Mismatches: []protocolMismatch{{Package: "alpha", Main: present(2), Head: 2}}}
+	if !errors.Is(m, errProtocolMismatch) {
+		t.Error("mismatch error does not wrap errProtocolMismatch")
 	}
 }

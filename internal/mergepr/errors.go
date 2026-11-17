@@ -25,5 +25,6 @@ var (
 )
 
 // errUnexpectedGitOutput reports git output the check cannot parse. The check
-// wraps it in a protocolUnreadableError, so it never stops a run on its own.
+// reports it as the Detail of a protocolUnreadableError, which is what callers
+// match.
 var errUnexpectedGitOutput = errors.New("unexpected git output")

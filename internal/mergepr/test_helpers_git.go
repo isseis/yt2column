@@ -148,3 +148,11 @@ func (r *gitRepo) ShallowClone(mainOID string) string {
 	r.gitIn(filepath.Dir(r.Dir), "clone", "-q", "--depth", "1", "--template=", "file://"+filepath.ToSlash(r.Dir), dir)
 	return dir
 }
+
+// withT returns the repository bound to t, so a subtest's failure in a
+// helper stops the subtest, not its parent.
+func (r *gitRepo) withT(t *testing.T) *gitRepo {
+	c := *r
+	c.t = t
+	return &c
+}

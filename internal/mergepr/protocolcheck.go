@@ -40,9 +40,14 @@ const (
 	// maxProtocolDigits bounds the number so that adding one cannot overflow.
 	maxProtocolDigits = 9
 
-	// revListLinesPerCommit is the lines git rev-list --format=%s prints per
-	// commit: the "commit" header with the parents, then the subject.
+	// revListLinesPerCommit is the lines git rev-list prints per commit with
+	// revListFormat: the "commit" header with the parents, then the subject
+	// line.
 	revListLinesPerCommit = 2
+	// revListFormat starts the subject line with a NUL. git rev-list prints no
+	// line at all for a format that expands to nothing, so an empty subject
+	// would shift every later header into a subject; the NUL keeps the line.
+	revListFormat = "--format=%x00%s"
 
 	// toolDir is the directory whose direct subdirectories are tools.
 	toolDir = "internal"
@@ -180,7 +185,7 @@ func (e *protocolMismatchError) Error() string {
 	b.WriteString("\n")
 	b.WriteString("  6. Merge again: run /runpr again if it was used, otherwise /mergepr.\n")
 	if rewrite {
-		b.WriteString("A tool above has the same number as origin/main. Then rebuilding the PR's history on top of origin/main,\n")
+		b.WriteString("A tool above has the same number as origin/main. In that case, rebuilding the PR's history on top of origin/main,\n")
 		b.WriteString("so that no commit changes the number, is another fix, but only when the PR's own changes do not change\n")
 		b.WriteString("the tool's contract: the commit that changed the number came from another branch, or the PR raised the\n")
 		b.WriteString("number and restored it. Otherwise rebuilding the history hides the conflict, and the steps above are the only fix.")
@@ -238,7 +243,7 @@ func (k unreadableKind) String() string {
 	case unreadableBase:
 		return "the PR's base is not main, and a PR commit changed a protocol number"
 	case unreadableHistory:
-		return "could not list the PR commits and their parents; if the repository is shallow, run git fetch --unshallow"
+		return "the repository is shallow, or the PR commits and their parents could not be listed"
 	case unreadableNoTools:
 		return "found no tool with a Protocol constant on origin/main"
 	default:
@@ -567,10 +572,17 @@ type prCommit struct {
 // listPRCommits lists the commits reachable from head but not from main,
 // oldest first, with their parents.
 func (c *protocolCheck) listPRCommits(ctx context.Context, head, main string) ([]prCommit, error) {
-	out, err := c.git(ctx, "rev-list", "--parents", "--reverse", "--format=%s", head, "^"+main)
+	out, err := c.git(ctx, "rev-list", "--parents", "--reverse", revListFormat, head, "^"+main)
 	if err != nil {
 		return nil, err
 	}
+	return parseRevList(out)
+}
+
+// parseRevList reads git rev-list --parents output with revListFormat: for
+// each commit, "commit <oid> <parent>..." and then a NUL followed by the
+// subject. Any other shape is an error, never a shorter list.
+func parseRevList(out []byte) ([]prCommit, error) {
 	if len(out) == 0 {
 		return nil, nil
 	}
@@ -594,7 +606,11 @@ func (c *protocolCheck) listPRCommits(ctx context.Context, head, main string) ([
 				return nil, fmt.Errorf("%w: git rev-list header %q holds %q, not a commit ID", errUnexpectedGitOutput, lines[i], id)
 			}
 		}
-		commits = append(commits, prCommit{oid: ids[0], parents: ids[1:], subject: lines[i+1]})
+		subject, ok := strings.CutPrefix(lines[i+1], "\x00")
+		if !ok {
+			return nil, fmt.Errorf("%w: git rev-list line %q is not a subject line", errUnexpectedGitOutput, lines[i+1])
+		}
+		commits = append(commits, prCommit{oid: ids[0], parents: ids[1:], subject: subject})
 	}
 	return commits, nil
 }
@@ -647,7 +663,7 @@ func (c *protocolCheck) history(ctx context.Context, headOID string) (string, []
 		return "", nil, &protocolUnreadableError{Kind: unreadableHistory, Detail: err.Error()}
 	}
 	if strings.TrimSuffix(string(out), "\n") != "false" {
-		return "", nil, &protocolUnreadableError{Kind: unreadableHistory, Detail: "the repository is shallow"}
+		return "", nil, &protocolUnreadableError{Kind: unreadableHistory, Detail: "the repository is shallow; run git fetch --unshallow"}
 	}
 	mainOID, err := c.resolveCommit(ctx, mainRef)
 	if err != nil {
