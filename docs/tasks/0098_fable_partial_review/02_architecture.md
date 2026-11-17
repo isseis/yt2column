@@ -403,7 +403,7 @@ FABLE の入力は、KIND・TASK_DIR・SELF_REJECTED の組である。RANGE は
 -   `git status --porcelain=v1 --ignored` の出力
 -   HEAD の commit と、HEAD のブランチの名前
 -   `git for-each-ref` の出力（すべての ref）、`git stash list`、`git worktree list --porcelain`
--   `git ls-files -v` の出力（index のフラグ）
+-   index のフラグ：`git ls-files -v` の出力のうち、skip-worktree か assume-unchanged のフラグが付いたパスの一覧（フラグの付かないパスの増減は含めない）
 -   `.git` の config と hooks のディレクトリの中身のハッシュ
 -   無視されるファイルのうち、`fixprguard` の監視の一覧（`docs/dev/guides/fixprguard_guide.md` の 7.1）に当たるものと `.claude/settings.local.json` の、有無と中身のハッシュ
 
@@ -411,7 +411,7 @@ FABLE の入力は、KIND・TASK_DIR・SELF_REJECTED の組である。RANGE は
 
 Fable の部分レビューを終えるすべての出口（結果を受け取ったとき、時間切れでサブエージェントを止めた後、エラーの後と呼び直しの前）で同じものを読み、違えば Fable の結果を使わず、何も commit せず、呼び出し元のコマンドごと止まって、違ったものを報告する。起動から出口までの間、セッションは commit を作らない（その間に走るのは、ローカルの CLI レビューの最初の試行だけである）ので、違いはセッション自身の変更ではない。
 
-出口の後は、セッション自身が直しを書いて commit を作るので、作業ツリーの状態・HEAD・HEAD のブランチの ref は正当に変わる。そこで、出口の後は、セッションが変えることのないものだけを比べる。対象は、HEAD のブランチ以外の ref、stash、worktree の一覧、index のフラグ、`.git` の config と hooks のハッシュ、監視の一覧に当たる無視されるファイルの有無と中身のハッシュである。出口で同じと確かめたときにこれらを基準として取り直し、セッションが commit を作る直前ごとに基準と比べ、違えば止まる。こうすれば、止めた後のサブエージェントのプロセスが後から hooks や ref に書き込んでも、記録の commit までのどこかで見つかる。
+出口の後は、セッション自身が直しを書いて commit を作るので、作業ツリーの状態・HEAD・HEAD のブランチの ref は正当に変わる。そこで、出口の後は、セッションが変えることのないものだけを比べる。対象は、HEAD のブランチ以外の ref、stash、worktree の一覧、index のフラグ（フラグの付いたパスの一覧。セッションの直しがファイルを足したり消したりしても変わらない）、`.git` の config と hooks のハッシュ、監視の一覧に当たる無視されるファイルの有無と中身のハッシュである。出口で同じと確かめたときにこれらを基準として取り直し、セッションが commit を作る直前ごとに基準と比べ、違えば止まる。こうすれば、止めた後のサブエージェントのプロセスが後から hooks や ref に書き込んでも、記録の commit までのどこかで見つかる。
 
 ただし、出口の後の作業ツリーの中への書き込みは、セッション自身の直しと見分けられない。
 
