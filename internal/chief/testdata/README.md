@@ -75,7 +75,7 @@
 | `opencode-merge-question.ansi` | マージの確認（上の「マージの確認」のとおり再現したもの） |
 | `opencode-runpr-report.txt` | `/runpr` の最後の報告（テキストだけ） |
 
-次のものは採れなかった。OpenCode の権限の確認は、採取に使った OpenCode の設定がどの操作も許していたためである。OpenCode で PR を作ったコマンドの報告は、その画面がどの pane にも残っていなかったためである。Claude Code の `/runpr` の報告と PR を作ったコマンドの報告は、画面ではなく transcript から読むので、画面のサンプルを採らず、transcript のサンプル（下の「報告の transcript」）で採った。Claude Code のモデルの行と `/new` の後の画面は、chief が使わない（Claude Code は transcript と `agent_session` で確かめる）。自由に書く答えだけを求める問いには、どちらのエージェントにも専用の画面がない。エージェントが文で尋ねて止まると、入力欄の画面（`*-done.ansi` などと同じ形）になり、質問とは読まない。選択式の問いの「Type something.」「Type your own answer」は、自分で書く答えに移る選択肢として、中継できる選択肢から除く。
+次のものは採れなかった。OpenCode の権限の確認は、採取に使った OpenCode の設定がどの操作も許していたためである。OpenCode で PR を作ったコマンドの報告は、その画面がどの pane にも残っていなかったためである。Claude Code の `/runpr` の報告は、画面では採らず、transcript のサンプル（下の「報告の transcript」）で採った。Claude Code のモデルの行と `/new` の後の画面は、chief が使わない（Claude Code は transcript と `agent_session` で確かめる）。自由に書く答えだけを求める問いには、どちらのエージェントにも専用の画面がない。エージェントが文で尋ねて止まると、入力欄の画面（`*-done.ansi` などと同じ形）になり、質問とは読まない。選択式の問いの「Type something.」「Type your own answer」は、自分で書く答えに移る選択肢として、中継できる選択肢から除く。
 
 ### `herdr/`・`transcript/`・`gh/`
 
@@ -110,7 +110,7 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 `transcript/` の `claude-runpr-report.jsonl`・`claude-command-report.jsonl`・`claude-recap-notification.jsonl`・`claude-synthetic.jsonl`・`claude-compact.jsonl`・`claude-auto-continuation.jsonl` は、タスク 0095 の PR-1（実装計画書のステップ 1-1〜1-5）で、2026-11-17 に、このプロジェクトの worktree の Claude Code の transcript から、読み取りだけで採った。
 
 -   **出どころと版。** `claude-runpr-report.jsonl` は、runpr.md に NEXT の行を定めた PR の `/runpr` を、人が Claude Code 2.1.325 の pane で走らせたセッションから採った。`claude-command-report.jsonl` は、0095 の実装計画書の PR を作った `/mkplan` のセッション（2.1.325）から、`claude-compact.jsonl` は 0088 の PR を作った `/runplan` のセッション（2.1.325）から、`claude-auto-continuation.jsonl` は 0091 の `/runplan` のセッション（2.1.325）から、`claude-recap-notification.jsonl` と `claude-synthetic.jsonl` は 0093 の `/runplan` の同じセッション（2.1.326）から採った。
--   **採った範囲。** 各ファイルは、1 つのセッションの transcript の、連続した行の範囲である。`claude-runpr-report.jsonl` は、人が入力した `/runpr` の行から始まる範囲と、最後の報告で終わる範囲の 2 つを、`claude-command-report.jsonl` は、人が入力した `/mkplan` の行と、PR を作る直前から recap までの範囲をつないだ。つないだ間の行（ツールの呼び出しとその結果）は削った。そのほかは 1 つの範囲である。
+-   **採った範囲。** 各ファイルは、1 つのセッションの transcript の、連続した行の範囲である。`claude-runpr-report.jsonl` は、人が入力した `/runpr` の行から始まる範囲（1〜4 行目）と、最後の報告で終わる範囲（5 行目以降）の 2 つを、`claude-command-report.jsonl` は、人が入力した `/mkplan` の行（1 行目）と、PR を作る直前から recap までの範囲（2 行目以降）をつないだ。つないだ間の行（ツールの呼び出しとその結果、PR の記録）は削ったので、つないだ所の前後の行の並びは、Claude Code が書いた並びとは限らない。そのほかは 1 つの範囲である。
 -   **削った行。** 報告の読み取り部品が読まない種類の行（`api-request`・`api-request-blob`・`file-history-snapshot`・`queue-operation`・`mode`・`ai-title`・`last-prompt`・`session-owner`・`atis-latch`・`tools-used`・`cost-state` など）を削った。
 -   **削った項目。** 残した行は、`type` と、次の項目だけに絞った。`cwd`・`gitBranch`・`sessionId`・`uuid`・`timestamp`・`version` などは残していない。
     -   `assistant` の行: `isSidechain` と、`message` の `id`・`model`・`stop_reason`・`content`。`content` の要素は `type` だけにし、`type` が `text` の要素だけ `text` を残した。
@@ -118,5 +118,6 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
     -   `attachment` の行: `isSidechain` と、`attachment` の `type`。`queued_command` のときは、`commandMode`・`origin`・`prompt` も残した。
     -   `system` の行: `subtype`。recap（`away_summary`）は `content` も残した。
     -   `pr-link` の行: `prNumber`・`prUrl`・`prRepository`。
--   **置き換えた本文。** 終わった応答の本文、recap の本文、人が打ったコマンドと `continue` は、採ったまま（上の「置き換えたもの」の規則の置き換えの後）である。それ以外の応答の本文は `Working on it.` に、task-notification・compact の要約・利用の上限の知らせなどの本文は同じ形の短い文に置き換えた。`claude-synthetic.jsonl` の人の入力のうち、貼り付けた文の 1 行は `Short text.` に置き換えた。`claude-command-report.jsonl` の報告の、PR レビューを頼むコメントの本文は、`the review request` に置き換えた。
--   **置き換えた値。** 上の「置き換えたもの」の表のとおりである。PR の記録の `prUrl`・`prRepository` と本文の URL・ブランチ名の GitHub のログイン名は `owner` に、合成の応答の `message.id`（UUID）は同じ表の規則で置き換えた。作業ディレクトリの外の一時ディレクトリのパスはなかった。
+-   **置き換えた本文。** 終わった応答の本文、recap の本文、人が打ったコマンドと `continue` は、採ったまま（上の「置き換えたもの」の規則の置き換えの後）である。それ以外の応答の本文と、コマンドを展開した `isMeta` の `user` の行の本文は `Working on it.` に、task-notification・compact の要約・利用の上限の知らせなどの本文は同じ形の短い文に置き換えた。合成の応答の本文は採ったままだが、上限が戻る時刻の後の時間帯の名前を削った。`claude-synthetic.jsonl` の人の入力のうち、貼り付けた文の 1 行は `Short text.` に置き換えた。`claude-command-report.jsonl` の報告の、PR レビューを頼むコメントの本文は、`the review request` に置き換えた。
+-   **置き換えた値。** 上の「置き換えたもの」の表のとおりである。PR の記録の `prUrl`・`prRepository` と本文の URL・ブランチ名の GitHub のログイン名は `owner` に、合成の応答の `message.id`（UUID）は同じ表の規則で置き換えた。そのほかの応答の `message.id` は、ファイルごとに `msg_` と 24 桁の通し番号に置き換えた。同じ値は同じ値に置き換えたので、1 つの応答の行のまとまりは変わらない。task-notification の origin の `runId` は削った。`/runpr` の報告の一時ディレクトリの名前（`/tmp/runpr.` に続く乱数の部分）は `XXXXXX` に置き換えた。
+-   **テストでの使い方。** `claude-synthetic.jsonl` は、終わった報告と合成の応答の間に人の入力があるので、そのままでは、合成の応答を読み飛ばすかどうかで結果が変わらない。合成の応答を読み飛ばすことは、テストでこの人の入力の行を除くか、報告の前の応答を終わっていないものにして確かめる。

@@ -377,7 +377,7 @@ Diff record (AC-17):
 ### PR-1 の実行の記録
 
 -   **ステップ 1-1（2026-11-17）。** 本タスクの worktree の transcript のディレクトリで、人が入力したコマンドの行が `/runpr 940` であるセッションは 1 つだけだった（Claude Code 2.1.325）。その最後の報告の NEXT の行は `NEXT: なし（タスク文書の承認がない PR のため）` で、今の文法で読めた（`nextLine` に合い、`readNextValue` が「なし」と読む）。この報告を `testdata/transcript/claude-runpr-report.jsonl` に採った。
--   **ステップ 1-4（2026-11-17）。** 足した 6 つのサンプルで、利用者の GitHub のログイン名、氏名、名前の小文字の綴りを、大文字と小文字を区別せずに探した。見つかったのは 0 件だった。`TestSamplesFollowReplacementRules` も通った。
+-   **ステップ 1-4（2026-11-17）。** 足した 6 つのサンプルで、利用者の GitHub のログイン名、氏名、名前の小文字の綴りを、大文字と小文字を区別せずに探した。見つかったのは 0 件だった。一時ディレクトリのパス（`/tmp/`・`/var/folders`・`/private/`）も探し、`/runpr` の報告の `/tmp/runpr.` の後の乱数の部分を `XXXXXX` に置き換えた後は、その置き換えた形のほかに見つからなかった。`TestSamplesFollowReplacementRules` も通った。
 
 ### PR-4 の実行の記録
 
