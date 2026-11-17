@@ -154,6 +154,6 @@ describe("isUrlTitle", () => {
     for (const control of ["\u0000", "\u001f", "\u007f", "\u0080", "\u009f"]) {
       assert.ok(!isUrlTitle(`a${control}b`), JSON.stringify(control));
     }
-    assert.ok(isUrlTitle("a b"));
+    assert.ok(isUrlTitle("a\u00a0b"));
   });
 });
