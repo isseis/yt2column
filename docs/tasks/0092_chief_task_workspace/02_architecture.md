@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：0093 の表での削除の提案の行の扱い（申し送りの H-09）と、0093 と重なる `--protocol` の番号の決め方を足した |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
+| Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。「計画で決める」は、本タスクの実装計画書（`03_implementation_plan.md`）で決めることを指す。既存のファイルの内容は、コミット `bc41cf17` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
 
@@ -949,4 +949,5 @@ sequenceDiagram
 ## 変更履歴
 
 - 2026-11-16 承認（isseis、#910）
-- 2026-11-17 draft への戻し：0093 の表での削除の提案の行の扱い（申し送りの H-09）と、0093 と重なる `--protocol` の番号の決め方を足した（#未記入）
+- 2026-11-17 draft への戻し：0093 の表での削除の提案の行の扱い（申し送りの H-09）と、0093 と重なる `--protocol` の番号の決め方を足した（#929）
+- 2026-11-17 承認（isseis、#929）

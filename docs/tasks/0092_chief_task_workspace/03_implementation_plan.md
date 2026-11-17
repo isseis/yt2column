@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：PR-5・PR-6・PR-7 の前に 0093 の部品を確かめて削除の提案の行を足すステップと、`Protocol` を origin/main の値より 1 大きくすることを足した（申し送りの H-09） |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
+| Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。既存のファイルの内容と `file:line` の行番号は、コミット `30bb673c` で確かめた。設計書が確かめたコミット `bc41cf17` から、`internal/chief`・`cmd/chief`・`internal/strictjson`・`internal/cmdrunner`・`internal/privatefile`・`internal/cachelock`・`.claude/settings.json`・`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` は変わっていない（`git diff --stat bc41cf17 30bb673c -- <これらのパス>` の出力が空だった）。そのため、設計書が引くこれらの行番号は今も合う。
 
@@ -546,4 +546,5 @@
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#915）
-- 2026-11-17 draft への戻し：PR-5・PR-6・PR-7 の前に 0093 の部品を確かめて削除の提案の行を足すステップと、`Protocol` を origin/main の値より 1 大きくすることを足した（申し送りの H-09）（#未記入）
+- 2026-11-17 draft への戻し：PR-5・PR-6・PR-7 の前に 0093 の部品を確かめて削除の提案の行を足すステップと、`Protocol` を origin/main の値より 1 大きくすることを足した（申し送りの H-09）（#929）
+- 2026-11-17 承認（isseis、#929）
