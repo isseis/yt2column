@@ -254,6 +254,11 @@ export const en: Catalog = {
       "Copied the Markdown. Invisible characters were inserted after @ so that they do not become mentions.",
     copyFailed: "Could not copy the Markdown.",
   },
+  viewerTitle: {
+    name: { release: "yt2column", dev: "yt2column (development build)" },
+    invalidLink: "Invalid link",
+    untitled: "Untitled video",
+  },
   popup: {
     primary: {
       generate: generateButton,

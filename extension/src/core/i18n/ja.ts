@@ -277,6 +277,11 @@ export const ja: Catalog = {
       "Markdown をコピーしました。メンションにならないよう、@ の後ろに見えない文字を入れました。",
     copyFailed: "Markdown をコピーできませんでした。",
   },
+  viewerTitle: {
+    name: { release: "yt2column", dev: "yt2column（開発用のビルド）" },
+    invalidLink: "正しくないリンク",
+    untitled: "タイトルのない動画",
+  },
   popup: {
     primary: {
       generate: generateButton,
