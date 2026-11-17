@@ -44,7 +44,7 @@ const recordVersion = 1;
 /** Why a run recorded in a job record failed: the module's failures and the two the running viewer decides. */
 export type RecordFailure = WasmFailure | "api_key_missing" | "run_timeout";
 
-const recordFailures: Readonly<Record<RecordFailure, true>> = {
+export const recordFailures: Readonly<Record<RecordFailure, true>> = {
   ...wasmFailures,
   api_key_missing: true,
   run_timeout: true,
