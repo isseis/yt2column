@@ -152,7 +152,7 @@ func readClaudeReport(env Env, a Agent) ClaudeReport {
 		if _, derr := os.Stat(filepath.Dir(path)); errors.Is(derr, fs.ErrNotExist) {
 			detail += "; the transcript directory " + filepath.Dir(path) + " does not exist either, so chief may not read the directory Claude Code writes to"
 		}
-		return ClaudeReport{Report: SessionReport{Kind: SessionReportAbsent}, Reason: NotSentNoReport, Detail: detail}
+		return ClaudeReport{Report: SessionReport{Kind: SessionReportAbsent, LastHuman: HumanInput{Kind: HumanInputNone}}, Reason: NotSentNoReport, Detail: detail}
 	case err != nil:
 		return ClaudeReport{Reason: NotSentNoTranscript, Detail: err.Error()}
 	}

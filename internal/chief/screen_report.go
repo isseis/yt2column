@@ -322,14 +322,21 @@ func readRunprReport(agent paneinput.AgentKind, raw string) (RunprReport, bool) 
 	}
 	report := RunprReport{Next: readRunprNext(joinTexts(texts))}
 	for _, text := range append(slices.Clone(texts), squeeze(texts)) {
-		for _, m := range prReference.FindAllStringSubmatch(text, -1) {
-			n, err := strconv.Atoi(m[1])
-			if err == nil && !slices.Contains(report.PRs, n) {
-				report.PRs = append(report.PRs, n)
-			}
-		}
+		report.PRs = appendPRReferences(report.PRs, text)
 	}
 	return report, true
+}
+
+// appendPRReferences appends to prs each PR number text names by
+// prReference that prs does not hold yet.
+func appendPRReferences(prs []int, text string) []int {
+	for _, m := range prReference.FindAllStringSubmatch(text, -1) {
+		n, err := strconv.Atoi(m[1])
+		if err == nil && !slices.Contains(prs, n) {
+			prs = append(prs, n)
+		}
+	}
+	return prs
 }
 
 // readScreenNext reads every NEXT line of a whole pane screen, its SGR

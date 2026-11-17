@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/isseis/yt2column/internal/strictjson"
@@ -305,12 +304,7 @@ func readReportNext(text string) RunprReport {
 	report := RunprReport{Next: RunprNext{Kind: NextAbsent}}
 	for raw := range strings.SplitSeq(text, "\n") {
 		line := strings.TrimSpace(raw)
-		for _, m := range prReference.FindAllStringSubmatch(line, -1) {
-			n, err := strconv.Atoi(m[1])
-			if err == nil && !slices.Contains(report.PRs, n) {
-				report.PRs = append(report.PRs, n)
-			}
-		}
+		report.PRs = appendPRReferences(report.PRs, line)
 		var next RunprNext
 		switch m := nextLine.FindStringSubmatch(line); {
 		case m != nil:

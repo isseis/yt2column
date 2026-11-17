@@ -44,6 +44,12 @@ func TestReadClaudeReport(t *testing.T) {
 		}
 	}
 	report := joined(transcriptSample(t, "claude-runpr-report.jsonl"))
+	// The sampled report padded with blank lines to one byte over the cap:
+	// only the cap refuses it, since its shape reads as a report.
+	overCap := report + strings.Repeat("\n", sessionTranscriptLimit+1-len(report))
+	if got := readSessionReport([]byte(overCap)); got.Kind != SessionReportFound {
+		t.Fatalf("the padded report reads as %v without the cap; want a report", got.Kind)
+	}
 
 	cases := []struct {
 		name   string
@@ -58,9 +64,11 @@ func TestReadClaudeReport(t *testing.T) {
 		{"no session", env, Agent{Kind: paneinput.AgentClaudeCode, Dir: "/work/a"}, nil, SessionReportUnreadable, NotSentNoTranscript},
 		{"a working directory with an unsampled character", env, claude("/work/a_b"), nil, SessionReportUnreadable, NotSentPathUnsupported},
 		{"no configuration directory", Env{}, claude("/work/a"), nil, SessionReportUnreadable, NotSentNoTranscript},
-		{"a missing file", env, claude("/work/missing"), func(t *testing.T, dir string) { place(t, dir) }, SessionReportAbsent, NotSentNoReport},
 		{"content outside the accepted shape", env, claude("/work/broken"), func(t *testing.T, dir string) { write(t, dir, report+"\n{\"type\":") }, SessionReportUnreadable, NotSentNoTranscript},
 		{"a file that cannot be opened", env, claude("/work/closed"), func(t *testing.T, dir string) {
+			if os.Geteuid() == 0 {
+				t.Skip("root opens a file of mode 0")
+			}
 			write(t, dir, report)
 			path := place(t, dir)
 			if err := os.Chmod(path, 0); err != nil {
@@ -68,17 +76,15 @@ func TestReadClaudeReport(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
 		}, SessionReportUnreadable, NotSentNoTranscript},
-		{"a file one byte over the cap", env, claude("/work/large"), func(t *testing.T, dir string) {
-			write(t, dir, "")
-			if err := os.Truncate(place(t, dir), sessionTranscriptLimit+1); err != nil {
-				t.Fatal(err)
-			}
-		}, SessionReportUnreadable, NotSentNoTranscript},
+		{"a file one byte over the cap", env, claude("/work/large"), func(t *testing.T, dir string) { write(t, dir, overCap) }, SessionReportUnreadable, NotSentNoTranscript},
 		{"a FIFO", env, claude("/work/fifo"), func(t *testing.T, dir string) {
 			if err := syscall.Mkfifo(place(t, dir), 0o600); err != nil {
 				t.Fatal(err)
 			}
 		}, SessionReportUnreadable, NotSentNoTranscript},
+		// Reading a directory fails anyway; the FIFO row is the one that
+		// needs the regular-file check, since a FIFO without a writer reads
+		// as empty.
 		{"a directory", env, claude("/work/dir"), func(t *testing.T, dir string) {
 			if err := os.Mkdir(place(t, dir), 0o700); err != nil {
 				t.Fatal(err)
@@ -109,11 +115,11 @@ func TestReadClaudeReport(t *testing.T) {
 	place(t, "/work/nodir")
 	nofile := readClaudeReport(env, claude("/work/nodir"))
 	for _, got := range []ClaudeReport{nodir, nofile} {
-		if got.Report.Kind != SessionReportAbsent || got.Reason != NotSentNoReport || got.Detail == "" {
+		if got.Report.Kind != SessionReportAbsent || got.Reason != NotSentNoReport || got.Detail == "" || got.Report.LastHuman != (HumanInput{Kind: HumanInputNone}) {
 			t.Errorf("a missing session file = %+v; want no report with a detail", got)
 		}
 	}
-	if nodir.Detail == nofile.Detail {
-		t.Errorf("a missing transcript directory and a missing file give the same detail %q", nodir.Detail)
+	if !strings.HasPrefix(nodir.Detail, nofile.Detail) || len(nodir.Detail) <= len(nofile.Detail) {
+		t.Errorf("a missing transcript directory gives the detail %q; want the missing file's %q with more", nodir.Detail, nofile.Detail)
 	}
 }

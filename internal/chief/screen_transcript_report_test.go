@@ -94,12 +94,18 @@ func TestReadSessionReport(t *testing.T) {
 	// text parts.
 	twoLines := joined(mkplan[:1], []string{
 		`{"type":"assistant","isSidechain":false,"message":{"id":"msg_2","model":"claude-opus-5-5","stop_reason":"end_turn","content":[{"type":"text","text":"  first"}]}}`,
-		`{"type":"assistant","isSidechain":false,"message":{"id":"msg_2","model":"claude-opus-5-5","stop_reason":"end_turn","content":[{"type":"thinking"},{"type":"text","text":"second"},{"type":"tool_use"},{"type":"image"},{"type":"text","text":"third  "}]}}`,
+		`{"type":"assistant","isSidechain":false,"message":{"id":"msg_2","model":"claude-opus-5-5","stop_reason":"end_turn","content":[{"type":"thinking","text":"hidden"},{"type":"text","text":"second"},{"type":"tool_use","text":"hidden"},{"type":"image","text":"hidden"},{"type":"text","text":"third  "}]}}`,
 	})
 	// A subagent's finished response after the report.
-	sidechain := strings.Replace(runpr[len(runpr)-2], `"isSidechain":false`, `"isSidechain":true`, 1)
-	sidechain = strings.Replace(sidechain, runprReportHead, "A subagent's answer.", 1)
-	sidechain = strings.Replace(sidechain, "msg_000000000000000000000008", "msg_sub", 1)
+	reportLine := runpr[sampleLine(t, runpr, runprReportHead)]
+	sidechain := reportLine
+	for _, r := range [][2]string{{`"isSidechain":false`, `"isSidechain":true`}, {runprReportHead, "A subagent's answer."}, {"msg_000000000000000000000008", "msg_sub"}} {
+		next := strings.Replace(sidechain, r[0], r[1], 1)
+		if next == sidechain {
+			t.Fatalf("the report line no longer holds %q", r[0])
+		}
+		sidechain = next
+	}
 
 	cases := []struct {
 		name      string
@@ -119,7 +125,7 @@ func TestReadSessionReport(t *testing.T) {
 		{"the next report, with a recap after it", joined(mkplan), SessionReportFound, mkplanShortHead, "", "from that session's transcript.", other, mkplanSamplePR, mkplanSampleURL},
 		{"text the human typed while the agent worked, after the report", joined(runpr, queued[2:3]), SessionReportAbsent, "", "", "", other, runprSamplePR, runprSampleURL},
 		{"a peer's message and a task notification after the report", joined(runpr, queued[:2]), SessionReportFound, runprReportHead, "", "", runprCommand, runprSamplePR, runprSampleURL},
-		{"a subagent's finished response after the report", joined(runpr, []string{sidechain}), SessionReportFound, runprReportHead, runprReportNext, "", runprCommand, runprSamplePR, runprSampleURL},
+		{"a subagent's finished response after the report", joined(runpr, []string{sidechain}), SessionReportFound, runprReportHead, runprReportNext, "今回の報告をサンプルとして採ります。", runprCommand, runprSamplePR, runprSampleURL},
 		{"a subagent's finished response after an unfinished one", joined(runpr[:len(runpr)-2], []string{sidechain}), SessionReportAbsent, "", "", "", runprCommand, runprSamplePR, runprSampleURL},
 		{"a recap after the report", joined(recap[:3]), SessionReportFound, recapFirstReport, "", "", none, 0, ""},
 		{"a response to a task notification", joined(recap), SessionReportFound, recapLastReport, "", "", none, 0, ""},
@@ -134,7 +140,17 @@ func TestReadSessionReport(t *testing.T) {
 		{"a report whose stop reason is null", strings.Replace(joined(runpr), `"stop_reason":"end_turn"`, `"stop_reason":null`, 1), SessionReportAbsent, "", "", "", runprCommand, runprSamplePR, runprSampleURL},
 		{"a report with no text", joined(auto[:autoReport]), SessionReportAbsent, "", "", "", none, 0, ""},
 		{"a report whose text is blank", joined(runpr[:len(runpr)-2], []string{`{"type":"assistant","isSidechain":false,"message":{"id":"msg_blank","model":"claude-opus-5-5","stop_reason":"end_turn","content":[{"type":"text","text":" \n "}]}}`}), SessionReportAbsent, "", "", "", runprCommand, runprSamplePR, runprSampleURL},
-		{"text parts joined in written order", twoLines, SessionReportFound, "first\n\nsecond\n\nthird", "", "", mkplanCommand, 0, ""},
+		{"text parts joined in written order", twoLines, SessionReportFound, "first\n\nsecond\n\nthird", "", "first\n\nsecond\n\nthird", mkplanCommand, 0, ""},
+		{"a response whose lines are apart, the last line its own", joined(mkplan[:1], []string{
+			`{"type":"assistant","isSidechain":false,"message":{"id":"msg_x","model":"m","stop_reason":"end_turn","content":[{"type":"text","text":"one"}]}}`,
+			`{"type":"assistant","isSidechain":false,"message":{"id":"msg_y","model":"m","stop_reason":"end_turn","content":[{"type":"text","text":"two"}]}}`,
+			`{"type":"assistant","isSidechain":false,"message":{"id":"msg_x","model":"m","stop_reason":"end_turn","content":[{"type":"text","text":"three"}]}}`,
+		}), SessionReportFound, "one\n\nthree", "", "one\n\nthree", mkplanCommand, 0, ""},
+		{"the human typed between two lines of the last response", joined(mkplan[:1], []string{
+			`{"type":"assistant","isSidechain":false,"message":{"id":"msg_x","model":"m","stop_reason":"end_turn","content":[{"type":"text","text":"one"}]}}`,
+			typedLine("more"),
+			`{"type":"assistant","isSidechain":false,"message":{"id":"msg_x","model":"m","stop_reason":"end_turn","content":[{"type":"text","text":"two"}]}}`,
+		}), SessionReportFound, "one\n\ntwo", "", "one\n\ntwo", other, 0, ""},
 		{"a session started by /clear with no response", clearModel, SessionReportAbsent, "", "", "", none, 0, ""},
 	}
 	for _, c := range cases {
@@ -159,9 +175,10 @@ func TestReadSessionReport(t *testing.T) {
 	}
 }
 
-// TestReadSessionReportLastHuman checks that the last human input a session
-// report gives is the one readLastHumanInput reads from the same transcript,
-// on that test's rows: only a line Claude Code declares the human's counts,
+// TestReadSessionReportLastHuman reads the last human input of the sampled
+// human-input transcript and of its prefixes and rewrites: only a line
+// Claude Code declares the human's counts, a command is read in the sampled
+// form alone, a line that cannot be told makes the transcript unreadable,
 // and an auto-continuation is not the human's and is not refused.
 func TestReadSessionReportLastHuman(t *testing.T) {
 	sample := strings.Split(strings.TrimSpace(string(readTestdata(t, "transcript/claude-human-input.jsonl"))), "\n")
@@ -197,8 +214,8 @@ func TestReadSessionReportLastHuman(t *testing.T) {
 	}
 	for _, c := range cases {
 		got := readSessionReport([]byte(c.text))
-		if got.LastHuman != c.want {
-			t.Errorf("%s: LastHuman = %+v, want %+v", c.name, got.LastHuman, c.want)
+		if got.LastHuman != c.want || got.LastHuman != readLastHumanInput([]byte(c.text)) {
+			t.Errorf("%s: LastHuman = %+v, want %+v, the value readLastHumanInput reads", c.name, got.LastHuman, c.want)
 		}
 		if unreadable := c.want == (HumanInput{}); unreadable != (got.Kind == SessionReportUnreadable) {
 			t.Errorf("%s: kind = %v; want unreadable only when the human input cannot be told", c.name, got.Kind)
@@ -224,6 +241,9 @@ func TestReadSessionReportRejects(t *testing.T) {
 		{"a repeated stop reason", edit(`"stop_reason":"end_turn"`, `"stop_reason":"end_turn","stop_reason":"tool_use"`)},
 		{"a repeated message", edit(`{"type":"assistant","isSidechain":false,"message":{"id":"msg_000000000000000000000008"`, `{"type":"assistant","isSidechain":false,"message":{},"message":{"id":"msg_000000000000000000000008"`)},
 		{"a repeated PR number", edit(link, `"prNumber":1,`+link)},
+		{"a repeated sidechain flag", edit(`{"type":"assistant","isSidechain":false,"message":{"id":"msg_000000000000000000000008"`, `{"type":"assistant","isSidechain":false,"isSidechain":false,"message":{"id":"msg_000000000000000000000008"`)},
+		{"a repeated part type", edit(`"content":[{"type":"text","text":"PR #940`, `"content":[{"type":"text","type":"text","text":"PR #940`)},
+		{"a repeated part text", edit(`"content":[{"type":"text","text":"PR #940`, `"content":[{"type":"text","text":"x","text":"PR #940`)},
 		{"a repeated type", edit(`{"type":"pr-link",`, `{"type":"pr-link","type":"pr-link",`)},
 		{"a stop reason that is a number", edit(`"stop_reason":"end_turn"`, `"stop_reason":1`)},
 		{"a text part whose text is not a string", edit(`"content":[{"type":"text","text":"PR #940`, `"content":[{"type":"text","text":1},{"type":"text","text":"PR #940`)},
@@ -309,7 +329,7 @@ func TestSessionReportNames(t *testing.T) {
 		{"the same number and URL", 42, url42, true},
 		{"the same number, another repository", 42, "https://github.com/o/other/pull/42", false},
 		{"another number, the same URL", 4, url42, false},
-		{"a number that starts with it", 421, "https://github.com/o/r/pull/421", false},
+		{"a number that starts with it, the same URL", 421, url42, false},
 		{"a URL that starts with it", 42, url42 + "1", false},
 	}
 	for _, c := range cases {

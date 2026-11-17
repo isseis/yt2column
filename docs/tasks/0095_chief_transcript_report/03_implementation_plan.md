@@ -117,7 +117,7 @@
     -   上限をちょうど 1 バイト超える transcript が読めないものになること（設計書 7.4）。
     -   FIFO とディレクトリが、報告なしではなく読めないものになること。
 
-    上限を超える transcript は、`os.Truncate` で中身を書かずに大きさだけを持つファイルとして作る（上限の確かめは形の読み取りの前に失敗するので、読む時間はかからない。§1.3 の決定 2 が退けた 25 MB の読み取りとは違う）。FIFO は `syscall.Mkfifo` で作るので、`transcript_test.go` は `//go:build test && unix` とする。FIFO が開くときに待たないことは、今の `TestTranscriptFIFORefused`（`internal/chief/send_test.go:833`）が確かめているので、ここでは種類だけを確かめる。
+    上限を超える transcript は、報告のサンプルの後に空行を足して上限をちょうど 1 バイト超えるファイルとして作り、上限がなければ報告ありと読まれることを先に確かめる（形の読み取りが拒まない入力にして、上限だけが拒むことを確かめるため。上限の確かめは形の読み取りの前に失敗するので、読む時間はかからない。§1.3 の決定 2 が退けた 25 MB の読み取りとは違う）。FIFO は `syscall.Mkfifo` で作るので、`transcript_test.go` は `//go:build test && unix` とする。FIFO が開くときに待たないことは、今の `TestTranscriptFIFORefused`（`internal/chief/send_test.go:833`）が確かめているので、ここでは種類だけを確かめる。
 -   [x] **ステップ 2-7**: `records.go` に、報告の控えの名前の形と `keptPaneReport` を足し、`cleanup` が報告の控えも `detailMaxAge` で消すようにする（設計書 3.6）。テスト `TestKeptPaneReport` で、報告の控えが PR の詳細の控えより先に読まれること、どちらもないときに `ok` が偽になること、名前の PR 番号・head と合わない報告の控えと `Source` が `report` でない報告の控えが記録の誤りになることを確かめる。`TestStartCleansSendsAndDetails`（`internal/chief/records_test.go:636`）に、報告の控えが消える行と残る行を足す。
 -   [x] **ステップ 2-8**: 改名の一覧の `CapDescription`・`descriptionMaxBytes`・`TestCapDescription` を改名し、関数のコメントと、読む量の上限のコメント（`internal/chief/sanitize.go:10-12`）を設計書 3.8 のとおりに直す。値と切り方は変えない。`package_reference.md` の `internal/chief` の行の `CapDescription` を `CapHead` に直し、画面の読み取りの型の一覧に `SessionReport` を足す。
 -   [x] **ステップ 2-9**: 手元でいちばん大きい transcript を `readSessionReport` で読む時間を、一時的なテストで、`-race` を付けずに測る（設計書 1.2 の 98 ms と同じ条件にするため）。測るのは `readSessionReport` を足したコミットの上とし、結果（ファイルの大きさ、時間、測ったコミット）を §7 の「PR-1 の実行の記録」と、その記録を書くコミットのメッセージに書く。一時的なテストはコミットしない（§1.3 の決定 2）。1 秒を超えたら、止まって人に尋ねる。
