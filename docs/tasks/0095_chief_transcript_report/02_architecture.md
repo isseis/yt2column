@@ -59,7 +59,7 @@
 -   **Claude Code の今の `/runpr` の報告のサンプルは、実装の最初のフェーズで採る。その NEXT の行が今の文法で読めなければ、要件に戻って文法を決め直す（申し送りの H-01）。** `/runpr` は今、送り先の表で OpenCode に送られる。このため、2026-11-12 に `/runpr` の報告の形が今の形になってから後の Claude Code の `/runpr` の報告は、手元の transcript にない（上の例は、どれもそれより前の形だった）。文法で読めなくても、①は送らず、②は送らないか空にしないので、設計はどちらの結果でも安全側に倒れる。設計の承認の前に、人が Claude Code の pane で `/runpr` を走らせて採る案は採らない。実の `/runpr` の実行が 1 回要るうえ、実装の最初のフェーズで採っても設計は変わらないためである。ADR: なし（確かめる時機はこのタスクの中で閉じるため）。
 -   **人の入力でない origin の種類に `auto-continuation` を足し、その行のサンプルを足す。** 今の人の入力の読み取り（`internal/chief/screen_transcript.go:170-189`）は、サンプルにない種類の origin を見ると、transcript 全体を読めないものとする。手元の transcript には、origin の種類が `auto-continuation` の `user` の行が 6 件あった。claude.ai の利用の上限が戻ったときに、Claude Code が自ら書いて作業を続けさせる行で、`isMeta` が true、`promptSource` が `system` だった。今のままだと、この行のあるセッションでは、セッションが続く間ずっと、①が workspace の自動送信を止め、④が空にしない。人の入力の見分け方（origin の種類が `human` の行だけを人のものとする）は変えない。サンプルで確かめた種類を受け付けるという今の規則の境界のまま、確かめた種類を 1 つ足す。ADR: なし（受け付ける形をサンプルで足すことは、ADR-0046 の決定の中で行うため）。
 -   **transcript の読み取りの規則を 0096（Claude Code の質問の判定。以前の番号は 0094）と 1 つにそろえることは、このタスクではしない。** 0096 の要件書は、この案を #905 で考えるとしている。0096 は設計がまだなく、その受け付ける形（たとえば `isSidechain` を読まない拡張の項目とする）は、本書の形（3.1）と違う。2 つの読み取りが同じ行に違う形を求めても、どちらも合わなければ安全側に倒れる。そのため、一方が読めて他方が読めない transcript があっても、送ってはいけないものを送ることはない。後から設計する 0096 が本書の部品を使うかどうかを決める。ADR: なし（部品の分け方で、このタスクの中で閉じるため）。
--   **報告のために transcript を読む量の上限は、リセットと同じ 64 MiB とする。今の `resetTranscriptLimit`（`internal/chief/transcript.go:30`）は報告の読み取りにも使うので、名前を `sessionTranscriptLimit` に変える。④では、1 回読んだ中身から、人の最後の入力と最後の報告と PR の記録を読む（申し送りの H-02）。** 手元の transcript の大きさは、1 MB を超えるもの 447 本の中央値が 3.4 MB、上位 10% の境が 5.9 MB、最大が 25 MB だった。最大のものを今の `readTranscript` と `readLastHumanInput` で読むと、読み込みに約 20 ms、行の読み取りに約 98 ms かかった（このテストは一時的に足し、すぐに消した）。報告の読み取り部品は応答の本文の配列も読むので、これより遅い。そのため、実装で同じ transcript を測り、1 つの transcript を 1 秒以内に読めることを確かめる（8 章の 2）。①は、マージした PR 1 件につき、workspace の Claude Code の pane（ふつうは 1 つ）を、条件の確かめと送る前の確かめ直しで 2 回読む。末尾から読む仕組みは足さない（CLAUDE.md の「Performance」）。末尾から読む案は採らない。最後の人の入力が先頭にありうるので成り立たず、全体の形の確かめ（要件書 4.2）も満たせないためである。ADR: なし（上限の値はこのタスクの中で閉じるため）。
+-   **報告のために transcript を読む量の上限は、リセットと同じ 64 MiB とする。今の `resetTranscriptLimit`（`internal/chief/transcript.go:30`）は報告の読み取りにも使うので、名前を `sessionTranscriptLimit` に変える。④では、1 回読んだ中身から、人の最後の入力と最後の報告と PR の記録を読む（申し送りの H-02）。** 手元の transcript の大きさは、1 MB を超えるもの 447 本の中央値が 3.4 MB、上位 10% の境が 5.9 MB、最大が 25 MB だった。最大のものを今の `readTranscript` と `readLastHumanInput` で読むと、読み込みに約 20 ms、行の読み取りに約 98 ms かかった（このテストは一時的に足し、すぐに消した）。報告の読み取り部品は応答の本文の配列も読むので、これより遅い。そのため、実装で同じ transcript を測り、1 つの transcript を 1 秒以内に読めることを確かめる（8 章の 2）。①は、マージした PR を持ち越す間（最長 10 分、`carryWindow`）の周ごとに、workspace の Claude Code の pane（ふつうは 1 つ）を 1 回読み、送るときは排他の中でもう 1 回読む。末尾から読む仕組みは足さない（CLAUDE.md の「Performance」）。末尾から読む案は採らない。最後の人の入力が先頭にありうるので成り立たず、全体の形の確かめ（要件書 4.2）も満たせないためである。ADR: なし（上限の値はこのタスクの中で閉じるため）。
 -   **Herdr が報告した状態と transcript の書き込みの間の遅れには、報告の控えを足して備える。出どころが pane の報告でない PR の詳細の控えしかない head では、人が PR の詳細（`chief detail`）を見たときに pane を読み直し、報告がちょうど 1 つの pane で見つかれば、報告の控えを 1 回だけ作る。報告の控えは、PR の詳細の控えより先に使う。`/runpr` を送る直前の詳細の確かめ（`ensureDetail`）では、報告の控えを作らない（申し送りの H-07）。** 確かめた結果、`end_turn` の応答の行は、transcript の中で、ターンの終わりの `turn_duration` の行より前に書かれていた。ただし、Herdr が入力を待つ状態を報告する時点と、ファイルに書かれる時点の前後は確かめられなかった。
     -   今の PR の詳細の控えは、上書きせずに 1 回だけ作る（`internal/chief/detail.go:413-438`、ADR-0046 の「同名のものがすでにあれば作らず、上書きしない」）。報告の控えを別の名前にすれば、どちらの記録も上書きせずに、遅れた報告を後から拾える。
     -   報告の控えは、④で「控えたときから pane が動いていない」ことを確かめる基準になる。`ensureDetail` は `/runpr` を送る直前に走るので、そこで作ると、④の確かめは送る直前から後の数秒しか見ない。その数秒より前に、人がその pane で問いに答えたり、知らせに応えた会話を続けたりしていても、見逃して空にしてしまう。人が PR の詳細を見たときに作れば、今の PR の詳細の控えと同じく、人が見たときからの変化を確かめられる。
@@ -159,7 +159,6 @@ flowchart TB
     DETAIL --> KEPT
     DETAIL --> CAP
     RESET --> ENTRY
-    RESET --> KEPT
     ENTRY --> PARSE
     ENTRY --> FILE
     SCREEN --> HERDR
@@ -192,19 +191,20 @@ flowchart TB
 |---|---|---|
 | `internal/chief/screen_transcript_report.go` | 新規 | 報告の読み取り部品。`readSessionReport`（最後の報告・PR の記録・人の最後の入力）と `readReportNext`（報告の NEXT と PR 番号）を置く（3.1・3.2）。名前が `screen` で始まるので、CLAUDE.md の chief の例外の範囲に入る（要件書 4.5） |
 | `internal/chief/screen_transcript.go` | 変更 | `otherOrigins` に `auto-continuation` を足す（1.2）。`readLastHumanInput` を消す。唯一の呼び出し元（`internal/chief/reset.go:63`）が `readSessionReport` の `LastHuman` に替わるためである（3.9） |
-| `internal/chief/transcript.go` | 変更 | 報告の入口 `readClaudeReport` を足す（3.3）。`resetTranscriptLimit` の名前を `sessionTranscriptLimit` に変える。`lastInputMadePR` が自分で transcript を読むのをやめ、入口の結果を受け取る |
+| `internal/chief/transcript.go` | 変更 | 報告の入口 `readClaudeReport` を足す（3.3）。`resetTranscriptLimit` の名前を `sessionTranscriptLimit` に変える。|
 | `internal/chief/screen_report.go` | 変更 | `readCommandReport`・`claudeLastMessage`・`namesURL` と Claude Code の画面の印を消し、`readRunprReport` を OpenCode だけを読む部品にする（3.9）。`RunprReport.PRs` の説明を、画面と transcript の両方に合うように直す |
 | `internal/chief/autosend.go` | 変更 | `reportsAgree`（①）、`detachedReport`（ブランチのない状態での②）、`resetRunpr`（自動送信の後の②）が、Claude Code の pane では報告の入口を使う（3.4・3.5）。自動送信の結果に、Claude Code の pane ごとの①の結果を残す（4.2） |
 | `internal/chief/detail.go` | 変更 | `readReport` が報告の入口で Claude Code の pane の報告を読む。`keptReport` が報告の控えを作る。`ReportFromScreen` の名前を `ReportFromPane` にする（記録の値 `report` は変えない）。PR の詳細に、PR の説明を示した理由を足す（3.6・4.2） |
 | `internal/chief/request.go` | 変更 | `ensureDetail` が、控えを `keptPaneReport` で読む（3.6） |
-| `internal/chief/reset.go` | 変更 | `resetAfterRunpr` の画面の確かめを、報告の入口の確かめに替える。控えを `keptPaneReport` で読む（3.7） |
-| `internal/chief/records.go` | 変更 | 報告の控えの名前の形（`report-<PR 番号>-<head>.json`）と、PR の詳細の控えと報告の控えを決まった順に読む `keptPaneReport` を足す。古い記録を消す処理が報告の控えも消し、workspace を消したときに記録を消す処理が報告の控えも消す（3.6） |
-| `internal/chief/sanitize.go` | 変更 | `CapDescription` の名前を `CapHead` に変える（3.8） |
+| `internal/chief/reset.go` | 変更 | `resetAfterRunpr` の画面の確かめを、報告の入口の確かめに替える。`lastInputMadePR` が自分で transcript を読むのをやめ、入口の結果を受け取る。控えの出どころの比べ（`ReportFromScreen`）を `ReportFromPane` に替える（3.7） |
+| `internal/chief/records.go` | 変更 | 報告の控えの名前の形（`report-<PR 番号>-<head>.json`）と、PR の詳細の控えと報告の控えを決まった順に読む `keptPaneReport` を足す。古い記録を消す処理が報告の控えも消し、workspace を消したときに記録を消す処理（0092）との関係は 3.6 のとおり |
+| `internal/chief/sanitize.go` | 変更 | `CapDescription` の名前を `CapHead` に変える（3.8）。`CapScreen` を消す（3.9） |
+| `.claude/commands/chief.md`・`internal/chief/records.go`（`Protocol`） | 変更 | PR の詳細で PR の説明を示した理由と、自動送信の結果の Claude Code の pane ごとの①の結果を、人に示す項目に足す。出力の項目が増えるので、`Protocol` を 1 つ上げ、定義の `--protocol` の値を合わせる（4.2） |
 | `internal/chief/output.go` | 変更 | PR の詳細の出力に、PR の説明を示した理由を足す。自動送信の結果に、Claude Code の pane ごとの①の結果を足す（4.2） |
 | `internal/chief/testdata/transcript/` | 変更 | 報告・PR の記録・合成の応答・`auto-continuation` などのサンプルを足す（7.1） |
 | `internal/chief/testdata/README.md` | 変更 | 足したサンプルの採り方、削った行、置き換えた値を書く |
 | `CLAUDE.md` | 変更 | 「Declare, don't infer」の chief の例外の段落の範囲と境界の文（AC-17、3.10） |
-| `docs/dev/guides/chief_guide.md` | 変更 | 「1. 前提条件」「3. 使い方」「8. 既知の制限」（AC-15、3.10） |
+| `docs/dev/guides/chief_guide.md` | 変更 | 「1. 前提条件」「7. 状態のディレクトリ」「8. 既知の制限」（AC-15、3.10） |
 | `docs/dev/adr/0046-chief-of-staff.md` | 変更 | PR の記録の確かめの結果、報告の控え、形の変化の残る危険（1.2）。AC-16 の決定・採らなかった案・結果・経緯のうち要件定義の PR より前に決めた分は、そこで書かれている |
 
 ### 2.3. データフロー
@@ -397,13 +397,13 @@ func (r WorkspaceRecords) keptPaneReport(pr int, head string) (detailRecord, boo
 
 -   `CollectDetail` の `keptReport`（`internal/chief/detail.go:419-439`）は、`keptPaneReport` で控えを読む。出どころが pane の報告である控えがあれば、それを使う。控えがなければ、今のとおり集めて PR の詳細の控えを作る。出どころが pane の報告でない控えしかなければ、pane を読み直し、報告がちょうど 1 つ読めれば報告の控えを作り、読めなければ今の控えを使う。
 -   `ensureDetail`（`internal/chief/request.go:371-381`）は、`keptPaneReport` で控えを読み、あればそれを返す。なければ、今のとおり詳細を集める。出どころが pane の報告でない控えしかなくても、pane を読み直さず、報告の控えを作らない（1.2）。
--   報告の控えは、PR の詳細の控えと同じ期限（`detailMaxAge`、`internal/chief/records.go:592-594`）で消す。今の古い記録を消す処理（`internal/chief/records.go:905-927`）は PR の詳細の控えの名前の形しか見ないので、報告の控えの名前の形（`^report-([1-9][0-9]*)-([0-9a-f]{40})\.json$`）も足す。workspace を消したときに、その workspace の記録をすべて消す処理（0092）も、報告の控えを消す。
+-   報告の控えは、PR の詳細の控えと同じ期限（`detailMaxAge`、`internal/chief/records.go:592-594`）で消す。今の古い記録を消す処理（`internal/chief/records.go:880-928` の `cleanup`。PR の詳細の控えを消すのは 910-927 行）は PR の詳細の控えの名前の形しか見ないので、報告の控えの名前の形（`^report-([1-9][0-9]*)-([0-9a-f]{40})\.json$`）も足す。workspace を消したときに、その workspace の記録をすべて消す処理（0092）は、まだコードにない。0092 が先に入れば、その処理が報告の控えも消すように直す。後に入れば、0092 の実装が報告の控えを含める。
 -   示した報告がどちらから来たか（0088 要件定義書の AC-19）は、今の `ReportSource` の値（`report`・`description`）で示す。`ReportFromScreen` は `ReportFromPane` に名前を変えるが、記録と出力の値 `report` は変えない（要件書 4.4）。このタスクの前に画面から作った控えも、そのまま読める。
 -   PR の説明を示したときは、その理由（Claude Code の pane がない、各 pane が読めない・報告がない・PR の記録が名指さない、候補が 2 つ以上）を PR の詳細の出力に添える（4.2）。
 
 ### 3.7. ④: PR を作った pane のリセット（AC-10・AC-14）
 
-`resetAfterRunpr`（`internal/chief/reset.go:94-143`）の確かめの並びは変えない。控えは `keptPaneReport` で読む。画面を読む確かめ（`internal/chief/reset.go:131-137`）と、`lastInputMadePR` の中で transcript を読む所（`internal/chief/reset.go:55-62`）を、次の確かめに替える。
+`resetAfterRunpr`（`internal/chief/reset.go:94-143`）の確かめの並びは変えない。控えは、今のとおり `/runpr` を送る前に `ensureDetail` が読んだもの（`internal/chief/request.go:246`・`251`）を受け取る。`ensureDetail` は `keptPaneReport` で読む（3.6）。画面を読む確かめ（`internal/chief/reset.go:131-137`）と、`lastInputMadePR` の中で transcript を読む所（`internal/chief/reset.go:55-62`）を、次の確かめに替える。
 
 1.  候補の pane のエージェントが Claude Code でなければ、空にしない（`no_report`）。今の `lastInputMadePR` と同じ扱いである。
 2.  報告の入口を 1 回だけ呼ぶ。呼ぶのは、`herdr agent get` で pane の状態を読み、控えの番号と比べた後である（今の順、`internal/chief/reset.go:118-130`）。読めなければ空にせず、理由の値は入口の `Reason` にする。
@@ -435,11 +435,12 @@ func CapHead(text string) Capped
 | `readCommandReport`（`internal/chief/screen_report.go:131-153`）・`claudeLastMessage`（同 165-213） | 消す | ③④が transcript を読むので、呼ぶ所がなくなる |
 | `namesURL`（`internal/chief/screen_report.go:350-363`） | 消す | `readCommandReport` だけが呼ぶ |
 | `claudeMessageMark`・`claudeDoneMark`・`claudeIndent`・`claudeRecapMark` | 消す | `claudeLastMessage` だけが使う。計画で、ほかに使う所がないことを確かめる |
+| `CapScreen`（`internal/chief/sanitize.go:27-50`）と `TestCapScreen`（`internal/chief/sanitize_test.go:35`） | 消す | 製品のコードの唯一の呼び出し元（`internal/chief/detail.go:453`）が `CapHead` に替わる（3.6・3.8）。`screenMaxLines`・`screenMaxBytes` は `screen_ansi.go` が使うので残す |
 | `squeeze` | 残す | `readRunprReport` の OpenCode の分が使う（`internal/chief/screen_report.go:324`） |
 | `readRunprReport` の Claude Code の分 | 消す | ②が transcript を読むので、OpenCode の分だけが残る |
 | `readScreenNext` | 残す | ①が OpenCode の pane で使う |
 | `readLastHumanInput` | 消す | 唯一の呼び出し元（`internal/chief/reset.go:63`）が `readSessionReport` の `LastHuman` に替わる。`TestReadLastHumanInput` の各行を `readSessionReport` のテストに移してから消す |
-| `TestReadCommandReport`・`TestReadCommandReportUnderRecap`・`TestReadCommandReportUnderTitledBox`、`TestReadRunprReport` の Claude Code の行（`internal/chief/screen_test.go:882`・`915`） | 消すか、OpenCode のサンプルに替える | 消す部品のテストである。915 行の「chief が知らないエージェント」の行は、OpenCode のサンプルで残す |
+| `TestReadCommandReport`・`TestReadCommandReportUnderRecap`・`TestReadCommandReportUnderTitledBox`、`TestReadRunprReport` の Claude Code の行（`internal/chief/screen_test.go:882-885`・`913-915`） | 消すか、OpenCode のサンプルに替える | 消す部品のテストである。915 行の「chief が知らないエージェント」の行は、OpenCode のサンプルで残す |
 | テストの補助関数 `reportScreen`・`reportMention`・`isSampleReport`（`internal/chief/screen_test.go:785-805`） | 呼ぶ所が残らなければ消す | 消すテストと、書き換える `network_test.go`・`detail_test.go`・`reset_test.go` のテストが使う |
 | `samples_test.go` の `command report` の行の 2 つのサンプル | `input line` の行に移す | `TestScreenSamplesCoverEveryRow`（`internal/chief/samples_test.go:130-166`）は、すべての画面のサンプルがどれかの行にあることを求める。2 つのサンプルは、入力欄の判定のテスト（`internal/chief/screen_test.go:88-90`）が使い続ける |
 | `claude-command-report.ansi`・`claude-command-report-recap.ansi` | 残す | 同上 |
@@ -453,17 +454,18 @@ func CapHead(text string) Capped
     -   「1. 前提条件」のエージェントの行に、Claude Code の transcript の形を、サンプルを採った版（実装で採る版。1.2 の確かめは 2.1.300〜2.1.326）で確かめたことを足す。
     -   「8. 既知の制限」の「長い報告は画面から読めない」を、Claude Code の pane の報告を transcript から読むことと、読めないときの振る舞い（AC-14）の記述に置き換える。あわせて、次の 3 つを書く。PR の詳細が、その PR に関わっただけの pane の報告や、報告の後の知らせへの一言の応えを示しうること。Claude Code が値や種類の名前を変えると、報告がないものとして NEXT の照合が通りうること（1.2）。報告が遅れて書かれたときは、人が PR の詳細を見直すまで、PR を作った pane は空にされないこと。
     -   「worktree のパスの文字」に、その workspace の自動送信も止まることを足す。
--   **ADR-0046（AC-16）。** AC-16 の決定・採らなかった案・結果・経緯は、要件定義の PR で書かれている。本書は、次の 3 つを足す。PR の記録の確かめの結果とその帰結（決定・結果・経緯）、報告の控え（記録の決定と経緯）、名前の変化が報告がないものとして通ること（結果）。
+    -   「7. 状態のディレクトリ」の workspace ごとの記録と片付けの記述に、報告の控え（`report-*.json`）を足す（3.6）。
+-   **ADR-0046（AC-16）。** AC-16 の決定・採らなかった案・結果・経緯は、要件定義の PR で書かれている。本書は、次の 4 つを足す。PR の記録の確かめの結果とその帰結（決定・結果・経緯）、報告の控え（記録の決定と経緯）、名前の変化が報告がないものとして通ること（結果・採らなかった案・経緯）、リセットの決定に、Claude Code の pane の確かめを transcript から読むこと（入力を送る直前の確かめは画面で行う）の言い直し。あわせて、1.2 の ADR を更新する決定で採らなかった案を「採らなかった案」に足す。
 
 ### 3.11. 既存のテストと既存の読み手への影響
 
 | テスト（ファイル） | 変わる振る舞い | 扱い |
 |---|---|---|
 | `TestAutoSendReportMismatch`・`TestAutoSendDetached`・`TestResetAfterAutoSend`・`TestResetChecksAgain`（`internal/chief/autosend_test.go`） | Claude Code の pane の報告を、画面ではなく transcript から読む | Claude Code の pane の報告を transcript で与えるように直す。OpenCode の pane の行は変えない |
-| `TestResetAfterRunpr`・`TestResetChecks`・`TestDetailSavedBeforeReset`・`TestResetFailureAfterClear`・`TestNoResetAfterAnUnrecordedRunpr`（`internal/chief/reset_test.go`） | ④の画面の確かめが transcript の確かめになる | 画面の報告の代わりに、transcript の報告と PR の記録を与えるように直す |
+| `TestResetAfterRunpr`・`TestResetChecks`・`TestDetailSavedBeforeReset`・`TestResetFailureAfterClear`・`TestNoResetAfterAnUnrecordedRunpr`（`internal/chief/reset_test.go`） | ④の画面の確かめが transcript の確かめになる | 画面の報告の代わりに、transcript の報告と PR の記録を与えるように直す。「text typed after the command」「text typed while the command worked」の行（`internal/chief/reset_test.go:70-71`）は、人の入力の後に応答がないので、3.1 の規則で報告がなくなり、理由が `other_input` から `no_report` に変わる。`other_input` を確かめ続けるために、入力の後に終わった応答を置く行を足す |
 | `TestDetailReportSource`・`TestDetailAfterReset`（`internal/chief/detail_test.go`） | ③が transcript から読み、報告の控えを作る | transcript で与えるように直し、報告の控えのテストを足す |
 | `TestDetailAndSendRunOnlyReadsInTheRightPlaces`（`internal/chief/network_test.go:64`） | ③④が Herdr の画面を読まなくなる | 画面の報告（`reportScreen`）の代わりに transcript を与え、読む場所の一覧を直す |
-| `TestReadLastHumanInput`（`internal/chief/screen_test.go:809`） | `auto-continuation` の origin を受け付ける | サンプルの行を足す |
+| `TestReadLastHumanInput`（`internal/chief/screen_test.go:809`） | `readLastHumanInput` を消す | 各行を `readSessionReport` のテストに移し、`auto-continuation` の行を足す（3.9） |
 | `TestReadRunprReport`（`internal/chief/screen_test.go:861`）・`TestScreenSamplesCoverEveryRow`（`internal/chief/samples_test.go:130`） | Claude Code の分がなくなる、サンプルの行が移る | 3.9 のとおり |
 | `TestCapDescription`（`internal/chief/sanitize_test.go:89`） | `CapDescription` が `CapHead` になる | 名前を直す |
 | 3.9 の消すテスト | 部品がなくなる | 消すコミットを分け、`make coverage-compare` の結果を残す |
@@ -495,6 +497,7 @@ func CapHead(text string) Capped
 -   ①を通って送ったときも、自動送信の結果に、Claude Code の pane ごとの照合の結果（照合した、報告がない（理由とパス）、NEXT を名指す行がない）を残す。①が何も照合せずに通ったことを、後から出力で見分けられるようにするためである。
 -   リセットの空にしない理由は、今の値（`no_transcript`・`unsupported_path`・`no_report`）とその説明の文で示す。説明の文には入口の `Detail` を含める。新しい値は足さない。
 -   PR の詳細は、PR の説明を示したときに、その理由を示す（3.6）。
+-   上の 2 つの足す項目（①の pane ごとの結果、PR の説明を示した理由）は、`/chief` の定義で人に示す項目に足す。出力の約束が変わるので、道具の `Protocol`（`internal/chief/records.go:25-28`）を 1 つ上げ、定義の値も合わせる。今の `TestDocumentedProtocolMatches` が、2 つが等しいことを確かめる。
 -   示す文は、今のとおり出力で `Sanitize` を通す。
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
@@ -635,13 +638,15 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant S as resetAfterRunpr
+    participant Q as ensureDetail
     participant K as keptPaneReport
+    participant S as resetAfterRunpr
     participant H as Herdr
     participant E as readClaudeReport
 
-    S->>K: PR と head
-    K-->>S: 控え（pane と状態の変化の番号）
+    Q->>K: PR と head
+    K-->>Q: 控え（pane と状態の変化の番号）
+    Q->>S: /runpr を送った後に控えを渡す
     S->>H: herdr agent get
     H-->>S: pane の今の状態
     S->>E: pane のエージェント
@@ -665,7 +670,7 @@ sequenceDiagram
 -   **AC-02〜AC-04 の各場合。** 報告の後の人の入力、終わっていない最後の応答、本文のない応答、サブエージェントの行、合成の応答だけが後に続く報告を、それぞれ確かめる。
 -   **AC-06。** 画面に報告があり transcript にない pane は報告がなく、transcript に報告があり画面にない pane は報告があることを、①〜④のそれぞれで確かめる。
 -   **NEXT。** `readReportNext` で、今の文法の行、強調・コード・引用・番号のリストで名指す行、文の中で触れるだけの行、食い違う行を確かめる（AC-07）。
--   **報告の入口と①〜④。** 今の Herdr と状態のディレクトリの fake に、transcript のファイルを置く一時ディレクトリ（`CLAUDE_CONFIG_DIR`）を加える。Claude Code の pane と OpenCode の pane の組み合わせで、4.1 の表の各行を確かめる。セッションのファイルがないときと、transcript のディレクトリごとないときで、説明が違うことも確かめる。OpenCode の pane の結果が変わらないこと（AC-13）は、今のテストを OpenCode の行で残して確かめる。④でファイルがないときに `no_report` になることのテストを足す（3.7）。
+-   **報告の入口と①〜④。** 今の fake（`newSendWorld` の `ClaudeConfigDir` と `writeTranscript`、`internal/chief/sim_test.go:50-51`・`107-127`）で transcript のファイルを置く。Claude Code の pane と OpenCode の pane の組み合わせで、4.1 の表の各行を確かめる。セッションのファイルがないときと、transcript のディレクトリごとないときで、説明が違うことも確かめる。OpenCode の pane の結果が変わらないこと（AC-13）は、今のテストを OpenCode の行で残して確かめる。④でファイルがないときに `no_report` になることのテストを足す（3.7）。
 -   **書き込みの遅れと競り合い。**
     -   書きかけの最後の行で①が送らず、次の周に持ち越されること。
     -   PR の詳細の控えが PR の説明から作られた後に報告が書かれたとき、`chief detail` が報告の控えを 1 回だけ作り、④がそれを使うこと。
@@ -704,9 +709,8 @@ PR の分け方は計画で決める。
 ## 9. 将来の拡張 (Future Extensibility)
 
 -   **Claude Code の質問の判定（[#904](https://github.com/isseis/yt2column/issues/904)、0096）。** 0096 も transcript の `assistant` の行を読む。2 つの読み取りの規則をそろえるかどうかは、0096 の設計で決める（1.2）。
--   **OpenCode の pane を、人に尋ねずに空にする判定（[#906](https://github.com/isseis/yt2column/issues/906)・[#907](https://github.com/isseis/yt2column/issues/907)）。** OpenCode のサーバの API が最後のメッセージと人の入力を宣言するか（[#903](https://github.com/isseis/yt2column/issues/903) の確かめ）にかかるので、本書では扱わない。
--   **見送ったリセットを人の選択肢にすること（[#922](https://github.com/isseis/yt2column/pull/922)、0097）。** 確かめに要るものを読めずに pane を空にしなかったとき、空にすることを人の判断を待つものとして示すことは、本書では扱わない。本書の④と自動送信の後の②は、空にしない理由（`no_transcript`・`unsupported_path`・`no_report`）を今の値のまま返すので、0097 はその値で示すかを決められる。
--   **OpenCode の pane の報告（[#906](https://github.com/isseis/yt2column/issues/906)）。** OpenCode の報告を画面以外から読むようになれば、OpenCode の pane の報告を返す入口を足す。そのとき、①②の呼ぶ側に残るエージェントの種類による分かれ目（2.1）を、1 つの入口にまとめるかを決める。
+-   **見送ったリセットを人の選択肢にすること（[#922](https://github.com/isseis/yt2column/pull/922)、0097）。** 確かめに要るものを読めずに pane を空にしなかったとき、空にすることを人の判断を待つものとして示すことは、0097 が扱う。本書は、空にしない理由の値を足さない。
+-   **OpenCode の pane の報告（[#906](https://github.com/isseis/yt2column/issues/906)）。** OpenCode の報告を画面以外から読むようになれば、OpenCode の pane の報告を返す入口を足す。OpenCode の PR を作った pane は、④で今のとおり空にしない。その判定は、OpenCode のサーバの API が最後のメッセージと人の入力を宣言するか（[#903](https://github.com/isseis/yt2column/issues/903) の確かめ）にかかり、#906・[#907](https://github.com/isseis/yt2column/issues/907) で扱う。そのとき、①②の呼ぶ側に残るエージェントの種類による分かれ目（2.1）を、1 つの入口にまとめるかを決める。
 -   **画面の読み取りの整理（[#908](https://github.com/isseis/yt2column/issues/908)）。** 本書で消さない画面の読み取り（入力欄の判定、OpenCode の報告）は #908 で扱う。
 
 ## 付録 A: 申し送り（design_handoff.md）への対応
