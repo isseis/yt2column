@@ -208,7 +208,13 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
     resolve(reconnected: boolean): void;
   }>();
 
-  // The serial order of every request.
+  // The serial order of every request: one lock held while a task runs.
+  //
+  // A function that runs inside a task is named with the suffix Locked. It
+  // must never call serial itself, directly or through another function: the
+  // inner task would wait for the outer one, which waits for it, and the
+  // request would never be answered. Functions without the suffix either call
+  // serial (the entry points) or only read.
   let tail: Promise<unknown> = Promise.resolve();
   function serial<T>(task: () => Promise<T>): Promise<T> {
     const run = tail.then(task, task);
@@ -263,7 +269,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
   // ---- Writing records ----
 
   /** Writes record; on a failure, once, drops a record by the rule and writes again. */
-  async function store(record: JobRecord): Promise<boolean> {
+  async function storeLocked(record: JobRecord): Promise<boolean> {
     const name = jobItemName(record.jobId);
     if ((await deps.writeSession({ [name]: record })).ok) {
       return true;
@@ -283,7 +289,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
   }
 
   /** The record as a failure that could not be stored; one attempt to leave that mark. */
-  async function markStoreFailed(record: JobRecord): Promise<void> {
+  async function markStoreFailedLocked(record: JobRecord): Promise<void> {
     const base = {
       version: record.version,
       jobId: record.jobId,
@@ -306,7 +312,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
   }
 
   /** Writes record for a progress or a result; the reply says whether it is held. */
-  async function storeForRunner(record: JobRecord): Promise<WriteReply> {
+  async function storeForRunnerLocked(record: JobRecord): Promise<WriteReply> {
     // A record over the read-back limit would be read as absent: it is not held.
     if (storedBytes(record) > maxRecordBytes) {
       return { status: "not_stored" };
@@ -322,15 +328,15 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
         await deps.removeSession(drops.map(jobItemName));
       }
     }
-    if (await store(record)) {
+    if (await storeLocked(record)) {
       return { status: "stored" };
     }
-    await markStoreFailed(record);
+    await markStoreFailedLocked(record);
     return { status: "not_stored" };
   }
 
   /** Marks the running record of jobId stopped, when it is still running and still matches. */
-  async function stop(
+  async function stopLocked(
     jobId: string,
     reason: StopReason,
     stillMatches: (record: JobRecord) => boolean,
@@ -364,7 +370,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
   // ---- Start ----
 
   /** Finishes a start: answers the popup, forgets the input and the context. */
-  async function finishStart(
+  async function finishStartLocked(
     startId: string,
     reply: StartReply,
   ): Promise<void> {
@@ -375,7 +381,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
     entry?.respond(reply);
   }
 
-  async function begin(
+  async function beginLocked(
     request: Extract<SwRequest, { type: "start" }>,
     respond: (reply: StartReply) => void,
   ): Promise<void> {
@@ -455,14 +461,14 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
       input,
       respond,
       cancelExpiry: deps.schedule(startExpiryMs, () => {
-        void serial(() => finishStart(startId, { status: "unknown" })).catch(
-          () => undefined,
-        );
+        void serial(() =>
+          finishStartLocked(startId, { status: "unknown" }),
+        ).catch(() => undefined);
       }),
     });
   }
 
-  async function claimInput(
+  async function claimInputLocked(
     startId: string,
     tabId: number,
   ): Promise<ClaimInputReply | undefined> {
@@ -483,7 +489,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
   type Reservation = Extract<SwRequest, { type: "reserve" }>;
 
   /** One pass of the decision. Either its reply, or the running records whose runner must be checked first. */
-  async function decide(
+  async function decideLocked(
     request: Reservation,
     context: StartContext,
     tabId: number,
@@ -639,7 +645,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
     let reply: ReserveReply | undefined;
     for (let pass = 1; reply === undefined; pass += 1) {
       const outcome = await serial(() =>
-        decide(request, context, tabId, pass <= maxContactPasses),
+        decideLocked(request, context, tabId, pass <= maxContactPasses),
       );
       if ("reply" in outcome) {
         reply = outcome.reply;
@@ -653,7 +659,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
         for (const [index, record] of outcome.check.entries()) {
           if (alive[index] !== true && record.state === "running") {
             const { instanceId } = record.runner;
-            await stop(
+            await stopLocked(
               record.jobId,
               "no_contact",
               (current) =>
@@ -667,7 +673,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
     }
     const status = reply.status;
     await serial(() =>
-      finishStart(
+      finishStartLocked(
         request.startId,
         status === "rejected"
           ? { status: "rejected", reason: reply.reason }
@@ -681,7 +687,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
 
   // ---- Reports of the running viewer ----
 
-  async function report(
+  async function reportLocked(
     request: Extract<SwRequest, { type: "progress" | "result" }>,
     tabId: number,
   ): Promise<WriteReply | undefined> {
@@ -719,7 +725,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
       acceptedAt: record.acceptedAt,
     } as const;
     if (request.type === "progress") {
-      return storeForRunner({ ...record, steps: request.steps });
+      return storeForRunnerLocked({ ...record, steps: request.steps });
     }
     const result: RunResult = request.result;
     const next: JobRecord =
@@ -741,10 +747,10 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
               ? {}
               : { internalDetail: result.internalDetail }),
           };
-    return storeForRunner(next);
+    return storeForRunnerLocked(next);
   }
 
-  async function reloaded(
+  async function reloadedLocked(
     request: Extract<SwRequest, { type: "runnerReloaded" }>,
     tabId: number,
   ): Promise<WriteReply> {
@@ -758,7 +764,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
       return { status: "not_runner" };
     }
     const { instanceId } = record.runner;
-    await stop(
+    await stopLocked(
       request.jobId,
       "page_reloaded",
       (current) =>
@@ -789,7 +795,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
         return false;
       }
       guarded("start-failed", () =>
-        serial(() => begin(request, respond)).then(() => undefined),
+        serial(() => beginLocked(request, respond)).then(() => undefined),
       );
       return true;
     }
@@ -801,7 +807,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
     switch (request.type) {
       case "claimInput":
         guarded("claim-failed", async () => {
-          respond(await serial(() => claimInput(request.startId, tabId)));
+          respond(await serial(() => claimInputLocked(request.startId, tabId)));
         });
         return true;
       case "prepareRejected":
@@ -810,7 +816,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
             if ((await contextOf(request.startId, tabId)) === undefined) {
               return false;
             }
-            await finishStart(request.startId, {
+            await finishStartLocked(request.startId, {
               status: "rejected",
               reason: request.reason,
             });
@@ -827,12 +833,12 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
       case "progress":
       case "result":
         guarded("report-failed", async () => {
-          respond(await serial(() => report(request, tabId)));
+          respond(await serial(() => reportLocked(request, tabId)));
         });
         return true;
       case "runnerReloaded":
         guarded("reloaded-failed", async () => {
-          respond(await serial(() => reloaded(request, tabId)));
+          respond(await serial(() => reloadedLocked(request, tabId)));
         });
         return true;
     }
@@ -873,7 +879,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
         if (closed) {
           // Cut while the record was being checked: nothing is connected.
           await serial(() =>
-            stop(
+            stopLocked(
               accepted.jobId,
               "page_closed",
               (record) =>
@@ -911,7 +917,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
       ports.delete(gone.jobId);
       guarded("disconnect-failed", () =>
         serial(() =>
-          stop(
+          stopLocked(
             gone.jobId,
             "page_closed",
             (record) =>
@@ -931,7 +937,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
         for (const record of records?.values() ?? []) {
           if (record.state === "running" && record.runner.tabId === tabId) {
             const { instanceId } = record.runner;
-            await stop(
+            await stopLocked(
               record.jobId,
               "tab_closed",
               (current) =>
