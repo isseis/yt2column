@@ -111,7 +111,7 @@
 - [x] 設計書 3.5 節の構成で記録を書く（AC-01〜AC-17）。答えが出なかった問いは、その理由を書く（AC-03）
 - [x] 記録を読み直し、API の応答・画面から写した本文がないことを確かめる（AC-17）
 - [x] 片付ける。宛先の一覧にある実験のセッションだけを、それぞれ設計書 3.2 節の規則 1 で確かめてから API で消す（規則 4。消せなければ人に示す）。一時的な設定ファイルとイベントの控えを消し、購読のプロセスが残っていないことを確かめる。人に、使い捨ての workspace と worktree を消すよう頼む。片付けの手順を記録に書く（設計書 2 章の表）
-- [ ] 記録をコミットした後、7 章の AC-19 の diff の記録を、[requirements_process.md](../../dev/conventions/requirements_process.md) §4「`diff` verification」の固定コマンドと記録の形で、別のコミットで書く（ファイルの一覧を含む）
+- [x] 記録をコミットした後、7 章の AC-19 の diff の記録を、[requirements_process.md](../../dev/conventions/requirements_process.md) §4「`diff` verification」の固定コマンドと記録の形で、別のコミットで書く（ファイルの一覧を含む）
 
 **完了の条件:** 記録がコミットされ、7 章の AC-19 の記録がある。
 
@@ -183,6 +183,20 @@
 Diff record (AC-19):
 
 - Compared paths: `docs/tasks/0094_opencode_server_api_probe/01_requirements.md` `docs/tasks/0094_opencode_server_api_probe/02_architecture.md`
+- Merge-base: `6968c4897214eec5d750d2e9933cc445c8658d17`
+- Compared commit: `9161469018b65c2bd3e7324d50f7462d5852a040`
+
+Path diff:
+
+```text
+```
+
+File list (only for an AC that limits which files change):
+
+```text
+docs/research/opencode_server_api/README.md
+docs/tasks/0094_opencode_server_api_probe/03_implementation_plan.md
+```
 
 ## 8. 成功の基準 (Success Criteria)
 
