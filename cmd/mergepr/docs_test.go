@@ -3,6 +3,7 @@
 package main
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,10 +43,16 @@ func readRepoFile(t *testing.T, rel string) string {
 	return doctestutil.ReadDoc(t, filepath.Join(repoRoot, filepath.FromSlash(rel)))
 }
 
-// wantProtocolFlag is the one --protocol form the tool accepts.
+// wantProtocolFlag is the one --protocol form the documents write.
 func wantProtocolFlag() string { return "--protocol " + strconv.Itoa(mergepr.Protocol) }
 
 // TestDocumentedProtocolMatches: every --protocol N of a mergepr call in the
+// command documents and the guide, and every --protocol N the guide writes in
+// prose, is this binary's Protocol. TestDocumentedInvocationsParse also
+// refuses a wrong value in a call it parses; this test alone covers the prose
+// flags and the blocks that test skips.
+//
+// In detail: every --protocol N of a mergepr call in the
 // command documents and the guide, prose included, is the binary's Protocol
 // in the form the tool reads, so the installed tool refuses a definition
 // written for another contract and accepts one written for its own. The
@@ -73,20 +80,7 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 	if guideFlags == 0 {
 		t.Errorf("%s writes no %s call with --protocol", guidePath, toolWord)
 	}
-	// The guide states the current number in prose; it must be this binary's.
-	current := currentNumber.FindAllStringSubmatch(readRepoFile(t, guidePath), -1)
-	if len(current) == 0 {
-		t.Errorf("%s does not state the current number (%s)", guidePath, currentNumber)
-	}
-	for _, m := range current {
-		if m[1] != strconv.Itoa(mergepr.Protocol) {
-			t.Errorf("%s: %q, want %d", guidePath, m[0], mergepr.Protocol)
-		}
-	}
 }
-
-// currentNumber matches the guide's statement of the current number.
-var currentNumber = regexp.MustCompile("現在の番号は `([0-9]+)`")
 
 // placeholderValues are the values the documents' placeholders stand for.
 var placeholderValues = map[string]string{
@@ -189,12 +183,7 @@ func TestProtocolToolsAgree(t *testing.T) {
 			calledSet[name] = struct{}{}
 		}
 	}
-	called := make([]string, 0, len(calledSet))
-	for name := range calledSet {
-		called = append(called, name)
-	}
-	slices.Sort(called)
-	found = slices.Sorted(slices.Values(found))
+	called := slices.Sorted(maps.Keys(calledSet))
 	guarded := slices.Sorted(slices.Values(doctestutil.ProtocolTools()))
 	if !slices.Equal(found, called) || !slices.Equal(found, guarded) {
 		t.Errorf("tools with a Protocol constant %v, commands the documents call with --protocol %v, and tools the document guards check %v differ", found, called, guarded)

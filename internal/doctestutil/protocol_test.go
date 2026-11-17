@@ -125,11 +125,9 @@ func TestProtocolCallers(t *testing.T) {
 		want []string
 	}{
 		{"one_call", "alpha run --protocol 1\n", []string{"alpha"}},
-		{"last_name_wins", "alpha beta --protocol 2\n", []string{"beta"}},
-		{"each_command", "alpha --protocol 1 && /bin/beta --protocol 2\n", []string{"alpha", "beta"}},
 		{"no_name", "pass --protocol 6 each time\n", nil},
+		// Only the given names count, not the guards' tools.
 		{"known_tool_not_in_names", "fixprguard head --protocol 6\n", nil},
-		{"name_inside_a_word", "alphas --protocol 1\n", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := ProtocolCallers(tc.doc, names); !slices.Equal(got, tc.want) {

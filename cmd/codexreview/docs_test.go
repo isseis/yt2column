@@ -348,7 +348,6 @@ func TestCodexreviewProtocolMismatches(t *testing.T) {
 		// is refused as bad arguments.
 		{"equals_form", "Run `codexreview --base <BASE> --protocol=" + right + "`.\n", []string{"--protocol=" + right}},
 		{"fixprguard_call_skipped", "fixprguard head --protocol " + wrong + " && codexreview --protocol " + right + " --base " + sha + "\n", nil},
-		{"mergepr_call_skipped", "mergepr prepare --protocol " + wrong + " 42 && codexreview --protocol " + right + " --base " + sha + "\n", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := codexreviewProtocolMismatches(tc.doc); !slices.Equal(got, tc.want) {

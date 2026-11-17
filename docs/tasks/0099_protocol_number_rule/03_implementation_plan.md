@@ -168,7 +168,7 @@
 - [x] `ToolMergepr` を足し、`protocolTools` に加える。`ProtocolFlag.Tool` の説明を合わせる。
 - [x] `ProtocolTools()` と `ProtocolCallers(doc, names)` を公開する（§1.3 の決定 3）。今の 3 つのガードが `--protocol` を割り当てる道具は変えない。
 - [x] `protocol_test.go::TestProtocolFlags` に `mergepr` の呼び出しの行を、`protocol_test.go::TestProtocolCallers` に、`cmd/` の下の名前を渡したときと、どの名前もない `--protocol` の行を足す。
-- [x] `TestFixprguardProtocolMismatches` と `TestCodexreviewProtocolMismatches` に、`mergepr` の呼び出しの `--protocol` を読み飛ばす行を足す。
+- [x] `TestFixprguardProtocolMismatches` に、`mergepr` の呼び出しの `--protocol` を読み飛ばす行を足す。`TestCodexreviewProtocolMismatches` には足さない（`codexreview` のガードは道具のない `--protocol` も読み飛ばすので、その行は `mergepr` を一覧から外しても失敗しない）。
 
 #### ステップ 3-2: コマンドの定義
 

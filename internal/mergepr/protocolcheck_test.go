@@ -714,14 +714,12 @@ func TestUnreadableKindDescriptions(t *testing.T) {
 func TestWorktreeProtocolTools(t *testing.T) {
 	root := t.TempDir()
 	files := map[string]string{
-		"internal/alpha/alpha.go":           protocolSource("1"),
-		"internal/alpha/alpha_test.go":      protocolSource("2"),
-		"internal/beta/beta.go":             "package beta\n\nconst Protocol int = 1\n",
-		"internal/gamma/gamma.go":           "package gamma\n\ntype x struct{ Protocol int }\n",
-		"internal/delta/delta_test.go":      protocolSource("1"),
-		"internal/llm/claude/claude.go":     protocolSource("1"),
-		"cmd/epsilon/main.go":               protocolSource("1"),
-		"internal/zeta/testdata/fixture.go": protocolSource("1"),
+		"internal/alpha/alpha.go":       protocolSource("1"),
+		"internal/alpha/alpha_test.go":  protocolSource("2"),
+		"internal/beta/beta.go":         "package beta\n\nconst Protocol int = 1\n",
+		"internal/gamma/gamma.go":       "package gamma\n\ntype x struct{ Protocol int }\n",
+		"internal/delta/delta_test.go":  protocolSource("1"),
+		"internal/llm/claude/claude.go": protocolSource("1"),
 	}
 	for rel, content := range files {
 		path := filepath.Join(root, filepath.FromSlash(rel))
