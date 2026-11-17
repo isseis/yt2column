@@ -823,11 +823,16 @@ Only the conventions a linter does not check are worth stating:
   fixed part of it, a field label, a value line's prefix, or a checkbox's text
   in an implementation plan (such as `作成ポイント`, `**実装モデル要件**: `,
   `**自動送信**: `, `PR 構成`, and `PR を作成した`), which it reads to find
-  a plan's PRs, their values, and their progress. Comments, identifiers, and
-  the text the tool prints stay English, and the plans its tests read are
-  sample files under `internal/chief/testdata/plans/`, not Go literals.
-  Reason: the plan is a Japanese document, so the literal has to equal its
-  text, as for `opus-review-decision.sh`, whose reading the tool's must match.
+  a plan's PRs, their values, and their progress; and the start of the line
+  of a requirements document that names its issue (`対応 issue: `) with the
+  full-width parenthesis (`（`) that ends the part of the line it reads,
+  which it reads to find the task that answers an issue. Comments,
+  identifiers, and the text the tool prints stay English, and the plans and
+  requirements documents its tests read are sample files under
+  `internal/chief/testdata/plans/` and `internal/chief/testdata/requirements/`,
+  not Go literals. Reason: the plan and the requirements document are
+  Japanese documents, so the literal has to equal their text, as for
+  `opus-review-decision.sh`, whose reading the tool's must match for a plan.
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under

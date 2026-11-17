@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
+	"github.com/isseis/yt2column/internal/cmdrunner"
 )
 
 // This file reads a task's documents by the grammar the repository defines
@@ -809,6 +810,34 @@ func (t Tasks) Read(ctx context.Context, worktree, branch string) (TaskDocs, err
 		return TaskDocs{}, fmt.Errorf("%w: directory %q does not match branch %q", errTaskDocument, dirs[0], branch)
 	}
 	docs.Dir = taskRoot + "/" + dirs[0]
+	return t.readDocuments(ctx, worktree, docs)
+}
+
+// ReadDir reads, from origin/main in worktree, the documents of the task
+// directory named dirName (such as 0088_chief_of_staff, a name found by
+// IssueTasks). Contract: it reads the documents by the same rules as Read; the
+// name must be a task directory's form and a directory of origin/main, or the
+// task is unreadable.
+func (t Tasks) ReadDir(ctx context.Context, worktree, dirName string) (TaskDocs, error) {
+	if !taskDirName.MatchString(dirName) {
+		return TaskDocs{}, fmt.Errorf("%w: %q is not a task directory name", errTaskDocument, dirName)
+	}
+	task, err := paneinput.ParseTaskID(dirName[:4])
+	if err != nil {
+		return TaskDocs{}, fmt.Errorf("%w: %q: %w", errTaskDocument, dirName, err)
+	}
+	names, err := t.listTree(ctx, worktree, taskRoot+"/")
+	if err != nil {
+		return TaskDocs{}, err
+	}
+	if !slices.Contains(names, taskRoot+"/"+dirName) {
+		return TaskDocs{}, fmt.Errorf("%w: origin/main has no directory %q", errTaskDocument, dirName)
+	}
+	return t.readDocuments(ctx, worktree, TaskDocs{Task: task, Dir: taskRoot + "/" + dirName})
+}
+
+// readDocuments reads the documents docs.Dir holds on origin/main into docs.
+func (t Tasks) readDocuments(ctx context.Context, worktree string, docs TaskDocs) (TaskDocs, error) {
 	files, err := t.listTree(ctx, worktree, docs.Dir+"/")
 	if err != nil {
 		return TaskDocs{}, err
@@ -850,6 +879,105 @@ func (t Tasks) Read(ctx context.Context, worktree, branch string) (TaskDocs, err
 		}
 	}
 	return docs, nil
+}
+
+// issueLinePrefix is the start of the line of a requirements document that
+// names the issue the task answers.
+const issueLinePrefix = "対応 issue: "
+
+// gitGrep is the git subcommand that searches the tree of a ref.
+const gitGrep = "grep"
+
+// issueLineSearch is what IssueTasks hands `git grep`: a line whose first
+// column starts with issueLinePrefix, in the requirements documents one
+// directory below the task root.
+var issueLineSearch = []string{gitGrep, "-n", "^" + issueLinePrefix, originMain, "--", ":(glob)" + taskRoot + "/*/" + requirementsFile}
+
+// issueLineForm is one line of `git grep -n` output for issueLineSearch: the
+// ref, the path of a requirements document, the line number, and the line.
+var issueLineForm = regexp.MustCompile(`^` + regexp.QuoteMeta(originMain) + `:` + regexp.QuoteMeta(taskRoot) + `/([^/:]+)/` + regexp.QuoteMeta(requirementsFile) + `:[0-9]+:(.*)$`)
+
+// issueMentionEnd is the full-width parenthesis that starts the remarks of an
+// issue line: what follows it is not read.
+const issueMentionEnd = "（"
+
+// hashNumber matches an issue number written `#<digits>`; linkTarget matches
+// the destination of a Markdown link, and urlNumber the digits that end it.
+var (
+	hashNumber = regexp.MustCompile(`#([0-9]+)`)
+	linkTarget = regexp.MustCompile(`\]\(([^)\s]*)\)`)
+	urlNumber  = regexp.MustCompile(`/([0-9]+)/?$`)
+	// bareURLNumber matches the number ending an issue or pull request path
+	// anywhere in the text, link or not.
+	bareURLNumber = regexp.MustCompile(`/(?:issues|pull)/([0-9]+)`)
+)
+
+// issueNumbersOf returns the issue numbers an issue line names, as digit
+// strings without leading zeros. Contract: it errs toward naming more numbers,
+// so the one-task rule of the caller holds less often and fewer removals are
+// proposed. Only the part before the first full-width parenthesis is read. It
+// names every `#<digits>` there, link or not, and for each Markdown link
+// destination the digits that end it, so a link whose text and destination
+// disagree names both numbers.
+func issueNumbersOf(text string) map[string]struct{} {
+	text = strings.TrimPrefix(text, issueLinePrefix)
+	text, _, _ = strings.Cut(text, issueMentionEnd)
+	numbers := map[string]struct{}{}
+	add := func(digits string) {
+		if trimmed := strings.TrimLeft(digits, "0"); trimmed != "" {
+			numbers[trimmed] = struct{}{}
+		}
+	}
+	for _, m := range hashNumber.FindAllStringSubmatch(text, -1) {
+		add(m[1])
+	}
+	for _, m := range bareURLNumber.FindAllStringSubmatch(text, -1) {
+		add(m[1])
+	}
+	for _, link := range linkTarget.FindAllStringSubmatch(text, -1) {
+		if m := urlNumber.FindStringSubmatch(link[1]); m != nil {
+			add(m[1])
+		}
+	}
+	return numbers
+}
+
+// IssueTasks returns the names of the task directories whose requirements
+// document, on origin/main in worktree, names issue on a line that starts
+// with `対応 issue: `, in name order. It runs one `git grep` for every
+// document. Contract: a line it cannot read as `git grep -n` output for a
+// requirements document of a task directory, makes the whole reading
+// unreadable; git's exit status 1 (no line) is an empty result, never an
+// error. The caller proposes a removal only when exactly one directory is
+// returned, and that is a proposal a human and the removal checks still
+// decide.
+func (t Tasks) IssueTasks(ctx context.Context, worktree string, issue paneinput.IssueNumber) ([]string, error) {
+	if issue.String() == "" {
+		return nil, errNoIssueNumber
+	}
+	out, err := t.cmds.git(ctx, worktree, issueLineSearch...)
+	if err != nil {
+		exitErr, ok := errors.AsType[*cmdrunner.ExitError](err)
+		if !ok || exitErr.Code != 1 {
+			return nil, err
+		}
+		out = nil
+	}
+	var dirs []string
+	for line := range strings.SplitSeq(strings.TrimSuffix(string(out), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		m := issueLineForm.FindStringSubmatch(line)
+		if m == nil || !taskDirName.MatchString(m[1]) {
+			return nil, fmt.Errorf("%w: a line of git grep that is not an issue line of a requirements document", errTaskDocument)
+		}
+		if _, cited := issueNumbersOf(m[2])[issue.String()]; cited && !slices.Contains(dirs, m[1]) {
+			dirs = append(dirs, m[1])
+		}
+	}
+	slices.Sort(dirs)
+	return dirs, nil
 }
 
 // BranchPlan reads the plan at HEAD of worktree, for the check that the

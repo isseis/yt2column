@@ -366,7 +366,7 @@ func CollectDetail(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, 
 	out, err := deps.Cmds.gh(ctx, ws.Worktree, "pr", "view", number, "--json", prViewFields)
 	if err == nil {
 		var v prView
-		if v, err = parsePRView(out); err == nil && (v.Number != pr.Number || v.State != "OPEN" || v.URL != pr.URL) {
+		if v, err = parsePRView(out); err == nil && (v.Number != pr.Number || v.State != ghOpen || v.URL != pr.URL) {
 			err = fmt.Errorf("%w: gh pr view gave another or a closed PR", errGHOutput)
 		}
 		if err == nil {
