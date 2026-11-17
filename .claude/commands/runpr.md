@@ -716,10 +716,12 @@ finished review observed had and every review in progress lacked, so that a
   Report the escalation file's reason, COVERAGE, and the rule that decided,
   whatever the decision is. When COVERAGE is `PARTIAL <n>`, also report each
   commit the script listed, oldest first: its ID and subject as the script
-  printed them, the files it changes (`git diff --stat <id>^1 <id>`), and one
-  line, in your own words, of what it changes, read from
-  `git diff <id>^1 <id>`; for a merge commit, say what the merged side
-  brings in. The user reads these before answering the merge question, which
+  printed them, the files it changes
+  (`git --no-replace-objects diff --ignore-submodules=none --stat <id>^1 <id>`),
+  and one line, in your own words, of what it changes, read from
+  `git --no-replace-objects diff --ignore-submodules=none <id>^1 <id>`, so
+  that, as in the script, no replace ref or submodule setting hides a
+  change; for a merge commit, say what the merged side brings in. The user reads these before answering the merge question, which
   shows only their count. Then:
   - `request`: post a request as "Requesting the review" says, wait until it
     is Completed (stopping as that bullet says), and handle the threads it
