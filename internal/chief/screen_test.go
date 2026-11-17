@@ -852,37 +852,37 @@ func runprReportScreen(t *testing.T, pr int, next string) string {
 // Claude Code command report.
 const claudeReportHeading = "記録したこと"
 
+// claudeReportMention is the PR mention of the sampled Claude Code command
+// report.
+const claudeReportMention = "PR #867 に push しました"
+
+// editClaudeReportSample returns the sampled Claude Code command report with
+// the first from replaced by to, failing when the sample no longer holds
+// from.
+func editClaudeReportSample(t *testing.T, from, to string) string {
+	t.Helper()
+	screen := readScreenSample(t, "claude-command-report.ansi")
+	if !strings.Contains(screen, from) {
+		t.Fatalf("the report sample no longer holds %q", from)
+	}
+	return strings.Replace(screen, from, to, 1)
+}
+
 // claudeReportScreenNaming returns the sampled Claude Code command report
 // with its PR number replaced by pr and its heading line replaced by a NEXT
 // line giving next, so the screen alone shows a report naming both.
 func claudeReportScreenNaming(t *testing.T, pr int, next string) string {
 	t.Helper()
-	screen := readScreenSample(t, "claude-command-report.ansi")
-	if !strings.Contains(screen, claudeReportHeading) {
-		t.Fatal("the report sample no longer holds its heading line")
-	}
-	screen = strings.Replace(screen, claudeReportHeading, "NEXT: "+next, 1)
+	screen := editClaudeReportSample(t, claudeReportHeading, "NEXT: "+next)
 	return strings.ReplaceAll(screen, "867", strconv.Itoa(pr))
 }
-
-// claudeReportMention is the PR mention of the sampled Claude Code command
-// report.
-const claudeReportMention = "PR #867 に push しました"
 
 // claudeReportScreenNamingURL returns the sampled Claude Code command report
 // with its PR mention replaced by url, so the screen alone shows a report
 // naming that PR's URL, as a reader matching a PR by its URL would read it.
 func claudeReportScreenNamingURL(t *testing.T, url string) string {
 	t.Helper()
-	screen := readScreenSample(t, "claude-command-report.ansi")
-	if !strings.Contains(screen, claudeReportMention) {
-		t.Fatal("the report sample no longer holds its PR mention")
-	}
-	screen = strings.Replace(screen, claudeReportMention, url+" に push しました", 1)
-	if !strings.Contains(screen, url) {
-		t.Fatal("the report screen does not name the URL")
-	}
-	return screen
+	return editClaudeReportSample(t, claudeReportMention, url+" に push しました")
 }
 
 // TestReadRunprReport reads the last report of the sampled OpenCode /runpr
