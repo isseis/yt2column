@@ -203,7 +203,7 @@
 - [x] CLAUDE.md の「Development Notes」の下に「Protocol numbers」の節を立て、設計書 3.8 の 5 項目を英語で書く（AC-01〜AC-05・AC-17・AC-20）。止まったときの直し方は `mergepr_guide.md` を参照する。
 - [x] `ci.yml:215` の `doc-guard` の `go test` の対象と、`CLAUDE.md:707` の一覧の文に `./cmd/mergepr` を足す。`CLAUDE.md:690-698` の、文書を読むガードの一覧に `cmd/mergepr` のガードを足す。
 - [x] ADR-0014 の、まだ反映していないことを述べる段落（`0014-deterministic-checks-in-go.md:27`）を消す（設計書 3.8）。
-- [ ] PR の説明に、入れ替えの手順（§5 の R-03）と、§7 の「PR-2 の実行の記録」の項目を書く。
+- [x] PR の説明に、入れ替えの手順（§5 の R-03）と、§7 の「PR-2 の実行の記録」の項目を書く。
 
 **完了の条件:** グリーンゲートと `make deadcode` が通る。`go test -tags test ./cmd/mergepr` が `doc-guard` の対象として通る。
 
@@ -221,7 +221,7 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
