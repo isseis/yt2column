@@ -38,7 +38,7 @@
 -   **サブエージェントの見分け（申し送りの H-04）は、要件書のとおり道具の名前 `Agent` で行う。サブエージェントの行は親の transcript に書かれないことを確かめたので、要件書は直さない。** 手元の Claude Code のディレクトリで確かめた（2026-11-17）。サブエージェントの行は、親のセッションの下の `subagents/agent-*.jsonl`（2,134 ファイル）に書かれていた。直近 3 日の親の transcript 88 ファイルには、`isSidechain` が `true` の行が 1 行もなかった。同じ 88 ファイルの呼び出しの道具の名前は、`Agent` のほかに `Bash`・`Read`・`AskUserQuestion` などで、サブエージェントを起動する別の名前の道具は見当たらなかった。Claude Code が道具の名前を変えると（たとえば以前の版の `Task`）、その呼び出しは権限の確認として示される。中継はしないので、送るものは増えない（5.2）。ADR: なし（要件書のとおりのため）。
 -   **答えを待っている間に書かれる行の種類と、質問の呼び出しの入力の形は、答えた後の transcript から確かめた（申し送りの H-05、H-06）。** 直近 3 日の 88 ファイルで、質問の呼び出しとその答えの間にあった行の `type` は、`api-request`・`api-request-blob`・`session-owner`・`atis-latch`・`mode`・`last-prompt`・`ai-title` だけだった。どれも、要件書 4.2 の「広げてよいと宣言する部分」に当たり、読まずに受け付ける。質問の呼び出しの入力 113 件は、どれも `questions` の各要素に `header`・`multiSelect`（真偽値）・`options`・`question` を持ち、`options` の各要素に `label` と `description` を持っていた。いずれも要件書 4.2 の受け付ける形に合っていた。ADR: なし（確かめた事実の記録のため）。
 -   **中継できる問いとして示すのは、問いの選択肢が 1〜7 のときに限る。8 と 9 のときは中身を示し、中継しない（AC-05）。** Claude Code の問いの部品は、transcript の選択肢の後ろに、自由に書く答えとチャットへ移る答えを `n+1`・`n+2` の番号で描く。今の画面の読み取りは、番号が 9 を超える選択肢のある画面を、どの形にも合わないものとする（`finishQuestion`、`internal/chief/screen.go:166-171`）。そのため、選択肢が 8 か 9 の問いは、中継の前の画面の確かめを必ず通らない。中継できる問いとして示しても、必ず `screen_mismatch` で送らないことになるので、示さない。AC-05 は「9 つ以下のときだけ示す」という必要条件なので、7 つ以下に限ってもこれに反しない。画面の読み取りを広げて 10 と 11 の番号を受け付ける案は、確かめた画面の形を広げるので採らない。なお、`AskUserQuestion` の道具の定義は選択肢を 2〜4 つに限っているので、8 以上の選択肢は普通は現れない。ADR: なし（このタスクの中で閉じる値のため）。
--   **出力の約束の番号（`Protocol`、`internal/chief/records.go:25-28`）を 1 から 2 に上げる。** 本書は、Claude Code の権限の確認の中身を `tool`・`input` の欄に移し、問いが 2 つ以上の呼び出しを新しい種類 `several_questions` にする（3.4.3）。古い `/chief` の定義が新しい道具の出力を読むと、これらを中身のない質問として示してしまう。番号は、古い版の定義と新しい版の道具を組み合わせたときに、読み違えずに拒むためにある（同じ行の説明）。`/chief` の定義の `--protocol` を同じ PR で 2 にする。`cmd/chief/docs_test.go` の `TestDocumentedProtocolMatches` が、文書の番号と道具の番号がそろっていることを確かめる。ADR: なし（このタスクの中で閉じる値のため）。
+-   **出力の約束の番号（`Protocol`、`internal/chief/records.go:25-28`）を 1 つ上げる。** 上げる先は、本書の出力を変える PR がマージされるときの `main` の番号に 1 を足したものである。今は 1 だが、0092 の計画（決定 3、PR-7）も 2 に上げるので、後に入る方が同じ 2 のままにすると、先に入った版の `/chief` の定義を新しい道具が受け付けてしまう。計画では、その PR を作る前に `main` の `internal/chief/records.go` の `Protocol` を確かめる。本書で「2」と書くところは、この番号を指す。 本書は、Claude Code の権限の確認の中身を `tool`・`input` の欄に移し、問いが 2 つ以上の呼び出しを新しい種類 `several_questions` にする（3.4.3）。古い `/chief` の定義が新しい道具の出力を読むと、これらを中身のない質問として示してしまう。番号は、古い版の定義と新しい版の道具を組み合わせたときに、読み違えずに拒むためにある（同じ行の説明）。`/chief` の定義の `--protocol` を同じ PR で同じ番号にする。`cmd/chief/docs_test.go` の `TestDocumentedProtocolMatches` が、文書の番号と道具の番号がそろっていることを確かめる。ADR: なし（このタスクの中で閉じる値のため）。
 
 ### 1.3. なぜ今の仕組みでは足りないか
 
@@ -198,7 +198,7 @@ sequenceDiagram
     C-->>R: 行
 ```
 
-矢印は呼び出しと応答を表す。Herdr の状態は、周の初めに `herdr workspace list` から作る `TaskWorkspace` のエージェントの一覧のものを使う（今と同じ）。そのため、状態と transcript は、少しずれた時刻に読まれる。ずれは送らない側か「要確認」の側に倒れ（5.2）、次の周で直る。答えの中継の流れは 6.2 にある。
+矢印は呼び出しと応答を表す。Herdr の状態は、周の初めに `herdr agent list`（`internal/chief/herdr.go:121-123`、`internal/chief/snapshot.go:98`）から作る `TaskWorkspace` のエージェントの一覧のものを使う（今と同じ）。そのため、状態と transcript は、少しずれた時刻に読まれる。ずれは送らない側か「要確認」の側に倒れ（5.2）、次の周で直る。答えの中継の流れは 6.2 にある。
 
 ## 3. コンポーネント設計 (Component Design)
 
@@ -250,7 +250,7 @@ classDiagram
         +Agent Agent
         +ScreenRead bool
         +Screen Screen
-        +Wait *ClaudeWait
+        +Wait ClaudeWait
     }
     ClaudeWait --> OpenCall : Call
     OpenCall --> Question : Question
@@ -408,10 +408,11 @@ const permissionInputLimit = 2000
 | 状態が `blocked`、呼び出しがない（ファイルがないときを含む）か、2 つ以上 | 要確認（何を待っているか分からない） | AC-12・AC-20 |
 | 状態が `working`、呼び出しが質問 1 つだけ | 質問（`Working` が真） | AC-06 |
 | 状態が `working` | なし | AC-13 |
-| 状態が `blocked`・`working` 以外で、答えを待っている質問がある | 要確認（transcript と Herdr の状態が食い違う） | AC-07 |
-| 状態が `blocked`・`working` 以外 | なし | AC-13 |
+| 状態が `idle` か `done` で、答えを待っている質問がある | 要確認（transcript と Herdr の状態が食い違う） | AC-07 |
+| 状態が `idle` か `done` | なし | AC-13 |
+| 状態がそのほか（`AgentStatusUnknown` や、後で増えた値） | 要確認（Herdr の状態が分からない） | - |
 
--   「`blocked`・`working` 以外」は `idle`・`done` である。Herdr の出力を読むものは `AgentStatusUnknown` を返さない（`internal/chief/herdr.go:21-23`）。ゼロ値の `Agent` が渡されたときも、この 2 行で扱い、答えを待っている質問があれば「要確認」になる。
+-   状態での分け方は、`blocked`・`working`・`idle`・`done` をそれぞれ明示して分け、そのほかは「要確認」にする（CLAUDE.md の「Declare, don't infer」の、`default` を安全な側にする規則）。Herdr の出力を読むものは `AgentStatusUnknown` を返さない（`internal/chief/herdr.go:21-23`・`:273-276`）が、ゼロ値の `Agent` が渡されたときや、後で状態が増えたときに「なし」へ倒れないようにする。
 -   `Why` には、pane の ID と、人ができることを書く。transcript の中身と画面の中身は書かない。「要確認」のうち、セッションが続く限りひとりでは消えないもの（答えのないまま残った呼び出し、行の形の違い、上限を超えた transcript）では、その pane で `/clear` して新しいセッションを始めれば消えることを添える（4.2）。
 
 ### 3.4. 状況の表と人の判断を待つもの
@@ -434,11 +435,11 @@ const permissionInputLimit = 2000
 	RelayBlockTooMany
 ```
 
-上は今の定数の並び（`internal/chief/screen.go:28-61`）の末尾に足す値の抜き書きである。`Question` に足す欄（3.1 の図）は、OpenCode の画面からは作られず、空のままである。`Question` の説明は「画面から読んだ問い」から「画面か transcript から読んだ問い」に改める。`Question.Input` は、権限の確認の示す入力で、`permissionQuestion` が `permissionInputLimit` で切ったものである。切らない入力は `OpenCall.RawInput` にある。
+上は今の定数の並び（`internal/chief/screen.go:28-57`）の末尾に足す値の抜き書きである。`Question` に足す欄（3.1 の図）は、OpenCode の画面からは作られず、空のままである。`Question` の説明は「画面から読んだ問い」から「画面か transcript から読んだ問い」に改める。`Question.Input` は、権限の確認の示す入力で、`permissionQuestion` が `permissionInputLimit` で切ったものである。切らない入力は `OpenCall.RawInput` にある。
 
 #### 3.4.2. `readWorkspace` と `classify`
 
--   `readWorkspace`（`internal/chief/snapshot.go:230`）は、Claude Code の pane ごとに、今の画面の読み取りに加えて `readClaudeWait` を呼び、`agentFacts.Wait` に入れる。OpenCode の pane の `Wait` は `nil` である。Claude Code の pane で `Wait` が `nil` のときは、どの読み手も「要確認」として扱う。transcript の場所を決めるのに `Env` が要るので、引数に足す。呼び出し元の 3 か所（`internal/chief/snapshot.go:132`、`internal/chief/request.go:221`、`internal/chief/autosend.go:660`）は、どれも `Deps` を持っている。
+-   `readWorkspace`（`internal/chief/snapshot.go:230`）は、Claude Code の pane ごとに、今の画面の読み取りに加えて `readClaudeWait` を呼び、`agentFacts.Wait` に入れる。`Wait` はポインタでない `ClaudeWait` で、ゼロ値は `ClaudeWaitNeedsCheck` である。そのため、Claude Code の pane で読み忘れた `Wait` は、型によって「要確認」になる。OpenCode の pane の `Wait` はゼロ値のままで、読み手はエージェントの種類で先に分け、OpenCode の pane では `Wait` を読まない。transcript の場所を決めるのに `Env` が要るので、引数に足す。呼び出し元の 3 か所（`internal/chief/snapshot.go:132`、`internal/chief/request.go:221`、`internal/chief/autosend.go:660`）は、どれも `Deps` を持っている。
 -   `classify`（`internal/chief/state.go:382`）は、Claude Code の pane を待ち状態だけで分け、画面の読み取りの成否と形を見ない（AC-26）。
 
 | 待ち状態 | `classify` の扱い |
@@ -449,7 +450,7 @@ const permissionInputLimit = 2000
 | なし | 何も足さない。実行中かどうかは、今と同じく Herdr の状態で決まる（`internal/chief/state.go:418`） |
 
 -   OpenCode の pane は今のままである。
--   行の質問が `working` のエージェントのものだけのときも、その行は「質問で停止」にする（AC-06 の「質問として示す」）。今は、`working` のエージェントの画面は質問として読まない（`internal/chief/state.go:398-400`）ので、ここは変わる。
+-   行の質問が `working` のエージェントのものだけのときも、その行は「質問で停止」にする（AC-06 の「質問として示す」）。これは今と同じである。今も、画面が質問の形なら状態に関わらず `QuestionItem` を足し（`internal/chief/state.go:392-397`）、`working` の確かめ（`:398-400`）はその後にある。`relay_test.go:153-155` も、`blocked` でないエージェントの質問が行を質問にすることを確かめている。
 
 #### 3.4.3. 出力と `/chief` の定義
 
@@ -537,6 +538,8 @@ func relayCheck(a Agent, q QuestionItem) CheckValue
 
 この順は、今の `paneQuestion`（`internal/chief/relay.go:119-124`）の契約と同じ考え方である。画面を先に読むので、画面を読んだ後に人が問いに答え、同じ文の問いが新たに出たときは、その後に読む Herdr の `state_change_seq` と transcript の呼び出しの ID が変わり、送らない。手順 3 の後からキーを送るまでの間に問いに答えが入り、同じ文で問い直される隙は残る。この隙は今の画面の照合にもあり、キーの後に質問から離れたかを待つ確かめ（今のまま）で結果を示す。
 
+もう 1 つ残る隙がある。手順 2 と 3 が守るのは、親の transcript に答えを待つ呼び出しとして書かれる問いだけである。サブエージェントの行は親の transcript に書かれない（1.2 の H-04 の結果）。そのため、バックグラウンドのサブエージェント、フック、MCP の問いなど、親の transcript にない問いの部品が、待っている質問の上か直後に出ると、手順 3 の後のキーはその部品に入る。権限の確認では、番号の 1〜3 がどれも許可で、数字 1 つで決まる（`internal/chief/testdata/screens/claude-permission.ansi`、`internal/chief/paneinput.go:444-447`）。このような重なりが起こりうるかは、まだ確かめていない。7.1 のサンプルで確かめ、5.2 に結果を書く。起こりうると分かれば、手順 3 の後に画面をもう一度読む確かめを足す。
+
 ```go
 // claudeScreenAgrees reports whether a Claude Code screen shows q, a
 // single-select question read from the transcript, ready for an option key;
@@ -548,7 +551,7 @@ func claudeScreenAgrees(raw string, q Question) (ok bool, why string)
 
 -   画面を今の `parseClaudeScreen` で読み、`QuestionSingle` かつ `RelayAllowed` で、タブのない問いのときだけ比べる。それ以外の形は合わない。複数を選ぶ問い、タブのある問い、権限の確認、入力欄、知らない形がこれに当たる。
 -   問いの文：画面の文と transcript の文から、空白と改行をすべて除いて比べる。画面は文を pane の幅で折り返し、日本語は空白のない位置でも折り返すので、空白をそろえるだけでは等しくならない。今のマージの確認の見分け（`mergeQuestionSqueezed`、`internal/chief/screen.go:117`）と同じ考え方である。ただし、文が折り返したマージの確認は、今の読み取りがどの形にも合わないものとする（`internal/chief/screen.go:172-174`）ので、合わない。
--   選択肢：画面の選択肢の数が、transcript の選択肢の数 `n` に 2 を足した数であること。番号 1〜`n` の `label` が、transcript の同じ番号の `label` と、空白と改行を除いて等しいこと。番号 `n+1` が自由に書く答え、番号 `n+2` がチャットへ移る答えであること。説明（`description`）は比べない。画面は説明を折り返して描き、AC-15 も求めていないためである。
+-   選択肢：画面の選択肢の数が、transcript の選択肢の数 `n` に 2 を足した数であること。番号 1〜`n` の `label` が、transcript の同じ番号の `label` と、空白と改行を除いて等しいこと。番号 `n+1` が自由に書く答え、番号 `n+2` がチャットへ移る答えであること。説明（`description`）は比べない。画面は説明を折り返して描き、AC-15 も求めていないためである。ただし、今の読み取りは選択肢の行だけを名前とし、その下の字下げした行を説明とする（`internal/chief/screen_claude.go:321-337`）。名前が折り返し、続きの行が説明として読まれるなら、名前は等しくならず `screen_mismatch` で送らない（安全な側）。7.1 のサンプルでそうなると分かれば、名前と説明をつないで空白と改行を除いたものを両側で比べる。
 -   選択の位置：番号 1〜`n` のどれかにあること。自由に書く答え（`n+1`）とチャット（`n+2`）にあれば合わない（AC-15）。
 -   **自由に書く答えに打った文字。** 今の読み取りは、自由に書く答えの名前が `Type something.` でない画面を 1 つを選ぶ問いとして読まない（`internal/chief/screen_claude.go:328`・`:344`）。文字を打つとその行の名前が打った文字に変わるなら、そのような画面は合わない側に倒れる。文字を打つとその行の名前が打った文字に変わるのか、選択を番号 1〜`n` に戻した後も打った文字が残るのかは、まだ確かめていない。7.1 のサンプルで確かめる。打った文字が選択を戻した後も残り、画面で見分けられないと分かれば、数字のキーが文字として入るかを確かめる。入るなら、AC-15 の「自由に書く答えに文字が打たれているときは送らない」を画面だけでは守れないので、要件書を `draft` に戻して決め直す。
 -   この関数は画面の中身を調べるので、`screen_claude.go` に置き、CLAUDE.md の例外の範囲に入れる。
@@ -567,10 +570,12 @@ func claudeScreenAgrees(raw string, q Question) (ok bool, why string)
 func questionStop(f workspaceFacts) string
 ```
 
--   `questionStop` は、AC-24 の (a)〜(d) と、AC-25 の「画面が質問を示しているとき」を確かめる。(a) と (c) と (d) は Claude Code の pane の待ち状態が「なし」でないことで、(b) は Herdr の `blocked` で確かめる。画面は、読めて、その形が質問のときだけ止める。画面を読めないことや知らない形であることでは止めない（AC-26 の考え方。その確かめは下の `quietness` と `checkPane` にある）。
+-   `questionStop` は、AC-24 の (a)〜(d) と、AC-25 の「画面が質問を示しているとき」を確かめる。(a) と (c) と (d) は Claude Code の pane の待ち状態が「なし」でないことで、(b) は Herdr の `blocked` で確かめる。画面は、読めて、その形が質問のときに止める。Herdr が画面を返さなかった（読めなかった）ときも止める。読めない画面では AC-25 を確かめられないからである。今も、画面を読めない pane があると行は「要確認」になり、`offered` が送らない（`internal/chief/state.go:390-391`）。3.4.2 で `classify` は Claude Code の pane の画面の成否を見なくなるので、この止めを `questionStop` に移す。行は「要確認」にしない。知らない形であることでは止めない（AC-26 の考え方。入力欄の形の確かめは下の `quietness` と `checkPane` にある）。
 -   **コマンドの送信（`chief send`）。** 今は、workspace の排他を取った後に `readWorkspace` と `classify` で行を決め、その行が提案していないコマンドは送らない（`internal/chief/request.go:221-226`、`offered`）。3.4.2 で `classify` が待ち状態を使うので、多くの場合はここで止まる。さらに、行を決めた後に `questionStop` を確かめ、理由があれば送らない。行が「質問で停止」にならない Claude Code の pane の画面に質問が出ているとき（transcript がまだ答えを書いていないときなど）も止めるためである。`offered` が送らないときに今示すのは行の状態だけである（`internal/chief/request.go:317`）。そこで、行が「要確認」のときは `Unreadable` の理由も添える（AC-24 の「理由を示す」）。
 -   **自動送信。** 今は、排他を取った後に `readWorkspace` を読み直し（`internal/chief/autosend.go:660`）、`quietness`（`internal/chief/autosend.go:376`）で確かめる。`quietness` は最初に `questionStop` を呼び、理由があればそれを返す。そのほかの今の確かめ（`working`、画面が入力欄の形でない、`idle`・`done` でない）はそのまま残す（AC-25）。
--   **workspace の削除。** 削除はまだ実装されていない。[0092 設計書](../0092_chief_task_workspace/02_architecture.md) の 3.4.2 の `agent_active` の確かめは、「0088 の F-001・F-002 の見分け」でエージェントが動いていないことを確かめる。この確かめには、質問による止めの確かめを `questionStop` で加える。0092 の実装が本書の実装より後になる場合は、0092 が `questionStop` を呼ぶ。0092 の実装が先に入る場合は、本書の実装で `agent_active` の確かめに `questionStop` を足す。どちらが先かは計画で確かめる。
+-   **workspace の削除。** 削除はまだ実装されていない。[0092 設計書](../0092_chief_task_workspace/02_architecture.md) の 3.4.2 の `agent_active` の確かめは、「0088 の F-001・F-002 の見分け」でエージェントが動いていないことを確かめる。この確かめには、質問による止めの確かめを `questionStop` で加える（AC-24）。0092 の承認済みの設計書と計画書は画面の見分けだけを書いていて、`questionStop` を知らない。そこで、どちらの順に入っても、本書のタスクがこの加えを受け持つ。`questionStop` を足す本書の PR を作る前に `main` を確かめ、次のどちらかを同じ PR で行う。
+    -   削除のコードが `main` にあれば、`agent_active` の確かめに `questionStop` を足し、AC-24 の (a)〜(d) で消さないことのテストを足す。
+    -   なければ、0092 の設計書の `agent_active` の行と、それを実装する計画書のステップに、`questionStop` を呼ぶことを書き足す。承認済みの文書の直し方は要件定義の手引きの「Editing an approved document」に従う。
 -   **送り先の pane の確かめ。** 送り先の pane の画面が入力欄の形で、入力欄が空であることを求める今の確かめ（`checkPane`、`internal/chief/send.go:331-342`）は変えない（AC-25）。
 -   **リセット。** `/runpr` の後のリセット（0088 の F-009、`internal/chief/reset.go`）は AC-24 の対象ではないので変えない。リセットする pane は、今の `checkPane` で入力欄の形を確かめてから送る。
 
@@ -602,7 +607,8 @@ func questionStop(f workspaceFacts) string
 | `TestWaitKeepsWaitingOnBlocked`（`internal/chief/wait_test.go:161`） | `blocked` のままなら待ち続ける | 待ち受けは変えないが、周の中で読む transcript を足す |
 | `TestCheckValueChanges`・`TestNoCheckValueForUnrelayable`・`TestRelaySendsChosenOption`・`TestRelayRereadsTheScreenBeforeTheKey`・`TestRelayCheckValueMismatch`・`TestRelayRereadsBeforeTheKey`・`TestRelayRefusesTabbedQuestion`・`TestRelayNeedsAnAgentOnTheQuestion`・`TestRelayTakesTheSnapshotsValue`（`internal/chief/relay_test.go:63`〜`:423`）の Claude Code の場合 | 画面から作る照合値と、送る直前の画面の読み直し | Claude Code の場合は transcript の照合値と 3.5.3 の確かめになる。OpenCode の場合は今のまま |
 | `TestPendingQuestionIdentity`（`internal/chief/pending_test.go:63`） | 項目の同一性を問いの文から作る | Claude Code の項目は呼び出しの ID から作る（3.4.3） |
-| `TestSendChecksBeforeFirstInput`（`internal/chief/send_test.go:146`）と、`blocked` の Claude Code の pane を含む自動送信のテスト（`internal/chief/autosend_test.go:714`・`:835`） | 画面と Herdr の状態で送らない | 待ち状態と `questionStop` でも送らないことを足す |
+| `TestSendChecksBeforeFirstInput`（`internal/chief/send_test.go:146`） | 画面と Herdr の状態で送らない | 待ち状態と `questionStop` でも送らないことを足す |
+| （なし）自動送信 | `internal/chief/autosend_test.go` には `blocked` の pane も質問の画面もなく、`quietness` の `blocked`・質問の分かれ（`internal/chief/autosend.go:384`）を通るテストはない | `questionStop` で自動送信しないテストは新しく書く |
 
 -   テストの世界（`internal/chief/world_test.go:63` の `fakeWorkspace`、`internal/chief/sim_test.go:107-128` の transcript の書き込み）に、Claude Code の pane の transcript を足す。
 -   画面のサンプルの一覧の確かめ（`TestScreenSamplesCoverEveryRow`、`internal/chief/samples_test.go:132`）は、7.1 で足す画面のサンプルを一覧に加える。H-07 で画面の読み取りを残すので、今のサンプルは消さない。
@@ -704,7 +710,7 @@ flowchart LR
 |---|---|
 | 問いの文や選択肢、道具の入力に、セッションへの指示や制御文字を入れる | 示す文字列はすべて `Sanitize` を通す（AC-01・AC-10）。`/chief` の定義は、pane の文字列をデータとして扱う（`.claude/commands/chief.md` の規則 2）。権限の確認の入力は 2,000 文字で切る。`Why` と `why` は transcript と画面の中身を含まない |
 | 人が選んでいない入力を送らせる | 送る入力は、人が選んだ選択肢の番号から決まるキー入力だけで、選択肢の文は送らない（AC-16）。照合値はリクエストの値と比べるだけで、セッションは作れない |
-| 問いを答えさせて同じ文で問い直し、示していない呼び出しへキーを送らせる | 送る直前に、画面、Herdr（状態を含めて等しい）、transcript（同じ呼び出しの ID）の順に読み直す（3.5.3）。手順 3 の後からキーを送るまでの隙は残り、今の画面の照合と同じ |
+| 問いを答えさせて同じ文で問い直し、示していない呼び出しへキーを送らせる | 送る直前に、画面、Herdr（状態を含めて等しい）、transcript（同じ呼び出しの ID）の順に読み直す（3.5.3）。手順 3 の後からキーを送るまでの隙は残り、今の画面の照合と同じ。親の transcript にない問いの部品（サブエージェント、フック、MCP）が重なる隙は未確認で、7.1 で確かめる（3.5.3） |
 | transcript の行に別の行を紛れ込ませる | JSON の文字列の中の改行はエスケープされるので、問いや入力の中身で行は増えない。行の形が合わなければ transcript 全体を読めないものとする（要件書 4.2 の拒む入力） |
 | 問いの意味を変えるメンバーを足し、1 つを選ぶ問いに見せかける | 要件書 4.2 の残る危険のとおり。中継の前の画面の確かめ（3.5.3）が、1 つを選ぶ問いの形でない画面への送信を止める |
 | 選択肢の名前を `Type something.` などにして画面の確かめを惑わす | 画面の確かめは、番号の位置で自由に書く答えとチャットを確かめる。名前の同じ選択肢が途中にあると、今の画面の読み取りが 1 つを選ぶ問いとして読まず、合わない側に倒れる（`internal/chief/screen_claude.go:328`・`:344`） |
@@ -741,8 +747,9 @@ flowchart TD
     B -->|"idle・done"| I{"答えを待っている<br>質問があるか"}
     I -->|"ある"| NC5["要確認 (AC-07)"]
     I -->|"ない"| N2["なし (AC-13)"]
+    B -->|"そのほか"| NC6["要確認"]
 
-    class NC1,NC2,NC3,NC4,NC5 problem
+    class NC1,NC2,NC3,NC4,NC5,NC6 problem
     class Q1,Q2,P1 enhanced
     class N1,N2 process
 
@@ -805,7 +812,9 @@ sequenceDiagram
 実装の最初の段で、人が採取用の pane（`chief-poc`）で状態を作る。エージェントは読み取りだけを使う（`herdr agent get`・`herdr agent read`、transcript のファイルの写し。`internal/chief/testdata/README.md` の「採り方」）。採るものは次のとおりである。
 
 -   **答えを待っている間の transcript と、そのときの `herdr agent get` の状態。** 1 つを選ぶ問い、複数を選ぶ問い、問いが 2 つの呼び出し、権限の確認、サブエージェントの待ちのそれぞれについて採る。権限の確認の間に Herdr が `blocked` と報告することを、ここで確かめる。成り立たなければ、要件書を `draft` に戻す（1.2）。
--   **1 つを選ぶ問いの、同じ呼び出しの transcript と画面の組。** 中継の前の画面の確かめ（3.5.3）を、実物の折り返しで確かめるためである。問いの文が pane の幅で折り返すもの、選択肢の名前が折り返すものを含める。
+-   **1 つを選ぶ問いの、同じ呼び出しの transcript と画面の組。** 中継の前の画面の確かめ（3.5.3）を、実物の折り返しで確かめるためである。問いの文が pane の幅で折り返すもの、選択肢の名前が折り返すものを含める。名前の続きの行が説明として読まれるかを、ここで確かめる（3.5.3）。
+-   **親の transcript にない問いの部品。** 答えを待っている質問の上か直後に、バックグラウンドのサブエージェントの権限の確認、フック、MCP の問いが出るかを確かめる。出るときの画面と transcript を採り、3.5.3 の確かめを足すかを決める。
+-   **transcript のファイルがないときの Herdr の状態。** ファイルがないことと同時に起こる状態を採る。`working`・`done` でもファイルがないことが起こるなら、場所の決め方の誤りを「なし」で隠していないかを確かめる（3.2.3）。
 -   **選択の位置と打った文字の画面。** 選択が自由に書く答えにある画面、チャットにある画面、自由に書く答えに文字を打った画面、文字を打った後に選択を番号 1 に戻した画面を採る。打った文字が画面のどこに描かれるかで、3.5.3 の契約を確かめる。
 -   **セッションの操作の後の transcript。** `/compact`、`--resume`、`/rewind` の後に、答えのない呼び出し、同じ ID の呼び出し、答えより後の呼び出しが残るかを確かめる。残るときは、その操作の後は「要確認」がひとりでは消えないものとして、利用ガイドに書く（3.8）。
 -   採った値は、`testdata/README.md` の「置き換えたもの」のとおりに置き換える（[security.md](../../dev/security.md) §7）。
