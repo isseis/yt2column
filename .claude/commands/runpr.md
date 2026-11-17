@@ -689,7 +689,8 @@ finished review observed had and every review in progress lacked, so that a
     `ALL` or `PARTIAL <n>`; it is `PARTIAL` (no count) when the first or
     second line fails, the third exits with another status, or the first line
     is of another form. Keep the output's first line, or that it failed, for
-    step 4's summary. The script carries out the reading of the seen-range
+    step 4's summary, and for `PARTIAL <n>` the `<n>` lines after it, the
+    commits not known to be seen, for the report below. The script carries out the reading of the seen-range
     lines (`_lib/local-cli-review.md`, "Reading the record lines").
   - **The answer.** Follow `.claude/commands/_lib/pr-review-escalation.md`
     with **PR** = `<number>`, **LAST_REVIEWED** as above, **HEAD** = the
@@ -713,7 +714,13 @@ finished review observed had and every review in progress lacked, so that a
     no `criteria`: `skip` and `ask` stand as they are.
 
   Report the escalation file's reason, COVERAGE, and the rule that decided,
-  whatever the decision is, then:
+  whatever the decision is. When COVERAGE is `PARTIAL <n>`, also report each
+  commit the script listed, oldest first: its ID and subject as the script
+  printed them, the files it changes (`git diff --stat <id>^1 <id>`), and one
+  line, in your own words, of what it changes, read from
+  `git diff <id>^1 <id>`; for a merge commit, say what the merged side
+  brings in. The user reads these before answering the merge question, which
+  shows only their count. Then:
   - `request`: post a request as "Requesting the review" says, wait until it
     is Completed (stopping as that bullet says), and handle the threads it
     opens with `fixpr`. Do this at most once
