@@ -91,6 +91,12 @@ function dev(info: unknown = devInfo): DistExpectation {
   };
 }
 
+/** Writes an HTML page with content into static/ and its copy in dist/. */
+function writePage(root: string, file: string, content: string): void {
+  write(root, `static/${file}`, content);
+  write(root, `dist/${file}`, content);
+}
+
 /** Writes a release manifest with a key into static/ and its copy in dist/. */
 function writeManifestWithKey(root: string): void {
   const content = JSON.stringify({
@@ -269,9 +275,9 @@ describe("checkDist", () => {
     write(root, "dist/style.css");
     write(root, "static/script.js");
     write(root, "dist/script.js");
-    write(
+    writePage(
       root,
-      "dist/page.html",
+      "page.html",
       '<link rel="stylesheet" href="style.css"><script type="module" src="script.js"></script>',
     );
     assert.deepEqual(await checkDist(root, release()), []);
@@ -280,15 +286,15 @@ describe("checkDist", () => {
   it("accepts single-quoted HTML references", async () => {
     write(root, "static/style.css");
     write(root, "dist/style.css");
-    write(root, "dist/page.html", "<link rel='stylesheet' href='style.css'>");
+    writePage(root, "page.html", "<link rel='stylesheet' href='style.css'>");
     assert.deepEqual(await checkDist(root, release()), []);
   });
 
   it("resolves references relative to the HTML file's directory", async () => {
     write(root, "static/sub/page.html");
-    write(
+    writePage(
       root,
-      "dist/sub/page.html",
+      "sub/page.html",
       '<link rel="stylesheet" href="style.css">',
     );
     write(root, "static/sub/style.css");
@@ -298,9 +304,9 @@ describe("checkDist", () => {
 
   it("rejects a subdirectory page reference that is missing", async () => {
     write(root, "static/sub/page.html");
-    write(
+    writePage(
       root,
-      "dist/sub/page.html",
+      "sub/page.html",
       '<script type="module" src="script.js"></script>',
     );
     assert.deepEqual(await checkDist(root, release()), [
@@ -309,9 +315,9 @@ describe("checkDist", () => {
   });
 
   it("rejects an HTML script that is not in dist/", async () => {
-    write(
+    writePage(
       root,
-      "dist/page.html",
+      "page.html",
       '<script type="module" src="missing.js"></script>',
     );
     assert.deepEqual(await checkDist(root, release()), [
@@ -320,16 +326,16 @@ describe("checkDist", () => {
   });
 
   it("rejects an HTML stylesheet that is not in dist/", async () => {
-    write(root, "dist/page.html", '<link rel="stylesheet" href="missing.css">');
+    writePage(root, "page.html", '<link rel="stylesheet" href="missing.css">');
     assert.deepEqual(await checkDist(root, release()), [
       'dist/page.html: "missing.css" is not in dist/',
     ]);
   });
 
   it("rejects a missing script after a > inside a quoted attribute", async () => {
-    write(
+    writePage(
       root,
-      "dist/page.html",
+      "page.html",
       '<script data-note=">" src="missing.js"></script>',
     );
     assert.deepEqual(await checkDist(root, release()), [
@@ -338,19 +344,15 @@ describe("checkDist", () => {
   });
 
   it("ignores a reference inside an HTML comment", async () => {
-    write(
-      root,
-      "dist/page.html",
-      '<!-- <script src="missing.js"></script> -->',
-    );
+    writePage(root, "page.html", '<!-- <script src="missing.js"></script> -->');
     assert.deepEqual(await checkDist(root, release()), []);
   });
 
   it("accepts a root-absolute script reference from a subdirectory page", async () => {
     write(root, "static/sub/page.html");
-    write(
+    writePage(
       root,
-      "dist/sub/page.html",
+      "sub/page.html",
       '<script type="module" src="/script.js"></script>',
     );
     write(root, "static/script.js");
@@ -361,9 +363,9 @@ describe("checkDist", () => {
   it("accepts a query-suffixed stylesheet reference", async () => {
     write(root, "static/style.css");
     write(root, "dist/style.css");
-    write(
+    writePage(
       root,
-      "dist/page.html",
+      "page.html",
       '<link rel="stylesheet" href="style.css?v=1">',
     );
     assert.deepEqual(await checkDist(root, release()), []);
@@ -655,4 +657,14 @@ describe("checkDist", () => {
       assert.match(violations[0] ?? "", /^dist\/yt2column\.wasm: buildInfo: /);
     });
   }
+  it("rejects a static file whose copy differs, in either kind", async () => {
+    write(root, "dist/page.html", "<p>changed</p>");
+    assert.deepEqual(await checkDist(root, release()), [
+      "dist/page.html: differs from static/page.html",
+    ]);
+    makeDevTree();
+    assert.deepEqual(await checkDist(root, dev()), [
+      "dist-dev/page.html: differs from static/page.html",
+    ]);
+  });
 });

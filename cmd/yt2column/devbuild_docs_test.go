@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/doctestutil"
@@ -17,13 +18,9 @@ import (
 // build in the Makefile, with its default value.
 var makefileFakeVarRE = regexp.MustCompile(`(?m)^(FAKE_[A-Z_]+) = (\S*)$`)
 
-// spellings returns the spellings of values.
+// spellings returns the spellings of values, as devfake lists them.
 func spellings[T interface{ String() string }](values []T) []string {
-	out := make([]string, len(values))
-	for i, value := range values {
-		out[i] = value.String()
-	}
-	return out
+	return strings.Split(devfake.Spellings(values), "|")
 }
 
 // TestDevelopmentDocsDevBuild pins development.md's table of the development

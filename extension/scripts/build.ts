@@ -14,7 +14,8 @@
 // Contract: every Go command runs with GOTOOLCHAIN set to go.mod's version,
 // so the module and wasm_exec.js come from the toolchain go.mod names, never
 // from whatever go is on PATH; a go line without a patch version names no
-// toolchain and stops the build. The development build parses its scenario
+// toolchain and stops the build, and so does a go that reports another
+// version or any GOFLAGS (from the environment or go env -w). The development build parses its scenario
 // with a native build of its main package before it touches dist-dev/, so a
 // scenario the module would reject leaves the previous output as it was. The
 // scenario reaches the linker as one -ldflags string of five -X flags, given
@@ -134,7 +135,7 @@ export function scenarioLdflags(scenario: ScenarioValues): string {
       const value = scenario[field];
       if (!/^[A-Za-z0-9_-]*$/.test(value)) {
         throw new BuildError(
-          `the scenario value ${JSON.stringify(value)} has a character other than a letter, a digit, "_" or "-"`,
+          `the scenario value ${JSON.stringify(value)} has a character other than a letter, a digit, "_" or "-"; the accepted values are in docs/dev/guides/development.md`,
         );
       }
       return `-X ${variable}=${value}`;
@@ -153,32 +154,86 @@ function mustSucceed(what: string, result: CommandResult): CommandResult {
   return result;
 }
 
+/** The go command's settings the build depends on, as go.mod's toolchain sees them. */
+interface GoSettings {
+  readonly flags: string;
+  readonly hostOS: string;
+  readonly hostArch: string;
+  readonly root: string;
+  readonly version: string;
+}
+
+/** Reads the settings with one go env call, run with env. */
+function readGoSettings(
+  run: Runner,
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+): GoSettings {
+  const names = ["GOFLAGS", "GOHOSTOS", "GOHOSTARCH", "GOROOT", "GOVERSION"];
+  const result = mustSucceed(
+    "go env",
+    run("go", ["env", "-json", ...names], { cwd, env }),
+  );
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(result.stdout);
+  } catch (error) {
+    throw new BuildError(`go env printed no JSON: ${String(error)}`);
+  }
+  const values = (parsed ?? {}) as Record<string, unknown>;
+  const value = (name: string): string => {
+    const v = values[name];
+    if (typeof v !== "string") {
+      throw new BuildError(`go env did not report ${name}`);
+    }
+    return v;
+  };
+  return {
+    flags: value("GOFLAGS"),
+    hostOS: value("GOHOSTOS"),
+    hostArch: value("GOHOSTARCH"),
+    root: value("GOROOT"),
+    version: value("GOVERSION"),
+  };
+}
+
 /** Builds options.target into its output directory and checks it. */
 export async function build(options: BuildOptions): Promise<void> {
   const { extensionDir, repoRoot, target, run } = options;
   const goMod = readFileSync(path.join(repoRoot, "go.mod"), "utf8");
   const toolchain = goToolchain(goMod);
   const modulePath = goModulePath(goMod);
-  // GOFLAGS is cleared so flags from the environment (another -ldflags, -tags)
-  // cannot change what is built.
   const goEnv = (extra: NodeJS.ProcessEnv): NodeJS.ProcessEnv => ({
     ...options.env,
     GOTOOLCHAIN: toolchain,
-    GOFLAGS: "",
     ...extra,
   });
+  const goSettings = readGoSettings(run, repoRoot, goEnv({}));
+  // GOFLAGS, from the environment or from go env -w, would add flags (another
+  // -ldflags, -tags) to every command; an empty variable does not clear a go
+  // env -w value, so the build refuses any GOFLAGS instead.
+  if (goSettings.flags !== "") {
+    throw new BuildError(
+      `GOFLAGS is "${goSettings.flags}"; the extension build runs only without it (unset it, or go env -u GOFLAGS)`,
+    );
+  }
+  if (goSettings.version !== toolchain) {
+    throw new BuildError(
+      `go runs ${goSettings.version}, not go.mod's ${toolchain}; check that GOTOOLCHAIN can select it`,
+    );
+  }
   const mainPackage = `./${wasmMainPackage(target.kind)}`;
 
   const ldflags: string[] = [];
   if (target.kind === "dev") {
     ldflags.push("-ldflags", scenarioLdflags(target.scenario));
-    // Empty GOOS and GOARCH select the host, so this runs natively even when
-    // the environment sets them.
+    // The host's GOOS and GOARCH, set explicitly: an empty variable would fall
+    // back to a go env -w value.
     mustSucceed(
       "checking the scenario",
       run("go", ["run", ...ldflags, mainPackage], {
         cwd: repoRoot,
-        env: goEnv({ GOOS: "", GOARCH: "" }),
+        env: goEnv({ GOOS: goSettings.hostOS, GOARCH: goSettings.hostArch }),
       }),
     );
   }
@@ -234,11 +289,12 @@ export async function build(options: BuildOptions): Promise<void> {
       { cwd: repoRoot, env: goEnv({ GOOS: "js", GOARCH: "wasm" }) },
     ),
   );
-  const goroot = mustSucceed(
-    "go env GOROOT",
-    run("go", ["env", "GOROOT"], { cwd: repoRoot, env: goEnv({}) }),
-  ).stdout.trim();
-  const toolchainWasmExec = path.join(goroot, "lib", "wasm", wasmExecFileName);
+  const toolchainWasmExec = path.join(
+    goSettings.root,
+    "lib",
+    "wasm",
+    wasmExecFileName,
+  );
   cpSync(toolchainWasmExec, path.join(out, wasmExecFileName));
 
   const violations = await options.check(extensionDir, {
@@ -365,6 +421,11 @@ async function readBuildInfoInNode(
     encoding: "utf8",
     timeout: buildInfoTimeoutMs,
   });
+  if (result.error !== undefined) {
+    throw new Error(
+      `read-build-info did not finish within ${buildInfoTimeoutMs} ms or could not start: ${String(result.error)}`,
+    );
+  }
   if (result.status !== 0) {
     throw new Error(
       `read-build-info exited with ${String(result.status)}: ${result.stderr.trim()}`,

@@ -140,7 +140,7 @@ make ext-build-dev FAKE_ARTICLE=long FAKE_FAILURE=timeout FAKE_FAIL_AT=shorten
 | `FAKE_DELAY` | LLM の呼び出し 1 回ごとの遅れ（秒） | `0` から `600` までの 10 進の整数 | `0` |
 | `FAKE_SETTINGS_CHECK` | オプションページの設定の検査（`checkSettings`）の結果 | `ok`・`key_rejected`・`unverified` | `ok` |
 
-組み合わせの規則は、[開発用のコマンド](#開発用のコマンドで記事の生成を再現する)の `-llm=fake` と同じである。`FAKE_DELAY` は、`05` のように先頭が `0` の 2 桁以上の数を受理しない。`FAKE_FAILURE` と `FAKE_FAIL_AT` は、どちらも `none` か、どちらも `none` でないかの組で与える。`FAKE_FAIL_AT=shorten` は `FAKE_ARTICLE=long` のときだけ受理する。受理しない値では、ビルドは `extension/dist-dev/` に触れる前に、受理する値の案内を出して失敗する。前のビルドの `extension/dist-dev/` はそのまま残る。
+組み合わせの規則は、[開発用のコマンド](#開発用のコマンドで記事の生成を再現する)の `-llm=fake` と同じである。`FAKE_DELAY` は、`05` のように先頭が `0` の 2 桁以上の数を受理しない。`FAKE_FAILURE` と `FAKE_FAIL_AT` は、どちらも `none` か、どちらも `none` でないかの組で与える。`FAKE_FAIL_AT=shorten` は `FAKE_ARTICLE=long` のときだけ受理する。受理しない値では、ビルドは `extension/dist-dev/` に触れる前に、理由を出して失敗する。前のビルドの `extension/dist-dev/` はそのまま残る。
 
 開発用のビルドは、次の点で公開用のビルドと見分けられる。
 
@@ -150,7 +150,7 @@ make ext-build-dev FAKE_ARTICLE=long FAKE_FAILURE=timeout FAKE_FAIL_AT=shorten
 
 どちらのビルドも、最後に成果物を検査する。成果物が `tsc` の出力、`static/` の写し、記事生成モジュール、`wasm_exec.js` だけであること、記事生成モジュールを Node.js で読み込んで呼んだ `buildInfo` の main のパッケージと Go の版と LLM の実装（開発用のビルドでは、ビルドに与えたシナリオ）が期待どおりであることを確かめ、合わなければビルドを失敗させる。
 
-**Go のツールチェーン。** どちらのビルドも、記事生成モジュールを `go.mod` の `go` の行の版の Go で（`GOTOOLCHAIN` を与えて）ビルドし、そのツールチェーンの `wasm_exec.js` を成果物に写す。手元の Go がその版でないときは、初めのビルドが、その版のツールチェーンをダウンロードする（ネットワークを使う）。
+**Go のツールチェーン。** どちらのビルドも、記事生成モジュールを `go.mod` の `go` の行の版の Go で（`GOTOOLCHAIN` を与えて）ビルドし、そのツールチェーンの `wasm_exec.js` を成果物に写す。手元の Go がその版でないときは、初めのビルドが、その版のツールチェーンをダウンロードする（ネットワークを使う）。`GOFLAGS` が設定されているとき（`go env -w` の設定を含む）は、ビルドするものを変えうるので、ビルドは何もせずに失敗する。
 
 **画面ではまだ使えない。** 今の拡張は、まだ localhost サーバとホストで記事を作る。開発用のビルドは拡張の ID が違うので、ホストの manifest の `allowed_origins` に入らず、ホストにつながらない。開発用のビルドを画面で確かめられるのは、拡張が記事生成モジュールで記事を作るように切り替えた後である（[#773](https://github.com/isseis/yt2column/issues/773)）。それまでは、ビルドと成果物の検査が通ることだけを確かめる。
 

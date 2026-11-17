@@ -303,6 +303,35 @@ function manifestViolations(
   }
 }
 
+/**
+ * Reports each static/ file whose copy in the output differs from it. The
+ * manifest and the build kind module are checked by their own rules, which
+ * let a development build change them.
+ */
+function staticCopyViolations(
+  root: string,
+  out: string,
+  actual: Set<string>,
+): string[] {
+  const violations: string[] = [];
+  for (const file of listFiles(path.join(root, "static"))) {
+    if (
+      file === "manifest.json" ||
+      file === buildKindFileName ||
+      !actual.has(file)
+    ) {
+      continue;
+    }
+    const source = readFileSync(path.join(root, "static", file));
+    if (!source.equals(readFileSync(path.join(out, file)))) {
+      violations.push(
+        `${path.basename(out)}/${file}: differs from static/${file}`,
+      );
+    }
+  }
+  return violations;
+}
+
 /** Reports the build kind module when it does not declare kind. */
 function buildKindViolations(
   out: string,
@@ -464,6 +493,7 @@ export async function checkDist(
   violations.push(...moduleViolations(out, actual));
   violations.push(...manifestViolations(root, out, kind, actual, expected));
   violations.push(...buildKindViolations(out, kind, actual));
+  violations.push(...staticCopyViolations(root, out, actual));
   violations.push(
     ...wasmExecViolations(out, actual, expectation.toolchainWasmExec),
   );

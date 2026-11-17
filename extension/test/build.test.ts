@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { after, beforeEach, describe, it } from "node:test";
 
@@ -22,6 +23,7 @@ import {
 import type { BuildOptions, CommandResult, Runner } from "../scripts/build.ts";
 import { buildKindSource, devManifest } from "../scripts/build-variant.ts";
 import type { DistExpectation, ScenarioValues } from "../scripts/check-dist.ts";
+import { extensionDir as extensionRoot } from "./helpers/paths.ts";
 
 describe("goToolchain", () => {
   it("names the toolchain of go.mod's go line", () => {
@@ -190,19 +192,36 @@ describe("build", () => {
     }
   });
 
+  /** What the fake go env reports, before a test's changes. */
+  function goSettings(
+    changes: Record<string, string> = {},
+  ): Record<string, string> {
+    return {
+      GOFLAGS: "",
+      GOHOSTOS: "linux",
+      GOHOSTARCH: "riscv64",
+      GOROOT: goroot,
+      GOVERSION: "go1.26.5",
+      ...changes,
+    };
+  }
+
   /**
    * A runner that records each call and answers like the real commands: go
-   * run exits with runStatus, go env GOROOT prints the fake GOROOT, and the
-   * other commands succeed.
+   * run exits with runStatus, go env prints settings as JSON, and the other
+   * commands succeed.
    */
-  function fakeRunner(runStatus = 0): Runner {
+  function fakeRunner(
+    runStatus = 0,
+    settings: Record<string, string> = goSettings(),
+  ): Runner {
     return (command, args, options): CommandResult => {
       calls.push({ command, args, cwd: options.cwd, env: options.env });
       if (command === "go" && args[0] === "run") {
         return { status: runStatus, stdout: "", stderr: "not accepted" };
       }
       if (command === "go" && args[0] === "env") {
-        return { status: 0, stdout: `${goroot}\n`, stderr: "" };
+        return { status: 0, stdout: JSON.stringify(settings), stderr: "" };
       }
       return { status: 0, stdout: "", stderr: "" };
     };
@@ -217,7 +236,7 @@ describe("build", () => {
       repoRoot,
       target,
       // Values the build must override, so a test sees that it does.
-      env: { GOOS: "plan9", GOARCH: "386", GOFLAGS: "-ldflags=-X=x=y" },
+      env: { GOOS: "plan9", GOARCH: "386", GOTOOLCHAIN: "local" },
       run: fakeRunner(),
       check: (_root, expectation) => {
         checked.push(expectation);
@@ -243,7 +262,6 @@ describe("build", () => {
     assert.equal(goBuild?.cwd, repoRoot);
     assert.equal(goBuild?.env["GOOS"], "js");
     assert.equal(goBuild?.env["GOARCH"], "wasm");
-    assert.equal(goBuild?.env["GOFLAGS"], "");
     // No scenario check for release.
     assert.equal(
       goCalls().some((call) => call.args[0] === "run"),
@@ -253,7 +271,10 @@ describe("build", () => {
 
   it("gives every go command go.mod's toolchain", async () => {
     await build(options({ kind: "dev", scenario }));
-    assert.equal(goCalls().length, 3);
+    assert.deepEqual(
+      goCalls().map((call) => call.args[0]),
+      ["env", "run", "build"],
+    );
     for (const call of goCalls()) {
       assert.equal(call.env["GOTOOLCHAIN"], "go1.26.5", call.args.join(" "));
     }
@@ -273,7 +294,7 @@ describe("build", () => {
 
   it("checks the scenario natively before building, and passes -ldflags once with five -X", async () => {
     await build(options({ kind: "dev", scenario }));
-    const [first, ...rest] = calls;
+    const [, first, ...rest] = calls;
     assert.equal(first?.command, "go");
     assert.deepEqual(first?.args, [
       "run",
@@ -281,8 +302,9 @@ describe("build", () => {
       scenarioLdflags(scenario),
       "./cmd/yt2column-wasm-dev",
     ]);
-    assert.equal(first?.env["GOOS"], "");
-    assert.equal(first?.env["GOARCH"], "");
+    // The host go env reports, not an empty value that go env -w could fill.
+    assert.equal(first?.env["GOOS"], "linux");
+    assert.equal(first?.env["GOARCH"], "riscv64");
     const goBuild = rest.find(
       (call) => call.command === "go" && call.args[0] === "build",
     );
@@ -308,7 +330,11 @@ describe("build", () => {
         error instanceof BuildError && /not accepted/.test(error.message),
     );
     assert.ok(existsSync(marker), "dist-dev/ was touched");
-    assert.equal(calls.length, 1, "ran more than the scenario check");
+    assert.deepEqual(
+      calls.map((call) => call.args[0]),
+      ["env", "run"],
+      "ran more than go env and the scenario check",
+    );
     assert.equal(checked.length, 0);
   });
 
@@ -394,4 +420,45 @@ describe("build", () => {
     );
     assert.equal(checked.length, 0);
   });
+  // go env -w values reach every go command even when the environment
+  // variable is empty, so the build refuses them before anything else.
+  const refusedSettings: { name: string; changes: Record<string, string> }[] = [
+    { name: "GOFLAGS", changes: { GOFLAGS: "-tags=test" } },
+    { name: "another Go version", changes: { GOVERSION: "go1.27.1" } },
+  ];
+  for (const { name, changes } of refusedSettings) {
+    it(`stops on ${name} before touching the output`, async () => {
+      const marker = path.join(extensionDir, "dist", "previous.js");
+      mkdirSync(path.dirname(marker), { recursive: true });
+      writeFileSync(marker, "");
+      await assert.rejects(
+        build(
+          options(
+            { kind: "release" },
+            { run: fakeRunner(0, goSettings(changes)) },
+          ),
+        ),
+        BuildError,
+      );
+      assert.ok(existsSync(marker));
+      assert.deepEqual(
+        calls.map((call) => call.args[0]),
+        ["env"],
+      );
+    });
+  }
+});
+
+describe("the build command", () => {
+  const script = path.join(extensionRoot, "scripts", "build.ts");
+  // Arguments it rejects before it reads go.mod or runs anything.
+  for (const argv of [[], ["release", "--delay", "1"], ["dev"]]) {
+    it(`exits 1 for ${JSON.stringify(argv)}`, () => {
+      const result = spawnSync(process.execPath, [script, ...argv], {
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 1, result.stderr);
+      assert.match(result.stderr, /^build: /);
+    });
+  }
 });

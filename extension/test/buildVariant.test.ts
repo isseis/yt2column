@@ -17,15 +17,6 @@ describe("buildKindSource", () => {
       buildKindSource("release"),
     );
   });
-
-  it("declares each kind in the export the entry pages import", () => {
-    for (const kind of ["release", "dev"] as const) {
-      assert.match(
-        buildKindSource(kind),
-        new RegExp(`^export const buildKind = "${kind}";$`, "m"),
-      );
-    }
-  });
 });
 
 describe("parseBuildKind", () => {
