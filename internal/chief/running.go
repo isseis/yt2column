@@ -109,8 +109,8 @@ const (
 	// RunningUnknownPartialLine is a transcript that still ends inside a line
 	// after its re-reads.
 	RunningUnknownPartialLine
-	// RunningUnknownNotTaskCommand is a session whose last human input is
-	// none of the five task commands, or no input at all.
+	// RunningUnknownNotTaskCommand is a session in which the human typed
+	// none of the five task commands.
 	RunningUnknownNotTaskCommand
 	// RunningUnknownNoSentCommand is an OpenCode pane whose last send from
 	// chief is not a command recorded as sent.
@@ -121,11 +121,12 @@ const (
 	RunningUnknownPanesDisagree
 )
 
-// RunningShown is what a running row shows: the command, and the model of
-// chief's send record when the conditions of the design (3.5) hold, ""
-// otherwise.
+// RunningShown is what a running row shows: the command, whether the human
+// typed something after it (Later), and the model of chief's send record
+// when the conditions of the design (3.5) hold, "" otherwise.
 type RunningShown struct {
 	Command RunningCommand
+	Later   bool
 	Model   string
 }
 
@@ -172,8 +173,10 @@ func (r WorkspaceRecords) lastSentCommand(pane string) (lastCommand, error) {
 type paneRunning struct {
 	cmd     RunningCommand
 	dropped bool
-	why     RunningUnknown
-	sent    lastCommand
+	// later is true when the human typed something after cmd.
+	later bool
+	why   RunningUnknown
+	sent  lastCommand
 }
 
 // runningOfPane decides the running command of one working pane, by its
@@ -214,8 +217,8 @@ func runningOfPane(ctx context.Context, deps Deps, a Agent, sends func(pane stri
 		case err != nil:
 			return paneRunning{why: RunningUnknownUnreadable}
 		}
-		cmd, dropped, why := readRunningCommand(data)
-		return paneRunning{cmd: cmd, dropped: dropped, why: why, sent: sent}
+		cmd, dropped, later, why := readRunningCommand(data)
+		return paneRunning{cmd: cmd, dropped: dropped, later: later, why: why, sent: sent}
 	case paneinput.AgentOpenCode:
 		switch {
 		case sentErr != nil:
@@ -234,9 +237,11 @@ func runningOfPane(ctx context.Context, deps Deps, a Agent, sends func(pane stri
 // working pane decides one and all of them name the same command, with no
 // argument dropped on any pane when there are two or more; otherwise
 // nothing is shown, with the reason of the first undecided pane, or
-// RunningUnknownPanesDisagree. The model of chief's send record is shown
-// only for exactly one working pane whose last command sent is the command
-// shown, the argument whole on both.
+// RunningUnknownPanesDisagree. Later is true when the human typed something
+// after the command on any of the panes. The model of chief's send record
+// is shown only for exactly one working pane whose last command sent is the
+// command shown, the argument whole on both, and with nothing typed after
+// it, since a later input can switch the model.
 func runningOf(ctx context.Context, deps Deps, agents []Agent, sends func(pane string) (lastCommand, error)) (*RunningShown, RunningUnknown) {
 	var panes []paneRunning
 	for _, a := range agents {
@@ -264,7 +269,10 @@ func runningOf(ctx context.Context, deps Deps, agents []Agent, sends func(pane s
 		}
 	}
 	shown := &RunningShown{Command: first.cmd}
-	if len(panes) == 1 && first.sent.ok && !first.dropped && !first.sent.dropped && first.sent.cmd == first.cmd {
+	for _, p := range panes {
+		shown.Later = shown.Later || p.later
+	}
+	if len(panes) == 1 && !first.later && first.sent.ok && !first.dropped && !first.sent.dropped && first.sent.cmd == first.cmd {
 		shown.Model = first.sent.model
 	}
 	return shown, RunningUnknownNone

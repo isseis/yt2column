@@ -40,7 +40,6 @@ type RowOutput struct {
 	// Running is null when no command is decided.
 	Running *RunningOutput `json:"running"`
 	// RunningUnknown is why a running row shows no command, "" otherwise.
-	// It is for diagnosis; /chief does not show it in the table.
 	RunningUnknown string `json:"running_unknown"`
 	// Idle is true for a row left over or not yet used. It is for
 	// diagnosis; /chief does not show it in the table.
@@ -263,7 +262,9 @@ type RunningOutput struct {
 	// Command is the command line, such as "/runplan 0093", or the name
 	// alone, such as "/runpr", when it had no argument of the accepted form.
 	Command string `json:"command"`
-	Model   string `json:"model"`
+	// LaterInput is true when the human typed something after the command.
+	LaterInput bool   `json:"later_input"`
+	Model      string `json:"model"`
 }
 
 // StopOutput is a workspace's stop: why, what its pane showed, and when.
@@ -289,7 +290,7 @@ func runningOutput(r *RunningShown) *RunningOutput {
 	if r == nil {
 		return nil
 	}
-	return &RunningOutput{Command: r.Command.Text(), Model: Sanitize(r.Model)}
+	return &RunningOutput{Command: r.Command.Text(), LaterInput: r.Later, Model: Sanitize(r.Model)}
 }
 
 func positionOutput(p Position) PositionOutput {
@@ -404,18 +405,19 @@ func runningUnknownName(u RunningUnknown) string {
 }
 
 // OutputValueNames returns, for each row item /chief's definition maps to
-// its display ("state", "urgency", "turn", "position.document", and
-// "position.progress"), every name the output can give it but unknown. Each
+// its display ("urgency", "position.document", "position.progress", and
+// "running_unknown"), every name the output can give it but unknown and
+// running_unknown's "". Each
 // list is built from the name function the output uses, walking the values
 // from zero up to the first that names unknown, so it cannot drift from
 // the output.
 func OutputValueNames() map[string][]string {
 	return map[string][]string{
-		"state":             namesUpToUnknown(WorkspaceState.String),
 		"urgency":           namesUpToUnknown(urgencyName),
-		"turn":              namesUpToUnknown(turnName),
 		"position.document": namesUpToUnknown(positionDocumentName),
 		"position.progress": namesUpToUnknown(progressName),
+		// The first value, RunningUnknownNone, is named "" and shows nothing.
+		"running_unknown": namesUpToUnknown(runningUnknownName)[1:],
 	}
 }
 

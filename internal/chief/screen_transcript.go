@@ -172,23 +172,34 @@ const queuedCommand = "queued_command"
 // human line is HumanInputOther.
 func readLastHumanInput(transcript []byte) HumanInput {
 	result := HumanInput{Kind: HumanInputNone}
+	if !scanHumanInputs(transcript, func(in HumanInput) { result = in }) {
+		return HumanInput{}
+	}
+	return result
+}
+
+// scanHumanInputs calls visit with each line of the transcript the human
+// typed, in order, by the rule readLastHumanInput states, and reports
+// whether every line could be read; a caller must not use what it visited
+// when it reports false.
+func scanHumanInputs(transcript []byte, visit func(HumanInput)) bool {
 	for line := range bytes.SplitSeq(transcript, []byte("\n")) {
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
 		object, err := strictjson.ParseObject(line)
 		if err != nil {
-			return HumanInput{}
+			return false
 		}
 		in, human, ok := humanInputOf(object)
 		if !ok {
-			return HumanInput{}
+			return false
 		}
 		if human {
-			result = in
+			visit(in)
 		}
 	}
-	return result
+	return true
 }
 
 // humanOriginOf reads an origin object: human is true for the human's kind;
@@ -288,30 +299,47 @@ func humanInputOf(object strictjson.Object) (in HumanInput, human, ok bool) {
 // readRunningCommand reads the task command the human last typed into a
 // session, for display. Contract: a transcript that does not end at a line's
 // end is RunningUnknownPartialLine, never read without its last line; the
-// last human input is the one readLastHumanInput reads, unchanged, so a
-// transcript it cannot read is RunningUnknownUnreadable; only a command whose
-// name is one of the five task commands' is a running command, and any other
-// last input, or none, is RunningUnknownNotTaskCommand; the argument is kept
-// only when it validates for the kind, and dropped reports one that did not.
-func readRunningCommand(transcript []byte) (cmd RunningCommand, dropped bool, why RunningUnknown) {
+// human inputs are the ones readLastHumanInput reads, so a transcript it
+// cannot read is RunningUnknownUnreadable; only a command whose name is one
+// of the five task commands' is a running command, and the last such
+// command is the one read; later is true when the human typed anything after
+// it, whose text is never read; a session with no such command is
+// RunningUnknownNotTaskCommand; the argument is kept only when it validates
+// for the kind, and dropped reports one that did not.
+func readRunningCommand(transcript []byte) (cmd RunningCommand, dropped, later bool, why RunningUnknown) {
 	if len(transcript) > 0 && transcript[len(transcript)-1] != '\n' {
-		return RunningCommand{}, false, RunningUnknownPartialLine
+		return RunningCommand{}, false, false, RunningUnknownPartialLine
 	}
-	in := readLastHumanInput(transcript)
-	switch in.Kind {
-	case HumanInputUnreadable:
-		return RunningCommand{}, false, RunningUnknownUnreadable
-	case HumanInputCommand:
-	default:
-		return RunningCommand{}, false, RunningUnknownNotTaskCommand
+	found := false
+	readable := scanHumanInputs(transcript, func(in HumanInput) {
+		if c, d, ok := taskCommandOf(in); ok {
+			cmd, dropped, later, found = c, d, false, true
+			return
+		}
+		later = found
+	})
+	switch {
+	case !readable:
+		return RunningCommand{}, false, false, RunningUnknownUnreadable
+	case !found:
+		return RunningCommand{}, false, false, RunningUnknownNotTaskCommand
+	}
+	return cmd, dropped, later, RunningUnknownNone
+}
+
+// taskCommandOf returns the running command of a human input that is one of
+// the five task commands; ok is false for any other input.
+func taskCommandOf(in HumanInput) (cmd RunningCommand, dropped, ok bool) {
+	if in.Kind != HumanInputCommand {
+		return RunningCommand{}, false, false
 	}
 	kind, err := paneinput.ParseCommandKind(in.Name)
 	if err != nil {
-		return RunningCommand{}, false, RunningUnknownNotTaskCommand
+		return RunningCommand{}, false, false
 	}
 	cmd, dropped, err = newRunningCommand(kind, in.Args)
 	if err != nil {
-		return RunningCommand{}, false, RunningUnknownNotTaskCommand
+		return RunningCommand{}, false, false
 	}
-	return cmd, dropped, RunningUnknownNone
+	return cmd, dropped, true
 }

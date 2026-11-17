@@ -869,24 +869,25 @@ func TestReadLastHumanInputOfRunningSessions(t *testing.T) {
 }
 
 // TestReadRunningCommand reads the running command of every transcript
-// sample and of transcripts built from the sampled line forms: only the last
-// human input that is one of the five task commands is a command, with its
-// argument kept only when it validates; a transcript that ends inside a line
-// is never read without that line, and one readLastHumanInput cannot read
-// decides nothing.
+// sample and of transcripts built from the sampled line forms: the last
+// human input that is one of the five task commands is the command, with its
+// argument kept only when it validates, and later says the human typed
+// something after it; a transcript that ends inside a line is never read
+// without that line, and one readLastHumanInput cannot read decides nothing.
 func TestReadRunningCommand(t *testing.T) {
 	type result struct {
 		text    string
 		dropped bool
+		later   bool
 		why     RunningUnknown
 	}
 	notTask := result{why: RunningUnknownNotTaskCommand}
 	samples := map[string]result{
 		"claude-auto-continuation.jsonl":    notTask,
 		"claude-clear-model.jsonl":          notTask,
-		"claude-command-report.jsonl":       notTask,
+		"claude-command-report.jsonl":       {text: "/mkplan 0095", later: true},
 		"claude-compact.jsonl":              notTask,
-		"claude-human-input.jsonl":          notTask,
+		"claude-human-input.jsonl":          {text: "/runplan 0088", later: true},
 		"claude-queued-input.jsonl":         notTask,
 		"claude-recap-notification.jsonl":   notTask,
 		"claude-running-after-answer.jsonl": {text: "/runplan 0093"},
@@ -904,8 +905,8 @@ func TestReadRunningCommand(t *testing.T) {
 			t.Errorf("%s: no expected result", f)
 			continue
 		}
-		cmd, dropped, why := readRunningCommand(readTestdata(t, "transcript/"+filepath.Base(f)))
-		if got := (result{cmd.Text(), dropped, why}); got != want {
+		cmd, dropped, later, why := readRunningCommand(readTestdata(t, "transcript/"+filepath.Base(f)))
+		if got := (result{cmd.Text(), dropped, later, why}); got != want {
 			t.Errorf("%s: readRunningCommand = %+v, want %+v", filepath.Base(f), got, want)
 		}
 	}
@@ -924,7 +925,11 @@ func TestReadRunningCommand(t *testing.T) {
 		{"/runpr", lines(commandLine("/runpr 926")), result{text: "/runpr 926"}},
 		{"a command of another name", lines(commandLine("/fixpr 926")), notTask},
 		{"a command named after a routing row", lines(commandLine("/runplan-takeover 0093")), notTask},
-		{"free text after a command", lines(commandLine("/runplan 0093"), typedLine("/runpr 926")), notTask},
+		{"free text after a command", lines(commandLine("/runplan 0093"), typedLine("/runpr 926")), result{text: "/runplan 0093", later: true}},
+		{"another command after a command", lines(commandLine("/runplan 0093"), commandLine("/fixpr 926")), result{text: "/runplan 0093", later: true}},
+		{"a command after free text", lines(typedLine("hello"), commandLine("/runplan 0093")), result{text: "/runplan 0093"}},
+		{"a command after an earlier command and free text", lines(commandLine("/mkplan 0093"), typedLine("hello"), commandLine("/runplan 0093")), result{text: "/runplan 0093"}},
+		{"free text only", lines(typedLine("/runpr 926")), notTask},
 		{"no human input", lines(), notTask},
 		{"an empty transcript", "", notTask},
 		{"a line that is not JSON", lines(commandLine("/runplan 0093"), `{"type":`), result{why: RunningUnknownUnreadable}},
@@ -936,8 +941,8 @@ func TestReadRunningCommand(t *testing.T) {
 		{"a command typed without an argument", lines(strings.Replace(commandLine("/runpr"), `\n<command-args></command-args>`, "", 1)), notTask},
 	}
 	for _, c := range cases {
-		cmd, dropped, why := readRunningCommand([]byte(c.text))
-		if got := (result{cmd.Text(), dropped, why}); got != c.want {
+		cmd, dropped, later, why := readRunningCommand([]byte(c.text))
+		if got := (result{cmd.Text(), dropped, later, why}); got != c.want {
 			t.Errorf("%s: readRunningCommand = %+v, want %+v", c.name, got, c.want)
 		}
 	}

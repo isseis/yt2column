@@ -44,6 +44,10 @@
 10. **セッションの記録の origin の `kind` に `auto-continuation` を足し、人でない kind として受け付ける（2026-11-17、人が選んだ）。** ステップ 1-1 で、決定 5 の前提「どの行も採取した種類の origin を持つ」を元の記録で確かめたところ、この計算機の 612 ファイルのうち 12 ファイルに `kind` が `auto-continuation` の行があった（使用量の上限が解けた後の続行の入力）。ほかの前提（すべての行が改行で終わる 612 ファイル中 612、すべての行が JSON として読める）は成り立った。決定 5 のとおり止まって人と決め直し、設計書 1.2.1 のとおり、`screen_transcript.go` の人でない kind の一覧（`otherOrigins`）に足し、PR-1 のステップ 1-1 に含める。ADR: なし（設計書 1.2.1 と同じ）。
 11. **人が引数なしで打ったコマンドは、実行中のコマンドとして示されない既知の制限とする（2026-11-17、人が選んだ）。** PR のレビューで、人が引数なしで打ったコマンド（`/runpr` など）の記録は `<command-args>` の要素を持たず、今の `readLastHumanInput` が「そのほかの人の入力」と読むことが分かった（5 つのコマンドの人の入力 599 件のうち 53 件）。受け付ける形は広げず、設計書 3.5 の「残る制限」に足し、PR-3 の手引き（ステップ 3-9）に書く。ADR: なし（表示だけの制限のため）。
 
+### 1.3.1. 実装の際に決めたこと（2026-11-17）
+
+-   **ステップ 3-12 の最初の実地の確かめを受けて、状況の表の形と実行中のコマンドの示し方を変えるステップ 3-13 を PR-3 に足し、その後に実地の確かめをやり直す。** 8 つの列の表が pane の幅に収まらず縦に並び、また後から自由な文で指示を足したセッションで、何を実行しているかが示されなかったためである。決定と理由は要件書の「実装の際に決めたこと（2026-11-17）」にある。`Protocol` は、この PR で上げた値のままとする（設計書 1.2.1）。人が選んだ（2026-11-17）。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する（要件書の同じ項）。
+
 ### 1.4. 既存コード調査結果
 
 | 領域 | 今あるもの | 変えること |
@@ -159,12 +163,13 @@
 -   [x] **ステップ 3-10**: `package_reference.md` の `internal/chief` と `internal/chief/paneinput` の行に、このタスクで exported にした名前を足す。
 -   [ ] **ステップ 3-11**: PR の説明に、人がマージの直前に行う 2 つの項目を書く。0092 の確かめ（§1.3 の決定 6）と、`origin/main` の `Protocol` がこの PR の値と同じなら 1 つ上げること（§1.3 の決定 1）である。`main` はマージで取り込み、rebase しない（0099 の規則。rebase すると、同じ値への書き換えが履歴から消えるため）。上げるときは、人が `/runpr` かこの PR のセッションに、`Protocol` と `/chief` の定義と手引きの番号を直すコミットを頼む。今の `Protocol` のガードテストが、番号の変え残しを見つける。
 -   [ ] **ステップ 3-12**: 実地の確かめを、人と行う（§1.3 の決定 3）。動いている `/chief` を人が止め、chief の worktree をこの PR のブランチの先頭（detached）にして `make install-chief` を行い、`/chief` と `/chief once` を起動し直す。設計書 7.3 の 5 つの項目を見る。`working` の Claude Code の pane が数個あり、記録が数十 MB ある状態で、1 周の時間を測る。結果と確かめたコミットを §7 の「PR-3 の実行の記録」に書く。その後に `internal/chief` か `.claude/commands/chief.md` を変えるコミットを足したときは、確かめ直す。マージの後、人が chief の worktree を `main` に戻し、`main` から入れ直す。
+-   [x] **ステップ 3-13**: ステップ 3-12 の最初の実地の確かめを受けた決定の変更（要件書・設計書の「実装の際に決めたこと（2026-11-17）」）を実装する。`readRunningCommand` は人が最後に打ったタスクのコマンドと、その後の人の入力の有無を返し、`RunningShown.Later` と出力の `running.later_input` に通す。後の入力があればモデルを示さない。`OutputValueNames` を表に示す `urgency`・`position.document`・`position.progress`・`running_unknown` にする。`/chief` の定義の表を 6 つの列（急・名前・タスク・文書・状態・内容）にし、印を「🔴 今」「🟡 後」「🟢 待」に、`running_unknown` を内容の列に示す。手引きの 3.1 と 8 章、ADR-0046、CLAUDE.md の chief の画面の読み取りの例外の範囲の文を合わせる。その後、ステップ 3-12 の実地の確かめをやり直す。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。AC-19 のスクリプトの結果と実地の確かめの結果が §7 にある。
 
 ### PR-3 作成ポイント: wiring, output, protocol, chief command, and guide
 
-**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 3-11 / 3-12
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 3-11 / 3-12 / 3-13
 
 **推奨タイトル**: `feat(0093): chief の状況の表に急ぎの度合い・番・進行の位置を示し、急ぎの度合いの順に並べる`
 
@@ -199,7 +204,7 @@
 |---|---|---|---|---|
 | PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 | サンプル、型、文書の段、急ぎの度合いの対応表、文書の規則、進み具合 | sonnet+opus-review | auto |
 | PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 | コマンドの種類の名前、送信の記録の欄、読み直し、記録の入口、実行中のコマンドの決定 | opus | auto |
-| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 3-11 / 3-12 | 配線、出力、`Protocol`、`/chief` の定義、手引き、文書のガード、AC-19 のスクリプト、実地の確かめ | opus | auto |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 3-11 / 3-12 / 3-13 | 配線、出力、`Protocol`、`/chief` の定義、手引き、文書のガード、AC-19 のスクリプト、実地の確かめ | opus | auto |
 
 どの PR も、前の PR のマージと次の `/runplan` の起動の間に、`/runplan` の外の作業を置かない。PR-1 のサンプルの採取と PR-3 の実地の確かめは、`/runplan` のセッションの中で行う。そのため、自動送信はすべて `auto` とする。
 
@@ -236,7 +241,7 @@
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
-- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 3-11 / 3-12）
+- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8 / 3-9 / 3-10 / 3-11 / 3-12 / 3-13）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -249,22 +254,22 @@
 | AC-03 | `ic/position_test.go::TestUrgencyTable`（停止あり・読めない）、`ic/autosend_test.go::TestAutoSendFailureAfterInput`・`ic/autosend_test.go::TestResetChecksAgain`（その周から「すぐ」） | test | 1-6・3-3 | PR-1、PR-3 |
 | AC-04 | `ic/position_test.go::TestUrgencyTable`（「要確認」は `Idle` のほか「あとで」、`Unreadable` の中身によらない） | test | 1-6 | PR-1 |
 | AC-05 | 0092 が先に入ったとき: `ic/position_test.go::TestUrgencyTable` と `ic/snapshot_test.go::TestRowOrderRules` に削除の提案の行を足す。0092 が後のとき: 0092 が確かめる（決定 9）。どちらだったかを §7 の実行の記録に書く。PR-3 のマージの時点でどちらも確かめていなければ、人に示す | test | 1-2・3-1 | PR-1、PR-3 |
-| AC-06 | `ic/position_test.go::TestUrgencyTable`（番） | test | 1-6 | PR-1 |
+| AC-06 | `ic/position_test.go::TestUrgencyTable`（番）、定義が `turn` を示さないこと | test、manual | 1-6・3-13 | PR-1、PR-3 |
 | AC-07 | `ic/position_test.go::TestDocumentRule`、`ic/position_test.go::TestClassifyKeepsPositionFacts`、`ic/snapshot_test.go::TestNextCommandRules`（理由まで確かめる形に強めて通る） | test | 1-3・1-5・1-6 | PR-1 |
 | AC-08 | `ic/position_test.go::TestDocumentRule`（状態が「要確認」で文書が読める、文書が「要確認」で状態が変わらない） | test | 1-6 | PR-1 |
 | AC-09 | `ic/position_test.go::TestProgress` | test | 1-6 | PR-1 |
 | AC-10 | `ic/autosend_test.go::TestAutoSendAfterMerge`（送ったコマンドとモデル、進み具合が「作成中」） | test | 3-3・3-4 | PR-3 |
-| AC-11 | `ic/running_test.go::TestRunningCommandPerPane`、`ic/screen_test.go::TestReadRunningCommand`、`ic/screen_test.go::TestReadLastHumanInputOfRunningSessions`（新しいサンプル）、`ic/snapshot_test.go::TestRunningRowShowsTheLastSend`（記録のない workspace の Claude Code の pane） | test | 1-1・2-4・2-5・3-2 | PR-1、PR-2、PR-3 |
+| AC-11 | `ic/running_test.go::TestRunningCommandPerPane`、`ic/screen_test.go::TestReadRunningCommand`、`ic/screen_test.go::TestReadLastHumanInputOfRunningSessions`（新しいサンプル）、`ic/snapshot_test.go::TestRunningRowShowsTheLastSend`（記録のない workspace の Claude Code の pane）、`ic/running_test.go::TestRunningLater`（後の入力） | test | 1-1・2-4・2-5・3-2・3-13 | PR-1、PR-2、PR-3 |
 | AC-12 | `ic/running_test.go::TestRunningCommandPanes` | test | 2-5 | PR-2 |
 | AC-13 | `ic/running_test.go::TestNewRunningCommand`、`ic/screen_test.go::TestReadRunningCommand`（検証できない引数）、`ic/snapshot_test.go::TestRunningOutputHasNoRawText` | test | 1-4・2-4・3-5 | PR-1、PR-2、PR-3 |
-| AC-14 | `ic/running_test.go::TestRunningModel`、`ic/snapshot_test.go::TestRunningRowShowsTheLastSend`（書き直したもの）、定義の「次」の列 | test、manual | 2-5・3-2・3-6 | PR-2、PR-3 |
+| AC-14 | `ic/running_test.go::TestRunningModel`、`ic/snapshot_test.go::TestRunningRowShowsTheLastSend`（書き直したもの）、`ic/output_test.go::TestRunningOutputLaterInput`、`cc/docs_test.go::TestDisplayValuesMatchTool`（`running_unknown` の値の集合）、定義の「内容」の列 | test、static、manual | 2-5・3-2・3-6・3-13 | PR-2、PR-3 |
 | AC-15 | `ic/snapshot_test.go::TestStoppedRowsOrderFirst`、`ic/snapshot_test.go::TestRowOrderRules` | test | 3-4 | PR-3 |
 | AC-16 | `ic/snapshot_test.go::TestStoppedRowsOrderFirst`（「すぐ」の中の状態の順）、`ic/snapshot_test.go::TestTakeSnapshotOrder`（変えずに通る） | test | 3-4 | PR-3 |
 | AC-17 | `ic/snapshot_test.go::TestPendingOrderIgnoresUrgency`（行は入れ替わり、人の判断を待つものの順は変わらない）、`ic/snapshot_test.go::TestRowOrderRules`・`TestTakeSnapshotOrder`（変えずに通る） | test | 3-4 | PR-3 |
-| AC-18 | `ic/snapshot_test.go::TestSnapshotRowOutput`（質問ごとの `merge` が残り、`merge_question` がない）、定義の「次」の列、実地の確かめ | test、manual | 3-5・3-6・3-12 | PR-3 |
+| AC-18 | `ic/snapshot_test.go::TestSnapshotRowOutput`（質問ごとの `merge` が残り、`merge_question` がない）、定義の「内容」の列、実地の確かめ | test、manual | 3-5・3-6・3-12 | PR-3 |
 | AC-19 | `docs/tasks/0093_chief_status_sheet/_checks/` の「Under the table」の比較のスクリプト（merge-base と PR のコミットの `.claude/commands/chief.md`）。結果は「PR-3 の実行の記録」。設計書の付録 B の「PR のレビュー」より強い確かめにした | diff | 3-8 | PR-3 |
 | AC-20 | `ic/snapshot_test.go::TestSnapshotRowOutput`、`ic/autosend_test.go::TestTickOutputRows`（`tick` の出力） | test | 3-5 | PR-3 |
-| AC-21 | `cc/docs_test.go::TestDisplayValuesMatchTool`、`ic/output_test.go::TestOutputValueNames`、定義の「道具の順と値のまま示す」の文 | static、test、manual | 3-5・3-6・3-7 | PR-3 |
+| AC-21 | `cc/docs_test.go::TestDisplayValuesMatchTool`、`ic/output_test.go::TestOutputValueNames`、定義の 6 つの列と「道具の順と値のまま示す」の文、実地の確かめ | static、test、manual | 3-5・3-6・3-7・3-12・3-13 | PR-3 |
 | AC-22 | 定義の「2. One round」が引数のない場合と `once` で共通であること、実地の確かめ | manual | 3-6・3-12 | PR-3 |
 
 ### PR-1 の実行の記録
@@ -319,3 +324,4 @@ PASS: only the per-row question list was removed; the other 2 items stay in orde
 - 2026-11-17 承認（isseis、#926）
 - 2026-11-17 セッション中の再承認：セッションの記録の origin の `kind` に `auto-continuation` を人でない kind として足す（isseis、#944）
 - 2026-11-17 セッション中の再承認：人が引数なしで打ったコマンドを、実行中のコマンドとして示されない既知の制限とする（isseis、#944）
+- 2026-11-17 セッション中の再承認：実地の確かめを受けて、状況の表を 6 つの列にし、印を「🔴 今」「🟡 後」「🟢 待」にし、実行中のコマンドに「（後に指示あり）」と決まらない理由を示すステップ 3-13 を足した（isseis、#未記入）

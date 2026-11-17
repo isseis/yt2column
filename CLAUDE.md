@@ -495,9 +495,10 @@ for the packages that exist today. The server's startup is documented in the
   input line, OpenCode's model line and its screen after `/new`, the NEXT of a
   `/runpr` report, the last report on a pane (the last message of either
   agent) and the PR numbers it names, the report of the command that created
-  a PR, and the transcript's record of a model switch and of the human's
-  last command (a line is the human's only by the origin Claude Code
-  declares on it, never by its text); the chief session's summary of that report is in scope too. Every other file of the tool chooses behavior only
+  a PR, and the transcript's record of a model switch, of the human's
+  last command, and of the human's last task command with whether the
+  human typed anything after it, never what (a line is the human's only by
+  the origin Claude Code declares on it, never by its text); the chief session's summary of that report is in scope too. Every other file of the tool chooses behavior only
   by the types the screen readers return. Reason: the screens are drawn by
   Claude Code and OpenCode and the transcript is written by Claude Code,
   external values the tool cannot express in a type, and OpenCode's question

@@ -8,7 +8,7 @@ argument-hint: "[once]"
 You are the chief session: you show the human where each task workspace in
 Herdr stands, ask about what waits on the human, and pass the human's choices
 to the `chief` tool. The tool decides everything else: the state of each
-workspace, its urgency, turn, and position, the order of the rows, the next
+workspace, its urgency and position, the order of the rows, the next
 command, the agent and model it goes to, the pane, the automatic send after a
 merge, and every input typed into another pane. You
 never decide any of these yourself, and you never type into another pane.
@@ -123,38 +123,29 @@ no other round numbers at once. Then show, in this order:
    `reasons` and no sent action, say that the command after the merge was not
    sent and why: it is offered as a proposal instead.
 2. **The table**: a Markdown table with one line per row of `rows`, in the
-   tool's order. Never reorder the rows. Show each row's urgency, turn, and
-   position as the tool gave them (`urgency`, `turn`, `position`), mapped
-   by the value table below; never decide them yourself from the state or
-   anything else (0093 requirements AC-21). The columns, in this order:
+   tool's order. Never reorder the rows. Show each row's urgency and
+   position as the tool gave them (`urgency`, `position`), mapped by the
+   value table below; never decide them yourself from the state or anything
+   else (0093 requirements AC-21). Keep each line short, so the table fits
+   a pane half the screen wide: Claude Code draws a table wider than its
+   pane as a list of fields instead. The columns, in this order:
 
    | Column | Content |
    |---|---|
-   | 急ぎ | `urgency` |
+   | 急 | `urgency` |
    | 名前 | `label` |
-   | タスク | `task`, or なし when empty |
-   | 状態 | `state` |
-   | 番 | `turn` |
+   | タスク | `task`, or - when empty |
    | 文書 | `position.document` |
-   | 進み具合 | `position.progress` |
-   | 次 | what is next (below) |
+   | 状態 | `position.progress` |
+   | 内容 | what the row holds (below) |
 
    Each value is shown as this table says:
 
    | Item | Value | Shown as |
    |---|---|---|
-   | `state` | `needs_check` | 要確認 |
-   | `state` | `question` | 質問で停止 |
-   | `state` | `running` | 実行中 |
-   | `state` | `awaiting_review` | レビュー待ち |
-   | `state` | `propose_next` | 次を提案 |
-   | `state` | `task_done` | タスク完了 |
-   | `urgency` | `now` | 🔴 すぐ |
-   | `urgency` | `later` | 🟡 あとで |
-   | `urgency` | `wait` | 🟢 待つ |
-   | `turn` | `human` | 人 |
-   | `turn` | `ai` | AI |
-   | `turn` | `none` | なし |
+   | `urgency` | `now` | 🔴 今 |
+   | `urgency` | `later` | 🟡 後 |
+   | `urgency` | `wait` | 🟢 待 |
    | `position.document` | `needs_check` | 要確認 |
    | `position.document` | `no_task` | - |
    | `position.document` | `requirements` | 要件定義書 |
@@ -163,7 +154,7 @@ no other round numbers at once. Then show, in this order:
    | `position.document` | `plan_pr` | PR-N, with N the `position.plan_pr` |
    | `position.document` | `none` | なし |
    | `position.progress` | `needs_check` | 要確認 |
-   | `position.progress` | `awaiting_creation` | 作成待ち |
+   | `position.progress` | `awaiting_creation` | 次を提案 |
    | `position.progress` | `creating` | 作成中 |
    | `position.progress` | `runpr_running` | `/runpr` 実行中 |
    | `position.progress` | `running` | 実行中 |
@@ -171,26 +162,40 @@ no other round numbers at once. Then show, in this order:
    | `position.progress` | `question` | 質問で停止 |
    | `position.progress` | `awaiting_review` | レビュー待ち |
    | `position.progress` | `task_done` | タスク完了 |
+   | `running_unknown` | `no_session` | セッション不明 |
+   | `running_unknown` | `unsupported_path` | 記録の場所が不明 |
+   | `running_unknown` | `unreadable` | 記録を読めない |
+   | `running_unknown` | `over_cap` | 記録が大きすぎる |
+   | `running_unknown` | `partial_line` | 記録の書き込み中 |
+   | `running_unknown` | `not_task_command` | タスクのコマンドではない |
+   | `running_unknown` | `no_sent_command` | 人が打ったコマンド（OpenCode） |
+   | `running_unknown` | `panes_disagree` | pane ごとに異なる |
 
    Show a value this table does not have as it is written, followed by
-   （定義にない値）, and never guess what it means. What is next is:
-   - for 要確認, `unreadable` (what could not be read);
-   - for 質問で停止, for each of its `questions`, the question's gist and its
+   （定義にない値）, and never guess what it means. The 内容 column holds
+   one thing, chosen by `state`:
+   - `needs_check`: `unreadable` (what could not be read);
+   - `question`: for each of its `questions`, the question's gist and its
      pane, adding マージの確認 to a question whose `merge` is true. Never
      write that a question is not a merge confirmation;
-   - for 実行中, the `running` command, and its model when `model` is not
-     empty, when `running` is set; nothing when it is null;
-   - for レビュー待ち, the PR's number and title;
-   - for 次を提案, `next` (command, agent, model), or its `problem` when it
-     is not `sendable` (a `/mkreq` is not sendable until the human names the
-     issue); and `takeover` when it is set;
-   - when `stopped` is set, that sends to the workspace are stopped, with
-     its `reason` and `at`; when its `unreadable` is true, that sends are
-     stopped and that the stop record could not be read.
+   - `running`: the `running` command, followed by （後に指示あり） when its
+     `later_input` is true and by its model in parentheses when `model` is
+     not empty; when `running` is null, `running_unknown` as the value
+     table shows it;
+   - `awaiting_review`: the PR's number and title;
+   - `propose_next`: `next` (command, and its model in parentheses), or its
+     `problem` when it is not `sendable` (a `/mkreq` is not sendable until
+     the human names the issue);
+   - `task_done`: nothing.
 
-   Do not show `idle` or `running_unknown`: they are for looking into a row,
-   and the guide says how to read them.
+   Do not show `state`, `turn`, or `idle`: the 状態 column already says what
+   `state` and `turn` would, and `idle` is for looking into a row, as the
+   guide says.
 3. **Under the table:**
+   - for each row, by its 名前, what does not fit on its line: a `takeover`
+     that is set; and, when `stopped` is set, that sends to the workspace
+     are stopped, with its `reason` and `at`, or, when its `unreadable` is
+     true, that sends are stopped and the stop record could not be read;
    - each question of this session not answered yet (for example, whether to
      send again after the human switched an OpenCode pane's model), one per
      line; keep this list yourself across rounds;
