@@ -8,6 +8,7 @@ import type {
 import type { ViewerChannelMessage } from "../src/core/extensionMessages.ts";
 import { fakeChannels, fakeLocal, fakeSession } from "./helpers/chrome.ts";
 import { fakeClock, settle } from "./helpers/clock.ts";
+import { fakeWorkers } from "./helpers/worker.ts";
 
 // The ordering tests of the service worker and the viewer rely on these two
 // fakes behaving as the browser does, so their rules are pinned here.
@@ -254,5 +255,43 @@ describe("fake chrome.storage.session functions", () => {
     assert.deepEqual(received, []);
     assert.equal(session.items.size, 0);
     assert.deepEqual(session.calls, ["write", "read"]);
+  });
+});
+
+describe("fake Worker", () => {
+  it("records copies of what the page posts and counts terminations", () => {
+    const { create, created } = fakeWorkers();
+    const worker = create();
+    const message = { callId: 1, fn: "prepare", request: "r" };
+    worker.postMessage(message);
+    message.request = "changed";
+    worker.terminate();
+    assert.deepEqual(created[0]?.posted, [
+      { callId: 1, fn: "prepare", request: "r" },
+    ]);
+    assert.equal(created[0]?.terminations, 1);
+  });
+
+  it("delivers a copy to the message listeners, even after terminate", () => {
+    const { create, created } = fakeWorkers();
+    const worker = create();
+    const received: unknown[] = [];
+    worker.addEventListener("message", (event) => received.push(event.data));
+    worker.terminate();
+    const data = { callId: 1, kind: "exit" };
+    created[0]?.send(data);
+    assert.deepEqual(received, [data]);
+    assert.notEqual(received[0], data);
+  });
+
+  it("fires the error listeners on fail", () => {
+    const { create, created } = fakeWorkers();
+    const worker = create();
+    let errors = 0;
+    worker.addEventListener("error", () => {
+      errors += 1;
+    });
+    created[0]?.fail();
+    assert.equal(errors, 1);
   });
 });

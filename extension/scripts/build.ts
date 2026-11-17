@@ -241,20 +241,25 @@ export async function build(options: BuildOptions): Promise<void> {
   const outName = outputDir(target.kind);
   const out = path.join(extensionDir, outName);
   rmSync(out, { recursive: true, force: true });
-  mustSucceed(
-    "tsc",
-    run(
-      process.execPath,
-      [
-        path.join(extensionDir, "node_modules", "typescript", "bin", "tsc"),
-        "-p",
-        "tsconfig.build.json",
-        "--outDir",
-        outName,
-      ],
-      { cwd: extensionDir, env: options.env },
-    ),
-  );
+  // The pages and the service worker compile with the DOM types; the
+  // article generation module's Worker compiles separately with the Worker's
+  // types, so neither can use the other's globals unnoticed.
+  for (const config of ["tsconfig.build.json", "tsconfig.worker.json"]) {
+    mustSucceed(
+      `tsc -p ${config}`,
+      run(
+        process.execPath,
+        [
+          path.join(extensionDir, "node_modules", "typescript", "bin", "tsc"),
+          "-p",
+          config,
+          "--outDir",
+          outName,
+        ],
+        { cwd: extensionDir, env: options.env },
+      ),
+    );
+  }
   // A static file whose path collides with a compiled file fails the build
   // instead of overwriting it.
   cpSync(path.join(extensionDir, "static"), out, {

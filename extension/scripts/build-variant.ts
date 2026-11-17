@@ -3,11 +3,15 @@
 // the build kind module. The build (scripts/build.ts) writes these and the
 // output check (scripts/check-dist.ts) expects them, from this one place.
 import type { BuildKind } from "../src/buildKind.d.ts";
+import { wasmModuleFile } from "../src/core/workerCalls.ts";
 
 export type { BuildKind };
 
-/** The article generation module's file name in the output directory. */
-export const wasmFileName = "yt2column.wasm";
+/**
+ * The article generation module's file name in the output directory: the one
+ * the Worker fetches (src/core/workerCalls.ts).
+ */
+export const wasmFileName = wasmModuleFile;
 
 /** The Go toolchain's JavaScript support file, copied next to the module. */
 export const wasmExecFileName = "wasm_exec.js";
