@@ -4,8 +4,8 @@ Access-Control-Expose-Headers: ETag, Link, Location, Retry-After, X-GitHub-OTP, 
 Cache-Control: private, max-age=60, s-maxage=60
 Content-Security-Policy: default-src 'none'
 Content-Type: application/json; charset=utf-8
-Date: Tue, 17 Nov 2026 12:00:39 GMT
-Etag: W/"c435cab21b775a9eb76a327c3abe997b47264cd16a1a2dd3ff48c05fcddac2a2"
+Date: Tue, 17 Nov 2026 12:43:52 GMT
+Etag: W/"070d9f45b2c4ec64a28725283d49cd0545fd82f0c87750880f5548ad7e495162"
 Last-Modified: Thu, 12 Nov 2026 12:48:51 GMT
 Referrer-Policy: origin-when-cross-origin, strict-origin-when-cross-origin
 Server: github.com
@@ -15,16 +15,13 @@ X-Accepted-Oauth-Scopes: repo
 X-Content-Type-Options: nosniff
 X-Frame-Options: deny
 X-Github-Api-Version-Selected: 2022-11-28
-X-Github-Edge-Region: japaneast
 X-Github-Media-Type: github.v3; format=json
-X-Github-Request-Id: DD04:3E278D:4F72C:801AF:6AFC41E6
-X-Oauth-Client-Id: 178c6fc778ccc68e1d6a
-X-Oauth-Scopes: gist, read:org, repo, workflow
 X-Poll-Interval: 300
 X-Ratelimit-Limit: 5000
-X-Ratelimit-Remaining: 4964
+X-Ratelimit-Remaining: 4892
 X-Ratelimit-Reset: 1794919448
 X-Ratelimit-Resource: core
-X-Ratelimit-Used: 36
+X-Ratelimit-Used: 108
 X-Xss-Protection: 0
 
+{"ref":"refs/tags/numreserve-probe/20261117T124351Z-53774","node_id":"REF_kwDOUvQ2N9oAMXJlZnMvdGFncy9udW1yZXNlcnZlLXByb2JlLzIwMjYxMTE3VDEyNDM1MVotNTM3NzQ","url":"https://api.github.invalid/removed","object":{"sha":"424dc7dc47527e37ab65eaf3f3f76567d596fe45","type":"commit","url":"https://api.github.invalid/removed"}}

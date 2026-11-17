@@ -51,9 +51,9 @@ repos:
     # chief's herdr, gh, and git samples and numreserve's gh and git samples
     # keep the bytes the commands wrote.
     -   id: trailing-whitespace
-        exclude: ^(testdata/|internal/publisher/testdata/golden/|internal/chief/testdata/(screens|herdr|gh|git)/|internal/numreserve/testdata/)
+        exclude: ^(testdata/|internal/publisher/testdata/golden/|internal/chief/testdata/(screens|herdr|gh|git)/|internal/numreserve/testdata/(gh|git)/)
     -   id: end-of-file-fixer
-        exclude: ^(testdata/|internal/publisher/testdata/golden/|internal/chief/testdata/(screens|herdr|gh|git)/|internal/numreserve/testdata/)
+        exclude: ^(testdata/|internal/publisher/testdata/golden/|internal/chief/testdata/(screens|herdr|gh|git)/|internal/numreserve/testdata/(gh|git)/)
     -   id: check-yaml
     -   id: check-added-large-files
         exclude: ^testdata/

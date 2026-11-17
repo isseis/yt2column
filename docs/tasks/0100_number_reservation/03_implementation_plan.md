@@ -146,7 +146,7 @@
 **ステップ 2-4: cloud のセッションの到達性を確かめる（利用者が行う）**
 
 -   [x] `/runplan` が利用者に依頼する。利用者は cloud のセッション（claude.ai/code）で次を確かめ、結果を報告する：`gh` があり認証されているか、REST でこのリポジトリを読めるか、試しの tag を作って消せるか、`git ls-remote origin` が `refs/heads/` と `refs/tags/` を返すか、ステップ 2-2 の取得ができるか、`git` と `go` の版、`main` から `go install ./cmd/mergepr` で既存の道具を入れられるか（AC-22 の一部、申し送りの H-07。`numreserve` 自体はまだ `main` にないので、フェーズ 7 で入れる）
--   [x] `/runplan` が、利用者の報告を §7 に書く
+-   [x] `/runplan` が、利用者の報告を §7 に書く。tag の行、403 の原因、cloud のクローンにない SHA の取得は確かめられず、§7 に残りの確かめとして書いた（ステップ 7-1 で行う）
 
 **ステップ 2-5: 結果を判断する**
 
@@ -519,9 +519,9 @@ Diff record (AC-18):
 
 ### PR-2 の実地の確かめの記録
 
-**手元（ステップ 2-1〜2-3）。** 2026-11-17、macOS の手元の worktree で、gh 2.96.0、git 2.50.1（Apple Git-155、2.29 以上）を使った。`gh` は `GH_PROMPT_DISABLED=1`・`NO_COLOR=1` の環境で、`CLICOLOR_FORCE` と `GH_FORCE_TTY` を外し、`--hostname github.com -i` を付けて実行した。利用者の承認を得て行った。
+**手元（ステップ 2-1〜2-3）。** 2026-11-17、macOS の手元の worktree の根で、gh 2.96.0、git 2.50.1（Apple Git-155、2.29 以上）を使った。`gh` は `GH_PROMPT_DISABLED=1`・`NO_COLOR=1` の環境で、`CLICOLOR_FORCE` と `GH_FORCE_TTY` を外し、`--hostname github.com -i` を付けて実行した。どの回も利用者の承認を得て行った。試しの tag は 2 回作った（1 回目 `refs/tags/numreserve-probe/20261117T120033Z-18619`、2 回目 `refs/tags/numreserve-probe/20261117T124351Z-53774`）。どちらも確かめの後に `DELETE`（204）で消し、2 回目の後に `git ls-remote origin 'refs/tags/numreserve-probe/*'` が何も返さないことを確かめた。2 回目は、1 回目のレビューで確かめていないと指摘された点（tag の行、`--no-tags`、`GET` の本文の形）を確かめるために行った。
 
--   **ステップ 2-1（REST の前提）。** 試しの tag `refs/tags/numreserve-probe/20261117T120033Z-18619` について、次の結果を得た。
+-   **ステップ 2-1（REST の前提）。** 1 回目の試しの tag について、次の結果を得た。
 
     | 操作 | 状態行 | `gh` の終了コード |
     |---|---|---|
@@ -532,27 +532,30 @@ Diff record (AC-18):
     | `DELETE git/refs/tags/<名前>` | `HTTP/2.0 204 No Content` | 0 |
     | 消した後の `GET` | `HTTP/2.0 404 Not Found` | 1 |
 
-    すでにある ref の作成は、同じ SHA でも違う SHA でも 2xx にならなかった（設計書 7.3 の前提が成り立つ）。`GET` の応答の本文は JSON で、最上位の `ref` の値が問い合わせた名前と一致した（本文は `jq -r .ref` で比べただけで、記録しない）。`gh api -i` は、失敗したとき（422・404）も標準出力の先頭に状態行を出した。状態行の行末は LF、見出しの行と見出しの終わりの空行の行末は CRLF だった。rate limit の見出しは `X-Ratelimit-Remaining` の形で出た。試しの tag は消え、404 で確かめた。
--   **ステップ 2-2（SHA による取得）。** `git ls-remote origin 'refs/heads/*' 'refs/tags/*'` は終了コード 0 で 13 行（すべて `refs/heads/`、tag はなし）を返し、どの行も「40 桁の 16 進、タブ、ref の名前」だった。手元の worktree で、`main` でない `origin` のブランチの SHA を `git fetch --no-tags --no-write-fetch-head origin <SHA>` で取得し、終了コード 0 だった。取得の前後で `git for-each-ref` の出力は同じで、`FETCH_HEAD` のファイル（worktree ごとの `git rev-parse --git-path FETCH_HEAD`）の内容と更新時刻も変わらなかった。この SHA はすでに手元にあったので、オブジェクトのない状態でも確かめた：空のリポジトリ（`git init` に `origin` だけを加えたもの）で `main` の SHA を同じ引数で取得し、終了コード 0、`git for-each-ref` は前後とも空、`FETCH_HEAD` は作られず、ローカルの tag は 0 だった。その commit の `git ls-tree <SHA> docs/dev/adr/` は終了コード 0 で 52 行を返した。`docs/dev/adr/` のない古い commit（`4da5da2194a0`）の `git ls-tree` は、終了コード 0 で標準出力が空だった。テストの台本に書く取得の引数は `fetch --no-tags --no-write-fetch-head origin <SHA>` にする。
--   **ステップ 2-3（サンプル）。** 上の `gh api -i` の 6 つの出力（状態行と見出し。本文と `Location` の見出しを除く）と終了コード、`git ls-remote` と `git ls-tree` の出力を `internal/numreserve/testdata/` に置いた。採り方と除いたものは `internal/numreserve/testdata/README.md` にある。
+    すでにある ref の作成は、同じ SHA でも違う SHA でも 2xx にならなかった（設計書 7.3 の前提が成り立つ）。確かめたのは 1 つのセッションから続けて送った作成であり、同時に送った作成の排他は確かめていない（GitHub の ref の作成が排他であることは、設計書 1.1 の前提のままである）。`gh api -i` は、失敗したとき（422・404）も標準出力の先頭に状態行を出した。2 回目の `GET` の本文は 1 つの JSON のオブジェクトで、`ref` の値が問い合わせた名前と一致した（本文の形は `internal/numreserve/testdata/gh/get-200.txt`）。
+-   **ステップ 2-2（SHA による取得）。** `git ls-remote origin 'refs/heads/*' 'refs/tags/*'` は、1 回目（tag なし）は 13 行のすべてが `refs/heads/`、2 回目は試しの tag の 1 行（軽量の tag で、`^{}` の行はない）を含み、どちらもどの行も「40 桁の 16 進、タブ、ref の名前」だった。手元の worktree で、`main` でない `origin` のブランチの SHA を `git fetch --no-tags --no-write-fetch-head origin <SHA>` で取得し、終了コード 0 だった。取得の前後で `git for-each-ref` の出力は同じで、`FETCH_HEAD` のファイル（worktree ごとの `git rev-parse --git-path FETCH_HEAD`）の内容と更新時刻も変わらなかった。この SHA はすでに手元にあったので、オブジェクトのない状態でも確かめた：空のリポジトリ（`git init` に `origin` だけを加えたもの）で `main` の SHA を同じ引数で取得し、終了コード 0、`git for-each-ref` は前後とも空で、`FETCH_HEAD` は作られなかった。`--no-tags` の効果は 2 回目に、試しの tag が取得する `main` の commit を指している状態で、`remote.origin.tagOpt=--tags` の空のリポジトリ 2 つで比べた：`--no-tags` を付けるとローカルの tag は 0、付けないと 1 だった。テストの台本に書く取得の引数は `fetch --no-tags --no-write-fetch-head origin <SHA>` にする。
+-   **`git ls-tree` の呼び出しの形。** 指定のパスと出力のパスは今のディレクトリからの相対で、`docs/` で `git ls-tree <SHA> docs/dev/adr/` を実行すると、標準出力は空で終了コードは 0 だった。指定したディレクトリのない commit（`docs/dev/adr/` のない `4da5da2194a0`）でも、標準出力は空で終了コードは 0 である。道具は作業ツリーのどこででも動くので（設計書 3.1）、`git ls-tree --full-tree -z <SHA> -- <ディレクトリ>/` の形で呼ぶ（`--full-tree` で根からのパスに、`-z` でパスを引用しない形にする）。`origin/main` の `docs/tasks/` と `docs/dev/adr/` の一覧が空なら、読み違いと区別できないので `malformed` で止める（設計書 3.2.1 の受け入れない形に当たる）。ほかのブランチの `docs/dev/adr/` が空なのは、そのブランチに ADR がないことであり、止めない。
+-   **ステップ 2-3（サンプル）。** 上の `gh api -i` の出力（状態行と見出し、`GET` の 200 は本文も）と終了コード、`git ls-remote` の出力（2 回目）、`git ls-tree --full-tree -z` の出力（`docs/dev/adr/` と `docs/tasks/`）を `internal/numreserve/testdata/` に置いた。採り方、除いたもの、採っていない形（テストで作る形）は `internal/numreserve/testdata/README.md` にある。
 
 **cloud のセッション（ステップ 2-4）。** 2026-11-17、利用者が claude.ai/code の cloud のセッション（`isseis/yt2column` の `main`）で、`/runplan` が用意したスクリプト（手元の確かめと同じ環境の指定で、状態行・終了コード・版・件数だけを出すもの）を cloud の Claude に実行させ、その出力を報告した。
 
 | 確かめたこと | 結果 |
 |---|---|
 | 版 | git 2.43.0（2.29 以上）、go 1.26.5 linux/amd64（実行のときに toolchain を取得した）、gh 2.89.0 |
-| `gh auth status` | 終了コード 1（認証されていない） |
+| `gh auth status` | 終了コード 1 |
 | REST の読み取り（`GET repos/isseis/yt2column`） | `HTTP/1.1 200 OK`。状態行は `HTTP/1.1` の形だった（`head` で切ったので、`gh` の終了コードは SIGPIPE の 141 で、判断に使わない） |
-| `git ls-remote origin 'refs/heads/*' 'refs/tags/*'` | 終了コード 0、13 行（すべて `refs/heads/`）、どの行も「40 桁の 16 進、タブ、ref の名前」 |
+| `git ls-remote origin 'refs/heads/*' 'refs/tags/*'` | 終了コード 0、13 行（すべて `refs/heads/`。origin に tag がなかったので、tag の行は確かめていない）、どの行も「40 桁の 16 進、タブ、ref の名前」 |
 | 試しの tag の `POST`（1 回目・同じ名前の 2 回目）、`DELETE` | どれも `HTTP/1.1 403 Forbidden`（作れなかった） |
 | 試しの tag の `GET` | `HTTP/1.1 404 Not Found`（tag は残っていない） |
-| `git fetch --no-tags --no-write-fetch-head origin <SHA>` | 終了コード 0。`git for-each-ref` の出力と `FETCH_HEAD` は変わらなかった |
+| `git fetch --no-tags --no-write-fetch-head origin <SHA>` | 終了コード 0。`git for-each-ref` の出力と `FETCH_HEAD` は変わらなかった。取得した SHA（`main` でない最初のブランチ）が cloud のクローンにすでにあったかは記録していない |
 | `git ls-tree <main の SHA> docs/dev/adr/` | 52 行 |
 | `main` から `go install ./cmd/mergepr` | 終了コード 0 |
 
-cloud のセッションでは、`git` による読み取りと取得、道具のインストールはできるが、`gh` が認証されておらず、REST による ref の作成は 403 で拒まれた。このままでは、cloud のセッションで `numreserve` は記録の tag を作れず、`permission` で止まる（設計書 3.3.2）。403 が認証のないことによるのか、cloud の環境の制限によるのかは、この確かめでは分からない（見出しを出していない）。
+cloud のセッションでは、`git ls-remote`、道具のインストールはできた。`gh` は `gh auth status` が終了コード 1 で終わったが、`gh api` は状態行を返し、REST による ref の作成は 403 で拒まれた。設計書 3.3.2 は認証されていない `gh` を「終了コード 4、状態行なし」としているが、それとは違う振る舞いである。403 の原因（`gh` がどの資格で動いたか、書き込みの権限がないのか、rate limit か）は、見出しを出していないので分からない。したがって、このままでは cloud のセッションで `numreserve` は記録の tag を作れずに止まるが、`permission` と `network-or-github` のどちらで止まるかは分からない。SHA による取得が cloud で空振りでなかったかも分からない。
 
-**ステップ 2-5（判断）。** ステップ 2-1 で、すでにある ref の作成は同じ SHA でも違う SHA でも 2xx にならなかったので、REST の前提は成り立つ。ステップ 2-2 の取得と、手元・cloud の両方の `git ls-remote` の行の形は、設計書 3.2 の前提と一致した。cloud のセッションで `gh` が認証されず ref を作れないことは、止める理由にしない（ステップ 2-5）。制約として、フェーズ 5 の手引きとフェーズ 7 の ADR-0051 に書き、フェーズ 7 で確かめ直す。以上から、方式を続けてフェーズ 3 に進む。
+残っている確かめ（フェーズ 7 のステップ 7-1 で、cloud のセッションで `numreserve` を実行する前に行う）：`GH_TOKEN`・`GITHUB_TOKEN` が設定されているか（値は出さない）、`gh auth status` の標準エラー（トークンを伏せて）、`POST` の 403 の見出しのうち `X-Ratelimit-Remaining`・`Retry-After`・`X-Accepted-Oauth-Scopes`、`git ls-remote` の tag の行（記録の tag ができた後）、cloud のクローンにない SHA の取得。フェーズ 5 の手引きの cloud の制約は、ここまでに分かったこと（ref を作れなかったこと、原因は分からないこと）だけを書き、フェーズ 7 で確かめ直す。
+
+**ステップ 2-5（判断）。** ステップ 2-1 で、すでにある ref の作成は同じ SHA でも違う SHA でも 2xx にならなかったので、REST の前提は成り立つ。ステップ 2-2 の取得、`--no-tags`、手元の `git ls-remote` の行の形（ブランチと軽量の tag）は、設計書 3.2 の前提と一致した。`git ls-tree` は、設計書が前提にしていなかった今のディレクトリへの依存があるので、上の呼び出しの形で避ける（設計書 3.2 の読み方は変わらない）。cloud のセッションで ref を作れないことは、止める理由にしない（ステップ 2-5）。制約として、フェーズ 5 の手引きとフェーズ 7 の ADR-0051 に書き、フェーズ 7 で確かめ直す。以上から、方式を続けてフェーズ 3 に進む。
 
 ### 導入の確かめの記録
 

@@ -11,11 +11,7 @@ X-Accepted-Oauth-Scopes: repo
 X-Content-Type-Options: nosniff
 X-Frame-Options: deny
 X-Github-Api-Version-Selected: 2022-11-28
-X-Github-Edge-Region: japaneast
 X-Github-Media-Type: github.v3; format=json
-X-Github-Request-Id: DD06:317F82:357D3:576FE:6AFC41E7
-X-Oauth-Client-Id: 178c6fc778ccc68e1d6a
-X-Oauth-Scopes: gist, read:org, repo, workflow
 X-Ratelimit-Limit: 5000
 X-Ratelimit-Remaining: 4963
 X-Ratelimit-Reset: 1794919448
