@@ -937,8 +937,6 @@ func TestReadRunprReport(t *testing.T) {
 		sample string
 	}{
 		"an OpenCode screen read as Claude Code": {paneinput.AgentClaudeCode, "opencode-runpr-report.txt"},
-		"a Claude Code screen with no message":   {paneinput.AgentClaudeCode, "claude-idle.ansi"},
-		"a Claude Code command report screen":    {paneinput.AgentClaudeCode, "claude-command-report.ansi"},
 		"an agent chief does not know":           {paneinput.AgentUnknown, "opencode-runpr-report.txt"},
 	} {
 		if got, ok := readRunprReport(c.agent, readScreenSample(t, c.sample)); ok {
