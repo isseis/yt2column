@@ -210,8 +210,10 @@ func openCodeLastMessage(raw string) ([]string, bool) {
 type RunprReport struct {
 	Next RunprNext
 	// PRs are the numbers the report names as "#N" or as a PR URL's
-	// "/pull/N", read from each line and from the lines joined again, since a
-	// line break may be the terminal's wrap or the report's own.
+	// "/pull/N". From a screen they are read from each line and from the
+	// lines joined again, since a line break may be the terminal's wrap or
+	// the report's own; from a transcript, whose lines are never wrapped,
+	// from each line alone.
 	PRs []int
 }
 
