@@ -297,6 +297,8 @@ func TestRunningCommandPerPane(t *testing.T) {
 			}
 			return []Agent{rw.openCode("w1:p1")}
 		}, "", RunningUnknownUnreadable},
+		// The reason is what running_unknown will show for a caller's
+		// mistake; it must not read as a decided command.
 		{"no working pane", func(rw *runWorld) []Agent {
 			a := rw.claude("w1:p1", commandLine("/runplan 0093"))
 			a.Status = AgentIdle
@@ -418,8 +420,11 @@ func TestRunningCommandPanes(t *testing.T) {
 		{"both undecided, the first pane's reason", func(rw *runWorld) []Agent {
 			return []Agent{rw.claude("w1:p1", typedLine("hello")), rw.openCode("w1:p2")}
 		}, "", RunningUnknownNotTaskCommand},
-		{"an argument dropped on one pane", func(rw *runWorld) []Agent {
+		{"an argument dropped on the first pane", func(rw *runWorld) []Agent {
 			return []Agent{rw.claude("w1:p1", commandLine("/runpr main")), rw.claude("w1:p2", commandLine("/runpr"))}
+		}, "", RunningUnknownPanesDisagree},
+		{"an argument dropped on the second pane", func(rw *runWorld) []Agent {
+			return []Agent{rw.claude("w1:p1", commandLine("/runpr")), rw.claude("w1:p2", commandLine("/runpr main"))}
 		}, "", RunningUnknownPanesDisagree},
 		{"an argument dropped on both", func(rw *runWorld) []Agent {
 			return []Agent{rw.claude("w1:p1", commandLine("/runpr main")), rw.claude("w1:p2", commandLine("/runpr dev"))}

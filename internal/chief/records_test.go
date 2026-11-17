@@ -838,8 +838,8 @@ func TestSendEnded(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, id := range []string{other, "../stop", "", open + "x"} {
-		if end, err := held.sendEnded(id); err == nil {
-			t.Errorf("sendEnded(%q) = %+v; want an error", id, end)
+		if end, err := held.sendEnded(id); !errors.Is(err, errRecord) {
+			t.Errorf("sendEnded(%q) = %+v, %v; want errRecord", id, end, err)
 		}
 	}
 }

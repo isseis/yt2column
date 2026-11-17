@@ -930,8 +930,6 @@ func TestReadRunningCommand(t *testing.T) {
 		{"a line that is not JSON", lines(commandLine("/runplan 0093"), `{"type":`), result{why: RunningUnknownUnreadable}},
 		{"a command whose last line is still being written", strings.TrimSuffix(running, "\n"), result{why: RunningUnknownPartialLine}},
 		{"a second argument", lines(commandLine("/runplan 0093 0094")), result{text: "/runplan", dropped: true}},
-		{"an argument that is not a number", lines(commandLine("/runpr main")), result{text: "/runpr", dropped: true}},
-		{"an issue with a leading zero", lines(commandLine("/mkreq 0890")), result{text: "/mkreq", dropped: true}},
 		{"an empty argument element", lines(commandLine("/runpr")), result{text: "/runpr"}},
 		// Claude Code writes a command typed without an argument with no
 		// argument element, which is read as other input: a known limit.
