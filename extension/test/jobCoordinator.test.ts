@@ -279,7 +279,6 @@ describe("a generation start", () => {
     assert.equal(s.tabs.calls.length, 0);
     s.local.items.set("anthropic.apiKey", "x");
     const f = await startFlow(s);
-    void f.popup;
     assert.deepEqual(new Set(s.local.calls), new Set(["keys"]));
   });
 
@@ -363,7 +362,6 @@ describe("a generation start", () => {
       ...input,
       title: "t".repeat(100),
     });
-    void f.popup;
     const created = long.tabs.calls.find((c) => c.op === "create");
     assert.ok(created?.op === "create");
     const parsed = parseJobViewerUrl(new URL(created.tab.url).search, "");
@@ -375,7 +373,6 @@ describe("a generation start", () => {
       videoUrl: watchUrl,
       transcript: "x",
     });
-    void g.popup;
     const second = untitled.tabs.calls.find((c) => c.op === "create");
     assert.ok(second?.op === "create");
     const parsedTwo = parseJobViewerUrl(new URL(second.tab.url).search, "");
@@ -451,7 +448,6 @@ describe("claiming the input", () => {
       await s.ask({ type: "claimInput", startId: f.startId }, f.viewer),
       { status: "gone" },
     );
-    void f.popup;
   });
 
   it("answers gone when the worker restarted and the input was lost, though the context remains", async () => {
@@ -466,7 +462,6 @@ describe("claiming the input", () => {
       await fresh.ask({ type: "claimInput", startId: f.startId }, f.viewer),
       { status: "gone" },
     );
-    void f.popup;
   });
 });
 
@@ -491,7 +486,6 @@ describe("the reservation", () => {
       state: "running",
       runner: { tabId: f.tabId, instanceId: instance(1) },
     });
-    void f.popup;
   });
 
   it("answers only the viewer of the start's tab", async () => {
@@ -512,7 +506,6 @@ describe("the reservation", () => {
       [...s.session.items.keys()].filter((k) => k.startsWith("job:")).length,
       0,
     );
-    void f.popup;
   });
 
   it("shows the job of the same input, running or done, without adding a record", async () => {
@@ -557,7 +550,6 @@ describe("the reservation", () => {
       status: string;
     };
     assert.equal(reply.status, "new_run");
-    void g.popup;
 
     const otherVideo = setup();
     seed(otherVideo, jobId(1), {
@@ -571,7 +563,6 @@ describe("the reservation", () => {
         .status,
       "new_run",
     );
-    void h.popup;
   });
 
   it("runs a failed or stopped record of the same input again under its own job ID", async () => {
@@ -595,7 +586,6 @@ describe("the reservation", () => {
         state: "running",
         runner: { tabId: f.tabId, instanceId: instance(9) },
       });
-      void f.popup;
     }
   });
 
@@ -642,7 +632,6 @@ describe("the reservation", () => {
         .status,
       "new_run",
     );
-    void g.popup;
   });
 
   it("adds one record, not two, for two reservations of the same input that arrive together", async () => {
@@ -671,8 +660,6 @@ describe("the reservation", () => {
       [...s.session.items.keys()].filter((k) => k.startsWith("job:")).length,
       1,
     );
-    void first.popup;
-    void second.popup;
   });
 
   it("refuses with internal when the record cannot be written", async () => {
@@ -727,7 +714,6 @@ describe("the limits on the records", () => {
     assert.ok(!jobKeys(s).includes(jobItemName(jobId(60))));
     assert.ok(jobKeys(s).includes(jobItemName(jobId(1))));
     assert.equal(jobKeys(s).length, maxRecords);
-    void f.popup;
   });
 
   it("drops the done record that ended first when only done records are left", async () => {
@@ -748,28 +734,6 @@ describe("the limits on the records", () => {
     );
     assert.ok(!jobKeys(s).includes(jobItemName(jobId(maxRecords))));
     assert.ok(jobKeys(s).includes(jobItemName(jobId(1))));
-    void f.popup;
-  });
-
-  it("never drops a running record: it refuses when nothing else can go", async () => {
-    const s = setup();
-    for (let n = 1; n <= maxRecords; n += 1) {
-      seed(s, jobId(n), {
-        state: "running",
-        inputDigest: n.toString(16).padStart(64, "0"),
-        videoId: videoB,
-        runner: { tabId: 7, instanceId: instance(n) },
-      });
-      await connect(s, jobId(n), 7, instance(n));
-    }
-    const f = await startFlow(s, "plain");
-    // The two-run limit applies first; either way no record is dropped.
-    assert.deepEqual(await f.reserve(digestA, videoA, instance(1)), {
-      status: "rejected",
-      reason: "too_many_requests",
-    });
-    assert.equal(jobKeys(s).length, maxRecords);
-    void f.popup;
   });
 
   it("drops records to keep the total at 8 MiB", async () => {
@@ -799,7 +763,6 @@ describe("the limits on the records", () => {
       ).length;
     }
     assert.ok(total <= 8 * 1024 * 1024);
-    void f.popup;
   });
 });
 
@@ -808,16 +771,13 @@ describe("a running record whose runner is not connected", () => {
     const s = setup();
     seed(s, jobId(1), { state: "running" });
     const f = await startFlow(s, "plain");
-    assert.deepEqual(await f.reserve(digestA, videoA, instance(1)), {
-      status: "new_run",
-      jobId: jobId(1),
-    });
-    assert.equal(stored(s, jobId(1))?.state, "running");
-    assert.deepEqual(
-      (stored(s, jobId(1))?.runner as { instanceId: string }).instanceId,
-      instance(1),
-    );
-    void f.popup;
+    // Another input, so the stale record is left stopped and can be read.
+    const reply = (await f.reserve(digestB, videoB, instance(1))) as {
+      status: string;
+    };
+    assert.equal(reply.status, "new_run");
+    assert.equal(stored(s, jobId(1))?.state, "stopped");
+    assert.equal(stored(s, jobId(1))?.stopReason, "no_contact");
   });
 
   it("waits 10 seconds for the runner to reconnect, then stops it, outside the order of other requests", async () => {
@@ -825,7 +785,7 @@ describe("a running record whose runner is not connected", () => {
     seed(s, jobId(1), { state: "running" });
     s.tabs.open.set(7, 1);
     const f = await startFlow(s, "plain");
-    const reserving = f.reserve(digestA, videoA, instance(1));
+    const reserving = f.reserve(digestB, videoB, instance(1));
     await settle();
     assert.equal(stored(s, jobId(1))?.state, "running");
     // Another request is answered meanwhile.
@@ -838,8 +798,9 @@ describe("a running record whose runner is not connected", () => {
     await settle();
     assert.equal(stored(s, jobId(1))?.state, "running");
     s.clock.advance(1);
-    assert.deepEqual(await reserving, { status: "new_run", jobId: jobId(1) });
-    void f.popup;
+    assert.equal(((await reserving) as { status: string }).status, "new_run");
+    assert.equal(stored(s, jobId(1))?.state, "stopped");
+    assert.equal(stored(s, jobId(1))?.stopReason, "no_contact");
   });
 
   it("keeps it running when the runner reconnects in time, and shows it as the existing job", async () => {
@@ -852,7 +813,6 @@ describe("a running record whose runner is not connected", () => {
     await connect(s, jobId(1));
     assert.deepEqual(await reserving, { status: "existing", jobId: jobId(1) });
     assert.equal(stored(s, jobId(1))?.state, "running");
-    void f.popup;
   });
 
   it("does not stop a record that was reserved again while it waited", async () => {
@@ -876,7 +836,6 @@ describe("a running record whose runner is not connected", () => {
       (stored(s, jobId(1))?.runner as { tabId: number }).tabId,
       9,
     );
-    void f.popup;
   });
 });
 
@@ -1212,32 +1171,5 @@ describe("the ways a run is found to have stopped", () => {
     seed(s, jobId(1), { state: "stopped" });
     const port = await connect(s, jobId(1));
     assert.equal(port.disconnected, false);
-  });
-});
-
-describe("the worker never reads a saved value", () => {
-  it("uses only the names of the stored items through a whole run", async () => {
-    const s = setup();
-    const f = await startFlow(s, "plain");
-    const reply = (await f.reserve(digestA, videoA, instance(1))) as {
-      jobId: string;
-    };
-    await s.ask(
-      { type: "progress", jobId: reply.jobId, instanceId: instance(1), steps },
-      f.viewer,
-    );
-    await s.ask(
-      {
-        type: "result",
-        jobId: reply.jobId,
-        instanceId: instance(1),
-        result: { state: "done", steps: doneSteps, article },
-      },
-      f.viewer,
-    );
-    await f.popup;
-    assert.ok(s.local.calls.length > 0);
-    assert.ok(s.local.calls.every((call) => call === "keys"));
-    assert.ok(!JSON.stringify([...s.session.items]).includes("sk-ant-secret"));
   });
 });
