@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `withdrawn` |
 | Created | 2026-11-17 |
 | Review date | 2026-11-17 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-11-17 取り下げ：Claude Code が答えを待っている質問の呼び出しを transcript に書かないことがあると分かったため（[03_implementation_plan.md](03_implementation_plan.md) §7「PR-1 の実行の記録」） |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。「計画で決める」は、本タスクの実装計画書（`03_implementation_plan.md`）で決めることを指す。既存のファイルの内容は、コミット `97ca1fc7` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
 
@@ -914,3 +914,4 @@ PR の区切りと各段のステップは計画で決める。
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#921）
+- 2026-11-17 withdrawn：Claude Code が答えを待っている質問の呼び出しを transcript に書かないことがあると分かったため（[03_implementation_plan.md](03_implementation_plan.md) §7「PR-1 の実行の記録」）（#962）
