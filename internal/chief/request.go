@@ -310,7 +310,7 @@ func (s sendContext) resetMaker(ctx context.Context, f workspaceFacts, runprPane
 	made, why := prMaker(f)
 	res, skip := s.resetAfterRunpr(ctx, runprPane, pr, rec, made, why, routing)
 	return s.offerSkip(ctx, res, skip, sceneAfterRunpr, func(a Agent) string {
-		if reason, detail := s.lastInputMadePR(a, made); reason != NotSentUnknown {
+		if reason, detail := s.paneLastInputMadePR(a, made); reason != NotSentUnknown {
 			return reason.String() + ": " + detail
 		}
 		return ""
@@ -373,18 +373,22 @@ func offeredRunpr(row Row, pr fixprguard.PRNumber) (paneinput.Command, string) {
 	return cmd, ""
 }
 
-// ensureDetail returns the detail kept for the PR at the worktree's HEAD,
-// gathering and keeping it first when none is kept. A detail that cannot be
-// kept gives nil, which keeps every pane from being reset.
+// ensureDetail returns the record kept for the PR at the worktree's HEAD
+// (the report record before the detail record), gathering and keeping a
+// detail first when none is kept. Contract: it never keeps a report record,
+// even when only a record of the description is kept: one kept just before
+// /runpr is sent would let the reset's check of an unchanged pane miss what
+// the human did in the pane before. A detail that cannot be kept gives nil,
+// which keeps every pane from being reset.
 func ensureDetail(ctx context.Context, deps Deps, git GitReader, ws TaskWorkspace, pr OpenPR, docsDir string, routing Routing) *detailRecord {
 	if head, err := git.Head(ctx, ws.Worktree); err == nil {
 		if records, err := deps.Store.Records(ws.Tree); err == nil {
-			if rec, ok, err := records.readDetail(pr.Number, head); err == nil && ok {
+			if rec, ok, err := records.keptPaneReport(pr.Number, head); err == nil && ok {
 				return &rec
 			}
 		}
 	}
-	return CollectDetail(ctx, deps, ws, pr, docsDir, routing, nil).record
+	return CollectDetail(ctx, deps, ws, pr, docsDir, routing, nil, ReportRecordNone).record
 }
 
 // DetailOutcome is what `chief detail` found: the PR's detail, or why there
@@ -420,7 +424,7 @@ func Detail(ctx context.Context, deps Deps, path string) (DetailOutcome, error) 
 		docsDir = docs.Dir
 	}
 	routing, routingErr := ReadRouting(ctx, deps.Cmds, loc.chiefTree.String())
-	d := CollectDetail(ctx, deps, loc.ws, prs[0], docsDir, routing, routingErr)
+	d := CollectDetail(ctx, deps, loc.ws, prs[0], docsDir, routing, routingErr, ReportRecordAllowed)
 	return DetailOutcome{Detail: &d}, nil
 }
 

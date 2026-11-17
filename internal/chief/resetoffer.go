@@ -191,7 +191,7 @@ func sendReset(ctx context.Context, deps Deps, owner Owner, loc *located, held *
 		var detail string
 		switch item.Scene {
 		case sceneAfterRunpr:
-			reason, detail = sc.lastInputMadePR(target, item.Command.maker())
+			reason, detail = sc.paneLastInputMadePR(target, item.Command.maker())
 		case sceneAfterAutoSend:
 			reason, detail = sc.lastInputRanRunpr(target)
 		default:
@@ -212,5 +212,5 @@ func sendReset(ctx context.Context, deps Deps, owner Owner, loc *located, held *
 		return NotSentUnknown, nil
 	}
 	seq := target.StateChangeSeq
-	return sc.run(ctx, res, target, []step{st}, paneCheck{session: target.Session, seq: &seq}, route)
+	return sc.run(ctx, res, target, []step{st}, paneCheck{session: target.Session, seq: &seq}, route, nil)
 }

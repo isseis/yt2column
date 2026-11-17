@@ -272,7 +272,7 @@ func (k ReportCheckKind) String() string {
 	case ReportCheckAgreed:
 		return "agreed"
 	case ReportCheckNoReport:
-		return "no_report"
+		return noReportName
 	case ReportCheckNoNext:
 		return "no_next"
 	default:
@@ -528,6 +528,16 @@ func (a *autoSender) reportsAgree(ctx context.Context, ws TaskWorkspace, facts a
 		}
 	}
 	return "", checks
+}
+
+// reportSource is where an OpenCode pane's report is read from: Herdr
+// serves only the visible rows of a blocked agent, and the recent scrollback
+// otherwise.
+func reportSource(a Agent) ScreenSource {
+	if a.Status == AgentBlocked {
+		return ScreenVisible
+	}
+	return ScreenRecent
 }
 
 // runprPaneReport reads the last report on the /runpr pane: from its
@@ -903,5 +913,5 @@ func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observa
 	// exclusion, before the command was sent: the report read now may be a
 	// new answer of the same shape.
 	seq := candidate.StateChangeSeq
-	return sc.run(ctx, res, agent, []step{st}, paneCheck{session: agent.Session, seq: &seq}, route), resetSkip{}
+	return sc.run(ctx, res, agent, []step{st}, paneCheck{session: agent.Session, seq: &seq}, route, nil), resetSkip{}
 }

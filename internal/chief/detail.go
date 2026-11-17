@@ -250,17 +250,18 @@ type ReportSource int
 const (
 	// ReportNone is no report and no description.
 	ReportNone ReportSource = iota
-	// ReportFromScreen is the command's report on a pane's screen.
-	ReportFromScreen
-	// ReportFromDescription is the PR description, used when no pane shows
-	// the report.
+	// ReportFromPane is the command's report read from a pane: from its
+	// session's transcript now, from its screen in a record kept before.
+	ReportFromPane
+	// ReportFromDescription is the PR description, used when no single pane
+	// has the report.
 	ReportFromDescription
 )
 
 // String names the source for the output and the records.
 func (r ReportSource) String() string {
 	switch r {
-	case ReportFromScreen:
+	case ReportFromPane:
 		return "report"
 	case ReportFromDescription:
 		return "description"
@@ -271,13 +272,103 @@ func (r ReportSource) String() string {
 
 // parseReportSource reads a source name a record holds.
 func parseReportSource(s string) (ReportSource, error) {
-	for _, r := range []ReportSource{ReportNone, ReportFromScreen, ReportFromDescription} {
+	for _, r := range []ReportSource{ReportNone, ReportFromPane, ReportFromDescription} {
 		if r.String() == s {
 			return r, nil
 		}
 	}
 	return ReportNone, fmt.Errorf("%w: report source %q", errRecord, s)
 }
+
+// DescriptionReason is why a PR detail read from the panes shows no pane's
+// report. The zero value is DescriptionReasonNone, nothing to show: a pane's
+// report is shown, or the panes were not read.
+type DescriptionReason int
+
+const (
+	// DescriptionReasonNone is no reason to show.
+	DescriptionReasonNone DescriptionReason = iota
+	// DescriptionReasonNoClaudePane is a workspace with no Claude Code pane.
+	DescriptionReasonNoClaudePane
+	// DescriptionReasonNoCandidate is a workspace none of whose Claude Code
+	// panes has a last report and a PR record naming the PR.
+	DescriptionReasonNoCandidate
+	// DescriptionReasonSeveralCandidates is a workspace with two or more such
+	// panes.
+	DescriptionReasonSeveralCandidates
+)
+
+// String names the reason for the output.
+func (r DescriptionReason) String() string {
+	switch r {
+	case DescriptionReasonNoClaudePane:
+		return "no_claude_pane"
+	case DescriptionReasonNoCandidate:
+		return "no_candidate"
+	case DescriptionReasonSeveralCandidates:
+		return "several_candidates"
+	default:
+		return unknownName
+	}
+}
+
+// PaneReportKind is what a PR detail found on one Claude Code pane. The zero
+// value is PaneReportUnknown, which no reading gives.
+type PaneReportKind int
+
+const (
+	// PaneReportUnknown is no finding.
+	PaneReportUnknown PaneReportKind = iota
+	// PaneReportUnreadable is a pane whose transcript cannot be read.
+	PaneReportUnreadable
+	// PaneReportAbsent is a pane with no last report.
+	PaneReportAbsent
+	// PaneReportNotNamed is a pane whose last report's session has no PR
+	// record naming the PR.
+	PaneReportNotNamed
+	// PaneReportCandidate is a pane whose last report's session has a PR
+	// record naming the PR.
+	PaneReportCandidate
+)
+
+// String names a finding for the output.
+func (k PaneReportKind) String() string {
+	switch k {
+	case PaneReportUnreadable:
+		return "unreadable"
+	case PaneReportAbsent:
+		return noReportName
+	case PaneReportNotNamed:
+		return "not_named"
+	case PaneReportCandidate:
+		return "candidate"
+	default:
+		return unknownName
+	}
+}
+
+// PaneReport is what a PR detail found on one Claude Code pane: Detail says
+// why a pane is unreadable or has no report, with its transcript's path.
+type PaneReport struct {
+	Pane   string
+	Kind   PaneReportKind
+	Detail string
+}
+
+// ReportRecording says whether gathering a PR detail may keep a report
+// record. The zero value is ReportRecordNone: only the human's look at the
+// detail (chief detail) may keep one, so that the reset's check of an
+// unchanged pane starts when the human saw the report, never just before
+// /runpr is sent.
+type ReportRecording int
+
+const (
+	// ReportRecordNone keeps no report record.
+	ReportRecordNone ReportRecording = iota
+	// ReportRecordAllowed keeps a report record when the panes are read
+	// again under a kept description and exactly one has the report.
+	ReportRecordAllowed
+)
 
 // detailRecord is a PR detail kept for one PR and head commit: the report or
 // the description it was read from, and, for a report, the pane and its
@@ -335,6 +426,12 @@ type PRDetail struct {
 	// ReportText is the report or the description, capped.
 	ReportText      string
 	ReportTruncated bool
+	// DescriptionReason is why no pane's report is shown, with what was
+	// found on each Claude Code pane in ReportPanes; both are unset when a
+	// pane's report is shown, and when a kept detail is used without the
+	// panes being read again.
+	DescriptionReason DescriptionReason
+	ReportPanes       []PaneReport
 	// ReviewSkippable is true when the PR changes only the task's plan and
 	// implementation handoff.
 	ReviewSkippable bool
@@ -346,13 +443,13 @@ type PRDetail struct {
 }
 
 // CollectDetail gathers the detail of the workspace's open PR pr and keeps
-// it. Contract: it runs only reads (gh pr view, gh pr checks, and the panes'
-// screens); a failed item is reported as unavailable and the others are
-// still returned; a detail already kept for the PR's head commit supplies
-// the report, so the report survives a pane that was emptied since; a new
-// detail is written once and never replaced.
-func CollectDetail(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, docsDir string, routing Routing, routingErr error) PRDetail {
-	herdr := NewHerdr(deps.Cmds)
+// it. Contract: it runs only reads (gh pr view, gh pr checks, and the Claude
+// Code panes' transcripts, never a screen); a failed item is reported as
+// unavailable and the others are still returned; a record already kept for
+// the PR's head commit supplies the report, so the report survives a pane
+// that was emptied since; a record is written once and never replaced, and
+// a report record is written only when recording is ReportRecordAllowed.
+func CollectDetail(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, docsDir string, routing Routing, routingErr error, recording ReportRecording) PRDetail {
 	d := PRDetail{Workspace: ws.Worktree, Label: ws.Label, PR: pr}
 	if task, ok := taskOfDir(docsDir); ok {
 		d.Task = task
@@ -366,7 +463,7 @@ func CollectDetail(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, 
 	out, err := deps.Cmds.gh(ctx, ws.Worktree, "pr", "view", number, "--json", prViewFields)
 	if err == nil {
 		var v prView
-		if v, err = parsePRView(out); err == nil && (v.Number != pr.Number || v.State != "OPEN" || v.URL != pr.URL) {
+		if v, err = parsePRView(out); err == nil && (v.Number != pr.Number || v.State != ghOpen || v.URL != pr.URL) {
 			err = fmt.Errorf("%w: gh pr view gave another or a closed PR", errGHOutput)
 		}
 		if err == nil {
@@ -383,12 +480,15 @@ func CollectDetail(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, 
 	if d.View != nil {
 		d.ReviewSkippable = reviewSkippable(*d.View, docsDir)
 	}
-	rec, err := keptReport(ctx, deps, herdr, ws, pr, d.View, d.ReviewSkippable)
+	rec, reading, err := keptReport(deps, ws, pr, d.View, d.ReviewSkippable, recording)
 	if err != nil {
 		d.RecordErr = err.Error()
 	}
 	src, _ := parseReportSource(rec.Source)
 	d.Report, d.ReportText, d.ReportTruncated = src, rec.Text, rec.Truncated
+	if src != ReportFromPane {
+		d.DescriptionReason, d.ReportPanes = reading.reason, reading.panes
+	}
 	if d.View != nil && err == nil {
 		d.record = &rec
 	}
@@ -410,67 +510,124 @@ func readChecks(ctx context.Context, cmds Commands, worktree, number string) ([]
 	return parsePRChecks(out)
 }
 
-// keptReport returns the report of the PR: the one kept for its head commit
-// when there is one, else the one read now from the panes (or the
-// description), which is then kept. Contract: a kept detail is never
-// replaced, so the report read before a pane was emptied wins over a later
-// reading of the emptied pane. skippable is the review-skippable judgment of
-// view, kept with the report.
-func keptReport(ctx context.Context, deps Deps, herdr Herdr, ws TaskWorkspace, pr OpenPR, view *prView, skippable bool) (detailRecord, error) {
-	rec := readReport(ctx, herdr, ws, pr, view, deps.Now())
-	rec.Skippable = skippable
+// reportReading is why a reading of the panes found no single pane's
+// report, and what it found on each Claude Code pane; it is empty when a
+// pane's report was found, or when the panes were not read.
+type reportReading struct {
+	reason DescriptionReason
+	panes  []PaneReport
+}
+
+// keptReport returns the report of the PR and why no pane's report stands,
+// keeping what it read. Contract: a kept record is never replaced, and of
+// the two kept for the head commit the report record goes before the detail
+// record (keptPaneReport), so a report read before a pane was emptied wins
+// over a later reading of the emptied pane. With no record kept, the panes
+// are read and the detail record is kept. With only a record whose source
+// is not a pane's report, the panes are read again when recording is
+// ReportRecordAllowed, and a report record is kept when exactly one pane has
+// the report; otherwise that record stands. skippable is the
+// review-skippable judgment of view, kept with the report.
+func keptReport(deps Deps, ws TaskWorkspace, pr OpenPR, view *prView, skippable bool, recording ReportRecording) (detailRecord, reportReading, error) {
+	read := func() (detailRecord, reportReading) {
+		rec, reading := readReport(deps.Env, ws, pr, view, deps.Now())
+		rec.Skippable = skippable
+		return rec, reading
+	}
 	if view == nil {
-		return rec, errNoHead
+		rec, reading := read()
+		return rec, reading, errNoHead
 	}
 	records, err := deps.Store.Records(ws.Tree)
 	if err != nil {
-		return rec, err
+		rec, reading := read()
+		return rec, reading, err
 	}
-	rec.Head = view.HeadOID
-	err = records.store().create(detailName(pr.Number, view.HeadOID), rec)
+	head := view.HeadOID
+	kept, ok, err := records.keptPaneReport(pr.Number, head)
+	switch {
+	case err != nil:
+		rec, reading := read()
+		return rec, reading, err
+	case ok && (kept.Source == ReportFromPane.String() || recording != ReportRecordAllowed):
+		return kept, reportReading{}, nil
+	case ok:
+		rec, reading := read()
+		if rec.Source != ReportFromPane.String() {
+			return kept, reading, nil
+		}
+		rec.Head = head
+		return keepRecord(records, reportName(pr.Number, head), rec, reading)
+	}
+	rec, reading := read()
+	rec.Head = head
+	return keepRecord(records, detailName(pr.Number, head), rec, reading)
+}
+
+// keepRecord writes rec under name, which must not exist. When another
+// process wrote it first, the record kept for the head commit is returned
+// instead, so a kept record is never replaced.
+func keepRecord(records WorkspaceRecords, name string, rec detailRecord, reading reportReading) (detailRecord, reportReading, error) {
+	err := records.store().create(name, rec)
 	if !errors.Is(err, privatefile.ErrExist) {
-		return rec, err
+		return rec, reading, err
 	}
-	kept, ok, err := records.readDetail(pr.Number, view.HeadOID)
+	kept, ok, err := records.keptPaneReport(rec.PR, rec.Head)
 	if err != nil || !ok {
-		return rec, errors.Join(errRecord, err)
+		return rec, reading, errors.Join(errRecord, err)
 	}
-	return kept, nil
+	return kept, reportReading{}, nil
 }
 
 // readReport reads the report of the command that created pr from the
-// workspace's panes. Exactly one pane must show it; with none, or with
-// several, the description stands in, and the source says so.
-func readReport(ctx context.Context, herdr Herdr, ws TaskWorkspace, pr OpenPR, view *prView, now time.Time) detailRecord {
+// transcripts of the workspace's Claude Code panes. Contract: a pane is a
+// candidate when its session has a last report and a PR record naming pr,
+// number and URL both; exactly one candidate's report is taken, capped from
+// its head, with the pane's state as ws.Agents gave it before the transcript
+// was read; with none, or with several, the description stands in, and the
+// reading says why. A pane whose transcript cannot be read counts as one
+// with no report, and no screen is read in its place.
+func readReport(env Env, ws TaskWorkspace, pr OpenPR, view *prView, now time.Time) (detailRecord, reportReading) {
 	rec := detailRecord{PR: pr.Number, Saved: now.UTC(), Source: ReportNone.String()}
+	var reading reportReading
 	var hits []detailRecord
 	for _, a := range ws.Agents {
-		raw, err := herdr.Screen(ctx, a.Pane, reportSource(a))
-		if err != nil {
+		if a.Kind != paneinput.AgentClaudeCode {
 			continue
 		}
-		if text, ok := readCommandReport(a.Kind, raw, pr.URL); ok {
-			capped := CapScreen(text)
-			hits = append(hits, detailRecord{Text: capped.Text, Truncated: capped.Truncated, Pane: a.Pane.String(), Seq: a.StateChangeSeq})
+		cr := readClaudeReport(env, a)
+		found := PaneReport{Pane: a.Pane.String(), Detail: cr.Detail}
+		switch cr.Report.Kind {
+		case SessionReportFound:
+			found.Kind = PaneReportNotNamed
+			if cr.Report.Names(pr.Number, pr.URL) {
+				found.Kind = PaneReportCandidate
+				capped := CapHead(cr.Report.Text)
+				hits = append(hits, detailRecord{Text: capped.Text, Truncated: capped.Truncated, Pane: a.Pane.String(), Seq: a.StateChangeSeq})
+			}
+		case SessionReportAbsent:
+			found.Kind = PaneReportAbsent
+		default:
+			found.Kind = PaneReportUnreadable
 		}
+		reading.panes = append(reading.panes, found)
 	}
 	switch {
 	case len(hits) == 1:
-		rec.Source, rec.Text, rec.Truncated, rec.Pane, rec.Seq = ReportFromScreen.String(), hits[0].Text, hits[0].Truncated, hits[0].Pane, hits[0].Seq
-	case view != nil:
+		rec.Source, rec.Text, rec.Truncated, rec.Pane, rec.Seq = ReportFromPane.String(), hits[0].Text, hits[0].Truncated, hits[0].Pane, hits[0].Seq
+		return rec, reportReading{}
+	case len(reading.panes) == 0:
+		reading.reason = DescriptionReasonNoClaudePane
+	case len(hits) == 0:
+		reading.reason = DescriptionReasonNoCandidate
+	default:
+		reading.reason = DescriptionReasonSeveralCandidates
+	}
+	if view != nil {
 		capped := CapHead(view.Body)
 		rec.Source, rec.Text, rec.Truncated = ReportFromDescription.String(), capped.Text, capped.Truncated
 	}
-	return rec
-}
-
-// reportSource is where a pane's report is read from: Herdr serves only the
-// visible rows of a blocked agent, and the recent scrollback otherwise.
-func reportSource(a Agent) ScreenSource {
-	if a.Status == AgentBlocked {
-		return ScreenVisible
-	}
-	return ScreenRecent
+	return rec, reading
 }
 
 // reviewSkippable reports whether the PR changes only the task's plan and

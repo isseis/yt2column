@@ -26,7 +26,7 @@
 ### 1.2. 設計の際に決めたこと（2026-11-17）
 
 -   **見送ったリセットは、workspace ごとの記録のディレクトリに、見送りの記録として残す。** 各 round はその記録を Herdr のエージェントの一覧と照合して、項目にする（3.1・3.3）。①は `chief send` の別のプロセスで、②は `tick` の中で起きる。そのため、後の round で示すには、プロセスの外に残す記録が要る。記録を残さずに、その送信の結果にだけ示す案は採らない。この案では、人が選べるのはその場だけになり、`/chief` が待ち受けの間に示す番号つきの一覧にも載らない。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する（記録の使い道に、人に示すリセットの候補を名指すことを足す。要件定義書の AC-14 の更新に含まれる）。
--   **人の選択は、新しいサブコマンド `chief reset --workspace <worktree> --check <check> --protocol 1` で道具に渡す（3.4）。** `chief send` の要求は、タスクのコマンドの型（`paneinput.Command`）を送り先の表で送るもので、リセットとは性質が違う。`relay` と同じく確かめの値で縛る形が合う。`chief send --command reset` に足す案は採らない。ADR: なし（送る入力の範囲は `/clear`・`/new` のまま変わらず、道具の口の形はこのタスクの中で閉じるため）。
+-   **人の選択は、新しいサブコマンド `chief reset --workspace <worktree> --check <check> --protocol 2` で道具に渡す（3.4）。** `chief send` の要求は、タスクのコマンドの型（`paneinput.Command`）を送り先の表で送るもので、リセットとは性質が違う。`relay` と同じく確かめの値で縛る形が合う。`chief send --command reset` に足す案は採らない。ADR: なし（送る入力の範囲は `/clear`・`/new` のまま変わらず、道具の口の形はこのタスクの中で閉じるため）。
 -   **round は見送りの記録を消さない。`chief reset` が、最初の入力を打つ前に、workspace の排他の下で記録を消して使い済みにする。消せなければ何も打たない（3.4）。ほかに記録を消すのは、chief がその pane へほかの入力を送れたとき（同じ排他の下）と、`start` の片付けで見送りから 14 日たった記録を消すときだけである（3.1）。** round で消すと、`snapshot` が読み取りだけだという約束が崩れる。そのうえ、バックグラウンドの `chief send` が書いたばかりの記録を、古いエージェントの一覧と比べて消しかねない。tick が排他の下で消す案も採らない。仕組みが増えるためである。ただし、条件を外れた記録をいつまでも残すと、OpenCode の pane（セッションを報告せず、`/new` でも状態の変化の番号が変わらない）では、後で同じ値になったときに古い見送りが示される。そこで、すでに排他を持つ送信の後と `start` の片付けで消す。ADR: なし（記録の扱いの細部で、このタスクの中で閉じるため）。
 -   **①の記録には、見送ったときに `prMaker` が決めた PR を作ったコマンドを残し、`chief reset` は transcript の人の最後の入力をそれと比べる。** `prMaker`（`internal/chief/reset.go:20-44`）は PR が開いている間だけ正しい。`/runpr` が PR をマージした後に計算し直すと、次のコマンドを返してしまい、確かめが必ず `other_input` で失敗する。記録のコマンドを偽れば transcript の確かめを通りうるが、これは偽られた記録の危険（要件定義書の 4.2）に含めて受け入れる。ADR: なし（同上）。
 -   **人が選んだリセットの送信は、ほかの送信と同じ送信の記録に残し、自動送信の「その後の送信」の判定からも外さない。** 外すには、`SentSince`（`internal/chief/records.go:843-850`）が送信の記録を読むように変える必要がある。数えたままにした場合、マージを見た後にリセットを選ぶと、次のコマンドが提案として示されるだけで、安全側に倒れる（要件定義書の AC-13）。ADR: ADR-0046 を更新する（「結果」の節に書く）。
@@ -179,7 +179,7 @@ const (
 | ① | `reset.go:118-120` で、`rec != nil` かつ `rec.Source` が `ReportFromDescription`（報告を示す pane がないか、2 つ以上あった。`internal/chief/detail.go:440-465`） | 候補が Claude Code なら `skipReportAbsent`、OpenCode なら `skipNotOffered` | Herdr で読み直した pane が同じエージェントで、入力を待っている。`lastInputMadePR` が通る |
 | ① | `reset.go:118-120` で、`rec == nil`（PR の詳細を集められなかったか、控えを書けなかった。`internal/chief/request.go:371-380`） | `skipNotOffered` | — |
 | ① | `reset.go:118-120` で、`rec.Source` が `ReportFromScreen` で `rec.Pane` が候補でない | `skipNotOffered` | — |
-| ① | `reset.go:135-137`（控えた後に状態は変わっていないが、画面から報告が読めない） | 候補が Claude Code なら `skipReportAbsent`、OpenCode なら `skipNotOffered` | 入力を待っている。`lastInputMadePR` が通る |
+| ① | 控えた後に状態は変わっていないが、Claude Code の pane の transcript に最後の報告がない（タスク 0095 から、①は報告を画面でなく transcript から読む。`readClaudeReport` が `SessionReportAbsent` を返す） | 候補が Claude Code なら `skipReportAbsent`、OpenCode なら `skipNotOffered` | 入力を待っている。`lastInputMadePR` が通る |
 | ① | `reset.go:52-54`（OpenCode の pane の `lastInputMadePR`） | `skipNotOffered` | — |
 | ② | `runprPaneReport` が `no_report` で報告を読めない（Claude Code の pane では transcript に最後の報告がなく、OpenCode の pane では `readRunprReport` が `!ok`）か、OpenCode の pane で最後のメッセージの始まりが画面の外に出ていて、見えている部分が PR を名指さない（NEXT は違わない） | `skipReportAbsent` | 今読んだ状態の変化の番号が、排他の下で読んだ `candidate.StateChangeSeq` と等しい。入力を待っている。Claude Code では、transcript の人の最後の入力の名前が `runpr` である |
 | ② | 最後のメッセージの全体が読め、マージした PR を名指さない。または、NEXT が送ったコマンドと違う（始まりが画面の外でも） | `skipNotOffered` | — |
@@ -252,7 +252,7 @@ func SendOfferedReset(ctx context.Context, deps Deps, owner Owner, req OfferedRe
 
 ### 3.5. `/chief` の定義と利用ガイド
 
--   `chief.md` の「3. The choices」に `reset` の項目の示し方を足す（要件定義書の AC-03 の添え書きを含む）。「4. Acting on the answer」に、選んだら確かめの問いを挟まずに `chief reset --workspace <workspace> --check <check> --protocol 1` を呼び、結果を step 2 と同じく示すことを足す（AC-08・AC-10）。理由の表に、リセットでの `check_mismatch` の意味を足す。
+-   `chief.md` の「3. The choices」に `reset` の項目の示し方を足す（要件定義書の AC-03 の添え書きを含む）。「4. Acting on the answer」に、選んだら確かめの問いを挟まずに `chief reset --workspace <workspace> --check <check> --protocol 2` を呼び、結果を step 2 と同じく示すことを足す（AC-08・AC-10）。理由の表に、リセットでの `check_mismatch` の意味を足す。
 -   `chief_guide.md` について。サブコマンドの表に `reset` を足す。状態のディレクトリの表の workspace ごとの記録に `skip-*.json` を足し、読めない記録は手で消してよいことを書く。既知の制限「長い報告は画面から読めない」に、見送ったリセットが選択肢として示されることを書く。入れ直した後に `/chief` を起動し直すことを書く（AC-16）。
 -   ADR-0046 は、要件定義書と設計の決定に合わせて、この PR で更新した（AC-14）。
 

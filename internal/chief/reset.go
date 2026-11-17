@@ -43,25 +43,40 @@ func prMaker(f workspaceFacts) (maker, string) {
 	return maker{route: next.Command.Route(), name: name, args: args}, ""
 }
 
-// lastInputMadePR checks that the last line the human typed into the
-// candidate's Claude Code session is the command that created the PR, its
+// whyTranscriptLine is why a transcript with a line that cannot be read
+// is not used.
+const whyTranscriptLine = "a line of the transcript cannot be read"
+
+// lastInputMadePR checks that in, the last line the human typed into the
+// candidate's Claude Code session, is the command that created the PR, its
 // name and argument compared whole: a pane the human went on using after
 // that command, even with another command of the same task, is never
 // emptied. It returns NotSentUnknown when the check passes.
-func (s sendContext) lastInputMadePR(a Agent, made maker) (NotSentReason, string) {
-	if a.Kind != paneinput.AgentClaudeCode {
-		return NotSentNoReport, "only a Claude Code session records its human input"
-	}
-	in, reason, detail := s.lastHumanInput(a)
+func lastInputMadePR(in HumanInput, made maker) (NotSentReason, string) {
 	switch {
-	case reason != NotSentUnknown:
-		return reason, detail
+	case in.Kind == HumanInputUnreadable:
+		return NotSentNoTranscript, whyTranscriptLine
 	case in.Kind != HumanInputCommand || in.Name != made.name:
 		return NotSentOtherInput, "the session's last human input is not the command that created the PR"
 	case made.args == "" && in.Args == "", made.args != "" && in.Args != made.args:
 		return NotSentOtherInput, "the session's last command has another argument than the command that created the PR"
 	}
 	return NotSentUnknown, ""
+}
+
+// paneLastInputMadePR reads the last line the human typed into the session
+// of the candidate a and checks it with lastInputMadePR. An OpenCode pane
+// records no human input, so it never passes. It returns NotSentUnknown
+// when the check passes.
+func (s sendContext) paneLastInputMadePR(a Agent, made maker) (NotSentReason, string) {
+	if a.Kind != paneinput.AgentClaudeCode {
+		return NotSentNoReport, "only a Claude Code session records its human input"
+	}
+	in, reason, detail := s.lastHumanInput(a)
+	if reason != NotSentUnknown {
+		return reason, detail
+	}
+	return lastInputMadePR(in, made)
 }
 
 // lastInputRanRunpr checks that the last line the human typed into a
@@ -94,7 +109,7 @@ func (s sendContext) lastHumanInput(a Agent) (HumanInput, NotSentReason, string)
 	}
 	in := readLastHumanInput(data)
 	if in.Kind == HumanInputUnreadable {
-		return HumanInput{}, NotSentNoTranscript, "a line of the transcript cannot be read"
+		return HumanInput{}, NotSentNoTranscript, whyTranscriptLine
 	}
 	return in, NotSentUnknown, ""
 }
@@ -147,13 +162,16 @@ func notOffered(why string) resetSkip { return resetSkip{kind: skipNotOffered, w
 // resetAfterRunpr empties the pane of the command that created the PR, after
 // /runpr went to runprPane (the design, 3.1.3). Contract: the candidate is
 // chosen by the routing table (the one pane of the maker's agent), never by
-// a screen; it is emptied only when it is not runprPane, the kept detail
+// a screen; it is emptied only when it is not runprPane, the kept record
 // read the PR's report from it, its state has not changed since, and its
-// screen still shows that report; every other case is OutcomeNotSent with
-// its reason. The reset is checked and recorded like any send. A skip with
+// session's transcript, read once after that state, still ends in a last
+// report, has a PR record naming the PR, and has the command that created
+// the PR as the human's last input; every other case is OutcomeNotSent with
+// its reason, and a transcript that cannot be read is never replaced by the
+// screen. The reset is checked and recorded like any send. A skip with
 // NotSentNoReport is skipReportAbsent only where no report was found on a
 // Claude Code candidate: the detail kept the PR description because no pane
-// showed the report, or the candidate's screen no longer shows it.
+// showed the report, or the candidate's transcript holds no last report.
 func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr OpenPR, rec *detailRecord, made maker, why string, routing Routing) (ActionResult, resetSkip) {
 	res := ActionResult{Workspace: s.ws.Worktree, Input: InputReset}
 	if made.route == paneinput.RouteUnknown {
@@ -185,18 +203,8 @@ func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr O
 		}
 		return resetSkip{kind: skipReportAbsent, pane: candidate, command: ranCommand{kind: commandKinds[made.name], argument: made.args, route: made.route}}
 	}
-	if rec == nil || rec.Source != ReportFromScreen.String() || rec.Pane != res.Pane {
-		res = notSent(res, NotSentNoReport, "the PR detail kept no report from this pane")
-		switch {
-		case rec == nil:
-			return res, notOffered("no PR detail was kept")
-		case rec.Source == ReportFromDescription.String():
-			return res, absent()
-		case rec.Source == ReportFromScreen.String():
-			return res, notOffered("the PR detail kept the report from another pane")
-		default:
-			return res, notOffered("the PR detail holds no report")
-		}
+	if rec == nil || rec.Source != ReportFromPane.String() || rec.Pane != res.Pane {
+		return notSent(res, NotSentNoReport, "the PR detail kept no report from this pane"), detailSkip(rec, absent)
 	}
 	a, err := s.herdr.Agent(ctx, candidate.Pane)
 	if err != nil {
@@ -208,24 +216,44 @@ func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr O
 	if a.StateChangeSeq != rec.Seq {
 		return notSent(res, NotSentPaneChanged, "the pane changed state since its report was kept"), resetSkip{}
 	}
-	raw, err := s.herdr.Screen(ctx, a.Pane, reportSource(a))
-	if err != nil {
-		return notSent(res, NotSentUnreadable, "herdr agent read failed: "+err.Error()), resetSkip{}
+	if a.Kind != paneinput.AgentClaudeCode {
+		return notSent(res, NotSentNoReport, "only a Claude Code session records its last report and human input"), notOffered(whyOpenCodeMaker)
 	}
-	if _, ok := readCommandReport(a.Kind, raw, pr.URL); !ok {
-		// The pane must not move between the screen read and the offer.
+	cr := readClaudeReport(s.deps.Env, a)
+	switch cr.Report.Kind {
+	case SessionReportFound:
+	case SessionReportAbsent:
+		// The pane must not move between the transcript read and the offer.
 		skip := absent()
 		skip.seq = &rec.Seq
-		return notSent(res, NotSentNoReport, "the pane no longer shows the PR's report"), skip
+		return notSent(res, NotSentNoReport, "the pane has no last report: "+cr.Detail), skip
+	default:
+		return notSent(res, cr.Reason, "the transcript of the pane cannot be read: "+cr.Detail), notOffered("the transcript of the pane cannot be read")
 	}
-	if reason, detail := s.lastInputMadePR(a, made); reason != NotSentUnknown {
-		if a.Kind != paneinput.AgentClaudeCode {
-			return notSent(res, reason, detail), notOffered(whyOpenCodeMaker)
-		}
+	if !cr.Report.Names(pr.Number, pr.URL) {
+		return notSent(res, NotSentNoReport, "the pane's session has no PR record naming the PR"), notOffered("the pane's last report is another one: its session has no PR record naming the PR")
+	}
+	if reason, detail := lastInputMadePR(cr.Report.LastHuman, made); reason != NotSentUnknown {
 		return notSent(res, reason, detail), resetSkip{}
 	}
 	seq := a.StateChangeSeq
-	return s.run(ctx, res, a, []step{st}, paneCheck{session: a.Session, seq: &seq}, route), resetSkip{}
+	return s.run(ctx, res, a, []step{st}, paneCheck{session: a.Session, seq: &seq}, route, nil), resetSkip{}
+}
+
+// detailSkip is the skip of a reset whose kept PR detail has no report from
+// the candidate: only a detail that kept the PR description, because no
+// pane showed the report, is a report not found (absent's skip).
+func detailSkip(rec *detailRecord, absent func() resetSkip) resetSkip {
+	switch {
+	case rec == nil:
+		return notOffered("no PR detail was kept")
+	case rec.Source == ReportFromDescription.String():
+		return absent()
+	case rec.Source == ReportFromPane.String():
+		return notOffered("the PR detail kept the report from another pane")
+	default:
+		return notOffered("the PR detail holds no report")
+	}
 }
 
 // The notes offerSkip adds to the detail of a reset skipped with

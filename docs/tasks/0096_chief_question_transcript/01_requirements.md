@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `withdrawn` |
 | Process | `full` |
 | Created | 2026-11-16 |
 | Review date | 2026-11-17 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-11-17 取り下げ：Claude Code が答えを待っている質問の呼び出しを transcript に書かないことがあると分かったため（[03_implementation_plan.md](03_implementation_plan.md) §7「PR-1 の実行の記録」） |
 
 ## 1. 概要 (Overview)
 
@@ -234,3 +234,4 @@ chief がコマンドを送る前、自動送信の前、workspace を消す前�
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#913）
+- 2026-11-17 withdrawn：Claude Code が答えを待っている質問の呼び出しを transcript に書かないことがあると分かったため（[03_implementation_plan.md](03_implementation_plan.md) §7「PR-1 の実行の記録」）（#962）

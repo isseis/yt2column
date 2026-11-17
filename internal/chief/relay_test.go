@@ -206,8 +206,8 @@ func TestRelaySendsChosenOption(t *testing.T) {
 				t.Fatalf("send records: %d starts, %d ends, %v; want one send", len(starts), len(ends), err)
 			}
 			var rec SendRecord
-			if err := records.store().read(sendPrefix+starts[0]+startSuffix, &rec); err != nil || rec.Input != "relay" || !slices.Equal(rec.Prompts, []string{"key 1"}) {
-				t.Errorf("send record = %+v, %v; want the relay's key", rec, err)
+			if err := records.store().read(sendPrefix+starts[0]+startSuffix, &rec); err != nil || rec.Input != "relay" || !slices.Equal(rec.Prompts, []string{"key 1"}) || rec.Kind != "" || rec.Arg != "" {
+				t.Errorf("send record = %+v, %v; want the relay's key and no command kind", rec, err)
 			}
 			var end sendEnd
 			if err := records.store().read(sendPrefix+starts[0]+endSuffix, &end); err != nil || end.Outcome != "sent" || end.Reason != relaySentDetail {

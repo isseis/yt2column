@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -127,6 +128,15 @@ func newTestRepo(t *testing.T) *testRepo {
 // Env returns the environment the repository's programs run with.
 func (r *testRepo) Env() []string { return testEnv(r.home) }
 
+// RealCommands returns Commands that run the real git (and no herdr or gh)
+// with the repository's environment, and points PATH at the test tools for
+// the rest of the test.
+func (r *testRepo) RealCommands() Commands {
+	r.t.Helper()
+	r.t.Setenv("PATH", testToolsDir)
+	return NewCommands(func(o cmdrunner.Options) cmdrunner.Runner { return cmdrunner.NewOS(o) }, r.Env())
+}
+
 // Git runs git in the repository and returns its standard output.
 func (r *testRepo) Git(args ...string) string {
 	r.t.Helper()
@@ -205,9 +215,24 @@ var errNoReply = errors.New("no reply recorded for the command")
 // that select the operation. Every one reads: none pushes, merges, comments,
 // or types into a pane. The recorder fails a test that runs anything else.
 var readOnlyCommands = map[string][][]string{
-	herdrProgram: {{herdrAgent, "list"}, {herdrAgent, "get"}, {herdrAgent, "read"}, {"workspace", "list"}}, //nolint:goconst // each pair names one herdr operation
-	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}, {"rev-list", "--count"}, {"fetch", "origin", "main"}, {"ls-remote", "origin", "refs/heads/main"}, {"status", "--porcelain"}},
+	herdrProgram: {{herdrAgent, "list"}, {herdrAgent, "get"}, {herdrAgent, "read"}, {"workspace", "list"}, {"pane", "list"}, {"pane", "process-info"}}, //nolint:goconst // each pair names one herdr operation
+	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}, {"rev-list", "--count"}, {"fetch", "origin", "main"}, {"ls-remote", "origin", "refs/heads/main"}, {"status", "--porcelain"}, {"worktree", "list"}, {"merge-base", "--is-ancestor"}},
 	ghProgram:    {{"pr", "list"}, {"pr", "view"}, {"pr", "checks"}},
+}
+
+// issueNumberField is the one value `gh api graphql` may be given for the
+// number: -F reads it as a number.
+var issueNumberField = regexp.MustCompile(`^n=[1-9][0-9]{0,8}$`)
+
+// isIssueRead reports whether args are the one `gh api graphql` call chief
+// makes: the fixed question and the owner, repo, and number fields, and
+// nothing else. `gh api graphql` can also send a mutation and take any
+// method, so it is not a read-only prefix: only this exact shape passes.
+func isIssueRead(args []string) bool {
+	return len(args) == 10 &&
+		slices.Equal(args[:7], []string{"api", "graphql", "-F", "owner={owner}", "-F", "repo={repo}", "-F"}) &&
+		issueNumberField.MatchString(args[7]) &&
+		args[8] == "-f" && args[9] == "query="+issueQuery
 }
 
 // recorder is a RunnerFactory that starts no process: it records each
@@ -372,6 +397,14 @@ func (rr recordingRunner) Run(ctx context.Context, name string, args ...string) 
 }
 
 func isReadOnly(c recordedCall) bool {
+	if c.name == ghProgram && isIssueRead(c.args) {
+		return true
+	}
+	// git grep can open files in a pager program, so only the one search the
+	// tool makes passes.
+	if c.name == gitProgram && slices.Equal(c.args, issueLineSearch) {
+		return true
+	}
 	for _, prefix := range readOnlyCommands[c.name] {
 		if len(c.args) >= len(prefix) && slices.Equal(c.args[:len(prefix)], prefix) {
 			return true

@@ -25,7 +25,7 @@ import (
 // Protocol is the number of the command-line and output contract. The skill
 // that drives the tool passes the same number with --protocol, so an old
 // install is refused instead of misread.
-const Protocol = 1
+const Protocol = 2
 
 // errRecord reports a record that is not in the accepted form.
 var errRecord = errors.New("unreadable record")
@@ -516,9 +516,10 @@ func (s Store) removeFinishedSessions(session string) (int, error) {
 	return removed, errors.Join(errs...)
 }
 
-// Worktree is a worktree path made canonical by CanonicalWorktree: absolute,
-// with links resolved. Only CanonicalWorktree makes one, so a record keyed by
-// a worktree cannot be looked up with a path that was never made canonical.
+// Worktree is a worktree path made canonical: absolute, with links resolved.
+// Only CanonicalWorktree (for a worktree that exists) and TaskSpace.Worktree
+// (for the one chief is about to make) make one, so a record keyed by a
+// worktree cannot be looked up with a path that was never made canonical.
 type Worktree struct {
 	path string
 }
@@ -668,6 +669,13 @@ type SendRecord struct {
 	Model   string    `json:"model"`
 	Prompts []string  `json:"prompts"`
 	Started time.Time `json:"started"`
+	// Kind is the paneinput.CommandKind name of the command a command send
+	// typed ("mkreq", "mkarch", "mkplan", "runplan", "runpr"), and Arg its
+	// argument as typed. Only a command send writes them; they are "" on a
+	// reset, a relay, and a record written before they existed. The running
+	// command is read from them, never from Command's text.
+	Kind string `json:"kind"`
+	Arg  string `json:"arg"`
 }
 
 // sendEnd is the end of one send.
@@ -690,6 +698,10 @@ type StopRecord struct {
 // unknownName is the output's name of any value that is not one of its
 // kind's known values.
 const unknownName = "unknown"
+
+// noReportName is the output's name of a pane with no last report, the
+// same in a send's reason and in what a check found on a pane.
+const noReportName = "no_report"
 
 // outcomeUnknown is the end a send gets when its own end was never written:
 // whether it was sent cannot be told.
@@ -835,11 +847,42 @@ func (r WorkspaceRecords) LastSend(pane string) (*SendRecord, error) {
 		if err := r.store().read(sendPrefix+id+startSuffix, &rec); err != nil {
 			return nil, err
 		}
+		if rec.ID != id {
+			// The send's end is found by the record's own ID, so a record
+			// naming another send could borrow that send's end.
+			return nil, fmt.Errorf("%w: the start record of send %s names send %q", errRecord, id, rec.ID)
+		}
 		if rec.Pane == pane && rec.Input != InputRelay.String() {
 			return &rec, nil
 		}
 	}
 	return nil, nil
+}
+
+// sendIDForm is the form of a send's ID, the part of its record names
+// sendFileName matches.
+var sendIDForm = regexp.MustCompile(`^[0-9]{20}-[0-9a-f]{16}$`)
+
+// sendEnded returns the end of the send id, or nil when its end was never
+// written. Contract: an ID not of the form BeginSend gives is an error, so a
+// record's own ID never names a file outside the workspace's sends; an end
+// record that cannot be read, or that names another send, is an error, never
+// read as no end.
+func (r WorkspaceRecords) sendEnded(id string) (*sendEnd, error) {
+	if !sendIDForm.MatchString(id) {
+		return nil, fmt.Errorf("%w: send ID %q", errRecord, id)
+	}
+	var end sendEnd
+	err := r.store().read(sendPrefix+id+endSuffix, &end)
+	switch {
+	case errors.Is(err, privatefile.ErrNotExist):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	case end.ID != id:
+		return nil, fmt.Errorf("%w: the end record of send %s names send %q", errRecord, id, end.ID)
+	}
+	return &end, nil
 }
 
 // SentSince reports whether a send to the workspace started at t or later.
@@ -1204,7 +1247,7 @@ func reportName(pr int, head string) string {
 
 // keptPaneReport returns the record kept for pr at head, the report record
 // before the detail record; ok is false when neither is kept. Contract: only
-// this function knows the two names and their order; a report record that
+// this function knows the order the two are read in; a report record that
 // names another PR or head, or whose source is not a pane's report, is a
 // record error, never read past to the detail record.
 func (r WorkspaceRecords) keptPaneReport(pr int, head string) (detailRecord, bool, error) {
@@ -1217,7 +1260,7 @@ func (r WorkspaceRecords) keptPaneReport(pr int, head string) (detailRecord, boo
 		return detailRecord{}, false, err
 	case rec.PR != pr || rec.Head != head:
 		return detailRecord{}, false, fmt.Errorf("%w: report of PR %d at %s names another", errRecord, pr, head)
-	case rec.Source != ReportFromScreen.String():
+	case rec.Source != ReportFromPane.String():
 		return detailRecord{}, false, fmt.Errorf("%w: report of PR %d at %s is not from a pane", errRecord, pr, head)
 	}
 	return rec, true, nil

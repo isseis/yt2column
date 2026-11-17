@@ -60,19 +60,46 @@ func TestSnapshotRunsOnlyReadsInTheRightPlaces(t *testing.T) {
 // checks every command: git and gh only read (the recorder fails anything
 // outside its read-only list), gh reads only PRs and never sees GH_REPO or
 // GH_HOST, both run only in the task worktree or chief's own, and the only
-// writes are prompts to the task workspace's panes.
+// writes are prompts to the task workspace's panes. It also checks that the
+// detail reads no pane's screen, and that the reset reads the screen of the
+// pane it empties once, for the check just before its input.
 func TestDetailAndSendRunOnlyReadsInTheRightPlaces(t *testing.T) {
 	t.Setenv("GH_REPO", "other/repo")
 	t.Setenv("GH_HOST", "ghe.example.com")
 	sw, tree := detailWorld(t)
 	deps := sw.finish()
-	sw.firstPane().screen = reportScreen(t, prURL)
-	if _, err := Detail(context.Background(), deps, tree); err != nil {
-		t.Fatal(err)
+	sw.endWithReport(sw.firstPane(), makerReport)
+	if d, err := Detail(context.Background(), deps, tree); err != nil || d.Detail == nil || d.Detail.Report != ReportFromPane {
+		t.Fatalf("Detail = %+v, %v; want the pane's report", d, err)
+	}
+	isRead := func(c recordedCall) bool {
+		return c.name == herdrProgram && len(c.args) > 2 && c.args[0] == herdrAgent && c.args[1] == "read"
+	}
+	detailCalls := sw.rec.recorded()
+	for _, c := range detailCalls {
+		if isRead(c) {
+			t.Errorf("the detail read a screen: %s", c.line())
+		}
 	}
 	out := sendRunpr(t, deps, tree)
 	if len(out.Actions) != 2 || out.Actions[1].Outcome != OutcomeSent {
 		t.Fatalf("actions = %+v; the test reached no reset", out.Actions)
+	}
+	// The reset runs from /runpr's input to /clear's; in that span it reads
+	// the screen of w1:p1 only for the check just before /clear.
+	reads, inReset := 0, false
+	for _, c := range sw.rec.recorded()[len(detailCalls):] {
+		switch {
+		case isPrompt(c) && c.args[3] == "/runpr 42":
+			inReset = true
+		case isPrompt(c) && c.args[3] == "/clear":
+			inReset = false
+		case inReset && isRead(c) && c.args[2] == "w1:p1":
+			reads++
+		}
+	}
+	if reads != 1 {
+		t.Errorf("the reset read the screen of w1:p1 %d times before /clear, want once", reads)
 	}
 	places := []string{sw.chiefTree, tree}
 	sawChecks := false

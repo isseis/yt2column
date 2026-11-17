@@ -3,11 +3,14 @@
 package chief
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
@@ -121,5 +124,73 @@ func TestReadClaudeReport(t *testing.T) {
 	}
 	if !strings.HasPrefix(nodir.Detail, nofile.Detail) || len(nodir.Detail) <= len(nofile.Detail) {
 		t.Errorf("a missing transcript directory gives the detail %q; want the missing file's %q with more", nodir.Detail, nofile.Detail)
+	}
+}
+
+// TestReadCompleteTranscript checks the read for display: a transcript that
+// ends in a newline, or is empty, is read at once; one that does not is read
+// again after each wait of 200 ms, up to three times, and is returned once its line ends; one
+// whose line never ends, or whose wait fails, is errPartialLine; and one over
+// the cap is errOverCap.
+func TestReadCompleteTranscript(t *testing.T) {
+	const line = `{"type":"user"}` + "\n"
+	const half = `{"type":"us`
+	cases := []struct {
+		name string
+		// first is the file's content at the first read.
+		first string
+		// endAt is the wait after which the rest of the line is written, 0
+		// for never.
+		endAt int
+		// fail makes the waits fail.
+		fail      bool
+		limit     int64
+		wantWaits int
+		wantErr   error
+		want      string
+	}{
+		{name: "a transcript ending in a newline", first: line, limit: 1 << 10, want: line},
+		{name: "an empty transcript", first: "", limit: 1 << 10, want: ""},
+		{name: "a line that ends after the last wait", first: line + half, endAt: 3, limit: 1 << 10, wantWaits: 3, want: line + line},
+		{name: "a line that never ends", first: line + half, limit: 1 << 10, wantWaits: 3, wantErr: errPartialLine},
+		{name: "a wait that fails", first: line + half, fail: true, limit: 1 << 10, wantWaits: 1, wantErr: errPartialLine},
+		{name: "a transcript over the cap", first: line + line, limit: int64(len(line)), wantErr: errOverCap},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "s.jsonl")
+			if err := os.WriteFile(path, []byte(c.first), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			waits := 0
+			sleep := func(_ context.Context, d time.Duration) error {
+				waits++
+				// The plan decided 200 ms; a wait of another length is a change
+				// of that decision, not of the constant alone.
+				if d != 200*time.Millisecond {
+					t.Errorf("wait %d is %v, want 200ms", waits, d)
+				}
+				if c.fail {
+					return context.Canceled
+				}
+				if waits == c.endAt {
+					return os.WriteFile(path, []byte(line+line), 0o600)
+				}
+				return nil
+			}
+			got, err := readCompleteTranscript(context.Background(), sleep, path, c.limit)
+			if waits != c.wantWaits {
+				t.Errorf("waited %d times, want %d", waits, c.wantWaits)
+			}
+			if c.wantErr != nil {
+				if !errors.Is(err, c.wantErr) {
+					t.Errorf("error = %v, want %v", err, c.wantErr)
+				}
+				return
+			}
+			if err != nil || string(got) != c.want {
+				t.Errorf("readCompleteTranscript = %q, %v; want %q", got, err, c.want)
+			}
+		})
 	}
 }
