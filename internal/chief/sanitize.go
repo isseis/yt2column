@@ -24,32 +24,6 @@ type Capped struct {
 	Truncated bool
 }
 
-// CapScreen keeps the last screenMaxLines lines of plain screen text (with no
-// SGR sequences, such as a report taken from a screen) and at most
-// screenMaxBytes bytes of them, dropping the head side. The cut never splits
-// a UTF-8 sequence. A trailing newline does not count as a line.
-func CapScreen(screen string) Capped {
-	out := Capped{Text: screen}
-	body := strings.TrimSuffix(out.Text, "\n")
-	if strings.Count(body, "\n")+1 > screenMaxLines {
-		cut := len(body)
-		for range screenMaxLines {
-			cut = strings.LastIndexByte(body[:cut], '\n')
-		}
-		out.Text = out.Text[cut+1:]
-		out.Truncated = true
-	}
-	if len(out.Text) > screenMaxBytes {
-		start := len(out.Text) - screenMaxBytes
-		for start < len(out.Text) && !utf8.RuneStart(out.Text[start]) {
-			start++
-		}
-		out.Text = out.Text[start:]
-		out.Truncated = true
-	}
-	return out
-}
-
 // CapHead keeps the first headMaxBytes bytes of text written by another
 // agent or service, such as a PR description or a pane's last report read
 // from its transcript, dropping the tail side. The cut never splits a UTF-8

@@ -32,60 +32,6 @@ func TestSanitize(t *testing.T) {
 	}
 }
 
-func TestCapScreen(t *testing.T) {
-	lines := func(n int) string {
-		var b strings.Builder
-		for i := range n {
-			if i > 0 {
-				b.WriteByte('\n')
-			}
-			b.WriteString("l")
-		}
-		return b.String()
-	}
-	cases := map[string]struct {
-		in            string
-		wantLines     int
-		wantTruncated bool
-	}{
-		"at the line cap":                  {lines(screenMaxLines), screenMaxLines, false},
-		"at the line cap with trailing LF": {lines(screenMaxLines) + "\n", screenMaxLines, false},
-		"one line over the cap":            {lines(screenMaxLines + 1), screenMaxLines, true},
-	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			got := CapScreen(c.in)
-			if got.Truncated != c.wantTruncated {
-				t.Errorf("Truncated = %v, want %v", got.Truncated, c.wantTruncated)
-			}
-			if n := strings.Count(strings.TrimSuffix(got.Text, "\n"), "\n") + 1; n != c.wantLines {
-				t.Errorf("kept %d lines, want %d", n, c.wantLines)
-			}
-		})
-	}
-
-	t.Run("keeps the newest line", func(t *testing.T) {
-		got := CapScreen(lines(screenMaxLines) + "\nnewest")
-		if !strings.HasSuffix(got.Text, "\nnewest") || !got.Truncated {
-			t.Errorf("CapScreen dropped the bottom or did not mark the cut: %v", got.Truncated)
-		}
-	})
-
-	t.Run("byte cap", func(t *testing.T) {
-		atCap := strings.Repeat("a", screenMaxBytes)
-		if got := CapScreen(atCap); got.Truncated || got.Text != atCap {
-			t.Errorf("a screen of exactly %d bytes was cut", screenMaxBytes)
-		}
-		// One multibyte character over the cap: the cut drops the head side
-		// and never leaves a partial UTF-8 sequence.
-		over := "☐" + strings.Repeat("a", screenMaxBytes-1)
-		got := CapScreen(over)
-		if !got.Truncated || got.Text != strings.Repeat("a", screenMaxBytes-1) {
-			t.Errorf("CapScreen(over) = %d bytes, truncated %v", len(got.Text), got.Truncated)
-		}
-	})
-}
-
 func TestCapHead(t *testing.T) {
 	atCap := strings.Repeat("a", headMaxBytes)
 	if got := CapHead(atCap); got.Truncated || got.Text != atCap {

@@ -117,41 +117,6 @@ func readNextValue(value string) RunprNext {
 	return next
 }
 
-// Fixed marks of a Claude Code 2.1.322 screen around a command's final
-// report, as the samples show them. claudeRecapMark starts the recap Claude
-// Code draws under the done line after the session has been idle for a
-// while (claude-command-report-recap.ansi).
-const (
-	claudeMessageMark = "⏺ "
-	claudeDoneMark    = "✻ "
-	claudeIndent      = "  "
-	claudeRecapMark   = "※ recap: "
-)
-
-// readCommandReport returns the final report of the command that ran in a
-// pane when it names the PR at url, read from the pane's screen. Contract: it
-// reads only the sampled Claude Code shape (the last message, its lines
-// indented under its mark, then the run's done line, at most one recap, and
-// the input box) and
-// returns false for any other screen; it never reads an OpenCode screen,
-// since no OpenCode report of a command that created a PR was sampled. The
-// report is used to show, to summarize, and to narrow a reset, never to
-// decide a send. A URL the terminal wrapped across lines is still found.
-func readCommandReport(agent paneinput.AgentKind, raw, url string) (string, bool) {
-	if agent != paneinput.AgentClaudeCode || url == "" {
-		return "", false
-	}
-	texts, ok := claudeLastMessage(raw)
-	if !ok {
-		return "", false
-	}
-	report := strings.TrimSpace(joinTexts(texts))
-	if !namesURL(squeeze(texts), url) {
-		return "", false
-	}
-	return report, true
-}
-
 // squeeze joins texts with each one's blanks at both ends removed, so a URL
 // or a PR number the terminal wrapped across lines is whole again.
 func squeeze(texts []string) string {
@@ -160,56 +125,6 @@ func squeeze(texts []string) string {
 		joined.WriteString(strings.TrimSpace(t))
 	}
 	return joined.String()
-}
-
-// claudeLastMessage returns the lines of the last message of a Claude Code
-// screen in the sampled shape: the message under its mark, the run's done
-// line, at most one recap, and the input box, with nothing else between
-// them. Each line has its mark or indent removed; the recap is not part of
-// the message.
-func claudeLastMessage(raw string) ([]string, bool) {
-	all, err := parseANSIScreen(raw)
-	if err != nil {
-		return nil, false
-	}
-	lines := trimmedLines(all)
-	if claudePrompt(lines).Kind != ScreenPrompt {
-		return nil, false
-	}
-	top := boxTopBefore(lines, lastRuleBefore(lines, len(lines)))
-	done := -1
-	recaps := 0
-	for i := top - 1; i >= 0 && done < 0; i-- {
-		switch text := lines[i].text; {
-		case strings.HasPrefix(text, claudeDoneMark):
-			done = i
-		case strings.HasPrefix(text, claudeRecapMark):
-			// The recap's further lines are indented, as the report's are.
-			recaps++
-			if recaps > 1 {
-				return nil, false
-			}
-		case text != "" && !strings.HasPrefix(text, claudeIndent):
-			return nil, false
-		}
-	}
-	start := -1
-	for i := done - 1; i >= 0 && start < 0; i-- {
-		switch text := lines[i].text; {
-		case strings.HasPrefix(text, claudeMessageMark):
-			start = i
-		case text != "" && !strings.HasPrefix(text, claudeIndent):
-			return nil, false
-		}
-	}
-	if done < 0 || start < 0 {
-		return nil, false
-	}
-	texts := []string{strings.TrimPrefix(lines[start].text, claudeMessageMark)}
-	for _, l := range lines[start+1 : done] {
-		texts = append(texts, strings.TrimPrefix(l.text, claudeIndent))
-	}
-	return texts, true
 }
 
 // Fixed parts of an OpenCode v2.2.6 screen around the last response, as the
@@ -349,19 +264,4 @@ func readScreenNext(raw string) (RunprNext, bool) {
 		texts[i] = l.text
 	}
 	return readRunprNext(joinTexts(texts)), true
-}
-
-// namesURL reports whether text holds url not followed by a digit, so the
-// URL of PR 4 is not found in the URL of PR 42.
-func namesURL(text, url string) bool {
-	for rest := text; ; {
-		i := strings.Index(rest, url)
-		if i < 0 {
-			return false
-		}
-		rest = rest[i+len(url):]
-		if rest == "" || rest[0] < '0' || rest[0] > '9' {
-			return true
-		}
-	}
 }
