@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -350,3 +350,7 @@ Fable の部分レビューを行ったかとその結果を、コミットメ�
 -   **決着済みの論点**: AC-18 で定義する。
 -   **phase group**: `/runplan` が一度に実装するフェーズのまとまり（ADR-0042）。
 -   用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#927）
