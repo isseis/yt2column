@@ -74,6 +74,9 @@ type autoSendFacts struct {
 	// reportWhy is why a /runpr report on a pane disagrees with next or
 	// could not be read; empty when none does.
 	reportWhy string
+	// reportChecks are the Claude Code panes the NEXT check read and let
+	// pass, each with what it found.
+	reportChecks []ReportCheck
 	// detachedWhy is why a detached HEAD may not be sent to; empty when the
 	// one /runpr pane's last report names the PR and next.
 	detachedWhy string
@@ -234,15 +237,54 @@ func headConditions(f autoSendFacts) []string {
 
 // AutoSendResult is one merged PR an automatic send was considered for:
 // where, the next command (nil when none was decided), why it was not sent,
-// and what was typed.
+// what was typed, and what the NEXT check found on each Claude Code pane it
+// let pass when it read them again under the workspace's exclusion.
 type AutoSendResult struct {
-	Workspace string
-	Label     string
-	PR        int
-	Task      string
-	Proposal  *Next
-	Reasons   []string
-	Actions   []ActionResult
+	Workspace    string
+	Label        string
+	PR           int
+	Task         string
+	Proposal     *Next
+	Reasons      []string
+	Actions      []ActionResult
+	ReportChecks []ReportCheck
+}
+
+// ReportCheckKind is what the NEXT check found on a Claude Code pane it let
+// pass. The zero value is ReportCheckUnknown, which no check gives.
+type ReportCheckKind int
+
+const (
+	// ReportCheckUnknown is no finding.
+	ReportCheckUnknown ReportCheckKind = iota
+	// ReportCheckAgreed is a last report whose NEXT names the next command.
+	ReportCheckAgreed
+	// ReportCheckNoReport is a pane with no last report.
+	ReportCheckNoReport
+	// ReportCheckNoNext is a last report with no line naming NEXT.
+	ReportCheckNoNext
+)
+
+// String names a finding for the output.
+func (k ReportCheckKind) String() string {
+	switch k {
+	case ReportCheckAgreed:
+		return "agreed"
+	case ReportCheckNoReport:
+		return "no_report"
+	case ReportCheckNoNext:
+		return "no_next"
+	default:
+		return unknownName
+	}
+}
+
+// ReportCheck is what the NEXT check found on one Claude Code pane it let
+// pass: Detail says why a pane has no report, with its transcript's path.
+type ReportCheck struct {
+	Pane   string
+	Kind   ReportCheckKind
+	Detail string
 }
 
 // autoSender decides and makes the automatic sends of one tick.
@@ -331,7 +373,7 @@ func (a *autoSender) gather(ctx context.Context, obs Observation, ws *TaskWorksp
 	facts.quietWhy = quietness(f)
 	a.decideNext(ctx, ws, &facts)
 	if facts.next != nil && facts.next.Command != nil {
-		facts.reportWhy = a.reportsAgree(ctx, *ws, facts)
+		facts.reportWhy, facts.reportChecks = a.reportsAgree(ctx, *ws, facts)
 		if facts.head == headDetached {
 			facts.detachedWhy = a.detachedReport(ctx, *ws, facts)
 		}
@@ -435,27 +477,84 @@ func agrees(r RunprNext, next *Next, task string) bool {
 
 // reportsAgree reads every pane of the workspace for a /runpr report and
 // returns why one disagrees with the next command, empty when none does: a
-// report the human sees must not say another command than the one sent. Contract: a screen that cannot be read, or a NEXT
-// line that cannot be read, counts as disagreeing; a pane with no NEXT line
-// does not.
-func (a *autoSender) reportsAgree(ctx context.Context, ws TaskWorkspace, facts autoSendFacts) string {
+// report the human sees must not say another command than the one sent. It
+// also returns what it found on each Claude Code pane it let pass. A Claude
+// Code pane's last report is read from its session's transcript, every
+// other pane's NEXT lines from its screen. Contract: a screen or a
+// transcript that cannot be read, or a NEXT line that cannot be read, counts
+// as disagreeing, and a Claude Code pane is never read from its screen
+// instead; a pane with no NEXT line, and a Claude Code pane with no last
+// report, do not; a Claude Code report older than the last is not read.
+func (a *autoSender) reportsAgree(ctx context.Context, ws TaskWorkspace, facts autoSendFacts) (string, []ReportCheck) {
+	var checks []ReportCheck
 	for _, agent := range ws.Agents {
-		raw, err := a.herdr.Screen(ctx, agent.Pane, reportSource(agent))
-		if err != nil {
-			return "the screen of pane " + agent.Pane.String() + " cannot be read for a /runpr report"
+		var next RunprNext
+		if agent.Kind == paneinput.AgentClaudeCode {
+			cr := readClaudeReport(a.deps.Env, agent)
+			switch cr.Report.Kind {
+			case SessionReportFound:
+			case SessionReportAbsent:
+				checks = append(checks, ReportCheck{Pane: agent.Pane.String(), Kind: ReportCheckNoReport, Detail: cr.Detail})
+				continue
+			default:
+				return "the transcript of pane " + agent.Pane.String() + " cannot be read for a /runpr report: " + cr.Detail, checks
+			}
+			next = readReportNext(cr.Report.Text).Next
+			if next.Kind == NextAbsent {
+				checks = append(checks, ReportCheck{Pane: agent.Pane.String(), Kind: ReportCheckNoNext})
+				continue
+			}
+		} else {
+			raw, err := a.herdr.Screen(ctx, agent.Pane, reportSource(agent))
+			if err != nil {
+				return "the screen of pane " + agent.Pane.String() + " cannot be read for a /runpr report", checks
+			}
+			var ok bool
+			if next, ok = readScreenNext(raw); !ok {
+				return "the screen of pane " + agent.Pane.String() + " cannot be read for a /runpr report", checks
+			}
 		}
-		next, ok := readScreenNext(raw)
 		switch {
-		case !ok:
-			return "the screen of pane " + agent.Pane.String() + " cannot be read for a /runpr report"
 		case next.Kind == NextAbsent:
 		case next.Kind == NextNone:
-			return "the /runpr report on pane " + agent.Pane.String() + " says there is no next command, not " + facts.next.Text
+			return "the /runpr report on pane " + agent.Pane.String() + " says there is no next command, not " + facts.next.Text, checks
+		case next.Kind == NextUnmatched:
+			return "the /runpr report on pane " + agent.Pane.String() + " has a NEXT line that cannot be read, or NEXT lines that disagree", checks
 		case !agrees(next, facts.next, facts.obs.Task):
-			return "the /runpr report on pane " + agent.Pane.String() + " names another next command than " + facts.next.Text
+			return "the /runpr report on pane " + agent.Pane.String() + " names another next command than " + facts.next.Text, checks
+		case agent.Kind == paneinput.AgentClaudeCode:
+			checks = append(checks, ReportCheck{Pane: agent.Pane.String(), Kind: ReportCheckAgreed})
 		}
 	}
-	return ""
+	return "", checks
+}
+
+// runprPaneReport reads the last report on the /runpr pane: from its
+// session's transcript for Claude Code, from its screen for any other agent.
+// Contract: a Claude Code pane is never read from its screen; ok is true
+// only when a report was read, and otherwise the reason and the detail say
+// why (for a Claude Code transcript, the reader's reason value; for a
+// screen, NotSentUnreadable or NotSentNoReport).
+func (a *autoSender) runprPaneReport(ctx context.Context, pane Agent) (report RunprReport, ok bool, reason NotSentReason, detail string) {
+	if pane.Kind == paneinput.AgentClaudeCode {
+		cr := readClaudeReport(a.deps.Env, pane)
+		switch cr.Report.Kind {
+		case SessionReportFound:
+			return readReportNext(cr.Report.Text), true, NotSentUnknown, ""
+		case SessionReportAbsent:
+			return RunprReport{}, false, NotSentNoReport, "the /runpr pane has no last report: " + cr.Detail
+		default:
+			return RunprReport{}, false, cr.Reason, "the transcript of the /runpr pane cannot be read: " + cr.Detail
+		}
+	}
+	raw, err := a.herdr.Screen(ctx, pane.Pane, reportSource(pane))
+	if err != nil {
+		return RunprReport{}, false, NotSentUnreadable, "the screen of the /runpr pane cannot be read: " + err.Error()
+	}
+	if report, ok = readRunprReport(pane.Kind, raw); !ok {
+		return RunprReport{}, false, NotSentNoReport, "the /runpr pane shows no report"
+	}
+	return report, true, NotSentUnknown, ""
 }
 
 // detachedReport returns why a detached HEAD may not be sent to, empty when
@@ -470,14 +569,10 @@ func (a *autoSender) detachedReport(ctx context.Context, ws TaskWorkspace, facts
 	if !ok {
 		return "the workspace has no single pane of the agent /runpr is routed to"
 	}
-	raw, err := a.herdr.Screen(ctx, pane.Pane, reportSource(pane))
-	if err != nil {
-		return "the screen of the /runpr pane cannot be read"
-	}
-	report, ok := readRunprReport(pane.Kind, raw)
+	report, ok, _, detail := a.runprPaneReport(ctx, pane)
 	switch {
 	case !ok:
-		return "the /runpr pane shows no report"
+		return detail
 	case !slices.Contains(report.PRs, facts.obs.PR):
 		return fmt.Sprintf("the last report on the /runpr pane does not name #%d", facts.obs.PR)
 	case !agrees(report.Next, facts.next, facts.obs.Task):
@@ -663,6 +758,8 @@ func (a *autoSender) recheck(ctx context.Context, held *HeldWorkspace, loc *loca
 	// reading of this round.
 	a.remote = nil
 	facts := a.gather(ctx, obs, &loc.ws, f)
+	// The NEXT check read under the exclusion is the one the send goes by.
+	res.ReportChecks = facts.reportChecks
 	// A send made since the merge was first seen (by the human, between
 	// rounds of a carry) or during this round may have sent the command.
 	since := a.round.At
@@ -760,18 +857,20 @@ func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observa
 	if !sameAgent(agent, candidate) {
 		return notSent(res, NotSentUnreadable, "the pane is no longer the same agent of the workspace")
 	}
-	raw, err := a.herdr.Screen(ctx, agent.Pane, reportSource(agent))
-	if err != nil {
-		return notSent(res, NotSentUnreadable, "herdr agent read failed: "+err.Error())
+	// The last report must still be /runpr's report of this merge, its PR
+	// and the command sent: a later answer in the pane is not emptied. A
+	// Claude Code pane's is read from the transcript of the session Herdr
+	// reports now.
+	report, ok, reason, detail := a.runprPaneReport(ctx, agent)
+	if !ok {
+		return notSent(res, reason, detail)
 	}
-	// The last message must still be /runpr's report of this merge, its PR
-	// and the command sent: a later answer in the pane is not emptied.
-	if report, ok := readRunprReport(agent.Kind, raw); !ok || !slices.Contains(report.PRs, obs.PR) || !agrees(report.Next, next, obs.Task) {
+	if !slices.Contains(report.PRs, obs.PR) || !agrees(report.Next, next, obs.Task) {
 		return notSent(res, NotSentNoReport, fmt.Sprintf("the pane's last message is not the /runpr report of #%d naming %s", obs.PR, next.Text))
 	}
 	// The pane must not have moved since its agent was read under the
 	// exclusion, before the command was sent: the report read now may be a
 	// new answer of the same shape.
 	seq := candidate.StateChangeSeq
-	return sc.run(ctx, res, agent, []step{st}, paneCheck{session: agent.Session, seq: &seq}, route)
+	return sc.run(ctx, res, agent, []step{st}, paneCheck{session: agent.Session, seq: &seq}, route, nil)
 }

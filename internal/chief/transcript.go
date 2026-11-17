@@ -1,6 +1,7 @@
 package chief
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +23,14 @@ var errTranscript = errors.New("the Claude Code transcript cannot be read")
 // It is wrapped in errTranscript.
 var errUnsupportedPath = errors.New("the working directory holds a character other than letters, digits, '/', '.', and '-'")
 
+// errOverCap reports a transcript larger than the read cap. It is wrapped in
+// errTranscript.
+var errOverCap = errors.New("the transcript exceeds the read cap")
+
+// errPartialLine reports a transcript that still ends inside a line after
+// its re-reads: Claude Code is still writing its last line.
+var errPartialLine = errors.New("the transcript still ends inside a line")
+
 // The caps of a transcript read. The session /clear has just started holds
 // a few lines; a session read for its last report, its PR records, and its
 // last human input holds the whole run of a command, which reached megabytes
@@ -37,6 +46,16 @@ const (
 const (
 	transcriptReads    = 10
 	transcriptInterval = 500 * time.Millisecond
+)
+
+// The re-reads of a transcript read for display: the last line of a running
+// session may still be being written, so a transcript that does not end in a
+// newline is read again at this interval up to this many times. They are
+// kept apart from the re-reads after /model, which wait for a record to
+// appear, not for a line to end.
+const (
+	completeTranscriptRereads  = 3
+	completeTranscriptInterval = 200 * time.Millisecond
 )
 
 // transcriptDirChars are the characters a working directory may hold for its
@@ -93,9 +112,34 @@ func readTranscript(path string, limit int64) ([]byte, error) {
 		return nil, fmt.Errorf("%w: %w", errTranscript, err)
 	}
 	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("%w: %s exceeds the read cap", errTranscript, path)
+		return nil, fmt.Errorf("%w: %w: %s", errTranscript, errOverCap, path)
 	}
 	return data, nil
+}
+
+// readCompleteTranscript reads a transcript for display, as readTranscript
+// does, waiting with sleep for its last line to end. Contract: the data
+// returned is empty or ends in a newline; a transcript that does not is read
+// again after completeTranscriptInterval, up to completeTranscriptRereads
+// times, and one that still does not, or whose wait fails, is
+// errPartialLine, never cut back to its last whole line, so the line being
+// written is never skipped to show the input before it.
+func readCompleteTranscript(ctx context.Context, sleep func(context.Context, time.Duration) error, path string, limit int64) ([]byte, error) {
+	for reread := 0; ; reread++ {
+		data, err := readTranscript(path, limit)
+		if err != nil {
+			return nil, err
+		}
+		if len(data) == 0 || data[len(data)-1] == '\n' {
+			return data, nil
+		}
+		if reread == completeTranscriptRereads {
+			return nil, fmt.Errorf("%w: %s", errPartialLine, path)
+		}
+		if err := sleep(ctx, completeTranscriptInterval); err != nil {
+			return nil, fmt.Errorf("%w: %w", errPartialLine, err)
+		}
+	}
 }
 
 // openTranscript opens a transcript that is a regular file.

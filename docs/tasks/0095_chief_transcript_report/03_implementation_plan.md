@@ -147,13 +147,13 @@
 
 **変更するファイル:** `internal/chief/autosend.go`・`autosend_test.go`（出力の項目の確かめを含む）、`internal/chief/output.go`、`internal/chief/sim_test.go`
 
--   [ ] **ステップ 3-1**: `reportsAgree` を、Claude Code の pane では報告の入口と `readReportNext` で、そのほかの pane では今のとおり画面で読むように変える（設計書 3.4）。読めないときは、送らない理由に pane と入口の `Detail` を含める。理由が作業ディレクトリの文字であるときは、`transcriptFailure` が示す、人が取れる対処も含める（AC-14）。
--   [ ] **ステップ 3-2**: `detachedReport` を、`/runpr` の送り先が Claude Code のときは報告の入口で読むように変える（設計書 3.5）。読めないときも報告がないときも、送らない理由に入口の `Detail` を含める。
--   [ ] **ステップ 3-3**: `resetRunpr` を、`/runpr` の送り先が Claude Code のときは報告の入口で読むように変える。読めないときの理由の値は入口の `Reason` にし、報告がないか PR とコマンドを名指さないときは今の `no_report` にする（設計書 3.5）。
--   [ ] **ステップ 3-4**: ①を通って送ったときも、Claude Code の pane ごとの照合の結果（照合した、報告がない（理由とパス）、NEXT を名指す行がない）を `AutoSendResult` に残し、`AutoSendOutput` に項目を足す（設計書 4.2）。残すのは、排他の中で読み直したとき（`recheck`）の結果とする。送るかどうかを決めたのはその読み直しだからである。項目の名前は実装で決める。`/chief` の定義には PR-3 で書く（§1.3 の決定 3）。
--   [ ] **ステップ 3-5**: 自動送信のテスト（`internal/chief/autosend_test.go`）を直す。今のテストの報告は、どれも OpenCode の pane（`w1:p2`）の画面にある `/runpr` の報告である（`mergeWorld.merge`、`internal/chief/autosend_test.go:164-178`）。Claude Code の pane（`w1:p1`）は `claude-idle.ansi` を示すだけで、送り先の表は `/runpr` を OpenCode に送る。そのため、今の行は OpenCode の行として変えずに通し（AC-13）、Claude Code の行はすべて新しく足す。
+-   [x] **ステップ 3-1**: `reportsAgree` を、Claude Code の pane では報告の入口と `readReportNext` で、そのほかの pane では今のとおり画面で読むように変える（設計書 3.4）。読めないときは、送らない理由に pane と入口の `Detail` を含める。理由が作業ディレクトリの文字であるときは、`transcriptFailure` が示す、人が取れる対処も含める（AC-14）。
+-   [x] **ステップ 3-2**: `detachedReport` を、`/runpr` の送り先が Claude Code のときは報告の入口で読むように変える（設計書 3.5）。読めないときも報告がないときも、送らない理由に入口の `Detail` を含める。
+-   [x] **ステップ 3-3**: `resetRunpr` を、`/runpr` の送り先が Claude Code のときは報告の入口で読むように変える。読めないときの理由の値は入口の `Reason` にし、報告がないか PR とコマンドを名指さないときは今の `no_report` にする（設計書 3.5）。
+-   [x] **ステップ 3-4**: ①を通って送ったときも、Claude Code の pane ごとの照合の結果（照合した、報告がない（理由とパス）、NEXT を名指す行がない）を `AutoSendResult` に残し、`AutoSendOutput` に項目を足す（設計書 4.2）。残すのは、排他の中で読み直したとき（`recheck`）の結果とする。送るかどうかを決めたのはその読み直しだからである。項目の名前は実装で決める。`/chief` の定義には PR-3 で書く（§1.3 の決定 3）。
+-   [x] **ステップ 3-5**: 自動送信のテスト（`internal/chief/autosend_test.go`）を直す。今のテストの報告は、どれも OpenCode の pane（`w1:p2`）の画面にある `/runpr` の報告である（`mergeWorld.merge`、`internal/chief/autosend_test.go:164-178`）。Claude Code の pane（`w1:p1`）は `claude-idle.ansi` を示すだけで、送り先の表は `/runpr` を OpenCode に送る。そのため、今の行は OpenCode の行として変えずに通し（AC-13）、Claude Code の行はすべて新しく足す。
     -   **①の行。** 送り先の表は変えず、`w1:p1` の transcript に報告を置く。設計書 4.1 の表の①の列の各行（読めない、作業ディレクトリの文字、ファイルがない、報告がない、NEXT を名指す行がない、NEXT が読めない・違う・ない・食い違う）を確かめる。作業ディレクトリの文字の行には、`_` を含む worktree のパスが要る。`newWorld` はこれを避けているので（`internal/chief/world_test.go:99-102`）、パスを変える手段を fake に足す。
-    -   **②の行。** `/runpr` を Claude Code に送る送り先の表（`_context.md` を書き換えた写し、`internal/chief/send_test.go:720-725` と同じ手順）と、`/runpr` の報告と PR の記録を Claude Code の pane の transcript に書く `merge` の別形を、fake に足す。そのうえで、`detachedReport`（`TestAutoSendDetached`）と `resetRunpr`（`TestResetAfterAutoSend`・`TestResetChecksAgain`）の、設計書 4.1 の表の②の列の各行を確かめる。自動送信の後のリセットの行は、次のコマンドの送り先を `/runpr` の pane と別の pane にして、`same_pane` で止まらないようにする。
+    -   **②の行。** `/runpr` を Claude Code に送る送り先の表（`_context.md` を書き換えた写し、`internal/chief/send_test.go:720-725` と同じ手順）と、`/runpr` の報告と PR の記録を Claude Code の pane の transcript に書く `merge` の別形を、fake に足す。そのうえで、`detachedReport`（`TestAutoSendDetached`）と `resetRunpr`（`TestResetAfterAutoSend`・`TestResetChecksAgain`）の、設計書 4.1 の表の②の列の各行を確かめる。ただし、自動送信の後の②の作業ディレクトリの文字の行は確かめない。`/runpr` の pane は同じ worktree にあり、①がその pane を読んで先に送るのを止めるので、この行には至らないためである。作業ディレクトリの文字は、①とブランチのない状態での②で確かめる。自動送信の後のリセットの行は、次のコマンドの送り先を `/runpr` の pane と別の pane にして、`same_pane` で止まらないようにする。
     -   **AC-06 の行。** 画面にだけ報告がある Claude Code の pane は報告がなく、transcript にだけ報告がある pane は報告がある。①②のそれぞれで確かめる。
     -   **書きかけの行。** transcript の最後の行が書きかけのとき、①が送らず、次の周に持ち越す（設計書 7.1）。
     -   **AC-11 の行。** 報告が送るものを決めないことを、報告と文書を分けて確かめる。NEXT の行が一致し、その後に別の文字が続く報告のとき、打った入力が文書の次のコマンドとちょうど同じであること。NEXT を名指す行のない報告のとき、文書の次のコマンドが送られること。報告の NEXT が違うとき送らないこと（設計書 7.4）。
@@ -175,10 +175,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/952
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: ③④ を transcript に替え、報告の控えを足す（設計書 8 章の 4）
 
@@ -335,7 +335,7 @@ PR の分け方の理由は §1.3 の決定 3 にある。各 PR は単独でグ
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
-- [ ] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
+- [x] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 - [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9 / 4-10 / 4-11）
 - [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 6-1 / 6-2 / 6-3 / 6-4）
 

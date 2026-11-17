@@ -823,11 +823,16 @@ Only the conventions a linter does not check are worth stating:
   fixed part of it, a field label, a value line's prefix, or a checkbox's text
   in an implementation plan (such as `作成ポイント`, `**実装モデル要件**: `,
   `**自動送信**: `, `PR 構成`, and `PR を作成した`), which it reads to find
-  a plan's PRs, their values, and their progress. Comments, identifiers, and
-  the text the tool prints stay English, and the plans its tests read are
-  sample files under `internal/chief/testdata/plans/`, not Go literals.
-  Reason: the plan is a Japanese document, so the literal has to equal its
-  text, as for `opus-review-decision.sh`, whose reading the tool's must match.
+  a plan's PRs, their values, and their progress; and the start of the line
+  of a requirements document that names its issue (`対応 issue: `) with the
+  full-width parenthesis (`（`) that ends the part of the line it reads,
+  which it reads to find the task that answers an issue. Comments,
+  identifiers, and the text the tool prints stay English, and the plans and
+  requirements documents its tests read are sample files under
+  `internal/chief/testdata/plans/` and `internal/chief/testdata/requirements/`,
+  not Go literals. Reason: the plan and the requirements document are
+  Japanese documents, so the literal has to equal their text, as for
+  `opus-review-decision.sh`, whose reading the tool's must match for a plan.
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under
@@ -839,6 +844,21 @@ Only the conventions a linter does not check are worth stating:
   lives in the message catalogs, and both the English and the Japanese catalog
   must have it. Logs written for
   developers stay in English.
+
+## Browser Extension Idioms
+
+- **Name a function that runs inside a lock with the suffix `Locked`.** A lock
+  here is a single-flight order, such as the `serial` helper of the service
+  worker's job coordinator, which keeps a read, a decision, and a write
+  across `await` points from being interleaved with another request's.
+  - A `Locked` function must not call the lock's entry (`serial`), directly or
+    through another function. The inner task would wait for the outer one,
+    which waits for it, and the request would never be answered.
+  - A function that only reads, and the entry points that call `serial`, do not
+    take the suffix. A function takes it only because it must run while the lock
+    is held.
+  - The suffix is the convention. Nothing checks it mechanically, so add the
+    suffix when you add a task, and read the call chain when you change one.
 
 ## Requirements and Acceptance Criteria
 

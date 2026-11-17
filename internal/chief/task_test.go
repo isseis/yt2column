@@ -5,10 +5,16 @@ package chief
 import (
 	"context"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/chief/paneinput"
+	"github.com/isseis/yt2column/internal/cmdrunner"
 )
 
 // testContext is a _context.md holding only an old-value table, the part of
@@ -368,4 +374,228 @@ func TestTasksReadRejectsWrongDirectoryForm(t *testing.T) {
 	if _, err := NewTasks(rec.commands(nil)).Read(context.Background(), wt, "user/0001-test-task-02"); !errors.Is(err, errTaskDocument) {
 		t.Errorf("error = %v, want errTaskDocument", err)
 	}
+}
+
+// requirementsSamples maps each sample under testdata/requirements to the
+// task directory it is placed in for the issue-line tests.
+var requirementsSamples = map[string]string{
+	"link-with-remarks.md": "0010_link_with_remarks",
+	"plain-number.md":      "0011_plain_number",
+	"similar-numbers.md":   "0012_similar_numbers",
+	"malformed-link.md":    "0013_malformed_link",
+	"broken-link.md":       "0014_broken_link",
+	"two-lines.md":         "0015_two_lines",
+	"fenced.md":            "0016_fenced",
+	"indented.md":          "0017_indented",
+	"remarks-only.md":      "0018_remarks_only",
+	"same-issue-a.md":      "0019_same_issue_a",
+	"same-issue-b.md":      "0020_same_issue_b",
+	"prose-mention.md":     "0021_prose_mention",
+}
+
+// issueRepo returns a repository whose refs/remotes/origin/main holds every
+// requirements sample in its task directory, plus documents the search must
+// not read: one a level deeper than a task directory, one a level above, and
+// another file of a task directory.
+func issueRepo(t *testing.T) *testRepo {
+	t.Helper()
+	repo := newTestRepo(t)
+	for file, dir := range requirementsSamples {
+		repo.Write("docs/tasks/"+dir+"/01_requirements.md", string(readTestdata(t, "requirements/"+file)))
+	}
+	cited := issueLinePrefix + "[#999](https://github.com/example/repo/issues/999)\n"
+	repo.Write("docs/tasks/0030_deep/nested/01_requirements.md", cited)
+	repo.Write("docs/tasks/01_requirements.md", cited)
+	repo.Write("docs/tasks/0031_other_file/02_architecture.md", cited)
+	repo.CommitAll("tasks")
+	repo.Git("update-ref", originMain, "HEAD")
+	return repo
+}
+
+// TestIssueTasksReadsTheRealGitGrep runs the real git grep over a repository
+// of the samples and checks which task directories cite each issue.
+func TestIssueTasksReadsTheRealGitGrep(t *testing.T) {
+	repo := issueRepo(t)
+	tasks := NewTasks(repo.RealCommands())
+	cases := []struct {
+		issue string
+		want  []string
+	}{
+		{"839", []string{"0010_link_with_remarks"}},
+		{"927", nil}, // inside the remarks after the full-width parenthesis
+		{"934", nil},
+		{"2", []string{"0011_plain_number"}},
+		{"20", []string{"0012_similar_numbers"}},
+		{"5", []string{"0013_malformed_link"}},
+		{"6", []string{"0013_malformed_link"}}, // the destination of a link whose text disagrees
+		{"9", []string{"0014_broken_link"}},
+		{"7", []string{"0015_two_lines"}},
+		{"8", []string{"0015_two_lines"}},
+		{"31", []string{"0016_fenced"}},
+		{"40", nil}, // the line does not start in the first column
+		{"50", nil},
+		{"70", nil}, // mentioned in prose, not on an issue line
+		{"60", []string{"0019_same_issue_a", "0020_same_issue_b"}},
+		{"61", nil},
+		{"999", nil}, // only in files the search must not read
+		{"12345", nil},
+	}
+	for _, c := range cases {
+		t.Run("issue "+c.issue, func(t *testing.T) {
+			got, err := tasks.IssueTasks(t.Context(), repo.Dir, issueNumber(t, c.issue))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(got, c.want) {
+				t.Errorf("IssueTasks = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// TestIssueTasksWithNoLine treats git grep's exit status 1 as no line.
+func TestIssueTasksWithNoLine(t *testing.T) {
+	repo := newTestRepo(t)
+	repo.Write("docs/tasks/0001_a/01_requirements.md", "no issue line\n")
+	repo.CommitAll("tasks")
+	repo.Git("update-ref", originMain, "HEAD")
+	got, err := NewTasks(repo.RealCommands()).IssueTasks(t.Context(), repo.Dir, issueNumber(t, "1"))
+	if err != nil || len(got) != 0 {
+		t.Errorf("IssueTasks = %v, %v, want none", got, err)
+	}
+}
+
+// TestIssueTasksFailures checks the readings that are not "no line".
+func TestIssueTasksFailures(t *testing.T) {
+	const wt = "/work/tree"
+	search := "git " + strings.Join(issueLineSearch, " ")
+	good := "refs/remotes/origin/main:docs/tasks/0001_a/01_requirements.md:5:" + issueLinePrefix + "#1\n"
+	t.Run("one git grep in the worktree", func(t *testing.T) {
+		rec := newRecorder(t)
+		rec.reply(search, []byte(good))
+		got, err := NewTasks(rec.commands(nil)).IssueTasks(t.Context(), wt, issueNumber(t, "1"))
+		if err != nil || !slices.Equal(got, []string{"0001_a"}) {
+			t.Fatalf("IssueTasks = %v, %v", got, err)
+		}
+		if calls := rec.recorded(); len(calls) != 1 || calls[0].dir != wt {
+			t.Errorf("calls = %+v, want one in %s", calls, wt)
+		}
+	})
+	for name, out := range map[string]string{
+		"a binary file":          "Binary file refs/remotes/origin/main:docs/tasks/0001_a/01_requirements.md matches\n",
+		"another ref":            "origin/main:docs/tasks/0001_a/01_requirements.md:5:" + issueLinePrefix + "#1\n",
+		"another file":           "refs/remotes/origin/main:docs/tasks/0001_a/02_architecture.md:5:" + issueLinePrefix + "#1\n",
+		"a deeper path":          "refs/remotes/origin/main:docs/tasks/0001_a/x/01_requirements.md:5:" + issueLinePrefix + "#1\n",
+		"a bad directory name":   "refs/remotes/origin/main:docs/tasks/Task/01_requirements.md:5:" + issueLinePrefix + "#1\n",
+		"no line number":         "refs/remotes/origin/main:docs/tasks/0001_a/01_requirements.md:" + issueLinePrefix + "#1\n",
+		"a good line then noise": good + "noise\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := newRecorder(t)
+			rec.reply(search, []byte(out))
+			if got, err := NewTasks(rec.commands(nil)).IssueTasks(t.Context(), wt, issueNumber(t, "1")); !errors.Is(err, errTaskDocument) {
+				t.Errorf("IssueTasks = %v, %v, want errTaskDocument", got, err)
+			}
+		})
+	}
+	t.Run("an exit status other than 1 is an error", func(t *testing.T) {
+		for _, failure := range []error{&cmdrunner.ExitError{Code: 128}, errors.New("git is gone")} {
+			rec := newRecorder(t)
+			rec.fail(search, failure)
+			if got, err := NewTasks(rec.commands(nil)).IssueTasks(t.Context(), wt, issueNumber(t, "1")); err == nil {
+				t.Errorf("IssueTasks = %v, want an error", got)
+			}
+		}
+	})
+	t.Run("no issue", func(t *testing.T) {
+		rec := newRecorder(t)
+		if _, err := NewTasks(rec.commands(nil)).IssueTasks(t.Context(), wt, paneinput.IssueNumber{}); !errors.Is(err, errNoIssueNumber) {
+			t.Errorf("error = %v, want errNoIssueNumber", err)
+		}
+		if calls := rec.recorded(); len(calls) != 0 {
+			t.Errorf("ran %v", calls)
+		}
+	})
+}
+
+func TestIssueNumbersOf(t *testing.T) {
+	cases := []struct {
+		line string
+		want []string
+	}{
+		{issueLinePrefix + "[#839](https://example.test/issues/839)", []string{"839"}},
+		{issueLinePrefix + "[#839](https://example.test/issues/839)" + issueMentionEnd + "related: #1, #2)", []string{"839"}},
+		{issueLinePrefix + "[#5](https://example.test/issues/6)", []string{"5", "6"}},
+		{issueLinePrefix + "[#5](https://example.test/pull/5/)", []string{"5"}},
+		{issueLinePrefix + "[#5](https://example.test/issues/005)", []string{"5"}},
+		{issueLinePrefix + "[#5](https://example.test/issues/x)", []string{"5"}},
+		{issueLinePrefix + "see https://example.test/o/r/issues/8#x and /pull/9?y", []string{"8", "9"}},
+		{issueLinePrefix + "#2", []string{"2"}},
+		{issueLinePrefix + "#2, #3 and [#4](u/4)", []string{"2", "3", "4"}},
+		{issueLinePrefix + "[#9(https://example.test/issues/9", []string{"9"}},
+		{issueLinePrefix + issueMentionEnd + "#9)", nil},
+		{issueLinePrefix + "none", nil},
+		{issueLinePrefix + "#0", nil},
+	}
+	for _, c := range cases {
+		t.Run(c.line, func(t *testing.T) {
+			got := slices.Sorted(maps.Keys(issueNumbersOf(c.line)))
+			if !slices.Equal(got, c.want) {
+				t.Errorf("issueNumbersOf = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// TestTasksReadDir reads a task by its directory name, with the same
+// documents and rules as Read.
+func TestTasksReadDir(t *testing.T) {
+	const wt = "/work/tree"
+	lsTasks := "git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/"
+	lsDir := "git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/0001_test_task/"
+	req := []byte("## Document Status\n\n| Item | Value |\n|---|---|\n| Status | `approved` |\n| Process | `full` |\n")
+	t.Run("every document", func(t *testing.T) {
+		rec := newRecorder(t)
+		rec.reply(lsTasks, []byte("docs/tasks/0000_template\x00docs/tasks/0001_test_task\x00"))
+		rec.reply(lsDir, []byte("docs/tasks/0001_test_task/01_requirements.md\x00docs/tasks/0001_test_task/03_implementation_plan.md\x00"))
+		rec.reply("git show refs/remotes/origin/main:docs/tasks/0001_test_task/01_requirements.md", req)
+		rec.reply("git show refs/remotes/origin/main:docs/tasks/0001_test_task/03_implementation_plan.md", planSample(t, "marker-old-standard.md"))
+		rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", []byte(testContext))
+		tasks := NewTasks(rec.commands(nil))
+		byDir, err := tasks.ReadDir(t.Context(), wt, "0001_test_task")
+		if err != nil {
+			t.Fatal(err)
+		}
+		byBranch, err := tasks.Read(t.Context(), wt, "user/0001-test-task-02")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(byDir, byBranch) {
+			t.Errorf("ReadDir = %+v, Read = %+v", byDir, byBranch)
+		}
+	})
+	// A name that is not a task directory's form is refused before git runs;
+	// a well-formed name origin/main lacks is refused after the listing.
+	for name, dir := range map[string]string{
+		"a name that is not a task directory": "../0001_test_task",
+		"a slash":                             "0001_test_task/x",
+		"no number":                           "test_task",
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := newRecorder(t)
+			if _, err := NewTasks(rec.commands(nil)).ReadDir(t.Context(), wt, dir); !errors.Is(err, errTaskDocument) {
+				t.Errorf("ReadDir(%q) error = %v, want errTaskDocument", dir, err)
+			}
+			if calls := rec.recorded(); len(calls) != 0 {
+				t.Errorf("git ran for a malformed name: %v", calls)
+			}
+		})
+	}
+	t.Run("a directory origin/main lacks", func(t *testing.T) {
+		rec := newRecorder(t)
+		rec.reply(lsTasks, []byte("docs/tasks/0001_test_task\x00"))
+		if _, err := NewTasks(rec.commands(nil)).ReadDir(t.Context(), wt, "0002_test_task"); !errors.Is(err, errTaskDocument) {
+			t.Errorf("error = %v, want errTaskDocument", err)
+		}
+	})
 }

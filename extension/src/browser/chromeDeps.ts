@@ -5,6 +5,7 @@ import type {
   StartRequest,
   ViewerChannelMessage,
 } from "../core/extensionMessages.ts";
+import type { JobChannelMessage } from "../core/jobMessages.ts";
 import { nativeHostName } from "../core/native.ts";
 import type { Logger } from "../core/types.ts";
 import type { MetadataReader } from "../launch.ts";
@@ -436,7 +437,7 @@ export function createWindowFocus(
 /** One endpoint of the viewers' channel. A message reaches every other open endpoint, never the one that posted it. */
 export interface ViewerChannel {
   /** Posts message; false when the channel cannot post it (it is closed). */
-  post(message: ViewerChannelMessage): boolean;
+  post(message: ViewerChannelMessage | JobChannelMessage): boolean;
   /** Calls listener with the data of each message another endpoint posts; returns a function that stops it. */
   listen(listener: (data: unknown) => void): () => void;
   close(): void;

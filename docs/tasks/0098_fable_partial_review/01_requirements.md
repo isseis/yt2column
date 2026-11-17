@@ -147,7 +147,7 @@
   -   Fable の指摘のトリアージは F-004 に従う。Fable の指摘を直したときは、その直しの commit をローカルの CLI レビューにかける（直しの前の HEAD を BASE とする）。そのレビューが見られなかったとき（試行の結果が `none`）は、直しの範囲を `Local CLI review: not run` の行で記録する。
   -   単独の経路とその直しは、Opus のレビューを行うかの判断（`runplan.md`「Before the PR」の B2）より前に済ませる。直しの commit が Opus のレビューの範囲に入るようにするためである。B1（ブランチのレビュー）との順序は設計で決める（design_handoff.md H-03）。
 - **AC-07**: Fable の部分レビューの記録（AC-28 の `run` か `not run`）は、Fable が見た範囲の後の commit が、すべて次のどれかであるときに限り、その PR の有効な記録とする。
-  -   除外できる commit（`_lib/opus-review.md` の「Excludable commit」）
+  -   中身のない commit。親が 1 つで、空か、`README.en.md` だけを変えるか、タスクの `03_implementation_plan.md` の PR の進み具合のチェックボックスの行（AC-35 と同じ行）だけを変える commit である（これらを合わせて変える commit を含む）。計画書のほかの行を変える commit は、ここに入らない。タスク文書の PR では計画書そのものがレビューされる中身であり、実装の PR でも実装モデル要件や自動送信の値は計画書の中身だからである（[02_architecture.md](02_architecture.md) 1.2 の決定 11）
   -   同じ実行のトリアージとその確かめ（AC-06、AC-20〜AC-22）で作った直しの commit
   -   同じ PR のチェックポイントの実行が、step 5a から PR を作るまで（`task-pr-handoff.md` Part B step 2 を含む）に作った commit。具体的には次のとおりである。
       -   green gate を通すための直し
@@ -262,7 +262,15 @@ Fable の部分レビューを行ったかとその結果を、コミットメ�
   -   LAST_REVIEWED..HEAD の判断の対象の commit のすべてを、ローカルの CLI レビューが見たとブランチの記録から分かるとき: `skip`
   -   そうでないとき: `ask`
 
-  判断の対象の commit は、LAST_REVIEWED..HEAD のうち `origin/main` から届かない commit である（`main` から取り込んだ commit は、それぞれの PR でレビューされている）。「見たと分かる」とは、試行の結果が `coderabbit` か `codex` だったローカルの CLI レビューの範囲に、その commit が入ると記録から分かることである。次の commit は、見たと分からない。
+  判断の対象の commit は、LAST_REVIEWED..HEAD のうち `origin/main` から届かない commit である（`main` から取り込んだ commit は、それぞれの PR でレビューされている）。「見たと分かる」とは、試行の結果が `coderabbit` か `codex` だったローカルの CLI レビューの範囲に、その commit が入ると記録から分かることである。ただし、次の commit は、レビューの記録に入らなくても見たとみなす。変えるものがないか、PR の手続きの印だけを変える commit で、レビューする中身がないためである。
+
+  とくに後者は、`/runplan` が PR を作った直後に commit して push する（`.claude/commands/runplan.md:143-145`）ので、見たとみなさないと、実装の PR の判断がほとんどいつも `ask` になる（[02_architecture.md](02_architecture.md) 1.2 の決定 11）。
+  -   親が 1 つで、親との差分がない commit（記録の行だけを持つ commit など）
+  -   タスクの `03_implementation_plan.md` の、PR の進み具合のチェックボックスの行（`PR を作成した`・`PR がマージされた`・`次のブランチへ切り替えた` の行。PR マーカーの節のものと、PR マーカーのない計画書の単一 PR の記録のもの）だけを変える commit
+
+  この 2 種類の commit は、下の「見たと分からない」commit の範囲（`not run` の行の範囲など）にあっても、見たとみなす。
+
+  次の commit は、見たと分からない。
   -   `Local CLI review: not run` の行と、ブランチ全体を表す `CodeRabbit local review: not run` の行（`_lib/local-cli-review.md`「Reading the record lines」）が示す範囲の commit
   -   どのレビューの記録にも入らない commit（人が直接 push した commit、ほかのセッションの commit など）
   -   merge commit
@@ -354,3 +362,5 @@ Fable の部分レビューを行ったかとその結果を、コミットメ�
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#927）
+- 2026-11-17 draft への戻し：AC-35 で、空の commit と計画書の PR マーカーのチェックボックスの行だけを変える commit を、ローカルの CLI レビューが見た commit とみなすことにした；AC-07 で、Fable の記録を無効にしない commit から、計画書の中身を変える commit を外した（#945）
+- 2026-11-17 承認（isseis、#945）

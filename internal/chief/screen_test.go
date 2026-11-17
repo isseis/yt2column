@@ -868,6 +868,81 @@ func TestReadLastHumanInputOfRunningSessions(t *testing.T) {
 	}
 }
 
+// TestReadRunningCommand reads the running command of every transcript
+// sample and of transcripts built from the sampled line forms: only the last
+// human input that is one of the five task commands is a command, with its
+// argument kept only when it validates; a transcript that ends inside a line
+// is never read without that line, and one readLastHumanInput cannot read
+// decides nothing.
+func TestReadRunningCommand(t *testing.T) {
+	type result struct {
+		text    string
+		dropped bool
+		why     RunningUnknown
+	}
+	notTask := result{why: RunningUnknownNotTaskCommand}
+	samples := map[string]result{
+		"claude-auto-continuation.jsonl":    notTask,
+		"claude-clear-model.jsonl":          notTask,
+		"claude-command-report.jsonl":       notTask,
+		"claude-compact.jsonl":              notTask,
+		"claude-human-input.jsonl":          notTask,
+		"claude-queued-input.jsonl":         notTask,
+		"claude-recap-notification.jsonl":   notTask,
+		"claude-running-after-answer.jsonl": {text: "/runplan 0093"},
+		"claude-running-command.jsonl":      {text: "/runplan 0060"},
+		"claude-runpr-report.jsonl":         {text: "/runpr 940"},
+		"claude-synthetic.jsonl":            notTask,
+	}
+	files, err := filepath.Glob(filepath.Join("testdata", "transcript", "*.jsonl"))
+	if err != nil || len(files) != len(samples) {
+		t.Fatalf("transcript samples = %v, %v; want the %d named here", files, err, len(samples))
+	}
+	for _, f := range files {
+		want, ok := samples[filepath.Base(f)]
+		if !ok {
+			t.Errorf("%s: no expected result", f)
+			continue
+		}
+		cmd, dropped, why := readRunningCommand(readTestdata(t, "transcript/"+filepath.Base(f)))
+		if got := (result{cmd.Text(), dropped, why}); got != want {
+			t.Errorf("%s: readRunningCommand = %+v, want %+v", filepath.Base(f), got, want)
+		}
+	}
+	head := modeLine("00000000-0000-4000-8000-000000000001")
+	lines := func(ls ...string) string { return strings.Join(append([]string{head}, ls...), "\n") + "\n" }
+	running := string(readTestdata(t, "transcript/claude-running-command.jsonl"))
+	cases := []struct {
+		name string
+		text string
+		want result
+	}{
+		{"/mkreq", lines(commandLine("/mkreq 890")), result{text: "/mkreq 890"}},
+		{"/mkarch", lines(commandLine("/mkarch 0093")), result{text: "/mkarch 0093"}},
+		{"/mkplan", lines(commandLine("/mkplan 0093")), result{text: "/mkplan 0093"}},
+		{"/runplan", lines(commandLine("/runplan 0093")), result{text: "/runplan 0093"}},
+		{"/runpr", lines(commandLine("/runpr 926")), result{text: "/runpr 926"}},
+		{"a command of another name", lines(commandLine("/fixpr 926")), notTask},
+		{"a command named after a routing row", lines(commandLine("/runplan-takeover 0093")), notTask},
+		{"free text after a command", lines(commandLine("/runplan 0093"), typedLine("/runpr 926")), notTask},
+		{"no human input", lines(), notTask},
+		{"an empty transcript", "", notTask},
+		{"a line that is not JSON", lines(commandLine("/runplan 0093"), `{"type":`), result{why: RunningUnknownUnreadable}},
+		{"a command whose last line is still being written", strings.TrimSuffix(running, "\n"), result{why: RunningUnknownPartialLine}},
+		{"a second argument", lines(commandLine("/runplan 0093 0094")), result{text: "/runplan", dropped: true}},
+		{"an empty argument element", lines(commandLine("/runpr")), result{text: "/runpr"}},
+		// Claude Code writes a command typed without an argument with no
+		// argument element, which is read as other input: a known limit.
+		{"a command typed without an argument", lines(strings.Replace(commandLine("/runpr"), `\n<command-args></command-args>`, "", 1)), notTask},
+	}
+	for _, c := range cases {
+		cmd, dropped, why := readRunningCommand([]byte(c.text))
+		if got := (result{cmd.Text(), dropped, why}); got != c.want {
+			t.Errorf("%s: readRunningCommand = %+v, want %+v", c.name, got, c.want)
+		}
+	}
+}
+
 // runprNoneLine is the NEXT line of the sampled OpenCode /runpr report.
 const runprNoneLine = "     - NEXT: なし（タスク 0087 の最終 PR のため）。worktree は origin/"
 
@@ -883,6 +958,23 @@ func runprReportScreen(t *testing.T, pr int, next string) string {
 	if next != "" {
 		screen = strings.Replace(screen, runprNoneLine, "     - NEXT: "+next, 1)
 	}
+	return strings.ReplaceAll(screen, "867", strconv.Itoa(pr))
+}
+
+// claudeReportHeading is a heading line of the last message of the sampled
+// Claude Code command report.
+const claudeReportHeading = "記録したこと"
+
+// claudeReportScreenNaming returns the sampled Claude Code command report
+// with its PR number replaced by pr and its heading line replaced by a NEXT
+// line giving next, so the screen alone shows a report naming both.
+func claudeReportScreenNaming(t *testing.T, pr int, next string) string {
+	t.Helper()
+	screen := readScreenSample(t, "claude-command-report.ansi")
+	if !strings.Contains(screen, claudeReportHeading) {
+		t.Fatal("the report sample no longer holds its heading line")
+	}
+	screen = strings.Replace(screen, claudeReportHeading, "NEXT: "+next, 1)
 	return strings.ReplaceAll(screen, "867", strconv.Itoa(pr))
 }
 

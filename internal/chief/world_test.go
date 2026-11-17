@@ -3,6 +3,7 @@
 package chief
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,6 +72,9 @@ type fakeWorkspace struct {
 	// PRs is the gh pr list output for the branch; "" means no PR.
 	PRs  string
 	Docs *fakeDocs
+	// Tree is the name of its worktree directory under the test root,
+	// "tree-<ID>" when empty.
+	Tree string
 }
 
 // world is a fake Herdr and repository for the snapshot tests: chief runs in
@@ -170,7 +174,11 @@ func (w *world) add(ws fakeWorkspace) string {
 // the caller.
 func (w *world) addTree(ws fakeWorkspace) string {
 	w.t.Helper()
-	tree := filepath.Join(filepath.Dir(w.chiefTree), "tree-"+ws.ID)
+	name := ws.Tree
+	if name == "" {
+		name = "tree-" + ws.ID
+	}
+	tree := filepath.Join(filepath.Dir(w.chiefTree), name)
 	if err := os.MkdirAll(tree, 0o700); err != nil {
 		w.t.Fatal(err)
 	}
@@ -222,7 +230,7 @@ func (w *world) finish() Deps {
 	w.rec.reply("herdr agent list", agentListOutput(w.agents))
 	w.rec.reply("herdr workspace list", workspaceListOutput(w.labels))
 	w.rec.reply("herdr agent get "+worldChiefPane, agentGetOutput(w.chief))
-	return Deps{Env: w.env, Cmds: w.rec.commands(os.Environ()), Store: w.store, Now: func() time.Time { return w.now }}
+	return Deps{Env: w.env, Cmds: w.rec.commands(os.Environ()), Store: w.store, Now: func() time.Time { return w.now }, Sleep: func(context.Context, time.Duration) error { return nil }}
 }
 
 // owner is the identity chief's pane has.

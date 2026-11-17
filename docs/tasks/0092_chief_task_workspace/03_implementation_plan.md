@@ -165,19 +165,19 @@
 
 **変更するファイル:** `internal/strictjson/strictjson.go`・`strictjson_test.go`、`internal/chief/taskspace.go`・`issue.go`・`construction_test.go`（新規）とそのテスト、`internal/chief/testdata/gh/`（issue の応答のサンプル。決定 15）・`internal/chief/testdata/README.md`、`internal/chief/records.go`（`Worktree` のコメント）、`internal/chief/workspace.go`・`task.go` とそのテスト、`internal/chief/test_helpers.go`、`internal/chief/testdata/requirements/`（新規、要件定義書のサンプル）、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 2-1**: 呼び出しの記録係を、決定 7 の読み取りの分（読み取りの一覧と、`gh api graphql` の決まった形）だけ広げる。
--   [ ] **ステップ 2-2**: `strictjson` に、読むメンバーと大文字と小文字だけが違う名前のメンバーを拒む読み方を、新しいメソッドとして足す（設計書 3.3.1）。今の `Collect`・`CollectOnly` の振る舞いとテストは変えない。テストは、拒む名前、重なり、読まないメンバーの読み飛ばしを確かめる。`package_reference.md` の `internal/strictjson` の行に名前を足す（決定 9）。
--   [ ] **ステップ 2-3**: `taskspace.go` に `TaskSpace`・`NewTaskSpace`・`TaskSpace.Worktree` を書き、`records.go` の `Worktree` の型のコメントに 2 つめの作り方を書く（設計書 3.2）。テストは、番号からパスと名前が決まること、`$HOME` が相対パスのとき、送れない文字を含むとき（リンクを解決した後に含むときを含む）、途中にディレクトリでないものがあるとき、ゼロ値が何も返さないことを確かめる。一時的なディレクトリとシンボリックリンクで確かめる。`construction_test.go` に決定 11 のガードを作り、`TaskSpace` を対象にする。
--   [ ] **ステップ 2-4**: `taskspace.go` に、`herdr pane list` からパスの workspace を求める読み方を書く（設計書 3.3.2）。テストは、パスそのもの・その下・その外（名前の前方だけ一致するパスを含む）の pane、chief の workspace、シェルだけの pane を確かめる。
--   [ ] **ステップ 2-5**: 決定 15 のとおり、ラベルを足した問い合わせで gh のサンプルを採り直す。そのうえで、`issue.go` に、`gh api graphql` の `issueOrPullRequest` の問い合わせと応答の読み取りを書く（設計書 1.5・3.3.1）。問い合わせの変数は `-F` で渡す（`{owner}`・`{repo}` を gh が埋め、`$n` を数として渡すため。`gh api --help`）。応答は 64 KiB を上限とする。結果は、ゼロ値を読めないものとする列挙の型で返す。題名は無害化して上限で切り、切ったことを返す（決定 6）。開いた issue は、ラベルの名前が `draft` とバイト列で等しいものがあれば `issue_draft` とし、閉じた issue はラベルによらず `issue_closed` とする。テストは、採り直したサンプルで 5 つの形（開いた issue、ラベル `draft` が付いた開いた issue、閉じた issue、PR、存在しない番号）を見分けること、設計書 7.1 の拒む形（ラベルの一部だけの応答、文字列でないラベルの名前を含む）を 1 つずつ拒むこと、閉じていてラベル `draft` もある issue が `issue_closed` になること、名前が `Draft`・`draft-x` のラベルでは拒まないこと、64 KiB の境界、題名の上限の境界を確かめる。題名の境界のテストは、日本語でない複数バイトの文字を使う。`--jq` を使わないこと、chief の worktree で `GH_REPO`・`GH_HOST` なしに走ること、問い合わせが `mutation` を含まないことを確かめる（決定 7）。
--   [ ] **ステップ 2-6**: `workspace.go` の `GitReader` に、`worktree list --porcelain` の読み取り（パス、`locked`、ディレクトリのない登録）と `merge-base --is-ancestor`（0・1・それ以外を分ける）を足す。`GitReader` は読み取りだけを持ち、`worktree add`・`worktree remove` は持たない（生のパスで worktree を作るか消す口を作らないため。書き込みは、ステップ 4-2 の `TaskSpace` を取る作成と、ステップ 6-1 の `WorkspaceCloser` が持つ）。`newTestRepo` の一時的なリポジトリの本物の git で、次を確かめる。
+-   [x] **ステップ 2-1**: 呼び出しの記録係を、決定 7 の読み取りの分（読み取りの一覧と、`gh api graphql` の決まった形）だけ広げる。
+-   [x] **ステップ 2-2**: `strictjson` に、読むメンバーと大文字と小文字だけが違う名前のメンバーを拒む読み方を、新しいメソッドとして足す（設計書 3.3.1）。今の `Collect`・`CollectOnly` の振る舞いとテストは変えない。テストは、拒む名前、重なり、読まないメンバーの読み飛ばしを確かめる。`package_reference.md` の `internal/strictjson` の行に名前を足す（決定 9）。
+-   [x] **ステップ 2-3**: `taskspace.go` に `TaskSpace`・`NewTaskSpace`・`TaskSpace.Worktree` を書き、`records.go` の `Worktree` の型のコメントに 2 つめの作り方を書く（設計書 3.2）。テストは、番号からパスと名前が決まること、`$HOME` が相対パスのとき、送れない文字を含むとき（リンクを解決した後に含むときを含む）、途中にディレクトリでないものがあるとき、ゼロ値が何も返さないことを確かめる。一時的なディレクトリとシンボリックリンクで確かめる。`construction_test.go` に決定 11 のガードを作り、`TaskSpace` を対象にする。
+-   [x] **ステップ 2-4**: `taskspace.go` に、`herdr pane list` からパスの workspace を求める読み方を書く（設計書 3.3.2）。テストは、パスそのもの・その下・その外（名前の前方だけ一致するパスを含む）の pane、chief の workspace、シェルだけの pane を確かめる。
+-   [x] **ステップ 2-5**: 決定 15 のとおり、ラベルを足した問い合わせで gh のサンプルを採り直す。そのうえで、`issue.go` に、`gh api graphql` の `issueOrPullRequest` の問い合わせと応答の読み取りを書く（設計書 1.5・3.3.1）。問い合わせの変数は `-F` で渡す（`{owner}`・`{repo}` を gh が埋め、`$n` を数として渡すため。`gh api --help`）。応答は 64 KiB を上限とする。結果は、ゼロ値を読めないものとする列挙の型で返す。題名は無害化して上限で切り、切ったことを返す（決定 6）。開いた issue は、ラベルの名前が `draft` とバイト列で等しいものがあれば `issue_draft` とし、閉じた issue はラベルによらず `issue_closed` とする。テストは、採り直したサンプルで 5 つの形（開いた issue、ラベル `draft` が付いた開いた issue、閉じた issue、PR、存在しない番号）を見分けること、設計書 7.1 の拒む形（ラベルの一部だけの応答、文字列でないラベルの名前を含む）を 1 つずつ拒むこと、閉じていてラベル `draft` もある issue が `issue_closed` になること、名前が `Draft`・`draft-x` のラベルでは拒まないこと、64 KiB の境界、題名の上限の境界を確かめる。題名の境界のテストは、日本語でない複数バイトの文字を使う。`--jq` を使わないこと、chief の worktree で `GH_REPO`・`GH_HOST` なしに走ること、問い合わせが `mutation` を含まないことを確かめる（決定 7）。
+-   [x] **ステップ 2-6**: `workspace.go` の `GitReader` に、`worktree list --porcelain` の読み取り（パス、`locked`、ディレクトリのない登録）と `merge-base --is-ancestor`（0・1・それ以外を分ける）を足す。`GitReader` は読み取りだけを持ち、`worktree add`・`worktree remove` は持たない（生のパスで worktree を作るか消す口を作らないため。書き込みは、ステップ 4-2 の `TaskSpace` を取る作成と、ステップ 6-1 の `WorkspaceCloser` が持つ）。`newTestRepo` の一時的なリポジトリの本物の git で、次を確かめる。
     -   PR-1 のサンプルと本物の git の出力で、porcelain を読める。
     -   `merge-base --is-ancestor` の、祖先・祖先でない・ないコミットの 3 つ。
     -   今の `Clean` が、ステージした変更と入れ子のディレクトリの追跡していないファイルを数え、git が無視するファイルを数えない。
--   [ ] **ステップ 2-7**: `task.go` に、`origin/main` の要件定義書の `対応 issue:` の行を 1 回の `git grep` で読み、issue 番号からタスクのディレクトリを探す読み方と、ディレクトリの名前から文書を読む口を書く（設計書 3.4.4）。`git grep` が終了コード 1（合う行がない）を返したときは、行がないものとして読む。`Tasks.Read` とディレクトリの名前から読む口は、同じ文書の読み方を使う。`TestTasksRead` は変えずに通す。テストは次を確かめる。
+-   [x] **ステップ 2-7**: `task.go` に、`origin/main` の要件定義書の `対応 issue:` の行を 1 回の `git grep` で読み、issue 番号からタスクのディレクトリを探す読み方と、ディレクトリの名前から文書を読む口を書く（設計書 3.4.4）。`git grep` が終了コード 1（合う行がない）を返したときは、行がないものとして読む。`Tasks.Read` とディレクトリの名前から読む口は、同じ文書の読み方を使う。`TestTasksRead` は変えずに通す。テストは次を確かめる。
     -   要件定義書のサンプル（`testdata/requirements/`）で、`（` の中のリンク、リンクでない番号、形の合わないリンク、2 つの行、コードのフェンスの中の行、2 つのタスクが同じ issue を挙げる場合。
     -   `refs/remotes/origin/main` に、glob の深さの要件定義書と、それより深い場所のファイルを置いた一時的なリポジトリで、本物の `git grep` が前者だけを読むこと。
--   [ ] **ステップ 2-8**: CLAUDE.md の「Go Idioms」の task reader の例外の範囲に、要件定義書の `対応 issue: ` の行の頭と、それを区切る全角の `（` を足し、テストが読むサンプルのディレクトリに `testdata/requirements/` を足す（設計書 3.4.4、決定 1）。`package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す（決定 9）。
+-   [x] **ステップ 2-8**: CLAUDE.md の「Go Idioms」の task reader の例外の範囲に、要件定義書の `対応 issue: ` の行の頭と、それを区切る全角の `（` を足し、テストが読むサンプルのディレクトリに `testdata/requirements/` を足す（設計書 3.4.4、決定 1）。`package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す（決定 9）。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -195,10 +195,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/956
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 作ったことの記録と、作った後の送信の入口（設計書 8 章の 3 のうち記録と送信）
 
@@ -478,7 +478,7 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 - [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
@@ -495,13 +495,13 @@
 | AC-02 | `ic/create_test.go::TestTargets`（番号の形、候補、候補のないとき）、定義の問いの順 | test、manual | 4-3・7-2 | PR-4、PR-7 |
 | AC-03 | `ic/send_test.go::TestMkreqTarget`、`ic/snapshot_test.go::TestNextCommandRules`（どちらも変えずに通る） | test | 3-3・5-3 | PR-3、PR-5 |
 | AC-04 | `ic/create_test.go::TestTargets`（`gh api graphql` を走らせない）、`ic/send_test.go::TestMkreqTarget` | test | 4-3 | PR-4 |
-| AC-05 | `ic/issue_test.go::TestReadIssueSamples`、`ic/issue_test.go::TestReadIssueRejects`、`ic/create_test.go::TestCreateRefusesIssue`（何も作らない） | test | 2-5・4-2 | PR-2、PR-4 |
+| AC-05 | `ic/issue_test.go::TestParseIssueSamples`、`ic/issue_test.go::TestParseIssueRejects`、`ic/create_test.go::TestCreateRefusesIssue`（何も作らない） | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-06 | `ic/create_test.go::TestCreateIssueForm`、`ic/create_test.go::TestTargets`（`issue_form`）、`cc/main_test.go::TestIssueFormIsNoUsageError` | test | 4-2・4-3・7-1 | PR-4、PR-7 |
-| AC-07 | `ic/issue_test.go::TestIssueTitleSanitizedAndCapped`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
+| AC-07 | `ic/issue_test.go::TestParseIssueTitle`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-08 | `ic/create_test.go::TestWorktreeAddDetached`（本物の git でブランチを作らない）、`ic/create_test.go::TestCreateStages`（fetch の後のコミットで作る） | test | 4-2 | PR-4 |
 | AC-09 | `ic/create_test.go::TestCreateStages`（workspace とタブ 3 つ、`--session` なし）、`ic/create_test.go::TestCreateChecksPanes`、実地の確かめ | test、manual | 4-2・7-5 | PR-4、PR-7 |
 | AC-10 | `ic/create_test.go::TestWorkspaceMakerStartsAgentsWithoutArguments`、`ic/send_test.go::TestSendAfterCreateInputs` | test | 3-3・4-1 | PR-3、PR-4 |
-| AC-11 | `ic/create_test.go::TestCreateRefusesExisting`（ファイル・ディレクトリ・リンク、登録だけの worktree、パスの workspace）、`ic/taskspace_test.go::TestTaskSpaceRefusesUnsupportedPath`、`ic/create_test.go::TestCreateFetchFailure` | test | 2-3・4-2 | PR-2、PR-4 |
+| AC-11 | `ic/create_test.go::TestCreateRefusesExisting`（ファイル・ディレクトリ・リンク、登録だけの worktree、パスの workspace）、`ic/taskspace_test.go::TestNewTaskSpace`、`ic/create_test.go::TestCreateFetchFailure` | test | 2-3・4-2 | PR-2、PR-4 |
 | AC-12 | `ic/create_test.go::TestCreateStopsAtEachStage`、`ic/create_test.go::TestCreateDeadline` | test | 4-2 | PR-4 |
 | AC-13 | `ic/create_test.go::TestWorkspaceMakerUsesOnlyItsIDs`、`ic/construction_test.go::TestWriterTypesOnlyFromConstructors`、`ic/autosend_test.go::TestTickSkipsAutoSendWhileCreating`、`ic/create_test.go::TestCreateBusyDuringTick`、定義が `create` を前景で呼ぶこと | test、manual | 4-1・4-4・7-2 | PR-4、PR-7 |
 | AC-14 | `ic/records_test.go::TestCreatedRecord`、`ic/create_test.go::TestCreateReplacesOldRecords`、`ic/create_test.go::TestCreateStopsAtEachStage`（記録が残る） | test | 3-2・4-2 | PR-3、PR-4 |
@@ -513,12 +513,12 @@
 | AC-20 | `ic/removal_test.go::TestRemovalRow` | test | 5-3 | PR-5 |
 | AC-21 | `ic/removal_test.go::TestRemovalRowFallsBack`、§1.4 の「変えないテスト」 | test | 5-3 | PR-5 |
 | AC-22 | `ic/pending_test.go::TestSortPending`（`removal` を足す）、定義が「新しいタスクを始める」を最後に置くこと | test、manual | 5-3・7-2 | PR-5、PR-7 |
-| AC-23 | `ic/removal_test.go::TestRemovalCandidateConditions`、`ic/task_test.go::TestTasksOfIssue`、`ic/task_test.go::TestRequirementLinesFromGitGrep`（本物の git） | test | 2-7・5-1 | PR-2、PR-5 |
+| AC-23 | `ic/removal_test.go::TestRemovalCandidateConditions`、`ic/task_test.go::TestIssueNumbersOf`、`ic/task_test.go::TestIssueTasksReadsTheRealGitGrep`（本物の git） | test | 2-7・5-1 | PR-2、PR-5 |
 | AC-24 | `ic/removal_test.go::TestRemovalCandidateRefusals`、`ic/records_test.go::TestCreatedRecordUnreadable` | test | 3-2・5-1 | PR-3、PR-5 |
 | AC-25 | `ic/removal_test.go::TestRemovalProposal`（項目と出力） | test | 5-3 | PR-5 |
 | AC-26 | `ic/autosend_test.go::TestAutoSendLeavesRemovalItems`（自動送信のある周で、閉じる・消す呼び出しがなく、記録が残る） | test | 5-4 | PR-5 |
 | AC-27 | `cc/docs_test.go::TestSettingsAsksBeforeRemove`、`ic/removal_test.go::TestRemovalProposal`（問いに示す名前・パス・pane の数）、定義の確認の問い、実地の確かめ | static、test、manual | 5-3・7-2・7-3・7-5 | PR-5、PR-7 |
-| AC-28 | `ic/removal_test.go::TestRemovalChecks`、`ic/workspace_test.go::TestCleanRealGit`、`ic/workspace_test.go::TestIsAncestorRealGit`、`ic/removal_test.go::TestRemoveRefusesOnEachCheck`（何も閉じず消さない）、`ic/removal_test.go::TestRemoveRefusesWhenChanged` | test | 2-6・5-2・6-2 | PR-2、PR-5、PR-6 |
+| AC-28 | `ic/removal_test.go::TestRemovalChecks`、`ic/workspace_test.go::TestGitCleanCountsStagedAndNestedFiles`、`ic/workspace_test.go::TestGitIsAncestor`、`ic/removal_test.go::TestRemoveRefusesOnEachCheck`（何も閉じず消さない）、`ic/removal_test.go::TestRemoveRefusesWhenChanged` | test | 2-6・5-2・6-2 | PR-2、PR-5、PR-6 |
 | AC-29 | `ic/removal_test.go::TestRemoveFetchFailure` | test | 6-2 | PR-6 |
 | AC-30 | `ic/removal_test.go::TestRemoveClosesThenRemoves`、`ic/sim_test.go::TestCreateToRemove`、実地の確かめ | test、manual | 6-2・6-3・7-5 | PR-6、PR-7 |
 | AC-31 | `ic/removal_test.go::TestRemoveLeavesTheRest`（`--force` なし、その workspace の記録だけを消す）、`ic/removal_test.go::TestWorktreeRemoveKeepsBranch`（本物の git） | test | 6-1・6-2 | PR-6 |
