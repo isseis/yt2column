@@ -971,6 +971,11 @@ func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 			remove(e.Name())
 		}
 	}
+	n, err := h.removeOldSkips(now)
+	removed += n
+	if err != nil {
+		errs = append(errs, err)
+	}
 	return removed, errors.Join(errs...)
 }
 

@@ -301,12 +301,20 @@ func holdWorkspace(ctx context.Context, deps Deps, loc *located, base ActionResu
 // resetMaker resets the pane of the command that created pr after /runpr
 // went to runprPane. A send that ended without its end record stopped the
 // workspace; the reset is a send too and does not go to a stopped workspace.
+// A reset skipped because no report was found is kept for the human to
+// choose when the last line the human typed into the pane is that command.
 func (s sendContext) resetMaker(ctx context.Context, f workspaceFacts, runprPane string, pr OpenPR, rec *detailRecord, routing Routing) ActionResult {
 	if stop, err := s.held.Stopped(); err != nil || stop != nil {
 		return notSent(ActionResult{Workspace: s.ws.Worktree, Input: InputReset}, NotSentStopped, "the workspace was stopped by the /runpr send")
 	}
 	made, why := prMaker(f)
-	return s.resetAfterRunpr(ctx, runprPane, pr, rec, made, why, routing)
+	res, skip := s.resetAfterRunpr(ctx, runprPane, pr, rec, made, why, routing)
+	return s.offerSkip(ctx, res, skip, sceneAfterRunpr, func(a Agent) string {
+		if reason, detail := s.paneLastInputMadePR(a, made); reason != NotSentUnknown {
+			return reason.String() + ": " + detail
+		}
+		return ""
+	})
 }
 
 // offered returns the command of req when the workspace's row offers it, or
