@@ -1222,7 +1222,7 @@ describe("review fixes", () => {
     assert.ok(total <= 8 * 1024 * 1024, String(total));
   });
 
-  it("takes the heading and video URL from the start context, and refuses a record over the limit", async () => {
+  it("takes the heading and video URL from the start context, and refuses a start whose context is over the limit", async () => {
     const s = setup();
     const f = await startFlow(s, "plain");
     const reply = (await s.ask(
@@ -1242,17 +1242,19 @@ describe("review fixes", () => {
       channelName: "Channel",
     });
 
-    // A start context over the read-back limit is read as absent: no run starts.
+    // A start context over the read-back limit is refused at the start.
     const huge = setup();
-    const g = await startFlow(huge, "plain", {
-      ...input,
-      title: "t".repeat(600 * 1024),
-    });
-    assert.equal(await g.reserve(digestA, videoA, instance(1)), undefined);
-    assert.equal(
-      [...huge.session.items.keys()].filter((k) => k.startsWith("job:")).length,
-      0,
+    const refused = await huge.ask(
+      {
+        type: "start",
+        mode: "plain",
+        input: { ...input, title: "t".repeat(600 * 1024) },
+      },
+      popupSender,
     );
+    assert.deepEqual(refused, { status: "rejected", reason: "invalid_body" });
+    assert.equal(huge.tabs.open.size, 0);
+    assert.equal(huge.session.items.size, 0);
   });
 
   it("starts with a title that has a control character, using the video URL for the page title", async () => {

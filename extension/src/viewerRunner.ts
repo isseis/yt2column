@@ -289,7 +289,8 @@ async function runJob(
     }
   };
   let generating = true;
-  let resultHeld = false;
+  /** The state of the result this page holds, once it holds one. */
+  let heldState: RunResult["state"] | undefined;
 
   // The record is watched from the reservation on: a removed record, or one
   // another viewer now runs, stops the Worker. A stopped record alone does
@@ -308,11 +309,13 @@ async function runJob(
       return;
     }
     if (record.state === "done" || record.state === "failed") {
-      if (resultHeld) {
+      if (heldState === record.state) {
         settle("in_record");
-      } else {
+      } else if (heldState === undefined) {
         stopRun();
       }
+      // Otherwise the record holds another outcome than this page's (a failed
+      // store): the result is still delivered.
     } else if (record.runner.instanceId !== identity.instanceId) {
       stopRun();
     }
@@ -435,7 +438,7 @@ async function runJob(
       return { kind: "stopped", jobId };
     }
     worker.terminate();
-    resultHeld = true;
+    heldState = result.state;
     const delivered = await deliver(result);
     return delivered === "stopped"
       ? { kind: "stopped", jobId }

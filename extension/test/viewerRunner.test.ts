@@ -566,6 +566,29 @@ describe("delivering the result", () => {
     assert.equal(outcome.kind === "finished" && outcome.stored, "in_record");
   });
 
+  it("keeps delivering when the record holds a failure while this page holds a done result", async () => {
+    const s = setup();
+    let answered = false;
+    s.replies.result = () =>
+      answered ? ok({ status: "stored" }) : { ok: false, error: "no SW" };
+    const { outcome: running } = await started(s);
+    s.worker().send({ callId: 2, kind: "reply", value: generated });
+    await settle();
+    const failed = {
+      ...(record("done") as object),
+      state: "failed",
+      failure: "internal",
+      internalDetail: "store_failed",
+    };
+    delete (failed as { article?: unknown }).article;
+    await s.session.write({ [jobItemName(jobId)]: failed });
+    await settle();
+    answered = true;
+    s.clock.advance(retryMs);
+    const outcome = await running;
+    assert.equal(outcome.kind === "finished" && outcome.stored, "stored");
+  });
+
   it("stops when the service worker says this page is not the runner", async () => {
     const s = setup();
     s.replies.result = () => ok({ status: "not_runner" });

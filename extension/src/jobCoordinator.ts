@@ -438,6 +438,13 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
       videoTitle: input.title ?? "",
       videoUrl: input.videoUrl,
     };
+    // A context over the read-back limit would be read as absent by the
+    // viewer's first request: refuse it before anything is opened.
+    if (storedBytes(context) > maxRecordBytes) {
+      await deps.tabs.remove(created.value.tabId);
+      reject("invalid_body");
+      return;
+    }
     if (!(await deps.writeSession({ [startItemName(startId)]: context })).ok) {
       await deps.tabs.remove(created.value.tabId);
       reject("internal");
