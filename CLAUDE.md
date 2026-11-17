@@ -183,6 +183,7 @@ change, retire, and withdraw an ADR is in the convention,
 - `make install-fixprguard` - Install the `fixprguard` guard tool (`go install ./cmd/fixprguard`); rerun it after a merge that changes the tool
 - `make install-codexreview` - Install the `codexreview` developer tool, which runs Codex CLI's local review when the CodeRabbit CLI fails (`go install ./cmd/codexreview`); rerun it after a merge that changes the tool
 - `make install-chief` - Install the `chief` developer tool that `/chief` drives (`go install ./cmd/chief`); rerun it after a merge that changes the tool
+- `make install-numreserve` - Install the `numreserve` developer tool, which decides a task or ADR number by creating a record tag on GitHub (`go install ./cmd/numreserve`); rerun it after a merge that changes the tool
 
 ### Test Commands
 - `make test` - Run all tests with race detection, then `make test-parse-norace`
@@ -508,6 +509,21 @@ for the packages that exist today. The server's startup is documented in the
   `internal/chief/testdata/transcript/`); and the trigger of chief's automatic send is the
   state of GitHub and git, never a screen: a screen reading only stops a send
   or narrows its conditions.
+  Exception: `numreserve` chooses behavior by inspecting the content of the
+  output of `gh` and `git` (`internal/numreserve`). Scope: the HTTP status
+  line of `gh api -i` and its rate-limit headers (`X-RateLimit-Remaining` and
+  `Retry-After`), the `ref` of a `GET` response, the lines of
+  `git ls-remote`, the entries of `git ls-tree` and of the work tree's
+  `docs/dev/adr/`, and the name forms of `internal/tasknaming` applied to
+  them; this is the only place their content selects behavior. A response's
+  body other than that `ref`, and the standard error of either command, are
+  never read. Reason: these are values written by `gh`, `git`, and GitHub,
+  external values the tool cannot express in a type, and the creation of a
+  ref declares its result only in the status code. Boundary: a line, an
+  entry, or a name of a form the tool does not accept stops the run as
+  `malformed` (a status line as `network-or-github`) and is not read more
+  widely; only a 422 that reading the ref back confirms moves the tool to the
+  next number.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
@@ -704,7 +720,7 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   does not run it: the local `make test`, and the CI `test` job when the change
   includes code, do. A change to the READMEs alone is therefore checked by
   neither CI job for this test. The `doc-guard` CI job runs the other guards
-  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./internal/pipeline ./internal/chief`)
+  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/numreserve ./internal/pipeline ./internal/chief`)
   on every pull request, so a documentation-only change is checked in CI by
   those guards even though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's

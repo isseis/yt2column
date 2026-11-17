@@ -159,65 +159,65 @@
 **ステップ 3-1: 型と上限**
 
 -   対象ファイル：`internal/numreserve/numreserve.go`、`internal/numreserve/bounds.go`
--   [ ] 設計書 3.8 の `Space`・`ParseSpace`・`StopKind`・`StopError` を作る。`StopKind` ごとに、設計書 4.1 の表の理由の語を返すメソッドと、すべての `StopKind` を返す関数を持たせる。ゼロ値と範囲外の値は理由の語を持たない（§1.4 の「型による守り」）
--   [ ] 設計書 3.4 の表の値を、テストの補助が小さくできる構造体に置く（3 分の上限をテストで待たないため）
+-   [x] 設計書 3.8 の `Space`・`ParseSpace`・`StopKind`・`StopError` を作る。`StopKind` ごとに、設計書 4.1 の表の理由の語を返すメソッドと、すべての `StopKind` を返す関数を持たせる。ゼロ値と範囲外の値は理由の語を持たない（§1.4 の「型による守り」）
+-   [x] 設計書 3.4 の表の値を、テストの補助が小さくできる構造体に置く（3 分の上限をテストで待たないため）
 -   完了の基準：`go test -tags test ./internal/numreserve` が通る
 
 **ステップ 3-2: 使用中の番号を集める**
 
 -   対象ファイル：`internal/numreserve/collect.go`、`internal/numreserve/collect_test.go`
--   [ ] 設計書 3.2 の表の入力を、空間ごとに読む。`git ls-remote` の行の分け方、SHA だけの取得、`origin/main` の一覧の形（3.2.1）、記録の tag の名前の拒否（3.3.3）、上限の超過（3.4）を、設計書のとおりにする
--   [ ] ブランチの木を読む部分は、ステップ 6-2 が `docs/tasks/` にも使えるように、1 つの関数にまとめる。読むディレクトリを引数にするのは、2 つ目の呼び出し側が加わるステップ 6-2 で行う
--   [ ] 作業ツリーの `docs/dev/adr/` は、`Tool` が持つ作業ツリーの根から読む。テストは根を `t.TempDir()` にできる
--   [ ] 名前の形の判定は `internal/tasknaming` を呼ぶ。同じ判定を書き直さない
+-   [x] 設計書 3.2 の表の入力を、空間ごとに読む。`git ls-remote` の行の分け方、SHA だけの取得、`origin/main` の一覧の形（3.2.1）、記録の tag の名前の拒否（3.3.3）、上限の超過（3.4）を、設計書のとおりにする
+-   [x] ブランチの木を読む部分は、ステップ 6-2 が `docs/tasks/` にも使えるように、1 つの関数にまとめる。読むディレクトリを引数にするのは、2 つ目の呼び出し側が加わるステップ 6-2 で行う
+-   [x] 作業ツリーの `docs/dev/adr/` は、`Tool` が持つ作業ツリーの根から読む。テストは根を `t.TempDir()` にできる
+-   [x] 名前の形の判定は `internal/tasknaming` を呼ぶ。同じ判定を書き直さない
 -   完了の基準：このステップの判定のテスト（ステップ 3-6 の規則に従う）を、このステップで書いて通す
 
 **ステップ 3-3: 番号を決める**
 
 -   対象ファイル：`internal/numreserve/reserve.go`、`internal/numreserve/reserve_test.go`
--   [ ] 設計書 3.3.2 の表と 3.4 の候補・跳び・4 桁の上限・回数の上限を、6.1 の流れのとおりに作る。状態コードと rate limit の見出しは `gh api -i` の出力から読み、応答の本文の `message` は読まない
--   [ ] 止める理由の詳細には、設計書 3.1 の「詳細」の規則（`%q` の引用、200 バイトで切る、本文・標準エラー・URL・認証の情報を出さない）を当てる
+-   [x] 設計書 3.3.2 の表と 3.4 の候補・跳び・4 桁の上限・回数の上限を、6.1 の流れのとおりに作る。状態コードと rate limit の見出しは `gh api -i` の出力から読み、応答の本文の `message` は読まない
+-   [x] 止める理由の詳細には、設計書 3.1 の「詳細」の規則（`%q` の引用、200 バイトで切る、本文・標準エラー・URL・認証の情報を出さない）を当てる
 -   完了の基準：このステップの判定のテスト（ステップ 3-6 の規則に従う）を、このステップで書いて通す
 
 **ステップ 3-4: 本番の `Tool` とテストの補助**
 
 -   対象ファイル：`internal/numreserve/tool.go`、`internal/numreserve/test_helpers.go`（`//go:build test`）
--   [ ] 本番の Runner の `cmdrunner.Options` と、git と gh の環境（設計書 3.2 の「git と gh の環境」）を返す純粋な関数を作り、値と外す変数をテストで確かめる。git と gh は Runner を分ける。git の引数の前に `GitHardening` を付ける
--   [ ] コマンド 1 つと 1 回の実行の時間の上限は、`context.WithTimeout` で課す。テストの補助に、呼び出しごとの `ctx` の期限を記録する、Runner を包む部品を置き、各呼び出しの期限と全体の期限を確かめる
--   [ ] `New` は、`testing.Testing()` が真なら git と gh を呼ばずに誤りを返す `Tool` を作る（§1.3 の決定 8）。この拒否のテストは、テストの中で（`t.Setenv`）`PATH` を失敗するだけの `git`・`gh` の置き場所にし、`GH_TOKEN`・`GITHUB_TOKEN` を外してから `New` を呼ぶ。拒否を壊して失敗を確かめる作業も、このテストの中の環境で行う。実の GitHub に届かないためである
--   [ ] テストの補助で、`cmdrunner/testutil` の `Fake` と作業ツリーの根から `Tool` を作る関数を置く（テストの組み立ての指針の Classification B）
+-   [x] 本番の Runner の `cmdrunner.Options` と、git と gh の環境（設計書 3.2 の「git と gh の環境」）を返す純粋な関数を作り、値と外す変数をテストで確かめる。git と gh は Runner を分ける。git の引数の前に `GitHardening` を付ける
+-   [x] コマンド 1 つと 1 回の実行の時間の上限は、`context.WithTimeout` で課す。テストの補助に、呼び出しごとの `ctx` の期限を記録する、Runner を包む部品を置き、各呼び出しの期限と全体の期限を確かめる
+-   [x] `New` は、`testing.Testing()` が真なら git と gh を呼ばずに誤りを返す `Tool` を作る（§1.3 の決定 8）。この拒否のテストは、テストの中で（`t.Setenv`）`PATH` を失敗するだけの `git`・`gh` の置き場所にし、`GH_TOKEN`・`GITHUB_TOKEN` を外してから `New` を呼ぶ。拒否を壊して失敗を確かめる作業も、このテストの中の環境で行う。実の GitHub に届かないためである
+-   [x] テストの補助で、`cmdrunner/testutil` の `Fake` と作業ツリーの根から `Tool` を作る関数を置く（テストの組み立ての指針の Classification B）
 -   完了の基準：ステップ 3-6 のテストが通る
 
 **ステップ 3-5: `cmd/numreserve`**
 
 -   対象ファイル：`cmd/numreserve/main.go`、`cmd/numreserve/main_test.go`
--   [ ] 番号を決める部品を引数で受け取る `run` に処理を置き、`main` だけが `numreserve.New()` を渡す（§1.3 の決定 8）。終了コード 0・1・2 と、標準出力・標準エラーの形を設計書 3.1 のとおりにする
--   [ ] テストで、番号を決めたとき、止まったとき（すべての `StopKind` の理由の語と、`StopError` でない誤り）、引数の誤り（引数なし、3 つ目の語、フラグ、`task` と `adr` 以外）の終了コードと出力を、fake の部品で確かめる。引数の誤りでは fake の部品が呼ばれないことも確かめる
+-   [x] 番号を決める部品を引数で受け取る `run` に処理を置き、`main` だけが `numreserve.New(os.Environ())` を渡す（§1.3 の決定 8）。終了コード 0・1・2 と、標準出力・標準エラーの形を設計書 3.1 のとおりにする
+-   [x] テストで、番号を決めたとき、止まったとき（すべての `StopKind` の理由の語と、`StopError` でない誤り）、引数の誤り（引数なし、3 つ目の語、フラグ、`task` と `adr` 以外）の終了コードと出力を、fake の部品で確かめる。引数の誤りでは fake の部品が呼ばれないことも確かめる
 -   完了の基準：`go test -tags test ./cmd/numreserve` が通る
 
 **ステップ 3-6: `internal/numreserve` のテスト**
 
 -   対象ファイル：`internal/numreserve/*_test.go`
--   [ ] 設計書 7.1 の項目のうち、マージの前の確かめと名前の部品を除くすべてをテストにする。外部の出力はステップ 2-3 のサンプルから作る
--   [ ] 使用中の番号の各入力（作業ツリーだけにある ADR のファイルを含む）は、その入力だけが最大値を決める状況を作り、ほかの入力だけでは同じ候補にならないことを先に確かめる（`CLAUDE.md` の「A layered path needs inputs only one layer can handle」）。fork の除外は、`Fake` が台本にない呼び出し（`gh pr list` を含む）で失敗することで、すべての集め方のテストが確かめる
--   [ ] 上限は、ちょうど上限で番号が決まる場合と、1 つ超えて止まる場合を対にする（`POST` の 10 回目と 11 回目、候補 9999 と 10000、基準 + 20 と + 21）。タスクと ADR の両方の空間で確かめる
--   [ ] 誤りの種類は `errors.AsType[*StopError]` と `Kind` で確かめ、メッセージの文字列では確かめない
--   [ ] 各テストが、確かめる判定を壊すと失敗することを確かめ、コミットメッセージに書く
+-   [x] 設計書 7.1 の項目のうち、マージの前の確かめと名前の部品を除くすべてをテストにする。外部の出力はステップ 2-3 のサンプルから作る
+-   [x] 使用中の番号の各入力（作業ツリーだけにある ADR のファイルを含む）は、その入力だけが最大値を決める状況を作り、ほかの入力だけでは同じ候補にならないことを先に確かめる（`CLAUDE.md` の「A layered path needs inputs only one layer can handle」）。fork の除外は、`Fake` が台本にない呼び出し（`gh pr list` を含む）で失敗することで、すべての集め方のテストが確かめる
+-   [x] 上限は、ちょうど上限で番号が決まる場合と、1 つ超えて止まる場合を対にする（`POST` の 10 回目と 11 回目、候補 9999 と 10000、基準 + 20 と + 21）。タスクと ADR の両方の空間で確かめる
+-   [x] 誤りの種類は `errors.AsType[*StopError]` と `Kind` で確かめ、メッセージの文字列では確かめない
+-   [x] 各テストが、確かめる判定を壊すと失敗することを確かめ、コミットメッセージに書く
 -   完了の基準：`go test -tags test ./internal/numreserve` が通る
 
 **ステップ 3-7: インストール、`CLAUDE.md`、CI**
 
 -   対象ファイル：`Makefile`、`cmd/numreserve/docs_test.go`、`CLAUDE.md`、`.github/workflows/ci.yml`、`docs/dev/conventions/package_reference.md`
--   [ ] `Makefile` に `install-numreserve` を加える（`.PHONY` の一覧を含む）。`cmd/numreserve/docs_test.go` に、そのレシピが `./cmd/numreserve` を入れることを確かめるテストを置く（`cmd/chief/docs_test.go:387` と同じ形）
--   [ ] `CLAUDE.md` の「Build Commands」に `make install-numreserve` を、「Declare, don't infer」に `numreserve` の例外（設計書 3.9 の範囲と境界）を、「Development Notes」の `doc-guard` のパッケージの一覧に `./cmd/numreserve` を加える。`.github/workflows/ci.yml` の `doc-guard` の一覧にも加える（§1.3 の決定 5）
--   [ ] `package_reference.md` に `cmd/numreserve` と `internal/numreserve` の行を加える
+-   [x] `Makefile` に `install-numreserve` を加える（`.PHONY` の一覧を含む）。`cmd/numreserve/docs_test.go` に、そのレシピが `./cmd/numreserve` を入れることを確かめるテストを置く（`cmd/chief/docs_test.go:387` と同じ形）
+-   [x] `CLAUDE.md` の「Build Commands」に `make install-numreserve` を、「Declare, don't infer」に `numreserve` の例外（設計書 3.9 の範囲と境界）を、「Development Notes」の `doc-guard` のパッケージの一覧に `./cmd/numreserve` を加える。`.github/workflows/ci.yml` の `doc-guard` の一覧にも加える（§1.3 の決定 5）
+-   [x] `package_reference.md` に `cmd/numreserve` と `internal/numreserve` の行を加える
 -   完了の基準：`make test`・`make lint` が通る
 
 **ステップ 3-8: ADR**
 
 -   対象ファイル：`docs/dev/adr/0051-number-reservation.md`、`docs/dev/adr/0014-deterministic-checks-in-go.md`
--   [ ] ADR-0051 の「決定」の食い違いの記述から `numreserve` を除く。「結果」の「すでにある ref の作成を GitHub が成功として受けないことは、決めた時点では確かめていない」を、ステップ 2-1 の結果に合わせて直す
--   [ ] ADR-0014 の「決定」の最初の項目の道具の一覧に `numreserve` を加え（6 つ）、食い違いの記述から `numreserve` と `make install-numreserve` を除く（手引きは残す）
+-   [x] ADR-0051 の「決定」の食い違いの記述から `numreserve` を除く。「結果」の「すでにある ref の作成を GitHub が成功として受けないことは、決めた時点では確かめていない」を、ステップ 2-1 の結果に合わせて直す
+-   [x] ADR-0014 の「決定」の最初の項目の道具の一覧に `numreserve` を加え（6 つ）、食い違いの記述から `numreserve` と `make install-numreserve` を除く（手引きは残す）
 -   完了の基準：`make test`・`make lint`・`make deadcode` が通る
 
 ### PR-2 作成ポイント: field checks and the numreserve tool that decides numbers

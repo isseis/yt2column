@@ -444,13 +444,22 @@ type StopError struct {
 // Tool runs git and gh with its own bounds (3.4), whoever calls it.
 type Tool struct{ /* unexported */ }
 
-// New returns the production Tool, which builds its own bounded runner.
+// New returns the production Tool, which builds its own bounded runner from
+// environ, the process environment cmd/numreserve read.
 // It refuses to run under go test, so no test can create a real tag.
 // Tests build a Tool on a fake runner through a test helper.
-func New() *Tool
+func New(environ []string) *Tool
+
+// Reservation is the decided number, the record tag created for it, and the
+// origin/main commit the tag points at (3.1 prints the last two).
+type Reservation struct {
+	Number tasknaming.Number
+	Tag    string
+	Commit string
+}
 
 // Reserve decides a number in space and creates its record tag.
-func (t *Tool) Reserve(ctx context.Context, space Space) (tasknaming.Number, error)
+func (t *Tool) Reserve(ctx context.Context, space Space) (Reservation, error)
 
 // AddedIssueKind is the kind of one pre-merge finding. Its zero value is
 // invalid.
