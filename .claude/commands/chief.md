@@ -122,9 +122,10 @@ no other round numbers at once. Then show, in this order:
    `reasons` and no sent action, say that the command after the merge was not
    sent and why: it is offered as a proposal instead. For every `auto_sends`
    entry, also show `report_checks`: for each Claude Code pane the NEXT check
-   let pass, the pane and whether its last report's NEXT named the command
-   (`agreed`), it had no last report (`no_report`, with `detail`, which
-   holds the transcript's path), or no line of it names NEXT (`no_next`).
+   let pass, its `pane` and its `result`: its last report's NEXT named the
+   command (`agreed`), it had no last report (`no_report`, with `detail`,
+   which holds the transcript's path), or no line of it names NEXT
+   (`no_next`).
    Say that a pane with `no_report` or `no_next` was not compared at all.
 2. **The table**: one line per row of `rows`, in the tool's order, with the
    label, the task (`task`, or なし when empty), the state, and what is
@@ -283,11 +284,11 @@ Show, in Japanese (requirements AC-17 to AC-21, AC-23):
   command that created the PR (`report_source` `report`) or from the PR's
   description (`description`), and that it was cut when `report_truncated`
   is true;
-- when `description_reason` is not null, why no pane's report is shown:
-  the workspace has no Claude Code pane (`no_claude_pane`), no Claude Code
+- when `description_reason` is not null, why no pane's report is shown, by
+  its `reason`: the workspace has no Claude Code pane (`no_claude_pane`), no Claude Code
   pane's last report comes from a session with a PR record naming this PR
   (`no_candidate`), or two or more do (`several_candidates`); and, for each
-  Claude Code pane in its `panes`, the pane and what was found: its
+  entry of its `panes`, the `pane` and what was found, by its `result`: its
   transcript cannot be read (`unreadable`), it has no last report
   (`no_report`), its session has no PR record naming this PR
   (`not_named`), or it is a candidate (`candidate`), with `detail`;

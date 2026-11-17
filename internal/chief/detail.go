@@ -281,13 +281,13 @@ func parseReportSource(s string) (ReportSource, error) {
 }
 
 // DescriptionReason is why a PR detail read from the panes shows no pane's
-// report. The zero value is DescriptionReasonUnknown: a pane's report is
-// shown, or the panes were not read.
+// report. The zero value is DescriptionReasonNone, nothing to show: a pane's
+// report is shown, or the panes were not read.
 type DescriptionReason int
 
 const (
-	// DescriptionReasonUnknown is no reason.
-	DescriptionReasonUnknown DescriptionReason = iota
+	// DescriptionReasonNone is no reason to show.
+	DescriptionReasonNone DescriptionReason = iota
 	// DescriptionReasonNoClaudePane is a workspace with no Claude Code pane.
 	DescriptionReasonNoClaudePane
 	// DescriptionReasonNoCandidate is a workspace none of whose Claude Code

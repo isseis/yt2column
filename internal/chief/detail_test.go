@@ -93,6 +93,18 @@ func (sw *sendWorld) endWithReport(p *simPane, text string) {
 	sw.appendTranscript(p, openPRLink, answerLine("msg_report", text))
 }
 
+// screenOnlyMakerReport returns a Claude Code screen whose report the
+// screen reader reads as the command's report naming PR 42, which the
+// transcript reader must not see.
+func screenOnlyMakerReport(t *testing.T) string {
+	t.Helper()
+	screen := reportScreen(t, prURL)
+	if _, ok := readCommandReport(paneinput.AgentClaudeCode, screen, prURL); !ok {
+		t.Fatal("the screen reader reads no report naming the PR on the screen")
+	}
+	return screen
+}
+
 // breakTranscript appends to the transcript of p's session a line cut off
 // while it was written, which makes the transcript unreadable.
 func (sw *sendWorld) breakTranscript(p *simPane) {
@@ -247,7 +259,7 @@ func TestDetailReportSource(t *testing.T) {
 		}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportNotNamed}},
 		{name: "no report", set: func(*sendWorld, []*simPane) {}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportAbsent}},
 		{name: "a report on the screen alone", set: func(sw *sendWorld, ps []*simPane) {
-			ps[0].screen = readScreenSample(sw.t, "claude-command-report.ansi")
+			ps[0].screen = screenOnlyMakerReport(sw.t)
 		}, want: ReportFromDescription, reason: DescriptionReasonNoCandidate, found: []PaneReportKind{PaneReportAbsent}},
 		{name: "no transcript file", set: func(sw *sendWorld, ps []*simPane) {
 			sw.removeTranscript(ps[0])
@@ -309,8 +321,18 @@ func TestDetailReportSource(t *testing.T) {
 				if !strings.HasPrefix(d.ReportText, "## ") {
 					t.Errorf("description = %q", d.ReportText)
 				}
-				if reason == nil || reason.Reason != c.reason.String() || len(reason.Panes) != len(c.found) {
-					t.Errorf("output reason = %+v; want %s with %d panes", reason, c.reason, len(c.found))
+				var results []string
+				if reason != nil {
+					for _, p := range reason.Panes {
+						results = append(results, p.Result)
+					}
+				}
+				var want []string
+				for _, k := range c.found {
+					want = append(want, k.String())
+				}
+				if reason == nil || reason.Reason != c.reason.String() || !slices.Equal(results, want) {
+					t.Errorf("output reason = %+v; want %s with %v", reason, c.reason, want)
 				}
 			}
 		})

@@ -1203,7 +1203,7 @@ func reportName(pr int, head string) string {
 
 // keptPaneReport returns the record kept for pr at head, the report record
 // before the detail record; ok is false when neither is kept. Contract: only
-// this function knows the two names and their order; a report record that
+// this function knows the order the two are read in; a report record that
 // names another PR or head, or whose source is not a pane's report, is a
 // record error, never read past to the detail record.
 func (r WorkspaceRecords) keptPaneReport(pr int, head string) (detailRecord, bool, error) {

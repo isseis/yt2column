@@ -252,7 +252,7 @@
     -   [ ] `TestReadCommandReportUnderTitledBox`（同 725）
     -   [ ] `TestReadLastHumanInput`（同 809）
     -   [ ] `TestReadRunprReport` の、Claude Code の画面から報告を読む行（同 882-885）。913-915 行の、読まないことを確かめる行は残す（Claude Code の分を消した後も、Claude Code の pane と知らないエージェントは読まないので通る）
-    -   [ ] テストの補助関数 `reportScreen`・`reportMention`・`isSampleReport`（同 785-805）。呼ぶ所が残らないことを確かめる（`TestResetChecks` の呼び出しは、ステップ 4-9 で替えてある）
+    -   [ ] テストの補助関数 `reportScreen`・`reportMention`・`isSampleReport`（同 785-805）。呼ぶ所が残らないことを確かめる（`TestResetChecks` の呼び出しは、ステップ 4-9 で替えてある）。`detail_test.go`・`reset_test.go` の AC-06 の画面だけに報告がある行は、画面の読み取りが読める画面を作るために `reportScreen` と `readCommandReport` を使う補助関数 `screenOnlyMakerReport` を呼ぶので、この補助関数は消し、2 つの行の画面は `claude-command-report.ansi` のままにする
 -   [ ] **ステップ 5-3**: 消すコミットの親を BASE として `make coverage-compare` を走らせる（10 分以上の時間の上限か、バックグラウンドで）。最後の行が `coverage-compare: PASS` であることを確かめ、最後の行までの出力を、木の ID を変えずに消すコミットのメッセージに書き、PR の説明にも書く（CLAUDE.md の「Testing Strategy」）。`PASS` でなければ止まり、人に尋ねる。
 -   [ ] **ステップ 5-4**: `samples_test.go` の `command report` の行の 2 つのサンプルを `input line` の行に移し、`command report` の行を消す（設計書 3.9）。`RunprReport.PRs` のコメントを、画面と transcript の両方に合うように直す（設計書 2.2）。`package_reference.md` の `internal/chief` の行から `CapScreen` を消す。`testdata/README.md` の `claude-command-report.ansi`・`claude-command-report-recap.ansi` の行に、今は入力欄の判定のテストが使うことを書く。
 -   [ ] **ステップ 5-5**: ステップ 5-2 の一覧のうち、名前ごと消したもので、製品のコード・テスト・コメント・`docs/dev/conventions/package_reference.md` を探し、残っていないことを確かめる。一部だけを消した `readRunprReport`・`TestReadRunprReport` は、Claude Code の分の読み取りと行が残っておらず、OpenCode の分が残っていることを読んで確かめる。走らせたコマンドと出力を §7 の「PR-4 の実行の記録」に書く（設計書 7.3。`make deadcode` はテストが呼ぶ部品を報告しないため）。

@@ -429,7 +429,7 @@ func (o DetailOutcome) Output() DetailOutput {
 		out.Reviews = nil
 	}
 	out.ReportSource, out.Report, out.ReportCut = d.Report.String(), Sanitize(d.ReportText), d.ReportTruncated
-	if d.DescriptionReason != DescriptionReasonUnknown {
+	if d.DescriptionReason != DescriptionReasonNone {
 		reason := &DescriptionReasonOutput{Reason: d.DescriptionReason.String(), Panes: []DescriptionPaneOutput{}}
 		for _, p := range d.ReportPanes {
 			reason.Panes = append(reason.Panes, DescriptionPaneOutput{Pane: Sanitize(p.Pane), Result: p.Kind.String(), Detail: Sanitize(p.Detail)})
