@@ -120,7 +120,7 @@
     上限を超える transcript は、`os.Truncate` で中身を書かずに大きさだけを持つファイルとして作る（上限の確かめは形の読み取りの前に失敗するので、読む時間はかからない。§1.3 の決定 2 が退けた 25 MB の読み取りとは違う）。FIFO は `syscall.Mkfifo` で作るので、`transcript_test.go` は `//go:build test && unix` とする。FIFO が開くときに待たないことは、今の `TestTranscriptFIFORefused`（`internal/chief/send_test.go:833`）が確かめているので、ここでは種類だけを確かめる。
 -   [x] **ステップ 2-7**: `records.go` に、報告の控えの名前の形と `keptPaneReport` を足し、`cleanup` が報告の控えも `detailMaxAge` で消すようにする（設計書 3.6）。テスト `TestKeptPaneReport` で、報告の控えが PR の詳細の控えより先に読まれること、どちらもないときに `ok` が偽になること、名前の PR 番号・head と合わない報告の控えと `Source` が `report` でない報告の控えが記録の誤りになることを確かめる。`TestStartCleansSendsAndDetails`（`internal/chief/records_test.go:636`）に、報告の控えが消える行と残る行を足す。
 -   [x] **ステップ 2-8**: 改名の一覧の `CapDescription`・`descriptionMaxBytes`・`TestCapDescription` を改名し、関数のコメントと、読む量の上限のコメント（`internal/chief/sanitize.go:10-12`）を設計書 3.8 のとおりに直す。値と切り方は変えない。`package_reference.md` の `internal/chief` の行の `CapDescription` を `CapHead` に直し、画面の読み取りの型の一覧に `SessionReport` を足す。
--   [ ] **ステップ 2-9**: 手元でいちばん大きい transcript を `readSessionReport` で読む時間を、一時的なテストで、`-race` を付けずに測る（設計書 1.2 の 98 ms と同じ条件にするため）。測るのは `readSessionReport` を足したコミットの上とし、結果（ファイルの大きさ、時間、測ったコミット）を §7 の「PR-1 の実行の記録」と、その記録を書くコミットのメッセージに書く。一時的なテストはコミットしない（§1.3 の決定 2）。1 秒を超えたら、止まって人に尋ねる。
+-   [x] **ステップ 2-9**: 手元でいちばん大きい transcript を `readSessionReport` で読む時間を、一時的なテストで、`-race` を付けずに測る（設計書 1.2 の 98 ms と同じ条件にするため）。測るのは `readSessionReport` を足したコミットの上とし、結果（ファイルの大きさ、時間、測ったコミット）を §7 の「PR-1 の実行の記録」と、その記録を書くコミットのメッセージに書く。一時的なテストはコミットしない（§1.3 の決定 2）。1 秒を超えたら、止まって人に尋ねる。
 
 **完了の条件:** グリーンゲート（`_context.md` の "Green gate"）が通る。製品のコードで振る舞いが変わるのはステップ 2-1 だけで、新しい部品はテストだけから呼ばれる（`make deadcode` はテストも根に数える）。
 
@@ -378,6 +378,7 @@ Diff record (AC-17):
 
 -   **ステップ 1-1（2026-11-17）。** 本タスクの worktree の transcript のディレクトリで、人が入力したコマンドの行が `/runpr 940` であるセッションは 1 つだけだった（Claude Code 2.1.325）。その最後の報告の NEXT の行は `NEXT: なし（タスク文書の承認がない PR のため）` で、今の文法で読めた（`nextLine` に合い、`readNextValue` が「なし」と読む）。この報告を `testdata/transcript/claude-runpr-report.jsonl` に採った。
 -   **ステップ 1-4（2026-11-17）。** 足した 6 つのサンプルで、利用者の GitHub のログイン名、氏名、名前の小文字の綴りを、大文字と小文字を区別せずに探した。見つかったのは 0 件だった。一時ディレクトリのパス（`/tmp/`・`/var/folders`・`/private/`）も探し、`/runpr` の報告の `/tmp/runpr.` の後の乱数の部分を `XXXXXX` に置き換えた後は、その置き換えた形のほかに見つからなかった。`TestSamplesFollowReplacementRules` も通った。
+-   **ステップ 2-9（2026-11-17）。** 手元でいちばん大きい transcript（25,155,306 バイト）を、`readSessionReport` を足したコミット `8f5b6dadbb7f` の上で、一時的なテストから `-race` を付けずに 3 回読んだ。かかった時間は 113 ms・136 ms・110 ms で、1 秒以内だった（結果は報告あり）。一時的なテストはコミットしていない。
 
 ### PR-4 の実行の記録
 
