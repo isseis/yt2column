@@ -107,7 +107,9 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 
 各行は、`type`、`isMeta`、`origin`、`promptSource`、`turnOrigin`、`message` の `role` と `content` の種類、`attachment` の `type`・`commandMode`・`origin` だけに絞った。コマンドの行（`<command-message>`・`<command-name>`・`<command-args>` の 3 つ組）は採ったままで、それ以外の行の本文と `tool_use` の入力、`tool_result` の内容は、同じ形の短い文に置き換えた。`tool_use` の ID と task-notification の ID は、上の表の規則の形で置き換えた。transcript に付く `uuid`・`sessionId`・`cwd`・`timestamp` などの項目は残していない。`mode`・`session-owner`・`system`・`api-request` などの `message` を持たない種類の行は、`type` だけの行にした。
 
-採る前の元の記録で、次の前提を確かめた（結果は実装計画書 §7「PR-1 の実行の記録」）。サンプルは、削った後のものなので、前提の確かめに使わない。
+2 つのサンプルは、元の transcript の行の一部を、順序を保って取ったものである（前者は元の記録の約 690 行のうち 31 行、後者は約 181 行のうち 21 行）。前者は、コマンドが走っている途中の行で打ち切ってあり、元の記録の全体は、それより後の人の入力を持つ。`message` を持たない種類の行と書いたものには、元の記録で `message` を持つもの（`api-request-blob`）もあり、`type` だけの行にした。
+
+採る前の元の記録で、すべての行が改行で終わること、どの行も採取した種類の `origin` を持つこと（`auto-continuation` を足した後）、`readLastHumanInput` が読めることを確かめた（結果は実装計画書 §7「PR-1 の実行の記録」）。サンプルは削った後のものなので、前提の確かめに使わない。
 
 ### 作ったサンプルの計画書
 

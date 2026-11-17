@@ -42,6 +42,7 @@
 8.  **送信の記録を読めないことは、`problems` に足さず、`running_unknown` の `unreadable` にだけ出す。** 今の `addRecords` は、「実行中」の行の `LastSend` が失敗すると、`problems` に「the records of … cannot be read」を足す（`internal/chief/snapshot.go:206-209`、`internal/chief/snapshot.go:135-137`）。設計書 3.5 の「失敗のとき」（申し送りの H-02）は、表示のための読み取りの失敗が `problems` を変えないとしている。送信の停止の記録を読めないことは、今までどおり `problems` に出す。ADR: なし（設計書の決定の範囲のため）。
 9.  **0092 への申し送り（H-09・H-10）は、人が 0092 のタスクに直接渡す（2026-11-17、人が選んだ）。** 0092 の 3 文書はすでに `approved` で、H-09・H-10 を取り込んでいない。`/runplan 0092` は計画書を読み、`design_handoff.md` は読まない。0093 の計画書は 0092 の計画書を直さず、0093 の側の手順（決定 1・6）だけを持つ。0093 が先に入り、0092 が H-09 を取り込まないまま削除の提案を実装すると、AC-05 は確かめられない。そのときは §7 の AC-05 の行のとおり、人に示す。ADR: なし（タスクの間の受け渡しのため）。
 10. **セッションの記録の origin の `kind` に `auto-continuation` を足し、人でない kind として受け付ける（2026-11-17、人が選んだ）。** ステップ 1-1 で、決定 5 の前提「どの行も採取した種類の origin を持つ」を元の記録で確かめたところ、この計算機の 612 ファイルのうち 12 ファイルに `kind` が `auto-continuation` の行があった（使用量の上限が解けた後の続行の入力）。ほかの前提（すべての行が改行で終わる 612 ファイル中 612、すべての行が JSON として読める）は成り立った。決定 5 のとおり止まって人と決め直し、設計書 1.2.1 のとおり、`screen_transcript.go` の人でない kind の一覧（`otherOrigins`）に足し、PR-1 のステップ 1-1 に含める。ADR: なし（設計書 1.2.1 と同じ）。
+11. **人が引数なしで打ったコマンドは、実行中のコマンドとして示されない既知の制限とする（2026-11-17、人が選んだ）。** PR のレビューで、人が引数なしで打ったコマンド（`/runpr` など）の記録は `<command-args>` の要素を持たず、今の `readLastHumanInput` が「そのほかの人の入力」と読むことが分かった（5 つのコマンドの人の入力 599 件のうち 53 件）。受け付ける形は広げず、設計書 3.5 の「残る制限」に足し、PR-3 の手引き（ステップ 3-9）に書く。ADR: なし（表示だけの制限のため）。
 
 ### 1.4. 既存コード調査結果
 
@@ -154,7 +155,7 @@
 -   [ ] **ステップ 3-6**: `.claude/commands/chief.md` を設計書 3.9 のとおりに直す。値から日本語の表示への対応は、ステップ 3-7 のテストが読める 1 つの Markdown の表に置く。
 -   [ ] **ステップ 3-7**: `cmd/chief/docs_test.go` に、`/chief` の定義の値の対応表が、ステップ 3-5 の集合（`state`・`urgency`・`turn`・`position.document`・`position.progress`）をちょうど持つことを確かめるテストを足す（設計書 7.2）。
 -   [ ] **ステップ 3-8**: AC-19 の `diff` の確かめのスクリプトを `docs/tasks/0093_chief_status_sheet/_checks/` に shell で書く。merge-base とこの PR のコミットで `.claude/commands/chief.md` の「Under the table」の項目を取り出して比べ、「質問で停止」の行ごとの質問の要点と pane の項目がなくなり、ほかの項目が同じ順で残ることを確かめる。スクリプトの各検査は、少なくとも 1 つの壊し方で失敗することを確かめる。PR のブランチで走らせ、出力と 2 つのコミットの ID を §7 の「PR-3 の実行の記録」に書く（AC-19 の行はそこを指す）。その後に `.claude/commands/chief.md` を変えるコミットを足したときは、走らせ直して書き直す。
--   [ ] **ステップ 3-9**: `docs/dev/guides/chief_guide.md` を設計書 3.10 のとおりに直す。古い版に戻す手順は、道具と `/chief` の定義を同じコミットから入れることと、送信の記録の新しい欄を古い道具が読めないので記録を消すことを書く。
+-   [ ] **ステップ 3-9**: `docs/dev/guides/chief_guide.md` を設計書 3.10 のとおりに直す（既知の制限は、決定 11 の引数なしのコマンドを含む 3 つ）。古い版に戻す手順は、道具と `/chief` の定義を同じコミットから入れることと、送信の記録の新しい欄を古い道具が読めないので記録を消すことを書く。
 -   [ ] **ステップ 3-10**: `package_reference.md` の `internal/chief` と `internal/chief/paneinput` の行に、このタスクで exported にした名前を足す。
 -   [ ] **ステップ 3-11**: PR の説明に、人がマージの直前に行う 2 つの項目を書く。0092 の確かめ（§1.3 の決定 6）と、`origin/main` の `Protocol` がこの PR の値と同じなら 1 つ上げること（§1.3 の決定 1）である。`main` はマージで取り込み、rebase しない（0099 の規則。rebase すると、同じ値への書き換えが履歴から消えるため）。上げるときは、人が `/runpr` かこの PR のセッションに、`Protocol` と `/chief` の定義と手引きの番号を直すコミットを頼む。今の `Protocol` のガードテストが、番号の変え残しを見つける。
 -   [ ] **ステップ 3-12**: 実地の確かめを、人と行う（§1.3 の決定 3）。動いている `/chief` を人が止め、chief の worktree をこの PR のブランチの先頭（detached）にして `make install-chief` を行い、`/chief` と `/chief once` を起動し直す。設計書 7.3 の 5 つの項目を見る。`working` の Claude Code の pane が数個あり、記録が数十 MB ある状態で、1 周の時間を測る。結果と確かめたコミットを §7 の「PR-3 の実行の記録」に書く。その後に `internal/chief` か `.claude/commands/chief.md` を変えるコミットを足したときは、確かめ直す。マージの後、人が chief の worktree を `main` に戻し、`main` から入れ直す。
@@ -270,7 +271,7 @@
 
 **0092 の確かめ（ステップ 1-2、2026-11-17）。** `git fetch origin main` の後に `git grep -n PendingRemoval origin/main -- internal/chief` を走らせた。`origin/main` は `12fdc257` で、終了コードは 1（見つからない）だった。0092 の削除の提案はまだ `main` にない。決定 6 の 3 つは足さず、AC-05 は 0092 が後に入るときの扱い（決定 9）のままとする。マージの前の確かめは、PR の説明に人の項目として書く。
 
-**サンプルの前提の確かめ（ステップ 1-1、2026-11-17、元の記録のまま、リポジトリの外で行った）。** 対象は `~/.claude/projects/*/*.jsonl` の 612 ファイル（Claude Code 2.1.306〜2.1.326）である。
+**サンプルの前提の確かめ（ステップ 1-1、2026-11-17、元の記録のまま、リポジトリの外で行った）。** 対象は `~/.claude/projects/*/*.jsonl` の 612 ファイル（Claude Code 2.1.287〜2.1.326。`auto-continuation` の行を持つ 12 ファイルは 2.1.306〜2.1.326）である。
 
 | 前提 | 結果 |
 |---|---|
@@ -278,7 +279,7 @@
 | どの行も採取した種類の origin を持つ | 最上位か `attachment` の `origin` の `kind` は、`task-notification` 3726 行、`human` 2608 行、`peer` 2182 行、`auto-continuation` 12 行だった。`auto-continuation` は採取した種類にないので、前提は成り立たなかった。12 行は 12 ファイルにあり、`/runplan`・`/mkplan`・`/mkarch`・`/runpr` のセッションを含む。人が決め直した（§1.3 の決定 10、2026-11-17） |
 | `readLastHumanInput` が読める | 決定 10 の前: 読めない記録は 12 ファイルで、すべて `auto-continuation` の行を持つファイルだった。読めたのは、人の入力なし 37、コマンド 228、そのほか 335。決定 10 の後（`otherOrigins` に足した後）: 読めない記録は 0、人の入力なし 37、コマンド 232、そのほか 343 |
 
-サンプルは次の 2 つである。コマンドが走っている途中の記録（`claude-running-command.jsonl`、`/runplan 0060`、`auto-continuation` の行を含む）と、`AskUserQuestion` の問いに答えた後の記録（`claude-running-after-answer.jsonl`、`/runplan 0093`）である。chief が答えを中継した後の記録は、中継も人が答えた場合も、transcript の上では同じ形（`origin` を持たない `tool_result` の行）なので、後者を中継の後の記録のサンプルとして使う。採取用の workspace での作り直しは要らなかった。どちらも、読み取りの結果は最後のコマンドである（`TestReadLastHumanInputOfRunningSessions`）。
+サンプルは次の 2 つである。コマンドが走っている途中の記録（`claude-running-command.jsonl`、`/runplan 0060`、`auto-continuation` の行を含む）と、`AskUserQuestion` の問いに答えた後の記録（`claude-running-after-answer.jsonl`、`/runplan 0093`）である。chief が答えを中継した後の記録は、中継も人が答えた場合も、transcript の上では同じ形（`origin` を持たない `tool_result` の行）なので、後者を中継の後の記録のサンプルとして使う。同じ形であることは、実地の確かめで chief が中継した記録（`chief-poc` の 2026-11-15 のセッション、Claude Code 2.1.325）の中継の直後の行が `origin` を持たない `tool_result` であることで、あとから確かめられた（PR のレビューでの Fable の確かめ）。採取用の workspace での作り直しは要らなかった。どちらも、読み取りの結果は最後のコマンドである（`TestReadLastHumanInputOfRunningSessions`）。
 
 ### PR-3 の実行の記録
 
@@ -300,3 +301,4 @@
 
 - 2026-11-17 承認（isseis、#926）
 - 2026-11-17 セッション中の再承認：セッションの記録の origin の `kind` に `auto-continuation` を人でない kind として足す（isseis、#未記入）
+- 2026-11-17 セッション中の再承認：人が引数なしで打ったコマンドを、実行中のコマンドとして示されない既知の制限とする（isseis、#未記入）
