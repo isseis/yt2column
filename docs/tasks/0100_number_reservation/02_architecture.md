@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。「計画で決める」は、本タスクの実装計画書（`03_implementation_plan.md`）で決めることを指す。既存のファイルの内容は、コミット `b48db108` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
@@ -764,3 +764,7 @@ ADR-0051 と ADR-0014 の食い違いの記述からは、各 PR が直した分
 | AC-24・AC-25 | ADR-0051 の更新（3.9） |
 | AC-26 | 手引き `docs/dev/guides/numreserve_guide.md`（3.9、4.1） |
 | AC-27・AC-28・AC-29 | `mergepr` の確かめとしきい値（3.5、3.6） |
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#943）
