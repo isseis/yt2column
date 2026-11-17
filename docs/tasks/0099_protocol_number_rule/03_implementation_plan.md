@@ -67,36 +67,36 @@
 
 **変更するファイル:** `internal/mergepr/protocolcheck.go`（新規）、`internal/mergepr/errors.go`、`internal/mergepr/protocolcheck_test.go`（新規）
 
-- [ ] 設計書 4.1 の型（`protocolChecker` を除く）を `protocolcheck.go` に、番兵の誤りを `errors.go` に足す。`unreadableKind` は、零値を不正な値とし、AC-13 の (1)〜(7) と「`origin/main` に道具がない」を別の値にする（1 つの `iota` の並びに置く）。(1) の値を作るのはステップ 2-2 で、PR-1 では使われない。
-- [ ] 1 つの版について、パッケージごとの行の一覧から道具ごとの版ごとの値を求める非公開の関数を書く（設計書 3.1 の宣言の行・受け付ける行・9 桁の上限）。git にも作業ツリーにも当てられるように、行の取り出し方とは分ける。
-- [ ] 誤りの文を書く（設計書 4.2）。AC-12 の手順は、食い違った道具ごとの `make install-<道具>` を含める。AC-15 の直し方を加えるかどうかは、食い違いごとに判断する非公開の関数で決め、誤りの文はその結果で分ける。
-- [ ] `protocolcheck_test.go::TestClassifyProtocolLines` で、設計書 7.1 の「読み取り」の場合を、行を直接渡して表で確かめる。9 桁の上限は両側（`999999999` は値、`1000000000` は読めない値）を確かめる。1 つのファイルと 2 つのファイルにまたがる 2 行の宣言を、どちらも読めない値とすることも確かめる。
-- [ ] `protocolcheck_test.go::TestMismatchRemedy` で、`fixprguard`・`codexreview`・`chief`・`mergepr` のそれぞれについて、食い違いの誤りの文が示す `make install-<道具>` が `Makefile` の対象にあること（`../../Makefile` を読む）と、AC-15 の直し方を加えるかの判断の結果を確かめる。
+- [x] 設計書 4.1 の型（`protocolChecker` を除く）を `protocolcheck.go` に、番兵の誤りを `errors.go` に足す。`unreadableKind` は、零値を不正な値とし、AC-13 の (1)〜(7) と「`origin/main` に道具がない」を別の値にする（1 つの `iota` の並びに置く）。(1) の値を作るのはステップ 2-2 で、PR-1 では使われない。
+- [x] 1 つの版について、パッケージごとの行の一覧から道具ごとの版ごとの値を求める非公開の関数を書く（設計書 3.1 の宣言の行・受け付ける行・9 桁の上限）。git にも作業ツリーにも当てられるように、行の取り出し方とは分ける。
+- [x] 誤りの文を書く（設計書 4.2）。AC-12 の手順は、食い違った道具ごとの `make install-<道具>` を含める。AC-15 の直し方を加えるかどうかは、食い違いごとに判断する非公開の関数で決め、誤りの文はその結果で分ける。
+- [x] `protocolcheck_test.go::TestClassifyProtocolLines` で、設計書 7.1 の「読み取り」の場合を、行を直接渡して表で確かめる。9 桁の上限は両側（`999999999` は値、`1000000000` は読めない値）を確かめる。1 つのファイルと 2 つのファイルにまたがる 2 行の宣言を、どちらも読めない値とすることも確かめる。
+- [x] `protocolcheck_test.go::TestMismatchRemedy` で、`fixprguard`・`codexreview`・`chief`・`mergepr` のそれぞれについて、食い違いの誤りの文が示す `make install-<道具>` が `Makefile` の対象にあること（`../../Makefile` を読む）と、AC-15 の直し方を加えるかの判断の結果を確かめる。
 
 #### ステップ 1-2: 版の木から番号を読む
 
-**変更するファイル:** `internal/mergepr/runner.go`、`internal/mergepr/protocolcheck.go`、`internal/mergepr/test_helpers_git.go`（新規、`//go:build test`）、`internal/mergepr/protocolcheck_test.go`
+**変更するファイル:** `internal/mergepr/runner.go`、`internal/mergepr/protocolcheck.go`、`internal/mergepr/test_helpers_git.go`（新規、`//go:build test`）、`internal/mergepr/protocolcheck_test.go`、`internal/config/envaccess_test.go`
 
-- [ ] `runner.go` に、§1.3 の決定 2 の `Runner` を作る関数を足す。
-- [ ] 確かめの本体の git の呼び出しの前に、毎回 `cmdrunner.GitHardening()` を付ける。
-- [ ] 1 つの版の、すべての道具の版ごとの値を読む関数を書く。`git grep` に固定の文字列 `Protocol` と、`--text`・`--full-name`・出力の形を固定する引数を渡す。パス指定は `:(top,glob)` で `internal/*/*.go` に限り、`_test.go` を除く（§1.4 の「git の振る舞い」）。終了コード `1` だけを「宣言の行がない」と読み、それ以外の失敗は読めないとする。
-- [ ] `test_helpers_git.go` に、一時ディレクトリの git のリポジトリを組む補助を書く（§1.3 の決定 4）。複数の親を持つコミットは、マージの仕組みに頼らずに、木と親を指定して作る。shallow の複製は `file://` の URL で作る。`exec.Command` とファイルの書き込みには、`internal/fixprguard/test_helpers_git.go` と同じく、その行だけに理由付きの `//nolint:gosec` を付ける。
-- [ ] 宣言の行を持つ Go のソースは、`_test.go` のファイルの中だけで組み立てる。`test_helpers_git.go` は確かめの本体が読むファイルなので、そこに書かない（設計書 3.1 の末尾）。
-- [ ] `protocolcheck_test.go::TestReadRevisionProtocols` で、実際の git の木について、次を確かめる。下の階層のパッケージと `_test.go` を読まない。ビルドの制約のあるファイルを読む。宣言の行のない版を「ない」とする。存在しない版を読めないとする。
-- [ ] 同じテストで、利用者の設定と環境に左右されないことを、基準の結果と同じ値になることで確かめる。対象は、`HOME` の `.gitconfig` の `grep.*`・`color.*`・`core.quotePath` の設定、`refs/replace` の置き換え、`GIT_DIR` の環境変数、サブディレクトリを作業ディレクトリにした実行である。テストは、確かめの本体を組み立てる前に `HOME` と環境変数を設定する。
+- [x] `runner.go` に、§1.3 の決定 2 の `Runner` を作る関数を足す。`internal/config/envaccess_test.go` の `TestEnvAccessConfined` の許可の一覧に、この関数の `os.Environ` の参照を足す。
+- [x] 確かめの本体の git の呼び出しの前に、毎回 `cmdrunner.GitHardening()` を付ける。
+- [x] 1 つの版の、すべての道具の版ごとの値を読む関数を書く。`git grep` に固定の文字列 `Protocol` と、`--text`・`--full-name`・出力の形を固定する引数を渡す。パス指定は `:(top,glob)` で `internal/*/*.go` に限り、`_test.go` を除く（§1.4 の「git の振る舞い」）。終了コード `1` だけを「宣言の行がない」と読み、それ以外の失敗は読めないとする。
+- [x] `test_helpers_git.go` に、一時ディレクトリの git のリポジトリを組む補助を書く（§1.3 の決定 4）。複数の親を持つコミットは、マージの仕組みに頼らずに、木と親を指定して作る。shallow の複製は `file://` の URL で作る。`exec.Command` とファイルの書き込みには、`internal/fixprguard/test_helpers_git.go` と同じく、その行だけに理由付きの `//nolint:gosec` を付ける。
+- [x] 宣言の行を持つ Go のソースは、`_test.go` のファイルの中だけで組み立てる。`test_helpers_git.go` は確かめの本体が読むファイルなので、そこに書かない（設計書 3.1 の末尾）。
+- [x] `protocolcheck_test.go::TestReadRevisionProtocols` で、実際の git の木について、次を確かめる。下の階層のパッケージと `_test.go` を読まない。ビルドの制約のあるファイルを読む。宣言の行のない版を「ない」とする。存在しない版を読めないとする。
+- [x] 同じテストで、利用者の設定と環境に左右されないことを、基準の結果と同じ値になることで確かめる。対象は、`HOME` の `.gitconfig` の `grep.*`・`color.*`・`core.quotePath` の設定、`refs/replace` の置き換え、`GIT_DIR` の環境変数、サブディレクトリを作業ディレクトリにした実行である。テストは、確かめの本体を組み立てる前に `HOME` と環境変数を設定する。
 
 #### ステップ 1-3: 番号の確かめ
 
 **変更するファイル:** `internal/mergepr/protocolcheck.go`、`internal/mergepr/protocolcheck_test.go`
 
-- [ ] 確かめの本体の型と、`check(ctx, headOID, baseRefName)` の方法を書く（設計書 3.7 の形）。設計書 3.2 の規則 1〜6 を、6.1 の順に当てる。shallow は `git rev-parse --is-shallow-repository` で確かめ、出力が `false` でなければ読めないとする（§1.4）。PR のコミットと親は `git rev-list` で列挙し、`git log` は使わない。親のないコミットの親の値は「ない」とし、途中の読めない値はほかのどの値とも違う値として扱う。通ったときは `protocolSummary` を返す。
-- [ ] `protocolcheck_test.go::TestCheckProtocolHistories` で、設計書 7.1 の「番号の確かめ」に挙げた履歴のうち、通すものと食い違うものを、実際の git のリポジトリで組んで確かめる。食い違いは `errors.AsType` で、道具・`origin/main` の値・head の値・番号を変えたコミットを確かめる。次の場合を含める。
+- [x] 確かめの本体の型と、`check(ctx, headOID, baseRefName)` の方法を書く（設計書 3.7 の形）。設計書 3.2 の規則 1〜6 を、6.1 の順に当てる。shallow は `git rev-parse --is-shallow-repository` で確かめ、出力が `false` でなければ読めないとする（§1.4）。PR のコミットと親は `git rev-list` で列挙し、`git log` は使わない。親のないコミットの親の値は「ない」とし、途中の読めない値はほかのどの値とも違う値として扱う。通ったときは `protocolSummary` を返す。
+- [x] `protocolcheck_test.go::TestCheckProtocolHistories` で、設計書 7.1 の「番号の確かめ」に挙げた履歴のうち、通すものと食い違うものを、実際の git のリポジトリで組んで確かめる。食い違いは `errors.AsType` で、道具・`origin/main` の値・head の値・番号を変えたコミットを確かめる。次の場合を含める。
     - AC-10 の新しい道具と足し直す道具は、通す場合（head が `1`）に加え、食い違う場合（`origin/main` の値が「ない」で、head が `1` でない）も組む。消した道具が食い違う道具と並ぶ PR では、消した道具が食い違いに入らないことを確かめる。
     - AC-13(3) のただし書きの 2 つ（消した道具、道具より古いブランチ）は、通す場合として組む。
     - `origin/main` という名前のローカルのブランチを、`refs/remotes/origin/main` とは判定が変わる値のコミットに向けて組む。
-    - 通す場合の 1 つで、`protocolSummary` の `MainTools` と `Changed` を確かめる。
-- [ ] `protocolcheck_test.go::TestCheckProtocolUnreadable` で、AC-13 の (2)〜(7) と、`origin/main` に道具がない場合を確かめる。読めないものの種類は `unreadableKind` の値で確かめる。(2) は存在しない head のコミット ID で、(3) は道具を足した後に `main` を取り込み、その衝突を「ない」で解いた履歴で、(7) は `file://` の shallow な複製と、親のオブジェクトを消したリポジトリで作る。
-- [ ] 規則 3 のマージのコミットの扱い、規則 4 の base、規則 5 の消した道具の判定、`refs/remotes/origin/main` の完全な名前、`GitHardening()` と `--full-name` を、それぞれ一時的に壊し、上の 3 つのテストのどれかが失敗することを確かめる。結果はコミットのメッセージに書く（CLAUDE.md の「Testing Strategy」）。
+    - 通す場合の 1 つで、`protocolSummary` の `MainTools` と `Changed` を確かめる。この場合は、同じファイルの `TestCheckProtocolSummary` に置く。
+- [x] `protocolcheck_test.go::TestCheckProtocolUnreadable` で、AC-13 の (2)〜(7) と、`origin/main` に道具がない場合を確かめる。読めないものの種類は `unreadableKind` の値で確かめる。(2) は存在しない head のコミット ID で、(3) は道具を足した後に `main` を取り込み、その衝突を「ない」で解いた履歴で、(7) は `file://` の shallow な複製と、親のオブジェクトを消したリポジトリで作る。
+- [x] 規則 3 のマージのコミットの扱い、規則 4 の base、規則 5 の消した道具の判定、`refs/remotes/origin/main` の完全な名前、`GitHardening()` と `--full-name` を、それぞれ一時的に壊し、上の 3 つのテストのどれかが失敗することを確かめる。結果はコミットのメッセージに書く（CLAUDE.md の「Testing Strategy」）。
 
 **完了の条件:** グリーンゲート（`_context.md` の "Green gate"）と `make deadcode` が通る。
 
