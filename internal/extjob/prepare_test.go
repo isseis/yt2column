@@ -218,22 +218,22 @@ func TestInputDigest(t *testing.T) {
 }
 
 // TestPrepareJSONRequestSizeBoundary checks the 4 MiB bound on a request: one
-// of exactly maxRequestBytes is accepted, one byte more is rejected.
+// of exactly MaxPrepareRequestBytes is accepted, one byte more is rejected.
 func TestPrepareJSONRequestSizeBoundary(t *testing.T) {
 	prefix := `{` + validMembers + `,"description":"`
 	const suffix = `"}`
 	pad := func(total int) string {
 		return prefix + strings.Repeat("a", total-len(prefix)-len(suffix)) + suffix
 	}
-	at := pad(maxRequestBytes)
-	if len(at) != maxRequestBytes {
-		t.Fatalf("request is %d bytes, want %d", len(at), maxRequestBytes)
+	at := pad(MaxPrepareRequestBytes)
+	if len(at) != MaxPrepareRequestBytes {
+		t.Fatalf("request is %d bytes, want %d", len(at), MaxPrepareRequestBytes)
 	}
 	var got prepareResult
 	if err := json.Unmarshal([]byte(NewModule(&fakeBackend{}).PrepareJSON(at)), &got); err != nil || got.Status != "ok" {
 		t.Errorf("a request of exactly the limit: %+v, %v; want ok", got, err)
 	}
-	requireRejected(t, NewModule(&fakeBackend{}).PrepareJSON(pad(maxRequestBytes+1)))
+	requireRejected(t, NewModule(&fakeBackend{}).PrepareJSON(pad(MaxPrepareRequestBytes+1)))
 }
 
 // TestPrepareJSONKeepsEarlierInput checks that a rejected prepare leaves the

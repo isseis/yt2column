@@ -194,7 +194,7 @@ change, retire, and withdraw an ADR is in the convention,
 
 ### Code Quality
 - `make lint` - Run golangci-lint (version pinned in `Makefile`; includes `govet`) and `make wasm-check`
-- `make wasm-check` - Build `internal/transcript`, `internal/writer`, `internal/llm/claude`, `internal/llm/llmhttp`, `internal/pricing`, `internal/llm/devfake`, `internal/config`, and `internal/extjob` with its subpackages for `GOOS=js GOARCH=wasm` and vet `internal/writer`, `internal/transcript`, `internal/llm/llmhttp`, and `internal/llm/claude` (the last two have files only a js build compiles), so the core stays buildable as WebAssembly (it checks the build only, not run-time behavior); CI's `lint` job runs it too
+- `make wasm-check` - Build the two article generation modules (`cmd/yt2column-wasm` and the development `cmd/yt2column-wasm-dev`), and with them every package they depend on, for `GOOS=js GOARCH=wasm`, and vet the packages with a file only a js build compiles (`internal/llm/llmhttp`, `internal/llm/claude`, `internal/extjob/jsmodule`, and the two modules) along with `internal/writer` and `internal/transcript`, so the core stays buildable as WebAssembly (it checks the build only, not run-time behavior); CI's `lint` job runs it too
 - `make fmt` - Format changed Go files with gofumpt (`make fmt-all` for every file)
 - `make deadcode` - Report unreachable functions across the whole module and its
   tests (`test` and `integration` tags); any output or non-zero exit status fails
@@ -258,8 +258,9 @@ refuses to run when `node --version` does not match.
 - `make ext-fmt-check` - Check formatting with Prettier
 - `make ext-fmt` - Rewrite files with Prettier (CI runs `ext-fmt-check` instead)
 - `make ext-test` - Run the extension unit tests (`node --test`)
-- `make ext-build` - Build into `extension/dist/`
-- `make ext-check` - Run the checks CI runs after `ext-install`: typecheck, lint, fmt-check, test, build
+- `make ext-build` - Build into `extension/dist/` and check the output; the build also runs `go` (with `GOTOOLCHAIN` set to `go.mod`'s version, which the first build may download) to build the release article generation module (`cmd/yt2column-wasm`) and copy that toolchain's `wasm_exec.js`
+- `make ext-build-dev` - Build the development extension into `extension/dist-dev/` and check the output: the development article generation module (`cmd/yt2column-wasm-dev`) on the fake LLM, with the scenario chosen by `FAKE_ARTICLE`, `FAKE_FAILURE`, `FAKE_FAIL_AT`, `FAKE_DELAY`, and `FAKE_SETTINGS_CHECK` (defaults in `Makefile`), and a manifest without `key`; see [development.md](docs/dev/guides/development.md)
+- `make ext-check` - Run the checks CI runs after `ext-install`: typecheck, lint, fmt-check, test, build, build-dev
 - `make ext-coverage-compare BASE=<commit>` - Run the extension test suite at BASE and at HEAD with coverage and compare, function by function, whether each product function that ran still runs; the last line is `coverage-compare: PASS`, `FAIL`, or `STOP <kind>`. For a commit that deletes extension tests, with its parent as BASE
 
 ## Architecture Overview

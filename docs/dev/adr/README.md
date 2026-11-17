@@ -55,3 +55,5 @@
 | [ADR-0047](0047-runpr-merge-question.md) | /runpr のマージの質問は 1 つの単一選択の問いにし、詳細は作業ツリーの外のファイルに書いて会話には要約だけを出し、deferred のスレッドはその前に片付ける | `有効` |
 | [ADR-0048](0048-extension-only-generation.md) | 記事を拡張だけで作り、localhost サーバと Native Messaging のホストを廃止する | `有効` |
 | [ADR-0049](0049-wasm-core-sharing.md) | 記事を作る処理は Go のコアを WebAssembly にして CLI と拡張が共有し、拡張との境界を JSON の文字列にする | `有効` |
+| [ADR-0050](0050-fable-partial-review.md) | タスクの PR を開く前に Fable の部分レビューを範囲を絞って行い、走らないときは止めずに記録する | `有効` |
+| [ADR-0051](0051-number-reservation.md) | タスク番号と ADR 番号は GitHub の上で重複しないように道具で決め、決められなければ止め、ADR 番号の欠番を許す | `有効` |

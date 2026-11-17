@@ -99,10 +99,14 @@ cmd/yt2column/main.go     # CLI エントリポイント
 cmd/yt2column-server/     # localhost サーバのエントリポイント（main.go・run.go）
 cmd/yt2column-nmhost/     # Native Messaging のホストのエントリポイント（中継・install・uninstall）
 cmd/yt2column-devserver/  # 開発用のサーバのエントリポイント（fake の LLM で動く。本番のバイナリには入らない）
+cmd/yt2column-wasm/       # 公開用の記事生成モジュールのエントリポイント（js/wasm だけでビルドする。Claude の LLM の実装）
+cmd/yt2column-wasm-dev/   # 開発用の記事生成モジュールのエントリポイント（ビルドが埋め込んだ fake のシナリオで動く。公開する成果物には入らない）
+cmd/yt2column-extjob/     # 開発用のコマンド（記事生成モジュールの JSON の入口を、入力のファイルでネイティブに動かす。-llm の指定が要る）
 internal/pipeline/        # 3 つのステージを束ねるオーケストレーション
 internal/extjob/          # 拡張のジョブ 1 回分の処理（入力の検査・実行・結果の組み立て・記事生成モジュールの JSON の入口）
 internal/extjob/claudebackend/ # 記事生成モジュールの公開用の LLM の実装（Claude のクライアントとキーの確かめ）
 internal/extjob/devbackend/    # 記事生成モジュールの開発用の LLM の実装（fake のシナリオ）
+internal/extjob/jsmodule/      # 2 つの記事生成モジュールが共有する syscall/js の登録（js のビルドだけ）
 internal/server/          # localhost サーバ（HTTP の受け口・検査・応答・ジョブ）
 internal/articlecache/    # 記事のキャッシュ（キー・記録の状態遷移・件数の上限と破棄。HTTP も LLM も知らない）
 internal/serversock/      # サーバの Unix ドメインソケット（ソケットのディレクトリの検査・起動のロック・stale の判定）

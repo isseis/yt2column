@@ -273,7 +273,7 @@ func (m *Module) PrepareJSON(request string) (out string) {
 			out = rejectedPrepare()
 		}
 	}()
-	if len(request) > maxRequestBytes {
+	if len(request) > MaxPrepareRequestBytes {
 		return rejectedPrepare()
 	}
 	object, err := strictjson.ParseObject([]byte(request))

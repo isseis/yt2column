@@ -10,7 +10,8 @@
     "fmt-check": "prettier --check .",
     "fmt": "prettier --write .",
     "test": "node --test \"test/**/*.test.ts\"",
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/copy-static.ts && node scripts/check-dist.ts"
+    "build": "node scripts/build.ts release",
+    "build-dev": "node scripts/build.ts dev"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
