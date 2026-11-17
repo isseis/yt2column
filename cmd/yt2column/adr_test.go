@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/doctestutil"
+	"github.com/isseis/yt2column/internal/tasknaming"
 )
 
 // Paths, from the repository root, of the documents the ADR guard reads.
@@ -45,9 +46,6 @@ const (
 const adrStatusRowName = "状態"
 
 var (
-	// adrNameRE is the file name of an ADR: a four-digit number and a kebab
-	// name of lowercase ASCII letters and digits.
-	adrNameRE = regexp.MustCompile(`^([0-9]{4})-[a-z0-9]+(?:-[a-z0-9]+)*\.md$`)
 	// adrFirstLineRE is an ADR's first line: its number and its title.
 	adrFirstLineRE = regexp.MustCompile(`^# ADR-([0-9]{4}): (.+)$`)
 	// adrIndexLinkRE is the first cell of an index row: a link to the ADR
@@ -271,18 +269,17 @@ func tablesOutsideBlocks(text string) [][][]string {
 // a well-named ADR file, or nil when the entry is not one.
 func checkADRFile(entry adrEntry, defs adrDefinitions) (*adrRecord, []adrIssue) {
 	p := path.Join(adrDir, entry.name)
-	match := adrNameRE.FindStringSubmatch(entry.name)
-	if entry.dir || match == nil || match[1] == "0000" {
+	adrNumber, ok := tasknaming.ParseADRFile(entry.name)
+	if entry.dir || !ok || adrNumber.String() == "0000" {
 		return nil, []adrIssue{{path: p, kind: adrBadName, detail: entry.name}}
 	}
-	number, _ := strconv.Atoi(match[1])
-	rec := &adrRecord{name: entry.name, number: number}
+	rec := &adrRecord{name: entry.name, number: adrNumber.Int()}
 	var issues []adrIssue
 
 	firstLine, _, _ := strings.Cut(entry.content, "\n")
 	first := adrFirstLineRE.FindStringSubmatch(strings.TrimSpace(firstLine))
 	switch {
-	case first == nil || first[1] != match[1]:
+	case first == nil || first[1] != adrNumber.String():
 		issues = append(issues, adrIssue{path: p, kind: adrBadFirstLine, detail: firstLine})
 	default:
 		rec.title = strings.TrimSpace(first[2])

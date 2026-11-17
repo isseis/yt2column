@@ -657,7 +657,7 @@ func TestStartCleansSendsAndDetails(t *testing.T) {
 		if err := held.store().create(detailName(pr, head), detailRecord{PR: pr, Head: head, Saved: saved, Source: ReportNone.String()}); err != nil {
 			t.Fatal(err)
 		}
-		if err := held.store().create(reportName(pr, head), detailRecord{PR: pr, Head: head, Saved: saved, Source: ReportFromScreen.String()}); err != nil {
+		if err := held.store().create(reportName(pr, head), detailRecord{PR: pr, Head: head, Saved: saved, Source: ReportFromPane.String()}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -688,7 +688,7 @@ func TestStartCleansSendsAndDetails(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(records.dir, reportName(1, head))); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("the old report record: %v; want it removed", err)
 	}
-	if rec, ok, err := records.keptPaneReport(2, head); !ok || err != nil || rec.Source != ReportFromScreen.String() {
+	if rec, ok, err := records.keptPaneReport(2, head); !ok || err != nil || rec.Source != ReportFromPane.String() {
 		t.Errorf("the recent report record: %+v, %v, %v; want it kept", rec, ok, err)
 	}
 	if stop, _ := records.Stopped(); stop == nil {
@@ -749,7 +749,7 @@ func TestKeptPaneReport(t *testing.T) {
 	other := strings.Repeat("c", 40)
 	saved := time.Date(2026, 11, 17, 9, 0, 0, 0, time.UTC)
 	detail := detailRecord{PR: 7, Head: head, Saved: saved, Source: ReportFromDescription.String(), Text: "description"}
-	report := detailRecord{PR: 7, Head: head, Saved: saved, Source: ReportFromScreen.String(), Text: "report", Pane: "w1:p1", Seq: 3}
+	report := detailRecord{PR: 7, Head: head, Saved: saved, Source: ReportFromPane.String(), Text: "report", Pane: "w1:p1", Seq: 3}
 	cases := []struct {
 		name    string
 		detail  *detailRecord
@@ -762,8 +762,8 @@ func TestKeptPaneReport(t *testing.T) {
 		{"the detail record alone", &detail, nil, "description", true, false},
 		{"the report record alone", nil, &report, "report", true, false},
 		{"both", &detail, &report, "report", true, false},
-		{"a report record of another PR", &detail, &detailRecord{PR: 8, Head: head, Source: ReportFromScreen.String()}, "", false, true},
-		{"a report record of another head", &detail, &detailRecord{PR: 7, Head: other, Source: ReportFromScreen.String()}, "", false, true},
+		{"a report record of another PR", &detail, &detailRecord{PR: 8, Head: head, Source: ReportFromPane.String()}, "", false, true},
+		{"a report record of another head", &detail, &detailRecord{PR: 7, Head: other, Source: ReportFromPane.String()}, "", false, true},
 		{"a report record from the description", &detail, &detailRecord{PR: 7, Head: head, Source: ReportFromDescription.String()}, "", false, true},
 	}
 	for _, c := range cases {

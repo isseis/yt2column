@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `withdrawn` |
 | Created | 2026-11-17 |
 | Review date | 2026-11-17 |
 | Reviewer | isseis |
-| Comments | - |
+| Comments | 2026-11-17 取り下げ：Claude Code が答えを待っている質問の呼び出しを transcript に書かないことがあると分かったため（§7「PR-1 の実行の記録」） |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。
 
@@ -402,7 +402,21 @@
 
 ### PR-1 の実行の記録
 
-（PR-1 の `/runplan` が書く。）
+2026-11-17 に、ステップ 1-1・1-2 の採取の途中で、決定 5 のとおり止まった。要件書の中心の前提（答えを待っている間、その呼び出しが transcript に書かれていること）が成り立たなかったためである。人と相談して、タスクを取り下げた。採った生のデータは、採取した人を特定できる値を含むので、リポジトリには置いていない。
+
+-   **版と採り方。** Claude Code 2.1.326、Herdr 0.9.1。人が採取用の workspace `chief-poc` の Claude Code の pane で、合成の依頼文を送って状態を作った。`/runplan` のセッションは、`herdr agent get`・`herdr agent read`（`--source visible --lines 200`）と transcript のファイルの写しだけで採った。
+-   **止めた理由: 答えを待っている質問の呼び出しが transcript に書かれない。** 1 つを選ぶ問い・複数を選ぶ問い・問いが 2 つの呼び出しなど 7 回、`AskUserQuestion` の問いを画面に出した。そのうち 5 回は、問いが画面に出て Herdr が `blocked` と報告している間、transcript にその呼び出しの行がなかった。そのうち 1 回は、3 秒おきに 3 分読んでも、行の数が変わらなかった。行は、人が答えた時点で、同じターンのほかの行（思考、`Agent` の呼び出しとその答え）とまとめて書かれた。行の `timestamp` は、問いが出た時刻だった。残りの 2 回は、問いが出ている間に書かれていた。書かれるかどうかを、chief が見分ける手段はない。このため、transcript の答えを待っている呼び出しから質問を示すこと（F-001）も、中継の直前の照合（F-003）も、送る前の止め（F-005 の (a)）も成り立たない。
+-   **成り立った前提。** 権限の確認の間、Herdr は `blocked` と報告し、transcript にはその `Bash` の呼び出しが答えのないまま書かれていた。
+-   **そのほかに分かったこと。** 後のタスクで使えるよう記録する。
+    -   1 つを選ぶ問いで、選択を自由に書く答え（`Type something.`）かチャット（`Chat about this`）に動かすと、問いが出たまま、Herdr の状態は `idle` になった。選択を番号の選択肢に戻すと `blocked` に戻り、`state_change_seq` が変わった。
+    -   自由に書く答えに打った文字は、その行の名前として描かれた（`4. abc`）。選択を 1 に戻しても残った。
+    -   問いの文が折り返すときは、各行の頭に `│` が付いた。選択肢の名前の折り返しの続きの行は、説明と同じ字下げで描かれた。
+    -   人が Esc で閉じた問いは、`is_error` が `true` の `tool_result` になった。
+    -   前面での実行を頼んでも、`Agent` の呼び出しには、すぐ `async_launched` の答えが付いた。サブエージェントの行は、親のセッションの下の `subagents/agent-*.jsonl` に書かれた。サブエージェントの権限の確認が出ている間、Herdr は `blocked` と報告したが、親の transcript に答えを待っている呼び出しはなかった。
+    -   裏のサブエージェントの権限の確認は、親の問いが出ている間は画面に出ず、問いを閉じた直後に出た。そのとき `state_change_seq` は変わらなかった。
+    -   起動した直後の、まだ何も入力していないセッションでは、Herdr は `idle` と報告し、transcript のファイルはなかった。
+    -   transcript に、`permission-mode` という種類の行があった。
+-   **採らなかったもの。** `/compact`・`--resume`・`/rewind` の後の transcript は、止めたので採っていない。
 
 ### PR-2 の実行の記録
 
@@ -433,3 +447,4 @@
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#954）
+- 2026-11-17 withdrawn：Claude Code が答えを待っている質問の呼び出しを transcript に書かないことがあると分かったため（§7「PR-1 の実行の記録」）（#962）

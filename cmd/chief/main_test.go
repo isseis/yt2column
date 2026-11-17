@@ -27,9 +27,6 @@ const (
 	otherSession = "00000000-0000-4000-8000-0000000000d2"
 )
 
-// protocolArg is the --protocol value the tool speaks.
-var protocolArg = strconv.Itoa(chief.Protocol)
-
 // noSleep is the wait of the tests: it never waits.
 func noSleep(context.Context, time.Duration) error { return nil }
 
@@ -178,7 +175,7 @@ func (h *harness) runWithoutBase(args ...string) (int, map[string]any) {
 func TestRunOutsideHerdrReadsNothing(t *testing.T) {
 	h := newHarness(t)
 	h.env.PaneID = ""
-	code, out := h.runWithoutBase("snapshot", "--protocol", protocolArg)
+	code, out := h.runWithoutBase("snapshot", "--protocol", protocol)
 	if code != exitRefused || out["reason"] != "not_in_herdr" {
 		t.Fatalf("run = %d, %v; want refused, not_in_herdr", code, out)
 	}
@@ -190,6 +187,9 @@ func TestRunOutsideHerdrReadsNothing(t *testing.T) {
 	}
 }
 
+// protocol is the --protocol value of the installed tool's contract.
+var protocol = strconv.Itoa(chief.Protocol)
+
 func TestRunRefusals(t *testing.T) {
 	t.Run("protocol mismatch", func(t *testing.T) {
 		h := newHarness(t)
@@ -200,14 +200,14 @@ func TestRunRefusals(t *testing.T) {
 	})
 	t.Run("state base is missing", func(t *testing.T) {
 		h := newHarness(t)
-		code, out := h.runWithoutBase("start", "--protocol", protocolArg)
+		code, out := h.runWithoutBase("start", "--protocol", protocol)
 		if code != exitRefused || out["reason"] != "no_state_base" {
 			t.Errorf("run = %d, %v", code, out)
 		}
 	})
 	t.Run("snapshot before start", func(t *testing.T) {
 		h := newHarness(t)
-		code, out := h.run("snapshot", "--protocol", protocolArg)
+		code, out := h.run("snapshot", "--protocol", protocol)
 		if code != exitRefused || out["reason"] != "not_started" {
 			t.Errorf("run = %d, %v", code, out)
 		}
@@ -215,7 +215,7 @@ func TestRunRefusals(t *testing.T) {
 	t.Run("a pane without a session", func(t *testing.T) {
 		h := newHarness(t)
 		h.fake.sessionless = true
-		code, out := h.run("start", "--protocol", protocolArg)
+		code, out := h.run("start", "--protocol", protocol)
 		if code != exitRefused || out["reason"] != "no_session" {
 			t.Errorf("run = %d, %v", code, out)
 		}
@@ -223,7 +223,7 @@ func TestRunRefusals(t *testing.T) {
 	t.Run("a pane of another worktree", func(t *testing.T) {
 		h := newHarness(t)
 		h.fake.paneDir = t.TempDir()
-		code, out := h.run("start", "--protocol", protocolArg)
+		code, out := h.run("start", "--protocol", protocol)
 		if code != exitRefused || out["reason"] != "pane_mismatch" {
 			t.Errorf("run = %d, %v; want refused, pane_mismatch", code, out)
 		}
@@ -231,22 +231,22 @@ func TestRunRefusals(t *testing.T) {
 	t.Run("a working directory that cannot be read", func(t *testing.T) {
 		h := newHarness(t)
 		h.env.WorkDir = ""
-		code, out := h.run("start", "--protocol", protocolArg)
+		code, out := h.run("start", "--protocol", protocol)
 		if code != exitFailure || out["outcome"] != "failed" {
 			t.Errorf("run = %d, %v; want failed, not a refusal", code, out)
 		}
 	})
 	t.Run("the lock belongs to a live chief", func(t *testing.T) {
 		h := newHarness(t)
-		if code, out := h.run("start", "--protocol", protocolArg); code != exitOK {
+		if code, out := h.run("start", "--protocol", protocol); code != exitOK {
 			t.Fatalf("first start = %d, %v", code, out)
 		}
 		h.env.PaneID = otherPane
 		h.fake.both = true
-		if code, out := h.run("start", "--protocol", protocolArg); code != exitRefused || out["reason"] != "lock_held" {
+		if code, out := h.run("start", "--protocol", protocol); code != exitRefused || out["reason"] != "lock_held" {
 			t.Errorf("start by another chief = %d, %v; want refused, lock_held", code, out)
 		}
-		if code, out := h.run("snapshot", "--protocol", protocolArg); code != exitRefused || out["reason"] != "not_owner" {
+		if code, out := h.run("snapshot", "--protocol", protocol); code != exitRefused || out["reason"] != "not_owner" {
 			t.Errorf("snapshot by another chief = %d, %v; want refused, not_owner", code, out)
 		}
 	})
@@ -263,31 +263,31 @@ func TestRunUsageErrors(t *testing.T) {
 		nil,
 		{"start"},
 		{"start", "--protocol"},
-		{"start", "--protocol", protocolArg, "extra"},
+		{"start", "--protocol", protocol, "extra"},
 		{"snapshot", "1", "--protocol"},
-		{"weakreview", "--protocol", protocolArg},
-		{"tick", "--since", testBaseline, "--protocol", protocolArg},
-		{"wait", "--protocol", protocolArg},
-		{"wait", "--since", "not-a-baseline", "--protocol", protocolArg},
-		{"wait", "--since", testBaseline, "--timeout", "0", "--protocol", protocolArg},
-		{"wait", "--since", testBaseline, "--timeout", "3601", "--protocol", protocolArg},
-		{"wait", "--since", testBaseline, "--timeout", "07", "--protocol", protocolArg},
-		{"wait", "--since", testBaseline, "--timeout", "9223372036854775807", "--protocol", protocolArg},
-		{"--protocol", protocolArg, "start"},
-		{"start", "--protocol", protocolArg, "--protocol", protocolArg},
-		{"snapshot", "--workspace", "/w", "--protocol", protocolArg},
-		{"send", "--workspace", "/w", "--protocol", protocolArg},
-		{"send", "--command", "mkarch", "--protocol", protocolArg},
-		{"send", "--workspace", "/w", "--command", "weakreview", "--protocol", protocolArg},
-		{"detail", "--protocol", protocolArg},
-		{"detail", "--workspace", "/w", "--command", "runpr", "--protocol", protocolArg},
-		{"release", "--protocol", protocolArg},
-		{"relay", "--workspace", "/w", "--answer", "1=1", "--protocol", protocolArg},
-		{"relay", "--workspace", "/w", "--check", testCheck, "--answer", "1=1", "--answer", "1=2", "--protocol", protocolArg},
-		{"relay", "--workspace", "/w", "--check", "not-a-check", "--answer", "1=1", "--protocol", protocolArg},
-		{"relay", "--workspace", "/w", "--check", testCheck, "--answer", "2=1", "--protocol", protocolArg},
-		{"relay", "--workspace", "/w", "--check", testCheck, "--answer", "1=0", "--protocol", protocolArg},
-		{"relay", "--workspace", "w", "--check", testCheck, "--answer", "1=1", "--protocol", protocolArg},
+		{"weakreview", "--protocol", protocol},
+		{"tick", "--since", testBaseline, "--protocol", protocol},
+		{"wait", "--protocol", protocol},
+		{"wait", "--since", "not-a-baseline", "--protocol", protocol},
+		{"wait", "--since", testBaseline, "--timeout", "0", "--protocol", protocol},
+		{"wait", "--since", testBaseline, "--timeout", "3601", "--protocol", protocol},
+		{"wait", "--since", testBaseline, "--timeout", "07", "--protocol", protocol},
+		{"wait", "--since", testBaseline, "--timeout", "9223372036854775807", "--protocol", protocol},
+		{"--protocol", protocol, "start"},
+		{"start", "--protocol", protocol, "--protocol", protocol},
+		{"snapshot", "--workspace", "/w", "--protocol", protocol},
+		{"send", "--workspace", "/w", "--protocol", protocol},
+		{"send", "--command", "mkarch", "--protocol", protocol},
+		{"send", "--workspace", "/w", "--command", "weakreview", "--protocol", protocol},
+		{"detail", "--protocol", protocol},
+		{"detail", "--workspace", "/w", "--command", "runpr", "--protocol", protocol},
+		{"release", "--protocol", protocol},
+		{"relay", "--workspace", "/w", "--answer", "1=1", "--protocol", protocol},
+		{"relay", "--workspace", "/w", "--check", testCheck, "--answer", "1=1", "--answer", "1=2", "--protocol", protocol},
+		{"relay", "--workspace", "/w", "--check", "not-a-check", "--answer", "1=1", "--protocol", protocol},
+		{"relay", "--workspace", "/w", "--check", testCheck, "--answer", "2=1", "--protocol", protocol},
+		{"relay", "--workspace", "/w", "--check", testCheck, "--answer", "1=0", "--protocol", protocol},
+		{"relay", "--workspace", "w", "--check", testCheck, "--answer", "1=1", "--protocol", protocol},
 	} {
 		h := newHarness(t)
 		var stdout bytes.Buffer
@@ -301,14 +301,14 @@ func TestRunUsageErrors(t *testing.T) {
 
 func TestStartThenSnapshot(t *testing.T) {
 	h := newHarness(t)
-	code, out := h.run("start", "--protocol", protocolArg)
+	code, out := h.run("start", "--protocol", protocol)
 	if code != exitOK || out["outcome"] != "started" {
 		t.Fatalf("start = %d, %v", code, out)
 	}
-	if code, out := h.run("start", "--protocol", protocolArg); code != exitOK || out["outcome"] != "started" {
+	if code, out := h.run("start", "--protocol", protocol); code != exitOK || out["outcome"] != "started" {
 		t.Fatalf("a second start by the owner = %d, %v", code, out)
 	}
-	code, out = h.run("snapshot", "--protocol", protocolArg)
+	code, out = h.run("snapshot", "--protocol", protocol)
 	if code != exitOK {
 		t.Fatalf("snapshot = %d, %v", code, out)
 	}
@@ -333,10 +333,10 @@ func TestStartThenSnapshot(t *testing.T) {
 // exit 1 and the outcome "timeout".
 func TestStartThenTickAndWait(t *testing.T) {
 	h := newHarness(t)
-	if code, out := h.run("start", "--protocol", protocolArg); code != exitOK {
+	if code, out := h.run("start", "--protocol", protocol); code != exitOK {
 		t.Fatalf("start = %d, %v", code, out)
 	}
-	code, out := h.run("tick", "--protocol", protocolArg)
+	code, out := h.run("tick", "--protocol", protocol)
 	if code != exitOK {
 		t.Fatalf("tick = %d, %v", code, out)
 	}
@@ -357,7 +357,7 @@ func TestStartThenTickAndWait(t *testing.T) {
 		return nil
 	}
 	var stdout, stderr bytes.Buffer
-	code = run(context.Background(), []string{"wait", "--since", baseline, "--timeout", "6", "--protocol", protocolArg}, h.env, nil, h.fake.factory, func() time.Time { return clock }, sleep, &stdout, &stderr)
+	code = run(context.Background(), []string{"wait", "--since", baseline, "--timeout", "6", "--protocol", protocol}, h.env, nil, h.fake.factory, func() time.Time { return clock }, sleep, &stdout, &stderr)
 	var res map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
 		t.Fatalf("wait output %q: %v", stdout.String(), err)
@@ -372,10 +372,10 @@ func TestStartThenTickAndWait(t *testing.T) {
 // with not_owner, like any subcommand its caller does not own.
 func TestWaitRefusedForANewSession(t *testing.T) {
 	h := newHarness(t)
-	if code, out := h.run("start", "--protocol", protocolArg); code != exitOK {
+	if code, out := h.run("start", "--protocol", protocol); code != exitOK {
 		t.Fatalf("start = %d, %v", code, out)
 	}
-	_, out := h.run("snapshot", "--protocol", protocolArg)
+	_, out := h.run("snapshot", "--protocol", protocol)
 	baseline, _ := out["baseline"].(string)
 	clock := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	t.Cleanup(func() { sessions[testPane] = testSession })
@@ -385,7 +385,7 @@ func TestWaitRefusedForANewSession(t *testing.T) {
 		return nil
 	}
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), []string{"wait", "--since", baseline, "--timeout", "60", "--protocol", protocolArg}, h.env, nil, h.fake.factory, func() time.Time { return clock }, sleep, &stdout, &stderr)
+	code := run(context.Background(), []string{"wait", "--since", baseline, "--timeout", "60", "--protocol", protocol}, h.env, nil, h.fake.factory, func() time.Time { return clock }, sleep, &stdout, &stderr)
 	var res map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
 		t.Fatalf("wait output %q: %v", stdout.String(), err)
@@ -415,13 +415,13 @@ func TestRunWorkspaceSubcommands(t *testing.T) {
 		args  []string
 		check func(map[string]any) bool
 	}{
-		{[]string{"send", "--workspace", "/nowhere", "--command", "mkarch", "--protocol", protocolArg}, noWorkspace},
-		{[]string{"relay", "--workspace", "/nowhere", "--check", testCheck, "--answer", "1=1", "--protocol", protocolArg}, noWorkspace},
-		{[]string{"detail", "--workspace", "/nowhere", "--protocol", protocolArg}, func(out map[string]any) bool {
+		{[]string{"send", "--workspace", "/nowhere", "--command", "mkarch", "--protocol", protocol}, noWorkspace},
+		{[]string{"relay", "--workspace", "/nowhere", "--check", testCheck, "--answer", "1=1", "--protocol", protocol}, noWorkspace},
+		{[]string{"detail", "--workspace", "/nowhere", "--protocol", protocol}, func(out map[string]any) bool {
 			p, ok := out["problem"].(string)
 			return ok && p != "" && out["pr"] == nil
 		}},
-		{[]string{"release", "--workspace", "/nowhere", "--protocol", protocolArg}, func(out map[string]any) bool {
+		{[]string{"release", "--workspace", "/nowhere", "--protocol", protocol}, func(out map[string]any) bool {
 			p, ok := out["problem"].(string)
 			return out["released"] == false && ok && p != ""
 		}},
@@ -429,7 +429,7 @@ func TestRunWorkspaceSubcommands(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.args[0], func(t *testing.T) {
 			h := newHarness(t)
-			if code, out := h.run("start", "--protocol", protocolArg); code != exitOK {
+			if code, out := h.run("start", "--protocol", protocol); code != exitOK {
 				t.Fatalf("start = %d, %v", code, out)
 			}
 			code, out := h.run(c.args...)
@@ -440,7 +440,7 @@ func TestRunWorkspaceSubcommands(t *testing.T) {
 	}
 	t.Run("before start", func(t *testing.T) {
 		h := newHarness(t)
-		code, out := h.run("release", "--workspace", "/nowhere", "--protocol", protocolArg)
+		code, out := h.run("release", "--workspace", "/nowhere", "--protocol", protocol)
 		if code != exitRefused || out["reason"] != "not_started" {
 			t.Errorf("release before start = %d, %v; want refused, not_started", code, out)
 		}

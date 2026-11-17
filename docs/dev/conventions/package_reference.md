@@ -122,6 +122,7 @@ add a kind here or to widen one of these definitions.
 | `internal/secret` | Holds a secret (API key) and guarantees it never appears in `fmt`, `log/slog`, or JSON output. |
 | `internal/signalrun` | `Run` calls a program's main function under a context that the first subscribed signal cancels; a second signal terminates the process. |
 | `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `ParseArray`, `Object.CollectOnly`, `Object.CollectExactCase`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/writer`, `internal/artifact`, `internal/extjob`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, `internal/coveragecompare`, and `internal/chief` |
+| `internal/tasknaming` | The name forms of task branches, task directories, and ADR files, and the four-digit number they carry: `Number` (`String`, `Int`), `ParseNumber`, `ParseBranch`, `ParseTaskDir`, `ParseADRFile`; `ErrInvalid`. Shared by `internal/chief` and the ADR guard test. |
 
 ## Development Tools
 

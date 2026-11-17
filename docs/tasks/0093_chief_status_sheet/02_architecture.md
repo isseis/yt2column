@@ -55,7 +55,7 @@ H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項
     -   `readRunningCommand` は、人の入力を順に読み（`scanHumanInputs`、`readLastHumanInput` と同じ規則）、5 つのタスクのコマンドの最後のものと、その後に人の入力があったか（`later`）を返す。後の入力の中身は読まない。
     -   `RunningShown` に `Later` を足し、出力の `running` に `later_input` を足す。どれかの pane で後の入力があれば真とする。後の入力があるときは、モデルを示さない。
     -   `running_unknown` は、`/chief` の定義が「内容」の列に示す値になる（1.2 の、表に示さない診断の値という扱いを変える）。`OutputValueNames` の対象を、表に示す `urgency`・`position.document`・`position.progress`・`running_unknown` にし、`state` と `turn` を外す。
-    -   出力の形が変わるが、`Protocol` はこの PR で 2 に上げたままとし、もう 1 つは上げない。`origin/main` の道具は 1 で、この PR の中の変更だからである。
+    -   出力の形が変わるが、`Protocol` は、この PR ですでに上げた値（計画書の決定 1 のとおり、`origin/main` の値に 1 を足した値）のままとし、この変更のためにもう 1 つは上げない。この PR の中の変更で、`origin/main` の道具はこの出力の形をまだ知らないためである。
 
 ### 1.3. なぜ今の仕組みでは足りないか
 
