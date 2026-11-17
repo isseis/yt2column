@@ -89,6 +89,16 @@ interface RecordBase {
   readonly steps: Steps;
 }
 
+/** The chrome.storage.session item name of the job record of jobId. */
+export function jobItemName(jobId: string): string {
+  return `job:${jobId}`;
+}
+
+/** The chrome.storage.session item name of the start context of startId. */
+export function startItemName(startId: string): string {
+  return `start:${startId}`;
+}
+
 /** One job record, in chrome.storage.session under "job:" and its job ID. */
 export type JobRecord =
   | (RecordBase & { readonly state: "running"; readonly runner: Runner })
