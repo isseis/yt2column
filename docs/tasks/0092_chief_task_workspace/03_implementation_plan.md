@@ -115,6 +115,10 @@
 
     ADR: なし（サンプルを採る PR の選択で、タスクの中で閉じるため）。
 
+### 1.6. 実装の際に決めたこと（2026-11-17）
+
+16. **決定 8 の (v) の止まる例を、「起動したばかりの Claude Code が transcript のファイルを持たない」から、「`/clear` の後に Herdr のセッション ID が変わらない」に変える（2026-11-17、人が承認した）。** PR-1 の実地の確かめで、起動したばかりの Claude Code は、最初の入力の前に transcript のファイルを持たなかった。計画の時点の例は、0088 の送信が最初の確かめで transcript を読むという読み違いによるものだった。実際には、最初の確かめは transcript の場所だけを求め、ファイルの有無を確かめない（`internal/chief/send.go:343-349`）。transcript を読むのは `/model` の後（`internal/chief/send.go:585-611`）で、ファイルがまだなければ読み直す。そのため、ファイルがないことは設計書 1.2 の (v) の前提（送る前の確かめを通ること）を崩さない。一方、`/clear` の後にセッション ID が変わらなければ、0088 の送信は止まる（`internal/chief/send.go:531-534`）。そこで、それを止まる例にした。PR-1 のセッションは、止まって人に問わずにこの例を書き換え、編集上の訂正として記録した。これは止まる条件を変える決定の変更なので、PR-1 のレビューで人に問い、承認を得た。§5 のリスクの表の行も合わせて直した。ADR: なし（PR-1 の確かめの中で閉じるため）。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 実地の確かめ、サンプル、Herdr の新しい出力の読み取り（設計書 8 章の 1、2 のうち Herdr の出力）
@@ -459,7 +463,7 @@
 
 | リスク | 対策 |
 |---|---|
-| 実地の確かめで、設計書 1.2 の前提が違う（信頼の画面が出る、`workspace close` がグループを求める、`ask` が確認を出さない、起動したばかりの Claude Code に transcript がない） | 決定 8 のとおり止まり、人と決め直す。設計書は、どの結果でも安全側に倒れる（設計書 3.3.4・3.4.3） |
+| 実地の確かめで、設計書 1.2 の前提が違う（信頼の画面が出る、`workspace close` がグループを求める、`ask` が確認を出さない、起動したばかりの Claude Code の pane で `/clear` の後にセッション ID が変わらない） | 決定 8 のとおり止まり、人と決め直す。設計書は、どの結果でも安全側に倒れる（設計書 3.3.4・3.4.3） |
 | 採ったサンプルに、採取した人を特定できる情報が残る | ステップ 1-4 の置き換えの規則と、サンプルの確かめのテスト。PR-1 のレビュー観点に入れる |
 | 途中の PR のマージで道具を入れ直したとき、chief の振る舞いが変わる | 決定 4。作成は PR-7 まで呼ばれず、削除の候補は現れない。作成の排他が取れない周だけ、自動送信をせずに示す |
 | 0088 の送信の経路の共有で、送信と自動送信の守りが崩れる | PR-3 を独立させ、今の送信・中継・自動送信のテストを変えずに通す（ステップ 3-3） |
@@ -530,7 +534,7 @@
 2026-11-17 に、本計画のステップ 1-1〜1-4 のとおりに確かめた。結果は、どれも設計書 1.2 の前提と合ったので、決定 8 のように止まることはなかった。決定 6 の値も、観測と合ったので変えない。
 
 -   **版。** Herdr 0.9.1、Claude Code 2.1.326、OpenCode v2.2.6、gh 2.96.0、git 2.50.1。
--   **確かめ用の worktree と workspace。** `/runplan` のセッションが、`~/.herdr/worktrees/yt2column/probe-0092` を `git worktree add --detach` で `origin/main` に作り、`herdr workspace create --cwd <パス> --label probe-0092 --no-focus` で開いた。タブ `cmd`・`opencode`・`claude` を `herdr tab rename`・`herdr tab create` で作り、時間切れを起こすためのタブ `timeout` も足した。セッションに拒まれる `herdr agent start` と `herdr workspace close` は、人が確かめ用の workspace の外のシェルで打った（決定 2）。確かめの後、workspace は人が閉じ、worktree はセッションが `git worktree remove`（`--force` なし）で消した。
+-   **確かめ用の worktree と workspace。** `/runplan` のセッションが、`~/.herdr/worktrees/yt2column/probe-0092` を `git worktree add --detach` で `origin/main` に作り、`herdr workspace create --cwd <パス> --label probe-0092 --no-focus` で開いた。タブ `cmd`・`opencode`・`claude` を `herdr tab rename`・`herdr tab create` で作り、時間切れを起こすためのタブ `timeout` も足した。セッションに拒まれる `herdr agent start` と `herdr workspace close` は、人が確かめ用の workspace の外のシェルで打った（決定 2）。確かめの後、workspace は人が閉じ、worktree はセッションが `git worktree remove`（`--force` なし）で消した。セッションが worktree と workspace を作り、タブを作り、worktree を消したことは、人が作って片付けるとした本計画の用語の「確かめ用の workspace」とステップ 1-2 の手順から外れていた。どれも今のセッションに拒まれていない呼び出しだが、人の同意を得ずに行った。用語とステップの文は、計画のとおりに残す。
 -   **(i) フォルダの信頼。** 新しい worktree で起動した Claude Code は、信頼を問う画面を出さず、auto mode の入力待ちで起動した。そのため、信頼を問う画面のサンプルはない。
 -   **(ii) `herdr agent start`。** 新しいタブのシェルの pane で、OpenCode も Claude Code も成功した（終了コード 0、`agent_status` は `idle`、`interactive_ready` は `true`）。かかった時間は、OpenCode が 3.7 秒、Claude Code が 3.9 秒だった。`--timeout 3001` で Claude Code を起動すると、3.0 秒で終了コード 1、標準エラーの `{"error":{"code":"timeout",…},"id":"cli:agent:start"}` を返した。その後も Claude Code は起動を続け、名前のないエージェントとして `idle` になった。設計書 3.3.4 の「エラーの応答のときは `agent get` でエージェントの有無を確かめる」が要ることを示す。名前の重なりは `agent_name_taken`、エージェントのいる pane への起動は `agent_pane_busy` を、どちらもすぐに返した。
 -   **(iii) 作業ディレクトリ。** `workspace create --cwd` と `tab create --cwd` の作った pane は、どれも `cwd` が worktree のパスだった。`workspace create` の応答は、`.result.workspace`・`.result.tab`・`.result.root_pane` を持ち、タブと pane の `workspace_id` は作った workspace のものだった。`tab create` の応答も、`.result.tab` と `.result.root_pane` が指定した workspace のものだった。
@@ -570,3 +574,4 @@
 - 2026-11-17 承認（isseis、#929）
 - 2026-11-17 draft への戻し：PR-2 で、ラベルを足した問い合わせで gh のサンプルを採り直し、ラベル `draft` が付いた issue を拒む読み取りを作ることにした（決定 15）（#939）
 - 2026-11-17 承認（isseis、#939）
+- 2026-11-17 セッション中の再承認：決定 8 の (v) の止まる例を、transcript のファイルがないことから、`/clear` の後にセッション ID が変わらないことに変えた（決定 16）（isseis、#923）
