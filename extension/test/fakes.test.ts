@@ -6,8 +6,9 @@ import type {
   ViewerChannel,
 } from "../src/browser/chromeDeps.ts";
 import type { ViewerChannelMessage } from "../src/core/extensionMessages.ts";
-import { fakeChannels } from "./helpers/chrome.ts";
+import { fakeChannels, fakeLocal, fakeSession } from "./helpers/chrome.ts";
 import { fakeClock, settle } from "./helpers/clock.ts";
+import { fakeWorkers } from "./helpers/worker.ts";
 
 // The ordering tests of the service worker and the viewer rely on these two
 // fakes behaving as the browser does, so their rules are pinned here.
@@ -132,5 +133,165 @@ describe("fake clock", () => {
     cancel();
     clock.advance(10);
     assert.deepEqual(ran, []);
+  });
+});
+
+describe("fake chrome.storage.local functions", () => {
+  it("reads back what write stored, as the two settings", async () => {
+    const local = fakeLocal();
+    assert.deepEqual(await local.write("sk-1", ""), {
+      ok: true,
+      value: undefined,
+    });
+    assert.deepEqual(await local.read(), {
+      ok: true,
+      value: {
+        kind: "found",
+        settings: { anthropicApiKey: "sk-1", anthropicWorkspaceId: "" },
+      },
+    });
+    assert.deepEqual(await local.keys(), {
+      ok: true,
+      value: { apiKeySet: true },
+    });
+  });
+
+  it("removes both items and reads no API key after remove", async () => {
+    const local = fakeLocal();
+    await local.write("sk-1", "wrkspc_1");
+    local.items.set("other", 1);
+    await local.remove();
+    assert.deepEqual([...local.items.keys()], ["other"]);
+    assert.deepEqual(await local.read(), {
+      ok: true,
+      value: { kind: "no_api_key" },
+    });
+    assert.deepEqual(await local.keys(), {
+      ok: true,
+      value: { apiKeySet: false },
+    });
+  });
+
+  it("fails an operation made to fail and leaves the items unchanged", async () => {
+    const local = fakeLocal();
+    local.fail("write");
+    local.fail("remove");
+    local.items.set("anthropic.apiKey", "kept");
+    assert.equal((await local.write("sk-2", "")).ok, false);
+    assert.equal((await local.remove()).ok, false);
+    assert.deepEqual([...local.items], [["anthropic.apiKey", "kept"]]);
+    assert.equal((await local.read()).ok, true);
+  });
+
+  it("records every call in order", async () => {
+    const local = fakeLocal();
+    await local.setAccessLevel();
+    await local.keys();
+    await local.read();
+    assert.deepEqual(local.calls, ["setAccessLevel", "keys", "read"]);
+  });
+});
+
+describe("fake chrome.storage.session functions", () => {
+  it("reads copies of the named items, or of every item", async () => {
+    const session = fakeSession();
+    session.items.set("job:a", { n: 1 });
+    session.items.set("job:b", { n: 2 });
+    const named = await session.read(["job:a", "job:c"]);
+    assert.deepEqual(named, { ok: true, value: { "job:a": { n: 1 } } });
+    assert.ok(named.ok);
+    assert.notEqual(named.value["job:a"], session.items.get("job:a"));
+    assert.deepEqual(await session.read("every"), {
+      ok: true,
+      value: { "job:a": { n: 1 }, "job:b": { n: 2 } },
+    });
+  });
+
+  it("announces a write to each listener as a task, with copies", async () => {
+    const session = fakeSession();
+    const value = { n: 1 };
+    const received: unknown[] = [];
+    session.onChanged((changes) => received.push(changes));
+    await session.write({ "job:a": value });
+    assert.deepEqual(received, [], "announced during write");
+    await settle();
+    assert.deepEqual(received, [
+      new Map([["job:a", { removed: false, newValue: { n: 1 } }]]),
+    ]);
+    value.n = 2;
+    assert.deepEqual(session.items.get("job:a"), { n: 1 });
+  });
+
+  it("announces only the removed items that existed", async () => {
+    const session = fakeSession();
+    session.items.set("job:a", 1);
+    const received: unknown[] = [];
+    session.onChanged((changes) => received.push(changes));
+    await session.remove(["job:a", "job:b"]);
+    await session.remove(["job:c"]);
+    await settle();
+    assert.deepEqual(received, [new Map([["job:a", { removed: true }]])]);
+  });
+
+  it("stops calling a listener that was removed before delivery", async () => {
+    const session = fakeSession();
+    const received: unknown[] = [];
+    const stop = session.onChanged((changes) => received.push(changes));
+    await session.write({ "job:a": 1 });
+    stop();
+    await settle();
+    assert.deepEqual(received, []);
+  });
+
+  it("fails an operation made to fail without changing or announcing", async () => {
+    const session = fakeSession();
+    const received: unknown[] = [];
+    session.onChanged((changes) => received.push(changes));
+    session.fail("write");
+    session.fail("read");
+    assert.equal((await session.write({ "job:a": 1 })).ok, false);
+    assert.equal((await session.read("every")).ok, false);
+    await settle();
+    assert.deepEqual(received, []);
+    assert.equal(session.items.size, 0);
+    assert.deepEqual(session.calls, ["write", "read"]);
+  });
+});
+
+describe("fake Worker", () => {
+  it("records copies of what the page posts and counts terminations", () => {
+    const { create, created } = fakeWorkers();
+    const worker = create();
+    const message = { callId: 1, fn: "prepare", request: "r" };
+    worker.postMessage(message);
+    message.request = "changed";
+    worker.terminate();
+    assert.deepEqual(created[0]?.posted, [
+      { callId: 1, fn: "prepare", request: "r" },
+    ]);
+    assert.equal(created[0]?.terminations, 1);
+  });
+
+  it("delivers a copy to the message listeners, even after terminate", () => {
+    const { create, created } = fakeWorkers();
+    const worker = create();
+    const received: unknown[] = [];
+    worker.addEventListener("message", (event) => received.push(event.data));
+    worker.terminate();
+    const data = { callId: 1, kind: "exit" };
+    created[0]?.send(data);
+    assert.deepEqual(received, [data]);
+    assert.notEqual(received[0], data);
+  });
+
+  it("fires the error listeners on fail", () => {
+    const { create, created } = fakeWorkers();
+    const worker = create();
+    let errors = 0;
+    worker.addEventListener("error", () => {
+      errors += 1;
+    });
+    created[0]?.fail();
+    assert.equal(errors, 1);
   });
 });

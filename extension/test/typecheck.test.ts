@@ -28,6 +28,9 @@ const sources = {
     'export const b: string = btoa(atob("YQ=="));\n',
   usesDocument: "export const t: string = document.title;\n",
   usesChrome: "export const id: string = chrome.runtime.id;\n",
+  // What only a Worker's global scope has.
+  usesWorkerScope:
+    "export const load: (...urls: string[]) => void = importScripts;\n",
 };
 
 type Source = keyof typeof sources;
@@ -85,7 +88,11 @@ describe("type errors fail typecheck and build", () => {
     return { status: result.status, output: result.stdout + result.stderr };
   }
 
-  for (const base of ["tsconfig.json", "tsconfig.build.json"]) {
+  for (const base of [
+    "tsconfig.json",
+    "tsconfig.build.json",
+    "tsconfig.worker.json",
+  ]) {
     it(`${base} accepts well-typed code`, () => {
       const { status, output } = runTsc(base, "good");
       assert.equal(status, 0, output);
@@ -135,6 +142,45 @@ describe("type errors fail typecheck and build", () => {
         );
       });
     }
+  });
+
+  describe("the Worker is checked with the Worker's types only", () => {
+    for (const file of ["usesWorkerScope"] as const) {
+      it(`tsconfig.worker.json accepts ${file}`, () => {
+        const { status, output } = runTsc("tsconfig.worker.json", file);
+        assert.equal(status, 0, output);
+      });
+    }
+
+    it("tsconfig.json rejects usesWorkerScope with TS2304", () => {
+      const { status, output } = runTsc("tsconfig.json", "usesWorkerScope");
+      assert.notEqual(status, 0, output);
+      assert.match(output, /usesWorkerScope\.ts\(\d+,\d+\): error TS2304:/);
+    });
+
+    const pageOnly: { file: Source; code: string }[] = [
+      { file: "usesDocument", code: "TS2584" },
+      { file: "usesChrome", code: "TS2304" },
+    ];
+    for (const { file, code } of pageOnly) {
+      it(`tsconfig.worker.json rejects ${file} with ${code}`, () => {
+        const { status, output } = runTsc("tsconfig.worker.json", file);
+        assert.notEqual(status, 0, output);
+        assert.match(
+          output,
+          new RegExp(`${file}\\.ts\\(\\d+,\\d+\\): error ${code}:`),
+        );
+      });
+    }
+  });
+
+  it("tsconfig.worker.json emits only when there is no error", () => {
+    rmSync(outDir, { recursive: true, force: true });
+    assert.equal(runTsc("tsconfig.worker.json", "good").status, 0);
+    assert.equal(existsSync(path.join(outDir, "good.js")), true);
+
+    assert.notEqual(runTsc("tsconfig.worker.json", "mismatch").status, 0);
+    assert.equal(existsSync(path.join(outDir, "mismatch.js")), false);
   });
 
   it("tsconfig.build.json emits only when there is no error", () => {

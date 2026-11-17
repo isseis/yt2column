@@ -11,8 +11,7 @@
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-/** The global namespace the module registers its functions under. */
-const namespaceName = "yt2column";
+import { wasmNamespace } from "../src/core/workerCalls.ts";
 
 /** The part of wasm_exec.js's Go class this script uses. */
 interface GoRuntime {
@@ -48,10 +47,10 @@ const { instance } = await WebAssembly.instantiate(
 // keeps waiting for calls, so its Promise never settles, and it has
 // registered them by the time run hands control back.
 void go.run(instance);
-const namespace = globals[namespaceName] as Record<string, unknown> | undefined;
+const namespace = globals[wasmNamespace] as Record<string, unknown> | undefined;
 const buildInfo = namespace?.["buildInfo"];
 if (typeof buildInfo !== "function") {
-  console.error(`the module registered no ${namespaceName}.buildInfo`);
+  console.error(`the module registered no ${wasmNamespace}.buildInfo`);
   process.exit(1);
 }
 process.stdout.write(String((buildInfo as () => unknown)()));

@@ -282,16 +282,19 @@ describe("build", () => {
     }
   });
 
-  it("compiles the sources into the kind's output directory", async () => {
+  it("compiles the pages and the Worker into the kind's output directory", async () => {
     await build(options({ kind: "dev", scenario }));
-    const tsc = calls.find((call) => call.command === process.execPath);
-    assert.deepEqual(tsc?.args.slice(1), [
-      "-p",
-      "tsconfig.build.json",
-      "--outDir",
-      "dist-dev",
-    ]);
-    assert.equal(tsc?.cwd, extensionDir);
+    const tsc = calls.filter((call) => call.command === process.execPath);
+    assert.deepEqual(
+      tsc.map((call) => call.args.slice(1)),
+      [
+        ["-p", "tsconfig.build.json", "--outDir", "dist-dev"],
+        ["-p", "tsconfig.worker.json", "--outDir", "dist-dev"],
+      ],
+    );
+    for (const call of tsc) {
+      assert.equal(call.cwd, extensionDir);
+    }
   });
 
   // The messages asserted below must carry the failing command's stderr or

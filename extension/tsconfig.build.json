@@ -7,5 +7,6 @@
     "noEmit": false,
     "noEmitOnError": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/wasmWorker.ts", "src/wasm_exec.d.ts"]
 }
