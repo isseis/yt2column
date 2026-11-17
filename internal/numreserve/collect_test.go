@@ -124,7 +124,7 @@ func TestCollectRejects(t *testing.T) {
 	two := scenario{space: SpaceADR, branches: []remoteBranch{{name: "owner/0100-a-01", sha: otherSHA}}}
 	tooLarge := fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge)
 	remoteOnly := func(out string) func(t *testing.T) []cmdrunnertestutil.Step {
-		return func(_ *testing.T) []cmdrunnertestutil.Step {
+		return func(t *testing.T) []cmdrunnertestutil.Step {
 			return []cmdrunnertestutil.Step{rootStep(t.TempDir(), nil), lsRemoteStep(task.tagPrefix(), out, nil)}
 		}
 	}
@@ -154,16 +154,16 @@ func TestCollectRejects(t *testing.T) {
 			name: "origin has more branches than the bound", space: SpaceTask, bounds: func(b *bounds) { b.maxBranches = 1 },
 			steps: withRemote(scenario{space: SpaceTask, branches: []remoteBranch{{name: "x", sha: otherSHA}}}), want: StopListLimit,
 		},
-		{name: "ls-remote output exceeds the cap", space: SpaceTask, steps: func(_ *testing.T) []cmdrunnertestutil.Step {
+		{name: "ls-remote output exceeds the cap", space: SpaceTask, steps: func(t *testing.T) []cmdrunnertestutil.Step {
 			return upTo(t, task, taskRemote, lsRemoteStep(task.tagPrefix(), "", tooLarge))
 		}, want: StopListLimit},
-		{name: "ls-remote fails", space: SpaceTask, steps: func(_ *testing.T) []cmdrunnertestutil.Step {
+		{name: "ls-remote fails", space: SpaceTask, steps: func(t *testing.T) []cmdrunnertestutil.Step {
 			return upTo(t, task, taskRemote, lsRemoteStep(task.tagPrefix(), "", gitFailed(128)))
 		}, want: StopNetworkOrGitHub},
-		{name: "ls-remote times out", space: SpaceTask, steps: func(_ *testing.T) []cmdrunnertestutil.Step {
+		{name: "ls-remote times out", space: SpaceTask, steps: func(t *testing.T) []cmdrunnertestutil.Step {
 			return upTo(t, task, taskRemote, lsRemoteStep(task.tagPrefix(), "", context.DeadlineExceeded))
 		}, want: StopNetworkOrGitHub},
-		{name: "git cannot be run", space: SpaceTask, steps: func(_ *testing.T) []cmdrunnertestutil.Step {
+		{name: "git cannot be run", space: SpaceTask, steps: func(t *testing.T) []cmdrunnertestutil.Step {
 			return upTo(t, task, taskRemote, lsRemoteStep(task.tagPrefix(), "", os.ErrNotExist))
 		}, want: StopLocalGit},
 		{name: "fetch fails with a head missing", space: SpaceADR, steps: func(t *testing.T) []cmdrunnertestutil.Step {
@@ -261,7 +261,9 @@ func TestFetchFailureNamesMissingBranch(t *testing.T) {
 	fake := cmdrunnertestutil.New(t, upTo(t, s, adrFetch, fetchStep(gitFailed(128), mainSHA, otherSHA, thirdSHA),
 		gitStep(mainSHA+" commit 1\n"+otherSHA+" commit 1\n"+thirdSHA+" missing\n", nil, "cat-file", "--batch-check"))...)
 	_, err := newTestTool(fake, defaultBounds()).Reserve(context.Background(), SpaceADR)
-	stopKind(t, err)
+	if kind := stopKind(t, err); kind != StopNetworkOrGitHub {
+		t.Errorf("kind = %v, want network-or-github", kind)
+	}
 	text := err.Error()
 	if !strings.Contains(text, `"owner/0100-gone-01"`) || strings.Contains(text, "present") {
 		t.Errorf("stop %q does not name exactly the missing branch", text)

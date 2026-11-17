@@ -94,7 +94,7 @@ var allowedEnvRefs = map[string]map[string]int{
 	"cmd/chief/main.go": {"call:os.Environ": 1, "value:os.LookupEnv": 1},
 	// The numreserve developer tool passes its environment to numreserve.New,
 	// which gives git all of it minus GIT_* and gh all of it minus the color
-	// and prompt variables it replaces.
+	// and prompt variables it replaces and minus GH_REPO and GH_HOST.
 	"cmd/numreserve/main.go": {"call:os.Environ": 1},
 }
 

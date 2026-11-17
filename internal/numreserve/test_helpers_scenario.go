@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -232,7 +233,7 @@ func (s scenario) collectSteps(t *testing.T) []cmdrunnertestutil.Step {
 		}
 		shas := []string{mainSHA}
 		for _, br := range s.branches {
-			if !strings.Contains(strings.Join(shas, " "), br.sha) {
+			if !slices.Contains(shas, br.sha) {
 				shas = append(shas, br.sha)
 			}
 		}
@@ -242,12 +243,12 @@ func (s scenario) collectSteps(t *testing.T) []cmdrunnertestutil.Step {
 			fetchStep(nil, shas...),
 			treeStep(mainSHA, adrDir, s.mainADRList(), nil),
 		}
-		read := map[string]bool{}
+		read := map[string]struct{}{}
 		for _, br := range s.branches {
-			if read[br.sha] {
+			if _, done := read[br.sha]; done {
 				continue
 			}
-			read[br.sha] = true
+			read[br.sha] = struct{}{}
 			steps = append(steps, treeStep(br.sha, adrDir, treeOut(adrDir, br.adrs...), nil))
 		}
 		return append(steps, treeStep("HEAD", adrDir, treeOut(adrDir, append([]string{"0051-number-reservation.md", "README.md"}, s.headADRs...)...), nil))
