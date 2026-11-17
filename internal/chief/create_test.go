@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -278,10 +277,6 @@ func stateEntries(t *testing.T, dir string) []string {
 	return names
 }
 
-// herdrIDShape is the shape of the workspace, tab, and pane IDs the fake
-// Herdr gives.
-var herdrIDShape = regexp.MustCompile(`^w[A-Za-z0-9]*(:[tp][0-9]+)?$`)
-
 // fullMade is what a whole creation makes, by kind.
 var fullMade = []string{"worktree", "record", "workspace", "tab", "pane", "tab", "pane", "tab", "pane", "agent", "agent"}
 
@@ -366,22 +361,11 @@ func TestWorkspaceMakerStartsAgentsWithoutArguments(t *testing.T) {
 }
 
 // TestWorkspaceMakerUsesOnlyItsIDs checks that a maker writes only to the
-// workspace its own create returned: every herdr write after the create
-// names w1 or one of w1's tabs and panes; a maker no constructor made runs
-// nothing; and a tab Herdr reports in another workspace stops the maker
-// before anything is written to it.
+// workspace its own create returned (TestCreateStages compares every write
+// with the lines naming w1 and its tabs and panes): a maker no constructor
+// made runs nothing, and a tab Herdr reports in another workspace stops the
+// maker before anything is written to it.
 func TestWorkspaceMakerUsesOnlyItsIDs(t *testing.T) {
-	t.Run("every write names the workspace made", func(t *testing.T) {
-		cw := newCreateWorld(t, nil)
-		cw.create(createIssue)
-		for _, line := range cw.writes()[2:] {
-			for word := range strings.FieldsSeq(line) {
-				if herdrIDShape.MatchString(word) && word != "w1" && !strings.HasPrefix(word, "w1:") {
-					t.Errorf("%s names %s, which the create did not return", line, word)
-				}
-			}
-		}
-	})
 	t.Run("the zero maker runs nothing", func(t *testing.T) {
 		rec := newRecorder(t)
 		m := WorkspaceMaker{cmds: rec.commands(nil)}
