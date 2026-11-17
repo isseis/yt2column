@@ -1,0 +1,27 @@
+worktree /Users/user/src/repo/main
+HEAD 6f1d533b44a679422b9544f3d041cb489298f6e1
+branch refs/heads/main
+
+worktree /Users/user/src/repo/detached
+HEAD 6f1d533b44a679422b9544f3d041cb489298f6e1
+detached
+
+worktree /Users/user/src/repo/gone
+HEAD 6f1d533b44a679422b9544f3d041cb489298f6e1
+detached
+prunable gitdir file points to non-existent location
+
+worktree /Users/user/src/repo/locked
+HEAD 6f1d533b44a679422b9544f3d041cb489298f6e1
+detached
+locked probe lock
+
+worktree /Users/user/src/repo/lockednoreason
+HEAD 6f1d533b44a679422b9544f3d041cb489298f6e1
+detached
+locked
+
+worktree /Users/user/src/repo/onbranch
+HEAD 6f1d533b44a679422b9544f3d041cb489298f6e1
+branch refs/heads/topic
+

@@ -576,3 +576,199 @@ export function createFileSaver(
     }
   };
 }
+
+// The fixed chrome.storage functions. Only this file uses chrome.storage, and
+// only through these functions (the lint rules); they never hand a
+// StorageArea or chrome.storage.local to another file. Each local call names
+// its two items as literals in the call itself: the source check
+// (test/apiKeyPath.test.ts) accepts only these calls, so a call that reads
+// every item, such as get(null), cannot be added. Which entry page may import
+// each function is limited in eslint.config.js: the running viewer reads the
+// API key, the options page writes and removes it, and the service worker
+// only learns whether it is set.
+
+/** The item that holds the API key in chrome.storage.local. */
+const apiKeyItem = "anthropic.apiKey";
+/** The item that holds the workspace ID ("" for none) in chrome.storage.local. */
+const workspaceIdItem = "anthropic.workspaceId";
+
+/**
+ * The stored settings as the running viewer read them, unchecked. no_api_key
+ * means the API key item is absent; an item holding "" or null is present.
+ * The article generation module checks the values' shape.
+ */
+export type StoredAnthropicSettings =
+  | { readonly kind: "no_api_key" }
+  | {
+      readonly kind: "found";
+      readonly settings: {
+        readonly anthropicApiKey: unknown;
+        /** Absent when the workspace ID item is absent. */
+        readonly anthropicWorkspaceId?: unknown;
+      };
+    };
+
+/** The settings of the items a get returned. Exported for its test. */
+export function storedAnthropicSettings(
+  items: Readonly<Record<string, unknown>>,
+): StoredAnthropicSettings {
+  if (!Object.hasOwn(items, apiKeyItem)) {
+    return { kind: "no_api_key" };
+  }
+  return {
+    kind: "found",
+    settings: Object.hasOwn(items, workspaceIdItem)
+      ? {
+          anthropicApiKey: items[apiKeyItem],
+          anthropicWorkspaceId: items[workspaceIdItem],
+        }
+      : { anthropicApiKey: items[apiKeyItem] },
+  };
+}
+
+/** Reads the two settings items with one get, for the running viewer. Never rejects. */
+export function readAnthropicSettings(): Promise<
+  BrowserCall<StoredAnthropicSettings>
+> {
+  return browserCall(async () =>
+    storedAnthropicSettings(
+      await chrome.storage.local.get([
+        "anthropic.apiKey",
+        "anthropic.workspaceId",
+      ]),
+    ),
+  );
+}
+
+/**
+ * Writes the two settings items with one set, for the options page. The
+ * workspace ID is "" when none is given. Never rejects.
+ */
+export function writeAnthropicSettings(
+  apiKey: string,
+  workspaceId: string,
+): Promise<BrowserCall<undefined>> {
+  return browserCall(async () => {
+    await chrome.storage.local.set({
+      "anthropic.apiKey": apiKey,
+      "anthropic.workspaceId": workspaceId,
+    });
+    return undefined;
+  });
+}
+
+/** Removes the two settings items with one remove, for the options page. Never rejects. */
+export function removeAnthropicSettings(): Promise<BrowserCall<undefined>> {
+  return browserCall(async () => {
+    await chrome.storage.local.remove([
+      "anthropic.apiKey",
+      "anthropic.workspaceId",
+    ]);
+    return undefined;
+  });
+}
+
+/** What the names of the chrome.storage.local items tell: whether an API key is set. */
+export interface LocalItems {
+  readonly apiKeySet: boolean;
+}
+
+/** The LocalItems of the item names getKeys returned. Exported for its test. */
+export function localItems(names: readonly string[]): LocalItems {
+  return { apiKeySet: names.includes(apiKeyItem) };
+}
+
+/**
+ * Reads the names of the chrome.storage.local items, never their values, for
+ * the service worker and the options page. Never rejects.
+ */
+export function localKeys(): Promise<BrowserCall<LocalItems>> {
+  return browserCall(async () =>
+    localItems(await chrome.storage.local.getKeys()),
+  );
+}
+
+/**
+ * Limits chrome.storage.local to the extension's pages and service worker, so
+ * a function injected into a web page cannot read it. Never rejects.
+ */
+export function setLocalAccessLevel(): Promise<BrowserCall<undefined>> {
+  return browserCall(async () => {
+    await chrome.storage.local.setAccessLevel({
+      accessLevel: "TRUSTED_CONTEXTS",
+    });
+    return undefined;
+  });
+}
+
+/**
+ * Reads chrome.storage.session items: the named ones, or every item for
+ * "every". The values are untrusted until a reader checks them. Never rejects.
+ */
+export function readSessionItems(
+  names: readonly string[] | "every",
+): Promise<BrowserCall<Readonly<Record<string, unknown>>>> {
+  return browserCall(() =>
+    chrome.storage.session.get(names === "every" ? null : [...names]),
+  );
+}
+
+/** Writes chrome.storage.session items with one set. Never rejects. */
+export function writeSessionItems(
+  items: Readonly<Record<string, unknown>>,
+): Promise<BrowserCall<undefined>> {
+  return browserCall(async () => {
+    await chrome.storage.session.set({ ...items });
+    return undefined;
+  });
+}
+
+/** Removes chrome.storage.session items with one remove. Never rejects. */
+export function removeSessionItems(
+  names: readonly string[],
+): Promise<BrowserCall<undefined>> {
+  return browserCall(async () => {
+    await chrome.storage.session.remove([...names]);
+    return undefined;
+  });
+}
+
+/** One changed chrome.storage.session item: its new value, or that it was removed. */
+export type SessionItemChange =
+  | { readonly removed: true }
+  | { readonly removed: false; readonly newValue: unknown };
+
+/** The changes of one chrome.storage.session change event, by item name. */
+export type SessionChanges = ReadonlyMap<string, SessionItemChange>;
+
+/** The SessionChanges of a change event's changes. Exported for its test. */
+export function sessionChanges(
+  changes: Readonly<Record<string, { readonly newValue?: unknown }>>,
+): SessionChanges {
+  const result = new Map<string, SessionItemChange>();
+  for (const [name, change] of Object.entries(changes)) {
+    result.set(
+      name,
+      Object.hasOwn(change, "newValue")
+        ? { removed: false, newValue: change.newValue }
+        : { removed: true },
+    );
+  }
+  return result;
+}
+
+/**
+ * Calls listener with each change of chrome.storage.session, and returns a
+ * function that stops it. Only the session area's event is listened to: the
+ * storage-wide and the local area's events would carry the API key's value
+ * to every listener.
+ */
+export function onSessionChanged(
+  listener: (changes: SessionChanges) => void,
+): () => void {
+  const handler = (
+    changes: Record<string, chrome.storage.StorageChange>,
+  ): void => listener(sessionChanges(changes));
+  chrome.storage.session.onChanged.addListener(handler);
+  return () => chrome.storage.session.onChanged.removeListener(handler);
+}

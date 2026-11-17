@@ -9,3 +9,7 @@ pr-checks-867-open exit=0
 pr-checks-200-fail exit=0
 pr-view-missing exit=1
 pr-view-852-reviews exit=0
+issue-closed-838 exit=0
+issue-open-839 exit=0
+issue-pr-897 exit=0
+issue-missing exit=1

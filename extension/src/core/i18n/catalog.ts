@@ -1,3 +1,4 @@
+import type { BuildKind } from "../../buildKind.d.ts";
 import type { PreflightReason } from "../prepare.ts";
 import type { NotSentCause } from "../exchange.ts";
 import type {
@@ -6,6 +7,7 @@ import type {
   StepName,
   StepState,
 } from "../response.ts";
+import type { OptionsOutcome } from "../optionsView.ts";
 import type { ExistingState } from "../popupView.ts";
 import type { CheckName, CheckState, RejectionReason } from "../types.ts";
 import { en } from "./en.ts";
@@ -98,6 +100,17 @@ export interface Catalog {
     /** Copied, with an invisible character after an '@' to keep a mention from starting. */
     readonly copiedNeutralized: string;
     readonly copyFailed: string;
+  };
+  /** The settings page's outcome of a save or a delete; never the user's values. */
+  readonly options: Readonly<Record<OptionsOutcome, Message>>;
+  /** The viewer page's title: the name it ends with, and the parts that stand for a state. */
+  readonly viewerTitle: {
+    /** The extension's name for each build kind; the development build's carries its mark. */
+    readonly name: Readonly<Record<BuildKind, string>>;
+    /** The title's part when the viewer's link is not one it accepts. */
+    readonly invalidLink: string;
+    /** The title's part when no video title or heading is known. */
+    readonly untitled: string;
   };
   /** The popup's job states. */
   readonly popup: {

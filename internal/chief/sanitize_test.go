@@ -86,14 +86,14 @@ func TestCapScreen(t *testing.T) {
 	})
 }
 
-func TestCapDescription(t *testing.T) {
-	atCap := strings.Repeat("a", descriptionMaxBytes)
-	if got := CapDescription(atCap); got.Truncated || got.Text != atCap {
-		t.Errorf("a description of exactly %d bytes was cut", descriptionMaxBytes)
+func TestCapHead(t *testing.T) {
+	atCap := strings.Repeat("a", headMaxBytes)
+	if got := CapHead(atCap); got.Truncated || got.Text != atCap {
+		t.Errorf("a text of exactly %d bytes was cut", headMaxBytes)
 	}
-	over := strings.Repeat("a", descriptionMaxBytes-1) + "☐" + "tail"
-	got := CapDescription(over)
-	if !got.Truncated || got.Text != strings.Repeat("a", descriptionMaxBytes-1) {
-		t.Errorf("CapDescription(over) kept %d bytes, truncated %v; want the head before the split character", len(got.Text), got.Truncated)
+	over := strings.Repeat("a", headMaxBytes-1) + "☐" + "tail"
+	got := CapHead(over)
+	if !got.Truncated || got.Text != strings.Repeat("a", headMaxBytes-1) {
+		t.Errorf("CapHead(over) kept %d bytes, truncated %v; want the head before the split character", len(got.Text), got.Truncated)
 	}
 }

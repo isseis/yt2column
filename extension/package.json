@@ -5,7 +5,7 @@
   "packageManager": "npm@11.19.0",
   "scripts": {
     "check-lockfile": "node scripts/check-lockfile.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.core.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.core.json && tsc --noEmit -p tsconfig.worker.json",
     "lint": "eslint .",
     "fmt-check": "prettier --check .",
     "fmt": "prettier --write .",

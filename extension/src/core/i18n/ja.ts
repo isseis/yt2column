@@ -277,6 +277,56 @@ export const ja: Catalog = {
       "Markdown をコピーしました。メンションにならないよう、@ の後ろに見えない文字を入れました。",
     copyFailed: "Markdown をコピーできませんでした。",
   },
+  options: {
+    saved: { text: "API キーを設定しました。", steps: [] },
+    saved_unverified: {
+      text: "API キーを設定しましたが、Anthropic でキーを確かめられませんでした。",
+      steps: [
+        "後で Anthropic がキーを拒んで記事の生成が失敗したときは、ここで新しいキーを設定してください。",
+      ],
+    },
+    field_rejected: {
+      text: "印を付けた欄の値は受け付けられない形です。何も保存していません。",
+      steps: [
+        "API キーは、Anthropic が示すとおりに、空白を入れずに入力してください。",
+        "ワークスペース ID は、空のままにするか、空白を入れずに入力してください。",
+      ],
+    },
+    key_rejected: {
+      text: "Anthropic がこの API キーを拒みました。何も保存していません。",
+      steps: [
+        "キーの期限が切れていないか、失効していないかを確かめるか、Claude Console で新しいキーを作ってください。",
+        "組織がブラウザからの呼び出しを許していないときは、このキーをここでは使えません。",
+      ],
+    },
+    check_unavailable: {
+      text: "設定を確かめられませんでした。何も保存していません。",
+      steps: ["もう一度保存してください。"],
+    },
+    write_uncertain: {
+      text: "設定を保存できなかったかもしれません。",
+      steps: [
+        "API キーが設定されていると表示されているかを確かめてください。",
+        "もう一度保存してください。",
+      ],
+    },
+    deleted: {
+      text: "API キーとワークスペース ID を削除しました。",
+      steps: [],
+    },
+    delete_uncertain: {
+      text: "設定を削除できなかったかもしれません。",
+      steps: [
+        "API キーが設定されていると表示されているかを確かめてください。",
+        "もう一度削除してください。",
+      ],
+    },
+  },
+  viewerTitle: {
+    name: { release: "yt2column", dev: "yt2column（開発用のビルド）" },
+    invalidLink: "正しくないリンク",
+    untitled: "タイトルのない動画",
+  },
   popup: {
     primary: {
       generate: generateButton,
