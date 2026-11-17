@@ -39,8 +39,12 @@ func TestZeroNumber(t *testing.T) {
 	if zero.String() != "" || zero.Int() != 0 {
 		t.Errorf("zero Number = %q, %d; want no digits and 0", zero.String(), zero.Int())
 	}
-	if n, err := tasknaming.ParseNumber("0000"); err != nil || n.String() != "0000" || zero == n {
-		t.Errorf("0000 and the zero value are not distinct: %q, %v", n.String(), err)
+	n, err := tasknaming.ParseNumber("0000")
+	if err != nil {
+		t.Fatalf("ParseNumber(0000): %v", err)
+	}
+	if zero == n {
+		t.Error("0000 is indistinguishable from no number")
 	}
 }
 
@@ -55,6 +59,7 @@ func TestParseBranch(t *testing.T) {
 		{"isseis/0088-chief-of-staff-06", "0088", "0088-chief-of-staff"},
 		{"isseis/0001-test-task-02", "0001", "0001-test-task"},
 		{"user/0100-number-reservation-01", "0100", "0100-number-reservation"},
+		{"a/0088-x-01", "0088", "0088-x"},
 	} {
 		n, slug, ok := tasknaming.ParseBranch(tc.in)
 		if !ok || n.String() != tc.want || slug != tc.slug {
@@ -62,9 +67,9 @@ func TestParseBranch(t *testing.T) {
 		}
 	}
 	for _, in := range []string{
-		"main", "0088-chief-of-staff-06", "isseis/0088-chief-of-staff", "isseis/0088-chief-of-staff-6",
-		"isseis/088-chief-06", "isseis/0088-Chief-06", "a/b/0088-x-01", "-x/0088-x-01", "isseis/0088-x-001",
-		"isseis/0088-x-01-", "isseis/0088_x-01", "isseis/0088-x-01\n",
+		"", "main", "0088-chief-of-staff-06", "isseis/0088-chief-of-staff", "isseis/0088-chief-of-staff-6",
+		"isseis/088-chief-06", "isseis/0088-Chief-06", "a/b/0088-x-01", "-x/0088-x-01", "x-/0088-x-01",
+		"my_user/0088-x-01", "isseis/0088-x-001", "isseis/0088-x-01-", "isseis/0088_x-01", "isseis/0088-x-01\n",
 	} {
 		if n, slug, ok := tasknaming.ParseBranch(in); ok || n.String() != "" || slug != "" {
 			t.Errorf("ParseBranch(%q) = %q, %q, %v; want no number and false", in, n.String(), slug, ok)

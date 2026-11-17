@@ -783,8 +783,9 @@ var errNotTaskBranch = errors.New("not a feature branch")
 // Read reads, from origin/main in worktree, the documents of the task the
 // feature branch names. Contract: the task comes from the branch name and the
 // one directory of its number on origin/main, never from a screen; a
-// directory whose name does not give the branch's slug, or two directories of
-// one number, make the task unreadable.
+// directory that is not a task directory name, one whose "_"-to-"-" form does
+// not give the branch's slug, or two directories of one number, make the task
+// unreadable.
 func (t Tasks) Read(ctx context.Context, worktree, branch string) (TaskDocs, error) {
 	task, slug, ok := branchTask(branch)
 	if !ok {

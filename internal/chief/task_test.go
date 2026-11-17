@@ -359,7 +359,8 @@ func TestTasksRead(t *testing.T) {
 
 // TestTasksReadRejectsWrongDirectoryForm reads a directory whose name the
 // directory form rejects but whose slug matches the branch, which only the
-// form check can catch.
+// form check can catch. It is separate from the reader's other rejection
+// cases because that test stays as it is.
 func TestTasksReadRejectsWrongDirectoryForm(t *testing.T) {
 	const wt = "/work/tree"
 	rec := newRecorder(t)
