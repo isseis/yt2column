@@ -144,6 +144,13 @@ func offersHistoryRewrite(m protocolMismatch) bool {
 	return m.Main.State == protocolPresent && m.Head == m.Main.Value
 }
 
+// historyRewriteRemedy is the second fix a mismatch error offers when
+// offersHistoryRewrite holds for one of its tools.
+const historyRewriteRemedy = "A tool above has the same number as origin/main. In that case, rebuilding the PR's history on top of origin/main,\n" +
+	"so that no commit changes the number, is another fix, but only when the PR's own changes do not change\n" +
+	"the tool's contract: the commit that changed the number came from another branch, or the PR raised the\n" +
+	"number and restored it. Otherwise rebuilding the history hides the conflict, and the steps above are the only fix."
+
 // installCommand is the command that reinstalls the tool of the package.
 func installCommand(pkg string) string {
 	return "make install-" + pkg
@@ -185,10 +192,7 @@ func (e *protocolMismatchError) Error() string {
 	b.WriteString("\n")
 	b.WriteString("  6. Merge again: run /runpr again if it was used, otherwise /mergepr.\n")
 	if rewrite {
-		b.WriteString("A tool above has the same number as origin/main. In that case, rebuilding the PR's history on top of origin/main,\n")
-		b.WriteString("so that no commit changes the number, is another fix, but only when the PR's own changes do not change\n")
-		b.WriteString("the tool's contract: the commit that changed the number came from another branch, or the PR raised the\n")
-		b.WriteString("number and restored it. Otherwise rebuilding the history hides the conflict, and the steps above are the only fix.")
+		b.WriteString(historyRewriteRemedy)
 	}
 	return strings.TrimSuffix(b.String(), "\n")
 }

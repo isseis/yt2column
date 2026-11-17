@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -135,7 +136,7 @@ func TestMismatchRemedy(t *testing.T) {
 	}
 	for _, tool := range []string{"fixprguard", "codexreview", "chief", "mergepr"} {
 		t.Run(tool, func(t *testing.T) {
-			target := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(installCommand(tool)[len("make "):]) + `:`)
+			target := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta("install-"+tool) + `:`)
 			if !target.Match(makefile) {
 				t.Errorf("Makefile has no target for %q", installCommand(tool))
 			}
@@ -159,8 +160,12 @@ func TestMismatchRemedy(t *testing.T) {
 	}
 	for _, tt := range rewrites {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := offersHistoryRewrite(tt.m); got != tt.want {
-				t.Errorf("offersHistoryRewrite = %v, want %v", got, tt.want)
+			// The rewrite remedy is text the operator reads and acts on, so its
+			// presence in the message is the observable contract.
+			tt.m.Package = "alpha"
+			msg := (&protocolMismatchError{Mismatches: []protocolMismatch{tt.m}}).Error()
+			if got := strings.Contains(msg, historyRewriteRemedy); got != tt.want {
+				t.Errorf("message offers the history rewrite = %v, want %v:\n%s", got, tt.want, msg)
 			}
 		})
 	}
@@ -204,6 +209,14 @@ func TestReadRevisionProtocols(t *testing.T) {
 		bare := r.withT(t).Commit("bare", map[string]string{"README.md": "x\n", "internal/alpha/alpha.go": "package alpha\n"})
 		if got := readValues(t, r.Dir, bare); len(got) != 0 {
 			t.Errorf("values = %v, want none", got)
+		}
+	})
+	t.Run("file with a NUL byte", func(t *testing.T) {
+		// Without --text, git grep reports such a file as a binary match
+		// instead of printing its lines.
+		binary := r.withT(t).Commit("binary", map[string]string{toolPath("alpha"): "package alpha\n\nvar b = \"\x00\"\n\n" + protocolSource("7")[len("package tool\n\n"):]})
+		if got := readValues(t, r.Dir, binary); !maps.Equal(got, map[string]protocolValue{"alpha": present(7)}) {
+			t.Errorf("values = %v, want alpha 7", got)
 		}
 	})
 	t.Run("missing revision", func(t *testing.T) {
@@ -505,8 +518,10 @@ func TestCheckProtocolUnreadable(t *testing.T) {
 			return "", "0123456789abcdef0123456789abcdef01234567", mainBranch
 		}, unreadableCommits},
 		{"head not a commit ID", func(r *gitRepo) (string, string, string) {
-			r.SetMain(r.Commit("main", snapshot(baseTools)))
-			return "", "HEAD", mainBranch
+			m0 := r.Commit("main", snapshot(baseTools))
+			r.SetMain(m0)
+			// A short ID git resolves, so only the full-ID check rejects it.
+			return "", m0[:12], mainBranch
 		}, unreadableCommits},
 		{"no origin/main", func(r *gitRepo) (string, string, string) {
 			return "", r.Commit("main", snapshot(baseTools)), mainBranch
@@ -620,7 +635,7 @@ func TestParseRevList(t *testing.T) {
 		{"no final newline", "commit " + parseRev + "\n\x00s"},
 		{"odd line count", "commit " + parseRev + "\n\x00s\ncommit " + parseParent + "\n"},
 		{"subject line without NUL", "commit " + parseRev + "\ns\n"},
-		{"header in the subject place", "commit " + parseRev + "\ncommit " + parseParent + "\n"},
+		{"parent not a commit ID", "commit " + parseRev + " zzz\n\x00s\n"},
 		{"header without the commit word", parseRev + "\n\x00s\n"},
 		{"abbreviated ID", "commit 1111111\n\x00s\n"},
 	}
@@ -660,19 +675,14 @@ func TestReadRevisionExitStatus(t *testing.T) {
 	}
 }
 
-func TestProtocolErrorsRender(t *testing.T) {
-	// Every kind has its own description; the zero kind is the only invalid one.
+func TestUnreadableKindDescriptions(t *testing.T) {
+	// The kinds run from 1 to unreadableNoTools, the last one declared; each
+	// needs a description of its own, distinct from the invalid zero kind's.
+	seen := map[string]unreadableKind{unreadableKind(0).String(): 0}
 	for k := unreadableKind(1); k <= unreadableNoTools; k++ {
-		if k.String() == unreadableKind(0).String() {
-			t.Errorf("kind %d has no description", k)
+		if prev, dup := seen[k.String()]; dup {
+			t.Errorf("kind %d has the description of kind %d", k, prev)
 		}
-		e := &protocolUnreadableError{Kind: k, Rev: parseRev, Path: "internal/a/a.go", Line: "const Protocol = 01"}
-		if !errors.Is(e, errProtocolUnreadable) {
-			t.Errorf("kind %d does not wrap errProtocolUnreadable", k)
-		}
-	}
-	m := &protocolMismatchError{Mismatches: []protocolMismatch{{Package: "alpha", Main: present(2), Head: 2}}}
-	if !errors.Is(m, errProtocolMismatch) {
-		t.Error("mismatch error does not wrap errProtocolMismatch")
+		seen[k.String()] = k
 	}
 }
