@@ -884,10 +884,16 @@ func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observa
 		return notSent(res, reason, detail), absent
 	case !ok:
 		return notSent(res, reason, detail), resetSkip{}
+	case report.Next.Kind == NextAbsent:
+		// The NEXT check before the send lets a report without NEXT pass, so
+		// on a pane that did not move this is the case that reaches here. NEXT
+		// ends the report and stays on the screen, so a message without it is
+		// taken as another message (an answer after the report), not as a
+		// report cut at its start: no item is offered.
+		return notSent(res, NotSentNoReport, "the pane's last message has no NEXT line"), notOffered("the pane's last message has no NEXT line")
 	case !agrees(report.Next, next, obs.Task):
-		// NEXT ends the report, so it stays on the screen: another NEXT is
-		// another report, never a report cut at its start.
-		return notSent(res, NotSentNoReport, "the pane's last message does not name "+next.Text+" as NEXT"), notOffered("the pane's last message names no NEXT or another NEXT")
+		// Another NEXT is another report, never a report cut at its start.
+		return notSent(res, NotSentNoReport, "the pane's last message does not name "+next.Text+" as NEXT"), notOffered("the pane's last message names another NEXT")
 	case !slices.Contains(report.PRs, obs.PR) && report.HeadClipped:
 		return notSent(res, NotSentNoReport, fmt.Sprintf("the start of the pane's last message is above the screen, and the rest does not name #%d", obs.PR)), absent
 	case !slices.Contains(report.PRs, obs.PR):
