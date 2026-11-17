@@ -126,7 +126,7 @@ no other round numbers at once. Then show, in this order:
    tool's order. Never reorder the rows. Show each row's urgency, turn, and
    position as the tool gave them (`urgency`, `turn`, `position`), mapped
    by the value table below; never decide them yourself from the state or
-   anything else (requirements AC-21). The columns, in this order:
+   anything else (0093 requirements AC-21). The columns, in this order:
 
    | Column | Content |
    |---|---|
@@ -217,7 +217,10 @@ Offer the `pending` items as the human's choices, in the tool's order, with
   hold). When the proposal is not `sendable` and its `request` is not
   `mkreq`, show its `problem` and say that it cannot be sent now.
 
-When workspaces are stopped, also offer `停止を解く: <label>` for each.
+When workspaces are stopped, also offer `停止を解く: <label>` for each
+whose `stopped` is not `unreadable`. A stop whose record could not be read
+has no reason to show, so it is not offered: the guide says how the human
+looks into it.
 For each unanswered question to send again after a model switch (step 4),
 also offer `送り直す: <label>` and `送り直さない: <label>`. These choices
 have no number from the tool: list each as its own line, chosen by its

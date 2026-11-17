@@ -3,7 +3,7 @@
 # per-row list of each question's gist and pane (rows in 質問で停止) is gone;
 # every other item stays, in the same order.
 #
-# Usage: ac19_under_the_table.sh <base-commit> <head-commit>
+# Usage, from the repository root: ac19_under_the_table.sh <base-commit> <head-commit>
 # It compares the items of "Under the table" in .claude/commands/chief.md at
 # the two commits and prints PASS or FAIL with what differs.
 set -euo pipefail

@@ -329,9 +329,9 @@ func idleWorkspaces(rows []Row) map[string]struct{} {
 }
 
 // sortRows orders the rows as the table is shown: idle rows last, then by
-// urgency (now, later, wait), then by state, then, for the states that wait on the human, by how long their
-// first item has waited, then by workspace path. pending must already carry
-// its times.
+// urgency (now, later, wait), then by state, then, for the states that wait
+// on the human, by how long their first item has waited, then by workspace
+// path. pending must already carry its times.
 func sortRows(rows []Row, pending []PendingItem) {
 	first := map[string]time.Time{}
 	for _, p := range pending {

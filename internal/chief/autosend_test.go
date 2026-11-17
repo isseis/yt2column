@@ -15,6 +15,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/cmdrunner"
+	"github.com/isseis/yt2column/internal/privatefile"
 )
 
 // passingFacts returns the facts of an automatic send of /runplan 0001 after
@@ -1276,6 +1277,38 @@ func TestAutoSendFailureAfterInput(t *testing.T) {
 	before := len(mw.rec.prompts())
 	if out := mw.tick(time.Minute); len(out.AutoSends) != 0 || len(mw.rec.prompts()) != before {
 		t.Errorf("the failed send was tried again: %+v", out.AutoSends)
+	}
+}
+
+// TestAutoSendStopUnreadableAfterInput checks that a stop that cannot be
+// read when the automatic send's stop is read again marks the row's stop
+// unreadable in the round of the send, calling the human, and is named as a
+// problem of the round.
+func TestAutoSendStopUnreadableAfterInput(t *testing.T) {
+	mw := newMergeWorld(t, mkarchDocs)
+	mw.tick(time.Minute)
+	mw.merge(nextBranch, "`/mkarch 0001`")
+	mw.react = func(p *simPane, text string) error {
+		if text == "/mkarch 0001" {
+			dir, err := mw.store.WorkspaceDir(Worktree{path: mw.tree})
+			if err != nil {
+				return err
+			}
+			if _, err := privatefile.Create(filepath.Join(dir, stopFile), []byte("not json")); err != nil {
+				return err
+			}
+		}
+		return mw.realReact(p, text)
+	}
+	out := mw.tick(time.Minute)
+	if !sentCommand(only(t, out)) {
+		t.Fatalf("auto send = %+v; want the command sent", out.AutoSends)
+	}
+	if row := rowOf(t, out.Snapshot, "ws"); !row.StopUnreadable || row.Urgency != UrgencyNow || row.Turn != TurnHuman {
+		t.Errorf("row = %+v; want stop unreadable, now, human", row)
+	}
+	if len(out.Snapshot.Problems) != 1 {
+		t.Errorf("problems = %v; want the stop read again", out.Snapshot.Problems)
 	}
 }
 

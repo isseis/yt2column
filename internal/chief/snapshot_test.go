@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -610,6 +611,34 @@ func TestRunningRowShowsTheLastSend(t *testing.T) {
 	}
 }
 
+// TestRecordsDirectoryUnreadable checks that a workspace whose records
+// cannot be read at all marks its stop unreadable and names it as a problem
+// of the round, and that its OpenCode row's running command is undecided as
+// unreadable, since the send records cannot be read either.
+func TestRecordsDirectoryUnreadable(t *testing.T) {
+	w := newWorld(t)
+	tree := w.add(fakeWorkspace{ID: "w1", Label: "ws", Kind: "opencode", Branch: taskBranch, Status: "working"})
+	dir, err := w.store.WorkspaceDir(Worktree{path: tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A regular file where the workspace's records directory belongs.
+	if err := os.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snap := take(t, w)
+	row := rowOf(t, snap, "ws")
+	if row.State != StateRunning || !row.StopUnreadable || row.Urgency != UrgencyNow || row.Running != nil || row.RunningUnknown != RunningUnknownUnreadable {
+		t.Errorf("row = %+v; want running, stop unreadable, now, no command, unreadable", row)
+	}
+	if len(snap.Problems) != 1 {
+		t.Errorf("problems = %v; want the records that cannot be read", snap.Problems)
+	}
+}
+
 // TestSendRecordUnreadableIsNoProblem checks that a send record that cannot
 // be read makes an OpenCode row's running command undecided as unreadable,
 // with no problem of the round and the stop still read.
@@ -648,13 +677,24 @@ func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
 		{"a proposal", AutoSendResult{Workspace: "/idle", Proposal: proposal}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			view := roundView{rows: []Row{
-				{Workspace: "/idle", State: StateNeedsCheck, Idle: true},
-				{Workspace: "/busy", Task: "0002", State: StateRunning},
-			}}
-			applyAutoSends(&view, Store{}, []AutoSendResult{tc.result})
+			store, err := OpenStore(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			view := roundView{
+				rows: []Row{
+					{Workspace: "/idle", State: StateNeedsCheck, Idle: true},
+					{Workspace: "/busy", Task: "0002", State: StateRunning},
+				},
+				found: []TaskWorkspace{{Worktree: "/idle", Tree: Worktree{path: "/idle"}}, {Worktree: "/busy", Tree: Worktree{path: "/busy"}}},
+			}
+			applyAutoSends(&view, store, []AutoSendResult{tc.result})
 			if view.rows[0].Idle {
 				t.Fatalf("row after %s is still idle", tc.name)
+			}
+			// The workspace has no records, so the stop read again is none.
+			if view.rows[0].StopUnreadable || len(view.problems) != 0 {
+				t.Errorf("row = %+v, problems %v; want the stop read as none", view.rows[0], view.problems)
 			}
 		})
 	}

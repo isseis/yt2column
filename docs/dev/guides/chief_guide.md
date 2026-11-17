@@ -29,9 +29,9 @@ make install-chief
 
 番号が合わないと、道具は何もせずに `protocol_mismatch` で拒む。番号を上げる PR では、その PR の `/runpr` の前に、その PR のブランチで入れ直す。
 
-**表に急ぎの度合いと進行の位置を足した版（プロトコル番号 2、タスク 0093）への入れ替え。** 道具の出力の形が変わったので、道具と `/chief` の定義を同じコミットからそろえる。
+**表に急ぎの度合いと進行の位置を足した版（タスク 0093）への入れ替え。** 道具の出力の形が変わったので、道具と `/chief` の定義を同じコミットからそろえる。
 
-1.  動いている `/chief` を止める。古い定義のまま走っている `/chief` は、新しい道具を `protocol_mismatch` で拒んで止まる。
+1.  動いている `/chief` を止める。古い定義のまま走っている `/chief` は、新しい道具に `protocol_mismatch` で拒まれて止まる。
 2.  chief の workspace の `.claude/commands/chief.md` を新しい版にし（`main` を更新する）、`make install-chief` を実行する。
 3.  `/chief` を起動し直す。
 
@@ -81,7 +81,7 @@ chief は同時に 1 つだけ動く。別のセッションで動いている c
 
 **「実行中」の行のコマンド。** Claude Code の pane ではセッションの記録（transcript）で人が最後に打ったコマンドから、OpenCode の pane では chief がその pane へ最後に送ったコマンドから決まる。chief が送ったコマンドも人が打ったコマンドも、Claude Code の pane では同じく示される。示すのは `/mkreq`・`/mkarch`・`/mkplan`・`/runplan`・`/runpr` と、決まった形の番号の引数だけである。モデルは、走っているエージェントが 1 つで、chief が最後に送ったのと同じコマンドのときだけ示す。決まらないときは、コマンドを示さない。
 
-**調べ方。** `chief snapshot --protocol 2` の出力には、表に示さない値がある。実行中のコマンドが示されない行は、`running_unknown` で理由を見られる（`no_session`・`unsupported_path`・`unreadable`・`over_cap`・`partial_line`・`not_task_command`・`no_sent_command`・`panes_disagree`）。使っていないか残った worktree の行は、`idle` が `true` である。
+**調べ方。** `chief snapshot` の出力には、表に示さない値がある。実行中のコマンドが示されない行は、`running_unknown` で理由を見られる（`no_session`・`unsupported_path`・`unreadable`・`over_cap`・`partial_line`・`not_task_command`・`no_sent_command`・`panes_disagree`）。使っていないか残った worktree の行は、`idle` が `true` である。
 
 ### 3.2 人の判断を待つもの
 
@@ -151,7 +151,7 @@ chief のセッションが道具を通さずに入力を送らず、タスク�
 | 自動送信の記録 | `autosend-<PR 番号>.json` | マージした PR 1 件につき 1 回に限る |
 | workspace ごとの記録 | worktree の正規のパスの SHA-256 の 16 進を名前にした下のディレクトリ | 送信の記録（`send-*.json`）、PR の詳細の控え（`detail-*.json`）、送信の停止（`stop.json`） |
 
--   **送信の停止を解く。** `/chief` の問いで `停止を解く: <workspace の名前>` と答えるか、ほかの方法がないときだけ、その workspace のディレクトリの `stop.json` を人が消す。停止の理由と、そのときの画面は、状況の表に示される。消す前に、止まった送信がその pane で何をしたかを確かめる。
+-   **送信の停止を解く。** `/chief` の問いで `停止を解く: <workspace の名前>` と答えるか、ほかの方法がないときだけ、その workspace のディレクトリの `stop.json` を人が消す。停止の記録を読めない workspace（表に、停止の記録を読めないと示される）には `停止を解く` は示されないので、`stop.json` の中身と pane を人が確かめてから消す。停止の理由と、そのときの画面は、状況の表に示される。消す前に、止まった送信がその pane で何をしたかを確かめる。
 -   **片付け。** `start` が、終わったセッションの周・観測・通知の記録、始めと終わりの両方を書いた古い送信の記録、14 日より古い PR の詳細の控えを消す。終わりの記録のない送信の記録は消さず、送信の停止に変える。自動送信の記録は消さない（消すと、同じマージで 2 回送りうる）。
 -   **すべてを消す。** chief が動いていないときに、ディレクトリごと消してよい。消した後は、chief を起動する前のマージを自動では送らず、提案として示す。
 
