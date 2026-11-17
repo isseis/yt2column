@@ -406,7 +406,7 @@ FABLE の入力は、KIND・TASK_DIR・SELF_REJECTED の組である。RANGE は
 
 -   **作業ツリー：** `git status --porcelain=v1` の出力
 -   **HEAD：** HEAD の commit と、HEAD のブランチの名前とその ref
--   **index のフラグ：** `git ls-files -v` の出力のうち、skip-worktree か assume-unchanged のフラグが付いたパスの一覧（フラグの付かないパスの増減は含めない）
+-   **index のフラグ：** `git ls-files -v` の出力のうち、skip-worktree か assume-unchanged のフラグが付いたパスの一覧と、それらのパスのファイルの中身のハッシュ（フラグの付かないパスの増減は含めない）。フラグの付いたファイルの変更は `git status` に現れないためである
 -   **設定と hooks：** `git config --list` で git が読む設定の値の一覧（今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除く）、git のディレクトリの `info`、hooks のディレクトリの中身。`fixprguard` の `check` が比べるもの（`docs/dev/guides/fixprguard_guide.md` の 5 章の `inspect` の項）と同じで、linked worktree では git のディレクトリを `git rev-parse --git-dir` と `--git-common-dir` で求める
 -   **監視するファイル：** 無視されるファイルのうち、`fixprguard` の監視の一覧（同ガイドの 7.1）に当たるものと `.claude/settings.local.json` の、有無と中身のハッシュ
 
@@ -646,7 +646,7 @@ OpenCode は Agent ツールで Fable を呼べない（要件書 5 章）。Fab
 -   **「Criteria」を書き換える:**
     -   基準の番号は変えない。基準 4 を「信頼の境界・セキュリティ・耐久性に触れる」に広げ、今の例に、開発用のツールの信頼の境界（AC-11 の基準 1 に挙げたもの）と、レビューの関門を変える変更（決定 13）を加える（AC-34）。
     -   「Criteria」の節には、基準 4 に当たる変更は PR レビューを頼み、ほかの基準だけに当たる変更は、呼び出し元がローカルの CLI レビューの記録で頼むかを決める、とだけ書く。対応の規則そのもの（下）は `runpr.md` step 3 に置き、サブエージェントへの指示に写さない。サブエージェントが規則に合わせて `criteria` を選ぶことのないようにするためである。
-    -   対応の規則：`criteria` に 4 があれば `request`。`criteria` が 1・2・3・5 のどれかだけなら、COVERAGE が `ALL` なら `skip`、`PARTIAL` なら `ask`（AC-35）。`decision` によらず、`criteria` が空でないときは、ここまでの `criteria` の規則で決める（`skip` に番号が付いていても、`skip` をそのまま使わない）。`criteria` が空のときは、`decision` が `ask` なら `ask`、`skip` なら `skip`（AC-36）。`criteria` に 1〜5 の外の値があるとき、`decision` が `request` で `criteria` が空のとき、答えが決まった JSON として読めないときは `ask` とする。
+    -   対応の規則：`decision` が `request` で `criteria` に 4 があれば `request`。`decision` が `request` で `criteria` が 1・2・3・5 のどれかだけなら、COVERAGE が `ALL` なら `skip`、`PARTIAL` なら `ask`（AC-35）。ここまでの規則は `decision` が `request` のときだけに使う。`decision` が `ask` なら、`criteria` によらず `ask`（当たるかを決めかねた答えを `skip` に変えない）。`decision` が `skip` で `criteria` が空なら `skip`（AC-36）。`decision` が `skip` なのに `criteria` があるとき、`criteria` に 1〜5 の外の値があるとき、`decision` が `request` で `criteria` が空のとき、答えが決まった JSON として読めないときは、食い違った答えとして `ask` とする。
     -   「Do not request one for」と「Size is not a criterion」の段落（`pr-review-escalation.md:51-56`）は、基準 4 を広げたことに合わせて直す。
 -   変えないもの（AC-37）：Procedure の step 1・2・3、返す JSON の形、「迷うときは `ask`」の指示。サブエージェントは、今の step 2 のとおり `decision`・`criteria`・`reason` を返す。step 2 の `request` と `skip` の定義（`:75-79`）はサブエージェントの答え方の定義のまま残り、最終の判断は `runpr.md` の対応の規則が決める。step 2 の「基準 4 に当たるときは 2 つの文書を読む」も、番号を変えないので正しいままである。
 
