@@ -42,7 +42,7 @@
 
 | 元の値 | 扱い |
 |---|---|
-| `POST`・`DELETE`・404 の応答の本文 | 除いた |
+| `POST`（201・422）・`DELETE`・404 の応答の本文 | 除いた |
 | `GET` の本文の `url` の値（API の URL） | `https://api.github.invalid/removed` に置き換えた |
 | `Location` の見出し（試しの tag の API の URL） | 行ごと除いた |
 | 道具が読まず、採った人の環境を表す見出し（`X-Github-Request-Id`・`X-Github-Edge-Region`・`X-Oauth-Client-Id`・`X-Oauth-Scopes`） | 行ごと除いた |
