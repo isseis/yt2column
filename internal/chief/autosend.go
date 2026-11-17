@@ -518,6 +518,8 @@ func (a *autoSender) reportsAgree(ctx context.Context, ws TaskWorkspace, facts a
 		case next.Kind == NextAbsent:
 		case next.Kind == NextNone:
 			return "the /runpr report on pane " + agent.Pane.String() + " says there is no next command, not " + facts.next.Text, checks
+		case next.Kind == NextUnmatched:
+			return "the /runpr report on pane " + agent.Pane.String() + " has a NEXT line that cannot be read, or NEXT lines that disagree", checks
 		case !agrees(next, facts.next, facts.obs.Task):
 			return "the /runpr report on pane " + agent.Pane.String() + " names another next command than " + facts.next.Text, checks
 		case agent.Kind == paneinput.AgentClaudeCode:
@@ -529,31 +531,30 @@ func (a *autoSender) reportsAgree(ctx context.Context, ws TaskWorkspace, facts a
 
 // runprPaneReport reads the last report on the /runpr pane: from its
 // session's transcript for Claude Code, from its screen for any other agent.
-// Contract: a Claude Code pane is never read from its screen; when no report
-// is read, the reason and the detail say why (for a Claude Code transcript
-// that cannot be read, its reason value, for any other failure
-// NotSentNoReport or NotSentUnreadable).
-func (a *autoSender) runprPaneReport(ctx context.Context, pane Agent) (RunprReport, NotSentReason, string) {
+// Contract: a Claude Code pane is never read from its screen; ok is true
+// only when a report was read, and otherwise the reason and the detail say
+// why (for a Claude Code transcript, the reader's reason value; for a
+// screen, NotSentUnreadable or NotSentNoReport).
+func (a *autoSender) runprPaneReport(ctx context.Context, pane Agent) (report RunprReport, ok bool, reason NotSentReason, detail string) {
 	if pane.Kind == paneinput.AgentClaudeCode {
 		cr := readClaudeReport(a.deps.Env, pane)
 		switch cr.Report.Kind {
 		case SessionReportFound:
-			return readReportNext(cr.Report.Text), NotSentUnknown, ""
+			return readReportNext(cr.Report.Text), true, NotSentUnknown, ""
 		case SessionReportAbsent:
-			return RunprReport{}, cr.Reason, "the /runpr pane has no last report: " + cr.Detail
+			return RunprReport{}, false, NotSentNoReport, "the /runpr pane has no last report: " + cr.Detail
 		default:
-			return RunprReport{}, cr.Reason, "the transcript of the /runpr pane cannot be read: " + cr.Detail
+			return RunprReport{}, false, cr.Reason, "the transcript of the /runpr pane cannot be read: " + cr.Detail
 		}
 	}
 	raw, err := a.herdr.Screen(ctx, pane.Pane, reportSource(pane))
 	if err != nil {
-		return RunprReport{}, NotSentUnreadable, "the screen of the /runpr pane cannot be read: " + err.Error()
+		return RunprReport{}, false, NotSentUnreadable, "the screen of the /runpr pane cannot be read: " + err.Error()
 	}
-	report, ok := readRunprReport(pane.Kind, raw)
-	if !ok {
-		return RunprReport{}, NotSentNoReport, "the /runpr pane shows no report"
+	if report, ok = readRunprReport(pane.Kind, raw); !ok {
+		return RunprReport{}, false, NotSentNoReport, "the /runpr pane shows no report"
 	}
-	return report, NotSentUnknown, ""
+	return report, true, NotSentUnknown, ""
 }
 
 // detachedReport returns why a detached HEAD may not be sent to, empty when
@@ -568,9 +569,9 @@ func (a *autoSender) detachedReport(ctx context.Context, ws TaskWorkspace, facts
 	if !ok {
 		return "the workspace has no single pane of the agent /runpr is routed to"
 	}
-	report, reason, detail := a.runprPaneReport(ctx, pane)
+	report, ok, _, detail := a.runprPaneReport(ctx, pane)
 	switch {
-	case reason != NotSentUnknown:
+	case !ok:
 		return detail
 	case !slices.Contains(report.PRs, facts.obs.PR):
 		return fmt.Sprintf("the last report on the /runpr pane does not name #%d", facts.obs.PR)
@@ -860,8 +861,8 @@ func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observa
 	// and the command sent: a later answer in the pane is not emptied. A
 	// Claude Code pane's is read from the transcript of the session Herdr
 	// reports now.
-	report, reason, detail := a.runprPaneReport(ctx, agent)
-	if reason != NotSentUnknown {
+	report, ok, reason, detail := a.runprPaneReport(ctx, agent)
+	if !ok {
 		return notSent(res, reason, detail)
 	}
 	if !slices.Contains(report.PRs, obs.PR) || !agrees(report.Next, next, obs.Task) {

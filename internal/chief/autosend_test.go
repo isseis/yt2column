@@ -232,6 +232,28 @@ func (mw *mergeWorld) removeClaudeTranscript() {
 	}
 }
 
+// runprTranscript replaces w1:p1's transcript with a /runpr run whose last
+// report names pr with next as its NEXT ("" for none), with a PR record of
+// pr.
+func (mw *mergeWorld) runprTranscript(pr int, next string) {
+	mw.t.Helper()
+	mw.claudeTranscript(commandLine("/runpr 42"), prRecordLine(pr), answerLine("msg_runpr", claudeRunprReport(pr, next)))
+}
+
+// screenOnlyReport makes w1:p1 show, on its screen alone, a Claude Code
+// report naming #42 and /runplan 0001 that the screen reader reads, while
+// its transcript has no report.
+func (mw *mergeWorld) screenOnlyReport() {
+	mw.t.Helper()
+	screen := claudeReportScreenNaming(mw.t, 42, "`/runplan 0001`")
+	report, ok := readRunprReport(paneinput.AgentClaudeCode, screen)
+	if !ok || !slices.Contains(report.PRs, 42) || report.Next.Kind != NextCommand || report.Next.Command != NextCommandRunplan {
+		mw.t.Fatalf("the screen reader reads %+v, %v; want a report naming #42 and /runplan 0001", report, ok)
+	}
+	mw.byPane["w1:p1"].screen = screen
+	mw.claudeTranscript()
+}
+
 // mergeClaude makes PR 42 merged as /runpr run in the Claude Code pane
 // leaves it: the worktree at origin/main on branch, the OpenCode pane on its
 // prompt with no report, and w1:p1's transcript ending in /runpr's report
@@ -243,7 +265,7 @@ func (mw *mergeWorld) mergeClaude(branch string, pr int, next string) {
 	p := mw.byPane["w1:p2"]
 	p.Status, p.screen = "idle", readScreenSample(mw.t, "opencode-done.ansi")
 	mw.mu.Unlock()
-	mw.claudeTranscript(commandLine("/runpr 42"), prRecordLine(pr), answerLine("msg_runpr", claudeRunprReport(pr, next)))
+	mw.runprTranscript(pr, next)
 }
 
 // claudeScreenWith returns the idle Claude Code screen with lines drawn on
@@ -389,10 +411,10 @@ func testClaudeReportMismatch(t *testing.T) {
 		}, result: "no_report"},
 		{name: "the transcript cannot be read", setup: func(mw *mergeWorld) { mw.claudeTranscript(`{"type":"assistant"`) }, reason: "the transcript of pane w1:p1 cannot be read"},
 		{name: "the working directory's characters", tree: unsupportedTree, setup: answer("NEXT: " + agreeing), reason: "Use a worktree whose path"},
-		{name: "a NEXT that cannot be read", setup: answer("**NEXT:** " + agreeing), reason: "names another next command"},
+		{name: "a NEXT that cannot be read", setup: answer("**NEXT:** " + agreeing), reason: "has a NEXT line that cannot be read"},
 		{name: "another command", setup: answer("NEXT: `/mkplan 0001`"), reason: "names another next command"},
 		{name: "another task", setup: answer("NEXT: `/mkarch 0002`"), reason: "names another next command"},
-		{name: "lines that disagree", setup: answer("NEXT: " + agreeing + "\nNEXT: `/mkplan 0001`"), reason: "names another next command"},
+		{name: "lines that disagree", setup: answer("NEXT: " + agreeing + "\nNEXT: `/mkplan 0001`"), reason: "NEXT lines that disagree"},
 		{name: "no next command", setup: func(mw *mergeWorld) { mw.claudeTranscript(transcriptSample(mw.t, "claude-runpr-report.jsonl")...) }, reason: "says there is no next command"},
 	} {
 		t.Run("Claude Code: "+c.name, func(t *testing.T) {
@@ -425,6 +447,26 @@ func testClaudeReportMismatch(t *testing.T) {
 	}
 }
 
+// TestAutoSendClaudeTranscriptStopsOpenCodeSend checks that a Claude Code
+// pane whose transcript cannot be read stops a send whose command goes to
+// the OpenCode pane, on a branch, where only the NEXT check reads w1:p1.
+func TestAutoSendClaudeTranscriptStopsOpenCodeSend(t *testing.T) {
+	mw := newMergeWorld(t, runplanDocs(t, "marker-sonnet.md"))
+	mw.tick(time.Minute)
+	mw.merge(nextBranch, "`/runplan 0001`")
+	mw.claudeTranscript(`{"type":"assistant"`)
+	res := only(t, mw.tick(time.Minute))
+	if sentCommand(res) || len(mw.rec.prompts()) != 0 {
+		t.Fatalf("sent: %+v, typed %v", res, mw.rec.prompts())
+	}
+	if res.Proposal == nil || res.Proposal.Agent != paneinput.AgentOpenCode {
+		t.Fatalf("proposal = %+v; want a command for OpenCode", res.Proposal)
+	}
+	if !slices.ContainsFunc(res.Reasons, func(r string) bool { return strings.Contains(r, "the transcript of pane w1:p1 cannot be read") }) {
+		t.Errorf("reasons = %q; want w1:p1's transcript", res.Reasons)
+	}
+}
+
 // TestAutoSendPartialTranscript checks that a Claude Code transcript whose
 // last line is still being written stops the send, and that the merge is
 // carried so the next round sends once the line is whole.
@@ -434,8 +476,12 @@ func TestAutoSendPartialTranscript(t *testing.T) {
 	mw.merge(nextBranch, "`/mkarch 0001`")
 	whole := answerLine("msg_1", "NEXT: `/mkarch 0001`")
 	mw.claudeTranscript(whole[:len(whole)/2])
-	if res := only(t, mw.tick(time.Minute)); sentCommand(res) || len(mw.rec.prompts()) != 0 {
+	res := only(t, mw.tick(time.Minute))
+	if sentCommand(res) || len(mw.rec.prompts()) != 0 {
 		t.Fatalf("sent with a partial line: %+v", res)
+	}
+	if !slices.ContainsFunc(res.Reasons, func(r string) bool { return strings.Contains(r, "the transcript of pane w1:p1 cannot be read") }) {
+		t.Errorf("reasons = %q; want w1:p1's transcript", res.Reasons)
 	}
 	mw.claudeTranscript(whole)
 	if res := only(t, mw.tick(time.Minute)); !sentCommand(res) {
@@ -547,9 +593,7 @@ func TestAutoSendDetached(t *testing.T) {
 // the send, the reason saying why.
 func testClaudeDetached(t *testing.T) {
 	report := func(pr int, next string) func(*mergeWorld) {
-		return func(mw *mergeWorld) {
-			mw.claudeTranscript(commandLine("/runpr 42"), prRecordLine(42), answerLine("msg_runpr", claudeRunprReport(pr, next)))
-		}
+		return func(mw *mergeWorld) { mw.runprTranscript(pr, next) }
 	}
 	for _, c := range []struct {
 		name  string
@@ -565,14 +609,7 @@ func testClaudeDetached(t *testing.T) {
 		{name: "the session's file is missing", setup: (*mergeWorld).removeClaudeTranscript, reason: "does not exist"},
 		{name: "the transcript cannot be read", setup: func(mw *mergeWorld) { mw.claudeTranscript(`{"type":"pr-link"}`) }, reason: "the transcript of the /runpr pane cannot be read"},
 		{name: "the working directory's characters", tree: unsupportedTree, setup: func(*mergeWorld) {}, reason: "Use a worktree whose path"},
-		{name: "the screen alone shows the report", setup: func(mw *mergeWorld) {
-			screen := claudeScreenWith(mw.t, "Merged PR #42 into main.", "NEXT: `/runplan 0001`")
-			if next, ok := readScreenNext(screen); !ok || next.Kind != NextCommand || next.Command != NextCommandRunplan {
-				mw.t.Fatal("the screen does not show the agreeing NEXT")
-			}
-			mw.byPane["w1:p1"].screen = screen
-			mw.claudeTranscript()
-		}, reason: "the /runpr pane has no last report"},
+		{name: "the screen alone shows the report", setup: (*mergeWorld).screenOnlyReport, reason: "the /runpr pane has no last report"},
 	} {
 		t.Run("Claude Code: "+c.name, func(t *testing.T) {
 			mw := newClaudeRunprWorld(t, runplanDocs(t, "marker-sonnet.md"), c.tree)
@@ -798,9 +835,7 @@ func TestResetAfterAutoSend(t *testing.T) {
 // read by then leaves it with no_transcript.
 func testClaudeResetAfterAutoSend(t *testing.T) {
 	report := func(pr int, next string) func(*mergeWorld) {
-		return func(mw *mergeWorld) {
-			mw.claudeTranscript(commandLine("/runpr 42"), prRecordLine(42), answerLine("msg_runpr", claudeRunprReport(pr, next)))
-		}
+		return func(mw *mergeWorld) { mw.runprTranscript(pr, next) }
 	}
 	for _, c := range []struct {
 		name  string
@@ -813,14 +848,7 @@ func testClaudeResetAfterAutoSend(t *testing.T) {
 		{name: "the report has no NEXT", setup: report(42, ""), reason: NotSentNoReport},
 		{name: "no last report", setup: func(mw *mergeWorld) { mw.claudeTranscript() }, reason: NotSentNoReport},
 		{name: "the session's file is missing", setup: (*mergeWorld).removeClaudeTranscript, reason: NotSentNoReport},
-		{name: "the screen alone shows the report", setup: func(mw *mergeWorld) {
-			screen := claudeScreenWith(mw.t, "Merged PR #42 into main.", "NEXT: `/runplan 0001`")
-			if next, ok := readScreenNext(screen); !ok || next.Kind != NextCommand || next.Command != NextCommandRunplan {
-				mw.t.Fatal("the screen does not show the agreeing NEXT")
-			}
-			mw.byPane["w1:p1"].screen = screen
-			mw.claudeTranscript()
-		}, reason: NotSentNoReport},
+		{name: "the screen alone shows the report", setup: (*mergeWorld).screenOnlyReport, reason: NotSentNoReport},
 		{name: "the transcript cannot be read once the command is typed", setup: func(mw *mergeWorld) {
 			mw.react = func(p *simPane, text string) error {
 				if text == "/runplan 0001" {

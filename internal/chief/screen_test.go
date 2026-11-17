@@ -858,6 +858,23 @@ func runprReportScreen(t *testing.T, pr int, next string) string {
 	return strings.ReplaceAll(screen, "867", strconv.Itoa(pr))
 }
 
+// claudeReportHeading is a heading line of the last message of the sampled
+// Claude Code command report.
+const claudeReportHeading = "記録したこと"
+
+// claudeReportScreenNaming returns the sampled Claude Code command report
+// with its PR number replaced by pr and its heading line replaced by a NEXT
+// line giving next, so the screen alone shows a report naming both.
+func claudeReportScreenNaming(t *testing.T, pr int, next string) string {
+	t.Helper()
+	screen := readScreenSample(t, "claude-command-report.ansi")
+	if !strings.Contains(screen, claudeReportHeading) {
+		t.Fatal("the report sample no longer holds its heading line")
+	}
+	screen = strings.Replace(screen, claudeReportHeading, "NEXT: "+next, 1)
+	return strings.ReplaceAll(screen, "867", strconv.Itoa(pr))
+}
+
 // TestReadRunprReport reads the last report of the sampled OpenCode /runpr
 // report and Claude Code command report, and checks that a screen whose last
 // response is not in the sampled shape gives none.
