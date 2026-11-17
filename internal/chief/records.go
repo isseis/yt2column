@@ -516,9 +516,10 @@ func (s Store) removeFinishedSessions(session string) (int, error) {
 	return removed, errors.Join(errs...)
 }
 
-// Worktree is a worktree path made canonical by CanonicalWorktree: absolute,
-// with links resolved. Only CanonicalWorktree makes one, so a record keyed by
-// a worktree cannot be looked up with a path that was never made canonical.
+// Worktree is a worktree path made canonical: absolute, with links resolved.
+// Only CanonicalWorktree (for a worktree that exists) and TaskSpace.Worktree
+// (for the one chief is about to make) make one, so a record keyed by a
+// worktree cannot be looked up with a path that was never made canonical.
 type Worktree struct {
 	path string
 }

@@ -5,8 +5,11 @@ package chief
 import (
 	"context"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -91,4 +94,150 @@ func TestFindTaskWorkspaces(t *testing.T) {
 			t.Errorf("error = %v, want errHerdrOutput", err)
 		}
 	})
+}
+
+func TestParseWorktreeListSample(t *testing.T) {
+	got, err := parseWorktreeList(readTestdata(t, "git/worktree-list-porcelain.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []WorktreeEntry{
+		{Path: "/Users/user/src/repo/main"},
+		{Path: "/Users/user/src/repo/detached"},
+		{Path: "/Users/user/src/repo/gone", Prunable: true},
+		{Path: "/Users/user/src/repo/locked", Locked: true},
+		{Path: "/Users/user/src/repo/lockednoreason", Locked: true},
+		{Path: "/Users/user/src/repo/onbranch"},
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("parseWorktreeList = %+v, want %+v", got, want)
+	}
+}
+
+func TestParseWorktreeListRejects(t *testing.T) {
+	cases := map[string]string{
+		"empty":                  "",
+		"a block with no path":   "HEAD 6f1d\n\n",
+		"a relative path":        "worktree repo\nHEAD 6f1d\n\n",
+		"a quoted path":          "worktree \"/tmp/a\\tb\"\nHEAD 6f1d\n\n",
+		"a repeated path":        "worktree /a\nHEAD 6f1d\n\nworktree /a\nHEAD 6f1d\n\n",
+		"a second block broken":  "worktree /a\nHEAD 6f1d\n\nbranch refs/heads/x\n\n",
+		"no line end at the end": "worktree /a\nHEAD 6f1d",
+	}
+	for name, out := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got, err := parseWorktreeList([]byte(out)); !errors.Is(err, errGitOutput) {
+				t.Errorf("parseWorktreeList = %+v, %v, want errGitOutput", got, err)
+			}
+		})
+	}
+}
+
+// TestGitWorktreesOfARealRepository reads the output of the real git for a
+// detached, a locked, and a prunable worktree.
+func TestGitWorktreesOfARealRepository(t *testing.T) {
+	repo := newTestRepo(t)
+	base := filepath.Dir(repo.Dir)
+	detached, locked, gone := filepath.Join(base, "detached"), filepath.Join(base, "locked"), filepath.Join(base, "gone")
+	repo.Git("worktree", "add", "-q", "--detach", detached)
+	repo.Git("worktree", "add", "-q", "--detach", locked)
+	repo.Git("worktree", "lock", "--reason", "pinned", locked)
+	repo.Git("worktree", "add", "-q", "--detach", gone)
+	if err := os.RemoveAll(gone); err != nil {
+		t.Fatal(err)
+	}
+	git := NewGitReader(repo.RealCommands())
+	got, err := git.Worktrees(t.Context(), repo.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string]WorktreeEntry{}
+	for _, e := range got {
+		byPath[e.Path] = e
+	}
+	want := map[string]WorktreeEntry{
+		repo.Dir: {Path: repo.Dir},
+		detached: {Path: detached},
+		locked:   {Path: locked, Locked: true},
+		gone:     {Path: gone, Prunable: true},
+	}
+	if !maps.Equal(byPath, want) || len(got) != len(want) {
+		t.Errorf("Worktrees = %+v, want %+v", got, want)
+	}
+}
+
+func TestGitIsAncestor(t *testing.T) {
+	repo := newTestRepo(t)
+	first := strings.TrimSpace(repo.Git("rev-parse", "HEAD"))
+	repo.Write("second.txt", "x\n")
+	second := repo.CommitAll("second")
+	repo.Git("switch", "-q", "-c", "side", first)
+	repo.Write("side.txt", "x\n")
+	side := repo.CommitAll("side")
+	git := NewGitReader(repo.RealCommands())
+	ctx := t.Context()
+	cases := []struct {
+		name                 string
+		ancestor, descendant string
+		want                 bool
+		wantErr              bool
+	}{
+		{"an ancestor", first, second, true, false},
+		{"the same commit", second, second, true, false},
+		{"not an ancestor", second, first, false, false},
+		{"commits on two branches", second, side, false, false},
+		{"a commit that does not exist", strings.Repeat("0", 40), second, false, true},
+		{"not a full commit ID", "HEAD", second, false, true},
+		{"an option", "--all", second, false, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := git.IsAncestor(ctx, repo.Dir, c.ancestor, c.descendant)
+			if (err != nil) != c.wantErr || got != c.want {
+				t.Errorf("IsAncestor = %v, %v, want %v (error %v)", got, err, c.want, c.wantErr)
+			}
+		})
+	}
+}
+
+// TestGitCleanCountsStagedAndNestedFiles runs Clean against the real git: a
+// staged change and an untracked file in a nested new directory are not
+// clean, and an ignored file is.
+func TestGitCleanCountsStagedAndNestedFiles(t *testing.T) {
+	repo := newTestRepo(t)
+	repo.Write(".gitignore", "ignored/\n")
+	repo.CommitAll("ignore")
+	git := NewGitReader(repo.RealCommands())
+	clean := func() bool {
+		t.Helper()
+		ok, err := git.Clean(t.Context(), repo.Dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+	if !clean() {
+		t.Fatal("a clean worktree reads as changed")
+	}
+	repo.Write("ignored/deep/file.txt", "x\n")
+	if !clean() {
+		t.Error("a file in an ignored directory reads as a change")
+	}
+	repo.Write("a/b/c/new.txt", "x\n")
+	if clean() {
+		t.Error("an untracked file in a nested new directory reads as clean")
+	}
+	repo.Git("add", "a/b/c/new.txt")
+	if clean() {
+		t.Error("a staged new file reads as clean")
+	}
+	repo.Git("reset", "-q")
+	if err := os.RemoveAll(filepath.Join(repo.Dir, "a")); err != nil {
+		t.Fatal(err)
+	}
+	repo.Write("README.md", "staged change\n")
+	repo.Git("add", "README.md")
+	if clean() {
+		t.Error("a staged change to a tracked file reads as clean")
+	}
 }

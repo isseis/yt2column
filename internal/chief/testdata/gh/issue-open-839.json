@@ -1,1 +1,1 @@
-{"data":{"repository":{"issueOrPullRequest":{"__typename":"Issue","number":839,"state":"OPEN","title":"Sample title of an open issue"}}}}
+{"data":{"repository":{"issueOrPullRequest":{"__typename":"Issue","number":839,"state":"OPEN","title":"Sample title of an open issue","labels":{"totalCount":2,"nodes":[{"name":"devenv"},{"name":"priority:medium"}]}}}}}

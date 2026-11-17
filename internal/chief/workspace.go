@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
+	"github.com/isseis/yt2column/internal/cmdrunner"
 	"github.com/isseis/yt2column/internal/strictjson"
 )
 
@@ -247,6 +248,82 @@ func (g GitReader) Clean(ctx context.Context, worktree string) (bool, error) {
 	return len(out) == 0, nil
 }
 
+// WorktreeEntry is one registration `git worktree list --porcelain` reports.
+type WorktreeEntry struct {
+	// Path is the registered path, as git prints it (not made canonical).
+	Path string
+	// Locked reports a `locked` line: the worktree is pinned against removal,
+	// with or without a reason.
+	Locked bool
+	// Prunable reports a `prunable` line: the registration is left over for a
+	// directory that is gone.
+	Prunable bool
+}
+
+// Worktrees returns every worktree registered in the repository dir belongs
+// to, read with `git worktree list --porcelain`. Contract: every block is read
+// in full or the whole output is rejected; a block whose first line is not an
+// absolute `worktree <path>` (a path git quotes is not absolute), a repeated path, or an
+// output with no block is unreadable. Lines other than `worktree`, `locked`,
+// and `prunable` (HEAD, branch, detached, bare) are not read.
+func (g GitReader) Worktrees(ctx context.Context, dir string) ([]WorktreeEntry, error) {
+	out, err := g.cmds.git(ctx, dir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return nil, err
+	}
+	return parseWorktreeList(out)
+}
+
+func parseWorktreeList(out []byte) ([]WorktreeEntry, error) {
+	text, ok := strings.CutSuffix(string(out), "\n\n")
+	if !ok && !strings.HasSuffix(string(out), "\n") {
+		return nil, fmt.Errorf("%w: worktree list does not end with a line end", errGitOutput)
+	}
+	text = strings.TrimSuffix(text, "\n")
+	var entries []WorktreeEntry
+	for block := range strings.SplitSeq(text, "\n\n") {
+		lines := strings.Split(block, "\n")
+		path, ok := strings.CutPrefix(lines[0], "worktree ")
+		if !ok || !filepath.IsAbs(path) {
+			return nil, fmt.Errorf("%w: worktree list block does not start with an absolute worktree path", errGitOutput)
+		}
+		if slices.ContainsFunc(entries, func(e WorktreeEntry) bool { return e.Path == path }) {
+			return nil, fmt.Errorf("%w: worktree list repeats a path", errGitOutput)
+		}
+		entry := WorktreeEntry{Path: path}
+		for _, line := range lines[1:] {
+			word, _, _ := strings.Cut(line, " ")
+			switch word {
+			case "locked":
+				entry.Locked = true
+			case "prunable":
+				entry.Prunable = true
+			}
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
+// IsAncestor reports whether ancestor is an ancestor of descendant (or the
+// same commit), read with `git merge-base --is-ancestor`. Contract: exit
+// status 0 is yes and 1 is no; every other outcome (a commit that does not
+// exist, git failing) is an error, never a no. Both arguments must be full
+// commit IDs, so neither can be read as an option or a ref name.
+func (g GitReader) IsAncestor(ctx context.Context, dir, ancestor, descendant string) (bool, error) {
+	if !commitID.MatchString(ancestor) || !commitID.MatchString(descendant) {
+		return false, fmt.Errorf("%w: not a full commit ID", errGitOutput)
+	}
+	_, err := g.cmds.git(ctx, dir, "merge-base", "--is-ancestor", ancestor, descendant)
+	if err == nil {
+		return true, nil
+	}
+	if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); ok && exitErr.Code == 1 {
+		return false, nil
+	}
+	return false, err
+}
+
 // OriginMain returns the commit origin/main points at, as worktree sees it.
 func (g GitReader) OriginMain(ctx context.Context, worktree string) (string, error) {
 	out, err := g.cmds.git(ctx, worktree, "rev-parse", originMain)
@@ -295,7 +372,10 @@ const (
 )
 
 // prStates maps gh's state values.
-var prStates = map[string]PRState{"OPEN": PRStateOpen, "MERGED": PRStateMerged, "CLOSED": PRStateClosed}
+// ghOpen is the state gh gives an open pull request or issue.
+const ghOpen = "OPEN"
+
+var prStates = map[string]PRState{ghOpen: PRStateOpen, "MERGED": PRStateMerged, "CLOSED": PRStateClosed}
 
 // prStateFields are the fields PRStateOf asks gh for.
 const prStateFields = "number,state,headRefName"

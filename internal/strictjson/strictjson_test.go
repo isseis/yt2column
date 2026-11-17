@@ -799,3 +799,49 @@ func TestParseArray(t *testing.T) {
 		}
 	})
 }
+
+func TestObjectCollectExactCase(t *testing.T) {
+	t.Run("reads listed members and skips unrelated ones", func(t *testing.T) {
+		object, err := ParseObject([]byte(`{"title":"x","other":1,"other":2}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		consumed, err := object.CollectExactCase("title", "number")
+		if err != nil {
+			t.Fatalf("CollectExactCase error = %v", err)
+		}
+		if len(consumed) != 1 {
+			t.Errorf("CollectExactCase returned %d members, want 1", len(consumed))
+		}
+	})
+	t.Run("rejects a duplicate listed member", func(t *testing.T) {
+		object, err := ParseObject([]byte(`{"title":1,"title":2}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := object.CollectExactCase("title"); !errors.Is(err, errDuplicateMember) {
+			t.Errorf("error = %v, want errDuplicateMember", err)
+		}
+	})
+	t.Run("rejects a member that differs only in letter case", func(t *testing.T) {
+		// "\u212a" is the Kelvin sign, which folds to "k".
+		for _, doc := range []string{`{"title":1,"Title":2}`, `{"TITLE":1}`, `{"number":1,"NuMbEr":2}`, `{"\u212aey":1}`} {
+			object, err := ParseObject([]byte(doc))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := object.CollectExactCase("title", "number", "key"); !errors.Is(err, errCaseVariantMember) {
+				t.Errorf("%s: error = %v, want errCaseVariantMember", doc, err)
+			}
+		}
+	})
+	t.Run("Collect keeps accepting the case variant", func(t *testing.T) {
+		object, err := ParseObject([]byte(`{"title":1,"Title":2}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := object.Collect("title"); err != nil {
+			t.Errorf("Collect error = %v, want none", err)
+		}
+	})
+}
