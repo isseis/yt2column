@@ -314,6 +314,7 @@ PASS: only the per-row question list was removed and the per-row list of what do
 -   「質問で停止」の行の内容の列に、質問の要点と pane が出た。
 -   後から自由な文の指示を足したセッションに `/runplan 0097（後に指示あり）` が、OpenCode の pane に「人が打ったコマンド（OpenCode）」が出た。
 -   送信が止まった行は、確かめの間に現れなかった（その位置は `TestStoppedRowsOrderFirst` で確かめている）。
+-   1 周の時間: 8 つの workspace（`working` の Claude Code の pane を含む）で、`chief snapshot --protocol 2` は 8 行を返して 9.0 秒（CPU は利用者 1.1 秒、システム 1.4 秒）だった。CPU の時間は 2.5 秒で、残りは `git fetch`・`gh` の呼び出しの待ちである。
 -   `/chief once` では、セッションが表を書かずに問い（`AskUserQuestion`）を開き、表が見えなかった。0088 から続く `once` の作りによるもので、今回の列の変更とは関わらないため、人が選んで別の課題にした（2026-11-17）。
 
 ## 8. 成功の基準 (Success Criteria)
