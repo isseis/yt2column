@@ -232,12 +232,14 @@ func (mw *mergeWorld) removeClaudeTranscript() {
 	}
 }
 
-// runprTranscript replaces w1:p1's transcript with a /runpr run whose last
-// report names pr with next as its NEXT ("" for none), with a PR record of
-// pr.
+// runprTranscript replaces w1:p1's transcript with a /runpr run of #42,
+// with a PR record of #42, whose last report names pr with next as its NEXT
+// ("" for none). The checks of the /runpr pane read the PR from the report
+// alone, so a report naming another PR stops them though the record names
+// #42.
 func (mw *mergeWorld) runprTranscript(pr int, next string) {
 	mw.t.Helper()
-	mw.claudeTranscript(commandLine("/runpr 42"), prRecordLine(pr), answerLine("msg_runpr", claudeRunprReport(pr, next)))
+	mw.claudeTranscript(commandLine("/runpr 42"), prRecordLine(42), answerLine("msg_runpr", claudeRunprReport(pr, next)))
 }
 
 // screenOnlyReport makes w1:p1 show, on its screen alone, a Claude Code
@@ -449,7 +451,9 @@ func testClaudeReportMismatch(t *testing.T) {
 
 // TestAutoSendClaudeTranscriptStopsOpenCodeSend checks that a Claude Code
 // pane whose transcript cannot be read stops a send whose command goes to
-// the OpenCode pane, on a branch, where only the NEXT check reads w1:p1.
+// the OpenCode pane, on a branch, where only the NEXT check reads w1:p1: the
+// check reads every Claude Code pane of the workspace, not only the pane the
+// command goes to.
 func TestAutoSendClaudeTranscriptStopsOpenCodeSend(t *testing.T) {
 	mw := newMergeWorld(t, runplanDocs(t, "marker-sonnet.md"))
 	mw.tick(time.Minute)
@@ -467,6 +471,31 @@ func TestAutoSendClaudeTranscriptStopsOpenCodeSend(t *testing.T) {
 	}
 }
 
+// TestAutoSendReportChecksUnderTheExclusion checks that the findings the
+// output shows are those of the reading under the workspace's exclusion,
+// which decided the send: w1:p1 has no report at the round's first reading
+// and an agreeing one when read again.
+func TestAutoSendReportChecksUnderTheExclusion(t *testing.T) {
+	mw := newMergeWorld(t, mkarchDocs)
+	mw.tick(time.Minute)
+	mw.merge(nextBranch, "`/mkarch 0001`")
+	calls := 0
+	mw.rec.replyFunc(prStateLine, func() reply {
+		calls++
+		if calls == 2 {
+			mw.claudeTranscript(answerLine("msg_1", "NEXT: `/mkarch 0001`"))
+		}
+		return reply{out: []byte(prMergedJSON)}
+	})
+	out := mw.tick(time.Minute)
+	if res := only(t, out); !sentCommand(res) || calls < 2 {
+		t.Fatalf("auto send = %+v after %d readings; want sent after the reading under the exclusion", res, calls)
+	}
+	if checks := out.Output().AutoSends[0].ReportChecks; len(checks) != 1 || checks[0].Result != "agreed" {
+		t.Errorf("report checks = %+v; want w1:p1 agreed, as read under the exclusion", checks)
+	}
+}
+
 // TestAutoSendPartialTranscript checks that a Claude Code transcript whose
 // last line is still being written stops the send, and that the merge is
 // carried so the next round sends once the line is whole.
@@ -475,7 +504,12 @@ func TestAutoSendPartialTranscript(t *testing.T) {
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
 	whole := answerLine("msg_1", "NEXT: `/mkarch 0001`")
-	mw.claudeTranscript(whole[:len(whole)/2])
+	p := mw.byPane["w1:p1"]
+	// The last line is cut short with no newline after it, as Claude Code
+	// leaves it while writing.
+	if err := os.WriteFile(mw.transcript(p, p.Session), []byte(modeLine(p.Session)+"\n"+whole[:len(whole)/2]), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	res := only(t, mw.tick(time.Minute))
 	if sentCommand(res) || len(mw.rec.prompts()) != 0 {
 		t.Fatalf("sent with a partial line: %+v", res)
@@ -605,6 +639,9 @@ func testClaudeDetached(t *testing.T) {
 		{name: "the report names the PR and the command", setup: func(*mergeWorld) {}},
 		{name: "the report names another PR", setup: report(43, "`/runplan 0001`"), reason: "does not name #42"},
 		{name: "the report names another command", setup: report(42, "`/runplan 0002`"), reason: "does not name /runplan 0001"},
+		// The NEXT check lets a report with no NEXT line pass, so only the
+		// detached HEAD's check stops this one.
+		{name: "the report has no NEXT", setup: report(42, ""), reason: "does not name /runplan 0001"},
 		{name: "no last report", setup: func(mw *mergeWorld) { mw.claudeTranscript() }, reason: "the /runpr pane has no last report"},
 		{name: "the session's file is missing", setup: (*mergeWorld).removeClaudeTranscript, reason: "does not exist"},
 		{name: "the transcript cannot be read", setup: func(mw *mergeWorld) { mw.claudeTranscript(`{"type":"pr-link"}`) }, reason: "the transcript of the /runpr pane cannot be read"},
@@ -1465,8 +1502,8 @@ func TestResetChecksAgain(t *testing.T) {
 		if !sentCommand(res) {
 			t.Fatalf("auto send = %+v; want the command sent", res)
 		}
-		if len(res.Actions) != 2 || res.Actions[1].Input != InputReset || res.Actions[1].Pane != "w1:p1" || res.Actions[1].Outcome != OutcomeNotSent {
-			t.Errorf("reset = %+v; want none", res.Actions[1:])
+		if len(res.Actions) != 2 || res.Actions[1].Input != InputReset || res.Actions[1].Pane != "w1:p1" || res.Actions[1].Outcome != OutcomeNotSent || res.Actions[1].Reason != NotSentPaneChanged {
+			t.Errorf("reset = %+v; want none, for the pane that moved", res.Actions[1:])
 		}
 		if slices.Contains(mw.rec.prompts(), "w1:p1 /clear") {
 			t.Error("the /runpr pane was emptied")
