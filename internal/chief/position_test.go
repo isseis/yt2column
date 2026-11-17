@@ -4,17 +4,10 @@ package chief
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
-
-// docsInfo returns a document of status with the process record of a
-// requirements document.
-func docsInfo(status DocStatus, process Process) *DocInfo {
-	return &DocInfo{Status: status, Process: process}
-}
 
 // TestStageOf checks each stage of the documents, in the order the next
 // command is decided, including the stages no sampled document reaches.
@@ -120,67 +113,6 @@ func TestUrgencyIgnoresWhyARowNeedsCheck(t *testing.T) {
 	}
 }
 
-func mustPlan(t *testing.T, name string) *Plan {
-	t.Helper()
-	return mustPlanDoc(t, planSample(t, name))
-}
-
-func mustPlanDoc(t *testing.T, doc []byte) *Plan {
-	t.Helper()
-	plan, err := ParsePlan(doc, testOldValues)
-	if err != nil {
-		t.Fatalf("ParsePlan: %v", err)
-	}
-	return &plan
-}
-
-// planBeforeTheFirstPR is marker-opus.md with its first PR not started.
-func planBeforeTheFirstPR(t *testing.T) *Plan {
-	t.Helper()
-	doc := string(planSample(t, "marker-opus.md"))
-	started := "- [x] PR を作成した: https://github.com/owner/repo/pull/1\n- [x] PR がマージされた\n"
-	if !strings.Contains(doc, started) {
-		t.Fatal("marker-opus.md no longer holds a merged first PR")
-	}
-	return mustPlanDoc(t, []byte(strings.Replace(doc, started, "- [ ] PR を作成した\n- [ ] PR がマージされた\n", 1)))
-}
-
-// planFacts returns the facts of an approved plan.
-func planFacts(t *testing.T, plan *Plan) positionFacts {
-	t.Helper()
-	return positionFactsOf(workspaceFacts{
-		Head: headBranch, Task: mustTask(t, "0001"),
-		Docs: &TaskDocs{Dir: "d", Requirements: docsInfo(DocApproved, ProcessFull), Architecture: docsInfo(DocApproved, ProcessFull), Plan: plan},
-	})
-}
-
-func mustTask(t *testing.T, s string) paneinput.TaskID {
-	t.Helper()
-	id, err := paneinput.ParseTaskID(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
-}
-
-func mustMkreq(t *testing.T) *RunningCommand {
-	t.Helper()
-	cmd, _, err := newRunningCommand(paneinput.CommandMkreq, "890")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &cmd
-}
-
-func mustRunning(t *testing.T, kind paneinput.CommandKind, arg string) *RunningCommand {
-	t.Helper()
-	cmd, _, err := newRunningCommand(kind, arg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &cmd
-}
-
 // TestDocumentRule gives documentOf, for each of the rules 1 and 3 to 10 of
 // the design, facts only that rule matches, and checks the document and N.
 func TestDocumentRule(t *testing.T) {
@@ -277,7 +209,7 @@ func TestDocumentRuleReadsThePlan(t *testing.T) {
 // rule reads on the row for each of the six states, and for the failures that
 // the facts name.
 func TestClassifyKeepsPositionFacts(t *testing.T) {
-	task := mustTask(t, "0001")
+	task := taskID(t, "0001")
 	planDocs := func(plan string) *TaskDocs {
 		return &TaskDocs{Dir: "d", Requirements: docsInfo(DocApproved, ProcessFull), Architecture: docsInfo(DocApproved, ProcessFull), Plan: mustPlan(t, plan)}
 	}
@@ -432,7 +364,7 @@ func TestFirstUnmergedPR(t *testing.T) {
 // process record is broken. The document reader rejects such a record, so
 // only documents built directly reach it.
 func TestDecideNextProcessRecordUnreadable(t *testing.T) {
-	f := workspaceFacts{Head: headBranch, Branch: taskBranch, Task: mustTask(t, "0001"), Docs: &TaskDocs{Dir: "d", Requirements: docsInfo(DocApproved, ProcessUnreadable)}}
+	f := workspaceFacts{Head: headBranch, Branch: taskBranch, Task: taskID(t, "0001"), Docs: &TaskDocs{Dir: "d", Requirements: docsInfo(DocApproved, ProcessUnreadable)}}
 	next, done, why := decideNext(f)
 	if next != nil || done || why != "the process record of the requirements document is unreadable" {
 		t.Errorf("decideNext = %v, %v, %q", next, done, why)

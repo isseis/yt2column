@@ -11,13 +11,6 @@ import (
 	"testing"
 )
 
-// testOldValues is an old-value table for the tests that read plans, so they
-// do not depend on the old values _context.md still lists.
-var testOldValues = OldValues{
-	"frontier-required": RequirementOpus,
-	"standard":          RequirementSonnet,
-}
-
 // testContext is a _context.md holding only an old-value table, the part of
 // it that TestTasksRead's plan reading uses.
 const testContext = "### PR marker conventions\n\n| `standard` | `sonnet` |\n"

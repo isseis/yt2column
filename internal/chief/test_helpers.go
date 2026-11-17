@@ -401,6 +401,55 @@ func planSample(t *testing.T, name string) []byte {
 	return readTestdata(t, "plans/"+name)
 }
 
+// testOldValues is an old-value table for the tests that read plans, so they
+// do not depend on the old values _context.md still lists.
+var testOldValues = OldValues{
+	"frontier-required": RequirementOpus,
+	"standard":          RequirementSonnet,
+}
+
+// mustPlan returns the plan the testdata sample name holds.
+func mustPlan(t *testing.T, name string) *Plan {
+	t.Helper()
+	return mustPlanDoc(t, planSample(t, name))
+}
+
+// mustPlanDoc parses doc, failing the test when it does not parse.
+func mustPlanDoc(t *testing.T, doc []byte) *Plan {
+	t.Helper()
+	plan, err := ParsePlan(doc, testOldValues)
+	if err != nil {
+		t.Fatalf("ParsePlan: %v", err)
+	}
+	return &plan
+}
+
+// planBeforeTheFirstPR is marker-opus.md with its first PR not started.
+func planBeforeTheFirstPR(t *testing.T) *Plan {
+	t.Helper()
+	doc := string(planSample(t, "marker-opus.md"))
+	started := "- [x] PR を作成した: https://github.com/owner/repo/pull/1\n- [x] PR がマージされた\n"
+	if !strings.Contains(doc, started) {
+		t.Fatal("marker-opus.md no longer holds a merged first PR")
+	}
+	return mustPlanDoc(t, []byte(strings.Replace(doc, started, "- [ ] PR を作成した\n- [ ] PR がマージされた\n", 1)))
+}
+
+// docsInfo returns a document of status with the process record of a
+// requirements document.
+func docsInfo(status DocStatus, process Process) *DocInfo {
+	return &DocInfo{Status: status, Process: process}
+}
+
+// planFacts returns the facts of an approved plan.
+func planFacts(t *testing.T, plan *Plan) positionFacts {
+	t.Helper()
+	return positionFactsOf(workspaceFacts{
+		Head: headBranch, Task: taskID(t, "0001"),
+		Docs: &TaskDocs{Dir: "d", Requirements: docsInfo(DocApproved, ProcessFull), Architecture: docsInfo(DocApproved, ProcessFull), Plan: plan},
+	})
+}
+
 // taskID returns the task number s, failing the test when it is malformed.
 func taskID(t *testing.T, s string) paneinput.TaskID {
 	t.Helper()
@@ -409,4 +458,24 @@ func taskID(t *testing.T, s string) paneinput.TaskID {
 		t.Fatalf("ParseTaskID(%q): %v", s, err)
 	}
 	return task
+}
+
+// mustMkreq returns a running /mkreq for issue 890.
+func mustMkreq(t *testing.T) *RunningCommand {
+	t.Helper()
+	cmd, _, err := newRunningCommand(paneinput.CommandMkreq, "890")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &cmd
+}
+
+// mustRunning returns a running command of kind with arg.
+func mustRunning(t *testing.T, kind paneinput.CommandKind, arg string) *RunningCommand {
+	t.Helper()
+	cmd, _, err := newRunningCommand(kind, arg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &cmd
 }
