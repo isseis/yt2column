@@ -562,7 +562,7 @@ describe("layout", () => {
     assert.equal(effectiveValue(onScreen, "body", "font-size"), "1rem");
   });
 
-  it("fills the action section with each button and keeps it 44px tall", () => {
+  it("makes each full-width popup button fill its row and keeps it 44px tall", () => {
     for (const selector of ["#primary", "#secondary", "#setup", "#options"]) {
       assert.equal(effectiveValue(onScreen, selector, "width"), "100%");
       assert.ok(

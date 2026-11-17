@@ -1291,7 +1291,7 @@ describe("open viewer", () => {
       [{ op: "activate", tabId: 20 }],
     );
     assert.deepEqual(popup.focus.focused, [6]);
-    assert.deepEqual(startRequests(popup).length, 1);
+    assert.equal(startRequests(popup).length, 1);
   });
 
   it("opens a new viewer of the job in front when no viewer answers", async () => {
@@ -1544,12 +1544,38 @@ describe("popup choice focus", () => {
     return popup;
   }
 
+  it("gives the focus back to the primary button once the choice makes it pressable", async () => {
+    const popup = shown(collectedLaunch());
+    const doc = popup.elements.primary.ownerDocument;
+    popup.elements.primary.focus();
+    await pressWith(popup, "keyboard");
+    assert.equal(popup.elements.primary.disabled, true);
+    dropFocus(doc);
+    popup.session.items.set(jobItemName(otherJob), {
+      ...runningRecord(),
+      jobId: otherJob,
+    });
+    await popup.sw.answer(sameVideo);
+    assert.equal(popup.elements.primary.disabled, false);
+    assert.equal(doc.activeElement, popup.elements.primary);
+  });
+
   it("moves the focus from the secondary button to the primary button when the choice ends", async () => {
     const popup = await choiceShown();
     const doc = popup.elements.primary.ownerDocument;
     popup.elements.secondary.focus();
     await store(popup, { ...failedRecord("llm_failed"), jobId: otherJob });
+    assert.equal(popup.elements.secondary.hidden, true);
     assert.equal(doc.activeElement, popup.elements.primary);
+  });
+
+  it("leaves the focus on the secondary button while the choice stays", async () => {
+    const popup = await choiceShown();
+    const doc = popup.elements.primary.ownerDocument;
+    popup.elements.secondary.focus();
+    await store(popup, { ...doneRecord(), jobId: otherJob });
+    assert.equal(popup.elements.secondary.hidden, false);
+    assert.equal(doc.activeElement, popup.elements.secondary);
   });
 
   it("gives the focus to the primary button after a keyboard press of the secondary button", async () => {

@@ -517,6 +517,93 @@ describe("startViewer: a job URL", () => {
   });
 });
 
+describe("startViewer: copying and the heading", () => {
+  /** A viewer showing the done record whose article has mentionsNeutralized. */
+  async function showingDone(
+    mentionsNeutralized: boolean,
+    uiLanguage = "en-US",
+  ): Promise<Viewer> {
+    const done = doneRecord() as Extract<JobRecord, { state: "done" }>;
+    return open({
+      query: queryOf(),
+      uiLanguage,
+      items: [
+        [
+          jobItemName(jobId),
+          { ...done, article: { ...article, mentionsNeutralized } },
+        ],
+      ],
+    });
+  }
+
+  for (const [locale, uiLanguage] of [
+    ["en", "en-US"],
+    ["ja", "ja-JP"],
+  ] as const) {
+    it(`says a copy neutralized mentions, with no count, without moving focus in ${locale}`, async () => {
+      const viewer = await showingDone(true, uiLanguage);
+      viewer.elements.copy.focus();
+      const focused = viewer.doc.activeElement;
+      viewer.elements.copy.click();
+      await settle();
+      assert.deepEqual(viewer.clipboard.written, [article.markdown]);
+      assert.equal(
+        viewer.elements.actionStatus.textContent,
+        catalogs[locale].viewer.copiedNeutralized,
+      );
+      assert.equal(viewer.doc.activeElement, focused);
+    });
+  }
+
+  for (const mentionsNeutralized of [false, true]) {
+    it(`says when the copy fails${mentionsNeutralized ? ", not that it neutralized mentions" : ""}`, async () => {
+      const viewer = await showingDone(mentionsNeutralized);
+      viewer.clipboard.fail();
+      viewer.elements.copy.click();
+      await settle();
+      assert.deepEqual(viewer.clipboard.written, []);
+      assert.equal(
+        viewer.elements.actionStatus.textContent,
+        catalogs.en.viewer.copyFailed,
+      );
+    });
+  }
+
+  // The viewer has no copy listener: a reader's own copy of a selection
+  // must not touch the operation result's region.
+  it("leaves the operation result alone when the reader copies a selection", async () => {
+    const viewer = await showingDone(false);
+    viewer.elements.save.click();
+    await settle();
+    const status = viewer.elements.actionStatus;
+    const before = { text: status.textContent, first: status.firstChild };
+    for (const target of [viewer.doc, viewer.elements.article]) {
+      target.dispatchEvent(
+        new viewer.doc.defaultView!.Event("copy", { bubbles: true }),
+      );
+    }
+    await settle();
+    assert.equal(status.textContent, before.text);
+    assert.equal(status.firstChild, before.first);
+    assert.deepEqual(viewer.clipboard.written, []);
+  });
+
+  it("keeps the heading's text node through the redraw each second of a running job", async () => {
+    const viewer = await open({
+      query: queryOf(),
+      items: [[jobItemName(jobId), runningRecord(99, 4_000)]],
+    });
+    const node = viewer.elements.heading.firstChild;
+    assert.ok(node !== null);
+    const before = stateText(viewer);
+    viewer.clock.advance(elapsedRedrawMs);
+    await settle();
+    // The elapsed time changed, so the page was drawn again.
+    assert.notEqual(stateText(viewer), before);
+    assert.equal(viewer.elements.heading.firstChild, node);
+  });
+});
+
 describe("startViewer: a start URL", () => {
   it("shows the start context's values while it prepares, and runs the job it was handed", async () => {
     const viewer = await open({

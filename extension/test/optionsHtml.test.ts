@@ -41,6 +41,24 @@ describe("options.html skeleton", () => {
     }
   });
 
+  it("gives the buttons and the fields the classes that size them for style.test.ts", () => {
+    // style.test.ts checks the 44px rules of .action-button and .field input;
+    // these classes are what make the page's controls take them.
+    const doc = optionsDocument();
+    for (const id of ["save", "delete"]) {
+      assert.ok(
+        doc.getElementById(id)?.classList.contains("action-button"),
+        id,
+      );
+    }
+    for (const id of ["api-key", "workspace-id"]) {
+      assert.ok(
+        doc.getElementById(id)?.parentElement?.classList.contains("field"),
+        id,
+      );
+    }
+  });
+
   it("keeps the fields out of a form and off the browser's password and spelling help", () => {
     // A password field or a field in a form with a submit makes the browser
     // offer to save the key, which account sync would carry elsewhere.
