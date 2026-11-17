@@ -125,7 +125,7 @@ go build -o /tmp/yt2column-extjob ./cmd/yt2column-extjob
 
 ## 開発用の拡張のビルド
 
-`make ext-build-dev` は、公開用の `extension/dist/` とは別に、fake の LLM（`internal/llm/devfake`）で記事を作る開発用の拡張を `extension/dist-dev/` に作る。拡張に入れる記事生成モジュールは開発用の `cmd/yt2column-wasm-dev` で、Anthropic の API を呼ばない。シナリオはビルドのときに決まり、次の 5 つの変数で選ぶ。変数は `make` の引数で与え、与えない変数は既定の値になる。環境変数では選べない。
+`make ext-build-dev` は、公開用の `extension/dist/` とは別に、fake の LLM（`internal/llm/devfake`）で記事を作る開発用の拡張を `extension/dist-dev/` に作る。拡張に入れる記事生成モジュールは開発用の `cmd/yt2column-wasm-dev` で、Anthropic の API を呼ばない。シナリオはビルドのときに決まり、次の 5 つの変数で選ぶ。変数は `make` の引数で与え、与えない変数は既定の値になる。環境変数では選べない（`make -e` で走らせたときを除く）。
 
 ```sh
 make ext-build-dev

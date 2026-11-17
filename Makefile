@@ -472,7 +472,8 @@ ext-build:
 # The scenario the development build embeds in its article generation module
 # (cmd/yt2column-wasm-dev). Set one on the command line to change it, e.g.
 # `make ext-build-dev FAKE_FAILURE=timeout FAKE_FAIL_AT=draft`. `=` rather
-# than `?=`: a stale environment variable must not choose the scenario.
+# than `?=`: a stale environment variable must not choose the scenario
+# (`make -e` still lets one override it).
 FAKE_ARTICLE = standard
 FAKE_FAILURE = none
 FAKE_FAIL_AT = none
