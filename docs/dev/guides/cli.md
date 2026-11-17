@@ -3,8 +3,8 @@
 CLI は補助の経路である。LLM の呼び出しと記事の生成を開発し確かめるために使う。CLI は記事を `--out` のファイルに書く。主経路は
 [クイックスタート](../../../README.md#クイックスタート)の経路である。
 
-本書は、CLI だけが使う、または CLI だけが示すものを説明する。CLI が localhost サーバと共有する設定の変数は README の
-[設定](../../../README.md#設定)にあり、CLI だけが読む変数は下の[設定](#設定)にある。
+本書は、CLI だけが使う、または CLI だけが示すものを説明する。LLM の設定の変数は README の
+[設定](../../../README.md#設定)にあり、CLI だけが読むほかの変数は下の[設定](#設定)にある。
 
 ## 必要なもの
 
@@ -200,7 +200,7 @@ CLI が SIGKILL で止められると、`yt-dlp` が動き続けることがあ�
 キャッシュが壊れている（例えば文字起こしや `info.json` が途中で切れている）と、実行はキャッシュが壊れていることを示すメッセージを出して失敗する。`--refresh` を付けて実行し直し、文字起こしを取得し直してキャッシュを置き換える。
 
 保存した `info.json` のチャンネル名は、LLM を呼ぶ前に検査する。空白だけの名前、制御文字（または U+202E のような双方向の制御文字）を含む名前、200 コードポイントを超える名前は、実行を失敗させる。以前の版は受け付けていた。
-`--refresh` を付けて実行し、動画を取得し直してキャッシュを置き換える。localhost サーバは、そのような `channelName` を `invalid_body` で拒否する。
+`--refresh` を付けて実行し、動画を取得し直してキャッシュを置き換える。拡張の記事生成モジュールも、そのような `channelName` を受け付けない。
 
 ## yt-dlp の準備
 
@@ -231,14 +231,14 @@ yt-dlp --list-impersonate-targets   # lists targets whose Source is curl_cffi
 ## 設定
 
 CLI は、README の
-[設定](../../../README.md#設定)の変数と、CLI だけが読む次の 2 つの変数を、環境変数から読む。localhost サーバの設定ファイル（README の[設定ファイル](../../../README.md#設定ファイル)）は読まない。サーバは、README の設定の変数と同じ名前のキーを、環境変数ではなくその設定ファイルから読む。
+[設定](../../../README.md#設定)の変数と、CLI だけが読む次の 2 つの変数を、環境変数から読む。ファイルから設定を読むことはない。
 
 | 変数 | 説明 | 未設定のとき |
 |---|---|---|
 | `YT2COLUMN_CACHE_DIR` | 字幕と動画の情報（`info.json`）を保存するキャッシュのディレクトリ | macOS では `$HOME/Library/Caches/yt2column`。ほかの Unix では `$XDG_CACHE_HOME/yt2column` か `$HOME/.cache/yt2column` |
 | `YT2COLUMN_YTDLP_PATH` | `yt-dlp` のパス | `PATH` 上の `yt-dlp` |
 
-`yt2column-server` は、`yt-dlp` を呼ばないので、`YT2COLUMN_CACHE_DIR` も `YT2COLUMN_YTDLP_PATH` も読まない。`SLACK_WEBHOOK_URL` は、CLI もサーバも読まない。サーバの設定ファイルに `SLACK_WEBHOOK_URL=...` のキーの行が残っていると、サーバは知らないキーとして拒否し、起動しない（`#` で始まるコメントの行は受理する。README の「設定ファイル」を参照）。
+`SLACK_WEBHOOK_URL` は、CLI も拡張も読まない。
 
 前後に空白のあるモデルの ID は、工程のクライアントを組み立てるときに、リクエストを送る前に拒否する。CLI は実行が始まる前にクライアントを組み立てる。
 

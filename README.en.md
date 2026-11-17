@@ -1,4 +1,4 @@
-<!-- translated-from: README.md aec4ea003ffbf344d6fd4a89ffb5f821fa098609 -->
+<!-- translated-from: README.md fac259c55bd6f1cef8ad7d6e2590eeb7ce25b0f9 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -6,23 +6,25 @@ Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development pro
 # yt2column
 
 yt2column turns a YouTube video into a magazine-column-style article with an
-LLM. The primary path starts in the browser: the extension collects the
-transcript the user copied from YouTube's transcript panel, the native
-messaging host relays it to the localhost server, and the server generates the
-article. The article is shown in the extension's viewer tab, and saving it as a
-`.md` file and copying its Markdown to the clipboard are the user's choices in
-the viewer. A CLI is also included as a
-development path: it takes a video URL and fetches the transcript with
-[yt-dlp](https://github.com/yt-dlp/yt-dlp). The LLM call and the article
-generation are developed and checked with the CLI. The CLI writes the article
-to the `--out` file.
+LLM. The primary path is complete within the browser extension: the extension
+collects the captions the user selected in YouTube's transcript panel, and
+the article generation module in the extension (Go code built to WebAssembly)
+calls the Anthropic API inside the viewer tab to generate the article. The API
+key is set on the extension's options page and saved only in that browser. The
+article is shown in the extension's viewer tab, and saving it as a `.md` file
+and copying its Markdown to the clipboard are the user's choices in the
+viewer. A CLI is also included as a development path. The CLI takes a video
+URL and fetches the transcript with
+[yt-dlp](https://github.com/yt-dlp/yt-dlp). LLM calls and article generation
+are developed and verified with the CLI. The CLI writes the article to the
+`--out` file.
 
 ```mermaid
 flowchart LR
     classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
     classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
 
-    COPIED[("Copied transcript<br>(browser extension → native messaging host → localhost server)")]
+    COPIED[("Copied transcript<br>(browser extension; the viewer runs the article generation module)")]
     YTDLP[("URL<br>(the CLI fetches the transcript with yt-dlp)")]
     SRC["TranscriptSource"]
     TR[("Transcript")]
@@ -47,12 +49,15 @@ flowchart LR
 
 - The primary path uses the transcript copied from the transcript panel; only
   the CLI uses yt-dlp.
-- The default is the production profile: generation, shortening, and review
-  all use `claude` with `claude-opus-5-5` at effort `high`. See
+- The extension generates articles with the production profile only:
+  generation, shortening, and review all use `claude` with `claude-opus-5-5`
+  at effort `high`. The extension has no setting to choose a profile. See
   [Recommended configuration](#recommended-configuration) and
   [production_profile.md](docs/dev/production_profile.md) (Japanese).
-  DeepSeek and OpenAI are also available; providers are pluggable.
-- Designed for local execution.
+  With the CLI, DeepSeek and OpenAI are also available; providers are
+  pluggable.
+- The extension needs nothing installed besides the browser: no server and no
+  host for generating articles.
 
 > **Status:** early development; no release yet.
 
@@ -62,74 +67,67 @@ These steps generate a first article through the primary path and read it in
 the viewer. Each step links to
 the section that explains it in detail.
 
-1. Build the binaries with `make build`. They are placed in `build/`, and
-   nothing is installed. See [Localhost server](#localhost-server).
-2. Create the template of the server's configuration file with
-   `./build/yt2column-server config init`, and write `ANTHROPIC_API_KEY` in that
-   file. No other key
-   is needed: the default is the production profile (see
-   [Recommended configuration](#recommended-configuration)). The server does
-   not read settings from environment variables. See
-   [Configuration file](#configuration-file).
-3. Start the server with `./build/yt2column-server 2>>server.log`. The server
-   keeps running in the foreground (stop it with a signal), so run the next
-   steps in another terminal. See [Running the server](#running-the-server).
-4. After starting the browser you use once, register the host with
-   `./build/yt2column-nmhost install chrome` (or `install brave`). On macOS,
-   keep the built binary outside `~/Desktop`, `~/Documents`, and
-   `~/Downloads`. See
-   [Installing the native messaging host](#installing-the-native-messaging-host).
-5. Run `make ext-install` once, then run `make ext-build`, and load
+1. Run `make ext-install` once, then run `make ext-build`, and load
    `extension/dist` with **Load unpacked** on the extensions page. See
    [Browser extension](#browser-extension).
-6. Open the video's description ("...more") and its transcript panel, select
-   the caption lines, and send from the extension's toolbar icon. The article
+2. Open the extension's options page and save your Anthropic API key. The
+   options page opens from **Settings** in the popup. See
+   [Setting the API key](#setting-the-api-key).
+3. Open the video's description ("...more") and its transcript panel, select
+   the caption lines, open the popup from the extension's toolbar icon, and
+   press **Generate article**. The article
    is shown in the viewer tab that opens in the background, from which you can
-   save it as `.md` or copy its Markdown and paste it into a Slack or Mattermost
-   channel. See [Browser extension](#browser-extension).
+   save it as `.md` or copy its Markdown and paste it into a channel such as
+   Mattermost. See [Browser extension](#browser-extension).
+
+If you used the earlier version (the one with the localhost server and the
+native messaging host), do the
+[migration from the earlier version](#migrating-from-the-earlier-version)
+before you update the extension.
 
 ## Requirements
 
-**For the primary path (browser extension and localhost server):**
+**For the primary path (browser extension):**
 
-- Go (see `go.mod`)
+- Go (see `go.mod`), which the extension's build uses to build the article
+  generation module in the extension
 - Node.js, with the version pinned in `extension/.node-version` (used to build
   the extension)
 - Chrome 142 or later, or Brave on Chromium 142 or later
-- `ANTHROPIC_API_KEY` for the default provider
-
-An API key for the selected provider is required: `DEEPSEEK_API_KEY` for
-`deepseek`, `ANTHROPIC_API_KEY` for `claude`, `OPENAI_API_KEY` for `openai`. When the review step uses a
-different provider, that provider's key is required too.
+- An Anthropic API key. An API key of an organization that has enabled zero
+  data retention (ZDR) or the Compliance API cannot be used: such an
+  organization does not accept API calls from a browser.
 
 The CLI's requirements are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#必要なもの).
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#必要なもの). The CLI needs
+an API key for the selected provider.
 
 ## Post-generation steps
 
-After the article is generated, two steps run by default.
+After the article is generated, two steps run.
 
 1. **Shorten.** If the body is longer than 4,000 characters, the generation
    model shortens the body toward a target of 3,600 characters. If it is still
-   over 4,000 characters after shortening or after the review step, the run
-   fails with a length error and the article is not written.
+   over 4,000 characters after shortening or after the review step, the
+   generation fails with a length error and no article is made.
 2. **Review.** The review model compares the article with the video title,
    channel name, description, and transcript, and returns a list of
    corrections. The corrections target claims with no basis in the material,
    meaning-changing paraphrases, wrong speaker attributions, speech-recognition
    errors carried over into the article, and sentences whose meaning cannot be made out.
    The process that writes the article (the writer) applies the list to the
-   article. For the review step, a provider and a model of its own can be set
-   in `YT2COLUMN_REVIEW_LLM`. By default it uses the generation provider and
-   model.
+   article. With the CLI, a provider and a model of its own can be set for the
+   review step in `YT2COLUMN_REVIEW_LLM`. By default it uses the generation
+   provider and model.
 
 Both steps call the LLM (the shorten step only when the body is over the
-limit), so by default the LLM is called up to two more times than with
-generation alone, and the cost grows accordingly.
+limit), so the LLM is called up to two more times than with generation alone,
+and the cost grows accordingly.
 
 The CLI's flags that skip a step, record the review's changes, or save and
 resume the steps' output are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#生成の後の工程).
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#生成の後の工程). The
+extension skips no step.
 
 ## Output format
 
@@ -139,11 +137,13 @@ link) comes first, and the development part (models, estimated cost) goes into
 the front matter. The viewer's display and the copied text are the part other than the front matter (the title heading, the channel name line, and the body).
 
 The file the CLI writes is in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#--out-のファイル).
+[docs/dev/guides/cli.md](docs/dev/guides/cli.md#--out-のファイル). The
+content of the file the viewer's **Save as .md** saves has the same format as
+the CLI's `--out` file.
 
 ## Estimated cost
 
-The article's cost is in the CLI's `--out` file, in the front matter, with four decimals or `unknown`.
+The article's cost is in the CLI's `--out` file, in the front matter, with four decimals or `unknown`. The extension's viewer shows the estimated cost of a finished article.
 
 ```text
 Estimated cost: 0.0023 USD
@@ -153,15 +153,20 @@ Estimated cost: unknown
 The estimate is an estimate, not the billed amount. It can differ from the
 provider's invoice.
 
+- For a run that made no article (the API rejected the API key, the generation
+  failed, or it stopped with the viewer tab), the extension shows the cost as
+  unknown across the board and shows no amount. For a run that ended without
+  ever calling the API (no API key, or the saved settings cannot be used), it
+  does not mention the cost.
 - DeepSeek's peak window is a weekly rule in UTC: the alternate rate applies on
-  Monday through Friday during 01:00-04:00 and 06:00-10:00 UTC. The server
+  Monday through Friday during 01:00-04:00 and 06:00-10:00 UTC. The CLI
   judges the window from its own clock in UTC and does not know Chinese public
   holidays, so a call on a holiday is billed at the off-peak rate but estimated
   as peak: the estimate leans high.
 - A call that crosses a window boundary can be judged at a different minute than
-  the provider billed it, because the server's time is when the response was
+  the provider billed it, because the CLI's time is when the response was
   read and validated, and the provider's billing time is not documented.
-- A server on a machine whose clock is wrong judges the window wrongly.
+- A CLI on a machine whose clock is wrong judges the window wrongly.
 - OpenAI costs are estimated at the rates of the Standard processing tier and a
   30-minute prompt cache. When the response does not show these, the cost is
   `unknown` even when the token counts are known. A call whose input (cache
@@ -177,409 +182,396 @@ Check the actual charge in the provider's console.
 The CLI's cost lines on standard error, which give the reason, are in
 [docs/dev/guides/cli.md](docs/dev/guides/cli.md#推定の料金).
 
-## Localhost server
+## Browser extension
 
-`yt2column-server` accepts the transcript the browser extension collects,
-generates the article, returns it, and keeps it in memory. The server's HTTP
-API (the job API, which starts a generation and fetches the status) is in
-[docs/dev/guides/development.md](docs/dev/guides/development.md#localhost-サーバの-api).
-A generation start declares, in the body's required member `mode`, whether it
-is an inquiry start (`inquiry`) or a plain start (`plain`). When the article of
-the current input is neither generating nor generated, and the server's memory
-holds another article of the same video (the same video ID) that is generating
-or generated, an inquiry start returns that article's key in a
-same-video answer (`200`, with `status` set to `same_video`) without starting a
-generation. A plain start generates the article of the current input even when
-an article of the same video exists.
-The extension does not connect to the server directly: the browser starts the
-native messaging host, `yt2column-nmhost`, which relays the request to the
-server's socket (see
-[Installing the native messaging host](#installing-the-native-messaging-host)).
-`make build` builds `build/yt2column`, `build/yt2column-server`, and
-`build/yt2column-nmhost`; it installs nothing.
+A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
+TypeScript and built with Node.js. It is not published to a store: you build it
+and load the build as an unpacked extension. It runs on Chrome 142 or later.
+The extension collects a
+selection, the tab URL, and the tab title, and reads the video metadata (the
+video title, the channel name, and the description) from the video page. From
+the selection, the URL, and the video metadata, the article generation module
+in the extension generates the article and shows it in a tab of the extension's
+page (the viewer). The tab title is shown for checking (and must not be
+empty); it is not used to generate the article.
 
-The server reads the LLM settings from its
-configuration file (see [Configuration file](#configuration-file)).
-The server never calls `yt-dlp` and reads
-neither `YT2COLUMN_CACHE_DIR` nor `YT2COLUMN_YTDLP_PATH`. It listens on a Unix
-domain socket (UDS) only, never on a TCP port. The socket path is derived from
-`HOME` alone:
+Node.js 24 is required, and every `ext-*` target refuses to run when
+`node --version` does not match `extension/.node-version`. The version file sits
+inside `extension/`, so a Node.js version manager that reads the current
+directory (such as [fnm](https://github.com/Schniz/fnm)) must be activated
+inside `extension/`. Run the targets from the repository root with that version
+still active.
 
-- macOS: `$HOME/Library/Application Support/yt2column/run/server.sock`
-- other Unix: `$HOME/.local/state/yt2column/run/server.sock`
-
-No other variable (such as `XDG_STATE_HOME` or `TMPDIR`) changes the path. The
-server needs no shared token: the socket directory has mode `0700` and the
-socket mode `0600`, so only processes running as your user can connect, and the
-server trusts them. The server checks only the request path and method, not the
-`Host`, `Origin`, `Content-Type`, or `Authorization` headers.
-
-### Configuration file
-
-The path of the server's configuration file is derived from `HOME` alone. It
-is the same on macOS and on other Unix:
-
-- configuration file: `$HOME/.config/yt2column/config.env`
-
-No other variable, such as `XDG_CONFIG_HOME`, changes the path. The server
-reads this file once, when it starts. After editing the file, stop the server
-and start it again.
-
-The server does not read settings from environment variables. From the process
-environment the server's code reads only `HOME`, which determines the socket path and the
-configuration file's path, and `GODEBUG`, for a warning. When `GODEBUG` contains
-`http2debug=1` or `http2debug=2`, Go's HTTP/2 log may write the API key to
-standard error, so the server warns about it. The Go standard library,
-however, uses the proxy variables of the server's environment (`HTTPS_PROXY`,
-`HTTP_PROXY`, `NO_PROXY`) for the requests to the LLM API. When
-environment variables with the names of the six keys below are set, the server
-ignores them: it does not stop and does not warn. The CLI reads environment
-variables as before and does not read the configuration file (see
-[Configuration](#configuration)).
-
-**Creating the template.** The following command creates the template of the
-configuration file. It does not run the server.
+The build also runs Go: it builds the article generation module that goes
+into the extension with the Go version on `go.mod`'s `go` line. When the local
+Go is another version, the first build downloads that version of Go (which uses
+the network).
 
 ```sh
-./build/yt2column-server config init
+cd extension && fnm use && cd ..
+make ext-install   # install the pinned dev dependencies (npm ci; needs network)
+make ext-build     # build extension/dist/
 ```
 
-The template consists of blank lines and comment lines only: for each of the
-six keys, a description and the key's line commented out (for example,
-`# ANTHROPIC_API_KEY=`). To set a key, delete the `# ` at the start of its line
-and write the value after `=`. `config init` does not read the values of
-environment variables, so the template holds no value.
+The development targets, such as the checks CI runs and the development build
+that calls no LLM API, are in
+[docs/dev/guides/development.md](docs/dev/guides/development.md).
 
-`config init` creates the file with mode exactly `0600`, whatever the umask. It
-creates whichever of `$HOME/.config` and `$HOME/.config/yt2column` does not
-exist yet with mode `0700`, and leaves an existing directory unchanged. When
-something is already at the path (a file, a symbolic link, a directory, and so
-on), it leaves it unchanged and ends. It writes the file to a temporary file in
-the same directory (with a name starting with `.config.env.tmp-`) before putting
-it in place, so a failure part way leaves no partly written file. The
-directories it created remain. When it cannot remove the temporary file, it
-names it; remove it by hand. `config init` gives the path of the file it created on one
-line of standard error and writes nothing to standard output.
+Load the build in Chrome or Brave:
 
-`config init` exit codes:
+1. Open `chrome://extensions/` (Brave: `brave://extensions/`).
+2. Turn on **Developer mode**.
+3. Click **Load unpacked** and select the `extension/dist` directory.
 
-| Code | Meaning |
-|---|---|
-| `0` | The template was created. |
-| `1` | Nothing was created, or creating failed (something is already at the path, the `HOME` directory does not exist, or creating a directory or the file failed). |
-| `2` | The arguments are wrong (for example, another argument follows `config init`), or `HOME` is unset, empty, or relative. |
+To update from an earlier build, first run `make ext-build` to rebuild
+`extension/dist/`, then click the extension's reload button on
+`chrome://extensions/` (Brave: `brave://extensions/`). `extension/dist/` is
+build output that pulling new source does not update, so reloading without
+rebuilding keeps running the earlier build. Reloading the extension closes the
+extension's open pages (the viewers included), and both the articles being
+generated and the finished articles are lost.
 
-**Format.** Write one `KEY=VALUE` per line, with lines separated by LF (the
-last line need not end with LF). The file is never run as a shell script: no
-variable is expanded and no quote is interpreted.
+The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk` and is the
+same on every machine and from every directory. The saved API key is kept per
+extension ID, so it survives a rebuild and a reload as long as the ID does not
+change.
 
-- Blank lines and lines starting with `#` (comments) are skipped.
-- The key is everything before the first `=`, and must exactly match one of
-  the six keys
-  `YT2COLUMN_LLM`, `YT2COLUMN_REVIEW_LLM`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `ANTHROPIC_WORKSPACE_ID`.
-  The meaning of each key is in the table in [Configuration](#configuration), and
-  any key may be left out. A key left out is treated the same as an unset
-  environment variable in the CLI.
-- The value is everything after the first `=`, used without conversion. A `#`
-  not preceded by a space, and any further `=`, are part of the value (the value of
-  `ANTHROPIC_API_KEY=sk-xxx#y` is
-  `sk-xxx#y`).
-- A value may be empty (`KEY=`). An empty value is treated the same as an empty
-  environment variable in the CLI: it is a configuration error when the key
-  is used, and is not rejected for a key of a provider that is not used.
+The extension cannot be enabled in incognito mode.
 
-A file containing any of the following is rejected as a whole. The server never
-starts using only some of its lines.
+The popup, the viewer, and the options page show their text in Japanese when
+the browser's UI language is Japanese, and in English otherwise. The extension
+has no language setting. The screen text this README quotes (such as the
+message below for a collapsed description) is the English version.
 
-- A line without `=`, a key other than the six keys (including a lowercase key
-  and a line with `export ` in front, such as `export ANTHROPIC_API_KEY=...`)
-- A line starting with a space, or a line with a space before or after the key
-  (`ANTHROPIC_API_KEY =x`)
-- A value that starts or ends with a space, a value that starts with `"` or `'`
-  (quotes are not removed), or a value containing a space followed by `#`
-  (`ANTHROPIC_API_KEY=sk-xxx # personal`; write a comment on a line of its own)
-- The second and later lines of the same key
-- A CR (including a CRLF line break), a control character other than LF (such
-  as a tab), DEL, or U+FEFF (a BOM)
-- A byte sequence that is not valid UTF-8, or a size over 64 KiB (65,536 bytes)
+#### Setting the API key
 
-A format rejection names the configuration file's path, and the line number and
-a fixed reason of each rejected line, one per line up to 20 lines; when there
-are more, it gives the number of the remaining lines. It never shows a value or the
-text of a key other than the six keys. A duplicate-key rejection names that
-key.
+The extension calls the Anthropic API to generate articles, so save an API key
+on the options page before using it. Open the options page from **Settings** at
+the bottom of the popup, or from **Extension options** under the extension's
+**Details** on `chrome://extensions/` (Brave: `brave://extensions/`). The
+options page opens in a tab.
 
-**`SLACK_WEBHOOK_URL` from an earlier version.** A server before this version
-accepted `SLACK_WEBHOOK_URL`, the destination of the post, as a configuration
-file key. This version removed posting, so it rejects that line as a key other
-than the six keys and does not start (exit code `2`; the message gives the line
-number and a fixed reason and never the value). When the line is still in the
-configuration file, delete it and then start the server. A line starting with
-`#` (a comment) is still accepted even when it contains `SLACK_WEBHOOK_URL`.
+The options page has a field for the API key, a field for the workspace ID, and
+the **Save** and **Delete** buttons, and shows whether an API key is set and the
+information of the extension's build (the commit, the Go version, and the LLM).
 
-**Checks.** Before reading the configuration file, the server checks it. In any
-of the following cases, it stops with exit code `2` without fixing anything (it
-changes neither the mode nor the owner). The message names the path and the
-reason.
+- **API key**: the characters you type are masked. The saved API key is never
+  shown on the screen again; the page shows only whether one is set. To change
+  it, enter a new API key. A screen reader may read out the characters you
+  type.
+- **Workspace ID**: optional. Leaving it empty means no workspace is given (the
+  workspace the API key belongs to is used). An API key that belongs to no
+  workspace needs a workspace ID; without one, article generation fails with
+  the API's rejection (400).
 
-- Nothing is at the path. The message tells you to create it with
-  `yt2column-server config init`.
-- It is a symbolic link (even when its target is a correct file).
-- It is not a regular file (a directory, a FIFO, a socket, and so on).
-- Its owner is not the user running the server.
-- Its mode is not exactly `0600` (`0644`, `0400`, `0600` with the setuid,
-  setgid, or sticky bit, and so on are rejected too). The message gives the mode found and
-  the command that fixes it, `chmod 600 '<path>'`.
-- It cannot be opened or read (for example, a parent directory cannot be
-  searched).
+When you press **Save**, the extension checks the form of the values in the two
+fields, calls Anthropic's Models API once to check the API key, and then saves.
+This call uses no tokens, so it costs nothing. While it checks, the fields and
+the buttons cannot be changed. The result is one of the following, shown at the
+top of the page.
 
-The server reads the content from the same file it checked, so even when the
-file at the path is replaced after the check, it never uses the content of a
-file it did not check.
+- The API key was accepted: saved, and the fields are emptied.
+- It could not be checked (a network failure, a timeout, a rejection other than
+  401, and the like): saved, with a note that it could not be checked. If an
+  article later fails because the API key was rejected, save a new API key.
+- A field's value is not in an accepted form: nothing is saved, and that field
+  is marked.
+- Anthropic rejected the API key (401): nothing is saved. The key has expired,
+  has been revoked, or is wrong, or the organization does not allow calls from a
+  browser.
+- It could not be checked inside the extension: nothing is saved. Save again.
+- It may not have been saved: check whether the page shows an API key as set,
+  and save again.
 
-**ACLs are not checked.** The mode check does not look at ACLs (access control
-lists). On macOS, even with mode exactly `0600`, when an ACL grants another user
-the right to read the file, the server accepts the file, and other users can
-read the API key. An ACL gets attached when you add one with `chmod +a`, when
-the file is placed in a directory with an inherited ACL, when it is copied with
-its ACL, and so on. On macOS, check for ACLs with the following commands, and
-remove them when there are any.
+**Delete** deletes both the API key and the workspace ID.
 
-```sh
-ls -le ~/.config/yt2column/config.env
-chmod -N ~/.config/yt2column/config.env
-```
+The API key and the workspace ID are saved only in `chrome.storage.local` of
+this browser profile. They survive a browser restart and are not synced to other
+devices. The only place the extension sends the API key to is
+`https://api.anthropic.com`; the popup and the service worker do not read the
+API key's value. However, processes that run as the same OS user can read the
+profile's files. We recommend creating the API key in a workspace used only
+for this extension, with a monthly usage limit. With an API key made in that
+workspace, no workspace ID needs to be entered.
 
-`ls -le` shows each ACL entry, if any, on a numbered line. `chmod -N` removes
-every ACL of the file. On Linux, when the mode is exactly `0600`, the POSIX ACL
-mask is empty, so entries for named users or groups grant no right.
+#### Popup
 
-### Running the server
+To send, open the transcript panel on a video page, select the caption
+lines, and click the extension's toolbar icon to open the popup. From top to
+bottom, the popup has these parts:
 
-Prepare the [configuration file](#configuration-file) before starting it.
+- Video section: the video title as the heading, with the channel name below
+  it when the page provides one. When the video title cannot be read, the
+  heading falls back to the tab title.
+- Checks section: a **Selected captions** row showing the selection's
+  character and line counts and a preview of its first 100 characters (and of
+  its last 100 when the selection is longer), and a **Description** row
+  showing the state of the description. A ⚠ row flags something to note,
+  and shows the steps when there is something to do.
+- Action section: the **Generate article** button, which starts generating
+  the article.
+- **Details**: collapsed until opened; it shows the collected URL and the tab
+  title.
+- **Settings**: opens the options page. It is always shown.
 
-```sh
-./build/yt2column-server 2>>server.log
-```
+Before it reads the selection and the video metadata, the popup makes the saved
+settings unreadable from web pages. When it cannot, it does not read the tab,
+and shows that and the steps.
 
-The server writes nothing to standard output. The logs go to standard error, so
-`2>>server.log` keeps a record. The first log line names the socket. Every
-request line carries the `requestId` the response returns, so `grep "$requestId" server.log` finds them. The generation job lines carry the article key and the video ID, instead of a `requestId`. The extension does not show the key, so find the failure of an article's generation sent from the extension by the time and the video ID.
+The extension reads the video metadata without changing the page, so a
+collapsed description can only be read as far as the page shows it. When the
+description is collapsed, the popup says "Collapsed, so only the beginning will
+be sent." and adds these steps:
 
-On start the server creates the socket directory (`run`) with mode `0700` when
-it is missing, takes the start lock (the file `.yt2column.lock` in the socket
-directory, which stays), removes a stale socket left by a server that was
-killed, and creates the socket with mode `0600`. Only one server per `HOME`
-(normally one per user) can run. The server holds the start lock until it has
-stopped and its in-flight jobs have finished. The server repairs nothing: when
-the socket directory is not yours, is a symbolic link, or does not have exactly
-mode `0700`, or when a name at the socket path is not a socket, the server
-refuses to start until you fix it by hand.
+1. Click "...more" below the video.
+2. Reopen this popup.
 
-The socket path must fit the operating system's limit (107 bytes on Linux, 103
-bytes on macOS and other Unix). On macOS the part after `HOME` is 54 bytes, so
-`HOME` can be at most 49 bytes. If it is longer, the server refuses to start with exit code `2`.
+The button stays enabled; pressing it generates the article from the beginning
+the page shows.
 
-Exit codes:
+A selection over 4 MiB does not generate an article: the **Selected captions**
+row turns into a ⚠ with the reason and steps, and the button stays disabled.
 
-| Code | Meaning |
-|---|---|
-| `0` | The server stopped after a signal. |
-| `1` | Preparing the socket directory, taking the start lock, creating the socket, or serving requests failed (for example, another server is already running). |
-| `2` | The server was given arguments other than `config init`, or the configuration (including `HOME`, the socket path derived from it, and the configuration file's checks, format, and values) or building the components failed before listening. |
+Some values can be missing. When the video title, the channel name, or the
+description is missing from the page or only whitespace, that value is left
+out of the input of the article generation (a channel name that is not only
+whitespace but contains control characters, or is longer than 200 code points,
+is not left out: the article generation module does not accept that input, and
+the start is refused). Without a video title the tab title becomes the heading;
+without a description the **Description** row turns into a ⚠ saying the
+description is not used; without a channel name the video section shows no
+channel name. When the page cannot be read at all, or the tab moved to
+another video after the selection was read, all three are left out. The
+extension still generates the article from the selection and the URL.
 
-### Stopping the server
+When you press **Generate article**, the extension checks whether an API key is
+saved. If not, it shows that an API key needs to be set and the
+**Set API key** button, opens no viewer, and calls no API. If one is saved, the
+extension opens the viewer tab next to the YouTube tab in the background. The
+tab you are working in does not switch. The article is generated inside that
+viewer tab. The extension never starts article generation again by itself.
+Paid article generation starts only when you press this button (or **Try
+again**, **Generate from current selection**, or **Generate article** after the
+choice has ended, below); opening an extension page, reloading the viewer, or
+restoring a closed tab does not start it.
 
-The server logs to standard error. The first `SIGINT`, `SIGTERM`, or `SIGHUP`
-(a signal that was ignored at startup is not subscribed to) stops accepting connections,
-removes the socket, cancels the running generations, and waits for the in-flight requests and the canceled generations to finish. A canceled generation ends only when its LLM call returns: that article is lost, and the viewer shows
-**Article lost**. A second signal makes the server exit at once. Until the jobs have finished, a
-new server refuses to start.
+After you press it, the popup keeps the video section and **Details** as they
+are and shows the state where the checks section was. The button in the action
+section turns into the action that fits the state.
 
-### Installing the native messaging host
+- **Starting**: the button cannot be pressed. You can close the popup: the
+  result appears in the viewer tab.
+- **Loading**: article generation has started, and its record is being read.
+  The button becomes **Open viewer**.
+- **Generating**: a checklist of the three steps ("Draft", "Shorten",
+  "Review") and the time elapsed since the press. The button becomes **Open
+  viewer**.
+- **Done**: that the article is ready, with its estimated cost and time taken.
+  The button becomes **Open viewer**.
+- **Failed**, **Stopped with its page**, **API key rejected**: the reason, the
+  steps, and that the cost is unknown. The button becomes **Try again**, which
+  starts generating the article for the same input once more (one time only). **API key
+  rejected** also shows the **Set API key** button. When you save a new API key
+  and then press **Try again**, or press the popup's button on the YouTube tab
+  with the same selection, the article is generated again under the same job.
+- **A setting is needed** (during generation, the API key was gone or the saved
+  settings could not be used): that, and the **Set API key** button. The API
+  was not called, so the cost is not mentioned. The button becomes **Try
+  again**.
+- **Article lost**: the record is gone (see "Records" below). The button becomes
+  **Try again**.
+- **Start refused**, **Result unknown**: the reason and the steps. The button
+  stays disabled. To start again, reopen the popup.
 
-The browser starts `yt2column-nmhost` for each send from the extension. The
-host reads one request from the browser, sends it to the server's socket,
-writes the server's response back to the browser, and exits; it starts nothing
-and keeps nothing. The host reads `HOME` as the browser passes it and no other
-variable, so it derives the same socket path as a server started with the same
-`HOME`, and it reads no API key. The host's
-standard output is the channel to the browser; its log goes to standard error.
+A start is refused when the selection is not accepted as captions, when two
+articles are being generated already (at most two articles are generated at the
+same time), or when the extension fails internally. Result unknown is shown
+when the result has not arrived 60 seconds after the start. Pressing again with
+the same selection does not generate twice while that article is being
+generated or is done; in any other case it starts generating a new article.
 
-The host exits with `0` once it has written its reply (a host error included),
-and with `1` when it could not write one.
+When the article of the same input (the same selection, URL, and video
+metadata) is being generated or is done, any press shows that article instead
+of generating a new one. When the article of the same input failed or stopped,
+it is generated again under the same job.
 
-Register the host with each browser you use by running the built binary.
+**Generate article** starts with the same-video inquiry. When the extension
+holds the record of another article of the same video (the same video ID,
+whatever form the URL takes) that is being generated or is done, the extension
+does not start generating and shows that article instead. The popup then keeps
+the video section and **Details** and shows, where the checks section was, that
+the extension has an article of the same video and that article's state
+(generating or done); this is the choice. The action section shows two buttons:
 
-```sh
-./build/yt2column-nmhost install chrome
-./build/yt2column-nmhost install brave
-```
+- **Open existing article**: brings that article's viewer tab to the front, in
+  the same order as **Open viewer**. It starts no generation. After it is
+  pressed, the popup stays in the choice.
+- **Generate from current selection**: starts generating the same input once,
+  without the inquiry, and opens a new viewer tab in the background. The popup
+  moves to the starting state and then shows the states above. The existing
+  article's tab is not closed.
 
-`install` writes the host manifest `io.github.isseis.yt2column.json`. The
-manifest names the binary's absolute path (symbolic links resolved) and allows
-only the yt2column extension to start the host. `install` writes the manifest
-path to standard error. The manifest goes to:
+As long as neither button is pressed, the extension starts nothing. When the
+existing article fails, stops, or is lost while the choice is shown, the popup
+shows that the article of the same video can no longer be used, and the
+buttons become the single **Generate article**; pressing it starts with the
+inquiry again. **Try again** starts the same way as the start it repeats (a
+retry after **Generate from current selection** has no inquiry).
 
-- macOS, Chrome and Brave: `$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
-- other Unix, Chrome: `$HOME/.config/google-chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
-- other Unix, Brave: `$HOME/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/io.github.isseis.yt2column.json`
+The same-video inquiry is best effort. It finds only the articles whose records
+the extension holds, so an article whose record is gone is not found, and then
+the article is generated without showing the choice. The choice does not mean
+that no other article of the same video exists, or that this one will stay.
 
-On macOS, Brave reads Chrome's manifest directory, so Chrome and Brave share
-one manifest file: `install chrome` and `install brave` write the same file,
-and `uninstall` for either browser removes the host from both. If you keep
-using the other browser, run `install` for it again. On macOS, the host says
-this on standard error too.
+**Open viewer** brings to the front the viewer tab that shows that article.
+Without one, it opens a new viewer tab of the same article and brings it to the
+front. A tab the browser discarded while it was inactive cannot be found, so the
+same article then has two tabs. Closing the popup also stops its state display,
+and reopening it starts again from the screen before generating.
 
-`install` refuses, changing nothing, when:
+#### Viewer
 
-- the browser's user data directory does not exist (macOS:
-  `$HOME/Library/Application Support/Google/Chrome` or
-  `$HOME/Library/Application Support/BraveSoftware/Brave-Browser`; other Unix:
-  `$HOME/.config/google-chrome` or `$HOME/.config/BraveSoftware/Brave-Browser`).
-  Start the browser once, then install again;
-- the binary is under the temporary directory, as with `go run`. Install from
-  the binary `make build` built;
-- a file at the manifest path was not written by this host. Check that file by
-  hand.
+In every state except an invalid link, the viewer shows a link to the original
+video, and before the article is finished it shows the same heading and channel
+name as the popup. Once the article is finished, it shows the video title and
+channel name the article generation module neutralized (without a video title,
+the heading stays as it was). The page title is "`<video title> - yt2column`",
+and it appears in the browser's history and on the tab. Without a video title,
+the heading is used.
 
-Running `install` again replaces the manifest this host wrote. The manifest
-points at the binary where it was when you installed it: after moving or
-renaming the binary, run `install` again. On macOS, keep the binary outside the
-folders the system protects (TCC), such as `~/Desktop`, `~/Documents`, and
-`~/Downloads`: a host started from there can be refused access.
+- **Preparing**, **Loading**: an animated mark and a sentence saying which one
+  it waits for.
+- **Generating**: a checklist of the three steps and the time elapsed since the
+  article generation started.
+- **Done**: the article, laid out with its title and section headings,
+  paragraphs, lists, emphasis, and so on, with the autolinks of the form
+  `<https://…>` that meet the conditions opening in a new tab, together with the
+  estimated cost and the time taken. There are two operations:
+  - **Save as .md**: saves the article's file content (the same as what `--out`
+    writes) through the browser's download. The file name is built from the
+    video title, with characters not allowed in file names replaced by `_` and a
+    name that is too long cut short. When there is no video title, or it is only
+    whitespace, the name is `<video ID>.md`.
+  - **Copy Markdown**: copies the shown article's Markdown to the clipboard.
+    The `@` characters in the article have been neutralized by the article generation
+    module, which inserts U+200B (zero-width space) right after the `@` so that
+    it does not become a mention where it is pasted. U+200B is invisible, but it
+    is copied along with the text. When at least one `@` was neutralized, the
+    copy notice says so (without a count). Selecting the shown article and
+    copying it with the browser copies the same neutralized characters, but the
+    Markdown symbols such as `#` and `**` are removed by the rendering and are
+    not included, and no notice is shown. Use this button to paste the Markdown
+    as it is.
+- **Done, but not kept**: the article is done, but the extension could not
+  write it into its record. Only that viewer page holds the article; it can be
+  saved and copied, but reloading or closing the page loses it.
+- **Failed**, **Stopped with its page**, **API key rejected**: the reason, the
+  steps, and that the cost is unknown. **API key rejected** also shows the **Set
+  API key** button.
+- **A setting is needed**: that there is no API key or the saved settings cannot
+  be used, and the **Set API key** button. The cost is not mentioned.
+- **Article lost**: the record is gone. Open the video from the video link and
+  generate the article again.
+- **Start refused**, **Result unknown**, **Input not received**: the reason and
+  the steps. When the input was not received, no article generation started and
+  nothing was charged.
+- **Invalid link**: the viewer URL is not in an accepted form. No article is
+  shown, and nothing is started.
 
-To remove the host from a browser:
+A viewer that shows an article of the same video (an existing-article viewer)
+shows, below the heading, that it shows an existing article of the same video,
+not one generated from the current selection, and the steps to generate from
+the current selection. The existing article started before this start, so it
+shows no elapsed time even while it is being generated (it shows the time taken
+once it is done). When the popup has already opened a viewer that shows the same article, the
+newly opened viewer tab closes itself, and the earlier viewer stays.
+
+**The article is generated inside the viewer tab.** While it is generated, the
+tab can stay in the background. Closing or reloading that tab stops the
+generation, and it does not continue anywhere else. After you have interacted
+with the viewer page even once, the browser asks before a reload or closing the
+tab. A viewer you have never interacted with stops without asking. A stopped
+article becomes **Stopped with its page**, and its cost is shown as unknown.
+The whole article generation has a deadline of 50 minutes; past it, it fails.
+
+**Records.** The extension keeps a record of each article generation (its state,
+steps, and the finished article) in the browser's memory
+(`chrome.storage.session`) and does not write it to disk. A finished article can
+be shown until the browser is closed, after reloading the viewer, restoring a
+closed tab, or opening it from the browser's history. Closing the browser,
+and reloading or updating the extension, removes every record. There are at most
+50 records with at most 8 MiB in total; beyond that, the oldest of the failed
+and stopped records go first, then the oldest of the finished articles. An
+article over 256 KiB cannot be kept and fails. A record holds neither the copied
+transcript nor the description.
+
+The viewer URL holds the start ID before the article generation starts, or the
+job ID after it started, the collected URL, and the page title (the video title
+cut to 64 characters), and an existing-article viewer also holds a value saying
+so (`e=1`). It holds neither the copied transcript nor the description. The URL
+stays in the browser's history. The job ID is an opaque value that does not
+represent the article's content. A viewer whose URL values were crafted can show
+any heading and title, so the heading does not vouch for the article's content.
+
+The selection is used exactly as copied from the transcript panel; the
+extension does not trim surrounding whitespace. Selecting the whole panel is
+fine: the article generation module skips the lines the panel adds around the
+captions, which are the lines before the first timestamp (such as the panel's
+title), chapter heading lines, and the trailing blank lines and the label of
+the `Sync to video time` (`動画の時間と同期`) button. When the timestamp and the
+text are on separate lines, a heading right after a timestamp without text is
+taken as that timestamp's text. Any other line is rejected: an unknown line
+inside a transcript that places the timestamp and the text on one line, a
+blank or whitespace-only line inside the transcript, a control character such
+as a tab on any line, and a line that holds a run of ASCII digit, colon, digit
+(such as a malformed timestamp) before the first timestamp or where a timestamp
+line is expected.
+
+To see what was collected and the results, open the popup's console from the
+moment the popup opens: right-click the toolbar icon and choose **Inspect
+popup** (shown when Developer mode is on; when the icon is inside the
+extensions menu, pin the extension first). The viewer's log is in the viewer
+tab's DevTools, and the log of the coordination of the article generation is in
+the console opened from the extension's **Service Worker** link on
+`chrome://extensions/` (Brave: `brave://extensions/`). The logs never hold the
+transcript, the article, the video metadata values, the API key, or the job ID.
+
+## Migrating from the earlier version
+
+The earlier version generated articles with the localhost server
+(`yt2column-server`) and the native messaging host (`yt2column-nmhost`). The
+current extension uses neither. Before you update the extension, migrate with
+these steps.
+
+1. Stop the running `yt2column-server`.
+2. With the earlier version's host binary, remove the host's manifest from each
+   browser you used (the commands below). When you cannot run it, for example
+   because the binary is gone, remove the manifest files below by hand.
+3. Rebuild and reload the extension (see [Browser extension](#browser-extension)),
+   and save the API key on the options page (see
+   [Setting the API key](#setting-the-api-key)).
+4. Once you have made one article with the extension alone, delete the server's
+   configuration file `~/.config/yt2column/config.env`. This file holds a
+   plaintext copy of the API key. Until you delete it, you can go back to the
+   earlier version's server and host.
 
 ```sh
 ./build/yt2column-nmhost uninstall chrome
 ./build/yt2column-nmhost uninstall brave
 ```
 
-`uninstall` removes only a manifest this host wrote, and leaves the
-`NativeMessagingHosts` directory, which other hosts' manifests may share. With
-no manifest it does nothing and succeeds. Neither command touches the server,
-its socket, or its configuration.
+The manifest files to remove by hand:
 
-Host exit codes for `install` and `uninstall`:
+- Chrome and Brave on macOS: `$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
+- Chrome on other Unix: `$HOME/.config/google-chrome/NativeMessagingHosts/io.github.isseis.yt2column.json`
+- Brave on other Unix: `$HOME/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/io.github.isseis.yt2column.json`
 
-| Code | Meaning |
-|---|---|
-| `0` | The manifest was written or removed (or there was none to remove). |
-| `1` | `install` or `uninstall` refused, or writing or removing the file failed. |
-| `2` | The arguments are wrong (the browser is not exactly `chrome` or `brave`), or `HOME` is unset, empty, or relative. |
-
-### Reject reasons
-
-What the extension shows when the server rejects a request with each reason:
-
-| reason | extension shows |
-|---|---|
-| `not_found` | unexpected reply |
-| `method_not_allowed` | unexpected reply |
-| `too_many_requests` | fixed message |
-| `body_too_large` | fixed message |
-| `invalid_body` | fixed message |
-| `invalid_video_url` | fixed message |
-| `invalid_transcript` | fixed message |
-| `invalid_key` | fixed message |
-| `internal_error` | fixed message (unexpected reply when `requestId` is empty) |
-
-The status code of each reason, and how to check the server with `curl`, are in
-[docs/dev/guides/development.md](docs/dev/guides/development.md#curl-でサーバを確かめる).
-
-### Troubleshooting
-
-- **`another server holds the socket directory lock`.** Another server is
-  running, or a stopped one is still waiting for its in-flight jobs. The
-  message names the lock file; `lsof` on it shows which process holds the lock.
-- **`another process accepts connections on the socket path`.** A process other
-  than a server listens on the socket path. Stop it, or check the file at that
-  path.
-- **`... nothing was repaired or removed, so fix it by hand`.** The socket
-  directory, its parent, or the name at the socket path is not in the accepted
-  form (the message names the path and the reason). Fix it by hand, for
-  example by restoring mode `0700` on the socket directory, and start again.
-- **`HOME: the socket path derived from HOME exceeds the operating system's
-  limit`.** `HOME` is too long for the socket path; see the limit above.
-- **`configuration: configuration file ... does not exist; create it with yt2column-server config init`.**
-  The configuration file does not exist. Create the template with
-  `./build/yt2column-server config init`, write the values, and start again
-  (see [Configuration file](#configuration-file)). If you used settings from
-  environment variables, see
-  [Migrating from environment variables](#migrating-from-environment-variables).
-- **`configuration: configuration file key ANTHROPIC_API_KEY: is not set` (or
-  another key).** The key is not in the configuration file. The server does
-  not read the values of environment variables, so exporting it in the shell
-  has no effect. Write the key in the configuration file. `is empty` means the
-  key is there but its value is empty.
-- **`build the LLM client` or `build the review LLM client` with a model
-  error.** The provider's client rejects a model ID with surrounding whitespace
-  or invalid UTF-8 when it is built, without naming the variable. The server
-  builds both clients at startup, so it exits with `2` before it listens, and
-  the extension can only report that the server is not running. For the first,
-  fix the model ID in `YT2COLUMN_LLM`. For the second, fix the model ID in
-  `YT2COLUMN_REVIEW_LLM`; when `YT2COLUMN_REVIEW_LLM` is unset, fix the model ID
-  in `YT2COLUMN_LLM`.
-- **The native messaging host is not found.** When there is no manifest for
-  that browser, or the manifest's binary is gone, the browser gives the
-  extension `Specified native messaging host not found.` (shown in the
-  extension's developer log). Run `yt2column-nmhost install` for that browser
-  from the binary you want it to start (see
-  [Installing the native messaging host](#installing-the-native-messaging-host)).
-  Run it again after moving the binary.
-- **Access to the host is forbidden.** When the extension's ID is not the one
-  the manifest allows, the browser gives the extension
-  `Access to the specified native messaging host is forbidden.` Load the
-  extension built from this repository's `extension/`. The `key` in the
-  extension's manifest fixes its ID.
-- **Reading the host's log.** The host logs to standard error, which goes to
-  the browser's own standard error, out of sight when the browser was started
-  from the Dock or a menu. Quit the browser completely, then start its
-  executable from a terminal. The host's log lines then appear in that
-  terminal.
-  - macOS, Chrome: `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`
-  - macOS, Brave: `"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"`
-  - other Unix: `google-chrome` or `brave-browser`
-
-  The host logs the socket path it derived, how far the relay got, and the
-  host error or the server's status code, never the request or the response.
-  If the host's socket path differs from the one in the server's first log
-  line, the browser and the server see different values of `HOME`.
-
-### Upgrading from the shared-token version
-
-- Stop the old server before starting this one. The old server listened on a
-  TCP port and did not take the start lock, so the new one cannot detect it.
-- The server no longer reads the shared token file. It can be deleted:
-  - macOS: `$HOME/Library/Application Support/yt2column/server-token`
-  - other Unix: `${XDG_CONFIG_HOME:-$HOME/.config}/yt2column/server-token`
-- The server no longer reads the variable that chose its port; it can be
-  removed from your environment.
-- The extension no longer has a settings page or the storage permission, so it
-  can neither read nor delete the token and port an earlier version saved in
-  the browser. The server no longer accepts them. To remove them anyway, remove
-  the extension on `chrome://extensions/` (Brave: `brave://extensions/`) and
-  load `extension/dist` again. The extension's ID stays the same, so you do not
-  need to run the host's `install` again.
-
-### Migrating from environment variables
-
-Earlier versions of the server read the settings from environment variables.
-The server now reads only the configuration file, and does not start without
-it. Migrate with these steps:
-
-1. Create the template with `./build/yt2column-server config init`.
-2. Copy the values you set for the server (the six keys of
-   [Configuration file](#configuration-file)) from `.envrc`, `.env`, your shell
-   startup files, the script that starts the server, and so on, to the
-   matching lines of the template. Delete the `# ` at the start of the line and
-   write only the value after `=`. Do not copy `export ` or quotes around the
-   value (both are rejected).
-3. Stop the running server and start it again.
-
-Environment variables no longer affect the server. The CLI still reads
-environment variables, so you may keep them for the CLI.
+Even if the shared token and port (`sharedToken`, `serverPort`) an earlier
+version saved in the browser are left, the current extension neither reads nor
+deletes them. To delete them, remove the extension once on
+`chrome://extensions/` (Brave: `brave://extensions/`), then load
+`extension/dist` again. Removing the extension also deletes the saved API key,
+so save it again.
 
 ## Configuration
 
@@ -592,18 +584,12 @@ environment variables, so you may keep them for the CLI.
 | `OPENAI_API_KEY` | OpenAI API key (the API is billed separately from a ChatGPT subscription) | Required when the generation or review provider is `openai` (an error) |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
 
-The CLI reads these from environment variables. `yt2column-server` reads keys
-with the same names from its configuration file, and does not read the values
-of these environment variables (see [Configuration file](#configuration-file)).
-The rules for values in this section, including how an empty value is handled,
-are the same for environment variables and the configuration file. The
-configuration file is also subject to the format rules of
-[Configuration file](#configuration-file) (for example, a value with a trailing
-space is rejected as a format error before a client is built). "When
-unset" in the table means, for the configuration file, that the key is absent.
-The server
-derives its socket path from `HOME` alone (see
-[Localhost server](#localhost-server)).
+The CLI reads these variables from environment variables. The extension does
+not read them. The extension's settings are only the Anthropic API key and the
+workspace ID saved on the options page, and it always generates articles with
+the production profile of
+[Recommended configuration](#recommended-configuration) (see
+[Setting the API key](#setting-the-api-key)).
 
 The variables only the CLI reads, and how the CLI reads the ones above, are in
 [docs/dev/guides/cli.md](docs/dev/guides/cli.md#設定).
@@ -619,8 +605,7 @@ including any further `/` (`claude/vendor/model-x` sends the model
 are rejected; so are `/claude-opus-5-5`, `Claude/claude-opus-5-5`, and
 ` claude/claude-opus-5-5`. A model ID with surrounding whitespace is accepted
 here, but rejected, before any request is sent, when a run that includes the
-step builds that step's client. The server builds both at startup, before it
-listens.
+step builds that step's client.
 
 When there is a `+` after the first `/`, the part before the `+` is the model
 ID and the part after it is the effort. The `+` is looked for only after the
@@ -650,20 +635,12 @@ off, and the other values turn it on.
 a ChatGPT subscription cannot be used. Set the API key in `OPENAI_API_KEY`. For
 example, to run generation and shortening on `gpt-6-astra` at effort `medium`
 and review on `gpt-6.1-sol` at its default effort, set these environment
-variables for the CLI:
+variables:
 
 ```sh
 export YT2COLUMN_LLM=openai/gpt-6-astra+medium
 export YT2COLUMN_REVIEW_LLM=openai/gpt-6.1-sol
 export OPENAI_API_KEY=<OpenAI API key>
-```
-
-For the server, write the keys of the same names in the configuration file:
-
-```text
-YT2COLUMN_LLM=openai/gpt-6-astra+medium
-YT2COLUMN_REVIEW_LLM=openai/gpt-6.1-sol
-OPENAI_API_KEY=<OpenAI API key>
 ```
 
 All seven effort values in the table above are accepted; they are not narrowed
@@ -720,317 +697,24 @@ fails as truncated. In that case, append a lower effort to the value of
 
 ### Recommended configuration
 
-The line to write in the server's configuration file:
+The value of the CLI's environment variable:
 
 ```text
 YT2COLUMN_LLM=claude/claude-opus-5-5+high
 ```
 
 This value is the production profile: generation, shortening, and review all
-use `claude` with `claude-opus-5-5` at effort `high`. It is also the code's
-default (see [#490](https://github.com/isseis/yt2column/issues/490)
+use `claude` with `claude-opus-5-5` at effort `high`. The extension always
+generates articles with this profile. It is also the CLI's default (see
+[#490](https://github.com/isseis/yt2column/issues/490)
 and [#171](https://github.com/isseis/yt2column/issues/171)), so it need not be
-written: with `ANTHROPIC_API_KEY` as the only LLM setting, generation,
-shortening, and review all use this profile. Writing it pins the profile even
-if a default changes later. For the CLI, set the same value in the environment
-variable `YT2COLUMN_LLM`.
+set: with `ANTHROPIC_API_KEY` as the only LLM setting, generation,
+shortening, and review all use this profile. Setting it pins the profile even
+if a default changes later.
 
-`ANTHROPIC_API_KEY` is required. To review with the generation profile, leave
-`YT2COLUMN_REVIEW_LLM` unset. To use another profile, set the values instead of
-relying on the defaults: in the configuration file for the server, and in environment
-variables for the CLI.
+For the CLI, `ANTHROPIC_API_KEY` is required. To review with the generation
+profile, leave `YT2COLUMN_REVIEW_LLM` unset. To use another profile, set the
+values in environment variables instead of relying on the defaults.
 
 The quality target, the results, and the product limitations of this profile
 are in [production_profile.md](docs/dev/production_profile.md) (Japanese).
-
-## Browser extension
-
-A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
-TypeScript and built with Node.js. It is not published to a store: you build it
-and load the build as an unpacked extension. It runs on Chrome 142 or later.
-The extension collects a
-selection, the tab URL, and the tab title, and reads the video metadata (the
-video title, the channel name, and the description) from the video page. It
-sends the selection, the URL, and the video metadata to the localhost server,
-and shows the generated article in a tab of the extension's page (the viewer). The tab title is shown for checking (and must not be
-empty); it is not sent.
-
-Node.js 24 is required, and every `ext-*` target refuses to run when
-`node --version` does not match `extension/.node-version`. The version file sits
-inside `extension/`, so a Node.js version manager that reads the current
-directory (such as [fnm](https://github.com/Schniz/fnm)) must be activated
-inside `extension/`. Run the targets from the repository root with that version
-still active.
-
-The build also runs Go: it builds the article generation module that goes
-into the extension with the Go version on `go.mod`'s `go` line. When the local
-Go is another version, the first build downloads that version of Go (which uses
-the network). The extension does not use the article generation module yet; the
-localhost server still writes the article.
-
-```sh
-cd extension && fnm use && cd ..
-make ext-install   # install the pinned dev dependencies (npm ci; needs network)
-make ext-build     # build extension/dist/
-```
-
-The development targets, such as the checks CI runs, are in
-[docs/dev/guides/development.md](docs/dev/guides/development.md).
-
-Load the build in Chrome or Brave:
-
-1. Open `chrome://extensions/` (Brave: `brave://extensions/`).
-2. Turn on **Developer mode**.
-3. Click **Load unpacked** and select the `extension/dist` directory.
-
-To update from an earlier build, first run `make ext-build` to rebuild
-`extension/dist/`, then click the extension's reload button on
-`chrome://extensions/` (Brave: `brave://extensions/`). `extension/dist/` is
-build output that pulling new source does not update, so reloading without
-rebuilding keeps running the earlier build, which may send without asking for
-confirmation.
-
-When you update the extension, bring the server and the host to the same build
-as well: rebuild with `make build`, restart the server, and run the host's
-`install` again from the built binary. The extension sends messages in the new form to the server's job API. When the versions do not
-match, depending on the combination, the send is rejected or ends in an unexpected reply. The host rejects the messages of an extension older than the job API (before #503), the server rejects with `not_found` a request that a host older than the job API relays, and a server older than the job API also returns `not_found`. The server's log records the reject reason (`not_found` and the like) but not the request's path, so if an unexpected reply appears after an update, check that the extension, the server, and the host are of the same build. When only the extension is updated, an old server that does not know the inquiry setting (`mode`) ignores the inquiry and may generate without showing the choice even when an article of the same video exists. Conversely, when only the server is updated, it rejects the sends of an old extension, which carry no `mode`, with `invalid_body`.
-
-The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk` and is the
-same on every machine and from every directory.
-
-The extension sends through the native messaging host, so before the first
-send, start the server and register the host for the browser you use from the
-binary `make build` built (see
-[Installing the native messaging host](#installing-the-native-messaging-host)):
-
-```sh
-./build/yt2column-nmhost install chrome   # or: install brave
-```
-
-There is nothing to set in the extension: it has no settings page and stores
-nothing. If the popup says the native messaging host could not be started, the
-host is most often not installed for that browser, or its binary was moved
-since it was installed: run `yt2column-nmhost install` again from the built
-binary (see [Troubleshooting](#troubleshooting)).
-
-The popup and viewer UI text is displayed in Japanese when the browser's UI
-language is Japanese, and in English otherwise. There is no language setting in
-the extension. The popup and viewer UI text quoted in this README, such as the
-collapsed-description message below, is the English version.
-
-To send, open the transcript panel on a video page, select the caption lines,
-and click the extension's toolbar icon to open the popup. The popup has four
-parts, top to bottom:
-
-- The video section: the video title as the heading, with the channel name
-  below it when it can be taken from the page. When the video title is not
-  available, the heading is the tab title instead.
-- The checks section: a **Selected captions** row with the selection's
-  character and line counts and a preview of its first 100 characters (and,
-  when the selection is longer, its last 100), and a **Description** row with
-  the description's state. A ⚠ row says what needs attention and, when there
-  is something to do, the steps to take.
-- The action section: a **Generate article** button. It sends when you press
-  it.
-- **Details**, folded away until you open it: the collected URL and the tab
-  title.
-
-The extension reads the video metadata without changing the page, so a
-collapsed description is read only up to what the page shows. When the
-description is collapsed, the popup says "Collapsed, so only the beginning
-will be sent." with these steps:
-
-1. Click "...more" below the video.
-2. Reopen this popup.
-
-The button stays usable: pressing it sends the beginning that the page shows.
-
-A selection whose request body would be over 4 MiB is not sent: the
-**Selected captions** row becomes ⚠ with the reason and the steps, and the
-button stays disabled.
-
-Some values may not be available. When a video title, channel name, or
-description is missing or blank on the page, that value is left out of the
-request (a channel name that is not blank but has a control character or is
-longer than 200 code points is not left out: the server rejects the request with
-`invalid_body`). A missing video title makes the tab title the heading, a
-missing description makes the **Description** row ⚠ and says the description
-will not be sent, and a missing channel name is not shown in the video section.
-When the page cannot be read at all, or the tab has moved to another video
-since the selection was read, all three are left out. The extension still
-sends the selection and the URL, and the article is generated from them.
-
-When you press **Generate article**, the extension sends the generation start
-to the server exactly once and, at the same time, opens a viewer tab next to the
-YouTube tab. The tab you are working in does not change (the viewer opens in the
-background). The extension does not resend the generation start automatically.
-
-After the press, the popup keeps the video section and **Details** as they are
-and shows the state in place of the checks section. The button in the action
-section becomes the action for the state:
-
-- **Sending**: the button is disabled. You can close the popup: the
-  result appears in the viewer tab.
-- **Loading**: the server accepted the article, and the popup is waiting for
-  its first status. The button becomes **Open viewer**.
-- **Generating**: it shows a checklist of the three steps ("Draft", "Shorten",
-  and "Review") and the time elapsed since the send. The button becomes
-  **Open viewer**.
-- **Generated**: it shows that the article is ready, with the estimated cost and the time taken. The button becomes **Open viewer**.
-- **Failed** and **Article lost**: it shows the reason and the steps. The button
-  becomes **Try again**, which sends the generation start of the same input once
-  more, exactly once, and opens a new viewer tab.
-- **No key received** (rejected, not sent, or result unknown): it shows the
-  reason and the steps. The button stays disabled: reopen the popup to send
-  again.
-
-**Generate article** sends an inquiry start. When the server's memory holds an
-article of the same video (the same video ID, however the URL is written) that
-is generating or generated, the server returns that article without starting a
-generation. The popup then keeps the video section and **Details** as they are,
-and in place of the checks section shows that this server has an article of the
-same video, and that article's state (loading, generating, or generated) (the
-choice). The action section holds two buttons:
-
-- **Open existing article**: brings forward that article's viewer tab, in the
-  same order of fallbacks as **Open viewer**. It sends no generation start.
-  Even after the press, the popup stays in the choice.
-- **Generate from current selection**: sends the generation start of the same
-  input as a plain start, exactly once, and opens a new viewer tab in the
-  background. The popup moves to the sending state and then shows the states
-  above. The existing article's tab is not closed.
-
-When neither button is pressed, the extension sends nothing (it only keeps
-fetching the status). When the existing article fails, or is lost from the
-server, while the choice is shown, the popup shows that the article of the
-same video can no longer be used, and the only button becomes
-**Generate article**. Pressing it sends an inquiry start again. When the status
-cannot be fetched, the popup keeps both buttons and adds that the status
-cannot be fetched. **Try again**
-sends in the same mode as the send it retries (a retry after
-**Generate from current selection** is a plain start).
-
-The same-video inquiry is best effort. The server holds articles only in
-memory, drops old articles when the count limit is exceeded, and loses
-them all when it restarts. A dropped or lost article is not found by the
-inquiry, so in that case the article is generated without the choice being
-shown. Showing the choice does not mean that no other article of the same
-video exists, nor that this article will remain.
-
-**Open viewer** brings forward the viewer tab that shows this send's article.
-When you have closed that tab, it brings forward another viewer tab that shows
-the same article, and when there is none, it opens a new viewer tab of the same
-article and brings it forward. A tab the browser discarded to save resources
-cannot be found, so in that case there are two tabs of the same article. When
-the popup closes, its state display stops too, and a reopened popup starts from
-the screen before sending. The extension stores nothing, so the popup does not
-remember the earlier send.
-
-In every state except an invalid link, the viewer shows a link to the original
-video, and before the article is done it shows the same heading and channel name as the popup. Before the article is done, the heading and the channel name are values
-the viewer's URL holds. After the article is done, the viewer shows the neutralized video title and channel name that the server returns (when the video title was not sent, the title is still the viewer's URL value). A viewer opened from a crafted URL can therefore show
-any heading: the heading does not vouch for the article's content.
-
-- **Sending** and **Loading**: a moving indicator, with text saying which of the
-  two it is waiting for.
-- **Generating**: a checklist of the three steps and the time elapsed since the
-  send. The state is fetched again repeatedly.
-- **Generated**: the article, laid out with its title and section headings,
-  paragraphs, lists, emphasis and the like, with an autolink written as
-  `<https://…>` that meets the conditions opening in a new tab, and the
-  estimated cost and the time taken. There are two operations:
-  - **Save as .md**: saves the file contents the server returns (the same as
-    what `--out` writes) as a browser download. The file name is made from
-    the video title, with characters that cannot be used in a file name replaced by `_`,
-    and a name that is too long is cut. When there is no video title, or it is
-    only whitespace, the name is `<video ID>.md`.
-  - **Copy Markdown**: copies the Markdown of the shown article to the
-    clipboard. The article's `@` characters are ones the server neutralized by
-    inserting a U+200B (zero width space) right after the `@`, so that it does
-    not become a mention where the text is pasted. The U+200B is invisible but
-    is copied with the text. When at least one `@` was neutralized, the copy
-    notice says so (it shows no count). When no `@` was neutralized, and when
-    the copy fails, the notice is as before. When you select the shown article
-    and copy it in the browser, the same neutralized characters are copied, but
-    the Markdown symbols (`#`, `**`, and the like) are dropped in rendering and
-    are not included, and no notice appears. Use this button when you want to
-    paste the Markdown itself.
-- **Failed**: the reason of the failure and the steps for that reason.
-- **Article lost**: the server restarted or dropped the article from its cache.
-  Sending the same input again from the popup generates the article again. When the
-  article was lost after it was shown, the shown article stays, and it can
-  still be saved and copied.
-- **No key received**: the result of the generation start (rejected, not sent,
-  or result unknown), with the reason and the steps.
-- **Invalid link**: the viewer's URL is not in a form it accepts. It shows
-  neither the heading nor an article, and sends nothing.
-
-A viewer that shows an article of the same video (an existing-article viewer)
-shows, under the heading, that it displays an existing article of the same
-video, one not generated from the current selection, and the steps to generate
-from the current selection. A viewer shows this when a viewer opened by an
-inquiry start receives a same-video answer (when another viewer shows the same
-article, the new tab is closed and that viewer takes over and shows this), and
-when **Open existing article** opens a new tab. The existing article started
-generating before this send, so the viewer does not show the elapsed time even
-while it is generating (once generated, it shows the time taken).
-
-When a status fetch fails, the popup and the viewer keep the state they showed
-and add that the status cannot be fetched, with the steps. When the server is
-not running, there is no response, or the host failed, they keep fetching; when
-the fetch is rejected or the reply cannot be interpreted, they stop.
-
-How to read the result of the generation start:
-
-- **Rejected**: it shows the reason and a `requestId`.
-- **Not sent**: the server is not running, or the request is too large for the
-  host. The request did not reach the server, so it says what to fix.
-- **Result unknown**: the server did not respond in time, the host could not be
-  started or exited without replying, or the reply could not be interpreted.
-  The request may have reached the server. You may send the same input again
-  from the popup: while the server is generating that article or holds the
-  generated article, it returns that article without generating it again. When
-  the input changed (for example, when you opened the description before
-  sending), the article had failed, or the server restarted, it generates the
-  article again.
-
-The `requestId` links a rejection the extension shows to the server log.
-
-The viewer's URL holds the article key (once accepted), the heading, the
-channel name, the video title, the collected URL, the send time, and, in an
-existing-article viewer, a value that marks it as one (`e=1`). It does not
-hold the copied captions or the description. Reloading the viewer, restoring a
-closed tab, or opening it from the browser history shows the same article. To
-reopen a viewer after closing it, restore the closed tab, open it from the
-history, or send the same input again from the popup. The key differs for each
-server process, so after the server restarts, an earlier viewer URL shows that
-the article was lost.
-
-If you close both the viewer tab and the popup before the server accepts the
-article (before the key arrives), the result of that send is shown nowhere. If
-it was accepted, the server keeps generating the article, so sending the same
-input again from the popup opens a viewer that shows that article.
-
-The selection is sent exactly as copied from the transcript panel; the extension
-does not trim it. You can select the whole panel: the server skips the lines the
-panel adds around the captions, which are the lines before the first timestamp
-(such as the panel's title), chapter heading lines, and, at the end, blank lines
-and the `Sync to video time` (`動画の時間と同期`) button label. When the
-timestamp and the text are on separate lines, a heading directly after a
-timestamp with no text is taken as that timestamp's text. Other lines, however,
-are rejected: an unknown line among captions that put the timestamp and the
-text on one line, an empty or whitespace-only line among the captions, a tab or
-other control character in any line, and, before the first timestamp or where a
-timestamp line is expected, a line containing an ASCII digit, a colon, and a
-digit in a row (such as a malformed timestamp).
-
-To see what was collected and the results of the status fetches, open the
-popup's console from the moment the popup opens: right-click the toolbar icon
-and choose **Inspect popup** (shown while Developer mode is on; pin the
-extension first if its icon is in the Extensions menu). The viewer's log is in
-the DevTools of the viewer tab, and the generation start's log is in the console
-opened from the extension's **Service Worker** link on `chrome://extensions/`
-(Brave: `brave://extensions/`). For a host that could not be started, the log
-records the browser's error text, such as
-`Specified native messaging host not found.`. The log does not hold the
-captions, the article, the video metadata's values, or the article key.

@@ -78,7 +78,9 @@ func (l Locator) In(t testing.TB, lang Lang) string {
 // The README locators. A guard test finds a section, a table, or a labelled
 // line of either version by these.
 var (
-	ReadmeUpgradeHeading           = Locator{JA: "### 共有トークンの版からの更新", EN: "### Upgrading from the shared-token version"}
+	// ReadmeMigrationHeading heads the section on moving from the version
+	// with the localhost server and the native messaging host.
+	ReadmeMigrationHeading         = Locator{JA: "## 以前の版からの移行", EN: "## Migrating from the earlier version"}
 	ReadmeRecommendedConfigHeading = Locator{JA: "### 推奨構成", EN: "### Recommended configuration"}
 
 	// ReadmeVariableColumn and ReadmeUnsetColumn head the configuration

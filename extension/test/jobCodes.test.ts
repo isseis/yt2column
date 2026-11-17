@@ -1,17 +1,43 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import {
-  failureCodes,
-  jobStates,
-  stepNames,
-  stepStates,
-} from "../src/core/response.ts";
+import { recordFailures } from "../src/core/jobRecord.ts";
+import type { JobRecord, StopReason } from "../src/core/jobRecord.ts";
+import { internalDetails } from "../src/core/wasmResult.ts";
+import type { StepName, StepState } from "../src/core/wasmResult.ts";
 import { developmentDoc } from "./helpers/developmentDoc.ts";
 import { cells, markdownSection, readRepoFile } from "./helpers/repoFile.ts";
 
+// The value sets the record's types declare without a runtime set of their
+// own. `satisfies` makes each one exactly the type's values: a value added to
+// or removed from the type fails the type check here until the set follows.
+const jobStates = {
+  running: true,
+  done: true,
+  failed: true,
+  stopped: true,
+} as const satisfies Record<JobRecord["state"], true>;
+const stepNames = {
+  draft: true,
+  shorten: true,
+  review: true,
+} as const satisfies Record<StepName, true>;
+const stepStates = {
+  pending: true,
+  running: true,
+  done: true,
+  skipped: true,
+  failed: true,
+} as const satisfies Record<StepState, true>;
+const stopReasons = {
+  tab_closed: true,
+  page_closed: true,
+  page_reloaded: true,
+  no_contact: true,
+} as const satisfies Record<StopReason, true>;
+
 /**
- * The codes in the first column of the table, in the job API code section,
+ * The codes in the first column of the table, in the job record section,
  * whose first header cell is header: the backquoted value of each row. A
  * code listed twice fails instead of being counted once.
  */
@@ -37,17 +63,19 @@ function documentedCodes(section: string, header: string): string[] {
   return codes;
 }
 
-describe("job codes match the development guide", () => {
+describe("job record values match the development guide", () => {
   const section = markdownSection(
     readRepoFile(developmentDoc.path),
     developmentDoc.jobCodesHeading,
   );
   const { jobCodeTables } = developmentDoc;
-  const sets: { header: string; codes: Record<string, true> }[] = [
+  const sets: { header: string; codes: Readonly<Record<string, true>> }[] = [
     { header: jobCodeTables.jobState, codes: jobStates },
     { header: jobCodeTables.step, codes: stepNames },
     { header: jobCodeTables.stepState, codes: stepStates },
-    { header: jobCodeTables.failure, codes: failureCodes },
+    { header: jobCodeTables.failure, codes: recordFailures },
+    { header: jobCodeTables.internalDetail, codes: internalDetails },
+    { header: jobCodeTables.stopReason, codes: stopReasons },
   ];
 
   for (const { header, codes } of sets) {

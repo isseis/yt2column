@@ -1,12 +1,11 @@
 # 開発の手順
 
-本書は yt2column の開発者のための文書である。`make` のターゲット、開発用の別のサーバ、開発用の拡張のビルド、拡張の開発のための検査、localhost サーバの HTTP の API、統合テストを説明する。ブラウザ拡張と localhost サーバの使い方は [README](../../../README.md) に、CLI は [cli.md](cli.md) にある。
+本書は yt2column の開発者のための文書である。`make` のターゲット、開発用のコマンド、開発用の拡張のビルド、拡張の開発のための検査、ジョブの記録の値、統合テストを説明する。ブラウザ拡張の使い方は [README](../../../README.md) に、CLI は [cli.md](cli.md) にある。
 
 ## make のターゲット
 
 ```sh
-make build   # build the three binaries into build/
-make build-dev  # build the development server on the fake LLM into build/dev/
+make build   # build the binaries into build/
 make test    # unit tests (no network, no yt-dlp)
 make lint    # golangci-lint (pinned version) と make wasm-check
 make wasm-check  # 2 つの記事生成モジュールを Go の WASM（GOOS=js GOARCH=wasm）でビルドできることの検査
@@ -22,73 +21,6 @@ make test-integration-cli  # the CLI with the real DeepSeek API; see below
 [docs/dev/conventions/requirements_process.md](../conventions/requirements_process.md) を参照。
 設計の文書は日本語で書く。まず
 [docs/dev/project_overview.md](../project_overview.md) を読む。
-
-## 開発用に別のサーバを動かす
-
-ソケットのパスと設定ファイルのパスは `HOME` だけで決まり、1 つの `HOME` で動かせるサーバは 1 つである。自分のサーバと同時に、ワークツリーからビルドしたサーバを動かすには、`/tmp` の下の短いディレクトリを専用の `HOME` として与え（macOS では、`mktemp -d` の既定のディレクトリではソケットのパスが長すぎる）、その `HOME` の下に設定ファイルを置いてから起動し、そのサーバのソケットにリクエストを送る。
-
-```sh
-dev_home="$(mktemp -d /tmp/y2c.XXXXXX)"
-HOME="$dev_home" ./build/yt2column-server config init
-printf '%s\n' 'ANTHROPIC_API_KEY=dev-dummy-key' \
-  >>"$dev_home/.config/yt2column/config.env"
-HOME="$dev_home" ./build/yt2column-server 2>>"$dev_home/server.log" &
-server_pid=$!
-socket="$dev_home/.local/state/yt2column/run/server.sock"
-if [ "$(uname -s)" = Darwin ]; then socket="$dev_home/Library/Application Support/yt2column/run/server.sock"; fi
-until [ -S "$socket" ] || ! kill -0 "$server_pid" 2>/dev/null; do sleep 0.1; done
-if [ -S "$socket" ]; then
-  curl -sS --unix-socket "$socket" -X GET http://localhost/jobs
-else
-  echo "server exited at startup; $dev_home/server.log:" >&2; cat "$dev_home/server.log" >&2
-fi
-kill "$server_pid" 2>/dev/null; wait "$server_pid"; rm -rf "$dev_home"
-```
-
-待機のループは、サーバが起動の途中で終了したとき（設定の誤り、またはその `HOME` の起動のロックを別のサーバが持っているとき）に待つのをやめる。そのときは、最後の行がログを消すので、リクエストを送る代わりにログを表示する。最後の行は、サーバがまだ動いていてもいなくても実行できる。
-
-`config init` が作った雛形はモード `0600` で、`>>` で行を足してもモードは変わらない。`HOME` が異なれば、ワークツリーごとのサーバはほかのサーバと同時に動く。サーバは LLM の設定を専用の `HOME` の下の設定ファイルから読み、利用者の環境変数の設定の値も、利用者の `HOME` の設定ファイルも読まない（Go の標準ライブラリがプロキシの変数を使うことは、README の「設定ファイル」を参照）。設定ファイルに本物の値を書くと、受け付けた生成の開始は LLM を呼んで記事を生成する。上の例のように偽の値（任意の API キー）を書いたときは、ジョブが始まる前に拒否されるリクエストだけを送る。例えば上の誤ったメソッド（`GET /jobs` への `method_not_allowed`）や誤ったパス（`not_found`）である。受け付けられた生成の開始は、LLM の API を呼ぼうとして失敗する。
-
-拡張は、そのようなサーバにはつながらない。ブラウザは本物の `HOME` で Native Messaging のホストを起動するので、ホストは本物の `HOME` で起動したサーバのソケットにだけつなぐ。ホストの manifest はブラウザごとに 1 つのファイル（macOS では Chrome と Brave で共有する 1 つのファイル）なので、あるワークツリーのビルドからホストを登録すると、別のワークツリーが登録した manifest を置き換える。拡張を使ってビルドを確かめるときは、一度に 1 つのワークツリーだけで行う。
-
-## fake の LLM でサーバを動かす
-
-`make build-dev` は、本番の 3 つのバイナリとは別に、fake の LLM で動く開発用のサーバを `build/dev/yt2column-devserver` に作る。LLM の API も API キーも設定ファイルも要らず、記事の種類・失敗・遅れを起動のときに選べる。使うのは `internal/llm/devfake` の fake の LLM と、本番と同じ `internal/server` である。規則は [security.md](../security.md) の §8.2 にある。
-
-```sh
-make build-dev
-```
-
-本番のサーバと同じく `HOME` から導出したソケットのパスで待ち受けるので、本番のサーバとは同時に動かせない。先に動いているサーバがあれば、起動のロックを取れずに終了コード `1` で中止する。拡張から確かめるときは、本番のサーバを止めて、本物の `HOME` で起動する（ホストは本物の `HOME` から導出したソケットにしかつながない）。`curl` で確かめるときは、[開発用に別のサーバを動かす](#開発用に別のサーバを動かす) と同じく、`/tmp` の下の短いディレクトリを `HOME` に与えれば、本番のサーバと同時に動かせる。
-
-```sh
-HOME="$HOME" ./build/dev/yt2column-devserver
-```
-
-引数は次のとおりである。知らない引数・知らない値・繰り返し・余分な語・値の欠け・失敗の種類と工程の片方だけの指定は、何も待ち受けずに、受理する値の案内を標準エラー出力に出して終了コード `2` で終わる。`-delay` の値は、`05` のように先頭が `0` の 2 桁以上の数も受理しない。
-
-| 引数 | 意味 | 受理する値 | 省いたとき |
-|---|---|---|---|
-| `-article` | 記事の種類 | `standard`・`long`・`elements` | `standard` |
-| `-fail` | 失敗の種類。`-fail-step` と組で指定する | `empty`・`truncated`・`api-error`・`timeout`・`api_key_rejected` | 2 つとも省くと失敗しない |
-| `-fail-step` | 失敗させる工程。`-fail` と組で指定する | `draft`・`shorten`・`review` | 2 つとも省くと失敗しない |
-| `-delay` | LLM の呼び出し 1 回ごとの遅れ（秒） | `0` から `600` までの 10 進の整数 | `0` |
-
-`-fail-step shorten` は、本文が 4,000 字を超える `-article long` のときだけ受理する。`-fail api_key_rejected` は、API が API キーを拒んだことを模す。開発用のサーバはその拒否を区別しないので、ジョブの失敗は `llm_failed` になる（記事生成モジュールは `api_key_rejected` にする）。`-h`・`-help` は標準エラー出力に案内を出して終了コード `0` で終わる。
-
-記事のタイトルは `[FAKE] ` で始まる。記事のモデル名は `yt2column-devfake` で単価の表にないので、ビューアは料金を不明として表示する。
-
-待ち受けを始めた後に、fake の LLM で動いていることと選んだシナリオを 1 行で標準エラー出力に書く。例えば `-article long -delay 2` のときの行は次のとおりである（時刻と `socket` のパスはその環境による）。
-
-```text
-time=... level=INFO msg=listening socket=/… llm=fake model=yt2column-devfake scenario.article=long scenario.fail=none scenario.delay=2
-```
-
-拡張から確かめるときは、本番のサーバを止めてから開発用のサーバを起動し、本番と同じく拡張のポップアップから生成を始め、ビューアで記事を見る。ホストと拡張は変えない。記事が fake のものであることは、タイトルの印と、料金が不明であることで見分ける。
-
-失敗の後の「やり直す」で成功する流れは確かめられない。シナリオは起動のときに決まるので、同じサーバでやり直しても同じ失敗になり、記事のキャッシュはメモリにあるので、起動し直すと失敗したジョブも消える。
-
-遅れの間も生成の枠（2 つ）を使うので、遅れの長いジョブを 2 つ動かしている間の 3 つ目の生成の開始は、本番と同じく `too_many_requests` で拒否される。
 
 ## 開発用のコマンドで記事の生成を再現する
 
@@ -152,7 +84,14 @@ make ext-build-dev FAKE_ARTICLE=long FAKE_FAILURE=timeout FAKE_FAIL_AT=shorten
 
 **Go のツールチェーン。** どちらのビルドも、記事生成モジュールを `go.mod` の `go` の行の版の Go で（`GOTOOLCHAIN` を与えて）ビルドし、そのツールチェーンの `wasm_exec.js` を成果物に写す。手元の Go がその版でないときは、初めのビルドが、その版のツールチェーンをダウンロードする（ネットワークを使う）。`GOFLAGS` が設定されているとき（`go env -w` の設定を含む）は、ビルドするものを変えうるので、ビルドは何もせずに失敗する。
 
-**画面ではまだ使えない。** 今の拡張は、まだ localhost サーバとホストで記事を作る。開発用のビルドは拡張の ID が違うので、ホストの manifest の `allowed_origins` に入らず、ホストにつながらない。開発用のビルドを画面で確かめられるのは、拡張が記事生成モジュールで記事を作るように切り替えた後である（[#773](https://github.com/isseis/yt2column/issues/773)）。それまでは、ビルドと成果物の検査が通ることだけを確かめる。
+**画面で確かめる。** `extension/dist-dev/` を、公開用のビルドと同じく **パッケージ化されていない拡張機能を読み込む** で読み込む。公開用のビルドと並べて読み込める。ポップアップとビューアは、開発用のビルドであることを文字の印で示す。オプションページは、ビルドの情報の LLM に、fake とそのシナリオを示す。
+
+-   記事の生成の前に、オプションページで API キーを保存する。開発用のビルドは API を呼ばないので、値は形の合う偽のものでよい（空白を含まない、印字可能な ASCII の文字だけの文字列）。保存の結果は、`FAKE_SETTINGS_CHECK` のシナリオで決まる。
+-   シナリオを変えるには、`make ext-build-dev` をほかの値でもう一度実行し、拡張機能のページで開発用のビルドを再読み込みする。再読み込みで、開いている拡張のページとジョブの記録は消える。
+-   保存した設定が使えない状態（`settings_invalid`）は、開発用のビルドの DevTools で `chrome.storage.local` の `anthropic.apiKey` を文字列でない値に書き換えて出す。
+-   記事のタイトルは `[FAKE] ` で始まる。記事のモデル名は `yt2column-devfake` で単価の表にないので、ビューアは料金を不明として表示する。
+-   遅れの間も、同時に走る実行（2 つ）に数えるので、遅れの長い記事の生成を 2 つ走らせている間の 3 つ目の開始は、本番と同じく拒否される。
+-   失敗の後の「やり直す」で成功する流れは確かめられない。シナリオはビルドのときに決まるので、やり直しても同じ失敗になる。
 
 ## 拡張の検査
 
@@ -163,139 +102,22 @@ make ext-build-dev FAKE_ARTICLE=long FAKE_FAILURE=timeout FAKE_FAIL_AT=shorten
 make ext-check     # typecheck, lint, format check, tests, then the release and development builds
 ```
 
-## localhost サーバの API
+## ジョブの記録
 
-localhost サーバの起動と停止は、README の
-[localhost サーバ](../../../README.md#localhost-サーバ)にある。この節では、サーバの HTTP の API を説明する。
+拡張は、記事の生成ごとの記録（ジョブの記録）を `chrome.storage.session` に置く。書くのは Service Worker だけで、ポップアップとビューアは読んで表示する。項目の名前は `job:` とジョブ ID を連結したもので、ジョブ ID は Service Worker が作る 128 ビットの乱数の 32 文字の小文字の 16 進である。記録は、状態（`state`）、工程の状態（`steps`）、完成した記事（`article`）、失敗の値（`failure`）を持ち、コピーした字幕と概要欄を持たない。形と検査は `extension/src/core/jobRecord.ts` にある。開発者ツールで記録を見るには、拡張のページの DevTools のコンソールで `await chrome.storage.session.get(null)` を実行する。
 
-### curl でサーバを確かめる
+上限は、記録 50 件、記録の大きさの合計 8 MiB、記録 1 つの記事 256 KiB である。上限を超える記録を加えるときは、失敗と止まった記録のうち古いものから、次に完成した記録のうち古いものから捨てる。処理中の記録は捨てない。
 
-リクエストの本文（動画の URL、コピーした字幕、送り方）を `request.json` に書く。
+### ジョブの記録の値
 
-```json
-{"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","transcript":"0:00\nHello\n","mode":"plain"}
-```
-
-それをソケットに送る。macOS ではパスに空白が入るので、二重引用符で囲んだままにする。
-
-```sh
-socket="$HOME/.local/state/yt2column/run/server.sock"
-if [ "$(uname -s)" = Darwin ]; then socket="$HOME/Library/Application Support/yt2column/run/server.sock"; fi
-curl -sS --unix-socket "$socket" -X POST http://localhost/jobs \
-  -H 'Content-Type: application/json' \
-  --data-binary @request.json
-```
-
-これはジョブの API の生成の開始である（下の「ジョブの API」）。
-
-`curl` がつながらないとき:
-
-- **サーバが動いていない。** `curl` は `Couldn't connect to server` を報告する
-  （そのメッセージは URL のホストと既定のポート、つまり `localhost port 80` を示すが、接続そのものはソケットに向かう）。README の手順でサーバを起動する。ログの最初の行が、待ち受けるソケットを示す。
-
-受け付けた生成の開始は `202` と `{"status":"accepted","key":"…","requestId":"…"}` を返す。
-`mode` が `inquiry` の生成の開始は、同じ動画の記事があれば `200` と `{"status":"same_video","key":"…","requestId":"…"}` を返す（下の「ジョブの API」）。
-拒否したリクエストは `4xx` か `5xx` と
-`{"status":"rejected","reason":"…","requestId":"…"}` を返す。`reason` は次のいずれかである。
-
-| reason | ステータスコード | 拡張の表示 |
-|---|---|---|
-| `not_found` | 404 | 想定外の応答 |
-| `method_not_allowed` | 405 | 想定外の応答 |
-| `too_many_requests` | 429 | 固定のメッセージ |
-| `body_too_large` | 413 | 固定のメッセージ |
-| `invalid_body` | 400 | 固定のメッセージ |
-| `invalid_video_url` | 400 | 固定のメッセージ |
-| `invalid_transcript` | 400 | 固定のメッセージ |
-| `invalid_key` | 400 | 固定のメッセージ |
-| `internal_error` | 500 | 固定のメッセージ（`requestId` が空のときは想定外の応答） |
-
-`not_found` と `method_not_allowed` は、誤ったパスかメソッドへの応答である。本文を読まず、ジョブを始めない。拡張は、ホストの新しい形のメッセージで操作を指定し、パスもメソッドも指定しないので、拡張・ホスト・サーバの版がそろっていれば、どちらの拒否も受け取らない。受け取れば（例えば、ジョブの API を持たない古いサーバ）、想定外の応答として表示する。
-
-### ジョブの API
-
-サーバの API は、生成の開始と状態の取得の 2 つの操作（ジョブの API）である。記事を生成して返す。生成の開始は拡張の Service Worker が、状態の取得はポップアップとビューアが送る。
-
-| 操作 | リクエスト | 成功の応答 |
-|---|---|---|
-| 生成の開始 | `POST /jobs`、上の `request.json` の形の JSON のオブジェクト | `202`、`{"status":"accepted","key":"…","requestId":"…"}`。同じ動画の応答は `200`、`{"status":"same_video","key":"…","requestId":"…"}` |
-| 状態の取得 | `GET /jobs/<key>`、本文なし | `200`、`{"status":"ok","requestId":"…","job":{…}}` |
-
-生成の開始の本文は、必須のメンバ `videoUrl`・`transcript`・`mode` と、任意のメンバ `title`・`channelName`・`description` を持つ。`mode` は送り方で、`inquiry`（照会付き）か `plain`（照会なし）のどちらかの文字列である。`mode` がない本文、文字列でない値、この 2 つ以外の値（大文字や前後の空白を含むもの、空の文字列を含む）、`mode` を 2 回書いた本文は、どちらかに補わずに `invalid_body` で拒否し、ジョブを始めない。`mode` はキーの計算に入らないので、同じ入力はどちらの送り方でも同じキーになる。
-
-照会付きの生成の開始は、次の順に振る舞いを決める。順 2 は件数の上限と生成の枠より前にあるので、生成の枠に空きがなくても、キャッシュに落とせる記録がなくても、同じ動画の応答を返す。
-
-| 順 | 条件 | 応答 |
-|---|---|---|
-| 1 | 今の入力のキーの記事が生成中か完了 | 照会なしと同じく、`202` でそのキー |
-| 2 | 同じ動画（URL の書き方によらず、動画 ID が同じ）の別のキーの記事が生成中か完了 | `200` の同じ動画の応答。キーは、その記事のうち受け付けた時点（失敗の後の再試行では再試行を受け付けた時点）が最も新しいもの。生成を始めず、キャッシュも変えない。今の入力のキーが失敗でも、再試行しない |
-| 3 | それ以外（失敗した記事しかない場合を含む） | 照会なしと同じ（生成を始めて `202`、または `too_many_requests`） |
-
-照会なしの生成の開始は、同じ動画の記事があっても今の入力の記事を生成し、同じ動画の応答を返さない。同じ動画の応答は、記事の状態を持たない。状態は、返したキーで状態の取得を送って知る。拡張・ホスト・サーバは同じ版で使う。`mode` を知らない前の版のサーバは、照会付きの生成の開始を照会なしとして受け付け、前の版の拡張が送る `mode` のない本文は、このサーバが `invalid_body` で拒否する。
-
-`<key>` は記事のキーである。不透明な値なので、生成の開始が返したものをそのまま送り返し、その形にも計算方法にも依存しない。キーはサーバのプロセスごとにも異なる。再起動の後は同じ入力に新しいキーが付くので、新しい生成の開始が返すキーを使う。受け付けない形のキーを指定した状態の取得のリクエストは
-`invalid_key` で拒否する。この操作は本文を取らない。クエリの付いたジョブの API のリクエストには `not_found` を返す。
-
-状態の取得の応答は、ジョブの状態を下のコードのいずれかで示す。`running` のジョブは
-`steps` を持つ。`done` のジョブは `steps`（`done` か `skipped` だけ）、
-`article` を持つ。`failed` のジョブは `steps` と、失敗のコードである `failure` を持つ。工程が `failed` になるのは、生成がその工程で失敗したときだけである。完了の時点の検査の失敗（`article_invalid`・`article_too_large`）と、工程より前の失敗は、どの工程も `failed` にしない。`unknown` のキーは `state` のほかにメンバを持たない。
-`article` は、`markdown`（無効化した表示用の Markdown）、`mentionsNeutralized`（`markdown` に U+200B を 1 つ以上入れたか）、`videoTitle`・`channelName`（無効化した見出しの値。ないときは空文字列）、
-`file`（`--out` が書くものとバイト単位で同じ）、`cost`、`durationMs` のメンバを持つ。`durationMs` は、記事を生成した開始を受け付けた時点から、または失敗の後の再試行を受け付けた時点から数える。`cost` は `{"state":"known","usd":"…"}` か `{"state":"unknown"}` である。
-
-```json
-{
-  "status": "ok",
-  "requestId": "0123456789abcdef",
-  "job": {
-    "state": "done",
-    "steps": { "draft": "done", "shorten": "skipped", "review": "done" },
-    "article": {
-      "markdown": "# …",
-      "mentionsNeutralized": true,
-      "videoTitle": "…",
-      "channelName": "…",
-      "file": "---\n…",
-      "cost": { "state": "known", "usd": "0.1234" },
-      "durationMs": 81234
-    }
-  }
-}
-```
-
-同じ入力をもう一度送ると、その記事を生成している間か生成し終えた後は、LLM を呼ばずに同じキーを返す。失敗したキーは生成し直す。同時に走る生成は最大 2 つで、この生成の枠を数えるのはジョブの API の生成のジョブだけである。生成の開始は 2 つの読み込みの枠の範囲で本文を読むので、同時に読む本文は最大 2 つである。開始は、読み込みの枠が埋まっているとき、生成の枠が埋まっているとき、またはキャッシュが埋まっていて落とせる記録がないときに拒否する。拒否した開始には
-`too_many_requests` を返し、ジョブは始まらない。
-
-記事はサーバのメモリにだけある。記事のキャッシュが持つ記録は最大 100 で、埋まると、完了した記事か失敗のうち最も古いものを落とす。生成中の記録は落とさない。再起動するとすべての記事が失われるので、その後の状態の取得は `unknown` を返す。完了の時点の検査を通らない記事（`article_invalid`・`article_too_large`）は `failed` になる。
-
-受け付けた生成の開始のログの行は、`requestId`・`key`・`videoId`・`outcome`（`started`・`restarted`・`existing`）と送り方 `mode`（`inquiry` か `plain`）を持つ。同じ動画の応答を返した生成の開始は、`generation start answered with a same-video article` の 1 行を書き、`requestId`、今の入力のキー `key`、`videoId`、`outcome=same_video`、`mode=inquiry`、返した記事のキー `sameVideoKey` を持つ。本文・字幕・`videoUrl` の文字列・動画メタデータは書かない。`grep "$key" server.log` は、返した記事のジョブの行と、それを返した照会の行の両方を見つける。
-
-受け付けて応答した状態の取得はログに書かない。ビューアが数秒ごとに問い合わせるためで、その応答の `requestId` に対応するログの行はない。拒否した状態の取得は、その拒否をログに書く。ほかの操作はどれも `requestId` を付けた行をログに書き、生成のジョブはキーを書く。
-
-サーバのログのリクエストの行は、応答が返す `requestId` を持つ（README の [サーバの起動](../../../README.md#サーバの起動) を参照）。
-生成のジョブは、代わりに記事のキーをログに書くので、1 つのジョブは
-`grep "$key" server.log` で追う。
-
-最初のシグナルで、サーバは実行中の生成を取り消し（その LLM の呼び出しは戻るまで待つ。サーバが終わればキャッシュも消えるので、その記事は失われる）、処理中のリクエストと取り消した生成が終わるまで待つ。
-
-「curl でサーバを確かめる」のソケットと `request.json` の本文を使うと、2 つの操作は次のとおりである。
-
-```sh
-curl -sS --unix-socket "$socket" -X POST http://localhost/jobs --data-binary @request.json
-curl -sS --unix-socket "$socket" -X GET "http://localhost/jobs/$key"
-```
-
-`$key` は生成の開始が返したキーである。
-
-### ジョブの API のコード
-
-ジョブの API の状態の取得の応答は、それぞれの値を次のいずれかのコードで報告する。
+記録は、それぞれの値を次のいずれかで持つ。
 
 | ジョブの状態 | 意味 |
 |---|---|
-| `unknown` | サーバがそのキーの記録を持たない |
-| `running` | 記事を生成している |
-| `done` | 記事を生成し、返した |
+| `running` | 実行するビューアが記事を生成している |
+| `done` | 記事ができた |
 | `failed` | 生成が失敗した |
+| `stopped` | 実行するビューアのページが閉じられたか、読み込み直されたか、連絡が取れなくなった |
 
 | 工程 | 生成の中の工程 |
 |---|---|
@@ -320,7 +142,32 @@ curl -sS --unix-socket "$socket" -X GET "http://localhost/jobs/$key"
 | `llm_truncated` | LLM の応答が途中で切れた |
 | `llm_failed` | そのほかの LLM の失敗 |
 | `article_invalid` | 生成した記事を公開できない |
-| `article_too_large` | 生成した記事が状態の取得の応答に収まらない |
+| `article_too_large` | 生成した記事が記録に収まらない |
+| `api_key_rejected` | API が API キーを拒んだ（401） |
+| `settings_invalid` | 保存した設定が形に合わず、API を呼ばなかった |
+| `api_key_missing` | 予約の後に API キーがなく、API を呼ばなかった |
+| `run_timeout` | 記事の生成の全体が 50 分の期限を過ぎた |
+
+| 内部の失敗の種類 | 意味 |
+|---|---|
+| `panic` | 記事生成モジュールの関数が回復しない失敗で終わった |
+| `worker_error` | Worker が読み込みの後に失敗した |
+| `worker_load` | Worker が記事生成モジュールを期限までに読み込めなかった |
+| `result_shape` | 記事生成モジュールの結果が形に合わなかった |
+| `store_failed` | Service Worker が結果を記録に書けなかった |
+| `input_mismatch` | `generate` のリクエストの入力のダイジェストが、Worker が受け取って検査した入力と合わなかった |
+| `request_shape` | 記事生成モジュールへのリクエストが形に合わなかった |
+| `settings_read` | 実行するビューアが保存した設定を読めなかった |
+| `runtime_exit` | 呼び出しを待っている間に Go のプログラムが終わった |
+
+| 止まった理由 | 意味 |
+|---|---|
+| `tab_closed` | 実行するビューアのタブが閉じられた |
+| `page_closed` | 実行するビューアのページとの接続が切れた |
+| `page_reloaded` | 実行するビューアのページが読み込み直された |
+| `no_contact` | 予約のときに、実行するビューアと連絡が取れなかった |
+
+内部の失敗の種類と止まった理由は、開発者が記録から原因を読むための値で、画面には文として示さない。
 
 ## 統合テスト
 

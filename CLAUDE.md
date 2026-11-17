@@ -174,9 +174,9 @@ change, retire, and withdraw an ADR is in the convention,
 ## Commands
 
 ### Build Commands
-- `make build` - Build the three binaries (`yt2column`, `yt2column-server`, `yt2column-nmhost`) into `build/`; it installs nothing
-- `make build-dev` - Build the development server (`yt2column-devserver`) into `build/dev/`; it runs on the fake LLM (`internal/llm/devfake`) and is not a production binary
-- `./build/yt2column-nmhost install <browser>` / `./build/yt2column-nmhost uninstall <browser>` - Register or remove the Native Messaging host manifest (`<browser>` is `chrome` or `brave`)
+- `make build` - Build the binaries into `build/`; it installs nothing. Besides `yt2column`, it still builds `yt2column-server` and `yt2column-nmhost`, which the extension no longer uses and #773 removes
+- `make build-dev` - Build the development server (`yt2column-devserver`) into `build/dev/`; it runs on the fake LLM (`internal/llm/devfake`), is not a production binary, and is removed by #773 (the extension's development build is `make ext-build-dev`)
+- `./build/yt2column-nmhost uninstall <browser>` - Remove the Native Messaging host manifest an earlier version installed (`<browser>` is `chrome` or `brave`); the README's migration steps use it. #773 removes the host
 - `make clean` - Clean build artifacts
 - `make all` - Default build target
 - `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
@@ -266,19 +266,21 @@ refuses to run when `node --version` does not match.
 ## Architecture Overview
 
 yt2column turns a YouTube video into a magazine-column-style article with an
-LLM. The primary path starts in the browser: the extension collects the transcript
-copied from YouTube's transcript panel, the native messaging host relays it to
-the localhost server, and the server generates the article. The extension shows
-the article in its viewer page, from which the user chooses to save it as a
-Markdown file or copy its Markdown. The CLI is the development path: it takes a video URL and fetches the
-transcript with `yt-dlp`.
+LLM. The primary path runs in the browser alone: the extension collects the
+transcript copied from YouTube's transcript panel, and its article generation
+module (Go built to WebAssembly) generates the article inside the viewer tab,
+calling the Anthropic API with the API key the user saved on the options page.
+The extension shows the article in its viewer page, from which the user
+chooses to save it as a Markdown file or copy its Markdown. The CLI is the
+development path: it takes a video URL and fetches the transcript with
+`yt-dlp`.
 
 ```mermaid
 flowchart LR
     classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
     classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
 
-    COPIED[("Copied transcript<br>(browser extension → native messaging host → localhost server)")]
+    COPIED[("Copied transcript<br>(browser extension; the viewer runs the article generation module)")]
     YTDLP[("URL<br>(the CLI fetches the transcript with yt-dlp)")]
     SRC["TranscriptSource"]
     TR[("Transcript")]
@@ -329,42 +331,44 @@ flowchart LR
   `internal/llm/openaiparam` holds the OpenAI reasoning effort type that
   `internal/config` and `internal/llm/openai` share.
   `internal/llm/devfake` is not a production adapter: it is the fake the
-  development server (`cmd/yt2column-devserver`) links, returning fixed
-  articles and selected failures without an LLM, and no production binary may
-  depend on it.
+  development article generation module (`cmd/yt2column-wasm-dev`) and the
+  development command (`cmd/yt2column-extjob`) link, returning fixed articles
+  and selected failures without an LLM, and no production binary may depend
+  on it.
 - `Publisher` (`internal/publisher`): local file (`FilePublisher`). The package
   also builds the neutralized display Markdown the viewer displays and copies.
 - `internal/pipeline` orchestrates the stages; `internal/config` reads environment
-  variables for the CLI and the configuration file for the server;
-  `cmd/yt2column` wires everything together.
+  variables for the CLI and the two settings the extension saved for the
+  article generation module; `cmd/yt2column` wires everything together.
 
 Two entry points share the stages: the CLI (`cmd/yt2column`, above), which runs
-them through the pipeline, and a localhost server (`cmd/yt2column-server` +
-`internal/server`) that takes a copied transcript from the browser extension
-over HTTP on a Unix domain socket, generates the article, and returns it on
-request. The extension uses the server's job API: its service worker sends
-the generation start and the popup and the viewer poll the status. The server's supporting packages are
-`internal/serversock` (the socket directory, the start lock, and the socket
-itself), `internal/privatefile` (the checked read and the safe creation of the
-server's configuration file, which the server reads its settings from and
-`yt2column-server config init` creates), `internal/redact` (secret redaction
-for every output), and `internal/signalrun` (signal handling both entry points
-share). The
-extension does not connect to the socket itself: the browser starts the Native
-Messaging host (`cmd/yt2column-nmhost` + `internal/nmhost`), which relays one
-request to the socket per exchange and manages its own manifest with `install` and
-`uninstall`.
+them through the pipeline, and the article generation module
+(`cmd/yt2column-wasm` + `internal/extjob`, with the `syscall/js` registration in
+`internal/extjob/jsmodule`), which the browser extension loads into a Worker of
+the viewer page. The extension's service worker coordinates the jobs and is the
+only writer of the job records in `chrome.storage.session`; the viewer that
+runs a job takes its input from the service worker, calls the module, and
+reports progress and the result; the popup and the viewers show the records
+through their change events. The options page saves the Anthropic API key and
+workspace ID in `chrome.storage.local`. The extension starts no server and no
+host: the localhost server (`cmd/yt2column-server` + `internal/server`,
+`internal/articlecache`, `internal/serversock`) and the Native Messaging host
+(`cmd/yt2column-nmhost` + `internal/nmhost`) remain in the repository only
+until #773 removes them. `internal/privatefile` (the checked read and the safe
+creation of files only their owner may read) serves `internal/chief`,
+`internal/redact` redacts secrets from every output, and `internal/signalrun`
+handles signals for the CLI.
 
 See [Project Overview](docs/dev/project_overview.md) for the decided policies and
 constraints, and [Package Reference](docs/dev/conventions/package_reference.md)
-for the packages that exist today. The server's startup is documented in the
-[README](README.md) (and its English version, `README.en.md`), its HTTP API in
-[development.md](docs/dev/guides/development.md), and both in
-`docs/dev/security.md` §8.
+for the packages that exist today. The extension is documented in the
+[README](README.md) (and its English version, `README.en.md`), its job records
+and development build in [development.md](docs/dev/guides/development.md), and
+its security rules in `docs/dev/security.md` §8.
 
 ### Key Design Patterns
 - **Separation of Concerns**: Each package has a single responsibility. Core logic
-  stays out of `cmd/`, so the CLI and the localhost server share it and a further
+  stays out of `cmd/`, so the CLI and the article generation module share it and a further
   entry point can be added without touching it.
 - **Interface-based Design**: Every pipeline component (`TranscriptSource`,
   `ArticleWriter`, `LLMClient`, `Publisher`) is an interface with a fake for tests.
@@ -396,7 +400,7 @@ for the packages that exist today. The server's startup is documented in the
   boundaries and `Segments`; this parse is the only place the text's content
   selects behavior. Reason: that string is produced by YouTube's transcript panel
   and copied by the user, an external value the caller (the browser extension, the
-  server) cannot express in a type, and the format is YouTube's UI contract, so
+  article generation module) cannot express in a type, and the format is YouTube's UI contract, so
   changing our type would not change the input. Boundary: the exception covers only
   the copied-transcript parser in `internal/transcript` and the `Raw` parse in
   `CopiedSource`; an input that matches neither form is rejected, not accepted by
@@ -478,10 +482,10 @@ for the packages that exist today. The server's startup is documented in the
   a character reference that can stand for '@'), judges whether each is a
   target and, in the display Markdown, whether it is a URL path '/@', and
   inserts U+200B after the targets it does not keep; this is the only place
-  their content selects behavior, and the status response passes on only
-  the resulting strings and a boolean. Reason: the display Markdown is an
+  their content selects behavior, and the article generation module's result
+  passes on only the resulting strings and a boolean. Reason: the display Markdown is an
   LLM's output with a title and a channel name from outside, external values
-  the server cannot express in a type, and judging them is the purpose of the
+  the article generation module cannot express in a type, and judging them is the purpose of the
   neutralization. Boundary: a form the rule is unsure of is neutralized, not
   kept: only an '@' inside a word and a URL path '/@' that meets every
   condition are left as they are; and the neutralization inserts U+200B and
@@ -535,7 +539,7 @@ for the packages that exist today. The server's startup is documented in the
 ### Accessibility
 
 User-facing UI — the browser extension's popup and any page it opens
-(such as the Viewer) — meets WCAG 2.2 Level AA. A requirements document
+(such as the Viewer and the options page) — meets WCAG 2.2 Level AA. A requirements document
 for such UI states acceptance criteria for the points below, or says why
 one does not apply:
 
@@ -684,9 +688,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   and `docs/dev/guides/development.md`: the extension's node tests read the
   expand prompt, the popup and viewer names, and the step names in each
   README's browser extension section (`metadataDocs.test.ts`), the minimum
-  Chrome version each README states (`manifest.test.ts`), and the
-  rejection-reason table of `development.md` (`serverReasons.test.ts`), so a
-  change to them needs `make ext-test`. The
+  Chrome version each README states (`manifest.test.ts`), and the job record
+  value tables of `development.md` (`jobCodes.test.ts`), so a change to them
+  needs `make ext-test`. The
   other text-sync guards that read documents (the
   extension ID, the `ext-` targets in this file, the two coverage-compare
   targets in its commands sections (`TestCoverageCompareDocumented`), the
@@ -700,7 +704,7 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   `TestADRRecords`, and `internal/chief`'s readings of the routing table and
   the PR markers) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
-  `TestReadmeHostExitCodes` reads both READMEs too, but the `doc-guard` job
+  `TestReadmeMigrationManifestPaths` reads both READMEs too, but the `doc-guard` job
   does not run it: the local `make test`, and the CI `test` job when the change
   includes code, do. A change to the READMEs alone is therefore checked by
   neither CI job for this test. The `doc-guard` CI job runs the other guards
@@ -724,9 +728,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   The `doc-guard` CI job runs this test too, because `internal/chief` reads
   `_context.md` and the plans' PR markers.
 - Secrets (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, ...) go in `.envrc` / `.env`,
-  which are git-ignored, for the CLI; the localhost server reads them only from
-  its configuration file, `$HOME/.config/yt2column/config.env` (mode `0600`,
-  outside the repository). Never commit them and never print them.
+  which are git-ignored, for the CLI; the browser extension keeps the Anthropic
+  API key the user saves on its options page in `chrome.storage.local`, outside
+  the repository. Never commit them and never print them.
 - Real captured data committed under `testdata/` must come from a video licensed
   for redistribution and must not identify whoever captured it; full-page browser
   snapshots are never committed and live outside the repository. See
@@ -779,8 +783,7 @@ Only the conventions a linter does not check are worth stating:
   document) and the test-only package `internal/doctestutil` that holds their
   locators (the headings and
   column names they find a section or table by); the literal is a heading, a
-  table cell, an item label at the start of a line (such as the socket-path
-  labels `TestServerDocsContract` finds), or a bold marker (such as
+  table cell, an item label at the start of a line, or a bold marker (such as
   `**実行関連ファイル。**` in `cmd/fixprguard/docs_test.go`). Reason: the
   literal has to equal the document's text, and the document is Japanese
   ("Document language" above). Comments and identifiers in those files stay

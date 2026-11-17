@@ -24,7 +24,6 @@ import (
 	"github.com/isseis/yt2column/internal/llm/openai"
 	openaitestutil "github.com/isseis/yt2column/internal/llm/openai/testutil"
 	"github.com/isseis/yt2column/internal/pricing"
-	"github.com/isseis/yt2column/internal/udstest"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
@@ -470,16 +469,43 @@ func firstCodeSpan(cell string) (string, bool) {
 }
 
 // configBlockInfo is the info string of the fenced block that holds the
-// lines of a configuration file in a profile section.
+// CLI's environment variable settings in a profile section.
 const configBlockInfo = "text"
 
+// configBlockName is the variable name a line of a profile block starts with.
+var configBlockName = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
+
+// parseConfigBlock reads lines as NAME=VALUE settings, one per line, split at
+// the first "=". It rejects, and never repairs, a line without "=", a name
+// that is not an upper-case variable name, and a name set twice. The
+// rejections name a line number and a fixed reason, never a value.
+func parseConfigBlock(lines []string) (map[string]string, []error) {
+	values := map[string]string{}
+	var rejections []error
+	for i, line := range lines {
+		name, value, ok := strings.Cut(line, "=")
+		switch {
+		case !ok:
+			rejections = append(rejections, fmt.Errorf("line %d: no \"=\"", i+1))
+		case !configBlockName.MatchString(name):
+			rejections = append(rejections, fmt.Errorf("line %d: not a variable name", i+1))
+		default:
+			if _, seen := values[name]; seen {
+				rejections = append(rejections, fmt.Errorf("line %d: %s set again", i+1, name))
+				continue
+			}
+			values[name] = value
+		}
+	}
+	return values, rejections
+}
+
 // checkConfigBlock checks that section holds exactly one closed text code
-// block, that the server's configuration file parser accepts the block's
-// lines as a file, and that the block sets exactly the keys in want. It
-// returns the accepted values. The failure messages name the document,
-// section, and key, and the parser's rejections name a line and a fixed
-// reason, never a value: a secret written into the block by mistake must not
-// reach the log.
+// block, that every line of the block is a NAME=VALUE setting, and that the
+// block sets exactly the variables in want. It returns the settings. The
+// failure messages name the document, section, and variable, and the
+// rejections name a line and a fixed reason, never a value: a secret written
+// into the block by mistake must not reach the log.
 func checkConfigBlock(t *testing.T, docName, sectionName, section string, want []string) map[string]string {
 	t.Helper()
 	var blocks []doctestutil.FencedBlock
@@ -495,10 +521,9 @@ func checkConfigBlock(t *testing.T, docName, sectionName, section string, want [
 	if !block.Closed {
 		t.Fatalf("%s %s: the %s code block has no closing fence; an unclosed fence runs to the end of the document", docName, sectionName, configBlockInfo)
 	}
-	data := []byte(strings.Join(block.Lines, "\n") + "\n")
-	values, rejections := config.ParseServerFileForTest(docName+" "+sectionName, data)
+	values, rejections := parseConfigBlock(block.Lines)
 	if len(rejections) > 0 {
-		t.Fatalf("the configuration file parser rejects the block: %v", errors.Join(rejections...))
+		t.Fatalf("%s %s: the block is not NAME=VALUE settings: %v", docName, sectionName, errors.Join(rejections...))
 	}
 	for _, name := range want {
 		if _, ok := values[name]; !ok {
@@ -514,16 +539,23 @@ func checkConfigBlock(t *testing.T, docName, sectionName, section string, want [
 }
 
 // docsProfileEnv is the closed set of settings the documentation guards load
-// the server configuration from, through config.ServerLookupForTest, which
-// writes the keys to the configuration file under the HOME: a dummy API key
-// and a fresh short HOME, because the socket path derived from it must fit
-// the operating system's limit. No key of the process environment reaches
-// LoadServer through it.
-func docsProfileEnv(t *testing.T) map[string]string {
+// the CLI configuration from: a dummy API key and a HOME the cache directory
+// is derived from, which nothing reads or creates. No variable of the
+// process environment reaches the load.
+func docsProfileEnv() map[string]string {
 	return map[string]string{
 		config.AnthropicAPIKeyEnvForTest(): "docs-test-api-key",
-		"HOME":                             udstest.Dir(t),
+		"HOME":                             "/docs-test-home",
 	}
+}
+
+// loadProfile loads the CLI configuration from env alone, as the CLI loads
+// it from its environment.
+func loadProfile(env map[string]string) (config.Config, error) {
+	return config.Load(func(name string) (string, bool) {
+		value, ok := env[name]
+		return value, ok
+	})
 }
 
 // selectionMismatch compares a stage selection loaded from a document with
@@ -540,8 +572,8 @@ func selectionMismatch(got, want config.LLMSelection) string {
 		got.ClaudeEffort(), want.ClaudeEffort(), got.DeepSeekEffort(), want.DeepSeekEffort())
 }
 
-// checkConfigBlockMatchesDefaults loads the server configuration from a
-// configuration file without the block's keys and from one with them, and fails unless both load and their
+// checkConfigBlockMatchesDefaults loads the CLI configuration from settings
+// without the block's variables and from settings with them, and fails unless both load and their
 // generation and review selections (provider, model, and effort) are equal.
 // It also fails when the block's YT2COLUMN_LLM has no effort part: a value
 // without one loads to the same selection while the default effort is the
@@ -555,15 +587,15 @@ func checkConfigBlockMatchesDefaults(t *testing.T, docName, sectionName string, 
 		t.Errorf("%s %s: the block's %s has no \"+<effort>\" part; the profile must state its effort",
 			docName, sectionName, config.LLMEnvForTest())
 	}
-	without, err := config.LoadServer(config.ServerLookupForTest(t, docsProfileEnv(t)))
+	without, err := loadProfile(docsProfileEnv())
 	if err != nil {
-		t.Fatalf("%s %s: LoadServer on the default settings: %v", docName, sectionName, err)
+		t.Fatalf("%s %s: Load on the default settings: %v", docName, sectionName, err)
 	}
-	env := docsProfileEnv(t)
+	env := docsProfileEnv()
 	maps.Copy(env, block)
-	loaded, err := config.LoadServer(config.ServerLookupForTest(t, env))
+	loaded, err := loadProfile(env)
 	if err != nil {
-		t.Fatalf("%s %s: LoadServer rejected the block's keys: %v", docName, sectionName, err)
+		t.Fatalf("%s %s: Load rejected the block's settings: %v", docName, sectionName, err)
 	}
 	got, want := loaded.LLM(), without.LLM()
 	if diff := selectionMismatch(got.Generation(), want.Generation()); diff != "" {
@@ -593,7 +625,7 @@ func productionProfileVars() []string {
 // checkProfileTable checks the shared document's profile table: each stage has
 // exactly one row, and the first code spans of its provider, model, and effort
 // cells, joined into one LLM variable value "<provider>/<model>+<effort>" and
-// loaded through LoadServer, give the default profile's selection for that
+// loaded through Load, give the default profile's selection for that
 // stage. The review row's value goes into YT2COLUMN_REVIEW_LLM and the other
 // rows' into YT2COLUMN_LLM. The shortening stage calls the generation client,
 // so its row is compared with the generation selection.
@@ -644,11 +676,11 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 		if stage == reviewProfileStage {
 			stageOf, llmEnv = config.LLMConfig.Review, config.ReviewLLMEnvForTest()
 		}
-		env := docsProfileEnv(t)
+		env := docsProfileEnv()
 		env[llmEnv] = values[0] + "/" + values[1] + "+" + values[2]
-		cfg, err := config.LoadServer(config.ServerLookupForTest(t, env))
+		cfg, err := loadProfile(env)
 		if err != nil {
-			t.Errorf("production_profile.md: LoadServer rejects the %q row's values: %v", stage, err)
+			t.Errorf("production_profile.md: Load rejects the %q row's values: %v", stage, err)
 			continue
 		}
 		if diff := selectionMismatch(stageOf(cfg.LLM()), stageOf(defaults)); diff != "" {
@@ -659,8 +691,8 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 
 // TestProductionProfileDocsContract checks the shared production-profile
 // document's profile section and the README's recommended configuration
-// section: each configuration block is accepted by the server's configuration
-// file parser, holds exactly the keys of the production profile, and loads to
+// section: each configuration block is NAME=VALUE settings, holds exactly the
+// variables of the production profile, and loads through the CLI's Load to
 // the code's default profile, and the shared
 // document's table names the same profile for each stage.
 func TestProductionProfileDocsContract(t *testing.T) {

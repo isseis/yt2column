@@ -43,8 +43,8 @@
 | キャッシュ | cache | 動画 ID ごとの字幕・info.json の保存 |
 | 記事のキャッシュ | article cache | localhost サーバがメモリに持つ、キーごとのジョブ・工程の状態と記事（`internal/articlecache`）。ディスクの「キャッシュ」とは別のもの |
 | 記事のキー | article key | サーバが生成の開始の入力から計算する、記事を指す不透明な値（64 文字の小文字の 16 進）。拡張とホストは、その形にも計算方法にも依存しない |
-| 記録 | record | 記事のキャッシュが 1 つのキーについて持つ値の組（ジョブ・工程の状態、記事、失敗の理由、時刻） |
-| ジョブの状態 | job state | `running`・`done`・`failed`・`unknown` |
+| 記録 | record | ジョブの記録。拡張の Service Worker が `chrome.storage.session` に記事の生成ごとに置く値の組（状態、工程の状態、記事、失敗の値、時刻、実行するページ）。ジョブ ID ごとに 1 つ。コピーした字幕と概要欄を持たない |
+| ジョブの状態 | job state | ジョブの記録の `state`。`running`・`done`・`failed`・`stopped` |
 | 工程 | step | 記事の生成の中の 3 つの処理（`writer.Stage`）。API の `steps` のメンバ。拡張は、`draft` を「下書きの生成」（Draft）、`shorten` を「字数の調整」（Shorten）、`review` を「検証・推敲」（Review）と表示する。パイプラインの「ステージ」（stage）とは区別する |
 | 工程の状態 | step state | `pending`・`running`・`done`・`skipped`・`failed` |
 | 生成の枠 | generation slot | 同時に走る記事の生成の数の上限（`2`）。ジョブの API の生成のジョブだけが数える |
@@ -52,7 +52,7 @@
 | 完了の時点の検査 | completion check | 生成のジョブが記事を `done` にする前に行う検査（公開できる形か、本文が正しい UTF-8 か、状態の取得の応答に収まるか） |
 | 動画 ID | video ID | YouTube の 11 文字の ID |
 | ステージ | stage | パイプラインが順に呼ぶ処理の単位（`TranscriptSource`・`ArticleWriter`・`Publisher`。`pipeline.Stage` の `transcript`・`write`・`publish`）。`ArticleWriter` の中の生成・字数の調整・検証・推敲の 3 つは「工程」（step、`writer.Stage`）と呼び、区別する。英語では、生成の後の 2 つ（字数の調整と検証・推敲）を "post-generation steps" と呼ぶ。旧称: 段階 |
-| 主経路 | primary path | ブラウザ拡張がコピーした字幕を集め、Native Messaging のホストと localhost サーバを経て記事を生成し、拡張のビューアに表示する経路。保存とコピーは、利用者がビューアで選ぶ |
+| 主経路 | primary path | ブラウザ拡張がコピーした字幕を集め、拡張の記事生成モジュールがビューアのタブの中で記事を生成し、拡張のビューアに表示する経路。保存とコピーは、利用者がビューアで選ぶ |
 | 補助の経路 | development path | CLI が動画の URL を受け取り、yt-dlp で字幕を取得する経路。開発・検証に使う |
 | 本番の構成 | production profile | 生成・字数の調整・検証・推敲のテンプレート・プロバイダ・モデル・effort の組。`docs/dev/production_profile.md`。文脈により profile と略す |
 | 推奨構成 | recommended configuration | README の推奨構成の小節が、本番の構成を環境変数で示したもの |
@@ -66,7 +66,7 @@
 | ホスト名 | host name | ホストの manifest の `name`・manifest のファイル名・拡張が送る相手として指定する固定の名前（`io.github.isseis.yt2column`、`nmhost.HostName`） |
 | ホストの応答 | host reply | ホストが標準出力に書く 1 つのフレーム。サーバの応答を包む形（`kind` が `response`）とホストのエラーの形（`kind` が `error`）がある |
 | 未送信 | not sent | やり取りの結果のうち、リクエストがサーバに届いていないと確定するもの（ホストが返す `server_unavailable`・`message_too_large`） |
-| 結果不明 | result unknown | やり取りの結果のうち、リクエストがサーバに届いた可能性があるもの（応答なし・ホストの失敗・想定外の応答）。拡張は生成の開始を自動では送り直さない（状態の取得は、ポーリングとして繰り返す）。生成の開始では、同じ入力を送り直しても、その記事が処理中か完了していれば二重に生成されないことを示す |
+| 結果不明 | result unknown | 生成の開始から 60 秒たっても予約の結果が届かず、記事の生成が始まったかどうか分からないこと。拡張は生成の開始を自動では送り直さない。同じ選択範囲でもう一度押しても、その記事が処理中か完成していれば二重に生成されないことを示す |
 | 枠 | slot | localhost サーバが同時に処理するもの（生成のジョブ、生成の開始の本文の読み込み）の数を数える単位。生成の枠（`maxInFlight`）は、ジョブの API の生成のジョブだけが数える。生成の開始は、本文の読み込みと検査に別の読み込みの枠を使う |
 | 拒否の理由 | reject reason | 応答の本文の `reason` に載せる固定の値（`rejectReason`） |
 | 動画メタデータ | video metadata | 拡張が動画ページの DOM から読む動画タイトル・チャンネル名・概要欄の総称。API の任意フィールド `title`・`channelName`・`description` |
@@ -88,7 +88,7 @@
 | 詳細 | details | URL とタブのタイトルを入れた、開閉できる区分 |
 | ビューア | viewer | 記事の状態と記事を表示する拡張のページ（`viewer.html`）。タブで開く。記事の `.md` での保存・Markdown のコピーの操作を持つ |
 | Service Worker | service worker | Manifest V3 の拡張のバックグラウンドの処理を行うスクリプト（`background.js`）。ポップアップの求めを受けて、生成の開始を送る |
-| ビューアの URL | viewer URL | ビューアのタブの URL。記事のキー・見出し・チャンネル名・動画タイトル・集めた URL・送信の時刻を持つ。既存の記事のビューアは、既存の記事を表示していることを示す値（`e=1`）も持つ。コピーした字幕と概要欄は持たない |
+| ビューアの URL | viewer URL | ビューアのタブの URL。予約の前の開始の ID か予約の後のジョブ ID、集めた URL、ページのタイトル（動画のタイトルを 64 コードポイントまでに切ったもの）を持つ。既存の記事のビューアは、既存の記事を表示していることを示す値（`e=1`）も持つ。コピーした字幕と概要欄は持たない |
 | 送信の時刻 | send time | 利用者が生成の開始を送る操作（主ボタン、「現在の選択範囲で生成する」、選択の状態を終えた後の「記事を生成する」）を押した時刻（「やり直す」のときは、押し直した時刻）。「既存の記事を表示する」が新しいタブを開くときは、押した時刻をそのビューアの送信の時刻とする。処理中の経過時間の起点。ただし既存の記事のビューアは経過時間を示さないので、起点として使わない |
 | 同じ動画の照会 | same-video inquiry | 生成の開始で、同じ動画（動画 ID が同じ）の記事があれば生成せずに知らせるよう求めること。照会付きか照会なしかは、生成の開始の本文の必須のメンバ `mode`（`inquiry`・`plain`）で宣言する |
 | 送り方 | send mode | 生成の開始が照会付きか照会なしか。生成の開始の本文の必須のメンバ `mode` の値（`inquiry`・`plain`）と、Go の `StartMode`・拡張の `SendMode` が表す。ログでは `mode` の属性に書く |
@@ -185,13 +185,12 @@
 | クイックスタート | Quick start | README の見出し |
 | 必要なもの | Requirements | README と `cli.md` の見出し |
 | 出力の書式 | Output format | README と `cli.md` の見出し |
-| localhost サーバ | Localhost server | README の見出し。本文では "localhost server"（`yt2column-server`） |
-| サーバの起動 | Running the server | README の見出し |
-| サーバの停止 | Stopping the server | README の見出し |
-| Native Messaging のホストのインストール | Installing the native messaging host | README の見出し |
-| トラブルシューティング | Troubleshooting | README の見出し |
-| 共有トークンの版からの更新 | Upgrading from the shared-token version | README の見出し |
-| 設定 | Configuration | README と `cli.md` の見出し。CLI では環境変数、サーバでは設定ファイルによる設定 |
-| 環境変数からの移行 | Migrating from environment variables | README の見出し |
+| 設定 | Configuration | README と `cli.md` の見出し。CLI の環境変数による設定 |
+| 以前の版からの移行 | Migrating from the earlier version | README の見出し。localhost サーバと Native Messaging のホストを使う版から、拡張だけの版へ移る手順 |
+| API キーの設定 | Setting the API key | README の見出し |
 | ブラウザ拡張 | Browser extension | README の見出し。本文では "browser extension"、文脈が明らかなら "extension" |
 | 記事生成モジュール | article generation module | `cmd/yt2column-wasm`（Go の `main` パッケージ）を WebAssembly にビルドした `.wasm` ファイル。拡張の Worker が読み込み、記事を作る関数を JavaScript に公開する。Go で書かれ WASM にコンパイルされたことを強調するときは「WASM にコンパイルされた記事生成モジュール」と修飾する（0090 設計書） |
+| オプションページ | options page | 拡張の設定の画面（`options.html`）。Anthropic の API キーとワークスペース ID を保存し、削除する。タブで開く。英語の画面では、ポップアップからの操作を "Settings" と呼ぶ |
+| 開発用のビルド | development build | `make ext-build-dev` が `extension/dist-dev/` に作る拡張。fake の LLM を使う開発用の記事生成モジュールを持ち、API を呼ばない。拡張の ID と名前が公開用のビルドと違う。公開用のビルド（`make ext-build` の `extension/dist/`）と区別する |
+| ジョブ ID | job ID | Service Worker が予約のときに作る、記事の生成を指す不透明な値（128 ビットの乱数の 32 文字の小文字の 16 進）。入力から計算せず、記事の中身を表さない |
+| 実行するビューア | running viewer | 記事の生成を実際に行うビューアのページ。Service Worker が開いたビューアで、Worker で記事生成モジュールを動かす。ジョブの記録を表示するだけのビューア（表示するビューア）と区別する |
