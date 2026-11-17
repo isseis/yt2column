@@ -342,30 +342,26 @@ func TestCreateSendsMkreq(t *testing.T) {
 	}
 }
 
-// TestWorkspaceMakerStartsAgentsWithoutArguments checks the two agent starts:
-// each names only the agent, its kind, its pane, and the wait, so no
-// permission or trust is granted for the human, and each runs with the
-// agent start's time limit.
+// TestWorkspaceMakerStartsAgentsWithoutArguments checks that each agent
+// start runs with the agent start's own time limit, long enough for
+// Herdr's wait. Its arguments (only the name, the kind, the pane, and the
+// wait, so no permission or trust is granted for the human) are the exact
+// write lines TestCreateStages compares.
 func TestWorkspaceMakerStartsAgentsWithoutArguments(t *testing.T) {
 	cw := newCreateWorld(t, nil)
 	cw.create(createIssue)
-	var starts []recordedCall
+	starts := 0
 	for _, c := range cw.rec.recorded() {
-		if c.name == herdrProgram && len(c.args) > 1 && c.args[0] == herdrAgent && c.args[1] == "start" {
-			starts = append(starts, c)
+		if c.name != herdrProgram || len(c.args) < 2 || c.args[0] != herdrAgent || c.args[1] != "start" {
+			continue
 		}
-	}
-	want := cw.writeLines()[5:]
-	if len(starts) != len(want) {
-		t.Fatalf("agent starts = %d, want %d", len(starts), len(want))
-	}
-	for i, c := range starts {
-		if c.line() != want[i] {
-			t.Errorf("start %d = %s, want %s", i, c.line(), want[i])
-		}
+		starts++
 		if c.limit <= agentStartTimeout-time.Second || c.limit > agentStartTimeout {
-			t.Errorf("start %d ran with %v left, want just under %v", i, c.limit, agentStartTimeout)
+			t.Errorf("%s ran with %v left, want just under %v", c.line(), c.limit, agentStartTimeout)
 		}
+	}
+	if starts != 2 {
+		t.Fatalf("agent starts = %d, want 2", starts)
 	}
 }
 
@@ -481,7 +477,8 @@ func TestCreateStopsAtEachStage(t *testing.T) {
 			cw.rec.allowWrite(name, "", args, reply{out: workspaceCreateOutput(cw.chiefTree, "issue-"+createIssue)})
 		}, nil, CreateStageWorkspace, 2, 5},
 		{"herdr cannot rename the first tab", func(cw *createWorld) {
-			cw.rec.allowWrite(herdrProgram, "", []string{"tab", "rename", "w1:t1", tabShell}, reply{err: errInjected})
+			name, args := writeArgs(cw.writeLines()[2])
+			cw.rec.allowWrite(name, "", args, reply{err: errInjected})
 		}, nil, CreateStageTabs, 3, 5},
 		{"the rename reports another label", func(cw *createWorld) {
 			cw.rec.allowTabRename("w1:t1", tabShell, tabRenameOutput("w1", "w1:t1", "other"))
@@ -560,9 +557,9 @@ func TestCreateStopsAtEachStage(t *testing.T) {
 	}
 }
 
-// TestCreateDeadline passes the time limit while the workspace is created and
-// checks that the creation stops at the next stage with the stage
-// deadline, listing what was made and writing nothing more.
+// TestCreateDeadline ends the creation's context while the workspace is
+// created, as its time limit does, and checks that the creation stops at
+// the next stage with the stage deadline, listing what was made and writing nothing more.
 func TestCreateDeadline(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -676,22 +673,26 @@ func TestCreateRefusesExisting(t *testing.T) {
 	cases := []struct {
 		name  string
 		setup func(cw *createWorld)
-		want  string
+		// want starts an entry of Existing, whose first word is the kind
+		// shown; atPath instead wants Existing to be the path alone, as the
+		// refusal made when the space is resolved names it.
+		want   string
+		atPath bool
 	}{
-		{"a file", func(cw *createWorld) { mkParent(cw); writeFile(cw.t, cw.tree, "x") }, "path "},
-		{"a directory", func(cw *createWorld) { mustMkdir(cw.t, cw.tree) }, "path "},
+		{"a file", func(cw *createWorld) { mkParent(cw); writeFile(cw.t, cw.tree, "x") }, "path ", false},
+		{"a directory", func(cw *createWorld) { mustMkdir(cw.t, cw.tree) }, "path ", false},
 		{"a link", func(cw *createWorld) {
 			mkParent(cw)
 			if err := os.Symlink(cw.chiefTree, cw.tree); err != nil {
 				cw.t.Fatal(err)
 			}
-		}, "<the path itself>"},
+		}, "", true},
 		{"a registration whose directory is gone", func(cw *createWorld) {
 			cw.git(cw.chiefTree, "worktree list --porcelain", "worktree "+cw.chiefTree+"\nHEAD "+cw.commit+"\nbranch refs/heads/main\n\nworktree "+cw.tree+"\nHEAD "+cw.commit+"\ndetached\nprunable gitdir file points to non-existent location\n\n")
-		}, "worktree "},
+		}, "worktree ", false},
 		{"a workspace with a pane below the path", func(cw *createWorld) {
 			cw.listed = append(cw.listed, fakePane{Pane: "w9:p1", Tab: "w9:t1", Workspace: "w9", Dir: filepath.Join(cw.tree, "sub")})
-		}, "workspace w9"},
+		}, "workspace w9", false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -700,9 +701,7 @@ func TestCreateRefusesExisting(t *testing.T) {
 			if out.Result != CreateRefused || out.Refusal != CreateRefusalTargetExists {
 				t.Fatalf("Create = %+v, want refused target_exists", out)
 			}
-			if c.want == "<the path itself>" {
-				// A link is refused when the space is resolved, before the
-				// issue is read, naming the path.
+			if c.atPath {
 				if !slices.Equal(out.Existing, []string{cw.tree}) {
 					t.Errorf("existing = %v, want [%s]", out.Existing, cw.tree)
 				}
@@ -749,30 +748,31 @@ func TestCreateRechecksTheSpaceUnderTheExclusions(t *testing.T) {
 	}
 }
 
-// TestCreateFetchFailure checks that a failed fetch refuses the creation
-// before the exclusions are taken and anything is written.
+// TestCreateFetchFailure checks that a failed fetch, or an origin/main
+// that cannot be read after it, refuses the creation before the exclusions
+// are taken and anything is written.
 func TestCreateFetchFailure(t *testing.T) {
-	cw := newCreateWorld(t, func(cw *createWorld) { cw.rec.failIn(cw.chiefTree, "git fetch origin main", errInjected) })
-	out := cw.create(createIssue)
-	if out.Result != CreateRefused || out.Refusal != CreateRefusalFetchFailed {
-		t.Fatalf("Create = %+v, want refused fetch_failed", out)
+	for _, c := range []struct {
+		name  string
+		setup func(cw *createWorld)
+	}{
+		{"the fetch fails", func(cw *createWorld) { cw.rec.failIn(cw.chiefTree, "git fetch origin main", errInjected) }},
+		{"origin/main cannot be read after the fetch", func(cw *createWorld) { cw.git(cw.chiefTree, "rev-parse "+originMain, "not a commit\n") }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			cw := newCreateWorld(t, c.setup)
+			out := cw.create(createIssue)
+			if out.Result != CreateRefused || out.Refusal != CreateRefusalFetchFailed {
+				t.Fatalf("Create = %+v, want refused fetch_failed", out)
+			}
+			if got := cw.writes(); len(got) != 0 {
+				t.Errorf("wrote %v", got)
+			}
+			if _, err := os.Lstat(filepath.Join(cw.deps.Store.Dir(), creationDir)); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("the creation exclusion's directory: %v, want none", err)
+			}
+		})
 	}
-	if got := cw.writes(); len(got) != 0 {
-		t.Errorf("wrote %v", got)
-	}
-	if _, err := os.Lstat(filepath.Join(cw.deps.Store.Dir(), creationDir)); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("the creation exclusion's directory: %v, want none", err)
-	}
-	t.Run("origin/main cannot be read after the fetch", func(t *testing.T) {
-		cw := newCreateWorld(t, func(cw *createWorld) { cw.git(cw.chiefTree, "rev-parse "+originMain, "not a commit\n") })
-		out := cw.create(createIssue)
-		if out.Result != CreateRefused || out.Refusal != CreateRefusalFetchFailed {
-			t.Fatalf("Create = %+v, want refused fetch_failed", out)
-		}
-		if got := cw.writes(); len(got) != 0 {
-			t.Errorf("wrote %v", got)
-		}
-	})
 }
 
 // TestCreateReplacesOldRecords leaves the records of an earlier use of the
@@ -834,7 +834,7 @@ func TestCreateAgentNotReady(t *testing.T) {
 
 // TestCreateBusyDuringTick runs a creation while a tick holds the creation
 // exclusion for its automatic send and checks that the creation is refused
-// busy before anything is written; after the tick, a creation takes it.
+// busy before anything is written; after the tick, the exclusion is free.
 func TestCreateBusyDuringTick(t *testing.T) {
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
@@ -865,7 +865,9 @@ func TestCreateBusyDuringTick(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LockCreation after the tick: %v", err)
 	}
-	_ = lock.Close()
+	if err := lock.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // TestCreateBusyWhileThePathIsHeld holds the exclusion of the task's
@@ -948,6 +950,8 @@ func TestTargets(t *testing.T) {
 func TestWorktreeAddDetached(t *testing.T) {
 	repo := newTestRepo(t)
 	cmds := repo.RealCommands()
+	// The home is under /tmp and not t.TempDir(), whose name may hold a
+	// character a task space refuses ("_"), as in newWorld.
 	tmp, err := os.MkdirTemp("/tmp", "chief-add-")
 	if err != nil {
 		t.Fatal(err)
