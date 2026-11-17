@@ -290,7 +290,7 @@
 
 **0092 の確かめ（ステップ 3-1、2026-11-17）。** `git fetch origin main` の後に `git grep -n PendingRemoval origin/main -- internal/chief` を走らせた。`origin/main` は `d23784ec` で、終了コードは 0 だった。ただし当たったのは `internal/chief/testdata/transcript/claude-synthetic.jsonl` の 1 行だけである。これはタスク 0095 が足したセッションの記録のサンプルで、PR-1 の報告の文がこの確かめのコマンドを引いているために当たった。Go のコードに絞った `git grep -n PendingRemoval origin/main -- 'internal/chief/*.go'` の終了コードは 1（見つからない）だった（この pathspec の `*` は `/` にも当たり、`internal/chief/paneinput/` の Go のファイルも対象に含む）。0092 の削除の提案はまだ `main` にないと判断し、決定 6 の 3 つは足さず、AC-05 は 0092 が後に入るときの扱い（決定 9）のままとする。マージの前の確かめは、PR の説明に人の項目として、Go のコードに絞ったコマンドで書く。
 
-**AC-19 の確かめ（ステップ 3-8、2026-11-17）。** `_checks/ac19_under_the_table.sh` を、merge-base `d23784eca522cc21fb72e1d9c5f7d7e7a24e7142` と、`.claude/commands/chief.md` を変えたコミット `ef80839d5cc8e84145eb0056f35fdb2a54bbdb98` で走らせた。終了コードは 0 で、出力は次のとおりである。
+**AC-19 の確かめ（ステップ 3-8・3-13、2026-11-17）。** ステップ 3-13 で、行に収まらないもの（引き継ぎと送信の停止）の行ごとの一覧を表の下の最初に足したので、AC-19 とスクリプトをそれに合わせた。`_checks/ac19_under_the_table.sh` を、merge-base `d23784eca522cc21fb72e1d9c5f7d7e7a24e7142` と、`.claude/commands/chief.md` を最後に変えたコミット `53f15510dd92eb93c76cb55459e89105904cb1c3` で走らせた。終了コードは 0 で、出力は次のとおりである。
 
 ```text
 base d23784eca522cc21fb72e1d9c5f7d7e7a24e7142 items:
@@ -298,14 +298,23 @@ for each row in 質問で停止, each question's gist and its pane;
 each question of this session not answered yet (for example, whether to send again after the human switched an OpenCode pane's model), one per line; keep this list yourself across rounds;
 each of `problems`.
 
-head ef80839d5cc8e84145eb0056f35fdb2a54bbdb98 items:
+head 53f15510dd92eb93c76cb55459e89105904cb1c3 items:
+for each row, by its 名前, what does not fit on its line: a `takeover` that is set; and, when `stopped` is set, that sends to the workspace are stopped, with its `reason` and `at`, or, when its `unreadable` is true, that sends are stopped and the stop record could not be read;
 each question of this session not answered yet (for example, whether to send again after the human switched an OpenCode pane's model), one per line; keep this list yourself across rounds;
 each of `problems`.
 
-PASS: only the per-row question list was removed; the other 2 items stay in order
+PASS: only the per-row question list was removed and the per-row list of what does not fit was added first; the other 2 items stay in order
 ```
 
-スクリプトの各検査は、次の壊し方で失敗することを確かめた（壊した版は一時的なコミットオブジェクトで作り、ブランチには置いていない）。base と head に同じコミットを渡す（質問の一覧が残る）、残る 2 つの項目の順を入れ替える、`problems` の項目も消す、質問の一覧のない版を base に渡す。
+スクリプトの各検査は、次の壊し方で失敗することを確かめた（壊した版は一時的なコミットオブジェクトで作り、ブランチには置いていない）。base と head に同じコミットを渡す（質問の一覧が残り、足した一覧が base にもある）、足した一覧のない版（`ef80839d`）を head に渡す、足した一覧を最後に動かす、`problems` の項目を消す。
+
+**実地の確かめ（ステップ 3-12、2026-11-17）。** 1 回目（`d12b817f`）では、8 つの列の表が pane の幅に収まらず、Claude Code が行ごとに項目を縦に並べて示した。また、「実行中」の行の多くで、何を実行しているかが示されなかった（OpenCode の pane で人が打ったコマンド、`/runplan` の後に自由な文の指示を足した Claude Code のセッション）。これを受けて、ステップ 3-13 の決定の変更を行った。2 回目（`53f15510`）では、`/chief` の表は 6 つの列の表として描かれた。次のことを確かめた。
+-   急ぎの列の絵文字と 1 文字で、列はずれない。長い値は、セルの中で折り返される。
+-   各列の値は、そのときの状況と合っていた。
+-   「質問で停止」の行の内容の列に、質問の要点と pane が出た。
+-   後から自由な文の指示を足したセッションに `/runplan 0097（後に指示あり）` が、OpenCode の pane に「人が打ったコマンド（OpenCode）」が出た。
+-   送信が止まった行は、確かめの間に現れなかった（その位置は `TestStoppedRowsOrderFirst` で確かめている）。
+-   `/chief once` では、セッションが表を書かずに問い（`AskUserQuestion`）を開き、表が見えなかった。0088 から続く `once` の作りによるもので、今回の列の変更とは関わらないため、人が選んで別の課題にした（2026-11-17）。
 
 ## 8. 成功の基準 (Success Criteria)
 
