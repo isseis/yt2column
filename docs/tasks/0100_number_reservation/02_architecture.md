@@ -30,7 +30,7 @@
 -   **一意性は GitHub の ref の作成が保証する。** 番号ごとに 1 つの tag を GitHub の REST で作り、作れた番号だけを返す。同じ名前の ref は GitHub の上で 2 つ作れないので、別のクローンや cloud のセッションの間でも、2 つのセッションが同じ番号を得ることはない（AC-01・AC-10、要件書 5 章）。ローカルのロックは使わない。
 -   **判定は道具が行い、コマンドの文書には呼び出しの形だけを書く。** 使用中の番号の集め方、次の番号を試すか止めるかの判定、上限は、Go の道具 `numreserve` の中にあり、テストで壊して確かめる（[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md)、要件書 4.5）。エージェントは、道具が標準出力に出した 4 桁の番号だけを使う（AC-05）。
 -   **分からなければ止める。** 「その番号の ref がすでにある」と GitHub から読み直して確かめた失敗だけを、次の番号を試す理由にする。そのほかの失敗、受け入れない形の入力、上限の超過は、すべて止める理由にする。従来の計算には戻らない（要件書 4.2、[ADR-0051](../../dev/adr/0051-number-reservation.md)）。
--   **記録は消させない。** 記録の tag は、記録の ruleset でサーバ側から削除と更新を禁じる。`CLAUDE.md` の規則（AC-21）は、ruleset がまだ設定されていない間と、記録の tag を新しく作ることに対する守りである。
+-   **記録は消させない。** 記録の tag は、記録の ruleset でサーバ側から削除と更新を禁じる。ただし、管理者の資格で動くエージェントは ruleset 自体を変えられるので、ruleset を変えることと、ruleset がまだ設定されていない間と、記録の tag を新しく作ることに対する守りは、`CLAUDE.md` の規則（AC-21 と、ネットワークの操作の承認）である（5.2）。
 -   **最後の守りをマージの前に置く。** 古い `mkreq.md` や `adr.md` で手で選んだ番号は、番号を決める側では見つけられない。`mergepr` が、マージの直前に最新の `origin/main`、記録の tag、ほかのブランチを読んで確かめる（F-007）。
 -   **上限は道具自身が持つ。** 時間と出力の上限は `internal/numreserve` が自分で課し、呼び出し側（`cmd/numreserve` か `mergepr`）によって変わらない（3.4）。
 -   **既存の部品を使う。** 外部のコマンドの実行は `internal/cmdrunner` を使う。名前の形は、`chief` と `TestADRRecords` が持つ判定を名前の部品に移し、すべての読み手で使う（3.7）。
@@ -44,7 +44,9 @@
 -   **仕組みより前に作られた作業中の PR は、番号のしきい値で扱う（申し送りの H-08・H-10）。** 導入の時点で使用中のタスク番号と ADR 番号のそれぞれの最大値を、しきい値として道具に持たせる。しきい値以下の番号には、記録の確かめ（AC-27）をかけず、重複の確かめ（AC-28）とほかのブランチの確かめだけをかける。古いクローンが導入の後に「最大値 + 1」で計算した番号はしきい値より大きいので、記録がなければ AC-27 で見つかる。道具がしきい値以下の番号を返すのは、導入の時点で最大の番号を持っていたブランチがマージされずに消された場合に限られ、その番号にも記録の tag があるので、確かめは弱まらない。PR の作成日時で分ける案は、導入の前に作った PR が導入の後に加えた番号を見逃す。使用中の番号の記録をまとめて作る案は、そのための経路が道具に要る。どちらも採らない。しきい値の値は計画で決める。ADR: [ADR-0051](../../dev/adr/0051-number-reservation.md) を更新する。
 -   **道具は Go で書き、`cmd/numreserve` と `internal/numreserve` に置き、利用者が `make install-numreserve` で `main` から入れる（申し送りの H-03）。** [ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) の方針どおりである。`_lib/` の bash のスクリプトにする案は、判定（使用中の番号の集め方、どの失敗で次を試すか、上限）をテストで壊して確かめられないので採らない。エージェントは道具を入れたりビルドしたりしない（`codexreview` と同じ）。ADR: [ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) を更新する（道具の一覧とインストールの規則が ADR-0014 の決定にあるため）。
 -   **GitHub のリポジトリ（`isseis/yt2column`）は道具の定数に持ち、`origin` の URL を読まない。** cloud のセッションでは `origin` がローカルのプロキシの URL でありうる（確かめていない）。URL を読むと、環境ごとに受け入れる形の規則が要る。さらに、URL に入ったトークンを、止める理由の詳細に出す恐れもある。`git ls-remote` と `git fetch` は `origin` に対して行い、URL の中身は読まない。ADR: なし（道具の中の値で、このタスクの中で閉じる）。
--   **`numreserve` が外部の出力を読んで振る舞いを選ぶことを、`CLAUDE.md` の「Declare, don't infer」の例外として書く。** 読むのは、`gh api -i` の出力の HTTP の状態行と `X-RateLimit-Remaining` の見出し、`GET` の応答の `ref`、`git ls-remote` の行、`git ls-tree` の項目の種類と名前である。`codexreview` と `coveragecompare` と同じく、外部の道具が書く値で、型にできないためである。範囲はこれらの読み取りだけで、合わない形は `malformed` で止める（境界）。ADR: なし（CLAUDE.md の規則であり、CLAUDE.md の「Design decisions (ADR)」により ADR にしない）。
+-   **`numreserve` が外部の出力を読んで振る舞いを選ぶことを、`CLAUDE.md` の「Declare, don't infer」の例外として書く。** 読むのは、`gh api -i` の出力の HTTP の状態行と rate limit の見出し（`X-RateLimit-Remaining` と `Retry-After`）、`GET` の応答の `ref`、`git ls-remote` の行、`git ls-tree` の項目の種類と名前、作業ツリーの `docs/dev/adr/` の項目の名前と、それらに名前の形を当てる `internal/tasknaming` の判定である。`codexreview` と `coveragecompare` と同じく、外部の道具が書く値で、型にできないためである。範囲はこれらの読み取りだけで、合わない形は `malformed` で止める（境界）。ADR: なし（CLAUDE.md の規則であり、CLAUDE.md の「Design decisions (ADR)」により ADR にしない）。
+-   **番号の跳び（AC-09）は、要件書のとおり「`origin/main` と記録の tag の最大値」を基準にし、記録の tag だけに別の上限をかけることはしない。** 記録の tag に「`main` の最大値 + 跳びの幅」の上限をかけると、道具は自分の候補にその上限をかけないので、正当な予約が跳びの幅だけたまると、次の実行がその上限を超える tag を自分で作り、以後のすべての実行が止まる。直すには正当な記録を消すしかなく、AC-03 に反する。手で作られた大きな番号の tag が基準を押し上げる危険は、`CLAUDE.md` の承認の規則（AC-21）と管理者の手順（3.3.3）に任せ、残る危険とする（5.2）。Fable の部分レビューの指摘を受けて決めた。ADR: [ADR-0051](../../dev/adr/0051-number-reservation.md) の「結果」に残る危険として書く（決定は AC-09 のとおりで変わらない）。
+-   **PR の base が `main` でないときは、`mergepr` は番号の確かめを行わずにマージを続ける。** 今の `mergepr` はどの base の PR もマージでき、その PR の変更は、後で `main` に入る PR が確かめを受ける。止めると、今マージできる PR がマージできなくなる。Fable の部分レビューの指摘を受けて決めた。ADR: なし（`mergepr` の確かめの適用範囲であり、このタスクの中で閉じる）。
 -   **止まったときの契約は、終了コード 1 と、標準エラーの 1 行の理由の語にする。理由ごとの終了コードは設けない（3.1）。** 終了コードを理由ごとに分けても、それを使い分ける手順がない。エージェントは止まったことと理由の語を利用者に示し、理由ごとの次にすることは手引きの 1 つの表にまとめる。ADR: なし（道具の出力の形であり、ADR-0014 の「契約は手引きにある」の範囲で閉じる）。
 -   **上限と幅の値は 3.4 の表のとおりにする（申し送りの H-09）。** 2026-11-17 の `origin` には、ブランチが 15、ref が全体で 755（PR の ref を含む）あり、タスクは 100、ADR は 51 ある。値はこの規模から余裕を持たせて決めた。ADR: なし（値はこのタスクの中で閉じる。変えても ADR-0051 の決定は変わらない）。
 -   **名前の形（タスクのブランチ名・タスクのディレクトリ名・ADR のファイル名）と 4 桁の番号の型を、共有のパッケージ `internal/tasknaming` に置く。** 今は `chief` が `featureBranch` と `taskDirName`（`internal/chief/task.go:739`・`742`）を、`TestADRRecords` が `adrNameRE`（`cmd/yt2column/adr_test.go:50`）を持つ。`numreserve` と `mergepr` も同じ形を読むので、別々に書くと片方だけが変わりうる（CLAUDE.md の「DRY」）。`chief` と `TestADRRecords` の振る舞いは変えない（AC-04）。ADR: なし。複数の部品が使うが、形そのものは `_context.md` の「Feature branch name」と `adr.md` の「Location and naming」が決めており、本書はその判定のコードの置き場所を決めるだけで、置き場所を変えても決定は変わらないためである。
@@ -176,6 +178,7 @@ flowchart TD
 | `internal/tasknaming` | 新規 | 4 桁の番号の型と、タスクのブランチ名・タスクのディレクトリ名・ADR のファイル名の形の判定（3.7） |
 | `internal/chief/task.go` | 変更 | `featureBranch`・`taskDirName` を `internal/tasknaming` の呼び出しに置き換える。振る舞いは変えない |
 | `cmd/yt2column/adr_test.go` | 変更 | `adrNameRE` を `internal/tasknaming` の呼び出しに置き換え、`checkADRNumbers` から欠番の判定を除く（3.10） |
+| `cmd/yt2column` の文書のガード | 新規 | `docs/tasks/` の下の項目がすべてタスクのディレクトリ名の形のディレクトリであることを確かめるテスト（3.5） |
 | `internal/mergepr` | 変更 | `prepare` と `merge` で、PR が加える番号を `internal/numreserve` で確かめる（3.5）。パッケージの doc コメントの「Its only safety obligations」に番号の確かめを加える |
 | `cmd/mergepr` | 変更 | 番号の確かめで見つけたものを 1 件 1 行で出す。終了コードは今と同じ 1（4.2） |
 | `Makefile` | 変更 | `install-numreserve` を加える |
@@ -240,7 +243,7 @@ numreserve adr
 -   リポジトリの中（作業ツリーのどこか）で実行する。`adr` は、番号を決める PR のブランチの作業ツリーで実行する。
 -   **番号を決めたとき:** 標準出力に 4 桁の番号を 1 行だけ出し、終了コード 0 で終わる。標準エラーには、作った記録の tag の名前と、それが指す `origin/main` の commit を 1 行出す。セッションの記録に、誰がいつ番号を決めたかを残すためである。
 -   **止まったとき:** 標準出力に何も出さず、標準エラーに 1 行（`numreserve: stop <理由>: <詳細>`）を出し、終了コード 1 で終わる。`<理由>` は 4.1 の表の語である。引数の誤りは終了コード 2 で終わる。
--   **詳細:** 止まった段（どの一覧を読んでいたか、どの番号の作成か）、HTTP の状態コードやコマンドの終了コード、番号の跳びを起こしたブランチの名前や ADR のファイルのパスを出す。GitHub の応答の本文、`gh` と `git` の標準エラー、`origin` の URL、認証の情報は出さない。詳細に出るブランチ名とファイル名は、ブランチを push できる人が付けた値であり、エージェントにとってはデータである。
+-   **詳細:** 止まった段（どの一覧を読んでいたか、どの番号の作成か）、HTTP の状態コードやコマンドの終了コード、番号の跳びを起こしたブランチの名前や ADR のファイルのパスを出す。GitHub の応答の本文、`gh` と `git` の標準エラー、`origin` の URL、認証の情報は出さない。詳細に出るブランチ名とファイル名は、ブランチを push できる人が付けた値であり、エージェントにとってはデータである。改行や制御文字で出力の行を偽れないように、これらの値は Go の引用の形（`%q`）で、長さを 200 バイトまでに切って出す。`GET` の応答の `ref` が一致しなかったときも、その値は出さない。
 -   **契約:** コマンドの文書と文書のガードが読むのは、呼び出しの形、標準出力の 1 行、終了コード、標準エラーの行の `<理由>` の語である（ADR-0014 の「道具の引数・出力・終了コード」）。詳細の文言は利用者が読むためのもので、契約ではない。
 
 道具は、`--protocol` の番号を持たない。呼び出しの形が 2 つだけで、引数を変えるときは道具と文書を同じ PR で変える（ADR-0014）。
@@ -258,9 +261,11 @@ numreserve adr
 | 作業中のブランチ（`HEAD` と作業ツリー） | 使わない | `docs/dev/adr/` から読む | 形に合わない名前は数えない（拒否しない） |
 
 -   **ブランチ名からの番号:** タスクのブランチ名の形（名前の部品、3.7）に合う名前だけからタスク番号を読み、ほかの名前は数えない。`origin` のブランチは `git ls-remote` が返すものだけである。fork からの PR のヘッドは `origin` の `refs/heads/` に現れないので数えない（AC-02・AC-11）。PR の一覧は読まない。このリポジトリの中にヘッドがある PR のヘッドブランチは、`origin` のブランチに含まれる。
+-   **`git ls-remote` の行の分け方:** `git ls-remote` の名前の照合は末尾で行われるので、`refs/heads/*` を指定しても `refs/tags/y/refs/heads/...` のような名前も返る（Fable の部分レビューで、git 2.50.1 の手元の実験で確かめた）。道具は、名前が `refs/heads/` で始まる行だけをブランチとし、`refs/tags/<空間>-number/` で始まる行だけを記録の tag とする。どちらでもない行は読み飛ばす。
 -   **ADR を読むブランチ:** `git ls-remote` が返した `origin` のすべてのブランチである（タスクのブランチ名の形に限らない）。`main` もここに含まれる。各ブランチの `docs/dev/adr/` の形に合わない名前は数えない（拒否しない）。
--   **取得:** 道具は、`git ls-remote` が返した SHA だけを取得し、remote-tracking の ref もローカルのブランチも更新しない（`FETCH_HEAD` も書かない）。同じリポジトリの worktree で 2 つの道具が同時に動いても、ref のロックで衝突しないためである。`ls-remote` の後にブランチが消されたか書き換えられて、その SHA を取得できなかったときは止める（network-or-github、詳細にブランチ名）。
--   **git と gh の環境:** git は `cmdrunner.GitEnv` と `GitHardening`（`internal/cmdrunner/git.go`）の環境と設定で実行し、認証の入力を待たない。`gh` は `--hostname github.com` を付け、利用者への問いを出さない環境（`GH_PROMPT_DISABLED`）で実行する。
+-   **取得:** 道具は、`git ls-remote` が返した SHA だけを取得し、remote-tracking の ref もローカルのブランチも更新しない（`FETCH_HEAD` も書かない）。同じリポジトリの worktree で 2 つの道具が同時に動いても、ref のロックで衝突しないためである。取得には `--no-tags` を付ける。`remote.origin.tagOpt` が `--tags` のクローンでも、ローカルの tag を書かないためである（Fable の部分レビューで確かめた）。`FETCH_HEAD` を書かない指定には git 2.29 以上が要る。`ls-remote` の後にブランチが消されたか書き換えられて、その SHA を取得できなかったときは止める（network-or-github、詳細にブランチ名）。
+-   **git と gh の環境:** git は `cmdrunner.GitEnv` と `GitHardening`（`internal/cmdrunner/git.go`）の環境と設定で実行し、認証の入力を待たない。`gh` は `--hostname github.com` を付け、利用者への問いを出さず（`GH_PROMPT_DISABLED`）、色を付けない（`NO_COLOR` を設定し、`CLICOLOR_FORCE` と `GH_FORCE_TTY` を外す）環境で実行する。色を付けると、見出しの名前がエスケープの列で囲まれ、rate limit を読み違えるためである（Fable の部分レビューで確かめた）。
+-   **前提:** `origin` は GitHub の `isseis/yt2column` である（`mergepr` と同じ前提）。`origin` が古いクローンや別のリポジトリを指すと、使用中の番号を見落として、使用中の番号の tag を作りうる。その番号はマージの前の確かめで見つかる。手引きに前提を書く。
 -   **ローカルのブランチ:** クローンごとに違うので、同じ実行でもクローンによって結果が変わりうる。迷い込んだローカルのブランチで番号が跳んだときは止まり、ブランチ名を示す（3.4）。手引きに片付け方を書く。
 
 #### 3.2.1. `origin/main` の一覧の形
@@ -278,7 +283,7 @@ numreserve adr
 
 道具は、候補の番号 `NNNN` について、REST の `POST /repos/isseis/yt2column/git/refs`（`ref` は `refs/tags/<空間>-number/NNNN`、`sha` は `git ls-remote` が返した `refs/heads/main` の SHA）を `gh api -i` で呼ぶ。読み直しは `GET /repos/isseis/yt2column/git/ref/tags/<空間>-number/NNNN` である。
 
--   `-i` を付けると、`gh api` は失敗したときも標準出力の先頭に HTTP の状態行を出す。2026-11-17 に、`gh` 2.96.0 で存在しない ref を読み、終了コード 1 と、標準出力の先頭の `HTTP/2.0 404 Not Found` を確かめた。道具は、状態行の状態コードと、3.3.2 の見出しだけで判定し、応答の本文の `message` の文は読まない。状態行は `HTTP/1.1`・`HTTP/2`・`HTTP/2.0` の形を受け入れ、それ以外は止める（network-or-github）。cloud のセッションのプロキシが接続の版を変えうるためである。
+-   `-i` を付けると、`gh api` は失敗したときも標準出力の先頭に HTTP の状態行を出す。2026-11-17 に、`gh` 2.96.0 で存在しない ref を読み、終了コード 1 と、標準出力の先頭の `HTTP/2.0 404 Not Found` を確かめた。道具は、状態行の状態コードと、3.3.2 の見出しだけで判定し、応答の本文の `message` の文は読まない。見出しの名前は大文字と小文字を区別せずに読む（`gh` は `X-Ratelimit-Remaining` の形で出す）。状態行は `HTTP/1.1`・`HTTP/2`・`HTTP/2.0` の形を受け入れ、それ以外は止める（network-or-github）。cloud のセッションのプロキシが接続の版を変えうるためである。
 -   tag は軽量の tag で、決めたときの `origin/main` の commit を指す。tag の中身（指す commit）は判定に使わない。番号の判定には名前だけを使う（申し送りの H-06）。
 -   どのタスクや PR のために決めたかを tag に持たせない。番号はブランチ名とディレクトリ名に現れるので、残っているブランチや PR から辿れる。番号を決めたことは、セッションの記録にも残る（3.1）。
 
@@ -288,8 +293,9 @@ numreserve adr
 |---|---|
 | 201 | 番号が決まった。番号を出して終わる |
 | 422 | `GET` で同じ名前の ref を読み直す。200 で、返された `ref` が問い合わせた名前と一致すれば「すでに使われている」と確かめたので次の番号へ進む。一致しなければ止める（malformed）。404 を含むそれ以外なら、ruleset による拒否などの、使用中と確かめられない失敗なので止める（network-or-github） |
-| 429、または 403 で `X-RateLimit-Remaining: 0` | 止める（network-or-github）。一時的な rate limit であり、時間をおけば通るためである |
+| 429、または 403 で `X-RateLimit-Remaining: 0` か `Retry-After` の見出しがある | 止める（network-or-github）。一時的な rate limit（二次の rate limit を含む）であり、時間をおけば通るためである |
 | そのほかの 401・403・404 | 止める（permission）。404 は、リポジトリが見えない権限の不足として GitHub が返すためである |
+| `gh` が認証されていない（`gh` の終了コード 4。状態行は出ない） | 止める（permission） |
 | そのほか（5xx、状態行がない、`gh` が起動しない、時間切れ） | 止める（network-or-github） |
 
 時間切れなどで、GitHub では作れたのに道具が失敗として止まることがある。その番号は欠番になる。重複は起きないので、これを受け入れる。
@@ -306,15 +312,14 @@ numreserve adr
 
 道具は ruleset の有無を確かめない。ruleset はリポジトリの外の設定であり、道具が読んでも利用者が変えられるためである。ruleset がない間の守りは、`CLAUDE.md` の規則（AC-21）だけになる。導入のときに ruleset が効くことの確かめ方は、計画で決める。
 
-**消せない記録が誤っているとき:** 誰も迂回できないので、受け入れない名前の tag や、番号を跳ばす tag（3.4）が作られると、その空間の番号を決めることが止まり続ける。手引きに、管理者が ruleset を一時的に外して誤った tag だけを消し、ruleset を戻す手順と、その前後に確かめることを書く。これは `CLAUDE.md` の規則（AC-21）の承認を要る操作であり、エージェントは行わない。
+**消せない記録が誤っているとき:** 誰も迂回できないので、受け入れない名前の tag が作られると、その空間の番号を決めることが止まり続ける。大きな番号の tag が作られると、番号を使い切らせうる。手引きに、利用者（管理者）が誤った tag だけを消す手順を書く。ruleset を無効にせず、誤った tag の名前だけを ruleset の対象から一時的に除いて消し、除いた名前を戻す。無効にすると、その間すべての記録が守られなくなるためである。消した tag は各クローンにローカルの tag として残り、`git push --tags` で作り直されうるので、各クローンのローカルの tag も消すことを手順に含める。この手順は利用者が行い、エージェントは行わない。
 
 ### 3.4. 候補の番号と上限
 
 -   **最初の候補:** 使用中の番号の最大値 + 1。
 -   **次の候補:** 3.3.2 で「すでに使われている」と確かめたとき、その番号 + 1。使用中の番号の一覧は読み直さない。
--   **4 桁の上限:** 候補が 9999 を超えたら止める（exhausted、AC-08）。
 -   **跳び（AC-09）:** 候補が「基準の最大値 + 跳びの幅」を超えたら止める（jump）。基準の最大値は、`origin/main` の番号と記録の tag の番号の最大値であり、ブランチと作業ツリーの番号を含まない。詳細には、基準の最大値より大きい番号を持つ入力（ブランチの名前、ADR のファイルのパスとそのブランチ）をすべて出す。
--   **跳んだ記録の tag:** 記録の tag に、`origin/main` の番号の最大値 + 跳びの幅を超える番号があれば、それも跳びとして止め、その tag の名前を出す。AC-09 の基準は記録の tag を含むので、誤って作られた大きな番号の tag（例：`task-number/9998`）が基準を押し上げると、AC-09 の判定が効かなくなるためである。
+-   **4 桁の上限:** 候補が 9999 を超えたら止める（exhausted、AC-08）。跳びの判定を先に行う。迷い込んだ `9999` の番号のブランチで候補が 10000 になったときに、原因のブランチ名を示す jump で止めるためである。
 -   **回数の上限:** `POST` を試す回数が上限に達したら止める（attempts、AC-07）。
 
 | 値 | 決めた値 | 理由 |
@@ -334,14 +339,14 @@ numreserve adr
 
 `mergepr` は、`prepare` と `merge` の両方で、PR が加える番号を確かめる。`prepare` では CI の完了を待った後、作業ディレクトリを作る前に確かめ、マージの質問の前に止まる。`merge` では、`prepare` の後に `main` に入った番号を見つけるため、`gh pr merge` の直前に確かめる。
 
--   **base:** PR の base が `main` でなければ、確かめずに止まる。比べる相手が `origin/main` だからである。
--   **PR が加える番号:** PR のヘッド（`prepare` が記録した `headRefOid`）の `docs/tasks/` にあり、最新の `origin/main` の `docs/tasks/` にないディレクトリの番号と、PR のヘッドの `docs/dev/adr/` にあり、最新の `origin/main` にないファイルの番号である。
--   **形の確かめ:** PR が `docs/tasks/` の下に加える項目が、タスクのディレクトリ名の形のディレクトリでなければ止まる（3.2.1）。`docs/dev/adr/` の下の形は `TestADRRecords` が CI で確かめる。
+-   **base:** PR の base が `main` でなければ、番号の確かめを行わずに続ける（1.2）。
+-   **PR が加える番号:** PR のヘッド（`prepare` が記録した `headRefOid`）の `docs/tasks/` にあり、PR のヘッドと最新の `origin/main` の merge-base の `docs/tasks/` にないディレクトリの番号と、同じく PR のヘッドの `docs/dev/adr/` にあり、merge-base にないファイルの番号である。最新の `origin/main` と比べないのは、PR が分かれた後に `main` で名前を変えたもの（例：#918 の `0094_chief_question_transcript` から `0096_…` への付け替え）が、古いヘッドに残っているだけで「加えた」と数えられるためである（Fable の部分レビューの指摘）。PR が加える番号がなければ、何も読まずに確かめを終える。
+-   **形の確かめ:** PR が `docs/tasks/` の下に加える項目が、タスクのディレクトリ名の形のディレクトリでなければ止まる（3.2.1）。`docs/dev/adr/` の下の形は `TestADRRecords` が CI で確かめる。`docs/tasks/` の下の形も、`cmd/yt2column` の文書のガードに新しいテストを加え、CI の `doc-guard` のジョブで確かめる。`/mergepr` を通らないマージや古い `mergepr` のバイナリでも、形に合わない項目が `main` に入らないようにするためである。
 -   **記録の確かめ（AC-27）:** PR が加える番号がしきい値（3.6）より大きく、記録の tag がなければ、番号と理由を示して止まる。
 -   **重複の確かめ（AC-28）:** PR が加える番号を、最新の `origin/main` の別のディレクトリまたは別のファイルが使っていれば、番号と、使っているディレクトリまたはファイルを示して止まる。「別の」は名前が違うことで判定する。
 -   **ほかのブランチの確かめ:** PR が加える番号を、PR のヘッドブランチでない `origin` のブランチが、別の名前で加えていれば（`origin/main` にない、同じ番号の別のディレクトリまたはファイル）、番号と、そのブランチと名前を示して止まる（1.2）。同じ名前なら同じタスクまたは ADR とみなし、止めない。タスクの空間でも、ブランチ名ではなく各ブランチの `docs/tasks/` を読む（ブランチの数の上限は 3.4 と同じ）。マージされずに残った古いブランチが同じ番号を別の名前で持つときも止まる。そのブランチを消すかどうかは利用者が決める（手引きに書く）。
 -   **対象（AC-29）:** PR が加える番号だけを確かめる。`origin/main` にすでにある番号では失敗しない。
--   **読むもの:** 最新の `origin/main`、記録の tag、`origin` の各ブランチの一覧である。読み方と上限は 3.2・3.4 と同じで、`internal/numreserve` が受け持つ。どれかが読めないか、受け入れない形なら、マージせずに止まる（安全側に倒す）。
+-   **読むもの:** 最新の `origin/main`、記録の tag、`origin` の各ブランチの一覧である。読むのは、PR が番号を加える空間の分だけである。番号を加えない PR と、もう一方の空間の記録の tag の誤りで、マージが止まらないようにするためである。`origin/main` の一覧は重複の確かめに使う番号だけを読み、形に合わない項目では止めない。その項目を消す PR のマージを止めないためである。読み方と上限は 3.2・3.4 と同じで、`internal/numreserve` が受け持つ。読めないか、読む記録の tag とブランチが受け入れない形なら、マージせずに止まる（安全側に倒す）。
 -   **共有:** 記録の tag の読み方、名前の形、しきい値は `internal/numreserve` と名前の部品にあり、`mergepr` はそれを呼ぶ。同じ判定を `mergepr` に書き直さない。確かめは読むだけで、何も書かない。
 
 **止まったときの直し方（手引きに書く）:**
@@ -358,7 +363,7 @@ numreserve adr
 
 名前の部品は、次の形と型を持つ。
 
--   **4 桁の番号の型:** `0000` から `9999` までの、4 桁の ASCII の数字から作った値。`0000_template` があるので、`0000` も正しい値であり、ゼロ値は `0000` を表す。`chief` の `paneinput.TaskID`（`internal/chief/paneinput/paneinput.go:29-47`）は、この型の値を文字列にしたものから作る。`numreserve` の番号もこの型である。
+-   **4 桁の番号の型:** `0000` から `9999` までの、4 桁の ASCII の数字から作った値。`0000_template` があるので、`0000` も正しい値である。ゼロ値は正しくない値とし、番号のない値（形に合わない項目の指摘など）と区別する。`chief` の `paneinput.TaskID`（`internal/chief/paneinput/paneinput.go:29-47`）は、この型の値を文字列にしたものから作る。`numreserve` の番号もこの型である。
 -   **タスクのブランチ名の形:** `_context.md` の「Feature branch name」（今の `internal/chief/task.go:739` の `featureBranch`）。番号とスラッグを返す。
 -   **タスクのディレクトリ名の形:** `NNNN_<name>`（今の `internal/chief/task.go:742` の `taskDirName`）。
 -   **ADR のファイル名の形:** `NNNN-<kebab>.md`（今の `cmd/yt2column/adr_test.go:50` の `adrNameRE`）。
@@ -372,8 +377,9 @@ numreserve adr
 // directories, and ADR files, and the four-digit number they carry.
 package tasknaming
 
-// Number is a validated four-digit number, 0000 to 9999.
-type Number struct{ n int }
+// Number is a validated four-digit number, 0000 to 9999. Its zero value
+// is invalid and stands for no number.
+type Number struct{ s string }
 
 func ParseNumber(s string) (Number, error)
 func (n Number) String() string // four digits
@@ -438,6 +444,7 @@ type StopError struct {
 type Tool struct{ /* unexported */ }
 
 // New returns the production Tool, which builds its own bounded runner.
+// It refuses to run under go test, so no test can create a real tag.
 // Tests build a Tool on a fake runner through a test helper.
 func New() *Tool
 
@@ -481,8 +488,8 @@ func (t *Tool) CheckAdded(ctx context.Context, head, headBranch string) ([]Added
     -   「Index」：「A new row goes at the end of the table」を、番号の順の位置に入れる規則に置き換える。
 -   **`_lib/settle-decisions.md`:** ADR を作る段の「as the ADR convention ... says」に、番号は規約の「Location and naming」の手順で決めることを明記する（AC-12）。
 -   **`CLAUDE.md`:**
-    -   「Tool Execution Safety」（AC-19・AC-21）：`numreserve task` と `numreserve adr` は、その形で呼ぶ限り承認なしで実行してよい。道具は `origin` に記録の tag を 1 つ作る（ネットワークへの書き込み）。エージェントは道具を入れたりビルドしたりしない。記録の tag（`refs/tags/task-number/` と `refs/tags/adr-number/` の下）を、道具を介さずに作る・変える・消すこと（`git push` と `gh api` によるものを含む）は、利用者の承認を要る。`git push` を承認なしで認める規則の例外である。
-    -   「Declare, don't infer」：`numreserve` の例外（1.2）。範囲は `internal/numreserve` の、`gh api -i` の状態行と rate limit の見出し、`GET` の応答の `ref`、`git ls-remote` の行、`git ls-tree` の項目の読み取りである。境界は、合わない形は `malformed`（状態行は `network-or-github`）で止まり、広く読まないことである。
+    -   「Tool Execution Safety」（AC-19・AC-21）：`numreserve task` と `numreserve adr` は、その形で、手順が新しい番号を求めるときに限って呼ぶ限り、承認なしで実行してよい。試しや確かめのために呼ばない（呼ぶたびに消せない tag を作るため）。道具は `origin` に記録の tag を 1 つ作る（ネットワークへの書き込み）。エージェントは道具を入れたりビルドしたりしない。記録の tag（`refs/tags/task-number/` と `refs/tags/adr-number/` の下）を、道具を介さずに作る・変える・消すこと（`git push` と `gh api` によるものを含む）は、利用者の承認を要る。`git push` を承認なしで認める規則の例外である。記録の ruleset を変える・無効にする・消すことも、利用者の承認を要る。
+    -   「Declare, don't infer」：`numreserve` の例外（1.2）。範囲は `internal/numreserve` の、`gh api -i` の状態行と rate limit の見出し、`GET` の応答の `ref`、`git ls-remote` の行、`git ls-tree` の項目と作業ツリーの `docs/dev/adr/` の項目の読み取りと、そこで使う `internal/tasknaming` の名前の形の判定である。境界は、合わない形は `malformed`（状態行は `network-or-github`）で止まり、広く読まないことである。
     -   「Testing Strategy」：信頼の境界でエージェントが実行するコマンドの例外の一覧に、`numreserve` の呼び出しの形を加える（7.2）。
     -   「Development Notes」：`doc-guard` のジョブのパッケージの一覧に `./cmd/numreserve` を加える。
     -   「Build Commands」に `make install-numreserve` を、Quick Links に手引きを加える。
@@ -516,7 +523,7 @@ func (t *Tool) CheckAdded(ctx context.Context, head, headBranch string) ([]Added
 | `network-or-github` | ネットワークまたは GitHub の失敗 | 時間切れ、`gh`・`git` のネットワークの失敗、5xx、rate limit、状態行の形の誤り、422 の後に ref を読めない（ruleset による拒否を含む）、取得できない SHA | 時間をおいて再実行する。続くときは GitHub の状態と ruleset を確かめる |
 | `attempts` | 試す回数の上限に達した | `POST` を 10 回試して、どれも先を越された | 再実行する |
 | `exhausted` | 4 桁の番号が残っていない | 候補が 9999 を超えた | 利用者が番号の形を見直す（このタスクの範囲外） |
-| `jump` | 番号が不自然に跳んだ | 候補が基準の最大値 + 20 を超えた、または記録の tag が `main` の最大値 + 20 を超えた | 詳細に出たブランチやファイルを利用者が確かめ、迷い込んだものなら持ち主が消すか名前を直す。tag なら 3.3.3 の手順 |
+| `jump` | 番号が不自然に跳んだ | 候補が基準の最大値 + 20 を超えた | 詳細に出たブランチ（ローカルのブランチを含む）やファイルを利用者が確かめ、迷い込んだものなら持ち主が消すか名前を直す |
 | `list-limit` | 一覧が上限を超えた | 出力が 4 MiB を超えた、ブランチが 500 を超えた | 使わないブランチを片付ける。上限を変えるなら道具を変える |
 | `malformed` | 受け入れない形のデータ | 3.2・3.2.1・3.3.2・3.3.3 の受け入れない形 | 詳細に出た名前を利用者が確かめ、直す。tag なら 3.3.3 の手順 |
 | `local-git` | -（AC-06 の「少なくとも」に加える） | ローカルの git が失敗した（リポジトリの外で実行した、など） | リポジトリの中で実行し直す |
@@ -582,7 +589,8 @@ flowchart LR
 |---|---|
 | fork の PR のブランチ名で番号を押し上げ、4 桁の範囲を使い切らせる | `origin` の `refs/heads/` だけを読み、PR の一覧は読まない。fork のヘッドは現れない（AC-02・AC-11） |
 | 迷い込んだブランチや打ち間違えたファイル名で番号が黙って跳び、記録に残る | 跳びの判定（3.4）で、記録を作る前に止める（AC-09） |
-| 手で作った大きな番号の記録の tag で基準を押し上げ、番号を使い切らせる | `main` の最大値から跳んだ記録の tag も跳びとして止める（3.4）。誤った tag は管理者が消す（3.3.3） |
+| 手で作った大きな番号の記録の tag で基準を押し上げ、番号を使い切らせる | 作成は `CLAUDE.md` の規則が承認を求める（AC-21）。作られた tag は利用者が消す（3.3.3）。道具では防がない（残る危険） |
+| 管理者の資格で、記録の ruleset を変える・無効にする・消す | `CLAUDE.md` の規則が承認を求める（3.9）。道具は ruleset を確かめない（残る危険） |
 | 受け入れない形の ref・一覧を読み飛ばして、使用中の番号を見落とす | 3.2 の表と 3.3.3 の拒否（要件書 4.2） |
 | 形に合わない項目が `main` の `docs/tasks/` に入り、以後の番号の決定とマージがすべて止まる | マージの前の確かめが、PR が加える形に合わない項目を拒む（3.5） |
 | 記録の tag を消して番号を使い回す、または道具が止まった後に手で記録を作る | 記録の ruleset が削除と更新を禁じる。作成は `CLAUDE.md` の規則が承認を求める（AC-21） |
@@ -594,13 +602,13 @@ flowchart LR
 **残る危険:**
 
 -   記録の ruleset を設定する前は、記録の tag をエージェントが `git push --delete` で消せる。守りは `CLAUDE.md` の規則だけになる。導入の手順で、ruleset を早く設定する（8 章）。
--   誤った記録の tag は誰も迂回できずに残り、管理者が ruleset を外して消すまで、その空間の番号の決定が止まる（3.3.3）。
+-   誤った記録の tag は誰も迂回できずに残り、利用者が消すまで、その空間の番号の決定が止まる（3.3.3）。手で作った大きな番号の tag は、跳びの基準を押し上げ、番号を使い切らせうる（1.2）。
+-   エージェントは利用者の管理者の資格で動くので、記録の ruleset を変える・無効にすることができる。守りは `CLAUDE.md` の規則だけであり、道具は ruleset の状態を確かめない。
 -   `/mergepr` を通らない手作業のマージは、マージの前の確かめを通らない（1.2）。
 -   2 つの `/mergepr` が同時に確かめると、どちらも重複の確かめを通りうる。ADR の重複は `main` で `TestADRRecords` が見つけるが、タスク番号の重複は `main` で見つける検査がない。
 -   古い手順のセッションが、中断されてブランチが消えた番号を手で選ぶと、その番号の記録の tag があるので、マージの前の確かめは使い回しを見つけない。
 -   古い `mergepr` のバイナリは、確かめなしにマージする。導入の手順で、利用者が `make install-mergepr` を実行し直す（8 章）。
 -   cloud のセッションで `gh` が使えるか、認証されているか、道具を入れられるか、ref を作れるかは、設計の段では確かめていない。今のブランチの ruleset（ID 26400325）は、管理者でない者のブランチの作成を禁じるので、cloud のセッションの権限によってはタスクのブランチも作れない。AC-22 で確かめ、制約として記録する（7.3）。
--   中断した番号が `main` の最大値の上に 20 を超えて積み上がり、それらの番号がマージされないまま、記録の tag が `main` の最大値 + 20 を超え、跳んだ記録の tag（3.4）として止まり続ける。起きにくいので受け入れ、手引きに、管理者が誤った tag を消す手順（3.3.3）で直すことを書く。
 -   「すでにある ref の作成を GitHub が 2xx で受けない」という前提（1.2）が崩れると、一意性が崩れる。コマンドの文書を切り替える前に確かめる（7.3）。
 
 ## 6. 処理フロー詳細 (Processing Flow Details)
@@ -668,11 +676,13 @@ sequenceDiagram
 -   使用中の番号の集め方：3.2 の表の各入力について、その入力だけが最大値を決める状況を作り、その入力が番号を押し上げることを確かめる。ほかの入力だけでは同じ結果にならないように作る（CLAUDE.md の「A layered path needs inputs only one layer can handle」）。
 -   fork の除外：`refs/heads/` に現れない名前を数えないのは、読む範囲の構成からそうなるので、PR の一覧を読まないこと（Runner に `gh pr list` の呼び出しがないこと）を確かめる。
 -   作成の判定：201、422 の後の `GET` 200（次へ進む）、`GET` 200 で名前が違う、422 の後の `GET` 404（止める）、401・403・404、429 と rate limit の 403、5xx、状態行のない出力、`HTTP/1.1` と `HTTP/2` の状態行、時間切れ。
--   上限：9999、跳び（詳細に原因の名前が出ること）、跳んだ記録の tag、回数、出力の上限、ブランチの数、1 回の実行の時間の上限。上限が呼び出し側の Runner によらないこと。
+-   上限：9999、跳び（詳細に原因の名前が出ること）、跳びと 4 桁の上限が同時に当たるときに跳びで止まること、回数、出力の上限、ブランチの数、1 回の実行の時間の上限。上限が呼び出し側の Runner によらないこと。
 -   受け入れない形：`ls-remote` の行、記録の tag の名前（入れ子、`^{}`、4 桁でない）、`origin/main` の一覧。
 -   空間の独立（AC-15）：ADR の記録の tag があっても、タスク番号の候補が変わらないこと。逆も同じ。
--   出力：止まったときに標準出力が空であること、標準エラーに応答の本文、コマンドの標準エラー、`origin` の URL を出さないこと。
--   マージの前の確かめ：加えた番号に記録がない（しきい値の上と下）、`origin/main` の別のものが使っている、ほかのブランチが別の名前で加えている、同じ名前のほかのブランチは止めない、形に合わない `docs/tasks/` の項目、`origin/main` にすでにある番号は対象にしない、base が `main` でない。
+-   出力：止まったときに標準出力が空であること、標準エラーに応答の本文、コマンドの標準エラー、`origin` の URL を出さないこと、改行や制御文字を含む名前を引用の形で 1 行に出すこと。
+-   本番の `Tool`：テストの中では作れないこと（`New` がテストの実行を拒むこと）。テストが実の GitHub に消せない tag を作らないためである。
+-   `git ls-remote` の行の分け方：`refs/heads/` と記録の tag の名前空間で始まらない行（末尾の照合で返った行）を数えないこと。
+-   マージの前の確かめ：加えた番号に記録がない（しきい値の上と下）、`origin/main` の別のものが使っている、ほかのブランチが別の名前で加えている、同じ名前のほかのブランチは止めない、形に合わない `docs/tasks/` の項目、`main` で名前を変えたものが古いヘッドに残る PR を止めないこと、番号を加えない PR は何も読まないこと、base が `main` でない PR は確かめないこと、`origin/main` にすでにある番号は対象にしない、base が `main` でない。
 -   名前の部品：`chief` と `TestADRRecords` の今の正規表現が受け入れる入力と拒む入力を、名前の部品も同じく扱うこと。
 
 ### 7.2. 結合テストと文書のガード
@@ -689,18 +699,19 @@ sequenceDiagram
 
 ### 7.4. セキュリティのテスト
 
-5.2 の表の守りは、7.1 の fork の除外、跳びと跳んだ記録の tag、受け入れない形、出力に本文と URL を出さないこと、形に合わない `docs/tasks/` の項目のテストで確かめる。
+5.2 の表の守りは、7.1 の fork の除外、跳び、受け入れない形、出力に本文と URL を出さないこと、形に合わない `docs/tasks/` の項目のテストで確かめる。
 
 ## 8. 実装の優先順位 (Implementation Priorities)
 
 PR の分け方と順序は計画で決める。依存の順は次のとおりである。
 
 1.  `internal/tasknaming` を作り、`chief` と `TestADRRecords` を移す（振る舞いを変えない）。
-2.  `internal/numreserve` と `cmd/numreserve`（番号を決める側）と、`make install-numreserve`。REST の前提を実地で確かめる（7.3）。
-3.  `TestADRRecords` の欠番の許容と、`adr.md` の 4 つの差分。
-4.  利用者が道具を入れ、記録の ruleset を設定した後に、`mkreq.md`・`_lib/settle-decisions.md`・`CLAUDE.md`・`.claude/settings.json`・手引きを、道具の呼び出しに切り替える（申し送りの H-08）。
-5.  `mergepr` の確かめとしきい値。マージの後に、利用者が `make install-mergepr` を実行し直す。
-6.  cloud のセッションでの確かめ（AC-22）と、その結果の記録。
+2.  道具を作る前に、REST の前提（7.3）と、cloud のセッションで `gh` の REST に届くか、道具を入れられるか（AC-22 の一部）を確かめる。結果によっては方式を決め直すためである。
+3.  `internal/numreserve` と `cmd/numreserve`（番号を決める側）と、`make install-numreserve`。
+4.  `TestADRRecords` の欠番の許容と、`adr.md` の 4 つの差分。
+5.  利用者が道具を入れ、記録の ruleset を設定した後に、`mkreq.md`・`_lib/settle-decisions.md`・`CLAUDE.md`・`.claude/settings.json`・手引きを、道具の呼び出しに切り替える（申し送りの H-08）。
+6.  `mergepr` の確かめとしきい値、`docs/tasks/` の形の文書のガード。マージの後に、利用者が `make install-mergepr` を実行し直す。
+7.  cloud のセッションでの確かめ（AC-22）の残りと、その結果の記録。
 
 ADR-0051 と ADR-0014 の食い違いの記述からは、各 PR が直した分を、その PR で取り除く（AC-24）。
 
@@ -720,7 +731,7 @@ ADR-0051 と ADR-0014 の食い違いの記述からは、各 PR が直した分
 | H-04 | REST の `POST` が 422 のとき、`GET` で同じ名前の ref を読み直して見分ける。状態コードは `gh api -i` の状態行から読む（3.3.2）。`git push` は使わない。すでにある ref の作成が 2xx にならないことは、実地で確かめる（7.3） |
 | H-05 | 使用中の番号は、記録の tag と、`origin/main`・ブランチ・作業ツリーの番号の和集合にする。記録のない既存の番号も数える。記録をまとめて作ることはしない（3.2） |
 | H-06 | 決めたときの `origin/main` の commit を指す軽量の tag にし、判定には名前だけを使う（3.3.1）。REST で作るので、`git push` の同じ SHA の問題は起きない。REST の振る舞いは 7.3 で確かめる |
-| H-07 | 設計の段では確かめていない。AC-22 の実地の確かめで、`gh` の有無と認証、道具のインストール、ref とブランチの作成を確かめ、結果を制約として記録する（5.2、7.3） |
+| H-07 | 設計の段では確かめていない。確かめるには cloud のセッションで GitHub に書き込む実験が要り、試した tag は消せないので、道具の実装の前の確かめ（8 章の 2）に回した。AC-22 の実地の確かめで、`gh` の有無と認証、道具のインストール、ref とブランチの作成を確かめ、結果を制約として記録する（5.2、7.3） |
 | H-08 | 道具は記録のない使用中の番号も数える（3.2）。古い手順で決めた番号は、マージの前の確かめで見つける（3.5）。導入の前の PR はしきい値で扱う（3.6）。PR の順序は計画で決める（8 章） |
 | H-09 | 値を 3.4 の表に決めた |
 | H-10 | `mergepr` の `prepare` と `merge` で確かめる。CI には置かない（1.2、3.5） |
