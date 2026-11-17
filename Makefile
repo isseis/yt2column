@@ -56,7 +56,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build build-dev clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview install-chief ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check coverage-compare ext-coverage-compare
+.PHONY: all build build-dev clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview install-chief ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-build-dev ext-check coverage-compare ext-coverage-compare
 
 all: build
 
@@ -461,10 +461,29 @@ ext-test:
 	$(call ext_preflight)
 	cd $(EXT_DIR) && npm run --silent test
 
-# Rebuilds dist/ from scratch and checks it (scripts/check-dist.ts).
+# Rebuilds dist/ from scratch and checks it (scripts/build.ts, which runs
+# scripts/check-dist.ts). The build runs go with GOTOOLCHAIN set to go.mod's
+# version to build the article generation module, so the first build may
+# download that toolchain.
 ext-build:
 	$(call ext_preflight)
 	cd $(EXT_DIR) && npm run --silent build
+
+# The scenario the development build embeds in its article generation module
+# (cmd/yt2column-wasm-dev). Set one on the command line to change it, e.g.
+# `make ext-build-dev FAKE_FAILURE=timeout FAKE_FAIL_AT=draft`. `=` rather
+# than `?=`: a stale environment variable must not choose the scenario.
+FAKE_ARTICLE = standard
+FAKE_FAILURE = none
+FAKE_FAIL_AT = none
+FAKE_DELAY = 0
+FAKE_SETTINGS_CHECK = ok
+
+# Rebuilds dist-dev/ from scratch with the fake LLM and checks it. All five
+# values are always passed; the build has no defaults of its own.
+ext-build-dev:
+	$(call ext_preflight)
+	cd $(EXT_DIR) && npm run --silent build-dev -- --article "$(FAKE_ARTICLE)" --failure "$(FAKE_FAILURE)" --fail-at "$(FAKE_FAIL_AT)" --delay "$(FAKE_DELAY)" --settings-check "$(FAKE_SETTINGS_CHECK)"
 
 # Everything CI runs after ext-install, in the same order.
 ext-check:
@@ -473,6 +492,7 @@ ext-check:
 	@$(MAKE) --no-print-directory ext-fmt-check
 	@$(MAKE) --no-print-directory ext-test
 	@$(MAKE) --no-print-directory ext-build
+	@$(MAKE) --no-print-directory ext-build-dev
 
 # The extension tests' coverage comparison (see coverage-compare). Unlike the
 # other ext- targets it does not call ext_preflight: the tool makes the same

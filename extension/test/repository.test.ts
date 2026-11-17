@@ -58,6 +58,7 @@ describe("build outputs are ignored", () => {
   const paths = [
     "extension/node_modules/pkg/index.js",
     "extension/dist/popup.js",
+    "extension/dist-dev/popup.js",
     // A key must never be committed; *.pem keeps a stray one out of git add.
     "key.pem",
     "extension/key.pem",
@@ -165,6 +166,7 @@ describe("ci runs every extension step", () => {
     "ext-fmt-check",
     "ext-test",
     "ext-build",
+    "ext-build-dev",
   ];
   it("runs each make target as a step of its own, in order", () => {
     const runs = jobSteps(jobLines("extension"))
@@ -191,6 +193,45 @@ describe("ci runs every extension step", () => {
       }
     });
   }
+
+  // The extension build runs go, so Go must be set up before it.
+  it("sets up Go before the build", () => {
+    const steps = jobSteps(jobLines("extension"));
+    const setupGo = steps.findIndex((step) =>
+      step.includes("uses: actions/setup-go@"),
+    );
+    const firstBuild = steps.findIndex((step) =>
+      /^ +run: make ext-build$/m.test(step),
+    );
+    assert.notEqual(setupGo, -1);
+    assert.notEqual(firstBuild, -1);
+    assert.ok(setupGo < firstBuild, "setup-go comes after ext-build");
+  });
+
+  it("classifies changes after setting up Go, and runs the extension job when the dependencies cannot be listed", () => {
+    const steps = jobSteps(jobLines("check-changes"));
+    const setupGo = steps.findIndex((step) =>
+      step.includes("uses: actions/setup-go@"),
+    );
+    const classify = steps.findIndex((step) =>
+      step.includes("bash extension/scripts/wasm-dep-dirs.sh"),
+    );
+    assert.notEqual(setupGo, -1);
+    assert.ok(classify > setupGo, "no dependency listing after setup-go");
+    const step = steps[classify] ?? "";
+    assert.match(
+      step,
+      /^ +if bash extension\/scripts\/wasm-dep-dirs\.sh > "\$dep_dirs"; then$/m,
+    );
+    assert.match(
+      step,
+      /\| bash extension\/scripts\/has-extension-changes\.sh "\$dep_dirs"\)$/m,
+    );
+    assert.match(
+      step,
+      /^ +else\n(?: +echo [^\n]*\n)? +has_extension_changes=true$/m,
+    );
+  });
 
   it("checks go list ./... after setting up Go", () => {
     const steps = jobSteps(jobLines("extension"));
@@ -223,6 +264,75 @@ describe("secret scan always runs", () => {
     // A match (git grep status 0) and an error (above 1) both fail the job.
     assert.ok(job.some((line) => /^ +0\) .*; exit 1 ;;$/.test(line)));
     assert.ok(job.some((line) => /^ +\*\) .*; exit 1 ;;$/.test(line)));
+  });
+});
+
+describe("the development build", () => {
+  /** The flags make -n ext-build-dev passes to the build, by name. */
+  function devBuildFlags(args: string[]): Map<string, string[]> {
+    const result = run("make", ["-n", "ext-build-dev", ...args]);
+    assert.equal(result.status, 0, result.stderr);
+    const lines = result.stdout
+      .split("\n")
+      .filter((line) => line.includes("npm run --silent build-dev"));
+    assert.equal(lines.length, 1, result.stdout);
+    const flags = new Map<string, string[]>();
+    for (const [, name, value] of (lines[0] ?? "").matchAll(
+      /--([a-z-]+) "([^"]*)"/g,
+    )) {
+      flags.set(name ?? "", [...(flags.get(name ?? "") ?? []), value ?? ""]);
+    }
+    return flags;
+  }
+
+  it("ext-build-dev always passes the five scenario values, each once", () => {
+    const flags = devBuildFlags([]);
+    assert.deepEqual([...flags.keys()].sort(), [
+      "article",
+      "delay",
+      "fail-at",
+      "failure",
+      "settings-check",
+    ]);
+    for (const [name, values] of flags) {
+      assert.equal(values.length, 1, name);
+      assert.notEqual(values[0], "", name);
+    }
+  });
+
+  it("ext-build-dev passes each variable to its own option", () => {
+    const flags = devBuildFlags([
+      "FAKE_ARTICLE=a1",
+      "FAKE_FAILURE=f2",
+      "FAKE_FAIL_AT=s3",
+      "FAKE_DELAY=4",
+      "FAKE_SETTINGS_CHECK=c5",
+    ]);
+    assert.deepEqual(Object.fromEntries(flags), {
+      article: ["a1"],
+      failure: ["f2"],
+      "fail-at": ["s3"],
+      delay: ["4"],
+      "settings-check": ["c5"],
+    });
+  });
+
+  it("an environment variable does not choose the scenario", () => {
+    const result = run("make", ["-n", "ext-build-dev"], {
+      ...process.env,
+      FAKE_ARTICLE: "from-environment",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stdout, /from-environment/);
+  });
+
+  it("ext-check runs ext-build-dev after ext-build", () => {
+    const result = run("make", ["-n", "ext-check"]);
+    assert.equal(result.status, 0, result.stderr);
+    const targets = [
+      ...result.stdout.matchAll(/--no-print-directory (ext-[a-z-]+)/g),
+    ].map((match) => match[1]);
+    assert.deepEqual(targets.slice(-2), ["ext-build", "ext-build-dev"]);
   });
 });
 

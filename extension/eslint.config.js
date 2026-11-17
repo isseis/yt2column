@@ -248,7 +248,7 @@ function creatorConfig(file, own) {
 }
 
 export default defineConfig(
-  { ignores: ["dist/", "node_modules/"] },
+  { ignores: ["dist/", "dist-dev/", "node_modules/"] },
   js.configs.recommended,
   tseslint.configs.recommended,
   {
