@@ -269,6 +269,39 @@ func TestRunningCommandPerPane(t *testing.T) {
 		{"a Claude Code transcript with a line that is not JSON", func(rw *runWorld) []Agent {
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"), `{"type":`)}
 		}, "", RunningUnknownUnreadable},
+		{"a Claude Code transcript whose last line ends during the re-reads", func(rw *runWorld) []Agent {
+			a := rw.claude("w1:p1", commandLine("/runplan 0093"))
+			path := rw.transcript(a)
+			if err := os.WriteFile(path, []byte(modeLine(a.Session)+"\n"+commandLine("/runplan 0093")+"\n"+commandLine("/runpr 926")[:20]), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			waits := 0
+			rw.deps.Sleep = func(context.Context, time.Duration) error {
+				if waits++; waits == 2 {
+					return os.WriteFile(path, []byte(modeLine(a.Session)+"\n"+commandLine("/runplan 0093")+"\n"+commandLine("/runpr 926")+"\n"), 0o600)
+				}
+				return nil
+			}
+			return []Agent{a}
+		}, "/runpr 926", RunningUnknownNone},
+		{"a start record that names another send", func(rw *runWorld) []Agent {
+			rw.command("w1:p1", "runpr", "926", "m", sent)
+			starts, _, err := rw.held.sendFiles()
+			if err != nil || len(starts) != 1 {
+				t.Fatalf("sends = %v, %v", starts, err)
+			}
+			// A later start without an end names the sent one.
+			forged := fmt.Sprintf(`{"id":%q,"pane":"w1:p1","input":"command","command":"/runpr 927","agent":"","model":"","prompts":null,"started":"2026-11-14T09:00:00Z","kind":"runpr","arg":"927"}`, starts[0])
+			if err := os.WriteFile(filepath.Join(rw.held.dir, sendPrefix+"99999999999999999999-0123456789abcdef"+startSuffix), []byte(forged), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			return []Agent{rw.openCode("w1:p1")}
+		}, "", RunningUnknownUnreadable},
+		{"no working pane", func(rw *runWorld) []Agent {
+			a := rw.claude("w1:p1", commandLine("/runplan 0093"))
+			a.Status = AgentIdle
+			return []Agent{a}
+		}, "", RunningUnknownPanesDisagree},
 		{"a Claude Code transcript over the cap", func(rw *runWorld) []Agent {
 			a := rw.claude("w1:p1", commandLine("/runplan 0093"))
 			if err := os.Truncate(rw.transcript(a), sessionTranscriptLimit+1); err != nil {
@@ -441,6 +474,10 @@ func TestRunningModel(t *testing.T) {
 		{"a record whose argument does not validate", func(rw *runWorld) []Agent {
 			rw.command("w1:p1", "runpr", "main", "opus", sent)
 			return []Agent{rw.claude("w1:p1", commandLine("/runpr"))}
+		}, "/runpr", ""},
+		{"a pane whose argument was dropped, with a record of no argument", func(rw *runWorld) []Agent {
+			rw.command("w1:p1", "runpr", "", "opus", sent)
+			return []Agent{rw.claude("w1:p1", commandLine("/runpr main"))}
 		}, "/runpr", ""},
 		{"two working panes", func(rw *runWorld) []Agent {
 			rw.command("w1:p1", "runplan", "0093", "opus", sent)

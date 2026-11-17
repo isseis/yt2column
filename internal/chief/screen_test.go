@@ -932,7 +932,10 @@ func TestReadRunningCommand(t *testing.T) {
 		{"a second argument", lines(commandLine("/runplan 0093 0094")), result{text: "/runplan", dropped: true}},
 		{"an argument that is not a number", lines(commandLine("/runpr main")), result{text: "/runpr", dropped: true}},
 		{"an issue with a leading zero", lines(commandLine("/mkreq 0890")), result{text: "/mkreq", dropped: true}},
-		{"no argument", lines(commandLine("/runpr")), result{text: "/runpr"}},
+		{"an empty argument element", lines(commandLine("/runpr")), result{text: "/runpr"}},
+		// Claude Code writes a command typed without an argument with no
+		// argument element, which is read as other input: a known limit.
+		{"a command typed without an argument", lines(strings.Replace(commandLine("/runpr"), `\n<command-args></command-args>`, "", 1)), notTask},
 	}
 	for _, c := range cases {
 		cmd, dropped, why := readRunningCommand([]byte(c.text))

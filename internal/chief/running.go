@@ -95,13 +95,14 @@ const (
 	// RunningUnknownNone is a decided command.
 	RunningUnknownNone RunningUnknown = iota
 	// RunningUnknownNoSession is a Claude Code pane Herdr reports no session
-	// for.
+	// for, or a session ID not of the form Herdr gives.
 	RunningUnknownNoSession
 	// RunningUnknownUnsupportedPath is a transcript whose place cannot be
 	// decided from the pane's working directory.
 	RunningUnknownUnsupportedPath
 	// RunningUnknownUnreadable is a transcript or a send record that cannot
-	// be read, or a pane of no known agent.
+	// be read. A pane of no known agent reads so too: neither of its records
+	// can be read.
 	RunningUnknownUnreadable
 	// RunningUnknownOverCap is a transcript over the read cap.
 	RunningUnknownOverCap
@@ -227,7 +228,7 @@ func runningOfPane(ctx context.Context, deps Deps, a Agent, sends func(pane stri
 // nothing is shown, with the reason of the first undecided pane, or
 // RunningUnknownPanesDisagree. The model of chief's send record is shown
 // only for exactly one working pane whose last command sent is the command
-// shown, its argument whole.
+// shown, the argument whole on both.
 func runningOf(ctx context.Context, deps Deps, agents []Agent, sends func(pane string) (lastCommand, error)) (*RunningShown, RunningUnknown) {
 	var panes []paneRunning
 	for _, a := range agents {
@@ -237,7 +238,8 @@ func runningOf(ctx context.Context, deps Deps, agents []Agent, sends func(pane s
 		panes = append(panes, runningOfPane(ctx, deps, a, sends))
 	}
 	if len(panes) == 0 {
-		// No working pane names a command.
+		// classify makes a row running only for a working pane, so this is a
+		// caller's mistake; no pane names a command, and nothing is shown.
 		return nil, RunningUnknownPanesDisagree
 	}
 	for _, p := range panes {
@@ -254,7 +256,7 @@ func runningOf(ctx context.Context, deps Deps, agents []Agent, sends func(pane s
 		}
 	}
 	shown := &RunningShown{Command: first.cmd}
-	if len(panes) == 1 && first.sent.ok && !first.sent.dropped && first.sent.cmd == first.cmd {
+	if len(panes) == 1 && first.sent.ok && !first.dropped && !first.sent.dropped && first.sent.cmd == first.cmd {
 		shown.Model = first.sent.model
 	}
 	return shown, RunningUnknownNone

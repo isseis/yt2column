@@ -842,6 +842,11 @@ func (r WorkspaceRecords) LastSend(pane string) (*SendRecord, error) {
 		if err := r.store().read(sendPrefix+id+startSuffix, &rec); err != nil {
 			return nil, err
 		}
+		if rec.ID != id {
+			// The send's end is found by the record's own ID, so a record
+			// naming another send could borrow that send's end.
+			return nil, fmt.Errorf("%w: the start record of send %s names send %q", errRecord, id, rec.ID)
+		}
 		if rec.Pane == pane && rec.Input != InputRelay.String() {
 			return &rec, nil
 		}
