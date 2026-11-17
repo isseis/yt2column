@@ -561,6 +561,22 @@ describe("delivering the result", () => {
     assert.equal(s.clock.pending(), 0);
   });
 
+  it("sends it again when the service worker answers with nothing, as for a session area it could not read", async () => {
+    const s = setup();
+    let answered = false;
+    s.replies.result = () => ok(answered ? { status: "stored" } : undefined);
+    const { outcome: running } = await started(s);
+    s.worker().send({ callId: 2, kind: "reply", value: generated });
+    await settle();
+    s.clock.advance(retryMs);
+    await settle();
+    answered = true;
+    s.clock.advance(retryMs);
+    const outcome = await running;
+    assert.equal(outcome.kind === "finished" && outcome.stored, "stored");
+    assert.equal(types(s).filter((type) => type === "result").length, 3);
+  });
+
   it("does not send it again after not_stored, and reports that the record does not hold it", async () => {
     const s = setup();
     s.replies.result = () => ok({ status: "not_stored" });
