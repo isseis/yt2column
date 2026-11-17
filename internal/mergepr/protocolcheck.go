@@ -398,9 +398,10 @@ func (c *protocolCheck) git(ctx context.Context, args ...string) ([]byte, error)
 }
 
 // readRevision returns each tool's value at rev, a full commit ID. Contract:
-// only exit status 1 of git grep (no line matched) reads as "no declaration
-// line"; any other failure, and any output not in the expected shape, is an
-// error, never an empty result.
+// only exit status 1 of git grep that wrote nothing at all (no line matched)
+// reads as "no declaration line"; the same status with a message, as a
+// missing object gives, and any other failure, and any output not in the
+// expected shape, is an error, never an empty result.
 func (c *protocolCheck) readRevision(ctx context.Context, rev string) (map[string]protocolReading, error) {
 	args := []string{
 		"grep", "-z", "--no-line-number", "--text", "-F", "--full-name",
@@ -409,10 +410,12 @@ func (c *protocolCheck) readRevision(ctx context.Context, rev string) (map[strin
 	}
 	out, err := c.git(ctx, append(args, protocolPathspecs...)...)
 	if err != nil {
-		if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); ok && exitErr.Code == 1 && len(exitErr.Stdout) == 0 {
+		// git grep exits 1 both when no line matched and when it could not
+		// read an object; only the former writes nothing at all.
+		if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); ok && exitErr.Code == 1 && len(exitErr.Stdout) == 0 && len(exitErr.Stderr) == 0 {
 			return map[string]protocolReading{}, nil
 		}
-		return nil, fmt.Errorf("git grep %s: %w", rev, err)
+		return nil, &protocolUnreadableError{Kind: unreadableCommits, Rev: rev, Detail: err.Error()}
 	}
 	lines, err := parseGrepOutput(out, rev)
 	if err != nil {

@@ -664,7 +664,8 @@ func TestReadRevisionExitStatus(t *testing.T) {
 		wantErr bool
 	}{
 		{"exit 1 without output means no line", &cmdrunner.ExitError{Code: 1}, false},
-		{"exit 1 with output", &cmdrunner.ExitError{Code: 1, Stdout: []byte("x")}, true},
+		{"exit 1 with standard output", &cmdrunner.ExitError{Code: 1, Stdout: []byte("x")}, true},
+		{"exit 1 with standard error", &cmdrunner.ExitError{Code: 1, Stderr: []byte("unable to read 4b825dc642cb6eb9a060e54bf8d69288fbee4904")}, true},
 		{"exit 128", &cmdrunner.ExitError{Code: 128}, true},
 		{"not an exit", errors.New("start failed"), true},
 	}
@@ -674,6 +675,11 @@ func TestReadRevisionExitStatus(t *testing.T) {
 			got, err := c.readRevision(t.Context(), parseRev)
 			if (err != nil) != tt.wantErr || (!tt.wantErr && len(got) != 0) {
 				t.Errorf("readRevision = %v, %v; want error %v", got, err, tt.wantErr)
+			}
+			if tt.wantErr {
+				if e, ok := errors.AsType[*protocolUnreadableError](err); !ok || e.Kind != unreadableCommits || e.Rev != parseRev {
+					t.Errorf("readRevision error = %v, want an unreadable commits error for %s", err, parseRev)
+				}
 			}
 		})
 	}
