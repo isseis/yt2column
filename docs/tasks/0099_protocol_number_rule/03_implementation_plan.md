@@ -183,7 +183,7 @@
 **変更するファイル:** `docs/dev/guides/mergepr_guide.md`、`docs/dev/guides/fixprguard_guide.md`、`docs/dev/conventions/package_reference.md`
 
 - [x] `mergepr_guide.md` に、設計書 3.6 の「`mergepr_guide.md`」に挙げた項目を書く。コマンドの例は、ステップ 3-4 のガードが引数の解析に通す。
-- [ ] `fixprguard_guide.md` の §9 と §3 を、AC-18 の 2 点だけ直す。直したコミットの後、§7 の「Diff record (AC-18)」に、`requirements_process.md` の「`diff` verification」の固定のコマンドで記録する。
+- [x] `fixprguard_guide.md` の §9 と §3 を、AC-18 の 2 点だけ直す。直したコミットの後、§7 の「Diff record (AC-18)」に、`requirements_process.md` の「`diff` verification」の固定のコマンドで記録する。
 - [x] `package_reference.md` の `internal/mergepr` の行に、番号の確かめを足す。
 
 #### ステップ 3-4: 作業ツリーの道具と、文書のガード
@@ -301,6 +301,35 @@
 Diff record (AC-18):
 
 - Compared paths: `docs/dev/guides/fixprguard_guide.md`
+- Merge-base: `f73fc2c364a8c75fb67a833ec935818cba488605`
+- Compared commit: `12efbb990bfdc8630df6cba488260c65cf524001`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/guides/fixprguard_guide.md b/docs/dev/guides/fixprguard_guide.md
+index 939d5653cdc28fc5777f148a79281b2cc502f3b1..99690e4dd863093beb963551c032ad42dc4e8220 100644
+--- a/docs/dev/guides/fixprguard_guide.md
++++ b/docs/dev/guides/fixprguard_guide.md
+@@ -55,7 +55,7 @@ go version -m "$(command -v fixprguard)"
+ - マージの直後に、マージの後の `main` で再インストールする。再インストールの前に新しい番号の文書から実行すると、終了コード `2` で止まる。
+ - 作業中のほかのブランチには、次の `/fixpr`・`/runpr` の前に `main` を取り込む。取り込む前は、そのブランチの文書が古い番号を渡すので、終了コード `2` で止まる。
+
+-どちらも、古い規則で判定することはない（fail-closed）。
++どちらも、古い規則で判定することはない（fail-closed）。ただし、同じ番号に上げる並行するブランチがある間は、この限りでない。マージの前は両方のブランチが同じ番号を共有するので、片方のブランチで入れたバイナリが、もう片方の文書の `--protocol` を受け付け、違う規則で判定しうる（CLAUDE.md の「Protocol numbers」の受け入れた危険）。
+
+ ## 4. 共通の約束
+
+@@ -584,7 +584,7 @@ find . -path ./.git -prune -o -type l -print | LC_ALL=C sed 's/\^/^^/g' | LC_ALL
+
+ - 判定は `internal/fixprguard`、引数の解釈と呼び出しの順序は `cmd/fixprguard` にある。外部コマンドは `internal/cmdrunner` の `Runner`・`InputRunner` 越しに呼ぶ。テストでは、`gh` と `make` を `internal/cmdrunner/testutil` の fake に置き換え、git は一時ディレクトリの実際のリポジトリで試す。
+ - 7.1 節の保証を変更する場合は、対応する実装を壊してテストが失敗することを確かめ、そのことをコミットメッセージに書く（CLAUDE.md の「Testing Strategy」）。
+-- 出力や引数の契約、または範囲の規則（6 章）を変える場合は、`internal/fixprguard` の `Protocol` を上げ、コマンドの文書が渡す `--protocol` も合わせて更新する。番号は上げるだけで、一度使った番号を再び使ったり、下げたりしない。並行する 2 つのブランチが同じ番号を使うと、片方のブランチで作ったバイナリが、もう片方の文書の `--protocol` を受け付け、違う規則で黙って判定するためである（タスク 0036 が `3` を使ったので、タスク 0034 は `4` を使った。タスク 0076 は `check`・`push-review` と `parts` の `branch` を加えて `6` を使った）。ただし、次の 3 つの条件がすべて成り立つ変更に限り、`Protocol` を上げなくてよい。`--reviewer` を繰り返し受け付ける変更（タスク 0033）はこれに当たる。
++- 出力や引数の契約、または範囲の規則（6 章）を変える場合は、`internal/fixprguard` の `Protocol` を上げ、コマンドの文書が渡す `--protocol` も合わせて更新する。番号の決め方は、CLAUDE.md の「Protocol numbers」に従う。ただし、次の 3 つの条件がすべて成り立つ変更に限り、`Protocol` を上げなくてよい。`--reviewer` を繰り返し受け付ける変更（タスク 0033）はこれに当たる。
+     1. 古いツールは、新しい文書の呼び出しを引数の解析で拒否し（終了コード `2`）、古い規則で判定しない。
+     2. 新しいツールは、古い文書の呼び出しを今までと同じ規則で判定する。
+     3. 出力の形は変えない。
+````
 
 ### PR-2 の実行の記録
 
