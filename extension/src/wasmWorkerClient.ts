@@ -34,8 +34,8 @@ export function createModuleWorker(): WorkerLike {
 
 /**
  * Why a call failed, as the internal failure's detail: the Worker did not load
- * the module and answer the first call in time, or failed while loading
- * (worker_load); it failed later (worker_error); the Go program ended while the
+ * the module and say ready in time, failed while loading, or ended before
+ * ready (worker_load); it failed later (worker_error); the Go program ended while the
  * call waited (runtime_exit); the function's Promise rejected (panic).
  */
 export type WorkerFailure =

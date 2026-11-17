@@ -349,7 +349,7 @@ function storageImportRule(file) {
     {
       patterns: [
         {
-          regex: "(^|/)browser/chromeDeps\\.(ts|js)$",
+          regex: "(^|/)chromeDeps\\.(ts|js)$",
           importNames: forbidden,
           allowTypeImports: true,
           message:
@@ -380,6 +380,10 @@ export default defineConfig(
   js.configs.recommended,
   tseslint.configs.recommended,
   {
+    // An inline disable comment would switch off the rules that alone keep
+    // the API key on its paths (the import table, fetch, web storage), so
+    // comments cannot change the configuration.
+    linterOptions: { noInlineConfig: true },
     languageOptions: {
       // no-implied-eval recognizes these only as declared globals.
       globals: {

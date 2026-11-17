@@ -458,6 +458,10 @@ describe("importing the chrome.storage functions", () => {
       for (const [specifier, filePath] of [
         ["./browser/chromeDeps.js", "src/sample.ts"],
         ["../browser/chromeDeps.js", "src/core/sample.ts"],
+        // A module next to chromeDeps.ts imports it without browser/.
+        ["./chromeDeps.ts", "src/browser/sample.ts"],
+        ["./chromeDeps.js", "src/browser/sample.ts"],
+        ["../chromeDeps.ts", "src/browser/sub/sample.ts"],
       ] as const) {
         const js = `import { ${name} } from "${specifier}";\nexport const f = ${name};\n`;
         assert.ok(
@@ -615,6 +619,16 @@ describe("the other rules in the files with an exception", () => {
       });
     }
   }
+});
+
+describe("inline configuration comments", () => {
+  it("cannot switch a rule off", async () => {
+    const code =
+      '// eslint-disable-next-line no-restricted-imports\nimport { readAnthropicSettings } from "./browser/chromeDeps.ts";\nexport const f = readAnthropicSettings;\n';
+    assert.ok(
+      (await ruleIds(code, "src/popup.ts")).includes("no-restricted-imports"),
+    );
+  });
 });
 
 describe("web storage and channels", () => {
