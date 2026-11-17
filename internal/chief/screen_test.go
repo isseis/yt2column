@@ -927,7 +927,6 @@ func TestReadRunningCommand(t *testing.T) {
 		{"a command named after a routing row", lines(commandLine("/runplan-takeover 0093")), notTask},
 		{"free text after a command", lines(commandLine("/runplan 0093"), typedLine("/runpr 926")), result{text: "/runplan 0093", later: true}},
 		{"another command after a command", lines(commandLine("/runplan 0093"), commandLine("/fixpr 926")), result{text: "/runplan 0093", later: true}},
-		{"a command after free text", lines(typedLine("hello"), commandLine("/runplan 0093")), result{text: "/runplan 0093"}},
 		{"a command after an earlier command and free text", lines(commandLine("/mkplan 0093"), typedLine("hello"), commandLine("/runplan 0093")), result{text: "/runplan 0093"}},
 		{"free text only", lines(typedLine("/runpr 926")), notTask},
 		{"no human input", lines(), notTask},
@@ -935,6 +934,7 @@ func TestReadRunningCommand(t *testing.T) {
 		{"a line that is not JSON", lines(commandLine("/runplan 0093"), `{"type":`), result{why: RunningUnknownUnreadable}},
 		{"a command whose last line is still being written", strings.TrimSuffix(running, "\n"), result{why: RunningUnknownPartialLine}},
 		{"a second argument", lines(commandLine("/runplan 0093 0094")), result{text: "/runplan", dropped: true}},
+		{"a second argument with free text after it", lines(commandLine("/runplan 0093 0094"), typedLine("go on")), result{text: "/runplan", dropped: true, later: true}},
 		{"an empty argument element", lines(commandLine("/runpr")), result{text: "/runpr"}},
 		// Claude Code writes a command typed without an argument with no
 		// argument element, which is read as other input: a known limit.
