@@ -21,6 +21,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The extension's build compiles the article generation modules, so
+      # the classification needs go list to find the Go packages they use.
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
       - name: Classify changed files
         id: check
         run: |
@@ -43,12 +51,23 @@ jobs:
             echo "Code changes detected, running tests"
           fi
 
-          # A separate list for the extension job: --no-renames lists both
+          # A separate list for the extension job, of every changed file
+          # (the *.md exclusion above does not apply: the fake LLM's articles
+          # are embedded in the development module): --no-renames lists both
           # sides of a rename (a file moved out of extension/ still counts),
           # and -z keeps paths with control characters (tabs, newlines)
-          # unquoted and intact so the patterns' ^ anchors match them.
-          has_extension_changes=$(git -c core.quotePath=false diff -z --no-renames --name-only origin/main...HEAD \
-            | bash extension/scripts/has-extension-changes.sh)
+          # unquoted and intact so the patterns' ^ anchors match them. The
+          # job also runs for a change under a directory of the Go packages
+          # the article generation modules compile; when those cannot be
+          # listed, it runs.
+          dep_dirs="$RUNNER_TEMP/wasm-dep-dirs"
+          if bash extension/scripts/wasm-dep-dirs.sh > "$dep_dirs"; then
+            has_extension_changes=$(git -c core.quotePath=false diff -z --no-renames --name-only origin/main...HEAD \
+              | bash extension/scripts/has-extension-changes.sh "$dep_dirs")
+          else
+            echo "Listing the article generation modules' Go packages failed; running the extension job"
+            has_extension_changes=true
+          fi
           echo "has-extension-changes=$has_extension_changes" >> "$GITHUB_OUTPUT"
           echo "Extension job needed: $has_extension_changes"
 
@@ -135,6 +154,14 @@ jobs:
           cache: npm
           cache-dependency-path: extension/package-lock.json
 
+      # ext-build builds the article generation modules with go, with the
+      # toolchain go.mod names.
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
       # One step per target, so the failing step names the failing check.
       - name: Install dependencies (npm ci)
         run: make ext-install
@@ -154,14 +181,11 @@ jobs:
       - name: Build and check dist
         run: make ext-build
 
+      - name: Build and check the development build (dist-dev)
+        run: make ext-build-dev
+
       # Only this job has extension/node_modules installed, so only here can
       # a dependency's Go files be seen leaking into the Go tools' ./...
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
-
       - name: Verify go list excludes the extension
         run: |
           packages=$(go list ./...)

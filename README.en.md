@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 5f38edaceb59dc24a9fccad6dd7f398e73c4c751 -->
+<!-- translated-from: README.md 766a2df349f97cddea76a9c01a5000b35d6f74be -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -761,6 +761,12 @@ inside `extension/`, so a Node.js version manager that reads the current
 directory (such as [fnm](https://github.com/Schniz/fnm)) must be activated
 inside `extension/`. Run the targets from the repository root with that version
 still active.
+
+The build also runs Go: it builds the article generation module that goes
+into the extension with the Go version on `go.mod`'s `go` line. When the local
+Go is another version, the first build downloads that version of Go (which uses
+the network). The extension does not use the article generation module yet; the
+localhost server still writes the article.
 
 ```sh
 cd extension && fnm use && cd ..

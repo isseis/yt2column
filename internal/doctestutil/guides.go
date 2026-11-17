@@ -27,6 +27,13 @@ const (
 	// the development server's arguments and the values each accepts.
 	DevArgumentColumn = "引数"
 	DevAcceptedColumn = "受理する値"
+	// DevBuildHeading is development.md's section on the extension's
+	// development build (make ext-build-dev). DevVariableColumn and
+	// DevDefaultColumn head its table of the scenario variables, whose
+	// accepted values are under DevAcceptedColumn.
+	DevBuildHeading   = "## 開発用の拡張のビルド"
+	DevVariableColumn = "変数"
+	DevDefaultColumn  = "既定の値"
 	// DevDeepSeekIntegrationHeading is development.md's section on the
 	// DeepSeek integration test.
 	DevDeepSeekIntegrationHeading = "### DeepSeek の統合テスト"

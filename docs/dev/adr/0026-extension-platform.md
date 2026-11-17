@@ -26,8 +26,6 @@
 
 拡張が要求する Chrome の最小の版は [ADR-0030](0030-minimum-chrome-version.md) が、拡張の表示の言語は [ADR-0029](0029-extension-ui-languages.md) が定める。拡張の権限と、拡張が保存するものは [ADR-0010](0010-extension-stores-nothing.md) が、起動の経路は [ADR-0008](0008-launch-path.md) が、脅威モデルは [ADR-0006](0006-threat-model.md) が定める。
 
-この決定のうち、拡張のビルドが Go を呼んで記事生成モジュールと `wasm_exec.js` を成果物に入れること、成果物の検査の例外、開発用のビルドは、まだコードと [CLAUDE.md](../../../CLAUDE.md) に反映していない。今の拡張のビルドは Go を呼ばない。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
-
 ## 採らなかった案
 
 -   **バンドラ（esbuild・Vite など）を使う。** 実行時に読み込む依存パッケージがないので、まとめる対象がなく、`tsc` の 1 対 1 の出力で足りる（[0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §3.8）。また、esbuild などはインストール時にバイナリを取得する。依存パッケージのインストール時のスクリプトを実行しない方針に合わないことも、使わない理由の 1 つである（[0007 設計書](../../tasks/0007_browser_extension_skeleton/02_architecture.md) §5.2）。

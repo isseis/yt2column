@@ -108,6 +108,12 @@
 
     ADR: なし（PR の中の確かめの手順で、タスクの中で閉じるため）。
 14. **PR-7 で上げる `Protocol` の値は、そのときの `origin/main` の値より 1 大きくする（設計書 1.5）。** 0093 も `Protocol` を 1 から 2 に上げる。0093 が先に入っていれば、本計画の「2」は「3」になり、§1.4 の「書き換える箇所の一覧」の `--protocol` も、そのときの値から 1 大きい値に書き換える（行番号は、そのときの定義で探し直す）。ステップ 7-1 で `origin/main` の `internal/chief/records.go` の `Protocol` を読んで決める。ADR: なし。
+15. **gh のサンプルは、PR-2 のステップ 2-5 で、ラベルを足した問い合わせ（設計書 1.5・3.3.1）で採り直す。** PR-1（#923）は、ラベルを足す前の問い合わせで gh のサンプルを採った。gh のサンプルを最初に読むのは PR-2 なので、そこで採り直せば、読む部品とサンプルの問い合わせが同じ PR でそろう。#923 で採り直す案は、#923 の記録（§7 の「PR-1 の実行の記録」）が採ったときの問い合わせを書いており、その範囲を広げることになるので採らない。
+    -   採り直すのは、PR-1 で採った 4 つ（閉じた issue #838、開いた issue #839、PR #897、存在しない #999999）と、ラベル `draft` が付いた開いた issue（#928 など、採るときに `draft` が付いているもの）の 5 つである。ネットワークの操作なので、人の承認を得て、chief の worktree で走らせる。
+    -   採ったものは PR-1 と同じ置き換え（題名の中身など）をし、`testdata/gh/` の 4 つを置き換え、1 つを足す。`testdata/README.md` の gh の応答の項を、ラベルを足した問い合わせと採った日に直す。
+    -   ラベルの応答の形が設計書 1.5・3.3.1 の想定と違ったときは、決定 8 と同じく止まって人と決め直す。
+
+    ADR: なし（サンプルを採る PR の選択で、タスクの中で閉じるため）。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -153,13 +159,13 @@
 
 ### フェーズ 2: 読み取りの部品（設計書 8 章の 2）
 
-**変更するファイル:** `internal/strictjson/strictjson.go`・`strictjson_test.go`、`internal/chief/taskspace.go`・`issue.go`・`construction_test.go`（新規）とそのテスト、`internal/chief/records.go`（`Worktree` のコメント）、`internal/chief/workspace.go`・`task.go` とそのテスト、`internal/chief/test_helpers.go`、`internal/chief/testdata/requirements/`（新規、要件定義書のサンプル）、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`
+**変更するファイル:** `internal/strictjson/strictjson.go`・`strictjson_test.go`、`internal/chief/taskspace.go`・`issue.go`・`construction_test.go`（新規）とそのテスト、`internal/chief/testdata/gh/`（issue の応答のサンプル。決定 15）・`internal/chief/testdata/README.md`、`internal/chief/records.go`（`Worktree` のコメント）、`internal/chief/workspace.go`・`task.go` とそのテスト、`internal/chief/test_helpers.go`、`internal/chief/testdata/requirements/`（新規、要件定義書のサンプル）、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`
 
 -   [ ] **ステップ 2-1**: 呼び出しの記録係を、決定 7 の読み取りの分（読み取りの一覧と、`gh api graphql` の決まった形）だけ広げる。
 -   [ ] **ステップ 2-2**: `strictjson` に、読むメンバーと大文字と小文字だけが違う名前のメンバーを拒む読み方を、新しいメソッドとして足す（設計書 3.3.1）。今の `Collect`・`CollectOnly` の振る舞いとテストは変えない。テストは、拒む名前、重なり、読まないメンバーの読み飛ばしを確かめる。`package_reference.md` の `internal/strictjson` の行に名前を足す（決定 9）。
 -   [ ] **ステップ 2-3**: `taskspace.go` に `TaskSpace`・`NewTaskSpace`・`TaskSpace.Worktree` を書き、`records.go` の `Worktree` の型のコメントに 2 つめの作り方を書く（設計書 3.2）。テストは、番号からパスと名前が決まること、`$HOME` が相対パスのとき、送れない文字を含むとき（リンクを解決した後に含むときを含む）、途中にディレクトリでないものがあるとき、ゼロ値が何も返さないことを確かめる。一時的なディレクトリとシンボリックリンクで確かめる。`construction_test.go` に決定 11 のガードを作り、`TaskSpace` を対象にする。
 -   [ ] **ステップ 2-4**: `taskspace.go` に、`herdr pane list` からパスの workspace を求める読み方を書く（設計書 3.3.2）。テストは、パスそのもの・その下・その外（名前の前方だけ一致するパスを含む）の pane、chief の workspace、シェルだけの pane を確かめる。
--   [ ] **ステップ 2-5**: `issue.go` に、`gh api graphql` の `issueOrPullRequest` の問い合わせと応答の読み取りを書く（設計書 3.3.1）。問い合わせの変数は `-F` で渡す（`{owner}`・`{repo}` を gh が埋め、`$n` を数として渡すため。`gh api --help`）。応答は 64 KiB を上限とする。結果は、ゼロ値を読めないものとする列挙の型で返す。題名は無害化して上限で切り、切ったことを返す（決定 6）。テストは、PR-1 のサンプルで 4 つの形を見分けること、設計書 7.1 の拒む形を 1 つずつ拒むこと、64 KiB の境界、題名の上限の境界を確かめる。題名の境界のテストは、日本語でない複数バイトの文字を使う。`--jq` を使わないこと、chief の worktree で `GH_REPO`・`GH_HOST` なしに走ること、問い合わせが `mutation` を含まないことを確かめる（決定 7）。
+-   [ ] **ステップ 2-5**: 決定 15 のとおり、ラベルを足した問い合わせで gh のサンプルを採り直す。そのうえで、`issue.go` に、`gh api graphql` の `issueOrPullRequest` の問い合わせと応答の読み取りを書く（設計書 1.5・3.3.1）。問い合わせの変数は `-F` で渡す（`{owner}`・`{repo}` を gh が埋め、`$n` を数として渡すため。`gh api --help`）。応答は 64 KiB を上限とする。結果は、ゼロ値を読めないものとする列挙の型で返す。題名は無害化して上限で切り、切ったことを返す（決定 6）。開いた issue は、ラベルの名前が `draft` とバイト列で等しいものがあれば `issue_draft` とし、閉じた issue はラベルによらず `issue_closed` とする。テストは、採り直したサンプルで 5 つの形（開いた issue、ラベル `draft` が付いた開いた issue、閉じた issue、PR、存在しない番号）を見分けること、設計書 7.1 の拒む形（ラベルの一部だけの応答、文字列でないラベルの名前を含む）を 1 つずつ拒むこと、閉じていてラベル `draft` もある issue が `issue_closed` になること、名前が `Draft`・`draft-x` のラベルでは拒まないこと、64 KiB の境界、題名の上限の境界を確かめる。題名の境界のテストは、日本語でない複数バイトの文字を使う。`--jq` を使わないこと、chief の worktree で `GH_REPO`・`GH_HOST` なしに走ること、問い合わせが `mutation` を含まないことを確かめる（決定 7）。
 -   [ ] **ステップ 2-6**: `workspace.go` の `GitReader` に、`worktree list --porcelain` の読み取り（パス、`locked`、ディレクトリのない登録）と `merge-base --is-ancestor`（0・1・それ以外を分ける）を足す。`GitReader` は読み取りだけを持ち、`worktree add`・`worktree remove` は持たない（生のパスで worktree を作るか消す口を作らないため。書き込みは、ステップ 4-2 の `TaskSpace` を取る作成と、ステップ 6-1 の `WorkspaceCloser` が持つ）。`newTestRepo` の一時的なリポジトリの本物の git で、次を確かめる。
     -   PR-1 のサンプルと本物の git の出力で、porcelain を読める。
     -   `merge-base --is-ancestor` の、祖先・祖先でない・ないコミットの 3 つ。
@@ -177,7 +183,7 @@
 
 **推奨タイトル**: `feat(0092): 作る場所、issue、git、issue からタスクを探す読み取りの部品を作る`
 
-**レビュー観点**: issue の応答の拒む形が設計書 3.3.1 の表のとおりか（広く受け付けていないか） / `対応 issue` の数え方が、読めない書き方を、提案が減る向きに倒しているか / `strictjson` の新しい読み方が今の `Collect`・`CollectOnly` を使うほかのパッケージを変えないか / `gh api graphql` を決まった形のほかで読み取りとして通さないか / CLAUDE.md の例外の範囲
+**レビュー観点**: issue の応答の拒む形が設計書 3.3.1 の表のとおりか（広く受け付けていないか） / ラベル `draft` を、すべてのラベルを読めた応答で、名前の等しさだけで見ているか / 採り直した gh のサンプルの問い合わせが `issue.go` の問い合わせと同じか / `対応 issue` の数え方が、読めない書き方を、提案が減る向きに倒しているか / `strictjson` の新しい読み方が今の `Collect`・`CollectOnly` を使うほかのパッケージを変えないか / `gh api graphql` を決まった形のほかで読み取りとして通さないか / CLAUDE.md の例外の範囲
 
 **実装モデル要件**: sonnet+opus-review
 
@@ -377,7 +383,7 @@
 -   [ ] **ステップ 7-4**: CLAUDE.md の「Tool Execution Safety」（issue の読み取り）と「Claude Commands」の `/chief` の項、chief 利用ガイドの 1〜8 章（設計書 3.8。7 章の記録の表には作成の排他のディレクトリ `create` も足す。決定 5）、`package_reference.md` の `cmd/chief` の行を直す。
 -   [ ] **ステップ 7-5**: 最後の実地の確かめをする（設計書 7.3、決定 10・12）。人が、決定 12 のとおり chief の worktree をこのブランチにして入れ直し、`/chief` で次を行う。結果を §7 の「PR-7 の実行の記録」に書く。マージの後に `main` へ戻すことも、決定 12 のとおりである。
     -   新しいタスクを始めること（新しい workspace と既存の workspace）。新しく作る issue は人が選ぶ。
-    -   作成の拒否（存在しない番号、閉じた issue、PR、すでにあるパス）。
+    -   作成の拒否（存在しない番号、閉じた issue、ラベル `draft` が付いた issue、PR、すでにあるパス）。
     -   削除の提案、削除、削除の拒否。決定 10 の workspace を使う。拒否は、その workspace に追跡していないファイルを置くなどして起こす。
     -   `once` の問いで、示せる数を超える項目があるときに、「新しいタスクを始める」を名前で選べること。
     -   作成で作った workspace は、確かめの後に人が端末で片付けるか、そのタスクに使う。
@@ -548,3 +554,5 @@
 - 2026-11-17 承認（isseis、#915）
 - 2026-11-17 draft への戻し：PR-5・PR-6・PR-7 の前に 0093 の部品を確かめて削除の提案の行を足すステップと、`Protocol` を origin/main の値より 1 大きくすることを足した（申し送りの H-09）（#929）
 - 2026-11-17 承認（isseis、#929）
+- 2026-11-17 draft への戻し：PR-2 で、ラベルを足した問い合わせで gh のサンプルを採り直し、ラベル `draft` が付いた issue を拒む読み取りを作ることにした（決定 15）（#939）
+- 2026-11-17 承認（isseis、#939）

@@ -10,6 +10,7 @@ coverage*.html
 
 extension/node_modules/
 extension/dist/
+extension/dist-dev/
 *.pem
 
 # Go fuzz writes failing inputs here; a found input is added to a table test and
