@@ -1408,7 +1408,8 @@ func (s Store) LockCreation() (*CreationLock, error) {
 	}
 	lock, err := cachelock.Acquire(filepath.Join(s.dir, creationDir))
 	if errors.Is(err, cachelock.ErrLocked) {
-		return nil, fmt.Errorf("%w: %w", ErrCreationBusy, err)
+		// cachelock's message is about yt-dlp's cache, not this exclusion.
+		return nil, ErrCreationBusy
 	}
 	if err != nil {
 		return nil, err

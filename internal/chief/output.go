@@ -540,8 +540,8 @@ type MadeOutput struct {
 	ID   string `json:"id"`
 }
 
-// CreateOutput is the output of `chief create`. result is refused (refusal
-// set), stopped (stage and made set), or made (made set, with mkreq the
+// CreateOutput is the output of `chief create`. result is refused
+// (create_refusal set), stopped (stage and made set), or made (made set, with mkreq the
 // result of the /mkreq send).
 type CreateOutput struct {
 	Protocol int    `json:"protocol"`
@@ -549,7 +549,7 @@ type CreateOutput struct {
 	Issue    string `json:"issue"`
 	Title    string `json:"title"`
 	TitleCut bool   `json:"title_truncated"`
-	Refusal  string `json:"refusal"`
+	Refusal  string `json:"create_refusal"`
 	// Existing names what is already at the path.
 	Existing  []string      `json:"existing"`
 	Made      []MadeOutput  `json:"made"`

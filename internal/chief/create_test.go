@@ -14,6 +14,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/isseis/yt2column/internal/cachelock"
+	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/cmdrunner"
 )
 
@@ -360,6 +362,37 @@ func TestWorkspaceMakerStartsAgentsWithoutArguments(t *testing.T) {
 	}
 }
 
+// TestWorkspaceMakerWaitsForTheShell gives OpenCode's new pane a shell
+// that runs startup processes for the first reads and checks that the agent
+// is started once the shell is alone in its foreground, after a wait of
+// shellInterval between the reads.
+func TestWorkspaceMakerWaitsForTheShell(t *testing.T) {
+	cw := newCreateWorld(t, nil)
+	reads := 0
+	cw.rec.replyFunc("herdr pane process-info --pane w1:p2", func() reply {
+		reads++
+		if reads < 3 {
+			return reply{out: processInfoOutput("w1:p2", 300, 300, 300, 301)}
+		}
+		return reply{out: processInfoOutput("w1:p2", 300, 300, 300)}
+	})
+	var waits []time.Duration
+	cw.deps.Sleep = func(_ context.Context, d time.Duration) error {
+		waits = append(waits, d)
+		return nil
+	}
+	out := cw.create(createIssue)
+	if out.Result != CreateMade {
+		t.Fatalf("Create = %+v, want made", out)
+	}
+	if reads != 3 {
+		t.Errorf("process-info read %d times, want 3", reads)
+	}
+	if n := len(slices.DeleteFunc(slices.Clone(waits), func(d time.Duration) bool { return d != shellInterval })); n != 2 {
+		t.Errorf("waits %v, want two of %v", waits, shellInterval)
+	}
+}
+
 // TestWorkspaceMakerUsesOnlyItsIDs checks that a maker writes only to the
 // workspace its own create returned (TestCreateStages compares every write
 // with the lines naming w1 and its tabs and panes): a maker no constructor
@@ -370,7 +403,14 @@ func TestWorkspaceMakerUsesOnlyItsIDs(t *testing.T) {
 		rec := newRecorder(t)
 		m := WorkspaceMaker{cmds: rec.commands(nil)}
 		if _, _, err := m.makeWorkspace(context.Background(), func(Made) {}); !errors.Is(err, errMakerRefused) {
-			t.Errorf("Make = %v, want errMakerRefused", err)
+			t.Errorf("makeWorkspace = %v, want errMakerRefused", err)
+		}
+		created := createdWorkspace{Label: "issue-839", First: createdTab{Workspace: "w1", Tab: tabID{id: "w1:t1"}, Pane: PaneID{id: "w1:p1"}}}
+		if _, err := m.makeTabs(context.Background(), created, func(Made) {}); !errors.Is(err, errMakerRefused) {
+			t.Errorf("makeTabs = %v, want errMakerRefused", err)
+		}
+		if _, err := m.startAgent(context.Background(), PaneID{id: "w1:p2"}, herdrClaude, paneinput.AgentClaudeCode, "w1", func(Made) {}); !errors.Is(err, errMakerRefused) {
+			t.Errorf("startAgent = %v, want errMakerRefused", err)
 		}
 		if calls := rec.recorded(); len(calls) != 0 {
 			t.Errorf("ran %v", calls)
@@ -851,6 +891,22 @@ func TestCreateBusyDuringTick(t *testing.T) {
 	}
 	if err := lock.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestLockCreationBusy takes the creation exclusion twice and checks that
+// the second is ErrCreationBusy alone, without cachelock's error, whose
+// advice is about yt-dlp's cache.
+func TestLockCreationBusy(t *testing.T) {
+	cw := newCreateWorld(t, nil)
+	lock, err := cw.deps.Store.LockCreation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = lock.Close() })
+	_, err = cw.deps.Store.LockCreation()
+	if !errors.Is(err, ErrCreationBusy) || errors.Is(err, cachelock.ErrLocked) {
+		t.Errorf("second LockCreation = %v, want ErrCreationBusy alone", err)
 	}
 }
 

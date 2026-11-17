@@ -498,7 +498,7 @@ func makeTask(ctx context.Context, deps Deps, held *HeldWorkspace, chiefTree Wor
 		return stop(CreateStageRecord, err)
 	}
 	out.Made = append(out.Made, Made{Kind: MadeRecord, ID: filepath.Join(held.dir, createdFile)})
-	maker, err := NewWorkspaceMaker(deps.Cmds, space)
+	maker, err := NewWorkspaceMaker(deps.Cmds, deps.Sleep, space)
 	if err != nil {
 		return stop(CreateStageWorkspace, err)
 	}
@@ -563,21 +563,40 @@ var errMakerRefused = errors.New("the workspace maker refused")
 // space's label at the space's worktree, and every later call (tab rename,
 // tab create, agent start) takes only an ID that its own workspace create
 // returned, so it never writes to another workspace (chief's own among
-// them). The zero value runs nothing.
+// them). The zero value runs nothing: every method refuses before a call.
 type WorkspaceMaker struct {
 	cmds  Commands
+	sleep func(context.Context, time.Duration) error
 	space TaskSpace
 	tree  Worktree
 }
 
-// NewWorkspaceMaker returns the maker of space's workspace.
-func NewWorkspaceMaker(cmds Commands, space TaskSpace) (WorkspaceMaker, error) {
+// NewWorkspaceMaker returns the maker of space's workspace; sleep waits
+// between the reads of a new pane's shell.
+func NewWorkspaceMaker(cmds Commands, sleep func(context.Context, time.Duration) error, space TaskSpace) (WorkspaceMaker, error) {
 	tree, err := space.Worktree()
 	if err != nil {
 		return WorkspaceMaker{}, err
 	}
-	return WorkspaceMaker{cmds: cmds, space: space, tree: tree}, nil
+	return WorkspaceMaker{cmds: cmds, sleep: sleep, space: space, tree: tree}, nil
 }
+
+// made reports a maker no constructor made, which runs nothing.
+func (m WorkspaceMaker) made() error {
+	if m.space.path == "" || m.tree.path == "" || m.sleep == nil {
+		return fmt.Errorf("%w: it was not made by NewWorkspaceMaker", errMakerRefused)
+	}
+	return nil
+}
+
+const (
+	// shellInterval and shellAttempts bound the wait for a new pane's shell
+	// to reach its prompt (10 seconds): the shell runs its startup files,
+	// with child processes in its foreground, for a moment after Herdr
+	// returns the tab.
+	shellInterval = 250 * time.Millisecond
+	shellAttempts = 40
+)
 
 // madeWorkspace is the workspace a maker made: its ID and the panes of its
 // agents, and NotReady when Claude Code was started but does not take input.
@@ -597,8 +616,8 @@ type madeWorkspace struct {
 // reads the agent in its pane, which for OpenCode passes and for Claude
 // Code passes with NotReady set.
 func (m WorkspaceMaker) makeWorkspace(ctx context.Context, made func(Made)) (madeWorkspace, CreateStage, error) {
-	if m.space.path == "" || m.tree.path == "" {
-		return madeWorkspace{}, CreateStageWorkspace, fmt.Errorf("%w: it was not made by NewWorkspaceMaker", errMakerRefused)
+	if err := m.made(); err != nil {
+		return madeWorkspace{}, CreateStageWorkspace, err
 	}
 	out, err := m.cmds.herdr(ctx, herdrWorkspace, "create", "--cwd", m.tree.path, "--label", m.space.Label(), "--no-focus")
 	if err != nil {
@@ -652,6 +671,9 @@ func (m WorkspaceMaker) makeWorkspace(ctx context.Context, made func(Made)) (mad
 // makeTabs renames the first tab of the workspace created and creates the
 // tabs of the two agents in it, returning those by label.
 func (m WorkspaceMaker) makeTabs(ctx context.Context, created createdWorkspace, made func(Made)) (map[string]createdTab, error) {
+	if err := m.made(); err != nil {
+		return nil, err
+	}
 	out, err := m.cmds.herdr(ctx, herdrTab, "rename", created.First.Tab.String(), tabShell)
 	if err != nil {
 		return nil, err
@@ -690,28 +712,21 @@ func (m WorkspaceMaker) makeTabs(ctx context.Context, created createdWorkspace, 
 }
 
 // startAgent starts the agent of kind (Herdr's name herdrKind) in pane of
-// the workspace ws, once the pane's shell is at its prompt. It returns
+// the workspace ws, once the pane's shell is at its prompt, which it waits
+// for up to shellAttempts reads. It returns
 // NotReady when Herdr answered with an error response but `herdr agent get`
 // reads the agent in the pane.
 func (m WorkspaceMaker) startAgent(ctx context.Context, pane PaneID, herdrKind string, kind paneinput.AgentKind, ws string, made func(Made)) (*NotReady, error) {
-	if err := ctx.Err(); err != nil {
+	if err := m.made(); err != nil {
 		return nil, err
 	}
-	out, err := m.cmds.herdr(ctx, herdrPane, "process-info", "--pane", pane.String())
-	if err != nil {
+	if err := m.waitShell(ctx, pane); err != nil {
 		return nil, err
-	}
-	info, err := parsePaneProcessInfo(out)
-	if err != nil {
-		return nil, err
-	}
-	if info.Pane != pane || !info.ShellInForeground() {
-		return nil, fmt.Errorf("%w: the shell of pane %s is not at its prompt", errMakerRefused, pane)
 	}
 	name := m.space.Label() + "-" + herdrKind
 	// No argument but the name, the kind, the pane, and the wait is given:
 	// the agent starts with no permission or trust granted for the human.
-	out, err = m.cmds.herdrLimit(ctx, agentStartTimeout, herdrAgent, "start", name, "--kind", herdrKind, "--pane", pane.String(), "--timeout", agentStartWait)
+	out, err := m.cmds.herdrLimit(ctx, agentStartTimeout, herdrAgent, "start", name, "--kind", herdrKind, "--pane", pane.String(), "--timeout", agentStartWait)
 	if err == nil {
 		// Herdr started an agent, whatever its output says: it is listed by
 		// the name asked for before the output is checked.
@@ -742,6 +757,37 @@ func (m WorkspaceMaker) startAgent(ctx context.Context, pane PaneID, herdrKind s
 	}
 	made(Made{Kind: MadeAgent, ID: name})
 	return &NotReady{Pane: pane, Status: a.Status, Code: response.Code, Message: response.Message}, nil
+}
+
+// waitShell reads pane's processes until its shell is alone in the
+// foreground. Contract: an unreadable read or one about another pane fails
+// at once; a shell still busy after shellAttempts reads fails.
+func (m WorkspaceMaker) waitShell(ctx context.Context, pane PaneID) error {
+	for attempt := range shellAttempts {
+		if attempt > 0 {
+			if err := m.sleep(ctx, shellInterval); err != nil {
+				return err
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		out, err := m.cmds.herdr(ctx, herdrPane, "process-info", "--pane", pane.String())
+		if err != nil {
+			return err
+		}
+		info, err := parsePaneProcessInfo(out)
+		if err != nil {
+			return err
+		}
+		if info.Pane != pane {
+			return fmt.Errorf("%w: herdr reported the processes of pane %s for %s", errMakerRefused, info.Pane, pane)
+		}
+		if info.ShellInForeground() {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: the shell of pane %s is not at its prompt", errMakerRefused, pane)
 }
 
 // TargetsOutcome is what `chief targets` found: the issue number's form
