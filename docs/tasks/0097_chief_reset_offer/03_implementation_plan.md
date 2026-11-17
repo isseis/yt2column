@@ -161,7 +161,7 @@
 
 | AC | 種類 | 検証 |
 |---|---|---|
-| AC-01 | `test` | ステップ 1-2・1-3 のテスト（`internal/chief/reset_test.go`・`internal/chief/autosend_test.go`・`internal/chief/snapshot_test.go`）: 見送りの後の `snapshot` と `tick` に項目が 1 つ出る |
+| AC-01 | `test` | ステップ 1-2・1-3 のテスト（`internal/chief/reset_test.go`・`internal/chief/autosend_test.go`・`internal/chief/resetoffer_test.go`）: 見送りの後の `snapshot` と `tick` に項目が 1 つ出る |
 | AC-02 | `test` | ステップ 1-2 のテスト: 設計書 3.2 節の表の各行の見送りの種類、そのほかの条件を 1 つずつ崩すと記録が書かれないこと、`no_report` 以外の理由の今の行で記録が書かれないこと |
 | AC-03 | `test` | ステップ 1-3 のテスト: 項目の出力が pane・エージェント・入力・場面・コマンド・`check` を持つ |
 | AC-03 | `manual` | PR のレビューで、`chief.md` の項目の示し方と添え書きを読む |

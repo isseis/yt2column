@@ -345,6 +345,9 @@ func TestSendOfferedResetRefusals(t *testing.T) {
 		reason NotSentReason
 	}{
 		{name: "the pane changed state", change: func(mw *mergeWorld) { mw.byPane["w1:p2"].Seq++ }, reason: NotSentCheckMismatch},
+		{name: "the row needs a check", change: func(mw *mergeWorld) {
+			mw.rec.failIn(mw.tree, "gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", errNoReply)
+		}, reason: NotSentCheckMismatch},
 		{name: "the pane is another", change: func(mw *mergeWorld) { mw.renamePane("w1:p3", false) }, reason: NotSentCheckMismatch},
 		{name: "the session changed", claude: true, change: func(mw *mergeWorld) { mw.byPane["w1:p1"].Session = mw.newSession() }, reason: NotSentCheckMismatch},
 		{name: "the routing table moved the command", change: routeRunprToClaude, reason: NotSentCheckMismatch},
@@ -490,6 +493,9 @@ func TestSendOfferedResetUseAndRecords(t *testing.T) {
 		}
 		if stop, _ := records.Stopped(); stop == nil {
 			t.Error("the workspace was not stopped")
+		}
+		if recs := skipsOf(t, mw.store, mw.tree); len(recs) != 0 {
+			t.Errorf("skip records = %+v; want the used one gone", recs)
 		}
 	})
 }

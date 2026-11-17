@@ -130,13 +130,15 @@ const (
 
 // resetSkip is what a reset that was not sent leaves for the offer: the kind
 // of the skip and, for skipReportAbsent, the candidate pane as listed under
-// the workspace's exclusion and the command that ran in it; why says, for a
-// skip that is not offered, why not.
+// the workspace's exclusion, the command that ran in it, and, when set, the
+// state_change_seq the pane must still have; why says, for a skip that is
+// not offered, why not.
 type resetSkip struct {
 	kind    skipKind
 	why     string
 	pane    Agent
 	command ranCommand
+	seq     *int64
 }
 
 // notOffered is a skip that is not offered, with why.
@@ -211,10 +213,16 @@ func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr O
 		return notSent(res, NotSentUnreadable, "herdr agent read failed: "+err.Error()), resetSkip{}
 	}
 	if _, ok := readCommandReport(a.Kind, raw, pr.URL); !ok {
-		return notSent(res, NotSentNoReport, "the pane no longer shows the PR's report"), absent()
+		// The pane must not move between the screen read and the offer.
+		skip := absent()
+		skip.seq = &rec.Seq
+		return notSent(res, NotSentNoReport, "the pane no longer shows the PR's report"), skip
 	}
 	if reason, detail := s.lastInputMadePR(a, made); reason != NotSentUnknown {
-		return notSent(res, reason, detail), notOffered("an OpenCode pane records no human input")
+		if a.Kind != paneinput.AgentClaudeCode {
+			return notSent(res, reason, detail), notOffered(whyOpenCodeMaker)
+		}
+		return notSent(res, reason, detail), resetSkip{}
 	}
 	seq := a.StateChangeSeq
 	return s.run(ctx, res, a, []step{st}, paneCheck{session: a.Session, seq: &seq}, route), resetSkip{}
@@ -254,6 +262,8 @@ func (s sendContext) offerSkip(ctx context.Context, res ActionResult, skip reset
 		return not("the pane is no longer the same agent of the workspace")
 	case a.Status != AgentIdle && a.Status != AgentDone:
 		return not("the pane's agent is not waiting for input")
+	case skip.seq != nil && a.StateChangeSeq != *skip.seq:
+		return not("the pane changed state since it was read")
 	}
 	if why := check(a); why != "" {
 		return not(why)

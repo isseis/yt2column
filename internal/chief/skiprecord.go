@@ -213,6 +213,11 @@ func (r skipRecord) check() error {
 		if r.session != "" {
 			return fmt.Errorf("%w: an OpenCode pane with a session", errSkipRecord)
 		}
+		// No human input of an OpenCode pane is recorded, so its reset
+		// after /runpr is never offered.
+		if r.scene == sceneAfterRunpr {
+			return fmt.Errorf("%w: an OpenCode pane after /runpr", errSkipRecord)
+		}
 	default:
 		return fmt.Errorf("%w: no agent chief knows", errSkipRecord)
 	}
@@ -360,6 +365,9 @@ func (r WorkspaceRecords) skipRecords() ([]skipRecordFound, error) {
 		f := skipRecordFound{path: path}
 		data, err := privatefile.Read(path, recordLimit)
 		switch {
+		case errors.Is(err, privatefile.ErrNotExist):
+			// Removed under the exclusion since it was listed.
+			continue
 		case err != nil:
 			f.err = err
 		default:

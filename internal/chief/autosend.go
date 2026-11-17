@@ -728,11 +728,6 @@ func (a *autoSender) send(ctx context.Context, ws TaskWorkspace, obs Observation
 	case OutcomeSent:
 		reset, skip := a.resetRunpr(ctx, sc, obs, res.Proposal, sent.Pane)
 		res.Actions = append(res.Actions, sc.offerSkip(ctx, reset, skip, sceneAfterAutoSend, func(now Agent) string {
-			// The pane must not have moved since it was read under the
-			// exclusion, before the command was sent.
-			if now.StateChangeSeq != skip.pane.StateChangeSeq {
-				return "the pane changed state since it was read under the workspace's exclusion"
-			}
 			if now.Kind != paneinput.AgentClaudeCode {
 				return ""
 			}
@@ -875,7 +870,10 @@ func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observa
 	if !sameAgent(agent, candidate) {
 		return notSent(res, NotSentUnreadable, "the pane is no longer the same agent of the workspace"), resetSkip{}
 	}
-	absent := resetSkip{kind: skipReportAbsent, pane: candidate, command: ranCommand{kind: paneinput.CommandRunpr, argument: strconv.Itoa(obs.PR), route: paneinput.RouteRunpr}}
+	// The pane must not have moved since it was read under the exclusion,
+	// before the command was sent.
+	listed := candidate.StateChangeSeq
+	absent := resetSkip{kind: skipReportAbsent, pane: candidate, command: ranCommand{kind: paneinput.CommandRunpr, argument: strconv.Itoa(obs.PR), route: paneinput.RouteRunpr}, seq: &listed}
 	// The last report must still be /runpr's report of this merge, its PR
 	// and the command sent: a later answer in the pane is not emptied. A
 	// Claude Code pane's is read from the transcript of the session Herdr
@@ -889,7 +887,7 @@ func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observa
 	case !agrees(report.Next, next, obs.Task):
 		// NEXT ends the report, so it stays on the screen: another NEXT is
 		// another report, never a report cut at its start.
-		return notSent(res, NotSentNoReport, "the pane's last message does not name "+next.Text+" as NEXT"), notOffered("the pane's last message names another NEXT")
+		return notSent(res, NotSentNoReport, "the pane's last message does not name "+next.Text+" as NEXT"), notOffered("the pane's last message names no NEXT or another NEXT")
 	case !slices.Contains(report.PRs, obs.PR) && report.HeadClipped:
 		return notSent(res, NotSentNoReport, fmt.Sprintf("the start of the pane's last message is above the screen, and the rest does not name #%d", obs.PR)), absent
 	case !slices.Contains(report.PRs, obs.PR):

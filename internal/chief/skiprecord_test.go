@@ -91,7 +91,7 @@ func TestParseSkipRecord(t *testing.T) {
 	valid := string(skipJSON(t, nil))
 	raw := map[string]string{
 		"a repeated member":        strings.Replace(valid, `"pane":"w1:p1"`, `"pane":"w9:p9","pane":"w1:p1"`, 1),
-		"a member of another case": strings.Replace(valid, `"pane":`, `"Pane":`, 1),
+		"a member of another case": strings.Replace(valid, `"pane":"w1:p1"`, `"pane":"w1:p1","Pane":"w1:p1"`, 1),
 		"trailing data":            valid + "{}",
 		"not an object":            "[]",
 	}
@@ -121,8 +121,11 @@ func TestParseSkipRecord(t *testing.T) {
 		"/runpr after /runpr":                func(m map[string]any) { m["command"], m["argument"], m["route"] = "runpr", "42", "runpr" },
 		"/mkarch after an automatic send":    set("scene", "after_autosend"),
 		"a Claude Code pane without session": set("session", ""),
-		"an OpenCode pane with a session":    set("agent", "opencode"),
-		"a workspace of another form":        set("workspace", "w-1"),
+		"an OpenCode pane with a session": func(m map[string]any) {
+			m["agent"], m["scene"], m["command"], m["argument"], m["route"] = "opencode", "after_autosend", "runpr", "42", "runpr"
+		},
+		"an OpenCode pane after /runpr": func(m map[string]any) { m["agent"], m["session"] = "opencode", "" },
+		"a workspace of another form":   set("workspace", "w-1"),
 	}
 	for name, edit := range edits {
 		if _, err := parseSkipRecord(skipJSON(t, edit)); !errors.Is(err, errSkipRecord) {

@@ -96,7 +96,7 @@ func applyAutoSends(view *roundView, results []AutoSendResult) []PendingItem {
 			// A pane the send typed into has no skipped reset left.
 			row.Resets = slices.DeleteFunc(row.Resets, func(it ResetItem) bool {
 				return slices.ContainsFunc(r.Actions, func(a ActionResult) bool {
-					return a.Pane == it.Pane.String() && a.Outcome == OutcomeSent
+					return a.Pane == it.Pane.String() && (a.Outcome == OutcomeSent || a.Outcome == OutcomeSentThenFailed)
 				})
 			})
 			row.Running = &SendRecord{Pane: sent.Pane, Input: InputCommand.String(), Command: sent.Command, Agent: agentLabel(sent.Agent), Model: sent.Model}

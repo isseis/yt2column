@@ -385,6 +385,24 @@ func TestResetAfterRunprSkipOffer(t *testing.T) {
 		{name: "the pane is in another Herdr workspace", react: func(sw *sendWorld, _ *simPane, _ string) {
 			sw.byPane["w1:p1"].Workspace = "w9"
 		}},
+		{name: "the pane moves after the screen lost the report", setup: func(_ *testing.T, sw *sendWorld, _ string, _ *Deps) {
+			sw.firstPane().screen = reportScreen(sw.t, prURL)
+		}, react: func(sw *sendWorld, _ *simPane, _ string) {
+			// The reset reads the pane's agent, then its screen, which no
+			// longer shows the report; the pane moves before the offer reads
+			// its agent again.
+			pane, reads := sw.byPane["w1:p1"], 0
+			pane.screen = readScreenSample(sw.t, "claude-idle.ansi")
+			sw.rec.replyFunc("herdr agent get w1:p1", func() reply {
+				sw.mu.Lock()
+				defer sw.mu.Unlock()
+				reads++
+				if reads == 2 {
+					pane.Seq++
+				}
+				return reply{out: agentGetOutput(pane.fakeAgent)}
+			})
+		}},
 		{name: "the pane cannot be read again", react: func(sw *sendWorld, _ *simPane, _ string) {
 			sw.rec.replyFunc("herdr agent get w1:p1", func() reply { return reply{err: errNoReply} })
 		}},

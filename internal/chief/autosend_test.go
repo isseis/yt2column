@@ -1517,39 +1517,6 @@ func TestResetChecksAgain(t *testing.T) {
 	})
 }
 
-// noNextReport returns the sampled OpenCode /runpr report of pr with no
-// NEXT line, which lets the automatic send go on and names no command.
-func noNextReport(t *testing.T, pr int) string {
-	t.Helper()
-	screen := strings.Replace(runprReportScreen(t, pr, ""), runprNoneLine+"\n", "", 1)
-	if strings.Contains(screen, "NEXT:") {
-		t.Fatal("the edited report still has its NEXT line")
-	}
-	return screen
-}
-
-// clippedRunprReport returns the sampled OpenCode /runpr report of #42 with
-// next as its NEXT ("" for no NEXT line), its start above the screen: the
-// lines before its cleanup item are gone, and with them every mention of
-// #42.
-func clippedRunprReport(t *testing.T, next string) string {
-	t.Helper()
-	screen := runprReportScreen(t, 42, next)
-	if next == "" {
-		screen = noNextReport(t, 42)
-	}
-	i := strings.Index(screen, "     - cleanup:")
-	if i < 0 {
-		t.Fatal("the /runpr report sample no longer holds its cleanup item")
-	}
-	clipped := strings.Replace(screen[i:], "#未記入 を #42 に", "#未記入 を記入", 1)
-	report, ok := readRunprReport(paneinput.AgentOpenCode, clipped)
-	if !ok || !report.HeadClipped || slices.Contains(report.PRs, 42) {
-		t.Fatalf("the clipped report reads %+v, %v; want a clipped report not naming #42", report, ok)
-	}
-	return clipped
-}
-
 // TestResetAfterAutoSendSkipOffer checks which skips of the reset of the
 // /runpr pane after an automatic send are kept as reset items: an OpenCode
 // pane showing no report, or a report whose start is above the screen and
@@ -1629,6 +1596,16 @@ func TestResetAfterAutoSendSkipOffer(t *testing.T) {
 		}, unwritten: true},
 		{name: "Claude Code: no report after /runpr", world: claude(commandLine("/runpr 42"), prRecordLine(42)), offered: true},
 		{name: "Claude Code: no report after another command", world: claude(commandLine("/runplan 0001"))},
+		{name: "Claude Code: the pane moved while the command was typed", world: func(t *testing.T) (*mergeWorld, string) {
+			mw, pane := claude(commandLine("/runpr 42"), prRecordLine(42))(t)
+			mw.react = func(p *simPane, text string) error {
+				if text == "/runplan 0001" {
+					mw.byPane["w1:p1"].Seq++
+				}
+				return mw.realReact(p, text)
+			}
+			return mw, pane
+		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			mw, pane := c.world(t)

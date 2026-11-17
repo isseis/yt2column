@@ -243,6 +243,8 @@ func addResets(store Store, w TaskWorkspace, row *Row, routing Routing) []string
 		}
 		if item, _, ok := resetItemOf(w, f.rec, routing); ok {
 			row.Resets = append(row.Resets, item)
+			// A reset item waits on the human.
+			row.Idle = false
 		}
 	}
 	return problems
