@@ -92,6 +92,17 @@ func (s TaskSpace) Worktree() (Worktree, error) {
 	if err != nil {
 		return Worktree{}, err
 	}
+	if len(rest) == 0 {
+		// The path itself exists. A link there would resolve to whatever it
+		// points at, which is never the worktree chief makes at this path.
+		info, err := os.Lstat(ancestor)
+		if err != nil {
+			return Worktree{}, err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return Worktree{}, fmt.Errorf("%w: %q is a link", errTargetExists, ancestor)
+		}
+	}
 	resolved, err := filepath.EvalSymlinks(ancestor)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {

@@ -173,6 +173,23 @@ func TestTaskSpaceWorktree(t *testing.T) {
 			t.Errorf("Worktree = %v, want errTargetExists", err)
 		}
 	})
+	t.Run("a link to an existing directory at the path", func(t *testing.T) {
+		home := spaceHome(t)
+		parent := filepath.Join(home, ".herdr/worktrees/yt2column")
+		if err := os.MkdirAll(parent, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		other := filepath.Join(home, "other")
+		if err := os.Mkdir(other, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(other, filepath.Join(parent, "issue-7")); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := space(t, home).Worktree(); !errors.Is(err, errTargetExists) {
+			t.Errorf("Worktree = %q, %v, want errTargetExists", got, err)
+		}
+	})
 	t.Run("a link with no target at the path", func(t *testing.T) {
 		home := spaceHome(t)
 		parent := filepath.Join(home, ".herdr/worktrees/yt2column")

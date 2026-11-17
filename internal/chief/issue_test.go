@@ -373,6 +373,25 @@ func TestRecorderRejectsOtherGitAndHerdrWrites(t *testing.T) {
 	}
 }
 
+// TestIssueQueryIsAQuery checks the property that lets the recorder pass
+// `gh api graphql` as a read: the one document is a query operation and
+// holds no mutation or subscription. The recorder compares the call with the
+// constant itself, so only this test can see a changed constant.
+func TestIssueQueryIsAQuery(t *testing.T) {
+	if !strings.HasPrefix(issueQuery, "query(") {
+		t.Errorf("the operation is not a query: %.20s", issueQuery)
+	}
+	lower := strings.ToLower(issueQuery)
+	for _, word := range []string{"mutation", "subscription"} {
+		if strings.Contains(lower, word) {
+			t.Errorf("the question mentions %s", word)
+		}
+	}
+	if strings.Count(issueQuery, "query(") != 1 {
+		t.Error("the document holds more than one operation")
+	}
+}
+
 // TestRecorderPassesOnlyTheFixedIssueRead pins the recorder's rule: `gh api
 // graphql` is not a read-only prefix, because it can send a mutation or take
 // another method; only the tool's one shape passes.
