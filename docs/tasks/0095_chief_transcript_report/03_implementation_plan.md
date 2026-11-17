@@ -237,7 +237,7 @@
 
 **変更するファイル:** `internal/chief/screen_report.go`、`internal/chief/screen_transcript.go`、`internal/chief/sanitize.go`・`sanitize_test.go`、`internal/chief/screen_test.go`、`internal/chief/samples_test.go`、`internal/chief/testdata/README.md`、`docs/dev/conventions/package_reference.md`、本計画
 
--   [ ] **ステップ 5-1**: 人が行った実地の確かめの結果を、§7 の「PR-4 の実行の記録」に書く。確かめるのは、画面より長い報告（`/mkarch`・`/mkplan`・`/runplan` など）が PR の詳細に示されること（AC-01・AC-09）と、`/runpr` の後に PR を作った pane が空にされること（AC-10）である。どちらかが期待と違えば、それ以上進まずに止まり、人に尋ねる。
+-   [x] **ステップ 5-1**: 人が行った実地の確かめの結果を、§7 の「PR-4 の実行の記録」に書く。確かめるのは、画面より長い報告（`/mkarch`・`/mkplan`・`/runplan` など）が PR の詳細に示されること（AC-01・AC-09）と、`/runpr` の後に PR を作った pane が空にされること（AC-10）である。どちらかが期待と違えば、それ以上進まずに止まり、人に尋ねる。
 -   [ ] **ステップ 5-2**: 消すコミットを 1 つ作る。このコミットには、次の削除と、ビルドとテストを通すのに要る編集だけを入れる。消す製品のコードとそのテストを同じコミットにするのは、`make coverage-compare` が、消した関数を下がった関数でなく消した関数として挙げるためである。消さずに済む編集（サンプルの一覧の行の移動など）は、ステップ 5-4 で別のコミットにする。
     -   [ ] `readCommandReport`
     -   [ ] `claudeLastMessage`
@@ -382,7 +382,9 @@ Diff record (AC-17):
 
 ### PR-4 の実行の記録
 
-（ステップ 5-1 の実地の確かめの結果と、ステップ 5-5 の消し漏れの探索のコマンドと出力を、`/runplan` が書く。）
+-   **ステップ 5-1（2026-11-17）。** PR-3（#960）のマージの後、人が `main` の chief を入れ直し、本物の Herdr と Claude Code で確かめた。結果はどちらも期待どおりだった。
+    -   **PR の詳細（AC-01・AC-09）。** タスク 0092 の PR #967 を使った。この PR は、Claude Code の pane の `/runplan` が作ったものである。`/chief` で詳細を開くと、要約は PR の説明ではなく、作ったコマンドの報告から作られ、報告は切られずに全文が示された。
+    -   **`/runpr` の後のリセット（AC-10）。** `/runpr` を送った後、PR を作った Claude Code の pane に `/clear` が送られ、pane は空になった。
 
 ## 8. 成功の基準 (Success Criteria)
 
