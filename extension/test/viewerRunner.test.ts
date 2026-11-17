@@ -406,6 +406,24 @@ describe("the input check", () => {
     });
   });
 
+  it("ends a Worker that says ready and never answers prepare at 30 seconds from its start, as worker_load", async () => {
+    const s = setup();
+    const running = s.start();
+    await settle();
+    s.clock.advance(10_000);
+    s.worker().send({ kind: "ready" });
+    await settle();
+    s.clock.advance(workerLoadTimeoutMs - 10_001);
+    await settle();
+    assert.deepEqual(types(s), ["claimInput"]);
+    s.clock.advance(1);
+    assert.deepEqual(await running, {
+      kind: "prepare_rejected",
+      reason: "internal",
+      internalDetail: "worker_load",
+    });
+  });
+
   it("treats a Worker error, and a result of the wrong shape, as internal", async () => {
     const crashed = setup();
     const first = crashed.start();

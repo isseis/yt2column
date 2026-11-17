@@ -89,10 +89,10 @@ interface RecordBase {
   readonly steps: Steps;
 }
 
-/** The chrome.storage.session item name of the job record of jobId. */
 /** The prefix of the item names of job records. */
 export const jobItemPrefix = "job:";
 
+/** The chrome.storage.session item name of the job record of jobId. */
 export function jobItemName(jobId: string): string {
   return `${jobItemPrefix}${jobId}`;
 }
