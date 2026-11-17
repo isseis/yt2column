@@ -649,13 +649,17 @@ func TestSendRecordUnreadableIsNoProblem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := privatefile.Create(filepath.Join(dir, "send-00000000000000000001-0123456789abcdef-start.json"), []byte("not json")); err != nil {
+	w.stopWorkspace(tree)
+	if _, err := privatefile.Create(filepath.Join(dir, sendPrefix+"00000000000000000001-0123456789abcdef"+startSuffix), []byte("not json")); err != nil {
 		t.Fatal(err)
 	}
 	snap := take(t, w)
 	row := rowOf(t, snap, "ws")
-	if row.State != StateRunning || row.StopUnreadable || row.Running != nil || row.RunningUnknown != RunningUnknownUnreadable {
-		t.Errorf("row = %+v; want running with no command, unreadable, and the stop read", row)
+	if row.State != StateRunning || row.Running != nil || row.RunningUnknown != RunningUnknownUnreadable {
+		t.Errorf("row = %+v; want running with no command, unreadable", row)
+	}
+	if row.StopUnreadable || row.Stopped == nil || row.Stopped.Reason != "why" {
+		t.Errorf("row stop = %+v (unreadable %v); want the stop read", row.Stopped, row.StopUnreadable)
 	}
 	if len(snap.Problems) != 0 {
 		t.Errorf("problems = %v; want none", snap.Problems)
@@ -897,7 +901,8 @@ func TestSnapshotRowOutput(t *testing.T) {
 		{"idle", "wait", "none", "requirements", "awaiting_creation"},
 	}
 	if !slices.Equal(got, want) {
-		t.Errorf("rows = %+v, want %+v", got, want)
+		// The checks below index the rows in this order.
+		t.Fatalf("rows = %+v, want %+v", got, want)
 	}
 	if q := rows[0]["questions"].([]any); len(q) != 1 || q[0].(map[string]any)["merge"] != true {
 		t.Errorf("merge row questions = %v, want one with merge true", q)
