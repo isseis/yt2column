@@ -250,7 +250,7 @@
     -   [x] `TestReadCommandReport`（`internal/chief/screen_test.go:657`）
     -   [x] `TestReadCommandReportUnderRecap`（同 696）
     -   [x] `TestReadCommandReportUnderTitledBox`（同 725）
-    -   [x] `TestReadRunprReport` の、Claude Code の画面から報告を読む行（同 882-885。消すコミットの前のコミットで、読まないことを確かめる行に替える）。913-915 行の、読まないことを確かめる行は残す（Claude Code の分を消した後も、Claude Code の pane と知らないエージェントは読まないので通る）。知らないエージェントの行は、設計書 3.9 のとおり OpenCode のサンプルに替える（Claude Code のサンプルでは、知らないエージェントを通す誤りを見つけられないため）
+    -   [x] `TestReadRunprReport` の、Claude Code の画面から報告を読む行（同 882-885。消すコミットの前のコミットで、読まないことを確かめる行に替える）。913-915 行の、読まないことを確かめる行のうち、OpenCode のサンプルを Claude Code として与える行は残す。知らないエージェントの行は、設計書 3.9 のとおり OpenCode のサンプルに替える（Claude Code のサンプルでは、知らないエージェントを通す誤りを見つけられないため）。Claude Code のサンプルを Claude Code として与える行（メッセージのない画面と、コマンドの報告の画面）は、OpenCode の画面の形の確かめでも拒まれ、エージェントの確かめがなくても通るので、テストの行を消す別のコミットで消す
     -   [x] テストの補助関数 `reportScreen`・`reportMention`・`isSampleReport`（同 785-805）。呼ぶ所が残らないことを確かめる（`TestResetChecks` の呼び出しは、ステップ 4-9 で替えてある）。`detail_test.go`・`reset_test.go` の AC-06 の画面だけに報告がある行は、画面の読み取りが読める画面を作るために `reportScreen` と `readCommandReport` を使う補助関数 `screenOnlyMakerReport` を呼ぶので、この補助関数は消し、2 つの行の画面は、`claude-command-report.ansi` の PR の言及を PR の URL に替えた画面にする（`screen_test.go` の補助関数 `claudeReportScreenNamingURL`。読み取り部品を使わずに、画面がその PR を名指すようにするため）
 -   [x] **ステップ 5-3**: 消すコミットの親を BASE として `make coverage-compare` を走らせる（10 分以上の時間の上限か、バックグラウンドで）。最後の行が `coverage-compare: PASS` であることを確かめ、最後の行までの出力を、木の ID を変えずに消すコミットのメッセージに書き、PR の説明にも書く（CLAUDE.md の「Testing Strategy」）。`PASS` でなければ止まり、人に尋ねる。
 -   [x] **ステップ 5-4**: `samples_test.go` の `command report` の行の 2 つのサンプルを `input line` の行に移し、`command report` の行を消す（設計書 3.9）。`RunprReport.PRs` のコメントを、画面と transcript の両方に合うように直す（設計書 2.2）。`package_reference.md` の `internal/chief` の行から `CapScreen` を消す。`testdata/README.md` の `claude-command-report.ansi`・`claude-command-report-recap.ansi` の行に、今は入力欄の判定のテストが使うことを書く。
@@ -392,7 +392,7 @@ Diff record (AC-17):
     (出力なし、終了コード 1)
     ```
 
-    `readRunprReport`（`internal/chief/screen_report.go`）は、OpenCode でないエージェントに偽を返し、`openCodeLastMessage` だけを読む。`TestReadRunprReport` は、OpenCode の行を残し、Claude Code の pane の 3 つの行（OpenCode の画面、メッセージのない画面、コマンドの報告の画面）と知らないエージェントの行で、読まないことを確かめる。`readLastHumanInput` と `TestReadLastHumanInput` は、§1.5 のとおり残した。
+    `readRunprReport`（`internal/chief/screen_report.go`）は、OpenCode でないエージェントに偽を返し、`openCodeLastMessage` だけを読む。`TestReadRunprReport` は、OpenCode の行を残し、OpenCode の画面を Claude Code として与える行と、OpenCode の画面を知らないエージェントとして与える行で、読まないことを確かめる。Claude Code のサンプルを Claude Code として与える 2 つの行は、エージェントの確かめがなくても通るので、別のコミット（`test(0095): drop the Claude Code sample rows of TestReadRunprReport`）で消し、`make coverage-compare` は `PASS` だった（出力はそのコミットのメッセージにある。1 回目は、上と同じ `signalGroup` の 1 行で `FAIL` だった）。`readLastHumanInput` と `TestReadLastHumanInput` は、§1.5 のとおり残した。
 
 ## 8. 成功の基準 (Success Criteria)
 
