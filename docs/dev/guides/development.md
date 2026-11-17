@@ -1,6 +1,6 @@
 # 開発の手順
 
-本書は yt2column の開発者のための文書である。`make` のターゲット、開発用の別のサーバ、拡張の開発のための検査、localhost サーバの HTTP の API、統合テストを説明する。ブラウザ拡張と localhost サーバの使い方は [README](../../../README.md) に、CLI は [cli.md](cli.md) にある。
+本書は yt2column の開発者のための文書である。`make` のターゲット、開発用の別のサーバ、開発用の拡張のビルド、拡張の開発のための検査、localhost サーバの HTTP の API、統合テストを説明する。ブラウザ拡張と localhost サーバの使い方は [README](../../../README.md) に、CLI は [cli.md](cli.md) にある。
 
 ## make のターゲット
 
@@ -123,13 +123,44 @@ go build -o /tmp/yt2column-extjob ./cmd/yt2column-extjob
 
 ブラウザに固有の部分（`fetch` を通した送信、Worker、`syscall/js` の受け渡し）は、このコマンドでは再現できない。
 
+## 開発用の拡張のビルド
+
+`make ext-build-dev` は、公開用の `extension/dist/` とは別に、fake の LLM（`internal/llm/devfake`）で記事を作る開発用の拡張を `extension/dist-dev/` に作る。拡張に入れる記事生成モジュールは開発用の `cmd/yt2column-wasm-dev` で、Anthropic の API を呼ばない。シナリオはビルドのときに決まり、次の 5 つの変数で選ぶ。変数は `make` の引数で与え、与えない変数は既定の値になる。環境変数では選べない。
+
+```sh
+make ext-build-dev
+make ext-build-dev FAKE_ARTICLE=long FAKE_FAILURE=timeout FAKE_FAIL_AT=shorten
+```
+
+| 変数 | 意味 | 受理する値 | 既定の値 |
+|---|---|---|---|
+| `FAKE_ARTICLE` | 記事の種類 | `standard`・`long`・`elements` | `standard` |
+| `FAKE_FAILURE` | 失敗の種類 | `none`・`empty`・`truncated`・`api-error`・`timeout`・`api_key_rejected` | `none` |
+| `FAKE_FAIL_AT` | 失敗させる工程 | `none`・`draft`・`shorten`・`review` | `none` |
+| `FAKE_DELAY` | LLM の呼び出し 1 回ごとの遅れ（秒） | `0` から `600` までの 10 進の整数 | `0` |
+| `FAKE_SETTINGS_CHECK` | オプションページの設定の検査（`checkSettings`）の結果 | `ok`・`key_rejected`・`unverified` | `ok` |
+
+組み合わせの規則は、[開発用のコマンド](#開発用のコマンドで記事の生成を再現する)の `-llm=fake` と同じである。`FAKE_DELAY` は、`05` のように先頭が `0` の 2 桁以上の数を受理しない。`FAKE_FAILURE` と `FAKE_FAIL_AT` は、どちらも `none` か、どちらも `none` でないかの組で与える。`FAKE_FAIL_AT=shorten` は `FAKE_ARTICLE=long` のときだけ受理する。受理しない値では、ビルドは `extension/dist-dev/` に触れる前に、受理する値の案内を出して失敗する。前のビルドの `extension/dist-dev/` はそのまま残る。
+
+開発用のビルドは、次の点で公開用のビルドと見分けられる。
+
+-   manifest が `key` を持たないので、拡張の ID が公開用のビルドと違う。`chrome.storage.local` も別になり、開発用のビルドで保存した値が公開用のビルドの値を上書きしない。
+-   拡張機能のページでの名前が `yt2column（開発用のビルド）`（英語の画面では `yt2column (development build)`）である。
+-   ビルドの種類を宣言するモジュール（`buildKind.js`）が `dev` を宣言する。
+
+どちらのビルドも、最後に成果物を検査する。成果物が `tsc` の出力、`static/` の写し、記事生成モジュール、`wasm_exec.js` だけであること、記事生成モジュールを Node.js で読み込んで呼んだ `buildInfo` の main のパッケージと Go の版と LLM の実装（開発用のビルドでは、ビルドに与えたシナリオ）が期待どおりであることを確かめ、合わなければビルドを失敗させる。
+
+**Go のツールチェーン。** どちらのビルドも、記事生成モジュールを `go.mod` の `go` の行の版の Go で（`GOTOOLCHAIN` を与えて）ビルドし、そのツールチェーンの `wasm_exec.js` を成果物に写す。手元の Go がその版でないときは、初めのビルドが、その版のツールチェーンをダウンロードする（ネットワークを使う）。
+
+**画面ではまだ使えない。** 今の拡張は、まだ localhost サーバとホストで記事を作る。開発用のビルドは拡張の ID が違うので、ホストの manifest の `allowed_origins` に入らず、ホストにつながらない。開発用のビルドを画面で確かめられるのは、拡張が記事生成モジュールで記事を作るように切り替えた後である（[#773](https://github.com/isseis/yt2column/issues/773)）。それまでは、ビルドと成果物の検査が通ることだけを確かめる。
+
 ## 拡張の検査
 
 拡張のビルドと読み込みは、README の
 [ブラウザ拡張](../../../README.md#ブラウザ拡張)にある。同じ Node.js の版を有効にしたまま、もう 1 つのターゲットで CI と同じ検査を走らせる。
 
 ```sh
-make ext-check     # typecheck, lint, format check, tests, then build
+make ext-check     # typecheck, lint, format check, tests, then the release and development builds
 ```
 
 ## localhost サーバの API

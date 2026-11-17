@@ -25,7 +25,7 @@ Go のパイプラインを WASM にしたものは、拡張のページから C
 -   **ビルド、成果物、CSP、`make wasm-check` は、それぞれの ADR が定める。** 拡張のビルドが Go を呼んで記事生成モジュールと `wasm_exec.js` を成果物に入れることと、成果物の検査の例外は [ADR-0026](0026-extension-platform.md) が、CSP の全体（WASM を読み込むための `'wasm-unsafe-eval'` を含む）は [ADR-0010](0010-extension-stores-nothing.md) が、`make wasm-check` は [ADR-0019](0019-pipeline-component-interfaces.md) が定める。
 -   **WASM のサイズと読み込みの時間は受け入れる。** 読み込みは記事の生成 1 回に 1 度で、生成の所要時間に比べて小さいためである（背景）。規則は 0090 設計書の「設計の際に決めたこと（2026-11-12）」にある。
 
-この決定のうち、拡張が記事生成モジュールで記事を作ることは、まだコードと仕様の文書（[development.md](../guides/development.md)・[CLAUDE.md](../../../CLAUDE.md)・[security.md](../security.md)）に反映していない。今の拡張のビルドは記事生成モジュールを成果物に入れず、拡張は localhost サーバで記事を作る。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
+この決定のうち、拡張が記事生成モジュールで記事を作ることは、まだコードと仕様の文書（[development.md](../guides/development.md)・[CLAUDE.md](../../../CLAUDE.md)・[security.md](../security.md)）に反映していない。今の拡張のビルドは記事生成モジュールを成果物に入れるが、拡張はそれを使わず、localhost サーバで記事を作る。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 
 ## 採らなかった案
 
