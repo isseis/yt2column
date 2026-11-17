@@ -1,0 +1,31 @@
+{"type":"mode"}
+{"type":"session-owner"}
+{"type":"file-history-snapshot"}
+{"type":"user","isMeta":true,"message":{"role":"user","content":"<local-command-caveat>The command below was run directly in Claude Code, not sent to you as a request, and its output goes straight to the user. It's recorded here as context for later messages.</local-command-caveat>"}}
+{"type":"user","message":{"role":"user","content":"<command-name>/clear</command-name>\n            <command-message>clear</command-message>\n            <command-args></command-args>"}}
+{"type":"system"}
+{"type":"file-history-snapshot"}
+{"type":"user","origin":{"kind":"human"},"turnOrigin":"human","message":{"role":"user","content":"<command-message>runplan</command-message>\n<command-name>/runplan</command-name>\n<command-args>0060</command-args>"}}
+{"type":"user","isMeta":true,"message":{"role":"user","content":[{"type":"text","text":"Command body."}]}}
+{"type":"atis-latch"}
+{"type":"api-request-shape"}
+{"type":"tools-used"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":""}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_00000000000000000000000001","name":"Bash","input":{}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_00000000000000000000000001","content":"ok"}]}}
+{"type":"attachment","attachment":{"type":"queued_command","commandMode":"task-notification","origin":{"kind":"task-notification","producer":"session-task"},"prompt":"<task-notification>\n<task-id>b0000001</task-id>\n<status>completed</status>\n</task-notification>"}}
+{"type":"api-request-blob"}
+{"type":"api-request"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Working on the plan."}]}}
+{"type":"system"}
+{"type":"system"}
+{"type":"queue-operation"}
+{"type":"queue-operation"}
+{"type":"system"}
+{"type":"user","isMeta":true,"origin":{"kind":"auto-continuation"},"promptSource":"system","turnOrigin":"auto_continuation","message":{"role":"user","content":"Your claude.ai usage limit has reset. Continue the task you were working on when the limit was reached."}}
+{"type":"user","isMeta":true,"message":{"role":"user","content":"Notice."}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":""}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_00000000000000000000000002","name":"Bash","input":{}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_00000000000000000000000002","content":"ok"}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Working on the plan."}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_00000000000000000000000003","name":"Agent","input":{}}]}}

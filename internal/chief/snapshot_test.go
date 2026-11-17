@@ -196,7 +196,9 @@ func TestTakeSnapshotRoutingUnreadable(t *testing.T) {
 
 // TestNextCommandRules covers each row of the rule table, the simple
 // process's three-document merge, and the requirements that offer no
-// /runplan.
+// /runplan. A row with no next command names its reason: the reason says
+// which document stage the rule stopped at, and its wording is the contract
+// shown to the human in Unreadable.
 func TestNextCommandRules(t *testing.T) {
 	draft := statusDoc("| Status | `draft` |\n| Process | `full` |\n")
 	simple := statusDoc("| Status | `approved` |\n| Process | `simple` |\n")
@@ -206,17 +208,21 @@ func TestNextCommandRules(t *testing.T) {
 		docs fakeDocs
 		want TaskNextKind
 		text string
+		why  string
 	}{
-		{"requirements approved, full", fakeDocs{Dir: taskDir, Req: reqApproved}, TaskNextMkarch, "/mkarch 0001"},
-		{"requirements approved, no record", fakeDocs{Dir: taskDir, Req: unrecorded}, TaskNextMkarch, "/mkarch 0001"},
-		{"architecture approved", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved}, TaskNextMkplan, "/mkplan 0001"},
-		{"plan approved", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}, TaskNextRunplan, "/runplan 0001"},
-		{"simple process after the three documents", fakeDocs{Dir: taskDir, Req: simple, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}, TaskNextRunplan, "/runplan 0001"},
-		{"requirements draft", fakeDocs{Dir: taskDir, Req: draft}, TaskNextNone, ""},
-		{"architecture draft", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: draft}, TaskNextNone, ""},
-		{"plan draft after an approved architecture", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: []byte(strings.Replace(string(planSample(t, "marker-opus.md")), "`approved`", "`draft`", 1))}, TaskNextNone, ""},
-		{"process record unreadable", fakeDocs{Dir: taskDir, Req: statusDoc("| Status | `approved` |\n| Process | full |\n")}, TaskNextNone, ""},
-		{"simple process without architecture", fakeDocs{Dir: taskDir, Req: simple}, TaskNextNone, ""},
+		{"requirements approved, full", fakeDocs{Dir: taskDir, Req: reqApproved}, TaskNextMkarch, "/mkarch 0001", ""},
+		{"requirements approved, no record", fakeDocs{Dir: taskDir, Req: unrecorded}, TaskNextMkarch, "/mkarch 0001", ""},
+		{"architecture approved", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved}, TaskNextMkplan, "/mkplan 0001", ""},
+		{"plan approved", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}, TaskNextRunplan, "/runplan 0001", ""},
+		{"simple process after the three documents", fakeDocs{Dir: taskDir, Req: simple, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}, TaskNextRunplan, "/runplan 0001", ""},
+		{"requirements draft", fakeDocs{Dir: taskDir, Req: draft}, TaskNextNone, "", "no rule gives a next command"},
+		{"architecture draft", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: draft}, TaskNextNone, "", "the architecture document is not approved"},
+		{"plan draft after an approved architecture", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: []byte(strings.Replace(string(planSample(t, "marker-opus.md")), "`approved`", "`draft`", 1))}, TaskNextNone, "", "the plan is not approved"},
+		{"documents unreadable (a broken process record)", fakeDocs{Dir: taskDir, Req: statusDoc("| Status | `approved` |\n| Process | full |\n")}, TaskNextNone, "", "task documents on origin/main"},
+		{"simple process without architecture", fakeDocs{Dir: taskDir, Req: simple}, TaskNextNone, "", "no rule gives a next command"},
+		{"no requirements document", fakeDocs{Dir: taskDir}, TaskNextNone, "", "no requirements document of the task on origin/main"},
+		{"no task directory", fakeDocs{}, TaskNextNone, "", "no requirements document of the task on origin/main"},
+		{"plan with every PR merged", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")}, TaskNextNone, "", ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -224,8 +230,14 @@ func TestNextCommandRules(t *testing.T) {
 			w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &c.docs})
 			r := rowOf(t, take(t, w), "ws")
 			if c.want == TaskNextNone {
-				if r.State != StateNeedsCheck || r.Next != nil || len(r.Unreadable) != 1 {
-					t.Errorf("row = %+v, want needs check with one reason", r)
+				if c.why == "" {
+					if r.State != StateTaskDone || r.Next != nil {
+						t.Errorf("row = %+v, want task done", r)
+					}
+					return
+				}
+				if r.State != StateNeedsCheck || r.Next != nil || !slices.Equal(r.Unreadable, []string{c.why}) {
+					t.Errorf("row = %+v, want needs check with the reason %q", r, c.why)
 				}
 				return
 			}

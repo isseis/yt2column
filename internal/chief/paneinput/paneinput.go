@@ -106,6 +106,25 @@ const (
 	CommandRunpr
 )
 
+// Name returns the command's name without its slash ("mkreq", "mkarch",
+// "mkplan", "runplan", "runpr"), or "" for a kind outside the five.
+func (k CommandKind) Name() string {
+	switch k {
+	case CommandMkreq:
+		return "mkreq"
+	case CommandMkarch:
+		return "mkarch"
+	case CommandMkplan:
+		return "mkplan"
+	case CommandRunplan:
+		return "runplan"
+	case CommandRunpr:
+		return "runpr"
+	default:
+		return ""
+	}
+}
+
 // RouteKey names one row of the routing table in _context.md. The zero value
 // has no route, so nothing is sent.
 type RouteKey int

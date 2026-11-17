@@ -86,6 +86,8 @@
 | `herdr/agent-list.json`・`herdr/workspace-list.json` | `herdr agent list`・`herdr workspace list` の出力 |
 | `transcript/claude-clear-model.jsonl` | Claude Code の transcript |
 | `transcript/claude-queued-input.jsonl` | Claude Code がエージェントの作業中に届いた入力を記録する行（人の文、ほかのエージェントからの報告、タスクの通知）。下の「人の入力の transcript」のとおり採った |
+| `transcript/claude-running-command.jsonl` | コマンド（`/runplan 0060`）が走っている途中の Claude Code の transcript。コマンドの行の後に、メタの行、ツールの呼び出しと結果、キューに積まれた task-notification、使用量の上限が解けた後の続行の入力（`origin` の `kind` が `auto-continuation`）があり、最後は結果が返っていないツールの呼び出しである。下の「実行中のセッションの transcript」のとおり採った |
+| `transcript/claude-running-after-answer.jsonl` | コマンド（`/runplan 0093`）が走っている途中に、`AskUserQuestion` の問いに答えた後の transcript。答えは `origin` を持たない `tool_result` の行になる（人の入力の行にならない）。下の「実行中のセッションの transcript」のとおり採った |
 | `transcript/claude-human-input.jsonl` | Claude Code の transcript の、人の入力とそれ以外の行。下の「人の入力の transcript」のとおり採った |
 | `transcript/claude-runpr-report.jsonl` | Claude Code で走らせた `/runpr` の実行の終わり。PR の記録（`pr-link` の行）と、`NEXT: なし（…）` の行を含む最後の報告がある。下の「報告の transcript」のとおり採った |
 | `transcript/claude-command-report.jsonl` | PR を作ったコマンド（`/mkplan`）の実行の終わり。PR を作った後の PR の記録、画面より長い報告、人の入力（`continue`）、その後の短い最後の報告、recap（`subtype` が `away_summary` の `system` の行）がある |
@@ -128,6 +130,25 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 `transcript/claude-human-input.jsonl` は、タスク 0088 の PR-4 で、2026-11-15 に Claude Code 2.1.325 の transcript から採った。PR-4 の `/runplan` のセッションの transcript で、行の種類（人が打ったカスタムコマンド、人が打った文、`/clear` の記録、ほかのエージェントからの報告、タスクの通知、ツールの結果、エージェントの応答）ごとに最初の 1 行を、順序を保って取った。各行は、chief が読む項目（`type`・`origin` の `kind`・`message`）と、行の種類を表す項目（`isMeta`・`promptSource`・`turnOrigin`）だけに絞った。人が打った 2 行の `message` は採ったままである。それ以外の行の `message` は、長い本文や作業ディレクトリのパスを含むので、同じ形の短い文に置き換えた。ID は上の表の規則で置き換えた。
 
 `transcript/claude-queued-input.jsonl` は、同じ日に、このプロジェクトのほかの worktree の Claude Code 2.1.304・2.1.305 の transcript から採った。エージェントの作業中に届いた入力は、`type` が `attachment` で、`attachment` の `type` が `queued_command` の行になり、`attachment` の中の `origin` の `kind` が届けたものを示す。`kind` が `human`・`peer`・`task-notification` の行を 1 行ずつ取り、`attachment` の `type`・`commandMode`・`origin` の `kind`・`prompt` に絞り、`prompt` は同じ形の短い文に置き換えた。2.1.322〜2.1.325 の transcript にも同じ形の行があることを確かめた。
+
+### 実行中のセッションの transcript
+
+`transcript/claude-running-command.jsonl` と `transcript/claude-running-after-answer.jsonl` は、タスク 0093 の PR-1 で、2026-11-17 に、この計算機の `~/.claude/projects/` の下にある既存の transcript から、読み取りだけで写した。前者は Claude Code 2.1.318 の `/runplan` のセッション、後者は Claude Code 2.1.326 の `/runplan` のセッション（このサンプルを採った PR-1 のセッション自身）である。
+
+各行は、`type`、`isMeta`、`origin`、`promptSource`、`turnOrigin`、`message` の `role` と `content` の種類、`attachment` の `type`・`commandMode`・`origin` だけに絞った。コマンドの行（`<command-message>`・`<command-name>`・`<command-args>` の 3 つ組）は採ったままで、それ以外の行の本文と `tool_use` の入力、`tool_result` の内容は、同じ形の短い文に置き換えた。`tool_use` の ID と task-notification の ID は、上の表の規則の形で置き換えた。transcript に付く `uuid`・`sessionId`・`cwd`・`timestamp` などの項目は残していない。`mode`・`session-owner`・`system`・`api-request` などの `message` を持たない種類の行は、`type` だけの行にした。
+
+2 つのサンプルは、元の transcript の行の一部を、順序を保って取ったものである（前者は元の記録の約 690 行のうち 31 行、後者は約 181 行のうち 21 行）。前者は、コマンドが走っている途中の行で打ち切ってあり、元の記録の全体は、それより後の人の入力を持つ。`message` を持たない種類の行と書いたものには、元の記録で `message` を持つもの（`api-request-blob`）もあり、`type` だけの行にした。
+
+採る前の元の記録で、すべての行が改行で終わること、どの行も採取した種類の `origin` を持つこと（`auto-continuation` を足した後）、`readLastHumanInput` が読めることを確かめた（結果は実装計画書 §7「PR-1 の実行の記録」）。サンプルは削った後のものなので、前提の確かめに使わない。
+
+### 作ったサンプルの計画書
+
+タスク 0093 の PR-1 で、`plans/` に次の 2 つを足した。実物から採ったものではなく、既存のサンプルから作った。
+
+| ファイル | 作り方と目的 |
+|---|---|
+| `plans/marker-opus-pr-open.md` | `marker-opus.md` の PR-2 の「PR を作成した」だけを済ませた形。`origin/main` では PR を開いている間にしか現れない状態で、進行の位置の PR 番号（PR-2）が変わらないことを確かめる |
+| `plans/marker-merged-not-created.md` | `marker-all-merged.md` の PR-3 の「PR を作成した」を外した形。すべての PR が「マージされた」なのに作られていない PR があり、計画が完了ともマージしていない PR があるとも言えない場合を確かめる |
 
 ### 報告の transcript
 
