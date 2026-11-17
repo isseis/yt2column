@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：問い 6 の拒否の判定の条件と挙げる形を強め、資格情報の扱いを足した |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -196,4 +196,5 @@ N/A。調査は製品の処理の速さを変えない。
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#911）
-- 2026-11-17 draft への戻し：問い 6 の拒否の判定の条件と挙げる形を強め、資格情報の扱いを足した（#未記入）
+- 2026-11-17 draft への戻し：問い 6 の拒否の判定の条件と挙げる形を強め、資格情報の扱いを足した（#941）
+- 2026-11-17 承認（isseis、#941）

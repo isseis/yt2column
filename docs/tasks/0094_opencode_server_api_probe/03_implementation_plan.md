@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：設計書 3.2〜3.4 節の守りの強化をステップに反映し、2026-11-17 に確かめた前提を足した |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
+| Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。本タスクに `design_handoff.md` と `implementation_handoff.md` はない。
 
@@ -197,4 +197,5 @@ Diff record (AC-19):
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#911）
-- 2026-11-17 draft への戻し：設計書 3.2〜3.4 節の守りの強化をステップに反映し、2026-11-17 に確かめた前提を足した（#未記入）
+- 2026-11-17 draft への戻し：設計書 3.2〜3.4 節の守りの強化をステップに反映し、2026-11-17 に確かめた前提を足した（#941）
+- 2026-11-17 承認（isseis、#941）
