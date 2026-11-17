@@ -44,7 +44,7 @@
 | 領域 | 今あるもの | 本計画で行うこと |
 |---|---|---|
 | transcript の場所と読み込み | `transcriptPath`（`internal/chief/transcript.go:53-70`）、`readTranscript`（同 82-98）、`transcriptFailure`（同 75-81）、上限 `transcriptLimit`・`resetTranscriptLimit`（同 28-31） | そのまま使う。`resetTranscriptLimit` の名前を変える（§2 の改名の一覧）。報告の入口 `readClaudeReport` を同じファイルに足す |
-| 人の入力の読み取り | `humanInputOf`（`internal/chief/screen_transcript.go:242-283`）、`otherOrigins`（同 153）、`readLastHumanInput`（同 170-189）。`readLastHumanInput` の呼び出し元は `internal/chief/reset.go:63` だけである | `humanInputOf` を `readSessionReport` から使う。`otherOrigins` に `auto-continuation` を足す。`readLastHumanInput` は PR-4 で消す |
+| 人の入力の読み取り | `humanInputOf`（`internal/chief/screen_transcript.go:242-283`）、`otherOrigins`（同 153）、`readLastHumanInput`（同 170-189）。`readLastHumanInput` の呼び出し元は `internal/chief/reset.go:63` だけである | `humanInputOf` を `readSessionReport` から使う。`otherOrigins` に `auto-continuation` を足す。`readLastHumanInput` は、0093 の `readRunningCommand` が呼ぶので残す（§1.5） |
 | strict な JSON の読み取り | `strictjson.ParseObject`・`Object.Collect`・`RequiredString` など（`readModelSwitch` が使う形、`internal/chief/screen_transcript.go:46-90`） | 新しい読み取りもこれで行う。`strictjson` に足すものはない見込みである。足すときは `docs/dev/conventions/package_reference.md` の行も直す |
 | NEXT と PR 番号 | `nextLine`（`internal/chief/screen_report.go:56`）、`readNextValue`（同 91-117）、`readRunprNext`（同 72-86）、`prReference`（同 305）、`RunprReport`（同 295-301） | `readReportNext` が `nextLine`・`readNextValue`・`prReference` を使い、`RunprReport` を返す。`readRunprNext` は OpenCode の画面のために残す |
 | ①② | `reportsAgree`（`internal/chief/autosend.go:441-461`）、`detachedReport`（同 464-487）、`resetRunpr`（同 728-777）。`AutoSendResult`（同 238-246）、`AutoSendOutput`（`internal/chief/output.go:430-438`） | Claude Code の pane を報告の入口で読むように変える。①の pane ごとの結果を `AutoSendResult` と出力に足す |
@@ -65,6 +65,7 @@
 ### 1.5. 実装の際に決めたこと（2026-11-17）
 
 -   **ステップ 1-1 のサンプルは、runpr.md に NEXT の行を定めた PR の `/runpr` を、人が本タスクの worktree の Claude Code の pane で走らせて採る（人が選んだ）。** 本計画の PR（#935）の `/runpr` は Claude Code で走らず、本タスクの worktree の transcript にサンプルがなかった。代わりに、ほかの worktree で Claude Code で走った #925 の `/runpr` の報告を見たところ、`NEXT:` の行がなく、今の文法で読めなかった。そこで、報告に今の文法で読める NEXT の行を書くことを runpr.md で定めた（要件書の「実装の際に決めたこと（2026-11-17）」）。その PR の `/runpr` は runpr.md を変えたブランチで走るので、定めた形の報告が残る。§1.3 の決定 1 の、`/runpr` を余分に走らせずにサンプルを採るという考えは変わらず、使う PR だけが変わる。ADR: ADR-0046 を更新する（要件書の同じ項のため）。
+-   **`readLastHumanInput` と `TestReadLastHumanInput` は、ステップ 5-2 で消さずに残す（人が選んだ）。** 本計画の承認の後にマージされた 0093（#955）の `readRunningCommand` がこの関数を呼び、④が呼ばなくなった後も呼ぶ所が残ったためである。`readRunningCommand` を `readSessionReport` に替える案は、0093 の振る舞いを変えるので採らない（設計書 1.5）。ADR: なし（消す部品の範囲で、このタスクの中で閉じるため）。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -94,7 +95,7 @@
 
 **変更するファイル:** `internal/chief/screen_transcript_report.go`（新規）・`screen_transcript_report_test.go`（新規）、`internal/chief/screen_transcript.go`、`internal/chief/transcript.go`・`transcript_test.go`（新規）、`internal/chief/records.go`・`records_test.go`、`internal/chief/sanitize.go`・`sanitize_test.go`、`internal/chief/sim_test.go`（transcript の行の補助関数）、`internal/chief/screen_test.go`（ステップ 2-1 の行）、`internal/chief/detail.go`・`detail_test.go`（改名の分）、`internal/chief/reset.go`（改名の分）、`docs/dev/conventions/package_reference.md`、本計画
 
--   [x] **ステップ 2-1**: `otherOrigins` に `auto-continuation` を足す（設計書 1.2）。この変更は、PR-1 のうちに製品の振る舞いを変える。④の `readLastHumanInput`（`internal/chief/reset.go:63`）が、`auto-continuation` の行のあるセッションを読めないものとしなくなる。`TestReadLastHumanInput` に `auto-continuation` の行を足して、PR-4 でその各行を消すまで確かめる。
+-   [x] **ステップ 2-1**: `otherOrigins` に `auto-continuation` を足す（設計書 1.2）。この変更は、PR-1 のうちに製品の振る舞いを変える。④の `readLastHumanInput`（`internal/chief/reset.go:63`）が、`auto-continuation` の行のあるセッションを読めないものとしなくなる。`TestReadLastHumanInput` に `auto-continuation` の行を足して確かめる（このテストは、`readLastHumanInput` とともに残す。§1.5）。
 -   [x] **ステップ 2-2**: `screen_transcript_report.go` に `SessionReportKind`・`SessionReport`・`Names`・`readSessionReport` を足す（設計書 3.1。受け付ける形の表と、最後の報告の決め方の 1〜5）。テスト `TestReadSessionReport` は、フェーズ 1 のサンプルと、それを書き換えた入力で、次を確かめる。
     -   PR を作ったコマンドの最後の報告が全文で読め、PR の記録が残ること（AC-01・AC-05）。
     -   AC-02 の各場合（報告の後の人の入力と新しい応答の始まり、終わっていない最後の応答、本文のない応答、終わった応答がないこと、`/clear` で替わった新しいセッション）。報告の後の人の入力には、キューに積まれた人の入力（`queued_command` の `attachment` の行）を含める。逆に、報告の後に peer や task-notification の入力の行しかなければ、報告は残る。
@@ -245,12 +246,10 @@
     -   [ ] `claudeMessageMark`・`claudeDoneMark`・`claudeIndent`・`claudeRecapMark`
     -   [ ] `readRunprReport` の Claude Code の分（OpenCode だけを読む部品にし、コメントを直す）
     -   [ ] `CapScreen`
-    -   [ ] `readLastHumanInput`（各行はステップ 2-2 で `TestReadSessionReport` に移してある）
     -   [ ] `TestCapScreen`（`internal/chief/sanitize_test.go:35`）
     -   [ ] `TestReadCommandReport`（`internal/chief/screen_test.go:657`）
     -   [ ] `TestReadCommandReportUnderRecap`（同 696）
     -   [ ] `TestReadCommandReportUnderTitledBox`（同 725）
-    -   [ ] `TestReadLastHumanInput`（同 809）
     -   [ ] `TestReadRunprReport` の、Claude Code の画面から報告を読む行（同 882-885）。913-915 行の、読まないことを確かめる行は残す（Claude Code の分を消した後も、Claude Code の pane と知らないエージェントは読まないので通る）
     -   [ ] テストの補助関数 `reportScreen`・`reportMention`・`isSampleReport`（同 785-805）。呼ぶ所が残らないことを確かめる（`TestResetChecks` の呼び出しは、ステップ 4-9 で替えてある）。`detail_test.go`・`reset_test.go` の AC-06 の画面だけに報告がある行は、画面の読み取りが読める画面を作るために `reportScreen` と `readCommandReport` を使う補助関数 `screenOnlyMakerReport` を呼ぶので、この補助関数は消し、2 つの行の画面は `claude-command-report.ansi` のままにする
 -   [ ] **ステップ 5-3**: 消すコミットの親を BASE として `make coverage-compare` を走らせる（10 分以上の時間の上限か、バックグラウンドで）。最後の行が `coverage-compare: PASS` であることを確かめ、最後の行までの出力を、木の ID を変えずに消すコミットのメッセージに書き、PR の説明にも書く（CLAUDE.md の「Testing Strategy」）。`PASS` でなければ止まり、人に尋ねる。
@@ -403,3 +402,4 @@ Diff record (AC-17):
 
 - 2026-11-17 承認（isseis、#935）
 - 2026-11-17 セッション中の再承認：ステップ 1-1 のサンプルを、runpr.md に NEXT の行を定めた PR の `/runpr` から採ることにした（isseis、#940）
+- 2026-11-17 セッション中の再承認：`readLastHumanInput` を、0093 の `readRunningCommand` が呼ぶので消さずに残すことにした（isseis、#未記入）
