@@ -381,8 +381,9 @@ package tasknaming
 // is invalid and stands for no number.
 type Number struct{ s string }
 
-func ParseNumber(s string) (Number, error)
+func ParseNumber(s string) (Number, error) // ErrInvalid when s is not four ASCII digits
 func (n Number) String() string // four digits
+func (n Number) Int() int // the value, or 0 for the zero value
 
 // ParseBranch returns the number and slug of a task branch name, and false
 // for any other name.

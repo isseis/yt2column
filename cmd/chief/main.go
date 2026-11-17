@@ -2,7 +2,7 @@
 // session drives to watch the Herdr workspaces of this repository.
 //
 // The command line is `chief <subcommand> [flags] --protocol N`, the
-// subcommands start, snapshot, tick, wait, send, relay, detail, and release. Standard output is
+// subcommands start, snapshot, tick, wait, send, relay, reset, detail, and release. Standard output is
 // one JSON value. The exit code is 0 for a finished run (a decision not to
 // send is a finished run), 1 for a failure of the tool, 2 for a wrong
 // command line, and 3 for a refusal that did nothing: outside Herdr, another
@@ -43,6 +43,7 @@ const (
 	cmdWait     = "wait"
 	cmdSend     = "send"
 	cmdRelay    = "relay"
+	cmdReset    = "reset"
 	cmdDetail   = "detail"
 	cmdRelease  = "release"
 )
@@ -68,6 +69,7 @@ var subcommandFlags = map[string]struct{ required, optional []string }{
 	cmdWait:     {required: []string{flagProtocol, flagSince}, optional: []string{flagTimeout}},
 	cmdSend:     {required: []string{flagProtocol, flagWorkspace, flagCommand}, optional: []string{flagIssue, flagPR}},
 	cmdRelay:    {required: []string{flagProtocol, flagWorkspace, flagCheck, flagAnswer}},
+	cmdReset:    {required: []string{flagProtocol, flagWorkspace, flagCheck}},
 	cmdDetail:   {required: []string{flagProtocol, flagWorkspace}},
 	cmdRelease:  {required: []string{flagProtocol, flagWorkspace}},
 }
@@ -76,6 +78,7 @@ var errUsage = errors.New("usage: chief start|snapshot|tick --protocol N | " +
 	"wait --since B [--timeout S] --protocol N | " +
 	"send --workspace W --command K [--issue N|--pr N] --protocol N | " +
 	"relay --workspace W --check C --answer 1=N --protocol N | " +
+	"reset --workspace W --check C --protocol N | " +
 	"detail --workspace W --protocol N | release --workspace W --protocol N")
 
 func main() {
@@ -216,6 +219,7 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 type requests struct {
 	send  chief.SendRequest
 	relay chief.RelayRequest
+	reset chief.OfferedResetRequest
 	wait  chief.WaitRequest
 }
 
@@ -229,6 +233,8 @@ func parseRequests(subcommand string, flags map[string]string) (requests, error)
 		req.send, err = chief.ParseSendRequest(flags[flagWorkspace], flags[flagCommand], flags[flagIssue], flags[flagPR])
 	case cmdRelay:
 		req.relay, err = chief.ParseRelayRequest(flags[flagWorkspace], flags[flagCheck], flags[flagAnswer])
+	case cmdReset:
+		req.reset, err = chief.ParseOfferedResetRequest(flags[flagWorkspace], flags[flagCheck])
 	case cmdWait:
 		req.wait, err = chief.ParseWaitRequest(flags[flagSince], flags[flagTimeout])
 	}
@@ -253,6 +259,9 @@ func dispatch(ctx context.Context, subcommand string, flags map[string]string, r
 		return out.Output(), err
 	case cmdRelay:
 		out, err := chief.Relay(ctx, deps, req.relay)
+		return out.Output(), err
+	case cmdReset:
+		out, err := chief.SendOfferedReset(ctx, deps, owner, req.reset)
 		return out.Output(), err
 	case cmdDetail:
 		out, err := chief.Detail(ctx, deps, flags[flagWorkspace])

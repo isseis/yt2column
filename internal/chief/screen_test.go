@@ -848,6 +848,41 @@ func runprReportScreen(t *testing.T, pr int, next string) string {
 	return strings.ReplaceAll(screen, "867", strconv.Itoa(pr))
 }
 
+// noNextReport returns the sampled OpenCode /runpr report of pr with no
+// NEXT line, which lets the automatic send go on and names no command.
+func noNextReport(t *testing.T, pr int) string {
+	t.Helper()
+	screen := strings.Replace(runprReportScreen(t, pr, ""), runprNoneLine+"\n", "", 1)
+	if strings.Contains(screen, "NEXT:") {
+		t.Fatal("the edited report still has its NEXT line")
+	}
+	return screen
+}
+
+// clippedRunprReport returns the sampled OpenCode /runpr report of #42 with
+// next as its NEXT ("" for no NEXT line), its start above the screen: the
+// lines before its cleanup item are gone, and with them every mention of
+// #42.
+func clippedRunprReport(t *testing.T, next string) string {
+	t.Helper()
+	var screen string
+	if next == "" {
+		screen = noNextReport(t, 42)
+	} else {
+		screen = runprReportScreen(t, 42, next)
+	}
+	i := strings.Index(screen, "     - cleanup:")
+	if i < 0 {
+		t.Fatal("the /runpr report sample no longer holds its cleanup item")
+	}
+	clipped := strings.Replace(screen[i:], "#未記入 を #42 に", "#未記入 を記入", 1)
+	report, ok := readRunprReport(paneinput.AgentOpenCode, clipped)
+	if !ok || !report.HeadClipped || slices.Contains(report.PRs, 42) {
+		t.Fatalf("the clipped report reads %+v, %v; want a clipped report not naming #42", report, ok)
+	}
+	return clipped
+}
+
 // claudeReportHeading is a heading line of the last message of the sampled
 // Claude Code command report.
 const claudeReportHeading = "記録したこと"

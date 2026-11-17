@@ -29,6 +29,8 @@ const (
 	PendingReview
 	// PendingProposal is a proposed command.
 	PendingProposal
+	// PendingReset is a skipped reset offered to the human.
+	PendingReset
 )
 
 // String returns the name the output uses for the kind.
@@ -42,6 +44,8 @@ func (k PendingKind) String() string {
 		return "review"
 	case PendingProposal:
 		return "proposal"
+	case PendingReset:
+		return "reset"
 	default:
 		return unknownName
 	}
@@ -56,6 +60,8 @@ type PendingItem struct {
 	Question  *QuestionItem
 	PR        *OpenPR
 	Proposal  *Next
+	// Reset is the skipped reset of a reset item.
+	Reset *ResetItem
 	// Reasons are why a proposal was not sent by itself after a merge: the
 	// conditions of the automatic send that did not hold.
 	Reasons []string
@@ -91,9 +97,10 @@ func questionID(workspace string, q Question) ItemID {
 
 // buildPending lists the items waiting on the human in rows: a question or a
 // merge confirmation for each distinct question, a review item for each open
-// PR, and a proposal for each next command or takeover, including one that
-// cannot be sent as it is: a /mkreq waits for the human's issue number, and
-// any other says why in its Problem.
+// PR, a proposal for each next command or takeover, including one that
+// cannot be sent as it is (a /mkreq waits for the human's issue number, and
+// any other says why in its Problem), and a reset item for each reset the
+// row offers, whatever its state.
 // Times are not set. Contract: a needs-check row yields no item.
 func buildPending(rows []Row) []PendingItem {
 	var items []PendingItem
@@ -128,6 +135,13 @@ func buildPending(rows []Row) []PendingItem {
 				add(PendingItem{ID: proposalID(r.Workspace, n), Kind: PendingProposal, Workspace: r.Workspace, Label: r.Label, Proposal: n})
 			}
 		}
+		if r.State == StateNeedsCheck {
+			continue
+		}
+		for i := range r.Resets {
+			it := r.Resets[i]
+			add(PendingItem{ID: it.id(r.Workspace), Kind: PendingReset, Workspace: r.Workspace, Label: r.Label, Reset: &it})
+		}
 	}
 	return items
 }
@@ -154,8 +168,12 @@ func mergePending(items, extra []PendingItem) []PendingItem {
 }
 
 // kindRank is the order of kinds: the questions that stop an agent, the
-// merge confirmations, the PRs waiting for review, then the other proposals.
+// merge confirmations, the PRs waiting for review, then the other proposals,
+// a reset item among them.
 func kindRank(k PendingKind) int {
+	if k == PendingReset {
+		k = PendingProposal
+	}
 	i := slices.Index(kindOrder, k)
 	if i < 0 {
 		return len(kindOrder)

@@ -404,6 +404,8 @@ func TestFixprguardProtocolMismatches(t *testing.T) {
 		{"wrong_fixprguard_call_after_codexreview", "codexreview --protocol " + wrong + " --base " + sha + " && fixprguard head --protocol " + wrong + "\n", []string{"--protocol " + wrong}},
 		{"chief_call_skipped", "chief snapshot --protocol " + wrong + "\n", nil},
 		{"wrong_fixprguard_call_after_chief", "chief snapshot --protocol " + wrong + " && fixprguard head --protocol " + wrong + "\n", []string{"--protocol " + wrong}},
+		{"mergepr_call_skipped", "mergepr discard --protocol " + wrong + " --state s\n", nil},
+		{"wrong_fixprguard_call_after_mergepr", "mergepr discard --protocol " + wrong + " --state s && fixprguard head --protocol " + wrong + "\n", []string{"--protocol " + wrong}},
 		{"wrong_number_in_prose", "pass `--protocol=" + wrong + "`\n", []string{"--protocol=" + wrong}},
 		{"right_number", "fixprguard head --protocol " + right + "\n", nil},
 	} {

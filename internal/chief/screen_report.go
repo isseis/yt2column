@@ -145,15 +145,16 @@ var openCodeResponseEnd = regexp.MustCompile(`^\S+ · .+ · .+ · [0-9]+(?:\.[0-
 // screen in the sampled shape: the input panel at the bottom, the response's
 // end line right above it, and the indented response lines above that up to
 // the panel before them, a leading thought line left out. Each line has its
-// indent removed.
-func openCodeLastMessage(raw string) ([]string, bool) {
+// indent removed. clipped is true when no panel line is above the response:
+// its start may be above the screen, so the lines are only its rest.
+func openCodeLastMessage(raw string) (texts []string, clipped, ok bool) {
 	all, err := parseANSIScreen(raw)
 	if err != nil {
-		return nil, false
+		return nil, false, false
 	}
 	lines := trimmedLines(all)
 	if openCodePrompt(lines).Kind != ScreenPrompt {
-		return nil, false
+		return nil, false, false
 	}
 	// The input panel and its footer: the panel lines at the bottom, then the
 	// lines below the last panel line.
@@ -174,7 +175,7 @@ func openCodeLastMessage(raw string) ([]string, bool) {
 		end--
 	}
 	if end == 0 || !openCodeResponseEnd.MatchString(strings.TrimSpace(lines[end-1].text)) {
-		return nil, false
+		return nil, false, false
 	}
 	start := end - 1
 	for start > 0 {
@@ -183,7 +184,6 @@ func openCodeLastMessage(raw string) ([]string, bool) {
 		}
 		start--
 	}
-	var texts []string
 	for _, l := range lines[start : end-1] {
 		switch {
 		case l.text == "":
@@ -191,7 +191,7 @@ func openCodeLastMessage(raw string) ([]string, bool) {
 				texts = append(texts, "")
 			}
 		case !strings.HasPrefix(l.text, openCodeMessageIndent):
-			return nil, false
+			return nil, false, false
 		case len(texts) == 0 && strings.HasPrefix(strings.TrimPrefix(l.text, openCodeMessageIndent), openCodeThoughtMark):
 			// The thought line before the response.
 		default:
@@ -199,9 +199,9 @@ func openCodeLastMessage(raw string) ([]string, bool) {
 		}
 	}
 	if len(texts) == 0 {
-		return nil, false
+		return nil, false, false
 	}
-	return texts, true
+	return texts, start == 0, true
 }
 
 // RunprReport is the last report on a pane: its NEXT and the PR numbers it
@@ -209,6 +209,10 @@ func openCodeLastMessage(raw string) ([]string, bool) {
 // and git; it never decides what is sent.
 type RunprReport struct {
 	Next RunprNext
+	// HeadClipped is true when the start of the last message may be above
+	// the screen, so a PR it named there is not read; false when the whole
+	// message was read.
+	HeadClipped bool
 	// PRs are the numbers the report names as "#N" or as a PR URL's
 	// "/pull/N". From a screen they are read from each line and from the
 	// lines joined again, since a line break may be the terminal's wrap or
@@ -230,11 +234,11 @@ func readRunprReport(agent paneinput.AgentKind, raw string) (RunprReport, bool) 
 	if agent != paneinput.AgentOpenCode {
 		return RunprReport{}, false
 	}
-	texts, ok := openCodeLastMessage(raw)
+	texts, clipped, ok := openCodeLastMessage(raw)
 	if !ok {
 		return RunprReport{}, false
 	}
-	report := RunprReport{Next: readRunprNext(joinTexts(texts))}
+	report := RunprReport{Next: readRunprNext(joinTexts(texts)), HeadClipped: clipped}
 	for _, text := range append(slices.Clone(texts), squeeze(texts)) {
 		report.PRs = appendPRReferences(report.PRs, text)
 	}
