@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。既存のファイルの内容と `file:line` の行番号は、コミット `8252ed17` で確かめた。設計書が確かめたコミット `b48db108` から、本計画が触れるファイルのうち変わったのは、`.claude/commands/runpr.md`・`docs/dev/adr/0014-deterministic-checks-in-go.md`・`docs/dev/adr/0051-number-reservation.md` の 3 つである（`git diff --stat b48db108 8252ed17` をこれらのパスに限って実行した結果）。設計書は、この 3 つの行番号を引いていない。そのため、設計書が引く行番号は今も合う。
@@ -544,3 +544,7 @@ Diff record (AC-18):
 
 -   PR-4 のマージの後、利用者が `make install-mergepr` を実行し直す（設計書 5.2 の残る危険）。
 -   すべての PR のマージの後、`/runpr` が issue #917 を閉じる。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#950）
