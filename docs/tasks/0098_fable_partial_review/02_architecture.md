@@ -31,6 +31,7 @@
 -   **見た範囲の行:** ローカルの CLI レビューの試行がレビューできた範囲を示す `Local CLI reviewed:` の行（3.3.4）。
 -   **記録の commit:** ローカルの CLI レビューの手順か Fable の手順が作る、記録の行だけを持つ空の commit（3.3.5）。`runplan.md` では、step 7.8 の空の commit がこの役を兼ねる。
 -   **空の commit:** 親が 1 つで、親との差分がない commit。
+-   **中身のない commit:** 親が 1 つで、空か、`README.en.md` だけか、計画書の PR の進み具合のチェックボックスの行（`PR を作成した`・`PR がマージされた`・`次のブランチへ切り替えた` の行）だけを変える commit（これらを合わせて変える commit を含む）。Fable の記録が有効かの判定で、記録を無効にしない commit である（要件書 AC-07、決定 11）。
 -   **除外できる commit:** `_lib/opus-review.md` の「Excludable commit」（`.claude/commands/_lib/opus-review.md:102-106`）。親が 1 つで、空か、タスクの `03_implementation_plan.md` と `README.en.md` だけを変える commit。
 
 ## 1. 設計の全体像 (Design Overview)
@@ -56,7 +57,7 @@
 8.  **単独の経路は、チェックポイントの入口で、green gate と B1 より前に、B1 と並列にせずに行う。** 理由: 単独の経路の直しは、ローカルの CLI レビューの確かめを受ける（AC-06）。B1 と並列にすると、2 つのローカルの CLI レビューの範囲と記録が重なる。単独の経路は、記録が足りないときにだけ走る例外の経路なので、時間を短くする益は小さい。B2 より前にあるので、直しの commit は Opus のレビューの範囲に入る（申し送り H-03）。ADR: なし（`/runplan` の手順の順序で、ADR-0050 の決定の範囲に収まる）。
 9.  **マージの質問の要約には、Codex が見ていない変更があるときだけ現れる行を 1 種類足し、要約の行の数の上限を 13 にする。行は、理由を短い語で示し、80 桁に収める。詳細ファイルの中身は変えない。** 4 行目（`未レビューの変更`）に値を足すと、80 桁を超えうるためである（3.8.2）。詳細ファイルを変えないのは、AC-40 が詳細ファイルの扱いを変えないとするためである。ADR: なし（要件書が ADR-0050 に記録済みで、[ADR-0047](../../dev/adr/0047-runpr-merge-question.md) の決定は変わらない）。
 10. **Fable の記録が有効かも、判定のスクリプトの `fable` のモードが決める。失敗したときは「有効でない」とする。** 理由: 有効かの判定は PR を開く関門（AC-08）で、誤って有効と判定すると、Fable を飛ばして PR が開く。セッションが文の手順で判定すると、この危険な側の誤りが残る。見たかの判定と同じ理由で、スクリプトにする。採らなかった案: セッションが `git rev-list` と除外できる commit の定義に従って判定する案。ADR: ADR-0050 を更新した。
-11. **「判定で無視してよい commit」は、判定ごとに定める。見たかの判定では、空の commit と、計画書の PR の進み具合のチェックボックスの行（`PR を作成した`・`PR がマージされた`・`次のブランチへ切り替えた` の行。PR マーカーの節のものと、単一 PR の記録のもの）だけを変える commit を見たとみなす。有効かの判定では、AC-07 と AC-09 のとおり、除外できる commit を記録を無効にしない commit とする。** 理由: 見たかの判定に除外できる commit をそのまま使わないのは、除外できる commit が計画書だけを変える commit をすべて含むためである。`/mkplan`・`/mkplan2` の PR や、計画書の `**自動送信**:`・`**実装モデル要件**:` の値を変える commit では、計画書がレビューされるべき中身である。有効かの判定で除外できる commit を使うのは、要件のとおりで、記録の後に計画書だけを変える commit を作るのは、チェックポイントのチェックボックスと README の同期だけだからである。PR マーカーのチェックボックスの行だけを変える commit を見たとみなすのは、`/runplan` が PR を作った直後に、`PR を作成した` のチェックボックスと PR の URL を commit して push し（`runplan.md:143-145`、`:259`）、それが Codex の最初の PR レビューの後の commit になりうるためである。これを見たとみなさないと、実装の PR の判定がほとんどいつも `PARTIAL` になる。ほかのチェックボックス（AC の確かめの行など）は中身を持ちうるので含めない。この 2 種類を見たとみなすことは、要件書の AC-35 を改めて書き加えた決定である（利用者の選択。要件書は `draft` に戻した）。実装の PR の除外できる commit は、`_lib/opus-review-decision.sh` と同じ規則で、Go のテストが 2 つのスクリプトに同じ commit を与えて結果が揃うことを確かめる（7.1）。ADR: ADR-0013 を更新した（見たとみなす commit）。
+11. **「判定で無視してよい commit」は、判定ごとに定める。見たかの判定では、空の commit と、計画書の PR の進み具合のチェックボックスの行（`PR を作成した`・`PR がマージされた`・`次のブランチへ切り替えた` の行。PR マーカーの節のものと、単一 PR の記録のもの）だけを変える commit を見たとみなす。有効かの判定では、中身のない commit（空か、`README.en.md` だけか、計画書の PR の進み具合のチェックボックスの行だけを変える commit）を、記録を無効にしない commit とする。どちらの判定も、`_lib/opus-review.md` の除外できる commit は使わない。** 理由: 除外できる commit は、計画書だけを変える commit をすべて含む。`/mkplan`・`/mkplan2` の PR では計画書そのものがレビューされる中身であり、実装の PR でも計画書の `**自動送信**:`・`**実装モデル要件**:` の値は中身である。そのため、Fable の記録の後や Codex の PR レビューの後に計画書の中身を変える commit を無視すると、レビューされないまま PR が開くかマージされうる。PR の進み具合のチェックボックスの行だけを変える commit を見たとみなすのは、`/runplan` が PR を作った直後に、`PR を作成した` のチェックボックスと PR の URL を commit して push し（`runplan.md:143-145`、`:259`）、それが Codex の最初の PR レビューの後の commit になりうるためである。これを見たとみなさないと、実装の PR の判定がほとんどいつも `PARTIAL` になる。有効かの判定で `README.en.md` だけの commit も無視するのは、Part B の README の同期の commit が記録の後に来うるためで、翻訳は `README.md` の変更を写すだけである。見たかの判定の 2 種類は要件書の AC-35 を、有効かの判定の中身のない commit は AC-07 を、それぞれ改めて書き加えた決定である（利用者の選択。要件書は `draft` に戻した）。ADR: ADR-0013 と ADR-0050 を更新した。
 12. **Escalation の `request`・`skip`・`ask` は、サブエージェントの答え（`decision` と当たった基準の番号）と、見たかの判定の出力から、`runpr.md` step 3 に置く決まった規則で決める。規則はサブエージェントへの指示に写さない。基準の番号は変えず、基準 4（セキュリティと耐久性）に信頼の境界を足して広げる。** サブエージェントの返す JSON の形は変えない（AC-37）。番号を変えないのは、Procedure step 2 が「基準 4 に当たるときは 2 つの文書を読む」と番号で名指し（`pr-review-escalation.md:67-68`）、AC-37 がその step の文を変えさせないためである。理由: 「基準 1・2・3・5 だけに当たり `PARTIAL` なら `ask`」は機械的な対応で、サブエージェントに任せると、`PARTIAL` で `skip` を返す危険な側の誤りが残る。採らなかった案: 「Criteria」に COVERAGE の値を差し込み、サブエージェントに決めさせる案（`pr-review-escalation.md` の Procedure step 2 の `request` と `skip` の定義（`:75-79`）が、新しい「Criteria」と食い違う。AC-37 はその step の文を変えさせない）。ADR: ADR-0013 を更新した。
 13. **Escalation の基準 4 の信頼の境界に、レビューの関門そのものを変える変更を含める。関門とは、`_lib/pr-review-escalation.md` の基準、`runpr.md` step 3 の対応の規則と `headRefOid` の比べ方、判定のスクリプトとそれを `origin/main` から取り出す呼び方、記録の行の形と読み方を定める節、`fixprguard` である。ほかのコマンドの定義の変更は、今の基準のとおり扱う。** 理由: PR を開いた後に関門を緩める変更が入っても、AC-11 の基準 1 の例（秘密・送信・削除・pane の操作・不可逆な副作用）には当たらないので、`skip` になりうる。関門だけに絞るのは、このリポジトリの PR の多くが `.claude/commands/` を変えるので、コマンドの定義の全体を含めると Codex の割り当てを多く使うためである（利用者の選択）。採らなかった案: 含めない案、`.claude/` の全体を含める案。ADR: ADR-0013 を更新した。
 14. **見たかの判定は、AC-35 のとおり、ローカルの CLI レビューがレビューしたかだけで決める。Codex の後の範囲に、ローカルの CLI レビューの `unclear` や `deferred` の指摘が残っていても、`skip` になりうる。これは受け入れる危険とする。** 理由: 未解決の指摘で `ask` にすると、要件書 AC-35 の決定を変えることになるため（利用者の選択）。採らなかった案: 未解決の指摘の行が範囲にあれば `PARTIAL` とする案。ADR: ADR-0013 を更新した（「結果」に受け入れる危険を書いた）。
@@ -145,7 +146,6 @@ flowchart LR
     LOCAL["_lib/local-cli-review.md"]
     FIXPR["fixpr.md"]
     FABLE["_lib/fable-review.md"]
-    OPUS["_lib/opus-review.md"]
     RUNPR["runpr.md"]
     ESC["_lib/pr-review-escalation.md"]
     JUDGE["_lib/review-records.sh"]
@@ -163,9 +163,8 @@ flowchart LR
     FABLE -->|"有効かの判定"| JUDGE
     RUNPR -->|"見たかの判定"| JUDGE
     RUNPR -->|"Escalation"| ESC
-    JUDGE -->|"除外できる commit"| OPUS
 
-    class MK,FIXPR,OPUS process
+    class MK,FIXPR process
     class HANDOFF,RUNPLAN,LOCAL,RUNPR,ESC enhanced
     class FABLE,JUDGE newpkg
 
@@ -189,15 +188,13 @@ flowchart LR
 -   `runpr.md` → `_lib/local-cli-review.md`：step 1 の単独の変更（`.claude/commands/runpr.md:129-131`）と、step 4 の通常の進め方への戻し（`runpr.md:1131`）。
 -   `runpr.md` → `_lib/pr-review-escalation.md`：step 3 の Escalation（`runpr.md:665-678`）。
 
-`opus-review.md` への矢印は、判定のスクリプトが、実装の PR の除外できる commit の定義を `opus-review.md` から借りることを表す（決定 11）。
-
 ### 2.2. コンポーネント配置
 
 | ファイル | 変更の内容 | 節 |
 |---|---|---|
 | `.claude/commands/_lib/fable-review.md`（新規） | 入口と入力・出力、範囲の基準と範囲の一覧、Fable への指示、起動・待ち方・上限、モデルと出力の形の確かめ、状態の確かめ、単独の経路、Fable の行の形と読み方 | 3.1、3.2 |
 | `.claude/commands/_lib/review-records.sh`（新規） | 判定のスクリプト（`coverage` と `fable` のモード） | 3.6 |
-| Go のテスト（置き場所は計画書で決める） | 判定のスクリプトを、一時的な git のリポジトリの上で走らせるテスト。実装の PR の除外できる commit を `_lib/opus-review-decision.sh` と揃えるテスト | 7.1 |
+| Go のテスト（置き場所は計画書で決める） | 判定のスクリプトを、一時的な git のリポジトリの上で走らせるテスト | 7.1 |
 | `.claude/commands/_lib/local-cli-review.md` | 入力 FABLE と RECORD、step 1 の起動、step 3 の `record` の後の回収、トリアージの規則の節と却下の根拠の記録、step 6 の 2 回目の試行の条件、Terms の未レビューの範囲と HEAD3、step 7 の見た範囲の行と記録の commit、GUARD を走らせる地点の一覧、「Reading the record lines」 | 3.3 |
 | `.claude/commands/_lib/task-pr-handoff.md` | Part B step 1 で FABLE と RECORD を渡し、README の同期の commit が記録の行を載せる記述を消す。Part B step 3 の PR の説明に Fable の部分レビューの節を足す | 3.4 |
 | `.claude/commands/runplan.md` | step 4 で最後の phase group を見分ける。step 7.7 で FABLE と RECORD を渡す。step 7.8 の空の commit に Fable の行を載せる。step 5a と step 8 の最初にチェックポイントの入口を置く。B1 で RECORD を渡す | 3.5 |
@@ -333,7 +330,7 @@ FABLE の入力は、KIND・TASK_DIR・SELF_REJECTED の組である。RANGE は
 
 判定のスクリプトの `fable` のモード（3.6.2）が、ブランチ（`origin/main..HEAD`）の最後の Fable の記録について、次の規則で有効かを決める。Fable の範囲の END より後の commit が、すべて次のどれかであるときに限り、有効である。
 
-1.  除外できる commit（AC-07、AC-09。決定 11）。
+1.  中身のない commit（AC-07、AC-09。決定 11）。
 2.  END の後から、その Fable の記録を持つ commit までの commit のうち、その記録と同じ commit にある見た範囲の行か `Local CLI review: not run` の行の範囲に入るもの。同じ実行のトリアージの直しは、2 回目の試行の範囲（見た範囲の行）か、2 回目の試行の後の直しの範囲（`not run` の行）に必ず入る（3.3.3、3.3.4）。入らない commit は、同じ実行の直しと見なさない。
 3.  チェックポイントの入口からの判定のときだけ：最後のチェックポイントの印を持つ commit より後の commit。ただし、印より後に実装の記録（`Implementation model:` の行）を持つ commit があれば、この規則は使わない（決定 3）。
 
@@ -624,7 +621,7 @@ OpenCode は Agent ツールで Fable を呼べない（要件書 5 章）。Fab
 
 | 入力 | 意味 |
 |---|---|
-| PLAN | タスクの `03_implementation_plan.md` のパス。除外できる commit の判定に使う |
+| PLAN | タスクの `03_implementation_plan.md` のパス。中身のない commit の判定に使う |
 | ENTRY | `launch`（起動の入口）か `checkpoint`（チェックポイントの入口）。`checkpoint` のときだけ、印の規則（3.1.2 の 3）を使う |
 
 | 出力の 1 行目 | 意味 |
@@ -876,9 +873,8 @@ flowchart TD
 
 -   **判定のスクリプト:** Go のテストが、一時的な git のリポジトリを作り、`origin/main` に当たる ref と、記録の行を持つ commit を組み合わせて、スクリプトを走らせる。
     -   `coverage`：見た範囲の行を持つ commit・持たない commit・空の commit・計画書の PR の進み具合のチェックボックスの行だけを変える commit（PR マーカーの節と単一 PR の記録の両方。見たとみなす）・計画書のほかの行（ほかのチェックボックスを含む）を変える commit（見たとみなさない）・merge commit・`not run` の行・形が正しくても祖先の関係が合わない行・16 進に見える名前のブランチ。`ALL` と `PARTIAL <n>` と一覧を確かめる。
-    -   `fable`：ENTRY ごとに、記録の後の直しの commit（見た範囲の行に入る・入らない）、チェックポイントの印の前後の commit、印の後の実装の記録、除外できる commit。`VALID` と `MISSING <START>` を確かめる。
+    -   `fable`：ENTRY ごとに、記録の後の直しの commit（見た範囲の行に入る・入らない）、チェックポイントの印の前後の commit、印の後の実装の記録、中身のない commit（空・`README.en.md` だけ・PR の進み具合のチェックボックスの行だけ）と、計画書のほかの行を変える commit（記録を無効にする）。`VALID` と `MISSING <START>` を確かめる。
     -   失敗（読めない ref、壊れた行、決まった形でない入力）が、安全な側の出力になることを確かめる。
-    -   実装の PR の除外できる commit について、`_lib/opus-review-decision.sh` と同じ commit で結果が揃うことを確かめる（決定 11）。
     -   各テストは、スクリプトの該当する規則を壊して失敗することを確かめる（`CLAUDE.md`「Testing Strategy」）。テストの置き場所と、`bash` の版の扱いは計画書で決める。
 -   ほかの変更は手順の文なので、Go のユニットテストはない。
 
