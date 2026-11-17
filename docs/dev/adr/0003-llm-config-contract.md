@@ -32,8 +32,6 @@
 -   **廃止した変数は読まない。** `YT2COLUMN_LLM_PROVIDER`・`YT2COLUMN_MODEL`・`YT2COLUMN_REVIEW_PROVIDER`・`YT2COLUMN_REVIEW_MODEL`・`YT2COLUMN_CLAUDE_EFFORT` は、CLI も拡張の記事生成モジュールも読まず、環境にあっても拒否も警告もしない。読まない変数を検査するためだけのコードは持たない。CLI では、サーバの経路から検査を外したのと同じ変更で、CLI にだけ残す理由がなかったためである。規則は [0066 要件定義書](../../tasks/0066_server_config_file/01_requirements.md) の「1. 概要 (Overview)」にある。
 -   **拒否のメッセージは、変数の名前と固定の理由だけを示し、値を含めない。** 秘密情報を誤って別の変数に設定した場合でも、エラーの出力から漏れないようにするためである。規則は [0045 要件定義書](../../tasks/0045_llm_env_var/01_requirements.md) の「4.2. セキュリティ (Security)」にある。
 
-拡張の記事生成モジュールが、2 つの名前にだけ値を返す名前を引く関数で設定を読むことは、まだ project_overview.md に反映していない。今の project_overview.md は、サーバが設定ファイルから同じ名前のキーを読むと述べる。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
-
 OpenAI の設定はコードと project_overview.md に反映した。アダプタ本体と工程への配線は [#568](https://github.com/isseis/yt2column/issues/568) の残りの実装で加える。
 
 ## 採らなかった案

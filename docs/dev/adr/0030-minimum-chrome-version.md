@@ -23,8 +23,6 @@ Chrome は、セキュリティの修正を最新の安定版にだけ入れ、�
 -   **両方の README は、必要なブラウザとして Chrome 142 以降と、Chromium 142 以降の Brave を記す。** `README.md` と `README.en.md` は、同じ値を利用者向けに書く。[extension/test/manifest.test.ts](../../../extension/test/manifest.test.ts) は、manifest の値と、両方の README が書く版が manifest の値と等しいことを確かめる。利用者が読み込める版を知り、文書と manifest の値が食い違わないようにするためである。
 -   **ポップアップの末尾のプレビューの規則が使う `:dir()`（Chrome 120 以降）は、最小の版で必ず使える。** 最小の版を 142 にしたので、Chrome 119 以前で規則が捨てられる場合はなくなった（[0046 設計書](../../tasks/0046_popup_redesign/02_architecture.md)「設計の際に決めたこと（2026-10-28）」）。
 
-最小の版を `"142"` にすることは、まだ manifest と両方の README に反映していない。今の値は `"110"` である。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
-
 ## 採らなかった案
 
 -   **`AbortSignal.timeout()` を使わなくなったときに、版を 103 より下げる。** 下げる要件がない（[0026 設計書](../../tasks/0026_native_messaging_relay/02_architecture.md) §3.7.1）。
