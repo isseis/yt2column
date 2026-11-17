@@ -99,7 +99,7 @@
 
 ## H-10: `--protocol` の番号を上げる値（0093 から）
 
-**懸念:** 0092 の PR-7 と 0093 の出力の形を変える PR は、どちらも `Protocol`（`internal/chief/records.go:28`）を `1` から `2` に上げる設計である（0092 設計書 3.1、[0093 設計書](../0093_chief_status_sheet/02_architecture.md) 3.8）。2 つのタスクは並行して進み、どちらが先に `main` に入るかは決まっていない。0093 の計画書は、`Protocol` を実装するときの `origin/main` の値に 1 を足した値にすると決めた（[0093 計画書](../0093_chief_status_sheet/03_implementation_plan.md) の「計画の際に決めたこと」）。
+**懸念:** 0092 の PR-7 と 0093 の出力の形を変える PR は、どちらも `Protocol`（`internal/chief/records.go:28`）を `1` から `2` に上げる設計である（0092 設計書 3.1、[0093 設計書](../0093_chief_status_sheet/02_architecture.md) 3.8）。2 つのタスクは並行して進み、どちらが先に `main` に入るかは決まっていない。0093 の計画書は、`Protocol` を実装するときの `origin/main` の値に 1 を足した値にし、後からマージする PR がマージの直前に確かめ直すと決め、[ADR-0046](../../dev/adr/0046-chief-of-staff.md) にその規則を足した（[0093 計画書](../0093_chief_status_sheet/03_implementation_plan.md) の「計画の際に決めたこと」）。
 
 **なぜ重要か:** 後から入る方が `2` のままにすると、出力の形が違う 2 つの版が同じ番号になり、`/chief` の定義と道具の照合（chief 利用ガイドの「2. インストール」）が版の違いを見分けられない。古い定義と新しい道具を組み合わせても `protocol_mismatch` で止まらず、定義が知らない形の出力を読み違える。
 
