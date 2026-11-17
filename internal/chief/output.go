@@ -93,6 +93,8 @@ type PendingOutput struct {
 	Question  *QuestionOutput `json:"question"`
 	PR        *PROutput       `json:"pr"`
 	Proposal  *NextOutput     `json:"proposal"`
+	// Reset is a skipped reset offered to the human, set on a reset item.
+	Reset *ResetOutput `json:"reset"`
 	// Reasons are the conditions of the automatic send that did not hold
 	// for a proposal after a merge.
 	Reasons []string `json:"reasons"`
@@ -104,6 +106,30 @@ type PendingOutput struct {
 	// Number is the item's number in this session's lists, kept for the
 	// session and never reused; 0 when none could be given.
 	Number int `json:"number"`
+}
+
+// ResetOutput is a skipped reset offered to the human: the pane, its agent,
+// the input that empties it, the scene it was skipped in, the command that
+// ran in the pane, and the value `chief reset --check` takes for it.
+type ResetOutput struct {
+	Pane    string     `json:"pane"`
+	Agent   string     `json:"agent"`
+	Input   string     `json:"input"`
+	Scene   string     `json:"scene"`
+	Command string     `json:"command"`
+	Check   CheckValue `json:"check"`
+}
+
+// resetOutput converts a reset item.
+func resetOutput(it *ResetItem) *ResetOutput {
+	if it == nil {
+		return nil
+	}
+	input := ""
+	if st, ok := resetPrompt(it.Agent); ok {
+		input, _ = st.prompt.Text()
+	}
+	return &ResetOutput{Pane: Sanitize(it.Pane.String()), Agent: agentLabel(it.Agent), Input: input, Scene: it.Scene.String(), Command: Sanitize(it.Command.text()), Check: it.Check}
 }
 
 // questionKindName names a question shape for the output.
@@ -213,6 +239,7 @@ func (s Snapshot) Output() SnapshotOutput {
 			Label:           Sanitize(p.Label),
 			PR:              prOutput(p.PR),
 			Proposal:        nextOutput(p.Proposal),
+			Reset:           resetOutput(p.Reset),
 			Reasons:         sanitizeAll(p.Reasons),
 			ReviewSkippable: p.ReviewSkippable,
 			FirstSeen:       p.FirstSeen,
@@ -303,9 +330,30 @@ type DetailOutput struct {
 	ReportSource string         `json:"report_source"`
 	Report       string         `json:"report"`
 	ReportCut    bool           `json:"report_truncated"`
-	RecordError  string         `json:"record_error"`
-	Skippable    bool           `json:"review_skippable"`
-	Runpr        *NextOutput    `json:"runpr"`
+	// DescriptionReason is why no pane's report is shown, null when one is
+	// or when a kept detail was used without the panes being read again.
+	DescriptionReason *DescriptionReasonOutput `json:"description_reason"`
+	RecordError       string                   `json:"record_error"`
+	Skippable         bool                     `json:"review_skippable"`
+	Runpr             *NextOutput              `json:"runpr"`
+}
+
+// DescriptionReasonOutput is why a PR detail shows no pane's report:
+// no_claude_pane, no_candidate (no Claude Code pane's last report has a PR
+// record naming the PR), or several_candidates, with what was found on each
+// Claude Code pane.
+type DescriptionReasonOutput struct {
+	Reason string                  `json:"reason"`
+	Panes  []DescriptionPaneOutput `json:"panes"`
+}
+
+// DescriptionPaneOutput is what a PR detail found on one Claude Code pane:
+// unreadable, no_report, not_named, or candidate, with why it is unreadable
+// or has no report and the transcript's path.
+type DescriptionPaneOutput struct {
+	Pane   string `json:"pane"`
+	Result string `json:"result"`
+	Detail string `json:"detail"`
 }
 
 // SizeOutput is a PR's size.
@@ -408,6 +456,13 @@ func (o DetailOutcome) Output() DetailOutput {
 		out.Reviews = nil
 	}
 	out.ReportSource, out.Report, out.ReportCut = d.Report.String(), Sanitize(d.ReportText), d.ReportTruncated
+	if d.DescriptionReason != DescriptionReasonNone {
+		reason := &DescriptionReasonOutput{Reason: d.DescriptionReason.String(), Panes: []DescriptionPaneOutput{}}
+		for _, p := range d.ReportPanes {
+			reason.Panes = append(reason.Panes, DescriptionPaneOutput{Pane: Sanitize(p.Pane), Result: p.Kind.String(), Detail: Sanitize(p.Detail)})
+		}
+		out.DescriptionReason = reason
+	}
 	out.Skippable = d.ReviewSkippable
 	out.Runpr = nextOutput(d.Runpr)
 	return out

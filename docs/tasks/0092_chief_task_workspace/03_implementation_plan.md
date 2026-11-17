@@ -202,16 +202,16 @@
 
 ### フェーズ 3: 作ったことの記録と、作った後の送信の入口（設計書 8 章の 3 のうち記録と送信）
 
-**変更するファイル:** `internal/chief/records.go`・`records_test.go`、`internal/chief/request.go`・`send.go`・`send_test.go`、`internal/chief/test_helpers.go`、`docs/dev/conventions/package_reference.md`
+**変更するファイル:** `internal/chief/records.go`・`records_test.go`、`internal/chief/request.go`・`create_send_test.go`・`recorder_test.go`、`internal/chief/test_helpers.go`、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 3-1**: 呼び出しの記録係に、決定 7 の書き込みの許可を足す。`onPrompt` のコメント（「the only write the tool makes」。`internal/chief/test_helpers.go:228`）を直す。記録係そのもののテストを書き、許可のない書き込みがテストを失敗にすること、`workspace close` と `worktree remove` の許可が期待と違う ID とパスで失敗にすること、`gh api graphql` の決まった形でない呼び出しを読み取りとして通さないことを確かめる（使う部品は PR-4・PR-6 で作るので、この PR の `make deadcode` もこのテストで通す）。
--   [ ] **ステップ 3-2**: `records.go` に、作ったことの記録（`created.json`）を作る・読む・消す操作と、workspace ごとの記録のディレクトリから排他のファイルのほかの記録を消す操作を足す（設計書 3.5）。読むときは、形・権限・記録のパスとディレクトリの名前・記録のパスと記録の issue 番号の作る場所の一致を確かめ、合わなければ読めないものとする（AC-24）。テストは、それぞれの合わない記録と、排他を持たずには消せないことを確かめる。
--   [ ] **ステップ 3-3**: `request.go`・`send.go` に、すでに持っている排他を受け取って `/mkreq` を送る入口 `sendAfterCreate` を書く（設計書 3.3.4）。`holdWorkspace` の、排他を取った後の部分（終わりのない送信の停止への変換、送信の停止の確かめ、エージェントの読み直し）を、`holdWorkspace` と共有する。`offered` の確かめだけを省き、送り先と入力の確かめは `sendCommand` のままにする。今の `send_test.go`・`autosend_test.go`・`relay_test.go` のテストは変えずに通す。テストは次を確かめる。
+-   [x] **ステップ 3-1**: 呼び出しの記録係に、決定 7 の書き込みの許可を足す。`onPrompt` のコメント（「the only write the tool makes」。`internal/chief/test_helpers.go:228`）を直す。記録係そのもののテストを書き、許可のない書き込みがテストを失敗にすること、`workspace close` と `worktree remove` の許可が期待と違う ID とパスで失敗にすること、`gh api graphql` の決まった形でない呼び出しを読み取りとして通さないことを確かめる（使う部品は PR-4・PR-6 で作るので、この PR の `make deadcode` もこのテストで通す）。
+-   [x] **ステップ 3-2**: `records.go` に、作ったことの記録（`created.json`）を作る・読む・消す操作と、workspace ごとの記録のディレクトリから排他のファイルのほかの記録を消す操作を足す（設計書 3.5）。読むときは、形・権限・記録のパスとディレクトリの名前・記録のパスと記録の issue 番号の作る場所の一致を確かめ、合わなければ読めないものとする（AC-24）。テストは、それぞれの合わない記録と、排他を持たずには消せないことを確かめる。
+-   [x] **ステップ 3-3**: `request.go` に、すでに持っている排他を受け取って `/mkreq` を送る入口 `sendAfterCreate` を書く（設計書 3.3.4）。`holdWorkspace` の、排他を取った後の部分（終わりのない送信の停止への変換、送信の停止の確かめ、エージェントの読み直し）を、`holdWorkspace` と共有する。`offered` の確かめだけを省き、送り先と入力の確かめは `sendCommand` のままにする。今の `send_test.go`・`autosend_test.go`・`relay_test.go` のテストは変えずに通す。テストは次を確かめる。
     -   `/clear`・`/model opus`・`/mkreq <N>` をこの順に送る。
     -   送信の停止があれば送らない。
     -   最初の入力の後に確かめが外れれば、送信の停止を作る（AC-18）。
     -   PR-1 の起動したばかりの Claude Code の画面とエージェントの状態で、送る前の確かめを通る。
--   [ ] **ステップ 3-4**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
+-   [x] **ステップ 3-4**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -229,10 +229,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/967
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 作る部品、`create`・`targets`、作成の排他（設計書 8 章の 3 のうち作成）
 
@@ -479,7 +479,7 @@
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8）
-- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
+- [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 - [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 - [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5）
@@ -500,21 +500,21 @@
 | AC-07 | `ic/issue_test.go::TestParseIssueTitle`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-08 | `ic/create_test.go::TestWorktreeAddDetached`（本物の git でブランチを作らない）、`ic/create_test.go::TestCreateStages`（fetch の後のコミットで作る） | test | 4-2 | PR-4 |
 | AC-09 | `ic/create_test.go::TestCreateStages`（workspace とタブ 3 つ、`--session` なし）、`ic/create_test.go::TestCreateChecksPanes`、実地の確かめ | test、manual | 4-2・7-5 | PR-4、PR-7 |
-| AC-10 | `ic/create_test.go::TestWorkspaceMakerStartsAgentsWithoutArguments`、`ic/send_test.go::TestSendAfterCreateInputs` | test | 3-3・4-1 | PR-3、PR-4 |
+| AC-10 | `ic/create_test.go::TestWorkspaceMakerStartsAgentsWithoutArguments`、`ic/create_send_test.go::TestSendAfterCreate` | test | 3-3・4-1 | PR-3、PR-4 |
 | AC-11 | `ic/create_test.go::TestCreateRefusesExisting`（ファイル・ディレクトリ・リンク、登録だけの worktree、パスの workspace）、`ic/taskspace_test.go::TestNewTaskSpace`、`ic/create_test.go::TestCreateFetchFailure` | test | 2-3・4-2 | PR-2、PR-4 |
 | AC-12 | `ic/create_test.go::TestCreateStopsAtEachStage`、`ic/create_test.go::TestCreateDeadline` | test | 4-2 | PR-4 |
 | AC-13 | `ic/create_test.go::TestWorkspaceMakerUsesOnlyItsIDs`、`ic/construction_test.go::TestWriterTypesOnlyFromConstructors`、`ic/autosend_test.go::TestTickSkipsAutoSendWhileCreating`、`ic/create_test.go::TestCreateBusyDuringTick`、定義が `create` を前景で呼ぶこと | test、manual | 4-1・4-4・7-2 | PR-4、PR-7 |
-| AC-14 | `ic/records_test.go::TestCreatedRecord`、`ic/create_test.go::TestCreateReplacesOldRecords`、`ic/create_test.go::TestCreateStopsAtEachStage`（記録が残る） | test | 3-2・4-2 | PR-3、PR-4 |
-| AC-15 | `ic/send_test.go::TestSendAfterCreateInputs`、`ic/create_test.go::TestCreateSendsMkreq` | test | 3-3・4-2 | PR-3、PR-4 |
-| AC-16 | `ic/screen_test.go` の起動したばかりの画面のサンプルの読み取り（信頼を問う画面が採れれば、それを質問と読むこと）、`ic/send_test.go::TestSendAfterCreateInputs`（起動したばかりの状態で送る前の確かめを通る）、`ic/create_test.go::TestCreateAgentNotReady`（エラーの応答でエージェントがいるとき、`blocked` のとき）、実地の確かめ | test、manual | 1-5・3-3・4-2・7-5 | PR-1、PR-3、PR-4、PR-7 |
+| AC-14 | `ic/records_test.go::TestCreatedRecordRoundTrip`、`ic/create_test.go::TestCreateReplacesOldRecords`、`ic/create_test.go::TestCreateStopsAtEachStage`（記録が残る） | test | 3-2・4-2 | PR-3、PR-4 |
+| AC-15 | `ic/create_send_test.go::TestSendAfterCreate`、`ic/create_test.go::TestCreateSendsMkreq` | test | 3-3・4-2 | PR-3、PR-4 |
+| AC-16 | `ic/screen_test.go` の起動したばかりの画面のサンプルの読み取り（信頼を問う画面が採れれば、それを質問と読むこと）、`ic/create_send_test.go::TestSendAfterCreate`（起動したばかりの状態で送る前の確かめを通る）、`ic/create_test.go::TestCreateAgentNotReady`（エラーの応答でエージェントがいるとき、`blocked` のとき）、実地の確かめ | test、manual | 1-5・3-3・4-2・7-5 | PR-1、PR-3、PR-4、PR-7 |
 | AC-17 | `ic/create_test.go::TestCreateAgentNotReady`（送らなかった理由）、`ic/snapshot_test.go::TestCreatedDetachedRowOffersNoMkreq`、定義の示し方 | test、manual | 4-2・5-3・7-2 | PR-4、PR-5、PR-7 |
-| AC-18 | `ic/send_test.go::TestSendAfterCreateStopsAfterInput` | test | 3-3 | PR-3 |
+| AC-18 | `ic/create_send_test.go::TestSendAfterCreate`（最初の入力の後に確かめが外れる場合） | test | 3-3 | PR-3 |
 | AC-19 | `ic/snapshot_test.go::TestCreatedWorkspaceRows`（ブランチを作った後はタスクの行）、§1.4 の「変えないテスト」 | test | 5-3 | PR-5 |
 | AC-20 | `ic/removal_test.go::TestRemovalRow` | test | 5-3 | PR-5 |
 | AC-21 | `ic/removal_test.go::TestRemovalRowFallsBack`、§1.4 の「変えないテスト」 | test | 5-3 | PR-5 |
 | AC-22 | `ic/pending_test.go::TestSortPending`（`removal` を足す）、定義が「新しいタスクを始める」を最後に置くこと | test、manual | 5-3・7-2 | PR-5、PR-7 |
 | AC-23 | `ic/removal_test.go::TestRemovalCandidateConditions`、`ic/task_test.go::TestIssueNumbersOf`、`ic/task_test.go::TestIssueTasksReadsTheRealGitGrep`（本物の git） | test | 2-7・5-1 | PR-2、PR-5 |
-| AC-24 | `ic/removal_test.go::TestRemovalCandidateRefusals`、`ic/records_test.go::TestCreatedRecordUnreadable` | test | 3-2・5-1 | PR-3、PR-5 |
+| AC-24 | `ic/removal_test.go::TestRemovalCandidateRefusals`、`ic/records_test.go::TestCreatedRecordUnreadableForms` | test | 3-2・5-1 | PR-3、PR-5 |
 | AC-25 | `ic/removal_test.go::TestRemovalProposal`（項目と出力） | test | 5-3 | PR-5 |
 | AC-26 | `ic/autosend_test.go::TestAutoSendLeavesRemovalItems`（自動送信のある周で、閉じる・消す呼び出しがなく、記録が残る） | test | 5-4 | PR-5 |
 | AC-27 | `cc/docs_test.go::TestSettingsAsksBeforeRemove`、`ic/removal_test.go::TestRemovalProposal`（問いに示す名前・パス・pane の数）、定義の確認の問い、実地の確かめ | static、test、manual | 5-3・7-2・7-3・7-5 | PR-5、PR-7 |

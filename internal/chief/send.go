@@ -131,7 +131,9 @@ const (
 	// that pane after it.
 	NotSentOtherInput
 	// NotSentCheckMismatch is a relay whose check value no pane's question
-	// gives now: the question changed, was answered, or the agent moved.
+	// gives now (the question changed, was answered, or the agent moved), or
+	// a chosen reset whose check value no reset item gives now (the pane
+	// changed, was sent to, or the item was used).
 	NotSentCheckMismatch
 	// NotSentNotRelayable is a relay to a question chief does not relay: a
 	// multi-select, tabbed, or permission question.
@@ -161,7 +163,7 @@ func (r NotSentReason) String() string {
 		NotSentNotOffered:      "not_offered",
 		NotSentNoWorkspace:     "no_workspace",
 		NotSentSamePane:        "same_pane",
-		NotSentNoReport:        "no_report",
+		NotSentNoReport:        noReportName,
 		NotSentPaneChanged:     "pane_changed",
 		NotSentNoStep:          "step_not_finished",
 		NotSentOtherInput:      "other_input",
@@ -484,19 +486,8 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 				return s.fail(res, id, last, failed)
 			}
 		}
-		if err := s.writer.Prompt(ctx, agent, st.prompt); err != nil {
-			if errors.Is(err, errWriteRefused) && last == StepUnknown {
-				// The writer refused before running herdr: nothing reached
-				// the pane.
-				res = notSent(res, NotSentUnreadable, err.Error())
-				if eerr := s.held.EndSend(id, res.Outcome.String(), err.Error(), s.deps.Now()); eerr != nil {
-					res.Detail += "; the end record cannot be written, so the workspace will stop: " + eerr.Error()
-				}
-				return res
-			}
-			// Herdr may have typed the input before it failed, so a failed
-			// write counts as typed.
-			return s.fail(res, id, st.kind, &checkFailure{reason: NotSentUnreadable, detail: "herdr agent prompt failed: " + err.Error(), agent: agent})
+		if failedRes, ok := s.prompt(ctx, res, id, agent, st, last); !ok {
+			return failedRes
 		}
 		agent, failed = s.await(ctx, agent, st, route)
 		if failed != nil {
@@ -512,6 +503,34 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 		_ = s.held.Stop(res.Detail, "", id, s.deps.Now())
 	}
 	return res
+}
+
+// prompt types st into agent, the step after last, and returns false with
+// the result when it failed. A refusal of the writer before the first input
+// reached nothing and ends the send as not sent; any other failure counts
+// as typed. After the first input, the pane's skipped resets are removed.
+func (s sendContext) prompt(ctx context.Context, res ActionResult, id string, agent Agent, st step, last SentStep) (ActionResult, bool) {
+	if err := s.writer.Prompt(ctx, agent, st.prompt); err != nil {
+		if errors.Is(err, errWriteRefused) && last == StepUnknown {
+			// The writer refused before running herdr: nothing reached
+			// the pane.
+			res = notSent(res, NotSentUnreadable, err.Error())
+			if eerr := s.held.EndSend(id, res.Outcome.String(), err.Error(), s.deps.Now()); eerr != nil {
+				res.Detail += "; the end record cannot be written, so the workspace will stop: " + eerr.Error()
+			}
+			return res, false
+		}
+		// Herdr may have typed the input before it failed, so a failed
+		// write counts as typed.
+		return s.fail(res, id, st.kind, &checkFailure{reason: NotSentUnreadable, detail: "herdr agent prompt failed: " + err.Error(), agent: agent}), false
+	}
+	if last == StepUnknown {
+		// A reset skipped for this pane is outdated once an input reached
+		// it; a record left behind only waits for start's cleanup, so a
+		// failure here does not change the send.
+		_ = s.held.removePaneSkips(agent.Pane)
+	}
+	return res, true
 }
 
 // fail records a failure after an input: the stop first, then the end, so a
@@ -614,7 +633,7 @@ func (s sendContext) awaitModel(ctx context.Context, before Agent, want paneinpu
 		case got.Kind == SwitchFound:
 			return before, &checkFailure{reason: NotSentModelMismatch, detail: "the transcript records a switch to another model", agent: before}
 		case got.Kind == SwitchUnreadable:
-			why = "a line of the transcript cannot be read"
+			why = whyTranscriptLine
 		}
 	}
 	return before, &checkFailure{reason: NotSentNoTranscript, detail: why, agent: before}

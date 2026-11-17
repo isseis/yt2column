@@ -4,12 +4,15 @@
 // It is an internal developer tool that trusts the local checkout and its
 // configuration. Its only safety obligations are to merge exactly the head that
 // was prepared (--match-head-commit), into the prepared base, after CI passed,
-// and never to delete a local branch that holds commits outside the PR.
+// only when the protocol-number check passes against a freshly fetched
+// origin/main both before CI is awaited and right before the merge, and never
+// to delete a local branch that holds commits outside the PR.
 package mergepr
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -43,6 +46,16 @@ const (
 	prViewFields = "number,title,state,headRefName,headRefOid,baseRefName,url,body"
 )
 
+// Protocol is the version of the tool's command-line contract. The command
+// documents pass it back with --protocol, so an installed binary that predates
+// the documents stops instead of merging without the checks they expect.
+const Protocol = 1
+
+// mainRefspec fetches main into its remote-tracking ref whatever the
+// repository's remote.origin.fetch says, so the protocol-number check always
+// compares with the main origin has now.
+const mainRefspec = "+refs/heads/" + mainBranch + ":" + mainRef
+
 // Runner runs an external command without a shell and returns its standard
 // output. Tests substitute a scripted fake; production uses NewOSRunner.
 type Runner = cmdrunner.Runner
@@ -51,11 +64,56 @@ type Runner = cmdrunner.Runner
 // working directory.
 type Tool struct {
 	run Runner
+	// mainFetch runs the fetch of main before each protocol check, with the
+	// same environment as the check's own git (no GIT_* variable), so the
+	// fetch updates the repository the check reads.
+	mainFetch Runner
+	protocol  protocolChecker
 }
 
-// New returns a Tool that runs external commands through runner.
+// protocolChecker checks the protocol numbers of the PR head against
+// origin/main. It returns the summary and nil to pass, and an error wrapping
+// errProtocolMismatch or errProtocolUnreadable to stop.
+type protocolChecker interface {
+	check(ctx context.Context, headOID, baseRefName string) (protocolSummary, error)
+}
+
+// New returns a Tool that runs external commands through runner. The
+// protocol-number check runs git through its own Runner in the current
+// directory, with the GIT_* variables removed from the environment.
 func New(runner Runner) *Tool {
-	return &Tool{run: runner}
+	git := newGitRunner("")
+	return &Tool{run: runner, mainFetch: git, protocol: newProtocolCheck(git)}
+}
+
+// command returns the mergepr command line an error message shows, with this
+// binary's --protocol before the other arguments, so running it as shown
+// passes the protocol comparison.
+func command(subcommand string, args ...string) string {
+	return strings.Join(append([]string{"mergepr", subcommand, "--protocol", strconv.Itoa(Protocol)}, args...), " ")
+}
+
+func prepareCommand(number int) string { return command("prepare", strconv.Itoa(number)) }
+
+func cleanupCommand(statePath string) string { return command("cleanup", "--state", statePath) }
+
+func discardCommand(statePath string) string { return command("discard", "--state", statePath) }
+
+// ShownCommands returns every mergepr command an error message of this
+// package can show for the PR number and the state file, built the same way
+// the messages build them.
+func ShownCommands(number int, statePath string) []string {
+	return []string{prepareCommand(number), cleanupCommand(statePath), discardCommand(statePath)}
+}
+
+// checkProtocol fetches main into origin/main, then runs the protocol-number
+// check on head and base. Contract: the check never runs on an origin/main
+// that this call could not fetch; a failed fetch stops as unreadable.
+func (t *Tool) checkProtocol(ctx context.Context, headOID, baseRefName string) (protocolSummary, error) {
+	if _, err := t.mainFetch.Run(ctx, gitCommand, "fetch", "origin", mainRefspec); err != nil {
+		return protocolSummary{}, &protocolUnreadableError{Kind: unreadableFetch, Rev: mainRef, Detail: err.Error()}
+	}
+	return t.protocol.check(ctx, headOID, baseRefName)
 }
 
 func (t *Tool) git(ctx context.Context, args ...string) ([]byte, error) {
@@ -87,10 +145,16 @@ func (s State) number() string { return strconv.Itoa(s.Number) }
 type Prepared struct {
 	State State
 	Dir   string
+	// ProtocolCheck is the one-line summary of the protocol-number check that
+	// passed.
+	ProtocolCheck string
 }
 
 // Report describes what Merge or Cleanup did.
 type Report struct {
+	// ProtocolCheck is the one-line summary of the protocol-number check that
+	// passed right before the merge; empty when Merge stopped before it.
+	ProtocolCheck  string
 	MergeCommitOID string
 	BaseUpdated    bool
 	LocalDeleted   bool
@@ -133,6 +197,12 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (prepared Prepared, er
 	state := pr.State
 	if _, err := t.git(ctx, "fetch", "origin"); err != nil {
 		return Prepared{}, fmt.Errorf("fetch origin: %w", err)
+	}
+	// The protocol check runs before CI is awaited, so a number conflict shows
+	// at once, and before the work directory exists, so a stop leaves nothing.
+	summary, err := t.checkProtocol(ctx, state.HeadRefOID, state.BaseRefName)
+	if err != nil {
+		return Prepared{}, err
 	}
 	if _, err := t.gh(ctx, "pr", "checks", state.number(), "--watch", "--fail-fast"); err != nil {
 		return Prepared{}, fmt.Errorf("%w: %w", errChecksFailed, err)
@@ -191,7 +261,7 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (prepared Prepared, er
 			return Prepared{}, fmt.Errorf("write %s: %w", name, err)
 		}
 	}
-	return Prepared{State: state, Dir: dir}, nil
+	return Prepared{State: state, Dir: dir, ProtocolCheck: summary.String()}, nil
 }
 
 // workDirBase returns a directory inside the active worktree in which to create
@@ -243,18 +313,30 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 		return Report{}, err
 	}
 	if live.State != openState {
-		return Report{}, fmt.Errorf("%w: state is %s; if it is already merged, run `mergepr cleanup --state %s`", errPRNotOpen, live.State, statePath)
+		return Report{}, fmt.Errorf("%w: state is %s; if it is already merged, run `%s`", errPRNotOpen, live.State, cleanupCommand(statePath))
 	}
 	if live.BaseRefName != state.BaseRefName {
-		return Report{}, fmt.Errorf("%w: base is %s, prepared for %s; re-run prepare", errBaseChanged, live.BaseRefName, state.BaseRefName)
+		return Report{}, fmt.Errorf("%w: base is %s, prepared for %s; re-run `%s`", errBaseChanged, live.BaseRefName, state.BaseRefName, prepareCommand(state.Number))
 	}
+	// origin/main may have moved since prepare, so the protocol check runs
+	// again on a fresh fetch, on the head the merge is pinned to, from the
+	// state file, never from a result recorded there.
+	summary, err := t.checkProtocol(ctx, state.HeadRefOID, state.BaseRefName)
+	if err != nil {
+		if unreadable, ok := errors.AsType[*protocolUnreadableError](err); ok && unreadable.Kind == unreadableFetch {
+			return Report{}, fmt.Errorf("%w\nnothing was merged; the preparation still holds, so run the same merge command again once origin can be fetched", err)
+		}
+		return Report{}, fmt.Errorf("%w\nnothing was merged; discard the preparation with `%s`, then fix the PR", err, discardCommand(statePath))
+	}
+	checked := Report{ProtocolCheck: summary.String()}
 	// --match-head-commit makes GitHub refuse the merge if the head moved after
 	// prepare, so the merged content is exactly what CI passed and the message
 	// describes.
 	if _, err := t.gh(ctx, "pr", "merge", state.number(), "--squash", "--subject", subject, "--body", string(body), "--match-head-commit", state.HeadRefOID); err != nil {
-		return Report{}, fmt.Errorf("merge PR: %w\ncheck the PR; if it was merged anyway, run `mergepr cleanup --state %s`", err, statePath)
+		return checked, fmt.Errorf("merge PR: %w\ncheck the PR; if it was merged anyway, run `%s`", err, cleanupCommand(statePath))
 	}
 	report, err := t.cleanup(ctx, state)
+	report.ProtocolCheck = checked.ProtocolCheck
 	if err != nil {
 		return report, err
 	}

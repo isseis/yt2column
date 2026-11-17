@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -42,49 +44,85 @@ func sendRunpr(t *testing.T, deps Deps, tree string) SendOutcome {
 	return out
 }
 
+// keepOldDetail writes, the way chief kept a PR detail before it read
+// reports from transcripts, a detail of PR 42 at prHead whose report was
+// read from the screen of w1:p1 in its state seq.
+func keepOldDetail(t *testing.T, deps Deps, tree string, seq int) {
+	t.Helper()
+	records, err := deps.Store.Records(Worktree{path: tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := fmt.Sprintf(`{"pr":42,"head":%q,"saved":%q,"source":"report","text":"a report read from the screen","truncated":false,"pane":"w1:p1","seq":%d,"review_skippable":false}`, prHead, deps.Now().UTC().Format(time.RFC3339Nano), seq)
+	if err := os.WriteFile(filepath.Join(records.dir, detailName(42, prHead)), []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestResetAfterRunpr checks the reset after /runpr: the command that created
 // the PR is the next command origin/main's documents give while the PR is
 // open, and its pane is emptied only when it is another pane than /runpr's,
-// its report was kept by the detail, its state has not changed, it still
-// shows the report, and the last line the human typed into its session is
-// that command, its name and argument whole; otherwise it is left as it is,
-// with the reason.
+// its report was kept by the detail, its state has not changed, and its
+// session's transcript still ends in a last report, has a PR record naming
+// the PR, and has that command, its name and argument whole, as the last
+// line the human typed; otherwise it is left as it is, with the reason. The
+// pane's screen is never read for the report.
 func TestResetAfterRunpr(t *testing.T) {
 	cases := []struct {
 		name string
+		// tree is the worktree directory's name, empty for the default.
+		tree string
 		// plan is the plan sample origin/main holds, or "none" for no task
 		// documents at all; empty keeps detailWorld's requirements.
 		plan string
 		// ran is the command the pane last ran, when not detailWorld's.
 		ran string
-		// typed is text the human typed after it.
+		// typed is text the human typed after the report.
 		typed string
 		// queued adds the sampled message the human typed while the agent
-		// worked, after the command.
-		queued   bool
+		// worked, after the report.
+		queued bool
+		// answered adds a finished response after typed or queued text.
+		answered bool
 		noReport bool
-		react    func(sw *sendWorld, p *simPane, text string) error
-		reason   NotSentReason
+		// oldDetail keeps a detail in the form chief kept before it read
+		// transcripts, in place of the one the send gathers.
+		oldDetail bool
+		react     func(sw *sendWorld, p *simPane, text string) error
+		reason    NotSentReason
+		// offered is true when the skip is kept as a reset item: no report
+		// was found on the Claude Code pane that ran the command.
+		offered bool
 	}{
+		// The pane's screen is idle, so only its transcript holds the report.
 		{name: "a task-document PR's pane"},
 		{name: "a /mkreq PR's pane", plan: "none", ran: "/mkreq 12"},
 		{name: "a plan PR made on Claude Code", plan: "marker-opus.md", ran: "/runplan 0001"},
 		{name: "another document command of the task", ran: "/mkplan 0001", reason: NotSentOtherInput},
 		{name: "a plan PR whose pane last ran another command", plan: "marker-opus.md", reason: NotSentOtherInput},
-		{name: "text typed after the command", typed: "what is the state of PR 42?", reason: NotSentOtherInput},
-		{name: "text typed while the command worked", queued: true, reason: NotSentOtherInput},
+		// The detail gathered before /runpr already finds no last report and
+		// keeps the description, so these two stop at the kept record; the
+		// rows "then answered" and "after the report was kept" reach the
+		// reset's own reading of the transcript.
+		{name: "text typed after the report", typed: "what is the state of PR 42?", reason: NotSentNoReport},
+		{name: "text typed after the report, then answered", typed: "what is the state of PR 42?", answered: true, reason: NotSentOtherInput},
+		{name: "text queued while the command worked", queued: true, reason: NotSentNoReport},
+		{name: "text queued while the command worked, then answered", queued: true, answered: true, reason: NotSentOtherInput},
 		{name: "the command of another task", ran: "/mkarch 0002", reason: NotSentOtherInput},
 		{name: "/mkreq without an issue", plan: "none", ran: "/mkreq", reason: NotSentOtherInput},
+		// The Claude Code pane's PR record names the PR, but the routing
+		// table gives the plan to OpenCode, so the candidate is /runpr's
+		// pane all the same.
 		{name: "a plan PR made on OpenCode, the pane /runpr went to", plan: "marker-sonnet.md", reason: NotSentSamePane},
 		{name: "a plan PR whose requirement has no route", plan: "marker-unreadable.md", reason: NotSentUnreadable},
-		{name: "no report on the pane", noReport: true, reason: NotSentNoReport},
+		{name: "no report on the pane", noReport: true, reason: NotSentNoReport, offered: true},
 		{name: "the pane changed after the detail", react: func(sw *sendWorld, p *simPane, text string) error {
 			sw.byPane["w1:p1"].Seq++
 			return sw.realReact(p, text)
 		}, reason: NotSentPaneChanged},
-		{name: "the pane changes after its report was read", react: func(sw *sendWorld, p *simPane, text string) error {
-			// The reset reads the pane's agent twice (for the report, then
-			// before /clear); its state changes between the two.
+		{name: "the pane changes after its transcript was read", react: func(sw *sendWorld, p *simPane, text string) error {
+			// The reset reads the pane's agent twice (before the transcript,
+			// then before /clear); its state changes between the two.
 			if text == "/runpr 42" {
 				pane, reads := sw.byPane["w1:p1"], 0
 				sw.rec.replyFunc("herdr agent get w1:p1", func() reply {
@@ -105,14 +143,44 @@ func TestResetAfterRunpr(t *testing.T) {
 			}
 			return sw.realReact(p, text)
 		}, reason: NotSentUnreadable},
-		{name: "the report left the screen", react: func(sw *sendWorld, p *simPane, text string) error {
-			sw.byPane["w1:p1"].screen = readScreenSample(sw.t, "claude-idle.ansi")
+		{name: "the transcript file is gone", react: func(sw *sendWorld, p *simPane, text string) error {
+			if text == "/runpr 42" {
+				sw.removeTranscript(sw.byPane["w1:p1"])
+			}
 			return sw.realReact(p, text)
 		}, reason: NotSentNoReport},
+		{name: "text typed after the report was kept", react: func(sw *sendWorld, p *simPane, text string) error {
+			if text == "/runpr 42" {
+				sw.appendTranscript(sw.byPane["w1:p1"], typedLine("one more thing"))
+			}
+			return sw.realReact(p, text)
+		}, reason: NotSentNoReport},
+		{name: "the transcript cannot be read", react: func(sw *sendWorld, p *simPane, text string) error {
+			if text == "/runpr 42" {
+				sw.breakTranscript(sw.byPane["w1:p1"])
+			}
+			return sw.realReact(p, text)
+		}, reason: NotSentNoTranscript},
+		{name: "a worktree path the transcript rule does not cover", tree: unsupportedTree, oldDetail: true, reason: NotSentPathUnsupported},
+		{name: "a report naming the PR's URL, with no PR record", react: func(sw *sendWorld, p *simPane, text string) error {
+			if text == "/runpr 42" {
+				sw.setTranscript(sw.byPane["w1:p1"], commandLine("/mkarch 0001"), answerLine("msg_report", makerReport+" "+prURL))
+			}
+			return sw.realReact(p, text)
+		}, reason: NotSentNoReport},
+		{name: "a report on the screen alone", react: func(sw *sendWorld, p *simPane, text string) error {
+			if text == "/runpr 42" {
+				pane := sw.byPane["w1:p1"]
+				pane.screen = screenOnlyMakerReport(sw.t)
+				sw.setTranscript(pane, commandLine("/mkarch 0001"))
+			}
+			return sw.realReact(p, text)
+		}, reason: NotSentNoReport, offered: true},
+		{name: "a detail kept from the screen before", oldDetail: true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			sw, tree := detailWorld(t)
+			sw, tree := detailWorldAt(t, c.tree, "claude", "opencode")
 			switch c.plan {
 			case "":
 			case "none":
@@ -125,19 +193,20 @@ func TestResetAfterRunpr(t *testing.T) {
 			}
 			deps := sw.finish()
 			p := sw.firstPane()
+			if !c.noReport {
+				sw.endWithReport(p, makerReport)
+			}
 			if c.typed != "" {
-				if err := sw.writeTranscript(p, p.Session, typedLine(c.typed)); err != nil {
-					t.Fatal(err)
-				}
+				sw.appendTranscript(p, typedLine(c.typed))
 			}
 			if c.queued {
-				queued := strings.Split(strings.TrimSpace(string(readTestdata(t, "transcript/claude-queued-input.jsonl"))), "\n")
-				if err := sw.writeTranscript(p, p.Session, queued[2]); err != nil {
-					t.Fatal(err)
-				}
+				sw.appendTranscript(p, transcriptSample(t, "claude-queued-input.jsonl")[2])
 			}
-			if !c.noReport {
-				p.screen = reportScreen(t, prURL)
+			if c.answered {
+				sw.appendTranscript(p, answerLine("msg_answer", "PR 42 waits for its review."))
+			}
+			if c.oldDetail {
+				keepOldDetail(t, deps, tree, p.Seq)
 			}
 			if c.react != nil {
 				sw.react = func(p *simPane, text string) error { return c.react(sw, p, text) }
@@ -148,6 +217,11 @@ func TestResetAfterRunpr(t *testing.T) {
 			}
 			reset := out.Actions[1]
 			typed := sw.rec.prompts()
+			note := notOfferedNote(reset)
+			if c.offered {
+				note = skipOfferedNote
+			}
+			checkOffered(t, deps.Store, tree, reset, note)
 			if c.reason == 0 {
 				want := []string{"w1:p2 /new", "w1:p2 /runpr 42", "w1:p1 /clear"}
 				if reset.Outcome != OutcomeSent || reset.Input != InputReset || reset.Pane != "w1:p1" || !slices.Equal(typed, want) {
@@ -174,6 +248,59 @@ func TestResetAfterRunpr(t *testing.T) {
 	}
 }
 
+// skipsOf returns the readable skip records of the workspace at tree,
+// failing t on one that cannot be read.
+func skipsOf(t *testing.T, store Store, tree string) []skipRecord {
+	t.Helper()
+	records, err := store.Records(Worktree{path: tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found, err := records.skipRecords()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var recs []skipRecord
+	for _, f := range found {
+		if f.err != nil {
+			t.Fatalf("skip record %s: %v", f.path, f.err)
+		}
+		recs = append(recs, f.rec)
+	}
+	return recs
+}
+
+// skipNotes are the notes the tool adds to a reset skipped with no_report.
+var skipNotes = []string{skipOfferedNote, skipNotOfferedNote, skipUnwrittenNote}
+
+// notOfferedNote is the note a reset that is not offered carries:
+// skipNotOfferedNote for one skipped with no_report, none for any other.
+func notOfferedNote(reset ActionResult) string {
+	if reset.Outcome == OutcomeNotSent && reset.Reason == NotSentNoReport {
+		return skipNotOfferedNote
+	}
+	return ""
+}
+
+// checkOffered checks that the workspace at tree keeps one skip record
+// exactly when note is skipOfferedNote, and that the reset's detail carries
+// note and no other of skipNotes (none when note is empty). The detail is
+// compared with the notes the tool adds because their wording is what the
+// human reads.
+func checkOffered(t *testing.T, store Store, tree string, reset ActionResult, note string) {
+	t.Helper()
+	recs := skipsOf(t, store, tree)
+	if want := map[bool]int{true: 1, false: 0}[note == skipOfferedNote]; len(recs) != want {
+		t.Errorf("skip records %+v; want %d", recs, want)
+	}
+	for _, n := range skipNotes {
+		if strings.Contains(reset.Detail, n) != (n == note) {
+			t.Errorf("detail %q; want the note %q and no other", reset.Detail, note)
+			return
+		}
+	}
+}
+
 // TestResetChecks checks that the pane to empty gets the checks of any
 // input: a pane that does not accept input, or that holds unsent text, is
 // left as it is, with the text.
@@ -185,7 +312,7 @@ func TestResetChecks(t *testing.T) {
 		left   string
 	}{
 		{"unsent text", func(sw *sendWorld, p *simPane) {
-			p.screen = withInput(sw.t, reportScreen(sw.t, prURL), "unsent draft text")
+			p.screen = withInput(sw.t, readScreenSample(sw.t, "claude-after-clear.ansi"), "unsent draft text")
 		}, NotSentInputLeft, "unsent draft text"},
 		{"not accepting input", func(_ *sendWorld, p *simPane) { p.Status = "working" }, NotSentNotAccepting, ""},
 	}
@@ -193,7 +320,7 @@ func TestResetChecks(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			sw, tree := detailWorld(t)
 			deps := sw.finish()
-			sw.firstPane().screen = reportScreen(t, prURL)
+			sw.endWithReport(sw.firstPane(), makerReport)
 			sw.react = func(p *simPane, text string) error {
 				if text == "/runpr 42" {
 					c.set(sw, sw.byPane["w1:p1"])
@@ -208,6 +335,7 @@ func TestResetChecks(t *testing.T) {
 			if reset.Outcome != OutcomeNotSent || reset.Reason != c.reason || reset.Left != c.left {
 				t.Errorf("reset = %+v; want not sent, %s, left %q", reset, c.reason, c.left)
 			}
+			checkOffered(t, deps.Store, tree, reset, "")
 			if typed := sw.rec.prompts(); len(typed) != 2 {
 				t.Errorf("typed %v; want only /new and /runpr", typed)
 			}
@@ -220,7 +348,7 @@ func TestResetChecks(t *testing.T) {
 func TestDetailSavedBeforeReset(t *testing.T) {
 	sw, tree := detailWorld(t)
 	deps := sw.finish()
-	sw.firstPane().screen = reportScreen(t, prURL)
+	sw.endWithReport(sw.firstPane(), makerReport)
 	records, err := deps.Store.Records(Worktree{path: tree})
 	if err != nil {
 		t.Fatal(err)
@@ -230,7 +358,7 @@ func TestDetailSavedBeforeReset(t *testing.T) {
 		if !checked {
 			checked = true
 			rec, ok, err := records.readDetail(42, prHead)
-			kept = err == nil && ok && rec.Source == ReportFromScreen.String() && rec.Pane == "w1:p1"
+			kept = err == nil && ok && rec.Source == ReportFromPane.String() && rec.Pane == "w1:p1"
 		}
 		return sw.realReact(p, text)
 	}
@@ -249,7 +377,7 @@ func TestDetailSavedBeforeReset(t *testing.T) {
 func TestResetFailureAfterClear(t *testing.T) {
 	sw, tree := detailWorld(t)
 	deps := sw.finish()
-	sw.firstPane().screen = reportScreen(t, prURL)
+	sw.endWithReport(sw.firstPane(), makerReport)
 	sw.react = func(p *simPane, text string) error {
 		if text == "/clear" {
 			return nil
@@ -278,7 +406,7 @@ func TestResetFailureAfterClear(t *testing.T) {
 func TestNoResetAfterAnUnrecordedRunpr(t *testing.T) {
 	sw, tree := detailWorld(t)
 	deps := sw.finish()
-	sw.firstPane().screen = reportScreen(t, prURL)
+	sw.endWithReport(sw.firstPane(), makerReport)
 	deps.Store.beforeCreate = func(name string) error {
 		if strings.HasSuffix(name, endSuffix) {
 			return errNoReply
@@ -297,10 +425,143 @@ func TestNoResetAfterAnUnrecordedRunpr(t *testing.T) {
 	}
 }
 
+// TestResetAfterRunprSkipOffer checks which skips of the reset after /runpr
+// are kept as reset items: one where the Claude Code pane that ran the
+// command shows no report is kept with the pane's session, state, and the
+// command; a skip whose report was another one, a pane of OpenCode, and a
+// skip whose other conditions do not hold when the skip is kept, or whose
+// record cannot be written, are not. Every one keeps the reset's outcome,
+// reason, and inputs.
+func TestResetAfterRunprSkipOffer(t *testing.T) {
+	cases := []struct {
+		name    string
+		setup   func(t *testing.T, sw *sendWorld, tree string, deps *Deps)
+		react   func(sw *sendWorld, p *simPane, text string)
+		offered bool
+		// unwritten is true when the record could not be written.
+		unwritten bool
+		// why, when set, is the reason the detail must give for not
+		// offering the skip: its wording is what the human reads.
+		why string
+	}{
+		{name: "no report on the Claude Code pane", offered: true},
+		{name: "an OpenCode pane made the PR", why: whyOpenCodeMaker, setup: func(t *testing.T, sw *sendWorld, tree string, _ *Deps) {
+			sw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", claudeRunprContext(t))
+			sw.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-sonnet.md")})
+		}},
+		{name: "no PR detail was kept", setup: func(_ *testing.T, sw *sendWorld, tree string, _ *Deps) {
+			sw.rec.failIn(tree, "gh pr view 42 --json "+prViewFields, errNoReply)
+		}},
+		{name: "the detail kept another pane's report", setup: func(t *testing.T, sw *sendWorld, tree string, deps *Deps) {
+			records, err := deps.Store.Records(Worktree{path: tree})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := records.store().create(detailName(42, prHead), detailRecord{PR: 42, Head: prHead, Saved: sw.now, Source: ReportFromPane.String(), Text: "report", Pane: "w1:p9", Seq: 10}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "text typed after the command", setup: func(t *testing.T, sw *sendWorld, _ string, _ *Deps) {
+			p := sw.firstPane()
+			if err := sw.writeTranscript(p, p.Session, typedLine("is it done?")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "the transcript is gone", setup: func(t *testing.T, sw *sendWorld, _ string, _ *Deps) {
+			p := sw.firstPane()
+			if err := os.Remove(sw.transcript(p, p.Session)); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "the pane works by then", react: func(sw *sendWorld, _ *simPane, _ string) {
+			sw.byPane["w1:p1"].Status = "working"
+		}},
+		{name: "the pane is in another Herdr workspace", react: func(sw *sendWorld, _ *simPane, _ string) {
+			sw.byPane["w1:p1"].Workspace = "w9"
+		}},
+		{name: "the pane moves after the transcript lost the report", setup: func(_ *testing.T, sw *sendWorld, _ string, _ *Deps) {
+			// The detail keeps the report from the pane's transcript.
+			sw.endWithReport(sw.firstPane(), makerReport)
+		}, react: func(sw *sendWorld, _ *simPane, _ string) {
+			// The reset reads the pane's agent, then its transcript, which
+			// holds the command but no report; the pane moves before the
+			// offer reads its agent again.
+			pane, reads := sw.byPane["w1:p1"], 0
+			sw.setTranscript(pane, commandLine("/mkarch 0001"))
+			sw.rec.replyFunc("herdr agent get w1:p1", func() reply {
+				sw.mu.Lock()
+				defer sw.mu.Unlock()
+				reads++
+				if reads == 2 {
+					pane.Seq++
+				}
+				return reply{out: agentGetOutput(pane.fakeAgent)}
+			})
+		}},
+		{name: "the idle pane shows a question", react: func(sw *sendWorld, _ *simPane, _ string) {
+			sw.byPane["w1:p1"].screen = readScreenSample(sw.t, "claude-question-single.ansi")
+		}},
+		{name: "the pane cannot be read again", react: func(sw *sendWorld, _ *simPane, _ string) {
+			sw.rec.replyFunc("herdr agent get w1:p1", func() reply { return reply{err: errNoReply} })
+		}},
+		{name: "the record cannot be written", setup: func(_ *testing.T, _ *sendWorld, _ string, deps *Deps) {
+			deps.Store.beforeCreate = failCreates(skipPrefix)
+		}, unwritten: true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			sw, tree := detailWorld(t)
+			deps := sw.finish()
+			if c.setup != nil {
+				c.setup(t, sw, tree, &deps)
+			}
+			if c.react != nil {
+				sw.react = func(p *simPane, text string) error {
+					err := sw.realReact(p, text)
+					if strings.HasPrefix(text, "/runpr") {
+						c.react(sw, p, text)
+					}
+					return err
+				}
+			}
+			out := sendRunpr(t, deps, tree)
+			if len(out.Actions) != 2 || out.Actions[0].Outcome != OutcomeSent {
+				t.Fatalf("actions = %+v; want /runpr sent and a reset result", out.Actions)
+			}
+			reset := out.Actions[1]
+			typed := sw.rec.prompts()
+			if reset.Outcome != OutcomeNotSent || reset.Reason != NotSentNoReport || len(typed) == 0 || !strings.HasSuffix(typed[len(typed)-1], " /runpr 42") {
+				t.Fatalf("reset = %+v, typed %v; want not sent, no_report, and nothing typed after /runpr", reset, typed)
+			}
+			deps.Store.beforeCreate = nil
+			note := skipNotOfferedNote
+			switch {
+			case c.offered:
+				note = skipOfferedNote
+			case c.unwritten:
+				note = skipUnwrittenNote
+			}
+			checkOffered(t, deps.Store, tree, reset, note)
+			if c.why != "" && !strings.HasSuffix(reset.Detail, skipNotOfferedNote+c.why) {
+				t.Errorf("detail %q; want it to end with %q", reset.Detail, c.why)
+			}
+			if !c.offered {
+				return
+			}
+			p := sw.firstPane()
+			rec := skipsOf(t, deps.Store, tree)[0]
+			if rec.pane.String() != "w1:p1" || rec.session != p.Session || rec.seq != int64(p.Seq) || rec.scene != sceneAfterRunpr || rec.command != mkarchRan || rec.workspace != "w1" {
+				t.Errorf("record = %+v; want w1:p1's session and state after /mkarch 0001", rec)
+			}
+		})
+	}
+}
+
 // TestResetCheckDoesNotWaitForALine checks that the re-reads for display do
 // not reach the reset's check: a transcript whose last line is whole JSON
-// without its newline is read by the check as before, at once and without a
-// wait, while the read for display finds it still ends inside a line.
+// without its newline is read by the check as before, through the report's
+// entry, which takes no sleep, while the read for display finds it still
+// ends inside a line.
 func TestResetCheckDoesNotWaitForALine(t *testing.T) {
 	sw := newSendWorld(t)
 	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
@@ -315,14 +576,11 @@ func TestResetCheckDoesNotWaitForALine(t *testing.T) {
 	if err := os.WriteFile(path, bytes.TrimSuffix(data, []byte("\n")), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	waits := 0
-	deps.Sleep = func(context.Context, time.Duration) error {
-		waits++
-		return nil
-	}
+	deps.Sleep = func(context.Context, time.Duration) error { return nil }
 	sc := sw.sendContextOf(deps)
-	if reason, detail := sc.lastInputMadePR(sc.ws.Agents[0], maker{name: "mkarch", args: "0001"}); reason != NotSentUnknown || waits != 0 {
-		t.Errorf("lastInputMadePR = %s %q after %d waits; want the check passed at once", reason, detail, waits)
+	cr := readClaudeReport(deps.Env, sc.ws.Agents[0])
+	if reason, detail := lastInputMadePR(cr.Report.LastHuman, maker{name: "mkarch", args: "0001"}); reason != NotSentUnknown || cr.Report.Kind == SessionReportUnreadable {
+		t.Errorf("lastInputMadePR = %s %q, report %v %q; want the transcript read and the check passed", reason, detail, cr.Report.Kind, cr.Detail)
 	}
 	if _, err := readCompleteTranscript(context.Background(), deps.Sleep, path, sessionTranscriptLimit); !errors.Is(err, errPartialLine) {
 		t.Errorf("readCompleteTranscript error = %v, want errPartialLine", err)
