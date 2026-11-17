@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-16 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。以下、アーキテクチャ設計書を設計書、実装計画書を計画書と略す。「計画で決める」は、本タスクの実装計画書（`03_implementation_plan.md`）で決めることを指す。既存のファイルの内容は、コミット `bade98e3` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を指す。0088 の項番は「0088 の AC-NN」と書く。
@@ -921,3 +921,7 @@ PR の切り方は計画で決める。ただし、出力の JSON の形を変�
 | AC-20 | 3.8 | 単体テスト（出力） |
 | AC-21 | 3.9 | PR のレビュー、文書のガードテスト（値の集合） |
 | AC-22 | 3.9 | PR のレビュー、実地の確かめ |
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#916）
