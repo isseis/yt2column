@@ -217,9 +217,16 @@ func (rw *runWorld) send(rec SendRecord, outcome string) {
 	}
 }
 
-// command records a command send of kind and arg to pane, with model.
-func (rw *runWorld) command(pane, kind, arg, model, outcome string) {
-	rw.send(SendRecord{Pane: pane, Input: InputCommand.String(), Command: "/" + kind + " " + arg, Model: model, Kind: kind, Arg: arg}, outcome)
+// The agent labels a send record declares.
+var (
+	claudeCodeLabel = agentLabel(paneinput.AgentClaudeCode)
+	openCodeLabel   = agentLabel(paneinput.AgentOpenCode)
+)
+
+// command records a command send of kind and arg to agent in pane, with
+// model.
+func (rw *runWorld) command(agent, pane, kind, arg, model, outcome string) {
+	rw.send(SendRecord{Pane: pane, Input: InputCommand.String(), Command: "/" + kind + " " + arg, Agent: agent, Model: model, Kind: kind, Arg: arg}, outcome)
 }
 
 // run decides the running command of agents from the world's records.
@@ -285,7 +292,7 @@ func TestRunningCommandPerPane(t *testing.T) {
 			return []Agent{a}
 		}, "/runpr 926", RunningUnknownNone},
 		{"a start record that names another send", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runpr", "926", "m", sent)
+			rw.command(openCodeLabel, "w1:p1", "runpr", "926", "m", sent)
 			starts, _, err := rw.held.sendFiles()
 			if err != nil || len(starts) != 1 {
 				t.Fatalf("sends = %v, %v", starts, err)
@@ -324,16 +331,16 @@ func TestRunningCommandPerPane(t *testing.T) {
 			return []Agent{a}
 		}, "", RunningUnknownPartialLine},
 		{"an OpenCode pane sent a command", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runpr", "926", "m", sent)
+			rw.command(openCodeLabel, "w1:p1", "runpr", "926", "m", sent)
 			return []Agent{rw.openCode("w1:p1")}
 		}, "/runpr 926", RunningUnknownNone},
 		{"an OpenCode pane answered by a relay after its command", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runpr", "926", "m", sent)
+			rw.command(openCodeLabel, "w1:p1", "runpr", "926", "m", sent)
 			rw.send(SendRecord{Pane: "w1:p1", Input: InputRelay.String(), Command: "1. Yes"}, sent)
 			return []Agent{rw.openCode("w1:p1")}
 		}, "/runpr 926", RunningUnknownNone},
 		{"an OpenCode pane reset after its command", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runpr", "926", "m", sent)
+			rw.command(openCodeLabel, "w1:p1", "runpr", "926", "m", sent)
 			rw.send(SendRecord{Pane: "w1:p1", Input: InputReset.String(), Command: "/new"}, sent)
 			return []Agent{rw.openCode("w1:p1")}
 		}, "", RunningUnknownNoSentCommand},
@@ -348,19 +355,19 @@ func TestRunningCommandPerPane(t *testing.T) {
 			return []Agent{rw.openCode("w1:p1")}
 		}, "", RunningUnknownNoSentCommand},
 		{"an OpenCode pane's record of a kind not in the table", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "fixpr", "926", "m", sent)
+			rw.command(openCodeLabel, "w1:p1", "fixpr", "926", "m", sent)
 			return []Agent{rw.openCode("w1:p1")}
 		}, "", RunningUnknownNoSentCommand},
 		{"an OpenCode send without its end", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runpr", "926", "m", "")
+			rw.command(openCodeLabel, "w1:p1", "runpr", "926", "m", "")
 			return []Agent{rw.openCode("w1:p1")}
 		}, "", RunningUnknownNoSentCommand},
 		{"an OpenCode send that failed after an input", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runpr", "926", "m", OutcomeSentThenFailed.String())
+			rw.command(openCodeLabel, "w1:p1", "runpr", "926", "m", OutcomeSentThenFailed.String())
 			return []Agent{rw.openCode("w1:p1")}
 		}, "", RunningUnknownNoSentCommand},
 		{"an OpenCode pane chief never sent to", func(rw *runWorld) []Agent {
-			rw.command("w1:p2", "runpr", "926", "m", sent)
+			rw.command(openCodeLabel, "w1:p2", "runpr", "926", "m", sent)
 			return []Agent{rw.openCode("w1:p1")}
 		}, "", RunningUnknownNoSentCommand},
 		{"an OpenCode pane whose record cannot be read", func(rw *runWorld) []Agent {
@@ -370,6 +377,11 @@ func TestRunningCommandPerPane(t *testing.T) {
 			}
 			return []Agent{rw.openCode("w1:p1")}
 		}, "", RunningUnknownUnreadable},
+		{"an OpenCode pane whose last command went to another agent", func(rw *runWorld) []Agent {
+			// The pane's agent was replaced after chief's send.
+			rw.command(claudeCodeLabel, "w1:p1", "runpr", "926", "opus", sent)
+			return []Agent{rw.openCode("w1:p1")}
+		}, "", RunningUnknownNoSentCommand},
 		{"a pane of no known agent", func(rw *runWorld) []Agent {
 			a := rw.openCode("w1:p1")
 			a.Kind = paneinput.AgentUnknown
@@ -404,11 +416,11 @@ func TestRunningCommandPanes(t *testing.T) {
 		why   RunningUnknown
 	}{
 		{"the same command on both", func(rw *runWorld) []Agent {
-			rw.command("w1:p2", "runplan", "0093", "m", sent)
+			rw.command(openCodeLabel, "w1:p2", "runplan", "0093", "m", sent)
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093")), rw.openCode("w1:p2")}
 		}, "/runplan 0093", RunningUnknownNone},
 		{"different commands", func(rw *runWorld) []Agent {
-			rw.command("w1:p2", "runpr", "926", "m", sent)
+			rw.command(openCodeLabel, "w1:p2", "runpr", "926", "m", sent)
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093")), rw.openCode("w1:p2")}
 		}, "", RunningUnknownPanesDisagree},
 		{"the same kind with other arguments", func(rw *runWorld) []Agent {
@@ -453,23 +465,23 @@ func TestRunningModel(t *testing.T) {
 		model string
 	}{
 		{"an OpenCode pane's sent command", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runpr", "926", "flash", sent)
+			rw.command(openCodeLabel, "w1:p1", "runpr", "926", "flash", sent)
 			return []Agent{rw.openCode("w1:p1")}
 		}, "/runpr 926", "flash"},
 		{"a Claude Code pane running the command chief sent", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runplan", "0093", "opus", sent)
+			rw.command(claudeCodeLabel, "w1:p1", "runplan", "0093", "opus", sent)
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"))}
 		}, "/runplan 0093", "opus"},
 		{"a Claude Code pane running another command than chief sent", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runplan", "0094", "opus", sent)
+			rw.command(claudeCodeLabel, "w1:p1", "runplan", "0094", "opus", sent)
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"))}
 		}, "/runplan 0093", ""},
 		{"a Claude Code pane whose send failed after an input", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runplan", "0093", "opus", OutcomeSentThenFailed.String())
+			rw.command(claudeCodeLabel, "w1:p1", "runplan", "0093", "opus", OutcomeSentThenFailed.String())
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"))}
 		}, "/runplan 0093", ""},
 		{"a Claude Code pane whose records cannot be read", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runplan", "0093", "opus", sent)
+			rw.command(claudeCodeLabel, "w1:p1", "runplan", "0093", "opus", sent)
 			name := sendPrefix + "99999999999999999999-0123456789abcdef" + startSuffix
 			if err := os.WriteFile(filepath.Join(rw.held.dir, name), []byte(`{"pane":"w1:p1","extra":1}`), 0o600); err != nil {
 				t.Fatal(err)
@@ -477,16 +489,20 @@ func TestRunningModel(t *testing.T) {
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"))}
 		}, "/runplan 0093", ""},
 		{"a record whose argument does not validate", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runpr", "main", "opus", sent)
+			rw.command(claudeCodeLabel, "w1:p1", "runpr", "main", "opus", sent)
 			return []Agent{rw.claude("w1:p1", commandLine("/runpr"))}
 		}, "/runpr", ""},
 		{"a pane whose argument was dropped, with a record of no argument", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runpr", "", "opus", sent)
+			rw.command(claudeCodeLabel, "w1:p1", "runpr", "", "opus", sent)
 			return []Agent{rw.claude("w1:p1", commandLine("/runpr main"))}
 		}, "/runpr", ""},
+		{"a Claude Code pane whose last command went to another agent", func(rw *runWorld) []Agent {
+			rw.command(openCodeLabel, "w1:p1", "runplan", "0093", "flash", sent)
+			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"))}
+		}, "/runplan 0093", ""},
 		{"two working panes", func(rw *runWorld) []Agent {
-			rw.command("w1:p1", "runplan", "0093", "opus", sent)
-			rw.command("w1:p2", "runplan", "0093", "flash", sent)
+			rw.command(claudeCodeLabel, "w1:p1", "runplan", "0093", "opus", sent)
+			rw.command(openCodeLabel, "w1:p2", "runplan", "0093", "flash", sent)
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093")), rw.openCode("w1:p2")}
 		}, "/runplan 0093", ""},
 	}

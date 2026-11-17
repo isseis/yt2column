@@ -135,8 +135,10 @@ type RunningShown struct {
 type lastCommand struct {
 	cmd     RunningCommand
 	dropped bool
-	model   string
-	ok      bool
+	// agent is the agent label the record declares it was sent to.
+	agent string
+	model string
+	ok    bool
 }
 
 // lastSentCommand reads chief's last send to pane for the running command.
@@ -162,7 +164,7 @@ func (r WorkspaceRecords) lastSentCommand(pane string) (lastCommand, error) {
 	if err != nil {
 		return lastCommand{}, nil
 	}
-	return lastCommand{cmd: cmd, dropped: dropped, model: rec.Model, ok: true}, nil
+	return lastCommand{cmd: cmd, dropped: dropped, agent: rec.Agent, model: rec.Model, ok: true}, nil
 }
 
 // paneRunning is the running command of one working pane, or why none is
@@ -176,12 +178,18 @@ type paneRunning struct {
 
 // runningOfPane decides the running command of one working pane, by its
 // agent: a Claude Code pane by its session's last human input, an OpenCode
-// pane by chief's last command sent to it. Contract: the screen is never
+// pane by chief's last command sent to it, a send to another agent the
+// pane held before counting as none. Contract: the screen is never
 // read, and nothing read here changes a row's state or a send; sends reads
 // chief's last send to a pane, and its error makes only an OpenCode pane
 // undecided, since a Claude Code pane reads it for the model alone.
 func runningOfPane(ctx context.Context, deps Deps, a Agent, sends func(pane string) (lastCommand, error)) paneRunning {
 	sent, sentErr := sends(a.Pane.String())
+	if sentErr == nil && sent.agent != agentLabel(a.Kind) {
+		// The send went to another agent the pane held then: it says
+		// nothing of the agent working there now.
+		sent = lastCommand{}
+	}
 	switch a.Kind {
 	case paneinput.AgentClaudeCode:
 		if sentErr != nil {
