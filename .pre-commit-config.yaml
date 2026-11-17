@@ -48,11 +48,12 @@ repos:
     hooks:
     # Golden files are compared byte for byte, trailing newline included.
     # Screen samples keep a terminal's trailing blanks and input-line shape;
-    # chief's herdr, gh, and git samples keep the bytes the commands wrote.
+    # chief's herdr, gh, and git samples and numreserve's gh and git samples
+    # keep the bytes the commands wrote.
     -   id: trailing-whitespace
-        exclude: ^(testdata/|internal/publisher/testdata/golden/|internal/chief/testdata/(screens|herdr|gh|git)/)
+        exclude: ^(testdata/|internal/publisher/testdata/golden/|internal/chief/testdata/(screens|herdr|gh|git)/|internal/numreserve/testdata/)
     -   id: end-of-file-fixer
-        exclude: ^(testdata/|internal/publisher/testdata/golden/|internal/chief/testdata/(screens|herdr|gh|git)/)
+        exclude: ^(testdata/|internal/publisher/testdata/golden/|internal/chief/testdata/(screens|herdr|gh|git)/|internal/numreserve/testdata/)
     -   id: check-yaml
     -   id: check-added-large-files
         exclude: ^testdata/

@@ -1,0 +1,13 @@
+4da5da2194a0e62969373ae8449d6f4e432a6f4f	refs/heads/claude/festive-bardeen-cw14ci
+607fbe082a1e89929ee87b9cdc960516f606909e	refs/heads/owner/0091-extension-only-migration-11
+b56048d497e4f2a149cf46294a0fb8163b59c1d2	refs/heads/owner/0092-chief-task-workspace-07
+8728ea3ee5f1678e5e0d7122f2872d0d7e9f0b48	refs/heads/owner/0092-chief-task-workspace-09
+d23784eca522cc21fb72e1d9c5f7d7e7a24e7142	refs/heads/owner/0093-chief-status-sheet-06
+ff086711dc86c27c40f6efea1206164fd5d2a8bb	refs/heads/owner/0095-chief-transcript-report-07
+017874fc6b34a6d796b006c0ecd0a23dbc2a9ab1	refs/heads/owner/0097-chief-reset-offer-02
+eb054b00ee149df0f180348165a905b8da6f0297	refs/heads/owner/0098-fable-partial-review-04
+f73fc2c364a8c75fb67a833ec935818cba488605	refs/heads/owner/0099-protocol-number-rule-05
+9f966a01a4e421c4b85624b0414eea6e859f1268	refs/heads/owner/0100-number-reservation-05
+f73fc2c364a8c75fb67a833ec935818cba488605	refs/heads/main
+83ef12bd019bf1456a0fb77aa7d7f35a2c848c8a	refs/heads/poc/0084-wasm-pipeline
+da994ad381308ade7c623fb0ad521cdacb0fe403	refs/heads/poc/0090-extension-only-checks
