@@ -271,18 +271,18 @@
 
 ### フェーズ 5: 拡張のビルド（設計書 §8 の 2）
 
-**変更するファイル:** `extension/scripts/`（ビルドのスクリプト、`check-dist.ts`、`has-extension-changes.sh`、依存のディレクトリを求めるスクリプト）、`extension/package.json`、`extension/static/buildKind.js`・`extension/src/buildKind.d.ts`（新規）、`extension/static/_locales/*/messages.json`、`extension/eslint.config.js`、`extension/.prettierignore`、`extension/test/`（`checkDist.test.ts`・`ciChanges.test.ts`・`repository.test.ts`、ビルドのスクリプトのテスト）、`Makefile`、`.github/workflows/ci.yml`、`.gitignore`、`CLAUDE.md`、`docs/dev/guides/development.md`、`cmd/yt2column/` の文書のテスト（新規）、ADR（§3.3）
+**変更するファイル:** `extension/scripts/`（ビルドのスクリプト、`check-dist.ts`、`has-extension-changes.sh`、依存のディレクトリを求めるスクリプト）、`extension/package.json`、`extension/static/buildKind.js`・`extension/src/buildKind.d.ts`（新規）、`extension/static/_locales/*/messages.json`、`extension/eslint.config.js`、`extension/.prettierignore`、`extension/test/`（`checkDist.test.ts`・`ciChanges.test.ts`・`repository.test.ts`、ビルドのスクリプトのテスト）、`Makefile`、`.github/workflows/ci.yml`、`.gitignore`、`CLAUDE.md`、`docs/dev/guides/development.md`、`README.md`・`README.en.md`、`cmd/yt2column/` の文書のテスト（新規）と `internal/doctestutil/guides.go`（その表の位置の値）、ADR（§3.3）
 
--   [ ] **ステップ 5-1**: 拡張のビルドが Go を呼ぶようにする（設計書 §3.5、0090 設計書 §3.1.4）。ビルドのスクリプトは、`go.mod` の `go` の行の版を読んで `GOTOOLCHAIN` に与え（パッチの版がなければ理由を示して止める）、`GOOS=js GOARCH=wasm go build -trimpath` で記事生成モジュールをビルドし、同じツールチェーンの `wasm_exec.js` を成果物の直下に置く。`npm run build` は、Go を呼ぶ手順まで含めて、検査を通った成果物を作る。`go` を呼ぶ部分は差し替えられる形にし、node のテストで、版の読み取り（パッチの版がないときの停止を含む）と、`go` に渡す引数と環境を確かめる。
--   [ ] **ステップ 5-2**: `extension/static/buildKind.js`（値は `release`）と `extension/src/buildKind.d.ts` を加える（設計書 §3.5）。`_locales` に、開発用の印を付けた名前のメッセージを加える。
--   [ ] **ステップ 5-3**: 開発用のビルドを加える（設計書 §3.5・§6.4）。`make ext-build-dev` は 5 つの変数（既定の値は `Makefile` が持つ）をいつも渡す。ビルドのスクリプトは、`cmd/yt2column-wasm-dev` のネイティブのビルドで値を解析してから、`extension/dist-dev/` を空にし、`tsc` と `static/` を写し、開発用の manifest（`key` を除き、名前を開発用のメッセージに替える）を書き、`buildKind.js` を `dev` に置き換え、1 つの `-ldflags` の文字列に 5 つの `-X` を並べて開発用の記事生成モジュールをビルドする。node のテストで、合わないシナリオで `dist-dev/` に触れる前に止まること、`-ldflags` を 1 回だけ 5 つの `-X` で渡すこと、開発用の manifest の変換を確かめる。`.gitignore`・`eslint.config.js` の `ignores`・`extension/.prettierignore` に `dist-dev/` を加え、`repository.test.ts` の無視の規則の確かめに加える。`make ext-check` に `ext-build-dev` を加える（§1.3 の決定 11）。
--   [ ] **ステップ 5-4**: `check-dist.ts` を、ビルドの種類を引数で受け取り、種類ごとの期待で検査するように改める（設計書 §3.5 の「成果物の検査」の各項目）。記事生成モジュールは Node で `wasm_exec.js` とともに読み込んで `buildInfo` を呼び、`mainPath`・`goVersion`・`llm`（`dev` ではシナリオの 5 つの値）を確かめる。`buildInfo` を読む部分は差し込めるようにし、`checkDist.test.ts` は Go を呼ばずに、種類と出力のディレクトリの組み合わせ、`buildKind.js` の値、開発用の manifest、WASM と `wasm_exec.js` の例外、`buildInfo` の各値の違いでの拒否を確かめる。
--   [ ] **ステップ 5-5**: CI を改める（設計書 §3.10）。
+-   [x] **ステップ 5-1**: 拡張のビルドが Go を呼ぶようにする（設計書 §3.5、0090 設計書 §3.1.4）。ビルドのスクリプトは、`go.mod` の `go` の行の版を読んで `GOTOOLCHAIN` に与え（パッチの版がなければ理由を示して止める）、`GOOS=js GOARCH=wasm go build -trimpath` で記事生成モジュールをビルドし、同じツールチェーンの `wasm_exec.js` を成果物の直下に置く。`npm run build` は、Go を呼ぶ手順まで含めて、検査を通った成果物を作る。`go` を呼ぶ部分は差し替えられる形にし、node のテストで、版の読み取り（パッチの版がないときの停止を含む）と、`go` に渡す引数と環境を確かめる。
+-   [x] **ステップ 5-2**: `extension/static/buildKind.js`（値は `release`）と `extension/src/buildKind.d.ts` を加える（設計書 §3.5）。`_locales` に、開発用の印を付けた名前のメッセージを加える。
+-   [x] **ステップ 5-3**: 開発用のビルドを加える（設計書 §3.5・§6.4）。`make ext-build-dev` は 5 つの変数（既定の値は `Makefile` が持つ）をいつも渡す。ビルドのスクリプトは、`cmd/yt2column-wasm-dev` のネイティブのビルドで値を解析してから、`extension/dist-dev/` を空にし、`tsc` と `static/` を写し、開発用の manifest（`key` を除き、名前を開発用のメッセージに替える）を書き、`buildKind.js` を `dev` に置き換え、1 つの `-ldflags` の文字列に 5 つの `-X` を並べて開発用の記事生成モジュールをビルドする。node のテストで、合わないシナリオで `dist-dev/` に触れる前に止まること、`-ldflags` を 1 回だけ 5 つの `-X` で渡すこと、開発用の manifest の変換を確かめる。`.gitignore`・`eslint.config.js` の `ignores`・`extension/.prettierignore` に `dist-dev/` を加え、`repository.test.ts` の無視の規則の確かめに加える。`make ext-check` に `ext-build-dev` を加える（§1.3 の決定 11）。
+-   [x] **ステップ 5-4**: `check-dist.ts` を、ビルドの種類を引数で受け取り、種類ごとの期待で検査するように改める（設計書 §3.5 の「成果物の検査」の各項目）。記事生成モジュールは Node で `wasm_exec.js` とともに読み込んで `buildInfo` を呼び、`mainPath`・`goVersion`・`llm`（`dev` ではシナリオの 5 つの値）を確かめる。`buildInfo` を読む部分は差し込めるようにし、`checkDist.test.ts` は Go を呼ばずに、種類と出力のディレクトリの組み合わせ、`buildKind.js` の値、開発用の manifest、WASM と `wasm_exec.js` の例外、`buildInfo` の各値の違いでの拒否を確かめる。
+-   [x] **ステップ 5-5**: CI を改める（設計書 §3.10）。
     -   `check-changes` の手順に Go を用意する。記事生成モジュールの依存のディレクトリを `GOOS=js GOARCH=wasm go list -deps -f` で求める処理をスクリプトに置き、標準ライブラリを除き、`-e` を付けず、失敗したときは拡張の検査を走らせる側に倒す。
     -   `has-extension-changes.sh` は、変わったファイルの一覧に加えて依存のディレクトリの一覧を受け取り、末尾の `/` で比べる。`go.sum` を加える。`.md` の除外より前の、変わったファイルのすべての一覧で判定する。
     -   `ciChanges.test.ts` と、依存のディレクトリを求めるスクリプトのテスト（`go` を差し替えて走らせる）で、`.go`・`.tmpl`・fake の記事の `.md` の変更と削除、サブディレクトリ、`internal/llm` と `internal/llmx` の境界、求める処理の失敗を確かめる。
     -   `extension` の手順で、`ext-build` より前に Go を用意し、`ext-build` の後に `ext-build-dev` を走らせる。`repository.test.ts` の手順の順の確かめを直す。
--   [ ] **ステップ 5-6**: 文書と ADR を書き換える。CLAUDE.md の「Extension Commands」に `make ext-build-dev` を加え、`make ext-build` が Go を呼ぶことと `make ext-check` の中身を直す（`TestExtensionDocumentation`）。development.md に、開発用のビルドの 5 つの変数と受理する綴りの表、見分け方（開発用の印、別の拡張の ID）、初めのビルドが `go.mod` の版のツールチェーンをダウンロードしうることを書き、開発用のビルドが切り替えの PR まで画面で使えないことを添える（設計書 §3.4）。development.md の変数の表と綴りを、`devfake` の綴りと `Makefile` の変数と照合する文書のテストを `cmd/yt2column` に加える（開発用のサーバの表を確かめる `TestDevelopmentDocsDevServer` に当たるもの）。ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。
+-   [x] **ステップ 5-6**: 文書と ADR を書き換える。CLAUDE.md の「Extension Commands」に `make ext-build-dev` を加え、`make ext-build` が Go を呼ぶことと `make ext-check` の中身を直す（`TestExtensionDocumentation`）。development.md に、開発用のビルドの 5 つの変数と受理する綴りの表、見分け方（開発用の印、別の拡張の ID）、初めのビルドが `go.mod` の版のツールチェーンをダウンロードしうることを書き、開発用のビルドが切り替えの PR まで画面で使えないことを添える（設計書 §3.4）。README の拡張のビルドの説明に、ビルドが `go.mod` の版の Go も呼ぶこと（初めのビルドがその版をダウンロードしうること）を加え、`README.en.md` に写す。development.md の変数の表と綴りを、`devfake` の綴りと `Makefile` の変数と照合する文書のテストを `cmd/yt2column` に加える（開発用のサーバの表を確かめる `TestDevelopmentDocsDevServer` に当たるもの）。ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。
 
 **完了の条件:** `make test`・`make lint`・`make ext-check`（`ext-build-dev` を含む）が通る。`_checks/cli_unchanged.sh` が通り、§7 の AC-26 の記録に書いた。
 
@@ -300,10 +300,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/925
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: API キーの経路の検査と、まだ使われない拡張の部品（その 1）（設計書 §8 の 4 の一部）
 
@@ -544,7 +544,7 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 -   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
 -   [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
--   [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
+-   [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 -   [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9）
 -   [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4）
 -   [ ] PR-8 マージ済み（対象ステップ: 8-1 / 8-2 / 8-3 / 8-4 / 8-5 / 8-6 / 8-7）
@@ -655,6 +655,20 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 
     ```text
     merge-base e56df9846d18e57b00d224418ac9fde0a1881ca4 head 19450aa3db0f7fdc23dbbf1156289315a9a03903
+    ok: no non-test file under cmd/yt2column/ changed
+    ```
+
+-   この記録より後の commit は、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
+-   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
+
+**PR-5**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
+
+-   merge-base: `05662669d92643e2ff782aaf469ead3fa6dd29b2`
+-   比べたコミット: `67145404c7968e84f240f78f24bb43c563117b87`
+-   出力（終了コード 0）:
+
+    ```text
+    merge-base 05662669d92643e2ff782aaf469ead3fa6dd29b2 head 67145404c7968e84f240f78f24bb43c563117b87
     ok: no non-test file under cmd/yt2column/ changed
     ```
 

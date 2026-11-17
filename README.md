@@ -507,6 +507,8 @@ Node.js 24 が必要で、`node --version` が `extension/.node-version`
 の中にあるので、カレントディレクトリを読む Node.js の版の管理ツール（[fnm](https://github.com/Schniz/fnm)
 など）は、`extension/` の中で有効にしなければならない。その版を有効にしたまま、リポジトリのルートからターゲットを実行する。
 
+ビルドは Go も呼び、拡張に入れる記事生成モジュールを、`go.mod` の `go` の行の版の Go でビルドする。手元の Go がその版でないときは、初めのビルドがその版の Go をダウンロードする（ネットワークを使う）。拡張はまだ記事生成モジュールを使わず、記事は localhost サーバで作る。
+
 ```sh
 cd extension && fnm use && cd ..
 make ext-install   # install the pinned dev dependencies (npm ci; needs network)

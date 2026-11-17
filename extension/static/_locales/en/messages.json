@@ -2,6 +2,10 @@
   "extName": {
     "message": "yt2column"
   },
+  "extNameDev": {
+    "message": "yt2column (development build)",
+    "description": "The extension's name in the development build's manifest."
+  },
   "extDescription": {
     "message": "Sends the selected YouTube transcript to the local yt2column server to write a column article."
   }
