@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。既存のファイルの内容と `file:line` の行番号は、コミット `61a16bb3` で確かめた。設計書が確かめたコミット `bade98e3` から、`internal/chief`・`cmd/chief`・`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` は変わっていない（`git diff --stat bade98e3 61a16bb3 -- <これらのパス>` の出力が空だった）。そのため、設計書が引くこれらの行番号は今も合う。
@@ -284,3 +284,7 @@
 
 -   PR-3 のマージの後、人が chief の worktree を `main` に戻し、`main` から `make install-chief` を行って `/chief` を起動し直す（§1.3 の決定 3）。
 -   0092 が後に入るときは、0092 が H-09 と H-10 を扱う。人が 0092 のタスクに申し送りを渡す（§1.3 の決定 9）。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#926）
