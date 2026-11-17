@@ -285,6 +285,45 @@ func TestMakeBuildDev(t *testing.T) {
 	}
 }
 
+// TestMakeWasmCheck checks the recipe `make -n wasm-check` expands: every go
+// command it runs is for js/wasm, it builds exactly the two article
+// generation modules (which builds every package they depend on), and it vets
+// exactly the packages with a file only a js build compiles, along with
+// writer and transcript.
+func TestMakeWasmCheck(t *testing.T) {
+	output := makeDryRun(t, "wasm-check")
+	got := map[string][]string{}
+	for line := range strings.Lines(output) {
+		fields := strings.Fields(line)
+		env := map[string]string{}
+		for len(fields) > 0 && strings.Contains(fields[0], "=") {
+			name, value, _ := strings.Cut(fields[0], "=")
+			env[name] = value
+			fields = fields[1:]
+		}
+		if len(fields) < 2 {
+			continue
+		}
+		if env["GOOS"] != "js" || env["GOARCH"] != "wasm" {
+			t.Errorf("make -n wasm-check runs a command not for js/wasm: %q", strings.TrimSpace(line))
+		}
+		got[fields[1]] = append(got[fields[1]], fields[2:]...)
+	}
+	want := map[string][]string{
+		"build": {"./cmd/yt2column-wasm", "./cmd/yt2column-wasm-dev"},
+		"vet": {
+			"./cmd/yt2column-wasm", "./cmd/yt2column-wasm-dev", "./internal/extjob/jsmodule",
+			"./internal/llm/claude", "./internal/llm/llmhttp", "./internal/transcript", "./internal/writer",
+		},
+	}
+	for _, packages := range got {
+		slices.Sort(packages)
+	}
+	if !maps.EqualFunc(got, want, slices.Equal[[]string]) {
+		t.Errorf("make -n wasm-check runs %v, want %v; output:\n%s", got, want, output)
+	}
+}
+
 // coverageCompareGoEnv is the go environment the coverage-compare recipes
 // must give go list and go build, so the user's go configuration cannot
 // change the build and nothing is fetched.

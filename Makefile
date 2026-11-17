@@ -325,20 +325,21 @@ lint: wasm-check
 	$(GOLINT)
 	$(GOCMD) vet -tags integration ./...
 
-# The packages the WebAssembly core is built from (the transcript types and
-# CopiedSource, the article writer, the Claude adapter and the HTTP send path it
-# uses, the pricing table, the extension's configuration loading), and the
-# development fake LLM, must keep compiling for js/wasm. This checks only that
-# they build; behavior that fails at run time in a browser (file system access)
-# is not found here.
+# The two article generation modules of the browser extension, the release
+# one and the development one with the fake LLM, must keep building for
+# js/wasm; building them builds every package they depend on, so a change that
+# breaks the WebAssembly core fails here before an extension build. This checks
+# only that they build; behavior that fails at run time in a browser (file
+# system access) is not found here.
 # The vet run also compiles the js-only files, which `make test` and
-# golangci-lint skip: the two packages with a file only a js build compiles
-# (llmhttp and claude) are vetted along with the others.
-WASM_PACKAGES = ./internal/transcript ./internal/writer ./internal/llm/claude ./internal/llm/llmhttp ./internal/pricing ./internal/llm/devfake ./internal/config ./internal/extjob/...
-WASM_VET_PACKAGES = ./internal/writer ./internal/transcript ./internal/llm/llmhttp ./internal/llm/claude ./internal/config
+# golangci-lint skip: the packages with a file only a js build compiles
+# (llmhttp, claude, jsmodule, and the two modules' main packages) are vetted
+# along with writer and transcript.
+WASM_MODULES = ./cmd/yt2column-wasm ./cmd/yt2column-wasm-dev
+WASM_VET_PACKAGES = ./internal/writer ./internal/transcript ./internal/llm/llmhttp ./internal/llm/claude ./internal/extjob/jsmodule ./cmd/yt2column-wasm ./cmd/yt2column-wasm-dev
 
 wasm-check:
-	GOOS=js GOARCH=wasm $(GOCMD) build $(WASM_PACKAGES)
+	GOOS=js GOARCH=wasm $(GOCMD) build $(WASM_MODULES)
 	GOOS=js GOARCH=wasm $(GOCMD) vet $(WASM_VET_PACKAGES)
 
 fmt:

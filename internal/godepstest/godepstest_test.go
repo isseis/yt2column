@@ -70,10 +70,37 @@ func TestList(t *testing.T) {
 	}
 }
 
+// TestListWasm checks that the js/wasm listing holds the dependencies a
+// js-only file adds, which the native listing of the same package does not:
+// the development article generation module imports jsmodule (and through it
+// syscall/js) only in its js file.
+func TestListWasm(t *testing.T) {
+	root := realRoot(t)
+	const pkg = "./cmd/yt2column-wasm-dev"
+	jsOnly := []string{module + "/internal/extjob/jsmodule", "syscall/js"}
+	wasm, err := ListWasm(root, pkg)
+	if err != nil {
+		t.Fatalf("ListWasm() error = %v", err)
+	}
+	if err := wasm.Require(jsOnly...); err != nil {
+		t.Errorf("ListWasm().Require() error = %v, want nil", err)
+	}
+	native, err := List(root, pkg)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if err := native.Forbid(jsOnly...); err != nil {
+		t.Errorf("List().Forbid(the js-only dependencies) error = %v, want nil", err)
+	}
+}
+
 func TestRequireAndForbid(t *testing.T) {
 	deps, err := List(realRoot(t), "./internal/writer")
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
+	}
+	if err := (Deps{}).Require("fmt"); !errors.Is(err, ErrMissing) {
+		t.Errorf("Require on a Deps listed for no platform error = %v, want ErrMissing", err)
 	}
 	if err := deps.Require(module + "/internal/server"); !errors.Is(err, ErrMissing) {
 		t.Errorf("Require(a package that is not a dependency) error = %v, want ErrMissing", err)
@@ -140,21 +167,23 @@ func TestPackagePath(t *testing.T) {
 	}
 }
 
-// TestChildEnv checks that the child go command gets the target OS and the
-// fixed settings, whatever the process environment holds, and keeps the rest.
+// TestChildEnv checks that the child go command gets the target platform and
+// the fixed settings, whatever the process environment holds, and keeps the
+// rest.
 func TestChildEnv(t *testing.T) {
 	t.Setenv("GOOS", "windows")
+	t.Setenv("GOARCH", "386")
 	t.Setenv("GOFLAGS", "-tags=test")
 	t.Setenv("GOWORK", "/tmp/go.work")
 	t.Setenv("GODEPSTEST_KEPT", "kept")
-	env := childEnv("linux")
+	env := childEnv(target{goos: "js", goarch: "wasm"})
 	values := map[string][]string{}
 	for _, kv := range env {
 		name, value, _ := strings.Cut(kv, "=")
 		values[name] = append(values[name], value)
 	}
 	want := map[string]string{
-		"GOOS": "linux", "GOFLAGS": "", "GOWORK": "off", "GOTOOLCHAIN": "local",
+		"GOOS": "js", "GOARCH": "wasm", "GOFLAGS": "", "GOWORK": "off", "GOTOOLCHAIN": "local",
 		"GOENV": "off", "GOPROXY": "off", "GODEPSTEST_KEPT": "kept",
 	}
 	for name, value := range want {

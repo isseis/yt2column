@@ -122,8 +122,8 @@ func TestExtensionLookup(t *testing.T) {
 		if got, ok := empty(anthropicAPIKeyEnv); got != "" || !ok {
 			t.Errorf("lookup of the API key = (%q, %v), want (\"\", true): the loader decides whether it is accepted", got, ok)
 		}
-		if got, ok := empty(anthropicWorkspaceIDEnv); got != "" || !ok {
-			t.Errorf("lookup of the workspace ID = (%q, %v), want (\"\", true): the loader reads an empty value as none", got, ok)
+		if got, ok := empty(anthropicWorkspaceIDEnv); got != "" || ok {
+			t.Errorf("lookup of the workspace ID = (%q, %v), want (\"\", false): an empty stored workspace ID is no workspace, not an empty value", got, ok)
 		}
 	})
 }
