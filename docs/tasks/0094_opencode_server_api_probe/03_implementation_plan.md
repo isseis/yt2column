@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-11-16 |
-| Review date | 2026-11-17 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 決定の変更で draft に戻した：設計書 3.2〜3.4 節の守りの強化をステップに反映し、2026-11-17 に確かめた前提を足した |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。本タスクに `design_handoff.md` と `implementation_handoff.md` はない。
 
@@ -39,6 +39,11 @@
 -   `opencode run --help` は、`--session, -s <ID>`（そのセッションを続けるか、なければ作る）を示す。
 -   `.claude/commands/runpr.md` の 1 章（104〜128 行）は、`git fetch origin main` と PR の検索の後、PR がなく、ブランチが detached の `HEAD` なら止まる。
 -   `.claude/settings.json:8`〜`33` の拒否は herdr の呼び出しだけで、`herdr pane read` などの読み取りは拒まない。`.claude/settings.local.json` は `.gitignore:3` で無視される。
+-   2026-11-17 に、`claude` 2.1.326 と `opencode` v2.2.6 で次を確かめた（`--help` と実行ファイルの読み取りだけ）。
+    -   `claude --help`：`--permission-mode` の選択肢は `acceptEdits`・`auto`・`bypassPermissions`・`manual`・`dontAsk`・`plan`。`--tools <tools...>`、`--no-session-persistence`、`--output-format stream-json`（`--print` では `--verbose` が要る）がある。`-p` では、検査で退けた設定ファイルは黙って無視される。
+    -   `opencode --help`：`--auto`（拒否されていない権限を自動で許す）・`--prompt`・`acp`・`mini` がある。`opencode run --help` は `--continue, -c`（直前のセッションを続ける）と `--fork` を示す。
+    -   `~/.opencode/bin/opencode2` は、`opencode` を呼ぶだけのシェルスクリプトである。
+    -   実行ファイルには、`session.interrupt`・`session.remove`・`session.shell`・`session.synthetic`・`session.skill` の操作の名前がある。
 -   chief が OpenCode の pane に送る手順は `internal/chief/send.go:425`〜`427`、モデルの確かめは同 `:351`〜`352`、質問の読み取りは `internal/chief/screen_opencode.go:121` にある。調査記録は、これらと API の操作を対応づけるときに参照する。
 
 ## 2. 実装のステップ (Implementation Steps)
@@ -49,10 +54,10 @@
 
 **変えるファイル:** なし
 
-- [ ] 人に、使い捨ての worktree `~/.herdr/worktrees/yt2column/probe-0094`（`origin/main` から detached）と、それを開く Herdr の workspace `probe-0094` を作り、OpenCode の pane を 1 つ、送り先の表の `runpr` の行のモデルで起動するよう頼む（設計書 2 章・3.1 節）
+- [ ] 人に、使い捨ての worktree `~/.herdr/worktrees/yt2column/probe-0094`（`origin/main` から detached）と、それを開く Herdr の workspace `probe-0094` を作り、OpenCode の pane を 1 つ、送り先の表の `runpr` の行のモデルで、`--auto` なしで起動するよう頼む（設計書 2 章・3.1 節・3.3 節）。以後の pane の起動も `--auto` なしで頼む
 - [ ] `opencode --version` を記録し、1.4 節の版と違えば人に知らせてから続けるかを尋ねる
 - [ ] 実験で行う LLM の呼び出しの規模（1.3 節）と、`/runpr` が行う読み取りだけのネットワークの呼び出し（`git fetch origin main`・`gh pr view`・`gh pr list`）を示し、人の承認を得る
-- [ ] 作業ディレクトリを使い捨ての worktree にして `session.list` を読み、人の示す画面と突き合わせて実験の pane のセッションの ID を特定し、設計書 3.2 節の宛先の一覧に入れる
+- [ ] 作業ディレクトリを使い捨ての worktree にして `session.list` を読み、ID と作業ディレクトリのフィールドだけに絞ってから、人の示す画面と突き合わせて実験の pane のセッションの ID を特定し、設計書 3.2 節の宛先の一覧に入れる。この時点では `/openapi.json` をまだ読んでいないので、絞るフィールドは `opencode api GET /openapi.json` の `Session` のスキーマを先に読んで決める（設計書 3.2 節）
 
 **完了の条件:** 承認があり、実験のセッションの一覧が 1 つ以上の ID を持つ。
 
@@ -80,9 +85,9 @@
 
 **変えるファイル:** なし
 
-- [ ] `event.subscribe` の購読を背後のプロセスで始め、イベントの種類とセッションの ID だけを、実験のセッションのものに絞ってイベントの控えに書く（問い 7、設計書 3.3 節）
+- [ ] `event.subscribe` の購読を背後のプロセスで始め、イベントの種類とセッションの ID だけを、実験のセッションのものに絞ってイベントの控えに書く。フィールドの場所はステップ 1-2 で読んだイベントのスキーマから取り、絞る前の流れは端末にもファイルにも出さない（問い 7、設計書 3.3 節）
 - [ ] 1 つを選ぶ問い・複数を選ぶ問い・タブのある問いのそれぞれを、決まったプロンプトで実験のセッションに出させ、`session.form.list` を読み、`session.form.reply` で答え、TUI の画面を読む（AC-05・AC-06）
-- [ ] OpenCode の権限の設定を読み取りだけで確かめ、確認を求める操作を選ぶ。害のない決まった宛先に対してその操作を求め、`permission.request.list` と `session.permission.list` を読み、API で拒否を答える（AC-07、設計書 3.3 節）
+- [ ] OpenCode の権限の設定を読み取りだけで確かめ、確認を求める操作のうち、確認なしに実行されても害のない操作（使い捨ての worktree の中の存在しないファイルの読み取りなど）を選ぶ。その操作を求め、`permission.request.list` と `session.permission.list` を読み、API で拒否を答える。確認が出なければ「確かめられなかった」とし、より強い操作で試し直さない（AC-07、設計書 3.3 節）
 - [ ] イベントの控えの種類を、問いと確認の出現・終わりに対応づけ、購読を止める（AC-16）
 
 **完了の条件:** AC-05・AC-06・AC-07・AC-16 の観測がそろう。
@@ -92,9 +97,9 @@
 **変えるファイル:** なし（一時的な設定ファイルは scratchpad に置く）
 
 - [ ] `session.switchModel` で実験のセッションのモデルを切り替え、画面のモデルの行と、次の実行の `session.message.list` のモデルを確かめる（AC-08）
-- [ ] `session.command` で `/runpr` を送り、人が 2 つ目の pane の実験のセッションで TUI に `/runpr` を打ったものと比べる。そのセッションも、設計書 3.2 節の規則 3 で作業ディレクトリを確かめてから宛先の一覧に入れる（AC-09）
+- [ ] `session.command` で `/runpr` を送り、人が 2 つ目の pane の実験のセッションで TUI に `/runpr` を打ったものと比べる。そのセッションも、設計書 3.2 節の規則 3 で作業ディレクトリを確かめてから宛先の一覧に入れる。どちらかが PR を探した後の段階に入ったら、そのセッションを `session.interrupt` で止めて人に知らせる（AC-09、設計書 4 章）
 - [ ] `/new` に当たる操作を API で行い、TUI の pane がどのセッションを示すかを確かめる。作ったセッションは設計書 3.2 節の規則 2 で確かめる（AC-10）
-- [ ] 入力を送る呼び出しの形を挙げ、形ごとに、対照の試行と拒否の候補を足した試行を `claude -p` で行う。作業ディレクトリ・設定の読み込み元・許可のモード・出力の形・宛先は設計書 3.4 節のとおりにする（AC-15）
+- [ ] 入力を送る呼び出しの形（要件書 AC-15 の (a)〜(e)）を挙げ、形ごとに、対照の試行と拒否の候補を足した試行を `claude -p` で行う。作業ディレクトリ・固定するフラグ・完全なコマンドの許可の規則・目印の規則・判定の 3 つの条件・宛先の確かめ直し・資格情報の扱いは設計書 3.4 節のとおりにする（AC-15）
 
 **完了の条件:** AC-08〜AC-10・AC-15 の観測がそろう。
 
@@ -104,7 +109,7 @@
 
 - [ ] 設計書 3.5 節の構成で記録を書く（AC-01〜AC-17）。答えが出なかった問いは、その理由を書く（AC-03）
 - [ ] 記録を読み直し、API の応答・画面から写した本文がないことを確かめる（AC-17）
-- [ ] 片付ける。実験のセッションを API で消す（消せなければ人に示す）。一時的な設定ファイルとイベントの控えを消し、購読のプロセスが残っていないことを確かめる。人に、使い捨ての workspace と worktree を消すよう頼む。片付けの手順を記録に書く（設計書 2 章の表）
+- [ ] 片付ける。宛先の一覧にある実験のセッションだけを、それぞれ設計書 3.2 節の規則 1 で確かめてから API で消す（規則 4。消せなければ人に示す）。一時的な設定ファイルとイベントの控えを消し、購読のプロセスが残っていないことを確かめる。人に、使い捨ての workspace と worktree を消すよう頼む。片付けの手順を記録に書く（設計書 2 章の表）
 - [ ] 記録をコミットした後、7 章の AC-19 の diff の記録を、[requirements_process.md](../../dev/conventions/requirements_process.md) §4「`diff` verification」の固定コマンドと記録の形で、別のコミットで書く（ファイルの一覧を含む）
 
 **完了の条件:** 記録がコミットされ、7 章の AC-19 の記録がある。
@@ -139,7 +144,8 @@
 
 | リスク | 対策 |
 |---|---|
-| 実際のタスクのセッションに書き込む | 書き込みの前に毎回、設計書 3.2 節の確かめを行う。問い 6 の試行の宛先も実験のセッションにする |
+| 実際のタスクのセッションに書き込む | 書き込み（削除と中断を含む）の前に毎回、設計書 3.2 節の確かめを行う。問い 6 の試行の宛先も実験のセッションにし、子の `claude -p` を起動する直前に確かめ直す |
+| 問い 6 で、拒否の候補が効いたと誤って記録する | 設計書 3.4 節の目印の規則と 3 つの条件で判定し、そろわなければ「確かめられなかった」とする |
 | 記録にセッションの中身が入る | 形だけを写す規則（AC-17）で書き、ステップ 1-6 で読み直す |
 | 問い 1 で、モデルが質問ツールを使わない | プロンプトを変えて試し直す。それでも出なければ「確かめられなかった」として理由を書く（AC-03） |
 | OpenCode が実験の途中で更新される | ステップ 1-1 で版を記録し、途中で変わったら人に知らせ、どの版での観測かを記録に分けて書く |
@@ -190,3 +196,4 @@ Diff record (AC-19):
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#911）
+- 2026-11-17 draft への戻し：設計書 3.2〜3.4 節の守りの強化をステップに反映し、2026-11-17 に確かめた前提を足した（#未記入）
