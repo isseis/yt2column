@@ -134,10 +134,15 @@ const brands: Brand[] = [
   { type: "RequestId", creator: "src/core/response.ts" },
   { type: "ArticleKey", creator: "src/core/articleKey.ts" },
   { type: "UsdAmount", creator: "src/core/response.ts" },
+  { type: "UsdAmount", creator: "src/core/wasmResult.ts" },
   { type: "LinkUrl", creator: "src/core/articleMarkdown.ts" },
 ];
 
 const creatorFiles = [...new Set(brands.map((brand) => brand.creator))];
+
+/** Every file that may create type: a brand may have more than one creator. */
+const creatorsOf = (type: string): string[] =>
+  brands.filter((brand) => brand.type === type).map((brand) => brand.creator);
 const otherFiles = [
   "src/sample.ts",
   "scripts/sample.ts",
@@ -161,7 +166,7 @@ describe("branded type assertions", () => {
     });
 
     for (const filePath of [...otherFiles, ...creatorFiles]) {
-      if (filePath === creator) {
+      if (creatorsOf(type).includes(filePath)) {
         continue;
       }
       it(`forbids the ${type} assertion in ${filePath}`, async () => {

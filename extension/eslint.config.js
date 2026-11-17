@@ -406,6 +406,9 @@ export default defineConfig(
   creatorConfig("src/core/collect.ts", ["CollectedInput"]),
   creatorConfig("src/core/prepare.ts", ["PreparedRequest"]),
   creatorConfig("src/core/response.ts", ["RequestId", "UsdAmount"]),
+  // The extension-only path's cost text; response.ts keeps the server path's
+  // until the server is removed.
+  creatorConfig("src/core/wasmResult.ts", ["UsdAmount"]),
   creatorConfig("src/core/articleKey.ts", ["ArticleKey"]),
   creatorConfig("src/core/articleMarkdown.ts", ["LinkUrl"]),
 );
