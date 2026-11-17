@@ -266,7 +266,9 @@ Fable の部分レビューを行ったかとその結果を、コミットメ�
 
   とくに後者は、`/runplan` が PR を作った直後に commit して push する（`.claude/commands/runplan.md:143-145`）ので、見たとみなさないと、実装の PR の判断がほとんどいつも `ask` になる（[02_architecture.md](02_architecture.md) 1.2 の決定 11）。
   -   親が 1 つで、親との差分がない commit（記録の行だけを持つ commit など）
-  -   タスクの `03_implementation_plan.md` の、PR マーカーのチェックボックスの行（`PR を作成した`・`PR がマージされた`・`次のブランチへ切り替えた`）だけを変える commit
+  -   タスクの `03_implementation_plan.md` の、PR の進み具合のチェックボックスの行（`PR を作成した`・`PR がマージされた`・`次のブランチへ切り替えた` の行。PR マーカーの節のものと、PR マーカーのない計画書の単一 PR の記録のもの）だけを変える commit
+
+  この 2 種類の commit は、下の「見たと分からない」commit の範囲（`not run` の行の範囲など）にあっても、見たとみなす。
 
   次の commit は、見たと分からない。
   -   `Local CLI review: not run` の行と、ブランチ全体を表す `CodeRabbit local review: not run` の行（`_lib/local-cli-review.md`「Reading the record lines」）が示す範囲の commit
