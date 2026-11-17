@@ -254,6 +254,51 @@ export const en: Catalog = {
       "Copied the Markdown. Invisible characters were inserted after @ so that they do not become mentions.",
     copyFailed: "Could not copy the Markdown.",
   },
+  options: {
+    saved: { text: "The API key is set.", steps: [] },
+    saved_unverified: {
+      text: "The API key is set, but it could not be checked with Anthropic.",
+      steps: [
+        "If an article later fails because Anthropic rejected the key, set a new key here.",
+      ],
+    },
+    field_rejected: {
+      text: "The marked field is not in an accepted form. Nothing was saved.",
+      steps: [
+        "Enter the API key as Anthropic shows it, without spaces.",
+        "Leave the workspace ID empty, or enter it without spaces.",
+      ],
+    },
+    key_rejected: {
+      text: "Anthropic rejected this API key. Nothing was saved.",
+      steps: [
+        "Check that the key is current and has not been revoked, or create a new key in the Claude Console.",
+        "If your organization does not allow calls from a browser, the key cannot be used here.",
+      ],
+    },
+    check_unavailable: {
+      text: "The settings could not be checked. Nothing was saved.",
+      steps: ["Save again."],
+    },
+    write_uncertain: {
+      text: "The settings may not have been saved.",
+      steps: [
+        "Check whether the page shows an API key as set.",
+        "Enter the values and save again.",
+      ],
+    },
+    deleted: {
+      text: "The API key and the workspace ID are deleted.",
+      steps: [],
+    },
+    delete_uncertain: {
+      text: "The settings may not have been deleted.",
+      steps: [
+        "Check whether the page shows an API key as set.",
+        "Delete again.",
+      ],
+    },
+  },
   viewerTitle: {
     name: { release: "yt2column", dev: "yt2column (development build)" },
     invalidLink: "Invalid link",

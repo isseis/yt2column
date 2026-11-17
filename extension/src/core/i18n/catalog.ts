@@ -7,6 +7,7 @@ import type {
   StepName,
   StepState,
 } from "../response.ts";
+import type { OptionsOutcome } from "../optionsView.ts";
 import type { ExistingState } from "../popupView.ts";
 import type { CheckName, CheckState, RejectionReason } from "../types.ts";
 import { en } from "./en.ts";
@@ -100,6 +101,8 @@ export interface Catalog {
     readonly copiedNeutralized: string;
     readonly copyFailed: string;
   };
+  /** The settings page's outcome of a save or a delete; never the user's values. */
+  readonly options: Readonly<Record<OptionsOutcome, Message>>;
   /** The viewer page's title: the name it ends with, and the parts that stand for a state. */
   readonly viewerTitle: {
     /** The extension's name for each build kind; the development build's carries its mark. */
