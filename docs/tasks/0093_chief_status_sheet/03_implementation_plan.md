@@ -315,7 +315,9 @@ PASS: only the per-row question list was removed and the per-row list of what do
 -   後から自由な文の指示を足したセッションに `/runplan 0097（後に指示あり）` が、OpenCode の pane に「人が打ったコマンド（OpenCode）」が出た。
 -   送信が止まった行は、確かめの間に現れなかった（その位置は `TestStoppedRowsOrderFirst` で確かめている）。
 -   1 周の時間: 8 つの workspace（`working` の Claude Code の pane を含む）で、`chief snapshot --protocol 2` は 8 行を返して 9.0 秒（CPU は利用者 1.1 秒、システム 1.4 秒）だった。CPU の時間は 2.5 秒で、残りは `git fetch`・`gh` の呼び出しの待ちである。
--   `/chief once` では、セッションが表を書かずに問い（`AskUserQuestion`）を開き、表が見えなかった。0088 から続く `once` の作りによるもので、今回の列の変更とは関わらないため、人が選んで別の課題にした（2026-11-17）。
+-   `/chief once` では、セッションが表を書かずに問い（`AskUserQuestion`）を開き、表が見えなかった。0088 から続く `once` の作りによるもので、今回の列の変更とは関わらないため、人が選んで別の課題（[#968](https://github.com/isseis/yt2column/issues/968)）にした（2026-11-17）。
+
+2 回目の後に、表示の言葉の修正（`385887cd`）と、`origin/main` のマージ（`f4d36f20`、`Protocol` を 3 にした）が `internal/chief` と `chief.md` を変えたので、確かめ直した。3 回目（`83264471`）では、値と言葉は正しく出たが、長い PR の題名を内容の列に入れた行のために、表がまた縦に並んだ。人と試作を見比べて、PR の題名と質問の要点を 20 文字ほどで切ることにした（2026-11-17）。その変更の後に、もう一度確かめる。
 
 ## 8. 成功の基準 (Success Criteria)
 

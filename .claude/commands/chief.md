@@ -179,16 +179,18 @@ no other round numbers at once. Then show, in this order:
 
    Show a value this table does not have as it is written, followed by
    （定義にない値）, and never guess what it means. The 内容 column holds
-   one thing, chosen by `state`:
+   one thing, chosen by `state`. Cut a PR title or a question's gist that is
+   longer than about 20 characters, ending it with …, so no cell makes the
+   table wider than the pane:
    - `needs_check`: `unreadable` (what could not be read);
-   - `question`: for each of its `questions`, the question's gist and its
-     pane, adding マージの確認 to a question whose `merge` is true. Never
+   - `question`: for each of its `questions`, the question's gist (cut) and
+     its pane, adding マージの確認 to a question whose `merge` is true. Never
      write that a question is not a merge confirmation;
    - `running`: the `running` command, followed by （後に指示あり） when its
      `later_input` is true and by its model in parentheses when `model` is
      not empty; when `running` is null, `running_unknown` as the value
      table shows it;
-   - `awaiting_review`: the PR's number and title;
+   - `awaiting_review`: the PR's number and its title (cut);
    - `propose_next`: `next` (command, and its model in parentheses), or its
      `problem` when it is not `sendable` (a `/mkreq` is not sendable until
      the human names the issue);
