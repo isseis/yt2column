@@ -3,8 +3,6 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -59,19 +57,15 @@ var acOffForm = []string{
 
 // acFixture is one fixture repository: main holds the ADRs and the other
 // files, refs/remotes/origin/main points at it, and the branch forks from it.
-// home and tmp are the case's own empty HOME and TMPDIR (tmp is checked empty
-// after each run); outside holds the argument files, out of the repository.
+// outside holds the argument files, out of the repository.
 type acFixture struct {
-	t                        *testing.T
-	repo, home, tmp, outside string
-	main                     string
+	*gitFixture
+	outside, main string
 }
 
 func newACFixture(t *testing.T) *acFixture {
 	t.Helper()
-	f := &acFixture{t: t, home: t.TempDir(), tmp: t.TempDir(), outside: t.TempDir()}
-	f.repo = filepath.Join(t.TempDir(), "repo")
-	f.gitIn(filepath.Dir(f.repo), "init", "-q", "-b", "main", f.repo)
+	f := &acFixture{gitFixture: newGitFixture(t), outside: t.TempDir()}
 	for _, path := range slices.Concat([]string{acAlpha, acBeta, acGamma, acDelta, acEpsilon, acZeta, acIndex, acTaskDoc}, acOffForm) {
 		f.write(path, "main "+path+"\n")
 	}
@@ -80,57 +74,6 @@ func newACFixture(t *testing.T) *acFixture {
 	f.git("update-ref", "refs/remotes/origin/main", f.main)
 	f.git("switch", "-q", "-c", "feature")
 	return f
-}
-
-// env is the allowlisted environment of every git and script run, so no
-// variable of the test's own environment (a GIT_DIR a pre-commit hook
-// exports) reaches them.
-func (f *acFixture) env() []string {
-	return []string{
-		"PATH=" + os.Getenv("PATH"), "HOME=" + f.home, "TMPDIR=" + f.tmp,
-		"GIT_CONFIG_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0", "LC_ALL=C",
-	}
-}
-
-// gitIn runs git in dir with the fixture's environment and a fixed author,
-// failing t on an error, and returns its standard output.
-func (f *acFixture) gitIn(dir string, args ...string) string {
-	f.t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = dir
-	cmd.Env = append(f.env(),
-		"GIT_AUTHOR_NAME=Octo User", "GIT_AUTHOR_EMAIL=octo@example.invalid",
-		"GIT_COMMITTER_NAME=Octo User", "GIT_COMMITTER_EMAIL=octo@example.invalid")
-	var stdout, stderr strings.Builder
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		f.t.Fatalf("git %v: %v: %s", args, err, stderr.String())
-	}
-	return stdout.String()
-}
-
-func (f *acFixture) git(args ...string) string {
-	f.t.Helper()
-	return f.gitIn(f.repo, args...)
-}
-
-func (f *acFixture) rev(name string) string {
-	f.t.Helper()
-	return strings.TrimSpace(f.git("rev-parse", "--verify", name))
-}
-
-// write writes content to path in the work tree, creating its directory.
-func (f *acFixture) write(path, content string) {
-	f.t.Helper()
-	full := filepath.Join(f.repo, filepath.FromSlash(path))
-	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-		f.t.Fatalf("create the directory of %s: %v", path, err)
-	}
-	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
-		f.t.Fatalf("write %s: %v", path, err)
-	}
 }
 
 // change appends a line to each path in the work tree, a content change git
@@ -151,42 +94,15 @@ func (f *acFixture) touch(path string) {
 	}
 }
 
-// commit stages every change and commits it with message.
-func (f *acFixture) commit(message string) {
-	f.t.Helper()
-	f.git("add", "-A")
-	f.git("commit", "-q", "--allow-empty", "-m", message)
-}
-
 // acArg is one argument file: its content, or no file at all when missing.
 type acArg struct {
 	content string
 	missing bool
 }
 
-// acRunOptions changes how run runs the script: in dir (relative to the
-// repository; its root when ""), with stdin, and with extraEnv after the
-// fixture's environment (a later entry wins).
-type acRunOptions struct {
-	dir, stdin string
-	extraEnv   []string
-}
-
-// acRun is what one run printed and returned.
-type acRun struct {
-	code   int
-	stdout string
-	stderr string
-}
-
-func (r acRun) String() string {
-	return fmt.Sprintf("exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
-}
-
 // run writes each argument to its own file outside the repository, as /fixpr
-// writes each path, runs the script with bash, and checks that the run left
-// TMPDIR empty.
-func (f *acFixture) run(bash scriptBash, args []acArg, opts acRunOptions) acRun {
+// writes each path, and runs the script with bash.
+func (f *acFixture) run(bash scriptBash, args []acArg, opts scriptRunOptions) scriptRun {
 	f.t.Helper()
 	files := make([]string, len(args))
 	for i, arg := range args {
@@ -198,29 +114,7 @@ func (f *acFixture) run(bash scriptBash, args []acArg, opts acRunOptions) acRun 
 			f.t.Fatalf("write an argument file: %v", err)
 		}
 	}
-	script, err := filepath.Abs(adrCandidatesPath)
-	if err != nil {
-		f.t.Fatalf("resolve the script path: %v", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, bash.path, append([]string{script}, files...)...) //nolint:gosec // bash with the test's script
-	cmd.Dir = filepath.Join(f.repo, filepath.FromSlash(opts.dir))
-	cmd.Env = append(f.env(), opts.extraEnv...)
-	cmd.Stdin = strings.NewReader(opts.stdin)
-	var stdout, stderr strings.Builder
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	err = cmd.Run()
-	run := acRun{stdout: stdout.String(), stderr: stderr.String()}
-	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
-		run.code = exitErr.ExitCode()
-	} else if err != nil {
-		f.t.Fatalf("run the script: %v", err)
-	}
-	if entries, err := os.ReadDir(f.tmp); err != nil || len(entries) != 0 {
-		f.t.Errorf("the script left TMPDIR with %d entries (error %v)", len(entries), err)
-	}
-	return run
+	return f.runScript(bash, adrCandidatesPath, files, opts)
 }
 
 // header is the first line of a run with arguments.
@@ -238,7 +132,7 @@ type acCase struct {
 	name  string
 	setup func(f *acFixture)
 	args  []acArg
-	opts  acRunOptions
+	opts  scriptRunOptions
 	env   func(f *acFixture) []string
 	want  func(f *acFixture) []string
 }
@@ -270,7 +164,7 @@ func adrCandidatesCases() []acCase {
 		// The list.
 		{name: "content change", setup: changeAlpha, want: acLines(acAlpha)},
 		{name: "nothing changed", setup: func(*acFixture) {}, want: acLines()},
-		{name: "subdirectory", setup: changeAlpha, opts: acRunOptions{dir: "docs/dev"}, want: acLines(acAlpha)},
+		{name: "subdirectory", setup: changeAlpha, opts: scriptRunOptions{dir: "docs/dev"}, want: acLines(acAlpha)},
 		// The change check.
 		{name: "deleted", setup: func(f *acFixture) {
 			if err := os.Remove(filepath.Join(f.repo, acDelta)); err != nil {
@@ -373,7 +267,7 @@ func adrCandidatesCases() []acCase {
 		// input.
 		{
 			name: "standard input and GIT_ variables", setup: changeAlpha,
-			opts: acRunOptions{stdin: acBeta + "\n"}, env: acOtherRepo, want: acLines(acAlpha),
+			opts: scriptRunOptions{stdin: acBeta + "\n"}, env: acOtherRepo, want: acLines(acAlpha),
 		},
 		// A caller that presets the variable the script runs again under,
 		// with the value the earlier form of the marker had, does not skip
@@ -526,7 +420,7 @@ func checkACIgnoresGitConfig(t *testing.T, bash scriptBash, scope string, s acCo
 	dir := filepath.Join(f.repo, filepath.FromSlash(s.dir))
 	plain := func() string { return f.gitIn(dir, "diff", "--name-only", "HEAD") }
 	before := plain()
-	opts := acRunOptions{dir: s.dir}
+	opts := scriptRunOptions{dir: s.dir}
 	want := f.run(bash, nil, opts)
 	if want.code != 0 || want.stdout == "" {
 		t.Fatalf("without %s the script printed nothing or failed, so the scenario checks nothing: %v", s.name, want)

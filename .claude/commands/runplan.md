@@ -249,9 +249,9 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 - [ ] Each test asserts observable behavior rather than restating an
       implementation detail.
 
-7.7. Local CLI review and triage. Run it after step 7.5, so the local CLI review (the CodeRabbit CLI, or Codex CLI when the CodeRabbit CLI fails) sees the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/local-cli-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary. When it stops, stop this command and report as it says. Put the record lines it returns in SUMMARY, including any `Local CLI review: not run` line, into the message of the first commit made on the branch after step 7.7 returns, which is the commit of step 7.8. Before a commit that carries a `Codex local review:` line, run the mention check of `_lib/local-cli-review.md` step 7. Step 5a and step 8 read these lines from `git log`.
+7.7. Local CLI review and triage. Run it after step 7.5, so the local CLI review (the CodeRabbit CLI, or Codex CLI when the CodeRabbit CLI fails) sees the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/local-cli-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary, **RECORD** = `return`. When it stops, stop this command and report as it says. Put the record lines it returns in SUMMARY, including every `Local CLI reviewed:` and `Local CLI review: not run` line, into the message of the first commit made on the branch after step 7.7 returns, which is the commit of step 7.8. Before a commit that carries a `Codex local review:` line, run the mention check of `_lib/local-cli-review.md` step 7. Step 5a and step 8 read these lines from `git log`.
 
-7.8. Implementation record. Make an empty commit (`git commit --allow-empty -F <file>`) whose message holds the implementation record of this phase group (`_lib/opus-review.md`, "Record lines": `Implementation model: <START12>..<END12> <model-id>[, ...]`, with START = `PHASE_START`, END = `HEAD` just before this commit, and every model ID step 4.5 kept) and the record lines step 7.7 returned. Leave the implementation record out when the session did not know its model ID at one of the points of step 4.5; the phase group then stays uncovered and the Opus review runs for it. When the message would hold neither, make no commit. Run the mention check of step 7.7 when the message carries a `Codex local review:` line. Entry 1 of `_lib/opus-review.md` reads the implementation records from `git log` to decide whether the Opus review runs.
+7.8. Implementation record. Make an empty commit (`git commit --allow-empty -F <file>`) whose message holds the implementation record of this phase group (`_lib/opus-review.md`, "Record lines": `Implementation model: <START12>..<END12> <model-id>[, ...]`, with START = `PHASE_START`, END = `HEAD` just before this commit, and every model ID step 4.5 kept) and the record lines step 7.7 returned. Leave the implementation record out when the session did not know its model ID at one of the points of step 4.5; the phase group then stays uncovered and the Opus review runs for it. Every attempt of step 7.7 leaves a `Local CLI reviewed:` or a `Local CLI review: not run` line, so this commit is always made after step 7.7 returns. Run the mention check of step 7.7 when the message carries a `Codex local review:` line. Entry 1 of `_lib/opus-review.md` reads the implementation records from `git log` to decide whether the Opus review runs.
 
 8. Decide whether to continue or finish.
 - If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, the implementation model guidance of step 4.2, the implementation record of step 7.8 (or why none was written), and, when "Before the PR" (step 5a) ran, its decision and the Opus review result of its B5, plus the local CLI review result: each attempt's result (CodeRabbit CLI, Codex CLI as the fallback, or neither) with each failed CLI's failure kind, how many times Codex CLI ran, any range neither CLI reviewed, the counts of fixed / rejected / deferred / unclear findings by CLI with the reason for each rejection and the open question of each `unclear` one, and the note when the reviewed range changes a file Codex reads its instructions from.
@@ -281,11 +281,12 @@ B1. **Branch review.** Skip this item when `git log origin/main..HEAD` holds a
    `git log origin/main..HEAD` shows either line, review the whole branch
    again now: follow `.claude/commands/_lib/local-cli-review.md` with
    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
-   **SUMMARY** = REPORT. A phase group the Codex CLI fallback reviewed leaves
-   no such line and needs no branch review. When the branch review stops,
-   stop: nothing is pushed. Copy no record line of this review into a commit
-   of your own (the procedure's own fix commits keep theirs). When it made
-   commits, run the green gate and the diff-record recheck again. This review
+   **SUMMARY** = REPORT, **RECORD** = `commit`. A phase group the Codex CLI
+   fallback reviewed leaves no such line and needs no branch review. When the
+   branch review stops, stop: nothing is pushed. Copy no record line of this
+   review into a commit of your own: the procedure's fix commits and its
+   record commit carry them. When it made fix commits, run the green gate and
+   the diff-record recheck again. This review
    comes before B2 so that its fix commits are inside the Opus review's
    range.
 B2. **Decision.** `git fetch origin main`, then run entry 1 of

@@ -419,7 +419,7 @@ fixprguard interaction-limits --protocol 6 42
 
 **範囲の検査を受けないもの。**
 
-- `/fixpr` の Phase 4.5 の修正。ローカルの CLI レビューの指摘を直す commit と、README の同期の commit は、`inspect` の範囲の規則（6 章）を通らずに作られ、`push-review` で push される。`push-review` は git の状態を比べるが、変更のパスは判定しない。
+- `/fixpr` の Phase 4.5 の修正。ローカルの CLI レビューの指摘を直す commit、README の同期の commit、ローカルの CLI レビューの記録の行だけを持つ空の commit（記録の commit。`.claude/commands/_lib/local-cli-review.md` の step 7）は、`inspect` の範囲の規則（6 章）を通らずに作られ、`push-review` で push される。`push-review` は git の状態を比べるが、変更のパスは判定しない。
 
 **利用者が範囲外の一覧で見落としうるもの。**
 

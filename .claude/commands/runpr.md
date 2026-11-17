@@ -663,11 +663,57 @@ finished review observed had and every review in progress lacked, so that a
   (`_lib/simple-process.md`, "When an excluded decision appears"); until it
   is resolved, every run stops here.
 - **Escalation.** When the PR has been reviewed and no unseen thread is left,
-  follow `.claude/commands/_lib/pr-review-escalation.md` with **PR** =
-  `<number>`, **LAST_REVIEWED** as above, **HEAD** = the current head, and
-  **FINDINGS** = the threads handled since LAST_REVIEWED. It skips itself when
-  LAST_REVIEWED is the head. When LAST_REVIEWED is none, do not run it: the
-  decision is `ask`. Report its reason whatever it decides, then:
+  first decide COVERAGE, whether the local CLI review saw every commit after
+  LAST_REVIEWED, then run the escalation file and turn its answer into the
+  decision. Do both again whenever the head changes.
+  - **COVERAGE.** Run `git fetch origin main`. Read the PR's head with
+    `gh pr view <number> --json headRefOid --jq .headRefOid` and compare it
+    with `git rev-parse HEAD`. When they differ, COVERAGE is `PARTIAL`, and
+    the script below is not run. Otherwise run `origin/main`'s copy of the
+    review records script, never the work tree's, so a change on the branch
+    under review cannot change the decision. Run these three lines as
+    separate commands, writing the script to a new file in the scratchpad
+    (`<records-script>`), outside the work tree:
+
+    ```bash
+    git rev-parse --verify 'refs/remotes/origin/main^{commit}'
+    git show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
+    bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]
+    ```
+
+    `<origin-main-commit>` is the commit ID the first line printed.
+    `<LAST_REVIEWED>` is LAST_REVIEWED's full ID, or `none`; `<HEAD>` is the
+    head's full ID; `<PLAN>` is, for a plan PR (step 2), the task's
+    `03_implementation_plan.md`, and is left out for any other PR. COVERAGE is
+    the output's first line when the third line exits `0` and that line is
+    `ALL` or `PARTIAL <n>`; it is `PARTIAL` (no count) when the first or
+    second line fails, the third exits with another status, or the first line
+    is of another form. Keep the output's first line, or that it failed, for
+    step 4's summary. The script carries out the reading of the seen-range
+    lines (`_lib/local-cli-review.md`, "Reading the record lines").
+  - **The answer.** Follow `.claude/commands/_lib/pr-review-escalation.md`
+    with **PR** = `<number>`, **LAST_REVIEWED** as above, **HEAD** = the
+    current head, and **FINDINGS** = the threads handled since LAST_REVIEWED.
+    It skips itself when LAST_REVIEWED is the head. When LAST_REVIEWED is
+    none, do not run it: the decision is `ask`. Otherwise turn its answer
+    (its `decision` and `criteria`) into the decision by these rules, the
+    first that holds deciding. Do not pass them to the file's subagent: it
+    answers by the criteria alone.
+    1. The answer is not the JSON object the file defines, `criteria` holds a
+       value other than the numbers 1 to 5, `decision` is `request` and
+       `criteria` is empty, or `decision` is `skip` and `criteria` is not
+       empty: `ask`.
+    2. `decision` is `request` and `criteria` holds 4: `request`.
+    3. `decision` is `request` (its `criteria` from 1, 2, 3, and 5 only):
+       `skip` when COVERAGE is `ALL`, `ask` otherwise.
+    4. `decision` is `ask`: `ask`, whatever `criteria` holds.
+    5. `decision` is `skip`: `skip`.
+
+    The file's own decisions without a subagent (its Procedure step 1) have
+    no `criteria`: `skip` and `ask` stand as they are.
+
+  Report the escalation file's reason, COVERAGE, and the rule that decided,
+  whatever the decision is, then:
   - `request`: post a request as "Requesting the review" says, wait until it
     is Completed (stopping as that bullet says), and handle the threads it
     opens with `fixpr`. Do this at most once
@@ -973,7 +1019,7 @@ character as 2); the line shapes below are the examples to follow.
      when this question is asked more than once, it uses the ones shown in the
      round that decided the merge.
    - **Summary.** Show in the conversation these lines only, in this order,
-     each kind at most once (so at most 12 lines, whatever the PR), with the
+     each kind at most once (so at most 13 lines, whatever the PR), with the
      condition in parentheses (an example of each line is given, and the
      example's words are the fixed text):
 
@@ -990,6 +1036,7 @@ character as 2); the line shapes below are the examples to follow.
      要確認: 操作制限の期限が近い（2026-11-20、詳細ファイル）      (when there is a LIMITS_NOTE)
      自由記述: メッセージの修正 ／ 除外スレッドの判定を半角の番号で覆す (always; the second half only with the excluded-threads line)
      詳細: /tmp/runpr.Ab12Cd/merge-3.md                          (always)
+     Codex 後: ローカル CLI 済 ／ Fable（PR 前）: なし            (changes Codex has not reviewed)
      ```
 
      - Line 2 shows the subject in full and has no width limit, and so does
@@ -1003,6 +1050,16 @@ character as 2); the line shapes below are the examples to follow.
        there are changes Codex has not reviewed when LAST_REVIEWED is behind
        the head or none, with the Escalation decision (`ask`, `skip`, ...) on
        the same line; the reason is in the detail file.
+     - Kind 13 appears only when there are changes Codex has not reviewed
+       (LAST_REVIEWED is behind the head or none), and stays within 80
+       columns. Its first half says whether the local CLI review saw them,
+       from COVERAGE (step 3, "Escalation") decided again for this round's
+       head, with the fetch and the `headRefOid` comparison: `ローカル CLI 済`
+       for `ALL`, `ローカル CLI 未 <n> 件` for `PARTIAL <n>`, and
+       `ローカル CLI 不明` for `PARTIAL` with no count (the script failed, or
+       the PR's head is not the local one). Its second half is the record of
+       the Fable partial review made before the PR opened; `なし` says the
+       branch has none.
      - Kinds 7 to 10 appear only for what exists. Kinds 7 to 9 give a kind and
        a count; kind 10 gives the state and the expiry date, not a count.
      - Kind 6 is `NEXT: なし` when there is none; `NEXT: /mkarch 0089` for
@@ -1130,7 +1187,8 @@ character as 2); the line shapes below are the examples to follow.
       full process", with REASON, ADR_SPLIT, and THREADS.
    3. **Local review.** Follow `.claude/commands/_lib/local-cli-review.md` with
       **BASE** = the parent of the return commit (the head before the return),
-      **SCOPE** = return to the full process, **SUMMARY** = the final report.
+      **SCOPE** = return to the full process, **SUMMARY** = the final report,
+      **RECORD** = `return`.
       Its fixes are new commits on the branch. When it stops, push nothing and
       stop: the return commit stays on the local branch. When it leaves a
       range neither CLI reviewed, give that range (its `Local CLI review: not

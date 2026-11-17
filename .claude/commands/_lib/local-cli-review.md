@@ -38,7 +38,7 @@ convergence rules are in `.claude/commands/_lib/review-subagent-pattern.md`.
 - **SUMMARY** — where the calling command reports the result (e.g. the step 8
   summary).
 - **GUARD** (optional) — a command this procedure runs, each time as a call of
-  its own, before it runs git at the points steps 1, 3, 5, and 6 name. Go on
+  its own, before it runs git at the points steps 1, 3, 5, 6, and 7 name. Go on
   only when it exits 0; on any other result (exit code 1, 2, or 3, a signal,
   or output that cannot be read), stop this procedure and the calling
   command, run no further git, and report as the caller says. No decision of
@@ -49,6 +49,20 @@ convergence rules are in `.claude/commands/_lib/review-subagent-pattern.md`.
   caller recorded without running git. GUARD runs from it. With GUARD, run
   no `git rev-parse HEAD` for HEAD3 (step 7): leave that record line to the
   caller, which takes HEAD3 from its own comparison.
+- **RECORD** (optional) — `commit` or `return`: where the record lines that
+  no commit of this procedure carries yet go when it returns (step 7). With
+  `commit`, this procedure writes them in a record commit of its own; with
+  `return`, it returns them in SUMMARY, and the caller's next commit carries
+  them. A caller that does not pass RECORD gets `commit`. The callers pass:
+
+  | Caller | RECORD |
+  |---|---|
+  | `_lib/task-pr-handoff.md` Part B step 1 | `commit` |
+  | `runplan.md` step 7.7 | `return` |
+  | `runplan.md` step 5a, "Before the PR", B1 | `commit` |
+  | `runpr.md` step 1 (a standalone change) | none (`commit`) |
+  | `runpr.md` step 4 (the return to the full process) | `return` |
+  | `fixpr.md` Phase 4.5 | none (`commit`) |
 
 ## Authorization
 
@@ -75,8 +89,13 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
   commits made after the first attempt) when the second is `none`; and
   HEAD2..HEAD3 (the fix commits made after the second attempt, if any) when
   the second attempt reviewed. HEAD1 and HEAD2 are the HEADs step 1 records
-  for each attempt; HEAD3 is the HEAD when this procedure returns, after its
-  last fix commit of SCOPE.
+  for each attempt; HEAD3 is the HEAD after the last fix commit of SCOPE,
+  before the record commit (step 7). With GUARD, HEAD3 is the HEAD after the
+  record commit: the caller takes it from its own comparison (ROOT above),
+  and the record commit is empty, so the range gains no change to review.
+- **Seen range** — the range an attempt whose result is `coderabbit` or
+  `codex` reviewed: BASE..HEAD1 for the first attempt, BASE..HEAD2 for the
+  second.
 
 ## Procedure
 
@@ -192,6 +211,14 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
    the code at the cited location and classify it as `triage-pattern.md`
    defines (`verdict`, `severity` with its calibration rule, `topic`,
    `replyBody`):
+   - **Confirm before rejecting.** Before you classify a finding `invalid` or
+     `no-harm`, confirm the ground for it: read the code or document the
+     finding is about, or run an experiment outside the work tree. Keep how
+     you confirmed it and what you found, in your own words (for example
+     `read <path>:<line>: <what it shows>` or
+     `experiment: <what you tried>: <what happened>`); it is the reason step
+     5 records. When you cannot confirm the ground, do not reject the finding:
+     classify it `unclear`.
    - When a finding concerns a process document under the task root
      (`docs/tasks/NNNN_<name>/`), including prose written there in this run,
      also apply that file's abstraction-level check and use the `off-level`
@@ -214,7 +241,8 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
 5. **Act on the triage:**
    - Fix every `must-fix`. Fix `worth-fixing` at your discretion.
    - Leave `no-harm` and `invalid` findings unchanged; note one line of reason
-     for each.
+     for each: how you confirmed the ground (step 4) and what you found. A
+     reason without it is not a rejection; the finding is `unclear`.
    - Record each `unclear` finding in SUMMARY as unresolved (finding, location,
      why it is uncertain); do not drop it.
    - Apply the Convergence rules in `review-subagent-pattern.md`: prefer
@@ -252,14 +280,16 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
 
 7. **Record lines.** Write one line per item, in the message of the fix
    commit, or of the next commit on the branch when there is no fix commit,
-   and in SUMMARY:
+   and in SUMMARY. The reason a `rejected` line carries is the one step 5
+   noted, with how its ground was confirmed:
 
    | Line | Form | When |
    |---|---|---|
    | `CodeRabbit local review:` | a rejected finding and its reason, or a `deferred` or `unclear` finding | for each such CodeRabbit CLI finding |
    | `Codex local review:` | `Codex local review: <path>:<start>-<end> <handling>: <summary>`, where `<handling>` is `rejected (<reason>)`, `deferred`, or `unclear (<why>)`; for a finding with `in_range` false, `Codex local review: (not in range) rejected (not in range)` | for each such Codex CLI finding |
    | `Editorial correction:` | the correction line `docs/dev/conventions/requirements_process.md`, "Recording in the PR description", gives | for each editorial correction a fix commit makes to an approved task document or to an ADR (step 5), in that fix commit's message (and in SUMMARY); it is not a record of the review, and "Reading the record lines" does not read it |
-   | `Local CLI review: not run` | `Local CLI review: not run <START12>..<END12> (coderabbit: <kind>; codex: <kind>)`: the unreviewed range (BASE..HEAD1 or HEAD1..HEAD2, see Terms), with both SHAs cut to 12 characters, and the failure kinds of steps 2 and 3. For HEAD2..HEAD3, `Local CLI review: not run <START12>..<END12> (after the second attempt, reviewed by <coderabbit or codex>)`, with both SHAs cut to 12 characters: no failure kind is written, because the second attempt reviewed | for each unreviewed range; for HEAD2..HEAD3, in the next commit after HEAD3 (the fix commit cannot name its own SHA), or in SUMMARY when that commit is the caller's or when no commit follows before the procedure returns |
+   | `Local CLI reviewed:` | `Local CLI reviewed: <START12>..<END12> (<cli>)`: a seen range (see Terms), with both SHAs cut to 12 characters, where `<cli>` is the attempt result, `coderabbit` or `codex` | for each attempt whose result is `coderabbit` or `codex`, in a commit made after that attempt's HEAD (a fix commit or the record commit) |
+   | `Local CLI review: not run` | `Local CLI review: not run <START12>..<END12> (coderabbit: <kind>; codex: <kind>)`: the unreviewed range (BASE..HEAD1 or HEAD1..HEAD2, see Terms), with both SHAs cut to 12 characters, and the failure kinds of steps 2 and 3. For HEAD2..HEAD3, `Local CLI review: not run <START12>..<END12> (after the second attempt, reviewed by <coderabbit or codex>)`, with both SHAs cut to 12 characters: no failure kind is written, because the second attempt reviewed | for each unreviewed range; for HEAD2..HEAD3, in the next commit after HEAD3 (the fix commit cannot name its own SHA): the record commit, or SUMMARY when RECORD is `return` |
 
    - The `<path>` of a `Codex local review:` line is written only for a
      finding with `in_range` true, whose path is a file changed in BASE..HEAD;
@@ -279,12 +309,20 @@ the tool (`make install-codexreview`, `go build`): the user installs it from
      more. When that run does not exit 1, stop and report instead of
      committing. Removing your own summary is not rewriting the text to get
      past the check.
-   - When the next commit is the caller's, not this procedure's, or the
-     procedure makes no commit after the record's range ends, return the
-     lines in SUMMARY: the caller copies them as its own instructions say. A
-     record whose range ends at a fix commit cannot go in that commit: the
+   - A record whose range ends at a fix commit cannot go in that commit: the
      second attempt's result is one such, and so is the range of the fix
      commits made after the second attempt; an attempt may also have no fix.
+     Such lines go in the record commit below, or, when RECORD is `return`,
+     in SUMMARY, and the caller copies them as its own instructions say.
+   - **Record commit.** Before returning, when RECORD is `commit` (or not
+     given) and some record line of this SCOPE is in no commit yet, write
+     those lines, and only them, in the message of an empty commit
+     (`git commit --allow-empty -F <file>`), with a subject line of your own
+     that starts with none of the record line prefixes. Run the mention check
+     above on the message first, whatever lines it holds. When GUARD is
+     given, run it before the commit, as at step 5. When RECORD is `return`,
+     make no record commit: return the lines in SUMMARY, and the caller's
+     next commit carries them.
    - The record is not passed to the PR review or to `/fixpr`, so a finding
      rejected locally may be raised again there and is reclassified there; the
      open ones reach the PR body even when the PR is opened in a later session
@@ -319,3 +357,10 @@ of these prefixes.
   range; take its range as the whole branch. It is not a finding line.
 - Every other `CodeRabbit local review:` and `Codex local review:` line is a
   finding line; its handling (rejected, `deferred`, `unclear`) is in the line.
+- A `Local CLI reviewed: <START12>..<END12> (<cli>)` line names a seen range.
+  It is neither a finding line nor an unreviewed range, and it does not
+  cancel a `not run` line. `runpr.md` step 3 reads it through
+  `.claude/commands/_lib/review-records.sh`, which decides whether the local
+  CLI review saw every commit after Codex's last PR review; that script is
+  the executable form of this line's reading, and when they disagree, this
+  file is right and the script is fixed.
