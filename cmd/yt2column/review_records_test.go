@@ -191,6 +191,23 @@ func rrNone(f *rrFixture, plan string) []string {
 	return args
 }
 
+// rrSubmodule commits a submodule sub at m0 with the .gitmodules gitmodules,
+// records the commit as seen, and commits a move of sub to mb, checking that
+// plain git with the fixture's settings shows no change in the move.
+func rrSubmodule(f *rrFixture, gitmodules string) {
+	f.t.Helper()
+	f.write(".gitmodules", gitmodules)
+	f.git("add", ".gitmodules")
+	f.git("update-index", "--add", "--cacheinfo", "160000,"+f.m0+",sub")
+	f.git("commit", "-q", "-m", "add sub")
+	f.record("record", f.seen(f.mb, f.head(), "coderabbit"))
+	f.git("update-index", "--cacheinfo", "160000,"+f.mb+",sub")
+	f.git("commit", "-q", "-m", "move sub")
+	if f.git("diff-tree", "--no-commit-id", "-r", "HEAD~1", "HEAD") != "" {
+		f.t.Fatal("plain git shows the move of sub, so the case checks nothing")
+	}
+}
+
 func coverageCases() []rrCase {
 	// unseenAfterSeen is a branch whose first commit a seen-range line covers
 	// and whose last commit nothing covers.
@@ -230,17 +247,49 @@ func coverageCases() []rrCase {
 			f.work("c1")
 			return []string{f.head(), f.head()}
 		}, want: rrAll},
-		// The judged commits are the same as with none here: the case checks
-		// that such a LAST_REVIEWED neither fails nor lists its own commit.
+		// A rewritten history cannot be judged, even when the commits after
+		// the fork are seen.
 		{name: "LAST_REVIEWED is not an ancestor of HEAD", setup: func(f *rrFixture) []string {
 			other := f.side("other", f.mb)
-			f.work("c1")
+			c1 := f.work("c1")
+			f.record("record", f.seen(f.mb, c1, "coderabbit"))
 			return []string{other, f.head()}
-		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		}},
+		// HEAD went back behind LAST_REVIEWED: LAST_REVIEWED..HEAD is empty,
+		// yet what Codex reviewed is not what is merged.
+		{name: "HEAD behind LAST_REVIEWED", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.seen(f.mb, c1, "coderabbit"))
+			back := f.head()
+			f.work("c2")
+			return []string{f.head(), back}
+		}},
 		{name: "empty commit", setup: func(f *rrFixture) []string {
 			f.record("empty")
 			return rrNone(f, "")
 		}, want: rrAll},
+		// A replace ref makes c1 read as an empty commit to plain git.
+		{name: "replace ref", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			tree := f.rev(f.mb + "^{tree}")
+			empty := strings.TrimSpace(f.git("commit-tree", tree, "-p", f.mb, "-m", "c1"))
+			f.git("replace", c1, empty)
+			if strings.TrimSpace(f.git("diff-tree", "--no-commit-id", "-r", f.mb, c1)) != "" {
+				f.t.Fatal("the replace ref does not hide c1's change from plain git, so the case checks nothing")
+			}
+			return rrNone(f, "")
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		// The branch's .gitmodules asks git to ignore the submodule, which
+		// hides a move of its commit from plain git.
+		{name: "submodule ignored by .gitmodules", setup: func(f *rrFixture) []string {
+			rrSubmodule(f, "[submodule \"sub\"]\n\tpath = sub\n\turl = ./sub\n\tignore = all\n")
+			return rrNone(f, "")
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		{name: "submodule ignored by the configuration", setup: func(f *rrFixture) []string {
+			f.git("config", "submodule.sub.ignore", "all")
+			rrSubmodule(f, "[submodule \"sub\"]\n\tpath = sub\n\turl = ./sub\n")
+			return rrNone(f, "")
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
 		{name: "merge commit inside a seen range", setup: func(f *rrFixture) []string {
 			f.side("side", f.mb)
 			merge := f.merge("side")
@@ -407,6 +456,12 @@ func coverageCases() []rrCase {
 			f.commit("CRLF checkbox")
 			return rrNone(f, rrMarkersPlan)
 		}, want: rrAll},
+		// A checkbox commit that also turns every line end into CRLF.
+		{name: "checkbox and line ends", setup: func(f *rrFixture) []string {
+			f.write(rrMarkersPlan, strings.ReplaceAll(rrPlanSample(f.t, "markers-created.md"), "\n", "\r\n"))
+			f.commit("checkbox and CRLF")
+			return rrNone(f, rrMarkersPlan)
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
 		// The lines read the same with or without the final newline, so no
 		// checkbox changes: a change must mark one.
 		{name: "final newline only", setup: func(f *rrFixture) []string {

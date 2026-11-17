@@ -24,7 +24,9 @@
 # Contract:
 #   - The commits judged are those of LAST_REVIEWED..HEAD that
 #     refs/remotes/origin/main does not reach (origin/main..HEAD when
-#     LAST_REVIEWED is "none").
+#     LAST_REVIEWED is "none"). A LAST_REVIEWED that is not an ancestor of
+#     HEAD (the history was rewritten, or HEAD went back behind it) is a
+#     failure: the range cannot be judged.
 #   - A commit judged is known to be seen when it is any of:
 #       * empty: one parent, and no difference from it;
 #       * a plan checkbox commit: one parent, changing only PLAN, a regular
@@ -32,7 +34,8 @@
 #         "PR created", "PR merged", and "switched to the next branch"
 #         lines) of a PR marker's section, or of the single-PR record of a
 #         plan without markers, the way /runplan and /runpr mark them (see
-#         checkbox_only below); never with PLAN absent;
+#         checkbox_only below), with the line end (LF or CRLF) of every kept
+#         line unchanged; never with PLAN absent;
 #       * inside the range of a seen-range line ("Local CLI reviewed:") that
 #         passes every check below.
 #     Any other commit, a merge commit included, is not known to be seen.
@@ -56,6 +59,9 @@
 #     environment, not a value from outside the trust boundary. Commits and
 #     blobs are read with plumbing commands (cat-file, diff-tree --raw,
 #     rev-list), so no diff driver, text conversion, or attribute applies.
+#     A submodule's change always counts (--ignore-submodules=none, so
+#     neither .gitmodules nor the configuration hides one), and replace refs
+#     are not followed (GIT_NO_REPLACE_OBJECTS).
 #   - Failure: any failed git step, an argument of another form, or an
 #     unreadable refs/remotes/origin/main prints "PARTIAL" alone (no
 #     count), a diagnostic on standard error, and exits 1. A caller reads a
@@ -90,7 +96,7 @@ for name in ${!GIT_@}; do
 done
 unset -f git awk printf
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ATTR_NOSYSTEM=1
-export GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0
+export GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 GIT_NO_REPLACE_OBJECTS=1
 
 GIT_OVERRIDES=(
 	-c core.attributesFile=/dev/null
@@ -157,17 +163,18 @@ resolve12() {
 	printf '%s\n' "$found"
 }
 
-# plan_lines prints each line of the blob $1 of a plan as "<kind>\t<line>",
-# where <kind> is M for a line of a PR marker's section, S for a line of the
-# checklist chapter (## 6) of a plan without PR markers, and O for any other
-# line, a line inside a fenced code block and every heading and fence line
-# included. A section runs from its heading to the next heading of any level
+# plan_lines prints each line of the blob $1 of a plan as
+# "<kind>\t<end>\t<line>", where <kind> is M for a line of a PR marker's
+# section, S for a line of the checklist chapter (## 6) of a plan without PR
+# markers, and O for any other line, a line inside a fenced code block and
+# every heading and fence line included; <end> is 1 when the line ended in
+# CR (a CRLF line) and 0 otherwise; and <line> is the line without the CR. A section runs from its heading to the next heading of any level
 # (.claude/commands/_context.md, "PR marker conventions", part 2). An
 # unclosed fence fails.
 plan_lines() {
 	g cat-file blob "$1" | awk '
 		{
-			sub(/\r$/, "")
+			end[NR] = sub(/\r$/, "") ? 1 : 0
 			line[NR] = $0
 			kind[NR] = "O"
 			t = $0
@@ -194,7 +201,7 @@ plan_lines() {
 			for (i = 1; i <= NR; i++) {
 				k = kind[i]
 				if (k == "S" && markers) k = "O"
-				printf "%s\t%s\n", k, line[i]
+				printf "%s\t%s\t%s\n", k, end[i], line[i]
 			}
 		}
 	'
@@ -212,11 +219,13 @@ plan_lines() {
 #   - or by adding, in the checklist chapter of a plan without PR markers,
 #     a checked "PR created" line with its URL followed by an unchecked "PR
 #     merged" line (runplan.md step 8).
+# Every line kept, the marked ones included, keeps its line end, so a commit
+# that also rewrites line ends is not one.
 # Any other change, to PLAN or to another path, is not.
 checkbox_only() {
 	local commit=$1 parent=$2 raw old new
 	[ -n "$PLAN" ] || return 1
-	raw=$(g diff-tree -r -z --raw --no-abbrev --no-renames --no-commit-id "$parent" "$commit" | tr '\0' '\n') || return 1
+	raw=$(g diff-tree -r -z --raw --no-abbrev --no-renames --ignore-submodules=none --no-commit-id "$parent" "$commit" | tr '\0' '\n') || return 1
 	[ "$raw" = ":100644 100644 $(g rev-parse --verify --quiet "$parent:$PLAN") $(g rev-parse --verify --quiet "$commit:$PLAN") M
 $PLAN" ] || return 1
 	old=$(plan_lines "$parent:$PLAN") || return 1
@@ -228,8 +237,8 @@ $PLAN" ] || return 1
 		{
 			k = $2
 			s = $0
-			sub(/^[AB]\t[MSO]\t/, "", s)
-			if ($1 == "A") { na++; ak[na] = k; al[na] = s } else { nb++; bk[nb] = k; bl[nb] = s }
+			sub(/^[AB]\t[MSO]\t[01]\t/, "", s)
+			if ($1 == "A") { na++; ak[na] = k; ae[na] = $3; al[na] = s } else { nb++; bk[nb] = k; be[nb] = $3; bl[nb] = s }
 		}
 		# flip reports whether old line a becomes new line b by a marking.
 		function flip(a, b,    p, ta, tb, url) {
@@ -257,7 +266,7 @@ $PLAN" ] || return 1
 			if (nb == na) {
 				changed = 0
 				for (i = 1; i <= na; i++) {
-					if (ak[i] != bk[i]) exit 1
+					if (ak[i] != bk[i] || ae[i] != be[i]) exit 1
 					if (al[i] == bl[i]) continue
 					if (ak[i] == "O" || !flip(al[i], bl[i])) exit 1
 					changed++
@@ -266,10 +275,10 @@ $PLAN" ] || return 1
 			}
 			if (nb != na + 2) exit 1
 			k = 1
-			while (k <= na && ak[k] == bk[k] && al[k] == bl[k]) k++
+			while (k <= na && ak[k] == bk[k] && ae[k] == be[k] && al[k] == bl[k]) k++
 			if (bk[k] != "S" || bk[k + 1] != "S") exit 1
 			if (!created(bl[k]) || bl[k + 1] != "- [ ] PR がマージされた") exit 1
-			for (i = k; i <= na; i++) if (ak[i] != bk[i + 2] || al[i] != bl[i + 2]) exit 1
+			for (i = k; i <= na; i++) if (ak[i] != bk[i + 2] || ae[i] != be[i + 2] || al[i] != bl[i + 2]) exit 1
 			exit 0
 		}
 	'
@@ -278,7 +287,7 @@ $PLAN" ] || return 1
 # empty_commit reports whether commit $1 has no difference from its parent $2.
 empty_commit() {
 	local raw
-	raw=$(g diff-tree -r -z --raw --no-renames --no-commit-id "$2" "$1" | tr '\0' '\n') || return 1
+	raw=$(g diff-tree -r -z --raw --no-renames --ignore-submodules=none --no-commit-id "$2" "$1" | tr '\0' '\n') || return 1
 	[ -z "$raw" ]
 }
 
@@ -304,6 +313,10 @@ coverage() {
 		[ "$(g cat-file -t "$last" 2>/dev/null)" = commit ] || fail "LAST_REVIEWED names no commit"
 	fi
 	REFS=$(g for-each-ref --format='%(refname)') || fail "git for-each-ref failed"
+	if [ "$last" != none ]; then
+		g merge-base --is-ancestor "$last" "$head" ||
+			fail "LAST_REVIEWED is not an ancestor of HEAD"
+	fi
 
 	local merge_base branch judged
 	merge_base=$(g merge-base "$origin_main" "$head") || fail "origin/main and HEAD have no merge-base"
