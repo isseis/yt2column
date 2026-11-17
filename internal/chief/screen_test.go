@@ -82,6 +82,7 @@ var (
 // sample must give; every file under testdata/screens has an entry.
 var claudeScreenWants = map[string]wantScreen{
 	"claude-idle.ansi":                   {kind: ScreenPrompt, inputEmpty: true},
+	"claude-started.ansi":                {kind: ScreenPrompt, inputEmpty: true},
 	"claude-working.ansi":                {kind: ScreenPrompt, inputEmpty: true},
 	"claude-after-clear.ansi":            {kind: ScreenPrompt, inputEmpty: true},
 	"claude-after-model.ansi":            {kind: ScreenPrompt, inputEmpty: true},

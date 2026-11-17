@@ -1,0 +1,15 @@
+workspace-create exit=0
+tab-rename exit=0
+tab-create exit=0
+agent-start-opencode exit=0
+agent-start-claude exit=0
+agent-get-claude-started exit=0
+pane-list-shells exit=0
+pane-list-agents exit=0
+pane-process-info-shell exit=0
+pane-process-info-busy exit=0
+workspace-close exit=0
+agent-start-name-taken exit=1
+agent-start-pane-busy exit=1
+agent-start-timeout exit=1
+workspace-close-not-found exit=1
