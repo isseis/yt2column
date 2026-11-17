@@ -53,18 +53,20 @@
 
 #### ステップ 1-1: 見送りの記録
 
-**変えるファイル:** `internal/chief/skiprecord.go`（新規）、`internal/chief/skiprecord_test.go`（新規）
+**変えるファイル:** `internal/chief/skiprecord.go`（新規）、`internal/chief/skiprecord_test.go`（新規）、`internal/chief/records.go`
 
 - [ ] 設計書 3.1 節の記録の型（JSON の形と、確かめを通った値の型）、作る・一覧する・使い済みにする操作を足す
 - [ ] 作る・読む・同じ名前の 2 回目（すでに記録したものとして扱う）のテストと、設計書 3.1 節の読めない記録の各場合（重なった欄を含む）のテストを書く
+- [ ] 設計書 3.1 節のとおり、`HeldWorkspace.cleanup`（`internal/chief/records.go`）が 14 日を過ぎた見送りの記録を消すようにし、過ぎた記録（読めない記録を含む）が消え、過ぎていない記録が残るテストを書く
 
 **完了の条件:** 記録のテストが通る。
 
 #### ステップ 1-2: ①②の見送りの種類と記録の書き込み
 
-**変えるファイル:** `internal/chief/reset.go`、`internal/chief/request.go`、`internal/chief/autosend.go`、`internal/chief/reset_test.go`、`internal/chief/autosend_test.go`
+**変えるファイル:** `internal/chief/reset.go`、`internal/chief/request.go`、`internal/chief/autosend.go`、`internal/chief/screen_report.go`、`internal/chief/reset_test.go`、`internal/chief/autosend_test.go`
 
 - [ ] 設計書 3.2 節のとおり、`resetAfterRunpr` と `resetRunpr` が見送りの種類を返すようにする。`reset.go:118-120` と `autosend.go:769-771` は、設計書 3.2 節の表の行ごとに条件を分ける
+- [ ] 設計書 3.2 節のとおり、`openCodeLastMessage`（`internal/chief/screen_report.go`）がメッセージの始まりが画面にあるかも返すようにし、②の `Detail` を条件ごとに分ける。始まりが画面の外に出た OpenCode の報告（`testdata/screens/opencode-runpr-report.txt` の先頭を切ったもの）が `skipReportAbsent` になり、全体が見える別の PR の報告と、NEXT が違う報告が `skipNotOffered` になるテストを書く。`readRunprReport` のほかの呼び出し元の今のテストが変わらずに通ることを確かめる
 - [ ] `skipReportAbsent` のときにそのほかの条件を評価し、`resetMaker` と `autoSender.send` が記録を書いて `Detail` に添えるようにする
 - [ ] 表の各行について、見送りの種類と記録の有無を確かめるテストを書く。①の OpenCode の行は、送り先の表で `runpr` を Claude Code に差し替えて（`send_test.go:720-725` の形）テストする
 - [ ] `skipReportAbsent` の行で、そのほかの条件を 1 つずつ崩したとき、その読み取り（Herdr・transcript）を失敗させたとき、記録の書き込みを失敗させたとき（`Store.beforeCreate`）のテストを書く。どれも `Outcome`・`Reason` が `not_sent`・`no_report` のままで、打った入力が変わらないことを確かめる
@@ -81,20 +83,22 @@
 - [ ] 設計書 3.3 節のとおり、記録から項目を作る関数（条件の確かめと確かめの値）を足し、`addRecords` で `Row.Resets` に入れる。round は記録を消さない
 - [ ] `buildPending` が、「要確認」の行を除き、`Row.State` によらず `Row.Resets` を `PendingReset` の項目にするようにする。`kindRank` が `PendingReset` に `PendingProposal` と同じ順位を返すようにする。出力に `reset` の欄を足す
 - [ ] 設計書 3.3 節の条件を 1 つずつ崩すと項目が出ないこと、round が記録を消さないこと、読めない記録が `problems` に出て消されないことのテストを書く
-- [ ] セッションか状態の変化の番号が変わった後は項目が再び出ないこと、「実行中」の行でも項目が出ること、同じ見送りが 1 つの項目になること、並び順と番号、`snapshot` と `tick` の両方に出ることのテストを書く
+- [ ] 条件を満たさない間は項目が出ないこと、「実行中」の行でも項目が出ること、同じ見送りが 1 つの項目になること、並び順と番号、`snapshot` と `tick` の両方に出ることのテストを書く
 - [ ] 見送りの後に `Store.Start` で別のセッションが chief を起動し直しても、項目が出て、番号と通知が付くことのテストを書く
 
 **完了の条件:** `snapshot` と `tick` の結果に、条件どおりに項目が出る。
 
 #### ステップ 1-4: `chief reset`
 
-**変えるファイル:** `internal/chief/resetoffer.go`（新規）、`internal/chief/resetoffer_test.go`（新規）、`cmd/chief/main.go`、`cmd/chief/main_test.go`
+**変えるファイル:** `internal/chief/resetoffer.go`（新規）、`internal/chief/resetoffer_test.go`（新規）、`internal/chief/send.go`、`cmd/chief/main.go`、`cmd/chief/main_test.go`
 
 - [ ] 設計書 3.4 節の `ParseOfferedResetRequest` と `SendOfferedReset` を足す。項目はステップ 1-3 の関数で作り、transcript の確かめは `readLastHumanInput` を使う（OpenCode の pane では `lastInputMadePR` を呼ばない）
 - [ ] `cmd/chief/main.go` に `reset` の定数、引数（必須の `--protocol`・`--workspace`・`--check`）、`parseRequests` の場合分け（`ParseOfferedResetRequest` を呼ぶ）、`dispatch` の場合分け、使い方の文言、パッケージの説明の更新を足す
 - [ ] round が示した確かめの値で送れること（往復）と、pane・セッション・状態の変化の番号のそれぞれが変わると `check_mismatch` になることのテストを書く
-- [ ] 経路が引けないか合わないとき、transcript の確かめ（①は記録のコマンドの名前と引数、②は名前だけ）が通らないとき、`checkPane` の各理由、使い済みにできないときに何も打たないことのテストを書く。①では、PR がマージされて `prMaker` が別のコマンドを返す状態でも、記録のコマンドで確かめて送れることと、`/mkreq` の記録では引数のある `/mkreq` の入力で送れることを確かめる
+- [ ] 送り先の表を読めないとき（`unreadable`）、経路が引けないか合わないとき（`check_mismatch`）、transcript の確かめ（①は記録のコマンドの名前と引数、②は名前だけ）が通らないとき、`checkPane` の各理由、使い済みにできないときに何も打たないことのテストを書く。①では、PR がマージされて `prMaker` が別のコマンドを返す状態でも、記録のコマンドで確かめて送れることと、`/mkreq` の記録では引数のある `/mkreq` の入力で送れることを確かめる
 - [ ] 送れたときに送信の記録があり、記録が消え、次の round に項目が出ないこと、`checkPane` で止まったときは項目が残ること、打った後の失敗で送信が止まることのテストを書く
+- [ ] `beforeBegin` で chief の持ち主の確かめ直しが通らないときに記録が残って何も打たないこと、使い済みにした後に送信の記録を書けないとき（`Store.beforeCreate`）に `not_sent` で項目が戻らないこと、マージを見た後に人がリセットを選ぶと次の自動送信が提案に変わることのテストを書く
+- [ ] 設計書 3.1 節のとおり、`sendContext.run` が pane へ最初の入力を打てたときにその pane の見送りの記録を消すようにし、そのテストを書く
 - [ ] `snapshot`・`tick` が項目のリセットを送らないことのテストを書く
 - [ ] `TestRunUsageErrors` に `reset` の行（`--check` がない、形に合わない、`--workspace` が相対パス）、`TestRunWorkspaceSubcommands` に workspace がない行、`TestRunRefusals` に `start` の前とロックを持たないときの行を足す
 
@@ -146,7 +150,7 @@
 | リスク | 対策 |
 |---|---|
 | ①②の条件の評価を足すときに、今の理由が変わる | 今のリセットのテストの期待値を変えない。ステップ 1-2 で、読み取りの失敗と書き込みの失敗でも `Outcome`・`Reason` が変わらないことを確かめる |
-| round とバックグラウンドの `chief send` が同時に動く | round は記録を消さない（設計書 1.2 節）。消すのは排他を持つ `chief reset` だけである |
+| round とバックグラウンドの `chief send` が同時に動く | round は記録を消さない（設計書 1.2 節）。消すのは workspace の排他の下だけ（`chief reset`、コマンドかリセットを打てた後、`start` の片付け）である |
 | タスク 0095 が同じ `reset.go` を変える | どちらかが先にマージされたら、後の PR が `origin/main` を取り込み、設計書 3.2 節の規則を保ったまま箇所を付け替える |
 
 ## 6. 実装チェックリスト (Implementation Checklist)
@@ -162,17 +166,17 @@
 | AC-03 | `test` | ステップ 1-3 のテスト: 項目の出力が pane・エージェント・入力・場面・コマンド・`check` を持つ |
 | AC-03 | `manual` | PR のレビューで、`chief.md` の項目の示し方と添え書きを読む |
 | AC-04 | `test` | ステップ 1-3 のテスト: `reset` の項目が提案と同じ順位で並び、番号が付く |
-| AC-05 | `test` | ステップ 1-3 のテスト: 条件を 1 つずつ崩すと項目が出ず、セッションか状態の変化の番号が変わった後は項目が再び出ない。起動し直しても項目が出る |
+| AC-05 | `test` | ステップ 1-1・1-3・1-4 のテスト: 条件を 1 つずつ崩すと項目が出ない。起動し直しても項目が出る。その pane へ入力を打てた後と、14 日を過ぎた後の `start` の後は、記録が消えて項目が出ない |
 | AC-06 | `test` | ステップ 1-1・1-3 のテスト: 同じ見送りの 2 回目で記録が増えず、項目が 1 つ |
-| AC-07 | `test` | ステップ 1-2 のテスト: `Detail` に、項目にしたか、外れた条件か、書けなかったことが添えられる |
+| AC-07 | `test` | ステップ 1-2 のテスト: `Detail` に、項目にしたか、外れた条件か、書けなかったことが添えられる。②の `no_report` の `Detail` が条件ごとに違う |
 | AC-08 | `test` | ステップ 1-4 のテスト: 各確かめが成り立つときだけ 1 回送る。確かめの値の往復。①は記録のコマンドの名前と引数、②は名前を比べる |
 | AC-08 | `test` | `cmd/chief/main_test.go::TestRunRefusals`: `start` の前とロックを持たないときに拒む |
 | AC-09 | `test` | ステップ 1-4 のテスト: 確かめの値の不一致と各理由で何も打たず、`not_sent` と理由を返す |
 | AC-09 | `test` | `cmd/chief/main_test.go::TestRunUsageErrors`: 形に合わない `--check` が使い方の誤りになる |
 | AC-10 | `test` | ステップ 1-4 のテスト: 結果の形、送信の記録、打った後の失敗で送信が止まる |
-| AC-11 | `test` | ステップ 1-4 のテスト: 送れた後に記録が消え、次の round に項目が出ない。`checkPane` で止まったときは項目が残る。使い済みにできないときは何も打たない |
+| AC-11 | `test` | ステップ 1-4 のテスト: 送れた後に記録が消え、次の round に項目が出ない。`checkPane` と持ち主の確かめ直しで止まったときは項目が残る。使い済みにできないときは何も打たない。使い済みにした後に送信の記録を書けないときは項目が戻らない |
 | AC-12 | `test` | ステップ 1-4 のテスト: `snapshot`・`tick` がリセットを送らない |
-| AC-13 | `test` | `internal/chief/reset_test.go`・`internal/chief/autosend_test.go` の今のリセットのテストが `Outcome`・`Reason` の期待値を変えずに通る。ステップ 1-2 のテストが、読み取りの失敗と書き込みの失敗でも `Outcome`・`Reason` が変わらないことを確かめる |
+| AC-13 | `test` | `internal/chief/reset_test.go`・`internal/chief/autosend_test.go` の今のリセットのテストが `Outcome`・`Reason` の期待値を変えずに通る。ステップ 1-2 のテストが、読み取りの失敗と書き込みの失敗でも `Outcome`・`Reason` が変わらないことを確かめる。ステップ 1-4 のテストが、マージを見た後に選んだリセットで次の自動送信が提案に変わることを確かめる |
 | AC-14 | `static` | `cmd/yt2column/adr_test.go::TestADRRecords`: ADR-0046 の形 |
 | AC-14 | `manual` | PR のレビュー（本タスクの文書の PR）で、ADR-0046 の決定・採らなかった案・結果・経緯を読む |
 | AC-15 | `static` | `cmd/chief/docs_test.go::TestDocumentedInvocationsParse`: `chief.md` が `chief reset` を呼び、その呼び出しが `parse` と `parseRequests` の検査を通る |
