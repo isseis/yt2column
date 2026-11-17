@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 766a2df349f97cddea76a9c01a5000b35d6f74be -->
+<!-- translated-from: README.md aec4ea003ffbf344d6fd4a89ffb5f821fa098609 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -95,7 +95,7 @@ the section that explains it in detail.
 - Go (see `go.mod`)
 - Node.js, with the version pinned in `extension/.node-version` (used to build
   the extension)
-- Chrome 110 or later, or Brave on Chromium 110 or later
+- Chrome 142 or later, or Brave on Chromium 142 or later
 - `ANTHROPIC_API_KEY` for the default provider
 
 An API key for the selected provider is required: `DEEPSEEK_API_KEY` for
@@ -747,7 +747,7 @@ are in [production_profile.md](docs/dev/production_profile.md) (Japanese).
 
 A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
 TypeScript and built with Node.js. It is not published to a store: you build it
-and load the build as an unpacked extension. It runs on Chrome 110 or later.
+and load the build as an unpacked extension. It runs on Chrome 142 or later.
 The extension collects a
 selection, the tab URL, and the tab title, and reads the video metadata (the
 video title, the channel name, and the description) from the video page. It

@@ -212,7 +212,7 @@ function moduleViolations(out: string, actual: Set<string>): string[] {
 
 /**
  * References the manifest and HTML files make that must resolve inside the
- * output. The manifest points at the popup page and the service worker; an
+ * output. The manifest points at the popup page, the options page and the service worker; an
  * HTML page points at its scripts and stylesheets.
  */
 function referenceViolations(out: string, actual: Set<string>): string[] {
@@ -224,10 +224,12 @@ function referenceViolations(out: string, actual: Set<string>): string[] {
     ) as {
       action?: { default_popup?: unknown };
       background?: { service_worker?: unknown };
+      options_ui?: { page?: unknown };
     };
     const entries: [string, unknown][] = [
       ["action.default_popup", manifest.action?.default_popup],
       ["background.service_worker", manifest.background?.service_worker],
+      ["options_ui.page", manifest.options_ui?.page],
     ];
     for (const [label, reference] of entries) {
       if (typeof reference === "string" && !actual.has(reference)) {

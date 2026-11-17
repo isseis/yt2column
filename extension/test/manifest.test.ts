@@ -94,28 +94,33 @@ function messageOf(
 
 describe("permissions", () => {
   it("declares exactly the three permissions the design requires", () => {
-    // No storage: nothing is stored, so chrome.storage is never needed.
+    // storage holds the API key (local) and the job records (session). No
+    // host_permissions: the API is reached without one, and no tabs, history,
+    // downloads or clipboard permission.
     assert.deepEqual(manifest["permissions"], [
       "activeTab",
       "scripting",
-      "nativeMessaging",
+      "storage",
     ]);
   });
 });
 
 describe("undeclared keys", () => {
   it("declares exactly the keys the design lists", () => {
-    // No host_permissions (the host is not reached over the network) and no
-    // options_ui (there is nothing to set).
+    // No host_permissions, content_scripts, web_accessible_resources or
+    // externally_connectable.
     assert.deepEqual(Object.keys(manifest).sort(), [
       "action",
       "background",
+      "content_security_policy",
       "default_locale",
       "description",
+      "incognito",
       "key",
       "manifest_version",
       "minimum_chrome_version",
       "name",
+      "options_ui",
       "permissions",
       "version",
     ]);
@@ -127,10 +132,10 @@ describe("fixed fields", () => {
     assert.equal(manifest["manifest_version"], 3);
   });
 
-  it("requires Chrome 110", () => {
-    // From Chrome 110, extension API calls and events extend the service
-    // worker's idle timer, which the start's 25-second exchange relies on.
-    assert.equal(manifest["minimum_chrome_version"], "110");
+  it("requires Chrome 142", () => {
+    // The minimum is the stable release a year before the design date; every
+    // feature used (storage.session, getKeys, wasm-unsafe-eval) is older.
+    assert.equal(manifest["minimum_chrome_version"], "142");
   });
 
   for (const { path: readmePath, locale } of readmeVersions) {
@@ -159,6 +164,24 @@ describe("fixed fields", () => {
   it("names and describes the extension through catalog messages", () => {
     assert.equal(manifest["name"], "__MSG_extName__");
     assert.equal(manifest["description"], "__MSG_extDescription__");
+  });
+
+  it("opens the options page in a tab", () => {
+    assert.deepEqual(manifest["options_ui"], {
+      page: "options.html",
+      open_in_tab: true,
+    });
+  });
+
+  it("does not allow the extension in incognito mode", () => {
+    assert.equal(manifest["incognito"], "not_allowed");
+  });
+
+  it("limits extension pages to the extension and the Anthropic API origin", () => {
+    assert.deepEqual(manifest["content_security_policy"], {
+      extension_pages:
+        "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' https://api.anthropic.com; img-src 'self'; media-src 'none'; frame-src 'none'; form-action 'none'",
+    });
   });
 
   it("gives the extension a version", () => {

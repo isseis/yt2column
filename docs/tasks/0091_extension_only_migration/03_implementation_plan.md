@@ -376,7 +376,7 @@
 
 **変更するファイル:** `extension/static/`（`manifest.json`、`options.html`（新規）、`popup.html`、`viewer.html`、`_locales`、オプションページのスタイルシート）、`extension/src/`（入口、`options.ts`（新規）、表示）、`extension/scripts/check-dist.ts`・`popup-preview.ts`、`extension/test/`、サーバとホストの文書のガード（§1.3 の決定 2）、`internal/doctestutil/`、`internal/server/test_helpers.go`、`internal/config/test_helpers.go`、`cmd/yt2column/docs_test.go`、`cmd/yt2column-nmhost/`（README の移行の手順のテスト）、README と `README.en.md`、`docs/dev/`（security.md・development.md・project_overview.md・production_profile.md・cli.md・package_reference.md）、`docs/translation_glossary.md`、`CLAUDE.md`、ADR（§3.3）、本計画
 
--   [ ] **ステップ 8-1**: manifest を 0090 設計書 §3.7 の値にする（権限 `activeTab`・`scripting`・`storage`、CSP、`incognito`、`minimum_chrome_version` `"142"`、オプションページをタブで開く、今の `key`）。`manifest.test.ts` を直し、`check-dist.ts` がオプションページの参照も確かめるようにする。`_locales` の `extDescription` を拡張だけの経路の説明に改める（設計書 §3.5）。
+-   [x] **ステップ 8-1**: manifest を 0090 設計書 §3.7 の値にする（権限 `activeTab`・`scripting`・`storage`、CSP、`incognito`、`minimum_chrome_version` `"142"`、オプションページをタブで開く、今の `key`）。`manifest.test.ts` を直し、`check-dist.ts` がオプションページの参照も確かめるようにする。`_locales` の `extDescription` を拡張だけの経路の説明に改める（設計書 §3.5）。
 -   [ ] **ステップ 8-2**: 入口を新しい部品に配線する。
     -   `background.ts` は `jobCoordinator.ts` を登録する。
     -   `popup.ts`・`launch.ts` は、`setLocalAccessLevel` が成功したときだけ関数を注入し、生成の開始を SW に送る（0090 設計書 §3.5・§3.6、要件書 AC-23）。`launch.test.ts` に、`setLocalAccessLevel` が失敗したときに注入せず、開始が拒否された状態を示す行を加える。

@@ -72,7 +72,7 @@ flowchart LR
 
 - Go（`go.mod` を参照）
 - Node.js。版は `extension/.node-version` で固定している（拡張のビルドに使う）
-- Chrome 110 以降、または Chromium 110 以降の Brave
+- Chrome 142 以降、または Chromium 142 以降の Brave
 - 既定のプロバイダのための `ANTHROPIC_API_KEY`
 
 選んだプロバイダの API キーが必要である。`deepseek` では `DEEPSEEK_API_KEY`、`claude` では
@@ -498,7 +498,7 @@ YT2COLUMN_LLM=claude/claude-opus-5-5+high
 ## ブラウザ拡張
 
 Chrome/Brave の拡張（Manifest V3）は `extension/` にある。TypeScript で書き、Node.js
-でビルドする。ストアでは公開しておらず、自分でビルドし、ビルドしたものをパッケージ化されていない拡張機能として読み込む。Chrome 110 以降で動く。拡張は、選択範囲、タブの
+でビルドする。ストアでは公開しておらず、自分でビルドし、ビルドしたものをパッケージ化されていない拡張機能として読み込む。Chrome 142 以降で動く。拡張は、選択範囲、タブの
 URL、タブのタイトルを集め、動画メタデータ（動画タイトル、チャンネル名、概要欄）を動画ページから読む。選択範囲、URL、動画メタデータを
 localhost サーバに送り、生成した記事を拡張のページ（ビューア）のタブに表示する。タブのタイトルは確認のために表示する（空であってはならない）が、送らない。
 
