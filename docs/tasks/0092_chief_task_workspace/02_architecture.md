@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-11-16 |
-| Review date | 2026-11-17 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 決定の変更で draft に戻した：issue の問い合わせにラベルを足し、ラベル `draft` のある開いた issue を `issue_draft` で拒む |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。「計画で決める」は、本タスクの実装計画書（`03_implementation_plan.md`）で決めることを指す。既存のファイルの内容は、コミット `bc41cf17` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
 
@@ -36,7 +36,7 @@
 -   **worktree は `git worktree add --detach <パス> <コミット>` で作り、Herdr の workspace は `herdr workspace create --cwd <パス> --label issue-<N> --no-focus` で作る。消すときは `herdr workspace close` で workspace を閉じ、`git worktree remove <パス>` で worktree を `--force` なしに消す。`herdr worktree create`・`open`・`remove` は使わない（申し送りの H-02）。** 理由は 2 つある。1 つめに、Herdr 0.9.1 の `herdr worktree create` は `--branch`・`--base` を持つが、ブランチを作らない指定がなく、AC-08 に合うかを確かめられない。2 つめに、`git worktree add --detach` と `git worktree remove` は、ブランチを作らないことと、変更のある worktree を拒むことが git の仕様で決まっている。こうすると、Herdr への依存は workspace とタブとエージェントの操作だけになる。`herdr worktree open` で開く案は、`--trust-repository` の要否と、`herdr worktree remove` が workspace を閉じるかが確かめられていないので採らない。ADR: なし（ADR-0046 の「detached の worktree を作り、workspace で開く」という決定を実現する手段で、このタスクの中で閉じるため）。
 -   **作る workspace の pane は、今の手作りの形と同じく、タブ 3 つに 1 つずつ置く。タブの名前は `cmd`（シェル）、`opencode`、`claude` とする。** 今の手作りの workspace がこの形である（2026-11-16、この worktree の workspace で `herdr tab list` を実行して確かめた）。1 つのタブを `pane split` で 3 つに分ける案は、手作りの形と違い、人が慣れた配置を変えるので採らない。ADR: なし（配置はこのタスクの中で閉じるため）。
 -   **確かめていない外部の振る舞いは、実装の最初のフェーズで人が実地に確かめる（7.3）。** 確かめていないのは次のものである。(i) 新しい worktree で Claude Code がフォルダの信頼を問う画面を出すか。(ii) `herdr agent start` が新しいタブのシェルの pane で動くか、時間切れのときに何を返すか。(iii) `herdr workspace create --cwd` と `herdr tab create --cwd` が作業ディレクトリをそのとおりにするか。(iv) `herdr workspace close` が、その workspace のすべてのタブと pane だけを閉じ、`workspace_group_close_required` を返さないか。あわせて、Herdr が `~/.herdr/worktrees/yt2column/` に git で作った worktree を、Herdr 自身が作った worktree として扱わないかも確かめる。(v) 起動したばかりの Claude Code が、0088 の送る前の確かめ（画面の形、Herdr のセッション ID、transcript の場所）を通るか。(vi) `.claude/settings.json` の `ask` の規則が、chief の pane の許可の設定（auto mode を含む）で確認を出すか。設計は、どの結果でも安全側に倒れる（3.3.4・3.4.3）。(vi) が出さないときは、計画の段で、要件書 4.2 の残る危険に戻すかを人と決め直す。設計の前に試す案は採らない。試すには人の Herdr のセッションに実の workspace を作る必要があり、Claude Code のセッションからの `herdr --session` の呼び出しは `.claude/settings.json` が拒むためである。ADR: なし（確かめる時機はこのタスクの中で閉じるため）。
--   **issue は `gh api graphql` の `repository.issueOrPullRequest(number: <N>)` で読み、`__typename` で issue と PR を見分ける。問い合わせるのは、issue の `number`・`state`・`title` と、PR の `number` だけである（申し送りの H-07）。** 2026-11-16 に、このリポジトリで 3 回読んで確かめた。issue #839 は、終了コード 0 で `__typename` が `Issue`、`state` が `OPEN` だった。PR #897 は、終了コード 0 で `__typename` が `PullRequest` だった。存在しない #999999 は、終了コード 1 で、標準出力の JSON の `issueOrPullRequest` が `null`、`errors` が `type` `NOT_FOUND` の 1 つだった。REST の `GET /repos/{owner}/{repo}/issues/<N>` は、issue の本文（65,536 文字まで）と作者・ラベルなどを返すので、本文の長い issue が要件書 4.2 の上限 64 KiB を超え、正しい issue を拒みうる。そのため採らない。`gh issue view` は PR の番号と存在しない番号を同じ失敗として返しうるので採らない。`--jq` で形を変える案は、重なったメンバーを拒めなくなる（申し送りの H-07）ので採らない。ADR: なし（どの操作を使うかは CLAUDE.md の「Tool Execution Safety」に書く。ADR-0046 の「issue の取得を承認に加える」という決定は変わらない）。
+-   **issue は `gh api graphql` の `repository.issueOrPullRequest(number: <N>)` で読み、`__typename` で issue と PR を見分ける。問い合わせるのは、issue の `number`・`state`・`title`・ラベルの名前（1.5 で足した）と、PR の `number` だけである（申し送りの H-07）。** 2026-11-16 に、このリポジトリで 3 回読んで確かめた。issue #839 は、終了コード 0 で `__typename` が `Issue`、`state` が `OPEN` だった。PR #897 は、終了コード 0 で `__typename` が `PullRequest` だった。存在しない #999999 は、終了コード 1 で、標準出力の JSON の `issueOrPullRequest` が `null`、`errors` が `type` `NOT_FOUND` の 1 つだった。REST の `GET /repos/{owner}/{repo}/issues/<N>` は、issue の本文（65,536 文字まで）と作者・ラベルなどを返すので、本文の長い issue が要件書 4.2 の上限 64 KiB を超え、正しい issue を拒みうる。そのため採らない。`gh issue view` は PR の番号と存在しない番号を同じ失敗として返しうるので採らない。`--jq` で形を変える案は、重なったメンバーを拒めなくなる（申し送りの H-07）ので採らない。ADR: なし（どの操作を使うかは CLAUDE.md の「Tool Execution Safety」に書く。ADR-0046 の「issue の取得を承認に加える」という決定は変わらない）。
 -   **`.claude/settings.json` の拒否に、作る herdr の呼び出し（`herdr workspace create`・`herdr tab create`・`herdr pane split`・`herdr pane move`・`herdr worktree create`・`herdr worktree open`）と、`git worktree add`・`git worktree remove`・`git worktree move` を足す。道具の削除のサブコマンド `chief remove` は `ask` の規則に置き、呼ぶたびに Claude Code の許可の確認を出させる（申し送りの H-05）。** 拒否を足すと、セッションが道具を通さずに workspace や worktree を作ること、git で消すことを防げる。`ask` の規則を足すと、人の確認（AC-27）を、セッションの外の Claude Code の許可の仕組みでも求められる。要件書 4.2 で残る危険とした「人の確認なしに削除のサブコマンドを呼びうる」ことが狭まる。代わりに、削除のたびに `/chief` の問いと許可の確認の 2 回、人が答える。人が Claude Code に Herdr の pane や git の worktree を作らせると拒まれる。この 2 つを受け入れる。拒否だけを足す案と、何も足さない案は、人の確認をセッションだけに任せることになるので採らない。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する（拒否の一覧は ADR-0046 の決定にあるため）。
 -   **消す直前の確かめに、エージェントでない各 pane の前面のプロセスがその pane のシェル自身であることを足す。`herdr pane process-info` で読み、読めないときと知らない形のときは消さない（申し送りの H-06）。** workspace を閉じると、シェルの pane で動いているビルドやエディタも終わり、保存していない内容が失われるためである。`herdr pane process-info` は、前面のプロセスグループの ID と、前面のプロセスの一覧と、シェルの pid を返す（2026-11-16、この workspace のシェルの pane で確かめた。前面は `zsh` だけで、前面のプロセスグループの ID がシェルの pid と同じだった）。pane の数を示すだけにする案は、閉じる前に止める手段がなく、作業を失いうるので採らない。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する（消す前の確かめは ADR-0046 の決定にあるため）。
 -   **作ったことの記録は、0088 の workspace ごとの記録のディレクトリ（worktree の正規のパスの SHA-256）に `created.json` として置き、削除の候補を名指すことにだけ読み返す。そのディレクトリの記録は、作るときに前の使い方の分を消してから作り、消し終えたときにすべて消す（申し送りの H-01、3.5）。** 0088 の記録と同じ置き場所と読み書きの部品を使えば、置き場所の規則が増えず、workspace ごとの排他の中で作成と削除と送信を順に並べられるためである。同じパスを作り直すと、前の使い方の送信の停止や終わりのない送信の記録が残り、新しい workspace への `/mkreq` を止めるので、作り直す前に消す。要件書は、記録を削除の候補を名指すことにも使うと決めた（ADR-0046 の決定）。ADR-0014 は、道具が判定に読み返す記録を例外として列挙しているので、その一覧に足す。ADR-0046 の「同名のものがあれば作らず、上書きしない」記録の決まりに、この記録の置き換えと消し方を足す。ADR: [ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) と [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
@@ -106,6 +106,12 @@ flowchart LR
 -   **何も足さないときの行。** 削除の提案の行は「タスク完了」で `Row.Idle` でないので、0093 の対応表の順 6 で「🟢 待つ」・番なし、文書は規則 10 の「要確認」になり、使っていないか残った worktree の行の前の「待つ」の位置に並ぶ。0093 の要件書に合わない。
 -   **どちらが先に入るか。** 0093 と本タスクは並行して進むので、順を固定しない。本タスクの計画書は、削除の提案の行を作る PR と、その後の本タスクのすべての PR を作る前に、0093 の部品ごとに「`main` にあり、削除の提案の行がまだない」かを確かめ、当たるものに足す。0093 の計画書も、自分の PR の前と、そのマージの前に、本タスクの印が `main` にあるかを確かめる（0093 設計書の 1.2・3.12）。残る危険は、0093 の PR が、本タスクの印が `main` に入る前に確かめ、本タスクの最後の PR の後にマージされる場合である。このときはどちらも足さない。本タスクの最後の PR の記録に確かめの結果を書き、足りなければ人に示す。0093 が先に入るのを待ってから削除の提案を実装する案は、2 つのタスクの進みを結び付けるので採らない。ADR: なし（表示の細部で、0093 との実装の順に応じた扱いはタスクの中で閉じるため）。
 -   **`--protocol` の番号は、本タスクの道具の出力とサブコマンドを足す PR の時点の `origin/main` の値より 1 大きくする。** 0093 も、出力を変えるので `--protocol` を 1 から 2 に上げる（0093 設計書の 1.2）。本書の「2」は、0093 の実装がまだ入っていないときの値で、0093 が先に入って 2 にしていれば 3 になる。番号を上げる目的（古い定義と新しい道具の組み合わせを止めること）は、どちらの順でも同じである（3.1）。ADR: なし（番号の値はタスクの中で閉じるため）。
+-   **issue の問い合わせにラベルを足し、開いた issue に名前が `draft` と等しいラベルがあれば `issue_draft` で拒む（要件書の AC-05。2026-11-17 の決定の変更）。** 下書きの issue からは `/mkreq` もタスクを始めない（issue #934）ので、作った workspace にタスクができず、削除の提案の対象にもならずに残るためである。
+    -   **読み方。** 問い合わせの issue の部分に `labels(first: 100) { totalCount nodes { name } }` を足す（3.3.1）。`totalCount` が `nodes` の数と等しくなければ、すべてのラベルを読めていないので `issue_unreadable` とする。ページをたどる案は、問い合わせの呼び出しの形を増やし、1 回の決まった形の読み取り（計画書の決定 7）を崩すので採らない。100 を超えるラベルを付けた issue は、このリポジトリでは作らないので、拒んでも妨げにならない。
+    -   **比べ方。** ラベルの名前が `draft` とバイト列で等しいかだけを見る。前方一致、部分一致、大文字と小文字の同一視はしない。ラベルは、リポジトリが定めて issue に付ける宣言の値で、`state` や `errors` の `type` と同じく、宣言された値の等しさで振る舞いを選ぶ（CLAUDE.md の「Declare, don't infer」）。題名や本文の中身で下書きかを推し量る案は採らない。
+    -   **閉じた issue との順。** 状態を先に見る。閉じていてラベル `draft` もある issue は `issue_closed` とする。どちらでも何も作らないことは同じで、閉じていることのほうが人の打ち間違いに気づきやすいためである。
+    -   **確かめていないこと。** ラベルの応答の形は、GitHub の GraphQL のスキーマ（`LabelConnection` の `totalCount`・`nodes`、`Label` の `name`）によるもので、このリポジトリで読んで確かめてはいない。PR-1 で採った gh のサンプルは、ラベルを足す前の問い合わせのものである。計画が、サンプルを最初に読む PR で、この問い合わせで採り直す。形がこの節の想定と違えば、計画の段で設計に戻す。
+    -   ADR: ADR-0046 を更新する（作る前に拒む issue の種類を足すため）。
 
 ## 2. システム構成 (System Structure)
 
@@ -293,7 +299,7 @@ query($owner: String!, $repo: String!, $n: Int!) {
   repository(owner: $owner, name: $repo) {
     issueOrPullRequest(number: $n) {
       __typename
-      ... on Issue { number state title }
+      ... on Issue { number state title labels(first: 100) { totalCount nodes { name } } }
       ... on PullRequest { number }
     }
   }
@@ -304,11 +310,12 @@ query($owner: String!, $repo: String!, $n: Int!) {
 
 | gh の終了コード | 応答の形 | 結果 |
 |---|---|---|
-| 0 | `errors` がなく、`issueOrPullRequest` が `__typename` `Issue` のオブジェクトで、`number` が求めた番号、`state` が `OPEN` か `CLOSED`、`title` が文字列 | `OPEN` なら作成に進む。`CLOSED` なら `issue_closed` |
+| 0 | `errors` がなく、`issueOrPullRequest` が `__typename` `Issue` のオブジェクトで、`number` が求めた番号、`state` が `OPEN` か `CLOSED`、`title` が文字列、`labels` が下の形 | `CLOSED` なら `issue_closed`。`OPEN` で、名前が `draft` のラベルがあれば `issue_draft`、なければ作成に進む（1.5） |
 | 0 | `errors` がなく、`issueOrPullRequest` が `__typename` `PullRequest` のオブジェクトで、`number` が求めた番号 | `issue_is_pr` |
 | 1 | `issueOrPullRequest` が `null` で、`errors` がちょうど 1 つ、その `type` が `NOT_FOUND`、`path` が `["repository", "issueOrPullRequest"]` | `issue_not_found` |
 
 -   ほかの形はすべて `issue_unreadable` とする。読むメンバーの重なり（`strictjson.Object.Collect` が拒む。`internal/strictjson/strictjson.go:91`）、名前が読むメンバーと大文字と小文字だけ違うメンバー（`Title` など）、`null`・違う型・知らない `__typename` を含む。大文字と小文字だけ違う名前は今の `strictjson` が拒まないので、拒む読み方を `strictjson` の新しいメソッドとして足す。今の `Collect`・`CollectOnly` を使うほかの読み手の振る舞いは変えない。
+-   **ラベル（1.5）。** `labels` は、`totalCount` が 0 以上の整数で、`nodes` が配列で、その各要素が文字列の `name` を持つオブジェクトであり、`totalCount` が `nodes` の数と等しいものだけを受け付ける。`totalCount` が `nodes` の数と違うとき（一部のラベルだけの応答）と、`name` が `null` か違う型のときは `issue_unreadable` とする。ラベルの名前は、`draft` と等しいかを見るためだけに使い、示さない。
 -   振る舞いは、GitHub が宣言する値である `errors` の `type` で選び、`message` の文では選ばない。`message` は読まない。
 -   **題名。** 題名は、0088 の無害化（`Sanitize`）で制御文字と見えない文字を見える形に置き換え、上限の文字数（計画で決める）で切る。切ったときは、切ったことを出力に示す。題名は、パス、名前、送る入力のどれも左右しない（AC-07）。
 
@@ -625,6 +632,7 @@ const (
 	CreateRefusalIssueForm                     // issue_form (AC-06)
 	CreateRefusalIssueNotFound                 // issue_not_found
 	CreateRefusalIssueClosed                   // issue_closed
+	CreateRefusalIssueDraft                    // issue_draft
 	CreateRefusalIssueIsPR                     // issue_is_pr
 	CreateRefusalIssueUnreadable               // issue_unreadable
 	CreateRefusalTargetExists                  // target_exists (AC-11)
@@ -657,6 +665,7 @@ type RemoveStage int
 | `issue_form` | 番号の形が違う（AC-06） |
 | `issue_not_found` | issue が存在しない |
 | `issue_closed` | issue が閉じている |
+| `issue_draft` | issue が開いていて、ラベル `draft` が付いている（1.5） |
 | `issue_is_pr` | 番号が PR を指す |
 | `issue_unreadable` | 読めないか、形が違う |
 | `target_exists` | 作る先がすでにある。あるものを `existing` に挙げる |
@@ -742,7 +751,7 @@ flowchart LR
 | 同じ指示で、セッションが任意のパスや名前で作らせる | 道具が受け取るのは issue 番号だけで、パスと名前はその番号だけから決まる（3.2）。セッションが渡す文字列はパスに入らない |
 | 同じ指示で、セッションが開いた issue ごとに `chief create` を繰り返し呼び、workspace とエージェントを増やす | 防がない。作るだけでは作業は失われず、作った workspace は表に示される。タスクのない作った workspace は削除の候補にならず、人が端末で片付ける。残る危険として受け入れる |
 | issue の題名に書かれた指示や制御文字 | 題名は無害化して示すだけで、パス、名前、送る入力を左右しない（3.3.1）。`/chief` の定義が、題名をデータとして扱う |
-| 存在しない issue、閉じた issue、PR の番号で、片付けられずに残る workspace を作らせる | 作る前に issue を確かめる（3.3.1） |
+| 存在しない issue、閉じた issue、ラベル `draft` が付いた issue、PR の番号で、片付けられずに残る workspace を作らせる | 作る前に issue を確かめる（3.3.1） |
 | 打ち間違えた番号が、ほかの開いた issue に当たる | 防げない。作成の結果に題名を示し（AC-07）、`/mkreq` の最初の問いで人が止められる（要件書「要件定義の際に決めたこと」） |
 | 作ったことの記録を偽り、chief が作っていない workspace を削除の候補にさせる | 記録のパスは、記録の issue 番号の作る場所と等しくなければならないので、名指せるのは `issue-<N>` の形の worktree だけである（3.4.1）。記録は名指すだけで、Herdr・git・`origin/main` で確かめ直す（3.5）。消すには、人の確認、`ask` の許可、削除の確かめが要る。そのため、コミットして `origin/main` に届いた作業、追跡しているファイルの変更、追跡していないファイル、シェルの pane の前面で動いているプロセスは失われない。残る危険として受け入れる |
 | 確かめの後に変更が入り、確かめていないものを消す | 閉じる直前に pane とエージェントとシェルを読み直す。worktree は `--force` なしで消し、git が最後に拒む（3.4.3） |
@@ -857,7 +866,7 @@ sequenceDiagram
 
 -   0088 と同じく、`internal/cmdrunner/testutil` の fake で herdr・git・gh を置き換え、実物を呼ばない（CLAUDE.md の「Testing Strategy」）。
 -   **作る場所。** 番号からパスと名前が決まること。`$HOME` が相対パスのとき、送れない文字を含むとき（シンボリックリンクを解決した後に含むときを含む）は作らないこと。`TaskSpace.Worktree` と、作った後の `CanonicalWorktree` が違えば止まること。
--   **issue の読み取り。** 1.2 で確かめた 3 つの応答のサンプルで、開いた issue・PR・存在しない番号を見分けること。閉じた issue のサンプルも足す。要件書 4.2 の表の拒む形（上限を超える、後に続くデータ、重なったメンバー、大文字と小文字だけが違う名前、`null`、違う型、違う番号、知らない `__typename`、`errors` が 2 つ、終了コードと形の組が表にないもの）を、1 つずつ拒むこと。
+-   **issue の読み取り。** ラベルを足した問い合わせで採った応答のサンプルで、開いた issue・ラベル `draft` が付いた開いた issue・閉じた issue・PR・存在しない番号を見分けること（1.5）。要件書 4.2 の表の拒む形（上限を超える、後に続くデータ、重なったメンバー、大文字と小文字だけが違う名前、`null`、違う型、違う番号、知らない `__typename`、`errors` が 2 つ、終了コードと形の組が表にないもの、`totalCount` が `nodes` の数と違うラベル、`name` が文字列でないラベル）を、1 つずつ拒むこと。閉じていてラベル `draft` もある issue が `issue_closed` になること。名前が `Draft`・`draft-x` のラベルでは `issue_draft` にならないこと。
 -   **作成。** AC-11 の 3 つの「ある」を 1 つずつ作り、何も作らないこと。各段を 1 つずつ失敗させ、そこで止まり、後の段の呼び出しも `/mkreq` もないこと、作ったものを示すこと（AC-12）。前の使い方の記録（作ったことの記録、送信の停止、終わりのない送信）が残っているときに、それを消してから作り、`/mkreq` を送れること（AC-14）。Claude Code の起動がエラーの応答で終わり、エージェントがいるときに、`/mkreq` を送らず `agent_not_ready` を返すこと。`WorkspaceMaker` が、自分の作った workspace の ID のほかの ID で herdr を呼ばないこと（AC-13）。作成の排他が持たれている周で、`tick` が自動送信をしないこと。`tick` が排他を持つ間に `create` が `busy` で拒むこと。
 -   **削除の候補。** AC-23 の条件を 1 つずつ外した入力の表で、提案しないこと。AC-20 だけの条件（HEAD が detached、エージェントが動いていない）を 1 つずつ外した入力で、行が 0088 の規則のままで、提案は作られ、確かめの結果にその条件が通らないと示されること。記録のパスが記録の issue 番号の作る場所と違うときに提案しないこと。`対応 issue` の行の読み方は、`（` の中のリンク、リンクでない番号、形の合わないリンク、2 つの行、2 つのタスクが同じ issue を挙げる場合を含める。
 -   **0093 の表への削除の提案の行（1.5）。** 0093 の部品が `main` にあるときだけ確かめる。削除の提案の行が「あとで」・人・文書「なし」になり、「あとで」の位置に並ぶこと。送信が止まった削除の提案の行は「すぐ」になり、fetch に失敗した周では文書が「要確認」になること。印のない AC-23 だけの行（エージェントが動いている）は、0093 の通常の規則のままであること。
@@ -874,7 +883,7 @@ sequenceDiagram
 ### 7.3. 実地の確かめ（manual）
 
 -   **最初のフェーズ。** 1.2 の (i)〜(vi) と、Herdr の出力の形（`workspace create`・`tab create`・`agent start` とそのエラーの応答と時間切れ・`pane list`・`pane process-info`・`workspace close`）を、人が実の Herdr で確かめる。起動したばかりの Claude Code の画面のサンプルと、閉じた issue の GraphQL の応答のサンプルも採り、`internal/chief/testdata/` に置く。結果を計画書に記録する。合わないときは、計画の段で設計に戻す。
--   **最後のフェーズ。** chief を動かし、新しいタスクを始めること（新しい workspace と既存の workspace）、作成の拒否（存在しない番号、閉じた issue、PR、すでにあるパス）、削除の提案と削除と拒否を、それぞれ 1 回以上行う。
+-   **最後のフェーズ。** chief を動かし、新しいタスクを始めること（新しい workspace と既存の workspace）、作成の拒否（存在しない番号、閉じた issue、ラベル `draft` が付いた issue、PR、すでにあるパス）、削除の提案と削除と拒否を、それぞれ 1 回以上行う。
 
 ### 7.4. セキュリティのテスト
 
@@ -908,7 +917,7 @@ sequenceDiagram
 | H-04: issue からタスクを見つけ、完了を読む方法 | `git grep` で `対応 issue:` の行を集め、最初の `（` より前の `#<数字>` をリンクの形によらずに数え、読み方の分からないものは提案を減らす向きに数える。完了は `Plan.Done`。`/mkreq` の探し方との違いも記録した（3.4.4） |
 | H-05: セッションへの拒否と、削除のサブコマンドの許可 | 作る herdr の呼び出しと `git worktree add`・`remove`・`move` を拒み、`chief remove` を `ask` にする（1.2、3.8） |
 | H-06: 消す順序と、消すときの git と Herdr の振る舞い | 確かめ、読み直してから workspace を閉じる、pane が消えるのを待つ、`git worktree remove`（`--force` なし）、記録を消す、の順。エージェントでない pane の前面のプロセスと、ほかの workspace がパスを使っていないことを確かめる（1.2、3.4.2、3.4.3） |
-| H-07: issue を読む操作と、issue か PR かの見分け | `gh api graphql` の `issueOrPullRequest`。`__typename` と、`NOT_FOUND` の `errors` で見分ける。2026-11-16 に確かめた（1.2、3.3.1） |
+| H-07: issue を読む操作と、issue か PR かの見分け | `gh api graphql` の `issueOrPullRequest`。`__typename` と、`NOT_FOUND` の `errors` で見分ける。2026-11-16 に確かめた（1.2、3.3.1）。下書きの issue を拒むためにラベルを足した（1.5） |
 | H-08: `/chief` の流れと道具の契約 | `targets`・`create`・`remove` を足し、`--protocol` を `2` に上げる。理由の綴りは 4.1。ガードは 3.9・7.2 |
 | H-09: 削除の提案がある行の急ぎの度合い・番・進行の位置（0093 から） | 削除の提案の行（AC-20 の行）に `Row` の印を付け、`Row.Idle` にしない。0093 の部品のうち `main` にあるものに、対応表では順 2 の後・順 3 の前に「あとで」・人の行を、文書の規則では規則 2 の文書「なし」を足す。並べ方は 0093 のままで「あとで」の位置になる。計画書が、削除の提案の行を作る PR とその後の PR の前に、部品ごとに確かめて足し、0093 の AC-05・AC-07 の規則 2・AC-15 を確かめる（1.5、3.4.1、3.6、7.1） |
 
@@ -951,3 +960,4 @@ sequenceDiagram
 - 2026-11-16 承認（isseis、#910）
 - 2026-11-17 draft への戻し：0093 の表での削除の提案の行の扱い（申し送りの H-09）と、0093 と重なる `--protocol` の番号の決め方を足した（#929）
 - 2026-11-17 承認（isseis、#929）
+- 2026-11-17 draft への戻し：issue の問い合わせにラベルを足し、ラベル `draft` が付いた開いた issue を `issue_draft` で拒むことにした（#未記入）
