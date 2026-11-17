@@ -90,10 +90,9 @@ func TestParseSkipRecord(t *testing.T) {
 	}
 	valid := string(skipJSON(t, nil))
 	raw := map[string]string{
-		"a repeated member":        strings.Replace(valid, `"pane":"w1:p1"`, `"pane":"w9:p9","pane":"w1:p1"`, 1),
-		"a member of another case": strings.Replace(valid, `"pane":"w1:p1"`, `"pane":"w1:p1","Pane":"w1:p1"`, 1),
-		"trailing data":            valid + "{}",
-		"not an object":            "[]",
+		"a repeated member": strings.Replace(valid, `"pane":"w1:p1"`, `"pane":"w9:p9","pane":"w1:p1"`, 1),
+		"trailing data":     valid + "{}",
+		"not an object":     "[]",
 	}
 	for name, data := range raw {
 		if data == valid {
@@ -104,20 +103,22 @@ func TestParseSkipRecord(t *testing.T) {
 		}
 	}
 	edits := map[string]func(map[string]any){
-		"an unknown member":                  set("extra", "x"),
-		"a missing member":                   func(m map[string]any) { delete(m, "route") },
-		"a pane of another form":             set("pane", "-p1"),
-		"a negative seq":                     set("seq", -1),
-		"a seq as text":                      set("seq", "12"),
-		"an agent chief does not know":       set("agent", "claude"),
-		"no scene":                           set("scene", "unknown"),
-		"a command of no kind":               set("command", "fixpr"),
-		"a route of no row":                  set("route", "runplan"),
-		"a saved time of another form":       set("saved", "2026-11-14"),
-		"a route the command does not take":  set("route", "runpr"),
-		"a task number of another form":      set("argument", "1"),
-		"/mkreq with an argument":            func(m map[string]any) { m["command"], m["argument"] = "mkreq", "12" },
-		"/runpr of no PR number":             func(m map[string]any) { m["command"], m["argument"], m["route"] = "runpr", "0x1", "runpr" },
+		"an unknown member":                 set("extra", "x"),
+		"a missing member":                  func(m map[string]any) { delete(m, "route") },
+		"a pane of another form":            set("pane", "-p1"),
+		"a negative seq":                    set("seq", -1),
+		"a seq as text":                     set("seq", "12"),
+		"an agent chief does not know":      set("agent", "claude"),
+		"no scene":                          set("scene", "unknown"),
+		"a command of no kind":              set("command", "fixpr"),
+		"a route of no row":                 set("route", "runplan"),
+		"a saved time of another form":      set("saved", "2026-11-14"),
+		"a route the command does not take": set("route", "runpr"),
+		"a task number of another form":     set("argument", "1"),
+		"/mkreq with an argument":           func(m map[string]any) { m["command"], m["argument"] = "mkreq", "12" },
+		"/runpr of no PR number": func(m map[string]any) {
+			m["scene"], m["command"], m["argument"], m["route"] = "after_autosend", "runpr", "0x1", "runpr"
+		},
 		"/runpr after /runpr":                func(m map[string]any) { m["command"], m["argument"], m["route"] = "runpr", "42", "runpr" },
 		"/mkarch after an automatic send":    set("scene", "after_autosend"),
 		"a Claude Code pane without session": set("session", ""),

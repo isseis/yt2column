@@ -903,9 +903,11 @@ func noNextReport(t *testing.T, pr int) string {
 // #42.
 func clippedRunprReport(t *testing.T, next string) string {
 	t.Helper()
-	screen := runprReportScreen(t, 42, next)
+	var screen string
 	if next == "" {
 		screen = noNextReport(t, 42)
+	} else {
+		screen = runprReportScreen(t, 42, next)
 	}
 	i := strings.Index(screen, "     - cleanup:")
 	if i < 0 {

@@ -3,6 +3,7 @@
 package chief
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -189,17 +190,36 @@ func (mw *mergeWorld) merge(branch, next string) {
 // transcript rule does not cover.
 const unsupportedTree = "tree_w1"
 
-// newClaudeRunprWorld is a merge world whose routing table sends /runpr to
-// Claude Code, so the /runpr pane is the Claude Code pane w1:p1.
-func newClaudeRunprWorld(t *testing.T, docs fakeDocs, tree string) *mergeWorld {
+// claudeRunprContext returns _context.md with its routing table sending
+// /runpr to Claude Code.
+func claudeRunprContext(t *testing.T) []byte {
 	t.Helper()
 	row := "| `runpr` | `/runpr` | OpenCode | `" + openCodeModel + "` |"
 	routed := strings.Replace(string(repoContext(t)), row, "| `runpr` | `/runpr` | Claude Code | `sonnet` |", 1)
 	if routed == string(repoContext(t)) {
 		t.Fatal("the routing row to change was not found in _context.md")
 	}
+	return []byte(routed)
+}
+
+// failCreates returns a Store.beforeCreate hook that fails the creation of
+// every record whose name starts with prefix.
+func failCreates(prefix string) func(string) error {
+	return func(name string) error {
+		if strings.HasPrefix(name, prefix) {
+			return errNoReply
+		}
+		return nil
+	}
+}
+
+// newClaudeRunprWorld is a merge world whose routing table sends /runpr to
+// Claude Code, so the /runpr pane is the Claude Code pane w1:p1.
+func newClaudeRunprWorld(t *testing.T, docs fakeDocs, tree string) *mergeWorld {
+	t.Helper()
+	routed := claudeRunprContext(t)
 	mw := newMergeWorldAt(t, docs, tree)
-	mw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", []byte(routed))
+	mw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", routed)
 	return mw
 }
 
@@ -847,7 +867,7 @@ func TestResetAfterAutoSend(t *testing.T) {
 			t.Fatalf("auto send = %+v; want the command sent and no reset", res)
 		}
 		// A report read whole is another report, not a missing one.
-		checkOffered(t, mw.deps.Store, mw.tree, res.Actions[1], false)
+		checkOffered(t, mw.deps.Store, mw.tree, res.Actions[1], skipNotOfferedNote)
 	})
 	t.Run("the report names another PR", func(t *testing.T) {
 		mw := newMergeWorld(t, mkarchDocs)
@@ -861,7 +881,7 @@ func TestResetAfterAutoSend(t *testing.T) {
 		if slices.Contains(mw.rec.prompts(), "w1:p2 /new") {
 			t.Error("the /runpr pane was emptied")
 		}
-		checkOffered(t, mw.deps.Store, mw.tree, res.Actions[1], false)
+		checkOffered(t, mw.deps.Store, mw.tree, res.Actions[1], skipNotOfferedNote)
 	})
 	testClaudeResetAfterAutoSend(t)
 }
@@ -913,7 +933,7 @@ func testClaudeResetAfterAutoSend(t *testing.T) {
 			}
 			// None of these is offered: no report after a human input that
 			// is not /runpr, another report, or another reason.
-			checkOffered(t, mw.deps.Store, mw.tree, reset, false)
+			checkOffered(t, mw.deps.Store, mw.tree, reset, notOfferedNote(reset))
 			if c.reason == NotSentUnknown {
 				if reset.Outcome != OutcomeSent || !cleared {
 					t.Errorf("reset = %+v; want w1:p1 emptied", reset)
@@ -1573,28 +1593,23 @@ func TestResetAfterAutoSendSkipOffer(t *testing.T) {
 		}
 	}
 	for _, c := range []struct {
-		name    string
-		world   func(t *testing.T) (*mergeWorld, string)
-		offered bool
-		// unwritten is true when the record could not be written.
-		unwritten bool
+		name  string
+		world func(t *testing.T) (*mergeWorld, string)
+		// note is what the detail says of the offer: skipNotOfferedNote
+		// when empty.
+		note string
 	}{
-		{name: "OpenCode: the start of the report is above the screen", world: opencode(clipped(mkarch), nil), offered: true},
-		{name: "OpenCode: no report on the screen", world: opencode(sample("opencode-after-new.ansi"), nil), offered: true},
+		{name: "OpenCode: the start of the report is above the screen", world: opencode(clipped(mkarch), nil), note: skipOfferedNote},
+		{name: "OpenCode: no report on the screen", world: opencode(sample("opencode-after-new.ansi"), nil), note: skipOfferedNote},
 		{name: "OpenCode: a clipped report with no NEXT", world: opencode(clipped(""), nil)},
 		{name: "OpenCode: the pane moved while the command was typed", world: opencode(clipped(mkarch), func(mw *mergeWorld) { mw.byPane["w1:p2"].Seq++ })},
 		{name: "OpenCode: the pane works by then", world: opencode(clipped(mkarch), func(mw *mergeWorld) { mw.byPane["w1:p2"].Status = "working" })},
 		{name: "OpenCode: the record cannot be written", world: func(t *testing.T) (*mergeWorld, string) {
 			mw, pane := opencode(clipped(mkarch), nil)(t)
-			mw.deps.Store.beforeCreate = func(name string) error {
-				if strings.HasPrefix(name, skipPrefix) {
-					return errNoReply
-				}
-				return nil
-			}
+			mw.deps.Store.beforeCreate = failCreates(skipPrefix)
 			return mw, pane
-		}, unwritten: true},
-		{name: "Claude Code: no report after /runpr", world: claude(commandLine("/runpr 42"), prRecordLine(42)), offered: true},
+		}, note: skipUnwrittenNote},
+		{name: "Claude Code: no report after /runpr", world: claude(commandLine("/runpr 42"), prRecordLine(42)), note: skipOfferedNote},
 		{name: "Claude Code: no report after another command", world: claude(commandLine("/runplan 0001"))},
 		{name: "Claude Code: the pane moved while the command was typed", world: func(t *testing.T) (*mergeWorld, string) {
 			mw, pane := claude(commandLine("/runpr 42"), prRecordLine(42))(t)
@@ -1618,11 +1633,9 @@ func TestResetAfterAutoSendSkipOffer(t *testing.T) {
 				t.Fatalf("reset = %+v; want %s not sent, no_report", reset, pane)
 			}
 			mw.deps.Store.beforeCreate = nil
-			checkOffered(t, mw.deps.Store, mw.tree, reset, c.offered)
-			if c.unwritten && !strings.Contains(reset.Detail, skipUnwrittenNote) {
-				t.Errorf("detail %q; want it to say the record could not be written", reset.Detail)
-			}
-			if !c.offered {
+			note := cmp.Or(c.note, skipNotOfferedNote)
+			checkOffered(t, mw.deps.Store, mw.tree, reset, note)
+			if note != skipOfferedNote {
 				return
 			}
 			next := mw.tick(time.Minute).Snapshot.Pending
@@ -1642,7 +1655,9 @@ func TestResetAfterAutoSendSkipOffer(t *testing.T) {
 			}
 			// The detail before the note on the offer says what the report
 			// lacked.
-			lacked, _, _ := strings.Cut(res.Actions[1].Detail, "; ")
+			detail := res.Actions[1].Detail
+			lacked, _, _ := strings.Cut(detail, skipNotOfferedNote)
+			lacked, _, _ = strings.Cut(lacked, skipOfferedNote)
 			details[lacked] = true
 		}
 		if len(details) != 4 {

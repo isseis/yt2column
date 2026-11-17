@@ -185,9 +185,7 @@ func TestResetItemConditions(t *testing.T) {
 		{name: "the pane changed state", change: func(_ *testing.T, mw *mergeWorld) { mw.byPane["w1:p2"].Seq++ }},
 		{name: "the pane works", change: func(_ *testing.T, mw *mergeWorld) { mw.byPane["w1:p2"].Status = "working" }},
 		{name: "the routing table moved the command", change: func(t *testing.T, mw *mergeWorld) {
-			row := "| `runpr` | `/runpr` | OpenCode | `" + openCodeModel + "` |"
-			routed := strings.Replace(string(repoContext(t)), row, "| `runpr` | `/runpr` | Claude Code | `sonnet` |", 1)
-			mw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", []byte(routed))
+			mw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", claudeRunprContext(t))
 		}},
 		{name: "the Claude Code pane has another session", claude: true, change: func(_ *testing.T, mw *mergeWorld) {
 			mw.byPane["w1:p1"].Session = mw.newSession()
@@ -207,12 +205,8 @@ func TestResetItemConditions(t *testing.T) {
 			if items := resetItems(mw.snapshot().Pending); len(items) != 0 {
 				t.Errorf("reset items = %+v; want none", items)
 			}
-			records, err := mw.store.Records(Worktree{path: mw.tree})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if found, err := records.skipRecords(); err != nil || len(found) != 1 {
-				t.Errorf("skip records = %+v, %v; want the record kept", found, err)
+			if recs := skipsOf(t, mw.store, mw.tree); len(recs) != 1 {
+				t.Errorf("skip records = %+v; want the record kept", recs)
 			}
 		})
 	}
@@ -292,7 +286,7 @@ func TestSendOfferedReset(t *testing.T) {
 			mw.skipPane(mw.byPane["w1:p1"], sceneAfterRunpr, ranCommand{kind: paneinput.CommandMkreq, route: paneinput.RouteTaskDocuments})
 		}, typed: "w1:p1 /clear"},
 		{name: "the Claude Code /runpr pane called with a branch", setup: func(mw *mergeWorld) {
-			mw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", []byte(strings.Replace(string(repoContext(mw.t)), "| `runpr` | `/runpr` | OpenCode | `"+openCodeModel+"` |", "| `runpr` | `/runpr` | Claude Code | `sonnet` |", 1)))
+			mw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", claudeRunprContext(mw.t))
 			mw.claudeTranscript(commandLine("/runpr user/0001-test-task-02"))
 			mw.skipPane(mw.byPane["w1:p1"], sceneAfterAutoSend, runprRan)
 		}, typed: "w1:p1 /clear"},
@@ -333,7 +327,7 @@ func TestSendOfferedReset(t *testing.T) {
 // conditions hold.
 func TestSendOfferedResetRefusals(t *testing.T) {
 	routeRunprToClaude := func(mw *mergeWorld) {
-		mw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", []byte(strings.Replace(string(repoContext(mw.t)), "| `runpr` | `/runpr` | OpenCode | `"+openCodeModel+"` |", "| `runpr` | `/runpr` | Claude Code | `sonnet` |", 1)))
+		mw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", claudeRunprContext(mw.t))
 	}
 	for _, c := range []struct {
 		name string
@@ -463,12 +457,7 @@ func TestSendOfferedResetUseAndRecords(t *testing.T) {
 		mw := newMergeWorld(t, mkarchDocs)
 		mw.skipOpenCode()
 		check := mw.shownCheck()
-		mw.deps.Store.beforeCreate = func(name string) error {
-			if strings.HasPrefix(name, sendPrefix) {
-				return errNoReply
-			}
-			return nil
-		}
+		mw.deps.Store.beforeCreate = failCreates(sendPrefix)
 		got := mw.offeredReset(check)
 		mw.deps.Store.beforeCreate = nil
 		if got.Outcome != OutcomeNotSent || got.Reason != NotSentUnreadable || len(mw.rec.prompts()) != 0 {

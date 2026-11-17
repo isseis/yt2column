@@ -148,7 +148,11 @@ func TestResetAfterRunpr(t *testing.T) {
 			}
 			reset := out.Actions[1]
 			typed := sw.rec.prompts()
-			checkOffered(t, deps.Store, tree, reset, c.offered)
+			note := notOfferedNote(reset)
+			if c.offered {
+				note = skipOfferedNote
+			}
+			checkOffered(t, deps.Store, tree, reset, note)
 			if c.reason == 0 {
 				want := []string{"w1:p2 /new", "w1:p2 /runpr 42", "w1:p1 /clear"}
 				if reset.Outcome != OutcomeSent || reset.Input != InputReset || reset.Pane != "w1:p1" || !slices.Equal(typed, want) {
@@ -185,20 +189,34 @@ func skipsOf(t *testing.T, store Store, tree string) []skipRecord {
 	return recs
 }
 
-// checkOffered checks that the workspace at tree keeps one skip record when
-// offered and none otherwise, and that the reset's detail says so when it
-// was skipped with no_report. The detail is compared with the notes the
-// tool adds because their wording is what the human reads.
-func checkOffered(t *testing.T, store Store, tree string, reset ActionResult, offered bool) {
+// skipNotes are the notes the tool adds to a reset skipped with no_report.
+var skipNotes = []string{skipOfferedNote, skipNotOfferedNote, skipUnwrittenNote}
+
+// notOfferedNote is the note a reset that is not offered carries:
+// skipNotOfferedNote for one skipped with no_report, none for any other.
+func notOfferedNote(reset ActionResult) string {
+	if reset.Outcome == OutcomeNotSent && reset.Reason == NotSentNoReport {
+		return skipNotOfferedNote
+	}
+	return ""
+}
+
+// checkOffered checks that the workspace at tree keeps one skip record
+// exactly when note is skipOfferedNote, and that the reset's detail carries
+// note and no other of skipNotes (none when note is empty). The detail is
+// compared with the notes the tool adds because their wording is what the
+// human reads.
+func checkOffered(t *testing.T, store Store, tree string, reset ActionResult, note string) {
 	t.Helper()
 	recs := skipsOf(t, store, tree)
-	switch {
-	case offered && (len(recs) != 1 || !strings.HasSuffix(reset.Detail, skipOfferedNote)):
-		t.Errorf("skip records %+v, detail %q; want one record, said offered", recs, reset.Detail)
-	case !offered && len(recs) != 0:
-		t.Errorf("skip records %+v; want none", recs)
-	case !offered && reset.Reason == NotSentNoReport && reset.Outcome == OutcomeNotSent && !strings.Contains(reset.Detail, skipNotOfferedNote) && !strings.Contains(reset.Detail, skipUnwrittenNote):
-		t.Errorf("detail %q; want it to say why the skip is not offered", reset.Detail)
+	if want := map[bool]int{true: 1, false: 0}[note == skipOfferedNote]; len(recs) != want {
+		t.Errorf("skip records %+v; want %d", recs, want)
+	}
+	for _, n := range skipNotes {
+		if strings.Contains(reset.Detail, n) != (n == note) {
+			t.Errorf("detail %q; want the note %q and no other", reset.Detail, note)
+			return
+		}
 	}
 }
 
@@ -236,7 +254,7 @@ func TestResetChecks(t *testing.T) {
 			if reset.Outcome != OutcomeNotSent || reset.Reason != c.reason || reset.Left != c.left {
 				t.Errorf("reset = %+v; want not sent, %s, left %q", reset, c.reason, c.left)
 			}
-			checkOffered(t, deps.Store, tree, reset, false)
+			checkOffered(t, deps.Store, tree, reset, "")
 			if typed := sw.rec.prompts(); len(typed) != 2 {
 				t.Errorf("typed %v; want only /new and /runpr", typed)
 			}
@@ -347,12 +365,7 @@ func TestResetAfterRunprSkipOffer(t *testing.T) {
 	}{
 		{name: "no report on the Claude Code pane", offered: true},
 		{name: "an OpenCode pane made the PR", why: whyOpenCodeMaker, setup: func(t *testing.T, sw *sendWorld, tree string, _ *Deps) {
-			row := "| `runpr` | `/runpr` | OpenCode | `" + openCodeModel + "` |"
-			routed := strings.Replace(string(repoContext(t)), row, "| `runpr` | `/runpr` | Claude Code | `sonnet` |", 1)
-			if routed == string(repoContext(t)) {
-				t.Fatal("the routing row to change was not found in _context.md")
-			}
-			sw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", []byte(routed))
+			sw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", claudeRunprContext(t))
 			sw.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-sonnet.md")})
 		}},
 		{name: "no PR detail was kept", setup: func(_ *testing.T, sw *sendWorld, tree string, _ *Deps) {
@@ -407,12 +420,7 @@ func TestResetAfterRunprSkipOffer(t *testing.T) {
 			sw.rec.replyFunc("herdr agent get w1:p1", func() reply { return reply{err: errNoReply} })
 		}},
 		{name: "the record cannot be written", setup: func(_ *testing.T, _ *sendWorld, _ string, deps *Deps) {
-			deps.Store.beforeCreate = func(name string) error {
-				if strings.HasPrefix(name, skipPrefix) {
-					return errNoReply
-				}
-				return nil
-			}
+			deps.Store.beforeCreate = failCreates(skipPrefix)
 		}, unwritten: true},
 	}
 	for _, c := range cases {
@@ -441,10 +449,14 @@ func TestResetAfterRunprSkipOffer(t *testing.T) {
 				t.Fatalf("reset = %+v, typed %v; want not sent, no_report, and nothing typed after /runpr", reset, typed)
 			}
 			deps.Store.beforeCreate = nil
-			checkOffered(t, deps.Store, tree, reset, c.offered)
-			if c.unwritten && !strings.Contains(reset.Detail, skipUnwrittenNote) {
-				t.Errorf("detail %q; want it to say the record could not be written", reset.Detail)
+			note := skipNotOfferedNote
+			switch {
+			case c.offered:
+				note = skipOfferedNote
+			case c.unwritten:
+				note = skipUnwrittenNote
 			}
+			checkOffered(t, deps.Store, tree, reset, note)
 			if c.why != "" && !strings.HasSuffix(reset.Detail, skipNotOfferedNote+c.why) {
 				t.Errorf("detail %q; want it to end with %q", reset.Detail, c.why)
 			}

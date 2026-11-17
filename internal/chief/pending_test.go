@@ -16,7 +16,7 @@ func TestSortPending(t *testing.T) {
 	items := []PendingItem{
 		{ID: "p-idle", Kind: PendingProposal, Workspace: "/idle", FirstSeen: t0.Add(-time.Hour)},
 		{ID: "p-new", Kind: PendingProposal, FirstSeen: t0},
-		{ID: "x-old", Kind: PendingReset, FirstSeen: t0.Add(-time.Minute)},
+		{ID: "x-new", Kind: PendingReset, FirstSeen: t0.Add(time.Minute)},
 		{ID: "r-new", Kind: PendingReview, FirstSeen: t0.Add(time.Hour)},
 		{ID: "m", Kind: PendingMergeConfirmation, FirstSeen: t0.Add(3 * time.Hour)},
 		{ID: "q-new", Kind: PendingQuestion, FirstSeen: t0.Add(2 * time.Hour)},
@@ -28,7 +28,7 @@ func TestSortPending(t *testing.T) {
 	for _, it := range items {
 		ids = append(ids, it.ID)
 	}
-	if want := []ItemID{"q-old", "q-new", "m", "r-old", "r-new", "x-old", "p-new", "p-idle"}; !slices.Equal(ids, want) {
+	if want := []ItemID{"q-old", "q-new", "m", "r-old", "r-new", "p-new", "x-new", "p-idle"}; !slices.Equal(ids, want) {
 		t.Errorf("order = %v, want %v", ids, want)
 	}
 }
