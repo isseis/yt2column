@@ -217,6 +217,7 @@ classDiagram
     class ClaudeWait {
         <<struct>>
         +Kind ClaudeWaitKind
+        +Reason NotSentReason
         +Why string
         +Call *OpenCall
         +Working bool
@@ -362,6 +363,11 @@ const (
 // ClaudeWait is the wait of one Claude Code pane.
 type ClaudeWait struct {
 	Kind ClaudeWaitKind
+	// Reason is the reason a relay shows when the transcript cannot be
+	// placed or read (transcriptFailure's no_transcript or
+	// unsupported_path, 3.5.2), for ClaudeWaitNeedsCheck from a read error;
+	// unset otherwise.
+	Reason NotSentReason
 	// Why says in English what could not be told and what the human can do,
 	// for ClaudeWaitNeedsCheck. It names the pane and never quotes the
 	// transcript or the screen.
