@@ -39,7 +39,7 @@ func (emptyImporter) Import(path string) (*types.Package, error) {
 // for that type.
 func constructionViolations(t *testing.T, fset *token.FileSet, files []*ast.File) []string {
 	t.Helper()
-	info := &types.Info{Selections: map[*ast.SelectorExpr]*types.Selection{}}
+	info := &types.Info{Selections: map[*ast.SelectorExpr]*types.Selection{}, Types: map[ast.Expr]types.TypeAndValue{}}
 	conf := types.Config{Importer: emptyImporter{}, Error: func(error) {}}
 	_, _ = conf.Check("chief", fset, files, info)
 	guarded := func(typ types.Type) (string, bool) {
@@ -62,7 +62,9 @@ func constructionViolations(t *testing.T, fset *token.FileSet, files []*ast.File
 				// The literal's type, also when the source elides it
 				// ([]T{{...}}).
 				if tv, ok := info.Types[n]; ok {
-					typeName, _ = guarded(tv.Type)
+					if name, isGuarded := guarded(tv.Type); isGuarded {
+						typeName = name
+					}
 				} else if id, ok := n.Type.(*ast.Ident); ok {
 					if _, isGuarded := guardedTypes[id.Name]; isGuarded {
 						typeName = id.Name
@@ -166,6 +168,10 @@ func (other) NewTaskSpace() TaskSpace { return TaskSpace{path: "x"} }
 		if !slices.ContainsFunc(got, func(v string) bool { return strings.Contains(v, "built in "+fn+" at") }) {
 			t.Errorf("no violation found in %s: %v", fn, got)
 		}
+	}
+	// Both package-level declarations (a plain and an elided literal) count.
+	if n := strings.Count(strings.Join(got, "\n"), "built in a package-level declaration at"); n != 2 {
+		t.Errorf("want 2 package-level violations, got %d: %v", n, got)
 	}
 	if n := strings.Count(strings.Join(got, "\n"), "built in NewTaskSpace at"); n != 1 {
 		t.Errorf("want exactly the method named like the constructor reported, got %d: %v", n, got)
