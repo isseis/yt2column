@@ -314,6 +314,9 @@ func coverageCases() []rrCase {
 			f.plan(rrMarkersPlan, "markers-created.md")
 			return rrNone(f, rrMarkersPlan)
 		}, want: rrAll},
+		// runpr.md marks these two boxes in its pre-merge commit, together
+		// with the checklist chapter's line, after the escalation has run;
+		// the case checks the marking rule, and that commit stays unseen.
 		{name: "PR merged and next branch in a marker section", setup: func(f *rrFixture) []string {
 			f.plan(rrMarkersPlan, "markers-created.md")
 			f.plan(rrMarkersPlan, "markers-merged.md")
@@ -360,6 +363,19 @@ func coverageCases() []rrCase {
 			f.plan(rrMarkersPlan, "markers-bad-url.md")
 			return rrNone(f, rrMarkersPlan)
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		// A plan with CRLF line ends is read like one with LF ends, as the
+		// Opus review's decision script reads it.
+		{name: "CRLF plan", setup: func(f *rrFixture) []string {
+			crlf := func(sample string) string {
+				return strings.ReplaceAll(rrPlanSample(f.t, sample), "\n", "\r\n")
+			}
+			f.write(rrMarkersPlan, crlf("markers.md"))
+			f.commit("CRLF plan")
+			f.record("record", f.seen(f.mb, f.head(), "coderabbit"))
+			f.write(rrMarkersPlan, crlf("markers-created.md"))
+			f.commit("CRLF checkbox")
+			return rrNone(f, rrMarkersPlan)
+		}, want: rrAll},
 		// The lines read the same with or without the final newline, so no
 		// checkbox changes: a change must mark one.
 		{name: "final newline only", setup: func(f *rrFixture) []string {
@@ -484,6 +500,8 @@ func rrConfigScenarios() []rrConfigScenario {
 		{name: "color.diff", config: [2]string{"color.diff", "always"}, plain: diffLast},
 		{name: "diff.external", config: [2]string{"diff.external", "true"}, plain: diffLast},
 		{name: "core.abbrev", config: [2]string{"core.abbrev", "20"}, plain: []string{"log", "-1", "--format=%h"}},
+		{name: "diff.relative", config: [2]string{"diff.relative", "true"}, plain: []string{"-C", "docs", "diff", "--name-only", "HEAD~4", "HEAD~3"}},
+		{name: "diff driver", config: [2]string{"diff.upper.textconv", "tr a-z A-Z <"}, plain: []string{"diff", "HEAD~4", "HEAD~3"}},
 		{name: "core.quotePath", config: [2]string{"core.quotePath", "false"}, plain: []string{"diff", "--name-only", "HEAD~1", "HEAD"}},
 	}
 }
@@ -492,6 +510,10 @@ func rrConfigScenarios() []rrConfigScenario {
 // plan checkbox commit, a seen commit, and an unseen commit whose file has a
 // non-ASCII name (so core.quotePath changes plain git's output).
 func rrConfigBranch(f *rrFixture) []string {
+	// The attribute names a driver only the diff driver scenario defines.
+	f.write(".gitattributes", "*.md diff=upper\n")
+	f.commit("attributes")
+	f.record("record", f.seen(f.mb, f.head(), "coderabbit"))
 	f.plan(rrMarkersPlan, "markers-created.md")
 	c := f.work("c1")
 	f.record("record", f.seen(f.mb, c, "coderabbit"))

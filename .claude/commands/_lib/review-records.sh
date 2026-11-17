@@ -164,6 +164,7 @@ resolve12() {
 plan_lines() {
 	g cat-file blob "$1" | awk '
 		{
+			sub(/\r$/, "")
 			line[NR] = $0
 			kind[NR] = "O"
 			t = $0
