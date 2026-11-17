@@ -6,7 +6,7 @@
 
 **懸念:** 確かめ（F-003）を、Go の道具 `mergepr` に置くか、`/mergepr` と `/runpr` の手順に置くか。マージの直前の確かめ直し（AC-16）で止まったとき、`/runpr` がすでに push した承認の commit（文書の `approved` への書き換えや計画書の記録）をどう扱うか。
 
-**なぜ重要か:** ADR-0014 は、決定的な判定をテストのある Go の道具に置くと定める。`/runpr` と `/mergepr` の両方の経路で止めるには、両方が通る `mergepr` に置くのが自然である。一方、`mergepr merge` は今、`origin` を取り直さない（`internal/mergepr/mergepr.go:249`）。取り直しを足すと、`mergepr_guide.md` §4 のネットワーク操作の表が変わる。承認の commit が残ったまま `/runpr` をやり直すと、承認済みの文書を持つブランチで、もう一度マージの質問をすることになる。
+**なぜ重要か:** ADR-0014 は、決定的な判定をテストのある Go の道具に置くと定める。`/runpr` と `/mergepr` の両方の経路で止めるには、両方が通る `mergepr` に置くのが自然である。一方、`mergepr merge` は今、`origin` を取り直さない（`internal/mergepr/mergepr.go:249`）。取り直しを足すと、`mergepr_guide.md` §4 のネットワーク操作の表が変わる。PR の head は、`--match-head-commit` で `prepare` の時点のものに固定される（`internal/mergepr/mergepr.go:251`）ので、確かめた後に push された head はマージされない。確かめ直しも、この固定された head について行う。承認の commit が残ったまま `/runpr` をやり直すと、承認済みの文書を持つブランチで、もう一度マージの質問をすることになる。
 
 **候補:** `mergepr prepare` で確かめ、`merge` で `git fetch origin main` の後にもう一度確かめる。`/runpr` は、マージの質問の前に `prepare` の結果を読む（AC-14）。確かめ直しで止まったときの承認の commit は、`/runpr` のやり直しでそのまま使えるかを、`runpr.md` の手順で確かめる。
 
