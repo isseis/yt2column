@@ -162,7 +162,7 @@
 -   [x] **ステップ 3-9**: `docs/dev/guides/chief_guide.md` を設計書 3.10 のとおりに直す（既知の制限は、決定 11 の引数なしのコマンドを含む 3 つ）。古い版に戻す手順は、道具と `/chief` の定義を同じコミットから入れることと、送信の記録の新しい欄を古い道具が読めないので記録を消すことを書く。
 -   [x] **ステップ 3-10**: `package_reference.md` の `internal/chief` と `internal/chief/paneinput` の行に、このタスクで exported にした名前を足す。
 -   [ ] **ステップ 3-11**: PR の説明に、人がマージの直前に行う 2 つの項目を書く。0092 の確かめ（§1.3 の決定 6）と、`origin/main` の `Protocol` がこの PR の値と同じなら 1 つ上げること（§1.3 の決定 1）である。`main` はマージで取り込み、rebase しない（0099 の規則。rebase すると、同じ値への書き換えが履歴から消えるため）。上げるときは、人が `/runpr` かこの PR のセッションに、`Protocol` と `/chief` の定義と手引きの番号を直すコミットを頼む。今の `Protocol` のガードテストが、番号の変え残しを見つける。
--   [ ] **ステップ 3-12**: 実地の確かめを、人と行う（§1.3 の決定 3）。動いている `/chief` を人が止め、chief の worktree をこの PR のブランチの先頭（detached）にして `make install-chief` を行い、`/chief` と `/chief once` を起動し直す。設計書 7.3 の 5 つの項目を見る。`working` の Claude Code の pane が数個あり、記録が数十 MB ある状態で、1 周の時間を測る。結果と確かめたコミットを §7 の「PR-3 の実行の記録」に書く。その後に `internal/chief` か `.claude/commands/chief.md` を変えるコミットを足したときは、確かめ直す。マージの後、人が chief の worktree を `main` に戻し、`main` から入れ直す。
+-   [x] **ステップ 3-12**: 実地の確かめを、人と行う（§1.3 の決定 3）。動いている `/chief` を人が止め、chief の worktree をこの PR のブランチの先頭（detached）にして `make install-chief` を行い、`/chief` と `/chief once` を起動し直す。設計書 7.3 の 5 つの項目を見る。`working` の Claude Code の pane が数個あり、記録が数十 MB ある状態で、1 周の時間を測る。結果と確かめたコミットを §7 の「PR-3 の実行の記録」に書く。その後に `internal/chief` か `.claude/commands/chief.md` を変えるコミットを足したときは、確かめ直す。マージの後、人が chief の worktree を `main` に戻し、`main` から入れ直す。
 -   [x] **ステップ 3-13**: ステップ 3-12 の最初の実地の確かめを受けた決定の変更（要件書・設計書の「実装の際に決めたこと（2026-11-17）」）を実装する。`readRunningCommand` は人が最後に打ったタスクのコマンドと、その後の人の入力の有無を返し、`RunningShown.Later` と出力の `running.later_input` に通す。後の入力があればモデルを示さない。`OutputValueNames` を表に示す `urgency`・`position.document`・`position.progress`・`running_unknown` にする。`/chief` の定義の表を 6 つの列（急・名前・タスク・文書・状態・内容）にし、印を「🔴 今」「🟡 後」「🟢 待」に、`running_unknown` を内容の列に示す。手引きの 3.1 と 8 章、ADR-0046、CLAUDE.md の chief の画面の読み取りの例外の範囲の文を合わせる。その後、ステップ 3-12 の実地の確かめをやり直す。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。AC-19 のスクリプトの結果と実地の確かめの結果が §7 にある。
@@ -317,7 +317,9 @@ PASS: only the per-row question list was removed and the per-row list of what do
 -   1 周の時間: 8 つの workspace（`working` の Claude Code の pane を含む）で、`chief snapshot --protocol 2` は 8 行を返して 9.0 秒（CPU は利用者 1.1 秒、システム 1.4 秒）だった。CPU の時間は 2.5 秒で、残りは `git fetch`・`gh` の呼び出しの待ちである。
 -   `/chief once` では、セッションが表を書かずに問い（`AskUserQuestion`）を開き、表が見えなかった。0088 から続く `once` の作りによるもので、今回の列の変更とは関わらないため、人が選んで別の課題（[#968](https://github.com/isseis/yt2column/issues/968)）にした（2026-11-17）。
 
-2 回目の後に、表示の言葉の修正（`385887cd`）と、`origin/main` のマージ（`f4d36f20`、`Protocol` を 3 にした）が `internal/chief` と `chief.md` を変えたので、確かめ直した。3 回目（`83264471`）では、値と言葉は正しく出たが、長い PR の題名を内容の列に入れた行のために、表がまた縦に並んだ。人と試作を見比べて、PR の題名と質問の要点を 20 文字ほどで切ることにした（2026-11-17）。その変更の後に、もう一度確かめる。
+2 回目の後に、表示の言葉の修正（`385887cd`）と、`origin/main` のマージ（`f4d36f20`、`Protocol` を 3 にした）が `internal/chief` と `chief.md` を変えたので、確かめ直した。3 回目（`83264471`）では、値と言葉は正しく出たが、長い PR の題名を内容の列に入れた行のために、表がまた縦に並んだ。人と試作を見比べて、PR の題名と質問の要点を 20 文字ほどで切ることにした（2026-11-17）。その変更（`b11be4ac`）の後に、4 回目（`67989081`）を行った（2026-11-18）。次のことを確かめた。
+-   表は 6 つの列の表として描かれ、縦に並ばなかった。
+-   1 周の時間: 6 つの workspace で、`chief snapshot --protocol 3` は 6 行を返して 6.5 秒（CPU は利用者 0.75 秒、システム 0.70 秒）だった。残りは `git fetch`・`gh` の呼び出しの待ちである。読んだ Claude Code の記録のうち大きいものは 5.1 MB・3.8 MB・3.7 MB で、計画の想定の数十 MB には届かなかった。CPU の時間が 1 周の 4 分の 1 ほどなので、記録が 10 倍になっても、読み取りで周が大きく遅れることはないと見ている（記録の上限を超えた pane は `over_cap` として読まない）。
 
 ## 8. 成功の基準 (Success Criteria)
 
