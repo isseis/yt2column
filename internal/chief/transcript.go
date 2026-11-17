@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,12 +23,12 @@ var errTranscript = errors.New("the Claude Code transcript cannot be read")
 var errUnsupportedPath = errors.New("the working directory holds a character other than letters, digits, '/', '.', and '-'")
 
 // The caps of a transcript read. The session /clear has just started holds
-// a few lines; the session of a pane to reset holds the whole run of the
-// command that created a PR, which reached megabytes in the samples, and its
-// last human input may be at its start.
+// a few lines; a session read for its last report, its PR records, and its
+// last human input holds the whole run of a command, which reached megabytes
+// in the samples, and its last human input may be at its start.
 const (
-	transcriptLimit      = 1 << 20
-	resetTranscriptLimit = 64 << 20
+	transcriptLimit        = 1 << 20
+	sessionTranscriptLimit = 64 << 20
 )
 
 // The re-reads of the transcript after /model: Claude Code writes the record
@@ -115,4 +116,53 @@ func openTranscript(path string) (*os.File, error) {
 		return nil, fmt.Errorf("%w: %s is not a regular file", errTranscript, path)
 	}
 	return f, nil
+}
+
+// ClaudeReport is what chief read about a Claude Code pane's last report.
+// Report.Kind is SessionReportUnreadable when the transcript's place cannot
+// be decided, the file cannot be read, or its content is outside the
+// accepted shape; Reason is then the reason value a reset shows
+// (no_transcript or unsupported_path). Reason is no_report for
+// SessionReportAbsent and unset for SessionReportFound. Detail says why the
+// report is unreadable or absent, with the transcript's path when it is
+// known.
+type ClaudeReport struct {
+	Report SessionReport
+	Reason NotSentReason
+	Detail string
+}
+
+// readClaudeReport reads the last report of a Claude Code pane from its
+// session's transcript. Contract: a session file that does not exist is no
+// report, never an unreadable transcript (a session /clear has just started
+// has written none yet), and its Detail says whether the working
+// directory's transcript directory exists either; every other failure to
+// place, open, or read the file, and content outside the accepted shape, is
+// unreadable, and the screen is never read instead.
+func readClaudeReport(env Env, a Agent) ClaudeReport {
+	path, err := transcriptPath(env, a.Dir, a.Session)
+	if err != nil {
+		reason, detail := transcriptFailure(err)
+		return ClaudeReport{Reason: reason, Detail: detail}
+	}
+	data, err := readTranscript(path, sessionTranscriptLimit)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		detail := path + " does not exist"
+		if _, derr := os.Stat(filepath.Dir(path)); errors.Is(derr, fs.ErrNotExist) {
+			detail += "; the transcript directory " + filepath.Dir(path) + " does not exist either, so chief may not read the directory Claude Code writes to"
+		}
+		return ClaudeReport{Report: SessionReport{Kind: SessionReportAbsent}, Reason: NotSentNoReport, Detail: detail}
+	case err != nil:
+		return ClaudeReport{Reason: NotSentNoTranscript, Detail: err.Error()}
+	}
+	report := readSessionReport(data)
+	switch report.Kind {
+	case SessionReportFound:
+		return ClaudeReport{Report: report}
+	case SessionReportAbsent:
+		return ClaudeReport{Report: report, Reason: NotSentNoReport, Detail: path + ": " + report.absence}
+	default:
+		return ClaudeReport{Report: report, Reason: NotSentNoTranscript, Detail: fmt.Sprintf("%v: %s is not in the shape the sampled transcripts have", errTranscript, path)}
+	}
 }

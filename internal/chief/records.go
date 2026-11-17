@@ -575,6 +575,7 @@ const (
 	startSuffix  = "-start.json"
 	endSuffix    = "-end.json"
 	detailPrefix = "detail-"
+	reportPrefix = "report-"
 )
 
 var (
@@ -584,13 +585,16 @@ var (
 	// detailFileName is a PR detail record's name: the PR number and the
 	// head commit.
 	detailFileName = regexp.MustCompile(`^detail-([1-9][0-9]*)-([0-9a-f]{40})\.json$`)
+	// reportFileName is a report record's name: the PR number and the head
+	// commit.
+	reportFileName = regexp.MustCompile(`^report-([1-9][0-9]*)-([0-9a-f]{40})\.json$`)
 	// workspaceDirName is the name WorkspaceDir gives a worktree's
 	// directory.
 	workspaceDirName = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
-// detailMaxAge is how long a PR detail record is kept; start removes older
-// ones.
+// detailMaxAge is how long a PR detail record or a report record is kept;
+// start removes older ones.
 const detailMaxAge = 14 * 24 * time.Hour
 
 // WorkspaceRecords is the directory of one worktree's records: its sends,
@@ -878,8 +882,8 @@ func (r WorkspaceRecords) SentCommandSince(t time.Time, command string) (bool, e
 const sendKeepAge = observeWindow + carryWindow
 
 // cleanup removes the sends whose start and end are both written and that
-// started more than sendKeepAge before now, and the PR details older than
-// detailMaxAge. A start without an end is never removed.
+// started more than sendKeepAge before now, and the PR details and report
+// records older than detailMaxAge. A start without an end is never removed.
 func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 	starts, ends, err := h.sendFiles()
 	if err != nil {
@@ -912,7 +916,7 @@ func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 		return removed, errors.Join(append(errs, err)...)
 	}
 	for _, e := range entries {
-		if !detailFileName.MatchString(e.Name()) {
+		if !detailFileName.MatchString(e.Name()) && !reportFileName.MatchString(e.Name()) {
 			continue
 		}
 		var rec detailRecord
@@ -1187,4 +1191,29 @@ func (s Store) AutoSent(pr int) (bool, error) {
 func (s Store) recordAutoSend(rec autoSendRecord) error {
 	rec.At = rec.At.UTC()
 	return s.create(autoSendName(rec.PR), rec)
+}
+
+func reportName(pr int, head string) string {
+	return reportPrefix + strconv.Itoa(pr) + "-" + head + recordSuffix
+}
+
+// keptPaneReport returns the record kept for pr at head, the report record
+// before the detail record; ok is false when neither is kept. Contract: only
+// this function knows the two names and their order; a report record that
+// names another PR or head, or whose source is not a pane's report, is a
+// record error, never read past to the detail record.
+func (r WorkspaceRecords) keptPaneReport(pr int, head string) (detailRecord, bool, error) {
+	var rec detailRecord
+	err := r.store().read(reportName(pr, head), &rec)
+	switch {
+	case errors.Is(err, privatefile.ErrNotExist):
+		return r.readDetail(pr, head)
+	case err != nil:
+		return detailRecord{}, false, err
+	case rec.PR != pr || rec.Head != head:
+		return detailRecord{}, false, fmt.Errorf("%w: report of PR %d at %s names another", errRecord, pr, head)
+	case rec.Source != ReportFromScreen.String():
+		return detailRecord{}, false, fmt.Errorf("%w: report of PR %d at %s is not from a pane", errRecord, pr, head)
+	}
+	return rec, true, nil
 }

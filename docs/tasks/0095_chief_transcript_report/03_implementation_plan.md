@@ -94,8 +94,8 @@
 
 **変更するファイル:** `internal/chief/screen_transcript_report.go`（新規）・`screen_transcript_report_test.go`（新規）、`internal/chief/screen_transcript.go`、`internal/chief/transcript.go`・`transcript_test.go`（新規）、`internal/chief/records.go`・`records_test.go`、`internal/chief/sanitize.go`・`sanitize_test.go`、`internal/chief/sim_test.go`（transcript の行の補助関数）、`internal/chief/screen_test.go`（ステップ 2-1 の行）、`internal/chief/detail.go`・`detail_test.go`（改名の分）、`internal/chief/reset.go`（改名の分）、`docs/dev/conventions/package_reference.md`、本計画
 
--   [ ] **ステップ 2-1**: `otherOrigins` に `auto-continuation` を足す（設計書 1.2）。この変更は、PR-1 のうちに製品の振る舞いを変える。④の `readLastHumanInput`（`internal/chief/reset.go:63`）が、`auto-continuation` の行のあるセッションを読めないものとしなくなる。`TestReadLastHumanInput` に `auto-continuation` の行を足して、PR-4 でその各行を消すまで確かめる。
--   [ ] **ステップ 2-2**: `screen_transcript_report.go` に `SessionReportKind`・`SessionReport`・`Names`・`readSessionReport` を足す（設計書 3.1。受け付ける形の表と、最後の報告の決め方の 1〜5）。テスト `TestReadSessionReport` は、フェーズ 1 のサンプルと、それを書き換えた入力で、次を確かめる。
+-   [x] **ステップ 2-1**: `otherOrigins` に `auto-continuation` を足す（設計書 1.2）。この変更は、PR-1 のうちに製品の振る舞いを変える。④の `readLastHumanInput`（`internal/chief/reset.go:63`）が、`auto-continuation` の行のあるセッションを読めないものとしなくなる。`TestReadLastHumanInput` に `auto-continuation` の行を足して、PR-4 でその各行を消すまで確かめる。
+-   [x] **ステップ 2-2**: `screen_transcript_report.go` に `SessionReportKind`・`SessionReport`・`Names`・`readSessionReport` を足す（設計書 3.1。受け付ける形の表と、最後の報告の決め方の 1〜5）。テスト `TestReadSessionReport` は、フェーズ 1 のサンプルと、それを書き換えた入力で、次を確かめる。
     -   PR を作ったコマンドの最後の報告が全文で読め、PR の記録が残ること（AC-01・AC-05）。
     -   AC-02 の各場合（報告の後の人の入力と新しい応答の始まり、終わっていない最後の応答、本文のない応答、終わった応答がないこと、`/clear` で替わった新しいセッション）。報告の後の人の入力には、キューに積まれた人の入力（`queued_command` の `attachment` の行）を含める。逆に、報告の後に peer や task-notification の入力の行しかなければ、報告は残る。
     -   1 つの `message.id` が複数の行に分かれ、どれか 1 行の `stop_reason` が `end_turn` でないときは報告がないこと（設計書 3.1 の規則 3）。`stop_reason` が JSON の `null` のときも報告がないこと。
@@ -103,23 +103,23 @@
     -   サブエージェントの行（AC-03）と、合成の応答・recap・compact の要約（AC-04。後に合成の応答しかない報告は残り、終わっていない応答の後に合成の応答があれば報告はない）。
     -   task-notification に応えた応答も報告になること（設計書 1.2）。
     -   `LastHuman` が、今の `TestReadLastHumanInput`（`internal/chief/screen_test.go:809`）の各行と同じ値になること。`auto-continuation` の行が人の入力にならず、読めないものにもならないこと。
--   [ ] **ステップ 2-3**: テスト `TestReadSessionReportRejects` で、次が `SessionReportUnreadable` になり、`Kind` のほかに何も入らない（`Text` が空で、`Names` が偽になる）ことを確かめる（設計書 7.1 の「形の拒み方」）。
+-   [x] **ステップ 2-3**: テスト `TestReadSessionReportRejects` で、次が `SessionReportUnreadable` になり、`Kind` のほかに何も入らない（`Text` が空で、`Names` が偽になる）ことを確かめる（設計書 7.1 の「形の拒み方」）。
     -   要件書 4.2 の「拒むもの」: 重なった項目、型の違い（文字列でも `null` でもない `stop_reason`、文字列でない `text` の部分の `text` を含む）、正でない PR 番号、不正な UTF-8、対にならないサロゲートのエスケープ。
     -   使う項目のない応答の行と PR の記録の行、空の `type`、空の `prUrl`。
     -   書きかけの最後の行。
 
     同じテストで、拡張を許す部分の結果も確かめる。知らない種類の行と知らない項目は結果を変えない。知らない種類の本文の部分は本文に含めない。知らない `stop_reason` は、読めないものにならず、終わっていない応答として報告がないものになる。
--   [ ] **ステップ 2-4**: テスト `TestSessionReportNames` で、`Names` が番号と URL の両方が等しいときだけ真になることを確かめる（設計書 1.2。番号だけ、URL だけが等しい行と、`#42` と `#421` の違い）。
--   [ ] **ステップ 2-5**: `readReportNext` を同じファイルに足す（設計書 3.2）。テスト `TestReadReportNext` で、今の文法の行、強調・コード・引用・番号のリストで名指す行（値を読めない NEXT）、文の中で触れるだけの行と `Next:` の行（NEXT がない）、食い違う 2 行（一致しない）、PR 番号の読み取り（折り返しをつなぎ直さないこと）を確かめる（AC-07・AC-08）。ステップ 1-1 の `/runpr` の報告のサンプルの NEXT が読めることも確かめる。NEXT を名指す行のコロンの全角 `：` は、正規表現の中で `\x{FF1A}` のエスケープとして書き、Go のソースに全角の文字を置かない。値の読み取りは今の `readNextValue`・`nextNoneValue` を使い、日本語の文字列を足さない。
--   [ ] **ステップ 2-6**: `resetTranscriptLimit` を `sessionTranscriptLimit` に改名し、`ClaudeReport` と `readClaudeReport` を `transcript.go` に足す（設計書 3.3）。テスト `TestReadClaudeReport` で、次を確かめる（AC-02・AC-12）。
+-   [x] **ステップ 2-4**: テスト `TestSessionReportNames` で、`Names` が番号と URL の両方が等しいときだけ真になることを確かめる（設計書 1.2。番号だけ、URL だけが等しい行と、`#42` と `#421` の違い）。
+-   [x] **ステップ 2-5**: `readReportNext` を同じファイルに足す（設計書 3.2）。テスト `TestReadReportNext` で、今の文法の行、強調・コード・引用・番号のリストで名指す行（値を読めない NEXT）、文の中で触れるだけの行と `Next:` の行（NEXT がない）、食い違う 2 行（一致しない）、PR 番号の読み取り（折り返しをつなぎ直さないこと）を確かめる（AC-07・AC-08）。ステップ 1-1 の `/runpr` の報告のサンプルの NEXT が読めることも確かめる。NEXT を名指す行のコロンの全角 `：` は、正規表現の中で `\x{FF1A}` のエスケープとして書き、Go のソースに全角の文字を置かない。値の読み取りは今の `readNextValue`・`nextNoneValue` を使い、日本語の文字列を足さない。
+-   [x] **ステップ 2-6**: `resetTranscriptLimit` を `sessionTranscriptLimit` に改名し、`ClaudeReport` と `readClaudeReport` を `transcript.go` に足す（設計書 3.3）。テスト `TestReadClaudeReport` で、次を確かめる（AC-02・AC-12）。
     -   設計書 3.3 の表の各行の種類と理由。
     -   セッションのファイルがないときと、transcript のディレクトリごとないときで、`Detail` が違うこと。
     -   上限をちょうど 1 バイト超える transcript が読めないものになること（設計書 7.4）。
     -   FIFO とディレクトリが、報告なしではなく読めないものになること。
 
     上限を超える transcript は、`os.Truncate` で中身を書かずに大きさだけを持つファイルとして作る（上限の確かめは形の読み取りの前に失敗するので、読む時間はかからない。§1.3 の決定 2 が退けた 25 MB の読み取りとは違う）。FIFO は `syscall.Mkfifo` で作るので、`transcript_test.go` は `//go:build test && unix` とする。FIFO が開くときに待たないことは、今の `TestTranscriptFIFORefused`（`internal/chief/send_test.go:833`）が確かめているので、ここでは種類だけを確かめる。
--   [ ] **ステップ 2-7**: `records.go` に、報告の控えの名前の形と `keptPaneReport` を足し、`cleanup` が報告の控えも `detailMaxAge` で消すようにする（設計書 3.6）。テスト `TestKeptPaneReport` で、報告の控えが PR の詳細の控えより先に読まれること、どちらもないときに `ok` が偽になること、名前の PR 番号・head と合わない報告の控えと `Source` が `report` でない報告の控えが記録の誤りになることを確かめる。`TestStartCleansSendsAndDetails`（`internal/chief/records_test.go:636`）に、報告の控えが消える行と残る行を足す。
--   [ ] **ステップ 2-8**: 改名の一覧の `CapDescription`・`descriptionMaxBytes`・`TestCapDescription` を改名し、関数のコメントと、読む量の上限のコメント（`internal/chief/sanitize.go:10-12`）を設計書 3.8 のとおりに直す。値と切り方は変えない。`package_reference.md` の `internal/chief` の行の `CapDescription` を `CapHead` に直し、画面の読み取りの型の一覧に `SessionReport` を足す。
+-   [x] **ステップ 2-7**: `records.go` に、報告の控えの名前の形と `keptPaneReport` を足し、`cleanup` が報告の控えも `detailMaxAge` で消すようにする（設計書 3.6）。テスト `TestKeptPaneReport` で、報告の控えが PR の詳細の控えより先に読まれること、どちらもないときに `ok` が偽になること、名前の PR 番号・head と合わない報告の控えと `Source` が `report` でない報告の控えが記録の誤りになることを確かめる。`TestStartCleansSendsAndDetails`（`internal/chief/records_test.go:636`）に、報告の控えが消える行と残る行を足す。
+-   [x] **ステップ 2-8**: 改名の一覧の `CapDescription`・`descriptionMaxBytes`・`TestCapDescription` を改名し、関数のコメントと、読む量の上限のコメント（`internal/chief/sanitize.go:10-12`）を設計書 3.8 のとおりに直す。値と切り方は変えない。`package_reference.md` の `internal/chief` の行の `CapDescription` を `CapHead` に直し、画面の読み取りの型の一覧に `SessionReport` を足す。
 -   [ ] **ステップ 2-9**: 手元でいちばん大きい transcript を `readSessionReport` で読む時間を、一時的なテストで、`-race` を付けずに測る（設計書 1.2 の 98 ms と同じ条件にするため）。測るのは `readSessionReport` を足したコミットの上とし、結果（ファイルの大きさ、時間、測ったコミット）を §7 の「PR-1 の実行の記録」と、その記録を書くコミットのメッセージに書く。一時的なテストはコミットしない（§1.3 の決定 2）。1 秒を超えたら、止まって人に尋ねる。
 
 **完了の条件:** グリーンゲート（`_context.md` の "Green gate"）が通る。製品のコードで振る舞いが変わるのはステップ 2-1 だけで、新しい部品はテストだけから呼ばれる（`make deadcode` はテストも根に数える）。

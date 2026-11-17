@@ -657,6 +657,9 @@ func TestStartCleansSendsAndDetails(t *testing.T) {
 		if err := held.store().create(detailName(pr, head), detailRecord{PR: pr, Head: head, Saved: saved, Source: ReportNone.String()}); err != nil {
 			t.Fatal(err)
 		}
+		if err := held.store().create(reportName(pr, head), detailRecord{PR: pr, Head: head, Saved: saved, Source: ReportFromScreen.String()}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := held.Close(); err != nil {
 		t.Fatal(err)
@@ -665,8 +668,8 @@ func TestStartCleansSendsAndDetails(t *testing.T) {
 	if err != nil || res.CleanupError != nil {
 		t.Fatalf("Start = %+v, %v", res, err)
 	}
-	if res.RemovedSends != 3 || res.Stopped != 1 {
-		t.Errorf("Start = %+v; want 3 records removed and 1 send stopped", res)
+	if res.RemovedSends != 4 || res.Stopped != 1 {
+		t.Errorf("Start = %+v; want 4 records removed and 1 send stopped", res)
 	}
 	records, err := store.Records(Worktree{path: "/work/a"})
 	if err != nil {
@@ -681,6 +684,12 @@ func TestStartCleansSendsAndDetails(t *testing.T) {
 	}
 	if _, ok, err := records.readDetail(2, head); !ok || err != nil {
 		t.Errorf("the recent detail: %v, %v; want it kept", ok, err)
+	}
+	if _, err := os.Stat(filepath.Join(records.dir, reportName(1, head))); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the old report record: %v; want it removed", err)
+	}
+	if rec, ok, err := records.keptPaneReport(2, head); !ok || err != nil || rec.Source != ReportFromScreen.String() {
+		t.Errorf("the recent report record: %+v, %v, %v; want it kept", rec, ok, err)
 	}
 	if stop, _ := records.Stopped(); stop == nil {
 		t.Error("the stop of the unfinished send is missing")
@@ -728,5 +737,55 @@ func TestResolveOwnerChecksTheWorktree(t *testing.T) {
 	w.rec.failIn(gone.Dir, "git rev-parse --show-toplevel", errNotRepo)
 	if _, err := ResolveOwner(ctx, deps.Cmds, unread); !errors.Is(err, errNotRepo) || errors.Is(err, ErrPaneMismatch) {
 		t.Errorf("a pane whose worktree cannot be read = %v, want the read's failure, not ErrPaneMismatch", err)
+	}
+}
+
+// TestKeptPaneReport checks the order the two records of a PR's head are
+// read in: the report record before the detail record, neither giving false,
+// and a report record naming another PR or head, or not from a pane, being a
+// record error rather than read past.
+func TestKeptPaneReport(t *testing.T) {
+	head := strings.Repeat("b", 40)
+	other := strings.Repeat("c", 40)
+	saved := time.Date(2026, 11, 17, 9, 0, 0, 0, time.UTC)
+	detail := detailRecord{PR: 7, Head: head, Saved: saved, Source: ReportFromDescription.String(), Text: "description"}
+	report := detailRecord{PR: 7, Head: head, Saved: saved, Source: ReportFromScreen.String(), Text: "report", Pane: "w1:p1", Seq: 3}
+	cases := []struct {
+		name    string
+		detail  *detailRecord
+		report  *detailRecord
+		want    string
+		ok      bool
+		wantErr bool
+	}{
+		{"neither", nil, nil, "", false, false},
+		{"the detail record alone", &detail, nil, "description", true, false},
+		{"the report record alone", nil, &report, "report", true, false},
+		{"both", &detail, &report, "report", true, false},
+		{"a report record of another PR", &detail, &detailRecord{PR: 8, Head: head, Source: ReportFromScreen.String()}, "", false, true},
+		{"a report record of another head", &detail, &detailRecord{PR: 7, Head: other, Source: ReportFromScreen.String()}, "", false, true},
+		{"a report record from the description", &detail, &detailRecord{PR: 7, Head: head, Source: ReportFromDescription.String()}, "", false, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			records, err := newStore(t).Records(Worktree{path: "/work/a"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.detail != nil {
+				if err := records.store().create(detailName(7, head), *c.detail); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if c.report != nil {
+				if err := records.store().create(reportName(7, head), *c.report); err != nil {
+					t.Fatal(err)
+				}
+			}
+			rec, ok, err := records.keptPaneReport(7, head)
+			if ok != c.ok || rec.Text != c.want || errors.Is(err, errRecord) != c.wantErr || (err != nil) != c.wantErr {
+				t.Errorf("keptPaneReport = %+v, %v, %v; want text %q, ok %v, record error %v", rec, ok, err, c.want, c.ok, c.wantErr)
+			}
+		})
 	}
 }

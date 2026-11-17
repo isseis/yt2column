@@ -9,11 +9,11 @@ import (
 
 // Read caps for text other agents and outside services write. A screen keeps
 // its last lines (the newest output and the input line are at the bottom); a
-// PR description keeps its head.
+// PR description and a report read from a transcript keep their head.
 const (
 	screenMaxLines       = 200
 	screenMaxBytes       = 64 << 10
-	descriptionMaxBytes  = 64 << 10
+	headMaxBytes         = 64 << 10
 	visibleEscapeUnicode = 0x10000
 )
 
@@ -50,17 +50,19 @@ func CapScreen(screen string) Capped {
 	return out
 }
 
-// CapDescription keeps the first descriptionMaxBytes bytes of a PR
-// description, dropping the tail side. The cut never splits a UTF-8 sequence.
-func CapDescription(description string) Capped {
-	if len(description) <= descriptionMaxBytes {
-		return Capped{Text: description}
+// CapHead keeps the first headMaxBytes bytes of text written by another
+// agent or service, such as a PR description or a pane's last report read
+// from its transcript, dropping the tail side. The cut never splits a UTF-8
+// sequence.
+func CapHead(text string) Capped {
+	if len(text) <= headMaxBytes {
+		return Capped{Text: text}
 	}
-	end := descriptionMaxBytes
-	for end > 0 && !utf8.RuneStart(description[end]) {
+	end := headMaxBytes
+	for end > 0 && !utf8.RuneStart(text[end]) {
 		end--
 	}
-	return Capped{Text: description[:end], Truncated: true}
+	return Capped{Text: text[:end], Truncated: true}
 }
 
 // Sanitize returns text for showing to the human with every character that
