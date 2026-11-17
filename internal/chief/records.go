@@ -668,6 +668,13 @@ type SendRecord struct {
 	Model   string    `json:"model"`
 	Prompts []string  `json:"prompts"`
 	Started time.Time `json:"started"`
+	// Kind is the paneinput.CommandKind name of the command a command send
+	// typed ("mkreq", "mkarch", "mkplan", "runplan", "runpr"), and Arg its
+	// argument as typed. Only a command send writes them; they are "" on a
+	// reset, a relay, and a record written before they existed. The running
+	// command is read from them, never from Command's text.
+	Kind string `json:"kind"`
+	Arg  string `json:"arg"`
 }
 
 // sendEnd is the end of one send.
@@ -840,6 +847,32 @@ func (r WorkspaceRecords) LastSend(pane string) (*SendRecord, error) {
 		}
 	}
 	return nil, nil
+}
+
+// sendIDForm is the form of a send's ID, the part of its record names
+// sendFileName matches.
+var sendIDForm = regexp.MustCompile(`^[0-9]{20}-[0-9a-f]{16}$`)
+
+// sendEnded returns the end of the send id, or nil when its end was never
+// written. Contract: an ID not of the form BeginSend gives is an error, so a
+// record's own ID never names a file outside the workspace's sends; an end
+// record that cannot be read, or that names another send, is an error, never
+// read as no end.
+func (r WorkspaceRecords) sendEnded(id string) (*sendEnd, error) {
+	if !sendIDForm.MatchString(id) {
+		return nil, fmt.Errorf("%w: send ID %q", errRecord, id)
+	}
+	var end sendEnd
+	err := r.store().read(sendPrefix+id+endSuffix, &end)
+	switch {
+	case errors.Is(err, privatefile.ErrNotExist):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	case end.ID != id:
+		return nil, fmt.Errorf("%w: the end record of send %s names send %q", errRecord, id, end.ID)
+	}
+	return &end, nil
 }
 
 // SentSince reports whether a send to the workspace started at t or later.

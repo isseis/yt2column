@@ -94,13 +94,15 @@ func TestCommandText(t *testing.T) {
 		make  func() (paneinput.Command, error)
 		text  string
 		route paneinput.RouteKey
+		kind  paneinput.CommandKind
+		arg   string
 	}{
-		"mkreq":    {func() (paneinput.Command, error) { return paneinput.NewMkreq(issue) }, "/mkreq 836", paneinput.RouteTaskDocuments},
-		"mkarch":   {func() (paneinput.Command, error) { return paneinput.NewMkarch(task) }, "/mkarch 0088", paneinput.RouteTaskDocuments},
-		"mkplan":   {func() (paneinput.Command, error) { return paneinput.NewMkplan(task) }, "/mkplan 0088", paneinput.RouteTaskDocuments},
-		"runplan":  {func() (paneinput.Command, error) { return paneinput.NewRunplan(task, paneinput.RouteRunplanSonnet) }, "/runplan 0088", paneinput.RouteRunplanSonnet},
-		"takeover": {func() (paneinput.Command, error) { return paneinput.NewRunplan(task, paneinput.RouteRunplanTakeover) }, "/runplan 0088", paneinput.RouteRunplanTakeover},
-		"runpr":    {func() (paneinput.Command, error) { return paneinput.NewRunpr(mustPR(t, "870")) }, "/runpr 870", paneinput.RouteRunpr},
+		"mkreq":    {func() (paneinput.Command, error) { return paneinput.NewMkreq(issue) }, "/mkreq 836", paneinput.RouteTaskDocuments, paneinput.CommandMkreq, "836"},
+		"mkarch":   {func() (paneinput.Command, error) { return paneinput.NewMkarch(task) }, "/mkarch 0088", paneinput.RouteTaskDocuments, paneinput.CommandMkarch, "0088"},
+		"mkplan":   {func() (paneinput.Command, error) { return paneinput.NewMkplan(task) }, "/mkplan 0088", paneinput.RouteTaskDocuments, paneinput.CommandMkplan, "0088"},
+		"runplan":  {func() (paneinput.Command, error) { return paneinput.NewRunplan(task, paneinput.RouteRunplanSonnet) }, "/runplan 0088", paneinput.RouteRunplanSonnet, paneinput.CommandRunplan, "0088"},
+		"takeover": {func() (paneinput.Command, error) { return paneinput.NewRunplan(task, paneinput.RouteRunplanTakeover) }, "/runplan 0088", paneinput.RouteRunplanTakeover, paneinput.CommandRunplan, "0088"},
+		"runpr":    {func() (paneinput.Command, error) { return paneinput.NewRunpr(mustPR(t, "870")) }, "/runpr 870", paneinput.RouteRunpr, paneinput.CommandRunpr, "870"},
 	}
 	for name, tc := range build {
 		t.Run(name, func(t *testing.T) {
@@ -115,7 +117,27 @@ func TestCommandText(t *testing.T) {
 			if c.Route() != tc.route {
 				t.Errorf("Route() = %d, want %d", c.Route(), tc.route)
 			}
+			kind, arg, err := c.Parts()
+			if err != nil || kind != tc.kind || arg != tc.arg {
+				t.Errorf("Parts() = %d, %q, %v; want %d, %q", kind, arg, err, tc.kind, tc.arg)
+			}
 		})
+	}
+}
+
+// TestParseCommandKind checks that each kind's name reads back as the kind
+// and that no other text, a near miss included, reads as one.
+func TestParseCommandKind(t *testing.T) {
+	for _, kind := range []paneinput.CommandKind{paneinput.CommandMkreq, paneinput.CommandMkarch, paneinput.CommandMkplan, paneinput.CommandRunplan, paneinput.CommandRunpr} {
+		got, err := paneinput.ParseCommandKind(kind.Name())
+		if err != nil || got != kind {
+			t.Errorf("ParseCommandKind(%q) = %d, %v; want %d", kind.Name(), got, err, kind)
+		}
+	}
+	for _, name := range []string{"", "runplan-takeover", "Runplan", "/runplan", "runplan ", "fixpr", "clear"} {
+		if got, err := paneinput.ParseCommandKind(name); !errors.Is(err, paneinput.ErrInvalid) || got != paneinput.CommandUnknown {
+			t.Errorf("ParseCommandKind(%q) = %d, %v; want CommandUnknown and ErrInvalid", name, got, err)
+		}
 	}
 }
 
@@ -161,6 +183,9 @@ func TestConstructorsRejectInvalid(t *testing.T) {
 func TestZeroValuesAreUnusable(t *testing.T) {
 	if _, err := (paneinput.Command{}).Text(); !errors.Is(err, paneinput.ErrInvalid) {
 		t.Errorf("zero Command Text error = %v, want ErrInvalid", err)
+	}
+	if kind, arg, err := (paneinput.Command{}).Parts(); !errors.Is(err, paneinput.ErrInvalid) || kind != paneinput.CommandUnknown || arg != "" {
+		t.Errorf("zero Command Parts = %d, %q, %v; want CommandUnknown, \"\", and ErrInvalid", kind, arg, err)
 	}
 	if _, err := (paneinput.Prompt{}).Text(); !errors.Is(err, paneinput.ErrInvalid) {
 		t.Errorf("zero Prompt Text error = %v, want ErrInvalid", err)

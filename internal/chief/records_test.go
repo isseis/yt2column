@@ -789,3 +789,57 @@ func TestKeptPaneReport(t *testing.T) {
 		})
 	}
 }
+
+// TestSendRecordWithoutCommandFields checks that a start record an older
+// chief wrote, before the command's kind and argument were declared, is
+// still read, with both empty.
+func TestSendRecordWithoutCommandFields(t *testing.T) {
+	store := newStore(t)
+	held := heldRecords(t, store, "/work/a")
+	const id = "01794646800000000000-0123456789abcdef"
+	old := `{"id":"` + id + `","pane":"w1:p1","input":"command","command":"/runplan 0093","agent":"opencode","model":"m","prompts":["/new","/runplan 0093"],"started":"2026-11-14T09:00:00Z"}`
+	if _, err := privatefile.Create(filepath.Join(held.dir, sendPrefix+id+startSuffix), []byte(old)); err != nil {
+		t.Fatal(err)
+	}
+	rec, err := held.LastSend("w1:p1")
+	if err != nil || rec == nil || rec.Command != "/runplan 0093" || rec.Kind != "" || rec.Arg != "" {
+		t.Errorf("LastSend = %+v, %v; want the old record without a kind or an argument", rec, err)
+	}
+}
+
+// TestSendEnded checks the read of a send's end: no end record is none, an
+// end is read with its outcome, and an ID not of the send form or an end
+// that names another send is an error, never read as no end.
+func TestSendEnded(t *testing.T) {
+	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
+	store := newStore(t)
+	held := heldRecords(t, store, "/work/a")
+	open, err := held.BeginSend(SendRecord{Pane: "w1:p1"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if end, err := held.sendEnded(open); err != nil || end != nil {
+		t.Errorf("sendEnded of a send without an end = %+v, %v; want none", end, err)
+	}
+	for _, outcome := range []ActionOutcome{OutcomeSent, OutcomeNotSent, OutcomeSentThenFailed} {
+		id, err := held.BeginSend(SendRecord{Pane: "w1:p1"}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := held.EndSend(id, outcome.String(), "", now); err != nil {
+			t.Fatal(err)
+		}
+		if end, err := held.sendEnded(id); err != nil || end == nil || end.Outcome != outcome.String() {
+			t.Errorf("sendEnded of a send ended %s = %+v, %v", outcome, end, err)
+		}
+	}
+	other := "01794646800000000000-0123456789abcdef"
+	if err := held.store().create(sendPrefix+other+endSuffix, sendEnd{ID: open, Outcome: OutcomeSent.String()}); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{other, "../stop", "", open + "x"} {
+		if end, err := held.sendEnded(id); err == nil {
+			t.Errorf("sendEnded(%q) = %+v; want an error", id, end)
+		}
+	}
+}

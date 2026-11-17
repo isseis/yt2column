@@ -149,6 +149,18 @@ func TestResetAfterRunpr(t *testing.T) {
 				if reset.Outcome != OutcomeSent || reset.Input != InputReset || reset.Pane != "w1:p1" || !slices.Equal(typed, want) {
 					t.Errorf("reset = %+v, typed %v; want /clear sent to w1:p1 after %v", reset, typed, want[:2])
 				}
+				// Only the command's record declares a command; the reset's
+				// does not.
+				// Both sends start at the same time, so their order is not
+				// read.
+				recs := startRecords(t, deps, tree)
+				declared := map[string][2]string{}
+				for _, r := range recs {
+					declared[r.Input] = [2]string{r.Kind, r.Arg}
+				}
+				if len(recs) != 2 || declared[InputCommand.String()] != [2]string{"runpr", "42"} || declared[InputReset.String()] != [2]string{} {
+					t.Errorf("start records = %+v; want /runpr 42 declared and the reset without a command", recs)
+				}
 				return
 			}
 			if reset.Outcome != OutcomeNotSent || reset.Reason != c.reason || len(typed) != 2 {
