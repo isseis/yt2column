@@ -138,7 +138,7 @@ add a kind here or to widen one of these definitions.
 | `internal/codexreview` | The checks behind the `codexreview` tool: `Run`, `Result`, `Kind`, `Protocol`. |
 | `internal/coveragecompare` | The coverage comparison tool's core: `Run`, `Write`, `ExitCode`, `StopError`, and the input parsers. |
 | `internal/fixprguard` | The deterministic checks for `/fixpr` and `/runpr`: `GitHub`, `NewGitHub`, `ParseReviewers`, `CheckState`, `Worktree.Baseline`. Usage: [fixprguard guide](../guides/fixprguard_guide.md). |
-| `internal/mergepr` | Implements the `/mergepr` mechanics: prepares the drafting material after CI passes, squash-merges with `--match-head-commit`, and updates the local base and deletes the local head branch only while it still points at the merged head. Usage: [mergepr guide](../guides/mergepr_guide.md). |
+| `internal/mergepr` | Implements the `/mergepr` mechanics: prepares the drafting material after CI passes, squash-merges with `--match-head-commit`, and updates the local base and deletes the local head branch only while it still points at the merged head. Before CI is awaited and again right before the merge, it fetches `main` and runs the protocol-number check, which stops a PR that changed a tool's `Protocol` to anything but `origin/main`'s value plus one. Besides `New`, `Tool`, and `Discard`, it exports `Protocol`, `ShownCommands`, and `WorktreeProtocolTools`. Usage: [mergepr guide](../guides/mergepr_guide.md). |
 
 ## Test-Only Packages
 
@@ -146,7 +146,7 @@ add a kind here or to widen one of these definitions.
 |---|---|
 | `internal/cmdrunner/testutil` | Test double `Fake` for `cmdrunner.InputRunner`: replays a scripted command sequence, records standard input, and runs a side-effect function per step. |
 | `internal/codexreview/testutil` | The fake Codex CLI and clean `PATH`, `HOME`, and `TMPDIR` a `codexreview` test runs with: `Main`, `NewFake`, `Fake.Set`, `Starts`, `Args`, `Env`. |
-| `internal/doctestutil` | The Markdown helpers the document guard tests share: `ReadDoc`, `ScanDocLines`, `FencedBlocks`, `SectionByHeading`, `ParseStructure`, `CompareStructures`, `FindTable`, `ProtocolFlags`, and the readers of the commands a document writes (`CommandTexts`, `Invocations`, `PromptFree`, `RunsCommand`). |
+| `internal/doctestutil` | The Markdown helpers the document guard tests share: `ReadDoc`, `ScanDocLines`, `FencedBlocks`, `SectionByHeading`, `ParseStructure`, `CompareStructures`, `FindTable`, `ProtocolFlags`, `ProtocolCallers`, `ProtocolTools`, and the readers of the commands a document writes (`CommandTexts`, `Invocations`, `PromptFree`, `RunsCommand`). |
 | `internal/godepstest` | Lists a package's transitive dependencies with `go list -deps` on each target OS and checks them, failing rather than skipping when it cannot list: `Check`, `Root`, `List`, `PackagePath`, `MustPackagePath`, `Deps.Require`, `Deps.Forbid`. |
 | `internal/llm/claude/testutil` | What the Anthropic integration test needs: `SettingsFrom` decides from the environment whether it runs, skips, or fails. |
 | `internal/llm/deepseek/testutil` | What the DeepSeek integration tests share: `SettingsFrom` for the opt-in, and `RunMakeTarget`, `CheckChargedTarget`, `FirstLineIs` for the make targets that keep them out of `make test`. |

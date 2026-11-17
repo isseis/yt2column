@@ -8,15 +8,23 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
 
 const testPRJSON = `{"number":42,"title":"Test PR","state":"OPEN","headRefName":"feature/foo","headRefOid":"` + testHeadOID + `","baseRefName":"main","url":"https://github.com/isseis/yt2column/pull/42","body":"the PR description"}`
 
+// fetchMainStep is the fetch of main into origin/main that comes right
+// before each protocol-number check.
+func fetchMainStep() commandStep {
+	return gitStep("", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main")
+}
+
 func prepareTailSteps(workRoot, gitDir string) []commandStep {
 	return []commandStep{
 		gitStep("", "fetch", "origin"),
+		fetchMainStep(),
 		ghStep("", "pr", "checks", "42", "--watch", "--fail-fast"),
 		gitStep("abc subject\n\nbody\n", "log", "--format=%h %s%n%n%b", "origin/main.."+testHeadOID),
 		gitStep(" a.txt | 1 +\n", "diff", "--stat", "origin/main..."+testHeadOID),
@@ -59,6 +67,9 @@ func TestPrepare(t *testing.T) {
 	}
 	wantState := testState
 	wantState.WorkDir = prepared.Dir
+	if prepared.ProtocolCheck != testSummary.String() {
+		t.Errorf("prepared.ProtocolCheck = %q, want the summary of the passed check %q", prepared.ProtocolCheck, testSummary.String())
+	}
 	if !reflect.DeepEqual(prepared.State, wantState) {
 		t.Errorf("state = %+v, want %+v", prepared.State, wantState)
 	}
@@ -253,6 +264,7 @@ func TestPrepareRejectsFailedChecks(t *testing.T) {
 	tool, runner := newTool(t,
 		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
 		gitStep("", "fetch", "origin"),
+		fetchMainStep(),
 		failed,
 	)
 
@@ -318,7 +330,7 @@ func mergeFiles(t *testing.T) (dir, statePath, subjectPath, bodyPath string) {
 
 func TestMerge(t *testing.T) {
 	dir, statePath, subjectPath, bodyPath := mergeFiles(t)
-	steps := []commandStep{viewStep(openState, "main"), mergeStep()}
+	steps := []commandStep{viewStep(openState, "main"), fetchMainStep(), mergeStep()}
 	tool, runner := newTool(t, append(steps, cleanupSteps(testHeadOID)...)...)
 
 	report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
@@ -326,7 +338,7 @@ func TestMerge(t *testing.T) {
 		t.Fatalf("Merge returned error: %v", err)
 	}
 	runner.done()
-	want := Report{MergeCommitOID: testMergeOID, BaseUpdated: true, LocalDeleted: true}
+	want := Report{ProtocolCheck: testSummary.String(), MergeCommitOID: testMergeOID, BaseUpdated: true, LocalDeleted: true}
 	if !reflect.DeepEqual(report, want) {
 		t.Errorf("report = %+v, want %+v", report, want)
 	}
@@ -706,5 +718,166 @@ func TestPrepareReportsFailedRemovalOfPartialWorkDir(t *testing.T) {
 	}
 	if dir := filepath.Join(gitDir, entries[0].Name()); !strings.Contains(prepareErr.Error(), dir) {
 		t.Errorf("Prepare error = %q, want it to name the left-behind directory %s", prepareErr, dir)
+	}
+}
+
+// stopErrors are the two kinds of protocol-check stop: a number that is not
+// origin/main's plus one, and something the check could not read.
+var stopErrors = []struct {
+	name string
+	err  error
+}{
+	{"mismatch", &protocolMismatchError{MainOID: testOtherOID, HeadOID: testHeadOID}},
+	{"unreadable", &protocolUnreadableError{Kind: unreadableHistory}},
+}
+
+// TestPrepareRunsProtocolCheck verifies that Prepare runs the protocol check
+// right after fetching main, on the head and base gh reported, and that a
+// stop happens before CI is awaited: the scripted runner fails the test on
+// any later command, the git calls that locate the work directory included,
+// so no work directory can be created.
+func TestPrepareRunsProtocolCheck(t *testing.T) {
+	const otherHead = "5555555555555555555555555555555555555555"
+	pr := strings.ReplaceAll(strings.ReplaceAll(testPRJSON, testHeadOID, otherHead), `"baseRefName":"main"`, `"baseRefName":"release"`)
+	lead := []commandStep{
+		ghStep(pr, "pr", "view", "42", "--json", prViewFields),
+		gitStep("", "fetch", "origin"),
+		fetchMainStep(),
+	}
+	wantCall := []checkCall{{head: otherHead, base: "release", index: len(lead)}}
+
+	t.Run("pass", func(t *testing.T) {
+		workRoot := t.TempDir()
+		gitDir := filepath.Join(workRoot, ".git")
+		if err := os.Mkdir(gitDir, 0o700); err != nil {
+			t.Fatalf("create git dir: %v", err)
+		}
+		tail := []commandStep{
+			ghStep("", "pr", "checks", "42", "--watch", "--fail-fast"),
+			gitStep("", "log", "--format=%h %s%n%n%b", "origin/release.."+otherHead),
+			gitStep("", "diff", "--stat", "origin/release..."+otherHead),
+			gitStep(gitDir+"\n", "rev-parse", "--absolute-git-dir"),
+			gitStep(workRoot+"\n", "rev-parse", "--show-toplevel"),
+		}
+		tool, runner, checker := newCheckedTool(t, nil, append(slices.Clone(lead), tail...)...)
+		prepared, err := tool.Prepare(t.Context(), "42")
+		if err != nil {
+			t.Fatalf("Prepare returned error: %v", err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
+		runner.done()
+		if !slices.Equal(checker.calls, wantCall) {
+			t.Errorf("check calls = %+v, want %+v", checker.calls, wantCall)
+		}
+	})
+	for _, stop := range stopErrors {
+		t.Run(stop.name, func(t *testing.T) {
+			tool, runner, checker := newCheckedTool(t, stop.err, lead...)
+			if _, err := tool.Prepare(t.Context(), "42"); !errors.Is(err, stop.err) {
+				t.Fatalf("Prepare error = %v, want %v", err, stop.err)
+			}
+			runner.done()
+			if !slices.Equal(checker.calls, wantCall) {
+				t.Errorf("check calls = %+v, want %+v", checker.calls, wantCall)
+			}
+		})
+	}
+}
+
+// TestMergeRunsProtocolCheck verifies that Merge runs the protocol check
+// after fetching main, on the head and base of the state file (the live PR
+// reports another head, which must not be checked), and that a stop calls
+// nothing after it, gh pr merge included.
+func TestMergeRunsProtocolCheck(t *testing.T) {
+	lead := []commandStep{viewHeadStep(openState, "main", testOtherOID), fetchMainStep()}
+	wantCall := []checkCall{{head: testHeadOID, base: "main", index: len(lead)}}
+	for _, stop := range stopErrors {
+		t.Run(stop.name, func(t *testing.T) {
+			dir, statePath, subjectPath, bodyPath := mergeFiles(t)
+			tool, runner, checker := newCheckedTool(t, stop.err, lead...)
+			report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+			if !errors.Is(err, stop.err) {
+				t.Fatalf("Merge error = %v, want %v", err, stop.err)
+			}
+			runner.done()
+			if !slices.Equal(checker.calls, wantCall) {
+				t.Errorf("check calls = %+v, want %+v", checker.calls, wantCall)
+			}
+			if report != (Report{}) {
+				t.Errorf("report = %+v, want empty after a stop", report)
+			}
+			if _, err := os.Stat(dir); err != nil {
+				t.Errorf("work directory %s removed on a stopped merge, want it kept for discard: %v", dir, err)
+			}
+			// The command the operator is told to run is the contract: a
+			// stop shows the discard command with this binary's --protocol.
+			if !strings.Contains(err.Error(), discardCommand(statePath)) {
+				t.Errorf("Merge error = %q, want it to show %q", err, discardCommand(statePath))
+			}
+		})
+	}
+}
+
+// TestProtocolFetchFailureStops verifies that a failed fetch of main stops
+// Prepare and Merge as unreadable without running the check or any later
+// command.
+func TestProtocolFetchFailureStops(t *testing.T) {
+	failedFetch := fetchMainStep()
+	failedFetch.err = errors.New("exit status 128")
+	t.Run("prepare", func(t *testing.T) {
+		tool, runner, checker := newCheckedTool(t, nil,
+			ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+			gitStep("", "fetch", "origin"),
+			failedFetch,
+		)
+		_, err := tool.Prepare(t.Context(), "42")
+		assertFetchUnreadable(t, err)
+		runner.done()
+		if len(checker.calls) != 0 {
+			t.Errorf("check calls = %+v, want none", checker.calls)
+		}
+	})
+	t.Run("merge", func(t *testing.T) {
+		_, statePath, subjectPath, bodyPath := mergeFiles(t)
+		tool, runner, checker := newCheckedTool(t, nil, viewStep(openState, "main"), failedFetch)
+		_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+		assertFetchUnreadable(t, err)
+		// A failed fetch leaves the preparation usable, so the operator is
+		// not told to discard it.
+		if strings.Contains(err.Error(), discardCommand(statePath)) {
+			t.Errorf("Merge error = %q, want no discard command after a failed fetch", err)
+		}
+		runner.done()
+		if len(checker.calls) != 0 {
+			t.Errorf("check calls = %+v, want none", checker.calls)
+		}
+	})
+}
+
+func assertFetchUnreadable(t *testing.T, err error) {
+	t.Helper()
+	unreadable, ok := errors.AsType[*protocolUnreadableError](err)
+	if !ok {
+		t.Fatalf("error = %v, want a protocolUnreadableError", err)
+	}
+	if unreadable.Kind != unreadableFetch {
+		t.Errorf("kind = %v, want unreadableFetch", unreadable.Kind)
+	}
+}
+
+// TestMergeKeepsSummaryWhenMergeFails verifies that a merge refused after the
+// protocol check passed still reports the check's summary.
+func TestMergeKeepsSummaryWhenMergeFails(t *testing.T) {
+	_, statePath, subjectPath, bodyPath := mergeFiles(t)
+	refused := mergeStep()
+	refused.err = errors.New("exit status 1")
+	tool, runner := newTool(t, viewStep(openState, "main"), fetchMainStep(), refused)
+	report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+	if err == nil {
+		t.Fatal("Merge returned nil, want the refused merge's error")
+	}
+	runner.done()
+	if report.ProtocolCheck != testSummary.String() {
+		t.Errorf("report.ProtocolCheck = %q, want %q", report.ProtocolCheck, testSummary.String())
 	}
 }
