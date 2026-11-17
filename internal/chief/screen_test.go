@@ -810,6 +810,7 @@ func TestReadLastHumanInput(t *testing.T) {
 	sample := strings.TrimSpace(string(readTestdata(t, "transcript/claude-human-input.jsonl")))
 	lines := strings.Split(sample, "\n")
 	queued := strings.Split(strings.TrimSpace(string(readTestdata(t, "transcript/claude-queued-input.jsonl"))), "\n")
+	resumed := transcriptSample(t, "claude-auto-continuation.jsonl")
 	command := HumanInput{Kind: HumanInputCommand, Name: "runplan", Args: "0088"}
 	cases := []struct {
 		name string
@@ -829,6 +830,7 @@ func TestReadLastHumanInput(t *testing.T) {
 		{"a queued command of an unsampled origin", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(queued[2], `"kind":"human"`, `"kind":"coordinator"`, 1), HumanInput{}},
 		{"a queued command without an origin", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(queued[2], `"origin":{"kind":"human"},`, "", 1), HumanInput{}},
 		{"a later human line repeating a member", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(lines[len(lines)-1], `"type":"user",`, `"type":"user","type":"user",`, 1), HumanInput{}},
+		{"an auto-continuation after the command", strings.Join(lines[:3], "\n") + "\n" + resumed[sampleLine(t, resumed, `"kind":"auto-continuation"`)], command},
 	}
 	for _, c := range cases {
 		if got := readLastHumanInput([]byte(c.text)); got != c.want {

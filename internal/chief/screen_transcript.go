@@ -149,8 +149,10 @@ var customCommandRecord = regexp.MustCompile(`^<command-message>([a-z0-9-]+)</co
 // transcript unreadable.
 const humanOrigin = "human"
 
-// otherOrigins are the sampled origin kinds of lines the human did not type.
-var otherOrigins = []string{"peer", "task-notification"}
+// otherOrigins are the sampled origin kinds of lines the human did not type:
+// a peer's message, a task notification, and the line Claude Code writes to
+// resume the work once a usage limit has reset.
+var otherOrigins = []string{"peer", "task-notification", "auto-continuation"}
 
 // queuedCommand is the attachment type of a message delivered while the
 // agent works: the human's text typed mid-turn, a peer's message, or a task

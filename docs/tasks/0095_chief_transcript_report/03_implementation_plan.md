@@ -82,11 +82,11 @@
 
 **変更するファイル:** `internal/chief/testdata/transcript/`（サンプルを足す）、`internal/chief/testdata/README.md`、本計画（§7 の「PR-1 の実行の記録」）
 
--   [ ] **ステップ 1-1**: runpr.md に NEXT の行を定めた PR の `/runpr` を走らせた Claude Code のセッションの transcript から、今の形の `/runpr` の報告を含むサンプルを採る（§1.3 の決定 1、§1.5 の決定）。その transcript は、本タスクの worktree の transcript のディレクトリ（`<設定のディレクトリ>/projects/<worktree のパスの / と . を - にした名前>/`）から探す。探すのは、人が入力したコマンドの行が `/runpr <その PR の番号>` であるセッションである。chief が後で同じ pane に `/clear` を送るので、pane の今のセッションとは限らない。見つからないとき、または 2 つ以上見つかるときは、採らずに止まり、サンプルの出どころを人に尋ねる。採った報告の NEXT の行が、今の文法（`nextLine`・`readNextValue`）で読めるかを確かめ、結果を §7 の「PR-1 の実行の記録」に書く。読めなければ、それ以上進まずに止まり、要件に戻って文法を決め直すことを人に尋ねる（設計書 1.2・8 章の 1）。
--   [ ] **ステップ 1-2**: 設計書 7.1 の 1 つ目の項のサンプルを、手元の transcript から読み取りだけで採る。PR を作ったコマンドの実行の終わり（最後の報告と PR の記録があるもの）、合成の応答、recap、compact の要約、task-notification に応えた応答、`auto-continuation` の行を含むものである。1 つのファイルが複数を兼ねてよい。
--   [ ] **ステップ 1-3**: 各サンプルを、テストが読む行に絞る。今の transcript のサンプルと同じく、ツールの結果の行（`gh pr view` の JSON や git の出力を含む）など、報告の読み取り部品が読まない行は削り、残す行も、受け付ける形の表（設計書 3.1）の項目と、拡張を許す部分を確かめるのに要る項目だけにしてよい（`cwd`・`gitBranch` など、採った人を特定しうる項目を残さない）。そのうえで、採った人を特定できる値を `testdata/README.md` の「置き換えたもの」の表のとおりに置き換える。PR の記録の `prUrl`・`prRepository` と報告の本文の GitHub のログイン名も `owner` に置き換える。
--   [ ] **ステップ 1-4**: 置き換えの後に、`TestSamplesFollowReplacementRules` が通ることと、足したサンプルに GitHub のログイン名と利用者の氏名が残っていないことを、手元で一度だけ探して確かめる。後者は、探す値をリポジトリに書かず、探したことと結果（0 件）だけを §7 の「PR-1 の実行の記録」に書く。`TestSamplesFollowReplacementRules` はログイン名と氏名を見つけないためである（`internal/chief/samples_test.go:22-31` の規則は、ホームのパス・UUID・noreply のアドレス・`/home/` のパスだけを見る）。
--   [ ] **ステップ 1-5**: `testdata/README.md` に、足したサンプルの採った日と Claude Code の版、採り方、削った行と項目、置き換えた値（PR の記録の URL を含む）を書く。「Claude Code の `/runpr` の報告は、`/runpr` を OpenCode で走らせるので要らない」の文（同 78 行）を、今のサンプルに合わせて書き直す。
+-   [x] **ステップ 1-1**: runpr.md に NEXT の行を定めた PR の `/runpr` を走らせた Claude Code のセッションの transcript から、今の形の `/runpr` の報告を含むサンプルを採る（§1.3 の決定 1、§1.5 の決定）。その transcript は、本タスクの worktree の transcript のディレクトリ（`<設定のディレクトリ>/projects/<worktree のパスの / と . を - にした名前>/`）から探す。探すのは、人が入力したコマンドの行が `/runpr <その PR の番号>` であるセッションである。chief が後で同じ pane に `/clear` を送るので、pane の今のセッションとは限らない。見つからないとき、または 2 つ以上見つかるときは、採らずに止まり、サンプルの出どころを人に尋ねる。採った報告の NEXT の行が、今の文法（`nextLine`・`readNextValue`）で読めるかを確かめ、結果を §7 の「PR-1 の実行の記録」に書く。読めなければ、それ以上進まずに止まり、要件に戻って文法を決め直すことを人に尋ねる（設計書 1.2・8 章の 1）。
+-   [x] **ステップ 1-2**: 設計書 7.1 の 1 つ目の項のサンプルを、手元の transcript から読み取りだけで採る。PR を作ったコマンドの実行の終わり（最後の報告と PR の記録があるもの）、合成の応答、recap、compact の要約、task-notification に応えた応答、`auto-continuation` の行を含むものである。1 つのファイルが複数を兼ねてよい。
+-   [x] **ステップ 1-3**: 各サンプルを、テストが読む行に絞る。今の transcript のサンプルと同じく、ツールの結果の行（`gh pr view` の JSON や git の出力を含む）など、報告の読み取り部品が読まない行は削り、残す行も、受け付ける形の表（設計書 3.1）の項目と、拡張を許す部分を確かめるのに要る項目だけにしてよい（`cwd`・`gitBranch` など、採った人を特定しうる項目を残さない）。そのうえで、採った人を特定できる値を `testdata/README.md` の「置き換えたもの」の表のとおりに置き換える。PR の記録の `prUrl`・`prRepository` と報告の本文の GitHub のログイン名も `owner` に置き換える。
+-   [x] **ステップ 1-4**: 置き換えの後に、`TestSamplesFollowReplacementRules` が通ることと、足したサンプルに GitHub のログイン名と利用者の氏名が残っていないことを、手元で一度だけ探して確かめる。後者は、探す値をリポジトリに書かず、探したことと結果（0 件）だけを §7 の「PR-1 の実行の記録」に書く。`TestSamplesFollowReplacementRules` はログイン名と氏名を見つけないためである（`internal/chief/samples_test.go:22-31` の規則は、ホームのパス・UUID・noreply のアドレス・`/home/` のパスだけを見る）。
+-   [x] **ステップ 1-5**: `testdata/README.md` に、足したサンプルの採った日と Claude Code の版、採り方、削った行と項目、置き換えた値（PR の記録の URL を含む）を書く。「Claude Code の `/runpr` の報告は、`/runpr` を OpenCode で走らせるので要らない」の文（同 78 行）を、今のサンプルに合わせて書き直す。
 
 **完了の条件:** サンプルが置かれ、`TestSamplesFollowReplacementRules` が通り、ステップ 1-1 と 1-4 の結果が記録されている。
 
@@ -94,8 +94,8 @@
 
 **変更するファイル:** `internal/chief/screen_transcript_report.go`（新規）・`screen_transcript_report_test.go`（新規）、`internal/chief/screen_transcript.go`、`internal/chief/transcript.go`・`transcript_test.go`（新規）、`internal/chief/records.go`・`records_test.go`、`internal/chief/sanitize.go`・`sanitize_test.go`、`internal/chief/sim_test.go`（transcript の行の補助関数）、`internal/chief/screen_test.go`（ステップ 2-1 の行）、`internal/chief/detail.go`・`detail_test.go`（改名の分）、`internal/chief/reset.go`（改名の分）、`docs/dev/conventions/package_reference.md`、本計画
 
--   [ ] **ステップ 2-1**: `otherOrigins` に `auto-continuation` を足す（設計書 1.2）。この変更は、PR-1 のうちに製品の振る舞いを変える。④の `readLastHumanInput`（`internal/chief/reset.go:63`）が、`auto-continuation` の行のあるセッションを読めないものとしなくなる。`TestReadLastHumanInput` に `auto-continuation` の行を足して、PR-4 でその各行を消すまで確かめる。
--   [ ] **ステップ 2-2**: `screen_transcript_report.go` に `SessionReportKind`・`SessionReport`・`Names`・`readSessionReport` を足す（設計書 3.1。受け付ける形の表と、最後の報告の決め方の 1〜5）。テスト `TestReadSessionReport` は、フェーズ 1 のサンプルと、それを書き換えた入力で、次を確かめる。
+-   [x] **ステップ 2-1**: `otherOrigins` に `auto-continuation` を足す（設計書 1.2）。この変更は、PR-1 のうちに製品の振る舞いを変える。④の `readLastHumanInput`（`internal/chief/reset.go:63`）が、`auto-continuation` の行のあるセッションを読めないものとしなくなる。`TestReadLastHumanInput` に `auto-continuation` の行を足して、PR-4 でその各行を消すまで確かめる。
+-   [x] **ステップ 2-2**: `screen_transcript_report.go` に `SessionReportKind`・`SessionReport`・`Names`・`readSessionReport` を足す（設計書 3.1。受け付ける形の表と、最後の報告の決め方の 1〜5）。テスト `TestReadSessionReport` は、フェーズ 1 のサンプルと、それを書き換えた入力で、次を確かめる。
     -   PR を作ったコマンドの最後の報告が全文で読め、PR の記録が残ること（AC-01・AC-05）。
     -   AC-02 の各場合（報告の後の人の入力と新しい応答の始まり、終わっていない最後の応答、本文のない応答、終わった応答がないこと、`/clear` で替わった新しいセッション）。報告の後の人の入力には、キューに積まれた人の入力（`queued_command` の `attachment` の行）を含める。逆に、報告の後に peer や task-notification の入力の行しかなければ、報告は残る。
     -   1 つの `message.id` が複数の行に分かれ、どれか 1 行の `stop_reason` が `end_turn` でないときは報告がないこと（設計書 3.1 の規則 3）。`stop_reason` が JSON の `null` のときも報告がないこと。
@@ -103,24 +103,24 @@
     -   サブエージェントの行（AC-03）と、合成の応答・recap・compact の要約（AC-04。後に合成の応答しかない報告は残り、終わっていない応答の後に合成の応答があれば報告はない）。
     -   task-notification に応えた応答も報告になること（設計書 1.2）。
     -   `LastHuman` が、今の `TestReadLastHumanInput`（`internal/chief/screen_test.go:809`）の各行と同じ値になること。`auto-continuation` の行が人の入力にならず、読めないものにもならないこと。
--   [ ] **ステップ 2-3**: テスト `TestReadSessionReportRejects` で、次が `SessionReportUnreadable` になり、`Kind` のほかに何も入らない（`Text` が空で、`Names` が偽になる）ことを確かめる（設計書 7.1 の「形の拒み方」）。
+-   [x] **ステップ 2-3**: テスト `TestReadSessionReportRejects` で、次が `SessionReportUnreadable` になり、`Kind` のほかに何も入らない（`Text` が空で、`Names` が偽になる）ことを確かめる（設計書 7.1 の「形の拒み方」）。
     -   要件書 4.2 の「拒むもの」: 重なった項目、型の違い（文字列でも `null` でもない `stop_reason`、文字列でない `text` の部分の `text` を含む）、正でない PR 番号、不正な UTF-8、対にならないサロゲートのエスケープ。
     -   使う項目のない応答の行と PR の記録の行、空の `type`、空の `prUrl`。
     -   書きかけの最後の行。
 
     同じテストで、拡張を許す部分の結果も確かめる。知らない種類の行と知らない項目は結果を変えない。知らない種類の本文の部分は本文に含めない。知らない `stop_reason` は、読めないものにならず、終わっていない応答として報告がないものになる。
--   [ ] **ステップ 2-4**: テスト `TestSessionReportNames` で、`Names` が番号と URL の両方が等しいときだけ真になることを確かめる（設計書 1.2。番号だけ、URL だけが等しい行と、`#42` と `#421` の違い）。
--   [ ] **ステップ 2-5**: `readReportNext` を同じファイルに足す（設計書 3.2）。テスト `TestReadReportNext` で、今の文法の行、強調・コード・引用・番号のリストで名指す行（値を読めない NEXT）、文の中で触れるだけの行と `Next:` の行（NEXT がない）、食い違う 2 行（一致しない）、PR 番号の読み取り（折り返しをつなぎ直さないこと）を確かめる（AC-07・AC-08）。ステップ 1-1 の `/runpr` の報告のサンプルの NEXT が読めることも確かめる。NEXT を名指す行のコロンの全角 `：` は、正規表現の中で `\x{FF1A}` のエスケープとして書き、Go のソースに全角の文字を置かない。値の読み取りは今の `readNextValue`・`nextNoneValue` を使い、日本語の文字列を足さない。
--   [ ] **ステップ 2-6**: `resetTranscriptLimit` を `sessionTranscriptLimit` に改名し、`ClaudeReport` と `readClaudeReport` を `transcript.go` に足す（設計書 3.3）。テスト `TestReadClaudeReport` で、次を確かめる（AC-02・AC-12）。
+-   [x] **ステップ 2-4**: テスト `TestSessionReportNames` で、`Names` が番号と URL の両方が等しいときだけ真になることを確かめる（設計書 1.2。番号だけ、URL だけが等しい行と、`#42` と `#421` の違い）。
+-   [x] **ステップ 2-5**: `readReportNext` を同じファイルに足す（設計書 3.2）。テスト `TestReadReportNext` で、今の文法の行、強調・コード・引用・番号のリストで名指す行（値を読めない NEXT）、文の中で触れるだけの行と `Next:` の行（NEXT がない）、食い違う 2 行（一致しない）、PR 番号の読み取り（折り返しをつなぎ直さないこと）を確かめる（AC-07・AC-08）。ステップ 1-1 の `/runpr` の報告のサンプルの NEXT が読めることも確かめる。NEXT を名指す行のコロンの全角 `：` は、正規表現の中で `\x{FF1A}` のエスケープとして書き、Go のソースに全角の文字を置かない。値の読み取りは今の `readNextValue`・`nextNoneValue` を使い、日本語の文字列を足さない。
+-   [x] **ステップ 2-6**: `resetTranscriptLimit` を `sessionTranscriptLimit` に改名し、`ClaudeReport` と `readClaudeReport` を `transcript.go` に足す（設計書 3.3）。テスト `TestReadClaudeReport` で、次を確かめる（AC-02・AC-12）。
     -   設計書 3.3 の表の各行の種類と理由。
     -   セッションのファイルがないときと、transcript のディレクトリごとないときで、`Detail` が違うこと。
     -   上限をちょうど 1 バイト超える transcript が読めないものになること（設計書 7.4）。
     -   FIFO とディレクトリが、報告なしではなく読めないものになること。
 
-    上限を超える transcript は、`os.Truncate` で中身を書かずに大きさだけを持つファイルとして作る（上限の確かめは形の読み取りの前に失敗するので、読む時間はかからない。§1.3 の決定 2 が退けた 25 MB の読み取りとは違う）。FIFO は `syscall.Mkfifo` で作るので、`transcript_test.go` は `//go:build test && unix` とする。FIFO が開くときに待たないことは、今の `TestTranscriptFIFORefused`（`internal/chief/send_test.go:833`）が確かめているので、ここでは種類だけを確かめる。
--   [ ] **ステップ 2-7**: `records.go` に、報告の控えの名前の形と `keptPaneReport` を足し、`cleanup` が報告の控えも `detailMaxAge` で消すようにする（設計書 3.6）。テスト `TestKeptPaneReport` で、報告の控えが PR の詳細の控えより先に読まれること、どちらもないときに `ok` が偽になること、名前の PR 番号・head と合わない報告の控えと `Source` が `report` でない報告の控えが記録の誤りになることを確かめる。`TestStartCleansSendsAndDetails`（`internal/chief/records_test.go:636`）に、報告の控えが消える行と残る行を足す。
--   [ ] **ステップ 2-8**: 改名の一覧の `CapDescription`・`descriptionMaxBytes`・`TestCapDescription` を改名し、関数のコメントと、読む量の上限のコメント（`internal/chief/sanitize.go:10-12`）を設計書 3.8 のとおりに直す。値と切り方は変えない。`package_reference.md` の `internal/chief` の行の `CapDescription` を `CapHead` に直し、画面の読み取りの型の一覧に `SessionReport` を足す。
--   [ ] **ステップ 2-9**: 手元でいちばん大きい transcript を `readSessionReport` で読む時間を、一時的なテストで、`-race` を付けずに測る（設計書 1.2 の 98 ms と同じ条件にするため）。測るのは `readSessionReport` を足したコミットの上とし、結果（ファイルの大きさ、時間、測ったコミット）を §7 の「PR-1 の実行の記録」と、その記録を書くコミットのメッセージに書く。一時的なテストはコミットしない（§1.3 の決定 2）。1 秒を超えたら、止まって人に尋ねる。
+    上限を超える transcript は、報告のサンプルの後に空行を足して上限をちょうど 1 バイト超えるファイルとして作り、上限がなければ報告ありと読まれることを先に確かめる（形の読み取りが拒まない入力にして、上限だけが拒むことを確かめるため。上限の確かめは形の読み取りの前に失敗するので、読む時間はかからない。§1.3 の決定 2 が退けた 25 MB の読み取りとは違う）。FIFO は `syscall.Mkfifo` で作るので、`transcript_test.go` は `//go:build test && unix` とする。FIFO が開くときに待たないことは、今の `TestTranscriptFIFORefused`（`internal/chief/send_test.go:833`）が確かめているので、ここでは種類だけを確かめる。
+-   [x] **ステップ 2-7**: `records.go` に、報告の控えの名前の形と `keptPaneReport` を足し、`cleanup` が報告の控えも `detailMaxAge` で消すようにする（設計書 3.6）。テスト `TestKeptPaneReport` で、報告の控えが PR の詳細の控えより先に読まれること、どちらもないときに `ok` が偽になること、名前の PR 番号・head と合わない報告の控えと `Source` が `report` でない報告の控えが記録の誤りになることを確かめる。`TestStartCleansSendsAndDetails`（`internal/chief/records_test.go:636`）に、報告の控えが消える行と残る行を足す。
+-   [x] **ステップ 2-8**: 改名の一覧の `CapDescription`・`descriptionMaxBytes`・`TestCapDescription` を改名し、関数のコメントと、読む量の上限のコメント（`internal/chief/sanitize.go:10-12`）を設計書 3.8 のとおりに直す。値と切り方は変えない。`package_reference.md` の `internal/chief` の行の `CapDescription` を `CapHead` に直し、画面の読み取りの型の一覧に `SessionReport` を足す。
+-   [x] **ステップ 2-9**: 手元でいちばん大きい transcript を `readSessionReport` で読む時間を、一時的なテストで、`-race` を付けずに測る（設計書 1.2 の 98 ms と同じ条件にするため）。測るのは `readSessionReport` を足したコミットの上とし、結果（ファイルの大きさ、時間、測ったコミット）を §7 の「PR-1 の実行の記録」と、その記録を書くコミットのメッセージに書く。一時的なテストはコミットしない（§1.3 の決定 2）。1 秒を超えたら、止まって人に尋ねる。
 
 **完了の条件:** グリーンゲート（`_context.md` の "Green gate"）が通る。製品のコードで振る舞いが変わるのはステップ 2-1 だけで、新しい部品はテストだけから呼ばれる（`make deadcode` はテストも根に数える）。
 
@@ -138,10 +138,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/948
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: ①② を transcript に替える（設計書 8 章の 3）
 
@@ -334,7 +334,7 @@ PR の分け方の理由は §1.3 の決定 3 にある。各 PR は単独でグ
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
 - [ ] PR-2 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 - [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7 / 4-8 / 4-9 / 4-10 / 4-11）
 - [ ] PR-4 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 6-1 / 6-2 / 6-3 / 6-4）
@@ -376,7 +376,9 @@ Diff record (AC-17):
 
 ### PR-1 の実行の記録
 
-（ステップ 1-1 の、`/runpr` の報告の NEXT の読み取りの結果、ステップ 1-4 の探索の結果、ステップ 2-9 の読む時間の測定の結果を、`/runplan` が書く。）
+-   **ステップ 1-1（2026-11-17）。** 本タスクの worktree の transcript のディレクトリで、人が入力したコマンドの行が `/runpr 940` であるセッションは 1 つだけだった（Claude Code 2.1.325）。その最後の報告の NEXT の行は `NEXT: なし（タスク文書の承認がない PR のため）` で、今の文法で読めた（`nextLine` に合い、`readNextValue` が「なし」と読む）。この報告を `testdata/transcript/claude-runpr-report.jsonl` に採った。
+-   **ステップ 1-4（2026-11-17）。** 足した 6 つのサンプルで、利用者の GitHub のログイン名、氏名、名前の小文字の綴りを、大文字と小文字を区別せずに探した。見つかったのは 0 件だった。一時ディレクトリのパス（`/tmp/`・`/var/folders`・`/private/`）も探し、`/runpr` の報告の `/tmp/runpr.` の後の乱数の部分を `XXXXXX` に置き換えた後は、その置き換えた形のほかに見つからなかった。`TestSamplesFollowReplacementRules` も通った。
+-   **ステップ 2-9（2026-11-17）。** 手元でいちばん大きい transcript（25,155,306 バイト）を、`readSessionReport` を足したコミット `8f5b6dadbb7f` の上で、一時的なテストから `-race` を付けずに 3 回読んだ。かかった時間は 113 ms・136 ms・110 ms で、1 秒以内だった（結果は報告あり）。一時的なテストはコミットしていない。
 
 ### PR-4 の実行の記録
 
