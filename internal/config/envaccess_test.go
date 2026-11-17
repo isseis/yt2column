@@ -92,6 +92,10 @@ var allowedEnvRefs = map[string]map[string]int{
 	// (herdr, git, gh), minus GIT_* for git and gh and minus GH_REPO and
 	// GH_HOST for gh, as fixprguard does.
 	"cmd/chief/main.go": {"call:os.Environ": 1, "value:os.LookupEnv": 1},
+	// The mergepr developer tool's protocol-number check runs git with the
+	// environment of the process minus GIT_*, captured when its runner is
+	// built (newGitRunner).
+	"internal/mergepr/runner.go": {"call:os.Environ": 1},
 }
 
 // envAccessReport is the result of one scan.
