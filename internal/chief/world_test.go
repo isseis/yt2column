@@ -71,6 +71,9 @@ type fakeWorkspace struct {
 	// PRs is the gh pr list output for the branch; "" means no PR.
 	PRs  string
 	Docs *fakeDocs
+	// Tree is the name of its worktree directory under the test root,
+	// "tree-<ID>" when empty.
+	Tree string
 }
 
 // world is a fake Herdr and repository for the snapshot tests: chief runs in
@@ -170,7 +173,11 @@ func (w *world) add(ws fakeWorkspace) string {
 // the caller.
 func (w *world) addTree(ws fakeWorkspace) string {
 	w.t.Helper()
-	tree := filepath.Join(filepath.Dir(w.chiefTree), "tree-"+ws.ID)
+	name := ws.Tree
+	if name == "" {
+		name = "tree-" + ws.ID
+	}
+	tree := filepath.Join(filepath.Dir(w.chiefTree), name)
 	if err := os.MkdirAll(tree, 0o700); err != nil {
 		w.t.Fatal(err)
 	}

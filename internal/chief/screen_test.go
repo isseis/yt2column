@@ -82,6 +82,7 @@ var (
 // sample must give; every file under testdata/screens has an entry.
 var claudeScreenWants = map[string]wantScreen{
 	"claude-idle.ansi":                   {kind: ScreenPrompt, inputEmpty: true},
+	"claude-started.ansi":                {kind: ScreenPrompt, inputEmpty: true},
 	"claude-working.ansi":                {kind: ScreenPrompt, inputEmpty: true},
 	"claude-after-clear.ansi":            {kind: ScreenPrompt, inputEmpty: true},
 	"claude-after-model.ansi":            {kind: ScreenPrompt, inputEmpty: true},
@@ -810,6 +811,7 @@ func TestReadLastHumanInput(t *testing.T) {
 	sample := strings.TrimSpace(string(readTestdata(t, "transcript/claude-human-input.jsonl")))
 	lines := strings.Split(sample, "\n")
 	queued := strings.Split(strings.TrimSpace(string(readTestdata(t, "transcript/claude-queued-input.jsonl"))), "\n")
+	resumed := transcriptSample(t, "claude-auto-continuation.jsonl")
 	command := HumanInput{Kind: HumanInputCommand, Name: "runplan", Args: "0088"}
 	cases := []struct {
 		name string
@@ -829,8 +831,37 @@ func TestReadLastHumanInput(t *testing.T) {
 		{"a queued command of an unsampled origin", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(queued[2], `"kind":"human"`, `"kind":"coordinator"`, 1), HumanInput{}},
 		{"a queued command without an origin", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(queued[2], `"origin":{"kind":"human"},`, "", 1), HumanInput{}},
 		{"a later human line repeating a member", strings.Join(lines[:3], "\n") + "\n" + strings.Replace(lines[len(lines)-1], `"type":"user",`, `"type":"user","type":"user",`, 1), HumanInput{}},
+		{"an auto-continuation after the command", strings.Join(lines[:3], "\n") + "\n" + resumed[sampleLine(t, resumed, `"kind":"auto-continuation"`)], command},
 	}
 	for _, c := range cases {
+		if got := readLastHumanInput([]byte(c.text)); got != c.want {
+			t.Errorf("%s: readLastHumanInput = %+v, want %+v", c.name, got, c.want)
+		}
+	}
+}
+
+// TestReadLastHumanInputOfRunningSessions reads the sampled records of a
+// command that is still running: the human's command stays the last human
+// input however many lines the run adds after it.
+func TestReadLastHumanInputOfRunningSessions(t *testing.T) {
+	running := string(readTestdata(t, "transcript/claude-running-command.jsonl"))
+	afterAnswer := string(readTestdata(t, "transcript/claude-running-after-answer.jsonl"))
+	if !strings.Contains(running, `"kind":"auto-continuation"`) {
+		t.Fatal("the running-command sample no longer holds its auto-continuation line")
+	}
+	cases := []struct {
+		name string
+		text string
+		want HumanInput
+	}{
+		{"a running command with a usage-limit continuation and a task notification after it", running, HumanInput{Kind: HumanInputCommand, Name: "runplan", Args: "0060"}},
+		{"a running command after an answered question", afterAnswer, HumanInput{Kind: HumanInputCommand, Name: "runplan", Args: "0093"}},
+		{"a continuation of an unsampled origin", strings.Replace(running, `"kind":"auto-continuation"`, `"kind":"scheduled"`, 1), HumanInput{}},
+	}
+	for _, c := range cases {
+		if !strings.HasSuffix(c.text, "\n") && c.want.Kind != HumanInputUnreadable {
+			t.Fatalf("%s: the sample does not end in a newline", c.name)
+		}
 		if got := readLastHumanInput([]byte(c.text)); got != c.want {
 			t.Errorf("%s: readLastHumanInput = %+v, want %+v", c.name, got, c.want)
 		}
@@ -852,6 +883,23 @@ func runprReportScreen(t *testing.T, pr int, next string) string {
 	if next != "" {
 		screen = strings.Replace(screen, runprNoneLine, "     - NEXT: "+next, 1)
 	}
+	return strings.ReplaceAll(screen, "867", strconv.Itoa(pr))
+}
+
+// claudeReportHeading is a heading line of the last message of the sampled
+// Claude Code command report.
+const claudeReportHeading = "記録したこと"
+
+// claudeReportScreenNaming returns the sampled Claude Code command report
+// with its PR number replaced by pr and its heading line replaced by a NEXT
+// line giving next, so the screen alone shows a report naming both.
+func claudeReportScreenNaming(t *testing.T, pr int, next string) string {
+	t.Helper()
+	screen := readScreenSample(t, "claude-command-report.ansi")
+	if !strings.Contains(screen, claudeReportHeading) {
+		t.Fatal("the report sample no longer holds its heading line")
+	}
+	screen = strings.Replace(screen, claudeReportHeading, "NEXT: "+next, 1)
 	return strings.ReplaceAll(screen, "867", strconv.Itoa(pr))
 }
 

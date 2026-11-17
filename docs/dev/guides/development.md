@@ -1,6 +1,6 @@
 # 開発の手順
 
-本書は yt2column の開発者のための文書である。`make` のターゲット、開発用の別のサーバ、拡張の開発のための検査、localhost サーバの HTTP の API、統合テストを説明する。ブラウザ拡張と localhost サーバの使い方は [README](../../../README.md) に、CLI は [cli.md](cli.md) にある。
+本書は yt2column の開発者のための文書である。`make` のターゲット、開発用の別のサーバ、開発用の拡張のビルド、拡張の開発のための検査、localhost サーバの HTTP の API、統合テストを説明する。ブラウザ拡張と localhost サーバの使い方は [README](../../../README.md) に、CLI は [cli.md](cli.md) にある。
 
 ## make のターゲット
 
@@ -9,7 +9,7 @@ make build   # build the three binaries into build/
 make build-dev  # build the development server on the fake LLM into build/dev/
 make test    # unit tests (no network, no yt-dlp)
 make lint    # golangci-lint (pinned version) と make wasm-check
-make wasm-check  # Go の WASM（GOOS=js GOARCH=wasm）でビルドできることの検査
+make wasm-check  # 2 つの記事生成モジュールを Go の WASM（GOOS=js GOARCH=wasm）でビルドできることの検査
 make fmt     # gofumpt on changed files
 make test-integration  # real yt-dlp + network; see below
 make test-integration-deepseek  # real DeepSeek API; see below
@@ -90,13 +90,77 @@ time=... level=INFO msg=listening socket=/… llm=fake model=yt2column-devfake s
 
 遅れの間も生成の枠（2 つ）を使うので、遅れの長いジョブを 2 つ動かしている間の 3 つ目の生成の開始は、本番と同じく `too_many_requests` で拒否される。
 
+## 開発用のコマンドで記事の生成を再現する
+
+`cmd/yt2column-extjob` は、拡張の記事生成モジュールが登録する JSON の入口（`internal/extjob` の `prepare` と `generate`）を、ブラウザの外でネイティブに動かす開発用のコマンドである。拡張で起きた記事の生成の不具合を、同じ入力で再現し、デバッガで追うために使う。本番のバイナリではなく、`make build` は作らない。
+
+```sh
+go build -o /tmp/yt2column-extjob ./cmd/yt2column-extjob
+/tmp/yt2column-extjob -llm=fake -article=standard -failure=none -fail-at=none -delay=0 -settings-check=ok -input=/tmp/request.json
+/tmp/yt2column-extjob -llm=claude -input=/tmp/request.json
+```
+
+終了コードを見るときは、ビルドしたバイナリを直接動かす。`go run` は、終了コードが `0` でないときに自分の終了コード `1` で終わり、このコマンドの終了コードを返さない。
+
+`-llm` は必ず指定する。既定の値はない。指定を忘れた実行が、料金のかかる呼び出しにならないためである。`-llm` がないかほかの値のとき、`-input` がないとき、同じ引数を 2 回以上与えたとき、余分な語があるときは、何も呼ばずに終了コード `2` で終わる。
+
+-   **`-llm=fake`**: fake の LLM（`internal/llm/devfake`）で動き、API を呼ばない。シナリオを次の 5 つの引数で指定する。どれも省けず、空の値と受理しない綴りでは、何も呼ばずに終了コード `2` で終わる。
+
+    | 引数 | 意味 | 受理する値 |
+    |---|---|---|
+    | `-article` | 記事の種類 | `standard`・`long`・`elements` |
+    | `-failure` | 失敗の種類 | `none`・`empty`・`truncated`・`api-error`・`timeout`・`api_key_rejected` |
+    | `-fail-at` | 失敗させる工程 | `none`・`draft`・`shorten`・`review` |
+    | `-delay` | LLM の呼び出し 1 回ごとの遅れ（秒） | `0` から `600` までの 10 進の整数 |
+    | `-settings-check` | 設定の検査（`checkSettings`）の結果 | `ok`・`key_rejected`・`unverified` |
+
+    `-delay` の値は、`05` のように先頭が `0` の 2 桁以上の数も受理しない。`-failure` と `-fail-at` は、どちらも `none` か、どちらも `none` でないかの組で指定する。`-fail-at shorten` は `-article long` のときだけ受理する。`-settings-check` は、このコマンドが呼ばない設定の検査の結果なので結果を変えないが、ほかの 4 つと同じく省けない。
+-   **`-llm=claude`**: 本番の構成の Claude を呼ぶ（料金がかかる）。API キーとワークスペース ID は、CLI と同じ環境変数 `ANTHROPIC_API_KEY`・`ANTHROPIC_WORKSPACE_ID` から読み、拡張のオプションページが保存したのと同じ形で記事生成モジュールに渡す。ワークスペース ID が未設定なら、指定なしになる。ほかの環境変数（`YT2COLUMN_LLM` など）は読まないので、3 つの工程は本番の構成になる。シナリオの引数は受け付けない。`GODEBUG` に `http2debug` があるときは、CLI と同じく、API キーが標準エラー出力に書かれうることを警告してから呼ぶ（[security.md](../security.md) の §2）。`ANTHROPIC_API_KEY` が未設定なら、何も呼ばずに終了コード `2` で終わる。空の値は未設定とせずに記事生成モジュールに渡すので、`settings_invalid` の結果になる。
+
+`-input` は、生成の開始の入力のファイルである。形は記事生成モジュールの `prepare` が受け取る JSON（`videoUrl`・`transcript` と、省ける `title`・`channelName`・`description`）で、4 MiB までである。読めないファイルは、何も呼ばずに終了コード `2` で終わる。**入力のファイルはリポジトリに入れない。** 利用者がコピーした字幕を含みうるためである（[security.md](../security.md) の §7）。
+
+標準出力には、結果の JSON を 1 行書く。記事生成モジュールが入力を受理しなければ `prepare` の拒否の結果を、受理すれば `generate` の結果を書く。標準エラー出力には、工程が変わるごとの進み具合の JSON と、メッセージを書く。API キーは、どちらにも出ない。終了コードは、記事ができたときに `0`、入力が拒否されたか生成が失敗したとき、または結果を標準出力に書けなかったときに `1` である。
+
+ブラウザに固有の部分（`fetch` を通した送信、Worker、`syscall/js` の受け渡し）は、このコマンドでは再現できない。
+
+## 開発用の拡張のビルド
+
+`make ext-build-dev` は、公開用の `extension/dist/` とは別に、fake の LLM（`internal/llm/devfake`）で記事を作る開発用の拡張を `extension/dist-dev/` に作る。拡張に入れる記事生成モジュールは開発用の `cmd/yt2column-wasm-dev` で、Anthropic の API を呼ばない。シナリオはビルドのときに決まり、次の 5 つの変数で選ぶ。変数は `make` の引数で与え、与えない変数は既定の値になる。環境変数では選べない（`make -e` で走らせたときを除く）。
+
+```sh
+make ext-build-dev
+make ext-build-dev FAKE_ARTICLE=long FAKE_FAILURE=timeout FAKE_FAIL_AT=shorten
+```
+
+| 変数 | 意味 | 受理する値 | 既定の値 |
+|---|---|---|---|
+| `FAKE_ARTICLE` | 記事の種類 | `standard`・`long`・`elements` | `standard` |
+| `FAKE_FAILURE` | 失敗の種類 | `none`・`empty`・`truncated`・`api-error`・`timeout`・`api_key_rejected` | `none` |
+| `FAKE_FAIL_AT` | 失敗させる工程 | `none`・`draft`・`shorten`・`review` | `none` |
+| `FAKE_DELAY` | LLM の呼び出し 1 回ごとの遅れ（秒） | `0` から `600` までの 10 進の整数 | `0` |
+| `FAKE_SETTINGS_CHECK` | オプションページの設定の検査（`checkSettings`）の結果 | `ok`・`key_rejected`・`unverified` | `ok` |
+
+組み合わせの規則は、[開発用のコマンド](#開発用のコマンドで記事の生成を再現する)の `-llm=fake` と同じである。`FAKE_DELAY` は、`05` のように先頭が `0` の 2 桁以上の数を受理しない。`FAKE_FAILURE` と `FAKE_FAIL_AT` は、どちらも `none` か、どちらも `none` でないかの組で与える。`FAKE_FAIL_AT=shorten` は `FAKE_ARTICLE=long` のときだけ受理する。受理しない値では、ビルドは `extension/dist-dev/` に触れる前に、理由を出して失敗する。前のビルドの `extension/dist-dev/` はそのまま残る。
+
+開発用のビルドは、次の点で公開用のビルドと見分けられる。
+
+-   manifest が `key` を持たないので、拡張の ID が公開用のビルドと違う。`chrome.storage.local` も別になり、開発用のビルドで保存した値が公開用のビルドの値を上書きしない。
+-   拡張機能のページでの名前が `yt2column（開発用のビルド）`（英語の画面では `yt2column (development build)`）である。
+-   ビルドの種類を宣言するモジュール（`buildKind.js`）が `dev` を宣言する。
+
+どちらのビルドも、最後に成果物を検査する。成果物が `tsc` の出力、`static/` の写し、記事生成モジュール、`wasm_exec.js` だけであること、記事生成モジュールを Node.js で読み込んで呼んだ `buildInfo` の main のパッケージと Go の版と LLM の実装（開発用のビルドでは、ビルドに与えたシナリオ）が期待どおりであることを確かめ、合わなければビルドを失敗させる。
+
+**Go のツールチェーン。** どちらのビルドも、記事生成モジュールを `go.mod` の `go` の行の版の Go で（`GOTOOLCHAIN` を与えて）ビルドし、そのツールチェーンの `wasm_exec.js` を成果物に写す。手元の Go がその版でないときは、初めのビルドが、その版のツールチェーンをダウンロードする（ネットワークを使う）。`GOFLAGS` が設定されているとき（`go env -w` の設定を含む）は、ビルドするものを変えうるので、ビルドは何もせずに失敗する。
+
+**画面ではまだ使えない。** 今の拡張は、まだ localhost サーバとホストで記事を作る。開発用のビルドは拡張の ID が違うので、ホストの manifest の `allowed_origins` に入らず、ホストにつながらない。開発用のビルドを画面で確かめられるのは、拡張が記事生成モジュールで記事を作るように切り替えた後である（[#773](https://github.com/isseis/yt2column/issues/773)）。それまでは、ビルドと成果物の検査が通ることだけを確かめる。
+
 ## 拡張の検査
 
 拡張のビルドと読み込みは、README の
 [ブラウザ拡張](../../../README.md#ブラウザ拡張)にある。同じ Node.js の版を有効にしたまま、もう 1 つのターゲットで CI と同じ検査を走らせる。
 
 ```sh
-make ext-check     # typecheck, lint, format check, tests, then build
+make ext-check     # typecheck, lint, format check, tests, then the release and development builds
 ```
 
 ## localhost サーバの API

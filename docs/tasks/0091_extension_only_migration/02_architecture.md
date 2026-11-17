@@ -103,6 +103,10 @@ flowchart LR
 -   fake のシナリオは、開発用のビルドの変数で選ぶ（§3.4）。
 -   保存した設定の形の検査と、失敗の値の決定は、どちらの LLM の実装でも `internal/extjob` が同じように行う。開発用のビルドでも、`settings_invalid` は実際の検査で出る（要件書 AC-29）。
 
+### 1.4. 実装の際に決めたこと（2026-11-16）
+
+-   **2 つの記事生成モジュールが共有する `syscall/js` の登録を、`js` のビルドだけのパッケージ `internal/extjob/jsmodule` に置く（§2.1・§3.3・§3.4・§3.10・§3.12）。** 公開用と開発用の記事生成モジュールの `main` は、LLM の実装から作った `extjob.Module` を `jsmodule.Serve` に渡すだけを持つ。`jsmodule` は、4 つの関数を `globalThis` の 1 つの名前空間のオブジェクト（名前は `yt2column`）に登録し、引数の型の確かめ、Promise の作成、進み具合の関数の呼び出しを持つ。JSON の解析と組み立ては持たない。`make wasm-check` は `jsmodule` も `vet` する。理由: 登録の処理（約 50 行）は 2 つの `main` で同じで、それぞれに置くと片方だけを直す誤りが起きる（CLAUDE.md「DRY」）。採らなかった案は、登録の処理をそれぞれの `main` に置く案（本書の当初の形）である。人が 2026-11-16 に、PR-4 の実装の際に選んだ。ADR: [ADR-0049](../../dev/adr/0049-wasm-core-sharing.md) を更新した（`cmd/yt2column-wasm` が `syscall/js` での登録だけを持つとしていた決定を、登録を `jsmodule` に置き、2 つの `main` はそれを呼ぶだけを持つに改めた）。
+
 ## 2. システム構成 (System Structure)
 
 ### 2.1. 全体の構成
@@ -121,6 +125,7 @@ flowchart LR
     EJ["internal/extjob"]
     CLB["internal/extjob/claudebackend"]
     DEVB["internal/extjob/devbackend"]
+    JSM["internal/extjob/jsmodule"]
     FAKE["internal/llm/devfake"]
     CFG["internal/config"]
     CL["internal/llm/claude"]
@@ -130,8 +135,11 @@ flowchart LR
 
     WASM --> EJ
     WASM --> CLB
+    WASM --> JSM
     WASMDEV --> EJ
     WASMDEV --> DEVB
+    WASMDEV --> JSM
+    JSM --> EJ
     EXTCMD --> EJ
     EXTCMD --> CLB
     EXTCMD --> DEVB
@@ -147,7 +155,7 @@ flowchart LR
     CL --> LLM
     FAKE --> LLM
 
-    class WASM,WASMDEV,EXTCMD,EJ,CLB,DEVB newpkg
+    class WASM,WASMDEV,EXTCMD,EJ,CLB,DEVB,JSM newpkg
     class CFG,CL,HTTP,LLM,FAKE enhanced
     class CORE process
 
@@ -175,6 +183,7 @@ flowchart LR
 | `internal/extjob` | 0090 設計書 §2.3 のとおり。加えて、保存した設定の形の検査（`settings_invalid`）と、LLM の実装の受け取り | 保存した設定を検査前の値で受け取る。Claude のクライアントを作らない |
 | `internal/extjob/claudebackend` | Claude の LLM の実装。本番の構成の Claude のクライアントと、キーの確かめ | 新しい。0090 設計書では `cmd/yt2column-wasm` が持つ |
 | `internal/extjob/devbackend` | fake の LLM の実装。ビルドのときに選んだシナリオで、生成のクライアントとキーの確かめの結果を返す | 新しい |
+| `internal/extjob/jsmodule` | 2 つの記事生成モジュールが共有する `syscall/js` の登録。`js` のビルドだけ（§1.4） | 新しい。0090 設計書では `cmd/yt2column-wasm` が持つ |
 | `internal/llm` | 番兵 `ErrAuthRejected` を加える | 新しい番兵 |
 | `internal/llm/claude` | 401 のエラーが `llm.ErrAuthRejected` に当たるようにする。キーの確かめの関数を加える | 分類の方法を変える |
 | `internal/llm/llmhttp` | 本文を読まずに状態コードだけを返す送信を加える。`js` のビルドでリダイレクトに従わない指定を付ける | 送信の種類を足す |
@@ -428,7 +437,7 @@ func New() extjob.Backend
 -   **`checkSettings` の分類。** 形が合わなければ `rejected`（合わない欄）、`CheckKey` が `nil` なら `ok`、`llm.ErrAuthRejected` に当たれば `key_rejected`、ほかは `unverified` である（0090 設計書 §3.6）。キーの確かめの呼び出しの期限は 30 秒である（§1.2）。
 -   **期限の定数。** 記事の生成の呼び出しごとの期限（15 分。0090 設計書 §2.3）は、Claude のクライアントの組み立ての値なので `claudebackend` に置く（下の `provider` との一致のテストで確かめる）。キーの確かめの呼び出しの期限（30 秒）は、`internal/extjob` が `CheckKey` に渡す `ctx` の期限として持つ。
 -   **CLI の組み立てとの一致。** `claudebackend` の Claude のクライアントの組み立ては、`internal/llm/provider` の Claude の組み立て（`claude.Options` の値、検証・推敲のクライアントの選び方）と同じでなければならない。記事生成モジュールは `provider` を使えないので（0090 設計書 §2.3）、ネイティブのビルドのテストで、`claudebackend` の組み立てと期限が `provider` と同じことを確かめる。
--   **`cmd/yt2column-wasm`。** `extjob.NewModule(claudebackend.New())` を作り、`syscall/js` で 4 つの関数を登録するだけを持つ（0090 設計書 §2.3）。
+-   **`cmd/yt2column-wasm`。** `extjob.NewModule(claudebackend.New())` を作り、`internal/extjob/jsmodule` の `Serve` に渡すだけを持つ。`Serve` は、`syscall/js` で 4 つの関数を `globalThis` の 1 つの名前空間のオブジェクトに登録する。登録の処理は、開発用の記事生成モジュールと共有する（§1.4）。
 
 ### 3.4. 開発用の部品
 
@@ -450,7 +459,7 @@ func ParseScenario(s ScenarioSpelling) (Scenario, error) // error wraps ErrInval
 ```
 
 -   **`internal/extjob/devbackend`（新しい）。** `devfake.Scenario` から `extjob.Backend` を作る。`NewClients` は、渡された設定を使わず、シナリオの fake のクライアントを返す。`CheckKey` は、シナリオのキーの確かめの結果を返す。どちらも、Anthropic の API を呼ばない。`Info` は fake とシナリオの値を返す。
--   **`cmd/yt2column-wasm-dev`（新しい）。** シナリオの 5 つの値を、それぞれ `main` のパッケージの 1 つの文字列の変数として持ち、1 つの `-ldflags` の文字列に並べた 5 つの `-X main.<変数>=<値>` で受け取る。起動のときに `ParseScenario` で解析し、合えば `extjob.NewModule(devbackend.New(scenario))` の 4 つの関数を登録する。空の値と合わない値では関数を登録しない（ページは Worker の読み込みの失敗として扱う）。`syscall/js` を使う登録のファイルだけを `js` のビルドにし、ネイティブのビルドでは、同じ変数を解析して結果だけを返す `main` を持つ。
+-   **`cmd/yt2column-wasm-dev`（新しい）。** シナリオの 5 つの値を、それぞれ `main` のパッケージの 1 つの文字列の変数として持ち、1 つの `-ldflags` の文字列に並べた 5 つの `-X main.<変数>=<値>` で受け取る。起動のときに `ParseScenario` で解析し、合えば `extjob.NewModule(devbackend.New(scenario))` を `jsmodule.Serve` に渡して 4 つの関数を登録する（§1.4）。空の値と合わない値では関数を登録しない（ページは Worker の読み込みの失敗として扱う）。`syscall/js` を使う登録のファイルだけを `js` のビルドにし、ネイティブのビルドでは、同じ変数を解析して結果だけを返す `main` を持つ。
 -   **`make ext-build-dev` の変数。** `FAKE_ARTICLE`・`FAKE_FAILURE`・`FAKE_FAIL_AT`・`FAKE_DELAY`・`FAKE_SETTINGS_CHECK` の 5 つとする。`Makefile` が既定の値（`standard`・`none`・`none`・`0`・`ok`）を持ち、ビルドのスクリプトにはいつも 5 つとも渡す。
 -   **`cmd/yt2column-extjob`（新しい）。** 0090 設計書 §7.2 のとおり。次のとおりにする。
     -   LLM は `-llm=claude` か `-llm=fake` で必ず指定する。指定がないか、ほかの値なら、何もせずに終わる（§1.2）。
@@ -581,7 +590,7 @@ type BuildKind = "release" | "dev";
 -   **拡張の検査の手順。** 拡張のビルドが Go を呼ぶので、`extension` の手順で、`ext-build` の前に Go を用意する（0090 設計書 §3.11）。
 -   **`doc-guard`。** 対象から撤去したパッケージを除く。
 -   **`.golangci.yml`。** 撤去したパッケージを指す規則を除く。
--   **`make wasm-check`。** 対象を、`cmd/yt2column-wasm` と `cmd/yt2column-wasm-dev`（それぞれの依存を含む）のビルドにする。`vet` は、`js` のビルドだけのファイルを持つパッケージ（`internal/llm/llmhttp`・`internal/llm/claude`・2 つの記事生成モジュールの `main`）と、今の対象（`internal/writer`・`internal/transcript`）にする（0090 設計書 §3.1.4）。golangci-lint は今のままネイティブのビルドだけで走り、`js` のビルドだけのファイルを見ない。そのファイルは `vet` と `make wasm-check` のビルドだけで確かめ、この差は受け入れる。そのファイルは送信の指定と関数の登録だけを持つ小さなもので、lint の規則（`depguard` など）が守るものを持たないためである。
+-   **`make wasm-check`。** 対象を、`cmd/yt2column-wasm` と `cmd/yt2column-wasm-dev`（それぞれの依存を含む）のビルドにする。`vet` は、`js` のビルドだけのファイルを持つパッケージ（`internal/llm/llmhttp`・`internal/llm/claude`・`internal/extjob/jsmodule`・2 つの記事生成モジュールの `main`）と、今の対象（`internal/writer`・`internal/transcript`）にする（0090 設計書 §3.1.4）。golangci-lint は今のままネイティブのビルドだけで走り、`js` のビルドだけのファイルを見ない。そのファイルは `vet` と `make wasm-check` のビルドだけで確かめ、この差は受け入れる。そのファイルは送信の指定と関数の登録だけを持つ小さなもので、lint の規則（`depguard` など）が守るものを持たないためである。
 
 ### 3.11. 撤去
 
@@ -609,6 +618,7 @@ type BuildKind = "release" | "dev";
 | 変える | `internal/llm/devfake/` | `FailureAPIKeyRejected`、キーの確かめの結果、`ParseScenario` を加える（§3.4） |
 | 変える | `cmd/yt2column-devserver/args.go` | 撤去までの間、`devfake.ParseScenario` を使う（§3.4） |
 | 新しい | `cmd/yt2column-wasm/`・`cmd/yt2column-wasm-dev/`・`cmd/yt2column-extjob/` | 0090 設計書 §3.11 のとおり。開発用の 2 つは `devbackend` を使う（§3.3・§3.4） |
+| 新しい | `internal/extjob/jsmodule/` | 2 つの記事生成モジュールが共有する `syscall/js` の登録（§1.4） |
 | 変える | `internal/godepstest` の使い手 | 0090 設計書 §3.11 のとおり。加えて、§2.1 の依存の検査（§7.3） |
 | 新しい | `extension/scripts/` のビルドのスクリプト | `go` を呼ぶ、ツールチェーンの版を与える、`wasm_exec.js` を写す、開発用のビルドで `buildKind.js` を置き換えて開発用の manifest を作る（§3.5） |
 | 変える | `extension/scripts/check-dist.ts` | ビルドの種類ごとの期待で検査し、Node で `buildInfo` を呼ぶ（§3.5） |
@@ -821,7 +831,7 @@ flowchart LR
     -   `storage` の名前の参照は、`browser/chromeDeps.ts` のほかで拒否する。
     -   `session` の名前を拒否する規則は、`chrome.session` だけに狭める。
     -   `fetch` は、Worker の中の読み込みのスクリプト（`worker.ts`）のほかで拒否し、`XMLHttpRequest`・`WebSocket`・`EventSource` は今のまま拒否する。
-    -   上の表の関数を import してよいファイルを、表の「使ってよい入口」に限る。lint が見分けるのはファイルの単位なので、実行するビューアと表示するビューアのように同じファイルが担う役割は、ファイルの単位で許す。型だけの import は、`@typescript-eslint/no-restricted-imports` の `allowTypeImports` で許す。
+    -   上の表の関数を import してよいファイルを、表の「使ってよい入口」に限る。lint が見分けるのはファイルの単位なので、実行するビューアと表示するビューアのように同じファイルが担う役割は、ファイルの単位で許す。型だけの import は、ESLint の `no-restricted-imports` の `allowTypeImports` で許す。
     -   この規則は、うっかりの使用を止めるもので、別名を通した意図的な回避までは止めない（今の規則と同じ）。
     -   `sendNativeMessage` を許していた規則は、ホストを撤去する PR で除く。
 -   **ソースの検査。** 拡張のソースが `onChanged` を参照するのは `chromeDeps.ts` の `chrome.storage.session.onChanged` だけであること。`chrome.storage.local.get` を呼ぶのは `readAnthropicSettings` だけで、その引数が固定の 2 つの名前であること（`get()`・`get(null)`・`get(undefined)` のような、全部を読む呼び出しがないこと）。ログの関数に API キーを渡さないこと（0090 設計書 §7.3 のまま）。`chrome.storage.sync` を参照しないこと。どれも `extension/test/lintRules.test.ts` と、置き換えたソースの検査のテストで確かめる。
@@ -1119,3 +1129,4 @@ PR の区切りは、実装計画書で決める。依存の順は次のとお�
 ## 変更履歴
 
 - 2026-11-16 承認（isseis、#889）
+- 2026-11-16 セッション中の再承認：2 つの記事生成モジュールが共有する `syscall/js` の登録を `internal/extjob/jsmodule` に置いた（isseis、#914）

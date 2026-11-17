@@ -56,7 +56,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build build-dev clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview install-chief ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-check coverage-compare ext-coverage-compare
+.PHONY: all build build-dev clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview install-chief ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-build-dev ext-check coverage-compare ext-coverage-compare
 
 all: build
 
@@ -325,20 +325,21 @@ lint: wasm-check
 	$(GOLINT)
 	$(GOCMD) vet -tags integration ./...
 
-# The packages the WebAssembly core is built from (the transcript types and
-# CopiedSource, the article writer, the Claude adapter and the HTTP send path it
-# uses, the pricing table, the extension's configuration loading), and the
-# development fake LLM, must keep compiling for js/wasm. This checks only that
-# they build; behavior that fails at run time in a browser (file system access)
-# is not found here.
+# The two article generation modules of the browser extension, the release
+# one and the development one with the fake LLM, must keep building for
+# js/wasm; building them builds every package they depend on, so a change that
+# breaks the WebAssembly core fails here before an extension build. This checks
+# only that they build; behavior that fails at run time in a browser (file
+# system access) is not found here.
 # The vet run also compiles the js-only files, which `make test` and
-# golangci-lint skip: the two packages with a file only a js build compiles
-# (llmhttp and claude) are vetted along with the others.
-WASM_PACKAGES = ./internal/transcript ./internal/writer ./internal/llm/claude ./internal/llm/llmhttp ./internal/pricing ./internal/llm/devfake ./internal/config ./internal/extjob/...
-WASM_VET_PACKAGES = ./internal/writer ./internal/transcript ./internal/llm/llmhttp ./internal/llm/claude ./internal/config
+# golangci-lint skip: the packages with a file only a js build compiles
+# (llmhttp, claude, jsmodule, and the two modules' main packages) are vetted
+# along with writer and transcript.
+WASM_MODULES = ./cmd/yt2column-wasm ./cmd/yt2column-wasm-dev
+WASM_VET_PACKAGES = ./internal/writer ./internal/transcript ./internal/llm/llmhttp ./internal/llm/claude ./internal/extjob/jsmodule ./cmd/yt2column-wasm ./cmd/yt2column-wasm-dev
 
 wasm-check:
-	GOOS=js GOARCH=wasm $(GOCMD) build $(WASM_PACKAGES)
+	GOOS=js GOARCH=wasm $(GOCMD) build $(WASM_MODULES)
 	GOOS=js GOARCH=wasm $(GOCMD) vet $(WASM_VET_PACKAGES)
 
 fmt:
@@ -460,10 +461,30 @@ ext-test:
 	$(call ext_preflight)
 	cd $(EXT_DIR) && npm run --silent test
 
-# Rebuilds dist/ from scratch and checks it (scripts/check-dist.ts).
+# Rebuilds dist/ from scratch and checks it (scripts/build.ts, which runs
+# scripts/check-dist.ts). The build runs go with GOTOOLCHAIN set to go.mod's
+# version to build the article generation module, so the first build may
+# download that toolchain.
 ext-build:
 	$(call ext_preflight)
 	cd $(EXT_DIR) && npm run --silent build
+
+# The scenario the development build embeds in its article generation module
+# (cmd/yt2column-wasm-dev). Set one on the command line to change it, e.g.
+# `make ext-build-dev FAKE_FAILURE=timeout FAKE_FAIL_AT=draft`. `=` rather
+# than `?=`: a stale environment variable must not choose the scenario
+# (`make -e` still lets one override it).
+FAKE_ARTICLE = standard
+FAKE_FAILURE = none
+FAKE_FAIL_AT = none
+FAKE_DELAY = 0
+FAKE_SETTINGS_CHECK = ok
+
+# Rebuilds dist-dev/ from scratch with the fake LLM and checks it. All five
+# values are always passed; the build has no defaults of its own.
+ext-build-dev:
+	$(call ext_preflight)
+	cd $(EXT_DIR) && npm run --silent build-dev -- --article "$(FAKE_ARTICLE)" --failure "$(FAKE_FAILURE)" --fail-at "$(FAKE_FAIL_AT)" --delay "$(FAKE_DELAY)" --settings-check "$(FAKE_SETTINGS_CHECK)"
 
 # Everything CI runs after ext-install, in the same order.
 ext-check:
@@ -472,6 +493,7 @@ ext-check:
 	@$(MAKE) --no-print-directory ext-fmt-check
 	@$(MAKE) --no-print-directory ext-test
 	@$(MAKE) --no-print-directory ext-build
+	@$(MAKE) --no-print-directory ext-build-dev
 
 # The extension tests' coverage comparison (see coverage-compare). Unlike the
 # other ext- targets it does not call ext_preflight: the tool makes the same

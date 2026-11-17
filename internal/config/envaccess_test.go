@@ -69,7 +69,12 @@ var allowedEnvRefs = map[string]map[string]int{
 	// The development server (cmd/yt2column-devserver) passes os.LookupEnv to
 	// LoadHost, which reads HOME and nothing else.
 	"cmd/yt2column-devserver/main.go": {"value:os.LookupEnv": 1},
-	"internal/ytdlpsource/ytdlp.go":   {"call:os.Environ": 1},
+	// The development command (cmd/yt2column-extjob) passes os.LookupEnv to
+	// run, which gives it to ReadExtensionSettings for a -llm=claude run.
+	// The article generation modules (cmd/yt2column-wasm and
+	// cmd/yt2column-wasm-dev) refer to no environment and are not listed.
+	"cmd/yt2column-extjob/main.go":  {"value:os.LookupEnv": 1},
+	"internal/ytdlpsource/ytdlp.go": {"call:os.Environ": 1},
 	// The fixprguard developer tool passes its environment, minus GIT_*, to
 	// git, and looks up GH_REPO and GH_HOST only to refuse them.
 	"cmd/fixprguard/main.go": {"call:os.Environ": 1, "value:os.LookupEnv": 1},
@@ -409,6 +414,9 @@ func TestEnvAccessConfined(t *testing.T) {
 	}
 	if got := rep.observed["cmd/yt2column-devserver/main.go value:os.LookupEnv"]; got != 1 {
 		t.Errorf("observed cmd/yt2column-devserver/main.go os.LookupEnv = %d, want 1", got)
+	}
+	if got := rep.observed["cmd/yt2column-extjob/main.go value:os.LookupEnv"]; got != 1 {
+		t.Errorf("observed cmd/yt2column-extjob/main.go os.LookupEnv = %d, want 1", got)
 	}
 }
 

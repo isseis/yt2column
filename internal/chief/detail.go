@@ -458,7 +458,7 @@ func readReport(ctx context.Context, herdr Herdr, ws TaskWorkspace, pr OpenPR, v
 	case len(hits) == 1:
 		rec.Source, rec.Text, rec.Truncated, rec.Pane, rec.Seq = ReportFromScreen.String(), hits[0].Text, hits[0].Truncated, hits[0].Pane, hits[0].Seq
 	case view != nil:
-		capped := CapDescription(view.Body)
+		capped := CapHead(view.Body)
 		rec.Source, rec.Text, rec.Truncated = ReportFromDescription.String(), capped.Text, capped.Truncated
 	}
 	return rec

@@ -362,7 +362,7 @@ func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 		return Config{}, err
 	}
 	cfg.llm = llm
-	cfg.http2DebugEnabled = hasHTTP2Debug(lookup)
+	cfg.http2DebugEnabled = HTTP2DebugRequested(lookup)
 	return cfg, nil
 }
 
@@ -667,10 +667,12 @@ func HTTP2DebugEnabledIn(godebug string) bool {
 		strings.Contains(godebug, "http2debug="+http2DebugVerbose)
 }
 
-// hasHTTP2Debug reports whether GODEBUG may turn on the HTTP/2 transport's
-// log, reading the variable through lookup. The setting is read, never
-// rejected.
-func hasHTTP2Debug(lookup LookupFunc) bool {
+// HTTP2DebugRequested reports whether GODEBUG may turn on the HTTP/2
+// transport's log, reading the variable through lookup. The setting is read,
+// never rejected. Load and LoadServer record it in the Config; the
+// development command (cmd/yt2column-extjob), which reads no Config, calls it
+// to warn before it calls an LLM API.
+func HTTP2DebugRequested(lookup LookupFunc) bool {
 	godebug, _ := lookup(godebugEnv)
 	return HTTP2DebugEnabledIn(godebug)
 }

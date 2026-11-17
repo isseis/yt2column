@@ -150,6 +150,30 @@ func typedLine(text string) string {
 	return fmt.Sprintf(`{"type":"user","origin":{"kind":"human"},"promptSource":"typed","turnOrigin":"human","message":{"role":"user","content":%q}}`, text)
 }
 
+// answerLine is the transcript record of a finished response of the main
+// session whose one text part is text, in the sampled form.
+func answerLine(id, text string) string {
+	return fmt.Sprintf(`{"type":"assistant","isSidechain":false,"message":{"id":%q,"model":"claude-opus-5-5","stop_reason":"end_turn","content":[{"type":"text","text":%q}]}}`, id, text)
+}
+
+// prRecordLine is the transcript record Claude Code writes for a PR of the
+// test repository the session made or worked on, in the sampled form.
+func prRecordLine(pr int) string {
+	return fmt.Sprintf(`{"type":"pr-link","prNumber":%d,"prUrl":"https://github.com/owner/yt2column/pull/%d","prRepository":"owner/yt2column"}`, pr, pr)
+}
+
+// setTranscript replaces the transcript of a pane's current session with
+// its first line followed by lines.
+func (sw *sendWorld) setTranscript(p *simPane, lines ...string) {
+	sw.t.Helper()
+	if err := os.Remove(sw.transcript(p, p.Session)); err != nil && !os.IsNotExist(err) {
+		sw.t.Fatal(err)
+	}
+	if err := sw.writeTranscript(p, p.Session, append([]string{modeLine(p.Session)}, lines...)...); err != nil {
+		sw.t.Fatal(err)
+	}
+}
+
 // modelNames are the display names /model reported in the samples.
 var modelNames = map[string]string{"opus": "Opus 5.5", "sonnet": "Sonnet 5.5"}
 

@@ -1302,7 +1302,15 @@ Once `mergepr.md` reports the merge:
   Japanese, gives the path of the details directory and, when the PR merged,
   the path of the detail file of the round that decided the merge and its head
   commit (step 4), and gives LIMITS_NOTE when there is one, or else the expiry
-  date step 1 kept for the 有効 state, on one line. The `/clear` guidance gives:
+  date step 1 kept for the 有効 state, on one line. It also holds exactly one
+  **NEXT line**, which the `chief` tool reads to compare with the next command
+  it decides itself (`docs/dev/guides/chief_guide.md`): a line of its own,
+  outside any code block, that starts with `NEXT: ` (a list bullet `- ` before
+  it is allowed, and nothing else: no bold, no heading, no number) followed by
+  NEXT with its arguments (`NEXT: /runplan 0015`), or, when NEXT is none, by
+  `なし`, optionally followed by the reason in full-width parentheses
+  (`NEXT: なし（タスク 0015 の最終 PR のため）`). No other line of the report
+  starts with `NEXT`. The `/clear` guidance gives:
   1. that the user should run `/clear` and then NEXT;
   2. NEXT with its arguments, ready to run as written (for example
      `/runplan 0015`);

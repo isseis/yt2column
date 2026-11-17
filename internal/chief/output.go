@@ -435,15 +435,30 @@ type AutoSendOutput struct {
 	Proposal  *NextOutput    `json:"proposal"`
 	Reasons   []string       `json:"reasons"`
 	Actions   []ActionOutput `json:"actions"`
+	// ReportChecks are the Claude Code panes the NEXT check let pass, read
+	// again under the workspace's exclusion, each with what it found.
+	ReportChecks []ReportCheckOutput `json:"report_checks"`
+}
+
+// ReportCheckOutput is what the NEXT check found on one Claude Code pane:
+// agreed (its last report's NEXT names the command), no_report (with why,
+// and the transcript's path), or no_next (no line names NEXT).
+type ReportCheckOutput struct {
+	Pane   string `json:"pane"`
+	Result string `json:"result"`
+	Detail string `json:"detail"`
 }
 
 // Output converts a tick into the JSON types. Lists are never nil.
 func (o TickOutcome) Output() TickOutput {
 	out := TickOutput{SnapshotOutput: o.Snapshot.Output(), AutoSends: []AutoSendOutput{}}
 	for _, r := range o.AutoSends {
-		a := AutoSendOutput{Workspace: Sanitize(r.Workspace), Label: Sanitize(r.Label), PR: r.PR, Task: Sanitize(r.Task), Proposal: nextOutput(r.Proposal), Reasons: sanitizeAll(r.Reasons), Actions: []ActionOutput{}}
+		a := AutoSendOutput{Workspace: Sanitize(r.Workspace), Label: Sanitize(r.Label), PR: r.PR, Task: Sanitize(r.Task), Proposal: nextOutput(r.Proposal), Reasons: sanitizeAll(r.Reasons), Actions: []ActionOutput{}, ReportChecks: []ReportCheckOutput{}}
 		for _, act := range r.Actions {
 			a.Actions = append(a.Actions, actionOutput(act))
+		}
+		for _, c := range r.ReportChecks {
+			a.ReportChecks = append(a.ReportChecks, ReportCheckOutput{Pane: Sanitize(c.Pane), Result: c.Kind.String(), Detail: Sanitize(c.Detail)})
 		}
 		out.AutoSends = append(out.AutoSends, a)
 	}

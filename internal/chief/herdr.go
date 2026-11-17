@@ -171,12 +171,15 @@ func (h Herdr) Screen(ctx context.Context, pane PaneID, source ScreenSource) (st
 }
 
 // herdrResult reads Herdr's envelope {"id": id, "result": {"type": kind, ...}}
-// and returns the result's members named by keys. Output of another command
-// is rejected.
+// and returns the result's members named by keys. Output of another command,
+// and an envelope that also holds an error, is rejected.
 func herdrResult(out []byte, id, kind string, keys ...string) (map[string]strictjson.Value, error) {
 	envelope, err := strictjson.ParseObject(out)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	if envelope.Has("error") {
+		return nil, fmt.Errorf("%w: result envelope holds an error", errHerdrOutput)
 	}
 	top, err := envelope.Collect("id", "result")
 	if err != nil {
@@ -449,4 +452,371 @@ func (w PaneWriter) refuse(target Agent) error {
 		return fmt.Errorf("%w: pane %q of workspace %q", errWriteRefused, target.Pane.id, target.Workspace)
 	}
 	return nil
+}
+
+// tabID is a Herdr tab ID read from Herdr's own output, such as "w1Y:t2".
+// The zero value names no tab.
+type tabID struct {
+	id string
+}
+
+// String returns the ID as Herdr wrote it.
+func (t tabID) String() string { return t.id }
+
+// tabIDForm is the tab ID shape Herdr wrote in the samples, the same shape as
+// a pane ID.
+var tabIDForm = paneIDForm
+
+// createdTab is a tab Herdr made, with the pane it made in it: the tab of a
+// workspace create or of a tab create.
+type createdTab struct {
+	Workspace string
+	Tab       tabID
+	Pane      PaneID
+	// Dir is the root pane's working directory.
+	Dir string
+}
+
+// createdWorkspace is the workspace a `herdr workspace create` made, with its
+// first tab and that tab's pane.
+type createdWorkspace struct {
+	Label string
+	First createdTab
+}
+
+// parseWorkspaceCreate reads `herdr workspace create`. Contract: the first
+// tab and its root pane must belong to the workspace the output names, and
+// the pane to that tab; any other output is unreadable, so no ID of another
+// workspace is ever read from it.
+func parseWorkspaceCreate(out []byte) (createdWorkspace, error) {
+	members, err := herdrResult(out, "cli:workspace:create", "workspace_created", "workspace", "tab", "root_pane")
+	if err != nil {
+		return createdWorkspace{}, err
+	}
+	ws, err := requiredObjectStrings(members, "workspace", "workspace_id", "label")
+	if err != nil {
+		return createdWorkspace{}, err
+	}
+	if !workspaceIDForm.MatchString(ws["workspace_id"]) {
+		return createdWorkspace{}, fmt.Errorf("%w: workspace ID", errHerdrOutput)
+	}
+	first, err := parseCreatedTab(members, ws["workspace_id"])
+	if err != nil {
+		return createdWorkspace{}, err
+	}
+	return createdWorkspace{Label: ws["label"], First: first}, nil
+}
+
+// parseTabCreate reads `herdr tab create` for a tab made in workspace.
+// Contract: a tab or pane of another workspace than the one asked for is
+// unreadable.
+func parseTabCreate(out []byte, workspace string) (createdTab, error) {
+	members, err := herdrResult(out, "cli:tab:create", "tab_created", "tab", "root_pane")
+	if err != nil {
+		return createdTab{}, err
+	}
+	return parseCreatedTab(members, workspace)
+}
+
+// parseCreatedTab reads the tab and root_pane members of a creation's
+// result and checks both belong to workspace and the pane to the tab.
+func parseCreatedTab(members map[string]strictjson.Value, workspace string) (createdTab, error) {
+	tab, err := requiredObjectStrings(members, "tab", "tab_id", "workspace_id")
+	if err != nil {
+		return createdTab{}, err
+	}
+	pane, err := requiredObjectStrings(members, "root_pane", "pane_id", "tab_id", "workspace_id", "cwd")
+	if err != nil {
+		return createdTab{}, err
+	}
+	if !tabIDForm.MatchString(tab["tab_id"]) || !paneIDForm.MatchString(pane["pane_id"]) {
+		return createdTab{}, fmt.Errorf("%w: tab or pane ID", errHerdrOutput)
+	}
+	if tab["workspace_id"] != workspace || pane["workspace_id"] != workspace || pane["tab_id"] != tab["tab_id"] {
+		return createdTab{}, fmt.Errorf("%w: the tab or its pane is not of workspace %q", errHerdrOutput, workspace)
+	}
+	if !filepath.IsAbs(pane["cwd"]) {
+		return createdTab{}, fmt.Errorf("%w: cwd is not absolute", errHerdrOutput)
+	}
+	return createdTab{Workspace: workspace, Tab: tabID{id: tab["tab_id"]}, Pane: PaneID{id: pane["pane_id"]}, Dir: pane["cwd"]}, nil
+}
+
+// tabInfo is a tab as `herdr tab rename` reports it after the rename.
+type tabInfo struct {
+	Workspace string
+	Tab       tabID
+	Label     string
+}
+
+// parseTabRename reads `herdr tab rename`. The caller compares the tab and
+// label it returns with the ones it asked for.
+func parseTabRename(out []byte) (tabInfo, error) {
+	members, err := herdrResult(out, "cli:tab:rename", "tab_info", "tab")
+	if err != nil {
+		return tabInfo{}, err
+	}
+	tab, err := requiredObjectStrings(members, "tab", "tab_id", "workspace_id", "label")
+	if err != nil {
+		return tabInfo{}, err
+	}
+	if !tabIDForm.MatchString(tab["tab_id"]) || !workspaceIDForm.MatchString(tab["workspace_id"]) {
+		return tabInfo{}, fmt.Errorf("%w: tab or workspace ID", errHerdrOutput)
+	}
+	return tabInfo{Workspace: tab["workspace_id"], Tab: tabID{id: tab["tab_id"]}, Label: tab["label"]}, nil
+}
+
+// startedAgent is the agent a `herdr agent start` reports as started, with
+// the name Herdr gave it.
+type startedAgent struct {
+	Agent Agent
+	Name  string
+}
+
+// parseAgentStart reads a successful `herdr agent start`. The agent is read
+// as parseAgent reads every agent, and it must carry a name. The caller
+// compares the name, kind, and pane with the ones it asked for.
+func parseAgentStart(out []byte) (startedAgent, error) {
+	members, err := herdrResult(out, "cli:agent:start", "agent_started", "agent")
+	if err != nil {
+		return startedAgent{}, err
+	}
+	value, err := strictjson.Required(members, "agent")
+	if err != nil {
+		return startedAgent{}, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	a, err := parseAgent(value)
+	if err != nil {
+		return startedAgent{}, err
+	}
+	named, err := requiredObjectStrings(members, "agent", "name")
+	if err != nil {
+		return startedAgent{}, err
+	}
+	return startedAgent{Agent: a, Name: named["name"]}, nil
+}
+
+// listedPane is one pane as `herdr pane list` reports it, with or without an
+// agent.
+type listedPane struct {
+	ID        PaneID
+	Workspace string
+	Tab       tabID
+	// Dir is the pane's working directory.
+	Dir string
+	// HasAgent reports whether Herdr names an agent in the pane; Kind is
+	// paneinput.AgentUnknown for an agent chief does not route to.
+	HasAgent bool
+	Kind     paneinput.AgentKind
+}
+
+// parsePaneList reads `herdr pane list`. Contract: a pane with a missing or
+// malformed member, or an agent member that is not a non-empty string, makes
+// the whole list unreadable; nothing is defaulted. Every pane is returned with
+// its own workspace, so a caller that asked for one workspace filters by it.
+func parsePaneList(out []byte) ([]listedPane, error) {
+	members, err := herdrResult(out, "cli:pane:list", "pane_list", "panes")
+	if err != nil {
+		return nil, err
+	}
+	items, err := requiredArray(members, "panes")
+	if err != nil {
+		return nil, err
+	}
+	panes := make([]listedPane, 0, len(items))
+	for i, item := range items {
+		object, err := item.AsObject()
+		if err != nil {
+			return nil, fmt.Errorf("%w: pane %d: %w", errHerdrOutput, i, err)
+		}
+		fields, err := object.Collect("pane_id", "tab_id", "workspace_id", "cwd", "agent")
+		if err != nil {
+			return nil, fmt.Errorf("%w: pane %d: %w", errHerdrOutput, i, err)
+		}
+		strs := map[string]string{}
+		for _, key := range []string{"pane_id", "tab_id", "workspace_id", "cwd"} {
+			s, err := strictjson.RequiredString(fields, key)
+			if err != nil {
+				return nil, fmt.Errorf("%w: pane %d: %w", errHerdrOutput, i, err)
+			}
+			strs[key] = s
+		}
+		if !paneIDForm.MatchString(strs["pane_id"]) || !tabIDForm.MatchString(strs["tab_id"]) || !workspaceIDForm.MatchString(strs["workspace_id"]) {
+			return nil, fmt.Errorf("%w: pane %d IDs", errHerdrOutput, i)
+		}
+		if !filepath.IsAbs(strs["cwd"]) {
+			return nil, fmt.Errorf("%w: pane %d cwd is not absolute", errHerdrOutput, i)
+		}
+		agent, hasAgent, err := strictjson.OptionalString(fields, "agent")
+		if err != nil {
+			return nil, fmt.Errorf("%w: pane %d agent: %w", errHerdrOutput, i, err)
+		}
+		panes = append(panes, listedPane{
+			ID:        PaneID{id: strs["pane_id"]},
+			Workspace: strs["workspace_id"],
+			Tab:       tabID{id: strs["tab_id"]},
+			Dir:       strs["cwd"],
+			HasAgent:  hasAgent,
+			Kind:      agentKinds[agent],
+		})
+	}
+	return panes, nil
+}
+
+// processInfo is what `herdr pane process-info` reports for one pane: the
+// shell's pid and the foreground process group with its processes.
+type processInfo struct {
+	Pane            PaneID
+	ShellPID        int64
+	ForegroundGroup int64
+	ForegroundPIDs  []int64
+}
+
+// ShellInForeground reports whether the pane's shell is at its prompt: the
+// foreground process group is the shell's own and the shell is its only
+// process. Contract: anything else, a build or an editor in the foreground
+// among them, is not.
+func (p processInfo) ShellInForeground() bool {
+	return p.ShellPID > 0 && p.ForegroundGroup == p.ShellPID && len(p.ForegroundPIDs) == 1 && p.ForegroundPIDs[0] == p.ShellPID
+}
+
+// parsePaneProcessInfo reads `herdr pane process-info`. The caller compares
+// the pane it returns with the one it asked about.
+func parsePaneProcessInfo(out []byte) (processInfo, error) {
+	members, err := herdrResult(out, "cli:pane:process_info", "pane_process_info", "process_info")
+	if err != nil {
+		return processInfo{}, err
+	}
+	value, err := strictjson.Required(members, "process_info")
+	if err != nil {
+		return processInfo{}, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	object, err := value.AsObject()
+	if err != nil {
+		return processInfo{}, fmt.Errorf("%w: process_info: %w", errHerdrOutput, err)
+	}
+	fields, err := object.Collect("pane_id", "shell_pid", "foreground_process_group_id", "foreground_processes")
+	if err != nil {
+		return processInfo{}, fmt.Errorf("%w: process_info: %w", errHerdrOutput, err)
+	}
+	pane, err := strictjson.RequiredString(fields, "pane_id")
+	if err != nil || !paneIDForm.MatchString(pane) {
+		return processInfo{}, fmt.Errorf("%w: process_info pane ID", errHerdrOutput)
+	}
+	shell, err := requiredPID(fields, "shell_pid")
+	if err != nil {
+		return processInfo{}, err
+	}
+	group, err := requiredPID(fields, "foreground_process_group_id")
+	if err != nil {
+		return processInfo{}, err
+	}
+	items, err := requiredArray(fields, "foreground_processes")
+	if err != nil {
+		return processInfo{}, err
+	}
+	pids := make([]int64, 0, len(items))
+	for i, item := range items {
+		process, err := item.AsObject()
+		if err != nil {
+			return processInfo{}, fmt.Errorf("%w: process %d: %w", errHerdrOutput, i, err)
+		}
+		pf, err := process.Collect("pid")
+		if err != nil {
+			return processInfo{}, fmt.Errorf("%w: process %d: %w", errHerdrOutput, i, err)
+		}
+		pid, err := requiredPID(pf, "pid")
+		if err != nil {
+			return processInfo{}, err
+		}
+		pids = append(pids, pid)
+	}
+	return processInfo{Pane: PaneID{id: pane}, ShellPID: shell, ForegroundGroup: group, ForegroundPIDs: pids}, nil
+}
+
+// requiredPID returns the named member as a positive process ID.
+func requiredPID(members map[string]strictjson.Value, key string) (int64, error) {
+	value, err := strictjson.Required(members, key)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	pid, err := value.AsNonNegativeInt64()
+	if err != nil || pid == 0 {
+		return 0, fmt.Errorf("%w: %s is not a process ID", errHerdrOutput, key)
+	}
+	return pid, nil
+}
+
+// parseWorkspaceClose reads a successful `herdr workspace close`, whose
+// result carries nothing but its type.
+func parseWorkspaceClose(out []byte) error {
+	_, err := herdrResult(out, "cli:workspace:close", "ok")
+	return err
+}
+
+// herdrError is Herdr's error response, which herdr writes to standard error
+// with exit status 1: {"error": {"code": ..., "message": ...}, "id": ...}.
+// Code is a value Herdr declares and Message is Herdr's text; both are only
+// shown, and no behavior is chosen by either.
+type herdrError struct {
+	Code    string
+	Message string
+}
+
+// herdrErrorCodeForm is the shape of the codes the samples showed, such as
+// "agent_name_taken".
+var herdrErrorCodeForm = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+// parseHerdrError reads the error response of the command whose envelope id
+// is id. Contract: another command's response, a code of another shape, a
+// missing member, or an envelope that also holds a result is unreadable.
+func parseHerdrError(stderr []byte, id string) (herdrError, error) {
+	envelope, err := strictjson.ParseObject(stderr)
+	if err != nil {
+		return herdrError{}, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	if envelope.Has("result") {
+		return herdrError{}, fmt.Errorf("%w: error envelope holds a result", errHerdrOutput)
+	}
+	top, err := envelope.Collect("id", "error")
+	if err != nil {
+		return herdrError{}, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	gotID, err := strictjson.RequiredString(top, "id")
+	if err != nil || gotID != id {
+		return herdrError{}, fmt.Errorf("%w: envelope id", errHerdrOutput)
+	}
+	body, err := requiredObjectStrings(top, "error", "code", "message")
+	if err != nil {
+		return herdrError{}, err
+	}
+	if !herdrErrorCodeForm.MatchString(body["code"]) {
+		return herdrError{}, fmt.Errorf("%w: error code", errHerdrOutput)
+	}
+	return herdrError{Code: body["code"], Message: body["message"]}, nil
+}
+
+// requiredObjectStrings returns the named members of the object member key,
+// each a non-empty string.
+func requiredObjectStrings(members map[string]strictjson.Value, key string, names ...string) (map[string]string, error) {
+	value, err := strictjson.Required(members, key)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	object, err := value.AsObject()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s: %w", errHerdrOutput, key, err)
+	}
+	fields, err := object.Collect(names...)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s: %w", errHerdrOutput, key, err)
+	}
+	strs := make(map[string]string, len(names))
+	for _, name := range names {
+		s, err := strictjson.RequiredString(fields, name)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %s: %w", errHerdrOutput, key, err)
+		}
+		strs[name] = s
+	}
+	return strs, nil
 }

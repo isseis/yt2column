@@ -28,11 +28,11 @@ import (
 // It never holds the input.
 var ErrInvalidInput = errors.New("extjob: the start input is not accepted")
 
-// maxRequestBytes bounds a JSON request of prepare. It is larger than the
-// writer's prompt limit (1 MiB) even after the transcript's timestamp lines
-// and the JSON escaping can multiply it, so an input the writer could still
-// handle is not refused here.
-const maxRequestBytes = 4 << 20 // 4 MiB
+// MaxPrepareRequestBytes bounds a JSON request of prepare; PrepareJSON rejects
+// a longer one. It is larger than the writer's prompt limit (1 MiB) even
+// after the transcript's timestamp lines and the JSON escaping can multiply
+// it, so an input the writer could still handle is not refused here.
+const MaxPrepareRequestBytes = 4 << 20 // 4 MiB
 
 // StartInput is a start input as received from the page, before validation.
 type StartInput struct {

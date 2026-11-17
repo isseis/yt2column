@@ -124,6 +124,10 @@
 | `extension/src/startCoordinator.ts` | `extension/src/jobCoordinator.ts` | PR-7 | PR-9 |
 | 記事のキー（`extension/src/core/articleKey.ts`） | ジョブ ID | PR-7 | PR-9 |
 
+### 1.6. 実装の際に決めたこと（2026-11-16）
+
+1.  **2 つの記事生成モジュールが共有する `syscall/js` の登録を、`js` のビルドだけのパッケージ `internal/extjob/jsmodule` に置く（ステップ 4-1・4-2・4-4・4-7）。** 2 つの `main` は、LLM の実装から作った `extjob.Module` を `jsmodule.Serve` に渡すだけを持つ。理由: 登録の処理（約 50 行）は 2 つの `main` で同じで、それぞれに置くと片方だけを直す誤りが起きる。採らなかった案は、登録の処理をそれぞれの `main` に置く案（本計画の当初の形）である。人が 2026-11-16 に、PR-4 の実装の際に選んだ。設計は設計書 §1.4 にある。ADR: [ADR-0049](../../dev/adr/0049-wasm-core-sharing.md) を更新した。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: LLM の失敗の分類と、キーの確かめ（設計書 §8 の 1 のうち LLM の層）
@@ -231,18 +235,18 @@
 
 ### フェーズ 4: 3 つの `main`、`make wasm-check`、依存の検査（設計書 §8 の 1 の残り）
 
-**変更するファイル:** `cmd/yt2column-wasm/`・`cmd/yt2column-wasm-dev/`・`cmd/yt2column-extjob/`（新規）とそのテスト、`internal/godepstest/` とそのテスト、`internal/extjob/deps_test.go`（新規）、`cmd/yt2column/devdeps_test.go`、`cmd/yt2column/makefile_test.go`、`internal/config/envaccess_test.go`、`Makefile`、`CLAUDE.md`、`docs/dev/guides/development.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/project_overview.md`、ADR（§3.3）
+**変更するファイル:** `cmd/yt2column-wasm/`・`cmd/yt2column-wasm-dev/`・`cmd/yt2column-extjob/`（新規）とそのテスト、`internal/extjob/jsmodule/`（新規。`js` のビルドだけで、テストはない）、`internal/godepstest/` とそのテスト、`internal/extjob/deps_test.go`（新規）、`cmd/yt2column/devdeps_test.go`、`cmd/yt2column/makefile_test.go`、`internal/config/envaccess_test.go`、`internal/config/extension.go`（空のワークスペース ID を、設計書 §3.2 と ADR-0003 のとおり未設定として答える）、`Makefile`、`CLAUDE.md`、`docs/dev/guides/development.md`、`docs/dev/security.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/project_overview.md`、ADR（§3.3）
 
--   [ ] **ステップ 4-1**: `cmd/yt2column-wasm` を作る（設計書 §3.3、0090 設計書 §3.1.2）。`extjob.NewModule(claudebackend.New())` の 4 つの関数を `syscall/js` で 1 つの名前空間のオブジェクトに登録するだけを持ち、`js` のビルドだけでビルドする。
--   [ ] **ステップ 4-2**: `cmd/yt2column-wasm-dev` を作る（設計書 §3.4）。シナリオの 5 つの値を `main` のパッケージの文字列の変数で持ち、起動のときに `ParseScenario` で解析して、合えば `extjob.NewModule(devbackend.New(scenario))` の関数を登録し、合わなければ登録しない。`syscall/js` を使う登録のファイルだけを `js` のビルドにし、ネイティブのビルドでは、同じ変数を解析して結果だけを返す `main` を持つ（PR-5 のビルドのスクリプトが使う）。ネイティブのテストで、解析の受理と拒否を確かめる。
--   [ ] **ステップ 4-3**: `cmd/yt2column-extjob` を作る（設計書 §3.4、0090 設計書 §7.2）。`-llm=claude` か `-llm=fake` を必ず指定させ、指定がないかほかの値なら何もせずに終わる。`-llm=fake` は 5 つの引数を `ParseScenario` で解析する。`-llm=claude` は `config.ReadExtensionSettings` で読んだ 2 つの値を `StoredSettings` にする。入力のファイル（4 MiB まで）を `Module.PrepareJSON` に、続けて `Module.GenerateJSON` に渡し、`GenerateResult` の JSON を出す。テストのために、`main` の処理は LLM の実装を作る関数を差し替えられる形にする。テストは、`-llm` の指定がないときと合わないシナリオで実装の関数を 1 度も呼ばないこと、`-llm=claude` で環境に置いた目印のキーが、成功と拒否のどちらの道でも標準出力と標準エラーに出ないこと、ワークスペース ID が未設定のときに空の文字列を渡すこと、合わない入力のファイルと 4 MiB を超えるファイルで拒否の理由を出すこと、結果の JSON を出すことを確かめる。
--   [ ] **ステップ 4-4**: `make wasm-check` の対象を、`cmd/yt2column-wasm` と `cmd/yt2column-wasm-dev` のビルド（それぞれの依存を含む）にし、`vet` の対象を `internal/llm/llmhttp`・`internal/llm/claude`・2 つの `main`・`internal/writer`・`internal/transcript` にする（設計書 §3.10）。PR-1〜PR-3 で `WASM_PACKAGES` に加えたパッケージは、2 つの `main` の依存に含まれるので、ビルドの対象からは除く。`cmd/yt2column/makefile_test.go` に、`make -n wasm-check` が 2 つの記事生成モジュールを `GOOS=js GOARCH=wasm` でビルドし、挙げたパッケージを `vet` することを確かめるテストを加える（今の `makeDryRun` の補助を使う）。CLAUDE.md の説明を直す。
--   [ ] **ステップ 4-5**: 依存の検査を加える（設計書 §7.3）。
+-   [x] **ステップ 4-1**: `internal/extjob/jsmodule` と `cmd/yt2column-wasm` を作る（設計書 §1.4・§3.3、0090 設計書 §3.1.2）。`jsmodule` は、`extjob.Module` の 4 つの関数を `syscall/js` で 1 つの名前空間のオブジェクトに登録する（§1.6）。`cmd/yt2column-wasm` は、`extjob.NewModule(claudebackend.New())` を `jsmodule.Serve` に渡すだけを持つ。どちらも `js` のビルドだけでビルドする。
+-   [x] **ステップ 4-2**: `cmd/yt2column-wasm-dev` を作る（設計書 §3.4）。シナリオの 5 つの値を `main` のパッケージの文字列の変数で持ち、起動のときに `ParseScenario` で解析して、合えば `extjob.NewModule(devbackend.New(scenario))` を `jsmodule.Serve` に渡して関数を登録し、合わなければ登録しない。`syscall/js` を使う登録のファイルだけを `js` のビルドにし、ネイティブのビルドでは、同じ変数を解析して結果だけを返す `main` を持つ（PR-5 のビルドのスクリプトが使う）。ネイティブのテストで、解析の受理と拒否を確かめる。
+-   [x] **ステップ 4-3**: `cmd/yt2column-extjob` を作る（設計書 §3.4、0090 設計書 §7.2）。`-llm=claude` か `-llm=fake` を必ず指定させ、指定がないかほかの値なら何もせずに終わる。`-llm=fake` は 5 つの引数を `ParseScenario` で解析する。`-llm=claude` は `config.ReadExtensionSettings` で読んだ 2 つの値を `StoredSettings` にする。入力のファイル（4 MiB まで）を `Module.PrepareJSON` に、続けて `Module.GenerateJSON` に渡し、`GenerateResult` の JSON を出す。テストのために、`main` の処理は LLM の実装を作る関数を差し替えられる形にする。テストは、`-llm` の指定がないときと合わないシナリオで実装の関数を 1 度も呼ばないこと、`-llm=claude` で環境に置いた目印のキーが、成功と拒否のどちらの道でも標準出力と標準エラーに出ないこと、ワークスペース ID が未設定のときに空の文字列を渡すこと、合わない入力のファイルと 4 MiB を超えるファイルで拒否の理由を出すこと、結果の JSON を出すことを確かめる。
+-   [x] **ステップ 4-4**: `make wasm-check` の対象を、`cmd/yt2column-wasm` と `cmd/yt2column-wasm-dev` のビルド（それぞれの依存を含む）にし、`vet` の対象を `internal/llm/llmhttp`・`internal/llm/claude`・`internal/extjob/jsmodule`・2 つの `main`・`internal/writer`・`internal/transcript` にする（設計書 §3.10）。PR-1〜PR-3 で `WASM_PACKAGES` に加えたパッケージは、2 つの `main` の依存に含まれるので、ビルドの対象からは除く。`cmd/yt2column/makefile_test.go` に、`make -n wasm-check` が 2 つの記事生成モジュールを `GOOS=js GOARCH=wasm` でビルドし、挙げたパッケージを `vet` することを確かめるテストを加える（今の `makeDryRun` の補助を使う）。CLAUDE.md の説明を直す。
+-   [x] **ステップ 4-5**: 依存の検査を加える（設計書 §7.3）。
     -   `internal/godepstest` が `GOOS=js GOARCH=wasm` の依存を求められるようにし、`godepstest_test.go` に、`js` の対象で `js` のビルドだけのファイルの依存が出ることを確かめる行を加える。
     -   `internal/extjob/deps_test.go` に、公開用の記事生成モジュールの `js` の依存が `internal/extjob/claudebackend` を含み `internal/llm/devfake` と `internal/extjob/devbackend` を含まないこと、開発用の記事生成モジュールの `js` の依存が `internal/extjob/devbackend` を含み `internal/llm/claude` と `internal/extjob/claudebackend` を含まないことを確かめるテストを置く。
-    -   `cmd/yt2column/devdeps_test.go` の許さない依存に `internal/extjob/devbackend`・`cmd/yt2column-wasm-dev`・`cmd/yt2column-extjob` を加える。サーバとホストの `devdeps_test.go` は、撤去の PR まで今のまま残す。
--   [ ] **ステップ 4-6**: `envaccess_test.go` の入口の一覧に `cmd/yt2column-extjob/main.go` を加え、その観測を確かめる。記事生成モジュールは環境を参照しない（0090 設計書 §3.11 のテストの表）。
--   [ ] **ステップ 4-7**: 文書を書き換える。package_reference.md に 3 つの `main` の行を、project_overview.md のディレクトリの構成に 3 つの `main` を加える。development.md に `cmd/yt2column-extjob` の使い方（`-llm` の指定が要ること、入力のファイルをリポジトリに入れないこと）を書く（設計書 §3.13）。ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。
+    -   `cmd/yt2column/devdeps_test.go` の許さない依存に `internal/extjob/devbackend` を加える。`cmd/yt2column-wasm-dev`・`cmd/yt2column-extjob` は `main` のパッケージで import できないので加えない。サーバとホストの `devdeps_test.go` は、撤去の PR まで今のまま残す。
+-   [x] **ステップ 4-6**: `envaccess_test.go` の入口の一覧に `cmd/yt2column-extjob/main.go` を加え、その観測を確かめる。記事生成モジュールは環境を参照しない（0090 設計書 §3.11 のテストの表）。
+-   [x] **ステップ 4-7**: 文書を書き換える。package_reference.md に 3 つの `main` と `internal/extjob/jsmodule` の行を、project_overview.md のディレクトリの構成に 3 つの `main` と `internal/extjob/jsmodule` を加える。development.md に `cmd/yt2column-extjob` の使い方（`-llm` の指定が要ること、入力のファイルをリポジトリに入れないこと）を、security.md の §7 に開発用のコマンドの入力のファイルをリポジトリに入れないことを書く（設計書 §3.13）。ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。
 
 **完了の条件:** `make test`・`make lint`（新しい `make wasm-check` を含む）・`make deadcode` が通る。ネイティブの `go build ./...`・`go vet ./...` が、`js` だけの `main` で失敗しない。`_checks/cli_unchanged.sh` が通り、§7 の AC-26 の記録に書いた。
 
@@ -260,25 +264,25 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/914
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 拡張のビルド（設計書 §8 の 2）
 
-**変更するファイル:** `extension/scripts/`（ビルドのスクリプト、`check-dist.ts`、`has-extension-changes.sh`、依存のディレクトリを求めるスクリプト）、`extension/package.json`、`extension/static/buildKind.js`・`extension/src/buildKind.d.ts`（新規）、`extension/static/_locales/*/messages.json`、`extension/eslint.config.js`、`extension/.prettierignore`、`extension/test/`（`checkDist.test.ts`・`ciChanges.test.ts`・`repository.test.ts`、ビルドのスクリプトのテスト）、`Makefile`、`.github/workflows/ci.yml`、`.gitignore`、`CLAUDE.md`、`docs/dev/guides/development.md`、`cmd/yt2column/` の文書のテスト（新規）、ADR（§3.3）
+**変更するファイル:** `extension/scripts/`（ビルドのスクリプト、`check-dist.ts`、`has-extension-changes.sh`、依存のディレクトリを求めるスクリプト）、`extension/package.json`、`extension/static/buildKind.js`・`extension/src/buildKind.d.ts`（新規）、`extension/static/_locales/*/messages.json`、`extension/eslint.config.js`、`extension/.prettierignore`、`extension/test/`（`checkDist.test.ts`・`ciChanges.test.ts`・`repository.test.ts`、ビルドのスクリプトのテスト）、`Makefile`、`.github/workflows/ci.yml`、`.gitignore`、`CLAUDE.md`、`docs/dev/guides/development.md`、`README.md`・`README.en.md`、`cmd/yt2column/` の文書のテスト（新規）と `internal/doctestutil/guides.go`（その表の位置の値）、ADR（§3.3）
 
--   [ ] **ステップ 5-1**: 拡張のビルドが Go を呼ぶようにする（設計書 §3.5、0090 設計書 §3.1.4）。ビルドのスクリプトは、`go.mod` の `go` の行の版を読んで `GOTOOLCHAIN` に与え（パッチの版がなければ理由を示して止める）、`GOOS=js GOARCH=wasm go build -trimpath` で記事生成モジュールをビルドし、同じツールチェーンの `wasm_exec.js` を成果物の直下に置く。`npm run build` は、Go を呼ぶ手順まで含めて、検査を通った成果物を作る。`go` を呼ぶ部分は差し替えられる形にし、node のテストで、版の読み取り（パッチの版がないときの停止を含む）と、`go` に渡す引数と環境を確かめる。
--   [ ] **ステップ 5-2**: `extension/static/buildKind.js`（値は `release`）と `extension/src/buildKind.d.ts` を加える（設計書 §3.5）。`_locales` に、開発用の印を付けた名前のメッセージを加える。
--   [ ] **ステップ 5-3**: 開発用のビルドを加える（設計書 §3.5・§6.4）。`make ext-build-dev` は 5 つの変数（既定の値は `Makefile` が持つ）をいつも渡す。ビルドのスクリプトは、`cmd/yt2column-wasm-dev` のネイティブのビルドで値を解析してから、`extension/dist-dev/` を空にし、`tsc` と `static/` を写し、開発用の manifest（`key` を除き、名前を開発用のメッセージに替える）を書き、`buildKind.js` を `dev` に置き換え、1 つの `-ldflags` の文字列に 5 つの `-X` を並べて開発用の記事生成モジュールをビルドする。node のテストで、合わないシナリオで `dist-dev/` に触れる前に止まること、`-ldflags` を 1 回だけ 5 つの `-X` で渡すこと、開発用の manifest の変換を確かめる。`.gitignore`・`eslint.config.js` の `ignores`・`extension/.prettierignore` に `dist-dev/` を加え、`repository.test.ts` の無視の規則の確かめに加える。`make ext-check` に `ext-build-dev` を加える（§1.3 の決定 11）。
--   [ ] **ステップ 5-4**: `check-dist.ts` を、ビルドの種類を引数で受け取り、種類ごとの期待で検査するように改める（設計書 §3.5 の「成果物の検査」の各項目）。記事生成モジュールは Node で `wasm_exec.js` とともに読み込んで `buildInfo` を呼び、`mainPath`・`goVersion`・`llm`（`dev` ではシナリオの 5 つの値）を確かめる。`buildInfo` を読む部分は差し込めるようにし、`checkDist.test.ts` は Go を呼ばずに、種類と出力のディレクトリの組み合わせ、`buildKind.js` の値、開発用の manifest、WASM と `wasm_exec.js` の例外、`buildInfo` の各値の違いでの拒否を確かめる。
--   [ ] **ステップ 5-5**: CI を改める（設計書 §3.10）。
+-   [x] **ステップ 5-1**: 拡張のビルドが Go を呼ぶようにする（設計書 §3.5、0090 設計書 §3.1.4）。ビルドのスクリプトは、`go.mod` の `go` の行の版を読んで `GOTOOLCHAIN` に与え（パッチの版がなければ理由を示して止める）、`GOOS=js GOARCH=wasm go build -trimpath` で記事生成モジュールをビルドし、同じツールチェーンの `wasm_exec.js` を成果物の直下に置く。`npm run build` は、Go を呼ぶ手順まで含めて、検査を通った成果物を作る。`go` を呼ぶ部分は差し替えられる形にし、node のテストで、版の読み取り（パッチの版がないときの停止を含む）と、`go` に渡す引数と環境を確かめる。
+-   [x] **ステップ 5-2**: `extension/static/buildKind.js`（値は `release`）と `extension/src/buildKind.d.ts` を加える（設計書 §3.5）。`_locales` に、開発用の印を付けた名前のメッセージを加える。
+-   [x] **ステップ 5-3**: 開発用のビルドを加える（設計書 §3.5・§6.4）。`make ext-build-dev` は 5 つの変数（既定の値は `Makefile` が持つ）をいつも渡す。ビルドのスクリプトは、`cmd/yt2column-wasm-dev` のネイティブのビルドで値を解析してから、`extension/dist-dev/` を空にし、`tsc` と `static/` を写し、開発用の manifest（`key` を除き、名前を開発用のメッセージに替える）を書き、`buildKind.js` を `dev` に置き換え、1 つの `-ldflags` の文字列に 5 つの `-X` を並べて開発用の記事生成モジュールをビルドする。node のテストで、合わないシナリオで `dist-dev/` に触れる前に止まること、`-ldflags` を 1 回だけ 5 つの `-X` で渡すこと、開発用の manifest の変換を確かめる。`.gitignore`・`eslint.config.js` の `ignores`・`extension/.prettierignore` に `dist-dev/` を加え、`repository.test.ts` の無視の規則の確かめに加える。`make ext-check` に `ext-build-dev` を加える（§1.3 の決定 11）。
+-   [x] **ステップ 5-4**: `check-dist.ts` を、ビルドの種類を引数で受け取り、種類ごとの期待で検査するように改める（設計書 §3.5 の「成果物の検査」の各項目）。記事生成モジュールは Node で `wasm_exec.js` とともに読み込んで `buildInfo` を呼び、`mainPath`・`goVersion`・`llm`（`dev` ではシナリオの 5 つの値）を確かめる。`buildInfo` を読む部分は差し込めるようにし、`checkDist.test.ts` は Go を呼ばずに、種類と出力のディレクトリの組み合わせ、`buildKind.js` の値、開発用の manifest、WASM と `wasm_exec.js` の例外、`buildInfo` の各値の違いでの拒否を確かめる。
+-   [x] **ステップ 5-5**: CI を改める（設計書 §3.10）。
     -   `check-changes` の手順に Go を用意する。記事生成モジュールの依存のディレクトリを `GOOS=js GOARCH=wasm go list -deps -f` で求める処理をスクリプトに置き、標準ライブラリを除き、`-e` を付けず、失敗したときは拡張の検査を走らせる側に倒す。
     -   `has-extension-changes.sh` は、変わったファイルの一覧に加えて依存のディレクトリの一覧を受け取り、末尾の `/` で比べる。`go.sum` を加える。`.md` の除外より前の、変わったファイルのすべての一覧で判定する。
     -   `ciChanges.test.ts` と、依存のディレクトリを求めるスクリプトのテスト（`go` を差し替えて走らせる）で、`.go`・`.tmpl`・fake の記事の `.md` の変更と削除、サブディレクトリ、`internal/llm` と `internal/llmx` の境界、求める処理の失敗を確かめる。
     -   `extension` の手順で、`ext-build` より前に Go を用意し、`ext-build` の後に `ext-build-dev` を走らせる。`repository.test.ts` の手順の順の確かめを直す。
--   [ ] **ステップ 5-6**: 文書と ADR を書き換える。CLAUDE.md の「Extension Commands」に `make ext-build-dev` を加え、`make ext-build` が Go を呼ぶことと `make ext-check` の中身を直す（`TestExtensionDocumentation`）。development.md に、開発用のビルドの 5 つの変数と受理する綴りの表、見分け方（開発用の印、別の拡張の ID）、初めのビルドが `go.mod` の版のツールチェーンをダウンロードしうることを書き、開発用のビルドが切り替えの PR まで画面で使えないことを添える（設計書 §3.4）。development.md の変数の表と綴りを、`devfake` の綴りと `Makefile` の変数と照合する文書のテストを `cmd/yt2column` に加える（開発用のサーバの表を確かめる `TestDevelopmentDocsDevServer` に当たるもの）。ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。
+-   [x] **ステップ 5-6**: 文書と ADR を書き換える。CLAUDE.md の「Extension Commands」に `make ext-build-dev` を加え、`make ext-build` が Go を呼ぶことと `make ext-check` の中身を直す（`TestExtensionDocumentation`）。development.md に、開発用のビルドの 5 つの変数と受理する綴りの表、見分け方（開発用の印、別の拡張の ID）、初めのビルドが `go.mod` の版のツールチェーンをダウンロードしうることを書き、開発用のビルドが切り替えの PR まで画面で使えないことを添える（設計書 §3.4）。README の拡張のビルドの説明に、ビルドが `go.mod` の版の Go も呼ぶこと（初めのビルドがその版をダウンロードしうること）を加え、`README.en.md` に写す。development.md の変数の表と綴りを、`devfake` の綴りと `Makefile` の変数と照合する文書のテストを `cmd/yt2column` に加える（開発用のサーバの表を確かめる `TestDevelopmentDocsDevServer` に当たるもの）。ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。
 
 **完了の条件:** `make test`・`make lint`・`make ext-check`（`ext-build-dev` を含む）が通る。`_checks/cli_unchanged.sh` が通り、§7 の AC-26 の記録に書いた。
 
@@ -296,26 +300,26 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/925
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 6: API キーの経路の検査と、まだ使われない拡張の部品（その 1）（設計書 §8 の 4 の一部）
 
-**変更するファイル:** `extension/test/apiKeyPath.test.ts`（新規）、`extension/test/secretsAbsent.test.ts`（削除）、`extension/src/browser/chromeDeps.ts`、`extension/eslint.config.js`、`extension/src/wasmWorker.ts`・`extension/src/wasmWorkerClient.ts`・`extension/src/core/wasmResult.ts`・`extension/src/core/jobRecord.ts`・`extension/src/core/viewerTitle.ts`・`extension/src/core/optionsView.ts`（新規）、`wasm_exec.js` の型の宣言（新規）、Worker の型を確かめる `tsconfig` の設定と、それを走らせる `package.json` の `typecheck` と `build`、`extension/src/core/i18n/*`、`extension/test/`（新しいテスト、`lintRules.test.ts`、`helpers/chrome.ts`、`helpers/worker.ts`（新規））、本計画
+**変更するファイル:** `extension/test/apiKeyPath.test.ts`（新規）、`extension/test/secretsAbsent.test.ts`（削除）、`extension/src/browser/chromeDeps.ts`、`extension/eslint.config.js`、`extension/src/wasmWorker.ts`・`extension/src/wasmWorkerClient.ts`・`extension/src/core/workerCalls.ts`・`extension/src/core/jsonShape.ts`・`extension/src/core/wasmResult.ts`・`extension/src/core/jobRecord.ts`・`extension/src/core/viewerTitle.ts`・`extension/src/core/optionsView.ts`（新規）、`wasm_exec.js` の型の宣言（新規）、Worker の型を確かめる `tsconfig` の設定と、それを走らせる `package.json` の `typecheck` と `build`、`extension/src/core/i18n/*`、`extension/test/`（新しいテスト、`lintRules.test.ts`、`helpers/chrome.ts`、`helpers/worker.ts`（新規））、本計画
 
--   [ ] **ステップ 6-1**（PR-6 の `/runplan` の前に、確認のセッションで行う。§1.3 の決定 3）: `make ext-build` が作った公開用の記事生成モジュールを、試作の拡張の Worker で読み込み、Chrome と Brave で、誤ったキーで `checkSettings` と `generate` を `anthropic-workspace-id` のありとなしの両方で呼び、`key_rejected` と `api_key_rejected` になることを確かめる。実 API の呼び出しなので、人の承認を得る。結果を §7 の「PR-6 の前の手動の確認の記録」に書き、ステップ 1-1 と同じ形で PR-6 のブランチに commit する。読めないときは、先へ進まず、ステップ 1-1 と同じく人と決め直す。
--   [ ] **ステップ 6-2**: `secretsAbsent.test.ts` を `apiKeyPath.test.ts` に置き換える（設計書 §5.4 の「ソースの検査」、0090 設計書 §7.3）。この PR のほかのどのファイルよりも前に行う。
+-   [x] **ステップ 6-1**（PR-6 の `/runplan` の前に、確認のセッションで行う。§1.3 の決定 3）: `make ext-build` が作った公開用の記事生成モジュールを、試作の拡張の Worker で読み込み、Chrome と Brave で、誤ったキーで `checkSettings` と `generate` を `anthropic-workspace-id` のありとなしの両方で呼び、`key_rejected` と `api_key_rejected` になることを確かめる。実 API の呼び出しなので、人の承認を得る。結果を §7 の「PR-6 の前の手動の確認の記録」に書き、ステップ 1-1 と同じ形で PR-6 のブランチに commit する。読めないときは、先へ進まず、ステップ 1-1 と同じく人と決め直す。
+-   [x] **ステップ 6-2**: `secretsAbsent.test.ts` を `apiKeyPath.test.ts` に置き換える（設計書 §5.4 の「ソースの検査」、0090 設計書 §7.3）。この PR のほかのどのファイルよりも前に行う。
     -   先に `apiKeyPath.test.ts` を加える。`onChanged` を参照するのが `chromeDeps.ts` の `chrome.storage.session.onChanged` だけであること、`chrome.storage.local.get` と `chrome.storage.local.remove` を呼ぶのは決まった関数だけで、その引数が固定の 2 つの名前だけであること、`chrome.storage.local.clear` と `chrome.storage.sync` を参照しないこと、ログの関数に API キーを渡さないこと、古い版の値の名前（`sharedToken`・`serverPort`）を参照しないこと（要件書 AC-32）を確かめる。今の `secretsAbsent.test.ts` の確かめのうち、Webhook の URL と、トークンとポートの設定がないことの確かめも引き継ぐ。
     -   次に、`secretsAbsent.test.ts` を削除だけの commit で除き、`make ext-coverage-compare` で比べる。
--   [ ] **ステップ 6-3**: `chromeDeps.ts` に、設計書 §5.4 の表の決まった関数を加える。`StorageArea` も `chrome.storage.local` のオブジェクトも外へ渡さない。`extension/test/helpers/chrome.ts` に、その fake と失敗の注入を加え、`fakes.test.ts` で fake を確かめる。lint の規則が今は `chromeDeps.ts` の `storage` も拒否するので、このステップはステップ 6-4 の `storage` の規則の変更と同じ commit にする。
--   [ ] **ステップ 6-4**: lint の規則を設計書 §5.4 のとおりに改める（`storage` は `chromeDeps.ts` のほかで拒否、`session` は `chrome.session` だけに狭める、決まった関数を import してよいファイルを限る、型だけの import は許す、`fetch` は `wasmWorker.ts` のほかで拒否する）。`sendNativeMessage` の規則は撤去の PR まで残す。`lintRules.test.ts` に、各規則の拒否と許可の行と、例外を持つファイル（`chromeDeps.ts`・`wasmWorker.ts`）にもほかの規則が当たることの行を加える（今の `lintRules.test.ts:457` の行は `chrome.storage.local.get` を例にしているので、例を替える）。HTML を解釈する API の禁止が新しいファイルにも当たることを確かめる（0090 設計書 §7.3）。
--   [ ] **ステップ 6-5**: `wasmWorker.ts`・`wasmWorkerClient.ts`・`wasm_exec.js` の型の宣言を作る（設計書 §3.8.4、0090 設計書 §3.3.1・§3.4）。WebWorker の `lib` で `wasmWorker.ts` の型を確かめる `tsconfig` の設定を作り、`typecheck` と `build` の両方で使い、成果物に `wasmWorker.js` が入ることを `check-dist` で確かめる。テストは `extension/test/helpers/worker.ts` の Worker の fake で、30 秒の読み込みの期限、`callId` での応答の対応、`exit` を `runtime_exit` に、`error` のイベントを `worker_error` に、Promise の拒否を `panic` にすること、呼び出しごとに最初の失敗だけを使い、Worker を止め、その後の知らせを無視することを確かめる。
--   [ ] **ステップ 6-6**: `wasmResult.ts` を作る（設計書 §3.12、H-07）。Worker から受け取る JSON の文字列を `strictJson.ts` で解析する。テストは、閉じたメンバの集合、重複したメンバ、知らないメンバ、型の違い、状態ごとのメンバ、512 KiB の境界で、合わないものが `result_shape` になることを確かめる。`UsdAmount` などの型の印を作るときは、`eslint.config.js` の `creatorConfig` にこのファイルを加える。
--   [ ] **ステップ 6-7**: `jobRecord.ts` を作る（0090 設計書 §3.2.1・§3.3、H-07）。テストは、`version`、閉じたメンバの集合、状態ごとのメンバ、ジョブ ID の桁数、512 KiB の境界で、合わない記録をないものとして扱うことと、記録の型が字幕と概要欄を持たないことを確かめる。
--   [ ] **ステップ 6-8**: `viewerTitle.ts` を、ステップ 1-1 で決めた案で作る（設計書 §3.8.2・§6.3）。状態、表示の値、ビルドの種類、表示の言語（案 B では URL のタイトル）から文字列を返すだけの関数で、テストは設計書 §3.8.2 の表の各行と、どの入力でも空の文字列を返さないことを確かめる。
--   [ ] **ステップ 6-9**: `optionsView.ts` を作る（設計書 §3.6 の表、§4.1 の `OptionsOutcome`）。結果ごとに、示す固定の文言と、欄を空にするか、設定されているかの表示を読み直すかを返す。テストは `OptionsOutcome` のすべての値の行を確かめる。この PR の関数が使う文言だけを、英語と日本語の両方に加える。
+-   [x] **ステップ 6-3**: `chromeDeps.ts` に、設計書 §5.4 の表の決まった関数を加える。`StorageArea` も `chrome.storage.local` のオブジェクトも外へ渡さない。`extension/test/helpers/chrome.ts` に、その fake と失敗の注入を加え、`fakes.test.ts` で fake を確かめる。lint の規則が今は `chromeDeps.ts` の `storage` も拒否するので、このステップはステップ 6-4 の `storage` の規則の変更と同じ commit にする。
+-   [x] **ステップ 6-4**: lint の規則を設計書 §5.4 のとおりに改める（`storage` は `chromeDeps.ts` のほかで拒否、`session` は `chrome.session` だけに狭める、決まった関数を import してよいファイルを限る、型だけの import は許す、`fetch` は `wasmWorker.ts` のほかで拒否する）。`sendNativeMessage` の規則は撤去の PR まで残す。`lintRules.test.ts` に、各規則の拒否と許可の行と、例外を持つファイル（`chromeDeps.ts`・`wasmWorker.ts`）にもほかの規則が当たることの行を加える（今の `lintRules.test.ts:457` の行は `chrome.storage.local.get` を例にしているので、例を替える）。HTML を解釈する API の禁止が新しいファイルにも当たることを確かめる（0090 設計書 §7.3）。
+-   [x] **ステップ 6-5**: `wasmWorker.ts`・`wasmWorkerClient.ts`・`wasm_exec.js` の型の宣言を作る（設計書 §3.8.4、0090 設計書 §3.3.1・§3.4）。Worker の側の規則（呼び出しごとに 1 回だけ答える、Go のプログラムの終わりを見張る、`try`/`catch` と戻り値の種類の確かめ）と、ページとの間の `WorkerCall`・`WorkerMessage` の型と検査は `extension/src/core/workerCalls.ts` に置いて単体テストで確かめ、`wasmWorker.ts` は Worker の大域の値をつなぐだけにする。Worker は、記事生成モジュールが名前空間を置いた時点で 1 度だけ `{ kind: "ready" }` を送り、ページの側の読み込みの期限（30 秒）は、Worker を作ってからこの知らせを受け取るまでとする（設計書 §3.6 の読み込みの期限を、その後の `checkSettings` の時間と分けるため）。呼び出しを待たない間に起きた失敗も、その後の呼び出しの結果にする。WebWorker の `lib` で `wasmWorker.ts` の型を確かめる `tsconfig` の設定を作り、`typecheck` と `build` の両方で使い、成果物に `wasmWorker.js` が入ることを `check-dist` で確かめる。テストは `extension/test/helpers/worker.ts` の Worker の fake で、30 秒の読み込みの期限、`callId` での応答の対応、`exit` を `runtime_exit` に、`error` のイベントを `worker_error` に、Promise の拒否を `panic` にすること、呼び出しごとに最初の失敗だけを使い、Worker を止め、その後の知らせを無視することを確かめる。
+-   [x] **ステップ 6-6**: `wasmResult.ts` を作る（設計書 §3.12、H-07）。Worker から受け取る JSON の文字列を `strictJson.ts` で解析する。閉じた形の JSON を読む手順（メンバの集合、型、大きさの上限）は、ステップ 6-7 の `jobRecord.ts` と共有するので `extension/src/core/jsonShape.ts` に置く。テストは、閉じたメンバの集合、重複したメンバ、知らないメンバ、型の違い、状態ごとのメンバ、512 KiB の境界で、合わないものが `result_shape` になることを確かめる。`UsdAmount` などの型の印を作るときは、`eslint.config.js` の `creatorConfig` にこのファイルを加える。
+-   [x] **ステップ 6-7**: `jobRecord.ts` を作る（0090 設計書 §3.2.1・§3.3、H-07）。ジョブの記録と開始の文脈の型と、読み戻すときの検査を持つ（設計書 §3.12）。テストは、`version`、閉じたメンバの集合、状態ごとのメンバ、ジョブ ID の桁数、512 KiB の境界で、合わない記録をないものとして扱うことと、記録の型が字幕と概要欄を持たないことを確かめる。
+-   [x] **ステップ 6-8**: `viewerTitle.ts` を、ステップ 1-1 で決めた案で作る（設計書 §3.8.2・§6.3）。状態、表示の値、ビルドの種類、表示の言語（案 B では URL のタイトル）から文字列を返すだけの関数で、テストは設計書 §3.8.2 の表の各行と、どの入力でも空の文字列を返さないことを確かめる。
+-   [x] **ステップ 6-9**: `optionsView.ts` を作る（設計書 §3.6 の表、§4.1 の `OptionsOutcome`）。結果ごとに、示す固定の文言と、欄を空にするかと、合わない欄（`field_rejected` のとき）を返す。設定されているかの表示は、設計書 §3.6 のとおり保存か削除の後に結果によらず読み直すので、結果ごとには返さない。テストは `OptionsOutcome` のすべての値の行を確かめる。この PR の関数が使う文言だけを、英語と日本語の両方に加える。
 
 **完了の条件:** `make ext-check` が通る。`secretsAbsent.test.ts` の削除の commit に `make ext-coverage-compare` の通った出力がある。`_checks/cli_unchanged.sh` が通り、§7 の AC-26 の記録に書いた。§7 に PR-6 の前の手動の確認の記録がある。
 
@@ -333,10 +337,10 @@
 
 **自動送信**: hold
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/946
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 7: まだ使われない拡張の部品（その 2）（設計書 §8 の 4 の一部）
 
@@ -344,7 +348,7 @@
 
 -   [ ] **ステップ 7-1**: ビューアの URL と問いと、ページの間のメッセージを、新しいファイルに作る（§1.3 の決定 5）。`jobViewerUrl.ts` は 0090 設計書 §5.2 の `r`・`k`・`u`・`e`（案 B では設計書 §3.8.2 の `t`）の組み立てと解析を、`jobViewerQuery.ts` はジョブ ID で同じジョブのビューアを探す問い（今の `viewerQuery.ts` の規則）を、`jobMessages.ts` は 0090 設計書 §3.3.1 の型と検査と、生成の開始の入力の 4 MiB の確かめを持つ。テストは、名前の閉じた集合と重複の拒否、`u` の上限、案 B では `t` の 64 コードポイントの切り方（サロゲートの組を分けない）と検査、メッセージの閉じたメンバの集合、4 MiB の境界を確かめる。
 -   [ ] **ステップ 7-2**: `optionsFlow.ts` にオプションページの保存と削除の流れを作る（設計書 §3.6・§6.1）。テストは Worker と決まった関数の fake で、押した時点の値の写しを検査して書くこと、検査と書き込みの間の欄と操作の無効化、90 秒の全体の期限（読み込み 30 秒を含み、書き込みに及ばない）、`set` と `remove` をそれぞれ 1 回だけ呼ぶこと、空のワークスペース ID を空の文字列で書くこと、保存しないときに書き込みを呼ばないこと、書き込みの失敗と削除の失敗、結果によらず `localKeys` で表示を読み直すこと、ページを開いたときの `buildInfo` の表示と読めないときの表示を確かめる。
--   [ ] **ステップ 7-3**: `viewerRunner.ts` に実行するビューアの流れを作る（0090 設計書 §3.4・§6.2・§6.3、設計書 §2.4・§3.8.1）。テストは Worker と決まった関数の fake で、予約の後に 2 つの項目だけを読むこと、項目がないときだけ `generate` を呼ばずに `api_key_missing` にすること（空の文字列と `null` ではならないこと。H-06）、読む呼び出しの失敗が `settings_read` になること、読んだ値を検査せずに渡し持ち続けないこと、進み具合と結果を記録が結果を持つまで送り直すこと、50 分の期限で止めて `run_timeout` にすること、実行の間だけ読み込み直しの確認を出すこと、`runner` が替わったら Worker を止めることを確かめる。
+-   [ ] **ステップ 7-3**: `viewerRunner.ts` に実行するビューアの流れを作る（0090 設計書 §3.4・§6.2・§6.3、設計書 §2.4・§3.8.1）。`wasmWorkerClient.ts` の読み込みの期限は Worker の `ready` で終わるので、0090 設計書 §3.4 の「読み込みと `prepare` に 30 秒」を保つには、`prepare` の呼び出しに残りの期限を `timeoutMs` で渡し、その `timeout` を `worker_load` にする。テストは Worker と決まった関数の fake で、予約の後に 2 つの項目だけを読むこと、項目がないときだけ `generate` を呼ばずに `api_key_missing` にすること（空の文字列と `null` ではならないこと。H-06）、読む呼び出しの失敗が `settings_read` になること、読んだ値を検査せずに渡し持ち続けないこと、進み具合と結果を記録が結果を持つまで送り直すこと、50 分の期限で止めて `run_timeout` にすること、実行の間だけ読み込み直しの確認を出すこと、`runner` が替わったら Worker を止めることを確かめる。
 -   [ ] **ステップ 7-4**: `jobCoordinator.ts` に新しい SW の調停を作る（0090 設計書 §3.2・§3.3・§5.2・§6.1〜§6.3、設計書 §3.9）。`chrome.*` に依存しない部分は、決まった関数を引数で受け取る関数にする。案 B では、ビューアを開くときに `t` を作り、`r` を `k` に書き換えるときに残す（設計書 §3.8.2）。テストは fake で、0090 設計書 §7.1 の「SW の調停」の項目、送り手の確かめ（要件書 AC-24）、同じ入力と同じ動画の照会（AC-10）、同時に 2 つまでの上限（AC-13）、記録 50 件・合計 8 MiB・記事 256 KiB の上限と捨てる順（AC-09）、SW が API キーの値を読まず `localKeys` だけを使うこと（AC-20）、結果不明と、入力を受け取る前に SW が止まった場合と、完成したが保持できなかった場合（H-06）を確かめる。
 
 **完了の条件:** `make ext-check` が通る。`_checks/cli_unchanged.sh` が通り、§7 の AC-26 の記録に書いた。
@@ -539,9 +543,9 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
 -   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5）
 -   [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6）
--   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
--   [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
--   [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9）
+-   [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 4-6 / 4-7）
+-   [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
+-   [x] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9）
 -   [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4）
 -   [ ] PR-8 マージ済み（対象ステップ: 8-1 / 8-2 / 8-3 / 8-4 / 8-5 / 8-6 / 8-7）
 -   [ ] PR-9 マージ済み（対象ステップ: 9-1 / 9-2 / 9-3 / 9-4 / 9-5 / 9-6）
@@ -643,6 +647,48 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 -   この記録より後の commit は、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
 -   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
 
+**PR-4**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
+
+-   merge-base: `e56df9846d18e57b00d224418ac9fde0a1881ca4`
+-   比べたコミット: `19450aa3db0f7fdc23dbbf1156289315a9a03903`
+-   出力（終了コード 0）:
+
+    ```text
+    merge-base e56df9846d18e57b00d224418ac9fde0a1881ca4 head 19450aa3db0f7fdc23dbbf1156289315a9a03903
+    ok: no non-test file under cmd/yt2column/ changed
+    ```
+
+-   この記録より後の commit は、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
+-   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
+
+**PR-5**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
+
+-   merge-base: `05662669d92643e2ff782aaf469ead3fa6dd29b2`
+-   比べたコミット: `67145404c7968e84f240f78f24bb43c563117b87`
+-   出力（終了コード 0）:
+
+    ```text
+    merge-base 05662669d92643e2ff782aaf469ead3fa6dd29b2 head 67145404c7968e84f240f78f24bb43c563117b87
+    ok: no non-test file under cmd/yt2column/ changed
+    ```
+
+-   この記録より後の commit は、計画書とその記録だけを変える（Go のコードを変える commit は、記録の前に済ませた）。
+-   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
+
+**PR-6**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
+
+-   merge-base: `e638505db18c0cebe2ddceefa65b31c523c99250`
+-   比べたコミット: `bbce89ede7c4e948998e9d62c5633be33a4e2eb4`
+-   出力（終了コード 0）:
+
+    ```text
+    merge-base e638505db18c0cebe2ddceefa65b31c523c99250 head bbce89ede7c4e948998e9d62c5633be33a4e2eb4
+    ok: no non-test file under cmd/yt2column/ changed
+    ```
+
+-   この記録より後の commit は、計画書とその記録だけを変える（コードを変える commit は、記録の前に済ませた）。
+-   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
+
 ### PR-1 の前の手動の確認の記録
 
 ステップ 1-1 で書く。ブラウザの名前と版、確かめた組み合わせ（`GET /v1/models` と `POST /v1/messages`、`anthropic-workspace-id` のありとなし）、見たもの、履歴のタイトルの確かめの手順と結果、決めた案（A か B）を書く。
@@ -676,7 +722,20 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 
 ステップ 6-1 で書く。ブラウザの名前と版、確かめた組み合わせ、`checkSettings` と `generate` の結果を書く。
 
-（まだない）
+2026-11-17 に、リポジトリの外に作った試作の拡張で確かめた。試作の拡張は、`host_permissions` を持たず、CSP を 0090 設計書 §3.7.2 の値にした manifest と、拡張のページ、そのページが作る Worker からなる。Worker は `wasm_exec.js` を読み込み、記事生成モジュールを `fetch` で読んで動かし、ページからのメッセージで 4 つの関数を呼ぶ。記事生成モジュールと `wasm_exec.js` は、`main`（`e638505d`）で `make ext-build` が作った `extension/dist/` のものを写した。実 API の呼び出しは、人の承認を得て、誤ったダミーのキーだけで行った（401 は料金がかからない）。
+
+-   **ブラウザ。** Chrome 157 と Brave（Chromium 157）。どちらも macOS。版は `navigator.userAgentData.brands` の値である（Chrome は `Google Chrome 157`、Brave は `Brave 157`）。
+-   **読み込んだ記事生成モジュール。** `buildInfo` は、両方のブラウザで `{"goVersion":"go1.26.5","vcsRevision":"","vcsModified":false,"mainPath":"github.com/isseis/yt2column/cmd/yt2column-wasm","llm":{"kind":"claude"}}` を返した。公開用の記事生成モジュールである。
+-   **呼び出し。** ワークスペース ID のなし（空の文字列）とあり（形式の整った `wrkspc_01AbCdEfGhJkLmNpQrStUvWx`）のそれぞれで、`checkSettings` を呼び、続けて `prepare`（`videoUrl` は `https://www.youtube.com/watch?v=dQw4w9WgXcQ`、`transcript` は `0:00\nHello\n`）で入力を渡し、`generate` を呼んだ。**Chrome と Brave の両方で、4 つとも通信の失敗にならず、期待した結果になった。**
+
+    | 呼び出し | ワークスペース ID | 期待 | Chrome | Brave |
+    |---|---|---|---|---|
+    | `checkSettings`（`GET /v1/models?limit=1`） | なし | `key_rejected` | `{"status":"key_rejected"}` | 同じ |
+    | `generate`（`POST /v1/messages`） | なし | `failed`・`api_key_rejected` | `failed`、`failure` は `api_key_rejected`、`steps` は `draft` が `failed`、ほかは `pending` | 同じ |
+    | `checkSettings` | あり | `key_rejected` | `{"status":"key_rejected"}` | 同じ |
+    | `generate` | あり | `failed`・`api_key_rejected` | `failed`、`failure` は `api_key_rejected`、`steps` は `draft` が `failed`、ほかは `pending` | 同じ |
+
+    `prepare` は、どちらのブラウザでも `ok` を返した。`generate` は、進み具合の関数を `draft` が `running` の知らせで 1 回呼んでから結果を返した。各呼び出しは 0.4〜0.6 秒で返った。ステップ 1-1 の `fetch` での結果と同じく、Worker の中の Go の送信でも 401 を読めたので、設計書の `CheckKey` と `api_key_rejected` の分類は変えない。
 
 ### PR-8 の手動の確認の記録
 
@@ -706,3 +765,4 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 ## 変更履歴
 
 - 2026-11-16 承認（isseis、#891）
+- 2026-11-16 セッション中の再承認：2 つの記事生成モジュールが共有する `syscall/js` の登録を `internal/extjob/jsmodule` に置いた（isseis、#914）

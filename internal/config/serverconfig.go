@@ -84,7 +84,7 @@ func LoadServer(lookup LookupFunc) (ServerConfig, error) {
 	return ServerConfig{
 		llm:               llm,
 		socketPath:        sockPath,
-		http2DebugEnabled: hasHTTP2Debug(lookup),
+		http2DebugEnabled: HTTP2DebugRequested(lookup),
 	}, nil
 }
 

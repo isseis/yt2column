@@ -60,7 +60,7 @@
     -   この確かめが及ぶのは `internal/chief` のテストである。`cmd/chief/main_test.go` は自分の fake（`cmd/chief/main_test.go:34-114`）を使うので、PR-7 の `targets` のテストで、その fake が書き込みの呼び出しを受けないことを確かめる。
 
     ADR: なし。
-8.  **PR-1 の実地の確かめが設計書の前提と違ったときは、そこで止まって人と決め直す。** 設計書 1.2 の (i)〜(vi) と Herdr の出力の形の確かめの結果が、設計書の想定と違ったときは、`/runplan` が人に示し、決定の変更として扱う（requirements_process.md の「Editing an approved document」）。設計書を直す必要があるときは、設計書を先に直す。例: (vi) の `ask` の規則が auto mode で確認を出さない。(iv) の `workspace close` が `workspace_group_close_required` を返す。(v) で、起動したばかりの Claude Code が、最初の入力の前には transcript のファイルを持たない（0088 の送信は最初の確かめで transcript を読む。`internal/chief/send.go:423`）。または、その画面が、入力を受け付ける状態と読めない。ADR: なし。
+8.  **PR-1 の実地の確かめが設計書の前提と違ったときは、そこで止まって人と決め直す。** 設計書 1.2 の (i)〜(vi) と Herdr の出力の形の確かめの結果が、設計書の想定と違ったときは、`/runplan` が人に示し、決定の変更として扱う（requirements_process.md の「Editing an approved document」）。設計書を直す必要があるときは、設計書を先に直す。例: (vi) の `ask` の規則が auto mode で確認を出さない。(iv) の `workspace close` が `workspace_group_close_required` を返す。(v) で、起動したばかりの Claude Code の pane で、`/clear` の後に Herdr のセッション ID が変わらない（0088 の送信は、最初の確かめで transcript の場所だけを求め、`/clear` の後にセッション ID が変わるのを待ち、`/model` の後に新しいセッションの transcript を読む。`internal/chief/send.go:343-349,531-534,585-611`）。または、その画面が、入力を受け付ける状態と読めない。ADR: なし。
 9.  **`package_reference.md` の行は、その名前を exported にする PR で直す。** `internal/strictjson` の行は PR-2 で、`internal/chief` の行は PR-2〜PR-6 で、`cmd/chief` の行は PR-7 で直す。`TestPackageReferenceStrictjsonUsers`（`internal/pipeline/strictjson_users_test.go:657`）が確かめるのは使う側のパッケージの一覧だけで、`internal/chief` はすでに挙がっている。ADR: なし。
 10. **PR-7 の削除の実地の確かめでは、人が作ったことの記録を手で置いた workspace を使う（2026-11-17、人が選んだ）。** PR-7 で `create` が作る workspace は、新しい未完了のタスクのものなので、削除の候補にならない（AC-23）。完了したタスクの閉じた issue では、`create` が `issue_closed` で拒む（AC-05）。そこで、人が、完了したタスク（0088 の対応 issue #838 など）について、`issue-<N>` の worktree を `origin/main` で detached に作り、それを開いた workspace でエージェントを起動し、`created.json` を手で置く。chief がそれを提案し、確かめ、消すことを確かめる。これは、偽った記録で `issue-<N>` の形の worktree を名指せること（設計書 5.2 の残る危険）を、確かめを通して実際に消すことでもある。ほかの案（chief が作った最初の本物のタスクが完了するまで確かめを延ばす）は、PR-7 のマージまでに削除の実地の確かめがないので採らない。ADR: なし。
 11. **書く部品の型は、ゼロ値では何もせず、コンストラクタのほかで作られていないことをガードのテストで確かめる（2026-11-17、人が選んだ）。** 4 つの型は `internal/chief` の `Commands`・`Worktree`・Herdr の読み取りを使うので、`internal/chief` に置く。同じパッケージの中の composite literal で作れる経路が残る。そこで次の 2 つを行う。
@@ -87,7 +87,7 @@
 | git | `GitReader` の `Fetch`・`Branch`・`Head`・`Clean`・`RemoteMain`（`internal/chief/workspace.go:86-280`）。どれも読み取りである。`Clean` を本物の git で確かめるテストはない（`internal/chief/workspace_test.go`） | `worktree list --porcelain`・`merge-base --is-ancestor` と `Clean` の本物の git のテスト（PR-2）。`worktree add --detach` は作成の中で `TaskSpace` を取って（PR-4）、`worktree remove` は `WorkspaceCloser` のメソッドで（PR-6）呼ぶ |
 | タスクの文書 | `Tasks.Read` はブランチ名からディレクトリを探す（`internal/chief/task.go:786-855`）。`Plan.Done`（`internal/chief/task.go:693`） | `対応 issue:` の行の読み方と、ディレクトリの名前から読む口。`Tasks.Read` と同じ読み方を使う。PR-2 |
 | 記録 | 記録は同じ名前を置き換えない（`internal/chief/records.go:144-157`、`privatefile.Create`）。消すのは `privatefile.Remove`（`internal/privatefile/privatefile.go:485`。`internal/chief/records.go:890` が使う）。記録の名前は `internal/chief/records.go:572-578`、排他は `WorkspaceRecords.Lock`（`internal/chief/records.go:642`）。記録のディレクトリを作らずに読む `existingRecords`（`internal/chief/records.go:615`） | `created.json` の作る・読む・消す、ディレクトリの記録を消す操作（PR-3）、作成の排他（決定 5。PR-4） |
-| 送信 | `Send` は `offered` で行の状態を確かめる（`internal/chief/request.go:224-227`）。`holdWorkspace` は自分で排他を取る（`internal/chief/request.go:263-298`）。`sendCommand`（`internal/chief/send.go:399`）は最初の確かめで transcript を読む（`internal/chief/send.go:423`） | すでに持っている排他を受け取る入口 `sendAfterCreate`。`holdWorkspace` の排他を取った後の部分を共有する。PR-3 |
+| 送信 | `Send` は `offered` で行の状態を確かめる（`internal/chief/request.go:224-227`）。`holdWorkspace` は自分で排他を取る（`internal/chief/request.go:263-298`）。`sendCommand`（`internal/chief/send.go:399`）は、最初の確かめで transcript の場所だけを求め（`internal/chief/send.go:343-349`）、`/model` の後に transcript を読む（`internal/chief/send.go:585-611`） | すでに持っている排他を受け取る入口 `sendAfterCreate`。`holdWorkspace` の排他を取った後の部分を共有する。PR-3 |
 | 周 | `readRound`（`internal/chief/snapshot.go:90-146`）は `gh pr list` も走らせる（`internal/chief/network_test.go:20-55` が確かめる）。`Tick`（`internal/chief/tick.go:27-77`）。`FindTaskWorkspaces` はエージェントの作業ディレクトリから見つける（`internal/chief/workspace.go:183-230`） | 削除の候補の読み取りと行の例外（PR-5）。`tick` の作成の排他（PR-4） |
 | 状態と並べ方 | `classify`（`internal/chief/state.go:382`）、`headProblem`（`internal/chief/state.go:256-263`）、`Row`（`internal/chief/state.go:113`）、`kindOrder`（`internal/chief/pending.go:167`）、出力（`internal/chief/output.go`） | 行の例外、`Row.Task` のコメント、`PendingRemoval`、`RemovalProposal` とその出力。PR-5 |
 | テストの補助 | 呼び出しの記録係（`internal/chief/test_helpers.go:178-382`）は、読み取りの一覧にない呼び出しを、書き込みの応答 `onPrompt`・`onKeys`（`internal/chief/test_helpers.go:231-235`）のほかは失敗にする（`internal/chief/test_helpers.go:354`）。応答のない呼び出しも失敗にする（`internal/chief/test_helpers.go:368`）。`newTestRepo`（`internal/chief/test_helpers.go:106`）、Herdr と git を模した世界（`internal/chief/world_test.go:79`、`internal/chief/sim_test.go:31`）、呼び出しの場所と種類の確かめ（`internal/chief/network_test.go`） | 決定 7 の拡張。作成と削除を模す世界の拡張（PR-6）。`targets`・`create`・`remove` の呼び出しの場所の確かめ（PR-4・PR-6） |
@@ -97,26 +97,48 @@
 -   **書き換える箇所の一覧（PR-7）。** `--protocol 1` を `2` にする箇所は、上の表の「プロトコル」の行がすべてである（`30bb673c` で `rg -n -- '--protocol 1|プロトコル番号' .claude/commands docs/dev/guides/chief_guide.md CLAUDE.md` を走らせた。出力は、表に挙げた 10 行と、別の道具 `codexreview` の `.claude/commands/_lib/local-cli-review.md:131` だけだった。後者は変えない）。`TestDocumentedProtocolMatches` が、変え残しを見つける。
 -   **拒否に足す呼び出しを使う今のコマンド。** `1153172b` で `rg -n 'herdr (workspace create|tab create|pane split|pane move|worktree create|worktree open)|git worktree (add|remove|move)' .claude/commands CLAUDE.md docs/dev/guides` を走らせ、出力は空だった。拒否を足しても、今のコマンドの定義と手引きの手順は妨げられない。
 
+### 1.5. 計画の際に決めたこと（2026-11-17）
+
+13. **削除の提案の行を [0093](../0093_chief_status_sheet/02_architecture.md) の部品に足すかは、PR-5・PR-6・PR-7 を作る前に、`origin/main` を部品ごとに確かめて決める（設計書 1.5、申し送りの H-09）。** 0093 と本タスクのどちらが先に `main` に入るかは決まっていない。0093 の部品（急ぎの度合いの対応表、文書の規則、並べ方）は、別々の PR で入りうる。
+    -   PR-5 を作る前に、ステップ 5-6 で、部品ごとに「`origin/main` にあり、削除の提案の行がまだない」かを確かめ、当たる部品に足す。
+    -   PR-5 が開いている間に 0093 の部品が入ることがある。マージの前に人が確かめ直す手順は、`/runplan` が PR のあるブランチで動かず、`/runpr` は答えの後にもマージまで時間がかかるので、確実には実行できない。そこで、確かめ直しは、PR-6 と PR-7 を作る前に、同じ確かめ（ステップ 6-5・7-6）として行う。足すものは、その PR に入る。
+    -   どの確かめも「部品があり、行がまだない」ときだけ足すので、0093 がすでに足していれば何もしない。
+    -   残る危険は、ステップ 7-6 の確かめの後に 0093 の部品が入り、0093 自身のマージの前の確かめも本タスクの印を見なかった場合である（設計書 1.5）。印は PR-5 で `main` に入るので、ふつうは 0093 の確かめが印を見つける。PR-7 の確かめの結果を §7 の記録に書き、そのとき入っていない部品は、0093 が後で足すものとして記録する。0093 の 3 つの AC のうち、0093 の計画書が削除の提案の行について確かめると 0093 設計書が約束するのは AC-05 だけである（0093 設計書 3.12）。AC-07 の規則 2 と AC-15 は、0093 の計画書に頼る前提として、記録に書く。
+    -   0093 の 3 つの AC は本タスクの AC ではないので、§7 の表ではなく、表の後の注と「0093 の部品の確かめの記録」に書く。
+
+    ADR: なし（PR の中の確かめの手順で、タスクの中で閉じるため）。
+14. **PR-7 で上げる `Protocol` の値は、そのときの `origin/main` の値より 1 大きくする（設計書 1.5）。** 0093 も `Protocol` を 1 から 2 に上げる。0093 が先に入っていれば、本計画の「2」は「3」になり、§1.4 の「書き換える箇所の一覧」の `--protocol` も、そのときの値から 1 大きい値に書き換える（行番号は、そのときの定義で探し直す）。ステップ 7-1 で `origin/main` の `internal/chief/records.go` の `Protocol` を読んで決める。ADR: なし。
+15. **gh のサンプルは、PR-2 のステップ 2-5 で、ラベルを足した問い合わせ（設計書 1.5・3.3.1）で採り直す。** PR-1（#923）は、ラベルを足す前の問い合わせで gh のサンプルを採った。gh のサンプルを最初に読むのは PR-2 なので、そこで採り直せば、読む部品とサンプルの問い合わせが同じ PR でそろう。#923 で採り直す案は、#923 の記録（§7 の「PR-1 の実行の記録」）が採ったときの問い合わせを書いており、その範囲を広げることになるので採らない。
+    -   採り直すのは、PR-1 で採った 4 つ（閉じた issue #838、開いた issue #839、PR #897、存在しない #999999）と、ラベル `draft` が付いた開いた issue（#928 など、採るときに `draft` が付いているもの）の 5 つである。ネットワークの操作なので、人の承認を得て、chief の worktree で走らせる。
+    -   採ったものは PR-1 と同じ置き換え（題名の中身など）をし、`testdata/gh/` の 4 つを置き換え、1 つを足す。`testdata/README.md` の gh の応答の項を、ラベルを足した問い合わせと採った日に直す。
+    -   ラベルの応答の形が設計書 1.5・3.3.1 の想定と違ったときは、決定 8 と同じく止まって人と決め直す。
+
+    ADR: なし（サンプルを採る PR の選択で、タスクの中で閉じるため）。
+
+### 1.6. 実装の際に決めたこと（2026-11-17）
+
+16. **決定 8 の (v) の止まる例を、「起動したばかりの Claude Code が transcript のファイルを持たない」から、「`/clear` の後に Herdr のセッション ID が変わらない」に変える（2026-11-17、人が承認した）。** PR-1 の実地の確かめで、起動したばかりの Claude Code は、最初の入力の前に transcript のファイルを持たなかった。計画の時点の例は、0088 の送信が最初の確かめで transcript を読むという読み違いによるものだった。実際には、最初の確かめは transcript の場所だけを求め、ファイルの有無を確かめない（`internal/chief/send.go:343-349`）。transcript を読むのは `/model` の後（`internal/chief/send.go:585-611`）で、ファイルがまだなければ読み直す。そのため、ファイルがないことは設計書 1.2 の (v) の前提（送る前の確かめを通ること）を崩さない。一方、`/clear` の後にセッション ID が変わらなければ、0088 の送信は止まる（`internal/chief/send.go:531-534`）。そこで、それを止まる例にした。PR-1 のセッションは、止まって人に問わずにこの例を書き換え、編集上の訂正として記録した。これは止まる条件を変える決定の変更なので、PR-1 のレビューで人に問い、承認を得た。§5 のリスクの表の行も合わせて直した。ADR: なし（PR-1 の確かめの中で閉じるため）。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 実地の確かめ、サンプル、Herdr の新しい出力の読み取り（設計書 8 章の 1、2 のうち Herdr の出力）
 
 **変更するファイル:** `internal/chief/testdata/herdr/`・`testdata/gh/`・`testdata/git/`（新規）・`testdata/screens/`（サンプルを足す）、`internal/chief/testdata/README.md`、`internal/chief/herdr.go`・`herdr_test.go`・`samples_test.go`・`screen_test.go`、本計画
 
--   [ ] **ステップ 1-1**: 確かめの準備をする（決定 2）。
+-   [x] **ステップ 1-1**: 確かめの準備をする（決定 2）。
     -   Herdr・Claude Code・OpenCode・gh の版を記録する。
     -   確かめ用の worktree のパス（`$HOME/.herdr/worktrees/yt2column/` の下の、`issue-` で始まらない名前）を決め、人に、確かめる項目ごとに打つコマンドと出力の保存先を示す。
--   [ ] **ステップ 1-2**: 設計書 1.2 の (i)〜(vi) と、`herdr worktree` を使わないときに Herdr が git で作った worktree をどう扱うかを、確かめ用の workspace で確かめる（設計書 7.3）。
+-   [x] **ステップ 1-2**: 設計書 1.2 の (i)〜(vi) と、`herdr worktree` を使わないときに Herdr が git で作った worktree をどう扱うかを、確かめ用の workspace で確かめる（設計書 7.3）。
     -   (v) は、起動したばかりの Claude Code の pane で、`herdr agent get` の状態と Herdr のセッション ID、`transcriptPath`（`internal/chief/transcript.go:53`）が求める場所に transcript のファイルがあるか、画面がステップ 1-5 のテストで入力を受け付ける状態と読めるかで確かめる。
-    -   (vi) は、chief の worktree の `.claude/settings.local.json` に `ask` の `Bash(chief remove *)` を一時的に置き、chief の pane の許可の設定（auto mode を含む）のまま、新しい Claude Code のセッションで `chief remove` を呼んで、確認が出るかを見る。今の道具は `remove` を知らないので、呼んでも使い方の誤りで何もしない。確かめた後、その設定を消す。
+    -   (vi) は、確かめ用の worktree の `.claude/settings.local.json` に `ask` の `Bash(chief remove *)` を一時的に置き、chief の pane と同じ許可の設定（利用者の設定の auto mode を含む。chief の worktree には `settings.local.json` がない）のまま、確かめ用の workspace の新しい Claude Code のセッションで `chief remove` を呼んで、確認が出るかを見る。今の道具は `remove` を知らないので、呼んでも使い方の誤りで何もしない。確かめた後、その設定を消す。
     -   確かめの後、確かめ用の workspace と worktree は人が片付ける。
--   [ ] **ステップ 1-3**: 出力のサンプルを採る。
+-   [x] **ステップ 1-3**: 出力のサンプルを採る。
     -   Herdr: `workspace create`・`tab create`・`tab rename`・`agent start`（成功、時間切れ、エラーの応答）・`agent get`（起動した直後）・`pane list`・`pane process-info`（シェルだけのとき、前面で別のプロセスが動いているとき）・`workspace close` の出力と終了コード、起動したばかりの Claude Code の画面（フォルダの信頼を問う画面が出れば、それも）。
     -   git: `git worktree list --porcelain`（`locked` のある worktree と、ディレクトリのない登録を含む）。
     -   gh: 閉じた issue の `issueOrPullRequest` の応答を、人の承認を得て採る。設計書 1.2 で採った 3 つの応答も、同じ問い合わせで採り直して置く。
--   [ ] **ステップ 1-4**: 採ったものから、採取した人を特定できる情報（利用者の名前、ホームのパス、ホスト名、セッション ID、issue の題名の中身）を置き換える（security.md §7）。置き換えの規則、版、採った日を `testdata/README.md` に書く。機械で確かめられる新しい規則は `samples_test.go` の置き換えの規則の表に足し、確かめられないもの（題名の中身など）は README にレビューで確かめると書く。
--   [ ] **ステップ 1-5**: `herdr.go` に、ステップ 1-3 の Herdr の出力とエラーの応答（標準エラーの `{"error":{"code":…,"message":…}}`）を型に読む部品を足す（設計書 3.6）。`tab create` の応答のタブと pane が、指定した workspace のものであることも読む。知らない値・欠けた項目・重なったメンバーは読めないものとする。テストは、サンプルごとの読み取りと、形の合わない出力を拒むことを確かめる（`TestHerdrRejectsUnknownShapes` と同じ形）。起動したばかりの Claude Code の画面のサンプルを `claudeScreenWants` と `screenRows` に足し、期待の読み取り（入力を受け付ける状態。信頼を問う画面は質問）を確かめる。
--   [ ] **ステップ 1-6**: §7 の「PR-1 の実行の記録」に、版、(i)〜(vi) の結果、出力の形、エージェントの起動にかかった時間、`workspace close` の後に pane が消えるまでの時間を書く。設計書と違う事実が出たら、決定 8 のとおりに止まる。決定 6 の値が観測と合わなければ、ここで直す。
+-   [x] **ステップ 1-4**: 採ったものから、採取した人を特定できる情報（利用者の名前、ホームのパス、ホスト名、セッション ID、issue の題名の中身）を置き換える（security.md §7）。置き換えの規則、版、採った日を `testdata/README.md` に書く。機械で確かめられる新しい規則は `samples_test.go` の置き換えの規則の表に足し、確かめられないもの（題名の中身など）は README にレビューで確かめると書く。
+-   [x] **ステップ 1-5**: `herdr.go` に、ステップ 1-3 の Herdr の出力とエラーの応答（標準エラーの `{"error":{"code":…,"message":…}}`）を型に読む部品を足す（設計書 3.6）。`tab create` の応答のタブと pane が、指定した workspace のものであることも読む。知らない値・欠けた項目・重なったメンバーは読めないものとする。テストは、サンプルごとの読み取りと、形の合わない出力を拒むことを確かめる（`TestHerdrRejectsUnknownShapes` と同じ形）。起動したばかりの Claude Code の画面のサンプルを `claudeScreenWants` と `screenRows` に足し、期待の読み取り（入力を受け付ける状態。信頼を問う画面は質問）を確かめる。
+-   [x] **ステップ 1-6**: §7 の「PR-1 の実行の記録」に、版、(i)〜(vi) の結果、出力の形、エージェントの起動にかかった時間、`workspace close` の後に pane が消えるまでの時間を書く。設計書と違う事実が出たら、決定 8 のとおりに止まる。決定 6 の値が観測と合わなければ、ここで直す。
 
 **完了の条件:** ステップ 1-3 の Herdr の出力と画面のサンプルを読むテストが通る（gh と git のサンプルは PR-2 で読む）。§7 に PR-1 の実行の記録がある。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -134,20 +156,20 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/923
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 読み取りの部品（設計書 8 章の 2）
 
-**変更するファイル:** `internal/strictjson/strictjson.go`・`strictjson_test.go`、`internal/chief/taskspace.go`・`issue.go`・`construction_test.go`（新規）とそのテスト、`internal/chief/records.go`（`Worktree` のコメント）、`internal/chief/workspace.go`・`task.go` とそのテスト、`internal/chief/test_helpers.go`、`internal/chief/testdata/requirements/`（新規、要件定義書のサンプル）、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`
+**変更するファイル:** `internal/strictjson/strictjson.go`・`strictjson_test.go`、`internal/chief/taskspace.go`・`issue.go`・`construction_test.go`（新規）とそのテスト、`internal/chief/testdata/gh/`（issue の応答のサンプル。決定 15）・`internal/chief/testdata/README.md`、`internal/chief/records.go`（`Worktree` のコメント）、`internal/chief/workspace.go`・`task.go` とそのテスト、`internal/chief/test_helpers.go`、`internal/chief/testdata/requirements/`（新規、要件定義書のサンプル）、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`
 
 -   [ ] **ステップ 2-1**: 呼び出しの記録係を、決定 7 の読み取りの分（読み取りの一覧と、`gh api graphql` の決まった形）だけ広げる。
 -   [ ] **ステップ 2-2**: `strictjson` に、読むメンバーと大文字と小文字だけが違う名前のメンバーを拒む読み方を、新しいメソッドとして足す（設計書 3.3.1）。今の `Collect`・`CollectOnly` の振る舞いとテストは変えない。テストは、拒む名前、重なり、読まないメンバーの読み飛ばしを確かめる。`package_reference.md` の `internal/strictjson` の行に名前を足す（決定 9）。
 -   [ ] **ステップ 2-3**: `taskspace.go` に `TaskSpace`・`NewTaskSpace`・`TaskSpace.Worktree` を書き、`records.go` の `Worktree` の型のコメントに 2 つめの作り方を書く（設計書 3.2）。テストは、番号からパスと名前が決まること、`$HOME` が相対パスのとき、送れない文字を含むとき（リンクを解決した後に含むときを含む）、途中にディレクトリでないものがあるとき、ゼロ値が何も返さないことを確かめる。一時的なディレクトリとシンボリックリンクで確かめる。`construction_test.go` に決定 11 のガードを作り、`TaskSpace` を対象にする。
 -   [ ] **ステップ 2-4**: `taskspace.go` に、`herdr pane list` からパスの workspace を求める読み方を書く（設計書 3.3.2）。テストは、パスそのもの・その下・その外（名前の前方だけ一致するパスを含む）の pane、chief の workspace、シェルだけの pane を確かめる。
--   [ ] **ステップ 2-5**: `issue.go` に、`gh api graphql` の `issueOrPullRequest` の問い合わせと応答の読み取りを書く（設計書 3.3.1）。問い合わせの変数は `-F` で渡す（`{owner}`・`{repo}` を gh が埋め、`$n` を数として渡すため。`gh api --help`）。応答は 64 KiB を上限とする。結果は、ゼロ値を読めないものとする列挙の型で返す。題名は無害化して上限で切り、切ったことを返す（決定 6）。テストは、PR-1 のサンプルで 4 つの形を見分けること、設計書 7.1 の拒む形を 1 つずつ拒むこと、64 KiB の境界、題名の上限の境界を確かめる。題名の境界のテストは、日本語でない複数バイトの文字を使う。`--jq` を使わないこと、chief の worktree で `GH_REPO`・`GH_HOST` なしに走ること、問い合わせが `mutation` を含まないことを確かめる（決定 7）。
+-   [ ] **ステップ 2-5**: 決定 15 のとおり、ラベルを足した問い合わせで gh のサンプルを採り直す。そのうえで、`issue.go` に、`gh api graphql` の `issueOrPullRequest` の問い合わせと応答の読み取りを書く（設計書 1.5・3.3.1）。問い合わせの変数は `-F` で渡す（`{owner}`・`{repo}` を gh が埋め、`$n` を数として渡すため。`gh api --help`）。応答は 64 KiB を上限とする。結果は、ゼロ値を読めないものとする列挙の型で返す。題名は無害化して上限で切り、切ったことを返す（決定 6）。開いた issue は、ラベルの名前が `draft` とバイト列で等しいものがあれば `issue_draft` とし、閉じた issue はラベルによらず `issue_closed` とする。テストは、採り直したサンプルで 5 つの形（開いた issue、ラベル `draft` が付いた開いた issue、閉じた issue、PR、存在しない番号）を見分けること、設計書 7.1 の拒む形（ラベルの一部だけの応答、文字列でないラベルの名前を含む）を 1 つずつ拒むこと、閉じていてラベル `draft` もある issue が `issue_closed` になること、名前が `Draft`・`draft-x` のラベルでは拒まないこと、64 KiB の境界、題名の上限の境界を確かめる。題名の境界のテストは、日本語でない複数バイトの文字を使う。`--jq` を使わないこと、chief の worktree で `GH_REPO`・`GH_HOST` なしに走ること、問い合わせが `mutation` を含まないことを確かめる（決定 7）。
 -   [ ] **ステップ 2-6**: `workspace.go` の `GitReader` に、`worktree list --porcelain` の読み取り（パス、`locked`、ディレクトリのない登録）と `merge-base --is-ancestor`（0・1・それ以外を分ける）を足す。`GitReader` は読み取りだけを持ち、`worktree add`・`worktree remove` は持たない（生のパスで worktree を作るか消す口を作らないため。書き込みは、ステップ 4-2 の `TaskSpace` を取る作成と、ステップ 6-1 の `WorkspaceCloser` が持つ）。`newTestRepo` の一時的なリポジトリの本物の git で、次を確かめる。
     -   PR-1 のサンプルと本物の git の出力で、porcelain を読める。
     -   `merge-base --is-ancestor` の、祖先・祖先でない・ないコミットの 3 つ。
@@ -165,7 +187,7 @@
 
 **推奨タイトル**: `feat(0092): 作る場所、issue、git、issue からタスクを探す読み取りの部品を作る`
 
-**レビュー観点**: issue の応答の拒む形が設計書 3.3.1 の表のとおりか（広く受け付けていないか） / `対応 issue` の数え方が、読めない書き方を、提案が減る向きに倒しているか / `strictjson` の新しい読み方が今の `Collect`・`CollectOnly` を使うほかのパッケージを変えないか / `gh api graphql` を決まった形のほかで読み取りとして通さないか / CLAUDE.md の例外の範囲
+**レビュー観点**: issue の応答の拒む形が設計書 3.3.1 の表のとおりか（広く受け付けていないか） / ラベル `draft` を、すべてのラベルを読めた応答で、名前の等しさだけで見ているか / 採り直した gh のサンプルの問い合わせが `issue.go` の問い合わせと同じか / `対応 issue` の数え方が、読めない書き方を、提案が減る向きに倒しているか / `strictjson` の新しい読み方が今の `Collect`・`CollectOnly` を使うほかのパッケージを変えないか / `gh api graphql` を決まった形のほかで読み取りとして通さないか / CLAUDE.md の例外の範囲
 
 **実装モデル要件**: sonnet+opus-review
 
@@ -256,7 +278,7 @@
 
 ### フェーズ 5: 削除の候補の行と項目、削除の確かめ（設計書 8 章の 4 のうち読み取り）
 
-**変更するファイル:** `internal/chief/removal.go`・`removal_test.go`（新規）、`internal/chief/state.go`・`snapshot.go`・`pending.go`・`output.go` とそのテスト、`internal/chief/autosend_test.go`、`internal/chief/construction_test.go`、`docs/dev/conventions/package_reference.md`
+**変更するファイル:** `internal/chief/removal.go`・`removal_test.go`（新規）、`internal/chief/state.go`・`snapshot.go`・`pending.go`・`output.go` とそのテスト、`internal/chief/autosend_test.go`、`internal/chief/construction_test.go`、`docs/dev/conventions/package_reference.md`、本計画。0093 の部品が `main` にあれば、その対応表と文書の規則のファイルとテスト（ステップ 5-6）
 
 -   [ ] **ステップ 5-1**: `removal.go` に、削除の候補の読み取りを書く（設計書 3.4.1）。
     -   タスクの workspace ごとに、作ったことの記録（記録のディレクトリを作らずに読む）、パスの workspace がちょうど 1 つあり、それがこの workspace であること、記録の issue 番号のタスクが `origin/main` にちょうど 1 つあり `Plan.Done` であることを確かめ、`RemovalCandidate` を作る。
@@ -265,21 +287,36 @@
     -   テストは、AC-23 の条件を 1 つずつ外した入力で候補を作らないこと、AC-24 の各場合、偽った記録（ほかの worktree のパス、ほかの issue の作る場所）で候補を作らないことを確かめる。
 -   [ ] **ステップ 5-2**: `removal.go` に、削除の確かめ（設計書 3.4.2 の表のすべての行）を、確かめの結果の一覧を返す関数として書く。読めないものは通らないものとし、その名前を添える。テストは、各確かめを 1 つずつ外したときと読めないときに、その確かめだけが通らないことを確かめる。
 -   [ ] **ステップ 5-3**: 行の例外と項目を足す（設計書 3.4.1・3.6）。
-    -   AC-20 の条件をすべて満たす行を「タスク完了」・記録の issue のタスク・「削除を提案」にし、`Row` に削除の候補の行の印を足し、`Row.Task` のコメントを直す（設計書 2.2）。
+    -   AC-20 の条件をすべて満たす行を「タスク完了」・記録の issue のタスク・「削除を提案」にし、`Row` に削除の提案の行の印を足し（AC-20 の行だけ。AC-23 だけを満たす行には付けない。設計書 1.5・3.6）、`Row.Task` のコメントを直す（設計書 2.2）。
     -   `PendingRemoval` を `kindOrder` の最後に足し、`RemovalProposal` と項目の識別（workspace のパスと issue 番号から作る）、出力（`output.go`）を足す。
     -   テストは、AC-20 の条件だけを 1 つずつ外したときに、行は 0088 の規則のままだが項目は作られること、並べ方、出力を確かめる。§1.4 の「変えないテスト」は変えずに通す。
 -   [ ] **ステップ 5-4**: 削除の候補のある周で、`tick` の自動送信が `removal` の項目を送信の対象にしないことを確かめるテストを足す（AC-26）。テストの周は、自動送信の条件を満たすほかの workspace を持ち、その pane への `agent prompt` だけを許す。`workspace close` と `worktree remove` の許可は置かず、周の後に `created.json` とほかの記録がディスクに残ることを確かめる。`snapshot` と `targets` についても、記録が残ることを確かめる。
 -   [ ] **ステップ 5-5**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
+-   [ ] **ステップ 5-6**: 0093 の部品を確かめ、当たるものに削除の提案の行を足す（設計書 1.5、決定 13）。PR を作る前に行う。PR-6・PR-7 の確かめ（ステップ 6-5・7-6）も、この手順で行う。
+    -   `git fetch origin main` の後、0093 の 3 つの部品（急ぎの度合いの対応表、文書の規則、並べ方）ごとに、次の 2 つを確かめる。
+        -   **あるか。** `origin/main` の 0093 の計画書で、その部品を実装する PR が「PR がマージされた」になっている。あわせて、`git grep` で、その部品が 0093 設計書の決めた名前（対応表は `UrgencyLater` と `TurnHuman`、文書の規則は `PositionDocNone`、並べ方は `sortRows` が急ぎの度合いを比べること）を持つことを確かめる。計画書と `git grep` が合わなければ、止まって人に示す。
+        -   **行がまだないか。** その部品の関数が、`Row` の削除の提案の行の印をまだ読んでいない。
+    -   結果（部品ごとのあるかないか、行の有無、確かめた `origin/main` のコミット、走らせたコマンド）を §7 の「0093 の部品の確かめの記録」に書く。
+    -   「あり、行がまだない」部品があれば、`origin/main` をこのブランチに取り込み、その部品に足す。
+        -   対応表: 順 2（質問の行）の後、順 3（使っていないか残った worktree の行）の前に、印のある行を「あとで」・人とする行。
+        -   文書の規則: 規則 1 の後に、規則 2 として、印のある行を文書「なし」とする行。
+        -   並べ方: 何も足さない。印のある行を `Row.Idle` にしないこと（ステップ 5-3）を確かめる。
+    -   足したときのテストは、層ごとに、その層だけが当たる入力を使う（CLAUDE.md の「A layered path needs inputs only one layer can handle」）。それぞれ、足した行を壊して失敗することを確かめる。
+        -   0093 の AC-05（対応表）: 印があり `Idle` が真の行でも「あとで」・人になる（実際の印のある行は `Idle` にならないので、この入力は対応表の順だけを確かめるためのものである）。印を外した同じ行が順 3 の「待つ」になることを先に確かめる。
+        -   順 1 が勝つこと: 送信が止まった、印のある行は「すぐ」・人になる。
+        -   AC-07 の規則 2（文書の規則）: 印のある行が文書「なし」になる。印を外すと規則 10 の「要確認」になる事実を置き、そのことを先に確かめる。fetch に失敗した周の印のある行は、規則 1 の「要確認」になる。
+        -   AC-15（並べ方。並べ方の部品があり、対応表に削除の提案の行があるときだけ）: 印のある行が、「すぐ」の行の後、「待つ」の行（「実行中」など）と使っていない worktree の行の前に並ぶ。
+        -   印のない AC-23 だけの行（エージェントが動いている）は、0093 の通常の規則のまま（「待つ」・AI）である。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。
 
 ### PR-5 作成ポイント: removal candidates, rows, items, and checks
 
-**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4 / 5-5
+**対象ステップ**: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6
 
 **推奨タイトル**: `feat(0092): 完了したタスクの作った workspace を削除の候補として示し、削除の確かめを作る`
 
-**レビュー観点**: 偽った作ったことの記録が、`issue-<N>` の形のほかの worktree を名指せないか / 行の例外と新しい外部のコマンドが、作ったことの記録のない workspace に及ばないか / 削除の確かめが読めないものを通らないものとしているか / 自動送信のある周で削除の項目に触れないか
+**レビュー観点**: 偽った作ったことの記録が、`issue-<N>` の形のほかの worktree を名指せないか / 行の例外と新しい外部のコマンドが、作ったことの記録のない workspace に及ばないか / 削除の確かめが読めないものを通らないものとしているか / 自動送信のある周で削除の項目に触れないか / 0093 の部品の確かめの記録（ステップ 5-6）が正しいか。足したときは、層ごとのテストが足した行だけで失敗するか
 
 **実装モデル要件**: opus
 
@@ -294,7 +331,7 @@
 
 ### フェーズ 6: 消す実行（設計書 8 章の 4 のうち削除）
 
-**変更するファイル:** `internal/chief/removal.go`・`removal_test.go`、`internal/chief/output.go`、`internal/chief/network_test.go`、`internal/chief/world_test.go`・`sim_test.go`、`internal/chief/construction_test.go`、`docs/dev/conventions/package_reference.md`
+**変更するファイル:** `internal/chief/removal.go`・`removal_test.go`、`internal/chief/output.go`、`internal/chief/network_test.go`、`internal/chief/world_test.go`・`sim_test.go`、`internal/chief/construction_test.go`、`docs/dev/conventions/package_reference.md`、本計画。ステップ 6-5 で足すときは、0093 の部品のファイルとテスト
 
 -   [ ] **ステップ 6-1**: `removal.go` に `WorkspaceCloser` を書く（設計書 3.6）。削除の確かめをすべて通った `RemovalCandidate` からだけ作り、`herdr workspace close <ID>` を `--group` なしで呼ぶ。`git worktree remove`（`--force` なし）も `WorkspaceCloser` のメソッドだけが、候補の worktree のパスで呼ぶ。`newTestRepo` の一時的なリポジトリの本物の git で、変更のある worktree と追跡していないファイルのある worktree を git が拒むこと、detached の worktree でブランチを作ってから detached に戻した worktree を消してもそのブランチが残ることを確かめる。ゼロ値は何も走らせず、`construction_test.go` のガードの対象に足す（決定 11）。テストは、確かめが 1 つでも通らない候補から作れないこと、ゼロ値が herdr を呼ばないこと、呼び出しの引数を確かめる。
 -   [ ] **ステップ 6-2**: `removal.go` に `Remove` を書く（設計書 3.4.3・4.1）。
@@ -311,15 +348,17 @@
     -   `Remove` で消して表から消え、次の周で二度と提案されないまで（AC-33）。
 -   [ ] **ステップ 6-4**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
 
+-   [ ] **ステップ 6-5**: PR を作る前に、ステップ 5-6 の手順で 0093 の部品を確かめ、当たるものに削除の提案の行を足す（決定 13）。結果を §7 の「0093 の部品の確かめの記録」に書き足す。
+
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。
 
 ### PR-6 作成ポイント: removal of a finished workspace and worktree
 
-**対象ステップ**: 6-1 / 6-2 / 6-3 / 6-4
+**対象ステップ**: 6-1 / 6-2 / 6-3 / 6-4 / 6-5
 
 **推奨タイトル**: `feat(0092): 確かめを通った作った workspace を閉じて worktree を消す部品を作る`
 
-**レビュー観点**: 閉じる直前の読み直しと、消す直前の HEAD の確かめ直し / `--force`・`--group` を渡さないこと / 途中で止まったときに残ったものをすべて示し、消し直さないか / 結合テストで、消した workspace が次の周で提案されないか
+**レビュー観点**: 閉じる直前の読み直しと、消す直前の HEAD の確かめ直し / `--force`・`--group` を渡さないこと / 途中で止まったときに残ったものをすべて示し、消し直さないか / 結合テストで、消した workspace が次の周で提案されないか / 0093 の部品の確かめの記録（ステップ 6-5）
 
 **実装モデル要件**: opus
 
@@ -334,9 +373,9 @@
 
 ### フェーズ 7: 配線、`/chief` の定義、設定、文書、最後の実地の確かめ（設計書 8 章の 3〜5）
 
-**変更するファイル:** `cmd/chief/main.go`・`main_test.go`・`docs_test.go`、`internal/chief/records.go`（`Protocol`）、`.claude/commands/chief.md`、`.claude/settings.json`、`CLAUDE.md`、`docs/dev/guides/chief_guide.md`、`docs/dev/conventions/package_reference.md`、本計画
+**変更するファイル:** `cmd/chief/main.go`・`main_test.go`・`docs_test.go`、`internal/chief/records.go`（`Protocol`）、`.claude/commands/chief.md`、`.claude/settings.json`、`CLAUDE.md`、`docs/dev/guides/chief_guide.md`、`docs/dev/conventions/package_reference.md`、本計画。ステップ 7-6 で足すときは、0093 の部品のファイルとテスト
 
--   [ ] **ステップ 7-1**: `cmd/chief/main.go` に `targets --issue <N>`・`create --issue <N>`・`remove --workspace <W>` を足し、パッケージのコメントと使い方の文を直す（設計書 3.1）。`targets` と `create` は `--issue` を文字列のまま道具へ渡す。`Protocol` を `2` にする（決定 3）。テストは次を確かめる。
+-   [ ] **ステップ 7-1**: `cmd/chief/main.go` に `targets --issue <N>`・`create --issue <N>`・`remove --workspace <W>` を足し、パッケージのコメントと使い方の文を直す（設計書 3.1）。`targets` と `create` は `--issue` を文字列のまま道具へ渡す。`Protocol` を、`origin/main` の値より 1 大きくする（決定 3・14。0093 が先に 2 にしていれば 3）。テストは次を確かめる。
     -   引数の表、3 つのサブコマンドがロックの持ち主を確かめること、出力と終了コード。
     -   形の違う `--issue` が、終了コード 2 ではなく、終了コード 0 と `issue_form` になること（AC-06）。
     -   `targets` で、`cmd/chief` の fake が書き込みの呼び出しを受けないこと（決定 7）。
@@ -348,20 +387,22 @@
 -   [ ] **ステップ 7-4**: CLAUDE.md の「Tool Execution Safety」（issue の読み取り）と「Claude Commands」の `/chief` の項、chief 利用ガイドの 1〜8 章（設計書 3.8。7 章の記録の表には作成の排他のディレクトリ `create` も足す。決定 5）、`package_reference.md` の `cmd/chief` の行を直す。
 -   [ ] **ステップ 7-5**: 最後の実地の確かめをする（設計書 7.3、決定 10・12）。人が、決定 12 のとおり chief の worktree をこのブランチにして入れ直し、`/chief` で次を行う。結果を §7 の「PR-7 の実行の記録」に書く。マージの後に `main` へ戻すことも、決定 12 のとおりである。
     -   新しいタスクを始めること（新しい workspace と既存の workspace）。新しく作る issue は人が選ぶ。
-    -   作成の拒否（存在しない番号、閉じた issue、PR、すでにあるパス）。
+    -   作成の拒否（存在しない番号、閉じた issue、ラベル `draft` が付いた issue、PR、すでにあるパス）。
     -   削除の提案、削除、削除の拒否。決定 10 の workspace を使う。拒否は、その workspace に追跡していないファイルを置くなどして起こす。
     -   `once` の問いで、示せる数を超える項目があるときに、「新しいタスクを始める」を名前で選べること。
     -   作成で作った workspace は、確かめの後に人が端末で片付けるか、そのタスクに使う。
+
+-   [ ] **ステップ 7-6**: ステップ 7-5 の実地の確かめの前に、ステップ 5-6 の手順で 0093 の部品を確かめ、当たるものに削除の提案の行を足す（決定 13）。結果を §7 の「0093 の部品の確かめの記録」に書き足し、入っていない部品を、0093 が後で足すものとして書く。
 
 **完了の条件:** 各ステップのテストが通り、§7 に PR-7 の実行の記録がある。`make test`・`make lint`・`make deadcode` が通る。
 
 ### PR-7 作成ポイント: subcommands, protocol 2, chief command, settings, and documents
 
-**対象ステップ**: 7-1 / 7-2 / 7-3 / 7-4 / 7-5
+**対象ステップ**: 7-1 / 7-2 / 7-3 / 7-4 / 7-5 / 7-6
 
 **推奨タイトル**: `feat(0092): chief に targets・create・remove を足し、/chief の定義、設定、手引きを直す`
 
-**レビュー観点**: `.claude/settings.json` の拒否と `ask` の規則 / `/chief` の定義が、人の確認の後にだけ `remove` を呼び、issue の題名と Herdr のエラーの文をデータとして扱うか / 手引きの保証すること・しないことと既知の制限 / 実地の確かめの結果
+**レビュー観点**: `.claude/settings.json` の拒否と `ask` の規則 / `/chief` の定義が、人の確認の後にだけ `remove` を呼び、issue の題名と Herdr のエラーの文をデータとして扱うか / 手引きの保証すること・しないことと既知の制限 / 実地の確かめの結果 / `Protocol` の値が `origin/main` より 1 大きいか / 0093 の部品の確かめの記録（ステップ 7-6）と、0093 が後で足すもの
 
 **実装モデル要件**: opus
 
@@ -384,7 +425,7 @@
 | M2（PR-2） | 作る場所、issue、git、issue からタスクを探す読み取り | 作成と削除の材料を読める（まだ使われない） |
 | M3（PR-3） | 作ったことの記録、`sendAfterCreate` | 作った workspace へ送る入口がある（まだ呼ばれない） |
 | M4（PR-4） | `WorkspaceMaker`、`Create`・`Targets`、作成の排他 | 道具の中で作成ができる（まだ呼ばれない） |
-| M5（PR-5） | 削除の候補の行と項目、削除の確かめ | `created.json` のある workspace が提案される（まだ現れない。決定 4） |
+| M5（PR-5） | 削除の候補の行と項目、削除の確かめ、0093 の部品の確かめの記録 | `created.json` のある workspace が提案される（まだ現れない。決定 4） |
 | M6（PR-6） | `WorkspaceCloser`、`Remove`、結合テスト | 道具の中で削除ができる（まだ呼ばれない） |
 | M7（PR-7） | `targets`・`create`・`remove`、`Protocol` 2、`/chief` の定義、設定、手引き | chief で作成と削除ができる |
 
@@ -398,9 +439,9 @@
 | PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 | 記録係の読み取り、`strictjson` の読み方、作る場所、パスの workspace、issue、git、`対応 issue`、CLAUDE.md の例外 | sonnet+opus-review | auto |
 | PR-3 | 3-1 / 3-2 / 3-3 / 3-4 | 記録係の書き込みの許可、作ったことの記録、`holdWorkspace` の共有、`sendAfterCreate` | sonnet+opus-review | auto |
 | PR-4 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 | `WorkspaceMaker`、`Create`・`Targets`、作成の排他 | opus | auto |
-| PR-5 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 | 削除の候補、削除の確かめ、行の例外、`removal` の項目 | opus | auto |
-| PR-6 | 6-1 / 6-2 / 6-3 / 6-4 | `WorkspaceCloser`、`Remove`、結合テスト | opus | auto |
-| PR-7 | 7-1 / 7-2 / 7-3 / 7-4 / 7-5 | サブコマンド、`Protocol` 2、`/chief` の定義、設定、CLAUDE.md、手引き、実地の確かめ | opus | auto |
+| PR-5 | 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 | 削除の候補、削除の確かめ、行の例外、`removal` の項目、0093 の部品の確かめ | opus | auto |
+| PR-6 | 6-1 / 6-2 / 6-3 / 6-4 / 6-5 | `WorkspaceCloser`、`Remove`、結合テスト、0093 の部品の確かめ | opus | auto |
+| PR-7 | 7-1 / 7-2 / 7-3 / 7-4 / 7-5 / 7-6 | サブコマンド、`Protocol` を上げる、`/chief` の定義、設定、CLAUDE.md、手引き、実地の確かめ、0093 の部品の確かめ | opus | auto |
 
 どの PR も、前の PR のマージと `/runplan` の間に、`/runplan` の外の作業を置かない。PR-1 と PR-7 の実地の確かめは、`/runplan` のセッションの中で人と行う。そのため、自動送信はすべて `auto` とする。
 
@@ -422,7 +463,7 @@
 
 | リスク | 対策 |
 |---|---|
-| 実地の確かめで、設計書 1.2 の前提が違う（信頼の画面が出る、`workspace close` がグループを求める、`ask` が確認を出さない、起動したばかりの Claude Code に transcript がない） | 決定 8 のとおり止まり、人と決め直す。設計書は、どの結果でも安全側に倒れる（設計書 3.3.4・3.4.3） |
+| 実地の確かめで、設計書 1.2 の前提が違う（信頼の画面が出る、`workspace close` がグループを求める、`ask` が確認を出さない、起動したばかりの Claude Code の pane で `/clear` の後にセッション ID が変わらない） | 決定 8 のとおり止まり、人と決め直す。設計書は、どの結果でも安全側に倒れる（設計書 3.3.4・3.4.3） |
 | 採ったサンプルに、採取した人を特定できる情報が残る | ステップ 1-4 の置き換えの規則と、サンプルの確かめのテスト。PR-1 のレビュー観点に入れる |
 | 途中の PR のマージで道具を入れ直したとき、chief の振る舞いが変わる | 決定 4。作成は PR-7 まで呼ばれず、削除の候補は現れない。作成の排他が取れない周だけ、自動送信をせずに示す |
 | 0088 の送信の経路の共有で、送信と自動送信の守りが崩れる | PR-3 を独立させ、今の送信・中継・自動送信のテストを変えずに通す（ステップ 3-3） |
@@ -430,18 +471,19 @@
 | `Protocol` を上げる PR の後、`/chief` の定義と道具の番号が合わない | PR-7 で両方を変える（決定 3）。実地の確かめの間は、chief の worktree をそのブランチにする（決定 12） |
 | 削除が作業を失わせる | 削除の確かめ、閉じる直前の読み直し、`--force` なしの `git worktree remove`、人の確認と `ask`（設計書 3.4、5.2）。PR-5 と PR-6 を独立させてレビューする（決定 1） |
 | 実地の確かめで作った workspace と worktree が残る | PR-1 は確かめの後に人が片付ける（ステップ 1-2）。PR-7 の作成で作ったものは人が片付けるかタスクに使い、決定 10 の workspace は chief で消す |
+| 0093 の部品と本タスクの印が並行して開いた PR にあり、どちらも相手を持たないまま `main` に入る | PR-5・PR-6・PR-7 を作る前に、部品ごとに「あり、行がまだない」かを確かめて足す（決定 13）。ステップ 7-6 の後に 0093 の部品が入り、0093 自身の確かめも印を見なかった場合は残る。PR-7 の記録に、0093 が後で足すものとして書く |
 | 日程: PR が 7 つになり、chief を使うほかのタスクの PR と並ぶ | PR-1〜PR-6 は道具の振る舞いを変えないので、ほかのタスクの待ち受けを止めずにマージできる（決定 4）。待ち受けが止まるのは、PR-7 の実地の確かめで chief を起動し直す間だけである（決定 12） |
 | 日程: PR-1 か PR-7 の実地の確かめで、人の手が空かない | 実地の確かめは人がいるときにだけ進める。`/runplan` は人を待つだけで、ほかのタスクを妨げない |
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
-- [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5）
-- [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4）
-- [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5）
+- [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
+- [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5）
+- [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5 / 7-6）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -485,9 +527,29 @@
 
 設計書 7.4 のセキュリティのテストは、AC-07（題名）、AC-11・`ic/taskspace_test.go::TestTaskSpaceIgnoresOtherInputs`（パスと名前）、AC-13（書く部品の型）、AC-24（偽った記録）、AC-26（書き込みをしない）の行が受け持つ。
 
+0093 の AC-05・AC-07 の規則 2・AC-15 は本タスクの AC ではない。ステップ 5-6・6-5・7-6 の確かめで、0093 の部品が `main` にあり、削除の提案の行がまだなかったときに、`ic/removal_test.go::TestRemovalRowUrgencyAndDocument`（急ぎの度合い・番・文書）と `ic/snapshot_test.go::TestRemovalRowSortsLater`（並ぶ位置）で確かめる。部品が入っていなかったときは本タスクでは確かめず、0093 の計画書に頼る（決定 13）。どちらだったかは「0093 の部品の確かめの記録」に書く。
+
 ### PR-1 の実行の記録
 
-（PR-1 の `/runplan` が書く。）
+2026-11-17 に、本計画のステップ 1-1〜1-4 のとおりに確かめた。結果は、どれも設計書 1.2 の前提と合ったので、決定 8 のように止まることはなかった。決定 6 の値も、観測と合ったので変えない。
+
+-   **版。** Herdr 0.9.1、Claude Code 2.1.326、OpenCode v2.2.6、gh 2.96.0、git 2.50.1。
+-   **確かめ用の worktree と workspace。** `/runplan` のセッションが、`~/.herdr/worktrees/yt2column/probe-0092` を `git worktree add --detach` で `origin/main` に作り、`herdr workspace create --cwd <パス> --label probe-0092 --no-focus` で開いた。タブ `cmd`・`opencode`・`claude` を `herdr tab rename`・`herdr tab create` で作り、時間切れを起こすためのタブ `timeout` も足した。セッションに拒まれる `herdr agent start` と `herdr workspace close` は、人が確かめ用の workspace の外のシェルで打った（決定 2）。確かめの後、workspace は人が閉じ、worktree はセッションが `git worktree remove`（`--force` なし）で消した。セッションが worktree と workspace を作り、タブを作り、worktree を消したことは、人が作って片付けるとした本計画の用語の「確かめ用の workspace」とステップ 1-2 の手順から外れていた。どれも今のセッションに拒まれていない呼び出しだが、人の同意を得ずに行った。用語とステップの文は、計画のとおりに残す。
+-   **(i) フォルダの信頼。** 新しい worktree で起動した Claude Code は、信頼を問う画面を出さず、auto mode の入力待ちで起動した。そのため、信頼を問う画面のサンプルはない。
+-   **(ii) `herdr agent start`。** 新しいタブのシェルの pane で、OpenCode も Claude Code も成功した（終了コード 0、`agent_status` は `idle`、`interactive_ready` は `true`）。かかった時間は、OpenCode が 3.7 秒、Claude Code が 3.9 秒だった。`--timeout 3001` で Claude Code を起動すると、3.0 秒で終了コード 1、標準エラーの `{"error":{"code":"timeout",…},"id":"cli:agent:start"}` を返した。その後も Claude Code は起動を続け、名前のないエージェントとして `idle` になった。設計書 3.3.4 の「エラーの応答のときは `agent get` でエージェントの有無を確かめる」が要ることを示す。名前の重なりは `agent_name_taken`、エージェントのいる pane への起動は `agent_pane_busy` を、どちらもすぐに返した。
+-   **(iii) 作業ディレクトリ。** `workspace create --cwd` と `tab create --cwd` の作った pane は、どれも `cwd` が worktree のパスだった。`workspace create` の応答は、`.result.workspace`・`.result.tab`・`.result.root_pane` を持ち、タブと pane の `workspace_id` は作った workspace のものだった。`tab create` の応答も、`.result.tab` と `.result.root_pane` が指定した workspace のものだった。
+-   **(iv) `herdr workspace close`。** `--group` なしの `herdr workspace close <ID>` は、1.1 秒で終了コード 0 と `{"type":"ok"}` を返し、`workspace_group_close_required` を返さなかった。直後の `herdr pane list` には、その workspace の pane が 1 つもなかった（4 つのタブのすべての pane が閉じた）。存在しない ID には `workspace_not_found` を返した。`herdr worktree list` は、git で作ったこの worktree を `is_linked_worktree: true`、`open_workspace_id` にこの workspace の ID を持つものとして挙げた。一方、`herdr workspace list` のこの workspace には、本体のチェックアウトを開いた workspace にある `worktree` の項目がなかった。`workspace close` がグループの扱いを求めなかったので、Herdr は、この workspace を、自分が作った worktree の workspace としては扱っていない。
+-   **(v) 0088 の送る前の確かめ。** 起動した直後の Claude Code は、`herdr agent get` で `idle` で、Herdr のセッション ID を持っていた。transcript のファイルはまだなかった。0088 の最初の確かめは transcript の場所だけを確かめ、ファイルの有無を確かめない（`internal/chief/send.go:343-349`）ので、通る。決定 8 は、計画の時点で、ファイルがないことを止まる例に挙げていた。その例は、最初の確かめが transcript を読むという誤った読み方によるもので、設計書 1.2 の (v) の前提（送る前の確かめを通ること）とは食い違わない。そのため止まらず、決定 8 の例と §1.4 の「送信」の行を、コードのとおりに直した。画面（`screens/claude-started.ansi`）は、0088 の画面の読み取りで、入力欄が空の入力待ちと読める（ステップ 1-5 のテスト）。入力のない session で人が `/clear` を打つと、Herdr のセッション ID が変わり、新しいセッションの transcript のファイルは、その後の最初の入力でできた。0088 の `/clear` の後の待ち（セッション ID が変わること）も通る。
+-   **(vi) `ask` の規則。** 確かめ用の worktree の `.claude/settings.local.json` に `ask` の `Bash(chief remove *)` を置き、確かめ用の workspace の新しい Claude Code のセッション（利用者の設定で auto mode）に `chief remove --workspace /tmp/none --protocol 1` の実行を頼んだ。Claude Code は、`Ask rule Bash(chief remove *) overrides auto mode for this command.` と示して、許可の確認を出した。人は答えずに workspace を閉じたので、道具は呼ばれていない。確かめの後、その設定のファイルを消した。
+-   **`herdr pane process-info`。** シェルだけの pane では、前面のプロセスグループの ID がシェルの pid と等しく、前面のプロセスはシェルだけだった。`sleep 600` を走らせた pane では、前面のプロセスグループの ID が `sleep` の pid で、シェルの pid と違った。
+-   **gh。** `gh api graphql` の `issueOrPullRequest` の問い合わせを、人の承認を得て chief の worktree で走らせた。閉じた issue #838 は、終了コード 0、`__typename` が `Issue`、`state` が `CLOSED` だった。#839・PR #897・存在しない #999999 の応答は、設計書 1.2 で確かめた形と同じだった。
+-   **git。** `git worktree list --porcelain` は、固定した worktree に `locked`（理由があれば、その後に理由）の行、ディレクトリのない登録に `prunable` の行を書いた。
+-   **時間（決定 6）。** エージェントの起動は 4 秒ほどで、`--timeout` の 60 秒と、`create` の全体の上限の 7 分に収まる。pane は、`workspace close` が返った時点で消えていたので、500 ミリ秒ごとに 20 回の確かめに収まる。値は変えない。
+-   **サンプル。** 採ったものは、`internal/chief/testdata/herdr/`・`gh/`・`git/`・`screens/claude-started.ansi` に置いた。置き換えの規則と採り方は、`internal/chief/testdata/README.md` の「タスク 0092 の実地の確かめ」に書いた。
+
+### 0093 の部品の確かめの記録
+
+（PR-5・PR-6・PR-7 の `/runplan` が、ステップ 5-6・6-5・7-6 で書き足す。）
 
 ### PR-7 の実行の記録
 
@@ -508,3 +570,8 @@
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#915）
+- 2026-11-17 draft への戻し：PR-5・PR-6・PR-7 の前に 0093 の部品を確かめて削除の提案の行を足すステップと、`Protocol` を origin/main の値より 1 大きくすることを足した（申し送りの H-09）（#929）
+- 2026-11-17 承認（isseis、#929）
+- 2026-11-17 draft への戻し：PR-2 で、ラベルを足した問い合わせで gh のサンプルを採り直し、ラベル `draft` が付いた issue を拒む読み取りを作ることにした（決定 15）（#939）
+- 2026-11-17 承認（isseis、#939）
+- 2026-11-17 セッション中の再承認：決定 8 の (v) の止まる例を、transcript のファイルがないことから、`/clear` の後にセッション ID が変わらないことに変えた（決定 16）（isseis、#923）
