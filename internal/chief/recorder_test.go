@@ -27,11 +27,11 @@ func TestRecorderAllowsOnlyTheExactWrite(t *testing.T) {
 		{
 			"workspace create",
 			func(r *recorder) { r.allowWorkspaceCreate("/h/issue-7", "issue-7", nil) },
-			call(herdrProgram, "", "workspace", "create", "--cwd", "/h/issue-7", "--label", "issue-7", "--no-focus"),
+			call(herdrProgram, "", herdrWorkspace, "create", "--cwd", "/h/issue-7", "--label", "issue-7", "--no-focus"),
 			[]recordedCall{
-				call(herdrProgram, "", "workspace", "create", "--cwd", "/h/issue-8", "--label", "issue-7", "--no-focus"),
-				call(herdrProgram, "", "workspace", "create", "--cwd", "/h/issue-7", "--label", "issue-8", "--no-focus"),
-				call(herdrProgram, "", "workspace", "create", "--cwd", "/h/issue-7", "--label", "issue-7"),
+				call(herdrProgram, "", herdrWorkspace, "create", "--cwd", "/h/issue-8", "--label", "issue-7", "--no-focus"),
+				call(herdrProgram, "", herdrWorkspace, "create", "--cwd", "/h/issue-7", "--label", "issue-8", "--no-focus"),
+				call(herdrProgram, "", herdrWorkspace, "create", "--cwd", "/h/issue-7", "--label", "issue-7"),
 			},
 		},
 		{
@@ -58,10 +58,10 @@ func TestRecorderAllowsOnlyTheExactWrite(t *testing.T) {
 		{
 			"workspace close",
 			func(r *recorder) { r.allowWorkspaceClose("w1", nil) },
-			call(herdrProgram, "", "workspace", "close", "w1"),
+			call(herdrProgram, "", herdrWorkspace, "close", "w1"),
 			[]recordedCall{
-				call(herdrProgram, "", "workspace", "close", "w2"),
-				call(herdrProgram, "", "workspace", "close", "w1", "--group"),
+				call(herdrProgram, "", herdrWorkspace, "close", "w2"),
+				call(herdrProgram, "", herdrWorkspace, "close", "w1", "--group"),
 			},
 		},
 		{
@@ -117,7 +117,7 @@ func TestRecorderAllowsOnlyTheExactWrite(t *testing.T) {
 func TestRecorderAnswersAnAllowedWrite(t *testing.T) {
 	r := newRecorder(t)
 	r.allowWorkspaceClose("w1", []byte("closed"))
-	out, err := r.commands(nil).herdr(context.Background(), "workspace", "close", "w1")
+	out, err := r.commands(nil).herdr(context.Background(), herdrWorkspace, "close", "w1")
 	if err != nil || string(out) != "closed" {
 		t.Fatalf("workspace close = %q, %v", out, err)
 	}

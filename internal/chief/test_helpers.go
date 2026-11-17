@@ -279,6 +279,9 @@ const gitWorktree = "worktree"
 // agentStartTimeoutMS is the --timeout the tool gives `herdr agent start`.
 const agentStartTimeoutMS = "60000"
 
+// herdrWorkspace is the herdr command group of the workspace operations.
+const herdrWorkspace = "workspace"
+
 // allowWrite allows the command name with exactly args (in dir, when dir is
 // not empty) and answers it with rep.
 func (r *recorder) allowWrite(name, dir string, args []string, rep reply) {
@@ -290,7 +293,7 @@ func (r *recorder) allowWrite(name, dir string, args []string, rep reply) {
 // allowWorkspaceCreate allows `herdr workspace create` for exactly this
 // path and label.
 func (r *recorder) allowWorkspaceCreate(cwd, label string, out []byte) {
-	r.allowWrite(herdrProgram, "", []string{"workspace", "create", "--cwd", cwd, "--label", label, "--no-focus"}, reply{out: out})
+	r.allowWrite(herdrProgram, "", []string{herdrWorkspace, "create", "--cwd", cwd, "--label", label, "--no-focus"}, reply{out: out})
 }
 
 // allowTabRename allows renaming exactly this tab to label.
@@ -312,7 +315,7 @@ func (r *recorder) allowAgentStart(name, kind, pane string, out []byte) {
 // allowWorkspaceClose allows closing exactly this workspace, with no
 // --group.
 func (r *recorder) allowWorkspaceClose(id string, out []byte) {
-	r.allowWrite(herdrProgram, "", []string{"workspace", "close", id}, reply{out: out})
+	r.allowWrite(herdrProgram, "", []string{herdrWorkspace, "close", id}, reply{out: out})
 }
 
 // allowWorktreeAdd allows `git worktree add --detach` of exactly this path

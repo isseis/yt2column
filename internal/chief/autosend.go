@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -735,7 +736,16 @@ func (a *autoSender) send(ctx context.Context, ws TaskWorkspace, obs Observation
 	res.Actions = append(res.Actions, sent)
 	switch sent.Outcome {
 	case OutcomeSent:
-		res.Actions = append(res.Actions, a.resetRunpr(ctx, sc, obs, res.Proposal, sent.Pane))
+		reset, skip := a.resetRunpr(ctx, sc, obs, res.Proposal, sent.Pane)
+		res.Actions = append(res.Actions, sc.offerSkip(ctx, reset, skip, sceneAfterAutoSend, func(now Agent) string {
+			if now.Kind != paneinput.AgentClaudeCode {
+				return ""
+			}
+			if reason, detail := sc.lastInputRanRunpr(now); reason != NotSentUnknown {
+				return reason.String() + ": " + detail
+			}
+			return ""
+		}))
 	case OutcomeRecordedNotSent:
 		res.Reasons = []string{"the automatic send was recorded, but nothing was typed: " + sent.Detail}
 	case OutcomeNotSent:
@@ -831,56 +841,77 @@ func checkOwner(ctx context.Context, deps Deps, owner Owner) error {
 // merged PR and the command sent, its state_change_seq unchanged since the
 // workspace's agents were read under the exclusion, before the command was
 // sent, and chief's owner unchanged; it is checked and recorded like any
-// send.
-func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observation, next *Next, sentPane string) ActionResult {
+// send. A skip with NotSentNoReport is skipReportAbsent only where no report
+// was read: the pane shows or holds no /runpr report, or the start of an
+// OpenCode pane's last message is above its screen and the rest does not
+// name the merged PR while its NEXT agrees.
+func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observation, next *Next, sentPane string) (ActionResult, resetSkip) {
 	res := ActionResult{Workspace: sc.ws.Worktree, Input: InputReset}
 	// The automatic-send record belongs to the command; the reset writes
 	// only its own send record, once the owner is checked again: the
 	// command's inputs may have taken long enough for chief to change hands.
 	sc.beforeBegin = func() (NotSentReason, error) { return a.ownerStill(ctx) }
 	if stop, err := sc.held.Stopped(); err != nil || stop != nil {
-		return notSent(res, NotSentStopped, "the workspace was stopped by the automatic send")
+		return notSent(res, NotSentStopped, "the workspace was stopped by the automatic send"), resetSkip{}
 	}
 	route, err := a.view.routing.Route(paneinput.RouteRunpr)
 	if err != nil {
-		return notSent(res, NotSentUnreadable, "the routing table has no route for /runpr")
+		return notSent(res, NotSentUnreadable, "the routing table has no route for /runpr"), resetSkip{}
 	}
 	res.Agent = route.Agent()
 	st, ok := resetPrompt(route.Agent())
 	if !ok {
-		return notSent(res, NotSentUnreadable, "the route has no agent")
+		return notSent(res, NotSentUnreadable, "the route has no agent"), resetSkip{}
 	}
 	res.Command, _ = st.prompt.Text()
 	candidate, panes, ok := targetPane(sc.ws, route.Agent())
 	if !ok {
 		res.Panes = panes
-		return notSent(res, NotSentPaneAmbiguous, "the workspace has no single pane of the agent /runpr is routed to")
+		return notSent(res, NotSentPaneAmbiguous, "the workspace has no single pane of the agent /runpr is routed to"), resetSkip{}
 	}
 	res.Pane = candidate.Pane.String()
 	if res.Pane == sentPane {
-		return notSent(res, NotSentSamePane, "the automatic send went to the pane /runpr ran in")
+		return notSent(res, NotSentSamePane, "the automatic send went to the pane /runpr ran in"), resetSkip{}
 	}
 	agent, err := a.herdr.Agent(ctx, candidate.Pane)
 	if err != nil {
-		return notSent(res, NotSentUnreadable, "herdr agent get failed: "+err.Error())
+		return notSent(res, NotSentUnreadable, "herdr agent get failed: "+err.Error()), resetSkip{}
 	}
 	if !sameAgent(agent, candidate) {
-		return notSent(res, NotSentUnreadable, "the pane is no longer the same agent of the workspace")
+		return notSent(res, NotSentUnreadable, "the pane is no longer the same agent of the workspace"), resetSkip{}
 	}
+	// The pane must not have moved since it was read under the exclusion,
+	// before the command was sent.
+	listed := candidate.StateChangeSeq
+	absent := resetSkip{kind: skipReportAbsent, pane: candidate, command: ranCommand{kind: paneinput.CommandRunpr, argument: strconv.Itoa(obs.PR), route: paneinput.RouteRunpr}, seq: &listed}
 	// The last report must still be /runpr's report of this merge, its PR
 	// and the command sent: a later answer in the pane is not emptied. A
 	// Claude Code pane's is read from the transcript of the session Herdr
 	// reports now.
 	report, ok, reason, detail := a.runprPaneReport(ctx, agent)
-	if !ok {
-		return notSent(res, reason, detail)
-	}
-	if !slices.Contains(report.PRs, obs.PR) || !agrees(report.Next, next, obs.Task) {
-		return notSent(res, NotSentNoReport, fmt.Sprintf("the pane's last message is not the /runpr report of #%d naming %s", obs.PR, next.Text))
+	switch {
+	case !ok && reason == NotSentNoReport:
+		return notSent(res, reason, detail), absent
+	case !ok:
+		return notSent(res, reason, detail), resetSkip{}
+	case report.Next.Kind == NextAbsent:
+		// The NEXT check before the send lets a report without NEXT pass, so
+		// on a pane that did not move this is the case that reaches here. NEXT
+		// ends the report and stays on the screen, so a message without it is
+		// taken as another message (an answer after the report), not as a
+		// report cut at its start: no item is offered.
+		return notSent(res, NotSentNoReport, "the pane's last message has no NEXT line"), notOffered("the pane's last message has no NEXT line")
+	case !agrees(report.Next, next, obs.Task):
+		// Another NEXT is another report, never a report cut at its start.
+		return notSent(res, NotSentNoReport, "the pane's last message does not name "+next.Text+" as NEXT"), notOffered("the pane's last message names another NEXT")
+	case !slices.Contains(report.PRs, obs.PR) && report.HeadClipped:
+		return notSent(res, NotSentNoReport, fmt.Sprintf("the start of the pane's last message is above the screen, and the rest does not name #%d", obs.PR)), absent
+	case !slices.Contains(report.PRs, obs.PR):
+		return notSent(res, NotSentNoReport, fmt.Sprintf("the pane's last message does not name #%d", obs.PR)), notOffered("the pane's last message, read whole, names another PR")
 	}
 	// The pane must not have moved since its agent was read under the
 	// exclusion, before the command was sent: the report read now may be a
 	// new answer of the same shape.
 	seq := candidate.StateChangeSeq
-	return sc.run(ctx, res, agent, []step{st}, paneCheck{session: agent.Session, seq: &seq}, route, nil)
+	return sc.run(ctx, res, agent, []step{st}, paneCheck{session: agent.Session, seq: &seq}, route, nil), resetSkip{}
 }
