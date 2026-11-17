@@ -1,6 +1,8 @@
 package chief
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -83,4 +85,177 @@ func (c RunningCommand) Text() string {
 		return "/" + name + " " + arg
 	}
 	return "/" + name
+}
+
+// RunningUnknown is why no running command is decided for a running row.
+// The zero value is RunningUnknownNone: a command is decided.
+type RunningUnknown int
+
+const (
+	// RunningUnknownNone is a decided command.
+	RunningUnknownNone RunningUnknown = iota
+	// RunningUnknownNoSession is a Claude Code pane Herdr reports no session
+	// for.
+	RunningUnknownNoSession
+	// RunningUnknownUnsupportedPath is a transcript whose place cannot be
+	// decided from the pane's working directory.
+	RunningUnknownUnsupportedPath
+	// RunningUnknownUnreadable is a transcript or a send record that cannot
+	// be read, or a pane of no known agent.
+	RunningUnknownUnreadable
+	// RunningUnknownOverCap is a transcript over the read cap.
+	RunningUnknownOverCap
+	// RunningUnknownPartialLine is a transcript that still ends inside a line
+	// after its re-reads.
+	RunningUnknownPartialLine
+	// RunningUnknownNotTaskCommand is a session whose last human input is
+	// none of the five task commands, or no input at all.
+	RunningUnknownNotTaskCommand
+	// RunningUnknownNoSentCommand is an OpenCode pane whose last send from
+	// chief is not a command recorded as sent.
+	RunningUnknownNoSentCommand
+	// RunningUnknownPanesDisagree is working panes that do not name one
+	// command: different commands, or an argument dropped on one of two or
+	// more, which cannot be compared.
+	RunningUnknownPanesDisagree
+)
+
+// RunningShown is what a running row shows: the command, and the model of
+// chief's send record when the conditions of the design (3.5) hold, ""
+// otherwise.
+type RunningShown struct {
+	Command RunningCommand
+	Model   string
+}
+
+// lastCommand is chief's last send to a pane, a relay aside, when it was a
+// command whose end says it was sent: the command its record declares, and
+// the record's model. ok is false when there is no such send.
+type lastCommand struct {
+	cmd     RunningCommand
+	dropped bool
+	model   string
+	ok      bool
+}
+
+// lastSentCommand reads chief's last send to pane for the running command.
+// Contract: the command is read only from the record's declared kind and
+// argument, never from its command text; a send that is not a command (a
+// reset), a record without a kind of the five (one written before the kind
+// was declared), and a send whose end is missing or not sent is no command;
+// a record that cannot be read is an error.
+func (r WorkspaceRecords) lastSentCommand(pane string) (lastCommand, error) {
+	rec, err := r.LastSend(pane)
+	if err != nil || rec == nil || rec.Input != InputCommand.String() {
+		return lastCommand{}, err
+	}
+	kind, err := paneinput.ParseCommandKind(rec.Kind)
+	if err != nil {
+		return lastCommand{}, nil
+	}
+	end, err := r.sendEnded(rec.ID)
+	if err != nil || end == nil || end.Outcome != OutcomeSent.String() {
+		return lastCommand{}, err
+	}
+	cmd, dropped, err := newRunningCommand(kind, rec.Arg)
+	if err != nil {
+		return lastCommand{}, nil
+	}
+	return lastCommand{cmd: cmd, dropped: dropped, model: rec.Model, ok: true}, nil
+}
+
+// paneRunning is the running command of one working pane, or why none is
+// decided, and chief's last command sent to the pane.
+type paneRunning struct {
+	cmd     RunningCommand
+	dropped bool
+	why     RunningUnknown
+	sent    lastCommand
+}
+
+// runningOfPane decides the running command of one working pane, by its
+// agent: a Claude Code pane by its session's last human input, an OpenCode
+// pane by chief's last command sent to it. Contract: the screen is never
+// read, and nothing read here changes a row's state or a send; sends reads
+// chief's last send to a pane, and its error makes only an OpenCode pane
+// undecided, since a Claude Code pane reads it for the model alone.
+func runningOfPane(ctx context.Context, deps Deps, a Agent, sends func(pane string) (lastCommand, error)) paneRunning {
+	sent, sentErr := sends(a.Pane.String())
+	switch a.Kind {
+	case paneinput.AgentClaudeCode:
+		if sentErr != nil {
+			sent = lastCommand{}
+		}
+		if !sessionIDForm.MatchString(a.Session) {
+			return paneRunning{why: RunningUnknownNoSession}
+		}
+		path, err := transcriptPath(deps.Env, a.Dir, a.Session)
+		switch {
+		case errors.Is(err, errUnsupportedPath):
+			return paneRunning{why: RunningUnknownUnsupportedPath}
+		case err != nil:
+			return paneRunning{why: RunningUnknownUnreadable}
+		}
+		data, err := readCompleteTranscript(ctx, deps.Sleep, path, sessionTranscriptLimit)
+		switch {
+		case errors.Is(err, errOverCap):
+			return paneRunning{why: RunningUnknownOverCap}
+		case errors.Is(err, errPartialLine):
+			return paneRunning{why: RunningUnknownPartialLine}
+		case err != nil:
+			return paneRunning{why: RunningUnknownUnreadable}
+		}
+		cmd, dropped, why := readRunningCommand(data)
+		return paneRunning{cmd: cmd, dropped: dropped, why: why, sent: sent}
+	case paneinput.AgentOpenCode:
+		switch {
+		case sentErr != nil:
+			return paneRunning{why: RunningUnknownUnreadable}
+		case !sent.ok:
+			return paneRunning{why: RunningUnknownNoSentCommand}
+		}
+		return paneRunning{cmd: sent.cmd, dropped: sent.dropped, sent: sent}
+	default:
+		return paneRunning{why: RunningUnknownUnreadable}
+	}
+}
+
+// runningOf decides the running command of a running row from its working
+// panes, in Herdr's order. Contract: a command is shown only when every
+// working pane decides one and all of them name the same command, with no
+// argument dropped on any pane when there are two or more; otherwise
+// nothing is shown, with the reason of the first undecided pane, or
+// RunningUnknownPanesDisagree. The model of chief's send record is shown
+// only for exactly one working pane whose last command sent is the command
+// shown, its argument whole.
+func runningOf(ctx context.Context, deps Deps, agents []Agent, sends func(pane string) (lastCommand, error)) (*RunningShown, RunningUnknown) {
+	var panes []paneRunning
+	for _, a := range agents {
+		if a.Status != AgentWorking {
+			continue
+		}
+		panes = append(panes, runningOfPane(ctx, deps, a, sends))
+	}
+	if len(panes) == 0 {
+		// No working pane names a command.
+		return nil, RunningUnknownPanesDisagree
+	}
+	for _, p := range panes {
+		if p.why != RunningUnknownNone {
+			return nil, p.why
+		}
+	}
+	first := panes[0]
+	if len(panes) > 1 {
+		for _, p := range panes {
+			if p.dropped || p.cmd != first.cmd {
+				return nil, RunningUnknownPanesDisagree
+			}
+		}
+	}
+	shown := &RunningShown{Command: first.cmd}
+	if len(panes) == 1 && first.sent.ok && !first.sent.dropped && first.sent.cmd == first.cmd {
+		shown.Model = first.sent.model
+	}
+	return shown, RunningUnknownNone
 }

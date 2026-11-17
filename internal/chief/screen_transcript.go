@@ -284,3 +284,34 @@ func humanInputOf(object strictjson.Object) (in HumanInput, human, ok bool) {
 	}
 	return HumanInput{Kind: HumanInputCommand, Name: m[2], Args: m[3]}, true, true
 }
+
+// readRunningCommand reads the task command the human last typed into a
+// session, for display. Contract: a transcript that does not end at a line's
+// end is RunningUnknownPartialLine, never read without its last line; the
+// last human input is the one readLastHumanInput reads, unchanged, so a
+// transcript it cannot read is RunningUnknownUnreadable; only a command whose
+// name is one of the five task commands' is a running command, and any other
+// last input, or none, is RunningUnknownNotTaskCommand; the argument is kept
+// only when it validates for the kind, and dropped reports one that did not.
+func readRunningCommand(transcript []byte) (cmd RunningCommand, dropped bool, why RunningUnknown) {
+	if len(transcript) > 0 && transcript[len(transcript)-1] != '\n' {
+		return RunningCommand{}, false, RunningUnknownPartialLine
+	}
+	in := readLastHumanInput(transcript)
+	switch in.Kind {
+	case HumanInputUnreadable:
+		return RunningCommand{}, false, RunningUnknownUnreadable
+	case HumanInputCommand:
+	default:
+		return RunningCommand{}, false, RunningUnknownNotTaskCommand
+	}
+	kind, err := paneinput.ParseCommandKind(in.Name)
+	if err != nil {
+		return RunningCommand{}, false, RunningUnknownNotTaskCommand
+	}
+	cmd, dropped, err = newRunningCommand(kind, in.Args)
+	if err != nil {
+		return RunningCommand{}, false, RunningUnknownNotTaskCommand
+	}
+	return cmd, dropped, RunningUnknownNone
+}

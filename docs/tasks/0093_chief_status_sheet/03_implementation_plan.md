@@ -108,14 +108,14 @@
 
 **変更するファイル:** `internal/chief/paneinput/paneinput.go`・`paneinput_test.go`、`internal/chief/records.go`・`records_test.go`、`internal/chief/send.go`・`send_test.go`、`internal/chief/transcript.go`、`internal/chief/screen_transcript.go`・`screen_test.go`、`internal/chief/running.go`・`running_test.go`、`internal/chief/reset_test.go`、`internal/chief/world_test.go`、`internal/chief/testdata/transcript/`
 
--   [ ] **ステップ 2-1**: `paneinput` に、名前から `CommandKind` を読む表（種類から名前を返す `CommandKind.Name` は、ステップ 1-4 で足した）と、`Command` の種類と検証した引数の文字列を読む関数を足す（設計書 3.1）。テストは、名前と種類の往復、表にない名前、0 の値の `Command` を確かめる。
--   [ ] **ステップ 2-2**: `SendRecord` に `Kind`・`Arg` を足し、`sendCommand` の経路だけが書く。引き継ぎの `/runplan` も `runplan` と書く。送信の終わりの記録の結果を読む関数を足す（設計書 3.1・3.5）。テストは、コマンドの送信と引き継ぎの送信（`TestSendTakeover` を広げる）が欄を書くこと、リセットと中継が書かないこと、欄のない記録が読めること、終わりの記録がない送信と結果ごとの読み取りを確かめる。
--   [ ] **ステップ 2-3**: `transcript.go` に、改行で終わるまで読み直す読み取り（§1.3 の決定 2）と、上限を超えたことを表す番兵のエラーを足す（`errors.Is` で確かめるため。上限のテストは小さな上限を渡す）。`world_test.go` の偽の `Deps` に、待たない `Sleep` を足す。
+-   [x] **ステップ 2-1**: `paneinput` に、名前から `CommandKind` を読む表（種類から名前を返す `CommandKind.Name` は、ステップ 1-4 で足した）と、`Command` の種類と検証した引数の文字列を読む関数を足す（設計書 3.1）。テストは、名前と種類の往復、表にない名前、0 の値の `Command` を確かめる。
+-   [x] **ステップ 2-2**: `SendRecord` に `Kind`・`Arg` を足し、`sendCommand` の経路だけが書く。引き継ぎの `/runplan` も `runplan` と書く。送信の終わりの記録の結果を読む関数を足す（設計書 3.1・3.5）。テストは、コマンドの送信と引き継ぎの送信（`TestSendTakeover` を広げる）が欄を書くこと、リセットと中継が書かないこと、欄のない記録が読めること、終わりの記録がない送信と結果ごとの読み取りを確かめる。
+-   [x] **ステップ 2-3**: `transcript.go` に、改行で終わるまで読み直す読み取り（§1.3 の決定 2）と、上限を超えたことを表す番兵のエラーを足す（`errors.Is` で確かめるため。上限のテストは小さな上限を渡す）。`world_test.go` の偽の `Deps` に、待たない `Sleep` を足す。
     -   テストは、`Deps.Sleep` の差し込みで、3 回目の読み直しで改行で終わる場合と、終わらずに決まらない場合、待ちの間隔が 200 ms であること、待ちが失敗した場合を確かめる。
     -   リセットの確かめについては、最後の行が完全な JSON で改行だけがない記録で、今までどおり読めること（読み直さず、`Sleep` を呼ばないこと）を `reset_test.go` で確かめる。新しい読み取りは、同じ記録で決まらない（`partial_line`）ことを確かめる。
--   [ ] **ステップ 2-4**: `screen_transcript.go` に、改行で終わる記録から人の最後の入力を `RunningCommand` で返す入口を書く（設計書 3.5）。`readLastHumanInput` は変えない。テストは、`testdata/transcript/` のすべてのサンプル、5 つの名前とほかの名前、自由な文、人の入力がない記録、読めない記録、検証できない引数を確かめる。
--   [ ] **ステップ 2-5**: `running.go` に、pane ごとの決め方（AC-11）、まとめ方（AC-12）、モデル（AC-14）、決まらない理由（`RunningUnknown`）を書く（設計書 3.5・6.1）。行にはまだつながない。テストが確かめるのは、設計書 7.1 の「実行中のコマンド」の OpenCode の 6 つの記録、名前の表にない `kind` を持つ記録、Claude Code のサンプル、2 つの pane が同じコマンド・違うコマンド・片方が決まらない場合、検証できない引数を落とした pane、モデルを示す 3 つの条件、決まらない理由のすべてである。
--   [ ] **ステップ 2-6**: PR の説明に次の 2 点を書く。この PR から送信の記録に `kind`・`arg` が入ること。この PR より前の道具に戻すとその記録を読めないので、戻すときは送信の記録を消すこと。
+-   [x] **ステップ 2-4**: `screen_transcript.go` に、改行で終わる記録から人の最後の入力を `RunningCommand` で返す入口を書く（設計書 3.5）。`readLastHumanInput` は変えない。テストは、`testdata/transcript/` のすべてのサンプル、5 つの名前とほかの名前、自由な文、人の入力がない記録、読めない記録、検証できない引数を確かめる。
+-   [x] **ステップ 2-5**: `running.go` に、pane ごとの決め方（AC-11）、まとめ方（AC-12）、モデル（AC-14）、決まらない理由（`RunningUnknown`）を書く（設計書 3.5・6.1）。行にはまだつながない。テストが確かめるのは、設計書 7.1 の「実行中のコマンド」の OpenCode の 6 つの記録、名前の表にない `kind` を持つ記録、Claude Code のサンプル、2 つの pane が同じコマンド・違うコマンド・片方が決まらない場合、検証できない引数を落とした pane、モデルを示す 3 つの条件、決まらない理由のすべてである。
+-   [x] **ステップ 2-6**: PR の説明に次の 2 点を書く。この PR から送信の記録に `kind`・`arg` が入ること。この PR より前の道具に戻すとその記録を読めないので、戻すときは送信の記録を消すこと。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。`snapshot` と `tick` の出力は変わらない。
 
