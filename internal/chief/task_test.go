@@ -568,18 +568,28 @@ func TestTasksReadDir(t *testing.T) {
 			t.Errorf("ReadDir = %+v, Read = %+v", byDir, byBranch)
 		}
 	})
+	// A name that is not a task directory's form is refused before git runs;
+	// a well-formed name origin/main lacks is refused after the listing.
 	for name, dir := range map[string]string{
 		"a name that is not a task directory": "../0001_test_task",
 		"a slash":                             "0001_test_task/x",
 		"no number":                           "test_task",
-		"a directory origin/main lacks":       "0002_test_task",
 	} {
 		t.Run(name, func(t *testing.T) {
 			rec := newRecorder(t)
-			rec.reply(lsTasks, []byte("docs/tasks/0001_test_task\x00"))
 			if _, err := NewTasks(rec.commands(nil)).ReadDir(t.Context(), wt, dir); !errors.Is(err, errTaskDocument) {
 				t.Errorf("ReadDir(%q) error = %v, want errTaskDocument", dir, err)
 			}
+			if calls := rec.recorded(); len(calls) != 0 {
+				t.Errorf("git ran for a malformed name: %v", calls)
+			}
 		})
 	}
+	t.Run("a directory origin/main lacks", func(t *testing.T) {
+		rec := newRecorder(t)
+		rec.reply(lsTasks, []byte("docs/tasks/0001_test_task\x00"))
+		if _, err := NewTasks(rec.commands(nil)).ReadDir(t.Context(), wt, "0002_test_task"); !errors.Is(err, errTaskDocument) {
+			t.Errorf("error = %v, want errTaskDocument", err)
+		}
+	})
 }

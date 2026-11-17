@@ -29,7 +29,7 @@ func spaceHome(t *testing.T) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("/tmp", "ts")
 	if err != nil {
-		t.Skipf("no /tmp to make a home in: %v", err)
+		t.Fatalf("make a home under /tmp: %v", err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	resolved, err := filepath.EvalSymlinks(dir)

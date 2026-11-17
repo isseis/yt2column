@@ -297,10 +297,8 @@ func TestReadIssueRuns(t *testing.T) {
 		if len(calls) != 1 || calls[0].dir != dir {
 			t.Fatalf("calls = %+v, want one in %s", calls, dir)
 		}
-		for _, arg := range calls[0].args {
-			if arg == "--jq" || arg == "-q" || arg == "--template" || arg == "-X" || arg == "--method" || arg == "--input" {
-				t.Errorf("the call has %s", arg)
-			}
+		if !slices.Equal(calls[0].args, issueArgs(issue)) {
+			t.Errorf("args = %v", calls[0].args)
 		}
 		for _, e := range calls[0].env {
 			if strings.HasPrefix(e, "GH_REPO=") || strings.HasPrefix(e, "GH_HOST=") {
@@ -343,14 +341,35 @@ func TestReadIssueRuns(t *testing.T) {
 	})
 }
 
-// TestIssueQueryIsAQuery checks the question is a query and not a mutation,
-// the property that lets the recorder pass the call as a read.
-func TestIssueQueryIsAQuery(t *testing.T) {
-	if !strings.HasPrefix(issueQuery, "query(") {
-		t.Errorf("the operation is not a query: %.20s", issueQuery)
+// TestRecorderRejectsOtherGitAndHerdrWrites pins the recorder's other new
+// rules: only the tool's one git grep passes, and the worktree and herdr
+// operations that write do not.
+func TestRecorderRejectsOtherGitAndHerdrWrites(t *testing.T) {
+	passes := []recordedCall{
+		{name: gitProgram, args: issueLineSearch},
+		{name: gitProgram, args: []string{"worktree", "list", "--porcelain"}},
+		{name: gitProgram, args: []string{"merge-base", "--is-ancestor", "a", "b"}},
+		{name: herdrProgram, args: []string{"pane", "list"}},
+		{name: herdrProgram, args: []string{"pane", "process-info", "--pane", "w1:p1"}},
 	}
-	if strings.Contains(strings.ToLower(issueQuery), "mutation") {
-		t.Error("the question mentions a mutation")
+	for _, c := range passes {
+		if !isReadOnly(c) {
+			t.Errorf("the recorder fails %s", c.line())
+		}
+	}
+	fails := []recordedCall{
+		{name: gitProgram, args: append(slices.Clone(issueLineSearch), "-O", "cmd")},
+		{name: gitProgram, args: []string{"grep", "-O", "cmd", "x"}},
+		{name: gitProgram, args: []string{"worktree", "add", "x"}},
+		{name: gitProgram, args: []string{"worktree", "remove", "x"}},
+		{name: gitProgram, args: []string{"merge-base", "a", "b"}},
+		{name: herdrProgram, args: []string{"pane", "close", "w1:p1"}},
+		{name: herdrProgram, args: []string{"workspace", "close", "w1"}},
+	}
+	for _, c := range fails {
+		if isReadOnly(c) {
+			t.Errorf("the recorder passes %s", c.line())
+		}
 	}
 }
 

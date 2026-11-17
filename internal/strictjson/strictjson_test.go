@@ -810,8 +810,9 @@ func TestObjectCollectExactCase(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CollectExactCase error = %v", err)
 		}
-		if len(consumed) != 1 {
-			t.Errorf("CollectExactCase returned %d members, want 1", len(consumed))
+		title, err := RequiredString(consumed, "title")
+		if len(consumed) != 1 || err != nil || title != "x" {
+			t.Errorf("CollectExactCase = %v (title %q, %v), want only title x", consumed, title, err)
 		}
 	})
 	t.Run("rejects a duplicate listed member", func(t *testing.T) {

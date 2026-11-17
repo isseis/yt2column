@@ -200,6 +200,21 @@ func TestGitIsAncestor(t *testing.T) {
 	}
 }
 
+// TestIsAncestorRefusesBeforeRunningGit checks that an argument that is not a
+// full commit ID never reaches git, where an option could be read.
+func TestIsAncestorRefusesBeforeRunningGit(t *testing.T) {
+	rec := newRecorder(t)
+	git := NewGitReader(rec.commands(nil))
+	for _, bad := range []string{"--all", "HEAD", "-h", strings.Repeat("A", 40), strings.Repeat("0", 39)} {
+		if _, err := git.IsAncestor(t.Context(), "/work/tree", bad, strings.Repeat("0", 40)); !errors.Is(err, errGitOutput) {
+			t.Errorf("IsAncestor(%q) = %v, want errGitOutput", bad, err)
+		}
+	}
+	if calls := rec.recorded(); len(calls) != 0 {
+		t.Errorf("git ran: %v", calls)
+	}
+}
+
 // TestGitCleanCountsStagedAndNestedFiles runs Clean against the real git: a
 // staged change and an untracked file in a nested new directory are not
 // clean, and an ignored file is.
