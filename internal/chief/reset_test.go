@@ -3,10 +3,14 @@
 package chief
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"os"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // withInput returns a Claude Code screen with text typed into its empty
@@ -290,5 +294,37 @@ func TestNoResetAfterAnUnrecordedRunpr(t *testing.T) {
 	}
 	if typed := sw.rec.prompts(); len(typed) != 2 {
 		t.Errorf("typed %v; want only /new and /runpr", typed)
+	}
+}
+
+// TestResetCheckDoesNotWaitForALine checks that the re-reads for display do
+// not reach the reset's check: a transcript whose last line is whole JSON
+// without its newline is read by the check as before, at once and without a
+// wait, while the read for display finds it still ends inside a line.
+func TestResetCheckDoesNotWaitForALine(t *testing.T) {
+	sw := newSendWorld(t)
+	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
+	sw.firstPane().ran = "/mkarch 0001"
+	deps := sw.finish()
+	p := sw.firstPane()
+	path := sw.transcript(p, p.Session)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, bytes.TrimSuffix(data, []byte("\n")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waits := 0
+	deps.Sleep = func(context.Context, time.Duration) error {
+		waits++
+		return nil
+	}
+	sc := sw.sendContextOf(deps)
+	if reason, detail := sc.lastInputMadePR(sc.ws.Agents[0], maker{name: "mkarch", args: "0001"}); reason != NotSentUnknown || waits != 0 {
+		t.Errorf("lastInputMadePR = %s %q after %d waits; want the check passed at once", reason, detail, waits)
+	}
+	if _, err := readCompleteTranscript(context.Background(), deps.Sleep, path, sessionTranscriptLimit); !errors.Is(err, errPartialLine) {
+		t.Errorf("readCompleteTranscript error = %v, want errPartialLine", err)
 	}
 }
