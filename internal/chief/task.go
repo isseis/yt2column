@@ -749,6 +749,14 @@ func branchTask(branch string) (task paneinput.TaskID, slug string, ok bool) {
 	return task, slug, true
 }
 
+// taskDirMatches reports whether dir is a task directory whose name gives the
+// slug of the branch: the directory form holds, and "_" replaced by "-" is the
+// slug.
+func taskDirMatches(dir, slug string) bool {
+	_, ok := tasknaming.ParseTaskDir(dir)
+	return ok && strings.ReplaceAll(dir, "_", "-") == slug
+}
+
 // TaskDocs is what origin/main holds for a task.
 type TaskDocs struct {
 	Task paneinput.TaskID
@@ -799,9 +807,7 @@ func (t Tasks) Read(ctx context.Context, worktree, branch string) (TaskDocs, err
 		return docs, nil
 	case len(dirs) > 1:
 		return TaskDocs{}, fmt.Errorf("%w: %d directories for task %s", errTaskDocument, len(dirs), task)
-	}
-	_, dirOK := tasknaming.ParseTaskDir(dirs[0])
-	if !dirOK || strings.ReplaceAll(dirs[0], "_", "-") != slug {
+	case !taskDirMatches(dirs[0], slug):
 		return TaskDocs{}, fmt.Errorf("%w: directory %q does not match branch %q", errTaskDocument, dirs[0], branch)
 	}
 	docs.Dir = taskRoot + "/" + dirs[0]

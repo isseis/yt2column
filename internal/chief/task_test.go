@@ -356,3 +356,15 @@ func TestTasksRead(t *testing.T) {
 		}
 	})
 }
+
+// TestTasksReadRejectsWrongDirectoryForm reads a directory whose name the
+// directory form rejects but whose slug matches the branch, which only the
+// form check can catch.
+func TestTasksReadRejectsWrongDirectoryForm(t *testing.T) {
+	const wt = "/work/tree"
+	rec := newRecorder(t)
+	rec.reply("git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/", []byte("docs/tasks/0001_test-task\x00"))
+	if _, err := NewTasks(rec.commands(nil)).Read(context.Background(), wt, "user/0001-test-task-02"); !errors.Is(err, errTaskDocument) {
+		t.Errorf("error = %v, want errTaskDocument", err)
+	}
+}
