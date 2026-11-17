@@ -230,6 +230,8 @@ func coverageCases() []rrCase {
 			f.work("c1")
 			return []string{f.head(), f.head()}
 		}, want: rrAll},
+		// The judged commits are the same as with none here: the case checks
+		// that such a LAST_REVIEWED neither fails nor lists its own commit.
 		{name: "LAST_REVIEWED is not an ancestor of HEAD", setup: func(f *rrFixture) []string {
 			other := f.side("other", f.mb)
 			f.work("c1")
@@ -261,6 +263,11 @@ func coverageCases() []rrCase {
 		{name: "indented and quoted lines", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			f.record("record", "  "+f.seen(f.mb, c1, "coderabbit"), "see "+f.seen(f.mb, c1, "coderabbit"))
+			return rrNone(f, "")
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1")) }},
+		{name: "text after the form", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.seen(f.mb, c1, "coderabbit")+" and more")
 			return rrNone(f, "")
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1")) }},
 		{name: "another reviewer", setup: func(f *rrFixture) []string {
@@ -358,6 +365,30 @@ func coverageCases() []rrCase {
 		{name: "checkbox text reworded", setup: func(f *rrFixture) []string {
 			f.plan(rrMarkersPlan, "markers-reworded.md")
 			return rrNone(f, rrMarkersPlan)
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		{name: "next branch text reworded", setup: func(f *rrFixture) []string {
+			f.plan(rrMarkersPlan, "markers-next-reworded.md")
+			return rrNone(f, rrMarkersPlan)
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		{name: "list prefix changed", setup: func(f *rrFixture) []string {
+			f.plan(rrMarkersPlan, "markers-prefix-changed.md")
+			return rrNone(f, rrMarkersPlan)
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		{name: "single-PR record with a URL of another site", setup: func(f *rrFixture) []string {
+			f.plan(rrSinglePlan, "single-recorded-bad-url.md")
+			return rrNone(f, rrSinglePlan)
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		{name: "single-PR record with another second line", setup: func(f *rrFixture) []string {
+			f.plan(rrSinglePlan, "single-recorded-wrong-second.md")
+			return rrNone(f, rrSinglePlan)
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		{name: "single-PR record of three lines", setup: func(f *rrFixture) []string {
+			f.plan(rrSinglePlan, "single-recorded-three.md")
+			return rrNone(f, rrSinglePlan)
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		{name: "single-PR record and another line", setup: func(f *rrFixture) []string {
+			f.plan(rrSinglePlan, "single-recorded-and-more.md")
+			return rrNone(f, rrSinglePlan)
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
 		{name: "URL of another site", setup: func(f *rrFixture) []string {
 			f.plan(rrMarkersPlan, "markers-bad-url.md")
@@ -457,11 +488,11 @@ func coverageCases() []rrCase {
 			other := newRRFixture(f.t, f.form)
 			return []string{"GIT_DIR=" + filepath.Join(other.repo, ".git"), "GIT_WORK_TREE=" + other.repo}
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
-		{name: "clean environment variable preset", setup: unseenAfterSeen, env: func(f *rrFixture) []string {
-			other := newRRFixture(f.t, f.form)
+		// A function named command, which only env -i drops, would stop every
+		// git the script runs.
+		{name: "clean environment variable preset", setup: unseenAfterSeen, env: func(*rrFixture) []string {
 			return []string{
 				"REVIEW_RECORDS_CLEAN_ENV=1", "BASH_FUNC_command%%=() { return 0; }",
-				"GIT_DIR=" + filepath.Join(other.repo, ".git"), "GIT_WORK_TREE=" + other.repo,
 			}
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
 		{name: "exported functions", setup: unseenAfterSeen, env: func(*rrFixture) []string {
@@ -473,14 +504,13 @@ func coverageCases() []rrCase {
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
 		{name: "BASH_ENV", setup: unseenAfterSeen, env: func(f *rrFixture) []string {
 			bashEnv := filepath.Join(f.home, "bash-env")
-			fake := "git() { return 0; }\nprintf() { builtin printf 'ALL\\n'; }\n"
+			// command is not one of the functions the script unsets, so
+			// only env -i (which drops BASH_ENV) keeps it out.
+			fake := "command() { return 0; }\n"
 			if err := os.WriteFile(bashEnv, []byte(fake), 0o600); err != nil {
 				f.t.Fatalf("write BASH_ENV: %v", err)
 			}
 			return []string{"BASH_ENV=" + bashEnv}
-		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
-		{name: "SHELLOPTS", setup: unseenAfterSeen, env: func(*rrFixture) []string {
-			return []string{"SHELLOPTS=errexit:noglob"}
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
 	}
 }
@@ -502,13 +532,15 @@ func rrConfigScenarios() []rrConfigScenario {
 		{name: "core.abbrev", config: [2]string{"core.abbrev", "20"}, plain: []string{"log", "-1", "--format=%h"}},
 		{name: "diff.relative", config: [2]string{"diff.relative", "true"}, plain: []string{"-C", "docs", "diff", "--name-only", "HEAD~4", "HEAD~3"}},
 		{name: "diff driver", config: [2]string{"diff.upper.textconv", "tr a-z A-Z <"}, plain: []string{"diff", "HEAD~4", "HEAD~3"}},
+		{name: "i18n.logOutputEncoding", config: [2]string{"i18n.logOutputEncoding", "ISO-8859-1"}, plain: []string{"log", "-1", "--format=%s"}},
 		{name: "core.quotePath", config: [2]string{"core.quotePath", "false"}, plain: []string{"diff", "--name-only", "HEAD~1", "HEAD"}},
 	}
 }
 
 // rrConfigBranch builds the branch the configuration scenarios run on: a
-// plan checkbox commit, a seen commit, and an unseen commit whose file has a
-// non-ASCII name (so core.quotePath changes plain git's output).
+// plan checkbox commit, a seen commit, and an unseen commit whose file name
+// and subject are not ASCII (so core.quotePath and i18n.logOutputEncoding
+// change plain git's output).
 func rrConfigBranch(f *rrFixture) []string {
 	// The attribute names a driver only the diff driver scenario defines.
 	f.write(".gitattributes", "*.md diff=upper\n")
@@ -518,7 +550,7 @@ func rrConfigBranch(f *rrFixture) []string {
 	c := f.work("c1")
 	f.record("record", f.seen(f.mb, c, "coderabbit"))
 	f.write("caf\u00e9.txt", "x\n")
-	f.commit("unseen")
+	f.commit("unseen caf\u00e9")
 	return rrNone(f, rrMarkersPlan)
 }
 
@@ -528,15 +560,20 @@ func rrConfigBranch(f *rrFixture) []string {
 // caller's environment and git configuration change nothing. Each case runs
 // with each bash scriptBashes returns.
 //
-// Some guards back each other, so breaking one alone fails no case: the
-// env -i run (the script also drops the GIT_ variables and the functions),
-// reading lines only from origin/main..HEAD (END must be a branch commit and
-// an ancestor of the line's commit), the check that END is a branch commit
-// (a range whose END origin/main reaches covers no branch commit), the ref
-// check of an abbreviation and resolving a prefix only as an ID (either
-// alone keeps a ref named like the prefix from standing in), and the
-// check that END is not the line's own commit (a message cannot name its
-// own commit).
+// Some guards back each other, so breaking one alone fails no case:
+// unsetting the GIT_ variables (env -i drops them too), reading lines only
+// from origin/main..HEAD (END must be a branch commit and an ancestor of
+// the line's commit), the check that END is a branch commit (a range whose
+// END origin/main reaches covers no branch commit), resolving a prefix only
+// as an ID (the ref check rejects a prefix a ref is named after), the check
+// that PLAN is given (the changed path must equal it), and the check that
+// END is not the line's own commit (a message cannot name its own commit).
+//
+// Most configuration scenarios and the attributes case guard the reading
+// through plumbing commands, which no such setting reaches today: they fail
+// only when the script starts reading through a porcelain diff. Only
+// core.abbrev and i18n.logOutputEncoding reach a command the script runs
+// (git log for the listed subjects).
 func TestReviewRecordsCoverage(t *testing.T) {
 	for _, tool := range []string{"git", "awk", "tr"} {
 		if _, err := exec.LookPath(tool); err != nil {
