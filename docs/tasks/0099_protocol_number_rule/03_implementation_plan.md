@@ -165,44 +165,44 @@
 
 **変更するファイル:** `internal/doctestutil/protocol.go`、`internal/doctestutil/protocol_test.go`、`cmd/fixprguard/docs_test.go`、`cmd/codexreview/docs_test.go`
 
-- [ ] `ToolMergepr` を足し、`protocolTools` に加える。`ProtocolFlag.Tool` の説明を合わせる。
-- [ ] `ProtocolTools()` と `ProtocolCallers(doc, names)` を公開する（§1.3 の決定 3）。今の 3 つのガードが `--protocol` を割り当てる道具は変えない。
-- [ ] `protocol_test.go::TestProtocolFlags` に `mergepr` の呼び出しの行を、`protocol_test.go::TestProtocolCallers` に、`cmd/` の下の名前を渡したときと、どの名前もない `--protocol` の行を足す。
-- [ ] `TestFixprguardProtocolMismatches` と `TestCodexreviewProtocolMismatches` に、`mergepr` の呼び出しの `--protocol` を読み飛ばす行を足す。
+- [x] `ToolMergepr` を足し、`protocolTools` に加える。`ProtocolFlag.Tool` の説明を合わせる。
+- [x] `ProtocolTools()` と `ProtocolCallers(doc, names)` を公開する（§1.3 の決定 3）。今の 3 つのガードが `--protocol` を割り当てる道具は変えない。
+- [x] `protocol_test.go::TestProtocolFlags` に `mergepr` の呼び出しの行を、`protocol_test.go::TestProtocolCallers` に、`cmd/` の下の名前を渡したときと、どの名前もない `--protocol` の行を足す。
+- [x] `TestFixprguardProtocolMismatches` と `TestCodexreviewProtocolMismatches` に、`mergepr` の呼び出しの `--protocol` を読み飛ばす行を足す。
 
 #### ステップ 3-2: コマンドの定義
 
 **変更するファイル:** `.claude/commands/mergepr.md`、`.claude/commands/runpr.md`
 
-- [ ] `mergepr` のすべての呼び出しに、位置引数より前に `--protocol 1` を書く（§1.4 の呼び出しの一覧、設計書 3.6）。文中のコードスパンの言及（`runpr.md:780`・`:1212`）も呼び出しとして読まれる（ステップ 3-4 のガード）ので、`--protocol` を付けるか、コマンドの形でない書き方に直す。`` `/mergepr <PR>` ``（`runpr.md:263`・`:621`）は、スラッシュコマンドで `mergepr` の呼び出しではないが、同じガードに読まれるので、`--protocol` を付けずに、空白を含むコードスパンにならない書き方に直す。
-- [ ] `mergepr.md` の手順 1・4 に、番号の確かめで止まったときの報告を書く（設計書 3.6）。
-- [ ] `runpr.md` の step 4 の項 2・4・5 に、止まったときの扱いを書く（設計書 3.6、1.2 の承認の commit の扱い、AC-14）。項 4 の今の「report and stop」は、番号の確かめの停止も含むように書き直す。`internal/chief` の画面の読み取りが対象にする、`/runpr` の質問と報告の決まった文は変えない。
+- [x] `mergepr` のすべての呼び出しに、位置引数より前に `--protocol 1` を書く（§1.4 の呼び出しの一覧、設計書 3.6）。文中のコードスパンの言及（`runpr.md:780`・`:1212`）も呼び出しとして読まれる（ステップ 3-4 のガード）ので、`--protocol` を付けるか、コマンドの形でない書き方に直す。`` `/mergepr <PR>` ``（`runpr.md:263`・`:621`）は、スラッシュコマンドで `mergepr` の呼び出しではないが、同じガードに読まれるので、`--protocol` を付けずに、空白を含むコードスパンにならない書き方に直す。
+- [x] `mergepr.md` の手順 1・4 に、番号の確かめで止まったときの報告を書く（設計書 3.6）。
+- [x] `runpr.md` の step 4 の項 2・4・5 に、止まったときの扱いを書く（設計書 3.6、1.2 の承認の commit の扱い、AC-14）。項 4 の今の「report and stop」は、番号の確かめの停止も含むように書き直す。`internal/chief` の画面の読み取りが対象にする、`/runpr` の質問と報告の決まった文は変えない。
 
 #### ステップ 3-3: 手引き
 
 **変更するファイル:** `docs/dev/guides/mergepr_guide.md`、`docs/dev/guides/fixprguard_guide.md`、`docs/dev/conventions/package_reference.md`
 
-- [ ] `mergepr_guide.md` に、設計書 3.6 の「`mergepr_guide.md`」に挙げた項目を書く。コマンドの例は、ステップ 3-4 のガードが引数の解析に通す。
+- [x] `mergepr_guide.md` に、設計書 3.6 の「`mergepr_guide.md`」に挙げた項目を書く。コマンドの例は、ステップ 3-4 のガードが引数の解析に通す。
 - [ ] `fixprguard_guide.md` の §9 と §3 を、AC-18 の 2 点だけ直す。直したコミットの後、§7 の「Diff record (AC-18)」に、`requirements_process.md` の「`diff` verification」の固定のコマンドで記録する。
-- [ ] `package_reference.md` の `internal/mergepr` の行に、番号の確かめを足す。
+- [x] `package_reference.md` の `internal/mergepr` の行に、番号の確かめを足す。
 
 #### ステップ 3-4: 作業ツリーの道具と、文書のガード
 
 **変更するファイル:** `internal/mergepr/protocolcheck.go`、`internal/mergepr/protocolcheck_test.go`、`cmd/mergepr/docs_test.go`（新規）
 
-- [ ] `mergepr.WorktreeProtocolTools(root)` を書く（§1.3 の決定 3）。ファイルを読む行には、ガードのテストから呼ぶ用途に限ることを理由に書いた `//nolint:gosec` を付ける。`protocolcheck_test.go::TestWorktreeProtocolTools` で、一時ディレクトリの作業ツリーについて、下の階層と `_test.go` を読まないことと、読めない値の道具を `unreadable` に返すことを確かめる。
-- [ ] `cmd/mergepr/docs_test.go::TestDocumentedProtocolMatches` で、コマンドの定義の `mergepr` の呼び出しの `--protocol` と、`mergepr_guide.md` の `--protocol` が `mergepr.Protocol` に等しいことを確かめる（`cmd/chief/docs_test.go:205` と同じ形）。`mergepr_guide.md` には、少なくとも 1 つあることを求める。
-- [ ] `cmd/mergepr/docs_test.go::TestDocumentedInvocationsParse` で、コマンドの定義と `mergepr_guide.md` の `mergepr` のすべての呼び出しを `doctestutil.Invocations` で取り出し、`<state-file>` などのプレースホルダに値を入れて、ステップ 2-3 の引数を読むだけの関数に通す（`cmd/chief/docs_test.go:257` と同じ形）。`mergepr.md` と `runpr.md` が、4 つのサブコマンドをどれも呼ぶことも求める。
-- [ ] `cmd/mergepr/docs_test.go::TestProtocolToolsAgree` で、設計書 1.2 の 3 つの集合（`WorktreeProtocolTools("../..")` の道具、コマンドの定義に `ProtocolCallers` を `cmd/` の下のディレクトリの名前で当てた結果、`ProtocolTools()`）が等しいことと、`unreadable` が空であることを確かめる（AC-19）。
-- [ ] 次の 2 つを確かめ、結果をコミットのメッセージに書く。`runpr.md` の呼び出しの 1 つから `--protocol` を消すと、`TestDocumentedInvocationsParse` が失敗する。`internal/mergepr` の定数を `var` に変えたときと、`ProtocolTools()` から `mergepr` を抜いたときは、`TestProtocolToolsAgree` が失敗する。
+- [x] `mergepr.WorktreeProtocolTools(root)` を書く（§1.3 の決定 3）。ファイルを読む行には、ガードのテストから呼ぶ用途に限ることを理由に書いた `//nolint:gosec` を付ける。`protocolcheck_test.go::TestWorktreeProtocolTools` で、一時ディレクトリの作業ツリーについて、下の階層と `_test.go` を読まないことと、読めない値の道具を `unreadable` に返すことを確かめる。
+- [x] `cmd/mergepr/docs_test.go::TestDocumentedProtocolMatches` で、コマンドの定義の `mergepr` の呼び出しの `--protocol` と、`mergepr_guide.md` の `--protocol` が `mergepr.Protocol` に等しいことを確かめる（`cmd/chief/docs_test.go:205` と同じ形）。`mergepr_guide.md` には、少なくとも 1 つあることを求める。
+- [x] `cmd/mergepr/docs_test.go::TestDocumentedInvocationsParse` で、コマンドの定義と `mergepr_guide.md` の `mergepr` のすべての呼び出しを `doctestutil.Invocations` で取り出し、`<state-file>` などのプレースホルダに値を入れて、ステップ 2-3 の引数を読むだけの関数に通す（`cmd/chief/docs_test.go:257` と同じ形）。`mergepr.md` が 4 つのサブコマンドをどれも呼ぶことと、`runpr.md` が自分で呼ぶ `prepare`・`cleanup`・`discard` を呼ぶことも求める（`runpr.md` は `merge` を `mergepr.md` の手順 4 で呼ぶ）。Mermaid の図と `text` のブロック（出力の例と `/mergepr` の例）は呼び出しとして読まない。
+- [x] `cmd/mergepr/docs_test.go::TestProtocolToolsAgree` で、設計書 1.2 の 3 つの集合（`WorktreeProtocolTools("../..")` の道具、コマンドの定義に `ProtocolCallers` を `cmd/` の下のディレクトリの名前で当てた結果、`ProtocolTools()`）が等しいことと、`unreadable` が空であることを確かめる（AC-19）。
+- [x] 次の 2 つを確かめ、結果をコミットのメッセージに書く。`runpr.md` の呼び出しの 1 つから `--protocol` を消すと、`TestDocumentedInvocationsParse` が失敗する。`internal/mergepr` の定数を `var` に変えたときと、`ProtocolTools()` から `mergepr` を抜いたときは、`TestProtocolToolsAgree` が失敗する。
 
 #### ステップ 3-5: CLAUDE.md・CI・ADR-0014
 
 **変更するファイル:** `CLAUDE.md`、`.github/workflows/ci.yml`、`docs/dev/adr/0014-deterministic-checks-in-go.md`
 
-- [ ] CLAUDE.md の「Development Notes」の下に「Protocol numbers」の節を立て、設計書 3.8 の 5 項目を英語で書く（AC-01〜AC-05・AC-17・AC-20）。止まったときの直し方は `mergepr_guide.md` を参照する。
-- [ ] `ci.yml:215` の `doc-guard` の `go test` の対象と、`CLAUDE.md:707` の一覧の文に `./cmd/mergepr` を足す。`CLAUDE.md:690-698` の、文書を読むガードの一覧に `cmd/mergepr` のガードを足す。
-- [ ] ADR-0014 の、まだ反映していないことを述べる段落（`0014-deterministic-checks-in-go.md:27`）を消す（設計書 3.8）。
+- [x] CLAUDE.md の「Development Notes」の下に「Protocol numbers」の節を立て、設計書 3.8 の 5 項目を英語で書く（AC-01〜AC-05・AC-17・AC-20）。止まったときの直し方は `mergepr_guide.md` を参照する。
+- [x] `ci.yml:215` の `doc-guard` の `go test` の対象と、`CLAUDE.md:707` の一覧の文に `./cmd/mergepr` を足す。`CLAUDE.md:690-698` の、文書を読むガードの一覧に `cmd/mergepr` のガードを足す。
+- [x] ADR-0014 の、まだ反映していないことを述べる段落（`0014-deterministic-checks-in-go.md:27`）を消す（設計書 3.8）。
 - [ ] PR の説明に、入れ替えの手順（§5 の R-03）と、§7 の「PR-2 の実行の記録」の項目を書く。
 
 **完了の条件:** グリーンゲートと `make deadcode` が通る。`go test -tags test ./cmd/mergepr` が `doc-guard` の対象として通る。

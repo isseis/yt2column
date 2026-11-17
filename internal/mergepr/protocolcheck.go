@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -721,4 +723,49 @@ func commitChange(pc prCommit, pkg string, readings map[string]map[string]protoc
 // removedBy reports whether one of the changes made the number absent.
 func removedBy(changes []protocolChange) bool {
 	return slices.ContainsFunc(changes, func(c protocolChange) bool { return c.After.State == protocolAbsent })
+}
+
+// WorktreeProtocolTools reads the work tree at root as the check reads a
+// revision: the .go files directly inside root/internal/<name>/, without
+// _test.go files. It returns the names of the tools, the packages with a
+// number or an unreadable declaration, sorted, and the names of those whose
+// declaration is unreadable. It exists for the document guard that compares
+// the tools the check finds with the tools the documents call with
+// --protocol; the merge itself reads git trees only.
+func WorktreeProtocolTools(root string) (tools, unreadable []string, err error) {
+	paths, err := filepath.Glob(filepath.Join(root, toolDir, "*", "*.go"))
+	if err != nil {
+		return nil, nil, err
+	}
+	var lines []protocolLine
+	for _, p := range paths {
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			return nil, nil, err
+		}
+		rel = filepath.ToSlash(rel)
+		if _, ok := toolPackage(rel); !ok {
+			continue // a _test.go file
+		}
+		data, err := os.ReadFile(p) //nolint:gosec // only the document guard test calls this, on the repository's own work tree
+		if err != nil {
+			return nil, nil, err
+		}
+		for text := range strings.SplitSeq(string(data), "\n") {
+			if strings.Contains(text, protocolWord) {
+				lines = append(lines, protocolLine{Path: rel, Text: text})
+			}
+		}
+	}
+	readings, err := classifyProtocolLines(lines)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, pkg := range slices.Sorted(maps.Keys(readings)) {
+		tools = append(tools, pkg)
+		if readings[pkg].value.State == protocolUnreadable {
+			unreadable = append(unreadable, pkg)
+		}
+	}
+	return tools, unreadable, nil
 }

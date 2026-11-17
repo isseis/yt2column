@@ -706,3 +706,40 @@ func TestUnreadableKindDescriptions(t *testing.T) {
 		seen[k.String()] = k
 	}
 }
+
+// TestWorktreeProtocolTools verifies that the work tree is read as a
+// revision is: a nested package and a _test.go file are not read, a package
+// without a declaration is not a tool, and an unreadable declaration makes
+// its tool both a tool and unreadable.
+func TestWorktreeProtocolTools(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"internal/alpha/alpha.go":           protocolSource("1"),
+		"internal/alpha/alpha_test.go":      protocolSource("2"),
+		"internal/beta/beta.go":             "package beta\n\nconst Protocol int = 1\n",
+		"internal/gamma/gamma.go":           "package gamma\n\ntype x struct{ Protocol int }\n",
+		"internal/delta/delta_test.go":      protocolSource("1"),
+		"internal/llm/claude/claude.go":     protocolSource("1"),
+		"cmd/epsilon/main.go":               protocolSource("1"),
+		"internal/zeta/testdata/fixture.go": protocolSource("1"),
+	}
+	for rel, content := range files {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatalf("create %s: %v", rel, err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	tools, unreadableTools, err := WorktreeProtocolTools(root)
+	if err != nil {
+		t.Fatalf("WorktreeProtocolTools error = %v", err)
+	}
+	if want := []string{"alpha", "beta"}; !slices.Equal(tools, want) {
+		t.Errorf("tools = %v, want %v", tools, want)
+	}
+	if want := []string{"beta"}; !slices.Equal(unreadableTools, want) {
+		t.Errorf("unreadable = %v, want %v", unreadableTools, want)
+	}
+}

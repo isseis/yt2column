@@ -92,6 +92,13 @@ func TestProtocolFlags(t *testing.T) {
 			[]ProtocolFlag{{"--protocol 2", "2", ""}},
 		},
 		{
+			// mergepr's flag is its own, after the subcommand, next to
+			// another tool's.
+			"mergepr_and_fixprguard",
+			"mergepr prepare --protocol 1 42 && fixprguard head --protocol 6\n",
+			[]ProtocolFlag{{"--protocol 1", "1", ToolMergepr}, {"--protocol 6", "6", ToolFixprguard}},
+		},
+		{
 			// A flag in prose with no tool before it is the fixprguard
 			// guard's, as all flags were.
 			"no_tool",
@@ -102,6 +109,31 @@ func TestProtocolFlags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := ProtocolFlags(tc.doc); !slices.Equal(got, tc.want) {
 				t.Errorf("ProtocolFlags = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestProtocolCallers pins which of the given names each --protocol belongs
+// to, read as ProtocolFlags reads a flag's tool, and that a flag with none of
+// them before it gives nothing.
+func TestProtocolCallers(t *testing.T) {
+	names := []string{"alpha", "beta"}
+	for _, tc := range []struct {
+		name string
+		doc  string
+		want []string
+	}{
+		{"one_call", "alpha run --protocol 1\n", []string{"alpha"}},
+		{"last_name_wins", "alpha beta --protocol 2\n", []string{"beta"}},
+		{"each_command", "alpha --protocol 1 && /bin/beta --protocol 2\n", []string{"alpha", "beta"}},
+		{"no_name", "pass --protocol 6 each time\n", nil},
+		{"known_tool_not_in_names", "fixprguard head --protocol 6\n", nil},
+		{"name_inside_a_word", "alphas --protocol 1\n", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ProtocolCallers(tc.doc, names); !slices.Equal(got, tc.want) {
+				t.Errorf("ProtocolCallers = %q, want %q", got, tc.want)
 			}
 		})
 	}
