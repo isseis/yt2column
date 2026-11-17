@@ -78,15 +78,8 @@ func (l Locator) In(t testing.TB, lang Lang) string {
 // The README locators. A guard test finds a section, a table, or a labelled
 // line of either version by these.
 var (
-	ReadmeServerHeading            = Locator{JA: "## localhost サーバ", EN: "## Localhost server"}
-	ReadmeRunServerHeading         = Locator{JA: "### サーバの起動", EN: "### Running the server"}
-	ReadmeInstallHostHeading       = Locator{JA: "### Native Messaging のホストのインストール", EN: "### Installing the native messaging host"}
 	ReadmeUpgradeHeading           = Locator{JA: "### 共有トークンの版からの更新", EN: "### Upgrading from the shared-token version"}
 	ReadmeRecommendedConfigHeading = Locator{JA: "### 推奨構成", EN: "### Recommended configuration"}
-	// ReadmeConfigFileHeading heads the server section's subsection on the
-	// configuration file, which states its path, its keys, its size limit,
-	// and the exit codes of config init.
-	ReadmeConfigFileHeading = Locator{JA: "### 設定ファイル", EN: "### Configuration file"}
 
 	// ReadmeVariableColumn and ReadmeUnsetColumn head the configuration
 	// table's first and third columns.
@@ -97,34 +90,4 @@ var (
 	// values. The values column finds the table: no other table has it.
 	ReadmeEffortProviderColumn = Locator{JA: "プロバイダ", EN: "Provider"}
 	ReadmeEffortValuesColumn   = Locator{JA: "受理する effort", EN: "Accepted efforts"}
-	// ReadmeExitCodeColumn heads the first column of the server's and the
-	// host's exit-code tables.
-	ReadmeExitCodeColumn = Locator{JA: "コード", EN: "Code"}
-	// ReadmeReasonColumn and ReadmeDisplayColumn head the two columns of the
-	// rejection-reason table. The reason column keeps the name of the
-	// response member it lists.
-	ReadmeReasonColumn  = Locator{JA: "reason", EN: "reason"}
-	ReadmeDisplayColumn = Locator{JA: "拡張の表示", EN: "extension shows"}
-	// ReadmeMacOSLabel and ReadmeOtherUnixLabel start the lines that state the
-	// socket path for each operating system.
-	ReadmeMacOSLabel     = Locator{JA: "macOS:", EN: "macOS:"}
-	ReadmeOtherUnixLabel = Locator{JA: "ほかの Unix:", EN: "other Unix:"}
-	// ReadmeConfigFileLabel is on the line that states the configuration
-	// file's path, which is the same on every operating system.
-	ReadmeConfigFileLabel = Locator{JA: "設定ファイル:", EN: "configuration file:"}
 )
-
-// RejectionDisplayIn returns how the version in lang writes the categories of
-// its rejection-reason table, failing t for a language that is not LangJA or
-// LangEN.
-func RejectionDisplayIn(t testing.TB, lang Lang) RejectionDisplaySpelling {
-	t.Helper()
-	switch lang {
-	case LangJA:
-		return RejectionDisplayJA
-	case LangEN:
-		return RejectionDisplayEN
-	}
-	t.Fatalf("no rejection display spelling for language %d", int(lang))
-	return RejectionDisplaySpelling{}
-}

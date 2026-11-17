@@ -53,29 +53,3 @@ func TestLocatorIn(t *testing.T) {
 		})
 	}
 }
-
-// TestRejectionDisplayIn checks that each README language gets its own
-// spelling of the display categories and that any other language fails.
-func TestRejectionDisplayIn(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		lang  Lang
-		want  RejectionDisplaySpelling
-		fails bool
-	}{
-		{"japanese", LangJA, RejectionDisplayJA, false},
-		{"english", LangEN, RejectionDisplayEN, false},
-		{"unknown language", LangUnknown, RejectionDisplaySpelling{}, true},
-		{"out of range", LangEN + 1, RejectionDisplaySpelling{}, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			recorder := &fatalRecorder{TB: t}
-			if got := RejectionDisplayIn(recorder, tc.lang); got != tc.want {
-				t.Errorf("RejectionDisplayIn = %+v, want %+v", got, tc.want)
-			}
-			if failed := recorder.message != ""; failed != tc.fails {
-				t.Errorf("RejectionDisplayIn reported a failure %t (%q), want %t", failed, recorder.message, tc.fails)
-			}
-		})
-	}
-}

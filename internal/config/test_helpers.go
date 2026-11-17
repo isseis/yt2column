@@ -16,18 +16,8 @@ import (
 	"github.com/isseis/yt2column/internal/llm/openaiparam"
 )
 
-// The server-relevant variable names and the socket path rule, exposed so the
-// documentation guard in cmd/yt2column-server and the internal/serversock
-// tests derive them from the code instead of copying them. Built only with the
-// test tag.
-
-// CacheDirEnvForTest is the environment variable naming the cache directory,
-// which LoadServer does not read.
-func CacheDirEnvForTest() string { return cacheDirEnv }
-
-// YtDlpEnvForTest is the environment variable naming the yt-dlp path, which
-// LoadServer does not read.
-func YtDlpEnvForTest() string { return ytDlpEnv }
+// The socket path rule, exposed so the internal/serversock tests derive it
+// from the code instead of copying it. Built only with the test tag.
 
 // SocketPathTailForTest returns the part of the socket path below HOME for
 // goos, starting with a separator. It panics for an operating system with no
@@ -113,14 +103,6 @@ func serverFileLocationForHome(goos, home string) serverFileLocation {
 		panic("config: no configuration file path for HOME " + home + ": " + err.Error())
 	}
 	return loc
-}
-
-// ServerFilePathTailForTest returns the part of the configuration file's path
-// below HOME for goos, starting with a separator. It panics for an operating
-// system with no rule.
-func ServerFilePathTailForTest(goos string) string {
-	const home = "/home"
-	return strings.TrimPrefix(serverFileLocationForHome(goos, home).path, home)
 }
 
 // ParseServerFileForTest parses data as the configuration file's content, as

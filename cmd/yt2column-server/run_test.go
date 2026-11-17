@@ -38,6 +38,9 @@ const configDocument = "README.en.md"
 // returns.
 var errBuildRefused = errors.New("the test refuses to build this component")
 
+// repositoryRoot is the path from cmd/yt2column-server to the repository root.
+const repositoryRoot = "../.."
+
 // TestStartupFailures checks each step that can stop the start: the exit code,
 // that run returns without serving, that standard error names the cause, that
 // no secret reaches it, and that the socket path is left as it was: no socket

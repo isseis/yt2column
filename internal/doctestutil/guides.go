@@ -16,16 +16,9 @@ const (
 	// CLIOutFileHeading is cli.md's section with the --out file example.
 	CLIOutFileHeading = "### `--out` のファイル"
 
-	// DevAPIHeading is development.md's section on the localhost server's
-	// HTTP API: the curl examples, the rejection-reason table, and the job
-	// API and its code tables.
-	DevAPIHeading = "## localhost サーバの API"
-	// DevServerHeading is development.md's section on running the server on
-	// the fake LLM.
-	DevServerHeading = "## fake の LLM でサーバを動かす"
-	// DevArgumentColumn and DevAcceptedColumn head development.md's table of
-	// the development server's arguments and the values each accepts.
-	DevArgumentColumn = "引数"
+	// DevAcceptedColumn heads the column of development.md's table of the
+	// development build's scenario variables that lists the values each
+	// accepts.
 	DevAcceptedColumn = "受理する値"
 	// DevBuildHeading is development.md's section on the extension's
 	// development build (make ext-build-dev). DevVariableColumn and
@@ -43,26 +36,4 @@ const (
 	// DevCLIIntegrationHeading is development.md's section on the CLI
 	// integration test.
 	DevCLIIntegrationHeading = "### CLI の統合テスト"
-
-	// DevReasonColumn, DevStatusColumn, and DevDisplayColumn head the three
-	// columns of development.md's rejection-reason table. The reason column
-	// keeps the name of the response member it lists.
-	DevReasonColumn  = "reason"
-	DevStatusColumn  = "ステータスコード"
-	DevDisplayColumn = "拡張の表示"
 )
-
-// DevAPICodeTableHeader returns the first column header of the development.md
-// table that lists the job API codes of the set named name, as
-// internal/server's test accessor names the set, and whether there is one. A
-// set the guide does not translate here has no header, so a new set fails the
-// guard until its locator is added.
-func DevAPICodeTableHeader(name string) (string, bool) {
-	header, ok := map[string]string{
-		"job state":  "ジョブの状態",
-		"step":       "工程",
-		"step state": "工程の状態",
-		"failure":    "失敗",
-	}[name]
-	return header, ok
-}

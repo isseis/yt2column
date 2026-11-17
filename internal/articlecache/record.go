@@ -16,9 +16,6 @@ const (
 	JobRunning                 // a generation job is running
 	JobDone                    // the article is stored
 	JobFailed                  // the generation failed
-	// jobStateEnd is not a state: it follows the last one, so an enumeration
-	// of the values includes one appended later.
-	jobStateEnd
 )
 
 // StageState is the state of one step (a writer.Stage) of a generation. The
