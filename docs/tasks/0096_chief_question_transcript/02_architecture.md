@@ -446,7 +446,7 @@ const permissionInputLimit = 2000
 |---|---|
 | 要確認 | `Unreadable` に `Why` を足す。行は「要確認」になる |
 | 質問 | `QuestionItem` を足す。`Question` は 3.2.2 のもの、`CallID` は呼び出しの ID、`Working` は待ち状態のもの、`Check` は 3.5.1 の照合値（`Working` が偽で、`RelayAllowed` のときだけ）。`Merge` が真なら `Row.MergeQuestion` を真にする |
-| 権限の確認 | `QuestionItem` を足す。`Question` は `permissionQuestion` で作る（`Kind` は `QuestionPermission`、`Relay` は `RelayBlockPermission`）。`Check` は空 |
+| 権限の確認 | `QuestionItem` を足す。`Question` は `permissionQuestion` で作る（`Kind` は `QuestionPermission`、`Relay` は `RelayBlockPermission`）。`CallID` は質問と同じく呼び出しの ID。`Check` は空 |
 | なし | 何も足さない。実行中かどうかは、今と同じく Herdr の状態で決まる（`internal/chief/state.go:418`） |
 
 -   OpenCode の pane は今のままである。
