@@ -236,25 +236,25 @@
 
 **前提:** PR-3 のマージの後、人が `make install-chief` で `main` の chief を入れ直し、`/chief` のセッションを起動し直してから（PR-3 が `Protocol` を変えるので、古い定義のセッションは `protocol_mismatch` で拒まれる）、ステップ 5-1 の実地の確かめを終え、PR-4 の `/runplan` を始める（§1.3 の決定 4）。確かめには、Claude Code のコマンドが作り、まだ開いている PR が要る。そのときほかのタスクにそうした PR があればそれを使い、なければ、人がそうした PR ができるまで待つか、確かめの範囲を人が決める。
 
-**変更するファイル:** `internal/chief/screen_report.go`、`internal/chief/screen_transcript.go`、`internal/chief/sanitize.go`・`sanitize_test.go`、`internal/chief/screen_test.go`、`internal/chief/samples_test.go`、`internal/chief/testdata/README.md`、`docs/dev/conventions/package_reference.md`、本計画
+**変更するファイル:** `internal/chief/screen_report.go`、`internal/chief/sanitize.go`・`sanitize_test.go`、`internal/chief/screen_test.go`、`internal/chief/autosend_test.go`・`detail_test.go`・`reset_test.go`（補助関数の分）、`internal/chief/samples_test.go`、`internal/chief/testdata/README.md`、`docs/dev/conventions/package_reference.md`、本計画
 
 -   [x] **ステップ 5-1**: 人が行った実地の確かめの結果を、§7 の「PR-4 の実行の記録」に書く。確かめるのは、画面より長い報告（`/mkarch`・`/mkplan`・`/runplan` など）が PR の詳細に示されること（AC-01・AC-09）と、`/runpr` の後に PR を作った pane が空にされること（AC-10）である。どちらかが期待と違えば、それ以上進まずに止まり、人に尋ねる。
--   [ ] **ステップ 5-2**: 消すコミットを 1 つ作る。このコミットには、次の削除と、ビルドとテストを通すのに要る編集だけを入れる。消す製品のコードとそのテストを同じコミットにするのは、`make coverage-compare` が、消した関数を下がった関数でなく消した関数として挙げるためである。消さずに済む編集（サンプルの一覧の行の移動など）は、ステップ 5-4 で別のコミットにする。
-    -   [ ] `readCommandReport`
-    -   [ ] `claudeLastMessage`
-    -   [ ] `namesURL`
-    -   [ ] `claudeMessageMark`・`claudeDoneMark`・`claudeIndent`・`claudeRecapMark`
-    -   [ ] `readRunprReport` の Claude Code の分（OpenCode だけを読む部品にし、コメントを直す）
-    -   [ ] `CapScreen`
-    -   [ ] `TestCapScreen`（`internal/chief/sanitize_test.go:35`）
-    -   [ ] `TestReadCommandReport`（`internal/chief/screen_test.go:657`）
-    -   [ ] `TestReadCommandReportUnderRecap`（同 696）
-    -   [ ] `TestReadCommandReportUnderTitledBox`（同 725）
-    -   [ ] `TestReadRunprReport` の、Claude Code の画面から報告を読む行（同 882-885）。913-915 行の、読まないことを確かめる行は残す（Claude Code の分を消した後も、Claude Code の pane と知らないエージェントは読まないので通る）
-    -   [ ] テストの補助関数 `reportScreen`・`reportMention`・`isSampleReport`（同 785-805）。呼ぶ所が残らないことを確かめる（`TestResetChecks` の呼び出しは、ステップ 4-9 で替えてある）。`detail_test.go`・`reset_test.go` の AC-06 の画面だけに報告がある行は、画面の読み取りが読める画面を作るために `reportScreen` と `readCommandReport` を使う補助関数 `screenOnlyMakerReport` を呼ぶので、この補助関数は消し、2 つの行の画面は `claude-command-report.ansi` のままにする
--   [ ] **ステップ 5-3**: 消すコミットの親を BASE として `make coverage-compare` を走らせる（10 分以上の時間の上限か、バックグラウンドで）。最後の行が `coverage-compare: PASS` であることを確かめ、最後の行までの出力を、木の ID を変えずに消すコミットのメッセージに書き、PR の説明にも書く（CLAUDE.md の「Testing Strategy」）。`PASS` でなければ止まり、人に尋ねる。
--   [ ] **ステップ 5-4**: `samples_test.go` の `command report` の行の 2 つのサンプルを `input line` の行に移し、`command report` の行を消す（設計書 3.9）。`RunprReport.PRs` のコメントを、画面と transcript の両方に合うように直す（設計書 2.2）。`package_reference.md` の `internal/chief` の行から `CapScreen` を消す。`testdata/README.md` の `claude-command-report.ansi`・`claude-command-report-recap.ansi` の行に、今は入力欄の判定のテストが使うことを書く。
--   [ ] **ステップ 5-5**: ステップ 5-2 の一覧のうち、名前ごと消したもので、製品のコード・テスト・コメント・`docs/dev/conventions/package_reference.md` を探し、残っていないことを確かめる。一部だけを消した `readRunprReport`・`TestReadRunprReport` は、Claude Code の分の読み取りと行が残っておらず、OpenCode の分が残っていることを読んで確かめる。走らせたコマンドと出力を §7 の「PR-4 の実行の記録」に書く（設計書 7.3。`make deadcode` はテストが呼ぶ部品を報告しないため）。
+-   [x] **ステップ 5-2**: 消すコミットを 1 つ作る。このコミットには、次の削除と、ビルドとテストを通すのに要る編集だけを入れる。消す製品のコードとそのテストを同じコミットにするのは、`make coverage-compare` が、消した関数を下がった関数でなく消した関数として挙げるためである。消さずに済む編集（サンプルの一覧の行の移動など）は、ステップ 5-4 で別のコミットにする。ただし、一部だけを書き換える `readRunprReport` は、消すコミットの前の別のコミットで直す。`make coverage-compare` は、範囲の行を書き換えた関数を対応づけられずに止まる（`STOP unmatched`）ためである。そのコミットで、`TestReadRunprReport` の Claude Code の画面から報告を読む行を、同じ画面を読まないことを確かめる行に替え、`autosend_test.go` の画面にだけ報告を置く補助関数 `screenOnlyReport` から、この部品での確かめを除く。
+    -   [x] `readCommandReport`
+    -   [x] `claudeLastMessage`
+    -   [x] `namesURL`
+    -   [x] `claudeMessageMark`・`claudeDoneMark`・`claudeIndent`・`claudeRecapMark`
+    -   [x] `readRunprReport` の Claude Code の分（OpenCode だけを読む部品にし、コメントを直す。消すコミットの前のコミットで行う）
+    -   [x] `CapScreen`
+    -   [x] `TestCapScreen`（`internal/chief/sanitize_test.go:35`）
+    -   [x] `TestReadCommandReport`（`internal/chief/screen_test.go:657`）
+    -   [x] `TestReadCommandReportUnderRecap`（同 696）
+    -   [x] `TestReadCommandReportUnderTitledBox`（同 725）
+    -   [x] `TestReadRunprReport` の、Claude Code の画面から報告を読む行（同 882-885。消すコミットの前のコミットで、読まないことを確かめる行に替える）。913-915 行の、読まないことを確かめる行は残す（Claude Code の分を消した後も、Claude Code の pane と知らないエージェントは読まないので通る）
+    -   [x] テストの補助関数 `reportScreen`・`reportMention`・`isSampleReport`（同 785-805）。呼ぶ所が残らないことを確かめる（`TestResetChecks` の呼び出しは、ステップ 4-9 で替えてある）。`detail_test.go`・`reset_test.go` の AC-06 の画面だけに報告がある行は、画面の読み取りが読める画面を作るために `reportScreen` と `readCommandReport` を使う補助関数 `screenOnlyMakerReport` を呼ぶので、この補助関数は消し、2 つの行の画面は `claude-command-report.ansi` のままにする
+-   [x] **ステップ 5-3**: 消すコミットの親を BASE として `make coverage-compare` を走らせる（10 分以上の時間の上限か、バックグラウンドで）。最後の行が `coverage-compare: PASS` であることを確かめ、最後の行までの出力を、木の ID を変えずに消すコミットのメッセージに書き、PR の説明にも書く（CLAUDE.md の「Testing Strategy」）。`PASS` でなければ止まり、人に尋ねる。
+-   [x] **ステップ 5-4**: `samples_test.go` の `command report` の行の 2 つのサンプルを `input line` の行に移し、`command report` の行を消す（設計書 3.9）。`RunprReport.PRs` のコメントを、画面と transcript の両方に合うように直す（設計書 2.2）。`package_reference.md` の `internal/chief` の行から `CapScreen` を消す。`testdata/README.md` の `claude-command-report.ansi`・`claude-command-report-recap.ansi` の行に、今は入力欄の判定のテストが使うことを書く。
+-   [x] **ステップ 5-5**: ステップ 5-2 の一覧のうち、名前ごと消したもので、製品のコード・テスト・コメント・`docs/dev/conventions/package_reference.md` を探し、残っていないことを確かめる。一部だけを消した `readRunprReport`・`TestReadRunprReport` は、Claude Code の分の読み取りと行が残っておらず、OpenCode の分が残っていることを読んで確かめる。走らせたコマンドと出力を §7 の「PR-4 の実行の記録」に書く（設計書 7.3。`make deadcode` はテストが呼ぶ部品を報告しないため）。
 
 **完了の条件:** グリーンゲートと `make deadcode` が通る。消すコミットに `coverage-compare: PASS` の出力がある。
 
@@ -384,6 +384,15 @@ Diff record (AC-17):
 -   **ステップ 5-1（2026-11-17）。** PR-3（#960）のマージの後、人が `main` の chief を入れ直し、本物の Herdr と Claude Code で確かめた。結果はどちらも期待どおりだった。
     -   **PR の詳細（AC-01・AC-09）。** タスク 0092 の PR #967 を使った。この PR は、Claude Code の pane の `/runplan` が作ったものである。`/chief` で詳細を開くと、要約は PR の説明ではなく、作ったコマンドの報告から作られ、報告は切られずに全文が示された。
     -   **`/runpr` の後のリセット（AC-10）。** `/runpr` を送った後、PR を作った Claude Code の pane に `/clear` が送られ、pane は空になった。
+-   **ステップ 5-3（2026-11-17）。** 消すコミット（`refactor(0095): remove the Claude Code screen report reader`、木 `817cd0069e65`）の親を BASE として `make coverage-compare` を走らせ、3 回目に `coverage-compare: PASS` を得た。消した関数は `CapScreen`・`readCommandReport`・`claudeLastMessage`・`namesURL` の 4 つで、下がった関数はなかった。出力はコミットのメッセージと PR の説明にある。1 回目は `FAIL` で、下がったのは、このコミットが触れない `internal/cmdrunner/runner.go` の `signalGroup` の 1 行だけだった（3/3 → 2/3）。プロセスグループへの `kill` が `ESRCH` 以外で失敗したときだけ通る行で、通るかはプロセスの時機による。2 回目は、ほかのセッションが worktree の一覧を変えたので `STOP internal` で止まった。
+-   **ステップ 5-5（2026-11-17）。** 名前ごと消したものを、製品のコード・テスト・コメントと `package_reference.md` から探した。
+
+    ```text
+    $ rg -n "readCommandReport|claudeLastMessage|namesURL|claudeMessageMark|claudeDoneMark|claudeIndent|claudeRecapMark|CapScreen|TestCapScreen|TestReadCommandReport|reportScreen|reportMention|isSampleReport|screenOnlyMakerReport" internal cmd docs/dev/conventions/package_reference.md
+    (出力なし、終了コード 1)
+    ```
+
+    `readRunprReport`（`internal/chief/screen_report.go`）は、OpenCode でないエージェントに偽を返し、`openCodeLastMessage` だけを読む。`TestReadRunprReport` は、OpenCode の行を残し、Claude Code の pane の 3 つの行（OpenCode の画面、メッセージのない画面、コマンドの報告の画面）と知らないエージェントの行で、読まないことを確かめる。`readLastHumanInput` と `TestReadLastHumanInput` は、§1.5 のとおり残した。
 
 ## 8. 成功の基準 (Success Criteria)
 
