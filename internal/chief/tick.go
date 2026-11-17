@@ -101,6 +101,12 @@ func applyAutoSends(view *roundView, store Store, results []AutoSendResult) []Pe
 		switch {
 		case sent != nil && sent.Outcome == OutcomeSent && row != nil:
 			row.State, row.Next, row.Takeover, row.Unreadable = StateRunning, nil, nil, nil
+			// A pane the send typed into has no skipped reset left.
+			row.Resets = slices.DeleteFunc(row.Resets, func(it ResetItem) bool {
+				return slices.ContainsFunc(r.Actions, func(a ActionResult) bool {
+					return a.Pane == it.Pane.String() && (a.Outcome == OutcomeSent || a.Outcome == OutcomeSentThenFailed)
+				})
+			})
 			row.Running, row.RunningUnknown = sentRunning(r.Proposal, sent.Model)
 		case sent != nil && sent.Outcome == OutcomeSentThenFailed && row != nil:
 			row.State, row.Next, row.Takeover = StateNeedsCheck, nil, nil

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/cachelock"
+	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/privatefile"
 )
 
@@ -971,6 +972,11 @@ func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 			remove(e.Name())
 		}
 	}
+	n, err := h.removeOldSkips(now)
+	removed += n
+	if err != nil {
+		errs = append(errs, err)
+	}
 	return removed, errors.Join(errs...)
 }
 
@@ -1259,4 +1265,117 @@ func (r WorkspaceRecords) keptPaneReport(pr int, head string) (detailRecord, boo
 		return detailRecord{}, false, fmt.Errorf("%w: report of PR %d at %s is not from a pane", errRecord, pr, head)
 	}
 	return rec, true, nil
+}
+
+// createdFile is the name of the record `create` keeps of the worktree it
+// made, in that worktree's directory of records.
+const createdFile = "created.json"
+
+// CreatedRecord says that chief made the worktree at Worktree for Issue at
+// Created. It names a worktree that may be offered for removal and the
+// issue its task is looked for by; it never decides what is sent or to
+// where. Only KeepCreated writes one and only Created returns one.
+type CreatedRecord struct {
+	Worktree Worktree
+	Issue    paneinput.IssueNumber
+	Created  time.Time
+}
+
+// createdJSON is the record as the file holds it.
+type createdJSON struct {
+	Worktree string    `json:"worktree"`
+	Issue    string    `json:"issue"`
+	Created  time.Time `json:"created"`
+}
+
+// KeepCreated writes the record of the worktree of space. Contract: it
+// needs the exclusion, never replaces a record (an existing one is
+// privatefile.ErrExist), and writes only into the directory of the
+// worktree space names, so the record read later agrees with where it is
+// kept.
+func (h *HeldWorkspace) KeepCreated(space TaskSpace, now time.Time) error {
+	tree, err := space.Worktree()
+	if err != nil {
+		return err
+	}
+	if workspaceDirOf(tree) != filepath.Base(h.dir) {
+		return fmt.Errorf("%w: the task space's worktree is not the one these records belong to", errRecord)
+	}
+	return h.store().create(createdFile, createdJSON{Worktree: tree.path, Issue: space.Issue().String(), Created: now.UTC()})
+}
+
+// Created returns the record of the worktree these records belong to, or
+// nil when there is none. Contract: a record is returned only when its
+// file is in the accepted form (owner, mode, and members), its worktree is
+// the one whose directory holds it, and that worktree is where a task of
+// its issue is made under home; any other record is an error, which the
+// caller reads as "not a candidate for removal".
+func (r WorkspaceRecords) Created(home string) (*CreatedRecord, error) {
+	var raw createdJSON
+	err := r.store().read(createdFile, &raw)
+	switch {
+	case errors.Is(err, privatefile.ErrNotExist):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	}
+	issue, err := paneinput.ParseIssueNumber(raw.Issue)
+	if err != nil {
+		return nil, fmt.Errorf("%w: the created record's issue: %w", errRecord, err)
+	}
+	if raw.Created.IsZero() {
+		return nil, fmt.Errorf("%w: the created record has no time", errRecord)
+	}
+	tree := Worktree{path: raw.Worktree}
+	if workspaceDirOf(tree) != filepath.Base(r.dir) {
+		return nil, fmt.Errorf("%w: the created record's worktree is not the one of its directory", errRecord)
+	}
+	space, err := NewTaskSpace(home, issue)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errRecord, err)
+	}
+	want, err := space.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errRecord, err)
+	}
+	if want != tree {
+		return nil, fmt.Errorf("%w: the created record's worktree is not where its issue's task is made", errRecord)
+	}
+	return &CreatedRecord{Worktree: tree, Issue: issue, Created: raw.Created}, nil
+}
+
+// isRecordFile reports whether name is one of the records of a worktree's
+// directory (a temporary file a failed create left is not one). The exclusion's file is not one: it is not a record.
+func isRecordFile(name string) bool {
+	return name == stopFile || name == createdFile ||
+		sendFileName.MatchString(name) || detailFileName.MatchString(name) || reportFileName.MatchString(name)
+}
+
+// ClearRecords removes every record of the worktree's directory (its sends,
+// its stop, its PR details and report records, and its created record) and
+// leaves the exclusion's file. Contract: it needs the exclusion; the
+// created record goes last, so a clear that stops halfway still names the
+// worktree; a record already gone is not an error, any other failure is
+// returned after the rest were tried.
+func (h *HeldWorkspace) ClearRecords() error {
+	entries, err := os.ReadDir(h.dir)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	remove := func(name string) {
+		if err := privatefile.Remove(filepath.Join(h.dir, name)); err != nil && !errors.Is(err, privatefile.ErrNotExist) {
+			errs = append(errs, err)
+		}
+	}
+	for _, e := range entries {
+		if isRecordFile(e.Name()) && e.Name() != createdFile {
+			remove(e.Name())
+		}
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	remove(createdFile)
+	return errors.Join(errs...)
 }

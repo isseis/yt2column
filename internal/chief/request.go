@@ -261,52 +261,124 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 // list read once the exclusion is held, so a send never acts on a list read
 // before another send ended.
 func holdWorkspace(ctx context.Context, deps Deps, loc *located, base ActionResult) (*HeldWorkspace, *ActionResult) {
+	records, err := deps.Store.Records(loc.ws.Tree)
+	if err != nil {
+		r := notSent(base, NotSentUnreadable, "the workspace's records cannot be opened: "+err.Error())
+		return nil, &r
+	}
+	held, err := records.Lock()
+	if errors.Is(err, ErrWorkspaceBusy) {
+		r := notSent(base, NotSentBusy, "another send to the workspace is under way")
+		return nil, &r
+	}
+	if err != nil {
+		r := notSent(base, NotSentUnreadable, "the workspace's exclusion cannot be taken: "+err.Error())
+		return nil, &r
+	}
+	if refused := settleHeld(ctx, deps, loc, held, base); refused != nil {
+		_ = held.Close()
+		return nil, refused
+	}
+	return held, nil
+}
+
+// settleHeld is what a send does once it holds the workspace's exclusion:
+// it settles the sends left unfinished, refuses a stopped workspace, and
+// replaces the agents of loc by a list read under the exclusion. Contract:
+// a non-nil result means nothing is to be sent; the caller still holds the
+// exclusion and closes it.
+func settleHeld(ctx context.Context, deps Deps, loc *located, held *HeldWorkspace, base ActionResult) *ActionResult {
 	refused := func(reason NotSentReason, detail string) *ActionResult {
 		r := notSent(base, reason, detail)
 		return &r
 	}
-	records, err := deps.Store.Records(loc.ws.Tree)
-	if err != nil {
-		return nil, refused(NotSentUnreadable, "the workspace's records cannot be opened: "+err.Error())
-	}
-	held, err := records.Lock()
-	if errors.Is(err, ErrWorkspaceBusy) {
-		return nil, refused(NotSentBusy, "another send to the workspace is under way")
-	}
-	if err != nil {
-		return nil, refused(NotSentUnreadable, "the workspace's exclusion cannot be taken: "+err.Error())
-	}
-	release := func(reason NotSentReason, detail string) (*HeldWorkspace, *ActionResult) {
-		_ = held.Close()
-		return nil, refused(reason, detail)
-	}
 	if _, err := held.SettleUnfinished(deps.Now()); err != nil {
-		return release(NotSentUnreadable, "an unfinished send cannot be settled: "+err.Error())
+		return refused(NotSentUnreadable, "an unfinished send cannot be settled: "+err.Error())
 	}
 	stop, err := held.Stopped()
 	switch {
 	case err != nil:
-		return release(NotSentStopped, "the stop record cannot be read, so the workspace counts as stopped: "+err.Error())
+		return refused(NotSentStopped, "the stop record cannot be read, so the workspace counts as stopped: "+err.Error())
 	case stop != nil:
-		return release(NotSentStopped, "the workspace is stopped until release: "+stop.Reason)
+		return refused(NotSentStopped, "the workspace is stopped until release: "+stop.Reason)
 	}
 	agents, err := NewHerdr(deps.Cmds).Agents(ctx)
 	if err != nil {
-		return release(NotSentUnreadable, "herdr agent list failed: "+err.Error())
+		return refused(NotSentUnreadable, "herdr agent list failed: "+err.Error())
 	}
 	loc.ws.Agents = slices.DeleteFunc(agents, func(a Agent) bool { return a.Workspace != loc.ws.ID })
-	return held, nil
+	return nil
+}
+
+// sendAfterCreate sends /mkreq of issue to the workspace `create` has just
+// made, with the exclusion `create` has held since before it made anything.
+// Contract: it is Send without the row's offer: the offer is the one check
+// left out, because a workspace made a moment ago is on a detached HEAD
+// and reads as "needs a look" until /mkreq makes the task's branch. Every
+// other check is Send's: the workspace is found again from Herdr and git by
+// its path and must be the workspace create made (workspaceID); held must
+// be that worktree's own exclusion; the route is the routing table's
+// /mkreq route; the sends left unfinished are settled, a stop refuses, and
+// the agents are read again under the exclusion; the pane is chosen and
+// every input checked by sendCommand, and a check that fails after the first
+// input stops the workspace. The command is built from issue, which the
+// caller validated, never from a record. It returns the result of nothing
+// sent, never an error, so create can report it.
+func sendAfterCreate(ctx context.Context, deps Deps, held *HeldWorkspace, tree Worktree, workspaceID string, issue paneinput.IssueNumber) ActionResult {
+	base := ActionResult{Workspace: tree.String(), Input: InputCommand}
+	cmd, err := paneinput.NewMkreq(issue)
+	if err != nil {
+		return notSent(base, NotSentUnreadable, "the command cannot be built: "+err.Error())
+	}
+	base.Command, _ = cmd.Text()
+	loc, err := locate(ctx, deps, tree.String())
+	if err != nil {
+		return notSent(base, NotSentUnreadable, "the workspace cannot be found: "+err.Error())
+	}
+	if !loc.found || loc.ws.ID != workspaceID || loc.ws.Tree != tree {
+		return notSent(base, NotSentNoWorkspace, "the path is not the worktree of the workspace that was made")
+	}
+	if filepath.Base(held.dir) != workspaceDirOf(loc.ws.Tree) {
+		return notSent(base, NotSentUnreadable, "the exclusion held is not the one of the workspace's worktree")
+	}
+	routing, err := ReadRouting(ctx, deps.Cmds, loc.chiefTree.String())
+	if err != nil {
+		return notSent(base, NotSentUnreadable, "the routing table cannot be read: "+err.Error())
+	}
+	route, err := routing.Route(cmd.Route())
+	if err != nil {
+		return notSent(base, NotSentUnreadable, "the routing table has no route for the command")
+	}
+	base.Agent = route.Agent()
+	base.Model, _ = route.ModelText()
+	if refused := settleHeld(ctx, deps, &loc, held, base); refused != nil {
+		return *refused
+	}
+	writer, err := NewPaneWriter(deps.Cmds, loc.chiefPane, loc.chief.Workspace)
+	if err != nil {
+		return notSent(base, NotSentUnreadable, "the writer cannot be made: "+err.Error())
+	}
+	sc := sendContext{deps: deps, herdr: NewHerdr(deps.Cmds), writer: writer, held: held, ws: loc.ws}
+	return sc.sendCommand(ctx, cmd, route)
 }
 
 // resetMaker resets the pane of the command that created pr after /runpr
 // went to runprPane. A send that ended without its end record stopped the
 // workspace; the reset is a send too and does not go to a stopped workspace.
+// A reset skipped because no report was found is kept for the human to
+// choose when the last line the human typed into the pane is that command.
 func (s sendContext) resetMaker(ctx context.Context, f workspaceFacts, runprPane string, pr OpenPR, rec *detailRecord, routing Routing) ActionResult {
 	if stop, err := s.held.Stopped(); err != nil || stop != nil {
 		return notSent(ActionResult{Workspace: s.ws.Worktree, Input: InputReset}, NotSentStopped, "the workspace was stopped by the /runpr send")
 	}
 	made, why := prMaker(f)
-	return s.resetAfterRunpr(ctx, runprPane, pr, rec, made, why, routing)
+	res, skip := s.resetAfterRunpr(ctx, runprPane, pr, rec, made, why, routing)
+	return s.offerSkip(ctx, res, skip, sceneAfterRunpr, func(a Agent) string {
+		if reason, detail := s.paneLastInputMadePR(a, made); reason != NotSentUnknown {
+			return reason.String() + ": " + detail
+		}
+		return ""
+	})
 }
 
 // offered returns the command of req when the workspace's row offers it, or

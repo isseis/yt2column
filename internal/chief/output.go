@@ -110,6 +110,8 @@ type PendingOutput struct {
 	Question  *QuestionOutput `json:"question"`
 	PR        *PROutput       `json:"pr"`
 	Proposal  *NextOutput     `json:"proposal"`
+	// Reset is a skipped reset offered to the human, set on a reset item.
+	Reset *ResetOutput `json:"reset"`
 	// Reasons are the conditions of the automatic send that did not hold
 	// for a proposal after a merge.
 	Reasons []string `json:"reasons"`
@@ -121,6 +123,30 @@ type PendingOutput struct {
 	// Number is the item's number in this session's lists, kept for the
 	// session and never reused; 0 when none could be given.
 	Number int `json:"number"`
+}
+
+// ResetOutput is a skipped reset offered to the human: the pane, its agent,
+// the input that empties it, the scene it was skipped in, the command that
+// ran in the pane, and the value `chief reset --check` takes for it.
+type ResetOutput struct {
+	Pane    string     `json:"pane"`
+	Agent   string     `json:"agent"`
+	Input   string     `json:"input"`
+	Scene   string     `json:"scene"`
+	Command string     `json:"command"`
+	Check   CheckValue `json:"check"`
+}
+
+// resetOutput converts a reset item.
+func resetOutput(it *ResetItem) *ResetOutput {
+	if it == nil {
+		return nil
+	}
+	input := ""
+	if st, ok := resetPrompt(it.Agent); ok {
+		input, _ = st.prompt.Text()
+	}
+	return &ResetOutput{Pane: Sanitize(it.Pane.String()), Agent: agentLabel(it.Agent), Input: input, Scene: it.Scene.String(), Command: Sanitize(it.Command.text()), Check: it.Check}
 }
 
 // questionKindName names a question shape for the output.
@@ -238,6 +264,7 @@ func (s Snapshot) Output() SnapshotOutput {
 			Label:           Sanitize(p.Label),
 			PR:              prOutput(p.PR),
 			Proposal:        nextOutput(p.Proposal),
+			Reset:           resetOutput(p.Reset),
 			Reasons:         sanitizeAll(p.Reasons),
 			ReviewSkippable: p.ReviewSkippable,
 			FirstSeen:       p.FirstSeen,

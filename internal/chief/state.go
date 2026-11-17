@@ -144,6 +144,10 @@ type Row struct {
 	// ReviewSkippable is the review-skippable judgment of the PR detail kept
 	// for the worktree's HEAD; false when no detail is kept for it.
 	ReviewSkippable bool
+	// Resets are the skipped resets of the workspace offered to the human,
+	// read from its skip records; none for a row that needs a check or is
+	// stopped.
+	Resets []ResetItem
 	// Idle marks a worktree left over or not yet used, which waits on
 	// nothing: no agent works or asks, every read succeeded, and either the
 	// next command is /mkreq or the only problem is a detached HEAD. A stop
