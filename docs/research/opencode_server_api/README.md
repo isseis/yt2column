@@ -66,9 +66,9 @@ chief は OpenCode の pane に対して、判定と送信を画面の読み取�
 **再現の手順:**
 
 1.  実験のセッション `<ID>` に、P-SINGLE・P-MULTI・P-TABS のいずれかを API で送る（規則 1 を通す）。
-2.  `opencode api GET "/api/session/<ID>/form" | jq -c '.data[]|{id, sessionID, fields:[.fields[]|{type, n:((.options//[])|length), custom}], kind:.metadata.kind}'` で形を読む。
+2.  `opencode api GET "/api/session/<ID>/form" | jq -c '.data[]|{id, sessionID, fields:[.fields[]|{key, type, n:((.options//[])|length), custom}], kind:.metadata.kind}'` で形を読む。
 3.  `herdr pane read <pane> --source visible` で TUI の画面を読む（人の操作でもよい）。
-4.  規則 1 を通し、`opencode api POST "/api/session/<ID>/form/<formID>/reply" -d '{"answer":{"<key>":"alpha"}}'` で答える（複数を選ぶ問いは値を配列にする）。検査を見るには、上の表の答えを先に送る。
+4.  規則 1 を通し、`opencode api POST "/api/session/<ID>/form/<formID>/reply" -d '{"answer":{"<key>":"alpha"}}'` で答える（`<key>` は手順 2 の欄の `key`。複数を選ぶ問いは値を配列にする。P-TABS は `{"answer":{"<1 つ目の key>":"alpha","<2 つ目の key>":"gamma"}}` のように両方の欄に答える）。検査を見るには、上の表の答えを先に送る。
 5.  手順 2 で form が消えたこと、手順 3 で TUI の問いが閉じたことを確かめる。
 
 ### 問い 2：権限の確認は `permission.request.list` に現れるか
@@ -90,8 +90,8 @@ chief は OpenCode の pane に対して、判定と送信を画面の読み取�
 
 1.  `opencode api GET /api/agent/build | jq -c '.data.permission'` で、確認を求める（`ask`）規則を確かめる。
 2.  `--auto` なしで起動した pane のセッション `<ID>` に、P-PERM を API で送る（規則 1 を通す）。
-3.  `opencode api GET "/api/session/<ID>/permission" | jq -c '.data[]|{sessionID, action, n:(.resources|length), source:.source.type}'` と、`opencode api GET "/api/permission/request?location%5Bdirectory%5D=$W" | jq -c '[.data[]|select(.sessionID=="<ID>")|{sessionID, action}]'` を読む。
-4.  規則 1 を通し、`opencode api POST "/api/session/<ID>/permission/<requestID>/reply" -d '{"decision":"reject"}'` で拒否する。
+3.  `opencode api GET "/api/session/<ID>/permission" | jq -c '.data[]|{id, sessionID, action, n:(.resources|length), source:.source.type}'` と、`opencode api GET "/api/permission/request?location%5Bdirectory%5D=$W" | jq -c '[.data[]|select(.sessionID=="<ID>")|{sessionID, action}]'` を読む。
+4.  規則 1 を通し、`opencode api POST "/api/session/<ID>/permission/<requestID>/reply" -d '{"decision":"reject"}'` で拒否する（`<requestID>` は手順 3 の `id`）。
 
 ### 問い 3：モデルの切り替え・コマンドの送信・新しいセッション
 
