@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。
@@ -429,3 +429,7 @@
 -   PR-4 のマージの後、人が決定 3 のとおり chief の worktree を `main` に戻し、`main` から `make install-chief` で入れ直して `/chief` を起動し直す。
 -   使わなくなった Claude Code の画面の読み取りの整理は、#908 で扱う（設計書 1.2・9 章）。
 -   選択肢が 8 以上の問いの中継と、transcript の行の読み方を 0095 とそろえることは、設計書 9 章のとおり別のタスクで考える。
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#954）
