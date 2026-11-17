@@ -119,6 +119,7 @@ func newCheckedTool(t testing.TB, checkErr error, steps ...commandStep) (*Tool, 
 		checker.summary = protocolSummary{}
 	}
 	tool := New(runner)
+	tool.mainFetch = runner
 	tool.protocol = checker
 	return tool, runner, checker
 }

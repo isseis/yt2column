@@ -854,3 +854,20 @@ func assertFetchUnreadable(t *testing.T, err error) {
 		t.Errorf("kind = %v, want unreadableFetch", unreadable.Kind)
 	}
 }
+
+// TestMergeKeepsSummaryWhenMergeFails verifies that a merge refused after the
+// protocol check passed still reports the check's summary.
+func TestMergeKeepsSummaryWhenMergeFails(t *testing.T) {
+	_, statePath, subjectPath, bodyPath := mergeFiles(t)
+	refused := mergeStep()
+	refused.err = errors.New("exit status 1")
+	tool, runner := newTool(t, viewStep(openState, "main"), fetchMainStep(), refused)
+	report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+	if err == nil {
+		t.Fatal("Merge returned nil, want the refused merge's error")
+	}
+	runner.done()
+	if report.ProtocolCheck != testSummary.String() {
+		t.Errorf("report.ProtocolCheck = %q, want %q", report.ProtocolCheck, testSummary.String())
+	}
+}

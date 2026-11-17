@@ -12,6 +12,7 @@ package mergepr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -62,8 +63,12 @@ type Runner = cmdrunner.Runner
 // Tool implements the /mergepr mechanics against the repository in the current
 // working directory.
 type Tool struct {
-	run      Runner
-	protocol protocolChecker
+	run Runner
+	// mainFetch runs the fetch of main before each protocol check, with the
+	// same environment as the check's own git (no GIT_* variable), so the
+	// fetch updates the repository the check reads.
+	mainFetch Runner
+	protocol  protocolChecker
 }
 
 // protocolChecker checks the protocol numbers of the PR head against
@@ -77,7 +82,8 @@ type protocolChecker interface {
 // protocol-number check runs git through its own Runner in the current
 // directory, with the GIT_* variables removed from the environment.
 func New(runner Runner) *Tool {
-	return &Tool{run: runner, protocol: newProtocolCheck(newGitRunner(""))}
+	git := newGitRunner("")
+	return &Tool{run: runner, mainFetch: git, protocol: newProtocolCheck(git)}
 }
 
 // command returns the mergepr command line an error message shows, with this
@@ -104,7 +110,7 @@ func ShownCommands(number int, statePath string) []string {
 // check on head and base. Contract: the check never runs on an origin/main
 // that this call could not fetch; a failed fetch stops as unreadable.
 func (t *Tool) checkProtocol(ctx context.Context, headOID, baseRefName string) (protocolSummary, error) {
-	if _, err := t.git(ctx, "fetch", "origin", mainRefspec); err != nil {
+	if _, err := t.mainFetch.Run(ctx, gitCommand, "fetch", "origin", mainRefspec); err != nil {
 		return protocolSummary{}, &protocolUnreadableError{Kind: unreadableFetch, Rev: mainRef, Detail: err.Error()}
 	}
 	return t.protocol.check(ctx, headOID, baseRefName)
@@ -317,6 +323,9 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	// state file, never from a result recorded there.
 	summary, err := t.checkProtocol(ctx, state.HeadRefOID, state.BaseRefName)
 	if err != nil {
+		if unreadable, ok := errors.AsType[*protocolUnreadableError](err); ok && unreadable.Kind == unreadableFetch {
+			return Report{}, fmt.Errorf("%w\nnothing was merged; the preparation still holds, so run the same merge command again once origin can be fetched", err)
+		}
 		return Report{}, fmt.Errorf("%w\nnothing was merged; discard the preparation with `%s`, then fix the PR", err, discardCommand(statePath))
 	}
 	checked := Report{ProtocolCheck: summary.String()}

@@ -19,6 +19,17 @@ func TestRunRejectsExtraArguments(t *testing.T) {
 		{"merge", "--protocol", "1", "--state", "s", "--subject-file", "s", "--body-file", "b", "43"},
 		{"cleanup", "--protocol", "1", "--state", "s", "43"},
 		{"discard", "--protocol", "1", "--state", "s", "43"},
+		// A flag the subcommand does not take.
+		{"prepare", "--protocol", "1", "--state", "s"},
+		{"prepare", "--protocol", "1", "--subject-file", "s"},
+		{"prepare", "--protocol", "1", "--body-file", "b"},
+		{"cleanup", "--protocol", "1", "--state", "s", "--subject-file", "s"},
+		{"discard", "--protocol", "1", "--state", "s", "--body-file", "b"},
+		// A required flag missing.
+		{"merge", "--protocol", "1", "--state", "s", "--subject-file", "s"},
+		{"cleanup", "--protocol", "1"},
+		// An unknown subcommand, even with the right --protocol.
+		{"status", "--protocol", "1"},
 	}
 	for _, args := range tests {
 		if err := run(args); !errors.Is(err, errUsage) {
