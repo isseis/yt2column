@@ -77,6 +77,7 @@ func TestClassifyProtocolLines(t *testing.T) {
 		{"trailing carriage return", one("const Protocol = 1\r"), bad},
 		{"two spaces", one("const  Protocol = 1"), bad},
 		{"const block on one line", one("const (Protocol = 1)"), bad},
+		{"block comment before =", one("const Protocol /* note */ = 2"), bad},
 		{"struct field", one("\tProtocol int `json:\"protocol\"`"), none},
 		{"struct tag holding =", one("\tProtocol int `x:\"a=b\"`"), none},
 		{"quoted tag holding =", one("\tProtocol int \"a=b\""), none},
@@ -87,6 +88,8 @@ func TestClassifyProtocolLines(t *testing.T) {
 		{"less or equal", one("\tProtocol <= 1"), none},
 		{"greater or equal", one("\tProtocol >= 1"), none},
 		{"comment holding =", one("\tProtocol int // a = b"), none},
+		{"block comment holding =", one("\tProtocol int /* a = b */"), none},
+		{"unclosed block comment holding =", one("\tProtocol int /* a = b"), none},
 		{"longer identifier", one("const ProtocolVersion = 2"), none},
 		{"word inside a line", one("\treturn x.Protocol = 1"), none},
 		{"two lines in one file", []protocolLine{
@@ -227,7 +230,7 @@ func TestReadRevisionProtocols(t *testing.T) {
 		}
 	})
 	t.Run("user configuration", func(t *testing.T) {
-		config := "[grep]\n\tlineNumber = false\n\tfullName = false\n\tcolumn = true\n\tpatternType = perl\n\textendedRegexp = true\n" +
+		config := "[grep]\n\tlineNumber = true\n\tfullName = false\n\tcolumn = true\n\tpatternType = perl\n\textendedRegexp = true\n" +
 			"[color]\n\tui = always\n\tgrep = always\n[core]\n\tquotePath = true\n"
 		path := filepath.Join(r.Home, ".gitconfig")
 		if err := os.WriteFile(path, []byte(config), 0o600); err != nil {

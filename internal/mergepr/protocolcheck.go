@@ -357,11 +357,12 @@ func toolPackage(path string) (string, bool) {
 // declarationLine matches a line that looks like it declares Protocol: after
 // leading blanks and an optional const keyword (or "const (") comes the word
 // Protocol, then an = that is not part of ==, !=, <=, >= or :=. Only
-// identifiers, a type, commas and blanks may stand between the word and the =,
-// so an = inside a string, a struct tag or a comment is never reached: a
+// identifiers, a type, commas, blanks and closed block comments may stand
+// between the word and the =, so an = inside a string, a struct tag or a
+// comment is never taken: a
 // struct field and a composite literal element have no such =, and a short
 // variable declaration has :=.
-var declarationLine = regexp.MustCompile(`^[ \t]*(?:const(?:[ \t]+|[ \t]*\([ \t]*))?` + protocolWord + "(?:[ \t,][^\"'`/=:!<>]*)?=(?:[^=]|$)")
+var declarationLine = regexp.MustCompile(`^[ \t]*(?:const(?:[ \t]+|[ \t]*\([ \t]*))?` + protocolWord + "(?:[ \t,](?:[^\"'`/=:!<>]|/\\*.*?\\*/)*)?=(?:[^=]|$)")
 
 // acceptedLine matches the only line form whose number is read: exactly
 // "const Protocol = " and a decimal of one to nine digits without a leading
@@ -402,7 +403,7 @@ func (c *protocolCheck) git(ctx context.Context, args ...string) ([]byte, error)
 // error, never an empty result.
 func (c *protocolCheck) readRevision(ctx context.Context, rev string) (map[string]protocolReading, error) {
 	args := []string{
-		"grep", "-z", "--text", "-F", "--full-name",
+		"grep", "-z", "--no-line-number", "--text", "-F", "--full-name",
 		"--no-color", "--no-column", "--no-textconv", "--no-recurse-submodules",
 		"-e", protocolWord, rev, "--",
 	}
