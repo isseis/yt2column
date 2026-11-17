@@ -262,10 +262,10 @@
 
 **変更するファイル:** `CLAUDE.md`、`docs/dev/guides/chief_guide.md`、`docs/dev/adr/0046-chief-of-staff.md`（食い違いがあるときだけ）、本計画（§7 の差分の記録）
 
--   [ ] **ステップ 6-1**: CLAUDE.md の「Declare, don't infer」の chief の画面の読み取りの例外の段落の、範囲と境界の文を、設計書 3.10 の 1 つ目の項のとおりに書き換える（AC-17）。ほかの文は変えない。
--   [ ] **ステップ 6-2**: chief 利用ガイドを、設計書 3.10 の 2 つ目の項のとおりに直す（AC-15）。「1. 前提条件」のエージェントの行に、transcript の形を確かめた Claude Code の版（フェーズ 1 で採ったサンプルの版）を書く。「8. 既知の制限」の「長い報告は画面から読めない」を置き換え、設計書 3.10 の 3 つの制限を書き、「worktree のパスの文字」に workspace の自動送信も止まることを足す。「7. 状態のディレクトリ」の workspace ごとの記録と片付けに、報告の控え（`report-*.json`）を足す。「8. 既知の制限」の「transcript の場所の規則が変わったとき」に、置き場所が変わると①が報告なしとして通り、③④は安全側に倒れることを足す（要件書「要件定義の際に決めたこと」の 4 つ目の項）。「5.1 保証すること」に、transcript の値や種類の名前だけが変わったときと、ファイルがないときは①が通ることを、保証の例外として書く（設計書 1.2）。
--   [ ] **ステップ 6-3**: ADR-0046 を読み、実装した振る舞いと食い違う文がないかを確かめる。ADR-0046 は、AC-16 の分を要件定義の PR（#912）と設計の PR（#920）で更新済みである。食い違いがあれば、ADR の規約（`docs/dev/conventions/adr.md`）に従って直し、その理由を PR の説明に書く。
--   [ ] **ステップ 6-4**: AC-17 の差分の記録を、§7 の「Diff record (AC-17)」に書く（`requirements_process.md` の「`diff` verification」の決まったコマンド）。
+-   [x] **ステップ 6-1**: CLAUDE.md の「Declare, don't infer」の chief の画面の読み取りの例外の段落の、範囲と境界の文を、設計書 3.10 の 1 つ目の項のとおりに書き換える（AC-17）。ほかの文は変えない。
+-   [x] **ステップ 6-2**: chief 利用ガイドを、設計書 3.10 の 2 つ目の項のとおりに直す（AC-15）。「1. 前提条件」のエージェントの行に、transcript の形を確かめた Claude Code の版（フェーズ 1 で採ったサンプルの版）を書く。「8. 既知の制限」の「長い報告は画面から読めない」を置き換え、設計書 3.10 の 3 つの制限を書き、「worktree のパスの文字」に workspace の自動送信も止まることを足す。「7. 状態のディレクトリ」の workspace ごとの記録と片付けに、報告の控え（`report-*.json`）を足す。「8. 既知の制限」の「transcript の場所の規則が変わったとき」に、置き場所が変わると①が報告なしとして通り、③④は安全側に倒れることを足す（要件書「要件定義の際に決めたこと」の 4 つ目の項）。「5.1 保証すること」に、transcript の値や種類の名前だけが変わったときと、ファイルがないときは①が通ることを、保証の例外として書く（設計書 1.2）。
+-   [x] **ステップ 6-3**: ADR-0046 を読み、実装した振る舞いと食い違う文がないかを確かめる。ADR-0046 は、AC-16 の分を要件定義の PR（#912）と設計の PR（#920）で更新済みである。食い違いがあれば、ADR の規約（`docs/dev/conventions/adr.md`）に従って直し、その理由を PR の説明に書く。
+-   [x] **ステップ 6-4**: AC-17 の差分の記録を、§7 の「Diff record (AC-17)」に書く（`requirements_process.md` の「`diff` verification」の決まったコマンド）。
 
 **完了の条件:** グリーンゲートが通る（`TestADRRecords`・`TestGuideValuesMatchTool` を含む）。§7 の差分の記録が書かれている。
 
@@ -372,6 +372,49 @@ PR の分け方の理由は §1.3 の決定 3 にある。各 PR は単独でグ
 Diff record (AC-17):
 
 - Compared paths: `CLAUDE.md`
+- Merge-base: `ff086711dc86c27c40f6efea1206164fd5d2a8bb`
+- Compared commit: `af02d83f230e613d6050a4e76c115a341d64a2bc`
+
+Path diff:
+
+````text
+diff --git a/CLAUDE.md b/CLAUDE.md
+index f8556c8637c6db209cd41e94d9a2627fd6de5f31..4f5a770f9dd259a6750d89b1cd82a80bcbbaf568 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -493,11 +493,15 @@ for the packages that exist today. The server's startup is documented in the
+   (single-select, multi-select, tabbed, permission), the question and option
+   texts, whether it is `/runpr`'s merge question, the unsent text left in the
+   input line, OpenCode's model line and its screen after `/new`, the NEXT of a
+-  `/runpr` report, the last report on a pane (the last message of either
+-  agent) and the PR numbers it names, the report of the command that created
+-  a PR, and the transcript's record of a model switch and of the human's
+-  last command (a line is the human's only by the origin Claude Code
+-  declares on it, never by its text); the chief session's summary of that report is in scope too. Every other file of the tool chooses behavior only
++  `/runpr` report, the last report on a pane and the PR numbers it names
++  (an OpenCode pane's from its screen, a Claude Code pane's from the last
++  finished response of its transcript), the report of the command that
++  created a PR, and the transcript's record of a model switch, of the
++  human's last command (a line is the human's only by the origin Claude
++  Code declares on it, never by its text), and of the text of the last
++  finished response; a PR record is a value the transcript declares and is
++  not in scope; the chief session's summary of the report of the command
++  that created a PR is in scope too. Every other file of the tool chooses behavior only
+   by the types the screen readers return. Reason: the screens are drawn by
+   Claude Code and OpenCode and the transcript is written by Claude Code,
+   external values the tool cannot express in a type, and OpenCode's question
+@@ -505,7 +509,9 @@ for the packages that exist today. The server's startup is documented in the
+   from the real samples under `internal/chief/testdata/screens/` is not read
+   more widely but read as unmatched, which marks the workspace as needing a
+   check or sends nothing (a transcript line likewise, from the samples under
+-  `internal/chief/testdata/transcript/`); and the trigger of chief's automatic send is the
++  `internal/chief/testdata/transcript/`, and a report in a transcript that
++  matches no shape read from those samples is read as no report or as
++  unreadable); and the trigger of chief's automatic send is the
+   state of GitHub and git, never a screen: a screen reading only stops a send
+   or narrows its conditions.
+ - **Enforce invariants with the type, not with convention**: if a value must pass
+````
 
 ### PR-1 の実行の記録
 
@@ -393,6 +436,7 @@ Diff record (AC-17):
     ```
 
     `readRunprReport`（`internal/chief/screen_report.go`）は、OpenCode でないエージェントに偽を返し、`openCodeLastMessage` だけを読む。`TestReadRunprReport` は、OpenCode の行を残し、OpenCode の画面を Claude Code として与える行と、OpenCode の画面を知らないエージェントとして与える行で、読まないことを確かめる。Claude Code のサンプルを Claude Code として与える 2 つの行は、エージェントの確かめがなくても通るので、別のコミット（`test(0095): drop the Claude Code sample rows of TestReadRunprReport`）で消し、`make coverage-compare` は `PASS` だった（出力はそのコミットのメッセージにある。1 回目は、上と同じ `signalGroup` の 1 行で `FAIL` だった）。`readLastHumanInput` と `TestReadLastHumanInput` は、§1.5 のとおり残した。
+-   **ステップ 6-3（2026-11-17）。** ADR-0046 を読み、実装した振る舞いと食い違う文はなかった。「決定」の画面とセッションの記録の文字列から判断する項（範囲と境界の置き場所として 0095 要件定義書と CLAUDE.md を挙げる）、リセットの項、Claude Code の pane の最後の報告を transcript から読む項と、「結果」の transcript の値や種類の名前が変わったとき、NEXT の照合を最後の報告に限ること、transcript を読めない pane が workspace の自動送信を止めること、PR の記録が PR を作らなかったセッションにも書かれることの各項は、PR-1〜PR-4 の実装と合う。ADR は変えていない。
 
 ## 8. 成功の基準 (Success Criteria)
 
