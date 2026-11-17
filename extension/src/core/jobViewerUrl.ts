@@ -9,7 +9,12 @@
 // show and which record to look up; none of them is ever a generation input.
 
 import { isAcceptedWatchUrl } from "./acceptedUrl.ts";
-import { countCharacters, ellipsis, truncate } from "./summary.ts";
+import {
+  countCharacters,
+  ellipsis,
+  hasUnpairedSurrogate,
+  truncate,
+} from "./summary.ts";
 
 /** How a viewer URL names its run: a start not reserved yet, or a reserved job. */
 export type JobViewerTarget =
@@ -84,7 +89,12 @@ export function urlTitle(value: string): string {
 /** Whether title passes the URL's rule for t. */
 export function isUrlTitle(title: string): boolean {
   const length = countCharacters(title);
-  return length >= 1 && length <= titleLimit && !controlCharacter.test(title);
+  return (
+    length >= 1 &&
+    length <= titleLimit &&
+    !controlCharacter.test(title) &&
+    !hasUnpairedSurrogate(title)
+  );
 }
 
 /**

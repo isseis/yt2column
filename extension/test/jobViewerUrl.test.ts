@@ -155,5 +155,6 @@ describe("isUrlTitle", () => {
       assert.ok(!isUrlTitle(`a${control}b`), JSON.stringify(control));
     }
     assert.ok(isUrlTitle("a\u00a0b"));
+    assert.ok(!isUrlTitle("a\ud800b"));
   });
 });

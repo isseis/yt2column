@@ -310,6 +310,17 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
     if (storedBytes(record) > maxRecordBytes) {
       return { status: "not_stored" };
     }
+    // Room is made first, by the same rule as for a reservation, so a
+    // finished record cannot take the total over its limit.
+    const loaded = await loadRecords(deps);
+    if (loaded !== undefined) {
+      const others = new Map(loaded);
+      others.delete(record.jobId);
+      const drops = roomFor(others, storedBytes(record));
+      if (drops !== undefined && drops.length > 0) {
+        await deps.removeSession(drops.map(jobItemName));
+      }
+    }
     if (await store(record)) {
       return { status: "stored" };
     }
@@ -389,7 +400,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
         ? input.title
         : input.videoUrl;
     // The page title the viewer's URL keeps: the video title, else the heading.
-    const title = [input.title, heading]
+    const title = [input.title, input.videoUrl]
       .filter((value): value is string => value !== undefined)
       .map(urlTitle)
       .find(isUrlTitle);
@@ -522,13 +533,19 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
       jobId,
       inputDigest: request.inputDigest,
       videoId: request.videoId,
-      heading: request.heading,
-      videoUrl: request.videoUrl,
+      // From the start context the worker validated, not from the viewer.
+      heading: {
+        videoTitle: context.videoTitle,
+        channelName: context.channelName,
+      },
+      videoUrl: context.videoUrl,
       acceptedAt: deps.now(),
       steps: pendingSteps,
       state: "running",
       runner: { tabId, instanceId: request.instanceId },
     };
+    // The record's values come from the start context, which was read back
+    // within the same size limit, so the record fits the read-back limit too.
     const others = new Map(loaded);
     others.delete(jobId);
     const drops = roomFor(others, storedBytes(record));
@@ -592,6 +609,11 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
       };
       contactWaiters.add(waiter);
       const cancel = deps.schedule(contactWaitMs, () => waiter.resolve(false));
+      // A hello may have come in while the tab was looked up.
+      if (connected(record)) {
+        waiter.resolve(true);
+        return;
+      }
     });
   }
 
@@ -680,9 +702,6 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
       acceptedAt: record.acceptedAt,
     } as const;
     if (request.type === "progress") {
-      if (record.state === "done" || record.state === "failed") {
-        return { status: "not_runner" };
-      }
       return storeForRunner({ ...record, steps: request.steps });
     }
     const result: RunResult = request.result;
@@ -810,6 +829,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
     }
     let hello: RunnerHello | undefined;
     let registered = false;
+    let closed = false;
     port.onMessage((message) => {
       if (hello !== undefined) {
         return;
@@ -833,6 +853,20 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
           port.disconnect();
           return;
         }
+        if (closed) {
+          // Cut while the record was being checked: nothing is connected.
+          await serial(() =>
+            stop(
+              accepted.jobId,
+              "page_closed",
+              (record) =>
+                record.state === "running" &&
+                record.runner.instanceId === accepted.instanceId &&
+                !connected(record),
+            ),
+          );
+          return;
+        }
         registered = true;
         ports.set(accepted.jobId, {
           instanceId: accepted.instanceId,
@@ -849,6 +883,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
       });
     });
     port.onDisconnect(() => {
+      closed = true;
       if (hello === undefined || !registered) {
         return;
       }

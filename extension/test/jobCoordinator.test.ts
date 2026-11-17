@@ -1173,3 +1173,115 @@ describe("the ways a run is found to have stopped", () => {
     assert.equal(port.disconnected, false);
   });
 });
+
+describe("review fixes", () => {
+  it("does not count a Port cut while its hello was being checked as connected", async () => {
+    const s = setup();
+    seed(s, jobId(1), { state: "running" });
+    const port = fakePort(viewerSender(7));
+    s.coordinator.onConnect(port);
+    port.deliver({ type: "hello", jobId: jobId(1), instanceId: instance(7) });
+    port.drop();
+    await settle();
+    assert.equal(stored(s, jobId(1))?.state, "stopped");
+    assert.equal(stored(s, jobId(1))?.stopReason, "page_closed");
+  });
+
+  it("makes room before a result is written, so the total stays within 8 MiB", async () => {
+    const s = setup();
+    const big = { ...article, markdown: "x".repeat(250_000) };
+    seed(s, jobId(1), { state: "running" });
+    for (let n = 2; n <= 35; n += 1) {
+      seed(s, jobId(n), {
+        state: n === 2 ? "failed" : "done",
+        ...(n === 2 ? {} : { article: big }),
+        inputDigest: n.toString(16).padStart(64, "0"),
+        videoId: videoB,
+        endedAt: 100 + n,
+      });
+    }
+    const result = {
+      state: "done",
+      steps: doneSteps,
+      article: { ...article, markdown: "y".repeat(400_000) },
+    };
+    assert.deepEqual(
+      await s.ask(
+        { type: "result", jobId: jobId(1), instanceId: instance(7), result },
+        viewerSender(7),
+      ),
+      { status: "stored" },
+    );
+    assert.equal(stored(s, jobId(2)), undefined);
+    let total = 0;
+    for (const [name, value] of s.session.items) {
+      if (name.startsWith("job:")) {
+        total += new TextEncoder().encode(JSON.stringify(value)).length;
+      }
+    }
+    assert.ok(total <= 8 * 1024 * 1024, String(total));
+  });
+
+  it("takes the heading and video URL from the start context, and refuses a record over the limit", async () => {
+    const s = setup();
+    const f = await startFlow(s, "plain");
+    const reply = (await s.ask(
+      {
+        type: "reserve",
+        startId: f.startId,
+        inputDigest: digestA,
+        videoId: videoA,
+        instanceId: instance(1),
+        heading: { videoTitle: "from viewer", channelName: "x" },
+        videoUrl: watchUrl,
+      },
+      f.viewer,
+    )) as { jobId: string };
+    assert.deepEqual(stored(s, reply.jobId)?.heading, {
+      videoTitle: "Video",
+      channelName: "Channel",
+    });
+
+    // A start context over the read-back limit is read as absent: no run starts.
+    const huge = setup();
+    const g = await startFlow(huge, "plain", {
+      ...input,
+      title: "t".repeat(600 * 1024),
+    });
+    assert.equal(await g.reserve(digestA, videoA, instance(1)), undefined);
+    assert.equal(
+      [...huge.session.items.keys()].filter((k) => k.startsWith("job:")).length,
+      0,
+    );
+  });
+
+  it("starts with a title that has a control character, using the video URL for the page title", async () => {
+    for (const title of ["a\tb", "a\u0085b"]) {
+      const s = setup();
+      const f = await startFlow(s, "plain", { ...input, title });
+      const created = s.tabs.calls.find((c) => c.op === "create");
+      assert.ok(created?.op === "create");
+      const parsed = parseJobViewerUrl(new URL(created.tab.url).search, "");
+      assert.ok(parsed.ok);
+      assert.equal(parsed.params.title, watchUrl);
+      assert.ok(f.startId);
+    }
+  });
+
+  it("does not wait for a runner that connected while its tab was looked up", async () => {
+    const s = setup();
+    seed(s, jobId(1), { state: "running" });
+    s.tabs.open.set(7, 1);
+    const f = await startFlow(s, "plain");
+    const get = s.tabs.get;
+    s.tabs.get = async (tabId) => {
+      const answer = await get(tabId);
+      await connect(s, jobId(1));
+      return answer;
+    };
+    assert.deepEqual(await f.reserve(digestA, videoA, instance(1)), {
+      status: "existing",
+      jobId: jobId(1),
+    });
+  });
+});
