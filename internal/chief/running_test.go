@@ -77,11 +77,18 @@ func TestRunningCommandTextMatchesThePaneInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mkreq, _ := paneinput.NewMkreq(issue)
-	mkarch, _ := paneinput.NewMkarch(task)
-	mkplan, _ := paneinput.NewMkplan(task)
-	runplan, _ := paneinput.NewRunplan(task, paneinput.RouteRunplanOpus)
-	runpr, _ := paneinput.NewRunpr(pr)
+	must := func(c paneinput.Command, err error) paneinput.Command {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	mkreq := must(paneinput.NewMkreq(issue))
+	mkarch := must(paneinput.NewMkarch(task))
+	mkplan := must(paneinput.NewMkplan(task))
+	runplan := must(paneinput.NewRunplan(task, paneinput.RouteRunplanOpus))
+	runpr := must(paneinput.NewRunpr(pr))
 	cases := []struct {
 		kind paneinput.CommandKind
 		arg  string

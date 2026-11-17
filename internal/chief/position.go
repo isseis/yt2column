@@ -179,8 +179,8 @@ func positionFactsOf(f workspaceFacts) positionFacts {
 }
 
 // firstUnmergedPR returns N of the first PR of the plan whose merged box is
-// not checked, 1 for a plan without markers, and 0 when every PR is merged or
-// the number cannot be read.
+// not checked (1 for the single PR of a plan without markers), and 0 when
+// every PR is merged or the number cannot be read.
 func firstUnmergedPR(plan Plan) int {
 	for _, pr := range plan.PRs {
 		if pr.Merged {

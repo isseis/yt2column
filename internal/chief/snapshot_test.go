@@ -218,7 +218,7 @@ func TestNextCommandRules(t *testing.T) {
 		{"requirements draft", fakeDocs{Dir: taskDir, Req: draft}, TaskNextNone, "", "no rule gives a next command"},
 		{"architecture draft", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: draft}, TaskNextNone, "", "the architecture document is not approved"},
 		{"plan draft after an approved architecture", fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: []byte(strings.Replace(string(planSample(t, "marker-opus.md")), "`approved`", "`draft`", 1))}, TaskNextNone, "", "the plan is not approved"},
-		{"process record unreadable", fakeDocs{Dir: taskDir, Req: statusDoc("| Status | `approved` |\n| Process | full |\n")}, TaskNextNone, "", "task documents on origin/main"},
+		{"documents unreadable (a broken process record)", fakeDocs{Dir: taskDir, Req: statusDoc("| Status | `approved` |\n| Process | full |\n")}, TaskNextNone, "", "task documents on origin/main"},
 		{"simple process without architecture", fakeDocs{Dir: taskDir, Req: simple}, TaskNextNone, "", "no rule gives a next command"},
 		{"no requirements document", fakeDocs{Dir: taskDir}, TaskNextNone, "", "no requirements document of the task on origin/main"},
 		{"no task directory", fakeDocs{}, TaskNextNone, "", "no requirements document of the task on origin/main"},

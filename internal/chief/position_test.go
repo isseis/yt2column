@@ -47,9 +47,6 @@ func TestStageOf(t *testing.T) {
 			}
 		})
 	}
-	if (docStage(0)) != stageOther {
-		t.Error("the zero stage is not the one that assumes least")
-	}
 }
 
 // TestUrgencyTable gives urgencyOf every combination of the six states, a
@@ -207,6 +204,9 @@ func TestDocumentRule(t *testing.T) {
 		{"rule 3: a proposal of /mkreq on a branch that names no task", proposeMkreq(branch), nil, PositionDocRequirements, 0},
 		{"rule 3: a running /mkreq on a detached HEAD", Row{State: StateRunning, position: positionFacts{head: headDetached}}, mustMkreq(t), PositionDocRequirements, 0},
 		{"rule 3: a running /mkreq on a branch that names no task", Row{State: StateRunning, position: branch}, mustMkreq(t), PositionDocRequirements, 0},
+		{"a task branch with /mkreq running is decided by its stage, not rule 3", Row{State: StateRunning, position: task(stageReqApprovedFull)}, mustMkreq(t), PositionDocArchitecture, 0},
+		{"rule 4: a proposal that is not /mkreq on a branch that names no task", Row{State: StateProposeNext, Next: &Next{Kind: TaskNextRunplan}, position: branch}, nil, PositionDocNoTask, 0},
+		{"rule 4: a proposal with no next command on a branch that names no task", Row{State: StateProposeNext, position: branch}, nil, PositionDocNoTask, 0},
 		{"rule 4: awaiting review on a branch that names no task", Row{State: StateAwaitingReview, position: branch}, nil, PositionDocNoTask, 0},
 		{"rule 4: a branch that names no task with another command running", Row{State: StateRunning, position: branch}, mustRunning(t, paneinput.CommandRunpr, "12"), PositionDocNoTask, 0},
 		{"rule 4: a running row with no command decided", Row{State: StateRunning, position: branch}, nil, PositionDocNoTask, 0},
@@ -224,17 +224,13 @@ func TestDocumentRule(t *testing.T) {
 		{"rule 10: a detached HEAD with nothing running", Row{State: StateNeedsCheck, position: positionFacts{head: headDetached}}, nil, PositionDocNeedsCheck, 0},
 		{"rule 10: a detached HEAD with another command running", Row{State: StateRunning, position: positionFacts{head: headDetached}}, mustRunning(t, paneinput.CommandRunplan, "0001"), PositionDocNeedsCheck, 0},
 		{"rule 10: a detached HEAD whose proposal is /mkreq", proposeMkreq(positionFacts{head: headDetached}), nil, PositionDocNeedsCheck, 0},
-		{"the state needs a check but the documents are read (AC-08)", Row{State: StateNeedsCheck, Unreadable: []string{"screen of pane w1:p1"}, position: task(stageArchApproved)}, nil, PositionDocPlan, 0},
+		{"the state needs a check but the documents are read", Row{State: StateNeedsCheck, Unreadable: []string{"screen of pane w1:p1"}, position: task(stageArchApproved)}, nil, PositionDocPlan, 0},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			state := c.row.State
 			got, n := documentOf(c.row, c.running)
 			if got != c.want || n != c.wantPR {
 				t.Errorf("documentOf = %d, %d; want %d, %d", got, n, c.want, c.wantPR)
-			}
-			if c.row.State != state {
-				t.Errorf("documentOf changed the state: %v -> %v", state, c.row.State)
 			}
 		})
 	}
@@ -395,7 +391,7 @@ func TestSnapshotRowKeepsWhyTheDocumentsAreUnknown(t *testing.T) {
 	w.add(fakeWorkspace{ID: "w2", Label: "readable", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
 	snap := take(t, w)
 	broken, readable := rowOf(t, snap, "broken"), rowOf(t, snap, "readable")
-	if !broken.position.docsUnreadable || broken.position.hasTask != true {
+	if !broken.position.docsUnreadable || !broken.position.hasTask {
 		t.Errorf("broken row facts = %+v, want unreadable documents of a task", broken.position)
 	}
 	if got, _ := documentOf(broken, nil); got != PositionDocNeedsCheck {
@@ -406,5 +402,39 @@ func TestSnapshotRowKeepsWhyTheDocumentsAreUnknown(t *testing.T) {
 	}
 	if got, _ := documentOf(readable, nil); got != PositionDocArchitecture {
 		t.Errorf("the document of the readable row = %d, want architecture", got)
+	}
+}
+
+// TestFirstUnmergedPR checks the PR number rule 7 names, including a marker
+// number that cannot be read, which names none.
+func TestFirstUnmergedPR(t *testing.T) {
+	cases := []struct {
+		name string
+		plan Plan
+		want int
+	}{
+		{"the first PR is not merged", Plan{PRs: []PlanPR{{Target: "1"}, {Target: "2"}}}, 1},
+		{"the second PR is the first not merged", Plan{PRs: []PlanPR{{Target: "1", Merged: true}, {Target: "2"}}}, 2},
+		{"every PR is merged", Plan{PRs: []PlanPR{{Target: "1", Merged: true}}}, 0},
+		{"a plan without markers", Plan{PRs: []PlanPR{{Target: singleTarget}}}, 1},
+		{"a marker number that is not a number", Plan{PRs: []PlanPR{{Target: "x"}}}, 0},
+		{"a marker number of zero", Plan{PRs: []PlanPR{{Target: "0"}}}, 0},
+		{"no PR", Plan{}, 0},
+	}
+	for _, c := range cases {
+		if got := firstUnmergedPR(c.plan); got != c.want {
+			t.Errorf("%s: firstUnmergedPR = %d, want %d", c.name, got, c.want)
+		}
+	}
+}
+
+// TestDecideNextProcessRecordUnreadable checks the reason of the stage whose
+// process record is broken. The document reader rejects such a record, so
+// only documents built directly reach it.
+func TestDecideNextProcessRecordUnreadable(t *testing.T) {
+	f := workspaceFacts{Head: headBranch, Branch: taskBranch, Task: mustTask(t, "0001"), Docs: &TaskDocs{Dir: "d", Requirements: docsInfo(DocApproved, ProcessUnreadable)}}
+	next, done, why := decideNext(f)
+	if next != nil || done || why != "the process record of the requirements document is unreadable" {
+		t.Errorf("decideNext = %v, %v, %q", next, done, why)
 	}
 }
