@@ -657,14 +657,17 @@ describe("checkDist", () => {
       assert.match(violations[0] ?? "", /^dist\/yt2column\.wasm: buildInfo: /);
     });
   }
-  it("rejects a static file whose copy differs, in either kind", async () => {
-    write(root, "dist/page.html", "<p>changed</p>");
-    assert.deepEqual(await checkDist(root, release()), [
-      "dist/page.html: differs from static/page.html",
-    ]);
-    makeDevTree();
-    assert.deepEqual(await checkDist(root, dev()), [
-      "dist-dev/page.html: differs from static/page.html",
-    ]);
-  });
+  for (const kind of ["release", "dev"] as const) {
+    it(`rejects a static file whose copy differs in a ${kind} build`, async () => {
+      write(root, "dist/page.html", "<p>changed</p>");
+      if (kind === "dev") {
+        makeDevTree();
+      }
+      const out = kind === "dev" ? "dist-dev" : "dist";
+      assert.deepEqual(
+        await checkDist(root, kind === "dev" ? dev() : release()),
+        [`${out}/page.html: differs from static/page.html`],
+      );
+    });
+  }
 });

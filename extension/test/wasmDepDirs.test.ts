@@ -85,6 +85,7 @@ describe("wasm-dep-dirs", () => {
     const run = runWithGo(`${root}/internal/llm\n`);
     const [env, ...args] = run.seen.trimEnd().split("\n");
     assert.equal(env, "GOOS=js GOARCH=wasm");
+    // Without -e: -e would turn a broken package into a success.
     assert.deepEqual(args, [
       "list",
       "-deps",
@@ -93,8 +94,6 @@ describe("wasm-dep-dirs", () => {
       "./cmd/yt2column-wasm",
       "./cmd/yt2column-wasm-dev",
     ]);
-    // -e would turn a broken package into a success.
-    assert.equal(args.includes("-e"), false);
   });
 
   const failures: { name: string; output: string; status: number }[] = [

@@ -56,9 +56,10 @@ describe("has-extension-changes", () => {
     ["docs/dev/guides/development.md"],
     ["internal/server/response.go"],
     // Files under a dependency directory: a Go file, an embedded template,
-    // an embedded fake article in a subdirectory (a .md file, which the Go
-    // jobs' classification skips), and a file in a package under the
-    // directory that the modules may not compile.
+    // an embedded fake article (a .md file, which the Go jobs'
+    // classification skips), and a file in a subdirectory whose only listed
+    // ancestor is internal/llm/. None exists on disk, as for a deleted
+    // file: the path alone decides.
     ["internal/llm/llm.go"],
     ["prompts/draft.tmpl"],
     ["internal/llm/devfake/articles/standard.md"],
@@ -135,12 +136,6 @@ describe("has-extension-changes", () => {
     });
   }
 
-  // A deleted file still appears in git diff --name-only, so the path alone
-  // decides; the test lists one that does not exist on disk.
-  it("runs the extension job for a deleted file under a dependency directory", () => {
-    assert.equal(classify(["internal/llm/removed.go"]), "true\n");
-  });
-
   it("reads the last directory without a trailing newline", () => {
     assert.equal(
       classify(["prompts/x.tmpl"], "internal/llm/\nprompts/"),
@@ -152,16 +147,16 @@ describe("has-extension-changes", () => {
     assert.equal(classify(["internal/llm/llm.go"], ""), "false\n");
   });
 
-  const malformed: { name: string; args: (dirs: string) => string[] }[] = [
-    { name: "without the directory file", args: () => [script] },
+  const malformed: { name: string; args: string[] }[] = [
+    { name: "without the directory file", args: [script] },
     {
       name: "with a directory that does not end in /",
-      args: () => [script, depDirFile("internal/llm\n")],
+      args: [script, depDirFile("internal/llm\n")],
     },
   ];
   for (const { name, args } of malformed) {
     it(`fails ${name}`, () => {
-      const result = spawnSync("bash", args(depDirs), {
+      const result = spawnSync("bash", args, {
         input: "internal/llm/llm.go\0",
         encoding: "utf8",
       });

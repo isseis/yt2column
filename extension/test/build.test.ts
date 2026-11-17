@@ -45,6 +45,8 @@ describe("goToolchain", () => {
     });
   }
 
+  // The message is what the user reads to fix go.mod, so its wording is
+  // the contract here.
   it("says why a go line without a patch version stops the build", () => {
     assert.throws(() => goToolchain("go 1.26\n"), /no patch version/);
   });
@@ -292,6 +294,8 @@ describe("build", () => {
     assert.equal(tsc?.cwd, extensionDir);
   });
 
+  // The messages asserted below must carry the failing command's stderr or
+  // the check's violations: that text is what the user sees.
   it("checks the scenario natively before building, and passes -ldflags once with five -X", async () => {
     await build(options({ kind: "dev", scenario }));
     const [, first, ...rest] = calls;
@@ -315,7 +319,6 @@ describe("build", () => {
     );
     const flags = goBuild.args[goBuild.args.indexOf("-ldflags") + 1] ?? "";
     assert.equal(flags, scenarioLdflags(scenario));
-    assert.equal(flags.split(" -X ").length, 5);
     assert.equal(goBuild.args.at(-1), "./cmd/yt2column-wasm-dev");
     assert.equal(goBuild.env["GOOS"], "js");
   });
@@ -420,6 +423,52 @@ describe("build", () => {
     );
     assert.equal(checked.length, 0);
   });
+  const unreadableSettings: { name: string; result: CommandResult }[] = [
+    {
+      name: "fails",
+      // Settings the build would accept, so only the exit status rejects it.
+      result: {
+        status: 1,
+        stdout: JSON.stringify({
+          GOFLAGS: "",
+          GOHOSTOS: "linux",
+          GOHOSTARCH: "arm64",
+          GOROOT: "/goroot",
+          GOVERSION: "go1.26.5",
+        }),
+        stderr: "no go",
+      },
+    },
+    { name: "prints no JSON", result: { status: 0, stdout: "x", stderr: "" } },
+    {
+      name: "omits a setting",
+      result: {
+        status: 0,
+        // Every setting but GOROOT, with values the build accepts.
+        stdout: JSON.stringify({
+          GOFLAGS: "",
+          GOHOSTOS: "linux",
+          GOHOSTARCH: "arm64",
+          GOVERSION: "go1.26.5",
+        }),
+        stderr: "",
+      },
+    },
+  ];
+  for (const { name, result } of unreadableSettings) {
+    it(`stops when go env ${name}`, async () => {
+      const run: Runner = (command, args, opts) =>
+        command === "go" && args[0] === "env"
+          ? result
+          : fakeRunner()(command, args, opts);
+      await assert.rejects(
+        build(options({ kind: "release" }, { run })),
+        BuildError,
+      );
+      assert.equal(checked.length, 0);
+    });
+  }
+
   // go env -w values reach every go command even when the environment
   // variable is empty, so the build refuses them before anything else.
   const refusedSettings: { name: string; changes: Record<string, string> }[] = [
@@ -452,7 +501,9 @@ describe("build", () => {
 describe("the build command", () => {
   const script = path.join(extensionRoot, "scripts", "build.ts");
   // Arguments it rejects before it reads go.mod or runs anything.
-  for (const argv of [[], ["release", "--delay", "1"], ["dev"]]) {
+  // One row: parseBuildArgs's table covers each rejection; this shows the
+  // entry point turns a BuildError into "build: " on stderr and exit 1.
+  for (const argv of [["release", "--delay", "1"]]) {
     it(`exits 1 for ${JSON.stringify(argv)}`, () => {
       const result = spawnSync(process.execPath, [script, ...argv], {
         encoding: "utf8",

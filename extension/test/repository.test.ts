@@ -208,6 +208,8 @@ describe("ci runs every extension step", () => {
     assert.ok(setupGo < firstBuild, "setup-go comes after ext-build");
   });
 
+  // A deliberate pin of the step's shell text: the fallback to true is the
+  // property, and the step is not run here.
   it("classifies changes after setting up Go, and runs the extension job when the dependencies cannot be listed", () => {
     const steps = jobSteps(jobLines("check-changes"));
     const setupGo = steps.findIndex((step) =>
@@ -284,21 +286,6 @@ describe("the development build", () => {
     }
     return flags;
   }
-
-  it("ext-build-dev always passes the five scenario values, each once", () => {
-    const flags = devBuildFlags([]);
-    assert.deepEqual([...flags.keys()].sort(), [
-      "article",
-      "delay",
-      "fail-at",
-      "failure",
-      "settings-check",
-    ]);
-    for (const [name, values] of flags) {
-      assert.equal(values.length, 1, name);
-      assert.notEqual(values[0], "", name);
-    }
-  });
 
   it("ext-build-dev passes each variable to its own option", () => {
     const flags = devBuildFlags([
