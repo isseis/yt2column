@@ -162,7 +162,7 @@
 -   [x] **ステップ 3-9**: `docs/dev/guides/chief_guide.md` を設計書 3.10 のとおりに直す（既知の制限は、決定 11 の引数なしのコマンドを含む 3 つ）。古い版に戻す手順は、道具と `/chief` の定義を同じコミットから入れることと、送信の記録の新しい欄を古い道具が読めないので記録を消すことを書く。
 -   [x] **ステップ 3-10**: `package_reference.md` の `internal/chief` と `internal/chief/paneinput` の行に、このタスクで exported にした名前を足す。
 -   [ ] **ステップ 3-11**: PR の説明に、人がマージの直前に行う 2 つの項目を書く。0092 の確かめ（§1.3 の決定 6）と、`origin/main` の `Protocol` がこの PR の値と同じなら 1 つ上げること（§1.3 の決定 1）である。`main` はマージで取り込み、rebase しない（0099 の規則。rebase すると、同じ値への書き換えが履歴から消えるため）。上げるときは、人が `/runpr` かこの PR のセッションに、`Protocol` と `/chief` の定義と手引きの番号を直すコミットを頼む。今の `Protocol` のガードテストが、番号の変え残しを見つける。
--   [x] **ステップ 3-12**: 実地の確かめを、人と行う（§1.3 の決定 3）。動いている `/chief` を人が止め、chief の worktree をこの PR のブランチの先頭（detached）にして `make install-chief` を行い、`/chief` と `/chief once` を起動し直す。設計書 7.3 の 5 つの項目を見る。`working` の Claude Code の pane が数個あり、記録が数十 MB ある状態で、1 周の時間を測る。結果と確かめたコミットを §7 の「PR-3 の実行の記録」に書く。その後に `internal/chief` か `.claude/commands/chief.md` を変えるコミットを足したときは、確かめ直す。マージの後、人が chief の worktree を `main` に戻し、`main` から入れ直す。
+-   [ ] **ステップ 3-12**: 実地の確かめを、人と行う（§1.3 の決定 3）。動いている `/chief` を人が止め、chief の worktree をこの PR のブランチの先頭（detached）にして `make install-chief` を行い、`/chief` と `/chief once` を起動し直す。設計書 7.3 の 5 つの項目を見る。`working` の Claude Code の pane が数個あり、記録が数十 MB ある状態で、1 周の時間を測る。結果と確かめたコミットを §7 の「PR-3 の実行の記録」に書く。その後に `internal/chief` か `.claude/commands/chief.md` を変えるコミットを足したときは、確かめ直す。マージの後、人が chief の worktree を `main` に戻し、`main` から入れ直す。
 -   [x] **ステップ 3-13**: ステップ 3-12 の最初の実地の確かめを受けた決定の変更（要件書・設計書の「実装の際に決めたこと（2026-11-17）」）を実装する。`readRunningCommand` は人が最後に打ったタスクのコマンドと、その後の人の入力の有無を返し、`RunningShown.Later` と出力の `running.later_input` に通す。後の入力があればモデルを示さない。`OutputValueNames` を表に示す `urgency`・`position.document`・`position.progress`・`running_unknown` にする。`/chief` の定義の表を 6 つの列（急・名前・タスク・文書・状態・内容）にし、印を「🔴 今」「🟡 後」「🟢 待」に、`running_unknown` を内容の列に示す。手引きの 3.1 と 8 章、ADR-0046、CLAUDE.md の chief の画面の読み取りの例外の範囲の文を合わせる。その後、ステップ 3-12 の実地の確かめをやり直す。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。AC-19 のスクリプトの結果と実地の確かめの結果が §7 にある。
@@ -270,7 +270,7 @@
 | AC-19 | `docs/tasks/0093_chief_status_sheet/_checks/` の「Under the table」の比較のスクリプト（merge-base と PR のコミットの `.claude/commands/chief.md`）。結果は「PR-3 の実行の記録」。設計書の付録 B の「PR のレビュー」より強い確かめにした | diff | 3-8 | PR-3 |
 | AC-20 | `ic/snapshot_test.go::TestSnapshotRowOutput`、`ic/autosend_test.go::TestTickOutputRows`（`tick` の出力） | test | 3-5 | PR-3 |
 | AC-21 | `cc/docs_test.go::TestDisplayValuesMatchTool`、`ic/output_test.go::TestOutputValueNames`、定義の 6 つの列と「道具の順と値のまま示す」の文、実地の確かめ | static、test、manual | 3-5・3-6・3-7・3-12・3-13 | PR-3 |
-| AC-22 | 定義の「2. One round」が引数のない場合と `once` で共通であること、実地の確かめ | manual | 3-6・3-12 | PR-3 |
+| AC-22 | 定義の「2. One round」が引数のない場合と `once` で共通であること、実地の確かめ（待ち受けの表。`once` で表が見えることは #968 に回した） | manual | 3-6・3-12 | PR-3 |
 
 ### PR-1 の実行の記録
 
