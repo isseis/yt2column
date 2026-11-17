@@ -65,8 +65,9 @@ records whether to request one.
 
 None applies to: mechanical changes (rename, move, formatting); wording in
 documents (a change to what a review gate does is not wording); tests added in
-an existing pattern; deleted code; a local fix that applies a finding as
-stated once the local review has converged.
+an existing pattern; deleted code, unless it removes part of a review gate or
+of a trust boundary's checks (criterion 4); a local fix that applies a finding
+as stated once the local review has converged.
 
 Size is not a criterion. A large rename touches none of the five; a three-line
 change to a cache write or to a review gate touches the fourth.

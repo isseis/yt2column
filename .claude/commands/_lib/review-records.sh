@@ -50,9 +50,12 @@
 #     file and nothing on standard input. Of the caller's environment only
 #     PATH, HOME, and TMPDIR are kept; its GIT_ variables, exported
 #     functions, shell options, and locale change nothing, nor do the global
-#     and system git configuration or the attributes. Commits and blobs are
-#     read with plumbing commands (cat-file, diff-tree --raw, rev-list), so
-#     no diff driver, text conversion, or attribute applies.
+#     and system git configuration or the attributes. Inputs left: bash
+#     reads the caller's BASH_ENV file before this script starts, so what
+#     that file prints would reach the output; that is the user's own
+#     environment, not a value from outside the trust boundary. Commits and
+#     blobs are read with plumbing commands (cat-file, diff-tree --raw,
+#     rev-list), so no diff driver, text conversion, or attribute applies.
 #   - Failure: any failed git step, an argument of another form, or an
 #     unreadable refs/remotes/origin/main prints "PARTIAL" alone (no
 #     count), a diagnostic on standard error, and exits 1. A caller reads a
