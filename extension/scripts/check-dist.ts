@@ -14,6 +14,7 @@
 // against the toolchain's copy.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { JSDOM } from "jsdom";
 import ts from "typescript";
 
@@ -441,7 +442,8 @@ async function buildInfoViolations(
     );
   }
   const want = expectedLLM(expectation.target);
-  if (JSON.stringify(info["llm"]) !== JSON.stringify(want)) {
+  // Compared as values, so the members' order does not matter.
+  if (!isDeepStrictEqual(info["llm"], want)) {
     violations.push(
       `${label}: llm is ${JSON.stringify(info["llm"])}, want ${JSON.stringify(want)}`,
     );

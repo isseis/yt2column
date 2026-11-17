@@ -670,4 +670,13 @@ describe("checkDist", () => {
       );
     });
   }
+  it("accepts a scenario reported with its members in another order", async () => {
+    makeDevTree();
+    const { article, ...rest } = devInfo.llm.scenario;
+    const info = {
+      ...devInfo,
+      llm: { scenario: { ...rest, article }, kind: "fake" },
+    };
+    assert.deepEqual(await checkDist(root, dev(info)), []);
+  });
 });
