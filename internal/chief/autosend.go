@@ -872,5 +872,5 @@ func (a *autoSender) resetRunpr(ctx context.Context, sc sendContext, obs Observa
 	// exclusion, before the command was sent: the report read now may be a
 	// new answer of the same shape.
 	seq := candidate.StateChangeSeq
-	return sc.run(ctx, res, agent, []step{st}, paneCheck{session: agent.Session, seq: &seq}, route)
+	return sc.run(ctx, res, agent, []step{st}, paneCheck{session: agent.Session, seq: &seq}, route, nil)
 }

@@ -139,5 +139,5 @@ func (s sendContext) resetAfterRunpr(ctx context.Context, runprPane string, pr O
 		return notSent(res, reason, detail)
 	}
 	seq := a.StateChangeSeq
-	return s.run(ctx, res, a, []step{st}, paneCheck{session: a.Session, seq: &seq}, route)
+	return s.run(ctx, res, a, []step{st}, paneCheck{session: a.Session, seq: &seq}, route, nil)
 }

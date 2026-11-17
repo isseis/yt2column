@@ -116,6 +116,29 @@ func sendRecordNames(t *testing.T, h *HeldWorkspace) []string {
 	return names
 }
 
+// startRecords returns the start records of the sends to the worktree at
+// tree, oldest first.
+func startRecords(t *testing.T, deps Deps, tree string) []SendRecord {
+	t.Helper()
+	records, err := deps.Store.Records(Worktree{path: tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	starts, _, err := records.sendFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var recs []SendRecord
+	for _, id := range starts {
+		var rec SendRecord
+		if err := records.store().read(sendPrefix+id+startSuffix, &rec); err != nil {
+			t.Fatal(err)
+		}
+		recs = append(recs, rec)
+	}
+	return recs
+}
+
 // TestSendNeedsOnePaneOfTheAgent checks that a workspace with no pane, or
 // with two panes, of the route's agent gets nothing, and that the result
 // lists its panes.
@@ -204,9 +227,11 @@ func TestSendInputsInOrder(t *testing.T) {
 		cmd   func(*testing.T) paneinput.Command
 		route func(*testing.T) paneinput.Route
 		want  []string
+		// cmdKind and arg are what the start record declares of the command.
+		cmdKind, arg string
 	}{
-		{"Claude Code", "claude", runplanCmd, opus, []string{"w1:p1 /clear", "w1:p1 /model opus", "w1:p1 /runplan 0001"}},
-		{"OpenCode", "opencode", runprCmd, flash, []string{"w1:p1 /new", "w1:p1 /runpr 42"}},
+		{"Claude Code", "claude", runplanCmd, opus, []string{"w1:p1 /clear", "w1:p1 /model opus", "w1:p1 /runplan 0001"}, "runplan", "0001"},
+		{"OpenCode", "opencode", runprCmd, flash, []string{"w1:p1 /new", "w1:p1 /runpr 42"}, "runpr", "42"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -224,6 +249,9 @@ func TestSendInputsInOrder(t *testing.T) {
 			starts, ends, err := sc.held.sendFiles()
 			if _, ok := ends[starts[0]]; err != nil || len(starts) != 1 || len(ends) != 1 || !ok {
 				t.Errorf("records = %v %v %v, want one start and its end", starts, ends, err)
+			}
+			if recs := startRecords(t, deps, sw.trees["w1"]); len(recs) != 1 || recs[0].Kind != c.cmdKind || recs[0].Arg != c.arg {
+				t.Errorf("start records = %+v; want one declaring %s %s", recs, c.cmdKind, c.arg)
 			}
 		})
 	}
@@ -733,6 +761,11 @@ func TestSendTakeover(t *testing.T) {
 	want := []string{"w1:p1 /clear", "w1:p1 /model sonnet", "w1:p1 /runplan 0001"}
 	if got := sw.rec.prompts(); !slices.Equal(got, want) {
 		t.Errorf("typed %v, want %v", got, want)
+	}
+	// The takeover is /runplan to the pane, so its record declares runplan,
+	// not the routing row it was sent by.
+	if recs := startRecords(t, deps, tree); len(recs) != 1 || recs[0].Kind != "runplan" || recs[0].Arg != "0001" {
+		t.Errorf("start records = %+v; want one declaring runplan 0001", recs)
 	}
 }
 

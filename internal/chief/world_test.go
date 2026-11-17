@@ -3,6 +3,7 @@
 package chief
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -229,7 +230,7 @@ func (w *world) finish() Deps {
 	w.rec.reply("herdr agent list", agentListOutput(w.agents))
 	w.rec.reply("herdr workspace list", workspaceListOutput(w.labels))
 	w.rec.reply("herdr agent get "+worldChiefPane, agentGetOutput(w.chief))
-	return Deps{Env: w.env, Cmds: w.rec.commands(os.Environ()), Store: w.store, Now: func() time.Time { return w.now }}
+	return Deps{Env: w.env, Cmds: w.rec.commands(os.Environ()), Store: w.store, Now: func() time.Time { return w.now }, Sleep: func(context.Context, time.Duration) error { return nil }}
 }
 
 // owner is the identity chief's pane has.
