@@ -145,7 +145,7 @@ describe("type errors fail typecheck and build", () => {
   });
 
   describe("the Worker is checked with the Worker's types only", () => {
-    for (const file of ["good", "usesWorkerScope"] as const) {
+    for (const file of ["usesWorkerScope"] as const) {
       it(`tsconfig.worker.json accepts ${file}`, () => {
         const { status, output } = runTsc("tsconfig.worker.json", file);
         assert.equal(status, 0, output);

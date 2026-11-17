@@ -209,18 +209,6 @@ describe("readJobRecord", () => {
       }),
     },
     {
-      name: "a job ID of 31 digits",
-      value: changed("done", (r) => {
-        r["jobId"] = jobId.slice(1);
-      }),
-    },
-    {
-      name: "an uppercase job ID",
-      value: changed("done", (r) => {
-        r["jobId"] = jobId.toUpperCase();
-      }),
-    },
-    {
       name: "an input digest of 63 digits",
       value: changed("done", (r) => {
         r["inputDigest"] = "ab".repeat(32).slice(1);
@@ -263,6 +251,20 @@ describe("readJobRecord", () => {
   for (const { name, value } of absent) {
     it(`treats ${name} as absent`, () => {
       assert.equal(readJobRecord(jobId, value), undefined);
+    });
+  }
+
+  // The caller looks for the same malformed ID the record holds, so only the
+  // ID's form can refuse it, not the comparison with the ID looked for.
+  for (const [name, id] of [
+    ["a job ID of 31 digits", jobId.slice(1)],
+    ["an uppercase job ID", jobId.toUpperCase()],
+  ] as const) {
+    it(`treats ${name} as absent`, () => {
+      assert.equal(
+        readJobRecord(id, { ...records["done"], jobId: id }),
+        undefined,
+      );
     });
   }
 
@@ -325,10 +327,6 @@ describe("readStartContext", () => {
         Object.entries(context).filter(([name]) => name !== "channelName"),
       ),
     },
-    {
-      name: "a start ID of 31 digits",
-      value: { ...context, startId: startId.slice(1) },
-    },
     { name: "another version", value: { ...context, version: 0 } },
   ];
   for (const { name, value } of absent) {
@@ -336,6 +334,11 @@ describe("readStartContext", () => {
       assert.equal(readStartContext(startId, value), undefined);
     });
   }
+
+  it("treats a start ID of 31 digits as absent", () => {
+    const id = startId.slice(1);
+    assert.equal(readStartContext(id, { ...context, startId: id }), undefined);
+  });
 
   it("treats another start's context as absent", () => {
     assert.equal(readStartContext("e".repeat(32), context), undefined);

@@ -915,8 +915,6 @@ describe("stored Anthropic settings", () => {
       kind: "found",
       settings: { anthropicApiKey: "sk-1" },
     });
-    assert.ok(stored.kind === "found");
-    assert.equal(Object.hasOwn(stored.settings, "anthropicWorkspaceId"), false);
   });
 
   it("ignores every other item", () => {

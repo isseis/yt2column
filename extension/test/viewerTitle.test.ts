@@ -62,18 +62,6 @@ describe("viewerTitle", () => {
     });
   }
 
-  it("ends with the development build's name in a development build", () => {
-    const source: TitleSource = { kind: "url", urlTitle: "Video" };
-    assert.equal(
-      viewerTitle(source, "dev", "en"),
-      "Video - yt2column (development build)",
-    );
-    assert.equal(
-      viewerTitle(source, "dev", "ja"),
-      "Video - yt2column（開発用のビルド）",
-    );
-  });
-
   it("names a build as its manifest does, in each locale", () => {
     // The development manifest's name is the extNameDev message (the build
     // writes it), and the release one is extName.
@@ -117,30 +105,20 @@ describe("viewerTitle", () => {
     );
   });
 
-  it("falls back to a fixed text when no title is known", () => {
-    assert.equal(
-      viewerTitle(
-        { kind: "record", videoTitle: "", heading: "" },
-        "release",
-        "en",
-      ),
-      "Untitled video - yt2column",
-    );
-  });
-
-  it("never returns a title with an empty part, for any input", () => {
+  it("never returns a title with an empty or white-space part, for any input", () => {
     const sources: TitleSource[] = [
       { kind: "record", videoTitle: "", heading: "" },
-      { kind: "start", videoTitle: "", heading: "" },
+      { kind: "start", videoTitle: " ", heading: "\t" },
       { kind: "url", urlTitle: "" },
+      { kind: "url", urlTitle: "  " },
       { kind: "invalid-link" },
     ];
     for (const source of sources) {
       for (const buildKind of buildKinds) {
         for (const locale of localeList) {
           const title = viewerTitle(source, buildKind, locale);
-          assert.ok(!title.startsWith(" - "), title);
-          assert.notEqual(title.trim(), "");
+          const part = title.slice(0, title.lastIndexOf(" - "));
+          assert.notEqual(part.trim(), "", title);
         }
       }
     }

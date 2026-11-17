@@ -642,6 +642,11 @@ describe("apiKeyPathViolations", () => {
       text: 'console.info("label", apiKey);\n',
     },
     {
+      name: "the API key given to console.table",
+      file: "src/sample.ts",
+      text: "console.table({ apiKey });\n",
+    },
+    {
       name: "the API key member given to a logger",
       file: "src/sample.ts",
       text: 'logger.error("label", { value: settings.anthropicApiKey });\n',
@@ -652,6 +657,17 @@ describe("apiKeyPathViolations", () => {
       text: 'console.log(items["anthropic.apiKey"]);\n',
     },
   ];
+  it("refuses the session area's change event outside chromeDeps.ts by its own check", () => {
+    // The storage check refuses the same line outside chromeDeps.ts, so the
+    // onChanged check's own violation is looked for.
+    assert.ok(
+      apiKeyPathViolations(
+        "src/sample.ts",
+        "chrome.storage.session.onChanged.addListener(() => {});\n",
+      ).some((violation) => violation.startsWith("onChanged ")),
+    );
+  });
+
   for (const { name, file, text } of refused) {
     it(`refuses ${name}`, () => {
       assert.notDeepEqual(apiKeyPathViolations(file, text), []);

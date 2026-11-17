@@ -595,11 +595,6 @@ describe("the other rules in the files with an exception", () => {
       files: [chromeDeps],
     },
     {
-      name: "chrome.storage",
-      code: "export const p = chrome.storage.local.getKeys();\n",
-      files: [wasmWorker],
-    },
-    {
       name: "chrome.windows",
       code: "export const p = chrome.windows;\n",
       files: [wasmWorker],

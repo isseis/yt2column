@@ -123,11 +123,8 @@ export function startWasmWorker(
   };
   const fail = (detail: WorkerFailure): void => end({ kind: "failed", detail });
 
-  cancelLoad = schedule(workerLoadTimeoutMs, () => {
-    if (!loaded) {
-      fail("worker_load");
-    }
-  });
+  // ready cancels this timer, so it fires only before ready.
+  cancelLoad = schedule(workerLoadTimeoutMs, () => fail("worker_load"));
 
   // After the end, end ignores every failure and no call waits, so nothing
   // the Worker still sends has an effect.

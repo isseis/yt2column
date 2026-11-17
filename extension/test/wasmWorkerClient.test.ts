@@ -40,7 +40,10 @@ function track(promise: Promise<WorkerCallResult>): {
   return { result: () => result };
 }
 
-/** Makes the first call and answers it after the Worker said ready. */
+/**
+ * Starts a Worker that has said ready and answered one call (callId 1), so
+ * the next call is callId 2 and a message for callId 1 is a stale one.
+ */
 async function loaded(): Promise<{
   client: WasmWorker;
   worker: FakeWorker;
@@ -113,6 +116,7 @@ describe("wasm Worker client", () => {
   it("stops the load deadline at ready, so a long first call is not cut", async () => {
     const { client, worker, clock } = started();
     worker.send({ kind: "ready" });
+    assert.equal(clock.pending(), 0, "the load deadline still runs");
     // checkSettings may take the module's own 30 seconds after the load.
     const call = track(client.call("checkSettings", "c"));
     clock.advance(workerLoadTimeoutMs * 2);
@@ -144,6 +148,25 @@ describe("wasm Worker client", () => {
       detail: "worker_load",
     });
     assert.equal(worker.posted.length, 0);
+  });
+
+  it("fails a call whose message cannot be posted, as worker_load before ready and worker_error after", async () => {
+    for (const ready of [false, true]) {
+      const workers = fakeWorkers();
+      const client = startWasmWorker(workers.create, fakeClock().schedule);
+      const [worker] = workers.created;
+      assert.ok(worker !== undefined);
+      if (ready) {
+        worker.send({ kind: "ready" });
+      }
+      worker.postMessage = () => {
+        throw new Error("DataCloneError");
+      };
+      assert.deepEqual(await client.call("prepare", "p"), {
+        kind: "failed",
+        detail: ready ? "worker_error" : "worker_load",
+      });
+    }
   });
 
   it("ends as worker_load when the Worker cannot be created", async () => {
@@ -189,7 +212,7 @@ describe("wasm Worker client", () => {
     },
   ];
   for (const { name, act, beforeLoad, afterLoad } of failures) {
-    it(`fails as ${beforeLoad} on ${name} before the module has answered`, async () => {
+    it(`fails as ${beforeLoad} on ${name} before ready`, async () => {
       const { client, worker } = started();
       const call = client.call("prepare", "p");
       act(worker, 1);
@@ -197,7 +220,7 @@ describe("wasm Worker client", () => {
       assert.equal(worker.terminations, 1);
     });
 
-    it(`fails as ${afterLoad} on ${name} after the module has answered`, async () => {
+    it(`fails as ${afterLoad} on ${name} after ready`, async () => {
       const { client, worker } = await loaded();
       const call = client.call("generate", "g");
       act(worker, 2);
