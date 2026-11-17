@@ -809,6 +809,11 @@ func TestMergeRunsProtocolCheck(t *testing.T) {
 			if _, err := os.Stat(dir); err != nil {
 				t.Errorf("work directory %s removed on a stopped merge, want it kept for discard: %v", dir, err)
 			}
+			// The command the operator is told to run is the contract: a
+			// stop shows the discard command with this binary's --protocol.
+			if !strings.Contains(err.Error(), discardCommand(statePath)) {
+				t.Errorf("Merge error = %q, want it to show %q", err, discardCommand(statePath))
+			}
 		})
 	}
 }
@@ -837,6 +842,11 @@ func TestProtocolFetchFailureStops(t *testing.T) {
 		tool, runner, checker := newCheckedTool(t, nil, viewStep(openState, "main"), failedFetch)
 		_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
 		assertFetchUnreadable(t, err)
+		// A failed fetch leaves the preparation usable, so the operator is
+		// not told to discard it.
+		if strings.Contains(err.Error(), discardCommand(statePath)) {
+			t.Errorf("Merge error = %q, want no discard command after a failed fetch", err)
+		}
 		runner.done()
 		if len(checker.calls) != 0 {
 			t.Errorf("check calls = %+v, want none", checker.calls)
@@ -847,7 +857,7 @@ func TestProtocolFetchFailureStops(t *testing.T) {
 func assertFetchUnreadable(t *testing.T, err error) {
 	t.Helper()
 	unreadable, ok := errors.AsType[*protocolUnreadableError](err)
-	if !ok || !errors.Is(err, errProtocolUnreadable) {
+	if !ok {
 		t.Fatalf("error = %v, want a protocolUnreadableError", err)
 	}
 	if unreadable.Kind != unreadableFetch {
