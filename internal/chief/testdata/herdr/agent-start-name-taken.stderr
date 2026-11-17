@@ -1,0 +1,1 @@
+{"error":{"code":"agent_name_taken","message":"agent name probe-0092-claude is already used; candidates: terminal_id=term_6606c93f0f68944 pane_id=w1Y:p3 workspace_id=w1Y tab_id=w1Y:t3 cwd=/Users/user/.herdr/worktrees/yt2column/probe-0092 status=Idle"},"id":"cli:agent:start"}

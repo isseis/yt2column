@@ -2,6 +2,10 @@
   "extName": {
     "message": "yt2column"
   },
+  "extNameDev": {
+    "message": "yt2column（開発用のビルド）",
+    "description": "The extension's name in the development build's manifest."
+  },
   "extDescription": {
     "message": "選択した YouTube の文字起こしをローカルの yt2column サーバに送り、コラム記事を書かせます。"
   }

@@ -831,7 +831,7 @@ flowchart LR
     -   `storage` の名前の参照は、`browser/chromeDeps.ts` のほかで拒否する。
     -   `session` の名前を拒否する規則は、`chrome.session` だけに狭める。
     -   `fetch` は、Worker の中の読み込みのスクリプト（`worker.ts`）のほかで拒否し、`XMLHttpRequest`・`WebSocket`・`EventSource` は今のまま拒否する。
-    -   上の表の関数を import してよいファイルを、表の「使ってよい入口」に限る。lint が見分けるのはファイルの単位なので、実行するビューアと表示するビューアのように同じファイルが担う役割は、ファイルの単位で許す。型だけの import は、`@typescript-eslint/no-restricted-imports` の `allowTypeImports` で許す。
+    -   上の表の関数を import してよいファイルを、表の「使ってよい入口」に限る。lint が見分けるのはファイルの単位なので、実行するビューアと表示するビューアのように同じファイルが担う役割は、ファイルの単位で許す。型だけの import は、ESLint の `no-restricted-imports` の `allowTypeImports` で許す。
     -   この規則は、うっかりの使用を止めるもので、別名を通した意図的な回避までは止めない（今の規則と同じ）。
     -   `sendNativeMessage` を許していた規則は、ホストを撤去する PR で除く。
 -   **ソースの検査。** 拡張のソースが `onChanged` を参照するのは `chromeDeps.ts` の `chrome.storage.session.onChanged` だけであること。`chrome.storage.local.get` を呼ぶのは `readAnthropicSettings` だけで、その引数が固定の 2 つの名前であること（`get()`・`get(null)`・`get(undefined)` のような、全部を読む呼び出しがないこと）。ログの関数に API キーを渡さないこと（0090 設計書 §7.3 のまま）。`chrome.storage.sync` を参照しないこと。どれも `extension/test/lintRules.test.ts` と、置き換えたソースの検査のテストで確かめる。
