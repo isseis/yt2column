@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
+	"github.com/isseis/yt2column/internal/tasknaming"
 )
 
 // This file reads a task's documents by the grammar the repository defines
@@ -732,27 +733,20 @@ func (p Plan) StepsDone(target string) (bool, error) {
 	return true, nil
 }
 
-// featureBranch is the feature branch name of _context.md: a GitHub user
-// name, the task directory name with "_" replaced by "-", and a two-digit
-// sequence number. A branch follows the convention only when its slug is the
-// directory's name, so Read checks the directory it finds against it.
-var featureBranch = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/(([0-9]{4})(?:-[a-z0-9]+)+)-[0-9]{2}$`)
-
-// taskDirName is the form of a task directory name.
-var taskDirName = regexp.MustCompile(`^[0-9]{4}_[a-z0-9]+(?:_[a-z0-9]+)*$`)
-
 // branchTask returns the task of a feature branch name and the slug the
-// directory name must give. ok is false for any other name.
+// directory name must give. A branch follows the convention only when its
+// slug is the directory's name, so Read checks the directory it finds against
+// it. ok is false for any other name.
 func branchTask(branch string) (task paneinput.TaskID, slug string, ok bool) {
-	m := featureBranch.FindStringSubmatch(branch)
-	if m == nil {
+	number, slug, ok := tasknaming.ParseBranch(branch)
+	if !ok {
 		return paneinput.TaskID{}, "", false
 	}
-	task, err := paneinput.ParseTaskID(m[2])
+	task, err := paneinput.ParseTaskID(number.String())
 	if err != nil {
 		return paneinput.TaskID{}, "", false
 	}
-	return task, m[1], true
+	return task, slug, true
 }
 
 // TaskDocs is what origin/main holds for a task.
@@ -805,7 +799,9 @@ func (t Tasks) Read(ctx context.Context, worktree, branch string) (TaskDocs, err
 		return docs, nil
 	case len(dirs) > 1:
 		return TaskDocs{}, fmt.Errorf("%w: %d directories for task %s", errTaskDocument, len(dirs), task)
-	case !taskDirName.MatchString(dirs[0]) || strings.ReplaceAll(dirs[0], "_", "-") != slug:
+	}
+	_, dirOK := tasknaming.ParseTaskDir(dirs[0])
+	if !dirOK || strings.ReplaceAll(dirs[0], "_", "-") != slug {
 		return TaskDocs{}, fmt.Errorf("%w: directory %q does not match branch %q", errTaskDocument, dirs[0], branch)
 	}
 	docs.Dir = taskRoot + "/" + dirs[0]

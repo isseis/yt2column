@@ -81,27 +81,27 @@
 **ステップ 1-1: `internal/tasknaming` を作る**
 
 -   対象ファイル：`internal/tasknaming/tasknaming.go`、`internal/tasknaming/tasknaming_test.go`
--   [ ] 設計書 3.7・3.8 の `Number`・`ParseNumber`・`String`・`ParseBranch`・`ParseTaskDir`・`ParseADRFile` を作る。形は `featureBranch`・`taskDirName`（`internal/chief/task.go:739`・`:742`）と `adrNameRE`（`cmd/yt2column/adr_test.go:50`）と同じにする。`ParseADRFile` は `0000` を受け入れる（`0000` の拒否は `TestADRRecords` に残す）
--   [ ] 呼び出し側が番号を比べ、最大値を求め、1 を足せるように、`Number` に整数を返すメソッドを加える
--   [ ] テストを書く。今の `TestBranchTask` が受け入れる名前と拒む名前、`adrNameRE` が受け入れる名前と拒む名前、`0000`・`9999`、4 桁でない数字、ASCII でない数字を入力にする。ゼロ値の `Number` が正しくない値であることも確かめる
+-   [x] 設計書 3.7・3.8 の `Number`・`ParseNumber`・`String`・`ParseBranch`・`ParseTaskDir`・`ParseADRFile` を作る。形は `featureBranch`・`taskDirName`（`internal/chief/task.go:739`・`:742`）と `adrNameRE`（`cmd/yt2column/adr_test.go:50`）と同じにする。`ParseADRFile` は `0000` を受け入れる（`0000` の拒否は `TestADRRecords` に残す）
+-   [x] 呼び出し側が番号を比べ、最大値を求め、1 を足せるように、`Number` に整数を返すメソッドを加える
+-   [x] テストを書く。今の `TestBranchTask` が受け入れる名前と拒む名前、`adrNameRE` が受け入れる名前と拒む名前、`0000`・`9999`、4 桁でない数字、ASCII でない数字を入力にする。ゼロ値の `Number` が正しくない値であることも確かめる
 -   完了の基準：`go test -tags test ./internal/tasknaming` が通る。テストの各行が、対応する判定を壊すと失敗することを確かめ、コミットメッセージに書く
 
 **ステップ 1-2: `chief` を名前の部品に移す**
 
 -   対象ファイル：`internal/chief/task.go`
--   [ ] `featureBranch` と `taskDirName` を除き、`branchTask` と `Read` の判定（`task.go:808`）を `tasknaming.ParseBranch`・`ParseTaskDir` の呼び出しにする。`branchTask` の返す `paneinput.TaskID` は `Number.String()` から作る
+-   [x] `featureBranch` と `taskDirName` を除き、`branchTask` と `Read` の判定（`task.go:808`）を `tasknaming.ParseBranch`・`ParseTaskDir` の呼び出しにする。`branchTask` の返す `paneinput.TaskID` は `Number.String()` から作る
 -   完了の基準：`internal/chief` の既存のテスト（`TestBranchTask`・`TestTasksRead` を含む）を変えずに通す（AC-04）
 
 **ステップ 1-3: `TestADRRecords` の名前の判定を名前の部品に移す**
 
 -   対象ファイル：`cmd/yt2column/adr_test.go`
--   [ ] `adrNameRE` を除き、`:274` の判定を `tasknaming.ParseADRFile` の呼び出しにする。`:275` の `0000` の拒否は残す。欠番の判定は、このステップでは変えない（フェーズ 4）
+-   [x] `adrNameRE` を除き、`:274` の判定を `tasknaming.ParseADRFile` の呼び出しにする。`:275` の `0000` の拒否は残す。欠番の判定は、このステップでは変えない（フェーズ 4）
 -   完了の基準：`TestADRRecords` と `TestCheckADRRecords`（ケース「number 0000」を含む）を変えずに通す
 
 **ステップ 1-4: 文書**
 
 -   対象ファイル：`docs/dev/conventions/package_reference.md`
--   [ ] `internal/tasknaming` の行を加える
+-   [x] `internal/tasknaming` の行を加える
 -   完了の基準：`make test`・`make lint`・`make deadcode` が通る
 
 ### PR-1 作成ポイント: shared name forms for task branches, task directories, and ADR files
