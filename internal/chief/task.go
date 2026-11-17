@@ -885,12 +885,12 @@ func (t Tasks) readDocuments(ctx context.Context, worktree string, docs TaskDocs
 // names the issue the task answers.
 const issueLinePrefix = "対応 issue: "
 
-// issueLineSearch is what IssueTasks hands `git grep`: a line whose first
-// column starts with issueLinePrefix, in the requirements documents one
-// directory below the task root.
 // gitGrep is the git subcommand that searches the tree of a ref.
 const gitGrep = "grep"
 
+// issueLineSearch is what IssueTasks hands `git grep`: a line whose first
+// column starts with issueLinePrefix, in the requirements documents one
+// directory below the task root.
 var issueLineSearch = []string{gitGrep, "-n", "^" + issueLinePrefix, originMain, "--", ":(glob)" + taskRoot + "/*/" + requirementsFile}
 
 // issueLineForm is one line of `git grep -n` output for issueLineSearch: the
@@ -907,6 +907,9 @@ var (
 	hashNumber = regexp.MustCompile(`#([0-9]+)`)
 	linkTarget = regexp.MustCompile(`\]\(([^)\s]*)\)`)
 	urlNumber  = regexp.MustCompile(`/([0-9]+)/?$`)
+	// bareURLNumber matches the number ending an issue or pull request path
+	// anywhere in the text, link or not.
+	bareURLNumber = regexp.MustCompile(`/(?:issues|pull)/([0-9]+)`)
 )
 
 // issueNumbersOf returns the issue numbers an issue line names, as digit
@@ -926,6 +929,9 @@ func issueNumbersOf(text string) map[string]struct{} {
 		}
 	}
 	for _, m := range hashNumber.FindAllStringSubmatch(text, -1) {
+		add(m[1])
+	}
+	for _, m := range bareURLNumber.FindAllStringSubmatch(text, -1) {
 		add(m[1])
 	}
 	for _, link := range linkTarget.FindAllStringSubmatch(text, -1) {

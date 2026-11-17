@@ -274,6 +274,7 @@ func (g GitReader) Worktrees(ctx context.Context, dir string) ([]WorktreeEntry, 
 	return parseWorktreeList(out)
 }
 
+// parseWorktreeList reads the output of `git worktree list --porcelain`.
 func parseWorktreeList(out []byte) ([]WorktreeEntry, error) {
 	text, ok := strings.CutSuffix(string(out), "\n\n")
 	if !ok && !strings.HasSuffix(string(out), "\n") {
@@ -371,10 +372,10 @@ const (
 	PRStateClosed
 )
 
-// prStates maps gh's state values.
 // ghOpen is the state gh gives an open pull request or issue.
 const ghOpen = "OPEN"
 
+// prStates maps gh's state values.
 var prStates = map[string]PRState{ghOpen: PRStateOpen, "MERGED": PRStateMerged, "CLOSED": PRStateClosed}
 
 // prStateFields are the fields PRStateOf asks gh for.

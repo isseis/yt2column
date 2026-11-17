@@ -523,6 +523,7 @@ func TestIssueNumbersOf(t *testing.T) {
 		{issueLinePrefix + "[#5](https://example.test/pull/5/)", []string{"5"}},
 		{issueLinePrefix + "[#5](https://example.test/issues/005)", []string{"5"}},
 		{issueLinePrefix + "[#5](https://example.test/issues/x)", []string{"5"}},
+		{issueLinePrefix + "see https://example.test/o/r/issues/8#x and /pull/9?y", []string{"8", "9"}},
 		{issueLinePrefix + "#2", []string{"2"}},
 		{issueLinePrefix + "#2, #3 and [#4](u/4)", []string{"2", "3", "4"}},
 		{issueLinePrefix + "[#9(https://example.test/issues/9", []string{"9"}},

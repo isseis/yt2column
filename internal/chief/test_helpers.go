@@ -216,7 +216,7 @@ var errNoReply = errors.New("no reply recorded for the command")
 // or types into a pane. The recorder fails a test that runs anything else.
 var readOnlyCommands = map[string][][]string{
 	herdrProgram: {{herdrAgent, "list"}, {herdrAgent, "get"}, {herdrAgent, "read"}, {"workspace", "list"}, {"pane", "list"}, {"pane", "process-info"}}, //nolint:goconst // each pair names one herdr operation
-	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}, {"rev-list", "--count"}, {"fetch", "origin", "main"}, {"ls-remote", "origin", "refs/heads/main"}, {"status", "--porcelain"}, {gitGrep}, {"worktree", "list"}, {"merge-base", "--is-ancestor"}},
+	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}, {"rev-list", "--count"}, {"fetch", "origin", "main"}, {"ls-remote", "origin", "refs/heads/main"}, {"status", "--porcelain"}, {"worktree", "list"}, {"merge-base", "--is-ancestor"}},
 	ghProgram:    {{"pr", "list"}, {"pr", "view"}, {"pr", "checks"}},
 }
 
@@ -398,6 +398,11 @@ func (rr recordingRunner) Run(ctx context.Context, name string, args ...string) 
 
 func isReadOnly(c recordedCall) bool {
 	if c.name == ghProgram && isIssueRead(c.args) {
+		return true
+	}
+	// git grep can open files in a pager program, so only the one search the
+	// tool makes passes.
+	if c.name == gitProgram && slices.Equal(c.args, issueLineSearch) {
 		return true
 	}
 	for _, prefix := range readOnlyCommands[c.name] {

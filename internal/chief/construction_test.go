@@ -54,37 +54,49 @@ func constructionViolations(t *testing.T, fset *token.FileSet, files []*ast.File
 		return named.Obj().Name(), ok
 	}
 	var out []string
-	for _, file := range files {
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil {
-				continue
-			}
-			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				var typeName string
-				switch n := n.(type) {
-				case *ast.CompositeLit:
-					if id, ok := n.Type.(*ast.Ident); ok {
-						if _, isGuarded := guardedTypes[id.Name]; isGuarded {
-							typeName = id.Name
-						}
+	inspect := func(root ast.Node, owner string, plainFunc bool) {
+		ast.Inspect(root, func(n ast.Node) bool {
+			var typeName string
+			switch n := n.(type) {
+			case *ast.CompositeLit:
+				// The literal's type, also when the source elides it
+				// ([]T{{...}}).
+				if tv, ok := info.Types[n]; ok {
+					typeName, _ = guarded(tv.Type)
+				} else if id, ok := n.Type.(*ast.Ident); ok {
+					if _, isGuarded := guardedTypes[id.Name]; isGuarded {
+						typeName = id.Name
 					}
-				case *ast.AssignStmt:
-					for _, lhs := range n.Lhs {
-						if sel, ok := lhs.(*ast.SelectorExpr); ok {
-							if s := info.Selections[sel]; s != nil && s.Kind() == types.FieldVal {
-								if name, ok := guarded(s.Recv()); ok {
-									typeName = name
-								}
+				}
+			case *ast.AssignStmt:
+				for _, lhs := range n.Lhs {
+					if sel, ok := lhs.(*ast.SelectorExpr); ok {
+						if s := info.Selections[sel]; s != nil && s.Kind() == types.FieldVal {
+							if name, ok := guarded(s.Recv()); ok {
+								typeName = name
 							}
 						}
 					}
 				}
-				if typeName != "" && !slices.Contains(guardedTypes[typeName], fn.Name.Name) {
-					out = append(out, typeName+" built in "+fn.Name.Name+" at "+fset.Position(n.Pos()).String())
+			}
+			if typeName != "" && (!plainFunc || !slices.Contains(guardedTypes[typeName], owner)) {
+				out = append(out, typeName+" built in "+owner+" at "+fset.Position(n.Pos()).String())
+			}
+			return true
+		})
+	}
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			switch decl := decl.(type) {
+			case *ast.FuncDecl:
+				if decl.Body != nil {
+					// Only a plain function may be a constructor: a method of
+					// the same name is not.
+					inspect(decl.Body, decl.Name.Name, decl.Recv == nil)
 				}
-				return true
-			})
+			case *ast.GenDecl:
+				inspect(decl, "a package-level declaration", false)
+			}
 		}
 	}
 	return out
@@ -135,6 +147,14 @@ func viaZero() TaskSpace { return TaskSpace{} }
 func viaField(s TaskSpace) TaskSpace { s.path = "x"; return s }
 
 func viaPointer(s *TaskSpace) { s.path = "x" }
+
+var viaVar = TaskSpace{path: "x"}
+
+var viaElided = []TaskSpace{{path: "x"}}
+
+type other struct{}
+
+func (other) NewTaskSpace() TaskSpace { return TaskSpace{path: "x"} }
 `
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "violations.go", src, 0)
@@ -142,12 +162,12 @@ func viaPointer(s *TaskSpace) { s.path = "x" }
 		t.Fatal(err)
 	}
 	got := constructionViolations(t, fset, []*ast.File{file})
-	for _, fn := range []string{"viaLiteral", "viaZero", "viaField", "viaPointer"} {
+	for _, fn := range []string{"viaLiteral", "viaZero", "viaField", "viaPointer", "a package-level declaration"} {
 		if !slices.ContainsFunc(got, func(v string) bool { return strings.Contains(v, "built in "+fn+" at") }) {
 			t.Errorf("no violation found in %s: %v", fn, got)
 		}
 	}
-	if slices.ContainsFunc(got, func(v string) bool { return strings.Contains(v, "built in NewTaskSpace at") }) {
-		t.Errorf("the constructor was reported: %v", got)
+	if n := strings.Count(strings.Join(got, "\n"), "built in NewTaskSpace at"); n != 1 {
+		t.Errorf("want exactly the method named like the constructor reported, got %d: %v", n, got)
 	}
 }

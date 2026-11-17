@@ -495,13 +495,13 @@
 | AC-02 | `ic/create_test.go::TestTargets`（番号の形、候補、候補のないとき）、定義の問いの順 | test、manual | 4-3・7-2 | PR-4、PR-7 |
 | AC-03 | `ic/send_test.go::TestMkreqTarget`、`ic/snapshot_test.go::TestNextCommandRules`（どちらも変えずに通る） | test | 3-3・5-3 | PR-3、PR-5 |
 | AC-04 | `ic/create_test.go::TestTargets`（`gh api graphql` を走らせない）、`ic/send_test.go::TestMkreqTarget` | test | 4-3 | PR-4 |
-| AC-05 | `ic/issue_test.go::TestReadIssueSamples`、`ic/issue_test.go::TestReadIssueRejects`、`ic/create_test.go::TestCreateRefusesIssue`（何も作らない） | test | 2-5・4-2 | PR-2、PR-4 |
+| AC-05 | `ic/issue_test.go::TestParseIssueSamples`、`ic/issue_test.go::TestParseIssueRejects`、`ic/create_test.go::TestCreateRefusesIssue`（何も作らない） | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-06 | `ic/create_test.go::TestCreateIssueForm`、`ic/create_test.go::TestTargets`（`issue_form`）、`cc/main_test.go::TestIssueFormIsNoUsageError` | test | 4-2・4-3・7-1 | PR-4、PR-7 |
-| AC-07 | `ic/issue_test.go::TestIssueTitleSanitizedAndCapped`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
+| AC-07 | `ic/issue_test.go::TestParseIssueTitle`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-08 | `ic/create_test.go::TestWorktreeAddDetached`（本物の git でブランチを作らない）、`ic/create_test.go::TestCreateStages`（fetch の後のコミットで作る） | test | 4-2 | PR-4 |
 | AC-09 | `ic/create_test.go::TestCreateStages`（workspace とタブ 3 つ、`--session` なし）、`ic/create_test.go::TestCreateChecksPanes`、実地の確かめ | test、manual | 4-2・7-5 | PR-4、PR-7 |
 | AC-10 | `ic/create_test.go::TestWorkspaceMakerStartsAgentsWithoutArguments`、`ic/send_test.go::TestSendAfterCreateInputs` | test | 3-3・4-1 | PR-3、PR-4 |
-| AC-11 | `ic/create_test.go::TestCreateRefusesExisting`（ファイル・ディレクトリ・リンク、登録だけの worktree、パスの workspace）、`ic/taskspace_test.go::TestTaskSpaceRefusesUnsupportedPath`、`ic/create_test.go::TestCreateFetchFailure` | test | 2-3・4-2 | PR-2、PR-4 |
+| AC-11 | `ic/create_test.go::TestCreateRefusesExisting`（ファイル・ディレクトリ・リンク、登録だけの worktree、パスの workspace）、`ic/taskspace_test.go::TestNewTaskSpace`、`ic/create_test.go::TestCreateFetchFailure` | test | 2-3・4-2 | PR-2、PR-4 |
 | AC-12 | `ic/create_test.go::TestCreateStopsAtEachStage`、`ic/create_test.go::TestCreateDeadline` | test | 4-2 | PR-4 |
 | AC-13 | `ic/create_test.go::TestWorkspaceMakerUsesOnlyItsIDs`、`ic/construction_test.go::TestWriterTypesOnlyFromConstructors`、`ic/autosend_test.go::TestTickSkipsAutoSendWhileCreating`、`ic/create_test.go::TestCreateBusyDuringTick`、定義が `create` を前景で呼ぶこと | test、manual | 4-1・4-4・7-2 | PR-4、PR-7 |
 | AC-14 | `ic/records_test.go::TestCreatedRecord`、`ic/create_test.go::TestCreateReplacesOldRecords`、`ic/create_test.go::TestCreateStopsAtEachStage`（記録が残る） | test | 3-2・4-2 | PR-3、PR-4 |
@@ -513,12 +513,12 @@
 | AC-20 | `ic/removal_test.go::TestRemovalRow` | test | 5-3 | PR-5 |
 | AC-21 | `ic/removal_test.go::TestRemovalRowFallsBack`、§1.4 の「変えないテスト」 | test | 5-3 | PR-5 |
 | AC-22 | `ic/pending_test.go::TestSortPending`（`removal` を足す）、定義が「新しいタスクを始める」を最後に置くこと | test、manual | 5-3・7-2 | PR-5、PR-7 |
-| AC-23 | `ic/removal_test.go::TestRemovalCandidateConditions`、`ic/task_test.go::TestTasksOfIssue`、`ic/task_test.go::TestRequirementLinesFromGitGrep`（本物の git） | test | 2-7・5-1 | PR-2、PR-5 |
+| AC-23 | `ic/removal_test.go::TestRemovalCandidateConditions`、`ic/task_test.go::TestIssueNumbersOf`、`ic/task_test.go::TestIssueTasksReadsTheRealGitGrep`（本物の git） | test | 2-7・5-1 | PR-2、PR-5 |
 | AC-24 | `ic/removal_test.go::TestRemovalCandidateRefusals`、`ic/records_test.go::TestCreatedRecordUnreadable` | test | 3-2・5-1 | PR-3、PR-5 |
 | AC-25 | `ic/removal_test.go::TestRemovalProposal`（項目と出力） | test | 5-3 | PR-5 |
 | AC-26 | `ic/autosend_test.go::TestAutoSendLeavesRemovalItems`（自動送信のある周で、閉じる・消す呼び出しがなく、記録が残る） | test | 5-4 | PR-5 |
 | AC-27 | `cc/docs_test.go::TestSettingsAsksBeforeRemove`、`ic/removal_test.go::TestRemovalProposal`（問いに示す名前・パス・pane の数）、定義の確認の問い、実地の確かめ | static、test、manual | 5-3・7-2・7-3・7-5 | PR-5、PR-7 |
-| AC-28 | `ic/removal_test.go::TestRemovalChecks`、`ic/workspace_test.go::TestCleanRealGit`、`ic/workspace_test.go::TestIsAncestorRealGit`、`ic/removal_test.go::TestRemoveRefusesOnEachCheck`（何も閉じず消さない）、`ic/removal_test.go::TestRemoveRefusesWhenChanged` | test | 2-6・5-2・6-2 | PR-2、PR-5、PR-6 |
+| AC-28 | `ic/removal_test.go::TestRemovalChecks`、`ic/workspace_test.go::TestGitCleanCountsStagedAndNestedFiles`、`ic/workspace_test.go::TestGitIsAncestor`、`ic/removal_test.go::TestRemoveRefusesOnEachCheck`（何も閉じず消さない）、`ic/removal_test.go::TestRemoveRefusesWhenChanged` | test | 2-6・5-2・6-2 | PR-2、PR-5、PR-6 |
 | AC-29 | `ic/removal_test.go::TestRemoveFetchFailure` | test | 6-2 | PR-6 |
 | AC-30 | `ic/removal_test.go::TestRemoveClosesThenRemoves`、`ic/sim_test.go::TestCreateToRemove`、実地の確かめ | test、manual | 6-2・6-3・7-5 | PR-6、PR-7 |
 | AC-31 | `ic/removal_test.go::TestRemoveLeavesTheRest`（`--force` なし、その workspace の記録だけを消す）、`ic/removal_test.go::TestWorktreeRemoveKeepsBranch`（本物の git） | test | 6-1・6-2 | PR-6 |
