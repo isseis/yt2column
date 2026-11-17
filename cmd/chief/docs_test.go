@@ -462,8 +462,8 @@ func guideValue(guide, item string) string {
 const displayTableHeader = "Shown as"
 
 // TestDisplayValuesMatchTool: the /chief definition's value table maps
-// exactly the values the tool can give each row item it shows (state,
-// urgency, turn, position.document, and position.progress), with no value
+// exactly the values the tool can give each row item it shows (urgency,
+// position.document, position.progress, and running_unknown), with no value
 // missing, extra, or repeated and no other item, so the session never meets
 // a value its definition does not map nor maps one the tool never gives.
 func TestDisplayValuesMatchTool(t *testing.T) {

@@ -538,6 +538,9 @@ func TestRunningLater(t *testing.T) {
 		{"free text after the command", func(rw *runWorld) []Agent {
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"), typedLine("go on"))}
 		}, true},
+		{"free text after the command on the first pane", func(rw *runWorld) []Agent {
+			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"), typedLine("go on")), rw.claude("w1:p2", commandLine("/runplan 0093"))}
+		}, true},
 		{"free text after the command on the second pane", func(rw *runWorld) []Agent {
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093")), rw.claude("w1:p2", commandLine("/runplan 0093"), typedLine("go on"))}
 		}, true},

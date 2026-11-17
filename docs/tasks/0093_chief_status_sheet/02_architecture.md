@@ -200,7 +200,7 @@ flowchart TD
 | `internal/chief/state.go` | 変更 | `Row` に、急ぎの度合い・番・進行の位置・示す実行中のコマンド・文書の規則が読む事実・送信の停止を読めないことを足す。`Row.MergeQuestion` を外す（3.1）。`decideNext` は、文書の判定を文書の段から読む（3.3） |
 | `internal/chief/position.go`（新規） | 新規 | 文書の段（3.3）、急ぎの度合いの対応表（3.2）、文書の規則（3.3）、進み具合（3.4）、行の仕上げ（3.6）。どれも入出力を持たない関数である |
 | `internal/chief/running.go`（新規） | 新規 | 実行中のコマンドの決定（3.5）。pane ごとに、Claude Code はセッションの記録から、OpenCode は送信の記録から決め、AC-12 の規則でまとめる。モデルを示すかと、決まらなかった理由も決める |
-| `internal/chief/screen_transcript.go` | 変更 | 表示のための記録の読み取りの入口を足す。改行で終わる記録に今の `readLastHumanInput` を当て、人の最後の入力を、検証した実行中のコマンドの型で返す（3.5）。`readLastHumanInput` そのものは変えない |
+| `internal/chief/screen_transcript.go` | 変更 | 表示のための記録の読み取りの入口を足す。改行で終わる記録の人の入力を `readLastHumanInput` と同じ規則で順に読み（`scanHumanInputs`）、人が最後に打ったタスクのコマンドを、検証した実行中のコマンドの型で、後の入力の有無とともに返す（3.5、1.2.1）。`readLastHumanInput` の振る舞いは変えない |
 | `internal/chief/transcript.go` | 変更 | 改行で終わるまで決まった回数だけ読み直す読み取りを足す（1.2） |
 | `internal/chief/snapshot.go` | 変更 | `addRecords` が、送信の停止を読めないことを行に残し、「実行中」の行の処理を実行中のコマンドの決定に置き換える。`finishSnapshot` が、並べ替えの前に行の仕上げを呼ぶ。`sortRows` の並べ方に急ぎの度合いを足す（3.7）。`mergeOnlyRank` は、進み具合と共有する「すべての質問がマージの確認」の判定を使う |
 | `internal/chief/tick.go` | 変更 | `applyAutoSends` が、送った行に送ったコマンドを実行中のコマンドとして付け（AC-10）、入力を打った workspace の送信の停止を読み直す（1.2） |
@@ -208,7 +208,7 @@ flowchart TD
 | `internal/chief/send.go` | 変更 | コマンドを送るとき、送信の記録に種類と引数を書く |
 | `internal/chief/paneinput/paneinput.go` | 変更 | `Command` の種類と引数を読む関数と、`CommandKind` の名前の表を足す（3.1） |
 | `internal/chief/output.go` | 変更 | `RowOutput` に `urgency`・`turn`・`position`・`idle`・`running_unknown` を足し、`merge_question` を外し、`running` と `stopped` の形を変える（3.8）。出力の値の名前の集合を返す関数を公開する（7.2） |
-| `.claude/commands/chief.md` | 変更 | 表の列と値の表示、「質問で停止」の行の「次」の列、表の下の一覧から質問の要点を外すこと、`--protocol 2`（3.9） |
+| `.claude/commands/chief.md` | 変更 | 表の列と値の表示、「質問で停止」の行の「内容」の列、表の下の一覧から質問の要点を外すこと、`--protocol 2`（3.9） |
 | `docs/dev/guides/chief_guide.md` | 変更 | 表の見方、調べ方、入れ替えの手順、既知の制限を足し、`--protocol` の番号の記述を 2 にする（3.10） |
 | `cmd/chief/docs_test.go` | 変更 | `/chief` の定義の値の対応表が、道具の値の集合と一致することを確かめるテストを足す（7.2） |
 | `internal/chief/*_test.go` | 変更 | 3.11 の既存のテストを直し、新しいテストを足す |
@@ -560,7 +560,8 @@ type RowOutput struct {
 	// Running is null when no command is decided.
 	Running *RunningOutput `json:"running"`
 	// RunningUnknown is why a running row shows no command, "" otherwise.
-	// /chief shows it in the table in place of the command (1.2.1).
+	// /chief shows it in the content column in place of the command
+	// (1.2.1).
 	RunningUnknown string `json:"running_unknown"`
 	// Idle is true for a row left over or not yet used. It is for
 	// diagnosis; /chief does not show it in the table.
@@ -611,7 +612,7 @@ type StopOutput struct {
 -   各型の範囲の外の値は `unknown`（`unknownName`）と出す。今の `questionKindName`（`internal/chief/output.go:109-122`）と同じである。
 -   今の `RunningOutput` の `pane`・`agent`・`started` は外す。2 つ以上の pane のコマンドをまとめるので、1 つの pane を示せないためである。`/chief` の定義は、今も `running` のコマンドとモデルしか示さない（`.claude/commands/chief.md:132`）。`model` は記録の文字列なので、今と同じく `Sanitize` を通す（`internal/chief/output.go:198`）。
 -   送信の停止を読めない行は、`stopped` を `unreadable: true` で出す。`/chief` の定義は、送信が止まっていることと、停止の記録を読めないことを示す。
--   質問ごとの `merge`（`QuestionOutput.Merge`）は残す。「質問で停止」の行の「次」の列で、マージの確認である質問に、そのことを添えるのに使う（AC-18）。
+-   質問ごとの `merge`（`QuestionOutput.Merge`）は残す。「質問で停止」の行の「内容」の列で、マージの確認である質問に、そのことを添えるのに使う（AC-18）。
 -   `Protocol`（`internal/chief/records.go:28`）を 2 にする。`chief.md` と `chief_guide.md` の番号は、今のガードテスト（`cmd/chief/docs_test.go:201-213`・`:399-443`）が道具の値と比べる。
 -   `tick` の出力は `SnapshotOutput` を埋め込む（`internal/chief/output.go:422-425`）ので、同じ形になる（AC-20）。
 
@@ -699,7 +700,7 @@ AC-02 の実行中のコマンドのテストは、次のとおり直す。
 |---|---|---|
 | `git fetch origin main` の失敗、タスクの文書を読めない | 文書は `PositionDocNeedsCheck` | 行の状態（0088 のとおり） |
 | HEAD・ブランチを読めない、HEAD が detached（`/mkreq` が実行中でない） | 文書は `PositionDocNeedsCheck` | 同上 |
-| 送信の停止の記録を読めない | 行は「🔴 すぐ」・人。`stopped.unreadable` が真。`problems` に出るのは今のまま（`internal/chief/snapshot.go:170-174`） | 送る判断（今も止まったものとして扱う） |
+| 送信の停止の記録を読めない | 行は「すぐ」・人。`stopped.unreadable` が真。`problems` に出るのは今のまま（`internal/chief/snapshot.go:170-174`） | 送る判断（今も止まったものとして扱う） |
 | 自動送信の後に、送信の停止を読み直せない | 同上 | 同上 |
 | Claude Code の記録の場所を決められない、読めない、64 MiB を超える、形が合わない行がある、読み直しても改行で終わらない | その pane の実行中のコマンドは決まらない。`running_unknown` に理由 | 行の状態、`unreadable`、`problems`、送る判断 |
 | 送信の記録を読めない、終わりの記録がない、結果が `sent` でない、欄がない | その pane の実行中のコマンドは決まらない。`running_unknown` に理由 | 同上 |
@@ -845,7 +846,7 @@ flowchart TD
     -   決まらない理由ごとの `running_unknown`
     -   記録を読めないときに、行の状態・`unreadable`・`problems` が変わらないこと（申し送りの H-02）
 -   **リセットの確かめが変わらないこと。** 改行で終わっていない記録のサンプルを、リセットの確かめが今までどおり読めないものとすることを確かめる。
--   **自動送信の周（AC-10）。** `tick` で自動送信を送った行が、送ったコマンドを実行中のコマンドとし、進み具合が「作成中」になることを確かめる。打った後に失敗した行と、コマンドの後のリセットが失敗した行が、その周から「🔴 すぐ」になることを確かめる。
+-   **自動送信の周（AC-10）。** `tick` で自動送信を送った行が、送ったコマンドを実行中のコマンドとし、進み具合が「作成中」になることを確かめる。打った後に失敗した行と、コマンドの後のリセットが失敗した行が、その周から「すぐ」になることを確かめる。
 -   **並べ方（AC-15〜AC-17）。** 次の行が「すぐ」の位置へ移ることを確かめる。
     -   送信が止まった「実行中」の行
     -   送信の停止を読めない行
@@ -859,7 +860,7 @@ flowchart TD
 ### 7.2. 結合テストと文書のガードテスト
 
 -   **結合テスト。** 今の `internal/chief` の結合のテストに、上の場面を足す。偽の Herdr・git・状態のディレクトリで `TakeSnapshot` と `Tick` を走らせるもので、`internal/chief/world_test.go` が組み立てる。新しい結合のテストの仕組みは作らない。
--   **文書のガードテスト。** `cmd/chief/docs_test.go` にテストを足す。`/chief` の定義の値の対応表（3.9）が、道具が出しうる `state`・`urgency`・`turn`・`position.document`・`position.progress` の値の集合をちょうど持つことを確かめる。
+-   **文書のガードテスト。** `cmd/chief/docs_test.go` にテストを足す。`/chief` の定義の値の対応表（3.9）が、道具が出しうる、表に示す `urgency`・`position.document`・`position.progress`・`running_unknown` の値の集合をちょうど持つことを確かめる（1.2.1）。
     -   `cmd/chief` から読めるよう、`internal/chief` は値の名前の集合を返す関数を公開する。
     -   値と構造を比べるテストで、文の意味は比べない（CLAUDE.md の「Document tests check values, structure, and executable examples」）。
     -   `--protocol` の番号は、今のテストが確かめる。
@@ -876,7 +877,7 @@ flowchart TD
 -   **実地の確かめ。** Herdr の上で `/chief` と `/chief once` を走らせ、次を見る。
     -   印の列のずれ（申し送りの H-03）
     -   各列の値
-    -   「質問で停止」の行の「次」の列
+    -   「質問で停止」の行の「内容」の列
     -   送信が止まった行の位置
     -   Claude Code の pane で人が打ったコマンドが「作成中」と示されること
 

@@ -167,8 +167,8 @@ no other round numbers at once. Then show, in this order:
    | `running_unknown` | `unreadable` | 記録を読めない |
    | `running_unknown` | `over_cap` | 記録が大きすぎる |
    | `running_unknown` | `partial_line` | 記録の書き込み中 |
-   | `running_unknown` | `not_task_command` | タスクのコマンドではない |
-   | `running_unknown` | `no_sent_command` | 人が打ったコマンド（OpenCode） |
+   | `running_unknown` | `not_task_command` | 読めるタスクのコマンドなし |
+   | `running_unknown` | `no_sent_command` | 送ったコマンドの記録なし（OpenCode） |
    | `running_unknown` | `panes_disagree` | pane ごとに異なる |
 
    Show a value this table does not have as it is written, followed by

@@ -2,6 +2,7 @@ package chief
 
 import (
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -416,8 +417,8 @@ func OutputValueNames() map[string][]string {
 		"urgency":           namesUpToUnknown(urgencyName),
 		"position.document": namesUpToUnknown(positionDocumentName),
 		"position.progress": namesUpToUnknown(progressName),
-		// The first value, RunningUnknownNone, is named "" and shows nothing.
-		"running_unknown": namesUpToUnknown(runningUnknownName)[1:],
+		// RunningUnknownNone is named "" and shows nothing.
+		"running_unknown": slices.DeleteFunc(namesUpToUnknown(runningUnknownName), func(n string) bool { return n == "" }),
 	}
 }
 

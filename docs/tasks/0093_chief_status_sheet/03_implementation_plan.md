@@ -249,7 +249,7 @@
 
 | AC | 確かめ | 種類 | ステップ | PR |
 |---|---|---|---|---|
-| AC-01 | `ic/position_test.go::TestUrgencyTable`（3 つの値のどれか 1 つ）、`ic/output_test.go::TestOutputValueNames`（名前の集合が出力の名前と一致）、`cc/docs_test.go::TestDisplayValuesMatchTool`（`urgency` の値の集合）、定義の印の表示、実地の確かめ | test、static、manual | 1-6・3-5・3-7・3-12 | PR-1、PR-3 |
+| AC-01 | `ic/position_test.go::TestUrgencyTable`（3 つの値のどれか 1 つ）、`ic/output_test.go::TestOutputValueNames`（名前の集合が出力の名前と一致）、`cc/docs_test.go::TestDisplayValuesMatchTool`（`urgency` の値の集合）、定義の印の表示、実地の確かめ | test、static、manual | 1-6・3-5・3-7・3-12・3-13 | PR-1、PR-3 |
 | AC-02 | `ic/position_test.go::TestUrgencyTable`（すべての組み合わせがどれかの順に当たる） | test | 1-6 | PR-1 |
 | AC-03 | `ic/position_test.go::TestUrgencyTable`（停止あり・読めない）、`ic/autosend_test.go::TestAutoSendFailureAfterInput`・`ic/autosend_test.go::TestResetChecksAgain`（その周から「すぐ」） | test | 1-6・3-3 | PR-1、PR-3 |
 | AC-04 | `ic/position_test.go::TestUrgencyTable`（「要確認」は `Idle` のほか「あとで」、`Unreadable` の中身によらない） | test | 1-6 | PR-1 |
