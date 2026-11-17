@@ -845,6 +845,21 @@ Only the conventions a linter does not check are worth stating:
   must have it. Logs written for
   developers stay in English.
 
+## Browser Extension Idioms
+
+- **Name a function that runs inside a lock with the suffix `Locked`.** A lock
+  here is a single-flight order, such as the `serial` helper of the service
+  worker's job coordinator, which keeps a read, a decision, and a write
+  across `await` points from being interleaved with another request's.
+  - A `Locked` function must not call the lock's entry (`serial`), directly or
+    through another function. The inner task would wait for the outer one,
+    which waits for it, and the request would never be answered.
+  - A function that only reads, and the entry points that call `serial`, do not
+    take the suffix. A function takes it only because it must run while the lock
+    is held.
+  - The suffix is the convention. Nothing checks it mechanically, so add the
+    suffix when you add a task, and read the call chain when you change one.
+
 ## Requirements and Acceptance Criteria
 
 When implementing new features, follow the process documented in [Requirements Process Guide](docs/dev/conventions/requirements_process.md).
