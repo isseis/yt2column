@@ -107,6 +107,24 @@ describe("parseJobViewerUrl", () => {
   });
 });
 
+describe("the limit of u", () => {
+  /** A watch URL of exactly length code points, padded in an ignored member. */
+  function watchUrlOfLength(length: number): string {
+    const prefix = `${watchUrl}&x=`;
+    return prefix + "a".repeat(length - prefix.length);
+  }
+
+  it("accepts a video URL of exactly 2,097,152 code points and rejects one more", () => {
+    const query = (url: string): string =>
+      queryWith({ u: encodeURIComponent(url) });
+    assert.equal(
+      paramsOf(query(watchUrlOfLength(2_097_152))).videoUrl.length,
+      2_097_152,
+    );
+    assert.equal(errorOf(query(watchUrlOfLength(2_097_153))), "url-too-long");
+  });
+});
+
 describe("jobViewerQuery", () => {
   it("writes the names in order and reads back what it wrote", () => {
     const params: JobViewerParams = {

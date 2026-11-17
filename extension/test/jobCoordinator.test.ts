@@ -736,6 +736,36 @@ describe("the limits on the records", () => {
     assert.ok(jobKeys(s).includes(jobItemName(jobId(1))));
   });
 
+  it("never drops a running record to make room", async () => {
+    const s = setup();
+    // One connected running record is the oldest; the limit is reached by it
+    // and 49 done records, so room is made from the done ones.
+    seed(s, jobId(1), {
+      state: "running",
+      inputDigest: digestB,
+      videoId: videoB,
+      acceptedAt: 1,
+    });
+    await connect(s, jobId(1));
+    for (let n = 2; n <= maxRecords; n += 1) {
+      seed(s, jobId(n), {
+        state: "done",
+        inputDigest: n.toString(16).padStart(64, "0"),
+        videoId: videoB,
+        endedAt: 100 + n,
+      });
+    }
+    const f = await startFlow(s, "plain");
+    assert.equal(
+      ((await f.reserve(digestA, videoA, instance(1))) as { status: string })
+        .status,
+      "new_run",
+    );
+    assert.equal(stored(s, jobId(1))?.state, "running");
+    assert.equal(stored(s, jobId(2)), undefined);
+    assert.equal(jobKeys(s).length, maxRecords);
+  });
+
   it("drops records to keep the total at 8 MiB", async () => {
     const s = setup();
     const big = { ...article, markdown: "x".repeat(200_000) };

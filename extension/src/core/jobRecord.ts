@@ -90,8 +90,11 @@ interface RecordBase {
 }
 
 /** The chrome.storage.session item name of the job record of jobId. */
+/** The prefix of the item names of job records. */
+export const jobItemPrefix = "job:";
+
 export function jobItemName(jobId: string): string {
-  return `job:${jobId}`;
+  return `${jobItemPrefix}${jobId}`;
 }
 
 /** The chrome.storage.session item name of the start context of startId. */

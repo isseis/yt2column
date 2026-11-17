@@ -107,7 +107,6 @@ function setup(): Setup {
   const deps: RunnerDeps = {
     startWorker: () => startWasmWorker(workers.create, clock.schedule),
     schedule: clock.schedule,
-    now: clock.now,
     sendToSw: async (request) => {
       requests.push(structuredClone(request));
       log.push(`sw:${request.type}`);

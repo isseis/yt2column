@@ -22,22 +22,22 @@ export interface JobViewerQueryDeps {
 /**
  * Posts message on a new endpoint and passes each checked message that
  * arrives to onAnswer, until viewerQueryWindowMs passes; then closes the
- * endpoint. Resolves whether the message was posted: false when the channel
+ * endpoint. Resolves at the end of the window, at once when the channel
  * could not be opened or could not post. Never rejects.
  */
 function ask(
   message: JobChannelMessage,
   deps: Omit<JobViewerQueryDeps, "queryId">,
   onAnswer: (answer: JobChannelMessage) => void,
-): Promise<boolean> {
+): Promise<void> {
   const opened = deps.openChannel();
   if (!opened.ok) {
-    return Promise.resolve(false);
+    return Promise.resolve();
   }
   const channel: ViewerChannel = opened.value;
-  return new Promise((resolve) => {
+  return new Promise<void>((resolve) => {
     let done = false;
-    const finish = (posted: boolean): void => {
+    const finish = (): void => {
       if (done) {
         return;
       }
@@ -45,7 +45,7 @@ function ask(
       cancel();
       stop();
       channel.close();
-      resolve(posted);
+      resolve();
     };
     // Listening starts before the post, so no answer can come first.
     const stop = channel.listen((data) => {
@@ -54,9 +54,9 @@ function ask(
         onAnswer(answer);
       }
     });
-    const cancel = deps.schedule(viewerQueryWindowMs, () => finish(true));
+    const cancel = deps.schedule(viewerQueryWindowMs, finish);
     if (!channel.post(message)) {
-      finish(false);
+      finish();
     }
   });
 }

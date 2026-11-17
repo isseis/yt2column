@@ -29,6 +29,7 @@ import type {
 import { isAcceptedWatchUrl } from "./core/acceptedUrl.ts";
 import {
   jobItemName,
+  jobItemPrefix,
   maxRecordBytes,
   readJobRecord,
   readStartContext,
@@ -134,10 +135,10 @@ async function loadRecords(
   }
   const records = new Map<string, JobRecord>();
   for (const [name, value] of Object.entries(read.value)) {
-    if (!name.startsWith("job:")) {
+    if (!name.startsWith(jobItemPrefix)) {
       continue;
     }
-    const jobId = name.slice("job:".length);
+    const jobId = name.slice(jobItemPrefix.length);
     const record = readJobRecord(jobId, value);
     if (record !== undefined) {
       records.set(jobId, record);
@@ -400,10 +401,7 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
         ? input.title
         : input.videoUrl;
     // The page title the viewer's URL keeps: the video title, else the heading.
-    const title = [input.title, input.videoUrl]
-      .filter((value): value is string => value !== undefined)
-      .map(urlTitle)
-      .find(isUrlTitle);
+    const title = [heading, input.videoUrl].map(urlTitle).find(isUrlTitle);
     const startId = deps.newId();
     let query: string;
     try {
@@ -556,6 +554,9 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
     const others = new Map(loaded);
     others.delete(jobId);
     const drops = roomFor(others, storedBytes(record));
+    // A fail-safe: with at most one running record, a record that can be
+    // dropped normally exists, so this is reached only by a full area of
+    // running records.
     if (drops === undefined) {
       return { reply: { status: "rejected", reason: "too_many_requests" } };
     }

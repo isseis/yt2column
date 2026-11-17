@@ -65,8 +65,6 @@ export interface RunnerDeps {
   readonly startWorker: () => WasmWorker;
   /** Runs callback once after ms milliseconds; returns a function that cancels it. */
   readonly schedule: (ms: number, callback: () => void) => () => void;
-  /** The time in ms, only to measure how much of the load deadline is left. */
-  readonly now: () => number;
   readonly sendToSw: SendToSw;
   readonly connectPort: ConnectRunnerPort;
   readonly readSettings: typeof readAnthropicSettings;
@@ -169,11 +167,11 @@ export async function runViewer(
   const input = claim.input;
 
   // Worker start-up and prepare share one 30 second deadline: the client's
-  // own load deadline ends at ready, so the call carries what is left of it.
-  const loadStarted = deps.now();
+  // own load deadline ends at ready, and the call's timer starts here, with
+  // the Worker, so the call carries the whole of it.
   const worker = deps.startWorker();
   const prepared = await worker.call("prepare", prepareRequest(input), {
-    timeoutMs: Math.max(1, workerLoadTimeoutMs - (deps.now() - loadStarted)),
+    timeoutMs: workerLoadTimeoutMs,
   });
   const checked = await checkInput(prepared, identity, deps);
   if (checked.kind === "rejected") {
