@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容は、コミット `d76547e1` で確かめた。`file:line` の行番号は、このコミットでの行番号である。`03_implementation_plan.md`（実装計画書）を、以下、計画書と呼ぶ。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
@@ -953,3 +953,7 @@ flowchart TD
 | AC-42 | 3.10 |
 | AC-43 | 3.2.1 |
 | AC-44 | 3.2.4 |
+
+## 変更履歴
+
+- 2026-11-17 承認（isseis、#945）

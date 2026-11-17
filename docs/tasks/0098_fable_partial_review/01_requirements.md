@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-17 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：AC-35 で、空の commit と計画書の PR マーカーのチェックボックスの行だけを変える commit を、ローカルの CLI レビューが見た commit とみなすことにした<br>決定の変更で draft に戻した：AC-07 で、Fable の記録を無効にしない commit から、計画書の中身を変える commit を外した |
+| Review date | 2026-11-17 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -362,4 +362,5 @@ Fable の部分レビューを行ったかとその結果を、コミットメ�
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#927）
-- 2026-11-17 draft への戻し：AC-35 で、空の commit と計画書の PR マーカーのチェックボックスの行だけを変える commit を、ローカルの CLI レビューが見た commit とみなすことにした；AC-07 で、Fable の記録を無効にしない commit から、計画書の中身を変える commit を外した（#未記入）
+- 2026-11-17 draft への戻し：AC-35 で、空の commit と計画書の PR マーカーのチェックボックスの行だけを変える commit を、ローカルの CLI レビューが見た commit とみなすことにした；AC-07 で、Fable の記録を無効にしない commit から、計画書の中身を変える commit を外した（#945）
+- 2026-11-17 承認（isseis、#945）
