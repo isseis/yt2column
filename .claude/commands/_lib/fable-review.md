@@ -190,8 +190,8 @@ Otherwise:
    subagent (`subagent_tokens`), or `unknown` when it gives none. After a
    second call, add both calls. The output tokens are not given, and are not
    recorded.
-5. **No target.** When the scope list holds no place put in scope and the
-   output holds no finding, STATUS is `not run no-target`: the session found
+5. **No target.** When steps 2 and 3 set no STATUS, the scope list holds
+   no place put in scope, and the output holds no finding, STATUS is `not run no-target`: the session found
    no place meeting a criterion, and Fable, given the places left out,
    found none either.
 6. When steps 2, 3, and 5 set no STATUS, STATUS is `run`; return FINDINGS
