@@ -152,7 +152,7 @@ Diff record (AC-10):
 
 - Compared paths: `.claude/commands/mkreq.md` `.claude/commands/_context.md` `docs/dev/adr/0053-draft-issue-label.md`
 - Merge-base: `06889325f462df8cf6683d952ce982fcd48ec7dd`
-- Compared commit: `21f02f9d36a97af05669939d00a36e59b6ae8729`
+- Compared commit: `a5816cf62af48a4903f7bb320d9f2fa747fe6a91`
 
 Path diff:
 
@@ -170,10 +170,10 @@ index ec7da6a95aeaa29f29e3c489a25c5f6a5729d1a5..77e67e4feab73840ce6a5af566914454
  | Reviewer ping | After a task-document command (`mkreq.md`, `mkarch.md`, `mkplan.md`, `mkplan2.md`) or `runplan.md` opens its PR (`_lib/task-pr-handoff.md` Part B), notify the human reviewer with the `PushNotification` tool (the PR author cannot be requested as a GitHub reviewer of their own PR) and repeat the PR URL and the next action in the final report, which is the only channel when the tool is unavailable or the notification is not sent |
  | PR merge method | Squash merge, run with `/mergepr`. The squash commit is the only commit of a PR that reaches `main`, so its message carries what CLAUDE.md requires commit messages to record |
 diff --git a/.claude/commands/mkreq.md b/.claude/commands/mkreq.md
-index cc580b4261192a1d2abc0a86f74b306dbdec5c1c..15a4116af0af793eae3dad4cf26a9c66ab378a3e 100644
+index cc580b4261192a1d2abc0a86f74b306dbdec5c1c..5bd04df625600486053b43e2fcba22af7ec46905 100644
 --- a/.claude/commands/mkreq.md
 +++ b/.claude/commands/mkreq.md
-@@ -51,6 +51,27 @@ Work in the following order.
+@@ -51,6 +51,29 @@ Work in the following order.
       was given: stop and report rather than using its number. From here on,
       use the `number` it returns (`N`) wherever the issue is named — searches, commits, the PR
       body — never the raw argument, which may be `#330` or a URL.
@@ -181,17 +181,19 @@ index cc580b4261192a1d2abc0a86f74b306dbdec5c1c..15a4116af0af793eae3dad4cf26a9c66
 +     convention", "Draft issue label"). Write the label names to a file in the
 +     scratchpad, outside the tracked tree, as one name per line:
 +     `gh issue view <N> --json labels --jq '.labels[].name' > <file>`.
-+     If that command exits with a status other than 0, stop and report that the
-+     labels could not be read. Then run `command grep -qxF -- draft <file>` as
-+     a call of its own and read its exit code. Never join the two commands with
-+     `&&` or `;`: `gh` fails with the same exit code `1` that `grep` uses for no
-+     matching line, so a joined run cannot tell an unreadable label list from an
-+     issue that is not a draft. `-x` matches a whole line and `-F` compares it
-+     as a fixed string, so only a label whose name is exactly `draft` in bytes
-+     matches; `Draft`, `DRAFT`, and `draft-x` do not.
++     Run each of the two commands in a Bash call of its own — one command per
++     call — and read the exit code the tool reports for that call. Never run
++     them in one call, joined with `&&`, `;`, a newline, or a pipe: an ordinary
++     `gh` failure exits `1`, the same code `grep` uses for no matching line
++     (`gh` also uses `2` and `4`), so a joined run cannot tell an unreadable
++     label list from an issue that is not a draft.
++     If the first command exits with a status other than 0, stop and report
++     that the labels could not be read. Then run
++     `command grep -qxF -- draft <file>` and read its exit code. `-x` and `-F`
++     make the comparison exact, as the `Draft issue label` row defines it.
 +     - `0`: the issue is a draft issue. Stop and report that it is a draft
-+       issue, and that removing the `draft` label makes it a regular issue, so
-+       `/mkreq <N>` can be run again.
++       issue, that removing the `draft` label makes it a regular issue, and
++       that `/mkreq <N>` can be run again.
 +     - `1`: the issue is not a draft issue. Go on.
 +     - anything else: the check failed. Stop and report that it could not be
 +       checked.
@@ -221,6 +223,7 @@ File list:
 .claude/commands/_context.md
 .claude/commands/mkreq.md
 docs/dev/adr/0053-draft-issue-label.md
+docs/tasks/0104_draft_issue_label/03_implementation_plan.md
 ```
 
 ## 8. 成功の基準 (Success Criteria)
