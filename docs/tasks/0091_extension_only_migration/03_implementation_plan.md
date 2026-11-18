@@ -805,7 +805,10 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 | B2 | ブラウザを再起動してビューアを復元 | OK。記録は消え、記事が失われたと示した。履歴の項目の動画のタイトルが残った |
 | B3 | ビューアのタブとページのタイトル | OK。`<動画のタイトル> - <開発用の印の付いた名前>` |
 | B4 | 生成の後、ポップアップ・ビューア・SW の DevTools の Console、ビューアの URL、SW で `chrome.storage.session.get(null)` | OK。保存した API キーの値はどこにも出なかった |
-| B5 | YouTube のタブの DevTools の Console で、ページの文脈から `chrome.storage` を参照 | OK。`chrome.storage` は `undefined`。ブラウザの再起動の後の確認と、注入した関数の世界での `chrome.storage.local.get(null)` は行っていない |
+| B5 | YouTube のタブの DevTools の Console で、ページの文脈（`top`）から `chrome.storage` を参照 | `chrome.storage` は `undefined`。ページの文脈は拡張の API を持たないので、この確かめは守りの有無で結果が変わらない。AC-23 の確かめは次の B5a〜B5c で行った |
+| B5a | 対照: オプションページの DevTools で `chrome.storage.local.get(null).then(v => console.log("keys:", Object.keys(v)), e => console.error("error:", e.message))`（値は出さず項目の名前だけを出す） | OK。項目の名前が出た（拡張のページからは読める） |
+| B5b | YouTube の動画のタブでポップアップを開いて選択を読む関数を注入させ、そのタブの DevTools の Console で文脈を拡張（`yt2column`）の isolated world に切り替えて、B5a と同じ 1 行を実行 | OK。`error: Access to storage is not allowed from this context.` |
+| B5c | ブラウザを完全に終了して起動し直し、B5b を繰り返す | OK。B5b と同じ |
 
 #### オプションページ（AC-03・H-12）
 
