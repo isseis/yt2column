@@ -281,7 +281,11 @@ also offer `送り直す: <label>` and `送り直さない: <label>`. Then alway
 新しいタスクを始める, after every other choice and right before 何もしない
 (0092 requirements AC-01): it starts a new task from an issue. These choices
 have no number from the tool: list each as its own line, chosen by its
-label, before 何もしない.
+label, before 何もしない. 新しいタスクを始める alone also has the fixed
+letter `N`, which no other choice ever has: write its line as
+`[N] 新しいタスクを始める` while watching. The other label choices get no
+letter, since several of them can be listed at once and a letter given per
+round could name another choice in the next one.
 
 How to offer them depends on the argument:
 
@@ -319,7 +323,8 @@ the choice line while watching, and in the option's description with
 **Reading the answer.** With `once`, the answer is to the question just
 asked. While watching, a number chooses the item of the latest `pending`
 whose `number` it is; when none has it (answered, merged, or gone), say so
-and send nothing. A label
+and send nothing. The letter `N` (or `n`) alone chooses
+新しいタスクを始める. A label
 chooses the item of that label; when several items share it (for example
 two questions in one workspace, or a next command and a takeover), ask again
 listing only those. An answer that names no current item is not a choice:
