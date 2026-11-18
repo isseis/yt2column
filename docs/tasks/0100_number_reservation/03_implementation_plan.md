@@ -336,59 +336,59 @@
 
 **ステップ 6-1: しきい値を決める**
 
--   [ ] 実装を始めるときに、利用者の承認のもとで `git fetch origin` を行い、番号の空間ごとに、`origin/main` とすべての `origin` のブランチで使われている番号の最大値を、読み取りだけの git の操作で数える（設計書 3.6、§1.3 の決定 10）。使った操作、その出力のすべて、日付、`origin/main` の commit を §7 の「しきい値の記録」に書く
+-   [x] 実装を始めるときに、利用者の承認のもとで `git fetch origin` を行い、番号の空間ごとに、`origin/main` とすべての `origin` のブランチで使われている番号の最大値を、読み取りだけの git の操作で数える（設計書 3.6、§1.3 の決定 10）。使った操作、その出力のすべて、日付、`origin/main` の commit を §7 の「しきい値の記録」に書く
 
 **ステップ 6-2: `CheckAdded`**
 
 -   対象ファイル：`internal/numreserve/check.go`、`internal/numreserve/check_test.go`
--   [ ] 設計書 3.5 の `CheckAdded` を作る。しきい値は定数にし、コメントで §7 の記録を指す。読み方と上限はステップ 3-2 の部品を使い、書き直さない。ブランチの木を読む関数に、読むディレクトリの引数を加える。`AddedIssueKind` の `switch` は安全側の `default` を持つ
--   [ ] 設計書 7.1 の「マージの前の確かめ」の項目をテストにする。しきい値の上と下は、ちょうどしきい値と 1 つ上を対にする。各テストが、確かめる判定を壊すと失敗することを確かめ、コミットメッセージに書く
+-   [x] 設計書 3.5 の `CheckAdded` を作る。しきい値は定数にし、コメントで §7 の記録を指す。読み方と上限はステップ 3-2 の部品を使い、書き直さない。ブランチの木を読む関数に、読むディレクトリの引数を加える。`AddedIssueKind` の `switch` は安全側の `default` を持つ
+-   [x] 設計書 7.1 の「マージの前の確かめ」の項目をテストにする。しきい値の上と下は、ちょうどしきい値と 1 つ上を対にする。各テストが、確かめる判定を壊すと失敗することを確かめ、コミットメッセージに書く
 -   完了の基準：`go test -tags test ./internal/numreserve` が通る
 
 **ステップ 6-3: `docs/tasks/` の形の文書のガード**
 
 -   対象ファイル：`cmd/yt2column/tasks_test.go`
--   [ ] `docs/tasks/` の項目の一覧を受け取り、タスクのディレクトリ名の形（`tasknaming.ParseTaskDir`）のディレクトリでない項目を返す関数を作り、表のテストで確かめる：ファイルの項目、形に合わないディレクトリ、`0000_template`（受け入れる）、ASCII でない数字。実の `docs/tasks/` にこの関数を当てるテストも置く（設計書 3.5 の「形の確かめ」）。`TestADRRecords` と同じく、git の管理外の手元のファイルも項目として扱う
+-   [x] `docs/tasks/` の項目の一覧を受け取り、タスクのディレクトリ名の形（`tasknaming.ParseTaskDir`）のディレクトリでない項目を返す関数を作り、表のテストで確かめる：ファイルの項目、形に合わないディレクトリ、`0000_template`（受け入れる）、ASCII でない数字。実の `docs/tasks/` にこの関数を当てるテストも置く（設計書 3.5 の「形の確かめ」）。`TestADRRecords` と同じく、git の管理外の手元のファイルも項目として扱う
 -   完了の基準：`go test -tags test ./cmd/yt2column` が通る
 
 **ステップ 6-4: `internal/mergepr`**
 
 -   対象ファイル：`internal/mergepr/mergepr.go`、`internal/mergepr/errors.go`、`internal/mergepr/test_helpers.go`、`internal/mergepr/mergepr_test.go`
--   [ ] 番号の確かめの部品の interface を置き、`New` で受け取る（§1.3 の決定 3）。`Prepare` は CI を待った後、作業ディレクトリを作る前に、`Merge` は `gh pr merge` の直前に呼ぶ。base が `main` でなければ呼ばない（設計書 3.5）
--   [ ] パッケージの doc コメントの「Its only safety obligations」に、番号の確かめを足す
--   [ ] fake の部品でテストを書く：見つけたものがあれば止まって作業ディレクトリを作らない・マージしない、誤りなら止まる、base が `main` でなければ呼ばない、`Prepare` では `gh pr checks` の後に呼ぶ、`Merge` では `gh pr merge` より前に呼ぶ、渡す値が state の `HeadRefOID` と `HeadRefName` である。今のテストは、何も見つけない fake で通す
+-   [x] 番号の確かめの部品の interface を置き、`New` で受け取る（§1.3 の決定 3）。`Prepare` は CI を待った後、作業ディレクトリを作る前に、`Merge` は `gh pr merge` の直前に呼ぶ。base が `main` でなければ呼ばない（設計書 3.5）
+-   [x] パッケージの doc コメントの「Its only safety obligations」に、番号の確かめを足す
+-   [x] fake の部品でテストを書く：見つけたものがあれば止まって作業ディレクトリを作らない・マージしない、誤りなら止まる、base が `main` でなければ呼ばない、`Prepare` では `gh pr checks` の後に呼ぶ、`Merge` では `gh pr merge` より前に呼ぶ、渡す値が state の `HeadRefOID` と `HeadRefName` である。今のテストは、何も見つけない fake で通す
 -   完了の基準：`go test -tags test ./internal/mergepr` が通る
 
 **ステップ 6-5: `cmd/mergepr`**
 
 -   対象ファイル：`cmd/mergepr/main.go`、`cmd/mergepr/main_test.go`
--   [ ] `run` が確かめの部品を引数で受け取り、`main` だけが本番の部品を渡す（§1.3 の決定 8）。見つけたものを 1 件 1 行（種類・番号・PR の名前・使っている所）で出し、終了コード 1 で終わる（設計書 4.2）。この出力を fake の部品でテストする
--   [ ] `TestRunRejectsExtraArguments` が実の GitHub に触れずに通ることを確かめる
--   [ ] `mergepr` が `--protocol` の番号を持っていたら（タスク 0099 の実装が先にマージされた場合）、ADR-0014 の規則に従って番号を上げ、`mergepr.md` を合わせる
+-   [x] `run` が確かめの部品を引数で受け取り、`main` だけが本番の部品を渡す（§1.3 の決定 8）。見つけたものを 1 件 1 行（種類・番号・PR の名前・使っている所）で出し、終了コード 1 で終わる（設計書 4.2）。この出力を、見つけたものを持つ誤りから `printError` が書く行としてテストする（`Prepare`・`Merge` は `git` と `gh` を起動するので、`cmd/mergepr` のテストからは呼ばない）
+-   [x] 引数の誤りのテスト（`TestParseRequiresProtocol`）が実の GitHub に触れずに通ることを確かめる。`parse` は何も読まず、何も実行しない
+-   [x] `mergepr` が `--protocol` の番号を持っていたら（タスク 0099 の実装が先にマージされた場合）、ADR-0014 の規則に従って番号を上げ、`mergepr.md`・`runpr.md`・`mergepr_guide.md` の `--protocol` の値を合わせる
 -   完了の基準：`go test -tags test ./cmd/mergepr` が通る
 
 **ステップ 6-6: 文書**
 
 -   対象ファイル：`.claude/commands/mergepr.md`、`docs/dev/guides/mergepr_guide.md`、`docs/dev/guides/numreserve_guide.md`、`docs/dev/adr/0051-number-reservation.md`
--   [ ] `mergepr.md` に、番号の確かめで止まったときの扱いを足す（§1.3 の決定 4）。`runpr.md` は変えない
--   [ ] `mergepr_guide.md` に、番号の確かめ、保証すること、止まったときの対処（設計書 3.5 の「止まったときの直し方」と、§1.3 の決定 4 の記録の commit）を書く。`numreserve_guide.md` のマージの前の確かめの節を、この節を指すように直す
--   [ ] ADR-0051 の食い違いの記述から、`mergepr` によるマージの前の確かめを除く
+-   [x] `mergepr.md` に、番号の確かめで止まったときの扱いを足す（§1.3 の決定 4）。`runpr.md` の手順は変えない（`mergepr` の `--protocol` の値だけをステップ 6-5 で合わせる）
+-   [x] `mergepr_guide.md` に、番号の確かめ、保証すること、止まったときの対処（設計書 3.5 の「止まったときの直し方」と、§1.3 の決定 4 の記録の commit）を書く。`numreserve_guide.md` のマージの前の確かめの節を、この節を指すように直す
+-   [x] ADR-0051 の食い違いの記述から、`mergepr` によるマージの前の確かめを除く（残りがないので、項目ごと除いた）
 -   完了の基準：`make test`・`make lint`・`make deadcode` が通る
 
 ### フェーズ 7: cloud のセッションでの確かめ（設計書 8 章の 7）
 
 **ステップ 7-1: cloud のセッションで番号を決める（利用者が行う）**
 
--   [ ] `/runplan` が利用者に依頼する。利用者は cloud のセッションで `main` から道具を入れ、`numreserve task` と `numreserve adr` を 1 回ずつ実行し、標準出力と標準エラーの行を報告する（AC-22）
--   [ ] `/runplan` が、決まった番号が AC-02・AC-11 の条件を満たすことを確かめる：その番号が、その時点の `origin/main` の一覧、`origin` のブランチ名とブランチの `docs/dev/adr/`、ほかの記録の tag のどれにもないことを、読み取りの操作で確かめる。決められなかったときは、止まって理由の語が示されたことを確かめる
--   [ ] `/runplan` が、報告と確かめの結果を §7 の「cloud のセッションでの確かめの記録」に書く
+-   [x] `/runplan` が利用者に依頼する。利用者は cloud のセッションで `main` から道具を入れ、`numreserve task` と `numreserve adr` を 1 回ずつ実行し、標準出力と標準エラーの行を報告する（AC-22）
+-   [x] `/runplan` が、決まった番号が AC-02・AC-11 の条件を満たすことを確かめる：その番号が、その時点の `origin/main` の一覧、`origin` のブランチ名とブランチの `docs/dev/adr/`、ほかの記録の tag のどれにもないことを、読み取りの操作で確かめる。決められなかったときは、止まって理由の語が示されたことを確かめる
+-   [x] `/runplan` が、報告と確かめの結果を §7 の「cloud のセッションでの確かめの記録」に書く
 
 **ステップ 7-2: 結果を文書に書く**
 
 -   対象ファイル：`docs/dev/adr/0051-number-reservation.md`、`docs/dev/guides/numreserve_guide.md`
--   [ ] ADR-0051 の「結果」の「cloud のセッションで番号を決められるかは、決めた時点では確かめていない」を、ステップ 7-1 の結果に置き換える。決められなかったときは、その制約を書く
--   [ ] 手引きの cloud のセッションの制約を、ステップ 7-1 の結果に合わせて直す
--   [ ] ADR-0051 の食い違いの記述が空になったことを確かめ、項目ごと除く（AC-24）
+-   [x] ADR-0051 の「結果」の「cloud のセッションで番号を決められるかは、決めた時点では確かめていない」を、ステップ 7-1 の結果に置き換える。決められなかったときは、その制約を書く
+-   [x] 手引きの cloud のセッションの制約を、ステップ 7-1 の結果に合わせて直す
+-   [x] ADR-0051 の食い違いの記述が空になったことを確かめ、項目ごと除く（AC-24。ステップ 6-6 で最後の記述を除いたときに項目ごと除いた）
 -   完了の基準：`make test`・`make lint`・`make deadcode` が通る
 
 ### PR-4 作成ポイント: pre-merge number check in mergepr and the cloud session record
@@ -405,10 +405,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/993
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -466,7 +466,7 @@ PR の分け方の理由は §1.3 の決定 1 にある。利用者の手作業�
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
 - [x] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8）
-- [ ] PR-4 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 7-1 / 7-2）
+- [x] PR-4 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 7-1 / 7-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -509,9 +509,9 @@ PR の分け方の理由は §1.3 の決定 1 にある。利用者の手作業�
 | AC-25 | manual | ADR-0051 の「決定」と「採らなかった案」は、設計書の PR（#943）で書いた。PR-4 のレビューで、設計書 1.2 と一致していることを読み直す | #943 で実装済み |
 | AC-26 | static | `cmd/numreserve/docs_test.go::TestGuideValuesMatchTool`（止める理由の語と ruleset の対象の形） | ステップ 5-6・5-7 |
 | AC-26 | manual | PR-3 のレビューで、手引きの 6 項目（設計書 3.9）を読む。PR-4 のレビューで、マージの前の確かめの直し方と cloud の制約を読む | ステップ 5-6・6-6・7-2 |
-| AC-27 | test | `internal/numreserve/check_test.go::TestCheckAdded`（しきい値より大きく記録のない番号を `AddedUnreserved` で返し、しきい値以下なら返さない）、`internal/mergepr/mergepr_test.go::TestPrepareNumberCheck`・`::TestMergeNumberCheck`（見つけたら止まる）、`cmd/mergepr/main_test.go::TestRunPrintsNumberIssues`（番号と理由を示す） | ステップ 6-2・6-4・6-5 |
-| AC-28 | test | `internal/numreserve/check_test.go::TestCheckAdded`（最新の `origin/main` の別のもの、ほかのブランチの別の名前を返す）、`internal/mergepr/mergepr_test.go::TestMergeNumberCheck`（`gh pr merge` の直前に確かめる）、`cmd/mergepr/main_test.go::TestRunPrintsNumberIssues`（使っているディレクトリかファイルを示す） | ステップ 6-2・6-4・6-5 |
-| AC-29 | test | `internal/numreserve/check_test.go::TestCheckAdded`（`origin/main` にすでにある番号と、`main` で名前を変えたものが古いヘッドに残る PR を返さない。番号を加えない PR では何も読まない） | ステップ 6-2 |
+| AC-27 | test | `internal/numreserve/check_test.go::TestCheckAdded`（しきい値より大きく記録のない番号を `AddedUnreserved` で返し、しきい値以下なら返さない）、`internal/mergepr/mergepr_test.go::TestPrepareNumberCheck`・`::TestMergeNumberCheck`（見つけたら止まる）、`cmd/mergepr/main_test.go::TestPrintErrorListsNumberIssues`（番号と理由を示す） | ステップ 6-2・6-4・6-5 |
+| AC-28 | test | `internal/numreserve/check_test.go::TestCheckAdded`（最新の `origin/main` の別のもの、ほかのブランチの別の名前を返す）、`internal/mergepr/mergepr_test.go::TestMergeNumberCheck`（`gh pr merge` の直前に確かめる）、`cmd/mergepr/main_test.go::TestPrintErrorListsNumberIssues`（使っているディレクトリかファイルを示す） | ステップ 6-2・6-4・6-5 |
+| AC-29 | test | `internal/numreserve/check_test.go::TestCheckAdded`（`main` で名前を変えたものが古いヘッドに残る PR と、PR の中で同じ番号のまま名前を変えたものを返さない。番号を加えない PR では、ブランチの一覧と merge-base と 2 つの木のほかは何も読まない） | ステップ 6-2 |
 
 Diff record (AC-18):
 
@@ -663,11 +663,89 @@ cloud のセッションでは、`git ls-remote`、道具のインストール�
 
 ### しきい値の記録
 
-（ステップ 6-1 で書く）
+2026-11-18、手元（macOS、git 2.50.1）の worktree で、利用者の承認のもとで `git fetch origin` を実行した後に数えた。`origin/main` は `604c9707991f3a800af7939a76c1d2b463ef2138`（2026-11-18T16:04:05+09:00）である。使った操作は次の 3 つで、どれもネットワークに書き込まない。
+
+1.  `git ls-remote origin 'refs/heads/*' 'refs/tags/*'`（`git fetch origin` の後の remote-tracking の ref と、ブランチの名前と SHA がすべて一致することを確かめるため）
+2.  `git for-each-ref --format='%(objectname) %(refname)' refs/remotes/origin`
+3.  `refs/remotes/origin/` の各ブランチ（`origin/HEAD` を除く）について、`git ls-tree --full-tree --name-only <ref> -- docs/tasks/` と `git ls-tree --full-tree --name-only <ref> -- docs/dev/adr/` を実行し、名前の形（`NNNN_` と `NNNN-`）に合う項目の最大のものを取った
+
+1 の出力：
+
+```text
+4da5da2194a0e62969373ae8449d6f4e432a6f4f	refs/heads/claude/festive-bardeen-cw14ci
+a2fbb8f0cb82588fcde719d81128924b62850be7	refs/heads/isseis/0091-extension-only-migration-12
+b56048d497e4f2a149cf46294a0fb8163b59c1d2	refs/heads/isseis/0092-chief-task-workspace-07
+604c9707991f3a800af7939a76c1d2b463ef2138	refs/heads/isseis/0092-chief-task-workspace-12
+c6be7a250c86fc618b676dcc7b20347c3f6ec76f	refs/heads/isseis/0098-fable-partial-review-05
+d5b3a15fdac338200ff4c3a32f495a838f81a4b8	refs/heads/isseis/0100-number-reservation-07
+a2fbb8f0cb82588fcde719d81128924b62850be7	refs/heads/isseis/0102-chief-text-table-01
+a2fbb8f0cb82588fcde719d81128924b62850be7	refs/heads/isseis/0103-chief-step4-askuserquestion-01
+604c9707991f3a800af7939a76c1d2b463ef2138	refs/heads/main
+83ef12bd019bf1456a0fb77aa7d7f35a2c848c8a	refs/heads/poc/0084-wasm-pipeline
+da994ad381308ade7c623fb0ad521cdacb0fe403	refs/heads/poc/0090-extension-only-checks
+44fcdfe08bb5a737ad6c6e34648c6493ef01203c	refs/tags/adr-number/0052
+44fcdfe08bb5a737ad6c6e34648c6493ef01203c	refs/tags/task-number/0101
+a2fbb8f0cb82588fcde719d81128924b62850be7	refs/tags/task-number/0102
+a2fbb8f0cb82588fcde719d81128924b62850be7	refs/tags/task-number/0103
+```
+
+2 の出力は、`refs/remotes/origin/HEAD`（`604c9707991f`）を除いて 1 のブランチの行と同じ名前と SHA だった（11 本）。
+
+3 の出力は、各ブランチについて項目の数と、形に合う最大の項目だけを下の表に要約した（22 回の出力は合わせておよそ 1,600 行になる）。どの出力も、表の commit ID から同じ操作で再現できる。
+
+3 の結果（項目の数と、形に合う最大の項目）：
+
+| ブランチ | commit | `docs/tasks/` | 最大のタスク | `docs/dev/adr/` | 最大の ADR |
+|---|---|---|---|---|---|
+| `claude/festive-bardeen-cw14ci` | `4da5da2194a0` | 42 | `0042_default_llm_opus` | 0 | なし |
+| `isseis/0091-extension-only-migration-12` | `a2fbb8f0cb82` | 101 | `0100_number_reservation` | 52 | `0051-number-reservation.md` |
+| `isseis/0092-chief-task-workspace-07` | `b56048d497e4` | 100 | `0100_number_reservation` | 52 | `0051-number-reservation.md` |
+| `isseis/0092-chief-task-workspace-12` | `604c9707991f` | 101 | `0100_number_reservation` | 52 | `0051-number-reservation.md` |
+| `isseis/0098-fable-partial-review-05` | `c6be7a250c86` | 101 | `0100_number_reservation` | 52 | `0051-number-reservation.md` |
+| `isseis/0100-number-reservation-07` | `d5b3a15fdac3` | 101 | `0100_number_reservation` | 52 | `0051-number-reservation.md` |
+| `isseis/0102-chief-text-table-01` | `a2fbb8f0cb82` | 101 | `0100_number_reservation` | 52 | `0051-number-reservation.md` |
+| `isseis/0103-chief-step4-askuserquestion-01` | `a2fbb8f0cb82` | 101 | `0100_number_reservation` | 52 | `0051-number-reservation.md` |
+| `main` | `604c9707991f` | 101 | `0100_number_reservation` | 52 | `0051-number-reservation.md` |
+| `poc/0084-wasm-pipeline` | `83ef12bd019b` | 89 | `0088_chief_of_staff` | 47 | `0046-chief-of-staff.md` |
+| `poc/0090-extension-only-checks` | `da994ad38130` | 90 | `0090_extension_only_architecture` | 47 | `0046-chief-of-staff.md` |
+
+タスクのブランチ名の形に合う `origin` のブランチ名の番号は 0091・0092・0098・0100・0102・0103 で、最大は 0103 である。0101・0102・0103 には記録の tag があり、ADR の 0052 にも記録の tag がある（どれも `numreserve` が決めた番号）。
+
+**決めた値。** 設計書 3.6 のとおり、使用中の番号（`origin/main` とすべての `origin` のブランチ。タスクの空間ではブランチ名も使用中の番号である、設計書 3.2）の最大値にする。
+
+| 空間 | しきい値 | 根拠 |
+|---|---|---|
+| タスク | `0103` | ディレクトリの最大は 0100、ブランチ名の最大は 0103（`isseis/0103-chief-step4-askuserquestion-01`） |
+| ADR | `0051` | どのブランチの `docs/dev/adr/` も最大は 0051 |
+
+しきい値より大きく記録のない番号はない。0101〜0103 には記録の tag があるので、しきい値を 0100 にしても記録の確かめで止まる PR はない。設計書 3.6 の定義に合わせて 0103 にした。
 
 ### cloud のセッションでの確かめの記録
 
-（ステップ 7-1 で書く）
+2026-11-18、利用者が claude.ai/code の cloud のセッション（`isseis/yt2column` の `main`）で、`/runplan` が用意したスクリプトを cloud の Claude に実行させ、その出力を報告した。スクリプトは、版、トークンの変数が設定されているか（値は出さない）、`gh auth status` の終了コード（トークンの行を除く）、記録の tag の一覧、REST の読み取りの状態行、cloud のクローンにない SHA の取得、`main` からの道具のインストール、`numreserve task` と `numreserve adr` を 1 回ずつ実行した。
+
+| 確かめたこと | 結果 |
+|---|---|
+| 版 | git 2.43.0、go 1.26.5 linux/amd64（実行のときに toolchain を取得した）、gh 2.89.0 |
+| トークンの変数 | `GH_TOKEN` と `GITHUB_TOKEN` は設定されていた。`GH_ENTERPRISE_TOKEN` は設定されていなかった |
+| `gh auth status --hostname github.com` | 終了コード 1。トークンの行を除いた出力は `github.com` と `- Active account: true` |
+| `git ls-remote origin 'refs/tags/task-number/*' 'refs/tags/adr-number/*'` | 終了コード 0、6 行。どの行も「40 桁の 16 進、空白、ref の名前」で、`adr-number/0052`・`0053`、`task-number/0101`〜`0104` |
+| REST の読み取り（`GET git/ref/tags/task-number/0101`） | `HTTP/1.1 200 OK`（`head` で切ったので、`gh` の終了コードは SIGPIPE の 141 で、判断に使わない） |
+| cloud のクローンにない SHA の取得 | `claude/festive-bardeen-cw14ci` の head がクローンになかった。`git fetch --no-tags --no-write-fetch-head origin <SHA>` は終了コード 0、取得の後に commit があり、`git for-each-ref` の出力は変わらなかった |
+| `main` からの `go install ./cmd/numreserve` | 終了コード 0 |
+| `numreserve task` | 終了コード 1、標準出力は空、標準エラーは `numreserve: stop permission: creating refs/tags/task-number/0105: HTTP 403` |
+| `numreserve adr` | 終了コード 1、標準出力は空、標準エラーは `numreserve: stop permission: creating refs/tags/adr-number/0054: HTTP 403` |
+
+ターミナルの表示で、`git ls-remote` の行の区切りのタブは空白に見えた（出力をそのまま貼った報告のため）。
+
+**確かめ（`/runplan`）。** 2026-11-18、手元で `git ls-remote origin 'refs/tags/task-number/*' 'refs/tags/adr-number/*'` を実行し、上の 6 つの tag だけがあり、`task-number/0105` と `adr-number/0054` がないことを確かめた。番号は決まらず、記録の tag も作られなかったので、欠番は生じていない。試した候補の 0105 と 0054 は、道具が最初に試した候補であり、記録の tag の最大値（タスクは 0104、ADR は 0053）の次である。ブランチの名前と `docs/dev/adr/` の一覧は、`/runplan` では読んでいない。道具は止まり、理由の語 `permission` を示した（AC-06・AC-22）。
+
+**分かったこと。**
+
+-   cloud のセッションでは、`git ls-remote`、SHA による取得、REST の読み取り、道具のインストールはできるが、REST による ref の作成は 403 で拒まれる。2026-11-17 と 2026-11-18 のどちらも 403 だった。道具の判定では、403 に rate limit の見出し（`X-RateLimit-Remaining: 0` か `Retry-After`）がなかったので、`permission` で止まった。cloud のセッションで番号を決めることはできない。
+-   `task-number/0104` と `adr-number/0053` は、`origin/main` の `bce12d7c1e9e`（#981 のマージ、2026-11-18 16:33）を指している。この commit は記録の ruleset の設定より後のものだが、tag を作った時刻は確かめていない。どの実行がこの 2 つを作ったか（`numreserve` か手作業か）と、作ったときに ruleset が効いていたかは確かめていないので、「導入の確かめの記録」の「確かめていないこと」は残る。
+
+**確かめていないこと。** 403 の見出し（`X-Accepted-Oauth-Scopes` を含む）と本文は採っていない。ステップ 2-4 の「残っている確かめ」に挙げた見出しの確かめは、行っていない。そのため、403 の原因（資格の権限の不足か、cloud の環境のプロキシか、見出しのない二次の rate limit か）は分かっていない。
 
 ## 8. 成功の基準 (Success Criteria)
 

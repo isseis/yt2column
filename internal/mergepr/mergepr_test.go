@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/numreserve"
 )
 
 const testPRJSON = `{"number":42,"title":"Test PR","state":"OPEN","headRefName":"feature/foo","headRefOid":"` + testHeadOID + `","baseRefName":"main","url":"https://github.com/isseis/yt2column/pull/42","body":"the PR description"}`
@@ -880,4 +882,176 @@ func TestMergeKeepsSummaryWhenMergeFails(t *testing.T) {
 	if report.ProtocolCheck != testSummary.String() {
 		t.Errorf("report.ProtocolCheck = %q, want %q", report.ProtocolCheck, testSummary.String())
 	}
+}
+
+// numberStops are the two kinds of number-check stop: a finding on a number
+// the PR adds, and a check that could not read its inputs.
+var numberStops = []struct {
+	name   string
+	issues []numreserve.AddedNumberIssue
+	err    error
+}{
+	{"finding", []numreserve.AddedNumberIssue{{Space: numreserve.SpaceTask, Kind: numreserve.AddedUnreserved, Path: "docs/tasks/0104_x"}}, nil},
+	{"unreadable", nil, &numreserve.StopError{Kind: numreserve.StopMalformed, Step: "listing", Detail: "line \"x\" is not <40 hex digits><tab><ref>"}},
+	{"unreachable", nil, &numreserve.StopError{Kind: numreserve.StopNetworkOrGitHub, Step: "listing", Detail: "git exited with status 128"}},
+}
+
+// assertNumberStop checks err is the stop numberStops row stop describes.
+func assertNumberStop(t *testing.T, err error, issues []numreserve.AddedNumberIssue) {
+	t.Helper()
+	if issues == nil {
+		if !errors.Is(err, errNumberUnreadable) {
+			t.Fatalf("error = %v, want errNumberUnreadable", err)
+		}
+		return
+	}
+	found, ok := errors.AsType[*NumberIssuesError](err)
+	if !ok {
+		t.Fatalf("error = %v, want a *NumberIssuesError", err)
+	}
+	if !slices.Equal(found.Issues, issues) {
+		t.Errorf("issues = %+v, want %+v", found.Issues, issues)
+	}
+}
+
+// TestPrepareNumberCheck verifies that Prepare runs the number check after
+// gh pr checks, on the head and head branch gh reported, and that a stop
+// happens before the work directory is located: the scripted runner fails
+// the test on any later command. A PR into another base is not checked.
+func TestPrepareNumberCheck(t *testing.T) {
+	lead := []commandStep{
+		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+		gitStep("", "fetch", "origin"),
+		fetchMainStep(),
+		ghStep("", "pr", "checks", "42", "--watch", "--fail-fast"),
+	}
+	wantCall := []numberCall{{head: testHeadOID, branch: "feature/foo", index: len(lead)}}
+	t.Run("pass", func(t *testing.T) {
+		workRoot := t.TempDir()
+		gitDir := filepath.Join(workRoot, ".git")
+		if err := os.Mkdir(gitDir, 0o700); err != nil {
+			t.Fatalf("create git dir: %v", err)
+		}
+		tool, runner, numbers := newNumberedTool(t, nil, nil, append([]commandStep{lead[0]}, prepareTailSteps(workRoot, gitDir)...)...)
+		prepared, err := tool.Prepare(t.Context(), "42")
+		if err != nil {
+			t.Fatalf("Prepare returned error: %v", err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
+		runner.done()
+		if !slices.Equal(numbers.calls, wantCall) {
+			t.Errorf("number check calls = %+v, want %+v", numbers.calls, wantCall)
+		}
+	})
+	// Prepare does not tell one unreadable stop from another, so the
+	// network row that only Merge treats differently is left out.
+	for _, stop := range numberStops[:2] {
+		t.Run(stop.name, func(t *testing.T) {
+			tool, runner, numbers := newNumberedTool(t, stop.issues, stop.err, lead...)
+			_, err := tool.Prepare(t.Context(), "42")
+			assertNumberStop(t, err, stop.issues)
+			runner.done()
+			if !slices.Equal(numbers.calls, wantCall) {
+				t.Errorf("number check calls = %+v, want %+v", numbers.calls, wantCall)
+			}
+		})
+	}
+	// Prepare reads the base from gh and Merge from the state file, so each
+	// entry point has its own base-not-main row.
+	t.Run("base not main", func(t *testing.T) {
+		workRoot := t.TempDir()
+		gitDir := filepath.Join(workRoot, ".git")
+		if err := os.Mkdir(gitDir, 0o700); err != nil {
+			t.Fatalf("create git dir: %v", err)
+		}
+		pr := strings.Replace(testPRJSON, `"baseRefName":"main"`, `"baseRefName":"release"`, 1)
+		steps := []commandStep{
+			ghStep(pr, "pr", "view", "42", "--json", prViewFields),
+			gitStep("", "fetch", "origin"),
+			fetchMainStep(),
+			ghStep("", "pr", "checks", "42", "--watch", "--fail-fast"),
+			gitStep("", "log", "--format=%h %s%n%n%b", "origin/release.."+testHeadOID),
+			gitStep("", "diff", "--stat", "origin/release..."+testHeadOID),
+			gitStep(gitDir+"\n", "rev-parse", "--absolute-git-dir"),
+			gitStep(workRoot+"\n", "rev-parse", "--show-toplevel"),
+		}
+		tool, runner, numbers := newNumberedTool(t, numberStops[0].issues, nil, steps...)
+		prepared, err := tool.Prepare(t.Context(), "42")
+		if err != nil {
+			t.Fatalf("Prepare returned error: %v", err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
+		runner.done()
+		if len(numbers.calls) != 0 {
+			t.Errorf("number check calls = %+v, want none for a PR into release", numbers.calls)
+		}
+	})
+}
+
+// TestMergeNumberCheck verifies that Merge runs the number check after the
+// protocol check and before gh pr merge, on the head and head branch of the
+// state file (the live PR reports another head, which must not be checked),
+// and that a stop runs nothing after it, keeps the work directory, and shows
+// the discard command.
+func TestMergeNumberCheck(t *testing.T) {
+	lead := []commandStep{viewHeadStep(openState, "main", testOtherOID), fetchMainStep()}
+	wantCall := []numberCall{{head: testHeadOID, branch: "feature/foo", index: len(lead)}}
+	t.Run("pass", func(t *testing.T) {
+		_, statePath, subjectPath, bodyPath := mergeFiles(t)
+		tool, runner, numbers := newNumberedTool(t, nil, nil, append(append(slices.Clone(lead), mergeStep()), cleanupSteps(testHeadOID)...)...)
+		if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); err != nil {
+			t.Fatalf("Merge returned error: %v", err)
+		}
+		runner.done()
+		if !slices.Equal(numbers.calls, wantCall) {
+			t.Errorf("number check calls = %+v, want %+v", numbers.calls, wantCall)
+		}
+	})
+	for _, stop := range numberStops {
+		t.Run(stop.name, func(t *testing.T) {
+			dir, statePath, subjectPath, bodyPath := mergeFiles(t)
+			tool, runner, numbers := newNumberedTool(t, stop.issues, stop.err, lead...)
+			_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+			assertNumberStop(t, err, stop.issues)
+			runner.done()
+			if !slices.Equal(numbers.calls, wantCall) {
+				t.Errorf("number check calls = %+v, want %+v", numbers.calls, wantCall)
+			}
+			if _, err := os.Stat(dir); err != nil {
+				t.Errorf("work directory %s removed on a stopped merge, want it kept for discard: %v", dir, err)
+			}
+			// The command the operator is told to run is the contract: a
+			// stop that waiting cannot fix shows the discard command, and a
+			// network stop keeps the preparation for the same merge again.
+			wantDiscard := stop.name != "unreachable"
+			if got := strings.Contains(err.Error(), discardCommand(statePath)); got != wantDiscard {
+				t.Errorf("Merge error = %q, shows %q: %t, want %t", err, discardCommand(statePath), got, wantDiscard)
+			}
+			if got := strings.Contains(err.Error(), "run the same merge command again"); got == wantDiscard {
+				t.Errorf("Merge error = %q, tells to run the same merge again: %t, want %t", err, got, !wantDiscard)
+			}
+		})
+	}
+	t.Run("base not main", func(t *testing.T) {
+		dir := t.TempDir()
+		state := testState
+		state.BaseRefName = "release"
+		data, err := json.Marshal(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		statePath := writeTempFile(t, dir, stateFileName, string(data))
+		subjectPath := writeTempFile(t, dir, "subject.txt", "feat: subject (#42)\n")
+		bodyPath := writeTempFile(t, dir, "body.txt", "body text\n")
+		refused := mergeStep()
+		refused.err = errors.New("exit status 1")
+		tool, runner, numbers := newNumberedTool(t, numberStops[0].issues, nil, viewStep(openState, "release"), fetchMainStep(), refused)
+		if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, refused.err) {
+			t.Fatalf("Merge error = %v, want the refused merge's error", err)
+		}
+		runner.done()
+		if len(numbers.calls) != 0 {
+			t.Errorf("number check calls = %+v, want none for a PR into release", numbers.calls)
+		}
+	})
 }

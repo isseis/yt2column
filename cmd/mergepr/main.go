@@ -3,7 +3,9 @@
 //
 // Every subcommand requires --protocol N before its positional argument; a
 // value other than mergepr.Protocol, or none, stops the tool before it reads
-// or writes anything.
+// or writes anything. prepare and merge also check the task and ADR numbers
+// the PR adds; each finding is printed on a line of its own, and the tool
+// exits with status 1 without merging.
 package main
 
 import (
@@ -17,6 +19,7 @@ import (
 	"strconv"
 
 	"github.com/isseis/yt2column/internal/mergepr"
+	"github.com/isseis/yt2column/internal/numreserve"
 )
 
 var errUsage = errors.New("usage: mergepr prepare --protocol N [PR] | " +
@@ -29,10 +32,22 @@ const protocolRemedy = "if this mergepr is older than the command documents, rei
 	"if the documents are older, merge origin/main into the branch"
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "mergepr:", err)
+	if err := run(os.Args[1:], numreserve.New(os.Environ())); err != nil {
+		printError(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// printError writes err to w, preceded by one line per finding when the
+// number check stopped the tool, so each number and what uses it can be read
+// on its own line.
+func printError(w io.Writer, err error) {
+	if found, ok := errors.AsType[*mergepr.NumberIssuesError](err); ok {
+		for _, issue := range found.Issues {
+			_, _ = fmt.Fprintln(w, "mergepr: number check:", issue.Line())
+		}
+	}
+	_, _ = fmt.Fprintln(w, "mergepr:", err)
 }
 
 // invocation is a parsed command line.
@@ -87,12 +102,14 @@ func parse(args []string) (invocation, error) {
 	return inv, nil
 }
 
-func run(args []string) error {
+// run parses args and runs them, checking the numbers a PR adds with
+// numbers; only main passes the production checker.
+func run(args []string, numbers mergepr.NumberChecker) error {
 	inv, err := parse(args)
 	if err != nil {
 		return err
 	}
-	return execute(context.Background(), mergepr.New(mergepr.NewOSRunner()), inv)
+	return execute(context.Background(), mergepr.New(mergepr.NewOSRunner(), numbers), inv)
 }
 
 // execute runs a parsed invocation.

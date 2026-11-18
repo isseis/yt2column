@@ -219,7 +219,15 @@ Each task PR is handled by two commands. The command that produces it —
 `/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
 feature branch, reviews its work (subagent review, `japrose` for documents,
 the local CLI review — the CodeRabbit CLI, or Codex CLI when it fails —),
-opens the PR, pings the reviewer, and stops. `/mkreq`,
+opens the PR, pings the reviewer, and stops. Before it opens the PR, it also
+runs the Fable partial review (`_lib/fable-review.md`): a subagent on Fable
+reviews only the places that meet its scope criteria (a trust boundary, the
+prior documents, a claim about outside behavior, a choice made without
+asking), in parallel with the local CLI review, whose triage takes its
+findings; `/runplan` runs it once per PR, with the last phase group before
+the PR, and its checkpoint reviews the commits a valid record does not
+cover. When Fable cannot run, the command records `not run` and goes on.
+`/mkreq`,
 `/mkarch`, and `/mkplan` first ask the human about the decisions their input
 leaves open; `/runplan` asks when implementation meets a decision change.
 Before it opens the PR, `/runplan` also runs the Opus review
@@ -531,7 +539,8 @@ its security rules in `docs/dev/security.md` §8.
   the lines of `git cat-file --batch-check` after a failed fetch (which
   choose only the branches a stop's detail names), the one line of
   `git rev-parse --show-toplevel` (one absolute path, else a `local-git`
-  stop), and the name forms of
+  stop), the one line of `git merge-base` in the pre-merge check (one
+  commit ID, else a `malformed` stop), and the name forms of
   `internal/tasknaming` applied to them; this is the only place their
   content selects behavior. A `GET` response's body is parsed whole as
   strict JSON, so a body of another form stops the run as `malformed`, but
@@ -542,7 +551,13 @@ its security rules in `docs/dev/security.md` §8.
   entry, or a name of a form the tool does not accept stops the run as
   `malformed` (a status line as `network-or-github`) and is not read more
   widely; only a 422 that reading the ref back confirms moves the tool to the
-  next number.
+  next number. The pre-merge check that `mergepr` calls differs only where
+  its design says: it does not stop on an entry of another form on the
+  latest `origin/main` or in another branch's `docs/tasks/` or
+  `docs/dev/adr/`, so a PR that removes one can merge; it skips an
+  entry of another form that the PR adds under `docs/dev/adr/`, which
+  `TestADRRecords` checks in CI; and it reports an entry of another form that
+  the PR adds under `docs/tasks/` as a finding.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than

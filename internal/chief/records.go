@@ -1348,11 +1348,13 @@ func (r WorkspaceRecords) Created(home string) (*CreatedRecord, error) {
 // directory (a temporary file a failed create left is not one). The exclusion's file is not one: it is not a record.
 func isRecordFile(name string) bool {
 	return name == stopFile || name == createdFile ||
-		sendFileName.MatchString(name) || detailFileName.MatchString(name) || reportFileName.MatchString(name)
+		sendFileName.MatchString(name) || detailFileName.MatchString(name) || reportFileName.MatchString(name) ||
+		skipFileName.MatchString(name)
 }
 
 // ClearRecords removes every record of the worktree's directory (its sends,
-// its stop, its PR details and report records, and its created record) and
+// its stop, its PR details and report records, its skip records, and its
+// created record) and
 // leaves the exclusion's file. Contract: it needs the exclusion; the
 // created record goes last, so a clear that stops halfway still names the
 // worktree; a record already gone is not an error, any other failure is

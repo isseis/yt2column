@@ -182,12 +182,19 @@ holding them (a **link sub-issue**), not to ISSUE itself.
 Run this after the calling command's last commit, with a clean working tree.
 
 1. When LOCAL_REVIEW is `run`, review the branch with the local CLI review
-   (the CodeRabbit CLI, or Codex CLI when the CodeRabbit CLI fails):
-   follow `.claude/commands/_lib/local-cli-review.md` with
+   (the CodeRabbit CLI, or Codex CLI when the CodeRabbit CLI fails), with the
+   Fable partial review in parallel: follow
+   `.claude/commands/_lib/local-cli-review.md` with
    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
    **SUMMARY** = REPORT, **RECORD** = `commit`, so its record lines are in a
-   commit of their own before the push. When it stops, stop before step 2:
-   nothing is pushed.
+   commit of their own before the push, and **FABLE** = KIND `documents`,
+   TASK_DIR, and SELF_REJECTED = the findings the calling command's
+   self-review (and, in the simple process, its review of the three
+   documents) rejected in this session, each as its location and your own
+   summary (`_lib/fable-review.md`, "Inputs and outputs"). This runs after
+   the calling command committed the fixes of its self-review and of
+   `japrose`. When it stops, stop before step 2: nothing is pushed, and the
+   Fable partial review leaves no record, so a run again reviews again.
 
    **README sync.** Run this paragraph even when the sentence above does not
    apply (LOCAL_REVIEW is `done`). Run the README sync check as
@@ -234,9 +241,12 @@ Run this after the calling command's last commit, with a clean working tree.
      lines earlier sessions recorded in commit messages on the branch
      (`git log origin/main..HEAD`; the `CodeRabbit local review:` and
      `Codex local review:` lines, read as `_lib/local-cli-review.md`,
-     "Reading the record lines", says; a `not run` line is not a finding).
-     Describe a Codex CLI finding only by its location and your own summary,
-     as the record line does, never with Codex's text;
+     "Reading the record lines", says; a `not run` line is not a finding),
+     and every `unclear` or `deferred` Fable finding (its `Fable finding:`
+     line, read as `_lib/fable-review.md`, "Reading the record lines", says).
+     Describe a Codex CLI or a Fable finding only by its location and your
+     own summary, as the record line does, never with Codex's or Fable's
+     text;
    - names the commits of this PR that neither CLI reviewed, if any. When this
      session reviewed the whole branch (step 1 or `runplan.md` step 5a), give
      only the unreviewed ranges in that review's SUMMARY: a range that review
@@ -253,6 +263,25 @@ Run this after the calling command's last commit, with a clean working tree.
      running;
    - gives how many times Codex CLI ran in this session's local CLI reviews,
      from their SUMMARY;
+   - carries the Fable partial review section, written from the Fable lines
+     of `git log --reverse origin/main..HEAD`, read as
+     `_lib/fable-review.md`, "Reading the record lines", says (the
+     seen-range lines do not go into the body):
+     - the heading `## Fable の部分レビュー`, and under it, for each Fable
+       record, whether it ran (`run`, or `not run` with its reason) and its
+       range; the places put in scope with their criteria and the places
+       left out with their reasons; the number of fixed findings; each
+       rejected finding with its reason; and the `deferred` and `unclear`
+       findings, each by its location and your own summary;
+     - after it, `<details><summary>Fable の行</summary>`, holding a `text`
+       code block with every Fable line, oldest commit first, exactly as
+       written in the commit messages, and `</details>`. A later script
+       reads this block from the merged PR's body;
+     - when the body would exceed GitHub's limit (65,536 characters),
+       leave the `Fable scope:` lines out of the code block and say so, and
+       that they are in the branch's commits; when it would exceed the
+       limit still, leave the code block out and say so;
+     - with no Fable record on the branch, the section says only `記録なし`;
    - lists the terms the README sync (step 1) reported as
      missing from the translation glossary, if any;
    - when `git log origin/main..HEAD` has correction lines (read from the

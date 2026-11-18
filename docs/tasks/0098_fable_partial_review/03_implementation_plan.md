@@ -81,6 +81,12 @@
 -   **Agent ツール。** `model` に `fable` を指定でき、`subagent_type` の `fork` では `model` が無視される（設計書の決定 5 の確かめた事実。`opus-review.md:394-395`）。
 -   製品のコード（`internal/` の製品のパッケージ・`extension/`）と、Go で書いた開発の道具（`fixprguard`・`codexreview`・`mergepr`・`coveragecompare`・`chief`）は変えない。`fixpr.md`・`mkreq.md`・`mkarch.md`・`mkplan.md`・`mkplan2.md`・`_lib/opus-review.md`・`_lib/opus-review-decision.sh`・`_lib/triage-pattern.md`・ADR の索引は変えない（設計書 2.2）。
 
+### 1.5. 実装の際に決めたこと（2026-11-18）
+
+1.  **PR-2 がマージされるまで、チェックポイントの入口は止まる。PR-2 自身のチェックポイントは、`origin/main` の `runplan.md`（Fable の手順を持たない）で行う。** 2 回目の判定が失敗したときに進む例外は設けない。理由: 移行の間だけ要る例外のために、関門を外す道を残さないため（利用者の選択。設計書 1.5 の決定 7）。PR-2 のブランチの `runplan.md` で始めたセッションは、PR-2 のチェックポイントで止まる。PR-2 を開き直すときは、`origin/main` の `runplan.md` に従う。ADR: なし。
+2.  **実地の確かめの範囲を、設計書 7.4 より狭く受け入れる（2026-11-18、PR-3）。** (a) ステップ 3-1：タスク文書の PR の経路で、Fable がローカルの CLI レビューと並列に起動した時刻は、人が開いた PR（#987）の記録から確かめられなかった。確かめたのは、Fable と、ローカルの CLI レビューの 1 回目（Codex CLI）が同じ範囲を見たことと、記録の行と PR の説明の節ができたことまでである。並列の起動は、PR-3 自身の実装の PR の経路で観察して代える。この経路は、タスク文書の経路の順序の取り違えを見つけられない。(b) ステップ 3-2：状態の確かめは、使い捨てのクローンで、差分の検知までを確かめた。Fable を起動せずに差分を模したので、「止める」動作そのものは走らせていない。理由: 手順の文のとおりに止める動作はセッションのもので、検知と別の機械的な確かめがなく、起動の後の変更を起こすには、実際の Fable を起動して、その子のプロセスに書かせる必要があったため。Codex CLI と CodeRabbit CLI が、この 2 点を繰り返し指摘した。利用者に尋ね、狭めた範囲を受け入れ、再承認を記録することにした。ADR: なし。
+3.  **AC-42 の「決定と実装した手順の一致」から、記録の commit の後の merge で Fable の記録が無効になる食い違いを、既知の例外として外す。** ADR-0050 の「記録の後の中身のある commit を、もう一度 Fable でレビューする」決定より、タスク文書の経路は狭い（§7 の 3-3）。利用者と決めて、本タスクでは手順も ADR も直さず、[#988](https://github.com/isseis/yt2column/issues/988) で扱う。理由: 直すには Part B と ADR-0050 と設計書の決定の変更が要り、実地の確かめを記録する本 PR の範囲を超えるため。AC-42 のほかの部分（それ以外の決定の一致）は、§7 の 3-4 で確かめた。ADR: なし（本タスクでは変えない。#988 で扱うときに決める）。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 見たかの判定と Escalation（設計書 8 章の 1）
@@ -136,23 +142,23 @@
 
 **変更するファイル:** `.claude/commands/_lib/fable-review.md`（新規）、`.claude/commands/_lib/review-records.sh`、`cmd/yt2column/review_records_test.go`、`cmd/yt2column/testdata/review_records/`、`.claude/commands/_lib/local-cli-review.md`、`.claude/commands/_lib/task-pr-handoff.md`、`.claude/commands/runplan.md`、`.claude/commands/runpr.md`、`.claude/commands/_lib/simple-process.md`、`CLAUDE.md`、本計画
 
--   [ ] **ステップ 2-1**: `_lib/fable-review.md` を作る（設計書 3.1 の全体と 3.2）。入口と入力・出力、有効な記録の判定の呼び方、範囲の基準と範囲の一覧（基準ごとの当たる例と当たらない例）、Fable への指示、起動・待ち方・上限、モデルと出力の形の確かめ、状態の確かめ、単独の経路、「Record lines」と「Reading the record lines」、確かめていない振る舞い（設計書 3.1.9）の扱いを書く。具体的なモデル ID は書かない（設計書 3.1.4・3.1.6）。TaskStop は、最初に使う前に ToolSearch で読み込むと書く（§1.4）。判定のスクリプトの呼び方は、`runpr.md` step 3 と同じ 3 行の形にする。
--   [ ] **ステップ 2-2**: 判定のスクリプトに `fable` のモードを足し（設計書 3.1.2、3.6.2）、スクリプトのテスト `TestReviewRecordsFable` を書く（設計書 7.1 の `fable` のテストケースと、失敗のテストケース）。ステップ 1-2 と同じ環境・git の設定・`.gitattributes` のテストケースを含め、fixture の Fable の行は `fable-review.md` の「Record lines」から読んだ形に値を入れて作る（§1.3 の決定 7）。設計書 7.1 のテストケースに加え、次のテストケースも含める。
+-   [x] **ステップ 2-1**: `_lib/fable-review.md` を作る（設計書 3.1 の全体と 3.2）。入口と入力・出力、有効な記録の判定の呼び方、範囲の基準と範囲の一覧（基準ごとの当たる例と当たらない例）、Fable への指示、起動・待ち方・上限、モデルと出力の形の確かめ、状態の確かめ、単独の経路、「Record lines」と「Reading the record lines」、確かめていない振る舞い（設計書 3.1.9）の扱いを書く。具体的なモデル ID は書かない（設計書 3.1.4・3.1.6）。TaskStop は、最初に使う前に ToolSearch で読み込むと書く（§1.4）。判定のスクリプトの呼び方は、`runpr.md` step 3 と同じ 3 行の形にする。
+-   [x] **ステップ 2-2**: 判定のスクリプトに `fable` のモードを足し（設計書 3.1.2、3.6.2）、スクリプトのテスト `TestReviewRecordsFable` を書く（設計書 7.1 の `fable` のテストケースと、失敗のテストケース）。ステップ 1-2 と同じ環境・git の設定・`.gitattributes` のテストケースを含め、fixture の Fable の行は `fable-review.md` の「Record lines」から読んだ形に値を入れて作る（§1.3 の決定 7）。設計書 7.1 のテストケースに加え、次のテストケースも含める。
     -   START と END が 3.6.1 の確かめに通らない記録（無視して `MISSING`）、`Fable review: checkpoint` の行だけのブランチ（`MISSING`）、`not run` の記録（`VALID` になりうる）、記録が 2 つあるときの最後の記録の扱い（有効・無効の両方の順）。
     -   規則 2 で、`Local CLI review: not run` の行の範囲に入る直しと、見た範囲の行が記録の commit を越えるとき。字下げした行と文の中の行。
     -   各テストケースが、スクリプトの該当する規則か、文書の行の形を壊すと失敗することを確かめ、commit のメッセージに書く。
--   [ ] **ステップ 2-3**: `_lib/local-cli-review.md` を変える（設計書 3.3.1 の FABLE、3.3.2、3.3.3、3.3.4 の 1 つ目の項目、3.3.5 の Fable の行）。入力 FABLE、step 1 の起動の入口、最初の試行のトリアージの前の回収の入口（最初の試行が `none` のときも通る）、新しい節「Triage rules」（今の step 4・5 の規則とステップ 1-3 の却下の根拠に、Fable の指摘をまとめる規則を足す。step 4・5 と単独の経路が名指す）、step 6 の 2 回目の試行の条件、Terms の未レビューの範囲、記録の commit に Fable の行を載せることと、その前の状態の確かめを書く。冒頭の呼び出し元の一覧に、Fable の単独の経路を足す。
+-   [x] **ステップ 2-3**: `_lib/local-cli-review.md` を変える（設計書 3.3.1 の FABLE、3.3.2、3.3.3、3.3.4 の 1 つ目の項目、3.3.5 の Fable の行）。入力 FABLE、step 1 の起動の入口、最初の試行のトリアージの前の回収の入口（最初の試行が `none` のときも通る）、新しい節「Triage rules」（今の step 4・5 の規則とステップ 1-3 の却下の根拠に、Fable の指摘をまとめる規則を足す。step 4・5 と単独の経路が名指す）、step 6 の 2 回目の試行の条件、Terms の未レビューの範囲、記録の commit に Fable の行を載せることと、その前の状態の確かめを書く。冒頭の呼び出し元の一覧に、Fable の単独の経路を足す。
     -   step 7 の「Mention check」を、Fable の行を持つメッセージにも走らせ、通らないときに除くものを、設計書 3.2.3 のとおり、セッションが書いた自由な文のすべてと `<location>` の `<path>` より後に広げる（AC-30）。
     -   step 4・5 の規則を「Triage rules」に移しても、step 5 の GUARD を走らせる文は step 5 に残す（`TestLocalReviewGuard` が step 5 を読む）。
--   [ ] **ステップ 2-4**: `_lib/task-pr-handoff.md` を変える（設計書 3.4）。Part B step 1 で FABLE（KIND `documents`・TASK_DIR・セルフレビューで却下した指摘）を渡し、Part B step 3 の PR の説明の項目に、Fable の部分レビューの節（設計書 3.2.4）と、`unclear` と `deferred` の Fable の指摘をレビュアーの確かめる点に挙げることを足す。
--   [ ] **ステップ 2-5**: `runplan.md` を変える（設計書 3.5）。step 4 で PR を開く前の最後の phase group を見分けて step 8 の要約に示すこと、最後の phase group の step 7.7 で FABLE（KIND `implementation`）を渡すこと、step 7.8 の空の commit に Fable の行を載せること、step 7.7 と 7.8 のメンションの確かめを、`Codex local review:` の行だけでなく Fable の行を持つメッセージにも走らせること（AC-30）、step 5a と step 8 の最初のチェックポイントの入口（判定・単独の経路・チェックポイントの印・有効な記録がない間は進まないこと）、OpenCode で動くときの `not run (agent-cannot-call)` を書く。
--   [ ] **ステップ 2-6**: `runpr.md` step 4 の要約の行の Fable の部分を、Fable の手順の「Reading the record lines」で読む形にする（設計書 3.8.2 の 2 つ目の項目）。
--   [ ] **ステップ 2-7**: `_lib/simple-process.md:229-230` の文に、Fable の部分レビューも Part B step 1 で走ることを足す（設計書 3.9）。`CLAUDE.md`「Claude Commands」のタスクの PR を作るコマンドの段落に、PR を開く前に Fable の部分レビューをローカルの CLI レビューと並列に行うこと（`/runplan` では PR ごとに 1 回）を足す（AC-41 のうち Fable の部分）。
--   [ ] **ステップ 2-8**: guard のテストを 3 つ書くか広げる。
+-   [x] **ステップ 2-4**: `_lib/task-pr-handoff.md` を変える（設計書 3.4）。Part B step 1 で FABLE（KIND `documents`・TASK_DIR・セルフレビューで却下した指摘）を渡し、Part B step 3 の PR の説明の項目に、Fable の部分レビューの節（設計書 3.2.4）と、`unclear` と `deferred` の Fable の指摘をレビュアーの確かめる点に挙げることを足す。
+-   [x] **ステップ 2-5**: `runplan.md` を変える（設計書 3.5）。step 4 で PR を開く前の最後の phase group を見分けて step 8 の要約に示すこと、最後の phase group の step 7.7 で FABLE（KIND `implementation`）を渡すこと、step 7.8 の空の commit に Fable の行を載せること、step 7.7 と 7.8 のメンションの確かめを、`Codex local review:` の行だけでなく Fable の行を持つメッセージにも走らせること（AC-30）、step 5a と step 8 の最初のチェックポイントの入口（判定・単独の経路・チェックポイントの印・有効な記録がない間は進まないこと）、OpenCode で動くときの `not run (agent-cannot-call)` を書く。
+-   [x] **ステップ 2-6**: `runpr.md` step 4 の要約の行の Fable の部分を、Fable の手順の「Reading the record lines」で読む形にする（設計書 3.8.2 の 2 つ目の項目）。
+-   [x] **ステップ 2-7**: `_lib/simple-process.md:229-230` の文に、Fable の部分レビューも Part B step 1 で走ることを足す（設計書 3.9）。`CLAUDE.md`「Claude Commands」のタスクの PR を作るコマンドの段落に、PR を開く前に Fable の部分レビューをローカルの CLI レビューと並列に行うこと（`/runplan` では PR ごとに 1 回）を足す（AC-41 のうち Fable の部分）。
+-   [x] **ステップ 2-8**: guard のテストを 3 つ書くか広げる。
     -   `TestRecordLinePrefixesDistinct`（§1.3 の決定 6）。前置きは、記録の行の形の、最初の `:` までの文とする。`_lib/local-cli-review.md` step 7 の表の `Line` の列と、`_lib/opus-review.md` の「Record lines」のコードブロックの行から既存の前置きを、`_lib/fable-review.md` の「Record lines」と step 7 の表の `Local CLI reviewed:` から新しい前置きを読む。新しい前置きのどれも、既存の前置きと一致せず、互いに一方が他方の先頭にもならないことを確かめる（既存どうし・新しいものどうしは比べない）。文書ごとに読めた前置きの数の下限も確かめる。新しい前置きを既存のものと重ねると失敗することを確かめ、commit のメッセージに書く。
     -   `TestReviewRecordsCallSite` を、`fable-review.md` の起動とチェックポイントの入口の呼び方にも広げ、そこに 3 行がこの順にあることを求める。そこから実行の行を消すと失敗することを確かめる。
     -   `TestRecordCommitsCheckMention`（新規）。Fable の行を持つ commit を作る節（`local-cli-review.md` step 7、`runplan.md` step 7.8、`fable-review.md` の記録の commit）が、`TestPostingPathsCheckMention`（`codex_review_docs_test.go:119`）と同じ形のメンションの確かめのコマンドを持つか、`local-cli-review.md` step 7 の「Mention check」を名指すことを確かめる。1 つの節からそれを消すと失敗することを確かめる。
--   [ ] **ステップ 2-9**: AC-32 と AC-40 の差分の記録を書く（§7 の「差分の記録」の PR-2 の欄）。
+-   [x] **ステップ 2-9**: AC-32 と AC-40 の差分の記録を書く（§7 の「差分の記録」の PR-2 の欄）。
 
 **完了の条件:** 設計書 3.1、3.2、3.3（ステップ 1-3 で済んだものを除く）、3.4、3.5、3.6.2、3.8.2 の Fable の部分、3.9 の `simple-process.md` と `CLAUDE.md` の Fable の部分の項目がすべて文書とスクリプトにある。`bash -n` が判定のスクリプトに通る。macOS の手元で `go test -tags test -v -run 'TestReviewRecords' ./cmd/yt2column` を走らせ、`bin-bash-3` の subtest が走って通ったことを PR の説明に書く。§7 に PR-2 の差分の記録がある。実装の中で ADR-0050 の決定を変えることになったときは、この PR で ADR を更新する。`make test` と `make lint` が通る。
 
@@ -170,10 +176,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/981
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: ADR の確かめと実地の確かめ（設計書 8 章の 3）
 
@@ -181,13 +187,13 @@
 
 PR-2 のマージの後、PR-3 の `/runplan` の前に、人がほかのタスクのタスク文書の PR を、本物のセッション（Claude Code）で開く。PR-3 の `/runplan` は、その PR の記録を読んで §7 に書く。ステップ 3-1〜3-4 の記録は、phase group の実装として、step 7.7 より前に commit する。
 
--   [ ] **ステップ 3-1**: タスク文書の PR の経路の実地の確かめを記録する（設計書 7.4）。人が開いたタスク文書の PR のブランチの記録の行と PR の説明から、Fable がローカルの CLI レビューと並列に起動したこと、見た範囲の行と Fable の行を持つ記録の commit ができたこと、PR の説明に Fable の部分レビューの節ができたことを確かめ、§7 の「PR-3 の実行の記録」に書く。Fable の出力の文とモデル ID の文字列は書かず、確かめの結果だけを書く。
--   [ ] **ステップ 3-2**: セキュリティの実地の確かめを、使い捨てのクローンで 1 回ずつ行う（設計書 7.4）。
+-   [x] **ステップ 3-1**: タスク文書の PR の経路の実地の確かめを記録する（設計書 7.4）。人が開いたタスク文書の PR のブランチの記録の行と PR の説明から、Fable がローカルの CLI レビューと並列に起動したこと、見た範囲の行と Fable の行を持つ記録の commit ができたこと、PR の説明に Fable の部分レビューの節ができたことを確かめ、§7 の「PR-3 の実行の記録」に書く。Fable の出力の文とモデル ID の文字列は書かず、確かめの結果だけを書く。（実施の注記: 記録の commit までは確かめた。Fable が並列に起動したことの時刻は #987 では確かめられず、PR-3 自身の実装の PR の経路で観察して、step 8 の要約と PR の説明に書く。記録の後の merge の食い違いは §7 の 3-3 に書き、[#988](https://github.com/isseis/yt2column/issues/988) で扱う。）
+-   [x] **ステップ 3-2**: セキュリティの実地の確かめを、使い捨てのクローンで 1 回ずつ行う（設計書 7.4）。（実施の注記: 状態の確かめは、Fable を起動せず、使い捨てのクローンで差分を模して、差分を検知するまでを確かめた。止める動作は、検知を手順の文に従って読むセッションの動作であり、走らせていない。）
     -   記録の行の要約にメンションを含めたとき、メンションの確かめで自由な文が除かれること。§7 には、メンションを `<review-mention>` と書く。
     -   Fable の起動の後に、使い捨てのクローンの hooks のディレクトリに、git が hook として走らせない名前のファイルを置いたとき、状態の確かめで止まること。
     -   使い捨てのクローンからは push しない。終わったら、クローンを消し、消えたことを確かめる。結果を §7 に書く。
--   [ ] **ステップ 3-3**: 設計書 3.1.9 の確かめていない振る舞いのうち、ステップ 3-1・3-2 で観察できたものを §7 に書く。設計書と違う振る舞いが見つかったときは、`runplan.md` の決定の変更として人と決める。
--   [ ] **ステップ 3-4**: ADR-0050・ADR-0013・ADR-0014 の「決定」を、実装した手順と照らす（AC-42、設計書 3.10）。食い違いがあれば、編集上の訂正か決定の変更として直す（`docs/dev/conventions/adr.md`）。照らした結果を §7 に書く。
+-   [x] **ステップ 3-3**: 設計書 3.1.9 の確かめていない振る舞いのうち、ステップ 3-1・3-2 で観察できたものを §7 に書く。設計書と違う振る舞いが見つかったときは、`runplan.md` の決定の変更として人と決める。
+-   [x] **ステップ 3-4**: ADR-0050・ADR-0013・ADR-0014 の「決定」を、実装した手順と照らす（AC-42、設計書 3.10）。食い違いがあれば、編集上の訂正か決定の変更として直す（`docs/dev/conventions/adr.md`）。照らした結果を §7 に書く。（実施の注記: 記録の後の merge で有効かの判定が `MISSING` になる食い違いは、人と決めて、本タスクでは直さず [#988](https://github.com/isseis/yt2column/issues/988) で扱う。それ以外の決定は、手順と合っていた。）
 
 **実装の PR の経路（チェックボックスなし）:** PR-3 自身の `/runplan` は、最後の phase group の step 7.7 で Fable を並列に起動し、step 5a のチェックポイントの入口を通る（§1.3 の決定 1）。その結果は計画書に書かない。ブランチの記録の行（Fable の記録とチェックポイントの印）と、Part B が書く PR の説明の Fable の部分レビューの節に残り、PR-3 のレビューで読む。`/runplan` は、step 8 の要約と PR の説明に、PR-3 が Claude Code の Sonnet のセッションで走ったときの、設計書 3.1.9 の呼び出しと通知の観察を書く。
 
@@ -207,10 +213,10 @@ PR-2 のマージの後、PR-3 の `/runplan` の前に、人がほかのタス�
 
 **自動送信**: hold
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/990
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -222,7 +228,7 @@ PR-2 のマージの後、PR-3 の `/runplan` の前に、人がほかのタス�
 | M2（PR-2） | Fable の手順、判定のスクリプトの `fable` のモード、まとめたトリアージ、タスク文書の PR と実装の PR への組み込み | PR-1 のマージ（Fable の行の読み方と記録の commit が、PR-1 の見た範囲の行と記録の commit に載る） |
 | M3（PR-3） | 実地の確かめの記録、ADR の確かめ | PR-2 のマージと、人が開くタスク文書の PR |
 
-判定のスクリプトは `origin/main` のコピーで走るので、PR-1 がマージされるまでは `coverage` が `PARTIAL` に、PR-2 がマージされるまでは `fable` が `MISSING` になる（設計書 3.6.3）。PR-2 の `/runpr` は、PR-1 のスクリプトで Escalation を判定する。
+判定のスクリプトは `origin/main` のコピーで走るので、PR-1 がマージされるまでは `coverage` が `PARTIAL` に、PR-2 がマージされるまでは `fable` が `MISSING` になる（設計書 3.6.3）。PR-2 がマージされるまでは、チェックポイントの入口の 2 回目の判定も失敗するので、入口は止まる（§1.5）。PR-2 の `/runpr` は、PR-1 のスクリプトで Escalation を判定する。
 
 ### 3.2 PR 構成
 
@@ -255,8 +261,8 @@ PR-2 のマージの後、PR-3 の `/runplan` の前に、人がほかのタス�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
-- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
+- [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -299,7 +305,7 @@ PR-2 のマージの後、PR-3 の `/runplan` の前に、人がほかのタス�
 | AC-39 | `cmd/yt2column/review_records_test.go::TestReviewRecordsCoverage`（要約の前半が読む `ALL`・`PARTIAL <n>` の出力）、`runpr.md` step 4 の要約の行とその値の読み方を読む | test、manual | ステップ 1-7・2-6 | PR-1、PR-2 |
 | AC-40 | 差分の記録（AC-40）。比べるパス: `.claude/commands/runpr.md` | diff | ステップ 1-6・1-7・2-6 | PR-1、PR-2 |
 | AC-41 | `CLAUDE.md`「Claude Commands」を読む | manual | ステップ 1-10・2-7 | PR-1、PR-2 |
-| AC-42 | ADR の「決定」と実装した手順を照らした記録（ステップ 3-4）を読む。ADR を直したときは `cmd/yt2column/adr_test.go::TestADRRecords` が形を確かめる | manual | ステップ 3-4 | PR-3 |
+| AC-42 | ADR の「決定」と実装した手順を照らした記録（ステップ 3-4）を読む。既知の例外: 記録の commit の後の merge の食い違い（[#988](https://github.com/isseis/yt2column/issues/988)、§1.5 の決定 3）。ADR を直したときは `cmd/yt2column/adr_test.go::TestADRRecords` が形を確かめる | manual | ステップ 3-4 | PR-3 |
 | AC-43 | `fable-review.md` の「Record lines」の `Fable finding:` の行を読む | manual | ステップ 2-1 | PR-2 |
 | AC-44 | `task-pr-handoff.md` Part B step 3 の PR の説明の形を読む。実地の確かめ（ステップ 3-1） | manual | ステップ 2-4 | PR-2、PR-3 |
 
@@ -323,6 +329,13 @@ Path diff:
 PR-2:
 
 - Compared paths: `.claude/commands/_lib/opus-review.md` `.claude/commands/_lib/opus-review-decision.sh` `internal/chief`
+- Merge-base: `3a643817c496e07a05ec5b2d85e6e0e8fbf6cb06`
+- Compared commit: `a27034c5303e21e1e9037f8e45ac3dc3c5f9880b`
+
+Path diff:
+
+````text
+````
 
 Diff record (AC-37):
 
@@ -662,14 +675,85 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..0272906cd5e302e840457f8f3b6de61c
 PR-2:
 
 - Compared paths: `.claude/commands/runpr.md`
+- Merge-base: `3a643817c496e07a05ec5b2d85e6e0e8fbf6cb06`
+- Compared commit: `c6be7a250c86fc618b676dcc7b20347c3f6ec76f`
+
+Path diff:
+
+````text
+diff --git a/.claude/commands/runpr.md b/.claude/commands/runpr.md
+index 349f0b742d2fe3520f7c01212c9e8192c69e8800..2008e86ff9aca36847f357e262db6e634ef36444 100644
+--- a/.claude/commands/runpr.md
++++ b/.claude/commands/runpr.md
+@@ -677,7 +677,7 @@ finished review observed had and every review in progress lacked, so that a
+
+     ```bash
+     git rev-parse --verify 'refs/remotes/origin/main^{commit}'
+-    git show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
++    git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
+     bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]
+     ```
+
+@@ -1072,8 +1072,19 @@ character as 2); the line shapes below are the examples to follow.
+        for `ALL`, `ローカル CLI 未 <n> 件` for `PARTIAL <n>`, and
+        `ローカル CLI 不明` for `PARTIAL` with no count (the script failed, or
+        the PR's head is not the local one). Its second half is the record of
+-       the Fable partial review made before the PR opened; `なし` says the
+-       branch has none.
++       the Fable partial review made before the PR opened (`PR 前`: it did
++       not see the changes after the PR opened), from the Fable records of
++       `git log --reverse origin/main..HEAD`, read as
++       `_lib/fable-review.md`, "Reading the record lines", says: `run` when
++       every record is `run`; when one is `not run`, `未実施・<word>` for the
++       first such record, where `<word>` is `対象なし` for `no-target`,
++       `利用不可` for `unavailable`, `時間切れ` for `timeout`, `別モデル` for
++       `not-fable`, `形式不正` for `unreadable`, and `呼べない` for
++       `agent-cannot-call`; and `なし` when the branch has no record. With
++       two or more records, append `（他 <n> 件）`, `<n>` being the number of
++       records not shown. The longest form,
++       `Codex 後: ローカル CLI 未 12 件 ／ Fable（PR 前）: 未実施・時間切れ（他 1 件）`,
++       stays within 80 columns.
+      - Kinds 7 to 10 appear only for what exists. Kinds 7 to 9 give a kind and
+        a count; kind 10 gives the state and the expiry date, not a count.
+      - Kind 6 is `NEXT: なし` when there is none; `NEXT: /mkarch 0089` for
+````
 
 ### PR-3 の実行の記録
 
-（ステップ 3-1〜3-4 の結果を書く）
+実行日: 2026-11-18。確かめに使ったタスク文書の PR は #987（タスク 0104、ブランチ `isseis/0104-draft-issue-label-01`）で、人が `issue-934` の worktree の Claude Code のセッションで `/mkreq 934` を走らせて開いた。ベースは PR-2 の merge 後の `main`（`bce12d7c`）である。Fable の出力の文とモデル ID の文字列は、この記録に写していない。
+
+**ステップ 3-1: タスク文書の PR の経路（結果: 記録の commit までは設計どおり。並列の起動の時刻は未確認。記録の後の merge に食い違いがあった（3-3））**
+
+-   Fable の部分レビューが、ローカルの CLI レビューと同じ範囲（`bce12d7c1e9e..53ec4a3e80a9`）に対して走った。記録の commit に `Local CLI reviewed:`（Codex CLI の 1 回目と、CodeRabbit CLI の 2 回目）と `Fable review: run` の行があり、Fable の行は、範囲の一覧（入れた箇所 7 行・外した箇所 1 行）と指摘 8 件の行を持つ。モデルの確かめを通ったので `run` と記録されている。ブランチの記録の行からは、Fable の起動がローカルの CLI レビューと並列だったことの時刻までは確かめられず、このステップでは確かめていない。確かめられたのは、Fable と、ローカルの CLI レビューの 1 回目（Codex CLI）が同じ範囲を見たことである。並列の起動は、PR-3 自身の実装の PR の経路で観察し、step 8 の要約と PR の説明に書く（§1.3 の決定 1）。
+-   見た範囲の行と Fable の行は、記録だけを持つ空の commit（`5de18f65`）に載った。直しの commit（`fdd75052`）はこの commit より前に作られ、CodeRabbit CLI の 2 回目の試行が見た。この commit より後に `origin/main` の merge commit（`ac43c9c9`）が作られ、PR の説明は、その merge commit とこの記録の commit の 2 つを「両方の CLI がレビューしていないコミット」として示している（PR の説明は読んだが、`task-pr-handoff.md` Part B step 3 の規則との一致は、確かめていない。merge commit と空の記録の commit を並べた形が規則と違うなら、記録の後の merge の食い違いと同じ根のものとして、#988 で扱う）。
+-   PR の説明に、`## Fable の部分レビュー` の節ができている。範囲に入れた箇所と外した箇所、直した指摘の数と主な 3 件、折りたたんだ `Fable の行` のコードブロックを持つ。`unclear` と `deferred` は 0 件だったので、レビュアーの確かめる点には挙がっていない。
+
+**ステップ 3-2: セキュリティの実地の確かめ（結果: メンションの確かめの除き方は設計どおり。状態の確かめは、差分の検知までを確かめた）**
+
+使い捨てのクローンは、このリポジトリをスクラッチパッドにローカルでクローンして作った。push はしていない。終わったらクローンを消し、親のディレクトリが空であることを確かめた。
+
+-   **メンションの確かめ:** `local-cli-review.md` step 7 の「Mention check」を、Fable の行に当てはめて走らせた。メンション（`<review-mention>`）を、Fable の範囲の一覧の外した箇所の理由、見出しの形の場所、指摘の `<reason>` と `<summary>` の 4 か所に入れたメッセージで、`grep -qiF -- '<review-mention>' <file>` は終了コード 0 を返した。手順どおりに、Fable の行の自由な文（`<summary>` と `<reason>`、外した箇所の理由）を除き、`<location>` を `<path>` に切り詰めたメッセージでは、終了コード 1 を返した（クリア）。存在しないファイルに走らせると終了コード 2 を返し、手順は 1 以外としてこれを除いて 1 回走らせ直し、1 でなければ止める。除いた後の再走査が 1 でない場合の止め方は、走らせていない。
+-   **状態の確かめ:** `fable-review.md`「The state check」のブロックを、そのクローンで 2 回続けて走らせると、全部の部分のハッシュが一致した（終了コード 0）。その後に hooks のディレクトリへ、git が hook として走らせない名前のファイル（`not-a-hook-name`）を置いて（Fable は起動していないので、起動の後の比較を模したものである）走らせると、`hooks` の部分のハッシュだけが変わった。それ以外の部分は変わらなかった。この違いは、手順の文（`fable-review.md` の「Exit comparison」）が「結果を使わず、commit せず、止める」と定めるものである。止める動作そのものは走らせておらず、検知までを確かめた。
+
+**ステップ 3-3: 設計書 3.1.9 の確かめていない振る舞い**
+
+-   **観察できたもの:** Fable が 547 秒で完了して `run` と記録されたこと（30 分の時間切れは満了していない。タイマーの起動と停止は、記録の行からは確かめられない）。モデルの確かめの通過。
+-   **観察できなかったもの:** 並列の起動の時刻（上の 3-1）、30 分のタイマーの満了、TaskStop が子のプロセスまで止めるか、エラーと利用上限の通知の現れ方、権限の確認で止まったときの時間切れ、クラウドと `sonnet` のセッションでの呼び出しと通知、`/chief` の下での画面の読み違え。#987 のセッションは、ブランチの commit の記録から Opus のセッションと分かり、これらが起きる状況にならなかった。実装の PR の経路（PR-3 自身の最後の phase group）での観察は、PR-3 の step 8 の要約と PR の説明に書く（§1.3 の決定 1）。
+-   **設計と違う振る舞い（人と決めた）:** #987 のブランチで、記録の commit（`5de18f65`）の後に `origin/main` の merge commit（`ac43c9c9`）が作られた。`origin/main` の `review-records.sh fable launch` は、記録の commit では `VALID`、merge の後では `MISSING <merge-base>` を返した。#987 は、この merge の後に Fable を走らせ直さずに開かれている。ADR-0050 は、記録の後の中身のある commit を、もう一度 Fable でレビューする決定を持つが、タスク文書の経路は、有効かの判定を起動の入口でしか走らせない（`task-pr-handoff.md` Part B step 1、`fable-review.md` の launch entry）。さらに、merge で merge-base が動くため、それ以前の `Local CLI reviewed:` の行と Fable の記録は、見た範囲の確かめで無視される（余分なレビューか、利用者への質問になる、安全な側の動き）。人と決めた（2026-11-18）：本タスクでは手順も ADR も直さず、この記録と [#988](https://github.com/isseis/yt2column/issues/988) で扱う。
+
+**ステップ 3-4: ADR の「決定」と実装した手順の照合（AC-42。結果: 決定の文の食い違いなし。記録の後の commit の扱いに、3-3 の食い違いがある）**
+
+行番号は、この commit の時点の `.claude/commands/` のものである。
+
+-   ADR-0050：30 分の上限（`fable-review.md:159`）と 1 回の呼び直し（同 `:182-187`）、範囲の 4 つの基準（同 `:257-260`）、モデル ID の確かめ（同 `:340-344`）、`not run` の理由の値（同 `:460-464`）、状態の確かめ（同 `:359-436`）、`origin/main` から取り出した `review-records.sh` が有効かを決めること（同 `:89-91`、失敗を「有効でない」と読むことは同 `:100-103`、チェックポイントの入口からは `runplan.md:98`）、`/runplan` と `task-pr-handoff.md` から FABLE を渡すこと（`runplan.md:256`、`task-pr-handoff.md:190`）、トリアージの規則と 2 回目の試行（`local-cli-review.md` の「Triage rules」と step 6）、PR の説明の節と `/runpr` の要約の 1 行（`task-pr-handoff.md` Part B step 3、`runpr.md:1053`・`:1075`）。
+-   ADR-0013：Escalation の基準 4（`pr-review-escalation.md:48`）と、「見た」を記録から決めること（`local-cli-review.md` の RECORD と `review-records.sh` の `coverage`）、`runpr.md` step 3 の対応の規則。
+-   ADR-0014：`review-records.sh` を `origin/main` の commit から取り出して走らせる例外（`fable-review.md:90`、`runpr.md:680`）。
+-   ADR-0050 の「記録の後の中身のある commit を、もう一度 Fable でレビューする」決定は、タスク文書の経路では、起動の入口の判定だけが働く点で、手順が狭い（3-3 の食い違い。人と決めて #988 で扱う）。他の決定は、手順と合っていた。
+-   決定の文を直す必要はなく、ADR は変更していない。次の 5 点は、決定の食い違いではなく、ADR が要約の粒度で書き、手順が詳しく書いている違いなので、受け入れる。(1) 状態の比較の部分に、手順は `replace`・`ops`・index の tree も含む（ADR は主な部分を挙げる）。(2) 出口の後の比較を、ADR は「commit を作るたびに」、手順は記録の commit まで、と書く。記録の commit の後に Fable の commit はない。(3) RECORD を渡さない呼び出し元は `commit` になる（`local-cli-review.md:65-69`）。ADR はこの既定を述べておらず、決定と衝突しない。(4) `not run` の理由に、手順は `unreadable`（形の違う出力）を持つが、ADR-0050 のどの決定も名指さない。(5) 状態の `config` の部分に、手順は `branch.main.*` も含む（`fable-review.md:382`）が、ADR は他のブランチの `branch.*` を除くと書く。
 
 ## 8. 成功の基準 (Success Criteria)
 
--   **機能:** 要件書の AC-01〜AC-44 が、§7 の確かめで満たされる。
+-   **機能:** 要件書の AC-01〜AC-44 が、§7 の確かめで満たされる。ただし AC-42 は、記録の commit の後の merge の食い違い（[#988](https://github.com/isseis/yt2column/issues/988)）を既知の例外とする（§1.5 の決定 3）。
 -   **品質:** スクリプトのテストが PATH の bash と `/bin/bash` 3.2 の両方で通り、`make test` と `make lint` が通る。
 -   **セキュリティ:** Fable の出力の文が commit メッセージと PR の説明に写らないこと、状態の確かめとメンションの確かめが働くことを、PR のレビューと実地の確かめ（ステップ 3-2）で確かめる。
 -   **文書:** `CLAUDE.md`、`fixprguard_guide.md`、ADR-0050・ADR-0013・ADR-0014 が、実装した手順と一致する。
@@ -682,3 +766,6 @@ PR-2:
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#958）
+- 2026-11-18 セッション中の再承認：PR-2 がマージされるまでチェックポイントの入口が止まること、PR-2 自身のチェックポイントを `origin/main` の `runplan.md` で行うことを決めた（isseis、#981）
+- 2026-11-18 セッション中の再承認：実地の確かめの範囲を、タスク文書の PR の経路の並列の起動の時刻と、状態の確かめの停止の動作を除いて受け入れることを決めた（isseis、#990）
+- 2026-11-18 セッション中の再承認：AC-42 の「決定と実装した手順の一致」から、記録の commit の後の merge で Fable の記録が無効になる食い違い（#988）を既知の例外として外すことを決めた（isseis、#990）
