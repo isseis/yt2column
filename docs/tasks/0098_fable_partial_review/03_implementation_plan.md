@@ -81,6 +81,10 @@
 -   **Agent ツール。** `model` に `fable` を指定でき、`subagent_type` の `fork` では `model` が無視される（設計書の決定 5 の確かめた事実。`opus-review.md:394-395`）。
 -   製品のコード（`internal/` の製品のパッケージ・`extension/`）と、Go で書いた開発の道具（`fixprguard`・`codexreview`・`mergepr`・`coveragecompare`・`chief`）は変えない。`fixpr.md`・`mkreq.md`・`mkarch.md`・`mkplan.md`・`mkplan2.md`・`_lib/opus-review.md`・`_lib/opus-review-decision.sh`・`_lib/triage-pattern.md`・ADR の索引は変えない（設計書 2.2）。
 
+### 1.5. 実装の際に決めたこと（2026-11-18）
+
+1.  **PR-2 がマージされるまで、チェックポイントの入口は止まる。PR-2 自身のチェックポイントは、`origin/main` の `runplan.md`（Fable の手順を持たない）で行う。** 2 回目の判定が失敗したときに進む例外は設けない。理由: 移行の間だけ要る例外のために、関門を外す道を残さないため（利用者の選択。設計書 1.5 の決定 7）。PR-2 のブランチの `runplan.md` で始めたセッションは、PR-2 のチェックポイントで止まる。PR-2 を開き直すときは、`origin/main` の `runplan.md` に従う。ADR: なし。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 見たかの判定と Escalation（設計書 8 章の 1）
@@ -222,7 +226,7 @@ PR-2 のマージの後、PR-3 の `/runplan` の前に、人がほかのタス�
 | M2（PR-2） | Fable の手順、判定のスクリプトの `fable` のモード、まとめたトリアージ、タスク文書の PR と実装の PR への組み込み | PR-1 のマージ（Fable の行の読み方と記録の commit が、PR-1 の見た範囲の行と記録の commit に載る） |
 | M3（PR-3） | 実地の確かめの記録、ADR の確かめ | PR-2 のマージと、人が開くタスク文書の PR |
 
-判定のスクリプトは `origin/main` のコピーで走るので、PR-1 がマージされるまでは `coverage` が `PARTIAL` に、PR-2 がマージされるまでは `fable` が `MISSING` になる（設計書 3.6.3）。PR-2 の `/runpr` は、PR-1 のスクリプトで Escalation を判定する。
+判定のスクリプトは `origin/main` のコピーで走るので、PR-1 がマージされるまでは `coverage` が `PARTIAL` に、PR-2 がマージされるまでは `fable` が `MISSING` になる（設計書 3.6.3）。PR-2 がマージされるまでは、チェックポイントの入口の 2 回目の判定も失敗するので、入口は止まる（§1.5）。PR-2 の `/runpr` は、PR-1 のスクリプトで Escalation を判定する。
 
 ### 3.2 PR 構成
 
@@ -722,3 +726,4 @@ index 349f0b742d2fe3520f7c01212c9e8192c69e8800..32814344eea45382ca49ea91d287b3da
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#958）
+- 2026-11-18 セッション中の再承認：PR-2 がマージされるまでチェックポイントの入口が止まること、PR-2 自身のチェックポイントを `origin/main` の `runplan.md` で行うことを決めた（isseis、#未記入）
