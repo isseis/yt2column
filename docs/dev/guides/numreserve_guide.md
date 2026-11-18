@@ -78,7 +78,7 @@ ruleset は誰も迂回できないので、誤った tag は利用者が消す�
 cloud のセッション（claude.ai/code）では番号を決められない。2026-11-18 に cloud のセッションで `numreserve task` と `numreserve adr` を実行したところ、どちらも `numreserve: stop permission: creating refs/tags/...: HTTP 403` で止まった（[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) の §7「cloud のセッションでの確かめの記録」）。
 
 -   できること：`main` からの道具のインストール、`git ls-remote`、SHA による取得、REST の読み取り。
--   できないこと：REST による記録の tag の作成。403 に rate limit の見出し（`X-RateLimit-Remaining: 0` か `Retry-After`）がないので、道具は `permission` で止まる。403 の原因（資格の権限か、環境のプロキシか）は確かめていない。`GH_TOKEN` と `GITHUB_TOKEN` は設定されているが、`gh auth status` は終了コード 1 で終わる。
+-   できないこと：REST による記録の tag の作成。403 に rate limit の見出し（`X-RateLimit-Remaining: 0` か `Retry-After`）がないので、道具は `permission` で止まる。403 の原因（資格の権限か、環境のプロキシか、見出しのない二次の rate limit か）は確かめていない。`GH_TOKEN` と `GITHUB_TOKEN` は設定されているが、`gh auth status` は終了コード 1 で終わる。
 
 cloud のセッションで `/mkreq` を実行するか ADR を作ると、番号の決定で止まる（止まる理由は `permission`）。新しいタスクの `/mkreq` と、ADR の番号の決定は、手元のクローンで行う。
 
