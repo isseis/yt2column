@@ -412,11 +412,33 @@ func issueRepo(t *testing.T) *testRepo {
 	return repo
 }
 
+// TestIssueIndexIgnoresGrepPatternType checks that a repository setting of
+// grep's pattern type does not change the search: with a fixed-string
+// setting the anchored pattern would match nothing.
+func TestIssueIndexIgnoresGrepPatternType(t *testing.T) {
+	repo := issueRepo(t)
+	repo.Git("config", "grep.patternType", "fixed")
+	ix, err := NewTasks(repo.RealCommands()).IssueIndex(t.Context(), repo.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ix.Tasks(issueNumber(t, "839"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"0010_link_with_remarks"}; !slices.Equal(got, want) {
+		t.Errorf("Tasks(839) = %v, want %v", got, want)
+	}
+}
+
 // TestIssueTasksReadsTheRealGitGrep runs the real git grep over a repository
 // of the samples and checks which task directories cite each issue.
 func TestIssueTasksReadsTheRealGitGrep(t *testing.T) {
 	repo := issueRepo(t)
-	tasks := NewTasks(repo.RealCommands())
+	ix, err := NewTasks(repo.RealCommands()).IssueIndex(t.Context(), repo.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cases := []struct {
 		issue string
 		want  []string
@@ -442,12 +464,12 @@ func TestIssueTasksReadsTheRealGitGrep(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run("issue "+c.issue, func(t *testing.T) {
-			got, err := tasks.IssueTasks(t.Context(), repo.Dir, issueNumber(t, c.issue))
+			got, err := ix.Tasks(issueNumber(t, c.issue))
 			if err != nil {
 				t.Fatal(err)
 			}
 			if !slices.Equal(got, c.want) {
-				t.Errorf("IssueTasks = %v, want %v", got, c.want)
+				t.Errorf("tasks of the issue = %v, want %v", got, c.want)
 			}
 		})
 	}
@@ -459,10 +481,20 @@ func TestIssueTasksWithNoLine(t *testing.T) {
 	repo.Write("docs/tasks/0001_a/01_requirements.md", "no issue line\n")
 	repo.CommitAll("tasks")
 	repo.Git("update-ref", originMain, "HEAD")
-	got, err := NewTasks(repo.RealCommands()).IssueTasks(t.Context(), repo.Dir, issueNumber(t, "1"))
+	got, err := issueOneTasks(t, NewTasks(repo.RealCommands()), repo.Dir)
 	if err != nil || len(got) != 0 {
-		t.Errorf("IssueTasks = %v, %v, want none", got, err)
+		t.Errorf("tasks of the issue = %v, %v, want none", got, err)
 	}
+}
+
+// issueOneTasks reads the issue index in wt and returns the tasks of issue 1.
+func issueOneTasks(t *testing.T, tasks Tasks, wt string) ([]string, error) {
+	t.Helper()
+	ix, err := tasks.IssueIndex(t.Context(), wt)
+	if err != nil {
+		return nil, err
+	}
+	return ix.Tasks(issueNumber(t, "1"))
 }
 
 // TestIssueTasksFailures checks the readings that are not "no line".
@@ -473,9 +505,9 @@ func TestIssueTasksFailures(t *testing.T) {
 	t.Run("one git grep in the worktree", func(t *testing.T) {
 		rec := newRecorder(t)
 		rec.reply(search, []byte(good))
-		got, err := NewTasks(rec.commands(nil)).IssueTasks(t.Context(), wt, issueNumber(t, "1"))
+		got, err := issueOneTasks(t, NewTasks(rec.commands(nil)), wt)
 		if err != nil || !slices.Equal(got, []string{"0001_a"}) {
-			t.Fatalf("IssueTasks = %v, %v", got, err)
+			t.Fatalf("tasks of the issue = %v, %v", got, err)
 		}
 		if calls := rec.recorded(); len(calls) != 1 || calls[0].dir != wt {
 			t.Errorf("calls = %+v, want one in %s", calls, wt)
@@ -493,8 +525,8 @@ func TestIssueTasksFailures(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			rec := newRecorder(t)
 			rec.reply(search, []byte(out))
-			if got, err := NewTasks(rec.commands(nil)).IssueTasks(t.Context(), wt, issueNumber(t, "1")); !errors.Is(err, errTaskDocument) {
-				t.Errorf("IssueTasks = %v, %v, want errTaskDocument", got, err)
+			if got, err := issueOneTasks(t, NewTasks(rec.commands(nil)), wt); !errors.Is(err, errTaskDocument) {
+				t.Errorf("tasks of the issue = %v, %v, want errTaskDocument", got, err)
 			}
 		})
 	}
@@ -502,18 +534,20 @@ func TestIssueTasksFailures(t *testing.T) {
 		for _, failure := range []error{&cmdrunner.ExitError{Code: 128}, errors.New("git is gone")} {
 			rec := newRecorder(t)
 			rec.fail(search, failure)
-			if got, err := NewTasks(rec.commands(nil)).IssueTasks(t.Context(), wt, issueNumber(t, "1")); err == nil {
-				t.Errorf("IssueTasks = %v, want an error", got)
+			if got, err := issueOneTasks(t, NewTasks(rec.commands(nil)), wt); err == nil {
+				t.Errorf("tasks of the issue = %v, want an error", got)
 			}
 		}
 	})
 	t.Run("no issue", func(t *testing.T) {
 		rec := newRecorder(t)
-		if _, err := NewTasks(rec.commands(nil)).IssueTasks(t.Context(), wt, paneinput.IssueNumber{}); !errors.Is(err, errNoIssueNumber) {
-			t.Errorf("error = %v, want errNoIssueNumber", err)
+		rec.reply(search, []byte(good))
+		ix, err := NewTasks(rec.commands(nil)).IssueIndex(t.Context(), wt)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if calls := rec.recorded(); len(calls) != 0 {
-			t.Errorf("ran %v", calls)
+		if got, err := ix.Tasks(paneinput.IssueNumber{}); !errors.Is(err, errNoIssueNumber) {
+			t.Errorf("Tasks = %v, %v, want errNoIssueNumber", got, err)
 		}
 	})
 }

@@ -823,7 +823,7 @@ func (t Tasks) Read(ctx context.Context, worktree, branch string) (TaskDocs, err
 
 // ReadDir reads, from origin/main in worktree, the documents of the task
 // directory named dirName (such as 0088_chief_of_staff, a name found by
-// IssueTasks). Contract: it reads the documents by the same rules as Read; the
+// IssueIndex.Tasks). Contract: it reads the documents by the same rules as Read; the
 // name must be a task directory's form and a directory of origin/main, or the
 // task is unreadable.
 func (t Tasks) ReadDir(ctx context.Context, worktree, dirName string) (TaskDocs, error) {
@@ -896,10 +896,12 @@ const issueLinePrefix = "対応 issue: "
 // gitGrep is the git subcommand that searches the tree of a ref.
 const gitGrep = "grep"
 
-// issueLineSearch is what IssueTasks hands `git grep`: a line whose first
+// issueLineSearch is what IssueIndex hands `git grep`: a line whose first
 // column starts with issueLinePrefix, in the requirements documents one
-// directory below the task root.
-var issueLineSearch = []string{gitGrep, "-n", "^" + issueLinePrefix, originMain, "--", ":(glob)" + taskRoot + "/*/" + requirementsFile}
+// directory below the task root. -G pins the pattern to a basic regular
+// expression, so a grep.patternType setting cannot turn the anchor into text
+// and silently leave the index empty.
+var issueLineSearch = []string{gitGrep, "-G", "-n", "^" + issueLinePrefix, originMain, "--", ":(glob)" + taskRoot + "/*/" + requirementsFile}
 
 // issueLineForm is one line of `git grep -n` output for issueLineSearch: the
 // ref, the path of a requirements document, the line number, and the line.
@@ -950,38 +952,61 @@ func issueNumbersOf(text string) map[string]struct{} {
 	return numbers
 }
 
-// IssueTasks returns the names of the task directories whose requirements
-// document, on origin/main in worktree, names issue on a line that starts
-// with `対応 issue: `, in name order. It runs one `git grep` for every
-// document. Contract: a line it cannot read as `git grep -n` output for a
-// requirements document of a task directory, makes the whole reading
-// unreadable; git's exit status 1 (no line) is an empty result, never an
-// error. The caller proposes a removal only when exactly one directory is
-// returned, and that is a proposal a human and the removal checks still
-// decide.
-func (t Tasks) IssueTasks(ctx context.Context, worktree string, issue paneinput.IssueNumber) ([]string, error) {
-	if issue.String() == "" {
-		return nil, errNoIssueNumber
-	}
+// IssueIndex is the issue lines of every requirements document on
+// origin/main, as one `git grep` read them: the task directory of each line
+// and the issue numbers it names. Only Tasks.IssueIndex makes one; the zero
+// value names no task.
+type IssueIndex struct {
+	lines []issueLine
+}
+
+// issueLine is one issue line: its task directory and the numbers it names.
+type issueLine struct {
+	dir     string
+	numbers map[string]struct{}
+}
+
+// IssueIndex reads, from origin/main in worktree, the lines that start with
+// issueLinePrefix in every requirements document, with one `git grep`, so a
+// round asks git once for every issue it looks up. Contract: a line it
+// cannot read as `git grep -n` output for a requirements document of a task
+// directory makes the whole reading unreadable; git's exit status 1 (no
+// line) is an empty index, never an error.
+func (t Tasks) IssueIndex(ctx context.Context, worktree string) (IssueIndex, error) {
 	out, err := t.cmds.git(ctx, worktree, issueLineSearch...)
 	if err != nil {
 		exitErr, ok := errors.AsType[*cmdrunner.ExitError](err)
 		if !ok || exitErr.Code != 1 {
-			return nil, err
+			return IssueIndex{}, err
 		}
 		out = nil
 	}
-	var dirs []string
+	var ix IssueIndex
 	for line := range strings.SplitSeq(strings.TrimSuffix(string(out), "\n"), "\n") {
 		if line == "" {
 			continue
 		}
 		m := issueLineForm.FindStringSubmatch(line)
 		if m == nil || !isTaskDir(m[1]) {
-			return nil, fmt.Errorf("%w: a line of git grep that is not an issue line of a requirements document", errTaskDocument)
+			return IssueIndex{}, fmt.Errorf("%w: a line of git grep that is not an issue line of a requirements document", errTaskDocument)
 		}
-		if _, cited := issueNumbersOf(m[2])[issue.String()]; cited && !slices.Contains(dirs, m[1]) {
-			dirs = append(dirs, m[1])
+		ix.lines = append(ix.lines, issueLine{dir: m[1], numbers: issueNumbersOf(m[2])})
+	}
+	return ix, nil
+}
+
+// Tasks returns the names of the task directories whose requirements
+// document names issue on an issue line, in name order. The caller proposes
+// a removal only when exactly one directory is returned, and that is a
+// proposal a human and the removal checks still decide.
+func (ix IssueIndex) Tasks(issue paneinput.IssueNumber) ([]string, error) {
+	if issue.String() == "" {
+		return nil, errNoIssueNumber
+	}
+	var dirs []string
+	for _, l := range ix.lines {
+		if _, cited := l.numbers[issue.String()]; cited && !slices.Contains(dirs, l.dir) {
+			dirs = append(dirs, l.dir)
 		}
 	}
 	slices.Sort(dirs)

@@ -393,7 +393,7 @@ query($owner: String!, $repo: String!, $n: Int!) {
 -   **記録のパスと issue の結び付き。** 記録の issue 番号から作る場所を作り直し、それが記録のパスと同じであることを確かめる。偽られた記録が名指せるのは、`issue-<N>` の形のパスの worktree だけになり、本体のチェックアウトや人が手で作った worktree を名指せない。
 -   **行（AC-20・AC-21）。** 上の条件をすべて満たし、HEAD が detached で、どのエージェントも実行中でも質問で止まってもいない（0088 の `classify` の見分け。`internal/chief/state.go`）行は、状態を「タスク完了」、タスクの欄を記録した issue のタスクの番号、次にやることを「削除を提案」とする。どれかが外れる行は、0088 の規則のままである。この行は、0088 の「使っていないか残った worktree の行」（`Row.Idle`）にはせず、0088 の行の並べ方の「タスク完了」の位置に並べる（0088 設計書の 3.1.4）。0093 の急ぎの度合いの対応表・文書の規則・並べ方が `main` にあれば、この行の急ぎの度合いを「あとで」、番を「人」、進行の位置の文書を「なし」とし、「あとで」の位置に並べる（1.5）。
 -   **0088 の規則の例外。** これは、0088 設計書 3.1.4 の状態の区分（HEAD が detached の行を「要確認」にする規則。`internal/chief/state.go:256-263`、`internal/chief/state.go:430-434`）の例外である。例外にするのは、作ったことの記録と `origin/main` の文書から、タスクが完了したことを確かめられる場合に限るためである。その規則を確かめる今のテスト（`internal/chief/snapshot_test.go:103` の `TestTakeSnapshotStates` の detached の行、`internal/chief/snapshot_test.go:467` の `TestRowOrderRules`、`internal/chief/snapshot_test.go:508` の `TestDetachedRowIdleOnlyWhenEverythingWasRead`、`internal/chief/autosend_test.go:343` の `TestAutoSendDetached`）は、作ったことの記録のない workspace について、変わらずに成り立つ。例外を確かめるテストを足す（7.1）。
--   **人の判断を待つもの（AC-22〜AC-25）。** AC-23 の条件を満たす workspace ごとに、新しい種類 `removal` の項目を 1 つ作る。項目は、workspace の名前、worktree のパス、issue の番号、タスクの番号、workspace の pane の数（`herdr pane list --workspace <ID>`）、その周の削除の確かめの結果（3.4.2）を持つ。HEAD が detached でないときやエージェントが動いているときも項目は作り、確かめの結果に示す（AC-20 は行の示し方の条件で、提案の条件は AC-23 である）。
+-   **人の判断を待つもの（AC-22〜AC-25）。** AC-23 の条件を満たす workspace ごとに、新しい種類 `removal` の項目を 1 つ作る。項目は、workspace の名前、worktree のパス、issue の番号、タスクの番号、workspace の pane の数（`herdr pane list` のうち、その workspace の pane）、その周の削除の確かめの結果（3.4.2）を持つ。HEAD が detached でないときやエージェントが動いているときも項目は作り、確かめの結果に示す（AC-20 は行の示し方の条件で、提案の条件は AC-23 である）。
 -   **並べ方（AC-22）。** 種類の順を、0088 の 4 つ（`internal/chief/pending.go:167` の `kindOrder`）の後に `removal` を足したものにする。同じ種類の中では、0088 のとおり最初に見つけた時刻の古いものから並べる。「新しいタスクを始める」は、`/chief` の定義が一覧の最後に置く（3.7）。
 -   **削除しないこと（AC-26）。** `tick` の自動送信は、削除の項目を送信の対象にしない。削除は `remove` だけが行う。
 -   **エージェントのいない workspace。** 0088 の見つけ方はエージェントの作業ディレクトリから workspace を見つけるので、エージェントがすべて終了した workspace は、表に出ず、削除も提案されない。人が端末で片付ける（手引きの既知の制限に書く）。
@@ -408,7 +408,7 @@ query($owner: String!, $repo: String!, $n: Int!) {
 | HEAD が `origin/main` から届く | `git merge-base --is-ancestor HEAD refs/remotes/origin/main` が 0 で終わる。1 なら届かない。そのほかは読めない | `head_not_on_main` |
 | worktree が固定されていない | `git worktree list --porcelain` のその worktree に `locked` がない。閉じた後に git が消すことを拒まないため | `worktree_locked` |
 | どのエージェントも動いていない | その workspace のどのエージェントも、Herdr の状態が `idle` か `done` で、画面が質問の形でない（0088 の F-001・F-002 の見分け）。状態と画面がすべて読める | `agent_active` |
-| エージェントでない pane でシェル以外が走っていない | `herdr pane list --workspace <ID>` の、エージェントのいない各 pane について、`herdr pane process-info` の前面のプロセスグループの ID がシェルの pid と等しく、前面のプロセスがシェルだけである（1.2） | `shell_busy` |
+| エージェントでない pane でシェル以外が走っていない | `herdr pane list` のその workspace の、エージェントのいない各 pane について、`herdr pane process-info` の前面のプロセスグループの ID がシェルの pid と等しく、前面のプロセスがシェルだけである（1.2） | `shell_busy` |
 | ほかの workspace がパスを使っていない | パスの workspace（3.3.2）が、消す workspace だけである。ほかの workspace の pane がパスの下で動いていれば、worktree を消すとその作業ディレクトリがなくなるため | `path_in_use` |
 
 -   どの確かめも、読めないときは通らないものとし、読めなかったものの名前を添えて `unreadable` とする。

@@ -199,15 +199,18 @@ func firstUnmergedPR(plan Plan) int {
 }
 
 // urgencyOf maps a row to its urgency and turn. Contract: the first matching
-// row of the table in the design (3.2) wins; it reads only the row's
-// declared values, never Unreadable's text; a state of none of the six
-// matches no row and gets the zero values, which call the human.
+// row of the table in the design (3.2) wins, with a removal row (marked by
+// Row.RemovalRow) after the questions and before the idle rows; it reads
+// only the row's declared values, never Unreadable's text; a state of none
+// of the six matches no row and gets the zero values, which call the human.
 func urgencyOf(r Row) (Urgency, Turn) {
 	switch {
 	case r.Stopped != nil || r.StopUnreadable:
 		return UrgencyNow, TurnHuman
 	case r.State == StateQuestion:
 		return UrgencyNow, TurnHuman
+	case r.RemovalRow:
+		return UrgencyLater, TurnHuman
 	case r.Idle:
 		return UrgencyWait, TurnNone
 	case r.State == StateAwaitingReview || r.State == StateProposeNext || r.State == StateNeedsCheck:
@@ -223,14 +226,27 @@ func urgencyOf(r Row) (Urgency, Turn) {
 
 // documentOf decides the document part of a row's position, and N of PR-N
 // for PositionDocPlanPR, by the ten rules of the design (3.3), the first
-// match winning. running is the command the row's agents run, nil when none
-// is decided. It never changes the row's state.
+// match winning, with a removal row (Row.RemovalRow) having no document
+// right after the rule of a failed fetch or unreadable documents. running
+// is the command the row's agents run, nil when none is decided. It never
+// changes the row's state.
 func documentOf(r Row, running *RunningCommand) (PositionDocument, int) {
+	switch {
+	case r.position.fetchFailed || r.position.docsUnreadable:
+		return PositionDocNeedsCheck, 0
+	case r.RemovalRow:
+		return PositionDocNone, 0
+	default:
+		return taskDocumentOf(r, running)
+	}
+}
+
+// taskDocumentOf applies the rules of documentOf that follow a successful
+// read and a row that is not a removal row, in their order.
+func taskDocumentOf(r Row, running *RunningCommand) (PositionDocument, int) {
 	p := r.position
 	runningMkreq := running != nil && running.Kind() == paneinput.CommandMkreq
 	switch {
-	case p.fetchFailed || p.docsUnreadable:
-		return PositionDocNeedsCheck, 0
 	case !p.hasTask && runningMkreq:
 		return PositionDocRequirements, 0
 	case !p.hasTask && p.head == headBranch && r.State == StateProposeNext && r.Next != nil && r.Next.Kind == TaskNextMkreq:

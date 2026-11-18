@@ -776,16 +776,9 @@ func (m WorkspaceMaker) waitShell(ctx context.Context, pane PaneID) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		out, err := m.cmds.herdr(ctx, herdrPane, "process-info", "--pane", pane.String())
+		info, err := NewHerdr(m.cmds).processes(ctx, pane)
 		if err != nil {
 			return err
-		}
-		info, err := parsePaneProcessInfo(out)
-		if err != nil {
-			return err
-		}
-		if info.Pane != pane {
-			return fmt.Errorf("%w: herdr reported the processes of pane %s for %s", errMakerRefused, info.Pane, pane)
 		}
 		if info.ShellInForeground() {
 			return nil
