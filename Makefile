@@ -108,7 +108,7 @@ test-ci:
 
 # Parse-time check of the copied-transcript parser: runs only
 # TestParseCopiedLargeInputs, without -race and without coverage, so the parse
-# is timed as the server builds it and with no other package's tests running
+# is timed as the production builds parse it and with no other package's tests running
 # alongside. The build without the race detector is the only one that compares
 # the parse time with the deadline. -count=1 keeps a rerun from reusing a
 # cached result. `make test` calls this from its recipe after the -race run

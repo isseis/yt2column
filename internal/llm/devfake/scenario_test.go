@@ -181,8 +181,7 @@ func TestParseScenario(t *testing.T) {
 	}
 
 	valid := ScenarioSpelling{Article: "long", Failure: "empty", FailAt: "draft", DelaySeconds: "10", SettingsCheck: "ok"}
-	// want, when set, is a sentinel the rejection must also wrap. The
-	// development server's test pins the wording an operator reads.
+	// want, when set, is a sentinel the rejection must also wrap.
 	rejected := []struct {
 		name   string
 		change func(*ScenarioSpelling)

@@ -1,5 +1,5 @@
 // Parses untrusted JSON text into a JSON tree with the same rules as
-// the server side's internal/strictjson. JSON.parse would silently accept a
+// the Go side's internal/strictjson. JSON.parse would silently accept a
 // repeated member name (the last one wins) and an unpaired surrogate escape,
 // so the bytes are parsed here instead of checked around JSON.parse. The
 // parse rejects rather than repairs: nothing is skipped, trimmed or replaced.

@@ -11,9 +11,9 @@ package transcript
 // of allocations.
 //
 // copiedParseChecksDeadline is false: the race build does not compare the
-// parse time with copiedParseDeadline. The server is built without the race
-// detector, whose instrumentation slows the parse by an amount unrelated to the
-// server's parse time, so the deadline is checked only by the non-race build.
+// parse time with copiedParseDeadline. The production builds have no race
+// detector, whose instrumentation slows the parse by an amount unrelated to
+// their parse time, so the deadline is checked only by the non-race build.
 //
 // This file is built by the -race runs (`make test` and `make test-ci`) but not
 // by `make lint`, which passes only the test,integration build tags. The

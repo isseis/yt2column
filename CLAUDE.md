@@ -552,8 +552,8 @@ its security rules in `docs/dev/security.md` §8.
 - **Keep internals unobservable**: a value an API returns but does not define
   the meaning of — an identifier, a key, an ordering, a message's wording — is
   opaque. Do not let a caller compute, parse, or rely on how it is made; make
-  that impossible where it is cheap (e.g. the article key is an HMAC with a
-  per-process secret, so it can only be obtained from the API), because every
+  that impossible where it is cheap (e.g. the extension's job ID is a fresh
+  random ID, so it can only be obtained from the service worker), because every
   observable behavior will be depended on by somebody (Hyrum's Law). State
   such a measure's purpose as API design, not as a security defense, unless it
   also defends against an attacker outside the trust boundary.

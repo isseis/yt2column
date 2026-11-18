@@ -192,8 +192,7 @@ func complete(steps Steps, article writer.Article, videoTitle string, duration t
 // well, so ErrPromptTooLarge is checked first. A 401 also matches the Claude
 // adapter's ErrHTTPStatus, so a rule by HTTP status added later goes after
 // llm.ErrAuthRejected.
-// A canceled context is llm_failed, as on the server, where only the shutdown
-// cancels a run.
+// A canceled context is llm_failed.
 func classifyWrite(err error) Failure {
 	switch {
 	case errors.Is(err, writer.ErrPromptTooLarge):

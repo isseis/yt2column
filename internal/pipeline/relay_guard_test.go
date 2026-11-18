@@ -156,7 +156,7 @@ func freeTags(expr constraint.Expr, fixed map[string]bool) []string {
 }
 
 // loopbackLiterals are the substrings of a string literal that name a loopback
-// address; a TCP listener bound to one is what the server no longer has.
+// address; a TCP listener bound to one is what no production code may open.
 var loopbackLiterals = []string{"127.0.0.1", "[::1]", "::1"}
 
 // tcpNetworks are the network names that make a listener a TCP listener.
@@ -313,7 +313,7 @@ func TestNoTCPListenerInProduction(t *testing.T) {
 			t.Fatalf("read %s: %v", rel, err)
 		}
 		for _, finding := range tcpListenerFindings(t, rel, string(src)) {
-			t.Errorf("%s: %s: the server listens on a Unix socket only", rel, finding)
+			t.Errorf("%s: %s: no production code listens on TCP", rel, finding)
 		}
 	}
 }

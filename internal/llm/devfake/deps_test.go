@@ -12,9 +12,9 @@ import (
 	"github.com/isseis/yt2column/internal/privatefile"
 )
 
-// TestDependencies checks that the fake depends on no binary, on
-// internal/privatefile, which only a native build compiles, and on neither the
-// network nor external commands. godepstest reads the sources of the packages
+// TestDependencies checks that the fake depends on no binary, not on
+// internal/privatefile (which only a native build compiles), and on neither
+// the network nor external commands. godepstest reads the sources of the packages
 // it lists, so a change to them, for any target OS, invalidates the cached
 // result.
 func TestDependencies(t *testing.T) {
