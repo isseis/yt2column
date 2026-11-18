@@ -13,7 +13,12 @@
 
 ## 1. 概要 (Overview)
 
-**目的:** 本書は、chief が、ブランチ `main` をチェックアウトした worktree の workspace を「タスクのない workspace」と読んで `/mkreq` を示す誤りを直す要件を定義する。あわせて、chief がその workspace で開いているのを見て、マージを見た PR から、その worktree のタスクを特定する要件を定義する。
+**目的:** 本書は、chief が、ブランチ `main` をチェックアウトした worktree（以下、`main` にいる worktree）の workspace を「タスクのない workspace」と読んで `/mkreq` を示す誤りを直す要件を定義する。あわせて、その worktree のタスクを、マージを見た PR の記録から特定する要件を定義する。
+
+-   **マージを見た PR**：chief の pane の Claude Code のセッション（以下、chief のセッション）の間に、chief がその worktree で開いているのを見て、後のラウンドでマージされたと分かった PR。
+-   **記録が示すタスク**：chief が PR の開いているのを見たときに、そのときのブランチの名前から記録したタスク。
+
+これらの語の正確な定義は、3.1 の冒頭にある。
 
 **背景:**
 
