@@ -18,10 +18,13 @@ import (
 
 const (
 	branchPrefix = "refs/heads/"
-	mainBranch   = "main"
-	tasksDir     = "docs/tasks/"
-	adrDir       = "docs/dev/adr/"
-	adrIndex     = "README.md"
+	// remote is the only remote the tool reads; it must be GitHub's
+	// isseis/yt2column (Repository).
+	remote     = "origin"
+	mainBranch = "main"
+	tasksDir   = "docs/tasks/"
+	adrDir     = "docs/dev/adr/"
+	adrIndex   = "README.md"
 	// maxListedUses bounds how many inputs a jump detail names.
 	maxListedUses = 10
 )
@@ -63,11 +66,12 @@ type branch struct {
 	sha  string
 }
 
-// remoteRefs is what git ls-remote returned for one space.
+// remoteRefs is what git ls-remote returned: origin's branches and, for
+// each record tag namespace asked for, the numbers of its tags.
 type remoteRefs struct {
 	mainSHA  string
 	branches []branch
-	tags     []int
+	tags     map[string][]int
 }
 
 // lsRemoteLine is the one accepted line form: 40 lowercase hexadecimal
@@ -105,7 +109,7 @@ func (t *Tool) collectTask(ctx context.Context, tagPrefix string) (collected, er
 	if err != nil {
 		return collected{}, err
 	}
-	c := collected{mainSHA: refs.mainSHA, base: maxOf(mainNumbers, refs.tags)}
+	c := collected{mainSHA: refs.mainSHA, base: maxOf(mainNumbers, refs.tags[tagPrefix])}
 	for _, b := range refs.branches {
 		if n, _, ok := tasknaming.ParseBranch(b.name); ok {
 			c.others = append(c.others, use{number: n.Int(), where: "origin branch " + quote(b.name)})
@@ -142,19 +146,15 @@ func (t *Tool) collectADR(ctx context.Context, tagPrefix string) (collected, err
 	if err != nil {
 		return collected{}, err
 	}
-	c := collected{mainSHA: refs.mainSHA, base: maxOf(mainNumbers, refs.tags)}
+	c := collected{mainSHA: refs.mainSHA, base: maxOf(mainNumbers, refs.tags[tagPrefix])}
 	read := map[string][]treeEntry{}
 	for _, b := range refs.branches {
 		if b.name == mainBranch {
 			continue
 		}
-		entries, ok := read[b.sha]
-		if !ok {
-			entries, err = t.listTree(ctx, b.sha, adrDir, "origin branch "+quote(b.name))
-			if err != nil {
-				return collected{}, err
-			}
-			read[b.sha] = entries
+		entries, err := t.branchTree(ctx, b, adrDir, read)
+		if err != nil {
+			return collected{}, err
 		}
 		for _, e := range entries {
 			if n, ok := adrNumber(e); ok {
@@ -183,40 +183,49 @@ func (t *Tool) collectADR(ctx context.Context, tagPrefix string) (collected, err
 	return c, nil
 }
 
-// listRemote reads origin's branches and the space's record tags with one
-// git ls-remote.
+// listRemote reads origin's branches and the record tags of each namespace
+// in tagPrefixes with one git ls-remote.
 //
 // Contract: every line has the accepted form; a line under refs/heads/ is a
-// branch and a line under tagPrefix is a record tag whose name must be
-// exactly four ASCII digits (a nested name or a peeled ^{} line stops as
-// malformed); any other line (git matches patterns at the end of a name) is
-// skipped. origin must have main, and at most maxBranches branches.
-func (t *Tool) listRemote(ctx context.Context, tagPrefix string) (remoteRefs, error) {
+// branch and a line under one of tagPrefixes is a record tag whose name must
+// be exactly four ASCII digits (a nested name or a peeled ^{} line stops as
+// malformed); any other line (git matches patterns at the end of a name, and
+// a namespace not asked for is never judged) is skipped. origin must have
+// main, and at most maxBranches branches.
+func (t *Tool) listRemote(ctx context.Context, tagPrefixes ...string) (remoteRefs, error) {
 	const step = "listing origin's branches and record tags"
-	out, err := t.runGit(ctx, "ls-remote", "origin", branchPrefix+"*", tagPrefix+"*")
+	patterns := make([]string, 0, len(tagPrefixes))
+	for _, prefix := range tagPrefixes {
+		patterns = append(patterns, prefix+"*")
+	}
+	out, err := t.runGit(ctx, append([]string{"ls-remote", remote, branchPrefix + "*"}, patterns...)...)
 	if err != nil {
 		return remoteRefs{}, gitStop(err, step, true)
 	}
-	var refs remoteRefs
+	refs := remoteRefs{tags: map[string][]int{}}
 	for _, line := range lines(out) {
 		m := lsRemoteLine.FindStringSubmatch(line)
 		if m == nil {
 			return remoteRefs{}, stop(StopMalformed, step, "line %s is not <40 hex digits><tab><ref>", quote(line))
 		}
 		sha, ref := m[1], m[2]
-		switch {
-		case strings.HasPrefix(ref, branchPrefix):
-			name := strings.TrimPrefix(ref, branchPrefix)
+		if name, ok := strings.CutPrefix(ref, branchPrefix); ok {
 			if name == mainBranch {
 				refs.mainSHA = sha
 			}
 			refs.branches = append(refs.branches, branch{name: name, sha: sha})
-		case strings.HasPrefix(ref, tagPrefix):
-			n, err := tasknaming.ParseNumber(strings.TrimPrefix(ref, tagPrefix))
-			if err != nil {
-				return remoteRefs{}, stop(StopMalformed, step, "record tag %s is not four digits under %s", quote(ref), tagPrefix)
+			continue
+		}
+		for _, prefix := range tagPrefixes {
+			rest, ok := strings.CutPrefix(ref, prefix)
+			if !ok {
+				continue
 			}
-			refs.tags = append(refs.tags, n.Int())
+			n, err := tasknaming.ParseNumber(rest)
+			if err != nil {
+				return remoteRefs{}, stop(StopMalformed, step, "record tag %s is not four digits under %s", quote(ref), prefix)
+			}
+			refs.tags[prefix] = append(refs.tags[prefix], n.Int())
 		}
 	}
 	if len(refs.branches) > t.bounds.maxBranches {
@@ -244,7 +253,7 @@ func (t *Tool) fetch(ctx context.Context, branches []branch) error {
 			shas = append(shas, b.sha)
 		}
 	}
-	args := append([]string{"fetch", "--no-tags", "--no-write-fetch-head", "origin"}, shas...)
+	args := append([]string{"fetch", "--no-tags", "--no-write-fetch-head", remote}, shas...)
 	_, err := t.runGit(ctx, args...)
 	if err == nil {
 		return nil
@@ -377,10 +386,7 @@ func (t *Tool) readMainList(ctx context.Context, mainSHA, dir string) ([]int, er
 
 // adrNumber returns the number of an ADR file entry.
 func adrNumber(e treeEntry) (int, bool) {
-	if e.kind != "blob" {
-		return 0, false
-	}
-	n, ok := tasknaming.ParseADRFile(path.Base(e.path))
+	n, ok := entryNumber(SpaceADR, e)
 	return n.Int(), ok
 }
 

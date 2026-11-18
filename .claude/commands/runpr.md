@@ -115,7 +115,7 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
 - By the PR's `state`:
   - `OPEN`: use its number in the steps below.
   - `MERGED`: do not open another PR for the same commits. If `mergepr`
-    cleanup is pending, run `mergepr cleanup --protocol 1 --state <state-file>`. The head
+    cleanup is pending, run `mergepr cleanup --protocol 2 --state <state-file>`. The head
     branch is gone, so read the bookkeeping from `origin/main`: report any step
     2 record missing there (it can be added with a standalone PR). When it is
     the task's final plan PR (step 2, "Kind"), run step 5's
@@ -819,7 +819,7 @@ character as 2); the line shapes below are the examples to follow.
 - **When it cannot be written.** When the details directory cannot be made, a
   detail file cannot be written, or a file of that name exists, stop without
   asking, and report what failed and the path. For the merge question, run
-  `mergepr discard --protocol 1 --state <state-file>` before stopping. Never ask a
+  `mergepr discard --protocol 2 --state <state-file>` before stopping. Never ask a
   deferred question or merge question that has no detail file.
 - **Reports.** Every report of a stop in this run after the details directory
   was made (a stop in step 2 or step 3 after a fix or a return included), and
@@ -1144,7 +1144,7 @@ character as 2); the line shapes below are the examples to follow.
        Final report the detail file showed (`fixpr.md`, "Overriding an
        exclusion"): the user's answer is what overrides the judgment, so
        `fixpr` fixes it without judging it again and records the override.
-       Run `mergepr discard --protocol 1 --state <state-file>`, run `fixpr.md` for
+       Run `mergepr discard --protocol 2 --state <state-file>`, run `fixpr.md` for
        `<number>` with them, and return to step 2.
      - An answer made only of digits and separators that is not a number answer
        (a number out of range or repeated, or any number when there are no
@@ -1170,10 +1170,10 @@ character as 2); the line shapes below are the examples to follow.
    message files of the round that asked (the version without the approval
    line for the merge without the approvals), never with the detail file.
    When the answer otherwise does not merge, run
-   `mergepr discard --protocol 1 --state <state-file>`, stop, and report.
+   `mergepr discard --protocol 2 --state <state-file>`, stop, and report.
 
    When the answer requests a PR review first, run
-   `mergepr discard --protocol 1 --state <state-file>`, ask Codex for a PR review as step 3,
+   `mergepr discard --protocol 2 --state <state-file>`, ask Codex for a PR review as step 3,
    "Requesting the review", says, with
    `gh pr comment <number> --body "<review-request>"` (the user's request, so
    it does not count against Escalation's one), wait for it and handle what it
@@ -1186,7 +1186,7 @@ character as 2); the line shapes below are the examples to follow.
    return in progress"):
 
    1. **Ask first.** When entering from this item, first run
-      `mergepr discard --protocol 1 --state <state-file>`; when entering from item 1 there
+      `mergepr discard --protocol 2 --state <state-file>`; when entering from item 1 there
       is no preparation, so discard nothing. Before touching any file, settle
       everything the return needs. An answer that
       chooses the return together with anything else (threads to fix, a PR
@@ -1292,21 +1292,21 @@ character as 2); the line shapes below are the examples to follow.
 4. When the answer records PRE_MERGE (including the merge without the
    approvals, when its PR number fill-in is not none):
    - Note the prepared `headRefOid`, and copy (checking first that no file of
-     that name exists, and stopping, after `mergepr discard --protocol 1 --state <state-file>`, when the copy
+     that name exists, and stopping, after `mergepr discard --protocol 2 --state <state-file>`, when the copy
      fails or one exists) the approval message files of the round that decided (the subject file and the body file; for the merge
      without the approvals, the subject file and the body file without the
      approval line) to the details directory as `approved-<round>.subject` and
      `approved-<round>.body` (`mergepr.md` keeps them in the prepared
      directory, which `discard` deletes; the details directory is not the
      scratchpad, which a session without one cannot write). Then run
-     `mergepr discard --protocol 1 --state <state-file>`.
+     `mergepr discard --protocol 2 --state <state-file>`.
    - Make the PRE_MERGE commit and push it. If the push is rejected (someone
      pushed meanwhile), `git pull --rebase` the bookkeeping commit onto the new
      head and return to step 2: the new commits need review, and step 4 asks
      again.
    - Wait until `gh pr view <number> --json headRefOid` reports the pushed
      commit (`git rev-parse HEAD`), so `prepare` does not read the old head.
-   - Run `mergepr prepare --protocol 1 <number>` again. If it fails (a check
+   - Run `mergepr prepare --protocol 2 <number>` again. If it fails (a check
      fails on the new head, or the protocol number check stops it because
      `origin/main` moved), report what `mergepr` showed and stop. The report
      also says that the PRE_MERGE commit stays on the branch, pushed, and that
@@ -1340,7 +1340,7 @@ character as 2); the line shapes below are the examples to follow.
 Once `mergepr.md` reports the merge:
 
 - Confirm its cleanup finished. `mergepr.md` can stop after the merge with
-  cleanup pending, in which case run `mergepr cleanup --protocol 1 --state <state-file>` and
+  cleanup pending, in which case run `mergepr cleanup --protocol 2 --state <state-file>` and
   only then continue. When another worktree has the base branch checked out,
   the cleanup leaves the local base branch stale; do not rely on it.
 - `git fetch origin main`. When NEXT is set, create the next branch from
@@ -1434,7 +1434,7 @@ no `/clear` guidance. Instead it gives:
    switch did not happen, and that this is expected and needs no fix;
 4. how to resume. First remove the cause; for pending `mergepr` cleanup, give
    the action its error names, which for a cleanup that can be retried is
-   `mergepr cleanup --protocol 1 --state <state-file>` with the actual path of the state
+   `mergepr cleanup --protocol 2 --state <state-file>` with the actual path of the state
    file (in a linked worktree, the working directory it leaves in the work
    tree would stop NEXT at Part A step 1). Then, by the next branch's state,
    give one of these, followed by running NEXT with its arguments:

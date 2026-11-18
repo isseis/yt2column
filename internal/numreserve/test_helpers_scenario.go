@@ -184,7 +184,12 @@ func (s scenario) mainADRList() string {
 }
 
 func lsRemoteStep(prefix, out string, err error) cmdrunnertestutil.Step {
-	return gitStep(out, err, "ls-remote", "origin", "refs/heads/*", prefix+"*")
+	return lsRemoteStepFor(out, err, prefix+"*")
+}
+
+// lsRemoteStepFor is git ls-remote of origin's branches and of patterns.
+func lsRemoteStepFor(out string, err error, patterns ...string) cmdrunnertestutil.Step {
+	return gitStep(out, err, append([]string{"ls-remote", "origin", "refs/heads/*"}, patterns...)...)
 }
 
 func fetchStep(err error, shas ...string) cmdrunnertestutil.Step {

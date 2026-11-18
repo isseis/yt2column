@@ -45,7 +45,7 @@ make install-mergepr
 
 `$(go env GOPATH)/bin` に `PATH` が通っていることを確認する。ツール自体を変更した PR がマージされたら、`main` を更新してから再インストールする。
 
-`mergepr` は、すべてのサブコマンドで `--protocol` を必須とし、自分のプロトコル番号（`internal/mergepr` の `Protocol`。現在の番号は `1`）と文字列として照合する。`/mergepr`・`/runpr` の定義は、`mergepr` を呼ぶたびに `--protocol 1` を渡す。番号が違うか渡されないとき、`mergepr` は何も読まず、何も書かずに止まる（7 章）。`mergepr` の `Protocol` を上げる PR では、その PR の `/runpr` が最初に `mergepr` を呼ぶ前に、その PR のブランチで再インストールし、マージの直後に `main` から再インストールする。その間、`main` を取り込んでいないほかの worktree の `/mergepr`・`/runpr` は番号の不一致で止まる。途中でほかの PR をマージする必要が生じたら、`main` から再インストールすれば、ほかの worktree は元どおり進める。入れ替える前に、どの worktree にも準備したままの作業ディレクトリ（`mergepr-*`）と終わっていない `cleanup` がないことを確かめる。新しい `mergepr` は、古い定義が書いた `--protocol` のない `discard`・`cleanup` を拒むので、残っていたら新しい `mergepr` で `mergepr discard --protocol 1 --state <state-file>`（片付けなら `mergepr cleanup --protocol 1 --state <state-file>`）を手で実行する。
+`mergepr` は、すべてのサブコマンドで `--protocol` を必須とし、自分のプロトコル番号（`internal/mergepr` の `Protocol`。現在の番号は `2`）と文字列として照合する。`/mergepr`・`/runpr` の定義は、`mergepr` を呼ぶたびに `--protocol 2` を渡す。番号が違うか渡されないとき、`mergepr` は何も読まず、何も書かずに止まる（7 章）。`mergepr` の `Protocol` を上げる PR では、その PR の `/runpr` が最初に `mergepr` を呼ぶ前に、その PR のブランチで再インストールし、マージの直後に `main` から再インストールする。その間、`main` を取り込んでいないほかの worktree の `/mergepr`・`/runpr` は番号の不一致で止まる。途中でほかの PR をマージする必要が生じたら、`main` から再インストールすれば、ほかの worktree は元どおり進める。入れ替える前に、どの worktree にも準備したままの作業ディレクトリ（`mergepr-*`）と終わっていない `cleanup` がないことを確かめる。新しい `mergepr` は、古い定義が書いた `--protocol` のない `discard`・`cleanup` を拒むので、残っていたら新しい `mergepr` で `mergepr discard --protocol 2 --state <state-file>`（片付けなら `mergepr cleanup --protocol 2 --state <state-file>`）を手で実行する。
 
 `mergepr` を導入する PR そのものは、まだ `main` にツールが無いため `/mergepr` ではマージできない。`gh pr merge --squash` など、別の手段でマージする。
 
@@ -57,12 +57,12 @@ flowchart TD
     classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
 
-    Start(["/mergepr [PR]"]) --> Prepare["mergepr prepare<br>PR が OPEN か確認<br>git fetch origin<br>main を取得し番号を確かめる<br>CI 完了を待つ"]
+    Start(["/mergepr [PR]"]) --> Prepare["mergepr prepare<br>PR が OPEN か確認<br>git fetch origin<br>main を取得し番号を確かめる<br>CI 完了を待つ<br>PR が加える番号を確かめる"]
     Prepare --> Files[("作業ディレクトリ<br>state.json / log.txt<br>stat.txt / body.txt")]
     Files --> Draft["メッセージの下書き<br>（Claude）"]
     Draft --> Approve{"開発者が承認?"}
     Approve -->|"修正依頼"| Draft
-    Approve -->|"yes"| Merge["mergepr merge<br>OPEN と base を再確認<br>main を取得し番号を確かめ直す<br>gh pr merge --squash<br>--match-head-commit"]
+    Approve -->|"yes"| Merge["mergepr merge<br>OPEN と base を再確認<br>main を取得し番号を確かめ直す<br>PR が加える番号を確かめ直す<br>gh pr merge --squash<br>--match-head-commit"]
     Merge --> Cleanup["cleanup<br>MERGED と head を確認<br>base を fast-forward<br>ローカル head ブランチを削除"]
     Cleanup --> End(["結果を報告"])
 
@@ -73,9 +73,9 @@ flowchart TD
 
 | 段階 | 実行者 | ネットワーク操作 | 取り消し |
 |---|---|---|---|
-| `prepare` | ツール | `gh pr view`、`git fetch origin`、`main` の取得（`git fetch origin +refs/heads/main:refs/remotes/origin/main`）、`gh pr checks` | 不要（読み取りのみ） |
+| `prepare` | ツール | `gh pr view`、`git fetch origin`、`main` の取得（`git fetch origin +refs/heads/main:refs/remotes/origin/main`）、`gh pr checks`、PR が加える番号の確かめ（`git ls-remote origin` と、SHA を指定した `git fetch --no-tags --no-write-fetch-head origin <SHA>...`） | 不要（読み取りのみ） |
 | 下書き・承認 | Claude と開発者 | なし | 何度でもやり直せる |
-| `merge` | ツール | `gh pr view`、`main` の取得（`prepare` と同じ）、`gh pr merge` | **不可** |
+| `merge` | ツール | `gh pr view`、`main` の取得（`prepare` と同じ）、PR が加える番号の確かめ（`prepare` と同じ）、`gh pr merge` | **不可** |
 | `cleanup` | ツール | `git fetch --prune` | ローカル操作のみ |
 
 `/mergepr` を実行すると、`prepare` と `cleanup` のネットワーク操作は許可したものとして扱われる。マージは許可に含まれず、必ず承認の段階で開発者の明示的な yes を必要とする（CLAUDE.md の「Tool Execution Safety」）。
@@ -96,13 +96,13 @@ Claude は `prepare` を実行してメッセージを下書きし、PR の URL�
 
 ### 5.2 手動で使う
 
-各サブコマンドは単独でも実行できる。どのサブコマンドも `--protocol 1` を位置引数より前に必要とする（3 章）。`merge`、`cleanup`、`discard` は `state.json` を入力に取るため、位置引数を渡すと usage エラーで止まる。
+各サブコマンドは単独でも実行できる。どのサブコマンドも `--protocol 2` を位置引数より前に必要とする（3 章）。`merge`、`cleanup`、`discard` は `state.json` を入力に取るため、位置引数を渡すと usage エラーで止まる。
 
 ```sh
-mergepr prepare --protocol 1 [PR]
-mergepr merge --protocol 1 --state FILE --subject-file FILE --body-file FILE
-mergepr cleanup --protocol 1 --state FILE
-mergepr discard --protocol 1 --state FILE
+mergepr prepare --protocol 2 [PR]
+mergepr merge --protocol 2 --state FILE --subject-file FILE --body-file FILE
+mergepr cleanup --protocol 2 --state FILE
+mergepr discard --protocol 2 --state FILE
 ```
 
 #### `prepare [PR]`
@@ -113,7 +113,8 @@ PR を引数なし（現在のブランチ）、番号、URL のいずれかで�
 2. `git fetch origin` を実行する。
 3. `main` を、`refs/remotes/origin/main` へ取り込む refspec を明示して取得し、PR の head と base でプロトコル番号を確かめる（6.3 節）。止まれば作業ディレクトリを作らない。CI を待つ前に確かめるのは、番号の食い違いを早く示すためである。
 4. `gh pr checks --watch --fail-fast` で CI の完了を待つ。失敗したチェックがあれば止まる。
-5. 作業中のチェックアウト内に新しい作業ディレクトリを作成し、次のファイルを書き出す。本体のチェックアウトではリポジトリの git ディレクトリ配下（`.git/mergepr-*`）に、git ディレクトリが本体側にある worktree では worktree のルートに `mergepr-*` ディレクトリを作る。材料をチェックアウト内に保つことで、作業ツリーの外に触れずに済む。作業ディレクトリを作る場所のパスに改行（LF または CR）が含まれる場合、`dir:` と `state:` の行出力で曖昧さなく表せないため、`prepare` はディレクトリを作らずにエラーで止まる。
+5. PR の base が `main` なら、PR が加えるタスク番号と ADR 番号を確かめる（6.4 節）。見つけたものがあるか、確かめに要るものを読めなければ止まり、作業ディレクトリを作らない。CI を待った後に確かめるのは、CI を待つ数分の間に `main` に入った番号も見るためである。
+6. 作業中のチェックアウト内に新しい作業ディレクトリを作成し、次のファイルを書き出す。本体のチェックアウトではリポジトリの git ディレクトリ配下（`.git/mergepr-*`）に、git ディレクトリが本体側にある worktree では worktree のルートに `mergepr-*` ディレクトリを作る。材料をチェックアウト内に保つことで、作業ツリーの外に触れずに済む。作業ディレクトリを作る場所のパスに改行（LF または CR）が含まれる場合、`dir:` と `state:` の行出力で曖昧さなく表せないため、`prepare` はディレクトリを作らずにエラーで止まる。
    ファイルの書き出しに失敗した場合、`prepare` は作業ディレクトリを削除し直すため、書きかけのディレクトリは残らない。
    `merge`、`cleanup`、`discard` が削除するのは、`state.json` 自身のあるディレクトリで、かつ `prepare` が生成した `mergepr-` 接頭辞の名前を持つものだけである。改ざんされた状態ファイルがチェックアウト本体を指していても何も削除しない。
 
@@ -149,8 +150,9 @@ git diff origin/<base>...<headOID> -- <path>
 
 1. PR がまだ OPEN で、base が `state.json` と同じであることを確認する。
 2. `main` を `prepare` と同じく取得し直し、`state.json` の head と base でプロトコル番号を確かめ直す（6.3 節）。`prepare` の後に `origin/main` が動いているかもしれないためである。止まればマージしない。
-3. `gh pr merge --squash --match-head-commit <headOID>` でマージする。
-4. 続けて `cleanup` と同じ片付けを行う。
+3. PR の base が `main` なら、`state.json` の head と head ブランチで、PR が加える番号を確かめ直す（6.4 節）。`prepare` の後にほかの PR が同じ番号を `main` に入れたかもしれないためである。止まればマージしない。
+4. `gh pr merge --squash --match-head-commit <headOID>` でマージする。
+5. 続けて `cleanup` と同じ片付けを行う。
 
 #### `cleanup --state FILE`
 
@@ -206,6 +208,7 @@ note: main is checked out in another worktree; update it there and remove this w
 | ローカルの未マージコミットを消さない | ローカル head ブランチは、`headOID` を指しているときだけ削除する。マージされた head が `headOID` と異なるときは、ローカルのブランチに触れない |
 | プロトコル番号を変えた PR は、`origin/main` の値 + 1 でしかマージしない | `prepare` は CI を待つ前に、`merge` は `gh pr merge` の直前に、`main` を取得し直してから 6.3 節の確かめを行い、食い違うか読めなければ止まる |
 | 定義と版の合わない `mergepr` でマージしない | すべてのサブコマンドが `--protocol` を照合し、合わなければ何も読まず、何も書かずに止まる |
+| `main` に入れる PR が、重なるタスク番号と ADR 番号を持ち込まない | `prepare` は CI を待った後に、`merge` は `gh pr merge` の直前に 6.4 節の確かめを行い、見つけたものがあるか読めなければ止まる |
 
 ### 6.2 保証しないこと
 
@@ -218,6 +221,7 @@ note: main is checked out in another worktree; update it there and remove this w
 - プロトコル番号について、次の 4 つは受け入れた危険である（CLAUDE.md の「Protocol numbers」）。(1) マージの前は、同じ道具の番号を上げる並行するブランチが同じ番号を共有する。(2) `merge` の確かめ直しと GitHub のマージの間の数秒に、ほかの PR が同じ番号でマージされうる。(3) 番号を上げたブランチを、同じ番号の入った `main` の上へ rebase するか、その上で履歴をまとめ直すと、確かめが衝突を見落としうる。(4) 一度消した道具を同じ名前で足し直すと、番号が `1` に戻る。
 - 確かめを変える PR は、その PR のブランチから入れた `mergepr` で確かめられる。確かめの実装を変える PR は、変えた後の実装で確かめることになる。
 - 入れ直していない古い `mergepr` と、`main` を取り込んでいない古い定義の組み合わせ（どちらも `--protocol` を知らない）は、確かめずにマージする。
+- タスク番号と ADR 番号について、次の 4 つは受け入れた危険である。(1) `merge` の確かめ直しと GitHub のマージの間の数秒に、ほかの PR が同じ番号でマージされうる。(2) `/mergepr` を通らないマージと、入れ直していない古い `mergepr` は、番号を確かめない。`docs/tasks/` の形は CI の文書のガード（`TestTaskDirectoryForms`）でも確かめるが、記録・重複・ほかのブランチの確かめは CI にない。(3) `origin` が `isseis/yt2column` 以外を向いていると、確かめは別のリポジトリを読む。(4) しきい値以下の番号は、記録の tag がなくても通す（6.4 節）。
 - 番号に触れていない PR が、`main` を取り込むときの衝突を自分の側の値で解決すると、マージのコミットの値は PR の側の親と等しく、番号を変えたものにならない。その PR をマージすると `main` の番号が下がる（既知の限界。定義の見直しは [#947](https://github.com/isseis/yt2column/issues/947) で扱う）。
 
 ### 6.3 プロトコル番号の確かめ
@@ -232,6 +236,19 @@ note: main is checked out in another worktree; update it there and remove this w
 - **読めないときは止める.** `main` の取得の失敗、コミットや親を読めないこと、shallow なリポジトリ、`origin/main` か head の読めない値、`origin/main` に道具が 1 つもないこと、変えた道具が head で受け付ける形になく PR のコミットも消していないことは、どれも「番号を変えていない」とはせずに止まる。
 - **通ったとき.** 比べた `origin/main` と head のコミット ID、`origin/main` の道具と値、番号を変えた道具を、`protocol:` の 1 行で示す（5.2 節の出力例）。確かめの結果は `state.json` に書かず、`merge` も毎回 git の木から読み直す。
 
+### 6.4 タスク番号と ADR 番号の確かめ
+
+PR の base が `main` のときだけ確かめる。確かめの判定は `internal/numreserve`（`CheckAdded`）にあり、読み方と上限は番号を決める `numreserve` と同じである（[numreserve_guide.md](numreserve_guide.md)）。確かめは読むだけで、ref も記録の tag も書かない。
+
+- **PR が加える番号.** PR の head と、最新の `origin/main`（`git ls-remote` で読み、SHA を指定して取得する）の merge-base を比べ、head の `docs/tasks/` にあって merge-base にないタスクのディレクトリと、head の `docs/dev/adr/` にあって merge-base にない ADR のファイルの番号である。最新の `origin/main` と比べないのは、PR が分かれた後に `main` で名前を変えたものが、古い head に残っているだけで「加えた」と数えられないようにするためである。番号を加えない PR では、記録の tag もほかのブランチも読まずに通す。
+- **形.** PR が `docs/tasks/` の下に加えた項目が、タスクのディレクトリ名の形（`NNNN_<name>`）のディレクトリでなければ止まる（`malformed`）。
+- **記録.** 加えた番号がしきい値より大きく、記録の tag（`refs/tags/task-number/NNNN` か `refs/tags/adr-number/NNNN`）がなければ止まる（`unreserved`）。しきい値はタスク番号が `0103`、ADR 番号が `0051` で、この確かめを入れたときに使われていた番号の最大値である（[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) の §7「しきい値の記録」）。それより前に作った PR は記録の tag を持たないので、しきい値以下の番号は記録を求めない。
+- **重複.** 加えた番号を、最新の `origin/main` の別の名前のディレクトリかファイルが使っていれば止まる（`in-use-on-main`）。同じ名前なら同じものとみなす。PR が消す項目（merge-base にあって head にない項目）は、マージの後に残らないので数えない。PR が同じ番号のまま名前を変えたときに止まらないためである。
+- **ほかのブランチ.** 加えた番号を、PR の head ブランチと `main` でない `origin` のブランチが、`origin/main` にない別の名前で持っていれば止まる（`on-other-branch`）。同じ名前なら同じタスクか ADR とみなす。マージされずに残った古いブランチでも止まる。
+- **読む空間.** 記録の tag とほかのブランチは、PR が番号を加える空間の分だけを読む。もう一方の空間の記録の tag が受け入れない形でも、止まらない。最新の `origin/main` の受け入れない形の項目は読み飛ばし、止まらない（その項目を消す PR を止めないため）。
+- **読めないときは止める.** `git ls-remote` と取得の失敗、merge-base を求められないこと、読む記録の tag とブランチの受け入れない形、上限の超過は、どれもマージせずに止まる（`number check: cannot check the numbers the PR adds`）。止める理由の語は numreserve と同じである（numreserve_guide.md の 2 章）。
+- **出力.** 見つけたものを 1 件 1 行で、`mergepr: number check: <種類> <空間> <番号> "<PR のパス>": <使っている所>` の形で標準エラーに出し、その後に誤りの行を出して、終了コード 1 で終わる。`malformed` の行は番号を持たず、`mergepr: number check: malformed task "<PR のパス>": not a task directory` の形である。パスとブランチ名は Go の引用の形で出す。
+
 ## 7. 止まったときの対処
 
 `mergepr` は、問題を見つけると理由と対処を表示して止まる。止まった場合はシェルコマンドで回避せず、原因を取り除いてから再実行する。
@@ -242,12 +259,14 @@ note: main is checked out in another worktree; update it there and remove this w
 | `flag provided but not defined: -protocol` | すべて | `--protocol` を知らない古い `mergepr` に、新しい定義が `--protocol` を渡した | `main` から `make install-mergepr` で入れ直す |
 | `protocol check: number is not origin/main's value plus one` | `prepare`、`merge` | 番号を変えた道具の head の値が、`origin/main` の値 + 1 でない | 下の「番号が食い違ったとき」 |
 | `protocol check: cannot check protocol numbers` | `prepare`、`merge` | 確かめに要るものを読めない（表示された理由を見る） | 下の「番号を読めないとき」 |
+| `number check: N finding(s) on the numbers the PR adds` | `prepare`、`merge` | PR が加える番号に、記録がない・ほかのものが使っている・形が合わないものがある（その前の `mergepr: number check:` の行を見る） | 下の「番号の確かめで止まったとき」 |
+| `number check: cannot check the numbers the PR adds` | `prepare`、`merge` | 確かめに要るものを読めない（続く止める理由の語を見る） | numreserve_guide.md の 2 章の、その理由の語の対処をしてから実行し直す |
 | `PR is not open` | `prepare` | PR がクローズまたはマージ済み | 対象の PR を確認する |
 | `CI checks failed` | `prepare` | 失敗したチェックがある、またはチェックが無い | CI を直して push し、`prepare` からやり直す |
 | `squash subject is not a non-empty single line` | `merge` | 件名ファイルが空、または複数行 | 件名ファイルを直して `merge` を再実行する |
-| `PR is not open: state is MERGED` | `merge` | 前回の実行で既にマージされている | 表示された `mergepr cleanup --protocol 1 --state ...` を実行する |
-| `PR base changed after prepare` | `merge` | PR の base が変更された | 表示された `mergepr prepare --protocol 1 <PR>` で、`prepare` からやり直す |
-| `merge PR: ...` | `merge` | head が `prepare` 後に動いた、ブランチ保護に引っかかった、など | head が動いたなら、使えなくなった準備を `mergepr discard --protocol 1 --state ...` で破棄してから `prepare` からやり直す。PR がマージ済みなら表示された `cleanup` を実行する |
+| `PR is not open: state is MERGED` | `merge` | 前回の実行で既にマージされている | 表示された `mergepr cleanup --protocol 2 --state ...` を実行する |
+| `PR base changed after prepare` | `merge` | PR の base が変更された | 表示された `mergepr prepare --protocol 2 <PR>` で、`prepare` からやり直す |
+| `merge PR: ...` | `merge` | head が `prepare` 後に動いた、ブランチ保護に引っかかった、など | head が動いたなら、使えなくなった準備を `mergepr discard --protocol 2 --state ...` で破棄してから `prepare` からやり直す。PR がマージ済みなら表示された `cleanup` を実行する |
 | `PR is not merged` | `cleanup` | まだマージされていない | マージを確認してから再実行する |
 | `switch to <base>: ...` | `cleanup` | 未コミット変更が衝突した、など | 作業ツリーを整理して `cleanup` を再実行する |
 | `fast-forward <base>: ...` | `cleanup` | ローカルの base に `origin` に無いコミットがある | base のコミットを整理して `cleanup` を再実行する |
@@ -256,7 +275,7 @@ note: main is checked out in another worktree; update it there and remove this w
 | `invalid state` | `merge`、`cleanup`、`discard` | `--state` に `prepare` が書いたファイル以外を指定した | `prepare` が表示したパスを指定する |
 | `state file does not name a generated work directory it lives in` | `discard` | `--state` が、`prepare` が作ったディレクトリの外へ移動・コピーされた state ファイルを指している、またはそのディレクトリ名が `mergepr-` 接頭辞を持たない | `prepare` が表示したパスを指定する。安全と分かっているなら準備したディレクトリを自分で削除する |
 
-`merge` の確かめ直しで止まったときは、マージしていない。`origin/main` の取得に失敗したとき（`could not fetch origin/main`）は、準備はそのまま使えるので、`origin` に届くようになってから同じ `merge` を実行し直す。それ以外で止まったときは、表示された `mergepr discard --protocol 1 --state ...` で準備を捨ててから直す。
+`merge` の確かめ直しで止まったときは、マージしていない。`origin/main` の取得に失敗したとき（`could not fetch origin/main`）は、準備はそのまま使えるので、`origin` に届くようになってから同じ `merge` を実行し直す。それ以外で止まったときは、表示された `mergepr discard --protocol 2 --state ...` で準備を捨ててから直す。
 
 **番号が食い違ったとき.** 誤りの文は、食い違った道具ごとに、`origin/main` の値、head の値、期待する値と、番号を変えたコミットを示す。そのコミットがこの PR 自身のものか、ほかのブランチから来たものかを見て、直し方を選ぶ。
 
@@ -271,13 +290,21 @@ head の値が `origin/main` の値と同じ道具があるとき（上げた番
 
 **番号を読めないとき.** 表示された理由に応じて直す。shallow なリポジトリなら `git fetch --unshallow` を実行する。`main` の取得に失敗したなら、ネットワークと `origin` を確かめてから、止まったサブコマンド（`prepare` か `merge`）を同じ引数で実行し直す。読めない宣言の行なら、表示されたファイルの行を `const Protocol = <整数>` の形に直す。PR の base が `main` でないなら、番号を変えるコミットは `main` を base にした PR でマージする。
 
+**番号の確かめで止まったとき.** `merge` で止まったときは、マージしていない。確かめに要るものを読めず、止める理由が `network-or-github` のときは、準備はそのまま使えるので、`origin` に届くようになってから同じ `merge` を実行し直す。それ以外は、準備を `mergepr discard --protocol 2 --state ...` で捨ててから、見つけたものの種類ごとに直す。
+
+- **ADR 番号（`unreserved`・`in-use-on-main`・`on-other-branch`）.** PR のブランチの作業ツリーで `numreserve adr` を実行して新しい番号を決め、[adr.md](../conventions/adr.md) の「Taking in `main`」の手順 2 と同じ形で付け替える。commit して push し、マージをやり直す。
+- **タスク番号（`unreserved`・`in-use-on-main`・`on-other-branch`）.** 番号はブランチ名にも入り、`chief` はブランチ名とディレクトリ名が一致することを求める。開いている PR の head ブランチの名前は変えられないので、`numreserve task` で新しい番号を決め、新しいブランチと PR で作り直す。止まった PR は閉じる。`/runpr` がマージの直前に積んだ記録の commit（文書の `approved` など）は、マージされない PR に残り、作り直した PR には引き継がれない。作り直した PR で `/runpr` を実行し、承認を記録し直す。
+- **仕組みより前に作った PR の `unreserved`.** 番号がしきい値より大きいが、この仕組みより前に作った PR で、ほかに使っている所がないと確かめられたときは、利用者の承認のもとで、その番号の記録の tag を手で作ってもよい（CLAUDE.md の「Tool Execution Safety」の、承認を要る操作）。
+- **`on-other-branch` のブランチが古い.** マージされずに残った古いブランチが同じ番号を持つときは、そのブランチを消すかどうかを利用者が決める。消せば、マージをやり直せる。
+- **`malformed`.** PR が `docs/tasks/` の下に加えた項目を、タスクのディレクトリ（`NNNN_<name>`）にするか取り除いて push し、マージをやり直す。
+
 **`main` に読めない値が入ったとき.** `origin/main` の番号が読めないと、それを直す PR を含め、すべての PR の `mergepr` が止まる。この場合に限り、次の手順で直す PR をマージしてよい。直す PR は、読めない宣言の行を受け付ける形に直す変更だけを含むこと。`origin/main` の各道具の番号と、PR の head の番号を `git grep -n -F Protocol <commit> -- ':(glob)internal/*/*.go' ':(glob,exclude)internal/*/*_test.go'` で手で確かめ、番号を変えた道具が `origin/main` の値 + 1 であるか、番号を変えていないことを確かめる。そのうえで、`gh pr merge <PR> --squash --match-head-commit <headOID>` でマージし、マージの後に `/mergepr` が通ることを確かめる。
 
 `merge` は取り消せない段階である。その後に止まっても、マージ自体は完了していることがある。GitHub で PR の状態を確認し、マージ済みなら `cleanup` で片付けを再開する。`state.json` はチェックアウト内の作業ディレクトリ（本体のチェックアウトでは `.git/mergepr-*`、worktree では `mergepr-*`）にあるため、片付けが終わるまで削除しない。片付けが成功すると、ツールがディレクトリを削除する。使えなくなった準備（head がマージ前に動いた場合など）は、チェックアウト内に残さず `discard` で削除する。
 
 ## 8. ツールを変更する場合
 
-- 実装は `internal/mergepr`、CLI は `cmd/mergepr` にある。外部コマンドは `Runner` インターフェース（定義は `internal/cmdrunner`。`mergepr.Runner` はその別名）越しに呼び出す。テストでは、期待するコマンド列を順に再生する `fakeRunner`（`internal/mergepr/test_helpers.go`）を使い、`git` や `gh` を実行しない。`Prepare`・`Merge` のテストは、プロトコル番号の確かめを差し替えて、呼ぶ位置と渡す値を確かめる。
+- 実装は `internal/mergepr`、CLI は `cmd/mergepr` にある。外部コマンドは `Runner` インターフェース（定義は `internal/cmdrunner`。`mergepr.Runner` はその別名）越しに呼び出す。テストでは、期待するコマンド列を順に再生する `fakeRunner`（`internal/mergepr/test_helpers.go`）を使い、`git` や `gh` を実行しない。`Prepare`・`Merge` のテストは、プロトコル番号の確かめとタスク番号・ADR 番号の確かめ（`mergepr.NumberChecker`）を差し替えて、呼ぶ位置と渡す値を確かめる。`cmd/mergepr` は、`main` だけが本番の確かめ（`numreserve.New`）を渡す。
 - プロトコル番号の確かめ（6.3 節）は、一時ディレクトリに実際の git のリポジトリを作り、履歴を組んで試す（`internal/mergepr/protocolcheck_test.go`）。宣言の行を持つ Go のソースは `_test.go` の中だけで組み立てる。`internal/mergepr` の `_test.go` 以外のファイル（`test_helpers.go` など）に `const Protocol = …` の行をもう 1 つ書くと、確かめは `mergepr` の番号を読めない値として止まる。
 - 引数・出力・終了コードの契約を変えたら、`internal/mergepr` の `Protocol` を上げ、コマンドの定義と本書の `--protocol` も合わせて更新する。番号の決め方は CLAUDE.md の「Protocol numbers」に従う。
 - 6.1 節の保証を変更する場合は、対応する実装を壊してテストが失敗することを確認し、そのことをコミットメッセージに書く（CLAUDE.md の「Testing Strategy」）。

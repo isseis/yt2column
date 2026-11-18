@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/numreserve"
 )
 
 const (
@@ -101,8 +103,30 @@ var testSummary = protocolSummary{
 	MainTools: map[string]protocolValue{"alpha": {State: protocolPresent, Value: 1}},
 }
 
+// numberCall records one call of the number check: the head and branch it
+// was given and how many scripted commands had run before it.
+type numberCall struct {
+	head, branch string
+	index        int
+}
+
+// fakeNumbers stands in for the number check. It returns the findings and
+// error it was given and records each call with the fake runner's position,
+// so a test can tell which commands ran before the check.
+type fakeNumbers struct {
+	runner *fakeRunner
+	issues []numreserve.AddedNumberIssue
+	err    error
+	calls  []numberCall
+}
+
+func (f *fakeNumbers) CheckAdded(_ context.Context, head, headBranch string) ([]numreserve.AddedNumberIssue, error) {
+	f.calls = append(f.calls, numberCall{head: head, branch: headBranch, index: f.runner.index})
+	return f.issues, f.err
+}
+
 // newTool returns a Tool on a scripted runner whose protocol-number check
-// passes with testSummary.
+// passes with testSummary and whose number check finds nothing.
 func newTool(t testing.TB, steps ...commandStep) (*Tool, *fakeRunner) {
 	t.Helper()
 	tool, runner, _ := newCheckedTool(t, nil, steps...)
@@ -118,10 +142,20 @@ func newCheckedTool(t testing.TB, checkErr error, steps ...commandStep) (*Tool, 
 	if checkErr != nil {
 		checker.summary = protocolSummary{}
 	}
-	tool := New(runner)
+	tool := New(runner, &fakeNumbers{runner: runner})
 	tool.mainFetch = runner
 	tool.protocol = checker
 	return tool, runner, checker
+}
+
+// newNumberedTool returns a Tool on a scripted runner whose protocol-number
+// check passes and whose number check returns issues and err.
+func newNumberedTool(t testing.TB, issues []numreserve.AddedNumberIssue, err error, steps ...commandStep) (*Tool, *fakeRunner, *fakeNumbers) {
+	t.Helper()
+	tool, runner, _ := newCheckedTool(t, nil, steps...)
+	numbers := &fakeNumbers{runner: runner, issues: issues, err: err}
+	tool.numbers = numbers
+	return tool, runner, numbers
 }
 
 func writeTempFile(t testing.TB, dir, name, content string) string {
