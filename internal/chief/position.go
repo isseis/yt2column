@@ -227,8 +227,9 @@ func urgencyOf(r Row) (Urgency, Turn) {
 // documentOf decides the document part of a row's position, and N of PR-N
 // for PositionDocPlanPR, by the ten rules of the design (3.3), the first
 // match winning, with a removal row (Row.RemovalRow) having no document
-// right after the rule of a failed fetch or unreadable documents. running is the command the row's agents run, nil when none
-// is decided. It never changes the row's state.
+// right after the rule of a failed fetch or unreadable documents. running
+// is the command the row's agents run, nil when none is decided. It never
+// changes the row's state.
 func documentOf(r Row, running *RunningCommand) (PositionDocument, int) {
 	switch {
 	case r.position.fetchFailed || r.position.docsUnreadable:

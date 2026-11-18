@@ -265,6 +265,13 @@ func TestRemovalCandidateConditions(t *testing.T) {
 		"another workspace at the path": func(_ *testing.T, _ *sendWorld, rs *removalSetup) {
 			rs.others = []fakePane{{Pane: "w9:p1", Tab: "w9:t1", Workspace: "w9", Dir: filepath.Join(rs.tree, "sub")}}
 		},
+		"only another workspace at the path": func(_ *testing.T, sw *sendWorld, rs *removalSetup) {
+			// The agents stay in w2, but Herdr lists every pane at the path
+			// under another workspace.
+			sw.rec.replyFunc("herdr pane list", func() reply {
+				return reply{out: paneListOutput([]fakePane{{Pane: "w9:p1", Tab: "w9:t1", Workspace: "w9", Dir: rs.tree}})}
+			})
+		},
 		"no task of the issue": func(_ *testing.T, _ *sendWorld, rs *removalSetup) {
 			rs.issueLines(issueLineOf(removalTaskDir, "840"))
 		},
@@ -477,7 +484,7 @@ func (cw *checkWorld) worktrees(extra string) {
 
 func (cw *checkWorld) check(t *testing.T) []CheckResult {
 	t.Helper()
-	c := newRemovalCandidate(cw.tree, removalWS, removalLabel, issueNumber(t, removalIssue), taskID(t, removalTask))
+	c := newRemovalCandidate(cw.tree, removalWS, issueNumber(t, removalIssue), taskID(t, removalTask))
 	return checkRemoval(context.Background(), cw.rec.commands(nil), cw.chief, c, cw.agents, cw.panes)
 }
 
@@ -545,6 +552,14 @@ func TestRemovalChecks(t *testing.T) {
 		}},
 		{"another workspace at the path", RemovalCheckPathUnused, false, func(cw *checkWorld) {
 			cw.panes = append(cw.panes, listedPane{ID: PaneID{id: "w9:p1"}, Workspace: "w9", Dir: cw.tree.path + "/sub"})
+		}},
+		{"only another workspace at the path", RemovalCheckPathUnused, false, func(cw *checkWorld) {
+			for i := range cw.panes {
+				if cw.panes[i].Workspace == removalWS {
+					cw.panes[i].Dir = "/work/elsewhere"
+				}
+			}
+			cw.panes = append(cw.panes, listedPane{ID: PaneID{id: "w9:p1"}, Workspace: "w9", Dir: cw.tree.path})
 		}},
 	}
 	for _, c := range cases {

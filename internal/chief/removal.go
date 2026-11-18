@@ -97,15 +97,14 @@ var errNoCandidate = errors.New("no removal candidate")
 type RemovalCandidate struct {
 	tree      Worktree
 	workspace string
-	label     string
 	issue     paneinput.IssueNumber
 	task      paneinput.TaskID
 }
 
 // newRemovalCandidate is the one constructor of RemovalCandidate; its
 // caller has read every condition.
-func newRemovalCandidate(tree Worktree, workspace, label string, issue paneinput.IssueNumber, task paneinput.TaskID) RemovalCandidate {
-	return RemovalCandidate{tree: tree, workspace: workspace, label: label, issue: issue, task: task}
+func newRemovalCandidate(tree Worktree, workspace string, issue paneinput.IssueNumber, task paneinput.TaskID) RemovalCandidate {
+	return RemovalCandidate{tree: tree, workspace: workspace, issue: issue, task: task}
 }
 
 // RemovalProposal is what a removal item shows: the workspace (its canonical
@@ -204,7 +203,7 @@ func (r *removalReader) readRemovalCandidate(ctx context.Context, w TaskWorkspac
 	if stageOf(&docs) != stagePlanApproved || !docs.Plan.Done() {
 		return nil, ""
 	}
-	c := newRemovalCandidate(w.Tree, w.ID, w.Label, rec.Issue, docs.Task)
+	c := newRemovalCandidate(w.Tree, w.ID, rec.Issue, docs.Task)
 	return &c, ""
 }
 
@@ -386,7 +385,8 @@ func addRemovals(ctx context.Context, deps Deps, view *roundView) []string {
 
 // showRemovalRow makes row the row of a finished task whose workspace is
 // proposed for removal: the task is the issue's, nothing is offered to send,
-// and it is not idle, since it waits on the human's answer.
+// and it is not idle, since it waits on the human's answer. It runs after
+// addResets saw the detached row, so a removal row offers no reset.
 func showRemovalRow(row *Row, c RemovalCandidate) {
 	row.State = StateTaskDone
 	row.Task = c.task.String()
