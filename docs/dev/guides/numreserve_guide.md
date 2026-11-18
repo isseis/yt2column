@@ -30,14 +30,14 @@ make install-numreserve
 
 | 理由の語 | 意味 | 起きるとき | 次にすること |
 |---|---|---|---|
-| `permission` | 権限がない | 記録の tag の作成が 401・403・404 で拒まれた（rate limit を除く）。`gh` が認証されていない | `gh auth status` で認証と権限を確かめる。cloud のセッションでは 4 章を読む |
-| `network-or-github` | ネットワークまたは GitHub の失敗 | 時間切れ、`gh`・`git` のネットワークの失敗、5xx、rate limit、状態行の形の誤り、作成が 422 で失敗した後に同じ名前の ref を読めない（ruleset による拒否を含む）、`git ls-remote` が返した SHA を取得できない | 時間をおいて再実行する。続くときは GitHub の状態と ruleset（3 章）を確かめる |
+| `permission` | 権限がない | 記録の tag の作成が 401・403・404 で拒まれた（rate limit と、見出しの形が受け入れない形の 403 を除く）。`gh` が状態行を出さずに終了コード 4 で終わった（認証されていない） | `gh auth status` で認証と権限を確かめる。cloud のセッションでは 4 章を読む |
+| `network-or-github` | ネットワークまたは GitHub の失敗 | 時間切れ、`git` のネットワークの失敗（`git ls-remote` と取得）、5xx、rate limit、見出しの形が受け入れない形の 403、状態行がないか形が誤っている、`gh` の出力が 4 MiB を超えた、`gh` を起動できない（入っていない）、作成が 422 で失敗した後に同じ名前の ref を読めない（ruleset による拒否を含む）、`git ls-remote` が返した SHA を取得できない | 詳細が `gh could not be run` なら `gh` を入れる。そのほかは時間をおいて再実行し、続くときは GitHub の状態と ruleset（3 章）を確かめる |
 | `attempts` | 試す回数の上限に達した | 作成を 10 回試し、どれもほかのセッションに先を越された | 再実行する |
 | `exhausted` | 4 桁の番号が残っていない | 次に試す番号が 9999 を超えた | 利用者が番号の形を見直す（道具の変更が要る） |
 | `jump` | 番号が不自然に跳んだ | 次に試す番号が、`origin/main` と記録の tag の番号の最大値 + 20 を超えた。詳細に、番号を押し上げたブランチ名かファイルのパスが出る | 5 章の手順で、詳細に出たブランチやファイルを確かめて片付ける |
-| `list-limit` | 一覧が上限を超えた | コマンドの出力が 4 MiB を超えた。`origin` のブランチが 500 を超えた | 使わないブランチを片付けて再実行する。上限を変えるには道具を変える |
-| `malformed` | 受け入れない形のデータ | `git ls-remote` の行、記録の tag の名前（4 桁の数字だけの名前でないもの）、`origin/main` の `docs/tasks/` と `docs/dev/adr/` の項目、`git ls-tree` の項目、`git rev-parse --show-toplevel` の行、`GET` の応答の形が、道具の受け入れる形に合わない | 5 章の手順で、詳細に出た名前を確かめて直す。記録の tag なら 3.2 の手順で消す |
-| `local-git` | ローカルの git が失敗した | リポジトリの外で実行した、ローカルの git のコマンドが失敗した | リポジトリの作業ツリーの中で実行し直す |
+| `list-limit` | 一覧が上限を超えた | `git` の出力が 4 MiB を超えた。`origin` のブランチが 500 を超えた | 使わないブランチを片付けて再実行する。上限を変えるには道具を変える |
+| `malformed` | 受け入れない形のデータ | `git ls-remote` の行、記録の tag の名前（4 桁の数字だけの名前でないもの）、`origin/main` の `docs/tasks/` と `docs/dev/adr/` の項目（番号が 1 つもない一覧を含む）、`git ls-tree` の項目、`git for-each-ref` の行、`GET` の応答の形が、道具の受け入れる形に合わない。`origin` に `main` のブランチがない | 5 章の手順で、詳細に出た名前を確かめて直す。記録の tag なら 3.2 の手順で消す |
+| `local-git` | ローカルの git が失敗した | リポジトリの外で実行した、`git` を起動できない、ローカルの git のコマンドが失敗した、`git rev-parse --show-toplevel` が絶対パス 1 つを出さなかった、作業ツリーの `docs/dev/adr/` を読めない | リポジトリの作業ツリーの中で実行し直す。続くときは `git` と作業ツリーを確かめる |
 
 道具は、作成が 422 で失敗し、同じ名前の ref を GitHub から読み直して確かめたときだけ、次の番号を試す。それ以外の失敗は、すべて止める理由にする。時間切れなどで、GitHub では tag ができたのに道具が止まることがある。その番号は欠番になるが、重複は起きない。
 
@@ -55,19 +55,19 @@ make install-numreserve
 | Enforcement status | Active |
 | Bypass list | 空（管理者も迂回しない） |
 | Target tags | 1 章の表の「ruleset の対象」の 2 つ。画面では `refs/tags/` を除いた形（`task-number/**/*` と `adr-number/**/*`）で入力する |
-| Rules | Restrict deletions と Restrict updates だけを選ぶ。Restrict creations は選ばない（道具が作れなくなる） |
+| Rules | Restrict deletions と Restrict updates だけを選ぶ。Restrict creations は選ばない（道具が作れなくなる）。既定で選ばれている規則（Block force pushes など）があれば外す |
 
 対象は、記録の名前空間の下のすべての名前（入れ子の名前を含む）である。道具は、記録の名前空間の下に 4 桁の数字だけの名前以外を見つけたら `malformed` で止まる。ruleset の対象と道具が読む範囲は、どちらも名前空間の下のすべての名前でそろっている。
 
-設定した後、`gh api repos/isseis/yt2column/rulesets` で ruleset の `id` を読み、`gh api repos/isseis/yt2column/rulesets/<id>` の `conditions.ref_name.include` が「ruleset の対象」の 2 つと一致し、`rules` が `deletion` と `update` の 2 つで、`bypass_actors` が空であることを確かめる。導入の確かめ（実際の名前の記録の tag の削除が拒まれること）の記録は、[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) の §7「導入の確かめの記録」にある。
+設定した後、`gh api repos/isseis/yt2column/rulesets` で ruleset の `id` を読み、`gh api repos/isseis/yt2column/rulesets/<id>` の `target` が `tag`、`enforcement` が `active` で、`conditions.ref_name.include` が「ruleset の対象」の 2 つと一致し、`rules` が `deletion` と `update` の 2 つで、`bypass_actors` が空であることを確かめる。導入の確かめ（実際の名前の記録の tag の削除が拒まれること）の記録は、[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) の §7「導入の確かめの記録」にある。
 
 ### 3.2 誤った記録の tag を消す
 
 ruleset は誰も迂回できないので、受け入れない名前の tag（`malformed`）や、手で作った大きな番号の tag（`jump` や `exhausted` の原因）は、利用者が消すまで残り、その空間の番号の決定を止め続ける。誤った tag だけを、利用者（管理者）が次の手順で消す。エージェントは行わない。
 
 1. ruleset を無効にしない。無効にすると、その間すべての記録が守られなくなるためである。
-2. ruleset の Target tags の Exclude by pattern に、消す tag の名前だけ（`refs/tags/` を除いた形。たとえば `task-number/12345`）を加える。
-3. `gh api -X DELETE repos/isseis/yt2column/git/refs/tags/<名前>` で消す（`<名前>` は `refs/tags/` を除いた形）。
+2. ruleset の Target tags の Exclude by pattern に、消す tag の名前だけ（`refs/tags/` を除いた形。たとえば `task-number/12345`）を加える。パターンは glob なので、名前に `*`・`?`・`[` などが入っているときは、ほかの記録に当たらないことを確かめてから加える。
+3. `gh api -X DELETE repos/isseis/yt2column/git/refs/tags/<名前>` で消す（`<名前>` は `refs/tags/` を除いた形。URL に使えない文字は URL エンコードする）。
 4. 2 で加えた除外を除き、ruleset を元の対象に戻す。3.1 の確かめで、`conditions.ref_name.exclude` が空に戻ったことを確かめる。
 5. 消した tag は、`git fetch` の tag の自動追従で各クローンにローカルの tag として入っていることがある。ローカルの tag が残ると `git push --tags` で作り直されうるので、各クローンで `git tag -l '<名前>'` で確かめ、あれば `git tag -d <名前>` で消す。
 
@@ -75,7 +75,7 @@ ruleset は誰も迂回できないので、受け入れない名前の tag（`m
 
 ## 4. cloud のセッションでの制約
 
-2026-11-17 に claude.ai/code の cloud のセッションで確かめた結果（[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) の §7「PR-2 の実地の確かめの記録」）では、`git ls-remote` と、`main` からの道具のインストールはできたが、`gh auth status` は終了コード 1 で終わり、REST による tag の作成は 403 で拒まれた。403 の原因（`gh` がどの資格で動いたか、書き込みの権限がないのか、rate limit か）は分かっていない。
+2026-11-17 に claude.ai/code の cloud のセッションで確かめた結果（[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) の §7「PR-2 の実地の確かめの記録」）では、`git ls-remote` と、`main` からの既存の道具（`mergepr`）のインストールはできたが、`gh auth status` は終了コード 1 で終わり、REST による tag の作成は 403 で拒まれた。403 の原因（`gh` がどの資格で動いたか、書き込みの権限がないのか、rate limit か）は分かっていない。
 
 したがって、今は cloud のセッションでは番号を決められず、`numreserve` は止まる。止まる理由の語が `permission` と `network-or-github` のどちらになるかも確かめていない。新しいタスクの `/mkreq` と、ADR の番号の決定は、手元のクローンで行う。cloud のセッションでの確かめは、[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) のフェーズ 7 でやり直し、この章を直す。
 
@@ -87,7 +87,8 @@ ruleset は誰も迂回できないので、受け入れない名前の tag（`m
 |---|---|---|
 | ローカルのブランチの名前（タスク番号） | そのクローンの `git branch` に、打ち間違えたか迷い込んだタスクのブランチがあるか。ローカルのブランチはクローンごとに違うので、同じ実行でもクローンによって結果が変わる | 要らないブランチなら持ち主が `git branch -D` で消す。要るなら名前を直す |
 | `origin` のブランチの名前（タスク番号） | `git ls-remote origin 'refs/heads/*'` で、そのブランチを誰が何のために作ったか | 迷い込んだものなら持ち主が消すか名前を直す。作業中のブランチなら、番号が正しいかを持ち主と確かめる |
-| ブランチの `docs/dev/adr/` のファイル（ADR 番号） | そのブランチの PR で、ADR のファイル名の番号が打ち間違いでないか | ブランチの持ち主が、ファイルの名前を直して push する。番号は `numreserve adr` で決め直す |
+| 自分のブランチ（`HEAD` か作業ツリー）の `docs/dev/adr/` のファイル（ADR 番号） | 詳細に `in HEAD` か `in the work tree` と出たファイルの番号が、打ち間違いでないか | 自分のブランチでファイルの名前を直し、`numreserve adr` を実行し直す |
+| ほかのブランチの `docs/dev/adr/` のファイル（ADR 番号） | そのブランチの PR で、ADR のファイル名の番号が打ち間違いでないか | ブランチの持ち主が、ファイルの名前を直して push する。番号は `numreserve adr` で決め直す |
 | 記録の tag の名前 | `git ls-remote origin 'refs/tags/task-number/*' 'refs/tags/adr-number/*'` で、4 桁の数字だけの名前でない tag や、大きすぎる番号の tag がないか | 3.2 の手順で、誤った tag だけを利用者が消す |
 | `origin/main` の `docs/tasks/` か `docs/dev/adr/` の項目 | `main` に、形に合わない項目（タスクのディレクトリ名の形でない項目、ADR のファイル名の形でない項目）が入っていないか | 項目を直す PR を作ってマージする。それまで、その空間の番号は決められない |
 

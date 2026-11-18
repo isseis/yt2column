@@ -29,8 +29,8 @@ and fails when it cannot read them.
   `-`.
 - **Number:** a sequence of its own, unrelated to task numbers. A new ADR's
   number is decided by the number tool: run `numreserve adr` in the work tree
-  of the PR's branch and use the four-digit number it prints on standard
-  output. This holds for every PR that adds an ADR, whether a command creates
+  of the PR's branch, with a command time limit of at least five minutes,
+  and use the four-digit number it prints on standard output. This holds for every PR that adds an ADR, whether a command creates
   it or a person does by hand. When the tool exits with a status other than
   `0`, or is not installed, stop: do not create the ADR's file with a number
   you chose, and show the line it wrote to standard error and the table of
@@ -374,8 +374,8 @@ the merge base, do the following.
    does, do not create a new ADR: update the ADR on `main` instead.
 2. **Renumber.** When only the number collides (a different subject), move the
    PR's ADR to the number `numreserve adr` prints when run in the work tree of
-   the PR's branch; when it prints none, stop without renumbering ("Location
-   and naming"). Move its file name, its first line, and its index row, and
+   the PR's branch; when it exits with a status other than `0`, stop without
+   renumbering ("Location and naming"). Move its file name, its first line, and its index row, and
    every `ADR-<old number>` and every link to a file starting
    `<old number>-` in the PR's diff (`git diff origin/main...HEAD`), task
    documents included. Record the renumbering as an editorial correction in

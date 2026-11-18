@@ -74,7 +74,9 @@ Work in the following order.
      numreserve task
      ```
 
-     and use the four-digit number it prints on standard output as `NNNN`.
+     with a command time limit of at least five minutes (the tool bounds a
+     run at three), and use the four-digit number it prints on standard
+     output as `NNNN`.
      The tool creates the number's record tag on `origin`, so no other
      session, in any clone, gets the same number. When it exits with a status
      other than `0`, or is not installed, stop: create no branch and no task

@@ -198,6 +198,8 @@ const (
 	renumberStart         = "2. **Renumber.**"
 	failsOnMainStart      = "**When `TestADRRecords` fails on `main`.**"
 	mkreqPath             = ".claude/commands/mkreq.md"
+	mkreqStep2Start       = "2. Resolve the task directory."
+	mkreqStep3Start       = "3. Create the feature branch"
 	guidePath             = "docs/dev/guides/numreserve_guide.md"
 	guideReasonColumn     = "理由の語"
 	guideCallColumn       = "呼び出し"
@@ -265,7 +267,7 @@ func TestDocumentedInvocations(t *testing.T) {
 		text  string
 		want  []string
 	}{
-		{mkreqPath, texts[mkreqPath], []string{"task"}},
+		{mkreqPath + " step 2", between(texts[mkreqPath], mkreqStep2Start, mkreqStep3Start), []string{"task"}},
 		{conventionPath + " " + namingHeading, doctestutil.SectionOutsideBlocks(convention, namingHeading), []string{"adr"}},
 		{conventionPath + " " + renumberStart, paragraphAt(taking, renumberStart), []string{"adr"}},
 		{conventionPath + " " + failsOnMainStart, paragraphAt(taking, failsOnMainStart), []string{"adr"}},
@@ -276,6 +278,56 @@ func TestDocumentedInvocations(t *testing.T) {
 			if !slices.Contains(got, space) {
 				t.Errorf("%s holds no %s %s call (calls: %q)", tc.place, toolWord, space, got)
 			}
+		}
+	}
+}
+
+// between returns the lines of doc from the line starting with start up to,
+// not including, the next line starting with end, or "" when either is
+// missing.
+func between(doc, start, end string) string {
+	lines := strings.Split(doc, "\n")
+	i := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(line, start) })
+	if i < 0 {
+		return ""
+	}
+	j := slices.IndexFunc(lines[i+1:], func(line string) bool { return strings.HasPrefix(line, end) })
+	if j < 0 {
+		return ""
+	}
+	return strings.Join(lines[i:i+1+j], "\n")
+}
+
+// TestBetween: the block runs from start to the line before end, and a
+// missing start or end gives "".
+func TestBetween(t *testing.T) {
+	doc := "a\n2. x\ny\n3. z\n"
+	for _, tc := range []struct{ start, end, want string }{
+		{"2. ", "3. ", "2. x\ny"},
+		{"4. ", "3. ", ""},
+		{"2. ", "5. ", ""},
+	} {
+		if got := between(doc, tc.start, tc.end); got != tc.want {
+			t.Errorf("between(%q, %q) = %q, want %q", tc.start, tc.end, got, tc.want)
+		}
+	}
+}
+
+// TestNoScriptRunsTool: no script under .claude/commands names the tool. A
+// script runs under one approved Bash call, so a call inside it would not
+// meet the permission rules the documents' calls are held to.
+func TestNoScriptRunsTool(t *testing.T) {
+	scripts, err := filepath.Glob(filepath.Join(repoRoot, ".claude", "commands", "*", "*.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	top, err := filepath.Glob(filepath.Join(repoRoot, ".claude", "commands", "*.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, script := range append(scripts, top...) {
+		if strings.Contains(doctestutil.ReadDoc(t, script), toolWord) {
+			t.Errorf("%s names %s; call it from a command document instead", script, toolWord)
 		}
 	}
 }
