@@ -786,9 +786,8 @@ func Remove(ctx context.Context, deps Deps, path string) (RemoveOutcome, error) 
 	}
 	herdr := NewHerdr(deps.Cmds)
 	// The agents are read under the exclusion, as a send reads them; a list
-	// that cannot be read leaves every agent pane unaccounted for, which the
-	// agents' check reads as unreadable.
-	agents, _ := herdr.Agents(ctx)
+	// that cannot be read makes the agents' check unreadable below.
+	agents, agentsErr := herdr.Agents(ctx)
 	wsAgents := slices.DeleteFunc(slices.Clone(agents), func(a Agent) bool { return a.Workspace != loc.ws.ID })
 	reader := &removalReader{cmds: deps.Cmds, store: deps.Store, home: deps.Env.Home, chiefTree: loc.chiefTree}
 	c, problem := reader.readRemovalCandidate(ctx, loc.ws)
@@ -803,6 +802,14 @@ func Remove(ctx context.Context, deps Deps, path string) (RemoveOutcome, error) 
 		return refusedRemove(out, RemoveRefusalChecksFailed, "the workspace is no longer a removal candidate: its created record, its path in Herdr, or its issue's one finished task on origin/main does not hold"), nil
 	}
 	closer, checks, ok := newWorkspaceCloser(ctx, deps.Cmds, loc.chiefTree, *c, readAgentFacts(ctx, herdr, wsAgents), reader.panes)
+	if agentsErr != nil {
+		for i := range checks {
+			if checks[i].Check == RemovalCheckAgentsIdle {
+				checks[i] = checkResult(RemovalCheckAgentsIdle, false, append(checks[i].Unreadable, "the agent list"))
+			}
+		}
+		ok = false
+	}
 	out.Checks = checks
 	if !ok {
 		return refusedRemove(out, RemoveRefusalChecksFailed, ""), nil

@@ -38,6 +38,9 @@ type removalSetup struct {
 	others []fakePane
 	// closed is the workspace closed: its panes are gone.
 	closed bool
+	// noAgents makes the pane list show the workspace's agent panes as
+	// shells, as Herdr does once their agents exited.
+	noAgents bool
 	// during, when set, runs inside each write allowRemoval allows, before
 	// the write changes the fake.
 	during func()
@@ -75,7 +78,11 @@ func (rs *removalSetup) paneList() []fakePane {
 	defer sw.mu.Unlock()
 	panes := []fakePane{{Pane: sw.chief.Pane, Tab: "wc:t1", Workspace: sw.chief.Workspace, Dir: sw.chief.Dir, Agent: sw.chief.Kind}}
 	for _, p := range sw.panes {
-		panes = append(panes, fakePane{Pane: p.Pane, Tab: strings.Replace(p.Pane, ":p", ":t", 1), Workspace: p.Workspace, Dir: p.Dir, Agent: p.Kind})
+		agent := p.Kind
+		if rs.noAgents && p.Workspace == removalWS {
+			agent = ""
+		}
+		panes = append(panes, fakePane{Pane: p.Pane, Tab: strings.Replace(p.Pane, ":p", ":t", 1), Workspace: p.Workspace, Dir: p.Dir, Agent: agent})
 	}
 	if !rs.closed {
 		panes = append(panes, fakePane{Pane: removalWS + ":p3", Tab: removalWS + ":t3", Workspace: removalWS, Dir: rs.tree})
@@ -1089,6 +1096,16 @@ func TestRemoveRefusesOnEachCheck(t *testing.T) {
 		{"an agent working", RemovalCheckAgentsIdle, func(_ *testing.T, sw *sendWorld, _ *removalSetup) {
 			sw.byPane[removalWS+":p1"].Status = "working"
 		}},
+		// The agent list read under the exclusion (the lookup's is the
+		// first) cannot be read, and Herdr's pane list no longer names the
+		// agents, so only the failed read can refuse.
+		{"the agent list cannot be read", RemovalCheckAgentsIdle, func(_ *testing.T, sw *sendWorld, rs *removalSetup) {
+			rs.noAgents = true
+			for _, p := range []string{removalWS + ":p1", removalWS + ":p2"} {
+				sw.rec.reply("herdr pane process-info --pane "+p, processInfoOutput(p, 100, 100, 100))
+			}
+			after(sw, "herdr agent list", 1, func() reply { return reply{err: errInjected} })
+		}},
 		{"a busy shell", RemovalCheckShellsIdle, func(_ *testing.T, sw *sendWorld, _ *removalSetup) {
 			sw.rec.reply("herdr pane process-info --pane "+removalWS+":p3", processInfoOutput(removalWS+":p3", 100, 200, 200))
 		}},
@@ -1103,8 +1120,11 @@ func TestRemoveRefusesOnEachCheck(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			sw, rs := newRemovalWorld(t)
+			// The edit runs after sw.finish, so a reply it replaces is not
+			// set again.
+			deps := sw.finish()
 			c.edit(t, sw, rs)
-			out := rs.remove(sw.finish(), rs.tree)
+			out := rs.remove(deps, rs.tree)
 			if out.Result != RemoveRefused || out.Refusal != RemoveRefusalChecksFailed || len(out.Checks) == 0 || passedCheck(out.Checks, c.check) {
 				t.Fatalf("Remove = %+v, want refused with %v not passed", out, c.check)
 			}
