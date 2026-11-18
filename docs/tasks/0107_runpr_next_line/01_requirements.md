@@ -17,10 +17,10 @@
 
 **背景:**
 
--   chief は、`/runpr` の報告の NEXT を、自分で決めた次のコマンドと照らし合わせる。NEXT は `NEXT: <値>` の形の行（前に `- ` があってもよい）からだけ読む（`internal/chief/screen_report.go:56-62` の `nextLine`・`nextCommand`・`nextNoneValue`）。値は `なし` か、`/mkarch`・`/mkplan`・`/runplan` のどれかと 4 桁のタスク番号である。そのあとに全角の括弧で理由などが続いてもよい。読み取りの経路は 2 つある。OpenCode の pane は画面から読む（`readRunprNext`、`screen_report.go:72`。画面全体を読む `readScreenNext` も同じ関数を使う、`internal/chief/autosend.go:517`）。Claude Code の pane は transcript から読む（`readReportNext`、`internal/chief/screen_transcript_report.go:303`）。どちらの経路も、NEXT 行の値を同じ `readNextValue` で読む。
+-   chief は、`/runpr` の報告の NEXT を、自分で決めた次のコマンドと照合する。NEXT は `NEXT: <値>` の形の行（前に `- ` があってもよい）からだけ読む（`internal/chief/screen_report.go:56-62` の `nextLine`・`nextCommand`・`nextNoneValue`）。値は `なし` か、`/mkarch`・`/mkplan`・`/runplan` のどれかと 4 桁のタスク番号である。そのあとに全角の括弧で理由などが続いてもよい。読み取りの経路は 2 つある。OpenCode の pane は画面から読む（`readRunprNext`、`screen_report.go:72`。画面全体を読む `readScreenNext`、`screen_report.go:263` も同じ関数を使い、`internal/chief/autosend.go:517` から呼ばれる）。Claude Code の pane は transcript から読む（`readReportNext`、`internal/chief/screen_transcript_report.go:303`）。どちらの経路も、NEXT 行の値を同じ `readNextValue` で読む。
 -   issue #900 では、PR #897 のマージの後、OpenCode の pane の最後の報告に `NEXT:` で始まる行がなかった。NEXT は見出しと番号付きのリストで書かれていた。そのため chief は報告に NEXT がないものとして扱い、リセット（`/new`）を送らなかった。当時の `runpr.md` は、マージの後の最後の報告に `NEXT:` の行を求めていなかった（issue #900「原因」）。
 -   その後、#940（タスク 0095、2026-11-17）が `runpr.md` の step 5 を変えた。最後の報告は、chief が読める形の NEXT 行をちょうど 1 行持つ（`.claude/commands/runpr.md:1396-1403`）。マージの質問の要約の 6 行目も、NEXT を同じ形で書く（`runpr.md:1046`・`1090-1098`）。ADR-0046 は「形は `runpr.md` の step 5 が定め、chief は文法を広げない」と決めている（`docs/dev/adr/0046-chief-of-staff.md:41`）。
--   ただし、`runpr.md` の NEXT 行の例が chief の文法で読めることを確かめるものはない。`runpr.md` を読むテストのうち、NEXT 行の形を見るものはない（`cmd/yt2column/codex_review_docs_test.go` と `cmd/yt2column/fixpr_docs_test.go` は、呼び出しの形とフィルタだけを読む）。chief の文法か `runpr.md` の形のどちらかが変わって食い違っても、気づくのは次に `/runpr` を走らせて chief がリセットを送らなかったときになる。
+-   ただし、`runpr.md` の NEXT 行の例が chief の文法で読めることを確かめるものはない。`runpr.md` を読むテスト（`cmd/yt2column/codex_review_docs_test.go`・`cmd/yt2column/fixpr_docs_test.go`・`cmd/yt2column/review_records_test.go`・`cmd/fixprguard/docs_test.go`・`cmd/mergepr/docs_test.go`）のどれも、NEXT 行の形を確かめない。chief の文法か `runpr.md` の形のどちらかが変わって食い違っても、気づくのは、次に `/runpr` を走らせたとき、chief がリセットを送らなかった場合になる。
 
 以上の行番号は、コミット `790652e3`（`origin/main`）で確かめた。
 
@@ -32,23 +32,27 @@
 
 -   **NEXT 行は `runpr.md` の側で必ず書かせ、番号付きの `/clear` の案内はそのまま残す。** chief の文法を広げず、報告の書き方を定めるほうで揃えるためである。この部分は #940 で入っている（背景）。
     -   ADR: なし。決定は ADR-0046 に入っている（#940 が足した）。
--   **その形を守っていることを、chief が読む側のテストか文書のガードで確かめる。** chief が頼っている形を、`/runpr` の側の文が保証しているかどうかを、偶然に頼らず確かめるためである。
+-   **その形を守っていることを、chief が読む側のテストか文書のガードで確かめる。** chief が読む形を `/runpr` 側の文が保証しているかどうかを、偶然ではなくテストで確かめるためである。
+    -   `CLAUDE.md`「Testing Strategy」は、次のどれかに当たる文書の確認を足さないと定める。間違いが起きにくい、害が小さい、手入れの手間が防ぐ間違いより大きい。このガードはどれにも当たらない。食い違いは黙って起き、chief がリセットや自動送信を見送ったときにしか表に出ない（issue #900 はその例である）。また、テストは文書から何も写さないので、手入れの手間はほとんどない（4.5 節）。
     -   ADR: なし。ADR-0046 の決定（形は `runpr.md` が定め、chief は文法を広げない）を確かめる手段を足すだけで、決定は変わらない。
 
 **要件定義の際に決めたこと（2026-11-19）:**
 
 -   **進め方は簡易な進め方（`simple`）とする。この変更は、除外される変更に当たらない。** 足すのは chief のパッケージのテスト 1 つと、`CLAUDE.md` の一覧の 1 項目である。新しい仕組みは作らず、どの ADR の決定も変えず、未決の判断も少ない。除外の判断：次のどれも変えない（`docs/dev/conventions/requirements_process.md`「Simple Process」の「Excluded changes」）。
     -   `docs/dev/security.md` の規則と前提
-    -   開発の道具（`fixprguard`・`codexreview`・`mergepr`）とその信頼境界。chief が送るものと、送る条件も変わらない
+    -   開発用ツール（`fixprguard`・`codexreview`・`mergepr`）とその信頼境界。chief が送るものと、送る条件も変わらない
     -   外部依存
     -   ADR: なし。本タスクの中で閉じる、進め方の選択である。
 -   **本タスクで扱うのは、issue #900 の 2 つ目（ガード）だけとする。`runpr.md` の文と chief の文法は変えない（F-002）。** 1 つ目は #940 で入っているためである。
-    -   採らなかった案：コマンドを名指す NEXT 行を含む `/runpr` の報告（OpenCode）を新しいサンプルとして採り直す案。今のサンプルの NEXT 行は、どれも `NEXT: なし（…）` である（`internal/chief/testdata/screens/opencode-runpr-report.txt:188`、`internal/chief/testdata/transcript/claude-runpr-report.jsonl`）。人手で `/runpr` を 1 回走らせる手間がかかる。文書の形と chief の文法の食い違いは、ガードで捉えられる。
+    -   採らなかった案：コマンドを名指す NEXT 行を含む `/runpr` の報告（OpenCode）を新しいサンプルとして採り直す案。今の `/runpr` の最後の報告のサンプルの NEXT 行は、どれも `NEXT: なし（…）` である（`internal/chief/testdata/screens/opencode-runpr-report.txt:188`、`internal/chief/testdata/transcript/claude-runpr-report.jsonl`）。コマンドを名指す形は、マージの質問のサンプル（`internal/chief/testdata/screens/claude-merge-question.ansi`・`opencode-merge-question.ansi` の `NEXT: /mkarch 0123`）で、すでに読まれている（`internal/chief/screen_test.go:484`）。人手で `/runpr` を 1 回走らせる手間がかかる。文書の形と chief の文法の食い違いは、ガードで捉えられる。
     -   採らなかった案：タスクにせず、#940 で直ったとして #900 を閉じる案。2 つ目の確かめが残らない。
     -   ADR: なし。本タスクの中で閉じる。
--   **ガードは、step 5 の最後の報告の NEXT 行の例と、step 4 のマージの質問の要約の 6 行目の例の両方を確かめる（F-001）。** chief は画面全体の NEXT 行を読み（`autosend.go:517` の `readScreenNext`）、食い違う行があれば読めないものとする（`screen_report.go:65-71`）。そのため、マージの質問の要約の NEXT 行も chief に届きうる。
+-   **ガードは、step 5 の最後の報告の NEXT 行の例と、step 4 のマージの質問の要約の 6 行目の例の両方を確かめる（F-001）。** chief は画面全体の NEXT 行を読み（`autosend.go:517` の `readScreenNext`）、食い違う行があれば読めないものとする（`screen_report.go:65-71`）。そのため、マージの質問の要約の NEXT 行も chief に届きうる。どちらの節の例も、画面と transcript の両方の経路で確かめる。`/runpr` は、送り先の表（`_context.md`「Command routing」）しだいで Claude Code でも OpenCode でも走るので、同じ例がどちらの経路でも読まれうる。また、経路を足しても手間はほとんど増えない。
     -   採らなかった案：issue #900 が名指す step 5 の例だけを確かめる案。step 4 の形が変わったときに気づけない。
     -   ADR: なし。本タスクの中で閉じる。
+-   **例を取り出す既存のテストの関数（`cmd/yt2column/docs_test.go:444` の `codeTexts`）を `internal/doctestutil` に移し、`cmd/yt2column` のテストと本タスクのテストの両方から使う（F-002 の AC-07 で、変えてよい範囲に含める）。** 同じ関数をもう 1 つ写すと、`CLAUDE.md`「Key Design Patterns」の DRY に反するためである。`internal/doctestutil` は、ガードのテストが共有する Markdown の関数を置くパッケージである（`internal/doctestutil/doc.go`）。
+    -   採らなかった案：`internal/chief` のテストに写しを置き、変える範囲を `internal/chief` に限る案。写しが増える。
+    -   ADR: なし。テストの関数の置き場所で、本タスクの中で閉じる。
 
 ## 2. 目的とスコープ (Goals and Scope)
 
@@ -58,7 +62,8 @@
 
 ### 2.2. スコープ (In Scope)
 
--   `runpr.md` の step 4 と step 5 にある NEXT 行の例を、chief の 2 つの読み取りの経路に通して確かめるテスト（F-001）。
+-   `runpr.md` の step 4 と step 5 にある NEXT 行の例（F-001 の冒頭で定める）を、chief の 2 つの読み取りの経路に通して確かめるテスト（F-001）。
+-   例を取り出す既存のテストの関数を、`internal/doctestutil` に移すこと（F-002 の AC-07、1 章の「要件定義の際に決めたこと」）。
 -   `CLAUDE.md` の「Development Notes」の、文書を読むガードの一覧への 1 項目の追記（F-001）。
 
 ### 2.3. スコープ外 (Out of Scope)
@@ -74,25 +79,30 @@
 
 #### F-001: runpr.md の NEXT 行の例を chief の読み取りで確かめる
 
-本書の「NEXT 行の例」は、`runpr.md` の step 4（見出し `## 4.`）と step 5（見出し `## 5.`）の節にあり、`NEXT: ` に続けて空白でない文字を持つ、次のどちらかのテキストを指す。
+本書の「NEXT 行の例」は、`runpr.md` の step 4（見出し `## 4.`）と step 5（見出し `## 5.`）の節で、フェンスで囲んだコードブロックの外にあるインラインのコードスパンのうち、次のものを指す。
 
--   インラインのコードスパンの中身
--   フェンスで囲んだコードブロックの 1 行
+-   中身の前後の空白を除いたテキストが、chief が NEXT を名指す行と見なす形で始まる。つまり、リストの印や強調の記号の後に `NEXT` が続き、コロン（全角を含む）が続く（`internal/chief/screen_transcript_report.go:293` の `nextNaming`）。行をまたぐコードスパンは 1 つのスパンとして扱い、中の改行と、それに続く空白を 1 つの空白にまとめてから、この判定と AC-01 の読み取りに渡す。
+-   ただし、形の定義として書かれ、コロンの後に値がないコードスパン（`runpr.md:1399` の `NEXT: `）は除く。
 
-形の定義として書かれた、値のない `NEXT: ` そのもののコードスパン（`runpr.md:1399`）は例に含めない。
+この取り出し方は、`NEXT:` の後の空白がない形や全角のコロンのように、chief の文法から外れた例も拾う。拾った例は AC-04 で失敗になる。フェンスで囲んだコードブロックの行は例に含めない。step 4 のコードブロック（`runpr.md:1040-1054`）はマージの質問の要約のひな形で、各行の後ろに表示の条件の注記（`(always; the forms below)` など）が付いており、chief が読む行そのものではないためである。
 
 **Acceptance Criteria**:
 - **AC-01**: テストは、step 5 の節の NEXT 行の例のそれぞれを、chief の画面からの読み取りと transcript からの読み取りの両方に 1 行のテキストとして渡す。どちらの結果も「次のコマンドなし」か「コマンドとタスク」であることを確かめる。
 - **AC-02**: テストは、step 4 の節の NEXT 行の例のそれぞれを、AC-01 と同じく確かめる。
 - **AC-03**: step 4 と step 5 のどちらかの節に NEXT 行の例が 1 つもないとき、または節が見つからないとき、テストは失敗する。
 - **AC-04**: 例のどれかが、どちらかの読み取りで「読めない NEXT」か「NEXT なし」になるとき、テストは失敗する。失敗のメッセージは、その節と例のテキストと、読めなかった経路を示す。
-- **AC-05**: テストは `make test` と、CI の `doc-guard` ジョブ（`go test -tags test ... ./internal/chief`）で走る。
+- **AC-05**: テストは `make test` と、CI の `doc-guard` ジョブ（`.github/workflows/ci.yml` の `go test -tags test ... ./internal/chief`）で走る。
 - **AC-06**: `CLAUDE.md` の「Development Notes」の、文書を読むガードの一覧（`internal/chief` の読み取りを挙げる箇所）が、`runpr.md` の NEXT 行の例を読むことを述べる。
 
 #### F-002: 文書と文法を変えない
 
 **Acceptance Criteria**:
-- **AC-07**: 実装の PR の差分は、`internal/chief` のテストファイル（`_test.go`）の追加と変更、`CLAUDE.md` の AC-06 の箇所、本タスクのディレクトリ（`docs/tasks/0107_runpr_next_line/`）に限る。`.claude/commands/runpr.md` と、`internal/chief` の `_test.go` 以外のファイルは変わらない。
+- **AC-07**: 実装の PR の差分は、次に挙げるものに限る。たとえば `.claude/commands/runpr.md` と、`internal/chief` の製品コード（`_test.go` 以外のファイル）は変わらない。
+    -   `internal/chief` のテストファイル（`_test.go`）の追加と変更
+    -   `internal/doctestutil` への、例を取り出す関数と、それが使うコードスパンの正規表現と、そのテストの追加
+    -   `cmd/yt2column` のテストファイルで、移した関数と正規表現の元の定義を消し、使う箇所を移した先に替える変更
+    -   `CLAUDE.md` の AC-06 の箇所
+    -   本タスクのディレクトリ（`docs/tasks/0107_runpr_next_line/`）
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
@@ -106,7 +116,7 @@
 -   N/A。chief の振る舞いを変えない。
 
 ### 4.4. 互換性 (Compatibility)
--   chief の protocol 番号を変えない。道具を入れ直す必要はない。
+-   chief の protocol 番号を変えない。ツールを入れ直す必要はない。
 
 ### 4.5. 保守性 (Maintainability)
 -   テストは例の文字列を写し持たず、`runpr.md` から読む（`CLAUDE.md`「Testing Strategy」の「pin a literal copied into the test」の禁止）。`runpr.md` の例が変わっても、chief が読める限りテストは変更なしで通る。
@@ -114,7 +124,7 @@
 ## 5. 制約条件 (Constraints)
 
 -   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。
--   文書のテストは、値と構造と実行できる例を確かめ、文の意味を確かめない（`CLAUDE.md`「Testing Strategy」）。NEXT 行の例は、chief の文法という定義元と照らし合わせる値として扱う。
+-   文書のテストは、値と構造と実行できる例を確かめ、文の意味を確かめない（`CLAUDE.md`「Testing Strategy」）。NEXT 行の例は、chief の文法という定義元と照合する値として扱う。
 -   Go のコメント、識別子、文字列リテラルは英語で書く（`CLAUDE.md`「Go Idioms」）。`runpr.md` の見出しは英語なので、日本語のリテラルは要らない。
 
 ## 6. 用語集 (Glossary)
