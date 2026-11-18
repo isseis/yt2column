@@ -2,11 +2,13 @@ package numreserve
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -57,7 +59,9 @@ func (t *Tool) Reserve(ctx context.Context, space Space) (Reservation, error) {
 //
 // Contract: the jump check comes before the four-digit check, so a stray
 // branch numbered 9999 stops as jump and names the branch; the attempt check
-// comes last, so the maxPosts-th creation is still tried.
+// comes last, so the maxPosts-th creation is still tried. A number whose
+// record tag reading back confirmed is a record tag, so it raises the base
+// the jump check measures from, as a rerun that listed that tag would.
 func (t *Tool) create(ctx context.Context, tagPrefix string, c collected) (Reservation, error) {
 	candidate := c.largest() + 1
 	for posts := 0; ; posts++ {
@@ -83,18 +87,25 @@ func (t *Tool) create(ctx context.Context, tagPrefix string, c collected) (Reser
 		if created {
 			return Reservation{Number: n, Tag: tag, Commit: c.mainSHA}, nil
 		}
+		c.base = max(c.base, candidate)
 		candidate++
 	}
 }
 
-// jumpStop names every input above the base, which is what moved the
-// candidate past the jump width.
+// jumpStop names the inputs above the base, which are what moved the
+// candidate past the jump width, largest number first, so the input that
+// set the candidate is named even when the list is cut.
 func jumpStop(step string, candidate int, c collected, width int) *StopError {
-	var above []string
+	var uses []use
 	for _, u := range c.others {
 		if u.number > c.base {
-			above = append(above, fmt.Sprintf("%s (%04d)", u.where, u.number))
+			uses = append(uses, u)
 		}
+	}
+	slices.SortStableFunc(uses, func(a, b use) int { return cmp.Compare(b.number, a.number) })
+	above := make([]string, 0, len(uses))
+	for _, u := range uses {
+		above = append(above, fmt.Sprintf("%s (%04d)", u.where, u.number))
 	}
 	detail := fmt.Sprintf("candidate %04d is more than %d above the base %04d", candidate, width, c.base)
 	if len(above) == 0 {

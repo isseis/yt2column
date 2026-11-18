@@ -207,13 +207,13 @@ func TestReserveLimits(t *testing.T) {
 		{name: "adr candidate 9999", s: scenario{space: SpaceADR, mainADRs: []string{"9998-a.md"}}, want: "9999"},
 		{name: "adr candidate 10000", s: scenario{space: SpaceADR, mainADRs: []string{"9999-a.md"}}, kind: StopExhausted},
 		{
-			name: "task jump reached after creations were taken", s: scenario{space: SpaceTask, branches: []remoteBranch{{name: "owner/0115-a-01", sha: otherSHA}}},
-			taken: 5, from: 116, kind: StopJump, detail: `origin branch "owner/0115-a-01" (0115)`,
+			name: "task taken creations raise the jump base", s: scenario{space: SpaceTask, branches: []remoteBranch{{name: "owner/0115-a-01", sha: otherSHA}}},
+			taken: 5, from: 116, want: "0121",
 		},
 		{name: "task 10000 reached after a creation was taken", s: scenario{space: SpaceTask, mainTasks: []string{"9998_a/"}}, taken: 1, from: 9999, kind: StopExhausted},
 		{
-			name: "adr jump reached after creations were taken", s: scenario{space: SpaceADR, workADRs: []string{"0066-a.md"}},
-			taken: 5, from: 67, kind: StopJump, detail: `"docs/dev/adr/0066-a.md" in the work tree (0066)`,
+			name: "adr taken creations raise the jump base", s: scenario{space: SpaceADR, workADRs: []string{"0066-a.md"}},
+			taken: 5, from: 67, want: "0072",
 		},
 		{name: "adr 10000 reached after a creation was taken", s: scenario{space: SpaceADR, mainADRs: []string{"9998-a.md"}}, taken: 1, from: 9999, kind: StopExhausted},
 		{name: "task base plus 20", s: scenario{space: SpaceTask, branches: []remoteBranch{{name: "owner/0119-a-01", sha: otherSHA}}}, want: "0120"},

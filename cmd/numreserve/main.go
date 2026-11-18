@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/isseis/yt2column/internal/numreserve"
 	"github.com/isseis/yt2column/internal/signalrun"
@@ -36,6 +38,11 @@ type reserver interface {
 }
 
 func main() {
+	// A write to a closed pipe must come back as an error, not end the
+	// process: the record tag exists by then, and the error path is what
+	// names it on stderr. Go kills the process on SIGPIPE for stdout unless
+	// the signal is ignored or subscribed.
+	signal.Ignore(syscall.SIGPIPE)
 	os.Exit(signalrun.Run(func(ctx context.Context) int {
 		return run(ctx, os.Args[1:], numreserve.New(os.Environ()), os.Stdout, os.Stderr)
 	}))

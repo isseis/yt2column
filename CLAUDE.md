@@ -516,11 +516,14 @@ for the packages that exist today. The server's startup is documented in the
   `git ls-remote`, the entries of `git ls-tree` and of the work tree's
   `docs/dev/adr/`, the lines of `git for-each-ref` for the local branches,
   the lines of `git cat-file --batch-check` after a failed fetch (which
-  choose only the branches a stop's detail names), and the name forms of
+  choose only the branches a stop's detail names), the one line of
+  `git rev-parse --show-toplevel` (one absolute path, else a `local-git`
+  stop), and the name forms of
   `internal/tasknaming` applied to them; this is the only place their
-  content selects behavior. A response's
-  body other than that `ref`, and the standard error of either command, are
-  never read. Reason: these are values written by `gh`, `git`, and GitHub,
+  content selects behavior. A `GET` response's body is parsed whole as
+  strict JSON, so a body of another form stops the run as `malformed`, but
+  only its `ref` chooses between the next number and a stop; no other body
+  and neither command's standard error is read. Reason: these are values written by `gh`, `git`, and GitHub,
   external values the tool cannot express in a type, and the creation of a
   ref declares its result only in the status code. Boundary: a line, an
   entry, or a name of a form the tool does not accept stops the run as

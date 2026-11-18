@@ -332,7 +332,7 @@ func TestStopDetailBoundsValues(t *testing.T) {
 	_, err = run(t, SpaceTask, defaultBounds(), s.collectSteps(t)...)
 	stopKind(t, err)
 	text := err.Error()
-	if !strings.Contains(text, "and 1 more") || !strings.Contains(text, local[9]) || strings.Contains(text, local[10]) {
-		t.Errorf("stop %q does not name exactly ten inputs and count the rest", text)
+	if !strings.Contains(text, "and 1 more") || !strings.Contains(text, local[10]) || !strings.Contains(text, local[1]) || strings.Contains(text, local[0]+`"`) {
+		t.Errorf("stop %q does not name the ten largest inputs and count the rest", text)
 	}
 }

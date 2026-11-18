@@ -10,8 +10,10 @@
 //
 // The tool reads the output of git and gh to choose its behavior: the HTTP
 // status line and the rate-limit headers of gh api -i, the ref of a GET
-// response, git ls-remote lines, git ls-tree entries, git for-each-ref
-// lines, and, only to choose the branches a stop's detail names, git
+// response (whose whole body must be strict JSON), git ls-remote lines,
+// git ls-tree entries, git for-each-ref lines, the one line of git
+// rev-parse --show-toplevel (a local-git stop when it is not one absolute
+// path), and, only to choose the branches a stop's detail names, git
 // cat-file --batch-check lines. These are values
 // written by external commands that cannot be expressed in a type; a line or
 // entry of any form the tool does not accept stops it as malformed (a status
