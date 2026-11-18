@@ -680,6 +680,15 @@ func unchanged(ctx context.Context, herdr Herdr, c RemovalCandidate, before clos
 	if !slices.Equal(closeViewOf(c.workspace, nil, last).panes, before.panes) || !checkPathUnused(c, last).Passed {
 		return "the workspace's panes changed"
 	}
+	// The agents are read last, just before the close, so an agent that
+	// started working while the rest was read is not closed.
+	lastAgents, err := herdr.Agents(ctx)
+	if err != nil {
+		return "herdr agent list cannot be read again: " + err.Error()
+	}
+	if !slices.Equal(closeViewOf(c.workspace, lastAgents, nil).agents, before.agents) {
+		return "the state of an agent of the workspace changed"
+	}
 	return ""
 }
 
@@ -709,10 +718,31 @@ func waitPanesGone(ctx context.Context, herdr Herdr, sleep func(context.Context,
 	return fmt.Errorf("%w: the panes of workspace %s are still listed after it was closed", errNotAsChecked, c.workspace)
 }
 
+// pathUnused reads Herdr's pane list and fails when a pane is at the
+// candidate's worktree, or when the list cannot be read.
+func pathUnused(ctx context.Context, herdr Herdr, c RemovalCandidate) error {
+	panes, err := herdr.panes(ctx)
+	if err != nil {
+		return err
+	}
+	if len(workspacesAtPath(panes, c.tree)) > 0 {
+		return fmt.Errorf("%w: a workspace has a pane at the worktree", errNotAsChecked)
+	}
+	return nil
+}
+
 // recheckHead checks, just before the worktree is removed, that its HEAD is
-// still head and still reachable from origin/main: a commit made after the
-// checks would not stop git from removing a clean worktree.
+// still detached at head and still reachable from origin/main: a commit made
+// after the checks, or a branch switched to, would not stop git from
+// removing a clean worktree.
 func recheckHead(ctx context.Context, git GitReader, tree, head string) error {
+	branch, err := git.Branch(ctx, tree)
+	if err != nil {
+		return err
+	}
+	if branch != "" {
+		return fmt.Errorf("%w: the worktree is now on branch %s", errNotAsChecked, branch)
+	}
 	now, err := git.Head(ctx, tree)
 	if err != nil {
 		return err
@@ -833,7 +863,13 @@ func Remove(ctx context.Context, deps Deps, path string) (RemoveOutcome, error) 
 		{RemoveStageCloseWorkspace, func() error { return closer.close(ctx) }},
 		{RemoveStageWaitPanes, func() error { return waitPanesGone(ctx, herdr, deps.Sleep, *c) }},
 		{RemoveStageRecheckHead, func() error { return recheckHead(ctx, git, tree, closer.head) }},
-		{RemoveStageRemoveWorktree, func() error { return closer.removeWorktree(ctx) }},
+		{RemoveStageRemoveWorktree, func() error {
+			// No workspace may have opened the worktree since the wait.
+			if err := pathUnused(ctx, herdr, *c); err != nil {
+				return err
+			}
+			return closer.removeWorktree(ctx)
+		}},
 		{RemoveStageRemoveRecords, held.ClearRecords},
 	} {
 		if err := ctx.Err(); err != nil {

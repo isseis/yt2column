@@ -1241,6 +1241,20 @@ func TestRemoveRefusesWhenChanged(t *testing.T) {
 		{"the agent list cannot be read again", func(sw *sendWorld, _ *removalSetup) {
 			after(sw, "herdr agent list", 2, func() reply { return reply{err: errInjected} })
 		}},
+		{"an agent starts working after the processes were read", func(sw *sendWorld, _ *removalSetup) {
+			// Read by the lookup, under the exclusion, and before the
+			// processes; the last read, after them, sees the change.
+			after(sw, "herdr agent list", 3, func() reply {
+				sw.mu.Lock()
+				defer sw.mu.Unlock()
+				sw.byPane[removalWS+":p1"].Status, sw.byPane[removalWS+":p1"].Seq = "working", 99
+				agents := []fakeAgent{sw.chief}
+				for _, p := range sw.panes {
+					agents = append(agents, p.fakeAgent)
+				}
+				return reply{out: agentListOutput(agents)}
+			})
+		}},
 		{"a busy shell", func(sw *sendWorld, _ *removalSetup) {
 			after(sw, "herdr pane process-info --pane "+removalWS+":p3", 1, func() reply {
 				return reply{out: processInfoOutput(removalWS+":p3", 100, 200, 200)}
@@ -1326,6 +1340,20 @@ func TestRemoveStopsAtEachStage(t *testing.T) {
 				return reply{out: readTestdata(sw.t, "herdr/workspace-close.json")}
 			})
 		}, nil, 1, 0, []string{"worktree", "registration", "record"}},
+		// A workspace that opens the worktree after the wait, while HEAD is
+		// checked again, stops the removal before git runs. The checks, the
+		// re-read before the close (twice), and the wait read the list
+		// first.
+		{"another workspace takes the path after the wait", "remove_worktree", func(sw *sendWorld, rs *removalSetup) {
+			sw.rec.allowWriteDo(herdrProgram, "", closeLine, func() reply {
+				rs.close()
+				return reply{out: readTestdata(sw.t, "herdr/workspace-close.json")}
+			})
+		}, func(sw *sendWorld, rs *removalSetup) {
+			after(sw, "herdr pane list", 4, func() reply {
+				return reply{out: paneListOutput(append(rs.paneList(), fakePane{Pane: "w9:p1", Tab: "w9:t1", Workspace: "w9", Dir: rs.tree}))}
+			})
+		}, 1, 0, []string{"worktree", "registration", "record"}},
 		{"git refuses the worktree", "remove_worktree", func(sw *sendWorld, rs *removalSetup) {
 			sw.rec.allowWriteDo(herdrProgram, "", closeLine, func() reply {
 				rs.close()
@@ -1391,6 +1419,7 @@ func TestRemoveStopsWhenHeadMoved(t *testing.T) {
 		changed reply
 		setup   func(sw *sendWorld, rs *removalSetup)
 	}{
+		{"a branch switched to at the same commit", "git rev-parse --abbrev-ref HEAD", 1, reply{out: []byte("issue-839\n")}, nil},
 		{"HEAD moved", "git rev-parse HEAD", 1, reply{out: []byte(strings.Repeat("3", 40) + "\n")}, nil},
 		// The recheck reads HEAD before and after the ancestry.
 		{"HEAD moved while the ancestry was read", "git rev-parse HEAD", 2, reply{out: []byte(strings.Repeat("3", 40) + "\n")}, nil},
