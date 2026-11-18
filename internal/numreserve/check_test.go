@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	cmdrunnertestutil "github.com/isseis/yt2column/internal/cmdrunner/testutil"
 	"github.com/isseis/yt2column/internal/tasknaming"
@@ -73,7 +74,14 @@ func TestCheckAdded(t *testing.T) {
 			checkScenario{headTasks: withTask("0094_old/"), baseTasks: withTask("0094_old/"), headADRs: baseADRs, baseADRs: baseADRs},
 			nil,
 		},
-		{"number already on main", checkScenario{headTasks: baseTasks, baseTasks: baseTasks, headADRs: baseADRs, baseADRs: baseADRs}, nil},
+		{"task renamed within its number by the PR", checkScenario{
+			headTasks: []string{"0000_template/", "0100_renamed/"}, baseTasks: baseTasks,
+			headADRs: baseADRs, baseADRs: baseADRs, mainTasks: baseTasks, mainADRs: baseADRs, addsTask: true,
+		}, nil},
+		{"adr renamed within its number by the PR", checkScenario{
+			headTasks: baseTasks, baseTasks: baseTasks,
+			headADRs: []string{"0051-renamed.md", "README.md"}, baseADRs: baseADRs, mainTasks: baseTasks, mainADRs: baseADRs, addsADR: true,
+		}, nil},
 		{"task at the threshold without a record", tasks("0103_new/"), nil},
 		{"task above the threshold without a record", tasks("0104_new/"), []issue{{SpaceTask, "0104", AddedUnreserved, "docs/tasks/0104_new", "", ""}}},
 		{"task above the threshold with a record", with(tasks("0104_new/"), func(s *checkScenario) { s.taskTags = []string{"0104"} }), nil},
@@ -161,6 +169,7 @@ func TestCheckAddedStops(t *testing.T) {
 		headTasks: []string{"0100_a/", "0104_new/"}, baseTasks: []string{"0100_a/"},
 		headADRs: []string{"0051-a.md"}, baseADRs: []string{"0051-a.md"},
 		mainTasks: []string{"0100_a/"}, addsTask: true,
+		branches: []checkBranch{{name: "other", sha: otherSHA, tasks: []string{"0100_a/"}}},
 	}
 	upToStep := func(i int, last cmdrunnertestutil.Step) func(t *testing.T) []cmdrunnertestutil.Step {
 		return func(t *testing.T) []cmdrunnertestutil.Step { return append(adds.steps(t)[:i], last) }
@@ -176,13 +185,21 @@ func TestCheckAddedStops(t *testing.T) {
 		{"branch listing fails", checkHeadSHA, upToStep(1, lsRemoteStepFor("", gitFailed(128))), StopNetworkOrGitHub},
 		{"merge-base fails", checkHeadSHA, upToStep(3, gitStep("", gitFailed(1), "merge-base", checkHeadSHA, mainSHA)), StopLocalGit},
 		{"merge-base prints another form", checkHeadSHA, upToStep(3, gitStep("HEAD\n", nil, "merge-base", checkHeadSHA, mainSHA)), StopMalformed},
+		{"first fetch fails", checkHeadSHA, func(t *testing.T) []cmdrunnertestutil.Step {
+			return append(adds.steps(t)[:2],
+				fetchStep(gitFailed(128), mainSHA, checkHeadSHA),
+				gitStep("", nil, "cat-file", "--batch-check"))
+		}, StopNetworkOrGitHub},
 		{"head tree unreadable", checkHeadSHA, upToStep(4, treeStep(checkHeadSHA, tasksDir, "garbage\x00", nil)), StopMalformed},
+		{"merge-base tree unreadable", checkHeadSHA, upToStep(5, treeStep(checkBaseSHA, tasksDir, "", gitFailed(128))), StopLocalGit},
+		{"latest main tree unreadable", checkHeadSHA, upToStep(10, treeStep(mainSHA, tasksDir, "garbage\x00", nil)), StopMalformed},
+		{"other branch tree unreadable", checkHeadSHA, upToStep(11, treeStep(otherSHA, tasksDir, "", gitFailed(128))), StopLocalGit},
 		{"record tag of another form", checkHeadSHA, upToStep(8, lsRemoteStepFor(
 			mainSHA+"\trefs/heads/main\n"+mainSHA+"\trefs/tags/task-number/0104/x\n", nil,
 			"refs/tags/task-number/*")), StopMalformed},
 		{"branch fetch fails", checkHeadSHA, func(t *testing.T) []cmdrunnertestutil.Step {
 			return append(adds.steps(t)[:9],
-				fetchStep(gitFailed(128), mainSHA, checkHeadSHA),
+				fetchStep(gitFailed(128), mainSHA, checkHeadSHA, otherSHA),
 				gitStep("", nil, "cat-file", "--batch-check"))
 		}, StopNetworkOrGitHub},
 	}
@@ -195,6 +212,36 @@ func TestCheckAddedStops(t *testing.T) {
 			}
 			if got := stopKind(t, err); got != tt.want {
 				t.Errorf("CheckAdded stop = %v (%v), want %v", got, err, tt.want)
+			}
+		})
+	}
+	// The two listings each hold main, the head branch, and other: one
+	// branch more than the bound allows.
+	t.Run("branch listing over the bound", func(t *testing.T) {
+		b := defaultBounds()
+		b.maxBranches = 2
+		tool := newTestTool(cmdrunnertestutil.New(t, adds.steps(t)[:2]...), b)
+		issues, err := tool.CheckAdded(context.Background(), checkHeadSHA, checkHeadBranch)
+		if issues != nil || stopKind(t, err) != StopListLimit {
+			t.Errorf("CheckAdded = %+v, %v, want a list-limit stop", issues, err)
+		}
+	})
+	// A command that does not finish stops the check as network-or-github
+	// under either limit: the merge-base, the fourth call, never finishes.
+	for name, limits := range map[string][2]time.Duration{
+		"per-command limit": {20 * time.Millisecond, time.Hour},
+		"per-run limit":     {time.Hour, 20 * time.Millisecond},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b := defaultBounds()
+			b.commandTimeout, b.runTimeout = limits[0], limits[1]
+			fake := cmdrunnertestutil.New(t, adds.steps(t)[:3]...)
+			issues, err := newTestTool(&deadlineRunner{inner: fake, holdCall: 4}, b).CheckAdded(context.Background(), checkHeadSHA, checkHeadBranch)
+			if issues != nil {
+				t.Errorf("CheckAdded issues = %+v, want none with the error", issues)
+			}
+			if got := stopKind(t, err); got != StopNetworkOrGitHub {
+				t.Errorf("CheckAdded stop = %v (%v), want network-or-github", got, err)
 			}
 		})
 	}

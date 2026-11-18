@@ -148,6 +148,13 @@ type added struct {
 	path   string
 }
 
+// spaceChange is what the PR changes in one space: the numbered entries it
+// adds, and the paths it deletes, which will not exist after the merge.
+type spaceChange struct {
+	added   []added
+	deleted []treeEntry
+}
+
 // CheckAdded returns the issues of the numbers the commit head adds over its
 // merge-base with the freshly fetched origin/main, excluding headBranch from
 // the other branches. An empty result means the merge may go on; an error
@@ -188,18 +195,18 @@ func (t *Tool) CheckAdded(ctx context.Context, head, headBranch string) ([]Added
 		return nil, err
 	}
 	var issues []AddedNumberIssue
-	addedBySpace := map[Space][]added{}
+	changes := map[Space]spaceChange{}
 	var prefixes []string
 	for _, space := range spaces {
-		numbers, malformed, err := t.addedIn(ctx, space, head, base)
+		change, malformed, err := t.changeIn(ctx, space, head, base)
 		if err != nil {
 			return nil, err
 		}
 		issues = append(issues, malformed...)
-		if len(numbers) == 0 {
+		if len(change.added) == 0 {
 			continue
 		}
-		addedBySpace[space] = numbers
+		changes[space] = change
 		prefix, err := space.TagPrefix()
 		if err != nil {
 			return nil, err
@@ -218,11 +225,11 @@ func (t *Tool) CheckAdded(ctx context.Context, head, headBranch string) ([]Added
 	}
 	trees := map[string][]treeEntry{}
 	for _, space := range spaces {
-		numbers := addedBySpace[space]
-		if len(numbers) == 0 {
+		change := changes[space]
+		if len(change.added) == 0 {
 			continue
 		}
-		found, err := t.checkSpace(ctx, space, numbers, refs, headBranch, trees)
+		found, err := t.checkSpace(ctx, space, change, refs, headBranch, trees)
 		if err != nil {
 			return nil, err
 		}
@@ -231,43 +238,57 @@ func (t *Tool) CheckAdded(ctx context.Context, head, headBranch string) ([]Added
 	return issues, nil
 }
 
-// addedIn returns the numbers the space gains from base to head, and, for
-// the task space, a finding for each entry head adds under docs/tasks/ that
-// is not a task directory. An ADR-space entry of another form is left to
-// TestADRRecords, which checks that directory's form in CI.
-func (t *Tool) addedIn(ctx context.Context, space Space, head, base string) ([]added, []AddedNumberIssue, error) {
+// changeIn returns what the space gains and loses from base to head, and,
+// for the task space, a finding for each entry head adds under docs/tasks/
+// that is not a task directory. An ADR-space entry of another form is left
+// to TestADRRecords, which checks that directory's form in CI.
+func (t *Tool) changeIn(ctx context.Context, space Space, head, base string) (spaceChange, []AddedNumberIssue, error) {
 	dir, err := space.dir()
 	if err != nil {
-		return nil, nil, err
+		return spaceChange{}, nil, err
 	}
 	headEntries, err := t.listTree(ctx, head, dir, "the PR head")
 	if err != nil {
-		return nil, nil, err
+		return spaceChange{}, nil, err
 	}
 	baseEntries, err := t.listTree(ctx, base, dir, "the merge base")
 	if err != nil {
-		return nil, nil, err
+		return spaceChange{}, nil, err
 	}
-	var numbers []added
+	var change spaceChange
 	var malformed []AddedNumberIssue
 	for _, e := range headEntries {
-		if slices.ContainsFunc(baseEntries, func(b treeEntry) bool { return b.path == e.path }) {
+		if hasPath(baseEntries, e.path) {
 			continue
 		}
 		n, ok := entryNumber(space, e)
 		switch {
 		case ok:
-			numbers = append(numbers, added{number: n, path: e.path})
+			change.added = append(change.added, added{number: n, path: e.path})
 		case space == SpaceTask:
 			malformed = append(malformed, AddedNumberIssue{Space: space, Kind: AddedMalformed, Path: e.path})
 		}
 	}
-	return numbers, malformed, nil
+	for _, e := range baseEntries {
+		if !hasPath(headEntries, e.path) {
+			change.deleted = append(change.deleted, e)
+		}
+	}
+	return change, malformed, nil
+}
+
+func hasPath(entries []treeEntry, p string) bool {
+	return slices.ContainsFunc(entries, func(e treeEntry) bool { return e.path == p })
 }
 
 // checkSpace judges the numbers the PR adds to one space against the record
 // tags, the latest origin/main, and every other origin branch.
-func (t *Tool) checkSpace(ctx context.Context, space Space, numbers []added, refs remoteRefs, headBranch string, trees map[string][]treeEntry) ([]AddedNumberIssue, error) {
+//
+// Contract: an entry of the latest origin/main that the PR deletes is not a
+// duplicate, because it will not exist after the merge; so a PR that renames
+// a task directory or an ADR file within its number is not stopped.
+func (t *Tool) checkSpace(ctx context.Context, space Space, change spaceChange, refs remoteRefs, headBranch string, trees map[string][]treeEntry) ([]AddedNumberIssue, error) {
+	numbers := change.added
 	dir, err := space.dir()
 	if err != nil {
 		return nil, err
@@ -289,7 +310,7 @@ func (t *Tool) checkSpace(ctx context.Context, space Space, numbers []added, ref
 		if a.number.Int() > threshold && !slices.Contains(refs.tags[prefix], a.number.Int()) {
 			issues = append(issues, AddedNumberIssue{Space: space, Number: a.number, Kind: AddedUnreserved, Path: a.path})
 		}
-		for _, e := range sameNumber(space, a, mainEntries, nil) {
+		for _, e := range sameNumber(space, a, mainEntries, change.deleted) {
 			issues = append(issues, AddedNumberIssue{Space: space, Number: a.number, Kind: AddedInUseOnMain, Path: a.path, UsedBy: e.path})
 		}
 	}
@@ -312,11 +333,12 @@ func (t *Tool) checkSpace(ctx context.Context, space Space, numbers []added, ref
 
 // sameNumber returns the entries of the space's form that carry a's number
 // under another name, leaving out every entry whose path is in skip (the
-// latest origin/main's entries, when judging another branch).
+// entries the PR deletes, when judging the latest origin/main; the latest
+// origin/main's entries, when judging another branch).
 func sameNumber(space Space, a added, entries, skip []treeEntry) []treeEntry {
 	var found []treeEntry
 	for _, e := range entries {
-		if e.path == a.path || slices.ContainsFunc(skip, func(s treeEntry) bool { return s.path == e.path }) {
+		if e.path == a.path || hasPath(skip, e.path) {
 			continue
 		}
 		if n, ok := entryNumber(space, e); ok && n == a.number {

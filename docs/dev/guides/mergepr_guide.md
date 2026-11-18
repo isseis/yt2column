@@ -243,11 +243,11 @@ PR の base が `main` のときだけ確かめる。確かめの判定は `inte
 - **PR が加える番号.** PR の head と、最新の `origin/main`（`git ls-remote` で読み、SHA を指定して取得する）の merge-base を比べ、head の `docs/tasks/` にあって merge-base にないタスクのディレクトリと、head の `docs/dev/adr/` にあって merge-base にない ADR のファイルの番号である。最新の `origin/main` と比べないのは、PR が分かれた後に `main` で名前を変えたものが、古い head に残っているだけで「加えた」と数えられないようにするためである。番号を加えない PR では、記録の tag もほかのブランチも読まずに通す。
 - **形.** PR が `docs/tasks/` の下に加えた項目が、タスクのディレクトリ名の形（`NNNN_<name>`）のディレクトリでなければ止まる（`malformed`）。
 - **記録.** 加えた番号がしきい値より大きく、記録の tag（`refs/tags/task-number/NNNN` か `refs/tags/adr-number/NNNN`）がなければ止まる（`unreserved`）。しきい値はタスク番号が `0103`、ADR 番号が `0051` で、この確かめを入れたときに使われていた番号の最大値である（[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) の §7「しきい値の記録」）。それより前に作った PR は記録の tag を持たないので、しきい値以下の番号は記録を求めない。
-- **重複.** 加えた番号を、最新の `origin/main` の別の名前のディレクトリかファイルが使っていれば止まる（`in-use-on-main`）。同じ名前なら同じものとみなす。
+- **重複.** 加えた番号を、最新の `origin/main` の別の名前のディレクトリかファイルが使っていれば止まる（`in-use-on-main`）。同じ名前なら同じものとみなす。PR が消す項目（merge-base にあって head にない項目）は、マージの後に残らないので数えない。PR が同じ番号のまま名前を変えたときに止まらないためである。
 - **ほかのブランチ.** 加えた番号を、PR の head ブランチと `main` でない `origin` のブランチが、`origin/main` にない別の名前で持っていれば止まる（`on-other-branch`）。同じ名前なら同じタスクか ADR とみなす。マージされずに残った古いブランチでも止まる。
 - **読む空間.** 記録の tag とほかのブランチは、PR が番号を加える空間の分だけを読む。もう一方の空間の記録の tag が受け入れない形でも、止まらない。最新の `origin/main` の受け入れない形の項目は読み飛ばし、止まらない（その項目を消す PR を止めないため）。
 - **読めないときは止める.** `git ls-remote` と取得の失敗、merge-base を求められないこと、読む記録の tag とブランチの受け入れない形、上限の超過は、どれもマージせずに止まる（`number check: cannot check the numbers the PR adds`）。止める理由の語は numreserve と同じである（numreserve_guide.md の 2 章）。
-- **出力.** 見つけたものを 1 件 1 行で、`mergepr: number check: <種類> <空間> <番号> "<PR のパス>": <使っている所>` の形で標準エラーに出し、その後に誤りの行を出して、終了コード 1 で終わる。パスとブランチ名は Go の引用の形で出す。
+- **出力.** 見つけたものを 1 件 1 行で、`mergepr: number check: <種類> <空間> <番号> "<PR のパス>": <使っている所>` の形で標準エラーに出し、その後に誤りの行を出して、終了コード 1 で終わる。`malformed` の行は番号を持たず、`mergepr: number check: malformed task "<PR のパス>": not a task directory` の形である。パスとブランチ名は Go の引用の形で出す。
 
 ## 7. 止まったときの対処
 
@@ -290,7 +290,7 @@ head の値が `origin/main` の値と同じ道具があるとき（上げた番
 
 **番号を読めないとき.** 表示された理由に応じて直す。shallow なリポジトリなら `git fetch --unshallow` を実行する。`main` の取得に失敗したなら、ネットワークと `origin` を確かめてから、止まったサブコマンド（`prepare` か `merge`）を同じ引数で実行し直す。読めない宣言の行なら、表示されたファイルの行を `const Protocol = <整数>` の形に直す。PR の base が `main` でないなら、番号を変えるコミットは `main` を base にした PR でマージする。
 
-**番号の確かめで止まったとき.** `merge` で止まったときは、マージしていない。準備を `mergepr discard --protocol 2 --state ...` で捨ててから、見つけたものの種類ごとに直す。
+**番号の確かめで止まったとき.** `merge` で止まったときは、マージしていない。確かめに要るものを読めず、止める理由が `network-or-github` のときは、準備はそのまま使えるので、`origin` に届くようになってから同じ `merge` を実行し直す。それ以外は、準備を `mergepr discard --protocol 2 --state ...` で捨ててから、見つけたものの種類ごとに直す。
 
 - **ADR 番号（`unreserved`・`in-use-on-main`・`on-other-branch`）.** PR のブランチの作業ツリーで `numreserve adr` を実行して新しい番号を決め、[adr.md](../conventions/adr.md) の「Taking in `main`」の手順 2 と同じ形で付け替える。commit して push し、マージをやり直す。
 - **タスク番号（`unreserved`・`in-use-on-main`・`on-other-branch`）.** 番号はブランチ名にも入り、`chief` はブランチ名とディレクトリ名が一致することを求める。開いている PR の head ブランチの名前は変えられないので、`numreserve task` で新しい番号を決め、新しいブランチと PR で作り直す。止まった PR は閉じる。`/runpr` がマージの直前に積んだ記録の commit（文書の `approved` など）は、マージされない PR に残り、作り直した PR には引き継がれない。作り直した PR で `/runpr` を実行し、承認を記録し直す。

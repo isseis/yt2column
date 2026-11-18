@@ -165,9 +165,12 @@ around it with your own shell commands. Work in order; do not skip a step.
    shows, and report as step 1 says. For a PR into `main` it then repeats the
    number check right before the merge, so a number another PR took since
    step 1 stops it. When that check stops it (its error starts with
-   `number check: `), nothing is merged: discard the preparation with
-   `mergepr discard --protocol 2 --state <state-file>`, report as step 1 says
-   for the number check, and stop. Then it cleans up:
+   `number check: `), nothing is merged. When the error shows the check
+   could not read origin (reason `network-or-github`), the preparation still
+   holds: run the same `merge` command once more, and when it fails again,
+   discard the preparation. Otherwise discard the preparation with
+   `mergepr discard --protocol 2 --state <state-file>`. Either way, report as
+   step 1 says for the number check, and stop. Then it cleans up:
    it fast-forwards the local base branch from `origin/<baseRefName>` and deletes
    the local head branch only while it still points at `headRefOid` (and stops
    without touching local branches if the merged head is not `headRefOid`). When

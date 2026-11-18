@@ -371,8 +371,8 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	// A number another PR merged since prepare must stop this merge, so the
 	// number check runs again as the last step before gh pr merge.
 	if err := t.checkNumbers(ctx, state); err != nil {
-		if errors.Is(err, errNumberUnreadable) {
-			return checked, fmt.Errorf("%w\nnothing was merged; run the same merge command again once the check can read origin, or discard the preparation with `%s`", err, discardCommand(statePath))
+		if stopErr, ok := errors.AsType[*numreserve.StopError](err); ok && stopErr.Kind == numreserve.StopNetworkOrGitHub {
+			return checked, fmt.Errorf("%w\nnothing was merged; the preparation still holds, so run the same merge command again once origin can be read", err)
 		}
 		return checked, fmt.Errorf("%w\nnothing was merged; discard the preparation with `%s`, then fix the PR", err, discardCommand(statePath))
 	}

@@ -511,7 +511,7 @@ PR の分け方の理由は §1.3 の決定 1 にある。利用者の手作業�
 | AC-26 | manual | PR-3 のレビューで、手引きの 6 項目（設計書 3.9）を読む。PR-4 のレビューで、マージの前の確かめの直し方と cloud の制約を読む | ステップ 5-6・6-6・7-2 |
 | AC-27 | test | `internal/numreserve/check_test.go::TestCheckAdded`（しきい値より大きく記録のない番号を `AddedUnreserved` で返し、しきい値以下なら返さない）、`internal/mergepr/mergepr_test.go::TestPrepareNumberCheck`・`::TestMergeNumberCheck`（見つけたら止まる）、`cmd/mergepr/main_test.go::TestPrintErrorListsNumberIssues`（番号と理由を示す） | ステップ 6-2・6-4・6-5 |
 | AC-28 | test | `internal/numreserve/check_test.go::TestCheckAdded`（最新の `origin/main` の別のもの、ほかのブランチの別の名前を返す）、`internal/mergepr/mergepr_test.go::TestMergeNumberCheck`（`gh pr merge` の直前に確かめる）、`cmd/mergepr/main_test.go::TestPrintErrorListsNumberIssues`（使っているディレクトリかファイルを示す） | ステップ 6-2・6-4・6-5 |
-| AC-29 | test | `internal/numreserve/check_test.go::TestCheckAdded`（`origin/main` にすでにある番号と、`main` で名前を変えたものが古いヘッドに残る PR を返さない。番号を加えない PR では何も読まない） | ステップ 6-2 |
+| AC-29 | test | `internal/numreserve/check_test.go::TestCheckAdded`（`main` で名前を変えたものが古いヘッドに残る PR と、PR の中で同じ番号のまま名前を変えたものを返さない。番号を加えない PR では、ブランチの一覧と merge-base と 2 つの木のほかは何も読まない） | ステップ 6-2 |
 
 Diff record (AC-18):
 
@@ -690,6 +690,8 @@ a2fbb8f0cb82588fcde719d81128924b62850be7	refs/tags/task-number/0103
 ```
 
 2 の出力は、`refs/remotes/origin/HEAD`（`604c9707991f`）を除いて 1 のブランチの行と同じ名前と SHA だった（11 本）。
+
+3 の出力は、各ブランチについて項目の数と、形に合う最大の項目だけを下の表に要約した（22 回の出力は合わせておよそ 1,600 行になる）。どの出力も、表の commit ID から同じ操作で再現できる。
 
 3 の結果（項目の数と、形に合う最大の項目）：
 

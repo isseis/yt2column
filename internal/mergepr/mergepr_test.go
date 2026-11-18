@@ -892,7 +892,8 @@ var numberStops = []struct {
 	err    error
 }{
 	{"finding", []numreserve.AddedNumberIssue{{Space: numreserve.SpaceTask, Kind: numreserve.AddedUnreserved, Path: "docs/tasks/0104_x"}}, nil},
-	{"unreadable", nil, &numreserve.StopError{Kind: numreserve.StopNetworkOrGitHub, Step: "listing", Detail: "git exited with status 128"}},
+	{"unreadable", nil, &numreserve.StopError{Kind: numreserve.StopMalformed, Step: "listing", Detail: "line \"x\" is not <40 hex digits><tab><ref>"}},
+	{"unreachable", nil, &numreserve.StopError{Kind: numreserve.StopNetworkOrGitHub, Step: "listing", Detail: "git exited with status 128"}},
 }
 
 // assertNumberStop checks err is the stop numberStops row stop describes.
@@ -1018,10 +1019,35 @@ func TestMergeNumberCheck(t *testing.T) {
 			if _, err := os.Stat(dir); err != nil {
 				t.Errorf("work directory %s removed on a stopped merge, want it kept for discard: %v", dir, err)
 			}
-			// The command the operator is told to run is the contract.
-			if !strings.Contains(err.Error(), discardCommand(statePath)) {
-				t.Errorf("Merge error = %q, want it to show %q", err, discardCommand(statePath))
+			// The command the operator is told to run is the contract: a
+			// stop that waiting cannot fix shows the discard command, and a
+			// network stop keeps the preparation for the same merge again.
+			wantDiscard := stop.name != "unreachable"
+			if got := strings.Contains(err.Error(), discardCommand(statePath)); got != wantDiscard {
+				t.Errorf("Merge error = %q, shows %q: %t, want %t", err, discardCommand(statePath), got, wantDiscard)
 			}
 		})
 	}
+	t.Run("base not main", func(t *testing.T) {
+		dir := t.TempDir()
+		state := testState
+		state.BaseRefName = "release"
+		data, err := json.Marshal(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		statePath := writeTempFile(t, dir, stateFileName, string(data))
+		subjectPath := writeTempFile(t, dir, "subject.txt", "feat: subject (#42)\n")
+		bodyPath := writeTempFile(t, dir, "body.txt", "body text\n")
+		refused := mergeStep()
+		refused.err = errors.New("exit status 1")
+		tool, runner, numbers := newNumberedTool(t, numberStops[0].issues, nil, viewStep(openState, "release"), fetchMainStep(), refused)
+		if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, refused.err) {
+			t.Fatalf("Merge error = %v, want the refused merge's error", err)
+		}
+		runner.done()
+		if len(numbers.calls) != 0 {
+			t.Errorf("number check calls = %+v, want none for a PR into release", numbers.calls)
+		}
+	})
 }
