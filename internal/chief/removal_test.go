@@ -38,6 +38,9 @@ type removalSetup struct {
 	others []fakePane
 	// closed is the workspace closed: its panes are gone.
 	closed bool
+	// during, when set, runs inside each write allowRemoval allows, before
+	// the write changes the fake.
+	during func()
 }
 
 // issueLineOf is one line of the issue line search for a task directory.
@@ -501,7 +504,8 @@ func (cw *checkWorld) worktrees(extra string) {
 func (cw *checkWorld) check(t *testing.T) []CheckResult {
 	t.Helper()
 	c := newRemovalCandidate(cw.tree, removalWS, issueNumber(t, removalIssue), taskID(t, removalTask))
-	return checkRemoval(context.Background(), cw.rec.commands(nil), cw.chief, c, cw.agents, cw.panes)
+	checks, _ := checkRemoval(context.Background(), cw.rec.commands(nil), cw.chief, c, cw.agents, cw.panes)
+	return checks
 }
 
 // TestRemovalChecks breaks one check at a time, by a value that fails it and
@@ -596,7 +600,10 @@ func TestRemovalChecks(t *testing.T) {
 	}
 	t.Run("the zero candidate", func(t *testing.T) {
 		cw := newCheckWorld(t)
-		got := checkRemoval(context.Background(), cw.rec.commands(nil), cw.chief, RemovalCandidate{}, cw.agents, cw.panes)
+		got, head := checkRemoval(context.Background(), cw.rec.commands(nil), cw.chief, RemovalCandidate{}, cw.agents, cw.panes)
+		if head != "" {
+			t.Errorf("head = %q for the zero candidate", head)
+		}
 		if len(got) != len(removalChecks) || slices.ContainsFunc(got, func(r CheckResult) bool { return r.Passed }) {
 			t.Errorf("checks = %+v, want every check not passed", got)
 		}
@@ -839,7 +846,7 @@ func TestWorktreeRemoveKeepsBranch(t *testing.T) {
 	gitIn := func(args ...string) {
 		repo.Run(filepath.Join(testToolsDir, gitProgram), append([]string{"-C", path}, args...)...)
 	}
-	closer := WorkspaceCloser{cmds: cmds, chiefTree: Worktree{path: repo.Dir}, tree: Worktree{path: path}, workspace: removalWS}
+	closer := WorkspaceCloser{cmds: cmds, chiefTree: Worktree{path: repo.Dir}, tree: Worktree{path: path}, workspace: removalWS, head: strings.TrimSpace(repo.Git("rev-parse", "HEAD"))}
 	writeFile(t, filepath.Join(path, "README.md"), "changed\n")
 	if err := closer.removeWorktree(t.Context()); err == nil {
 		t.Fatal("git removed a worktree with a tracked change")
@@ -872,10 +879,16 @@ func TestWorktreeRemoveKeepsBranch(t *testing.T) {
 func (rs *removalSetup) allowRemoval() {
 	sw := rs.sw
 	sw.rec.allowWriteDo(herdrProgram, "", []string{herdrWorkspace, "close", removalWS}, func() reply {
+		if rs.during != nil {
+			rs.during()
+		}
 		rs.close()
 		return reply{out: readTestdata(sw.t, "herdr/workspace-close.json")}
 	})
 	sw.rec.allowWriteDo(gitProgram, sw.chiefTree, []string{gitWorktree, "remove", rs.tree}, func() reply {
+		if rs.during != nil {
+			rs.during()
+		}
 		if err := os.RemoveAll(rs.tree); err != nil {
 			return reply{err: err}
 		}
@@ -1022,6 +1035,37 @@ func TestRemoveLeavesTheRest(t *testing.T) {
 	}
 }
 
+// TestRemoveHoldsTheExclusion checks that the workspace's exclusion is held
+// while the workspace is closed and its worktree removed, so a send cannot
+// take it then, and that it is free again once the removal ended.
+func TestRemoveHoldsTheExclusion(t *testing.T) {
+	sw, rs := newRemovalWorld(t)
+	rs.allowRemoval()
+	records, err := sw.store.Records(Worktree{path: rs.tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var during []error
+	rs.during = func() {
+		held, err := records.Lock()
+		if err == nil {
+			_ = held.Close()
+		}
+		during = append(during, err)
+	}
+	if out := rs.remove(sw.finish(), rs.tree); out.Result != RemoveDone {
+		t.Fatalf("Remove = %+v, want removed", out)
+	}
+	if len(during) != 2 || !errors.Is(during[0], ErrWorkspaceBusy) || !errors.Is(during[1], ErrWorkspaceBusy) {
+		t.Errorf("locks taken during the writes = %v, want busy twice", during)
+	}
+	held, err := records.Lock()
+	if err != nil {
+		t.Fatalf("the exclusion after the removal: %v", err)
+	}
+	_ = held.Close()
+}
+
 // TestRemoveRefusesOnEachCheck breaks one check at a time and checks that
 // the removal is refused with that check not passed, that nothing is
 // written (the recorder allows no write), and that the created record stays.
@@ -1163,6 +1207,12 @@ func TestRemoveRefusesWhenChanged(t *testing.T) {
 				return reply{out: agentListOutput(agents)}
 			})
 		}},
+		{"the pane list cannot be read again", func(sw *sendWorld, _ *removalSetup) {
+			after(sw, "herdr pane list", 1, func() reply { return reply{err: errInjected} })
+		}},
+		{"the agent list cannot be read again", func(sw *sendWorld, _ *removalSetup) {
+			after(sw, "herdr agent list", 2, func() reply { return reply{err: errInjected} })
+		}},
 		{"a busy shell", func(sw *sendWorld, _ *removalSetup) {
 			after(sw, "herdr pane process-info --pane "+removalWS+":p3", 1, func() reply {
 				return reply{out: processInfoOutput(removalWS+":p3", 100, 200, 200)}
@@ -1226,6 +1276,11 @@ func TestRemoveStopsAtEachStage(t *testing.T) {
 		}, 1, []string{"workspace", "worktree", "registration", "record"}},
 		{"the panes stay", RemoveStageWaitPanes, func(sw *sendWorld, _ *removalSetup) {
 			sw.rec.allowWrite(herdrProgram, "", closeLine, reply{out: readTestdata(sw.t, "herdr/workspace-close.json")})
+		}, 1, []string{"workspace", "worktree", "registration", "record"}},
+		{"the pane list fails during the wait", RemoveStageWaitPanes, func(sw *sendWorld, _ *removalSetup) {
+			sw.rec.allowWrite(herdrProgram, "", closeLine, reply{out: readTestdata(sw.t, "herdr/workspace-close.json")})
+			// The checks and the re-read before the close read it first.
+			after(sw, "herdr pane list", 2, func() reply { return reply{err: errInjected} })
 		}, 1, []string{"workspace", "worktree", "registration", "record"}},
 		{"git refuses the worktree", RemoveStageRemoveWorktree, func(sw *sendWorld, rs *removalSetup) {
 			sw.rec.allowWriteDo(herdrProgram, "", closeLine, func() reply {
@@ -1299,12 +1354,11 @@ func TestRemoveStopsWhenHeadMoved(t *testing.T) {
 	cases := []struct {
 		name string
 		line string
-		// n is how many runs of line answer as before: the checks' and, for
-		// HEAD, the read just before the close.
+		// n is how many runs of line answer as before: the checks'.
 		n       int
 		changed reply
 	}{
-		{"HEAD moved", "git rev-parse HEAD", 2, reply{out: []byte(strings.Repeat("3", 40) + "\n")}},
+		{"HEAD moved", "git rev-parse HEAD", 1, reply{out: []byte(strings.Repeat("3", 40) + "\n")}},
 		{"HEAD no longer on origin/main", "git merge-base --is-ancestor " + mainCommit + " " + mainCommit, 1, reply{err: &cmdrunner.ExitError{Code: 1}}},
 	}
 	for _, c := range cases {

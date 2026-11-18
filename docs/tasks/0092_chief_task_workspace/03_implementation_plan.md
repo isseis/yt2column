@@ -124,6 +124,8 @@
 17. **`create` が git を走らせる場所に、`/mkreq` の送信が送り先を探すときに読む、ほかのエージェントの作業ディレクトリを加える（2026-11-18、人が承認した）。** `sendAfterCreate` は 0088 の送信と同じ `locate`（`FindTaskWorkspaces`）で送り先を探す。そのため、エージェントのいるほかの workspace の作業ディレクトリでも、`git rev-parse --git-common-dir` と `git rev-parse --show-toplevel` を読み取りだけで走らせる。ステップ 4-2 の「git は chief の worktree と作った worktree でだけ走らせる」はこれに合わなかった。PR-4 の Fable の部分レビューが見つけた。探し方を絞る案は採らない。送る前の確かめを 0088 の送信と 1 つの入口に保つためで、走るのは読み取りだけである。ステップ 4-2 の文を直した。ADR: なし（PR-4 の中で閉じるため）。
 18. **作成の排他を取れない周では、条件のそろった PR を次の周へ持ち越す（2026-11-18、人が承認した）。** 設計書 3.1 とステップ 4-4 は、取れない周では自動送信をせず、出力の問題に示すとだけ言う。実装は、条件のそろった PR を次の周へ持ち越し、次の周がその PR を自動で送る。その周の出力には、同じ PR が提案の項目としても出る。0088 で、条件がまだそろわないマージ済みの PR を持ち越すのと同じ扱いで、害は見つかっていない。PR-4 の Fable の部分レビューが、計画書に書かれていない選択として挙げた。ADR: なし（PR-4 の中で閉じるため）。
 
+19. **`remove` が git を走らせる場所に、`--workspace` を今のタスクの workspace と比べる `locate` が読む、ほかのエージェントの作業ディレクトリを加える（2026-11-18、人が承認した）。** 設計書 3.1 は、`remove` の `--workspace` を 0088 の `locate` で比べるとする。`locate` は、タスクの workspace を見分けるために、ほかのエージェントの作業ディレクトリでも `git rev-parse --git-common-dir` と `git rev-parse --show-toplevel` を読み取りだけで走らせる。そのため、ステップ 6-2 の「`remove` が git を chief の worktree と消す worktree でだけ走らせる」はこれに合わなかった。PR-6 のサブエージェントのレビューが見つけた。決定 17 と同じ理由で、探し方を絞る案は採らない。`network_test.go` のテストは、ほかのエージェントのいる世界で、そのディレクトリでは 2 つの `rev-parse` だけが走ることを確かめる。ステップ 6-2 の文を直した。ADR: なし（PR-6 の中で閉じるため）。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 実地の確かめ、サンプル、Herdr の新しい出力の読み取り（設計書 8 章の 1、2 のうち Herdr の出力）
@@ -336,13 +338,14 @@
 
 ### フェーズ 6: 消す実行（設計書 8 章の 4 のうち削除）
 
-**変更するファイル:** `internal/chief/removal.go`・`removal_test.go`、`internal/chief/output.go`、`internal/chief/network_test.go`、`internal/chief/construction_test.go`、`docs/dev/conventions/package_reference.md`、本計画。結合テストは、作成のテストの世界（`internal/chief/create_test.go` の `createWorld`）を `removal_test.go` で広げる。ステップ 6-5 で足すときは、0093 の部品のファイルとテスト
+**変更するファイル:** `internal/chief/removal.go`・`removal_test.go`、`internal/chief/output.go`、`internal/chief/network_test.go`、`internal/chief/construction_test.go`、`internal/chief/create.go`（残ったものの種類 `registration`、出力の綴りの定数）、`internal/chief/snapshot.go`（画面の読み取りを `readAgentFacts` に分ける）、`internal/chief/send.go`（出力の綴りの定数）、`docs/dev/conventions/package_reference.md`、本計画。結合テストは、作成のテストの世界（`internal/chief/create_test.go` の `createWorld`）を `removal_test.go` で広げる。ステップ 6-5 で足すときは、0093 の部品のファイルとテスト
 
 -   [x] **ステップ 6-1**: `removal.go` に `WorkspaceCloser` を書く（設計書 3.6）。削除の確かめをすべて通った `RemovalCandidate` からだけ作り、`herdr workspace close <ID>` を `--group` なしで呼ぶ。`git worktree remove`（`--force` なし）も `WorkspaceCloser` のメソッドだけが、候補の worktree のパスで呼ぶ。`newTestRepo` の一時的なリポジトリの本物の git で、変更のある worktree と追跡していないファイルのある worktree を git が拒むこと、detached の worktree でブランチを作ってから detached に戻した worktree を消してもそのブランチが残ることを確かめる。ゼロ値は何も走らせず、`construction_test.go` のガードの対象に足す（決定 11）。テストは、確かめが 1 つでも通らない候補から作れないこと、ゼロ値が herdr を呼ばないこと、呼び出しの引数を確かめる。
 -   [x] **ステップ 6-2**: `removal.go` に `Remove` を書く（設計書 3.4.3・4.1）。
     -   `--workspace` を `locate`（`internal/chief/request.go:134`）で今のタスクの workspace と比べる。排他、fetch、確かめ、閉じる直前の読み直し、閉じる、pane が消えるのを待つ（決定 6）、HEAD の確かめ直し、`git worktree remove`、記録を消す（作ったことの記録を最後に）の順に行う。
-    -   全体の時間の上限と、結果の型（`RemoveOutcome` など）とその出力を書く。
-    -   テストは設計書 7.1 の「削除」の項目を受け持つ。`network_test.go` に、`remove` が git を chief の worktree と消す worktree でだけ走らせることを確かめるテストを足す。結果の出力も確かめる。そのほか、次を確かめる。
+    -   全体の時間の上限と、結果の型（`RemoveOutcome` など）とその出力を書く。止まったときに残ったものの種類には、作成の `Made` の種類に、git の worktree の登録を表す `registration` を足す（設計書 3.4.3 の「git の worktree の登録」）。
+    -   削除の候補でなくなった workspace は、ほかの確かめに候補が要るので、確かめの結果に `not_candidate` だけを持つ。
+    -   テストは設計書 7.1 の「削除」の項目を受け持つ。`network_test.go` に、`remove` が git を chief の worktree と消す worktree で走らせ、ほかのエージェントの作業ディレクトリでは `locate` の 2 つの `rev-parse` だけを走らせることを確かめるテストを足す（決定 19）。結果の出力も確かめる。そのほか、次を確かめる。
         -   各段を失敗させ、残ったものを示し、消し直さない。
         -   確かめの後に pane の集まりかエージェントの状態が変われば閉じない（`changed`）。確かめの後に HEAD が動けば消さない（`recheck_head`）。
         -   `--force` と `--group` を渡さない。
@@ -615,3 +618,4 @@
 - 2026-11-17 承認（isseis、#939）
 - 2026-11-17 セッション中の再承認：決定 8 の (v) の止まる例を、transcript のファイルがないことから、`/clear` の後にセッション ID が変わらないことに変えた（決定 16）（isseis、#923）
 - 2026-11-18 セッション中の再承認：`create` が git を走らせる場所に、送り先を探すときに読むほかのエージェントの作業ディレクトリを加え（決定 17）、作成の排他を取れない周で PR を次の周へ持ち越すことを決めた（決定 18）（isseis、#971）
+- 2026-11-18 セッション中の再承認：`remove` が git を走らせる場所に、`locate` が読むほかのエージェントの作業ディレクトリを加えた（決定 19）（isseis、#未記入）

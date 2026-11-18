@@ -175,7 +175,8 @@ func (r *removalReader) readIndex(ctx context.Context) (IssueIndex, error) {
 func (r *removalReader) readRemovalCandidate(ctx context.Context, w TaskWorkspace) (*RemovalCandidate, string) {
 	records, ok, err := r.store.existingRecords(w.Tree)
 	if err != nil || !ok {
-		// A directory that cannot be read is the problem addRecords reports.
+		// A round's addRecords already names a directory that cannot be
+		// read; a removal refuses with the candidate check not passed.
 		return nil, ""
 	}
 	rec, err := records.Created(r.home)
@@ -197,7 +198,10 @@ func (r *removalReader) readRemovalCandidate(ctx context.Context, w TaskWorkspac
 		return nil, "the issue lines of origin/main cannot be read, so " + w.Worktree + " is not offered for removal: " + err.Error()
 	}
 	dirs, err := index.Tasks(rec.Issue)
-	if err != nil || len(dirs) != 1 {
+	if err != nil {
+		return nil, "the tasks of issue " + rec.Issue.String() + " on origin/main cannot be read, so " + w.Worktree + " is not offered for removal: " + err.Error()
+	}
+	if len(dirs) != 1 {
 		return nil, ""
 	}
 	docs, err := NewTasks(r.cmds).ReadDir(ctx, r.chiefTree.String(), dirs[0])
@@ -216,27 +220,29 @@ func (r *removalReader) readRemovalCandidate(ctx context.Context, w TaskWorkspac
 // agents with their screens and panes every pane Herdr lists, both read by
 // the caller. Contract: the zero candidate passes no check and runs nothing;
 // a read that fails makes its check not passed with what it could not read
-// named, never passed.
-func checkRemoval(ctx context.Context, cmds Commands, chiefTree Worktree, c RemovalCandidate, agents []agentFacts, panes []listedPane) []CheckResult {
+// named, never passed. head is the HEAD commit the check of HEAD on
+// origin/main found reachable, and "" when that check did not pass.
+func checkRemoval(ctx context.Context, cmds Commands, chiefTree Worktree, c RemovalCandidate, agents []agentFacts, panes []listedPane) (results []CheckResult, head string) {
 	if c.tree.path == "" {
 		out := make([]CheckResult, 0, len(removalChecks))
 		for _, check := range removalChecks {
 			out = append(out, checkResult(check, false, []string{errNoCandidate.Error()}))
 		}
-		return out
+		return out, ""
 	}
 	git := NewGitReader(cmds)
 	tree := c.tree.String()
+	onMain, head := checkHeadOnMain(ctx, git, tree)
 	return []CheckResult{
 		checkResult(RemovalCheckCandidate, true, nil),
 		checkDetached(ctx, git, tree),
 		checkClean(ctx, git, tree),
-		checkHeadOnMain(ctx, git, tree),
+		onMain,
 		checkUnlocked(ctx, git, chiefTree, c.tree),
 		checkAgentsIdle(c.workspace, agents, panes),
 		checkShellsIdle(ctx, NewHerdr(cmds), c.workspace, panes),
 		checkPathUnused(c, panes),
-	}
+	}, head
 }
 
 func checkDetached(ctx context.Context, git GitReader, tree string) CheckResult {
@@ -255,20 +261,26 @@ func checkClean(ctx context.Context, git GitReader, tree string) CheckResult {
 	return checkResult(RemovalCheckClean, clean, nil)
 }
 
-func checkHeadOnMain(ctx context.Context, git GitReader, tree string) CheckResult {
+// checkHeadOnMain checks that origin/main reaches the worktree's HEAD and
+// returns that HEAD when it does, so a removal compares a later read with
+// the commit this check passed.
+func checkHeadOnMain(ctx context.Context, git GitReader, tree string) (CheckResult, string) {
 	head, err := git.Head(ctx, tree)
 	if err != nil {
-		return checkResult(RemovalCheckHeadOnMain, false, []string{"the HEAD commit of the worktree"})
+		return checkResult(RemovalCheckHeadOnMain, false, []string{"the HEAD commit of the worktree"}), ""
 	}
 	main, err := git.OriginMain(ctx, tree)
 	if err != nil {
-		return checkResult(RemovalCheckHeadOnMain, false, []string{"origin/main"})
+		return checkResult(RemovalCheckHeadOnMain, false, []string{"origin/main"}), ""
 	}
 	reachable, err := git.IsAncestor(ctx, tree, head, main)
 	if err != nil {
-		return checkResult(RemovalCheckHeadOnMain, false, []string{"whether origin/main reaches the HEAD"})
+		return checkResult(RemovalCheckHeadOnMain, false, []string{"whether origin/main reaches the HEAD"}), ""
 	}
-	return checkResult(RemovalCheckHeadOnMain, reachable, nil)
+	if !reachable {
+		return checkResult(RemovalCheckHeadOnMain, false, nil), ""
+	}
+	return checkResult(RemovalCheckHeadOnMain, true, nil), head
 }
 
 // checkUnlocked finds the worktree's registration among git's and checks
@@ -377,7 +389,7 @@ func addRemovals(ctx context.Context, deps Deps, view *roundView) []string {
 			continue
 		}
 		f := view.facts[i]
-		checks := checkRemoval(ctx, deps.Cmds, view.chiefTree, *c, f.Agents, r.panes)
+		checks, _ := checkRemoval(ctx, deps.Cmds, view.chiefTree, *c, f.Agents, r.panes)
 		row := &view.rows[i]
 		row.Removal = &RemovalProposal{Workspace: w.Worktree, Label: w.Label, Issue: c.issue, Task: c.task, Panes: workspacePanes(w.ID, r.panes), Checks: checks}
 		// The row follows the checks' own reading of HEAD and the agents, so
@@ -544,17 +556,19 @@ type WorkspaceCloser struct {
 	chiefTree Worktree
 	tree      Worktree
 	workspace string
+	// head is the HEAD commit the checks found reachable from origin/main.
+	head string
 }
 
 // newWorkspaceCloser runs every removal check on c and returns the checks,
 // with the closer of c's workspace only when every check passed. agents and
 // panes are as checkRemoval takes them.
 func newWorkspaceCloser(ctx context.Context, cmds Commands, chiefTree Worktree, c RemovalCandidate, agents []agentFacts, panes []listedPane) (WorkspaceCloser, []CheckResult, bool) {
-	checks := checkRemoval(ctx, cmds, chiefTree, c, agents, panes)
-	if !allChecksPassed(checks) || chiefTree.path == "" {
+	checks, head := checkRemoval(ctx, cmds, chiefTree, c, agents, panes)
+	if !allChecksPassed(checks) || chiefTree.path == "" || head == "" {
 		return WorkspaceCloser{}, checks, false
 	}
-	return WorkspaceCloser{cmds: cmds, chiefTree: chiefTree, tree: c.tree, workspace: c.workspace}, checks, true
+	return WorkspaceCloser{cmds: cmds, chiefTree: chiefTree, tree: c.tree, workspace: c.workspace, head: head}, checks, true
 }
 
 // allChecksPassed reports whether results hold every removal check, in
@@ -573,7 +587,7 @@ func allChecksPassed(results []CheckResult) bool {
 
 // made reports a closer no constructor made, which runs nothing.
 func (w WorkspaceCloser) made() error {
-	if w.tree.path == "" || w.chiefTree.path == "" || w.workspace == "" {
+	if w.tree.path == "" || w.chiefTree.path == "" || w.workspace == "" || w.head == "" {
 		return fmt.Errorf("%w: it was not made by newWorkspaceCloser", errCloserRefused)
 	}
 	return nil
@@ -758,8 +772,10 @@ func Remove(ctx context.Context, deps Deps, path string) (RemoveOutcome, error) 
 		if problem != "" {
 			unreadable = []string{problem}
 		}
+		// The other checks need a candidate, so a workspace that is no
+		// longer one carries the candidate check alone.
 		out.Checks = []CheckResult{checkResult(RemovalCheckCandidate, false, unreadable)}
-		return refusedRemove(out, RemoveRefusalChecksFailed, ""), nil
+		return refusedRemove(out, RemoveRefusalChecksFailed, "the workspace is no longer a removal candidate: its created record, its path in Herdr, or its issue's one finished task on origin/main does not hold"), nil
 	}
 	closer, checks, ok := newWorkspaceCloser(ctx, deps.Cmds, loc.chiefTree, *c, readAgentFacts(ctx, herdr, wsAgents), reader.panes)
 	out.Checks = checks
@@ -767,10 +783,6 @@ func Remove(ctx context.Context, deps Deps, path string) (RemoveOutcome, error) 
 		return refusedRemove(out, RemoveRefusalChecksFailed, ""), nil
 	}
 	tree := c.tree.String()
-	head, err := git.Head(ctx, tree)
-	if err != nil {
-		return refusedRemove(out, RemoveRefusalChanged, "the HEAD of the worktree cannot be read again: "+err.Error()), nil
-	}
 	if why := unchanged(ctx, herdr, *c, closeViewOf(c.workspace, agents, reader.panes)); why != "" {
 		return refusedRemove(out, RemoveRefusalChanged, why), nil
 	}
@@ -788,7 +800,7 @@ func Remove(ctx context.Context, deps Deps, path string) (RemoveOutcome, error) 
 	}{
 		{RemoveStageCloseWorkspace, func() error { return closer.close(ctx) }},
 		{RemoveStageWaitPanes, func() error { return waitPanesGone(ctx, herdr, deps.Sleep, c.workspace) }},
-		{RemoveStageRecheckHead, func() error { return recheckHead(ctx, git, tree, head) }},
+		{RemoveStageRecheckHead, func() error { return recheckHead(ctx, git, tree, closer.head) }},
 		{RemoveStageRemoveWorktree, func() error { return closer.removeWorktree(ctx) }},
 		{RemoveStageRemoveRecords, held.ClearRecords},
 	} {

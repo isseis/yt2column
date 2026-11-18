@@ -222,35 +222,45 @@ func TestCreateRunsOnlyInTheRightPlaces(t *testing.T) {
 	}
 }
 
-// TestRemoveRunsOnlyInTheRightPlaces runs a whole removal with the
-// target-redirecting variables set and checks every command: gh never runs;
-// git runs only in chief's worktree and in the worktree removed; and the
+// TestRemoveRunsOnlyInTheRightPlaces runs a whole removal next to another
+// task workspace, with the target-redirecting variables set, and checks
+// every command: gh never runs; git runs in chief's worktree and in the
+// worktree removed, and in the other agent's directory only the two
+// rev-parse reads by which the lookup tells task workspaces apart; and the
 // only writes are the workspace's close and the worktree's removal (the
-// recorder fails any other). The lookup of the workspace also reads, with
-// git rev-parse, the directory of every other agent; this world has no
-// other agent, so that read is not checked here.
+// recorder fails any other).
 func TestRemoveRunsOnlyInTheRightPlaces(t *testing.T) {
 	t.Setenv("GH_REPO", "other/repo")
 	t.Setenv("GH_HOST", "ghe.example.com")
-	sw, rs := newRemovalWorld(t)
+	sw := newSendWorld(t)
+	other := sw.addTask(fakeWorkspace{ID: "w1", Label: "other", Branch: taskBranch}, "claude")
+	rs := addRemovalWorkspace(t, sw)
 	rs.allowRemoval()
+	lookup := [][]string{{"rev-parse", "--path-format=absolute", "--git-common-dir"}, {"rev-parse", "--show-toplevel"}}
 	if out := rs.remove(sw.finish(), rs.tree); out.Result != RemoveDone {
 		t.Fatalf("Remove = %+v; the test reached no removal", out)
 	}
-	sawTree := false
+	sawTree, sawOther := false, false
 	for _, c := range sw.rec.recorded() {
 		switch c.name {
 		case ghProgram:
 			t.Errorf("gh ran %s; a removal reads nothing from GitHub", c.line())
 		case gitProgram:
 			sawTree = sawTree || c.dir == rs.tree
+			if c.dir == other {
+				sawOther = true
+				if !slices.ContainsFunc(lookup, func(l []string) bool { return slices.Equal(c.args, l) }) {
+					t.Errorf("%s ran in the other workspace's directory; only the lookup's reads may", c.line())
+				}
+				continue
+			}
 			if c.dir != sw.chiefTree && c.dir != rs.tree {
 				t.Errorf("%s ran in %q, not in chief's worktree or the one removed", c.line(), c.dir)
 			}
 		}
 	}
-	if !sawTree {
-		t.Error("no git ran in the worktree; the test reached no check")
+	if !sawTree || !sawOther {
+		t.Errorf("git ran in the worktree %v and in the other directory %v; the test reached neither the checks nor the lookup", sawTree, sawOther)
 	}
 	if got, want := writesOf(sw.rec), rs.removalWrites(); !slices.Equal(got, want) {
 		t.Errorf("writes %q, want %q", got, want)
