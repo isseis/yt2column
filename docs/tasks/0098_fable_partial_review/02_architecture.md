@@ -59,7 +59,7 @@
 10. **Fable の記録が有効かも、判定のスクリプトの `fable` のモードが決める。失敗したときは「有効でない」とする。** 理由: 有効かの判定は PR を開く関門（AC-08）で、誤って有効と判定すると、Fable を飛ばして PR が開く。セッションが文の手順で判定すると、この危険な側の誤りが残る。見たかの判定と同じ理由で、スクリプトにする。採らなかった案: セッションが `git rev-list` と除外できる commit の定義に従って判定する案。ADR: ADR-0050 を更新した。
 11. **「判定で無視してよい commit」は、判定ごとに定める。見たかの判定では、空の commit と、計画書の PR の進み具合のチェックボックスの行（`PR を作成した`・`PR がマージされた`・`次のブランチへ切り替えた` の行。PR マーカーの節のものと、単一 PR の記録のもの）だけを変える commit を見たとみなす。有効かの判定では、中身のない commit（空か、`README.en.md` だけか、計画書の PR の進み具合のチェックボックスの行だけを変える commit）を、記録を無効にしない commit とする。どちらの判定も、`_lib/opus-review.md` の除外できる commit は使わない。** 理由: 除外できる commit は、計画書だけを変える commit をすべて含む。`/mkplan`・`/mkplan2` の PR では計画書そのものがレビューされる中身であり、実装の PR でも計画書の `**自動送信**:`・`**実装モデル要件**:` の値は中身である。そのため、Fable の記録の後や Codex の PR レビューの後に計画書の中身を変える commit を無視すると、レビューされないまま PR が開くかマージされうる。PR の進み具合のチェックボックスの行だけを変える commit を見たとみなすのは、`/runplan` が PR を作った直後に、`PR を作成した` のチェックボックスと PR の URL を commit して push し（`runplan.md:143-145`、`:259`）、それが Codex の最初の PR レビューの後の commit になりうるためである。これを見たとみなさないと、実装の PR の判定がほとんどいつも `PARTIAL` になる。有効かの判定で `README.en.md` だけの commit も無視するのは、Part B の README の同期の commit が記録の後に来うるためで、翻訳は `README.md` の変更を写すだけである。見たかの判定の 2 種類は要件書の AC-35 を、有効かの判定の中身のない commit は AC-07 を、それぞれ改めて書き加えた決定である（利用者の選択。要件書は `draft` に戻した）。ADR: ADR-0013 と ADR-0050 を更新した。
 12. **Escalation の `request`・`skip`・`ask` は、サブエージェントの答え（`decision` と当たった基準の番号）と、見たかの判定の出力から、`runpr.md` step 3 に置く決まった規則で決める。規則はサブエージェントへの指示に写さない。基準の番号は変えず、基準 4（セキュリティと耐久性）に信頼の境界を足して広げる。** サブエージェントの返す JSON の形は変えない（AC-37）。番号を変えないのは、Procedure step 2 が「基準 4 に当たるときは 2 つの文書を読む」と番号で名指し（`pr-review-escalation.md:67-68`）、AC-37 がその step の文を変えさせないためである。理由: 「基準 1・2・3・5 だけに当たり `PARTIAL` なら `ask`」は機械的な対応で、サブエージェントに任せると、`PARTIAL` で `skip` を返す危険な側の誤りが残る。採らなかった案: 「Criteria」に COVERAGE の値を差し込み、サブエージェントに決めさせる案（`pr-review-escalation.md` の Procedure step 2 の `request` と `skip` の定義（`:75-79`）が、新しい「Criteria」と食い違う。AC-37 はその step の文を変えさせない）。ADR: ADR-0013 を更新した。
-13. **Escalation の基準 4 の信頼の境界に、レビューの関門そのものを変える変更を含める。関門とは、`_lib/pr-review-escalation.md` の基準、`runpr.md` step 3 の対応の規則と `headRefOid` の比べ方、判定のスクリプトとそれを `origin/main` から取り出す呼び方、記録の行の形と読み方を定める節、`fixprguard` である。ほかのコマンドの定義の変更は、今の基準のとおり扱う。** 理由: PR を開いた後に関門を緩める変更が入っても、AC-11 の基準 1 の例（秘密・送信・削除・pane の操作・不可逆な副作用）には当たらないので、`skip` になりうる。関門だけに絞るのは、このリポジトリの PR の多くが `.claude/commands/` を変えるので、コマンドの定義の全体を含めると Codex の割り当てを多く使うためである（利用者の選択）。採らなかった案: 含めない案、`.claude/` の全体を含める案。ADR: ADR-0013 を更新した。
+13. **Escalation の基準 4 の信頼の境界に、レビューの関門そのものを変える変更を含める。関門とは、`_lib/pr-review-escalation.md` の基準と Procedure、`runpr.md` step 3 の LAST_REVIEWED の定義と対応の規則と `headRefOid` の比べ方、判定のスクリプトとそれを `origin/main` から取り出す呼び方、`_lib/local-cli-review.md` の試行の結果と範囲を決める step（2・3・6）、記録の行の形と読み方を定める節、`fixprguard` である（Procedure・LAST_REVIEWED の定義・step 2・3・6 は 1.5 の決定 1 で足した）。ほかのコマンドの定義の変更は、今の基準のとおり扱う。** 理由: PR を開いた後に関門を緩める変更が入っても、AC-11 の基準 1 の例（秘密・送信・削除・pane の操作・不可逆な副作用）には当たらないので、`skip` になりうる。関門だけに絞るのは、このリポジトリの PR の多くが `.claude/commands/` を変えるので、コマンドの定義の全体を含めると Codex の割り当てを多く使うためである（利用者の選択）。採らなかった案: 含めない案、`.claude/` の全体を含める案。ADR: ADR-0013 を更新した。
 14. **見たかの判定は、AC-35 のとおり、ローカルの CLI レビューがレビューしたかだけで決める。Codex の後の範囲に、ローカルの CLI レビューの `unclear` や `deferred` の指摘が残っていても、`skip` になりうる。これは受け入れる危険とする。** 理由: 未解決の指摘で `ask` にすると、要件書 AC-35 の決定を変えることになるため（利用者の選択）。採らなかった案: 未解決の指摘の行が範囲にあれば `PARTIAL` とする案。ADR: ADR-0013 を更新した（「結果」に受け入れる危険を書いた）。
 15. **判定のスクリプトはシェルで書き、`origin/main` から取り出して走らせ、Go のテストで振る舞いを確かめる。** 読むだけで副作用を持たず、Go のテストで規則を壊して失敗を確かめる。`origin/main` から取り出して走らせる形は `_lib/opus-review-decision.sh` と同じである。ただし、`opus-review-decision.sh` の常設の Go テストは計画書の値の読み方だけを確かめ（`internal/chief/markers_parity_test.go`）、判断の規則はタスク 0081 の一度きりの確かめ（`docs/tasks/0081_implementation_model_choice/_checks/decision_cases.sh`）で確かめた。判定のスクリプトは、規則の全体を常設の Go テストで確かめる（7.1）。理由: 判定は記録の行と `git rev-list` の組み合わせで足り、Go の道具にすると、新しい `cmd/` と `internal/` と、利用者による入れ直しの手間が増えるため（利用者の選択）。[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) は、判定と副作用を持つ開発の道具を Go で書くと決め、判定をコマンドの定義に書いたシェルの手順にする案を採らなかった。判定のスクリプトは、コマンドの定義の文ではなく、テストを持つ独立したファイルなので、その案とは違う。採らなかった案: Go の道具にする案。ADR: ADR-0014 を更新した（読むだけの判定のスクリプトの例外を書いた）。
 16. **ローカルの CLI レビューの手順に入力 RECORD を足し、呼び出し元が `commit`（手順が記録の commit を作る）か `return`（記録の行を SUMMARY で返し、呼び出し元の次の commit が載せる）を指定する。渡さないときは `commit` とする。** 呼び出し元ごとの値は 3.3.5 の表に置く。理由: 「呼び出し元の手順で commit が続くか」を手順が文から推し量ると、呼び出し元ごとに読み違えうるため。既定を `commit` にするのは、`fixpr.md` を変えずに、その Phase 4.5 の見た範囲がブランチに残るようにするためである（`fixpr.md` は RECORD を渡さない）。ADR: なし（手順の入力で、決定 2 の範囲に収まる）。
@@ -127,6 +127,17 @@ flowchart LR
     class L2 enhanced
     class L3 newpkg
 ```
+
+### 1.5. 実装の際に決めたこと（2026-11-18）
+
+PR-1（#966）を開いた後に行った Fable の部分レビューの指摘から、利用者と決めた。
+
+1.  **決定 13 の関門に、`_lib/local-cli-review.md` の step 2・3・6、`runpr.md` step 3 の LAST_REVIEWED の定義、`_lib/pr-review-escalation.md` の Procedure を足す。** 理由: step 2・3・6 は試行の結果とその範囲を決め、見た範囲の行はそれから書かれる。LAST_REVIEWED の定義は、どこから先を Codex が見ていないとするかを決める。Procedure は、サブエージェントに渡す範囲と「迷うときは `ask`」の指示を持つ。どれも、緩める変更が PR を開いた後に入ると、基準 1 などに当たるだけで、ローカルの CLI レビューが見ていれば `skip` になりうる。これらはめったに変わらないので、Codex の割り当ての増えは小さい。採らなかった案: 今の一覧のまま、この筋書きを受け入れる危険とする案。ADR: [ADR-0013](../../dev/adr/0013-review-setup.md) を更新した。
+2.  **COVERAGE が `PARTIAL <n>` のとき、`runpr.md` step 3 の報告に、見ていない commit のそれぞれの ID・件名・変えるファイルと、変更の概要を示す。** 理由: マージの質問は見ていない commit の件数だけを示すので、人は Codex の PR 再レビューを頼むかを、何が変わったかを知らずに決めることになる。マージの質問の要約や詳細ファイルに示すと AC-40 を変えるので、マージの質問の前に示す step 3 の報告に置く。採らなかった案: 件数だけを示す今の形、詳細ファイルに示す案。ADR: なし（`/runpr` の報告の形で、タスクの中で閉じる）。
+3.  **判定のスクリプトは、LAST_REVIEWED が HEAD の祖先でないときを失敗（件数のない `PARTIAL`）とする。** 理由: HEAD が LAST_REVIEWED より前に戻ると、判断の対象の commit が 0 件になり `ALL` を出していた。今は Escalation の Procedure step 1 が `ask` にするので判定には届かないが、スクリプトだけでも安全な側に倒れるようにする。ADR: なし。
+4.  **`runplan.md` step 5a の AFTER_CREATE は、`PR を作成した` の行に URL を `: <PR URL>` の形で足す（`- [x] PR を作成した: <PR URL>`）。** 理由: AFTER_CREATE の commit は Codex の最初の PR レビューの後に入りうるので、判定のスクリプトがチェックボックスの commit とみなす必要がある。スクリプトはこの形だけを受け入れるが、`runplan.md` は形を決めていなかった。今ある計画書では `（#N）` や `（URL）` の形も使われており、その形で書くと、その PR の判定がいつも `PARTIAL` になる。多数派の形に手順を合わせる。採らなかった案: スクリプトがほかの形も受け入れる案（見たとみなす入力が広がる）。ADR: なし。
+5.  **判定の規則（判断の対象の commit、見たとみなす commit、見た範囲の行の START と END の確かめ）は、判定のスクリプトの冒頭が定め、その根拠を 3.6.1 とする。コマンドの文書が定めるのは、記録の行の形と、結果から決定を決める規則である。** 理由: スクリプトの冒頭は「規則はコマンドの文書が定め、食い違えばスクリプトを直す」と書いていたが、判定の規則を定めるコマンドの文書はなく、比べる先がなかった。規則をコマンドの文書に移すと、同じ規則を 2 か所で持つことになる。採らなかった案: 規則を `runpr.md` step 3 か `_lib/local-cli-review.md` に書き移す案。ADR: なし。
+6.  **`/runpr` の PRE_MERGE の commit は、今のとおり見たとみなさない。** PRE_MERGE は計画書 §6 の `PR-N マージ済み` も変えるので、チェックボックスの commit に当たらない。理由: PRE_MERGE はマージの直前に push されるので、判定に出るのはマージが途中で止まって `/runpr` を走らせ直したときだけで、そのときも人に 1 回問うだけである。PRE_MERGE は承認と PR 番号の書き込みも同じ commit に入れるので、§6 の行を許しても多くはチェックボックスだけの commit にならない。採らなかった案: §6 の行も許す案、PRE_MERGE を分ける案（どちらも判定の関門を広げる）。ADR: なし。
 
 ## 2. システム構成 (System Structure)
 
@@ -615,7 +626,7 @@ OpenCode は Agent ツールで Fable を呼べない（要件書 5 章）。Fab
     -   END が、その行を持つ commit の親か、その祖先である。
     -   START が merge-base か `origin/main..HEAD` の commit で、END が `origin/main..HEAD` の commit である。
 -   **入力の確かめ:** LAST_REVIEWED と HEAD は 40 桁の 16 進か `none` でなければならない。記録の行は決まった正規表現で読み、文を評価しない。
--   **失敗:** git のエラー、`origin/main` が読めない、入力が決まった形でない、出力が書けないときは `PARTIAL` とする。
+-   **失敗:** git のエラー、`origin/main` が読めない、入力が決まった形でない、LAST_REVIEWED が HEAD の祖先でない（1.5 の決定 3）、出力が書けないときは `PARTIAL` とする。
 
 #### 3.6.2. `fable` のモード：Fable の記録が有効かの判定
 
@@ -654,6 +665,7 @@ OpenCode は Agent ツールで Fable を呼べない（要件書 5 章）。Fab
 -   Escalation を走らせる前に、`git fetch origin main` をし、PR の `headRefOid` を読んで手元の `git rev-parse HEAD` と比べる。違えば COVERAGE を `PARTIAL` とする。等しければ、判定のスクリプトの `coverage` のモードを走らせ、出力の 1 行目を COVERAGE とする。
 -   `pr-review-escalation.md` を走らせ、返った答えを、この step に置く対応の規則（3.7）と COVERAGE で `request`・`skip`・`ask` にする。
 -   LAST_REVIEWED が `none` のときは、今のとおり Escalation を走らせずに `ask` とする（`runpr.md:668-670`）が、スクリプトは要約の行のために走らせる。
+-   COVERAGE が `PARTIAL <n>` のときは、Escalation の理由・COVERAGE・決めた規則の報告に、スクリプトが並べた見ていない commit のそれぞれについて、ID と件名、変えるファイル、変更の概要（セッション自身の言葉で 1 行）を足す（1.5 の決定 2）。
 -   Escalation の扱い（`request` は PR ごとに 1 回まで、`ask` はマージの質問に持ち越す）は変えない（AC-38）。
 -   Escalation は、head が変わるたびに走り直す今の扱いのまま、そのたびにスクリプトも走らせ直す。
 
@@ -957,3 +969,4 @@ flowchart TD
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#945）
+- 2026-11-18 セッション中の再承認：レビューの関門の一覧に試行の結果を決める step・LAST_REVIEWED の定義・Escalation の Procedure を足し、見ていない commit の一覧と概要を step 3 の報告に示し、LAST_REVIEWED が HEAD の祖先でないときを判定のスクリプトの失敗とした。AFTER_CREATE の URL の形を決め、判定の規則を定める箇所をスクリプトの冒頭とし、PRE_MERGE の commit を見たとみなさない今の扱いを残した（isseis、#966）

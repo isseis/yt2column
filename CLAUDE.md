@@ -183,6 +183,7 @@ change, retire, and withdraw an ADR is in the convention,
 - `make install-fixprguard` - Install the `fixprguard` guard tool (`go install ./cmd/fixprguard`); rerun it after a merge that changes the tool
 - `make install-codexreview` - Install the `codexreview` developer tool, which runs Codex CLI's local review when the CodeRabbit CLI fails (`go install ./cmd/codexreview`); rerun it after a merge that changes the tool
 - `make install-chief` - Install the `chief` developer tool that `/chief` drives (`go install ./cmd/chief`); rerun it after a merge that changes the tool
+- `make install-numreserve` - Install the `numreserve` developer tool, which decides a task or ADR number by creating a record tag on GitHub (`go install ./cmd/numreserve`); rerun it after a merge that changes the tool
 
 ### Test Commands
 - `make test` - Run all tests with race detection, then `make test-parse-norace`
@@ -242,10 +243,15 @@ code review is off.
 reviewed twice. Later changes are reviewed with the local CLI review — the
 CodeRabbit CLI, or Codex CLI when it fails. The CodeRabbit CLI's allowance is
 separate from the PR review's, but the fallback Codex CLI spends the same
-allowance as the PR review. `/runpr` requests another PR review only when
-the changes are of a kind the local review cannot stand in for
-([pr-review-escalation.md](.claude/commands/_lib/pr-review-escalation.md)) or
-when the user asks in the merge question (its "先に PR レビューを依頼" option).
+allowance as the PR review. `/runpr` requests another PR review by itself
+only when the changes since the last PR review touch a trust boundary,
+security, or durability, a change to a review gate included
+([pr-review-escalation.md](.claude/commands/_lib/pr-review-escalation.md)).
+For a change that falls only under the escalation's other criteria, the
+local review stands in when the branch's records show it saw every commit
+since the last PR review (`_lib/review-records.sh`, run from `origin/main`);
+otherwise the merge question asks. The user can also ask for one in the
+merge question (its "先に PR レビューを依頼" option).
 
 ### Extension Commands
 
@@ -493,12 +499,15 @@ for the packages that exist today. The server's startup is documented in the
   (single-select, multi-select, tabbed, permission), the question and option
   texts, whether it is `/runpr`'s merge question, the unsent text left in the
   input line, OpenCode's model line and its screen after `/new`, the NEXT of a
-  `/runpr` report, the last report on a pane (the last message of either
-  agent) and the PR numbers it names, the report of the command that created
-  a PR, and the transcript's record of a model switch, of the human's
-  last command, and of the human's last task command with whether the
-  human typed anything after it, never what (a line is the human's only by
-  the origin Claude Code declares on it, never by its text); the chief session's summary of that report is in scope too. Every other file of the tool chooses behavior only
+  `/runpr` report, the last report on a pane and the PR numbers it names
+  (an OpenCode pane's from its screen, a Claude Code pane's from the last
+  finished response of its transcript), and the transcript's record of a
+  model switch, of the human's last command, and of the human's last task
+  command with whether the human typed anything after it, never what (a
+  line is the human's only by the origin Claude Code declares on it, never
+  by its text), and of the text of the last finished response; a PR record is
+  a value the transcript declares and is not in scope; the chief session's
+  summary of the report of the command that created a PR is in scope too. Every other file of the tool chooses behavior only
   by the types the screen readers return. Reason: the screens are drawn by
   Claude Code and OpenCode and the transcript is written by Claude Code,
   external values the tool cannot express in a type, and OpenCode's question
@@ -506,9 +515,34 @@ for the packages that exist today. The server's startup is documented in the
   from the real samples under `internal/chief/testdata/screens/` is not read
   more widely but read as unmatched, which marks the workspace as needing a
   check or sends nothing (a transcript line likewise, from the samples under
-  `internal/chief/testdata/transcript/`); and the trigger of chief's automatic send is the
+  `internal/chief/testdata/transcript/`); a report in a transcript is read
+  only in a shape read from those samples, and any other is read as no
+  report (a kind or a value the samples do not show) or as unreadable (a
+  line the reader uses that lacks a member or holds one of another type);
+  and the trigger of chief's automatic send is the
   state of GitHub and git, never a screen: a screen reading only stops a send
   or narrows its conditions.
+  Exception: `numreserve` chooses behavior by inspecting the content of the
+  output of `gh` and `git` (`internal/numreserve`). Scope: the HTTP status
+  line of `gh api -i` and its rate-limit headers (`X-RateLimit-Remaining` and
+  `Retry-After`), the `ref` of a `GET` response, the lines of
+  `git ls-remote`, the entries of `git ls-tree` and of the work tree's
+  `docs/dev/adr/`, the lines of `git for-each-ref` for the local branches,
+  the lines of `git cat-file --batch-check` after a failed fetch (which
+  choose only the branches a stop's detail names), the one line of
+  `git rev-parse --show-toplevel` (one absolute path, else a `local-git`
+  stop), and the name forms of
+  `internal/tasknaming` applied to them; this is the only place their
+  content selects behavior. A `GET` response's body is parsed whole as
+  strict JSON, so a body of another form stops the run as `malformed`, but
+  only its `ref` chooses between the next number and a stop; no other body
+  and neither command's standard error is read. Reason: these are values written by `gh`, `git`, and GitHub,
+  external values the tool cannot express in a type, and the creation of a
+  ref declares its result only in the status code. Boundary: a line, an
+  entry, or a name of a form the tool does not accept stops the run as
+  `malformed` (a status line as `network-or-github`) and is not read more
+  widely; only a 422 that reading the ref back confirms moves the tool to the
+  next number.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
@@ -706,7 +740,7 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   does not run it: the local `make test`, and the CI `test` job when the change
   includes code, do. A change to the READMEs alone is therefore checked by
   neither CI job for this test. The `doc-guard` CI job runs the other guards
-  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./internal/pipeline ./internal/chief`)
+  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`)
   on every pull request, so a documentation-only change is checked in CI by
   those guards even though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's
@@ -844,18 +878,21 @@ Only the conventions a linter does not check are worth stating:
   there, the kinds are not limited, because a task's check has to compare
   words, fragments, and sentences of a document, and limiting the kinds would
   keep the `data.json` file this extension exists to remove.
-- The same exception covers one script outside the guard tests and
+- The same exception covers two scripts outside the guard tests and
   `_checks/`: the Opus review's decision script
-  `.claude/commands/_lib/opus-review-decision.sh`. Scope: a literal that has
-  to equal a heading's text or a fixed part of it, a field label, or a value
-  line's prefix in an implementation plan (such as `作成ポイント`,
-  `**実装モデル要件**: `, and `PR 構成`), which the script reads to find the
-  plan's implementation model requirement. Comments, identifiers, the
-  script's arguments, and the literals of the lines it prints stay English.
+  `.claude/commands/_lib/opus-review-decision.sh` and the review records
+  script `.claude/commands/_lib/review-records.sh`. Scope: a literal that has
+  to equal a heading's text or a fixed part of it, a field label, a value
+  line's prefix, or a checkbox's text in an implementation plan (such as
+  `作成ポイント`, `**実装モデル要件**: `, `PR 構成`, and `PR を作成した`),
+  which the decision script reads to find the plan's implementation model
+  requirement and the records script reads to tell a commit that only marks
+  the plan's PR progress checkboxes. Comments, identifiers, the scripts'
+  arguments, and the literals of the lines they print stay English.
   Reason: the plan is a Japanese document, so the literal has to equal its
   text, as for a guard test; passing the labels in from an English command
   document instead would make a mistyped label read as no value, which skips
-  the review.
+  the review, or as no checkbox, which makes every such commit look unseen.
   Boundary: no other `.claude/commands/` script takes this exception.
 - The same exception covers the chief tool's screen readers: a literal in a
   file of `internal/chief` whose name starts with `screen` (its tests

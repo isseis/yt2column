@@ -26,7 +26,7 @@
 -   **番号の記録を、道具を介さずに作る・変える・消すことは、利用者の承認を要る。`git push` を承認なしで認める規則の例外とする。** エージェントは利用者の資格で動き、`git push` は承認なしで実行できるので、道具が止まった後に手で記録を作れば重複が戻り、記録を消せば番号が使い回されるためである。規則の置き場所は [CLAUDE.md](../../../CLAUDE.md) の「Tool Execution Safety」である。
 -   **次に試す番号が、`main` にある番号と記録の最大値から決めた幅を超えて離れるときは、番号を決めずに止める。** 迷い込んだブランチや打ち間違えたファイル名が 1 つあるだけで、番号が黙って跳び、記録に残って戻せなくなるためである。要件は [0100 要件定義書](../../tasks/0100_number_reservation/01_requirements.md) の AC-09 にある。
 -   **PR が加える番号に記録があることと、`main` とほかのブランチで別のものに使われていないことを、マージの前に `mergepr` で確かめる。この仕組みの導入より前からある番号は、番号の空間ごとのしきい値以下として、記録があるかの確かめから外す。** 古い手順を持つ作業中のブランチが手で選んだ番号は、`numreserve` による予約では見つけられないためである。`mergepr` に置くのは、マージの方法が `/mergepr` と決まっており、マージの直前の最新の `main` と比べられるためである。要件は [0100 要件定義書](../../tasks/0100_number_reservation/01_requirements.md) の F-007 に、確かめ方は [0100 設計書](../../tasks/0100_number_reservation/02_architecture.md) の「マージの前の確かめ（`mergepr`）」と「しきい値」にある。
--   **食い違い:** 番号を決める道具 `numreserve`、記録の ruleset、`mergepr` によるマージの前の確かめはまだない。[adr.md](../conventions/adr.md) の「Location and naming」と `TestADRRecords` は欠番を誤りとし、「Taking in `main`」は付け替えの番号を手で選び、「Index」は新しい行を表の末尾に足すとしている。[CLAUDE.md](../../../CLAUDE.md) の「Tool Execution Safety」には、道具の常設の承認も、記録の書き換えの例外もない。[mkreq.md](../../../.claude/commands/mkreq.md) の step 2 は、エージェントが番号を計算し、fork の PR のブランチも数える。どれもこの ADR の決定に合っていない（[#917](https://github.com/isseis/yt2column/issues/917)）。
+-   **食い違い:** 記録の ruleset と、`mergepr` によるマージの前の確かめはまだない。番号を決める道具 `numreserve` はあるが、どの手順もまだ呼ばない。[adr.md](../conventions/adr.md) の「Location and naming」と `TestADRRecords` は欠番を誤りとし、「Taking in `main`」は付け替えの番号を手で選び、「Index」は新しい行を表の末尾に足すとしている。[CLAUDE.md](../../../CLAUDE.md) の「Tool Execution Safety」には、道具の常設の承認も、記録の書き換えの例外もない。[mkreq.md](../../../.claude/commands/mkreq.md) の step 2 は、エージェントが番号を計算し、fork の PR のブランチも数える。どれもこの ADR の決定に合っていない（[#917](https://github.com/isseis/yt2column/issues/917)）。
 
 ## 採らなかった案
 
@@ -53,7 +53,7 @@
 -   `/mergepr` を通らない手作業のマージは、マージの前の確かめを通らない。
 -   記録の tag は誰も迂回できずに残るので、誤って作られた tag があると、利用者がその tag だけを ruleset の対象から一時的に除いて消すまで、その番号の空間では番号を決められなくなる。手で作られた大きな番号の tag は、跳びの基準を押し上げ、番号を使い切らせうる。
 -   エージェントは利用者の管理者の資格で動くので、記録の ruleset を変える・無効にすることができる。これを止めるのは [CLAUDE.md](../../../CLAUDE.md) の規則だけである。
--   すでにある ref の作成を GitHub が成功として受けないことは、決めた時点では確かめていない。この前提が崩れると、一意性が崩れる。
+-   すでにある ref の作成を GitHub が成功として受けないことは、2026-11-17 に、同じ名前の tag の作成が同じ commit でも違う commit でも 422 になることで確かめた（[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) §7「PR-2 の実地の確かめの記録」）。確かめたのは続けて送った作成であり、同時に送った作成の排他は GitHub の ref の作成が排他であることを前提にしている。この前提が崩れると、一意性が崩れる。
 -   古い `mergepr` のバイナリは、確かめなしにマージする。cloud のセッションで番号を決められるかは、決めた時点では確かめていない。
 -   2 つの `/mergepr` が同時に確かめると、どちらも重複の確かめを通りうる。古い手順のセッションが、中断されてブランチが消えた番号を手で選ぶと、使い回しは見つからない。
 

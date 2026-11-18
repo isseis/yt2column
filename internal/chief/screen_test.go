@@ -651,98 +651,6 @@ func TestParseANSIScreenBounds(t *testing.T) {
 	}
 }
 
-// TestReadCommandReport reads the final report of a command from the
-// sampled Claude Code screen: found only when it names the PR's URL (also
-// wrapped across lines, and not as a prefix of another PR's), and never on
-// an OpenCode screen or a screen of another shape.
-func TestReadCommandReport(t *testing.T) {
-	const url = "https://github.com/owner/repo/pull/42"
-	sample := readScreenSample(t, "claude-command-report.ansi")
-	reportScreen(t, "")
-	with := func(text string) string { return strings.Replace(sample, reportMention, text, 1) }
-	cases := []struct {
-		name   string
-		agent  paneinput.AgentKind
-		screen string
-		url    string
-		want   bool
-	}{
-		{"the sample, which names no URL", paneinput.AgentClaudeCode, sample, url, false},
-		{"the URL in the report", paneinput.AgentClaudeCode, with(url + " に push しました"), url, true},
-		{"the URL wrapped", paneinput.AgentClaudeCode, with("https://github.com/owner/\n  repo/pull/42 に push しました"), url, true},
-		{"a longer PR number", paneinput.AgentClaudeCode, with(url + "0 に push しました"), url, false},
-		{"the URL of another PR named too", paneinput.AgentClaudeCode, with(url + "0 と " + url + " に push しました"), url, true},
-		{"an OpenCode screen", paneinput.AgentOpenCode, with(url), url, false},
-		{"no URL asked", paneinput.AgentClaudeCode, with(url), "", false},
-		{"a question screen", paneinput.AgentClaudeCode, readScreenSample(t, "claude-question-single.ansi"), url, false},
-		{"a line outside the report's indent", paneinput.AgentClaudeCode, with(url + "\nunindented"), url, false},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			report, ok := readCommandReport(c.agent, c.screen, c.url)
-			if ok != c.want {
-				t.Fatalf("readCommandReport = %q, %v; want %v", report, ok, c.want)
-			}
-			if ok && !isSampleReport(report) {
-				t.Errorf("report = %q, want the last message alone", report)
-			}
-		})
-	}
-}
-
-// TestReadCommandReportUnderRecap reads the report of the sampled screen
-// whose done line is followed by Claude Code's recap: the recap is skipped
-// and is not part of the report, and a second recap is a shape no sample
-// shows, so nothing is read.
-func TestReadCommandReportUnderRecap(t *testing.T) {
-	const (
-		url     = "https://github.com/owner/repo/pull/42"
-		mention = "3 つのコミットは push しました。"
-		// recap is the recap line's start as the raw screen draws it: the
-		// mark and the word in separate colors.
-		recap = "\x1b[0m\x1b[38;5;8m※ \x1b[0m\x1b[1m\x1b[38;5;8mrecap: "
-	)
-	sample := readScreenSample(t, "claude-command-report-recap.ansi")
-	if !strings.Contains(sample, mention) || strings.Count(sample, recap) != 1 {
-		t.Fatal("the recap sample no longer holds its PR mention and one recap")
-	}
-	screen := strings.Replace(sample, mention, url+" に push しました。", 1)
-	report, ok := readCommandReport(paneinput.AgentClaudeCode, screen, url)
-	if !ok {
-		t.Fatal("readCommandReport = false, want the report above the recap")
-	}
-	if !strings.HasPrefix(report, "付録 B の 19 行は") || !strings.HasSuffix(report, "そう言ってください。") {
-		t.Errorf("report = %q, want the last message alone, without the recap", report)
-	}
-	twice := strings.Replace(screen, recap, "※ recap: a\r\n"+recap, 1)
-	if _, ok := readCommandReport(paneinput.AgentClaudeCode, twice, url); ok {
-		t.Error("two recaps were read, want no report")
-	}
-}
-
-// TestReadCommandReportUnderTitledBox reads the sampled report when Claude
-// Code draws the session's title in the input box's top rule, as
-// claude-titled-rule.ansi shows it.
-func TestReadCommandReportUnderTitledBox(t *testing.T) {
-	const url = "https://github.com/owner/repo/pull/42"
-	lines := strings.Split(reportScreen(t, url), "\n")
-	var rules []int
-	for i, l := range lines {
-		if strings.Contains(l, strings.Repeat("─", 20)) {
-			rules = append(rules, i)
-		}
-	}
-	if len(rules) < 2 {
-		t.Fatal("the report sample no longer has the input box's two rules")
-	}
-	top := rules[len(rules)-2]
-	lines[top] = "\x1b[0m\x1b[38;5;7m" + strings.Repeat("─", 40) + " Plan 0001 work ─"
-	report, ok := readCommandReport(paneinput.AgentClaudeCode, strings.Join(lines, "\n"), url)
-	if !ok || !isSampleReport(report) {
-		t.Errorf("readCommandReport = %q, %v; want the sampled report", report, ok)
-	}
-}
-
 // TestReadModelSwitch reads the /model records of the sampled transcript and
 // of variants: the last record decides, its model is a whole word of the
 // display name, and a line that is not JSON makes the transcript unreadable.
@@ -779,27 +687,6 @@ func TestReadModelSwitch(t *testing.T) {
 			t.Errorf("routingModelOf(%q) = %d, want %d", name, got, want)
 		}
 	}
-}
-
-// reportMention is the PR mention of the sampled Claude Code report, which
-// the tests replace with the URL of the PR under test.
-const reportMention = "PR #867 に push しました"
-
-// reportScreen returns the sampled Claude Code report with its PR mention
-// replaced by text, such as the URL of the PR under test.
-func reportScreen(t *testing.T, text string) string {
-	t.Helper()
-	screen := readScreenSample(t, "claude-command-report.ansi")
-	if !strings.Contains(screen, reportMention) {
-		t.Fatal("the report sample no longer holds its PR mention")
-	}
-	return strings.Replace(screen, reportMention, text+" に push しました", 1)
-}
-
-// isSampleReport reports whether text is the last message of the sampled
-// report, from its first line to its last and nothing around it.
-func isSampleReport(text string) bool {
-	return strings.HasPrefix(text, "ADR-0004 を改訂し") && strings.HasSuffix(text, "を実行してください。")
 }
 
 // TestReadLastHumanInput reads the last human input of the sampled
@@ -1005,22 +892,42 @@ func clippedRunprReport(t *testing.T, next string) string {
 // Claude Code command report.
 const claudeReportHeading = "記録したこと"
 
+// claudeReportMention is the PR mention of the sampled Claude Code command
+// report.
+const claudeReportMention = "PR #867 に push しました"
+
+// editClaudeReportSample returns the sampled Claude Code command report with
+// the first from replaced by to, failing when the sample no longer holds
+// from.
+func editClaudeReportSample(t *testing.T, from, to string) string {
+	t.Helper()
+	screen := readScreenSample(t, "claude-command-report.ansi")
+	if !strings.Contains(screen, from) {
+		t.Fatalf("the report sample no longer holds %q", from)
+	}
+	return strings.Replace(screen, from, to, 1)
+}
+
 // claudeReportScreenNaming returns the sampled Claude Code command report
 // with its PR number replaced by pr and its heading line replaced by a NEXT
 // line giving next, so the screen alone shows a report naming both.
 func claudeReportScreenNaming(t *testing.T, pr int, next string) string {
 	t.Helper()
-	screen := readScreenSample(t, "claude-command-report.ansi")
-	if !strings.Contains(screen, claudeReportHeading) {
-		t.Fatal("the report sample no longer holds its heading line")
-	}
-	screen = strings.Replace(screen, claudeReportHeading, "NEXT: "+next, 1)
+	screen := editClaudeReportSample(t, claudeReportHeading, "NEXT: "+next)
 	return strings.ReplaceAll(screen, "867", strconv.Itoa(pr))
 }
 
+// claudeReportScreenNamingURL returns the sampled Claude Code command report
+// with its PR mention replaced by url, so the screen alone shows a report
+// naming that PR's URL, as a reader matching a PR by its URL would read it.
+func claudeReportScreenNamingURL(t *testing.T, url string) string {
+	t.Helper()
+	return editClaudeReportSample(t, claudeReportMention, url+" に push しました")
+}
+
 // TestReadRunprReport reads the last report of the sampled OpenCode /runpr
-// report and Claude Code command report, and checks that a screen whose last
-// response is not in the sampled shape gives none.
+// report, and checks that a screen whose last response is not in the sampled
+// shape, or a pane of another agent, gives none.
 func TestReadRunprReport(t *testing.T) {
 	report, ok := readRunprReport(paneinput.AgentOpenCode, readScreenSample(t, "opencode-runpr-report.txt"))
 	if !ok || report.Next != (RunprNext{Kind: NextNone}) || !slices.Contains(report.PRs, 867) {
@@ -1041,10 +948,6 @@ func TestReadRunprReport(t *testing.T) {
 	split := strings.Replace(readScreenSample(t, "opencode-runpr-report.txt"), "     PR #867 のマージまで完了しました。\n", "     PR #42\n     1 件のマージまで完了しました。\n", 1)
 	if report, ok := readRunprReport(paneinput.AgentOpenCode, split); !ok || !slices.Contains(report.PRs, 42) {
 		t.Errorf("a number at a line end followed by a line of digits = %+v, %v; want #42", report, ok)
-	}
-	report, ok = readRunprReport(paneinput.AgentClaudeCode, readScreenSample(t, "claude-command-report.ansi"))
-	if !ok || report.Next.Kind != NextAbsent || !slices.Contains(report.PRs, 867) {
-		t.Errorf("Claude Code report = %+v, %v; want no NEXT naming #867", report, ok)
 	}
 	plain := readScreenSample(t, "opencode-runpr-report.txt")
 	end := "     Build · DeepSeek V4.1 Flash 1017 · 31m 33s · 59.8 tok/s\n"
@@ -1074,8 +977,7 @@ func TestReadRunprReport(t *testing.T) {
 		sample string
 	}{
 		"an OpenCode screen read as Claude Code": {paneinput.AgentClaudeCode, "opencode-runpr-report.txt"},
-		"a Claude Code screen with no message":   {paneinput.AgentClaudeCode, "claude-idle.ansi"},
-		"an agent chief does not know":           {paneinput.AgentUnknown, "claude-command-report.ansi"},
+		"an agent chief does not know":           {paneinput.AgentUnknown, "opencode-runpr-report.txt"},
 	} {
 		if got, ok := readRunprReport(c.agent, readScreenSample(t, c.sample)); ok {
 			t.Errorf("%s: read as %+v", name, got)

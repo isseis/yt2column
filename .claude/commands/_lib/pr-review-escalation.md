@@ -31,7 +31,11 @@ step 3 invokes this file.
 
 ## Criteria
 
-Request a PR review when the changes in LAST_REVIEWED..HEAD do any of these:
+Request a PR review when the changes in LAST_REVIEWED..HEAD do any of these.
+The criteria that apply decide what the calling command does with the
+answer: a change under criterion 4 gets a PR review; for a change under the
+other criteria only, the calling command decides from the local CLI review's
+records whether to request one.
 
 1. **Change behavior or a contract.** Observable behavior changes — error
    handling, an exported API, a wire format, configuration, the cache format —
@@ -41,19 +45,34 @@ Request a PR review when the changes in LAST_REVIEWED..HEAD do any of these:
 3. **Touch a requirement or a design decision.** They change or reinterpret an
    acceptance criterion, a decision recorded in a task document, or what a test
    asserts.
-4. **Touch security or durability.** `yt-dlp` invocation, secrets, network
-   access, cache writes and their consistency, handling of untrusted text,
-   redaction. `docs/dev/security.md` and `docs/dev/cache_consistency.md` say
-   what falls under this; read them when the diff touches any of those areas.
+4. **Touch a trust boundary, security, or durability.** `yt-dlp` invocation,
+   secrets, network access, cache writes and their consistency, handling of
+   untrusted text, redaction. `docs/dev/security.md` and
+   `docs/dev/cache_consistency.md` say what falls under this; read them when
+   the diff touches any of those areas. The development tools' trust boundary
+   counts too: a step or code that handles a secret, sends data off the
+   machine, posts to GitHub, types into another agent's pane, deletes a file
+   or a ref, or has another side effect that cannot be undone. So does a
+   change to a review gate itself: this file's criteria and its Procedure;
+   `runpr.md` step 3's definition of LAST_REVIEWED, its rules that turn this
+   file's answer into a decision, and its comparison of the PR's
+   `headRefOid` with the local head; `_lib/review-records.sh` and the way
+   the command documents run it from `origin/main`; the steps of
+   `_lib/local-cli-review.md` that decide an attempt's result and the ranges
+   it covers (steps 2, 3, and 6); the sections that define the forms of the
+   review record lines and how they are read; and `fixprguard`. A change to
+   another part of a command document is judged by the other criteria.
 5. **Add a mechanism the earlier review never saw.** A new code path, concurrency,
    or state that did not exist at LAST_REVIEWED.
 
-Do not request one for: mechanical changes (rename, move, formatting); wording in
-documents; tests added in an existing pattern; deleted code; a local fix that
-applies a finding as stated once the local review has converged.
+None applies to: mechanical changes (rename, move, formatting); wording in
+documents (a change to what a review gate does is not wording); tests added in
+an existing pattern; deleted code, unless it removes part of a review gate or
+of a trust boundary's checks (criterion 4); a local fix that applies a finding
+as stated once the local review has converged.
 
 Size is not a criterion. A large rename touches none of the five; a three-line
-change to a cache write touches the fourth.
+change to a cache write or to a review gate touches the fourth.
 
 ## Procedure
 

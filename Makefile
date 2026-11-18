@@ -56,7 +56,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build build-dev clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview install-chief ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-build-dev ext-check coverage-compare ext-coverage-compare
+.PHONY: all build build-dev clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview install-chief install-numreserve ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-build-dev ext-check coverage-compare ext-coverage-compare
 
 all: build
 
@@ -99,6 +99,12 @@ install-codexreview:
 # that changes the tool (docs/dev/guides/chief_guide.md).
 install-chief:
 	$(GOCMD) install ./cmd/chief
+
+# Install the numreserve developer tool, which decides a task or ADR number by
+# creating a record tag on GitHub, into $(go env GOPATH)/bin. Run from an
+# up-to-date main checkout after every merge that changes the tool.
+install-numreserve:
+	$(GOCMD) install ./cmd/numreserve
 
 clean:
 	$(GOCLEAN)

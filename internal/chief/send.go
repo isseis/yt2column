@@ -114,8 +114,10 @@ const (
 	NotSentNoWorkspace
 	// NotSentSamePane is a reset candidate that is the pane /runpr went to.
 	NotSentSamePane
-	// NotSentNoReport is a reset candidate whose screen no longer shows the
-	// report the PR detail kept, or that never did.
+	// NotSentNoReport is a reset candidate with no report to reset by: the
+	// PR detail kept none from it, or its last report (from a Claude Code
+	// pane's transcript, or an OpenCode pane's screen) is absent or does not
+	// name the PR.
 	NotSentNoReport
 	// NotSentPaneChanged is a reset candidate whose state changed since the
 	// PR detail kept its report.

@@ -264,14 +264,15 @@ func (mw *mergeWorld) runprTranscript(pr int, next string) {
 }
 
 // screenOnlyReport makes w1:p1 show, on its screen alone, a Claude Code
-// report naming #42 and /runplan 0001 that the screen reader reads, while
-// its transcript has no report.
+// report naming #42 and /runplan 0001, while its transcript has no report.
+// The screen is checked with the whole-screen NEXT reader and the PR
+// reference pattern, which do not depend on the pane's agent.
 func (mw *mergeWorld) screenOnlyReport() {
 	mw.t.Helper()
 	screen := claudeReportScreenNaming(mw.t, 42, "`/runplan 0001`")
-	report, ok := readRunprReport(paneinput.AgentClaudeCode, screen)
-	if !ok || !slices.Contains(report.PRs, 42) || report.Next.Kind != NextCommand || report.Next.Command != NextCommandRunplan {
-		mw.t.Fatalf("the screen reader reads %+v, %v; want a report naming #42 and /runplan 0001", report, ok)
+	next, ok := readScreenNext(screen)
+	if !ok || next.Kind != NextCommand || next.Command != NextCommandRunplan || !slices.Contains(appendPRReferences(nil, screen), 42) {
+		mw.t.Fatalf("the screen names %+v, %v; want /runplan 0001 and #42", next, ok)
 	}
 	mw.byPane["w1:p1"].screen = screen
 	mw.claudeTranscript()
@@ -905,13 +906,17 @@ func testClaudeResetAfterAutoSend(t *testing.T) {
 		setup func(*mergeWorld)
 		// reason is why the pane is not emptied; NotSentUnknown when it is.
 		reason NotSentReason
+		// detail, when set, is the start of the reset's detail. The screen
+		// path gives the same reason as the transcript path, so the row of a
+		// report on the screen alone tells them apart by this wording.
+		detail string
 	}{
 		{name: "the report names the PR and the command", setup: func(*mergeWorld) {}},
 		{name: "the report names another PR", setup: report(43, "`/runplan 0001`"), reason: NotSentNoReport},
 		{name: "the report has no NEXT", setup: report(42, ""), reason: NotSentNoReport},
 		{name: "no last report", setup: func(mw *mergeWorld) { mw.claudeTranscript() }, reason: NotSentNoReport},
 		{name: "the session's file is missing", setup: (*mergeWorld).removeClaudeTranscript, reason: NotSentNoReport},
-		{name: "the screen alone shows the report", setup: (*mergeWorld).screenOnlyReport, reason: NotSentNoReport},
+		{name: "the screen alone shows the report", setup: (*mergeWorld).screenOnlyReport, reason: NotSentNoReport, detail: "the /runpr pane has no last report"},
 		{name: "the transcript cannot be read once the command is typed", setup: func(mw *mergeWorld) {
 			mw.react = func(p *simPane, text string) error {
 				if text == "/runplan 0001" {
@@ -945,6 +950,9 @@ func testClaudeResetAfterAutoSend(t *testing.T) {
 			}
 			if reset.Outcome != OutcomeNotSent || reset.Reason != c.reason || cleared {
 				t.Errorf("reset = %+v, emptied %v; want not sent for %s", reset, cleared, c.reason)
+			}
+			if !strings.HasPrefix(reset.Detail, c.detail) {
+				t.Errorf("reset detail = %q, want it to start with %q", reset.Detail, c.detail)
 			}
 		})
 	}
