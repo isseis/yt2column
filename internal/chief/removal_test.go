@@ -634,6 +634,29 @@ func TestRemovalRowUrgencyAndDocument(t *testing.T) {
 	})
 }
 
+// TestRemovalRowSortsLater checks where 0093's row order puts a removal
+// row: by its urgency, later, before a running row, which waits. Without
+// the mark the row would be a finished task's, which waits too and whose
+// state lists it after the running row.
+func TestRemovalRowSortsLater(t *testing.T) {
+	sw := newSendWorld(t)
+	sw.addTask(fakeWorkspace{ID: "w1", Label: "running", Branch: taskBranch}, "claude")
+	p := sw.byPane["w1:p1"]
+	p.Status, p.screen = "working", readScreenSample(t, "claude-working.ansi")
+	addRemovalWorkspace(t, sw)
+	snap := snapshotOf(t, sw)
+	var labels []string
+	for _, r := range snap.Rows {
+		labels = append(labels, r.Label)
+	}
+	if want := []string{removalLabel, "running"}; !slices.Equal(labels, want) {
+		t.Errorf("row order = %v, want %v", labels, want)
+	}
+	if r := rowOf(t, snap, removalLabel); !r.RemovalRow || r.Urgency != UrgencyLater || r.Turn != TurnHuman || r.Position.Document != PositionDocNone {
+		t.Errorf("removal row = %+v, want later, the human, no document", r)
+	}
+}
+
 // TestCreatedWorkspaceRows checks a workspace chief made whose issue's task
 // is not done: once /mkreq made the task's branch, the row is that task's,
 // by 0088's rules, and nothing is proposed for removal.

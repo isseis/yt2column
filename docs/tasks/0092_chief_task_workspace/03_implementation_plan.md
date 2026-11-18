@@ -532,7 +532,7 @@
 
 設計書 7.4 のセキュリティのテストは、AC-07（題名）、AC-11・`ic/taskspace_test.go::TestTaskSpaceIgnoresOtherInputs`（パスと名前）、AC-13（書く部品の型）、AC-24（偽った記録）、AC-26（書き込みをしない）の行が受け持つ。
 
-0093 の AC-05・AC-07 の規則 2・AC-15 は本タスクの AC ではない。ステップ 5-6・6-5・7-6 の確かめで、0093 の部品が `main` にあり、削除の提案の行がまだなかったときに、`ic/removal_test.go::TestRemovalRowUrgencyAndDocument`（急ぎの度合い・番・文書）と `ic/snapshot_test.go::TestRemovalRowSortsLater`（並ぶ位置）で確かめる。部品が入っていなかったときは本タスクでは確かめず、0093 の計画書に頼る（決定 13）。どちらだったかは「0093 の部品の確かめの記録」に書く。
+0093 の AC-05・AC-07 の規則 2・AC-15 は本タスクの AC ではない。ステップ 5-6・6-5・7-6 の確かめで、0093 の部品が `main` にあり、削除の提案の行がまだなかったときに、`ic/removal_test.go::TestRemovalRowUrgencyAndDocument`（急ぎの度合い・番・文書）と `ic/removal_test.go::TestRemovalRowSortsLater`（並ぶ位置）で確かめる。部品が入っていなかったときは本タスクでは確かめず、0093 の計画書に頼る（決定 13）。どちらだったかは「0093 の部品の確かめの記録」に書く。
 
 ### PR-1 の実行の記録
 
@@ -567,6 +567,16 @@
 -   **走らせたコマンド。** `git fetch origin main`、`git rev-parse origin/main`、`git grep -n -e UrgencyLater -e TurnHuman -e PositionDocNone <commit> -- internal/chief/position.go`、`git grep -n -A16 'func sortRows' <commit> -- internal/chief/snapshot.go`（急ぎの度合いの語がなかった）、`git grep -c 'RemovalRow\|removal' origin/main -- internal/chief/position.go`（一致なし）、`git show <commit>:docs/tasks/0093_chief_status_sheet/03_implementation_plan.md` の「PR がマージされた」の行（PR-1・PR-2 は `[x]`、PR-3 は `[ ]`）。
 -   **確かめたテスト。** `ic/removal_test.go::TestRemovalRowUrgencyAndDocument` が、0093 の AC-05（印のある行は「あとで」・人。印を外した同じ行が順 3 の「待つ」になることを先に確かめる）、順 1 が勝つこと（送信が止まった印のある行は「すぐ」・人）、AC-07 の規則 2（印のある行は文書「なし」。印を外すと規則 10 の「要確認」、fetch に失敗した周は規則 1 の「要確認」）、印のない AC-23 だけの行（エージェントが動いている）が「待つ」・AI のままであることを確かめる。足した 2 つの行を 1 つずつ消すと、このテストが失敗することを確かめた。
 -   **確かめなかったもの。** 並べ方の部品がないので、0093 の AC-15 は本 PR では確かめず、`ic/snapshot_test.go::TestRemovalRowSortsLater` も置かない。0093 の計画書（ステップ 3-4 と、0092 の確かめの決定 6）に頼る。
+
+**PR-5（PR の作成の後の確かめ直し、2026-11-18）。** PR-5 の作成の後、0093 の PR-3（#975）が `main` に入り、並べ方の部品が `origin/main` に入った。Fable の部分レビューがこれを指摘したので、`git fetch origin main` の後、`origin/main` のコミット `d5b3a15fdac338200ff4c3a32f495a838f81a4b8` をこのブランチにマージし（rebase しない）、ステップ 5-6 の手順で確かめ直した。
+
+| 部品 | あるか | 行がまだないか | 扱い |
+|---|---|---|---|
+| 急ぎの度合いの対応表・文書の規則 | あり（上の記録のとおり） | 本 PR が足した行がある。マージで衝突しなかった | 変えない |
+| 並べ方（`sortRows`） | あり。0093 の計画書の PR-3 が「PR がマージされた」で、`origin/main` の `sortRows` は `Urgency` を比べ、`finishRow` が `applyAutoSends` の後に `urgencyOf`・`documentOf` を呼ぶ | 並べ方そのものには削除の印を読む行が要らない（印のある行は `Row.Idle` でなく、急ぎの度合い「あとで」で並ぶ） | 行は足さず、並ぶ位置をテストで確かめた |
+
+-   **走らせたコマンド。** `git fetch origin main`、`git rev-parse origin/main`、`git grep -c 'RemovalRow\|PendingRemoval' origin/main -- 'internal/chief/*.go'`（終了コード 1、一致なし）、`git show origin/main:docs/tasks/0093_chief_status_sheet/03_implementation_plan.md` の「PR がマージされた」の行（PR-1・PR-2・PR-3 とも `[x]`）。
+-   **確かめたテスト。** `ic/removal_test.go::TestRemovalRowSortsLater` が、0093 の AC-15（印のある行は、急ぎの度合い「あとで」により、実行中の行より前に並ぶ。印のある行は「あとで」・人・文書「なし」）を確かめる。`urgencyOf` の印の行を消すと、印のある行が実行中の行の後に並び、このテストが失敗することを確かめた。上の記録の「確かめなかったもの」は、この確かめで済んだ。
 
 ### PR-7 の実行の記録
 
