@@ -249,24 +249,13 @@ func builtPackages(output string) map[string]string {
 }
 
 // TestMakeBuildBuildsEveryBinary checks the recipes `make -n` expands for the
-// build and all targets: each builds exactly the CLI, the server, and the
-// Native Messaging host (so the development server is not among them), and no
-// line runs the host binary with install or uninstall, because registering the
-// host is the user's explicit step. The recipes are read after expansion,
-// since the Makefile names the packages through variables.
+// build and all targets: each builds exactly the CLI. The recipes are read
+// after expansion, since the Makefile names the package through a variable.
 func TestMakeBuildBuildsEveryBinary(t *testing.T) {
-	want := []string{"./cmd/yt2column", "./cmd/yt2column-nmhost", "./cmd/yt2column-server"}
+	want := []string{"./cmd/yt2column"}
 	for _, target := range []string{"build", "all"} {
 		t.Run(target, func(t *testing.T) {
 			output := makeDryRun(t, target)
-			for line := range strings.Lines(output) {
-				fields := strings.Fields(line)
-				for i, field := range fields[:max(len(fields)-1, 0)] {
-					if strings.HasSuffix(field, "yt2column-nmhost") && (fields[i+1] == "install" || fields[i+1] == "uninstall") {
-						t.Errorf("make -n %s runs the host with %s: %q", target, fields[i+1], strings.TrimSpace(line))
-					}
-				}
-			}
 			got := slices.Sorted(maps.Keys(builtPackages(output)))
 			if !slices.Equal(got, want) {
 				t.Errorf("make -n %s builds %v, want exactly %v; output:\n%s", target, got, want, output)

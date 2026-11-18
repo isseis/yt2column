@@ -10,9 +10,7 @@
 # whose go line chooses the toolchain the extension build uses) and go.sum, and
 # the files the extension tests read: README.md and README.en.md (their
 # browser extension sections, and the minimum Chrome version anywhere in
-# them), docs/dev/guides/development.md (its
-# rejection-reason table), and internal/server/response.go (which that table
-# mirrors).
+# them), and docs/dev/guides/development.md (its job record value tables).
 #
 # It also runs for any file under a directory listed in the dependency
 # directory file, one directory per line ending in "/", as
@@ -44,7 +42,7 @@ done <"$1"
 matched=false
 while IFS= read -r -d '' path; do
   case "$path" in
-    extension/* | Makefile | .github/workflows/* | go.mod | go.sum | README.md | README.en.md | docs/dev/guides/development.md | internal/server/response.go)
+    extension/* | Makefile | .github/workflows/* | go.mod | go.sum | README.md | README.en.md | docs/dev/guides/development.md)
       matched=true
       ;;
     *)
