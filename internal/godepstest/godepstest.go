@@ -180,10 +180,10 @@ func trackSources(dirs map[string]struct{}) error {
 }
 
 // PackagePath returns the import path of the one package pkg (a pattern such
-// as ./cmd/yt2column-devserver) names, resolved in root. It is how a test names
-// a main package, which has no type to take the path from: the lookup fails
-// when the package does not exist, so a path that was renamed away cannot turn
-// a Forbid into a check of nothing.
+// as ./internal/extjob/devbackend) names, resolved in root. It is how a test
+// names a package with no exported type to take the path from, such as a main
+// package: the lookup fails when the package does not exist, so a path that
+// was renamed away cannot turn a Forbid into a check of nothing.
 func PackagePath(root, pkg string) (string, error) {
 	out, err := runGo(root, nativeTargets[0], "list", "-f", "{{.ImportPath}}\t{{.Dir}}", pkg)
 	if err != nil {

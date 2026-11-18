@@ -82,18 +82,6 @@ add a kind here or to widen one of these definitions.
 | `internal/ytdlpsource` | Implements `transcript.TranscriptSource` with `YtDlpSource`: runs `yt-dlp` without a shell and parses its json3 and info.json output. It is the development path of the CLI and is not built into the WebAssembly core. The cache's guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
 | `prompts` | Embeds the default prompt templates and returns them: `System`/`User`, `ShortenSystem`/`ShortenUser`, `ReviewSystem`/`ReviewUser`. [README](../../../prompts/README.md) documents the contract. |
 
-## Server and Host
-
-| Package | Responsibility |
-|---|---|
-| `cmd/yt2column-devserver` | Entry point of the development server, not a production binary (`make build-dev`, into `build/dev/`): the production server's HTTP server, socket, and start lock with a fake LLM (`internal/llm/devfake`) chosen by `-article`, `-fail`, `-fail-step`, and `-delay`; it reads no configuration file and only `HOME` from the environment. To be removed (#773). |
-| `cmd/yt2column-nmhost` | Entry point of the Native Messaging host: relays one request with `nmhost.Relay`, and `install`/`uninstall` manage the browser manifest. To be removed (#773). |
-| `cmd/yt2column-server` | Entry point of the localhost server and of `yt2column-server config init`. To be removed (#773). |
-| `internal/articlecache` | The server's in-memory article cache: `Cache`, `Keyer`, `Subject`, `StartMode`, `Run`, `Snapshot`, `Eviction`; `ParseKey`. To be removed (#773). |
-| `internal/nmhost` | The Native Messaging host's relay and manifest management: `Relay`, `SocketDialer`, `HostError`, `Install`, `Uninstall`. To be removed (#773). |
-| `internal/server` | The HTTP server on a Unix domain socket that serves the job API: `New`, `Serve`, `JobsPath`, `Options`. To be removed (#773). |
-| `internal/serversock` | Prepares the server's Unix domain socket and start lock: `Acquire`, `Lock`, `ErrAlreadyRunning`, `ErrInUse`, `*UnsafeError`. To be removed (#773). |
-
 ## LLM
 
 | Package | Responsibility |
@@ -121,7 +109,7 @@ add a kind here or to widen one of these definitions.
 | `internal/redact` | Keeps secret values out of output: `Line`, `Writer`, `SecretStrings`. |
 | `internal/secret` | Holds a secret (API key) and guarantees it never appears in `fmt`, `log/slog`, or JSON output. |
 | `internal/signalrun` | `Run` calls a program's main function under a context that the first subscribed signal cancels; a second signal terminates the process. |
-| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `ParseArray`, `Object.CollectOnly`, `Object.CollectExactCase`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/writer`, `internal/artifact`, `internal/extjob`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, `internal/coveragecompare`, `internal/chief`, and `internal/numreserve` |
+| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `ParseArray`, `Object.CollectOnly`, `Object.CollectExactCase`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/writer`, `internal/artifact`, `internal/extjob`, `internal/fixprguard`, `internal/codexreview`, `internal/coveragecompare`, `internal/chief`, and `internal/numreserve` |
 | `internal/tasknaming` | The name forms of task branches, task directories, and ADR files, and the four-digit number they carry: `Number` (`String`, `Int`), `ParseNumber`, `ParseBranch`, `ParseTaskDir`, `ParseADRFile`; `ErrInvalid`. Shared by `internal/chief`, `internal/numreserve`, and the ADR guard test. |
 
 ## Development Tools

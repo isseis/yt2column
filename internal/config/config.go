@@ -1,6 +1,6 @@
 // Package config loads and validates the process configuration: the CLI's
-// from environment variables, and the server's from its configuration file,
-// with HOME and GODEBUG from the environment. It is the only package that
+// from environment variables, and the article generation module's from the
+// two values the extension saved (LoadExtension). It is the only package that
 // names the secret settings; every other package receives already-validated
 // values.
 package config
@@ -31,9 +31,7 @@ const (
 	ProviderOpenAI
 )
 
-// Names of the environment variables Load reads. The first six are also the
-// keys the server's configuration file accepts (serverFileKeys), which
-// LoadServer reads from the file instead of the environment.
+// Names of the environment variables Load reads.
 const (
 	llmEnv                  = "YT2COLUMN_LLM"
 	reviewLLMEnv            = "YT2COLUMN_REVIEW_LLM"
@@ -89,12 +87,7 @@ const (
 // constants and the package variables below them, which are built once from
 // code values alone, so a rejected value cannot reach an error message.
 const (
-	reasonUnset = "is unset or empty"
-	// reasonNotSet and reasonEmpty replace reasonUnset in the rejection of a
-	// configuration file key: the file tells the two cases apart, so the
-	// reason says which one it is.
-	reasonNotSet  = "is not set"
-	reasonEmpty   = "is empty"
+	reasonUnset   = "is unset or empty"
 	reasonLLMForm = `must be "<provider>/<model ID>", optionally followed by "+<effort>", with a non-empty model ID`
 	// reasonLLMEffortSeparator rejects a second "+" after the first "/",
 	// which leaves the boundary between the model ID and the effort part
@@ -104,10 +97,6 @@ const (
 	reasonAnthropicWorkspaceID = "must be a non-empty string of printable ASCII characters other than space"
 	reasonDirRelative          = "must be an absolute path"
 	reasonCacheDirAbsent       = "no absolute default could be derived from HOME or XDG_CACHE_HOME"
-	reasonSocketPathAbsent     = "no absolute socket path could be derived from HOME"
-	reasonConfigPathAbsent     = "no absolute configuration file path could be derived from HOME"
-	reasonSocketPathTooLong    = "the socket path derived from HOME exceeds the operating system's limit"
-	reasonHomeAbsent           = "must be set to an absolute path"
 )
 
 // The fixed parts of an effort-part rejection: the accepted values follow
@@ -144,8 +133,7 @@ func effortPartReason(provider string, values []string) string {
 type LookupFunc func(name string) (value string, ok bool)
 
 // ErrMissing reports a setting that is unset, or present with an empty value,
-// and has no usable default: an environment variable, or a key of the
-// server's configuration file.
+// and has no usable default.
 var ErrMissing = errors.New("a required setting is unset or empty")
 
 // ErrInvalid reports a setting whose value is present but not acceptable.
@@ -191,8 +179,8 @@ func (e *VarError) Unwrap() error {
 }
 
 // LLMSelection is one stage's provider, model ID, and effort. Its fields are
-// unexported, so a non-zero LLMSelection can only come from Load, LoadFor, or
-// LoadServer. In an accepted selection the provider and the model ID are set,
+// unexported, so a non-zero LLMSelection can only come from Load or LoadFor
+// (or LoadExtension). In an accepted selection the provider and the model ID are set,
 // and only the effort of that provider is meaningful. parseLLM also returns
 // the provider of a rejected value whose provider part was accepted, so that
 // provider's own variables are still checked; such a selection never leaves
@@ -244,7 +232,7 @@ func (s LLMSelection) OpenAIEffort() openaiparam.Effort {
 
 // LLMConfig is the validated configuration of the generation and review LLM
 // calls. Its fields are unexported, so a non-zero LLMConfig can only come from
-// Load, LoadFor, or LoadServer.
+// Load or LoadFor (or LoadExtension).
 type LLMConfig struct {
 	generation           LLMSelection
 	review               LLMSelection
@@ -368,8 +356,8 @@ func LoadFor(lookup LookupFunc, need Need) (Config, error) {
 
 // loadLLM reads and validates the LLM variables the run needs: the generation
 // and review selections, and the variables of the selected providers. It
-// returns the validated LLMConfig and each rejection separately, so LoadFor and
-// LoadServer report them the same way.
+// returns the validated LLMConfig and each rejection separately, so LoadFor
+// joins them with its other rejections.
 //
 // Contract: a variable is read only for a stage the run needs. A rejected
 // value is never replaced by a default, so a run with any rejection sends
@@ -669,7 +657,7 @@ func HTTP2DebugEnabledIn(godebug string) bool {
 
 // HTTP2DebugRequested reports whether GODEBUG may turn on the HTTP/2
 // transport's log, reading the variable through lookup. The setting is read,
-// never rejected. Load and LoadServer record it in the Config; the
+// never rejected. Load records it in the Config; the
 // development command (cmd/yt2column-extjob), which reads no Config, calls it
 // to warn before it calls an LLM API.
 func HTTP2DebugRequested(lookup LookupFunc) bool {
