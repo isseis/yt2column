@@ -234,15 +234,11 @@ review stops), push nothing and do not open the PR.
 2. On `MISSING`, run the standalone path. Then run the validity decision
    again. When it prints `VALID`, go on. When it prints `MISSING <START>`,
    stop and report: the PR does not open without a valid record. When the
-   third line exited `1` and printed nothing at all, `origin/main`'s copy
-   has no `fable` mode (its failure prints `MISSING` otherwise): the
-   standalone path just reviewed RANGE up to HEAD, and its record commit is
-   the only commit since, so go on to step 3 as on `VALID`, and report it.
-   On any other failure of the second decision, stop and report what the
-   script wrote to standard error. On every failure of the decision, report
-   that standard error, so a failure is not mistaken for a missing record.
-3. On `VALID` (or after the second decision of step 2 found no `fable`
-   mode), make an empty commit whose message holds the checkpoint mark
+   second decision fails (a line failed, the script exited with another
+   status, or its first line is of another form), stop too, and report what
+   the script wrote to standard error, so a failure is not mistaken for a
+   missing record.
+3. On `VALID`, make an empty commit whose message holds the checkpoint mark
    (`Fable review: checkpoint`) and a subject line of your own. The commits
    the checkpoint makes after it (green-gate fixes, end-of-task check fixes,
    the diff-record recheck, the commits of "Before the PR", and the fixes of
