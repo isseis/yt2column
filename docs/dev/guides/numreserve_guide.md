@@ -75,9 +75,12 @@ ruleset は誰も迂回できないので、誤った tag は利用者が消す�
 
 ## 4. cloud のセッションでの制約
 
-2026-11-17 に claude.ai/code の cloud のセッションで確かめた結果（[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) の §7「PR-2 の実地の確かめの記録」）では、`git ls-remote` と、`main` からの既存の道具（`mergepr`）のインストールはできたが、`gh auth status` は終了コード 1 で終わり、REST による tag の作成は 403 で拒まれた。403 の原因（`gh` がどの資格で動いたか、書き込みの権限がないのか、rate limit か）は分かっていない。
+cloud のセッション（claude.ai/code）では番号を決められない。2026-11-18 に cloud のセッションで `numreserve task` と `numreserve adr` を実行したところ、どちらも `numreserve: stop permission: creating refs/tags/...: HTTP 403` で止まった（[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) の §7「cloud のセッションでの確かめの記録」）。
 
-したがって、今は cloud のセッションでは番号を決められず、`numreserve` は止まる。止まる理由の語が `permission` と `network-or-github` のどちらになるかも確かめていない。新しいタスクの `/mkreq` と、ADR の番号の決定は、手元のクローンで行う。cloud のセッションでの確かめは、[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) のフェーズ 7 でやり直し、この章を直す。
+-   できること：`main` からの道具のインストール、`git ls-remote`、SHA による取得、REST の読み取り。
+-   できないこと：REST による記録の tag の作成。403 に rate limit の見出し（`X-RateLimit-Remaining: 0` か `Retry-After`）がないので、道具は `permission` で止まる。403 の原因（資格の権限か、環境のプロキシか、見出しのない二次の rate limit か）は確かめていない。`GH_TOKEN` と `GITHUB_TOKEN` は設定されているが、`gh auth status` は終了コード 1 で終わる。
+
+cloud のセッションで `/mkreq` を実行するか ADR を作ると、番号の決定で止まる（止まる理由は `permission`）。新しいタスクの `/mkreq` と、ADR の番号の決定は、手元のクローンで行う。
 
 ## 5. 跳びや受け入れない形で止まったときの片付け
 
@@ -96,4 +99,4 @@ ruleset は誰も迂回できないので、誤った tag は利用者が消す�
 
 ## 6. マージの前の確かめで止まったとき
 
-`mergepr` がマージの前に、PR が加える番号に記録の tag があるか、最新の `origin/main` やほかのブランチで別のものに使われていないかを確かめる仕組みは、[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) のフェーズ 6 で加える。止まったときの直し方は、そのときにこの章に書く。
+`mergepr` は、`main` に入れる PR が加えるタスク番号と ADR 番号を、`prepare` と `merge` で確かめる。PR が加える番号に記録の tag があるか、最新の `origin/main` やほかのブランチで別のものに使われていないか、`docs/tasks/` の下に形に合わない項目を加えていないかを見る。確かめの仕様は [mergepr_guide.md](mergepr_guide.md) の 6.4 節に、止まったときの直し方は同じ手引きの 7 章の「番号の確かめで止まったとき」にある。

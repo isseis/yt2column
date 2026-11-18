@@ -21,6 +21,7 @@ var guardedTypes = map[string][]string{
 	"TaskSpace":        {"NewTaskSpace"},
 	"WorkspaceMaker":   {"NewWorkspaceMaker"},
 	"RemovalCandidate": {"newRemovalCandidate"},
+	"WorkspaceCloser":  {"newWorkspaceCloser"},
 }
 
 // emptyImporter gives every import an empty package, so type checking of
