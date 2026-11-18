@@ -364,13 +364,13 @@
 -   対象ファイル：`cmd/mergepr/main.go`、`cmd/mergepr/main_test.go`
 -   [x] `run` が確かめの部品を引数で受け取り、`main` だけが本番の部品を渡す（§1.3 の決定 8）。見つけたものを 1 件 1 行（種類・番号・PR の名前・使っている所）で出し、終了コード 1 で終わる（設計書 4.2）。この出力を、見つけたものを持つ誤りから `printError` が書く行としてテストする（`Prepare`・`Merge` は `git` と `gh` を起動するので、`cmd/mergepr` のテストからは呼ばない）
 -   [x] 引数の誤りのテスト（`TestParseRequiresProtocol`）が実の GitHub に触れずに通ることを確かめる。`parse` は何も読まず、何も実行しない
--   [x] `mergepr` が `--protocol` の番号を持っていたら（タスク 0099 の実装が先にマージされた場合）、ADR-0014 の規則に従って番号を上げ、`mergepr.md` を合わせる
+-   [x] `mergepr` が `--protocol` の番号を持っていたら（タスク 0099 の実装が先にマージされた場合）、ADR-0014 の規則に従って番号を上げ、`mergepr.md`・`runpr.md`・`mergepr_guide.md` の `--protocol` の値を合わせる
 -   完了の基準：`go test -tags test ./cmd/mergepr` が通る
 
 **ステップ 6-6: 文書**
 
 -   対象ファイル：`.claude/commands/mergepr.md`、`docs/dev/guides/mergepr_guide.md`、`docs/dev/guides/numreserve_guide.md`、`docs/dev/adr/0051-number-reservation.md`
--   [x] `mergepr.md` に、番号の確かめで止まったときの扱いを足す（§1.3 の決定 4）。`runpr.md` は変えない
+-   [x] `mergepr.md` に、番号の確かめで止まったときの扱いを足す（§1.3 の決定 4）。`runpr.md` の手順は変えない（`mergepr` の `--protocol` の値だけをステップ 6-5 で合わせる）
 -   [x] `mergepr_guide.md` に、番号の確かめ、保証すること、止まったときの対処（設計書 3.5 の「止まったときの直し方」と、§1.3 の決定 4 の記録の commit）を書く。`numreserve_guide.md` のマージの前の確かめの節を、この節を指すように直す
 -   [x] ADR-0051 の食い違いの記述から、`mergepr` によるマージの前の確かめを除く（残りがないので、項目ごと除いた）
 -   完了の基準：`make test`・`make lint`・`make deadcode` が通る

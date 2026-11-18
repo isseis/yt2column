@@ -44,7 +44,7 @@
 -   **仕組みより前に作られた作業中の PR は、番号のしきい値で扱う（申し送りの H-08・H-10）。** 導入の時点で使用中のタスク番号と ADR 番号のそれぞれの最大値を、しきい値として道具に持たせる。しきい値以下の番号には、記録の確かめ（AC-27）をかけず、重複の確かめ（AC-28）とほかのブランチの確かめだけをかける。古いクローンが導入の後に「最大値 + 1」で計算した番号はしきい値より大きいので、記録がなければ AC-27 で見つかる。道具がしきい値以下の番号を返すのは、導入の時点で最大の番号を持っていたブランチがマージされずに消された場合に限られ、その番号にも記録の tag があるので、確かめは弱まらない。PR の作成日時で分ける案は、導入の前に作った PR が導入の後に加えた番号を見逃す。使用中の番号の記録をまとめて作る案は、そのための経路が道具に要る。どちらも採らない。しきい値の値は計画で決める。ADR: [ADR-0051](../../dev/adr/0051-number-reservation.md) を更新する。
 -   **道具は Go で書き、`cmd/numreserve` と `internal/numreserve` に置き、利用者が `make install-numreserve` で `main` から入れる（申し送りの H-03）。** [ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) の方針どおりである。`_lib/` の bash のスクリプトにする案は、判定（使用中の番号の集め方、どの失敗で次を試すか、上限）をテストで壊して確かめられないので採らない。エージェントは道具を入れたりビルドしたりしない（`codexreview` と同じ）。ADR: [ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) を更新する（道具の一覧とインストールの規則が ADR-0014 の決定にあるため）。
 -   **GitHub のリポジトリ（`isseis/yt2column`）は道具の定数に持ち、`origin` の URL を読まない。** cloud のセッションでは `origin` がローカルのプロキシの URL でありうる（確かめていない）。URL を読むと、環境ごとに受け入れる形の規則が要る。さらに、URL に入ったトークンを、止める理由の詳細に出す恐れもある。`git ls-remote` と `git fetch` は `origin` に対して行い、URL の中身は読まない。ADR: なし（道具の中の値で、このタスクの中で閉じる）。
--   **`numreserve` が外部の出力を読んで振る舞いを選ぶことを、`CLAUDE.md` の「Declare, don't infer」の例外として書く。** 読むのは、`gh api -i` の出力の HTTP の状態行と rate limit の見出し（`X-RateLimit-Remaining` と `Retry-After`）、`GET` の応答の `ref`（本文の全体は厳密な JSON として読み、合わなければ `malformed` で止める）、`git ls-remote` の行、`git ls-tree` の項目の種類と名前、`git for-each-ref` のローカルのブランチの行、`git rev-parse --show-toplevel` の 1 行（絶対パス 1 つでなければ `local-git` で止める）、マージの前の確かめでの `git merge-base` の 1 行（commit ID 1 つでなければ `malformed` で止める）、取得に失敗したときの `git cat-file --batch-check` の行（止める理由の詳細に出すブランチを選ぶだけ）、作業ツリーの `docs/dev/adr/` の項目の名前と、それらに名前の形を当てる `internal/tasknaming` の判定である。`codexreview` と `coveragecompare` と同じく、外部の道具が書く値で、型にできないためである。範囲はこれらの読み取りだけで、合わない形は `malformed` で止める（境界）。ADR: なし（CLAUDE.md の規則であり、CLAUDE.md の「Design decisions (ADR)」により ADR にしない）。
+-   **`numreserve` が外部の出力を読んで振る舞いを選ぶことを、`CLAUDE.md` の「Declare, don't infer」の例外として書く。** 読むのは、`gh api -i` の出力の HTTP の状態行と rate limit の見出し（`X-RateLimit-Remaining` と `Retry-After`）、`GET` の応答の `ref`（本文の全体は厳密な JSON として読み、合わなければ `malformed` で止める）、`git ls-remote` の行、`git ls-tree` の項目の種類と名前、`git for-each-ref` のローカルのブランチの行、`git rev-parse --show-toplevel` の 1 行（絶対パス 1 つでなければ `local-git` で止める）、マージの前の確かめでの `git merge-base` の 1 行（commit ID 1 つでなければ `malformed` で止める）、取得に失敗したときの `git cat-file --batch-check` の行（止める理由の詳細に出すブランチを選ぶだけ）、作業ツリーの `docs/dev/adr/` の項目の名前と、それらに名前の形を当てる `internal/tasknaming` の判定である。`codexreview` と `coveragecompare` と同じく、外部の道具が書く値で、型にできないためである。範囲はこれらの読み取りだけで、合わない形は `malformed` で止める（境界）。マージの前の確かめは、3.5 のとおり、最新の `origin/main` の合わない形の項目では止まらず、PR が `docs/dev/adr/` の下に加える合わない形の項目を読み飛ばし、PR が `docs/tasks/` の下に加える合わない形の項目を見つけたものとして返す。ADR: なし（CLAUDE.md の規則であり、CLAUDE.md の「Design decisions (ADR)」により ADR にしない）。
 -   **番号の跳び（AC-09）は、要件書のとおり「`origin/main` と記録の tag の最大値」を基準にし、記録の tag だけに別の上限をかけることはしない。** 記録の tag に「`main` の最大値 + 跳びの幅」の上限をかけると、道具は自分の候補にその上限をかけないので、正当な予約が跳びの幅だけたまると、次の実行がその上限を超える tag を自分で作り、以後のすべての実行が止まる。直すには正当な記録を消すしかなく、AC-03 に反する。手で作られた大きな番号の tag が基準を押し上げる危険は、`CLAUDE.md` の承認の規則（AC-21）と管理者の手順（3.3.3）に任せ、残る危険とする（5.2）。Fable の部分レビューの指摘を受けて決めた。ADR: [ADR-0051](../../dev/adr/0051-number-reservation.md) の「結果」に残る危険として書く（決定は AC-09 のとおりで変わらない）。
 -   **PR の base が `main` でないときは、`mergepr` は番号の確かめを行わずにマージを続ける。** 今の `mergepr` はどの base の PR もマージでき、その PR の変更は、後で `main` に入る PR が確かめを受ける。止めると、今マージできる PR がマージできなくなる。Fable の部分レビューの指摘を受けて決めた。ADR: なし（`mergepr` の確かめの適用範囲であり、このタスクの中で閉じる）。
 -   **止まったときの契約は、終了コード 1 と、標準エラーの 1 行の理由の語にする。理由ごとの終了コードは設けない（3.1）。** 終了コードを理由ごとに分けても、それを使い分ける手順がない。エージェントは止まったことと理由の語を利用者に示し、理由ごとの次にすることは手引きの 1 つの表にまとめる。ADR: なし（道具の出力の形であり、ADR-0014 の「契約は手引きにある」の範囲で閉じる）。
@@ -487,8 +487,9 @@ type AddedNumberIssue struct {
 	Branch string // the origin branch UsedBy is on, for AddedOnOtherBranch
 }
 
-// CheckAdded returns the issues of the numbers the commit head adds over the
-// freshly fetched origin/main, excluding headBranch from the other branches.
+// CheckAdded returns the issues of the numbers the commit head adds over its
+// merge-base with the freshly fetched origin/main, excluding headBranch from
+// the other branches.
 // An empty result means the merge may go on; an error means it may not.
 func (t *Tool) CheckAdded(ctx context.Context, head, headBranch string) ([]AddedNumberIssue, error)
 ```
@@ -504,7 +505,7 @@ func (t *Tool) CheckAdded(ctx context.Context, head, headBranch string) ([]Added
 -   **`_lib/settle-decisions.md`:** ADR を作る段の「as the ADR convention ... says」に、番号は規約の「Location and naming」の手順で決めることを明記する（AC-12）。
 -   **`CLAUDE.md`:**
     -   「Tool Execution Safety」（AC-19・AC-21）：`numreserve task` と `numreserve adr` は、その形で、手順が新しい番号を求めるときに限って呼ぶ限り、承認なしで実行してよい。試しや確かめのために呼ばない（呼ぶたびに消せない tag を作るため）。道具は `origin` に記録の tag を 1 つ作る（ネットワークへの書き込み）。エージェントは道具を入れたりビルドしたりしない。記録の tag（`refs/tags/task-number/` と `refs/tags/adr-number/` の下）を、道具を介さずに作る・変える・消すこと（`git push` と `gh api` によるものを含む）は、利用者の承認を要る。`git push` を承認なしで認める規則の例外である。記録の ruleset を変える・無効にする・消すことも、利用者の承認を要る。
-    -   「Declare, don't infer」：`numreserve` の例外（1.2）。範囲は `internal/numreserve` の、`gh api -i` の状態行と rate limit の見出し、`GET` の応答の `ref`、`git ls-remote` の行、`git ls-tree` の項目、`git for-each-ref` の行、`git cat-file --batch-check` の行（詳細に出すブランチを選ぶだけ）、`git rev-parse --show-toplevel` の行、マージの前の確かめでの `git merge-base` の行と作業ツリーの `docs/dev/adr/` の項目の読み取りと、そこで使う `internal/tasknaming` の名前の形の判定である。境界は、合わない形は `malformed`（状態行は `network-or-github`）で止まり、広く読まないことである。
+    -   「Declare, don't infer」：`numreserve` の例外（1.2）。範囲は `internal/numreserve` の、`gh api -i` の状態行と rate limit の見出し、`GET` の応答の `ref`、`git ls-remote` の行、`git ls-tree` の項目、`git for-each-ref` の行、`git cat-file --batch-check` の行（詳細に出すブランチを選ぶだけ）、`git rev-parse --show-toplevel` の行、マージの前の確かめでの `git merge-base` の行と作業ツリーの `docs/dev/adr/` の項目の読み取りと、そこで使う `internal/tasknaming` の名前の形の判定である。境界は、合わない形は `malformed`（状態行は `network-or-github`）で止まり、広く読まないことである。マージの前の確かめが境界で違うところ（1.2）も書く。
     -   「Testing Strategy」：信頼の境界でエージェントが実行するコマンドの例外の一覧に、`numreserve` の呼び出しの形を加える（7.2）。
     -   「Development Notes」：`doc-guard` のジョブのパッケージの一覧に `./cmd/numreserve` を加える。
     -   「Build Commands」に `make install-numreserve` を、Quick Links に手引きを加える。
@@ -697,7 +698,7 @@ sequenceDiagram
 -   出力：止まったときに標準出力が空であること、標準エラーに応答の本文、コマンドの標準エラー、`origin` の URL を出さないこと、改行や制御文字を含む名前を引用の形で 1 行に出すこと。
 -   本番の `Tool`：テストの中では作れないこと（`New` がテストの実行を拒むこと）。テストが実の GitHub に消せない tag を作らないためである。
 -   `git ls-remote` の行の分け方：`refs/heads/` と記録の tag の名前空間で始まらない行（末尾の照合で返った行）を数えないこと。
--   マージの前の確かめ：加えた番号に記録がない（しきい値の上と下）、`origin/main` の別のものが使っている、ほかのブランチが別の名前で加えている、同じ名前のほかのブランチは止めない、形に合わない `docs/tasks/` の項目、`main` で名前を変えたものが古いヘッドに残る PR を止めないこと、番号を加えない PR は何も読まないこと、base が `main` でない PR は確かめないこと、`origin/main` にすでにある番号は対象にしない、base が `main` でない。
+-   マージの前の確かめ：加えた番号に記録がない（しきい値の上と下）、`origin/main` の別のものが使っている、ほかのブランチが別の名前で加えている、同じ名前のほかのブランチは止めない、形に合わない `docs/tasks/` の項目、`main` で名前を変えたものが古いヘッドに残る PR を止めないこと、番号を加えない PR はブランチの一覧と merge-base と 2 つの木のほかは何も読まないこと、base が `main` でない PR は確かめないこと、`origin/main` にすでにある番号は対象にしない、base が `main` でない。
 -   名前の部品：`chief` と `TestADRRecords` の今の正規表現が受け入れる入力と拒む入力を、名前の部品も同じく扱うこと。
 
 ### 7.2. 結合テストと文書のガード

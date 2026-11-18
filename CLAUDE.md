@@ -557,10 +557,11 @@ its security rules in `docs/dev/security.md` §8.
   `malformed` (a status line as `network-or-github`) and is not read more
   widely; only a 422 that reading the ref back confirms moves the tool to the
   next number. The pre-merge check that `mergepr` calls differs only where
-  its design says: an entry of another name form on the latest `origin/main`
-  or on another branch is not counted, rather than stopped on, so a PR that
-  removes one can merge, and an entry the PR adds under `docs/tasks/` of
-  another form is reported as a finding.
+  its design says: it does not stop on an entry of another form on the
+  latest `origin/main`, so a PR that removes one can merge; it skips an
+  entry of another form that the PR adds under `docs/dev/adr/`, which
+  `TestADRRecords` checks in CI; and it reports an entry of another form that
+  the PR adds under `docs/tasks/` as a finding.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
