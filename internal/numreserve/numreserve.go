@@ -1,5 +1,5 @@
 // Package numreserve decides a collision-free task or ADR number by creating
-// a record tag on GitHub.
+// a record tag on GitHub, and checks the numbers a PR adds before a merge.
 //
 // The number is unique because GitHub refuses to create a ref that already
 // exists: the tool creates refs/tags/<space>-number/NNNN through the REST API
@@ -13,7 +13,8 @@
 // response (whose whole body must be strict JSON), git ls-remote lines,
 // git ls-tree entries, git for-each-ref lines, the one line of git
 // rev-parse --show-toplevel (a local-git stop when it is not one absolute
-// path), and, only to choose the branches a stop's detail names, git
+// path), the one line of git merge-base (a malformed stop when it is not one
+// commit ID), and, only to choose the branches a stop's detail names, git
 // cat-file --batch-check lines. These are values
 // written by external commands that cannot be expressed in a type; a line or
 // entry of any form the tool does not accept stops it as malformed (a status
