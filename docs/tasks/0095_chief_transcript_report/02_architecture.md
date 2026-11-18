@@ -754,4 +754,4 @@ PR の分け方は計画で決める。
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#920）
-- 2026-11-17 セッション中の再承認：`readLastHumanInput` を、0093 の `readRunningCommand` が呼ぶので消さずに残すことにした（isseis、#未記入）
+- 2026-11-17 セッション中の再承認：`readLastHumanInput` を、0093 の `readRunningCommand` が呼ぶので消さずに残すことにした（isseis、#972）
