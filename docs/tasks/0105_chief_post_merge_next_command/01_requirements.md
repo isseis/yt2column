@@ -15,8 +15,10 @@
 
 **目的:** 本書は、chief が、ブランチ `main` をチェックアウトした worktree（以下、`main` にいる worktree）の workspace を「タスクのない workspace」と読んで `/mkreq` を示す誤りを直す要件を定義する。あわせて、その worktree のタスクを、マージを見た PR の記録から特定する要件を定義する。
 
--   **マージを見た PR**：chief の pane の Claude Code のセッション（以下、chief のセッション）の間に、chief がその worktree で開いているのを見て、後のラウンドでマージされたと分かった PR。
--   **記録が示すタスク**：chief が PR の開いているのを見たときに、そのときのブランチの名前から記録したタスク。
+-   **マージを見た PR**：次の 2 つを、どちらも同じ chief のセッションの間に確かめた PR。chief のセッションとは、chief を動かしている pane の Claude Code のセッションである。
+    1.  chief が、ある worktree のブランチの PR が、まだマージされずに開いていることを確かめた。
+    2.  その後、chief が、同じ PR がマージされたことを確かめた。
+-   **記録が示すタスク**：上の 1 で PR が開いていることを確かめたとき、chief がその worktree のブランチの名前から読んで記録しておいたタスク。
 
 これらの語の正確な定義は、3.1 の冒頭にある。
 
@@ -109,10 +111,14 @@ issue が挙げた未確認のことの答えは次のとおりである。
 
 -   **`main` にいる worktree**：HEAD がブランチを指し、そのブランチの名前がバイト列でちょうど `main` である worktree。
 -   **chief のセッション**：要件定義の際に決めたことのとおり、chief の pane の Claude Code のセッション。
--   **マージを見た PR**：今の chief のセッションの `tick` が、その worktree で開いているのを見て、その後のどれかの `tick` で `MERGED` と分かった PR。今の自動送信は、ラウンドが 15 分以上あくと前のラウンドの観測を読まず（`internal/chief/tick.go:62`、`internal/chief/autosend.go:21` の `observeWindow`）、マージを見てから 10 分で観測の引き継ぎをやめる（`internal/chief/autosend.go:22` の `carryWindow`）。この特定には、どちらも当てない。一度見たマージの記録は、セッションが続く間、有効とする（H-01）。
+-   **マージを見た PR**：次の 2 つを、どちらも今の chief のセッションの間に確かめた PR。
+    1.  ある `tick` が、その worktree のブランチの PR が開いていることを確かめた。
+    2.  その後のどれかの `tick` が、同じ PR の状態が `MERGED` であることを確かめた。
+
+    今の自動送信は、ラウンドが 15 分以上あくと前のラウンドの観測を読まず（`internal/chief/tick.go:62`、`internal/chief/autosend.go:21` の `observeWindow`）、マージを見てから 10 分で観測の引き継ぎをやめる（`internal/chief/autosend.go:22` の `carryWindow`）。この特定には、どちらも当てない。一度見たマージの記録は、セッションが続く間、有効とする（H-01）。
 -   **ほかのタスクの跡**：今の chief のセッションが、その worktree で T 以外のタスクの PR を見たこと（開いているのだけを見たものを含む）と、最後にマージを見た T の PR の後に、その worktree が T 以外のタスクの機能ブランチにいるのを見たこと（H-07）。
 -   **開いたままの PR**：今の chief のセッションが、その worktree で開いているのを見た PR のうち、最後に見た状態が開いているもの（閉じた後に開き直されたものを含む）。
--   **記録が示すタスク**：マージを見た PR について、PR が開いていたときに chief が記録したタスク（`internal/chief/tick.go:56`）。
+-   **記録が示すタスク**：マージを見た PR について、上の 1 で PR が開いていることを確かめたときに、chief がその worktree のブランチの名前から読んで記録したタスク（`internal/chief/tick.go:56`）。
 
 #### F-001: `main` にいる worktree のタスクを、マージを見た PR から特定する
 
