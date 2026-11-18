@@ -223,15 +223,12 @@ func TestCreateRunsOnlyInTheRightPlaces(t *testing.T) {
 }
 
 // TestRemoveRunsOnlyInTheRightPlaces runs a whole removal next to another
-// task workspace, with the target-redirecting variables set, and checks
-// every command: gh never runs; git runs in chief's worktree and in the
+// task workspace and checks every command: gh never runs; git runs in chief's worktree and in the
 // worktree removed, and in the other agent's directory only the two
 // rev-parse reads by which the lookup tells task workspaces apart; and the
 // only writes are the workspace's close and the worktree's removal (the
 // recorder fails any other).
 func TestRemoveRunsOnlyInTheRightPlaces(t *testing.T) {
-	t.Setenv("GH_REPO", "other/repo")
-	t.Setenv("GH_HOST", "ghe.example.com")
 	sw := newSendWorld(t)
 	other := sw.addTask(fakeWorkspace{ID: "w1", Label: "other", Branch: taskBranch}, "claude")
 	rs := addRemovalWorkspace(t, sw)

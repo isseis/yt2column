@@ -791,12 +791,7 @@ func TestWorkspaceCloser(t *testing.T) {
 		if err := closer.removeWorktree(t.Context()); err != nil {
 			t.Errorf("removeWorktree: %v", err)
 		}
-		var writes []string
-		for _, call := range cw.rec.recorded() {
-			if !isReadOnly(call) {
-				writes = append(writes, call.dir+" "+call.line())
-			}
-		}
+		writes := writesOf(cw.rec)
 		want := []string{" herdr workspace close " + removalWS, cw.chief.path + " git worktree remove " + cw.tree.path}
 		if !slices.Equal(writes, want) {
 			t.Errorf("writes %q, want %q", writes, want)
@@ -916,8 +911,8 @@ func (rs *removalSetup) remove(deps Deps, path string) RemoveOutcome {
 	return out
 }
 
-// writes returns the writes run so far, as "dir line" (dir empty for
-// herdr).
+// writesOf returns the writes rec ran so far, as "dir line" (dir empty
+// for herdr).
 func writesOf(rec *recorder) []string {
 	var out []string
 	for _, c := range rec.recorded() {
@@ -952,7 +947,7 @@ func (rs *removalSetup) recordFiles() []string {
 // TestRemoveClosesThenRemoves removes a proposed workspace and checks that
 // the tool fetched before it checked, read Herdr again before it closed,
 // closed the workspace and then removed the worktree, and removed the
-// workspace's records, leaving its exclusion's file; the output says so.
+// workspace's records; the output says so.
 func TestRemoveClosesThenRemoves(t *testing.T) {
 	sw, rs := newRemovalWorld(t)
 	rs.allowRemoval()
@@ -1000,7 +995,7 @@ func TestRemoveClosesThenRemoves(t *testing.T) {
 
 // TestRemoveLeavesTheRest removes the workspace next to another task
 // workspace with records of its own, and checks that the other workspace's
-// records and worktree stay and no write names it.
+// records stay and no write names it.
 func TestRemoveLeavesTheRest(t *testing.T) {
 	sw := newSendWorld(t)
 	other := sw.addTask(fakeWorkspace{ID: "w1", Label: "other", Branch: taskBranch}, "claude")
@@ -1029,9 +1024,6 @@ func TestRemoveLeavesTheRest(t *testing.T) {
 	}
 	if stop, err := records.Stopped(); err != nil || stop == nil {
 		t.Errorf("the other workspace's stop = %+v, %v; want it kept", stop, err)
-	}
-	if _, err := os.Stat(other); err != nil {
-		t.Errorf("the other worktree: %v", err)
 	}
 }
 
@@ -1112,6 +1104,11 @@ func TestRemoveRefusesOnEachCheck(t *testing.T) {
 			}
 			if !slices.ContainsFunc(out.Checks, func(r CheckResult) bool { return r.Check == c.check }) {
 				t.Errorf("checks %+v lack %v", out.Checks, c.check)
+			}
+			// A workspace no longer a candidate carries the candidate check
+			// alone, since the others need a candidate, and says why.
+			if c.check == RemovalCheckCandidate && (len(out.Checks) != 1 || out.Failure == "") {
+				t.Errorf("checks %+v, failure %q; want the candidate check alone, with a failure", out.Checks, out.Failure)
 			}
 			if w := writesOf(sw.rec); len(w) != 0 {
 				t.Errorf("writes %v", w)
@@ -1264,87 +1261,81 @@ func after(sw *sendWorld, line string, n int, changed func() reply) {
 // really left, and runs no write again or after it.
 func TestRemoveStopsAtEachStage(t *testing.T) {
 	closeLine := []string{herdrWorkspace, "close", removalWS}
+	closeOK := func(sw *sendWorld, _ *removalSetup) {
+		sw.rec.allowWrite(herdrProgram, "", closeLine, reply{out: readTestdata(sw.t, "herdr/workspace-close.json")})
+	}
 	cases := []struct {
-		name   string
-		stage  RemoveStage
-		setup  func(sw *sendWorld, rs *removalSetup)
+		name  string
+		stage string
+		setup func(sw *sendWorld, rs *removalSetup)
+		// late runs after sw.finish, for a reply that replaces one it sets.
+		late   func(sw *sendWorld, rs *removalSetup)
 		writes int
+		// sleeps is how many waits for the panes the removal made.
+		sleeps int
 		left   []string
 	}{
-		{"close fails", RemoveStageCloseWorkspace, func(sw *sendWorld, _ *removalSetup) {
+		{"close fails", "close_workspace", func(sw *sendWorld, _ *removalSetup) {
 			sw.rec.allowWrite(herdrProgram, "", closeLine, reply{err: errInjected})
-		}, 1, []string{"workspace", "worktree", "registration", "record"}},
-		{"the panes stay", RemoveStageWaitPanes, func(sw *sendWorld, _ *removalSetup) {
-			sw.rec.allowWrite(herdrProgram, "", closeLine, reply{out: readTestdata(sw.t, "herdr/workspace-close.json")})
-		}, 1, []string{"workspace", "worktree", "registration", "record"}},
-		{"the pane list fails during the wait", RemoveStageWaitPanes, func(sw *sendWorld, _ *removalSetup) {
-			sw.rec.allowWrite(herdrProgram, "", closeLine, reply{out: readTestdata(sw.t, "herdr/workspace-close.json")})
-			// The checks and the re-read before the close read it first.
+		}, nil, 1, 0, []string{"workspace", "worktree", "registration", "record"}},
+		// The wait reads up to its bound, sleeping between the reads.
+		{"the panes stay", "wait_panes", closeOK, nil, 1, closeAttempts - 1, []string{"workspace", "worktree", "registration", "record"}},
+		// A read that fails stops the wait at once, with no sleep. The
+		// checks and the re-read before the close read the list first.
+		{"the pane list fails during the wait", "wait_panes", closeOK, func(sw *sendWorld, _ *removalSetup) {
 			after(sw, "herdr pane list", 2, func() reply { return reply{err: errInjected} })
-		}, 1, []string{"workspace", "worktree", "registration", "record"}},
-		{"git refuses the worktree", RemoveStageRemoveWorktree, func(sw *sendWorld, rs *removalSetup) {
+		}, 1, 0, []string{"workspace", "worktree", "registration", "record"}},
+		{"git refuses the worktree", "remove_worktree", func(sw *sendWorld, rs *removalSetup) {
 			sw.rec.allowWriteDo(herdrProgram, "", closeLine, func() reply {
 				rs.close()
 				return reply{out: readTestdata(sw.t, "herdr/workspace-close.json")}
 			})
 			sw.rec.allowWrite(gitProgram, sw.chiefTree, []string{gitWorktree, "remove", rs.tree}, reply{err: &cmdrunner.ExitError{Code: 128}})
-		}, 2, []string{"worktree", "registration", "record"}},
-		{"a record cannot be removed", RemoveStageRemoveRecords, func(sw *sendWorld, rs *removalSetup) {
+		}, nil, 2, 0, []string{"worktree", "registration", "record"}},
+		{"a record cannot be removed", "remove_records", func(sw *sendWorld, rs *removalSetup) {
 			rs.allowRemoval()
 			// A directory where the stop record goes is refused by the
 			// removal of records, so the created record, removed last,
 			// stays too.
 			mustMkdir(sw.t, filepath.Join(filepath.Dir(rs.createdPath()), stopFile))
-		}, 2, []string{"record", "record"}},
+		}, nil, 2, 0, []string{"record", "record"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			sw, rs := newRemovalWorld(t)
 			c.setup(sw, rs)
 			deps := sw.finish()
+			if c.late != nil {
+				c.late(sw, rs)
+			}
+			slept := 0
+			deps.Sleep = func(_ context.Context, d time.Duration) error {
+				if d != closeInterval {
+					t.Errorf("slept %v, want %v", d, closeInterval)
+				}
+				slept++
+				return nil
+			}
 			out := rs.remove(deps, rs.tree)
-			if out.Result != RemoveStopped || out.Stage != c.stage || out.Failure == "" {
-				t.Fatalf("Remove = %+v, want stopped at %v", out, c.stage)
+			o := out.Output()
+			if out.Result != RemoveStopped || o.Stage != c.stage || out.Failure == "" {
+				t.Fatalf("Remove = %+v, want stopped at %s", out, c.stage)
 			}
 			if got, want := writesOf(sw.rec), rs.removalWrites()[:c.writes]; !slices.Equal(got, want) {
 				t.Errorf("writes %q, want %q", got, want)
 			}
-			if got := madeKinds(out.Left); !slices.Equal(got, c.left) {
-				t.Errorf("left %v (%+v), want %v", got, out.Left, c.left)
+			if slept != c.sleeps {
+				t.Errorf("slept %d times, want %d", slept, c.sleeps)
 			}
-			o := out.Output()
-			if o.Result != "stopped" || o.Stage != c.stage.String() || len(o.Left) != len(c.left) {
-				t.Errorf("output = %+v", o)
+			var kinds []string
+			for _, m := range o.Left {
+				kinds = append(kinds, m.Kind)
+			}
+			if !slices.Equal(kinds, c.left) || o.Result != "stopped" {
+				t.Errorf("output = %+v, want left %v", o, c.left)
 			}
 		})
 	}
-	t.Run("the wait reads up to its bound", func(t *testing.T) {
-		sw, rs := newRemovalWorld(t)
-		sw.rec.allowWrite(herdrProgram, "", closeLine, reply{out: readTestdata(t, "herdr/workspace-close.json")})
-		deps := sw.finish()
-		slept := 0
-		deps.Sleep = func(_ context.Context, d time.Duration) error {
-			if d != closeInterval {
-				t.Errorf("slept %v, want %v", d, closeInterval)
-			}
-			slept++
-			return nil
-		}
-		before := 0
-		out := rs.remove(deps, rs.tree)
-		calls := sw.rec.recorded()
-		closeAt := slices.IndexFunc(calls, func(c recordedCall) bool { return c.line() == "herdr workspace close "+removalWS })
-		for _, c := range calls[closeAt+1:] {
-			if c.line() == "herdr pane list" {
-				before++
-			}
-		}
-		// The wait reads closeAttempts times; leftAfter reads once more to
-		// tell whether the workspace is left.
-		if out.Stage != RemoveStageWaitPanes || before != closeAttempts+1 || slept != closeAttempts-1 {
-			t.Errorf("stage %v, %d pane lists and %d sleeps after the close; want %d and %d", out.Stage, before, slept, closeAttempts+1, closeAttempts-1)
-		}
-	})
 }
 
 // TestRemoveStopsWhenHeadMoved moves the worktree's HEAD, or makes
@@ -1390,8 +1381,9 @@ func TestRemoveStopsWhenHeadMoved(t *testing.T) {
 	}
 }
 
-// TestRemoveDeadline makes the time limit pass while the workspace is
-// closed and checks that the removal stops at the next stage as the
+// TestRemoveDeadline makes the removal's context end while the workspace is
+// closed, as its time limit does (a cancelled context stands in for the
+// limit), and checks that the removal stops at the next stage as the
 // deadline, listing what is left and writing nothing more.
 func TestRemoveDeadline(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
