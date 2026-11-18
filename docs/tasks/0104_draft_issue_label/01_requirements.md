@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-18 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-18 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -140,3 +140,7 @@
 -   **下書きの issue:** 名前がバイト列でちょうど `draft` と等しいラベルが付いた、開いた issue。そこからタスクを始めない。文書の状態の `draft`（タスク文書の Status の値）とは別のものである。
 -   **正式な issue:** 下書きの issue でない開いた issue。人がラベル `draft` を外すと、下書きの issue は正式な issue になる。
 -   **食い違いの記述:** ADR の決定と、その仕様を持つ文書やコードが食い違うときに、「決定」に残す記述（`docs/dev/conventions/adr.md`「Writing an ADR」）。
+
+## 変更履歴
+
+- 2026-11-18 承認（isseis、#987）

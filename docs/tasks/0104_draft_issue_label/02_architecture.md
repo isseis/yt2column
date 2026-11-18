@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-18 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-18 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -178,3 +178,7 @@ flowchart TD
 
 -   ラベルの名前や判定の規則を変えるときは、`_context.md`・`mkreq.md`・chief（`internal/chief/issue.go`）を同じ PR で変える（ADR-0053 の「結果」）。
 -   ほかのコマンドが issue からタスクを始めるようになったら、同じ確かめを `_context.md` の行の定義に従って入れる。
+
+## 変更履歴
+
+- 2026-11-18 承認（isseis、#987）

@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-18 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-18 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。本タスクに `design_handoff.md` と `implementation_handoff.md` はない。
@@ -133,3 +133,7 @@ Diff record (AC-10):
 ## 9. 次のステップ (Next Steps)
 
 -   実装の PR のマージの後、`/runpr` が issue #934 を閉じる。
+
+## 変更履歴
+
+- 2026-11-18 承認（isseis、#987）
