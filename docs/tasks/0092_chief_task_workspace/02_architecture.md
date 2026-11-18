@@ -113,6 +113,10 @@ flowchart LR
     -   **確かめていないこと。** ラベルの応答の形は、GitHub の GraphQL のスキーマ（`LabelConnection` の `totalCount`・`nodes`、`Label` の `name`）によるもので、このリポジトリで読んで確かめてはいない。PR-1 で採った gh のサンプルは、ラベルを足す前の問い合わせのものである。計画が、サンプルを最初に読む PR で、この問い合わせで採り直す。形がこの節の想定と違えば、計画の段で設計に戻す。
     -   ADR: ADR-0046 を更新する（作る前に拒む issue の種類を足すため）。
 
+### 1.6. 実装の際に決めたこと（2026-11-18）
+
+-   **消す手順の確かめを、書き込みの直前にも当てる（計画書の決定 20、2026-11-18、人が承認した）。** PR-6 のローカルレビューとブランチのレビューが、3.4.3 の手順の段と段の間に残る隙間と、git の設定によっては git が追跡していないファイルを拒まないことを見つけた。どれも、3.4.2 の確かめ（HEAD が detached、`path_in_use`、読めないものは通さない）を、閉じる直前と消す直前にも当てるもので、消す方向を狭めるだけである。3.4.3 の 4〜6 と 4.1 の段の綴りの意味を、そのとおりに直した。ADR: なし（PR-6 の中で閉じるため）。
+
 ## 2. システム構成 (System Structure)
 
 ### 2.1. 全体構成
@@ -419,9 +423,9 @@ query($owner: String!, $repo: String!, $n: Int!) {
 1.  **排他。** そのパスの workspace ごとの排他を取る。取れなければ `busy` で何もしない。排他は、記録を消すまで持ち続ける。そのため、0088 の送信と自動送信は、消している最中の workspace へ送らない。
 2.  **fetch（AC-29）。** chief の worktree で `git fetch origin main` を行う。失敗すれば `fetch_failed` で何もしない。
 3.  **確かめ（3.4.2）。**
-4.  **workspace を閉じる。** 閉じる直前に、`herdr pane list` と `herdr agent list` を読み直し、3 のときと比べて、その workspace の ID、pane の ID の集まり、エージェントの状態が同じで、エージェントでない pane の前面のプロセスがシェルのままであることを確かめる。違えば閉じない（`changed`）。同じなら `herdr workspace close <ID>` を、`--group` を付けずに呼ぶ。閉じるのは `WorkspaceCloser`（3.6）だけである。
-5.  **pane が消えるのを待つ。** `herdr pane list` で、その workspace の pane がなくなったことを、決まった回数まで確かめる。止まりかけのプロセスがファイルを書き残すと、次の段で git が拒むためである。
-6.  **worktree を消す。** その直前に、HEAD が 3 のときと同じで、まだ `origin/main` から届くことを確かめ直す。違えば消さずに止まる（段 `recheck_head`）。3 の後に作られたコミットは、worktree が clean でも git が拒まないためである。通れば、chief の worktree で `git worktree remove <パス>` を、`--force` なしで行う。3 の後に変更か追跡していないファイルが入っていれば、git が拒む。git が無視するファイルは、worktree とともに消える（要件書 4.2）。
+4.  **workspace を閉じる。** 閉じる直前に、`herdr pane list` と `herdr agent list` を読み直し、3 のときと比べて、その workspace の ID、pane の ID の集まり、エージェントの状態が同じで、エージェントでない pane の前面のプロセスがシェルのままであり、パスの workspace がこの workspace だけであることを確かめる。前面のプロセスを読んだ後に `herdr pane list` を、最後に `herdr agent list` をもう一度読み、その間に開いた pane や動き出したエージェントも見る。違うか、読めなければ閉じない（`changed`）。3 で排他を取った後の `herdr agent list` が読めないときは、エージェントの確かめを `unreadable` とし、閉じない（1.6）。同じなら `herdr workspace close <ID>` を、`--group` を付けずに呼ぶ。閉じるのは `WorkspaceCloser`（3.6）だけである。
+5.  **pane が消えるのを待つ。** `herdr pane list` で、その workspace の pane がなくなったことを、決まった回数まで確かめる。止まりかけのプロセスがファイルを書き残すと、次の段で git が拒むためである。読めないとき、またはほかの workspace がパスに pane を持つときは、すぐに止まる（1.6）。
+6.  **worktree を消す。** その直前に、HEAD が detached のままで、3 のときと同じコミットで、まだ `origin/main` から届くことを確かめ直し、祖先の判定の後に HEAD をもう一度読む。違えば消さずに止まる（段 `recheck_head`）。3 の後に作られたコミットは、worktree が clean でも git が拒まないためである。続いて `herdr pane list` を読み直し、パスに pane があるか読めなければ、消さずに止まる（段 `remove_worktree`。1.6）。通れば、chief の worktree で `git -c status.showUntrackedFiles=all worktree remove <パス>` を、`--force` なしで行う。3 の後に変更か追跡していないファイルが入っていれば、git が拒む。`-c` は、利用者の設定が `status.showUntrackedFiles=no` でも git が追跡していないファイルを数えるためである（その設定では、git 2.50.1 は追跡していないファイルのある worktree を消した。1.6）。git が無視するファイルは、worktree とともに消える（要件書 4.2）。
 7.  **記録を消す。** そのパスの workspace ごとの記録のディレクトリの記録（送信の記録、送信の停止、PR の詳細の控え、作ったことの記録）を、作ったことの記録を最後にして消す。排他のファイルは、排他を持ったままなので消さない（3.5）。
 
 -   **順序の理由。** workspace を先に閉じるのは、エージェントとシェルのプロセスを止めてから、その作業ディレクトリを消すためである。worktree を先に消すと、動いているプロセスの作業ディレクトリがなくなり、その間に書かれたものが行き場を失う。
@@ -677,7 +681,7 @@ type RemoveStage int
 | `changed` | 閉じる直前の読み直しで、確かめたときから変わっていた |
 | `agent_not_ready` | 起動した Claude Code が入力を受け付ける状態にならなかった（`/mkreq` を送らなかった理由。`create` の出力だけが持つ） |
 
-作成の段の綴りは `records`・`worktree`・`record`・`workspace`・`tabs`・`opencode`・`claude`・`panes`・`deadline`、削除の段の綴りは `close_workspace`・`wait_panes`・`recheck_head`・`remove_worktree`・`remove_records`・`deadline` とする。`deadline` は、全体の時間の上限を過ぎて止まったことを表す（3.1）。
+作成の段の綴りは `records`・`worktree`・`record`・`workspace`・`tabs`・`opencode`・`claude`・`panes`・`deadline`、削除の段の綴りは `close_workspace`・`wait_panes`・`recheck_head`・`remove_worktree`・`remove_records`・`deadline` とする。削除の段の意味は 3.4.3 の 4〜7 のとおりで、`wait_panes` はほかの workspace がパスに pane を持つときを、`remove_worktree` は git を走らせる前にパスに pane が見つかったときを含む（1.6）。止まった削除が残ったものの種類は、作成の `Made` の種類に、git の worktree の登録 `registration` を足したものである。`deadline` は、全体の時間の上限を過ぎて止まったことを表す（3.1）。
 
 ### 4.2. 示し方
 
@@ -962,3 +966,4 @@ sequenceDiagram
 - 2026-11-17 承認（isseis、#929）
 - 2026-11-17 draft への戻し：issue の問い合わせにラベルを足し、ラベル `draft` が付いた開いた issue を `issue_draft` で拒むことにした（#939）
 - 2026-11-17 承認（isseis、#939）
+- 2026-11-18 セッション中の再承認：消す手順の確かめを、閉じる直前と消す直前にも当て、`git worktree remove` に `-c status.showUntrackedFiles=all` を渡すことにした（1.6）（isseis、#未記入）
