@@ -200,6 +200,9 @@ type Made struct {
 	Kind MadeKind
 	// ID is the path, or the ID or name Herdr returned.
 	ID string
+	// Label is a workspace's label as Herdr reported it, the name the
+	// human sees in Herdr; it is empty for every other kind.
+	Label string
 }
 
 // NotReady is Claude Code that Herdr started but reported not yet taking
@@ -627,11 +630,11 @@ func (m WorkspaceMaker) makeWorkspace(ctx context.Context, made func(Made)) (mad
 	if err != nil {
 		// Herdr made a workspace whose ID cannot be read: it is named by
 		// its label, so the human still sees that it exists.
-		made(Made{Kind: MadeWorkspace, ID: m.space.Label()})
+		made(Made{Kind: MadeWorkspace, ID: m.space.Label(), Label: m.space.Label()})
 		return madeWorkspace{}, CreateStageWorkspace, err
 	}
 	ws := madeWorkspace{ID: created.First.Workspace}
-	made(Made{Kind: MadeWorkspace, ID: ws.ID})
+	made(Made{Kind: MadeWorkspace, ID: ws.ID, Label: created.Label})
 	made(Made{Kind: MadeTab, ID: created.First.Tab.String()})
 	made(Made{Kind: MadePane, ID: created.First.Pane.String()})
 	if created.Label != m.space.Label() || !inWorktree(created.First.Dir, m.tree.path) {

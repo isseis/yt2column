@@ -574,8 +574,20 @@ func TestCreateStopsAtEachStage(t *testing.T) {
 					t.Errorf("created record = %+v, want the one of the issue", rec)
 				}
 			}
-			if o := out.Output(); o.Result != "stopped" || o.Stage != c.stage.String() || o.Mkreq != nil {
+			o := out.Output()
+			if o.Result != "stopped" || o.Stage != c.stage.String() || o.Mkreq != nil {
 				t.Errorf("output = %+v", o)
+			}
+			// A workspace made is named by its label too, as Herdr reported
+			// it: the name Herdr shows the human who cleans up.
+			label := "issue-" + createIssue
+			if c.name == "the workspace is labelled otherwise" {
+				label = "other"
+			}
+			for _, m := range o.Made {
+				if want := map[bool]string{true: label}[m.Kind == MadeWorkspace.String()]; m.Label != want {
+					t.Errorf("made %+v: label %q, want %q", m, m.Label, want)
+				}
 			}
 		})
 	}

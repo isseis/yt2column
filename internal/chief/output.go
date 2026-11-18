@@ -534,10 +534,12 @@ func (o WaitOutcome) Output() WaitOutput {
 	return WaitOutput{Protocol: Protocol, Outcome: "changed", Baseline: o.Baseline}
 }
 
-// MadeOutput is one thing a creation made.
+// MadeOutput is one thing a creation made; label is a workspace's label
+// and empty for every other kind.
 type MadeOutput struct {
-	Kind string `json:"kind"`
-	ID   string `json:"id"`
+	Kind  string `json:"kind"`
+	ID    string `json:"id"`
+	Label string `json:"label"`
 }
 
 // CreateOutput is the output of `chief create`. result is refused
@@ -575,7 +577,7 @@ func (o CreateOutcome) Output() CreateOutput {
 		Workspace: Sanitize(o.Workspace), Label: Sanitize(o.Label),
 	}
 	for _, m := range o.Made {
-		out.Made = append(out.Made, MadeOutput{Kind: m.Kind.String(), ID: Sanitize(m.ID)})
+		out.Made = append(out.Made, MadeOutput{Kind: m.Kind.String(), ID: Sanitize(m.ID), Label: Sanitize(m.Label)})
 	}
 	switch {
 	case o.NotReady != nil:
