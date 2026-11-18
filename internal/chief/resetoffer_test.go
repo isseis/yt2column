@@ -356,7 +356,7 @@ func TestSendOfferedResetRefusals(t *testing.T) {
 		}, reason: NotSentOtherInput},
 		{name: "the transcript is gone", claude: true, change: (*mergeWorld).removeClaudeTranscript, reason: NotSentNoTranscript},
 		{name: "unsent text in the input line", claude: true, change: func(mw *mergeWorld) {
-			mw.byPane["w1:p1"].screen = withInput(mw.t, reportScreen(mw.t, prURL), "draft")
+			mw.byPane["w1:p1"].screen = withInput(mw.t, readScreenSample(mw.t, "claude-after-clear.ansi"), "draft")
 		}, reason: NotSentInputLeft},
 		{name: "the pane moves before the input", change: func(mw *mergeWorld) {
 			// The workspace's list is read under the exclusion; the pane

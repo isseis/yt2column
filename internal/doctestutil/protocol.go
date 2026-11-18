@@ -18,9 +18,15 @@ const (
 	ToolFixprguard  = "fixprguard"
 	ToolCodexreview = "codexreview"
 	ToolChief       = "chief"
+	ToolMergepr     = "mergepr"
 )
 
-var protocolTools = []string{ToolFixprguard, ToolCodexreview, ToolChief}
+var protocolTools = []string{ToolFixprguard, ToolCodexreview, ToolChief, ToolMergepr}
+
+// ProtocolTools returns a copy of the tools whose --protocol flags the guards
+// check, so a test can compare the list with the tools the protocol-number
+// check finds.
+func ProtocolTools() []string { return slices.Clone(protocolTools) }
 
 // ProtocolFlag is one --protocol N, or --protocol=N, that a document writes.
 type ProtocolFlag struct {
@@ -29,9 +35,9 @@ type ProtocolFlag struct {
 	// Value is N: the whole word after the flag, so a word such as "1junk",
 	// which the tool rejects, is not read as 1.
 	Value string
-	// Tool is the tool whose call the flag belongs to: the nearest of
-	// ToolFixprguard, ToolCodexreview, and ToolChief written as a word before
-	// it in the same command, or "" when none is.
+	// Tool is the tool whose call the flag belongs to: the nearest of the
+	// tools of ProtocolTools written as a word before it in the same command,
+	// or "" when none is.
 	Tool string
 }
 
@@ -54,26 +60,46 @@ var (
 // one guard. A command substitution between the tool and its flag ends the
 // command, so the documents write a call's values literally.
 func ProtocolFlags(doc string) []ProtocolFlag {
+	return protocolFlagsOf(doc, protocolTools)
+}
+
+// ProtocolCallers returns, for each --protocol flag of doc, the one of names
+// written last as a word before it in the same command, read as ProtocolFlags
+// reads a flag's tool. A flag with none of names before it gives nothing, so
+// the result names only the commands that pass --protocol.
+func ProtocolCallers(doc string, names []string) []string {
+	var callers []string
+	for _, f := range protocolFlagsOf(doc, names) {
+		if f.Tool != "" {
+			callers = append(callers, f.Tool)
+		}
+	}
+	return callers
+}
+
+// protocolFlagsOf returns every --protocol flag of doc with the one of names
+// written last before it in its command as its Tool.
+func protocolFlagsOf(doc string, names []string) []ProtocolFlag {
 	var flags []ProtocolFlag
 	for _, command := range CommandBoundary.Split(doc, -1) {
 		for _, m := range protocolFlag.FindAllStringSubmatchIndex(command, -1) {
 			flags = append(flags, ProtocolFlag{
 				Text:  command[m[0]:m[1]],
 				Value: command[m[2]:m[3]],
-				Tool:  lastTool(command[:m[0]]),
+				Tool:  lastTool(command[:m[0]], names),
 			})
 		}
 	}
 	return flags
 }
 
-// lastTool returns the known tool written last as a word in text, or "".
-// A word is the tool's name alone or a path ending in it, with optional
-// quotes: "codexreview-x", "my_fixprguard", or "chiefs" is not one.
-func lastTool(text string) string {
+// lastTool returns the one of names written last as a word in text, or "".
+// A word is the name alone or a path ending in it, with optional quotes:
+// "codexreview-x", "my_fixprguard", or "chiefs" is not one.
+func lastTool(text string, names []string) string {
 	for _, word := range slices.Backward(strings.Fields(text)) {
 		word = path.Base(strings.Trim(word, `"'`))
-		if slices.Contains(protocolTools, word) {
+		if slices.Contains(names, word) {
 			return word
 		}
 	}
