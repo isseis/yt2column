@@ -220,7 +220,15 @@ Each task PR is handled by two commands. The command that produces it —
 `/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
 feature branch, reviews its work (subagent review, `japrose` for documents,
 the local CLI review — the CodeRabbit CLI, or Codex CLI when it fails —),
-opens the PR, pings the reviewer, and stops. `/mkreq`,
+opens the PR, pings the reviewer, and stops. Before it opens the PR, it also
+runs the Fable partial review (`_lib/fable-review.md`): a subagent on Fable
+reviews only the places that meet its scope criteria (a trust boundary, the
+prior documents, a claim about outside behavior, a choice made without
+asking), in parallel with the local CLI review, whose triage takes its
+findings; `/runplan` runs it once per PR, with the last phase group before
+the PR, and its checkpoint reviews the commits a valid record does not
+cover. When Fable cannot run, the command records `not run` and goes on.
+`/mkreq`,
 `/mkarch`, and `/mkplan` first ask the human about the decisions their input
 leaves open; `/runplan` asks when implementation meets a decision change.
 Before it opens the PR, `/runplan` also runs the Opus review

@@ -1231,3 +1231,129 @@ func TestReviewRecordsCallSite(t *testing.T) {
 		}
 	}
 }
+
+// Paths of the other documents that define or write record lines.
+const (
+	opusReviewPath = "../../.claude/commands/_lib/opus-review.md"
+	runplanPath    = "../../.claude/commands/runplan.md"
+)
+
+// recordPrefix is a record line's prefix: its text up to and including the
+// first colon.
+func recordPrefix(t *testing.T, where, line string) string {
+	t.Helper()
+	prefix, _, ok := strings.Cut(line, ":")
+	if !ok {
+		t.Fatalf("%s has the record line %q, which has no colon", where, line)
+	}
+	return prefix + ":"
+}
+
+// tableLinePrefixes returns the prefixes of the record lines named in the
+// first column of the record-line tables in section, the tables whose
+// header's first cell is "Line".
+func tableLinePrefixes(t *testing.T, where, section string) []string {
+	t.Helper()
+	var prefixes []string
+	inTable := false
+	for row := range strings.Lines(section) {
+		trimmed := strings.TrimSpace(row)
+		if !strings.HasPrefix(trimmed, "|") {
+			inTable = false
+			continue
+		}
+		first, _, ok := strings.Cut(strings.TrimPrefix(trimmed, "| "), " | ")
+		if first == "Line" {
+			inTable = true
+			continue
+		}
+		if !inTable || !ok || !strings.HasPrefix(first, "`") {
+			continue
+		}
+		if line, found := firstCodeSpan(first); found {
+			prefixes = append(prefixes, recordPrefix(t, where, line))
+		}
+	}
+	return prefixes
+}
+
+// TestRecordLinePrefixesDistinct checks that the record lines the Fable
+// partial review and the seen-range line add cannot be read as an existing
+// record line: no new prefix equals an existing one, and neither starts
+// with the other. The existing prefixes are those of local-cli-review.md
+// step 7's table (the seen-range line aside) and of the code blocks of
+// opus-review.md's "Record lines", which _lib/opus-review-decision.sh and
+// the local CLI review's readers read; the new ones are those of
+// fable-review.md's "Record lines" table and the seen-range line.
+func TestRecordLinePrefixesDistinct(t *testing.T) {
+	const seenPrefix = "Local CLI reviewed:"
+	existing := map[string]struct{}{}
+	var added []string
+	for _, prefix := range tableLinePrefixes(t, "local-cli-review.md step 7", localReviewStep7(t)) {
+		if prefix == seenPrefix {
+			added = append(added, prefix)
+			continue
+		}
+		existing[prefix] = struct{}{}
+	}
+	localCount := len(existing)
+	opus := requireSection(t, "opus-review.md", doctestutil.ReadDoc(t, opusReviewPath), "## Record lines")
+	blockLines, _ := codeTexts(opus)
+	for _, line := range blockLines {
+		existing[recordPrefix(t, "opus-review.md \"Record lines\"", line)] = struct{}{}
+	}
+	fable := requireSection(t, "fable-review.md", doctestutil.ReadDoc(t, fableReviewPath), "## Record lines")
+	fablePrefixes := map[string]struct{}{}
+	for _, prefix := range tableLinePrefixes(t, "fable-review.md \"Record lines\"", fable) {
+		fablePrefixes[prefix] = struct{}{}
+		added = append(added, prefix)
+	}
+	// The lower bounds keep a table the reading misses from passing with
+	// nothing compared.
+	if localCount < 4 || len(existing)-localCount < 2 || len(fablePrefixes) < 3 || !slices.Contains(added, seenPrefix) {
+		t.Fatalf("read %d prefixes from local-cli-review.md step 7, %d more from opus-review.md, %d from fable-review.md, and the seen-range line %v; want at least 4, 2, 3, and true",
+			localCount, len(existing)-localCount, len(fablePrefixes), slices.Contains(added, seenPrefix))
+	}
+	for _, n := range added {
+		for e := range existing {
+			if strings.HasPrefix(n, e) || strings.HasPrefix(e, n) {
+				t.Errorf("the new record line prefix %q overlaps the existing prefix %q", n, e)
+			}
+		}
+	}
+}
+
+// mentionCheckReference is how a section names the mention check that runs
+// before a commit of record lines.
+const mentionCheckReference = "`_lib/local-cli-review.md` step 7, \"Mention check\""
+
+// TestRecordCommitsCheckMention checks that each section that makes a commit
+// holding a Fable line runs the mention check first: it holds the check's
+// command or names local-cli-review.md step 7's "Mention check". A Fable line
+// carries the session's summaries of Fable's findings, which may hold the
+// mention.
+func TestRecordCommitsCheckMention(t *testing.T) {
+	runplan := doctestutil.ReadDoc(t, runplanPath)
+	var step78 string
+	for line := range strings.Lines(runplan) {
+		if strings.HasPrefix(line, "7.8. ") {
+			step78 = line
+		}
+	}
+	fable := doctestutil.ReadDoc(t, fableReviewPath)
+	for _, site := range []struct{ name, text string }{
+		{"local-cli-review.md step 7", localReviewStep7(t)},
+		{"runplan.md step 7.8", step78},
+		{"fable-review.md \"Record lines\"", requireSection(t, "fable-review.md", fable, "## Record lines")},
+		{"fable-review.md \"The standalone path\"", requireSection(t, "fable-review.md", fable, "## The standalone path")},
+	} {
+		text := flat(site.text)
+		if text == "" {
+			t.Errorf("%s is missing", site.name)
+			continue
+		}
+		if !strings.Contains(text, mentionCheckCommand) && !strings.Contains(text, flat(mentionCheckReference)) {
+			t.Errorf("%s neither runs %s nor names %s", site.name, mentionCheckCommand, mentionCheckReference)
+		}
+	}
+}

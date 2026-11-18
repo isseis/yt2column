@@ -209,8 +209,9 @@ The checkpoint entry runs it when the branch has no valid record.
 4. Write the record lines it returned and the Fable lines of "Record lines"
    in one record commit: an empty commit (`git commit --allow-empty -F
    <file>`) with a subject line of your own that starts with no record line
-   prefix, after the mention check of "Record lines" and the post-exit
-   comparison of "The state check".
+   prefix, after the check of `_lib/local-cli-review.md` step 7, "Mention
+   check" (as "Record lines" says), and the post-exit comparison of "The
+   state check".
 
 When the path stops (the state check, the mention check, or the local CLI
 review stops), push nothing and do not open the PR.
@@ -470,8 +471,8 @@ path, its own record commit. The Fable lines of a record that launched
 nothing (`VALID`) are not written.
 
 **Mention check.** Before a commit whose message holds a Fable line, write
-the message to a file and run `_lib/local-cli-review.md` step 7's "Mention
-check" on it, which removes, when it does not pass, every free text the
+the message to a file and run the check of `_lib/local-cli-review.md` step
+7, "Mention check", on it, which removes, when it does not pass, every free text the
 session wrote (each `<summary>` and `<reason>`, and the reasons of the
 `Fable scope: out` lines) and cuts every `<location>` to its `<path>`; when
 the second run does not pass either, it stops instead of committing.
