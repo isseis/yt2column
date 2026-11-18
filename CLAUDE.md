@@ -558,7 +558,8 @@ its security rules in `docs/dev/security.md` §8.
   widely; only a 422 that reading the ref back confirms moves the tool to the
   next number. The pre-merge check that `mergepr` calls differs only where
   its design says: it does not stop on an entry of another form on the
-  latest `origin/main`, so a PR that removes one can merge; it skips an
+  latest `origin/main` or in another branch's `docs/tasks/` or
+  `docs/dev/adr/`, so a PR that removes one can merge; it skips an
   entry of another form that the PR adds under `docs/dev/adr/`, which
   `TestADRRecords` checks in CI; and it reports an entry of another form that
   the PR adds under `docs/tasks/` as a finding.
