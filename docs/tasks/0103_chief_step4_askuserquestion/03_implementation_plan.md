@@ -126,27 +126,28 @@ Diff record (AC-06):
 
 - Compared paths: `.claude/commands/chief.md`
 - Merge-base: `0bbba2c8c7d98e5dd61f01334d6b226ad2b7aa1e`
-- Compared commit: `fc91637289b76e4d1b0cd88378413c062e8a68e2`
+- Compared commit: `96d2d7f09d8efb65aade26584ee24dc6c28047ea`
 
 Path diff:
 
 ````text
 diff --git a/.claude/commands/chief.md b/.claude/commands/chief.md
-index 16eee94e541b51701906cb6c13d7a2f2c4de8f53..3b3cba006b191fa2d665a55b8103aaf27ea9e6ce 100644
+index 16eee94e541b51701906cb6c13d7a2f2c4de8f53..b1e644134a73f9b7cc62d4620570a370b591be90 100644
 --- a/.claude/commands/chief.md
 +++ b/.claude/commands/chief.md
-@@ -271,7 +271,9 @@ How to offer them depends on the argument:
+@@ -271,7 +271,10 @@ How to offer them depends on the argument:
    `<number>)`: the terminal renders such lines as a Markdown ordered list
    and renumbers them from the first number, so the human would see numbers
    the tool did not give. Write nothing about numbers that are no longer
 -  listed.
-+  listed. The questions of step 4 are the exception: they are asked with
++  listed. The rule of this item is for the choices at the end of a round:
++  the questions of step 4 are its exception, and are asked with
 +  `AskUserQuestion` while watching too, because the human answers them just
 +  after choosing an item (step 4).
  - **With `once`**, ask with `AskUserQuestion`. A question has at most four
    options, so show the first three items and 何もしない; name every item left
    out by its label in the question text, and say that the human can write
-@@ -293,8 +295,24 @@ say so and send nothing.
+@@ -293,8 +296,24 @@ say so and send nothing.
 
  ## 4. Acting on the answer
 
@@ -173,7 +174,7 @@ index 16eee94e541b51701906cb6c13d7a2f2c4de8f53..3b3cba006b191fa2d665a55b8103aaf2
 
  - **何もしない**: nothing. Go on watching (step 5), or stop with `once`.
  - **A question** (`question` or `merge_confirmation`): show the workspace's
-@@ -338,10 +356,17 @@ modes, since the human has just chosen and is answering.
+@@ -338,10 +357,17 @@ modes, since the human has just chosen and is answering.
  - **A proposal** (`proposal`): `<request>` below is always the chosen item's
    `proposal.request`, a takeover included. When the proposal is not
    `sendable` and `<request>` is not `mkreq`, send nothing: show its
@@ -181,13 +182,13 @@ index 16eee94e541b51701906cb6c13d7a2f2c4de8f53..3b3cba006b191fa2d665a55b8103aaf2
 -  for the issue number first, then run
 +  `problem`. When it is `mkreq`, ask the human for the issue number with an
 +  `AskUserQuestion` whose options are 送らない and ほかの項目を見る, the
-+  human writing the number in its free-text answer. An answer that is not
-+  only digits is not a choice: say so and send nothing, and never take a
-+  number out of `#<number>` or a URL (rule 4). 送らない sends nothing: go on
-+  watching, or stop with `once`. ほかの項目を見る offers the remaining items
-+  again as step 3 says, in step 3's form for the mode; with `once`, when no
-+  item is left to offer, it is the same as 何もしない, so say so and stop.
-+  When the answer is only digits, run
++  human writing the number in its free-text answer. A free-text answer that
++  is not only digits is not a choice: say so and send nothing, and never
++  take a number out of `#<number>` or a URL (rule 4). 送らない sends
++  nothing: go on watching, or stop with `once`. ほかの項目を見る offers the
++  remaining items again as step 3 says, in step 3's form for the mode; with
++  `once`, when no item is left to offer, it is the same as 何もしない, so
++  say so and stop. When the free-text answer is only digits, run
    `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 3`.
 -  Otherwise run
 +  When it is not `mkreq`, run
@@ -209,27 +210,28 @@ Diff record (AC-07):
 
 - Compared paths: `.claude/commands/chief.md`
 - Merge-base: `0bbba2c8c7d98e5dd61f01334d6b226ad2b7aa1e`
-- Compared commit: `fc91637289b76e4d1b0cd88378413c062e8a68e2`
+- Compared commit: `96d2d7f09d8efb65aade26584ee24dc6c28047ea`
 
 Path diff:
 
 ````text
 diff --git a/.claude/commands/chief.md b/.claude/commands/chief.md
-index 16eee94e541b51701906cb6c13d7a2f2c4de8f53..3b3cba006b191fa2d665a55b8103aaf27ea9e6ce 100644
+index 16eee94e541b51701906cb6c13d7a2f2c4de8f53..b1e644134a73f9b7cc62d4620570a370b591be90 100644
 --- a/.claude/commands/chief.md
 +++ b/.claude/commands/chief.md
-@@ -271,7 +271,9 @@ How to offer them depends on the argument:
+@@ -271,7 +271,10 @@ How to offer them depends on the argument:
    `<number>)`: the terminal renders such lines as a Markdown ordered list
    and renumbers them from the first number, so the human would see numbers
    the tool did not give. Write nothing about numbers that are no longer
 -  listed.
-+  listed. The questions of step 4 are the exception: they are asked with
++  listed. The rule of this item is for the choices at the end of a round:
++  the questions of step 4 are its exception, and are asked with
 +  `AskUserQuestion` while watching too, because the human answers them just
 +  after choosing an item (step 4).
  - **With `once`**, ask with `AskUserQuestion`. A question has at most four
    options, so show the first three items and 何もしない; name every item left
    out by its label in the question text, and say that the human can write
-@@ -293,8 +295,24 @@ say so and send nothing.
+@@ -293,8 +296,24 @@ say so and send nothing.
 
  ## 4. Acting on the answer
 
@@ -256,7 +258,7 @@ index 16eee94e541b51701906cb6c13d7a2f2c4de8f53..3b3cba006b191fa2d665a55b8103aaf2
 
  - **何もしない**: nothing. Go on watching (step 5), or stop with `once`.
  - **A question** (`question` or `merge_confirmation`): show the workspace's
-@@ -338,10 +356,17 @@ modes, since the human has just chosen and is answering.
+@@ -338,10 +357,17 @@ modes, since the human has just chosen and is answering.
  - **A proposal** (`proposal`): `<request>` below is always the chosen item's
    `proposal.request`, a takeover included. When the proposal is not
    `sendable` and `<request>` is not `mkreq`, send nothing: show its
@@ -264,13 +266,13 @@ index 16eee94e541b51701906cb6c13d7a2f2c4de8f53..3b3cba006b191fa2d665a55b8103aaf2
 -  for the issue number first, then run
 +  `problem`. When it is `mkreq`, ask the human for the issue number with an
 +  `AskUserQuestion` whose options are 送らない and ほかの項目を見る, the
-+  human writing the number in its free-text answer. An answer that is not
-+  only digits is not a choice: say so and send nothing, and never take a
-+  number out of `#<number>` or a URL (rule 4). 送らない sends nothing: go on
-+  watching, or stop with `once`. ほかの項目を見る offers the remaining items
-+  again as step 3 says, in step 3's form for the mode; with `once`, when no
-+  item is left to offer, it is the same as 何もしない, so say so and stop.
-+  When the answer is only digits, run
++  human writing the number in its free-text answer. A free-text answer that
++  is not only digits is not a choice: say so and send nothing, and never
++  take a number out of `#<number>` or a URL (rule 4). 送らない sends
++  nothing: go on watching, or stop with `once`. ほかの項目を見る offers the
++  remaining items again as step 3 says, in step 3's form for the mode; with
++  `once`, when no item is left to offer, it is the same as 何もしない, so
++  say so and stop. When the free-text answer is only digits, run
    `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 3`.
 -  Otherwise run
 +  When it is not `mkreq`, run
