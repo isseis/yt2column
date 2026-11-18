@@ -18,7 +18,7 @@
 -   **`/mkreq` は、下書きかをコマンドの終了コードで決め、エージェントがラベルの名前を読んで比べない。** 名前がちょうど `draft` と等しいかを、エージェントの読み違いで変えないためである。名前が 1 つの値と等しいかを見るだけの判定なので、Go の道具には置かない（[ADR-0014](0014-deterministic-checks-in-go.md)）。手順は [mkreq.md](../../../.claude/commands/mkreq.md) の step 1 にある。
 -   **chief は、下書きの issue で workspace を作らない。** 決定とその理由は [ADR-0046](0046-chief-of-staff.md) にある。
 -   **下書きの issue を正式にするには、人がラベル `draft` を外す。道具はラベルを付け外ししない。** 着手してよいと判断するのは人だからである。
--   **食い違い:** `mkreq.md` の step 1 は、まだ下書きの issue で止まらない。この ADR の決定に合っていない（[#934](https://github.com/isseis/yt2column/issues/934)）。
+-   **食い違い:** `mkreq.md` の step 1 は、まだ下書きの issue で止まらず、`_context.md` にはまだラベルの定義の行がない。この ADR の決定に合っていない（[#934](https://github.com/isseis/yt2column/issues/934)）。
 
 ## 採らなかった案
 
@@ -30,7 +30,7 @@
 ## 結果
 
 -   ラベルの名前 `draft` は、`_context.md`、`mkreq.md` の step 1、chief のコード（`internal/chief/issue.go`）の 3 か所にある。名前や判定の規則を変えるときは、3 つを同じ PR で変える。
--   `/mkreq` は、chief と違い、読んだラベルが issue のラベルのすべてかを確かめない。ラベルが極めて多い issue では、`draft` を見落として先へ進みうる（[0104 要件定義書](../../tasks/0104_draft_issue_label/01_requirements.md) 4.2）。
+-   `/mkreq` は、chief と違い、読んだラベルが issue のラベルのすべてかを確かめない。ラベルが極めて多い issue では、`draft` を見落として先へ進み、タスク番号を決めうる。下書きの issue にラベルを多数付ける運用がなく、損害は番号の欠番と消せるブランチ 1 つに限られるので、受け入れる（[0104 要件定義書](../../tasks/0104_draft_issue_label/01_requirements.md)「要件定義の際に決めたこと（2026-11-18）」）。
 -   下書きの issue を起票するときは、人がラベル `draft` を付ける。付け忘れた issue は、`/mkreq` と chief から見て正式な issue である。
 
 ## 経緯

@@ -49,6 +49,10 @@
     -   ADR：ADR-0053。
 -   **変える文書は、`_context.md`・`mkreq.md`・ADR（と ADR の索引）だけとする。`requirements_process.md` などの手順の要約には、下書きの issue のことを足さない。** ラベルの意味の正本を `_context.md` の 1 か所に置くためである。人の答え：issue の 3 つだけ。
     -   ADR：なし。本タスクの中で閉じる、範囲の選択である。
+-   **`/mkreq` は、読んだラベルが issue のラベルのすべてかを照らし合わせない。chief との違いとして受け入れる。** chief はラベルの件数を照らし合わせ、すべてを読めなかった応答を拒む（[0092 設計書](../0092_chief_task_workspace/02_architecture.md) 1.5）。`gh issue view` の出力には件数がない。ラベルが極めて多い issue で `draft` が読んだ範囲に入らなければ、`/mkreq` は先へ進み、step 2 でタスク番号を決めうる。それでも受け入れるのは、下書きの issue にラベルを多数付ける運用がないうえ、起きたときの損害が、番号の欠番（誤りではない。[ADR-0051](../../dev/adr/0051-number-reservation.md)）と、消せるブランチ 1 つに限られるためである。人の答え：違いとして受け入れる。
+    -   ADR：[ADR-0053](../../dev/adr/0053-draft-issue-label.md) の「結果」に書く。
+-   **ADR-0046 の下書きの issue の項目に、ADR-0053 へのリンクを 1 つ足す。決定の中身は変えない。** 主題の重なる ADR は互いにリンクする規約で（`docs/dev/conventions/adr.md`「Location and naming」の Subject）、chief の判定を変える後のタスクが、`/mkreq` と合わせて変えることを知るためである。人の答え：リンクを 1 つ足す。
+    -   ADR：ADR-0046 を更新する（リンクと「経緯」の 1 行だけ）。
 
 ## 2. 目的とスコープ (Goals and Scope)
 
@@ -61,12 +65,12 @@
 
 -   `.claude/commands/mkreq.md` の step 1 に、下書きの issue の確かめを加える（F-001）。
 -   `.claude/commands/_context.md` の「Process convention」の表に、下書きの issue のラベルの行を加える（F-002）。
--   ADR-0053 の作成と、ADR の索引への行の追加（F-003）。
+-   ADR-0053 の作成と、ADR の索引への行の追加、ADR-0046 から ADR-0053 へのリンク（F-003）。
 
 ### 2.3. スコープ外 (Out of Scope)
 
 -   chief の issue の確かめの変更。タスク 0092 ですでに、ラベル `draft` が付いた開いた issue を拒む（1 章の背景）。
--   ADR-0046 の変更。ADR-0053 から ADR-0046 へリンクし、ADR-0046 の文はそのまま残す（要件定義の際に決めたこと）。
+-   ADR-0046 の決定の変更。ADR-0046 には ADR-0053 へのリンクと「経緯」の 1 行だけを足す（要件定義の際に決めたこと）。
 -   `requirements_process.md`・CLAUDE.md・`chief_guide.md` などへの、下書きの issue の説明の追加（要件定義の際に決めたこと）。
 -   ラベル `draft` の作成と、#928・#930・#931・#932 へのラベルの付け外し。ラベルはすでにあり、4 件に付いている。
 -   `/mkreq` 以外のコマンド（`/mkarch`・`/mkplan`・`/runplan` など）での確かめ。これらはタスクのディレクトリから始まり、issue からタスクを始めない。
@@ -85,7 +89,6 @@
 - **AC-02**: `mkreq.md` の step 1 の確かめは、名前がバイト列でちょうど `draft` と等しいラベルがあるときだけ下書きの issue とする。`Draft`・`DRAFT`・`draft-x` のように名前が `draft` と等しくないラベルだけの issue と、ラベルのない issue では止まらない。`mkreq.md` は下書きの issue の定義を `_context.md` の行（AC-06）の名前で参照し、定義を書き写さない。
 - **AC-03**: `mkreq.md` の step 1 は、下書きの確かめを閉じているかの確かめの後に置く。閉じた issue は、ラベルによらず今までどおり閉じた issue として止まり、そう報告する。
 - **AC-04**: `mkreq.md` の step 1 は、ラベルを読めないとき、または確かめのコマンドが失敗したときは止まり、確かめられなかったことを報告する、と述べる。そのとき、下書きでない issue として先へ進まない。
-- **AC-05**: ラベル `draft` が付いた開いた issue（#928）で、本タスクの実装を入れたブランチの `/mkreq` を走らせると、step 1 で止まる。下書きの issue であることと、ラベルを外せば正式になることを報告する。`numreserve` は走らず、ブランチもタスクのディレクトリも作られない。
 
 #### F-002: 下書きの issue のラベルを `_context.md` に定義する
 
@@ -99,7 +102,7 @@
 #### F-003: ADR-0053 を作る
 
 **Acceptance Criteria**:
-- **AC-07**: `docs/dev/adr/0053-draft-issue-label.md` があり、状態は `有効` である。ADR の索引（`docs/dev/adr/README.md`）に、番号の位置で、その行がある。`TestADRRecords` が通る。
+- **AC-07**: `docs/dev/adr/0053-draft-issue-label.md` があり、状態は `有効` である。ADR の索引（`docs/dev/adr/README.md`）に、番号の位置で、その行がある。ADR-0046 の下書きの issue の項目は ADR-0053 にリンクし、ADR-0046 の「経緯」の最後にその 1 行がある。`TestADRRecords` が通る。
 - **AC-08**: ADR-0053 の「決定」は、本書と `02_architecture.md` の決定（下書きをラベル `draft` で宣言すること、名前の等しさだけで判定すること、`/mkreq` が止まること、chief が workspace を作らないこと（ADR-0046 へのリンク）、正式にするには人がラベルを外すこと）を述べ、ラベルの定義の正本として `_context.md` にリンクする。
 - **AC-09**: 実装の PR がマージされた後の ADR-0053 の「決定」には、`mkreq.md` がまだ下書きの issue で止まらないことを述べる食い違いの記述がない。本書の PR では、その食い違いの記述が issue #934 にリンクして「決定」にある（`docs/dev/conventions/adr.md`「Writing an ADR」）。
 
@@ -114,7 +117,7 @@
 -   N/A。`/mkreq` が GitHub に問い合わせる回数が増えるだけで、走る時間は人が気づくほど変わらない。
 
 ### 4.2. セキュリティ (Security)
--   N/A。`docs/dev/security.md` の規則と前提に触れない。ラベルの名前は GitHub から読む値だが、名前が `draft` と等しいかを見るだけで、名前で手順を選んだり、会話に命令として取り込んだりしない。読めないときや確かめが失敗したときは止まる（AC-04）。chief と違い、`/mkreq` は読んだラベルが issue のラベルのすべてかを確かめない（chief は件数を照らし合わせる。[0092 設計書](../0092_chief_task_workspace/02_architecture.md) 1.5）。ラベルが極めて多い issue で `draft` が読んだ範囲に入らなければ、`/mkreq` は先へ進みうる。これは chief との違いとして受け入れる。下書きの issue にラベルを多数付ける運用はなく、先へ進んでも、人が最初の問いで止められるためである。ラベルを付けられる人が下書きの印を付けても、`/mkreq` が止まるだけで、タスクが作られることはない。
+-   N/A。`docs/dev/security.md` の規則と前提に触れない。ラベルの名前は GitHub から読む値だが、名前が `draft` と等しいかを見るだけで、名前で手順を選んだり、会話に命令として取り込んだりしない。読めないときや確かめが失敗したときは止まる（AC-04）。chief と違い、`/mkreq` は読んだラベルが issue のラベルのすべてかを確かめない（要件定義の際に決めたこと）。ラベルを付けられる人が下書きの印を付けても、`/mkreq` が止まるだけで、タスクが作られることはない。
 
 ### 4.3. 信頼性・可用性 (Reliability/Availability)
 -   ラベルを読めないときは止まり、下書きでないとみなして進めない（AC-04）。下書きの issue からタスク番号を決めると、取り消せない記録の tag が残るためである（[ADR-0051](../../dev/adr/0051-number-reservation.md)）。

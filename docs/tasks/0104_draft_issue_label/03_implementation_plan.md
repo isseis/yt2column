@@ -26,7 +26,7 @@
 
 ### 1.3. 計画の際に決めたこと（2026-11-18）
 
--   **AC-05 は、実装の PR のレビューで、レビュアーが PR のブランチを取り出した新しい Claude Code のセッションで `/mkreq 928` を走らせて確かめる。`/runplan` のセッションでは走らせない。** 人の答えは「実装の PR のブランチで `/mkreq 928` を実際に走らせる」で、誰がどのセッションで走らせるかは計画で決めた。`/mkreq` は Claude Code で人が起動するコマンドで（`_context.md`「Command routing」の `task-documents` の行）、実装モデル要件 `sonnet` の `/runplan` は OpenCode で動く。`/runplan` の中で走らせると、実際に使う経路と違ううえ、確かめを書いた本人が結果を知ったうえで走らせることになる。人が起動すれば、`/mkreq` の「Authorization」もそのまま当てはまる（設計書 7 章）。
+-   **実際に `/mkreq` を走らせる確かめは、実装の PR のレビューで、レビュアーが PR のブランチを取り出した新しい Claude Code のセッションで `/mkreq 928 0104_draft_issue_label` を走らせて行い、結果を PR のコメントに残す。`/runplan` のセッションでは走らせない。** 理由と、タスクを与えて `numreserve` に届かないようにすることは設計書 7 章にある。人の答え：タスク付きでレビュアーが走らせる。
     -   ADR：なし。本タスクの確かめ方の選択で、本タスクの中で閉じる。
 -   **AC-02・AC-04 の判定のコマンドは、`/runplan` が、ネットワークなしで見本のファイルに対して走らせ、結果を §7 に記録する（ステップ 1-4）。** `mkreq.md` に書いたコマンドの例を走らせる確かめで、`/runplan` の中でネットワークの操作をせずに行える。
     -   ADR：なし。本タスクの中で閉じる。
@@ -54,7 +54,7 @@
 -   [ ] **ステップ 1-1**: `_context.md` の「Process convention」の表の、`Task process record` の行の後に、`Draft issue label` の行を 1 つ足す。内容は設計書 3.2 のとおりである（AC-06）。
 -   [ ] **ステップ 1-2**: `mkreq.md` の step 1 の、`url` の確かめの後、`git fetch origin` の前に、下書きの issue の確かめを足す。ラベルの名前の書き出し、`grep -qxF -- draft` の終了コードごとの振る舞い、報告は設計書 3.1 と 4 章のとおりに書く。下書きの issue の定義（名前の等しさ、閉じた issue の扱い、ラベルを外せば正式になること）は `_context.md` の `Draft issue label` の行を名前で参照し、`mkreq.md` に書き写さない（AC-01〜AC-04）。
 -   [ ] **ステップ 1-3**: ADR-0053 の「決定」から、issue #934 にリンクした食い違いの記述を消す。消す前に `git grep -nE 'issues/934([^0-9]|$)' origin/main -- docs/dev/adr/` を走らせ、当たったものが ADR-0053 のその 1 項目だけであることを確かめる（AC-09、`docs/dev/conventions/adr.md`「Discrepancy statements」）。この削除は、`docs/dev/conventions/adr.md`「Editorial corrections」の 2 つ目の種類に当たるので、コミットのメッセージに訂正の行を書き、PR の説明に訂正の段落を書く（`docs/dev/conventions/adr.md`「Editorial corrections」の「Recording」）。
--   [ ] **ステップ 1-4**: ステップ 1-2 で `mkreq.md` に書いた `grep -qxF -- draft` を、スクラッチパッドに作った名前の一覧の見本のファイル 4 つに対して走らせ、終了コードを §7 の実行の記録に書く。見本は、`draft` の行を含むもの（`0` を期待する）、`Draft` の行だけのもの、`draft-x` の行だけのもの、空のもの（どれも `1` を期待する）である。あわせて、存在しないファイルを与えて `0`・`1` のほかで終わることを確かめる（AC-02・AC-04）。ネットワークの操作はしない。
+-   [ ] **ステップ 1-4**: ステップ 1-2 で `mkreq.md` に書いた `command grep -qxF -- draft` を、スクラッチパッドに作った名前の一覧の見本のファイル 4 つに対して走らせ、終了コードを §7 の実行の記録に書く。見本は、`draft` の行を含むもの（`0` を期待する）、`Draft` の行だけのもの、`draft-x` の行だけのもの、空のもの（どれも `1` を期待する）である。あわせて、存在しないファイルを与えて `0`・`1` のほかで終わることを確かめる（AC-02・AC-04）。ネットワークの操作はしない。
 -   [ ] **ステップ 1-5**: AC-09 と AC-10 の差分を、記録した diff の読み取りで確かめる。`docs/dev/conventions/requirements_process.md` の「`diff` verification」の決まったコマンド（「Fixed commands」）を、ステップ 1-1〜1-3 のコミットの後に走らせ、§7 の `Diff record (AC-09):` と `Diff record (AC-10):` の段に、その形（「Diff record form」）で書く。比べる対象のパスは §7 の各 Diff record に書いたものとし、本計画のファイルは含めない。ステップ 1-4 の記録とともにコミットする。
 -   [ ] **ステップ 1-6**: green gate（`_context.md`）を通す。
 
@@ -82,7 +82,7 @@
 
 -   **単体テスト:** N/A。Go のコードを変えない。
 -   **判定のコマンドの実行:** ステップ 1-4 で、`grep -qxF -- draft` を見本のファイルに対して走らせる（AC-02・AC-04）。
--   **実際に走らせる確かめ:** 実装の PR のレビューで、レビュアーが `/mkreq 928` を走らせる（AC-05、1.3）。
+-   **実際に走らせる確かめ:** 実装の PR のレビューで、レビュアーが `/mkreq 928 0104_draft_issue_label` を走らせる（AC-01 を補う確かめ、1.3）。
 -   **既存のテスト:** `TestADRRecords` と `TestInstructionDocPaths`（`cmd/yt2column`）が、ADR-0053 の形とリンク先を確かめる。green gate に含まれる。
 -   **読んで確かめる:** `mkreq.md` と `_context.md` の文の中身（AC-01〜AC-04・AC-06）と ADR-0053 の「決定」の内容（AC-08）は、PR のレビューで読む。
 -   **後方互換のテスト:** N/A。ラベル `draft` の付いていない issue での振る舞いは変わらない（要件書 4.4）。そのような issue で `/mkreq` を走らせるとタスク番号が決まるので、確かめのためには走らせない。
@@ -91,7 +91,7 @@
 
 | リスク | 対策 |
 |---|---|
-| レビューの `/mkreq 928` が step 1 で止まらず、タスク番号を決める | step 1 で止まらなかったら step 2 に進まずに打ち切る（設計書 7 章）。万一番号が決まっても欠番は誤りではない（ADR-0051） |
+| レビューの `/mkreq` が step 1 で止まらない | タスクを与えて走らせるので、step 2 で止まり、`numreserve` もブランチの作成も走らない（設計書 7 章） |
 | レビューの前に、#928 のラベル `draft` が外される | レビュアーが、ラベル `draft` が付いたほかの開いた issue で走らせる |
 | 食い違いの記述が、本計画の外の ADR にもある | ステップ 1-3 の `git grep` で当たったものを読み、ADR-0053 のほかに当たれば止まって人に尋ねる |
 
@@ -105,13 +105,12 @@
 
 | AC | 種類 | 検証 |
 |---|---|---|
-| AC-01 | `manual` | 実装の PR のレビューで、`mkreq.md` の step 1 が、確かめの位置（閉じているかと `url` の確かめの後、`git fetch origin` の前）、下書きの issue で止まること、報告の内容を、step 1 が述べているかを読む |
-| AC-02 | `manual` | 実装の PR のレビューで、`mkreq.md` の step 1 が `grep -qxF -- draft` の終了コードで決め、定義を `_context.md` の行の名前で参照するかを読む。コマンドの振る舞いは、ステップ 1-4 の実行の記録で確かめる |
+| AC-01 | `manual` | 実装の PR のレビューで、`mkreq.md` の step 1 が、2 つのコマンドを別々に走らせて終了コードを別々に読むこと、確かめの位置（閉じているかと `url` の確かめの後、`git fetch origin` の前）、下書きの issue で止まること、報告の内容を、step 1 が述べているかを読む。補う確かめとして、レビュアーが `/mkreq 928 0104_draft_issue_label` を走らせる（1.3） |
+| AC-02 | `manual` | 実装の PR のレビューで、`mkreq.md` の step 1 が `command grep -qxF -- draft` の終了コードで決め、定義を `_context.md` の行の名前で参照するかを読む。コマンドの振る舞いは、ステップ 1-4 の実行の記録で確かめる |
 | AC-03 | `manual` | 実装の PR のレビューで、確かめが閉じた issue の確かめの後にあり、閉じた issue では今までどおり止まることを読む |
 | AC-04 | `manual` | 実装の PR のレビューで、ラベルを読めないときと `grep` が `0`・`1` のほかで終わるときに止まることを読む。`grep` の失敗の終了コードは、ステップ 1-4 の実行の記録で確かめる |
-| AC-05 | `manual` | 実装の PR のレビューで、レビュアーが PR のブランチの新しい Claude Code のセッションで `/mkreq 928` を走らせて見る（1.3）。AC が求めるのは人が起動したコマンドの振る舞いで、テストにできるコードがないため、実際の run で確かめる |
 | AC-06 | `manual` | 実装の PR のレビューで、`_context.md` の `Draft issue label` の行が要件書 AC-06 の 4 点を述べるかを読む |
-| AC-07 | `test` | `cmd/yt2column/adr_test.go::TestADRRecords`、`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`（green gate） |
+| AC-07 | `test`・`manual` | `cmd/yt2column/adr_test.go::TestADRRecords`、`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`（green gate）。ADR-0046 のリンクと「経緯」の行は、3 文書の PR のレビューで読む |
 | AC-08 | `manual` | 3 文書の PR のレビューで、ADR-0053 の「決定」が要件書 AC-08 の項目を述べ、`_context.md` にリンクするかを読む |
 | AC-09 | `manual`・`diff` | 3 文書の PR のレビューで、ADR-0053 の「決定」に issue #934 にリンクした食い違いの記述があることを読む。実装の PR では、下の `Diff record (AC-09):` で、ADR-0053 の差分がその 1 行の削除だけであることを確かめる |
 | AC-10 | `diff` | 下の `Diff record (AC-10):` で、3 つのファイルの差分と、差分全体のファイルの一覧を確かめる |
@@ -128,7 +127,7 @@ Diff record (AC-10):
 
 ## 8. 成功の基準 (Success Criteria)
 
--   AC-01〜AC-10 の検証がすべて済み、§7 に記録がある。
+-   AC-01〜AC-04・AC-06〜AC-10 の検証がすべて済み、§7 に記録がある。
 -   green gate が通る。
 
 ## 9. 次のステップ (Next Steps)
