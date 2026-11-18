@@ -323,18 +323,6 @@ func TestLoadClaudeEffortDefault(t *testing.T) {
 			assertClaudeEfforts(t, cfg.LLM(), tc.wantGeneration, tc.wantReview)
 		})
 	}
-
-	// LoadServer shares Load's LLM loading today; this pins the server entry
-	// point, so a server-specific loader would still get the default.
-	t.Run("LoadServer", func(t *testing.T) {
-		env := without(claudeBoth, cacheDirEnv)
-		env = with(env, "HOME", udstest.Dir(t))
-		cfg, err := LoadServer(ServerLookupForTest(t, env))
-		if err != nil {
-			t.Fatalf("LoadServer() error = %v, want nil", err)
-		}
-		assertClaudeEfforts(t, cfg.LLM(), high, high)
-	})
 }
 
 // assertClaudeEfforts checks the claude effort of each stage's selection.
@@ -1000,8 +988,8 @@ func TestLoadServerSocketPathUnderivable(t *testing.T) {
 	}
 }
 
-// TestLoadHTTP2Debug checks which GODEBUG values both entry points report as
-// enabling the HTTP/2 log.
+// TestLoadHTTP2Debug checks which GODEBUG values Load reports as enabling the
+// HTTP/2 log.
 func TestLoadHTTP2Debug(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1026,15 +1014,6 @@ func TestLoadHTTP2Debug(t *testing.T) {
 			}
 			if got := cfg.HTTP2DebugEnabled(); got != tc.want {
 				t.Errorf("HTTP2DebugEnabled() = %v, want %v", got, tc.want)
-			}
-			// The server reads GODEBUG from the environment too, while its
-			// other settings come from the configuration file.
-			server, err := LoadServer(ServerLookupForTest(t, with(tc.env, "HOME", udstest.Dir(t))))
-			if err != nil {
-				t.Fatalf("LoadServer() error = %v, want nil", err)
-			}
-			if got := server.HTTP2DebugEnabled(); got != tc.want {
-				t.Errorf("LoadServer().HTTP2DebugEnabled() = %v, want %v", got, tc.want)
 			}
 		})
 	}
