@@ -967,5 +967,5 @@ sequenceDiagram
 - 2026-11-17 承認（isseis、#929）
 - 2026-11-17 draft への戻し：issue の問い合わせにラベルを足し、ラベル `draft` が付いた開いた issue を `issue_draft` で拒むことにした（#939）
 - 2026-11-17 承認（isseis、#939）
-- 2026-11-18 セッション中の再承認：消す手順の確かめを、閉じる直前と消す直前にも当て、`git worktree remove` に `-c status.showUntrackedFiles=all` を渡すことにした（1.6）（isseis、#未記入）
-- 2026-11-18 セッション中の再承認：削除の候補でなくなった workspace の確かめの結果を `not_candidate` だけにした（1.6）（isseis、#未記入）
+- 2026-11-18 セッション中の再承認：消す手順の確かめを、閉じる直前と消す直前にも当て、`git worktree remove` に `-c status.showUntrackedFiles=all` を渡すことにした（1.6）（isseis、#986）
+- 2026-11-18 セッション中の再承認：削除の候補でなくなった workspace の確かめの結果を `not_candidate` だけにした（1.6）（isseis、#986）
