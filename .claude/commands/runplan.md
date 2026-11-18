@@ -141,7 +141,9 @@ Work in order.
     entry 1's output and the record lines, never from a subagent's text
     ("Before the PR", B5).
   - **AFTER_CREATE** = mark the second checkbox (`PR を作成した`) as `[x]` and
-    append the PR URL to that line, commit, and `git push`, so the update is in
+    append the PR URL to that line as `: <PR URL>` (the line becomes
+    `- [x] PR を作成した: <PR URL>`; `_lib/review-records.sh` counts the commit
+    as seen only in this form), commit, and `git push`, so the update is in
     the PR before it is merged.
 - Then stop. Do not wait for the merge: the reviewer runs `/runpr <PR>`, which
   merges the PR, marks the remaining checkboxes (`PR がマージされた`,

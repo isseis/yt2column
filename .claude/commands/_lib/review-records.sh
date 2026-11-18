@@ -69,10 +69,19 @@
 #   - It uses no network, writes no file, and uses no bash feature newer
 #     than 3.2.
 #
-# The rules this script executes are defined in the command documents, and
-# those definitions win over this file: the seen-range line's form in
-# .claude/commands/_lib/local-cli-review.md, step 7, and the rules in
-# .claude/commands/runpr.md, step 3. When they disagree, the script is fixed.
+# Where the rules are defined. The command documents define the record
+# lines and what is done with the result, and those definitions win over
+# this file: the seen-range line's form in
+# .claude/commands/_lib/local-cli-review.md, step 7, the form of the "PR
+# created" line in .claude/commands/runplan.md, step 5a (AFTER_CREATE), and
+# the rules that turn the result into a decision in
+# .claude/commands/runpr.md, step 3. When they disagree, the script is
+# fixed. The judging rules themselves (which commits are judged, which
+# count as seen, and the checks on a seen-range line's START and END) are
+# defined by this header, on the basis of the design of task 0098
+# (docs/tasks/0098_fable_partial_review/02_architecture.md, 3.6.1); no
+# command document restates them. A change to them changes this header
+# and the tests in cmd/yt2column/review_records_test.go together.
 #
 # Japanese literals: the heading and checkbox texts below must equal the
 # text of the Japanese plans this script reads (CLAUDE.md, "Go Idioms").
