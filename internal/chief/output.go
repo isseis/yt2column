@@ -2,6 +2,7 @@ package chief
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -27,18 +28,34 @@ type SnapshotOutput struct {
 
 // RowOutput is one row of the status table.
 type RowOutput struct {
-	Workspace     string           `json:"workspace"`
-	Label         string           `json:"label"`
-	Task          string           `json:"task"`
-	State         string           `json:"state"`
-	Next          *NextOutput      `json:"next"`
-	Takeover      *NextOutput      `json:"takeover"`
-	Unreadable    []string         `json:"unreadable"`
-	MergeQuestion bool             `json:"merge_question"`
-	Questions     []QuestionOutput `json:"questions"`
-	PR            *PROutput        `json:"pr"`
-	Running       *RunningOutput   `json:"running"`
-	Stopped       *StopOutput      `json:"stopped"`
+	Workspace  string           `json:"workspace"`
+	Label      string           `json:"label"`
+	Task       string           `json:"task"`
+	State      string           `json:"state"`
+	Urgency    string           `json:"urgency"`
+	Turn       string           `json:"turn"`
+	Position   PositionOutput   `json:"position"`
+	Next       *NextOutput      `json:"next"`
+	Takeover   *NextOutput      `json:"takeover"`
+	Unreadable []string         `json:"unreadable"`
+	Questions  []QuestionOutput `json:"questions"`
+	PR         *PROutput        `json:"pr"`
+	// Running is null when no command is decided.
+	Running *RunningOutput `json:"running"`
+	// RunningUnknown is why a running row shows no command, "" otherwise.
+	RunningUnknown string `json:"running_unknown"`
+	// Idle is true for a row left over or not yet used. It is for
+	// diagnosis; /chief does not show it in the table.
+	Idle    bool        `json:"idle"`
+	Stopped *StopOutput `json:"stopped"`
+}
+
+// PositionOutput is a row's position: the document and the progress.
+type PositionOutput struct {
+	Document string `json:"document"`
+	// PlanPR is N of PR-N when Document is "plan_pr", 0 otherwise.
+	PlanPR   int    `json:"plan_pr"`
+	Progress string `json:"progress"`
 }
 
 // NextOutput is a command offered for a workspace.
@@ -211,22 +228,30 @@ func (s Snapshot) Output() SnapshotOutput {
 	}
 	for _, r := range s.Rows {
 		row := RowOutput{
-			Workspace:     r.Workspace,
-			Label:         Sanitize(r.Label),
-			Task:          r.Task,
-			State:         r.State.String(),
-			Next:          nextOutput(r.Next),
-			Takeover:      nextOutput(r.Takeover),
-			Unreadable:    sanitizeAll(r.Unreadable),
-			MergeQuestion: r.MergeQuestion,
-			Questions:     []QuestionOutput{},
-			PR:            prOutput(r.PR),
-		}
-		if r.Running != nil {
-			row.Running = &RunningOutput{Pane: Sanitize(r.Running.Pane), Command: Sanitize(r.Running.Command), Agent: Sanitize(r.Running.Agent), Model: Sanitize(r.Running.Model), Started: r.Running.Started}
+			Workspace:      r.Workspace,
+			Label:          Sanitize(r.Label),
+			Task:           r.Task,
+			State:          r.State.String(),
+			Urgency:        urgencyName(r.Urgency),
+			Turn:           turnName(r.Turn),
+			Position:       positionOutput(r.Position),
+			Next:           nextOutput(r.Next),
+			Takeover:       nextOutput(r.Takeover),
+			Unreadable:     sanitizeAll(r.Unreadable),
+			Questions:      []QuestionOutput{},
+			PR:             prOutput(r.PR),
+			Running:        runningOutput(r.Running),
+			RunningUnknown: runningUnknownName(r.RunningUnknown),
+			Idle:           r.Idle,
 		}
 		if r.Stopped != nil {
 			row.Stopped = &StopOutput{Reason: Sanitize(r.Stopped.Reason), Screen: Sanitize(r.Stopped.Screen), At: r.Stopped.At}
+		}
+		if r.StopUnreadable {
+			if row.Stopped == nil {
+				row.Stopped = &StopOutput{}
+			}
+			row.Stopped.Unreadable = true
 		}
 		for _, q := range r.Questions {
 			row.Questions = append(row.Questions, questionOutput(q))
@@ -260,22 +285,193 @@ func (s Snapshot) Output() SnapshotOutput {
 	return out
 }
 
-// RunningOutput is what chief last sent to a working pane, shown on a
-// running row; it comes only from chief's send record, never from a screen.
+// RunningOutput is the running command of a running row and, when the
+// conditions of the model hold, the model of chief's send record (""
+// otherwise). It never comes from a screen.
 type RunningOutput struct {
-	Pane    string    `json:"pane"`
-	Command string    `json:"command"`
-	Agent   string    `json:"agent"`
-	Model   string    `json:"model"`
-	Started time.Time `json:"started"`
+	// Command is the command line, such as "/runplan 0093", or the name
+	// alone, such as "/runpr", when it had no argument of the accepted form.
+	Command string `json:"command"`
+	// LaterInput is true when the human typed something after the command.
+	LaterInput bool   `json:"later_input"`
+	Model      string `json:"model"`
 }
 
 // StopOutput is a workspace's stop: why, what its pane showed, and when.
+// Unreadable is true when the stop record could not be read; Reason,
+// Screen, and At are then empty unless a stop was read before.
 type StopOutput struct {
-	Reason string    `json:"reason"`
-	Screen string    `json:"screen"`
-	At     time.Time `json:"at"`
+	Reason     string    `json:"reason"`
+	Screen     string    `json:"screen"`
+	At         time.Time `json:"at"`
+	Unreadable bool      `json:"unreadable"`
 }
+
+// The names the output gives values of more than one type.
+const (
+	nameNeedsCheck      = "needs_check"
+	nameNone            = "none"
+	nameUnreadable      = "unreadable"
+	namePathUnsupported = "unsupported_path"
+)
+
+// runningOutput converts a running command for the output. The command line
+// is built from the validated kind and argument only, so no text of a
+// transcript or a send record reaches it.
+func runningOutput(r *RunningShown) *RunningOutput {
+	if r == nil {
+		return nil
+	}
+	return &RunningOutput{Command: r.Command.Text(), LaterInput: r.Later, Model: Sanitize(r.Model)}
+}
+
+func positionOutput(p Position) PositionOutput {
+	out := PositionOutput{Document: positionDocumentName(p.Document), Progress: progressName(p.Progress)}
+	if p.Document == PositionDocPlanPR {
+		out.PlanPR = p.PlanPR
+	}
+	return out
+}
+
+// urgencyName names an urgency for the output.
+func urgencyName(u Urgency) string {
+	switch u {
+	case UrgencyNow:
+		return "now"
+	case UrgencyLater:
+		return "later"
+	case UrgencyWait:
+		return "wait"
+	default:
+		return unknownName
+	}
+}
+
+// turnName names a turn for the output.
+func turnName(t Turn) string {
+	switch t {
+	case TurnHuman:
+		return "human"
+	case TurnAI:
+		return "ai"
+	case TurnNone:
+		return nameNone
+	default:
+		return unknownName
+	}
+}
+
+// positionDocumentName names the document of a position for the output.
+func positionDocumentName(d PositionDocument) string {
+	switch d {
+	case PositionDocNeedsCheck:
+		return nameNeedsCheck
+	case PositionDocNoTask:
+		return "no_task"
+	case PositionDocRequirements:
+		return "requirements"
+	case PositionDocArchitecture:
+		return "architecture"
+	case PositionDocPlan:
+		return "plan"
+	case PositionDocPlanPR:
+		return "plan_pr"
+	case PositionDocNone:
+		return nameNone
+	default:
+		return unknownName
+	}
+}
+
+// progressName names the progress of a position for the output.
+func progressName(p Progress) string {
+	switch p {
+	case ProgressNeedsCheck:
+		return nameNeedsCheck
+	case ProgressAwaitingCreation:
+		return "awaiting_creation"
+	case ProgressCreating:
+		return "creating"
+	case ProgressRunprRunning:
+		return "runpr_running"
+	case ProgressRunning:
+		return "running"
+	case ProgressMergeConfirmation:
+		return "merge_confirmation"
+	case ProgressQuestion:
+		return "question"
+	case ProgressAwaitingReview:
+		return "awaiting_review"
+	case ProgressTaskDone:
+		return "task_done"
+	default:
+		return unknownName
+	}
+}
+
+// runningUnknownName names why no running command is decided for the
+// output, "" for a decided command.
+func runningUnknownName(u RunningUnknown) string {
+	switch u {
+	case RunningUnknownNone:
+		return ""
+	case RunningUnknownNoSession:
+		return "no_session"
+	case RunningUnknownUnsupportedPath:
+		return namePathUnsupported
+	case RunningUnknownUnreadable:
+		return nameUnreadable
+	case RunningUnknownOverCap:
+		return "over_cap"
+	case RunningUnknownPartialLine:
+		return "partial_line"
+	case RunningUnknownNotTaskCommand:
+		return "not_task_command"
+	case RunningUnknownNoSentCommand:
+		return "no_sent_command"
+	case RunningUnknownPanesDisagree:
+		return "panes_disagree"
+	default:
+		return unknownName
+	}
+}
+
+// OutputValueNames returns, for each row item /chief's definition maps to
+// its display ("urgency", "position.document", "position.progress", and
+// "running_unknown"), every name the output can give it but unknown and
+// running_unknown's "". Each
+// list is built from the name function the output uses, walking the values
+// from zero up to the first that names unknown, so it cannot drift from
+// the output.
+func OutputValueNames() map[string][]string {
+	return map[string][]string{
+		"urgency":           namesUpToUnknown(urgencyName),
+		"position.document": namesUpToUnknown(positionDocumentName),
+		"position.progress": namesUpToUnknown(progressName),
+		// RunningUnknownNone is named "" and shows nothing.
+		"running_unknown": slices.DeleteFunc(namesUpToUnknown(runningUnknownName), func(n string) bool { return n == "" }),
+	}
+}
+
+// namesUpToUnknown returns name(0), name(1), ... up to the first value
+// whose name is unknownName, which it leaves out. A name function that names
+// no value unknown stops at maxValueNames values instead of looping, and its
+// list then repeats names, which the definition's guard test reports.
+func namesUpToUnknown[T ~int](name func(T) string) []string {
+	var names []string
+	for v := T(0); v < maxValueNames; v++ {
+		n := name(v)
+		if n == unknownName {
+			return names
+		}
+		names = append(names, n)
+	}
+	return names
+}
+
+// maxValueNames bounds the values namesUpToUnknown walks, far above the
+// number any of the output's types declares.
+const maxValueNames = 64
 
 // ActionOutput is one send or reset.
 type ActionOutput struct {

@@ -255,6 +255,9 @@ func TestRunningCommandPerPane(t *testing.T) {
 		}, "/runplan 0093", RunningUnknownNone},
 		{"a Claude Code pane whose last input is free text", func(rw *runWorld) []Agent {
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"), typedLine("go on"))}
+		}, "/runplan 0093", RunningUnknownNone},
+		{"a Claude Code pane with free text only", func(rw *runWorld) []Agent {
+			return []Agent{rw.claude("w1:p1", typedLine("go on"))}
 		}, "", RunningUnknownNotTaskCommand},
 		{"a Claude Code pane with no session", func(rw *runWorld) []Agent {
 			a := rw.claude("w1:p1", commandLine("/runplan 0093"))
@@ -476,6 +479,10 @@ func TestRunningModel(t *testing.T) {
 			rw.command(claudeCodeLabel, "w1:p1", "runplan", "0094", "opus", sent)
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"))}
 		}, "/runplan 0093", ""},
+		{"a Claude Code pane with an input after the command chief sent", func(rw *runWorld) []Agent {
+			rw.command(claudeCodeLabel, "w1:p1", "runplan", "0093", "opus", sent)
+			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"), typedLine("go on"))}
+		}, "/runplan 0093", ""},
 		{"a Claude Code pane whose send failed after an input", func(rw *runWorld) []Agent {
 			rw.command(claudeCodeLabel, "w1:p1", "runplan", "0093", "opus", OutcomeSentThenFailed.String())
 			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"))}
@@ -512,6 +519,41 @@ func TestRunningModel(t *testing.T) {
 			text, model, why := rw.run(c.setup(rw)...)
 			if text != c.want || model != c.model || why != RunningUnknownNone {
 				t.Errorf("running = %q, model %q, %d; want %q, model %q", text, model, why, c.want, c.model)
+			}
+		})
+	}
+}
+
+// TestRunningLater checks Later: it is set when the human typed something
+// after the running command on any working pane, and not otherwise.
+func TestRunningLater(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(rw *runWorld) []Agent
+		later bool
+	}{
+		{"the command is the last input", func(rw *runWorld) []Agent {
+			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"))}
+		}, false},
+		{"free text after the command", func(rw *runWorld) []Agent {
+			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"), typedLine("go on"))}
+		}, true},
+		{"free text after the command on the first pane", func(rw *runWorld) []Agent {
+			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093"), typedLine("go on")), rw.claude("w1:p2", commandLine("/runplan 0093"))}
+		}, true},
+		{"free text after the command on the second pane", func(rw *runWorld) []Agent {
+			return []Agent{rw.claude("w1:p1", commandLine("/runplan 0093")), rw.claude("w1:p2", commandLine("/runplan 0093"), typedLine("go on"))}
+		}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rw := newRunWorld(t)
+			shown, why := runningOf(context.Background(), rw.deps, c.setup(rw), rw.held.lastSentCommand)
+			if shown == nil || why != RunningUnknownNone {
+				t.Fatalf("running = %+v, %d; want /runplan 0093", shown, why)
+			}
+			if shown.Command.Text() != "/runplan 0093" || shown.Later != c.later {
+				t.Errorf("running = %q, later %t; want /runplan 0093, later %t", shown.Command.Text(), shown.Later, c.later)
 			}
 		})
 	}

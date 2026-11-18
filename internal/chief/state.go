@@ -39,8 +39,10 @@ func (s WorkspaceState) String() string {
 		return "propose_next"
 	case StateTaskDone:
 		return "task_done"
+	case StateNeedsCheck:
+		return nameNeedsCheck
 	default:
-		return "needs_check"
+		return unknownName
 	}
 }
 
@@ -124,13 +126,16 @@ type Row struct {
 	Takeover *Next
 	// Unreadable names what could not be read or matched when State is
 	// StateNeedsCheck.
-	Unreadable    []string
-	MergeQuestion bool
-	Questions     []QuestionItem
-	PR            *OpenPR
-	// Running is chief's last send to a working pane, nil when chief sent
-	// it nothing; it is shown only, never read to decide.
-	Running *SendRecord
+	Unreadable []string
+	Questions  []QuestionItem
+	PR         *OpenPR
+	// Running is the command a running row's working agents run, nil when
+	// none is decided (RunningUnknown says why); it is shown only, never
+	// read to decide a state or a send.
+	Running *RunningShown
+	// RunningUnknown is why a running row shows no command,
+	// RunningUnknownNone otherwise; it is for diagnosis only.
+	RunningUnknown RunningUnknown
 	// Stopped is the workspace's stop, nil when it takes input.
 	Stopped *StopRecord
 	// StopUnreadable is true when the workspace's stop record could not be
@@ -150,6 +155,12 @@ type Row struct {
 	// any automatic-send result of the round (applyAutoSends) clear it. It orders the row last; it never decides a
 	// send.
 	Idle bool
+	// Urgency, Turn, and Position are set by finishRow once the round's
+	// state, stop, and running command are final; they are shown only and
+	// order the rows, never decide a send.
+	Urgency  Urgency
+	Turn     Turn
+	Position Position
 	// position is what the document rule reads, kept by classify on every
 	// path it returns by.
 	position positionFacts
@@ -403,9 +414,6 @@ func classify(f workspaceFacts) Row {
 		case a.Screen.Kind == ScreenQuestion && a.Screen.Question != nil:
 			q := *a.Screen.Question
 			row.Questions = append(row.Questions, QuestionItem{Pane: a.Agent.Pane.String(), Agent: a.Agent.Kind, Question: q, Check: relayCheck(a.Agent, q)})
-			if a.Screen.Question.Merge {
-				row.MergeQuestion = true
-			}
 		case a.Agent.Status == AgentWorking:
 			// A working agent's screen is output in progress; it is not read
 			// for a question.

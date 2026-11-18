@@ -266,7 +266,7 @@ func (r ReportSource) String() string {
 	case ReportFromDescription:
 		return "description"
 	default:
-		return "none"
+		return nameNone
 	}
 }
 
@@ -335,7 +335,7 @@ const (
 func (k PaneReportKind) String() string {
 	switch k {
 	case PaneReportUnreadable:
-		return "unreadable"
+		return nameUnreadable
 	case PaneReportAbsent:
 		return noReportName
 	case PaneReportNotNamed:

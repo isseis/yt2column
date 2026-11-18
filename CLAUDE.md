@@ -502,11 +502,12 @@ for the packages that exist today. The server's startup is documented in the
   `/runpr` report, the last report on a pane and the PR numbers it names
   (an OpenCode pane's from its screen, a Claude Code pane's from the last
   finished response of its transcript), and the transcript's record of a
-  model switch, of the human's last command (a line is the human's only by
-  the origin Claude Code declares on it, never by its text), and of the
-  text of the last finished response; a PR record is a value the transcript
-  declares and is not in scope; the chief session's summary of the report
-  of the command that created a PR is in scope too. Every other file of the tool chooses behavior only
+  model switch, of the human's last command, and of the human's last task
+  command with whether the human typed anything after it, never what (a
+  line is the human's only by the origin Claude Code declares on it, never
+  by its text), and of the text of the last finished response; a PR record is
+  a value the transcript declares and is not in scope; the chief session's
+  summary of the report of the command that created a PR is in scope too. Every other file of the tool chooses behavior only
   by the types the screen readers return. Reason: the screens are drawn by
   Claude Code and OpenCode and the transcript is written by Claude Code,
   external values the tool cannot express in a type, and OpenCode's question
