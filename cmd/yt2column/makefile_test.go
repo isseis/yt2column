@@ -248,10 +248,10 @@ func builtPackages(output string) map[string]string {
 	return built
 }
 
-// TestMakeBuildBuildsEveryBinary checks the recipes `make -n` expands for the
+// TestMakeBuildBuildsOnlyTheCLI checks the recipes `make -n` expands for the
 // build and all targets: each builds exactly the CLI. The recipes are read
 // after expansion, since the Makefile names the package through a variable.
-func TestMakeBuildBuildsEveryBinary(t *testing.T) {
+func TestMakeBuildBuildsOnlyTheCLI(t *testing.T) {
 	want := []string{"./cmd/yt2column"}
 	for _, target := range []string{"build", "all"} {
 		t.Run(target, func(t *testing.T) {

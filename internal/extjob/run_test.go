@@ -295,9 +295,10 @@ func TestRunWithFakeClientsIsDone(t *testing.T) {
 	}
 }
 
-// TestRunWriterOptions checks that a run builds the writer with
-// writertestutil.DefaultOptions, the value the CLI's writer with no step flags
-// is also checked against, so the two entry points cannot drift apart.
+// TestRunWriterOptions checks that writerOptions, which Run builds its writer
+// with, equals writertestutil.DefaultOptions, the value the CLI's writer with
+// no step flags is also checked against, so the two entry points cannot drift
+// apart.
 func TestRunWriterOptions(t *testing.T) {
 	// A pointer client, so reflect.DeepEqual can match it (a func-typed client
 	// never compares equal).
