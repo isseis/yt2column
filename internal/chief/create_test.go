@@ -581,8 +581,11 @@ func TestCreateStopsAtEachStage(t *testing.T) {
 			// A workspace made is named by its label too, as Herdr reported
 			// it: the name Herdr shows the human who cleans up.
 			label := "issue-" + createIssue
-			if c.name == "the workspace is labelled otherwise" {
+			switch c.name {
+			case "the workspace is labelled otherwise":
 				label = "other"
+			case "the workspace's output cannot be read":
+				label = ""
 			}
 			for _, m := range o.Made {
 				if want := map[bool]string{true: label}[m.Kind == MadeWorkspace.String()]; m.Label != want {
