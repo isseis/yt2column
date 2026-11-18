@@ -234,15 +234,15 @@ review stops), push nothing and do not open the PR.
 2. On `MISSING`, run the standalone path. Then run the validity decision
    again. When it prints `VALID`, go on. When it prints `MISSING <START>`,
    stop and report: the PR does not open without a valid record. When the
-   decision failed instead (a line failed, the script exited with another
-   status, or its first line is of another form; for example while
-   `origin/main`'s copy has no `fable` mode), the standalone path just
-   reviewed RANGE up to HEAD, and its record commit is the only commit
-   since: go on to step 3 as on `VALID`, and report the failure with what
-   the script wrote to standard error. On every failure of the decision, report that standard
-   error too, so a failure is not mistaken for a missing record.
-3. On `VALID` (or after the failed second decision of step 2), make an
-   empty commit whose message holds the checkpoint mark
+   third line exited `1` and printed nothing at all, `origin/main`'s copy
+   has no `fable` mode (its failure prints `MISSING` otherwise): the
+   standalone path just reviewed RANGE up to HEAD, and its record commit is
+   the only commit since, so go on to step 3 as on `VALID`, and report it.
+   On any other failure of the second decision, stop and report what the
+   script wrote to standard error. On every failure of the decision, report
+   that standard error, so a failure is not mistaken for a missing record.
+3. On `VALID` (or after the second decision of step 2 found no `fable`
+   mode), make an empty commit whose message holds the checkpoint mark
    (`Fable review: checkpoint`) and a subject line of your own. The commits
    the checkpoint makes after it (green-gate fixes, end-of-task check fixes,
    the diff-record recheck, the commits of "Before the PR", and the fixes of
@@ -373,20 +373,26 @@ again nor from an earlier file: after the launch, the subagent could have
 changed either. It prints one line per part, `<part> <sha256>`:
 
 ```bash
-set -u
+set -eu -o pipefail
 export LC_ALL=C GIT_OPTIONAL_LOCKS=0
-cd "$(git rev-parse --show-toplevel)" || exit 1
+cd "$(git rev-parse --show-toplevel)"
 part() { printf '%s %s\n' "$1" "$(shasum -a 256 | cut -c1-64)"; }
 hashes() { while IFS= read -r p; do printf '%s %s\n' "$p" "$(shasum -a 256 2>/dev/null <"$p" | cut -c1-64)"; done; }
-git status --porcelain=v1 -z --untracked-files=all --ignore-submodules=none | part status
-{ git rev-parse HEAD; b=$(git symbolic-ref -q HEAD); echo "$b"; [ -z "$b" ] || git rev-parse --verify -q "$b"; } | part head
-git ls-files -v -z | tr '\0' '\n' | grep -E '^[a-zS] ' | sed 's/^. //' | hashes | part flags
-b=$(git symbolic-ref -q --short HEAD); git config --list | awk -v cur="branch.$b." '!/^branch\./ || index($0, cur) == 1 || index($0, "branch.main.") == 1' | part config
-{ git rev-parse --git-dir; git rev-parse --git-common-dir; } | sort -u | while IFS= read -r d; do find "$d/info" -print 2>/dev/null; done | sort | hashes | part info
-h=$(git rev-parse --git-path hooks); { find "$h" -exec ls -ld {} + 2>/dev/null; find "$h" -print 2>/dev/null | sort | hashes; } | part hooks
-git ls-files -z --others --ignored --exclude-standard | tr '\0' '\n' | awk '{ l = tolower($0); n = l; sub(/.*\//, "", n) } l != ".claude/settings.local.json" && (l ~ /^\.claude\// || l == ".env" || l == ".envrc" || l == "claude.local.md" || n ~ /^(claude\.md|makefile|gnumakefile|go\.mod|go\.work)$/ || n ~ /\.(go|mk|c|h|cc|cpp|cxx|hh|hpp|hxx|m|s|sx|f|for|f90|swig|swigcxx|syso)$/)' | sort | hashes | part watched
-{ ls -ld .claude/settings.local.json 2>/dev/null; shasum -a 256 2>/dev/null <.claude/settings.local.json; } | part settings
+b=$(git symbolic-ref -q --short HEAD || true); git config --list | awk -v cur="branch.$b." '!/^branch\./ || index($0, cur) == 1 || index($0, "branch.main.") == 1' | part config
+{ git rev-parse --git-dir; git rev-parse --git-common-dir; } | sort -u | while IFS= read -r d; do [ ! -d "$d/info" ] || find "$d/info" -print; done | sort | hashes | part info
+h=$(git rev-parse --git-path hooks); { [ ! -d "$h" ] || { find "$h" -exec ls -ld {} +; find "$h" -print | sort | hashes; }; } | part hooks
+git -c core.fsmonitor=false status --porcelain=v1 -z --untracked-files=all --ignore-submodules=none | part status
+{ git rev-parse HEAD; r=$(git symbolic-ref -q HEAD || true); echo "$r"; [ -z "$r" ] || git rev-parse --verify -q "$r"; } | part head
+git -c core.fsmonitor=false ls-files -v -z | tr '\0' '\n' | { grep -E '^[a-zS] ' || true; } | sed 's/^. //' | hashes | part flags
+git -c core.fsmonitor=false ls-files -z --others --ignored --exclude-standard | tr '\0' '\n' | awk '{ l = tolower($0); n = l; sub(/.*\//, "", n) } l != ".claude/settings.local.json" && (l ~ /^\.claude\// || l == ".env" || l == ".envrc" || l == "claude.local.md" || n ~ /^(claude\.md|makefile|gnumakefile|go\.mod|go\.work)$/ || n ~ /\.(go|mk|c|h|cc|cpp|cxx|hh|hpp|hxx|m|s|sx|f|for|f90|swig|swigcxx|syso)$/)' | sort | hashes | part watched
+{ ls -ld .claude/settings.local.json 2>/dev/null || true; shasum -a 256 2>/dev/null <.claude/settings.local.json || true; } | part settings
 ```
+
+The block exits with a status other than `0` when a read it needs fails;
+then the state cannot be compared: stop as on a difference. It compares
+the settings, `info`, and the hooks before it runs a git command that could
+run a hook or a filesystem monitor, and runs those commands with
+`core.fsmonitor` off.
 
 The parts follow what `fixprguard` compares for the same reason
 (`docs/dev/guides/fixprguard_guide.md`, sections 5 and 7.1): the work tree

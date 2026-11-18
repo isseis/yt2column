@@ -78,4 +78,11 @@ func TestFableStateCheckBlock(t *testing.T) {
 			t.Errorf("the %s part changed although nothing it covers changed", name)
 		}
 	}
+
+	// A corrupt index makes git status and git ls-files fail: the block must
+	// fail instead of hashing their empty output as a clean state.
+	f.write(".git/index", "not an index\n")
+	if run := f.runScript(scriptBash{name: "path-bash", path: "bash"}, script, nil, scriptRunOptions{}); run.code == 0 {
+		t.Errorf("the state check block exited 0 with a corrupt index: %v", run)
+	}
 }
