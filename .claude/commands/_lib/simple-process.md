@@ -428,7 +428,7 @@ handoff".
    to a deleted ADR from the files that remain; the confirmed item keeps its
    ADR judgment for `/mkarch` or `/mkplan` to act on.
 7. Run the documentation guards
-   (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline`),
+   (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline`),
    and fix what they find before committing. When they cannot be made to
    pass, stop without committing: leave the changes in the work tree, list
    their files, and report that the user fixes and commits them, or discards

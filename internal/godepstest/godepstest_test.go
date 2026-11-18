@@ -45,7 +45,7 @@ func TestList(t *testing.T) {
 		if err := deps.Require(module+"/internal/llm", "fmt"); err != nil {
 			t.Errorf("Require() error = %v, want nil", err)
 		}
-		if err := deps.Forbid(module+"/internal/server", module+"/cmd/..."); err != nil {
+		if err := deps.Forbid(module+"/internal/pipeline", module+"/cmd/..."); err != nil {
 			t.Errorf("Forbid() error = %v, want nil", err)
 		}
 	})
@@ -102,7 +102,7 @@ func TestRequireAndForbid(t *testing.T) {
 	if err := (Deps{}).Require("fmt"); !errors.Is(err, ErrMissing) {
 		t.Errorf("Require on a Deps listed for no platform error = %v, want ErrMissing", err)
 	}
-	if err := deps.Require(module + "/internal/server"); !errors.Is(err, ErrMissing) {
+	if err := deps.Require(module + "/internal/pipeline"); !errors.Is(err, ErrMissing) {
 		t.Errorf("Require(a package that is not a dependency) error = %v, want ErrMissing", err)
 	}
 	for _, pattern := range []string{"fmt", module + "/internal/llm", module + "/internal/...", module + "/internal/llm/..."} {

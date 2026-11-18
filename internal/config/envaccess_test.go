@@ -63,12 +63,7 @@ var secretEnvNames = []string{"DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_A
 // maximum count. The key is "<kind>:<qualified name>", where kind is "call",
 // "value", "import", or "secret".
 var allowedEnvRefs = map[string]map[string]int{
-	"cmd/yt2column/main.go":        {"value:os.LookupEnv": 1},
-	"cmd/yt2column-server/main.go": {"value:os.LookupEnv": 1},
-	"cmd/yt2column-nmhost/main.go": {"value:os.LookupEnv": 1},
-	// The development server (cmd/yt2column-devserver) passes os.LookupEnv to
-	// LoadHost, which reads HOME and nothing else.
-	"cmd/yt2column-devserver/main.go": {"value:os.LookupEnv": 1},
+	"cmd/yt2column/main.go": {"value:os.LookupEnv": 1},
 	// The development command (cmd/yt2column-extjob) passes os.LookupEnv to
 	// run, which gives it to ReadExtensionSettings for a -llm=claude run.
 	// The article generation modules (cmd/yt2column-wasm and
@@ -419,12 +414,6 @@ func TestEnvAccessConfined(t *testing.T) {
 	}
 	if got := rep.observed["cmd/yt2column/main.go value:os.LookupEnv"]; got != 1 {
 		t.Errorf("observed cmd/yt2column/main.go os.LookupEnv = %d, want 1", got)
-	}
-	if got := rep.observed["cmd/yt2column-nmhost/main.go value:os.LookupEnv"]; got != 1 {
-		t.Errorf("observed cmd/yt2column-nmhost/main.go os.LookupEnv = %d, want 1", got)
-	}
-	if got := rep.observed["cmd/yt2column-devserver/main.go value:os.LookupEnv"]; got != 1 {
-		t.Errorf("observed cmd/yt2column-devserver/main.go os.LookupEnv = %d, want 1", got)
 	}
 	if got := rep.observed["cmd/yt2column-extjob/main.go value:os.LookupEnv"]; got != 1 {
 		t.Errorf("observed cmd/yt2column-extjob/main.go os.LookupEnv = %d, want 1", got)

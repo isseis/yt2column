@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { viewerQueryWindowMs } from "../src/core/poll.ts";
-import { findJobViewers } from "../src/jobViewerQuery.ts";
+import { findJobViewers, viewerQueryWindowMs } from "../src/jobViewerQuery.ts";
 import type { JobViewerQueryDeps } from "../src/jobViewerQuery.ts";
 import { fakeChannels } from "./helpers/chrome.ts";
 import { fakeClock, settle } from "./helpers/clock.ts";

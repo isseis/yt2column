@@ -210,13 +210,6 @@ func OptionalString(members map[string]Value, key string) (value string, present
 	return text, true, nil
 }
 
-// Raw returns a copy of the value's bytes as they appear in the document:
-// whitespace, escapes, and member order inside the value are unchanged. The
-// zero Value returns nil.
-func (v Value) Raw() []byte {
-	return bytes.Clone(v.raw)
-}
-
 // IsNull reports whether the value is the JSON literal null. The zero Value
 // is not null.
 func (v Value) IsNull() bool {

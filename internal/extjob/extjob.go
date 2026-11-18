@@ -106,9 +106,7 @@ const digestDomain = "yt2column extension input digest v1"
 // inputDigest returns the SHA-256 of digestDomain, a 0x00 byte, and the five
 // values in field order, each as its byte length in 8 big-endian bytes
 // followed by its bytes. The length prefix keeps the encoding unambiguous:
-// moving the boundary between two values changes the bytes. It is the
-// article key of the localhost server without the per-process secret and
-// with its own domain string.
+// moving the boundary between two values changes the bytes.
 func inputDigest(videoURL, transcriptText, title, channelName, description string) string {
 	h := sha256.New()
 	h.Write([]byte(digestDomain))

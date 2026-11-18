@@ -1368,8 +1368,9 @@ func TestRunDefaultSteps(t *testing.T) {
 }
 
 // TestRunDefaultWriterOptions checks that a run with no step flags builds the
-// writer with writertestutil.DefaultOptions, the value the server's writer is
-// also checked against, so the two defaults cannot drift apart.
+// writer with writertestutil.DefaultOptions, the value the article generation
+// module's writer is also checked against, so the two defaults cannot drift
+// apart.
 func TestRunDefaultWriterOptions(t *testing.T) {
 	e := newRunEnv(t)
 	e.withSteps = true

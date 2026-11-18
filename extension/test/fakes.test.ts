@@ -5,7 +5,7 @@ import type {
   OpenViewerChannel,
   ViewerChannel,
 } from "../src/browser/chromeDeps.ts";
-import type { ViewerChannelMessage } from "../src/core/extensionMessages.ts";
+import type { JobChannelMessage } from "../src/core/jobMessages.ts";
 import { fakeChannels, fakeLocal, fakeSession } from "./helpers/chrome.ts";
 import { fakeClock, settle } from "./helpers/clock.ts";
 import { fakeWorkers } from "./helpers/worker.ts";
@@ -13,10 +13,10 @@ import { fakeWorkers } from "./helpers/worker.ts";
 // The ordering tests of the service worker and the viewer rely on these two
 // fakes behaving as the browser does, so their rules are pinned here.
 
-const message: ViewerChannelMessage = {
-  type: "took-over",
+const message: JobChannelMessage = {
+  type: "find",
   queryId: "0123456789abcdef0123456789abcdef",
-  tabId: 7,
+  jobId: "job-7",
 };
 
 /** An open endpoint and the data it has received. */

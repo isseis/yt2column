@@ -32,7 +32,7 @@ export function watchVideoId(url: string): string | undefined {
  * Reports whether url is a www.youtube.com watch page the extension collects
  * from. The parsed URL is used only for the decision; callers keep and
  * collect the original string. The value of v is not checked against the
- * video ID format: the server does that.
+ * video ID format: the article generation module does that.
  */
 export function isAcceptedWatchUrl(url: string): boolean {
   return watchVideoId(url) !== undefined;

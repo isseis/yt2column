@@ -5,8 +5,7 @@
 // value of at most maxResultBytes whose members are exactly the documented set
 // for its status, with every code in its closed set. Anything else is the
 // internal failure result_shape: no part of it is used, and nothing is
-// repaired. The types here are the extension-only path's; the server path's
-// response.ts goes away with the server.
+// repaired.
 
 import {
   ShapeMismatch,

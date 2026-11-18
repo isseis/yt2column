@@ -16,7 +16,6 @@ import type {
   NewTab,
   OpenViewerChannel,
   SaveFile,
-  SendToWorker,
   TabPlace,
   ViewerChannel,
   ViewerTabs,
@@ -33,10 +32,6 @@ import type {
   writeAnthropicSettings,
   writeSessionItems,
 } from "../../src/browser/chromeDeps.ts";
-import type {
-  AwaitStart,
-  StartRequest,
-} from "../../src/core/extensionMessages.ts";
 import type { SwRequest } from "../../src/core/jobMessages.ts";
 import { settle } from "./clock.ts";
 
@@ -85,8 +80,6 @@ export interface FakeRuntime {
     message: unknown,
     options?: { readonly closed?: boolean },
   ): Promise<BrowserCall<unknown>>;
-  /** The SendToWorker of a page whose sender is sender. */
-  senderFor(sender: MessageSender): SendToWorker;
   /** What the listener returned for each message, in order. */
   readonly returned: boolean[];
 }
@@ -130,37 +123,7 @@ export function fakeRuntime(): FakeRuntime {
       },
     },
     send,
-    senderFor: (sender) => (message) => send(sender, message),
     returned,
-  };
-}
-
-/** The service worker side of a page's runtime messages, answered by the test. */
-export interface PendingWorker {
-  readonly send: SendToWorker;
-  /** Every message sent, in order. */
-  readonly sent: (StartRequest | AwaitStart)[];
-  /** Answers the oldest open message and lets the page run. */
-  answer(reply: BrowserCall<unknown>): Promise<void>;
-}
-
-export function pendingWorker(): PendingWorker {
-  const sent: (StartRequest | AwaitStart)[] = [];
-  const open: ((reply: BrowserCall<unknown>) => void)[] = [];
-  return {
-    sent,
-    send: (message) => {
-      sent.push(message);
-      return new Promise((resolve) => open.push(resolve));
-    },
-    answer: async (reply) => {
-      const resolve = open.shift();
-      if (resolve === undefined) {
-        throw new Error("no worker message is open");
-      }
-      resolve(reply);
-      await settle();
-    },
   };
 }
 

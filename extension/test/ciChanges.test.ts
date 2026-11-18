@@ -54,7 +54,6 @@ describe("has-extension-changes", () => {
     ["README.md"],
     ["README.en.md"],
     ["docs/dev/guides/development.md"],
-    ["internal/server/response.go"],
     // Files under a dependency directory: a Go file, an embedded template,
     // an embedded fake article (a .md file, which the Go jobs'
     // classification skips), and a file in a subdirectory whose only listed
@@ -106,21 +105,17 @@ describe("has-extension-changes", () => {
     ["tools/go.mod"],
     ["go.modx"],
     ["tools/.github/workflows/ci.yml"],
-    // The document and server paths match whole paths only.
+    // The document paths match whole paths only.
     ["docs/README.md"],
     ["README.md.bak"],
     ["docs/README.en.md"],
     ["README.en.md.bak"],
     ["x/docs/dev/guides/development.md"],
     ["docs/dev/guides/development.md.orig"],
-    ["x/internal/server/response.go"],
-    ["internal/server/response.go.orig"],
     // Documents under docs/dev that no extension test reads.
     ["docs/dev/security.md"],
     ["docs/dev/project_overview.md"],
     ["docs/dev/guides/cli.md"],
-    // Another file in a scanned directory.
-    ["internal/server/handler.go"],
     // A directory name that only starts like a dependency directory, and the
     // directory's name without its separator.
     ["internal/llmx/a.go"],

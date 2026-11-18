@@ -34,22 +34,19 @@
 | 対象の `@` | target `@` | `@` のうち、先頭にあるもの、または直前が文字でも数字でもないもの。`＠` などの見た目の似た文字と、`@` を表しうる文字参照を含む（要件書 §3.1） |
 | メンションの無効化 | mention neutralization | 対象の `@` の直後（文字参照が表す `@` ではその `;` の直後）に U+200B を 1 つ入れること。`@` そのものは変えない。URL のパスの `/@` は除く（要件書 §3.1） |
 | 表示用の Markdown | display Markdown | タイトルの見出しの行・チャンネル名の行・本文からなる記事の Markdown。無効化する前の文字列を指す（要件書 §3.1） |
-| 無効化した表示用の Markdown | neutralized display Markdown | 表示用の Markdown の対象の `@` を無効化した文字列。状態の取得の応答の `job.article.markdown` に入り、ビューアが表示し、コピーする（`NeutralizedDisplay`） |
+| 無効化した表示用の Markdown | neutralized display Markdown | 表示用の Markdown の対象の `@` を無効化した文字列。記事生成モジュールの結果の `markdown` に入り、ビューアが表示し、コピーする（`NeutralizedDisplay`） |
 | コピーする文章 | copied text | ビューアの「Markdown をコピーする」がクリップボードに書く文字列。無効化した表示用の Markdown と同じである |
 | 出典リンク | source link | 記事末尾に付与する元動画へのリンク |
 | 投稿先 | publisher | `Publisher` interface |
 | プロバイダ | provider | LLM の提供元（DeepSeek, Gemini, Claude など） |
 | プロンプトテンプレート | prompt template | `prompts/` 以下のファイル |
 | キャッシュ | cache | 動画 ID ごとの字幕・info.json の保存 |
-| 記事のキャッシュ | article cache | localhost サーバがメモリに持つ、キーごとのジョブ・工程の状態と記事（`internal/articlecache`）。ディスクの「キャッシュ」とは別のもの |
-| 記事のキー | article key | サーバが生成の開始の入力から計算する、記事を指す不透明な値（64 文字の小文字の 16 進）。拡張とホストは、その形にも計算方法にも依存しない |
 | 記録 | record | ジョブの記録。拡張の Service Worker が `chrome.storage.session` に記事の生成ごとに置く値の組（状態、工程の状態、記事、失敗の値、時刻、実行するページ）。ジョブ ID ごとに 1 つ。コピーした字幕と概要欄を持たない |
 | ジョブの状態 | job state | ジョブの記録の `state`。`running`・`done`・`failed`・`stopped` |
 | 工程 | step | 記事の生成の中の 3 つの処理（`writer.Stage`）。API の `steps` のメンバ。拡張は、`draft` を「下書きの生成」（Draft）、`shorten` を「字数の調整」（Shorten）、`review` を「検証・推敲」（Review）と表示する。パイプラインの「ステージ」（stage）とは区別する |
 | 工程の状態 | step state | `pending`・`running`・`done`・`skipped`・`failed` |
-| 生成の枠 | generation slot | 同時に走る記事の生成の数の上限（`2`）。ジョブの API の生成のジョブだけが数える |
-| 読み込みの枠 | reading slot | 生成の開始の本文を同時に読み込んで検査する数の上限（`2`） |
-| 完了の時点の検査 | completion check | 生成のジョブが記事を `done` にする前に行う検査（公開できる形か、本文が正しい UTF-8 か、状態の取得の応答に収まるか） |
+| 生成の枠 | generation slot | 同時に走る記事の生成の数の上限（`2`）。Service Worker が、走っているジョブの記録の数で数える |
+| 完了の時点の検査 | completion check | 記事生成モジュールが記事を `done` にする前に行う検査（公開できる形か、結果の JSON が上限に収まるか） |
 | 動画 ID | video ID | YouTube の 11 文字の ID |
 | ステージ | stage | パイプラインが順に呼ぶ処理の単位（`TranscriptSource`・`ArticleWriter`・`Publisher`。`pipeline.Stage` の `transcript`・`write`・`publish`）。`ArticleWriter` の中の生成・字数の調整・検証・推敲の 3 つは「工程」（step、`writer.Stage`）と呼び、区別する。英語では、生成の後の 2 つ（字数の調整と検証・推敲）を "post-generation steps" と呼ぶ。旧称: 段階 |
 | 主経路 | primary path | ブラウザ拡張がコピーした字幕を集め、拡張の記事生成モジュールがビューアのタブの中で記事を生成し、拡張のビューアに表示する経路。保存とコピーは、利用者がビューアで選ぶ |
@@ -61,13 +58,8 @@
 | 構成要素パッケージ | component package | パイプラインの構成要素（`TranscriptSource`・`ArticleWriter`・`Publisher` の 3 つのステージと、`ArticleWriter` が使う `LLMClient` の 4 つ）の interface とデータ型を持つパッケージ（`internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher`）。リーフとは限らない。ステージはパイプラインが順に呼ぶ 3 つ、構成要素はそれに `LLMClient` を加えた 4 つ、工程は `ArticleWriter` の中の生成・字数の調整・検証・推敲を指す。パイプラインの流れ（順序、どこで失敗したか、`StageError`）を述べるときはステージ、部品の分け方・置き場所（パッケージ、interface、fake）を述べるときは構成要素、記事の生成の中の処理を述べるときは工程を使う。`LLMClient` を含むかどうかが、構成要素とステージの区別の決め手である。一般の語としての「構成要素」（`README.md` の「構成要素の組み立て」など）は、この定義の外である |
 | リーフパッケージ | leaf package | 依存先を持たないパッケージ（例: `internal/llm`）。旧称: 葉パッケージ |
 | 秘密情報 | secret | API キーなど。`Secret` 型で保持する |
-| 起動のロック | start lock | localhost サーバがソケットのディレクトリのロックのファイルに取る排他の `flock`。起動から、シャットダウン中のジョブの完了までを持ち続け、同じ `HOME` の 2 つのサーバが同時に動くことを防ぐ（`internal/serversock` の `Lock`） |
-| ホスト | host | Native Messaging のホスト。ブラウザが拡張の送信のたびに起動し、1 つのリクエストを localhost サーバの UDS へ中継する実行ファイル（`yt2column-nmhost`）。文脈が曖昧なときは "native messaging host" とする |
-| ホスト名 | host name | ホストの manifest の `name`・manifest のファイル名・拡張が送る相手として指定する固定の名前（`io.github.isseis.yt2column`、`nmhost.HostName`） |
-| ホストの応答 | host reply | ホストが標準出力に書く 1 つのフレーム。サーバの応答を包む形（`kind` が `response`）とホストのエラーの形（`kind` が `error`）がある |
-| 未送信 | not sent | やり取りの結果のうち、リクエストがサーバに届いていないと確定するもの（ホストが返す `server_unavailable`・`message_too_large`） |
+| ホスト | host | 以前の版の Native Messaging のホスト。ブラウザが拡張の送信のたびに起動し、1 つのリクエストを localhost サーバへ中継した実行ファイル（`yt2column-nmhost`）。撤去した。README の移行の手順で使う。文脈が曖昧なときは "native messaging host" とする |
 | 結果不明 | result unknown | 生成の開始から 60 秒たっても予約の結果が届かず、記事の生成が始まったかどうか分からないこと。拡張は生成の開始を自動では送り直さない。同じ選択範囲でもう一度押しても、その記事が処理中か完成していれば二重に生成されないことを示す |
-| 枠 | slot | localhost サーバが同時に処理するもの（生成のジョブ、生成の開始の本文の読み込み）の数を数える単位。生成の枠（`maxInFlight`）は、ジョブの API の生成のジョブだけが数える。生成の開始は、本文の読み込みと検査に別の読み込みの枠を使う |
 | 拒否の理由 | reject reason | 応答の本文の `reason` に載せる固定の値（`rejectReason`） |
 | 動画メタデータ | video metadata | 拡張が動画ページの DOM から読む動画タイトル・チャンネル名・概要欄の総称。API の任意フィールド `title`・`channelName`・`description` |
 | 動画タイトル | video title | 動画ページの DOM にある動画のタイトル。タブのタイトル（tab title）とは別 |
@@ -91,26 +83,21 @@
 | ビューアの URL | viewer URL | ビューアのタブの URL。予約の前の開始の ID か予約の後のジョブ ID、集めた URL、ページのタイトル（動画のタイトルを 64 コードポイントまでに切ったもの）を持つ。既存の記事のビューアは、既存の記事を表示していることを示す値（`e=1`）も持つ。コピーした字幕と概要欄は持たない |
 | 送信の時刻 | send time | 利用者が生成の開始を送る操作（主ボタン、「現在の選択範囲で生成する」、選択の状態を終えた後の「記事を生成する」）を押した時刻（「やり直す」のときは、押し直した時刻）。「既存の記事を表示する」が新しいタブを開くときは、押した時刻をそのビューアの送信の時刻とする。処理中の経過時間の起点。ただし既存の記事のビューアは経過時間を示さないので、起点として使わない |
 | 同じ動画の照会 | same-video inquiry | 生成の開始で、同じ動画（動画 ID が同じ）の記事があれば生成せずに知らせるよう求めること。照会付きか照会なしかは、生成の開始の本文の必須のメンバ `mode`（`inquiry`・`plain`）で宣言する |
-| 送り方 | send mode | 生成の開始が照会付きか照会なしか。生成の開始の本文の必須のメンバ `mode` の値（`inquiry`・`plain`）と、Go の `StartMode`・拡張の `SendMode` が表す。ログでは `mode` の属性に書く |
+| 送り方 | send mode | 生成の開始が照会付きか照会なしか。ポップアップが Service Worker へ送る生成の開始の `mode` の値（`inquiry`・`plain`）で、拡張の `SendMode` が表す |
 | 照会付きの生成の開始 | inquiry start | `mode` が `inquiry` の生成の開始。主ボタンの「記事を生成する」、選択の状態を終えた後の「記事を生成する」、それらの送信をやり直した送信で送る。`mode` が `plain` のものは照会なしの生成の開始（plain start）と呼ぶ |
-| 同じ動画の応答 | same-video answer | 照会付きの生成の開始に、同じ動画の記事があるときにサーバが返す応答（`200`、`status` が `same_video`）。生成を始めず、その記事のキーを持つ。受け付けの応答とは区別する |
 | 選択の状態 | choice | 同じ動画の応答を受け取った後のポップアップの状態。「既存の記事を表示する」（`Open existing article`）と「現在の選択範囲で生成する」（`Generate from current selection`）を選べる。確認のセクションとは別のもの |
 | 既存の記事 | existing article | 同じ動画の応答のキーの記事 |
 | 既存の記事のビューア | existing-article viewer | URL に、既存の記事を表示していることを示す値（`e=1`）を持つビューア。表示する記事は、そのビューアの直前の押下より前に受け付けた記事である。処理中の経過時間を示さない |
 | 副次のボタン | secondary button | 選択の状態で、主ボタンの下に置く「現在の選択範囲で生成する」のボタン |
 | 現在の選択範囲 | current selection | ポップアップを開いたときに集めた選択範囲。押した時点で集め直したものではない |
-| ポーリング | polling | 状態の取得を、決めた間隔で繰り返すこと。続けても結果の変わらない応答で止める |
-| やり取りの結果 | exchange result | 生成の開始・状態の取得の 1 回のホストとのやり取りの結果。受け付け・拒否・未送信・応答なし・ホストの失敗・想定外の応答のいずれか。ジョブの状態の `unknown` とは別 |
 | 拒否のカード | rejection card | 収集が拒否されたときに、収集の拒否の理由の文と手順をまとめて表示する 1 枚の区分 |
-| 収集の拒否の理由 | collection rejection reason | 拡張が収集を拒否する理由（`RejectionReason`。`not-watch-page` など）。サーバが返す拒否の理由（`rejectReason`）とは別 |
+| 収集の拒否の理由 | collection rejection reason | 拡張が収集を拒否する理由（`RejectionReason`。`not-watch-page` など） |
 | 先頭のプレビュー | head preview | 選択範囲の最初の 100 コードポイントの表示 |
 | 末尾のプレビュー | tail preview | 選択範囲の最後の 100 コードポイントの表示 |
-| 選択範囲 | selection | 利用者が文字起こしパネルで選んだ文字列。サーバへはコピーした字幕として送る。既存の大きすぎるときの文言では「選択したテキスト」と呼ぶ（AC-11 の文言は変えない） |
+| 選択範囲 | selection | 利用者が文字起こしパネルで選んだ文字列。記事生成モジュールへはコピーした字幕として渡す。既存の大きすぎるときの文言では「選択したテキスト」と呼ぶ（AC-11 の文言は変えない） |
 | 支援技術 | assistive technology | スクリーンリーダーなど、画面の要素の名前と状態を利用者に伝える技術 |
 | フォーカスの表示 | focus indicator | キーボードの操作の対象になっている要素を示す、枠などの見た目 |
-| リクエストの本文 | request body | 拡張がサーバへ送る JSON の本文（`videoUrl`・`transcript`・送り方 `mode` と動画メタデータ）。概要欄の文章とは別 |
-| リクエスト ID | request ID | サーバがリクエストごとに生成する 16 文字の識別子。応答とログを結び付ける |
-| Unix ドメインソケット（UDS） | Unix domain socket (UDS) | ファイルシステム上のパスを介したプロセス間通信。localhost サーバの待ち受け手段。初出で「Unix ドメインソケット（UDS）」と書き、以降は「UDS」とする |
+| リクエストの本文 | request body | 生成の開始の入力の JSON（`videoUrl`・`transcript` と動画メタデータ）。概要欄の文章とは別 |
 | 片付け | cleanup | `/mergepr` のマージ後処理（base の更新、ローカル head ブランチの削除） |
 | 材料 | material | `/mergepr` がコミットメッセージの下書きに使う PR 情報（log.txt・stat.txt・body.txt と、必要なときに読む diff）。PR のタイトルは含めない |
 | 件名 | subject | コミットメッセージの 1 行目 |
@@ -128,7 +115,7 @@
 | 自動レビュアー | automated reviewer | PR にレビューのスレッドを投稿する Bot |
 | 自動レビュアーの一覧 | automated reviewer list | `.claude/commands/_context.md` の「Automated reviewer list」に定める、スレッドを信頼する自動レビュアーの名前（GraphQL の `author.login` の形）の一覧。`fixprguard` には `--reviewer` で 1 つずつ渡す |
 | 完了を待つ PR レビュアー | awaited PR reviewer | `/runpr` がレビュー済みの判定に使う Bot。承認を待つのではなく、レビューがそのコミットまで完了したことを待つ。`.claude/commands/_context.md` の「Awaited PR reviewer」に、自動レビュアーの一覧とは別に定める |
-| 割り当て | quota | 自動レビュアーが一定時間に受け付けるレビューの回数の上限。localhost サーバの同時処理数の単位である「枠」（slot）とは別の概念 |
+| 割り当て | quota | 自動レビュアーが一定時間に受け付けるレビューの回数の上限 |
 | 試行 | attempt | ローカルの CLI レビューを 1 回試みること。CodeRabbit CLI の実行 1 回と、それが失敗したときの Codex CLI の実行 1 回から成る。範囲ごとに最大 2 回（タスク 0049） |
 | 指摘 | finding | レビューが挙げる個々の問題。スレッドとして投稿されるものと、レビューの本文にだけ書かれるものがある |
 | （行為の動詞で書く） | cover | レビュー・テスト・検査が、コミットやコードに及ぶこと。「覆う」とは訳さず、その行為の動詞で書く（例: commits neither CLI review covered →「どちらの CLI もレビューしなかったコミット」、a test covers the branch →「テストがその分岐を確かめる」）。名詞の coverage は「カバレッジ」 |
@@ -169,16 +156,13 @@
 | 保存した出力 | artifact | `--artifacts` のディレクトリに工程ごとに保存した出力。`--after` で再開するときに再利用する |
 | 再開した実行 | resumed run | `--after` で、保存した出力から再開した CLI の実行 |
 | 同意の変数 | opt-in variable | 統合テストが実際の API を呼ぶ前に求める環境変数（`YT2COLUMN_DEEPSEEK_INTEGRATION=1` など）。`make` のターゲットがそのテストのためだけに export する（`development.md`） |
-| ソケット | socket | localhost サーバが待ち受ける UDS のファイル。パスは `HOME` だけから決まる |
-| ソケットのディレクトリ | socket directory | ソケットと起動のロックのファイルを置くディレクトリ（`run`）。モードは `0700` |
+| ソケット | socket | UNIX ドメインソケットのファイル |
 | manifest | manifest | ブラウザがホストを見つけるための JSON のファイル（ホストの manifest）、または拡張の `manifest.json`。日本語の文でも英語のまま書く |
 | 終了コード | exit code | プロセスが終了するときに返す数値 |
-| 設定エラー | configuration error | 設定を拒否したときのエラー。CLI では環境変数の値、サーバでは `HOME`、設定ファイルの有無・検査・書式、値の拒否。サーバは待ち受ける前に、CLI は実行が始まる前に、終了コード `2` で終わる |
-| 設定ファイル | configuration file | localhost サーバが設定を読むファイル（`$HOME/.config/yt2column/config.env`）。README の見出しでは "Configuration file" |
-| 雛形 | template | `yt2column-server config init` が作る、コメントの行と空行だけの設定ファイル |
+| 設定エラー | configuration error | 設定を拒否したときのエラー。CLI では環境変数の値の拒否で、実行が始まる前に終了コード `2` で終わる |
+| 設定ファイル | configuration file | 以前の版の localhost サーバが設定を読んだファイル（`$HOME/.config/yt2column/config.env`）。README の移行の手順で、消すファイルとして使う |
 | 元のエラーを含めて返す | wrap an error | Go の `%w` などで、元のエラーを `errors.Is`・`errors.AsType` で取り出せる形のまま、新しいエラーに含めて返すこと。エラーについては「包む」と書かない |
 | フロントマター | front matter | `--out` のファイルの先頭の YAML の部分 |
-| 処理中のジョブ | in-flight job | サーバが受け付け、まだ終わっていないジョブ。サーバの停止と起動のロックはその完了を待つ |
 | ポップアップ | popup | 拡張のツールバーのアイコンから開く画面 |
 | 文字起こしパネル | transcript panel | YouTube の動画ページで、字幕の行を時刻とともに一覧にするパネル |
 | モデルの ID | model ID | プロバイダの API に送るモデルの名前。`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の最初の `/` より後の部分。そこに `+` があれば `+` より前の部分 |

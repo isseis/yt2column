@@ -9,7 +9,9 @@
 import type { OpenViewerChannel, ViewerChannel } from "./browser/chromeDeps.ts";
 import { parseJobChannelMessage } from "./core/jobMessages.ts";
 import type { JobChannelMessage, PresentAnswer } from "./core/jobMessages.ts";
-import { viewerQueryWindowMs } from "./core/poll.ts";
+
+/** How long a query for the viewers of a job collects answers. */
+export const viewerQueryWindowMs = 1_000;
 
 export interface JobViewerQueryDeps {
   readonly openChannel: OpenViewerChannel;

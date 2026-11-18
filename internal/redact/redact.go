@@ -4,7 +4,6 @@ package redact
 
 import (
 	"cmp"
-	"io"
 	"slices"
 	"strconv"
 	"strings"
@@ -52,34 +51,6 @@ func redactAll(rendered string, replacements []string) string {
 		rendered = strings.ReplaceAll(rendered, replacement, placeholder)
 	}
 	return strings.ReplaceAll(rendered, placeholder, chooseMarker(rendered, placeholder, replacements))
-}
-
-// Writer returns an io.Writer that replaces, in every write, each secret, its
-// trailing characters, and their escaped spellings with a marker before
-// passing the bytes to w. It does not escape anything else, so text already
-// quoted by log/slog is not quoted twice. The replacement set is computed
-// once, at construction.
-func Writer(w io.Writer, secrets []string) io.Writer {
-	return &redactWriter{w: w, replacements: secretReplacements(secrets)}
-}
-
-// redactWriter replaces the protected strings in each write, without escaping.
-type redactWriter struct {
-	w            io.Writer
-	replacements []string
-}
-
-// Write redacts p and writes the result to the underlying writer. It reports
-// the length of p as consumed, not the length of the transformed output.
-func (rw *redactWriter) Write(p []byte) (int, error) {
-	if len(rw.replacements) == 0 {
-		return rw.w.Write(p)
-	}
-	rendered := redactAll(string(p), rw.replacements)
-	if _, err := io.WriteString(rw.w, rendered); err != nil {
-		return 0, err
-	}
-	return len(p), nil
 }
 
 // SecretStrings returns the strings to redact for the given secrets: the

@@ -3,7 +3,7 @@
 // built into elements: the builder never receives the Markdown string and
 // chooses each element by the tree's kind, so the elements and attributes it
 // makes are a fixed list. Text goes in as text nodes and nothing is parsed as
-// HTML. The rest of the viewer -- the state, polling, saving and copying --
+// HTML. The rest of the viewer -- the state, saving and copying --
 // uses the article's values unchanged and never reaches into this element.
 
 import { parseArticleMarkdown } from "../core/articleMarkdown.ts";

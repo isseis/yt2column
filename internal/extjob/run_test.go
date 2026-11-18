@@ -5,12 +5,14 @@ package extjob
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/isseis/yt2column/internal/llm"
 	"github.com/isseis/yt2column/internal/llm/devfake"
+	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
 	"github.com/isseis/yt2column/internal/transcript"
 	"github.com/isseis/yt2column/internal/writer"
 	writertestutil "github.com/isseis/yt2column/internal/writer/testutil"
@@ -290,5 +292,18 @@ func TestRunWithFakeClientsIsDone(t *testing.T) {
 				t.Errorf("steps = %+v, want %+v", result.Steps(), want)
 			}
 		})
+	}
+}
+
+// TestRunWriterOptions checks that writerOptions, which Run builds its writer
+// with, equals writertestutil.DefaultOptions, the value the CLI's writer with
+// no step flags is also checked against, so the two entry points cannot drift
+// apart.
+func TestRunWriterOptions(t *testing.T) {
+	// A pointer client, so reflect.DeepEqual can match it (a func-typed client
+	// never compares equal).
+	review := &llmtestutil.FakeLLMClient{}
+	if got, want := writerOptions(review), writertestutil.DefaultOptions(review); !reflect.DeepEqual(got, want) {
+		t.Errorf("writerOptions() = %+v, want %+v", got, want)
 	}
 }

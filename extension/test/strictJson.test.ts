@@ -101,7 +101,7 @@ describe("parseStrictJson", () => {
   // not about the top-level kind, with the same bytes. The top-level rows
   // (null, array, string, number) are valid JSON values here; the response
   // checks reject them.
-  describe("the server side's rejected inputs", () => {
+  describe("the Go side's rejected inputs", () => {
     expectRejected([
       {
         name: "invalid utf8",

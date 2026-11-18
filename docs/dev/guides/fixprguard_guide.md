@@ -443,7 +443,7 @@ fixprguard interaction-limits --protocol 6 42
 
 次のことは検出しない。どれも Claude Code の権限の確認（利用者の設定）に依存する。
 
-- 監視の一覧に当たらない、git が無視するファイルを変えること。後で実行されるか、設定として読まれるものを含む。例: 一覧に当たらない名前のドットファイル（`.tool-versions`・`.mise.toml`・`.npmrc`、下の階層の `.envrc` など）、`go.sum`・`go.work.sum`、`extension/` の下の設定のファイルとスクリプト、`.github/` の下のファイル、`build/` の下のバイナリ（`yt2column-nmhost install` が登録した Native Messaging host は、ブラウザが次の送信で起動する）、`extension/node_modules/` の下の JavaScript（`make ext-check` が実行する）、`.vscode/` の下の設定、下の階層の `CLAUDE.local.md`、`AGENTS.md`・`GEMINI.md` など `CLAUDE.md` でない名前の指示ファイル。
+- 監視の一覧に当たらない、git が無視するファイルを変えること。後で実行されるか、設定として読まれるものを含む。例: 一覧に当たらない名前のドットファイル（`.tool-versions`・`.mise.toml`・`.npmrc`、下の階層の `.envrc` など）、`go.sum`・`go.work.sum`、`extension/` の下の設定のファイルとスクリプト、`.github/` の下のファイル、`build/` の下のバイナリ、`extension/node_modules/` の下の JavaScript（`make ext-check` が実行する）、`.vscode/` の下の設定、下の階層の `CLAUDE.local.md`、`AGENTS.md`・`GEMINI.md` など `CLAUDE.md` でない名前の指示ファイル。
 - この作業ツリーの外のファイルを変えること。同じリポジトリのほかの worktree と main のチェックアウトを含む。
 - `begin` の後に、監視の一覧に当たるパスへ、通常のファイルでないもの（FIFO・ソケット・デバイスなど）を新しく作ること。`.claude/settings.local.json` は例外で、検出する。すでにある対象のファイルを通常のファイルでないものに置き換えた場合も検出する。
 - 完全な大文字小文字の変換だけで監視の一覧の項目と同じになる名前のファイルを置くこと。例: 合字 `ﬁ`（U+FB01）を含む `GNUmakeﬁle`。大文字小文字を区別しない macOS の APFS は、これを `GNUmakefile` として解決するので `make` が読むが、照合は 1 つの文字を複数の文字に展開する変換（`ﬁ` → `fi`、`ß` → `ss` など）を同一視しない。
@@ -592,7 +592,7 @@ find . -path ./.git -prune -o -type l -print | LC_ALL=C sed 's/\^/^^/g' | LC_ALL
   この場合は、古いツールが止まったときの診断と再インストールの案内を、4 章の終了コード `2` の説明に書く。
 
   また、本文とタイトルのファイルの受け付ける内容を狭めるだけの変更は、狭めた分がコマンドの文書の送らない内容に限って、上の 3 つの条件によらず `Protocol` を上げなくてよい。古いツールはその内容を受け付けるが、文書はそれを送らないので誤った投稿にはならず、新しいツールが古い文書の呼び出しで拒否するのは送ってはならない内容だけだからである。`@codex` のメンションの拒否（タスク 0031）はこれに当たる。
-- 自動レビュアーを一覧に加えるとき、または一覧から外すときは、次のものを同じコミットで変え、そのコミットで文書のガード（`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`）を実行する。`fixpr.md`・`runpr.md` は名前も数も書かず、ツールは名前の数に上限を設けないので、どちらも変えなくてよい。
+- 自動レビュアーを一覧に加えるとき、または一覧から外すときは、次のものを同じコミットで変え、そのコミットで文書のガード（`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/codexreview ./internal/pipeline`）を実行する。`fixpr.md`・`runpr.md` は名前も数も書かず、ツールは名前の数に上限を設けないので、どちらも変えなくてよい。
     1. `.claude/commands/_context.md` の `Automated reviewer list` の行。
     2. 内容のガード（`cmd/yt2column/fixpr_docs_test.go`）の、期待する名前（`wantReviewers`）。
     3. 同じファイルの、壊した写しの表（`TestContextReviewerRowsMalformed`）の行に書いた名前。

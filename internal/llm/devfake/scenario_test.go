@@ -82,8 +82,8 @@ func TestNewScenario(t *testing.T) {
 	}
 }
 
-// TestEnumStrings pins the command-line spellings, which the development
-// server accepts and documents, to the design's table.
+// TestEnumStrings pins the spellings, which the development build's FAKE_*
+// variables accept and development.md documents, to the design's table.
 func TestEnumStrings(t *testing.T) {
 	checkSpellings(t, "Articles", Articles(), []string{"standard", "long", "elements"})
 	checkSpellings(t, "Failures", Failures(), []string{"empty", "truncated", "api-error", "timeout", "api_key_rejected"})
@@ -181,8 +181,7 @@ func TestParseScenario(t *testing.T) {
 	}
 
 	valid := ScenarioSpelling{Article: "long", Failure: "empty", FailAt: "draft", DelaySeconds: "10", SettingsCheck: "ok"}
-	// want, when set, is a sentinel the rejection must also wrap. The
-	// development server's test pins the wording an operator reads.
+	// want, when set, is a sentinel the rejection must also wrap.
 	rejected := []struct {
 		name   string
 		change func(*ScenarioSpelling)

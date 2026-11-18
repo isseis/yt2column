@@ -3,8 +3,7 @@
 // Package cachelock serializes the processes that share one directory. The lock
 // is an flock(2) on a fixed file in that directory, so a run can hand the file
 // descriptor to a child process (yt-dlp) and keep the lock while the child
-// lives. The CLI locks its cache directory; the server locks its socket
-// directory.
+// lives. The CLI locks its cache directory.
 package cachelock
 
 import (

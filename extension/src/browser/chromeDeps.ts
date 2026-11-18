@@ -1,20 +1,12 @@
 import type { PageSelection, SelectionReader } from "../core/collect.ts";
-import { viewerChannelName } from "../core/extensionMessages.ts";
-import type {
-  AwaitStart,
-  StartRequest,
-  ViewerChannelMessage,
-} from "../core/extensionMessages.ts";
 import type {
   JobChannelMessage,
   RunnerHello,
   SwRequest,
 } from "../core/jobMessages.ts";
 import { runnerPortName } from "../core/jobMessages.ts";
-import { nativeHostName } from "../core/native.ts";
 import type { Logger } from "../core/types.ts";
 import type { MetadataReader } from "../launch.ts";
-import type { SendDeps } from "../send.ts";
 
 /** The chrome.scripting call used; the injected function's result is validated at runtime. */
 export interface ScriptingApi {
@@ -23,16 +15,6 @@ export interface ScriptingApi {
     readonly func: (...args: Args) => Result;
     readonly args: Args;
   }): Promise<Array<{ readonly result?: unknown }>>;
-}
-
-/** The chrome.runtime surface used: the callback form of sendNativeMessage and its lastError. */
-export interface NativeMessagingApi {
-  sendNativeMessage(
-    application: string,
-    message: object,
-    callback: (response: unknown) => void,
-  ): void;
-  readonly lastError?: { readonly message?: string } | undefined;
 }
 
 export interface TabsApi {
@@ -195,38 +177,6 @@ export function readUiLanguage(i18n: I18nApi): string | undefined {
 }
 
 /**
- * The SendDeps backed by runtime (chrome.runtime in production) and the
- * global timer. sendNative sends to the fixed host name only and never
- * rejects: a lastError, whatever its text, and a synchronous throw (the
- * browser throws instead of calling back for a message over its limit) both
- * resolve as "failed", so the promise always settles.
- */
-export function createSendDeps(runtime: NativeMessagingApi): SendDeps {
-  return {
-    sendNative: (message) =>
-      new Promise((resolve) => {
-        try {
-          runtime.sendNativeMessage(nativeHostName, message, (response) => {
-            // Reading lastError in the callback also marks it as checked.
-            const lastError = runtime.lastError;
-            if (lastError !== undefined) {
-              resolve({ kind: "failed", lastError: lastError.message });
-              return;
-            }
-            resolve({ kind: "message", value: response });
-          });
-        } catch (error) {
-          resolve({ kind: "failed", lastError: String(error) });
-        }
-      }),
-    schedule: (ms, callback) => {
-      const id = setTimeout(callback, ms);
-      return () => clearTimeout(id);
-    },
-  };
-}
-
-/**
  * What a browser call became. error is the browser's text. It may name a URL,
  * so it is never shown, never passed to another page, and logged only where
  * the logging rules allow the browser's error text (a host failure).
@@ -308,29 +258,15 @@ export function listenForMessages(
   });
 }
 
-/** The chrome.runtime.sendMessage surface used. */
-export interface MessageSendApi {
-  sendMessage(message: unknown): Promise<unknown>;
-}
-
-/** Sends one message to the service worker and resolves its response. Never rejects. */
-export type SendToWorker = (
-  message: StartRequest | AwaitStart,
-) => Promise<BrowserCall<unknown>>;
-
-/**
- * The SendToWorker backed by runtime (chrome.runtime in production). The
- * response is untrusted until the caller's parse function accepts it; a
- * message the worker left unanswered is a failure.
- */
-export function createWorkerSend(runtime: MessageSendApi): SendToWorker {
-  return (message) => browserCall(() => runtime.sendMessage(message));
-}
-
 /** Runs callback once after ms milliseconds with the global timer; returns a function that cancels it. */
 export function schedule(ms: number, callback: () => void): () => void {
   const id = setTimeout(callback, ms);
   return () => clearTimeout(id);
+}
+
+/** The chrome.runtime.sendMessage surface used. */
+export interface MessageSendApi {
+  sendMessage(message: unknown): Promise<unknown>;
 }
 
 /**
@@ -630,10 +566,13 @@ export function createWindowFocus(
     });
 }
 
+/** The name of the BroadcastChannel the viewers answer queries on. */
+export const viewerChannelName = "yt2column-viewers";
+
 /** One endpoint of the viewers' channel. A message reaches every other open endpoint, never the one that posted it. */
 export interface ViewerChannel {
   /** Posts message; false when the channel cannot post it (it is closed). */
-  post(message: ViewerChannelMessage | JobChannelMessage): boolean;
+  post(message: JobChannelMessage): boolean;
   /** Calls listener with the data of each message another endpoint posts; returns a function that stops it. */
   listen(listener: (data: unknown) => void): () => void;
   close(): void;

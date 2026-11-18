@@ -1021,13 +1021,14 @@ func assertCopiedRejected(t *testing.T, input string, reason error) string {
 	return err.Error()
 }
 
-// The server caps the request body at 4 MiB; the parser must finish such an
-// input within a small part of the server's request window and without
-// allocating super-linearly. The parse budget on the server is under 30s.
+// The article generation module caps its input at 4 MiB; the parser must
+// finish such an input within a small part of the 30 seconds the viewer
+// allows the Worker to load the module and prepare the input, and without
+// allocating super-linearly.
 //
 // The parse time is compared with copiedParseDeadline only in the build without
-// the race detector (copiedParseChecksDeadline), which parses as the server
-// does; `make test-parse-norace` runs that check alone, so no other package's
+// the race detector (copiedParseChecksDeadline), which parses as the production
+// builds do; `make test-parse-norace` runs that check alone, so no other package's
 // tests or coverage instrumentation run alongside it. The deadline is ten times
 // the slowest of the CI runner measurements of that run, rounded up to half a
 // second; the measurements and the calculation are recorded in section 8 of
