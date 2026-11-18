@@ -1017,6 +1017,13 @@ func TestTargets(t *testing.T) {
 			if last := calls[len(calls)-1]; last.name != ghProgram || !isIssueRead(last.args) {
 				t.Errorf("ran %s after the issue read", last.line())
 			}
+			// The round's reads (the fetch and the PR list among them) never
+			// run, before the issue read either.
+			for _, call := range calls {
+				if (call.name == ghProgram && !isIssueRead(call.args)) || (call.name == gitProgram && slices.Contains(call.args, "fetch")) {
+					t.Errorf("read the round: %s", call.line())
+				}
+			}
 			if after := stateEntries(t, deps.Store.Dir()); !slices.Equal(after, before) {
 				t.Errorf("state directory %v, was %v", after, before)
 			}

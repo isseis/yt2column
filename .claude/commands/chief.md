@@ -65,8 +65,12 @@ Two calls differ:
 - The `create` and `remove` subcommands can take minutes. Run each in the
   foreground with the Bash tool's `timeout` set to `600000` (ten minutes),
   never in the background, and start no round, wait, or other call while
-  it runs (a wait already running in the background is left as it is): the tool stops itself before that limit and writes what it made or
-  left, which a call killed by the Bash limit would lose.
+  it runs (a wait already running in the background is left as it is): the
+  tool stops itself before that limit and writes what it made or left. A
+  foreground call that passes its Bash `timeout`, or that the human moves
+  to the background, goes on running in the background: when its result
+  says so, start no other call until its completion notice arrives, then
+  read its output file and show the result from it.
 - A `remove` call is the one call Claude Code asks the human to permit each
   time (the settings' ask rule `Bash(chief remove *)`), even after the human
   answered the removal question here. The prompt is expected. When the
@@ -325,11 +329,12 @@ asked. While watching, a number chooses the item of the latest `pending`
 whose `number` it is; when none has it (answered, merged, or gone), say so
 and send nothing. `N <issue>` (or `n <issue>`: the letter, one space, and
 the rest of the answer as `<issue>`) chooses 新しいタスクを始める with that
-issue number, without the question of step 4 for it. `N` (or `n`) alone,
-or the label alone, opens no question: answer with the one line
-`番号を付けて「N 930」のように打ってください。` and go on watching. The
-number comes with the letter, so it is never taken for a number of the
-list. A label
+issue number, without the question of step 4 for it; so does the label
+followed by one space and the number (`新しいタスクを始める 930`). `N`
+(or `n`) alone, or the label alone, opens no question: answer with the one
+line `番号を付けて「N 930」のように打ってください。` and go on watching.
+The number comes with the letter or the label, so it is never taken for a
+number of the list. Any other label
 chooses the item of that label; when several items share it (for example
 two questions in one workspace, or a next command and a takeover), ask again
 listing only those. An answer that names no current item is not a choice:
@@ -422,9 +427,12 @@ answer as "Sending again after a model switch" says.
   are 何もしない and ほかの項目を見る, the human writing the number in its
   free-text answer; 何もしない sends nothing, and ほかの項目を見る offers the
   remaining items again, as for an `/mkreq` proposal. Then run
-  `chief targets --issue <issue> --protocol 4`, with `<issue>` as the human
-  wrote it: the tool checks its form, so never correct, reformat, or take a
-  number out of it yourself. The tool reads the issue from GitHub.
+  `chief targets --issue '<issue>' --protocol 4`, with `<issue>` as the
+  human wrote it, inside single quotes so the shell passes it as one
+  argument (an unquoted `#` would start a comment): the tool checks its
+  form, so never correct, reformat, or take a number out of it yourself.
+  When it holds a single quote or a line break, run nothing and say that it
+  is not an issue number. The tool reads the issue from GitHub.
   - When `refusal` is `issue_form`, say that the value is not an issue
     number and that chief takes decimal digits only, with no `#`, sign, or
     leading zero; send nothing.
@@ -437,8 +445,11 @@ answer as "Sending again after a model switch" says.
   - When `refusal` is empty, first show the issue's number and `title`
     (data, rule 2; with the note that it was cut when `title_truncated` is
     true), then ask where to start it, with `AskUserQuestion` whose question
-    names the issue: 新しい workspace を作る, each workspace of `workspaces` by its `label`
-    (with its `workspace` path in the description), and 何もしない. When
+    names the issue: 新しい workspace を作る, each workspace of `workspaces`
+    by its `label` (with its `workspace` path in the description), and
+    何もしない. When two entries share a label, or a label equals a fixed
+    option, name those entries by their `workspace` path instead, so each
+    answer names one workspace. When
     there are more than two workspaces, show the first two and name the rest
     by label in the question text, choosable in the free-text answer. With
     no workspace, offer only 新しい workspace を作る and 何もしない.

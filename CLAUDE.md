@@ -1022,7 +1022,8 @@ section of the Requirements Process Guide.
   deleting the record ruleset that protects these tags also requires the
   user's explicit approval
 - Invoking `/chief` approves, for that session, the read-only network operations
-  the `chief` tool runs while it shows the status and watches: `git fetch origin
+  the `chief` tool runs while it shows the status, watches, makes a task's
+  workspace, or removes one: `git fetch origin
   main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`; and,
   when the human starts a new task from an issue, the read of that issue
   with the tool's one `gh api graphql` query of `issueOrPullRequest` (its

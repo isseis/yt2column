@@ -259,15 +259,13 @@ const askRemove = "Bash(" + toolWord + " " + promptedSubcommand + " *)"
 // is written in the form the permission rule Bash(chief *) allows (the bare
 // tool name alone in its command), and passes the tool's own checks of its
 // subcommand, flags, and request with its placeholders filled in, so the
-// installed tool runs it instead of returning a usage error. A call of
-// promptedSubcommand in that bare form begins with the prefix of askRemove,
-// so Claude Code's permission prompt appears at every documented removal
-// (that the settings hold askRemove is TestSettingsAsksBeforeRemove's
-// check); every other call matches no ask rule of the settings, so watching
-// never stops at a prompt. The /chief definition must hold a call of every subcommand: one
-// that lost a call would pass every check of the calls left.
+// installed tool runs it instead of returning a usage error. In that bare
+// form a call of promptedSubcommand begins with the prefix of askRemove,
+// the settings' only ask rule (TestSettingsAsksBeforeRemove), so Claude
+// Code's permission prompt appears at every documented removal and at no
+// other call. The /chief definition must hold a call of every subcommand:
+// one that lost a call would pass every check of the calls left.
 func TestDocumentedInvocationsParse(t *testing.T) {
-	ask := readSettings(t).Permissions.Ask
 	called := map[string]struct{}{}
 	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
 		for _, call := range doctestutil.Invocations(readRepoFile(t, rel), toolWord) {
@@ -279,10 +277,6 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 			if err != nil {
 				t.Errorf("%s: %s %q is a usage error: %v", rel, toolWord, call.Args, err)
 				continue
-			}
-			text := strings.Join(append([]string{toolWord}, call.Args...), " ")
-			if subcommand != promptedSubcommand && slices.ContainsFunc(ask, func(rule string) bool { return matchesRule(t, rule, text) }) {
-				t.Errorf("%s: %q matches an ask rule of %q, so watching would stop at a prompt", rel, text, ask)
 			}
 			if _, err := parseRequests(subcommand, flags); err != nil {
 				t.Errorf("%s: %s %q is a malformed request: %v", rel, toolWord, call.Args, err)
@@ -324,9 +318,13 @@ type settings struct {
 }
 
 // matchesRule reports whether the Bash permission rule rule matches the
-// command text. It models only the two forms the settings use, Bash(<prefix>*)
-// and Bash(<command>) for one exact command, and fails t for a rule of any
-// other form, so a rule it cannot read never passes as matching nothing.
+// command text. It models only the forms the settings use: Bash(<prefix>*),
+// where a prefix ending in a space also matches the command without it
+// (Bash(x *) matches x alone, as Claude Code does), and Bash(<command>) for
+// one exact command; it fails t for a rule of any other form, so a rule it
+// cannot read never passes as matching nothing. Claude Code also tries
+// normalized forms of a command against deny and ask rules, which this
+// model leaves out.
 func matchesRule(t *testing.T, rule, text string) bool {
 	t.Helper()
 	inner, ok := strings.CutPrefix(rule, "Bash(")
@@ -339,7 +337,7 @@ func matchesRule(t *testing.T, rule, text string) bool {
 		t.Fatalf("permission rule %q has a wildcard before its end, which matchesRule does not model", rule)
 	}
 	if prefixRule {
-		return strings.HasPrefix(text, body)
+		return strings.HasPrefix(text, body) || (strings.HasSuffix(body, " ") && text == strings.TrimSuffix(body, " "))
 	}
 	return text == inner
 }
@@ -364,10 +362,10 @@ func readSettings(t *testing.T) settings {
 // create a workspace, a tab, a pane, or a worktree, or move a pane, which
 // only the tool does, from a validated issue number. A rule of the closing
 // group ends in "*" with no space, so it also matches the call with no
-// argument, which acts on the current pane, tab, or workspace. A
-// rule ending in " *" matches the call with arguments; one ending in "*"
-// right after the flag also matches the flag's =value form and its longer
-// spellings such as --remote-keybindings.
+// argument, which acts on the current pane, tab, or workspace (a rule
+// ending in " *" matches the call with no argument too). A rule ending in
+// "*" right after the flag also matches the flag's =value form and its
+// longer spellings such as --remote-keybindings.
 var deniedHerdr = []string{
 	"Bash(herdr agent prompt *)",
 	"Bash(herdr agent send-keys *)",
@@ -441,8 +439,9 @@ var worktreeChanges = []string{
 
 // TestSettingsDeniesWorktreeChanges: .claude/settings.json denies every git
 // call of deniedGit, and no allow rule lets a command of worktreeChanges run
-// without the prompt, so a session cannot make or remove a task's worktree
-// without the tool and its checks.
+// unchecked (an allowed command skips both the prompt and auto mode's
+// classifier), so a session cannot make or remove a task's worktree without
+// the tool and its checks, past what the deny rules' prefixes reach.
 func TestSettingsDeniesWorktreeChanges(t *testing.T) {
 	s := readSettings(t)
 	for _, rule := range deniedGit {
@@ -459,13 +458,14 @@ func TestSettingsDeniesWorktreeChanges(t *testing.T) {
 	}
 }
 
-// TestSettingsAsksBeforeRemove: .claude/settings.json asks before every
-// call of the removal subcommand, so Claude Code asks the human to confirm
-// the removal outside the session too; an ask rule wins over the allow rule
-// Bash(chief *).
+// TestSettingsAsksBeforeRemove: the only ask rule of .claude/settings.json
+// is askRemove, so Claude Code asks the human to confirm every removal
+// outside the session too (an ask rule wins over the allow rule
+// Bash(chief *)), and no other call of the tool, however its arguments are
+// written, stops watching at a prompt.
 func TestSettingsAsksBeforeRemove(t *testing.T) {
-	if ask := readSettings(t).Permissions.Ask; !slices.Contains(ask, askRemove) {
-		t.Errorf("permissions.ask %q does not contain %q", ask, askRemove)
+	if ask := readSettings(t).Permissions.Ask; !slices.Equal(ask, []string{askRemove}) {
+		t.Errorf("permissions.ask %q, want only %q", ask, askRemove)
 	}
 }
 

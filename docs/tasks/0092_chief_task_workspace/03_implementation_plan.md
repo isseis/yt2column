@@ -136,7 +136,7 @@
 
 21. **削除の候補でなくなった workspace は、確かめの結果に `not_candidate` だけを持つ（2026-11-18、人が承認した）。** `remove` の中で読み直した workspace が削除の候補でないときは、ほかの 7 つの確かめは削除の候補（`RemovalCandidate`）を前提にするので走らせず、`checks_failed` と `not_candidate` だけを返す。ステップ 6-2 にこれを編集上の訂正として書いたが、PR-6 の Fable の部分レビューが、設計書 3.4.2 の「通らなかったものをすべて返す」から外れる選択で、PR-7 の `/chief` の定義が読む出力の形（`checks` が 1 件のときがある）にもなると指摘した。ほかの案（7 つを `unreadable` として 8 件を返す、`locate` の見つけた worktree で 7 つを走らせる）は採らない。後者は削除の候補の型の不変条件に例外が要る。要件定義書の AC-28 と、設計書 1.6・3.4.2 に書き足した（ローカルの CLI レビューが、AC-28 との食い違いを指摘した）。ADR: なし（PR-6 の中で閉じるため）。
 
-22. **「新しいタスクを始める」に固定の英字 `N` を付ける（2026-11-18、人が承認した）。** PR-7 の実地の確かめで、人が、番号のない選択肢は選びにくいと指摘した。`/chief` の定義は、待ち受けの一覧でこの選択肢を `[N] 新しいタスクを始める` と示し、`N`（`n`）でも選べるようにする。名前で選ぶことも残す。道具の番号は数字だけで、この選択肢は一覧にいつも 1 つなので、固定の文字は重ならず、ラウンドをまたいで意味も変わらない。`停止を解く`・`送り直す` は複数並びうるので文字を付けない。ステップ 7-2 で直し、設計書 1.6・3.7 に書き足した。
+22. **「新しいタスクを始める」に固定の英字 `N` を付ける（2026-11-18、人が承認した）。** PR-7 の実地の確かめで、人が、番号のない選択肢は選びにくいと指摘した。`/chief` の定義は、待ち受けの一覧でこの選択肢を `[N] 新しいタスクを始める` と示し、`N`（`n`）でも選べるようにする。名前で選ぶことも残す（待ち受けの間は、英字と同じく `新しいタスクを始める 930` の形で番号を添え、名前だけのときは `N` だけのときと同じく形を示す）。道具の番号は数字だけで、この選択肢は一覧にいつも 1 つなので、固定の文字は重ならず、ラウンドをまたいで意味も変わらない。`停止を解く`・`送り直す` は複数並びうるので文字を付けない。ステップ 7-2 で直し、設計書 1.6・3.7 に書き足した。
 
     同じ実地の確かめで、人が、番号を打ち間違えても作る前に気づけるよう始める先を選ぶ前に issue の題名を見たいと求め、`N` の後の番号の問いと候補のないときの始める先の問いが手間だと指摘した。そこで、次のとおりにした（2026-11-18、人が承認した）。
     -   待ち受けの一覧で `N <番号>` を受け付け、番号を尋ねずに `targets` を呼ぶ。`N` だけのときは問いを開かず、その形で打つよう示す。`once` では、今のとおり選択式で番号を尋ねる。
@@ -414,7 +414,7 @@
     -   `settings` の構造体に `Ask` を足し、`ask` が `Bash(chief remove *)` を持つことを確かめるテストを足す。
     -   `TestDocumentedInvocationsParse` の契約（すべての呼び出しが確認なしに許される）を、`remove` は `ask` の確認を出すと直す。定義の `remove` の呼び出しが `chief remove` で始まることを確かめる。
 -   [x] **ステップ 7-4**: CLAUDE.md の「Tool Execution Safety」（issue の読み取り）と「Claude Commands」の `/chief` の項、chief 利用ガイドの 1〜8 章（設計書 3.8。7 章の記録の表には作成の排他のディレクトリ `create` も足す。決定 5）、`package_reference.md` の `cmd/chief` の行を直す。
--   [x] **ステップ 7-5**: 最後の実地の確かめをする（設計書 7.3、決定 10・12）。人が、決定 12 のとおり chief の worktree をこのブランチにして入れ直し、`/chief` で次を行う。結果を §7 の「PR-7 の実行の記録」に書く。マージの後に `main` へ戻すことも、決定 12 のとおりである。
+-   [x] **ステップ 7-5**: 最後の実地の確かめをする（設計書 7.3、決定 10・12）。（実施した。既存の workspace への送信と、`once` で名前で選ぶ場面は、当たる状況がなく実地では確かめていない。§7 の「PR-7 の実行の記録」に書き、テストと定義の読み取りが受け持つ。）人が、決定 12 のとおり chief の worktree をこのブランチにして入れ直し、`/chief` で次を行う。結果を §7 の「PR-7 の実行の記録」に書く。マージの後に `main` へ戻すことも、決定 12 のとおりである。
     -   新しいタスクを始めること（新しい workspace と既存の workspace）。新しく作る issue は人が選ぶ。
     -   作成の拒否（存在しない番号、閉じた issue、ラベル `draft` が付いた issue、PR、すでにあるパス）。
     -   削除の提案、削除、削除の拒否。決定 10 の workspace を使う。拒否は、その workspace に追跡していないファイルを置くなどして起こす。
@@ -523,7 +523,7 @@
 | AC-01 | 定義の入口の位置と `once` の扱い、実地の確かめ（`once` の問いで名前で選ぶ） | manual | 7-2・7-5 | PR-7 |
 | AC-02 | `ic/create_test.go::TestTargets`（番号の形、候補、候補のないとき）、定義の問いの順 | test、manual | 4-3・7-2 | PR-4、PR-7 |
 | AC-03 | `ic/send_test.go::TestMkreqTarget`、`ic/snapshot_test.go::TestNextCommandRules`（どちらも変えずに通る） | test | 3-3・5-3 | PR-3、PR-5 |
-| AC-04 | `ic/create_test.go::TestTargets`（issue を読み、拒む issue では周を読まず候補を返さない）、`ic/send_test.go::TestMkreqTarget` | test | 4-3・7-1 | PR-4、PR-7 |
+| AC-04 | `ic/create_test.go::TestTargets`（issue を読み、拒む issue では周を読まず候補を返さない）、`ic/send_test.go::TestMkreqTarget`、定義の既存の workspace の分岐（`targets` の候補の `workspace` と確かめた番号を `send` に渡し、issue を読み直さない） | test、manual | 4-3・7-1・7-2 | PR-4、PR-7 |
 | AC-05 | `ic/issue_test.go::TestParseIssueSamples`、`ic/issue_test.go::TestParseIssueRejects`、`ic/create_test.go::TestCreateRefusesIssue`（何も作らない） | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-06 | `ic/create_test.go::TestCreateIssueForm`、`ic/create_test.go::TestTargets`（`issue_form`）、`cc/main_test.go::TestIssueFormIsNoUsageError` | test | 4-2・4-3・7-1 | PR-4、PR-7 |
 | AC-07 | `ic/issue_test.go::TestParseIssueTitle`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
@@ -629,7 +629,7 @@
 
 2026-11-18 に、本計画のステップ 7-5 のとおりに、人が本物の Herdr で `/chief` を使って確かめた。セッションは手順を示し、結果を読み取りの呼び出し（`herdr workspace list`・`agent list`・`pane list`、`git worktree list`、状態のディレクトリの一覧）で確かめた。人が「OK」とだけ答えた項目は、そのとおりに書く。
 
--   **準備（決定 12）。** chief は本体のチェックアウト（workspace `yt2column`）で動いていた。人が、本体のチェックアウトをこのブランチの先頭に detached で合わせ、`make install-chief` をして `/chief` を起動し直した。確かめの途中で道具か定義を変えたときは、そのたびに同じ手順で入れ直した。手順 1〜3 は `origin/main` を取り込んだマージ（`ce0f0405`）の道具で、手順 4 以降は `targets` が issue を読む版（`8e9c0831`）の道具で確かめた。新しい定義と道具はプロトコル 4 で合い、表とほかの workspace の待ち受けは続いた。一覧の最後、「何もしない」の前に「新しいタスクを始める」が出た（AC-01）。
+-   **準備（決定 12）。** chief は本体のチェックアウト（workspace `yt2column`）で動いていた。人が、本体のチェックアウトをこのブランチの先頭に detached で合わせ、`make install-chief` をして `/chief` を起動し直した。確かめの途中で道具か定義を変えたときは、そのたびに同じ手順で入れ直した。手順 1〜3 は `origin/main` を取り込んだマージ（`ce0f0405`）の道具で、手順 4 以降は `targets` が issue を読む版（`8e9c0831`）の道具で確かめた。新しい定義と道具は、本 PR で上げたプロトコル（`origin/main` の値 + 1）で合い、表とほかの workspace の待ち受けは続いた。一覧の最後、「何もしない」の前に「新しいタスクを始める」が出た（AC-01）。
 -   **確かめの中で決めたこと（決定 22）。** 人が、番号のない選択肢は選びにくいこと、`N` の後の番号の問いと候補のないときの始める先の問いが手間なこと、作る前に issue の題名を見たいことを指摘した。人の承認を得て、`[N]` と `N <番号>`、`targets` が issue を読んで題名か拒否を返すことを足した（決定 22）。
 -   **削除（AC-20・AC-25・AC-27〜AC-30）。** 決定 10 のとおり、人が、#838（0088 の `対応 issue`。0088 はすべての PR がマージ済み）の worktree `~/.herdr/worktrees/yt2column/issue-838` を `origin/main` で detached に作り、workspace を作って Claude Code と OpenCode を起動し、`created.json` を手で置いた。
     -   最初は、その worktree に pane を持つ workspace が 2 つ（pane 1 つの `w2A` と、エージェントのいる `w2B`）あり、行は削除の提案にならず「要確認」（HEAD が detached）だった。セッションは、記録の中身・パーミッション・置き場所と worktree の状態がどれも正しく、パスの workspace がちょうど 1 つという AC-23 の条件が外れたためと確かめた。安全側に倒れる振る舞いである。
