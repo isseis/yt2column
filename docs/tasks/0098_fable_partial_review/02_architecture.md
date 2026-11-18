@@ -139,6 +139,8 @@ PR-1（#966）を開いた後に行った Fable の部分レビューの指摘�
 5.  **判定の規則（判断の対象の commit、見たとみなす commit、見た範囲の行の START と END の確かめ）は、判定のスクリプトの冒頭が定め、その根拠を 3.6.1 とする。コマンドの文書が定めるのは、記録の行の形と、結果から決定を決める規則である。** 理由: スクリプトの冒頭は「規則はコマンドの文書が定め、食い違えばスクリプトを直す」と書いていたが、判定の規則を定めるコマンドの文書はなく、比べる先がなかった。規則をコマンドの文書に移すと、同じ規則を 2 か所で持つことになる。採らなかった案: 規則を `runpr.md` step 3 か `_lib/local-cli-review.md` に書き移す案。ADR: なし。
 6.  **`/runpr` の PRE_MERGE の commit は、今のとおり見たとみなさない。** PRE_MERGE は計画書 §6 の `PR-N マージ済み` も変えるので、チェックボックスの commit に当たらない。理由: PRE_MERGE はマージの直前に push されるので、判定に出るのはマージが途中で止まって `/runpr` を走らせ直したときだけで、そのときも人に 1 回問うだけである。PRE_MERGE は承認と PR 番号の書き込みも同じ commit に入れるので、§6 の行を許しても多くはチェックボックスだけの commit にならない。採らなかった案: §6 の行も許す案、PRE_MERGE を分ける案（どちらも判定の関門を広げる）。ADR: なし。
 
+7.  **PR-2 がマージされるまで、チェックポイントの入口は止まる。PR-2 自身のチェックポイントは、`origin/main` の `runplan.md`（Fable の手順を持たない）で行う。** `origin/main` の判定のスクリプトに `fable` のモードがない間、2 回目の判定はいつも失敗する。2 回目の判定が失敗したときに進む例外は設けず、失敗はいつも止まる（3.5.3 の 4、AC-08）。そのため、PR-2 のブランチの `runplan.md` で始めたセッションは、PR-2 のチェックポイントで、単独の経路を走らせた後に止まる。理由: 移行の間だけ要る例外のために、関門を外す道を残さないため（利用者の選択）。採らなかった案: `origin/main` に `_lib/fable-review.md` がないことを確かめて進む例外（移行の後も残る関門の外し道になる）。ADR: なし（移行の間の扱いで、タスクの中で閉じる）。
+
 ## 2. システム構成 (System Structure)
 
 ### 2.1. 全体構成
@@ -591,7 +593,7 @@ step 4 で選んだ phase group の次の未完了の項目が `### PR-N 作成�
 step 5a は、ブランチの確かめ（`runplan.md:96`）の直後、green gate より前に、step 8（単一フェーズの計画書の PR）は、PR とコミットの確かめの直後、green gate より前に、チェックポイントの入口を置く。
 
 1.  判定のスクリプトの `fable` のモードを、チェックポイントからの判定として走らせる（3.1.2）。
-2.  `MISSING` のときは、単独の経路を行う（3.1.8）。止まったときは、PR を開かず、何も push しない。
+2.  `MISSING` のときは、単独の経路を行う（3.1.8）。止まったときは、PR を開かず、何も push しない。単独の経路の後に判定し直し、`VALID` でなければ（判定の失敗を含む）止まる（1.5 の決定 7）。
 3.  有効な記録がそろった時点で、`Fable review: checkpoint` だけを持つ空の commit を作る。これより後に、green gate の直し、終わりの確かめの直し、diff 記録の再確認、B1〜B4、Part B step 2 が作る commit は、Fable の記録を無効にしない（3.1.2 の 3）。
 4.  有効な記録がないままでは、先へ進まない（AC-08）。
 
@@ -645,7 +647,7 @@ OpenCode は Agent ツールで Fable を呼べない（要件書 5 章）。Fab
 #### 3.6.3. 呼び方と置き場所
 
 -   呼び方は、Opus のレビューの判断のスクリプトと同じく、`origin/main` の commit から作業ツリーの外のファイルに取り出して `bash` で走らせる（`opus-review.md:167-188`）。取り出せないとき、終了コードが 0 でないとき、1 行目が決まった形でないときは、`coverage` は `PARTIAL`、`fable` は `MISSING <merge-base>` とする。
--   スクリプトが `origin/main` にまだない間（本タスクの、スクリプトを入れる PR がマージされる前）は、取り出せないので、Escalation は今より `ask` に寄り、Fable は記録があっても毎回走る。
+-   スクリプトが `origin/main` にまだない間（本タスクの、スクリプトを入れる PR がマージされる前）は、取り出せないので、Escalation は今より `ask` に寄り、Fable は記録があっても毎回走る。`fable` のモードが `origin/main` にない間は、チェックポイントの入口の 2 回目の判定も失敗するので、入口は止まる（1.5 の決定 7）。
 -   スクリプトは読むだけで副作用を持たない。[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) との関係は決定 15 のとおりで、Go のテストで振る舞いを確かめる（7.1）。
 
 ### 3.7. `_lib/pr-review-escalation.md`（AC-34〜AC-37、決定 12・13）
@@ -734,7 +736,7 @@ Codex 後: ローカル CLI 済 ／ Fable（PR 前）: run
 | 前の実行の Fable の通知が届いた | 記録したタスクの ID と違うので使わない | 3.1.5 |
 | 並列のローカルの CLI レビューが `stop` | サブエージェントとタイマーを止め、Fable の結果を使わず、何も記録せず止まる。やり直しで Fable をもう一度起動する | AC-09 |
 | 記録の commit のメンションの確かめが 2 回目も通らない | commit せずに止まる | AC-30 |
-| 判定のスクリプトが取り出せない・失敗・読めない出力 | `coverage` は `PARTIAL`（Escalation は `ask` に寄る）、`fable` は `MISSING`（Fable が走る） | 決定 2・10 |
+| 判定のスクリプトが取り出せない・失敗・読めない出力 | `coverage` は `PARTIAL`（Escalation は `ask` に寄る）、`fable` は `MISSING`（Fable が走る）。チェックポイントの入口の、単独の経路の後の判定し直しでは止まる | 決定 2・10、1.5 の決定 7 |
 | PR の head と手元の HEAD が違う | COVERAGE を `PARTIAL` とする | 3.8.1 |
 | チェックポイントの入口の単独の経路が止まった | PR を開かず、何も push しない | AC-08 |
 
@@ -856,7 +858,9 @@ flowchart TD
     Start(["step 5a / step 8"]) --> Entry{"チェックポイントの入口:<br>有効な Fable の記録?"}
     Entry -->|"MISSING"| Solo["単独の経路"]
     Solo -->|"止まった"| Halt(["PR を開かず止まる"])
-    Solo -->|"済んだ"| Mark["チェックポイントの印"]
+    Solo -->|"済んだ"| Recheck{"判定し直し:<br>有効な Fable の記録?"}
+    Recheck -->|"VALID"| Mark["チェックポイントの印"]
+    Recheck -->|"MISSING・失敗"| Halt
     Entry -->|"VALID"| Mark
     Mark --> Gate["green gate・終わりの確かめ・<br>diff 記録の再確認"]
     Gate --> B1["B1: ブランチのレビュー"]
@@ -865,7 +869,7 @@ flowchart TD
     B3 --> B5["B5: PR の説明に書く結果"]
     B5 --> PB(["Part B で PR を開く"])
 
-    class Entry,Solo,Mark enhanced
+    class Entry,Solo,Recheck,Mark enhanced
     class Gate,B1,B2,B3,B5 process
     class Halt problem
 
@@ -970,3 +974,4 @@ flowchart TD
 
 - 2026-11-17 承認（isseis、#945）
 - 2026-11-18 セッション中の再承認：レビューの関門の一覧に試行の結果を決める step・LAST_REVIEWED の定義・Escalation の Procedure を足し、見ていない commit の一覧と概要を step 3 の報告に示し、LAST_REVIEWED が HEAD の祖先でないときを判定のスクリプトの失敗とした。AFTER_CREATE の URL の形を決め、判定の規則を定める箇所をスクリプトの冒頭とし、PRE_MERGE の commit を見たとみなさない今の扱いを残した（isseis、#966）
+- 2026-11-18 セッション中の再承認：PR-2 がマージされるまでチェックポイントの入口が止まること、PR-2 自身のチェックポイントを `origin/main` の `runplan.md` で行うことを決めた（isseis、#981）

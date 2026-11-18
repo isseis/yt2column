@@ -677,7 +677,7 @@ finished review observed had and every review in progress lacked, so that a
 
     ```bash
     git rev-parse --verify 'refs/remotes/origin/main^{commit}'
-    git show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
+    git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
     bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]
     ```
 
@@ -1072,8 +1072,19 @@ character as 2); the line shapes below are the examples to follow.
        for `ALL`, `ローカル CLI 未 <n> 件` for `PARTIAL <n>`, and
        `ローカル CLI 不明` for `PARTIAL` with no count (the script failed, or
        the PR's head is not the local one). Its second half is the record of
-       the Fable partial review made before the PR opened; `なし` says the
-       branch has none.
+       the Fable partial review made before the PR opened (`PR 前`: it did
+       not see the changes after the PR opened), from the Fable records of
+       `git log --reverse origin/main..HEAD`, read as
+       `_lib/fable-review.md`, "Reading the record lines", says: `run` when
+       every record is `run`; when one is `not run`, `未実施・<word>` for the
+       first such record, where `<word>` is `対象なし` for `no-target`,
+       `利用不可` for `unavailable`, `時間切れ` for `timeout`, `別モデル` for
+       `not-fable`, `形式不正` for `unreadable`, and `呼べない` for
+       `agent-cannot-call`; and `なし` when the branch has no record. With
+       two or more records, append `（他 <n> 件）`, `<n>` being the number of
+       records not shown. The longest form,
+       `Codex 後: ローカル CLI 未 12 件 ／ Fable（PR 前）: 未実施・時間切れ（他 1 件）`,
+       stays within 80 columns.
      - Kinds 7 to 10 appear only for what exists. Kinds 7 to 9 give a kind and
        a count; kind 10 gives the state and the expiry date, not a count.
      - Kind 6 is `NEXT: なし` when there is none; `NEXT: /mkarch 0089` for
