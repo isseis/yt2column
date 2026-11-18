@@ -376,23 +376,23 @@
 
 **変更するファイル:** `extension/static/`（`manifest.json`、`options.html`（新規）、`popup.html`、`viewer.html`、`_locales`、オプションページのスタイルシート）、`extension/src/`（入口、`options.ts`（新規）、表示）、`extension/scripts/check-dist.ts`・`popup-preview.ts`、`extension/test/`、サーバとホストの文書のガード（§1.3 の決定 2）、`internal/doctestutil/`、`internal/server/test_helpers.go`、`internal/config/test_helpers.go`、`cmd/yt2column/docs_test.go`、`cmd/yt2column-nmhost/`（README の移行の手順のテスト）、README と `README.en.md`、`docs/dev/`（security.md・development.md・project_overview.md・production_profile.md・cli.md・package_reference.md）、`docs/translation_glossary.md`、`CLAUDE.md`、ADR（§3.3）、本計画
 
--   [ ] **ステップ 8-1**: manifest を 0090 設計書 §3.7 の値にする（権限 `activeTab`・`scripting`・`storage`、CSP、`incognito`、`minimum_chrome_version` `"142"`、オプションページをタブで開く、今の `key`）。`manifest.test.ts` を直し、`check-dist.ts` がオプションページの参照も確かめるようにする。`_locales` の `extDescription` を拡張だけの経路の説明に改める（設計書 §3.5）。
--   [ ] **ステップ 8-2**: 入口を新しい部品に配線する。
+-   [x] **ステップ 8-1**: manifest を 0090 設計書 §3.7 の値にする（権限 `activeTab`・`scripting`・`storage`、CSP、`incognito`、`minimum_chrome_version` `"142"`、オプションページをタブで開く、今の `key`）。`manifest.test.ts` を直し、`check-dist.ts` がオプションページの参照も確かめるようにする。`_locales` の `extDescription` を拡張だけの経路の説明に改める（設計書 §3.5）。
+-   [x] **ステップ 8-2**: 入口を新しい部品に配線する。
     -   `background.ts` は `jobCoordinator.ts` を登録する。
     -   `popup.ts`・`launch.ts` は、`setLocalAccessLevel` が成功したときだけ関数を注入し、生成の開始を SW に送る（0090 設計書 §3.5・§3.6、要件書 AC-23）。`launch.test.ts` に、`setLocalAccessLevel` が失敗したときに注入せず、開始が拒否された状態を示す行を加える。
     -   `viewer.ts`・`viewerApp.ts` は、実行するビューア（`viewerRunner.ts`）と表示するビューア（`chrome.storage.session.onChanged`）を持つ。
     -   `options.html`・`options.ts` を作る（文字を伏せた欄、`buildInfo` の表示。設計書 §3.6）。オプションページの HTML のテスト（`optionsHtml.test.ts`）を加え、`style.test.ts` の確かめるスタイルシートの一覧にオプションページのものを加える。
     -   `popup.html` に、詳細の節の後のリンクと、設定が要る状態の操作を置く（設計書 §3.7）。`viewer.html` の静的なタイトルを空でない値にし、`viewerTitle.ts` を使う（設計書 §3.8.2）。開発用の印を示す（設計書 §3.5）。
--   [ ] **ステップ 8-3**: 表示のファイル（`jobView.ts`・`popupView.ts`・`sendMessages.ts`・`types.ts`・`i18n/*`、`renderJob.ts`・`renderViewer.ts`・`render.ts`）を、0090 設計書 §3.8 の状態と設計書 §4.2 の表に合わせ、文言を英語と日本語の両方に置く（要件書 AC-14・AC-15）。直したファイルを使うテスト（`popupHtml`・`popupView`・`viewerApp`・`launch`・`renderJob`・`renderViewer`・`render`・`sendMessages`・`chromeDeps`・`fakes`・`popupPreview`・`entryPoints`・`jobCodes`・`checkDist` の各テスト）と `scripts/popup-preview.ts` を直す。直したファイルの型が変わり、呼ばれなくなった拡張のコードが型の検査を通らなくなるときは、そのファイルとテストをこの PR で除く（§1.3 の決定 10。削除だけの commit と `make ext-coverage-compare`）。除くファイルに `TestNativeHostContract` が読むもの（`send.ts`・`core/native.ts`・`core/exchange.ts`）があるときは、同じ削除の commit で、そのテストとその定数も除き、`make coverage-compare` でも比べる。
--   [ ] **ステップ 8-4**: サーバとホストの文書のガードを除く（§1.3 の決定 2）。`TestServerDocsContract`・`TestReadmeHostExitCodes`・`TestDevelopmentDocsDevServer`・`serverReasons.test.ts` と、それだけが使う補助（`internal/doctestutil` のサーバとホストの位置の値、`internal/server/test_helpers.go` の `RejectReasonsForTest`・`APICodesForTest` など。`make deadcode` が確かめる）を除く。除く前に、Go の削除を仮の commit で `make coverage-compare` にかけ、残るパッケージの関数のカバレッジが下がるなら、その関数のテストを先に足す（§1.2）。削除は削除だけの commit にし、`make coverage-compare` と `make ext-coverage-compare` で比べる。
--   [ ] **ステップ 8-5**: 仕様の文書を書き換える（要件書 AC-33・AC-34、設計書 §3.13、0090 設計書 §3.14.2）。
+-   [x] **ステップ 8-3**: 表示のファイル（`jobView.ts`・`popupView.ts`・`sendMessages.ts`・`types.ts`・`i18n/*`、`renderJob.ts`・`renderViewer.ts`・`render.ts`）を、0090 設計書 §3.8 の状態と設計書 §4.2 の表に合わせ、文言を英語と日本語の両方に置く（要件書 AC-14・AC-15）。直したファイルを使うテスト（`popupHtml`・`popupView`・`viewerApp`・`launch`・`renderJob`・`renderViewer`・`render`・`sendMessages`・`chromeDeps`・`fakes`・`popupPreview`・`entryPoints`・`jobCodes`・`checkDist` の各テスト）と `scripts/popup-preview.ts` を直す。直したファイルの型が変わり、呼ばれなくなった拡張のコードが型の検査を通らなくなるときは、そのファイルとテストをこの PR で除く（§1.3 の決定 10。削除だけの commit と `make ext-coverage-compare`）。除くファイルに `TestNativeHostContract` が読むもの（`send.ts`・`core/native.ts`・`core/exchange.ts`）があるときは、同じ削除の commit で、そのテストとその定数も除き、`make coverage-compare` でも比べる。
+-   [x] **ステップ 8-4**: サーバとホストの文書のガードを除く（§1.3 の決定 2）。`TestServerDocsContract`・`TestReadmeHostExitCodes`・`TestDevelopmentDocsDevServer`・`serverReasons.test.ts` と、それだけが使う補助（`internal/doctestutil` のサーバとホストの位置の値、`internal/server/test_helpers.go` の `RejectReasonsForTest`・`APICodesForTest` など。`make deadcode` が確かめる）を除く。除く前に、Go の削除を仮の commit で `make coverage-compare` にかけ、残るパッケージの関数のカバレッジが下がるなら、その関数のテストを先に足す（§1.2）。削除は削除だけの commit にし、`make coverage-compare` と `make ext-coverage-compare` で比べる。
+-   [x] **ステップ 8-5**: 仕様の文書を書き換える（要件書 AC-33・AC-34、設計書 §3.13、0090 設計書 §3.14.2）。
     -   README を先に書き換え、`/mktrans` で `README.en.md` に移す。要件書 AC-34 の内容を書き、サーバとホストの節を除く。`## 設定` の変数の表は CLI のために残し、サーバの設定ファイルに触れる段落を直す。`## ブラウザ拡張` の語（`metadataDocs.test.ts`）、「Chrome 142 以降」（`manifest.test.ts`）、拡張の ID（`TestExtensionDocumentation`）、リンク（`TestReadmeLinks`）を合わせる。
     -   README の移行の手順が示すブラウザごとのホストの manifest の場所を、`internal/nmhost` の manifest の場所の値と照合するテストを、`cmd/yt2column-nmhost` に加える（撤去の PR でホストとともに除く）。
     -   security.md・development.md・project_overview.md・production_profile.md・cli.md・用語集を、0090 設計書 §3.14.2 と設計書 §3.13 の要点のとおりに書き換える。security.md の `### 8.1. ブラウザ拡張（#110）` の見出しと `**要求する権限**` の一覧は、`TestExtensionDocumentation` が読む。
     -   CLAUDE.md は、「Architecture Overview」の主経路、「Accessibility」の対象にオプションページを含めること、「Development Notes」の `TestReadmeHostExitCodes`・`serverReasons.test.ts` とサーバの設定ファイルの記述、「Go Idioms」の `TestServerDocsContract` の見出しの例を直す。「Build Commands」の 2 つのバイナリと文書のガードのコマンドは、撤去の PR まで、撤去の予定のものとして残す（§1.3 の決定 2）。
     -   README の `### 推奨構成` と production_profile.md の `## 本番の構成` の塊が、サーバの設定ファイルの形でなくなるので、`TestProductionProfileDocsContract` の照合を CLI の読み込み（環境変数の名前を引く関数を `config.Load` に渡す形）に改め、使われなくなる `ParseServerFileForTest` を除く。
--   [ ] **ステップ 8-6**: ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。案 B で実装したときは、人と決めたうえで、ADR-0010 の「ビューアの URL」の決定を改め、要件書 §3.2 の「ビューアの URL」の行の扱いを PR の説明に書く（設計書 §3.8.2・§3.14）。
--   [ ] **ステップ 8-7**: 手動の確認を行い、§7 の「PR-8 の手動の確認の記録」に書く（要件書 §5、設計書 §7.2）。
+-   [x] **ステップ 8-6**: ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。案 B で実装したときは、人と決めたうえで、ADR-0010 の「ビューアの URL」の決定を改め、要件書 §3.2 の「ビューアの URL」の行の扱いを PR の説明に書く（設計書 §3.8.2・§3.14）。
+-   [x] **ステップ 8-7**: 手動の確認を行い、§7 の「PR-8 の手動の確認の記録」に書く（要件書 §5、設計書 §7.2）。
     -   開発用のビルドで、要件書 AC-29 の状態と、AC-07・AC-08・AC-09・AC-11・AC-16・AC-20・AC-23 の手動の確認の項目を確かめる。
     -   オプションページで、VoiceOver の読み上げ（H-12。読み上げるときは欄の説明に注意を添える）と、同期を有効にしたプロファイルでパスワードの保存を勧められないこと（AC-03）を確かめる。
     -   ポップアップ、ビューア、オプションページで、CLAUDE.md「Accessibility」の各項目を、キーボードと明るい・暗いテーマで確かめる（AC-18）。
@@ -414,10 +414,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/977
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 9: 撤去と文書（設計書 §8 の 5）
 
@@ -547,7 +547,7 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 -   [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 -   [x] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9）
 -   [x] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4）
--   [ ] PR-8 マージ済み（対象ステップ: 8-1 / 8-2 / 8-3 / 8-4 / 8-5 / 8-6 / 8-7）
+-   [x] PR-8 マージ済み（対象ステップ: 8-1 / 8-2 / 8-3 / 8-4 / 8-5 / 8-6 / 8-7）
 -   [ ] PR-9 マージ済み（対象ステップ: 9-1 / 9-2 / 9-3 / 9-4 / 9-5 / 9-6）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -565,21 +565,21 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 |---|---|---|---|---|
 | AC-01 | `cy/makefile_test.go::TestMakeBuildBuildsEveryBinary`（`yt2column` だけ）、`et/manifest.test.ts`（権限）、PR-8 の手動の確認（ホストもサーバもないプロファイルで記事が完成する） | test、manual | 8-1・8-7・9-3 | PR-8、PR-9 |
 | AC-02 | `ej/module_test.go::TestCheckSettingsRejectsShape`・`TestCheckSettingsOutcomes`（形の検査、4 つの結果、30 秒）、`internal/llm/claude/keycheck_test.go::TestCheckKeyStatus`・`TestCheckKeyNotRejected`・`TestCheckKeySendsRequest`、`ej/devbackend/devbackend_test.go`、`et/optionsFlow.test.ts`（期限、1 回の書き込み、保存しないときに書かない、検査できない場合、書き込みの失敗）、`et/optionsView.test.ts`、§7 の 2 つの前の確認、PR-8 の手動の確認 | test、manual | 1-1・1-4・3-4・3-5・6-1・6-9・7-2・8-2 | PR-1、PR-3、PR-6、PR-7、PR-8 |
-| AC-03 | `et/optionsFlow.test.ts`（保存の後に欄を空にする、保存した値を読まない）、`et/optionsHtml.test.ts`（文字を伏せた欄）、PR-8 の手動の確認（パスワードの保存を勧めない） | test、manual | 7-2・8-2・8-7 | PR-7、PR-8 |
+| AC-03 | `et/optionsFlow.test.ts`（保存の後に欄を空にする、保存した値を読まない）、`et/optionsHtml.test.ts`（パスワードの欄にしない）、`et/style.test.ts`（文字を伏せた欄）、PR-8 の手動の確認（パスワードの保存を勧めない） | test、manual | 7-2・8-2・8-7 | PR-7、PR-8 |
 | AC-04 | `et/optionsFlow.test.ts`（空のワークスペース ID を空の文字列で書く、1 回の `remove`）、`ej/module_test.go::TestGenerateAcceptsEmptyWorkspace`（空の文字列は指定なし）、PR-8 の手動の確認（再起動の後も残る） | test、manual | 3-5・7-2・8-7 | PR-3、PR-7、PR-8 |
 | AC-05 | `ej/claudebackend/claudebackend_test.go::TestClientsMatchProvider`、`internal/config/extension_test.go::TestLoadExtensionProductionProfile`、`et/optionsHtml.test.ts`（欄が 2 つだけ） | test | 2-2・3-3・8-2 | PR-2、PR-3、PR-8 |
-| AC-06 | `et/popupHtml.test.ts`（いつもあるリンク）、`et/popupView.test.ts`（API キーがないときにビューアを開かない）、`et/viewerRunner.test.ts`（`api_key_missing`）、`ej/module_test.go::TestGenerateSettingsInvalid`（`settings_invalid` で LLM を呼ばない）、`et/viewerApp.test.ts`（設定が要る状態と料金に触れないこと） | test | 3-5・7-3・8-2・8-3 | PR-3、PR-7、PR-8 |
+| AC-06 | `et/popupHtml.test.ts`（いつもあるリンク）、`et/popupView.test.ts`（API キーがないときにビューアを開かない）、`et/viewerRunner.test.ts`（`api_key_missing`）、`ej/module_test.go::TestGenerateSettingsInvalid`（`settings_invalid` で LLM を呼ばない）、`et/renderJob.test.ts`・`et/renderViewer.test.ts`（設定が要る状態と料金に触れないこと） | test | 3-5・7-3・8-2・8-3 | PR-3、PR-7、PR-8 |
 | AC-07 | `et/jobCoordinator.test.ts`（生成の開始はポップアップからだけ、自動で送り直さない）、`et/viewerRunner.test.ts`（記録やビューアの URL を開くだけでは始めない）、PR-8 の手動の確認 | test、manual | 7-3・7-4・8-7 | PR-7、PR-8 |
 | AC-08 | `et/jobCoordinator.test.ts`（止まった実行の 4 つの経路）、`et/viewerRunner.test.ts`（実行の間だけ読み込み直しの確認）、PR-8 の手動の確認 | test、manual | 7-3・7-4・8-7 | PR-7、PR-8 |
 | AC-09 | `et/jobCoordinator.test.ts`（上限の境界と捨てる順、上限での拒否）、`et/jobRecord.test.ts`（記録の型が字幕と概要欄を持たない）、PR-8 の手動の確認 | test、manual | 6-7・7-4・8-7 | PR-6、PR-7、PR-8 |
 | AC-10 | `et/jobCoordinator.test.ts`（同じ入力と同じ動画の照会、API キーがないときの順） | test | 7-4 | PR-7 |
-| AC-11 | `et/viewerApp.test.ts`（3 つの状態で不明と示し、金額を示さない。`api_key_missing`・`settings_invalid` で触れない）、PR-8 の手動の確認 | test、manual | 8-3・8-7 | PR-8 |
+| AC-11 | `et/renderJob.test.ts`・`et/render.test.ts`・`et/renderViewer.test.ts`（3 つの状態で不明と示し、金額を示さない。`api_key_missing`・`settings_invalid` で触れない）、PR-8 の手動の確認 | test、manual | 8-3・8-7 | PR-8 |
 | AC-12 | `internal/llm/claude/errors_test.go::TestHTTPStatusErrorAuthRejected`・`TestGenerateAuthRejected`、`ej/run_test.go::TestRunAuthRejectedAtEveryStep`（3 つの工程のそれぞれ）、`et/viewerApp.test.ts`（キーが拒まれた状態と操作）、`et/jobCoordinator.test.ts`（同じジョブ ID でやり直す）、§7 の 2 つの前の確認 | test、manual | 1-1・1-2・3-2・6-1・7-4・8-3 | PR-1、PR-3、PR-6、PR-7、PR-8 |
 | AC-13 | `et/jobCoordinator.test.ts`（3 つ目の開始の拒否）、`et/popupView.test.ts`（開始が拒否された状態） | test | 7-4・8-3 | PR-7、PR-8 |
-| AC-14 | `et/viewerApp.test.ts`・`et/popupView.test.ts`（状態ごとの固定の文言、例外の文を含まない）、`et/catalog.test.ts`（英語と日本語の文言が同じ項目を持つ）、文言の読み合わせ | test、manual | 8-3 | PR-8 |
+| AC-14 | `et/renderJob.test.ts`・`et/render.test.ts`・`et/renderViewer.test.ts`（状態ごとの固定の文言、例外の文を含まない）、`et/catalog.test.ts`（英語と日本語の文言が同じ項目を持つ）、文言の読み合わせ | test、manual | 8-3 | PR-8 |
 | AC-15 | 文言の読み合わせ（PR のレビュー） | manual | 8-3 | PR-8 |
 | AC-16 | `et/viewerTitle.test.ts`（設計書 §3.8.2 の表の各行、空にしない）、`et/jobViewerUrl.test.ts`（案 B の `t`）、`et/popupHtml.test.ts`（`viewer.html` の静的なタイトル）、§7 の PR-1 の前の確認、PR-8 の手動の確認（再起動の後の履歴） | test、manual | 1-1・6-8・7-1・7-4・8-2・8-7 | PR-1、PR-6、PR-7、PR-8 |
-| AC-17 | `et/checkDist.test.ts`（開発用の manifest に `key` がない、`buildKind.js` が `dev`）、`et/popupView.test.ts`・`et/viewerApp.test.ts`（開発用の印の表示）、PR-8 の手動の確認 | test、manual | 5-3・5-4・8-2 | PR-5、PR-8 |
+| AC-17 | `et/checkDist.test.ts`（開発用の manifest に `key` がない、`buildKind.js` が `dev`）、`et/launch.test.ts`・`et/render.test.ts`・`et/renderViewer.test.ts`・`et/viewerApp.test.ts`（開発用の印の表示）、PR-8 の手動の確認 | test、manual | 5-3・5-4・8-2 | PR-5、PR-8 |
 | AC-18 | `et/popupHtml.test.ts`・`et/optionsHtml.test.ts`（`lang`、名前、状態の領域、フォーカスの順）、`et/style.test.ts`（押せる領域、動きを止める指定。オプションページのスタイルシートを含む）、PR-8 の手動の確認（キーボード、コントラスト、VoiceOver） | test、manual | 8-2・8-7 | PR-8 |
 | AC-19 | `ej/prepare_test.go`・`ej/result_test.go`・`ej/run_test.go`（サーバの 3 つのテストの行を写したもの）、`internal/server` の比べるテスト（PR-9 で除く） | test | 3-1・3-2 | PR-3 |
 | AC-20 | `et/apiKeyPath.test.ts`、`et/lintRules.test.ts`（`storage` と決まった関数の規則）、`et/jobCoordinator.test.ts`（SW が値を読まない）、`et/wasmResult.test.ts`、`ej/module_test.go::TestGenerateKeepsKeyOutOfOutput`、`cmd/yt2column-extjob/main_test.go`（目印のキーが出力に出ない）、PR-8 の手動の確認（ログ、URL、`storage.session`） | test、manual | 3-5・4-3・6-2・6-3・6-4・6-6・7-4・8-7 | PR-3、PR-4、PR-6、PR-7、PR-8 |
@@ -703,6 +703,20 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 -   この記録より後の commit は、計画書とその記録だけを変える（コードを変える commit は、記録の前に済ませた）。
 -   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
 
+**PR-8**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
+
+-   merge-base: `552d7cd89972087c7de0054171e064d494f8ba77`
+-   比べたコミット: `adbf373f19ee7caeee54e9e51bece7f19773159d`
+-   出力（終了コード 0）:
+
+    ```text
+    merge-base 552d7cd89972087c7de0054171e064d494f8ba77 head adbf373f19ee7caeee54e9e51bece7f19773159d
+    ok: no non-test file under cmd/yt2column/ changed
+    ```
+
+-   この記録より後の commit は、計画書とその記録だけを変える（コードを変える commit は、記録の前に済ませた）。
+-   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
+
 ### PR-1 の前の手動の確認の記録
 
 ステップ 1-1 で書く。ブラウザの名前と版、確かめた組み合わせ（`GET /v1/models` と `POST /v1/messages`、`anthropic-workspace-id` のありとなし）、見たもの、履歴のタイトルの確かめの手順と結果、決めた案（A か B）を書く。
@@ -755,7 +769,71 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 
 ステップ 8-7 で書く。確かめた項目ごとに、ブラウザと版、手順、結果を書く。VoiceOver の結果は、PR-8 の説明にも書く（設計書 §3.6）。
 
-（まだない）
+2026-11-18 に、人が確かめた。ブラウザは Chrome 157.0.8103.79（公式ビルド、arm64、macOS）。
+
+#### 開発用のビルドで出す状態（AC-29・AC-08・AC-09・AC-11）
+
+`make ext-build-dev` で作った `extension/dist-dev` を「パッケージ化されていない拡張機能を読み込む」で読み込み、オプションページで形の合う偽のキーを保存してから試した。シナリオを変えるたびに、変数を付けて `make ext-build-dev` を走らせ、拡張を再読み込みした。字幕は、字幕のある動画の文字起こしパネルで選択した。
+
+| # | ビルド | 手順 | 結果 |
+|---|---|---|---|
+| A1 | 既定 | 選択して「記事を生成する」 | OK。ポップアップは生成中から生成済みになり、ビューアに記事、推定の料金、所要時間が出た。ポップアップとビューアに開発用のビルドの印が出た |
+| A2 | `FAKE_FAILURE=api_key_rejected FAKE_FAIL_AT=draft` | 生成 | OK。API キーが拒否されたという文、料金は不明、「API キーを設定する」ボタン |
+| A3 | `FAKE_FAILURE=api-error FAKE_FAIL_AT=review` | 生成 | OK。失敗の文は `LLM の呼び出しが失敗しました。` で、料金は不明。所見: 次に何をすればよいかがこの文からは分からない |
+| A4 | 既定 | オプションページで API キーを削除して生成 | OK。「API キーを設定する」が出て、ビューアは開かなかった |
+| A5 | `FAKE_DELAY=20` | 生成中にポップアップとビューアを見る | OK。工程のチェックリストと経過時間が進んだ |
+| A6 | `FAKE_DELAY=20` | 生成中にビューアのタブを閉じる／読み込み直す | 文は OK（`記事の生成がページとともに止まりました。生成していたビューアのタブが閉じられたか読み込み直されたか、拡張がそのタブと連絡を取れなくなりました。`）、料金は不明。所見: 工程のチェックリストで「下書きの生成」の左のアイコンが回り続け、その工程が実行中に見える。止まった記録が、止まった時点の工程の状態（`running`）をそのまま持ち、それを実行中の印で描くため |
+| A7 | 既定 | 生成済みの後、拡張を再読み込みしてからビューアの履歴を開く | OK。記事が失われたという文、タイトルは URL のタイトル |
+| A8 | 既定 | 字幕でない文章を選択して生成 | OK。開始が拒否された。所見: ポップアップを開いた時点で、字幕として受け付けないことが分かるのではないか |
+| A9 | `FAKE_DELAY=60` | 別の動画で 3 つ目を始める | OK。3 つ目の開始が拒否された |
+| A10 | 既定 | SW の DevTools で `chrome.storage.local.set({"anthropic.apiKey": " bad"})` の後に生成 | OK。設定が必要という文で、料金に触れない。所見: 文（`保存した設定を使えないため、設定し直す必要があります。`）が分かりにくい。API キーの値がおかしいことを明示したほうがよい |
+| A11 | 既定 | A8 の後に開いたビューアを読み込み直す | OK。入力を受け取れなかったという文 |
+| A12 | `FAKE_SETTINGS_CHECK=ok`／`key_rejected`／`unverified` | オプションページで保存 | OK。それぞれ保存した／保存しない（拒否）／保存したが確かめられなかった。形の合わない値は欄に印が付いた。所見: `key_rejected` と `unverified` の結果の文が黒い文字で出る。ほかの画面の失敗は赤なので、注意を引くために赤にすることを検討する |
+
+所見の扱い（人と決めた）:
+
+-   A6・A10・A12 は、PR-8 で直した（`87e0541e`）。A6 は、生成が終わった記録で `running` のまま残った工程を、回らない「中断」の印（2 本の縦の線、失敗の色）と状態の語で示す。A10 は、保存した API キーかワークスペース ID の値が使える形でないと示す。A12 は、オプションページの結果を、保存しなかった失敗は失敗の色、確かめられなかった保存と結果の不確かな書き込みは注意の背景と文字の色で示す。
+-   A3 は、PR-8 では手順に「しばらく待ってから押し直す」と「失敗が続くときは Claude Console で利用の上限と使用量を確かめる」を足した（`87e0541e`）。失敗の理由を細かく示すには、記事生成モジュールの失敗の分類を増やす必要があり、本タスクでは扱わない。
+-   A8 は、別の issue（#973）にした。字幕の解析が記事生成モジュールで拡張の中にあるので、ポップアップで同じコードで判定できる。
+-   直した版（`87e0541e`）の開発用のビルドで、A3・A6・A8・A10・A12 を確かめ直した。どれも OK。A3 の確かめ直しで、ポップアップに失敗の文が 2 か所に出ることが分かった。状態の領域（`#status`）が、状態の欄と同じ要約を見える文字で書いていたためで、ビューアと同じく読み上げだけの領域にした（`a201cb8f`）。
+
+#### 記事の記録、タイトル、API キーの扱い（AC-07・AC-09・AC-16・AC-20・AC-23）
+
+| # | 手順 | 結果 |
+|---|---|---|
+| B1 | 生成済みのビューアを、再読み込み／閉じて「閉じたタブを開く」／履歴から開く | OK。同じ記事が出て、新しい生成は始まらなかった |
+| B2 | ブラウザを再起動してビューアを復元 | OK。記録は消え、記事が失われたと示した。履歴の項目の動画のタイトルが残った |
+| B3 | ビューアのタブとページのタイトル | OK。`<動画のタイトル> - <開発用の印の付いた名前>` |
+| B4 | 生成の後、ポップアップ・ビューア・SW の DevTools の Console、ビューアの URL、SW で `chrome.storage.session.get(null)` | OK。保存した API キーの値はどこにも出なかった |
+| B5 | YouTube のタブの DevTools の Console で、ページの文脈（`top`）から `chrome.storage` を参照 | `chrome.storage` は `undefined`。ページの文脈は拡張の API を持たないので、この確かめは守りの有無で結果が変わらない。AC-23 の確かめは次の B5a〜B5c で行った |
+| B5a | 対照: オプションページの DevTools で `chrome.storage.local.get(null).then(v => console.log("keys:", Object.keys(v)), e => console.error("error:", e.message))`（値は出さず項目の名前だけを出す） | OK。項目の名前が出た（拡張のページからは読める） |
+| B5b | YouTube の動画のタブでポップアップを開いて選択を読む関数を注入させ、そのタブの DevTools の Console で文脈を拡張（`yt2column`）の isolated world に切り替えて、B5a と同じ 1 行を実行 | OK。`error: Access to storage is not allowed from this context.` |
+| B5c | ブラウザを完全に終了して起動し直し、B5b を繰り返す | OK。B5b と同じ |
+
+#### オプションページ（AC-03・H-12）
+
+| # | 手順 | 結果 |
+|---|---|---|
+| C1 | VoiceOver（Cmd+F5）でオプションページを Tab で移動 | OK。各欄の名前と説明が読まれ、API キーの欄の説明に入力した文字が読まれうるという注意があり、保存の結果がフォーカスを動かさずに読み上げられた |
+| C2 | Google にログインして同期を有効にしたプロファイルで、API キーを入力して保存 | OK。パスワードの保存を勧めるバブルは出なかった |
+| C3 | 保存の後 | OK。API キーの欄が空になり、「設定済み」だけが出て、値は出なかった。所見: 設定済みかどうかが見分けにくい。示し方の選択肢を調べ、別の issue（#974）にした |
+
+#### アクセシビリティ（AC-18）
+
+ポップアップ、ビューア、オプションページを、明るいテーマと暗いテーマ（macOS の外観）の両方で確かめた。OK。キーボードだけでの全操作とフォーカスの順、フォーカスの印、コントラスト、色だけでなく文字と形で示す状態、押せる領域の大きさ、「視差効果を減らす」でアニメーションが止まることを確かめた。
+
+#### 本番の構成（AC-01）
+
+`make ext-build` で作った `extension/dist`（`87e0541e` の後のブランチ）を、Native Messaging のホストの manifest がなく、サーバも動いていないプロファイルに読み込んだ。実 API の呼び出しは、人の承認を得て行った。
+
+| # | 手順 | 結果 |
+|---|---|---|
+| D1 | Chrome 157.0.8103.79 のオプションページで本物の API キーを保存 | OK。保存した（Models API で確かめた） |
+| D2 | Chrome で記事を 1 本生成し、ビューアのタブを背面のまま完成させる（動画 `https://www.youtube.com/watch?v=ACuRMEyrAEw`） | OK。完成し、所要時間 1 分 56 秒、推定の料金 $0.3873 |
+| D3 | Brave で D1・D2 を同じく | OK |
+| D4 | Anthropic の Console の使用量（Chrome の確認だけに使ったキー） | OK。使用量に出たのは Opus 5.5 のトークンだけで、11 月 18 日 0:00 UTC が 0、1:00 UTC が 48,635、2:00 UTC が 110,833（合計 159,468）。保存のときのキーの確かめ（D1）は、トークンの使用量に現れなかった。このキーで生成したのは D2 の 1 本だけなので、2 つの時間帯の値は、D2 の生成が時の境目をまたいだものと読める（人が見た 1 時間ごとの表の値で、呼び出しごとの内訳は見ていない） |
+
+D4 は、人と決めて、結果を待たずに PR を作り、PR を作った後に結果を足した。
 
 ### `_checks/removal.sh` の記録
 

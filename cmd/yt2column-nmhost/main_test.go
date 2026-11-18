@@ -14,14 +14,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/config"
-	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/nmhost"
 	"github.com/isseis/yt2column/internal/udstest"
 )
@@ -425,48 +422,6 @@ func TestInstallFailures(t *testing.T) {
 			}
 			if len(inv.stdout) != 0 {
 				t.Errorf("stdout = %q, want empty", inv.stdout)
-			}
-		})
-	}
-}
-
-// repositoryRoot is the path from cmd/yt2column-nmhost to the repository root.
-const repositoryRoot = "../.."
-
-// TestReadmeHostExitCodes checks that the host exit-code table of each README
-// version, under the native messaging host section, lists exactly the host's
-// exit codes, so a changed or added code fails until both versions follow.
-func TestReadmeHostExitCodes(t *testing.T) {
-	want := []int{exitOK, exitFailure, exitUsage}
-	for _, v := range doctestutil.ReadmeVersions() {
-		t.Run(v.Path, func(t *testing.T) {
-			heading := doctestutil.ReadmeInstallHostHeading.In(t, v.Lang)
-			section := doctestutil.SectionOutsideBlocks(doctestutil.ReadDoc(t, v.From(repositoryRoot)), heading)
-			if section == "" {
-				t.Fatalf("%s has no %q section", v.Path, heading)
-			}
-			column := doctestutil.ReadmeExitCodeColumn.In(t, v.Lang)
-			table := doctestutil.FindTable(section, column)
-			if table == nil {
-				t.Fatalf("%s %s has no exit-code table", v.Path, heading)
-			}
-			at := slices.Index(table[0], column)
-			var codes []int
-			for _, row := range table[1:] {
-				if at < 0 || at >= len(row) {
-					t.Errorf("%s host exit-code table row %q has no %q cell", v.Path, row, column)
-					continue
-				}
-				code, err := strconv.Atoi(doctestutil.StripBackticks(row[at]))
-				if err != nil {
-					t.Errorf("%s host exit-code table row %q does not start with a code", v.Path, row)
-					continue
-				}
-				codes = append(codes, code)
-			}
-			slices.Sort(codes)
-			if !slices.Equal(codes, want) {
-				t.Errorf("%s host exit-code table lists %v, want %v", v.Path, codes, want)
 			}
 		})
 	}

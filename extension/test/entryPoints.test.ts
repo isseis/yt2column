@@ -154,15 +154,30 @@ const registration = "listenForMessages";
 describe("runtime message listener registration", () => {
   const files = sourceFiles();
 
-  it("adds the onMessage listener only inside the registration wrapper", () => {
+  it("adds the onMessage listeners only inside the registration wrappers", () => {
     const found = callsIn(files, addsMessageListener);
+    // The runtime's messages, and the messages of a Port the service worker
+    // accepted, which the connection wrapper hands to its listener.
     assert.deepEqual(
       found.map(({ file, call }) => [
         file,
         functionName(enclosingFunction(call)),
       ]),
-      [[chromeDeps, registration]],
+      [
+        [chromeDeps, registration],
+        [chromeDeps, "onMessage"],
+      ],
     );
+    const [, port] = found;
+    assert.ok(port !== undefined);
+    let outer = enclosingFunction(port.call);
+    while (
+      outer !== undefined &&
+      functionName(outer) !== "listenForConnections"
+    ) {
+      outer = enclosingFunction(outer);
+    }
+    assert.ok(outer !== undefined, "outside listenForConnections");
   });
 
   it("adds it synchronously, directly in the wrapper with no await before it", () => {
@@ -201,15 +216,21 @@ describe("runtime message listener registration", () => {
     );
   });
 
-  it("is called as a top-level statement of background.ts with no await before it", () => {
-    const [found] = callsIn(["src/background.ts"], (call) =>
-      calls(call, registration),
-    );
-    assert.ok(found);
-    assert.ok(ts.isExpressionStatement(found.call.parent));
-    assert.ok(ts.isSourceFile(found.call.parent.parent));
-    assert.equal(awaitsBefore(found.source, found.call), false);
-  });
+  for (const name of [
+    registration,
+    "listenForConnections",
+    "listenForClosedTabs",
+  ]) {
+    it(`calls ${name} as a top-level statement of background.ts with no await before it`, () => {
+      const [found] = callsIn(["src/background.ts"], (call) =>
+        calls(call, name),
+      );
+      assert.ok(found);
+      assert.ok(ts.isExpressionStatement(found.call.parent));
+      assert.ok(ts.isSourceFile(found.call.parent.parent));
+      assert.equal(awaitsBefore(found.source, found.call), false);
+    });
+  }
 });
 
 describe("message entry points", () => {
@@ -238,11 +259,13 @@ describe("message entry points", () => {
 describe("host sends", () => {
   const files = sourceFiles();
 
-  it("builds the send dependencies only in the popup, viewer and service worker entries", () => {
+  it("builds the host's send dependencies in no entry: the extension sends nothing to a host", () => {
     const found = callsIn(files, (call) => calls(call, "createSendDeps"));
     assert.deepEqual(
-      [...new Set(found.map(({ file }) => file))],
-      ["src/background.ts", "src/popup.ts", "src/viewer.ts"],
+      [...new Set(found.map(({ file }) => file))].filter(
+        (file) => file !== chromeDeps,
+      ),
+      [],
     );
   });
 

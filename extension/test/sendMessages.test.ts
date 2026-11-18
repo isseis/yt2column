@@ -2,192 +2,120 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { catalogs } from "../src/core/i18n/catalog.ts";
-import type { Catalog } from "../src/core/i18n/catalog.ts";
+import type { Message } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
-import type { RejectionMessage } from "../src/core/messages.ts";
-import type { ArticleKey } from "../src/core/articleKey.ts";
-import { unexpectedChecks } from "../src/core/exchange.ts";
-import type { ExchangeFailure, UnexpectedCheck } from "../src/core/exchange.ts";
-import type { ExchangeMessages } from "../src/core/i18n/catalog.ts";
-import type { RetryingStatus, StoppingStatus } from "../src/core/jobView.ts";
-import { startRejectStatus, statusRejectStatus } from "../src/core/response.ts";
-import type { RequestId, ServerRejectReason } from "../src/core/response.ts";
-import {
-  jobRejectMessage,
-  startResultMessage,
-  statusNoticeMessage,
-} from "../src/core/sendMessages.ts";
-
-// Tests may assert a branded type to build fixtures.
-const requestId = "0123456789abcdef" as RequestId;
-
-/**
- * The whole message as one string, for content checks. Matching on this text
- * is matching the displayed contract: the wording is what the user reads.
- */
-function textOf(message: RejectionMessage): string {
-  return [message.text, ...message.steps].join("\n");
-}
+import type {
+  ArticleFailure,
+  JobDisplay,
+  StartFailure,
+} from "../src/core/jobView.ts";
+import { jobMessage, startFailureMessage } from "../src/core/sendMessages.ts";
+import { wasmFailures } from "../src/core/wasmResult.ts";
+import { article, failedSteps, runningSteps } from "./helpers/record.ts";
 
 const localeList = Object.keys(locales) as Locale[];
-describe("job API messages", () => {
-  const jobRejectReasons = [
-    ...new Set([
-      ...Object.keys(startRejectStatus),
-      ...Object.keys(statusRejectStatus),
-    ]),
-  ] as ServerRejectReason[];
-  const checks = Object.keys(unexpectedChecks) as UnexpectedCheck[];
 
-  // One outcome of each exchange kind that is not a server response.
-  const failures: { name: string; failure: ExchangeFailure }[] = [
-    {
-      name: "server-unavailable",
-      failure: { kind: "not-sent", cause: "server-unavailable" },
-    },
-    {
-      name: "message-too-large",
-      failure: { kind: "not-sent", cause: "message-too-large" },
-    },
-    { name: "no-response", failure: { kind: "no-response" } },
-    { name: "host-failed", failure: { kind: "host-failed" } },
-    {
-      name: "unexpected",
-      failure: { kind: "unexpected", check: "member-set" },
-    },
-  ];
+/** Every article failure: the record failures that are neither a setting nor a rejected key. */
+const articleFailures = [
+  ...Object.keys(wasmFailures).filter(
+    (failure) =>
+      failure !== "api_key_rejected" && failure !== "settings_invalid",
+  ),
+  "run_timeout",
+] as ArticleFailure[];
 
-  // Each operation's message function over the exchange failures, and the
-  // catalog section it must read.
-  const operations: {
-    name: string;
-    message: (failure: ExchangeFailure, locale: Locale) => RejectionMessage;
-    section: (catalog: Catalog) => ExchangeMessages;
-  }[] = [
-    {
-      name: "start",
-      message: (failure, locale) => startResultMessage(failure, locale),
-      section: (catalog) => catalog.startExchange,
-    },
-    {
-      name: "status",
-      message: (failure, locale) =>
-        statusNoticeMessage(failure as RetryingStatus | StoppingStatus, locale),
-      section: (catalog) => catalog.statusExchange,
-    },
-  ];
-
-  /** The catalog message an exchange failure must show. */
-  function inSection(
-    messages: ExchangeMessages,
-    failure: ExchangeFailure,
-  ): RejectionMessage {
-    switch (failure.kind) {
-      case "not-sent":
-        return messages.notSent[failure.cause];
-      case "no-response":
-        return messages.noResponse;
-      case "host-failed":
-        return messages.hostFailed;
-      case "unexpected":
-        return messages.unexpected;
-    }
-  }
-
+describe("startFailureMessage", () => {
   for (const locale of localeList) {
-    it(`gives every job API reason a distinct text in ${locale}`, () => {
-      const texts = jobRejectReasons.map(
-        (reason) => jobRejectMessage(reason, locale).text,
-      );
-      assert.equal(new Set(texts).size, jobRejectReasons.length);
-    });
+    const catalog = catalogs[locale];
+    const cases: { failure: StartFailure; want: Message }[] = [
+      {
+        failure: { kind: "rejected", reason: "api_key_missing" },
+        want: catalog.setup.api_key_missing,
+      },
+      {
+        failure: { kind: "rejected", reason: "invalid_body" },
+        want: catalog.startRejected.invalid_body,
+      },
+      {
+        failure: { kind: "rejected", reason: "too_many_requests" },
+        want: catalog.startRejected.too_many_requests,
+      },
+      {
+        failure: { kind: "rejected", reason: "internal" },
+        want: catalog.startRejected.internal,
+      },
+      { failure: { kind: "unknown" }, want: catalog.startUnknown },
+      {
+        failure: { kind: "input-unavailable" },
+        want: catalog.inputUnavailable,
+      },
+    ];
 
-    it(`shows the start's own results in ${locale}`, () => {
-      const catalog = catalogs[locale];
-      assert.equal(
-        startResultMessage(
-          { kind: "accepted", key: "k" as ArticleKey, requestId },
-          locale,
-        ),
-        catalog.startResult.accepted,
-      );
-      assert.equal(
-        startResultMessage({ kind: "no-result" }, locale),
-        catalog.startResult.noResult,
-      );
-    });
-
-    for (const { name, message, section } of operations) {
-      it(`reads the ${name} section for every exchange failure in ${locale}`, () => {
-        const messages = section(catalogs[locale]);
-        for (const { name: kind, failure } of failures) {
-          assert.equal(
-            message(failure, locale),
-            inSection(messages, failure),
-            kind,
-          );
-        }
-      });
-
-      it(`gives every ${name} exchange failure a distinct text in ${locale}`, () => {
-        const texts = failures.map(
-          ({ failure }) => message(failure, locale).text,
-        );
-        assert.equal(new Set(texts).size, failures.length);
-      });
-
-      it(`shows one ${name} message for every unexpected check in ${locale}`, () => {
-        const expected = section(catalogs[locale]).unexpected;
-        for (const check of checks) {
-          assert.equal(
-            message({ kind: "unexpected", check }, locale),
-            expected,
-            check,
-          );
-        }
-      });
-
-      it(`names the host install step for a ${name} host failure in ${locale}`, () => {
-        const text = textOf(message({ kind: "host-failed" }, locale));
-        assert.ok(text.includes("yt2column-nmhost install"), text);
-      });
-
-      it(`names the server start for a ${name} not sent to the server in ${locale}`, () => {
-        const text = textOf(
-          message({ kind: "not-sent", cause: "server-unavailable" }, locale),
-        );
-        assert.ok(text.includes("yt2column-server"), text);
-      });
-    }
-
-    it(`shows the reason's message for every operation's rejection in ${locale}`, () => {
-      const catalog = catalogs[locale];
-      const reasons = <R extends ServerRejectReason>(set: Record<R, number>) =>
-        Object.keys(set) as R[];
-      for (const reason of reasons(startRejectStatus)) {
+    it(`shows a missing API key as the setup message, and every other failure by its kind, in ${locale}`, () => {
+      for (const { failure, want } of cases) {
         assert.equal(
-          startResultMessage({ kind: "rejected", reason, requestId }, locale),
-          catalog.jobReject[reason],
-          reason,
-        );
-      }
-      for (const reason of reasons(statusRejectStatus)) {
-        assert.equal(
-          statusNoticeMessage({ kind: "rejected", reason, requestId }, locale),
-          catalog.jobReject[reason],
-          reason,
+          startFailureMessage(failure, locale),
+          want,
+          JSON.stringify(failure),
         );
       }
     });
 
-    it(`words each operation's exchange failures differently in ${locale}`, () => {
-      for (const { name, failure } of failures) {
-        const texts = operations.map(({ message }) =>
-          textOf(message(failure, locale)),
-        );
-        assert.equal(new Set(texts).size, operations.length, name);
+    it(`gives every start failure a distinct text in ${locale}`, () => {
+      const texts = cases.map(
+        ({ failure }) => startFailureMessage(failure, locale).text,
+      );
+      assert.equal(new Set(texts).size, cases.length);
+    });
+  }
+});
+
+describe("jobMessage", () => {
+  for (const locale of localeList) {
+    const catalog = catalogs[locale];
+
+    it(`has no message for a running or done job in ${locale}`, () => {
+      assert.equal(
+        jobMessage({ kind: "running", steps: runningSteps }, locale),
+        undefined,
+      );
+      assert.equal(
+        jobMessage({ kind: "done", steps: runningSteps, article }, locale),
+        undefined,
+      );
+    });
+
+    it(`shows each ended job's own message in ${locale}`, () => {
+      const cases: { job: JobDisplay; want: Message }[] = [
+        {
+          job: { kind: "unstored", steps: failedSteps, article },
+          want: catalog.viewer.unstored,
+        },
+        {
+          job: { kind: "setup", failure: "api_key_missing" },
+          want: catalog.setup.api_key_missing,
+        },
+        {
+          job: { kind: "setup", failure: "settings_invalid" },
+          want: catalog.setup.settings_invalid,
+        },
+        {
+          job: { kind: "key-rejected", steps: failedSteps },
+          want: catalog.keyRejected,
+        },
+        { job: { kind: "stopped", steps: failedSteps }, want: catalog.stopped },
+        { job: { kind: "lost" }, want: catalog.viewer.lost },
+        ...articleFailures.map((failure) => ({
+          job: { kind: "failed", steps: failedSteps, failure } as const,
+          want: catalog.failure[failure],
+        })),
+      ];
+      for (const { job, want } of cases) {
+        assert.equal(jobMessage(job, locale), want, JSON.stringify(job));
       }
+      const texts = cases.map(({ want }) => want.text);
+      assert.equal(new Set(texts).size, cases.length);
     });
   }
 });

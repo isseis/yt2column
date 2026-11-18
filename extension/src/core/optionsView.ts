@@ -29,8 +29,18 @@ export type OptionsResult =
       readonly fields: readonly SettingsField[];
     };
 
+/**
+ * How an outcome's message looks: plain for a save or delete that was done,
+ * warning for one that was done but is uncertain or unchecked, and failure
+ * for one that saved nothing. The message's words tell the same, so the look
+ * only repeats them.
+ */
+export type OptionsTone = "plain" | "warning" | "failure";
+
 /** How the options page shows an outcome. */
 export interface OptionsView {
+  /** The message's look. */
+  readonly tone: OptionsTone;
   /** The fixed message, announced in the page's status region. */
   readonly message: Message;
   /** Whether both fields are emptied: only after the settings were written. */
@@ -47,15 +57,38 @@ export function optionsView(
   const message = catalogs[locale].options[result.outcome];
   switch (result.outcome) {
     case "saved":
+      return { tone: "plain", message, clearFields: true, rejectedFields: [] };
     case "saved_unverified":
-      return { message, clearFields: true, rejectedFields: [] };
+      return {
+        tone: "warning",
+        message,
+        clearFields: true,
+        rejectedFields: [],
+      };
     case "field_rejected":
-      return { message, clearFields: false, rejectedFields: result.fields };
+      return {
+        tone: "failure",
+        message,
+        clearFields: false,
+        rejectedFields: result.fields,
+      };
     case "key_rejected":
     case "check_unavailable":
+      return {
+        tone: "failure",
+        message,
+        clearFields: false,
+        rejectedFields: [],
+      };
     case "write_uncertain":
-    case "deleted":
     case "delete_uncertain":
-      return { message, clearFields: false, rejectedFields: [] };
+      return {
+        tone: "warning",
+        message,
+        clearFields: false,
+        rejectedFields: [],
+      };
+    case "deleted":
+      return { tone: "plain", message, clearFields: false, rejectedFields: [] };
   }
 }

@@ -8,7 +8,8 @@ import {
   secondaryAction,
   selectionStates,
 } from "../core/popupView.ts";
-import type { PollNotice } from "../core/jobView.ts";
+import type { BuildKind } from "../buildKind.d.ts";
+import { jobOffersOptions, startOffersOptions } from "../core/jobView.ts";
 import type {
   CollectedView,
   DescriptionStatus,
@@ -30,32 +31,33 @@ import {
   drawStateOnChange,
   jobStateSummary,
   loadingIndicator,
-  noticeSummary,
-  pollNotice,
   renderJobState,
-  waitsForStatus,
   startFailure,
   startFailureSummary,
-  waitingNodes,
-  waitingSummary,
   writeStatusSummary,
 } from "./renderJob.ts";
 
-/** The two buttons and the status region; all the send path touches. */
+/** The buttons and the status region; all the send path touches. */
 export interface ActionControls {
   readonly primary: HTMLButtonElement;
   /** Shown only while the choice offers a second action. */
   readonly secondary: HTMLButtonElement;
+  /** Opens the options page; shown only beside a missing or rejected setting. */
+  readonly setup: HTMLButtonElement;
   readonly status: HTMLElement;
 }
 
 /** The skeleton's elements; startPopup finds them in popup.html by id. */
 export interface PopupElements extends ActionControls {
+  /** The development build's mark; hidden in a release build. */
+  readonly buildMark: HTMLElement;
   readonly video: HTMLElement;
   readonly checks: HTMLElement;
   readonly rejection: HTMLElement;
   readonly action: HTMLElement;
   readonly details: HTMLDetailsElement;
+  /** Opens the options page; always shown. */
+  readonly options: HTMLButtonElement;
 }
 
 /** A paragraph with its class and text set; the caller adds any dir attribute. */
@@ -337,14 +339,6 @@ function drawDetailsSection(
   drawnDetails.set(container, { view, locale });
 }
 
-/**
- * Whether the choice shows the existing article's state: not while it waits
- * for a first status that a stopped poll will never bring.
- */
-function existingShown(existing: ExistingState, notice: PollNotice): boolean {
-  return existing !== "loading" || waitsForStatus(notice);
-}
-
 /** The existing article's symbol for each state; the Record keeps it total. */
 const existingIcons: Readonly<
   Record<ExistingState, (doc: Document) => SVGSVGElement>
@@ -397,9 +391,8 @@ function drawPopupState(
       container.replaceChildren(startFailure(doc, state.failure, locale));
       return;
     case "loading":
-      // The close-popup guidance applies even to a stopped poll.
       container.replaceChildren(
-        ...waitingNodes(doc, state.notice, locale),
+        ...loadingIndicator(doc, catalog.viewer.loading),
         ...messageNodes(doc, catalog.popup.viewerNotice),
       );
       return;
@@ -407,7 +400,6 @@ function drawPopupState(
       renderJobState(
         container,
         state.job,
-        state.notice,
         { kind: "shown", ms: elapsedMs },
         locale,
       );
@@ -428,11 +420,8 @@ function drawPopupState(
       const [text, ...steps] = messageNodes(doc, catalog.popup.choice);
       container.replaceChildren(
         text,
-        ...(existingShown(state.existing, state.notice)
-          ? [existingRow(doc, state.existing, locale)]
-          : []),
+        existingRow(doc, state.existing, locale),
         ...steps,
-        ...pollNotice(doc, state.notice, locale),
       );
       return;
     }
@@ -452,27 +441,67 @@ function popupSummary(state: PopupJobState, locale: Locale): string[] {
     case "start-failed":
       return startFailureSummary(state.failure, locale);
     case "loading":
-      return waitingSummary(state.notice, locale);
+      return [catalogs[locale].viewer.loading.text];
     case "job":
-      return [
-        ...jobStateSummary(
-          state.job,
-          [catalogs[locale].popup.articleReady.text],
-          locale,
-        ),
-        ...noticeSummary(state.notice, locale),
-      ];
+      return jobStateSummary(
+        state.job,
+        [catalogs[locale].popup.articleReady.text],
+        locale,
+      );
     case "choice":
       return [
         catalogs[locale].popup.choice.text,
-        ...(existingShown(state.existing, state.notice)
-          ? [catalogs[locale].popup.existingStates[state.existing]]
-          : []),
-        ...noticeSummary(state.notice, locale),
+        catalogs[locale].popup.existingStates[state.existing],
       ];
     case "choice-ended":
       return [catalogs[locale].popup.choiceEnded.text];
   }
+}
+
+/** Whether a job state shows the operation that opens the options page beside its message. */
+function offersSetup(state: PopupJobState | undefined): boolean {
+  switch (state?.kind) {
+    case "start-failed":
+      return startOffersOptions(state.failure);
+    case "job":
+      return jobOffersOptions(state.job);
+    case "sending":
+    case "loading":
+    case "choice":
+    case "choice-ended":
+    case undefined:
+      return false;
+  }
+}
+
+/** Shows the setup operation with its name, or hides it. */
+function applySetup(
+  setup: HTMLButtonElement,
+  state: PopupJobState | undefined,
+  locale: Locale,
+): void {
+  const name = catalogs[locale].openOptions.setup;
+  if (setup.textContent !== name) {
+    setup.textContent = name;
+  }
+  setup.hidden = !offersSetup(state);
+}
+
+/**
+ * Draws what stays the same for the popup's whole life: the operation that
+ * opens the options page, and the development build's mark, which is text,
+ * not a colour alone.
+ */
+export function renderPopupFrame(
+  elements: Pick<PopupElements, "options" | "buildMark">,
+  locale: Locale,
+  buildKind: BuildKind,
+): void {
+  const catalog = catalogs[locale];
+  elements.options.textContent = catalog.openOptions.link;
+  elements.options.hidden = false;
+  elements.buildMark.textContent = buildKind === "dev" ? catalog.buildMark : "";
+  elements.buildMark.hidden = buildKind !== "dev";
 }
 
 /** The catalog's button name for each action; a new action fails to compile here. */
@@ -571,6 +600,7 @@ export function renderPopup(
     elements.primary.textContent = catalog.popup.primary.generate;
     elements.primary.disabled = true;
     applySecondary(elements.secondary, undefined, locale);
+    applySetup(elements.setup, undefined, locale);
     renderRejectionSection(doc, elements.rejection, view, locale);
     return;
   }
@@ -585,6 +615,7 @@ export function renderPopup(
     elements.primary.textContent = catalog.popup.primary.generate;
     elements.primary.disabled = true;
     applySecondary(elements.secondary, undefined, locale);
+    applySetup(elements.setup, undefined, locale);
     renderChecksSection(doc, elements.checks, view, locale);
     return;
   }
@@ -598,6 +629,7 @@ export function renderPopup(
     },
   );
   writeStatusSummary(elements.status, popupSummary(view.state, locale));
+  applySetup(elements.setup, view.state, locale);
   applyJobPrimary(elements.primary, view.state, locale);
   applySecondary(elements.secondary, view.state, locale);
 }

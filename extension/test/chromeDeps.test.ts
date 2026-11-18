@@ -10,6 +10,7 @@ import {
   createFileSaver,
   createMetadataReader,
   createQueryIdSource,
+  createRunnerPortConnector,
   createSelectionReader,
   createSendDeps,
   createViewerChannelOpener,
@@ -27,6 +28,7 @@ import {
   type MessageListener,
   type NativeMessagingApi,
   type ObjectUrlApi,
+  type PortApi,
   type ScriptingApi,
   type TabOperationsApi,
   type ViewerChannel,
@@ -540,6 +542,83 @@ describe("worker send", () => {
       assert.equal(result.ok, false);
     });
   }
+});
+
+describe("runner port connector", () => {
+  const hello = {
+    type: "hello",
+    jobId: "a".repeat(32),
+    instanceId: "b".repeat(32),
+  } as const;
+
+  function fakePort(postMessage: (message: unknown) => void): {
+    readonly port: PortApi;
+    readonly disconnects: () => number;
+    readonly disconnect: () => void;
+  } {
+    let disconnects = 0;
+    const listeners: (() => void)[] = [];
+    return {
+      port: {
+        name: "runner",
+        onMessage: { addListener: () => undefined },
+        onDisconnect: { addListener: (callback) => listeners.push(callback) },
+        postMessage,
+        disconnect: () => {
+          disconnects += 1;
+        },
+      },
+      disconnects: () => disconnects,
+      disconnect: () => {
+        for (const listener of listeners) {
+          listener();
+        }
+      },
+    };
+  }
+
+  it("sends hello on the runner Port and closes it on request", () => {
+    const sent: unknown[] = [];
+    const fake = fakePort((message) => sent.push(message));
+    const names: string[] = [];
+    let cut = 0;
+    const close = createRunnerPortConnector({
+      connect: ({ name }) => {
+        names.push(name);
+        return fake.port;
+      },
+    })(hello, () => {
+      cut += 1;
+    });
+    assert.ok(close !== undefined);
+    assert.deepEqual(names, ["runner"]);
+    assert.deepEqual(sent, [hello]);
+    fake.disconnect();
+    assert.equal(cut, 1);
+    close();
+    assert.equal(fake.disconnects(), 1);
+  });
+
+  it("returns undefined when connect throws", () => {
+    const close = createRunnerPortConnector({
+      connect: () => {
+        throw new Error("Extension context invalidated.");
+      },
+    })(hello, () => undefined);
+    assert.equal(close, undefined);
+  });
+
+  it("closes the Port and returns undefined when hello cannot be sent", () => {
+    const fake = fakePort(() => {
+      throw new Error("Attempting to use a disconnected port object");
+    });
+    const close = createRunnerPortConnector({ connect: () => fake.port })(
+      hello,
+      () => undefined,
+    );
+    assert.equal(close, undefined);
+    assert.equal(fake.disconnects(), 1);
+  });
 });
 
 describe("viewer tabs", () => {

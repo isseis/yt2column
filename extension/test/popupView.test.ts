@@ -21,7 +21,7 @@ import type {
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
 import type { StartInput } from "../src/core/prepare.ts";
 import type { ViewerSeed } from "../src/core/viewerUrl.ts";
-import { doneJob, runningSteps } from "./helpers/job.ts";
+import { doneJob, failedSteps, runningSteps } from "./helpers/record.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 
@@ -276,35 +276,36 @@ describe("buildCollectedView", () => {
 });
 
 describe("primaryAction and secondaryAction", () => {
-  const none = { kind: "none" } as const;
-  const stopped = {
-    kind: "stopped",
-    outcome: { kind: "unexpected", check: "member-set" },
-  } as const;
   // One row per state kind (and per job kind); the functions' switches make
   // a new kind fail to compile until both actions are decided.
   const rows = [
     ["sending", { kind: "sending" }, "none", "none"],
     [
-      "a start without a result",
-      { kind: "start-failed", failure: { kind: "no-result" } },
+      "a start with an unknown result",
+      { kind: "start-failed", failure: { kind: "unknown" } },
       "none",
       "none",
     ],
-    ["loading", { kind: "loading", notice: none }, "open-viewer", "none"],
+    [
+      "a start refused for a missing API key",
+      {
+        kind: "start-failed",
+        failure: { kind: "rejected", reason: "api_key_missing" },
+      },
+      "none",
+      "none",
+    ],
+    ["loading", { kind: "loading" }, "open-viewer", "none"],
     [
       "a running job",
-      {
-        kind: "job",
-        job: { kind: "running", steps: runningSteps },
-        notice: none,
-      },
+      { kind: "job", job: { kind: "running", steps: runningSteps } },
       "open-viewer",
       "none",
     ],
+    ["a done job", { kind: "job", job: doneJob }, "open-viewer", "none"],
     [
-      "a done job",
-      { kind: "job", job: doneJob, notice: none },
+      "a done job its record could not hold",
+      { kind: "job", job: { ...doneJob, kind: "unstored" } },
       "open-viewer",
       "none",
     ],
@@ -312,27 +313,39 @@ describe("primaryAction and secondaryAction", () => {
       "a failed job",
       {
         kind: "job",
-        job: { kind: "failed", steps: runningSteps, failure: "llm_failed" },
-        notice: none,
+        job: { kind: "failed", steps: failedSteps, failure: "llm_failed" },
       },
       "retry",
       "none",
     ],
     [
-      "a lost job",
-      { kind: "job", job: { kind: "lost" }, notice: none },
+      "a job that needed a setting",
+      { kind: "job", job: { kind: "setup", failure: "api_key_missing" } },
       "retry",
       "none",
     ],
     [
+      "a job whose key was rejected",
+      { kind: "job", job: { kind: "key-rejected", steps: failedSteps } },
+      "retry",
+      "none",
+    ],
+    [
+      "a stopped job",
+      { kind: "job", job: { kind: "stopped", steps: failedSteps } },
+      "retry",
+      "none",
+    ],
+    ["a lost job", { kind: "job", job: { kind: "lost" } }, "retry", "none"],
+    [
       "a choice loading the existing article",
-      { kind: "choice", existing: "loading", notice: none },
+      { kind: "choice", existing: "loading" },
       "open-existing",
       "start-plain",
     ],
     [
-      "a choice with a done existing article and a stopped poll",
-      { kind: "choice", existing: "done", notice: stopped },
+      "a choice with a done existing article",
+      { kind: "choice", existing: "done" },
       "open-existing",
       "start-plain",
     ],

@@ -1,8 +1,9 @@
-// Checked job values for the tests of the display and polling rules. The
+// Checked job values for the tests of the server path's polling rules. The
 // branded values are asserted here, as test fixtures may; the source builds
-// them only through their parse functions.
+// them only through their parse functions. The extension-only path's values
+// are in record.ts.
 
-import type { JobDisplay } from "../../src/core/jobView.ts";
+import type { JobDisplay } from "../../src/core/poll.ts";
 import type {
   Article,
   RequestId,

@@ -1,15 +1,12 @@
 import type { BuildKind } from "../../buildKind.d.ts";
 import type { PreflightReason } from "../prepare.ts";
-import type { NotSentCause } from "../exchange.ts";
-import type {
-  FailureCode,
-  ServerRejectReason,
-  StepName,
-  StepState,
-} from "../response.ts";
+import type { StartRejection } from "../jobMessages.ts";
+import type { ArticleFailure, SetupFailure } from "../jobView.ts";
 import type { OptionsOutcome } from "../optionsView.ts";
 import type { ExistingState } from "../popupView.ts";
 import type { CheckName, CheckState, RejectionReason } from "../types.ts";
+import type { ShownStepState } from "../jobView.ts";
+import type { StepName } from "../wasmResult.ts";
 import { en } from "./en.ts";
 import { ja } from "./ja.ts";
 import type { Locale } from "./locale.ts";
@@ -55,34 +52,45 @@ export interface Catalog {
     readonly tabTitle: string;
   };
 
-  // The job API's sections. A generation start whose result is not known is
-  // resolved by sending the same input again: the server returns the article
-  // of that input while it is generating or done instead of starting it again.
+  // The states of a generation start and of a job. A failure that ends
+  // before the LLM API is called never mentions a cost.
 
-  /** Server rejection reasons of the two operations; one message per reason, whichever operation returned it. */
-  readonly jobReject: Readonly<Record<ServerRejectReason, Message>>;
-  /** The exchange results of a generation start that are not a server response. */
-  readonly startExchange: ExchangeMessages;
-  /** The exchange results of a status query that are not a server response. */
-  readonly statusExchange: ExchangeMessages;
-  /** A generation start accepted, and a wait that ended without its result. */
-  readonly startResult: {
-    readonly accepted: Message;
-    readonly noResult: Message;
-  };
-  /** Failure codes; every code has a distinct message. */
-  readonly failure: Readonly<Record<FailureCode, Message>>;
+  /** A start the service worker or the viewer refused; api_key_missing is setup's. */
+  readonly startRejected: Readonly<
+    Record<Exclude<StartRejection, "api_key_missing">, Message>
+  >;
+  /**
+   * The reservation's result never arrived. It says that pressing the button
+   * again does not generate twice only while the same input's article is
+   * generating or done, and promises nothing for any other case.
+   */
+  readonly startUnknown: Message;
+  /** The viewer could not take the input: nothing was charged, and the button is pressed again. */
+  readonly inputUnavailable: Message;
+  /** A setting is needed: no API key is set, or the stored settings cannot be used. */
+  readonly setup: Readonly<Record<SetupFailure, Message>>;
+  /** Anthropic rejected the API key while generating, and how to generate again. */
+  readonly keyRejected: Message;
+  /** Failure codes of a failed article; every code has a distinct message. */
+  readonly failure: Readonly<Record<ArticleFailure, Message>>;
+  /** The run stopped with its page. */
+  readonly stopped: Message;
   /** The generation steps' names. */
   readonly stepNames: Readonly<Record<StepName, string>>;
   /** The word that tells a step's state; given to assistive technology. */
-  readonly stepStates: Readonly<Record<StepState, string>>;
+  readonly stepStates: Readonly<Record<ShownStepState, string>>;
   /** The viewer page's own texts. */
   readonly viewer: {
-    readonly sending: Message;
+    /** A start not reserved yet: the input is taken and checked. */
+    readonly preparing: Message;
+    /** A job ID whose record is being read. */
     readonly loading: Message;
     readonly invalidLink: Message;
     readonly running: string;
+    /** No record holds the job: the browser closed, the extension was reloaded or updated, or it was dropped. */
     readonly lost: Message;
+    /** Done, but only this page holds the article: reloading or closing it loses the article. */
+    readonly unstored: Message;
     /**
      * An existing article of the same video: not generated from the current
      * selection, and the steps that generate from it.
@@ -112,6 +120,41 @@ export interface Catalog {
     /** The title's part when no video title or heading is known. */
     readonly untitled: string;
   };
+  /** The operations that open the options page: the popup's permanent one, and the one beside a missing or rejected setting. */
+  readonly openOptions: {
+    readonly link: string;
+    readonly setup: string;
+  };
+  /** The visible mark of a development build. */
+  readonly buildMark: string;
+  /** The options page's own texts. */
+  readonly optionsPage: {
+    readonly title: string;
+    readonly heading: string;
+    readonly apiKey: string;
+    /** The API key field's description; it warns that a screen reader may read the typed characters. */
+    readonly apiKeyHint: string;
+    readonly workspaceId: string;
+    readonly workspaceIdHint: string;
+    readonly save: string;
+    readonly remove: string;
+    /** Whether an API key is set; unknown when the item names could not be read. */
+    readonly keyState: {
+      readonly set: string;
+      readonly notSet: string;
+      readonly unknown: string;
+    };
+    /** The build's information, a hint for an investigation. */
+    readonly buildInfo: {
+      readonly heading: string;
+      readonly commit: string;
+      readonly goVersion: string;
+      readonly llm: string;
+      readonly modified: string;
+      readonly none: string;
+      readonly unreadable: string;
+    };
+  };
   /** The popup's job states. */
   readonly popup: {
     /** The primary button's names: before the send, and in the job states. */
@@ -129,7 +172,7 @@ export interface Catalog {
     readonly viewerNotice: Message;
     readonly articleReady: Message;
     /**
-     * The server has an article of the same video. It never says that no
+     * The extension has an article of the same video. It never says that no
      * other one exists or that this one will stay.
      */
     readonly choice: Message;
@@ -138,15 +181,6 @@ export interface Catalog {
     /** The existing article can no longer be used; the button generates again. */
     readonly choiceEnded: Message;
   };
-}
-
-/** The messages of the exchange results that are not a server response, for one operation. */
-export interface ExchangeMessages {
-  readonly notSent: Readonly<Record<NotSentCause, Message>>;
-  readonly noResponse: Message;
-  readonly hostFailed: Message;
-  /** The one message for every unexpected reply; the check is for the developer log only. */
-  readonly unexpected: Message;
 }
 
 /** The catalog of every locale. */

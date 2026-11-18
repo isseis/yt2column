@@ -42,11 +42,17 @@ export function viewerDocument(): Document {
   return staticDocument("viewer.html");
 }
 
+/** A fresh document parsed from the shipped static/options.html. */
+export function optionsDocument(): Document {
+  return staticDocument("options.html");
+}
+
 /**
  * The popup's skeleton elements in doc, by default a fresh copy of the shipped
- * popup.html: five containers, all hidden, the primary button disabled, the
- * secondary button hidden, and the status region inside the action section
- * after the buttons.
+ * popup.html: the build mark and five containers, all hidden, the primary
+ * button disabled, the setup and secondary buttons hidden, the status region
+ * inside the action section after the buttons, and the hidden options button
+ * after the details.
  */
 export function popupElements(doc = popupDocument()): PopupElements {
   const win = doc.defaultView;
@@ -55,9 +61,14 @@ export function popupElements(doc = popupDocument()): PopupElements {
   assert.ok(primary instanceof win.HTMLButtonElement, "primary");
   const secondary = byId(doc, "secondary");
   assert.ok(secondary instanceof win.HTMLButtonElement, "secondary");
+  const setup = byId(doc, "setup");
+  assert.ok(setup instanceof win.HTMLButtonElement, "setup");
+  const options = byId(doc, "options");
+  assert.ok(options instanceof win.HTMLButtonElement, "options");
   const details = byId(doc, "details");
   assert.ok(details instanceof win.HTMLDetailsElement, "details");
   return {
+    buildMark: byId(doc, "build-mark"),
     video: byId(doc, "video"),
     checks: byId(doc, "checks"),
     rejection: byId(doc, "rejection"),
@@ -65,7 +76,9 @@ export function popupElements(doc = popupDocument()): PopupElements {
     action: byId(doc, "action"),
     primary,
     secondary,
+    setup,
     status: byId(doc, "status"),
+    options,
   };
 }
 

@@ -51,7 +51,11 @@ import type {
   SwRequest,
   WriteReply,
 } from "./core/jobMessages.ts";
-import { isUrlTitle, jobViewerQuery, urlTitle } from "./core/jobViewerUrl.ts";
+import {
+  jobViewerQuery,
+  startHeading,
+  startUrlTitle,
+} from "./core/jobViewerUrl.ts";
 import type { Logger } from "./core/types.ts";
 import type { Steps } from "./core/wasmResult.ts";
 
@@ -402,12 +406,9 @@ export function createJobCoordinator(deps: JobCoordinatorDeps): JobCoordinator {
       reject("invalid_body");
       return;
     }
-    const heading =
-      input.title !== undefined && input.title.trim() !== ""
-        ? input.title
-        : input.videoUrl;
-    // The page title the viewer's URL keeps: the video title, else the heading.
-    const title = [heading, input.videoUrl].map(urlTitle).find(isUrlTitle);
+    const heading = startHeading(input);
+    // The page title the viewer's URL keeps: the heading, else the video URL.
+    const title = startUrlTitle(input);
     const startId = deps.newId();
     let query: string;
     try {

@@ -5,7 +5,12 @@ import type {
   StartRequest,
   ViewerChannelMessage,
 } from "../core/extensionMessages.ts";
-import type { JobChannelMessage } from "../core/jobMessages.ts";
+import type {
+  JobChannelMessage,
+  RunnerHello,
+  SwRequest,
+} from "../core/jobMessages.ts";
+import { runnerPortName } from "../core/jobMessages.ts";
 import { nativeHostName } from "../core/native.ts";
 import type { Logger } from "../core/types.ts";
 import type { MetadataReader } from "../launch.ts";
@@ -320,6 +325,197 @@ export type SendToWorker = (
  */
 export function createWorkerSend(runtime: MessageSendApi): SendToWorker {
   return (message) => browserCall(() => runtime.sendMessage(message));
+}
+
+/** Runs callback once after ms milliseconds with the global timer; returns a function that cancels it. */
+export function schedule(ms: number, callback: () => void): () => void {
+  const id = setTimeout(callback, ms);
+  return () => clearTimeout(id);
+}
+
+/**
+ * Sends requests to the service worker through runtime (chrome.runtime in production). The reply is
+ * untrusted until the caller's parse function accepts it; a request the
+ * worker left unanswered is a failure.
+ */
+export function createSwSend(
+  runtime: MessageSendApi,
+): (request: SwRequest) => Promise<BrowserCall<unknown>> {
+  return (request) => browserCall(() => runtime.sendMessage(request));
+}
+
+/** One end of a runtime Port, as chrome.runtime.Port gives it. */
+export interface PortApi {
+  readonly name: string;
+  readonly sender?: MessageSender | undefined;
+  readonly onMessage: {
+    addListener(callback: (message: unknown) => void): void;
+  };
+  readonly onDisconnect: { addListener(callback: () => void): void };
+  postMessage(message: unknown): void;
+  disconnect(): void;
+}
+
+/** A Port another page connected to the service worker. */
+export interface ConnectedPort {
+  readonly name: string;
+  readonly sender: MessageSender;
+  onMessage(listener: (message: unknown) => void): void;
+  onDisconnect(listener: () => void): void;
+  disconnect(): void;
+}
+
+/** The chrome.runtime.onConnect surface used. */
+export interface ConnectEventsApi {
+  readonly onConnect: { addListener(callback: (port: PortApi) => void): void };
+}
+
+/**
+ * Registers listener for the Ports other pages connect. The service worker
+ * calls it synchronously at its top level, as it does listenForMessages: a
+ * connection that woke a stopped worker reaches only the listeners its first
+ * run registered. A Port without a sender is closed at once. A listener that
+ * throws leaves the Port as it is.
+ */
+export function listenForConnections(
+  runtime: ConnectEventsApi,
+  listener: (port: ConnectedPort) => void,
+): void {
+  runtime.onConnect.addListener((port) => {
+    const sender = port.sender;
+    if (sender === undefined) {
+      port.disconnect();
+      return;
+    }
+    try {
+      listener({
+        name: port.name,
+        sender,
+        onMessage: (callback) => port.onMessage.addListener(callback),
+        onDisconnect: (callback) => port.onDisconnect.addListener(callback),
+        disconnect: () => port.disconnect(),
+      });
+    } catch {
+      // The listener failed; the Port stays as the browser left it.
+    }
+  });
+}
+
+/** The chrome.tabs.onRemoved surface used. */
+export interface TabRemovedEventsApi {
+  readonly onRemoved: { addListener(callback: (tabId: number) => void): void };
+}
+
+/**
+ * Registers listener for closed tabs. The service worker calls it
+ * synchronously at its top level, as it does listenForMessages. A listener
+ * that throws is ignored.
+ */
+export function listenForClosedTabs(
+  tabs: TabRemovedEventsApi,
+  listener: (tabId: number) => void,
+): void {
+  tabs.onRemoved.addListener((tabId) => {
+    try {
+      listener(tabId);
+    } catch {
+      // Nothing waits for the listener's result.
+    }
+  });
+}
+
+/** The chrome.runtime.connect surface used. */
+export interface ConnectApi {
+  connect(info: { readonly name: string }): PortApi;
+}
+
+/**
+ * Connects the running viewer's Port to the service worker, sends hello as
+ * its first message, and calls onDisconnect when the worker's end is cut.
+ * Returns a function that closes it, or undefined when it could not be
+ * connected. Closing it from this end calls no onDisconnect.
+ */
+export function createRunnerPortConnector(
+  runtime: ConnectApi,
+): (hello: RunnerHello, onDisconnect: () => void) => (() => void) | undefined {
+  return (hello, onDisconnect) => {
+    let port: PortApi;
+    try {
+      port = runtime.connect({ name: runnerPortName });
+    } catch {
+      return undefined;
+    }
+    try {
+      port.onDisconnect.addListener(onDisconnect);
+      port.postMessage(hello);
+    } catch {
+      // A Port the caller is told was never connected must not stay open.
+      try {
+        port.disconnect();
+      } catch {
+        // Already closed.
+      }
+      return undefined;
+    }
+    return () => {
+      try {
+        port.disconnect();
+      } catch {
+        // Already closed.
+      }
+    };
+  };
+}
+
+/** The chrome.runtime.openOptionsPage surface used. */
+export interface OptionsPageApi {
+  openOptionsPage(): Promise<void>;
+}
+
+/**
+ * Opens the options page, or brings its open tab to the front. Never rejects:
+ * a failure only leaves the page unopened.
+ */
+export function createOptionsOpener(
+  runtime: OptionsPageApi,
+): () => Promise<BrowserCall<undefined>> {
+  return () =>
+    browserCall(async () => {
+      await runtime.openOptionsPage();
+      return undefined;
+    });
+}
+
+/** The window surface the confirmation before unload uses. */
+export interface UnloadEventsApi {
+  addEventListener(
+    type: "beforeunload",
+    listener: (event: Event) => void,
+  ): void;
+  removeEventListener(
+    type: "beforeunload",
+    listener: (event: Event) => void,
+  ): void;
+}
+
+/**
+ * Turns on (true) or off (false) the browser's confirmation before the page
+ * is reloaded or closed. The browser shows it only after the user has
+ * interacted with the page.
+ */
+export function createUnloadConfirmation(
+  target: UnloadEventsApi,
+): (on: boolean) => void {
+  const listener = (event: Event): void => {
+    event.preventDefault();
+  };
+  return (on) => {
+    if (on) {
+      target.addEventListener("beforeunload", listener);
+    } else {
+      target.removeEventListener("beforeunload", listener);
+    }
+  };
 }
 
 /** Where a tab is. */

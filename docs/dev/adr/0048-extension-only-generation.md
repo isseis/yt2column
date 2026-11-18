@@ -25,7 +25,7 @@
 -   **記事を作る処理は、Go のコアを WebAssembly にして CLI と共有する。** 共有の方法とビルドは [ADR-0049](0049-wasm-core-sharing.md) が定める。
 -   **応答はストリーミングなしで受け取る。** Claude アダプタの出力の上限とストリーミングを使わないことは [ADR-0025](0025-claude-output-limit.md) が定める。
 
-この決定は、まだコードと仕様の文書（[security.md](../security.md)・[project_overview.md](../project_overview.md)・[production_profile.md](../production_profile.md)・README と `README.en.md`・[development.md](../guides/development.md)・[package_reference.md](../conventions/package_reference.md)・[CLAUDE.md](../../../CLAUDE.md)）に反映していない。サーバとホストは今も動き、拡張は API キーを持たない。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
+この決定のうち、サーバとホストのコードの撤去は、まだ行っていない。拡張はサーバとホストを使わないが、`cmd/yt2column-server`・`cmd/yt2column-nmhost`・開発用のサーバ（`cmd/yt2column-devserver`）と、それらだけが使うパッケージは、リポジトリに残り、`make build` と `make build-dev` が作る。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
 
 ## 採らなかった案
 

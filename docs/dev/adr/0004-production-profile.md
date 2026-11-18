@@ -21,8 +21,6 @@
 -   **本番の構成・品質の目標・製品の制約・構成の比較を、`docs/dev/production_profile.md` にまとめる。** これらを、タスクの評価記録を読まずに、1 つの共通の文書で把握できるようにするためである（[0040 要件定義書](../../tasks/0040_production_profile/01_requirements.md) §2.1）。まとめる先の文書は [production_profile.md](../production_profile.md) である。
 -   **本番の構成・品質の目標・製品の制約を変えるタスクは、`docs/dev/production_profile.md` と、本番の構成の値を繰り返している README の推奨構成の小節を合わせて更新する。** 共通の文書が最新の値を持ち続けるには、更新する者を決めておく必要があるためである（[0040 要件定義書](../../tasks/0040_production_profile/01_requirements.md) §1）。規則は [production_profile.md](../production_profile.md) の冒頭の段落「本書を更新するタスク」にある。
 
-拡張が本番の構成で動くことは、まだコードと production_profile.md に反映していない。今は localhost サーバが、設定ファイルに LLM の値がなければこの構成で動く。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
-
 Claude アダプタの出力の上限の既定は [ADR-0025](0025-claude-output-limit.md) が定める。
 
 ## 採らなかった案

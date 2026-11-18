@@ -1,28 +1,29 @@
-// Draws the viewer page into viewer.html's skeleton: the header from the
-// viewer URL's values, the existing-article notice, the state, the article
-// and its operations, and the two status regions. Every string is set with textContent, so a value read from
-// the URL or the server stays text.
+// Draws the viewer page into viewer.html's skeleton: the header, the
+// existing-article notice, the state, the article and its operations, and the
+// two status regions. Every string is set with textContent, so a value read
+// from the URL or a job record stays text.
 
+import type { BuildKind } from "../buildKind.d.ts";
 import { isAcceptedWatchUrl } from "../core/acceptedUrl.ts";
 import { catalogs } from "../core/i18n/catalog.ts";
 import type { Message } from "../core/i18n/catalog.ts";
 import type { Locale } from "../core/i18n/locale.ts";
-import { jobArticle } from "../core/jobView.ts";
+import {
+  jobArticle,
+  jobOffersOptions,
+  startOffersOptions,
+} from "../core/jobView.ts";
 import type { JobDisplay, ViewerState } from "../core/jobView.ts";
-import type { Article } from "../core/response.ts";
-import type { ViewerParams } from "../core/viewerUrl.ts";
+import type { ArticleResult } from "../core/wasmResult.ts";
 import { drawArticleBody } from "./articleBody.ts";
 import { messageNodes } from "./message.ts";
 import {
   drawStateOnChange,
+  jobStateNodes,
   jobStateSummary,
   loadingIndicator,
-  noticeSummary,
-  renderJobState,
   startFailure,
   startFailureSummary,
-  waitingNodes,
-  waitingSummary,
   writeStatusSummary,
 } from "./renderJob.ts";
 import type { ElapsedTime } from "./renderJob.ts";
@@ -45,18 +46,24 @@ export interface ViewerElements {
   readonly actionStatus: HTMLElement;
 }
 
-/** The values the header shows, all from the viewer URL. */
-export type ViewerHeader = Pick<
-  ViewerParams,
-  "heading" | "channelName" | "url"
->;
+/**
+ * The values the header shows before the article is done: the start
+ * context's, the job record's, or, with neither, the viewer URL's title.
+ */
+export interface ViewerHeader {
+  readonly heading: string;
+  /** Absent or "" when none was collected: the line is hidden. */
+  readonly channelName?: string;
+  /** The collected video URL; the link is shown only for an accepted watch URL. */
+  readonly videoUrl: string;
+}
 
 /** What one draw of the viewer shows. */
 export interface ViewerView {
   readonly state: ViewerState;
   /**
-   * The time since the send; drawn only while the job runs, and never when
-   * existing.
+   * The time since the run was reserved, or since its start before that;
+   * drawn only while the job runs, and never when existing.
    */
   readonly elapsedMs: number;
   /**
@@ -64,6 +71,14 @@ export interface ViewerView {
    * e=1): the notice is shown, and a running job's elapsed time is not.
    */
   readonly existing: boolean;
+  /** A development build shows its mark in the state section. */
+  readonly buildKind: BuildKind;
+}
+
+/** What the state section's operations do. */
+export interface ViewerControls {
+  /** Opens the options page. */
+  readonly openOptions: () => void;
 }
 
 /** The result of the last operation, shown in the operation result's region. */
@@ -74,23 +89,22 @@ export type ActionNotice =
   | { readonly kind: "copy-failed" };
 
 /**
- * Draws the heading, the channel name and the link to the video. Without the
- * URL's values (a link that failed the URL check) all three stay hidden. The
+ * Draws the heading, the channel name and the link to the video. Without
+ * header values (a link that failed the URL check) all three stay hidden. The
  * link is shown only for a URL that passes isAcceptedWatchUrl: its href is
  * that URL's own text, never built from the article, and it opens a new tab
  * that gets neither the opener nor the referrer.
  *
  * Once the article is done (article is the shown one), the heading and the
- * channel name are the server's neutralized values, shown as they are, so a
+ * channel name are the module's neutralized values, shown as they are, so a
  * selection of the whole page pastes no mention: an empty video title keeps
- * the URL's heading (the start sent no title), and an empty channel name hides
- * the line. Before that they are the URL's values.
+ * the header's heading, and an empty channel name hides the line.
  */
 export function renderViewerHeader(
   elements: ViewerElements,
   header: ViewerHeader | undefined,
   locale: Locale,
-  article: Article | undefined,
+  article: ArticleResult | undefined,
 ): void {
   const { heading, channel, videoLink } = elements;
   const shown =
@@ -99,14 +113,14 @@ export function renderViewerHeader(
   heading.textContent = shown?.heading ?? "";
   channel.hidden = shown?.channelName === undefined;
   channel.textContent = shown?.channelName ?? "";
-  if (header === undefined || !isAcceptedWatchUrl(header.url)) {
+  if (header === undefined || !isAcceptedWatchUrl(header.videoUrl)) {
     videoLink.hidden = true;
     videoLink.removeAttribute("href");
     videoLink.textContent = "";
     return;
   }
   videoLink.hidden = false;
-  videoLink.href = header.url;
+  videoLink.href = header.videoUrl;
   videoLink.target = "_blank";
   videoLink.rel = "noopener noreferrer";
   videoLink.textContent = catalogs[locale].viewer.videoLink;
@@ -114,15 +128,21 @@ export function renderViewerHeader(
 
 /**
  * The heading and the channel name to show: the done article's neutralized
- * values, with the URL's heading for an empty video title and no channel
- * line for an empty channel name, or the URL's values before the article.
+ * values, with the header's heading for an empty video title and no channel
+ * line for an empty channel name, or the header's values before the article.
  */
 function headerValues(
   header: ViewerHeader,
-  article: Article | undefined,
+  article: ArticleResult | undefined,
 ): { readonly heading: string; readonly channelName: string | undefined } {
   if (article === undefined) {
-    return { heading: header.heading, channelName: header.channelName };
+    return {
+      heading: header.heading,
+      channelName:
+        header.channelName === undefined || header.channelName === ""
+          ? undefined
+          : header.channelName,
+    };
   }
   return {
     heading: article.videoTitle === "" ? header.heading : article.videoTitle,
@@ -137,13 +157,26 @@ function viewElapsed(view: ViewerView): ElapsedTime {
     : { kind: "shown", ms: view.elapsedMs };
 }
 
-/** The state section's content for one state. */
-function drawState(
-  container: HTMLElement,
+/** Whether a state offers the operation that opens the options page. */
+function offersSetup(state: ViewerState): boolean {
+  switch (state.kind) {
+    case "start-failed":
+      return startOffersOptions(state.failure);
+    case "job":
+      return jobOffersOptions(state.job);
+    case "invalid-link":
+    case "preparing":
+    case "loading":
+      return false;
+  }
+}
+
+/** The state's own nodes. */
+function stateNodes(
+  doc: Document,
   view: ViewerView,
   locale: Locale,
-): void {
-  const doc = container.ownerDocument;
+): HTMLElement[] {
   const viewer = catalogs[locale].viewer;
   const { state } = view;
   switch (state.kind) {
@@ -151,28 +184,47 @@ function drawState(
       const block = doc.createElement("div");
       block.className = "failure";
       block.append(...messageNodes(doc, viewer.invalidLink));
-      container.replaceChildren(block);
-      return;
+      return [block];
     }
-    case "sending":
-      container.replaceChildren(...loadingIndicator(doc, viewer.sending));
-      return;
+    case "preparing":
+      return loadingIndicator(doc, viewer.preparing);
     case "loading":
-      container.replaceChildren(...waitingNodes(doc, state.notice, locale));
-      return;
+      return loadingIndicator(doc, viewer.loading);
     case "start-failed":
-      container.replaceChildren(startFailure(doc, state.failure, locale));
-      return;
+      return [startFailure(doc, state.failure, locale)];
     case "job":
-      renderJobState(
-        container,
-        state.job,
-        state.notice,
-        viewElapsed(view),
-        locale,
-      );
-      return;
+      return jobStateNodes(doc, state.job, viewElapsed(view), locale);
   }
+}
+
+/**
+ * The state section's content: the development build's mark, the state, and
+ * the operation that opens the options page when the state needs a setting.
+ */
+function drawState(
+  container: HTMLElement,
+  view: ViewerView,
+  locale: Locale,
+  controls: ViewerControls,
+): void {
+  const doc = container.ownerDocument;
+  const catalog = catalogs[locale];
+  const nodes = stateNodes(doc, view, locale);
+  if (view.buildKind === "dev") {
+    const mark = doc.createElement("p");
+    mark.className = "build-mark";
+    mark.textContent = catalog.buildMark;
+    nodes.unshift(mark);
+  }
+  if (offersSetup(view.state)) {
+    const button = doc.createElement("button");
+    button.type = "button";
+    button.className = "action-button setup-button";
+    button.textContent = catalog.openOptions.setup;
+    button.addEventListener("click", controls.openOptions);
+    nodes.push(button);
+  }
+  container.replaceChildren(...nodes);
 }
 
 /** The job's part of the summary: what changed for assistive technology. */
@@ -187,7 +239,8 @@ function jobSummary(job: JobDisplay, locale: Locale): string[] {
 
 /**
  * The state summary's sentences: loading started or ended, a step changed,
- * the job finished or failed, the status could not be read, after the existing-article notice's sentence when it is shown.
+ * the job finished, failed or stopped, after the existing-article notice's
+ * sentence when it is shown.
  * They hold no elapsed time, so the same state gives the same summary
  * whatever the clock says.
  */
@@ -202,17 +255,14 @@ function stateOwnSummary(state: ViewerState, locale: Locale): string[] {
   switch (state.kind) {
     case "invalid-link":
       return [viewer.invalidLink.text];
-    case "sending":
-      return [viewer.sending.text];
+    case "preparing":
+      return [viewer.preparing.text];
     case "loading":
-      return waitingSummary(state.notice, locale);
+      return [viewer.loading.text];
     case "start-failed":
       return startFailureSummary(state.failure, locale);
     case "job":
-      return [
-        ...jobSummary(state.job, locale),
-        ...noticeSummary(state.notice, locale),
-      ];
+      return jobSummary(state.job, locale);
   }
 }
 
@@ -243,8 +293,8 @@ function drawExisting(
 /**
  * Draws the existing-article notice, the state, the operations and the
  * article, in that order. The state summary's region is written only when
- * its text changes, so a poll that repeats the same result, or the elapsed
- * time's redraw, is not read out again. The operations are shown with an
+ * its text changes, so a record change that keeps the same state, or the
+ * elapsed time's redraw, is not read out again. The operations are shown with an
  * article: save and copy can always be pressed. They are set before the article is
  * drawn, so saving and copying work even if drawing the article fails. The
  * article is drawn from its Markdown again only when the Markdown changed or
@@ -255,6 +305,7 @@ export function renderViewer(
   elements: ViewerElements,
   view: ViewerView,
   locale: Locale,
+  controls: ViewerControls,
 ): void {
   const catalog = catalogs[locale];
   drawExisting(elements.existing, view.existing, locale);
@@ -264,12 +315,12 @@ export function renderViewer(
     viewElapsed(view),
     locale,
     () => {
-      drawState(elements.state, view, locale);
+      drawState(elements.state, view, locale, controls);
     },
   );
   writeStatusSummary(elements.stateStatus, stateSummary(view, locale));
 
-  // The article is a done job's, or the one a lost job kept.
+  // The article is a done job's, or the one the running viewer holds.
   const article =
     view.state.kind === "job" ? jobArticle(view.state.job) : undefined;
   if (article === undefined) {

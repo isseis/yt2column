@@ -25,17 +25,19 @@ function describeElement(element: Element): string {
 }
 
 describe("popup.html skeleton", () => {
-  it("holds the five containers in display order, each hidden", () => {
+  it("holds the build mark, the five containers and the options button in display order, each hidden", () => {
     const doc = popupDocument();
     const containers = Array.from(doc.body.children).filter(
       (child) => child.tagName.toLowerCase() !== "script",
     );
     assert.deepEqual(containers.map(describeElement), [
+      "p#build-mark",
       "section#video",
       "section#checks",
       "section#rejection",
       "section#action",
       "details#details",
+      "button#options",
     ]);
     for (const element of containers) {
       assert.equal(element.hasAttribute("hidden"), true, element.id);
@@ -58,20 +60,26 @@ describe("popup.html skeleton", () => {
     );
   });
 
-  it("puts a disabled primary button, a hidden secondary button and then the status region in the action section", () => {
+  it("puts a hidden setup button, a disabled primary button, a hidden secondary button and then the status region in the action section", () => {
     const action = popupDocument().getElementById("action");
     assert.ok(action !== null);
     assert.deepEqual(Array.from(action.children, describeElement), [
+      "button#setup",
       "button#primary",
       "button#secondary",
       "div#status",
     ]);
-    const [primary, secondary, status] = Array.from(action.children);
+    const [setup, primary, secondary, status] = Array.from(action.children);
+    assert.equal(setup?.getAttribute("type"), "button");
+    assert.equal(setup?.hasAttribute("hidden"), true);
     assert.equal(primary?.getAttribute("type"), "button");
     assert.equal(primary?.hasAttribute("disabled"), true);
     assert.equal(secondary?.getAttribute("type"), "button");
     assert.equal(secondary?.hasAttribute("hidden"), true);
     assert.equal(status?.getAttribute("role"), "status");
+    // The summary repeats what the checks section draws, so it is read out
+    // but not shown a second time.
+    assert.equal(status?.classList.contains("visually-hidden"), true);
   });
 
   it("has the status region as its only live region", () => {
@@ -85,7 +93,7 @@ describe("popup.html skeleton", () => {
     );
   });
 
-  it("leaves only the two buttons and the details toggle to press, in display order, without tabindex", () => {
+  it("leaves only the four buttons and the details toggle to press, in display order, without tabindex", () => {
     // The toggle is drawn by renderPopup, so the shipped skeleton is checked
     // once a collected view is drawn into it.
     const elements = popupElements();
@@ -104,11 +112,13 @@ describe("popup.html skeleton", () => {
     const interactive = Array.from(doc.querySelectorAll(interactiveSelector));
     assert.deepEqual(
       interactive.map((element) => element.tagName.toLowerCase()),
-      ["button", "button", "summary"],
+      ["button", "button", "button", "summary", "button"],
     );
-    assert.equal(interactive[0], elements.primary);
-    assert.equal(interactive[1], elements.secondary);
-    assert.equal(interactive[2]?.parentElement, elements.details);
+    assert.equal(interactive[0], elements.setup);
+    assert.equal(interactive[1], elements.primary);
+    assert.equal(interactive[2], elements.secondary);
+    assert.equal(interactive[3]?.parentElement, elements.details);
+    assert.equal(interactive[4], elements.options);
     assert.equal(doc.querySelector("[tabindex]"), null);
   });
 });
@@ -123,6 +133,10 @@ describe("viewer.html skeleton", () => {
 
   it("starts in English until the viewer sets the display language", () => {
     assert.equal(viewerDocument().documentElement.lang, "en");
+  });
+
+  it("has a page title that is not empty before the viewer sets it", () => {
+    assert.notEqual(viewerDocument().title.trim(), "");
   });
 
   it("orders the heading, channel name, video link, existing-article notice, state, article and operations as they are shown", () => {

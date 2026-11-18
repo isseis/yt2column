@@ -43,9 +43,9 @@ code is the source of truth, and the detail stays out of the row.
 - **Pipeline components** run the article pipeline or carry the values it
   passes: the stages, their data types, and the CLI entry point and templates
   that supply them.
-- **Server and host** serve the browser extension: the localhost server, its
-  job API, cache, and socket, the configuration file it reads, and the Native
-  Messaging host that relays to it.
+- **Server and host** are the localhost server, its job API, cache, and
+  socket, and the Native Messaging host that relayed to it. The browser
+  extension no longer uses them, and #773 removes them.
 - **LLM** packages define the provider-independent client contract, the
   shared HTTP send path and provider factory, and the adapter and parameter
   types of each provider.
@@ -86,14 +86,13 @@ add a kind here or to widen one of these definitions.
 
 | Package | Responsibility |
 |---|---|
-| `cmd/yt2column-devserver` | Entry point of the development server, not a production binary (`make build-dev`, into `build/dev/`): the production server's HTTP server, socket, and start lock with a fake LLM (`internal/llm/devfake`) chosen by `-article`, `-fail`, `-fail-step`, and `-delay`; it reads no configuration file and only `HOME` from the environment. Rules: [security.md §8.2](../security.md). |
-| `cmd/yt2column-nmhost` | Entry point of the Native Messaging host: relays one request with `nmhost.Relay`, and `install`/`uninstall` manage the browser manifest. Rules: [security.md §8.2](../security.md). |
-| `cmd/yt2column-server` | Entry point of the localhost server and of `yt2column-server config init`. Startup and configuration rules: [security.md §8.2](../security.md). |
-| `internal/articlecache` | The server's in-memory article cache: `Cache`, `Keyer`, `Subject`, `StartMode`, `Run`, `Snapshot`, `Eviction`; `ParseKey`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
-| `internal/nmhost` | The Native Messaging host's relay and manifest management: `Relay`, `SocketDialer`, `HostError`, `Install`, `Uninstall`. Rules: [security.md §8.2](../security.md). |
-| `internal/privatefile` | Reads and creates files only their owner may read: `Read`, `Create`, `Remove`, `MkdirBelow`; `*UnsafeError`, `ErrUnsafe`, `ErrNotExist`, `ErrExist`, `ErrTooLarge`, `ErrBaseMissing`. Rules: [security.md §8.2](../security.md). |
-| `internal/server` | The HTTP server on a Unix domain socket that serves the job API: `New`, `Serve`, `JobsPath`, `Options`. Rules: [security.md §8.2](../security.md); API: [development.md](../guides/development.md). |
-| `internal/serversock` | Prepares the server's Unix domain socket and start lock: `Acquire`, `Lock`, `ErrAlreadyRunning`, `ErrInUse`, `*UnsafeError`. Rules: [security.md §8.2](../security.md). |
+| `cmd/yt2column-devserver` | Entry point of the development server, not a production binary (`make build-dev`, into `build/dev/`): the production server's HTTP server, socket, and start lock with a fake LLM (`internal/llm/devfake`) chosen by `-article`, `-fail`, `-fail-step`, and `-delay`; it reads no configuration file and only `HOME` from the environment. To be removed (#773). |
+| `cmd/yt2column-nmhost` | Entry point of the Native Messaging host: relays one request with `nmhost.Relay`, and `install`/`uninstall` manage the browser manifest. To be removed (#773). |
+| `cmd/yt2column-server` | Entry point of the localhost server and of `yt2column-server config init`. To be removed (#773). |
+| `internal/articlecache` | The server's in-memory article cache: `Cache`, `Keyer`, `Subject`, `StartMode`, `Run`, `Snapshot`, `Eviction`; `ParseKey`. To be removed (#773). |
+| `internal/nmhost` | The Native Messaging host's relay and manifest management: `Relay`, `SocketDialer`, `HostError`, `Install`, `Uninstall`. To be removed (#773). |
+| `internal/server` | The HTTP server on a Unix domain socket that serves the job API: `New`, `Serve`, `JobsPath`, `Options`. To be removed (#773). |
+| `internal/serversock` | Prepares the server's Unix domain socket and start lock: `Acquire`, `Lock`, `ErrAlreadyRunning`, `ErrInUse`, `*UnsafeError`. To be removed (#773). |
 
 ## LLM
 
@@ -118,6 +117,7 @@ add a kind here or to widen one of these definitions.
 | `internal/cmdrunner` | The shared execution boundary for external commands: `Runner`, `InputRunner`, `NewOS`, `GitEnv`, `GitHardening`; `MaxOutput`, `ErrOutputTooLarge`, `ErrUnexpectedStderr`, `*ExitError`. The `yt-dlp` boundary: [security.md](../security.md). |
 | `internal/config` | Reads and validates the process configuration: `Load`, `LoadFor`, `LoadExtension`, `ExtensionLookup`, `ReadExtensionSettings`, `LoadServer`, `InitServerFile`, `LoadHost`, `LoadHostHome`, `LLMConfig`, `Need`, `ExtensionSettings`; `*VarError`, `*FileError`, `ErrMissing`, `ErrInvalid`. The server and host loaders and the configuration file are in a file only a native build compiles (`!js`), which the removal of the server and the host deletes. Reference: [README](../../../README.md#設定); the server file: [security.md](../security.md). |
 | `internal/nilcheck` | Reports whether a value is nil, including a typed nil held in an interface (`IsNil`). |
+| `internal/privatefile` | Reads and creates files only their owner may read (`internal/chief` uses it): `Read`, `Create`, `Remove`, `MkdirBelow`; `*UnsafeError`, `ErrUnsafe`, `ErrNotExist`, `ErrExist`, `ErrTooLarge`, `ErrBaseMissing`. Rules: [security.md §8.2](../security.md). |
 | `internal/redact` | Keeps secret values out of output: `Line`, `Writer`, `SecretStrings`. |
 | `internal/secret` | Holds a secret (API key) and guarantees it never appears in `fmt`, `log/slog`, or JSON output. |
 | `internal/signalrun` | `Run` calls a program's main function under a context that the first subscribed signal cancels; a second signal terminates the process. |

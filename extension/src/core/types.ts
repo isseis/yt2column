@@ -3,7 +3,8 @@ export type RejectionReason =
   | "not-watch-page" // the URL is not an accepted watch-page URL (or is unavailable)
   | "collection-failed" // the tab or its selection could not be read
   | "empty-selection" // the selection is empty or whitespace only
-  | "empty-title"; // the tab title is empty, whitespace only, or unavailable
+  | "empty-title" // the tab title is empty, whitespace only, or unavailable
+  | "settings-unprotected"; // the stored settings could not be kept from the page, so nothing was read
 
 /**
  * Runtime iteration order of the reasons. Typed as Record<RejectionReason, true>
@@ -15,6 +16,7 @@ export const rejectionReasons: Record<RejectionReason, true> = {
   "collection-failed": true,
   "empty-selection": true,
   "empty-title": true,
+  "settings-unprotected": true,
 };
 
 /** Whether a check row is shown with the tick or the warning symbol. */

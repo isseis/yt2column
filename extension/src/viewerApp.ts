@@ -1,52 +1,68 @@
-// The viewer page's path. The page URL is the viewer's only memory: it is
-// checked once at load, and from it the viewer either waits for its start
-// result from the service worker or, holding a key, polls the job's status.
+// The viewer page's path in the extension-only path. The page URL names what
+// the viewer shows and nothing else: a start not reserved yet (r) or a job
+// (k), the collected video URL and the page title. It is checked once at
+// load. A viewer of a start runs the job itself (viewerRunner.ts) and, once
+// the run is reserved, writes the job ID into its URL; a viewer of a job only
+// shows the job's record from chrome.storage.session and follows its change
+// events. No URL value is ever a generation input, and no load of the page
+// starts a run: only a start the service worker hands over does.
 // A URL marked e=1 shows an existing article of the same video: the mark is
-// added on a same-video answer, and once added it is never removed.
-// The viewer answers the other pages' queries for its key and takes a send
-// over only from a query it answered. Every result is a value drawn into
-// viewer.html; the log gets only what the log views allow.
+// added on a same-video reservation, and once added it is never removed.
+// The viewer answers the other pages' queries for its job, and a viewer that
+// is handed a job another viewer already shows closes its own tab. Every
+// result is a value drawn into viewer.html; the log gets only fixed labels and
+// kinds.
 
 import type {
+  BrowserCall,
   OpenViewerChannel,
   SaveFile,
-  SendToWorker,
   TabPlace,
-  ViewerChannel,
   ViewerTabs,
   WriteClipboard,
+  onSessionChanged,
+  readSessionItems,
 } from "./browser/chromeDeps.ts";
+import type { BuildKind } from "./buildKind.d.ts";
 import { watchVideoId } from "./core/acceptedUrl.ts";
-import type { ArticleKey } from "./core/articleKey.ts";
-import {
-  parseAwaitStartReply,
-  parseViewerChannelMessage,
-} from "./core/extensionMessages.ts";
-import type { ViewerChannelMessage } from "./core/extensionMessages.ts";
 import { articleFileName } from "./core/fileName.ts";
 import { resolveLocale } from "./core/i18n/locale.ts";
-import { jobArticle } from "./core/jobView.ts";
-import type { ViewerState } from "./core/jobView.ts";
-import type { PollStep } from "./core/poll.ts";
-import { elapsedRedrawMs, startResultDeadlineMs } from "./core/poll.ts";
-import type { Article, StartOutcome } from "./core/response.ts";
+import type { Locale } from "./core/i18n/locale.ts";
+import { parseJobChannelMessage } from "./core/jobMessages.ts";
+import type { RunResult, SwRequest } from "./core/jobMessages.ts";
 import {
-  parseViewerUrl,
-  showsExisting,
-  viewerQuery,
-} from "./core/viewerUrl.ts";
-import type { ViewerParams } from "./core/viewerUrl.ts";
+  jobItemName,
+  readJobRecord,
+  readStartContext,
+  startItemName,
+} from "./core/jobRecord.ts";
+import type { JobRecord, StartContext } from "./core/jobRecord.ts";
+import { jobViewerQuery, parseJobViewerUrl } from "./core/jobViewerUrl.ts";
+import type { JobViewerParams } from "./core/jobViewerUrl.ts";
+import {
+  elapsedRedrawMs,
+  failedDisplay,
+  jobArticle,
+  recordDisplay,
+} from "./core/jobView.ts";
+import type { JobDisplay, ViewerState } from "./core/jobView.ts";
 import type { Logger } from "./core/types.ts";
-import { createStatusPoller } from "./poller.ts";
-import type { Poller } from "./poller.ts";
-import type { SendDeps } from "./send.ts";
+import { viewerTitle } from "./core/viewerTitle.ts";
+import type { TitleSource } from "./core/viewerTitle.ts";
+import { findJobViewers } from "./jobViewerQuery.ts";
 import { applyPageLocale } from "./ui/pageLocale.ts";
 import {
   renderActionNotice,
   renderViewer,
   renderViewerHeader,
 } from "./ui/renderViewer.ts";
-import type { ActionNotice, ViewerElements } from "./ui/renderViewer.ts";
+import type {
+  ActionNotice,
+  ViewerElements,
+  ViewerHeader,
+} from "./ui/renderViewer.ts";
+import { runViewer } from "./viewerRunner.ts";
+import type { RunOutcome, RunnerDeps } from "./viewerRunner.ts";
 
 /** The page's own surface: its URL, its history entry and its visibility. */
 export interface ViewerPage {
@@ -65,23 +81,34 @@ export interface ViewerPage {
 export interface ViewerStartDeps {
   /** The browser's UI language, undefined when it cannot be read. */
   uiLanguage(): string | undefined;
+  /** The build's kind, from the module the build writes. */
+  readonly buildKind: BuildKind;
   readonly page: ViewerPage;
-  readonly tabs: Pick<ViewerTabs, "getCurrent">;
-  readonly sendToWorker: SendToWorker;
+  readonly tabs: Pick<ViewerTabs, "getCurrent" | "remove">;
+  readonly sendToSw: (request: SwRequest) => Promise<BrowserCall<unknown>>;
+  readonly readSession: typeof readSessionItems;
+  readonly onSessionChanged: typeof onSessionChanged;
   readonly openChannel: OpenViewerChannel;
-  /** The host exchange and the timer of every wait. */
-  readonly send: SendDeps;
+  /** A new ID: 128 random bits as 32 lowercase hexadecimal characters. */
+  readonly newId: () => string;
+  /** What the running viewer needs besides the messaging, the storage events and the timer. */
+  readonly runner: Pick<
+    RunnerDeps,
+    "startWorker" | "connectPort" | "readSettings" | "confirmUnload"
+  >;
+  /** Runs callback once after ms milliseconds; returns a function that cancels it. */
+  readonly schedule: (ms: number, callback: () => void) => () => void;
   readonly now: () => number;
+  /** Opens the options page. */
+  readonly openOptions: () => Promise<BrowserCall<undefined>>;
   readonly writeClipboard: WriteClipboard;
   readonly saveFile: SaveFile;
   readonly log: Logger;
 }
 
-const awaitStartLabel = "yt2column await start";
 const viewerUrlLabel = "yt2column viewer url";
-const takeOverLabel = "yt2column take over";
-
-const pageTitleSuffix = " - yt2column";
+const runLabel = "yt2column viewer run";
+const recordLabel = "yt2column job record";
 
 /**
  * The skeleton's elements, found in doc by id. Undefined unless every element
@@ -121,62 +148,76 @@ export function findViewerElements(doc: Document): ViewerElements | undefined {
   return elements as ViewerElements;
 }
 
-/** The article a state shows: its job's, when it shows a job. */
-function shownArticle(state: ViewerState): Article | undefined {
-  return state.kind === "job" ? jobArticle(state.job) : undefined;
+/** The display of a run's own result that the record does not hold. */
+function heldDisplay(result: RunResult): JobDisplay {
+  return result.state === "done"
+    ? { kind: "unstored", steps: result.steps, article: result.article }
+    : failedDisplay(result.steps, result.failure);
 }
 
-/**
- * Whether a take-over restarts the send: a failed or lost job, or a stopped
- * poll, shows nothing that is still going, so the viewer shows the new send
- * from its own send time. A running or done job, or a first status still
- * awaited, goes on as it is.
- */
-function takeOverRestarts(state: ViewerState): boolean {
-  switch (state.kind) {
-    case "loading":
-      return state.notice.kind === "stopped";
-    case "job":
-      return (
-        state.job.kind === "failed" ||
-        state.job.kind === "lost" ||
-        state.notice.kind === "stopped"
-      );
-    // A viewer without a key never answers present, so it is never asked.
-    case "invalid-link":
-    case "sending":
-    case "start-failed":
-      return false;
+/** The state a run's outcome shows when no record decides it; undefined when the record does. */
+function outcomeState(outcome: RunOutcome): ViewerState | undefined {
+  switch (outcome.kind) {
+    case "input_unavailable":
+      return {
+        kind: "start-failed",
+        failure: { kind: "input-unavailable" },
+      };
+    case "prepare_rejected":
+      return {
+        kind: "start-failed",
+        failure: { kind: "rejected", reason: outcome.reason },
+      };
+    case "reserve_unavailable":
+      return { kind: "start-failed", failure: { kind: "unknown" } };
+    case "not_run":
+      return outcome.reply.status === "rejected"
+        ? {
+            kind: "start-failed",
+            failure: { kind: "rejected", reason: outcome.reply.reason },
+          }
+        : undefined;
+    case "finished":
+      return outcome.stored === "not_stored"
+        ? { kind: "job", job: heldDisplay(outcome.result) }
+        : undefined;
+    case "stopped":
+      return undefined;
   }
 }
 
 /**
  * Viewer entry. Decides the locale and sets the page language, finds the
  * skeleton (with any element missing it does nothing), learns its own tab,
- * and checks the URL: a link that fails the check shows that it is invalid
- * and sends nothing. A URL with a key polls at once; one without waits for
- * the start result until startResultDeadlineMs after its send time, ignores
- * a result that comes later, and on acceptance adds the key to the URL.
- * Never throws.
+ * and checks the URL: a link that fails the check shows that it is invalid,
+ * with a fixed page title, and sends nothing. A start URL runs the job; a
+ * job URL shows its record, and, when the record names this tab as its
+ * running page, tells the service worker that the page was reloaded. The
+ * page title follows the values the header shows. Never throws.
  */
 export async function startViewer(
   doc: Document,
   deps: ViewerStartDeps,
 ): Promise<void> {
-  const locale = resolveLocale(deps.uiLanguage());
+  const locale: Locale = resolveLocale(deps.uiLanguage());
   applyPageLocale(doc, locale);
   const found = findViewerElements(doc);
   if (found === undefined) {
     return;
   }
   const elements: ViewerElements = found;
-  const loadedAt = deps.now();
+  const controls = {
+    openOptions: (): void => {
+      void deps.openOptions();
+    },
+  };
   const current = await deps.tabs.getCurrent();
   const tab: TabPlace | undefined = current.ok ? current.value : undefined;
 
-  const parsed = parseViewerUrl(deps.page.search, deps.page.hash, loadedAt);
+  const parsed = parseJobViewerUrl(deps.page.search, deps.page.hash);
   if (!parsed.ok) {
     deps.log.error(viewerUrlLabel, { error: parsed.error });
+    doc.title = viewerTitle({ kind: "invalid-link" }, deps.buildKind, locale);
     renderViewerHeader(elements, undefined, locale, undefined);
     renderViewer(
       elements,
@@ -184,45 +225,71 @@ export async function startViewer(
         state: { kind: "invalid-link" },
         elapsedMs: 0,
         existing: false,
+        buildKind: deps.buildKind,
       },
       locale,
+      controls,
     );
     return;
   }
-  let params: ViewerParams = parsed.params;
+  let params: JobViewerParams = parsed.params;
   /** The page shows an existing article of the same video: its URL holds e=1. */
-  const existing = (): boolean => showsExisting(params);
-  renderViewerHeader(elements, params, locale, undefined);
-  doc.title = `${params.heading}${pageTitleSuffix}`;
+  const existing = (): boolean =>
+    params.target.kind === "job" && params.target.existing === true;
 
-  let state: ViewerState = { kind: "sending" };
+  // What the header and the page title show: the URL's title until a start
+  // context or a record says more.
+  let header: ViewerHeader = {
+    heading: params.title,
+    videoUrl: params.videoUrl,
+  };
+  let titleSource: TitleSource = { kind: "url", urlTitle: params.title };
+  /** The video title the record collected; the saved file's name. */
+  let fileTitle: string | undefined;
+  /** Where the elapsed time counts from: the start context's or the record's time. */
+  let since: number | undefined;
+  let state: ViewerState =
+    params.target.kind === "start"
+      ? { kind: "preparing" }
+      : { kind: "loading" };
+  /** Set once the viewer's own run ended with a result its record does not hold. */
+  let held: Extract<ViewerState, { kind: "job" }> | undefined;
   let actionNotice: ActionNotice = { kind: "none" };
-  let poller: Poller | undefined;
-  let key: ArticleKey | undefined;
   let cancelRedraw = (): void => {};
-  // Counts the starts of polling: a take-over that restarts the send makes a
-  // copy result that was in flight belong to the send it replaced.
-  let restarts = 0;
+  /** The job this viewer shows, once it knows one. */
+  let jobId: string | undefined =
+    params.target.kind === "job" ? params.target.jobId : undefined;
 
-  /** The article the heading was last drawn with. */
-  let headerArticle: Article | undefined;
+  let headerArticle: ReturnType<typeof jobArticle>;
+  let headerDrawn = false;
+  const shownArticle = (): ReturnType<typeof jobArticle> =>
+    state.kind === "job" ? jobArticle(state.job) : undefined;
+
   const draw = (): void => {
-    // The heading shows the server's neutralized values once the article
-    // is done. It is drawn again only when the shown article changes, so
-    // the redraw each second keeps a selection in the heading.
-    const article = shownArticle(state);
-    if (article !== headerArticle) {
+    // The heading shows the module's neutralized values once the article is
+    // done. It is drawn again only when the header or the shown article
+    // changes, so the redraw each second keeps a selection in the heading.
+    const article = shownArticle();
+    if (!headerDrawn || article !== headerArticle) {
+      headerDrawn = true;
       headerArticle = article;
-      renderViewerHeader(elements, params, locale, article);
+      renderViewerHeader(elements, header, locale, article);
     }
+    const titled: TitleSource =
+      article !== undefined && titleSource.kind === "record"
+        ? { ...titleSource, videoTitle: article.videoTitle }
+        : titleSource;
+    doc.title = viewerTitle(titled, deps.buildKind, locale);
     renderViewer(
       elements,
       {
         state,
-        elapsedMs: deps.now() - params.sentAt,
+        elapsedMs: since === undefined ? 0 : deps.now() - since,
         existing: existing(),
+        buildKind: deps.buildKind,
       },
       locale,
+      controls,
     );
   };
 
@@ -239,7 +306,7 @@ export async function startViewer(
       state.job.kind === "running" &&
       deps.page.isVisible()
     ) {
-      cancelRedraw = deps.send.schedule(elapsedRedrawMs, () => {
+      cancelRedraw = deps.schedule(elapsedRedrawMs, () => {
         draw();
         armRedraw();
       });
@@ -252,219 +319,104 @@ export async function startViewer(
     armRedraw();
   };
 
+  const setHeader = (next: ViewerHeader): void => {
+    header = next;
+    headerDrawn = false;
+  };
+
+  /** Shows the record of the job, or that it is lost; a held result stays until the record holds one. */
+  const onRecord = (record: JobRecord | undefined): void => {
+    if (record === undefined) {
+      setHeader({ heading: params.title, videoUrl: params.videoUrl });
+      titleSource = { kind: "url", urlTitle: params.title };
+    } else {
+      setHeader({
+        heading:
+          record.heading.videoTitle.trim() === ""
+            ? params.title
+            : record.heading.videoTitle,
+        channelName: record.heading.channelName,
+        videoUrl: record.videoUrl,
+      });
+      titleSource = {
+        kind: "record",
+        videoTitle: record.heading.videoTitle,
+        heading: params.title,
+      };
+      fileTitle = record.heading.videoTitle;
+      since = record.acceptedAt;
+    }
+    // The page's own result that its record could not hold stays shown,
+    // whatever the record says afterwards.
+    show(held ?? { kind: "job", job: recordDisplay(record) });
+  };
+
+  let stopWatching = (): void => {};
+  /**
+   * Follows the record of watched: its change events first, then one read,
+   * so no change can come between them unseen. A read that a change event
+   * overtook is dropped; first receives the first record seen.
+   */
+  const watch = (
+    watched: string,
+    first: (record: JobRecord | undefined) => void = () => {},
+  ): void => {
+    stopWatching();
+    const name = jobItemName(watched);
+    let changed = false;
+    stopWatching = deps.onSessionChanged((changes) => {
+      const change = changes.get(name);
+      if (change === undefined) {
+        return;
+      }
+      changed = true;
+      onRecord(
+        change.removed ? undefined : readJobRecord(watched, change.newValue),
+      );
+    });
+    void deps.readSession([name]).then((read) => {
+      if (changed) {
+        return;
+      }
+      if (!read.ok) {
+        deps.log.error(recordLabel, { read: false });
+        return;
+      }
+      const record = readJobRecord(watched, read.value[name]);
+      onRecord(record);
+      first(record);
+    });
+  };
+
+  /** Writes params into the page URL, replacing its history entry. */
+  const writeUrl = (): void => {
+    deps.page.replaceQuery(jobViewerQuery(params));
+  };
+
   const showActionNotice = (notice: ActionNotice): void => {
     actionNotice = notice;
     renderActionNotice(elements, actionNotice, locale);
   };
 
-  /** Writes params into the page URL, replacing its history entry. */
-  const writeUrl = (): void => {
-    deps.page.replaceQuery(viewerQuery(params));
-  };
-
-  const onStep = (step: PollStep): void => {
-    if (step.job !== undefined) {
-      show({ kind: "job", job: step.job, notice: step.notice });
-    } else if (state.kind === "job") {
-      show({ ...state, notice: step.notice });
-    } else {
-      show({ kind: "loading", notice: step.notice });
-    }
-  };
-
-  /** Shows loading and polls for key from a new epoch. */
-  const startPolling = (pollKey: ArticleKey): void => {
-    key = pollKey;
-    restarts += 1;
-    poller ??= createStatusPoller(pollKey, deps, onStep);
-    show({ kind: "loading", notice: { kind: "none" } });
-    poller.start();
-  };
-
-  /** A wait that ended without a start result: the result is unknown, and nothing is polled. */
-  const noResult = (received: "none" | "deadline" | "failed"): void => {
-    deps.log.error(awaitStartLabel, { received });
-    show({ kind: "start-failed", failure: { kind: "no-result" } });
-  };
-
-  const onStartResult = (outcome: StartOutcome): void => {
-    deps.log.info(awaitStartLabel, {
-      received: "result",
-      outcome: outcome.kind,
-    });
-    switch (outcome.kind) {
-      case "accepted":
-        params = { ...params, key: outcome.key };
-        break;
-      // The key of an existing article of the same video: polled as an
-      // accepted key, and the URL marks the page as showing it.
-      case "same-video":
-        params = { ...params, key: outcome.key, existing: true };
-        break;
-      default:
-        show({ kind: "start-failed", failure: outcome });
-        return;
-    }
-    writeUrl();
-    startPolling(outcome.key);
-  };
-
-  /**
-   * Asks the service worker for this tab's start result once, until the
-   * deadline: a reply after it, or after the page gave up, is ignored.
-   */
-  const awaitStart = async (): Promise<void> => {
-    const remaining = params.sentAt + startResultDeadlineMs - deps.now();
-    if (remaining <= 0) {
-      noResult("deadline");
-      return;
-    }
-    show({ kind: "sending" });
-    let settled = false;
-    const cancel = deps.send.schedule(remaining, () => {
-      if (!settled) {
-        settled = true;
-        noResult("deadline");
-      }
-    });
-    const reply = await deps.sendToWorker({
-      type: "await-start",
-      sentAt: params.sentAt,
-    });
-    if (settled) {
-      return;
-    }
-    settled = true;
-    cancel();
-    // A timer that fired late can let a reply in after the deadline.
-    if (deps.now() >= params.sentAt + startResultDeadlineMs) {
-      noResult("deadline");
-      return;
-    }
-    if (!reply.ok) {
-      noResult("failed");
-      return;
-    }
-    const answer = parseAwaitStartReply(reply.value);
-    if (answer === undefined) {
-      noResult("failed");
-    } else if (answer.kind === "none") {
-      noResult("none");
-    } else {
-      onStartResult(answer.outcome);
-    }
-  };
-
-  // The queries this viewer answered present to; only these may take it over.
-  const presentQueries = new Set<string>();
-
-  const onTakeOver = (
-    channel: ViewerChannel,
-    message: Extract<ViewerChannelMessage, { type: "take-over" }>,
-  ): void => {
-    if (tab === undefined || message.tabId !== tab.tabId) {
-      return;
-    }
-    if (!presentQueries.delete(message.queryId) || poller === undefined) {
-      deps.log.info(takeOverLabel, { accepted: false });
-      return;
-    }
-    channel.post({
-      type: "took-over",
-      queryId: message.queryId,
-      tabId: tab.tabId,
-    });
-    const restarted = takeOverRestarts(state);
-    deps.log.info(takeOverLabel, { accepted: true, restarted });
-    // A send answered with a same-video article marks the page, whether the
-    // send restarts or goes on; an accepted send leaves the mark as it is.
-    switch (message.answer) {
-      case "accepted":
-        break;
-      case "same-video":
-        // A viewer answers present only while it holds a key.
-        if ("key" in params) {
-          params = { ...params, existing: true };
-        }
-        break;
-    }
-    if (!restarted) {
-      if (message.answer === "same-video") {
-        writeUrl();
-        draw();
-        armRedraw();
-      }
-      poller?.bumpEpoch();
-      return;
-    }
-    params = { ...params, sentAt: message.sentAt };
-    writeUrl();
-    showActionNotice({ kind: "none" });
-    if (key !== undefined) {
-      startPolling(key);
-    }
-  };
-
-  const onChannelMessage = (channel: ViewerChannel, data: unknown): void => {
-    const message = parseViewerChannelMessage(data);
-    if (message === undefined || tab === undefined) {
-      return;
-    }
-    switch (message.type) {
-      case "find":
-        if (key !== undefined && message.key === key) {
-          presentQueries.add(message.queryId);
-          channel.post({
-            type: "present",
-            queryId: message.queryId,
-            tabId: tab.tabId,
-            windowId: tab.windowId,
-            sentAt: params.sentAt,
-          });
-        } else if (state.kind === "sending") {
-          channel.post({
-            type: "waiting",
-            queryId: message.queryId,
-            tabId: tab.tabId,
-            sentAt: params.sentAt,
-          });
-        }
-        return;
-      case "take-over":
-        onTakeOver(channel, message);
-        return;
-      case "present":
-      case "waiting":
-      case "took-over":
-        return;
-    }
-  };
-
   const saveArticle = (): void => {
-    const article = shownArticle(state);
-    const videoId = watchVideoId(params.url);
+    const article = shownArticle();
+    const videoId = watchVideoId(params.videoUrl);
     if (article === undefined || videoId === undefined) {
       return;
     }
     const saved = deps.saveFile(
-      articleFileName(params.title, videoId),
+      articleFileName(fileTitle, videoId),
       article.file,
     );
     showActionNotice(saved.ok ? { kind: "saved" } : { kind: "none" });
   };
 
   const copyArticle = async (): Promise<void> => {
-    const article = shownArticle(state);
+    const article = shownArticle();
     if (article === undefined) {
       return;
     }
-    const startedIn = restarts;
     const copied = await deps.writeClipboard(article.markdown);
-    // The send was restarted while copying: the result is about the article
-    // the new send replaces, so it changes nothing shown.
-    if (restarts !== startedIn) {
-      return;
-    }
     showActionNotice(
       copied.ok
         ? { kind: "copied", mentionsNeutralized: article.mentionsNeutralized }
@@ -474,22 +426,147 @@ export async function startViewer(
 
   elements.save.addEventListener("click", saveArticle);
   elements.copy.addEventListener("click", () => void copyArticle());
-
   deps.page.onVisible(() => {
-    poller?.fetchNow();
     draw();
     armRedraw();
   });
 
+  // The viewer answers a query for the job it shows, from the moment it knows one.
   const opened = deps.openChannel();
-  if (opened.ok) {
+  if (opened.ok && tab !== undefined) {
     const channel = opened.value;
-    channel.listen((data) => onChannelMessage(channel, data));
+    const place = tab;
+    channel.listen((data) => {
+      const message = parseJobChannelMessage(data);
+      if (
+        message?.type === "find" &&
+        jobId !== undefined &&
+        message.jobId === jobId
+      ) {
+        channel.post({
+          type: "present",
+          queryId: message.queryId,
+          tabId: place.tabId,
+          windowId: place.windowId,
+        });
+      }
+    });
   }
 
-  if ("key" in params) {
-    startPolling(params.key);
-  } else {
-    await awaitStart();
+  draw();
+
+  if (params.target.kind === "job") {
+    const shownJob = params.target.jobId;
+    watch(shownJob, (record) => {
+      // A load of the running page's tab with a job URL is that page
+      // reloaded: the run it held has stopped.
+      if (
+        record?.state === "running" &&
+        tab !== undefined &&
+        record.runner.tabId === tab.tabId
+      ) {
+        void deps.sendToSw({
+          type: "runnerReloaded",
+          jobId: shownJob,
+          instanceId: deps.newId(),
+        });
+      }
+    });
+    return;
+  }
+
+  const { startId } = params.target;
+  const contextName = startItemName(startId);
+  const context = await deps
+    .readSession([contextName])
+    .then((read): StartContext | undefined =>
+      read.ok ? readStartContext(startId, read.value[contextName]) : undefined,
+    );
+  if (context !== undefined) {
+    setHeader({
+      heading: context.heading,
+      channelName: context.channelName,
+      videoUrl: context.videoUrl,
+    });
+    titleSource = {
+      kind: "start",
+      videoTitle: context.videoTitle,
+      heading: context.heading,
+    };
+    fileTitle = context.videoTitle;
+    since = context.createdAt;
+    draw();
+  }
+
+  const outcome = await runViewer(
+    { startId, instanceId: deps.newId() },
+    {
+      ...deps.runner,
+      sendToSw: deps.sendToSw,
+      onSessionChanged: deps.onSessionChanged,
+      schedule: deps.schedule,
+    },
+    {
+      onReserved: (reply) => {
+        switch (reply.status) {
+          case "rejected":
+            return;
+          case "new_run":
+            jobId = reply.jobId;
+            params = {
+              ...params,
+              target: { kind: "job", jobId: reply.jobId },
+            };
+            writeUrl();
+            watch(reply.jobId);
+            return;
+          case "existing":
+          case "same_video": {
+            const handed = reply.jobId;
+            params = {
+              ...params,
+              target:
+                reply.status === "same_video"
+                  ? { kind: "job", jobId: handed, existing: true }
+                  : { kind: "job", jobId: handed },
+            };
+            writeUrl();
+            void handOver(handed);
+            return;
+          }
+        }
+      },
+      onProgress: () => {},
+    },
+  );
+  deps.log.info(runLabel, { outcome: outcome.kind });
+  const ended = outcomeState(outcome);
+  if (ended === undefined) {
+    return;
+  }
+  if (ended.kind === "job") {
+    held = ended;
+  }
+  show(ended);
+
+  /**
+   * A job another viewer may already show: when one answers, this tab
+   * closes, leaving that viewer; otherwise this viewer shows the job.
+   */
+  async function handOver(handed: string): Promise<void> {
+    const answers = await findJobViewers(handed, {
+      openChannel: deps.openChannel,
+      queryId: deps.newId,
+      schedule: deps.schedule,
+    });
+    const other = answers.find((answer) => answer.tabId !== tab?.tabId);
+    if (other !== undefined && tab !== undefined) {
+      const closed = await deps.tabs.remove(tab.tabId);
+      if (closed.ok) {
+        return;
+      }
+    }
+    jobId = handed;
+    watch(handed);
   }
 }

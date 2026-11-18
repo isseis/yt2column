@@ -3,54 +3,43 @@ import { describe, it } from "node:test";
 
 import { readUiLanguage } from "../src/browser/chromeDeps.ts";
 import type { BrowserCall, I18nApi } from "../src/browser/chromeDeps.ts";
-import type { ArticleKey } from "../src/core/articleKey.ts";
 import type {
   CollectedInput,
   PageSelection,
   SelectionReader,
 } from "../src/core/collect.ts";
-import type {
-  SourceTab,
-  StartRequest,
-  ViewerChannelMessage,
-} from "../src/core/extensionMessages.ts";
-import {
-  parseStartRequest,
-  parseViewerChannelMessage,
-} from "../src/core/extensionMessages.ts";
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
+import {
+  parseJobChannelMessage,
+  parseSwRequest,
+} from "../src/core/jobMessages.ts";
+import type { SourceTab, SwRequest } from "../src/core/jobMessages.ts";
+import { jobItemName } from "../src/core/jobRecord.ts";
+import type { JobRecord } from "../src/core/jobRecord.ts";
+import { parseJobViewerUrl } from "../src/core/jobViewerUrl.ts";
+import { elapsedRedrawMs } from "../src/core/jobView.ts";
 import { acceptMetadata } from "../src/core/metadata.ts";
 import type { MetadataResult } from "../src/core/metadata.ts";
-import type { NativeReply } from "../src/core/native.ts";
-import {
-  elapsedRedrawMs,
-  pollIntervalMs,
-  startResultDeadlineMs,
-} from "../src/core/poll.ts";
 import { maxBodyBytes, prepareSend } from "../src/core/prepare.ts";
-import { countCharacters } from "../src/core/summary.ts";
 import {
   buildCollectedView,
   metadataDisplayLimit,
 } from "../src/core/popupView.ts";
 import type {
   CollectedView,
-  ExistingState,
   PopupJobState,
   PopupView,
 } from "../src/core/popupView.ts";
-import type { PollNotice } from "../src/core/jobView.ts";
-import type { StartOutcome } from "../src/core/response.ts";
-import { statusNoticeMessage } from "../src/core/sendMessages.ts";
+import { startFailureMessage } from "../src/core/sendMessages.ts";
 import type { Logger } from "../src/core/types.ts";
-import { parseViewerUrl } from "../src/core/viewerUrl.ts";
 import {
   launchContextFromTab,
   runPopupLaunch,
   runPopupSend,
   startPopup,
+  startReplyWaitMs,
 } from "../src/launch.ts";
 import type {
   MetadataReader,
@@ -64,12 +53,14 @@ import {
   fakeChannels,
   fakeFocus,
   fakeIdentity,
+  fakeSession,
   fakeTabs,
-  pendingWorker,
+  pendingSw,
   type FakeChannels,
   type FakeFocus,
+  type FakeSession,
   type FakeTabs,
-  type PendingWorker,
+  type PendingSw,
 } from "./helpers/chrome.ts";
 import { fakeClock, settle, type FakeClock } from "./helpers/clock.ts";
 import {
@@ -78,19 +69,15 @@ import {
   popupDocument,
   popupElements,
 } from "./helpers/dom.ts";
-import {
-  doneJob as doneDisplay,
-  doneSteps,
-  requestId,
-  runningSteps,
-} from "./helpers/job.ts";
 import { recordingLogger } from "./helpers/logger.ts";
 import type { RecordingLogger } from "./helpers/logger.ts";
 import {
-  pendingHost,
-  responseReply,
-  type PendingHost,
-} from "./helpers/native.ts";
+  doneRecord,
+  failedRecord,
+  jobId,
+  runningRecord,
+  stoppedRecord,
+} from "./helpers/record.ts";
 
 const watchUrl = "https://www.youtube.com/watch?v=abc";
 const malicious = "<img src=x onerror=alert(1)>";
@@ -99,24 +86,30 @@ const uiLanguageLabel = "yt2column ui language";
 const metadataLabel = "yt2column video metadata";
 const blockedLabel = "yt2column blocked";
 const activeTabLabel = "yt2column active tab";
-const statusLabel = "yt2column status result";
+const protectLabel = "yt2column settings protection";
+const recordLabel = "yt2column job record";
 const localeList = Object.keys(locales) as Locale[];
+/** The tab fakeTab is: the selection's source, where the viewer opens next to. */
+
 /** The tab fakeTab is: the selection's source, where the viewer opens next to. */
 const source: SourceTab = { tabId: 7, windowId: 3, index: 4 };
 const sentAt = 1_700_000_000_000;
-const key = "key-1" as ArticleKey;
 const queryId = "0".repeat(31) + "1";
+const otherJob = "fedcba9876543210fedcba9876543210";
 
 /** The skeleton's ids, one per element startPopup needs. */
 const skeletonIds = [
+  "build-mark",
   "video",
   "checks",
   "rejection",
   "action",
+  "setup",
   "primary",
   "secondary",
   "status",
   "details",
+  "options",
 ] as const;
 
 /** The five containers, which every render shows or hides. */
@@ -238,6 +231,7 @@ interface PopupHarness {
 function popupHarness(overrides: Partial<PopupLaunchDeps> = {}): PopupHarness {
   const recorder = recordingLogger();
   const deps: PopupLaunchDeps = {
+    protectSettings: async () => ({ ok: true, value: undefined }),
     reader: readerReturning(page("selection")),
     metadataReader: metadataReader(metadataJson({})).reader,
     activeTab: async () => fakeTab(),
@@ -268,12 +262,14 @@ function collectedLaunch(
 interface Popup {
   readonly elements: PopupElements;
   readonly clock: FakeClock;
-  readonly worker: PendingWorker;
-  readonly host: PendingHost;
+  readonly sw: PendingSw;
+  readonly session: FakeSession;
   readonly tabs: FakeTabs;
   readonly focus: FakeFocus;
   readonly channels: FakeChannels;
   readonly logger: RecordingLogger;
+  /** How many times the options page was opened. */
+  readonly options: { opened: number };
 }
 
 /**
@@ -286,32 +282,48 @@ function shown(
   log?: RecordingLogger,
   // Timers that never fire, as a throttled page's timer may run late.
   lateTimers = false,
+  // Wraps the session area's read, as a test that orders it against an event does.
+  wrapRead: (read: FakeSession["read"]) => FakeSession["read"] = (read) => read,
 ): Popup {
   const elements = popupElements();
   const clock = fakeClock(sentAt);
-  const worker = pendingWorker();
-  const host = pendingHost();
+  const sw = pendingSw();
+  const session = fakeSession();
   const tabs = fakeTabs();
   const focus = fakeFocus();
   const channels = fakeChannels();
   const logger = log ?? recordingLogger();
+  const options = { opened: 0 };
   renderPopup(elements, launch.view, locale);
   runPopupSend(elements, launch, {
-    sendToWorker: worker.send,
-    send: {
-      sendNative: host.sendNative,
-      schedule: lateTimers ? () => () => undefined : clock.schedule,
-    },
-    tabs,
-    focusWindow: focus.focus,
+    sendToSw: sw.send,
+    readSession: wrapRead(session.read),
+    onSessionChanged: session.onChanged,
     openChannel: channels.open,
     queryId: () => queryId,
+    schedule: lateTimers ? () => () => undefined : clock.schedule,
+    tabs,
+    focusWindow: focus.focus,
     identity: fakeIdentity,
+    openOptions: async () => {
+      options.opened += 1;
+      return { ok: true, value: undefined };
+    },
     now: clock.now,
     log: logger.log,
     locale,
   });
-  return { elements, clock, worker, host, tabs, focus, channels, logger };
+  return {
+    elements,
+    clock,
+    sw,
+    session,
+    tabs,
+    focus,
+    channels,
+    logger,
+    options,
+  };
 }
 
 /**
@@ -361,62 +373,32 @@ function dropFocus(doc: Document): void {
 }
 
 /** The start requests the popup sent to the worker. */
-function startRequests(popup: Popup): StartRequest[] {
-  return popup.worker.sent.filter(
-    (message): message is StartRequest => message.type === "start",
+function startRequests(popup: Popup): Extract<SwRequest, { type: "start" }>[] {
+  return popup.sw.sent.filter(
+    (request): request is Extract<SwRequest, { type: "start" }> =>
+      request.type === "start",
   );
 }
 
-/** The worker's reply carrying outcome, and the viewer tab when given. */
-function startReply(
-  outcome: StartOutcome,
-  viewerTabId?: number,
-): BrowserCall<unknown> {
-  return {
-    ok: true,
-    value: viewerTabId === undefined ? { outcome } : { outcome, viewerTabId },
-  };
+const ok = <T>(value: T): BrowserCall<T> => ({ ok: true, value });
+const accepted = ok({ status: "accepted", jobId });
+const sameVideo = ok({ status: "same_video", jobId: otherJob });
+
+/** Puts record into the session area as the worker writes it, which announces it. */
+async function store(popup: Popup, record: JobRecord): Promise<void> {
+  await popup.session.write({ [jobItemName(record.jobId)]: record });
+  await settle();
 }
 
-const accepted: StartOutcome = { kind: "accepted", key, requestId };
-
-type Json = Record<string, unknown>;
-
-const article = {
-  markdown: "# Title\n\nBody",
-  mentionsNeutralized: false,
-  videoTitle: "",
-  channelName: "",
-  file: "---\ntitle: Title\n---\n\nBody\n",
-  cost: { state: "known", usd: "0.1234" },
-  durationMs: 65_000,
-};
-const runningJob: Json = { state: "running", steps: runningSteps };
-const doneJob: Json = {
-  state: "done",
-  steps: doneSteps,
-  article,
-};
-const failedJob: Json = {
-  state: "failed",
-  steps: doneSteps,
-  failure: "llm_failed",
-};
-
-/** The host's reply to a status query that found job. */
-function statusReply(job: Json): NativeReply {
-  return responseReply(200, JSON.stringify({ status: "ok", requestId, job }));
-}
-
-/** A popup pressed once whose start was accepted with the viewer in tab viewerTabId. */
+/** A popup pressed once whose start was accepted, with its record running. */
 async function acceptedPopup(
-  viewerTabId?: number,
   launch = collectedLaunch(),
   locale: Locale = "en",
 ): Promise<Popup> {
   const popup = shown(launch, locale);
   await press(popup);
-  await popup.worker.answer(startReply(accepted, viewerTabId));
+  popup.session.items.set(jobItemName(jobId), runningRecord());
+  await popup.sw.answer(accepted);
   return popup;
 }
 
@@ -440,6 +422,14 @@ function drawnChecks(
 /** The popup's checks section text. */
 function checksText(popup: Popup): string {
   return popup.elements.checks.textContent ?? "";
+}
+
+/** The status region's sentences. */
+function statusSentences(popup: Popup): (string | null)[] {
+  return Array.from(
+    popup.elements.status.children,
+    (child) => child.textContent,
+  );
 }
 
 /** The collected view of a launch, asserting it is one. */
@@ -679,47 +669,97 @@ describe("launch paths", () => {
   });
 });
 
+describe("settings protection", () => {
+  it("keeps the settings from the page before it injects anything", async () => {
+    const order: string[] = [];
+    const harness = popupHarness({
+      protectSettings: async () => {
+        order.push("protect");
+        return { ok: true, value: undefined };
+      },
+      reader: {
+        read: async () => {
+          order.push("read");
+          return page("selection");
+        },
+      },
+      metadataReader: {
+        read: async () => {
+          order.push("metadata");
+          return metadataJson({});
+        },
+      },
+    });
+    await runPopupLaunch(harness.deps);
+    assert.deepEqual(order, ["protect", "read", "metadata"]);
+  });
+
+  it("injects nothing and shows a refused launch when the settings cannot be protected", async () => {
+    const injected: string[] = [];
+    const harness = popupHarness({
+      protectSettings: async () => ({ ok: false, error: "ERROR-TEXT-77d1" }),
+      reader: {
+        read: async () => {
+          injected.push("read");
+          return page("selection");
+        },
+      },
+      metadataReader: {
+        read: async () => {
+          injected.push("metadata");
+          return metadataJson({});
+        },
+      },
+    });
+    const launch = await runPopupLaunch(harness.deps);
+    assert.deepEqual(injected, []);
+    assert.deepEqual(launch, {
+      view: { kind: "rejected", reason: "settings-unprotected" },
+    });
+    assert.deepEqual(harness.recorder.errors, [
+      { label: protectLabel, data: { set: false } },
+    ]);
+    // The rejected view can send nothing.
+    const popup = shown(launch);
+    assert.equal(popup.elements.primary.disabled, true);
+    await press(popup);
+    assert.deepEqual(popup.sw.sent, []);
+    assert.equal(
+      JSON.stringify(harness.recorder.errors).includes("ERROR-TEXT-77d1"),
+      false,
+    );
+  });
+});
+
 describe("popup job send", () => {
   it("makes the primary button pressable for a sendable selection and sends nothing until it is pressed", async () => {
     const popup = shown(collectedLaunch());
     assert.equal(popup.elements.primary.disabled, false);
     await settle();
-    assert.deepEqual(popup.worker.sent, []);
-    assert.deepEqual(popup.host.sent, []);
+    assert.deepEqual(popup.sw.sent, []);
+    assert.deepEqual(popup.session.calls, []);
     assert.deepEqual(popup.tabs.calls, []);
     assert.deepEqual(popup.channels.posted, []);
     assert.equal(popup.clock.pending(), 0);
   });
 
-  it("asks the worker for one inquiry start and never sends a start to the host", async () => {
-    const launch = collectedLaunch();
-    const popup = shown(launch);
+  it("asks the worker for one inquiry start that the worker's check accepts, and sends nothing else", async () => {
+    const popup = shown(collectedLaunch());
     await press(popup);
     await press(popup);
-    assert.deepEqual(popup.worker.sent, [
+    assert.deepEqual(popup.sw.sent, [
       {
         type: "start",
         mode: "inquiry",
         input: { videoUrl: watchUrl, transcript: "selection" },
-        viewer: { heading: "A video", url: watchUrl, sentAt },
         source,
       },
     ]);
-    // Nothing reaches the host until the key is accepted, and then only the
-    // status queries do.
-    assert.deepEqual(popup.host.sent, []);
-    await popup.worker.answer(startReply(accepted));
-    await popup.host.answer(statusReply(runningJob));
-    popup.clock.advance(pollIntervalMs);
-    await settle();
-    assert.deepEqual(popup.host.sent, [
-      { v: 1, op: "status", key },
-      { v: 1, op: "status", key },
-    ]);
-    assert.equal(startRequests(popup).length, 1);
+    const [request] = popup.sw.sent;
+    assert.equal(parseSwRequest(request).ok, true);
   });
 
-  it("sends the full video title while the viewer seed holds the shown heading and the cut title", async () => {
+  it("sends the full video title, not the heading cut for display", async () => {
     const title = "t".repeat(1_001);
     const launch = await runPopupLaunch(
       popupHarness({
@@ -727,92 +767,14 @@ describe("popup job send", () => {
       }).deps,
     );
     const popup = shown(launch);
-    // Precondition: the heading is cut for display, so the checks below tell
+    // Precondition: the heading is cut for display, so the check below tells
     // the sent value apart from the displayed one.
     assert.equal(
       popup.elements.video.querySelector("h1")?.textContent,
       `${"t".repeat(metadataDisplayLimit)}…`,
     );
     await press(popup);
-    const [request] = startRequests(popup);
-    assert.ok(request !== undefined);
-    assert.equal(request.input.title, title);
-    assert.equal(
-      request.viewer.heading,
-      `${"t".repeat(metadataDisplayLimit)}…`,
-    );
-    assert.equal(request.viewer.title, "t".repeat(1_000));
-  });
-
-  it("replaces an unpaired surrogate in the seed's heading so the worker accepts the request", async () => {
-    const launch = await runPopupLaunch(
-      popupHarness({ activeTab: async () => fakeTab({ title: "A\uD800b" }) })
-        .deps,
-    );
-    // Precondition: the heading shown is the tab title, surrogate and all.
-    assert.equal(collected(launch).video.heading.value, "A\uD800b");
-    const popup = shown(launch);
-    await press(popup);
-    const [request] = startRequests(popup);
-    assert.ok(request !== undefined);
-    assert.equal(request.viewer.heading, "A\uFFFDb");
-    assert.equal(parseStartRequest(request, sentAt).ok, true);
-  });
-
-  it("builds a seed the worker accepts from the longest values the popup shows", async () => {
-    // Astral characters, so code points and UTF-16 units differ.
-    const astral = "\u{1F600}";
-    const cases: {
-      name: string;
-      tabTitle: string;
-      values: { title?: string; channelName?: string };
-      lengths: { heading: number; channelName?: number; title?: number };
-    }[] = [
-      // No video title: the heading is the tab title, cut to 1,000 plus the ellipsis.
-      {
-        name: "tab title",
-        tabTitle: astral.repeat(1_500),
-        values: {},
-        lengths: { heading: 1_001 },
-      },
-      // A video title: the heading is cut to 200, the seed's title to 1,000.
-      {
-        name: "video title",
-        tabTitle: "A video",
-        values: {
-          title: astral.repeat(1_500),
-          channelName: astral.repeat(300),
-        },
-        lengths: { heading: 201, channelName: 201, title: 1_000 },
-      },
-    ];
-    for (const { name, tabTitle, values, lengths } of cases) {
-      const launch = await runPopupLaunch(
-        popupHarness({
-          activeTab: async () => fakeTab({ title: tabTitle }),
-          metadataReader: metadataReader(metadataJson(values)).reader,
-        }).deps,
-      );
-      const popup = shown(launch);
-      await press(popup);
-      const [request] = startRequests(popup);
-      assert.ok(request !== undefined);
-      const { viewer } = request;
-      assert.deepEqual(
-        {
-          heading: countCharacters(viewer.heading),
-          ...(viewer.channelName === undefined
-            ? {}
-            : { channelName: countCharacters(viewer.channelName) }),
-          ...(viewer.title === undefined
-            ? {}
-            : { title: countCharacters(viewer.title) }),
-        },
-        lengths,
-        name,
-      );
-      assert.equal(parseStartRequest(request, sentAt).ok, true, name);
-    }
+    assert.equal(startRequests(popup)[0]?.input.title, title);
   });
 
   it("sends the shown description while the expand prompt is up", async () => {
@@ -865,7 +827,7 @@ describe("popup job send", () => {
       const popup = shown(launched);
       assert.equal(popup.elements.primary.disabled, true);
       await press(popup);
-      assert.deepEqual(popup.worker.sent, []);
+      assert.deepEqual(popup.sw.sent, []);
       assert.equal(popup.elements.status.childNodes.length, 0);
       // A blocked launch is normal: logged at info, never at error.
       assert.deepEqual(
@@ -885,7 +847,7 @@ describe("popup job send", () => {
     });
     assert.equal(popup.elements.primary.disabled, true);
     await press(popup);
-    assert.deepEqual(popup.worker.sent, []);
+    assert.deepEqual(popup.sw.sent, []);
     assert.equal(popup.elements.status.childNodes.length, 0);
   });
 });
@@ -913,8 +875,8 @@ describe("popup job states", () => {
       sections.forEach((section, index) => {
         assert.ok(section.isEqualNode(before[index] ?? null), section.id);
       });
-      await popup.worker.answer(startReply(accepted));
-      await popup.host.answer(statusReply(runningJob));
+      popup.session.items.set(jobItemName(jobId), runningRecord());
+      await popup.sw.answer(accepted);
       sections.forEach((section, index) => {
         assert.ok(section.isEqualNode(before[index] ?? null), section.id);
       });
@@ -956,21 +918,21 @@ describe("popup job states", () => {
       // Precondition: the press disabled the button.
       assert.equal(popup.elements.primary.disabled, true);
       meanwhile(popup);
-      await popup.worker.answer(startReply(accepted, 100));
+      await popup.sw.answer(accepted);
       assert.equal(popup.elements.primary.disabled, false);
       assert.equal(doc.activeElement, expected(popup));
     });
   }
 
   it("gives the focus back to the button after a retry", async () => {
-    const popup = await acceptedPopup(100);
-    await popup.host.answer(statusReply(failedJob));
+    const popup = await acceptedPopup();
+    await store(popup, failedRecord("llm_failed"));
     const doc = popup.elements.primary.ownerDocument;
     popup.elements.primary.focus();
     await pressWith(popup, "keyboard");
     assert.equal(popup.elements.primary.disabled, true);
     dropFocus(doc);
-    await popup.worker.answer(startReply(accepted, 101));
+    await popup.sw.answer(accepted);
     assert.equal(doc.activeElement, popup.elements.primary);
   });
 
@@ -982,363 +944,375 @@ describe("popup job states", () => {
     await pressWith(popup, "mouse");
     assert.equal(popup.elements.primary.disabled, true);
     dropFocus(doc);
-    await popup.worker.answer(startReply(accepted, 100));
+    await popup.sw.answer(accepted);
     assert.equal(popup.elements.primary.disabled, false);
     assert.equal(doc.activeElement, doc.body);
   });
 
-  it("shows loading once the key is accepted, polls it at once and offers to open the viewer", async () => {
+  it("shows loading once the job is accepted, then the record it reads, and offers to open the viewer", async () => {
     const launch = collectedLaunch();
-    const popup = await acceptedPopup(100, launch);
-    assert.deepEqual(popup.host.sent, [{ v: 1, op: "status", key }]);
+    const popup = shown(launch);
+    await press(popup);
+    // The read is held until the loading state is checked.
+    popup.session.fail("read");
+    await popup.sw.answer(accepted);
     assert.equal(
       checksText(popup),
-      drawnChecks(collected(launch), {
-        kind: "loading",
-        notice: { kind: "none" },
-      }),
+      drawnChecks(collected(launch), { kind: "loading" }),
     );
     assert.equal(popup.elements.primary.disabled, false);
     assert.equal(
       popup.elements.primary.textContent,
       catalogs.en.popup.primary.openViewer,
     );
-  });
-
-  it("shows the running steps with the time elapsed since the send and keeps polling", async () => {
-    const launch = collectedLaunch();
-    const popup = await acceptedPopup(100, launch);
-    await popup.host.answer(statusReply(runningJob));
-    popup.clock.advance(3 * elapsedRedrawMs);
-    await settle();
+    // A failed read keeps the state and is logged, without a value.
+    assert.deepEqual(popup.logger.errors, [
+      { label: recordLabel, data: { read: false } },
+    ]);
+    // The record's change event still reaches the popup.
+    await store(popup, runningRecord());
     assert.equal(
       checksText(popup),
       drawnChecks(
         collected(launch),
-        {
-          kind: "job",
-          job: { kind: "running", steps: runningSteps },
-          notice: { kind: "none" },
-        },
+        { kind: "job", job: { kind: "running", steps: runningRecord().steps } },
         "en",
-        3 * elapsedRedrawMs,
       ),
-    );
-    assert.equal(popup.host.count("status"), 2);
-    assert.equal(
-      popup.elements.primary.textContent,
-      catalogs.en.popup.primary.openViewer,
     );
   });
 
-  it("shows a done article and stops polling", async () => {
+  it("shows the running steps with the time elapsed since the press, redrawn each second", async () => {
     const launch = collectedLaunch();
-    const popup = await acceptedPopup(100, launch);
-    await popup.host.answer(statusReply(doneJob));
-    popup.clock.advance(3 * pollIntervalMs);
+    const popup = await acceptedPopup(launch);
+    const running: PopupJobState = {
+      kind: "job",
+      job: { kind: "running", steps: runningRecord().steps },
+    };
+    assert.equal(
+      checksText(popup),
+      drawnChecks(collected(launch), running, "en", 0),
+    );
+    popup.clock.advance(elapsedRedrawMs * 65);
+    assert.equal(
+      checksText(popup),
+      drawnChecks(collected(launch), running, "en", 65_000),
+    );
+  });
+
+  const ended: {
+    name: string;
+    record: () => JobRecord | undefined;
+    state: PopupJobState;
+  }[] = [
+    {
+      name: "a done article",
+      record: () => doneRecord(),
+      state: {
+        kind: "job",
+        job: {
+          kind: "done",
+          steps: doneRecord().steps,
+          article: (doneRecord() as Extract<JobRecord, { state: "done" }>)
+            .article,
+        },
+      },
+    },
+    {
+      name: "a failed article",
+      record: () => failedRecord("llm_failed"),
+      state: {
+        kind: "job",
+        job: {
+          kind: "failed",
+          steps: failedRecord("llm_failed").steps,
+          failure: "llm_failed",
+        },
+      },
+    },
+    {
+      name: "a missing API key after the reservation",
+      record: () => failedRecord("api_key_missing"),
+      state: {
+        kind: "job",
+        job: { kind: "setup", failure: "api_key_missing" },
+      },
+    },
+    {
+      name: "a rejected key",
+      record: () => failedRecord("api_key_rejected"),
+      state: {
+        kind: "job",
+        job: {
+          kind: "key-rejected",
+          steps: failedRecord("api_key_rejected").steps,
+        },
+      },
+    },
+    {
+      name: "a stopped run",
+      record: () => stoppedRecord(),
+      state: {
+        kind: "job",
+        job: { kind: "stopped", steps: stoppedRecord().steps },
+      },
+    },
+    {
+      name: "a removed record",
+      record: () => undefined,
+      state: { kind: "job", job: { kind: "lost" } },
+    },
+  ];
+  for (const { name, record, state } of ended) {
+    it(`shows ${name} from the record's change event and stops the elapsed time's redraw`, async () => {
+      const launch = collectedLaunch();
+      const popup = await acceptedPopup(launch);
+      const next = record();
+      if (next === undefined) {
+        await popup.session.remove([jobItemName(jobId)]);
+        await settle();
+      } else {
+        await store(popup, next);
+      }
+      assert.equal(checksText(popup), drawnChecks(collected(launch), state));
+      assert.equal(popup.clock.pending(), 0);
+    });
+  }
+
+  it("follows only its own job's record", async () => {
+    const popup = await acceptedPopup();
+    const before = checksText(popup);
+    await store(popup, { ...doneRecord(), jobId: otherJob });
+    assert.equal(checksText(popup), before);
+  });
+
+  it("shows a record that is not one of the shapes as lost, never repaired", async () => {
+    const launch = collectedLaunch();
+    const popup = await acceptedPopup(launch);
+    await popup.session.write({
+      [jobItemName(jobId)]: { ...runningRecord(), state: "paused" },
+    });
     await settle();
-    assert.equal(popup.host.count("status"), 1);
+    assert.equal(
+      checksText(popup),
+      drawnChecks(collected(launch), { kind: "job", job: { kind: "lost" } }),
+    );
+  });
+
+  it("keeps a change event that came before the first read's result", async () => {
+    const launch = collectedLaunch();
+    // The read takes the record as it is, and answers only when released.
+    let release = (): void => {};
+    const popup = shown(launch, "en", undefined, false, (read) => (names) => {
+      const answer = read(names);
+      return new Promise((resolve) => {
+        release = () => void answer.then(resolve);
+      });
+    });
+    await press(popup);
+    popup.session.items.set(jobItemName(jobId), runningRecord());
+    await popup.sw.answer(accepted);
+    // The change event arrives before the read's older record.
+    await store(popup, doneRecord());
+    release();
+    await settle();
     assert.equal(
       checksText(popup),
       drawnChecks(collected(launch), {
         kind: "job",
-        job: doneDisplay,
-        notice: { kind: "none" },
+        job: {
+          kind: "done",
+          steps: doneRecord().steps,
+          article: (doneRecord() as Extract<JobRecord, { state: "done" }>)
+            .article,
+        },
       }),
     );
-    assert.equal(popup.elements.primary.disabled, false);
-    assert.equal(
-      popup.elements.primary.textContent,
-      catalogs.en.popup.primary.openViewer,
-    );
   });
 
-  it("keeps the shown job and polls again after a failed status exchange", async () => {
-    const launch = collectedLaunch();
-    const popup = await acceptedPopup(100, launch);
-    await popup.host.answer(statusReply(runningJob));
-    popup.clock.advance(pollIntervalMs);
-    await settle();
-    await popup.host.answer({ kind: "failed", lastError: "host gone" });
-    assert.equal(
-      checksText(popup),
-      drawnChecks(
-        collected(launch),
-        {
-          kind: "job",
-          job: { kind: "running", steps: runningSteps },
-          notice: { kind: "retrying", outcome: { kind: "host-failed" } },
-        },
-        "en",
-        pollIntervalMs,
-      ),
-    );
-    popup.clock.advance(pollIntervalMs);
-    await settle();
-    assert.equal(popup.host.count("status"), 3);
-  });
-
-  const startFailures: Exclude<
-    StartOutcome,
-    { kind: "accepted" } | { kind: "same-video" }
-  >[] = [
-    { kind: "rejected", reason: "too_many_requests", requestId },
-    { kind: "not-sent", cause: "server-unavailable" },
-    { kind: "no-response" },
-    { kind: "host-failed" },
-    { kind: "unexpected", check: "member-set" },
-  ];
-  for (const outcome of startFailures) {
-    it(`shows a ${outcome.kind} start with the button disabled and sends nothing more`, async () => {
+  const rejections = ["invalid_body", "too_many_requests", "internal"] as const;
+  for (const reason of rejections) {
+    it(`shows a ${reason} refusal with the button disabled and sends nothing more`, async () => {
       const launch = collectedLaunch();
       const popup = shown(launch);
       await press(popup);
-      await popup.worker.answer(startReply(outcome, 100));
-      assert.equal(
-        checksText(popup),
-        drawnChecks(collected(launch), {
-          kind: "start-failed",
-          failure: outcome,
-        }),
-      );
+      await popup.sw.answer(ok({ status: "rejected", reason }));
+      const state: PopupJobState = {
+        kind: "start-failed",
+        failure: { kind: "rejected", reason },
+      };
+      assert.equal(checksText(popup), drawnChecks(collected(launch), state));
       assert.equal(popup.elements.primary.disabled, true);
+      assert.equal(popup.elements.setup.hidden, true);
       await press(popup);
-      popup.clock.advance(startResultDeadlineMs);
-      await settle();
-      assert.equal(popup.worker.sent.length, 1);
-      assert.deepEqual(popup.host.sent, []);
-      assert.deepEqual(popup.tabs.calls, []);
+      assert.equal(startRequests(popup).length, 1);
+      assert.deepEqual(popup.session.calls, []);
     });
   }
 
-  const noResults: {
+  it("shows a missing API key with the setup operation, which opens the options page", async () => {
+    const launch = collectedLaunch();
+    const popup = shown(launch);
+    await press(popup);
+    await popup.sw.answer(
+      ok({ status: "rejected", reason: "api_key_missing" }),
+    );
+    const state: PopupJobState = {
+      kind: "start-failed",
+      failure: { kind: "rejected", reason: "api_key_missing" },
+    };
+    assert.equal(checksText(popup), drawnChecks(collected(launch), state));
+    assert.deepEqual(statusSentences(popup), [
+      catalogs.en.setup.api_key_missing.text,
+    ]);
+    assert.equal(popup.elements.setup.hidden, false);
+    assert.equal(popup.elements.primary.disabled, true);
+    await press(popup, popup.elements.setup);
+    assert.equal(popup.options.opened, 1);
+    // Opening the options page sends nothing and opens no viewer.
+    assert.equal(startRequests(popup).length, 1);
+    assert.deepEqual(popup.tabs.calls, []);
+  });
+
+  const unknowns: {
     name: string;
-    run: (popup: Popup) => Promise<void>;
+    reply: (popup: Popup) => Promise<void>;
   }[] = [
     {
-      name: "the worker leaves the request unanswered",
-      run: (popup) => popup.worker.answer({ ok: false, error: "no receiver" }),
+      name: "the worker answers unknown",
+      reply: (popup) => popup.sw.answer(ok({ status: "unknown" })),
     },
     {
-      name: "the reply fails its check",
-      run: (popup) =>
-        popup.worker.answer({
-          ok: true,
-          value: { outcome: accepted, extra: 1 },
-        }),
+      name: "the message fails",
+      reply: (popup) => popup.sw.answer({ ok: false, error: "closed" }),
+    },
+    {
+      name: "the reply is not a start reply",
+      reply: (popup) =>
+        popup.sw.answer(ok({ status: "accepted", jobId: "not-an-id" })),
     },
     {
       name: "no reply comes before the deadline",
-      run: async (popup) => {
-        popup.clock.advance(startResultDeadlineMs - 1);
+      reply: async (popup) => {
+        popup.clock.advance(startReplyWaitMs);
         await settle();
-        // Precondition: still sending just before the deadline.
-        assert.equal(popup.elements.primary.disabled, true);
-        assert.equal(
-          checksText(popup),
-          drawnChecks(collected(collectedLaunch()), { kind: "sending" }),
-        );
-        popup.clock.advance(1);
-        await settle();
-        // A reply after the deadline is ignored.
-        await popup.worker.answer(startReply(accepted, 100));
       },
     },
   ];
-  for (const { name, run } of noResults) {
-    it(`shows that the result is unknown and polls nothing when ${name}`, async () => {
+  for (const { name, reply } of unknowns) {
+    it(`shows that the result is unknown and reads no record when ${name}`, async () => {
       const launch = collectedLaunch();
       const popup = shown(launch);
       await press(popup);
-      await run(popup);
+      await reply(popup);
       assert.equal(
         checksText(popup),
         drawnChecks(collected(launch), {
           kind: "start-failed",
-          failure: { kind: "no-result" },
+          failure: { kind: "unknown" },
         }),
       );
+      assert.deepEqual(statusSentences(popup), [
+        startFailureMessage({ kind: "unknown" }, "en").text,
+      ]);
+      assert.deepEqual(popup.session.calls, []);
       assert.equal(popup.elements.primary.disabled, true);
-      popup.clock.advance(pollIntervalMs);
-      await settle();
-      assert.deepEqual(popup.host.sent, []);
     });
   }
-});
 
-describe("popup start deadline", () => {
-  it("ignores a reply that comes after the deadline when the timer runs late", async () => {
+  it("ignores a reply that comes after the deadline", async () => {
     const launch = collectedLaunch();
-    const popup = shown(launch, "en", undefined, true);
+    const popup = shown(launch);
     await press(popup);
-    popup.clock.advance(startResultDeadlineMs);
-    await popup.worker.answer(startReply(accepted, 100));
+    popup.clock.advance(startReplyWaitMs);
+    await settle();
+    await popup.sw.answer(accepted);
+    assert.deepEqual(popup.session.calls, []);
     assert.equal(
       checksText(popup),
       drawnChecks(collected(launch), {
         kind: "start-failed",
-        failure: { kind: "no-result" },
+        failure: { kind: "unknown" },
       }),
     );
-    assert.deepEqual(popup.host.sent, []);
   });
 });
 
-/**
- * Opens an endpoint of the popup's channel that answers each find for key
- * with present, from each of viewers, as the viewers showing it do.
- */
+/** Answers the next find query on the channel with the viewers in tabIds. */
 function viewersShowing(
   popup: Popup,
-  viewers: readonly { tabId: number; windowId: number; sentAt: number }[],
+  shownJob: string,
+  places: readonly { tabId: number; windowId: number }[],
 ): void {
   const opened = popup.channels.open();
   assert.ok(opened.ok);
-  const peer = opened.value;
-  peer.listen((data) => {
-    const message: ViewerChannelMessage | undefined =
-      parseViewerChannelMessage(data);
-    if (message?.type !== "find" || message.key !== key) {
-      return;
-    }
-    for (const viewer of viewers) {
-      peer.post({ type: "present", queryId: message.queryId, ...viewer });
+  const channel = opened.value;
+  channel.listen((data) => {
+    const message = parseJobChannelMessage(data);
+    if (message?.type === "find" && message.jobId === shownJob) {
+      for (const place of places) {
+        channel.post({ type: "present", queryId: message.queryId, ...place });
+      }
     }
   });
 }
 
-/** The finds the popup posted. */
-function finds(popup: Popup): unknown[] {
-  return popup.channels.posted.filter(
-    (message) => (message as { type?: unknown }).type === "find",
-  );
-}
-
-/** Presses open-viewer on a running job and lets the query window pass. */
-async function openViewer(popup: Popup): Promise<void> {
-  await press(popup);
+/** Presses the primary button and lets the query window end. */
+async function openViewerPress(
+  popup: Popup,
+  button: HTMLButtonElement = popup.elements.primary,
+): Promise<void> {
+  await press(popup, button);
   popup.clock.advance(1_000);
   await settle();
 }
 
+/** The job viewer URL of a created tab, parsed. */
+function createdViewer(popup: Popup): ReturnType<typeof parseJobViewerUrl> {
+  const created = popup.tabs.calls.find((call) => call.op === "create");
+  assert.ok(created !== undefined && created.op === "create");
+  const prefix = fakeIdentity.getURL("viewer.html");
+  assert.ok(created.tab.url.startsWith(`${prefix}?`), created.tab.url);
+  assert.equal(created.tab.active, true);
+  return parseJobViewerUrl(created.tab.url.slice(prefix.length), "");
+}
+
 describe("open viewer", () => {
+  it("brings forward the viewer with the smallest tab ID among those that show the job", async () => {
+    const popup = await acceptedPopup();
+    popup.tabs.open.set(30, 5);
+    popup.tabs.open.set(20, 6);
+    viewersShowing(popup, jobId, [
+      { tabId: 30, windowId: 5 },
+      { tabId: 20, windowId: 6 },
+    ]);
+    await openViewerPress(popup);
+    assert.deepEqual(
+      popup.tabs.calls.filter((call) => call.op !== "get"),
+      [{ op: "activate", tabId: 20 }],
+    );
+    assert.deepEqual(popup.focus.focused, [6]);
+    assert.equal(startRequests(popup).length, 1);
+  });
+
+  it("opens a new viewer of the job in front when no viewer answers", async () => {
+    const popup = await acceptedPopup();
+    await openViewerPress(popup);
+    assert.deepEqual(createdViewer(popup), {
+      ok: true,
+      params: {
+        target: { kind: "job", jobId },
+        videoUrl: watchUrl,
+        title: watchUrl,
+      },
+    });
+    assert.deepEqual(popup.focus.focused, [1]);
+  });
+
   it("opens a new viewer when the viewer that answered is gone before it is brought forward", async () => {
     const popup = await acceptedPopup();
-    await popup.host.answer(statusReply(runningJob));
-    // Tab 200 answers but is no longer open when the popup looks it up.
-    viewersShowing(popup, [{ tabId: 200, windowId: 8, sentAt: 1 }]);
-    await openViewer(popup);
-    assert.deepEqual(
-      popup.tabs.calls.map((call) => call.op),
-      ["get", "create"],
-    );
-    assert.deepEqual(popup.focus.focused, [1]);
-  });
-
-  it("keeps the button usable when the new viewer tab cannot be opened", async () => {
-    const popup = await acceptedPopup();
-    await popup.host.answer(statusReply(runningJob));
-    popup.tabs.fail("create");
-    await openViewer(popup);
-    assert.deepEqual(popup.focus.focused, []);
-    // A second press tries again: the first one ended.
-    await openViewer(popup);
-    assert.equal(
-      popup.tabs.calls.filter((call) => call.op === "create").length,
-      2,
-    );
-  });
-
-  it("brings nothing forward once a retry replaced the send it opens", async () => {
-    const popup = await acceptedPopup();
-    await popup.host.answer(statusReply(runningJob));
-    // The open-viewer waits for the viewers' answers, from 1.5 s ...
-    popup.clock.advance(1_500);
-    await press(popup);
-    assert.equal(finds(popup).length, 1);
-    // ... while the next status, at 2 s, fails the job and retry is pressed.
-    popup.clock.advance(500);
-    await settle();
-    await popup.host.answer(statusReply(failedJob));
-    await press(popup);
-    assert.equal(startRequests(popup).length, 2);
-    popup.clock.advance(1_000);
-    await settle();
-    assert.deepEqual(popup.tabs.calls, []);
-    assert.deepEqual(popup.focus.focused, []);
-  });
-
-  it("brings the tab that shows the send forward, even when another viewer answers for the key", async () => {
-    const popup = await acceptedPopup(100);
-    await popup.host.answer(statusReply(runningJob));
-    popup.tabs.open.set(100, 9);
-    popup.tabs.open.set(200, 8);
-    viewersShowing(popup, [{ tabId: 200, windowId: 8, sentAt: 1 }]);
-    await openViewer(popup);
-    assert.deepEqual(popup.tabs.calls, [
-      { op: "get", tabId: 100 },
-      { op: "activate", tabId: 100 },
-    ]);
-    assert.deepEqual(popup.focus.focused, [9]);
-    assert.deepEqual(finds(popup), []);
-    assert.equal(popup.worker.sent.length, 1);
-    assert.equal(popup.host.count("start"), 0);
-  });
-
-  it("brings forward the oldest viewer that answers for the key once the tab is gone", async () => {
-    const popup = await acceptedPopup(100);
-    await popup.host.answer(statusReply(doneJob));
-    popup.tabs.open.set(200, 8);
-    popup.tabs.open.set(201, 6);
-    viewersShowing(popup, [
-      { tabId: 201, windowId: 6, sentAt: 2 },
-      { tabId: 200, windowId: 8, sentAt: 1 },
-    ]);
-    await openViewer(popup);
-    assert.deepEqual(finds(popup), [{ type: "find", queryId, key }]);
-    assert.deepEqual(popup.tabs.calls, [
-      { op: "get", tabId: 100 },
-      { op: "get", tabId: 200 },
-      { op: "activate", tabId: 200 },
-    ]);
-    assert.deepEqual(popup.focus.focused, [8]);
-    assert.equal(popup.worker.sent.length, 1);
-    assert.equal(popup.host.count("start"), 0);
-  });
-
-  it("opens a new viewer of the key in front when no viewer answers, and uses it on the next press", async () => {
-    const launch = collectedLaunch();
-    // The worker could not open a tab, so its reply names none.
-    const popup = await acceptedPopup(undefined, launch);
-    await openViewer(popup);
-    assert.equal(finds(popup).length, 1);
-    const created = popup.tabs.calls.find((call) => call.op === "create");
-    assert.ok(created?.op === "create");
-    assert.equal(created.tab.active, true);
-    const prefix = fakeIdentity.getURL("viewer.html");
-    assert.ok(created.tab.url.startsWith(`${prefix}?`));
-    const parsed = parseViewerUrl(
-      created.tab.url.slice(prefix.length),
-      "",
-      sentAt,
-    );
-    assert.ok(parsed.ok);
-    assert.deepEqual(parsed.params, {
-      heading: "A video",
-      url: watchUrl,
-      sentAt,
-      key,
-    });
-    // fakeTabs opens a tab without a window in window 1.
-    assert.deepEqual(popup.focus.focused, [1]);
-    assert.equal(popup.worker.sent.length, 1);
-
-    await openViewer(popup);
-    assert.deepEqual(popup.tabs.calls.slice(-2), [
-      { op: "get", tabId: 100 },
-      { op: "activate", tabId: 100 },
-    ]);
-    assert.equal(finds(popup).length, 1);
+    viewersShowing(popup, jobId, [{ tabId: 30, windowId: 5 }]);
+    await openViewerPress(popup);
+    assert.equal(createdViewer(popup).ok, true);
   });
 
   it("opens one viewer however often the button is pressed while it opens", async () => {
@@ -1347,391 +1321,229 @@ describe("open viewer", () => {
     await press(popup);
     popup.clock.advance(1_000);
     await settle();
-    assert.equal(finds(popup).length, 1);
     assert.equal(
       popup.tabs.calls.filter((call) => call.op === "create").length,
       1,
     );
   });
+
+  it("keeps the button usable when the new viewer tab cannot be opened", async () => {
+    const popup = await acceptedPopup();
+    popup.tabs.fail("create");
+    await openViewerPress(popup);
+    popup.tabs.calls.length = 0;
+    await openViewerPress(popup);
+    assert.equal(
+      popup.tabs.calls.filter((call) => call.op === "create").length,
+      1,
+    );
+  });
+
+  it("brings nothing forward once a retry replaced the send it opens", async () => {
+    const popup = await acceptedPopup();
+    await store(popup, runningRecord());
+    await press(popup);
+    // The record fails while the query runs; the retry starts a new send.
+    await store(popup, failedRecord("llm_failed"));
+    await press(popup);
+    popup.clock.advance(1_000);
+    await settle();
+    assert.deepEqual(popup.tabs.calls, []);
+    assert.deepEqual(popup.focus.focused, []);
+  });
 });
 
 describe("retry", () => {
-  const ends: { name: string; job: Json }[] = [
-    { name: "failed", job: failedJob },
-    { name: "lost", job: { state: "unknown" } },
-  ];
-  for (const { name, job } of ends) {
-    it(`sends the same input once more from a new send time for a ${name} job`, async () => {
-      const launch = collectedLaunch();
-      const popup = await acceptedPopup(100, launch);
-      await popup.host.answer(statusReply(job));
+  for (const [name, record] of [
+    ["failed", () => failedRecord("llm_failed")],
+    ["stopped", () => stoppedRecord()],
+    ["key-rejected", () => failedRecord("api_key_rejected")],
+  ] as const) {
+    it(`sends the same input once more in the same mode for a ${name} job, and follows the new reply`, async () => {
+      const popup = await acceptedPopup();
+      await store(popup, record());
+      await press(popup);
+      const [first, second] = startRequests(popup);
+      assert.ok(first !== undefined && second !== undefined);
+      assert.deepEqual(second, first);
+      assert.equal(popup.elements.primary.disabled, true);
+      await popup.sw.answer(accepted);
+      await store(popup, runningRecord());
       assert.equal(
         popup.elements.primary.textContent,
-        catalogs.en.popup.primary.retry,
+        catalogs.en.popup.primary.openViewer,
       );
-      assert.equal(popup.elements.primary.disabled, false);
-      popup.clock.advance(5_000);
-      await press(popup);
-      await press(popup);
-      const [first, second, ...rest] = startRequests(popup);
-      assert.ok(first !== undefined && second !== undefined);
-      assert.deepEqual(rest, []);
-      assert.deepEqual(second.input, first.input);
-      // An inquiry's retry is an inquiry again.
-      assert.equal(second.mode, "inquiry");
-      assert.deepEqual(second.viewer, {
-        ...first.viewer,
-        sentAt: sentAt + 5_000,
-      });
-      assert.equal(
-        checksText(popup),
-        drawnChecks(collected(launch), { kind: "sending" }),
-      );
-      await popup.worker.answer(startReply(accepted, 101));
-      assert.equal(popup.host.count("status"), 2);
-      assert.equal(popup.host.count("start"), 0);
     });
   }
+
+  it("offers the setup operation and a retry for a job that needed a setting", async () => {
+    const popup = await acceptedPopup();
+    await store(popup, failedRecord("settings_invalid"));
+    assert.equal(popup.elements.setup.hidden, false);
+    assert.equal(
+      popup.elements.primary.textContent,
+      catalogs.en.popup.primary.retry,
+    );
+    await press(popup, popup.elements.setup);
+    assert.equal(popup.options.opened, 1);
+  });
+
+  it("stops following the replaced job's record once the retry is sent", async () => {
+    const popup = await acceptedPopup();
+    await store(popup, failedRecord("llm_failed"));
+    await press(popup);
+    const sending = checksText(popup);
+    await store(popup, doneRecord());
+    assert.equal(checksText(popup), sending);
+  });
 });
 
-/** The existing article's key: never the key an accepted send gets. */
-const existingKey = "key-existing" as ArticleKey;
-const sameVideo: StartOutcome = {
-  kind: "same-video",
-  key: existingKey,
-  requestId,
-};
-
-/** A popup pressed once whose inquiry got a same-video answer with the viewer in tab viewerTabId. */
-async function choicePopup(
-  viewerTabId?: number,
-  launch = collectedLaunch(),
-  locale: Locale = "en",
-): Promise<Popup> {
-  const popup = shown(launch, locale);
-  await press(popup);
-  await popup.worker.answer(startReply(sameVideo, viewerTabId));
-  return popup;
-}
-
-/** The sentences the popup's status region holds. */
-function statusSentences(popup: Popup): (string | null)[] {
-  return Array.from(
-    popup.elements.status.children,
-    (child) => child.textContent,
-  );
-}
-
 describe("popup choice", () => {
+  /** The other job's record in state. */
+  function other(record: JobRecord): JobRecord {
+    return { ...record, jobId: otherJob };
+  }
+
+  /**
+   * A popup pressed once whose start was answered with the same video's job,
+   * whose record is running, as a same-video answer's record is.
+   */
+  async function choicePopup(locale: Locale = "en"): Promise<Popup> {
+    const popup = shown(collectedLaunch(), locale);
+    await press(popup);
+    popup.session.items.set(jobItemName(otherJob), other(runningRecord()));
+    await popup.sw.answer(sameVideo);
+    return popup;
+  }
+
   for (const locale of localeList) {
-    it(`shows the choice in place of the checks in ${locale}, keeping the video section and the details, and follows the existing article`, async () => {
-      const launch = await runPopupLaunch(
-        popupHarness({
-          metadataReader: metadataReader(
-            metadataJson({ title: "A video title", channelName: "A channel" }),
-          ).reader,
-        }).deps,
-      );
+    it(`shows the choice in place of the checks in ${locale} and follows the existing article`, async () => {
+      const launch = collectedLaunch();
       const popup = shown(launch, locale);
-      const sections = [popup.elements.video, popup.elements.details];
-      const before = sections.map((section) => section.cloneNode(true));
-      const doc = popup.elements.primary.ownerDocument;
       await press(popup);
-      await popup.worker.answer(startReply(sameVideo, 100));
-      const catalog = catalogs[locale];
-      const steps: [ExistingState, Json | undefined][] = [
-        ["loading", undefined],
-        ["running", runningJob],
-        ["done", doneJob],
-      ];
-      for (const [existing, job] of steps) {
-        if (job !== undefined) {
-          popup.clock.advance(pollIntervalMs);
-          await settle();
-          await popup.host.answer(statusReply(job));
-        }
-        assert.equal(
-          checksText(popup),
-          drawnChecks(
-            collected(launch),
-            { kind: "choice", existing, notice: { kind: "none" } },
-            locale,
-          ),
-          existing,
-        );
-        assert.ok(checksText(popup).includes(catalog.popup.choice.text));
-        assert.ok(
-          checksText(popup).includes(catalog.popup.existingStates[existing]),
-        );
-        // The summary tells the choice and the article's state without
-        // moving the focus.
-        assert.deepEqual(
-          statusSentences(popup),
-          [catalog.popup.choice.text, catalog.popup.existingStates[existing]],
-          existing,
-        );
-        assert.equal(doc.activeElement, doc.body, existing);
-        assert.equal(
-          popup.elements.primary.textContent,
-          catalog.popup.primary.openExisting,
-        );
-        assert.equal(popup.elements.primary.disabled, false);
-        assert.equal(popup.elements.secondary.hidden, false);
-        assert.equal(
-          popup.elements.secondary.textContent,
-          catalog.popup.secondary,
-        );
-        sections.forEach((section, index) => {
-          assert.ok(section.isEqualNode(before[index] ?? null), section.id);
-        });
-      }
+      popup.session.items.set(jobItemName(otherJob), other(runningRecord()));
+      await popup.sw.answer(sameVideo);
+      assert.equal(
+        checksText(popup),
+        drawnChecks(
+          collected(launch),
+          { kind: "choice", existing: "running" },
+          locale,
+        ),
+      );
+      await store(popup, other(doneRecord()));
+      assert.equal(
+        checksText(popup),
+        drawnChecks(
+          collected(launch),
+          { kind: "choice", existing: "done" },
+          locale,
+        ),
+      );
+      assert.equal(popup.elements.secondary.hidden, false);
     });
   }
 
-  it("keeps polling the existing article and sends no other start while no button is pressed", async () => {
-    const popup = await choicePopup(100);
-    for (let i = 0; i < 3; i += 1) {
-      await popup.host.answer(statusReply(runningJob));
-      popup.clock.advance(pollIntervalMs);
-      await settle();
-    }
-    // The positive mark: the existing article's key is still polled.
-    assert.equal(popup.host.count("status"), 4);
-    assert.deepEqual(popup.host.sent.at(-1), {
-      v: 1,
-      op: "status",
-      key: existingKey,
-    });
-    assert.equal(popup.worker.sent.length, 1);
-    assert.equal(popup.host.count("start"), 0);
-  });
-
-  it("brings the tab that shows the send forward for open-existing, sends nothing and keeps the choice", async () => {
-    const popup = await choicePopup(100);
-    await popup.host.answer(statusReply(doneJob));
-    popup.tabs.open.set(100, 9);
-    await openViewer(popup);
-    assert.deepEqual(popup.tabs.calls, [
-      { op: "get", tabId: 100 },
-      { op: "activate", tabId: 100 },
-    ]);
-    assert.deepEqual(popup.focus.focused, [9]);
-    assert.deepEqual(finds(popup), []);
-    assert.equal(popup.worker.sent.length, 1);
-    assert.equal(popup.host.count("start"), 0);
-    assert.equal(
-      popup.elements.primary.textContent,
-      catalogs.en.popup.primary.openExisting,
-    );
-    assert.equal(popup.elements.secondary.hidden, false);
-  });
-
-  it("opens a new existing-article viewer stamped with the press time when no viewer answers", async () => {
+  it("brings the viewer of the existing article forward for open-existing, and sends nothing", async () => {
     const popup = await choicePopup();
-    await popup.host.answer(statusReply(runningJob));
-    // Pressed later than the send, so the press time differs from it.
-    popup.clock.advance(7_000);
-    const pressedAt = popup.clock.now();
-    await openViewer(popup);
-    assert.equal(finds(popup).length, 1);
-    const created = popup.tabs.calls.find((call) => call.op === "create");
-    assert.ok(created?.op === "create");
-    assert.equal(created.tab.active, true);
-    const prefix = fakeIdentity.getURL("viewer.html");
-    assert.ok(created.tab.url.startsWith(`${prefix}?`));
-    const parsed = parseViewerUrl(
-      created.tab.url.slice(prefix.length),
-      "",
-      pressedAt,
+    popup.tabs.open.set(40, 2);
+    viewersShowing(popup, otherJob, [{ tabId: 40, windowId: 2 }]);
+    await openViewerPress(popup);
+    assert.deepEqual(
+      popup.tabs.calls.filter((call) => call.op !== "get"),
+      [{ op: "activate", tabId: 40 }],
     );
-    assert.ok(parsed.ok);
-    assert.deepEqual(parsed.params, {
-      heading: "A video",
-      url: watchUrl,
-      sentAt: pressedAt,
-      key: existingKey,
-      existing: true,
+    assert.equal(startRequests(popup).length, 1);
+  });
+
+  it("opens a new viewer marked as an existing article when no viewer answers", async () => {
+    const popup = await choicePopup();
+    await openViewerPress(popup);
+    assert.deepEqual(createdViewer(popup), {
+      ok: true,
+      params: {
+        target: { kind: "job", jobId: otherJob, existing: true },
+        videoUrl: watchUrl,
+        title: watchUrl,
+      },
     });
-    assert.deepEqual(popup.focus.focused, [1]);
-    assert.equal(popup.worker.sent.length, 1);
-    assert.equal(popup.host.count("start"), 0);
-    assert.equal(
-      popup.elements.primary.textContent,
-      catalogs.en.popup.primary.openExisting,
-    );
-    assert.equal(popup.elements.secondary.hidden, false);
   });
 
   it("sends one plain start of the same input from the secondary button and shows the job states", async () => {
-    const launch = collectedLaunch();
-    const popup = await choicePopup(100, launch);
-    // A running existing article keeps its poll going until the press stops it.
-    await popup.host.answer(statusReply(runningJob));
-    popup.tabs.open.set(100, 9);
-    popup.clock.advance(5_000);
-    await settle();
-    const existingPolls = (): number =>
-      popup.host.sent.filter(
-        (message) => (message as { key?: unknown }).key === existingKey,
-      ).length;
-    // Precondition: the existing article was polled again before the press.
-    assert.equal(existingPolls(), 2);
-    await press(popup, popup.elements.secondary);
-    await press(popup, popup.elements.secondary);
-    const [first, second, ...rest] = startRequests(popup);
-    assert.ok(first !== undefined && second !== undefined);
-    assert.deepEqual(rest, []);
-    assert.equal(first.mode, "inquiry");
-    assert.equal(second.mode, "plain");
-    assert.deepEqual(second.input, first.input);
-    assert.deepEqual(second.viewer, {
-      ...first.viewer,
-      sentAt: sentAt + 5_000,
-    });
-    assert.equal(
-      checksText(popup),
-      drawnChecks(collected(launch), { kind: "sending" }),
-    );
-    assert.equal(popup.elements.secondary.hidden, true);
-    await popup.worker.answer(startReply(accepted, 101));
-    assert.equal(
-      checksText(popup),
-      drawnChecks(collected(launch), {
-        kind: "loading",
-        notice: { kind: "none" },
-      }),
-    );
-    // The plain send's key is polled, and the existing article's no longer:
-    // the host answers in order, the existing article's open poll first.
-    assert.deepEqual(popup.host.sent.at(-1), { v: 1, op: "status", key });
-    await popup.host.answer(statusReply(runningJob));
-    await popup.host.answer(statusReply(runningJob));
-    popup.clock.advance(3 * pollIntervalMs);
-    await settle();
-    assert.equal(existingPolls(), 2);
-    // The existing article's tab is left alone.
-    assert.deepEqual(popup.tabs.calls, []);
-    assert.equal(popup.host.count("start"), 0);
-  });
-
-  it("lets the plain send's open-viewer act while the existing article's open-viewer it replaced still waits", async () => {
     const popup = await choicePopup();
-    await popup.host.answer(statusReply(runningJob));
-    // Open-existing looks for the existing article's viewers for 1 s ...
-    await press(popup);
-    assert.equal(finds(popup).length, 1);
-    // ... while the plain send replaces it and is accepted.
     await press(popup, popup.elements.secondary);
-    await popup.worker.answer(startReply(accepted));
-    await press(popup);
-    assert.equal(finds(popup).length, 2);
-    popup.clock.advance(1_000);
-    await settle();
-    // Only the plain send's viewer opens: the replaced open gave up.
-    const created = popup.tabs.calls.filter((call) => call.op === "create");
-    assert.equal(created.length, 1);
-    const prefix = fakeIdentity.getURL("viewer.html");
-    const [only] = created;
-    assert.ok(only?.op === "create");
-    const parsed = parseViewerUrl(
-      only.tab.url.slice(prefix.length),
-      "",
-      sentAt,
+    const [inquiry, plain] = startRequests(popup);
+    assert.ok(inquiry !== undefined && plain !== undefined);
+    assert.deepEqual(plain, { ...inquiry, mode: "plain" });
+    popup.session.items.set(jobItemName(jobId), runningRecord());
+    await popup.sw.answer(accepted);
+    assert.equal(popup.elements.secondary.hidden, true);
+    assert.equal(
+      popup.elements.primary.textContent,
+      catalogs.en.popup.primary.openViewer,
     );
-    assert.ok(parsed.ok);
-    assert.equal("key" in parsed.params ? parsed.params.key : undefined, key);
   });
 
-  const ends: { name: string; job: Json }[] = [
-    { name: "failed", job: failedJob },
-    { name: "lost", job: { state: "unknown" } },
-  ];
-  for (const { name, job } of ends) {
-    it(`ends the choice when the existing article is ${name}, stops polling, and sends one inquiry on the next press`, async () => {
-      const launch = collectedLaunch();
-      const popup = await choicePopup(100, launch);
-      await popup.host.answer(statusReply(job));
-      assert.equal(
-        checksText(popup),
-        drawnChecks(collected(launch), { kind: "choice-ended" }),
-      );
-      assert.deepEqual(statusSentences(popup), [
-        catalogs.en.popup.choiceEnded.text,
-      ]);
+  for (const [name, change] of [
+    [
+      "failed",
+      (popup: Popup) => store(popup, other(failedRecord("llm_failed"))),
+    ],
+    ["stopped", (popup: Popup) => store(popup, other(stoppedRecord()))],
+    [
+      "removed",
+      async (popup: Popup) => {
+        popup.session.items.set(jobItemName(otherJob), other(runningRecord()));
+        await popup.session.remove([jobItemName(otherJob)]);
+        await settle();
+      },
+    ],
+  ] as const) {
+    it(`ends the choice when the existing article is ${name}, and sends one inquiry on the next press`, async () => {
+      const popup = await choicePopup();
+      await change(popup);
       assert.equal(
         popup.elements.primary.textContent,
         catalogs.en.popup.primary.generate,
       );
-      assert.equal(popup.elements.primary.disabled, false);
       assert.equal(popup.elements.secondary.hidden, true);
-      popup.clock.advance(3 * pollIntervalMs);
-      await settle();
-      assert.equal(popup.host.count("status"), 1);
+      await store(popup, other(doneRecord()));
+      // Ended: the existing article's later record changes nothing.
+      assert.equal(popup.elements.secondary.hidden, true);
       await press(popup);
-      await press(popup);
-      const requests = startRequests(popup);
-      assert.equal(requests.length, 2);
-      assert.equal(requests[1]?.mode, "inquiry");
-      assert.deepEqual(requests[1]?.input, requests[0]?.input);
+      assert.deepEqual(
+        startRequests(popup).map((request) => request.mode),
+        ["inquiry", "inquiry"],
+      );
     });
   }
 
-  it("keeps the choice and both buttons beside a notice and polls again after an exchange that may succeed later", async () => {
-    const launch = collectedLaunch();
-    const popup = await choicePopup(100, launch);
-    await popup.host.answer(statusReply(runningJob));
-    popup.clock.advance(pollIntervalMs);
-    await settle();
-    await popup.host.answer({ kind: "failed", lastError: "host gone" });
-    const notice: PollNotice = {
-      kind: "retrying",
-      outcome: { kind: "host-failed" },
-    };
-    assert.equal(
-      checksText(popup),
-      drawnChecks(collected(launch), {
-        kind: "choice",
-        existing: "running",
-        notice,
-      }),
+  it("retries a plain send in plain mode", async () => {
+    const popup = await choicePopup();
+    await press(popup, popup.elements.secondary);
+    await popup.sw.answer(accepted);
+    await store(popup, failedRecord("llm_failed"));
+    await press(popup);
+    assert.deepEqual(
+      startRequests(popup).map((request) => request.mode),
+      ["inquiry", "plain", "plain"],
     );
-    assert.deepEqual(statusSentences(popup), [
-      catalogs.en.popup.choice.text,
-      catalogs.en.popup.existingStates.running,
-      statusNoticeMessage(notice.outcome, "en").text,
-    ]);
-    assert.equal(popup.elements.primary.disabled, false);
-    assert.equal(popup.elements.secondary.hidden, false);
-    popup.clock.advance(pollIntervalMs);
-    await settle();
-    assert.equal(popup.host.count("status"), 3);
-  });
-
-  it("keeps the choice and both buttons beside a notice and stops polling after an exchange that cannot succeed", async () => {
-    const launch = collectedLaunch();
-    const popup = await choicePopup(100, launch);
-    await popup.host.answer(responseReply(200, "{"));
-    const notice: PollNotice = {
-      kind: "stopped",
-      outcome: { kind: "unexpected", check: "syntax" },
-    };
-    assert.equal(
-      checksText(popup),
-      drawnChecks(collected(launch), {
-        kind: "choice",
-        existing: "loading",
-        notice,
-      }),
-    );
-    assert.equal(popup.elements.primary.disabled, false);
-    assert.equal(popup.elements.secondary.hidden, false);
-    popup.clock.advance(3 * pollIntervalMs);
-    await settle();
-    assert.equal(popup.host.count("status"), 1);
   });
 });
 
 describe("popup choice focus", () => {
+  /** A popup showing the choice of a running existing article. */
+  async function choiceShown(): Promise<Popup> {
+    const popup = shown(collectedLaunch());
+    await press(popup);
+    popup.session.items.set(jobItemName(otherJob), {
+      ...runningRecord(),
+      jobId: otherJob,
+    });
+    await popup.sw.answer(sameVideo);
+    return popup;
+  }
+
   it("gives the focus back to the primary button once the choice makes it pressable", async () => {
     const popup = shown(collectedLaunch());
     const doc = popup.elements.primary.ownerDocument;
@@ -1739,144 +1551,49 @@ describe("popup choice focus", () => {
     await pressWith(popup, "keyboard");
     assert.equal(popup.elements.primary.disabled, true);
     dropFocus(doc);
-    await popup.worker.answer(startReply(sameVideo, 100));
+    popup.session.items.set(jobItemName(otherJob), {
+      ...runningRecord(),
+      jobId: otherJob,
+    });
+    await popup.sw.answer(sameVideo);
+    assert.equal(popup.elements.primary.disabled, false);
     assert.equal(doc.activeElement, popup.elements.primary);
   });
 
   it("moves the focus from the secondary button to the primary button when the choice ends", async () => {
-    const popup = await choicePopup(100);
+    const popup = await choiceShown();
     const doc = popup.elements.primary.ownerDocument;
     popup.elements.secondary.focus();
-    assert.equal(doc.activeElement, popup.elements.secondary);
-    await popup.host.answer(statusReply(failedJob));
+    await store(popup, { ...failedRecord("llm_failed"), jobId: otherJob });
     assert.equal(popup.elements.secondary.hidden, true);
     assert.equal(doc.activeElement, popup.elements.primary);
   });
 
   it("leaves the focus on the secondary button while the choice stays", async () => {
-    const popup = await choicePopup(100);
+    const popup = await choiceShown();
     const doc = popup.elements.primary.ownerDocument;
     popup.elements.secondary.focus();
-    await popup.host.answer(statusReply(doneJob));
+    await store(popup, { ...doneRecord(), jobId: otherJob });
+    assert.equal(popup.elements.secondary.hidden, false);
     assert.equal(doc.activeElement, popup.elements.secondary);
   });
 
   it("gives the focus to the primary button after a keyboard press of the secondary button", async () => {
-    const popup = await choicePopup(100);
+    const popup = await choiceShown();
     const doc = popup.elements.primary.ownerDocument;
-    await popup.host.answer(statusReply(runningJob));
     popup.elements.secondary.focus();
     await pressWith(popup, "keyboard", popup.elements.secondary);
-    assert.equal(popup.elements.secondary.hidden, true);
     dropFocus(doc);
-    await popup.worker.answer(startReply(accepted, 101));
+    await popup.sw.answer(accepted);
     assert.equal(doc.activeElement, popup.elements.primary);
   });
 });
 
-describe("retry modes", () => {
-  it("retries a plain send in plain mode, again after its own retry fails", async () => {
-    const popup = await choicePopup(100);
-    // The host answers in order: first the existing article's poll, so the
-    // next status answered is the plain send's.
-    await popup.host.answer(statusReply(runningJob));
-    await press(popup, popup.elements.secondary);
-    await popup.worker.answer(startReply(accepted, 101));
-    await popup.host.answer(statusReply(failedJob));
-    await press(popup);
-    await popup.worker.answer(startReply(accepted, 102));
-    await popup.host.answer(statusReply({ state: "unknown" }));
-    await press(popup);
-    assert.deepEqual(
-      startRequests(popup).map((request) => request.mode),
-      ["inquiry", "plain", "plain", "plain"],
-    );
-  });
-});
-
-describe("popup status log", () => {
-  /** A popup whose one status exchange got reply; its log and page. */
-  async function statusOnce(reply: NativeReply): Promise<Popup> {
-    const popup = await acceptedPopup(100);
-    await popup.host.answer(reply);
-    return popup;
-  }
-
-  /** The data of the one status log entry, at info or at error. */
-  function statusLog(popup: Popup): Record<string, unknown> {
-    const entries = [...popup.logger.infos, ...popup.logger.errors].filter(
-      (entry) => entry.label === statusLabel,
-    );
-    assert.equal(entries.length, 1);
-    return entries[0]?.data as Record<string, unknown>;
-  }
-
-  it("logs a status result with its decision and where it came from, at info", async () => {
-    const popup = await statusOnce(statusReply(doneJob));
-    assert.deepEqual(
-      popup.logger.infos.filter((entry) => entry.label === statusLabel),
-      [
-        {
-          label: statusLabel,
-          data: {
-            result: {
-              kind: "ok",
-              requestId,
-              job: {
-                state: "done",
-                steps: doneSteps,
-                costKnown: true,
-              },
-            },
-            decision: "stop",
-            earlierEpoch: false,
-            visible: false,
-          },
-        },
-      ],
-    );
-  });
-
-  it("logs the browser's error text of a failed status exchange at error but does not display it", async () => {
-    const lastError = "LASTERROR-TEXT-4c1d";
-    const popup = await statusOnce({ kind: "failed", lastError });
-    assert.deepEqual(statusLog(popup)["result"], {
-      kind: "host-failed",
-      lastError,
-    });
-    assert.ok(popup.logger.errors.some((entry) => entry.label === statusLabel));
-    assert.equal(
-      popup.elements.checks.ownerDocument.body.textContent?.includes(lastError),
-      false,
-    );
-  });
-
-  it("logs an unexpected status reply's code but does not display it", async () => {
-    // The server's answer to a wrong path: a reason the extension does not show.
-    const popup = await statusOnce(
-      responseReply(
-        404,
-        JSON.stringify({ status: "rejected", reason: "not_found", requestId }),
-      ),
-    );
-    assert.deepEqual(statusLog(popup)["result"], {
-      kind: "unexpected",
-      // not_found is no reason of a status query, so its value fails.
-      check: "value-shape",
-      status: 404,
-    });
-    assert.ok(popup.logger.errors.some((entry) => entry.label === statusLabel));
-    assert.equal(
-      popup.elements.checks.ownerDocument.body.textContent?.includes("404"),
-      false,
-    );
-  });
-
-  it("logs none of the selection, the tab title, the key, the article or the video's values", async () => {
+describe("popup send log", () => {
+  it("logs none of the selection, the tab title, the job ID, the article or the video's values", async () => {
     const markers = {
       selection: "SELECTION-MARKER-27bc",
       tabTitle: "TAB-TITLE-MARKER-5f20",
-      key: "KEY-MARKER-61f0",
       markdown: "ARTICLE-MARKER-0b7e",
       title: "TITLE-MARKER-3c55",
       channelName: "CHANNEL-MARKER-9e12",
@@ -1897,28 +1614,22 @@ describe("popup status log", () => {
     const launch = await runPopupLaunch(harness.deps);
     const popup = shown(launch, "en", harness.recorder);
     await press(popup);
-    await popup.worker.answer(
-      startReply(
-        { kind: "accepted", key: markers.key as ArticleKey, requestId },
-        100,
-      ),
+    popup.session.fail("read");
+    await popup.sw.answer(accepted);
+    const done = doneRecord() as Extract<JobRecord, { state: "done" }>;
+    await store(popup, {
+      ...done,
+      article: { ...done.article, markdown: markers.markdown },
+    });
+    // Precondition: the read failure was logged.
+    assert.ok(
+      harness.recorder.errors.some((entry) => entry.label === recordLabel),
     );
-    await popup.host.answer(
-      statusReply({
-        ...doneJob,
-        article: { ...article, markdown: markers.markdown },
-      }),
-    );
-    // Precondition: the start and the status went through, and were logged.
-    assert.deepEqual(popup.host.sent, [
-      { v: 1, op: "status", key: markers.key },
-    ]);
-    assert.equal(statusLog(popup)["decision"], "stop");
     const serialized = JSON.stringify([
       harness.recorder.infos,
       harness.recorder.errors,
     ]);
-    for (const value of [...Object.values(markers), watchUrl]) {
+    for (const value of [...Object.values(markers), watchUrl, jobId]) {
       assert.equal(serialized.includes(value), false, value);
     }
   });
@@ -1937,8 +1648,8 @@ describe("logs by locale", () => {
     );
     const popup = shown(launch, locale, recorder);
     await press(popup);
-    await popup.worker.answer(startReply(accepted, 100));
-    await popup.host.answer(statusReply(runningJob));
+    popup.session.fail("read");
+    await popup.sw.answer(accepted);
     return recorder;
   }
 
@@ -1947,11 +1658,16 @@ describe("logs by locale", () => {
     // Precondition: the launch, metadata and send logs were all written.
     assert.deepEqual(
       english.infos.map((entry) => entry.label),
-      ["yt2column popup launch", metadataLabel, statusLabel],
+      [launchLabel, metadataLabel],
+    );
+    assert.deepEqual(
+      english.errors.map((entry) => entry.label),
+      [recordLabel],
     );
     for (const locale of otherLocales("en")) {
       const other = await logsIn(locale);
       assert.deepEqual(other.infos, english.infos, locale);
+      assert.deepEqual(other.errors, english.errors, locale);
     }
   });
 });
@@ -1969,8 +1685,8 @@ describe("video metadata log", () => {
     const send = recordingLogger();
     const sent = shown(launch, "en", send);
     await press(sent);
-    await sent.worker.answer(startReply(accepted, 100));
-    await sent.host.answer(statusReply(doneJob));
+    sent.session.fail("read");
+    await sent.sw.answer(accepted);
     // The same metadata with a selection over the body limit blocks the send.
     const blocked = popupHarness({
       metadataReader: reader,
@@ -1978,7 +1694,7 @@ describe("video metadata log", () => {
     });
     await runPopupLaunch(blocked.deps);
     // Precondition: both the send and the blocked logs were written.
-    assert.ok(send.infos.some((entry) => entry.label === statusLabel));
+    assert.ok(send.errors.some((entry) => entry.label === recordLabel));
     assert.ok(
       blocked.recorder.infos.some((entry) => entry.label === blockedLabel),
     );
@@ -2089,11 +1805,16 @@ describe("startPopup", () => {
     log: Logger,
     overrides: {
       launch?: Partial<PopupLaunchDeps>;
+      buildKind?: PopupStartDeps["buildKind"];
+      openOptions?: PopupStartDeps["send"]["openOptions"];
     } = {},
   ): PopupStartDeps {
+    const session = fakeSession();
     return {
       uiLanguage: () => readUiLanguage(i18n),
+      buildKind: overrides.buildKind ?? "release",
       launch: {
+        protectSettings: async () => ({ ok: true, value: undefined }),
         reader: readerReturning(page("selection")),
         metadataReader: metadataReader(metadataJson({})).reader,
         activeTab: async () => fakeTab(),
@@ -2101,16 +1822,18 @@ describe("startPopup", () => {
         ...overrides.launch,
       },
       send: {
-        sendToWorker: pendingWorker().send,
-        send: {
-          sendNative: pendingHost().sendNative,
-          schedule: fakeClock().schedule,
-        },
-        tabs: fakeTabs(),
-        focusWindow: fakeFocus().focus,
+        sendToSw: pendingSw().send,
+        readSession: session.read,
+        onSessionChanged: session.onChanged,
         openChannel: fakeChannels().open,
         queryId: () => queryId,
+        schedule: fakeClock().schedule,
+        tabs: fakeTabs(),
+        focusWindow: fakeFocus().focus,
         identity: fakeIdentity,
+        openOptions:
+          overrides.openOptions ??
+          (async () => ({ ok: true, value: undefined })),
         now: () => sentAt,
         log,
       },
@@ -2273,6 +1996,14 @@ describe("startPopup", () => {
       break: (doc: Document) => replaceWithDiv(doc, "secondary"),
     },
     {
+      name: "#setup is not a button",
+      break: (doc: Document) => replaceWithDiv(doc, "setup"),
+    },
+    {
+      name: "#options is not a button",
+      break: (doc: Document) => replaceWithDiv(doc, "options"),
+    },
+    {
       name: "#details is not a details element",
       break: (doc: Document) => replaceWithDiv(doc, "details"),
     },
@@ -2320,4 +2051,55 @@ describe("startPopup", () => {
       );
     });
   }
+
+  it("shows the options operation, which opens the options page, and no build mark in a release build", async () => {
+    const recorder = recordingLogger();
+    const doc = popupDocument();
+    let opened = 0;
+    await startPopup(
+      doc,
+      startDeps({ getUILanguage: () => "en-US" }, recorder.log, {
+        openOptions: async () => {
+          opened += 1;
+          return { ok: true, value: undefined };
+        },
+      }),
+    );
+    const elements = popupElements(doc);
+    assert.equal(elements.options.hidden, false);
+    assert.equal(elements.options.textContent, catalogs.en.openOptions.link);
+    assert.equal(elements.buildMark.hidden, true);
+    elements.options.click();
+    await settle();
+    assert.equal(opened, 1);
+  });
+
+  it("shows the options operation even when the launch is refused", async () => {
+    const recorder = recordingLogger();
+    const doc = popupDocument();
+    await startPopup(
+      doc,
+      startDeps({ getUILanguage: () => "en-US" }, recorder.log, {
+        launch: {
+          activeTab: async () => fakeTab({ url: "https://example.com/" }),
+        },
+      }),
+    );
+    assert.equal(popupElements(doc).rejection.hidden, false);
+    assert.equal(popupElements(doc).options.hidden, false);
+  });
+
+  it("shows the build mark in a development build", async () => {
+    const recorder = recordingLogger();
+    const doc = popupDocument();
+    await startPopup(
+      doc,
+      startDeps({ getUILanguage: () => "ja-JP" }, recorder.log, {
+        buildKind: "dev",
+      }),
+    );
+    const mark = popupElements(doc).buildMark;
+    assert.equal(mark.hidden, false);
+    assert.equal(mark.textContent, catalogs.ja.buildMark);
+  });
 });

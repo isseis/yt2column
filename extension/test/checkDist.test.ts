@@ -29,6 +29,7 @@ function writeManifest(
   root: string,
   defaultPopup: string,
   serviceWorker?: string,
+  optionsPage?: string,
 ): void {
   const content = JSON.stringify({
     manifest_version: 3,
@@ -36,6 +37,9 @@ function writeManifest(
     ...(serviceWorker === undefined
       ? {}
       : { background: { service_worker: serviceWorker, type: "module" } }),
+    ...(optionsPage === undefined
+      ? {}
+      : { options_ui: { page: optionsPage, open_in_tab: true } }),
   });
   write(root, "static/manifest.json", content);
   write(root, "dist/manifest.json", content);
@@ -229,6 +233,20 @@ describe("checkDist", () => {
     writeManifest(root, "page.html", "background.js");
     assert.deepEqual(await checkDist(root, release()), [
       'manifest.json: background.service_worker "background.js" is not in dist/',
+    ]);
+  });
+
+  it("accepts a manifest options page that is in dist/", async () => {
+    write(root, "static/options.html");
+    write(root, "dist/options.html");
+    writeManifest(root, "page.html", undefined, "options.html");
+    assert.deepEqual(await checkDist(root, release()), []);
+  });
+
+  it("rejects a manifest options page that is not in dist/", async () => {
+    writeManifest(root, "page.html", undefined, "options.html");
+    assert.deepEqual(await checkDist(root, release()), [
+      'manifest.json: options_ui.page "options.html" is not in dist/',
     ]);
   });
 

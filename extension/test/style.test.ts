@@ -55,8 +55,11 @@ const popupSheets = ["theme.css", "style.css"];
 /** The stylesheets viewer.html loads, in its order. */
 const viewerSheets = ["theme.css", "viewer.css"];
 
+/** The stylesheets options.html loads, in its order. */
+const optionsSheets = ["theme.css", "options.css"];
+
 /** Every stylesheet under static/, each once. */
-const everySheet = ["theme.css", "style.css", "viewer.css"];
+const everySheet = ["theme.css", "style.css", "viewer.css", "options.css"];
 
 /**
  * The style rules of the given files under static/, in that order, parsed by
@@ -289,15 +292,19 @@ const contrastPairs = [
     foregroundRules: [
       ".check-row-warning .message-text",
       ".check-row-warning .message-steps",
+      ".options-result-warning",
     ],
     foregroundProperty: "color",
-    backgroundRules: [".check-row-warning"],
+    backgroundRules: [".check-row-warning", ".options-result-warning"],
   },
   {
     foreground: "--fail",
     background: "--bg",
     minimum: 4.5,
-    foregroundRules: [".failure .message-text"],
+    foregroundRules: [
+      ".failure .message-text",
+      ".options-result-failure .message-text",
+    ],
     foregroundProperty: "color",
     backgroundRules: ["body"],
   },
@@ -374,7 +381,7 @@ const contrastPairs = [
 
 describe("colour variables", () => {
   // Every stylesheet at once: the variables live in theme.css, and a pair's
-  // rules may be in any of the three files.
+  // rules may be in any of the four files.
   const { onScreen } = parseStyleSheet(everySheet);
   const light = onScreen.filter((entry) => !isDark(entry));
   const dark = onScreen.filter(isDark);
@@ -559,8 +566,8 @@ describe("layout", () => {
     assert.equal(effectiveValue(onScreen, "body", "font-size"), "1rem");
   });
 
-  it("fills the action section with each button and keeps it 44px tall", () => {
-    for (const selector of ["#primary", "#secondary"]) {
+  it("makes each full-width popup button fill its row and keeps it 44px tall", () => {
+    for (const selector of ["#primary", "#secondary", "#setup", "#options"]) {
       assert.equal(effectiveValue(onScreen, selector, "width"), "100%");
       assert.ok(
         atLeast44(effectiveValue(onScreen, selector, "min-height")),
@@ -724,6 +731,43 @@ describe("layout", () => {
     assert.equal(
       effectiveValue(onScreen, ":focus-visible", "outline-offset"),
       "2px",
+    );
+  });
+});
+
+describe("options layout", () => {
+  const { onScreen } = parseStyleSheet(optionsSheets);
+
+  it("makes every button and field at least 44 CSS pixels tall, and the buttons as wide", () => {
+    // Both buttons carry the action-button class.
+    assert.ok(
+      atLeast44(effectiveValue(onScreen, ".action-button", "min-height")),
+      ".action-button min-height",
+    );
+    assert.ok(
+      atLeast44(effectiveValue(onScreen, ".action-button", "min-width")),
+      ".action-button min-width",
+    );
+    assert.ok(
+      atLeast44(effectiveValue(onScreen, ".field input", "min-height")),
+      ".field input min-height",
+    );
+  });
+
+  it("masks the characters of the API key field", () => {
+    // The field is type="text" so the browser does not offer to save it as a
+    // password; this rule is what keeps the key off the screen. jsdom's CSS
+    // parser drops a vendor-prefixed property, so the declaration is read from
+    // the file's text: the one rule whose whole selector, at the start of a line, is #api-key.
+    const css = readFileSync(
+      path.join(extensionDir, "static", "options.css"),
+      "utf8",
+    );
+    const blocks = [...css.matchAll(/^#api-key\s*\{([^}]*)\}/gm)];
+    assert.equal(blocks.length, 1);
+    assert.match(
+      blocks[0]?.[1] ?? "",
+      /(?:^|;)\s*-webkit-text-security:\s*disc\s*;/,
     );
   });
 });

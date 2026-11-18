@@ -1,0 +1,110 @@
+/* The options page's layout; theme.css holds the colours and the shared
+   button, focus and message rules. */
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+}
+
+h1 {
+  margin: 0 0 1rem;
+  font-size: 1.5rem;
+}
+
+h2 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.field {
+  margin: 1rem 0;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+
+.field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--text);
+  background-color: var(--bg);
+  border: 1px solid var(--muted);
+  border-radius: 0.25rem;
+}
+
+/* The API key's characters are masked without type="password", so the
+   browser does not offer to save the key as a password. */
+#api-key {
+  -webkit-text-security: disc;
+}
+
+.field input:read-only {
+  color: var(--disabled-text);
+  background-color: var(--disabled-bg);
+}
+
+/* A field the check did not accept: a thicker border in the failure colour,
+   and aria-invalid for assistive technology, so the mark is not the colour
+   alone. */
+.field input[aria-invalid="true"] {
+  border: 3px solid var(--fail);
+}
+
+.field-hint {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+/* The delete button is outlined, lighter than the save button. */
+#delete {
+  color: var(--link);
+  background-color: transparent;
+  border: 1px solid var(--link);
+}
+
+#delete:disabled {
+  color: var(--disabled-text);
+  border-color: var(--disabled-text);
+}
+
+#build-info {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  color: var(--muted);
+}
+
+#build-info dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* An outcome's message: a failure's sentence takes the failure colour, and a
+   warning sits on the warning background in the warning text colour, like
+   the popup's warning row. The words tell the outcome; the colour repeats it. */
+.options-result-failure .message-text {
+  color: var(--fail);
+}
+
+.options-result-warning {
+  padding: 0.5rem;
+  color: var(--warn-text);
+  background-color: var(--warn-bg);
+  border-radius: 0.25rem;
+}

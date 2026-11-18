@@ -79,3 +79,14 @@ func WireValuesForTest(t *testing.T) HostWireValuesForTest {
 // limit (cmd/yt2column-server) and the extension's response limit
 // (cmd/yt2column).
 const MaxResponseBytesForTest = maxResponseBytes
+
+// ManifestPathForTest returns the manifest path of browser under home for
+// goos, as install and uninstall use it, for the guard that compares the
+// README's migration steps with it.
+func ManifestPathForTest(goos, home string, browser Browser) (string, error) {
+	location, err := locate(goos, home, browser)
+	if err != nil {
+		return "", err
+	}
+	return location.manifestPath(), nil
+}

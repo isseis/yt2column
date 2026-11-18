@@ -1,5 +1,5 @@
 import type { CollectedInput } from "./collect.ts";
-import type { JobDisplay, PollNotice, StartFailure } from "./jobView.ts";
+import type { JobDisplay, StartFailure } from "./jobView.ts";
 import type { MetadataResult } from "./metadata.ts";
 import type {
   PrepareOutcome,
@@ -116,31 +116,22 @@ export interface JobPopupView {
 }
 
 /**
- * What the popup shows after the primary button is pressed. loading is a key
- * accepted and waiting for the first status; a failed status exchange keeps
- * its notice beside the state, as in the viewer.
+ * What the popup shows after the primary button is pressed. loading is a job
+ * accepted whose record has not been read yet.
  */
 export type PopupJobState =
   | { readonly kind: "sending" }
   | { readonly kind: "start-failed"; readonly failure: StartFailure }
-  | { readonly kind: "loading"; readonly notice: PollNotice }
-  | {
-      readonly kind: "job";
-      readonly job: JobDisplay;
-      readonly notice: PollNotice;
-    }
+  | { readonly kind: "loading" }
+  | { readonly kind: "job"; readonly job: JobDisplay }
   // A same-video answer: the existing article's state and the two buttons.
-  | {
-      readonly kind: "choice";
-      readonly existing: ExistingState;
-      readonly notice: PollNotice;
-    }
-  // The existing article failed or was lost while the choice was shown.
+  | { readonly kind: "choice"; readonly existing: ExistingState }
+  // The existing article failed, stopped or was lost while the choice was shown.
   | { readonly kind: "choice-ended" };
 
 /**
- * The existing article's state as the choice shows it: before its first
- * status, generating, or done.
+ * The existing article's state as the choice shows it: before its record is
+ * read, generating, or done.
  */
 export type ExistingState = "loading" | "running" | "done";
 
@@ -151,7 +142,11 @@ export type PrimaryAction =
 /** What the secondary button does; none means the button is not shown. */
 export type SecondaryAction = "none" | "start-plain";
 
-/** The primary button's action for a job state. */
+/**
+ * The primary button's action for a job state. A refused or unknown start
+ * offers nothing: the popup is opened again for a new start. A job that
+ * ended without an article is tried again with the same input.
+ */
 export function primaryAction(state: PopupJobState): PrimaryAction {
   switch (state.kind) {
     case "sending":
@@ -167,8 +162,12 @@ export function primaryAction(state: PopupJobState): PrimaryAction {
       switch (state.job.kind) {
         case "running":
         case "done":
+        case "unstored":
           return "open-viewer";
+        case "setup":
+        case "key-rejected":
         case "failed":
+        case "stopped":
         case "lost":
           return "retry";
       }
@@ -275,7 +274,9 @@ function descriptionStatus(
 }
 
 /**
- * The viewer seed of a send at sentAt: the heading and channel name as the
+ * The server path's viewer seed of a send at sentAt; the extension-only path
+ * writes its viewer URL with jobViewerQuery instead, and this goes with the
+ * server path. The seed holds the heading and channel name as the
  * video section shows them, the sent video title cut to the viewer URL's
  * limit, and the sent URL. The heading, channel name and title are copies
  * made for display and the file name, so an unpaired surrogate in them

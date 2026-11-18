@@ -1,21 +1,27 @@
 import type {
+  BrowserCall,
   ExtensionIdentity,
   FocusWindow,
   OpenViewerChannel,
-  SendToWorker,
   TabPlace,
   ViewerTabs,
+  onSessionChanged,
+  readSessionItems,
 } from "./browser/chromeDeps.ts";
-import type { ArticleKey } from "./core/articleKey.ts";
+import type { BuildKind } from "./buildKind.d.ts";
 import { collect } from "./core/collect.ts";
 import type { SelectionReader } from "./core/collect.ts";
-import { chooseViewer, parseStartReply } from "./core/extensionMessages.ts";
+import { chooseViewer, parseStartReply } from "./core/jobMessages.ts";
 import type {
   SendMode,
   SourceTab,
   StartReply,
-  StartRequest,
-} from "./core/extensionMessages.ts";
+  SwRequest,
+} from "./core/jobMessages.ts";
+import { jobItemName, readJobRecord } from "./core/jobRecord.ts";
+import type { JobRecord } from "./core/jobRecord.ts";
+import { jobViewerQuery, startUrlTitle } from "./core/jobViewerUrl.ts";
+import { elapsedRedrawMs, recordDisplay } from "./core/jobView.ts";
 import {
   acceptMetadata,
   parsePageMetadata,
@@ -24,30 +30,24 @@ import {
 import type { MetadataResult } from "./core/metadata.ts";
 import { resolveLocale } from "./core/i18n/locale.ts";
 import type { Locale } from "./core/i18n/locale.ts";
-import { elapsedRedrawMs, startResultDeadlineMs } from "./core/poll.ts";
-import type { PollStep } from "./core/poll.ts";
 import {
   buildCollectedView,
   primaryAction,
   secondaryAction,
-  viewerSeed,
 } from "./core/popupView.ts";
 import type {
+  ExistingState,
   JobPopupView,
   PopupJobState,
   PopupView,
 } from "./core/popupView.ts";
 import { prepareSend } from "./core/prepare.ts";
+import type { StartInput } from "./core/prepare.ts";
 import type { LaunchContext, Logger } from "./core/types.ts";
-import { viewerQuery } from "./core/viewerUrl.ts";
-import type { ViewerSeed } from "./core/viewerUrl.ts";
-import { createStatusPoller } from "./poller.ts";
-import type { Poller } from "./poller.ts";
-import type { SendDeps } from "./send.ts";
+import { findJobViewers } from "./jobViewerQuery.ts";
 import { applyPageLocale } from "./ui/pageLocale.ts";
-import { renderPopup } from "./ui/render.ts";
+import { renderPopup, renderPopupFrame } from "./ui/render.ts";
 import type { PopupElements } from "./ui/render.ts";
-import { findViewers } from "./viewerQuery.ts";
 
 /** The only browser capability the metadata read needs. Faked in unit tests. */
 export interface MetadataReader {
@@ -56,6 +56,12 @@ export interface MetadataReader {
 }
 
 export interface PopupLaunchDeps {
+  /**
+   * Keeps chrome.storage.local from the functions injected into a page
+   * (setLocalAccessLevel in production). It runs before anything is
+   * injected, and its failure injects nothing.
+   */
+  readonly protectSettings: () => Promise<BrowserCall<undefined>>;
   readonly reader: SelectionReader;
   readonly metadataReader: MetadataReader;
   activeTab(): Promise<chrome.tabs.Tab | undefined>;
@@ -70,17 +76,21 @@ export interface PopupLaunch {
 }
 
 export interface PopupSendDeps {
-  /** Sends the start request to the service worker. */
-  readonly sendToWorker: SendToWorker;
-  /** The status exchanges, and the timer of every wait. */
-  readonly send: SendDeps;
-  readonly tabs: Pick<ViewerTabs, "create" | "activate" | "get">;
-  readonly focusWindow: FocusWindow;
+  /** Sends a request to the service worker; the reply is untrusted. */
+  readonly sendToSw: (request: SwRequest) => Promise<BrowserCall<unknown>>;
+  readonly readSession: typeof readSessionItems;
+  readonly onSessionChanged: typeof onSessionChanged;
   readonly openChannel: OpenViewerChannel;
   /** A new query ID for each query to the viewers. */
   readonly queryId: () => string;
+  /** Runs callback once after ms milliseconds; returns a function that cancels it. */
+  readonly schedule: (ms: number, callback: () => void) => () => void;
+  readonly tabs: Pick<ViewerTabs, "create" | "activate" | "get">;
+  readonly focusWindow: FocusWindow;
   /** chrome.runtime in production: the viewer page's URL. */
   readonly identity: Pick<ExtensionIdentity, "getURL">;
+  /** Opens the options page. */
+  readonly openOptions: () => Promise<BrowserCall<undefined>>;
   readonly now: () => number;
   readonly log: Logger;
   /** The display language; it selects displayed text only, never a log. */
@@ -95,14 +105,26 @@ export interface PopupStartDeps {
    * throw, so the entry point needs no failure path.
    */
   uiLanguage(): string | undefined;
+  /** The build's kind, from the module the build writes. */
+  readonly buildKind: BuildKind;
   readonly launch: PopupLaunchDeps;
   readonly send: Omit<PopupSendDeps, "locale">;
 }
+
+/**
+ * How long the popup waits for the start's result. The service worker
+ * answers unknown itself 60 seconds after it took the start; the popup waits
+ * a little longer, so that answer arrives first, and shows the same unknown
+ * result when even that is lost.
+ */
+export const startReplyWaitMs = 65_000;
 
 const popupLogLabel = "yt2column popup launch";
 const metadataLogLabel = "yt2column video metadata";
 const activeTabLabel = "yt2column active tab";
 const blockedLabel = "yt2column blocked";
+const protectLabel = "yt2column settings protection";
+const recordLabel = "yt2column job record";
 const uiLanguageLabel = "yt2column ui language";
 
 /** Where the tab is; undefined unless its window and index are non-negative integers. */
@@ -175,8 +197,10 @@ async function readMetadata(
 }
 
 /**
- * Popup path. Collects the active tab's selection; after a successful
- * collection it reads the video metadata once and checks the body size, then
+ * Popup path. First keeps the stored settings from the page; when that fails
+ * it injects nothing and returns a rejected view. Then collects the active
+ * tab's selection; after a successful collection it reads the video metadata
+ * once and checks the body size, then
  * builds what the popup shows, with the tab's place for the send. A rejected
  * collection becomes a rejected view without reading the metadata, and so
  * does a tab whose place cannot be read. It touches no DOM, so nothing is
@@ -193,6 +217,12 @@ export async function runPopupLaunch(
     tab = undefined;
   }
   const launch = launchContextFromTab(tab);
+  // The settings are kept from the page before anything is injected into it.
+  const protectedSettings = await deps.protectSettings();
+  if (!protectedSettings.ok) {
+    deps.log.error(protectLabel, { set: false });
+    return { view: { kind: "rejected", reason: "settings-unprotected" } };
+  }
   const outcome = await collect(launch, deps.reader);
   // The log holds the outcome's kind and reason, never the collected input:
   // the selection, the URL and the tab title are values the log must not hold.
@@ -234,14 +264,21 @@ export async function runPopupLaunch(
   };
 }
 
-/**
- * What a new viewer tab's URL holds when openViewer has to create one: the
- * current send's seed for open-viewer, or, for open-existing, the seed's
- * values with the press time as the send time and the existing-article mark.
- */
-type NewViewerTab =
-  | { readonly kind: "send" }
-  | { readonly kind: "existing"; readonly pressedAt: number };
+/** The existing article's state for the choice, or undefined when the choice ends. */
+function existingState(
+  record: JobRecord | undefined,
+): ExistingState | undefined {
+  switch (record?.state) {
+    case "running":
+      return "running";
+    case "done":
+      return "done";
+    case "failed":
+    case "stopped":
+    case undefined:
+      return undefined;
+  }
+}
 
 /**
  * Popup send path. Contract: the primary button becomes pressable only when
@@ -249,18 +286,18 @@ type NewViewerTab =
  * does nothing, so the button stays disabled as the skeleton and renderPopup
  * left it. Nothing is sent before the first press. Each press that sends asks
  * the service worker for one generation start and never sends one again by
- * itself; the popup never sends a start to the host. The first press asks
- * with an inquiry. From then on the popup shows the job states in place of
- * the checks, keeping the video section and the details, and the buttons do
- * what primaryAction and secondaryAction say: nothing while there is no key,
- * open the viewer for a key, retry, which asks for one new start of the same
- * input in the mode of the send it replaces, open the existing article of a
- * same-video answer, which sends nothing, generate from the current
- * selection, a plain start, or, once the existing article is gone, a new
- * inquiry. A key is polled until polling stops or the popup closes. It moves
- * the focus back to the primary button a keyboard press disabled, once the
- * button can be pressed again, and to the primary button from a secondary
- * button about to be hidden; it never throws.
+ * itself. The first press asks with an inquiry. From then on the popup shows
+ * the job states in place of the checks, keeping the video section and the
+ * details: the job's record is read from chrome.storage.session and followed
+ * through its change events, never polled. The buttons do what primaryAction
+ * and secondaryAction say: nothing while there is no job, open the viewer of
+ * a job, retry, which asks for one new start of the same input in the mode of
+ * the send it replaces, open the existing article of a same-video answer,
+ * which sends nothing, generate from the current selection, a plain start,
+ * or, once the existing article is gone, a new inquiry. The setup operation
+ * opens the options page. It moves the focus back to the primary button a
+ * keyboard press disabled, once the button can be pressed again, and to the
+ * primary button from a secondary button about to be hidden; it never throws.
  */
 export function runPopupSend(
   elements: PopupElements,
@@ -275,8 +312,8 @@ export function runPopupSend(
   ) {
     return;
   }
-  const input = view.selection.status.request.body.message;
-  const { primary, secondary } = elements;
+  const input: StartInput = view.selection.status.request.body.message;
+  const { primary, secondary, setup } = elements;
   const doc = primary.ownerDocument;
 
   let pressed = false;
@@ -286,14 +323,14 @@ export function runPopupSend(
   // opens.
   let returnFocus = false;
   let state: PopupJobState = { kind: "sending" };
-  let seed: ViewerSeed = viewerSeed(view.video, input, 0);
-  let key: ArticleKey | undefined;
+  let sentAt = 0;
+  /** The job of the current send, once the worker named one. */
+  let jobId: string | undefined;
   /** The mode of the current send; a retry sends in it again. */
   let mode: SendMode = "inquiry";
-  /** The tab that shows this send, as the worker or the last open-viewer found it. */
-  let viewerTabId: number | undefined;
-  let poller: Poller | undefined;
-  // Counts the sends, so an open-viewer that outlives its send changes nothing.
+  let stopWatching = (): void => {};
+  // Counts the sends, so a reply or an open-viewer that outlives its send
+  // changes nothing.
   let sends = 0;
   let opening = false;
   let cancelRedraw = (): void => {};
@@ -305,7 +342,7 @@ export function runPopupSend(
       details: view.details,
       state,
     };
-    renderPopup(elements, jobView, deps.locale, deps.now() - seed.sentAt);
+    renderPopup(elements, jobView, deps.locale, deps.now() - sentAt);
   };
 
   /** Draws the elapsed time again each second while a running job is shown. */
@@ -313,7 +350,7 @@ export function runPopupSend(
     cancelRedraw();
     cancelRedraw = () => {};
     if (state.kind === "job" && state.job.kind === "running") {
-      cancelRedraw = deps.send.schedule(elapsedRedrawMs, () => {
+      cancelRedraw = deps.schedule(elapsedRedrawMs, () => {
         draw();
         armRedraw();
       });
@@ -352,140 +389,124 @@ export function runPopupSend(
     restoreFocus();
   };
 
-  /**
-   * A step of the existing article's poll while the choice is shown: running
-   * and done keep the choice with the new state, a failed or lost article
-   * ends it and stops polling, and a failed exchange adds its notice.
-   */
-  const onChoiceStep = (
-    choice: Extract<PopupJobState, { kind: "choice" }>,
-    step: PollStep,
-  ): void => {
-    switch (step.job?.kind) {
-      case undefined:
-        show({ ...choice, notice: step.notice });
-        return;
-      case "running":
-      case "done":
-        show({ kind: "choice", existing: step.job.kind, notice: step.notice });
-        return;
-      case "failed":
-      case "lost":
-        // afterStatus already stops at a failed or lost job; dropping the
-        // poller here keeps the ended choice from depending on that.
-        poller?.stop();
-        poller = undefined;
-        show({ kind: "choice-ended" });
-        return;
-      default: {
-        const exhaustive: never = step.job;
-        throw new Error(`Unhandled job: ${String(exhaustive)}`);
-      }
-    }
-  };
-
-  const onStep = (step: PollStep): void => {
+  /** Shows what the record of the job says, in the job states or in the choice. */
+  const onRecord = (record: JobRecord | undefined): void => {
     if (state.kind === "choice") {
-      onChoiceStep(state, step);
-    } else if (step.job !== undefined) {
-      show({ kind: "job", job: step.job, notice: step.notice });
-    } else if (state.kind === "job") {
-      show({ ...state, notice: step.notice });
-    } else {
-      show({ kind: "loading", notice: step.notice });
+      const existing = existingState(record);
+      if (existing === undefined) {
+        stopWatching();
+        show({ kind: "choice-ended" });
+      } else {
+        show({ kind: "choice", existing });
+      }
+      return;
     }
+    show({ kind: "job", job: recordDisplay(record) });
   };
 
   /**
-   * Waits for the worker's reply until startResultDeadlineMs after the send
-   * time; undefined at the deadline, and for a reply that is late, failed, or
-   * fails its check.
+   * Follows the record of watched: its change events first, then one read,
+   * so no change can come between them unseen. A read that a change event
+   * overtook is dropped; a read that fails keeps the state shown.
    */
-  const askWorker = (
-    request: StartRequest,
-  ): Promise<StartReply | undefined> => {
-    const deadline = request.viewer.sentAt + startResultDeadlineMs;
-    return new Promise((resolve) => {
-      let settled = false;
-      const cancel = deps.send.schedule(
-        Math.max(0, deadline - deps.now()),
-        () => {
-          if (!settled) {
-            settled = true;
-            resolve(undefined);
-          }
-        },
+  const watch = (watched: string): void => {
+    const send = sends;
+    const name = jobItemName(watched);
+    let changed = false;
+    stopWatching = deps.onSessionChanged((changes) => {
+      const change = changes.get(name);
+      if (change === undefined || send !== sends) {
+        return;
+      }
+      changed = true;
+      onRecord(
+        change.removed ? undefined : readJobRecord(watched, change.newValue),
       );
-      void deps.sendToWorker(request).then((reply) => {
+    });
+    void deps.readSession([name]).then((read) => {
+      if (changed || send !== sends) {
+        return;
+      }
+      if (!read.ok) {
+        deps.log.error(recordLabel, { read: false });
+        return;
+      }
+      onRecord(readJobRecord(watched, read.value[name]));
+    });
+  };
+
+  /**
+   * Waits for the worker's reply until startReplyWaitMs after the send;
+   * undefined at the deadline, and for a reply that failed or fails its
+   * check.
+   */
+  const askWorker = (request: SwRequest): Promise<StartReply | undefined> =>
+    new Promise((resolve) => {
+      let settled = false;
+      const cancel = deps.schedule(startReplyWaitMs, () => {
+        if (!settled) {
+          settled = true;
+          resolve(undefined);
+        }
+      });
+      void deps.sendToSw(request).then((reply) => {
         if (settled) {
           return;
         }
         settled = true;
         cancel();
-        // A timer that fired late can let a reply in after the deadline.
-        resolve(
-          reply.ok && deps.now() < deadline
-            ? parseStartReply(reply.value)
-            : undefined,
-        );
+        resolve(reply.ok ? parseStartReply(reply.value) : undefined);
       });
     });
-  };
 
   /**
    * Sends one start of the input in sendMode, from the sending state. A
-   * same-video answer shows the choice and polls the existing article's key;
-   * an accepted one shows the job states and polls its key.
+   * same-video answer shows the choice and follows the existing article's
+   * record; an accepted one shows the job states and follows its record.
    */
   const start = async (sendMode: SendMode): Promise<void> => {
-    poller?.stop();
-    poller = undefined;
-    key = undefined;
-    viewerTabId = undefined;
+    stopWatching();
+    stopWatching = () => {};
+    jobId = undefined;
     mode = sendMode;
     sends += 1;
+    const send = sends;
     // An open-viewer of the replaced send gives up at its next step; it must
     // not keep the new send's open-viewer from starting meanwhile.
     opening = false;
-    seed = viewerSeed(view.video, input, deps.now());
+    sentAt = deps.now();
     show({ kind: "sending" });
-    // Every action that sends is offered only once the previous reply is in,
-    // so no earlier send's reply can still arrive here.
     const reply = await askWorker({
       type: "start",
       mode: sendMode,
       input,
-      viewer: seed,
       source,
     });
-    if (reply === undefined) {
-      show({ kind: "start-failed", failure: { kind: "no-result" } });
+    if (send !== sends) {
       return;
     }
-    const { outcome } = reply;
-    switch (outcome.kind) {
-      case "accepted":
-      case "same-video":
-        break;
+    switch (reply?.status) {
+      case undefined:
+      case "unknown":
+        show({ kind: "start-failed", failure: { kind: "unknown" } });
+        return;
       case "rejected":
-      case "not-sent":
-      case "no-response":
-      case "host-failed":
-      case "unexpected":
-        show({ kind: "start-failed", failure: outcome });
+        show({
+          kind: "start-failed",
+          failure: { kind: "rejected", reason: reply.reason },
+        });
+        return;
+      case "accepted":
+        jobId = reply.jobId;
+        show({ kind: "loading" });
+        watch(reply.jobId);
+        return;
+      case "same_video":
+        jobId = reply.jobId;
+        show({ kind: "choice", existing: "loading" });
+        watch(reply.jobId);
         return;
     }
-    key = outcome.key;
-    viewerTabId = reply.viewerTabId;
-    poller = createStatusPoller(key, deps, onStep);
-    // The worker checks a same-video answer only for an inquiry, so it never
-    // answers a plain send with one.
-    show(
-      outcome.kind === "same-video"
-        ? { kind: "choice", existing: "loading", notice: { kind: "none" } }
-        : { kind: "loading", notice: { kind: "none" } },
-    );
-    poller.start();
   };
 
   /** Selects the tab and brings its window to the front, which closes the popup. */
@@ -495,57 +516,49 @@ export function runPopupSend(
   };
 
   /**
-   * Brings forward the first that applies: the tab that shows this send when
-   * it is still there; else a viewer that answers it shows the key; else a
-   * new viewer tab of the key. It never sends a start. A retry pressed while
-   * it looks ends it: the viewer it would bring forward shows the send the
-   * retry replaced, and bringing a window forward would close the popup.
+   * Brings forward a viewer that answers it shows the job, or opens a new
+   * viewer tab of the job; existing marks the new tab as showing an existing
+   * article. It never sends a start. A retry pressed while it looks ends it:
+   * the viewer it would bring forward shows the send the retry replaced, and
+   * bringing a window forward would close the popup.
    */
   const openViewer = async (
-    viewerKey: ArticleKey,
-    newTab: NewViewerTab,
+    viewerJob: string,
+    existing: boolean,
   ): Promise<void> => {
     const send = sends;
     const current = (): boolean => send === sends;
-    if (viewerTabId !== undefined) {
-      const known = await deps.tabs.get(viewerTabId);
-      if (!current()) {
-        return;
-      }
-      if (known.ok) {
-        await bringForward(known.value);
-        return;
-      }
-    }
-    const answers = await findViewers(viewerKey, {
+    const answers = await findJobViewers(viewerJob, {
       openChannel: deps.openChannel,
       queryId: deps.queryId,
-      schedule: deps.send.schedule,
+      schedule: deps.schedule,
     });
     if (!current()) {
       return;
     }
-    const chosen = chooseViewer(answers.present);
+    const chosen = chooseViewer(answers);
     if (chosen !== undefined) {
       const place = await deps.tabs.get(chosen.tabId);
       if (!current()) {
         return;
       }
       if (place.ok) {
-        viewerTabId = chosen.tabId;
         await bringForward(place.value);
         return;
       }
     }
-    const query =
-      newTab.kind === "send"
-        ? viewerQuery({ ...seed, key: viewerKey })
-        : viewerQuery({
-            ...seed,
-            sentAt: newTab.pressedAt,
-            key: viewerKey,
-            existing: true,
-          });
+    const title = startUrlTitle(input);
+    if (title === undefined) {
+      deps.log.error(recordLabel, { viewerUrl: "no-title" });
+      return;
+    }
+    const query = jobViewerQuery({
+      target: existing
+        ? { kind: "job", jobId: viewerJob, existing: true }
+        : { kind: "job", jobId: viewerJob },
+      videoUrl: input.videoUrl,
+      title,
+    });
     const created = await deps.tabs.create({
       url: `${deps.identity.getURL("viewer.html")}?${query}`,
       active: true,
@@ -553,18 +566,17 @@ export function runPopupSend(
     if (!created.ok || !current()) {
       return;
     }
-    viewerTabId = created.value.tabId;
     await deps.focusWindow(created.value.windowId);
   };
 
-  /** Opens a viewer of the current key once at a time; a press while one opens does nothing. */
-  const openOnce = (newTab: NewViewerTab): void => {
-    if (opening || key === undefined) {
+  /** Opens a viewer of the current job once at a time; a press while one opens does nothing. */
+  const openOnce = (existing: boolean): void => {
+    if (opening || jobId === undefined) {
       return;
     }
     opening = true;
     const send = sends;
-    void openViewer(key, newTab).then(() => {
+    void openViewer(jobId, existing).then(() => {
       // A start since then already cleared the flag, and may have set it for
       // its own open-viewer.
       if (send === sends) {
@@ -592,10 +604,10 @@ export function runPopupSend(
         void start("inquiry");
         return;
       case "open-viewer":
-        openOnce({ kind: "send" });
+        openOnce(false);
         return;
       case "open-existing":
-        openOnce({ kind: "existing", pressedAt: deps.now() });
+        openOnce(true);
         return;
     }
   });
@@ -608,6 +620,9 @@ export function runPopupSend(
         void start("plain");
         return;
     }
+  });
+  setup.addEventListener("click", () => {
+    void deps.openOptions();
   });
   primary.disabled = false;
 }
@@ -622,7 +637,7 @@ function isKeyboardPress(event: Event): boolean {
 
 /**
  * The skeleton's elements, found in doc by id. Contract: undefined unless every
- * element is present and of its kind -- both buttons button elements and
+ * element is present and of its kind -- the four buttons button elements and
  * the details a details element, checked against the document's own constructors
  * -- so a partial skeleton is never drawn into.
  */
@@ -634,10 +649,14 @@ export function findPopupElements(doc: Document): PopupElements | undefined {
   const action = doc.getElementById("action");
   const primary = doc.getElementById("primary");
   const secondary = doc.getElementById("secondary");
+  const setup = doc.getElementById("setup");
   const status = doc.getElementById("status");
   const details = doc.getElementById("details");
+  const options = doc.getElementById("options");
+  const buildMark = doc.getElementById("build-mark");
   if (
     win === null ||
+    buildMark === null ||
     video === null ||
     checks === null ||
     rejection === null ||
@@ -645,19 +664,24 @@ export function findPopupElements(doc: Document): PopupElements | undefined {
     status === null ||
     !(primary instanceof win.HTMLButtonElement) ||
     !(secondary instanceof win.HTMLButtonElement) ||
+    !(setup instanceof win.HTMLButtonElement) ||
+    !(options instanceof win.HTMLButtonElement) ||
     !(details instanceof win.HTMLDetailsElement)
   ) {
     return undefined;
   }
   return {
+    buildMark,
     video,
     checks,
     rejection,
     action,
     primary,
     secondary,
+    setup,
     status,
     details,
+    options,
   };
 }
 
@@ -666,7 +690,8 @@ export function findPopupElements(doc: Document): PopupElements | undefined {
  * the locale from it, and sets the page language before the first render so
  * the Japanese typography rules are in place from the first frame. Then finds
  * the skeleton in popup.html -- with any element missing it runs no path and
- * draws nothing -- runs the launch path, draws the view it returns in one
+ * draws nothing -- draws the options operation and the build mark, runs the
+ * launch path, draws the view it returns in one
  * render, and runs the send path. Until that render every section stays
  * hidden, so nothing shown is later replaced. The UI-language log keeps its
  * fixed label in every locale, and the value it records is never displayed or
@@ -684,6 +709,10 @@ export async function startPopup(
   if (elements === undefined) {
     return;
   }
+  renderPopupFrame(elements, locale, deps.buildKind);
+  elements.options.addEventListener("click", () => {
+    void deps.send.openOptions();
+  });
   const launch = await runPopupLaunch(deps.launch);
   renderPopup(elements, launch.view, locale);
   runPopupSend(elements, launch, { ...deps.send, locale });

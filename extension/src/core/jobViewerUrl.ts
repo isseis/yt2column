@@ -98,6 +98,31 @@ export function isUrlTitle(title: string): boolean {
 }
 
 /**
+ * The heading a start shows before a record exists: the collected video
+ * title, or the video URL when no title with a visible character was
+ * collected.
+ */
+export function startHeading(input: {
+  readonly title?: string;
+  readonly videoUrl: string;
+}): string {
+  return input.title !== undefined && input.title.trim() !== ""
+    ? input.title
+    : input.videoUrl;
+}
+
+/**
+ * The page title a viewer URL of a start keeps: the start's heading, else the
+ * video URL, each cut by urlTitle; undefined when neither passes isUrlTitle.
+ */
+export function startUrlTitle(input: {
+  readonly title?: string;
+  readonly videoUrl: string;
+}): string | undefined {
+  return [startHeading(input), input.videoUrl].map(urlTitle).find(isUrlTitle);
+}
+
+/**
  * Writes the query, without the leading "?": each present value encoded with
  * encodeURIComponent, the names in the table's order. The result passes
  * parseJobViewerUrl when the values pass isUrlTitle and isAcceptedWatchUrl and

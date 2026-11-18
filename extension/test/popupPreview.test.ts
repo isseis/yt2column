@@ -269,7 +269,7 @@ describe("popup preview script", () => {
     // added later fails to compile here until it has a page.
     const states: Record<ViewerState["kind"], number> = {
       "invalid-link": 0,
-      sending: 0,
+      preparing: 0,
       "start-failed": 0,
       loading: 0,
       job: 0,
@@ -277,7 +277,11 @@ describe("popup preview script", () => {
     const jobs: Record<JobDisplay["kind"], number> = {
       running: 0,
       done: 0,
+      unstored: 0,
+      setup: 0,
+      "key-rejected": 0,
       failed: 0,
+      stopped: 0,
       lost: 0,
     };
     const stylesheets = [
@@ -329,7 +333,9 @@ describe("popup preview script", () => {
         previewCase.locale,
         shownPreviewArticle(previewCase.view),
       );
-      renderViewer(expected, previewCase.view, previewCase.locale);
+      renderViewer(expected, previewCase.view, previewCase.locale, {
+        openOptions: () => {},
+      });
       const shape = (body: HTMLElement): string[] =>
         [...body.querySelectorAll("*")]
           .filter((element) => element.tagName !== "SCRIPT")
@@ -425,10 +431,15 @@ describe("popup preview script", () => {
       choice: 0,
       "choice-ended": 0,
     };
-    const jobs: Record<JobDisplay["kind"], number> = {
+    // The popup never shows a result its record could not hold: only the
+    // running viewer holds one.
+    const jobs: Record<Exclude<JobDisplay["kind"], "unstored">, number> = {
       running: 0,
       done: 0,
+      setup: 0,
+      "key-rejected": 0,
       failed: 0,
+      stopped: 0,
       lost: 0,
     };
     const existing: Record<ExistingState, number> = {
@@ -436,23 +447,20 @@ describe("popup preview script", () => {
       running: 0,
       done: 0,
     };
-    const notices: Record<"none" | "retrying" | "stopped", number> = {
-      none: 0,
-      retrying: 0,
-      stopped: 0,
-    };
     const stylesheets = [
       ...popupDocument().querySelectorAll("link[rel=stylesheet]"),
     ].map((link) => link.getAttribute("href") ?? "");
 
     for (const previewCase of popupJobPreviewCases) {
       states[previewCase.state.kind] += 1;
-      if (previewCase.state.kind === "job") {
+      if (
+        previewCase.state.kind === "job" &&
+        previewCase.state.job.kind !== "unstored"
+      ) {
         jobs[previewCase.state.job.kind] += 1;
       }
       if (previewCase.state.kind === "choice") {
         existing[previewCase.state.existing] += 1;
-        notices[previewCase.state.notice.kind] += 1;
       }
       const file = `${previewCase.name}.html`;
       const full = path.join(output, file);
@@ -522,6 +530,18 @@ describe("popup preview script", () => {
         expected.primary.disabled,
         `${file}: primary availability`,
       );
+      const pageSetup = doc.getElementById("setup");
+      assert.equal(
+        pageSetup?.hasAttribute("hidden"),
+        expected.setup.hidden,
+        `${file}: setup shown`,
+      );
+      const pageMark = doc.getElementById("build-mark");
+      assert.equal(
+        pageMark?.hasAttribute("hidden"),
+        previewCase.dev !== true,
+        `${file}: build mark`,
+      );
       const pageSecondary = doc.getElementById("secondary");
       assert.equal(
         pageSecondary?.textContent,
@@ -538,7 +558,6 @@ describe("popup preview script", () => {
       states,
       jobs,
       existing,
-      notices,
     })) {
       for (const [kind, count] of Object.entries(counts)) {
         assert.ok(count > 0, `no page for the ${kind} ${name}`);

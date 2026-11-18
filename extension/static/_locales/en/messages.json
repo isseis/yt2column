@@ -7,6 +7,6 @@
     "description": "The extension's name in the development build's manifest."
   },
   "extDescription": {
-    "message": "Sends the selected YouTube transcript to the local yt2column server to write a column article."
+    "message": "Turns the selected YouTube transcript into a magazine-style column article with your Anthropic API key, in the browser."
   }
 }

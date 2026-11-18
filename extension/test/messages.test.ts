@@ -23,11 +23,13 @@ describe("rejectionMessage", () => {
       assert.equal(new Set(texts).size, reasons.length);
     });
 
-    it(`gives steps only to not-watch-page and empty-selection in ${locale}`, () => {
+    it(`gives steps only to not-watch-page, empty-selection and settings-unprotected in ${locale}`, () => {
       for (const reason of reasons) {
         const hasSteps = rejectionMessage(reason, locale).steps.length > 0;
         const wantsSteps =
-          reason === "not-watch-page" || reason === "empty-selection";
+          reason === "not-watch-page" ||
+          reason === "empty-selection" ||
+          reason === "settings-unprotected";
         assert.equal(hasSteps, wantsSteps, reason);
       }
     });

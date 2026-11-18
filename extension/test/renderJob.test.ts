@@ -2,32 +2,50 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { catalogs } from "../src/core/i18n/catalog.ts";
+import type { Message } from "../src/core/i18n/catalog.ts";
 import { formatDuration, formatUsd, locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import type {
   JobDisplay,
-  PollNotice,
+  ShownStepState,
   StartFailure,
 } from "../src/core/jobView.ts";
-import { stepStates } from "../src/core/response.ts";
-import type { RequestId, StepState, Steps } from "../src/core/response.ts";
+import { startFailureMessage } from "../src/core/sendMessages.ts";
+import type { StepState, Steps } from "../src/core/wasmResult.ts";
 import {
-  startResultMessage,
-  statusNoticeMessage,
-} from "../src/core/sendMessages.ts";
-import {
+  jobStateSummary,
   loadingIndicator,
   renderJobState,
   startFailure,
 } from "../src/ui/renderJob.ts";
 import type { ElapsedTime } from "../src/ui/renderJob.ts";
 import { container, expectLocaleMessage, query } from "./helpers/dom.ts";
-import { article, doneJob, requestId, runningSteps } from "./helpers/job.ts";
+import {
+  article,
+  doneJob,
+  failedSteps,
+  runningSteps,
+} from "./helpers/record.ts";
 
 const localeList = Object.keys(locales) as Locale[];
-const stateList = Object.keys(stepStates) as StepState[];
-const malicious = "<img src=x onerror=alert(1)>";
-const none: PollNotice = { kind: "none" };
+/**
+ * Every shown step state with a job that shows it: running only while the job
+ * runs, and interrupted for a step an ended job's record still holds as
+ * running.
+ */
+const shownStates: readonly (readonly [ShownStepState, JobDisplay])[] = [
+  ["pending", failedJob(allSteps("pending"))],
+  ["running", { kind: "running", steps: allSteps("running") }],
+  ["done", failedJob(allSteps("done"))],
+  ["skipped", failedJob(allSteps("skipped"))],
+  ["failed", failedJob(allSteps("failed"))],
+  ["interrupted", failedJob(allSteps("running"))],
+];
+
+/** A job that failed outside the module after steps. */
+function failedJob(steps: Steps): JobDisplay {
+  return { kind: "failed", steps, failure: "internal" };
+}
 
 /** The elapsed time ms, drawn while a job runs. */
 function shown(ms: number): ElapsedTime {
@@ -67,15 +85,9 @@ describe("step checklist", () => {
     it(`gives every step state its own symbol shape and its own word in ${locale}`, () => {
       const drawings = new Set<string>();
       const words = new Set<string>();
-      for (const state of stateList) {
+      for (const [state, job] of shownStates) {
         const root = container();
-        renderJobState(
-          root,
-          { kind: "failed", steps: allSteps(state), failure: "internal" },
-          none,
-          shown(0),
-          locale,
-        );
+        renderJobState(root, job, shown(0), locale);
         const [row] = stepRows(root);
         assert.ok(row !== undefined);
         const icon = query<SVGSVGElement>(row, "svg");
@@ -83,17 +95,48 @@ describe("step checklist", () => {
         drawings.add(drawing(icon));
         words.add(query(row, ".step-state").textContent ?? "");
       }
-      assert.equal(drawings.size, stateList.length);
-      assert.equal(words.size, stateList.length);
+      assert.equal(drawings.size, shownStates.length);
+      assert.equal(words.size, shownStates.length);
     });
 
-    it(`lists the steps in the server's order with each step's own state in ${locale}`, () => {
+    it(`shows a step an ended job still holds as running as interrupted, not as running, in ${locale}`, () => {
+      const steps: Steps = {
+        draft: "running",
+        shorten: "pending",
+        review: "pending",
+      };
+      const ended: readonly JobDisplay[] = [
+        failedJob(steps),
+        { kind: "stopped", steps },
+        { kind: "key-rejected", steps },
+      ];
+      for (const job of ended) {
+        const root = container();
+        renderJobState(root, job, shown(0), locale);
+        const [row] = stepRows(root);
+        assert.ok(row !== undefined);
+        assert.ok(
+          query(row, "svg").classList.contains("step-icon-interrupted"),
+          job.kind,
+        );
+        assert.equal(root.querySelector(".step-icon-running"), null, job.kind);
+        assert.equal(
+          query(row, ".step-state").textContent,
+          catalogs[locale].stepStates.interrupted,
+          job.kind,
+        );
+      }
+      const running = container();
+      renderJobState(running, { kind: "running", steps }, shown(0), locale);
+      assert.equal(running.querySelectorAll(".step-icon-running").length, 1);
+    });
+
+    it(`lists the steps in the module's order with each step's own state in ${locale}`, () => {
       const catalog = catalogs[locale];
       const root = container();
       renderJobState(
         root,
         { kind: "running", steps: runningSteps },
-        none,
         shown(0),
         locale,
       );
@@ -115,7 +158,6 @@ describe("step checklist", () => {
       renderJobState(
         root,
         { kind: "running", steps: runningSteps },
-        none,
         shown(0),
         locale,
       );
@@ -140,7 +182,6 @@ describe("job state", () => {
       renderJobState(
         root,
         { kind: "running", steps: runningSteps },
-        none,
         shown(65_000),
         locale,
       );
@@ -158,13 +199,12 @@ describe("job state", () => {
       renderJobState(
         root,
         { kind: "running", steps: runningSteps },
-        none,
         { kind: "hidden" },
         locale,
       );
       assert.equal(stepRows(root).length, 3);
       assert.equal(root.querySelector(".job-elapsed"), null);
-      renderJobState(root, doneJob, none, { kind: "hidden" }, locale);
+      renderJobState(root, doneJob, { kind: "hidden" }, locale);
       assert.equal(
         query(root, ".job-result dd").textContent,
         formatDuration(article.durationMs, locale),
@@ -173,7 +213,7 @@ describe("job state", () => {
 
     it(`shows a done job's time taken and cost instead of the elapsed time in ${locale}`, () => {
       const root = container();
-      renderJobState(root, doneJob, none, shown(5_000), locale);
+      renderJobState(root, doneJob, shown(5_000), locale);
       assert.equal(root.querySelector(".job-elapsed"), null);
       assert.ok(article.cost.state === "known");
       assert.deepEqual(
@@ -194,123 +234,123 @@ describe("job state", () => {
         ...doneJob,
         article: { ...article, cost: { state: "unknown" } },
       };
-      renderJobState(root, job, none, shown(0), locale);
+      renderJobState(root, job, shown(0), locale);
       assert.equal(
         query(root, ".job-result dd:last-of-type").textContent,
         viewer.costUnknown,
       );
     });
 
-    it(`shows a failed job's steps and its failure's message in ${locale}`, () => {
+    // The jobs that called the LLM API but made no article: each shows its
+    // steps, its own message and an unknown cost, never an amount.
+    const unknownCostJobs: {
+      name: string;
+      job: JobDisplay;
+      message: (l: Locale) => Message;
+    }[] = [
+      {
+        name: "a failed job",
+        job: { kind: "failed", steps: failedSteps, failure: "llm_timeout" },
+        message: (l) => catalogs[l].failure.llm_timeout,
+      },
+      {
+        name: "a job whose key was rejected",
+        job: { kind: "key-rejected", steps: failedSteps },
+        message: (l) => catalogs[l].keyRejected,
+      },
+      {
+        name: "a stopped job",
+        job: { kind: "stopped", steps: failedSteps },
+        message: (l) => catalogs[l].stopped,
+      },
+    ];
+    for (const { name, job, message } of unknownCostJobs) {
+      it(`shows ${name}'s steps, its message and an unknown cost in ${locale}`, () => {
+        const root = container();
+        renderJobState(root, job, shown(0), locale);
+        assert.equal(stepRows(root).length, 3);
+        expectLocaleMessage(query(root, ".failure"), locale, message);
+        assert.deepEqual(
+          Array.from(root.querySelectorAll(".job-result dd"), (dd) => [
+            dd.previousElementSibling?.textContent,
+            dd.textContent,
+          ]),
+          [[viewer.cost, viewer.costUnknown]],
+        );
+        assert.ok(
+          jobStateSummary(job, [], locale).includes(
+            `${viewer.cost} ${viewer.costUnknown}`,
+          ),
+        );
+      });
+    }
+
+    for (const failure of ["api_key_missing", "settings_invalid"] as const) {
+      it(`shows a job that needed a setting (${failure}) with its message alone, no steps and no cost, in ${locale}`, () => {
+        const root = container();
+        const job: JobDisplay = { kind: "setup", failure };
+        renderJobState(root, job, shown(0), locale);
+        assert.deepEqual(stepRows(root), []);
+        assert.equal(root.querySelector(".job-result"), null);
+        expectLocaleMessage(
+          query(root, ".failure"),
+          locale,
+          (l) => catalogs[l].setup[failure],
+        );
+        assert.deepEqual(jobStateSummary(job, [], locale), [
+          catalogs[locale].setup[failure].text,
+        ]);
+      });
+    }
+
+    it(`shows an article its record could not hold with its facts and the warning that a reload loses it in ${locale}`, () => {
       const root = container();
       renderJobState(
         root,
-        { kind: "failed", steps: runningSteps, failure: "llm_timeout" },
-        none,
+        { kind: "unstored", steps: doneJob.steps, article },
         shown(0),
         locale,
       );
       assert.equal(stepRows(root).length, 3);
+      assert.equal(
+        query(root, ".job-result dd").textContent,
+        formatDuration(article.durationMs, locale),
+      );
       expectLocaleMessage(
-        query(root, ".failure"),
+        query(root, ".job-notice"),
         locale,
-        (l) => catalogs[l].failure.llm_timeout,
+        (l) => catalogs[l].viewer.unstored,
       );
     });
 
-    it(`shows the lost article's message and no steps in ${locale}`, () => {
+    it(`shows the lost article's message, no steps and no cost in ${locale}`, () => {
       const root = container();
-      renderJobState(root, { kind: "lost" }, none, shown(0), locale);
+      renderJobState(root, { kind: "lost" }, shown(0), locale);
       assert.deepEqual(stepRows(root), []);
+      assert.equal(root.querySelector(".job-result"), null);
       expectLocaleMessage(
         query(root, ".failure"),
         locale,
         (l) => catalogs[l].viewer.lost,
       );
     });
-  }
-});
-
-describe("poll notice", () => {
-  const running: JobDisplay = { kind: "running", steps: runningSteps };
-
-  for (const locale of localeList) {
-    it(`shows a retrying notice's message without a request id in ${locale}`, () => {
-      const root = container();
-      const notice: PollNotice = {
-        kind: "retrying",
-        outcome: { kind: "no-response" },
-      };
-      renderJobState(root, running, notice, shown(0), locale);
-      expectLocaleMessage(query(root, ".job-notice"), locale, (l) =>
-        statusNoticeMessage(notice.outcome, l),
-      );
-      assert.equal(root.querySelector(".send-request-id"), null);
-    });
-
-    it(`shows a stopped rejection's message and its request id in ${locale}`, () => {
-      const root = container();
-      const notice: PollNotice = {
-        kind: "stopped",
-        outcome: { kind: "rejected", reason: "invalid_key", requestId },
-      };
-      renderJobState(root, running, notice, shown(0), locale);
-      expectLocaleMessage(query(root, ".job-notice"), locale, (l) =>
-        statusNoticeMessage(notice.outcome, l),
-      );
-      assert.equal(query(root, ".send-request-id").textContent, requestId);
-    });
-
-    it(`shows an unexpected reply's message but not the check that failed in ${locale}`, () => {
-      const root = container();
-      const notice: PollNotice = {
-        kind: "stopped",
-        outcome: { kind: "unexpected", check: "member-set" },
-      };
-      renderJobState(root, running, notice, shown(0), locale);
-      expectLocaleMessage(query(root, ".job-notice"), locale, (l) =>
-        statusNoticeMessage(notice.outcome, l),
-      );
-      assert.equal((root.textContent ?? "").includes("member-set"), false);
-    });
-
-    it(`displays a request id with markup as text, not elements, in ${locale}`, () => {
-      // A RequestId is validated before it reaches here; the cast checks the
-      // rendering alone.
-      const root = container();
-      renderJobState(
-        root,
-        running,
-        {
-          kind: "stopped",
-          outcome: {
-            kind: "rejected",
-            reason: "internal_error",
-            requestId: malicious as RequestId,
-          },
-        },
-        shown(0),
-        locale,
-      );
-      assert.equal(root.querySelector("img"), null);
-      assert.equal(query(root, ".send-request-id").textContent, malicious);
-    });
 
     it(`replaces the previous content on each call in ${locale}`, () => {
       const root = container();
       renderJobState(
         root,
-        running,
-        {
-          kind: "stopped",
-          outcome: { kind: "rejected", reason: "invalid_key", requestId },
-        },
+        { kind: "failed", steps: failedSteps, failure: "llm_failed" },
         shown(0),
         locale,
       );
-      renderJobState(root, running, none, shown(0), locale);
-      assert.equal(root.querySelector(".job-notice"), null);
-      assert.equal(root.querySelector(".send-request-id"), null);
+      renderJobState(
+        root,
+        { kind: "running", steps: runningSteps },
+        shown(0),
+        locale,
+      );
+      assert.equal(root.querySelector(".failure"), null);
+      assert.equal(root.querySelector(".job-result"), null);
       assert.equal(root.querySelectorAll("ol.step-list").length, 1);
     });
   }
@@ -318,32 +358,23 @@ describe("poll notice", () => {
 
 describe("start failure", () => {
   const doc = container().ownerDocument;
+  const failures: StartFailure[] = [
+    { kind: "rejected", reason: "too_many_requests" },
+    { kind: "rejected", reason: "api_key_missing" },
+    { kind: "unknown" },
+    { kind: "input-unavailable" },
+  ];
 
   for (const locale of localeList) {
-    it(`shows a rejected start's message and its request id in ${locale}`, () => {
-      const failure: StartFailure = {
-        kind: "rejected",
-        reason: "too_many_requests",
-        requestId,
-      };
-      const block = startFailure(doc, failure, locale);
-      expectLocaleMessage(block, locale, (l) => startResultMessage(failure, l));
-      assert.equal(query(block, ".send-request-id").textContent, requestId);
-    });
-
-    it(`shows a wait without a result as its message and no request id in ${locale}`, () => {
-      const failure: StartFailure = { kind: "no-result" };
-      const block = startFailure(doc, failure, locale);
-      expectLocaleMessage(block, locale, (l) => startResultMessage(failure, l));
-      assert.equal(block.querySelector(".send-request-id"), null);
-    });
-
-    it(`shows an unexpected start reply's message but not its check in ${locale}`, () => {
-      const failure: StartFailure = { kind: "unexpected", check: "syntax" };
-      const block = startFailure(doc, failure, locale);
-      expectLocaleMessage(block, locale, (l) => startResultMessage(failure, l));
-      assert.equal((block.textContent ?? "").includes("syntax"), false);
-    });
+    for (const failure of failures) {
+      it(`shows the message of ${JSON.stringify(failure)} in ${locale}`, () => {
+        const block = startFailure(doc, failure, locale);
+        assert.ok(block.classList.contains("failure"));
+        expectLocaleMessage(block, locale, (l) =>
+          startFailureMessage(failure, l),
+        );
+      });
+    }
   }
 });
 
