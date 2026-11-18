@@ -554,7 +554,7 @@
 | AC-32 | `ic/removal_test.go::TestRemoveStopsAtEachStage`、`ic/removal_test.go::TestRemoveStopsWhenHeadMoved`、`ic/removal_test.go::TestRemoveDeadline` | test | 6-2 | PR-6 |
 | AC-33 | `ic/removal_test.go::TestCreateToRemove`（消した後の周で行も項目もない） | test | 6-3 | PR-6 |
 
-設計書 7.4 のセキュリティのテストは、AC-07（題名）、AC-11・`ic/taskspace_test.go::TestTaskSpaceIgnoresOtherInputs`（パスと名前）、AC-13（書く部品の型）、AC-24（偽った記録）、AC-26（書き込みをしない）の行が受け持つ。
+設計書 7.4 のセキュリティのテストは、AC-07（題名）、AC-11・`ic/taskspace_test.go::TestNewTaskSpace`・`ic/create_test.go::TestCreateTitleSteersNothing`（パスと名前）、AC-13（書く部品の型）、AC-24（偽った記録）、AC-26（書き込みをしない）の行が受け持つ。
 
 0093 の AC-05・AC-07 の規則 2・AC-15 は本タスクの AC ではない。ステップ 5-6・6-5・7-6 の確かめで、0093 の部品が `main` にあり、削除の提案の行がまだなかったときに、`ic/removal_test.go::TestRemovalRowUrgencyAndDocument`（急ぎの度合い・番・文書）と `ic/removal_test.go::TestRemovalRowSortsLater`（並ぶ位置）で確かめる。部品が入っていなかったときは本タスクでは確かめず、0093 の計画書に頼る（決定 13）。どちらだったかは「0093 の部品の確かめの記録」に書く。
 
