@@ -106,7 +106,7 @@ issue が挙げた未確認のことの答えは次のとおりである。
 -   **chief のセッション**：要件定義の際に決めたことのとおり、chief の pane の Claude Code のセッション。
 -   **マージを見た PR**：今の chief のセッションの `tick` が、その worktree で開いているのを見て、その後のどれかの `tick` で `MERGED` と分かった PR。今の自動送信は、ラウンドが 15 分以上あくと前のラウンドの観測を読まず（`internal/chief/tick.go:62`、`internal/chief/autosend.go:21` の `observeWindow`）、マージを見てから 10 分で観測の引き継ぎをやめる（`internal/chief/autosend.go:22` の `carryWindow`）。この特定には、どちらも当てない。一度見たマージの記録は、セッションが続く間、有効とする（H-01）。
 -   **ほかのタスクの跡**：今の chief のセッションが、その worktree で T 以外のタスクの PR を見たこと（開いているのだけを見たものを含む）と、最後にマージを見た T の PR の後に、その worktree が T 以外のタスクの機能ブランチにいるのを見たこと（H-07）。
--   **開いたままの PR**：今の chief のセッションが、その worktree で開いているのを見て、マージも閉じたのも見ていない PR。
+-   **開いたままの PR**：今の chief のセッションが、その worktree で開いているのを見た PR のうち、最後に見た状態が開いているもの（閉じた後に開き直されたものを含む）。
 -   **記録が示すタスク**：マージを見た PR について、PR が開いていたときに chief が記録したタスク（`internal/chief/tick.go:56`）。
 
 #### F-001: `main` にいる worktree のタスクを、マージを見た PR から特定する
