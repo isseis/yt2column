@@ -744,7 +744,7 @@ index 349f0b742d2fe3520f7c01212c9e8192c69e8800..2008e86ff9aca36847f357e262db6e63
 行番号は、この commit の時点の `.claude/commands/` のものである。
 
 -   ADR-0050：30 分の上限（`fable-review.md:159`）と 1 回の呼び直し（同 `:182-188`）、範囲の 4 つの基準（同 `:257-260`）、モデル ID の確かめ（同 `:339-344`）、`not run` の理由の値（同 `:460-465`）、状態の確かめ（同 `:359-436`）、`origin/main` から取り出した `review-records.sh` が有効かを決めること（同 `:90`、`runpr.md:680`）、`/runplan` と `task-pr-handoff.md` から FABLE を渡すこと（`runplan.md:256`、`task-pr-handoff.md:190`）、トリアージの規則と 2 回目の試行（`local-cli-review.md` の「Triage rules」と step 6）、PR の説明の節と `/runpr` の要約の 1 行（`task-pr-handoff.md` Part B step 3、`runpr.md:1053`・`:1075`）。
--   ADR-0013：Escalation の基準 4（`pr-review-escalation.md:47-49`）と、「見た」を記録から決めること（`local-cli-review.md` の RECORD と `review-records.sh` の `coverage`）、`runpr.md` step 3 の対応の規則。
+-   ADR-0013：Escalation の基準 4（`pr-review-escalation.md:48`）と、「見た」を記録から決めること（`local-cli-review.md` の RECORD と `review-records.sh` の `coverage`）、`runpr.md` step 3 の対応の規則。
 -   ADR-0014：`review-records.sh` を `origin/main` の commit から取り出して走らせる例外（`fable-review.md:90`、`runpr.md:680`）。
 -   決定の文を直す必要はなく、ADR は変更していない。次の 3 点は、決定の食い違いではなく、ADR が要約の粒度で書き、手順が詳しく書いている違いなので、受け入れる。(1) 状態の比較の部分に、手順は `replace`・`ops`・index の tree も含む（ADR は主な部分を挙げる）。(2) 出口の後の比較を、ADR は「commit を作るたびに」、手順は記録の commit まで、と書く。記録の commit の後に Fable の commit はない。(3) RECORD を渡さない呼び出し元は `commit` になる（`local-cli-review.md:65-69`）。ADR はこの既定を述べておらず、決定と衝突しない。
 
