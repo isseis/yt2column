@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-18 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-18 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -296,3 +296,7 @@
 -   **使える幅**: 表の 1 行が収まるべき表示幅（AC-04）。
 -   **タブの表示**: 質問の pane を示す `[<タブの番号> <タブのラベル>]` の形（AC-18）。
 -   **凡例**: 表の上に置く、印と急ぎの度合いの対応を示す 1 行（AC-06）。
+
+## 変更履歴
+
+- 2026-11-18 承認（isseis、#985）
