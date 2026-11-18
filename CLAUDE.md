@@ -175,9 +175,7 @@ change, retire, and withdraw an ADR is in the convention,
 ## Commands
 
 ### Build Commands
-- `make build` - Build the binaries into `build/`; it installs nothing. Besides `yt2column`, it still builds `yt2column-server` and `yt2column-nmhost`, which the extension no longer uses and #773 removes
-- `make build-dev` - Build the development server (`yt2column-devserver`) into `build/dev/`; it runs on the fake LLM (`internal/llm/devfake`), is not a production binary, and is removed by #773 (the extension's development build is `make ext-build-dev`)
-- `./build/yt2column-nmhost uninstall <browser>` - Remove the Native Messaging host manifest an earlier version installed (`<browser>` is `chrome` or `brave`); the README's migration steps use it. #773 removes the host
+- `make build` - Build the CLI (`yt2column`) into `build/`; it installs nothing. The extension's builds are `make ext-build` and `make ext-build-dev` (below)
 - `make clean` - Clean build artifacts
 - `make all` - Default build target
 - `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
@@ -358,10 +356,7 @@ runs a job takes its input from the service worker, calls the module, and
 reports progress and the result; the popup and the viewers show the records
 through their change events. The options page saves the Anthropic API key and
 workspace ID in `chrome.storage.local`. The extension starts no server and no
-host: the localhost server (`cmd/yt2column-server` + `internal/server`,
-`internal/articlecache`, `internal/serversock`) and the Native Messaging host
-(`cmd/yt2column-nmhost` + `internal/nmhost`) remain in the repository only
-until #773 removes them. `internal/privatefile` (the checked read and the safe
+host. `internal/privatefile` (the checked read and the safe
 creation of files only their owner may read) serves `internal/chief`,
 `internal/redact` redacts secrets from every output, and `internal/signalrun`
 handles signals for the CLI.
@@ -742,12 +737,8 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   checks of its permission rules, its calls, and its guide's values, the ADR guard
   `TestADRRecords`, and `internal/chief`'s readings of the routing table and
   the PR markers) are Go tests included
-  in `make test` and need no node. `cmd/yt2column-nmhost`'s
-  `TestReadmeMigrationManifestPaths` reads both READMEs too, but the `doc-guard` job
-  does not run it: the local `make test`, and the CI `test` job when the change
-  includes code, do. A change to the READMEs alone is therefore checked by
-  neither CI job for this test. The `doc-guard` CI job runs the other guards
-  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`)
+  in `make test` and need no node. The `doc-guard` CI job runs these guards
+  (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`)
   on every pull request, so a documentation-only change is checked in CI by
   those guards even though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's
