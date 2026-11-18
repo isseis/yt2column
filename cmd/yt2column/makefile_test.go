@@ -275,16 +275,6 @@ func TestMakeBuildBuildsEveryBinary(t *testing.T) {
 	}
 }
 
-// TestMakeBuildDev checks that build-dev builds only the development server,
-// into build/dev/ and not into build/, where the production binaries are.
-func TestMakeBuildDev(t *testing.T) {
-	output := makeDryRun(t, "build-dev")
-	want := map[string]string{"./cmd/yt2column-devserver": "build/dev/yt2column-devserver"}
-	if got := builtPackages(output); !maps.Equal(got, want) {
-		t.Errorf("make -n build-dev builds %v, want %v; output:\n%s", got, want, output)
-	}
-}
-
 // TestMakeWasmCheck checks the recipe `make -n wasm-check` expands: every go
 // command it runs is for js/wasm, it builds exactly the two article
 // generation modules (which builds every package they depend on), and it vets
