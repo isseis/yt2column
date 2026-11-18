@@ -185,16 +185,15 @@ Run this after the calling command's last commit, with a clean working tree.
    (the CodeRabbit CLI, or Codex CLI when the CodeRabbit CLI fails):
    follow `.claude/commands/_lib/local-cli-review.md` with
    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
-   **SUMMARY** = REPORT. When it stops, stop before step 2: nothing is pushed.
+   **SUMMARY** = REPORT, **RECORD** = `commit`, so its record lines are in a
+   commit of their own before the push. When it stops, stop before step 2:
+   nothing is pushed.
 
    **README sync.** Run this paragraph even when the sentence above does not
    apply (LOCAL_REVIEW is `done`). Run the README sync check as
    `.claude/commands/mktrans.md`, "When a caller runs it", says. For
    `translated`, commit `README.en.md` alone, with a message such as
-   `docs: sync README.en.md with README.md`, which also carries any record
-   lines (`_lib/local-cli-review.md` step 7) step 1 has not yet recorded,
-   after the mention check of that step when one is a `Codex local review:`
-   line; CHECKS then
+   `docs: sync README.en.md with README.md`; CHECKS then
    runs on that commit, and step 3 lists the reported terms in the PR body.
    For `stopped`, stop before step 2: nothing is pushed.
 
