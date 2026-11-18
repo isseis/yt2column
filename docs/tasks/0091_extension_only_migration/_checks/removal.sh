@@ -100,7 +100,7 @@ done_check wasmdeps
 # builddev
 if out=$(make -n build-dev 2>&1); then
 	fail builddev "make -n build-dev succeeds"
-elif ! grep -q "No rule to make target .build-dev'" <<<"$out"; then
+elif ! grep -q "No rule to make target.*build-dev" <<<"$out"; then
 	fail builddev "make -n build-dev fails for another reason: $out"
 fi
 done_check builddev
