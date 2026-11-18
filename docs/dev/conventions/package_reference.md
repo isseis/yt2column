@@ -43,9 +43,6 @@ code is the source of truth, and the detail stays out of the row.
 - **Pipeline components** run the article pipeline or carry the values it
   passes: the stages, their data types, and the CLI entry point and templates
   that supply them.
-- **Server and host** are the localhost server, its job API, cache, and
-  socket, and the Native Messaging host that relayed to it. The browser
-  extension no longer uses them, and #773 removes them.
 - **LLM** packages define the provider-independent client contract, the
   shared HTTP send path and provider factory, and the adapter and parameter
   types of each provider.
@@ -66,7 +63,7 @@ add a kind here or to widen one of these definitions.
 |---|---|
 | `cmd/yt2column` | Entry point of the CLI (`yt2column [flags] <video URL>`): `main` builds the stages and runs one job through `internal/job`, writing the article to `--out` and the run's summaries to standard error. Usage and exit codes: [CLI guide](../guides/cli.md). |
 | `internal/artifact` | Persists and resumes the article writer's intermediate artifacts, one file per video ID and stage: `Parse`, `Marshal`, `NewStore`, `Save`, `Load`; `ErrMissing`, `ErrMalformed`, `ErrMismatch`. Format: [0077 design §3.4.2](../../tasks/0077_openai_llm_client/02_architecture.md). |
-| `internal/extjob` | One browser extension job of the article generation module: `StartInput`, `Prepare`/`Prepared` (the input's validation and `InputDigest`), `Run`/`Result`, `Failure`, `Steps`, `Observer`, `Deps`, `Backend`, `BackendInfo` (built by `ClaudeInfo` and `FakeInfo`), and `NewModule`/`Module` with the four JSON entry points `CheckSettingsJSON`, `PrepareJSON`, `GenerateJSON`, and `BuildInfoJSON`; `ErrInvalidInput`. It copies the server's input validation, result rendering, and failure classification (with `llm.ErrAuthRejected` classified as `FailureAPIKeyRejected`) until the server is removed. Design: [0091 design §3.3](../../tasks/0091_extension_only_migration/02_architecture.md). |
+| `internal/extjob` | One browser extension job of the article generation module: `StartInput`, `Prepare`/`Prepared` (the input's validation and `InputDigest`), `Run`/`Result`, `Failure`, `Steps`, `Observer`, `Deps`, `Backend`, `BackendInfo` (built by `ClaudeInfo` and `FakeInfo`), and `NewModule`/`Module` with the four JSON entry points `CheckSettingsJSON`, `PrepareJSON`, `GenerateJSON`, and `BuildInfoJSON`; `ErrInvalidInput`. It classifies `llm.ErrAuthRejected` as `FailureAPIKeyRejected`. Design: [0091 design §3.3](../../tasks/0091_extension_only_migration/02_architecture.md). |
 | `internal/extjob/claudebackend` | The release `extjob.Backend`: `New` builds the production profile's Claude clients with `claude.New` (the same options as `internal/llm/provider`, which it cannot import into a js build) and checks keys with `claude.CheckKey`; `ErrNotClaude`. |
 | `internal/extjob/devbackend` | The development `extjob.Backend` of a `devfake.Scenario`: `New`. It calls no network and does not import the Claude adapter. |
 | `internal/extjob/jsmodule` | The `syscall/js` glue both article generation modules share, built only for js: `Serve` registers an `extjob.Module`'s four JSON entry points as `checkSettings`, `prepare`, `generate`, and `buildInfo` on the `globalThis` object named `GlobalName`, and keeps the program running. It parses nothing; the JSON is `internal/extjob`'s. |
@@ -103,7 +100,7 @@ add a kind here or to widen one of these definitions.
 |---|---|
 | `internal/cachelock` | Serializes the processes that share one directory with an exclusive `flock`: `Acquire`, `File`, `Close`; `*LockedError`, `ErrLocked`. |
 | `internal/cmdrunner` | The shared execution boundary for external commands: `Runner`, `InputRunner`, `NewOS`, `GitEnv`, `GitHardening`; `MaxOutput`, `ErrOutputTooLarge`, `ErrUnexpectedStderr`, `*ExitError`. The `yt-dlp` boundary: [security.md](../security.md). |
-| `internal/config` | Reads and validates the process configuration: `Load`, `LoadFor`, `LoadExtension`, `ExtensionLookup`, `ReadExtensionSettings`, `LoadServer`, `InitServerFile`, `LoadHost`, `LoadHostHome`, `LLMConfig`, `Need`, `ExtensionSettings`; `*VarError`, `*FileError`, `ErrMissing`, `ErrInvalid`. The server and host loaders and the configuration file are in a file only a native build compiles (`!js`), which the removal of the server and the host deletes. Reference: [README](../../../README.md#設定); the server file: [security.md](../security.md). |
+| `internal/config` | Reads and validates the process configuration: `Load`, `LoadFor`, `LoadExtension`, `ExtensionLookup`, `ReadExtensionSettings`, `LLMConfig`, `Need`, `ExtensionSettings`; `*VarError`, `ErrMissing`, `ErrInvalid`. Reference: [README](../../../README.md#設定). |
 | `internal/nilcheck` | Reports whether a value is nil, including a typed nil held in an interface (`IsNil`). |
 | `internal/privatefile` | Reads and creates files only their owner may read (`internal/chief` uses it): `Read`, `Create`, `Remove`, `MkdirBelow`; `*UnsafeError`, `ErrUnsafe`, `ErrNotExist`, `ErrExist`, `ErrTooLarge`, `ErrBaseMissing`. Rules: [security.md §8.2](../security.md). |
 | `internal/redact` | Keeps secret values out of output: `Line`, `Writer`, `SecretStrings`. |
