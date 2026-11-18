@@ -1673,3 +1673,33 @@ func TestResetAfterAutoSendSkipOffer(t *testing.T) {
 		}
 	})
 }
+
+// TestTickSkipsAutoSendWhileCreating holds the creation exclusion, as a
+// creation does, over the tick that would send after a merge, and checks
+// that the tick types nothing, says why, and carries the PR, so the next
+// tick, which takes the exclusion, sends it.
+func TestTickSkipsAutoSendWhileCreating(t *testing.T) {
+	mw := newMergeWorld(t, mkarchDocs)
+	mw.tick(time.Minute)
+	mw.merge(nextBranch, "`/mkarch 0001`")
+	lock, err := mw.deps.Store.LockCreation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := mw.tick(time.Minute)
+	if res := only(t, out); sentCommand(res) || len(res.Reasons) == 0 {
+		t.Fatalf("auto send while creating = %+v; want nothing sent and a reason", res)
+	}
+	if got := mw.rec.prompts(); len(got) != 0 {
+		t.Fatalf("typed %v while creating", got)
+	}
+	if len(out.Snapshot.Problems) == 0 {
+		t.Error("the round shows no problem for the exclusion it could not take")
+	}
+	if err := lock.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if res := only(t, mw.tick(time.Minute)); !sentCommand(res) {
+		t.Fatalf("auto send after the creation = %+v; want the carried PR sent", res)
+	}
+}

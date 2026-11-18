@@ -3,6 +3,8 @@ package chief
 import (
 	"fmt"
 	"time"
+
+	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
 
 // The types below are the JSON the tool prints. Every string that came from
@@ -530,4 +532,94 @@ type WaitOutput struct {
 // Output converts a wait into the JSON type.
 func (o WaitOutcome) Output() WaitOutput {
 	return WaitOutput{Protocol: Protocol, Outcome: "changed", Baseline: o.Baseline}
+}
+
+// MadeOutput is one thing a creation made; label is a workspace's label
+// and empty for every other kind.
+type MadeOutput struct {
+	Kind  string `json:"kind"`
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+// CreateOutput is the output of `chief create`. result is refused
+// (create_refusal set), stopped (stage and made set), or made (made set, with mkreq the
+// result of the /mkreq send).
+type CreateOutput struct {
+	Protocol int    `json:"protocol"`
+	Result   string `json:"result"`
+	Issue    string `json:"issue"`
+	Title    string `json:"title"`
+	TitleCut bool   `json:"title_truncated"`
+	Refusal  string `json:"create_refusal"`
+	// Existing names what is already at the path.
+	Existing  []string      `json:"existing"`
+	Made      []MadeOutput  `json:"made"`
+	Stage     string        `json:"stage"`
+	Failure   string        `json:"failure"`
+	Workspace string        `json:"workspace"`
+	Label     string        `json:"label"`
+	Mkreq     *ActionOutput `json:"mkreq"`
+}
+
+// notReadyReason is the reason of a /mkreq not sent because Claude Code did
+// not take input after its start. Only `chief create` gives it.
+const notReadyReason = "agent_not_ready"
+
+// Output converts a creation into the JSON type. Lists are never nil; mkreq
+// is null unless every stage passed.
+func (o CreateOutcome) Output() CreateOutput {
+	out := CreateOutput{
+		Protocol: Protocol, Result: o.Result.String(), Issue: o.Issue.String(),
+		// The title is already made visible and cut (Issue.Title).
+		Title: o.Title, TitleCut: o.TitleCut, Refusal: o.Refusal.String(),
+		Existing: sanitizeAll(o.Existing), Made: []MadeOutput{}, Stage: o.Stage.String(), Failure: Sanitize(o.Failure),
+		Workspace: Sanitize(o.Workspace), Label: Sanitize(o.Label),
+	}
+	for _, m := range o.Made {
+		out.Made = append(out.Made, MadeOutput{Kind: m.Kind.String(), ID: Sanitize(m.ID), Label: Sanitize(m.Label)})
+	}
+	switch {
+	case o.NotReady != nil:
+		command := ""
+		if cmd, err := paneinput.NewMkreq(o.Issue); err == nil {
+			command, _ = cmd.Text()
+		}
+		out.Mkreq = &ActionOutput{
+			Workspace: Sanitize(o.Workspace), Pane: Sanitize(o.NotReady.Pane.String()), Input: InputCommand.String(),
+			Command: command, Agent: agentLabel(paneinput.AgentClaudeCode),
+			Outcome: OutcomeNotSent.String(), Reason: notReadyReason, Status: statusName(o.NotReady.Status),
+			Detail: Sanitize(o.NotReady.Code + ": " + o.NotReady.Message), Panes: []string{},
+		}
+	case o.Mkreq != nil:
+		a := actionOutput(*o.Mkreq)
+		out.Mkreq = &a
+	}
+	return out
+}
+
+// TargetOutput is a workspace /mkreq can go to.
+type TargetOutput struct {
+	Workspace string `json:"workspace"`
+	Label     string `json:"label"`
+}
+
+// TargetsOutput is the output of `chief targets`: refusal is issue_form for
+// a number of another form, and workspaces the task workspaces whose row
+// offers /mkreq.
+type TargetsOutput struct {
+	Protocol   int            `json:"protocol"`
+	Issue      string         `json:"issue"`
+	Refusal    string         `json:"refusal"`
+	Failure    string         `json:"failure"`
+	Workspaces []TargetOutput `json:"workspaces"`
+}
+
+// Output converts the targets into the JSON type. Lists are never nil.
+func (o TargetsOutcome) Output() TargetsOutput {
+	out := TargetsOutput{Protocol: Protocol, Issue: o.Issue.String(), Refusal: o.Refusal.String(), Failure: Sanitize(o.Failure), Workspaces: []TargetOutput{}}
+	for _, w := range o.Workspaces {
+		out.Workspaces = append(out.Workspaces, TargetOutput{Workspace: Sanitize(w.Workspace), Label: Sanitize(w.Label)})
+	}
+	return out
 }

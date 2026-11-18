@@ -18,7 +18,8 @@ import (
 // types that write to Herdr or git, or decide where), each with the functions
 // allowed to build one. A type is added in the change that adds it.
 var guardedTypes = map[string][]string{
-	"TaskSpace": {"NewTaskSpace"},
+	"TaskSpace":      {"NewTaskSpace"},
+	"WorkspaceMaker": {"NewWorkspaceMaker"},
 }
 
 // emptyImporter gives every import an empty package, so type checking of

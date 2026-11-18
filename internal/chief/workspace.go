@@ -248,6 +248,9 @@ func (g GitReader) Clean(ctx context.Context, worktree string) (bool, error) {
 	return len(out) == 0, nil
 }
 
+// gitWorktree is the git subcommand the worktree operations share.
+const gitWorktree = "worktree"
+
 // WorktreeEntry is one registration `git worktree list --porcelain` reports.
 type WorktreeEntry struct {
 	// Path is the registered path, as git prints it (not made canonical).
@@ -267,7 +270,7 @@ type WorktreeEntry struct {
 // output with no block is unreadable. Lines other than `worktree`, `locked`,
 // and `prunable` (HEAD, branch, detached, bare) are not read.
 func (g GitReader) Worktrees(ctx context.Context, dir string) ([]WorktreeEntry, error) {
-	out, err := g.cmds.git(ctx, dir, "worktree", "list", "--porcelain")
+	out, err := g.cmds.git(ctx, dir, gitWorktree, "list", "--porcelain")
 	if err != nil {
 		return nil, err
 	}

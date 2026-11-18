@@ -303,6 +303,9 @@ type autoSender struct {
 	// remote is origin/main compared with the remote once per round: the
 	// first candidate reads it and the others reuse it.
 	remote *remoteCheck
+	// noSend is why the round sends nothing, nil when it may send: the
+	// creation exclusion could not be taken.
+	noSend error
 }
 
 // remoteCheck is the result of comparing origin/main with the remote.
@@ -680,6 +683,12 @@ func (a *autoSender) consider(ctx context.Context, obs Observation) (*AutoSendRe
 		// Only a PR seen merged is carried (the design, 3.5): one whose state
 		// could not be read is proposed, not tried again.
 		return res, facts.stateErr == nil && !facts.sent && !facts.expired && !facts.done && facts.sentErr == nil
+	}
+	if a.noSend != nil {
+		// Every condition holds, so the PR is carried and the next round,
+		// which may hold the exclusion, sends it.
+		res.Reasons = []string{"nothing is sent automatically while a creation may be under way: " + a.noSend.Error()}
+		return res, true
 	}
 	recorded := a.send(ctx, *ws, obs, res)
 	return res, !recorded

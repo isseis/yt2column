@@ -40,6 +40,10 @@ const (
 	// gitFetchTimeout is longer: a fetch crosses the network.
 	gitFetchTimeout = 120 * time.Second
 	ghTimeout       = 30 * time.Second
+	// agentStartTimeout bounds `herdr agent start`, which waits up to its
+	// own --timeout (agentStartWait) for the agent to take input; the margin
+	// lets Herdr answer before the tool stops it.
+	agentStartTimeout = 75 * time.Second
 )
 
 // commandMaxOutput caps each of a command's standard output and standard
@@ -69,9 +73,15 @@ var errRelativeDir = errors.New("command directory is not absolute")
 
 // herdr runs herdr with args and returns its standard output.
 func (c Commands) herdr(ctx context.Context, args ...string) ([]byte, error) {
+	return c.herdrLimit(ctx, herdrTimeout, args...)
+}
+
+// herdrLimit is herdr with a time limit of its own, for a call that waits
+// longer than a read (an agent's start).
+func (c Commands) herdrLimit(ctx context.Context, limit time.Duration, args ...string) ([]byte, error) {
 	// A nil Env would let herdr inherit the process environment; the
 	// environment passed in is the whole of it, even when empty.
-	return c.run(ctx, herdrTimeout, "", append([]string{}, c.environ...), herdrProgram, args)
+	return c.run(ctx, limit, "", append([]string{}, c.environ...), herdrProgram, args)
 }
 
 // git runs git in dir with the hardening options before args and with the git

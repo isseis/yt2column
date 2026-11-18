@@ -22,9 +22,10 @@ type TickOutcome struct {
 // since this round. Contract: only a PR the previous round saw open, when
 // that round is less than observeWindow before this one, can be sent
 // automatically; a round that cannot be recorded, or a previous round that
-// cannot be read, makes no observation and sends nothing; every merged
-// PR that is not sent is shown as a proposal with the conditions that did
-// not hold.
+// cannot be read, makes no observation and sends nothing; a round that
+// cannot take the creation exclusion sends nothing and carries every PR it
+// would have sent; every merged PR that is not sent is shown as a proposal
+// with the conditions that did not hold.
 func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 	// The round's time is taken before the reading it covers starts, so a
 	// command the human sends by hand while the workspaces are read counts as
@@ -66,8 +67,20 @@ func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 			view.problems = append(view.problems, "an observation of the previous round cannot be read: "+err.Error())
 		}
 	}
-	a := &autoSender{deps: deps, view: &view, owner: owner, round: start.Cur, prevAt: prevAt, herdr: NewHerdr(deps.Cmds), git: NewGitReader(deps.Cmds), tasks: NewTasks(deps.Cmds)}
+	// The creation exclusion is held from before the first automatic send
+	// until the last one ends, so `create` never starts between a send's
+	// check and its input.
+	creation, lockErr := deps.Store.LockCreation()
+	if lockErr != nil {
+		view.problems = append(view.problems, "the creation exclusion cannot be taken, so nothing is sent automatically this round: "+lockErr.Error())
+	}
+	a := &autoSender{deps: deps, view: &view, owner: owner, round: start.Cur, prevAt: prevAt, herdr: NewHerdr(deps.Cmds), git: NewGitReader(deps.Cmds), tasks: NewTasks(deps.Cmds), noSend: lockErr}
 	results := a.run(ctx, prev, open)
+	if creation != nil {
+		if err := creation.Close(); err != nil {
+			view.problems = append(view.problems, "the creation exclusion cannot be released: "+err.Error())
+		}
+	}
 	extra := applyAutoSends(&view, results)
 	return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, extra), AutoSends: results}, nil
 }
