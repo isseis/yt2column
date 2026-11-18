@@ -152,13 +152,9 @@ func (t *Tool) collectADR(ctx context.Context, tagPrefix string) (collected, err
 		if b.name == mainBranch {
 			continue
 		}
-		entries, ok := read[b.sha]
-		if !ok {
-			entries, err = t.listTree(ctx, b.sha, adrDir, "origin branch "+quote(b.name))
-			if err != nil {
-				return collected{}, err
-			}
-			read[b.sha] = entries
+		entries, err := t.branchTree(ctx, b, adrDir, read)
+		if err != nil {
+			return collected{}, err
 		}
 		for _, e := range entries {
 			if n, ok := adrNumber(e); ok {
