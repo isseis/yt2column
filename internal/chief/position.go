@@ -304,3 +304,18 @@ func progressOf(r Row, running *RunningCommand) Progress {
 		return ProgressNeedsCheck
 	}
 }
+
+// finishRow sets a row's urgency, turn, and position from its final state,
+// stop, and running command. Contract: it is the only place they are set,
+// called once per row after everything that changes those facts in the
+// round (applyAutoSends included) and before the rows are ordered; it
+// changes nothing else on the row.
+func finishRow(r *Row) {
+	var running *RunningCommand
+	if r.Running != nil {
+		running = &r.Running.Command
+	}
+	r.Urgency, r.Turn = urgencyOf(*r)
+	doc, planPR := documentOf(*r, running)
+	r.Position = Position{Document: doc, PlanPR: planPR, Progress: progressOf(*r, running)}
+}

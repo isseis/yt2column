@@ -35,7 +35,9 @@ task documents and opens one PR for them, the three-document PR.
 only, `gh issue view` (also for the issues the issue references),
 `gh repo view`, `gh pr list` for the duplicate search and for the conditions
 of continuing a stopped run (`_lib/simple-process.md`, "Resuming a stopped
-run"), and the
+run"), `numreserve task` in step 2 and `numreserve adr` when step 5 creates
+an ADR (`_lib/settle-decisions.md`), each of which creates one record tag on
+`origin` (`CLAUDE.md`, "Tool Execution Safety"), and the
 network operations `_lib/task-pr-handoff.md` names ("Authorization"). Nothing
 else that touches the network runs without asking.
 
@@ -67,12 +69,27 @@ Work in the following order.
      `docs/dev/conventions/task_identification.md` rule 1 describes. Stop if
      it does not exist there or already contains `01_requirements.md`.
    - Without it: choose the name `NNNN_<name>` (the directory is created in
-     step 3). `NNNN` is one above the highest task number in use, looking at
-     `origin/main` (`git ls-tree -d --name-only origin/main docs/tasks/`), at
-     local and `origin` branches (`git branch -a`), and at the head branches of
-     open PRs (`<user>/NNNN-...`), so parallel worktrees do not take the same
-     number. `<name>` is a short English snake_case name for
-     the issue's subject, in the style of the existing directory names (e.g.
+     step 3). `NNNN` is decided by the number tool, never computed. First
+     confirm `git status --short` is empty, and stop and report when it is
+     not, before any number is decided: step 3 would stop on it, and the
+     number would be left a gap. Then run
+
+     ```bash
+     numreserve task
+     ```
+
+     with a command time limit of at least five minutes (the tool bounds a
+     run at three), and use the four-digit number it prints on standard
+     output as `NNNN`.
+     The tool creates the number's record tag on `origin`, so no other
+     session, in any clone, gets the same number. When it exits with a status
+     other than `0`, or is not installed, stop: create no branch and no task
+     directory, choose no number yourself, and report the line it wrote to
+     standard error (it names the stop reason) and the table of stop reasons
+     in `docs/dev/guides/numreserve_guide.md`, which says what to do next for
+     each reason. Run it once per new task, only here: each run creates a
+     record tag that cannot be deleted. `<name>` is a short English snake_case
+     name for the issue's subject, in the style of the existing directory names (e.g.
      `output_layout`, `native_messaging_relay`).
 
 3. Create the feature branch: follow `.claude/commands/_lib/task-pr-handoff.md`,

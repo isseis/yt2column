@@ -42,7 +42,7 @@ func (t *Tool) Reserve(ctx context.Context, space Space) (Reservation, error) {
 	if t.refused != nil {
 		return Reservation{}, t.refused
 	}
-	tagPrefix, err := space.tagPrefix()
+	tagPrefix, err := space.TagPrefix()
 	if err != nil {
 		return Reservation{}, err
 	}

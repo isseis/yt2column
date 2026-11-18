@@ -74,7 +74,7 @@ var createRefusalNames = map[CreateRefusal]string{
 	CreateRefusalIssueIsPR:       "issue_is_pr",
 	CreateRefusalIssueUnreadable: "issue_unreadable",
 	CreateRefusalTargetExists:    "target_exists",
-	CreateRefusalPathUnsupported: "unsupported_path",
+	CreateRefusalPathUnsupported: namePathUnsupported,
 	CreateRefusalFetchFailed:     "fetch_failed",
 	CreateRefusalBusy:            "busy",
 }

@@ -2,6 +2,7 @@ package chief
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strconv"
 	"time"
@@ -81,24 +82,31 @@ func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 			view.problems = append(view.problems, "the creation exclusion cannot be released: "+err.Error())
 		}
 	}
-	extra := applyAutoSends(&view, results)
+	extra := applyAutoSends(&view, deps.Store, results)
 	return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, extra), AutoSends: results}, nil
 }
 
 // applyAutoSends updates the rows of the workspaces an automatic send went
 // to, read before it, and returns the proposals of the PRs not sent. A row
-// sent to is running what was sent; a row whose send failed after an input
-// needs a check, since its workspace is stopped. No row an automatic send
-// concerns stays idle.
-func applyAutoSends(view *roundView, results []AutoSendResult) []PendingItem {
+// sent to is running the proposal's command with the model sent; a row
+// whose send failed after an input needs a check. No row an automatic send
+// concerns stays idle. Contract: the running command is made from the
+// proposal's declared command, never from the text sent or from a
+// transcript; the stop of every workspace an input was typed into is read
+// again from store, so a stop the send made shows in this round, and a stop
+// that cannot be read again marks the row StopUnreadable and is named in
+// the round's problems.
+func applyAutoSends(view *roundView, store Store, results []AutoSendResult) []PendingItem {
 	var extra []PendingItem
 	for _, r := range results {
 		var sent *ActionResult
 		if len(r.Actions) > 0 && r.Actions[0].Input == InputCommand {
 			sent = &r.Actions[0]
 		}
-		row := rowAt(view.rows, r.Workspace)
-		if row != nil {
+		i := slices.IndexFunc(view.rows, func(row Row) bool { return row.Workspace == r.Workspace })
+		var row *Row
+		if i >= 0 {
+			row = &view.rows[i]
 			// An automatic send or its proposal is something to look at, so
 			// the workspace is no longer idle.
 			row.Idle = false
@@ -112,23 +120,73 @@ func applyAutoSends(view *roundView, results []AutoSendResult) []PendingItem {
 					return a.Pane == it.Pane.String() && (a.Outcome == OutcomeSent || a.Outcome == OutcomeSentThenFailed)
 				})
 			})
-			row.Running = &SendRecord{Pane: sent.Pane, Input: InputCommand.String(), Command: sent.Command, Agent: agentLabel(sent.Agent), Model: sent.Model}
+			row.Running, row.RunningUnknown = sentRunning(r.Proposal, sent.Model)
 		case sent != nil && sent.Outcome == OutcomeSentThenFailed && row != nil:
 			row.State, row.Next, row.Takeover = StateNeedsCheck, nil, nil
 			row.Unreadable = []string{"the automatic send failed after an input, so the workspace is stopped until release"}
 		case r.Proposal != nil:
 			extra = append(extra, PendingItem{ID: proposalID(r.Workspace, r.Proposal), Kind: PendingProposal, Workspace: r.Workspace, Label: r.Label, Proposal: r.Proposal, Reasons: r.Reasons})
 		}
+		if row != nil && slices.ContainsFunc(r.Actions, typedInput) {
+			if err := rereadStop(view, i, store); err != nil {
+				view.problems = append(view.problems, "the stop of "+r.Workspace+" cannot be read again after the automatic send: "+err.Error())
+			}
+		}
 	}
 	return extra
 }
 
-// rowAt returns the row of worktree, nil when the round has none.
-func rowAt(rows []Row, worktree string) *Row {
-	for i := range rows {
-		if rows[i].Workspace == worktree {
-			return &rows[i]
-		}
+// sentRunning is the running command of a row an automatic send sent the
+// proposal's command to, with the model sent; nil when the proposal names no
+// command chief can show.
+func sentRunning(proposal *Next, model string) (*RunningShown, RunningUnknown) {
+	if proposal == nil || proposal.Command == nil {
+		return nil, RunningUnknownNoSentCommand
+	}
+	kind, arg, err := proposal.Command.Parts()
+	if err != nil {
+		return nil, RunningUnknownNoSentCommand
+	}
+	cmd, dropped, err := newRunningCommand(kind, arg)
+	if err != nil || dropped {
+		return nil, RunningUnknownNoSentCommand
+	}
+	return &RunningShown{Command: cmd, Model: model}, RunningUnknownNone
+}
+
+// typedInput reports whether an action may have typed an input into its
+// pane: every outcome but the two that typed nothing.
+func typedInput(a ActionResult) bool {
+	return a.Outcome != OutcomeNotSent && a.Outcome != OutcomeRecordedNotSent
+}
+
+// errNoRoundWorktree reports a row whose worktree the round did not find.
+var errNoRoundWorktree = errors.New("the round has no worktree for the row")
+
+// rereadStop reads the stop of the workspace of the round's row i again.
+// A workspace the round did not find, or whose stop cannot be read, is
+// StopUnreadable.
+func rereadStop(view *roundView, i int, store Store) error {
+	row := &view.rows[i]
+	if i >= len(view.found) || view.found[i].Worktree != row.Workspace {
+		row.StopUnreadable = true
+		return errNoRoundWorktree
+	}
+	records, ok, err := store.existingRecords(view.found[i].Tree)
+	if err != nil {
+		row.StopUnreadable = true
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	stop, err := records.Stopped()
+	if err != nil {
+		row.StopUnreadable = true
+		return err
+	}
+	if stop != nil {
+		row.Stopped = stop
 	}
 	return nil
 }

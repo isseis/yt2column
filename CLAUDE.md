@@ -22,6 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [mergepr Guide](docs/dev/guides/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool
 - [fixprguard Guide](docs/dev/guides/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool for `/fixpr` and `/runpr`
 - [chief Guide](docs/dev/guides/chief_guide.md) - Setup, usage, subcommands, guarantees, the settings' herdr denials, the state directory, and known limits of the `chief` tool that `/chief` drives
+- [numreserve Guide](docs/dev/guides/numreserve_guide.md) - Installation, invocation, stop reasons and what to do next, the record ruleset and removing a wrong record tag, and the cloud-session limits of the `numreserve` tool that decides task and ADR numbers
 
 ## Documents
 
@@ -502,11 +503,12 @@ for the packages that exist today. The server's startup is documented in the
   `/runpr` report, the last report on a pane and the PR numbers it names
   (an OpenCode pane's from its screen, a Claude Code pane's from the last
   finished response of its transcript), and the transcript's record of a
-  model switch, of the human's last command (a line is the human's only by
-  the origin Claude Code declares on it, never by its text), and of the
-  text of the last finished response; a PR record is a value the transcript
-  declares and is not in scope; the chief session's summary of the report
-  of the command that created a PR is in scope too. Every other file of the tool chooses behavior only
+  model switch, of the human's last command, and of the human's last task
+  command with whether the human typed anything after it, never what (a
+  line is the human's only by the origin Claude Code declares on it, never
+  by its text), and of the text of the last finished response; a PR record is
+  a value the transcript declares and is not in scope; the chief session's
+  summary of the report of the command that created a PR is in scope too. Every other file of the tool chooses behavior only
   by the types the screen readers return. Reason: the screens are drawn by
   Claude Code and OpenCode and the transcript is written by Claude Code,
   external values the tool cannot express in a type, and OpenCode's question
@@ -688,7 +690,8 @@ info.json parsers with real samples under `testdata/`.
   commands the agents run at their trust boundary (the `fixprguard` call sites,
   the commands that would bypass it, the mention check, the `--jq` filters
   that must not print a body, the `--protocol` value of the `codexreview`
-  calls, and the absence of a command that runs `codex` directly). A mistake
+  calls, the absence of a command that runs `codex` directly, and the form of
+  the `numreserve` calls and of their permission rules). A mistake
   there disables a guard at run time, so a test is worth its brittleness. A
   property of the change itself, such as "the diff of section S is limited to
   rewriting one line", is not a document test either: it is a `diff`
@@ -731,7 +734,8 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   the values `cli.md` and `development.md` hold, the
   `/fixpr` and `/runpr` command documents, the `codexreview`
   permission and command-document checks, `cmd/mergepr`'s checks of the
-  `mergepr` calls and of the tools with a protocol number, the ADR guard
+  `mergepr` calls and of the tools with a protocol number, `cmd/numreserve`'s
+  checks of its permission rules, its calls, and its guide's values, the ADR guard
   `TestADRRecords`, and `internal/chief`'s readings of the routing table and
   the PR markers) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
@@ -992,6 +996,22 @@ section of the Requirements Process Guide.
   during the review to OpenAI's service and spends the Codex allowance the PR
   review shares. Codex CLI itself is never run directly, and the agents never
   install or build `codexreview`: the user installs it from `main`
+- `numreserve task` and `numreserve adr` (the developer tool that decides a task
+  or an ADR number) may be executed without explicit approval, written exactly
+  in one of these two forms and run only when a procedure needs a new number
+  (`/mkreq` step 2, and the ADR convention's "Location and naming" and
+  "Taking in `main`"); never run them to try or check the tool. Each run
+  writes to the network: it creates one record tag on `origin`
+  (`refs/tags/task-number/NNNN` or `refs/tags/adr-number/NNNN`), which cannot
+  be deleted. The agents never install or build the tool: the user installs
+  it from `main` (`make install-numreserve`)
+- Creating, changing, or deleting a record tag (a ref under
+  `refs/tags/task-number/` or `refs/tags/adr-number/`) other than through the
+  two calls above, by `git push`, `gh api`, or any other means, requires the
+  user's explicit approval. This is an exception to the rule above that
+  `git push` may be executed without approval. Changing, disabling, or
+  deleting the record ruleset that protects these tags also requires the
+  user's explicit approval
 - Invoking `/chief` approves, for that session, the read-only network operations
   the `chief` tool runs while it shows the status and watches: `git fetch origin
   main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`. It

@@ -132,7 +132,7 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 		f := readWorkspace(ctx, herdr, git, tasks, w)
 		f.Routing, f.RoutingErr, f.FetchFailed = view.routing, view.routingErr, view.fetchFailed
 		row := classifyWorkspace(ctx, git, tasks, f, view.old, view.oldErr)
-		if err := addRecords(ctx, git, deps.Store, w, &row); err != nil {
+		if err := addRecords(ctx, deps, git, w, &row); err != nil {
 			view.problems = append(view.problems, "the records of "+w.Worktree+" cannot be read: "+err.Error())
 		} else {
 			view.problems = append(view.problems, addResets(deps.Store, w, &row, view.routing)...)
@@ -144,12 +144,15 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 	return view, nil
 }
 
-// finishSnapshot lists the pending items of the round's rows with extra
-// (proposals a tick made, merged into the row's item of the same identity),
-// stamps them with the notice records of owner's session, and orders the
-// items and the rows.
+// finishSnapshot sets each row's urgency, turn, and position (finishRow),
+// lists the pending items of the round's rows with extra (proposals a tick
+// made, merged into the row's item of the same identity), stamps them with
+// the notice records of owner's session, and orders the items and the rows.
 func finishSnapshot(deps Deps, owner Owner, view roundView, extra []PendingItem) Snapshot {
 	snap := Snapshot{StateDir: deps.Store.Dir(), Rows: view.rows, Problems: view.problems, Baseline: baselineOf(view.agents, workspaceIDs(view.found))}
+	for i := range snap.Rows {
+		finishRow(&snap.Rows[i])
+	}
 	snap.Pending = mergePending(buildPending(snap.Rows), extra)
 	idle := idleWorkspaces(snap.Rows)
 	// Sorting before stamping gives the items first seen in this round
@@ -163,59 +166,51 @@ func finishSnapshot(deps Deps, owner Owner, view roundView, extra []PendingItem)
 	return snap
 }
 
-// addRecords shows a workspace's stop, on a running row what chief last
-// sent to its working pane, and on a row awaiting review the review-skippable
+// addRecords shows a workspace's stop, on a running row the command its
+// working agents run, and on a row awaiting review the review-skippable
 // judgment of the PR detail kept for the worktree's HEAD. It reads records
 // only; a workspace never sent to has no records and nothing is created for
 // it. Contract: the judgment is shown only from a detail of the same PR at
-// the same HEAD, never from an older one.
-func addRecords(ctx context.Context, git GitReader, store Store, w TaskWorkspace, row *Row) error {
-	records, ok, err := store.existingRecords(w.Tree)
-	if err != nil {
-		// Whether the workspace is stopped cannot be told, so it is not idle.
-		row.Idle = false
-		return err
-	}
-	if !ok {
-		return nil
-	}
-	stop, err := records.Stopped()
-	if err != nil {
-		row.Idle = false
-		return err
-	}
-	row.Stopped = stop
-	if stop != nil {
-		// A stopped workspace waits on the human's release.
-		row.Idle = false
-	}
-	if row.State == StateAwaitingReview && row.PR != nil {
-		// A HEAD that cannot be read only leaves the mark off.
-		if head, err := git.Head(ctx, w.Worktree); err == nil {
-			rec, ok, err := records.readDetail(row.PR.Number, head)
-			if err != nil {
-				return err
+// the same HEAD, never from an older one; a stop that cannot be read marks
+// the row StopUnreadable and is returned, so the round names it as a
+// problem; the running command is read for display only, and a send record
+// that cannot be read makes it undecided (RunningUnknownUnreadable) without
+// being returned, so it never adds a problem.
+func addRecords(ctx context.Context, deps Deps, git GitReader, w TaskWorkspace, row *Row) error {
+	var stopErr error
+	sends := func(string) (lastCommand, error) { return lastCommand{}, nil }
+	records, ok, err := deps.Store.existingRecords(w.Tree)
+	switch {
+	case err != nil:
+		// Whether the workspace is stopped cannot be told, so it is not idle
+		// and calls the human like a stopped one.
+		row.Idle, row.StopUnreadable, stopErr = false, true, err
+		sends = func(string) (lastCommand, error) { return lastCommand{}, err }
+	case ok:
+		sends = records.lastSentCommand
+		stop, err := records.Stopped()
+		switch {
+		case err != nil:
+			row.Idle, row.StopUnreadable, stopErr = false, true, err
+		case stop != nil:
+			// A stopped workspace waits on the human's release.
+			row.Stopped, row.Idle = stop, false
+		}
+		if stopErr == nil && row.State == StateAwaitingReview && row.PR != nil {
+			// A HEAD that cannot be read only leaves the mark off.
+			if head, err := git.Head(ctx, w.Worktree); err == nil {
+				rec, found, err := records.readDetail(row.PR.Number, head)
+				if err != nil {
+					return err
+				}
+				row.ReviewSkippable = found && rec.Skippable
 			}
-			row.ReviewSkippable = ok && rec.Skippable
 		}
 	}
-	if row.State != StateRunning {
-		return nil
+	if row.State == StateRunning {
+		row.Running, row.RunningUnknown = runningOf(ctx, deps, w.Agents, sends)
 	}
-	for _, a := range w.Agents {
-		if a.Status != AgentWorking {
-			continue
-		}
-		rec, err := records.LastSend(a.Pane.String())
-		if err != nil {
-			return err
-		}
-		if rec != nil {
-			row.Running = rec
-			return nil
-		}
-	}
-	return nil
+	return stopErr
 }
 
 // addResets offers on the row the resets its skip records name, as
@@ -370,9 +365,9 @@ func idleWorkspaces(rows []Row) map[string]struct{} {
 }
 
 // sortRows orders the rows as the table is shown: idle rows last, then by
-// state, then, for the states that wait on the human, by how long their
-// first item has waited, then by workspace path. pending must already carry
-// its times.
+// urgency (now, later, wait), then by state, then, for the states that wait
+// on the human, by how long their first item has waited, then by workspace
+// path. pending must already carry its times.
 func sortRows(rows []Row, pending []PendingItem) {
 	first := map[string]time.Time{}
 	for _, p := range pending {
@@ -383,6 +378,7 @@ func sortRows(rows []Row, pending []PendingItem) {
 	slices.SortStableFunc(rows, func(a, b Row) int {
 		return cmp.Or(
 			cmp.Compare(idleRank(a), idleRank(b)),
+			cmp.Compare(a.Urgency, b.Urgency),
 			cmp.Compare(a.State.rank(), b.State.rank()),
 			cmp.Compare(mergeOnlyRank(a), mergeOnlyRank(b)),
 			first[a.Workspace].Compare(first[b.Workspace]),

@@ -51,6 +51,12 @@ H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項
 
 -   **セッションの記録の origin の `kind` に `auto-continuation` を足し、人でない kind として受け付ける。** 計画のステップ 1-1 で、実行中のセッションの記録を元の記録で確かめたところ、この計算機の 612 ファイルのうち 12 ファイル（Claude Code 2.1.306〜2.1.326、`/runplan`・`/mkplan`・`/mkarch` などのセッションを含む）に、`kind` が `auto-continuation` の行があった。claude.ai の使用量の上限が解けた後に Claude Code が自動で足す続行の入力で、`isMeta` が真、`promptSource` が `system`、`turnOrigin` が `auto_continuation` である。今の `readLastHumanInput`（`internal/chief/screen_transcript.go`）は、採取した種類（`human`・`peer`・`task-notification`）以外の `kind` の行で記録全体を読めないものにするため、そのセッションの実行中のコマンドは決まらず、表に示されなくなる（`running_unknown` が `unreadable`）。`auto-continuation` は、`peer`・`task-notification` と同じく、人が打たない入力を Claude Code が宣言する値である。人の入力かどうかを、宣言された `origin` の `kind` だけで決める規則（CLAUDE.md の「Declare, don't infer」の chief の画面の読み取りの例外）は変えず、人でない kind の一覧に 1 つ足す。ほかの `kind` を読めないものとする規則と、リセットの確かめの結果は変わらない。実行中のセッションの記録のサンプルに、この行を含める。人が選んだ（2026-11-17）。ADR: なし（例外の範囲と規則を変えず、採取した kind の一覧に 1 つ足すだけで、このタスクの中で閉じるため）。
 
+-   **状況の表を 6 つの列にし、印を「🔴 今」「🟡 後」「🟢 待」にし、実行中のコマンドを人が最後に打ったタスクのコマンドに「（後に指示あり）」を添えて示し、決まらない理由を示す。** PR-3 の実地の確かめで、8 つの列の表が pane の幅に収まらず縦に並び、また後から自由な文で指示を足したセッションで、何を実行しているかが示されなかった。決定と理由は要件書の「実装の際に決めたこと（2026-11-17）」にある。設計への影響は次のとおりである。人が選んだ（2026-11-17）。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
+    -   `readRunningCommand` は、人の入力を順に読み（`scanHumanInputs`、`readLastHumanInput` と同じ規則）、5 つのタスクのコマンドの最後のものと、その後に人の入力があったか（`later`）を返す。後の入力の中身は読まない。
+    -   `RunningShown` に `Later` を足し、出力の `running` に `later_input` を足す。どれかの pane で後の入力があれば真とする。後の入力があるときは、モデルを示さない。
+    -   `running_unknown` は、`/chief` の定義が「内容」の列に示す値になる（1.2 の、表に示さない診断の値という扱いを変える）。`OutputValueNames` の対象を、表に示す `urgency`・`position.document`・`position.progress`・`running_unknown` にし、`state` と `turn` を外す。
+    -   出力の形が変わるが、`Protocol` は、この PR ですでに上げた値（計画書の決定 1 のとおり、`origin/main` の値に 1 を足した値）のままとし、この変更のためにもう 1 つは上げない。この PR の中の変更で、`origin/main` の道具はこの出力の形をまだ知らないためである。
+
 ### 1.3. なぜ今の仕組みでは足りないか
 
 今の道具は、行ごとに状態だけを返し（`internal/chief/output.go:27-41`）、どの行に人がすぐ答えるべきかを示さない。タスクの文書を `origin/main` から読んでいるが、どの文書の段にあるかは出力に含まない（`internal/chief/state.go:273-306`）。「実行中」の行のコマンドは送信の記録だけから示すので（`internal/chief/snapshot.go:199-214`）、人が自分で打ったコマンドは示せない。行の並べ方は状態の順だけで決まり（`internal/chief/snapshot.go:339-354`）、送信が止まった行は、その状態の位置に並ぶ。
@@ -194,7 +200,7 @@ flowchart TD
 | `internal/chief/state.go` | 変更 | `Row` に、急ぎの度合い・番・進行の位置・示す実行中のコマンド・文書の規則が読む事実・送信の停止を読めないことを足す。`Row.MergeQuestion` を外す（3.1）。`decideNext` は、文書の判定を文書の段から読む（3.3） |
 | `internal/chief/position.go`（新規） | 新規 | 文書の段（3.3）、急ぎの度合いの対応表（3.2）、文書の規則（3.3）、進み具合（3.4）、行の仕上げ（3.6）。どれも入出力を持たない関数である |
 | `internal/chief/running.go`（新規） | 新規 | 実行中のコマンドの決定（3.5）。pane ごとに、Claude Code はセッションの記録から、OpenCode は送信の記録から決め、AC-12 の規則でまとめる。モデルを示すかと、決まらなかった理由も決める |
-| `internal/chief/screen_transcript.go` | 変更 | 表示のための記録の読み取りの入口を足す。改行で終わる記録に今の `readLastHumanInput` を当て、人の最後の入力を、検証した実行中のコマンドの型で返す（3.5）。`readLastHumanInput` そのものは変えない |
+| `internal/chief/screen_transcript.go` | 変更 | 表示のための記録の読み取りの入口を足す。改行で終わる記録の人の入力を `readLastHumanInput` と同じ規則で順に読み（`scanHumanInputs`）、人が最後に打ったタスクのコマンドを、検証した実行中のコマンドの型で、後の入力の有無とともに返す（3.5、1.2.1）。`readLastHumanInput` の振る舞いは変えない |
 | `internal/chief/transcript.go` | 変更 | 改行で終わるまで決まった回数だけ読み直す読み取りを足す（1.2） |
 | `internal/chief/snapshot.go` | 変更 | `addRecords` が、送信の停止を読めないことを行に残し、「実行中」の行の処理を実行中のコマンドの決定に置き換える。`finishSnapshot` が、並べ替えの前に行の仕上げを呼ぶ。`sortRows` の並べ方に急ぎの度合いを足す（3.7）。`mergeOnlyRank` は、進み具合と共有する「すべての質問がマージの確認」の判定を使う |
 | `internal/chief/tick.go` | 変更 | `applyAutoSends` が、送った行に送ったコマンドを実行中のコマンドとして付け（AC-10）、入力を打った workspace の送信の停止を読み直す（1.2） |
@@ -202,7 +208,7 @@ flowchart TD
 | `internal/chief/send.go` | 変更 | コマンドを送るとき、送信の記録に種類と引数を書く |
 | `internal/chief/paneinput/paneinput.go` | 変更 | `Command` の種類と引数を読む関数と、`CommandKind` の名前の表を足す（3.1） |
 | `internal/chief/output.go` | 変更 | `RowOutput` に `urgency`・`turn`・`position`・`idle`・`running_unknown` を足し、`merge_question` を外し、`running` と `stopped` の形を変える（3.8）。出力の値の名前の集合を返す関数を公開する（7.2） |
-| `.claude/commands/chief.md` | 変更 | 表の列と値の表示、「質問で停止」の行の「次」の列、表の下の一覧から質問の要点を外すこと、`--protocol 2`（3.9） |
+| `.claude/commands/chief.md` | 変更 | 表の列と値の表示、「質問で停止」の行の「内容」の列、表の下の一覧から質問の要点を外すこと、`--protocol 2`（3.9） |
 | `docs/dev/guides/chief_guide.md` | 変更 | 表の見方、調べ方、入れ替えの手順、既知の制限を足し、`--protocol` の番号の記述を 2 にする（3.10） |
 | `cmd/chief/docs_test.go` | 変更 | `/chief` の定義の値の対応表が、道具の値の集合と一致することを確かめるテストを足す（7.2） |
 | `internal/chief/*_test.go` | 変更 | 3.11 の既存のテストを直し、新しいテストを足す |
@@ -476,9 +482,9 @@ type SendRecord struct {
 -   **Claude Code の pane。** 次のとおりに決める。
     -   記録の場所は、リセットの確かめと同じ `transcriptPath`（`internal/chief/transcript.go:53-69`）で、pane の作業ディレクトリとセッションの識別から決める。
     -   読む量の上限は、今の 64 MiB（`resetTranscriptLimit`、`internal/chief/transcript.go:30`）とし、超えた記録は読めないものとする（要件書 4.2）。
-    -   記録の最後が改行で終わるまで、決まった回数だけ読み直す（1.2）。改行で終わる記録に `readLastHumanInput`（`internal/chief/screen_transcript.go:170-189`）を当てる。結果が `HumanInputCommand` で、名前が `mkreq`・`mkarch`・`mkplan`・`runplan`・`runpr` のどれかのとき、そのコマンドとする。
+    -   記録の最後が改行で終わるまで、決まった回数だけ読み直す（1.2）。改行で終わる記録の人の入力を、`readLastHumanInput` と同じ規則で順に読む（`scanHumanInputs`）。`HumanInputCommand` で、名前が `mkreq`・`mkarch`・`mkplan`・`runplan`・`runpr` のどれかである最後の入力を、そのコマンドとする。その後に人の入力があれば、`later` を真にする（1.2.1）。後の入力の中身は読まない。
     -   名前から種類への変換と引数の検証は `screen_transcript.go` の新しい入口が行い、`running.go` には `RunningCommand` の型で返す。これは、CLAUDE.md の「Declare, don't infer」にある chief の画面の読み取りの例外の範囲に収まる。
-    -   それ以外（自由な文、ほかの名前のコマンド、人の入力がない、読めない、場所を決められない、書きかけのまま）は、決まらない。
+    -   そのようなコマンドがない（人の入力がない、自由な文とほかの名前のコマンドだけ）、読めない、場所を決められない、書きかけのままのときは、決まらない。
 -   **OpenCode の pane。** `LastSend`（`internal/chief/records.go:824-839`）で、その pane への最後の送信（答えの中継を除く）を読む。次のすべてを満たすとき、そのコマンドとする。
     -   それがコマンドの送信（`Input` が `command`）である。
     -   `Kind` が 5 つのコマンドのどれかを名指す。
@@ -504,6 +510,7 @@ type SendRecord struct {
 -   実行中のエージェントがちょうど 1 つである。
 -   その pane への chief の最後の送信が、上と同じ条件を満たす（結果が `sent` のコマンドの送信）。
 -   その送信の `Kind` と `Arg` が、実行中のコマンドと同じである。
+-   その pane で、実行中のコマンドの後に人の入力がない（`later` が偽）。
 
 Claude Code の pane で、chief が送ったコマンドを人がもう一度打ったときも、記録のモデルを示す。人がその間にモデルを切り替えていれば、示すモデルは古い。これは AC-14 のとおりで、受け入れる。
 
@@ -520,7 +527,7 @@ Claude Code の pane で、chief が送ったコマンドを人がもう一度�
 **残る制限。** 次の 3 つは、表示だけの誤りとして受け入れ、chief 利用ガイドの既知の制限に書く。
 -   人がコマンドを打った直後で、Claude Code がまだその行を 1 バイトも書いていない周は、1 つ前のコマンドを示す。読み直しでは見分けられない。
 -   周の初めに読んだ Herdr のセッションの識別が、`/clear` の直後でまだ古いと、古いセッションの記録のコマンドを示しうる。
--   人が引数なしで打ったコマンド（`/runpr` など）の記録は `<command-args>` の要素を持たず、今の人の入力の読み取り（`customCommandRecord`）は「そのほかの人の入力」と読む。その pane の実行中のコマンドは決まらず、示されない（古いコマンドを示すことはない）。元の記録では、5 つのコマンドの人の入力 599 件のうち 53 件（48 ファイル）がこの形だった。人が選んだ（2026-11-17）。
+-   人が引数なしで打ったコマンド（`/runpr` など）の記録は `<command-args>` の要素を持たず、今の人の入力の読み取り（`customCommandRecord`）は「そのほかの人の入力」と読む。その前にタスクのコマンドがあれば、それを「（後に指示あり）」を添えて示し、なければ決まらない（1.2.1）。元の記録では、5 つのコマンドの人の入力 599 件のうち 53 件（48 ファイル）がこの形だった。人が選んだ（2026-11-17）。
 
 ### 3.6. 行の仕上げ
 
@@ -553,7 +560,8 @@ type RowOutput struct {
 	// Running is null when no command is decided.
 	Running *RunningOutput `json:"running"`
 	// RunningUnknown is why a running row shows no command, "" otherwise.
-	// It is for diagnosis; /chief does not show it in the table.
+	// /chief shows it in the content column in place of the command
+	// (1.2.1).
 	RunningUnknown string `json:"running_unknown"`
 	// Idle is true for a row left over or not yet used. It is for
 	// diagnosis; /chief does not show it in the table.
@@ -577,7 +585,10 @@ type RunningOutput struct {
 	// Command is the command line, such as "/runplan 0093", or the name
 	// alone, such as "/runpr", when it had no argument of the accepted form.
 	Command string `json:"command"`
-	Model   string `json:"model"`
+	// LaterInput is true when the human typed something after the command
+	// (1.2.1).
+	LaterInput bool   `json:"later_input"`
+	Model      string `json:"model"`
 }
 
 // StopOutput gains one member: true when the stop record could not be read,
@@ -601,48 +612,48 @@ type StopOutput struct {
 -   各型の範囲の外の値は `unknown`（`unknownName`）と出す。今の `questionKindName`（`internal/chief/output.go:109-122`）と同じである。
 -   今の `RunningOutput` の `pane`・`agent`・`started` は外す。2 つ以上の pane のコマンドをまとめるので、1 つの pane を示せないためである。`/chief` の定義は、今も `running` のコマンドとモデルしか示さない（`.claude/commands/chief.md:132`）。`model` は記録の文字列なので、今と同じく `Sanitize` を通す（`internal/chief/output.go:198`）。
 -   送信の停止を読めない行は、`stopped` を `unreadable: true` で出す。`/chief` の定義は、送信が止まっていることと、停止の記録を読めないことを示す。
--   質問ごとの `merge`（`QuestionOutput.Merge`）は残す。「質問で停止」の行の「次」の列で、マージの確認である質問に、そのことを添えるのに使う（AC-18）。
+-   質問ごとの `merge`（`QuestionOutput.Merge`）は残す。「質問で停止」の行の「内容」の列で、マージの確認である質問に、そのことを添えるのに使う（AC-18）。
 -   `Protocol`（`internal/chief/records.go:28`）を 2 にする。`chief.md` と `chief_guide.md` の番号は、今のガードテスト（`cmd/chief/docs_test.go:201-213`・`:399-443`）が道具の値と比べる。
 -   `tick` の出力は `SnapshotOutput` を埋め込む（`internal/chief/output.go:422-425`）ので、同じ形になる（AC-20）。
 
 ### 3.9. `/chief` の定義（`.claude/commands/chief.md`）
 
 -   すべての `--protocol 1` を `--protocol 2` にする。
--   「2. One round」の表を、次の列の Markdown の表にする。印の列を最初に置く（申し送りの H-03）。
+-   「2. One round」の表を、次の列の Markdown の表にする。印の列を最初に置く（申し送りの H-03）。画面の半分の幅の pane に収まるよう、列を絞る（1.2.1）。
 
     | 列 | 中身 |
     |---|---|
-    | 急ぎ | `urgency` |
+    | 急 | `urgency` |
     | 名前 | `label` |
-    | タスク | `task`、空なら「なし」 |
-    | 状態 | `state` |
-    | 番 | `turn` |
+    | タスク | `task`、空なら「-」 |
     | 文書 | `position.document`（`plan_pr` は PR-`plan_pr`） |
-    | 進み具合 | `position.progress` |
-    | 次 | 下の項目 |
+    | 状態 | `position.progress` |
+    | 内容 | 下の項目 |
 
--   値から日本語の表示への対応は、定義の中の 1 つの表に置く。`state` の対応（今は文の中にある、`.claude/commands/chief.md:125-128`）も同じ表に移す。表示は次のとおりである。
-    -   `urgency`: `now` 🔴 すぐ、`later` 🟡 あとで、`wait` 🟢 待つ
-    -   `turn`: `human` 人、`ai` AI、`none` なし
+-   値から日本語の表示への対応は、定義の中の 1 つの表に置く。表示は次のとおりである。
+    -   `urgency`: `now` 🔴 今、`later` 🟡 後、`wait` 🟢 待
     -   `position.document`: `needs_check` 要確認、`no_task` -、`requirements` 要件定義書、`architecture` 設計書、`plan` 計画書、`plan_pr` PR-N、`none` なし
-    -   `position.progress`: `needs_check` 要確認、`awaiting_creation` 作成待ち、`creating` 作成中、`runpr_running` `/runpr` 実行中、`running` 実行中、`merge_confirmation` マージの確認待ち、`question` 質問で停止、`awaiting_review` レビュー待ち、`task_done` タスク完了
+    -   `position.progress`: `needs_check` 要確認、`awaiting_creation` 次を提案、`creating` 作成中、`runpr_running` `/runpr` 実行中、`running` 実行中、`merge_confirmation` マージの確認待ち、`question` 質問で停止、`awaiting_review` レビュー待ち、`task_done` タスク完了
+    -   `running_unknown`: `no_session` セッション不明、`unsupported_path` 記録の場所が不明、`unreadable` 記録を読めない、`over_cap` 記録が大きすぎる、`partial_line` 記録の書き込み中、`not_task_command` 読めるタスクのコマンドなし、`no_sent_command` 送ったコマンドの記録なし（OpenCode）、`panes_disagree` pane ごとに異なる
+-   `state`・`turn`・`idle` は示さない。「状態」の列の進み具合が、`state` と `turn` の示すことを含むためである。
 -   表にない値は、書かれたままの値に「（定義にない値）」を添えて示し、自分で意味を推し量らない。`--protocol` の照合があるので、ふつうは起こらない。
--   「次」の列は、状態ごとに次のとおりにする。
+-   「内容」の列は、`state` ごとに 1 つを示す。PR の題名・質問の要点・要確認の理由（`unreadable`）・送れない提案の理由（`problem`）は、20 文字ほどで切って「…」を付ける。コマンドとモデルと定義の決まった言葉は短いので切らない。1 つのセルが長いだけで、表が pane の幅を超えて縦の表示に切り替わるためである（3 回目の実地の確かめで PR の題名、PR を作った後の実地の確かめで要確認の理由。人が選んだ、2026-11-17・2026-11-18）。
     -   「質問で停止」の行は、`questions` の質問ごとに、質問の要点と pane を書き、`merge` が真の質問には「マージの確認」と添える。マージの確認でないことを、文にして書かない（AC-18）。
-    -   「実行中」の行は、`running` が `null` でなければ、そのコマンドを書き、`model` が空でなければモデルも書く。`running` が `null` なら、何も書かない（AC-14）。`running_unknown` は書かない。
-    -   ほかの状態の行は、今のまま。`stopped` の `unreadable` が真のときは、送信が止まっていることと、停止の記録を読めないことを書く。
+    -   「実行中」の行は、`running` が `null` でなければ、そのコマンドを書き、`later_input` が真なら「（後に指示あり）」を、`model` が空でなければモデルを添える。`running` が `null` なら、`running_unknown` を対応表のとおりに書く（AC-14）。
+    -   「レビュー待ち」は PR の番号と題名、「次を提案」は次のコマンドとモデル（送れないならその理由）、「要確認」は読めなかったもの、「タスク完了」は何も書かない。
+-   引き継ぎと送信の停止は、1 行に収まらないので、表の下に workspace の名前を添えて書く。`stopped` の `unreadable` が真のときは、送信が止まっていることと、停止の記録を読めないことを書く。
 -   表の下から、「質問で停止」の行ごとの質問の要点と pane の一覧を外す。まだ答えのない問いと `problems` は残す（AC-19）。
--   「行は道具の順のまま示し、並べ替えない。急ぎの度合い・番・進行の位置は道具の値をそのまま示し、状態などから自分で決めない」と書く（AC-21）。表の示し方は、引数のない場合と `once` の場合で同じ「2. One round」を使うので、両方に効く（AC-22）。
+-   「行は道具の順のまま示し、並べ替えない。急ぎの度合い・進行の位置は道具の値をそのまま示し、状態などから自分で決めない」と書く（AC-21）。表の示し方は、引数のない場合と `once` の場合で同じ「2. One round」を使うので、両方に効く（AC-22）。
 
 ### 3.10. chief 利用ガイド（`docs/dev/guides/chief_guide.md`）
 
 -   「3. 使い方」に、表の見方を足す。書くのは次のことである。
     -   印の 3 つの意味と、急ぎの度合いの対応表（要件書 3.1）の要点
-    -   番の 3 つの意味
+    -   番は出力にあるが表に示さないこと（1.2.1）
     -   進行の位置の文書と進み具合の読み方
     -   行の並び（すぐ → あとで → 待つ、使っていないか残った worktree の行は最後）
-    -   「実行中」の行のコマンドは、Claude Code の pane ではセッションの記録の人の最後のコマンドから、OpenCode の pane では chief の送信の記録から決まり、決まらなければ示されないこと
-    -   調べ方: 実行中のコマンドが示されない行は、`chief snapshot` の出力の `running_unknown` で理由を見られること。使っていないか残った worktree の行は、`idle` で見分けられること
+    -   「実行中」の行のコマンドは、Claude Code の pane ではセッションの記録で人が最後に打ったタスクのコマンドから（後に入力があれば「（後に指示あり）」を添えて）、OpenCode の pane では chief の送信の記録から決まり、決まらなければその理由（`running_unknown`）が示されること
+    -   調べ方: 使っていないか残った worktree の行は、`chief snapshot` の出力の `idle` で見分けられること
 -   「8. 既知の制限」に、次のことを足す。
     -   OpenCode の pane で人が打ったコマンドは示されない（ADR-0046 の「結果」）。
     -   3.5 の「残る制限」の 3 つ。
@@ -689,7 +700,7 @@ AC-02 の実行中のコマンドのテストは、次のとおり直す。
 |---|---|---|
 | `git fetch origin main` の失敗、タスクの文書を読めない | 文書は `PositionDocNeedsCheck` | 行の状態（0088 のとおり） |
 | HEAD・ブランチを読めない、HEAD が detached（`/mkreq` が実行中でない） | 文書は `PositionDocNeedsCheck` | 同上 |
-| 送信の停止の記録を読めない | 行は「🔴 すぐ」・人。`stopped.unreadable` が真。`problems` に出るのは今のまま（`internal/chief/snapshot.go:170-174`） | 送る判断（今も止まったものとして扱う） |
+| 送信の停止の記録を読めない | 行は「すぐ」・人。`stopped.unreadable` が真。`problems` に出るのは今のまま（`internal/chief/snapshot.go:170-174`） | 送る判断（今も止まったものとして扱う） |
 | 自動送信の後に、送信の停止を読み直せない | 同上 | 同上 |
 | Claude Code の記録の場所を決められない、読めない、64 MiB を超える、形が合わない行がある、読み直しても改行で終わらない | その pane の実行中のコマンドは決まらない。`running_unknown` に理由 | 行の状態、`unreadable`、`problems`、送る判断 |
 | 送信の記録を読めない、終わりの記録がない、結果が `sent` でない、欄がない | その pane の実行中のコマンドは決まらない。`running_unknown` に理由 | 同上 |
@@ -757,7 +768,7 @@ flowchart LR
 | 大きな記録で周を遅らせる | 読む量の上限は今の 64 MiB のままで、超えた記録は読めないものとする。読むのは「実行中」の行の、`working` の Claude Code の pane だけである。1 周の時間は計画で測る（7.3） |
 | FIFO などで読み取りを止める | 今の `openTranscript`（`internal/chief/transcript.go:101-121`）をそのまま使い、通常のファイルでなければ読めないものとする |
 
-CLAUDE.md の「Declare, don't infer」の chief の画面の読み取りの例外の範囲（人の最後のコマンド）は広げない。行が人の入力であるかは、Claude Code が宣言する値で見分ける今の規則のままである。人の入力の名前と引数を型に変えるのは `screen_transcript.go` で、ほかのファイルは返された型だけで振る舞いを選ぶ。送信の記録からは、宣言した欄（`Kind`・`Arg`）と終わりの記録の結果だけを読み、コマンドの文字列を読み直さない（1.2）。
+CLAUDE.md の「Declare, don't infer」の chief の画面の読み取りの例外の範囲（人の最後のコマンド）には、人が最後に打ったタスクのコマンドと、その後に人の入力があったかを足す（1.2.1）。受け付ける行の形は広げない。行が人の入力であるかは、Claude Code が宣言する値で見分ける今の規則のままである。人の入力の名前と引数を型に変えるのは `screen_transcript.go` で、ほかのファイルは返された型だけで振る舞いを選ぶ。送信の記録からは、宣言した欄（`Kind`・`Arg`）と終わりの記録の結果だけを読み、コマンドの文字列を読み直さない（1.2）。
 
 ## 6. 処理フローの詳細 (Processing Flow Details)
 
@@ -773,7 +784,7 @@ flowchart TD
     ReadT -->|"いいえ"| Unknown
     ReadT -->|"はい"| Ends{"改行で終わる?<br>（決まった回数まで読み直す）"}
     Ends -->|"いいえ"| Unknown
-    Ends -->|"はい"| Last{"人の最後の入力が<br>5 つのコマンドのどれか?"}
+    Ends -->|"はい"| Last{"人の入力に<br>5 つのコマンドのどれかがある?<br>（最後のものと、後の入力の有無）"}
     Last -->|"いいえ"| Unknown
     Last -->|"はい"| Got["その pane のコマンド<br>（引数は種類ごとに検証）"]
     Kind -->|"OpenCode"| Rec{"最後の送信（中継を除く）が<br>Kind のあるコマンドの送信で、<br>結果が sent?"}
@@ -782,7 +793,7 @@ flowchart TD
     Got --> All{"すべての pane で決まり、<br>同じコマンド?"}
     Unknown --> All
     All -->|"いいえ"| None(["Running は nil、RunningUnknown に理由"])
-    All -->|"はい"| Model{"working の pane が 1 つで、<br>その最後の送信が同じコマンド?"}
+    All -->|"はい"| Model{"working の pane が 1 つで、<br>その最後の送信が同じコマンドで、<br>後の入力がない?"}
     Model -->|"はい"| WithModel(["コマンドと記録のモデル"])
     Model -->|"いいえ"| NoModel(["コマンドだけ"])
 ```
@@ -835,7 +846,7 @@ flowchart TD
     -   決まらない理由ごとの `running_unknown`
     -   記録を読めないときに、行の状態・`unreadable`・`problems` が変わらないこと（申し送りの H-02）
 -   **リセットの確かめが変わらないこと。** 改行で終わっていない記録のサンプルを、リセットの確かめが今までどおり読めないものとすることを確かめる。
--   **自動送信の周（AC-10）。** `tick` で自動送信を送った行が、送ったコマンドを実行中のコマンドとし、進み具合が「作成中」になることを確かめる。打った後に失敗した行と、コマンドの後のリセットが失敗した行が、その周から「🔴 すぐ」になることを確かめる。
+-   **自動送信の周（AC-10）。** `tick` で自動送信を送った行が、送ったコマンドを実行中のコマンドとし、進み具合が「作成中」になることを確かめる。打った後に失敗した行と、コマンドの後のリセットが失敗した行が、その周から「すぐ」になることを確かめる。
 -   **並べ方（AC-15〜AC-17）。** 次の行が「すぐ」の位置へ移ることを確かめる。
     -   送信が止まった「実行中」の行
     -   送信の停止を読めない行
@@ -849,7 +860,7 @@ flowchart TD
 ### 7.2. 結合テストと文書のガードテスト
 
 -   **結合テスト。** 今の `internal/chief` の結合のテストに、上の場面を足す。偽の Herdr・git・状態のディレクトリで `TakeSnapshot` と `Tick` を走らせるもので、`internal/chief/world_test.go` が組み立てる。新しい結合のテストの仕組みは作らない。
--   **文書のガードテスト。** `cmd/chief/docs_test.go` にテストを足す。`/chief` の定義の値の対応表（3.9）が、道具が出しうる `state`・`urgency`・`turn`・`position.document`・`position.progress` の値の集合をちょうど持つことを確かめる。
+-   **文書のガードテスト。** `cmd/chief/docs_test.go` にテストを足す。`/chief` の定義の値の対応表（3.9）が、道具が出しうる、表に示す `urgency`・`position.document`・`position.progress`・`running_unknown` の値の集合をちょうど持つことを確かめる（1.2.1）。
     -   `cmd/chief` から読めるよう、`internal/chief` は値の名前の集合を返す関数を公開する。
     -   値と構造を比べるテストで、文の意味は比べない（CLAUDE.md の「Document tests check values, structure, and executable examples」）。
     -   `--protocol` の番号は、今のテストが確かめる。
@@ -866,7 +877,7 @@ flowchart TD
 -   **実地の確かめ。** Herdr の上で `/chief` と `/chief once` を走らせ、次を見る。
     -   印の列のずれ（申し送りの H-03）
     -   各列の値
-    -   「質問で停止」の行の「次」の列
+    -   「質問で停止」の行の「内容」の列
     -   送信が止まった行の位置
     -   Claude Code の pane で人が打ったコマンドが「作成中」と示されること
 
@@ -932,3 +943,5 @@ PR の切り方は計画で決める。ただし、出力の JSON の形を変�
 - 2026-11-17 承認（isseis、#916）
 - 2026-11-17 セッション中の再承認：セッションの記録の origin の `kind` に `auto-continuation` を人でない kind として足す（isseis、#944）
 - 2026-11-17 セッション中の再承認：人が引数なしで打ったコマンドを、実行中のコマンドとして示されない既知の制限とする（isseis、#944）
+- 2026-11-17 セッション中の再承認：状況の表を 6 つの列にし、印を「🔴 今」「🟡 後」「🟢 待」にし、実行中のコマンドを人が最後に打ったタスクのコマンドに「（後に指示あり）」を添えて示し、決まらない理由を示すことにした（isseis、#975）
+- 2026-11-18 セッション中の再承認：内容の列の文の値（PR の題名、質問の要点、要確認の理由、送れない提案の理由）を、20 文字ほどで切って示すことにした（isseis、#975）

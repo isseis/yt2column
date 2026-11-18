@@ -4,7 +4,9 @@ package chief
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -57,12 +59,12 @@ func TestTakeSnapshotStates(t *testing.T) {
 	}{
 		{"running", fakeWorkspace{Branch: taskBranch, Status: "working"}, StateRunning, nil},
 		{"question", fakeWorkspace{Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"}, StateQuestion, func(t *testing.T, r Row) {
-			if len(r.Questions) != 1 || r.Questions[0].Question.Text == "" || len(r.Questions[0].Question.Options) == 0 || r.Questions[0].Pane == "" || r.MergeQuestion {
+			if len(r.Questions) != 1 || r.Questions[0].Question.Text == "" || len(r.Questions[0].Question.Options) == 0 || r.Questions[0].Pane == "" || r.Questions[0].Question.Merge {
 				t.Errorf("question row = %+v", r)
 			}
 		}},
 		{"merge question", fakeWorkspace{Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"}, StateQuestion, func(t *testing.T, r Row) {
-			if !r.MergeQuestion || r.Next != nil || r.Takeover != nil {
+			if len(r.Questions) != 1 || !r.Questions[0].Question.Merge || r.Position.Progress != ProgressMergeConfirmation || r.Next != nil || r.Takeover != nil {
 				t.Errorf("merge question row = %+v, want it marked and with no command offered", r)
 			}
 		}},
@@ -543,14 +545,26 @@ func TestClassifyZeroFacts(t *testing.T) {
 	}
 }
 
-// TestRunningRowShowsTheLastSend checks that a running row shows the command
-// and model of chief's last send to the working pane, that a row chief sent
-// nothing shows none, and that a stopped workspace's row carries its stop.
+// TestRunningRowShowsTheLastSend checks the running command a row shows
+// for a Claude Code pane: its session's last human input, with the model of
+// chief's last send to the pane when that send is the same command; the
+// same command without a send record (one the human typed) without a model;
+// and nothing, with the reason, for free text. A stopped workspace's row
+// carries its stop, and none of it is a problem of the round.
 func TestRunningRowShowsTheLastSend(t *testing.T) {
-	w := newWorld(t)
-	sent := w.add(fakeWorkspace{ID: "w1", Label: "sent", Branch: taskBranch, Status: "working"})
-	w.add(fakeWorkspace{ID: "w2", Label: "unsent", Branch: taskBranch, Status: "working"})
-	records, err := w.store.Records(Worktree{path: sent})
+	sw := newSendWorld(t)
+	sent := sw.addTask(fakeWorkspace{ID: "w1", Label: "sent", Branch: taskBranch}, "claude")
+	sw.addTask(fakeWorkspace{ID: "w2", Label: "typed", Branch: taskBranch}, "claude")
+	sw.addTask(fakeWorkspace{ID: "w3", Label: "free text", Branch: taskBranch}, "claude")
+	for pane, ran := range map[string]string{"w1:p1": "/runplan 0001", "w2:p1": "/runplan 0001"} {
+		sw.byPane[pane].ran = ran
+	}
+	for _, p := range sw.panes {
+		p.Status = "working"
+	}
+	deps := sw.finish()
+	sw.setTranscript(sw.byPane["w3:p1"], typedLine("please go on"))
+	records, err := deps.Store.Records(Worktree{path: sent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -558,34 +572,97 @@ func TestRunningRowShowsTheLastSend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, cmd := range []string{"/mkplan 0001", "/runplan 0001"} {
-		id, err := held.BeginSend(SendRecord{Pane: "w1:p1", Command: cmd, Agent: "claude_code", Model: "opus"}, w.now.Add(time.Duration(i)*time.Second))
+	for i, arg := range []string{"/mkplan 0001", "/runplan 0001"} {
+		kind, task, _ := strings.Cut(strings.TrimPrefix(arg, "/"), " ")
+		model := []string{"sonnet", "opus"}[i]
+		id, err := held.BeginSend(SendRecord{Pane: "w1:p1", Input: InputCommand.String(), Command: arg, Agent: claudeCodeLabel, Model: model, Kind: kind, Arg: task}, sw.now.Add(time.Duration(i)*time.Second))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := held.EndSend(id, OutcomeSent.String(), "", w.now); err != nil {
+		if err := held.EndSend(id, OutcomeSent.String(), "", sw.now); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := held.Stop("why", "", "", w.now); err != nil {
+	if err := held.Stop("why", "", "", sw.now); err != nil {
 		t.Fatal(err)
 	}
 	if err := held.Close(); err != nil {
 		t.Fatal(err)
 	}
-	snap := take(t, w)
+	snap, err := TakeSnapshot(context.Background(), deps, sw.owner())
+	if err != nil {
+		t.Fatal(err)
+	}
 	row := rowOf(t, snap, "sent")
-	if row.State != StateRunning || row.Running == nil || row.Running.Command != "/runplan 0001" || row.Running.Model != "opus" {
-		t.Errorf("sent row = %+v, running %+v; want the last send shown", row, row.Running)
+	if row.State != StateRunning || row.Running == nil || row.Running.Command.Text() != "/runplan 0001" || row.Running.Model != "opus" {
+		t.Errorf("sent row = %+v, running %+v; want /runplan 0001 on opus", row, row.Running)
 	}
 	if row.Stopped == nil || row.Stopped.Reason != "why" {
 		t.Errorf("sent row stop = %+v, want the stop", row.Stopped)
 	}
-	if other := rowOf(t, snap, "unsent"); other.Running != nil || other.Stopped != nil {
-		t.Errorf("unsent row = %+v; want nothing shown", other)
+	if typed := rowOf(t, snap, "typed"); typed.Running == nil || typed.Running.Command.Text() != "/runplan 0001" || typed.Running.Model != "" || typed.Stopped != nil {
+		t.Errorf("typed row = %+v, running %+v; want /runplan 0001 with no model", typed, typed.Running)
+	}
+	if free := rowOf(t, snap, "free text"); free.Running != nil || free.RunningUnknown != RunningUnknownNotTaskCommand {
+		t.Errorf("free-text row = %+v; want no command, not a task command", free)
 	}
 	if len(snap.Problems) != 0 {
 		t.Errorf("problems = %v", snap.Problems)
+	}
+}
+
+// TestRecordsDirectoryUnreadable checks that a workspace whose records
+// cannot be read at all marks its stop unreadable and names it as a problem
+// of the round, and that its OpenCode row's running command is undecided as
+// unreadable, since the send records cannot be read either.
+func TestRecordsDirectoryUnreadable(t *testing.T) {
+	w := newWorld(t)
+	tree := w.add(fakeWorkspace{ID: "w1", Label: "ws", Kind: "opencode", Branch: taskBranch, Status: "working"})
+	dir, err := w.store.WorkspaceDir(Worktree{path: tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A regular file where the workspace's records directory belongs.
+	if err := os.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snap := take(t, w)
+	row := rowOf(t, snap, "ws")
+	if row.State != StateRunning || !row.StopUnreadable || row.Urgency != UrgencyNow || row.Running != nil || row.RunningUnknown != RunningUnknownUnreadable {
+		t.Errorf("row = %+v; want running, stop unreadable, now, no command, unreadable", row)
+	}
+	if len(snap.Problems) != 1 {
+		t.Errorf("problems = %v; want the records that cannot be read", snap.Problems)
+	}
+}
+
+// TestSendRecordUnreadableIsNoProblem checks that a send record that cannot
+// be read makes an OpenCode row's running command undecided as unreadable,
+// with no problem of the round and the stop still read.
+func TestSendRecordUnreadableIsNoProblem(t *testing.T) {
+	w := newWorld(t)
+	tree := w.add(fakeWorkspace{ID: "w1", Label: "ws", Kind: "opencode", Branch: taskBranch, Status: "working"})
+	dir, err := w.store.WorkspaceDir(Worktree{path: tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.stopWorkspace(tree)
+	if _, err := privatefile.Create(filepath.Join(dir, sendPrefix+"00000000000000000001-0123456789abcdef"+startSuffix), []byte("not json")); err != nil {
+		t.Fatal(err)
+	}
+	snap := take(t, w)
+	row := rowOf(t, snap, "ws")
+	if row.State != StateRunning || row.Running != nil || row.RunningUnknown != RunningUnknownUnreadable {
+		t.Errorf("row = %+v; want running with no command, unreadable", row)
+	}
+	if row.StopUnreadable || row.Stopped == nil || row.Stopped.Reason != "why" {
+		t.Errorf("row stop = %+v (unreadable %v); want the stop read", row.Stopped, row.StopUnreadable)
+	}
+	if len(snap.Problems) != 0 {
+		t.Errorf("problems = %v; want none", snap.Problems)
 	}
 }
 
@@ -604,13 +681,24 @@ func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
 		{"a proposal", AutoSendResult{Workspace: "/idle", Proposal: proposal}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			view := roundView{rows: []Row{
-				{Workspace: "/idle", State: StateNeedsCheck, Idle: true},
-				{Workspace: "/busy", Task: "0002", State: StateRunning},
-			}}
-			applyAutoSends(&view, []AutoSendResult{tc.result})
+			store, err := OpenStore(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			view := roundView{
+				rows: []Row{
+					{Workspace: "/idle", State: StateNeedsCheck, Idle: true},
+					{Workspace: "/busy", Task: "0002", State: StateRunning},
+				},
+				found: []TaskWorkspace{{Worktree: "/idle", Tree: Worktree{path: "/idle"}}, {Worktree: "/busy", Tree: Worktree{path: "/busy"}}},
+			}
+			applyAutoSends(&view, store, []AutoSendResult{tc.result})
 			if view.rows[0].Idle {
 				t.Fatalf("row after %s is still idle", tc.name)
+			}
+			// The workspace has no records, so the stop read again is none.
+			if view.rows[0].StopUnreadable || len(view.problems) != 0 {
+				t.Errorf("row = %+v, problems %v; want the stop read as none", view.rows[0], view.problems)
 			}
 		})
 	}
@@ -628,8 +716,13 @@ func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if row := rowOf(t, snap, "unread"); row.Idle {
-			t.Errorf("row with an unreadable stop = %+v, want not idle", row)
+		// The stop that cannot be read is a problem of the round, and the
+		// row calls the human like a stopped one.
+		if row := rowOf(t, snap, "unread"); row.Idle || !row.StopUnreadable || row.Urgency != UrgencyNow || row.Turn != TurnHuman {
+			t.Errorf("row with an unreadable stop = %+v, want not idle, stop unreadable, now, human", row)
+		}
+		if len(snap.Problems) != 1 {
+			t.Errorf("problems = %v, want the stop that cannot be read", snap.Problems)
 		}
 	})
 	t.Run("a stop", func(t *testing.T) {
@@ -658,4 +751,227 @@ func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
 			t.Errorf("last row = %s, want the running row after the stopped one", last.Label)
 		}
 	})
+}
+
+// stopWorkspace records a stop of the workspace of tree.
+func (w *world) stopWorkspace(tree string) {
+	w.t.Helper()
+	records, err := w.store.Records(Worktree{path: tree})
+	if err != nil {
+		w.t.Fatal(err)
+	}
+	held, err := records.Lock()
+	if err != nil {
+		w.t.Fatal(err)
+	}
+	if err := held.Stop("why", "", "", w.now); err != nil {
+		w.t.Fatal(err)
+	}
+	if err := held.Close(); err != nil {
+		w.t.Fatal(err)
+	}
+}
+
+// TestStoppedRowsOrderFirst checks that a stopped running row, a running row
+// whose stop cannot be read, and a stopped row awaiting review list with the
+// rows the human must act on now, by state among them, before the rows of
+// later and of wait; the order of the others is the state order.
+func TestStoppedRowsOrderFirst(t *testing.T) {
+	w := newWorld(t)
+	w.add(fakeWorkspace{ID: "w1", Label: "running", Branch: taskBranch, Status: "working"})
+	w.add(fakeWorkspace{ID: "w2", Label: "proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
+	w.add(fakeWorkspace{ID: "w3", Label: "review", Branch: taskBranch, PRs: openPRJSON})
+	stoppedReview := w.add(fakeWorkspace{ID: "w4", Label: "stopped-review", Branch: taskBranch, PRs: openPRJSON})
+	w.stopWorkspace(stoppedReview)
+	// A row awaiting review with records reads its HEAD for a PR detail.
+	w.git(stoppedReview, "rev-parse HEAD", strings.Repeat("a", 40)+"\n")
+	w.stopWorkspace(w.add(fakeWorkspace{ID: "w5", Label: "stopped-running", Branch: taskBranch, Status: "working"}))
+	unread := w.add(fakeWorkspace{ID: "w6", Label: "unread-stop", Branch: taskBranch, Status: "working"})
+	dir, err := w.store.WorkspaceDir(Worktree{path: unread})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := privatefile.Create(filepath.Join(dir, stopFile), []byte("not json")); err != nil {
+		t.Fatal(err)
+	}
+	w.add(fakeWorkspace{ID: "w7", Label: "question", Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
+	snap := take(t, w)
+	var labels []string
+	for _, r := range snap.Rows {
+		labels = append(labels, r.Label)
+	}
+	want := []string{"question", "stopped-review", "stopped-running", "unread-stop", "review", "proposal", "running"}
+	if !slices.Equal(labels, want) {
+		t.Errorf("row order = %v, want %v", labels, want)
+	}
+}
+
+// TestPendingOrderIgnoresUrgency checks that urgency orders the rows only:
+// a stopped row proposing a command lists before a row awaiting review, the
+// reverse of the state order, while the pending items keep the review before
+// the proposal.
+func TestPendingOrderIgnoresUrgency(t *testing.T) {
+	w := newWorld(t)
+	w.add(fakeWorkspace{ID: "w1", Label: "review", Branch: taskBranch, PRs: openPRJSON})
+	w.stopWorkspace(w.add(fakeWorkspace{ID: "w2", Label: "stopped-proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}}))
+	snap := take(t, w)
+	var labels, pending []string
+	for _, r := range snap.Rows {
+		labels = append(labels, r.Label)
+	}
+	for _, p := range snap.Pending {
+		pending = append(pending, p.Label)
+	}
+	if want := []string{"stopped-proposal", "review"}; !slices.Equal(labels, want) {
+		t.Errorf("row order = %v, want %v", labels, want)
+	}
+	if want := []string{"review", "stopped-proposal"}; !slices.Equal(pending, want) {
+		t.Errorf("pending order = %v, want %v", pending, want)
+	}
+}
+
+// rowsJSON returns the rows of a snapshot's output as decoded JSON objects.
+func rowsJSON(t *testing.T, out any) []map[string]any {
+	t.Helper()
+	data, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded struct {
+		Rows []map[string]any `json:"rows"`
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	return decoded.Rows
+}
+
+// checkRowMembers checks that every row of rows has the members of urgency,
+// turn, position, idle, and running_unknown, and no merge_question.
+func checkRowMembers(t *testing.T, rows []map[string]any) {
+	t.Helper()
+	for _, r := range rows {
+		for _, key := range []string{"urgency", "turn", "position", "idle", "running_unknown", "running", "stopped"} {
+			if _, ok := r[key]; !ok {
+				t.Errorf("row %v has no %s", r["label"], key)
+			}
+		}
+		if _, ok := r["merge_question"]; ok {
+			t.Errorf("row %v still has merge_question", r["label"])
+		}
+		pos, _ := r["position"].(map[string]any)
+		for _, key := range []string{"document", "plan_pr", "progress"} {
+			if _, ok := pos[key]; !ok {
+				t.Errorf("row %v position has no %s", r["label"], key)
+			}
+		}
+	}
+}
+
+// TestSnapshotRowOutput checks the JSON of snapshot's rows: each has its
+// urgency, turn, position, idle, and running_unknown and no merge_question,
+// a merge confirmation keeps its merge on the question, a plan PR names its
+// N, a stop that cannot be read is a stop marked unreadable, and rows list
+// in the tool's order.
+func TestSnapshotRowOutput(t *testing.T) {
+	w := newWorld(t)
+	w.add(fakeWorkspace{ID: "w1", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
+	w.add(fakeWorkspace{ID: "w2", Label: "plan", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}})
+	w.add(fakeWorkspace{ID: "w3", Label: "idle", Branch: "main"})
+	unread := w.add(fakeWorkspace{ID: "w4", Label: "unread-stop", Branch: "main"})
+	dir, err := w.store.WorkspaceDir(Worktree{path: unread})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := privatefile.Create(filepath.Join(dir, stopFile), []byte("not json")); err != nil {
+		t.Fatal(err)
+	}
+	rows := rowsJSON(t, take(t, w).Output())
+	checkRowMembers(t, rows)
+	type shown struct{ label, urgency, turn, document, progress string }
+	var got []shown
+	for _, r := range rows {
+		pos := r["position"].(map[string]any)
+		got = append(got, shown{r["label"].(string), r["urgency"].(string), r["turn"].(string), pos["document"].(string), pos["progress"].(string)})
+	}
+	want := []shown{
+		{"merge", "now", "human", "requirements", "merge_confirmation"},
+		{"unread-stop", "now", "human", "requirements", "awaiting_creation"},
+		{"plan", "later", "human", "plan_pr", "awaiting_creation"},
+		{"idle", "wait", "none", "requirements", "awaiting_creation"},
+	}
+	if !slices.Equal(got, want) {
+		// The checks below index the rows in this order.
+		t.Fatalf("rows = %+v, want %+v", got, want)
+	}
+	if q := rows[0]["questions"].([]any); len(q) != 1 || q[0].(map[string]any)["merge"] != true {
+		t.Errorf("merge row questions = %v, want one with merge true", q)
+	}
+	if stop, _ := rows[1]["stopped"].(map[string]any); stop["unreadable"] != true {
+		t.Errorf("unread-stop row stopped = %v, want unreadable", rows[1]["stopped"])
+	}
+	if rows[0]["stopped"] != nil {
+		t.Errorf("merge row stopped = %v, want null", rows[0]["stopped"])
+	}
+	if n := rows[2]["position"].(map[string]any)["plan_pr"]; n != float64(2) {
+		t.Errorf("plan row plan_pr = %v, want 2", n)
+	}
+	if rows[3]["idle"] != true || rows[0]["idle"] != false {
+		t.Errorf("idle = %v, %v; want only the idle row", rows[0]["idle"], rows[3]["idle"])
+	}
+}
+
+// TestRunningOutputHasNoRawText checks that an argument chief cannot
+// validate reaches the output's running command neither from a forged send
+// record nor from a session's transcript: the command is shown by its name
+// alone, and the raw text appears nowhere in the row.
+func TestRunningOutputHasNoRawText(t *testing.T) {
+	// The record's argument holds a terminal escape; the typed one is not a
+	// task number. The transcript sample writes its text with %q, which
+	// JSON cannot read for a control character.
+	const forgedArg, typedArg = "42\x1b]0;evil\x07", "evil 0001"
+	sw := newSendWorld(t)
+	forged := sw.addTask(fakeWorkspace{ID: "w1", Label: "forged", Branch: taskBranch}, "opencode")
+	sw.addTask(fakeWorkspace{ID: "w2", Label: "typed", Branch: taskBranch}, "claude")
+	sw.byPane["w2:p1"].ran = "/runplan " + typedArg
+	for _, p := range sw.panes {
+		p.Status = "working"
+	}
+	deps := sw.finish()
+	records, err := deps.Store.Records(Worktree{path: forged})
+	if err != nil {
+		t.Fatal(err)
+	}
+	held, err := records.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := held.BeginSend(SendRecord{Pane: "w1:p1", Input: InputCommand.String(), Command: "/runpr 42", Agent: openCodeLabel, Model: "m", Kind: "runpr", Arg: forgedArg}, sw.now)
+	if err == nil {
+		err = held.EndSend(id, OutcomeSent.String(), "", sw.now)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := held.Close(); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := TakeSnapshot(context.Background(), deps, sw.owner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rowsJSON(t, snap.Output()) {
+		want := map[string]string{"forged": "/runpr", "typed": "/runplan"}[r["label"].(string)]
+		running, _ := r["running"].(map[string]any)
+		if running == nil || running["command"] != want {
+			t.Errorf("row %v running = %v, want the command %q alone", r["label"], r["running"], want)
+		}
+		data, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "evil") {
+			t.Errorf("row %v holds the raw argument: %s", r["label"], data)
+		}
+	}
 }

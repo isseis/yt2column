@@ -289,8 +289,8 @@ opens the PR reports, by where it stopped:
 - **Before `01_requirements.md` is committed:** nothing on the branch names the
   issue, so `/mkreq <N>` run again starts over and asks the decisions again.
   When Part A had run, name the branch it created (local and on `origin`), and
-  say to delete it before running `/mkreq <N>` again, so the new run does not
-  count its task number.
+  say to delete it before running `/mkreq <N>` again, so no branch is left
+  holding the number the stopped run decided (that number stays a gap).
 - **After `01_requirements.md` is committed:** `/mkreq <N>` continues the run.
   When the working tree has changes, list their files and say to commit or
   discard them first.

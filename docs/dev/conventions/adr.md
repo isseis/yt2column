@@ -27,11 +27,18 @@ and fails when it cannot read them.
 - **Name:** `NNNN-<kebab>.md`. `NNNN` is a four-digit number, and `<kebab>` is
   a name for the subject made of lowercase ASCII letters and digits joined by
   `-`.
-- **Number:** a sequence of its own, unrelated to task numbers. It starts at
-  `0001` and runs without gaps. A new ADR takes the number after the highest
-  one on `main` and on the PR's branch at the time it is written. An ADR is
-  never deleted, so a number is never reused, not even the number of an
-  obsolete ADR.
+- **Number:** a sequence of its own, unrelated to task numbers. A new ADR's
+  number is decided by the number tool: run `numreserve adr` in the work tree
+  of the PR's branch, with a command time limit of at least five minutes,
+  and use the four-digit number it prints on standard output. This holds for
+  every PR that adds an ADR, whether a command creates it or a person does by
+  hand. When the tool exits with a status other than `0`, or is not
+  installed, stop: do not create the ADR's file with a number you chose, and
+  show the line it wrote to standard error and the table of stop reasons in
+  [numreserve_guide.md](../guides/numreserve_guide.md). A decided number that
+  never reaches `main` stays a gap, and a gap is not an error. An ADR is never
+  deleted, so a number is never reused, not even the number of an obsolete
+  ADR.
 - **Name in text:** a document calls an ADR `ADR-NNNN`.
 - **Title:** the text after `ADR-NNNN: ` on the first line. It must not
   contain `|`, because the index puts it in a table cell.
@@ -93,8 +100,10 @@ they are in the ADR.
 | [ADR-0001](0001-<kebab>.md) | <ADR の 1 行目の題名> | `有効` |
 ```
 
-A new row goes at the end of the table. The index lists every ADR, obsolete
-ones included; an index with no row is correct only while there is no ADR.
+A new row goes at the position of its number, so the rows stay in number
+order: ADRs are not always merged in the order of their numbers. The index
+lists every ADR, obsolete ones included; an index with no row is correct only
+while there is no ADR.
 
 ## What counts as a major decision
 
@@ -365,9 +374,11 @@ the merge base, do the following.
    index on the `main` taken in has an active ADR on the same subject. When it
    does, do not create a new ADR: update the ADR on `main` instead.
 2. **Renumber.** When only the number collides (a different subject), move the
-   PR's ADR to the next free number: its file name, its first line, and its
-   index row, and every `ADR-<old number>` and every link to a file starting
-   `<old number>-` in the PR's diff (`git diff origin/main...HEAD`), task
+   PR's ADR to the number `numreserve adr` prints when run in the work tree of
+   the PR's branch; when it exits with a status other than `0`, stop without
+   renumbering ("Location and naming"). Move its file name, its first line,
+   and its index row, and every `ADR-<old number>` and every link to a file
+   starting `<old number>-` in the PR's diff (`git diff origin/main...HEAD`), task
    documents included. Record the renumbering as an editorial correction in
    the commit message (`docs/dev/conventions/requirements_process.md`,
    "Recording in the PR description").
@@ -377,10 +388,11 @@ the merge base, do the following.
    it does not. The PR's 経緯 entries go after `main`'s ("History entries").
 
 **When `TestADRRecords` fails on `main`.** Two PRs that both pass CI before
-taking in `main`, and merge without an index conflict, can put a duplicate or
-missing number on `main`. Every PR's `doc-guard` job then fails. Fix it,
-renumbering the ADRs so that no number is duplicated or missing, in a PR of
-its own that fixes only that, not inside an unrelated PR: that PR's reviewer
-is not in a position to approve a change of an ADR's number. This fix is not
+taking in `main`, and merge without an index conflict, can put a duplicate
+number on `main`. Every PR's `doc-guard` job then fails. Fix it, renumbering
+an ADR of the duplicate to the number `numreserve adr` prints, run in the work
+tree of the fixing PR's branch ("Location and naming"), in a PR of its own
+that fixes only that, not inside an unrelated PR: that PR's reviewer is not in
+a position to approve a change of an ADR's number. This fix is not
 one of the four kinds of editorial correction that any PR may make
 ("Editorial corrections").
