@@ -382,7 +382,7 @@ d=$(git rev-parse --git-dir); for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD B
 b=$(git symbolic-ref -q --short HEAD || true); git config --list | awk -v cur="branch.$b." '!/^branch\./ || index($0, cur) == 1 || index($0, "branch.main.") == 1' | part config
 { git rev-parse --git-dir; git rev-parse --git-common-dir; } | sort -u | while IFS= read -r d; do [ ! -d "$d/info" ] || find "$d/info" -print; done | sort | hashes | part info
 h=$(git rev-parse --git-path hooks); { [ ! -d "$h" ] || { find "$h" -exec ls -ld {} +; find "$h" -print | sort | hashes; }; } | part hooks
-{ git ls-files -s -z; git write-tree; } | part index
+i=$(mktemp); cp "$(git rev-parse --git-path index)" "$i"; { git -c core.fsmonitor=false ls-files -s -z; GIT_INDEX_FILE="$i" git -c core.fsmonitor=false write-tree; } | part index; rm -f "$i"
 git -c core.fsmonitor=false status --porcelain=v1 -z --untracked-files=all --ignore-submodules=none | part status
 { git rev-parse HEAD; r=$(git symbolic-ref -q HEAD || true); echo "$r"; [ -z "$r" ] || git rev-parse --verify -q "$r"; } | part head
 git -c core.fsmonitor=false ls-files -v -z | tr '\0' '\n' | { grep -E '^[a-zS] ' || true; } | sed 's/^. //' | hashes | part flags
@@ -401,9 +401,9 @@ The parts follow what `fixprguard` compares for the same reason
 does not: the replace refs (`replace`), which `git show` and `git log` would
 follow; an operation in progress in this worktree's git directory (`ops`),
 which would turn the session's next commit into a merge or a cherry-pick;
-and the index's entries with the tree `git write-tree` builds from it
-(`index`), which the cached trees of the index decide and `git status`
-does not show. Then the work tree
+and the index's entries with the tree `git write-tree` builds from a copy
+of it (`index`), which the cached trees of the index decide and `git status`
+does not show; the copy keeps the comparison from writing to the index. Then the work tree
 (`status`), HEAD and its branch (`head`), the paths with a skip-worktree or
 assume-unchanged flag and their contents (`flags`), the settings git reads
 except other branches' (`config`), the `info` directories of this
