@@ -179,10 +179,12 @@ no other round numbers at once. Then show, in this order:
 
    Show a value this table does not have as it is written, followed by
    （定義にない値）, and never guess what it means. The 内容 column holds
-   one thing, chosen by `state`. Cut a PR title or a question's gist that is
-   longer than about 20 characters, ending it with …, so no cell makes the
-   table wider than the pane:
-   - `needs_check`: `unreadable` (what could not be read);
+   one thing, chosen by `state`. Cut each text value in it — a PR title, a
+   question's gist, an `unreadable`, a `problem` — that is longer than about
+   20 characters, ending it with …, so no cell makes the table wider than the
+   pane; the full text stays in the tool's output. A command, its model, and
+   the fixed words this definition gives are short and are not cut:
+   - `needs_check`: `unreadable` (what could not be read; cut);
    - `question`: for each of its `questions`, the question's gist (cut) and
      its pane, adding マージの確認 to a question whose `merge` is true. Never
      write that a question is not a merge confirmation;
@@ -192,7 +194,7 @@ no other round numbers at once. Then show, in this order:
      table shows it;
    - `awaiting_review`: the PR's number and its title (cut);
    - `propose_next`: `next` (command, and its model in parentheses), or its
-     `problem` when it is not `sendable` (a `/mkreq` is not sendable until
+     `problem` (cut) when it is not `sendable` (a `/mkreq` is not sendable until
      the human names the issue);
    - `task_done`: nothing.
 
