@@ -162,7 +162,7 @@
 -   [x] **ステップ 3-9**: `docs/dev/guides/chief_guide.md` を設計書 3.10 のとおりに直す（既知の制限は、決定 11 の引数なしのコマンドを含む 3 つ）。古い版に戻す手順は、道具と `/chief` の定義を同じコミットから入れることと、送信の記録の新しい欄を古い道具が読めないので記録を消すことを書く。
 -   [x] **ステップ 3-10**: `package_reference.md` の `internal/chief` と `internal/chief/paneinput` の行に、このタスクで exported にした名前を足す。
 -   [x] **ステップ 3-11**: PR の説明に、人がマージの直前に行う 2 つの項目を書く。0092 の確かめ（§1.3 の決定 6）と、`origin/main` の `Protocol` がこの PR の値と同じなら 1 つ上げること（§1.3 の決定 1）である。`main` はマージで取り込み、rebase しない（0099 の規則。rebase すると、同じ値への書き換えが履歴から消えるため）。上げるときは、人が `/runpr` かこの PR のセッションに、`Protocol` と `/chief` の定義と手引きの番号を直すコミットを頼む。今の `Protocol` のガードテストが、番号の変え残しを見つける。
--   [x] **ステップ 3-12**: 実地の確かめを、人と行う（§1.3 の決定 3）。動いている `/chief` を人が止め、chief の worktree をこの PR のブランチの先頭（detached）にして `make install-chief` を行い、`/chief` と `/chief once` を起動し直す。設計書 7.3 の 5 つの項目を見る。`working` の Claude Code の pane が数個あり、記録が数十 MB ある状態で、1 周の時間を測る。結果と確かめたコミットを §7 の「PR-3 の実行の記録」に書く。その後に `internal/chief` か `.claude/commands/chief.md` を変えるコミットを足したときは、確かめ直す。マージの後、人が chief の worktree を `main` に戻し、`main` から入れ直す。
+-   [ ] **ステップ 3-12**: 実地の確かめを、人と行う（§1.3 の決定 3）。動いている `/chief` を人が止め、chief の worktree をこの PR のブランチの先頭（detached）にして `make install-chief` を行い、`/chief` と `/chief once` を起動し直す。設計書 7.3 の 5 つの項目を見る。`working` の Claude Code の pane が数個あり、記録が数十 MB ある状態で、1 周の時間を測る。結果と確かめたコミットを §7 の「PR-3 の実行の記録」に書く。その後に `internal/chief` か `.claude/commands/chief.md` を変えるコミットを足したときは、確かめ直す。マージの後、人が chief の worktree を `main` に戻し、`main` から入れ直す。
 -   [x] **ステップ 3-13**: ステップ 3-12 の最初の実地の確かめを受けた決定の変更（要件書・設計書の「実装の際に決めたこと（2026-11-17）」）を実装する。`readRunningCommand` は人が最後に打ったタスクのコマンドと、その後の人の入力の有無を返し、`RunningShown.Later` と出力の `running.later_input` に通す。後の入力があればモデルを示さない。`OutputValueNames` を表に示す `urgency`・`position.document`・`position.progress`・`running_unknown` にする。`/chief` の定義の表を 6 つの列（急・名前・タスク・文書・状態・内容）にし、印を「🔴 今」「🟡 後」「🟢 待」に、`running_unknown` を内容の列に示す。手引きの 3.1 と 8 章、ADR-0046、CLAUDE.md の chief の画面の読み取りの例外の範囲の文を合わせる。その後、ステップ 3-12 の実地の確かめをやり直す。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。AC-19 のスクリプトの結果と実地の確かめの結果が §7 にある。
@@ -290,7 +290,7 @@
 
 **0092 の確かめ（ステップ 3-1、2026-11-17）。** `git fetch origin main` の後に `git grep -n PendingRemoval origin/main -- internal/chief` を走らせた。`origin/main` は `d23784ec` で、終了コードは 0 だった。ただし当たったのは `internal/chief/testdata/transcript/claude-synthetic.jsonl` の 1 行だけである。これはタスク 0095 が足したセッションの記録のサンプルで、PR-1 の報告の文がこの確かめのコマンドを引いているために当たった。Go のコードに絞った `git grep -n PendingRemoval origin/main -- 'internal/chief/*.go'` の終了コードは 1（見つからない）だった（この pathspec の `*` は `/` にも当たり、`internal/chief/paneinput/` の Go のファイルも対象に含む）。0092 の削除の提案はまだ `main` にないと判断し、決定 6 の 3 つは足さず、AC-05 は 0092 が後に入るときの扱い（決定 9）のままとする。マージの前の確かめは、PR の説明に人の項目として、Go のコードに絞ったコマンドで書く。
 
-**AC-19 の確かめ（ステップ 3-8・3-13、2026-11-17）。** ステップ 3-13 で、行に収まらないもの（引き継ぎと送信の停止）の行ごとの一覧を表の下の最初に足したので、AC-19 とスクリプトをそれに合わせた。`origin/main` を 2 回目のマージで取り込んだ後に（2026-11-18）、`_checks/ac19_under_the_table.sh` を、merge-base `552d7cd89972087c7de0054171e064d494f8ba77` と、`.claude/commands/chief.md` を最後に変えたコミット（そのマージ）`cfe4da01b2a468e350dd005fdc5ad8628f3d5c52` で走らせた。終了コードは 0 で、出力は次のとおりである。
+**AC-19 の確かめ（ステップ 3-8・3-13、2026-11-17）。** ステップ 3-13 で、行に収まらないもの（引き継ぎと送信の停止）の行ごとの一覧を表の下の最初に足したので、AC-19 とスクリプトをそれに合わせた。`origin/main` を 2 回目のマージで取り込んだ後に（2026-11-18）、`_checks/ac19_under_the_table.sh` を、merge-base `552d7cd89972087c7de0054171e064d494f8ba77` と、`.claude/commands/chief.md` を最後に変えたコミット（内容の列の文の値をすべて切る変更。2026-11-18）`61a2b4967cd224f115007b946c9b9d7f154e6663` で走らせた。終了コードは 0 で、出力は次のとおりである。
 
 ```text
 base 552d7cd89972087c7de0054171e064d494f8ba77 items:
@@ -298,7 +298,7 @@ for each row in 質問で停止, each question's gist and its pane;
 each question of this session not answered yet (for example, whether to send again after the human switched an OpenCode pane's model), one per line; keep this list yourself across rounds;
 each of `problems`.
 
-head cfe4da01b2a468e350dd005fdc5ad8628f3d5c52 items:
+head 61a2b4967cd224f115007b946c9b9d7f154e6663 items:
 for each row, by its 名前, what does not fit on its line: a `takeover` that is set; and, when `stopped` is set, that sends to the workspace are stopped, with its `reason` and `at`, or, when its `unreadable` is true, that sends are stopped and the stop record could not be read;
 each question of this session not answered yet (for example, whether to send again after the human switched an OpenCode pane's model), one per line; keep this list yourself across rounds;
 each of `problems`.
@@ -322,6 +322,8 @@ PASS: only the per-row question list was removed and the per-row list of what do
 -   1 周の時間: 6 つの workspace で、`chief snapshot --protocol 3` は 6 行を返して 6.5 秒（CPU は利用者 0.75 秒、システム 0.70 秒）だった。残りは `git fetch`・`gh` の呼び出しの待ちである。読んだ Claude Code の記録のうち大きいものは 5.1 MB・3.8 MB・3.7 MB で、計画の想定の数十 MB には届かなかった。CPU の時間が 1 周の 4 分の 1 ほどなので、記録が 10 倍になっても、読み取りで周が大きく遅れることはないと見ている（記録の上限を超えた pane は `over_cap` として読まない）。
 
 4 回目の後に、`origin/main` の 2 回目のマージ（`cfe4da01`、0097・0092 の PR-7・0099 を取り込んだ）が `internal/chief` と `chief.md` を変えたので、5 回目（`5ea1c71a`、道具を入れ直した）を行った（2026-11-18）。表は 6 つの列の表として描かれ、値はそのときの状況と合っていた。1 周の時間は、6 つの workspace で、`chief snapshot --protocol 3` が 6 行を返して 6.1 秒（CPU は利用者 0.73 秒、システム 0.63 秒）だった。
+
+PR を作った後、chief の worktree が detached の行の要確認の理由（`HEAD is detached, so no branch tells whether the worktree has a task`）が長く、表がまた縦に並んだ。人が選んで、切る値を内容の列の文の値すべて（PR の題名、質問の要点、要確認の理由、送れない提案の理由）に広げた（`61a2b496`、2026-11-18）。その変更の後に、もう一度確かめる。
 
 ## 8. 成功の基準 (Success Criteria)
 
