@@ -152,7 +152,7 @@ Diff record (AC-10):
 
 - Compared paths: `.claude/commands/mkreq.md` `.claude/commands/_context.md` `docs/dev/adr/0053-draft-issue-label.md`
 - Merge-base: `06889325f462df8cf6683d952ce982fcd48ec7dd`
-- Compared commit: `a5816cf62af48a4903f7bb320d9f2fa747fe6a91`
+- Compared commit: `2fdf9a07443fb0c985478df82a744c2da80cfc8b`
 
 Path diff:
 
@@ -170,10 +170,10 @@ index ec7da6a95aeaa29f29e3c489a25c5f6a5729d1a5..77e67e4feab73840ce6a5af566914454
  | Reviewer ping | After a task-document command (`mkreq.md`, `mkarch.md`, `mkplan.md`, `mkplan2.md`) or `runplan.md` opens its PR (`_lib/task-pr-handoff.md` Part B), notify the human reviewer with the `PushNotification` tool (the PR author cannot be requested as a GitHub reviewer of their own PR) and repeat the PR URL and the next action in the final report, which is the only channel when the tool is unavailable or the notification is not sent |
  | PR merge method | Squash merge, run with `/mergepr`. The squash commit is the only commit of a PR that reaches `main`, so its message carries what CLAUDE.md requires commit messages to record |
 diff --git a/.claude/commands/mkreq.md b/.claude/commands/mkreq.md
-index cc580b4261192a1d2abc0a86f74b306dbdec5c1c..5bd04df625600486053b43e2fcba22af7ec46905 100644
+index cc580b4261192a1d2abc0a86f74b306dbdec5c1c..92b6019494cd85946cdc9788967f2f189c839b5c 100644
 --- a/.claude/commands/mkreq.md
 +++ b/.claude/commands/mkreq.md
-@@ -51,6 +51,29 @@ Work in the following order.
+@@ -51,6 +51,31 @@ Work in the following order.
       was given: stop and report rather than using its number. From here on,
       use the `number` it returns (`N`) wherever the issue is named — searches, commits, the PR
       body — never the raw argument, which may be `#330` or a URL.
@@ -199,7 +199,9 @@ index cc580b4261192a1d2abc0a86f74b306dbdec5c1c..5bd04df625600486053b43e2fcba22af
 +       checked.
 +
 +     The exit code decides; do not read the file or compare label names
-+     yourself, and do not write a label name in the report.
++     yourself. Do not write a label name read from the file in the report; the
++     `draft` label the report names is the fixed value of the `Draft issue
++     label` row.
     - `git fetch origin`. Search for a requirements document that already names
       issue `N` as its own (`対応 issue: [#N]`) on `origin/main`, on every
       `origin` branch, and on every local branch
