@@ -188,7 +188,9 @@ func TestTickRunsOnlyReadsInTheRightPlaces(t *testing.T) {
 // target-redirecting variables set and checks every command: gh runs only
 // the one issue read, in chief's worktree and without GH_REPO or GH_HOST;
 // git runs only in chief's worktree and in the worktree made; and every
-// write is one the test allowed (the recorder fails any other).
+// write is one the test allowed (the recorder fails any other). The send's
+// lookup also reads, with git rev-parse, the directory of every other
+// agent; this world has no other agent, so that read is not checked here.
 func TestCreateRunsOnlyInTheRightPlaces(t *testing.T) {
 	t.Setenv("GH_REPO", "other/repo")
 	t.Setenv("GH_HOST", "ghe.example.com")
