@@ -87,11 +87,13 @@ outside the work tree:
 
 ```bash
 git rev-parse --verify 'refs/remotes/origin/main^{commit}'
-git show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
+git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
 bash <records-script> fable <ENTRY> <HEAD> <PLAN>
 ```
 
-`<origin-main-commit>` is the commit ID the first line printed. `<ENTRY>` is
+`<origin-main-commit>` is the commit ID the first line printed;
+`--no-replace-objects` keeps a replace ref from substituting another script.
+`<ENTRY>` is
 `launch` for the launch entry and `checkpoint` for the checkpoint entry;
 `<HEAD>` is `git rev-parse HEAD`; `<PLAN>` is TASK_DIR's
 `03_implementation_plan.md`, repository-relative. The output's first line is
@@ -187,7 +189,7 @@ Otherwise:
      OUTPUT_FILE, a new file in the scratchpad, and check it ("Checking the
      output").
 4. **COST.** The seconds are the notification's `duration_ms`, rounded to
-   whole seconds; the tokens are the notification's total tokens of the
+   whole seconds, or the seconds waited since the launch when it gives none; the tokens are the notification's total tokens of the
    subagent (`subagent_tokens`), or `unknown` when it gives none. After a
    second call, add both calls. The output tokens are not given, and are not
    recorded.
@@ -199,8 +201,9 @@ Otherwise:
    and INVALID for the triage.
 
 When the caller's local CLI review stops after the launch, for any reason,
-stop the subagent and the timer with TaskStop before stopping, use no result, and
-record nothing: a run of the command again launches Fable again.
+stop the subagent and the timer with TaskStop, run the exit comparison ("The
+state check") and report its differing parts with the stop, use no result,
+and record nothing: a run of the command again launches Fable again.
 
 ## The standalone path
 
@@ -374,9 +377,12 @@ export LC_ALL=C GIT_OPTIONAL_LOCKS=0
 cd "$(git rev-parse --show-toplevel)"
 part() { printf '%s %s\n' "$1" "$(shasum -a 256 | cut -c1-64)"; }
 hashes() { while IFS= read -r p; do printf '%s %s\n' "$p" "$(shasum -a 256 2>/dev/null <"$p" | cut -c1-64)"; done; }
+git for-each-ref --format='%(refname) %(objectname)' refs/replace | part replace
+d=$(git rev-parse --git-dir); for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG rebase-merge rebase-apply sequencer; do [ ! -e "$d/$f" ] || { echo "$f"; ls -lR "$d/$f"; }; done | part ops
 b=$(git symbolic-ref -q --short HEAD || true); git config --list | awk -v cur="branch.$b." '!/^branch\./ || index($0, cur) == 1 || index($0, "branch.main.") == 1' | part config
 { git rev-parse --git-dir; git rev-parse --git-common-dir; } | sort -u | while IFS= read -r d; do [ ! -d "$d/info" ] || find "$d/info" -print; done | sort | hashes | part info
 h=$(git rev-parse --git-path hooks); { [ ! -d "$h" ] || { find "$h" -exec ls -ld {} +; find "$h" -print | sort | hashes; }; } | part hooks
+{ git ls-files -s -z; git write-tree; } | part index
 git -c core.fsmonitor=false status --porcelain=v1 -z --untracked-files=all --ignore-submodules=none | part status
 { git rev-parse HEAD; r=$(git symbolic-ref -q HEAD || true); echo "$r"; [ -z "$r" ] || git rev-parse --verify -q "$r"; } | part head
 git -c core.fsmonitor=false ls-files -v -z | tr '\0' '\n' | { grep -E '^[a-zS] ' || true; } | sed 's/^. //' | hashes | part flags
@@ -391,7 +397,13 @@ run a hook or a filesystem monitor, and runs those commands with
 `core.fsmonitor` off.
 
 The parts follow what `fixprguard` compares for the same reason
-(`docs/dev/guides/fixprguard_guide.md`, sections 5 and 7.1): the work tree
+(`docs/dev/guides/fixprguard_guide.md`, sections 5 and 7.1), plus three it
+does not: the replace refs (`replace`), which `git show` and `git log` would
+follow; an operation in progress in this worktree's git directory (`ops`),
+which would turn the session's next commit into a merge or a cherry-pick;
+and the index's entries with the tree `git write-tree` builds from it
+(`index`), which the cached trees of the index decide and `git status`
+does not show. Then the work tree
 (`status`), HEAD and its branch (`head`), the paths with a skip-worktree or
 assume-unchanged flag and their contents (`flags`), the settings git reads
 except other branches' (`config`), the `info` directories of this
@@ -399,7 +411,10 @@ worktree's git directory and of the common one, and the hooks directory
 (`info`, `hooks`), the ignored files of its watch list (`watched`, compared in ASCII
 case), and `.claude/settings.local.json` (`settings`). Keep the hashes in
 this session's context, not in a file: the scratchpad is writable by the
-subagent too.
+subagent too. When the kept block text or a kept hash is no longer in this
+session's context word for word (for example after a context compaction),
+stop as on a difference: a block read again or a hash rebuilt compares
+nothing.
 
 - **Before the launch:** take the state (launch entry step 6). The work tree
   is clean then (`_lib/local-cli-review.md` step 1).
@@ -412,8 +427,8 @@ subagent too.
   answering a permission prompt with "don't ask again", so name it, for the
   user to tell the cause and run again.
 - **Post-exit comparison:** after the exit, the session's own fixes and
-  commits change `status`, `head`, and maybe `settings`. Keep the hashes of
-  `flags`, `config`, `info`, `hooks`, and `watched` from the exit comparison
+  commits change `status`, `head`, `index`, and maybe `settings`. Keep the hashes of
+  `replace`, `ops`, `flags`, `config`, `info`, `hooks`, and `watched` from the exit comparison
   as the new baseline, and compare those parts right before each commit the
   session makes until the record commit; stop on a difference as above. This
   finds a later write to them by a process the stopped subagent left behind.
@@ -524,7 +539,9 @@ column, in the full form):
   checkpoint found the record valid.
 - None of these lines is a local CLI review line, and they do not change the
   reading of `_lib/local-cli-review.md`, "Reading the record lines".
-- Read the records oldest first, by `git log --reverse origin/main..HEAD`.
+- Read the records oldest first, by
+  `git --no-replace-objects log --reverse origin/main..HEAD`, so a replace
+  ref cannot show another message.
 - Whether the last record is valid is decided only by the review records
   script ("The validity decision"), never by reading these lines.
 

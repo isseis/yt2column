@@ -32,7 +32,7 @@ func fableStateParts(t *testing.T, f *gitFixture, block string) map[string]strin
 		parts[name] = hash
 	}
 	got := slices.Sorted(maps.Keys(parts))
-	if want := []string{"config", "flags", "head", "hooks", "info", "settings", "status", "watched"}; !slices.Equal(got, want) {
+	if want := []string{"config", "flags", "head", "hooks", "index", "info", "ops", "replace", "settings", "status", "watched"}; !slices.Equal(got, want) {
 		t.Fatalf("the state check block printed the parts %v, want %v", got, want)
 	}
 	return parts
@@ -40,8 +40,9 @@ func fableStateParts(t *testing.T, f *gitFixture, block string) map[string]strin
 
 // TestFableStateCheckBlock runs the state check block of fable-review.md,
 // which is a command example the procedure runs, and checks that it sees the
-// two changes git status does not show: a change to the content of a
-// skip-worktree file and a new file in the hooks directory.
+// changes git status does not show: a change to the content of a
+// skip-worktree file, a new file in the hooks directory, a replace ref, and
+// a merge in progress.
 func TestFableStateCheckBlock(t *testing.T) {
 	if _, err := exec.LookPath("shasum"); err != nil {
 		t.Fatalf("shasum is not on PATH: %v", err)
@@ -73,8 +74,20 @@ func TestFableStateCheckBlock(t *testing.T) {
 	if afterHook["hooks"] == afterFlag["hooks"] {
 		t.Error("the hooks part did not change with a new file in the hooks directory")
 	}
-	for _, name := range []string{"status", "head", "config", "info", "watched", "settings"} {
-		if afterHook[name] != before[name] {
+	// A replace ref and a merge in progress change neither git status nor
+	// any file the other parts read.
+	f.git("replace", f.rev("HEAD"), strings.TrimSpace(f.git("commit-tree", f.rev("HEAD^{tree}"), "-m", "other")))
+	afterReplace := fableStateParts(t, f, script)
+	if afterReplace["replace"] == afterHook["replace"] {
+		t.Error("the replace part did not change with a new replace ref")
+	}
+	f.write(".git/MERGE_HEAD", f.rev("HEAD")+"\n")
+	afterMerge := fableStateParts(t, f, script)
+	if afterMerge["ops"] == afterReplace["ops"] {
+		t.Error("the ops part did not change with a merge in progress")
+	}
+	for _, name := range []string{"status", "head", "config", "info", "watched", "settings", "index"} {
+		if afterMerge[name] != before[name] {
 			t.Errorf("the %s part changed although nothing it covers changed", name)
 		}
 	}

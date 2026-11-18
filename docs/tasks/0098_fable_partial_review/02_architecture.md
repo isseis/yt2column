@@ -593,7 +593,7 @@ step 4 で選んだ phase group の次の未完了の項目が `### PR-N 作成�
 step 5a は、ブランチの確かめ（`runplan.md:96`）の直後、green gate より前に、step 8（単一フェーズの計画書の PR）は、PR とコミットの確かめの直後、green gate より前に、チェックポイントの入口を置く。
 
 1.  判定のスクリプトの `fable` のモードを、チェックポイントからの判定として走らせる（3.1.2）。
-2.  `MISSING` のときは、単独の経路を行う（3.1.8）。止まったときは、PR を開かず、何も push しない。
+2.  `MISSING` のときは、単独の経路を行う（3.1.8）。止まったときは、PR を開かず、何も push しない。単独の経路の後に判定し直し、`VALID` でなければ（判定の失敗を含む）止まる（1.5 の決定 7）。
 3.  有効な記録がそろった時点で、`Fable review: checkpoint` だけを持つ空の commit を作る。これより後に、green gate の直し、終わりの確かめの直し、diff 記録の再確認、B1〜B4、Part B step 2 が作る commit は、Fable の記録を無効にしない（3.1.2 の 3）。
 4.  有効な記録がないままでは、先へ進まない（AC-08）。
 
@@ -736,7 +736,7 @@ Codex 後: ローカル CLI 済 ／ Fable（PR 前）: run
 | 前の実行の Fable の通知が届いた | 記録したタスクの ID と違うので使わない | 3.1.5 |
 | 並列のローカルの CLI レビューが `stop` | サブエージェントとタイマーを止め、Fable の結果を使わず、何も記録せず止まる。やり直しで Fable をもう一度起動する | AC-09 |
 | 記録の commit のメンションの確かめが 2 回目も通らない | commit せずに止まる | AC-30 |
-| 判定のスクリプトが取り出せない・失敗・読めない出力 | `coverage` は `PARTIAL`（Escalation は `ask` に寄る）、`fable` は `MISSING`（Fable が走る） | 決定 2・10 |
+| 判定のスクリプトが取り出せない・失敗・読めない出力 | `coverage` は `PARTIAL`（Escalation は `ask` に寄る）、`fable` は `MISSING`（Fable が走る）。チェックポイントの入口の、単独の経路の後の判定し直しでは止まる | 決定 2・10、1.5 の決定 7 |
 | PR の head と手元の HEAD が違う | COVERAGE を `PARTIAL` とする | 3.8.1 |
 | チェックポイントの入口の単独の経路が止まった | PR を開かず、何も push しない | AC-08 |
 
@@ -858,7 +858,9 @@ flowchart TD
     Start(["step 5a / step 8"]) --> Entry{"チェックポイントの入口:<br>有効な Fable の記録?"}
     Entry -->|"MISSING"| Solo["単独の経路"]
     Solo -->|"止まった"| Halt(["PR を開かず止まる"])
-    Solo -->|"済んだ"| Mark["チェックポイントの印"]
+    Solo -->|"済んだ"| Recheck{"判定し直し:<br>有効な Fable の記録?"}
+    Recheck -->|"VALID"| Mark["チェックポイントの印"]
+    Recheck -->|"MISSING・失敗"| Halt
     Entry -->|"VALID"| Mark
     Mark --> Gate["green gate・終わりの確かめ・<br>diff 記録の再確認"]
     Gate --> B1["B1: ブランチのレビュー"]
@@ -867,7 +869,7 @@ flowchart TD
     B3 --> B5["B5: PR の説明に書く結果"]
     B5 --> PB(["Part B で PR を開く"])
 
-    class Entry,Solo,Mark enhanced
+    class Entry,Solo,Recheck,Mark enhanced
     class Gate,B1,B2,B3,B5 process
     class Halt problem
 

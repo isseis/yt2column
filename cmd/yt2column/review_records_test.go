@@ -1209,7 +1209,7 @@ func TestReviewRecordsFable(t *testing.T) {
 // and the run of that copy.
 const (
 	reviewRecordsRef         = "git rev-parse --verify 'refs/remotes/origin/main^{commit}'"
-	reviewRecordsShow        = "git show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>"
+	reviewRecordsShow        = "git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>"
 	reviewRecordsRunCoverage = "bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]"
 	reviewRecordsRunFable    = "bash <records-script> fable <ENTRY> <HEAD> <PLAN>"
 )

@@ -677,7 +677,7 @@ finished review observed had and every review in progress lacked, so that a
 
     ```bash
     git rev-parse --verify 'refs/remotes/origin/main^{commit}'
-    git show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
+    git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
     bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]
     ```
 
