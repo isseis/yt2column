@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { CollectedInput } from "../src/core/collect.ts";
-import type { SendMode } from "../src/core/extensionMessages.ts";
-import { startMessage } from "../src/core/hostMessage.ts";
+import { startPayloadBytes } from "../src/core/jobMessages.ts";
 import {
   buildArticleBody,
   maxBodyBytes,
@@ -159,16 +158,11 @@ describe("prepareSend", () => {
     assert.equal(blockedReason(over), "body-too-large");
   });
 
-  it("measures the body as sent with either mode, so it fits the server's limit", () => {
-    const ready = prepareSend(inputOfSize(maxBodyBytes), {});
-    assert.ok(ready.kind === "ready");
-    const sentBytes = (mode: SendMode): number => {
-      const message = startMessage(ready.request, mode);
-      assert.ok(message.op === "start");
-      return new TextEncoder().encode(JSON.stringify(message.input)).length;
-    };
-    // The longer mode fills the limit exactly; "plain" is shorter.
-    assert.equal(sentBytes("inquiry"), maxBodyBytes);
+  it("measures the body as the service worker measures a start's input", () => {
+    for (const size of [maxBodyBytes, maxBodyBytes + 1]) {
+      const body = buildArticleBody(inputOfSize(size), { title: "t" });
+      assert.equal(body.byteLength, startPayloadBytes(body.message));
+    }
   });
 });
 

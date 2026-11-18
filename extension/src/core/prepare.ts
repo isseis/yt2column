@@ -1,5 +1,4 @@
 import type { CollectedInput } from "./collect.ts";
-import type { SendMode } from "./extensionMessages.ts";
 
 /** Optional members of the request body: the video metadata read from the page. */
 export interface ArticleMetadata {
@@ -21,31 +20,17 @@ export interface StartInput {
 export interface ArticleBody {
   readonly message: StartInput;
   /**
-   * UTF-8 byte length of the body sent with the longer mode member: the
-   * extension's own 4 MiB check.
+   * UTF-8 byte length of the input's JSON text: the extension's own 4 MiB
+   * check, measured as the service worker measures a start's input
+   * (startPayloadBytes in jobMessages.ts), so an input the popup sends is
+   * not refused for its size there.
    */
   readonly byteLength: number;
 }
 
-/**
- * The bytes the longer mode member, `,"mode":"inquiry"`, adds to the input's
- * JSON text: the body sent is the input with a mode member (startMessage), so
- * a body that passes the check fits the server's limit whichever mode it is
- * sent with.
- */
-const longerMode: SendMode = "inquiry";
-const modeMemberBytes = new TextEncoder().encode(
-  `,"mode":${JSON.stringify(longerMode)}`,
-).length;
-
-/**
- * The UTF-8 byte length of input's JSON text with the longer mode member: the
- * one way the body size is measured.
- */
+/** The UTF-8 byte length of input's JSON text: the one way the body size is measured. */
 function startInputBytes(input: StartInput): number {
-  return (
-    new TextEncoder().encode(JSON.stringify(input)).length + modeMemberBytes
-  );
+  return new TextEncoder().encode(JSON.stringify(input)).length;
 }
 
 const metadataKeys = ["title", "channelName", "description"] as const;
@@ -73,7 +58,7 @@ export function buildArticleBody(
   return { message: body, byteLength: startInputBytes(body) };
 }
 
-/** The server's body limit: 4 MiB, counted in UTF-8 bytes. */
+/** The input's size limit: 4 MiB, counted in UTF-8 bytes. */
 export const maxBodyBytes = 4_194_304;
 
 declare const preparedBrand: unique symbol;
@@ -108,7 +93,7 @@ export function prepareSend(
   return checkBodySize(buildArticleBody(input, metadata));
 }
 
-/** Builds the request only when the body fits the server's limit. */
+/** Builds the request only when the body fits the limit. */
 function checkBodySize(body: ArticleBody): PrepareOutcome {
   if (body.byteLength > maxBodyBytes) {
     return { kind: "blocked", reason: "body-too-large" };

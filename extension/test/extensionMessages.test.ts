@@ -60,7 +60,6 @@ function requestOfBodySize(bytes: number): unknown {
   const empty = JSON.stringify({
     videoUrl: watchUrl,
     transcript: "",
-    mode: "inquiry",
   });
   return changed((request) => {
     request.input = {
