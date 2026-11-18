@@ -162,9 +162,10 @@ From the launch to the exit of the collection entry, make no commit.
 
 ## Entry 2: collection
 
-When the launch entry launched nothing, return at once.
+When the launch entry found a valid record (`VALID`), return at once with
+nothing.
 
-When it decided `not run agent-cannot-call`, return that.
+When it decided `not run agent-cannot-call`, return that STATUS with RANGE.
 
 Otherwise:
 
@@ -237,10 +238,11 @@ review stops), push nothing and do not open the PR.
    status, or its first line is of another form; for example while
    `origin/main`'s copy has no `fable` mode), the standalone path just
    reviewed RANGE up to HEAD, and its record commit is the only commit
-   since: go on, and report the failure with what the script wrote to
-   standard error. On every failure of the decision, report that standard
+   since: go on to step 3 as on `VALID`, and report the failure with what
+   the script wrote to standard error. On every failure of the decision, report that standard
    error too, so a failure is not mistaken for a missing record.
-3. On `VALID`, make an empty commit whose message holds the checkpoint mark
+3. On `VALID` (or after the failed second decision of step 2), make an
+   empty commit whose message holds the checkpoint mark
    (`Fable review: checkpoint`) and a subject line of your own. The commits
    the checkpoint makes after it (green-gate fixes, end-of-task check fixes,
    the diff-record recheck, the commits of "Before the PR", and the fixes of
