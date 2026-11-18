@@ -392,7 +392,7 @@
     -   CLAUDE.md は、「Architecture Overview」の主経路、「Accessibility」の対象にオプションページを含めること、「Development Notes」の `TestReadmeHostExitCodes`・`serverReasons.test.ts` とサーバの設定ファイルの記述、「Go Idioms」の `TestServerDocsContract` の見出しの例を直す。「Build Commands」の 2 つのバイナリと文書のガードのコマンドは、撤去の PR まで、撤去の予定のものとして残す（§1.3 の決定 2）。
     -   README の `### 推奨構成` と production_profile.md の `## 本番の構成` の塊が、サーバの設定ファイルの形でなくなるので、`TestProductionProfileDocsContract` の照合を CLI の読み込み（環境変数の名前を引く関数を `config.Load` に渡す形）に改め、使われなくなる `ParseServerFileForTest` を除く。
 -   [x] **ステップ 8-6**: ADR の食い違いの記述を §3.3 のとおりに除くか書き換える。案 B で実装したときは、人と決めたうえで、ADR-0010 の「ビューアの URL」の決定を改め、要件書 §3.2 の「ビューアの URL」の行の扱いを PR の説明に書く（設計書 §3.8.2・§3.14）。
--   [ ] **ステップ 8-7**: 手動の確認を行い、§7 の「PR-8 の手動の確認の記録」に書く（要件書 §5、設計書 §7.2）。
+-   [x] **ステップ 8-7**: 手動の確認を行い、§7 の「PR-8 の手動の確認の記録」に書く（要件書 §5、設計書 §7.2）。
     -   開発用のビルドで、要件書 AC-29 の状態と、AC-07・AC-08・AC-09・AC-11・AC-16・AC-20・AC-23 の手動の確認の項目を確かめる。
     -   オプションページで、VoiceOver の読み上げ（H-12。読み上げるときは欄の説明に注意を添える）と、同期を有効にしたプロファイルでパスワードの保存を勧められないこと（AC-03）を確かめる。
     -   ポップアップ、ビューア、オプションページで、CLAUDE.md「Accessibility」の各項目を、キーボードと明るい・暗いテーマで確かめる（AC-18）。
@@ -815,6 +815,8 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 | D2 | Chrome で記事を 1 本生成し、ビューアのタブを背面のまま完成させる（動画 `https://www.youtube.com/watch?v=ACuRMEyrAEw`） | OK。完成し、所要時間 1 分 56 秒、推定の料金 $0.3873 |
 | D3 | Brave で D1・D2 を同じく | OK |
 | D4 | Anthropic の Console の使用量 | まだ見られない（使用量が Console に出るまで時間がかかる）。Chrome の確認はこの確認だけのキーで行ったので、後で確かめられる |
+
+D4 は、人と決めて、結果を待たずに PR を作る。結果は、マージの前にこの記録に足す。
 
 ### `_checks/removal.sh` の記録
 
