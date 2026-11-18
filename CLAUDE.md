@@ -536,7 +536,8 @@ its security rules in `docs/dev/security.md` §8.
   the lines of `git cat-file --batch-check` after a failed fetch (which
   choose only the branches a stop's detail names), the one line of
   `git rev-parse --show-toplevel` (one absolute path, else a `local-git`
-  stop), and the name forms of
+  stop), the one line of `git merge-base` in the pre-merge check (one
+  commit ID, else a `malformed` stop), and the name forms of
   `internal/tasknaming` applied to them; this is the only place their
   content selects behavior. A `GET` response's body is parsed whole as
   strict JSON, so a body of another form stops the run as `malformed`, but
@@ -547,7 +548,11 @@ its security rules in `docs/dev/security.md` §8.
   entry, or a name of a form the tool does not accept stops the run as
   `malformed` (a status line as `network-or-github`) and is not read more
   widely; only a 422 that reading the ref back confirms moves the tool to the
-  next number.
+  next number. The pre-merge check that `mergepr` calls differs only where
+  its design says: an entry of another name form on the latest `origin/main`
+  or on another branch is not counted, rather than stopped on, so a PR that
+  removes one can merge, and an entry the PR adds under `docs/tasks/` of
+  another form is reported as a finding.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than

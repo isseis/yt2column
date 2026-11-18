@@ -38,7 +38,7 @@ assumes:
 If the tool stops, report its error and the action it suggests; do not work
 around it with your own shell commands. Work in order; do not skip a step.
 
-1. **Prepare.** Run `mergepr prepare --protocol 1 $ARGUMENTS` (no argument uses the current
+1. **Prepare.** Run `mergepr prepare --protocol 2 $ARGUMENTS` (no argument uses the current
    branch's PR). It requires the PR to be open, fetches `origin`, fetches
    `main` into `origin/main` again and runs the protocol number check on the
    PR's head and base, waits for CI
@@ -54,6 +54,14 @@ around it with your own shell commands. Work in order; do not skip a step.
    tool, its numbers on `origin/main` and at the head, the expected number, the
    commits that changed it, and the fixes it lists) as it is, and that the
    user runs `/mergepr` again after the fix. Do not fix the numbers yourself.
+   For a PR into `main`, after CI passes `prepare` also runs the number check
+   on the task and ADR numbers the PR adds. When it stops `prepare` (its error
+   starts with `number check: `), nothing is prepared: report each
+   `mergepr: number check:` line it printed (a finding's kind, number, the
+   PR's directory or file, and what already uses the number) or the reason it
+   could not check, point the user to "番号の確かめで止まったとき" in
+   `docs/dev/guides/mergepr_guide.md` for the fix, and stop. Do not renumber
+   anything yourself.
 2. **Draft the squash commit message.** Read `log.txt`, `stat.txt`, and
    `body.txt`. When those are not enough to determine a file's final change, read
    its patch with `git diff origin/<baseRefName>...<headRefOid> -- <path>` from
@@ -74,7 +82,7 @@ around it with your own shell commands. Work in order; do not skip a step.
         made on `headRefOid` (`git rev-parse HEAD` in that checkout equals it);
         otherwise judge again on `headRefOid`. For a plan PR, `<scope>` is its
         task ID. If the judgment stops, run
-        `mergepr discard --protocol 1 --state <state-file>`, report, and stop.
+        `mergepr discard --protocol 2 --state <state-file>`, report, and stop.
      2. **Title prefix.** Read the PR title from `title` in `state.json`, not
         from the first line `prepare` prints, where a control character can
         hide. When it starts with an accepted prefix (the prefix table of
@@ -140,21 +148,26 @@ around it with your own shell commands. Work in order; do not skip a step.
    tree; the question does not ask whether to run the next command. `runpr.md`
    also says how to re-prepare after the bookkeeping commit.
 4. **Merge.** Run
-   `mergepr merge --protocol 1 --state <state-file> --subject-file <subject-file> --body-file <body-file>`.
+   `mergepr merge --protocol 2 --state <state-file> --subject-file <subject-file> --body-file <body-file>`.
    It requires the PR to be still open on the prepared base, fetches `main`
    into `origin/main` again and repeats the protocol number check on the
    prepared head (`origin/main` may have moved since step 1), then merges with
    `--match-head-commit <headRefOid>`, so GitHub refuses the merge if the head
    moved after `prepare`. In that case the preparation can no longer be used:
-   discard it with `mergepr discard --protocol 1 --state <state-file>` so its material does
+   discard it with `mergepr discard --protocol 2 --state <state-file>` so its material does
    not linger inside the checkout, then re-run from step 1. When the repeated
    protocol number check stops it (its error starts with `protocol check: `),
    nothing is merged. When the error is `could not fetch origin/main`, the
    preparation still holds: run the same `merge` command once more, and when it
    fails again, discard the preparation with
-   `mergepr discard --protocol 1 --state <state-file>` and report the error.
+   `mergepr discard --protocol 2 --state <state-file>` and report the error.
    Otherwise discard the preparation with the `discard` command the error
-   shows, and report as step 1 says. Then it cleans up:
+   shows, and report as step 1 says. For a PR into `main` it then repeats the
+   number check right before the merge, so a number another PR took since
+   step 1 stops it. When that check stops it (its error starts with
+   `number check: `), nothing is merged: discard the preparation with
+   `mergepr discard --protocol 2 --state <state-file>`, report as step 1 says
+   for the number check, and stop. Then it cleans up:
    it fast-forwards the local base branch from `origin/<baseRefName>` and deletes
    the local head branch only while it still points at `headRefOid` (and stops
    without touching local branches if the merged head is not `headRefOid`). When
@@ -162,7 +175,7 @@ around it with your own shell commands. Work in order; do not skip a step.
    branches alone and prints a note instead. A successful cleanup removes the
    prepared work directory. If the merge or cleanup stops after the PR was
    merged, fix the reported cause and run
-   `mergepr cleanup --protocol 1 --state <state-file>`.
+   `mergepr cleanup --protocol 2 --state <state-file>`.
 5. **Report** the merge commit, what the cleanup did (including any note), and,
    when the PR is a plan PR (step 2), that the next step is to create the next
    branch from the updated base branch (`runpr.md` step 5 does it when it

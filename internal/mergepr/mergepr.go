@@ -5,8 +5,10 @@
 // configuration. Its only safety obligations are to merge exactly the head that
 // was prepared (--match-head-commit), into the prepared base, after CI passed,
 // only when the protocol-number check passes against a freshly fetched
-// origin/main both before CI is awaited and right before the merge, and never
-// to delete a local branch that holds commits outside the PR.
+// origin/main both before CI is awaited and right before the merge, only when,
+// for a PR into main, the number check finds nothing wrong with the task and
+// ADR numbers the PR adds both after CI passed and right before the merge, and
+// never to delete a local branch that holds commits outside the PR.
 package mergepr
 
 import (
@@ -20,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
+	"github.com/isseis/yt2column/internal/numreserve"
 )
 
 const (
@@ -49,7 +52,7 @@ const (
 // Protocol is the version of the tool's command-line contract. The command
 // documents pass it back with --protocol, so an installed binary that predates
 // the documents stops instead of merging without the checks they expect.
-const Protocol = 1
+const Protocol = 2
 
 // mainRefspec fetches main into its remote-tracking ref whatever the
 // repository's remote.origin.fetch says, so the protocol-number check always
@@ -69,6 +72,15 @@ type Tool struct {
 	// fetch updates the repository the check reads.
 	mainFetch Runner
 	protocol  protocolChecker
+	numbers   NumberChecker
+}
+
+// NumberChecker checks the task and ADR numbers a PR head adds before it is
+// merged into main. The production checker is numreserve's Tool, which reads
+// origin with its own bounds; tests substitute a fake. It returns the
+// findings, none to let the merge go on, or an error to stop it.
+type NumberChecker interface {
+	CheckAdded(ctx context.Context, head, headBranch string) ([]numreserve.AddedNumberIssue, error)
 }
 
 // protocolChecker checks the protocol numbers of the PR head against
@@ -78,12 +90,33 @@ type protocolChecker interface {
 	check(ctx context.Context, headOID, baseRefName string) (protocolSummary, error)
 }
 
-// New returns a Tool that runs external commands through runner. The
-// protocol-number check runs git through its own Runner in the current
-// directory, with the GIT_* variables removed from the environment.
-func New(runner Runner) *Tool {
+// New returns a Tool that runs external commands through runner and checks
+// the numbers a PR adds with numbers. The protocol-number check runs git
+// through its own Runner in the current directory, with the GIT_* variables
+// removed from the environment.
+func New(runner Runner, numbers NumberChecker) *Tool {
 	git := newGitRunner("")
-	return &Tool{run: runner, mainFetch: git, protocol: newProtocolCheck(git)}
+	return &Tool{run: runner, mainFetch: git, protocol: newProtocolCheck(git), numbers: numbers}
+}
+
+// checkNumbers runs the number check on the prepared head.
+//
+// Contract: a PR whose base is not main is not checked, because only main's
+// numbers must stay unique; for a PR into main, a finding stops with a
+// *NumberIssuesError and a check that could not read its inputs stops with
+// errNumberUnreadable, so neither lets the merge go on.
+func (t *Tool) checkNumbers(ctx context.Context, state State) error {
+	if state.BaseRefName != mainBranch {
+		return nil
+	}
+	issues, err := t.numbers.CheckAdded(ctx, state.HeadRefOID, state.HeadRefName)
+	if err != nil {
+		return fmt.Errorf("%w: %w", errNumberUnreadable, err)
+	}
+	if len(issues) > 0 {
+		return &NumberIssuesError{Issues: issues}
+	}
+	return nil
 }
 
 // command returns the mergepr command line an error message shows, with this
@@ -207,6 +240,12 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (prepared Prepared, er
 	if _, err := t.gh(ctx, "pr", "checks", state.number(), "--watch", "--fail-fast"); err != nil {
 		return Prepared{}, fmt.Errorf("%w: %w", errChecksFailed, err)
 	}
+	// The number check runs after CI, which can take minutes, so it sees the
+	// newest origin it can before the merge question, and before the work
+	// directory exists, so a stop leaves nothing.
+	if err := t.checkNumbers(ctx, state); err != nil {
+		return Prepared{}, err
+	}
 	baseRef := "origin/" + state.BaseRefName
 	logOut, err := t.git(ctx, "log", "--format=%h %s%n%n%b", baseRef+".."+state.HeadRefOID)
 	if err != nil {
@@ -329,6 +368,14 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 		return Report{}, fmt.Errorf("%w\nnothing was merged; discard the preparation with `%s`, then fix the PR", err, discardCommand(statePath))
 	}
 	checked := Report{ProtocolCheck: summary.String()}
+	// A number another PR merged since prepare must stop this merge, so the
+	// number check runs again as the last step before gh pr merge.
+	if err := t.checkNumbers(ctx, state); err != nil {
+		if errors.Is(err, errNumberUnreadable) {
+			return checked, fmt.Errorf("%w\nnothing was merged; run the same merge command again once the check can read origin, or discard the preparation with `%s`", err, discardCommand(statePath))
+		}
+		return checked, fmt.Errorf("%w\nnothing was merged; discard the preparation with `%s`, then fix the PR", err, discardCommand(statePath))
+	}
 	// --match-head-commit makes GitHub refuse the merge if the head moved after
 	// prepare, so the merged content is exactly what CI passed and the message
 	// describes.

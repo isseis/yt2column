@@ -96,4 +96,4 @@ ruleset は誰も迂回できないので、誤った tag は利用者が消す�
 
 ## 6. マージの前の確かめで止まったとき
 
-`mergepr` がマージの前に、PR が加える番号に記録の tag があるか、最新の `origin/main` やほかのブランチで別のものに使われていないかを確かめる仕組みは、[0100 実装計画書](../../tasks/0100_number_reservation/03_implementation_plan.md) のフェーズ 6 で加える。止まったときの直し方は、そのときにこの章に書く。
+`mergepr` は、`main` に入れる PR が加えるタスク番号と ADR 番号を、`prepare` と `merge` で確かめる。PR が加える番号に記録の tag があるか、最新の `origin/main` やほかのブランチで別のものに使われていないか、`docs/tasks/` の下に形に合わない項目を加えていないかを見る。確かめの仕様は [mergepr_guide.md](mergepr_guide.md) の 6.4 節に、止まったときの直し方は同じ手引きの 7 章の「番号の確かめで止まったとき」にある。
