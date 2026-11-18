@@ -44,12 +44,13 @@
 
 ## H-04: Herdr のタブの一覧と pane の配置の読み方
 
-**懸念:** `herdr tab list` と `herdr pane layout --pane <ID>` を読むのは、chief では初めてである。2026-11-18 に手元で見た出力では、`herdr tab list` の `result` は `tabs` を持ち、各タブは `tab_id`・`workspace_id`・`number`・`label`・`pane_count`・`agent_status`・`focused` を持っていた。今の読み取り（`internal/chief/herdr.go:190-230`）が求める `result` の `type` が、この出力にあるかは確かめていない。`herdr pane layout` は `layout.area` と `layout.panes[].rect` の両方に幅を持つ。
+**懸念:** `herdr tab list` と `herdr pane layout --pane <ID>` を読むのは、chief では初めてである。2026-11-18 に手元で見た出力では、`herdr tab list` の `result` は `tabs` を持ち、各タブは `tab_id`・`workspace_id`・`number`・`label`・`pane_count`・`agent_status`・`focused` を持っていた。`result` の `type` は `tab_list` で、`herdr pane layout` の `type` は `pane_layout` だった（herdr 0.9.1）。`herdr pane layout` は `layout.area` と `layout.panes[].rect` の両方に幅を持つ。一方、同じ workspace の 2 つのタブの `number` が 1 と 16 だった（`tab_id` は `wC:t1` と `wC:tG`）。`number` はタブの並びの位置ではなく、作った順の番号でありうる。Herdr のタブの並びにどちらの番号が出るかは確かめていない。
 
-**なぜ重要か:** 封筒の形が今の読み取りと違うと、どのラウンドでもタブが引けず、表は pane の ID のまま（AC-19）で、幅も 80 桁（AC-05）になる。どちらの幅を使うかで、分割したタブでの使える幅が変わる。
+**なぜ重要か:** 封筒の形が今の読み取りと違うと、どのラウンドでもタブが引けず、表は pane の ID のまま（AC-19）で、幅も 80 桁（AC-05）になる。`number` が Herdr の画面のタブの番号と違うと、`[16 claude]` が人の見るどのタブを指すか分からず、タブの表示（AC-18）の目的を果たさない。どちらの幅を使うかで、分割したタブでの使える幅が変わる。
 
 **候補:**
--   実物の出力をサンプルとして `internal/chief/testdata/` に採り、封筒の `type` の有無と値を確かめる。
+-   実物の出力をサンプルとして `internal/chief/testdata/` に採る。
+-   Herdr の画面のタブの番号が `number` と同じかを、タブを消した workspace で確かめる。違えば、`number` の代わりに示す番号を設計で決め、要件と食い違うなら要件を直す。
 -   幅は、chief の pane の `rect.width` を使う。`area` はタブ全体の大きさで、pane を分割したときに広すぎる。
 -   pane の配置を読む pane は、chief がすでに知っている自分の pane（`HERDR_PANE_ID` から確かめたもの）とする。
 
@@ -74,6 +75,7 @@
 -   行が 1 つもないときの表（AC-10）。凡例と見出しだけを示すか、決まった 1 行（例: workspace がない）を示すか。
 -   読めなかったもの（`unreadable`）が 2 つ以上あるときに、内容の文字列をどう結ぶか（AC-14）。
 -   タブのラベルが空のときのタブの表示（AC-18）。
+-   折り返しで、語（AC-15）の直前が空白でない ASCII でない文字のとき（例: `表の幅をresizeに合わせる`）に、その境目で折り返すか。全角の空白（U+3000）を AC-15 の空白に含めるか。
 -   急ぎの度合い、進み具合、文書、`running_unknown` の値のうち、表に対応のない値の示し方。今の定義は「（定義にない値）」を添えて示す（`.claude/commands/chief.md:180-181`）。道具が組むと起こらないはずだが、起こったときに推し量らずに示す形を決める。
 
 **なぜ重要か:** 表の形がラウンドごとに変わると、人が読み違えやすい。
@@ -82,6 +84,7 @@
 -   行がないときは、凡例と見出しと区切り線だけを示す。
 -   読めなかったものは、道具の順に `, ` で結ぶ。
 -   ラベルが空のタブは `[3]` と示す。
+-   語と ASCII でない文字の境目も、空白と同じく折り返してよい位置とする（空白を落とさない）。全角の空白は空白に含めない。
 -   対応のない値は、決まった 1 つの語（例: `?`）で示し、ほかの値から推し量らない。
 
 **関連:** F-002・F-004、AC-10・AC-14
