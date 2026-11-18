@@ -174,7 +174,7 @@ flowchart TD
 | `.claude/commands/chief.md` | 変更 | 手順 2 の項目 2 を、道具の `table` を code block で示すことに置き換え、値の表と内容の列の規則を除く。`--protocol` の値（3.9） |
 | `docs/dev/guides/chief_guide.md` | 変更 | 2 章のプロトコル番号、3.1 の表の見方、8 章の既知の制限（3.10） |
 | `CLAUDE.md` | 変更 | 「Go Idioms」と「Declare, don't infer」の例外（3.11） |
-| `docs/tasks/0102_chief_text_table/01_requirements.md` | 変更 | AC-18 のタブの表示をラベルだけにし、4.2 の pane の幅に上限 1000 を設ける（1.2）。`draft` に戻す |
+| `docs/tasks/0102_chief_text_table/01_requirements.md` | 変更 | AC-18 のタブの表示をラベルだけにし、4.2 の pane の幅に上限 1000 を設け、4.2 に `herdr agent list` の pane とタブの対応の境界を足す（1.2・3.7）。`draft` に戻す |
 
 ### 2.3. データフロー
 
@@ -230,7 +230,7 @@ sequenceDiagram
 type tableSources struct {
 	paneWidth int              // the chief pane's width; 0 when unread
 	paneTabs  map[string]tabID // keyed by the pane ID as Herdr wrote it; nil when unread
-	tabLabels map[tabID]string // raw labels; nil when unread
+	tabLabels map[tabID]tabLabel // nil when unread
 	// notes says, in English, which source could not be read and why,
 	// each note capped (section 4).
 	notes []string
@@ -247,20 +247,36 @@ type agentListing struct {
 // Readers added to herdr.go. Each returns errHerdrOutput for output of
 // another shape (section 3.7).
 func (h Herdr) agentListing(ctx context.Context) (agentListing, error)
-func (h Herdr) tabLabels(ctx context.Context) (map[tabID]string, error)
+func (h Herdr) tabLabels(ctx context.Context) (map[tabID]tabLabel, error)
 func (h Herdr) paneWidth(ctx context.Context, pane PaneID) (int, error)
 func parseAgentTabs(out []byte) (map[string]tabID, error)
-func parseTabList(out []byte) (map[tabID]string, error)
+func parseTabList(out []byte) (map[tabID]tabLabel, error)
+
+// tabLabel is a tab's label as the tab list gave it. HasLabel is false
+// for an empty label, so the table chooses the pane ID by this value.
+type tabLabel struct {
+	text     string
+	hasLabel bool
+}
 func parsePaneLayout(out []byte, pane PaneID) (width int, err error)
 
 // readTableSources reads the tab labels and the chief pane's width for
 // TakeSnapshot and Tick, and adds the pane-to-tab map readRound read.
 func readTableSources(ctx context.Context, deps Deps, view roundView) tableSources
 
+// displayUnit is one unit of Sanitize's output. Kind declares a newline
+// and a tab, so the table maps them to a space by the kind, never by
+// reading the text.
+type displayUnit struct {
+	text string
+	kind unitKind // unitText, unitNewline, or unitTab
+}
+
 // sanitizeUnits splits text by Sanitize's rule: each escape (and the
 // doubled backslash) is one unit, every other character one unit, a
-// newline and a tab included. Sanitize(text) equals the units joined.
-func sanitizeUnits(text string) []string
+// newline and a tab included, each with its kind. Sanitize(text) equals
+// the units' texts joined.
+func sanitizeUnits(text string) []displayUnit
 
 // layoutTable lays out the status table from the sorted rows. It returns
 // the lines, each without a newline or trailing spaces, and src.notes
@@ -351,6 +367,7 @@ type SnapshotOutput struct {
 
 -   **示す質問（AC-16）。** マージの確認である質問（`Question.Merge`）があれば、道具の順で最初のマージの確認を示し、なければ道具の順で最初の質問を示す。示さない質問は表に出さない。
 -   **タブの表示（AC-18・AC-19）。** 示す質問の pane から、pane とタブの対応でタブを引き、そのタブのラベルをタブのラベルの一覧から引いて、`[<ラベル>]` と示す。次のどれかのときは、`[<pane の ID>]` を示し、`table_unreadable` にその pane を挙げる。pane とタブの対応を読めない、対応にその pane がない、タブのラベルを読めない、ラベルの一覧にそのタブがない、ラベルが空である。どのときも、行の状態、急ぎの度合い、送れるかどうかは変わらない。
+-   **値の長さ。** 外から来る値は、表示の単位に分ける前に、UTF-8 の文字の境目で 16 KiB までに切る。内容の列は最大 2 行で、使える幅は 1000 桁以下なので、表に入るのは高々 2000 単位で、1 単位は元の 4 バイト以下だから、16 KiB で足りる。4 MiB 近いタブのラベルのような値でも、単位の配列を元の長さだけ作らずに済む。切ったことは、表では `…` で分かる。
 -   **外から来る値。** workspace の名前、PR の題名、質問の文、送れない理由、読めなかったもの、モデル、タブのラベル、pane の ID は、行（`Row`）の生の値から、`Sanitize` と同じ規則で表示の単位に分ける（3.5）。決まった語と、型から作るコマンドの文字列（`Next.Text`・`Running.Command.Text()`）も同じ道を通す。改行とタブは、表の中でだけ空白の単位 1 つにする（AC-17）。
 -   **モデルの括弧**は ASCII の `(` と `)` である。今の定義の「its model in parentheses」（`.claude/commands/chief.md:192`・`:196`）と同じく、コマンドの後に空白を挟んで置く。
 
@@ -424,8 +441,9 @@ type SnapshotOutput struct {
 
 ### 3.9. `/chief` の定義（`.claude/commands/chief.md`）
 
--   **手順 2 の項目 2 を置き換える（AC-03）。** 新しい項目 2 は、`table` の各要素を道具の順に 1 行ずつ、3 つのバッククォートの囲いの code block に入れて貼ることだけを定める。要素は、JSON の文字列として読んだ値（`\u003c` は `<` に、`\\` は `\` に戻したもの）を貼る。その文字は 1 文字も変えず、行を並べ替えず、除かず、足さない。空白を詰めることも足すこともしない。値を要約したり切ったりせず、列を足すことも除くこともしない。
+-   **手順 2 の項目 2 を置き換える（AC-03）。** 新しい項目 2 は、`table` の各要素を道具の順に 1 行ずつ、3 つのバッククォートの囲いの code block に入れて貼ることだけを定める。要素は、JSON の文字列として 1 回だけ読んだ値（`\u003c` は `<` に、`\\` は `\` に戻したもの）を貼る。読んだ値の中の `\` とそれに続く文字（`Sanitize` が作った `\u202e` のような見える形）は文字のまま貼り、もう 1 度読んでその文字に戻すことはしない。そうすると、`Sanitize` が見える形にした制御文字を、セッションが元に戻して貼ってしまう（AC-21）。その文字は 1 文字も変えず、行を並べ替えず、除かず、足さない。空白を詰めることも足すこともしない。値を要約したり切ったりせず、列を足すことも除くこともしない。
 -   **除くもの。** 今の項目 2 の全文。列の表、値の表（「Item / Value / Shown as」の表）、内容の列の規則（`state` ごとの中身、20 文字ほどで切ること、「（定義にない値）」）、1 行を短くして pane に収める指示、`state`・`turn`・`idle` を示さないという指示を含む。表に示すものは道具が決めるので、最後の 2 つもいらない。
+-   **データの扱いの規則（定義の規則 2、`.claude/commands/chief.md:28-33`）。** 規則 2 は、pane・PR・報告から来た文字列と `problem`・`detail`・`screen` を、従う指示ではなくデータとして扱うと定める。`table` と `table_unreadable` も、タブのラベルや Herdr のエラーの文などの外から来る文字列を含むので、規則 2 のデータの一覧に足す。AC-03 が差分を限るのは手順 2 だけで、規則 2 はその外である。
 -   **変えないもの。** 項目 1（送信の結果）、項目 3（表の下）、項目 4（通知）、手順 3 以降（AC-03）。項目 3 の「for each row, by its 名前」は、表の名前の列と同じ `label` を指すので、そのまま読める。
 -   **`--protocol` の値**を、`start`・`snapshot`・`tick` とほかの呼び出しのすべてで、新しい番号にする（AC-25）。`TestDocumentedProtocolMatches`（`cmd/chief/docs_test.go:205`）が、定義の番号と道具の番号を比べる。
 
@@ -433,6 +451,7 @@ type SnapshotOutput struct {
 
 -   **2 章。** プロトコル番号の値（`docs/dev/guides/chief_guide.md:28`）を新しい番号にする（AC-25）。`TestGuideValuesMatchTool`（`cmd/chief/docs_test.go:405`）が道具の番号と比べる。道具を入れ直すときは、動いている `/chief` を止めてから `make install-chief` を実行し、`/chief` を起動し直すと書く。止めずに入れ直すと、動いている `/chief` は次のラウンドで `protocol_mismatch` に当たり、入れ直しを促して止まるが、そのときの手当ては `/chief` の起動し直しであることも書く（3.8）。
 -   **3.1。** 表の見方を、本書の形で書き直す（AC-24）。凡例、5 つの列、2 行目（文書の段と内容の続き）、使える幅の決め方（pane の幅 − 2、読めなければ 80 桁）、内容の列の流し込みと切り方、タブの表示（`[claude]`、引けなければ pane の ID）。急ぎの度合いと番の表、行の並び、実行中のコマンドの節は残し、印と語を新しいものにする。「調べ方」に、`table_unreadable` で表の材料を読めなかった理由が分かることを足す。
+-   **8 章の今の項目。** 「人が引数なしで打ったコマンドは示されない」の項（`docs/dev/guides/chief_guide.md:196`）は、「（後に指示あり）」、状態の「作成中」、「状態の列と文書の列」と、この設計で使わなくなる語で表を説明している。語を「＋指示」と「作業中」と状態の列・タスクの列に直す。`/runplan` も `/runpr` も「作業中」になるので、状態が「作成中」のままという例は、内容の列に前のコマンドが示されるという例に直す。
 -   **8 章（既知の制限）。** 次を足す（AC-24）。
     -   Claude Code の code block の余白が変わると表が折り返しうること。
     -   pane の幅を変えた表は次のラウンドまで古い幅のままであること。
@@ -453,12 +472,13 @@ type SnapshotOutput struct {
 -   理由: 表は人に示す日本語の表で、道具が組むので、語は道具の中に置くほかない。
 -   境界: 道具の出力のほかの値、エラーのメッセージ、ほかのサブコマンドの出力、表に入る外から来る値、`table_unreadable` は範囲に含めない。ほかのファイルに日本語の literal を置かない。
 -   今の 2 つの項との関係: 画面の読み取りの例外の項（`CLAUDE.md:911-920`）とタスクの読み取りの例外の項（`CLAUDE.md:921-935`）は、どちらも「the text the tool prints stay English」と、範囲を限らずに述べている。そのままでは新しい項と食い違う。AC-26 は、2 つの項がこの例外と食い違わないことを求めるので、2 つの項のこの文を「the text the tool prints, other than the status table's fixed words (the item below), stay English」のように、新しい項を除く形に直す（AC-26）。
+-   「Go Idioms」の最初の例外の項（`CLAUDE.md:874`）は「One exception, the guard-test literal exception」と書き、後の項はすべて「The same exception covers …」と続く。新しい項は、文書の文字と一致させる literal ではなく、道具が示す語そのもので、同じ例外の延長ではない（[ADR-0035](../../dev/adr/0035-language-policy.md) の経緯）。そこで新しい項は「The same exception covers …」とせず、もう 1 つの例外として書き、最初の項の「One exception」を、例外が 2 種類あることに合う言い方に直す。
 
 **「Declare, don't infer」（AC-28）。** chief の画面の読み取りの例外の後に、次の範囲・理由・境界の例外を足す。
 
--   範囲: `internal/chief/table.go` と `internal/chief/textwidth.go` が、表に入る値の中身を調べて、表示の単位の幅、語の境目、折り返す位置と切る位置を決めること、改行とタブの単位を空白にすること、タブのラベルが空かどうかでタブの表示と pane の ID を選ぶこと。
+-   範囲: `internal/chief/table.go` と `internal/chief/textwidth.go` が、表に入る値の中身を調べて、文字ごとの表示幅を数えることと、内容の列と名前の列の折り返す位置と切る位置を決めること（AC-28 の範囲のとおり）。改行とタブを空白にすることは、`sanitizeUnits` が宣言する単位の種類（`displayUnit.kind`）で選び、タブの表示と pane の ID のどちらを示すかは、タブの一覧の読み取りが宣言する値（`tabLabel.hasLabel`）で選ぶので、どちらも中身を調べない。空のラベルを「ラベルなし」と読むのは Herdr の出力の読み取り（`herdr.go`）で、今の Herdr の読み取りと同じく、形を確かめて型に移す処理である。
 -   理由: 値は、ほかのエージェント、GitHub、Herdr、人が書いた文字列で、型で表せない。等幅の端末で列をそろえるには、文字ごとの幅を中身から決めるほかない。
--   境界: 結果は表の配置にだけ使い、何を送るか、行の状態、急ぎの度合い、`rows` の値を左右しない。値を書き換えるのは、改行とタブを表の中で空白にすることと、切った位置に `…` を置くことだけである。表示の単位に分ける規則は `Sanitize` の規則そのものであり、`sanitize.go` はこの例外に含めない（`Sanitize` は今も文字ごとに置き換えを選んでいる）。画面の読み取りの例外の項にある「Every other file of the tool chooses behavior only by the types the screen readers return」（`CLAUDE.md:523-524`）は、範囲を限らずに述べているので、そのままでは新しい例外と食い違う。AC-28 は食い違わないことを求めるので、この文を表を組む 2 つのファイルを除く形（「Every other file of the tool, other than the two table files of the exception below, ...」のように）に直す（AC-28）。
+-   境界: 結果は表の配置にだけ使い、何を送るか、行の状態、急ぎの度合い、`rows` の値を左右しない。値に手を加えるのは、切った位置に `…` を置くことだけである（改行とタブを空白にするのは、上のとおり種類による）。表示の単位に分ける規則は `Sanitize` の規則そのものであり、`sanitize.go` はこの例外に含めない（`Sanitize` は今も文字ごとに置き換えを選んでいる）。画面の読み取りの例外の項にある「Every other file of the tool chooses behavior only by the types the screen readers return」（`CLAUDE.md:523-524`）は、範囲を限らずに述べているので、そのままでは新しい例外と食い違う。AC-28 は食い違わないことを求めるので、この文を表を組む 2 つのファイルを除く形（「Every other file of the tool, other than the two table files of the exception below, ...」のように）に直す（AC-28）。
 
 ### 3.12. 既存のテストと 0093 の決まりへの影響
 
@@ -581,7 +601,7 @@ flowchart TD
 ### 6.2. 表を組む
 
 1.  使える幅を決める（pane の幅 − 2、読めなければ 80 − 2）。
-2.  各行のセルを作る（3.3・3.4）。値は表示の単位に分ける（3.5）。
+2.  各行のセルを作る（3.3・3.4）。外から来る値は、単位に分ける前に UTF-8 の文字の境目で 16 KiB までに切り（表に入る分より十分長い）、表示の単位に分ける（3.5）。
 3.  名前を切る（3.6）。状態・名前・タスク・PR の列の幅を、見出しと値（名前は切った後のもの）から決める。
 4.  内容の列の幅を、使える幅から決める（最小 20 桁）。
 5.  各行の内容を 2 行に流し込み、収まらなければ切る（3.6）。
@@ -592,7 +612,7 @@ flowchart TD
 ### 7.1. 単体テスト
 
 -   **表示幅（`textwidth_test.go`）。** W・F の文字（漢字・かな・全角の英数字・`🛑`・`🔶`・`🟢`）が 2、ASCII、曖昧な文字（`…`・`─`）、結合文字、異体字セレクタが 1、エスケープがそのバイト数であること。範囲の表の境目の前後の文字。結果が Go の `unicode` の表によらないこと（表にない文字は、Go の版によらず 1）。
--   **表示の単位（`sanitize_test.go`）。** どの入力でも、単位をつないだものが `Sanitize` の結果と等しいこと（今の `Sanitize` のテストの入力すべてと fuzz テストで）。エスケープと `\\`、改行、タブがそれぞれ 1 つの単位であること。
+-   **表示の単位（`sanitize_test.go`）。** 今の `Sanitize` のテストの決まった期待値（`TestSanitize`）を変えずに残し、分けた後の `Sanitize` もそれに通ること。`Sanitize` は単位をつないだものなので、単位とのつなぎ合わせを比べても、共通の誤り（ある書式文字を置き換えなくなるなど）は見つからない。そのため、単位の境目と種類は、決まった期待値（エスケープと `\\`、改行、タブがそれぞれ 1 つの単位で、改行とタブがその種類を持つこと）で確かめる。
 -   **表の形（`table_test.go`）。** 凡例・空行・見出し・区切り線・行の 2 行・間の空行の順（AC-06）。同じ列が、見出しとすべての行で同じ表示幅の位置から始まること（AC-07。全角と絵文字を含む値で）。名前の幅と 20 桁での切り方（AC-08）。各列の 1 行目と 2 行目の値（AC-09）。行がないときの形（AC-10）。末尾に空白がないこと。
 -   **幅（`table_test.go`）。** どの行の表示幅も使える幅以下であること（AC-04）。pane の幅を読めないときに 80 桁で組むこと（AC-05）。内容の列が最小の幅を取れないときに 20 桁で組むこと。
 -   **決まった語（`table_test.go`）。** 急ぎの度合い・進み具合・文書・実行中のコマンドが決まらない理由の、型のすべての値が、`?` でない語を持つこと（実行中のコマンドが決まらない理由は、語を持たない `RunningUnknownNone` を除いて 1 から）。値は、`namesUpToUnknown` に出力の名前の関数（`urgencyName` など）を渡して、0 から出力の名前が unknown になる最初の値の手前まで数える。型と出力の名前に値を足して、表の語を足し忘れたときに見つけるためである。出力の名前を足し忘れた値は、今と同じく見つけられない。語が要件書の表のとおりであること（AC-11〜AC-13・AC-20）。表にない値が `?` になること。
@@ -613,7 +633,7 @@ flowchart TD
 
 -   **code block を閉じないこと（AC-22）。** 表の行の頭の決まりを、1 つのテストのヘルパーで確かめる。どの行も、空であるか、決まった語（凡例・見出し・区切り線・`workspace なし`）か状態の列の印か 4 桁以上の空白で始まり（行がすべて `作業中` のように状態の列が狭い表と、値がすべて `?` の表も組む）、0〜3 桁の空白に続く ```` ``` ```` か `~~~` で始まらず、改行と CR を含まないこと。表を組むすべてのテストが、組んだ表にこのヘルパーを当てる。加えて、名前・PR の題名・質問の文・タブのラベル・送れない理由・読めなかったもの・モデルに、```` ``` ````・`~~~`・空白で始まる値・`#`・`|`・`-` で始まる値・改行のあとの ```` ``` ```` を入れた表を組む。さらに、これらの値を任意の文字列にする Go の fuzz テストで、同じヘルパーを当てる。
 -   **端末の制御文字（AC-21）。** ESC・C1 制御文字・ゼロ幅の文字・正しくない UTF-8 を含む値が、表の中でエスケープとして現れること。
--   **手で確かめること（計画で手順を決める）。** 実物の `/chief` で、(1) code block の右端で折り返す桁（1.2）、(2) 全角・絵文字・`…`・`─` を含む表の列が実際にそろうこと、(3) 幅の狭い pane と 80 桁とみなしたときの表の形、(4) chief のタブを拡大（zoom）したときと分割したときに、pane の配置の `rect.width` が見えている幅と等しいかを、Claude Code の画面で確かめる。違ったときの扱いは 1.2 のとおりである。(1) で右端が pane の幅より手前だと分かれば、使える幅の値を直す。
+-   **手で確かめること（計画で手順を決める）。** 実物の `/chief` で、(1) code block の右端で折り返す桁（1.2）、(2) 全角・絵文字・`…`・`─` を含む表の列が実際にそろうこと、(3) 幅の狭い pane と 80 桁とみなしたときの表の形、(4) chief のタブを拡大（zoom）したときと分割したときに、pane の配置の `rect.width` が見えている幅と等しいかを、(5) 名前・PR の題名・質問の文・タブのラベルに ```` ``` ```` や `~~~` を含む表が、Claude Code の描く code block の中に収まり、後ろの行が Markdown として描かれないかを、Claude Code の画面で確かめる。(5) は、code block を閉じないことの議論（3.2）が CommonMark の規則によるのに対し、描くのは Claude Code の Markdown の描画なので、その描画が同じ規則に従うことを実物で確かめるものである。(5) が成り立たなければ、行の組み方を決め直す。違ったときの扱いは 1.2 のとおりである。(1) で右端が pane の幅より手前だと分かれば、使える幅の値を直す。
 
 ## 8. 実装の優先順位 (Implementation Priorities)
 
