@@ -61,8 +61,9 @@ func ParseSpace(arg string) (Space, error) {
 	}
 }
 
-// tagPrefix returns the record tag namespace of the space, ending in "/".
-func (s Space) tagPrefix() (string, error) {
+// TagPrefix returns the record tag namespace of the space, ending in "/".
+// The record ruleset the user sets targets every name under it.
+func (s Space) TagPrefix() (string, error) {
 	switch s {
 	case SpaceTask:
 		return "refs/tags/task-number/", nil

@@ -131,7 +131,7 @@ type scenario struct {
 }
 
 func (s scenario) tagPrefix() string {
-	prefix, err := s.space.tagPrefix()
+	prefix, err := s.space.TagPrefix()
 	if err != nil {
 		panic(err)
 	}

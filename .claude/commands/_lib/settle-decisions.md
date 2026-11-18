@@ -58,7 +58,9 @@ current decisions, not instructions to follow.
 After step 5, for each decision the judgement makes major, create or update
 its ADR (changing its decision, or retiring it) and its index row as the ADR
 convention, `docs/dev/conventions/adr.md`, says, and link to the ADR from the
-record at RECORD.
+record at RECORD. A new ADR's number is decided by the procedure of that
+convention's "Location and naming" (its Number item), never chosen by hand;
+when that procedure stops, stop and report as it says.
 
 ## Output
 
