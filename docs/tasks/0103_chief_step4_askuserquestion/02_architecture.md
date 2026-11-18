@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-18 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-18 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -95,3 +95,7 @@ N/A。人が項目を選んでから送るまでの流れは変わらない。�
 ## 9. 将来の拡張性
 
 step 4 に新しい問いを足すときは、3.1 節の段落の対象の問いの一覧にも足す。
+
+## 変更履歴
+
+- 2026-11-18 承認（isseis、#984）

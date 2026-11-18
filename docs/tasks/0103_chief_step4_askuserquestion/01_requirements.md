@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-18 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-18 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -146,3 +146,7 @@ issue が挙げる問いとの対応：「PR の詳細のあとの質問」は P
 -   **待ち受け:** 引数なしの `/chief` が、ラウンドを繰り返しながら人の答えを待つこと（`chief.md` の「watching」。`chief_guide.md:50`）。
 -   **step 4 の問い:** `chief.md` の step 4 で、人が項目を選んだ直後に聞く問い（AC-01 の 4 つ）。
 -   **step 3 の選択肢:** `chief.md` の step 3 が示す、人が選ぶ項目（道具の `pending` の項目と、`停止を解く`・`送り直す`・`送り直さない`・`何もしない`）。待ち受けの間はラウンドの最後に番号つきの一覧で、`once` では `AskUserQuestion` で示す。「ほかの PR を見る」などで示し直すときも同じ形で示す。
+
+## 変更履歴
+
+- 2026-11-18 承認（isseis、#984）
