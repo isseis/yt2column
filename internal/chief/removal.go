@@ -376,7 +376,9 @@ func addRemovals(ctx context.Context, deps Deps, view *roundView) []string {
 		checks := checkRemoval(ctx, deps.Cmds, view.chiefTree, *c, f.Agents, r.panes)
 		row := &view.rows[i]
 		row.Removal = &RemovalProposal{Workspace: w.Worktree, Label: w.Label, Issue: c.issue, Task: c.task, Panes: workspacePanes(w.ID, r.panes), Checks: checks}
-		if f.Head == headDetached && passedCheck(checks, RemovalCheckAgentsIdle) {
+		// The row follows the checks' own reading of HEAD and the agents, so
+		// the row and its item never disagree.
+		if f.Head == headDetached && passedCheck(checks, RemovalCheckDetached) && passedCheck(checks, RemovalCheckAgentsIdle) {
 			showRemovalRow(row, *c)
 		}
 	}

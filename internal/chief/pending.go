@@ -198,12 +198,17 @@ var kindOrder = []PendingKind{PendingQuestion, PendingMergeConfirmation, Pending
 // nameQuestion names the question state and kind in the output.
 const nameQuestion = "question"
 
-// sortPending orders items by kind, then the items of other workspaces
-// before those of idle ones (Row.Idle), then by how long they have
+// sortPending orders items by kind, then, except for removals, the items of
+// other workspaces before those of idle ones (Row.Idle), then by how long they have
 // waited, longest first; ties keep a fixed order (workspace, then ID) so a listing
 // does not shuffle between two reads of the same state.
 func sortPending(items []PendingItem, idle map[string]struct{}) {
 	rank := func(p PendingItem) int {
+		// Removals wait in the order they were first seen, whatever the
+		// workspace's row: idleness orders the commands to send, not them.
+		if p.Kind == PendingRemoval {
+			return 0
+		}
 		if _, ok := idle[p.Workspace]; ok {
 			return 1
 		}

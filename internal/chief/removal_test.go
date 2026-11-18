@@ -215,6 +215,17 @@ func TestRemovalRowFallsBack(t *testing.T) {
 			p := sw.byPane[removalWS+":p1"]
 			p.Status, p.screen = "working", readScreenSample(t, "claude-working.ansi")
 		}, StateRunning, RemovalCheckAgentsIdle},
+		{"HEAD on a branch by the time of the checks", func(sw *sendWorld, _ *removalSetup) {
+			// The round reads HEAD detached, the checks read it on a branch.
+			reads := 0
+			sw.rec.replyFunc("git rev-parse --abbrev-ref HEAD", func() reply {
+				reads++
+				if reads == 1 {
+					return reply{out: []byte(detachedHead + "\n")}
+				}
+				return reply{out: []byte("main\n")}
+			})
+		}, StateNeedsCheck, RemovalCheckDetached},
 		{"an agent asking", func(sw *sendWorld, _ *removalSetup) {
 			sw.ask(sw.byPane[removalWS+":p1"], "claude-question-single.ansi")
 		}, StateQuestion, RemovalCheckAgentsIdle},
