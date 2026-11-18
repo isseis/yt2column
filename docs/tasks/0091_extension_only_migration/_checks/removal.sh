@@ -103,7 +103,13 @@ done_check wasmdeps
 # name is not a rule, so make -n alone cannot tell it from a target. make -q
 # exits non-zero when the goal is out of date, so its status is not read;
 # the database must list the test rule instead.
-rules=$({ make -pnq 2>/dev/null || true; } | sed -nE 's/^([a-z][a-z0-9-]*):( .*)?$/\1/p' | sort -u)
+# An entry right after a "# Not a target:" line is a file make knows of
+# with no rule (a prerequisite), not a target; a "::" rule is a target.
+rules=$({ make -pnq 2>/dev/null || true; } | awk '
+	/^# Not a target:/ { skip = 1; next }
+	skip { skip = 0; next }
+	match($0, /^[a-z][a-z0-9-]*::?( |$)/) { sub(/::?.*/, ""); print }
+' | sort -u)
 if ! grep -qx test <<<"$rules"; then
 	echo "make's rule database lists no test target" >&2
 	exit 2
