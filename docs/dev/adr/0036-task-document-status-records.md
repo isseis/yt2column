@@ -21,7 +21,7 @@
 -   **`Comments` には、今の状態についてレビュアーが今知るべき理由だけを書く。** 状態が変わるたびに書き換え、前の値を残さない。状態ごとの値は、[requirements_process.md](../conventions/requirements_process.md)「Comments」に従う。過去の行を積むと、今の状態の理由が埋もれるためである。
 -   **状態の遷移は、文書の末尾の変更履歴に 1 件 1 行で追記する。** 変更履歴には編集上の訂正を書かない。各行は、原則としてその行を加えた PR の番号を持ち、PR を作る前に書いた行の番号は `/runpr` がマージの直前に埋める（[runpr.md](../../../.claude/commands/runpr.md)）。行の形と PR 番号の例外は、[requirements_process.md](../conventions/requirements_process.md)「Change history」に従う。状態の遷移を `Comments` に積むと、今の状態の理由が過去の行に埋もれるためである。
 -   **変更履歴のない文書は、最初の状態の遷移を書くときに移す。** 旧 `Comments` を変更履歴の先頭の項目にし、承認済みの文書なら状態表から承認の行を写す。写せないときは、遷移を書かずに止まる。一括では移さない。対象と手順は、[requirements_process.md](../conventions/requirements_process.md)「Documents without a change history」に従う。一括で移すと、それ自体が決定の変更になって、新たに決める内容のない再承認が必要になるためである（[0056 要件定義書](../../tasks/0056_legacy_approval_history/01_requirements.md)「要件定義の際に決めたこと（2026-11-02）」）。
--   **編集上の訂正と決定の変更は、PR の説明にも書く。** 編集上の訂正はコミットのメッセージに訂正の行として書き、PR の説明の訂正の段落はその行から作る（[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md) の Part B、[fixpr.md](../../../.claude/commands/fixpr.md)）。形は、[requirements_process.md](../conventions/requirements_process.md)「Recording in the PR description」に従う。`/fixpr` が PR の説明に追記する道具と、その文面を信頼しないデータとして扱うことは、[ADR-0015](0015-untrusted-review-threads.md) が定める。スレッドへの返信やコミットメッセージだけに残すと、訂正の説明が PR の説明にあることを満たさないためである。
+-   **編集上の訂正と決定の変更は、PR の説明にも書く。** 編集上の訂正はコミットのメッセージに訂正の行として書き、PR の説明の訂正の段落はその行から作る（[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md) の Part B、[fixpr.md](../../../.claude/commands/fixpr.md)）。形は、[requirements_process.md](../conventions/requirements_process.md)「Recording in the PR description」に従う。`/fixpr` が PR の説明に追記する道具と、その文面を信頼しないデータとして扱うことは、[ADR-0015](0015-untrusted-review-threads.md) が定める。スレッドへの返信やコミットメッセージだけに残すと、訂正の説明が PR の説明にあることを満たさないためである。`/mergepr` で squash マージするときは、PR のコミットにある訂正の行を、ADR の訂正の行と同じく squash コミットの本文にも引き継ぐ。引き継ぎ方は [ADR-0039](0039-adr-writing-criteria.md) の「決定」が定める。squash マージの後は PR のコミットが `main` からたどれなくなり、PR の説明はリポジトリの外にあって書き換えられるためである。今の `/mergepr` の手順は、まだ訂正の行を squash コミットの本文に引き継がない。このずれは、[#747](https://github.com/isseis/yt2column/issues/747) で扱う。
 -   **書式は規則の 1 か所で定め、コマンドの定義は規則の節を名指しして参照する。** `Comments` の値、変更履歴の行の形、訂正の行と訂正の段落の形は、[requirements_process.md](../conventions/requirements_process.md) だけに書く。[runpr.md](../../../.claude/commands/runpr.md)・[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md)・[runplan.md](../../../.claude/commands/runplan.md)・[fixpr.md](../../../.claude/commands/fixpr.md) などのコマンドの定義には、いつどの文書に書くかだけを書く。理由は記録されていない。
 
 ## 採らなかった案
@@ -42,10 +42,11 @@
 -   **写した値を、`git diff` で消えた行と比べる。** セッション中の再承認と取り下げでは `Review date` と `Reviewer` の行が変わらず、diff に現れない（[0056 設計書](../../tasks/0056_legacy_approval_history/02_architecture.md)「1.3. 設計の際に決めたこと（2026-11-02）」）。
 -   **移し替えの確かめを、`fixprguard` のようなツールに移して強制する。** 今は、写す値が短く、止まる文書もないので、手順で足りる。移し替えの誤りが実際に起きるようなら移す（[0056 設計書](../../tasks/0056_legacy_approval_history/02_architecture.md) §9）。
 -   **ADR にも、タスク文書の状態表と `/runpr` での承認の記録を持ち込む。** `/runpr` の承認の記録を ADR に広げる必要があり、変更が大きくなる（[0060 要件定義書](../../tasks/0060_adr_records/01_requirements.md)「要件定義の際に決めたこと（2026-11-04）」）。
+-   **タスク文書の訂正の行は squash コミットの本文に引き継がず、ADR の訂正の行だけを引き継ぐ。** タスク文書の訂正だけが PR の説明に頼ったまま残り、ADR-0039 と記録の置き場所が分かれる（[0106 要件定義書](../../tasks/0106_squash_editorial_corrections/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）。
 
 ## 結果
 
--   LLM が自分の編集を編集上の訂正と判断したことは、コミットメッセージと PR の説明に残り、その PR のレビュアーが反論できる。訂正の記録は文書には残らず、PR とコミットにだけ残る。
+-   LLM が自分の編集を編集上の訂正と判断したことは、コミットメッセージと PR の説明に残り、その PR のレビュアーが反論できる。訂正の記録は文書には残らず、PR とコミットにだけ残る。`/mergepr` で squash マージした PR では、訂正の行が squash コミットの本文に残り、`main` の履歴からたどれる。
 -   `Comments` は短く保たれる。過去の承認と `draft` への戻しは、変更履歴を読めば分かる。
 -   変更履歴の PR 番号は、タスク文書を変える PR が `/runpr` を通ってマージされることを前提にする。`/runpr` を通らずにマージされると、`#未記入` が `main` に残りうる。`/runpr` はそれを自動では埋めず、別の PR で直す（[requirements_process.md](../conventions/requirements_process.md)「Change history」）。
 -   移し替えの確かめは規則の手順であり、ツールは強制しない。人が手で取り下げるときに確かめを省くと、写しの誤りは PR のレビューでしか見つからない。確かめは写した承認の行を作るコミットでだけ働き、後のコミットが行を書き換えても機械的には検出しない（[0056 設計書](../../tasks/0056_legacy_approval_history/02_architecture.md) 4 章）。
@@ -61,3 +62,4 @@
 - 2026-11-02 移し替えの手順 1 で `Status` と `Comments` の行も確かめ、旧 `Comments` に `#未記入` があれば止まることにした。`/runpr` の PRE_MERGE も止まりうるとした（[0056 設計書](../../tasks/0056_legacy_approval_history/02_architecture.md)「1.4. 実装の際に決めたこと（2026-11-02）」）
 - 2026-11-04 タスク文書についての記録の置き場所に ADR を加えた。ADR の状態は `有効` と `廃止` の 2 つだけとし、タスク文書の状態表（`draft` → `approved`）と `/runpr` の承認の記録を持ち込まない（[0060 要件定義書](../../tasks/0060_adr_records/01_requirements.md)「要件定義の際に決めたこと（2026-11-04）」）
 - 2026-11-09 ADR の決定を変えない編集上の訂正は、タスク文書の編集上の訂正と同じく、コミットメッセージと PR の説明に記録することにした。その規則は ADR-0039 で扱う（[0070 要件定義書](../../tasks/0070_adr_writing_criteria/01_requirements.md)「要件定義の際に決めたこと（2026-11-09）」）
+- 2026-11-19 `/mergepr` で squash マージするときに、タスク文書の訂正の行も、ADR の訂正の行と同じく squash コミットの本文に引き継ぐことにした。引き継ぎ方は ADR-0039 で扱う（[0106 要件定義書](../../tasks/0106_squash_editorial_corrections/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）
