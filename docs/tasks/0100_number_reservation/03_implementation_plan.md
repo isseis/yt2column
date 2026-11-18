@@ -379,16 +379,16 @@
 
 **ステップ 7-1: cloud のセッションで番号を決める（利用者が行う）**
 
--   [ ] `/runplan` が利用者に依頼する。利用者は cloud のセッションで `main` から道具を入れ、`numreserve task` と `numreserve adr` を 1 回ずつ実行し、標準出力と標準エラーの行を報告する（AC-22）
--   [ ] `/runplan` が、決まった番号が AC-02・AC-11 の条件を満たすことを確かめる：その番号が、その時点の `origin/main` の一覧、`origin` のブランチ名とブランチの `docs/dev/adr/`、ほかの記録の tag のどれにもないことを、読み取りの操作で確かめる。決められなかったときは、止まって理由の語が示されたことを確かめる
--   [ ] `/runplan` が、報告と確かめの結果を §7 の「cloud のセッションでの確かめの記録」に書く
+-   [x] `/runplan` が利用者に依頼する。利用者は cloud のセッションで `main` から道具を入れ、`numreserve task` と `numreserve adr` を 1 回ずつ実行し、標準出力と標準エラーの行を報告する（AC-22）
+-   [x] `/runplan` が、決まった番号が AC-02・AC-11 の条件を満たすことを確かめる：その番号が、その時点の `origin/main` の一覧、`origin` のブランチ名とブランチの `docs/dev/adr/`、ほかの記録の tag のどれにもないことを、読み取りの操作で確かめる。決められなかったときは、止まって理由の語が示されたことを確かめる
+-   [x] `/runplan` が、報告と確かめの結果を §7 の「cloud のセッションでの確かめの記録」に書く
 
 **ステップ 7-2: 結果を文書に書く**
 
 -   対象ファイル：`docs/dev/adr/0051-number-reservation.md`、`docs/dev/guides/numreserve_guide.md`
--   [ ] ADR-0051 の「結果」の「cloud のセッションで番号を決められるかは、決めた時点では確かめていない」を、ステップ 7-1 の結果に置き換える。決められなかったときは、その制約を書く
--   [ ] 手引きの cloud のセッションの制約を、ステップ 7-1 の結果に合わせて直す
--   [ ] ADR-0051 の食い違いの記述が空になったことを確かめ、項目ごと除く（AC-24）
+-   [x] ADR-0051 の「結果」の「cloud のセッションで番号を決められるかは、決めた時点では確かめていない」を、ステップ 7-1 の結果に置き換える。決められなかったときは、その制約を書く
+-   [x] 手引きの cloud のセッションの制約を、ステップ 7-1 の結果に合わせて直す
+-   [x] ADR-0051 の食い違いの記述が空になったことを確かめ、項目ごと除く（AC-24。ステップ 6-6 で最後の記述を除いたときに項目ごと除いた）
 -   完了の基準：`make test`・`make lint`・`make deadcode` が通る
 
 ### PR-4 作成ポイント: pre-merge number check in mergepr and the cloud session record
@@ -722,7 +722,28 @@ a2fbb8f0cb82588fcde719d81128924b62850be7	refs/tags/task-number/0103
 
 ### cloud のセッションでの確かめの記録
 
-（ステップ 7-1 で書く）
+2026-11-18、利用者が claude.ai/code の cloud のセッション（`isseis/yt2column` の `main`）で、`/runplan` が用意したスクリプトを cloud の Claude に実行させ、その出力を報告した。スクリプトは、版、トークンの変数が設定されているか（値は出さない）、`gh auth status` の終了コード（トークンの行を除く）、記録の tag の一覧、REST の読み取りの状態行、cloud のクローンにない SHA の取得、`main` からの道具のインストール、`numreserve task` と `numreserve adr` を 1 回ずつ実行した。
+
+| 確かめたこと | 結果 |
+|---|---|
+| 版 | git 2.43.0、go 1.26.5 linux/amd64（実行のときに toolchain を取得した）、gh 2.89.0 |
+| トークンの変数 | `GH_TOKEN` と `GITHUB_TOKEN` は設定されていた。`GH_ENTERPRISE_TOKEN` は設定されていなかった |
+| `gh auth status --hostname github.com` | 終了コード 1。トークンの行を除いた出力は `github.com` と `- Active account: true` |
+| `git ls-remote origin 'refs/tags/task-number/*' 'refs/tags/adr-number/*'` | 終了コード 0、6 行。どの行も「40 桁の 16 進、空白、ref の名前」で、`adr-number/0052`・`0053`、`task-number/0101`〜`0104` |
+| REST の読み取り（`GET git/ref/tags/task-number/0101`） | `HTTP/1.1 200 OK`（`head` で切ったので、`gh` の終了コードは SIGPIPE の 141 で、判断に使わない） |
+| cloud のクローンにない SHA の取得 | `claude/festive-bardeen-cw14ci` の head がクローンになかった。`git fetch --no-tags --no-write-fetch-head origin <SHA>` は終了コード 0、取得の後に commit があり、`git for-each-ref` の出力は変わらなかった |
+| `main` からの `go install ./cmd/numreserve` | 終了コード 0 |
+| `numreserve task` | 終了コード 1、標準出力は空、標準エラーは `numreserve: stop permission: creating refs/tags/task-number/0105: HTTP 403` |
+| `numreserve adr` | 終了コード 1、標準出力は空、標準エラーは `numreserve: stop permission: creating refs/tags/adr-number/0054: HTTP 403` |
+
+ターミナルの表示で、`git ls-remote` の行の区切りのタブは空白に見えた（出力をそのまま貼った報告のため）。
+
+**確かめ（`/runplan`）。** 2026-11-18、手元で `git ls-remote origin 'refs/tags/task-number/*' 'refs/tags/adr-number/*'` を実行し、上の 6 つの tag だけがあり、`task-number/0105` と `adr-number/0054` がないことを確かめた。番号は決まらず、記録の tag も作られなかったので、欠番は生じていない。試した候補の 0105 と 0054 は、どちらもその時点の使用中の番号の最大値 + 1 である（タスクは記録の tag の 0104、ADR は記録の tag の 0053。0104 と 0053 は、`origin/main` の `bce12d7c1e9e`（#981 のマージ）を指す tag で、手元のセッションが決めた番号である）。道具は止まり、理由の語 `permission` を示した（AC-06・AC-22）。
+
+**分かったこと。**
+
+-   cloud のセッションでは、`git ls-remote`、SHA による取得、REST の読み取り、道具のインストールはできるが、REST による ref の作成は 403 で拒まれる。403 には rate limit の見出し（`X-RateLimit-Remaining: 0` か `Retry-After`）がなかった（あれば道具は `network-or-github` で止まる）。したがって、拒まれたのは rate limit ではなく、cloud のセッションの資格に、リポジトリの ref を作る権限がないためである。cloud のセッションで番号を決めることはできない。
+-   `task-number/0104` と `adr-number/0053` は、記録の ruleset を設定した後に作られた。ruleset が効いている間も道具が記録の tag を作れることが、これで確かめられた（「導入の確かめの記録」の「確かめていないこと」の 1 つ目）。
 
 ## 8. 成功の基準 (Success Criteria)
 
