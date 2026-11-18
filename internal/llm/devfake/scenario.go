@@ -83,9 +83,9 @@ const ModelName = "yt2column-devfake"
 // TitleMarker starts the title of every fake article.
 const TitleMarker = "[FAKE] "
 
-// The spellings of the enumeration values. They are the command-line values
-// of the development server and the values of its startup line, so the two
-// cannot drift apart. The none values are only ever printed: a caller that
+// The spellings of the enumeration values. They are the values of the
+// development build's FAKE_* variables (ParseScenario reads them), so the
+// build and the fake cannot drift apart. The none values are only ever printed: a caller that
 // accepts a spelling matches it against the accepted lists below, which do
 // not hold them.
 const (
@@ -165,8 +165,8 @@ func (c SettingsCheck) String() string {
 	}
 }
 
-// String returns the call's command-line spelling, the same as the job API's
-// step code, and "none" for FailAtNone, which no command-line value selects. A
+// String returns the call's spelling, the same as the job record's step name,
+// and "none" for FailAtNone, which no FAKE_FAIL_AT value selects. A
 // value outside the enumeration returns a string no accepted spelling equals.
 func (f FailAt) String() string {
 	switch f {

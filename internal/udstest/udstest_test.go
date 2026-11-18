@@ -12,20 +12,21 @@ import (
 )
 
 const (
-	// serverSocketSuffix is the server's socket path below HOME on macOS, the
-	// longest of the supported layouts.
-	serverSocketSuffix = "/Library/Application Support/yt2column/run/server.sock"
+	// longSocketSuffix is a socket path below HOME as long as the longest
+	// one a test of this repository has needed (the removed server's on
+	// macOS).
+	longSocketSuffix = "/Library/Application Support/yt2column/run/server.sock"
 	// darwinSocketPathLimit is the longest socket path macOS accepts: sun_path
 	// is 104 bytes, one of which is the terminating NUL.
 	darwinSocketPathLimit = 103
 )
 
-// TestDirLeavesRoomForSocketPath checks that a server socket path under Dir,
+// TestDirLeavesRoomForSocketPath checks that a long socket path under Dir,
 // used as HOME, fits the macOS limit.
 func TestDirLeavesRoomForSocketPath(t *testing.T) {
 	dir := Dir(t)
-	if got := len(dir) + len(serverSocketSuffix); got > darwinSocketPathLimit {
-		t.Errorf("len(%q) + len(%q) = %d, want at most %d", dir, serverSocketSuffix, got, darwinSocketPathLimit)
+	if got := len(dir) + len(longSocketSuffix); got > darwinSocketPathLimit {
+		t.Errorf("len(%q) + len(%q) = %d, want at most %d", dir, longSocketSuffix, got, darwinSocketPathLimit)
 	}
 }
 

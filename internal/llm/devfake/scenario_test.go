@@ -82,8 +82,8 @@ func TestNewScenario(t *testing.T) {
 	}
 }
 
-// TestEnumStrings pins the command-line spellings, which the development
-// server accepts and documents, to the design's table.
+// TestEnumStrings pins the spellings, which the development build's FAKE_*
+// variables accept and development.md documents, to the design's table.
 func TestEnumStrings(t *testing.T) {
 	checkSpellings(t, "Articles", Articles(), []string{"standard", "long", "elements"})
 	checkSpellings(t, "Failures", Failures(), []string{"empty", "truncated", "api-error", "timeout", "api_key_rejected"})

@@ -761,7 +761,7 @@ describe("parseArticleMarkdown blocks", () => {
 });
 
 describe("parseArticleMarkdown display Markdown", () => {
-  // The shape the server writes: the title heading, the channel name line
+  // The shape the article generation module writes: the title heading, the channel name line
   // with its leading escape, the body, and the source line with its LF.
   const cases: readonly BlockCase[] = [
     {
