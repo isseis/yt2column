@@ -1022,7 +1022,27 @@ func fableCases() []rrCase {
 			}
 			return launch(f)
 		}, want: rrValid},
+		{name: "run record of another form", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", strings.Replace(f.fableRun(f.mb, c1), ", invalid 1", "", 1))
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		{name: "run record of another model", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", strings.Replace(f.fableRun(f.mb, c1), "claude-fable-example", "claude-opus-example", 1))
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
 		// The checkpoint mark.
+		// The last mark decides: the fix between the two marks is after the
+		// first one only.
+		{name: "work between two marks", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.record("mark", f.forms.checkpoint)
+			f.work("gate fix")
+			f.record("mark", f.forms.checkpoint)
+			f.work("later fix")
+			return rrFable(f, "checkpoint")
+		}, want: rrMissing("HEAD~3")},
 		{name: "work after the mark at the checkpoint", setup: func(f *rrFixture) []string {
 			recorded(f)
 			f.record("mark", f.forms.checkpoint)
