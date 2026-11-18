@@ -398,7 +398,7 @@
     -   引数の表、3 つのサブコマンドがロックの持ち主を確かめること、出力と終了コード。
     -   形の違う `--issue` が、終了コード 2 ではなく、終了コード 0 と `issue_form` になること（AC-06）。
     -   `targets` で、`cmd/chief` の fake が書き込みの呼び出しを受けないこと（決定 7）。
--   [x] **ステップ 7-2**: `.claude/commands/chief.md` を直す（設計書 3.7）。新しいタスクを始める入口と流れ、作成の結果、削除の提案と人の確認の問い、削除の結果を書き、`create` と `remove` に Bash の上限を渡す（決定 6）。すべての `--protocol` を、ステップ 7-1 で決めた値にする（§1.4、決定 14。`origin/main` の `Protocol` が 3 だったので 4）。
+-   [x] **ステップ 7-2**: `.claude/commands/chief.md` を直す（設計書 3.7）。新しいタスクを始める入口と流れ、作成の結果、削除の提案と人の確認の問い、削除の結果を書き、`create` と `remove` に Bash の上限を渡す（決定 6）。すべての `--protocol` を、ステップ 7-1 で決めた値にする（§1.4、決定 14。`origin/main` の値 + 1）。
 -   [x] **ステップ 7-3**: `.claude/settings.json` の `deny` と `ask` を設計書 3.8 のとおりに直し、`cmd/chief/docs_test.go` を直す（設計書 3.9）。
     -   `deniedHerdr` に herdr の規則を足す。git の規則を確かめるテストを足し、`allow` に `Bash(git worktree` で始まる規則がないことも確かめる。
     -   `settings` の構造体に `Ask` を足し、`ask` が `Bash(chief remove *)` を持つことを確かめるテストを足す。

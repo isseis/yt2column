@@ -256,7 +256,7 @@ Offer the `pending` items as the human's choices, in the tool's order, with
   (`removal.panes`), and the checks as this round read them
   (`removal.checks`): each check whose `passed` is false, by its `check` as
   "Removal checks" (step 4) says, with its `unreadable` when set, or that
-  every check passed (requirements AC-25). The checks are run again before
+  every check passed (0092 requirements AC-25). The checks are run again before
   anything is removed.
 - `reset`: a reset of a pane that the tool skipped because it could not
   read the report of the command that ran there. Describe it as
@@ -279,7 +279,7 @@ looks into it.
 For each unanswered question to send again after a model switch (step 4),
 also offer `送り直す: <label>` and `送り直さない: <label>`. Then always offer
 新しいタスクを始める, after every other choice and right before 何もしない
-(requirements AC-01): it starts a new task from an issue. These choices
+(0092 requirements AC-01): it starts a new task from an issue. These choices
 have no number from the tool: list each as its own line, chosen by its
 label, before 何もしない.
 
@@ -386,14 +386,17 @@ modes, since the human has just chosen and is answering.
   - When `refusal` is `issue_form`, say that the value is not an issue
     number and that chief takes decimal digits only, with no `#`, sign, or
     leading zero; send nothing. The human chooses 新しいタスクを始める again
-    to try another value.
-  - Otherwise ask where to start it, with `AskUserQuestion`:
+    to try another value. Show any other non-empty `refusal` as written,
+    followed by （定義にない値）, and send nothing.
+  - When `refusal` is empty, ask where to start it, with `AskUserQuestion`:
     新しい workspace を作る, each workspace of `workspaces` by its `label`
     (with its `workspace` path in the description), and 何もしない. When
     there are more than two workspaces, show the first two and name the rest
     by label in the question text, choosable in the free-text answer. With
     no workspace, offer only 新しい workspace を作る and 何もしない.
-  - 新しい workspace を作る: run
+  - 新しい workspace を作る: first wait until every `send` you started in
+    the background has ended, so nothing is typed into any pane while the
+    workspace is made (0092 requirements AC-13). Then run
     `chief create --issue <issue> --protocol 4` as "Calling the tool" says
     (foreground, `timeout` `600000`), and show its result as "The creation
     result" below says.
@@ -402,7 +405,7 @@ modes, since the human has just chosen and is answering.
     with `<workspace>` that entry's `workspace` from the `targets` output,
     and show the results as step 2 does. chief does not check the issue for
     an existing workspace.
-- **A removal** (`removal`, requirements AC-27): show the workspace's
+- **A removal** (`removal`, 0092 requirements AC-27): show the workspace's
   label, the worktree's path (`removal.workspace`), and that closing it
   closes every pane of the workspace (`removal.panes` of them), with the
   agents and anything running in its shells, and removes the worktree.
@@ -465,12 +468,17 @@ Show, in Japanese (0092 requirements AC-07, AC-12, AC-17), the issue's number
   cleans them up in a terminal or uses them for the task.
 - `made`: show `label` and `workspace` (the new workspace and its
   worktree), every entry of `made`, and the result of `/mkreq` (`mkreq`) as
-  step 2 shows a send's result. When `mkreq`'s `outcome` is not `sent`, say
-  that `/mkreq` was not sent and why (`reason` and `detail`); when its
-  `reason` is `agent_not_ready` and its `status` is `blocked`, tell the human
-  to answer what Claude Code shows in that pane first; and in every such
-  case, tell the human to type `/mkreq <issue>` in that pane (`pane`).
-  chief never offers `/mkreq` for that workspace later.
+  step 2 shows a send's result. chief never offers `/mkreq` for that
+  workspace later. By `mkreq`'s `outcome`:
+  - `not_sent`: nothing was typed. Say why (`reason` and `detail`); when the
+    `reason` is `agent_not_ready` and the `status` is `blocked`, tell the
+    human to answer what Claude Code shows in that pane first. Then tell the
+    human to type `/mkreq <issue>` in that pane (`pane`).
+  - `sent_then_failed`: something was typed (`step` says what), then a check
+    failed, and sends to the workspace are stopped until the human releases
+    them. Tell the human to look at the pane before doing anything, and
+    never tell them to type `/mkreq` (0092 requirements AC-18).
+  - any other value: as step 2 says.
 
 | `create_refusal` | Meaning |
 |---|---|
@@ -483,7 +491,7 @@ Show, in Japanese (0092 requirements AC-07, AC-12, AC-17), the issue's number
 | `target_exists` | Something is already at the worktree's path, or a worktree or workspace already uses it (`existing`) |
 | `unsupported_path` | The path would hold a character chief cannot send to |
 | `fetch_failed` | `origin/main` could not be fetched |
-| `busy` | Another creation, a round's automatic sends, or a send to the same path is under way; choose it again later |
+| `busy` | Another creation, a round's automatic sends, or a send to or a removal of the same path is under way; choose it again later |
 
 | `stage` | Where the creation stopped |
 |---|---|

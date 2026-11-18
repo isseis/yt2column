@@ -275,29 +275,12 @@ var ownerCalls = [][]string{
 	{"remove", "--workspace", "/w", "--protocol", protocol},
 }
 
-// writeCalls are the beginnings of the herdr and git calls that change a
-// pane, a tab, a workspace, an agent, or a worktree.
-var writeCalls = []string{
-	"herdr workspace create", "herdr workspace close", "herdr tab create", "herdr tab rename",
-	"herdr agent start", "herdr agent prompt", "herdr agent send-keys",
-	"git worktree add", "git worktree remove",
-}
-
-// writesOf returns the calls of calls that write to Herdr or git.
-func writesOf(calls []string) []string {
-	var writes []string
-	for _, call := range calls {
-		if slices.ContainsFunc(writeCalls, func(w string) bool { return strings.HasPrefix(call, w+" ") }) {
-			writes = append(writes, call)
-		}
-	}
-	return writes
-}
-
 // TestIssueFormIsNoUsageError checks that targets and create answer an
 // --issue of another form than an issue number with exit 0 and issue_form,
 // a finished run that tells the human what to type, and not with the usage
-// error a mistake of the definition gets; and that neither writes anything.
+// error a mistake of the definition gets. The fake fails the test on any
+// command it does not answer, and it answers only reads, so neither writes
+// anything.
 func TestIssueFormIsNoUsageError(t *testing.T) {
 	for _, c := range []struct{ subcommand, member string }{{"targets", "refusal"}, {"create", "create_refusal"}} {
 		for _, issue := range []string{"#12", "0", "012", "twelve"} {
@@ -310,17 +293,15 @@ func TestIssueFormIsNoUsageError(t *testing.T) {
 				if code != exitOK || out[c.member] != "issue_form" {
 					t.Errorf("%s --issue %q = %d, %v; want exit 0 with %s issue_form", c.subcommand, issue, code, out, c.member)
 				}
-				if writes := writesOf(h.fake.calls); len(writes) != 0 {
-					t.Errorf("%s --issue %q wrote %v", c.subcommand, issue, writes)
-				}
 			})
 		}
 	}
 }
 
 // TestTargetsWritesNothing runs targets with an issue number when no task
-// workspace offers /mkreq: it finishes with an empty list, and the fake
-// gets no call that writes to Herdr or git.
+// workspace offers /mkreq: it finishes with an empty list, and the fake,
+// which fails the test on any command it does not answer and answers only
+// reads, gets no call that writes to Herdr or git.
 func TestTargetsWritesNothing(t *testing.T) {
 	h := newHarness(t)
 	if code, out := h.run("start", "--protocol", protocol); code != exitOK {
@@ -329,9 +310,6 @@ func TestTargetsWritesNothing(t *testing.T) {
 	code, out := h.run("targets", "--issue", "12", "--protocol", protocol)
 	if list, ok := out["workspaces"].([]any); code != exitOK || out["issue"] != "12" || out["refusal"] != "" || !ok || len(list) != 0 {
 		t.Errorf("targets = %d, %v; want exit 0, issue 12, no refusal, no workspace", code, out)
-	}
-	if writes := writesOf(h.fake.calls); len(writes) != 0 {
-		t.Errorf("targets wrote %v", writes)
 	}
 }
 
