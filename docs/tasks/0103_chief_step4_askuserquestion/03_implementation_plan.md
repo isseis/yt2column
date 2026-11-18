@@ -27,7 +27,7 @@
 
 -   **実装の PR は 1 本とし、フェーズも 1 つにする。** 変えるのは 1 つのファイルの 3 か所で、分ける理由がないためである。
     -   ADR：なし。本タスクの中で閉じる。
--   **変更の範囲（AC-06・AC-07）は、記録した diff を読んで確かめる。スクリプトは書かない。** 差分は 1 つの文書の数段落で、スクリプトを書いて読むより、diff を読むほうが手間が少ないためである（`docs/dev/conventions/requirements_process.md` §4「`diff` verification」の「Proportion」）。
+-   **変更の範囲（AC-06・AC-07）は、記録した diff を読んで確かめる。スクリプトは書かない。** 差分は 1 つの文書の数段落で、スクリプトを書くより、diff を読むほうが手間が少ないためである（`docs/dev/conventions/requirements_process.md` §4「`diff` verification」の「Proportion」）。
     -   ADR：なし。本タスクの中で閉じる。
 
 ### 1.4. 既存コード調査結果
@@ -36,7 +36,7 @@
 
 -   step 3 の「待ち受けの間」の項目は `chief.md:259-274`、`once` の項目は `chief.md:275-278`、答えの読み方は `chief.md:285-292` にある。
 -   step 4 の冒頭の 1 文は `chief.md:296-297` にある。step 4 の問いは、中継する選択肢の選択（`chief.md:312-320`）、PR の詳細の後の問い（`chief.md:321-331`）、`/mkreq` の issue 番号（`chief.md:341-343`）、`停止を解く` の確認（`chief.md:347-350`）である。モデルの切り替えの後の問いは `chief.md:352-357` にある。
--   `chief.md` を読むガードは `cmd/chief/docs_test.go` の `TestDocumentedProtocolMatches`・`TestDocumentedInvocationsParse`・`TestNoDirectHerdrInvocation`・`TestDisplayValuesMatchTool` などで、呼び出しの形、protocol 番号、herdr の直接の呼び出しがないこと、表示の値の表を読む。文の中身は読まない。`internal/chief/detail_test.go:312` のコメントも `chief.md` に触れるが、出力の欄の名前についてで、本タスクの文とは関わらない。
+-   `chief.md` を読むガードは `cmd/chief/docs_test.go` の `TestDocumentedProtocolMatches`（`:205`）・`TestDocumentedInvocationsParse`（`:257`）・`TestNoDirectHerdrInvocation`（`:290`）・`TestDisplayValuesMatchTool`（`:469`）で、protocol 番号、呼び出しの形、herdr の直接の呼び出しがないこと、表示の値の表を読む。`TestDocumentedInvocationsParse` は、地の文の中でも `chief` で始まるコードスパンをすべて呼び出しとして読む。そのため、新しい文に不完全な呼び出しをコードスパンで書くと、このテストが落ちる（設計書 3.4 節）。`internal/chief/detail_test.go:312` のコメントも `chief.md` に触れるが、出力の欄の名前についてで、本タスクの文とは関わらない。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -46,7 +46,7 @@
 
 **変えるファイル:** `.claude/commands/chief.md`
 
-- [ ] 設計書 3.1 節のとおり、`chief.md:296-297` の 1 文を、対象の 4 つの問い、テキストで書かないことと理由、モデルの切り替えの後の問いが対象でないことを述べる段落に置き換える
+- [ ] 設計書 3.1 節のとおり、`chief.md:296-297` の 1 文を、対象の 4 つの問い、テキストで聞かないことと理由、テキストで示すもの、step 3 の選択肢の示し直しの形、モデルの切り替えの後の問いの扱い（待ち受けの間と `once`）を述べる段落に置き換える
 
 **完了の条件:** 段落が AC-01〜AC-03 の内容を述べる。
 
@@ -54,7 +54,7 @@
 
 **変えるファイル:** `.claude/commands/chief.md`
 
-- [ ] 設計書 3.2 節のとおり、「ask the human for the issue number first」を、選択肢が `送らない` と `ほかの項目を見る` の `AskUserQuestion` で聞き、番号を自由記述の答えに書くこと、数字だけでない答えでは何も送らないこと、`ほかの項目を見る` で残りの項目を示し直すことに書き換える。`chief send` の行は変えない
+- [ ] 設計書 3.2 節のとおり、「ask the human for the issue number first」を、選択肢が `送らない` と `ほかの項目を見る` の `AskUserQuestion` で聞き、番号を自由記述の答えに書くこと、数字だけでない答えではそう言って何も送らないこと、`送らない` と `ほかの項目を見る` を選んだ後の振る舞いに書き換える。`chief send` の行は変えない
 
 **完了の条件:** 項目が AC-04 の内容を述べる。
 
@@ -103,7 +103,7 @@
 | リスク | 対策 |
 |---|---|
 | 書き換えた文が、`chief` を呼び出す行を変えてしまう | AC-07 の diff の記録と、`TestDocumentedInvocationsParse` で確かめる |
-| step 4 の新しい段落が、step 3 の原則とまた食い違って読める | 段落に理由を書き、step 3 から step 4 を参照する（設計書 1 章の設計原則）。PR のレビューで両方の節を読む |
+| step 4 の新しい段落が、step 3 の原則と再び食い違って読める | 段落に理由を書き、step 3 から step 4 を参照する（設計書 1 章の設計原則）。PR のレビューで両方の節を読む |
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
@@ -114,9 +114,9 @@
 | AC | 種類 | 検証 |
 |---|---|---|
 | AC-01 | `manual` | PR のレビューで、step 4 の冒頭が 4 つの問いを挙げ、待ち受けの間も `once` でも `AskUserQuestion` で聞くと述べることを読んで確かめる |
-| AC-02 | `manual` | 同じく、step 3 の番号つきの一覧をラウンドの最後の選択肢にだけ使い、step 4 の問いをテキストで書かないと述べることを読んで確かめる |
-| AC-03 | `manual` | 同じく、モデルの切り替えの後の問いが対象でなく、step 3 の一覧に示すと述べることを読んで確かめる |
-| AC-04 | `manual` | 同じく、提案の項目が、issue 番号を `送らない`・`ほかの項目を見る` の `AskUserQuestion` で聞き、番号でない答えでは何も送らないと述べることを読んで確かめる |
+| AC-02 | `manual` | 同じく、step 4 の問いをテキストで聞かないこと、pane の選択肢と PR の詳細はテキストで示すこと、番号つきの一覧は step 3 の選択肢にだけ使い、示し直しはモードごとの step 3 の形で示すことを述べることを読んで確かめる |
+| AC-03 | `manual` | 同じく、モデルの切り替えの後の問いが対象でなく、待ち受けの間は step 3 の一覧に示し、`once` では止まる前に `AskUserQuestion` で聞くと述べることを読んで確かめる |
+| AC-04 | `manual` | 同じく、提案の項目が、issue 番号を `送らない`・`ほかの項目を見る` の `AskUserQuestion` で聞くこと、数字だけでない答えではそう言って何も送らないこと、2 つの選択肢を選んだ後の振る舞いを述べることを読んで確かめる |
 | AC-05 | `manual` | 同じく、step 3 の「待ち受けの間」の項目が、step 4 の問いを例外として述べ、step 4 を参照することを読んで確かめる |
 | AC-06 | `diff` | 下の記録のファイルの一覧を、PR のレビューで読む |
 | AC-07 | `diff` | 下の記録の `chief.md` の差分を、PR のレビューで読む。差分が 3 か所に限られ、`chief <subcommand> ...` の行が変わらないことを確かめる |
@@ -125,6 +125,8 @@
 Diff record (AC-06):
 
 - Compared paths: `.claude/commands/chief.md`
+
+この記録は、パスの差分のほかに、差分全体のファイルの一覧（`File list`）を持つ。AC-06 はファイルの一覧で確かめる。比べるパスは 1 つ以上要るが、本タスクのディレクトリは本計画を含むので比べるパスにできない。そのため、比べるパスは `chief.md` とし、そのパスの差分は AC-07 の記録と同じものになる。
 
 Diff record (AC-07):
 
