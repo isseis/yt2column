@@ -898,8 +898,10 @@ const gitGrep = "grep"
 
 // issueLineSearch is what IssueIndex hands `git grep`: a line whose first
 // column starts with issueLinePrefix, in the requirements documents one
-// directory below the task root.
-var issueLineSearch = []string{gitGrep, "-n", "^" + issueLinePrefix, originMain, "--", ":(glob)" + taskRoot + "/*/" + requirementsFile}
+// directory below the task root. -G pins the pattern to a basic regular
+// expression, so a grep.patternType setting cannot turn the anchor into text
+// and silently leave the index empty.
+var issueLineSearch = []string{gitGrep, "-G", "-n", "^" + issueLinePrefix, originMain, "--", ":(glob)" + taskRoot + "/*/" + requirementsFile}
 
 // issueLineForm is one line of `git grep -n` output for issueLineSearch: the
 // ref, the path of a requirements document, the line number, and the line.

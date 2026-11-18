@@ -412,6 +412,25 @@ func issueRepo(t *testing.T) *testRepo {
 	return repo
 }
 
+// TestIssueIndexIgnoresGrepPatternType checks that a repository setting of
+// grep's pattern type does not change the search: with a fixed-string
+// setting the anchored pattern would match nothing.
+func TestIssueIndexIgnoresGrepPatternType(t *testing.T) {
+	repo := issueRepo(t)
+	repo.Git("config", "grep.patternType", "fixed")
+	ix, err := NewTasks(repo.RealCommands()).IssueIndex(t.Context(), repo.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ix.Tasks(issueNumber(t, "839"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"0010_link_with_remarks"}; !slices.Equal(got, want) {
+		t.Errorf("Tasks(839) = %v, want %v", got, want)
+	}
+}
+
 // TestIssueTasksReadsTheRealGitGrep runs the real git grep over a repository
 // of the samples and checks which task directories cite each issue.
 func TestIssueTasksReadsTheRealGitGrep(t *testing.T) {
