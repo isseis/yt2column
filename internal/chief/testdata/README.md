@@ -61,8 +61,8 @@
 | `claude-started.ansi` | `herdr agent start` で起動した直後の Claude Code の入力待ち。まだ何も入力していない。下の「タスク 0092 の実地の確かめ」のとおり採った |
 | `claude-after-model.ansi` | `/model sonnet` の後 |
 | `claude-merge-question.ansi` | マージの確認（上の「マージの確認」のとおり再現したもの） |
-| `claude-command-report.ansi` | PR に関わるコマンドの最後の報告 |
-| `claude-command-report-recap.ansi` | PR に関わるコマンドの最後の報告。実行の終わりの行と入力欄の間に、しばらく操作がなかった後の `※ recap:` の要約がある。タスク 0088 の PR-7 の実地の確かめで、2026-11-16 に Claude Code 2.1.325 の画面から、読み取りだけで採った |
+| `claude-command-report.ansi` | PR に関わるコマンドの最後の報告。今は、入力欄の判定のテストと、画面にだけ報告がある pane のテストが使う。chief は Claude Code の pane の報告を画面から読まない（タスク 0095） |
+| `claude-command-report-recap.ansi` | PR に関わるコマンドの最後の報告。実行の終わりの行と入力欄の間に、しばらく操作がなかった後の `※ recap:` の要約がある。タスク 0088 の PR-7 の実地の確かめで、2026-11-16 に Claude Code 2.1.325 の画面から、読み取りだけで採った。今は、入力欄の判定のテストが使う |
 | `opencode-question-single.ansi` | 1 つを選ぶ問い。選択の位置は 1（色だけで示される） |
 | `opencode-question-single-cursor.ansi` | 同じ問いで、選択の位置を 3 に動かしたもの |
 | `opencode-question-multi.ansi` | 複数を選ぶ問い |

@@ -115,14 +115,11 @@ var screenRows = map[string]map[string][]string{
 	"runpr report": {
 		"opencode": {"opencode-runpr-report.txt"},
 	},
-	"command report": {
-		"claude": {"claude-command-report.ansi", "claude-command-report-recap.ansi"},
-	},
 	"model line and new session": {
 		"opencode": {"opencode-after-new.ansi", "opencode-done.ansi", "opencode-model-no-effort.ansi"},
 	},
 	"input line": {
-		"claude":   {"claude-idle.ansi", "claude-input-left.ansi", "claude-working.ansi", "claude-after-clear.ansi", "claude-after-model.ansi", "claude-titled-rule.ansi", "claude-started.ansi"},
+		"claude":   {"claude-idle.ansi", "claude-input-left.ansi", "claude-working.ansi", "claude-after-clear.ansi", "claude-after-model.ansi", "claude-titled-rule.ansi", "claude-started.ansi", "claude-command-report.ansi", "claude-command-report-recap.ansi"},
 		"opencode": {"opencode-input-left.ansi", "opencode-done.ansi", "opencode-after-new.ansi"},
 	},
 }
