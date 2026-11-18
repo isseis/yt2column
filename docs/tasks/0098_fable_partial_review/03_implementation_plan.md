@@ -152,7 +152,7 @@
     -   `TestRecordLinePrefixesDistinct`（§1.3 の決定 6）。前置きは、記録の行の形の、最初の `:` までの文とする。`_lib/local-cli-review.md` step 7 の表の `Line` の列と、`_lib/opus-review.md` の「Record lines」のコードブロックの行から既存の前置きを、`_lib/fable-review.md` の「Record lines」と step 7 の表の `Local CLI reviewed:` から新しい前置きを読む。新しい前置きのどれも、既存の前置きと一致せず、互いに一方が他方の先頭にもならないことを確かめる（既存どうし・新しいものどうしは比べない）。文書ごとに読めた前置きの数の下限も確かめる。新しい前置きを既存のものと重ねると失敗することを確かめ、commit のメッセージに書く。
     -   `TestReviewRecordsCallSite` を、`fable-review.md` の起動とチェックポイントの入口の呼び方にも広げ、そこに 3 行がこの順にあることを求める。そこから実行の行を消すと失敗することを確かめる。
     -   `TestRecordCommitsCheckMention`（新規）。Fable の行を持つ commit を作る節（`local-cli-review.md` step 7、`runplan.md` step 7.8、`fable-review.md` の記録の commit）が、`TestPostingPathsCheckMention`（`codex_review_docs_test.go:119`）と同じ形のメンションの確かめのコマンドを持つか、`local-cli-review.md` step 7 の「Mention check」を名指すことを確かめる。1 つの節からそれを消すと失敗することを確かめる。
--   [ ] **ステップ 2-9**: AC-32 と AC-40 の差分の記録を書く（§7 の「差分の記録」の PR-2 の欄）。
+-   [x] **ステップ 2-9**: AC-32 と AC-40 の差分の記録を書く（§7 の「差分の記録」の PR-2 の欄）。
 
 **完了の条件:** 設計書 3.1、3.2、3.3（ステップ 1-3 で済んだものを除く）、3.4、3.5、3.6.2、3.8.2 の Fable の部分、3.9 の `simple-process.md` と `CLAUDE.md` の Fable の部分の項目がすべて文書とスクリプトにある。`bash -n` が判定のスクリプトに通る。macOS の手元で `go test -tags test -v -run 'TestReviewRecords' ./cmd/yt2column` を走らせ、`bin-bash-3` の subtest が走って通ったことを PR の説明に書く。§7 に PR-2 の差分の記録がある。実装の中で ADR-0050 の決定を変えることになったときは、この PR で ADR を更新する。`make test` と `make lint` が通る。
 
@@ -323,6 +323,13 @@ Path diff:
 PR-2:
 
 - Compared paths: `.claude/commands/_lib/opus-review.md` `.claude/commands/_lib/opus-review-decision.sh` `internal/chief`
+- Merge-base: `3a643817c496e07a05ec5b2d85e6e0e8fbf6cb06`
+- Compared commit: `a27034c5303e21e1e9037f8e45ac3dc3c5f9880b`
+
+Path diff:
+
+````text
+````
 
 Diff record (AC-37):
 
@@ -662,6 +669,39 @@ index 4433fa3eb7e4a02e342892fa73f44f7d5cd780b9..0272906cd5e302e840457f8f3b6de61c
 PR-2:
 
 - Compared paths: `.claude/commands/runpr.md`
+- Merge-base: `3a643817c496e07a05ec5b2d85e6e0e8fbf6cb06`
+- Compared commit: `a27034c5303e21e1e9037f8e45ac3dc3c5f9880b`
+
+Path diff:
+
+````text
+diff --git a/.claude/commands/runpr.md b/.claude/commands/runpr.md
+index 349f0b742d2fe3520f7c01212c9e8192c69e8800..32814344eea45382ca49ea91d287b3da2fa58871 100644
+--- a/.claude/commands/runpr.md
++++ b/.claude/commands/runpr.md
+@@ -1072,8 +1072,19 @@ character as 2); the line shapes below are the examples to follow.
+        for `ALL`, `ローカル CLI 未 <n> 件` for `PARTIAL <n>`, and
+        `ローカル CLI 不明` for `PARTIAL` with no count (the script failed, or
+        the PR's head is not the local one). Its second half is the record of
+-       the Fable partial review made before the PR opened; `なし` says the
+-       branch has none.
++       the Fable partial review made before the PR opened (`PR 前`: it did
++       not see the changes after the PR opened), from the Fable records of
++       `git log --reverse origin/main..HEAD`, read as
++       `_lib/fable-review.md`, "Reading the record lines", says: `run` when
++       every record is `run`; when one is `not run`, `未実施・<word>` for the
++       first such record, where `<word>` is `対象なし` for `no-target`,
++       `利用不可` for `unavailable`, `時間切れ` for `timeout`, `別モデル` for
++       `not-fable`, `形式不正` for `unreadable`, and `呼べない` for
++       `agent-cannot-call`; and `なし` when the branch has no record. With
++       two or more records, append `（他 <n> 件）`, `<n>` being the number of
++       records not shown. The longest form,
++       `Codex 後: ローカル CLI 未 12 件 ／ Fable（PR 前）: 未実施・時間切れ（他 1 件）`,
++       stays within 80 columns.
+      - Kinds 7 to 10 appear only for what exists. Kinds 7 to 9 give a kind and
+        a count; kind 10 gives the state and the expiry date, not a count.
+      - Kind 6 is `NEXT: なし` when there is none; `NEXT: /mkarch 0089` for
+````
 
 ### PR-3 の実行の記録
 
