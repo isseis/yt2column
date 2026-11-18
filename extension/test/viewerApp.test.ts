@@ -371,6 +371,11 @@ describe("startViewer: a job URL", () => {
     assert.equal(viewer.doc.title, `${neutralTitle} - yt2column`);
     assert.equal(viewer.clock.pending(), 0);
     viewer.elements.save.click();
+    // The copy's notice replaces the save's, so the save's is read first.
+    assert.equal(
+      viewer.elements.actionStatus.textContent,
+      catalogs.en.viewer.saved,
+    );
     viewer.elements.copy.click();
     await settle();
     assert.deepEqual(viewer.saves.saved, [
