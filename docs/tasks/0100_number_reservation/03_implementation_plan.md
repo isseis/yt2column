@@ -517,16 +517,16 @@ Diff record (AC-18):
 
 - Compared paths: `docs/dev/conventions/adr.md`
 - Merge-base: `caf5fd30ffad662d884de0a2fcabf77438b99f60`
-- Compared commit: `9593d00488fa8de06d625e271144484950e3fa04`
+- Compared commit: `d8251aa51dc8071b29d11d18669559c4fc99990a`
 
 Path diff:
 
 ````text
 diff --git a/docs/dev/conventions/adr.md b/docs/dev/conventions/adr.md
-index 2be98d0bcee748f6a2813807a0341886127d9fcb..d89fbc234e815a026bb1813d0988add070d944ff 100644
+index 2be98d0bcee748f6a2813807a0341886127d9fcb..8ca3d754e9a56a38d305d2d12434757c4e80cf76 100644
 --- a/docs/dev/conventions/adr.md
 +++ b/docs/dev/conventions/adr.md
-@@ -27,11 +27,17 @@ and fails when it cannot read them.
+@@ -27,11 +27,18 @@ and fails when it cannot read them.
  - **Name:** `NNNN-<kebab>.md`. `NNNN` is a four-digit number, and `<kebab>` is
    a name for the subject made of lowercase ASCII letters and digits joined by
    `-`.
@@ -537,19 +537,20 @@ index 2be98d0bcee748f6a2813807a0341886127d9fcb..d89fbc234e815a026bb1813d0988add0
 -  obsolete ADR.
 +- **Number:** a sequence of its own, unrelated to task numbers. A new ADR's
 +  number is decided by the number tool: run `numreserve adr` in the work tree
-+  of the PR's branch and use the four-digit number it prints on standard
-+  output. This holds for every PR that adds an ADR, whether a command creates
-+  it or a person does by hand. When the tool exits with a status other than
-+  `0`, or is not installed, stop: do not create the ADR's file with a number
-+  you chose, and show the line it wrote to standard error and the table of
-+  stop reasons in [numreserve_guide.md](../guides/numreserve_guide.md). A
-+  decided number that never reaches `main` stays a gap, and a gap is not an
-+  error. An ADR is never deleted, so a number is never reused, not even the
-+  number of an obsolete ADR.
++  of the PR's branch, with a command time limit of at least five minutes,
++  and use the four-digit number it prints on standard output. This holds for
++  every PR that adds an ADR, whether a command creates it or a person does by
++  hand. When the tool exits with a status other than `0`, or is not
++  installed, stop: do not create the ADR's file with a number you chose, and
++  show the line it wrote to standard error and the table of stop reasons in
++  [numreserve_guide.md](../guides/numreserve_guide.md). A decided number that
++  never reaches `main` stays a gap, and a gap is not an error. An ADR is never
++  deleted, so a number is never reused, not even the number of an obsolete
++  ADR.
  - **Name in text:** a document calls an ADR `ADR-NNNN`.
  - **Title:** the text after `ADR-NNNN: ` on the first line. It must not
    contain `|`, because the index puts it in a table cell.
-@@ -93,8 +99,10 @@ they are in the ADR.
+@@ -93,8 +100,10 @@ they are in the ADR.
  | [ADR-0001](0001-<kebab>.md) | <ADR の 1 行目の題名> | `有効` |
  ```
 
@@ -562,20 +563,22 @@ index 2be98d0bcee748f6a2813807a0341886127d9fcb..d89fbc234e815a026bb1813d0988add0
 
  ## What counts as a major decision
 
-@@ -365,8 +373,10 @@ the merge base, do the following.
+@@ -365,9 +374,11 @@ the merge base, do the following.
     index on the `main` taken in has an active ADR on the same subject. When it
     does, do not create a new ADR: update the ADR on `main` instead.
  2. **Renumber.** When only the number collides (a different subject), move the
 -   PR's ADR to the next free number: its file name, its first line, and its
 -   index row, and every `ADR-<old number>` and every link to a file starting
+-   `<old number>-` in the PR's diff (`git diff origin/main...HEAD`), task
 +   PR's ADR to the number `numreserve adr` prints when run in the work tree of
-+   the PR's branch; when it prints none, stop without renumbering ("Location
-+   and naming"). Move its file name, its first line, and its index row, and
-+   every `ADR-<old number>` and every link to a file starting
-    `<old number>-` in the PR's diff (`git diff origin/main...HEAD`), task
++   the PR's branch; when it exits with a status other than `0`, stop without
++   renumbering ("Location and naming"). Move its file name, its first line,
++   and its index row, and every `ADR-<old number>` and every link to a file
++   starting `<old number>-` in the PR's diff (`git diff origin/main...HEAD`), task
     documents included. Record the renumbering as an editorial correction in
     the commit message (`docs/dev/conventions/requirements_process.md`,
-@@ -377,10 +387,11 @@ the merge base, do the following.
+    "Recording in the PR description").
+@@ -377,10 +388,11 @@ the merge base, do the following.
     it does not. The PR's 経緯 entries go after `main`'s ("History entries").
 
  **When `TestADRRecords` fails on `main`.** Two PRs that both pass CI before
