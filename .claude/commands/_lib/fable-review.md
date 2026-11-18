@@ -363,9 +363,12 @@ worktree; the state shared with other worktrees (other branches' refs,
 branches' `branch.<name>.*` settings) changes with other sessions' work and
 is not compared.
 
-Take the state by writing this block, fresh from this file each time, to a
-new file in the scratchpad and running it with `bash <file>` from the
-worktree root. It prints one line per part, `<part> <sha256>`:
+Take the state by writing this block to a new file in the scratchpad and
+running it with `bash <file>` from the worktree root. Read the block from
+this file once, before the launch, and keep its text in this session's
+context; write every later file from that kept text, never from this file
+again nor from an earlier file: after the launch, the subagent could have
+changed either. It prints one line per part, `<part> <sha256>`:
 
 ```bash
 set -u
