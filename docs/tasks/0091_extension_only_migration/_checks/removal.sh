@@ -8,14 +8,15 @@
 #   notag     no Go file of internal/config carries a !js build tag
 #   wasmdeps  GOOS=js GOARCH=wasm go list -deps ./internal/config does not
 #             list internal/privatefile
-#   builddev  make -n build-dev fails because make has no rule for it
+#   builddev  the Makefile defines no build-dev rule (make's rule database
+#             has none), and make -n build-dev fails
 #   config    Makefile, .golangci.yml, .github/workflows/ci.yml, and
 #             extension/scripts/has-extension-changes.sh name no removed
 #             package
 #   docgo     every package a go command example of the tracked documents
 #             names is found by go list
 #   docmake   every target a make command example of the tracked documents
-#             names passes make -n
+#             names has a rule in the Makefile and passes make -n
 #
 # The tracked documents are README.md, README.en.md, CLAUDE.md, AGENTS.md,
 # the files under docs/dev/ other than the ADRs, and the files under
@@ -97,11 +98,22 @@ elif grep -qx 'github.com/isseis/yt2column/internal/privatefile' <<<"$deps"; the
 fi
 done_check wasmdeps
 
+# The targets the Makefile defines a rule for, from make's rule database
+# (-p prints it, -n and -q run nothing). A file or a directory of the same
+# name is not a rule, so make -n alone cannot tell it from a target. make -q
+# exits non-zero when the goal is out of date, so its status is not read;
+# the database must list the test rule instead.
+rules=$({ make -pnq 2>/dev/null || true; } | sed -nE 's/^([a-z][a-z0-9-]*):( .*)?$/\1/p' | sort -u)
+if ! grep -qx test <<<"$rules"; then
+	echo "make's rule database lists no test target" >&2
+	exit 2
+fi
+
 # builddev
-if out=$(make -n build-dev 2>&1); then
+if grep -qx build-dev <<<"$rules"; then
+	fail builddev "the Makefile defines a build-dev rule"
+elif make -n build-dev >/dev/null 2>&1; then
 	fail builddev "make -n build-dev succeeds"
-elif ! grep -q "No rule to make target.*build-dev" <<<"$out"; then
-	fail builddev "make -n build-dev fails for another reason: $out"
 fi
 done_check builddev
 
@@ -146,10 +158,12 @@ if [ -z "$go_pkgs" ]; then
 fi
 while read -r platform p; do
 	[ -n "$p" ] || continue
+	# Standard output only: for a pattern that matches nothing, go list
+	# prints a warning on standard error and exits 0.
 	if [ "$platform" = wasm ]; then
-		listed=$(GOOS=js GOARCH=wasm go list "$p" 2>&1) || listed=
+		listed=$(GOOS=js GOARCH=wasm go list "$p" 2>/dev/null) || listed=
 	else
-		listed=$(go list -tags test,integration "$p" 2>&1) || listed=
+		listed=$(go list -tags test,integration "$p" 2>/dev/null) || listed=
 	fi
 	if [ -z "$listed" ]; then
 		fail docgo "go list finds no package for $p ($platform)"
@@ -180,7 +194,9 @@ if [ -z "$make_targets" ]; then
 fi
 while IFS= read -r t; do
 	[ -n "$t" ] || continue
-	if ! make -n "$t" >/dev/null 2>&1; then
+	if ! grep -qx -- "$t" <<<"$rules"; then
+		fail docmake "the Makefile defines no rule for $t"
+	elif ! make -n "$t" >/dev/null 2>&1; then
 		fail docmake "make -n $t fails"
 	fi
 done <<<"$make_targets"
