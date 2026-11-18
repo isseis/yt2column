@@ -55,17 +55,19 @@ Work in the following order.
      convention", "Draft issue label"). Write the label names to a file in the
      scratchpad, outside the tracked tree, as one name per line:
      `gh issue view <N> --json labels --jq '.labels[].name' > <file>`.
-     If that command exits with a status other than 0, stop and report that the
-     labels could not be read. Then run `command grep -qxF -- draft <file>` as
-     a call of its own and read its exit code. Never join the two commands with
-     `&&` or `;`: `gh` fails with the same exit code `1` that `grep` uses for no
-     matching line, so a joined run cannot tell an unreadable label list from an
-     issue that is not a draft. `-x` matches a whole line and `-F` compares it
-     as a fixed string, so only a label whose name is exactly `draft` in bytes
-     matches; `Draft`, `DRAFT`, and `draft-x` do not.
+     Run each of the two commands in a Bash call of its own — one command per
+     call — and read the exit code the tool reports for that call. Never run
+     them in one call, joined with `&&`, `;`, a newline, or a pipe: an ordinary
+     `gh` failure exits `1`, the same code `grep` uses for no matching line
+     (`gh` also uses `2` and `4`), so a joined run cannot tell an unreadable
+     label list from an issue that is not a draft.
+     If the first command exits with a status other than 0, stop and report
+     that the labels could not be read. Then run
+     `command grep -qxF -- draft <file>` and read its exit code. `-x` and `-F`
+     make the comparison exact, as the `Draft issue label` row defines it.
      - `0`: the issue is a draft issue. Stop and report that it is a draft
-       issue, and that removing the `draft` label makes it a regular issue, so
-       `/mkreq <N>` can be run again.
+       issue, that removing the `draft` label makes it a regular issue, and
+       that `/mkreq <N>` can be run again.
      - `1`: the issue is not a draft issue. Go on.
      - anything else: the check failed. Stop and report that it could not be
        checked.

@@ -106,7 +106,7 @@
 | AC | 種類 | 検証 |
 |---|---|---|
 | AC-01 | `manual` | 実装の PR のレビューで、`mkreq.md` の step 1 が、2 つのコマンドを別々に走らせて終了コードを別々に読むこと、確かめの位置（閉じているかと `url` の確かめの後、`git fetch origin` の前）、下書きの issue で止まること、報告の内容を、step 1 が述べているかを読む。補う確かめとして、レビュアーが `/mkreq 928 0104_draft_issue_label` を走らせる（1.3） |
-| AC-02 | `manual` | 実装の PR のレビューで、`mkreq.md` の step 1 が `command grep -qxF -- draft` の終了コードで決め、定義を `_context.md` の行の名前で参照するかを読む。コマンドの振る舞いは、ステップ 1-4 の実行の記録で確かめる |
+| AC-02 | `manual` | 実装の PR のレビューで、`mkreq.md` の step 1 が `command grep -qxF -- draft` の終了コードで決め、定義を `_context.md` の行の名前で参照し、書き写していないかを読む。`grep` の振る舞いは、ステップ 1-4 の実行の記録で確かめる。`gh` の出力の形は、レビュアーが走らせる `/mkreq 928 0104_draft_issue_label` で確かめる（1.3） |
 | AC-03 | `manual` | 実装の PR のレビューで、確かめが閉じた issue の確かめの後にあり、閉じた issue では今までどおり止まることを読む |
 | AC-04 | `manual` | 実装の PR のレビューで、ラベルを読めないときと `grep` が `0`・`1` のほかで終わるときに止まることを読む。`grep` の失敗の終了コードは、ステップ 1-4 の実行の記録で確かめる |
 | AC-06 | `manual` | 実装の PR のレビューで、`_context.md` の `Draft issue label` の行が要件書 AC-06 の 4 点を述べるかを読む |
