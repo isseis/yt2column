@@ -51,6 +51,27 @@ Work in the following order.
      was given: stop and report rather than using its number. From here on,
      use the `number` it returns (`N`) wherever the issue is named — searches, commits, the PR
      body — never the raw argument, which may be `#330` or a URL.
+   - Check whether the issue is a draft issue (`_context.md`, "Process
+     convention", "Draft issue label"). Write the label names to a file in the
+     scratchpad, outside the tracked tree, as one name per line:
+     `gh issue view <N> --json labels --jq '.labels[].name' > <file>`.
+     If that command exits with a status other than 0, stop and report that the
+     labels could not be read. Then run `command grep -qxF -- draft <file>` as
+     a call of its own and read its exit code. Never join the two commands with
+     `&&` or `;`: `gh` fails with the same exit code `1` that `grep` uses for no
+     matching line, so a joined run cannot tell an unreadable label list from an
+     issue that is not a draft. `-x` matches a whole line and `-F` compares it
+     as a fixed string, so only a label whose name is exactly `draft` in bytes
+     matches; `Draft`, `DRAFT`, and `draft-x` do not.
+     - `0`: the issue is a draft issue. Stop and report that it is a draft
+       issue, and that removing the `draft` label makes it a regular issue, so
+       `/mkreq <N>` can be run again.
+     - `1`: the issue is not a draft issue. Go on.
+     - anything else: the check failed. Stop and report that it could not be
+       checked.
+
+     The exit code decides; do not read the file or compare label names
+     yourself, and do not write a label name in the report.
    - `git fetch origin`. Search for a requirements document that already names
      issue `N` as its own (`対応 issue: [#N]`) on `origin/main`, on every
      `origin` branch, and on every local branch
