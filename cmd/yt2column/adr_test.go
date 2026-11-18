@@ -547,6 +547,25 @@ func adrValidInput() adrInput {
 	}
 }
 
+// TestCheckADRNumbersOrder: duplicates are reported in number order, so the
+// guard's report is the same on every run.
+func TestCheckADRNumbersOrder(t *testing.T) {
+	records := []adrRecord{
+		{name: "0002-b.md", number: 2},
+		{name: "0002-c.md", number: 2},
+		{name: "0001-a.md", number: 1},
+		{name: "0001-d.md", number: 1},
+	}
+	var got []string
+	for _, issue := range checkADRNumbers(records) {
+		got = append(got, issue.detail)
+	}
+	want := []string{"0001-a.md, 0001-d.md", "0002-b.md, 0002-c.md"}
+	if !slices.Equal(got, want) {
+		t.Errorf("checkADRNumbers details = %q, want %q", got, want)
+	}
+}
+
 // TestCheckADRRecords: the checker reports each kind of mismatch, and nothing
 // for inputs that agree. Each case breaks one thing, so the set of kinds it
 // reports pins which check reacts to it.

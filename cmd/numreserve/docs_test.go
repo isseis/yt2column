@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"io/fs"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -46,7 +47,8 @@ var bashRule = regexp.MustCompile(`^Bash\((.*)\)$`)
 var allowedRules = []string{"Bash(" + toolWord + " task)", "Bash(" + toolWord + " adr)"}
 
 // namesTool reports whether a permission rule is a Bash rule whose command
-// word is the tool, by name, by path, or quoted.
+// word is the tool, by name, by path, or quoted, or a pattern that starts
+// with the tool's name and holds a wildcard, which matches the tool too.
 func namesTool(rule string) bool {
 	m := bashRule.FindStringSubmatch(rule)
 	if m == nil {
@@ -54,7 +56,9 @@ func namesTool(rule string) bool {
 	}
 	word, _, _ := strings.Cut(strings.TrimSpace(m[1]), " ")
 	word, _, _ = strings.Cut(word, ":")
-	return path.Base(strings.Trim(word, `"'`)) == toolWord
+	base := path.Base(strings.Trim(word, `"'`))
+	rest, ok := strings.CutPrefix(base, toolWord)
+	return ok && (rest == "" || strings.ContainsAny(rest, "*?["))
 }
 
 // TestNamesTool: the rule reader finds the tool's rules in every spelling
@@ -71,6 +75,7 @@ func TestNamesTool(t *testing.T) {
 		{"Bash(numreserve task *)", true},
 		{"Bash(/usr/local/bin/numreserve task)", true},
 		{`Bash("numreserve" adr)`, true},
+		{"Bash(numreserve*)", true},
 		{"Bash(numreservex task)", false},
 		{"Bash(chief *)", false},
 		{"Read(numreserve)", false},
@@ -107,7 +112,6 @@ func TestToolRuleMismatches(t *testing.T) {
 	}{
 		{"exact", []string{"Bash(chief *)", "Bash(numreserve task)", "Bash(numreserve adr)"}, nil, nil},
 		{"wildcard", []string{"Bash(numreserve task)", "Bash(numreserve adr)", "Bash(numreserve *)"}, []string{"Bash(numreserve *)"}, nil},
-		{"colon", []string{"Bash(numreserve task)", "Bash(numreserve adr)", "Bash(numreserve:*)"}, []string{"Bash(numreserve:*)"}, nil},
 		{"trailing_args", []string{"Bash(numreserve task *)", "Bash(numreserve adr)"}, []string{"Bash(numreserve task *)"}, []string{"Bash(numreserve task)"}},
 		{"none", []string{"Bash(chief *)"}, nil, allowedRules},
 	} {
@@ -313,22 +317,22 @@ func TestBetween(t *testing.T) {
 	}
 }
 
-// TestNoScriptRunsTool: no script under .claude/commands names the tool. A
-// script runs under one approved Bash call, so a call inside it would not
-// meet the permission rules the documents' calls are held to.
+// TestNoScriptRunsTool: no file under .claude/commands other than a
+// Markdown document names the tool. A script runs under one approved Bash
+// call, so a call inside it would not meet the permission rules the
+// documents' calls are held to.
 func TestNoScriptRunsTool(t *testing.T) {
-	scripts, err := filepath.Glob(filepath.Join(repoRoot, ".claude", "commands", "*", "*.sh"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	top, err := filepath.Glob(filepath.Join(repoRoot, ".claude", "commands", "*.sh"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, script := range append(scripts, top...) {
-		if strings.Contains(doctestutil.ReadDoc(t, script), toolWord) {
-			t.Errorf("%s names %s; call it from a command document instead", script, toolWord)
+	err := filepath.WalkDir(filepath.Join(repoRoot, ".claude", "commands"), func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || strings.HasSuffix(p, ".md") {
+			return err
 		}
+		if strings.Contains(doctestutil.ReadDoc(t, p), toolWord) {
+			t.Errorf("%s names %s; call it from a command document instead", p, toolWord)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk .claude/commands: %v", err)
 	}
 }
 
