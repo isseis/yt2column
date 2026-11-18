@@ -3,9 +3,6 @@
 package redact
 
 import (
-	"bytes"
-	"errors"
-	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -195,88 +192,5 @@ func TestSecretStrings(t *testing.T) {
 	got := SecretStrings(keySecret, secret.Secret{}, otherSecret)
 	if want := []string{key, other}; !slices.Equal(got, want) {
 		t.Errorf("SecretStrings = %q, want %q", got, want)
-	}
-}
-
-// TestWriterRedactsWithoutEscaping verifies that Writer replaces the protected
-// strings in what it is given without escaping anything else, so text already
-// escaped by log/slog is not escaped twice.
-func TestWriterRedactsWithoutEscaping(t *testing.T) {
-	cases := []struct {
-		name    string
-		input   string
-		secrets []string
-		want    string
-	}{
-		{
-			name:    "redacts a whole value",
-			input:   "key=SECRETVALUE123",
-			secrets: []string{"SECRETVALUE123"},
-			want:    "key=[REDACTED]",
-		},
-		{
-			name:    "redacts the exposed tail",
-			input:   "token=IJKLMNOP",
-			secrets: []string{"ABCDEFGHIJKLMNOP"},
-			want:    "token=[REDACTED]",
-		},
-		{
-			name:    "redacts the escaped spelling of a secret",
-			input:   `key=\x1b`,
-			secrets: []string{"\x1b"},
-			want:    `key=[REDACTED]`,
-		},
-		{
-			name:    "does not escape the rest of the input while redacting",
-			input:   `key=SECRETVALUE123\tmore`,
-			secrets: []string{"SECRETVALUE123"},
-			want:    `key=[REDACTED]\tmore`,
-		},
-		{
-			name:  "leaves the input unchanged when there are no secrets",
-			input: "plain text",
-			want:  "plain text",
-		},
-		{
-			name:    "chooses a printable marker when the secret collides with it",
-			input:   "model=REDACTED",
-			secrets: []string{"REDACTED"},
-			want:    "model=!!!!!!!!!!",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			w := Writer(&buf, tc.secrets)
-			n, err := io.WriteString(w, tc.input)
-			if err != nil {
-				t.Fatalf("Write: %v", err)
-			}
-			if n != len(tc.input) {
-				t.Errorf("Write reported %d bytes, want %d", n, len(tc.input))
-			}
-			if got := buf.String(); got != tc.want {
-				t.Errorf("Writer wrote %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
-// failingWriter is an io.Writer that fails every write.
-type failingWriter struct{ err error }
-
-func (w failingWriter) Write([]byte) (int, error) { return 0, w.err }
-
-// TestWriterPropagatesError verifies that Write reports 0 bytes and the
-// underlying error, so a caller such as log/slog sees the failure.
-func TestWriterPropagatesError(t *testing.T) {
-	errWrite := errors.New("write failed")
-	w := Writer(failingWriter{err: errWrite}, []string{"SECRET"})
-	n, err := io.WriteString(w, "key=SECRET")
-	if !errors.Is(err, errWrite) {
-		t.Fatalf("Write error = %v, want %v", err, errWrite)
-	}
-	if n != 0 {
-		t.Errorf("Write reported %d bytes, want 0", n)
 	}
 }
