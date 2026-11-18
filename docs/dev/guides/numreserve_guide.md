@@ -63,7 +63,7 @@ make install-numreserve
 
 ### 3.2 誤った記録の tag を消す
 
-ruleset は誰も迂回できないので、受け入れない名前の tag（`malformed`）や、手で作った大きな番号の tag（`jump` や `exhausted` の原因）は、利用者が消すまで残り、その空間の番号の決定を止め続ける。誤った tag だけを、利用者（管理者）が次の手順で消す。エージェントは行わない。
+ruleset は誰も迂回できないので、誤った tag は利用者が消すまで残る。受け入れない名前の tag は、その空間の番号の決定を `malformed` で止め続ける。手で作った大きな番号の tag は、跳びの基準（記録の tag の番号を含む）を押し上げるので `jump` では止まらず、以後の番号を黙ってその番号の次から決めさせる。9999 の tag なら、その空間の番号の決定を `exhausted` で止め続ける。誤った tag だけを、利用者（管理者）が次の手順で消す。エージェントは行わない。
 
 1. ruleset を無効にしない。無効にすると、その間すべての記録が守られなくなるためである。
 2. ruleset の Target tags の Exclude by pattern に、消す tag の名前だけ（`refs/tags/` を除いた形。たとえば `task-number/12345`）を加える。パターンは glob なので、名前に `*`・`?`・`[` などが入っているときは、ほかの記録に当たらないことを確かめてから加える。
@@ -89,7 +89,7 @@ ruleset は誰も迂回できないので、受け入れない名前の tag（`m
 | `origin` のブランチの名前（タスク番号） | `git ls-remote origin 'refs/heads/*'` で、そのブランチを誰が何のために作ったか | 迷い込んだものなら持ち主が消すか名前を直す。作業中のブランチなら、番号が正しいかを持ち主と確かめる |
 | 自分のブランチ（`HEAD` か作業ツリー）の `docs/dev/adr/` のファイル（ADR 番号） | 詳細に `in HEAD` か `in the work tree` と出たファイルの番号が、打ち間違いでないか | 自分のブランチでファイルの名前を直し、`numreserve adr` を実行し直す |
 | ほかのブランチの `docs/dev/adr/` のファイル（ADR 番号） | そのブランチの PR で、ADR のファイル名の番号が打ち間違いでないか | ブランチの持ち主が、ファイルの名前を直して push する。番号は `numreserve adr` で決め直す |
-| 記録の tag の名前 | `git ls-remote origin 'refs/tags/task-number/*' 'refs/tags/adr-number/*'` で、4 桁の数字だけの名前でない tag や、大きすぎる番号の tag がないか | 3.2 の手順で、誤った tag だけを利用者が消す |
+| 記録の tag の名前 | `git ls-remote origin 'refs/tags/task-number/*' 'refs/tags/adr-number/*'` で、4 桁の数字だけの名前でない tag がないか | 3.2 の手順で、誤った tag だけを利用者が消す |
 | `origin/main` の `docs/tasks/` か `docs/dev/adr/` の項目 | `main` に、形に合わない項目（タスクのディレクトリ名の形でない項目、ADR のファイル名の形でない項目）が入っていないか | 項目を直す PR を作ってマージする。それまで、その空間の番号は決められない |
 
 `git ls-remote` の行や `git ls-tree` の項目が形に合わないときは、`git` の版（2.29 以上が要る）と `origin` の向き先を確かめてから再実行する。

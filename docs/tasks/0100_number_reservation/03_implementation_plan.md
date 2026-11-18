@@ -648,7 +648,7 @@ cloud のセッションでは、`git ls-remote`、道具のインストール�
     | `numreserve task` | `0101` | `numreserve: created refs/tags/task-number/0101 at 44fcdfe08bb5a737ad6c6e34648c6493ef01203c` |
     | `numreserve adr` | `0052` | `numreserve: created refs/tags/adr-number/0052 at 44fcdfe08bb5a737ad6c6e34648c6493ef01203c` |
 
--   **記録の ruleset（利用者）。** 利用者が tag の ruleset（名前 `Task/ADR numreserve`、id `27523413`）を設定した。`gh api repos/isseis/yt2column/rulesets/27523413` で、`target` が `tag`、`enforcement` が `active`、`conditions.ref_name.include` が `refs/tags/task-number/**/*` と `refs/tags/adr-number/**/*`、`exclude` が空、`rules` が `deletion` と `update` の 2 つ、`bypass_actors` が空であることを確かめた（手引きの 3.1）。最初の設定では `rules` に `non_fast_forward`（画面の「Block force pushes」。新しい ruleset では既定で選ばれている）も入っていたので、利用者が外し、読み直して上の形を確かめた。
+-   **記録の ruleset（利用者）。** 利用者が tag の ruleset（名前 `Task/ADR numreserve`、id `27523413`）を設定した。`gh api repos/isseis/yt2column/rulesets/27523413` で、`target` が `tag`、`enforcement` が `active`、`conditions.ref_name.include` が `refs/tags/task-number/**/*` と `refs/tags/adr-number/**/*`、`exclude` が空、`rules` が `deletion` と `update` の 2 つ、`bypass_actors` が空であることを確かめた（手引きの 3.1）。最初の読み直しでは `rules` に `non_fast_forward` も入っていた。利用者が画面の「Block force pushes」を外した後に読み直すと、`non_fast_forward` がなくなり、上の形になった。利用者はこの規則を選んだ覚えがないが、新しい ruleset で既定で選ばれるかは確かめていない。
 -   **削除の拒否（利用者の承認のもとで `/runplan` が実行）。** `GH_PROMPT_DISABLED=1`・`NO_COLOR=1` で `gh api --hostname github.com -i` を使った。
 
     | 操作 | 状態行 |
@@ -659,6 +659,7 @@ cloud のセッションでは、`git ls-remote`、道具のインストール�
     | その後の `GET git/ref/tags/adr-number/0052` | `HTTP/2.0 200 OK`（`ref` は問い合わせた名前、`object.sha` は `44fcdfe08bb5a737ad6c6e34648c6493ef01203c`） |
 
     確かめの後の `git ls-remote origin 'refs/tags/task-number/*' 'refs/tags/adr-number/*'` は、2 つの tag を作ったときの SHA のまま返した。実際の名前の形の記録の tag の削除は、どちらの空間でも拒まれた。作り直しは要らなかった。
+-   **確かめていないこと。** 2 つの記録の tag は ruleset を設定する前に作ったので、ruleset が効いている間に道具が記録の tag を作れることは、まだ確かめていない（ruleset の規則は作成を禁じていない）。PR-3 のマージの後に最初に `numreserve` を実行するとき（フェーズ 7 の cloud のセッションでの確かめか、次の `/mkreq`）に確かめる。作れなければ、道具は `network-or-github` などで止まり、番号は決まらない。手引きの 3.2 の手順 2〜4（1 つの名前を対象から除いて消し、戻す）も、実行していない。
 
 ### しきい値の記録
 

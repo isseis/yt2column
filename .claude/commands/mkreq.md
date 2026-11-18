@@ -35,7 +35,8 @@ task documents and opens one PR for them, the three-document PR.
 only, `gh issue view` (also for the issues the issue references),
 `gh repo view`, `gh pr list` for the duplicate search and for the conditions
 of continuing a stopped run (`_lib/simple-process.md`, "Resuming a stopped
-run"), `numreserve task` in step 2, which creates one record tag on
+run"), `numreserve task` in step 2 and `numreserve adr` when step 5 creates
+an ADR (`_lib/settle-decisions.md`), each of which creates one record tag on
 `origin` (`CLAUDE.md`, "Tool Execution Safety"), and the
 network operations `_lib/task-pr-handoff.md` names ("Authorization"). Nothing
 else that touches the network runs without asking.
@@ -68,7 +69,10 @@ Work in the following order.
      `docs/dev/conventions/task_identification.md` rule 1 describes. Stop if
      it does not exist there or already contains `01_requirements.md`.
    - Without it: choose the name `NNNN_<name>` (the directory is created in
-     step 3). `NNNN` is decided by the number tool, never computed: run
+     step 3). `NNNN` is decided by the number tool, never computed. First
+     confirm `git status --short` is empty, and stop and report when it is
+     not, before any number is decided: step 3 would stop on it, and the
+     number would be left a gap. Then run
 
      ```bash
      numreserve task
