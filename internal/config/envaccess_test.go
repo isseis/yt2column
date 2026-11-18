@@ -96,6 +96,10 @@ var allowedEnvRefs = map[string]map[string]int{
 	// which gives git all of it minus GIT_* and gh all of it minus the color
 	// and prompt variables it replaces and minus GH_REPO and GH_HOST.
 	"cmd/numreserve/main.go": {"call:os.Environ": 1},
+	// The mergepr developer tool's protocol-number check runs git with the
+	// environment of the process minus GIT_*, captured when its runner is
+	// built (newGitRunner).
+	"internal/mergepr/runner.go": {"call:os.Environ": 1},
 }
 
 // envAccessReport is the result of one scan.

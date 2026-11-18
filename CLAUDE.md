@@ -718,7 +718,8 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   `docs/dev/production_profile.md`, the configuration block of both READMEs,
   the values `cli.md` and `development.md` hold, the
   `/fixpr` and `/runpr` command documents, the `codexreview`
-  permission and command-document checks, the ADR guard
+  permission and command-document checks, `cmd/mergepr`'s checks of the
+  `mergepr` calls and of the tools with a protocol number, the ADR guard
   `TestADRRecords`, and `internal/chief`'s readings of the routing table and
   the PR markers) are Go tests included
   in `make test` and need no node. `cmd/yt2column-nmhost`'s
@@ -726,7 +727,7 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   does not run it: the local `make test`, and the CI `test` job when the change
   includes code, do. A change to the READMEs alone is therefore checked by
   neither CI job for this test. The `doc-guard` CI job runs the other guards
-  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/numreserve ./internal/pipeline ./internal/chief`)
+  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`)
   on every pull request, so a documentation-only change is checked in CI by
   those guards even though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's
@@ -753,6 +754,53 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   for redistribution and must not identify whoever captured it; full-page browser
   snapshots are never committed and live outside the repository. See
   [Security Considerations §7](docs/dev/security.md) before adding any.
+
+### Protocol numbers
+
+A protocol number is the number a developer tool and the documents that call
+it compare to agree on a version: the documents pass it with `--protocol`,
+and the tool refuses a number that is not its own. The rules below cover
+every tool that has one: today `fixprguard`, `codexreview`, `chief`, and
+`mergepr`. A tool declares it in exactly one line,
+`const Protocol = <number>`, in a file directly inside `internal/<name>/`
+that is not a `_test.go` file; any other form, or a second declaration,
+stops the merge check as unreadable (the form is in
+[mergepr_guide.md](docs/dev/guides/mergepr_guide.md) section 6.3).
+
+- **Task documents do not write the raised number.** A requirements,
+  architecture, or implementation plan document, or a handoff document, of a
+  change that raises a protocol number writes "`main`'s value + 1", never the
+  number itself: another task may take that number first. Naming the current
+  value as current behavior, with its `file:line`, is allowed.
+- **Documents of the current specification write the real number.** The
+  command definitions and the guides under `docs/dev/guides/` keep writing the
+  actual number, as they do today.
+- **Choosing the number.** A PR that raises a protocol number sets it to
+  exactly `origin/main`'s value plus one at the time of implementation. A
+  number only goes up: never reuse a number `main` has used, and never lower
+  one. A branch that raised a number takes `main` in by merging it, never by
+  rebasing onto it or by rewriting its history. The one exception to "never
+  reuse": a tool removed from `main` and added back under the same name starts
+  again at `1`.
+- **The merge checks it.** `mergepr prepare` and `mergepr merge` (so every merge,
+  through `/runpr` or through `/mergepr` alone) check, on a freshly fetched
+  `origin/main`, that every tool the PR's commits changed the number of has
+  `origin/main`'s value plus one at the PR head, and stop the merge
+  otherwise. How to fix a stop is in
+  [mergepr_guide.md](docs/dev/guides/mergepr_guide.md) chapter 7: merge
+  `origin/main` into the branch, set the number and every `--protocol` the
+  documents write to the expected value, commit and push, reinstall the tool
+  from the branch, and merge again; when the head number equals
+  `origin/main`'s, rebuilding the history on `origin/main` is a fix too, but
+  only when the PR's own changes do not change the tool's contract.
+- **Accepted risks.** (1) Before the merge, parallel branches that raise the
+  same tool's number share it, so a tool installed from one branch accepts the
+  other branch's `--protocol`. (2) In the seconds between the check `merge`
+  repeats and GitHub's merge, another PR can merge with the same number. (3)
+  Rebasing a branch that raised a number onto a `main` that has the same
+  number, or rewriting its history there, can hide the conflict from the
+  check. (4) A tool removed from `main` and added back under the same name
+  starts at `1` again, so it can reuse a number `main` used before.
 
 ### Dependencies
 

@@ -25,8 +25,6 @@
 -   **食い違い:** `numreserve` の手引きはまだない（[#917](https://github.com/isseis/yt2column/issues/917)）。
 -   **例外として、記録の行を読んで判定するだけで副作用を持たない判定は、コマンドの定義から独立したシェルスクリプトにしてよい。スクリプトは `.claude/commands/_lib/` に置く。呼ぶ手順は、このスクリプトを `origin/main` の commit から作業ツリーの外に取り出して走らせる。失敗は安全な側の判定とし、規則を壊して失敗することを Go のテストで確かめる。** 今あるのは、Opus のレビューの判断のスクリプト `_lib/opus-review-decision.sh`（[ADR-0042](0042-implementation-model-tiers.md)）と、ローカルの CLI レビューが見たかと Fable の記録が有効かを決める `_lib/review-records.sh`（[ADR-0013](0013-review-setup.md)、[ADR-0050](0050-fable-partial-review.md)）である。`opus-review-decision.sh` は、この例外より前に作られ、常設の Go テストが確かめるのは計画書の値の読み方だけで、判断の規則はタスク 0081 の一度きりの確かめで確かめた。新しいスクリプトは、規則の全体を常設の Go テストで確かめる。判定は記録の行と `git rev-list` の組み合わせで足り、Go の道具にすると、新しい `cmd/` と `internal/` を足し、利用者にも入れ直しを求めることになるためである。採らなかった案の「判定をコマンドの定義に書いたシェルの手順」では、エージェントが文を読んで判定する。この例外では、テストを持つ 1 つのファイルが判定する点が違う（[0098 設計書](../../tasks/0098_fable_partial_review/02_architecture.md) 1.2 の決定 15）。
 
-この決定のうち、プロトコル番号を `origin/main` の値 + 1 にしてマージの時点で確かめることは、まだ CLAUDE.md の「Protocol numbers」の節、道具、[mergepr_guide.md](../guides/mergepr_guide.md) の確かめの仕様に反映していない。今は、`fixprguard` についてだけ、番号を上げるだけで再び使わず、並行するブランチも同じ番号を使わないという規則が [fixprguard_guide.md](../guides/fixprguard_guide.md) の「9. ツールを変更する場合」にあり、マージの時点の確かめはない。この差分は [#933](https://github.com/isseis/yt2column/issues/933) の実装で解消する。
-
 ## 採らなかった案
 
 -   **判定をコマンドの定義に書いたシェルの手順にする。** 判定が多く、安全側に倒すことが要るので、エージェントの判断では結果が変わらないようにできない。テストで壊して失敗を確かめることもできない（[0030 設計書](../../tasks/0030_fixpr_untrusted_threads/02_architecture.md) §1.1、§1.3）。
