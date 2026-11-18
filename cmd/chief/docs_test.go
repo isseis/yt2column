@@ -334,8 +334,12 @@ func matchesRule(t *testing.T, rule, text string) bool {
 	if !ok || !ok2 || inner == "" || strings.ContainsAny(inner, "():") {
 		t.Fatalf("permission rule %q is neither Bash(<prefix>*) nor Bash(<command>)", rule)
 	}
-	if prefix, ok := strings.CutSuffix(inner, "*"); ok {
-		return strings.HasPrefix(text, prefix)
+	body, prefixRule := strings.CutSuffix(inner, "*")
+	if strings.Contains(body, "*") {
+		t.Fatalf("permission rule %q has a wildcard before its end, which matchesRule does not model", rule)
+	}
+	if prefixRule {
+		return strings.HasPrefix(text, body)
 	}
 	return text == inner
 }
