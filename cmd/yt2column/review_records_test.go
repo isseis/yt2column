@@ -38,32 +38,51 @@ func rrPlanSample(t *testing.T, name string) string {
 	return string(data)
 }
 
-// seenRangeForm reads the form of the seen-range line from the table of
-// local-cli-review.md step 7: the first code span of the second cell of the
-// row whose first cell is `Local CLI reviewed:`. The fixtures write their
-// lines from it, so a form the document changes and the script does not
-// follow fails the tests.
-func seenRangeForm(t *testing.T) string {
+// fableReviewPath is the Fable partial review's procedure, whose "Record
+// lines" define the Fable records the fable mode reads.
+const fableReviewPath = "../../.claude/commands/_lib/fable-review.md"
+
+// recordTableForm returns the form of the record line named line in a
+// record-line table of section: the first code span of the second cell of
+// the row whose first cell is the code span line. It fails t unless the form
+// holds each of placeholders once. The fixtures write their lines from the
+// forms, so a form a document changes and the script does not follow fails
+// the tests.
+func recordTableForm(t *testing.T, where, section, line string, placeholders ...string) string {
 	t.Helper()
-	procedure := requireSection(t, "local-cli-review.md", doctestutil.ReadDoc(t, localReviewPath), "## Procedure")
-	for line := range strings.Lines(procedureStep(procedure, 7)) {
-		cells := strings.Split(strings.TrimSpace(line), " | ")
-		if len(cells) < 2 || cells[0] != "| `Local CLI reviewed:`" {
+	for row := range strings.Lines(section) {
+		cells := strings.Split(strings.TrimSpace(row), " | ")
+		if len(cells) < 2 || cells[0] != "| `"+line+"`" {
 			continue
 		}
 		form, ok := firstCodeSpan(cells[1])
 		if !ok {
 			break
 		}
-		for _, placeholder := range []string{"<START12>", "<END12>", "<cli>"} {
+		for _, placeholder := range placeholders {
 			if strings.Count(form, placeholder) != 1 {
-				t.Fatalf("the seen-range form %q does not hold %s once", form, placeholder)
+				t.Fatalf("the form %q of %s does not hold %s once", form, line, placeholder)
 			}
 		}
 		return form
 	}
-	t.Fatal("local-cli-review.md step 7 has no `Local CLI reviewed:` row with a form")
+	t.Fatalf("%s has no `%s` row with a form", where, line)
 	return ""
+}
+
+// localReviewStep7 returns step 7 of local-cli-review.md's procedure, whose
+// table defines the local CLI review's record lines.
+func localReviewStep7(t *testing.T) string {
+	t.Helper()
+	procedure := requireSection(t, "local-cli-review.md", doctestutil.ReadDoc(t, localReviewPath), "## Procedure")
+	return procedureStep(procedure, 7)
+}
+
+// seenRangeForm reads the form of the seen-range line from the table of
+// local-cli-review.md step 7.
+func seenRangeForm(t *testing.T) string {
+	t.Helper()
+	return recordTableForm(t, "local-cli-review.md step 7", localReviewStep7(t), "Local CLI reviewed:", "<START12>", "<END12>", "<cli>")
 }
 
 // rrFixture is one fixture repository: main has two commits (m0, then mb,
@@ -72,6 +91,7 @@ func seenRangeForm(t *testing.T) string {
 type rrFixture struct {
 	*gitFixture
 	form   string
+	forms  fableForms
 	m0, mb string
 }
 
@@ -690,17 +710,465 @@ func TestReviewRecordsCoverage(t *testing.T) {
 	}
 }
 
-// TestReviewRecordsMode checks that a mode other than coverage fails with no
-// output, so a caller reads it as the failure of its mode.
+// TestReviewRecordsMode checks that a mode other than coverage and fable
+// fails with no output, so a caller reads it as the failure of its mode.
 func TestReviewRecordsMode(t *testing.T) {
 	for _, bash := range scriptBashes(t) {
-		for _, mode := range [][]string{nil, {"Coverage"}, {"fable"}} {
+		for _, mode := range [][]string{nil, {"Coverage"}, {"Fable"}} {
 			f := newRRFixture(t, "")
 			run := f.runScript(bash, reviewRecordsPath, mode, scriptRunOptions{})
 			if run.code != 1 || run.stdout != "" || run.stderr == "" {
 				t.Errorf("%s with mode %q: got %v, want exit 1, no output, and a diagnostic", bash.name, mode, run)
 			}
 		}
+	}
+}
+
+// fableForms are the record line forms the fable mode reads, from the
+// documents that define them: the Fable records and the checkpoint mark of
+// fable-review.md's "Record lines", and the not-run line of
+// local-cli-review.md step 7.
+type fableForms struct {
+	run, notRun, checkpoint, localNotRun string
+}
+
+func readFableForms(t *testing.T) fableForms {
+	t.Helper()
+	records := requireSection(t, "fable-review.md", doctestutil.ReadDoc(t, fableReviewPath), "## Record lines")
+	where := "fable-review.md \"Record lines\""
+	return fableForms{
+		run: recordTableForm(t, where, records, "Fable review: run",
+			"<START12>", "<END12>", "<model-id>", "<seconds>", "<tokens>"),
+		notRun: recordTableForm(t, where, records, "Fable review: not run",
+			"<START12>", "<END12>", "<reason>", "[; <seconds>s, tokens <tokens>]"),
+		checkpoint: recordTableForm(t, where, records, "Fable review: checkpoint"),
+		localNotRun: recordTableForm(t, "local-cli-review.md step 7", localReviewStep7(t), "Local CLI review: not run",
+			"<START12>", "<END12>"),
+	}
+}
+
+// rrRange replaces the range placeholders of form with start and end.
+func rrRange(form, start, end string) string {
+	return strings.NewReplacer("<START12>", start[:12], "<END12>", end[:12]).Replace(form)
+}
+
+// fableRun is a run record for start..end, every count and the cost filled
+// in.
+func (f *rrFixture) fableRun(start, end string) string {
+	return strings.NewReplacer("<model-id>", "claude-fable-example", "<n>", "1", "<seconds>", "120", "<tokens>", "4567").
+		Replace(rrRange(f.forms.run, start, end))
+}
+
+// fableNotRun is a not-run record for start..end with reason, with the cost
+// when withCost is true and without it otherwise.
+func (f *rrFixture) fableNotRun(start, end, reason string, withCost bool) string {
+	line := strings.Replace(rrRange(f.forms.notRun, start, end), "<reason>", reason, 1)
+	if withCost {
+		line = strings.NewReplacer("[", "", "]", "", "<seconds>", "75", "<tokens>", "unknown").Replace(line)
+	} else {
+		line = strings.Replace(line, "[; <seconds>s, tokens <tokens>]", "", 1)
+	}
+	return line
+}
+
+// localNotRun is a local CLI review not-run line for start..end.
+func (f *rrFixture) localNotRun(start, end string) string {
+	return strings.ReplaceAll(rrRange(f.forms.localNotRun, start, end), "<kind>", "other")
+}
+
+// readme commits a change to README.en.md alone.
+func (f *rrFixture) readme(content string) {
+	f.t.Helper()
+	f.write("README.en.md", content)
+	f.commit("sync README.en.md")
+}
+
+// rrFable returns the fable mode's arguments for entry, HEAD, and the
+// fixture's plan with PR markers.
+func rrFable(f *rrFixture, entry string) []string {
+	return []string{entry, f.head(), rrMarkersPlan}
+}
+
+// rrValid is the output of a valid record.
+var rrValid = func(*rrFixture) []string { return []string{"VALID"} }
+
+// rrMissing returns the output MISSING from the commit name resolves to.
+func rrMissing(name string) func(f *rrFixture) []string {
+	return func(f *rrFixture) []string { return []string{"MISSING " + f.rev(name)} }
+}
+
+// fableCases are the fable mode's cases; a case whose setup does not pass
+// an entry runs at launch.
+func fableCases() []rrCase {
+	launch := func(f *rrFixture) []string { return rrFable(f, "launch") }
+	// recorded adds one work commit c1 and a run record of merge-base..c1
+	// in the empty commit after it.
+	recorded := func(f *rrFixture) {
+		c1 := f.work("c1")
+		f.record("record", f.fableRun(f.mb, c1))
+	}
+	// unseenAfterRecord adds a work commit after a valid record.
+	unseenAfterRecord := func(f *rrFixture) []string {
+		recorded(f)
+		f.work("c2")
+		return launch(f)
+	}
+	return []rrCase{
+		// The record.
+		{name: "no commits", setup: launch, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		{name: "no record", setup: func(f *rrFixture) []string {
+			f.work("c1")
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		{name: "run record", setup: func(f *rrFixture) []string {
+			recorded(f)
+			return launch(f)
+		}, want: rrValid},
+		{name: "not run record with its cost", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.fableNotRun(f.mb, c1, "timeout", true))
+			return launch(f)
+		}, want: rrValid},
+		{name: "not run record without a cost", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.fableNotRun(f.mb, c1, "agent-cannot-call", false))
+			return launch(f)
+		}, want: rrValid},
+		{name: "not run record of another reason", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.fableNotRun(f.mb, c1, "busy", false))
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		{name: "work after the record", setup: unseenAfterRecord, want: rrMissing("HEAD~1")},
+		{name: "indented and quoted records", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", "  "+f.fableRun(f.mb, c1), "see "+f.fableRun(f.mb, c1))
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		{name: "checkpoint mark alone", setup: func(f *rrFixture) []string {
+			f.work("c1")
+			f.record("mark", f.forms.checkpoint)
+			return rrFable(f, "checkpoint")
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		// A record whose range fails the checks is ignored.
+		{name: "record with START outside the branch", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.fableRun(f.m0, c1))
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		{name: "record naming its own commit's descendant", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			c2 := f.work("c2")
+			f.git("reset", "-q", "--hard", c1)
+			f.record("record", f.fableRun(f.mb, c2))
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		// The last record decides, in either order.
+		{name: "last of two records valid", setup: func(f *rrFixture) []string {
+			recorded(f)
+			r1 := f.head()
+			c2 := f.work("c2")
+			f.record("record", f.fableRun(r1, c2))
+			return launch(f)
+		}, want: rrValid},
+		{name: "last of two records invalid", setup: func(f *rrFixture) []string {
+			recorded(f)
+			r1 := f.head()
+			c2 := f.work("c2")
+			f.record("record", f.fableRun(r1, c2))
+			f.work("c3")
+			return launch(f)
+		}, want: rrMissing("HEAD~1")},
+		{name: "last record covers less than an earlier one", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			c2 := f.work("c2")
+			f.record("record", f.fableRun(f.mb, c2))
+			f.record("record", f.fableRun(f.mb, c1))
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.rev("HEAD~3")} }},
+		// The fixes of the same run.
+		{name: "fix inside a seen range of the record's commit", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			fix := f.work("fix")
+			f.record("record", f.fableRun(f.mb, c1), f.seen(f.mb, fix, "coderabbit"))
+			return launch(f)
+		}, want: rrValid},
+		{name: "fix inside a not-run line of the record's commit", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			fix := f.work("fix")
+			f.record("record", f.fableRun(f.mb, c1), f.localNotRun(c1, fix))
+			return launch(f)
+		}, want: rrValid},
+		{name: "fix outside every range of the record's commit", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.work("fix")
+			f.record("record", f.fableRun(f.mb, c1), f.seen(f.mb, c1, "coderabbit"))
+			return launch(f)
+		}, want: rrMissing("HEAD~2")},
+		{name: "fix inside a range of a later commit", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			fix := f.work("fix")
+			f.record("record", f.fableRun(f.mb, c1))
+			f.record("record", f.seen(f.mb, fix, "coderabbit"))
+			return launch(f)
+		}, want: rrMissing("HEAD~3")},
+		// The side commit is inside the record's line by its IDs, but the
+		// line fails the checks: its END is not an ancestor of the record's
+		// commit.
+		{name: "range of the record's commit beyond it", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			s1 := f.side("side", c1)
+			f.record("record", f.fableRun(f.mb, c1), f.seen(c1, s1, "coderabbit"))
+			f.merge("side")
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.rev("HEAD~2")} }},
+		// The record starts inside the branch, so it stays valid after
+		// origin/main moves to m3. x, the first commit it misses, has the
+		// parent m2, which origin/main reaches behind the merge-base m3: a
+		// record from m2 would fail the checks, so START falls back to the
+		// merge-base.
+		{name: "parent of the first missing commit behind the merge-base", setup: func(f *rrFixture) []string {
+			c0 := f.work("c0")
+			c1 := f.work("c1")
+			f.record("record", f.fableRun(c0, c1))
+			tree := f.rev(f.mb + "^{tree}")
+			m2 := strings.TrimSpace(f.git("commit-tree", tree, "-p", f.mb, "-m", "m2"))
+			m3 := strings.TrimSpace(f.git("commit-tree", tree, "-p", m2, "-m", "m3"))
+			f.git("update-ref", "refs/remotes/origin/main", m3)
+			f.side("x", m2)
+			f.merge("x")
+			f.git("merge", "-q", "--no-ff", "--no-edit", m3)
+			if f.rev("x^1") != m2 || strings.TrimSpace(f.git("merge-base", "HEAD", m3)) != m3 {
+				f.t.Fatal("x's parent is not m2 or the merge-base is not m3, so the case checks nothing")
+			}
+			return launch(f)
+		}, want: rrMissing("refs/remotes/origin/main")},
+		// A merge of origin/main moves the merge-base past a record that
+		// starts at the old one, which then fails the checks.
+		{name: "record from a merge-base origin/main moved past", setup: func(f *rrFixture) []string {
+			recorded(f)
+			tree := f.rev(f.mb + "^{tree}")
+			m2 := strings.TrimSpace(f.git("commit-tree", tree, "-p", f.mb, "-m", "m2"))
+			f.git("update-ref", "refs/remotes/origin/main", m2)
+			f.git("merge", "-q", "--no-ff", "--no-edit", m2)
+			return launch(f)
+		}, want: rrMissing("refs/remotes/origin/main")},
+		// The commits without content.
+		{name: "README.en.md after the record", setup: func(f *rrFixture) []string {
+			f.readme("one\n")
+			recorded(f)
+			f.readme("two\n")
+			return launch(f)
+		}, want: rrValid},
+		{name: "README.en.md created after the record", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.readme("one\n")
+			return launch(f)
+		}, want: rrMissing("HEAD~1")},
+		{name: "README.en.md and another file", setup: func(f *rrFixture) []string {
+			f.readme("one\n")
+			recorded(f)
+			f.write("README.en.md", "two\n")
+			f.write(rrSource, "changed\n")
+			f.commit("README.en.md and source")
+			return launch(f)
+		}, want: rrMissing("HEAD~1")},
+		{name: "plan checkbox after the record", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.plan(rrMarkersPlan, "markers-created.md")
+			return launch(f)
+		}, want: rrValid},
+		{name: "plan checkbox and README.en.md together", setup: func(f *rrFixture) []string {
+			f.readme("one\n")
+			recorded(f)
+			f.write(rrMarkersPlan, rrPlanSample(f.t, "markers-created.md"))
+			f.write("README.en.md", "two\n")
+			f.commit("checkbox and README.en.md")
+			return launch(f)
+		}, want: rrValid},
+		{name: "another line of the plan", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.plan(rrMarkersPlan, "markers-created-other.md")
+			return launch(f)
+		}, want: rrMissing("HEAD~1")},
+		{name: "checkbox of another task's plan", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.plan(rrSinglePlan, "single-recorded.md")
+			return launch(f)
+		}, want: rrMissing("HEAD~1")},
+		{name: "plan absent", setup: func(f *rrFixture) []string {
+			f.readme("one\n")
+			recorded(f)
+			f.readme("two\n")
+			return []string{"launch", f.head(), "docs/tasks/0009_missing/03_implementation_plan.md"}
+		}, want: rrValid},
+		// The merge brings in an empty commit, so it changes nothing against
+		// its first parent: only the merge rule keeps it from counting.
+		{name: "merge after the record", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.git("switch", "-q", "-c", "side")
+			f.record("empty side")
+			f.git("switch", "-q", "feature")
+			f.merge("side")
+			return launch(f)
+		}, want: rrMissing("HEAD^1")},
+		{name: "attributes of the branch", setup: func(f *rrFixture) []string {
+			f.write(".gitattributes", "*.md binary\n")
+			f.commit("attributes")
+			recorded(f)
+			f.plan(rrMarkersPlan, "markers-created.md")
+			if !strings.Contains(f.git("diff", "HEAD~1", "HEAD"), "Binary") {
+				f.t.Fatal("the attributes do not make plain git show the plan as binary, so the case checks nothing")
+			}
+			return launch(f)
+		}, want: rrValid},
+		// The checkpoint mark.
+		{name: "work after the mark at the checkpoint", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.record("mark", f.forms.checkpoint)
+			f.work("gate fix")
+			return rrFable(f, "checkpoint")
+		}, want: rrValid},
+		{name: "work after the mark at launch", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.record("mark", f.forms.checkpoint)
+			f.work("gate fix")
+			return launch(f)
+		}, want: rrMissing("HEAD~1")},
+		{name: "work before the mark", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.work("phase group")
+			f.record("mark", f.forms.checkpoint)
+			return rrFable(f, "checkpoint")
+		}, want: rrMissing("HEAD~2")},
+		{name: "implementation record after the mark", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.record("mark", f.forms.checkpoint)
+			f.work("phase group")
+			f.record("record", "Implementation model: "+f.mb[:12]+".."+f.head()[:12]+" claude-opus-example")
+			return rrFable(f, "checkpoint")
+		}, want: rrMissing("HEAD~2")},
+		{name: "mark in a commit with content", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.write(rrSource, "marked\n")
+			f.commit("mark\n\n" + f.forms.checkpoint)
+			return rrFable(f, "checkpoint")
+		}, want: rrMissing("HEAD~1")},
+		// The inputs and the failures.
+		{name: "ENTRY of another form", setup: func(f *rrFixture) []string { return rrFable(f, "Launch") }},
+		{name: "HEAD of another form", setup: func(*rrFixture) []string {
+			return []string{"launch", "HEAD", rrMarkersPlan}
+		}},
+		{name: "HEAD names no commit", setup: func(*rrFixture) []string {
+			return []string{"launch", strings.Repeat("0", 40), rrMarkersPlan}
+		}},
+		{name: "PLAN of another form", setup: func(f *rrFixture) []string {
+			return []string{"launch", f.head(), "../" + rrMarkersPlan}
+		}},
+		{name: "PLAN not passed", setup: func(f *rrFixture) []string { return []string{"launch", f.head()} }},
+		{name: "too many arguments", setup: func(f *rrFixture) []string { return append(rrFable(f, "launch"), "extra") }},
+		{name: "no origin/main", setup: func(f *rrFixture) []string {
+			f.git("update-ref", "-d", "refs/remotes/origin/main")
+			return launch(f)
+		}},
+		// The environment, as for coverage.
+		{name: "GIT_ variables", setup: unseenAfterRecord, env: func(f *rrFixture) []string {
+			other := newRRFixture(f.t, f.form)
+			return []string{"GIT_DIR=" + filepath.Join(other.repo, ".git"), "GIT_WORK_TREE=" + other.repo}
+		}, want: rrMissing("HEAD~1")},
+		{name: "exported functions", setup: unseenAfterRecord, env: func(*rrFixture) []string {
+			return []string{
+				"BASH_FUNC_git%%=() { return 0; }",
+				"BASH_FUNC_printf%%=() { builtin printf 'VALID\\n'; }",
+				"REVIEW_RECORDS_CLEAN_ENV=1",
+			}
+		}, want: rrMissing("HEAD~1")},
+		{name: "BASH_ENV", setup: unseenAfterRecord, env: func(f *rrFixture) []string {
+			bashEnv := filepath.Join(f.home, "bash-env")
+			if err := os.WriteFile(bashEnv, []byte("command() { return 0; }\n"), 0o600); err != nil {
+				f.t.Fatalf("write BASH_ENV: %v", err)
+			}
+			return []string{"BASH_ENV=" + bashEnv}
+		}, want: rrMissing("HEAD~1")},
+	}
+}
+
+// rrFableConfigBranch builds a branch of the shape rrConfigBranch has, on
+// which the fable mode prints MISSING: a record, a plan checkbox commit, and
+// unseen work after them.
+func rrFableConfigBranch(f *rrFixture) []string {
+	f.write(".gitattributes", "*.md diff=upper\n")
+	f.commit("attributes")
+	f.record("record", f.fableRun(f.mb, f.head()))
+	f.plan(rrMarkersPlan, "markers-created.md")
+	f.work("c1")
+	f.record("record", f.seen(f.mb, f.head(), "coderabbit"))
+	f.write("café.txt", "x\n")
+	f.commit("unseen café")
+	return rrFable(f, "launch")
+}
+
+// TestReviewRecordsFable runs the fable mode of the review records script on
+// fixture repositories: the last record, the fixes of the same run, the
+// commits without content, the checkpoint mark, the failures, and that the
+// caller's environment and git configuration change nothing. Each case runs
+// with each bash scriptBashes returns.
+func TestReviewRecordsFable(t *testing.T) {
+	form := seenRangeForm(t)
+	forms := readFableForms(t)
+	for _, bash := range scriptBashes(t) {
+		t.Run(bash.name, func(t *testing.T) {
+			t.Parallel()
+			for _, c := range fableCases() {
+				t.Run(c.name, func(t *testing.T) {
+					t.Parallel()
+					f := newRRFixture(t, form)
+					f.forms = forms
+					args := append([]string{"fable"}, c.setup(f)...)
+					var opts scriptRunOptions
+					if c.env != nil {
+						opts.extraEnv = c.env(f)
+					}
+					run := f.runScript(bash, reviewRecordsPath, args, opts)
+					if c.want == nil {
+						if run.code != 1 || run.stdout != "MISSING\n" || run.stderr == "" {
+							t.Errorf("got %v, want exit 1, output MISSING alone, and a diagnostic", run)
+						}
+						return
+					}
+					want := strings.Join(c.want(f), "\n") + "\n"
+					if run.code != 0 || run.stdout != want {
+						t.Errorf("got %v, want output %q and exit 0", run, want)
+					}
+				})
+			}
+			for _, scope := range []string{"repository", "global"} {
+				for _, s := range rrConfigScenarios() {
+					t.Run("git config/"+scope+"/"+s.name, func(t *testing.T) {
+						t.Parallel()
+						f := newRRFixture(t, form)
+						f.forms = forms
+						args := append([]string{"fable"}, rrFableConfigBranch(f)...)
+						want := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{})
+						if want.code != 0 || want.stdout != "MISSING "+f.rev("HEAD~3")+"\n" {
+							t.Fatalf("without %s the script did not print MISSING from the checkbox commit, so the scenario checks nothing: %v", s.name, want)
+						}
+						before := f.git(s.plain...)
+						file := filepath.Join(f.repo, ".git", "config")
+						if scope == "global" {
+							file = filepath.Join(f.home, ".gitconfig")
+						}
+						f.git("config", "--file", file, s.config[0], s.config[1])
+						if after := f.git(s.plain...); after == before {
+							t.Fatalf("%s does not change plain git's output %q, so the scenario checks nothing", s.name, before)
+						}
+						if got := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{}); got != want {
+							t.Errorf("with %s set the script printed %v, without it %v", s.name, got, want)
+						}
+					})
+				}
+			}
+		})
 	}
 }
 
@@ -713,6 +1181,7 @@ const (
 	reviewRecordsRef         = "git rev-parse --verify 'refs/remotes/origin/main^{commit}'"
 	reviewRecordsShow        = "git show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>"
 	reviewRecordsRunCoverage = "bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]"
+	reviewRecordsRunFable    = "bash <records-script> fable <ENTRY> <HEAD> <PLAN>"
 )
 
 // reviewRecordsNames are the code spans that only name the review records
@@ -726,11 +1195,12 @@ var reviewRecordsNames = []string{
 // block that names the script or its placeholder is the write-out or a run,
 // and every code span that names them is the name alone. Running the work
 // tree's copy would let the branch under review change the decision that
-// lets it skip a PR review. runpr.md's step 3 has the reading of the
-// reference, the write-out, and the run on consecutive lines, so a renamed
-// form does not pass by matching nothing. A line that names neither the
-// script nor its placeholder, or a block fenced otherwise, is out of its
-// reach.
+// lets it skip a PR review or a Fable partial review. runpr.md's step 3 and
+// fable-review.md's validity decision, which the launch and the checkpoint
+// entries run, have the reading of the reference, the write-out, and the run
+// on consecutive lines, so a renamed form does not pass by matching nothing.
+// A line that names neither the script nor its placeholder, or a block
+// fenced otherwise, is out of its reach.
 func TestReviewRecordsCallSite(t *testing.T) {
 	for _, rel := range doctestutil.CommandDocs(t, repositoryRoot) {
 		blockLines, spans := codeTexts(doctestutil.ReadDoc(t, filepath.Join(repositoryRoot, rel)))
@@ -740,18 +1210,24 @@ func TestReviewRecordsCallSite(t *testing.T) {
 			}
 			inBlock := i < len(blockLines)
 			switch {
-			case inBlock && (code == reviewRecordsShow || code == reviewRecordsRunCoverage):
+			case inBlock && (code == reviewRecordsShow || code == reviewRecordsRunCoverage || code == reviewRecordsRunFable):
 			case !inBlock && slices.Contains(reviewRecordsNames, code):
 			default:
 				t.Errorf("%s has %q, which neither names the review records script nor writes out or runs origin/main's copy", rel, code)
 			}
 		}
 	}
-	step3 := requireSection(t, "runpr.md", doctestutil.ReadDoc(t, runprPath), runprStep3)
-	blockLines, _ := codeTexts(step3)
-	if i := slices.Index(blockLines, reviewRecordsShow); i < 1 || i+1 >= len(blockLines) ||
-		blockLines[i-1] != reviewRecordsRef || blockLines[i+1] != reviewRecordsRunCoverage {
-		t.Errorf("runpr.md's step 3 has no code block lines %q, %q, %q in this order",
-			reviewRecordsRef, reviewRecordsShow, reviewRecordsRunCoverage)
+	for _, site := range []struct {
+		name, path, heading, run string
+	}{
+		{"runpr.md's step 3", runprPath, runprStep3, reviewRecordsRunCoverage},
+		{"fable-review.md's validity decision", fableReviewPath, "## The validity decision", reviewRecordsRunFable},
+	} {
+		blockLines, _ := codeTexts(requireSection(t, site.name, doctestutil.ReadDoc(t, site.path), site.heading))
+		if i := slices.Index(blockLines, reviewRecordsShow); i < 1 || i+1 >= len(blockLines) ||
+			blockLines[i-1] != reviewRecordsRef || blockLines[i+1] != site.run {
+			t.Errorf("%s has no code block lines %q, %q, %q in this order",
+				site.name, reviewRecordsRef, reviewRecordsShow, site.run)
+		}
 	}
 }

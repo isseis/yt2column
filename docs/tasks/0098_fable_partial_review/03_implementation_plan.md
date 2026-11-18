@@ -136,8 +136,8 @@
 
 **変更するファイル:** `.claude/commands/_lib/fable-review.md`（新規）、`.claude/commands/_lib/review-records.sh`、`cmd/yt2column/review_records_test.go`、`cmd/yt2column/testdata/review_records/`、`.claude/commands/_lib/local-cli-review.md`、`.claude/commands/_lib/task-pr-handoff.md`、`.claude/commands/runplan.md`、`.claude/commands/runpr.md`、`.claude/commands/_lib/simple-process.md`、`CLAUDE.md`、本計画
 
--   [ ] **ステップ 2-1**: `_lib/fable-review.md` を作る（設計書 3.1 の全体と 3.2）。入口と入力・出力、有効な記録の判定の呼び方、範囲の基準と範囲の一覧（基準ごとの当たる例と当たらない例）、Fable への指示、起動・待ち方・上限、モデルと出力の形の確かめ、状態の確かめ、単独の経路、「Record lines」と「Reading the record lines」、確かめていない振る舞い（設計書 3.1.9）の扱いを書く。具体的なモデル ID は書かない（設計書 3.1.4・3.1.6）。TaskStop は、最初に使う前に ToolSearch で読み込むと書く（§1.4）。判定のスクリプトの呼び方は、`runpr.md` step 3 と同じ 3 行の形にする。
--   [ ] **ステップ 2-2**: 判定のスクリプトに `fable` のモードを足し（設計書 3.1.2、3.6.2）、スクリプトのテスト `TestReviewRecordsFable` を書く（設計書 7.1 の `fable` のテストケースと、失敗のテストケース）。ステップ 1-2 と同じ環境・git の設定・`.gitattributes` のテストケースを含め、fixture の Fable の行は `fable-review.md` の「Record lines」から読んだ形に値を入れて作る（§1.3 の決定 7）。設計書 7.1 のテストケースに加え、次のテストケースも含める。
+-   [x] **ステップ 2-1**: `_lib/fable-review.md` を作る（設計書 3.1 の全体と 3.2）。入口と入力・出力、有効な記録の判定の呼び方、範囲の基準と範囲の一覧（基準ごとの当たる例と当たらない例）、Fable への指示、起動・待ち方・上限、モデルと出力の形の確かめ、状態の確かめ、単独の経路、「Record lines」と「Reading the record lines」、確かめていない振る舞い（設計書 3.1.9）の扱いを書く。具体的なモデル ID は書かない（設計書 3.1.4・3.1.6）。TaskStop は、最初に使う前に ToolSearch で読み込むと書く（§1.4）。判定のスクリプトの呼び方は、`runpr.md` step 3 と同じ 3 行の形にする。
+-   [x] **ステップ 2-2**: 判定のスクリプトに `fable` のモードを足し（設計書 3.1.2、3.6.2）、スクリプトのテスト `TestReviewRecordsFable` を書く（設計書 7.1 の `fable` のテストケースと、失敗のテストケース）。ステップ 1-2 と同じ環境・git の設定・`.gitattributes` のテストケースを含め、fixture の Fable の行は `fable-review.md` の「Record lines」から読んだ形に値を入れて作る（§1.3 の決定 7）。設計書 7.1 のテストケースに加え、次のテストケースも含める。
     -   START と END が 3.6.1 の確かめに通らない記録（無視して `MISSING`）、`Fable review: checkpoint` の行だけのブランチ（`MISSING`）、`not run` の記録（`VALID` になりうる）、記録が 2 つあるときの最後の記録の扱い（有効・無効の両方の順）。
     -   規則 2 で、`Local CLI review: not run` の行の範囲に入る直しと、見た範囲の行が記録の commit を越えるとき。字下げした行と文の中の行。
     -   各テストケースが、スクリプトの該当する規則か、文書の行の形を壊すと失敗することを確かめ、commit のメッセージに書く。
