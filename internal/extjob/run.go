@@ -111,16 +111,22 @@ func (t *tracker) StageSkipped(s writer.Stage)  { t.set(s, StepSkipped) }
 
 // Run generates the article of p with deps and returns its result. It never
 // panics to the caller: a panic becomes a Failure of FailureInternal with the
-// detail DetailPanic. The writer is the one the CLI builds with no step flags,
-// so both entry points generate the same article: the shorten step and the
-// review step are on, and the embedded templates are used.
+// detail DetailPanic. The writer is built with writerOptions.
 func Run(ctx context.Context, p Prepared, deps Deps, obs Observer) Result {
 	return run(ctx, p, func() (writer.ProgressWriter, error) {
-		return writer.NewProgressWriter(deps.Generation, writer.Options{
-			Shorten: writer.ShortenOptions{Enabled: true},
-			Review:  writer.ReviewOptions{Enabled: true, Client: deps.Review},
-		})
+		return writer.NewProgressWriter(deps.Generation, writerOptions(deps.Review))
 	}, time.Now, obs)
+}
+
+// writerOptions returns the writer.Options of a run, with review as the
+// review step's client. Contract: they are the options the CLI builds with no
+// step flags, so both entry points generate the same article: the shorten
+// step and the review step are on, and the embedded templates are used.
+func writerOptions(review llm.LLMClient) writer.Options {
+	return writer.Options{
+		Shorten: writer.ShortenOptions{Enabled: true},
+		Review:  writer.ReviewOptions{Enabled: true, Client: review},
+	}
 }
 
 // run is Run with the writer's construction and the clock as parameters, so a
