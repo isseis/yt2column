@@ -41,7 +41,6 @@
 | プロバイダ | provider | LLM の提供元（DeepSeek, Gemini, Claude など） |
 | プロンプトテンプレート | prompt template | `prompts/` 以下のファイル |
 | キャッシュ | cache | 動画 ID ごとの字幕・info.json の保存 |
-| 記事のキャッシュ | article cache | localhost サーバがメモリに持つ、キーごとのジョブ・工程の状態と記事（`internal/articlecache`）。ディスクの「キャッシュ」とは別のもの |
 | 記事のキー | article key | サーバが生成の開始の入力から計算する、記事を指す不透明な値（64 文字の小文字の 16 進）。拡張とホストは、その形にも計算方法にも依存しない |
 | 記録 | record | ジョブの記録。拡張の Service Worker が `chrome.storage.session` に記事の生成ごとに置く値の組（状態、工程の状態、記事、失敗の値、時刻、実行するページ）。ジョブ ID ごとに 1 つ。コピーした字幕と概要欄を持たない |
 | ジョブの状態 | job state | ジョブの記録の `state`。`running`・`done`・`failed`・`stopped` |
@@ -61,13 +60,8 @@
 | 構成要素パッケージ | component package | パイプラインの構成要素（`TranscriptSource`・`ArticleWriter`・`Publisher` の 3 つのステージと、`ArticleWriter` が使う `LLMClient` の 4 つ）の interface とデータ型を持つパッケージ（`internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher`）。リーフとは限らない。ステージはパイプラインが順に呼ぶ 3 つ、構成要素はそれに `LLMClient` を加えた 4 つ、工程は `ArticleWriter` の中の生成・字数の調整・検証・推敲を指す。パイプラインの流れ（順序、どこで失敗したか、`StageError`）を述べるときはステージ、部品の分け方・置き場所（パッケージ、interface、fake）を述べるときは構成要素、記事の生成の中の処理を述べるときは工程を使う。`LLMClient` を含むかどうかが、構成要素とステージの区別の決め手である。一般の語としての「構成要素」（`README.md` の「構成要素の組み立て」など）は、この定義の外である |
 | リーフパッケージ | leaf package | 依存先を持たないパッケージ（例: `internal/llm`）。旧称: 葉パッケージ |
 | 秘密情報 | secret | API キーなど。`Secret` 型で保持する |
-| 起動のロック | start lock | localhost サーバがソケットのディレクトリのロックのファイルに取る排他の `flock`。起動から、シャットダウン中のジョブの完了までを持ち続け、同じ `HOME` の 2 つのサーバが同時に動くことを防ぐ（`internal/serversock` の `Lock`） |
-| ホスト | host | Native Messaging のホスト。ブラウザが拡張の送信のたびに起動し、1 つのリクエストを localhost サーバの UDS へ中継する実行ファイル（`yt2column-nmhost`）。文脈が曖昧なときは "native messaging host" とする |
-| ホスト名 | host name | ホストの manifest の `name`・manifest のファイル名・拡張が送る相手として指定する固定の名前（`io.github.isseis.yt2column`、`nmhost.HostName`） |
-| ホストの応答 | host reply | ホストが標準出力に書く 1 つのフレーム。サーバの応答を包む形（`kind` が `response`）とホストのエラーの形（`kind` が `error`）がある |
-| 未送信 | not sent | やり取りの結果のうち、リクエストがサーバに届いていないと確定するもの（ホストが返す `server_unavailable`・`message_too_large`） |
+| ホスト | host | 以前の版の Native Messaging のホスト。ブラウザが拡張の送信のたびに起動し、1 つのリクエストを localhost サーバへ中継した実行ファイル（`yt2column-nmhost`）。撤去した。README の移行の手順で使う。文脈が曖昧なときは "native messaging host" とする |
 | 結果不明 | result unknown | 生成の開始から 60 秒たっても予約の結果が届かず、記事の生成が始まったかどうか分からないこと。拡張は生成の開始を自動では送り直さない。同じ選択範囲でもう一度押しても、その記事が処理中か完成していれば二重に生成されないことを示す |
-| 枠 | slot | localhost サーバが同時に処理するもの（生成のジョブ、生成の開始の本文の読み込み）の数を数える単位。生成の枠（`maxInFlight`）は、ジョブの API の生成のジョブだけが数える。生成の開始は、本文の読み込みと検査に別の読み込みの枠を使う |
 | 拒否の理由 | reject reason | 応答の本文の `reason` に載せる固定の値（`rejectReason`） |
 | 動画メタデータ | video metadata | 拡張が動画ページの DOM から読む動画タイトル・チャンネル名・概要欄の総称。API の任意フィールド `title`・`channelName`・`description` |
 | 動画タイトル | video title | 動画ページの DOM にある動画のタイトル。タブのタイトル（tab title）とは別 |
@@ -169,13 +163,12 @@
 | 保存した出力 | artifact | `--artifacts` のディレクトリに工程ごとに保存した出力。`--after` で再開するときに再利用する |
 | 再開した実行 | resumed run | `--after` で、保存した出力から再開した CLI の実行 |
 | 同意の変数 | opt-in variable | 統合テストが実際の API を呼ぶ前に求める環境変数（`YT2COLUMN_DEEPSEEK_INTEGRATION=1` など）。`make` のターゲットがそのテストのためだけに export する（`development.md`） |
-| ソケット | socket | localhost サーバが待ち受ける UDS のファイル。パスは `HOME` だけから決まる |
+| ソケット | socket | UNIX ドメインソケットのファイル |
 | ソケットのディレクトリ | socket directory | ソケットと起動のロックのファイルを置くディレクトリ（`run`）。モードは `0700` |
 | manifest | manifest | ブラウザがホストを見つけるための JSON のファイル（ホストの manifest）、または拡張の `manifest.json`。日本語の文でも英語のまま書く |
 | 終了コード | exit code | プロセスが終了するときに返す数値 |
-| 設定エラー | configuration error | 設定を拒否したときのエラー。CLI では環境変数の値、サーバでは `HOME`、設定ファイルの有無・検査・書式、値の拒否。サーバは待ち受ける前に、CLI は実行が始まる前に、終了コード `2` で終わる |
-| 設定ファイル | configuration file | localhost サーバが設定を読むファイル（`$HOME/.config/yt2column/config.env`）。README の見出しでは "Configuration file" |
-| 雛形 | template | `yt2column-server config init` が作る、コメントの行と空行だけの設定ファイル |
+| 設定エラー | configuration error | 設定を拒否したときのエラー。CLI では環境変数の値の拒否で、実行が始まる前に終了コード `2` で終わる |
+| 設定ファイル | configuration file | 以前の版の localhost サーバが設定を読んだファイル（`$HOME/.config/yt2column/config.env`）。README の移行の手順で、消すファイルとして使う |
 | 元のエラーを含めて返す | wrap an error | Go の `%w` などで、元のエラーを `errors.Is`・`errors.AsType` で取り出せる形のまま、新しいエラーに含めて返すこと。エラーについては「包む」と書かない |
 | フロントマター | front matter | `--out` のファイルの先頭の YAML の部分 |
 | 処理中のジョブ | in-flight job | サーバが受け付け、まだ終わっていないジョブ。サーバの停止と起動のロックはその完了を待つ |
