@@ -260,10 +260,10 @@
 
 **ステップ 5-1: 導入の確かめ（利用者が行う）**
 
--   [ ] `/runplan` が利用者に依頼する。利用者は、`main` から `make install-numreserve` で道具を入れ、手元で `numreserve task` と `numreserve adr` を 1 回ずつ実行し、標準出力の番号と標準エラーの行を報告する。決めた番号は欠番になる（§1.3 の決定 7）
--   [ ] 利用者が、設計書 3.3.3 のとおりに記録の ruleset を設定する
--   [ ] 前の項で作った 2 つの記録の tag を、利用者の承認のもとで REST の `DELETE git/refs/...` で消そうとし、状態コードが 2xx でないことと、その後の `GET` が 200 を返すことを確かめる。消えてしまったら、同じ名前と同じ SHA で直ちに作り直し、ruleset の対象を見直してから確かめ直す（設計書 7.3）
--   [ ] `/runplan` が結果を §7 の「導入の確かめの記録」に書く
+-   [x] `/runplan` が利用者に依頼する。利用者は、`main` から `make install-numreserve` で道具を入れ、手元で `numreserve task` と `numreserve adr` を 1 回ずつ実行し、標準出力の番号と標準エラーの行を報告する。決めた番号は欠番になる（§1.3 の決定 7）
+-   [x] 利用者が、設計書 3.3.3 のとおりに記録の ruleset を設定する
+-   [x] 前の項で作った 2 つの記録の tag を、利用者の承認のもとで REST の `DELETE git/refs/...` で消そうとし、状態コードが 2xx でないことと、その後の `GET` が 200 を返すことを確かめる。消えてしまったら、同じ名前と同じ SHA で直ちに作り直し、ruleset の対象を見直してから確かめ直す（設計書 7.3）
+-   [x] `/runplan` が結果を §7 の「導入の確かめの記録」に書く
 -   完了の基準：削除が拒まれたことが §7 に書かれている。これがないうちは、PR-3 を作らない
 
 **ステップ 5-2: `mkreq.md`**
@@ -639,7 +639,26 @@ cloud のセッションでは、`git ls-remote`、道具のインストール�
 
 ### 導入の確かめの記録
 
-（ステップ 5-1 で書く）
+2026-11-18、手元（macOS、gh 2.96.0）で行った。
+
+-   **道具の導入と番号の決定（利用者）。** 利用者が `main`（`44fcdfe08bb5`）の checkout で `make install-numreserve` を実行し、`numreserve task` と `numreserve adr` を 1 回ずつ実行した。結果は次のとおりである。この 2 つの番号は欠番になる（§1.3 の決定 7）。
+
+    | 呼び出し | 標準出力 | 標準エラー |
+    |---|---|---|
+    | `numreserve task` | `0101` | `numreserve: created refs/tags/task-number/0101 at 44fcdfe08bb5a737ad6c6e34648c6493ef01203c` |
+    | `numreserve adr` | `0052` | `numreserve: created refs/tags/adr-number/0052 at 44fcdfe08bb5a737ad6c6e34648c6493ef01203c` |
+
+-   **記録の ruleset（利用者）。** 利用者が tag の ruleset（名前 `Task/ADR numreserve`、id `27523413`）を設定した。`gh api repos/isseis/yt2column/rulesets/27523413` で、`target` が `tag`、`enforcement` が `active`、`conditions.ref_name.include` が `refs/tags/task-number/**/*` と `refs/tags/adr-number/**/*`、`exclude` が空、`rules` が `deletion` と `update` の 2 つ、`bypass_actors` が空であることを確かめた（手引きの 3.1）。最初の設定では `rules` に `non_fast_forward`（画面の「Block force pushes」。新しい ruleset では既定で選ばれている）も入っていたので、利用者が外し、読み直して上の形を確かめた。
+-   **削除の拒否（利用者の承認のもとで `/runplan` が実行）。** `GH_PROMPT_DISABLED=1`・`NO_COLOR=1` で `gh api --hostname github.com -i` を使った。
+
+    | 操作 | 状態行 |
+    |---|---|
+    | `DELETE git/refs/tags/task-number/0101` | `HTTP/2.0 422 Unprocessable Entity` |
+    | その後の `GET git/ref/tags/task-number/0101` | `HTTP/2.0 200 OK`（`ref` は問い合わせた名前、`object.sha` は `44fcdfe08bb5a737ad6c6e34648c6493ef01203c`） |
+    | `DELETE git/refs/tags/adr-number/0052` | `HTTP/2.0 422 Unprocessable Entity` |
+    | その後の `GET git/ref/tags/adr-number/0052` | `HTTP/2.0 200 OK`（`ref` は問い合わせた名前、`object.sha` は `44fcdfe08bb5a737ad6c6e34648c6493ef01203c`） |
+
+    確かめの後の `git ls-remote origin 'refs/tags/task-number/*' 'refs/tags/adr-number/*'` は、2 つの tag を作ったときの SHA のまま返した。実際の名前の形の記録の tag の削除は、どちらの空間でも拒まれた。作り直しは要らなかった。
 
 ### しきい値の記録
 
