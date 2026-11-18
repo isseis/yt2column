@@ -738,12 +738,14 @@ a2fbb8f0cb82588fcde719d81128924b62850be7	refs/tags/task-number/0103
 
 ターミナルの表示で、`git ls-remote` の行の区切りのタブは空白に見えた（出力をそのまま貼った報告のため）。
 
-**確かめ（`/runplan`）。** 2026-11-18、手元で `git ls-remote origin 'refs/tags/task-number/*' 'refs/tags/adr-number/*'` を実行し、上の 6 つの tag だけがあり、`task-number/0105` と `adr-number/0054` がないことを確かめた。番号は決まらず、記録の tag も作られなかったので、欠番は生じていない。試した候補の 0105 と 0054 は、どちらもその時点の使用中の番号の最大値 + 1 である（タスクは記録の tag の 0104、ADR は記録の tag の 0053。0104 と 0053 は、`origin/main` の `bce12d7c1e9e`（#981 のマージ）を指す tag で、手元のセッションが決めた番号である）。道具は止まり、理由の語 `permission` を示した（AC-06・AC-22）。
+**確かめ（`/runplan`）。** 2026-11-18、手元で `git ls-remote origin 'refs/tags/task-number/*' 'refs/tags/adr-number/*'` を実行し、上の 6 つの tag だけがあり、`task-number/0105` と `adr-number/0054` がないことを確かめた。番号は決まらず、記録の tag も作られなかったので、欠番は生じていない。試した候補の 0105 と 0054 は、道具が最初に試した候補であり、記録の tag の最大値（タスクは 0104、ADR は 0053）の次である。ブランチの名前と `docs/dev/adr/` の一覧は、`/runplan` では読んでいない。道具は止まり、理由の語 `permission` を示した（AC-06・AC-22）。
 
 **分かったこと。**
 
--   cloud のセッションでは、`git ls-remote`、SHA による取得、REST の読み取り、道具のインストールはできるが、REST による ref の作成は 403 で拒まれる。403 には rate limit の見出し（`X-RateLimit-Remaining: 0` か `Retry-After`）がなかった（あれば道具は `network-or-github` で止まる）。したがって、拒まれたのは rate limit ではなく、cloud のセッションの資格に、リポジトリの ref を作る権限がないためである。cloud のセッションで番号を決めることはできない。
--   `task-number/0104` と `adr-number/0053` は、記録の ruleset を設定した後に作られた。ruleset が効いている間も道具が記録の tag を作れることが、これで確かめられた（「導入の確かめの記録」の「確かめていないこと」の 1 つ目）。
+-   cloud のセッションでは、`git ls-remote`、SHA による取得、REST の読み取り、道具のインストールはできるが、REST による ref の作成は 403 で拒まれる。2026-11-17 と 2026-11-18 のどちらも 403 だった。道具の判定では、403 に rate limit の見出し（`X-RateLimit-Remaining: 0` か `Retry-After`）がなかったので、`permission` で止まった。cloud のセッションで番号を決めることはできない。
+-   `task-number/0104` と `adr-number/0053` は、`origin/main` の `bce12d7c1e9e`（#981 のマージ、2026-11-18 16:33）を指しており、記録の ruleset を設定した後に作られた。ただし、どの実行がこの 2 つを作ったか（`numreserve` か手作業か）と、作ったときに ruleset が効いていたかは確かめていないので、「導入の確かめの記録」の「確かめていないこと」は残る。
+
+**確かめていないこと。** 403 の見出し（`X-Accepted-Oauth-Scopes` を含む）と本文は採っていない。ステップ 2-4 の「残っている確かめ」に挙げた見出しの確かめは、行っていない。そのため、403 の原因（資格の権限の不足か、cloud の環境のプロキシか、見出しのない二次の rate limit か）は分かっていない。
 
 ## 8. 成功の基準 (Success Criteria)
 
