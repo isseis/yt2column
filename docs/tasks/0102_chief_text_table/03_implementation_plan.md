@@ -56,7 +56,7 @@
 | 領域 | 今あるもの（`790652e3`） | 変えること |
 |---|---|---|
 | `Sanitize` | `Sanitize`（`internal/chief/sanitize.go:52-69`）が 1 文字ずつ置き換えを選ぶ。置き換える文字の判定は `hiddenRune`（`:85-100`）、エスケープは `writeEscape`（`:103-112`）。テストは `TestSanitize`（`internal/chief/sanitize_test.go:10`） | 単位の列を返す `sanitizeUnits` と `displayUnit`・`unitKind` を足し、`Sanitize` は単位をつないだものを返す（設計書 3.5）。`TestSanitize` は変えない。PR-1 |
-| `CapHead` | `CapHead(text string)`（`internal/chief/sanitize.go:32-41`）が `headMaxBytes`（64 KiB、`:16`）で切る。呼び出しは `internal/chief/detail.go:605`・`:627` と `TestCapHead`（`internal/chief/sanitize_test.go:35`）だけ（`790652e3` で `grep -rn 'CapHead(' internal cmd` の結果がこの 3 か所と定義だけだった） | 上限を引数で受け取る。2 つの呼び出しは `headMaxBytes` を渡す（設計書 4 章）。PR-1 |
+| `CapHead` | `CapHead(text string)`（`internal/chief/sanitize.go:32-41`）が `headMaxBytes`（64 KiB、`:17`）で切る。呼び出しは `internal/chief/detail.go:605`・`:627` と `TestCapHead`（`internal/chief/sanitize_test.go:35`）だけ（`790652e3` で `grep -rn 'CapHead(' internal cmd` の結果がこの 3 か所と定義だけだった） | 上限を引数で受け取る。2 つの呼び出しは `headMaxBytes` を渡す（設計書 4 章）。PR-1 |
 | Herdr の読み取り | `Agents`（`internal/chief/herdr.go:136-142`）が `herdr agent list` を走らせ `parseAgentList`（`:238-256`）で読む。`parseAgent`（`:273-321`）は `tab_id` を読まない。封筒の確かめは `herdrResult`（`:190-224`）、ID の形は `paneIDForm` と `tabIDForm`（`:483`）、形に合わない出力は `errHerdrOutput`（`:19`）。`tab list` と `pane layout` を読む関数はない | `agentListing`・`parseAgentTabs`・`tabLabels`・`parseTabList`・`paneWidth`・`parsePaneLayout` と `tabLabel` を足し、`Agents` は `agentListing` のエージェントを返す（設計書 3.1・3.7）。`parseAgent` は変えない（設計書 1.2）。封筒は `herdrResult`、配列は `requiredArray`（`:226`）、タブの ID は `tabID`（`:474`）と `tabIDForm` を使い、項目ごとの読み方は `parsePaneList`（`:631-678`）に倣う。`label` は空を受け付けるので `strictjson.RequiredStringAllowEmpty` で読み、空の文字列を拒む `strictjson.RequiredString` と `requiredObjectStrings`（`:832`）は使わない。PR-1 |
 | `Agents` のほかの呼び出し | `readRound`（`internal/chief/snapshot.go:98`）、`chiefWorktree`（`internal/chief/create.go:380`）、`checkMadePanes`（`:538`）、`removal.go:657`・`:685`・`:820`、ほかに `wait.go`・`request.go`・`records.go` | `readRound` だけを `agentListing` に替える（PR-3）。ほかは変えない（設計書 3.7） |
 | Herdr のサンプル | `internal/chief/testdata/herdr/` に `agent-list.json` などがあり、`tab list` と `pane layout` のサンプルはない。採った日と版は `internal/chief/testdata/README.md` | `tab-list.json` と `pane-layout.json`（分割したタブ）を足し、README に採った日・版・置き換えを書く。PR-1 |
@@ -79,7 +79,7 @@
 -   **`displayUnit.kind`。** 改行とタブを空白にする処理が、この種類で選ぶ。`displayUnit` を作るのは `sanitizeUnits` だけにする。
 -   **`tabLabel.hasLabel`。** ラベルとして示すか pane の ID を示すかを、この値で選ぶ。`tabLabel` を作るのは `parseTabList` だけにする。
 
-`internal/chief` の中では、どちらも複合リテラルで作れる。本計画は、型をほかのパッケージへ移さず、同じパッケージのガードで守る。今のガード（`internal/chief/construction_test.go:19-24` の `guardedTypes`。`TestGuardedTypesAreBuiltOnlyByTheirConstructors` が、テストでない `.go` のファイルの複合リテラルとフィールドへの代入を、許した関数の外で見つける）に、`displayUnit` は `sanitizeUnits` を、`tabLabel` は `parseTabList` を許した関数として足す（ステップ 1-3・1-5）。型をほかのパッケージへ移す案は、`Sanitize` の規則を `internal/chief` の外へ出すことになり、設計書 3.5 の「同じ規則を 2 か所に書かない」に反するので採らない。`unitKind` の 0 の値は、`unitText` を含むどの種類でもない値にし、`table.go` の `switch` の `default` は、その単位の文字を示さず `?` を示す（CLAUDE.md の「Declare, don't infer」）。
+`internal/chief` の中では、どちらも複合リテラルで作れる。本計画は、型をほかのパッケージへ移さず、同じパッケージのガードで守る。今のガード（`internal/chief/construction_test.go:20-25` の `guardedTypes`。`TestGuardedTypesAreBuiltOnlyByTheirConstructors` が、テストでない `.go` のファイルの複合リテラルとフィールドへの代入を、許した関数の外で見つける）に、`displayUnit` は `sanitizeUnits` を、`tabLabel` は `parseTabList` を許した関数として足す（ステップ 1-3・1-5）。型をほかのパッケージへ移す案は、`Sanitize` の規則を `internal/chief` の外へ出すことになり、設計書 3.5 の「同じ規則を 2 か所に書かない」に反するので採らない。`unitKind` の 0 の値は、`unitText` を含むどの種類でもない値にし、`table.go` の `switch` の `default` は、その単位の文字を示さず `?` を示す（CLAUDE.md の「Declare, don't infer」）。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -89,10 +89,10 @@
 
 -   [ ] **ステップ 1-1**: 実物の確かめを行う（§1.3 の決定 2、設計書 1.2）。セッションの pane の幅を `herdr pane layout --pane "$HERDR_PANE_ID"` で読み、次の 2 つを確かめる。(1) 表示幅が「pane の幅 − 2」の行と「pane の幅 − 1」の行を code block で示し、人に折り返すかを尋ねる。(2) 人にタブを分割してもらい、分割した後と拡大した後の `rect.width` を読み、人に画面の幅と等しいかを尋ねる。結果と Claude Code・Herdr の版を §7 の「PR-1 の実行の記録」に書く。どちらかが成り立たなければ、ここで止まって §1.3 の決定 2 のとおり人と決め直す。
 -   [ ] **ステップ 1-2**: `herdr tab list` と、分割したタブでの `herdr pane layout --pane <pane>` のサンプルを `internal/chief/testdata/herdr/` に採る（§1.3 の決定 8）。採った日・版・置き換えを `testdata/README.md` に足す。`agent-list.json` のすべてのエージェントが `tab_id` を持つことは、設計書 3.7 が確かめている。
--   [ ] **ステップ 1-3**: `sanitize.go` に `displayUnit`・`unitKind`・`sanitizeUnits` を足し、`Sanitize` を単位をつなぐ形にする（設計書 3.1・3.5）。`TestSanitize` は変えずに通す。`TestSanitizeUnits` を足し、エスケープ・`\\`・改行・タブ・そのほかの文字がそれぞれ 1 つの単位で、改行とタブがその種類を持つことを、決まった期待値で確かめる。`TestSanitize` の入力について、単位をつないだものが `Sanitize` と等しいことも確かめる。ASCII でない入力は `\u` のエスケープで書き、Unicode 15.0 の後に書式文字かどうかが変わった符号位置は使わない（Go の版で結果が変わるため。§1.3 の決定 3）。`unitKind` の 0 の値を §1.4 のとおりにし、`guardedTypes` に `displayUnit` を足す。`TestConstructionGuardFindsViolations` と同じやり方で、`sanitizeUnits` の外の `displayUnit` の複合リテラルをガードが見つけることを確かめる。
+-   [ ] **ステップ 1-3**: `sanitize.go` に `displayUnit`・`unitKind`・`sanitizeUnits` を足し、`Sanitize` を単位をつなぐ形にする（設計書 3.1・3.5）。`TestSanitize` は変えずに通す。`TestSanitizeUnits` を足し、エスケープ・`\\`・改行・タブ・そのほかの文字がそれぞれ 1 つの単位で、改行とタブがその種類を持つことを、決まった期待値で確かめる。`TestSanitize` の入力について、単位をつないだものが `Sanitize` と等しいことも確かめる。ASCII でない入力は `\u` か `\U` のエスケープで書き、Unicode 15.0 の後に書式文字かどうかが変わった符号位置は使わない（Go の版で結果が変わるため。§1.3 の決定 3）。`unitKind` の 0 の値を §1.4 のとおりにし、`guardedTypes` に `displayUnit` を足す。`TestConstructionGuardFindsViolations` と同じやり方で、`sanitizeUnits` の外の `displayUnit` の複合リテラルをガードが見つけることを確かめる。
 -   [ ] **ステップ 1-4**: `CapHead` が上限を引数で受け取るようにし、`detail.go` の 2 つの呼び出しは `headMaxBytes` を渡す（設計書 4 章）。`TestCapHead` を、上限を渡す形に直し、上限の前後と UTF-8 の文字の途中で切らないことを確かめる。
 -   [ ] **ステップ 1-5**: `herdr.go` に `tabLabel`・`agentListing`・`parseAgentTabs`・`tabLabels`・`parseTabList`・`paneWidth`・`parsePaneLayout` を足し、`Agents` は `agentListing` のエージェントを返す形にする（設計書 3.1・3.7）。`readOnlyCommands` に `tab list` と `pane layout` を足し、`guardedTypes` に `tabLabel` を足す。テストは次を確かめる。
-    -   `TestReadHerdrSamples` に、ステップ 1-2 のサンプルと `agent-list.json` の pane とタブの対応を足す。空のラベルが `hasLabel` 偽に、空でないラベルが `hasLabel` 真になることも確かめる。サンプルのラベルに ASCII でない文字があれば、`\u` のエスケープで書く。
+    -   `TestReadHerdrSamples` に、ステップ 1-2 のサンプルと `agent-list.json` の pane とタブの対応を足す。空のラベルが `hasLabel` 偽に、空でないラベルが `hasLabel` 真になることも確かめる。サンプルのラベルに ASCII でない文字があれば、`\u` か `\U` のエスケープで書く。
     -   `TestHerdrRejectsUnknownShapes` に、設計書 7.1 の「Herdr の読み取り」の形に合わない出力をそれぞれ足し、`errHerdrOutput` で拒むこと（一部だけを使わないこと）を確かめる。幅は 0・負・1001 を拒み、1 と 1000 を受け付ける。
     -   `TestAgentListingTabsUnreadable` を足し、pane とタブの対応だけが読めないとき、エージェントの一覧は読め、エラーが `paneTabsErr` に残ることを確かめる。
     -   `TestHerdrCommandLines` に、`tab list` と `pane layout --pane <ID>` のコマンドの行を足す。
@@ -123,8 +123,8 @@
 **変更するファイル:** `internal/chief/textwidth.go`・`textwidth_test.go`・`textwidth_gen.go`（すべて新規）、`internal/chief/table.go`・`table_test.go`（新規）、`CLAUDE.md`、本計画（§7 の実行の記録）
 
 -   [ ] **ステップ 2-1**: 生成の道具（`textwidth_gen.go`）を書き、Unicode 17.0.0 の `EastAsianWidth.txt` から幅の表を作って `textwidth.go` に置く（§1.3 の決定 3・4、設計書 3.5）。元のファイルを取りに行く前に人の承認を得る。`@missing` の既定（設計書 3.5）も表に含める。版・取得元の URL・SHA-256 を表の注釈と §7 の「PR-2 の実行の記録」に書く。§1.3 の決定 4 の `awk` での数の比べと、`TestUnitWidth` の期待値に引いた元のファイルの行も §7 に書く。`TestGuardedTypesAreBuiltOnlyByTheirConstructors` はビルドの印によらずパッケージのすべての `.go` のファイルを読むので、`package main` の生成の道具を置いた後もこのテストが通ることを確かめる。
--   [ ] **ステップ 2-2**: `textwidth.go` に、表示の単位の表示幅を返す関数を書く（設計書 3.5 の表）。`TestUnitWidth` を足し、設計書 7.1 の「表示幅」のとおり、W・F の文字（`🛑`・`🔶`・`🟢` を含む）が 2、ASCII・曖昧な文字（`…`・`─`）・結合文字・異体字セレクタが 1、エスケープがそのバイト数であること、幅の表の範囲の境目の前後の文字を確かめる。境目の期待値は、元のファイルの行から人手で選ぶ（§1.3 の決定 4）。F の文字（U+FF01 など）、`@missing` の既定だけで W になる符号位置（CJK の既定が W の区画の未割り当ての符号位置）、Unicode 15.0 の後に W になった符号位置を含める。最後のものは、表が 17.0.0 から作られ、Go 1.26.5 の表によらないことを示す。入力は `\u` のエスケープで書く。
--   [ ] **ステップ 2-3**: `table.go` に、`tableSources`、決まった語、内容の文字列の組み方を書く（設計書 3.3・3.4）。決まった語は型の値ごとの `switch` で選び、`default` は `?` にする。外から来る値は、単位に分ける前に `CapHead` で 16 KiB までに切る（設計書 3.4 の「値の長さ」、4 章の「同じ処理を 2 つ書かない」）。表の `─` と `…` は `\u` のエスケープで書き、日本語の literal は AC-26 の語だけにする。テストは `table_test.go` に置き、次を確かめる。
+-   [ ] **ステップ 2-2**: `textwidth.go` に、表示の単位の表示幅を返す関数を書く（設計書 3.5 の表）。`TestUnitWidth` を足し、設計書 7.1 の「表示幅」のとおり、W・F の文字（`🛑`・`🔶`・`🟢` を含む）が 2、ASCII・曖昧な文字（`…`・`─`）・結合文字・異体字セレクタが 1、エスケープがそのバイト数であること、幅の表の範囲の境目の前後の文字を確かめる。境目の期待値は、元のファイルの行から人手で選ぶ（§1.3 の決定 4）。F の文字（U+FF01 など）、W になる未割り当ての符号位置（CJK の区画の未割り当ての符号位置。元のファイルが `@missing` の行で示すか、範囲の行で明示するかは版によるので、どちらの行で W になるかを §7 に書く）と、元のファイルのどの行にもなく 1 桁になる符号位置、Unicode 15.0 の後に W になった符号位置を含める。最後のものは、表が 17.0.0 から作られ、Go 1.26.5 の表によらないことを示す。入力は `\u` か `\U` のエスケープで書く。
+-   [ ] **ステップ 2-3**: `table.go` に、`tableSources`、決まった語、内容の文字列の組み方を書く（設計書 3.3・3.4）。決まった語は型の値ごとの `switch` で選び、`default` は `?` にする。外から来る値は、単位に分ける前に `CapHead` で 16 KiB までに切る（設計書 3.4 の「値の長さ」、4 章の「同じ処理を 2 つ書かない」）。表の `─` と `…` は `\u` か `\U` のエスケープで書き、日本語の literal は AC-26 の語だけにする。テストは `table_test.go` に置き、次を確かめる。
     -   `TestTableFixedWords`: 急ぎの度合い・進み具合・文書・実行中のコマンドが決まらない理由の、型のすべての値が `?` でない語を持ち、語が要件書 AC-11〜AC-13・AC-20 の表のとおりであること、表にない値が `?` になること。値は `namesUpToUnknown` に出力の名前の関数を渡して数える（設計書 7.1）。
     -   `TestTableContent`: 状態の文字列ごとの部品と、値がない部品を並べないこと（AC-14）。
     -   `TestTableQuestions`: 示す質問と、件数と `マージ確認` の添え書き（AC-16）。
@@ -175,13 +175,13 @@
     -   `TestSnapshotOutputTable`（`output_test.go`）: 表の材料がすべて読めたときに `table_unreadable` が `[]` で、`null` でないこと。
     -   `TestTickRunsOnlyReadsInTheRightPlaces` と `TestSnapshotRunsOnlyReadsInTheRightPlaces`（`network_test.go`）が変えずに通ること。
     -   `TestStartThenSnapshot` と `TestStartThenTickAndWait`（`cmd/chief/main_test.go`）: `table` が空でないリストで、`table_unreadable` が `null` でないリストであること（AC-01）。
-    -   表を組むこれらのテストは、ステップ 2-5 のヘルパーを組んだ表に当てる。
+    -   `internal/chief` の中で表を組むこれらのテストは、ステップ 2-5 のヘルパーを組んだ表に当てる。`cmd/chief` のテストは別のパッケージなのでヘルパーを呼べず、`table` が空でないことだけを確かめる。
 -   [ ] **ステップ 3-3**: `TestDisplayValuesMatchTool` と定数 `displayTableHeader` を、単独のコミットで除く（§1.3 の決定 6）。`make coverage-compare BASE=<親のコミット>` を、10 分以上のコマンドの時間制限を付けるか、バックグラウンドで走らせ、最後の行までの出力をコミットのメッセージと PR の説明に書く。
 -   [ ] **ステップ 3-4**: `OutputValueNames` を除き、`namesUpToUnknown` と `maxValueNames` を `test_helpers.go` に移す。`TestOutputValueNames` を、`OutputValueNames` なしで出力の名前が値ごとに 1 つずつあることを確かめる形に直す（設計書 3.12）。`package_reference.md` から `OutputValueNames` を除く（§1.3 の決定 7）。
 -   [ ] **ステップ 3-5**: `Protocol` を `origin/main` の値 + 1 にし、`/chief` の定義のすべての `--protocol` とガイドの 2 章の値を同じ値にする（AC-25）。`/chief` の定義の手順 2 の項目 2 を、設計書 3.9 のとおり置き換え、規則 2 に `table` と `table_unreadable` を足す（AC-03）。
 -   [ ] **ステップ 3-6**: `_checks/` に、§1.3 の決定 5 のシェルのスクリプトを書く。各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、PR のブランチで走らせて、出力とマージの基点・比べたコミットの ID を §7 の「PR-3 の実行の記録」に書く。
 -   [ ] **ステップ 3-7**: ガイドを設計書 3.10 のとおり直す（AC-24）。2 章に入れ直しの順と `protocol_mismatch` の意味を、3.1 に表の見方を、8 章に既知の制限を書き、8 章の今の項の語を直す。
--   [ ] **ステップ 3-8**: 実物の確かめを行う（§1.3 の決定 11、設計書 7.3 の (1)〜(5)）。人が、動いている `/chief` を止め、chief の worktree を PR-3 のブランチの先頭にして `make install-chief` を行い、`/chief` を起動し直す（ガイドの 2 章の順）。結果を §7 の「PR-3 の実行の記録」に書く。どれかが成り立たなければ、ここで止まって人と決め直す。(1)・(4) は設計書 1.2 のとおり、(2)・(3)・(5) は行の組み方か幅の数え方を決め直すか、既知の制限として受け入れるかを尋ねる。確かめたコミットを §7 に書く。その後のコミット（`/fixpr` を含む）が `internal/chief/table.go`・`textwidth.go`・`snapshot.go`・`tick.go` を変えたときは、マージの前に、変わった部分に関わる確かめをやり直して §7 に書く。
+-   [ ] **ステップ 3-8**: 実物の確かめを行う（§1.3 の決定 11、設計書 7.3 の (1)〜(5)）。人が、動いている `/chief` を止め、chief の worktree を PR-3 のブランチの先頭にして `make install-chief` を行い、`/chief` を起動し直す（ガイドの 2 章の順）。(3) は、人が chief の pane の幅を狭めて確かめる（幅を読めないときの 80 桁は `TestTableSourcesUnreadable` が確かめる）。(5) は、人が本タスクの workspace（PR-3 の `/runplan` のセッションがある workspace。表には名前の列に出る）の名前に ```` ``` ```` と `~~~` を一時的に入れて確かめ、確かめた後に元の名前に戻す。PR の題名・質問の文・タブのラベルに入れたときは、`TestTableKeepsCodeBlockOpen` が確かめる。ほかのタスクの workspace の名前、PR の題名、質問の文は変えない。`/runplan` のセッションは Herdr にも GitHub にも書かず、これらの操作は人が行う。結果を §7 の「PR-3 の実行の記録」に書く。どれかが成り立たなければ、ここで止まって人と決め直す。(1)・(4) は設計書 1.2 のとおり、(2)・(3)・(5) は行の組み方か幅の数え方を決め直すか、既知の制限として受け入れるかを尋ねる。確かめたコミットを §7 に書く。その後のコミット（`/fixpr` を含む）が `internal/chief` か `.claude/commands/chief.md` を変えたときは、マージの前に、変わった部分に関わる確かめをやり直して §7 に書く。
 
 **完了の条件:** 各ステップのテストとスクリプトが通る。`make test`・`make lint`・`make deadcode` が通る。実物の確かめの結果が §7 にある。
 
@@ -230,7 +230,7 @@
 -   **結合テスト。** テストの world と記録係で、`snapshot` と `tick` を走らせ、表と `rows` の一致、材料を読めないラウンド、自動送信の後の表を確かめる（ステップ 3-2）。
 -   **fuzz テスト。** `FuzzTableKeepsCodeBlockOpen` は、`make test` では種の入力だけを走らせる（`go test` の既定）。
 -   **後方互換。** `rows` の値は変えない（AC-02）。今の `snapshot_test.go`・`autosend_test.go`・`network_test.go` のテストは、テストの world の答えを足すほかは変えずに通す。古い道具と新しい定義は `Protocol` で断る（AC-25、設計書 3.8）。
--   **日本語の literal。** 日本語の文字を置いてよいテストは `table_test.go` だけで、ほかのテストは ASCII でない入力を `\u` のエスケープで書く（設計書 7.1 の末尾）。新しいテストのファイルは `//go:build test` を持つ。
+-   **日本語の literal。** 日本語の文字を置いてよいテストは `table_test.go` だけで、ほかのテストは ASCII でない入力を `\u` か `\U` のエスケープで書く（設計書 7.1 の末尾）。新しいテストのファイルは `//go:build test` を持つ。
 -   **Go の版。** `go.mod` の Go（Unicode 15.0.0）と作業環境の Go（17.0.0）で結果が変わらないように、テストは Unicode 15.0 の後に書式文字かどうかが変わった符号位置を使わない。
 -   **具体の型のガード。** `displayUnit` と `tabLabel` を `guardedTypes` に足し、今の `TestGuardedTypesAreBuiltOnlyByTheirConstructors` で守る（§1.4）。
 -   **文書。** 番号は `TestDocumentedProtocolMatches` と `TestGuideValuesMatchTool` が比べる。定義の項目 2、ガイドの 3.1 と 8 章、CLAUDE.md の例外は文の中身なので、PR のレビューで読んで確かめる（CLAUDE.md の「Document tests check values, structure, and executable examples, never prose」）。
