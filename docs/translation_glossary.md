@@ -41,7 +41,6 @@
 | プロバイダ | provider | LLM の提供元（DeepSeek, Gemini, Claude など） |
 | プロンプトテンプレート | prompt template | `prompts/` 以下のファイル |
 | キャッシュ | cache | 動画 ID ごとの字幕・info.json の保存 |
-| 記事のキー | article key | サーバが生成の開始の入力から計算する、記事を指す不透明な値（64 文字の小文字の 16 進）。拡張とホストは、その形にも計算方法にも依存しない |
 | 記録 | record | ジョブの記録。拡張の Service Worker が `chrome.storage.session` に記事の生成ごとに置く値の組（状態、工程の状態、記事、失敗の値、時刻、実行するページ）。ジョブ ID ごとに 1 つ。コピーした字幕と概要欄を持たない |
 | ジョブの状態 | job state | ジョブの記録の `state`。`running`・`done`・`failed`・`stopped` |
 | 工程 | step | 記事の生成の中の 3 つの処理（`writer.Stage`）。API の `steps` のメンバ。拡張は、`draft` を「下書きの生成」（Draft）、`shorten` を「字数の調整」（Shorten）、`review` を「検証・推敲」（Review）と表示する。パイプラインの「ステージ」（stage）とは区別する |
@@ -87,7 +86,6 @@
 | 同じ動画の照会 | same-video inquiry | 生成の開始で、同じ動画（動画 ID が同じ）の記事があれば生成せずに知らせるよう求めること。照会付きか照会なしかは、生成の開始の本文の必須のメンバ `mode`（`inquiry`・`plain`）で宣言する |
 | 送り方 | send mode | 生成の開始が照会付きか照会なしか。生成の開始の本文の必須のメンバ `mode` の値（`inquiry`・`plain`）と、Go の `StartMode`・拡張の `SendMode` が表す。ログでは `mode` の属性に書く |
 | 照会付きの生成の開始 | inquiry start | `mode` が `inquiry` の生成の開始。主ボタンの「記事を生成する」、選択の状態を終えた後の「記事を生成する」、それらの送信をやり直した送信で送る。`mode` が `plain` のものは照会なしの生成の開始（plain start）と呼ぶ |
-| 同じ動画の応答 | same-video answer | 照会付きの生成の開始に、同じ動画の記事があるときにサーバが返す応答（`200`、`status` が `same_video`）。生成を始めず、その記事のキーを持つ。受け付けの応答とは区別する |
 | 選択の状態 | choice | 同じ動画の応答を受け取った後のポップアップの状態。「既存の記事を表示する」（`Open existing article`）と「現在の選択範囲で生成する」（`Generate from current selection`）を選べる。確認のセクションとは別のもの |
 | 既存の記事 | existing article | 同じ動画の応答のキーの記事 |
 | 既存の記事のビューア | existing-article viewer | URL に、既存の記事を表示していることを示す値（`e=1`）を持つビューア。表示する記事は、そのビューアの直前の押下より前に受け付けた記事である。処理中の経過時間を示さない |
@@ -99,12 +97,10 @@
 | 収集の拒否の理由 | collection rejection reason | 拡張が収集を拒否する理由（`RejectionReason`。`not-watch-page` など）。サーバが返す拒否の理由（`rejectReason`）とは別 |
 | 先頭のプレビュー | head preview | 選択範囲の最初の 100 コードポイントの表示 |
 | 末尾のプレビュー | tail preview | 選択範囲の最後の 100 コードポイントの表示 |
-| 選択範囲 | selection | 利用者が文字起こしパネルで選んだ文字列。サーバへはコピーした字幕として送る。既存の大きすぎるときの文言では「選択したテキスト」と呼ぶ（AC-11 の文言は変えない） |
+| 選択範囲 | selection | 利用者が文字起こしパネルで選んだ文字列。記事生成モジュールへはコピーした字幕として渡す。既存の大きすぎるときの文言では「選択したテキスト」と呼ぶ（AC-11 の文言は変えない） |
 | 支援技術 | assistive technology | スクリーンリーダーなど、画面の要素の名前と状態を利用者に伝える技術 |
 | フォーカスの表示 | focus indicator | キーボードの操作の対象になっている要素を示す、枠などの見た目 |
-| リクエストの本文 | request body | 拡張がサーバへ送る JSON の本文（`videoUrl`・`transcript`・送り方 `mode` と動画メタデータ）。概要欄の文章とは別 |
-| リクエスト ID | request ID | サーバがリクエストごとに生成する 16 文字の識別子。応答とログを結び付ける |
-| Unix ドメインソケット（UDS） | Unix domain socket (UDS) | ファイルシステム上のパスを介したプロセス間通信。localhost サーバの待ち受け手段。初出で「Unix ドメインソケット（UDS）」と書き、以降は「UDS」とする |
+| リクエストの本文 | request body | 生成の開始の入力の JSON（`videoUrl`・`transcript` と動画メタデータ）。概要欄の文章とは別 |
 | 片付け | cleanup | `/mergepr` のマージ後処理（base の更新、ローカル head ブランチの削除） |
 | 材料 | material | `/mergepr` がコミットメッセージの下書きに使う PR 情報（log.txt・stat.txt・body.txt と、必要なときに読む diff）。PR のタイトルは含めない |
 | 件名 | subject | コミットメッセージの 1 行目 |
@@ -122,7 +118,7 @@
 | 自動レビュアー | automated reviewer | PR にレビューのスレッドを投稿する Bot |
 | 自動レビュアーの一覧 | automated reviewer list | `.claude/commands/_context.md` の「Automated reviewer list」に定める、スレッドを信頼する自動レビュアーの名前（GraphQL の `author.login` の形）の一覧。`fixprguard` には `--reviewer` で 1 つずつ渡す |
 | 完了を待つ PR レビュアー | awaited PR reviewer | `/runpr` がレビュー済みの判定に使う Bot。承認を待つのではなく、レビューがそのコミットまで完了したことを待つ。`.claude/commands/_context.md` の「Awaited PR reviewer」に、自動レビュアーの一覧とは別に定める |
-| 割り当て | quota | 自動レビュアーが一定時間に受け付けるレビューの回数の上限。localhost サーバの同時処理数の単位である「枠」（slot）とは別の概念 |
+| 割り当て | quota | 自動レビュアーが一定時間に受け付けるレビューの回数の上限 |
 | 試行 | attempt | ローカルの CLI レビューを 1 回試みること。CodeRabbit CLI の実行 1 回と、それが失敗したときの Codex CLI の実行 1 回から成る。範囲ごとに最大 2 回（タスク 0049） |
 | 指摘 | finding | レビューが挙げる個々の問題。スレッドとして投稿されるものと、レビューの本文にだけ書かれるものがある |
 | （行為の動詞で書く） | cover | レビュー・テスト・検査が、コミットやコードに及ぶこと。「覆う」とは訳さず、その行為の動詞で書く（例: commits neither CLI review covered →「どちらの CLI もレビューしなかったコミット」、a test covers the branch →「テストがその分岐を確かめる」）。名詞の coverage は「カバレッジ」 |
