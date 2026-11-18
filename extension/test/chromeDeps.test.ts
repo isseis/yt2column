@@ -12,6 +12,7 @@ import {
   createQueryIdSource,
   createRunnerPortConnector,
   createSelectionReader,
+  createSwSend,
   createSendDeps,
   createViewerChannelOpener,
   createViewerTabs,
@@ -40,6 +41,7 @@ import type {
   ViewerChannelMessage,
 } from "../src/core/extensionMessages.ts";
 import type { PageSelection } from "../src/core/collect.ts";
+import type { SwRequest } from "../src/core/jobMessages.ts";
 import type { ArticleKey } from "../src/core/articleKey.ts";
 import { statusMessage } from "../src/core/hostMessage.ts";
 import { nativeHostName } from "../src/core/native.ts";
@@ -539,6 +541,32 @@ describe("worker send", () => {
   ] as const) {
     it(`resolves ${name} as a failure`, async () => {
       const result = await createWorkerSend({ sendMessage })(message);
+      assert.equal(result.ok, false);
+    });
+  }
+});
+
+describe("service worker send", () => {
+  const message: SwRequest = { type: "claimInput", startId: "start-1" };
+
+  it("resolves the worker's response", async () => {
+    const sent: unknown[] = [];
+    const send = createSwSend({
+      sendMessage: async (value) => {
+        sent.push(value);
+        return "reply";
+      },
+    });
+    assert.deepEqual(await send(message), { ok: true, value: "reply" });
+    assert.deepEqual(sent, [message]);
+  });
+
+  for (const [name, sendMessage] of [
+    ["a rejection", rejectWith("Could not establish connection.")],
+    ["a throw", throwWith("Extension context invalidated.")],
+  ] as const) {
+    it(`resolves ${name} as a failure`, async () => {
+      const result = await createSwSend({ sendMessage })(message);
       assert.equal(result.ok, false);
     });
   }
