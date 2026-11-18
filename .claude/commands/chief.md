@@ -271,7 +271,9 @@ How to offer them depends on the argument:
   `<number>)`: the terminal renders such lines as a Markdown ordered list
   and renumbers them from the first number, so the human would see numbers
   the tool did not give. Write nothing about numbers that are no longer
-  listed.
+  listed. The questions of step 4 are the exception: they are asked with
+  `AskUserQuestion` while watching too, because the human answers them just
+  after choosing an item (step 4).
 - **With `once`**, ask with `AskUserQuestion`. A question has at most four
   options, so show the first three items and 何もしない; name every item left
   out by its label in the question text, and say that the human can write
@@ -293,8 +295,24 @@ say so and send nothing.
 
 ## 4. Acting on the answer
 
-The follow-up questions below are asked with `AskUserQuestion` in both
-modes, since the human has just chosen and is answering.
+The questions in this section are asked with `AskUserQuestion`, in both
+modes, since the human has just chosen and is answering. They are: which
+option to relay for a question, the question after the PR detail is shown,
+the confirmation of `停止を解く`, and the issue number of an `/mkreq`
+proposal. Never ask one of them in text: never write the question out and
+end the turn waiting for a typed answer. A number the human types could be
+read as a number of step 3's list, and a command the human types into this
+session would run here, outside the tool. The pane's options before the
+relay question and the PR detail are still shown in text: they are shown,
+not asked. step 3's numbered list (`[<number>] <description>`) is only for
+step 3's choices: offering the remaining items again (ほかの PR を見る and
+ほかの項目を見る) is step 3's choice as well, shown in step 3's form for the
+mode, the numbered list while watching and `AskUserQuestion` with `once`.
+The question whether to send again after a model switch ("Sending again
+after a model switch", below) is not one of these. While watching it waits
+across rounds and is shown in step 3's list. With `once` there is no next
+round, so ask it with `AskUserQuestion` before stopping, and handle the
+answer as "Sending again after a model switch" says.
 
 - **何もしない**: nothing. Go on watching (step 5), or stop with `once`.
 - **A question** (`question` or `merge_confirmation`): show the workspace's
@@ -338,10 +356,17 @@ modes, since the human has just chosen and is answering.
 - **A proposal** (`proposal`): `<request>` below is always the chosen item's
   `proposal.request`, a takeover included. When the proposal is not
   `sendable` and `<request>` is not `mkreq`, send nothing: show its
-  `problem`. When it is `mkreq`, ask the human
-  for the issue number first, then run
+  `problem`. When it is `mkreq`, ask the human for the issue number with an
+  `AskUserQuestion` whose options are 送らない and ほかの項目を見る, the
+  human writing the number in its free-text answer. An answer that is not
+  only digits is not a choice: say so and send nothing, and never take a
+  number out of `#<number>` or a URL (rule 4). 送らない sends nothing: go on
+  watching, or stop with `once`. ほかの項目を見る offers the remaining items
+  again as step 3 says, in step 3's form for the mode; with `once`, when no
+  item is left to offer, it is the same as 何もしない, so say so and stop.
+  When the answer is only digits, run
   `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 3`.
-  Otherwise run
+  When it is not `mkreq`, run
   `chief send --workspace <workspace> --command <request> --protocol 3`.
   Show the results as step 2 does.
 - **`停止を解く: <label>`**: show the row's `stopped` (reason, screen, time)
