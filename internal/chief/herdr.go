@@ -748,6 +748,23 @@ func parsePaneProcessInfo(out []byte) (processInfo, error) {
 	return processInfo{Pane: PaneID{id: pane}, ShellPID: shell, ForegroundGroup: group, ForegroundPIDs: pids}, nil
 }
 
+// processes reads the processes of pane with `herdr pane process-info`.
+// Contract: an answer about another pane is an error, never read as pane's.
+func (h Herdr) processes(ctx context.Context, pane PaneID) (processInfo, error) {
+	out, err := h.cmds.herdr(ctx, herdrPane, "process-info", "--pane", pane.String())
+	if err != nil {
+		return processInfo{}, err
+	}
+	info, err := parsePaneProcessInfo(out)
+	if err != nil {
+		return processInfo{}, err
+	}
+	if info.Pane != pane {
+		return processInfo{}, fmt.Errorf("%w: herdr reported the processes of pane %s for %s", errHerdrOutput, info.Pane, pane)
+	}
+	return info, nil
+}
+
 // requiredPID returns the named member as a positive process ID.
 func requiredPID(members map[string]strictjson.Value, key string) (int64, error) {
 	value, err := strictjson.Required(members, key)

@@ -144,8 +144,18 @@ func newMergeWorld(t *testing.T, docs fakeDocs) *mergeWorld {
 // ("" for the default name).
 func newMergeWorldAt(t *testing.T, docs fakeDocs, tree string) *mergeWorld {
 	t.Helper()
+	return newMergeWorldWith(t, docs, tree, nil)
+}
+
+// newMergeWorldWith is newMergeWorldAt with extra run on the world before
+// its replies are finished, to add more to it (nil for nothing).
+func newMergeWorldWith(t *testing.T, docs fakeDocs, tree string, extra func(sw *sendWorld)) *mergeWorld {
+	t.Helper()
 	sw := newSendWorld(t)
 	tree = sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON, Docs: &docs, Tree: tree}, "claude", "opencode")
+	if extra != nil {
+		extra(sw)
+	}
 	sw.git(sw.chiefTree, "rev-parse "+originMain, mainCommit+"\n")
 	sw.git(sw.chiefTree, "ls-remote origin "+remoteMainRef, mainCommit+"\trefs/heads/main\n")
 	sw.git(tree, "status --porcelain --untracked-files=all", "")
@@ -1701,5 +1711,57 @@ func TestTickSkipsAutoSendWhileCreating(t *testing.T) {
 	}
 	if res := only(t, mw.tick(time.Minute)); !sentCommand(res) {
 		t.Fatalf("auto send after the creation = %+v; want the carried PR sent", res)
+	}
+}
+
+// TestAutoSendLeavesRemovalItems runs the ticks around a merge in a round
+// that also proposes the removal of a workspace chief made: the merged
+// task's command is sent to its own pane only, nothing is closed or removed
+// (no such write is allowed, so one would fail the test), the removal stays
+// a proposal, and every record of the made workspace stays on disk.
+func TestAutoSendLeavesRemovalItems(t *testing.T) {
+	var rs *removalSetup
+	mw := newMergeWorldWith(t, mkarchDocs, "", func(sw *sendWorld) {
+		rs = addRemovalWorkspace(t, sw)
+		// A stop of the made workspace is another of its records.
+		held := rs.held()
+		if err := held.Stop("a test stop", "", "", sw.now); err != nil {
+			t.Fatal(err)
+		}
+		if err := held.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	prompt := mw.rec.onPrompt
+	mw.rec.onPrompt = func(pane, text string) error {
+		if !strings.HasPrefix(pane, "w1:") {
+			t.Errorf("a prompt went to %s, outside the merged task's workspace", pane)
+		}
+		return prompt(pane, text)
+	}
+	recordsDir := filepath.Dir(rs.createdPath())
+	before := stateEntries(t, recordsDir)
+	if out := mw.tick(time.Minute); len(out.AutoSends) != 0 || len(removalItems(out.Snapshot)) != 1 {
+		t.Fatalf("the tick of the open PR: auto sends %+v, pending %+v", out.AutoSends, out.Snapshot.Pending)
+	}
+	mw.merge(nextBranch, "`/mkarch 0001`")
+	out := mw.tick(time.Minute)
+	if res := only(t, out); !sentCommand(res) || res.Actions[0].Pane != "w1:p1" {
+		t.Fatalf("auto send = %+v", res)
+	}
+	items := removalItems(out.Snapshot)
+	if len(items) != 1 || items[0].Workspace != rs.tree {
+		t.Errorf("removal items = %+v, want the removal still proposed", items)
+	}
+	if row := rowOf(t, out.Snapshot, removalLabel); !row.RemovalRow {
+		t.Errorf("row = %+v, want the removal row", row)
+	}
+	for _, c := range mw.rec.recorded() {
+		if (c.name == herdrProgram && len(c.args) > 1 && c.args[0] == herdrWorkspace && c.args[1] == "close") || (c.name == gitProgram && len(c.args) > 1 && c.args[0] == gitWorktree && c.args[1] == "remove") {
+			t.Errorf("ran %s", c.line())
+		}
+	}
+	if after := stateEntries(t, recordsDir); !slices.Equal(after, before) || !slices.Contains(after, "/"+createdFile) || !slices.Contains(after, "/"+stopFile) {
+		t.Errorf("the made workspace's records %v, were %v", after, before)
 	}
 }

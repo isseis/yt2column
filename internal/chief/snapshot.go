@@ -85,8 +85,8 @@ func TakeSnapshot(ctx context.Context, deps Deps, owner Owner) (Snapshot, error)
 }
 
 // readRound reads Herdr, fetches origin/main once, reads the routing and
-// old-value tables, and reads and classifies every task workspace. It
-// creates no record.
+// old-value tables, reads and classifies every task workspace, and reads
+// the removal candidates among them. It creates no record.
 func readRound(ctx context.Context, deps Deps) (roundView, error) {
 	herdr := NewHerdr(deps.Cmds)
 	git := NewGitReader(deps.Cmds)
@@ -140,6 +140,7 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 		view.facts = append(view.facts, f)
 		view.rows = append(view.rows, row)
 	}
+	view.problems = append(view.problems, addRemovals(ctx, deps, &view)...)
 	return view, nil
 }
 

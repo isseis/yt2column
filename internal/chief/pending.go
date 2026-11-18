@@ -31,6 +31,9 @@ const (
 	PendingProposal
 	// PendingReset is a skipped reset offered to the human.
 	PendingReset
+	// PendingRemoval is the removal of a workspace chief made whose task is
+	// done, proposed to the human.
+	PendingRemoval
 )
 
 // String returns the name the output uses for the kind.
@@ -46,6 +49,8 @@ func (k PendingKind) String() string {
 		return "proposal"
 	case PendingReset:
 		return "reset"
+	case PendingRemoval:
+		return "removal"
 	default:
 		return unknownName
 	}
@@ -62,6 +67,8 @@ type PendingItem struct {
 	Proposal  *Next
 	// Reset is the skipped reset of a reset item.
 	Reset *ResetItem
+	// Removal is the proposal of a removal item.
+	Removal *RemovalProposal
 	// Reasons are why a proposal was not sent by itself after a merge: the
 	// conditions of the automatic send that did not hold.
 	Reasons []string
@@ -99,9 +106,10 @@ func questionID(workspace string, q Question) ItemID {
 // merge confirmation for each distinct question, a review item for each open
 // PR, a proposal for each next command or takeover, including one that
 // cannot be sent as it is (a /mkreq waits for the human's issue number, and
-// any other says why in its Problem), and a reset item for each reset the
-// row offers, whatever its state.
-// Times are not set. Contract: a needs-check row yields no item.
+// any other says why in its Problem), a reset item for each reset the row
+// offers, whatever its state, and a removal item for each row with a removal
+// proposal. Times are not set. Contract: a needs-check row yields no item
+// but its removal item, whose checks say what stops the removal.
 func buildPending(rows []Row) []PendingItem {
 	var items []PendingItem
 	seen := map[ItemID]struct{}{}
@@ -134,6 +142,9 @@ func buildPending(rows []Row) []PendingItem {
 				}
 				add(PendingItem{ID: proposalID(r.Workspace, n), Kind: PendingProposal, Workspace: r.Workspace, Label: r.Label, Proposal: n})
 			}
+		}
+		if r.Removal != nil {
+			add(PendingItem{ID: removalID(r.Removal), Kind: PendingRemoval, Workspace: r.Workspace, Label: r.Label, Removal: r.Removal})
 		}
 		if r.State == StateNeedsCheck {
 			continue
@@ -168,8 +179,8 @@ func mergePending(items, extra []PendingItem) []PendingItem {
 }
 
 // kindRank is the order of kinds: the questions that stop an agent, the
-// merge confirmations, the PRs waiting for review, then the other proposals,
-// a reset item among them.
+// merge confirmations, the PRs waiting for review, the other proposals, a
+// reset item among them, then the removals.
 func kindRank(k PendingKind) int {
 	if k == PendingReset {
 		k = PendingProposal
@@ -182,7 +193,7 @@ func kindRank(k PendingKind) int {
 }
 
 // kindOrder is the order of the kinds in the list of pending items.
-var kindOrder = []PendingKind{PendingQuestion, PendingMergeConfirmation, PendingReview, PendingProposal}
+var kindOrder = []PendingKind{PendingQuestion, PendingMergeConfirmation, PendingReview, PendingProposal, PendingRemoval}
 
 // nameQuestion names the question state and kind in the output.
 const nameQuestion = "question"

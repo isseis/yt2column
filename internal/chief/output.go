@@ -39,6 +39,9 @@ type RowOutput struct {
 	PR            *PROutput        `json:"pr"`
 	Running       *RunningOutput   `json:"running"`
 	Stopped       *StopOutput      `json:"stopped"`
+	// ProposesRemoval marks the row of a finished task whose workspace
+	// chief made and proposes to remove; the removal item says more.
+	ProposesRemoval bool `json:"proposes_removal"`
 }
 
 // NextOutput is a command offered for a workspace.
@@ -97,6 +100,8 @@ type PendingOutput struct {
 	Proposal  *NextOutput     `json:"proposal"`
 	// Reset is a skipped reset offered to the human, set on a reset item.
 	Reset *ResetOutput `json:"reset"`
+	// Removal is the proposed removal, set on a removal item.
+	Removal *RemovalOutput `json:"removal"`
 	// Reasons are the conditions of the automatic send that did not hold
 	// for a proposal after a merge.
 	Reasons []string `json:"reasons"`
@@ -132,6 +137,39 @@ func resetOutput(it *ResetItem) *ResetOutput {
 		input, _ = st.prompt.Text()
 	}
 	return &ResetOutput{Pane: Sanitize(it.Pane.String()), Agent: agentLabel(it.Agent), Input: input, Scene: it.Scene.String(), Command: Sanitize(it.Command.text()), Check: it.Check}
+}
+
+// RemovalOutput is a proposed removal: the workspace chief made, its
+// label, the issue it was made for and that issue's task, how many panes
+// closing it closes, and the checks as the round read them.
+type RemovalOutput struct {
+	Workspace string               `json:"workspace"`
+	Label     string               `json:"label"`
+	Issue     string               `json:"issue"`
+	Task      string               `json:"task"`
+	Panes     int                  `json:"panes"`
+	Checks    []RemovalCheckOutput `json:"checks"`
+}
+
+// RemovalCheckOutput is one check before a removal: check is the spelling
+// of what a check that does not pass found, and unreadable names what could
+// not be read.
+type RemovalCheckOutput struct {
+	Check      string   `json:"check"`
+	Passed     bool     `json:"passed"`
+	Unreadable []string `json:"unreadable"`
+}
+
+// removalOutput converts a removal proposal. Lists are never nil.
+func removalOutput(p *RemovalProposal) *RemovalOutput {
+	if p == nil {
+		return nil
+	}
+	out := &RemovalOutput{Workspace: Sanitize(p.Workspace), Label: Sanitize(p.Label), Issue: p.Issue.String(), Task: p.Task.String(), Panes: p.Panes, Checks: []RemovalCheckOutput{}}
+	for _, c := range p.Checks {
+		out.Checks = append(out.Checks, RemovalCheckOutput{Check: c.Check.String(), Passed: c.Passed, Unreadable: sanitizeAll(c.Unreadable)})
+	}
+	return out
 }
 
 // questionKindName names a question shape for the output.
@@ -211,16 +249,17 @@ func (s Snapshot) Output() SnapshotOutput {
 	}
 	for _, r := range s.Rows {
 		row := RowOutput{
-			Workspace:     r.Workspace,
-			Label:         Sanitize(r.Label),
-			Task:          r.Task,
-			State:         r.State.String(),
-			Next:          nextOutput(r.Next),
-			Takeover:      nextOutput(r.Takeover),
-			Unreadable:    sanitizeAll(r.Unreadable),
-			MergeQuestion: r.MergeQuestion,
-			Questions:     []QuestionOutput{},
-			PR:            prOutput(r.PR),
+			Workspace:       r.Workspace,
+			Label:           Sanitize(r.Label),
+			Task:            r.Task,
+			State:           r.State.String(),
+			Next:            nextOutput(r.Next),
+			Takeover:        nextOutput(r.Takeover),
+			Unreadable:      sanitizeAll(r.Unreadable),
+			MergeQuestion:   r.MergeQuestion,
+			Questions:       []QuestionOutput{},
+			PR:              prOutput(r.PR),
+			ProposesRemoval: r.RemovalRow,
 		}
 		if r.Running != nil {
 			row.Running = &RunningOutput{Pane: Sanitize(r.Running.Pane), Command: Sanitize(r.Running.Command), Agent: Sanitize(r.Running.Agent), Model: Sanitize(r.Running.Model), Started: r.Running.Started}
@@ -242,6 +281,7 @@ func (s Snapshot) Output() SnapshotOutput {
 			PR:              prOutput(p.PR),
 			Proposal:        nextOutput(p.Proposal),
 			Reset:           resetOutput(p.Reset),
+			Removal:         removalOutput(p.Removal),
 			Reasons:         sanitizeAll(p.Reasons),
 			ReviewSkippable: p.ReviewSkippable,
 			FirstSeen:       p.FirstSeen,

@@ -115,7 +115,9 @@ type Row struct {
 	// subcommands take.
 	Workspace string
 	Label     string
-	// Task is the task number from the branch name, empty when none.
+	// Task is the task number from the branch name, empty when none; on a
+	// removal row (RemovalRow) it is the task of the issue chief made the
+	// workspace for.
 	Task  string
 	State WorkspaceState
 	Next  *Next
@@ -150,6 +152,15 @@ type Row struct {
 	// any automatic-send result of the round (applyAutoSends) clear it. It orders the row last; it never decides a
 	// send.
 	Idle bool
+	// Removal is the removal proposal of a workspace chief made whose
+	// issue's task is done, nil for any other workspace. It is set whatever
+	// the row's state, and its checks say what would stop the removal now.
+	Removal *RemovalProposal
+	// RemovalRow marks the row of such a workspace whose HEAD is detached
+	// and whose agents neither work nor ask: it shows the task done with
+	// the removal proposed instead of the rule for a detached HEAD. It is
+	// the declared mark the urgency table and the document rule read.
+	RemovalRow bool
 	// position is what the document rule reads, kept by classify on every
 	// path it returns by.
 	position positionFacts

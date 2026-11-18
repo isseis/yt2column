@@ -285,19 +285,19 @@
 
 **変更するファイル:** `internal/chief/removal.go`・`removal_test.go`（新規）、`internal/chief/state.go`・`snapshot.go`・`pending.go`・`output.go` とそのテスト、`internal/chief/autosend_test.go`、`internal/chief/construction_test.go`、`docs/dev/conventions/package_reference.md`、本計画。0093 の部品が `main` にあれば、その対応表と文書の規則のファイルとテスト（ステップ 5-6）
 
--   [ ] **ステップ 5-1**: `removal.go` に、削除の候補の読み取りを書く（設計書 3.4.1）。
+-   [x] **ステップ 5-1**: `removal.go` に、削除の候補の読み取りを書く（設計書 3.4.1）。
     -   タスクの workspace ごとに、作ったことの記録（記録のディレクトリを作らずに読む）、パスの workspace がちょうど 1 つあり、それがこの workspace であること、記録の issue 番号のタスクが `origin/main` にちょうど 1 つあり `Plan.Done` であることを確かめ、`RemovalCandidate` を作る。
     -   読める作ったことの記録のない workspace については、外部のコマンドを 1 つも走らせない。作ったことの記録が 1 つもない周では、`git grep` も `herdr pane list` も走らせない。そのため、§1.4 の「変えないテスト」は、記録係に新しい応答を足さずに通る。
     -   `RemovalCandidate` のゼロ値は何も通さず、`construction_test.go` のガードの対象に足す（決定 11）。
     -   テストは、AC-23 の条件を 1 つずつ外した入力で候補を作らないこと、AC-24 の各場合、偽った記録（ほかの worktree のパス、ほかの issue の作る場所）で候補を作らないことを確かめる。
--   [ ] **ステップ 5-2**: `removal.go` に、削除の確かめ（設計書 3.4.2 の表のすべての行）を、確かめの結果の一覧を返す関数として書く。読めないものは通らないものとし、その名前を添える。テストは、各確かめを 1 つずつ外したときと読めないときに、その確かめだけが通らないことを確かめる。
--   [ ] **ステップ 5-3**: 行の例外と項目を足す（設計書 3.4.1・3.6）。
+-   [x] **ステップ 5-2**: `removal.go` に、削除の確かめ（設計書 3.4.2 の表のすべての行）を、確かめの結果の一覧を返す関数として書く。読めないものは通らないものとし、その名前を添える。テストは、各確かめを 1 つずつ外したときと読めないときに、その確かめだけが通らないことを確かめる。
+-   [x] **ステップ 5-3**: 行の例外と項目を足す（設計書 3.4.1・3.6）。
     -   AC-20 の条件をすべて満たす行を「タスク完了」・記録の issue のタスク・「削除を提案」にし、`Row` に削除の提案の行の印を足し（AC-20 の行だけ。AC-23 だけを満たす行には付けない。設計書 1.5・3.6）、`Row.Task` のコメントを直す（設計書 2.2）。
     -   `PendingRemoval` を `kindOrder` の最後に足し、`RemovalProposal` と項目の識別（workspace のパスと issue 番号から作る）、出力（`output.go`）を足す。
     -   テストは、AC-20 の条件だけを 1 つずつ外したときに、行は 0088 の規則のままだが項目は作られること、並べ方、出力を確かめる。§1.4 の「変えないテスト」は変えずに通す。
--   [ ] **ステップ 5-4**: 削除の候補のある周で、`tick` の自動送信が `removal` の項目を送信の対象にしないことを確かめるテストを足す（AC-26）。テストの周は、自動送信の条件を満たすほかの workspace を持ち、その pane への `agent prompt` だけを許す。`workspace close` と `worktree remove` の許可は置かず、周の後に `created.json` とほかの記録がディスクに残ることを確かめる。`snapshot` と `targets` についても、記録が残ることを確かめる。
--   [ ] **ステップ 5-5**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
--   [ ] **ステップ 5-6**: 0093 の部品を確かめ、当たるものに削除の提案の行を足す（設計書 1.5、決定 13）。PR を作る前に行う。PR-6・PR-7 の確かめ（ステップ 6-5・7-6）も、この手順で行う。
+-   [x] **ステップ 5-4**: 削除の候補のある周で、`tick` の自動送信が `removal` の項目を送信の対象にしないことを確かめるテストを足す（AC-26）。テストの周は、自動送信の条件を満たすほかの workspace を持ち、その pane への `agent prompt` だけを許す。`workspace close` と `worktree remove` の許可は置かず、周の後に `created.json` とほかの記録がディスクに残ることを確かめる。`snapshot` と `targets` についても、記録が残ることを確かめる。
+-   [x] **ステップ 5-5**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
+-   [x] **ステップ 5-6**: 0093 の部品を確かめ、当たるものに削除の提案の行を足す（設計書 1.5、決定 13）。PR を作る前に行う。PR-6・PR-7 の確かめ（ステップ 6-5・7-6）も、この手順で行う。
     -   `git fetch origin main` の後、0093 の 3 つの部品（急ぎの度合いの対応表、文書の規則、並べ方）ごとに、次の 2 つを確かめる。
         -   **あるか。** `origin/main` の 0093 の計画書で、その部品を実装する PR が「PR がマージされた」になっている。あわせて、`git grep` で、その部品が 0093 設計書の決めた名前（対応表は `UrgencyLater` と `TurnHuman`、文書の規則は `PositionDocNone`、並べ方は `sortRows` が急ぎの度合いを比べること）を持つことを確かめる。計画書と `git grep` が合わなければ、止まって人に示す。
         -   **行がまだないか。** その部品の関数が、`Row` の削除の提案の行の印をまだ読んでいない。
@@ -512,9 +512,9 @@
 | AC-14 | `ic/records_test.go::TestCreatedRecordRoundTrip`、`ic/create_test.go::TestCreateReplacesOldRecords`、`ic/create_test.go::TestCreateStopsAtEachStage`（記録が残る） | test | 3-2・4-2 | PR-3、PR-4 |
 | AC-15 | `ic/create_send_test.go::TestSendAfterCreate`、`ic/create_test.go::TestCreateSendsMkreq` | test | 3-3・4-2 | PR-3、PR-4 |
 | AC-16 | `ic/screen_test.go` の起動したばかりの画面のサンプルの読み取り（信頼を問う画面が採れれば、それを質問と読むこと）、`ic/create_send_test.go::TestSendAfterCreate`（起動したばかりの状態で送る前の確かめを通る）、`ic/create_test.go::TestCreateAgentNotReady`（エラーの応答でエージェントがいるとき、`blocked` のとき）、実地の確かめ | test、manual | 1-5・3-3・4-2・7-5 | PR-1、PR-3、PR-4、PR-7 |
-| AC-17 | `ic/create_test.go::TestCreateAgentNotReady`（送らなかった理由）、`ic/snapshot_test.go::TestCreatedDetachedRowOffersNoMkreq`、定義の示し方 | test、manual | 4-2・5-3・7-2 | PR-4、PR-5、PR-7 |
+| AC-17 | `ic/create_test.go::TestCreateAgentNotReady`（送らなかった理由）、`ic/removal_test.go::TestCreatedDetachedRowOffersNoMkreq`、定義の示し方 | test、manual | 4-2・5-3・7-2 | PR-4、PR-5、PR-7 |
 | AC-18 | `ic/create_send_test.go::TestSendAfterCreate`（最初の入力の後に確かめが外れる場合） | test | 3-3 | PR-3 |
-| AC-19 | `ic/snapshot_test.go::TestCreatedWorkspaceRows`（ブランチを作った後はタスクの行）、§1.4 の「変えないテスト」 | test | 5-3 | PR-5 |
+| AC-19 | `ic/removal_test.go::TestCreatedWorkspaceRows`（ブランチを作った後はタスクの行）、§1.4 の「変えないテスト」 | test | 5-3 | PR-5 |
 | AC-20 | `ic/removal_test.go::TestRemovalRow` | test | 5-3 | PR-5 |
 | AC-21 | `ic/removal_test.go::TestRemovalRowFallsBack`、§1.4 の「変えないテスト」 | test | 5-3 | PR-5 |
 | AC-22 | `ic/pending_test.go::TestSortPending`（`removal` を足す）、定義が「新しいタスクを始める」を最後に置くこと | test、manual | 5-3・7-2 | PR-5、PR-7 |
@@ -555,6 +555,18 @@
 ### 0093 の部品の確かめの記録
 
 （PR-5・PR-6・PR-7 の `/runplan` が、ステップ 5-6・6-5・7-6 で書き足す。）
+
+**PR-5（ステップ 5-6、2026-11-18）。** `git fetch origin main` の後、`origin/main` のコミット `44fcdfe08bb5a737ad6c6e34648c6493ef01203c` で確かめた。このブランチは、そのコミットから分かれている。
+
+| 部品 | あるか | 行がまだないか | 扱い |
+|---|---|---|---|
+| 急ぎの度合いの対応表（`urgencyOf`） | あり。0093 の計画書の PR-1（#944）が「PR がマージされた」で、`git grep` が `internal/chief/position.go` に `UrgencyLater`・`TurnHuman` を見つけた | まだない（`git grep` で `position.go` に削除の印を読む行がなかった） | 順 2（質問の行）の後、順 3（`Row.Idle`）の前に、印のある行を「あとで」・人とする行を足した |
+| 文書の規則（`documentOf`） | あり。同じ PR-1 で、`git grep` が `PositionDocNone` を見つけた | まだない（同上） | 規則 1 の後に、印のある行を文書「なし」とする行を足した |
+| 並べ方（`sortRows`） | なし。0093 の計画書の PR-3 は「PR がマージされた」でなく、`origin/main` の `sortRows` は急ぎの度合いを比べない | — | 何も足さない。印のある行は `Row.Idle` にしない（`showRemovalRow`） |
+
+-   **走らせたコマンド。** `git fetch origin main`、`git rev-parse origin/main`、`git grep -n -e UrgencyLater -e TurnHuman -e PositionDocNone <commit> -- internal/chief/position.go`、`git grep -n -A16 'func sortRows' <commit> -- internal/chief/snapshot.go`（急ぎの度合いの語がなかった）、`git grep -c 'RemovalRow\|removal' origin/main -- internal/chief/position.go`（一致なし）、`git show <commit>:docs/tasks/0093_chief_status_sheet/03_implementation_plan.md` の「PR がマージされた」の行（PR-1・PR-2 は `[x]`、PR-3 は `[ ]`）。
+-   **確かめたテスト。** `ic/removal_test.go::TestRemovalRowUrgencyAndDocument` が、0093 の AC-05（印のある行は「あとで」・人。印を外した同じ行が順 3 の「待つ」になることを先に確かめる）、順 1 が勝つこと（送信が止まった印のある行は「すぐ」・人）、AC-07 の規則 2（印のある行は文書「なし」。印を外すと規則 10 の「要確認」、fetch に失敗した周は規則 1 の「要確認」）、印のない AC-23 だけの行（エージェントが動いている）が「待つ」・AI のままであることを確かめる。足した 2 つの行を 1 つずつ消すと、このテストが失敗することを確かめた。
+-   **確かめなかったもの。** 並べ方の部品がないので、0093 の AC-15 は本 PR では確かめず、`ic/snapshot_test.go::TestRemovalRowSortsLater` も置かない。0093 の計画書（ステップ 3-4 と、0092 の確かめの決定 6）に頼る。
 
 ### PR-7 の実行の記録
 
