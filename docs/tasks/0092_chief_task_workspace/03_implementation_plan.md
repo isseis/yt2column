@@ -124,6 +124,18 @@
 17. **`create` が git を走らせる場所に、`/mkreq` の送信が送り先を探すときに読む、ほかのエージェントの作業ディレクトリを加える（2026-11-18、人が承認した）。** `sendAfterCreate` は 0088 の送信と同じ `locate`（`FindTaskWorkspaces`）で送り先を探す。そのため、エージェントのいるほかの workspace の作業ディレクトリでも、`git rev-parse --git-common-dir` と `git rev-parse --show-toplevel` を読み取りだけで走らせる。ステップ 4-2 の「git は chief の worktree と作った worktree でだけ走らせる」はこれに合わなかった。PR-4 の Fable の部分レビューが見つけた。探し方を絞る案は採らない。送る前の確かめを 0088 の送信と 1 つの入口に保つためで、走るのは読み取りだけである。ステップ 4-2 の文を直した。ADR: なし（PR-4 の中で閉じるため）。
 18. **作成の排他を取れない周では、条件のそろった PR を次の周へ持ち越す（2026-11-18、人が承認した）。** 設計書 3.1 とステップ 4-4 は、取れない周では自動送信をせず、出力の問題に示すとだけ言う。実装は、条件のそろった PR を次の周へ持ち越し、次の周がその PR を自動で送る。その周の出力には、同じ PR が提案の項目としても出る。0088 で、条件がまだそろわないマージ済みの PR を持ち越すのと同じ扱いで、害は見つかっていない。PR-4 の Fable の部分レビューが、計画書に書かれていない選択として挙げた。ADR: なし（PR-4 の中で閉じるため）。
 
+19. **`remove` が git を走らせる場所に、`--workspace` を今のタスクの workspace と比べる `locate` が読む、ほかのエージェントの作業ディレクトリを加える（2026-11-18、人が承認した）。** 設計書 3.1 は、`remove` の `--workspace` を 0088 の `locate` で比べるとする。`locate` は、タスクの workspace を見分けるために、ほかのエージェントの作業ディレクトリでも `git rev-parse --git-common-dir` と `git rev-parse --show-toplevel` を読み取りだけで走らせる。そのため、ステップ 6-2 の「`remove` が git を chief の worktree と消す worktree でだけ走らせる」はこれに合わなかった。PR-6 のサブエージェントのレビューが見つけた。決定 17 と同じ理由で、探し方を絞る案は採らない。`network_test.go` のテストは、ほかのエージェントのいる世界で、そのディレクトリでは 2 つの `rev-parse` だけが走ることを確かめる。ステップ 6-2 の文を直した。ADR: なし（PR-6 の中で閉じるため）。
+
+20. **消す手順の確かめを、書き込みの直前にも当てる（2026-11-18、人が承認した）。** PR-6 のローカルレビューとブランチのレビューの指摘を受けて、次を足した。どれも消す方向を狭める確かめで、設計書 3.4.2 の条件を、閉じる直前と消す直前にも当てたものである。設計書 1.6・3.4.3・4.1 とステップ 6-1・6-2 の文を直した。
+    -   `git worktree remove` に `-c status.showUntrackedFiles=all` を渡す。利用者の設定が `no` だと、git 2.50.1 は追跡していないファイルのある worktree を消した（一時的なリポジトリで確かめた）。
+    -   段 `recheck_head` で、HEAD が detached のままかも確かめ、祖先の判定の後に HEAD をもう一度読む。
+    -   段 `wait_panes` は、ほかの workspace がパスに pane を持てば止まる。git を走らせる直前にも pane の一覧を読み直し、パスに pane があれば段 `remove_worktree` で止まる。
+    -   閉じる直前の読み直しで、前面のプロセスを読んだ後に pane の一覧を、最後にエージェントの一覧をもう一度読む。排他を取った後のエージェントの一覧が読めなければ、エージェントの確かめを `unreadable` として拒む。
+
+    ADR: なし（PR-6 の中で閉じるため）。
+
+21. **削除の候補でなくなった workspace は、確かめの結果に `not_candidate` だけを持つ（2026-11-18、人が承認した）。** `remove` の中で読み直した workspace が削除の候補でないときは、ほかの 7 つの確かめは削除の候補（`RemovalCandidate`）を前提にするので走らせず、`checks_failed` と `not_candidate` だけを返す。ステップ 6-2 にこれを編集上の訂正として書いたが、PR-6 の Fable の部分レビューが、設計書 3.4.2 の「通らなかったものをすべて返す」から外れる選択で、PR-7 の `/chief` の定義が読む出力の形（`checks` が 1 件のときがある）にもなると指摘した。ほかの案（7 つを `unreadable` として 8 件を返す、`locate` の見つけた worktree で 7 つを走らせる）は採らない。後者は削除の候補の型の不変条件に例外が要る。要件定義書の AC-28 と、設計書 1.6・3.4.2 に書き足した（ローカルの CLI レビューが、AC-28 との食い違いを指摘した）。ADR: なし（PR-6 の中で閉じるため）。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 実地の確かめ、サンプル、Herdr の新しい出力の読み取り（設計書 8 章の 1、2 のうち Herdr の出力）
@@ -336,24 +348,26 @@
 
 ### フェーズ 6: 消す実行（設計書 8 章の 4 のうち削除）
 
-**変更するファイル:** `internal/chief/removal.go`・`removal_test.go`、`internal/chief/output.go`、`internal/chief/network_test.go`、`internal/chief/world_test.go`・`sim_test.go`、`internal/chief/construction_test.go`、`docs/dev/conventions/package_reference.md`、本計画。ステップ 6-5 で足すときは、0093 の部品のファイルとテスト
+**変更するファイル:** `internal/chief/removal.go`・`removal_test.go`、`internal/chief/output.go`、`internal/chief/network_test.go`、`internal/chief/construction_test.go`、`internal/chief/create.go`（残ったものの種類 `registration`、出力の綴りの定数）、`internal/chief/snapshot.go`（画面の読み取りを `readAgentFacts` に分ける）、`internal/chief/send.go`（出力の綴りの定数）、`docs/dev/conventions/package_reference.md`、本計画。結合テストは、作成のテストの世界（`internal/chief/create_test.go` の `createWorld`）を `removal_test.go` で広げる。ステップ 6-5 で足すときは、0093 の部品のファイルとテスト
 
--   [ ] **ステップ 6-1**: `removal.go` に `WorkspaceCloser` を書く（設計書 3.6）。削除の確かめをすべて通った `RemovalCandidate` からだけ作り、`herdr workspace close <ID>` を `--group` なしで呼ぶ。`git worktree remove`（`--force` なし）も `WorkspaceCloser` のメソッドだけが、候補の worktree のパスで呼ぶ。`newTestRepo` の一時的なリポジトリの本物の git で、変更のある worktree と追跡していないファイルのある worktree を git が拒むこと、detached の worktree でブランチを作ってから detached に戻した worktree を消してもそのブランチが残ることを確かめる。ゼロ値は何も走らせず、`construction_test.go` のガードの対象に足す（決定 11）。テストは、確かめが 1 つでも通らない候補から作れないこと、ゼロ値が herdr を呼ばないこと、呼び出しの引数を確かめる。
--   [ ] **ステップ 6-2**: `removal.go` に `Remove` を書く（設計書 3.4.3・4.1）。
-    -   `--workspace` を `locate`（`internal/chief/request.go:134`）で今のタスクの workspace と比べる。排他、fetch、確かめ、閉じる直前の読み直し、閉じる、pane が消えるのを待つ（決定 6）、HEAD の確かめ直し、`git worktree remove`、記録を消す（作ったことの記録を最後に）の順に行う。
-    -   全体の時間の上限と、結果の型（`RemoveOutcome` など）とその出力を書く。
-    -   テストは設計書 7.1 の「削除」の項目を受け持つ。`network_test.go` に、`remove` が git を chief の worktree と消す worktree でだけ走らせることを確かめるテストを足す。結果の出力も確かめる。そのほか、次を確かめる。
+-   [x] **ステップ 6-1**: `removal.go` に `WorkspaceCloser` を書く（設計書 3.6）。削除の確かめをすべて通った `RemovalCandidate` からだけ作り、`herdr workspace close <ID>` を `--group` なしで呼ぶ。`git -c status.showUntrackedFiles=all worktree remove`（`--force` なし）も `WorkspaceCloser` のメソッドだけが、候補の worktree のパスで呼ぶ（決定 20）。`newTestRepo` の一時的なリポジトリの本物の git で、変更のある worktree と追跡していないファイルのある worktree を git が拒むこと、detached の worktree でブランチを作ってから detached に戻した worktree を消してもそのブランチが残ることを確かめる。ゼロ値は何も走らせず、`construction_test.go` のガードの対象に足す（決定 11）。テストは、確かめが 1 つでも通らない候補から作れないこと、ゼロ値が herdr を呼ばないこと、呼び出しの引数を確かめる。
+-   [x] **ステップ 6-2**: `removal.go` に `Remove` を書く（設計書 3.4.3・4.1）。
+    -   `--workspace` を `locate`（`internal/chief/request.go:134`）で今のタスクの workspace と比べる。排他、fetch、確かめ、閉じる直前の読み直し、閉じる、pane が消えるのを待つ（決定 6）、HEAD の確かめ直し、パスの pane の読み直し、`git worktree remove`、記録を消す（作ったことの記録を最後に）の順に行う。読み直しと確かめ直しの中身は、決定 20 と設計書 3.4.3 のとおりである。
+    -   全体の時間の上限と、結果の型（`RemoveOutcome` など）とその出力を書く。止まったときに残ったものの種類には、作成の `Made` の種類に、git の worktree の登録を表す `registration` を足す（設計書 3.4.3 の「git の worktree の登録」）。
+    -   削除の候補でなくなった workspace は、ほかの確かめに候補が要るので、確かめの結果に `not_candidate` だけを持つ（決定 21）。
+    -   テストは設計書 7.1 の「削除」の項目を受け持つ。`network_test.go` に、`remove` が git を chief の worktree と消す worktree で走らせ、ほかのエージェントの作業ディレクトリでは `locate` の 2 つの `rev-parse` だけを走らせることを確かめるテストを足す（決定 19）。結果の出力も確かめる。そのほか、次を確かめる。
         -   各段を失敗させ、残ったものを示し、消し直さない。
         -   確かめの後に pane の集まりかエージェントの状態が変われば閉じない（`changed`）。確かめの後に HEAD が動けば消さない（`recheck_head`）。
         -   `--force` と `--group` を渡さない。
         -   一致しない `--workspace` のパスで git を走らせない。
--   [ ] **ステップ 6-3**: 結合テストを書く（設計書 7.2）。Herdr と git を模した世界を広げ、次を続けて走らせる。
+-   [x] **ステップ 6-3**: 結合テストを書く（設計書 7.2）。Herdr と git を模した世界を広げ、次を続けて走らせる。
     -   `Create` から `/mkreq` の送信まで。
     -   `/runpr` の後の detached の worktree と完了したタスクの文書で、削除の候補になるまで。
     -   `Remove` で消して表から消え、次の周で二度と提案されないまで（AC-33）。
--   [ ] **ステップ 6-4**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
+    -   世界は、作成のテストの世界（`create_test.go` の `createWorld`）に、閉じる・消す書き込みの許可と完了したタスクの読み取りを足して広げる。テストは `removal_test.go` に置く。
+-   [x] **ステップ 6-4**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
 
--   [ ] **ステップ 6-5**: PR を作る前に、ステップ 5-6 の手順で 0093 の部品を確かめ、当たるものに削除の提案の行を足す（決定 13）。結果を §7 の「0093 の部品の確かめの記録」に書き足す。
+-   [x] **ステップ 6-5**: PR を作る前に、ステップ 5-6 の手順で 0093 の部品を確かめ、当たるものに削除の提案の行を足す（決定 13）。結果を §7 の「0093 の部品の確かめの記録」に書き足す。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -371,10 +385,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/986
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 7: 配線、`/chief` の定義、設定、文書、最後の実地の確かめ（設計書 8 章の 3〜5）
 
@@ -487,7 +501,7 @@
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
 - [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 - [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
-- [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5）
+- [x] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5）
 - [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5 / 7-6）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -525,10 +539,10 @@
 | AC-27 | `cc/docs_test.go::TestSettingsAsksBeforeRemove`、`ic/removal_test.go::TestRemovalProposal`（問いに示す名前・パス・pane の数）、定義の確認の問い、実地の確かめ | static、test、manual | 5-3・7-2・7-3・7-5 | PR-5、PR-7 |
 | AC-28 | `ic/removal_test.go::TestRemovalChecks`、`ic/workspace_test.go::TestGitCleanCountsStagedAndNestedFiles`、`ic/workspace_test.go::TestGitIsAncestor`、`ic/removal_test.go::TestRemoveRefusesOnEachCheck`（何も閉じず消さない）、`ic/removal_test.go::TestRemoveRefusesWhenChanged` | test | 2-6・5-2・6-2 | PR-2、PR-5、PR-6 |
 | AC-29 | `ic/removal_test.go::TestRemoveFetchFailure` | test | 6-2 | PR-6 |
-| AC-30 | `ic/removal_test.go::TestRemoveClosesThenRemoves`、`ic/sim_test.go::TestCreateToRemove`、実地の確かめ | test、manual | 6-2・6-3・7-5 | PR-6、PR-7 |
+| AC-30 | `ic/removal_test.go::TestRemoveClosesThenRemoves`、`ic/removal_test.go::TestCreateToRemove`、実地の確かめ | test、manual | 6-2・6-3・7-5 | PR-6、PR-7 |
 | AC-31 | `ic/removal_test.go::TestRemoveLeavesTheRest`（`--force` なし、その workspace の記録だけを消す）、`ic/removal_test.go::TestWorktreeRemoveKeepsBranch`（本物の git） | test | 6-1・6-2 | PR-6 |
 | AC-32 | `ic/removal_test.go::TestRemoveStopsAtEachStage`、`ic/removal_test.go::TestRemoveStopsWhenHeadMoved`、`ic/removal_test.go::TestRemoveDeadline` | test | 6-2 | PR-6 |
-| AC-33 | `ic/sim_test.go::TestCreateToRemove`（消した後の周で行も項目もない） | test | 6-3 | PR-6 |
+| AC-33 | `ic/removal_test.go::TestCreateToRemove`（消した後の周で行も項目もない） | test | 6-3 | PR-6 |
 
 設計書 7.4 のセキュリティのテストは、AC-07（題名）、AC-11・`ic/taskspace_test.go::TestTaskSpaceIgnoresOtherInputs`（パスと名前）、AC-13（書く部品の型）、AC-24（偽った記録）、AC-26（書き込みをしない）の行が受け持つ。
 
@@ -578,6 +592,17 @@
 -   **走らせたコマンド。** `git fetch origin main`、`git rev-parse origin/main`、`git grep -c 'RemovalRow\|PendingRemoval' origin/main -- 'internal/chief/*.go'`（終了コード 1、一致なし）、`git show origin/main:docs/tasks/0093_chief_status_sheet/03_implementation_plan.md` の「PR がマージされた」の行（PR-1・PR-2・PR-3 とも `[x]`）。
 -   **確かめたテスト。** `ic/removal_test.go::TestRemovalRowSortsLater` が、0093 の AC-15（印のある行は、急ぎの度合い「あとで」により、実行中の行より前に並ぶ。印のある行は「あとで」・人・文書「なし」）を確かめる。`urgencyOf` の印の行を消すと、印のある行が実行中の行の後に並び、このテストが失敗することを確かめた。上の記録の「確かめなかったもの」は、この確かめで済んだ。
 
+**PR-6（ステップ 6-5、2026-11-18）。** `git fetch origin main` の後、`origin/main` のコミット `604c9707991f3a800af7939a76c1d2b463ef2138` で確かめた。このブランチは、そのコミットから分かれている。
+
+| 部品 | あるか | 行がまだないか | 扱い |
+|---|---|---|---|
+| 急ぎの度合いの対応表（`urgencyOf`） | あり。0093 の計画書の PR-1 が「PR がマージされた」で、`git grep` が `internal/chief/position.go` に `UrgencyLater`・`TurnHuman` を見つけた | ある（PR-5 が足した、`position.go` の `case r.RemovalRow:` の行） | 変えない |
+| 文書の規則（`documentOf`） | あり。同じ PR-1 で、`git grep` が `PositionDocNone` を見つけた | ある（同上） | 変えない |
+| 並べ方（`sortRows`） | あり。0093 の計画書の PR-3 が「PR がマージされた」で、`origin/main` の `sortRows` は `Urgency` を比べる | 行は要らない（PR-5 の確かめ直しのとおり） | 変えない |
+
+-   **走らせたコマンド。** `git fetch origin main`、`git rev-parse origin/main`、`git show <commit>:docs/tasks/0093_chief_status_sheet/03_implementation_plan.md` の「PR がマージされた」の行（3 つとも `[x]`）、`git grep -n -e UrgencyLater -e TurnHuman -e PositionDocNone <commit> -- internal/chief/position.go`、`git grep -n RemovalRow <commit> -- 'internal/chief/*.go'`、`git grep -n -A20 'func sortRows' <commit> -- internal/chief/snapshot.go`（`Urgency` を比べる行があった）。
+-   **確かめたテスト。** 足したものがないので、新しいテストはない。PR-5 の `ic/removal_test.go::TestRemovalRowUrgencyAndDocument` と `ic/removal_test.go::TestRemovalRowSortsLater` が、変わらずに通る。
+
 ### PR-7 の実行の記録
 
 （PR-7 の `/runplan` が書く。）
@@ -603,3 +628,6 @@
 - 2026-11-17 承認（isseis、#939）
 - 2026-11-17 セッション中の再承認：決定 8 の (v) の止まる例を、transcript のファイルがないことから、`/clear` の後にセッション ID が変わらないことに変えた（決定 16）（isseis、#923）
 - 2026-11-18 セッション中の再承認：`create` が git を走らせる場所に、送り先を探すときに読むほかのエージェントの作業ディレクトリを加え（決定 17）、作成の排他を取れない周で PR を次の周へ持ち越すことを決めた（決定 18）（isseis、#971）
+- 2026-11-18 セッション中の再承認：`remove` が git を走らせる場所に、`locate` が読むほかのエージェントの作業ディレクトリを加えた（決定 19）（isseis、#986）
+- 2026-11-18 セッション中の再承認：消す手順の確かめを、閉じる直前と消す直前にも当てた（決定 20）（isseis、#986）
+- 2026-11-18 セッション中の再承認：削除の候補でなくなった workspace の確かめの結果を `not_candidate` だけにした（決定 21）（isseis、#986）

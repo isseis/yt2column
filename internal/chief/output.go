@@ -182,9 +182,14 @@ func removalOutput(p *RemovalProposal) *RemovalOutput {
 	if p == nil {
 		return nil
 	}
-	out := &RemovalOutput{Workspace: Sanitize(p.Workspace), Label: Sanitize(p.Label), Issue: p.Issue.String(), Task: p.Task.String(), Panes: p.Panes, Checks: []RemovalCheckOutput{}}
-	for _, c := range p.Checks {
-		out.Checks = append(out.Checks, RemovalCheckOutput{Check: c.Check.String(), Passed: c.Passed, Unreadable: sanitizeAll(c.Unreadable)})
+	return &RemovalOutput{Workspace: Sanitize(p.Workspace), Label: Sanitize(p.Label), Issue: p.Issue.String(), Task: p.Task.String(), Panes: p.Panes, Checks: checkOutputs(p.Checks)}
+}
+
+// checkOutputs converts removal checks; the list is never nil.
+func checkOutputs(checks []CheckResult) []RemovalCheckOutput {
+	out := []RemovalCheckOutput{}
+	for _, c := range checks {
+		out = append(out, RemovalCheckOutput{Check: c.Check.String(), Passed: c.Passed, Unreadable: sanitizeAll(c.Unreadable)})
 	}
 	return out
 }
@@ -353,6 +358,8 @@ const (
 	nameNone            = "none"
 	nameUnreadable      = "unreadable"
 	namePathUnsupported = "unsupported_path"
+	nameBusy            = "busy"
+	nameStopped         = "stopped"
 )
 
 // runningOutput converts a running command for the output. The command line
@@ -778,6 +785,15 @@ type MadeOutput struct {
 	Label string `json:"label"`
 }
 
+// madeOutputs converts what was made or left; the list is never nil.
+func madeOutputs(made []Made) []MadeOutput {
+	out := []MadeOutput{}
+	for _, m := range made {
+		out = append(out, MadeOutput{Kind: m.Kind.String(), ID: Sanitize(m.ID), Label: Sanitize(m.Label)})
+	}
+	return out
+}
+
 // CreateOutput is the output of `chief create`. result is refused
 // (create_refusal set), stopped (stage and made set), or made (made set, with mkreq the
 // result of the /mkreq send).
@@ -809,11 +825,8 @@ func (o CreateOutcome) Output() CreateOutput {
 		Protocol: Protocol, Result: o.Result.String(), Issue: o.Issue.String(),
 		// The title is already made visible and cut (Issue.Title).
 		Title: o.Title, TitleCut: o.TitleCut, Refusal: o.Refusal.String(),
-		Existing: sanitizeAll(o.Existing), Made: []MadeOutput{}, Stage: o.Stage.String(), Failure: Sanitize(o.Failure),
+		Existing: sanitizeAll(o.Existing), Made: madeOutputs(o.Made), Stage: o.Stage.String(), Failure: Sanitize(o.Failure),
 		Workspace: Sanitize(o.Workspace), Label: Sanitize(o.Label),
-	}
-	for _, m := range o.Made {
-		out.Made = append(out.Made, MadeOutput{Kind: m.Kind.String(), ID: Sanitize(m.ID), Label: Sanitize(m.Label)})
 	}
 	switch {
 	case o.NotReady != nil:
@@ -856,6 +869,30 @@ func (o TargetsOutcome) Output() TargetsOutput {
 	out := TargetsOutput{Protocol: Protocol, Issue: o.Issue.String(), Refusal: o.Refusal.String(), Failure: Sanitize(o.Failure), Workspaces: []TargetOutput{}}
 	for _, w := range o.Workspaces {
 		out.Workspaces = append(out.Workspaces, TargetOutput{Workspace: Sanitize(w.Workspace), Label: Sanitize(w.Label)})
+	}
+	return out
+}
+
+// RemoveOutput is the output of `chief remove`. result is refused
+// (remove_refusal set, with checks when they ran), stopped (stage and left
+// set), or removed.
+type RemoveOutput struct {
+	Protocol  int                  `json:"protocol"`
+	Result    string               `json:"result"`
+	Workspace string               `json:"workspace"`
+	Label     string               `json:"label"`
+	Refusal   string               `json:"remove_refusal"`
+	Checks    []RemovalCheckOutput `json:"checks"`
+	Stage     string               `json:"stage"`
+	Left      []MadeOutput         `json:"left"`
+	Failure   string               `json:"failure"`
+}
+
+// Output converts a removal into the JSON type. Lists are never nil.
+func (o RemoveOutcome) Output() RemoveOutput {
+	out := RemoveOutput{
+		Protocol: Protocol, Result: o.Result.String(), Workspace: Sanitize(o.Workspace), Label: Sanitize(o.Label),
+		Refusal: o.Refusal.String(), Checks: checkOutputs(o.Checks), Stage: o.Stage.String(), Left: madeOutputs(o.Left), Failure: Sanitize(o.Failure),
 	}
 	return out
 }

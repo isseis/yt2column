@@ -329,10 +329,17 @@ func (r *recorder) allowWorktreeAdd(dir, path, commit string) {
 	r.allowWrite(gitProgram, dir, []string{gitWorktree, "add", "--detach", path, commit}, reply{})
 }
 
+// worktreeRemoveArgs are the arguments of `git worktree remove` of path, as
+// the tool runs it: without --force, counting untracked files whatever the
+// user's configuration says.
+func worktreeRemoveArgs(path string) []string {
+	return []string{"-c", "status.showUntrackedFiles=all", gitWorktree, "remove", path}
+}
+
 // allowWorktreeRemove allows `git worktree remove` of exactly this path,
 // without --force, run in exactly dir.
 func (r *recorder) allowWorktreeRemove(dir, path string) {
-	r.allowWrite(gitProgram, dir, []string{gitWorktree, "remove", path}, reply{})
+	r.allowWrite(gitProgram, dir, worktreeRemoveArgs(path), reply{})
 }
 
 // allowedWrite returns the allowance's reply when c is a write the test
