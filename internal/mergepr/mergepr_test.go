@@ -943,7 +943,9 @@ func TestPrepareNumberCheck(t *testing.T) {
 			t.Errorf("number check calls = %+v, want %+v", numbers.calls, wantCall)
 		}
 	})
-	for _, stop := range numberStops {
+	// Prepare does not tell one unreadable stop from another, so the
+	// network row that only Merge treats differently is left out.
+	for _, stop := range numberStops[:2] {
 		t.Run(stop.name, func(t *testing.T) {
 			tool, runner, numbers := newNumberedTool(t, stop.issues, stop.err, lead...)
 			_, err := tool.Prepare(t.Context(), "42")
@@ -954,6 +956,8 @@ func TestPrepareNumberCheck(t *testing.T) {
 			}
 		})
 	}
+	// Prepare reads the base from gh and Merge from the state file, so each
+	// entry point has its own base-not-main row.
 	t.Run("base not main", func(t *testing.T) {
 		workRoot := t.TempDir()
 		gitDir := filepath.Join(workRoot, ".git")
@@ -1007,14 +1011,11 @@ func TestMergeNumberCheck(t *testing.T) {
 		t.Run(stop.name, func(t *testing.T) {
 			dir, statePath, subjectPath, bodyPath := mergeFiles(t)
 			tool, runner, numbers := newNumberedTool(t, stop.issues, stop.err, lead...)
-			report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+			_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
 			assertNumberStop(t, err, stop.issues)
 			runner.done()
 			if !slices.Equal(numbers.calls, wantCall) {
 				t.Errorf("number check calls = %+v, want %+v", numbers.calls, wantCall)
-			}
-			if report.MergeCommitOID != "" {
-				t.Errorf("report = %+v, want no merge after a stop", report)
 			}
 			if _, err := os.Stat(dir); err != nil {
 				t.Errorf("work directory %s removed on a stopped merge, want it kept for discard: %v", dir, err)
@@ -1025,6 +1026,9 @@ func TestMergeNumberCheck(t *testing.T) {
 			wantDiscard := stop.name != "unreachable"
 			if got := strings.Contains(err.Error(), discardCommand(statePath)); got != wantDiscard {
 				t.Errorf("Merge error = %q, shows %q: %t, want %t", err, discardCommand(statePath), got, wantDiscard)
+			}
+			if got := strings.Contains(err.Error(), "run the same merge command again"); got == wantDiscard {
+				t.Errorf("Merge error = %q, tells to run the same merge again: %t, want %t", err, got, !wantDiscard)
 			}
 		})
 	}

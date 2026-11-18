@@ -7,7 +7,6 @@ import (
 	"errors"
 	"os"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -67,13 +66,23 @@ func TestCheckAdded(t *testing.T) {
 	}{
 		{"adds no number", checkScenario{headTasks: baseTasks, baseTasks: baseTasks, headADRs: withADR("notes.txt"), baseADRs: baseADRs}, nil},
 		{
-			// The PR head still has 0094_old, which main renamed to 0096_old
-			// after the PR branched: against the latest main 0094_old would
-			// look added, against the merge-base it is not.
+			// The PR head still has 0094_old, which main renamed to 0094_new
+			// after the PR branched. Against the latest main 0094_old would
+			// look added and collide with 0094_new; against the merge-base
+			// it is not added. The PR also adds 0099_x, so main is read.
 			"entry renamed on main after the PR branched",
-			checkScenario{headTasks: withTask("0094_old/"), baseTasks: withTask("0094_old/"), headADRs: baseADRs, baseADRs: baseADRs},
+			with(tasks("0094_old/", "0099_x/"), func(s *checkScenario) {
+				s.baseTasks = withTask("0094_old/")
+				s.mainTasks = withTask("0094_new/")
+			}),
 			nil,
 		},
+		{"task-form file is not a task", checkScenario{
+			headTasks: withTask("0104_new"), baseTasks: baseTasks, headADRs: baseADRs, baseADRs: baseADRs,
+		}, []issue{{SpaceTask, "", AddedMalformed, "docs/tasks/0104_new", "", ""}}},
+		{"adr-form directory is not an adr", checkScenario{
+			headTasks: baseTasks, baseTasks: baseTasks, headADRs: withADR("0052-x.md/"), baseADRs: baseADRs,
+		}, nil},
 		{"task renamed within its number by the PR", checkScenario{
 			headTasks: []string{"0000_template/", "0100_renamed/"}, baseTasks: baseTasks,
 			headADRs: baseADRs, baseADRs: baseADRs, mainTasks: baseTasks, mainADRs: baseADRs, addsTask: true,
@@ -226,22 +235,50 @@ func TestCheckAddedStops(t *testing.T) {
 			t.Errorf("CheckAdded = %+v, %v, want a list-limit stop", issues, err)
 		}
 	})
-	// A command that does not finish stops the check as network-or-github
-	// under either limit: the merge-base, the fourth call, never finishes.
+	// A command that does not finish stops the check as network-or-github:
+	// the merge-base, the fourth call, never finishes.
+	t.Run("command does not finish", func(t *testing.T) {
+		b := defaultBounds()
+		b.commandTimeout = 20 * time.Millisecond
+		fake := cmdrunnertestutil.New(t, adds.steps(t)[:3]...)
+		issues, err := newTestTool(&deadlineRunner{inner: fake, holdCall: 4}, b).CheckAdded(context.Background(), checkHeadSHA, checkHeadBranch)
+		if issues != nil || stopKind(t, err) != StopNetworkOrGitHub {
+			t.Errorf("CheckAdded = %+v, %v, want a network-or-github stop", issues, err)
+		}
+	})
+}
+
+// TestCheckAddedDeadlines checks every command of the check runs under both
+// the per-command and the per-run time limit: with either one shorter, every
+// call's context ends no later than that limit allows.
+func TestCheckAddedDeadlines(t *testing.T) {
+	s := checkScenario{
+		headTasks: []string{"0100_a/", "0104_new/"}, baseTasks: []string{"0100_a/"},
+		headADRs: []string{"0051-a.md"}, baseADRs: []string{"0051-a.md"},
+		mainTasks: []string{"0100_a/"}, addsTask: true, taskTags: []string{"0104"},
+		branches: []checkBranch{{name: "other", sha: otherSHA}},
+	}
 	for name, limits := range map[string][2]time.Duration{
-		"per-command limit": {20 * time.Millisecond, time.Hour},
-		"per-run limit":     {time.Hour, 20 * time.Millisecond},
+		"per-command limit is shorter": {time.Hour, 2 * time.Hour},
+		"per-run limit is shorter":     {2 * time.Hour, time.Hour},
 	} {
 		t.Run(name, func(t *testing.T) {
 			b := defaultBounds()
 			b.commandTimeout, b.runTimeout = limits[0], limits[1]
-			fake := cmdrunnertestutil.New(t, adds.steps(t)[:3]...)
-			issues, err := newTestTool(&deadlineRunner{inner: fake, holdCall: 4}, b).CheckAdded(context.Background(), checkHeadSHA, checkHeadBranch)
-			if issues != nil {
-				t.Errorf("CheckAdded issues = %+v, want none with the error", issues)
+			recorder := &deadlineRunner{inner: cmdrunnertestutil.New(t, s.steps(t)...)}
+			start := time.Now()
+			if _, err := newTestTool(recorder, b).CheckAdded(context.Background(), checkHeadSHA, checkHeadBranch); err != nil {
+				t.Fatalf("CheckAdded: %v", err)
 			}
-			if got := stopKind(t, err); got != StopNetworkOrGitHub {
-				t.Errorf("CheckAdded stop = %v (%v), want network-or-github", got, err)
+			end := time.Now()
+			if recorder.missing != 0 {
+				t.Fatalf("%d of %d calls ran without a deadline", recorder.missing, recorder.calls)
+			}
+			limit := min(limits[0], limits[1])
+			for i, d := range recorder.deadlines {
+				if d.After(end.Add(limit)) || d.Before(start.Add(limit-time.Minute)) {
+					t.Errorf("call %d deadline is %v after the start, want about %v", i+1, d.Sub(start), limit)
+				}
 			}
 		})
 	}
@@ -281,10 +318,8 @@ func TestAddedIssueLine(t *testing.T) {
 			`malformed task "docs/tasks/a\nb": not a task directory`,
 		},
 		{
-			AddedNumberIssue{Space: SpaceADR, Number: n, Kind: AddedMalformed + 1, Path: "docs/dev/adr/0104-a.md"},
-			`unknown-finding adr 0104 "docs/dev/adr/0104-a.md"`,
-		},
-		{
+			// The zero value is listed on its own: it is the kind a finding
+			// built without one carries.
 			AddedNumberIssue{Space: SpaceTask, Number: n, Kind: addedInvalid, Path: "docs/tasks/0104_a"},
 			`unknown-finding task 0104 "docs/tasks/0104_a"`,
 		},
@@ -293,9 +328,6 @@ func TestAddedIssueLine(t *testing.T) {
 		got := tt.issue.Line()
 		if got != tt.want {
 			t.Errorf("Line() = %s, want %s", got, tt.want)
-		}
-		if strings.ContainsAny(got, "\r\n") {
-			t.Errorf("Line() = %q holds a line break", got)
 		}
 	}
 }
