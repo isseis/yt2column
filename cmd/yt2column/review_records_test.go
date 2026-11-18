@@ -1113,16 +1113,19 @@ func fableCases() []rrCase {
 	}
 }
 
-// rrFableConfigBranch builds a branch of the shape rrConfigBranch has, on
-// which the fable mode prints MISSING: a record, a plan checkbox commit, and
-// unseen work after them.
+// rrFableConfigBranch builds a branch on which the fable mode prints
+// MISSING from the commit before the last: a record, a plan checkbox commit,
+// two empty commits, and a last commit whose file name and subject are not
+// ASCII, the first commit no rule covers. HEAD~4..HEAD~3 is the checkbox
+// commit, as in rrConfigBranch, so the configuration scenarios' plain git
+// commands change their output.
 func rrFableConfigBranch(f *rrFixture) []string {
 	f.write(".gitattributes", "*.md diff=upper\n")
 	f.commit("attributes")
 	f.record("record", f.fableRun(f.mb, f.head()))
 	f.plan(rrMarkersPlan, "markers-created.md")
-	f.work("c1")
-	f.record("record", f.seen(f.mb, f.head(), "coderabbit"))
+	f.record("empty")
+	f.record("empty")
 	f.write("caf\u00e9.txt", "x\n")
 	f.commit("unseen caf\u00e9")
 	return rrFable(f, "launch")
@@ -1133,6 +1136,13 @@ func rrFableConfigBranch(f *rrFixture) []string {
 // commits without content, the checkpoint mark, the failures, and that the
 // caller's environment and git configuration change nothing. Each case runs
 // with each bash scriptBashes returns.
+//
+// The environment cases and the failures of the shared branch loading repeat
+// TestReviewRecordsCoverage's on purpose: they show the fable mode keeps the
+// same guarantees and fails with its own output. The configuration
+// scenarios guard the reading through plumbing commands, which no such
+// setting reaches today: they fail only when the fable mode starts reading
+// through a porcelain command.
 func TestReviewRecordsFable(t *testing.T) {
 	form := seenRangeForm(t)
 	forms := readFableForms(t)
@@ -1170,8 +1180,8 @@ func TestReviewRecordsFable(t *testing.T) {
 						f.forms = forms
 						args := append([]string{"fable"}, rrFableConfigBranch(f)...)
 						want := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{})
-						if want.code != 0 || want.stdout != "MISSING "+f.rev("HEAD~3")+"\n" {
-							t.Fatalf("without %s the script did not print MISSING from the checkbox commit, so the scenario checks nothing: %v", s.name, want)
+						if want.code != 0 || want.stdout != "MISSING "+f.rev("HEAD~1")+"\n" {
+							t.Fatalf("without %s the script did not print MISSING from the commit before the last, so the scenario checks nothing: %v", s.name, want)
 						}
 						before := f.git(s.plain...)
 						file := filepath.Join(f.repo, ".git", "config")

@@ -3,9 +3,11 @@
 package main
 
 import (
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -28,6 +30,10 @@ func fableStateParts(t *testing.T, f *gitFixture, block string) map[string]strin
 			t.Fatalf("the state check block printed %q, not <part> <sha256>", line)
 		}
 		parts[name] = hash
+	}
+	got := slices.Sorted(maps.Keys(parts))
+	if want := []string{"config", "flags", "head", "hooks", "info", "settings", "status", "watched"}; !slices.Equal(got, want) {
+		t.Fatalf("the state check block printed the parts %v, want %v", got, want)
 	}
 	return parts
 }
