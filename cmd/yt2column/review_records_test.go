@@ -1103,8 +1103,8 @@ func rrFableConfigBranch(f *rrFixture) []string {
 	f.plan(rrMarkersPlan, "markers-created.md")
 	f.work("c1")
 	f.record("record", f.seen(f.mb, f.head(), "coderabbit"))
-	f.write("café.txt", "x\n")
-	f.commit("unseen café")
+	f.write("caf\u00e9.txt", "x\n")
+	f.commit("unseen caf\u00e9")
 	return rrFable(f, "launch")
 }
 
