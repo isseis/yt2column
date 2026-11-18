@@ -76,7 +76,7 @@ var createRefusalNames = map[CreateRefusal]string{
 	CreateRefusalTargetExists:    "target_exists",
 	CreateRefusalPathUnsupported: namePathUnsupported,
 	CreateRefusalFetchFailed:     "fetch_failed",
-	CreateRefusalBusy:            "busy",
+	CreateRefusalBusy:            nameBusy,
 }
 
 // String returns the output spelling, "" for no refusal.
@@ -154,7 +154,7 @@ const (
 // createResultNames are the output spellings of the results.
 var createResultNames = map[CreateResult]string{
 	CreateRefused: "refused",
-	CreateStopped: "stopped",
+	CreateStopped: nameStopped,
 	CreateMade:    "made",
 }
 
@@ -180,22 +180,27 @@ const (
 	MadePane
 	// MadeAgent is a started agent, by its Herdr name.
 	MadeAgent
+	// MadeRegistration is git's registration of a worktree, by its path; a
+	// removal that stops lists it when git still registers the worktree.
+	MadeRegistration
 )
 
 // madeKindNames are the output spellings of the kinds.
 var madeKindNames = map[MadeKind]string{
-	MadeWorktree:  "worktree",
-	MadeRecord:    "record",
-	MadeWorkspace: "workspace",
-	MadeTab:       "tab",
-	MadePane:      "pane", //nolint:goconst // an output spelling, which the /chief definition reads
-	MadeAgent:     "agent",
+	MadeWorktree:     "worktree",
+	MadeRecord:       "record",
+	MadeWorkspace:    "workspace",
+	MadeTab:          "tab",
+	MadePane:         "pane", //nolint:goconst // an output spelling, which the /chief definition reads
+	MadeAgent:        "agent",
+	MadeRegistration: "registration",
 }
 
 // String returns the output spelling, "" for no kind.
 func (k MadeKind) String() string { return madeKindNames[k] }
 
-// Made is one thing a creation made, for the human to see or clean up.
+// Made is one thing a creation made, or one a removal that stopped left,
+// for the human to see or clean up.
 type Made struct {
 	Kind MadeKind
 	// ID is the path, or the ID or name Herdr returned.

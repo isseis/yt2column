@@ -255,20 +255,27 @@ func readOldValues(ctx context.Context, tasks Tasks, tree string) (OldValues, er
 	return ParseOldValues(doc), nil
 }
 
-// readWorkspace reads one workspace's facts: its agents and screens, its
-// branch, its open PR, and the task documents. A failed read is named in
-// Unreadable, never defaulted.
-func readWorkspace(ctx context.Context, herdr Herdr, git GitReader, tasks Tasks, w TaskWorkspace) workspaceFacts {
-	f := workspaceFacts{Workspace: w.Worktree, Label: w.Label}
-	for _, a := range w.Agents {
+// readAgentFacts reads the visible screen of each agent; a screen that
+// cannot be fetched is marked not read, never defaulted.
+func readAgentFacts(ctx context.Context, herdr Herdr, agents []Agent) []agentFacts {
+	var out []agentFacts
+	for _, a := range agents {
 		af := agentFacts{Agent: a}
 		raw, err := herdr.Screen(ctx, a.Pane, ScreenVisible)
 		if err == nil {
 			af.ScreenRead = true
 			af.Screen = readScreen(a.Kind, raw)
 		}
-		f.Agents = append(f.Agents, af)
+		out = append(out, af)
 	}
+	return out
+}
+
+// readWorkspace reads one workspace's facts: its agents and screens, its
+// branch, its open PR, and the task documents. A failed read is named in
+// Unreadable, never defaulted.
+func readWorkspace(ctx context.Context, herdr Herdr, git GitReader, tasks Tasks, w TaskWorkspace) workspaceFacts {
+	f := workspaceFacts{Workspace: w.Worktree, Label: w.Label, Agents: readAgentFacts(ctx, herdr, w.Agents)}
 	branch, err := git.Branch(ctx, w.Worktree)
 	if err != nil {
 		f.Unreadable = append(f.Unreadable, "branch of the worktree")

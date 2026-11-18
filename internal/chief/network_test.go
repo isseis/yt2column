@@ -221,3 +221,38 @@ func TestCreateRunsOnlyInTheRightPlaces(t *testing.T) {
 		t.Errorf("gh ran %d times, want once", ghCalls)
 	}
 }
+
+// TestRemoveRunsOnlyInTheRightPlaces runs a whole removal with the
+// target-redirecting variables set and checks every command: gh never runs;
+// git runs only in chief's worktree and in the worktree removed; and the
+// only writes are the workspace's close and the worktree's removal (the
+// recorder fails any other). The lookup of the workspace also reads, with
+// git rev-parse, the directory of every other agent; this world has no
+// other agent, so that read is not checked here.
+func TestRemoveRunsOnlyInTheRightPlaces(t *testing.T) {
+	t.Setenv("GH_REPO", "other/repo")
+	t.Setenv("GH_HOST", "ghe.example.com")
+	sw, rs := newRemovalWorld(t)
+	rs.allowRemoval()
+	if out := rs.remove(sw.finish(), rs.tree); out.Result != RemoveDone {
+		t.Fatalf("Remove = %+v; the test reached no removal", out)
+	}
+	sawTree := false
+	for _, c := range sw.rec.recorded() {
+		switch c.name {
+		case ghProgram:
+			t.Errorf("gh ran %s; a removal reads nothing from GitHub", c.line())
+		case gitProgram:
+			sawTree = sawTree || c.dir == rs.tree
+			if c.dir != sw.chiefTree && c.dir != rs.tree {
+				t.Errorf("%s ran in %q, not in chief's worktree or the one removed", c.line(), c.dir)
+			}
+		}
+	}
+	if !sawTree {
+		t.Error("no git ran in the worktree; the test reached no check")
+	}
+	if got, want := writesOf(sw.rec), rs.removalWrites(); !slices.Equal(got, want) {
+		t.Errorf("writes %q, want %q", got, want)
+	}
+}

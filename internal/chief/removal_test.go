@@ -5,11 +5,13 @@ package chief
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
 )
@@ -34,6 +36,8 @@ type removalSetup struct {
 	tree string
 	// others are panes of other workspaces the pane list adds.
 	others []fakePane
+	// closed is the workspace closed: its panes are gone.
+	closed bool
 }
 
 // issueLineOf is one line of the issue line search for a task directory.
@@ -48,16 +52,7 @@ func addRemovalWorkspace(t *testing.T, sw *sendWorld) *removalSetup {
 	rs := &removalSetup{sw: sw}
 	rs.tree = sw.addTask(fakeWorkspace{ID: removalWS, Label: removalLabel, Branch: detachedHead, Tree: filepath.Join(taskSpaceRoot[0], taskSpaceRoot[1], taskSpaceRoot[2], removalLabel)}, "claude", "opencode")
 	rs.keepCreated(removalIssue)
-	sw.rec.replyFunc("herdr pane list", func() reply {
-		sw.mu.Lock()
-		defer sw.mu.Unlock()
-		panes := []fakePane{{Pane: sw.chief.Pane, Tab: "wc:t1", Workspace: sw.chief.Workspace, Dir: sw.chief.Dir, Agent: sw.chief.Kind}}
-		for _, p := range sw.panes {
-			panes = append(panes, fakePane{Pane: p.Pane, Tab: strings.Replace(p.Pane, ":p", ":t", 1), Workspace: p.Workspace, Dir: p.Dir, Agent: p.Kind})
-		}
-		panes = append(panes, fakePane{Pane: removalWS + ":p3", Tab: removalWS + ":t3", Workspace: removalWS, Dir: rs.tree})
-		return reply{out: paneListOutput(append(panes, rs.others...))}
-	})
+	sw.rec.replyFunc("herdr pane list", func() reply { return reply{out: paneListOutput(rs.paneList())} })
 	sw.rec.reply("herdr pane process-info --pane "+removalWS+":p3", processInfoOutput(removalWS+":p3", 100, 100, 100))
 	rs.issueLines(issueLineOf(removalTaskDir, removalIssue))
 	sw.docs(sw.chiefTree, fakeDocs{Dir: removalTaskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")})
@@ -67,6 +62,22 @@ func addRemovalWorkspace(t *testing.T, sw *sendWorld) *removalSetup {
 	sw.git(rs.tree, "merge-base --is-ancestor "+mainCommit+" "+mainCommit, "")
 	rs.worktrees(false)
 	return rs
+}
+
+// paneList is Herdr's pane list: chief's pane, every agent pane, the
+// workspace's shell pane until it is closed, and the others.
+func (rs *removalSetup) paneList() []fakePane {
+	sw := rs.sw
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	panes := []fakePane{{Pane: sw.chief.Pane, Tab: "wc:t1", Workspace: sw.chief.Workspace, Dir: sw.chief.Dir, Agent: sw.chief.Kind}}
+	for _, p := range sw.panes {
+		panes = append(panes, fakePane{Pane: p.Pane, Tab: strings.Replace(p.Pane, ":p", ":t", 1), Workspace: p.Workspace, Dir: p.Dir, Agent: p.Kind})
+	}
+	if !rs.closed {
+		panes = append(panes, fakePane{Pane: removalWS + ":p3", Tab: removalWS + ":t3", Workspace: removalWS, Dir: rs.tree})
+	}
+	return append(panes, rs.others...)
 }
 
 // issueLines sets what the issue line search finds on origin/main.
@@ -749,5 +760,693 @@ func TestRemovalReaderReadsOnce(t *testing.T) {
 	}
 	if counts["herdr pane list"] != 1 || counts[search] != 1 || len(counts) != 2 {
 		t.Errorf("calls = %v, want one pane list and one search", counts)
+	}
+}
+
+// TestWorkspaceCloser checks that a closer is made only from a candidate
+// that passes every check, that it closes exactly the candidate's workspace
+// without --group and removes exactly its worktree, in chief's worktree and
+// without --force (the recorder allows only those exact lines), and that a
+// closer no constructor made runs nothing.
+func TestWorkspaceCloser(t *testing.T) {
+	t.Run("every check passes", func(t *testing.T) {
+		cw := newCheckWorld(t)
+		cw.rec.allowWorkspaceClose(removalWS, readTestdata(t, "herdr/workspace-close.json"))
+		cw.rec.allowWorktreeRemove(cw.chief.path, cw.tree.path)
+		c := newRemovalCandidate(cw.tree, removalWS, issueNumber(t, removalIssue), taskID(t, removalTask))
+		closer, checks, ok := newWorkspaceCloser(t.Context(), cw.rec.commands(nil), cw.chief, c, cw.agents, cw.panes)
+		if !ok || !allPassed(checks) {
+			t.Fatalf("newWorkspaceCloser = %v with %+v, want a closer", ok, checks)
+		}
+		if err := closer.close(t.Context()); err != nil {
+			t.Errorf("close: %v", err)
+		}
+		if err := closer.removeWorktree(t.Context()); err != nil {
+			t.Errorf("removeWorktree: %v", err)
+		}
+		var writes []string
+		for _, call := range cw.rec.recorded() {
+			if !isReadOnly(call) {
+				writes = append(writes, call.dir+" "+call.line())
+			}
+		}
+		want := []string{" herdr workspace close " + removalWS, cw.chief.path + " git worktree remove " + cw.tree.path}
+		if !slices.Equal(writes, want) {
+			t.Errorf("writes %q, want %q", writes, want)
+		}
+	})
+	t.Run("a check does not pass", func(t *testing.T) {
+		cw := newCheckWorld(t)
+		cw.agents[0].Agent.Status = AgentWorking
+		c := newRemovalCandidate(cw.tree, removalWS, issueNumber(t, removalIssue), taskID(t, removalTask))
+		closer, checks, ok := newWorkspaceCloser(t.Context(), cw.rec.commands(nil), cw.chief, c, cw.agents, cw.panes)
+		if ok || passedCheck(checks, RemovalCheckAgentsIdle) {
+			t.Fatalf("newWorkspaceCloser = %v with %+v, want no closer", ok, checks)
+		}
+		before := len(cw.rec.recorded())
+		if err := closer.close(t.Context()); !errors.Is(err, errCloserRefused) {
+			t.Errorf("close of the closer returned = %v, want errCloserRefused", err)
+		}
+		if calls := cw.rec.recorded()[before:]; len(calls) != 0 {
+			t.Errorf("the refused closer ran %v", calls)
+		}
+	})
+	t.Run("the zero closer", func(t *testing.T) {
+		rec := newRecorder(t)
+		closer := WorkspaceCloser{}
+		closer.cmds = rec.commands(nil)
+		if err := closer.close(t.Context()); !errors.Is(err, errCloserRefused) {
+			t.Errorf("close = %v, want errCloserRefused", err)
+		}
+		if err := closer.removeWorktree(t.Context()); !errors.Is(err, errCloserRefused) {
+			t.Errorf("removeWorktree = %v, want errCloserRefused", err)
+		}
+		if calls := rec.recorded(); len(calls) != 0 {
+			t.Errorf("ran %v", calls)
+		}
+	})
+}
+
+// TestWorktreeRemoveKeepsBranch removes a task's worktree with the real git:
+// git refuses a worktree with a tracked change and one with an untracked
+// file, and a worktree on which a branch was made and left again for a
+// detached HEAD is removed with that branch kept.
+func TestWorktreeRemoveKeepsBranch(t *testing.T) {
+	repo := newTestRepo(t)
+	cmds := repo.RealCommands()
+	path := filepath.Join(filepath.Dir(repo.Dir), "issue-"+removalIssue)
+	repo.Git("worktree", "add", "--detach", path, "HEAD")
+	gitIn := func(args ...string) {
+		repo.Run(filepath.Join(testToolsDir, gitProgram), append([]string{"-C", path}, args...)...)
+	}
+	closer := WorkspaceCloser{cmds: cmds, chiefTree: Worktree{path: repo.Dir}, tree: Worktree{path: path}, workspace: removalWS}
+	writeFile(t, filepath.Join(path, "README.md"), "changed\n")
+	if err := closer.removeWorktree(t.Context()); err == nil {
+		t.Fatal("git removed a worktree with a tracked change")
+	}
+	gitIn("checkout", "--", "README.md")
+	writeFile(t, filepath.Join(path, "new.txt"), "new\n")
+	if err := closer.removeWorktree(t.Context()); err == nil {
+		t.Fatal("git removed a worktree with an untracked file")
+	}
+	if err := os.Remove(filepath.Join(path, "new.txt")); err != nil {
+		t.Fatal(err)
+	}
+	gitIn("switch", "-q", "-c", "kept")
+	gitIn("switch", "-q", "--detach")
+	if err := closer.removeWorktree(t.Context()); err != nil {
+		t.Fatalf("removeWorktree: %v", err)
+	}
+	if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the worktree is still at %s: %v", path, err)
+	}
+	if got := strings.TrimSpace(repo.Git("branch", "--list", "kept")); got != "kept" {
+		t.Errorf("branch kept = %q, want it kept", got)
+	}
+}
+
+// allowRemoval allows the two writes of a removal of the workspace, each
+// changing the fake as the real ones do: closing the workspace takes its
+// panes and agents out of Herdr's lists, and removing the worktree removes
+// its directory and git's registration.
+func (rs *removalSetup) allowRemoval() {
+	sw := rs.sw
+	sw.rec.allowWriteDo(herdrProgram, "", []string{herdrWorkspace, "close", removalWS}, func() reply {
+		rs.close()
+		return reply{out: readTestdata(sw.t, "herdr/workspace-close.json")}
+	})
+	sw.rec.allowWriteDo(gitProgram, sw.chiefTree, []string{gitWorktree, "remove", rs.tree}, func() reply {
+		if err := os.RemoveAll(rs.tree); err != nil {
+			return reply{err: err}
+		}
+		sw.git(sw.chiefTree, "worktree list --porcelain", "worktree "+sw.chiefTree+"\nHEAD "+mainCommit+"\nbranch refs/heads/main\n\n")
+		return reply{}
+	})
+}
+
+// close takes the workspace's panes and agents out of Herdr.
+func (rs *removalSetup) close() {
+	sw := rs.sw
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	rs.closed = true
+	sw.panes = slices.DeleteFunc(sw.panes, func(p *simPane) bool { return p.Workspace == removalWS })
+}
+
+// remove runs Remove of path.
+func (rs *removalSetup) remove(deps Deps, path string) RemoveOutcome {
+	rs.sw.t.Helper()
+	out, err := Remove(rs.sw.t.Context(), deps, path)
+	if err != nil {
+		rs.sw.t.Fatalf("Remove(%q): %v", path, err)
+	}
+	return out
+}
+
+// writes returns the writes run so far, as "dir line" (dir empty for
+// herdr).
+func writesOf(rec *recorder) []string {
+	var out []string
+	for _, c := range rec.recorded() {
+		if !isReadOnly(c) {
+			out = append(out, c.dir+" "+c.line())
+		}
+	}
+	return out
+}
+
+// removalWrites are the writes of a whole removal, in order.
+func (rs *removalSetup) removalWrites() []string {
+	return []string{" herdr workspace close " + removalWS, rs.sw.chiefTree + " git worktree remove " + rs.tree}
+}
+
+// recordFiles returns the record files left in the workspace's directory.
+func (rs *removalSetup) recordFiles() []string {
+	rs.sw.t.Helper()
+	entries, err := os.ReadDir(filepath.Dir(rs.createdPath()))
+	if err != nil {
+		rs.sw.t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		if isRecordFile(e.Name()) {
+			names = append(names, e.Name())
+		}
+	}
+	return names
+}
+
+// TestRemoveClosesThenRemoves removes a proposed workspace and checks that
+// the tool fetched before it checked, read Herdr again before it closed,
+// closed the workspace and then removed the worktree, and removed the
+// workspace's records, leaving its exclusion's file; the output says so.
+func TestRemoveClosesThenRemoves(t *testing.T) {
+	sw, rs := newRemovalWorld(t)
+	rs.allowRemoval()
+	deps := sw.finish()
+	out := rs.remove(deps, rs.tree)
+	if out.Result != RemoveDone || out.Workspace != rs.tree || out.Label != removalLabel || !allPassed(out.Checks) || len(out.Left) != 0 {
+		t.Fatalf("Remove = %+v, want removed", out)
+	}
+	if got, want := writesOf(sw.rec), rs.removalWrites(); !slices.Equal(got, want) {
+		t.Errorf("writes %q, want %q", got, want)
+	}
+	calls := sw.rec.recorded()
+	at := func(match func(recordedCall) bool) []int {
+		var idx []int
+		for i, c := range calls {
+			if match(c) {
+				idx = append(idx, i)
+			}
+		}
+		return idx
+	}
+	fetch := at(func(c recordedCall) bool { return c.line() == "git fetch origin main" })
+	status := at(func(c recordedCall) bool {
+		return c.dir == rs.tree && c.line() == "git status --porcelain --untracked-files=all"
+	})
+	paneLists := at(func(c recordedCall) bool { return c.line() == "herdr pane list" })
+	closeAt := at(func(c recordedCall) bool { return c.line() == "herdr workspace close "+removalWS })
+	removeAt := at(func(c recordedCall) bool { return c.line() == "git worktree remove "+rs.tree })
+	if len(fetch) != 1 || len(status) != 1 || len(closeAt) != 1 || len(removeAt) != 1 || fetch[0] > status[0] || status[0] > closeAt[0] || closeAt[0] > removeAt[0] {
+		t.Errorf("fetch %v, status %v, close %v, remove %v; want one each, in that order", fetch, status, closeAt, removeAt)
+	}
+	// The checks read the pane list once, the re-read before the close once
+	// more, and the wait after it at least once.
+	if len(paneLists) < 3 || paneLists[1] > closeAt[0] || paneLists[len(paneLists)-1] < closeAt[0] {
+		t.Errorf("pane lists at %v, close at %v", paneLists, closeAt)
+	}
+	if got := rs.recordFiles(); len(got) != 0 {
+		t.Errorf("records left %v", got)
+	}
+	o := out.Output()
+	if o.Result != "removed" || o.Refusal != "" || o.Stage != "" || o.Left == nil || len(o.Checks) != len(removalChecks) {
+		t.Errorf("output = %+v", o)
+	}
+}
+
+// TestRemoveLeavesTheRest removes the workspace next to another task
+// workspace with records of its own, and checks that the other workspace's
+// records and worktree stay and no write names it.
+func TestRemoveLeavesTheRest(t *testing.T) {
+	sw := newSendWorld(t)
+	other := sw.addTask(fakeWorkspace{ID: "w1", Label: "other", Branch: taskBranch}, "claude")
+	rs := addRemovalWorkspace(t, sw)
+	rs.allowRemoval()
+	records, err := sw.store.Records(Worktree{path: other})
+	if err != nil {
+		t.Fatal(err)
+	}
+	held, err := records.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := held.Stop("kept", "", "", sw.now); err != nil {
+		t.Fatal(err)
+	}
+	if err := held.Close(); err != nil {
+		t.Fatal(err)
+	}
+	deps := sw.finish()
+	if out := rs.remove(deps, rs.tree); out.Result != RemoveDone {
+		t.Fatalf("Remove = %+v, want removed", out)
+	}
+	if got, want := writesOf(sw.rec), rs.removalWrites(); !slices.Equal(got, want) {
+		t.Errorf("writes %q, want %q", got, want)
+	}
+	if stop, err := records.Stopped(); err != nil || stop == nil {
+		t.Errorf("the other workspace's stop = %+v, %v; want it kept", stop, err)
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Errorf("the other worktree: %v", err)
+	}
+}
+
+// TestRemoveRefusesOnEachCheck breaks one check at a time and checks that
+// the removal is refused with that check not passed, that nothing is
+// written (the recorder allows no write), and that the created record stays.
+func TestRemoveRefusesOnEachCheck(t *testing.T) {
+	cases := []struct {
+		name  string
+		check RemovalCheck
+		edit  func(t *testing.T, sw *sendWorld, rs *removalSetup)
+	}{
+		{"the task not done", RemovalCheckCandidate, func(t *testing.T, sw *sendWorld, _ *removalSetup) {
+			sw.docs(sw.chiefTree, fakeDocs{Dir: removalTaskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")})
+		}},
+		{"HEAD on a branch", RemovalCheckDetached, func(_ *testing.T, sw *sendWorld, rs *removalSetup) {
+			sw.git(rs.tree, "rev-parse --abbrev-ref HEAD", "main\n")
+		}},
+		{"a change", RemovalCheckClean, func(_ *testing.T, sw *sendWorld, rs *removalSetup) {
+			sw.git(rs.tree, "status --porcelain --untracked-files=all", "?? new.txt\n")
+		}},
+		{"HEAD not on origin/main", RemovalCheckHeadOnMain, func(_ *testing.T, sw *sendWorld, rs *removalSetup) {
+			sw.rec.failIn(rs.tree, "git merge-base --is-ancestor "+mainCommit+" "+mainCommit, &cmdrunner.ExitError{Code: 1})
+		}},
+		{"a locked worktree", RemovalCheckUnlocked, func(_ *testing.T, _ *sendWorld, rs *removalSetup) { rs.worktrees(true) }},
+		{"an agent working", RemovalCheckAgentsIdle, func(_ *testing.T, sw *sendWorld, _ *removalSetup) {
+			sw.byPane[removalWS+":p1"].Status = "working"
+		}},
+		{"a busy shell", RemovalCheckShellsIdle, func(_ *testing.T, sw *sendWorld, _ *removalSetup) {
+			sw.rec.reply("herdr pane process-info --pane "+removalWS+":p3", processInfoOutput(removalWS+":p3", 100, 200, 200))
+		}},
+		// Another workspace at the path already makes the workspace no
+		// candidate, the condition read before the checks; the check of
+		// the path refuses it only when the pane list differs between the
+		// two, which TestRemovalChecks covers.
+		{"another workspace at the path", RemovalCheckCandidate, func(_ *testing.T, _ *sendWorld, rs *removalSetup) {
+			rs.others = []fakePane{{Pane: "w9:p1", Tab: "w9:t1", Workspace: "w9", Dir: rs.tree}}
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			sw, rs := newRemovalWorld(t)
+			c.edit(t, sw, rs)
+			out := rs.remove(sw.finish(), rs.tree)
+			if out.Result != RemoveRefused || out.Refusal != RemoveRefusalChecksFailed || len(out.Checks) == 0 || passedCheck(out.Checks, c.check) {
+				t.Fatalf("Remove = %+v, want refused with %v not passed", out, c.check)
+			}
+			if !slices.ContainsFunc(out.Checks, func(r CheckResult) bool { return r.Check == c.check }) {
+				t.Errorf("checks %+v lack %v", out.Checks, c.check)
+			}
+			if w := writesOf(sw.rec); len(w) != 0 {
+				t.Errorf("writes %v", w)
+			}
+			if _, err := os.Stat(rs.createdPath()); err != nil {
+				t.Errorf("the created record: %v", err)
+			}
+			if o := out.Output(); o.Result != "refused" || o.Refusal != "checks_failed" {
+				t.Errorf("output = %+v", o)
+			}
+		})
+	}
+}
+
+// TestRemoveRefusals checks the refusals before the fetch: a path that is
+// no task workspace's worktree (git never runs in it) and a workspace whose
+// exclusion is held; neither writes (the recorder allows no write).
+func TestRemoveRefusals(t *testing.T) {
+	t.Run("no workspace", func(t *testing.T) {
+		sw, rs := newRemovalWorld(t)
+		elsewhere := filepath.Join(filepath.Dir(rs.tree), "elsewhere")
+		mustMkdir(t, elsewhere)
+		out := rs.remove(sw.finish(), elsewhere)
+		if out.Result != RemoveRefused || out.Refusal != RemoveRefusalNoWorkspace || out.Workspace != elsewhere {
+			t.Fatalf("Remove = %+v, want no_workspace", out)
+		}
+		for _, c := range sw.rec.recorded() {
+			if c.dir == elsewhere {
+				t.Errorf("%s ran in the path given", c.line())
+			}
+		}
+	})
+	t.Run("busy", func(t *testing.T) {
+		sw, rs := newRemovalWorld(t)
+		rs.held()
+		if out := rs.remove(sw.finish(), rs.tree); out.Result != RemoveRefused || out.Refusal != RemoveRefusalBusy {
+			t.Fatalf("Remove = %+v, want busy", out)
+		}
+	})
+}
+
+// TestRemoveFetchFailure checks that a failed fetch of origin/main refuses
+// the removal before any check: no git runs in the worktree after it and
+// nothing is written.
+func TestRemoveFetchFailure(t *testing.T) {
+	sw, rs := newRemovalWorld(t)
+	sw.rec.failIn(sw.chiefTree, "git fetch origin main", errInjected)
+	out := rs.remove(sw.finish(), rs.tree)
+	if out.Result != RemoveRefused || out.Refusal != RemoveRefusalFetchFailed || len(out.Checks) != 0 {
+		t.Fatalf("Remove = %+v, want fetch_failed", out)
+	}
+	calls := sw.rec.recorded()
+	fetch := slices.IndexFunc(calls, func(c recordedCall) bool { return c.line() == "git fetch origin main" })
+	if fetch < 0 {
+		t.Fatal("no fetch ran")
+	}
+	for _, c := range calls[fetch+1:] {
+		if c.dir == rs.tree {
+			t.Errorf("%s ran after the failed fetch", c.line())
+		}
+	}
+}
+
+// TestRemoveRefusesWhenChanged changes, between the checks and the close,
+// one thing the re-read compares, and checks that nothing is closed or
+// removed and the refusal is changed.
+func TestRemoveRefusesWhenChanged(t *testing.T) {
+	cases := []struct {
+		name string
+		edit func(sw *sendWorld, rs *removalSetup)
+	}{
+		{"a new pane", func(sw *sendWorld, rs *removalSetup) {
+			after(sw, "herdr pane list", 1, func() reply {
+				return reply{out: paneListOutput(append(rs.paneList(), fakePane{Pane: removalWS + ":p4", Tab: removalWS + ":t4", Workspace: removalWS, Dir: rs.tree}))}
+			})
+		}},
+		{"another workspace at the path", func(sw *sendWorld, rs *removalSetup) {
+			after(sw, "herdr pane list", 1, func() reply {
+				return reply{out: paneListOutput(append(rs.paneList(), fakePane{Pane: "w9:p1", Tab: "w9:t1", Workspace: "w9", Dir: rs.tree}))}
+			})
+		}},
+		{"an agent's state", func(sw *sendWorld, _ *removalSetup) {
+			// The agent list is read by the lookup, under the exclusion, and
+			// again before the close.
+			after(sw, "herdr agent list", 2, func() reply {
+				sw.mu.Lock()
+				defer sw.mu.Unlock()
+				sw.byPane[removalWS+":p2"].Seq++
+				agents := []fakeAgent{sw.chief}
+				for _, p := range sw.panes {
+					agents = append(agents, p.fakeAgent)
+				}
+				return reply{out: agentListOutput(agents)}
+			})
+		}},
+		{"a busy shell", func(sw *sendWorld, _ *removalSetup) {
+			after(sw, "herdr pane process-info --pane "+removalWS+":p3", 1, func() reply {
+				return reply{out: processInfoOutput(removalWS+":p3", 100, 200, 200)}
+			})
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			sw, rs := newRemovalWorld(t)
+			deps := sw.finish()
+			c.edit(sw, rs)
+			out := rs.remove(deps, rs.tree)
+			if out.Result != RemoveRefused || out.Refusal != RemoveRefusalChanged || !allPassed(out.Checks) {
+				t.Fatalf("Remove = %+v, want changed after every check passed", out)
+			}
+			if w := writesOf(sw.rec); len(w) != 0 {
+				t.Errorf("writes %v", w)
+			}
+			if _, err := os.Stat(rs.createdPath()); err != nil {
+				t.Errorf("the created record: %v", err)
+			}
+		})
+	}
+}
+
+// after makes line answer as before for its first n runs and with changed
+// from then on. It replaces the reply sw.finish set, so it runs after it;
+// changed takes the world's lock itself when it needs it.
+func after(sw *sendWorld, line string, n int, changed func() reply) {
+	sw.rec.mu.Lock()
+	before, isDynamic := sw.rec.dynamic[line]
+	fixed := sw.rec.replies[line]
+	sw.rec.mu.Unlock()
+	runs := 0
+	sw.rec.replyFunc(line, func() reply {
+		runs++
+		if runs > n {
+			return changed()
+		}
+		if isDynamic {
+			return before()
+		}
+		return fixed
+	})
+}
+
+// TestRemoveStopsAtEachStage makes each stage after the checks fail in turn
+// and checks that the removal stops there, lists what is left by what is
+// really left, and runs no write again or after it.
+func TestRemoveStopsAtEachStage(t *testing.T) {
+	closeLine := []string{herdrWorkspace, "close", removalWS}
+	cases := []struct {
+		name   string
+		stage  RemoveStage
+		setup  func(sw *sendWorld, rs *removalSetup)
+		writes int
+		left   []string
+	}{
+		{"close fails", RemoveStageCloseWorkspace, func(sw *sendWorld, _ *removalSetup) {
+			sw.rec.allowWrite(herdrProgram, "", closeLine, reply{err: errInjected})
+		}, 1, []string{"workspace", "worktree", "registration", "record"}},
+		{"the panes stay", RemoveStageWaitPanes, func(sw *sendWorld, _ *removalSetup) {
+			sw.rec.allowWrite(herdrProgram, "", closeLine, reply{out: readTestdata(sw.t, "herdr/workspace-close.json")})
+		}, 1, []string{"workspace", "worktree", "registration", "record"}},
+		{"git refuses the worktree", RemoveStageRemoveWorktree, func(sw *sendWorld, rs *removalSetup) {
+			sw.rec.allowWriteDo(herdrProgram, "", closeLine, func() reply {
+				rs.close()
+				return reply{out: readTestdata(sw.t, "herdr/workspace-close.json")}
+			})
+			sw.rec.allowWrite(gitProgram, sw.chiefTree, []string{gitWorktree, "remove", rs.tree}, reply{err: &cmdrunner.ExitError{Code: 128}})
+		}, 2, []string{"worktree", "registration", "record"}},
+		{"a record cannot be removed", RemoveStageRemoveRecords, func(sw *sendWorld, rs *removalSetup) {
+			rs.allowRemoval()
+			// A directory where the stop record goes is refused by the
+			// removal of records, so the created record, removed last,
+			// stays too.
+			mustMkdir(sw.t, filepath.Join(filepath.Dir(rs.createdPath()), stopFile))
+		}, 2, []string{"record", "record"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			sw, rs := newRemovalWorld(t)
+			c.setup(sw, rs)
+			deps := sw.finish()
+			out := rs.remove(deps, rs.tree)
+			if out.Result != RemoveStopped || out.Stage != c.stage || out.Failure == "" {
+				t.Fatalf("Remove = %+v, want stopped at %v", out, c.stage)
+			}
+			if got, want := writesOf(sw.rec), rs.removalWrites()[:c.writes]; !slices.Equal(got, want) {
+				t.Errorf("writes %q, want %q", got, want)
+			}
+			if got := madeKinds(out.Left); !slices.Equal(got, c.left) {
+				t.Errorf("left %v (%+v), want %v", got, out.Left, c.left)
+			}
+			o := out.Output()
+			if o.Result != "stopped" || o.Stage != c.stage.String() || len(o.Left) != len(c.left) {
+				t.Errorf("output = %+v", o)
+			}
+		})
+	}
+	t.Run("the wait reads up to its bound", func(t *testing.T) {
+		sw, rs := newRemovalWorld(t)
+		sw.rec.allowWrite(herdrProgram, "", closeLine, reply{out: readTestdata(t, "herdr/workspace-close.json")})
+		deps := sw.finish()
+		slept := 0
+		deps.Sleep = func(_ context.Context, d time.Duration) error {
+			if d != closeInterval {
+				t.Errorf("slept %v, want %v", d, closeInterval)
+			}
+			slept++
+			return nil
+		}
+		before := 0
+		out := rs.remove(deps, rs.tree)
+		calls := sw.rec.recorded()
+		closeAt := slices.IndexFunc(calls, func(c recordedCall) bool { return c.line() == "herdr workspace close "+removalWS })
+		for _, c := range calls[closeAt+1:] {
+			if c.line() == "herdr pane list" {
+				before++
+			}
+		}
+		// The wait reads closeAttempts times; leftAfter reads once more to
+		// tell whether the workspace is left.
+		if out.Stage != RemoveStageWaitPanes || before != closeAttempts+1 || slept != closeAttempts-1 {
+			t.Errorf("stage %v, %d pane lists and %d sleeps after the close; want %d and %d", out.Stage, before, slept, closeAttempts+1, closeAttempts-1)
+		}
+	})
+}
+
+// TestRemoveStopsWhenHeadMoved moves the worktree's HEAD, or makes
+// origin/main stop reaching it, after the checks, and checks that the
+// workspace is closed but the worktree is not removed.
+func TestRemoveStopsWhenHeadMoved(t *testing.T) {
+	cases := []struct {
+		name string
+		line string
+		// n is how many runs of line answer as before: the checks' and, for
+		// HEAD, the read just before the close.
+		n       int
+		changed reply
+	}{
+		{"HEAD moved", "git rev-parse HEAD", 2, reply{out: []byte(strings.Repeat("3", 40) + "\n")}},
+		{"HEAD no longer on origin/main", "git merge-base --is-ancestor " + mainCommit + " " + mainCommit, 1, reply{err: &cmdrunner.ExitError{Code: 1}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			sw, rs := newRemovalWorld(t)
+			rs.allowRemoval()
+			sw.rec.mu.Lock()
+			first := sw.rec.dirReplies[rs.tree+"\x00"+c.line]
+			sw.rec.mu.Unlock()
+			runs := 0
+			sw.rec.replyFunc(c.line, func() reply {
+				runs++
+				if runs > c.n {
+					return c.changed
+				}
+				return first
+			})
+			out := rs.remove(sw.finish(), rs.tree)
+			if out.Result != RemoveStopped || out.Stage != RemoveStageRecheckHead {
+				t.Fatalf("Remove = %+v, want stopped at recheck_head", out)
+			}
+			if got, want := writesOf(sw.rec), rs.removalWrites()[:1]; !slices.Equal(got, want) {
+				t.Errorf("writes %q, want %q", got, want)
+			}
+			if got, want := madeKinds(out.Left), []string{"worktree", "registration", "record"}; !slices.Equal(got, want) {
+				t.Errorf("left %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+// TestRemoveDeadline makes the time limit pass while the workspace is
+// closed and checks that the removal stops at the next stage as the
+// deadline, listing what is left and writing nothing more.
+func TestRemoveDeadline(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sw, rs := newRemovalWorld(t)
+	sw.rec.allowWriteDo(herdrProgram, "", []string{herdrWorkspace, "close", removalWS}, func() reply {
+		cancel()
+		rs.close()
+		return reply{out: readTestdata(t, "herdr/workspace-close.json")}
+	})
+	out, err := Remove(ctx, sw.finish(), rs.tree)
+	if err != nil || out.Result != RemoveStopped || out.Stage != RemoveStageDeadline {
+		t.Fatalf("Remove = %+v, %v; want stopped at the deadline", out, err)
+	}
+	if got, want := writesOf(sw.rec), rs.removalWrites()[:1]; !slices.Equal(got, want) {
+		t.Errorf("writes %q, want %q", got, want)
+	}
+	if got, want := madeKinds(out.Left), []string{"worktree", "registration", "record"}; !slices.Equal(got, want) {
+		t.Errorf("left %v, want %v", got, want)
+	}
+}
+
+// finishTask makes the task of the workspace cw made finished, as /runpr
+// leaves it after the task's last PR: the worktree on a detached HEAD at
+// origin/main, clean, its agents idle at their prompts, and origin/main
+// with the issue's one task, whose plan has every PR merged.
+func (cw *createWorld) finishTask() {
+	t := cw.t
+	cw.mu.Lock()
+	for _, p := range cw.panes {
+		if p.Workspace == "w1" {
+			p.Status, p.Seq = "idle", p.Seq+1
+			if p.Kind == "claude" {
+				p.screen = readScreenSample(t, "claude-idle.ansi")
+			}
+		}
+	}
+	cw.mu.Unlock()
+	cw.git(cw.tree, "rev-parse --abbrev-ref HEAD", detachedHead+"\n")
+	cw.git(cw.tree, "status --porcelain --untracked-files=all", "")
+	cw.git(cw.tree, "rev-parse HEAD", cw.commit+"\n")
+	cw.git(cw.tree, "rev-parse "+originMain, cw.commit+"\n")
+	cw.git(cw.tree, "merge-base --is-ancestor "+cw.commit+" "+cw.commit, "")
+	cw.git(cw.chiefTree, "worktree list --porcelain", "worktree "+cw.chiefTree+"\nHEAD "+cw.commit+"\nbranch refs/heads/main\n\nworktree "+cw.tree+"\nHEAD "+cw.commit+"\ndetached\n\n")
+	cw.rec.replyIn(cw.chiefTree, gitProgram+" "+strings.Join(issueLineSearch, " "), []byte(issueLineOf(removalTaskDir, createIssue)))
+	cw.docs(cw.chiefTree, fakeDocs{Dir: removalTaskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")})
+	cw.rec.reply("herdr pane process-info --pane w1:p1", processInfoOutput("w1:p1", 100, 100, 100))
+}
+
+// allowRemoval allows the removal of the workspace cw made, each write
+// changing the fake as the real one does.
+func (cw *createWorld) allowRemoval() {
+	cw.rec.allowWriteDo(herdrProgram, "", []string{herdrWorkspace, "close", "w1"}, func() reply {
+		cw.mu.Lock()
+		defer cw.mu.Unlock()
+		cw.listed = slices.DeleteFunc(cw.listed, func(p fakePane) bool { return p.Workspace == "w1" })
+		cw.panes = slices.DeleteFunc(cw.panes, func(p *simPane) bool { return p.Workspace == "w1" })
+		return reply{out: readTestdata(cw.t, "herdr/workspace-close.json")}
+	})
+	cw.rec.allowWriteDo(gitProgram, cw.chiefTree, []string{gitWorktree, "remove", cw.tree}, func() reply {
+		if err := os.RemoveAll(cw.tree); err != nil {
+			return reply{err: err}
+		}
+		cw.git(cw.chiefTree, "worktree list --porcelain", "worktree "+cw.chiefTree+"\nHEAD "+cw.commit+"\nbranch refs/heads/main\n\n")
+		return reply{}
+	})
+}
+
+// TestCreateToRemove runs a task's workspace from its creation to its
+// removal in one world: chief makes it and sends /mkreq; once the task is
+// finished, the round proposes its removal; the removal closes it and
+// removes its worktree and records; and the next round shows neither its
+// row nor its removal again.
+func TestCreateToRemove(t *testing.T) {
+	cw := newCreateWorld(t, nil)
+	cw.allowRemoval()
+	made := cw.create(createIssue)
+	if made.Result != CreateMade || made.Mkreq == nil || made.Mkreq.Outcome != OutcomeSent {
+		t.Fatalf("Create = %+v; want made with /mkreq sent", made)
+	}
+	cw.finishTask()
+	snap, err := TakeSnapshot(context.Background(), cw.deps, cw.owner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := rowOf(t, snap, "issue-"+createIssue)
+	if row.State != StateTaskDone || !row.RemovalRow || row.Task != removalTask {
+		t.Errorf("row = %+v, want the task done with the removal proposed", row)
+	}
+	if items := removalItems(snap); len(items) != 1 || items[0].Workspace != cw.tree || !allPassed(items[0].Removal.Checks) {
+		t.Fatalf("removal items = %+v, want one for %s", items, cw.tree)
+	}
+	out, err := Remove(context.Background(), cw.deps, cw.tree)
+	if err != nil || out.Result != RemoveDone {
+		t.Fatalf("Remove = %+v, %v; want removed", out, err)
+	}
+	if _, err := os.Lstat(cw.tree); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the worktree is still there: %v", err)
+	}
+	if records, ok, err := cw.deps.Store.existingRecords(Worktree{path: cw.tree}); err != nil || !ok {
+		t.Errorf("records of %s: ok %v, %v", cw.tree, ok, err)
+	} else if rec, err := records.Created(cw.env.Home); rec != nil || err != nil {
+		t.Errorf("the created record = %+v, %v; want it gone", rec, err)
+	}
+	next, err := TakeSnapshot(context.Background(), cw.deps, cw.owner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.ContainsFunc(next.Rows, func(r Row) bool { return r.Workspace == cw.tree }) || len(removalItems(next)) != 0 {
+		t.Errorf("the next round shows rows %+v and items %+v", next.Rows, next.Pending)
 	}
 }
