@@ -25,7 +25,6 @@ import (
 	"github.com/isseis/yt2column/internal/llm/llmhttp/llmhttptest"
 	"github.com/isseis/yt2column/internal/llm/openai"
 	llmtestutil "github.com/isseis/yt2column/internal/llm/testutil"
-	"github.com/isseis/yt2column/internal/udstest"
 )
 
 const (
@@ -965,7 +964,7 @@ func sentByStage(t *testing.T, cfg config.LLMConfig, stage stageBuilder) sentEff
 
 // TestNewSendsStageEffort verifies, from the configuration strings to the
 // request bodies, that each stage's client sends its own stage's effort: the
-// values are loaded with config.LoadServer and the clients built through
+// values are loaded with config.Load and the clients built through
 // newGeneration and newReview, the stage selection New and NewReview use, so
 // a mix-up between the two stages' selections is caught. A dropped deepseek
 // effort is not caught by any constructor, because no effort is a valid
@@ -1046,19 +1045,16 @@ func TestNewSendsStageEffort(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			env := map[string]string{
-				"HOME":              udstest.Dir(t),
-				"YT2COLUMN_LLM":     tc.llm,
-				"ANTHROPIC_API_KEY": testAPIKey,
-				"DEEPSEEK_API_KEY":  testAPIKey,
-				"OPENAI_API_KEY":    testAPIKey,
+				"YT2COLUMN_LLM":       tc.llm,
+				"ANTHROPIC_API_KEY":   testAPIKey,
+				"DEEPSEEK_API_KEY":    testAPIKey,
+				"OPENAI_API_KEY":      testAPIKey,
+				"YT2COLUMN_CACHE_DIR": "/tmp/yt2column-provider-test",
 			}
 			if tc.reviewLLM != "" {
 				env["YT2COLUMN_REVIEW_LLM"] = tc.reviewLLM
 			}
-			cfg, err := config.LoadServer(config.ServerLookupForTest(t, env))
-			if err != nil {
-				t.Fatalf("config.LoadServer() error = %v", err)
-			}
+			cfg := loadConfig(t, env)
 			if got := sentByStage(t, cfg.LLM(), newGeneration); got != tc.wantGeneration {
 				t.Errorf("generation sent %+v, want %+v", got, tc.wantGeneration)
 			}
