@@ -5,7 +5,11 @@ import { catalogs } from "../src/core/i18n/catalog.ts";
 import type { Message } from "../src/core/i18n/catalog.ts";
 import { formatDuration, formatUsd, locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
-import type { JobDisplay, StartFailure } from "../src/core/jobView.ts";
+import type {
+  JobDisplay,
+  ShownStepState,
+  StartFailure,
+} from "../src/core/jobView.ts";
 import { startFailureMessage } from "../src/core/sendMessages.ts";
 import type { StepState, Steps } from "../src/core/wasmResult.ts";
 import {
@@ -24,13 +28,24 @@ import {
 } from "./helpers/record.ts";
 
 const localeList = Object.keys(locales) as Locale[];
-const stateList: readonly StepState[] = [
-  "pending",
-  "running",
-  "done",
-  "skipped",
-  "failed",
+/**
+ * Every shown step state with a job that shows it: running only while the job
+ * runs, and interrupted for a step an ended job's record still holds as
+ * running.
+ */
+const shownStates: readonly (readonly [ShownStepState, JobDisplay])[] = [
+  ["pending", failedJob(allSteps("pending"))],
+  ["running", { kind: "running", steps: allSteps("running") }],
+  ["done", failedJob(allSteps("done"))],
+  ["skipped", failedJob(allSteps("skipped"))],
+  ["failed", failedJob(allSteps("failed"))],
+  ["interrupted", failedJob(allSteps("running"))],
 ];
+
+/** A job that failed outside the module after steps. */
+function failedJob(steps: Steps): JobDisplay {
+  return { kind: "failed", steps, failure: "internal" };
+}
 
 /** The elapsed time ms, drawn while a job runs. */
 function shown(ms: number): ElapsedTime {
@@ -70,14 +85,9 @@ describe("step checklist", () => {
     it(`gives every step state its own symbol shape and its own word in ${locale}`, () => {
       const drawings = new Set<string>();
       const words = new Set<string>();
-      for (const state of stateList) {
+      for (const [state, job] of shownStates) {
         const root = container();
-        renderJobState(
-          root,
-          { kind: "failed", steps: allSteps(state), failure: "internal" },
-          shown(0),
-          locale,
-        );
+        renderJobState(root, job, shown(0), locale);
         const [row] = stepRows(root);
         assert.ok(row !== undefined);
         const icon = query<SVGSVGElement>(row, "svg");
@@ -85,8 +95,40 @@ describe("step checklist", () => {
         drawings.add(drawing(icon));
         words.add(query(row, ".step-state").textContent ?? "");
       }
-      assert.equal(drawings.size, stateList.length);
-      assert.equal(words.size, stateList.length);
+      assert.equal(drawings.size, shownStates.length);
+      assert.equal(words.size, shownStates.length);
+    });
+
+    it(`shows a step an ended job still holds as running as interrupted, not as running, in ${locale}`, () => {
+      const steps: Steps = {
+        draft: "running",
+        shorten: "pending",
+        review: "pending",
+      };
+      const ended: readonly JobDisplay[] = [
+        failedJob(steps),
+        { kind: "stopped", steps },
+        { kind: "key-rejected", steps },
+      ];
+      for (const job of ended) {
+        const root = container();
+        renderJobState(root, job, shown(0), locale);
+        const [row] = stepRows(root);
+        assert.ok(row !== undefined);
+        assert.ok(
+          query(row, "svg").classList.contains("step-icon-interrupted"),
+          job.kind,
+        );
+        assert.equal(root.querySelector(".step-icon-running"), null, job.kind);
+        assert.equal(
+          query(row, ".step-state").textContent,
+          catalogs[locale].stepStates.interrupted,
+          job.kind,
+        );
+      }
+      const running = container();
+      renderJobState(running, { kind: "running", steps }, shown(0), locale);
+      assert.equal(running.querySelectorAll(".step-icon-running").length, 1);
     });
 
     it(`lists the steps in the module's order with each step's own state in ${locale}`, () => {

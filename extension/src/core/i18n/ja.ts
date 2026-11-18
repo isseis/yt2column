@@ -120,9 +120,9 @@ export const ja: Catalog = {
       ],
     },
     settings_invalid: {
-      text: "保存した設定を使えないため、設定し直す必要があります。",
+      text: "保存した API キーかワークスペース ID の値が、使える形ではありません。",
       steps: [
-        `「${setupButton}」を押して、API キーを保存し直してください。`,
+        `「${setupButton}」を押して、API キーとワークスペース ID を保存し直してください。`,
         pressAgainStep,
       ],
     },
@@ -157,7 +157,10 @@ export const ja: Catalog = {
     },
     llm_failed: {
       text: "LLM の呼び出しが失敗しました。",
-      steps: [pressAgainStep],
+      steps: [
+        `しばらく待ってから、動画のタブでポップアップを開き、「${generateButton}」をもう一度押してください。`,
+        "失敗が続くときは、Claude Console で利用の上限と使用量を確かめてください。",
+      ],
     },
     article_invalid: {
       text: "生成した記事が、完了の時点の検査に通りませんでした。",
@@ -187,6 +190,7 @@ export const ja: Catalog = {
     done: "完了",
     skipped: "省略",
     failed: "失敗",
+    interrupted: "中断",
   },
   viewer: {
     preparing: { text: "記事の生成を準備しています…", steps: [] },

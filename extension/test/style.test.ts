@@ -292,15 +292,19 @@ const contrastPairs = [
     foregroundRules: [
       ".check-row-warning .message-text",
       ".check-row-warning .message-steps",
+      ".options-result-warning",
     ],
     foregroundProperty: "color",
-    backgroundRules: [".check-row-warning"],
+    backgroundRules: [".check-row-warning", ".options-result-warning"],
   },
   {
     foreground: "--fail",
     background: "--bg",
     minimum: 4.5,
-    foregroundRules: [".failure .message-text"],
+    foregroundRules: [
+      ".failure .message-text",
+      ".options-result-failure .message-text",
+    ],
     foregroundProperty: "color",
     backgroundRules: ["body"],
   },

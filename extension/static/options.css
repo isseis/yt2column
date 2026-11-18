@@ -94,3 +94,17 @@ h2 {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+/* An outcome's message: a failure's sentence takes the failure colour, and a
+   warning sits on the warning background in the warning text colour, like
+   the popup's warning row. The words tell the outcome; the colour repeats it. */
+.options-result-failure .message-text {
+  color: var(--fail);
+}
+
+.options-result-warning {
+  padding: 0.5rem;
+  color: var(--warn-text);
+  background-color: var(--warn-bg);
+  border-radius: 0.25rem;
+}

@@ -192,6 +192,7 @@ describe("startOptions", () => {
     assert.equal(page.local.items.get("anthropic.apiKey"), secret);
     assert.equal(page.elements.apiKey.value, "");
     assert.ok(statusText(page).includes(catalogs.en.options.saved.text));
+    assert.ok(page.elements.status.classList.contains("options-result-plain"));
     assert.equal(
       page.elements.keyState.textContent,
       catalogs.en.optionsPage.keyState.set,
@@ -217,9 +218,16 @@ describe("startOptions", () => {
     assert.ok(
       statusText(page).includes(catalogs.en.options.field_rejected.text),
     );
-    // A later save clears the marks.
+    assert.ok(
+      page.elements.status.classList.contains("options-result-failure"),
+    );
+    // A later save clears the marks and the failure's look.
     await save(page, JSON.stringify({ status: "ok" }));
     assert.equal(page.elements.workspaceId.hasAttribute("aria-invalid"), false);
+    assert.equal(
+      page.elements.status.classList.contains("options-result-failure"),
+      false,
+    );
   });
 
   it("keeps the fields read-only and both buttons disabled while the check runs", async () => {

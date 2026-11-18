@@ -221,6 +221,7 @@ export async function startOptions(
 
   const showResult = (done: OptionsFlowResult): void => {
     const view = optionsView(done.result, locale);
+    elements.status.className = `options-result options-result-${view.tone}`;
     elements.status.replaceChildren(...messageNodes(doc, view.message));
     markFields(elements, view.rejectedFields);
     if (view.clearFields) {

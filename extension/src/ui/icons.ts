@@ -1,4 +1,4 @@
-import type { StepState } from "../core/response.ts";
+import type { ShownStepState } from "../core/jobView.ts";
 import type { CheckState } from "../core/types.ts";
 
 /** The SVG namespace; createElementNS builds the symbol without parsing a string. */
@@ -111,10 +111,10 @@ function arc(doc: Document): SVGPathElement {
   return shape;
 }
 
-// A record keyed by every StepState, so a new state fails the type check here
-// until it has its own shapes. Every state has a different shape: an open
-// circle, a turning arc, a check, a dash and a cross.
-const stepSymbols: Record<StepState, SymbolShapes> = {
+// A record keyed by every ShownStepState, so a new state fails the type check
+// here until it has its own shapes. Every state has a different shape: an
+// open circle, a turning arc, a check, a dash, a cross and two upright bars.
+const stepSymbols: Record<ShownStepState, SymbolShapes> = {
   pending(doc, svg) {
     const circle = doc.createElementNS(svgNamespace, "circle");
     circle.setAttribute("cx", "10");
@@ -138,6 +138,9 @@ const stepSymbols: Record<StepState, SymbolShapes> = {
   failed(doc, svg) {
     svg.append(line(doc, 5, 5, 15, 15), line(doc, 15, 5, 5, 15));
   },
+  interrupted(doc, svg) {
+    svg.append(line(doc, 7, 4, 7, 16), line(doc, 13, 4, 13, 16));
+  },
 };
 
 /**
@@ -145,7 +148,7 @@ const stepSymbols: Record<StepState, SymbolShapes> = {
  * without colour, and the step's state word carries the meaning for assistive
  * technology, so the symbol is aria-hidden.
  */
-export function stepIcon(doc: Document, state: StepState): SVGSVGElement {
+export function stepIcon(doc: Document, state: ShownStepState): SVGSVGElement {
   const svg = emptySymbol(doc, 14, ["step-icon", `step-icon-${state}`]);
   stepSymbols[state](doc, svg);
   return svg;

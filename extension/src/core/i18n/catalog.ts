@@ -5,7 +5,8 @@ import type { ArticleFailure, SetupFailure } from "../jobView.ts";
 import type { OptionsOutcome } from "../optionsView.ts";
 import type { ExistingState } from "../popupView.ts";
 import type { CheckName, CheckState, RejectionReason } from "../types.ts";
-import type { StepName, StepState } from "../wasmResult.ts";
+import type { ShownStepState } from "../jobView.ts";
+import type { StepName } from "../wasmResult.ts";
 import { en } from "./en.ts";
 import { ja } from "./ja.ts";
 import type { Locale } from "./locale.ts";
@@ -77,7 +78,7 @@ export interface Catalog {
   /** The generation steps' names. */
   readonly stepNames: Readonly<Record<StepName, string>>;
   /** The word that tells a step's state; given to assistive technology. */
-  readonly stepStates: Readonly<Record<StepState, string>>;
+  readonly stepStates: Readonly<Record<ShownStepState, string>>;
   /** The viewer page's own texts. */
   readonly viewer: {
     /** A start not reserved yet: the input is taken and checked. */

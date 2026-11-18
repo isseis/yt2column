@@ -8,7 +8,7 @@ import { catalogs } from "../core/i18n/catalog.ts";
 import type { Message } from "../core/i18n/catalog.ts";
 import { formatDuration, formatUsd } from "../core/i18n/locale.ts";
 import type { Locale } from "../core/i18n/locale.ts";
-import { costUnknown } from "../core/jobView.ts";
+import { costUnknown, shownStepState } from "../core/jobView.ts";
 import type { JobDisplay, StartFailure, ViewerState } from "../core/jobView.ts";
 import type { PopupJobState } from "../core/popupView.ts";
 import { jobMessage, startFailureMessage } from "../core/sendMessages.ts";
@@ -32,18 +32,20 @@ const stepOrder: readonly StepName[] = ["draft", "shorten", "review"];
  * The generation steps as a list, one item per step in the order the module
  * runs them. Each item holds, in the order assistive technology reads them,
  * the symbol (aria-hidden), the step's name and the state's word (visually
- * hidden), like a check row of the popup.
+ * hidden), like a check row of the popup. A step of an ended job that the
+ * record still holds as running is shown as interrupted, so it does not turn.
  */
 function stepChecklist(
   doc: Document,
   steps: Steps,
+  jobEnded: boolean,
   locale: Locale,
 ): HTMLOListElement {
   const catalog = catalogs[locale];
   const list = doc.createElement("ol");
   list.className = "step-list";
   for (const name of stepOrder) {
-    const state = steps[name];
+    const state = shownStepState(steps[name], jobEnded);
     const item = doc.createElement("li");
     item.className = "step-row";
     const stepName = doc.createElement("span");
@@ -234,19 +236,19 @@ export function jobStateNodes(
 ): HTMLElement[] {
   switch (job.kind) {
     case "running": {
-      const checklist = stepChecklist(doc, job.steps, locale);
+      const checklist = stepChecklist(doc, job.steps, false, locale);
       return elapsed.kind === "shown"
         ? [checklist, elapsedTime(doc, elapsed.ms, locale)]
         : [checklist];
     }
     case "done":
       return [
-        stepChecklist(doc, job.steps, locale),
+        stepChecklist(doc, job.steps, true, locale),
         articleFacts(doc, job.article, locale),
       ];
     case "unstored":
       return [
-        stepChecklist(doc, job.steps, locale),
+        stepChecklist(doc, job.steps, true, locale),
         articleFacts(doc, job.article, locale),
         messageBlock(doc, "job-notice", catalogs[locale].viewer.unstored),
       ];
@@ -259,7 +261,7 @@ export function jobStateNodes(
     case "stopped": {
       const message = jobMessage(job, locale);
       return [
-        stepChecklist(doc, job.steps, locale),
+        stepChecklist(doc, job.steps, true, locale),
         ...(message === undefined
           ? []
           : [messageBlock(doc, "failure", message)]),

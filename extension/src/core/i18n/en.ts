@@ -112,9 +112,9 @@ export const en: Catalog = {
       steps: [`Press "${setupButton}" and save your API key.`, pressAgainStep],
     },
     settings_invalid: {
-      text: "The saved settings cannot be used, so they need to be set again.",
+      text: "The saved API key or workspace ID is not in a usable form.",
       steps: [
-        `Press "${setupButton}" and save your API key again.`,
+        `Press "${setupButton}" and save your API key and workspace ID again.`,
         pressAgainStep,
       ],
     },
@@ -149,7 +149,10 @@ export const en: Catalog = {
     },
     llm_failed: {
       text: "The LLM call failed.",
-      steps: [pressAgainStep],
+      steps: [
+        `Wait a while, then on the video's tab, open the popup and press "${generateButton}" again.`,
+        "If it keeps failing, check your usage limits and usage in the Claude Console.",
+      ],
     },
     article_invalid: {
       text: "The generated article did not pass the completion check.",
@@ -179,6 +182,7 @@ export const en: Catalog = {
     done: "Done",
     skipped: "Skipped",
     failed: "Failed",
+    interrupted: "Interrupted",
   },
   viewer: {
     preparing: { text: "Preparing the article...", steps: [] },

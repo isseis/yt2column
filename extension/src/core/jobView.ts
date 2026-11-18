@@ -7,7 +7,22 @@
 
 import type { JobRecord, RecordFailure } from "./jobRecord.ts";
 import type { StartRejection } from "./jobMessages.ts";
-import type { ArticleResult, Steps } from "./wasmResult.ts";
+import type { ArticleResult, StepState, Steps } from "./wasmResult.ts";
+
+/**
+ * A step's state as displayed: a record's state, or interrupted for a step
+ * the record still holds as running after the job ended (the run stopped with
+ * its page, or failed outside the module), which no longer runs.
+ */
+export type ShownStepState = StepState | "interrupted";
+
+/** The state a step is shown in; a running step of an ended job is interrupted. */
+export function shownStepState(
+  state: StepState,
+  jobEnded: boolean,
+): ShownStepState {
+  return jobEnded && state === "running" ? "interrupted" : state;
+}
 
 /** How often a page draws a running job's elapsed time again while it is visible. */
 export const elapsedRedrawMs = 1_000;
