@@ -378,7 +378,7 @@ cd "$(git rev-parse --show-toplevel)"
 part() { printf '%s %s\n' "$1" "$(shasum -a 256 | cut -c1-64)"; }
 hashes() { while IFS= read -r p; do printf '%s %s\n' "$p" "$(shasum -a 256 2>/dev/null <"$p" | cut -c1-64)"; done; }
 git for-each-ref --format='%(refname) %(objectname)' refs/replace | part replace
-d=$(git rev-parse --git-dir); for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG rebase-merge rebase-apply sequencer; do [ ! -e "$d/$f" ] || { echo "$f"; ls -lR "$d/$f"; }; done | part ops
+d=$(git rev-parse --git-dir); for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG rebase-merge rebase-apply sequencer; do [ ! -e "$d/$f" ] || { echo "$f"; ls -lR "$d/$f"; find "$d/$f" -type f | sort | hashes; }; done | part ops
 b=$(git symbolic-ref -q --short HEAD || true); git config --list | awk -v cur="branch.$b." '!/^branch\./ || index($0, cur) == 1 || index($0, "branch.main.") == 1' | part config
 { git rev-parse --git-dir; git rev-parse --git-common-dir; } | sort -u | while IFS= read -r d; do [ ! -d "$d/info" ] || find "$d/info" -print; done | sort | hashes | part info
 h=$(git rev-parse --git-path hooks); { [ ! -d "$h" ] || { find "$h" -exec ls -ld {} +; find "$h" -print | sort | hashes; }; } | part hooks

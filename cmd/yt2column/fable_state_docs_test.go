@@ -86,6 +86,10 @@ func TestFableStateCheckBlock(t *testing.T) {
 	if afterMerge["ops"] == afterReplace["ops"] {
 		t.Error("the ops part did not change with a merge in progress")
 	}
+	f.write(".git/MERGE_HEAD", f.rev("HEAD~0^{tree}")+"\n")
+	if fableStateParts(t, f, script)["ops"] == afterMerge["ops"] {
+		t.Error("the ops part did not change with the content of MERGE_HEAD")
+	}
 	for _, name := range []string{"status", "head", "config", "info", "watched", "settings", "index"} {
 		if afterMerge[name] != before[name] {
 			t.Errorf("the %s part changed although nothing it covers changed", name)
