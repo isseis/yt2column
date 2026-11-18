@@ -509,7 +509,10 @@ Show, in Japanese (0092 requirements AC-07, AC-12, AC-17), the issue's number
 
 - `refused`: nothing was made. Give the reason, `create_refusal`, by the
   table below, with `failure` when set, and for `target_exists` each entry
-  of `existing` (what is already at the path).
+  of `existing` (what is already at the path), then only this remedy:
+  chief neither uses nor removes what is there; the human either cleans it
+  up in a terminal and starts the task again, or works in it by hand.
+  Never tie the result to a row of the table or add another cause (rule 6).
 - `stopped`: the creation stopped at `stage` (table below) with `failure`,
   and nothing was removed and `/mkreq` was not sent. List every entry of
   `made` (its `kind`, `id`, and `label` when set), and say that the human
