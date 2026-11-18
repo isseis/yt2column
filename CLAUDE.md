@@ -1024,7 +1024,7 @@ section of the Requirements Process Guide.
 - Invoking `/chief` approves, for that session, the read-only network operations
   the `chief` tool runs while it shows the status and watches: `git fetch origin
   main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`; and,
-  when the human starts a new task in a new workspace, the read of that issue
+  when the human starts a new task from an issue, the read of that issue
   with the tool's one `gh api graphql` query of `issueOrPullRequest` (its
   number, state, title, and labels). It approves no write (push, merge,
   comment, or issue operation); the tool runs none. The tool is called only in the form `.claude/commands/chief.md` gives,

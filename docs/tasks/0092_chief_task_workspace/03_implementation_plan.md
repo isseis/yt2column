@@ -136,7 +136,15 @@
 
 21. **削除の候補でなくなった workspace は、確かめの結果に `not_candidate` だけを持つ（2026-11-18、人が承認した）。** `remove` の中で読み直した workspace が削除の候補でないときは、ほかの 7 つの確かめは削除の候補（`RemovalCandidate`）を前提にするので走らせず、`checks_failed` と `not_candidate` だけを返す。ステップ 6-2 にこれを編集上の訂正として書いたが、PR-6 の Fable の部分レビューが、設計書 3.4.2 の「通らなかったものをすべて返す」から外れる選択で、PR-7 の `/chief` の定義が読む出力の形（`checks` が 1 件のときがある）にもなると指摘した。ほかの案（7 つを `unreadable` として 8 件を返す、`locate` の見つけた worktree で 7 つを走らせる）は採らない。後者は削除の候補の型の不変条件に例外が要る。要件定義書の AC-28 と、設計書 1.6・3.4.2 に書き足した（ローカルの CLI レビューが、AC-28 との食い違いを指摘した）。ADR: なし（PR-6 の中で閉じるため）。
 
-22. **「新しいタスクを始める」に固定の英字 `N` を付ける（2026-11-18、人が承認した）。** PR-7 の実地の確かめで、人が、番号のない選択肢は選びにくいと指摘した。`/chief` の定義は、待ち受けの一覧でこの選択肢を `[N] 新しいタスクを始める` と示し、`N`（`n`）でも選べるようにする。名前で選ぶことも残す。道具の番号は数字だけで、この選択肢は一覧にいつも 1 つなので、固定の文字は重ならず、ラウンドをまたいで意味も変わらない。`停止を解く`・`送り直す` は複数並びうるので文字を付けない。ステップ 7-2 で直し、設計書 1.6・3.7 に書き足した。ADR: なし（`/chief` の定義の示し方の細部で、タスクの中で閉じるため）。
+22. **「新しいタスクを始める」に固定の英字 `N` を付ける（2026-11-18、人が承認した）。** PR-7 の実地の確かめで、人が、番号のない選択肢は選びにくいと指摘した。`/chief` の定義は、待ち受けの一覧でこの選択肢を `[N] 新しいタスクを始める` と示し、`N`（`n`）でも選べるようにする。名前で選ぶことも残す。道具の番号は数字だけで、この選択肢は一覧にいつも 1 つなので、固定の文字は重ならず、ラウンドをまたいで意味も変わらない。`停止を解く`・`送り直す` は複数並びうるので文字を付けない。ステップ 7-2 で直し、設計書 1.6・3.7 に書き足した。
+
+    同じ実地の確かめで、人が、番号を打ち間違えても作る前に気づけるよう始める先を選ぶ前に issue の題名を見たいと求め、`N` の後の番号の問いと候補のないときの始める先の問いが手間だと指摘した。そこで、次のとおりにした（2026-11-18、人が承認した）。
+    -   待ち受けの一覧で `N <番号>` を受け付け、番号を尋ねずに `targets` を呼ぶ。`N` だけのときは問いを開かず、その形で打つよう示す。`once` では、今のとおり選択式で番号を尋ねる。
+    -   `targets` は、`create` と同じ問い合わせで issue を読み（`readOpenIssue` を共有する）、拒む issue なら周を読まずに `create` と同じ理由で拒む。通れば題名を返す。`/chief` の定義は題名を示してから始める先を尋ね、候補のないときも作る前の確認として残す。
+    -   既存の workspace へ送る経路も issue の確かめを通る（要件書 AC-02・AC-04 を直した）。CLAUDE.md の「Tool Execution Safety」の承認を `targets` にも広げた。
+    -   ステップ 7-1 の出力の形も変わるが、`Protocol` は本 PR で上げた値のままである。
+
+    ADR: なし（`/chief` の定義の示し方と、ADR-0046 の issue を読んで拒む決定の中で閉じるため）。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -515,7 +523,7 @@
 | AC-01 | 定義の入口の位置と `once` の扱い、実地の確かめ（`once` の問いで名前で選ぶ） | manual | 7-2・7-5 | PR-7 |
 | AC-02 | `ic/create_test.go::TestTargets`（番号の形、候補、候補のないとき）、定義の問いの順 | test、manual | 4-3・7-2 | PR-4、PR-7 |
 | AC-03 | `ic/send_test.go::TestMkreqTarget`、`ic/snapshot_test.go::TestNextCommandRules`（どちらも変えずに通る） | test | 3-3・5-3 | PR-3、PR-5 |
-| AC-04 | `ic/create_test.go::TestTargets`（`gh api graphql` を走らせない）、`ic/send_test.go::TestMkreqTarget` | test | 4-3 | PR-4 |
+| AC-04 | `ic/create_test.go::TestTargets`（issue を読み、拒む issue では周を読まず候補を返さない）、`ic/send_test.go::TestMkreqTarget` | test | 4-3・7-1 | PR-4、PR-7 |
 | AC-05 | `ic/issue_test.go::TestParseIssueSamples`、`ic/issue_test.go::TestParseIssueRejects`、`ic/create_test.go::TestCreateRefusesIssue`（何も作らない） | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-06 | `ic/create_test.go::TestCreateIssueForm`、`ic/create_test.go::TestTargets`（`issue_form`）、`cc/main_test.go::TestIssueFormIsNoUsageError` | test | 4-2・4-3・7-1 | PR-4、PR-7 |
 | AC-07 | `ic/issue_test.go::TestParseIssueTitle`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
@@ -646,3 +654,4 @@
 - 2026-11-18 セッション中の再承認：消す手順の確かめを、閉じる直前と消す直前にも当てた（決定 20）（isseis、#986）
 - 2026-11-18 セッション中の再承認：削除の候補でなくなった workspace の確かめの結果を `not_candidate` だけにした（決定 21）（isseis、#986）
 - 2026-11-18 セッション中の再承認：「新しいタスクを始める」に固定の英字 `N` を付け、`N` でも選べるようにした（決定 22）（isseis、#未記入）
+- 2026-11-18 セッション中の再承認：`targets` が issue を読んで題名か拒否を返し、待ち受けの一覧で `N <番号>` を受け付けることにした（決定 22）（isseis、#未記入）

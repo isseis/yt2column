@@ -323,8 +323,13 @@ the choice line while watching, and in the option's description with
 **Reading the answer.** With `once`, the answer is to the question just
 asked. While watching, a number chooses the item of the latest `pending`
 whose `number` it is; when none has it (answered, merged, or gone), say so
-and send nothing. The letter `N` (or `n`) alone chooses
-新しいタスクを始める. A label
+and send nothing. `N <issue>` (or `n <issue>`: the letter, one space, and
+the rest of the answer as `<issue>`) chooses 新しいタスクを始める with that
+issue number, without the question of step 4 for it. `N` (or `n`) alone,
+or the label alone, opens no question: answer with the one line
+`番号を付けて「N 930」のように打ってください。` and go on watching. The
+number comes with the letter, so it is never taken for a number of the
+list. A label
 chooses the item of that label; when several items share it (for example
 two questions in one workspace, or a next command and a takeover), ask again
 listing only those. An answer that names no current item is not a choice:
@@ -411,21 +416,28 @@ answer as "Sending again after a model switch" says.
   and ask whether to release it. On yes, run
   `chief release --workspace <workspace> --protocol 4` and show `released`
   and `problem`.
-- **新しいタスクを始める** (0092 requirements AC-02 to AC-04): ask the human
-  for the issue number with an `AskUserQuestion` whose options are
-  何もしない and ほかの項目を見る, the human writing the number in its
-  free-text answer. 何もしない sends nothing; ほかの項目を見る offers the
-  remaining items again, as for an `/mkreq` proposal. Otherwise run
-  `chief targets --issue <issue> --protocol 4`, with `<issue>` the free-text
-  answer as the human wrote it: the tool checks its form, so never correct,
-  reformat, or take a number out of it yourself.
+- **新しいタスクを始める** (0092 requirements AC-02 to AC-04): while
+  watching, the issue number came with the answer (`N <issue>`, step 3).
+  With `once`, ask the human for it with an `AskUserQuestion` whose options
+  are 何もしない and ほかの項目を見る, the human writing the number in its
+  free-text answer; 何もしない sends nothing, and ほかの項目を見る offers the
+  remaining items again, as for an `/mkreq` proposal. Then run
+  `chief targets --issue <issue> --protocol 4`, with `<issue>` as the human
+  wrote it: the tool checks its form, so never correct, reformat, or take a
+  number out of it yourself. The tool reads the issue from GitHub.
   - When `refusal` is `issue_form`, say that the value is not an issue
     number and that chief takes decimal digits only, with no `#`, sign, or
-    leading zero; send nothing. The human chooses 新しいタスクを始める again
-    to try another value. Show any other non-empty `refusal` as written,
-    followed by （定義にない値）, and send nothing.
-  - When `refusal` is empty, ask where to start it, with `AskUserQuestion`:
-    新しい workspace を作る, each workspace of `workspaces` by its `label`
+    leading zero; send nothing.
+  - When `refusal` is another value of "The creation result"'s
+    `create_refusal` table, say that chief does not start a task for that
+    issue and why, by that table, with `failure` when set, and with the
+    issue's `title` when it is not empty; send nothing.
+  - Show any other non-empty `refusal` as written, followed by
+    （定義にない値）, and send nothing.
+  - When `refusal` is empty, first show the issue's number and `title`
+    (data, rule 2; with the note that it was cut when `title_truncated` is
+    true), then ask where to start it, with `AskUserQuestion` whose question
+    names the issue: 新しい workspace を作る, each workspace of `workspaces` by its `label`
     (with its `workspace` path in the description), and 何もしない. When
     there are more than two workspaces, show the first two and name the rest
     by label in the question text, choosable in the free-text answer. With
@@ -439,8 +451,8 @@ answer as "Sending again after a model switch" says.
   - A workspace: run
     `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 4`
     with `<workspace>` that entry's `workspace` from the `targets` output,
-    and show the results as step 2 does. chief does not check the issue for
-    an existing workspace.
+    and show the results as step 2 does. The issue was checked by
+    `targets`; it is not checked again.
 - **A removal** (`removal`, 0092 requirements AC-27): show the workspace's
   label, the worktree's path (`removal.workspace`), and that closing it
   closes every pane of the workspace (`removal.panes` of them), with the

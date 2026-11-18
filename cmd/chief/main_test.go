@@ -115,6 +115,10 @@ func (f *fakeHerdr) Run(_ context.Context, name string, args ...string) ([]byte,
 		return nil, nil
 	case name == "git" && has("show"):
 		return f.context, nil
+	case name == "gh" && has("api", "graphql") && has("n="+openIssue):
+		// The answer GitHub gave about an open issue, sampled for
+		// internal/chief.
+		return os.ReadFile(filepath.Join("..", "..", "internal", "chief", "testdata", "gh", "issue-open-839.json"))
 	}
 	f.t.Errorf("unexpected command %s %v", name, args)
 	return nil, errors.New("unexpected command")
@@ -301,19 +305,23 @@ func TestIssueFormIsNoUsageError(t *testing.T) {
 	}
 }
 
-// TestTargetsListsNoWorkspaceAndTypesNothing runs targets with an issue
-// number when no task workspace offers /mkreq: it finishes with the issue,
-// no refusal, and an empty list (not null), and the fake, which fails the
-// test on any command it does not answer and answers only reads and git
-// fetch, gets no call that writes to Herdr or adds a worktree.
+// openIssue is the number of the open issue the fake GitHub answers about.
+const openIssue = "839"
+
+// TestTargetsListsNoWorkspaceAndTypesNothing runs targets with an open
+// issue's number when no task workspace offers /mkreq: it finishes with the
+// issue, its title, no refusal, and an empty list (not null), and the fake,
+// which fails the test on any command it does not answer and answers only
+// reads and git fetch, gets no call that writes to Herdr or adds a
+// worktree.
 func TestTargetsListsNoWorkspaceAndTypesNothing(t *testing.T) {
 	h := newHarness(t)
 	if code, out := h.run("start", "--protocol", protocol); code != exitOK {
 		t.Fatalf("start = %d, %v", code, out)
 	}
-	code, out := h.run("targets", "--issue", "12", "--protocol", protocol)
-	if list, ok := out["workspaces"].([]any); code != exitOK || out["issue"] != "12" || out["refusal"] != "" || !ok || len(list) != 0 {
-		t.Errorf("targets = %d, %v; want exit 0, issue 12, no refusal, no workspace", code, out)
+	code, out := h.run("targets", "--issue", openIssue, "--protocol", protocol)
+	if list, ok := out["workspaces"].([]any); code != exitOK || out["issue"] != openIssue || out["title"] != "Sample title of an open issue" || out["refusal"] != "" || !ok || len(list) != 0 {
+		t.Errorf("targets = %d, %v; want exit 0, issue %s with its title, no refusal, no workspace", code, out, openIssue)
 	}
 }
 

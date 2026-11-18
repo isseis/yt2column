@@ -117,6 +117,7 @@ flowchart LR
 
 -   **消す手順の確かめを、書き込みの直前にも当てる（計画書の決定 20、2026-11-18、人が承認した）。** PR-6 のローカルレビューとブランチのレビューが、3.4.3 の手順の段と段の間に残る隙間と、git の設定によっては git が追跡していないファイルを拒まないことを見つけた。どれも、3.4.2 の確かめ（HEAD が detached、`path_in_use`、読めないものは通さない）を、閉じる直前と消す直前にも当てるもので、消す方向を狭めるだけである。3.4.3 の 4〜6 と 4.1 の段の綴りの意味を、そのとおりに直した。ADR: なし（PR-6 の中で閉じるため）。
 -   **削除の候補でなくなった workspace は、確かめの結果に `not_candidate` だけを持つ（計画書の決定 21、2026-11-18、人が承認した）。** ほかの確かめは削除の候補を前提にして走るので、候補を作れないときは走らせない。PR-6 の Fable の部分レビューが、これが 3.4.2 の「通らなかったものをすべて返す」から外れる選択で、`/chief` の定義が読む出力の形にもなると指摘した。3.4.2 に書き足した。ADR: なし（PR-6 の中で閉じるため）。
+-   **`targets` が issue を読み、題名を示してから始める先を尋ねる。待ち受けの一覧で `N <番号>` を受け付ける（計画書の決定 22、2026-11-18、人が承認した）。** PR-7 の実地の確かめで、人が、番号を打ち間違えても作る前に気づけるよう、始める先を選ぶ前に題名を見たいと求めた。また、`N` を選んだ後に番号を尋ねる問いと、候補のないときの始める先の問いが、続けて選ぶだけの手間になると指摘した。`targets` は `create` と同じ問い合わせで issue を読み、拒む issue なら周を読まずに拒む。始める先の問いは題名を示して尋ねるので、候補がないときも作る前の確認として残す。`N` だけが打たれたときは、問いを開かず、`N <番号>` の形で打つよう示す。番号が `N` と一緒に来るので、一覧の番号と取り違えない（0103 の、選んだ後の問いを文で尋ねない規則に触れない）。既存の workspace へ送る経路も issue の確かめを通る（要件書 AC-04）。`create` は作る直前にもう一度確かめる。CLAUDE.md の「Tool Execution Safety」の issue の読み取りの承認を、`targets` にも広げる。ADR: なし（ADR-0046 の issue を読んで拒む決定の中で閉じるため）。
 -   **「新しいタスクを始める」に固定の英字 `N` を付ける（計画書の決定 22、2026-11-18、人が承認した）。** PR-7 の実地の確かめで、人が、番号のない選択肢は選びにくいと指摘した。この選択肢は一覧にいつも 1 つだけで、道具の番号は数字だけなので、固定の英字なら道具の番号と重ならず、ラウンドをまたいで意味も変わらない。名前で選ぶことも残す。`停止を解く`・`送り直す` には付けない。同時に複数並びうるので、ラウンドごとに振る文字は、次のラウンドで別の選択肢を指しうるためである。道具の番号を付ける項目に変える案は、道具の出力を変えるので採らない。ADR: なし（`/chief` の定義の示し方の細部で、タスクの中で閉じるため）。
 
 ## 2. システム構成 (System Structure)
@@ -227,8 +228,9 @@ sequenceDiagram
 
     H->>S: 「新しいタスクを始める」を選び、issue 番号を答える
     S->>T: chief targets --issue N --protocol 2
-    T-->>S: 番号の形の結果、既存の候補の workspace
-    S->>H: 始める先を尋ねる (AskUserQuestion)
+    T->>GH: gh api graphql (issueOrPullRequest)
+    T-->>S: issue の題名か拒否、既存の候補の workspace
+    S->>H: 題名を示し、始める先を尋ねる (AskUserQuestion)
     H-->>S: 新しい workspace
     S->>T: chief create --issue N --protocol 2
     T->>GH: gh api graphql (issueOrPullRequest)
@@ -252,7 +254,7 @@ sequenceDiagram
 
 | サブコマンド | 何をするか | Herdr・git への書き込み | ネットワーク |
 |---|---|---|---|
-| `targets --issue <N>` | 番号の形を確かめ（AC-06）、既存の候補の workspace（0088 の AC-38 を満たすもの）を返す（AC-02） | なし | `git fetch origin main`（0088 の周と同じ読み取り） |
+| `targets --issue <N>` | 番号の形を確かめ（AC-06）、issue を読んで題名か拒否を返し（AC-02）、通れば既存の候補の workspace（0088 の AC-38 を満たすもの）を返す | なし | `gh api graphql`（読み取り）、`git fetch origin main`（0088 の周と同じ読み取り） |
 | `create --issue <N>` | issue を確かめ（F-002）、worktree と workspace を作ってエージェントを起動し（F-003）、`/mkreq <N>` を送る（F-004） | worktree を足す、workspace とタブを作る、エージェントを起動する、0088 の F-006 の表の入力 | `gh api graphql`（読み取り）、`git fetch origin main` |
 | `remove --workspace <W>` | 削除の確かめを行い（AC-28）、通れば workspace を閉じて worktree を消す（AC-30） | workspace を閉じる、worktree を消す | `git fetch origin main` |
 
@@ -380,8 +382,8 @@ query($owner: String!, $repo: String!, $n: Int!) {
 
 #### 3.3.5. `targets`（AC-01〜AC-04）
 
--   `targets` は、番号の形を確かめ、0088 の周の読み取り（`internal/chief/snapshot.go:90` の `readRound`）で、行が `/mkreq` を提案している workspace（0088 の AC-38 を満たすもの）を返す。何も作らず、通知の記録も作らない。
--   issue の存在は確かめない。既存の workspace を選んだときは F-002 の確かめを行わない（AC-04）。新しい workspace を選んだときは、`create` が確かめる。
+-   `targets` は、番号の形を確かめ、`create` と同じ問い合わせ（3.3.1）で issue を読む。開いていて `draft` のない issue でなければ、`create` と同じ理由で拒み、周を読まない。通れば、issue の題名と、0088 の周の読み取り（`internal/chief/snapshot.go:90` の `readRound`）で、行が `/mkreq` を提案している workspace（0088 の AC-38 を満たすもの）を返す。何も作らず、通知の記録も作らない（1.6）。
+-   既存の workspace を選んだときは、選んだ後に issue を確かめ直さない（AC-04）。新しい workspace を選んだときは、`create` が作る直前にもう一度確かめる。
 -   既存の workspace を選んだときは、セッションが 0088 の `chief send --workspace <W> --command mkreq --issue <N> --protocol 2` を呼ぶ。その振る舞いは 0088 のままである（AC-03・AC-04）。
 
 ### 3.4. 削除の候補と削除（`remove`）
@@ -587,7 +589,7 @@ type RemoveOutcome struct {
 ### 3.7. `/chief` の定義（`.claude/commands/chief.md`）
 
 -   **入口（AC-01）。** 人の判断を待つものの一覧の最後、`removal` の項目の後、`何もしない` の前に、`新しいタスクを始める` を常に置く。道具の番号を持たないので、0088 の `停止を解く` と同じく名前で選ぶ。待ち受けの一覧では、固定の英字 `N` を付けて `[N] 新しいタスクを始める` と示し、`N` でも選べる（1.6）。`once` の問いでは、0088 の AC-14 のとおり、示せない項目を問いの文で名前で挙げる。
--   **始める流れ（AC-02〜AC-04）。** 人が選ぶと、issue 番号を尋ね、`chief targets --issue <N> --protocol 2` を呼ぶ。`issue_form` なら、受け付ける形を示す。通れば、`新しい workspace を作る`、候補の各 workspace、`何もしない` を `AskUserQuestion` で尋ねる。新しく作るなら `chief create --issue <N> --protocol 2` を前景で、Bash の上限を明示して呼ぶ（3.1）。既存なら 0088 の `chief send --workspace <W> --command mkreq --issue <N> --protocol 2` を呼ぶ。
+-   **始める流れ（AC-02〜AC-04）。** 人が選ぶと、issue 番号を尋ね、`chief targets --issue <N> --protocol 2` を呼ぶ。待ち受けの一覧では、`N <番号>` と打てば番号を尋ねずに呼ぶ（1.6）。`issue_form` なら、受け付ける形を示す。issue の拒否なら、理由を示して止まる。通れば、issue の番号と題名を示してから、`新しい workspace を作る`、候補の各 workspace、`何もしない` を `AskUserQuestion` で尋ねる。新しく作るなら `chief create --issue <N> --protocol 2` を前景で、Bash の上限を明示して呼ぶ（3.1）。既存なら 0088 の `chief send --workspace <W> --command mkreq --issue <N> --protocol 2` を呼ぶ。
 -   **作成の結果（AC-07・AC-12・AC-17）。** issue の番号と題名、作ったもの、`/mkreq` の送信の結果を示す。作らなかったときは理由を、途中で止まったときは段と理由と作ったものを示す。`/mkreq` を送らなかったときは、`agent_not_ready` で状態が `blocked` ならその pane の画面で答えるよう示し、どの場合も、その pane で `/mkreq <N>` を打つよう示す。
 -   **削除の提案（AC-25）と人の確認（AC-27）。** `removal` の項目は、名前、パス、issue、タスク、pane の数、確かめの結果を示す。人が選ぶと、消す workspace の名前、worktree のパス、workspace のすべての pane が閉じられることを示して、消すかを `AskUserQuestion` で尋ねる。消すと答えたときだけ、`chief remove --workspace <workspace> --protocol 2` を、Bash の上限を明示して呼ぶ。この呼び出しには、Claude Code の許可の確認が出る（1.2）。
 -   **削除の結果（AC-28〜AC-32）。** 消さなかったときは、通らなかった確かめを示す。途中で止まったときは、残ったものと段と理由を示し、人が片付けるよう示す。
@@ -971,3 +973,4 @@ sequenceDiagram
 - 2026-11-18 セッション中の再承認：消す手順の確かめを、閉じる直前と消す直前にも当て、`git worktree remove` に `-c status.showUntrackedFiles=all` を渡すことにした（1.6）（isseis、#986）
 - 2026-11-18 セッション中の再承認：削除の候補でなくなった workspace の確かめの結果を `not_candidate` だけにした（1.6）（isseis、#986）
 - 2026-11-18 セッション中の再承認：「新しいタスクを始める」に固定の英字 `N` を付け、`N` でも選べるようにした（1.6）（isseis、#未記入）
+- 2026-11-18 セッション中の再承認：`targets` が issue を読んで題名か拒否を返し、待ち受けの一覧で `N <番号>` を受け付けることにした（1.6、3.1、3.3.5、3.7）（isseis、#未記入）
