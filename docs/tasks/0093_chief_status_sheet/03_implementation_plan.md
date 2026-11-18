@@ -161,8 +161,8 @@
 -   [x] **ステップ 3-8**: AC-19 の `diff` の確かめのスクリプトを `docs/tasks/0093_chief_status_sheet/_checks/` に shell で書く。merge-base とこの PR のコミットで `.claude/commands/chief.md` の「Under the table」の項目を取り出して比べ、「質問で停止」の行ごとの質問の要点と pane の項目がなくなり、ほかの項目が同じ順で残ることを確かめる。スクリプトの各検査は、少なくとも 1 つの壊し方で失敗することを確かめる。PR のブランチで走らせ、出力と 2 つのコミットの ID を §7 の「PR-3 の実行の記録」に書く（AC-19 の行はそこを指す）。その後に `.claude/commands/chief.md` を変えるコミットを足したときは、走らせ直して書き直す。
 -   [x] **ステップ 3-9**: `docs/dev/guides/chief_guide.md` を設計書 3.10 のとおりに直す（既知の制限は、決定 11 の引数なしのコマンドを含む 3 つ）。古い版に戻す手順は、道具と `/chief` の定義を同じコミットから入れることと、送信の記録の新しい欄を古い道具が読めないので記録を消すことを書く。
 -   [x] **ステップ 3-10**: `package_reference.md` の `internal/chief` と `internal/chief/paneinput` の行に、このタスクで exported にした名前を足す。
--   [ ] **ステップ 3-11**: PR の説明に、人がマージの直前に行う 2 つの項目を書く。0092 の確かめ（§1.3 の決定 6）と、`origin/main` の `Protocol` がこの PR の値と同じなら 1 つ上げること（§1.3 の決定 1）である。`main` はマージで取り込み、rebase しない（0099 の規則。rebase すると、同じ値への書き換えが履歴から消えるため）。上げるときは、人が `/runpr` かこの PR のセッションに、`Protocol` と `/chief` の定義と手引きの番号を直すコミットを頼む。今の `Protocol` のガードテストが、番号の変え残しを見つける。
--   [ ] **ステップ 3-12**: 実地の確かめを、人と行う（§1.3 の決定 3）。動いている `/chief` を人が止め、chief の worktree をこの PR のブランチの先頭（detached）にして `make install-chief` を行い、`/chief` と `/chief once` を起動し直す。設計書 7.3 の 5 つの項目を見る。`working` の Claude Code の pane が数個あり、記録が数十 MB ある状態で、1 周の時間を測る。結果と確かめたコミットを §7 の「PR-3 の実行の記録」に書く。その後に `internal/chief` か `.claude/commands/chief.md` を変えるコミットを足したときは、確かめ直す。マージの後、人が chief の worktree を `main` に戻し、`main` から入れ直す。
+-   [x] **ステップ 3-11**: PR の説明に、人がマージの直前に行う 2 つの項目を書く。0092 の確かめ（§1.3 の決定 6）と、`origin/main` の `Protocol` がこの PR の値と同じなら 1 つ上げること（§1.3 の決定 1）である。`main` はマージで取り込み、rebase しない（0099 の規則。rebase すると、同じ値への書き換えが履歴から消えるため）。上げるときは、人が `/runpr` かこの PR のセッションに、`Protocol` と `/chief` の定義と手引きの番号を直すコミットを頼む。今の `Protocol` のガードテストが、番号の変え残しを見つける。
+-   [x] **ステップ 3-12**: 実地の確かめを、人と行う（§1.3 の決定 3）。動いている `/chief` を人が止め、chief の worktree をこの PR のブランチの先頭（detached）にして `make install-chief` を行い、`/chief` と `/chief once` を起動し直す。設計書 7.3 の 5 つの項目を見る。`working` の Claude Code の pane が数個あり、記録が数十 MB ある状態で、1 周の時間を測る。結果と確かめたコミットを §7 の「PR-3 の実行の記録」に書く。その後に `internal/chief` か `.claude/commands/chief.md` を変えるコミットを足したときは、確かめ直す。マージの後、人が chief の worktree を `main` に戻し、`main` から入れ直す。
 -   [x] **ステップ 3-13**: ステップ 3-12 の最初の実地の確かめを受けた決定の変更（要件書・設計書の「実装の際に決めたこと（2026-11-17）」）を実装する。`readRunningCommand` は人が最後に打ったタスクのコマンドと、その後の人の入力の有無を返し、`RunningShown.Later` と出力の `running.later_input` に通す。後の入力があればモデルを示さない。`OutputValueNames` を表に示す `urgency`・`position.document`・`position.progress`・`running_unknown` にする。`/chief` の定義の表を 6 つの列（急・名前・タスク・文書・状態・内容）にし、印を「🔴 今」「🟡 後」「🟢 待」に、`running_unknown` を内容の列に示す。手引きの 3.1 と 8 章、ADR-0046、CLAUDE.md の chief の画面の読み取りの例外の範囲の文を合わせる。その後、ステップ 3-12 の実地の確かめをやり直す。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。AC-19 のスクリプトの結果と実地の確かめの結果が §7 にある。
@@ -181,7 +181,7 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
@@ -321,7 +321,7 @@ PASS: only the per-row question list was removed and the per-row list of what do
 -   表は 6 つの列の表として描かれ、縦に並ばなかった。
 -   1 周の時間: 6 つの workspace で、`chief snapshot --protocol 3` は 6 行を返して 6.5 秒（CPU は利用者 0.75 秒、システム 0.70 秒）だった。残りは `git fetch`・`gh` の呼び出しの待ちである。読んだ Claude Code の記録のうち大きいものは 5.1 MB・3.8 MB・3.7 MB で、計画の想定の数十 MB には届かなかった。CPU の時間が 1 周の 4 分の 1 ほどなので、記録が 10 倍になっても、読み取りで周が大きく遅れることはないと見ている（記録の上限を超えた pane は `over_cap` として読まない）。
 
-4 回目の後に、`origin/main` の 2 回目のマージ（`cfe4da01`、0097・0092 の PR-7・0099 を取り込んだ）が `internal/chief` と `chief.md` を変えたので、もう一度確かめる。
+4 回目の後に、`origin/main` の 2 回目のマージ（`cfe4da01`、0097・0092 の PR-7・0099 を取り込んだ）が `internal/chief` と `chief.md` を変えたので、5 回目（`5ea1c71a`、道具を入れ直した）を行った（2026-11-18）。表は 6 つの列の表として描かれ、値はそのときの状況と合っていた。1 周の時間は、6 つの workspace で、`chief snapshot --protocol 3` が 6 行を返して 6.1 秒（CPU は利用者 0.73 秒、システム 0.63 秒）だった。
 
 ## 8. 成功の基準 (Success Criteria)
 
