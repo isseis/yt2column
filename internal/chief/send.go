@@ -477,7 +477,7 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 		return notSent(res, NotSentUnreadable, "the send record cannot be written: "+err.Error())
 	}
 	last := StepUnknown
-	for _, st := range steps {
+	for i, st := range steps {
 		if last != StepUnknown {
 			check := paneCheck{session: agent.Session}
 			if st.kind == StepCommand && route.Agent() == paneinput.AgentOpenCode {
@@ -492,6 +492,12 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 			return failedRes
 		}
 		agent, failed = s.await(ctx, agent, st, route)
+		if failed == nil && i+1 < len(steps) {
+			// The agent the step's wait returned stays the one the next
+			// check compares with, so a session that changes during this
+			// wait still stops the send there.
+			_, failed = s.awaitAccepting(ctx, agent, st.kind)
+		}
 		if failed != nil {
 			return s.fail(res, id, st.kind, failed)
 		}
@@ -560,11 +566,11 @@ func (s sendContext) fail(res ActionResult, id string, last SentStep, f *checkFa
 func (s sendContext) await(ctx context.Context, before Agent, st step, route paneinput.Route) (Agent, *checkFailure) {
 	switch st.kind {
 	case StepClear:
-		return s.poll(ctx, before, "the session did not change after /clear", func(a Agent, _ string) bool {
+		return s.poll(ctx, before, NotSentNoStep, "the session did not change after /clear", func(a Agent, _ string) bool {
 			return a.Session != "" && a.Session != before.Session
 		})
 	case StepNew:
-		return s.poll(ctx, before, "the pane shows no new session after /new", func(a Agent, raw string) bool {
+		return s.poll(ctx, before, NotSentNoStep, "the pane shows no new session after /new", func(a Agent, raw string) bool {
 			return readScreen(a.Kind, raw).NewSession
 		})
 	case StepModel:
@@ -574,7 +580,7 @@ func (s sendContext) await(ctx context.Context, before Agent, st step, route pan
 		// state_change_seq alone does not, since a command typed but not
 		// submitted can sit in the input line while the state changes for
 		// another reason.
-		return s.poll(ctx, before, "the agent did not start the command", func(a Agent, _ string) bool {
+		return s.poll(ctx, before, NotSentNoStep, "the agent did not start the command", func(a Agent, _ string) bool {
 			return a.Status == AgentWorking || a.Status == AgentBlocked
 		})
 	default:
@@ -582,8 +588,23 @@ func (s sendContext) await(ctx context.Context, before Agent, st step, route pan
 	}
 }
 
-// poll reads the pane until done holds, up to pollAttempts times.
-func (s sendContext) poll(ctx context.Context, before Agent, why string, done func(Agent, string) bool) (Agent, *checkFailure) {
+// awaitAccepting waits after the input of kind, which finished, until the
+// pane accepts the next input as checkPane requires: the agent idle or done
+// and the screen a prompt. Herdr can report working for a while after /clear
+// gave the pane a new session, while the screen already shows the empty
+// prompt. Contract: the wait ends on the same conditions the check before
+// the next input asks, so a pane that only lags is not stopped; a wait that
+// runs out is a failure, never success.
+func (s sendContext) awaitAccepting(ctx context.Context, before Agent, kind SentStep) (Agent, *checkFailure) {
+	why := fmt.Sprintf("the agent did not become idle or done with a prompt after %s", kind)
+	return s.poll(ctx, before, NotSentNotAccepting, why, func(a Agent, raw string) bool {
+		return (a.Status == AgentIdle || a.Status == AgentDone) && readScreen(a.Kind, raw).Kind == ScreenPrompt
+	})
+}
+
+// poll reads the pane until done holds, up to pollAttempts times. A wait
+// that runs out fails with reason and why as its detail.
+func (s sendContext) poll(ctx context.Context, before Agent, reason NotSentReason, why string, done func(Agent, string) bool) (Agent, *checkFailure) {
 	last := before
 	var raw string
 	for range pollAttempts {
@@ -607,7 +628,7 @@ func (s sendContext) poll(ctx context.Context, before Agent, why string, done fu
 		}
 	}
 	summary := screenSummary(raw)
-	return last, &checkFailure{reason: NotSentNoStep, detail: why, agent: last, screen: summary}
+	return last, &checkFailure{reason: reason, detail: why, agent: last, screen: summary}
 }
 
 // awaitModel reads the new session's transcript until its /model record
