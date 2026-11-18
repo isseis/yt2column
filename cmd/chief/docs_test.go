@@ -252,15 +252,19 @@ func fillPlaceholders(t *testing.T, args []string) []string {
 // and removes a worktree.
 const promptedSubcommand = cmdRemove
 
+// askRemove is the ask rule that makes Claude Code confirm every removal.
+const askRemove = "Bash(" + toolWord + " " + promptedSubcommand + " *)"
+
 // TestDocumentedInvocationsParse: every chief call in the command documents
 // is written in the form the permission rule Bash(chief *) allows (the bare
 // tool name alone in its command), and passes the tool's own checks of its
 // subcommand, flags, and request with its placeholders filled in, so the
-// installed tool runs it instead of returning a usage error. A call matches
-// an ask rule of the settings exactly when it is a call of
-// promptedSubcommand: that call gets Claude Code's permission prompt every
-// time, and every other call runs without one, so watching never stops at
-// a prompt. The /chief definition must hold a call of every subcommand: one
+// installed tool runs it instead of returning a usage error. A call of
+// promptedSubcommand in that bare form begins with the prefix of askRemove,
+// so Claude Code's permission prompt appears at every documented removal
+// (that the settings hold askRemove is TestSettingsAsksBeforeRemove's
+// check); every other call matches no ask rule of the settings, so watching
+// never stops at a prompt. The /chief definition must hold a call of every subcommand: one
 // that lost a call would pass every check of the calls left.
 func TestDocumentedInvocationsParse(t *testing.T) {
 	ask := readSettings(t).Permissions.Ask
@@ -277,8 +281,8 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 				continue
 			}
 			text := strings.Join(append([]string{toolWord}, call.Args...), " ")
-			if asked := slices.ContainsFunc(ask, func(rule string) bool { return matchesRule(rule, text) }); asked != (subcommand == promptedSubcommand) {
-				t.Errorf("%s: %q matches an ask rule of %q: %t, want %t", rel, text, ask, asked, subcommand == promptedSubcommand)
+			if subcommand != promptedSubcommand && slices.ContainsFunc(ask, func(rule string) bool { return matchesRule(t, rule, text) }) {
+				t.Errorf("%s: %q matches an ask rule of %q, so watching would stop at a prompt", rel, text, ask)
 			}
 			if _, err := parseRequests(subcommand, flags); err != nil {
 				t.Errorf("%s: %s %q is a malformed request: %v", rel, toolWord, call.Args, err)
@@ -319,15 +323,21 @@ type settings struct {
 	} `json:"permissions"`
 }
 
-// matchesRule reports whether the Bash permission rule rule, of the form
-// Bash(<prefix>*) the settings use, matches the command text.
-func matchesRule(rule, text string) bool {
+// matchesRule reports whether the Bash permission rule rule matches the
+// command text. It models only the two forms the settings use, Bash(<prefix>*)
+// and Bash(<command>) for one exact command, and fails t for a rule of any
+// other form, so a rule it cannot read never passes as matching nothing.
+func matchesRule(t *testing.T, rule, text string) bool {
+	t.Helper()
 	inner, ok := strings.CutPrefix(rule, "Bash(")
-	if !ok {
-		return false
+	inner, ok2 := strings.CutSuffix(inner, ")")
+	if !ok || !ok2 || inner == "" || strings.ContainsAny(inner, "():") {
+		t.Fatalf("permission rule %q is neither Bash(<prefix>*) nor Bash(<command>)", rule)
 	}
-	prefix, ok := strings.CutSuffix(inner, "*)")
-	return ok && strings.HasPrefix(text, prefix)
+	if prefix, ok := strings.CutSuffix(inner, "*"); ok {
+		return strings.HasPrefix(text, prefix)
+	}
+	return text == inner
 }
 
 func readSettings(t *testing.T) settings {
@@ -414,9 +424,21 @@ func TestSettingsDeniesPaneInput(t *testing.T) {
 	}
 }
 
+// worktreeChanges are commands that add, remove, or move a worktree,
+// including the forms with git's options before the subcommand, which the
+// deny rules' prefixes do not reach.
+var worktreeChanges = []string{
+	"git worktree add /p HEAD",
+	"git worktree remove /p",
+	"git -C /r worktree add /p HEAD",
+	"git -c core.x=y worktree remove /p",
+	"git --git-dir=/r/.git worktree move /p /q",
+}
+
 // TestSettingsDeniesWorktreeChanges: .claude/settings.json denies every git
-// call of deniedGit and allows no git worktree rule, so a session cannot
-// make or remove a task's worktree without the tool and its checks.
+// call of deniedGit, and no allow rule lets a command of worktreeChanges run
+// without the prompt, so a session cannot make or remove a task's worktree
+// without the tool and its checks.
 func TestSettingsDeniesWorktreeChanges(t *testing.T) {
 	s := readSettings(t)
 	for _, rule := range deniedGit {
@@ -425,8 +447,10 @@ func TestSettingsDeniesWorktreeChanges(t *testing.T) {
 		}
 	}
 	for _, rule := range s.Permissions.Allow {
-		if strings.HasPrefix(rule, "Bash(git worktree") {
-			t.Errorf("permissions.allow has %q, which may change a worktree without the tool", rule)
+		for _, text := range worktreeChanges {
+			if matchesRule(t, rule, text) {
+				t.Errorf("permissions.allow has %q, which lets %q run without the tool", rule, text)
+			}
 		}
 	}
 }
@@ -436,9 +460,8 @@ func TestSettingsDeniesWorktreeChanges(t *testing.T) {
 // the removal outside the session too; an ask rule wins over the allow rule
 // Bash(chief *).
 func TestSettingsAsksBeforeRemove(t *testing.T) {
-	want := "Bash(" + toolWord + " " + promptedSubcommand + " *)"
-	if ask := readSettings(t).Permissions.Ask; !slices.Contains(ask, want) {
-		t.Errorf("permissions.ask %q does not contain %q", ask, want)
+	if ask := readSettings(t).Permissions.Ask; !slices.Contains(ask, askRemove) {
+		t.Errorf("permissions.ask %q does not contain %q", ask, askRemove)
 	}
 }
 

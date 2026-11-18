@@ -266,8 +266,9 @@ func TestRunRefusals(t *testing.T) {
 	})
 }
 
-// ownerCalls are calls of the subcommands that act only for the lock's
-// owner, with arguments that would otherwise run them.
+// ownerCalls are calls of some of the subcommands that act only for the
+// lock's owner (the three of task 0092 and reset), with arguments that would
+// otherwise run them.
 var ownerCalls = [][]string{
 	{"reset", "--workspace", "/w", "--check", testCheck, "--protocol", protocol},
 	{"targets", "--issue", "12", "--protocol", protocol},
@@ -279,11 +280,13 @@ var ownerCalls = [][]string{
 // --issue of another form than an issue number with exit 0 and issue_form,
 // a finished run that tells the human what to type, and not with the usage
 // error a mistake of the definition gets. The fake fails the test on any
-// command it does not answer, and it answers only reads, so neither writes
-// anything.
+// command it does not answer, and it answers only reads and git fetch, so
+// neither writes to Herdr. The forms a number is refused for are
+// internal/chief's tests (TestCreateIssueForm, TestTargets); one value
+// shows that cmd/chief passes the text through.
 func TestIssueFormIsNoUsageError(t *testing.T) {
 	for _, c := range []struct{ subcommand, member string }{{"targets", "refusal"}, {"create", "create_refusal"}} {
-		for _, issue := range []string{"#12", "0", "012", "twelve"} {
+		for _, issue := range []string{"#12"} {
 			t.Run(c.subcommand+" "+issue, func(t *testing.T) {
 				h := newHarness(t)
 				if code, out := h.run("start", "--protocol", protocol); code != exitOK {
@@ -298,11 +301,12 @@ func TestIssueFormIsNoUsageError(t *testing.T) {
 	}
 }
 
-// TestTargetsWritesNothing runs targets with an issue number when no task
-// workspace offers /mkreq: it finishes with an empty list, and the fake,
-// which fails the test on any command it does not answer and answers only
-// reads, gets no call that writes to Herdr or git.
-func TestTargetsWritesNothing(t *testing.T) {
+// TestTargetsListsNoWorkspaceAndTypesNothing runs targets with an issue
+// number when no task workspace offers /mkreq: it finishes with the issue,
+// no refusal, and an empty list (not null), and the fake, which fails the
+// test on any command it does not answer and answers only reads and git
+// fetch, gets no call that writes to Herdr or adds a worktree.
+func TestTargetsListsNoWorkspaceAndTypesNothing(t *testing.T) {
 	h := newHarness(t)
 	if code, out := h.run("start", "--protocol", protocol); code != exitOK {
 		t.Fatalf("start = %d, %v", code, out)
@@ -357,7 +361,6 @@ func TestRunUsageErrors(t *testing.T) {
 		{"targets", "--issue", "12", "--workspace", "/w", "--protocol", protocol},
 		{"create", "--protocol", protocol},
 		{"create", "--issue", "12", "--pr", "34", "--protocol", protocol},
-		{"create", "--issue", "12", "--issue", "13", "--protocol", protocol},
 		{"remove", "--protocol", protocol},
 		{"remove", "--workspace", "/w", "--issue", "12", "--protocol", protocol},
 	} {

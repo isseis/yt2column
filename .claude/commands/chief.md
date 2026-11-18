@@ -64,8 +64,8 @@ Two calls differ:
 
 - The `create` and `remove` subcommands can take minutes. Run each in the
   foreground with the Bash tool's `timeout` set to `600000` (ten minutes),
-  never in the background, and run no round, wait, or other call while it
-  runs: the tool stops itself before that limit and writes what it made or
+  never in the background, and start no round, wait, or other call while
+  it runs (a wait already running in the background is left as it is): the tool stops itself before that limit and writes what it made or
   left, which a call killed by the Bash limit would lose.
 - A `remove` call is the one call Claude Code asks the human to permit each
   time (the settings' ask rule `Bash(chief remove *)`), even after the human
