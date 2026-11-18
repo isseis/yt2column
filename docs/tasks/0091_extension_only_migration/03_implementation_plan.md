@@ -706,11 +706,11 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 **PR-8**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
 
 -   merge-base: `552d7cd89972087c7de0054171e064d494f8ba77`
--   比べたコミット: `f4411239723327761baec2972d914b1ba6aa7f9b`
+-   比べたコミット: `adbf373f19ee7caeee54e9e51bece7f19773159d`
 -   出力（終了コード 0）:
 
     ```text
-    merge-base 552d7cd89972087c7de0054171e064d494f8ba77 head f4411239723327761baec2972d914b1ba6aa7f9b
+    merge-base 552d7cd89972087c7de0054171e064d494f8ba77 head adbf373f19ee7caeee54e9e51bece7f19773159d
     ok: no non-test file under cmd/yt2column/ changed
     ```
 
