@@ -126,6 +126,10 @@ flowchart LR
 -   NEXT と PR 番号は、今の `RunprReport`（`internal/chief/screen_report.go:292-301`）の値で、Claude Code の pane では最後の報告の本文から決まる（3.2）。
 -   PR を作ったコマンドの pane は、PR の記録、GitHub の PR、最後の報告の有無から決まる（AC-09、3.6）。
 
+### 1.5. 実装の際に決めたこと（2026-11-17）
+
+-   **`readLastHumanInput` と `TestReadLastHumanInput` は消さずに残す（人が選んだ）。** 本書は、`readLastHumanInput` の唯一の呼び出し元が④（`internal/chief/reset.go:63`）で、それが `readSessionReport` の `LastHuman` に替わるので消すとしていた。本書の承認の後にマージされた 0093（#955）が、動いているコマンドの読み取り `readRunningCommand`（`internal/chief/screen_transcript.go`）からこの関数を呼ぶようになり、④が替わった後も呼ぶ所が残った。`readRunningCommand` を `readSessionReport` に替えて消す案は採らない。`readSessionReport` は応答の行と PR の記録の行も調べるので、今は読める transcript が読めないものになり、0093 の振る舞いを本タスクで変えることになるためである。本タスクが消すのは使われなくなる部品だけ、という原則は変わらない。ADR: なし（消す部品の範囲で、このタスクの中で閉じるため）。
+
 ## 2. システム構成 (System Structure)
 
 ### 2.1. 全体構成
@@ -190,7 +194,7 @@ flowchart TB
 | ファイル | 新規/変更 | 責務 |
 |---|---|---|
 | `internal/chief/screen_transcript_report.go` | 新規 | 報告の読み取り部品。`readSessionReport`（最後の報告・PR の記録・人の最後の入力）と `readReportNext`（報告の NEXT と PR 番号）を置く（3.1・3.2）。名前が `screen` で始まるので、CLAUDE.md の chief の例外の範囲に入る（要件書 4.5） |
-| `internal/chief/screen_transcript.go` | 変更 | `otherOrigins` に `auto-continuation` を足す（1.2）。`readLastHumanInput` を消す。唯一の呼び出し元（`internal/chief/reset.go:63`）が `readSessionReport` の `LastHuman` に替わるためである（3.9） |
+| `internal/chief/screen_transcript.go` | 変更 | `otherOrigins` に `auto-continuation` を足す（1.2）。`readLastHumanInput` は、0093 の `readRunningCommand` が呼ぶので残す（1.5・3.9） |
 | `internal/chief/transcript.go` | 変更 | 報告の入口 `readClaudeReport` を足す（3.3）。`resetTranscriptLimit` の名前を `sessionTranscriptLimit` に変える。|
 | `internal/chief/screen_report.go` | 変更 | `readCommandReport`・`claudeLastMessage`・`namesURL` と Claude Code の画面の印を消し、`readRunprReport` を OpenCode だけを読む部品にする（3.9）。`RunprReport.PRs` の説明を、画面と transcript の両方に合うように直す |
 | `internal/chief/autosend.go` | 変更 | `reportsAgree`（①）、`detachedReport`（ブランチのない状態での②）、`resetRunpr`（自動送信の後の②）が、Claude Code の pane では報告の入口を使う（3.4・3.5）。自動送信の結果に、Claude Code の pane ごとの①の結果を残す（4.2） |
@@ -274,7 +278,7 @@ func (r SessionReport) Names(number int, url string) bool
 func readSessionReport(transcript []byte) SessionReport
 ```
 
-PR の記録の並びと数は呼ぶ側に見せず、`Names` だけで答える（CLAUDE.md の「Keep internals unobservable」）。`LastHuman` は、今の `readLastHumanInput` が同じ中身に返すのと同じ値で、同じ行の読み方（`humanInputOf`）を使う。`readLastHumanInput` は、呼ぶ所がなくなるので消す（3.9）。
+PR の記録の並びと数は呼ぶ側に見せず、`Names` だけで答える（CLAUDE.md の「Keep internals unobservable」）。`LastHuman` は、今の `readLastHumanInput` が同じ中身に返すのと同じ値で、同じ行の読み方（`humanInputOf`）を使う。`readLastHumanInput` は、④が呼ばなくなった後も 0093 の `readRunningCommand` が呼ぶので残す（1.5・3.9）。
 
 **受け付ける形。** 要件書 4.2 の受け付ける形を、次の行と項目で実現する。表にない行の種類と、使う行の中の表にない項目は読み飛ばす（要件書 4.2 の「拡張を許す部分」）。
 
@@ -439,7 +443,7 @@ func CapHead(text string) Capped
 | `squeeze` | 残す | `readRunprReport` の OpenCode の分が使う（`internal/chief/screen_report.go:324`） |
 | `readRunprReport` の Claude Code の分 | 消す | ②が transcript を読むので、OpenCode の分だけが残る |
 | `readScreenNext` | 残す | ①が OpenCode の pane で使う |
-| `readLastHumanInput` | 消す | 唯一の呼び出し元（`internal/chief/reset.go:63`）が `readSessionReport` の `LastHuman` に替わる。`TestReadLastHumanInput` の各行を `readSessionReport` のテストに移してから消す |
+| `readLastHumanInput` | 残す | ④の呼び出し元（`internal/chief/reset.go:63`）は `readSessionReport` の `LastHuman` に替わるが、0093 の `readRunningCommand` が呼ぶ（1.5）。`TestReadLastHumanInput` の各行は `readSessionReport` のテストにも移す |
 | `TestReadCommandReport`・`TestReadCommandReportUnderRecap`・`TestReadCommandReportUnderTitledBox`、`TestReadRunprReport` の Claude Code の行（`internal/chief/screen_test.go:882-885`・`913-915`） | 消すか、OpenCode のサンプルに替える | 消す部品のテストである。915 行の「chief が知らないエージェント」の行は、OpenCode のサンプルで残す |
 | テストの補助関数 `reportScreen`・`reportMention`・`isSampleReport`（`internal/chief/screen_test.go:785-805`） | 呼ぶ所が残らなければ消す | 消すテストと、書き換える `network_test.go`・`detail_test.go`・`reset_test.go` のテストが使う |
 | `samples_test.go` の `command report` の行の 2 つのサンプル | `input line` の行に移す | `TestScreenSamplesCoverEveryRow`（`internal/chief/samples_test.go:130-166`）は、すべての画面のサンプルがどれかの行にあることを求める。2 つのサンプルは、入力欄の判定のテスト（`internal/chief/screen_test.go:88-90`）が使い続ける |
@@ -465,7 +469,7 @@ func CapHead(text string) Capped
 | `TestResetAfterRunpr`・`TestResetChecks`・`TestDetailSavedBeforeReset`・`TestResetFailureAfterClear`・`TestNoResetAfterAnUnrecordedRunpr`（`internal/chief/reset_test.go`） | ④の画面の確かめが transcript の確かめになる | 画面の報告の代わりに、transcript の報告と PR の記録を与えるように直す。「text typed after the command」「text typed while the command worked」の行（`internal/chief/reset_test.go:70-71`）は、人の入力の後に応答がないので、3.1 の規則で報告がなくなり、理由が `other_input` から `no_report` に変わる。`other_input` を確かめ続けるために、入力の後に終わった応答を置く行を足す |
 | `TestDetailReportSource`・`TestDetailAfterReset`（`internal/chief/detail_test.go`） | ③が transcript から読み、報告の控えを作る | transcript で与えるように直し、報告の控えのテストを足す |
 | `TestDetailAndSendRunOnlyReadsInTheRightPlaces`（`internal/chief/network_test.go:64`） | ③④が Herdr の画面を読まなくなる | 画面の報告（`reportScreen`）の代わりに transcript を与え、読む場所の一覧を直す |
-| `TestReadLastHumanInput`（`internal/chief/screen_test.go:809`） | `readLastHumanInput` を消す | 各行を `readSessionReport` のテストに移し、`auto-continuation` の行を足す（3.9） |
+| `TestReadLastHumanInput`（`internal/chief/screen_test.go:809`） | なし（`readLastHumanInput` は残る。1.5） | 各行を `readSessionReport` のテストにも移し、`auto-continuation` の行を足す（3.9）。このテストは残す |
 | `TestReadRunprReport`（`internal/chief/screen_test.go:861`）・`TestScreenSamplesCoverEveryRow`（`internal/chief/samples_test.go:130`） | Claude Code の分がなくなる、サンプルの行が移る | 3.9 のとおり |
 | `TestCapDescription`（`internal/chief/sanitize_test.go:89`） | `CapDescription` が `CapHead` になる | 名前を直す |
 | 3.9 の消すテスト | 部品がなくなる | 消すコミットを分け、`make coverage-compare` の結果を残す |
@@ -750,3 +754,4 @@ PR の分け方は計画で決める。
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#920）
+- 2026-11-17 セッション中の再承認：`readLastHumanInput` を、0093 の `readRunningCommand` が呼ぶので消さずに残すことにした（isseis、#972）
