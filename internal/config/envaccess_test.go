@@ -92,6 +92,10 @@ var allowedEnvRefs = map[string]map[string]int{
 	// (herdr, git, gh), minus GIT_* for git and gh and minus GH_REPO and
 	// GH_HOST for gh, as fixprguard does.
 	"cmd/chief/main.go": {"call:os.Environ": 1, "value:os.LookupEnv": 1},
+	// The numreserve developer tool passes its environment to numreserve.New,
+	// which gives git all of it minus GIT_* and gh all of it minus the color
+	// and prompt variables it replaces and minus GH_REPO and GH_HOST.
+	"cmd/numreserve/main.go": {"call:os.Environ": 1},
 	// The mergepr developer tool's protocol-number check runs git with the
 	// environment of the process minus GIT_*, captured when its runner is
 	// built (newGitRunner).

@@ -129,29 +129,29 @@
 
 **ステップ 2-1: REST の前提を手元で確かめる**
 
--   [ ] 試しの tag（§1.3 の決定 2）の名前に、実行ごとに違う接尾辞を付ける。`refs/heads/main` の SHA を指すように `POST git/refs` で作り、201 を確かめる
--   [ ] 同じ名前で同じ SHA の作成と、同じ名前で違う SHA の作成が、どちらも 2xx にならないことを確かめる（設計書 7.3）。そのときの状態コードを記録する
--   [ ] `GET git/ref/tags/...` が 200 を返し、応答の `ref` が問い合わせた名前と一致することと、`gh api -i` の標準出力の先頭の状態行の形を確かめる（設計書 3.3.1・3.3.2）
--   [ ] 途中の確かめが失敗しても、試しの tag を消す。消えたことを `GET` の 404 で確かめる
+-   [x] 試しの tag（§1.3 の決定 2）の名前に、実行ごとに違う接尾辞を付ける。`refs/heads/main` の SHA を指すように `POST git/refs` で作り、201 を確かめる
+-   [x] 同じ名前で同じ SHA の作成と、同じ名前で違う SHA の作成が、どちらも 2xx にならないことを確かめる（設計書 7.3）。そのときの状態コードを記録する
+-   [x] `GET git/ref/tags/...` が 200 を返し、応答の `ref` が問い合わせた名前と一致することと、`gh api -i` の標準出力の先頭の状態行の形を確かめる（設計書 3.3.1・3.3.2）
+-   [x] 途中の確かめが失敗しても、試しの tag を消す。消えたことを `GET` の 404 で確かめる
 
 **ステップ 2-2: SHA による取得を手元で確かめる**
 
--   [ ] `git ls-remote` が返した SHA を、`--no-tags` を付け `FETCH_HEAD` を書かずに `origin` から取得でき、その commit の `docs/dev/adr/` を `git ls-tree` で読めることを確かめる（設計書 3.2 の「取得」）。取得の前後の `git for-each-ref` の出力が同じで、`FETCH_HEAD` のファイルが変わらないことを記録する。`git` の版が 2.29 以上であることも記録する。テストの台本に書く取得の引数は、ここで確かめた形にする
+-   [x] `git ls-remote` が返した SHA を、`--no-tags` を付け `FETCH_HEAD` を書かずに `origin` から取得でき、その commit の `docs/dev/adr/` を `git ls-tree` で読めることを確かめる（設計書 3.2 の「取得」）。取得の前後の `git for-each-ref` の出力が同じで、`FETCH_HEAD` のファイルが変わらないことを記録する。`git` の版が 2.29 以上であることも記録する。テストの台本に書く取得の引数は、ここで確かめた形にする
 
 **ステップ 2-3: 出力のサンプルを採る**
 
 -   対象ファイル：`internal/numreserve/testdata/`
--   [ ] ステップ 2-1・2-2 の、`gh api -i` の状態行と見出しの名前と値（201・422・200・404）、`git ls-remote` の行、`git ls-tree` の行を、本文・トークン・URL を除いてファイルに残す（§1.3 の決定 9）
+-   [x] ステップ 2-1・2-2 の、`gh api -i` の状態行と見出しの名前と値（201・422・200・404）、`git ls-remote` の行、`git ls-tree` の行を、本文・トークン・URL を除いてファイルに残す（§1.3 の決定 9）
 
 **ステップ 2-4: cloud のセッションの到達性を確かめる（利用者が行う）**
 
--   [ ] `/runplan` が利用者に依頼する。利用者は cloud のセッション（claude.ai/code）で次を確かめ、結果を報告する：`gh` があり認証されているか、REST でこのリポジトリを読めるか、試しの tag を作って消せるか、`git ls-remote origin` が `refs/heads/` と `refs/tags/` を返すか、ステップ 2-2 の取得ができるか、`git` と `go` の版、`main` から `go install ./cmd/mergepr` で既存の道具を入れられるか（AC-22 の一部、申し送りの H-07。`numreserve` 自体はまだ `main` にないので、フェーズ 7 で入れる）
--   [ ] `/runplan` が、利用者の報告を §7 に書く
+-   [x] `/runplan` が利用者に依頼する。利用者は cloud のセッション（claude.ai/code）で次を確かめ、結果を報告する：`gh` があり認証されているか、REST でこのリポジトリを読めるか、試しの tag を作って消せるか、`git ls-remote origin` が `refs/heads/` と `refs/tags/` を返すか、ステップ 2-2 の取得ができるか、`git` と `go` の版、`main` から `go install ./cmd/mergepr` で既存の道具を入れられるか（AC-22 の一部、申し送りの H-07。`numreserve` 自体はまだ `main` にないので、フェーズ 7 で入れる）
+-   [x] `/runplan` が、利用者の報告を §7 に書く。tag の行、403 の原因、cloud のクローンにない SHA の取得は確かめられず、§7 に残りの確かめとして書いた（ステップ 7-1 で行う）
 
 **ステップ 2-5: 結果を判断する**
 
--   [ ] ステップ 2-1 の同じ名前での 2 回目と 3 回目の作成のどちらかが 2xx になったら、フェーズ 3 に進まない。§7 に「REST の前提が崩れた」と書いて、その記録とサンプルだけをコミットし、PR は作らずに止まる。方式の決め直しは、決定の変更として利用者と相談して進め（`docs/dev/conventions/requirements_process.md` の「Editing an approved document」）、設計書と本計画を直してから続ける
--   [ ] ステップ 2-2 またはステップ 2-4 の結果が設計書の前提（3.2 の取得、`git ls-remote` の行の形）と違ったら、同じく止めて設計書を直す。cloud で `gh` や道具が使えないことは止める理由にしない。制約として記録し、フェーズ 5 の手引きとフェーズ 7 の ADR-0051 に書く
+-   [-] （当たらなかった。どちらも 422。§7 の記録）ステップ 2-1 の同じ名前での 2 回目と 3 回目の作成のどちらかが 2xx になったら、フェーズ 3 に進まない。§7 に「REST の前提が崩れた」と書いて、その記録とサンプルだけをコミットし、PR は作らずに止まる。方式の決め直しは、決定の変更として利用者と相談して進め（`docs/dev/conventions/requirements_process.md` の「Editing an approved document」）、設計書と本計画を直してから続ける
+-   [-] （当たらなかった。cloud の `gh` は制約として記録した。§7 の記録）ステップ 2-2 またはステップ 2-4 の結果が設計書の前提（3.2 の取得、`git ls-remote` の行の形）と違ったら、同じく止めて設計書を直す。cloud で `gh` や道具が使えないことは止める理由にしない。制約として記録し、フェーズ 5 の手引きとフェーズ 7 の ADR-0051 に書く
 -   完了の基準：§7 の記録があり、方式を続けられるという判断が書かれている
 
 ### フェーズ 3: 番号を決める側の道具（設計書 8 章の 3）
@@ -159,65 +159,65 @@
 **ステップ 3-1: 型と上限**
 
 -   対象ファイル：`internal/numreserve/numreserve.go`、`internal/numreserve/bounds.go`
--   [ ] 設計書 3.8 の `Space`・`ParseSpace`・`StopKind`・`StopError` を作る。`StopKind` ごとに、設計書 4.1 の表の理由の語を返すメソッドと、すべての `StopKind` を返す関数を持たせる。ゼロ値と範囲外の値は理由の語を持たない（§1.4 の「型による守り」）
--   [ ] 設計書 3.4 の表の値を、テストの補助が小さくできる構造体に置く（3 分の上限をテストで待たないため）
+-   [x] 設計書 3.8 の `Space`・`ParseSpace`・`StopKind`・`StopError` を作る。`StopKind` ごとに、設計書 4.1 の表の理由の語を返すメソッドと、すべての `StopKind` を返す関数を持たせる。ゼロ値と範囲外の値は理由の語を持たない（§1.4 の「型による守り」）
+-   [x] 設計書 3.4 の表の値を、テストの補助が小さくできる構造体に置く（3 分の上限をテストで待たないため）
 -   完了の基準：`go test -tags test ./internal/numreserve` が通る
 
 **ステップ 3-2: 使用中の番号を集める**
 
 -   対象ファイル：`internal/numreserve/collect.go`、`internal/numreserve/collect_test.go`
--   [ ] 設計書 3.2 の表の入力を、空間ごとに読む。`git ls-remote` の行の分け方、SHA だけの取得、`origin/main` の一覧の形（3.2.1）、記録の tag の名前の拒否（3.3.3）、上限の超過（3.4）を、設計書のとおりにする
--   [ ] ブランチの木を読む部分は、ステップ 6-2 が `docs/tasks/` にも使えるように、1 つの関数にまとめる。読むディレクトリを引数にするのは、2 つ目の呼び出し側が加わるステップ 6-2 で行う
--   [ ] 作業ツリーの `docs/dev/adr/` は、`Tool` が持つ作業ツリーの根から読む。テストは根を `t.TempDir()` にできる
--   [ ] 名前の形の判定は `internal/tasknaming` を呼ぶ。同じ判定を書き直さない
+-   [x] 設計書 3.2 の表の入力を、空間ごとに読む。`git ls-remote` の行の分け方、SHA だけの取得、`origin/main` の一覧の形（3.2.1）、記録の tag の名前の拒否（3.3.3）、上限の超過（3.4）を、設計書のとおりにする
+-   [x] ブランチの木を読む部分は、ステップ 6-2 が `docs/tasks/` にも使えるように、1 つの関数にまとめる。読むディレクトリを引数にするのは、2 つ目の呼び出し側が加わるステップ 6-2 で行う
+-   [x] 作業ツリーの `docs/dev/adr/` は、`git rev-parse --show-toplevel` が返す作業ツリーの根から読む。テストは、その応答を `t.TempDir()` にできる
+-   [x] 名前の形の判定は `internal/tasknaming` を呼ぶ。同じ判定を書き直さない
 -   完了の基準：このステップの判定のテスト（ステップ 3-6 の規則に従う）を、このステップで書いて通す
 
 **ステップ 3-3: 番号を決める**
 
 -   対象ファイル：`internal/numreserve/reserve.go`、`internal/numreserve/reserve_test.go`
--   [ ] 設計書 3.3.2 の表と 3.4 の候補・跳び・4 桁の上限・回数の上限を、6.1 の流れのとおりに作る。状態コードと rate limit の見出しは `gh api -i` の出力から読み、応答の本文の `message` は読まない
--   [ ] 止める理由の詳細には、設計書 3.1 の「詳細」の規則（`%q` の引用、200 バイトで切る、本文・標準エラー・URL・認証の情報を出さない）を当てる
+-   [x] 設計書 3.3.2 の表と 3.4 の候補・跳び・4 桁の上限・回数の上限を、6.1 の流れのとおりに作る。状態コードと rate limit の見出しは `gh api -i` の出力から読み、応答の本文の `message` は読まない
+-   [x] 止める理由の詳細には、設計書 3.1 の「詳細」の規則（`%q` の引用、200 バイトで切る、本文・標準エラー・URL・認証の情報を出さない）を当てる
 -   完了の基準：このステップの判定のテスト（ステップ 3-6 の規則に従う）を、このステップで書いて通す
 
 **ステップ 3-4: 本番の `Tool` とテストの補助**
 
 -   対象ファイル：`internal/numreserve/tool.go`、`internal/numreserve/test_helpers.go`（`//go:build test`）
--   [ ] 本番の Runner の `cmdrunner.Options` と、git と gh の環境（設計書 3.2 の「git と gh の環境」）を返す純粋な関数を作り、値と外す変数をテストで確かめる。git と gh は Runner を分ける。git の引数の前に `GitHardening` を付ける
--   [ ] コマンド 1 つと 1 回の実行の時間の上限は、`context.WithTimeout` で課す。テストの補助に、呼び出しごとの `ctx` の期限を記録する、Runner を包む部品を置き、各呼び出しの期限と全体の期限を確かめる
--   [ ] `New` は、`testing.Testing()` が真なら git と gh を呼ばずに誤りを返す `Tool` を作る（§1.3 の決定 8）。この拒否のテストは、テストの中で（`t.Setenv`）`PATH` を失敗するだけの `git`・`gh` の置き場所にし、`GH_TOKEN`・`GITHUB_TOKEN` を外してから `New` を呼ぶ。拒否を壊して失敗を確かめる作業も、このテストの中の環境で行う。実の GitHub に届かないためである
--   [ ] テストの補助で、`cmdrunner/testutil` の `Fake` と作業ツリーの根から `Tool` を作る関数を置く（テストの組み立ての指針の Classification B）
+-   [x] 本番の Runner の `cmdrunner.Options` と、git と gh の環境（設計書 3.2 の「git と gh の環境」）を返す純粋な関数を作り、値と外す変数をテストで確かめる。git と gh は Runner を分ける。git の引数の前に `GitHardening` を付ける
+-   [x] コマンド 1 つと 1 回の実行の時間の上限は、`context.WithTimeout` で課す。テストの補助に、呼び出しごとの `ctx` の期限を記録する、Runner を包む部品を置き、各呼び出しの期限と全体の期限を確かめる
+-   [x] `New` は、`testing.Testing()` が真なら git と gh を呼ばずに誤りを返す `Tool` を作る（§1.3 の決定 8）。この拒否のテストは、テストの中で（`t.Setenv`）`PATH` を失敗するだけの `git`・`gh` の置き場所にし、`GH_TOKEN`・`GITHUB_TOKEN` を外してから `New` を呼ぶ。拒否を壊して失敗を確かめる作業も、このテストの中の環境で行う。実の GitHub に届かないためである
+-   [x] テストの補助で、`cmdrunner/testutil` の `Fake` と上限から `Tool` を作る関数を置く（テストの組み立ての指針の Classification B）
 -   完了の基準：ステップ 3-6 のテストが通る
 
 **ステップ 3-5: `cmd/numreserve`**
 
 -   対象ファイル：`cmd/numreserve/main.go`、`cmd/numreserve/main_test.go`
--   [ ] 番号を決める部品を引数で受け取る `run` に処理を置き、`main` だけが `numreserve.New()` を渡す（§1.3 の決定 8）。終了コード 0・1・2 と、標準出力・標準エラーの形を設計書 3.1 のとおりにする
--   [ ] テストで、番号を決めたとき、止まったとき（すべての `StopKind` の理由の語と、`StopError` でない誤り）、引数の誤り（引数なし、3 つ目の語、フラグ、`task` と `adr` 以外）の終了コードと出力を、fake の部品で確かめる。引数の誤りでは fake の部品が呼ばれないことも確かめる
+-   [x] 番号を決める部品を引数で受け取る `run` に処理を置き、`main` だけが `numreserve.New(os.Environ())` を渡す（§1.3 の決定 8）。終了コード 0・1・2 と、標準出力・標準エラーの形を設計書 3.1 のとおりにする
+-   [x] テストで、番号を決めたとき、止まったとき（すべての `StopKind` の理由の語と、`StopError` でない誤り）、引数の誤り（引数なし、3 つ目の語、フラグ、`task` と `adr` 以外）の終了コードと出力を、fake の部品で確かめる。引数の誤りでは fake の部品が呼ばれないことも確かめる
 -   完了の基準：`go test -tags test ./cmd/numreserve` が通る
 
 **ステップ 3-6: `internal/numreserve` のテスト**
 
 -   対象ファイル：`internal/numreserve/*_test.go`
--   [ ] 設計書 7.1 の項目のうち、マージの前の確かめと名前の部品を除くすべてをテストにする。外部の出力はステップ 2-3 のサンプルから作る
--   [ ] 使用中の番号の各入力（作業ツリーだけにある ADR のファイルを含む）は、その入力だけが最大値を決める状況を作り、ほかの入力だけでは同じ候補にならないことを先に確かめる（`CLAUDE.md` の「A layered path needs inputs only one layer can handle」）。fork の除外は、`Fake` が台本にない呼び出し（`gh pr list` を含む）で失敗することで、すべての集め方のテストが確かめる
--   [ ] 上限は、ちょうど上限で番号が決まる場合と、1 つ超えて止まる場合を対にする（`POST` の 10 回目と 11 回目、候補 9999 と 10000、基準 + 20 と + 21）。タスクと ADR の両方の空間で確かめる
--   [ ] 誤りの種類は `errors.AsType[*StopError]` と `Kind` で確かめ、メッセージの文字列では確かめない
--   [ ] 各テストが、確かめる判定を壊すと失敗することを確かめ、コミットメッセージに書く
+-   [x] 設計書 7.1 の項目のうち、マージの前の確かめと名前の部品を除くすべてをテストにする。外部の出力はステップ 2-3 のサンプルから作る
+-   [x] 使用中の番号の各入力（作業ツリーだけにある ADR のファイルを含む）は、その入力だけが最大値を決める状況を作り、ほかの入力だけでは同じ候補にならないことを先に確かめる（`CLAUDE.md` の「A layered path needs inputs only one layer can handle」）。fork の除外は、`Fake` が台本にない呼び出し（`gh pr list` を含む）で失敗することで、すべての集め方のテストが確かめる
+-   [x] 上限は、ちょうど上限で番号が決まる場合と、1 つ超えて止まる場合を対にする（`POST` の 10 回目と 11 回目、候補 9999 と 10000、基準 + 20 と + 21）。タスクと ADR の両方の空間で確かめる
+-   [x] 誤りの種類は `errors.AsType[*StopError]` と `Kind` で確かめ、メッセージの文字列では確かめない
+-   [x] 各テストが、確かめる判定を壊すと失敗することを確かめ、コミットメッセージに書く
 -   完了の基準：`go test -tags test ./internal/numreserve` が通る
 
 **ステップ 3-7: インストール、`CLAUDE.md`、CI**
 
 -   対象ファイル：`Makefile`、`cmd/numreserve/docs_test.go`、`CLAUDE.md`、`.github/workflows/ci.yml`、`docs/dev/conventions/package_reference.md`
--   [ ] `Makefile` に `install-numreserve` を加える（`.PHONY` の一覧を含む）。`cmd/numreserve/docs_test.go` に、そのレシピが `./cmd/numreserve` を入れることを確かめるテストを置く（`cmd/chief/docs_test.go:387` と同じ形）
--   [ ] `CLAUDE.md` の「Build Commands」に `make install-numreserve` を、「Declare, don't infer」に `numreserve` の例外（設計書 3.9 の範囲と境界）を、「Development Notes」の `doc-guard` のパッケージの一覧に `./cmd/numreserve` を加える。`.github/workflows/ci.yml` の `doc-guard` の一覧にも加える（§1.3 の決定 5）
--   [ ] `package_reference.md` に `cmd/numreserve` と `internal/numreserve` の行を加える
+-   [x] `Makefile` に `install-numreserve` を加える（`.PHONY` の一覧を含む）。`cmd/numreserve/docs_test.go` に、そのレシピが `./cmd/numreserve` を入れることを確かめるテストを置く（`cmd/chief/docs_test.go:387` と同じ形）
+-   [x] `CLAUDE.md` の「Build Commands」に `make install-numreserve` を、「Declare, don't infer」に `numreserve` の例外（設計書 3.9 の範囲と境界）を、「Development Notes」の `doc-guard` のパッケージの一覧に `./cmd/numreserve` を加える。`.github/workflows/ci.yml` の `doc-guard` の一覧にも加える（§1.3 の決定 5）
+-   [x] `package_reference.md` に `cmd/numreserve` と `internal/numreserve` の行を加える
 -   完了の基準：`make test`・`make lint` が通る
 
 **ステップ 3-8: ADR**
 
 -   対象ファイル：`docs/dev/adr/0051-number-reservation.md`、`docs/dev/adr/0014-deterministic-checks-in-go.md`
--   [ ] ADR-0051 の「決定」の食い違いの記述から `numreserve` を除く。「結果」の「すでにある ref の作成を GitHub が成功として受けないことは、決めた時点では確かめていない」を、ステップ 2-1 の結果に合わせて直す
--   [ ] ADR-0014 の「決定」の最初の項目の道具の一覧に `numreserve` を加え（6 つ）、食い違いの記述から `numreserve` と `make install-numreserve` を除く（手引きは残す）
+-   [x] ADR-0051 の「決定」の食い違いの記述から `numreserve` を除く。「結果」の「すでにある ref の作成を GitHub が成功として受けないことは、決めた時点では確かめていない」を、ステップ 2-1 の結果に合わせて直す
+-   [x] ADR-0014 の「決定」の最初の項目の道具の一覧に `numreserve` を加え（6 つ）、食い違いの記述から `numreserve` と `make install-numreserve` を除く（手引きは残す）
 -   完了の基準：`make test`・`make lint`・`make deadcode` が通る
 
 ### PR-2 作成ポイント: field checks and the numreserve tool that decides numbers
@@ -234,10 +234,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/970
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 欠番の許容と `adr.md`（設計書 8 章の 4）
 
@@ -464,7 +464,7 @@ PR の分け方の理由は §1.3 の決定 1 にある。利用者の手作業�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
 - [ ] PR-3 マージ済み（対象ステップ: 4-1 / 4-2 / 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6 / 5-7 / 5-8）
 - [ ] PR-4 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 7-1 / 7-2）
 
@@ -519,7 +519,43 @@ Diff record (AC-18):
 
 ### PR-2 の実地の確かめの記録
 
-（ステップ 2-1〜2-5 で書く）
+**手元（ステップ 2-1〜2-3）。** 2026-11-17、macOS の手元の worktree の根で、gh 2.96.0、git 2.50.1（Apple Git-155、2.29 以上）を使った。`gh` は `GH_PROMPT_DISABLED=1`・`NO_COLOR=1` の環境で、`CLICOLOR_FORCE` と `GH_FORCE_TTY` を外し、`--hostname github.com -i` を付けて実行した。どの回も利用者の承認を得て行った。試しの tag は 2 回作った（1 回目 `refs/tags/numreserve-probe/20261117T120033Z-18619`、2 回目 `refs/tags/numreserve-probe/20261117T124351Z-53774`）。どちらも確かめの後に `DELETE`（204）で消し、2 回目の後に `git ls-remote origin 'refs/tags/numreserve-probe/*'` が何も返さないことを確かめた。2 回目は、1 回目のレビューで確かめていないと指摘された点（tag の行、`--no-tags`、`GET` の本文の形）を確かめるために行った。
+
+-   **ステップ 2-1（REST の前提）。** 1 回目の試しの tag について、次の結果を得た。
+
+    | 操作 | 状態行 | `gh` の終了コード |
+    |---|---|---|
+    | `POST git/refs`（`main` の SHA `f73fc2c364a8`） | `HTTP/2.0 201 Created` | 0 |
+    | 同じ名前・同じ SHA で `POST` | `HTTP/2.0 422 Unprocessable Entity` | 1 |
+    | 同じ名前・違う SHA（`main` の親 `9f966a01a4e4`）で `POST` | `HTTP/2.0 422 Unprocessable Entity` | 1 |
+    | `GET git/ref/tags/<名前>` | `HTTP/2.0 200 OK` | 0 |
+    | `DELETE git/refs/tags/<名前>` | `HTTP/2.0 204 No Content` | 0 |
+    | 消した後の `GET` | `HTTP/2.0 404 Not Found` | 1 |
+
+    すでにある ref の作成は、同じ SHA でも違う SHA でも 2xx にならなかった（設計書 7.3 の前提が成り立つ）。確かめたのは 1 つのセッションから続けて送った作成であり、同時に送った作成の排他は確かめていない（GitHub の ref の作成が排他であることは、設計書 1.1 の前提のままである）。`gh api -i` は、失敗したとき（422・404）も標準出力の先頭に状態行を出した。2 回目の `GET` の本文は 1 つの JSON のオブジェクトで、`ref` の値が問い合わせた名前と一致した（本文の形は `internal/numreserve/testdata/gh/get-200.txt`）。
+-   **ステップ 2-2（SHA による取得）。** `git ls-remote origin 'refs/heads/*' 'refs/tags/*'` は、1 回目（tag なし）は 13 行のすべてが `refs/heads/`、2 回目は試しの tag の 1 行（軽量の tag で、`^{}` の行はない）を含み、どちらもどの行も「40 桁の 16 進、タブ、ref の名前」だった。手元の worktree で、`main` でない `origin` のブランチの SHA を `git fetch --no-tags --no-write-fetch-head origin <SHA>` で取得し、終了コード 0 だった。取得の前後で `git for-each-ref` の出力は同じで、`FETCH_HEAD` のファイル（worktree ごとの `git rev-parse --git-path FETCH_HEAD`）の内容と更新時刻も変わらなかった。この SHA はすでに手元にあったので、オブジェクトのない状態でも確かめた：空のリポジトリ（`git init` に `origin` だけを加えたもの）で `main` の SHA を同じ引数で取得し、終了コード 0、`git for-each-ref` は前後とも空で、`FETCH_HEAD` は作られなかった。`--no-tags` の効果は 2 回目に、試しの tag が取得する `main` の commit を指している状態で、`remote.origin.tagOpt=--tags` の空のリポジトリ 2 つで比べた：`--no-tags` を付けるとローカルの tag は 0、付けないと 1 だった。テストの台本に書く取得の引数は `fetch --no-tags --no-write-fetch-head origin <SHA>` にする。
+-   **`git ls-tree` の呼び出しの形。** 指定のパスと出力のパスは今のディレクトリからの相対で、`docs/` で `git ls-tree <SHA> docs/dev/adr/` を実行すると、標準出力は空で終了コードは 0 だった。指定したディレクトリのない commit（`docs/dev/adr/` のない `4da5da2194a0`）でも、標準出力は空で終了コードは 0 である。道具は作業ツリーのどこででも動くので（設計書 3.1）、`git ls-tree --full-tree -z <SHA> -- <ディレクトリ>/` の形で呼ぶ（`--full-tree` で根からのパスに、`-z` でパスを引用しない形にする）。`origin/main` の `docs/tasks/` と `docs/dev/adr/` の一覧が空なら、読み違いと区別できないので `malformed` で止める（設計書 3.2.1 の受け入れない形に当たる）。ほかのブランチの `docs/dev/adr/` が空なのは、そのブランチに ADR がないことであり、止めない。
+-   **ステップ 2-3（サンプル）。** 上の `gh api -i` の出力（状態行と見出し、`GET` の 200 は本文も）と終了コード、`git ls-remote` の出力（2 回目）、`git ls-tree --full-tree -z` の出力（`docs/dev/adr/` と `docs/tasks/`）を `internal/numreserve/testdata/` に置いた。採り方、除いたもの、採っていない形（テストで作る形）は `internal/numreserve/testdata/README.md` にある。
+
+**cloud のセッション（ステップ 2-4）。** 2026-11-17、利用者が claude.ai/code の cloud のセッション（`isseis/yt2column` の `main`）で、`/runplan` が用意したスクリプト（手元の確かめと同じ環境の指定で、状態行・終了コード・版・件数だけを出すもの）を cloud の Claude に実行させ、その出力を報告した。
+
+| 確かめたこと | 結果 |
+|---|---|
+| 版 | git 2.43.0（2.29 以上）、go 1.26.5 linux/amd64（実行のときに toolchain を取得した）、gh 2.89.0 |
+| `gh auth status` | 終了コード 1 |
+| REST の読み取り（`GET repos/isseis/yt2column`） | `HTTP/1.1 200 OK`。状態行は `HTTP/1.1` の形だった（`head` で切ったので、`gh` の終了コードは SIGPIPE の 141 で、判断に使わない） |
+| `git ls-remote origin 'refs/heads/*' 'refs/tags/*'` | 終了コード 0、13 行（すべて `refs/heads/`。origin に tag がなかったので、tag の行は確かめていない）、どの行も「40 桁の 16 進、タブ、ref の名前」 |
+| 試しの tag の `POST`（1 回目・同じ名前の 2 回目）、`DELETE` | どれも `HTTP/1.1 403 Forbidden`（作れなかった） |
+| 試しの tag の `GET` | `HTTP/1.1 404 Not Found`（tag は残っていない） |
+| `git fetch --no-tags --no-write-fetch-head origin <SHA>` | 終了コード 0。`git for-each-ref` の出力と `FETCH_HEAD` は変わらなかった。取得した SHA（`main` でない最初のブランチ）が cloud のクローンにすでにあったかは記録していない |
+| `git ls-tree <main の SHA> docs/dev/adr/` | 52 行 |
+| `main` から `go install ./cmd/mergepr` | 終了コード 0 |
+
+cloud のセッションでは、`git ls-remote`、道具のインストールはできた。`gh` は `gh auth status` が終了コード 1 で終わったが、`gh api` は状態行を返し、REST による ref の作成は 403 で拒まれた。設計書 3.3.2 は認証されていない `gh` を「終了コード 4、状態行なし」としているが、それとは違う振る舞いである。403 の原因（`gh` がどの資格で動いたか、書き込みの権限がないのか、rate limit か）は、見出しを出していないので分からない。したがって、このままでは cloud のセッションで `numreserve` は記録の tag を作れずに止まるが、`permission` と `network-or-github` のどちらで止まるかは分からない。SHA による取得が cloud で空振りでなかったかも分からない。
+
+残っている確かめ（フェーズ 7 のステップ 7-1 で、cloud のセッションで `numreserve` を実行する前に行う）：`GH_TOKEN`・`GITHUB_TOKEN` が設定されているか（値は出さない）、`gh auth status` の標準エラー（トークンを伏せて）、`POST` の 403 の見出しのうち `X-Ratelimit-Remaining`・`Retry-After`・`X-Accepted-Oauth-Scopes`、`git ls-remote` の tag の行（記録の tag ができた後）、cloud のクローンにない SHA の取得。フェーズ 5 の手引きの cloud の制約は、ここまでに分かったこと（ref を作れなかったこと、原因は分からないこと）だけを書き、フェーズ 7 で確かめ直す。
+
+**ステップ 2-5（判断）。** ステップ 2-1 で、すでにある ref の作成は同じ SHA でも違う SHA でも 2xx にならなかったので、REST の前提は成り立つ。ステップ 2-2 の取得、`--no-tags`、手元の `git ls-remote` の行の形（ブランチと軽量の tag）は、設計書 3.2 の前提と一致した。`git ls-tree` は、設計書が前提にしていなかった今のディレクトリへの依存があるので、上の呼び出しの形で避ける（設計書 3.2 の読み方は変わらない）。cloud のセッションで ref を作れないことは、止める理由にしない（ステップ 2-5）。制約として、フェーズ 5 の手引きとフェーズ 7 の ADR-0051 に書き、フェーズ 7 で確かめ直す。以上から、方式を続けてフェーズ 3 に進む。
 
 ### 導入の確かめの記録
 
