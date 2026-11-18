@@ -12,7 +12,7 @@ import type {
   LinkUrl,
 } from "../src/core/articleMarkdown.ts";
 import { buildArticleBody, drawArticleBody } from "../src/ui/articleBody.ts";
-import { maxResponseBytes } from "../src/core/exchange.ts";
+import { maxResultBytes } from "../src/core/wasmResult.ts";
 import { parseArticleMarkdown } from "../src/core/articleMarkdown.ts";
 import { assertArticleDom } from "./helpers/articleDom.ts";
 import { container } from "./helpers/dom.ts";
@@ -291,7 +291,7 @@ describe("random input", () => {
 });
 
 describe("largest input", () => {
-  const size = maxResponseBytes;
+  const size = maxResultBytes;
   const inputs: readonly {
     name: string;
     build: () => string;

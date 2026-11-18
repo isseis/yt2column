@@ -46,7 +46,7 @@
 
 **変えるファイル:** `.claude/commands/chief.md`
 
-- [ ] 設計書 3.1 節のとおり、`chief.md:296-297` の 1 文を、対象の 4 つの問い、テキストで聞かないことと理由、テキストで示すもの、step 3 の選択肢の示し直しの形、モデルの切り替えの後の問いの扱い（待ち受けの間と `once`）を述べる段落に置き換える
+- [x] 設計書 3.1 節のとおり、`chief.md:296-297` の 1 文を、対象の 4 つの問い、テキストで聞かないことと理由、テキストで示すもの、step 3 の選択肢の示し直しの形、モデルの切り替えの後の問いの扱い（待ち受けの間と `once`）を述べる段落に置き換える
 
 **完了の条件:** 段落が AC-01〜AC-03 の内容を述べる。
 
@@ -54,7 +54,7 @@
 
 **変えるファイル:** `.claude/commands/chief.md`
 
-- [ ] 設計書 3.2 節のとおり、「ask the human for the issue number first」を、選択肢が `送らない` と `ほかの項目を見る` の `AskUserQuestion` で聞き、番号を自由記述の答えに書くこと、数字だけでない答えではそう言って何も送らないこと、`送らない` と `ほかの項目を見る` を選んだ後の振る舞いに書き換える。`chief send` の行は変えない
+- [x] 設計書 3.2 節のとおり、「ask the human for the issue number first」を、選択肢が `送らない` と `ほかの項目を見る` の `AskUserQuestion` で聞き、番号を自由記述の答えに書くこと、数字だけでない答えではそう言って何も送らないこと、`送らない` と `ほかの項目を見る` を選んだ後の振る舞いに書き換える。`chief send` の行は変えない
 
 **完了の条件:** 項目が AC-04 の内容を述べる。
 
@@ -62,15 +62,15 @@
 
 **変えるファイル:** `.claude/commands/chief.md`
 
-- [ ] 設計書 3.3 節のとおり、`chief.md:259-274` の項目の終わりに、step 4 の問いはこの項目の例外で、待ち受けの間も `AskUserQuestion` で聞くことを述べる 1 文を足す
+- [x] 設計書 3.3 節のとおり、`chief.md:259-274` の項目の終わりに、step 4 の問いはこの項目の例外で、待ち受けの間も `AskUserQuestion` で聞くことを述べる 1 文を足す
 
 **完了の条件:** 項目が AC-05 の内容を述べる。
 
 #### ステップ 1-4: 仕上げ
 
-- [ ] `go test -tags test ./cmd/chief` を通す（AC-08）
-- [ ] `make test` と `make lint` を通す
-- [ ] 7 章の AC-06・AC-07 の diff の記録を書く
+- [x] `go test -tags test ./cmd/chief` を通す（AC-08）
+- [x] `make test` と `make lint` を通す
+- [x] 7 章の AC-06・AC-07 の diff の記録を書く
 
 **完了の条件:** テストが通り、diff の記録がある。
 
@@ -107,7 +107,9 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1（ステップ 1-1〜1-4）
+- [x] フェーズ 1（ステップ 1-1〜1-4）
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/992
+- [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -125,12 +127,161 @@
 Diff record (AC-06):
 
 - Compared paths: `.claude/commands/chief.md`
+- Merge-base: `0bbba2c8c7d98e5dd61f01334d6b226ad2b7aa1e`
+- Compared commit: `96d2d7f09d8efb65aade26584ee24dc6c28047ea`
+
+Path diff:
+
+````text
+diff --git a/.claude/commands/chief.md b/.claude/commands/chief.md
+index 16eee94e541b51701906cb6c13d7a2f2c4de8f53..b1e644134a73f9b7cc62d4620570a370b591be90 100644
+--- a/.claude/commands/chief.md
++++ b/.claude/commands/chief.md
+@@ -271,7 +271,10 @@ How to offer them depends on the argument:
+   `<number>)`: the terminal renders such lines as a Markdown ordered list
+   and renumbers them from the first number, so the human would see numbers
+   the tool did not give. Write nothing about numbers that are no longer
+-  listed.
++  listed. The rule of this item is for the choices at the end of a round:
++  the questions of step 4 are its exception, and are asked with
++  `AskUserQuestion` while watching too, because the human answers them just
++  after choosing an item (step 4).
+ - **With `once`**, ask with `AskUserQuestion`. A question has at most four
+   options, so show the first three items and 何もしない; name every item left
+   out by its label in the question text, and say that the human can write
+@@ -293,8 +296,24 @@ say so and send nothing.
+
+ ## 4. Acting on the answer
+
+-The follow-up questions below are asked with `AskUserQuestion` in both
+-modes, since the human has just chosen and is answering.
++The questions in this section are asked with `AskUserQuestion`, in both
++modes, since the human has just chosen and is answering. They are: which
++option to relay for a question, the question after the PR detail is shown,
++the confirmation of `停止を解く`, and the issue number of an `/mkreq`
++proposal. Never ask one of them in text: never write the question out and
++end the turn waiting for a typed answer. A number the human types could be
++read as a number of step 3's list, and a command the human types into this
++session would run here, outside the tool. The pane's options before the
++relay question and the PR detail are still shown in text: they are shown,
++not asked. step 3's numbered list (`[<number>] <description>`) is only for
++step 3's choices: offering the remaining items again (ほかの PR を見る and
++ほかの項目を見る) is step 3's choice as well, shown in step 3's form for the
++mode, the numbered list while watching and `AskUserQuestion` with `once`.
++The question whether to send again after a model switch ("Sending again
++after a model switch", below) is not one of these. While watching it waits
++across rounds and is shown in step 3's list. With `once` there is no next
++round, so ask it with `AskUserQuestion` before stopping, and handle the
++answer as "Sending again after a model switch" says.
+
+ - **何もしない**: nothing. Go on watching (step 5), or stop with `once`.
+ - **A question** (`question` or `merge_confirmation`): show the workspace's
+@@ -338,10 +357,17 @@ modes, since the human has just chosen and is answering.
+ - **A proposal** (`proposal`): `<request>` below is always the chosen item's
+   `proposal.request`, a takeover included. When the proposal is not
+   `sendable` and `<request>` is not `mkreq`, send nothing: show its
+-  `problem`. When it is `mkreq`, ask the human
+-  for the issue number first, then run
++  `problem`. When it is `mkreq`, ask the human for the issue number with an
++  `AskUserQuestion` whose options are 送らない and ほかの項目を見る, the
++  human writing the number in its free-text answer. A free-text answer that
++  is not only digits is not a choice: say so and send nothing, and never
++  take a number out of `#<number>` or a URL (rule 4). 送らない sends
++  nothing: go on watching, or stop with `once`. ほかの項目を見る offers the
++  remaining items again as step 3 says, in step 3's form for the mode; with
++  `once`, when no item is left to offer, it is the same as 何もしない, so
++  say so and stop. When the free-text answer is only digits, run
+   `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 3`.
+-  Otherwise run
++  When it is not `mkreq`, run
+   `chief send --workspace <workspace> --command <request> --protocol 3`.
+   Show the results as step 2 does.
+ - **`停止を解く: <label>`**: show the row's `stopped` (reason, screen, time)
+````
+
+File list:
+
+````text
+.claude/commands/chief.md
+docs/tasks/0103_chief_step4_askuserquestion/03_implementation_plan.md
+````
 
 この記録は、パスの差分のほかに、差分全体のファイルの一覧（`File list`）を持つ。AC-06 はファイルの一覧で確かめる。比べるパスは 1 つ以上要るが、本タスクのディレクトリは本計画を含むので比べるパスにできない。そのため、比べるパスは `chief.md` とし、そのパスの差分は AC-07 の記録と同じものになる。
 
 Diff record (AC-07):
 
 - Compared paths: `.claude/commands/chief.md`
+- Merge-base: `0bbba2c8c7d98e5dd61f01334d6b226ad2b7aa1e`
+- Compared commit: `96d2d7f09d8efb65aade26584ee24dc6c28047ea`
+
+Path diff:
+
+````text
+diff --git a/.claude/commands/chief.md b/.claude/commands/chief.md
+index 16eee94e541b51701906cb6c13d7a2f2c4de8f53..b1e644134a73f9b7cc62d4620570a370b591be90 100644
+--- a/.claude/commands/chief.md
++++ b/.claude/commands/chief.md
+@@ -271,7 +271,10 @@ How to offer them depends on the argument:
+   `<number>)`: the terminal renders such lines as a Markdown ordered list
+   and renumbers them from the first number, so the human would see numbers
+   the tool did not give. Write nothing about numbers that are no longer
+-  listed.
++  listed. The rule of this item is for the choices at the end of a round:
++  the questions of step 4 are its exception, and are asked with
++  `AskUserQuestion` while watching too, because the human answers them just
++  after choosing an item (step 4).
+ - **With `once`**, ask with `AskUserQuestion`. A question has at most four
+   options, so show the first three items and 何もしない; name every item left
+   out by its label in the question text, and say that the human can write
+@@ -293,8 +296,24 @@ say so and send nothing.
+
+ ## 4. Acting on the answer
+
+-The follow-up questions below are asked with `AskUserQuestion` in both
+-modes, since the human has just chosen and is answering.
++The questions in this section are asked with `AskUserQuestion`, in both
++modes, since the human has just chosen and is answering. They are: which
++option to relay for a question, the question after the PR detail is shown,
++the confirmation of `停止を解く`, and the issue number of an `/mkreq`
++proposal. Never ask one of them in text: never write the question out and
++end the turn waiting for a typed answer. A number the human types could be
++read as a number of step 3's list, and a command the human types into this
++session would run here, outside the tool. The pane's options before the
++relay question and the PR detail are still shown in text: they are shown,
++not asked. step 3's numbered list (`[<number>] <description>`) is only for
++step 3's choices: offering the remaining items again (ほかの PR を見る and
++ほかの項目を見る) is step 3's choice as well, shown in step 3's form for the
++mode, the numbered list while watching and `AskUserQuestion` with `once`.
++The question whether to send again after a model switch ("Sending again
++after a model switch", below) is not one of these. While watching it waits
++across rounds and is shown in step 3's list. With `once` there is no next
++round, so ask it with `AskUserQuestion` before stopping, and handle the
++answer as "Sending again after a model switch" says.
+
+ - **何もしない**: nothing. Go on watching (step 5), or stop with `once`.
+ - **A question** (`question` or `merge_confirmation`): show the workspace's
+@@ -338,10 +357,17 @@ modes, since the human has just chosen and is answering.
+ - **A proposal** (`proposal`): `<request>` below is always the chosen item's
+   `proposal.request`, a takeover included. When the proposal is not
+   `sendable` and `<request>` is not `mkreq`, send nothing: show its
+-  `problem`. When it is `mkreq`, ask the human
+-  for the issue number first, then run
++  `problem`. When it is `mkreq`, ask the human for the issue number with an
++  `AskUserQuestion` whose options are 送らない and ほかの項目を見る, the
++  human writing the number in its free-text answer. A free-text answer that
++  is not only digits is not a choice: say so and send nothing, and never
++  take a number out of `#<number>` or a URL (rule 4). 送らない sends
++  nothing: go on watching, or stop with `once`. ほかの項目を見る offers the
++  remaining items again as step 3 says, in step 3's form for the mode; with
++  `once`, when no item is left to offer, it is the same as 何もしない, so
++  say so and stop. When the free-text answer is only digits, run
+   `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 3`.
+-  Otherwise run
++  When it is not `mkreq`, run
+   `chief send --workspace <workspace> --command <request> --protocol 3`.
+   Show the results as step 2 does.
+ - **`停止を解く: <label>`**: show the row's `stopped` (reason, screen, time)
+````
 
 ## 8. 成功の基準 (Success Criteria)
 

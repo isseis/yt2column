@@ -2,8 +2,8 @@ package config
 
 import "path/filepath"
 
-// appDirName is the directory the application's cache and socket directory
-// live in under the operating system's user directory.
+// appDirName is the directory the application's cache directory lives in
+// under the operating system's user directory.
 const appDirName = "yt2column"
 
 // dirOverride is the OS-specific part of a user-directory rule: the

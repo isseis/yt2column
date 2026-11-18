@@ -37,7 +37,8 @@ func largeInputTestName() string {
 // the test build tag without -race or coverage, no cached result, only
 // TestParseCopiedLargeInputs in this package, and a -timeout above the seven
 // inputs' deadlines together but below go test's default of ten minutes. The
-// deadline itself must stay under the server's 30s parse budget.
+// deadline itself must stay well under the 30 seconds the viewer allows the
+// Worker to load the article generation module and prepare the input.
 func TestMakeTestParseNorace(t *testing.T) {
 	const (
 		timeoutPlaceholder = "<timeout>"

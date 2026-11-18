@@ -10,8 +10,9 @@ import (
 
 // MaxDelaySeconds is the longest delay in seconds. ParseScenario compares the
 // number of seconds with it before multiplying, so a huge number cannot
-// overflow into a duration NewScenario accepts. The development server's usage
-// text prints it, so the text and the rule cannot drift apart.
+// overflow into a duration NewScenario accepts. The test of the development
+// build's documented values reads it, so the document and the rule cannot
+// drift apart.
 const MaxDelaySeconds = uint64(MaxDelay / time.Second)
 
 // The reasons a delay spelling is rejected, one per class: its form, and its
@@ -93,8 +94,8 @@ func parseSpelling[T interface {
 	return zero, fmt.Errorf("%w: %s %q is not an accepted value; accepted: %s", ErrInvalidScenario, kind, text, Spellings(values))
 }
 
-// Spellings returns the values' spellings, separated by "|". The development
-// server's usage text uses it, so the text lists what ParseScenario accepts.
+// Spellings returns the values' spellings, separated by "|". ParseScenario's
+// rejection uses it, so the message lists what ParseScenario accepts.
 func Spellings[T fmt.Stringer](values []T) string {
 	names := make([]string, len(values))
 	for i, value := range values {

@@ -7,7 +7,7 @@ import (
 )
 
 // CopiedInput is the input of NewCopiedSource. VideoID must already be
-// validated by the caller (for the server, by ValidateVideoURL); Raw is the
+// validated by the caller (for example, by ValidateVideoURL); Raw is the
 // transcript text copied from YouTube's transcript panel, unmodified.
 type CopiedInput struct {
 	VideoID     string

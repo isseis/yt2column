@@ -127,7 +127,7 @@ func TestFakeArticleWriterHoldsAtStep(t *testing.T) {
 	}
 
 	t.Run("released", func(t *testing.T) {
-		// Two calls are held at once, as the server's two generation jobs
+		// Two calls are held at once, as two generations running at once
 		// are; one close of release lets both go.
 		reached, release := make(chan struct{}), make(chan struct{})
 		fake := newFake(reached, release)

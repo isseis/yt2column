@@ -56,10 +56,9 @@ const storageSelectors = memberNameSelectors(
 // module, which runs in the Worker that src/wasmWorker.ts loads: the module's
 // Go code keeps the API key in a secret and refuses redirects, which a fetch
 // in the extension's TypeScript would bypass. src/wasmWorker.ts may use fetch
-// to load the module; the other names stay forbidden there, and the native
-// messaging host is reached only through chrome.runtime.sendNativeMessage in
-// browser/chromeDeps.ts. Like the storage rule, these guard against
-// accidental reuse, not deliberate evasion.
+// to load the module; the other names stay forbidden there. The extension has
+// no native messaging host, so no source file may message one. Like the
+// storage rule, these guard against accidental reuse, not deliberate evasion.
 const networkNames = ["fetch", "XMLHttpRequest", "WebSocket", "EventSource"];
 const networkMessage =
   "Do not open connections; only src/wasmWorker.ts may fetch, to load the article generation module.";
@@ -132,13 +131,13 @@ function sourceStoreSelectors({ allowChannel = false } = {}) {
 
 const connectNativeSelectors = memberNameSelectors(
   ["connectNative"],
-  "Do not use chrome.runtime.connectNative; send with sendNativeMessage in browser/chromeDeps.ts.",
+  "Do not use chrome.runtime.connectNative; the extension has no native messaging host.",
 );
-// Only browser/chromeDeps.ts may call sendNativeMessage; its config below
-// leaves this list out. Tests are not covered: they build fakes with the name.
+// No source file may call sendNativeMessage. Tests are not covered: a test may
+// build a fake with the name.
 const sendNativeSelectors = memberNameSelectors(
   ["sendNativeMessage"],
-  "Only browser/chromeDeps.ts may call chrome.runtime.sendNativeMessage.",
+  "Do not use chrome.runtime.sendNativeMessage; the extension has no native messaging host.",
 );
 
 // These APIs served the removed context-menu path (the menu, the result
@@ -198,7 +197,7 @@ function brandSelectors(names) {
       message: brandMessage,
     },
     // A type alias may hold a brand inside an object type member's type, as an
-    // interface may: { readonly id: RequestId } names a member, not the brand.
+    // interface may: { readonly url: LinkUrl } names a member, not the brand.
     // Every other position (the brand itself, a union or intersection member,
     // a generic argument) is an alias of the brand and is rejected, and so is
     // a reference written directly under an indexed access or a conditional
@@ -235,8 +234,6 @@ function brandSelectors(names) {
 const brandNames = [
   "CollectedInput",
   "PreparedRequest",
-  "RequestId",
-  "ArticleKey",
   "UsdAmount",
   "LinkUrl",
 ];
@@ -291,8 +288,8 @@ const commonSyntax = [
  * The no-restricted-syntax selectors of a file. Every file gets the common
  * ones; a source file (src/ and scripts/, not tests) also gets the web
  * storage and channel ones. The options name the exceptions one file has:
- * browser/chromeDeps.ts may use storage, windows, sendNativeMessage and the
- * channel, and src/wasmWorker.ts may fetch.
+ * browser/chromeDeps.ts may use storage, windows and the channel,
+ * src/wasmWorker.ts may fetch, and a test may name sendNativeMessage.
  */
 function syntaxRules({
   allowStorage = false,
@@ -424,8 +421,7 @@ export default defineConfig(
     rules: { "no-restricted-imports": storageImportRule(file) },
   })),
   {
-    // The one file that uses chrome.storage, calls
-    // chrome.runtime.sendNativeMessage and references chrome.windows.
+    // The one file that uses chrome.storage and references chrome.windows.
     files: ["src/browser/chromeDeps.ts"],
     rules: {
       "no-restricted-syntax": [
@@ -433,7 +429,6 @@ export default defineConfig(
         ...syntaxRules({
           allowStorage: true,
           allowWindows: true,
-          allowSendNative: true,
           allowChannel: true,
         }),
         ...brandSelectors(brandNames),
@@ -462,10 +457,6 @@ export default defineConfig(
   },
   creatorConfig("src/core/collect.ts", ["CollectedInput"]),
   creatorConfig("src/core/prepare.ts", ["PreparedRequest"]),
-  creatorConfig("src/core/response.ts", ["RequestId", "UsdAmount"]),
-  // The extension-only path's cost text; response.ts keeps the server path's
-  // until the server is removed.
   creatorConfig("src/core/wasmResult.ts", ["UsdAmount"]),
-  creatorConfig("src/core/articleKey.ts", ["ArticleKey"]),
   creatorConfig("src/core/articleMarkdown.ts", ["LinkUrl"]),
 );

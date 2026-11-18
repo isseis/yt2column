@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -19,13 +18,48 @@ import (
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/deepseekparam"
 	"github.com/isseis/yt2column/internal/llm/openaiparam"
-	"github.com/isseis/yt2column/internal/udstest"
 )
 
 // envLookup returns a LookupFunc over env. A key absent from env reports unset,
 // so a test controls the environment without touching the process environment.
 func envLookup(env map[string]string) LookupFunc {
 	return func(name string) (string, bool) {
+		value, ok := env[name]
+		return value, ok
+	}
+}
+
+// retiredVarNames are the retired LLM variables, written out here; Load does
+// not read them.
+var retiredVarNames = []string{
+	"YT2COLUMN_LLM_PROVIDER", "YT2COLUMN_MODEL",
+	"YT2COLUMN_REVIEW_PROVIDER", "YT2COLUMN_REVIEW_MODEL", "YT2COLUMN_CLAUDE_EFFORT",
+}
+
+// llmView is the comparable part of an LLMConfig: the two selections, the
+// revealed keys, and the workspace ID.
+type llmView struct {
+	generation, review                LLMSelection
+	deepSeekKey, claudeKey, openAIKey string
+	workspaceID                       claudeparam.WorkspaceID
+}
+
+// viewLLM returns the comparable part of an LLMConfig.
+func viewLLM(c LLMConfig) llmView {
+	deepSeek, _ := c.DeepSeekAPIKey().Reveal()
+	claude, _ := c.AnthropicAPIKey().Reveal()
+	openAI, _ := c.OpenAIAPIKey().Reveal()
+	return llmView{
+		generation: c.Generation(), review: c.Review(),
+		deepSeekKey: deepSeek, claudeKey: claude, openAIKey: openAI, workspaceID: c.AnthropicWorkspaceID(),
+	}
+}
+
+// recordingLookup returns a LookupFunc over env that appends every name it is
+// asked for to *read, so a test can check which variables a loader reads.
+func recordingLookup(env map[string]string, read *[]string) LookupFunc {
+	return func(name string) (string, bool) {
+		*read = append(*read, name)
 		value, ok := env[name]
 		return value, ok
 	}
@@ -323,18 +357,6 @@ func TestLoadClaudeEffortDefault(t *testing.T) {
 			assertClaudeEfforts(t, cfg.LLM(), tc.wantGeneration, tc.wantReview)
 		})
 	}
-
-	// LoadServer shares Load's LLM loading today; this pins the server entry
-	// point, so a server-specific loader would still get the default.
-	t.Run("LoadServer", func(t *testing.T) {
-		env := without(claudeBoth, cacheDirEnv)
-		env = with(env, "HOME", udstest.Dir(t))
-		cfg, err := LoadServer(ServerLookupForTest(t, env))
-		if err != nil {
-			t.Fatalf("LoadServer() error = %v, want nil", err)
-		}
-		assertClaudeEfforts(t, cfg.LLM(), high, high)
-	})
 }
 
 // assertClaudeEfforts checks the claude effort of each stage's selection.
@@ -877,131 +899,8 @@ func slogOutput(t *testing.T, cfg any, jsonFormat bool) string {
 	return buf.String()
 }
 
-// validServerEnv is a set of variables LoadServer accepts once
-// ServerLookupForTest has written the configuration file keys among them: the
-// CLI environment without the cache and yt-dlp variables the server does not
-// use, plus HOME, from which the file's path and the socket path are derived.
-// HOME is a fresh short directory, so the socket path stays within the macOS
-// limit.
-func validServerEnv(t *testing.T) map[string]string {
-	env := without(validEnv(), cacheDirEnv, ytDlpEnv)
-	env["HOME"] = udstest.Dir(t)
-	return env
-}
-
-// wantServerSocketPath is the socket path LoadServer derives from home on
-// this operating system.
-func wantServerSocketPath(home string) string {
-	if runtime.GOOS == "darwin" {
-		return home + "/Library/Application Support/yt2column/run/server.sock"
-	}
-	return home + "/.local/state/yt2column/run/server.sock"
-}
-
-// fileKey is want as a rejection of a configuration file key: marked
-// VarSourceConfigFile, with reason in place of want's when reason is set.
-func fileKey(want VarError, reason string) VarError {
-	want.Source = VarSourceConfigFile
-	if reason != "" {
-		want.Reason = reason
-	}
-	return want
-}
-
-// TestLoadServerValid checks that LoadServer loads the LLM settings, the
-// socket path derived from HOME, and the HTTP/2 debug flag. The OS-specific
-// socket path rules are fixed by TestSocketPath.
-func TestLoadServerValid(t *testing.T) {
-	env := with(validServerEnv(t), godebugEnv, "http2debug=1")
-	cfg, err := LoadServer(ServerLookupForTest(t, env))
-	if err != nil {
-		t.Fatalf("LoadServer() error = %v, want nil", err)
-	}
-	if cfg.LLM().Generation().Provider() != ProviderDeepSeek {
-		t.Errorf("LLM().Generation().Provider() = %v, want ProviderDeepSeek", cfg.LLM().Generation().Provider())
-	}
-	if cfg.LLM().Generation().Model() != "deepseek-chat" {
-		t.Errorf("LLM().Generation().Model() = %q, want deepseek-chat", cfg.LLM().Generation().Model())
-	}
-	if want := wantServerSocketPath(env["HOME"]); cfg.SocketPath() != want {
-		t.Errorf("SocketPath() = %q, want %q", cfg.SocketPath(), want)
-	}
-	if !cfg.HTTP2DebugEnabled() {
-		t.Error("HTTP2DebugEnabled() = false, want true")
-	}
-}
-
-// TestLoadServerLLMRejected checks that an empty YT2COLUMN_LLM, or one with an
-// empty model ID, ends the server load with a rejection naming the variable
-// instead of falling back to the default. The other LLM rules are covered by
-// the Load tests, which LoadServer shares.
-func TestLoadServerLLMRejected(t *testing.T) {
-	cases := []struct {
-		value string
-		want  VarError
-	}{
-		{"", fileKey(wantMissing(llmEnv), reasonEmpty)},
-		{"deepseek/", fileKey(wantInvalid(llmEnv, reasonLLMForm), "")},
-	}
-	for _, tc := range cases {
-		t.Run(fmt.Sprintf("%q", tc.value), func(t *testing.T) {
-			_, err := LoadServer(ServerLookupForTest(t, with(validServerEnv(t), llmEnv, tc.value)))
-			assertVarErrors(t, err, tc.want)
-		})
-	}
-}
-
-// TestLoadServerIgnoresCacheAndYtdlp checks that LoadServer neither reads nor
-// checks YT2COLUMN_CACHE_DIR and YT2COLUMN_YTDLP_PATH, even when Load would
-// reject them.
-func TestLoadServerIgnoresCacheAndYtdlp(t *testing.T) {
-	env := with(validServerEnv(t), cacheDirEnv, "relative-cache")
-	env = with(env, ytDlpEnv, "")
-	if _, err := LoadServer(ServerLookupForTest(t, env)); err != nil {
-		t.Fatalf("LoadServer() error = %v, want nil", err)
-	}
-	if _, err := Load(envLookup(env)); err == nil {
-		t.Fatal("Load() error = nil, want a rejection of the cache directory or the yt-dlp path")
-	}
-}
-
-// TestLoadServerSocketPathUnderivable checks that a HOME from which no path
-// can be derived ends the load with a *VarError naming HOME, its reason, and a
-// zero ServerConfig. An unset HOME stops at the configuration file's path, the
-// first stage; a HOME too long for the socket path passes the file's stages
-// and stops at the socket path. TestSocketPath fixes the input shapes, the
-// OS-specific branches, and the length limit; here each kind of failure must
-// reach LoadServer.
-func TestLoadServerSocketPathUnderivable(t *testing.T) {
-	const limit = 107 // the longest limit of any operating system
-	tooLong := validServerEnv(t)
-	tooLong["HOME"] += "/" + strings.Repeat("h", limit)
-	cases := []struct {
-		name     string
-		env      map[string]string
-		sentinel error
-		reason   string
-	}{
-		{"unset", without(validServerEnv(t), "HOME"), ErrMissing, reasonConfigPathAbsent},
-		{"too long", tooLong, ErrInvalid, reasonSocketPathTooLong},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := LoadServer(ServerLookupForTest(t, tc.env))
-			assertVarError(t, err, tc.sentinel, "HOME")
-			if varErr, ok := errors.AsType[*VarError](err); ok && varErr.Reason != tc.reason {
-				t.Errorf("VarError.Reason = %q, want %q", varErr.Reason, tc.reason)
-			}
-			if cfg.SocketPath() != "" || cfg.LLM().Generation().Model() != "" {
-				t.Errorf("LoadServer() returned a non-zero ServerConfig on error: socketPath=%q model=%q",
-					cfg.SocketPath(), cfg.LLM().Generation().Model())
-			}
-		})
-	}
-}
-
-// TestLoadHTTP2Debug checks which GODEBUG values both entry points report as
-// enabling the HTTP/2 log.
+// TestLoadHTTP2Debug checks which GODEBUG values Load reports as enabling the
+// HTTP/2 log.
 func TestLoadHTTP2Debug(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1026,15 +925,6 @@ func TestLoadHTTP2Debug(t *testing.T) {
 			}
 			if got := cfg.HTTP2DebugEnabled(); got != tc.want {
 				t.Errorf("HTTP2DebugEnabled() = %v, want %v", got, tc.want)
-			}
-			// The server reads GODEBUG from the environment too, while its
-			// other settings come from the configuration file.
-			server, err := LoadServer(ServerLookupForTest(t, with(tc.env, "HOME", udstest.Dir(t))))
-			if err != nil {
-				t.Fatalf("LoadServer() error = %v, want nil", err)
-			}
-			if got := server.HTTP2DebugEnabled(); got != tc.want {
-				t.Errorf("LoadServer().HTTP2DebugEnabled() = %v, want %v", got, tc.want)
 			}
 		})
 	}
@@ -1437,27 +1327,6 @@ func TestLoadDefaultProviderVariables(t *testing.T) {
 				t.Errorf("LoadFor() read %s, but no stage uses deepseek", deepSeekAPIKeyEnv)
 			}
 		})
-	}
-}
-
-// TestLoadServerLLMDefaults checks the server entry point with no LLM key.
-// The rules themselves are covered by the Load tests, which LoadServer
-// shares.
-func TestLoadServerLLMDefaults(t *testing.T) {
-	env := map[string]string{
-		"HOME":             udstest.Dir(t),
-		anthropicAPIKeyEnv: "sk-ant-test-key",
-	}
-	cfg, err := LoadServer(ServerLookupForTest(t, env))
-	if err != nil {
-		t.Fatalf("LoadServer() error = %v, want nil", err)
-	}
-	llm := cfg.LLM()
-	if llm.Generation().Provider() != ProviderClaude || llm.Review().Provider() != ProviderClaude {
-		t.Errorf("providers = %v/%v, want ProviderClaude/ProviderClaude", llm.Generation().Provider(), llm.Review().Provider())
-	}
-	if llm.Generation().Model() != defaultClaudeModel || llm.Review().Model() != defaultClaudeModel {
-		t.Errorf("models = %q/%q, want %q", llm.Generation().Model(), llm.Review().Model(), defaultClaudeModel)
 	}
 }
 
@@ -2037,378 +1906,13 @@ func TestLoadProviderVarsFollowSelection(t *testing.T) {
 	}
 }
 
-// TestVarErrorSource checks the two forms of a rejection's text: the zero
-// Source keeps "<Name>: <Reason>", and VarSourceConfigFile names the key as a
-// configuration file key, never as an environment variable.
-func TestVarErrorSource(t *testing.T) {
-	cases := []struct {
-		source VarSource
-		want   string
-	}{
-		{VarSourceUnspecified, llmEnv + ": " + reasonLLMForm},
-		{VarSourceConfigFile, "configuration file key " + llmEnv + ": " + reasonLLMForm},
-		// A value outside the enum falls back to the plain form.
-		{VarSource(99), llmEnv + ": " + reasonLLMForm},
-	}
-	for _, tc := range cases {
-		err := &VarError{Name: llmEnv, Reason: reasonLLMForm, Err: ErrInvalid, Source: tc.source}
-		if got := err.Error(); got != tc.want {
-			t.Errorf("Source %d: Error() = %q, want %q", tc.source, got, tc.want)
-		}
-	}
-}
-
-// serverEnvWithFile writes data as the configuration file under a fresh
-// short HOME and returns that environment, which holds HOME alone.
-func serverEnvWithFile(t *testing.T, data []byte) map[string]string {
-	t.Helper()
-	home := udstest.Dir(t)
-	WriteServerFileForTest(t, home, data)
-	return map[string]string{"HOME": home}
-}
-
-// serverView is the comparable part of a ServerConfig: the two selections,
-// the revealed keys, and the workspace ID.
-type serverView struct {
-	generation, review                LLMSelection
-	deepSeekKey, claudeKey, openAIKey string
-	workspaceID                       claudeparam.WorkspaceID
-}
-
-// viewServer returns the comparable part of a ServerConfig.
-func viewServer(cfg ServerConfig) serverView {
-	return viewLLM(cfg.LLM())
-}
-
-// viewLLM returns the comparable part of an LLMConfig.
-func viewLLM(c LLMConfig) serverView {
-	deepSeek, _ := c.DeepSeekAPIKey().Reveal()
-	claude, _ := c.AnthropicAPIKey().Reveal()
-	openAI, _ := c.OpenAIAPIKey().Reveal()
-	return serverView{
-		generation: c.Generation(), review: c.Review(),
-		deepSeekKey: deepSeek, claudeKey: claude, openAIKey: openAI, workspaceID: c.AnthropicWorkspaceID(),
-	}
-}
-
-// TestLoadServerReadsFile checks that the keys of the configuration file take
-// effect with the rules of the environment variables: the Anthropic API key
-// alone selects the default for every stage, and a deepseek YT2COLUMN_LLM with
-// its key selects deepseek for the generation and, by inheritance, the review.
-func TestLoadServerReadsFile(t *testing.T) {
-	t.Run("Anthropic API key only", func(t *testing.T) {
-		env := serverEnvWithFile(t, []byte(anthropicAPIKeyEnv+"=sk-ant-file\n"))
-		cfg, err := LoadServer(envLookup(env))
-		if err != nil {
-			t.Fatalf("LoadServer() error = %v, want nil", err)
-		}
-		want := LLMSelection{provider: ProviderClaude, model: defaultClaudeModel, claudeEffort: claudeparam.EffortHigh}
-		got := viewServer(cfg)
-		if got.generation != want || got.review != want {
-			t.Errorf("selections = %+v/%+v, want %+v for both", got.generation, got.review, want)
-		}
-		if got.claudeKey != "sk-ant-file" {
-			t.Errorf("Anthropic API key = %q, want the file's", got.claudeKey)
-		}
-	})
-	t.Run("deepseek", func(t *testing.T) {
-		env := serverEnvWithFile(t, []byte(llmEnv+"=deepseek/deepseek-flash\n"+deepSeekAPIKeyEnv+"=sk-file\n"))
-		cfg, err := LoadServer(envLookup(env))
-		if err != nil {
-			t.Fatalf("LoadServer() error = %v, want nil", err)
-		}
-		want := LLMSelection{provider: ProviderDeepSeek, model: "deepseek-flash"}
-		got := viewServer(cfg)
-		if got.generation != want || got.review != want {
-			t.Errorf("selections = %+v/%+v, want %+v for both", got.generation, got.review, want)
-		}
-		if got.deepSeekKey != "sk-file" {
-			t.Errorf("DeepSeek API key = %q, want the file's", got.deepSeekKey)
-		}
-	})
-	t.Run("openai", func(t *testing.T) {
-		env := serverEnvWithFile(t, []byte(
-			llmEnv+"=openai/gpt-6-astra+high\n"+
-				reviewLLMEnv+"=openai/gpt-6-astra\n"+
-				openAIAPIKeyEnv+"=sk-openai-file\n"))
-		cfg, err := LoadServer(envLookup(env))
-		if err != nil {
-			t.Fatalf("LoadServer() error = %v, want nil", err)
-		}
-		goWant := LLMSelection{provider: ProviderOpenAI, model: "gpt-6-astra", openAIEffort: openaiparam.EffortHigh}
-		reviewWant := LLMSelection{provider: ProviderOpenAI, model: "gpt-6-astra", openAIEffort: openaiparam.EffortMedium}
-		got := viewServer(cfg)
-		if got.generation != goWant || got.review != reviewWant {
-			t.Errorf("selections = %+v/%+v, want %+v/%+v", got.generation, got.review, goWant, reviewWant)
-		}
-		if got.openAIKey != "sk-openai-file" {
-			t.Errorf("OpenAI API key = %q, want the file's", got.openAIKey)
-		}
-	})
-}
-
-// TestLoadServerValueRejections checks that the validation reports every
-// value it rejects, each marked as a configuration file key, and returns the
-// zero ServerConfig. It holds the requirements' example YT2COLUMN_LLM=Claude/x;
-// the review stage selects claude, so the missing Anthropic API key is
-// reported too.
-func TestLoadServerValueRejections(t *testing.T) {
-	file := map[string]string{
-		llmEnv:                  "Claude/x",
-		reviewLLMEnv:            "claude/",
-		anthropicWorkspaceIDEnv: "a b",
-	}
-	cfg, err := LoadServer(envLookup(serverEnvWithFile(t, ServerFileForTest(file))))
-	assertVarErrors(t, err,
-		fileKey(wantInvalid(llmEnv, reasonLLMProvider), ""),
-		fileKey(wantInvalid(reviewLLMEnv, reasonLLMForm), ""),
-		fileKey(wantMissing(anthropicAPIKeyEnv), reasonNotSet),
-		fileKey(wantInvalid(anthropicWorkspaceIDEnv, reasonAnthropicWorkspaceID), ""),
-	)
-	if got := viewServer(cfg); got != (serverView{}) || cfg.SocketPath() != "" {
-		t.Errorf("LoadServer() returned a non-zero ServerConfig on error: %+v", got)
-	}
-}
-
-// TestLoadServerEmptyValues checks that an empty value in the file is handled
-// as an empty environment variable is: a key the configuration uses is
-// rejected as empty, and the key of a provider no stage uses is not read.
-func TestLoadServerEmptyValues(t *testing.T) {
-	t.Run("used key", func(t *testing.T) {
-		_, err := LoadServer(envLookup(serverEnvWithFile(t, []byte(anthropicAPIKeyEnv+"=\n"))))
-		assertVarErrors(t, err, fileKey(wantMissing(anthropicAPIKeyEnv), reasonEmpty))
-	})
-	t.Run("unused provider key", func(t *testing.T) {
-		data := []byte(anthropicAPIKeyEnv + "=sk-ant-file\n" + deepSeekAPIKeyEnv + "=\n")
-		if _, err := LoadServer(envLookup(serverEnvWithFile(t, data))); err != nil {
-			t.Fatalf("LoadServer() error = %v, want nil", err)
-		}
-	})
-}
-
-// retiredVarNames are the retired LLM variables, written out here; no load
-// (the CLI's, the server's, or the host's) reads them.
-var retiredVarNames = []string{
-	"YT2COLUMN_LLM_PROVIDER", "YT2COLUMN_MODEL",
-	"YT2COLUMN_REVIEW_PROVIDER", "YT2COLUMN_REVIEW_MODEL", "YT2COLUMN_CLAUDE_EFFORT",
-}
-
-// TestLoadServerIgnoresEnvSettings checks the requirements' examples of a
-// setting only the process environment holds: an API key there is not set in
-// the file, and an LLM choice there selects nothing. That the server reads no
-// such variable at all, empty or not, is TestLoadServerReadsOnlyHomeAndGodebug.
-func TestLoadServerIgnoresEnvSettings(t *testing.T) {
-	t.Run("API key only in the environment", func(t *testing.T) {
-		env := serverEnvWithFile(t, []byte(serverFileTemplate))
-		env[anthropicAPIKeyEnv] = "sk-ant-env"
-		_, err := LoadServer(envLookup(env))
-		assertVarErrors(t, err, fileKey(wantMissing(anthropicAPIKeyEnv), reasonNotSet))
-	})
-	t.Run("LLM choice only in the environment", func(t *testing.T) {
-		env := serverEnvWithFile(t, []byte(anthropicAPIKeyEnv+"=sk-ant-file\n"))
-		env[llmEnv] = "deepseek/deepseek-flash"
-		env[deepSeekAPIKeyEnv] = "sk-env"
-		cfg, err := LoadServer(envLookup(env))
-		if err != nil {
-			t.Fatalf("LoadServer() error = %v, want nil", err)
-		}
-		if got := cfg.LLM().Generation(); got.Provider() != ProviderClaude || got.Model() != defaultClaudeModel {
-			t.Errorf("generation = %+v, want the default %s", got, defaultLLMValue)
-		}
-	})
-}
-
-// TestLoadServerFileRejections checks that each refusal of the configuration
-// file ends the load with a *FileError of its class naming the file's path,
-// and the zero ServerConfig, and that the size limit is inclusive.
-func TestLoadServerFileRejections(t *testing.T) {
-	valid := []byte(anthropicAPIKeyEnv + "=sk-ant-file\n")
-	// padded returns valid followed by a comment line, size bytes in all.
-	padded := func(size int) []byte {
-		return slices.Concat(valid, []byte("#"), bytes.Repeat([]byte("x"), size-len(valid)-1))
-	}
-	cases := []struct {
-		name     string
-		setup    func(t *testing.T, path string) // changes the valid file at path
-		sentinel error
-		line     int
-	}{
-		{"missing", func(t *testing.T, path string) { removeForTest(t, path) }, ErrConfigFileMissing, 0},
-		{"symbolic link", func(t *testing.T, path string) {
-			target := filepath.Join(filepath.Dir(path), "target.env")
-			writeModeForTest(t, target, valid, 0o600)
-			removeForTest(t, path)
-			if err := os.Symlink(target, path); err != nil {
-				t.Fatal(err)
-			}
-		}, ErrConfigFileUnsafe, 0},
-		{"directory", func(t *testing.T, path string) {
-			removeForTest(t, path)
-			if err := os.Mkdir(path, 0o700); err != nil {
-				t.Fatal(err)
-			}
-		}, ErrConfigFileUnsafe, 0},
-		{"mode 0644", func(t *testing.T, path string) { chmodForTest(t, path, 0o644) }, ErrConfigFileUnsafe, 0},
-		{"unreadable", func(t *testing.T, path string) {
-			skipIfRoot(t)
-			dir := filepath.Dir(path)
-			chmodForTest(t, dir, 0o000)
-			t.Cleanup(func() { chmodForTest(t, dir, 0o700) })
-		}, ErrConfigFileUnreadable, 0},
-		{"format", func(t *testing.T, path string) { writeModeForTest(t, path, []byte("not a setting\n"), 0o600) }, ErrConfigFileFormat, 1},
-		{"one byte over the limit", func(t *testing.T, path string) {
-			writeModeForTest(t, path, padded(serverFileMaxSize+1), 0o600)
-		}, ErrConfigFileFormat, 0},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			home := udstest.Dir(t)
-			path := WriteServerFileForTest(t, home, valid)
-			tc.setup(t, path)
-			cfg, err := LoadServer(envLookup(map[string]string{"HOME": home}))
-			if !errors.Is(err, tc.sentinel) {
-				t.Fatalf("LoadServer() error = %v, want it to wrap %v", err, tc.sentinel)
-			}
-			fileErr, ok := errors.AsType[*FileError](err)
-			if !ok {
-				t.Fatalf("LoadServer() error = %v, want a *FileError", err)
-			}
-			if fileErr.Path != path || fileErr.Line != tc.line {
-				t.Errorf("FileError path, line = %q, %d, want %q, %d", fileErr.Path, fileErr.Line, path, tc.line)
-			}
-			if viewServer(cfg) != (serverView{}) || cfg.SocketPath() != "" {
-				t.Errorf("LoadServer() returned a non-zero ServerConfig on error")
-			}
-		})
-	}
-	// A rejected line stops the load before the values are validated: the
-	// invalid value and the missing API key of this file are not reported.
-	t.Run("format stops before the values", func(t *testing.T) {
-		data := []byte(llmEnv + "=deepseek/\nnot a setting\n")
-		_, err := LoadServer(envLookup(serverEnvWithFile(t, data)))
-		if _, ok := errors.AsType[*VarError](err); ok || !errors.Is(err, ErrConfigFileFormat) {
-			t.Errorf("LoadServer() error = %v, want only the format rejection", err)
-		}
-	})
-	t.Run("exactly the limit", func(t *testing.T) {
-		data := padded(serverFileMaxSize)
-		if len(data) != serverFileMaxSize {
-			t.Fatalf("the file has %d bytes, want %d", len(data), serverFileMaxSize)
-		}
-		if _, err := LoadServer(envLookup(serverEnvWithFile(t, data))); err != nil {
-			t.Fatalf("LoadServer() error = %v, want nil", err)
-		}
-	})
-}
-
-// removeForTest removes path.
-func removeForTest(t *testing.T, path string) {
-	t.Helper()
-	if err := os.Remove(path); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// chmodForTest sets path's mode.
-func chmodForTest(t *testing.T, path string, mode os.FileMode) {
-	t.Helper()
-	if err := os.Chmod(path, mode); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// writeModeForTest writes data to path and sets its mode, whatever the
-// umask.
-func writeModeForTest(t *testing.T, path string, data []byte, mode os.FileMode) {
-	t.Helper()
-	if err := os.WriteFile(path, data, mode); err != nil {
-		t.Fatal(err)
-	}
-	chmodForTest(t, path, mode)
-}
-
-// TestLoadServerReadsOnlyHomeAndGodebug checks that the server's load reads
-// HOME and GODEBUG from the environment, and no other variable, even when
-// the environment holds the six keys and the retired LLM variables, which
-// then leave the configuration as the file alone gives it.
-func TestLoadServerReadsOnlyHomeAndGodebug(t *testing.T) {
-	env := serverEnvWithFile(t, []byte(anthropicAPIKeyEnv+"=sk-ant-file\n"))
-	want, err := LoadServer(envLookup(env))
-	if err != nil {
-		t.Fatalf("LoadServer() without environment settings error = %v, want nil", err)
-	}
-	for _, name := range slices.Concat(serverFileKeys, retiredVarNames) {
-		env[name] = ""
-	}
-	var read []string
-	got, err := LoadServer(recordingLookup(env, &read))
-	if err != nil {
-		t.Fatalf("LoadServer() error = %v, want nil", err)
-	}
-	if viewServer(got) != viewServer(want) {
-		t.Errorf("configuration = %+v, want the file's %+v", viewServer(got), viewServer(want))
-	}
-	if !slices.Contains(read, "HOME") {
-		t.Errorf("read = %v, want it to include HOME", read)
-	}
-	for _, name := range read {
-		if name != "HOME" && name != godebugEnv {
-			t.Errorf("LoadServer read %q from the environment, want only HOME and %s", name, godebugEnv)
-		}
-	}
-}
-
-// TestLoadForIgnoresServerFile checks that the CLI's load reads the
-// environment alone: a configuration file under HOME, valid with other
-// values, malformed, or with mode 0644, changes nothing.
-func TestLoadForIgnoresServerFile(t *testing.T) {
-	home := udstest.Dir(t)
-	env := with(validEnv(), "HOME", home)
-	want, err := Load(envLookup(env))
-	if err != nil {
-		t.Fatalf("Load() without a configuration file error = %v, want nil", err)
-	}
-	needs := []Need{needBoth, needGeneration, needReview, {}}
-	wantFor := make([]serverView, len(needs))
-	for i, need := range needs {
-		cfg, err := LoadFor(envLookup(env), need)
-		if err != nil {
-			t.Fatalf("LoadFor(%+v) without a configuration file error = %v, want nil", need, err)
-		}
-		wantFor[i] = viewLLM(cfg.LLM())
-	}
-	files := []struct {
-		name string
-		data []byte
-		mode os.FileMode
-	}{
-		{"other values", ServerFileForTest(map[string]string{
-			llmEnv: "claude/claude-file", anthropicAPIKeyEnv: "sk-ant-file", deepSeekAPIKeyEnv: "sk-file",
-		}), 0o600},
-		{"malformed", []byte("export " + llmEnv + "=\"x\"\n"), 0o600},
-		{"mode 0644", ServerFileForTest(map[string]string{llmEnv: "claude/claude-file"}), 0o644},
-	}
-	for _, f := range files {
-		t.Run(f.name, func(t *testing.T) {
-			path := WriteServerFileForTest(t, home, f.data)
-			chmodForTest(t, path, f.mode)
-			for i, need := range needs {
-				got, err := LoadFor(envLookup(env), need)
-				if err != nil {
-					t.Fatalf("LoadFor(%+v) error = %v, want nil", need, err)
-				}
-				if viewLLM(got.LLM()) != wantFor[i] {
-					t.Errorf("LoadFor(%+v) = %+v, want %+v as without the file", need, viewLLM(got.LLM()), wantFor[i])
-				}
-			}
-			got, err := Load(envLookup(env))
-			if err != nil {
-				t.Fatalf("Load() error = %v, want nil", err)
-			}
-			if viewLLM(got.LLM()) != viewLLM(want.LLM()) || got.CacheDir() != want.CacheDir() {
-				t.Errorf("Load() = %+v, want %+v as without the file", viewLLM(got.LLM()), viewLLM(want.LLM()))
-			}
-		})
+// TestVarErrorText checks the form of a rejection's text, "<Name>: <Reason>",
+// which the CLI prints: it names the variable and gives the fixed reason, and
+// nothing else.
+func TestVarErrorText(t *testing.T) {
+	err := &VarError{Name: llmEnv, Reason: reasonLLMForm, Err: ErrInvalid}
+	if got, want := err.Error(), llmEnv+": "+reasonLLMForm; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
 	}
 }
 

@@ -5,14 +5,12 @@ package extjob
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/isseis/yt2column/internal/config"
 	"github.com/isseis/yt2column/internal/writer"
 )
 
-// The values the tests of this package and of internal/server's comparison
-// test share.
+// The values the tests of this package share.
 const (
 	TestVideoID  = "dQw4w9WgXcQ"
 	TestVideoURL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
@@ -21,15 +19,6 @@ const (
 
 // MaxResultBytesForTest is the size limit of a done result's JSON.
 const MaxResultBytesForTest = maxResultBytes
-
-// ArticleResultForTest renders a done article's result member as a run does,
-// so a test outside the package can compare it with another rendering.
-func ArticleResultForTest(a writer.Article, videoTitle string, duration time.Duration) (ArticleResult, error) {
-	return articleResult(a, videoTitle, duration)
-}
-
-// ClassifyWriteForTest returns the failure a write error is classified as.
-func ClassifyWriteForTest(err error) Failure { return classifyWrite(err) }
 
 // MaxResultSizeForTest returns the longest done result JSON of a, in bytes.
 func MaxResultSizeForTest(a writer.Article, videoTitle string) (int, error) {

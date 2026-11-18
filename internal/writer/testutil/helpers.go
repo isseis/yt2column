@@ -15,10 +15,10 @@ import (
 // client.
 //
 // It is the one definition of the default that the CLI (with no step flags)
-// and the server must both build. Each binary's test compares its own options
-// with this value, so a change to the CLI's default fails the CLI test until
-// this value changes, and that change fails the server test until the server
-// follows.
+// and the article generation module (internal/extjob) must both build. Each
+// one's test compares its own options with this value, so a change to the
+// CLI's default fails the CLI test until this value changes, and that change
+// fails the extjob test until the module follows.
 func DefaultOptions(review llm.LLMClient) writer.Options {
 	return writer.Options{
 		Shorten: writer.ShortenOptions{Enabled: true},
@@ -40,8 +40,8 @@ type ChannelNameCase struct {
 }
 
 // ChannelNameCases is the one table of channel names the three callers of
-// writer.CheckChannelName are tested with: server.parseRequest, the check
-// before the LLM call, and Article.CheckPublishable. Each caller's test
+// writer.CheckChannelName are tested with: extjob.Prepare, the check before
+// the LLM call, and Article.CheckPublishable. Each caller's test
 // asserts it agrees with Valid, so the callers cannot drift apart. Every
 // invalid value breaks exactly one rule.
 func ChannelNameCases() []ChannelNameCase {

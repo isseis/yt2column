@@ -18,7 +18,6 @@
 -   **`/mkreq` は、下書きかをコマンドの終了コードで決め、エージェントがラベルの名前を読んで比べない。** 名前がちょうど `draft` と等しいかを、エージェントの読み違いで変えないためである。名前が 1 つの値と等しいかを見るだけの判定なので、Go の道具には置かない（[ADR-0014](0014-deterministic-checks-in-go.md)）。手順は [mkreq.md](../../../.claude/commands/mkreq.md) の step 1 にある。
 -   **chief は、下書きの issue で workspace を作らない。** 決定とその理由は [ADR-0046](0046-chief-of-staff.md) にある。
 -   **下書きの issue を正式にするには、人がラベル `draft` を外す。道具はラベルを付け外ししない。** 着手してよいと判断するのは人だからである。
--   **食い違い:** `mkreq.md` の step 1 は、まだ下書きの issue で止まらず、`_context.md` にはまだラベルの定義の行がない。この ADR の決定に合っていない（[#934](https://github.com/isseis/yt2column/issues/934)）。
 
 ## 採らなかった案
 

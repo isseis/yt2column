@@ -16,12 +16,6 @@ DEADCODECMD=deadcode
 
 BINARY=build/yt2column
 MAIN_PKG=./cmd/yt2column
-SERVER_BINARY=build/yt2column-server
-SERVER_PKG=./cmd/yt2column-server
-NMHOST_BINARY=build/yt2column-nmhost
-NMHOST_PKG=./cmd/yt2column-nmhost
-DEVSERVER_BINARY=build/dev/yt2column-devserver
-DEVSERVER_PKG=./cmd/yt2column-devserver
 
 # Common gofumpt check and error message
 define check_gofumpt
@@ -56,26 +50,14 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build build-dev clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview install-chief install-numreserve ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-build-dev ext-check coverage-compare ext-coverage-compare
+.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview install-chief install-numreserve ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-build-dev ext-check coverage-compare ext-coverage-compare
 
 all: build
 
-# build builds the three binaries and installs nothing: registering the
-# Native Messaging host is the user's explicit `yt2column-nmhost install
-# <browser>`, so there is no install target.
+# build builds the CLI and installs nothing, so there is no install target.
 build:
 	@mkdir -p build
 	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(BINARY) $(MAIN_PKG)
-	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(SERVER_BINARY) $(SERVER_PKG)
-	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(NMHOST_BINARY) $(NMHOST_PKG)
-
-# build-dev builds the development server, which answers with a fake LLM
-# (docs/dev/guides/development.md). It goes into build/dev/, apart from the
-# production binaries, so the steps that use ./build/... never reach it, and
-# `make build` does not build it. It installs nothing.
-build-dev:
-	@mkdir -p build/dev
-	$(GOBUILD) -trimpath -ldflags "-s -w" -o $(DEVSERVER_BINARY) $(DEVSERVER_PKG)
 
 # Install the /mergepr developer tool into $(go env GOPATH)/bin. Run from an
 # up-to-date main checkout (docs/dev/guides/mergepr_guide.md).
@@ -126,7 +108,7 @@ test-ci:
 
 # Parse-time check of the copied-transcript parser: runs only
 # TestParseCopiedLargeInputs, without -race and without coverage, so the parse
-# is timed as the server builds it and with no other package's tests running
+# is timed as the production builds parse it and with no other package's tests running
 # alongside. The build without the race detector is the only one that compares
 # the parse time with the deadline. -count=1 keeps a rerun from reusing a
 # cached result. `make test` calls this from its recipe after the -race run

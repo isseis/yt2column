@@ -255,28 +255,3 @@ describe("message entry points", () => {
     }
   });
 });
-
-describe("host sends", () => {
-  const files = sourceFiles();
-
-  it("builds the host's send dependencies in no entry: the extension sends nothing to a host", () => {
-    const found = callsIn(files, (call) => calls(call, "createSendDeps"));
-    assert.deepEqual(
-      [...new Set(found.map(({ file }) => file))].filter(
-        (file) => file !== chromeDeps,
-      ),
-      [],
-    );
-  });
-
-  it("builds a start message only in the handler of an accepted start request", () => {
-    const found = callsIn(files, (call) => calls(call, "startMessage"));
-    assert.deepEqual(
-      found.map(({ file, call }) => [
-        file,
-        functionName(enclosingFunction(call)),
-      ]),
-      [["src/startCoordinator.ts", "runAcceptedStart"]],
-    );
-  });
-});

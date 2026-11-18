@@ -7,7 +7,7 @@
 ## 決定済みの方針
 
 - **言語: Go**（ブラウザ拡張は TypeScript。詳細は §「想定ディレクトリ構成」と `docs/tasks/0007_browser_extension_skeleton/`）。依存関係を最小限にし、シングルバイナリで配布する。 [ADR-0026](adr/0026-extension-platform.md)
-- **実行形式: ブラウザ拡張と、開発用の CLI**。主経路は、ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を集め、拡張に入れた記事生成モジュール（`cmd/yt2column-wasm`。Go のコードを WebAssembly にビルドしたもの）が、ビューアのタブの Worker の中で Anthropic の API を直接呼んで記事を生成する（タスク `0090_extension_only_architecture`・`0091_extension_only_migration`）。API キーとワークスペース ID は、利用者がオプションページで入力し、`chrome.storage.local` に保存する。記事の生成ごとの記録（ジョブの記録）は `chrome.storage.session` に置き、Service Worker がただ 1 つの書き手として記事の生成の開始・予約・記録を調停する。ポップアップとビューアは、記録の変更の知らせで表示を更新する。拡張のほかに、サーバもホストも動かさない。localhost サーバ（`cmd/yt2column-server`）と Native Messaging のホスト（`cmd/yt2column-nmhost`）は、撤去の予定のコードとしてリポジトリに残る（[#773](https://github.com/isseis/yt2column/issues/773)）。コアロジックは `cmd/` から分離したパッケージとして実装し、CLI と記事生成モジュールで共有する。CLI はローカルで実行する。 [ADR-0048](adr/0048-extension-only-generation.md) [ADR-0049](adr/0049-wasm-core-sharing.md) [ADR-0008](adr/0008-launch-path.md) [ADR-0010](adr/0010-extension-stores-nothing.md) [ADR-0027](adr/0027-article-job-api.md)
+- **実行形式: ブラウザ拡張と、開発用の CLI**。主経路は、ブラウザ拡張が YouTube の文字起こしパネルからコピーした字幕を集め、拡張に入れた記事生成モジュール（`cmd/yt2column-wasm`。Go のコードを WebAssembly にビルドしたもの）が、ビューアのタブの Worker の中で Anthropic の API を直接呼んで記事を生成する（タスク `0090_extension_only_architecture`・`0091_extension_only_migration`）。API キーとワークスペース ID は、利用者がオプションページで入力し、`chrome.storage.local` に保存する。記事の生成ごとの記録（ジョブの記録）は `chrome.storage.session` に置き、Service Worker がただ 1 つの書き手として記事の生成の開始・予約・記録を調停する。ポップアップとビューアは、記録の変更の知らせで表示を更新する。拡張のほかに、サーバもホストも動かさない。以前の版が使った localhost サーバと Native Messaging のホストは撤去した（[#773](https://github.com/isseis/yt2column/issues/773)）。コアロジックは `cmd/` から分離したパッケージとして実装し、CLI と記事生成モジュールで共有する。CLI はローカルで実行する。 [ADR-0048](adr/0048-extension-only-generation.md) [ADR-0049](adr/0049-wasm-core-sharing.md) [ADR-0008](adr/0008-launch-path.md) [ADR-0010](adr/0010-extension-stores-nothing.md) [ADR-0027](adr/0027-article-job-api.md)
 - **字幕取得: 主経路はコピーした字幕、CLI は外部コマンドの `yt-dlp` に委譲する**。主経路では、利用者が YouTube の文字起こしパネルからコピーした字幕の文字列を解析するパーサ（`internal/transcript` で `CopiedSource` が `Raw` を解析する箇所）を使う。これは、パネルが出力する書式に依存する例外である。依存はそのパーサに限り、Go から YouTube のページやパネルを取得・解析しない。CLI は字幕の取得を `yt-dlp` に委譲する。YouTube の非公式な仕様に依存する最も壊れやすい部分を、保守が活発なツールに任せるためであり、Go で字幕取得を自前実装しないこと。書式が変わって拒否が続く間は、`yt-dlp` の経路を代わりの手段として残す。 [ADR-0007](adr/0007-manual-transcript-copy.md)
 - **LLM: 既定は Claude（`claude-opus-5-5`）で、DeepSeek と OpenAI も選べる**。コード上の既定のプロバイダは Claude で、既定で本番の構成になる（[#490](https://github.com/isseis/yt2column/issues/490)・[#171](https://github.com/isseis/yt2column/issues/171)）。本番の構成は [production_profile.md](production_profile.md) にある。どれも SDK を使わず、標準ライブラリ（`net/http`・`encoding/json`）で呼び出す。Claude は Anthropic Messages API を、DeepSeek は公式 API を直接契約して使う。DeepSeek の API は OpenAI 互換の Chat Completions 形式（`POST https://api.deepseek.com/chat/completions`）である。OpenAI は Responses API（`POST https://api.openai.com/v1/responses`）を、Standard の処理方式・プロンプトキャッシュの最低保持期間 30 分・`store: false` に固定して呼ぶ。 [ADR-0001](adr/0001-llm-adapter-stdlib.md) [ADR-0041](adr/0041-openai-api.md) [ADR-0004](adr/0004-production-profile.md)
   - OpenCode Go 経由の利用は採用しない。利用条件が「コーディングエージェントのトラフィック」を前提としており、本ツールの用途に合わないため。
@@ -96,9 +96,6 @@ flowchart LR
 
 ```
 cmd/yt2column/main.go     # CLI エントリポイント
-cmd/yt2column-server/     # localhost サーバのエントリポイント（拡張は使わない。撤去の予定。#773）
-cmd/yt2column-nmhost/     # Native Messaging のホストのエントリポイント（拡張は使わない。撤去の予定。#773）
-cmd/yt2column-devserver/  # 開発用のサーバのエントリポイント（拡張は使わない。撤去の予定。#773）
 cmd/yt2column-wasm/       # 公開用の記事生成モジュールのエントリポイント（js/wasm だけでビルドする。Claude の LLM の実装）
 cmd/yt2column-wasm-dev/   # 開発用の記事生成モジュールのエントリポイント（ビルドが埋め込んだ fake のシナリオで動く。公開する成果物には入らない）
 cmd/yt2column-extjob/     # 開発用のコマンド（記事生成モジュールの JSON の入口を、入力のファイルでネイティブに動かす。-llm の指定が要る）
@@ -107,10 +104,6 @@ internal/extjob/          # 拡張のジョブ 1 回分の処理（入力の検�
 internal/extjob/claudebackend/ # 記事生成モジュールの公開用の LLM の実装（Claude のクライアントとキーの確かめ）
 internal/extjob/devbackend/    # 記事生成モジュールの開発用の LLM の実装（fake のシナリオ）
 internal/extjob/jsmodule/      # 2 つの記事生成モジュールが共有する syscall/js の登録（js のビルドだけ）
-internal/server/          # localhost サーバ（撤去の予定。#773）
-internal/articlecache/    # サーバの記事のキャッシュ（撤去の予定。#773）
-internal/serversock/      # サーバの Unix ドメインソケット（撤去の予定。#773）
-internal/nmhost/          # Native Messaging のホスト（撤去の予定。#773）
 internal/redact/          # 出力の伏せ字（CLI が使う）
 internal/privatefile/     # 所有者だけが読めるファイルの検査付きの読み込みと作成（internal/chief が使う）
 internal/signalrun/       # シグナルの扱い（CLI が使う）

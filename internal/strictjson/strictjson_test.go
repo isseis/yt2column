@@ -236,38 +236,6 @@ func TestObjectHas(t *testing.T) {
 	}
 }
 
-func TestValueRaw(t *testing.T) {
-	const input = `{ "a" :  { "z" : "\u3042\n" ,  "b":[1, 2] } , "s": "x" }`
-	object, err := ParseObject([]byte(input))
-	if err != nil {
-		t.Fatalf("ParseObject error = %v", err)
-	}
-	consumed, err := object.Collect("a", "s")
-	if err != nil {
-		t.Fatalf("Collect error = %v", err)
-	}
-	cases := map[string]string{
-		"a": `{ "z" : "\u3042\n" ,  "b":[1, 2] }`,
-		"s": `"x"`,
-	}
-	for key, want := range cases {
-		if got := string(consumed[key].Raw()); got != want {
-			t.Errorf("Raw(%s) = %q, want %q", key, got, want)
-		}
-	}
-
-	raw := consumed["a"].Raw()
-	raw[0] = 'X'
-	if got := string(consumed["a"].Raw()); got != cases["a"] {
-		t.Errorf("Raw after modifying a returned copy = %q, want %q", got, cases["a"])
-	}
-
-	var zero Value
-	if got := zero.Raw(); got != nil {
-		t.Errorf("zero Value.Raw() = %q, want nil", got)
-	}
-}
-
 func TestRequiredAndRequiredString(t *testing.T) {
 	object, err := ParseObject([]byte(`{"title":"t","empty":"","null":null,"number":1}`))
 	if err != nil {

@@ -1,0 +1,214 @@
+#!/usr/bin/env bash
+# Checks the state the removal of the localhost server, the Native Messaging
+# host, and the development server leaves (AC-30, AC-31, AC-33):
+#
+#   dirs      the removed package directories do not exist
+#   kept      internal/job, internal/privatefile, internal/cachelock,
+#             internal/signalrun, and internal/redact still exist
+#   notag     no Go file of internal/config carries a !js build tag
+#   wasmdeps  GOOS=js GOARCH=wasm go list -deps ./internal/config does not
+#             list internal/privatefile
+#   builddev  the Makefile defines no build-dev rule (make's rule database
+#             has none), and make -n build-dev fails
+#   config    Makefile, .golangci.yml, .github/workflows/ci.yml, and
+#             extension/scripts/has-extension-changes.sh name no removed
+#             package
+#   docgo     every package a go command example of the tracked documents
+#             names is found by go list
+#   docmake   every target a make command example of the tracked documents
+#             names has a rule in the Makefile and passes make -n
+#
+# The tracked documents are README.md, README.en.md, CLAUDE.md, AGENTS.md,
+# the files under docs/dev/ other than the ADRs, and the files under
+# .claude/commands/. A command example is a fenced code block line or an
+# inline code span that holds `go <subcommand>` or `make`.
+#
+# Run it from anywhere inside the repository, on a committed tree. It runs go
+# and make (make -n only) and touches no network.
+#
+# Output and exit codes:
+#   0  every check passed ("ok <name>" per check, then "ok: all checks passed")
+#   1  a check failed ("FAIL <name>: ..." lines on stdout)
+#   2  the repository is unusable
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel) || exit 2
+cd "$root"
+
+# failed is set once any check fails; bad is reset by each check.
+failed=0
+bad=0
+fail() {
+	echo "FAIL $1: $2"
+	failed=1
+	bad=1
+}
+# done_check prints "ok <name>" when the check that just ran found nothing.
+done_check() {
+	[ "$bad" = 1 ] || echo "ok $1"
+	bad=0
+}
+
+removed_pkgs=(
+	cmd/yt2column-server
+	cmd/yt2column-nmhost
+	cmd/yt2column-devserver
+	internal/server
+	internal/articlecache
+	internal/serversock
+	internal/nmhost
+)
+kept_pkgs=(
+	internal/job
+	internal/privatefile
+	internal/cachelock
+	internal/signalrun
+	internal/redact
+)
+
+# dirs
+for p in "${removed_pkgs[@]}"; do
+	if [ -e "$p" ]; then
+		fail dirs "$p exists"
+	fi
+done
+done_check dirs
+
+# kept
+for p in "${kept_pkgs[@]}"; do
+	if ! go list "./$p" >/dev/null 2>&1; then
+		fail kept "go list finds no package for ./$p"
+	fi
+done
+done_check kept
+
+# notag
+while IFS= read -r f; do
+	if grep -qE '^//go:build.*!js' "$f"; then
+		fail notag "$f carries a !js build tag"
+	fi
+done < <(git ls-files 'internal/config/*.go')
+done_check notag
+
+# wasmdeps
+if ! deps=$(GOOS=js GOARCH=wasm go list -deps ./internal/config); then
+	fail wasmdeps "go list -deps failed"
+elif grep -qx 'github.com/isseis/yt2column/internal/privatefile' <<<"$deps"; then
+	fail wasmdeps "internal/config depends on internal/privatefile in a js/wasm build"
+fi
+done_check wasmdeps
+
+# The targets the Makefile defines a rule for, from make's rule database
+# (-p prints it, -n and -q run nothing). A file or a directory of the same
+# name is not a rule, so make -n alone cannot tell it from a target. make -q
+# exits non-zero when the goal is out of date, so its status is not read;
+# the database must list the test rule instead.
+# An entry right after a "# Not a target:" line is a file make knows of
+# with no rule (a prerequisite), not a target; a "::" rule is a target.
+rules=$({ make -pnq 2>/dev/null || true; } | awk '
+	/^# Not a target:/ { skip = 1; next }
+	skip { skip = 0; next }
+	match($0, /^[a-z][a-z0-9-]*::?( |$)/) { sub(/::?.*/, ""); print }
+' | sort -u)
+if ! grep -qx test <<<"$rules"; then
+	echo "make's rule database lists no test target" >&2
+	exit 2
+fi
+
+# builddev
+if grep -qx build-dev <<<"$rules"; then
+	fail builddev "the Makefile defines a build-dev rule"
+elif make -n build-dev >/dev/null 2>&1; then
+	fail builddev "make -n build-dev succeeds"
+fi
+done_check builddev
+
+# config
+pattern=$(printf '%s\n' "${removed_pkgs[@]}" | paste -sd '|' -)
+for f in Makefile .golangci.yml .github/workflows/ci.yml extension/scripts/has-extension-changes.sh; do
+	if hits=$(grep -nE "($pattern)([^a-z0-9-]|$)" "$f"); then
+		fail config "$f names a removed package: $hits"
+	fi
+done
+done_check config
+
+# The command examples: fenced code block lines and inline code spans.
+examples=$(
+	git ls-files README.md README.en.md CLAUDE.md AGENTS.md '.claude/commands/*' 'docs/dev/*' |
+		grep -v '^docs/dev/adr/' |
+		while IFS= read -r f; do
+			awk '/^[[:space:]]*```/ { inblock = !inblock; next } inblock { print }' "$f"
+			grep -oE '`[^`]+`' "$f" | sed 's/^`//; s/`$//' || true
+		done
+)
+
+# docgo: the ./ and module paths after go <subcommand>, up to a shell
+# operator or a comment, each with "wasm" when the command has the
+# GOOS=js GOARCH=wasm prefix, so it is listed for that platform.
+# placeholder_pkgs are the example paths a document writes for "some
+# package"; they name no package on purpose.
+placeholder_pkgs=(./internal/specific/package)
+go_pkgs=$(
+	grep -oE '(^|[[:space:](])(GOOS=js GOARCH=wasm )?go (build|test|list|vet|install|run|generate)( [^;&|#`)]*)?' <<<"$examples" |
+		awk '{
+			platform = ($0 ~ /GOOS=js GOARCH=wasm/) ? "wasm" : "native"
+			for (i = 1; i <= NF; i++) {
+				if ($i ~ /^(\.\/|github\.com\/isseis\/yt2column)/) print platform, $i
+			}
+		}' |
+		grep -vE " ($(printf '%s\n' "${placeholder_pkgs[@]}" | sed 's/[.]/[.]/g' | paste -sd '|' -))$" |
+		sort -u || true
+)
+if [ -z "$go_pkgs" ]; then
+	fail docgo "found no go command example"
+fi
+while read -r platform p; do
+	[ -n "$p" ] || continue
+	# Standard output only: for a pattern that matches nothing, go list
+	# prints a warning on standard error and exits 0.
+	if [ "$platform" = wasm ]; then
+		listed=$(GOOS=js GOARCH=wasm go list "$p" 2>/dev/null) || listed=
+	else
+		listed=$(go list -tags test,integration "$p" 2>/dev/null) || listed=
+	fi
+	if [ -z "$listed" ]; then
+		fail docgo "go list finds no package for $p ($platform)"
+	fi
+done <<<"$go_pkgs"
+done_check docgo
+
+# docmake: the target words right after make and its options, up to the
+# first other word (a VAR=value argument, a shell operator, or a comment).
+make_targets=$(
+	grep -oE '(^|[[:space:](])make( [^;&|#`)]*)?' <<<"$examples" |
+		awk '{
+			for (i = 1; i <= NF; i++) {
+				if ($i == "make") { started = 1; continue }
+				if (!started) continue
+				# -C and -f take the next word as their value.
+				if ($i == "-C" || $i == "-f") { i++; continue }
+				if ($i ~ /^-/) continue
+				if ($i ~ /^[a-z][a-z0-9-]*$/) { print $i; continue }
+				break
+			}
+			started = 0
+		}' |
+		sort -u || true
+)
+if [ -z "$make_targets" ]; then
+	fail docmake "found no make command example"
+fi
+while IFS= read -r t; do
+	[ -n "$t" ] || continue
+	if ! grep -qx -- "$t" <<<"$rules"; then
+		fail docmake "the Makefile defines no rule for $t"
+	elif ! make -n "$t" >/dev/null 2>&1; then
+		fail docmake "make -n $t fails"
+	fi
+done <<<"$make_targets"
+done_check docmake
+
+if [ "$failed" != 0 ]; then
+	exit 1
+fi
+echo "ok: all checks passed"

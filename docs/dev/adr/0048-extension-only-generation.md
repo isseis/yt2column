@@ -25,8 +25,6 @@
 -   **記事を作る処理は、Go のコアを WebAssembly にして CLI と共有する。** 共有の方法とビルドは [ADR-0049](0049-wasm-core-sharing.md) が定める。
 -   **応答はストリーミングなしで受け取る。** Claude アダプタの出力の上限とストリーミングを使わないことは [ADR-0025](0025-claude-output-limit.md) が定める。
 
-この決定のうち、サーバとホストのコードの撤去は、まだ行っていない。拡張はサーバとホストを使わないが、`cmd/yt2column-server`・`cmd/yt2column-nmhost`・開発用のサーバ（`cmd/yt2column-devserver`）と、それらだけが使うパッケージは、リポジトリに残り、`make build` と `make build-dev` が作る。この差分は [#773](https://github.com/isseis/yt2column/issues/773) の実装で解消する。
-
 ## 採らなかった案
 
 -   **ブラウザの中で推論する。** 品質の目標が `claude-opus-5-5` を要し、ブラウザの中では動かせない（[#769](https://github.com/isseis/yt2column/issues/769)）。
@@ -45,7 +43,7 @@
 -   拡張が API キーを持ち、ネットワークへリクエストを送るようになる。脅威モデルは [ADR-0006](0006-threat-model.md) が、権限と Content Security Policy は [ADR-0010](0010-extension-stores-nothing.md) と [ADR-0049](0049-wasm-core-sharing.md) が定める。
 -   記事の生成を実行するタブは、WASM を読み込むのでメモリを多く使う（PoC ではタブ全体で 61.6〜85.8 MB。うち WASM の分は測っていない。[調査記録](../../research/wasm_pipeline_poc/README.md)「測定 6：本番の構成（Chrome、`83ef12bd`、背面のまま）」）。同時に走る記事の生成の数の上限は [ADR-0027](0027-article-job-api.md) が定める。
 -   拡張では、本番の構成のモデル以外を選べない。ほかのモデルやプロバイダを試すのは CLI である。
--   `cmd/yt2column-server`・`cmd/yt2column-nmhost` と、サーバだけが使うパッケージは、[#773](https://github.com/isseis/yt2column/issues/773) で撤去する。
+-   `cmd/yt2column-server`・`cmd/yt2column-nmhost` と、サーバだけが使うパッケージは、[0091 設計書](../../tasks/0091_extension_only_migration/02_architecture.md) の「撤去」のとおりに撤去した。
 
 ## 経緯
 

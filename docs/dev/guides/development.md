@@ -5,7 +5,7 @@
 ## make のターゲット
 
 ```sh
-make build   # build the binaries into build/
+make build   # build the CLI into build/
 make test    # unit tests (no network, no yt-dlp)
 make lint    # golangci-lint (pinned version) と make wasm-check
 make wasm-check  # 2 つの記事生成モジュールを Go の WASM（GOOS=js GOARCH=wasm）でビルドできることの検査

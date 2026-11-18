@@ -92,7 +92,7 @@ describe("formatUsd", () => {
   ];
   for (const { usd, want } of cases) {
     for (const locale of Object.keys(locales) as Locale[]) {
-      it(`formats ${usd} in ${locale} with the server's digits`, () => {
+      it(`formats ${usd} in ${locale} with the module's digits`, () => {
         assert.equal(formatUsd(usd as UsdAmount, locale), want);
       });
     }

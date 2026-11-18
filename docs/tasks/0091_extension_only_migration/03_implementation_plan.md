@@ -423,12 +423,12 @@
 
 **変更するファイル:** 撤去するパッケージ（要件書 AC-31）、呼ばれなくなった拡張のコードとそのテスト（§1.3 の決定 10）、`extension/eslint.config.js`、`extension/scripts/has-extension-changes.sh`・`extension/test/ciChanges.test.ts`、`internal/config/`（`!js` のファイル、そのテストと補助、`LoadServer` を使う行）、`internal/llm/provider/provider_test.go`、`cmd/yt2column/`（`_test.go` だけ）、`internal/llm/devfake/`（`deps_test.go`、`articles/elements.md`）、`internal/godepstest/godepstest_test.go`、`internal/pipeline/`（`relay_guard_test.go`、必要なら `pipeline_test.go` の `testOnlyPackageDirs`）、`internal/config/envaccess_test.go`、`Makefile`、`.golangci.yml`、`.github/workflows/ci.yml`、文書のガードのコマンドの写し、`CLAUDE.md`、`docs/dev/`、ADR（§3.3）、`docs/tasks/0091_extension_only_migration/_checks/removal.sh`（新規）
 
--   [ ] **ステップ 9-1**: サーバの設定の読み込みを使う行を直す。`TestLoadClaudeEffortDefault` と `TestLoadHTTP2Debug` のサーバの行は、同じ値の CLI の行があるので、削除だけの commit で除き、`make coverage-compare` で比べる。`TestNewSendsStageEffort` は CLI の読み込みに改める。
--   [ ] **ステップ 9-2**: 要件書 AC-31 のパッケージ、`internal/config` の `!js` のファイルとそのテストと補助、呼ばれなくなった拡張のコードとそのテスト、`TestNativeHostContract` とその定数を除く。除く前に、ステップ 8-4 と同じく仮の commit で比べ、残るパッケージ（`internal/job`・`internal/redact`・`internal/signalrun`・`internal/cachelock`・`internal/privatefile`・`internal/publisher`・`internal/writer`・`internal/config` など）の関数のカバレッジが下がるなら、そのテストを先に足す。削除の commit には、コンパイルに要る次の直しも入れる: `devfake/deps_test.go` の一覧（`internal/privatefile` は残す）、`godepstest_test.go` の例、`cmd/yt2column/devdeps_test.go` の許さない依存、`relay_guard_test.go` のホストの 2 つのテスト、`envaccess_test.go` の入口の一覧と `:407-411` の観測、比べるテスト（§1.3 の決定 7）、`package_reference.md` の撤去したパッケージの行と `internal/strictjson` の利用者の一覧（§1.2）。どのパッケージからも import されなくなるテストの補助があれば、`go list -deps -test` で確かめてから除き、`testOnlyPackageDirs` を直す。削除の commit を `make coverage-compare` と `make ext-coverage-compare` で比べる。
--   [ ] **ステップ 9-3**: `make build` を `yt2column` だけにし、`build-dev` とその変数を除く。`makefile_test.go` を直す。`.golangci.yml` の撤去したパッケージを指す規則を、`ci.yml` の `doc-guard` の対象から `./cmd/yt2column-server` を、`has-extension-changes.sh` と `ciChanges.test.ts` から `internal/server/response.go` を除く（設計書 §3.10・§3.11、§1.3 の決定 6）。lint の `sendNativeMessage` の規則は、`chromeDeps.ts` に許していた例外だけを除き、禁止は残す（設計書 §5.4）。`lintRules.test.ts` の行を直す。
--   [ ] **ステップ 9-4**: 文書を書き換える（設計書 §3.13）。文書のガードのコマンドの 4 つの写し（CLAUDE.md「Development Notes」、`.claude/commands/_lib/task-pr-handoff.md`、`.claude/commands/_lib/simple-process.md`、`docs/dev/guides/fixprguard_guide.md`）から `./cmd/yt2column-server` を、それぞれの今の形のまま除く。CLAUDE.md の「Build Commands」と「Architecture Overview」に残る撤去したバイナリとパッケージ、package_reference.md の `internal/privatefile` の規則のリンク先、project_overview.md のディレクトリの構成、development.md の `make` の目標、security.md に残る撤去したコードの記述を直す。`devfake/articles/elements.md` の `make build-dev` の例を、残る目標の例に替える。
--   [ ] **ステップ 9-5**: `_checks/removal.sh` を作る。撤去したパッケージのディレクトリがないこと、`internal/job`・`internal/privatefile`・`internal/cachelock`・`internal/signalrun`・`internal/redact` が残ること、`internal/config` の Go のファイルに `!js` のビルドタグがないこと、`GOOS=js GOARCH=wasm go list -deps ./internal/config` が `internal/privatefile` を含まないこと、`make -n build-dev` が失敗すること、`Makefile`・`.golangci.yml`・`ci.yml`・`has-extension-changes.sh` が撤去したパッケージを指さないこと、追跡している文書（README、CLAUDE.md、AGENTS.md、`docs/dev/` の ADR を除く文書、`.claude/commands/`）のコマンドの例のうち、`go` のコマンドが挙げるパッケージが `go list` で見つかり、`make` のコマンドの目標が `make -n` で通ることを確かめる。各検査が、少なくとも 1 つの壊し方で失敗することを確かめる。出力とコミット ID を §7 に書く。
--   [ ] **ステップ 9-6**: ADR の食い違いの記述を §3.3 のとおりに除き、§1.3 の決定 9 の 2 か所を直す。
+-   [x] **ステップ 9-1**: サーバの設定の読み込みを使う行を直す。`TestLoadClaudeEffortDefault` と `TestLoadHTTP2Debug` のサーバの行は、同じ値の CLI の行があるので、削除だけの commit で除き、`make coverage-compare` で比べる。`TestNewSendsStageEffort` は CLI の読み込みに改める。
+-   [x] **ステップ 9-2**: 要件書 AC-31 のパッケージ、`internal/config` の `!js` のファイルとそのテストと補助、呼ばれなくなった拡張のコードとそのテスト、`TestNativeHostContract` とその定数を除く。除く前に、ステップ 8-4 と同じく仮の commit で比べ、残るパッケージ（`internal/job`・`internal/redact`・`internal/signalrun`・`internal/cachelock`・`internal/privatefile`・`internal/publisher`・`internal/writer`・`internal/config` など）の関数のカバレッジが下がるなら、そのテストを先に足す。削除の commit には、コンパイルに要る次の直しも入れる: `devfake/deps_test.go` の一覧（`internal/privatefile` は残す）、`godepstest_test.go` の例、`cmd/yt2column/devdeps_test.go` の許さない依存、`relay_guard_test.go` のホストの 2 つのテスト、`envaccess_test.go` の入口の一覧と `:407-411` の観測、比べるテスト（§1.3 の決定 7）、`package_reference.md` の撤去したパッケージの行と `internal/strictjson` の利用者の一覧（§1.2）。どのパッケージからも import されなくなるテストの補助があれば、`go list -deps -test` で確かめてから除き、`testOnlyPackageDirs` を直す。削除の commit を `make coverage-compare` と `make ext-coverage-compare` で比べる。
+-   [x] **ステップ 9-3**: `make build` を `yt2column` だけにし、`build-dev` とその変数を除く。`makefile_test.go` を直す。`.golangci.yml` の撤去したパッケージを指す規則を、`ci.yml` の `doc-guard` の対象から `./cmd/yt2column-server` を、`has-extension-changes.sh` と `ciChanges.test.ts` から `internal/server/response.go` を除く（設計書 §3.10・§3.11、§1.3 の決定 6）。lint の `sendNativeMessage` の規則は、`chromeDeps.ts` に許していた例外だけを除き、禁止は残す（設計書 §5.4）。`lintRules.test.ts` の行を直す。
+-   [x] **ステップ 9-4**: 文書を書き換える（設計書 §3.13）。文書のガードのコマンドの 4 つの写し（CLAUDE.md「Development Notes」、`.claude/commands/_lib/task-pr-handoff.md`、`.claude/commands/_lib/simple-process.md`、`docs/dev/guides/fixprguard_guide.md`）から `./cmd/yt2column-server` を、それぞれの今の形のまま除く。CLAUDE.md の「Build Commands」と「Architecture Overview」に残る撤去したバイナリとパッケージ、package_reference.md の `internal/privatefile` の規則のリンク先、project_overview.md のディレクトリの構成、development.md の `make` の目標、security.md に残る撤去したコードの記述を直す。`devfake/articles/elements.md` の `make build-dev` の例を、残る目標の例に替える。
+-   [x] **ステップ 9-5**: `_checks/removal.sh` を作る。撤去したパッケージのディレクトリがないこと、`internal/job`・`internal/privatefile`・`internal/cachelock`・`internal/signalrun`・`internal/redact` が残ること、`internal/config` の Go のファイルに `!js` のビルドタグがないこと、`GOOS=js GOARCH=wasm go list -deps ./internal/config` が `internal/privatefile` を含まないこと、`make -n build-dev` が失敗すること、`Makefile`・`.golangci.yml`・`ci.yml`・`has-extension-changes.sh` が撤去したパッケージを指さないこと、追跡している文書（README、CLAUDE.md、AGENTS.md、`docs/dev/` の ADR を除く文書、`.claude/commands/`）のコマンドの例のうち、`go` のコマンドが挙げるパッケージが `go list` で見つかり、`make` のコマンドの目標が `make -n` で通ることを確かめる。各検査が、少なくとも 1 つの壊し方で失敗することを確かめる。出力とコミット ID を §7 に書く。
+-   [x] **ステップ 9-6**: ADR の食い違いの記述を §3.3 のとおりに除き、§1.3 の決定 9 の 2 か所を直す。
 
 **完了の条件:** `make test`・`make lint`・`make deadcode`・`make ext-check` が通る。`_checks/removal.sh` が通る。削除の commit にカバレッジの比較の通った出力がある。`_checks/cli_unchanged.sh` が通り、§7 の AC-26 の記録に書いた。有効な ADR に #773 の食い違いの記述が残らない（§1.2 の手順で `HEAD` を確かめる。廃止した ADR-0005・ADR-0018 の「廃止の理由」の行は数えない）。
 
@@ -446,10 +446,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/989
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -548,7 +548,7 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 -   [x] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5 / 6-6 / 6-7 / 6-8 / 6-9）
 -   [x] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4）
 -   [x] PR-8 マージ済み（対象ステップ: 8-1 / 8-2 / 8-3 / 8-4 / 8-5 / 8-6 / 8-7）
--   [ ] PR-9 マージ済み（対象ステップ: 9-1 / 9-2 / 9-3 / 9-4 / 9-5 / 9-6）
+-   [x] PR-9 マージ済み（対象ステップ: 9-1 / 9-2 / 9-3 / 9-4 / 9-5 / 9-6）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -563,7 +563,7 @@ issue #773 にリンクする食い違いの記述を、どの PR で除くか�
 
 | AC | 確かめ | 種類 | 実装 | PR |
 |---|---|---|---|---|
-| AC-01 | `cy/makefile_test.go::TestMakeBuildBuildsEveryBinary`（`yt2column` だけ）、`et/manifest.test.ts`（権限）、PR-8 の手動の確認（ホストもサーバもないプロファイルで記事が完成する） | test、manual | 8-1・8-7・9-3 | PR-8、PR-9 |
+| AC-01 | `cy/makefile_test.go::TestMakeBuildBuildsOnlyTheCLI`（`yt2column` だけ）、`et/manifest.test.ts`（権限）、PR-8 の手動の確認（ホストもサーバもないプロファイルで記事が完成する） | test、manual | 8-1・8-7・9-3 | PR-8、PR-9 |
 | AC-02 | `ej/module_test.go::TestCheckSettingsRejectsShape`・`TestCheckSettingsOutcomes`（形の検査、4 つの結果、30 秒）、`internal/llm/claude/keycheck_test.go::TestCheckKeyStatus`・`TestCheckKeyNotRejected`・`TestCheckKeySendsRequest`、`ej/devbackend/devbackend_test.go`、`et/optionsFlow.test.ts`（期限、1 回の書き込み、保存しないときに書かない、検査できない場合、書き込みの失敗）、`et/optionsView.test.ts`、§7 の 2 つの前の確認、PR-8 の手動の確認 | test、manual | 1-1・1-4・3-4・3-5・6-1・6-9・7-2・8-2 | PR-1、PR-3、PR-6、PR-7、PR-8 |
 | AC-03 | `et/optionsFlow.test.ts`（保存の後に欄を空にする、保存した値を読まない）、`et/optionsHtml.test.ts`（パスワードの欄にしない）、`et/style.test.ts`（文字を伏せた欄）、PR-8 の手動の確認（パスワードの保存を勧めない） | test、manual | 7-2・8-2・8-7 | PR-7、PR-8 |
 | AC-04 | `et/optionsFlow.test.ts`（空のワークスペース ID を空の文字列で書く、1 回の `remove`）、`ej/module_test.go::TestGenerateAcceptsEmptyWorkspace`（空の文字列は指定なし）、PR-8 の手動の確認（再起動の後も残る） | test、manual | 3-5・7-2・8-7 | PR-3、PR-7、PR-8 |
@@ -717,6 +717,20 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 -   この記録より後の commit は、計画書とその記録だけを変える（コードを変える commit は、記録の前に済ませた）。
 -   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
 
+**PR-9**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
+
+-   merge-base: `604c9707991f3a800af7939a76c1d2b463ef2138`
+-   比べたコミット: `8326d0636ac70a497221d4a525e572acc15a47d3`
+-   出力（終了コード 0）:
+
+    ```text
+    merge-base 604c9707991f3a800af7939a76c1d2b463ef2138 head 8326d0636ac70a497221d4a525e572acc15a47d3
+    ok: no non-test file under cmd/yt2column/ changed
+    ```
+
+-   この記録より後の commit は、計画書とその記録だけを変える（コードを変える commit は、記録の前に済ませた）。
+-   スクリプトは PR-1 から変えていないので、壊し方ごとの失敗の確かめはステップ 1-7 の記録のとおりである。
+
 ### PR-1 の前の手動の確認の記録
 
 ステップ 1-1 で書く。ブラウザの名前と版、確かめた組み合わせ（`GET /v1/models` と `POST /v1/messages`、`anthropic-workspace-id` のありとなし）、見たもの、履歴のタイトルの確かめの手順と結果、決めた案（A か B）を書く。
@@ -839,7 +853,24 @@ D4 は、人と決めて、結果を待たずに PR を作り、PR を作った�
 
 ステップ 9-5 で書く。
 
-（まだない）
+-   merge-base: `604c9707991f3a800af7939a76c1d2b463ef2138`
+-   比べたコミット: `8326d0636ac70a497221d4a525e572acc15a47d3`
+-   出力（終了コード 0）:
+
+    ```text
+    ok dirs
+    ok kept
+    ok notag
+    ok wasmdeps
+    ok builddev
+    ok config
+    ok docgo
+    ok docmake
+    ok: all checks passed
+    ```
+
+-   8 つの検査は、それぞれ少なくとも 1 つの壊し方で失敗することを確かめた（`internal/server` のディレクトリを置く、`internal/redact` を移す、`internal/config` のファイルに `!js` の行を足す、`internal/config` から `internal/privatefile` を import する、`Makefile` に `build-dev` の規則を足す、`.golangci.yml` に `internal/server` を書く、文書に `go test ./cmd/yt2column-server`・`go test github.com/isseis/yt2column/internal/server/...`・`make build-dev`・`make docs` の例を足す）。壊し方と結果は、スクリプトを加えた commit と、検査を強めた 3 つの commit のメッセージにある。
+-   この記録より後の commit は、計画書とその記録だけを変える。
 
 ## 8. 成功の基準 (Success Criteria)
 

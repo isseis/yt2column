@@ -10,14 +10,11 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/doctestutil"
-	"github.com/isseis/yt2column/internal/nmhost"
 )
 
 // Paths from cmd/yt2column to the browser-extension artifacts and documents
@@ -26,9 +23,6 @@ const (
 	extensionManifestPath = repositoryRoot + "/extension/static/manifest.json"
 	claudePath            = repositoryRoot + "/CLAUDE.md"
 	makefilePath          = repositoryRoot + "/Makefile"
-	extensionSendPath     = repositoryRoot + "/extension/src/send.ts"
-	extensionNativePath   = repositoryRoot + "/extension/src/core/native.ts"
-	extensionExchangePath = repositoryRoot + "/extension/src/core/exchange.ts"
 )
 
 // extTargetRE matches a make target definition for an extension target, such as
@@ -114,116 +108,6 @@ func TestExtensionDocumentation(t *testing.T) {
 			if _, ok := inManifest[permission]; !ok {
 				t.Errorf("security.md 8.1 lists %q, which the manifest does not request", permission)
 			}
-		}
-	})
-}
-
-// sendTimeoutRE matches the extension's declaration of how long it waits for
-// a send, in milliseconds, with optional digit separators.
-var sendTimeoutRE = regexp.MustCompile(`(?m)^export const sendTimeoutMs = ([0-9][0-9_]*);$`)
-
-// maxResponseBytesRE matches the extension's declaration of the largest
-// relayed response body it accepts, with optional digit separators.
-var maxResponseBytesRE = regexp.MustCompile(`(?m)^export const maxResponseBytes = ([0-9][0-9_]*);$`)
-
-// nativeHostNameRE, hostReplyVersionRE and recordDeclarationRE match the
-// declarations in extension/src/core/native.ts that the host must agree with.
-// recordDeclarationRE captures the name and the body of a Record<..., true>
-// constant; recordKeyRE matches one of its "key: true," lines.
-var (
-	nativeHostNameRE    = regexp.MustCompile(`(?m)^export const nativeHostName = "([^"]*)";$`)
-	hostReplyVersionRE  = regexp.MustCompile(`(?m)^export const hostReplyVersion = ([0-9]+);$`)
-	recordDeclarationRE = regexp.MustCompile(`(?ms)^export const (\w+): Record<\w+, true> = \{\n(.*?)^\};$`)
-	recordKeyRE         = regexp.MustCompile(`(?m)^  (\w+): true,$`)
-)
-
-// declaredRecordKeys returns the keys of the Record constant named name in
-// source, sorted, or nil when source declares no such constant.
-func declaredRecordKeys(source, name string) []string {
-	for _, m := range recordDeclarationRE.FindAllStringSubmatch(source, -1) {
-		if m[1] == name {
-			return sortedUnique(submatchAll(recordKeyRE, m[2], 1))
-		}
-	}
-	return nil
-}
-
-// TestNativeHostContract pins the values the Native Messaging host and the
-// extension must agree on: the only origin the host's manifest allows and its
-// relay accepts is the one derived from the extension manifest's key; the
-// extension sends to the host's name and reads the reply version, kinds and
-// host errors the host writes; the host gives up on the server before the
-// extension gives up on the host, so a reply the host writes is never one the
-// extension has stopped waiting for; and the extension accepts every response
-// body the host relays, so none is refused for its size alone.
-func TestNativeHostContract(t *testing.T) {
-	t.Run("extension origin", func(t *testing.T) {
-		id, err := extensionIDFromManifestKey(readExtensionManifest(t).Key)
-		if err != nil {
-			t.Fatalf("derive the extension ID: %v", err)
-		}
-		if want := "chrome-extension://" + id + "/"; nmhost.ExtensionOrigin != want {
-			t.Errorf("nmhost.ExtensionOrigin = %q, want %q (from the extension manifest's key)", nmhost.ExtensionOrigin, want)
-		}
-	})
-	t.Run("host name and reply values", func(t *testing.T) {
-		source := doctestutil.ReadDoc(t, extensionNativePath)
-		name := nativeHostNameRE.FindStringSubmatch(source)
-		if name == nil {
-			t.Fatalf("%s has no nativeHostName declaration", extensionNativePath)
-		}
-		if name[1] != nmhost.HostName {
-			t.Errorf("nativeHostName = %q, want nmhost.HostName %q", name[1], nmhost.HostName)
-		}
-		wire := nmhost.WireValuesForTest(t)
-		version := hostReplyVersionRE.FindStringSubmatch(source)
-		if version == nil {
-			t.Fatalf("%s has no hostReplyVersion declaration", extensionNativePath)
-		}
-		if version[1] != strconv.Itoa(wire.Version) {
-			t.Errorf("hostReplyVersion = %s, want the host's %d", version[1], wire.Version)
-		}
-		for _, record := range []struct {
-			name string
-			want []string
-		}{
-			{"hostReplyKinds", wire.Kinds},
-			{"hostErrorValues", wire.HostErrors},
-		} {
-			got := declaredRecordKeys(source, record.name)
-			if got == nil {
-				t.Errorf("%s has no %s declaration", extensionNativePath, record.name)
-				continue
-			}
-			if want := sortedUnique(record.want); !slices.Equal(got, want) {
-				t.Errorf("%s = %v, want the host's %v", record.name, got, want)
-			}
-		}
-	})
-	t.Run("relay timeout", func(t *testing.T) {
-		m := sendTimeoutRE.FindStringSubmatch(doctestutil.ReadDoc(t, extensionSendPath))
-		if m == nil {
-			t.Fatalf("%s has no sendTimeoutMs declaration", extensionSendPath)
-		}
-		ms, err := strconv.Atoi(strings.ReplaceAll(m[1], "_", ""))
-		if err != nil {
-			t.Fatalf("parse sendTimeoutMs %q: %v", m[1], err)
-		}
-		if extension := time.Duration(ms) * time.Millisecond; nmhost.RelayTimeout >= extension {
-			t.Errorf("nmhost.RelayTimeout = %v, want it shorter than the extension's sendTimeoutMs (%v)", nmhost.RelayTimeout, extension)
-		}
-	})
-	t.Run("response body limit", func(t *testing.T) {
-		m := maxResponseBytesRE.FindStringSubmatch(doctestutil.ReadDoc(t, extensionExchangePath))
-		if m == nil {
-			t.Fatalf("%s has no maxResponseBytes declaration", extensionExchangePath)
-		}
-		n, err := strconv.Atoi(strings.ReplaceAll(m[1], "_", ""))
-		if err != nil {
-			t.Fatalf("parse maxResponseBytes %q: %v", m[1], err)
-		}
-		if n != nmhost.MaxResponseBytesForTest {
-			t.Errorf("maxResponseBytes = %d, want the host's relay limit %d", n, nmhost.MaxResponseBytesForTest)
 		}
 	})
 }

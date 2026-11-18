@@ -3,42 +3,10 @@
 package config
 
 import (
-	"maps"
-	"os"
-	"path/filepath"
-	"runtime"
-	"slices"
-	"strings"
-	"testing"
-
 	"github.com/isseis/yt2column/internal/llm/claudeparam"
 	"github.com/isseis/yt2column/internal/llm/deepseekparam"
 	"github.com/isseis/yt2column/internal/llm/openaiparam"
 )
-
-// The socket path rule, exposed so the internal/serversock tests derive it
-// from the code instead of copying it. Built only with the test tag.
-
-// SocketPathTailForTest returns the part of the socket path below HOME for
-// goos, starting with a separator. It panics for an operating system with no
-// rule.
-func SocketPathTailForTest(goos string) string {
-	parts, _, ok := socketRule(goos)
-	if !ok {
-		panic("config: no socket path rule for " + goos)
-	}
-	return string(filepath.Separator) + filepath.Join(slices.Concat(parts, []string{socketFileName})...)
-}
-
-// SocketPathMaxForTest returns the longest socket path, in bytes, accepted for
-// goos. It panics for an operating system with no rule.
-func SocketPathMaxForTest(goos string) int {
-	_, limit, ok := socketRule(goos)
-	if !ok {
-		panic("config: no socket path rule for " + goos)
-	}
-	return limit
-}
 
 // The LLM default, exposed so the CLI tests and the documentation guard in
 // cmd/yt2column compare against the code instead of copying the values.
@@ -78,105 +46,5 @@ func EffortValuesByProviderForTest() map[string][]string {
 		providerClaude:   claudeparam.EffortValues(),
 		providerDeepSeek: deepseekparam.EffortValues(),
 		providerOpenAI:   openaiparam.EffortValues(),
-	}
-}
-
-// The server configuration file, exposed so the tests outside this package
-// write the file the server reads instead of copying its path rule.
-
-// ServerFilePathForTest returns the configuration file's path under home on
-// this operating system. It panics when no path can be derived from home.
-func ServerFilePathForTest(home string) string {
-	return serverFileLocationForHome(runtime.GOOS, home).path
-}
-
-// serverFileLocationForHome derives the configuration file's location on goos
-// from home alone. It panics when no path can be derived from home.
-func serverFileLocationForHome(goos, home string) serverFileLocation {
-	loc, err := serverFileLocationFor(goos, func(name string) (string, bool) {
-		if name == "HOME" {
-			return home, true
-		}
-		return "", false
-	})
-	if err != nil {
-		panic("config: no configuration file path for HOME " + home + ": " + err.Error())
-	}
-	return loc
-}
-
-// ServerFileBaseForTest returns the directory below home that config init
-// requires to exist on this operating system. It panics when no path can be
-// derived from home.
-func ServerFileBaseForTest(home string) string {
-	return serverFileLocationForHome(runtime.GOOS, home).base
-}
-
-// ServerFileTemplateForTest returns the content config init writes.
-func ServerFileTemplateForTest() string { return serverFileTemplate }
-
-// ServerFileKeysForTest returns the keys the configuration file accepts.
-func ServerFileKeysForTest() []string { return slices.Clone(serverFileKeys) }
-
-// ServerFileMaxSizeForTest returns the largest configuration file accepted,
-// in bytes.
-func ServerFileMaxSizeForTest() int { return serverFileMaxSize }
-
-// WriteServerFileForTest writes data to the configuration file under home,
-// replacing a file already there, and returns its path. The modes are set
-// with chmod, so they do not depend on the umask: 0700 for the file's
-// directory and 0600 for the file. It does not use privatefile.MkdirBelow,
-// which changes the process's umask.
-func WriteServerFileForTest(t testing.TB, home string, data []byte) string {
-	t.Helper()
-	path := ServerFilePathForTest(home)
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil { //nolint:gosec // a test's directory under its own HOME
-		t.Fatalf("create the configuration file's directory: %v", err)
-	}
-	if err := os.Chmod(dir, 0o700); err != nil { //nolint:gosec // a test's directory under its own HOME
-		t.Fatalf("chmod the configuration file's directory: %v", err)
-	}
-	if err := os.WriteFile(path, data, 0o600); err != nil { //nolint:gosec // a test's file under its own HOME
-		t.Fatalf("write the configuration file: %v", err)
-	}
-	if err := os.Chmod(path, 0o600); err != nil { //nolint:gosec // a test's file under its own HOME
-		t.Fatalf("chmod the configuration file: %v", err)
-	}
-	return path
-}
-
-// ServerFileForTest returns the configuration file's content for values: one
-// KEY=VALUE line per entry, in key order.
-func ServerFileForTest(values map[string]string) []byte {
-	var b strings.Builder
-	for _, key := range slices.Sorted(maps.Keys(values)) {
-		b.WriteString(key + "=" + values[key] + "\n")
-	}
-	return []byte(b.String())
-}
-
-// ServerLookupForTest splits vars into the keys the configuration file
-// accepts and the rest. It writes the keys to the configuration file under
-// vars' HOME, when HOME is absolute, and returns a LookupFunc over the rest,
-// the environment LoadServer reads. When HOME is unset or relative nothing is
-// written, since LoadServer stops before it reads the file.
-func ServerLookupForTest(t testing.TB, vars map[string]string) LookupFunc {
-	t.Helper()
-	file := map[string]string{}
-	env := map[string]string{}
-	for name, value := range vars {
-		if slices.Contains(serverFileKeys, name) {
-			file[name] = value
-		} else {
-			env[name] = value
-		}
-	}
-	if home, ok := env["HOME"]; ok && filepath.IsAbs(home) {
-		WriteServerFileForTest(t, home, ServerFileForTest(file))
-	}
-	return func(name string) (string, bool) {
-		value, ok := env[name]
-		return value, ok
 	}
 }

@@ -2,15 +2,13 @@
 
 // Package udstest gives tests a short directory for Unix domain sockets and a
 // listener on one. macOS limits a socket path to 103 bytes, and t.TempDir()
-// there (/var/folders/...) leaves too little room for the server's socket path
-// under it, so the directories are created under /tmp instead. Built only with
+// there (/var/folders/...) leaves too little room for a socket path under
+// it, so the directories are created under /tmp instead. Built only with
 // the test tag.
 package udstest
 
 import (
-	"context"
 	"net"
-	"net/http"
 	"os"
 	"testing"
 )
@@ -55,15 +53,4 @@ func Listen(t testing.TB, path string) net.Listener {
 	}
 	t.Cleanup(func() { _ = listener.Close() })
 	return listener
-}
-
-// Transport returns an HTTP transport that dials the Unix domain socket at
-// path for every request, whatever the URL's host, and never uses a proxy.
-func Transport(path string) *http.Transport {
-	return &http.Transport{
-		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			var d net.Dialer
-			return d.DialContext(ctx, "unix", path)
-		},
-	}
 }

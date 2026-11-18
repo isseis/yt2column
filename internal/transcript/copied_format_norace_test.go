@@ -8,8 +8,8 @@ package transcript
 // race build's loose bound would miss.
 //
 // copiedParseChecksDeadline is true: the non-race build compares the parse time
-// with copiedParseDeadline, because the server is built without the race
-// detector and this build parses as the server does.
+// with copiedParseDeadline, because the production builds have no race
+// detector and this build parses as they do.
 const (
 	copiedParseAllocPerByte   = 128
 	copiedParseChecksDeadline = true

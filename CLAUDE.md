@@ -175,9 +175,7 @@ change, retire, and withdraw an ADR is in the convention,
 ## Commands
 
 ### Build Commands
-- `make build` - Build the binaries into `build/`; it installs nothing. Besides `yt2column`, it still builds `yt2column-server` and `yt2column-nmhost`, which the extension no longer uses and #773 removes
-- `make build-dev` - Build the development server (`yt2column-devserver`) into `build/dev/`; it runs on the fake LLM (`internal/llm/devfake`), is not a production binary, and is removed by #773 (the extension's development build is `make ext-build-dev`)
-- `./build/yt2column-nmhost uninstall <browser>` - Remove the Native Messaging host manifest an earlier version installed (`<browser>` is `chrome` or `brave`); the README's migration steps use it. #773 removes the host
+- `make build` - Build the CLI (`yt2column`) into `build/`; it installs nothing. The extension's builds are `make ext-build` and `make ext-build-dev` (below)
 - `make clean` - Clean build artifacts
 - `make all` - Default build target
 - `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
@@ -366,10 +364,7 @@ runs a job takes its input from the service worker, calls the module, and
 reports progress and the result; the popup and the viewers show the records
 through their change events. The options page saves the Anthropic API key and
 workspace ID in `chrome.storage.local`. The extension starts no server and no
-host: the localhost server (`cmd/yt2column-server` + `internal/server`,
-`internal/articlecache`, `internal/serversock`) and the Native Messaging host
-(`cmd/yt2column-nmhost` + `internal/nmhost`) remain in the repository only
-until #773 removes them. `internal/privatefile` (the checked read and the safe
+host. `internal/privatefile` (the checked read and the safe
 creation of files only their owner may read) serves `internal/chief`,
 `internal/redact` redacts secrets from every output, and `internal/signalrun`
 handles signals for the CLI.
@@ -544,7 +539,8 @@ its security rules in `docs/dev/security.md` §8.
   the lines of `git cat-file --batch-check` after a failed fetch (which
   choose only the branches a stop's detail names), the one line of
   `git rev-parse --show-toplevel` (one absolute path, else a `local-git`
-  stop), and the name forms of
+  stop), the one line of `git merge-base` in the pre-merge check (one
+  commit ID, else a `malformed` stop), and the name forms of
   `internal/tasknaming` applied to them; this is the only place their
   content selects behavior. A `GET` response's body is parsed whole as
   strict JSON, so a body of another form stops the run as `malformed`, but
@@ -555,7 +551,13 @@ its security rules in `docs/dev/security.md` §8.
   entry, or a name of a form the tool does not accept stops the run as
   `malformed` (a status line as `network-or-github`) and is not read more
   widely; only a 422 that reading the ref back confirms moves the tool to the
-  next number.
+  next number. The pre-merge check that `mergepr` calls differs only where
+  its design says: it does not stop on an entry of another form on the
+  latest `origin/main` or in another branch's `docs/tasks/` or
+  `docs/dev/adr/`, so a PR that removes one can merge; it skips an
+  entry of another form that the PR adds under `docs/dev/adr/`, which
+  `TestADRRecords` checks in CI; and it reports an entry of another form that
+  the PR adds under `docs/tasks/` as a finding.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
@@ -565,8 +567,8 @@ its security rules in `docs/dev/security.md` §8.
 - **Keep internals unobservable**: a value an API returns but does not define
   the meaning of — an identifier, a key, an ordering, a message's wording — is
   opaque. Do not let a caller compute, parse, or rely on how it is made; make
-  that impossible where it is cheap (e.g. the article key is an HMAC with a
-  per-process secret, so it can only be obtained from the API), because every
+  that impossible where it is cheap (e.g. the extension's job ID is a fresh
+  random ID, so it can only be obtained from the service worker), because every
   observable behavior will be depended on by somebody (Hyrum's Law). State
   such a measure's purpose as API design, not as a security defense, unless it
   also defends against an attacker outside the trust boundary.
@@ -750,12 +752,8 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   checks of its permission rules, its calls, and its guide's values, the ADR guard
   `TestADRRecords`, and `internal/chief`'s readings of the routing table and
   the PR markers) are Go tests included
-  in `make test` and need no node. `cmd/yt2column-nmhost`'s
-  `TestReadmeMigrationManifestPaths` reads both READMEs too, but the `doc-guard` job
-  does not run it: the local `make test`, and the CI `test` job when the change
-  includes code, do. A change to the READMEs alone is therefore checked by
-  neither CI job for this test. The `doc-guard` CI job runs the other guards
-  (`go test -tags test ./cmd/yt2column ./cmd/yt2column-server ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`)
+  in `make test` and need no node. The `doc-guard` CI job runs these guards
+  (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`)
   on every pull request, so a documentation-only change is checked in CI by
   those guards even though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's

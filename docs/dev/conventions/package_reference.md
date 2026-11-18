@@ -43,9 +43,6 @@ code is the source of truth, and the detail stays out of the row.
 - **Pipeline components** run the article pipeline or carry the values it
   passes: the stages, their data types, and the CLI entry point and templates
   that supply them.
-- **Server and host** are the localhost server, its job API, cache, and
-  socket, and the Native Messaging host that relayed to it. The browser
-  extension no longer uses them, and #773 removes them.
 - **LLM** packages define the provider-independent client contract, the
   shared HTTP send path and provider factory, and the adapter and parameter
   types of each provider.
@@ -66,7 +63,7 @@ add a kind here or to widen one of these definitions.
 |---|---|
 | `cmd/yt2column` | Entry point of the CLI (`yt2column [flags] <video URL>`): `main` builds the stages and runs one job through `internal/job`, writing the article to `--out` and the run's summaries to standard error. Usage and exit codes: [CLI guide](../guides/cli.md). |
 | `internal/artifact` | Persists and resumes the article writer's intermediate artifacts, one file per video ID and stage: `Parse`, `Marshal`, `NewStore`, `Save`, `Load`; `ErrMissing`, `ErrMalformed`, `ErrMismatch`. Format: [0077 design §3.4.2](../../tasks/0077_openai_llm_client/02_architecture.md). |
-| `internal/extjob` | One browser extension job of the article generation module: `StartInput`, `Prepare`/`Prepared` (the input's validation and `InputDigest`), `Run`/`Result`, `Failure`, `Steps`, `Observer`, `Deps`, `Backend`, `BackendInfo` (built by `ClaudeInfo` and `FakeInfo`), and `NewModule`/`Module` with the four JSON entry points `CheckSettingsJSON`, `PrepareJSON`, `GenerateJSON`, and `BuildInfoJSON`; `ErrInvalidInput`. It copies the server's input validation, result rendering, and failure classification (with `llm.ErrAuthRejected` classified as `FailureAPIKeyRejected`) until the server is removed. Design: [0091 design §3.3](../../tasks/0091_extension_only_migration/02_architecture.md). |
+| `internal/extjob` | One browser extension job of the article generation module: `StartInput`, `Prepare`/`Prepared` (the input's validation and `InputDigest`), `Run`/`Result`, `Failure`, `Steps`, `Observer`, `Deps`, `Backend`, `BackendInfo` (built by `ClaudeInfo` and `FakeInfo`), and `NewModule`/`Module` with the four JSON entry points `CheckSettingsJSON`, `PrepareJSON`, `GenerateJSON`, and `BuildInfoJSON`; `ErrInvalidInput`. It classifies `llm.ErrAuthRejected` as `FailureAPIKeyRejected`. Design: [0091 design §3.3](../../tasks/0091_extension_only_migration/02_architecture.md). |
 | `internal/extjob/claudebackend` | The release `extjob.Backend`: `New` builds the production profile's Claude clients with `claude.New` (the same options as `internal/llm/provider`, which it cannot import into a js build) and checks keys with `claude.CheckKey`; `ErrNotClaude`. |
 | `internal/extjob/devbackend` | The development `extjob.Backend` of a `devfake.Scenario`: `New`. It calls no network and does not import the Claude adapter. |
 | `internal/extjob/jsmodule` | The `syscall/js` glue both article generation modules share, built only for js: `Serve` registers an `extjob.Module`'s four JSON entry points as `checkSettings`, `prepare`, `generate`, and `buildInfo` on the `globalThis` object named `GlobalName`, and keeps the program running. It parses nothing; the JSON is `internal/extjob`'s. |
@@ -81,18 +78,6 @@ add a kind here or to widen one of these definitions.
 | `internal/writer` | Defines the article-writing stage: `Article`, `ArticleWriter`, `ProgressWriter`, `New`, `NewProgressWriter`, `RunUsage`, `CheckChannelName`. The template contract: [prompts/README.md](../../../prompts/README.md). |
 | `internal/ytdlpsource` | Implements `transcript.TranscriptSource` with `YtDlpSource`: runs `yt-dlp` without a shell and parses its json3 and info.json output. It is the development path of the CLI and is not built into the WebAssembly core. The cache's guarantees: [cache consistency](../cache_consistency.md); the `yt-dlp` boundary: [security.md](../security.md). |
 | `prompts` | Embeds the default prompt templates and returns them: `System`/`User`, `ShortenSystem`/`ShortenUser`, `ReviewSystem`/`ReviewUser`. [README](../../../prompts/README.md) documents the contract. |
-
-## Server and Host
-
-| Package | Responsibility |
-|---|---|
-| `cmd/yt2column-devserver` | Entry point of the development server, not a production binary (`make build-dev`, into `build/dev/`): the production server's HTTP server, socket, and start lock with a fake LLM (`internal/llm/devfake`) chosen by `-article`, `-fail`, `-fail-step`, and `-delay`; it reads no configuration file and only `HOME` from the environment. To be removed (#773). |
-| `cmd/yt2column-nmhost` | Entry point of the Native Messaging host: relays one request with `nmhost.Relay`, and `install`/`uninstall` manage the browser manifest. To be removed (#773). |
-| `cmd/yt2column-server` | Entry point of the localhost server and of `yt2column-server config init`. To be removed (#773). |
-| `internal/articlecache` | The server's in-memory article cache: `Cache`, `Keyer`, `Subject`, `StartMode`, `Run`, `Snapshot`, `Eviction`; `ParseKey`. To be removed (#773). |
-| `internal/nmhost` | The Native Messaging host's relay and manifest management: `Relay`, `SocketDialer`, `HostError`, `Install`, `Uninstall`. To be removed (#773). |
-| `internal/server` | The HTTP server on a Unix domain socket that serves the job API: `New`, `Serve`, `JobsPath`, `Options`. To be removed (#773). |
-| `internal/serversock` | Prepares the server's Unix domain socket and start lock: `Acquire`, `Lock`, `ErrAlreadyRunning`, `ErrInUse`, `*UnsafeError`. To be removed (#773). |
 
 ## LLM
 
@@ -115,13 +100,13 @@ add a kind here or to widen one of these definitions.
 |---|---|
 | `internal/cachelock` | Serializes the processes that share one directory with an exclusive `flock`: `Acquire`, `File`, `Close`; `*LockedError`, `ErrLocked`. |
 | `internal/cmdrunner` | The shared execution boundary for external commands: `Runner`, `InputRunner`, `NewOS`, `GitEnv`, `GitHardening`; `MaxOutput`, `ErrOutputTooLarge`, `ErrUnexpectedStderr`, `*ExitError`. The `yt-dlp` boundary: [security.md](../security.md). |
-| `internal/config` | Reads and validates the process configuration: `Load`, `LoadFor`, `LoadExtension`, `ExtensionLookup`, `ReadExtensionSettings`, `LoadServer`, `InitServerFile`, `LoadHost`, `LoadHostHome`, `LLMConfig`, `Need`, `ExtensionSettings`; `*VarError`, `*FileError`, `ErrMissing`, `ErrInvalid`. The server and host loaders and the configuration file are in a file only a native build compiles (`!js`), which the removal of the server and the host deletes. Reference: [README](../../../README.md#設定); the server file: [security.md](../security.md). |
+| `internal/config` | Reads and validates the process configuration: `Load`, `LoadFor`, `LoadExtension`, `ExtensionLookup`, `ReadExtensionSettings`, `LLMConfig`, `Need`, `ExtensionSettings`; `*VarError`, `ErrMissing`, `ErrInvalid`. Reference: [README](../../../README.md#設定). |
 | `internal/nilcheck` | Reports whether a value is nil, including a typed nil held in an interface (`IsNil`). |
 | `internal/privatefile` | Reads and creates files only their owner may read (`internal/chief` uses it): `Read`, `Create`, `Remove`, `MkdirBelow`; `*UnsafeError`, `ErrUnsafe`, `ErrNotExist`, `ErrExist`, `ErrTooLarge`, `ErrBaseMissing`. Rules: [security.md §8.2](../security.md). |
-| `internal/redact` | Keeps secret values out of output: `Line`, `Writer`, `SecretStrings`. |
+| `internal/redact` | Keeps secret values out of output: `Line`, `SecretStrings`. |
 | `internal/secret` | Holds a secret (API key) and guarantees it never appears in `fmt`, `log/slog`, or JSON output. |
 | `internal/signalrun` | `Run` calls a program's main function under a context that the first subscribed signal cancels; a second signal terminates the process. |
-| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `ParseArray`, `Object.CollectOnly`, `Object.CollectExactCase`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`, `Value.Raw`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/writer`, `internal/artifact`, `internal/extjob`, `internal/fixprguard`, `internal/server`, `internal/nmhost`, `internal/codexreview`, `internal/coveragecompare`, `internal/chief`, and `internal/numreserve` |
+| `internal/strictjson` | Extracts values from JSON documents that passed strict checks: `ParseArray`, `Object.CollectOnly`, `Object.CollectExactCase`, `Object.Has`, `Value.AsBool`, `Value.IsNull`, `Value.AsNonNegativeInt64`. The rejected inputs: [0003 design §3.5](../../tasks/0003_deepseek_llm_client/02_architecture.md). Shared by `internal/ytdlpsource`, `internal/llm/deepseek`, `internal/llm/claude`, `internal/llm/openai`, `internal/writer`, `internal/artifact`, `internal/extjob`, `internal/fixprguard`, `internal/codexreview`, `internal/coveragecompare`, `internal/chief`, and `internal/numreserve` |
 | `internal/tasknaming` | The name forms of task branches, task directories, and ADR files, and the four-digit number they carry: `Number` (`String`, `Int`), `ParseNumber`, `ParseBranch`, `ParseTaskDir`, `ParseADRFile`; `ErrInvalid`. Shared by `internal/chief`, `internal/numreserve`, and the ADR guard test. |
 
 ## Development Tools

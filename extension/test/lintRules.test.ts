@@ -131,9 +131,6 @@ interface Brand {
 const brands: Brand[] = [
   { type: "CollectedInput", creator: "src/core/collect.ts" },
   { type: "PreparedRequest", creator: "src/core/prepare.ts" },
-  { type: "RequestId", creator: "src/core/response.ts" },
-  { type: "ArticleKey", creator: "src/core/articleKey.ts" },
-  { type: "UsdAmount", creator: "src/core/response.ts" },
   { type: "UsdAmount", creator: "src/core/wasmResult.ts" },
   { type: "LinkUrl", creator: "src/core/articleMarkdown.ts" },
 ];
@@ -570,7 +567,7 @@ describe("connections", () => {
 });
 
 describe("the other rules in the files with an exception", () => {
-  // browser/chromeDeps.ts may use storage, windows and sendNativeMessage, and
+  // browser/chromeDeps.ts may use storage and windows, and
   // src/wasmWorker.ts may fetch; every other rule still applies to both.
   const violations: { name: string; code: string; files: string[] }[] = [
     {
@@ -699,8 +696,7 @@ describe("chrome.runtime.sendNativeMessage", () => {
     "src/sample.ts",
     "src/core/collect.ts",
     "src/core/prepare.ts",
-    "src/core/response.ts",
-    "src/core/articleKey.ts",
+    "src/browser/chromeDeps.ts",
   ]) {
     it(`forbids the call in ${filePath}`, async () => {
       assert.ok(
@@ -719,10 +715,6 @@ describe("chrome.runtime.sendNativeMessage", () => {
       );
     });
   }
-
-  it("allows the call in src/browser/chromeDeps.ts", async () => {
-    assert.deepEqual(await ruleIds(call, "src/browser/chromeDeps.ts"), []);
-  });
 
   it("allows a fake with the name in a test", async () => {
     const code = "export const fake = { sendNativeMessage() {} };\n";
