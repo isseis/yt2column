@@ -185,8 +185,10 @@ func TestCallIssue(t *testing.T) {
 	}
 }
 
-// Where the calls live outside the command documents. The headings and the
-// paragraph starts are English because the documents are.
+// Where the calls live outside the command documents, and the columns of
+// the guide's tables. The headings and the paragraph starts are English
+// because those documents are; the column names are Japanese because the
+// guide is (guard-test literal exception).
 const (
 	conventionPath        = "docs/dev/conventions/adr.md"
 	claudePath            = "CLAUDE.md"

@@ -246,14 +246,14 @@
 **ステップ 4-1: `TestADRRecords` が欠番を許すようにする**
 
 -   対象ファイル：`cmd/yt2column/adr_test.go`
--   [ ] `checkADRNumbers` から欠番の判定を除き、`adrMissingNumber` とその説明（`:65`・`:87`）、doc コメント（`:336-337`）を直す（設計書 3.10）。重複の issue の並びは、番号の順のまま決まるようにする
--   [ ] 「missing number」のケース（`:656-667`）を、欠番があってもどの種類の issue も返さないことを確かめるケースに変える（AC-16）。「duplicate file number」のケース（`:647-654`）は残す（AC-17）
+-   [x] `checkADRNumbers` から欠番の判定を除き、`adrMissingNumber` とその説明（`:65`・`:87`）、doc コメント（`:336-337`）を直す（設計書 3.10）。重複の issue の並びは、番号の順のまま決まるようにする
+-   [x] 「missing number」のケース（`:656-667`）を、欠番があってもどの種類の issue も返さないことを確かめるケースに変える（AC-16）。「duplicate file number」のケース（`:647-654`）は残す（AC-17）
 -   完了の基準：欠番の判定を戻すと、変えたケースが失敗することを確かめ、コミットメッセージに書く。`make test`・`make deadcode` が通る
 
 **ステップ 4-2: `adr.md` の 4 つの差分**
 
 -   対象ファイル：`docs/dev/conventions/adr.md`
--   [ ] 設計書 3.9 の「`adr.md`」の 4 項目だけを変える（AC-18）。呼び出しは `numreserve adr` の形で書く（AC-12・AC-13・AC-20）。道具が止まったときに示す手引きの節（`docs/dev/guides/numreserve_guide.md`）への参照は、「Location and naming」の番号の決め方の項目（AC-18 の 1 つ目の差分）の中に書く。手引きはステップ 5-6 で同じ PR に加わる
+-   [x] 設計書 3.9 の「`adr.md`」の 4 項目だけを変える（AC-18）。呼び出しは `numreserve adr` の形で書く（AC-12・AC-13・AC-20）。道具が止まったときに示す手引きの節（`docs/dev/guides/numreserve_guide.md`）への参照は、「Location and naming」の番号の決め方の項目（AC-18 の 1 つ目の差分）の中に書く。手引きはステップ 5-6 で同じ PR に加わる
 -   完了の基準：§7 の「Diff record (AC-18)」を記録する（ステップ 5-8）
 
 ### フェーズ 5: 導入の確かめと、文書と設定の切り替え（設計書 8 章の 5）
@@ -269,48 +269,48 @@
 **ステップ 5-2: `mkreq.md`**
 
 -   対象ファイル：`.claude/commands/mkreq.md`
--   [ ] step 2 の「Without it」の番号の計算（`:69-74`）を、`numreserve task` の呼び出しと、止まったときの扱い（設計書 3.9 の「`mkreq.md` の step 2」、4.1 の末尾）に置き換える。`<name>` の決め方の文は残す
--   [ ] Authorization（`:34-40`）に `numreserve task` を加え、それが `origin` に記録の tag を 1 つ作ることを書く
+-   [x] step 2 の「Without it」の番号の計算（`:69-74`）を、`numreserve task` の呼び出しと、止まったときの扱い（設計書 3.9 の「`mkreq.md` の step 2」、4.1 の末尾）に置き換える。`<name>` の決め方の文は残す
+-   [x] Authorization（`:34-40`）に `numreserve task` を加え、それが `origin` に記録の tag を 1 つ作ることを書く
 
 **ステップ 5-3: `_lib/settle-decisions.md`**
 
 -   対象ファイル：`.claude/commands/_lib/settle-decisions.md`
--   [ ] ADR を作る段に、番号は ADR の規約の「Location and naming」の手順で決めることを明記する（AC-12）
+-   [x] ADR を作る段に、番号は ADR の規約の「Location and naming」の手順で決めることを明記する（AC-12）
 
 **ステップ 5-4: `CLAUDE.md`**
 
 -   対象ファイル：`CLAUDE.md`
--   [ ] 「Tool Execution Safety」に、設計書 3.9 の項目（AC-19・AC-21）を加える。`numreserve task` と `numreserve adr` の両方の形をコードとして書く
--   [ ] 「Testing Strategy」の信頼の境界の例外の一覧に `numreserve` の呼び出しの形を加え、Quick Links に手引きを加える
+-   [x] 「Tool Execution Safety」に、設計書 3.9 の項目（AC-19・AC-21）を加える。`numreserve task` と `numreserve adr` の両方の形をコードとして書く
+-   [x] 「Testing Strategy」の信頼の境界の例外の一覧に `numreserve` の呼び出しの形を加え、Quick Links に手引きを加える
 
 **ステップ 5-5: 設定**
 
 -   対象ファイル：`.claude/settings.json`、`cmd/codexreview/docs_test.go`
--   [ ] `permissions.allow` に `Bash(numreserve task)` と `Bash(numreserve adr)` を加える
--   [ ] `launchFree` に `numreserve` を加え、その doc コメントに、`numreserve` は `git` と `gh` だけを起動することを書く（§1.3 の決定 6）。`TestMayBypassTool` の表に、2 つの規則が通る行を加える
+-   [x] `permissions.allow` に `Bash(numreserve task)` と `Bash(numreserve adr)` を加える
+-   [x] `launchFree` に `numreserve` を加え、その doc コメントに、`numreserve` は `git` と `gh` だけを起動することを書く（§1.3 の決定 6）。`TestMayBypassTool` の表に、2 つの規則が通る行を加える
 
 **ステップ 5-6: 手引き**
 
 -   対象ファイル：`docs/dev/guides/numreserve_guide.md`
--   [ ] 設計書 3.9 の「手引き」の 6 項目で書く。止める理由の表は設計書 4.1 から作る。記録の ruleset の対象の形は、道具が読む記録の名前空間と同じにする。cloud のセッションの制約は、ステップ 2-4 の結果を書く（フェーズ 7 で確かめ直す）。マージの前の確かめの直し方は、フェーズ 6 で足すと書いておく
+-   [x] 設計書 3.9 の「手引き」の 6 項目で書く。止める理由の表は設計書 4.1 から作る。記録の ruleset の対象の形は、道具が読む記録の名前空間と同じにする。cloud のセッションの制約は、ステップ 2-4 の結果を書く（フェーズ 7 で確かめ直す）。マージの前の確かめの直し方は、フェーズ 6 で足すと書いておく
 
 **ステップ 5-7: 文書のガード**
 
 -   対象ファイル：`cmd/numreserve/docs_test.go`
--   [ ] 次を確かめるテストを書く（設計書 7.2）。規則と呼び出しの分け方は、受け入れる例と拒む例の表のテストも持たせる
+-   [x] 次を確かめるテストを書く（設計書 7.2）。規則と呼び出しの分け方は、受け入れる例と拒む例の表のテストも持たせる
     -   `.claude/settings.json` の、先頭の語が `numreserve`（パスや引用の形を含む）の規則が、`Bash(numreserve task)` と `Bash(numreserve adr)` のちょうど 2 つである。`Bash(numreserve *)`・`Bash(numreserve:*)`・`Bash(numreserve task *)` は拒む
     -   `.claude/commands/` の下のすべての文書、`docs/dev/conventions/adr.md`、`CLAUDE.md` の「Tool Execution Safety」の節の `numreserve` の呼び出しが、どれも単独のコマンドで（`doctestutil.PromptFree`）、引数が `numreserve.ParseSpace` の受け付ける 1 語である。`CLAUDE.md` のほかの節（`go install ./cmd/numreserve` など）は読まない
     -   `mkreq.md` に `numreserve task` の呼び出しがあり、`adr.md` の「Location and naming」の節、「Taking in `main`」の手順 2、「When `TestADRRecords` fails on `main`」の段落に `numreserve adr` の呼び出しがあり、`CLAUDE.md` の「Tool Execution Safety」に 2 つの形の呼び出しがある
     -   手引きの止める理由の表の語が、すべての `StopKind` の理由の語とちょうど一致し、手引きの ruleset の対象の形が道具の記録の名前空間と一致する
--   [ ] 各テストが、文書か設定を壊すと失敗することを確かめ、コミットメッセージに書く
+-   [x] 各テストが、文書か設定を壊すと失敗することを確かめ、コミットメッセージに書く
 -   完了の基準：`go test -tags test ./cmd/numreserve ./cmd/codexreview` が通る
 
 **ステップ 5-8: ADR と差分の記録**
 
 -   対象ファイル：`docs/dev/adr/0051-number-reservation.md`、`docs/dev/adr/0014-deterministic-checks-in-go.md`
--   [ ] ADR-0051 の食い違いの記述から、記録の ruleset、`adr.md`・`TestADRRecords`・`CLAUDE.md`・`mkreq.md` の分を除く
--   [ ] ADR-0014 の食い違いの記述から手引きを除き、記述が空になったら食い違いの項目ごと除く
--   [ ] AC-18 の差分を記録する（§7 の「Diff record (AC-18)」）
+-   [x] ADR-0051 の食い違いの記述から、記録の ruleset、`adr.md`・`TestADRRecords`・`CLAUDE.md`・`mkreq.md` の分を除く
+-   [x] ADR-0014 の食い違いの記述から手引きを除き、記述が空になったら食い違いの項目ごと除く
+-   [x] AC-18 の差分を記録する（§7 の「Diff record (AC-18)」）
 -   完了の基準：`make test`・`make lint`・`make deadcode` が通る
 
 ### PR-3 作成ポイント: allow ADR gaps and switch the numbering procedures to numreserve
@@ -516,6 +516,83 @@ PR の分け方の理由は §1.3 の決定 1 にある。利用者の手作業�
 Diff record (AC-18):
 
 - Compared paths: `docs/dev/conventions/adr.md`
+- Merge-base: `caf5fd30ffad662d884de0a2fcabf77438b99f60`
+- Compared commit: `9593d00488fa8de06d625e271144484950e3fa04`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/conventions/adr.md b/docs/dev/conventions/adr.md
+index 2be98d0bcee748f6a2813807a0341886127d9fcb..d89fbc234e815a026bb1813d0988add070d944ff 100644
+--- a/docs/dev/conventions/adr.md
++++ b/docs/dev/conventions/adr.md
+@@ -27,11 +27,17 @@ and fails when it cannot read them.
+ - **Name:** `NNNN-<kebab>.md`. `NNNN` is a four-digit number, and `<kebab>` is
+   a name for the subject made of lowercase ASCII letters and digits joined by
+   `-`.
+-- **Number:** a sequence of its own, unrelated to task numbers. It starts at
+-  `0001` and runs without gaps. A new ADR takes the number after the highest
+-  one on `main` and on the PR's branch at the time it is written. An ADR is
+-  never deleted, so a number is never reused, not even the number of an
+-  obsolete ADR.
++- **Number:** a sequence of its own, unrelated to task numbers. A new ADR's
++  number is decided by the number tool: run `numreserve adr` in the work tree
++  of the PR's branch and use the four-digit number it prints on standard
++  output. This holds for every PR that adds an ADR, whether a command creates
++  it or a person does by hand. When the tool exits with a status other than
++  `0`, or is not installed, stop: do not create the ADR's file with a number
++  you chose, and show the line it wrote to standard error and the table of
++  stop reasons in [numreserve_guide.md](../guides/numreserve_guide.md). A
++  decided number that never reaches `main` stays a gap, and a gap is not an
++  error. An ADR is never deleted, so a number is never reused, not even the
++  number of an obsolete ADR.
+ - **Name in text:** a document calls an ADR `ADR-NNNN`.
+ - **Title:** the text after `ADR-NNNN: ` on the first line. It must not
+   contain `|`, because the index puts it in a table cell.
+@@ -93,8 +99,10 @@ they are in the ADR.
+ | [ADR-0001](0001-<kebab>.md) | <ADR の 1 行目の題名> | `有効` |
+ ```
+
+-A new row goes at the end of the table. The index lists every ADR, obsolete
+-ones included; an index with no row is correct only while there is no ADR.
++A new row goes at the position of its number, so the rows stay in number
++order: ADRs are not always merged in the order of their numbers. The index
++lists every ADR, obsolete ones included; an index with no row is correct only
++while there is no ADR.
+
+ ## What counts as a major decision
+
+@@ -365,8 +373,10 @@ the merge base, do the following.
+    index on the `main` taken in has an active ADR on the same subject. When it
+    does, do not create a new ADR: update the ADR on `main` instead.
+ 2. **Renumber.** When only the number collides (a different subject), move the
+-   PR's ADR to the next free number: its file name, its first line, and its
+-   index row, and every `ADR-<old number>` and every link to a file starting
++   PR's ADR to the number `numreserve adr` prints when run in the work tree of
++   the PR's branch; when it prints none, stop without renumbering ("Location
++   and naming"). Move its file name, its first line, and its index row, and
++   every `ADR-<old number>` and every link to a file starting
+    `<old number>-` in the PR's diff (`git diff origin/main...HEAD`), task
+    documents included. Record the renumbering as an editorial correction in
+    the commit message (`docs/dev/conventions/requirements_process.md`,
+@@ -377,10 +387,11 @@ the merge base, do the following.
+    it does not. The PR's 経緯 entries go after `main`'s ("History entries").
+
+ **When `TestADRRecords` fails on `main`.** Two PRs that both pass CI before
+-taking in `main`, and merge without an index conflict, can put a duplicate or
+-missing number on `main`. Every PR's `doc-guard` job then fails. Fix it,
+-renumbering the ADRs so that no number is duplicated or missing, in a PR of
+-its own that fixes only that, not inside an unrelated PR: that PR's reviewer
+-is not in a position to approve a change of an ADR's number. This fix is not
++taking in `main`, and merge without an index conflict, can put a duplicate
++number on `main`. Every PR's `doc-guard` job then fails. Fix it, renumbering
++an ADR of the duplicate to the number `numreserve adr` prints, run in the work
++tree of the fixing PR's branch ("Location and naming"), in a PR of its own
++that fixes only that, not inside an unrelated PR: that PR's reviewer is not in
++a position to approve a change of an ADR's number. This fix is not
+ one of the four kinds of editorial correction that any PR may make
+ ("Editorial corrections").
+````
 
 ### PR-2 の実地の確かめの記録
 
