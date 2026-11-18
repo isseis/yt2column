@@ -14,8 +14,8 @@
 
 -   **タスク番号と ADR 番号は、別のクローンや cloud のセッションの間でも重複しないことを、サーバ側（GitHub）で保証する。** ローカルのロックやファイルは、別のクローンからは見えないためである。要件は [0100 要件定義書](../../tasks/0100_number_reservation/01_requirements.md) の F-001・F-002 にある。
 -   **番号ごとに 1 つの tag を GitHub の REST で作り、作れた番号だけを使う。** 名前はタスク番号なら `refs/tags/task-number/NNNN`、ADR 番号なら `refs/tags/adr-number/NNNN` である。作成が失敗したときは、同じ名前の ref がすでにあることを読み直して確かめた場合だけ次の番号を試し、そのほかは止める。同じ名前の ref は GitHub の上で 2 つ作れないので、どのクローンからでも排他が効くためである。また、成否を HTTP の状態コードという宣言された値で判定できる。この方式は、すでにある ref の作成を GitHub が成功として受けないことを前提にし、道具を使い始める前にその前提を確かめる。方式と、使用中の番号の集め方・上限は [0100 設計書](../../tasks/0100_number_reservation/02_architecture.md) の「使用中の番号の集め方」「記録の tag」「候補の番号と上限」にある。
--   **記録の tag は、削除と更新を禁じ、誰も迂回できない tag 用の ruleset で守る。** 記録が消えると番号が使い回されるうえ、エージェントは利用者の資格で `git push` できるので、文書の規則だけでは消すことを止められないためである。ruleset を変える・無効にすることは、利用者の承認を要る。設定と、誤った tag を消す手順は [0100 設計書](../../tasks/0100_number_reservation/02_architecture.md) の「記録の ruleset と記録の tag の名前」にある。
--   **番号を決める道具は Go の `numreserve` とし、[ADR-0014](0014-deterministic-checks-in-go.md) の開発の道具として `main` から入れる。** 判定をテストで壊して確かめるためである。呼び出しの形と止める理由は [0100 設計書](../../tasks/0100_number_reservation/02_architecture.md) の「道具 `numreserve` の呼び出しと出力」と「止める理由」にある。
+-   **記録の tag は、削除と更新を禁じ、誰も迂回できない tag 用の ruleset で守る。** 記録が消えると番号が使い回されるうえ、エージェントは利用者の資格で `git push` できるので、文書の規則だけでは消すことを止められないためである。ruleset を変える・無効にすることは、利用者の承認を要る。設定と、誤った tag を消す手順は [numreserve_guide.md](../guides/numreserve_guide.md) の「記録の ruleset」にある。
+-   **番号を決める道具は Go の `numreserve` とし、[ADR-0014](0014-deterministic-checks-in-go.md) の開発の道具として `main` から入れる。** 判定をテストで壊して確かめるためである。呼び出しの形と止める理由は [numreserve_guide.md](../guides/numreserve_guide.md) の「インストールと呼び出し」と「止める理由と次にすること」にある。
 -   **番号は道具が決め、エージェントは道具が返した番号だけを使う。** 番号の判定が、エージェントの読み違いで変わらないようにするためである。タスク番号と ADR 番号は、互いに影響しない別々の番号の空間に持つ。要件は [0100 要件定義書](../../tasks/0100_number_reservation/01_requirements.md) の AC-05・AC-15 にある。
 -   **番号を決められなければ止め、理由の種類を示す。従来の計算に戻して続けない。** 目的は重複を防ぐことであり、代わりの計算で続けると重複の余地が戻るためである。要件は [0100 要件定義書](../../tasks/0100_number_reservation/01_requirements.md) の AC-06・AC-14 にある。
 -   **一度決めた番号の記録は残し、番号を使い回さない。** 中断したタスクや PR の番号は欠番になる。記録を消すと、同じ番号を再び使う余地が生まれるためである。要件は [0100 要件定義書](../../tasks/0100_number_reservation/01_requirements.md) の AC-03・AC-11 にある。
@@ -26,7 +26,7 @@
 -   **番号の記録を、道具を介さずに作る・変える・消すことは、利用者の承認を要る。`git push` を承認なしで認める規則の例外とする。** エージェントは利用者の資格で動き、`git push` は承認なしで実行できるので、道具が止まった後に手で記録を作れば重複が戻り、記録を消せば番号が使い回されるためである。規則の置き場所は [CLAUDE.md](../../../CLAUDE.md) の「Tool Execution Safety」である。
 -   **次に試す番号が、`main` にある番号と記録の最大値から決めた幅を超えて離れるときは、番号を決めずに止める。** 迷い込んだブランチや打ち間違えたファイル名が 1 つあるだけで、番号が黙って跳び、記録に残って戻せなくなるためである。要件は [0100 要件定義書](../../tasks/0100_number_reservation/01_requirements.md) の AC-09 にある。
 -   **PR が加える番号に記録があることと、`main` とほかのブランチで別のものに使われていないことを、マージの前に `mergepr` で確かめる。この仕組みの導入より前からある番号は、番号の空間ごとのしきい値以下として、記録があるかの確かめから外す。** 古い手順を持つ作業中のブランチが手で選んだ番号は、`numreserve` による予約では見つけられないためである。`mergepr` に置くのは、マージの方法が `/mergepr` と決まっており、マージの直前の最新の `main` と比べられるためである。要件は [0100 要件定義書](../../tasks/0100_number_reservation/01_requirements.md) の F-007 に、確かめ方は [0100 設計書](../../tasks/0100_number_reservation/02_architecture.md) の「マージの前の確かめ（`mergepr`）」と「しきい値」にある。
--   **食い違い:** 記録の ruleset と、`mergepr` によるマージの前の確かめはまだない。番号を決める道具 `numreserve` はあるが、どの手順もまだ呼ばない。[adr.md](../conventions/adr.md) の「Location and naming」と `TestADRRecords` は欠番を誤りとし、「Taking in `main`」は付け替えの番号を手で選び、「Index」は新しい行を表の末尾に足すとしている。[CLAUDE.md](../../../CLAUDE.md) の「Tool Execution Safety」には、道具の常設の承認も、記録の書き換えの例外もない。[mkreq.md](../../../.claude/commands/mkreq.md) の step 2 は、エージェントが番号を計算し、fork の PR のブランチも数える。どれもこの ADR の決定に合っていない（[#917](https://github.com/isseis/yt2column/issues/917)）。
+-   **食い違い:** `mergepr` によるマージの前の確かめはまだない。この ADR の決定に合っていない（[#917](https://github.com/isseis/yt2column/issues/917)）。
 
 ## 採らなかった案
 

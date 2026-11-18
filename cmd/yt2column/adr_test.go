@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -60,7 +61,6 @@ const (
 	adrBadName adrIssueKind = iota + 1
 	adrBadFirstLine
 	adrDuplicateNumber
-	adrMissingNumber
 	adrNotIndexed
 	adrIndexRowWithoutFile
 	adrIndexRowShape
@@ -82,8 +82,6 @@ func (k adrIssueKind) String() string {
 		return "first line is not \"# ADR-NNNN: <title>\" with the file's number"
 	case adrDuplicateNumber:
 		return "number used more than once"
-	case adrMissingNumber:
-		return "number missing from the sequence starting at 0001"
 	case adrNotIndexed:
 		return "ADR has no index row"
 	case adrIndexRowWithoutFile:
@@ -330,21 +328,17 @@ func adrStatus(doc string, headings []string) (string, bool) {
 	return values[0], true
 }
 
-// checkADRNumbers reports a number used by two ADR files and every number
-// missing between 0001 and the highest number in use.
+// checkADRNumbers reports each number used by two or more ADR files, in
+// number order. A gap in the numbers is not an issue: numbers are decided
+// before the ADRs are merged, and not in the order they are merged.
 func checkADRNumbers(records []adrRecord) []adrIssue {
 	var issues []adrIssue
 	byNumber := make(map[int][]string)
-	highest := 0
 	for _, rec := range records {
 		byNumber[rec.number] = append(byNumber[rec.number], rec.name)
-		highest = max(highest, rec.number)
 	}
-	for n := 1; n <= highest; n++ {
-		switch names := byNumber[n]; {
-		case len(names) == 0:
-			issues = append(issues, adrIssue{path: adrDir, kind: adrMissingNumber, detail: fmt.Sprintf("%04d", n)})
-		case len(names) > 1:
+	for _, n := range slices.Sorted(maps.Keys(byNumber)) {
+		if names := byNumber[n]; len(names) > 1 {
 			issues = append(issues, adrIssue{path: adrDir, kind: adrDuplicateNumber, detail: strings.Join(names, ", ")})
 		}
 	}
@@ -553,6 +547,25 @@ func adrValidInput() adrInput {
 	}
 }
 
+// TestCheckADRNumbersOrder: duplicates are reported in number order, so the
+// guard's report is the same on every run.
+func TestCheckADRNumbersOrder(t *testing.T) {
+	records := []adrRecord{
+		{name: "0002-b.md", number: 2},
+		{name: "0002-c.md", number: 2},
+		{name: "0001-a.md", number: 1},
+		{name: "0001-d.md", number: 1},
+	}
+	var got []string
+	for _, issue := range checkADRNumbers(records) {
+		got = append(got, issue.detail)
+	}
+	want := []string{"0001-a.md, 0001-d.md", "0002-b.md, 0002-c.md"}
+	if !slices.Equal(got, want) {
+		t.Errorf("checkADRNumbers details = %q, want %q", got, want)
+	}
+}
+
 // TestCheckADRRecords: the checker reports each kind of mismatch, and nothing
 // for inputs that agree. Each case breaks one thing, so the set of kinds it
 // reports pins which check reacts to it.
@@ -650,7 +663,8 @@ func TestCheckADRRecords(t *testing.T) {
 			want: []adrIssueKind{adrDuplicateNumber, adrNotIndexed},
 		},
 		{
-			name: "missing number",
+			// A gap in the numbers (0002 here) is not an issue of any kind.
+			name: "number gap",
 			in: adrInput{
 				convention: valid.convention,
 				index:      adrTestIndex(row1, adrTestIndexRow("0003-third.md", "Third", "active")),
@@ -660,7 +674,6 @@ func TestCheckADRRecords(t *testing.T) {
 					{name: "0003-third.md", content: adrTestDoc("0003", "Third", "active")},
 				},
 			},
-			want: []adrIssueKind{adrMissingNumber},
 		},
 		{
 			name: "index row without a file",

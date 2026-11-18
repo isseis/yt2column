@@ -3,7 +3,9 @@
     "allow": [
       "Bash(coderabbit review *)",
       "Bash(codexreview *)",
-      "Bash(chief *)"
+      "Bash(chief *)",
+      "Bash(numreserve task)",
+      "Bash(numreserve adr)"
     ],
     "deny": [
       "Bash(herdr agent prompt *)",

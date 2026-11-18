@@ -41,12 +41,13 @@ var bashRule = regexp.MustCompile(`^Bash\((.*)\)$`)
 
 // launchFree are the only command words a Bash rule of the settings may
 // allow. Each was checked not to run a command it is given: coderabbit runs
-// a review, codexreview runs codex only with its fixed arguments, and chief
-// runs only herdr, git, and gh with arguments it builds, never codex. A rule
+// a review, codexreview runs codex only with its fixed arguments, chief runs
+// only herdr, git, and gh with arguments it builds, never codex, and
+// numreserve runs only git and gh with arguments it builds. A rule
 // for any other word may run codex unprompted (a wrapper such as env, a
 // shell, an interpreter, a wildcard that matches one of them), so adding one
 // means checking the command and naming it here.
-var launchFree = set("coderabbit", "codexreview", "chief")
+var launchFree = set("coderabbit", "codexreview", "chief", "numreserve")
 
 // mayBypassTool reports whether a permission rule may let codex run without the
 // approval prompt: a Bash rule whose command word is not one of launchFree,
@@ -126,6 +127,8 @@ func TestMayBypassTool(t *testing.T) {
 		{"Bash(git status*)", true},
 		{"Bash(codexreview *)", false},
 		{"Bash(chief *)", false},
+		{"Bash(numreserve task)", false},
+		{"Bash(numreserve adr)", false},
 		// A word that starts with the name is another command.
 		{"Bash(chiefx *)", true},
 		{"Bash(coderabbit review *)", false},
