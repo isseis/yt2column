@@ -169,7 +169,7 @@ func (r NotSentReason) String() string {
 		NotSentPaneChanged:     "pane_changed",
 		NotSentNoStep:          "step_not_finished",
 		NotSentOtherInput:      "other_input",
-		NotSentPathUnsupported: "unsupported_path",
+		NotSentPathUnsupported: namePathUnsupported,
 		NotSentCheckMismatch:   "check_mismatch",
 		NotSentNotRelayable:    "not_relayable",
 		NotSentBadOption:       "bad_option",

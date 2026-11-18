@@ -165,10 +165,12 @@ type skipRecordFile struct {
 const (
 	memberCommand = "command"
 	memberPane    = "pane"
+	memberAgent   = "agent"
+	memberSpace   = "workspace"
 )
 
 // skipRecordKeys are the members of a skip record, every one required.
-var skipRecordKeys = []string{"workspace", memberPane, "session", "seq", "agent", "scene", memberCommand, "argument", "route", "saved"}
+var skipRecordKeys = []string{memberSpace, memberPane, "session", "seq", memberAgent, "scene", memberCommand, "argument", "route", "saved"}
 
 // skipRecord is a skipped reset kept so a later round offers it to the
 // human. Only newSkipRecord and parseSkipRecord make one, so every value
@@ -326,7 +328,7 @@ func parseSkipRecord(data []byte) (skipRecord, error) {
 	if err != nil {
 		return skipRecord{}, fmt.Errorf("%w: saved: %w", errSkipRecord, err)
 	}
-	rec := skipRecord{workspace: strs["workspace"], pane: pane, session: strs["session"], seq: seq, agent: agent, scene: scene, command: ranCommand{kind: kind, argument: strs["argument"], route: route}, saved: saved}
+	rec := skipRecord{workspace: strs[memberSpace], pane: pane, session: strs["session"], seq: seq, agent: agent, scene: scene, command: ranCommand{kind: kind, argument: strs["argument"], route: route}, saved: saved}
 	if err := rec.check(); err != nil {
 		return skipRecord{}, err
 	}

@@ -119,6 +119,11 @@
 
 16. **決定 8 の (v) の止まる例を、「起動したばかりの Claude Code が transcript のファイルを持たない」から、「`/clear` の後に Herdr のセッション ID が変わらない」に変える（2026-11-17、人が承認した）。** PR-1 の実地の確かめで、起動したばかりの Claude Code は、最初の入力の前に transcript のファイルを持たなかった。計画の時点の例は、0088 の送信が最初の確かめで transcript を読むという読み違いによるものだった。実際には、最初の確かめは transcript の場所だけを求め、ファイルの有無を確かめない（`internal/chief/send.go:343-349`）。transcript を読むのは `/model` の後（`internal/chief/send.go:585-611`）で、ファイルがまだなければ読み直す。そのため、ファイルがないことは設計書 1.2 の (v) の前提（送る前の確かめを通ること）を崩さない。一方、`/clear` の後にセッション ID が変わらなければ、0088 の送信は止まる（`internal/chief/send.go:531-534`）。そこで、それを止まる例にした。PR-1 のセッションは、止まって人に問わずにこの例を書き換え、編集上の訂正として記録した。これは止まる条件を変える決定の変更なので、PR-1 のレビューで人に問い、承認を得た。§5 のリスクの表の行も合わせて直した。ADR: なし（PR-1 の確かめの中で閉じるため）。
 
+### 1.7. 実装の際に決めたこと（2026-11-18）
+
+17. **`create` が git を走らせる場所に、`/mkreq` の送信が送り先を探すときに読む、ほかのエージェントの作業ディレクトリを加える（2026-11-18、人が承認した）。** `sendAfterCreate` は 0088 の送信と同じ `locate`（`FindTaskWorkspaces`）で送り先を探す。そのため、エージェントのいるほかの workspace の作業ディレクトリでも、`git rev-parse --git-common-dir` と `git rev-parse --show-toplevel` を読み取りだけで走らせる。ステップ 4-2 の「git は chief の worktree と作った worktree でだけ走らせる」はこれに合わなかった。PR-4 の Fable の部分レビューが見つけた。探し方を絞る案は採らない。送る前の確かめを 0088 の送信と 1 つの入口に保つためで、走るのは読み取りだけである。ステップ 4-2 の文を直した。ADR: なし（PR-4 の中で閉じるため）。
+18. **作成の排他を取れない周では、条件のそろった PR を次の周へ持ち越す（2026-11-18、人が承認した）。** 設計書 3.1 とステップ 4-4 は、取れない周では自動送信をせず、出力の問題に示すとだけ言う。実装は、条件のそろった PR を次の周へ持ち越し、次の周がその PR を自動で送る。その周の出力には、同じ PR が提案の項目としても出る。0088 で、条件がまだそろわないマージ済みの PR を持ち越すのと同じ扱いで、害は見つかっていない。PR-4 の Fable の部分レビューが、計画書に書かれていない選択として挙げた。ADR: なし（PR-4 の中で閉じるため）。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 実地の確かめ、サンプル、Herdr の新しい出力の読み取り（設計書 8 章の 1、2 のうち Herdr の出力）
@@ -236,24 +241,24 @@
 
 ### フェーズ 4: 作る部品、`create`・`targets`、作成の排他（設計書 8 章の 3 のうち作成）
 
-**変更するファイル:** `internal/chief/create.go`・`create_test.go`（新規）、`internal/chief/herdr.go`（`PaneWriter` のコメント）、`internal/chief/runner.go`・`runner_test.go`、`internal/chief/records.go`、`internal/chief/output.go`、`internal/chief/tick.go`・`autosend_test.go`、`internal/chief/network_test.go`、`internal/chief/construction_test.go`、`docs/dev/conventions/package_reference.md`
+**変更するファイル:** `internal/chief/create.go`・`create_test.go`（新規）、`internal/chief/herdr.go`（`PaneWriter` のコメント）、`internal/chief/runner.go`、`internal/chief/records.go`、`internal/chief/output.go`、`internal/chief/tick.go`・`autosend.go`・`autosend_test.go`、`internal/chief/network_test.go`、`internal/chief/construction_test.go`、`internal/chief/test_helpers.go`・`sim_test.go`、`internal/chief/workspace.go`・`taskspace.go`・`skiprecord.go`（コマンドとメンバーの名前の定数）、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 4-1**: `runner.go` に、時間の上限を取る herdr の呼び出しを足す（決定 6）。`create.go` に `WorkspaceMaker` を書く（設計書 3.3.3・3.6）。
+-   [x] **ステップ 4-1**: `runner.go` に、時間の上限を取る herdr の呼び出しを足す（決定 6）。`create.go` に `WorkspaceMaker` を書く（設計書 3.3.3・3.6）。
     -   `TaskSpace` からだけ作り、`workspace create` の応答の ID だけを、後の `tab rename`・`tab create`・`pane process-info`・`agent start` に使う。`tab create` の応答のタブと pane が自分の workspace のものでなければ、その段の失敗とする。
     -   `agent start` には、名前・種類・pane・`--timeout` のほかの引数を付けない（AC-10）。
     -   ゼロ値は何も走らせない（決定 11）。`construction_test.go` のガードの対象に足す。`PaneWriter` のコメントを「pane へ入力を送る唯一の部品」に直す（設計書 2.2）。
     -   テストは、herdr のすべての書き込みが自分の作った ID だけを持ち、`--session` などの引数を持たないこと（AC-09・AC-13）、`agent start` の時間の上限が 75 秒であること（記録係が記録する上限で確かめる）を確かめる。
--   [ ] **ステップ 4-2**: `create.go` に `Create` を書く（設計書 3.3.2・3.3.3・3.3.4・4.1）。
+-   [x] **ステップ 4-2**: `create.go` に `Create` を書く（設計書 3.3.2・3.3.3・3.3.4・4.1）。
     -   worktree は、`TaskSpace` を取る unexported の関数で `git worktree add --detach` を呼んで作り、生のパスを取らない。`newTestRepo` の一時的なリポジトリの本物の git で、ブランチを作らないことを確かめる。
     -   確かめの順、作る段、`agent start` のエラーの応答の扱い（`agent get` でエージェントの有無を確かめる）、全体の時間の上限（決定 6）、結果の型（`CreateOutcome` など、設計書 3.6）と、その出力（`output.go`）を書く。
     -   テストは設計書 7.1 の「作成」の項目と 7.4 を受け持つ。各段を 1 つずつ失敗させ、後の段の呼び出しと `/mkreq` がなく、作ったものを示すことを確かめる。結果の出力も確かめる。
-    -   `network_test.go` に、`create` が gh を chief の worktree の `api graphql` の決まった形でだけ、git を chief の worktree と作った worktree でだけ走らせることを確かめるテストを足す。
--   [ ] **ステップ 4-3**: `create.go` に `Targets` を書く（設計書 3.3.5）。`readRound` で読み、行が `/mkreq` を提案している workspace を返す。番号の形が違えば `issue_form` を返す。テストは、候補があるとき・ないとき、形の違う番号、記録を作らないこと、書き込みをしないこと、`gh api graphql`（F-002 の issue の読み取り）を走らせないこと（AC-04）、結果の出力を確かめる。
--   [ ] **ステップ 4-4**: 作成の排他を足す（決定 5、設計書 3.1）。`Create` は作り始める前に作成の排他を取る。`tick` は自動送信の前に作成の排他を取り、自動送信を終えるまで持つ。取れない周は自動送信をせず、出力の問題に示す。今の `autosend_test.go` のテストは変えずに通す。テストは次を確かめる。
+    -   `network_test.go` に、`create` が gh を chief の worktree の `api graphql` の決まった形でだけ、git を chief の worktree と作った worktree でだけ走らせることを確かめるテストを足す。ただし、`/mkreq` の送信が 0088 の `locate` で送り先を探すときは、ほかのエージェントの作業ディレクトリでも `git rev-parse` を読み取りだけで走らせる（§1.7 の決定 17）。
+-   [x] **ステップ 4-3**: `create.go` に `Targets` を書く（設計書 3.3.5）。`readRound` で読み、行が `/mkreq` を提案している workspace を返す。番号の形が違えば `issue_form` を返す。テストは、候補があるとき・ないとき、形の違う番号、記録を作らないこと、書き込みをしないこと、`gh api graphql`（F-002 の issue の読み取り）を走らせないこと（AC-04）、結果の出力を確かめる。
+-   [x] **ステップ 4-4**: 作成の排他を足す（決定 5、設計書 3.1）。`Create` は作り始める前に作成の排他を取る。`tick` は自動送信の前に作成の排他を取り、自動送信を終えるまで持つ。取れない周は自動送信をせず、出力の問題に示す。今の `autosend_test.go` のテストは変えずに通す。テストは次を確かめる。
     -   作成の排他が持たれている周で、自動送信をしない。
     -   `tick` が持つ間に、`Create` が `busy` で拒む。
     -   `tick` を終えた後に、`Create` が排他を取れる。
--   [ ] **ステップ 4-5**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
+-   [x] **ステップ 4-5**: `package_reference.md` の `internal/chief` の行に、このフェーズで exported にした名前を足す。
 
 **完了の条件:** 各ステップのテストが通る。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -271,10 +276,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/971
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 5: 削除の候補の行と項目、削除の確かめ（設計書 8 章の 4 のうち読み取り）
 
@@ -480,7 +485,7 @@
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
-- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
+- [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 - [ ] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 - [ ] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5）
 - [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5 / 7-6）
@@ -499,11 +504,11 @@
 | AC-06 | `ic/create_test.go::TestCreateIssueForm`、`ic/create_test.go::TestTargets`（`issue_form`）、`cc/main_test.go::TestIssueFormIsNoUsageError` | test | 4-2・4-3・7-1 | PR-4、PR-7 |
 | AC-07 | `ic/issue_test.go::TestParseIssueTitle`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-08 | `ic/create_test.go::TestWorktreeAddDetached`（本物の git でブランチを作らない）、`ic/create_test.go::TestCreateStages`（fetch の後のコミットで作る） | test | 4-2 | PR-4 |
-| AC-09 | `ic/create_test.go::TestCreateStages`（workspace とタブ 3 つ、`--session` なし）、`ic/create_test.go::TestCreateChecksPanes`、実地の確かめ | test、manual | 4-2・7-5 | PR-4、PR-7 |
-| AC-10 | `ic/create_test.go::TestWorkspaceMakerStartsAgentsWithoutArguments`、`ic/create_send_test.go::TestSendAfterCreate` | test | 3-3・4-1 | PR-3、PR-4 |
+| AC-09 | `ic/create_test.go::TestCreateStages`（workspace とタブ 3 つ、`--session` なし）、`ic/create_test.go::TestCreateStopsAtEachStage`（段 `panes`）、実地の確かめ | test、manual | 4-2・7-5 | PR-4、PR-7 |
+| AC-10 | `ic/create_test.go::TestCreateStages`（`agent start` の書き込みの行を完全に比べ、ほかの引数がない）、`ic/create_test.go::TestWorkspaceMakerStartsAgentsWithoutArguments`（時間の上限）、`ic/create_send_test.go::TestSendAfterCreate` | test | 3-3・4-1 | PR-3、PR-4 |
 | AC-11 | `ic/create_test.go::TestCreateRefusesExisting`（ファイル・ディレクトリ・リンク、登録だけの worktree、パスの workspace）、`ic/taskspace_test.go::TestNewTaskSpace`、`ic/create_test.go::TestCreateFetchFailure` | test | 2-3・4-2 | PR-2、PR-4 |
 | AC-12 | `ic/create_test.go::TestCreateStopsAtEachStage`、`ic/create_test.go::TestCreateDeadline` | test | 4-2 | PR-4 |
-| AC-13 | `ic/create_test.go::TestWorkspaceMakerUsesOnlyItsIDs`、`ic/construction_test.go::TestWriterTypesOnlyFromConstructors`、`ic/autosend_test.go::TestTickSkipsAutoSendWhileCreating`、`ic/create_test.go::TestCreateBusyDuringTick`、定義が `create` を前景で呼ぶこと | test、manual | 4-1・4-4・7-2 | PR-4、PR-7 |
+| AC-13 | `ic/create_test.go::TestWorkspaceMakerUsesOnlyItsIDs`、`ic/construction_test.go::TestGuardedTypesAreBuiltOnlyByTheirConstructors`、`ic/autosend_test.go::TestTickSkipsAutoSendWhileCreating`、`ic/create_test.go::TestCreateBusyDuringTick`、定義が `create` を前景で呼ぶこと | test、manual | 4-1・4-4・7-2 | PR-4、PR-7 |
 | AC-14 | `ic/records_test.go::TestCreatedRecordRoundTrip`、`ic/create_test.go::TestCreateReplacesOldRecords`、`ic/create_test.go::TestCreateStopsAtEachStage`（記録が残る） | test | 3-2・4-2 | PR-3、PR-4 |
 | AC-15 | `ic/create_send_test.go::TestSendAfterCreate`、`ic/create_test.go::TestCreateSendsMkreq` | test | 3-3・4-2 | PR-3、PR-4 |
 | AC-16 | `ic/screen_test.go` の起動したばかりの画面のサンプルの読み取り（信頼を問う画面が採れれば、それを質問と読むこと）、`ic/create_send_test.go::TestSendAfterCreate`（起動したばかりの状態で送る前の確かめを通る）、`ic/create_test.go::TestCreateAgentNotReady`（エラーの応答でエージェントがいるとき、`blocked` のとき）、実地の確かめ | test、manual | 1-5・3-3・4-2・7-5 | PR-1、PR-3、PR-4、PR-7 |
@@ -575,3 +580,4 @@
 - 2026-11-17 draft への戻し：PR-2 で、ラベルを足した問い合わせで gh のサンプルを採り直し、ラベル `draft` が付いた issue を拒む読み取りを作ることにした（決定 15）（#939）
 - 2026-11-17 承認（isseis、#939）
 - 2026-11-17 セッション中の再承認：決定 8 の (v) の止まる例を、transcript のファイルがないことから、`/clear` の後にセッション ID が変わらないことに変えた（決定 16）（isseis、#923）
+- 2026-11-18 セッション中の再承認：`create` が git を走らせる場所に、送り先を探すときに読むほかのエージェントの作業ディレクトリを加え（決定 17）、作成の排他を取れない周で PR を次の周へ持ち越すことを決めた（決定 18）（isseis、#971）

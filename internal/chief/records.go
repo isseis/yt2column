@@ -1379,3 +1379,43 @@ func (h *HeldWorkspace) ClearRecords() error {
 	remove(createdFile)
 	return errors.Join(errs...)
 }
+
+// creationDir is the directory below the state directory whose exclusion
+// `create` and the automatic sends of `tick` take from each other. The
+// chief lock's takeover already holds the exclusion of the state directory
+// itself, and cachelock keeps one exclusion per directory, so this one needs
+// a directory of its own. Its name is no worktree's (those are 64 hex
+// digits), so settleWorkspaces never touches it.
+const creationDir = "create"
+
+// ErrCreationBusy reports that a creation or a tick's automatic sends hold
+// the creation exclusion, so the other does not start now.
+var ErrCreationBusy = errors.New("a creation or an automatic send is under way")
+
+// CreationLock is the creation exclusion while it is held. Only
+// LockCreation makes one.
+type CreationLock struct {
+	lock *cachelock.Lock
+}
+
+// LockCreation takes the creation exclusion without waiting. Contract: a
+// held exclusion is ErrCreationBusy and nothing else is done; the holder
+// closes the result, which ends the exclusion. Its directory is created
+// below the state directory when missing.
+func (s Store) LockCreation() (*CreationLock, error) {
+	if err := privatefile.MkdirBelow(s.dir, []string{creationDir}); err != nil {
+		return nil, err
+	}
+	lock, err := cachelock.Acquire(filepath.Join(s.dir, creationDir))
+	if errors.Is(err, cachelock.ErrLocked) {
+		// cachelock's message is about yt-dlp's cache, not this exclusion.
+		return nil, ErrCreationBusy
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &CreationLock{lock: lock}, nil
+}
+
+// Close ends the exclusion.
+func (l *CreationLock) Close() error { return l.lock.Close() }

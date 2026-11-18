@@ -186,7 +186,7 @@ func dirWithin(dir, root string) bool {
 // panes returns every pane `herdr pane list` reports, with or without an
 // agent.
 func (h Herdr) panes(ctx context.Context) ([]listedPane, error) {
-	out, err := h.cmds.herdr(ctx, "pane", "list")
+	out, err := h.cmds.herdr(ctx, herdrPane, "list")
 	if err != nil {
 		return nil, err
 	}
