@@ -26,8 +26,10 @@
 
 ### 1.3. 計画の際に決めたこと（2026-11-18）
 
--   **AC-05 は、実装の後に、同じセッションで `/mkreq 928` を実際に走らせて確かめ、結果を §7 に記録する。** 指示文が実際の run で止まることを見るためである。走らせた run が step 1 で止まらなかったときは、step 2 に進まずに打ち切る。こうすれば、`numreserve` は走らず、記録の tag もブランチもできない。人の答え：`/mkreq 928` を実際に走らせる。
+-   **AC-05 は、実装の PR のレビューで、レビュアーが PR のブランチを取り出した新しい Claude Code のセッションで `/mkreq 928` を走らせて確かめる。`/runplan` のセッションでは走らせない。** 人の答えは「実装の PR のブランチで `/mkreq 928` を実際に走らせる」で、誰がどのセッションで走らせるかは計画で決めた。`/mkreq` は Claude Code で人が起動するコマンドで（`_context.md`「Command routing」の `task-documents` の行）、実装モデル要件 `sonnet` の `/runplan` は OpenCode で動く。`/runplan` の中で走らせると、実際に使う経路と違ううえ、確かめを書いた本人が結果を知ったうえで走らせることになる。人が起動すれば、`/mkreq` の「Authorization」もそのまま当てはまる（設計書 7 章）。
     -   ADR：なし。本タスクの確かめ方の選択で、本タスクの中で閉じる。
+-   **AC-02・AC-04 の判定のコマンドは、`/runplan` が、ネットワークなしで見本のファイルに対して走らせ、結果を §7 に記録する（ステップ 1-4）。** `mkreq.md` に書いたコマンドの例を走らせる確かめで、`/runplan` の中でネットワークの操作をせずに行える。
+    -   ADR：なし。本タスクの中で閉じる。
 -   フェーズは 1 つで、実装の PR は 1 本である。設計書が開いたままにした計画の選択は、上のほかにない。
 
 ### 1.4. 既存コード調査結果
@@ -38,7 +40,7 @@
 -   `mkreq.md` の「Authorization」（`:34-42`）は、`gh issue view` をすでに承認している。新しい承認は要らない。
 -   `_context.md` の「Process convention」の表は `.claude/commands/_context.md:35-55` にあり、`Task process record` の行は `:49` にある。この表を読む Go のコードはない。`internal/chief/routing.go` が読むのは「Command routing」の表である。
 -   chief の判定は `internal/chief/issue.go:58-60`（`draftLabel`）と `:239-246`（閉じた issue を先に見る）にある。変えない。
--   ラベル `draft` が付いた開いた issue に #928 がある（`gh issue view 928 --json labels,state`、2026-11-18 に確かめた。ステップ 1-4 の前に確かめ直す）。
+-   ラベル `draft` が付いた開いた issue に #928 がある（`gh issue view 928 --json labels,state`、2026-11-18 に確かめた）。
 -   `mkreq.md` と `_context.md` の文を確かめる Go のテストのうち、本タスクの変更に関わるものはない。`cmd/yt2column/fixpr_docs_test.go` と `cmd/numreserve/docs_test.go` は `mkreq.md` を読むが、読むのは `fixprguard` と `numreserve` の呼び出しの形である。
 
 ## 2. 実装のステップ (Implementation Steps)
@@ -50,13 +52,13 @@
 **変更するファイル:** `.claude/commands/mkreq.md`、`.claude/commands/_context.md`、`docs/dev/adr/0053-draft-issue-label.md`、本計画
 
 -   [ ] **ステップ 1-1**: `_context.md` の「Process convention」の表の、`Task process record` の行の後に、`Draft issue label` の行を 1 つ足す。内容は設計書 3.2 のとおりである（AC-06）。
--   [ ] **ステップ 1-2**: `mkreq.md` の step 1 の、`url` の確かめの後、`git fetch origin` の前に、下書きの issue の確かめを足す。手順・終了コードごとの振る舞い・報告は設計書 3.1 と 4 章のとおりである。ラベルの定義は `_context.md` の `Draft issue label` の行を名前で参照し、ラベルの意味を `mkreq.md` に書き写さない（AC-01〜AC-04）。
--   [ ] **ステップ 1-3**: ADR-0053 の「決定」から、issue #934 にリンクした食い違いの記述を消す。消す前に `git grep -nE 'issues/934([^0-9]|$)' origin/main -- docs/dev/adr/` を走らせ、当たったものが ADR-0053 のその 1 項目だけであることを確かめる（AC-09、`docs/dev/conventions/adr.md`「Discrepancy statements」）。
--   [ ] **ステップ 1-4**: ステップ 1-1〜1-3 をコミットした後、作業ツリーがきれいな状態で、同じセッションから `/mkreq 928` を走らせる。step 1 で止まり、下書きの issue であることと、ラベルを外せば正式になることを報告することを確かめる（AC-05）。走らせた run が step 1 で止まらなかったら、step 2 に進まずに打ち切り、ステップ 1-2 を直してやり直す。走らせる前と止まった後で、`git status --short` が空であること、`git branch --list` の一覧と `git ls-remote origin 'refs/tags/task-number/*'` の一覧が変わらないことを確かめる。結果を §7 の実行の記録に書く。
--   [ ] **ステップ 1-5**: 差分の範囲を、記録した diff の読み取りで確かめる（AC-10）。比べるのは、マージベース（`git merge-base origin/main HEAD`）と、ステップ 1-4 の記録を入れる前の最後のコミットである。読むのは、`git diff --name-status <base> <head>` の一覧と、`.claude/commands/mkreq.md`・`.claude/commands/_context.md`・`docs/dev/adr/0053-draft-issue-label.md` の差分である。本計画は記録を持つので、比べる対象に含めない（`docs/dev/conventions/requirements_process.md`「`diff` verification」）。結果と 2 つのコミットの完全な ID を §7 に書き、ステップ 1-4 の記録とともにコミットする。
+-   [ ] **ステップ 1-2**: `mkreq.md` の step 1 の、`url` の確かめの後、`git fetch origin` の前に、下書きの issue の確かめを足す。ラベルの名前の書き出し、`grep -qxF -- draft` の終了コードごとの振る舞い、報告は設計書 3.1 と 4 章のとおりに書く。下書きの issue の定義（名前の等しさ、閉じた issue の扱い、ラベルを外せば正式になること）は `_context.md` の `Draft issue label` の行を名前で参照し、`mkreq.md` に書き写さない（AC-01〜AC-04）。
+-   [ ] **ステップ 1-3**: ADR-0053 の「決定」から、issue #934 にリンクした食い違いの記述を消す。消す前に `git grep -nE 'issues/934([^0-9]|$)' origin/main -- docs/dev/adr/` を走らせ、当たったものが ADR-0053 のその 1 項目だけであることを確かめる（AC-09、`docs/dev/conventions/adr.md`「Discrepancy statements」）。この削除は、`docs/dev/conventions/adr.md`「Editorial corrections」の 2 つ目の種類に当たるので、コミットのメッセージに訂正の行を書き、PR の説明に訂正の段落を書く（`docs/dev/conventions/adr.md`「Editorial corrections」の「Recording」）。
+-   [ ] **ステップ 1-4**: ステップ 1-2 で `mkreq.md` に書いた `grep -qxF -- draft` を、スクラッチパッドに作った名前の一覧の見本のファイル 4 つに対して走らせ、終了コードを §7 の実行の記録に書く。見本は、`draft` の行を含むもの（`0` を期待する）、`Draft` の行だけのもの、`draft-x` の行だけのもの、空のもの（どれも `1` を期待する）である。あわせて、存在しないファイルを与えて `0`・`1` のほかで終わることを確かめる（AC-02・AC-04）。ネットワークの操作はしない。
+-   [ ] **ステップ 1-5**: AC-09 と AC-10 の差分を、記録した diff の読み取りで確かめる。`docs/dev/conventions/requirements_process.md` の「`diff` verification」の決まったコマンド（「Fixed commands」）を、ステップ 1-1〜1-3 のコミットの後に走らせ、§7 の `Diff record (AC-09):` と `Diff record (AC-10):` の段に、その形（「Diff record form」）で書く。比べる対象のパスは §7 の各 Diff record に書いたものとし、本計画のファイルは含めない。ステップ 1-4 の記録とともにコミットする。
 -   [ ] **ステップ 1-6**: green gate（`_context.md`）を通す。
 
-**完了の条件:** `mkreq.md`・`_context.md`・ADR-0053 の変更がコミットされている。§7 に AC-05 の実行の記録と AC-10 の diff の読み取りの記録がある。green gate が通る。
+**完了の条件:** `mkreq.md`・`_context.md`・ADR-0053 の変更がコミットされている。§7 に、判定のコマンドの実行の記録と、AC-09・AC-10 の diff の記録がある。green gate が通る。
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -79,7 +81,8 @@
 ## 4. テスト戦略 (Test Strategy)
 
 -   **単体テスト:** N/A。Go のコードを変えない。
--   **実際に走らせる確かめ:** ステップ 1-4 で `/mkreq 928` を 1 回走らせる（AC-05）。
+-   **判定のコマンドの実行:** ステップ 1-4 で、`grep -qxF -- draft` を見本のファイルに対して走らせる（AC-02・AC-04）。
+-   **実際に走らせる確かめ:** 実装の PR のレビューで、レビュアーが `/mkreq 928` を走らせる（AC-05、1.3）。
 -   **既存のテスト:** `TestADRRecords` と `TestInstructionDocPaths`（`cmd/yt2column`）が、ADR-0053 の形とリンク先を確かめる。green gate に含まれる。
 -   **読んで確かめる:** `mkreq.md` と `_context.md` の文の中身（AC-01〜AC-04・AC-06）と ADR-0053 の「決定」の内容（AC-08）は、PR のレビューで読む。
 -   **後方互換のテスト:** N/A。ラベル `draft` の付いていない issue での振る舞いは変わらない（要件書 4.4）。そのような issue で `/mkreq` を走らせるとタスク番号が決まるので、確かめのためには走らせない。
@@ -88,8 +91,8 @@
 
 | リスク | 対策 |
 |---|---|
-| ステップ 1-4 の `/mkreq 928` が step 1 で止まらず、タスク番号を決める | step 1 で止まらなかったら step 2 に進まずに打ち切る（ステップ 1-4）。万一番号が決まっても欠番は誤りではない（ADR-0051） |
-| ステップ 1-4 の前に、#928 のラベル `draft` が外される | ステップ 1-4 の前に `gh issue view 928 --json labels,state` で確かめ直す。外れていたら、ラベル `draft` が付いたほかの開いた issue を使い、§7 にその番号を書く |
+| レビューの `/mkreq 928` が step 1 で止まらず、タスク番号を決める | step 1 で止まらなかったら step 2 に進まずに打ち切る（設計書 7 章）。万一番号が決まっても欠番は誤りではない（ADR-0051） |
+| レビューの前に、#928 のラベル `draft` が外される | レビュアーが、ラベル `draft` が付いたほかの開いた issue で走らせる |
 | 食い違いの記述が、本計画の外の ADR にもある | ステップ 1-3 の `git grep` で当たったものを読み、ADR-0053 のほかに当たれば止まって人に尋ねる |
 
 ## 6. 実装チェックリスト (Implementation Checklist)
@@ -102,18 +105,26 @@
 
 | AC | 種類 | 検証 |
 |---|---|---|
-| AC-01 | `manual` | 実装の PR のレビューで、`mkreq.md` の step 1 が、確かめの位置（閉じているかと `url` の確かめの後、`git fetch origin` の前）、下書きの issue で止まること、報告の内容、`[task]` と止まった run の続きでも止まることを述べるかを読む |
-| AC-02 | `manual` | 実装の PR のレビューで、`mkreq.md` の step 1 が `grep -qxF -- draft` の終了コードで決め、名前がちょうど `draft` のラベルだけを印とすることを読む |
+| AC-01 | `manual` | 実装の PR のレビューで、`mkreq.md` の step 1 が、確かめの位置（閉じているかと `url` の確かめの後、`git fetch origin` の前）、下書きの issue で止まること、報告の内容を、step 1 が述べているかを読む |
+| AC-02 | `manual` | 実装の PR のレビューで、`mkreq.md` の step 1 が `grep -qxF -- draft` の終了コードで決め、定義を `_context.md` の行の名前で参照するかを読む。コマンドの振る舞いは、ステップ 1-4 の実行の記録で確かめる |
 | AC-03 | `manual` | 実装の PR のレビューで、確かめが閉じた issue の確かめの後にあり、閉じた issue では今までどおり止まることを読む |
-| AC-04 | `manual` | 実装の PR のレビューで、ラベルを読めないときと `grep` が `0`・`1` のほかで終わるときに止まることを読む |
-| AC-05 | `manual` | ステップ 1-4 で `/mkreq 928` を走らせ、結果を下の実行の記録に書く |
+| AC-04 | `manual` | 実装の PR のレビューで、ラベルを読めないときと `grep` が `0`・`1` のほかで終わるときに止まることを読む。`grep` の失敗の終了コードは、ステップ 1-4 の実行の記録で確かめる |
+| AC-05 | `manual` | 実装の PR のレビューで、レビュアーが PR のブランチの新しい Claude Code のセッションで `/mkreq 928` を走らせて見る（1.3）。AC が求めるのは人が起動したコマンドの振る舞いで、テストにできるコードがないため、実際の run で確かめる |
 | AC-06 | `manual` | 実装の PR のレビューで、`_context.md` の `Draft issue label` の行が要件書 AC-06 の 4 点を述べるかを読む |
 | AC-07 | `test` | `cmd/yt2column/adr_test.go::TestADRRecords`、`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`（green gate） |
 | AC-08 | `manual` | 3 文書の PR のレビューで、ADR-0053 の「決定」が要件書 AC-08 の項目を述べ、`_context.md` にリンクするかを読む |
-| AC-09 | `diff` | ステップ 1-5 の diff の読み取りで、ADR-0053 の差分が食い違いの記述の 1 行の削除だけであることを確かめ、下の記録に書く |
-| AC-10 | `diff` | ステップ 1-5 の diff の読み取りで確かめ、下の記録に書く |
+| AC-09 | `manual`・`diff` | 3 文書の PR のレビューで、ADR-0053 の「決定」に issue #934 にリンクした食い違いの記述があることを読む。実装の PR では、下の `Diff record (AC-09):` で、ADR-0053 の差分がその 1 行の削除だけであることを確かめる |
+| AC-10 | `diff` | 下の `Diff record (AC-10):` で、3 つのファイルの差分と、差分全体のファイルの一覧を確かめる |
 
-実行の記録（ステップ 1-4・1-5）：実装のときに書く。
+判定のコマンドの実行の記録（ステップ 1-4）：実装のときに書く。
+
+Diff record (AC-09):
+
+- Compared paths: `docs/dev/adr/0053-draft-issue-label.md`
+
+Diff record (AC-10):
+
+- Compared paths: `.claude/commands/mkreq.md` `.claude/commands/_context.md` `docs/dev/adr/0053-draft-issue-label.md`
 
 ## 8. 成功の基準 (Success Criteria)
 

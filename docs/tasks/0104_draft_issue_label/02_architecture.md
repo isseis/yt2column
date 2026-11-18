@@ -27,9 +27,9 @@ ADR-0053 は本書と同じ 3 文書の PR で作る。実装の PR は、その
 
 **設計の際に決めたこと（2026-11-18）:**
 
--   **`/mkreq` は、ラベルの名前の一覧を `gh issue view <N> --json labels --jq '.labels[].name'` で 1 行に 1 つずつ書き出し、`grep -qxF -- draft` の終了コードで下書きかを決める。エージェントは名前を読んで比べない（3 章）。** `grep -x` は行全体の一致、`-F` は固定の文字列としての比較なので、名前がバイト列でちょうど `draft` の行だけが当たる。大文字と小文字の区別をコマンドが決めるので、エージェントの読み違いで判定が変わらない。どちらの案も 1 つの等しさを見るだけの判定である。そのため、[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) が Go の道具に置くよう求める、分岐の多い判定には当たらない。人の答え：コマンドの終了コード。
+-   **`/mkreq` は、ラベルの名前の一覧を `gh issue view <N> --json labels --jq '.labels[].name'` で 1 行に 1 つずつ書き出し、`grep -qxF -- draft` の終了コードで下書きかを決める。エージェントは名前を読んで比べない（3 章）。** `grep -x` は行全体の一致、`-F` は固定の文字列としての比較なので、名前がバイト列でちょうど `draft` の行だけが当たる。大文字と小文字の区別もコマンドが決めるので、エージェントの読み違いで判定が変わらない。どちらの案も、名前が 1 つの値と等しいかを見るだけの判定である。そのため、[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) が Go の道具に置くよう求める、分岐の多い判定には当たらない。人の答え：コマンドの終了コード。
     -   採らなかった案：issue を読む最初の `gh issue view` の `--json` に `labels` を足し、閉じているかの判定と同じように、エージェントが JSON の `labels[].name` を読んで比べる案。手順は短いが、名前の比べ方がエージェントに残る。
-    -   ADR：[ADR-0053](../../dev/adr/0053-draft-issue-label.md) を更新する（同じ PR で作る ADR の「決定」に、判定の方法の項目を足す）。`/mkreq` の判定の方法は、ラベルの名前や比べ方を変えるときに `_context.md` と chief と合わせて変える対象になるためである。
+    -   ADR：同じ PR で作る [ADR-0053](../../dev/adr/0053-draft-issue-label.md) の「決定」に、判定の方法の項目を入れる。`/mkreq` の判定の方法は、ラベルの名前や比べ方を変えるときに `_context.md` と chief と合わせて変える対象になるためである。
 
 概念モデルの Mermaid の図は省く。変わるのは 1 つのコマンドの 1 つの手順と、表の 1 行だけで、コンポーネントの関係が変わらない（`docs/dev/conventions/requirements_process.md`「Simple Process」の「May be omitted」）。
 
@@ -61,8 +61,9 @@ step 1 の今の手順は、issue を読み、閉じていれば止まり、`url
 
 -   **書き出す先をファイルにする理由。** パイプにすると、シェルの `pipefail` の設定によって `gh` の失敗が終了コードに出ないことがある。ファイルに書き出せば、`gh` の終了コードを `grep` と分けて見られる。スクラッチパッドに置くのは、step 2 が作業ツリーがきれいかを確かめるためである（`.claude/commands/mkreq.md` step 2）。
 -   **閉じた issue。** 確かめは閉じているかの確かめの後に置く。閉じた issue はそこで止まるので、ラベルは見ない（AC-03）。
--   **`[task]` と、止まった run の続き。** どちらも `git fetch origin` と重複の検索より後に分かれるので、この確かめを通らずに進む経路はない（AC-01）。
+-   **`[task]` と、止まった run の続き。** どちらの経路も `git fetch origin` と重複の検索より後で分岐するので、この確かめを通らずに進む経路はない（AC-01）。
 -   **ラベルのない issue。** ファイルは空になり、`grep` は `1` で終わるので、先へ進む（4.4）。
+-   **読んだラベルが全部か。** chief はラベルの件数を照らし合わせ、すべてを読めなかった応答を拒む（[0092 設計書](../0092_chief_task_workspace/02_architecture.md) 1.5）。`gh issue view` の出力には件数がないので、`/mkreq` はこの照らし合わせをしない。chief との違いとして受け入れる。理由は [01_requirements.md](01_requirements.md) 4.2 にある。
 -   **名前に改行を含むラベル。** 名前が改行を含めば、1 つの名前が複数の行に分かれる。そのどれかの行がちょうど `draft` なら下書きとみなすので、誤りは止まる側に倒れる。
 -   **ラベルの名前を会話に出さない。** 判定は終了コードで決まるので、エージェントはファイルの中身を読まない。報告にもラベルの名前を書かない。
 -   **権限。** `gh issue view` は、`/mkreq` を起動したことですでに承認されている操作である（`.claude/commands/mkreq.md` の「Authorization」）。新しい承認は要らない。
@@ -86,7 +87,7 @@ ADR-0053 は本書の PR で作る。「決定」の項目と AC の対応は次
 -   判定をコマンドの終了コードで行うこと（本書「設計の際に決めたこと」）。
 -   食い違いの記述（AC-09）。実装の PR は、`git grep -nE 'issues/934([^0-9]|$)' origin/main -- docs/dev/adr/` で見つかる、ADR-0053 の「決定」の食い違いの記述を消す（`docs/dev/conventions/adr.md`「Discrepancy statements」）。
 
-規約は、食い違いの記述を足す PR に、リンク先の issue の本文が ADR の名前を挙げるようにすることを求める（`docs/dev/conventions/adr.md`「Discrepancy statements」）。issue #934 の本文は ADR-0053 を挙げていない。本書の PR を開く前に、issue #934 の本文に ADR-0053 を足す。これは GitHub への書き込みなので、人の承認を得て行う。
+規約は、食い違いの記述を足す PR で、リンク先の issue の本文に ADR の名前を挙げておくことを求める（`docs/dev/conventions/adr.md`「Discrepancy statements」）。issue #934 の本文は ADR-0053 を挙げる。
 
 ## 4. エラーハンドリング設計
 
@@ -154,15 +155,16 @@ flowchart TD
 
 変えるのはエージェント向けの指示文だけで、Go のコードを変えない。
 
--   **`mkreq.md` と `_context.md` の文の中身（AC-01〜AC-04・AC-06）:** 自然言語の内容なので、実装の PR のレビューで読んで確かめる（`manual`）。CLAUDE.md「Document tests check values, structure, and executable examples, never prose」に従い、文の中身を確かめる文書テストは足さない。
--   **実際に止まること（AC-05）:** 実装の PR のブランチで、ラベル `draft` が付いた開いた issue #928 を与えて `/mkreq 928` を走らせる。step 1 で止まり、`numreserve` が走らず、ブランチもタスクのディレクトリもできないことを見て、結果を計画書に記録する（`manual`）。step 1 の確かめは `numreserve` より前にあるので、実装が正しければ記録の tag はできない。実装が誤っていて先へ進んだときは、走らせた run がタスク番号を決めることがある。その番号は欠番になるが、欠番は誤りではない（[ADR-0051](../../dev/adr/0051-number-reservation.md)）。作られたブランチは消す。
+-   **`mkreq.md` と `_context.md` の文の中身（AC-01〜AC-04・AC-06）:** 自然言語の内容なので、実装の PR のレビューで読んで確かめる（`manual`）。
+-   **判定のコマンド（AC-02・AC-04）:** `mkreq.md` に書いた `grep -qxF -- draft` を、ネットワークなしで、名前の一覧の見本のファイル（`draft` を含むもの、`Draft` だけ、`draft-x` だけ、空）に対して走らせ、終了コードを計画書に記録する。書いたコマンドの例を走らせる確かめである。CLAUDE.md「Document tests check values, structure, and executable examples, never prose」に従い、文の中身を確かめる文書テストは足さない。
+-   **実際に止まること（AC-05）:** 実装の PR のレビューで、レビュアーが PR のブランチを取り出した新しい Claude Code のセッションで `/mkreq 928`（ラベル `draft` が付いた開いた issue）を走らせる。step 1 で止まり、`numreserve` が走らず、ブランチもタスクのディレクトリもできないことを見る（`manual`）。`/mkreq` は Claude Code で人が起動するコマンドなので（`_context.md`「Command routing」の `task-documents` の行）、実際に使う経路で確かめる。`/runplan` のセッションの中では走らせない。`/runplan` は OpenCode で動きうるうえ、確かめを書いた本人が結果を知ったうえで走らせることになるためである。step 1 の確かめは `numreserve` より前にあるので、実装が正しければ記録の tag はできない。step 1 で止まらなかったときは、step 2 に進まずに打ち切る。万一タスク番号が決まっても、その番号は欠番になるだけで、欠番は誤りではない（[ADR-0051](../../dev/adr/0051-number-reservation.md)）。
 -   **ADR-0053 と索引（AC-07）:** `TestADRRecords`（`cmd/yt2column/adr_test.go`）が、ADR の形と索引との対応を確かめる（`test`）。リンク先は `TestInstructionDocPaths`（`cmd/yt2column/docpaths_test.go`）が確かめる。
 -   **ADR-0053 の「決定」の内容（AC-08）と、食い違いの記述が消えたこと（AC-09）:** 内容は PR のレビューで読む（`manual`）。食い違いの記述の削除は、AC-10 の差分の確かめに含める。
--   **差分の範囲（AC-10）:** 変更の前と後の関係なので、`diff` の確かめにする。差分は小さいので、記録した diff の読み取りとする（`docs/dev/conventions/requirements_process.md`「`diff` verification」）。比べるのは、実装の PR のブランチのマージベースと、その PR の最後のコミットである。
+-   **差分の範囲（AC-10）:** 変更の前と後の関係なので、`diff` の確かめにする。差分は小さいので、記録した diff の読み取りとする（`docs/dev/conventions/requirements_process.md`「`diff` verification」）。比べる 2 つのコミットは、規約のマージベースと比べる対象のコミット（compared commit）である。
 
 ## 8. 実装の優先順位
 
-フェーズは 1 つで、実装の PR も 1 つである。3 文書の PR のマージの後に `/runplan` で、`_context.md` の行、`mkreq.md` の step 1、ADR-0053 の食い違いの記述の削除をまとめて行い、AC-05 の確かめと AC-10 の差分の確かめを記録する。
+フェーズは 1 つで、実装の PR も 1 つである。3 文書の PR のマージの後に `/runplan` で、`_context.md` の行、`mkreq.md` の step 1、ADR-0053 の食い違いの記述の削除をまとめて行い、判定のコマンドの実行と AC-09・AC-10 の差分を記録する。AC-05 は、その PR のレビューでレビュアーが確かめる。
 
 ## 9. 将来の拡張性
 
