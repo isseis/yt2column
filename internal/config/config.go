@@ -139,38 +139,19 @@ var ErrMissing = errors.New("a required setting is unset or empty")
 // ErrInvalid reports a setting whose value is present but not acceptable.
 var ErrInvalid = errors.New("a setting has an invalid value")
 
-// VarSource says where a rejected setting was read from. Its zero value is
-// the form every rejection of an environment variable has.
-type VarSource int
-
-const (
-	// VarSourceUnspecified prints "<Name>: <Reason>". The CLI's variables
-	// and HOME use it.
-	VarSourceUnspecified VarSource = iota
-	// VarSourceConfigFile prints "configuration file key <Name>: <Reason>",
-	// so the line does not call the key an environment variable.
-	VarSourceConfigFile
-)
-
 // VarError names a rejected variable and gives a fixed reason. It never holds
 // the variable's value, so an error can be logged safely even when the rejected
 // variable was a secret set in the wrong place.
 type VarError struct {
 	Name   string
 	Reason string
-	Err    error     // ErrMissing or ErrInvalid
-	Source VarSource // where Name was read from
+	Err    error // ErrMissing or ErrInvalid
 }
 
-// Error implements the error interface in the form Source names. Only the
-// form depends on Source; the reason is chosen where the error is built.
+// Error implements the error interface as "<Name>: <Reason>"; the reason is
+// chosen where the error is built.
 func (e *VarError) Error() string {
-	switch e.Source {
-	case VarSourceConfigFile:
-		return "configuration file key " + e.Name + ": " + e.Reason
-	default:
-		return e.Name + ": " + e.Reason
-	}
+	return e.Name + ": " + e.Reason
 }
 
 // Unwrap returns the sentinel that classifies the rejection.
@@ -179,9 +160,9 @@ func (e *VarError) Unwrap() error {
 }
 
 // LLMSelection is one stage's provider, model ID, and effort. Its fields are
-// unexported, so a non-zero LLMSelection can only come from Load or LoadFor
-// (or LoadExtension). In an accepted selection the provider and the model ID are set,
-// and only the effort of that provider is meaningful. parseLLM also returns
+// unexported, so a non-zero LLMSelection can only come from Load, LoadFor, or
+// LoadExtension. In an accepted selection the provider and the model ID are
+// set, and only the effort of that provider is meaningful. parseLLM also returns
 // the provider of a rejected value whose provider part was accepted, so that
 // provider's own variables are still checked; such a selection never leaves
 // loadLLM, because the load then fails. ProviderUnset means the stage was not
@@ -232,7 +213,7 @@ func (s LLMSelection) OpenAIEffort() openaiparam.Effort {
 
 // LLMConfig is the validated configuration of the generation and review LLM
 // calls. Its fields are unexported, so a non-zero LLMConfig can only come from
-// Load or LoadFor (or LoadExtension).
+// Load, LoadFor, or LoadExtension.
 type LLMConfig struct {
 	generation           LLMSelection
 	review               LLMSelection

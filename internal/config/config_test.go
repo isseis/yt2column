@@ -1906,24 +1906,13 @@ func TestLoadProviderVarsFollowSelection(t *testing.T) {
 	}
 }
 
-// TestVarErrorSource checks the two forms of a rejection's text: the zero
-// Source keeps "<Name>: <Reason>", and VarSourceConfigFile names the key as a
-// configuration file key, never as an environment variable.
-func TestVarErrorSource(t *testing.T) {
-	cases := []struct {
-		source VarSource
-		want   string
-	}{
-		{VarSourceUnspecified, llmEnv + ": " + reasonLLMForm},
-		{VarSourceConfigFile, "configuration file key " + llmEnv + ": " + reasonLLMForm},
-		// A value outside the enum falls back to the plain form.
-		{VarSource(99), llmEnv + ": " + reasonLLMForm},
-	}
-	for _, tc := range cases {
-		err := &VarError{Name: llmEnv, Reason: reasonLLMForm, Err: ErrInvalid, Source: tc.source}
-		if got := err.Error(); got != tc.want {
-			t.Errorf("Source %d: Error() = %q, want %q", tc.source, got, tc.want)
-		}
+// TestVarErrorText checks the form of a rejection's text, "<Name>: <Reason>",
+// which the CLI prints: it names the variable and gives the fixed reason, and
+// nothing else.
+func TestVarErrorText(t *testing.T) {
+	err := &VarError{Name: llmEnv, Reason: reasonLLMForm, Err: ErrInvalid}
+	if got, want := err.Error(), llmEnv+": "+reasonLLMForm; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
 	}
 }
 
