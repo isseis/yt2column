@@ -258,7 +258,7 @@ func (t *Tool) changeIn(ctx context.Context, space Space, head, base string) (sp
 	var change spaceChange
 	var malformed []AddedNumberIssue
 	for _, e := range headEntries {
-		if hasPath(baseEntries, e.path) {
+		if hasEntry(baseEntries, e) {
 			continue
 		}
 		n, ok := entryNumber(space, e)
@@ -270,11 +270,17 @@ func (t *Tool) changeIn(ctx context.Context, space Space, head, base string) (sp
 		}
 	}
 	for _, e := range baseEntries {
-		if !hasPath(headEntries, e.path) {
+		if !hasEntry(headEntries, e) {
 			change.deleted = append(change.deleted, e)
 		}
 	}
 	return change, malformed, nil
+}
+
+// hasEntry reports whether entries hold an entry of e's path and kind, so a
+// path that changed from a file to a directory counts as added.
+func hasEntry(entries []treeEntry, e treeEntry) bool {
+	return slices.ContainsFunc(entries, func(o treeEntry) bool { return o.path == e.path && o.kind == e.kind })
 }
 
 func hasPath(entries []treeEntry, p string) bool {

@@ -77,6 +77,9 @@ func TestCheckAdded(t *testing.T) {
 			}),
 			nil,
 		},
+		{"a task-form file the PR turns into a task directory", with(tasks("0104_new/"), func(s *checkScenario) {
+			s.baseTasks = withTask("0104_new")
+		}), []issue{{SpaceTask, "0104", AddedUnreserved, "docs/tasks/0104_new", "", ""}}},
 		{"task-form file is not a task", checkScenario{
 			headTasks: withTask("0104_new"), baseTasks: baseTasks, headADRs: baseADRs, baseADRs: baseADRs,
 		}, []issue{{SpaceTask, "", AddedMalformed, "docs/tasks/0104_new", "", ""}}},
