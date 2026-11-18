@@ -974,4 +974,4 @@ flowchart TD
 
 - 2026-11-17 承認（isseis、#945）
 - 2026-11-18 セッション中の再承認：レビューの関門の一覧に試行の結果を決める step・LAST_REVIEWED の定義・Escalation の Procedure を足し、見ていない commit の一覧と概要を step 3 の報告に示し、LAST_REVIEWED が HEAD の祖先でないときを判定のスクリプトの失敗とした。AFTER_CREATE の URL の形を決め、判定の規則を定める箇所をスクリプトの冒頭とし、PRE_MERGE の commit を見たとみなさない今の扱いを残した（isseis、#966）
-- 2026-11-18 セッション中の再承認：PR-2 がマージされるまでチェックポイントの入口が止まること、PR-2 自身のチェックポイントを `origin/main` の `runplan.md` で行うことを決めた（isseis、#未記入）
+- 2026-11-18 セッション中の再承認：PR-2 がマージされるまでチェックポイントの入口が止まること、PR-2 自身のチェックポイントを `origin/main` の `runplan.md` で行うことを決めた（isseis、#981）

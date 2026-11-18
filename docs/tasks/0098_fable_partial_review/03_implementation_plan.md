@@ -176,8 +176,8 @@
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/981
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: ADR の確かめと実地の確かめ（設計書 8 章の 3）
 
@@ -259,7 +259,7 @@ PR-2 のマージの後、PR-3 の `/runplan` の前に、人がほかのタス�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -674,15 +674,24 @@ PR-2:
 
 - Compared paths: `.claude/commands/runpr.md`
 - Merge-base: `3a643817c496e07a05ec5b2d85e6e0e8fbf6cb06`
-- Compared commit: `a27034c5303e21e1e9037f8e45ac3dc3c5f9880b`
+- Compared commit: `c6be7a250c86fc618b676dcc7b20347c3f6ec76f`
 
 Path diff:
 
 ````text
 diff --git a/.claude/commands/runpr.md b/.claude/commands/runpr.md
-index 349f0b742d2fe3520f7c01212c9e8192c69e8800..32814344eea45382ca49ea91d287b3da2fa58871 100644
+index 349f0b742d2fe3520f7c01212c9e8192c69e8800..2008e86ff9aca36847f357e262db6e634ef36444 100644
 --- a/.claude/commands/runpr.md
 +++ b/.claude/commands/runpr.md
+@@ -677,7 +677,7 @@ finished review observed had and every review in progress lacked, so that a
+
+     ```bash
+     git rev-parse --verify 'refs/remotes/origin/main^{commit}'
+-    git show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
++    git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
+     bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]
+     ```
+
 @@ -1072,8 +1072,19 @@ character as 2); the line shapes below are the examples to follow.
         for `ALL`, `ローカル CLI 未 <n> 件` for `PARTIAL <n>`, and
         `ローカル CLI 不明` for `PARTIAL` with no count (the script failed, or
@@ -726,4 +735,4 @@ index 349f0b742d2fe3520f7c01212c9e8192c69e8800..32814344eea45382ca49ea91d287b3da
 ## 変更履歴
 
 - 2026-11-17 承認（isseis、#958）
-- 2026-11-18 セッション中の再承認：PR-2 がマージされるまでチェックポイントの入口が止まること、PR-2 自身のチェックポイントを `origin/main` の `runplan.md` で行うことを決めた（isseis、#未記入）
+- 2026-11-18 セッション中の再承認：PR-2 がマージされるまでチェックポイントの入口が止まること、PR-2 自身のチェックポイントを `origin/main` の `runplan.md` で行うことを決めた（isseis、#981）
