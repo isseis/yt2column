@@ -77,6 +77,9 @@ describe("popup.html skeleton", () => {
     assert.equal(secondary?.getAttribute("type"), "button");
     assert.equal(secondary?.hasAttribute("hidden"), true);
     assert.equal(status?.getAttribute("role"), "status");
+    // The summary repeats what the checks section draws, so it is read out
+    // but not shown a second time.
+    assert.equal(status?.classList.contains("visually-hidden"), true);
   });
 
   it("has the status region as its only live region", () => {
