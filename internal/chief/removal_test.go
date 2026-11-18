@@ -964,6 +964,16 @@ func (rs *removalSetup) recordFiles() []string {
 func TestRemoveClosesThenRemoves(t *testing.T) {
 	sw, rs := newRemovalWorld(t)
 	rs.allowRemoval()
+	// A skip record, which a reset skipped for want of a report leaves, is
+	// one of the workspace's records too.
+	held := rs.held()
+	skip := skipPrefix + strings.Repeat("a", 64) + ".json"
+	if err := held.store().create(skip, map[string]string{"kept": "for the test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := held.Close(); err != nil {
+		t.Fatal(err)
+	}
 	deps := sw.finish()
 	out := rs.remove(deps, rs.tree)
 	if out.Result != RemoveDone || out.Workspace != rs.tree || out.Label != removalLabel || !allPassed(out.Checks) || len(out.Left) != 0 {
@@ -999,6 +1009,9 @@ func TestRemoveClosesThenRemoves(t *testing.T) {
 	}
 	if got := rs.recordFiles(); len(got) != 0 {
 		t.Errorf("records left %v", got)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(rs.createdPath()), skip)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the skip record: %v, want it removed", err)
 	}
 	o := out.Output()
 	if o.Result != "removed" || o.Refusal != "" || o.Stage != "" || o.Left == nil || len(o.Checks) != len(removalChecks) {
