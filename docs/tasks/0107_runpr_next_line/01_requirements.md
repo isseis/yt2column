@@ -50,9 +50,13 @@
 -   **ガードは、step 5 の最後の報告の NEXT 行の例と、step 4 のマージの質問の要約の 6 行目の例の両方を確かめる（F-001）。** chief は画面全体の NEXT 行を読み（`autosend.go:517` の `readScreenNext`）、食い違う行があれば読めないものとする（`screen_report.go:65-71`）。そのため、マージの質問の要約の NEXT 行も chief に届きうる。どちらの節の例も、画面と transcript の両方の経路で確かめる。`/runpr` は、送り先の表（`_context.md`「Command routing」）しだいで Claude Code でも OpenCode でも走るので、同じ例がどちらの経路でも読まれうる。また、経路を足しても手間はほとんど増えない。
     -   採らなかった案：issue #900 が名指す step 5 の例だけを確かめる案。step 4 の形が変わったときに気づけない。
     -   ADR: なし。本タスクの中で閉じる。
--   **例を取り出す既存のテストの関数（`cmd/yt2column/docs_test.go:444` の `codeTexts`）を `internal/doctestutil` に移し、`cmd/yt2column` のテストと本タスクのテストの両方から使う（F-002 の AC-07 で、変えてよい範囲に含める）。** 同じ関数をもう 1 つ写すと、`CLAUDE.md`「Key Design Patterns」の DRY に反するためである。`internal/doctestutil` は、ガードのテストが共有する Markdown の関数を置くパッケージである（`internal/doctestutil/doc.go`）。
-    -   採らなかった案：`internal/chief` のテストに写しを置き、変える範囲を `internal/chief` に限る案。写しが増える。
+-   **コードスパンを取り出す処理は、本タスクのテストの中に必要な分だけ持つ。既存のテストの関数（`cmd/yt2column/docs_test.go:442-460` の `codeTexts`）は移さず、変更は `internal/chief` のテストと `CLAUDE.md` にとどめる（F-002 の AC-07）。** 2026-11-19 に人が選んだ。`codeTexts` は、`review-records.sh` の呼び出し方を確かめるガード（`cmd/yt2column/review_records_test.go:1236`）など、信頼境界のガードの取り出しに使われている。移すときに振る舞いが少し変わると、それらのガードが黙って緩みうる。また、`internal/doctestutil` には形の違うコードスパンの正規表現がすでにあり（`internal/doctestutil/commands.go:76`）、移しても定義は 1 つにならない。
+    -   コードスパンを取り出す処理の写しが 1 つ増える（`cmd/yt2column/docs_test.go:440`・`cmd/fixprguard/docs_test.go:460`・`cmd/chief/docs_test.go:30`・`internal/doctestutil/commands.go:76` に続く）。`CLAUDE.md`「Key Design Patterns」の DRY に対する例外として受け入れる。理由は、本タスクの範囲（ガードだけ）を守り、既存の信頼境界のガードに触れないためである。まとめるなら、別のタスクで行う。
+    -   採らなかった案：`codeTexts` と `codeSpanRE` を `internal/doctestutil` に移し、`cmd/yt2column` の呼び出しも替える案。信頼境界のガードの取り出しに触れ、本タスクの範囲を広げる。
     -   ADR: なし。テストの関数の置き場所で、本タスクの中で閉じる。
+-   **フェンスで囲んだコードブロックの行は、NEXT 行の例に含めない（F-001）。** 2026-11-19 に人が選んだ。step 4 のコードブロック（`runpr.md:1040-1054`）はマージの質問の要約のひな形で、各行の後ろに表示の条件の注記（`(always; the forms below)` など）が付く。たとえば 6 行目をなしの形に書き換えると、注記のせいで、chief が実際に読む行は読めるのにガードが失敗しうる。6 行目の各形は、Kind 6 のコードスパン（`runpr.md:1090-1098`）で確かめる。
+    -   採らなかった案：ひな形の行も注記ごと読み取りに通す案。ひな形だけが変わったときにも気づけるが、注記のせいで誤って失敗しうる。
+    -   ADR: なし。本タスクの中で閉じる。
 
 ## 2. 目的とスコープ (Goals and Scope)
 
@@ -63,7 +67,6 @@
 ### 2.2. スコープ (In Scope)
 
 -   `runpr.md` の step 4 と step 5 にある NEXT 行の例（F-001 の冒頭で定める）を、chief の 2 つの読み取りの経路に通して確かめるテスト（F-001）。
--   例を取り出す既存のテストの関数を、`internal/doctestutil` に移すこと（F-002 の AC-07、1 章の「要件定義の際に決めたこと」）。
 -   `CLAUDE.md` の「Development Notes」の、文書を読むガードの一覧への 1 項目の追記（F-001）。
 
 ### 2.3. スコープ外 (Out of Scope)
@@ -81,10 +84,10 @@
 
 本書の「NEXT 行の例」は、`runpr.md` の step 4（見出し `## 4.`）と step 5（見出し `## 5.`）の節で、フェンスで囲んだコードブロックの外にあるインラインのコードスパンのうち、次のものを指す。
 
--   中身の前後の空白を除いたテキストが、chief が NEXT を名指す行と見なす形で始まる。つまり、リストの印や強調の記号の後に `NEXT` が続き、コロン（全角を含む）が続く（`internal/chief/screen_transcript_report.go:293` の `nextNaming`）。行をまたぐコードスパンは 1 つのスパンとして扱い、中の改行と、それに続く空白を 1 つの空白にまとめてから、この判定と AC-01 の読み取りに渡す。
--   ただし、形の定義として書かれ、コロンの後に値がないコードスパン（`runpr.md:1399` の `NEXT: `）は除く。
+-   中身の前後の空白を除いたテキストが、リストの印（`- `）の後か先頭から、語の `NEXT` で始まる。行をまたぐコードスパンは 1 つのスパンとして扱い、中の改行と、それに続く空白を 1 つの空白にまとめてから、この判定と AC-01 の読み取りに渡す。
+-   ただし、形の定義や名前として書かれ、中身が `NEXT` だけか `NEXT:` だけのコードスパン（`runpr.md:1399` の `NEXT: ` など）は除く。
 
-この取り出し方は、`NEXT:` の後の空白がない形や全角のコロンのように、chief の文法から外れた例も拾う。拾った例は AC-04 で失敗になる。フェンスで囲んだコードブロックの行は例に含めない。step 4 のコードブロック（`runpr.md:1040-1054`）はマージの質問の要約のひな形で、各行の後ろに表示の条件の注記（`(always; the forms below)` など）が付いており、chief が読む行そのものではないためである。
+この取り出し方は、コロンが落ちた形（`NEXT /runplan 0015`）、`NEXT:` の後の空白がない形、全角のコロンのように、chief の文法から外れた例も拾う。拾った例は AC-04 で失敗になる。フェンスで囲んだコードブロックの行は例に含めない（理由は 1 章の「要件定義の際に決めたこと」）。
 
 **Acceptance Criteria**:
 - **AC-01**: テストは、step 5 の節の NEXT 行の例のそれぞれを、chief の画面からの読み取りと transcript からの読み取りの両方に 1 行のテキストとして渡す。どちらの結果も「次のコマンドなし」か「コマンドとタスク」であることを確かめる。
@@ -99,8 +102,6 @@
 **Acceptance Criteria**:
 - **AC-07**: 実装の PR の差分は、次に挙げるものに限る。たとえば `.claude/commands/runpr.md` と、`internal/chief` の製品コード（`_test.go` 以外のファイル）は変わらない。
     -   `internal/chief` のテストファイル（`_test.go`）の追加と変更
-    -   `internal/doctestutil` への、例を取り出す関数と、それが使うコードスパンの正規表現と、そのテストの追加
-    -   `cmd/yt2column` のテストファイルで、移した関数と正規表現の元の定義を消し、使う箇所を移した先に替える変更
     -   `CLAUDE.md` の AC-06 の箇所
     -   本タスクのディレクトリ（`docs/tasks/0107_runpr_next_line/`）
 
