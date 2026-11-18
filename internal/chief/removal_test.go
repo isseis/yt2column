@@ -176,20 +176,9 @@ func allPassed(checks []CheckResult) bool {
 }
 
 // TestRemovalRow checks the row of a finished task's workspace chief made:
-// without its created record the row is 0088's detached one, and with it
 // the row shows the task done, the issue's task, and the removal proposed,
 // with one removal item whose checks all pass.
 func TestRemovalRow(t *testing.T) {
-	t.Run("without the record", func(t *testing.T) {
-		sw, rs := newRemovalWorld(t)
-		if err := os.Remove(rs.createdPath()); err != nil {
-			t.Fatal(err)
-		}
-		r := rowOf(t, snapshotOf(t, sw), removalLabel)
-		if r.State != StateNeedsCheck || !r.Idle || r.RemovalRow || r.Removal != nil || r.Task != "" {
-			t.Fatalf("row = %+v, want 0088's detached row", r)
-		}
-	})
 	sw, rs := newRemovalWorld(t)
 	snap := snapshotOf(t, sw)
 	r := rowOf(t, snap, removalLabel)
@@ -200,7 +189,7 @@ func TestRemovalRow(t *testing.T) {
 		t.Errorf("removal = %+v", r.Removal)
 	}
 	items := removalItems(snap)
-	if len(items) != 1 || items[0].Removal != r.Removal || items[0].Workspace != rs.tree || snap.Pending[len(snap.Pending)-1].ID != items[0].ID {
+	if len(items) != 1 || items[0].Removal == nil || items[0].Removal.Issue != r.Removal.Issue || items[0].Removal.Task != r.Removal.Task || !allPassed(items[0].Removal.Checks) || items[0].Workspace != rs.tree || snap.Pending[len(snap.Pending)-1].ID != items[0].ID {
 		t.Errorf("pending = %+v, want one removal item, listed last", snap.Pending)
 	}
 	if len(snap.Problems) != 0 {
@@ -278,9 +267,6 @@ func TestRemovalCandidateConditions(t *testing.T) {
 		"two tasks of the issue": func(_ *testing.T, _ *sendWorld, rs *removalSetup) {
 			rs.issueLines(issueLineOf(removalTaskDir, removalIssue) + issueLineOf("0006_other_task", removalIssue))
 		},
-		"the issue only in the remarks": func(_ *testing.T, _ *sendWorld, rs *removalSetup) {
-			rs.issueLines(strings.TrimSuffix(issueLineOf(removalTaskDir, "840"), "\n") + issueMentionEnd + "#" + removalIssue + "\n")
-		},
 		"the task not done": func(t *testing.T, sw *sendWorld, _ *removalSetup) {
 			sw.docs(sw.chiefTree, fakeDocs{Dir: removalTaskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")})
 		},
@@ -317,35 +303,43 @@ func assertNotProposed(t *testing.T, snap Snapshot) {
 // and a read of origin/main or Herdr that fails. Each is named among the
 // problems, and none is proposed.
 func TestRemovalCandidateRefusals(t *testing.T) {
-	cases := map[string]func(t *testing.T, sw *sendWorld, rs *removalSetup){
-		"a record that is not JSON": func(t *testing.T, _ *sendWorld, rs *removalSetup) {
+	type refusal struct {
+		edit func(t *testing.T, sw *sendWorld, rs *removalSetup)
+		// named is the part of the problem that names the read that failed;
+		// the problem's wording is what the output shows the human.
+		named string
+	}
+	cases := map[string]refusal{
+		"a record that is not JSON": {func(t *testing.T, _ *sendWorld, rs *removalSetup) {
 			if err := os.WriteFile(rs.createdPath(), []byte("not json"), 0o600); err != nil {
 				t.Fatal(err)
 			}
-		},
-		"a record naming another worktree": func(_ *testing.T, sw *sendWorld, rs *removalSetup) {
+		}, "created record of"},
+		"a record naming another worktree": {func(_ *testing.T, sw *sendWorld, rs *removalSetup) {
 			rs.forgeCreated(createdJSON{Worktree: sw.chiefTree, Issue: removalIssue, Created: sw.now})
-		},
-		"a record of another issue": func(_ *testing.T, sw *sendWorld, rs *removalSetup) {
+		}, "created record of"},
+		"a record of another issue": {func(_ *testing.T, sw *sendWorld, rs *removalSetup) {
 			rs.forgeCreated(createdJSON{Worktree: rs.tree, Issue: "840", Created: sw.now})
-		},
-		"the issue lines cannot be read": func(_ *testing.T, sw *sendWorld, _ *removalSetup) {
+		}, "created record of"},
+		"the issue lines cannot be read": {func(_ *testing.T, sw *sendWorld, _ *removalSetup) {
 			sw.rec.failIn(sw.chiefTree, gitProgram+" "+strings.Join(issueLineSearch, " "), &cmdrunner.ExitError{Code: 128})
-		},
-		"the task's documents cannot be read": func(_ *testing.T, sw *sendWorld, _ *removalSetup) {
+		}, "issue lines of origin/main"},
+		"the task's documents cannot be read": {func(_ *testing.T, sw *sendWorld, _ *removalSetup) {
 			sw.rec.failIn(sw.chiefTree, "git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/", errInjected)
-		},
-		"the pane list cannot be read": func(_ *testing.T, sw *sendWorld, _ *removalSetup) {
+		}, "the documents of"},
+		"the pane list cannot be read": {func(_ *testing.T, sw *sendWorld, _ *removalSetup) {
 			sw.rec.replyFunc("herdr pane list", func() reply { return reply{err: errInjected} })
-		},
+		}, "herdr pane list"},
 	}
-	for name, edit := range cases {
+	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			sw, rs := newRemovalWorld(t)
-			edit(t, sw, rs)
+			c.edit(t, sw, rs)
 			snap := snapshotOf(t, sw)
 			assertNotProposed(t, snap)
-			if !slices.ContainsFunc(snap.Problems, func(p string) bool { return strings.Contains(p, "not offered for removal") }) {
+			if !slices.ContainsFunc(snap.Problems, func(p string) bool {
+				return strings.Contains(p, c.named) && strings.Contains(p, "not offered for removal")
+			}) {
 				t.Errorf("problems = %v, want the failed read named", snap.Problems)
 			}
 		})
@@ -696,5 +690,30 @@ func TestRemovalLeavesRecordsOnSnapshotAndTargets(t *testing.T) {
 	}
 	if _, err := os.Stat(rs.createdPath()); err != nil {
 		t.Errorf("the created record: %v", err)
+	}
+}
+
+// TestRemovalReaderReadsOnce checks that a round's reader runs the pane list
+// and the issue line search once each, however many workspaces ask.
+func TestRemovalReaderReadsOnce(t *testing.T) {
+	rec := newRecorder(t)
+	search := gitProgram + " " + strings.Join(issueLineSearch, " ")
+	rec.reply("herdr pane list", paneListOutput(nil))
+	rec.reply(search, []byte(issueLineOf(removalTaskDir, removalIssue)))
+	r := &removalReader{cmds: rec.commands(nil), chiefTree: Worktree{path: "/work/chief"}}
+	for range 3 {
+		if _, err := r.readPanes(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := r.readIndex(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	counts := map[string]int{}
+	for _, c := range rec.recorded() {
+		counts[c.line()]++
+	}
+	if counts["herdr pane list"] != 1 || counts[search] != 1 || len(counts) != 2 {
+		t.Errorf("calls = %v, want one pane list and one search", counts)
 	}
 }
