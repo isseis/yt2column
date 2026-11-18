@@ -73,7 +73,9 @@ Work in the following order.
        checked.
 
      The exit code decides; do not read the file or compare label names
-     yourself, and do not write a label name in the report.
+     yourself. Do not write a label name read from the file in the report; the
+     `draft` label the report names is the fixed value of the `Draft issue
+     label` row.
    - `git fetch origin`. Search for a requirements document that already names
      issue `N` as its own (`対応 issue: [#N]`) on `origin/main`, on every
      `origin` branch, and on every local branch
