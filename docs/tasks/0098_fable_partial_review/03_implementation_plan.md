@@ -214,7 +214,7 @@ PR-2 のマージの後、PR-3 の `/runplan` の前に、人がほかのタス�
 **自動送信**: hold
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/990
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
