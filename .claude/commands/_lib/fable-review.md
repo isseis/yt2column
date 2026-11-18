@@ -382,7 +382,7 @@ d=$(git rev-parse --git-dir); for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD B
 b=$(git symbolic-ref -q --short HEAD || true); git config --list | awk -v cur="branch.$b." '!/^branch\./ || index($0, cur) == 1 || index($0, "branch.main.") == 1' | part config
 { git rev-parse --git-dir; git rev-parse --git-common-dir; } | sort -u | while IFS= read -r d; do [ ! -d "$d/info" ] || find "$d/info" -print; done | sort | hashes | part info
 h=$(git rev-parse --git-path hooks); { [ ! -d "$h" ] || { find "$h" -exec ls -ld {} +; find "$h" -print | sort | hashes; }; } | part hooks
-i=$(mktemp); cp "$(git rev-parse --git-path index)" "$i"; { git -c core.fsmonitor=false ls-files -s -z; GIT_INDEX_FILE="$i" git -c core.fsmonitor=false write-tree; } | part index; rm -f "$i"
+i=$(mktemp "${TMPDIR:-/tmp}/fable-index.XXXXXX"); trap 'rm -f "$i"' EXIT; cp "$(git rev-parse --git-path index)" "$i"; { git -c core.fsmonitor=false ls-files -s -z; GIT_INDEX_FILE="$i" git -c core.fsmonitor=false write-tree; } | part index
 git -c core.fsmonitor=false status --porcelain=v1 -z --untracked-files=all --ignore-submodules=none | part status
 { git rev-parse HEAD; r=$(git symbolic-ref -q HEAD || true); echo "$r"; [ -z "$r" ] || git rev-parse --verify -q "$r"; } | part head
 git -c core.fsmonitor=false ls-files -v -z | tr '\0' '\n' | { grep -E '^[a-zS] ' || true; } | sed 's/^. //' | hashes | part flags
