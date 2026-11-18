@@ -63,7 +63,7 @@ export const maxBodyBytes = 4_194_304;
 
 declare const preparedBrand: unique symbol;
 
-/** A request that passed every check. Only prepareSend and prepareStartInput create it. */
+/** A request that passed every check. Only prepareSend creates it. */
 export interface PreparedRequest {
   readonly body: ArticleBody;
   readonly [preparedBrand]: true;
@@ -100,13 +100,4 @@ function checkBodySize(body: ArticleBody): PrepareOutcome {
   }
   const request = { body } as PreparedRequest;
   return { kind: "ready", request };
-}
-
-/**
- * Measures an input received from another extension page again and builds the
- * request only when it fits, with the same size check as prepareSend. The
- * input is sent as given: its members are not rebuilt or trimmed. Never throws.
- */
-export function prepareStartInput(input: StartInput): PrepareOutcome {
-  return checkBodySize({ message: input, byteLength: startInputBytes(input) });
 }

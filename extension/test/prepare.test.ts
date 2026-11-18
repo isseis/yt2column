@@ -7,7 +7,6 @@ import {
   buildArticleBody,
   maxBodyBytes,
   prepareSend,
-  prepareStartInput,
 } from "../src/core/prepare.ts";
 import type { PrepareOutcome } from "../src/core/prepare.ts";
 
@@ -163,36 +162,5 @@ describe("prepareSend", () => {
       const body = buildArticleBody(inputOfSize(size), { title: "t" });
       assert.equal(body.byteLength, startPayloadBytes(body.message));
     }
-  });
-});
-
-describe("prepareStartInput", () => {
-  it("sends the received input unchanged, empty and blank members included", () => {
-    // buildArticleBody drops empty metadata; a received input is not rebuilt,
-    // so these members reach the request as given.
-    const input = {
-      videoUrl: watchUrl,
-      transcript: "\u3042",
-      title: "",
-      description: " \n ",
-    };
-    const outcome = prepareStartInput(input);
-    assert.ok(outcome.kind === "ready");
-    assert.deepEqual(outcome.request.body.message, {
-      videoUrl: watchUrl,
-      transcript: "\u3042",
-      title: "",
-      description: " \n ",
-    });
-  });
-
-  it("decides the size as prepareSend does: ready at the limit, blocked one byte over", () => {
-    const atLimit = buildArticleBody(inputOfSize(maxBodyBytes), {}).message;
-    const overLimit = buildArticleBody(
-      inputOfSize(maxBodyBytes + 1),
-      {},
-    ).message;
-    assert.equal(prepareStartInput(atLimit).kind, "ready");
-    assert.equal(blockedReason(prepareStartInput(overLimit)), "body-too-large");
   });
 });

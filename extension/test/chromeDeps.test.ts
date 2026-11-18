@@ -13,11 +13,9 @@ import {
   createRunnerPortConnector,
   createSelectionReader,
   createSwSend,
-  createSendDeps,
   createViewerChannelOpener,
   createViewerTabs,
   createWindowFocus,
-  createWorkerSend,
   listenForMessages,
   localItems,
   objectUrlLifetimeMs,
@@ -27,24 +25,16 @@ import {
   type I18nApi,
   type MessageEventsApi,
   type MessageListener,
-  type NativeMessagingApi,
   type ObjectUrlApi,
   type PortApi,
   type ScriptingApi,
   type TabOperationsApi,
   type ViewerChannel,
   type ViewerTabs,
+  viewerChannelName,
 } from "../src/browser/chromeDeps.ts";
-import { viewerChannelName } from "../src/core/extensionMessages.ts";
-import type {
-  AwaitStart,
-  ViewerChannelMessage,
-} from "../src/core/extensionMessages.ts";
 import type { PageSelection } from "../src/core/collect.ts";
-import type { SwRequest } from "../src/core/jobMessages.ts";
-import type { ArticleKey } from "../src/core/articleKey.ts";
-import { statusMessage } from "../src/core/hostMessage.ts";
-import { nativeHostName } from "../src/core/native.ts";
+import type { JobChannelMessage, SwRequest } from "../src/core/jobMessages.ts";
 
 type Injection = {
   readonly target: { readonly tabId: number };
@@ -334,102 +324,6 @@ describe("page metadata injection", () => {
   });
 });
 
-interface NativeCall {
-  readonly application: string;
-  readonly message: object;
-}
-
-interface RuntimeRecorder {
-  readonly runtime: NativeMessagingApi;
-  readonly calls: NativeCall[];
-}
-
-/**
- * A runtime whose sendNativeMessage records the call and then runs answer:
- * answer may call back (setting lastError for the callback's duration, as the
- * browser does) or throw instead of calling back.
- */
-function recordingRuntime(
-  answer: (respond: (response: unknown, lastError?: string) => void) => void,
-): RuntimeRecorder {
-  const calls: NativeCall[] = [];
-  const runtime: { lastError?: { message?: string } | undefined } & Pick<
-    NativeMessagingApi,
-    "sendNativeMessage"
-  > = {
-    sendNativeMessage(application, message, callback) {
-      calls.push({ application, message });
-      answer((response, lastError) => {
-        runtime.lastError =
-          lastError === undefined ? undefined : { message: lastError };
-        try {
-          callback(response);
-        } finally {
-          runtime.lastError = undefined;
-        }
-      });
-    },
-  };
-  return { runtime, calls };
-}
-
-describe("send dependencies", () => {
-  const message = statusMessage("key-1" as ArticleKey);
-
-  it("sends the message to the fixed host once and resolves its reply", async () => {
-    const reply = { v: 1, kind: "error", error: "server_timeout" };
-    const { runtime, calls } = recordingRuntime((respond) => respond(reply));
-    const result = await createSendDeps(runtime).sendNative(message);
-    assert.deepEqual(result, { kind: "message", value: reply });
-    assert.deepEqual(calls, [{ application: nativeHostName, message }]);
-  });
-
-  it("resolves a lastError as failed with its text, whatever the reply", async () => {
-    const { runtime } = recordingRuntime((respond) =>
-      respond(undefined, "Native host has exited."),
-    );
-    assert.deepEqual(await createSendDeps(runtime).sendNative(message), {
-      kind: "failed",
-      lastError: "Native host has exited.",
-    });
-  });
-
-  it("resolves a lastError without a message as failed", async () => {
-    const runtime: NativeMessagingApi = {
-      lastError: {},
-      sendNativeMessage: (_application, _message, callback) =>
-        callback(undefined),
-    };
-    assert.deepEqual(await createSendDeps(runtime).sendNative(message), {
-      kind: "failed",
-      lastError: undefined,
-    });
-  });
-
-  it("resolves a synchronous throw as failed instead of waiting", async () => {
-    const { runtime } = recordingRuntime(() => {
-      throw new TypeError("Message exceeded maximum allowed size of 64MiB.");
-    });
-    assert.deepEqual(await createSendDeps(runtime).sendNative(message), {
-      kind: "failed",
-      lastError: "TypeError: Message exceeded maximum allowed size of 64MiB.",
-    });
-  });
-
-  it("runs a scheduled callback after the delay unless it is cancelled", async () => {
-    const { runtime } = recordingRuntime(() => {});
-    const { schedule } = createSendDeps(runtime);
-    const ran: string[] = [];
-    schedule(50, () => ran.push("kept"));
-    const cancel = schedule(50, () => ran.push("cancelled"));
-    cancel();
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    assert.deepEqual(ran, [], "ran before the delay");
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.deepEqual(ran, ["kept"]);
-  });
-});
-
 describe("readUiLanguage", () => {
   const cases: { name: string; i18n: I18nApi; want: string | undefined }[] = [
     {
@@ -518,32 +412,6 @@ describe("runtime message listener", () => {
     assert.doesNotThrow(() => respond?.("r"));
     assert.deepEqual(responses, ["r"]);
   });
-});
-
-describe("worker send", () => {
-  const message: AwaitStart = { type: "await-start", sentAt: 1 };
-
-  it("resolves the worker's response", async () => {
-    const sent: unknown[] = [];
-    const send = createWorkerSend({
-      sendMessage: async (value) => {
-        sent.push(value);
-        return "reply";
-      },
-    });
-    assert.deepEqual(await send(message), { ok: true, value: "reply" });
-    assert.deepEqual(sent, [message]);
-  });
-
-  for (const [name, sendMessage] of [
-    ["a rejection", rejectWith("Could not establish connection.")],
-    ["a throw", throwWith("Extension context invalidated.")],
-  ] as const) {
-    it(`resolves ${name} as a failure`, async () => {
-      const result = await createWorkerSend({ sendMessage })(message);
-      assert.equal(result.ok, false);
-    });
-  }
 });
 
 describe("service worker send", () => {
@@ -808,10 +676,10 @@ describe("window focus", () => {
 });
 
 describe("viewer channel opener", () => {
-  const message: ViewerChannelMessage = {
-    type: "took-over",
+  const message: JobChannelMessage = {
+    type: "find",
     queryId: "0123456789abcdef0123456789abcdef",
-    tabId: 1,
+    jobId: "job-1",
   };
 
   /** Opens a channel backed by Node's BroadcastChannel, closed when the test ends. */

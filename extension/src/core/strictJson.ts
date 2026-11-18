@@ -1,10 +1,8 @@
-// Parses an untrusted response body into a JSON tree with the same rules as
+// Parses untrusted JSON text into a JSON tree with the same rules as
 // the server side's internal/strictjson. JSON.parse would silently accept a
 // repeated member name (the last one wins) and an unpaired surrogate escape,
 // so the bytes are parsed here instead of checked around JSON.parse. The
 // parse rejects rather than repairs: nothing is skipped, trimmed or replaced.
-
-import type { UnexpectedCheck } from "./exchange.ts";
 
 /** A parsed JSON value. Numbers keep their source text; nothing is converted here. */
 export type JsonValue =
@@ -18,23 +16,15 @@ export type JsonValue =
   | { readonly kind: "boolean"; readonly value: boolean }
   | { readonly kind: "null" };
 
-/** Accepts T only when every member of it is also a member of U. */
-type Subset<T extends U, U> = T;
-
-/**
- * Why the bytes are not one strict JSON value; for the developer log only.
- * Each value is also an UnexpectedCheck, so a response check logs it as one.
- */
-export type StrictJsonError = Subset<
+/** Why the bytes are not one strict JSON value; for the developer log only. */
+export type StrictJsonError =
   | "encoding" // not valid UTF-8
   | "bom" // starts with U+FEFF
   | "syntax" // not JSON
   | "duplicate-member" // a name repeated in one object, at any depth
   | "unpaired-surrogate" // a \uD800-\uDFFF escape without its pair
   | "trailing-data" // anything but whitespace after the value
-  | "too-deep", // nesting beyond the limit
-  UnexpectedCheck
->;
+  | "too-deep"; // nesting beyond the limit
 
 export type StrictJsonResult =
   | { readonly ok: true; readonly value: JsonValue }

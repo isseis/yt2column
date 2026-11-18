@@ -13,7 +13,7 @@ import {
   type ArticleLine,
   type LinkUrl,
 } from "../src/core/articleMarkdown.ts";
-import { maxResponseBytes } from "../src/core/exchange.ts";
+import { maxResultBytes } from "../src/core/wasmResult.ts";
 import { largeInputs } from "./helpers/largeMarkdown.ts";
 import { randomMarkdownInputs, randomSeeds } from "./helpers/randomMarkdown.ts";
 
@@ -821,7 +821,7 @@ describe("parseArticleMarkdown performance", () => {
   // unclosed, so that row checks the time limit itself rather than such a
   // search.
   const limitMs = 1000;
-  const size = maxResponseBytes;
+  const size = maxResultBytes;
   for (const { name, build } of largeInputs(size)) {
     // The time is reported, so the margin below the limit can be read in CI.
     it(`parses ${name} within ${limitMs} ms`, { timeout: 10_000 }, (t) => {

@@ -12,8 +12,6 @@ export function shownText(text: DisplayText): string {
   return text.truncated ? `${text.value}${ellipsis}` : text.value;
 }
 
-const unpairedSurrogates = /\p{Cs}/gu;
-
 /**
  * Whether text holds an unpaired surrogate. With the u flag a surrogate pair
  * is one code point, so only a lone (unpaired) surrogate has the general
@@ -21,14 +19,6 @@ const unpairedSurrogates = /\p{Cs}/gu;
  */
 export function hasUnpairedSurrogate(text: string): boolean {
   return /\p{Cs}/u.test(text);
-}
-
-/**
- * A copy of text with each unpaired surrogate replaced by U+FFFD, and every
- * other code point kept.
- */
-export function replaceUnpairedSurrogates(text: string): string {
-  return text.replace(unpairedSurrogates, "\ufffd");
 }
 
 /**

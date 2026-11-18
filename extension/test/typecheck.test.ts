@@ -294,27 +294,3 @@ typecheckSuite(
     },
   },
 );
-
-typecheckSuite(
-  "sendNative accepts only HostMessage",
-  (src) =>
-    `import type { SendDeps } from "${src("send.ts")}";\n` +
-    `import type { HostMessage } from "${src("core/hostMessage.ts")}";\n` +
-    `import type { StartInput } from "${src("core/prepare.ts")}";\n` +
-    "declare const deps: SendDeps;\n",
-  {
-    // The control: a message of the job API is accepted.
-    hostMessage: {
-      body:
-        "declare const message: HostMessage;\n" +
-        "export const sent = deps.sendNative(message);\n",
-    },
-    // The /articles body, the current form without v, is not a message.
-    currentForm: {
-      body:
-        "declare const input: StartInput;\n" +
-        "export const sent = deps.sendNative(input);\n",
-      code: "TS2345",
-    },
-  },
-);
