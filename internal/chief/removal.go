@@ -607,12 +607,14 @@ func (w WorkspaceCloser) close(ctx context.Context) error {
 
 // removeWorktree removes the worktree with `git worktree remove`, run in
 // chief's worktree and without --force, so git refuses a worktree with a
-// change or an untracked file and never removes a branch.
+// change or an untracked file and never removes a branch. The untracked
+// files are counted whatever the user's status.showUntrackedFiles says:
+// with "no", git would remove a worktree holding untracked files.
 func (w WorkspaceCloser) removeWorktree(ctx context.Context) error {
 	if err := w.made(); err != nil {
 		return err
 	}
-	_, err := w.cmds.git(ctx, w.chiefTree.String(), gitWorktree, "remove", w.tree.path)
+	_, err := w.cmds.git(ctx, w.chiefTree.String(), "-c", "status.showUntrackedFiles=all", gitWorktree, "remove", w.tree.path)
 	return err
 }
 
@@ -669,13 +671,24 @@ func unchanged(ctx context.Context, herdr Herdr, c RemovalCandidate, before clos
 	if r := checkPathUnused(c, panes); !r.Passed {
 		return "another workspace has a pane at the worktree"
 	}
+	// The pane list is read once more after the processes, so a pane opened
+	// while they were read is not closed unseen.
+	last, err := herdr.panes(ctx)
+	if err != nil {
+		return "herdr pane list cannot be read again: " + err.Error()
+	}
+	if !slices.Equal(closeViewOf(c.workspace, nil, last).panes, before.panes) || !checkPathUnused(c, last).Passed {
+		return "the workspace's panes changed"
+	}
 	return ""
 }
 
-// waitPanesGone reads Herdr's pane list until no pane of workspace is in
-// it. Contract: a read that fails stops the wait at once; panes still
-// listed after closeAttempts reads fail it.
-func waitPanesGone(ctx context.Context, herdr Herdr, sleep func(context.Context, time.Duration) error, workspace string) error {
+// waitPanesGone reads Herdr's pane list until no pane of the candidate's
+// workspace is in it, and checks that no other workspace has a pane at the
+// worktree then. Contract: a read that fails, and a pane of another
+// workspace at the worktree, stop the wait at once; panes of the workspace
+// still listed after closeAttempts reads fail it.
+func waitPanesGone(ctx context.Context, herdr Herdr, sleep func(context.Context, time.Duration) error, c RemovalCandidate) error {
 	for attempt := range closeAttempts {
 		if attempt > 0 {
 			if err := sleep(ctx, closeInterval); err != nil {
@@ -686,11 +699,14 @@ func waitPanesGone(ctx context.Context, herdr Herdr, sleep func(context.Context,
 		if err != nil {
 			return err
 		}
-		if workspacePanes(workspace, panes) == 0 {
+		if at := workspacesAtPath(panes, c.tree); slices.ContainsFunc(at, func(id string) bool { return id != c.workspace }) {
+			return fmt.Errorf("%w: another workspace has a pane at the worktree", errNotAsChecked)
+		}
+		if workspacePanes(c.workspace, panes) == 0 {
 			return nil
 		}
 	}
-	return fmt.Errorf("%w: the panes of workspace %s are still listed after it was closed", errNotAsChecked, workspace)
+	return fmt.Errorf("%w: the panes of workspace %s are still listed after it was closed", errNotAsChecked, c.workspace)
 }
 
 // recheckHead checks, just before the worktree is removed, that its HEAD is
@@ -714,6 +730,15 @@ func recheckHead(ctx context.Context, git GitReader, tree, head string) error {
 	}
 	if !reachable {
 		return fmt.Errorf("%w: origin/main no longer reaches the HEAD %s", errNotAsChecked, now)
+	}
+	// HEAD is read once more, so a commit made while the ancestry was read
+	// is not removed with the worktree.
+	last, err := git.Head(ctx, tree)
+	if err != nil {
+		return err
+	}
+	if last != head {
+		return fmt.Errorf("%w: the HEAD of the worktree moved from %s to %s", errNotAsChecked, head, last)
 	}
 	return nil
 }
@@ -799,7 +824,7 @@ func Remove(ctx context.Context, deps Deps, path string) (RemoveOutcome, error) 
 		run   func() error
 	}{
 		{RemoveStageCloseWorkspace, func() error { return closer.close(ctx) }},
-		{RemoveStageWaitPanes, func() error { return waitPanesGone(ctx, herdr, deps.Sleep, c.workspace) }},
+		{RemoveStageWaitPanes, func() error { return waitPanesGone(ctx, herdr, deps.Sleep, *c) }},
 		{RemoveStageRecheckHead, func() error { return recheckHead(ctx, git, tree, closer.head) }},
 		{RemoveStageRemoveWorktree, func() error { return closer.removeWorktree(ctx) }},
 		{RemoveStageRemoveRecords, held.ClearRecords},

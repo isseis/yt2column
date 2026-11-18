@@ -792,7 +792,7 @@ func TestWorkspaceCloser(t *testing.T) {
 			t.Errorf("removeWorktree: %v", err)
 		}
 		writes := writesOf(cw.rec)
-		want := []string{" herdr workspace close " + removalWS, cw.chief.path + " git worktree remove " + cw.tree.path}
+		want := []string{" herdr workspace close " + removalWS, cw.chief.path + " git " + strings.Join(worktreeRemoveArgs(cw.tree.path), " ")}
 		if !slices.Equal(writes, want) {
 			t.Errorf("writes %q, want %q", writes, want)
 		}
@@ -831,7 +831,7 @@ func TestWorkspaceCloser(t *testing.T) {
 
 // TestWorktreeRemoveKeepsBranch removes a task's worktree with the real git:
 // git refuses a worktree with a tracked change and one with an untracked
-// file, and a worktree on which a branch was made and left again for a
+// file (also when the user's configuration hides untracked files), and a worktree on which a branch was made and left again for a
 // detached HEAD is removed with that branch kept.
 func TestWorktreeRemoveKeepsBranch(t *testing.T) {
 	repo := newTestRepo(t)
@@ -847,9 +847,15 @@ func TestWorktreeRemoveKeepsBranch(t *testing.T) {
 		t.Fatal("git removed a worktree with a tracked change")
 	}
 	gitIn("checkout", "--", "README.md")
+	// The user's configuration that hides untracked files from git's
+	// status does not let git remove one.
+	repo.Git("config", "status.showUntrackedFiles", "no")
 	writeFile(t, filepath.Join(path, "new.txt"), "new\n")
 	if err := closer.removeWorktree(t.Context()); err == nil {
 		t.Fatal("git removed a worktree with an untracked file")
+	}
+	if _, err := os.Stat(filepath.Join(path, "new.txt")); err != nil {
+		t.Fatalf("the untracked file after the refusal: %v", err)
 	}
 	if err := os.Remove(filepath.Join(path, "new.txt")); err != nil {
 		t.Fatal(err)
@@ -880,7 +886,7 @@ func (rs *removalSetup) allowRemoval() {
 		rs.close()
 		return reply{out: readTestdata(sw.t, "herdr/workspace-close.json")}
 	})
-	sw.rec.allowWriteDo(gitProgram, sw.chiefTree, []string{gitWorktree, "remove", rs.tree}, func() reply {
+	sw.rec.allowWriteDo(gitProgram, sw.chiefTree, worktreeRemoveArgs(rs.tree), func() reply {
 		if rs.during != nil {
 			rs.during()
 		}
@@ -925,7 +931,7 @@ func writesOf(rec *recorder) []string {
 
 // removalWrites are the writes of a whole removal, in order.
 func (rs *removalSetup) removalWrites() []string {
-	return []string{" herdr workspace close " + removalWS, rs.sw.chiefTree + " git worktree remove " + rs.tree}
+	return []string{" herdr workspace close " + removalWS, rs.sw.chiefTree + " git " + strings.Join(worktreeRemoveArgs(rs.tree), " ")}
 }
 
 // recordFiles returns the record files left in the workspace's directory.
@@ -975,7 +981,7 @@ func TestRemoveClosesThenRemoves(t *testing.T) {
 	})
 	paneLists := at(func(c recordedCall) bool { return c.line() == "herdr pane list" })
 	closeAt := at(func(c recordedCall) bool { return c.line() == "herdr workspace close "+removalWS })
-	removeAt := at(func(c recordedCall) bool { return c.line() == "git worktree remove "+rs.tree })
+	removeAt := at(func(c recordedCall) bool { return c.line() == "git "+strings.Join(worktreeRemoveArgs(rs.tree), " ") })
 	if len(fetch) != 1 || len(status) != 1 || len(closeAt) != 1 || len(removeAt) != 1 || fetch[0] > status[0] || status[0] > closeAt[0] || closeAt[0] > removeAt[0] {
 		t.Errorf("fetch %v, status %v, close %v, remove %v; want one each, in that order", fetch, status, closeAt, removeAt)
 	}
@@ -1204,6 +1210,11 @@ func TestRemoveRefusesWhenChanged(t *testing.T) {
 				return reply{out: agentListOutput(agents)}
 			})
 		}},
+		{"a pane opened while the processes were read", func(sw *sendWorld, rs *removalSetup) {
+			after(sw, "herdr pane list", 2, func() reply {
+				return reply{out: paneListOutput(append(rs.paneList(), fakePane{Pane: removalWS + ":p4", Tab: removalWS + ":t4", Workspace: removalWS, Dir: rs.tree}))}
+			})
+		}},
 		{"the pane list cannot be read again", func(sw *sendWorld, _ *removalSetup) {
 			after(sw, "herdr pane list", 1, func() reply { return reply{err: errInjected} })
 		}},
@@ -1281,16 +1292,26 @@ func TestRemoveStopsAtEachStage(t *testing.T) {
 		// The wait reads up to its bound, sleeping between the reads.
 		{"the panes stay", "wait_panes", closeOK, nil, 1, closeAttempts - 1, []string{"workspace", "worktree", "registration", "record"}},
 		// A read that fails stops the wait at once, with no sleep. The
-		// checks and the re-read before the close read the list first.
+		// checks and the re-read before the close (twice) read the list
+		// first.
 		{"the pane list fails during the wait", "wait_panes", closeOK, func(sw *sendWorld, _ *removalSetup) {
-			after(sw, "herdr pane list", 2, func() reply { return reply{err: errInjected} })
+			after(sw, "herdr pane list", 3, func() reply { return reply{err: errInjected} })
 		}, 1, 0, []string{"workspace", "worktree", "registration", "record"}},
+		// Another workspace at the worktree once the panes are gone stops
+		// the wait at once.
+		{"another workspace takes the path", "wait_panes", func(sw *sendWorld, rs *removalSetup) {
+			sw.rec.allowWriteDo(herdrProgram, "", closeLine, func() reply {
+				rs.close()
+				rs.others = []fakePane{{Pane: "w9:p1", Tab: "w9:t1", Workspace: "w9", Dir: rs.tree}}
+				return reply{out: readTestdata(sw.t, "herdr/workspace-close.json")}
+			})
+		}, nil, 1, 0, []string{"worktree", "registration", "record"}},
 		{"git refuses the worktree", "remove_worktree", func(sw *sendWorld, rs *removalSetup) {
 			sw.rec.allowWriteDo(herdrProgram, "", closeLine, func() reply {
 				rs.close()
 				return reply{out: readTestdata(sw.t, "herdr/workspace-close.json")}
 			})
-			sw.rec.allowWrite(gitProgram, sw.chiefTree, []string{gitWorktree, "remove", rs.tree}, reply{err: &cmdrunner.ExitError{Code: 128}})
+			sw.rec.allowWrite(gitProgram, sw.chiefTree, worktreeRemoveArgs(rs.tree), reply{err: &cmdrunner.ExitError{Code: 128}})
 		}, nil, 2, 0, []string{"worktree", "registration", "record"}},
 		{"a record cannot be removed", "remove_records", func(sw *sendWorld, rs *removalSetup) {
 			rs.allowRemoval()
@@ -1348,14 +1369,25 @@ func TestRemoveStopsWhenHeadMoved(t *testing.T) {
 		// n is how many runs of line answer as before: the checks'.
 		n       int
 		changed reply
+		setup   func(sw *sendWorld, rs *removalSetup)
 	}{
-		{"HEAD moved", "git rev-parse HEAD", 1, reply{out: []byte(strings.Repeat("3", 40) + "\n")}},
-		{"HEAD no longer on origin/main", "git merge-base --is-ancestor " + mainCommit + " " + mainCommit, 1, reply{err: &cmdrunner.ExitError{Code: 1}}},
+		{"HEAD moved", "git rev-parse HEAD", 1, reply{out: []byte(strings.Repeat("3", 40) + "\n")}, nil},
+		// The recheck reads HEAD before and after the ancestry.
+		{"HEAD moved while the ancestry was read", "git rev-parse HEAD", 2, reply{out: []byte(strings.Repeat("3", 40) + "\n")}, nil},
+		{"HEAD no longer on origin/main", "git merge-base --is-ancestor " + mainCommit + " " + mainCommit, 1, reply{err: &cmdrunner.ExitError{Code: 1}}, nil},
+		// origin/main read again is another commit, which does not reach
+		// HEAD, so a recheck that kept the first read would remove.
+		{"origin/main read again does not reach HEAD", "git rev-parse " + originMain, 1, reply{out: []byte(strings.Repeat("4", 40) + "\n")}, func(sw *sendWorld, rs *removalSetup) {
+			sw.rec.failIn(rs.tree, "git merge-base --is-ancestor "+mainCommit+" "+strings.Repeat("4", 40), &cmdrunner.ExitError{Code: 1})
+		}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			sw, rs := newRemovalWorld(t)
 			rs.allowRemoval()
+			if c.setup != nil {
+				c.setup(sw, rs)
+			}
 			sw.rec.mu.Lock()
 			first := sw.rec.dirReplies[rs.tree+"\x00"+c.line]
 			sw.rec.mu.Unlock()
@@ -1443,7 +1475,7 @@ func (cw *createWorld) allowRemoval() {
 		cw.panes = slices.DeleteFunc(cw.panes, func(p *simPane) bool { return p.Workspace == "w1" })
 		return reply{out: readTestdata(cw.t, "herdr/workspace-close.json")}
 	})
-	cw.rec.allowWriteDo(gitProgram, cw.chiefTree, []string{gitWorktree, "remove", cw.tree}, func() reply {
+	cw.rec.allowWriteDo(gitProgram, cw.chiefTree, worktreeRemoveArgs(cw.tree), func() reply {
 		if err := os.RemoveAll(cw.tree); err != nil {
 			return reply{err: err}
 		}

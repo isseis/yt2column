@@ -78,11 +78,12 @@ func TestRecorderAllowsOnlyTheExactWrite(t *testing.T) {
 		{
 			"worktree remove",
 			func(r *recorder) { r.allowWorktreeRemove(chiefTree, "/h/issue-7") },
-			call(gitProgram, chiefTree, "worktree", "remove", "/h/issue-7"),
+			call(gitProgram, chiefTree, worktreeRemoveArgs("/h/issue-7")...),
 			[]recordedCall{
-				call(gitProgram, chiefTree, "worktree", "remove", "/h/issue-8"),
-				call(gitProgram, chiefTree, "worktree", "remove", "--force", "/h/issue-7"),
-				call(gitProgram, "/elsewhere", "worktree", "remove", "/h/issue-7"),
+				call(gitProgram, chiefTree, worktreeRemoveArgs("/h/issue-8")...),
+				call(gitProgram, chiefTree, "-c", "status.showUntrackedFiles=all", "worktree", "remove", "--force", "/h/issue-7"),
+				call(gitProgram, chiefTree, "worktree", "remove", "/h/issue-7"),
+				call(gitProgram, "/elsewhere", worktreeRemoveArgs("/h/issue-7")...),
 			},
 		},
 	}
