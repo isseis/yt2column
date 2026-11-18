@@ -212,13 +212,15 @@ func TestRunRefusals(t *testing.T) {
 			t.Errorf("run = %d, %v", code, out)
 		}
 	})
-	t.Run("reset before start", func(t *testing.T) {
-		h := newHarness(t)
-		code, out := h.run("reset", "--workspace", "/w", "--check", testCheck, "--protocol", protocol)
-		if code != exitRefused || out["reason"] != "not_started" {
-			t.Errorf("run = %d, %v", code, out)
-		}
-	})
+	for _, args := range ownerCalls {
+		t.Run(args[0]+" before start", func(t *testing.T) {
+			h := newHarness(t)
+			code, out := h.run(args...)
+			if code != exitRefused || out["reason"] != "not_started" {
+				t.Errorf("run = %d, %v", code, out)
+			}
+		})
+	}
 	t.Run("a pane without a session", func(t *testing.T) {
 		h := newHarness(t)
 		h.fake.sessionless = true
@@ -256,10 +258,81 @@ func TestRunRefusals(t *testing.T) {
 		if code, out := h.run("snapshot", "--protocol", protocol); code != exitRefused || out["reason"] != "not_owner" {
 			t.Errorf("snapshot by another chief = %d, %v; want refused, not_owner", code, out)
 		}
-		if code, out := h.run("reset", "--workspace", "/w", "--check", testCheck, "--protocol", protocol); code != exitRefused || out["reason"] != "not_owner" {
-			t.Errorf("reset by another chief = %d, %v; want refused, not_owner", code, out)
+		for _, args := range ownerCalls {
+			if code, out := h.run(args...); code != exitRefused || out["reason"] != "not_owner" {
+				t.Errorf("%s by another chief = %d, %v; want refused, not_owner", args[0], code, out)
+			}
 		}
 	})
+}
+
+// ownerCalls are calls of the subcommands that act only for the lock's
+// owner, with arguments that would otherwise run them.
+var ownerCalls = [][]string{
+	{"reset", "--workspace", "/w", "--check", testCheck, "--protocol", protocol},
+	{"targets", "--issue", "12", "--protocol", protocol},
+	{"create", "--issue", "12", "--protocol", protocol},
+	{"remove", "--workspace", "/w", "--protocol", protocol},
+}
+
+// writeCalls are the beginnings of the herdr and git calls that change a
+// pane, a tab, a workspace, an agent, or a worktree.
+var writeCalls = []string{
+	"herdr workspace create", "herdr workspace close", "herdr tab create", "herdr tab rename",
+	"herdr agent start", "herdr agent prompt", "herdr agent send-keys",
+	"git worktree add", "git worktree remove",
+}
+
+// writesOf returns the calls of calls that write to Herdr or git.
+func writesOf(calls []string) []string {
+	var writes []string
+	for _, call := range calls {
+		if slices.ContainsFunc(writeCalls, func(w string) bool { return strings.HasPrefix(call, w+" ") }) {
+			writes = append(writes, call)
+		}
+	}
+	return writes
+}
+
+// TestIssueFormIsNoUsageError checks that targets and create answer an
+// --issue of another form than an issue number with exit 0 and issue_form,
+// a finished run that tells the human what to type, and not with the usage
+// error a mistake of the definition gets; and that neither writes anything.
+func TestIssueFormIsNoUsageError(t *testing.T) {
+	for _, c := range []struct{ subcommand, member string }{{"targets", "refusal"}, {"create", "create_refusal"}} {
+		for _, issue := range []string{"#12", "0", "012", "twelve"} {
+			t.Run(c.subcommand+" "+issue, func(t *testing.T) {
+				h := newHarness(t)
+				if code, out := h.run("start", "--protocol", protocol); code != exitOK {
+					t.Fatalf("start = %d, %v", code, out)
+				}
+				code, out := h.run(c.subcommand, "--issue", issue, "--protocol", protocol)
+				if code != exitOK || out[c.member] != "issue_form" {
+					t.Errorf("%s --issue %q = %d, %v; want exit 0 with %s issue_form", c.subcommand, issue, code, out, c.member)
+				}
+				if writes := writesOf(h.fake.calls); len(writes) != 0 {
+					t.Errorf("%s --issue %q wrote %v", c.subcommand, issue, writes)
+				}
+			})
+		}
+	}
+}
+
+// TestTargetsWritesNothing runs targets with an issue number when no task
+// workspace offers /mkreq: it finishes with an empty list, and the fake
+// gets no call that writes to Herdr or git.
+func TestTargetsWritesNothing(t *testing.T) {
+	h := newHarness(t)
+	if code, out := h.run("start", "--protocol", protocol); code != exitOK {
+		t.Fatalf("start = %d, %v", code, out)
+	}
+	code, out := h.run("targets", "--issue", "12", "--protocol", protocol)
+	if list, ok := out["workspaces"].([]any); code != exitOK || out["issue"] != "12" || out["refusal"] != "" || !ok || len(list) != 0 {
+		t.Errorf("targets = %d, %v; want exit 0, issue 12, no refusal, no workspace", code, out)
+	}
+	if writes := writesOf(h.fake.calls); len(writes) != 0 {
+		t.Errorf("targets wrote %v", writes)
+	}
 }
 
 // testCheck has the shape of a check value and is no question's.
@@ -302,6 +375,13 @@ func TestRunUsageErrors(t *testing.T) {
 		{"reset", "--workspace", "/w", "--check", "not-a-check", "--protocol", protocol},
 		{"reset", "--workspace", "w", "--check", testCheck, "--protocol", protocol},
 		{"reset", "--workspace", "/w", "--check", testCheck, "--answer", "1=1", "--protocol", protocol},
+		{"targets", "--protocol", protocol},
+		{"targets", "--issue", "12", "--workspace", "/w", "--protocol", protocol},
+		{"create", "--protocol", protocol},
+		{"create", "--issue", "12", "--pr", "34", "--protocol", protocol},
+		{"create", "--issue", "12", "--issue", "13", "--protocol", protocol},
+		{"remove", "--protocol", protocol},
+		{"remove", "--workspace", "/w", "--issue", "12", "--protocol", protocol},
 	} {
 		h := newHarness(t)
 		var stdout bytes.Buffer
@@ -420,7 +500,7 @@ func noWorkspace(out map[string]any) bool {
 	return ok && a["outcome"] == "not_sent" && a["reason"] == "no_workspace"
 }
 
-// TestRunWorkspaceSubcommands runs send, relay, reset, detail, and release after start
+// TestRunWorkspaceSubcommands runs send, relay, reset, detail, release, and remove after start
 // with a --workspace that is no task workspace: each finishes (exit 0) and
 // says so, and nothing is typed into a pane (the fake fails on any command it
 // does not answer, prompt among them).
@@ -439,6 +519,9 @@ func TestRunWorkspaceSubcommands(t *testing.T) {
 		{[]string{"release", "--workspace", "/nowhere", "--protocol", protocol}, func(out map[string]any) bool {
 			p, ok := out["problem"].(string)
 			return out["released"] == false && ok && p != ""
+		}},
+		{[]string{"remove", "--workspace", "/nowhere", "--protocol", protocol}, func(out map[string]any) bool {
+			return out["result"] == "refused" && out["remove_refusal"] == "no_workspace"
 		}},
 	}
 	for _, c := range cases {

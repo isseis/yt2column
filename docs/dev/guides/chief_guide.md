@@ -1,6 +1,6 @@
 # chief 利用ガイド
 
-chief は、Herdr の workspace で並行して進むタスクを見渡し、人の判断を待つものを選択式で示し、マージの後の次のコマンドを自動で送る開発用の道具である。Go の道具 `chief`（`cmd/chief`・`internal/chief`）と、それを呼ぶコマンド `/chief`（`.claude/commands/chief.md`）からなる。判定と送信はすべて道具が行い、`/chief` のセッションは道具の出力を人に示し、人の選んだものを道具の引数で渡すだけである（[ADR-0046](../adr/0046-chief-of-staff.md)、[ADR-0014](../adr/0014-deterministic-checks-in-go.md)）。要件と設計は [0088 要件定義書](../../tasks/0088_chief_of_staff/01_requirements.md) と [0088 設計書](../../tasks/0088_chief_of_staff/02_architecture.md) にある。
+chief は、Herdr の workspace で並行して進むタスクを見渡し、人の判断を待つものを選択式で示し、マージの後の次のコマンドを自動で送る開発用の道具である。人が示した issue からタスク用の worktree と workspace を作り、終わったタスクの workspace を人の確認を得て消すこともできる。Go の道具 `chief`（`cmd/chief`・`internal/chief`）と、それを呼ぶコマンド `/chief`（`.claude/commands/chief.md`）からなる。判定と送信はすべて道具が行い、`/chief` のセッションは道具の出力を人に示し、人の選んだものを道具の引数で渡すだけである（[ADR-0046](../adr/0046-chief-of-staff.md)、[ADR-0014](../adr/0014-deterministic-checks-in-go.md)）。要件と設計は [0088 要件定義書](../../tasks/0088_chief_of_staff/01_requirements.md) と [0088 設計書](../../tasks/0088_chief_of_staff/02_architecture.md) に、作成と削除の要件と設計は [0092 要件定義書](../../tasks/0092_chief_task_workspace/01_requirements.md) と [0092 設計書](../../tasks/0092_chief_task_workspace/02_architecture.md) にある。
 
 ## 1. 前提条件
 
@@ -10,7 +10,7 @@ chief は、Herdr の workspace で並行して進むタスクを見渡し、人
 | エージェント | Claude Code 2.1.322 と OpenCode v2.2.6 の画面で確かめた。版が上がって画面の形が変わると、その workspace は「要確認」になり、何も送らない。Claude Code の transcript の報告の形は、2.1.325 と 2.1.326 の transcript から採った報告のサンプル（`internal/chief/testdata/README.md` の「報告の transcript」に挙げたもの）で確かめた。Claude Code の版が上がったら、transcript のサンプルを採り直す |
 | gh | 2.96.0 で確かめた。`gh auth login` を済ませておく |
 | bash | `make test` には PATH の最初の `bash` が 4 以上であることが要る（CLAUDE.md の「Development Notes」） |
-| workspace の作り | タスクごとに git の worktree を作り、それを Herdr の workspace で開く。送り先の pane は、workspace の中に送り先の種類のエージェント（Claude Code か OpenCode）の pane がちょうど 1 つあるときだけ選ばれる |
+| workspace の作り | タスクごとに git の worktree を作り、それを Herdr の workspace で開く。chief に作らせる（3.3）ことも、手で作ることもできる。chief が作るのは、`~/.herdr/worktrees/yt2column/issue-<N>` に `origin/main` から detached で作った worktree と、それを開いた名前 `issue-<N>` の workspace で、タブ `cmd`（シェル）・`opencode`・`claude` に pane を 1 つずつ置く。手で作るときもこの形にしてよいが、chief が削除を提案するのは chief が作った workspace だけである（3.4）。送り先の pane は、workspace の中に送り先の種類のエージェント（Claude Code か OpenCode）の pane がちょうど 1 つあるときだけ選ばれる |
 | chief の workspace | `/chief` を動かす workspace は、タスクの workspace と別にする。chief は自分の workspace へは送らない |
 
 ## 2. インストール
@@ -25,11 +25,11 @@ make install-chief
 
 | 項目 | 値 |
 |---|---|
-| プロトコル番号 | `3` |
+| プロトコル番号 | `4` |
 
 番号が合わないと、道具は何もせずに `protocol_mismatch` で拒む。番号を上げる PR では、その PR の `/runpr` の前に、その PR のブランチで入れ直す。
 
-**表に急ぎの度合いと進行の位置を足した版（タスク 0093）への入れ替え。** 道具の出力の形が変わったので、道具と `/chief` の定義を同じコミットからそろえる。
+**workspace の作成と削除を足した版（タスク 0092）への入れ替え。** サブコマンドと道具の出力の形が変わったので、道具と `/chief` の定義を同じコミットからそろえる。
 
 1.  動いている `/chief` を止める。古い定義のまま走っている `/chief` は、新しい道具に `protocol_mismatch` で拒まれて止まる。
 2.  chief の workspace の `.claude/commands/chief.md` を新しい版にし（`main` を更新する）、`make install-chief` を実行する。
@@ -39,7 +39,7 @@ make install-chief
 
 番号を変えずに道具と定義が変わることもある（たとえばサブコマンドや出力の欄が増える）。道具を入れ直したら、動いている `/chief` のセッションを終えて、`/chief` を起動し直す。古いセッションは、読み込んだときの定義のまま動き続けるためである。
 
-`.claude/settings.json` は `Bash(chief *)` を許すので、待ち受けの間に許可を尋ねない。道具は `chief` の語で始まり、ほかのコマンドと連ねない形でだけ呼ぶ（`/chief` の定義の「Calling the tool」）。
+`.claude/settings.json` は `Bash(chief *)` を許すので、待ち受けの間に許可を尋ねない。道具は `chief` の語で始まり、ほかのコマンドと連ねない形でだけ呼ぶ（`/chief` の定義の「Calling the tool」）。ただし、削除の `chief remove` は `ask` の規則 `Bash(chief remove *)` に当たるので、呼ぶたびに Claude Code が許可を尋ねる（6 章）。
 
 ## 3. 使い方
 
@@ -100,11 +100,28 @@ chief は同時に 1 つだけ動く。別のセッションで動いている c
 
 ### 3.2 人の判断を待つもの
 
-人の判断を待つものは、エージェントを止めている質問、`/runpr` のマージの確認、レビュー待ちの PR、そのほかの提案の順に、同じ種類の中では待っている時間の長い順に示される。報告が読めずに見送ったリセット（8 章の「報告が読めずに見送ったリセット」）は、そのほかの提案と同じ順位に並ぶ。待ち受けの間は、選択式の問いを開かずに一覧を示す。問いを開いている間はセッションが答えを待ち、待ち受けのラウンドが走らないためである。`once` の問いで示せるのは 3 つと「何もしない」で、示せなかったものは問いの文に workspace の名前で挙がる。その名前を自由記述の答えに書けば選べる。選んだ後の問い（中継する選択肢、`/runpr` を送るか、issue の番号など）は、待ち受けの間も選択式で尋ねる。
+人の判断を待つものは、エージェントを止めている質問、`/runpr` のマージの確認、レビュー待ちの PR、そのほかの提案、削除の提案（3.4）の順に、同じ種類の中では待っている時間の長い順に示される。一覧の最後、「何もしない」の前には、いつも「新しいタスクを始める」（3.3）が示される。報告が読めずに見送ったリセット（8 章の「報告が読めずに見送ったリセット」）は、そのほかの提案と同じ順位に並ぶ。待ち受けの間は、選択式の問いを開かずに一覧を示す。問いを開いている間はセッションが答えを待ち、待ち受けのラウンドが走らないためである。`once` の問いで示せるのは 3 つと「何もしない」で、示せなかったもの（「新しいタスクを始める」を含む）は問いの文に名前で挙がる。その名前を自由記述の答えに書けば選べる。選んだ後の問い（中継する選択肢、`/runpr` を送るか、issue の番号など）は、待ち受けの間も選択式で尋ねる。
+
+### 3.3 新しいタスクを始める
+
+一覧の「新しいタスクを始める」を選ぶと、chief は issue 番号を尋ねる。番号の形（10 進の数字だけで、`#`・符号・先頭の 0 を付けない）が違えば、そのことを示して何もしない。形が合えば、始める先を、新しい workspace を作る・`/mkreq` を提案しているタスクのない既存の各 workspace・何もしない から選ぶ。
+
+-   **既存の workspace を選んだとき。** その workspace の Claude Code の pane に `/mkreq <N>` を送る。issue は確かめない（「次を提案」の行から `/mkreq` を選ぶのと同じである）。
+-   **新しい workspace を作るとき。** chief は、GitHub で issue を読み、存在しない番号、閉じた issue、ラベル `draft` が付いた issue（下書きの issue）、PR の番号を拒む。次に、`origin/main` を fetch し、作る場所のパスにファイル・ディレクトリ・リンク・worktree の登録・そのパスを開いた workspace のどれかがあれば拒む。通れば、worktree・作ったことの記録・workspace・3 つのタブを作り、OpenCode と Claude Code を起動して、Claude Code の pane に `/mkreq <N>` を送る。結果には、issue の題名、作ったもの、`/mkreq` を送れたかが示される。
+-   **作る途中で止まったとき。** 止まった段と理由、それまでに作ったものが示される。chief は作ったものを消さず、`/mkreq` も送らない。示されたものを人が端末で片付けるか、そのままタスクに使う。
+-   **`/mkreq` を送れなかったとき。** 起動した Claude Code がフォルダの信頼などを尋ねていたときは、その pane で答える。どの場合も、その pane で `/mkreq <N>` を打つ。作った直後の worktree は detached なので、chief はその workspace に `/mkreq` を後から提案しない。
+
+作成には数分かかることがある（道具の上限は 7 分）。その間、`/chief` は待ち受けのラウンドを走らせず、自動送信もしない。
+
+### 3.4 終わったタスクの workspace を消す
+
+chief が作った workspace のうち、作ったときの issue を `対応 issue` とするタスクが `origin/main` にちょうど 1 つあり、すべての PR がマージされたものは、表で「タスク完了」・「削除を提案」と示され、一覧に削除の提案として並ぶ。提案には、workspace の名前、worktree のパス、issue とタスクの番号、pane の数、その時点の確かめの結果が示される。
+
+提案を選ぶと、chief は、消す workspace の名前、worktree のパス、workspace のすべての pane が閉じられることを示して、消すかを尋ねる。消すと答えると、Claude Code も道具の呼び出しの許可を尋ねる（6 章の `ask` の規則）。両方に答えると、道具は `origin/main` を fetch し、5.1 の確かめをすべて行い直し、通ったときだけ workspace を閉じて worktree を消す。通らなかったときは何も消さず、通らなかった確かめを示す。消す途中で止まったときは、止まった段と理由と残ったものを示し、消し直さない。残ったものは人が片付ける。
 
 ## 4. サブコマンドと終了コード
 
-どのサブコマンドも `--protocol N` を必須とし、標準出力に 1 つの JSON を書く。サブコマンドの細部は [0088 設計書](../../tasks/0088_chief_of_staff/02_architecture.md) の 3.1.1 にある。
+どのサブコマンドも `--protocol N` を必須とし、標準出力に 1 つの JSON を書く。サブコマンドの細部は [0088 設計書](../../tasks/0088_chief_of_staff/02_architecture.md) の 3.1.1 と、[0092 設計書](../../tasks/0092_chief_task_workspace/02_architecture.md) の 3.1 にある。
 
 | サブコマンド | 何をするか |
 |---|---|
@@ -117,10 +134,13 @@ chief は同時に 1 つだけ動く。別のセッションで動いている c
 | `reset` | 人の選んだ、見送ったリセットの項目を、確かめ直してから送る（`/clear` か `/new`） |
 | `detail` | workspace の開いている PR の詳細を集め、控える |
 | `release` | 人の選択で、workspace の送信の停止を解く |
+| `targets` | issue 番号の形を確かめ、`/mkreq` を提案しているタスクのない workspace を返す。作らず、issue も読まない |
+| `create` | issue を確かめ、worktree と workspace を作ってエージェントを起動し、`/mkreq` を送る（3.3） |
+| `remove` | 削除の確かめを行い直し、通れば workspace を閉じて worktree を消す（3.4） |
 
 | 終了コード | 意味 |
 |---|---|
-| `0` | 処理を終えた。送らなかった判断も含み、出力が理由を持つ |
+| `0` | 処理を終えた。送らなかった判断、作らなかった判断（issue 番号の形の違いを含む）、消さなかった判断、作成と削除が途中で止まったことも含み、出力が理由を持つ |
 | `1` | 道具の失敗（読めない入力、記録を作れない、外部のコマンドの失敗、`wait` の時間切れ） |
 | `2` | 使い方の誤り |
 | `3` | 何もせずに拒んだ（Herdr の外、ほかの chief がロックを持つ、`start` していない、`--protocol` が合わない、状態のディレクトリの土台がない、`HERDR_PANE_ID` がほかの worktree の pane を指す） |
@@ -134,17 +154,23 @@ chief は同時に 1 つだけ動く。別のセッションで動いている c
 -   **自動送信の引き金は画面ではない。** GitHub の PR の状態（`MERGED`）と git の状態で確かめ、画面と transcript からの判断は送ることを止めるか条件を狭める向きにだけ働く。マージした PR 1 件につき 1 回までで、chief を起動し直しても 2 回送らない。
 -   **分からないものは送らない。** 画面、Herdr の出力、計画書の欄、送り先の表、記録のどれかが決まった形に合わなければ、「要確認」か「送らない」にし、理由を示す。例外が 2 つある。Claude Code の transcript の値や種類の名前（応答の終わりを示す値など）だけが変わったときと、pane のセッションの transcript のファイルがないときは、その pane に報告がないものとし、自動送信の前の NEXT の照合を通る（8 章）。
 -   **送れたかが分からない送信は送り直さない。** その workspace への送信を、人が `release` で解くまで止める。
--   **待ち受けの中のネットワークの操作は読み取りだけである。** `git fetch origin main`・`git ls-remote`・`gh pr list`・`gh pr view`・`gh pr checks` だけを呼び、push、マージ、コメント、issue の操作はしない。
+-   **ネットワークの操作は読み取りだけである。** 待ち受けの中では `git fetch origin main`・`git ls-remote`・`gh pr list`・`gh pr view`・`gh pr checks` だけを呼ぶ。作成では、そのほかに `gh api graphql` で issue の番号・状態・題名・ラベルを読む。push、マージ、コメント、issue を書き換える操作はしない。
+-   **作るものは issue 番号だけから決まる。** パスと workspace の名前は issue 番号だけから決め、issue の題名などの中身では何も選ばない。題名は無害化して 200 文字までにして示すだけである。worktree は `git worktree add --detach` で作り、ブランチを作らない。エージェントは、人の代わりに許可や信頼を与える引数を付けずに起動する。同じパスに何かがあれば作らず、上書きしない。
+-   **消すのは、chief が作り、確かめを通った workspace だけである。** 削除の候補は、作ったことの記録があり、その記録のパスが記録の issue 番号から作ったパスと等しく、そのタスクが `origin/main` で完了した workspace に限る。消す直前に、次のすべてを確かめ直す。HEAD が detached である。追跡していないファイルを含めて変更がない。HEAD が `origin/main` から届く。worktree の登録が固定されていない。どのエージェントも実行中でも質問で止まってもいない。エージェントでない pane の前面のプロセスがその pane のシェル自身である。ほかの workspace がそのパスに pane を持たない。読めないものがあれば消さない。workspace を閉じる直前と worktree を消す直前にも読み直す。worktree は `--force` なしの `git worktree remove` で消し、変更があれば git が拒む。ブランチ、ほかの worktree、worktree の外のファイルは消さない。
+-   **作成と削除と自動送信は重ならない。** `create` は状態のディレクトリの作成の排他を持って動き、`tick` は自動送信の間その排他を持つ。取れないラウンドは自動送信をせず、そのことを示して、条件のそろった PR を次のラウンドへ持ち越す。
 
 ### 5.2 保証しないこと
 
 -   **同じ利用者のほかのプロセスからの守り。** 同じ利用者のプロセス（ほかの worktree のエージェントを含む）は、`chief` も `herdr` も直接呼べ、状態のディレクトリも `origin/main` の参照も書ける。chief の守りは、chief のセッションが信頼できない文字列に従っても決まった範囲の外の入力を送らないことにあり、悪意のあるプロセスを防ぐことにはない（設計書 5.2 の残る危険）。
 -   **settings.json の拒否の規則の外の書き方。** 拒否は前方一致の規則なので、パスで書いた呼び出しなどは拒めない（6 章）。
+-   **人の確認が行われたこと。** 削除の前に人に尋ねるのは `/chief` のセッションで、道具はそれが行われたかを確かめられない。`ask` の規則が、呼ぶたびに Claude Code の許可の確認を出すことで、これを補う。
+-   **偽った作ったことの記録。** 記録は同じ利用者のプロセスが書ける。偽った記録が名指せるのは `issue-<N>` の形のパスの worktree だけで、消すには人の確認と 5.1 の確かめが要る。
+-   **workspace を閉じて失われるもの。** シェルの背景のジョブと止めたジョブ、Claude Code の背景の実行は確かめられず、workspace を閉じると終わる。git が無視するファイル（ビルドの成果物など）は worktree とともに消える。
 -   **人が選ぶ送信の次のコマンドの鮮度。** 人が選んで送るコマンドは、ローカルの `origin/main` の文書から決まる。マージの直後は、次の fetch まで 1 段前のコマンドを示しうる。表で確かめてから選ぶ。
 
 ## 6. `.claude/settings.json` の拒否
 
-chief のセッションが道具を通さずに入力を送らず、タスクの作業を壊さないよう、リポジトリの `.claude/settings.json` は次の herdr の呼び出しを拒む（ADR-0046）。この拒否は、リポジトリで動くすべての Claude Code のセッションに効く。道具は子のプロセスとして `herdr` を呼ぶので、影響を受けない。
+chief のセッションが道具を通さずに入力を送らず、タスクの作業を壊さないよう、リポジトリの `.claude/settings.json` は次の herdr と git の呼び出しを拒む（ADR-0046）。この拒否は、リポジトリで動くすべての Claude Code のセッションに効く。道具は子のプロセスとして `herdr` を呼ぶので、影響を受けない。
 
 | 種類 | 拒む呼び出し |
 |---|---|
@@ -152,8 +178,12 @@ chief のセッションが道具を通さずに入力を送らず、タスク�
 | エージェントの状態とセッションを Herdr に報告する | `herdr pane report-agent`・`herdr pane report-agent-session`・`herdr pane release-agent` |
 | pane・タブ・workspace・セッション・worktree を閉じるか消す、エージェントの連携を変える、Herdr を止めるか入れ替える | `herdr pane close`・`herdr tab close`・`herdr workspace close`・`herdr session stop`・`herdr session delete`・`herdr worktree remove`・`herdr integration install`・`herdr integration uninstall`・`herdr server stop`・`herdr update` |
 | サブコマンドの前に、別のセッションか別の機械を指す引数を書く | `herdr --session`・`herdr --machine`・`herdr --remote` で始まるもの |
+| workspace・タブ・pane・worktree を作るか、pane を動かす | `herdr workspace create`・`herdr tab create`・`herdr pane split`・`herdr pane move`・`herdr worktree create`・`herdr worktree open` |
+| git の worktree を足す、消す、動かす | `git worktree add`・`git worktree remove`・`git worktree move` |
 
-読み取りの呼び出し（`list`・`get`・`read` など）は拒まない。人がこれらの操作を Claude Code に頼むと拒まれるので、その操作は人が端末で直接行う。画面のサンプルを採り直すときのキー入力も、人が行う。
+読み取りの呼び出し（`list`・`get`・`read`、`git worktree list` など）は拒まない。`herdr workspace rename`・`herdr tab rename` も拒まない。chief は workspace を名前でなくパスで確かめるためである。人がこれらの操作を Claude Code に頼むと拒まれるので、その操作は人が端末で直接行う。画面のサンプルを採り直すときのキー入力も、人が行う。
+
+あわせて、`ask` に `Bash(chief remove *)` を置く。Claude Code の許可の規則は `deny`・`ask`・`allow` の順に強く、`allow` の `Bash(chief *)` より先に効くので、削除の呼び出しのたびに許可の確認が出る。auto mode のセッションでも出ることを確かめた（[0092 計画書](../../tasks/0092_chief_task_workspace/03_implementation_plan.md) の「PR-1 の実行の記録」）。
 
 ## 7. 状態のディレクトリ
 
@@ -165,12 +195,14 @@ chief のセッションが道具を通さずに入力を送らず、タスク�
 | 通知の記録 | `notice-*.json` | 同じものを 2 回通知しない。待っている時間による並べ方。セッションの中の項目の番号（人が番号で答えた項目を見分ける） |
 | ラウンドの記録・PR が開いているのを見た記録 | `round-*.json`・`observe-*.json` | 自動送信の条件（chief の待ち受けの中でマージを見たこと） |
 | 自動送信の記録 | `autosend-<PR 番号>.json` | マージした PR 1 件につき 1 回に限る |
-| workspace ごとの記録 | worktree の正規のパスの SHA-256 の 16 進を名前にした下のディレクトリ | 送信の記録（`send-*.json`）、PR の詳細の控え（`detail-*.json`）、報告の控え（`report-*.json`。PR の詳細の控えを作った後に書かれた、PR を作ったコマンドの報告を、人が PR の詳細を見直したときに控える）、送信の停止（`stop.json`）、見送りの記録（`skip-*.json`。報告が読めずに見送ったリセットを、後のラウンドで人に示すためのもの） |
+| 作成の排他 | 下のディレクトリ `create` | 作成と、`tick` の自動送信を重ねない |
+| workspace ごとの記録 | worktree の正規のパスの SHA-256 の 16 進を名前にした下のディレクトリ | 送信の記録（`send-*.json`）、PR の詳細の控え（`detail-*.json`）、報告の控え（`report-*.json`。PR の詳細の控えを作った後に書かれた、PR を作ったコマンドの報告を、人が PR の詳細を見直したときに控える）、送信の停止（`stop.json`）、見送りの記録（`skip-*.json`。報告が読めずに見送ったリセットを、後のラウンドで人に示すためのもの）、作ったことの記録（`created.json`。chief が作った worktree のパスと issue 番号。削除の候補を名指すことにだけ読む） |
 
 -   **送信の停止を解く。** `/chief` の問いで `停止を解く: <workspace の名前>` と答えるか、ほかの方法がないときだけ、その workspace のディレクトリの `stop.json` を人が消す。停止の記録を読めない workspace（表に、停止の記録を読めないと示される）には `停止を解く` は示されないので、`stop.json` の中身と pane を人が確かめてから消す。停止の理由と、そのときの画面は、状況の表に示される。消す前に、止まった送信がその pane で何をしたかを確かめる。
 -   **見送りの記録。** ラウンドは見送りの記録を読むだけで、作りも消しもしない。記録が消えるのは、人が選んだリセットを送る直前、chief がその pane へコマンドかリセットを打てたとき、`start` の片付けのときである。決まった形に合わない記録は項目にならず、ラウンドの `problems` にパスと理由が示される。その記録は、人が手で消してよい。
 -   **片付け。** `start` が、終わったセッションのラウンド・観測・通知の記録、始めと終わりの両方を書いた古い送信の記録、14 日より古い PR の詳細の控えと報告の控えと見送りの記録（読めない見送りの記録は、ファイルの更新が 14 日より古いもの）を消す。終わりの記録のない送信の記録は消さず、送信の停止に変える。自動送信の記録は消さない（消すと、同じマージで 2 回送りうる）。
--   **すべてを消す。** chief が動いていないときに、ディレクトリごと消してよい。消した後は、chief を起動する前のマージを自動では送らず、提案として示す。
+-   **作るときと消すときの記録。** `create` は、作る前に、同じパスの workspace ごとの記録（前の使い方の送信の停止など）をすべて消してから、作ったことの記録を書く。`remove` は、worktree を消し終えた後に、その workspace ごとの記録をすべて消す。作ったことの記録は最後に消す。
+-   **すべてを消す。** chief が動いていないときに、ディレクトリごと消してよい。消した後は、chief を起動する前のマージを自動では送らず、提案として示す。作ったことの記録も消えるので、chief が作った workspace は削除の提案に出なくなる。
 
 ## 8. 既知の制限
 
@@ -195,6 +227,9 @@ chief のセッションが道具を通さずに入力を送らず、タスク�
 -   **`/clear` の直後は古いセッションのコマンドを示しうる。** ラウンドの初めに読んだ Herdr のセッションの識別が、`/clear` の直後でまだ古いと、古いセッションの記録のコマンドを示しうる。
 -   **人が引数なしで打ったコマンドは示されない。** 人が引数なしで打ったコマンド（`/runpr` など）は、記録の形が人の入力の読み取りの受け付ける形と違い、「そのほかの人の入力」と読まれる。その前にタスクのコマンドがあればそれに「（後に指示あり）」を添えて示し、なければ何も示さない（`not_task_command`）。前のコマンドを示すとき、状態の列と文書の列も前のコマンドから決まる。たとえば `/runplan` の後に引数なしの `/runpr` を打つと、`/runpr` が走っている間も、状態は「作成中」のままである。
 -   **起動し直すと長く走る OpenCode のコマンドは示されない。** `chief start` は、始めと終わりの両方を書いた 25 分より古い送信の記録を消す（7 章の「片付け」）。そのため、長く走る OpenCode のコマンドは、chief を起動し直した後に示されなくなる。
+-   **エージェントのいない workspace は提案されない。** chief はエージェントの作業ディレクトリから workspace を見つけるので、エージェントがすべて終了した workspace は表に出ず、削除も提案されない。人が端末で片付ける。
+-   **作ったことの記録だけが残った worktree は表に出ない。** 作成が workspace を作る前に止まったときや、削除が workspace を閉じた後に止まったときは、worktree と記録が残っても表に出ない。結果に示された残ったものを、人が端末で片付ける。
+-   **作るか消すと、ほかの workspace の `make coverage-compare` が止まる。** 比較は、走っている間の `git worktree list` の変化を見つけると止まる（`internal/coveragecompare/userstate.go`）。比較の間は作成と削除を避けるか、止まったら走らせ直す。
 -   **中継しない質問。** 権限の確認、自由に書く答え、複数を選ぶ問い、1 つの画面に複数の問い（タブ）がある質問、読む量の上限で切った質問は、中身を示すだけで中継しない。人がその pane で直接答える。
 
 ## 9. 試作から移る

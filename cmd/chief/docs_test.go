@@ -247,14 +247,23 @@ func fillPlaceholders(t *testing.T, args []string) []string {
 	return filled
 }
 
+// promptedSubcommand is the one subcommand the settings' ask rule makes
+// Claude Code confirm at every call: the removal, which closes a workspace
+// and removes a worktree.
+const promptedSubcommand = cmdRemove
+
 // TestDocumentedInvocationsParse: every chief call in the command documents
-// is written in the form the permission rule Bash(chief *) allows without
-// the prompt, and passes the tool's own checks of its subcommand, flags, and
-// request with its placeholders filled in, so the installed tool runs it
-// instead of stopping at the prompt or returning a usage error. The /chief
-// definition must hold a call of every subcommand: one that lost a call
-// would pass every check of the calls left.
+// is written in the form the permission rule Bash(chief *) allows (the bare
+// tool name alone in its command), and passes the tool's own checks of its
+// subcommand, flags, and request with its placeholders filled in, so the
+// installed tool runs it instead of returning a usage error. A call matches
+// an ask rule of the settings exactly when it is a call of
+// promptedSubcommand: that call gets Claude Code's permission prompt every
+// time, and every other call runs without one, so watching never stops at
+// a prompt. The /chief definition must hold a call of every subcommand: one
+// that lost a call would pass every check of the calls left.
 func TestDocumentedInvocationsParse(t *testing.T) {
+	ask := readSettings(t).Permissions.Ask
 	called := map[string]struct{}{}
 	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
 		for _, call := range doctestutil.Invocations(readRepoFile(t, rel), toolWord) {
@@ -266,6 +275,10 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 			if err != nil {
 				t.Errorf("%s: %s %q is a usage error: %v", rel, toolWord, call.Args, err)
 				continue
+			}
+			text := strings.Join(append([]string{toolWord}, call.Args...), " ")
+			if asked := slices.ContainsFunc(ask, func(rule string) bool { return matchesRule(rule, text) }); asked != (subcommand == promptedSubcommand) {
+				t.Errorf("%s: %q matches an ask rule of %q: %t, want %t", rel, text, ask, asked, subcommand == promptedSubcommand)
 			}
 			if _, err := parseRequests(subcommand, flags); err != nil {
 				t.Errorf("%s: %s %q is a malformed request: %v", rel, toolWord, call.Args, err)
@@ -301,8 +314,20 @@ func TestNoDirectHerdrInvocation(t *testing.T) {
 type settings struct {
 	Permissions struct {
 		Allow []string `json:"allow"`
+		Ask   []string `json:"ask"`
 		Deny  []string `json:"deny"`
 	} `json:"permissions"`
+}
+
+// matchesRule reports whether the Bash permission rule rule, of the form
+// Bash(<prefix>*) the settings use, matches the command text.
+func matchesRule(rule, text string) bool {
+	inner, ok := strings.CutPrefix(rule, "Bash(")
+	if !ok {
+		return false
+	}
+	prefix, ok := strings.CutSuffix(inner, "*)")
+	return ok && strings.HasPrefix(text, prefix)
 }
 
 func readSettings(t *testing.T) settings {
@@ -320,8 +345,10 @@ func readSettings(t *testing.T) settings {
 // checks read; the calls that close or remove a pane, tab, workspace,
 // session, or worktree, change Herdr's agent integration, or stop or
 // replace Herdr, which would end the work of a task without typing into it;
-// and the global flags before a subcommand that point at another session or
-// machine, which would get past the prefixes above. A rule of the closing
+// the global flags before a subcommand that point at another session or
+// machine, which would get past the prefixes above; and the calls that
+// create a workspace, a tab, a pane, or a worktree, or move a pane, which
+// only the tool does, from a validated issue number. A rule of the closing
 // group ends in "*" with no space, so it also matches the call with no
 // argument, which acts on the current pane, tab, or workspace. A
 // rule ending in " *" matches the call with arguments; one ending in "*"
@@ -352,6 +379,21 @@ var deniedHerdr = []string{
 	"Bash(herdr --session*)",
 	"Bash(herdr --machine*)",
 	"Bash(herdr --remote*)",
+	"Bash(herdr workspace create*)",
+	"Bash(herdr tab create*)",
+	"Bash(herdr pane split*)",
+	"Bash(herdr pane move*)",
+	"Bash(herdr worktree create*)",
+	"Bash(herdr worktree open*)",
+}
+
+// deniedGit are the git calls the settings must deny (ADR-0046): adding,
+// removing, or moving a worktree, which only the tool does, removing only a
+// worktree that passed every removal check.
+var deniedGit = []string{
+	"Bash(git worktree add*)",
+	"Bash(git worktree remove*)",
+	"Bash(git worktree move*)",
 }
 
 // TestSettingsDeniesPaneInput: .claude/settings.json denies every herdr
@@ -369,6 +411,34 @@ func TestSettingsDeniesPaneInput(t *testing.T) {
 		if strings.HasPrefix(rule, "Bash(herdr") {
 			t.Errorf("permissions.allow has %q, which may reach a pane without the tool", rule)
 		}
+	}
+}
+
+// TestSettingsDeniesWorktreeChanges: .claude/settings.json denies every git
+// call of deniedGit and allows no git worktree rule, so a session cannot
+// make or remove a task's worktree without the tool and its checks.
+func TestSettingsDeniesWorktreeChanges(t *testing.T) {
+	s := readSettings(t)
+	for _, rule := range deniedGit {
+		if !slices.Contains(s.Permissions.Deny, rule) {
+			t.Errorf("permissions.deny %q does not contain %q", s.Permissions.Deny, rule)
+		}
+	}
+	for _, rule := range s.Permissions.Allow {
+		if strings.HasPrefix(rule, "Bash(git worktree") {
+			t.Errorf("permissions.allow has %q, which may change a worktree without the tool", rule)
+		}
+	}
+}
+
+// TestSettingsAsksBeforeRemove: .claude/settings.json asks before every
+// call of the removal subcommand, so Claude Code asks the human to confirm
+// the removal outside the session too; an ask rule wins over the allow rule
+// Bash(chief *).
+func TestSettingsAsksBeforeRemove(t *testing.T) {
+	want := "Bash(" + toolWord + " " + promptedSubcommand + " *)"
+	if ask := readSettings(t).Permissions.Ask; !slices.Contains(ask, want) {
+		t.Errorf("permissions.ask %q does not contain %q", ask, want)
 	}
 }
 

@@ -215,7 +215,7 @@ Project-specific values these commands depend on are defined once in
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/japrose <file>` - Japanese prose-quality pass
 - `/mktrans README.md` - Carry `README.md` changes into `README.en.md` (the only translation pair)
-- `/chief [once]` - Show the task workspaces in Herdr, ask the human about what waits on them, and keep watching, sending the next command after a merge by itself; `once` shows and asks once without watching. Run it in a Claude Code pane of its own Herdr workspace ([chief_guide.md](docs/dev/guides/chief_guide.md))
+- `/chief [once]` - Show the task workspaces in Herdr, ask the human about what waits on them, and keep watching, sending the next command after a merge by itself; `once` shows and asks once without watching. It also starts a new task from an issue the human names, making its worktree and workspace and sending `/mkreq`, and removes a finished task's workspace that it made, after the human confirms. Run it in a Claude Code pane of its own Herdr workspace ([chief_guide.md](docs/dev/guides/chief_guide.md))
 
 Each task PR is handled by two commands. The command that produces it —
 `/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
@@ -1025,7 +1025,9 @@ section of the Requirements Process Guide.
   user's explicit approval
 - Invoking `/chief` approves, for that session, the read-only network operations
   the `chief` tool runs while it shows the status and watches: `git fetch origin
-  main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`. It
-  approves no write (push, merge, comment, or issue operation); the tool runs
-  none. The tool is called only in the form `.claude/commands/chief.md` gives,
+  main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`; and,
+  when the human starts a new task in a new workspace, the read of that issue
+  with the tool's one `gh api graphql` query of `issueOrPullRequest` (its
+  number, state, title, and labels). It approves no write (push, merge,
+  comment, or issue operation); the tool runs none. The tool is called only in the form `.claude/commands/chief.md` gives,
   and the agents never install or build it: the user installs it from `main`

@@ -394,16 +394,16 @@
 
 **変更するファイル:** `cmd/chief/main.go`・`main_test.go`・`docs_test.go`、`internal/chief/records.go`（`Protocol`）、`.claude/commands/chief.md`、`.claude/settings.json`、`CLAUDE.md`、`docs/dev/guides/chief_guide.md`、`docs/dev/conventions/package_reference.md`、本計画。ステップ 7-6 で足すときは、0093 の部品のファイルとテスト
 
--   [ ] **ステップ 7-1**: `cmd/chief/main.go` に `targets --issue <N>`・`create --issue <N>`・`remove --workspace <W>` を足し、パッケージのコメントと使い方の文を直す（設計書 3.1）。`targets` と `create` は `--issue` を文字列のまま道具へ渡す。`Protocol` を、`origin/main` の値より 1 大きくする（決定 3・14。0093 が先に 2 にしていれば 3）。テストは次を確かめる。
+-   [x] **ステップ 7-1**: `cmd/chief/main.go` に `targets --issue <N>`・`create --issue <N>`・`remove --workspace <W>` を足し、パッケージのコメントと使い方の文を直す（設計書 3.1）。`targets` と `create` は `--issue` を文字列のまま道具へ渡す。`Protocol` を、`origin/main` の値より 1 大きくする（決定 3・14。0093 が先に 2 にしていれば 3）。テストは次を確かめる。
     -   引数の表、3 つのサブコマンドがロックの持ち主を確かめること、出力と終了コード。
     -   形の違う `--issue` が、終了コード 2 ではなく、終了コード 0 と `issue_form` になること（AC-06）。
     -   `targets` で、`cmd/chief` の fake が書き込みの呼び出しを受けないこと（決定 7）。
--   [ ] **ステップ 7-2**: `.claude/commands/chief.md` を直す（設計書 3.7）。新しいタスクを始める入口と流れ、作成の結果、削除の提案と人の確認の問い、削除の結果を書き、`create` と `remove` に Bash の上限を渡す（決定 6）。すべての `--protocol` を `2` にする（§1.4）。
--   [ ] **ステップ 7-3**: `.claude/settings.json` の `deny` と `ask` を設計書 3.8 のとおりに直し、`cmd/chief/docs_test.go` を直す（設計書 3.9）。
+-   [x] **ステップ 7-2**: `.claude/commands/chief.md` を直す（設計書 3.7）。新しいタスクを始める入口と流れ、作成の結果、削除の提案と人の確認の問い、削除の結果を書き、`create` と `remove` に Bash の上限を渡す（決定 6）。すべての `--protocol` を、ステップ 7-1 で決めた値にする（§1.4、決定 14。`origin/main` の `Protocol` が 3 だったので 4）。
+-   [x] **ステップ 7-3**: `.claude/settings.json` の `deny` と `ask` を設計書 3.8 のとおりに直し、`cmd/chief/docs_test.go` を直す（設計書 3.9）。
     -   `deniedHerdr` に herdr の規則を足す。git の規則を確かめるテストを足し、`allow` に `Bash(git worktree` で始まる規則がないことも確かめる。
     -   `settings` の構造体に `Ask` を足し、`ask` が `Bash(chief remove *)` を持つことを確かめるテストを足す。
     -   `TestDocumentedInvocationsParse` の契約（すべての呼び出しが確認なしに許される）を、`remove` は `ask` の確認を出すと直す。定義の `remove` の呼び出しが `chief remove` で始まることを確かめる。
--   [ ] **ステップ 7-4**: CLAUDE.md の「Tool Execution Safety」（issue の読み取り）と「Claude Commands」の `/chief` の項、chief 利用ガイドの 1〜8 章（設計書 3.8。7 章の記録の表には作成の排他のディレクトリ `create` も足す。決定 5）、`package_reference.md` の `cmd/chief` の行を直す。
+-   [x] **ステップ 7-4**: CLAUDE.md の「Tool Execution Safety」（issue の読み取り）と「Claude Commands」の `/chief` の項、chief 利用ガイドの 1〜8 章（設計書 3.8。7 章の記録の表には作成の排他のディレクトリ `create` も足す。決定 5）、`package_reference.md` の `cmd/chief` の行を直す。
 -   [ ] **ステップ 7-5**: 最後の実地の確かめをする（設計書 7.3、決定 10・12）。人が、決定 12 のとおり chief の worktree をこのブランチにして入れ直し、`/chief` で次を行う。結果を §7 の「PR-7 の実行の記録」に書く。マージの後に `main` へ戻すことも、決定 12 のとおりである。
     -   新しいタスクを始めること（新しい workspace と既存の workspace）。新しく作る issue は人が選ぶ。
     -   作成の拒否（存在しない番号、閉じた issue、ラベル `draft` が付いた issue、PR、すでにあるパス）。
@@ -411,7 +411,7 @@
     -   `once` の問いで、示せる数を超える項目があるときに、「新しいタスクを始める」を名前で選べること。
     -   作成で作った workspace は、確かめの後に人が端末で片付けるか、そのタスクに使う。
 
--   [ ] **ステップ 7-6**: ステップ 7-5 の実地の確かめの前に、ステップ 5-6 の手順で 0093 の部品を確かめ、当たるものに削除の提案の行を足す（決定 13）。結果を §7 の「0093 の部品の確かめの記録」に書き足し、入っていない部品を、0093 が後で足すものとして書く。
+-   [x] **ステップ 7-6**: ステップ 7-5 の実地の確かめの前に、ステップ 5-6 の手順で 0093 の部品を確かめ、当たるものに削除の提案の行を足す（決定 13）。結果を §7 の「0093 の部品の確かめの記録」に書き足し、入っていない部品を、0093 が後で足すものとして書く。
 
 **完了の条件:** 各ステップのテストが通り、§7 に PR-7 の実行の記録がある。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -602,6 +602,18 @@
 
 -   **走らせたコマンド。** `git fetch origin main`、`git rev-parse origin/main`、`git show <commit>:docs/tasks/0093_chief_status_sheet/03_implementation_plan.md` の「PR がマージされた」の行（3 つとも `[x]`）、`git grep -n -e UrgencyLater -e TurnHuman -e PositionDocNone <commit> -- internal/chief/position.go`、`git grep -n RemovalRow <commit> -- 'internal/chief/*.go'`、`git grep -n -A20 'func sortRows' <commit> -- internal/chief/snapshot.go`（`Urgency` を比べる行があった）。
 -   **確かめたテスト。** 足したものがないので、新しいテストはない。PR-5 の `ic/removal_test.go::TestRemovalRowUrgencyAndDocument` と `ic/removal_test.go::TestRemovalRowSortsLater` が、変わらずに通る。
+
+**PR-7（ステップ 7-6、2026-11-18）。** `git fetch origin main` の後、`origin/main` のコミット `441cc110f0fc2a713221aa0f8945483361ac5581` で確かめた。このブランチは、そのコミットから分かれている。
+
+| 部品 | あるか | 行がまだないか | 扱い |
+|---|---|---|---|
+| 急ぎの度合いの対応表（`urgencyOf`） | あり。0093 の計画書の PR-1 が「PR がマージされた」で、`git grep` が `internal/chief/position.go` に `UrgencyLater`・`TurnHuman` を見つけた | ある（`position.go` の `case r.RemovalRow:` の行） | 変えない |
+| 文書の規則（`documentOf`） | あり。同じ PR-1 で、`git grep` が `PositionDocNone` を見つけた | ある（同上） | 変えない |
+| 並べ方（`sortRows`） | あり。0093 の計画書の PR-3 が「PR がマージされた」で、`origin/main` の `sortRows` は `Urgency` を比べる | 行は要らない（PR-5 の確かめ直しのとおり） | 変えない |
+
+-   **走らせたコマンド。** `git fetch origin main`、`git rev-parse origin/main`、`git show <commit>:docs/tasks/0093_chief_status_sheet/03_implementation_plan.md` の「PR がマージされた」の行（3 つとも `[x]`）、`git grep -n -e UrgencyLater -e TurnHuman -e PositionDocNone <commit> -- internal/chief/position.go`、`git grep -n RemovalRow <commit> -- 'internal/chief/*.go'`、`git grep -n -A20 'func sortRows' <commit> -- internal/chief/snapshot.go`（`Urgency` を比べる行があった）。
+-   **確かめたテスト。** 足したものがないので、新しいテストはない。PR-5 の 2 つのテストが、変わらずに通る。
+-   **0093 が後で足すもの。** ない。0093 の 3 つの部品はすべて `main` にあり、どれも削除の印を読む（並べ方は印を読む行が要らない）。0093 の計画書の 3 つの PR はすべてマージされたので、本 PR の後に入る 0093 の部品もない。
 
 ### PR-7 の実行の記録
 
