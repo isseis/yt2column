@@ -720,11 +720,11 @@ AC-15・AC-35 は文書と文言の自然言語の内容だけを定める基準
 **PR-9**（PR の番号は PR を作った後に決まるので、PR のチェックポイントの `PR を作成した` の行に URL がある）
 
 -   merge-base: `604c9707991f3a800af7939a76c1d2b463ef2138`
--   比べたコミット: `c657925b25e36db96a824e1792c7aa59252cb8e2`
+-   比べたコミット: `ea59d5b94e647d261966b6815008c2e46fa220cb`
 -   出力（終了コード 0）:
 
     ```text
-    merge-base 604c9707991f3a800af7939a76c1d2b463ef2138 head c657925b25e36db96a824e1792c7aa59252cb8e2
+    merge-base 604c9707991f3a800af7939a76c1d2b463ef2138 head ea59d5b94e647d261966b6815008c2e46fa220cb
     ok: no non-test file under cmd/yt2column/ changed
     ```
 
@@ -854,7 +854,7 @@ D4 は、人と決めて、結果を待たずに PR を作り、PR を作った�
 ステップ 9-5 で書く。
 
 -   merge-base: `604c9707991f3a800af7939a76c1d2b463ef2138`
--   比べたコミット: `c657925b25e36db96a824e1792c7aa59252cb8e2`
+-   比べたコミット: `ea59d5b94e647d261966b6815008c2e46fa220cb`
 -   出力（終了コード 0）:
 
     ```text
@@ -869,7 +869,7 @@ D4 は、人と決めて、結果を待たずに PR を作り、PR を作った�
     ok: all checks passed
     ```
 
--   8 つの検査は、それぞれ少なくとも 1 つの壊し方で失敗することを確かめた（`internal/server` のディレクトリを置く、`internal/redact` を移す、`internal/config` のファイルに `!js` の行を足す、`internal/config` から `internal/privatefile` を import する、`Makefile` に `build-dev` の規則を足す、`.golangci.yml` に `internal/server` を書く、文書に `go test ./cmd/yt2column-server` と `make build-dev` の例を足す）。壊し方と結果は、スクリプトを加えた commit と、検査を強めた commit のメッセージにある。
+-   8 つの検査は、それぞれ少なくとも 1 つの壊し方で失敗することを確かめた（`internal/server` のディレクトリを置く、`internal/redact` を移す、`internal/config` のファイルに `!js` の行を足す、`internal/config` から `internal/privatefile` を import する、`Makefile` に `build-dev` の規則を足す、`.golangci.yml` に `internal/server` を書く、文書に `go test ./cmd/yt2column-server`・`go test github.com/isseis/yt2column/internal/server/...`・`make build-dev`・`make docs` の例を足す）。壊し方と結果は、スクリプトを加えた commit と、検査を強めた 2 つの commit のメッセージにある。
 -   この記録より後の commit は、計画書とその記録だけを変える。
 
 ## 8. 成功の基準 (Success Criteria)
