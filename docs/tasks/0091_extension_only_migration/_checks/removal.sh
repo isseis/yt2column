@@ -8,7 +8,7 @@
 #   notag     no Go file of internal/config carries a !js build tag
 #   wasmdeps  GOOS=js GOARCH=wasm go list -deps ./internal/config does not
 #             list internal/privatefile
-#   builddev  make -n build-dev fails (the target is gone)
+#   builddev  make -n build-dev fails because make has no rule for it
 #   config    Makefile, .golangci.yml, .github/workflows/ci.yml, and
 #             extension/scripts/has-extension-changes.sh name no removed
 #             package
@@ -75,8 +75,8 @@ done_check dirs
 
 # kept
 for p in "${kept_pkgs[@]}"; do
-	if ! ls "$p"/*.go >/dev/null 2>&1; then
-		fail kept "$p has no Go file"
+	if ! go list "./$p" >/dev/null 2>&1; then
+		fail kept "go list finds no package for ./$p"
 	fi
 done
 done_check kept
@@ -98,8 +98,10 @@ fi
 done_check wasmdeps
 
 # builddev
-if make -n build-dev >/dev/null 2>&1; then
+if out=$(make -n build-dev 2>&1); then
 	fail builddev "make -n build-dev succeeds"
+elif ! grep -q "No rule to make target .build-dev'" <<<"$out"; then
+	fail builddev "make -n build-dev fails for another reason: $out"
 fi
 done_check builddev
 
@@ -123,23 +125,34 @@ examples=$(
 )
 
 # docgo: the ./ and module paths after go <subcommand>, up to a shell
-# operator or a comment. placeholder_pkgs are the example paths a document
-# writes for "some package"; they name no package on purpose.
+# operator or a comment, each with "wasm" when the command has the
+# GOOS=js GOARCH=wasm prefix, so it is listed for that platform.
+# placeholder_pkgs are the example paths a document writes for "some
+# package"; they name no package on purpose.
 placeholder_pkgs=(./internal/specific/package)
 go_pkgs=$(
-	grep -oE '(^|[[:space:](])go (build|test|list|vet|install|run|generate)( [^;&|#`)]*)?' <<<"$examples" |
-		tr ' ' '\n' |
-		grep -E '^(\./|github\.com/isseis/yt2column)' |
-		grep -vxF -f <(printf '%s\n' "${placeholder_pkgs[@]}") |
+	grep -oE '(^|[[:space:](])(GOOS=js GOARCH=wasm )?go (build|test|list|vet|install|run|generate)( [^;&|#`)]*)?' <<<"$examples" |
+		awk '{
+			platform = ($0 ~ /GOOS=js GOARCH=wasm/) ? "wasm" : "native"
+			for (i = 1; i <= NF; i++) {
+				if ($i ~ /^(\.\/|github\.com\/isseis\/yt2column)/) print platform, $i
+			}
+		}' |
+		grep -vE " ($(printf '%s\n' "${placeholder_pkgs[@]}" | sed 's/[.]/[.]/g' | paste -sd '|' -))$" |
 		sort -u || true
 )
 if [ -z "$go_pkgs" ]; then
 	fail docgo "found no go command example"
 fi
-while IFS= read -r p; do
+while read -r platform p; do
 	[ -n "$p" ] || continue
-	if ! go list -tags test,integration "$p" >/dev/null 2>&1; then
-		fail docgo "go list finds no package for $p"
+	if [ "$platform" = wasm ]; then
+		listed=$(GOOS=js GOARCH=wasm go list "$p" 2>&1) || listed=
+	else
+		listed=$(go list -tags test,integration "$p" 2>&1) || listed=
+	fi
+	if [ -z "$listed" ]; then
+		fail docgo "go list finds no package for $p ($platform)"
 	fi
 done <<<"$go_pkgs"
 done_check docgo
@@ -152,6 +165,8 @@ make_targets=$(
 			for (i = 1; i <= NF; i++) {
 				if ($i == "make") { started = 1; continue }
 				if (!started) continue
+				# -C and -f take the next word as their value.
+				if ($i == "-C" || $i == "-f") { i++; continue }
 				if ($i ~ /^-/) continue
 				if ($i ~ /^[a-z][a-z0-9-]*$/) { print $i; continue }
 				break
