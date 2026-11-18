@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-18 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：質問のタブの表示を、タブの番号を除いてラベルだけにした<br>決定の変更で draft に戻した：pane の幅の受け付ける上限を 1000 にした<br>決定の変更で draft に戻した：質問の pane のタブを herdr agent list の出力から読む境界を足した |
+| Review date | 2026-11-18 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -311,4 +311,5 @@
 ## 変更履歴
 
 - 2026-11-18 承認（isseis、#985）
-- 2026-11-18 draft への戻し：質問のタブの表示を、タブの番号を除いてラベルだけにした；pane の幅の受け付ける上限を 1000 にした；質問の pane のタブを herdr agent list の出力から読む境界を足した（#未記入）
+- 2026-11-18 draft への戻し：質問のタブの表示を、タブの番号を除いてラベルだけにした；pane の幅の受け付ける上限を 1000 にした；質問の pane のタブを herdr agent list の出力から読む境界を足した（#991）
+- 2026-11-18 承認（isseis、#未記入）
