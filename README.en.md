@@ -1,4 +1,4 @@
-<!-- translated-from: README.md c398b6396391e436a24192d18874cb14f9b9e87d -->
+<!-- translated-from: README.md 23ab53e32d65cb67eafd09634d6d034a6f6da665 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -556,7 +556,10 @@ these steps.
 4. Once you have made one article with the extension alone, delete the server's
    configuration file `~/.config/yt2column/config.env`. This file holds a
    plaintext copy of the API key. Until you delete it, you can go back to the
-   earlier version's server and host.
+   earlier version's server and host. If the same directory has files whose
+   names start with `.config.env.tmp-`, delete them too: they are temporary
+   files left when `config init` was stopped partway, and one can point to the
+   same content as the configuration file.
 
 ```sh
 ./build/yt2column-nmhost uninstall chrome
