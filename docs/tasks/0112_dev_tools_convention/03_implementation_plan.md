@@ -229,7 +229,7 @@
 Script record (AC-11): `_checks/correction_lines.sh`
 
 - Merge-base: `9122d1aaad7244eac37198da4ca30e1da133a504`
-- Compared commit: `ff31c6465eeda9de15ad1cc3e9f0d21d5036db3b`
+- Compared commit: `66431e94b81b40c5a6bec4a412713fad68e6306c`
 
 Output（スクリプトの出力の全体を、行の頭から始まるコードブロックに書く）:
 
@@ -237,22 +237,22 @@ Output（スクリプトの出力の全体を、行の頭から始まるコー�
 ok: a commit that changes docs/dev/adr/0014-deterministic-checks-in-go.md has an editorial correction line naming it
 ok: every editorial correction line has the fixed form
 ok: no editorial correction line contains '<' or '@'
-commits in 9122d1aaad7244eac37198da4ca30e1da133a504..ff31c6465eeda9de15ad1cc3e9f0d21d5036db3b: 6
-commits that change docs/dev/adr/0014-deterministic-checks-in-go.md: 1
-editorial correction lines: 7
+commits in 9122d1aaad7244eac37198da4ca30e1da133a504..66431e94b81b40c5a6bec4a412713fad68e6306c: 10
+commits that change docs/dev/adr/0014-deterministic-checks-in-go.md: 2
+editorial correction lines: 8
 ```
 
 Diff record (AC-10):
 
 - Compared paths: `docs/dev/adr/0014-deterministic-checks-in-go.md`
 - Merge-base: `9122d1aaad7244eac37198da4ca30e1da133a504`
-- Compared commit: `ff31c6465eeda9de15ad1cc3e9f0d21d5036db3b`
+- Compared commit: `66431e94b81b40c5a6bec4a412713fad68e6306c`
 
 Path diff:
 
 ```text
 diff --git a/docs/dev/adr/0014-deterministic-checks-in-go.md b/docs/dev/adr/0014-deterministic-checks-in-go.md
-index 0d18821715691cdaf5ffbd6484dca976268f21bf..4b37d7713949e8ba593ea9693d95ecdd14b5f203 100644
+index 0d18821715691cdaf5ffbd6484dca976268f21bf..51f9089b033c50b0d23f24d2e2e5150044c0db6b 100644
 --- a/docs/dev/adr/0014-deterministic-checks-in-go.md
 +++ b/docs/dev/adr/0014-deterministic-checks-in-go.md
 @@ -14,16 +14,18 @@
@@ -276,7 +276,7 @@ index 0d18821715691cdaf5ffbd6484dca976268f21bf..4b37d7713949e8ba593ea9693d95ecdd
 +-   **chief の例外:** chief の道具は、リポジトリの外の状態のディレクトリにある次の記録を、判定に読み返す。自動送信の記録、送信の記録、送信の停止、待ち受けの記録（待ち受けのラウンドごとの記録と、PR が開いているのを見た記録）、通知の記録、PR の詳細の控え、ロック、workspace を作ったときの記録である。記録は、送るコマンドとタスクを決めるためには使わない。送ることについては、送ることを止める条件（リセットの候補を狭める PR の詳細の控えを含む）として使うか、自動送信の候補の workspace を名指して Herdr・git・GitHub で確かめ直す条件として使うだけである。通知の記録は通知の重複を防ぐことと待っている時間による並べ方に、送信の記録は送った入力の履歴と「実行中」の行の表示に使い、どちらも送る中身を左右しない。送ることに関わる記録が読めなければ送らない。workspace を作ったときの記録は、削除の候補の workspace を名指すことと、その行に示すタスクを探す手がかりにだけ使い、名指した workspace は Herdr・git・`origin/main` の文書で確かめ直す。読めなければ削除を提案しない。作ったときの記録は worktree ごとにあり、同じパスに作り直す前と、消し終えた後に、そのパスの分をすべて消す。起動し直しても自動送信を 2 回しないこと、送信を止めた workspace を覚えていること、chief を 1 つに限ることを、セッションの記憶では守れないためである（[ADR-0046](0046-chief-of-staff.md)）。範囲と、記録が条件として働く範囲は [0088 設計書](../../tasks/0088_chief_of_staff/02_architecture.md) の 3.5「状態のディレクトリの記録とロック」と [0092 設計書](../../tasks/0092_chief_task_workspace/02_architecture.md) の 3.5「作ったことの記録」にある。
 +-   **順序の道具のコードでの強制:** 処理の順序は、コマンドの定義ではなく道具のコードで強制する。コマンドの定義に残るのは、サブコマンドを呼ぶ順序と、利用者への確認だけである。エージェントが手順を読み違えても、範囲外の変更が commit されたり、信頼の境界が迂回されたりしないためである。例は [fixprguard_guide.md](../guides/fixprguard_guide.md) の「5. サブコマンド」の `finish` と `push` の説明と、「7. ツールが保証すること・しないこと」にある。規則は [dev_tools.md](../conventions/dev_tools.md) の「Rule 3: Enforce the order in the tool's code」にある。
 +-   **拡張の関数の範囲を求める TypeScript の補助:** 拡張の関数の範囲だけは、TypeScript の補助に求める。`coveragecompare` は Go と拡張の両方の比較を受け持つが、拡張の関数の終わりの行は node の lcov が出さないので、`extension/scripts/function-ranges.ts` が入っている `typescript` の構文木から求める。新しい npm のパッケージは加えない。拡張の関数の終わりの行を、lcov からは求められないためである。規則は [0055 設計書](../../tasks/0055_coverage_compare/02_architecture.md) の 3.5「拡張の測り方」にある。
-+-   **`main` からのインストール:** 道具は `main` からインストールして使う。道具を変えたマージの後は入れ直す。`--protocol` の番号を上げる PR では、その PR の `/runpr` の前に、その PR のブランチで入れ直す（[fixprguard_guide.md](../guides/fixprguard_guide.md) §3）。インストール済みの古い道具が、古い想定で黙って判定しないようにするためである。規則は [dev_tools.md](../conventions/dev_tools.md) の「Rule 5: Install tools from main; agents never install or build them」に、文書と道具を変える順序は同じ規約の「Rule 4: Arguments, output, and exit codes are a contract」にある。
++-   **`main` からのインストール:** 道具は `main` からインストールして使う。道具を変えたマージの後は入れ直す。`--protocol` の番号を上げる PR では、その PR の `/runpr` の前に、その PR のブランチで入れ直す（[fixprguard_guide.md](../guides/fixprguard_guide.md) の「3. インストール」）。インストール済みの古い道具が、古い想定で黙って判定しないようにするためである。規則は [dev_tools.md](../conventions/dev_tools.md) の「Rule 5: Install tools from main; agents never install or build them」に、文書と道具を変える順序は同じ規約の「Rule 4: Arguments, output, and exit codes are a contract」にある。
 +-   **エージェントがインストールもビルドもしないこと:** エージェントは、利用者が `main` から入れる道具を、どれもインストールもビルドもしない。道具を開発するか調べるときは、ソースからビルドして走らせてよいが、外に副作用を持たない走らせ方に限る。エージェントが PR のブランチから `fixprguard` や `mergepr` を入れるか走らせると、そのブランチが変えた判定で `/fixpr`・`/runpr`・`/mergepr` が動くことになり、`main` の判定を迂回できるためである。利用者が PR のブランチで入れ直したあと、その道具がブランチの判定で動くことは受け入れる。利用者がその PR の変更を見たうえで入れ直すためである。Claude Code では、`.claude/settings.json` に拒否の規則を置く。拒否の規則は、auto モードで確認なしに入れることを防ぐ層である（[ADR-0046](0046-chief-of-staff.md) と同じ理由）。規則は [dev_tools.md](../conventions/dev_tools.md) の「Rule 5: Install tools from main; agents never install or build them」に、拒否の規則の形は同じ節の The permission layer にある。
 +-   **プロトコル番号:** `--protocol` の番号（プロトコル番号）を上げる PR は、番号を実装の時点の `origin/main` の値にちょうど 1 を足した値にし、マージの時点でも `origin/main` の値 + 1 であることを確かめる。食い違えばマージしない。タスク文書には上げた後の番号を書かず、「`main` の値 + 1」と書く。確かめは、`/runpr` からのマージにも `/mergepr` を単独で使うマージにも当てはめ、マージの直前にも確かめ直す。`mergepr` も番号を持ち、`/mergepr` の定義と版を照合する。並行する 2 つのブランチが同じ番号に上げると、git は定数の行の同じ変更を衝突なしにまとめ、文書のガードテストも通る。その結果、違う約束が 1 つの番号を共有したまま `main` に入り、古い文書と新しい道具が黙って違う規則で動きうるためである。対象は、道具とそれを呼ぶ文書の版を照合する番号で、今は `fixprguard`・`codexreview`・`chief` と、確かめを入れる `mergepr` の 4 つである。`mergepr` に番号を持たせるのは、確かめを入れる前の `mergepr` や古い定義でマージして、確かめが黙って抜けることを防ぐためである。確かめは `mergepr` の `prepare` と `merge` が行い、`merge` は GitHub にマージを依頼する直前に、`origin/main` を取り直して確かめ直す。`/runpr` と単独の `/mergepr` のどちらのマージも、この 2 つのサブコマンドを必ず通るためである。番号を持つ道具は、`internal/<名前>/` の直下のファイルに、`const Protocol = <整数>` の 1 行で番号を置く。確かめがこの形の行だけを番号として読むためである。この形でない宣言は、確かめが読めない値として止まるか、確かめの対象の道具と文書のガードの一覧を突き合わせるテストが CI で止める。確かめの仕様は [mergepr_guide.md](../guides/mergepr_guide.md) にある。受け入れた危険は 4 つある。(1) マージの前は、同じ道具の番号を上げる並行するブランチが同じ番号を共有し、片方のブランチから入れた道具がもう片方の文書を受け付けうる。ブランチごとに一意の番号を配る仕組みは、issue #933 の範囲を超えるためである。(2) マージの直前の確かめ直しと GitHub のマージの間の数秒に、ほかの PR が同じ番号でマージされうる。(3) 番号を上げたブランチを、同じ番号の入った `main` の上へ rebase するか履歴をまとめ直すと、確かめが衝突を見落としうる。(4) 一度消した道具を同じ名前で足し直すと、番号が `1` に戻る。規則の正本は [CLAUDE.md](../../../CLAUDE.md) の「Development Notes」の「Protocol numbers」にあり、確かめの要件は [0099 要件定義書](../../tasks/0099_protocol_number_rule/01_requirements.md) の F-003 にある。
 +-   **引数・出力・終了コードの契約:** 道具の引数・出力・終了コードは、コマンドの定義と文書のガードが読む契約にする。変えたときは、道具と、それを呼ぶ文書と、ガードを同じ PR で変える。契約が食い違うと、レビューの信頼の境界が実行時に働かなくなるためである。規則と、契約が書かれている場所の一覧は [dev_tools.md](../conventions/dev_tools.md) の「Rule 4: Arguments, output, and exit codes are a contract」にある。
@@ -436,7 +436,7 @@ Diff record (AC-22):
 
 - Compared paths: `.claude/commands/mergepr.md`, `.claude/commands/_lib/adr-correction-candidates.sh`, `.claude/commands/_lib/local-cli-review.md`, `.claude/settings.json`, `docs/dev/guides/chief_guide.md`, `docs/dev/guides/numreserve_guide.md`, `docs/dev/guides/mergepr_guide.md`, `docs/dev/guides/fixprguard_guide.md`
 - Merge-base: `9122d1aaad7244eac37198da4ca30e1da133a504`
-- Compared commit: `ff31c6465eeda9de15ad1cc3e9f0d21d5036db3b`
+- Compared commit: `66431e94b81b40c5a6bec4a412713fad68e6306c`
 
 Path diff:
 
@@ -502,16 +502,14 @@ index bd32ef277d72d54bc52d37723a6aabb5a2afcdd6..7ec7a17a6a592a9ca19000315c7a0cbd
    }
  }
 diff --git a/docs/dev/guides/chief_guide.md b/docs/dev/guides/chief_guide.md
-index b648d84fc8eea5e60e1b7bff3b9aa19c3589afc9..0d590369d0eef3d4e7a6cd59306b38272931c787 100644
+index b648d84fc8eea5e60e1b7bff3b9aa19c3589afc9..325ec135ddfd4bee9aa73e2d62fccca067704dce 100644
 --- a/docs/dev/guides/chief_guide.md
 +++ b/docs/dev/guides/chief_guide.md
-@@ -15,19 +15,23 @@ chief は、Herdr の workspace で並行して進むタスクを見渡し、人
+@@ -15,19 +15,21 @@ chief は、Herdr の workspace で並行して進むタスクを見渡し、人
 
  ## 2. インストール
 
 +`chief` は `main` から入れ、道具を変えたマージの後と、プロトコル番号を上げる PR の前に入れ直す。
-+
-+**入れる手順.** 次のコマンドを実行する。
 +
  ```bash
  make install-chief
@@ -533,7 +531,7 @@ index b648d84fc8eea5e60e1b7bff3b9aa19c3589afc9..0d590369d0eef3d4e7a6cd59306b3827
  **入れ直す順。** 動いている `/chief` を止めてから `make install-chief` を実行し、`/chief` を起動し直す。番号を上げた道具を `/chief` を止めずに入れると、動いている `/chief` は古い定義の番号のまま次のラウンドを走らせ、新しい道具に `protocol_mismatch` で拒まれる。定義はこのとき `make install-chief` での入れ直しを促して止まるが、道具はすでに新しいので、入れ直しても直らない。手当ては、`/chief` を起動し直して新しい定義を読ませることである。
 
 diff --git a/docs/dev/guides/fixprguard_guide.md b/docs/dev/guides/fixprguard_guide.md
-index c8e08c17313f0cfddeec5bf046a2b8e94d36489b..17f159148a999a5874781314c7a882c82fc194d2 100644
+index c8e08c17313f0cfddeec5bf046a2b8e94d36489b..e97814a142725449b9cd84076494f204e935c3df 100644
 --- a/docs/dev/guides/fixprguard_guide.md
 +++ b/docs/dev/guides/fixprguard_guide.md
 @@ -35,7 +35,9 @@
@@ -547,7 +545,7 @@ index c8e08c17313f0cfddeec5bf046a2b8e94d36489b..17f159148a999a5874781314c7a882c8
 
  ```sh
  make install-fixprguard
-@@ -49,10 +51,10 @@ make install-fixprguard
+@@ -49,9 +51,9 @@ make install-fixprguard
  go version -m "$(command -v fixprguard)"
  ```
 
@@ -555,12 +553,10 @@ index c8e08c17313f0cfddeec5bf046a2b8e94d36489b..17f159148a999a5874781314c7a882c8
 +**番号を上げる変更での入れ直し.** 1 つのバイナリが、同じ利用者のすべての worktree で共有される。一方、`/fixpr`・`/runpr` は、その worktree の checkout にあるコマンドの文書を読み、そこに書かれた `--protocol` を渡す。そのため、`protocol` の番号を上げる変更（例: タスク 0035 で `1` から `2`）では、次の手順に従う。
 
 -- その PR の `/runpr` の前に、その PR のブランチで再インストールする。その PR のコマンドの文書が新しい番号を渡すためである。マージまでの間、`main` を取り込んでいないほかの worktree の `/fixpr`・`/runpr` は、終了コード `2` で止まる。
--- マージの直後に、マージの後の `main` で再インストールする。再インストールの前に新しい番号の文書から実行すると、終了コード `2` で止まる。
 +- その PR の `/runpr` の前に、利用者がその PR のブランチで再インストールする。その PR のコマンドの文書が新しい番号を渡すためである。マージまでの間、`main` を取り込んでいないほかの worktree の `/fixpr`・`/runpr` は、終了コード `2` で止まる。
-+- マージの直後に、利用者がマージの後の `main` で再インストールする。再インストールの前に新しい番号の文書から実行すると、終了コード `2` で止まる。
+ - マージの直後に、マージの後の `main` で再インストールする。再インストールの前に新しい番号の文書から実行すると、終了コード `2` で止まる。
  - 作業中のほかのブランチには、次の `/fixpr`・`/runpr` の前に `main` を取り込む。取り込む前は、そのブランチの文書が古い番号を渡すので、終了コード `2` で止まる。
 
- どちらも、古い規則で判定することはない（fail-closed）。ただし、同じ番号に上げる並行するブランチがある間は、この限りでない。マージの前は両方のブランチが同じ番号を共有するので、片方のブランチで入れたバイナリが、もう片方の文書の `--protocol` を受け付け、違う規則で判定しうる（CLAUDE.md の「Protocol numbers」の受け入れた危険）。
 diff --git a/docs/dev/guides/mergepr_guide.md b/docs/dev/guides/mergepr_guide.md
 index 7180ac59870abeadaf5b49a04ada5862aa1f8a47..342eefb81dcd28a3b2dcd55160675aa44c95e172 100644
 --- a/docs/dev/guides/mergepr_guide.md
@@ -602,16 +598,14 @@ index 7180ac59870abeadaf5b49a04ada5862aa1f8a47..342eefb81dcd28a3b2dcd55160675aa4
 
  head の値が `origin/main` の値と同じ道具があるとき（上げた番号が `main` の取り込みで吸収された場合と、上げてから元に戻した場合）は、`origin/main` の上で PR の履歴をまとめ直し、番号を変えたコミットを残さないことも直し方になる。まとめ直してよいのは、この PR 自身の変更が道具の約束を変えないとき（番号を変えたコミットがほかのブランチから来たか、上げてから元に戻したとき）に限る。そうでなければ、まとめ直しは衝突を隠すので、上の手順だけが直し方である。
 diff --git a/docs/dev/guides/numreserve_guide.md b/docs/dev/guides/numreserve_guide.md
-index 9d03a33c1fa7440c8d2b3abf63da4f12057f8a24..16f64f95869a9bbfa7cd574a7d1ca7bde28b85a8 100644
+index 9d03a33c1fa7440c8d2b3abf63da4f12057f8a24..81f1ae0d8c888d80d1abf7680301e79fdcecaa21 100644
 --- a/docs/dev/guides/numreserve_guide.md
 +++ b/docs/dev/guides/numreserve_guide.md
-@@ -4,13 +4,17 @@ numreserve は、タスク番号と ADR 番号を、別のクローンや cloud
+@@ -4,13 +4,15 @@ numreserve は、タスク番号と ADR 番号を、別のクローンや cloud
 
  ## 1. インストールと呼び出し
 
 +`numreserve` は `main` から入れ、番号を決めるときだけ呼ぶ。
-+
-+**入れる手順.** 次のコマンドを実行する。
 +
  ```bash
  make install-numreserve
@@ -625,7 +619,7 @@ index 9d03a33c1fa7440c8d2b3abf63da4f12057f8a24..16f64f95869a9bbfa7cd574a7d1ca7bd
 
  | 番号の空間 | 呼び出し | 記録の tag | ruleset の対象 |
  |---|---|---|---|
-@@ -20,9 +24,9 @@ make install-numreserve
+@@ -20,9 +22,9 @@ make install-numreserve
  -   **番号を決めたとき:** 標準出力に 4 桁の番号を 1 行だけ出し、終了コード 0 で終わる。標準エラーには、作った記録の tag の名前と、それが指す `origin/main` の commit を 1 行出す。
  -   **止まったとき:** 標準出力に何も出さず、標準エラーに `numreserve: stop <理由の語>: <段>: <詳細>` の 1 行を出し、終了コード 1 で終わる。理由の語ごとの意味と次にすることは 2 章の表にある。詳細には、止まった段、HTTP の状態コードやコマンドの終了コード、原因のブランチ名やファイルのパスを出す。ブランチ名とファイルのパスは Go の引用の形で、200 バイトまでに切って出す。GitHub の応答の本文、`gh` と `git` の標準エラー、`origin` の URL、認証の情報は出さない。
 
