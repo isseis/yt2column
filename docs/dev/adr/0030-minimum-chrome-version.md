@@ -20,7 +20,7 @@ Chrome は、セキュリティの修正を最新の安定版にだけ入れ、�
 
 -   **最小の版は、決める日の 1 年前の時点の安定版とする。使う機能がそれより新しい版を要するときだけ、その版に上げる。** 古い版の利用者を守っても、その利用者はブラウザ自体の脆弱性にさらされたままで、守れるものがないためである。決まった規則にすれば、機能を足すたびに版を調べずに済む。版の値と日付は、[Chromium Dash](https://chromiumdash.appspot.com/schedule) で確かめる。規則は [0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「ID と対象のブラウザ」と「設計の際に決めたこと（2026-11-12）」にある。
 -   **manifest の `minimum_chrome_version` は `"142"` とする。** 2026-11-13 に決めた。その 1 年前の 2025-11-13 の時点の安定版が Chrome 142（2025-10-28）で、使う機能のうち最も新しい `getKeys()`（130）より新しい。生成の開始から予約までの待ちの間は、タブの作成と `chrome.storage.session` の読み書き、ビューアからのリクエストが SW の止まるまでの時間を延ばす。それでも SW が止まったときは、ポップアップは結果不明として示す。規則は [extension/static/manifest.json](../../../extension/static/manifest.json) の `minimum_chrome_version` と、[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md) の「ID と対象のブラウザ」にある。
--   **両方の README とインストールの手順の文書 `INSTALL.md` は、必要なブラウザとして Chrome 142 以降と、Chromium 142 以降の Brave を記す。** `README.md`、`README.en.md`、`INSTALL.md` は、同じ値を利用者向けに書く。[extension/test/manifest.test.ts](../../../extension/test/manifest.test.ts) は、manifest の値と、3 つの文書が書く版が manifest の値と等しいことを確かめる。`INSTALL.md` は 0116 の実装で置く。このずれは https://github.com/isseis/yt2column/issues/1042 で扱う。利用者が読み込める版を知り、文書と manifest の値が食い違わないようにするためである。
+-   **両方の README、インストールの手順の文書 `INSTALL.md`、開発の手引き `docs/dev/guides/development.md` は、必要なブラウザとして Chrome 142 以降と、Chromium 142 以降の Brave を記す。** 4 つの文書は、同じ値を書く。[extension/test/manifest.test.ts](../../../extension/test/manifest.test.ts) は、manifest の値と、4 つの文書が書く版が manifest の値と等しいことを確かめる。利用者が読み込める版を知り、文書と manifest の値が食い違わないようにするためである。`INSTALL.md` と、`development.md` の版の記述は、0116 の実装で置く。このずれは https://github.com/isseis/yt2column/issues/1042 で扱う。
 -   **ポップアップの末尾のプレビューの規則が使う `:dir()`（Chrome 120 以降）は、最小の版で必ず使える。** 最小の版を 142 にしたので、Chrome 119 以前で規則が捨てられる場合はなくなった（[0046 設計書](../../tasks/0046_popup_redesign/02_architecture.md)「設計の際に決めたこと（2026-10-28）」）。
 
 ## 採らなかった案
@@ -34,7 +34,7 @@ Chrome は、セキュリティの修正を最新の安定版にだけ入れ、�
 ## 結果
 
 -   Chrome 141 以前と、Chromium 141 以前の Brave には、拡張を導入できず、既存の利用者にも更新が届かない。
--   値を変えるときは、manifest、両方の README と `INSTALL.md` の記述、`manifest.test.ts` の値の確かめを同じ変更で直す。どれかの文書の版が manifest と違うと、`manifest.test.ts` が失敗する。
+-   値を変えるときは、manifest、両方の README・`INSTALL.md`・`development.md` の記述、`manifest.test.ts` の値の確かめを同じ変更で直す。どれかの文書の版が manifest と違うと、`manifest.test.ts` が失敗する。
 -   SW の処理を足すときは、待ちに入る前の最後の API の呼び出しから最後の処理までを、30 秒に収める（[0050 設計書](../../tasks/0050_viewer_tab/02_architecture.md) §3.4.3）。
 -   新しい API や CSS の機能を使うときは、それが加わった版と最小の版を比べる。新しい版を要するときは、その版に上げる。最小の版を見直すときは、見直す日の 1 年前の安定版を求め直す。
 
@@ -46,4 +46,4 @@ Chrome は、セキュリティの修正を最新の安定版にだけ入れ、�
 - 2026-10-28 ポップアップの再設計で `:dir()`（Chrome 120 以降）を使うが、`"103"` を保ち、Chrome 119 以前の右から左の文字だけの末尾のプレビューを保証の外とした（[0046 設計書](../../tasks/0046_popup_redesign/02_architecture.md)「設計の際に決めたこと（2026-10-28）」）
 - 2026-10-31 生成の開始を SW から送るようにするとき、Chrome 110 以降の SW のアイドルのタイマーの振る舞いに頼るため、`"110"` に上げ、README に書くことにした（[0050 設計書](../../tasks/0050_viewer_tab/02_architecture.md)「設計の際に決めたこと（2026-10-31）」）
 - 2026-11-13 最小の版を、決める日の 1 年前の時点の安定版とする規則を定め、`"142"` に上げることにした。古い版を保証の外とした `:dir()` の扱いと、Chrome 120 まで上げる案を採らなかったことは、この版で意味を失った（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)「設計の際に決めたこと（2026-11-12）」）
-- 2026-11-19 利用者向けの手順を `INSTALL.md` に分けるのに合わせ、`INSTALL.md` も必要なブラウザの版を記し、`manifest.test.ts` が manifest の値と照合することにした（[0116 設計書](../../tasks/0116_user_readme/02_architecture.md)「設計の際に決めたこと（2026-11-19）」）
+- 2026-11-19 利用者向けの手順を `INSTALL.md` に分けるのに合わせ、`INSTALL.md` と、README から移したビルドの説明を持つ `development.md` も必要なブラウザの版を記し、`manifest.test.ts` が manifest の値と照合することにした（[0116 設計書](../../tasks/0116_user_readme/02_architecture.md)「設計の際に決めたこと（2026-11-19）」）
