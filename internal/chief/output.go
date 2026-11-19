@@ -2,7 +2,6 @@ package chief
 
 import (
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -24,6 +23,15 @@ type SnapshotOutput struct {
 	Problems   []string `json:"problems"`
 	// Baseline is the value `chief wait --since` takes.
 	Baseline WaitBaseline `json:"baseline"`
+	// Table is the status table, one line per element, which /chief pastes
+	// in a code block unchanged.
+	Table []string `json:"table"`
+	// TableUnreadable names the table sources that could not be read and
+	// the question panes shown by their pane IDs, for investigation; /chief
+	// does not show it. Its wording is not part of the output's contract;
+	// it is empty when every source was read and every question pane was
+	// shown by its tab's label.
+	TableUnreadable []string `json:"table_unreadable"`
 }
 
 // RowOutput is one row of the status table.
@@ -268,6 +276,10 @@ func (s Snapshot) Output() SnapshotOutput {
 		NewNotices: []ItemID{},
 		Problems:   sanitizeAll(s.Problems),
 		Baseline:   s.Baseline,
+		// The table and its notes were sanitized as they were made; a second
+		// Sanitize would double every backslash of their escapes.
+		Table:           append([]string{}, s.Table...),
+		TableUnreadable: append([]string{}, s.TableUnreadable...),
 	}
 	for _, r := range s.Rows {
 		row := RowOutput{
@@ -482,43 +494,6 @@ func runningUnknownName(u RunningUnknown) string {
 		return unknownName
 	}
 }
-
-// OutputValueNames returns, for each row item /chief's definition maps to
-// its display ("urgency", "position.document", "position.progress", and
-// "running_unknown"), every name the output can give it but unknown and
-// running_unknown's "". Each
-// list is built from the name function the output uses, walking the values
-// from zero up to the first that names unknown, so it cannot drift from
-// the output.
-func OutputValueNames() map[string][]string {
-	return map[string][]string{
-		"urgency":           namesUpToUnknown(urgencyName),
-		"position.document": namesUpToUnknown(positionDocumentName),
-		"position.progress": namesUpToUnknown(progressName),
-		// RunningUnknownNone is named "" and shows nothing.
-		"running_unknown": slices.DeleteFunc(namesUpToUnknown(runningUnknownName), func(n string) bool { return n == "" }),
-	}
-}
-
-// namesUpToUnknown returns name(0), name(1), ... up to the first value
-// whose name is unknownName, which it leaves out. A name function that names
-// no value unknown stops at maxValueNames values instead of looping, and its
-// list then repeats names, which the definition's guard test reports.
-func namesUpToUnknown[T ~int](name func(T) string) []string {
-	var names []string
-	for v := T(0); v < maxValueNames; v++ {
-		n := name(v)
-		if n == unknownName {
-			return names
-		}
-		names = append(names, n)
-	}
-	return names
-}
-
-// maxValueNames bounds the values namesUpToUnknown walks, far above the
-// number any of the output's types declares.
-const maxValueNames = 64
 
 // ActionOutput is one send or reset.
 type ActionOutput struct {

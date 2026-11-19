@@ -37,6 +37,25 @@ type commandStep struct {
 	args []string
 	out  string
 	err  error
+	// hook, when set, runs inside the call with the arguments as given, so a
+	// test can look at a file that exists only while the command runs.
+	hook func(args []string)
+}
+
+// anyBodyFile stands in a step's arguments for the value after --body-file,
+// a path the tool makes at random.
+const anyBodyFile = "<any body file>"
+
+// maskBodyFile returns args with the value after --body-file replaced by
+// anyBodyFile.
+func maskBodyFile(args []string) []string {
+	masked := slices.Clone(args)
+	for i := range len(masked) - 1 {
+		if masked[i] == "--body-file" {
+			masked[i+1] = anyBodyFile
+		}
+	}
+	return masked
 }
 
 func gitStep(out string, args ...string) commandStep {
@@ -62,8 +81,15 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 	}
 	step := f.steps[f.index]
 	f.index++
-	if name != step.name || !slices.Equal(args, step.args) {
+	compared := args
+	if slices.Contains(step.args, anyBodyFile) {
+		compared = maskBodyFile(args)
+	}
+	if name != step.name || !slices.Equal(compared, step.args) {
 		f.t.Fatalf("command %d = %s %q, want %s %q", f.index, name, args, step.name, step.args)
+	}
+	if step.hook != nil {
+		step.hook(args)
 	}
 	return []byte(step.out), step.err
 }
@@ -147,6 +173,9 @@ func newCheckedTool(t testing.TB, checkErr error, steps ...commandStep) (*Tool, 
 	tool := New(runner, &fakeNumbers{runner: runner})
 	tool.mainFetch = runner
 	tool.protocol = checker
+	source := newFakeSource(t)
+	source.runner = runner
+	tool.corrections = source
 	return tool, runner, checker
 }
 
@@ -219,14 +248,42 @@ type fakeCorrectionSource struct {
 	gotBase     string // the base rangeLines or mergedLines was last given
 	gotHead     string // the head rangeLines was last given
 	gotMerge    string // the merge commit mergedLines was last given
+	// runner, when set, gives the position each call is recorded at, as
+	// fakeChecker records its calls, so a test can tell which commands ran
+	// before a reading.
+	runner *fakeRunner
+	calls  []sourceCall
+	// onRange, when set, runs inside each rangeLines call, so a test can
+	// change a file while the correction check runs.
+	onRange func()
+}
+
+// sourceCall records one reading: which method ran and how many scripted
+// commands had run before it (-1 without a runner).
+type sourceCall struct {
+	method string
+	index  int
+}
+
+func (f *fakeCorrectionSource) record(method string) {
+	index := -1
+	if f.runner != nil {
+		index = f.runner.index
+	}
+	f.calls = append(f.calls, sourceCall{method: method, index: index})
 }
 
 func (f *fakeCorrectionSource) rangeLines(_ context.Context, base, head string) ([]correctionLine, error) {
+	f.record("rangeLines")
+	if f.onRange != nil {
+		f.onRange()
+	}
 	f.gotBase, f.gotHead = base, head
 	return f.lines, f.err
 }
 
 func (f *fakeCorrectionSource) mergedLines(_ context.Context, base, merge string) ([][]byte, error) {
+	f.record("mergedLines")
 	f.gotBase, f.gotMerge = base, merge
 	return f.merged, f.mergedErr
 }
@@ -239,7 +296,7 @@ func (f *fakeCorrectionSource) trailers(ctx context.Context, message []byte) ([]
 	return f.real.trailers(ctx, message)
 }
 
-func newFakeSource(t *testing.T, lines ...correctionLine) *fakeCorrectionSource {
+func newFakeSource(t testing.TB, lines ...correctionLine) *fakeCorrectionSource {
 	t.Helper()
 	return &fakeCorrectionSource{lines: lines, real: newGitCorrectionSource(t.TempDir())}
 }

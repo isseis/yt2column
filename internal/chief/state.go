@@ -1,6 +1,7 @@
 package chief
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -341,6 +342,50 @@ func decideNext(f workspaceFacts) (next *Next, done bool, why string) {
 	}
 }
 
+// The reasons nextFromPlan gives for a plan PR left to create with no
+// /runplan to propose. They differ from one another so that a plan whose
+// steps were not read is not taken for one whose steps are all done.
+const (
+	reasonNoStepLeft = "the plan has a PR left to create but no step left to do"
+	reasonNoSteps    = "the plan has a PR left to create but no step could be read from it"
+	// reasonStepsUnreadable is the start of the reasons for a plan whose
+	// steps cannot be read; stepsUnreadableReason adds the condition's text
+	// and the step ID or line.
+	reasonStepsUnreadable = "the steps of the plan cannot be read"
+)
+
+// Condition texts of reasonStepsUnreadable, one for each stepErrorKind.
+const (
+	reasonStepNoCheckbox    = "a step has no checkbox"
+	reasonStepNearMiss      = "a line looks like a step but is in no accepted form"
+	reasonStepOtherCheckbox = "a checkbox in a step is in no accepted form"
+	reasonStepDuplicate     = "a step ID appears twice"
+)
+
+// stepsUnreadableReason builds the reason for a plan whose steps cannot be
+// read. An error that is not a *stepError, or has no known kind, still gives
+// the plain reason.
+func stepsUnreadableReason(err error) string {
+	se, ok := errors.AsType[*stepError](err)
+	if !ok {
+		return reasonStepsUnreadable
+	}
+	var cond string
+	switch se.Kind {
+	case stepNoCheckbox:
+		cond = reasonStepNoCheckbox
+	case stepNearMiss:
+		cond = reasonStepNearMiss
+	case stepOtherCheckbox:
+		cond = reasonStepOtherCheckbox
+	case stepDuplicate:
+		cond = reasonStepDuplicate
+	default:
+		return reasonStepsUnreadable
+	}
+	return fmt.Sprintf("%s: %s: %q", reasonStepsUnreadable, cond, se.Detail)
+}
+
 // nextFromPlan decides the next command from an approved plan: the task is
 // done when every PR is merged, else the next PR to create picks the route of
 // its /runplan by its model requirement.
@@ -354,8 +399,14 @@ func nextFromPlan(f workspaceFacts, plan *Plan) (next *Next, done bool, why stri
 	}
 	// /runpr offers no /runplan for a plan with no step left to do, so a
 	// plan PR left to create without one is not guessed to be a /runplan.
-	if !plan.StepsLeft() {
-		return nil, false, "the plan has a PR left to create but no step left to do"
+	left, err := plan.StepsLeft()
+	switch {
+	case errors.Is(err, errNoSteps):
+		return nil, false, reasonNoSteps
+	case err != nil:
+		return nil, false, stepsUnreadableReason(err)
+	case !left:
+		return nil, false, reasonNoStepLeft
 	}
 	key := routeKeyOf(pr.Requirement.Value)
 	if key == paneinput.RouteUnknown {

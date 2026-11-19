@@ -323,7 +323,10 @@ correction paragraph, in the forms of
 `docs/dev/conventions/requirements_process.md`, "Recording in the PR
 description". The line says what was changed to what and that no decision changed.
 The PR description names the change as an editorial correction, so the PR's
-reviewer can dispute the classification. An editorial correction adds no
+reviewer can dispute the classification. When the PR is squash-merged with
+`/mergepr`, the correction line also stays in the squash commit's body
+(`docs/dev/conventions/requirements_process.md`, "Recording in the PR
+description", "Squash body"). An editorial correction adds no
 経緯 entry ("History entries").
 
 **After the PR is created.** After the PR is created, make an editorial
