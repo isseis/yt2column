@@ -656,8 +656,10 @@ it (rule 3 below).
      request's time. A `running` state does not extend the deadline, which
      always counts from the request's time.
   6. **Not started**: the latest request is the automatic request, about two
-     minutes have passed since the PR's `createdAt`, and no `summary` comment
-     was updated after it (there is no start marker).
+     minutes have passed since the PR's `createdAt`, no `summary` comment
+     was updated after it (there is no start marker), and no `receipt` whose
+     `form_ok` is true was created after it (a receipt says Codex took the
+     request, which then waits and rule 5 ends).
   7. **Waiting**: none of the above.
 
   None of these is an unexpected post, and none decides a rule: a `running`
@@ -666,8 +668,8 @@ it (rule 3 below).
   threads, and a PR review's `commit_id` is never used); a completion marker
   for a commit that is not a requested one; and reactions.
   A `receipt` whose `form_ok` is true is not an unexpected post either, but
-  unlike those it does count, in rule 3 alone: it is one of rule 3's counted
-  items, and outside rule 3 it decides nothing. Codex posts a receipt after
+  unlike those it does count: it is one of rule 3's counted items, and it
+  keeps the automatic request out of rule 6. Codex posts a receipt after
   reviews whose result is a boolean too, so one that arrives while the
   summary comment is `running`, or before it is updated after the request,
   leaves the request waiting.
