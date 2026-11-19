@@ -25,15 +25,16 @@ type Capped struct {
 	Truncated bool
 }
 
-// CapHead keeps the first headMaxBytes bytes of text written by another
-// agent or service, such as a PR description or a pane's last report read
-// from its transcript, dropping the tail side. The cut never splits a UTF-8
-// sequence.
-func CapHead(text string) Capped {
-	if len(text) <= headMaxBytes {
+// CapHead keeps the first maxBytes bytes of text written by another agent or
+// service, such as a PR description or a pane's last report read from its
+// transcript (headMaxBytes), dropping the tail side. The cut never splits a
+// UTF-8 sequence, so the head may be a few bytes shorter than maxBytes.
+// maxBytes must not be negative.
+func CapHead(text string, maxBytes int) Capped {
+	if len(text) <= maxBytes {
 		return Capped{Text: text}
 	}
-	end := headMaxBytes
+	end := maxBytes
 	for end > 0 && !utf8.RuneStart(text[end]) {
 		end--
 	}
@@ -52,21 +53,63 @@ func CapHead(text string) Capped {
 func Sanitize(text string) string {
 	var b strings.Builder
 	b.Grow(len(text))
-	for i := 0; i < len(text); {
-		r, size := utf8.DecodeRuneInString(text[i:])
-		switch {
-		case r == utf8.RuneError && size == 1:
-			fmt.Fprintf(&b, `\x%02x`, text[i])
-		case r == '\\':
-			b.WriteString(`\\`)
-		case hiddenRune(r):
-			writeEscape(&b, r)
-		default:
-			b.WriteString(text[i : i+size])
-		}
-		i += size
+	for _, u := range sanitizeUnits(text) {
+		b.WriteString(u.text)
 	}
 	return b.String()
+}
+
+// unitKind declares what a display unit is, so the status table chooses how
+// to show a unit by this value and never by reading its text. The zero value
+// is no kind at all: a unit that carries it was not made by sanitizeUnits.
+type unitKind int
+
+const (
+	// unitText is a character Sanitize keeps, or one escape it writes
+	// (the doubled backslash included).
+	unitText unitKind = iota + 1
+	// unitNewline is a newline, which Sanitize keeps.
+	unitNewline
+	// unitTab is a tab, which Sanitize keeps.
+	unitTab
+)
+
+// displayUnit is one unit of Sanitize's output: one escape, or one character
+// Sanitize keeps. The kind field declares a newline and a tab, so the status table maps
+// them to a space by the kind. Only sanitizeUnits makes one.
+type displayUnit struct {
+	text string
+	kind unitKind
+}
+
+// sanitizeUnits splits text by Sanitize's rule into display units, in order:
+// each escape (an invalid byte, a hidden character, the doubled backslash) is
+// one unit, and every other character is one unit, a newline and a tab
+// included, each with its kind. Sanitize(text) is the units' texts joined, so
+// the rule is written once.
+func sanitizeUnits(text string) []displayUnit {
+	units := make([]displayUnit, 0, utf8.RuneCountInString(text))
+	for i := 0; i < len(text); {
+		r, size := utf8.DecodeRuneInString(text[i:])
+		var u displayUnit
+		switch {
+		case r == utf8.RuneError && size == 1:
+			u = displayUnit{text: fmt.Sprintf(`\x%02x`, text[i]), kind: unitText}
+		case r == '\\':
+			u = displayUnit{text: `\\`, kind: unitText}
+		case r == '\n':
+			u = displayUnit{text: "\n", kind: unitNewline}
+		case r == '\t':
+			u = displayUnit{text: "\t", kind: unitTab}
+		case hiddenRune(r):
+			u = displayUnit{text: escapeOf(r), kind: unitText}
+		default:
+			u = displayUnit{text: text[i : i+size], kind: unitText}
+		}
+		units = append(units, u)
+		i += size
+	}
+	return units
 }
 
 // Code points Sanitize replaces besides the format characters.
@@ -99,14 +142,14 @@ func hiddenRune(r rune) bool {
 	}
 }
 
-// writeEscape writes r in the shortest visible escape form that holds it.
-func writeEscape(b *strings.Builder, r rune) {
+// escapeOf returns r in the shortest visible escape form that holds it.
+func escapeOf(r rune) string {
 	switch {
 	case r < c1First:
-		fmt.Fprintf(b, `\x%02x`, r)
+		return fmt.Sprintf(`\x%02x`, r)
 	case r < visibleEscapeUnicode:
-		fmt.Fprintf(b, `\u%04x`, r)
+		return fmt.Sprintf(`\u%04x`, r)
 	default:
-		fmt.Fprintf(b, `\U%08x`, r)
+		return fmt.Sprintf(`\U%08x`, r)
 	}
 }

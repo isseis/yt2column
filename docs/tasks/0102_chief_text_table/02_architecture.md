@@ -428,7 +428,7 @@ type SnapshotOutput struct {
 | chief の pane の幅 | `herdr pane layout --pane <chief の pane の ID>` | 封筒の `id` が `cli:pane:layout`、`result.type` が `pane_layout`、`result.layout` がオブジェクトで、その `panes` が配列。各 pane の `pane_id`（`paneIDForm`）。`pane_id` が chief の pane の ID と等しい項目がちょうど 1 つあり、その `rect.width` が 1 以上 1000 以下の整数。chief の pane でない項目は `pane_id` だけを読み、`rect` は読まない。`result.layout.splits` が配列で、空なら分割していない、空でなければ分割している。`splits` の要素は読まない（1.5） | 80 桁で、分割していないものとみなす |
 | pane とタブの対応 | 増やさない。`readRound` が読む `herdr agent list` の同じ出力から読む | 封筒の `id` が `cli:agent:list`、`result.type` が `agent_list`、`result.agents` が配列。各エージェントの `pane_id`（`paneIDForm`）と `tab_id`（`tabIDForm`）。同じ `pane_id` が 2 つ以上あれば読めない | すべての質問のタブの表示が pane の ID になる |
 
--   どの読み取りでも、使うメンバが欠けているか、型か形が違うとき、`strictjson` が同じメンバ名の重複として拒むときは、その読み取り全体を読めないものとする。ほかのメンバ（タブの `number`・`agent_status`・`focused`・`pane_count`、配置の `area`・`splits`・`zoomed` など）は読まず、Herdr が足しても受け付ける。
+-   どの読み取りでも、使うメンバが欠けているか、型か形が違うとき、`strictjson` が同じメンバ名の重複として拒むときは、その読み取り全体を読めないものとする。ほかのメンバ（タブの `number`・`agent_status`・`focused`・`pane_count`、配置の `area`・`zoomed`、`splits` の要素など）は読まず、Herdr が足しても受け付ける。
 -   幅の上限を 1000 とするのは、形の正しい出力でも、とても大きな幅が来ると区切り線が巨大になり、道具がメモリを使い切りうるためである（要件書 4.2 の受け付ける形も同じに改めた）。1000 は、ふつうの端末の幅を十分に超える。
 -   幅には、`layout.area` ではなく chief の pane の `rect.width` を使う。`area` はタブ全体の大きさで、タブを分割したときに chief の pane より広い（申し送りの H-04）。タブを分割すると、Herdr は pane の枠を `rect` の中に描くので、使える幅は 2 桁少なくなる（1.5）。拡大（zoom）したときも `rect.width` は分割したときの幅のままで、表は画面より狭く組まれる。`zoomed` と `area` は読まない（1.5）。
 -   pane の配置を読む pane は、ラウンドがすでに確かめた chief の pane（`HERDR_PANE_ID` を `ParsePaneID` で読み、エージェントの一覧で確かめたもの、`internal/chief/snapshot.go:94-109`）である。ID は `paneIDForm` に合うので、`-` で始まって Herdr にオプションと読まれることはない。

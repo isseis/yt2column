@@ -130,13 +130,13 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 
 タスク 0102 の PR-1（実装計画書のステップ 1-2）で、2026-11-19 に採った。版は Herdr 0.9.1、Claude Code 2.1.328 である。
 
--   **採り方。** `/runplan` のセッションが、自分の pane（`w27:p3`）で、読み取りのコマンドだけで採った。ステップ 1-1 の実物の確かめのために、人がその pane のタブを左右に分割し、拡大（zoom）していた。そのため、`pane-layout-split.json` は、分割して拡大したタブの配置で、`zoomed` が `true`、`splits` が 1 つ、`panes` が 2 つ（chief の代わりの `w27:p3` と、もう 1 つの pane）である。chief は `zoomed` を読まない。
+-   **採り方。** `/runplan` のセッションが、自分の pane（`w27:p3`）で、読み取りのコマンドだけで採った。`pane-layout.json` は、ステップ 1-1 の実物の確かめの後に人が分割を閉じたタブの配置で、`splits` が空、`panes` が 1 つである。`pane-layout-split.json` は、人がそのタブを左右に分割し直した後の配置で、`splits` が 1 つ、`panes` が 2 つ（chief の代わりの `w27:p3` と、もう 1 つの pane）である。どちらも拡大（zoom）していない。
 -   **置き換え。** 採った人を特定できる値はなかったので、何も置き換えていない。タブのラベルは `chief`・`claude`・`cmd`・`opencode` だけで、空のラベルのタブはなかった。
 
 | ファイル | 中身 |
 |---|---|
 | `herdr/tab-list.json` | `herdr tab list` の出力。すべての workspace の 17 のタブ |
-| `herdr/pane-layout-split.json` | `herdr pane layout --pane w27:p3` の出力。分割して拡大したタブ |
+| `herdr/pane-layout.json`・`herdr/pane-layout-split.json` | `herdr pane layout --pane w27:p3` の出力。前者は分割していないタブ、後者は左右に分割したタブ |
 
 ### 人の入力の transcript
 
