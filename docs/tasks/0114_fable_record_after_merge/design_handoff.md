@@ -30,7 +30,7 @@ AC-05 は、push するのを判定した commit とし、判定の後にブラ�
 
 **懸念:** 判定のスクリプトには 3 つの変更が要る。
 - **記録の START の確かめ:** 今は、START が今の merge-base かブランチの commit である記録だけを読む（`review-records.sh:46-52`、`:87-91`）。merge で merge-base が動くと、最初の記録（START が古い merge-base）が無視され、Fable が PR の全体を走り直す。AC-32 は、その記録を読み続けることを求める。START が `origin/main` の commit で END の祖先であり、START..END に `origin/main` が届く commit がない（範囲がブランチの commit だけである）ことを確かめれば、有効と判定する側は広がらない。END が merge の後の commit で、START..END に merge で入った `main` 側の commit が入る記録は、読まない。
-- **merge の後の確認の記録:** merge commit を名指しした確認の記録（`not run` を含む）があれば、その merge commit を記録を無効にしない commit に数える（AC-27、AC-28）。また、記録を無効にする commit が、確認の記録のない merge commit だけのときは、Fable ではなく merge の後の確認を求めることを、出力で区別する必要がある（AC-24）。今の出力は `VALID` か `MISSING <START>` だけである。
+- **merge の後の確認の記録:** merge commit を名指しした確認の記録（`not run` を含む）があれば、その merge commit を記録を無効にしない commit に数える（AC-27、AC-28）。また、記録を無効にしているのが未確認の merge commit（確認の記録がまだない merge commit）だけのときは、Fable ではなく merge の後の確認を求めることを、出力で区別する必要がある（AC-24）。今の出力は `VALID` か `MISSING <START>` だけである。
 - **START の決め方:** Fable を走らせ直すとき、記録の後に merge commit が 1 つでもあれば、START を新しい merge-base にする（AC-14）。今は、最初に規則に当たらない commit の第 1 親がブランチの commit なら、その第 1 親を START にする（`review-records.sh:570-578`）。
 
 スクリプトは `origin/main` から取り出して走るので、変更がスクリプトに効くのは本タスクのその PR のマージ後である。本タスクの実装の PR 自身の判定には、変更の前のスクリプトが使われる。

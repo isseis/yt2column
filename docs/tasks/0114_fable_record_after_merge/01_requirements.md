@@ -53,7 +53,7 @@
 
 -   **進め方：** 通常の進め方（`full`）とする。この変更は、除外される変更に当たらない。通常の進め方を勧めた理由は 3 つある。ADR-0050 の決定を変えること、共有の手順と判定のスクリプト（`_lib/task-pr-handoff.md`・`_lib/fable-review.md`・`_lib/review-records.sh`）に及ぶこと、決めることが複数あることである。除外の判断は次のとおりである。`docs/dev/security.md` の規則と前提を変えない。レビューのスレッドや Bot への依頼の扱いに触れず、`fixprguard`・`codexreview`・`mergepr` も変えないので、開発の道具の信頼境界（[ADR-0015](../../dev/adr/0015-untrusted-review-threads.md)）を変えない。外部依存も足さない（`docs/dev/conventions/requirements_process.md`「Simple Process」の「Excluded changes」）。人の答え：通常の進め方。
     -   ADR：なし。本タスクの中で閉じる、進め方の選択である。
--   **push の直前の再判定：** push の直前に、Fable の記録が有効かをもう一度判定する。有効でなければ、記録を無効にする commit が merge の後の確認の記録のない merge commit だけのときは merge の後の確認を、それ以外のときは足りない commit について Fable の部分レビューを単独で行う。タスク文書の PR の CHECKS の直しは、`/runplan` の green gate の直しと同じく、記録を無効にしない。merge commit は、merge の後の確認の記録がない限り、記録を無効にする（F-001、F-002、F-005）。今は判定が入口でしか走らないことが、#987 の食い違いの原因だからである。CHECKS の直しを無効にしないのは、文書のガードのテストを通すための直しのたびに Fable が走り直さないようにするためである。これで、タスク文書の PR の扱いが `/runplan` のチェックポイントの扱いと揃う。人の答え：再判定し、Part B の直しは除く。
+-   **push の直前の再判定：** push の直前に、Fable の記録が有効かをもう一度判定する。有効でなければ、次のどちらかを単独で行う。記録を無効にしているのが、未確認の merge commit（merge の後の確認の記録がまだない merge commit。6 章で定義）だけなら、merge の後の確認を行う。ほかの commit も記録を無効にしているなら、足りない commit について Fable の部分レビューを行う。タスク文書の PR の CHECKS の直しは、`/runplan` の green gate の直しと同じく、記録を無効にしない。merge commit は、merge の後の確認の記録がない限り、記録を無効にする（F-001、F-002、F-005）。今は判定が入口でしか走らないことが、#987 の食い違いの原因だからである。CHECKS の直しを無効にしないのは、文書のガードのテストを通すための直しのたびに Fable が走り直さないようにするためである。これで、タスク文書の PR の扱いが `/runplan` のチェックポイントの扱いと揃う。人の答え：再判定し、Part B の直しは除く。
     -   採らなかった案：(B) CHECKS の直しにも Fable を走らせ直す（今の判定の規則のまま）。CHECKS の直しのたびに、Fable の 1 回分（2〜16 分）の費用がかかる。(C) 再判定して有効でなければ、自動では走らせずに止め、人に問う。人の手間が増えるうえ、人が選べるのは Fable を走らせることだけである。
     -   ADR：[ADR-0050](../../dev/adr/0050-fable-partial-review.md) を更新する。記録の後の commit の扱いという ADR-0050 の決定を変えるので、主要な決定に当たる（CLAUDE.md「Design decisions (ADR)」）。
 -   **再判定を入れる PR：** push の直前の再判定は、タスク文書の PR と `/runplan` の PR の両方に入れる（F-001）。`/runplan` のチェックポイントの印の後にできた merge commit にも同じ穴がある。どちらの PR も、push を `_lib/task-pr-handoff.md` Part B で行うので、1 か所で直せる。人の答え：含める。
@@ -83,7 +83,7 @@
 
 ### 2.1. 目的 (Goals)
 
--   記録の後に merge commit 以外の中身のある commit ができたとき、Fable がそれを見ないまま、タスクの PR が開かれないようにする。merge commit は、merge の後の確認の記録がないまま PR が開かれないようにする。
+-   記録の後に merge commit 以外の中身のある commit ができたとき、Fable がそれを見ないまま、タスクの PR が開かれないようにする。未確認の merge commit を含んだまま、PR が開かれないようにする。
 -   記録の後の merge commit は、Fable を走らせ直さず、Opus のサブエージェントが merge に関わる箇所だけを確かめる。
 -   タスク文書の PR と `/runplan` の PR で、記録を無効にしない commit の扱いを揃える。
 -   PR の説明で、どちらの CLI もレビューしなかった commit を、記録の後にできたものも含めて正しく示す。
@@ -100,7 +100,7 @@
 
 ### 2.3. スコープ外 (Out of Scope)
 
--   **記録のない merge commit の除外：** merge の後の確認の記録がない merge commit を、記録を無効にしない commit に数えること（要件定義の際に決めたこと）。
+-   **未確認の merge commit の除外：** 未確認の merge commit を、記録を無効にしない commit に数えること（要件定義の際に決めたこと）。
 -   **`/runpr` の `coverage` の判定と、マージの質問の変更。** merge commit で `PARTIAL` になる動きは変えない。
 -   **PR を開いた後の変更を Fable に見せること。** Fable の部分レビューは PR を開く前のものである（ADR-0050）。PR を開いた後に `/runpr` や `/fixpr` が `main` を取り込んだ merge は、本タスクで扱わない。
 -   **タスク 0098 の文書の変更**（要件定義の際に決めたこと）。
@@ -127,7 +127,7 @@
 
 - **AC-01**: タスクの PR の push の直前に、`origin/main` から取り出した判定のスクリプトで、ブランチの Fable の記録が有効かを判定する。タスク文書の PR でも、`/runplan` の PR でも判定する。判定の取り出し方と、失敗を「有効でない」と読むことは、今の起動とチェックポイントの入口と同じである（`fable-review.md:79-103`）。
 - **AC-02**: 判定が有効（`VALID`）のときは、Fable を走らせず、commit を足さずに push に進む。
-- **AC-03**: 判定が Fable の部分レビューを求める（記録がない、記録の後に merge の後の確認の記録のない merge commit のほかにも記録を無効にする commit がある、または判定の失敗）ときは、push の前に、判定が示す起点 `<START>` から HEAD までについて、Fable の部分レビューを単独で行う。判定が失敗したときの `<START>` は merge-base である。流れはチェックポイントの単独の経路（`fable-review.md:208-232`）と同じで、指摘のトリアージ、直し、直しのローカルの CLI レビュー、記録の commit の順に進む。Fable に渡す KIND は、タスク文書の PR では `documents`、`/runplan` の PR では `implementation` である。SELF_REJECTED には、そのセッションがそれまでのレビューで却下した指摘を渡す（`fable-review.md:35-47`）。
+- **AC-03**: 判定が Fable の部分レビューを求めるときは、push の前に、判定が示す起点 `<START>` から HEAD までについて、Fable の部分レビューを単独で行う。判定が Fable の部分レビューを求めるのは、記録がないとき、未確認の merge commit のほかにも記録を無効にしている commit があるとき、判定が失敗したときである。判定が失敗したときの `<START>` は merge-base である。流れはチェックポイントの単独の経路（`fable-review.md:208-232`）と同じで、指摘のトリアージ、直し、直しのローカルの CLI レビュー、記録の commit の順に進む。Fable に渡す KIND は、タスク文書の PR では `documents`、`/runplan` の PR では `implementation` である。SELF_REJECTED には、そのセッションがそれまでのレビューで却下した指摘を渡す（`fable-review.md:35-47`）。
 - **AC-04**: AC-03 の単独の部分レビューか、AC-24 の merge の後の確認が commit を作ったら、Part B step 1 の README の同期と step 2 の CHECKS を、push の前にもう一度走らせる。ここでできた CHECKS の直しと `README.en.md` の commit も、AC-10 と AC-11 のとおり記録を無効にしない。
 - **AC-05**: AC-03 か AC-24 と、AC-04 の後に、もう一度判定する。有効なら push に進む。push の前の最後の手順は、この判定である。push するのは、判定した commit である。判定の後、push までの間にブランチの先頭が判定した commit から動いたら、push せずに判定からやり直す。
 - **AC-06**: AC-05 の判定が有効でないときは、push せず、PR を開かずに止まる。判定が失敗した（スクリプトを取り出せない、終了コードが 0 でない、1 行目が決まった形でない）ときも止まる。止まったことを報告する。報告には、止まった理由、判定の出力の 1 行目、判定が失敗したときはスクリプトが標準エラーに書いたこと、今の HEAD、止まるまでに作った commit を含める。
@@ -144,7 +144,7 @@
 - **AC-10**: 今まで記録を無効にしなかった commit は、push の直前の判定でも無効にしない。対象は、中身のない commit（`fable-review.md:114-121`）、同じ実行の直し（`:122-125`）、チェックポイントの印の後のチェックポイントの実行の commit（`:126-128`）である。たとえば、記録の後に `README.en.md` だけを変える commit しかないブランチでは、Fable は走らない。
 - **AC-11**: タスク文書の PR で、記録が有効なうちに Part B step 2 の前の印が残され、記録の後に印と CHECKS の直ししかないブランチでは、push の直前の判定は有効になり、Fable は走らない。
 - **AC-12**: タスク文書の PR で、記録と印の間に中身のある commit（CHECKS の前に作った手作業の commit など）があるブランチでは、push の直前の判定は有効でない。印の後の commit は、手で足した中身のある commit でも記録を無効にしない（受け入れた危険。要件定義の際に決めたこと）。
-- **AC-13**: 記録の後に、merge の後の確認の記録がない merge commit（`origin/main` の取り込みを含む）があるブランチでは、タスク文書の PR でも `/runplan` の PR でも、push の直前の判定は有効でない。merge commit がチェックポイントの印や CHECKS の直しの後にあっても、同じである。そのとき、merge commit のほかに記録を無効にする commit がなければ、判定は Fable ではなく merge の後の確認を求め、Fable は走らない（AC-24）。
+- **AC-13**: 記録の後に未確認の merge commit（`origin/main` の取り込みを含む）があるブランチでは、タスク文書の PR でも `/runplan` の PR でも、push の直前の判定は有効でない。merge commit がチェックポイントの印や CHECKS の直しの後にあっても、同じである。そのとき、ほかに記録を無効にしている commit がなければ、判定は Fable ではなく merge の後の確認を求め、Fable は走らない（AC-24）。
 - **AC-14**: 記録の後に、merge commit 以外の中身のある commit があって Fable を走らせ直すとき、記録の後に merge commit が 1 つでもあれば、Fable が見る範囲は新しい merge-base から HEAD まで（PR の全体）である。merge の前の記録の START が古い merge-base でも、ブランチの commit でも、同じである。たとえば、記録の後に中身のある commit X を足してから `origin/main` を merge したブランチでは、判定は `MISSING <新しい merge-base>` を返す。
 - **AC-15**: Fable の起動の後、記録の commit の前に merge commit ができたブランチでも、push の直前の判定は、その merge commit について merge の後の確認を求める。merge の前の記録の START が古い merge-base でも、その記録は無視されない（AC-32）。AC-03 の単独の部分レビューや merge の後の確認の途中で merge commit ができたときは、AC-05 の判定が有効でなくなり、AC-06 のとおり止まる。
 - **AC-32**: 記録の START が merge の前の merge-base で、その後の `origin/main` の merge で merge-base が動いたブランチでも、判定のスクリプトはその記録を記録として読む。たとえば、#987 の形のブランチ（START が古い merge-base の記録の commit の後に merge commit が 1 つ）では、判定は merge の後の確認だけを求め、Fable を求めない。
@@ -175,7 +175,7 @@ PR の説明の「どちらの CLI もレビューしなかった commit」（`t
 
 **Acceptance Criteria**:
 
-- **AC-24**: push の直前の判定で、記録の後に merge の後の確認の記録がない merge commit があり、ほかに記録を無効にする commit がないときは、Fable を走らせず、それらの merge commit について merge の後の確認を行う。たとえば、#987 の形のブランチ（記録の commit の後に、衝突を解いた merge commit が 1 つ）では、merge の後の確認が 1 回走り、Fable は走らない。
+- **AC-24**: push の直前の判定で、記録を無効にしているのが未確認の merge commit だけのときは、Fable を走らせず、それらの merge commit について merge の後の確認を行う。たとえば、#987 の形のブランチ（記録の commit の後に、衝突を解いた merge commit が 1 つ）では、merge の後の確認が 1 回走り、Fable は走らない。
 - **AC-25**: merge の後の確認は、Opus のサブエージェントが行う。セッション自身は行わない。サブエージェントが報告するモデル ID で、Opus で走ったかを確かめる。Opus でなかったときは、その結果を使わず、`not run` とする（AC-28）。
 - **AC-26**: merge の後の確認の範囲に入れるのは、次の 2 種類の箇所だけである。(1) merge commit で手で解いた箇所（`git` が自動で作る merge の結果と、merge commit の内容が違う箇所）。(2) merge で `main` から入った変更のうち、ADR・先行のタスク文書・コマンドの定義の変更を、PR が変えた文書やコードが参照している箇所。どちらにも当たる箇所がないときも、確認を走らせ、当たる箇所がないことを確かめさせる。
 - **AC-27**: 確認の結果は、merge commit を名指しした決まった形の行で、merge の後の確認の記録の commit に残す。判定のスクリプトは、その行が `origin/main..HEAD` の commit にあり、名指しした merge commit がその commit の祖先であるときだけ、その merge commit を記録を無効にしない commit に数える。名指しした commit が merge commit でないとき、ブランチにないとき、行の形が違うときは、数えない。
@@ -231,6 +231,7 @@ PR の説明の「どちらの CLI もレビューしなかった commit」（`t
 -   **CHECKS の直し・タスクの PR・push の直前:** 3.1 の定義による。
 -   **merge の後の確認:** 記録の後の merge commit について、Opus のサブエージェントが、merge で手で解いた箇所と、merge で `main` から入った ADR・先行のタスク文書・コマンドの定義の変更を、PR の文書やコードが参照している箇所だけを確かめるレビュー（F-005）。
 -   **merge の後の確認の記録:** merge commit を名指しした merge の後の確認の行（`not run` を含む）。Fable の記録ではなく、最後の Fable の記録を変えない。
+-   **未確認の merge commit:** 記録の後の merge commit のうち、それを名指しした merge の後の確認の記録がまだないもの。
 -   **単独の経路:** ローカルの CLI レビューと並列にせず、Fable の部分レビューだけを行う流れ（`fable-review.md`「The standalone path」）。
 -   **merge-base:** `git merge-base origin/main HEAD`。
 -   ほかの用語は `docs/translation_glossary.md` と統一する。
