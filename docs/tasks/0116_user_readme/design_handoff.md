@@ -9,7 +9,7 @@
 - Go のテスト：`cmd/yt2column/docs_test.go`（`TestOpenAIDocsContract`、`TestLLMDefaultsDocsContract`、`TestEffortValuesDocsContract`、`TestProductionProfileDocsContract`、`TestReadmeLinks`）、`extension_docs_test.go`（拡張の ID）、`readme_structure_test.go`（2 つの版の構造）。
 
 **新しい構成での変化:**
-- 必要なブラウザの版は、引き続き両方の README が書く（AC-01、ADR-0030）ので、`manifest.test.ts` の README の検査はそのまま残る。INSTALL.md の版も同じ正本と照合するかを決める。
+- 必要なブラウザの版は、引き続き両方の README が書く（AC-01、ADR-0030）ので、`manifest.test.ts` の README の検査はそのまま残る。INSTALL.md も版を述べる（AC-08）ので、INSTALL.md の版も同じ正本と照合する（§4.5）。その検査の作り方を決める。
 - 手順と画面の名前は INSTALL.md（日本語だけ）に移る。README.en.md の文を英語のカタログと照合する検査は、照合する文書がなくなる。
 - 設定や料金の値は、日本語だけの開発者向けの手引きに移る。
 
