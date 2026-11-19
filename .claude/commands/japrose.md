@@ -167,8 +167,8 @@ From the review findings, apply the fixes to the document in place:
   note why.
 - Preserve Mermaid syntax and code fences exactly; re-check that fence counts stay
   balanced after editing diagram labels.
-- For a bold finding, remove only the `**` markers and keep every character as it
-  is. Do not remove the bold of a fixed label the formatting convention puts outside
+- For a bold finding, remove only the bold delimiters (`**` or `__`) and keep every
+  character as it is. Do not remove the bold of a fixed label the formatting convention puts outside
   its rules, and do not touch a bold span that reaches outside the checked lines.
   Removing the markers is an expression-only fix: do not add subheadings or
   restructure the document to satisfy the formatting convention.
