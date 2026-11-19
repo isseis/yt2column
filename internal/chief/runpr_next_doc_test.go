@@ -98,13 +98,111 @@ func nextLineExamples(section string) []string {
 	var examples []string
 	for _, m := range codeSpanInProse.FindAllStringSubmatch(prose.String(), -1) {
 		example := strings.TrimSpace(spanLineBreak.ReplaceAllString(m[1], " "))
-		example = strings.TrimPrefix(example, "- ")
-		if !nextExampleWord.MatchString(example) || example == "NEXT" || example == "NEXT:" {
+		text := strings.TrimPrefix(example, "- ")
+		if !nextExampleWord.MatchString(text) || text == "NEXT" || text == "NEXT:" {
 			continue
 		}
+		// Keep a list bullet in the example: the report grammar allows it, so
+		// the readers are checked against the form as the document writes it.
 		examples = append(examples, example)
 	}
 	return examples
+}
+
+// TestNextLineExamples checks the rules that pick the examples out of a
+// section: spans outside fenced blocks, a list bullet kept, a span over two
+// lines joined, and a span that only names the form dropped. The fixtures are
+// not the document's text.
+func TestNextLineExamples(t *testing.T) {
+	cases := []struct {
+		name    string
+		section string
+		want    []string
+	}{
+		{
+			name:    "outside a fence",
+			section: "```text\n`NEXT: /mkplan 4343`\n```\nAfter: `NEXT: /mkplan 4242`\n",
+			want:    []string{"NEXT: /mkplan 4242"},
+		},
+		{
+			name:    "after a list bullet",
+			section: "- `- NEXT: /mkplan 4242`\n",
+			want:    []string{"- NEXT: /mkplan 4242"},
+		},
+		{
+			name:    "over two lines",
+			section: "`NEXT: /mkplan\n4242`\n",
+			want:    []string{"NEXT: /mkplan 4242"},
+		},
+		{
+			name:    "only the form",
+			section: "Write `NEXT` or `NEXT: ` before the command.\n",
+			want:    nil,
+		},
+	}
+	for _, c := range cases {
+		if got := nextLineExamples(c.section); !slices.Equal(got, c.want) {
+			t.Errorf("%s: nextLineExamples = %q; want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// TestCheckRunprNextExamples checks the failures the document check reports:
+// a missing section, a section with no example, an example a route cannot
+// read, and a route that reads none of them. The fixtures are not the
+// document's text.
+func TestCheckRunprNextExamples(t *testing.T) {
+	const (
+		step4 = "## 4. Confirm, record, and merge\n"
+		step5 = "## 5. Switch branch, then show NEXT\n"
+		valid = step4 + "\n`- NEXT: /mkplan 4242`\n\n" + step5 + "\n`NEXT: なし`\n"
+	)
+	brokenRoute := nextRoute{name: "broken", read: func(string) NextKind { return NextUnmatched }}
+	cases := []struct {
+		name   string
+		doc    string
+		routes []nextRoute
+		want   []string
+	}{
+		{name: "both sections readable", doc: valid},
+		{
+			name: "missing section",
+			doc:  step5 + "\n`NEXT: なし`\n",
+			want: []string{"section not found"},
+		},
+		{
+			name: "no example",
+			doc:  step4 + "\n`NEXT` and `NEXT: `\n\n" + step5 + "\n`NEXT: なし`\n",
+			want: []string{"no NEXT line example"},
+		},
+		{
+			name: "unreadable example",
+			doc:  step4 + "\n`NEXT /mkplan 4242`\n\n" + step5 + "\n`NEXT: なし`\n",
+			want: []string{"the screen route cannot read", "the transcript route cannot read"},
+		},
+		{
+			name:   "one route broken",
+			doc:    valid,
+			routes: []nextRoute{brokenRoute, nextRoutes[1]},
+			want:   []string{"the broken route cannot read", "the broken route cannot read"},
+		},
+	}
+	for _, c := range cases {
+		routes := c.routes
+		if routes == nil {
+			routes = nextRoutes
+		}
+		got := checkRunprNextExamples(c.doc, routes)
+		if len(got) != len(c.want) {
+			t.Errorf("%s: got %d failures %q; want %d", c.name, len(got), got, len(c.want))
+			continue
+		}
+		for i, want := range c.want {
+			if !strings.Contains(got[i], want) {
+				t.Errorf("%s: failure %q does not hold %q", c.name, got[i], want)
+			}
+		}
+	}
 }
 
 // TestRunprNextExamplesReadable checks that every NEXT line example of the
