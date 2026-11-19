@@ -217,10 +217,11 @@ var (
 	// repos/<owner>/<repo>/, the --jq filter, which holds no single quote,
 	// and the rest of the line the filter ends on.
 	paginatedListing = regexp.MustCompile(`gh api --paginate repos/<owner>/<repo>/(\S+) --jq '([^']*)'(.*)`)
-	// stderrToFile is the start of the rest of a listing's line that writes
-	// its standard error to a file in the directory the run made for it, so
-	// an error message quoting a body never reaches the session.
-	stderrToFile = regexp.MustCompile(`^ 2>"<stderr-dir>/[a-z-]+"`)
+	// stderrToFile is the rest of a listing's line when it writes its
+	// standard error to a file in the directory the run made for it, and
+	// nothing else, so an error message quoting a body never reaches the
+	// session. The file's name is the submatch.
+	stderrToFile = regexp.MustCompile(`^ 2>"<stderr-dir>/([a-z-]+)"$`)
 	// leftPlaceholder is a placeholder the replacement did not cover.
 	leftPlaceholder = regexp.MustCompile(`<[a-z][a-z-]*>`)
 )
@@ -534,8 +535,9 @@ func (f listingFixture) response() []map[string]any {
 // output holds bodyMarker, and every printed value is the item's own non-body
 // field or, for state, form_ok, and short_sha, the value the item's body
 // yields. Every other gh api call of section must be one of readCalls. When
-// stderrFile is set, each listing must write its standard error to a file
-// (stderrToFile). extra holds further
+// stderrFile is set, each listing must write its standard error to a file of
+// its own (stderrToFile), so one listing's error is never overwritten by
+// another's before its size is read. extra holds further
 // placeholder and value pairs for the filters, beyond the four every listing
 // may use. jq must be installed: a missing jq fails the test instead of
 // skipping it, so the check never passes unrun.
@@ -558,10 +560,17 @@ func checkListings(t *testing.T, where, section string, fixtures map[string]list
 		"<review-mention>", fixprguard.CodexMention,
 	}, extra...)...)
 	seen := map[string]struct{}{}
+	stderrFiles := map[string]string{}
 	for _, m := range matches {
 		endpoint, filter := m[1], replacer.Replace(m[2])
-		if stderrFile && !stderrToFile.MatchString(m[3]) {
-			t.Errorf("%s lists %s without writing its standard error to a file: the line ends %q", where, endpoint, m[3])
+		if stderrFile {
+			if file := stderrToFile.FindStringSubmatch(m[3]); file == nil {
+				t.Errorf("%s lists %s without writing its standard error to a file alone: the line ends %q", where, endpoint, m[3])
+			} else if other, dup := stderrFiles[file[1]]; dup {
+				t.Errorf("%s lists %s and %s with the same standard error file %q", where, other, endpoint, file[1])
+			} else {
+				stderrFiles[file[1]] = endpoint
+			}
 		}
 		fixture, ok := fixtures[endpoint]
 		if !ok {
