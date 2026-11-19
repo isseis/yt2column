@@ -1192,9 +1192,13 @@ func TestParagraph(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir, statePath, _, _ := mergeFiles(t)
 			tool, runner := newTool(t)
-			sourceOf(t, tool).lines = lines
+			source := sourceOf(t, tool)
+			source.lines = lines
 			path, n, err := tool.Paragraph(t.Context(), statePath, tt.drops)
 			runner.done()
+			if source.gotBase != "main" || source.gotHead != testHeadOID {
+				t.Errorf("range read on base %q, head %q, want main, %s from the state file", source.gotBase, source.gotHead, testHeadOID)
+			}
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
 					t.Fatalf("Paragraph error = %v, want %v", err, tt.wantErr)
@@ -1276,23 +1280,30 @@ func TestParagraphKeepsForgedWorkDirectory(t *testing.T) {
 func TestCheckBody(t *testing.T) {
 	tests := []struct {
 		name      string
+		subject   string
 		body      string
 		drops     Drops
 		wantLines int
 		wantErr   error
 	}{
-		{"block carried", correctedBody, Drops{}, 1, nil},
-		{"block missing", "Summary line.\n", Drops{}, 0, errCorrectionMismatch},
-		{"line dropped", "Summary line.\n\nDropped editorial corrections: 1 disputed by a reviewer, 0 reverted on the branch, 0 with rejected characters\n", Drops{Accepted: []Drop{{Index: 1, Case: DropDisputed}}}, 1, nil},
+		{"block carried", "feat: subject (#42)\n", correctedBody, Drops{}, 1, nil},
+		{"line dropped", "feat: subject (#42)\n", "Summary line.\n\nDropped editorial corrections: 1 disputed by a reviewer, 0 reverted on the branch, 0 with rejected characters\n", Drops{Accepted: []Drop{{Index: 1, Case: DropDisputed}}}, 1, nil},
+		// Only the subject file's wiring can stop this row: the body is right.
+		{"correction line in the subject", testCorrection + "\n", correctedBody, Drops{}, 0, errCorrectionMismatch},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir, statePath, subjectPath, _ := mergeFiles(t)
+			dir, statePath, _, _ := mergeFiles(t)
+			subjectPath := writeTempFile(t, dir, "checked-subject.txt", tt.subject)
 			bodyPath := writeTempFile(t, dir, "checked.txt", tt.body)
 			tool, runner := newTool(t)
-			sourceOf(t, tool).lines = []correctionLine{{Commit: testCommitA, Line: 3, Text: []byte(testCorrection)}}
+			source := sourceOf(t, tool)
+			source.lines = []correctionLine{{Commit: testCommitA, Line: 3, Text: []byte(testCorrection)}}
 			n, err := tool.CheckBody(t.Context(), statePath, subjectPath, bodyPath, tt.drops)
 			runner.done()
+			if source.gotBase != "main" || source.gotHead != testHeadOID {
+				t.Errorf("range read on base %q, head %q, want main, %s from the state file", source.gotBase, source.gotHead, testHeadOID)
+			}
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("CheckBody error = %v, want %v", err, tt.wantErr)
 			}
@@ -1577,8 +1588,8 @@ func TestMergeStopsAfterTheMergeKnown(t *testing.T) {
 		tool, runner := newTool(t, viewStep(openState, "main"), fetchMainStep(), mergeStep(), view)
 		report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
 		runner.done()
-		if err == nil {
-			t.Fatal("Merge returned nil, want the cleanup's error")
+		if !errors.Is(err, view.err) {
+			t.Fatalf("Merge error = %v, want the cleanup's error %v", err, view.err)
 		}
 		if !report.Merged || report.MergeCommitOID != "" || report.CorrectionsChecked {
 			t.Errorf("report = %+v, want merged, no merge commit, not verified", report)
@@ -1590,6 +1601,10 @@ func TestMergeStopsAfterTheMergeKnown(t *testing.T) {
 		tool, runner := newTool(t, viewStep(openState, "main"), fetchMainStep())
 		_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
 		runner.done()
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("Merge error = %v, want the missing temporary directory", err)
+		}
+		// The guidance shown to the operator is the contract.
 		if err == nil || !strings.Contains(err.Error(), "run the same merge command again") {
 			t.Errorf("Merge error = %v, want it to keep the preparation for the same merge", err)
 		}

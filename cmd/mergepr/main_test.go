@@ -62,19 +62,11 @@ func TestParseRequiresProtocol(t *testing.T) {
 	shapes := [][]string{
 		// A drop of the wrong form, a line named twice, or a drop on a
 		// subcommand that takes none.
-		extend("paragraph", "--drop", "1"),
-		extend("paragraph", "--drop", "x:disputed"),
-		extend("paragraph", "--drop", "0:disputed"),
-		extend("paragraph", "--drop", "01:disputed"),
-		extend("paragraph", "--drop", "+1:disputed"),
+		// The value forms are mergepr's own tests (TestParseDrop,
+		// TestParseRejectedDrop); one row per flag shows each is wired.
 		extend("paragraph", "--drop", "1:removed"),
 		extend("paragraph", "--drop-rejected", commit),
-		extend("paragraph", "--drop-rejected", "abc:3"),
-		extend("paragraph", "--drop-rejected", strings.ToUpper(commit)+":3"),
-		extend("paragraph", "--drop-rejected", commit+":0"),
-		extend("paragraph", "--drop", "1:disputed", "--drop", "1:disputed"),
 		extend("paragraph", "--drop", "1:disputed", "--drop", "1:reverted"),
-		extend("check-body", "--drop-rejected", commit+":3", "--drop-rejected", commit+":3"),
 		extend("prepare current", "--drop", "1:disputed"),
 		extend("cleanup", "--drop", "1:disputed"),
 		extend("cleanup", "--drop-rejected", commit+":3"),
