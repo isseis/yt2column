@@ -631,3 +631,25 @@ func mustRunning(t *testing.T, kind paneinput.CommandKind, arg string) *RunningC
 	}
 	return &cmd
 }
+
+// namesUpToUnknown returns name(0), name(1), ... up to the first value
+// whose name is unknownName, which it leaves out, so a test can walk every
+// value of a type the output names without listing them. A name function
+// that names no value unknown stops at maxValueNames values instead of
+// looping, and its list then repeats names, which TestOutputValueNames
+// reports.
+func namesUpToUnknown[T ~int](name func(T) string) []string {
+	var names []string
+	for v := T(0); v < maxValueNames; v++ {
+		n := name(v)
+		if n == unknownName {
+			return names
+		}
+		names = append(names, n)
+	}
+	return names
+}
+
+// maxValueNames bounds the values namesUpToUnknown walks, far above the
+// number any of the output's types declares.
+const maxValueNames = 64

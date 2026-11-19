@@ -49,6 +49,12 @@ type Snapshot struct {
 	// Baseline is what `chief wait` compares against: the agents of the
 	// task workspaces as this round read them.
 	Baseline WaitBaseline
+	// Table is the status table laid out from Rows, one line per element,
+	// each already sanitized.
+	Table []string
+	// TableUnreadable names, in English and sanitized, the table sources
+	// that could not be read and the question panes shown by their pane IDs.
+	TableUnreadable []string
 }
 
 // roundView is one reading of every task workspace: chief's own pane and
@@ -59,7 +65,11 @@ type roundView struct {
 	chief     Agent
 	chiefTree Worktree
 	agents    []Agent
-	found     []TaskWorkspace
+	// paneTabs maps a pane ID to its tab, read from the same agent list as
+	// agents, for the table only; nil when paneTabsErr is set.
+	paneTabs    map[string]tabID
+	paneTabsErr error
+	found       []TaskWorkspace
 	// facts and rows are parallel to found.
 	facts       []workspaceFacts
 	rows        []Row
@@ -81,7 +91,51 @@ func TakeSnapshot(ctx context.Context, deps Deps, owner Owner) (Snapshot, error)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	return finishSnapshot(deps, owner, view, nil), nil
+	return finishSnapshot(deps, owner, view, readTableSources(ctx, deps, view), nil), nil
+}
+
+// tableNoteMaxBytes caps the error text of a table source that could not be
+// read: a command's error can carry Herdr's standard error, up to the
+// output cap, and the note is printed every round.
+const tableNoteMaxBytes = 512
+
+// readTableSources reads the tab labels and the chief pane's width for the
+// status table, and adds the pane-to-tab map readRound read. Contract: the
+// sources are used for the table only; a source that cannot be read is left
+// at its zero value with a note, capped and sanitized, and never fails the
+// round, adds a problem, or changes a row.
+func readTableSources(ctx context.Context, deps Deps, view roundView) tableSources {
+	herdr := NewHerdr(deps.Cmds)
+	var src tableSources
+	if view.paneTabsErr != nil {
+		src.notes = append(src.notes, tableNote("the panes' tabs of the agent list", view.paneTabsErr))
+	} else {
+		src.paneTabs = view.paneTabs
+	}
+	labels, err := herdr.tabLabels(ctx)
+	if err != nil {
+		src.notes = append(src.notes, tableNote("the tab list", err))
+	} else {
+		src.tabLabels = labels
+	}
+	width, split, err := herdr.paneWidth(ctx, view.chiefPane)
+	if err != nil {
+		src.notes = append(src.notes, tableNote("the chief pane's layout", err))
+	} else {
+		src.paneWidth, src.paneSplit = width, split
+	}
+	return src
+}
+
+// tableNote says that a table source could not be read and why, with the
+// error text cut at tableNoteMaxBytes (the cut marked) and then sanitized.
+func tableNote(source string, err error) string {
+	capped := CapHead(err.Error(), tableNoteMaxBytes)
+	text := capped.Text
+	if capped.Truncated {
+		text += " [truncated]"
+	}
+	return source + " cannot be read: " + Sanitize(text)
 }
 
 // readRound reads Herdr, fetches origin/main once, reads the routing and
@@ -95,10 +149,11 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 	if err != nil {
 		return roundView{}, err
 	}
-	agents, err := herdr.Agents(ctx)
+	listing, err := herdr.agentListing(ctx)
 	if err != nil {
 		return roundView{}, err
 	}
+	agents := listing.agents
 	workspaces, err := herdr.Workspaces(ctx)
 	if err != nil {
 		return roundView{}, err
@@ -111,7 +166,7 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 	if err != nil {
 		return roundView{}, fmt.Errorf("read the chief worktree: %w", err)
 	}
-	view := roundView{chiefPane: chiefPane, chief: chief, chiefTree: chiefTree, agents: agents}
+	view := roundView{chiefPane: chiefPane, chief: chief, chiefTree: chiefTree, agents: agents, paneTabs: listing.paneTabs, paneTabsErr: listing.paneTabsErr}
 	if err := git.Fetch(ctx, chiefTree.String()); err != nil {
 		view.fetchFailed = true
 		view.problems = append(view.problems, "git fetch origin main failed: "+err.Error())
@@ -147,8 +202,9 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 // finishSnapshot sets each row's urgency, turn, and position (finishRow),
 // lists the pending items of the round's rows with extra (proposals a tick
 // made, merged into the row's item of the same identity), stamps them with
-// the notice records of owner's session, and orders the items and the rows.
-func finishSnapshot(deps Deps, owner Owner, view roundView, extra []PendingItem) Snapshot {
+// the notice records of owner's session, orders the items and the rows, and
+// lays out the status table from the ordered rows and src.
+func finishSnapshot(deps Deps, owner Owner, view roundView, src tableSources, extra []PendingItem) Snapshot {
 	snap := Snapshot{StateDir: deps.Store.Dir(), Rows: view.rows, Problems: view.problems, Baseline: baselineOf(view.agents, workspaceIDs(view.found))}
 	for i := range snap.Rows {
 		finishRow(&snap.Rows[i])
@@ -163,6 +219,9 @@ func finishSnapshot(deps Deps, owner Owner, view roundView, extra []PendingItem)
 	}
 	sortPending(snap.Pending, idle)
 	sortRows(snap.Rows, snap.Pending)
+	// The table is laid out from the rows as they are output, so it never
+	// disagrees with them.
+	snap.Table, snap.TableUnreadable = layoutTable(snap.Rows, src)
 	return snap
 }
 

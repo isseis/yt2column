@@ -91,37 +91,37 @@
 
 **変えるファイル:** `internal/mergepr/protocolcheck.go`、`internal/mergepr/protocolcheck_test.go`、`internal/mergepr/corrections.go`（新規）、`internal/mergepr/corrections_test.go`（新規）、`internal/mergepr/errors.go`、`internal/mergepr/runner.go`、`internal/mergepr/test_helpers_git.go`、`CLAUDE.md`、`docs/dev/conventions/package_reference.md`
 
--   [ ] **ステップ 1-1**: 範囲の列挙を共有できる形にする（設計書 3.1 の「列挙の部品の共有」、§1.3 の決定 5）。
+-   [x] **ステップ 1-1**: 範囲の列挙を共有できる形にする（設計書 3.1 の「列挙の部品の共有」、§1.3 の決定 5）。
     -   `history` を 2 つに分ける。1 つは、段ごとに素の誤りを返す共有の関数（shallow の拒否、base と head の解決、列挙）である。もう 1 つは、各段の誤りを今の `protocolUnreadableError` の種類（`unreadableHistory`・`unreadableCommits`）に包む、プロトコル番号の確かめの側である。訂正の行の読み取りは、同じ素の誤りを `errCorrectionUnreadable` に包む（設計書 4.1）。
     -   列挙に順序の引数を足し、base を `origin/main` 決め打ちから「`refs/remotes/origin/<baseRefName>` の ref の値」に一般化する。base の名前は、`refs/remotes/origin/` をつなげた名前が `git check-ref-format` を通るときだけ使い、`git show-ref --verify --hash` で ref そのものの値を読む（§1.4）。
     -   プロトコル番号の確かめは、今と同じ順序と同じ base（`origin/main`）で列挙する。既存の `TestCheckProtocolHistories` と `TestCheckProtocolUnreadable`（誤りの種類）が変わらず通ることを確かめる。
     -   テスト（`protocolcheck_test.go`）: 名前の確かめは、台本にした runner で、通らない名前（`main^`、`a:b` など）では ref の読み取りも取得の refspec も作らずに止まることを確かめる。ref の値の読み取りは、実際の git で、名前の確かめは通るが `rev-parse` なら別のものに解決する名前（`git describe` の形の名前と、同じ名前のローカルのブランチがある名前）で止まることを確かめる。範囲の順そのものは、ステップ 1-2 の `TestRangeLines` で確かめ、ここでは重ねない。
     -   壊して確かめる: 名前の確かめを外して、台本にした runner の行が失敗すること。`show-ref` を `rev-parse` に替えて、`git describe` の形の行とローカルのブランチの行が失敗すること。
--   [ ] **ステップ 1-2**: 訂正の行の読み取り `correctionSource` とその本番の実装を `internal/mergepr/corrections.go` に作る（設計書 3.1・3.5、§1.3 の決定 2・3）。
+-   [x] **ステップ 1-2**: 訂正の行の読み取り `correctionSource` とその本番の実装を `internal/mergepr/corrections.go` に作る（設計書 3.1・3.5、§1.3 の決定 2・3）。
     -   `rangeLines`（範囲の訂正の行）、`mergedLines`、トレーラーの読み取りの 3 つを持たせる。トレーラーの読み取りを `correctionSource` に入れるのは、設計書 3.4 の確かめ 7 が「3.1 の読み取りを通して強化した git で呼ぶ」と定めるためである。
     -   メッセージは `git cat-file commit <oid>` の出力の最初の空行より後ろとし（ヘッダーに `gpgsig` などがあっても同じ）、LF で分け、件名を 1 行目と数え、行末の CR を残す。空行のない出力は読めないものとする。どのコミットで失敗しても、読めたところまでを返さない。
     -   `mergedLines` は、base の名前を確かめた後に作る refspec `+refs/heads/<base>:refs/remotes/origin/<base>` で、強化した git で取得し、squash コミットのメッセージから予約した接頭辞の 2 つで始まる行（件名を含む）を読む。
-    -   トレーラーの読み取りの環境は §1.3 の決定 2 のとおりにし、一時ディレクトリは呼ぶたびに作って消す。`newGitRunner` は `Runner` を返すので、標準入力を渡せる型（`cmdrunner.InputRunner`）で持つ形にする。`os.Environ` の呼び出しは `runner.go` の 1 回のままにする（§1.4）。
+    -   トレーラーの読み取りの環境は §1.3 の決定 2 のとおりにし、一時ディレクトリは呼ぶたびに作って消す。標準入力を渡せる runner（`cmdrunner.InputRunner`）は、その一時ディレクトリと環境で呼ぶたびに作る（`runner.go` の `newTrailerRunner`）。`newGitRunner` は `Runner` を返すまま変えない。`os.Environ` の呼び出しは `runner.go` の 1 回のままにする（§1.4）。
     -   `test_helpers_git.go` に、任意のバイト列のメッセージと、指定した committer の日時を持つコミットを `git hash-object -t commit -w --stdin` で作る補助を足す。今の `gitIn` を標準入力を渡せる形にして使い、`gosec` の抑止を足すときは今の補助と同じく 1 行に限る。
     -   テスト（`corrections_test.go::TestRangeLines`、実際の git）: 件名の行の訂正の行と行番号、範囲の順、`main` から取り込んだコミットの除外、字下げした行・大文字と小文字の違う行・文の途中の語句の除外、パスの種類と残りの形を問わないこと、`encoding` のヘッダーのあるコミットのバイト列、`refs/replace` の無視、shallow のリポジトリでの停止。範囲の順は、日時が入れ違う 2 つの枝とマージのコミットで作り、既定の順序と `--topo-order` の順序が違うことを先に確かめる。
     -   テスト（`::TestRangeLinesStopsMidway`、`fakeRunner` で台本にした git）: 3 つのうち 2 つめの `cat-file` が失敗したとき、結果を返さずに `errCorrectionUnreadable` で止まること。空行のない出力でも止まること。
     -   テスト（`::TestMergedLines`、`file://` の origin を持つ実際の git）: `gpgsig` に似たヘッダーを持つ squash コミットの、件名と本文の 2 つの接頭辞の行を読むこと。取得の失敗で止まること。
     -   テスト（`::TestTrailerReadingIgnoresConfig`）: 設定があると `--parse` が行を出すメッセージについて、トレーラーの読み取りの出力そのものが空であることを、設定の置き場所ごとに確かめる。置き場所は `HOME` の `.gitconfig`、`XDG_CONFIG_HOME` の `git/config`、リポジトリの `.git/config` である。リポジトリの行のために、トレーラーの読み取りは、一時ディレクトリを作る親のディレクトリをテストから差し替えられる形にし、テストはそれをリポジトリの中に向ける（`GIT_CEILING_DIRECTORIES` がリポジトリを探させないことを確かめる）。
     -   壊して確かめる: `cat-file` を `git log` に替える、`--no-replace-objects` を外す、`--topo-order` を外す、読めたところまでを返す、`GIT_CONFIG_GLOBAL` と `HOME`・`XDG_CONFIG_HOME` の向け先をまとめて外す（`HOME` の行が失敗する）、`GIT_CEILING_DIRECTORIES` を外す（`.git/config` の行が失敗する）。`GIT_CONFIG_GLOBAL` と `HOME` の向け先は互いに重なる守りで、片方だけを外しても失敗しない。`GIT_CONFIG_NOSYSTEM` は、テストから system の設定を置けないので確かめられない。重なる守りの片方ずつと `GIT_CONFIG_NOSYSTEM` は、テストで確かめられない守りとしてコミットのメッセージに書く。
--   [ ] **ステップ 1-3**: 受け付けない文字の分類と表示形を作る（設計書 3.2・3.6 の「表示形」）。`RejectKind`・`RejectedLine`、重複のまとめ（初めて現れた位置）、受け付けた行の番号付け、拒否した行のコミットと行番号を作る。
+-   [x] **ステップ 1-3**: 受け付けない文字の分類と表示形を作る（設計書 3.2・3.6 の「表示形」）。`RejectKind`・`RejectedLine`、重複のまとめ（初めて現れた位置）、受け付けた行の番号付け、拒否した行のコミットと行番号を作る。
     -   テスト（`corrections_test.go::TestClassifyCorrectionLines`・`::TestShownForm`）: 設計書 7.1 の「分類（表）」の境界の文字を、受け付ける側と拒む側の両方から確かめる。表示形（`"` で囲む、`U+XXXX`、`\xNN`、食い違いの報告のタブ）も確かめる。テストの日本語の文字は `\u` のエスケープで書く（Go のソースは英語。`CLAUDE.md`「Go Idioms」）。
     -   壊して確かめる: タブの除外を外す、非文字の判定を外す、重複のまとめを外す。
--   [ ] **ステップ 1-4**: 落とす指定と訂正のブロックを作る（設計書 3.3）。`DropCase`・`Drop`・`RejectedDrop`・`Drops`・`ParseDrop`・`ParseRejectedDrop`、落とした記録の行、`paragraph.txt` の中身のバイト列（空なら 0 バイト、空でなければ最後に空行）を作る。
+-   [x] **ステップ 1-4**: 落とす指定と訂正のブロックを作る（設計書 3.3）。`DropCase`・`Drop`・`RejectedDrop`・`Drops`・`ParseDrop`・`ParseRejectedDrop`、落とした記録の行、`paragraph.txt` の中身のバイト列（空なら 0 バイト、空でなければ最後に空行）を作る。
     -   テスト（`::TestCorrectionBlock`・`::TestParseDrop`・`::TestParseRejectedDrop`）: 設計書 7.1 の「ブロック（表）」と、形の誤り（`:` のない値、数でない番号、`+1`・`01`・桁あふれ、0 以下の番号、知らない場合、40 桁の小文字の 16 進数でないコミット ID）を確かめる。行の数と長さに上限がないことも確かめる。
     -   壊して確かめる: 落とす前の重複のまとめを外す、最後の空行を外す、0 の件数を省く。
--   [ ] **ステップ 1-5**: 訂正の確かめ（設計書 3.4 の 1〜7）とマージの後の照合（3.5 の比べ方）を、`correctionSource`・落とす指定・件名と本文のバイト列を受け取る関数として作る。`errors.go` に、`errCorrectionUnreadable`・`errCorrectionMismatch`・`errCorrectionsNotCarried`・`CorrectionMismatchError`・`CorrectionsNotCarriedError` を足す（設計書 4.1）。
+-   [x] **ステップ 1-5**: 訂正の確かめ（設計書 3.4 の 1〜7）とマージの後の照合（3.5 の比べ方）を、`correctionSource`・落とす指定・件名と本文のバイト列を受け取る関数として作る。`errors.go` に、`errCorrectionUnreadable`・`errCorrectionMismatch`・`errCorrectionsNotCarried`・`CorrectionMismatchError`・`CorrectionsNotCarriedError` を足す（設計書 4.1）。
     -   `paragraph` が使う確かめ 1〜3 だけの入口と、`check-body` と `merge` が使う確かめ 1〜7 の入口が、同じコードを通るようにする。
     -   テスト（`::TestCheckCorrections`）: 設計書 7.1 の「確かめ（表）」の各行が止まることと、止まらない場合を確かめる。止まるときは、誤りの種類（`errors.Is` と `errors.AsType`）と、欠けた行・余分な行などのフィールドを確かめる。確かめ 7 の行は、本番のトレーラーの読み取り（実際の git）を使う。
     -   テスト（`::TestTrailerReading`、実際の git）: 設計書 7.1 の「トレーラー」の振る舞い。
     -   テスト（`::TestCompareMergedLines`）: 一致・欠けた行・余分な行・読めないとき（`Detail`）。
     -   壊して確かめる: 確かめ 2（宣言のない拒否した行、範囲外の番号、拒否した行を指さない `--drop-rejected`）と確かめ 4〜7 を 1 つずつ外し、その確かめを対象にするテストの行が失敗すること。
--   [ ] **ステップ 1-6**: `CLAUDE.md` の「Declare, don't infer」に、`mergepr` の訂正の行の読み取りと訂正の確かめの例外を足す（設計書 1.2 の決定 12、§1.3 の決定 4）。範囲は、コミットのメッセージの 1 列目の接頭辞と文字の分類、件名と本文の予約した接頭辞の行と段落の形、本文のトレーラーの読み取りである。理由と境界は、ほかの道具の例外と同じ組み立てで書く。
--   [ ] **ステップ 1-7**: `docs/dev/conventions/package_reference.md` の `internal/mergepr` の行の公開する名前に、このフェーズで公開する名前（`ParseDrop`・`Drops` など）を足す。行の役割の説明は、配線するステップ 2-6 で直す。
+-   [x] **ステップ 1-6**: `CLAUDE.md` の「Declare, don't infer」に、`mergepr` の訂正の行の読み取りと訂正の確かめの例外を足す（設計書 1.2 の決定 12、§1.3 の決定 4）。範囲は、コミットのメッセージの 1 列目の接頭辞と文字の分類、件名と本文の予約した接頭辞の行と段落の形、本文のトレーラーの読み取りである。理由と境界は、ほかの道具の例外と同じ組み立てで書く。
+-   [x] **ステップ 1-7**: `docs/dev/conventions/package_reference.md` の `internal/mergepr` の行の公開する名前に、このフェーズで公開する名前（`ParseDrop`・`Drops` など）を足す。行の役割の説明は、配線するステップ 2-6 で直す。
 
 **完了の条件:** `make fmt`・`make test`・`make lint` が通る。`internal/mergepr/mergepr.go` と `cmd/mergepr` を変えていない（`Tool` の振る舞いと `Protocol` は変わらない）。テストからだけ呼ばれる部品が `make deadcode`（`-test` 付き）に挙がらない。
 
@@ -139,10 +139,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1029
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 配線、コマンドの定義と手引き、規則の文書と ADR（設計書 8 章の 1 の残り、2、3）
 
@@ -258,7 +258,7 @@ PR-2 は `Protocol` を上げるので、PR-2 の `/runpr` の前に、PR-2 の�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)

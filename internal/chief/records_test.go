@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/cachelock"
+	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/privatefile"
 )
 
@@ -997,7 +998,11 @@ func TestClearRecordsKeepsOnlyTheExclusion(t *testing.T) {
 		t.Fatal(err)
 	}
 	sha := strings.Repeat("a", 40)
-	for _, name := range []string{"detail-7-" + sha + ".json", "report-7-" + sha + ".json"} {
+	// A history record of the record's form and a name of the prefix of no
+	// form: the clear removes both, the second because every trace- name is
+	// one the history reader reads.
+	trace := traceEvent{Session: ownerA().Session, Round: traceRound(1), Worktree: Worktree{path: "/x"}, Kind: tracePRClosed, PR: 7}
+	for _, name := range []string{"detail-7-" + sha + ".json", "report-7-" + sha + ".json", trace.name(), "trace-backup.json"} {
 		if _, err := privatefile.Create(filepath.Join(held.dir, name), []byte("{}")); err != nil {
 			t.Fatal(err)
 		}
@@ -1019,6 +1024,66 @@ func TestClearRecordsKeepsOnlyTheExclusion(t *testing.T) {
 	// A clear of an empty directory is no error.
 	if err := held.ClearRecords(); err != nil {
 		t.Errorf("a second ClearRecords = %v", err)
+	}
+}
+
+// TestStartRemovesOtherSessionTraces checks start's cleanup of the history
+// records: every start removes the records of other sessions and keeps the
+// caller's session's; a name of no record's form, which the history reader
+// counts as the caller's session's, is removed only by a start that takes
+// over the lock of another session, never by a start that creates the lock,
+// holds it already, or takes over the same session's lock from another pane.
+func TestStartRemovesOtherSessionTraces(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 11, 19, 9, 0, 0, 0, time.UTC)
+	sameSessionElsewhere := Owner{Pane: "we:p3", Session: ownerA().Session}
+	cases := []struct {
+		name string
+		// before is the owner whose start took the lock first, none when
+		// the store has no lock.
+		before *Owner
+		caller Owner
+		// live is the agent Herdr lists at the caller's start.
+		live          Owner
+		tookOver      bool
+		malformedGone bool
+	}{
+		{"a lock created", nil, ownerA(), ownerA(), false, false},
+		{"the lock held already", &[]Owner{ownerA()}[0], ownerA(), ownerA(), false, false},
+		{"another session's lock taken over", &[]Owner{ownerB()}[0], ownerA(), ownerA(), true, true},
+		{"the same session's lock taken over from another pane", &[]Owner{ownerA()}[0], sameSessionElsewhere, sameSessionElsewhere, true, false},
+	}
+	exists := func(path string) bool {
+		_, err := os.Lstat(path)
+		return err == nil
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			store := newStore(t)
+			if c.before != nil {
+				if _, err := store.Start(ctx, herdrWith(t, liveAgent(*c.before)), *c.before, now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			mine := ev(1, tracePRClosed, 7, paneinput.TaskID{}, "")
+			mine.Session = c.caller.Session
+			theirs := mine
+			theirs.Session = "00000000-0000-4000-8000-0000000000c3"
+			put := func(name string) string { return putTrace(t, store, traceTree, name, []byte("{}")) }
+			kept, other, malformed, unrelated := put(mine.name()), put(theirs.name()), put("trace-backup.json"), put("notes.json")
+			res, err := store.Start(ctx, herdrWith(t, liveAgent(c.live)), c.caller, now.Add(time.Minute))
+			want := 1
+			if c.malformedGone {
+				want = 2
+			}
+			if err != nil || res.CleanupError != nil || res.TookOver != c.tookOver || res.Removed != want {
+				t.Fatalf("Start = %+v, %v; want took over %v and %d records removed", res, err, c.tookOver, want)
+			}
+			if exists(other) || !exists(kept) || !exists(unrelated) || exists(malformed) != !c.malformedGone {
+				t.Errorf("other session's kept %v, own kept %v, unrelated kept %v, malformed kept %v; want false, true, true, %v",
+					exists(other), exists(kept), exists(unrelated), exists(malformed), !c.malformedGone)
+			}
+		})
 	}
 }
 

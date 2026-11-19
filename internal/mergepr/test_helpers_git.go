@@ -3,7 +3,9 @@
 package mergepr
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -65,8 +67,17 @@ func (r *gitRepo) Git(args ...string) string {
 
 func (r *gitRepo) gitIn(dir string, args ...string) string {
 	r.t.Helper()
+	return r.gitInput(dir, nil, args...)
+}
+
+// gitInput runs git in dir with stdin as its standard input (none when nil).
+func (r *gitRepo) gitInput(dir string, stdin []byte, args ...string) string {
+	r.t.Helper()
 	cmd := exec.Command(gitCommand, args...) //nolint:gosec // test setup runs git with fixed arguments
 	cmd.Dir = dir
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	cmd.Env = cmdrunner.GitEnv(os.Environ())
 	out, err := cmd.Output()
 	if err != nil {
@@ -112,6 +123,29 @@ func (r *gitRepo) Commit(subject string, files map[string]string, parents ...str
 		args = append(args, "-p", p)
 	}
 	return r.Git(args...)
+}
+
+// RawCommit writes a commit object whose message is exactly message (any
+// bytes, which git commit would rewrite), with an empty tree, the given
+// parents, the committer time at (seconds since the epoch), and extra header
+// lines (each without its LF) after the committer line, and returns its ID.
+// It moves no branch.
+func (r *gitRepo) RawCommit(message []byte, at int64, headers []string, parents ...string) string {
+	r.t.Helper()
+	tree := r.gitInput(r.Dir, []byte{}, "hash-object", "-t", "tree", "-w", "--stdin")
+	var object bytes.Buffer
+	fmt.Fprintf(&object, "tree %s\n", tree)
+	for _, p := range parents {
+		fmt.Fprintf(&object, "parent %s\n", p)
+	}
+	fmt.Fprintf(&object, "author Test <test@example.com> %d +0000\n", at)
+	fmt.Fprintf(&object, "committer Test <test@example.com> %d +0000\n", at)
+	for _, h := range headers {
+		object.WriteString(h + "\n")
+	}
+	object.WriteString("\n")
+	object.Write(message)
+	return r.gitInput(r.Dir, object.Bytes(), "hash-object", "-t", "commit", "-w", "--stdin")
 }
 
 // SetMain points refs/remotes/origin/main at oid, as a fetch of main would.

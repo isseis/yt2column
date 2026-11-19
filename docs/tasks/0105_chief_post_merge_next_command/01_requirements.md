@@ -25,11 +25,11 @@
 
 **背景:**
 
-2026-11-18、issue-982 の workspace で、PR #991（タスク 0102 の設計書）のマージの後、chief の `tick` の行が `task: ""`・文書 `requirements`・進み具合 `awaiting_creation`・次のコマンド `/mkreq` になった。issue の筆者の期待は `/mkplan 0102` だった。issue-982 の worktree の reflog と `main` の履歴から、次のことが分かった。
+2026-11-18、issue-982 の workspace で、PR #991（タスク 0102 の設計書）のマージの後、chief の `tick` の行が `task: ""`・作業項目の表示 `requirements`・状態の詳細 `awaiting_creation`・次のコマンド `/mkreq` になった。issue の筆者の期待は `/mkplan 0102` だった。issue-982 の worktree の reflog と `main` の履歴から、次のことが分かった。
 
 1.  #991 は、要件定義書と設計書の承認を記録しないままマージされた。`origin/main` の 2 つの文書は `draft` のままで、後の #997（790652e3）が承認を記録した。そのコミットメッセージにも「PR #991 merged without recording one」とある。
 2.  マージの後始末（`mergepr cleanup`）は、worktree の今のブランチが `main` でなく、`main` がほかの worktree でチェックアウトされていなければ、`main` に切り替えて `origin/main` へ fast-forward する（`internal/mergepr/mergepr.go:472-491`）。reflog では、20:25 に `isseis/0102-chief-text-table-02` から `main` へ移っている。この後、`/runpr` の手順 5 は、次のブランチを作るか `origin/main` で detached にする（`.claude/commands/runpr.md:1346-1353`）。ところが worktree は、20:46 に別のセッションが `isseis/0102-chief-text-table-03` に切り替えるまで、`main` のままだった。
-3.  chief は、タスクをチェックアウトされたブランチの名前だけから決める（`internal/chief/task.go:789-823` の `Read`）。`main` は機能ブランチの名前の形をとらないので、タスクのない workspace と読まれる。`decideNext` は、ブランチがあってタスクがなければ `/mkreq` を返す（`internal/chief/state.go:308-314`）。行の文書は、`/mkreq` を提案する行では要件定義書になる（`internal/chief/position.go:250-253`）。これが issue の行の値である。
+3.  chief は、タスクをチェックアウトされたブランチの名前だけから決める（`internal/chief/task.go:789-823` の `Read`）。`main` は機能ブランチの名前の形をとらないので、タスクのない workspace と読まれる。`decideNext` は、ブランチがあってタスクがなければ `/mkreq` を返す（`internal/chief/state.go:308-314`）。行の作業項目の表示は、`/mkreq` を提案する行では要件定義書になる（`internal/chief/position.go:250-253`）。これが issue の行の値である。
 4.  一方、マージの後の自動送信は、chief が、PR が開いていることを確かめたときに残す観測の記録（`internal/chief/records.go:1148-1162` の `Observation`。PR を見たときのタスクとブランチを持つ）から、タスク 0102 を知っていた。送らなかった理由は 2 つあり、どちらも今の規則のとおりである。1 つ目は、`main` が 0102 の機能ブランチでないことである（`internal/chief/autosend.go:212-237` の規則）。2 つ目は、設計書が approved でないことで、当時の `origin/main` の内容を正しく読んだ結果である。
 
 issue が挙げた未確認のことの答えは次のとおりである。
@@ -41,7 +41,7 @@ issue が挙げた未確認のことの答えは次のとおりである。
 
 対応 issue: [#996](https://github.com/isseis/yt2column/issues/996)（関連: [#982](https://github.com/isseis/yt2column/issues/982)（タスク 0102。事象の起きた workspace）、[#839](https://github.com/isseis/yt2column/issues/839)（タスク 0092。chief が作った workspace の記録））
 
-本書は、`main` をチェックアウトした worktree の行のタスク、文書、次のコマンド、送信の振る舞いを決める。観測の記録をセッションの間どう持ち続けるか、理由の文言、送信の直前の確かめ方、タスクの文書のディレクトリの見つけ方は `02_architecture.md` が決める（[design_handoff.md](design_handoff.md)）。
+本書は、`main` をチェックアウトした worktree の行のタスク、作業項目の表示、次のコマンド、送信の振る舞いを決める。観測の記録をセッションの間どう持ち続けるか、理由の文言、送信の直前の確かめ方、タスクの文書のディレクトリの見つけ方は `02_architecture.md` が決める（[design_handoff.md](design_handoff.md)）。
 
 ### issue #996 で決めたこと
 
@@ -93,11 +93,11 @@ issue が挙げた未確認のことの答えは次のとおりである。
 ### 2.1. 目的 (Goals)
 
 -   マージの後に `main` をチェックアウトした worktree の行に、`/mkreq` を誤って示さない。
--   chief がマージを確かめた PR の記録から、`main` をチェックアウトした worktree のタスクを特定し、機能ブランチにいるときと同じ規則で進行の位置の文書（表の「文書」の列の値。6 章で定義する）と次のコマンドを示す。
+-   chief がマージを確かめた PR の記録から、`main` をチェックアウトした worktree のタスクを特定し、機能ブランチにいるときと同じ規則で作業項目の表示（表の「文書」の列の値。6 章で定義する）と次のコマンドを示す。
 
 ### 2.2. スコープ (In Scope)
 
--   チェックアウトされたブランチが `main` の worktree の行の、タスク・進行の位置の文書・状態・次のコマンドの決め方（F-001・F-002）。
+-   チェックアウトされたブランチが `main` の worktree の行の、タスク・作業項目の表示・状態・次のコマンドの決め方（F-001・F-002）。
 -   その行の次のコマンドを人が選んで送ること（AC-04・AC-05）と、`/mkreq` の送信を拒むこと（AC-08）。
 -   特定に使う観測の記録の受け付ける形（4.2）。
 -   変えない振る舞いの確認（F-003）。
@@ -142,13 +142,13 @@ issue が挙げた未確認のことの答えは次のとおりである。
 -   chief が確かめたほかのタスクがない。
 -   chief が最後に開いていると確かめた PR がない。
 
-行の状態・進行の位置の文書・次のコマンドは、T の機能ブランチにいるときと同じ規則で、`origin/main` の T の文書から決める。
+行の状態・作業項目の表示・次のコマンドは、T の機能ブランチにいるときと同じ規則で、`origin/main` の T の文書から決める。
 
 **Acceptance Criteria**:
 
 -   **AC-01**: `main` をチェックアウトした worktree を F-001 がタスク T と特定し、`origin/main` の T の設計書が approved で計画書がないとき、`tick` の行は次のようになる。
     -   タスクは T。
-    -   進行の位置の文書は計画書（`plan`）、進み具合は作成待ち（`awaiting_creation`）。
+    -   作業項目の表示は計画書（`plan`）、状態の詳細は作成待ち（`awaiting_creation`）。
     -   次のコマンドは `/mkplan T`。
 -   **AC-02**: AC-01 と同じ条件で、`origin/main` の T の設計書が `draft` のとき、行のタスクは T で、状態は要確認になる。理由は、機能ブランチにいるときと同じ「設計書が approved でない」である。次のコマンドは示さず、`/mkreq` も示さない（issue #996 の事象の条件）。
 -   **AC-03**: AC-01 と同じ条件で、`origin/main` の T の計画書のすべての PR がマージ済みのとき、行のタスクは T で、状態はタスク完了になる。T の workspace を chief が作っていれば、削除の提案は、HEAD が detached でないことで止まったものとして示す。
@@ -157,7 +157,7 @@ issue が挙げた未確認のことの答えは次のとおりである。
     -   chief の pane のセッションが変わった。
     -   別のタスクの記録が増えた。
     -   記録を読めなくなった。
--   **AC-06**: `main` をチェックアウトした worktree で、chief がマージを確かめた PR があり、chief が確かめたほかのタスクがあるとき、chief はタスクを特定しない。行の状態と進行の位置の文書は要確認になり、理由に、chief が確かめたほかのタスクがあることを示す。次のコマンドは示さず、`/mkreq` も示さない。例は次のとおりである。
+-   **AC-06**: `main` をチェックアウトした worktree で、chief がマージを確かめた PR があり、chief が確かめたほかのタスクがあるとき、chief はタスクを特定しない。行の状態と作業項目の表示は要確認になり、理由に、chief が確かめたほかのタスクがあることを示す。次のコマンドは示さず、`/mkreq` も示さない。例は次のとおりである。
     -   chief がマージを確かめた PR が 2 つあり、それらの PR のブランチ名から抽出したタスクが T1 と T2 に食い違う。
     -   chief が T1 の PR のマージを確かめた後、その worktree が T2 の機能ブランチにいることを確かめ、T2 の PR のマージは確かめないまま、worktree が `main` に戻った。
 
@@ -167,19 +167,19 @@ issue が挙げた未確認のことの答えは次のとおりである。
 
 **Acceptance Criteria**:
 
--   **AC-07**: `main` をチェックアウトした worktree で、chief がマージを確かめた PR がないか、chief が最後に開いていると確かめた PR があり、AC-06・AC-09 に当たらないとき、行の状態と進行の位置の文書は要確認になる。進行の位置の文書は、タスクのないブランチの「-」にしない（[0093 要件定義書](../0093_chief_status_sheet/01_requirements.md) AC-07 の「タスクがない」の規則を `main` をチェックアウトした worktree には当てない）。理由には、worktree が `main` にいてタスクを特定できないことを示し、次のコマンドは示さない。その行は、detached HEAD だけによる要確認の行と同じく、使っていないか残った worktree の行として、表のほかの行の後に並ぶ。当たるのは、たとえば次の場合である。
+-   **AC-07**: `main` をチェックアウトした worktree で、chief がマージを確かめた PR がないか、chief が最後に開いていると確かめた PR があり、AC-06・AC-09 に当たらないとき、行の状態と作業項目の表示は要確認になる。作業項目の表示は、タスクのないブランチの「-」にしない（[0093 要件定義書](../0093_chief_status_sheet/01_requirements.md) AC-07 の「タスクがない」の規則を `main` をチェックアウトした worktree には当てない）。理由には、worktree が `main` にいてタスクを特定できないことを示し、次のコマンドは示さない。その行は、detached HEAD だけによる要確認の行と同じく、使っていないか残った worktree の行として、表のほかの行の後に並ぶ。当たるのは、たとえば次の場合である。
     -   今のセッションが、その worktree のブランチの PR が開いていることを確かめていない。chief の pane のセッションが変わった後と、`tick` を走らせずに `snapshot` だけを走らせたとき（`/chief once`）を含む。
     -   開いていることを確かめた PR が、まだ開いている。chief がマージを確かめたほかの PR があっても同じである。
     -   開いていることを確かめた PR が、マージされずに閉じられた。
 -   **AC-08**: `main` をチェックアウトした worktree へ `/mkreq` を送らせると、F-001 でタスクを特定したかによらず、chief は送らずに拒み、タスクのない workspace でないことを理由に示す。
--   **AC-09**: そのラウンドの特定に使う観測の記録に読めないものが 1 つでもあるとき、`main` をチェックアウトした worktree の行はタスクを特定せず、状態と進行の位置の文書は要確認になる。読めない記録には、4.2 の形に合わない記録を含む。読めない記録はどの worktree のものか分からないので、ほかの worktree の記録でも同じである。理由には記録を読めないことを示す。次のコマンドは示さず、`/mkreq` も示さない。例：記録の `task` が `"../x"` や `"0102 "` のとき。
+-   **AC-09**: そのラウンドの特定に使う観測の記録に読めないものが 1 つでもあるとき、`main` をチェックアウトした worktree の行はタスクを特定せず、状態と作業項目の表示は要確認になる。読めない記録には、4.2 の形に合わない記録を含む。読めない記録はどの worktree のものか分からないので、ほかの worktree の記録でも同じである。理由には記録を読めないことを示す。次のコマンドは示さず、`/mkreq` も示さない。例：記録の `task` が `"../x"` や `"0102 "` のとき。
 
 #### F-003: ほかの worktree の扱いと自動送信を変えない
 
 **Acceptance Criteria**:
 
 -   **AC-10**: `main` をチェックアウトした worktree へは、F-001 でタスクを特定できても、マージの後の自動送信をしない。その PR の自動送信の結果には、今と同じく、ブランチがそのタスクの機能ブランチでないことを理由に示す（`internal/chief/autosend.go:212-237`）。
--   **AC-11**: 次の 3 つの worktree の行の、タスク・状態・進行の位置の文書・次のコマンド・削除の提案の決め方は変えない。どれにも、chief がマージを確かめた PR の記録は使わない。
+-   **AC-11**: 次の 3 つの worktree の行の、タスク・状態・作業項目の表示・次のコマンド・削除の提案の決め方は変えない。どれにも、chief がマージを確かめた PR の記録は使わない。
     -   機能ブランチをチェックアウトした worktree：タスクはブランチの名前から決める（`internal/chief/task.go:789-823`）。
     -   detached HEAD の worktree：今の扱い（要確認、または chief が作った完了したタスクの削除の提案の行。`internal/chief/state.go:290-302`、`internal/chief/removal.go:395-399`）のまま。
     -   `main` でも機能ブランチでもないブランチをチェックアウトした worktree：タスクのない workspace として `/mkreq` を示す（`internal/chief/state.go:308-314`）。
@@ -188,7 +188,7 @@ issue が挙げた未確認のことの答えは次のとおりである。
 
 **Acceptance Criteria**:
 
--   **AC-12**: `docs/dev/guides/chief_guide.md` の進行の位置の説明（今の `chief_guide.md:82`）に、次の 4 点を書く。あわせて、「-」が `main` をチェックアウトした worktree には使われないことを書く。
+-   **AC-12**: `docs/dev/guides/chief_guide.md` の 3.1 の作業項目の表示の段落に、次の 4 点を書く。あわせて、「-」が `main` をチェックアウトした worktree には使われないことを書く。
     -   `main` をチェックアウトした worktree のタスクは、chief の pane の同じセッションがマージを確かめた PR から特定される。
     -   特定できなければ要確認になる。
     -   chief の pane のセッションが変わるか、`snapshot` だけを走らせたときは、特定されない。chief が確かめたほかのタスクがあるか、chief が最後に開いていると確かめた PRがあるときも、特定されない。
@@ -236,7 +236,7 @@ issue が挙げた未確認のことの答えは次のとおりである。
 
 -   用語は `docs/translation_glossary.md` と統一する。
 -   **`main` をチェックアウトした worktree**・**chief の pane のセッション**・**chief がマージを確かめた PR**・**PR のブランチ名から抽出したタスク**・**候補のタスク T**：3.1 の冒頭で定義する。
--   **進行の位置の文書**：[0093 要件定義書](../0093_chief_status_sheet/01_requirements.md) が定めた、行の進行の位置（文書 × 進み具合）のうちの文書の値。要件定義書・設計書・計画書・PR-N・なし・-・要確認のどれかで、表の「文書」の列に示す（`chief_guide.md:82`）。
+-   **作業項目の表示**：[0093 要件定義書](../0093_chief_status_sheet/01_requirements.md) が定めた、行の作業項目の表示と状態の詳細のうち、作業項目の表示の値。要件定義書・設計書・計画書・PR-N・なし・-・要確認のどれかで、表の「文書」の列に示す（ガイドの 3.1 の作業項目の表示の段落）。
 -   **要確認**：chief の行の状態の 1 つ（`needs_check`）。
 -   **worktree と workspace**：条件は worktree（git の作業ツリー）について述べ、表の行は workspace（Herdr の workspace）ごとに示す。chief のタスクの workspace は worktree を 1 つ持つ。
 

@@ -28,6 +28,10 @@ import (
 // alike.
 
 const (
+	// invalidName is how a String method shows the invalid zero value of an
+	// enumeration.
+	invalidName = "invalid"
+
 	// mainRef is the remote-tracking ref of main, spelled out in full so a
 	// local branch named origin/main is never read in its place.
 	mainRef = "refs/remotes/origin/main"
@@ -81,7 +85,7 @@ func (v protocolValue) String() string {
 	case protocolUnreadable:
 		return "unreadable"
 	default:
-		return "invalid"
+		return invalidName
 	}
 }
 
@@ -397,22 +401,27 @@ func acceptedNumber(line string) (int, bool) {
 	return n, err == nil
 }
 
-// protocolCheck reads protocol numbers from git trees and checks a PR head
-// against origin/main. It runs git through its own Runner, built by
-// newGitRunner, so the check does not depend on the caller's GIT_*
-// environment.
-type protocolCheck struct {
+// gitReader runs the git that reads the repository for the protocol-number
+// check and the correction lines. Its Runner is built by newGitRunner, so a
+// read does not depend on the caller's GIT_* environment.
+type gitReader struct {
 	run Runner
-}
-
-func newProtocolCheck(run Runner) *protocolCheck {
-	return &protocolCheck{run: run}
 }
 
 // git runs git with the hardening options before the subcommand, so no
 // replace ref, pager, color or configured command changes what is read.
-func (c *protocolCheck) git(ctx context.Context, args ...string) ([]byte, error) {
-	return c.run.Run(ctx, gitCommand, append(cmdrunner.GitHardening(), args...)...)
+func (g gitReader) git(ctx context.Context, args ...string) ([]byte, error) {
+	return g.run.Run(ctx, gitCommand, append(cmdrunner.GitHardening(), args...)...)
+}
+
+// protocolCheck reads protocol numbers from git trees and checks a PR head
+// against origin/main.
+type protocolCheck struct {
+	gitReader
+}
+
+func newProtocolCheck(run Runner) *protocolCheck {
+	return &protocolCheck{gitReader{run: run}}
 }
 
 // readRevision returns each tool's value at rev, a full commit ID. Contract:
@@ -484,8 +493,8 @@ func isObjectID(s string) bool {
 }
 
 // resolveCommit returns the commit ID rev names.
-func (c *protocolCheck) resolveCommit(ctx context.Context, rev string) (string, error) {
-	out, err := c.git(ctx, "rev-parse", "--verify", "--quiet", rev+"^{commit}")
+func (g gitReader) resolveCommit(ctx context.Context, rev string) (string, error) {
+	out, err := g.git(ctx, "rev-parse", "--verify", "--quiet", rev+"^{commit}")
 	if err != nil {
 		return "", err
 	}
@@ -503,10 +512,34 @@ type prCommit struct {
 	subject string
 }
 
-// listPRCommits lists the commits reachable from head but not from main,
-// oldest first, with their parents.
-func (c *protocolCheck) listPRCommits(ctx context.Context, head, main string) ([]prCommit, error) {
-	out, err := c.git(ctx, "rev-list", "--reverse", "--no-commit-header", revListFormat, head, "^"+main)
+// rangeOrder is the order a range of PR commits is listed in. The zero value
+// is not a valid order, so a caller that forgets to choose one gets an error,
+// not some order.
+type rangeOrder int
+
+const (
+	_ rangeOrder = iota // the zero value, never a valid order
+	// rangeOrderDefault is git rev-list's own order, oldest first: the order
+	// the protocol-number check reports the commits that changed a number in.
+	rangeOrderDefault
+	// rangeOrderTopo adds --topo-order, oldest first: the range order of the
+	// correction lines, which never shows a commit before its parents and
+	// keeps each line of history together.
+	rangeOrderTopo
+)
+
+// listPRCommits lists the commits reachable from head but not from base,
+// oldest first in order, with their parents.
+func (g gitReader) listPRCommits(ctx context.Context, head, base string, order rangeOrder) ([]prCommit, error) {
+	args := []string{"rev-list", "--reverse"}
+	switch order {
+	case rangeOrderDefault:
+	case rangeOrderTopo:
+		args = append(args, "--topo-order")
+	default:
+		return nil, fmt.Errorf("%w: %d", errInvalidRangeOrder, order)
+	}
+	out, err := g.git(ctx, append(args, "--no-commit-header", revListFormat, head, "^"+base)...)
 	if err != nil {
 		return nil, err
 	}
@@ -581,30 +614,147 @@ func (c *protocolCheck) check(ctx context.Context, headOID, baseRefName string) 
 
 // history checks that the repository is not shallow (rule 1), resolves
 // origin/main and the PR head, and lists the PR commits with their parents
-// (rule 2).
+// (rule 2), wrapping each stage's failure in the kind the check reports.
 func (c *protocolCheck) history(ctx context.Context, headOID string) (string, []prCommit, error) {
-	out, err := c.git(ctx, "rev-parse", "--is-shallow-repository")
-	if err != nil {
+	mainOID, commits, err := c.listRange(ctx, mainBranch, headOID, rangeOrderDefault)
+	if err == nil {
+		return mainOID, commits, nil
+	}
+	rangeErr, ok := errors.AsType[*rangeError](err)
+	if !ok {
 		return "", nil, &protocolUnreadableError{Kind: unreadableHistory, Detail: err.Error()}
 	}
-	if strings.TrimSuffix(string(out), "\n") != "false" {
-		return "", nil, &protocolUnreadableError{Kind: unreadableHistory, Detail: "the repository is shallow; run git fetch --unshallow"}
+	switch rangeErr.Stage {
+	case rangeStageBase, rangeStageHead:
+		return "", nil, &protocolUnreadableError{Kind: unreadableCommits, Rev: rangeErr.Rev, Detail: rangeErr.Err.Error()}
+	default:
+		return "", nil, &protocolUnreadableError{Kind: unreadableHistory, Rev: rangeErr.Rev, Detail: rangeErr.Err.Error()}
 	}
-	mainOID, err := c.resolveCommit(ctx, mainRef)
+}
+
+// remoteBranchPrefix is the namespace a base branch is read from: the
+// remote-tracking refs of origin, spelled out in full.
+const remoteBranchPrefix = "refs/remotes/origin/"
+
+// Failures of listRange that come from no git command.
+var (
+	errInvalidRangeOrder = errors.New("invalid range order")
+	errShallowRepository = errors.New("the repository is shallow; run git fetch --unshallow")
+	errHeadNotObjectID   = errors.New("the PR head is not a full commit ID")
+	errBaseIsHead        = errors.New("HEAD is origin's symbolic ref, not a branch")
+)
+
+// rangeStage names the stage of listRange that failed. The zero value is not
+// a valid stage.
+type rangeStage int
+
+const (
+	_ rangeStage = iota // the zero value, never a valid stage
+	// rangeStageShallow: the shallow check failed, or the repository is
+	// shallow, so the range could hold commits of the base.
+	rangeStageShallow
+	// rangeStageBase: the base's remote-tracking ref is not a valid ref
+	// name, does not exist, or does not name a commit.
+	rangeStageBase
+	// rangeStageHead: the head is not a full commit ID or does not resolve.
+	rangeStageHead
+	// rangeStageList: the commits of the range could not be listed.
+	rangeStageList
+)
+
+// rangeError is a failure of listRange: the stage that failed, the revision
+// it was reading, when one applies, and git's error. Each caller wraps it in
+// the error its own check reports.
+type rangeError struct {
+	Stage rangeStage
+	Rev   string
+	Err   error
+}
+
+// Error names the revision and git's error.
+func (e *rangeError) Error() string {
+	if e.Rev == "" {
+		return e.Err.Error()
+	}
+	return e.Rev + ": " + e.Err.Error()
+}
+
+// Unwrap returns git's error.
+func (e *rangeError) Unwrap() error { return e.Err }
+
+// baseRef returns the remote-tracking ref of the base branch baseRefName.
+// Contract: the name is used only when it is not HEAD in any case and
+// refs/remotes/origin/<baseRefName> is a valid ref name by git
+// check-ref-format, so a name such as "main^" or
+// "a:b" is never put into a revision or a refspec.
+func (g gitReader) baseRef(ctx context.Context, baseRefName string) (string, error) {
+	ref := remoteBranchPrefix + baseRefName
+	// refs/remotes/origin/HEAD is origin's symbolic ref, not a branch. On a
+	// case-insensitive file system a case variant such as "head" opens the
+	// same file, so every case variant is refused.
+	if strings.EqualFold(baseRefName, "HEAD") {
+		return "", &rangeError{Stage: rangeStageBase, Rev: ref, Err: errBaseIsHead}
+	}
+	if _, err := g.git(ctx, "check-ref-format", ref); err != nil {
+		return "", &rangeError{Stage: rangeStageBase, Rev: ref, Err: fmt.Errorf("not a valid branch name: %w", err)}
+	}
+	return ref, nil
+}
+
+// baseCommit returns the commit the remote-tracking ref of baseRefName
+// points at. Contract: the value is the ref's own, read with git show-ref
+// --verify, never git rev-parse, which would read a missing ref's name as
+// another revision (the output of git describe, or a local branch named
+// refs/remotes/origin/<name>).
+func (g gitReader) baseCommit(ctx context.Context, baseRefName string) (string, error) {
+	ref, err := g.baseRef(ctx, baseRefName)
 	if err != nil {
-		return "", nil, &protocolUnreadableError{Kind: unreadableCommits, Rev: mainRef, Detail: err.Error()}
+		return "", err
+	}
+	out, err := g.git(ctx, "show-ref", "--verify", "--hash", ref)
+	if err != nil {
+		return "", &rangeError{Stage: rangeStageBase, Rev: ref, Err: err}
+	}
+	oid := strings.TrimSuffix(string(out), "\n")
+	if !isObjectID(oid) {
+		return "", &rangeError{Stage: rangeStageBase, Rev: ref, Err: fmt.Errorf("%w: git show-ref printed %q, not an object ID", errUnexpectedGitOutput, out)}
+	}
+	commit, err := g.resolveCommit(ctx, oid)
+	if err != nil {
+		return "", &rangeError{Stage: rangeStageBase, Rev: ref, Err: err}
+	}
+	return commit, nil
+}
+
+// listRange checks that the repository is not shallow, resolves the base
+// branch's remote-tracking ref and the head, and lists the commits reachable
+// from the head but not from the base, oldest first in order. It returns the
+// base's commit ID and the commits. Contract: a shallow repository, which
+// could put commits of the base into the range, stops; every failure is a
+// *rangeError naming its stage, never a shorter range.
+func (g gitReader) listRange(ctx context.Context, baseRefName, headOID string, order rangeOrder) (string, []prCommit, error) {
+	out, err := g.git(ctx, "rev-parse", "--is-shallow-repository")
+	if err != nil {
+		return "", nil, &rangeError{Stage: rangeStageShallow, Err: err}
+	}
+	if strings.TrimSuffix(string(out), "\n") != "false" {
+		return "", nil, &rangeError{Stage: rangeStageShallow, Err: errShallowRepository}
+	}
+	baseOID, err := g.baseCommit(ctx, baseRefName)
+	if err != nil {
+		return "", nil, err
 	}
 	if !isObjectID(headOID) {
-		return "", nil, &protocolUnreadableError{Kind: unreadableCommits, Rev: headOID, Detail: "the PR head is not a full commit ID"}
+		return "", nil, &rangeError{Stage: rangeStageHead, Rev: headOID, Err: errHeadNotObjectID}
 	}
-	if _, err := c.resolveCommit(ctx, headOID); err != nil {
-		return "", nil, &protocolUnreadableError{Kind: unreadableCommits, Rev: headOID, Detail: err.Error()}
+	if _, err := g.resolveCommit(ctx, headOID); err != nil {
+		return "", nil, &rangeError{Stage: rangeStageHead, Rev: headOID, Err: err}
 	}
-	commits, err := c.listPRCommits(ctx, headOID, mainOID)
+	commits, err := g.listPRCommits(ctx, headOID, baseOID, order)
 	if err != nil {
-		return "", nil, &protocolUnreadableError{Kind: unreadableHistory, Rev: headOID, Detail: err.Error()}
+		return "", nil, &rangeError{Stage: rangeStageList, Rev: headOID, Err: err}
 	}
-	return mainOID, commits, nil
+	return baseOID, commits, nil
 }
 
 // readRevisions reads every tool's value at origin/main, the PR head, each

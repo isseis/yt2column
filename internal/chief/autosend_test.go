@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -1060,6 +1061,12 @@ func TestTickWithoutRound(t *testing.T) {
 	if !slices.ContainsFunc(out.Snapshot.Problems, func(p string) bool { return strings.Contains(p, "the round cannot be recorded") }) {
 		t.Errorf("problems = %v; want the round's failure", out.Snapshot.Problems)
 	}
+	// The tick without its round still lays out the table from the sources
+	// it read, at the chief pane's width.
+	tableFirstLines(t, out.Snapshot.Table, len(out.Snapshot.Rows))
+	if w := utf8.RuneCountInString(out.Snapshot.Table[3]); w != worldChiefWidth-tableMarginWhole {
+		t.Errorf("rule %d wide, want the chief pane's width less the margin", w)
+	}
 	mw.merge(nextBranch, "`/mkarch 0001`")
 	if out := mw.tick(time.Minute); len(out.AutoSends) != 0 || len(mw.rec.prompts()) != 0 {
 		t.Errorf("a tick without its round considered %+v", out.AutoSends)
@@ -1845,5 +1852,89 @@ func TestAutoSendLeavesRemovalItems(t *testing.T) {
 	}
 	if after := stateEntries(t, recordsDir); !slices.Equal(after, before) || !slices.Contains(after, "/"+createdFile) || !slices.Contains(after, "/"+stopFile) {
 		t.Errorf("the made workspace's records %v, were %v", after, before)
+	}
+}
+
+// TestTickTableShowsAutoSend checks that tick's table shows the row an
+// automatic send went to as it is after the send: running, with the mark
+// and the status word table.go gives the row's urgency and progress.
+func TestTickTableShowsAutoSend(t *testing.T) {
+	mw := newMergeWorld(t, mkarchDocs)
+	mw.tick(time.Minute)
+	mw.merge(nextBranch, "`/mkarch 0001`")
+	out := mw.tick(time.Minute)
+	if !sentCommand(only(t, out)) {
+		t.Fatalf("auto send = %+v; want the command sent", out.AutoSends)
+	}
+	row := rowOf(t, out.Snapshot, "ws")
+	if row.State != StateRunning || row.Position.Progress != ProgressCreating {
+		t.Fatalf("row = %+v; want it running after the send", row)
+	}
+	first := tableFirstLines(t, out.Snapshot.Table, 1)[0]
+	if want := urgencyMark(row.Urgency) + " " + progressWord(row.Position.Progress) + " "; !strings.HasPrefix(first, want) {
+		t.Errorf("table row = %q, want it to start with %q", first, want)
+	}
+}
+
+// TestTickTableSourcesUnreadable runs the ticks around a merge twice, once
+// with every table source read and once with the tab list and the chief
+// pane's layout failing: the automatic send, its inputs, the rows, and the
+// problems are the same, and the second table is laid out at 80 columns and
+// shows the question pane by its ID, with table_unreadable saying why.
+func TestTickTableSourcesUnreadable(t *testing.T) {
+	type sent struct {
+		pane, command, model string
+		input                InputKind
+		outcome              ActionOutcome
+	}
+	type round struct {
+		sends    []sent
+		prompts  []string
+		rows     []string
+		problems []string
+		table    []string
+		notes    []string
+	}
+	run := func(broken bool) round {
+		// A second workspace waits on a question, so the table shows a tab.
+		mw := newMergeWorldWith(t, mkarchDocs, "", func(sw *sendWorld) {
+			sw.addTask(fakeWorkspace{ID: "w2", Label: "ask", Branch: "main"}, "claude")
+			sw.ask(sw.byPane["w2:p1"], "claude-question-single.ansi")
+		})
+		if broken {
+			mw.rec.replyFunc("herdr tab list", func() reply { return reply{err: errors.New("herdr is down")} })
+			mw.rec.fail("herdr pane layout --pane "+worldChiefPane, errors.New("herdr is down"))
+		}
+		mw.tick(time.Minute)
+		mw.merge(nextBranch, "`/mkarch 0001`")
+		out := mw.tick(time.Minute)
+		var r round
+		for _, res := range out.AutoSends {
+			for _, a := range res.Actions {
+				r.sends = append(r.sends, sent{a.Pane, a.Command, a.Model, a.Input, a.Outcome})
+			}
+		}
+		r.prompts = mw.rec.prompts()
+		for _, row := range out.Snapshot.Rows {
+			r.rows = append(r.rows, fmt.Sprintf("%s %v %v %v", row.Label, row.State, row.Urgency, row.Position))
+		}
+		r.problems, r.table, r.notes = out.Snapshot.Problems, out.Snapshot.Table, out.Snapshot.TableUnreadable
+		tableFirstLines(t, r.table, len(r.rows))
+		return r
+	}
+	read, got := run(false), run(true)
+	if len(read.sends) == 0 || !slices.Equal(got.sends, read.sends) || !slices.Equal(got.prompts, read.prompts) {
+		t.Errorf("sends %+v and prompts %v, want %+v and %v", got.sends, got.prompts, read.sends, read.prompts)
+	}
+	if !slices.Equal(got.rows, read.rows) || !slices.Equal(got.problems, read.problems) {
+		t.Errorf("rows %v and problems %v, want %v and %v", got.rows, got.problems, read.rows, read.problems)
+	}
+	// The notes are one for each lost source and one for the question pane
+	// shown by its ID.
+	if w := utf8.RuneCountInString(got.table[3]); w != tablePaneDefault-tableMarginWhole || len(read.notes) != 0 || len(got.notes) != 3 {
+		t.Errorf("rule %d wide, notes %v then %v; want 80 columns and three notes", w, read.notes, got.notes)
+	}
+	if !slices.ContainsFunc(read.table, func(l string) bool { return strings.Contains(l, "[claude]") }) || !slices.ContainsFunc(got.table, func(l string) bool { return strings.Contains(l, "[w2:p1]") }) {
+		t.Errorf("tables\n%s\nthen\n%s\nwant the question's tab label, then its pane ID", strings.Join(read.table, "\n"), strings.Join(got.table, "\n"))
 	}
 }

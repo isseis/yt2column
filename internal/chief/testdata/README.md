@@ -160,7 +160,7 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 
 | ファイル | 作り方と目的 |
 |---|---|
-| `plans/marker-opus-pr-open.md` | `marker-opus.md` の PR-2 の「PR を作成した」だけを済ませた形。`origin/main` では PR を開いている間にしか現れない状態で、進行の位置の PR 番号（PR-2）が変わらないことを確かめる |
+| `plans/marker-opus-pr-open.md` | `marker-opus.md` の PR-2 の「PR を作成した」だけを済ませた形。`origin/main` では PR を開いている間にしか現れない状態で、作業項目の表示の PR 番号（PR-2）が変わらないことを確かめる |
 | `plans/marker-merged-not-created.md` | `marker-all-merged.md` の PR-3 の「PR を作成した」を外した形。すべての PR が「マージされた」なのに作られていない PR があり、計画が完了ともマージしていない PR があるとも言えない場合を確かめる |
 
 ### 計画書のステップのサンプル

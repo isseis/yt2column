@@ -586,6 +586,36 @@ its security rules in `docs/dev/security.md` §8.
   entry of another form that the PR adds under `docs/dev/adr/`, which
   `TestADRRecords` checks in CI; and it reports an entry of another form that
   the PR adds under `docs/tasks/` as a finding.
+  Exception: `mergepr` chooses behavior by inspecting the content of a PR's
+  commit messages, of the subject and body files an agent writes for the
+  squash merge, and of the merge commit's message
+  (`internal/mergepr/corrections.go`). Scope: where a commit object's
+  header ends and its message starts (its first empty line); whether a
+  commit message's line starts in its first column with
+  `Editorial correction: `, and the class of each character of such a line (general category Cc other than
+  tab, Cf, Zl, and Zp; bytes that are not UTF-8 and noncharacters; `@`; and
+  `<`), which sort the correction lines into accepted and rejected ones
+  for `prepare`, `paragraph`, `check-body`, and `merge`; the lines of the subject and the body that
+  start in their first column with `Editorial correction: ` or
+  `Dropped editorial corrections: `, and whether those of the body form one
+  paragraph of their own, which `check-body` and `merge` compare with the
+  block of lines the tool builds from the commits; the trailers
+  `git interpret-trailers --parse` reads from the message with and without
+  that block; and the merge commit's lines with either prefix, which
+  `merge` and `cleanup` compare after the merge with those of the body the
+  merge passed. This is the only place their content
+  selects behavior: which lines are dropped is declared with `--drop` and
+  `--drop-rejected`, never read from the line of the body that records the
+  dropped lines. Reason: a correction line is defined by its prefix in a
+  commit message an agent or a human wrote, and the body is text an agent
+  writes, external values the tool cannot express in a type. Boundary: a
+  line is compared as bytes and never repaired; a correction line that
+  holds a rejected character is never carried: it must be dropped by a
+  declaration or rewritten on the branch; a subject or body whose
+  reserved-prefix lines are not the block byte for byte and in order, are
+  not one paragraph of their own, or change the trailers git reads stops the
+  merge; and the rest of a correction line has no required form: only its
+  characters are classified.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
@@ -969,8 +999,9 @@ Only the conventions a linter does not check are worth stating:
   its status table in Japanese, so the table's fixed words are Japanese
   literals. Scope: the literals of `internal/chief/table.go` that are the
   status table's fixed words — the header, the legend, the status words, the
-  document stages, the reasons no running command is decided, `＋指示`, the
-  count (`件`) and `マージ確認` put before a question, and the line shown when
+  work item strings, the reasons no running command is decided, `＋指示`, the
+  count (`件`) and `マージ確認` put before a question, `削除を提案` on the row
+  of a finished task whose removal chief proposes, and the line shown when
   there are no rows (`workspace なし`) — which reach the tool's output as the
   text of the table; and the same words in its test,
   `internal/chief/table_test.go`. Reason: the
