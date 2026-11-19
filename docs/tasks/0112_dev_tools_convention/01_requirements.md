@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -275,3 +275,7 @@ Claude Code が `make install-*` と `go install` を走らせないように、
 -   **そのつどビルドする道具:** make のターゲットが、走らせるたびに一時ディレクトリにビルドする開発の道具。
 -   **入れる・入れ直す:** インストールする・再インストールすると同じ意味で使う。
 -   **ビルドする:** 規則 5 では、道具を走らせるためのバイナリを作ること、またはソースから走らせること（1 章の「要件定義の際に決めたこと」）。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1024）
