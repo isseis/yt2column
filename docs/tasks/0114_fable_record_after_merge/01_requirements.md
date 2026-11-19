@@ -25,8 +25,8 @@
 -   タスク 0098 の実地の確かめで起きた（[0098 実装計画書](../0098_fable_partial_review/03_implementation_plan.md) §7「PR-3 の実行の記録」のステップ 3-3）。PR #987 では、記録の commit `5de18f65` の後に `origin/main` の merge commit `ac43c9c9` が作られた。この merge は `docs/dev/adr/0046-chief-of-staff.md` の衝突を解いている。判定のスクリプトは、記録の commit では `VALID`、merge の後では `MISSING <merge-base>` を返した。しかし、#987 は Fable を走らせ直さずに開かれた。
 -   merge の後に判定のスクリプトが返す START（Fable が見る範囲の起点。出力 `MISSING <START>` の `<START>`）は、merge の前の記録の START によって分かれる。
     -   **記録の START が古い merge-base のとき（#987 の形）:** merge で merge-base が動くと、その記録は START の確かめを通らずに無視される（`review-records.sh:46-52`、`:87-91`）。スクリプトは `MISSING <新しい merge-base>` を返し、Fable は PR の全体を見る。
-    -   **記録の START がブランチの commit のとき（単独の経路や、2 回目以降の部分レビューの記録）:** その記録は merge の後も有効なまま残る。記録の後の commit のうち、記録を無効にしない規則のどれにも当たらない最初のものが merge commit なので、スクリプトは `MISSING <merge commit の第 1 親>` を返す（`review-records.sh:570-578`）。この範囲の diff には、`main` 側で入った変更がすべて入る。Fable の指摘のうち、ブランチで変わっていないファイルの指摘は、範囲にないとして捨てられる（`fable-review.md:347-352`）。
--   merge commit は、`/runpr` の `coverage` でも「見ていない」と数えられ、`PARTIAL` になる（`review-records.sh:42`）。`/runpr` は、escalation の判定によって、人に問うか、PR レビューを頼む（`.claude/commands/runpr.md:700-717`）。
+    -   **記録の START がブランチの commit のとき（単独の経路や、2 回目以降の部分レビューの記録）:** その記録は merge の後も有効なまま残る。記録の後の commit のうち、記録を無効にしない規則のどれにも当たらない最初のものが merge commit なので、スクリプトは `MISSING <merge commit の第 1 親>` を返す（`review-records.sh:570-578`）。この範囲の diff には、merge で入った `main` 側の変更がすべて入る。merge の前の PR の commit は、前の記録がすでに見ている。Fable の指摘のうち、ブランチで変わっていないファイルの指摘は、範囲にないとして捨てられる（`fable-review.md:347-352`）。
+-   `/runpr` の `coverage` は、Codex の最後の PR レビューより後の commit だけを判定する（`review-records.sh:10-11`、`:26-28`）。PR を開く前の merge commit は、Codex の最初の PR レビューが見るので、普通は判定の対象にならない。対象になった merge commit は「見ていない」と数えられ、`PARTIAL` になる（`review-records.sh:42`）。そのとき `/runpr` は、escalation の判定によって、人に問うか、PR レビューを頼むか、頼まずに進む（`.claude/commands/runpr.md:700-717`）。`coverage` は、merge で merge-base が動くと、古い merge-base から始まる見た範囲の行も無視する（`review-records.sh:46-52`）。
 -   PR の説明の「どちらの CLI もレビューしなかった commit」は、このセッションのレビューがブランチの全体を見たとき、そのレビューの SUMMARY にある範囲だけを挙げる（`task-pr-handoff.md:250-260`）。記録の後にできた commit を書く規則はない。#987 の PR の説明は、merge commit と空の記録の commit の 2 つを挙げた（0098 実装計画書 §7 のステップ 3-1）。
 
 対応 issue: [#988](https://github.com/isseis/yt2column/issues/988)（関連: [#924](https://github.com/isseis/yt2column/issues/924)（タスク 0098）、PR [#987](https://github.com/isseis/yt2column/pull/987)（食い違いを観察した PR））
@@ -57,17 +57,19 @@
     -   ADR：[ADR-0050](../../dev/adr/0050-fable-partial-review.md) を更新する。記録の後の commit の扱いという ADR-0050 の決定を変えるので、主要な決定に当たる（CLAUDE.md「Design decisions (ADR)」）。
 -   **再判定を入れる PR：** push の直前の再判定は、タスク文書の PR と `/runplan` の PR の両方に入れる（F-001）。`/runplan` のチェックポイントの印の後にできた merge commit にも同じ穴がある。どちらの PR も、push を `_lib/task-pr-handoff.md` Part B で行うので、1 か所で直せる。人の答え：含める。
     -   ADR：ADR-0050 を更新する（上の決定と同じ項目）。
--   **CHECKS の直しの見分け方：** CHECKS の直しを記録を無効にしない commit と見分けるのは、判定のスクリプトが commit のデータから行う。セッションが手順の文を読んで判断しない（F-002）。有効かの判定をセッションの解釈に任せないという、ADR-0050 の決定を保つためである。CHECKS の直しを無効にしない側に入れることは、有効と判定する側を意図して広げることになる。その広がりは CHECKS の直しに限り、ほかの中身のある commit には及ばない（AC-12）。この決定は、上の決定とレビューの指摘から導いたもので、人には別に問うていない。
+-   **CHECKS の直しの見分け方：** タスク文書の PR でも、`/runplan` のチェックポイントと同じく、Part B step 2 の前に記録が有効かを判定して印を残し、印の後の commit（merge commit を除く）を記録を無効にしない commit とする。印の後の commit かどうかは、判定のスクリプトが commit のデータから決め、セッションが手順の文を読んで決めない（F-002）。commit のデータだけでは、CHECKS の直しとほかの中身のある commit を見分けられないためである。印の後に人やほかのセッションが手で足した中身のある commit は、Fable が見ないまま PR が開く。この危険は、`/runplan` のチェックポイントの印について ADR-0050 がすでに受け入れているものと同じ形で受け入れる。その commit も、PR を開いたときに Codex の PR レビューが見る。人の答え：印の後を除き、危険を受け入れる。
+    -   経緯：最初の版は、「CHECKS の直しだけを、判定のスクリプトが commit のデータから見分ける」と書き、人に問わずに決めていた。Fable の部分レビューで、commit のデータだけでは見分けられないと分かったので、人に問い、この形に決めた。
+    -   採らなかった案：印の後の commit も無効にし、CHECKS の直しのたびに Fable を走らせ直す（「push の直前の再判定」の採らなかった案 B と同じ）。
     -   ADR：ADR-0050 を更新する。
--   **merge の後の範囲：** merge の後は、いつも PR の全体（新しい merge-base から HEAD まで）を Fable が見る。そのために、判定のスクリプトの START の決め方を変える（F-002）。今は、上の背景のとおり、merge の前の記録の START によって、PR の全体を見る場合と、`main` 側の変更を含む範囲を見る場合に分かれる。後者では、PR 自身の merge の前の commit を Fable が見ず、PR のものでない変更を見る。START の決め方を変えても、有効と判定する側は広がらないので、誤って有効と判定する危険は増えない。記録の後の merge は稀なので、Fable の 1 回分の費用は受け入れる。人の答え：常に PR の全体。
-    -   経緯：最初の問いでは、「今の安全な側の動き（merge の後は PR の全体を見る）を保ち、判定のスクリプトは変えない」と決めた。しかし、セルフレビューで、今の動きが記録の START によって分かれることが分かった（使い捨てのリポジトリで再現した）。そこで同じ日に問い直し、この形に決め直した。
-    -   採らなかった案：(B) 今のまま受け入れ、記録によって範囲が分かれる振る舞いを要件に書く。範囲に `main` 側の変更が入り、PR 自身の merge の前の commit が入らない。(C) merge commit 自身の変更（衝突の解決など）だけを Fable に見せる。判定のスクリプトに、merge を見分ける新しい規則が要り、誤って有効と判定する余地が増える。(D) Part B step 1 の前に `main` を取り込む手順を足し、記録の後の merge を減らす。merge の要る理由（衝突など）は記録の後にも起こりうるので、減らしても、merge の後の扱いは別に要る。
+-   **merge の後の範囲：** merge の後は、いつも PR の全体（新しい merge-base から HEAD まで）を Fable が見る。そのために、判定のスクリプトの START の決め方を変える（F-002）。今は、上の背景のとおり、merge の前の記録の START によって、PR の全体を見る場合と、merge で入った `main` 側の変更を含む範囲を見る場合に分かれる。後者では、Fable が PR のものでない変更を見て、その指摘は捨てられるノイズになる。また、merge の後の PR を新しい `main` の上で読み直さない。START の決め方を変えても、有効と判定する側は広がらないので、誤って有効と判定する危険は増えない。記録の後の merge は稀なので、Fable の 1 回分の費用は受け入れる。人の答え：常に PR の全体。
+    -   経緯：最初の問いでは、「今の安全な側の動き（merge の後は PR の全体を見る）を保ち、判定のスクリプトは変えない」と決めた。しかし、セルフレビューで、今の動きが記録の START によって分かれることが分かった（使い捨てのリポジトリで再現した）。そこで同じ日に問い直し、この形に決め直した。そのとき「PR 自身の merge の前の commit を Fable が見ない」と説明したが、その commit は前の記録が見ていたので、理由を上のとおりに直し、人に確かめた（人の答え：保つ、理由を直す）。
+    -   採らなかった案：(B) 今のまま受け入れ、記録によって範囲が分かれる振る舞いを要件に書く。範囲に `main` 側の変更が入ってノイズになり、PR を新しい `main` の上で読み直さない。(C) merge commit 自身の変更（衝突の解決など）だけを Fable に見せる。判定のスクリプトに、merge を見分ける新しい規則が要り、誤って有効と判定する余地が増える。(D) Part B step 1 の前に `main` を取り込む手順を足し、記録の後の merge を減らす。merge の要る理由（衝突など）は記録の後にも起こりうるので、減らしても、merge の後の扱いは別に要る。
     -   ADR：ADR-0050 を更新する。
--   **`/runplan` の Opus のレビュー：** `/runplan` で、push の直前の単独の部分レビューが直しの commit を作ったら、Part B step 2 の除外できない commit と同じく、Opus のレビューの判断をやり直す（F-001）。今の `/runplan` は、Part B step 2 の commit で Opus のレビューの判断をやり直す（`runplan.md:106-118`）。Fable の直しも同じ種類の commit なので、扱いを揃える。人の答え：Part B step 2 と同じ。
+-   **`/runplan` の Opus のレビュー：** `/runplan` で、push の直前の判定の時点に、Opus のレビューの判断の後にできた除外できない commit（push の直前の単独の部分レビューの直しの commit と、merge commit を含む）があれば、Part B step 2 の除外できない commit と同じく、Opus のレビューの判断をやり直す（F-001）。今の `/runplan` は、Part B step 2 の commit で Opus のレビューの判断をやり直す（`runplan.md:106-118`）。Fable の直しも merge commit も同じ種類の commit なので、扱いを揃える。merge commit は、Opus のレビューの判断では除外できない commit である（`.claude/commands/_lib/opus-review.md:102-104`）。人の答え：Part B step 2 と同じ。merge commit のときもやり直す。
     -   ADR：なし。`/runplan` の Opus のレビューの既存の規則（[ADR-0042](../../dev/adr/0042-implementation-model-tiers.md)）を、新しい commit にも当てはめるだけで、決定を変えない。
 -   **0098 の文書：** タスク 0098 の承認済みの文書は直さない。ADR-0050 の決定と経緯だけを更新する（F-004）。今の決定とその経緯は ADR が持ち、タスクの文書はそのタスクで決めたことの記録だからである（CLAUDE.md「Design decisions (ADR)」の「Who holds what」）。0098 の文書は、#988 を既知の例外としてすでにリンクしている（0098 要件定義書 AC-42、[0098 設計書](../0098_fable_partial_review/02_architecture.md) 3.10）。issue は「0098 の設計書の該当箇所もあわせて直す」と書いていたが、人と決めてこの形にした。人の答え：直さない。
     -   ADR：ADR-0050 を更新する（経緯に本タスクを足す）。
--   **PR の説明の一覧：** PR の説明の「どちらの CLI もレビューしなかった commit」には、記録の後・push の前にできた commit も含め、どちらの CLI も見ていない commit を挙げる。見ていない commit の定義は、`/runpr` の `coverage` と同じにする（F-003）。今の規則は、記録の後にできた commit の扱いを決めていない。#987 では、空の記録の commit まで挙がった。`coverage` と同じ定義にするのは、PR の説明と `/runpr` の判定が同じ commit について食い違わないようにするためである。この定義では、空の commit と、計画書の PR の進み具合のチェックボックスの行だけを変える commit は挙げない。`README.en.md` だけを変える commit は挙げる（`review-records.sh:31-42`）。人の答え：中身のある commit だけ挙げる。定義は `/runpr` と揃え、`README.en.md` だけを変える commit は挙げる。
+-   **PR の説明の一覧：** PR の説明の「どちらの CLI もレビューしなかった commit」には、記録の後・push の前にできた commit も含め、どちらの CLI も見ていない commit を挙げる。挙げない commit は、空の commit、計画書の PR の進み具合のチェックボックスの行だけを変える commit、ローカルの CLI レビューの見た範囲の行（`Local CLI reviewed:`）の範囲に入る commit である。中身のない commit の定義は `/runpr` の `coverage` と揃え、`README.en.md` だけを変える commit は挙げる（`review-records.sh:31-42`）。見た範囲の行は、merge で merge-base が動いた後も、範囲に入る commit を見たものとして数える。ここが `coverage` と違う（F-003）。今の規則は、記録の後にできた commit の扱いを決めていない。#987 では、空の記録の commit まで挙がった。`coverage` の定義をそのまま使うと、merge の後は、CLI がレビューした commit まで挙がる（#987 のブランチでは 6 件。Fable の部分レビューの実験）。人の答え：中身のある commit だけ挙げる。中身のない commit の定義は `/runpr` と揃え、`README.en.md` だけを変える commit は挙げる。merge の前に CLI が見た commit は、merge の後も挙げない。
     -   ADR：なし。PR の説明の書き方は、`_lib/task-pr-handoff.md` の 1 つの手順の中で閉じる。
 -   **止まった後の扱い：** push の直前の判定や単独の部分レビューで止まったときは、報告して止まるだけとし、やり直しの手段は本タスクで作らない（F-001）。今の Part B step 1 で止まったときも、タスク文書のコマンドを走らせ直すと、Part A が「commit があって PR のないブランチ」で止まる（`task-pr-handoff.md:101-103`）。止まった後の再開は、それと合わせて別に扱う。人の答え：報告だけ、再開はスコープ外。
     -   ADR：なし。本タスクの範囲の選択である。
@@ -79,13 +81,13 @@
 -   記録の後に中身のある commit ができたとき、Fable がそれを見ないまま、タスクの PR が開かれないようにする。
 -   merge の後に Fable が見る範囲を、いつも PR の全体にする。
 -   タスク文書の PR と `/runplan` の PR で、記録を無効にしない commit の扱いを揃える。
--   PR の説明で、どちらの CLI もレビューしなかった commit を、記録の後にできたものも含めて、`/runpr` と同じ定義で示す。
+-   PR の説明で、どちらの CLI もレビューしなかった commit を、記録の後にできたものも含めて正しく示す。
 
 ### 2.2. スコープ (In Scope)
 
 -   `_lib/task-pr-handoff.md` Part B の、push の直前の Fable の記録の再判定と、有効でないときの単独の Fable の部分レビュー（F-001）。
--   `/runplan` で、push の直前の単独の部分レビューの直しについて、Opus のレビューの判断をやり直すこと（F-001、AC-09）。
--   タスク文書の PR の CHECKS の直しを、記録を無効にしない commit にすること（F-002）。手段は設計で決める。
+-   `/runplan` で、push の直前の単独の部分レビューの直しと merge commit について、Opus のレビューの判断をやり直すこと（F-001、AC-09）。
+-   タスク文書の PR の Part B step 2 の前の印と、印の後の commit を記録を無効にしない commit にすること（F-002）。
 -   判定のスクリプトの、merge の後の START の決め方（F-002）。
 -   PR の説明の「どちらの CLI もレビューしなかった commit」の規則（F-003）。
 -   ADR-0050 の決定・採らなかった案・結果・経緯の更新（F-004）。
@@ -119,25 +121,25 @@
 
 - **AC-01**: タスクの PR の push の直前に、`origin/main` から取り出した判定のスクリプトで、ブランチの Fable の記録が有効かを判定する。タスク文書の PR でも、`/runplan` の PR でも判定する。判定の取り出し方と、失敗を「有効でない」と読むことは、今の起動とチェックポイントの入口と同じである（`fable-review.md:79-103`）。
 - **AC-02**: 判定が有効（`VALID`）のときは、Fable を走らせず、commit を足さずに push に進む。
-- **AC-03**: 判定が有効でない（`MISSING <START>`、または判定の失敗）ときは、push の前に、`<START>` から HEAD までについて、Fable の部分レビューを単独で行う。判定が失敗したときの `<START>` は merge-base である。流れはチェックポイントの単独の経路（`fable-review.md:208-232`）と同じで、指摘のトリアージ、直し、直しのローカルの CLI レビュー、記録の commit の順に進む。
+- **AC-03**: 判定が有効でない（`MISSING <START>`、または判定の失敗）ときは、push の前に、`<START>` から HEAD までについて、Fable の部分レビューを単独で行う。判定が失敗したときの `<START>` は merge-base である。流れはチェックポイントの単独の経路（`fable-review.md:208-232`）と同じで、指摘のトリアージ、直し、直しのローカルの CLI レビュー、記録の commit の順に進む。Fable に渡す KIND は、タスク文書の PR では `documents`、`/runplan` の PR では `implementation` である。SELF_REJECTED には、そのセッションがそれまでのレビューで却下した指摘を渡す（`fable-review.md:35-47`）。
 - **AC-04**: AC-03 の単独の部分レビューが commit を作ったら、Part B step 1 の README の同期と step 2 の CHECKS を、push の前にもう一度走らせる。ここでできた CHECKS の直しと `README.en.md` の commit も、AC-10 と AC-11 のとおり記録を無効にしない。
-- **AC-05**: AC-03 と AC-04 の後に、もう一度判定する。有効なら push に進む。push の前の最後の手順は、この判定である。
+- **AC-05**: AC-03 と AC-04 の後に、もう一度判定する。有効なら push に進む。push の前の最後の手順は、この判定である。push するのは、判定した commit である。判定の後、push までの間にブランチの先頭が判定した commit から動いたら、push せずに判定からやり直す。
 - **AC-06**: AC-05 の判定が有効でないときは、push せず、PR を開かずに止まる。判定が失敗した（スクリプトを取り出せない、終了コードが 0 でない、1 行目が決まった形でない）ときも止まる。止まったことを報告する。報告には、止まった理由、判定の出力の 1 行目、判定が失敗したときはスクリプトが標準エラーに書いたこと、今の HEAD、止まるまでに作った commit を含める。
 - **AC-07**: AC-03 の単独の部分レビューで、Fable が走らない（`not run` の理由のどれか。`fable-review.md:460-464`）ときは、止めずに `not run` とその理由を記録の commit に残し、AC-05 の判定に進む。
 - **AC-08**: AC-03 の単独の部分レビューが途中で止まったときは、push せず、PR を開かずに止まる。止まった理由、今の HEAD、止まるまでに作った commit を報告する。途中で止まるのは、作業ツリーの確かめ、状態の確かめ、メンションの確かめ、ローカルの CLI レビューのどれかが止まったときである（`fable-review.md:208-232`）。
-- **AC-09**: `/runplan` の PR で、AC-03 の単独の部分レビューが除外できない commit を作ったら、Part B step 2 の commit と同じく、Opus のレビューの判断をやり直す（`runplan.md:106-118`）。その後に、AC-04 と AC-05 に進む。PR の説明の Opus のレビューの結果も、やり直した判断に合わせる。
+- **AC-09**: `/runplan` の PR で、Opus のレビューの判断の後に除外できない commit（AC-03 の単独の部分レビューの直しの commit、または merge commit）があれば、Part B step 2 の commit と同じく、push の前に Opus のレビューの判断をやり直す（`runplan.md:106-118`）。たとえば、Opus のレビューを終えた後に `origin/main` を merge し、AC-03 の部分レビューが何も直さなかったブランチでも、やり直す。その後に、AC-04 と AC-05 に進む。PR の説明の Opus のレビューの結果も、やり直した判断に合わせる。
 
 #### F-002: 記録を無効にする commit と、無効にしない commit
 
-記録の後、push の直前までにできた commit のうち、どれが Fable の記録を無効にし、どれが無効にしないかを定める。どれも判定のスクリプトが commit のデータから決め、セッションが手順の文を読んで決めない。
+記録の後、push の直前までにできた commit のうち、どれが Fable の記録を無効にし、どれが無効にしないかを定める。どれも判定のスクリプトが commit のデータ（印の commit の位置を含む）から決め、セッションが手順の文を読んで決めない。
 
 **Acceptance Criteria**:
 
 - **AC-10**: 今まで記録を無効にしなかった commit は、push の直前の判定でも無効にしない。対象は、中身のない commit（`fable-review.md:114-121`）、同じ実行の直し（`:122-125`）、チェックポイントの印の後のチェックポイントの実行の commit（`:126-128`）である。たとえば、記録の後に `README.en.md` だけを変える commit しかないブランチでは、Fable は走らない。
-- **AC-11**: タスク文書の PR で、記録の後に CHECKS の直ししかないブランチでは、push の直前の判定は有効になり、Fable は走らない。
-- **AC-12**: タスク文書の PR で、記録の後に CHECKS の直しと、それ以外の中身のある commit（CHECKS の前に作った手作業の commit など）の両方があるブランチでは、push の直前の判定は有効でない。
+- **AC-11**: タスク文書の PR で、記録が有効なうちに Part B step 2 の前の印が残され、記録の後に印と CHECKS の直ししかないブランチでは、push の直前の判定は有効になり、Fable は走らない。
+- **AC-12**: タスク文書の PR で、記録と印の間に中身のある commit（CHECKS の前に作った手作業の commit など）があるブランチでは、push の直前の判定は有効でない。印の後の commit は、手で足した中身のある commit でも記録を無効にしない（受け入れた危険。要件定義の際に決めたこと）。
 - **AC-13**: 記録の後に merge commit（`origin/main` の取り込みを含む）があるブランチでは、タスク文書の PR でも `/runplan` の PR でも、push の直前の判定は有効でない。merge commit がチェックポイントの印や CHECKS の直しの後にあっても、同じである。
-- **AC-14**: 判定が merge commit で有効でなくなったときに Fable が見る範囲は、新しい merge-base から HEAD まで（PR の全体）である。merge の前の記録の START が古い merge-base でも、ブランチの commit でも、同じである。たとえば、START がブランチの commit である記録の後に `origin/main` を merge したブランチでは、判定は `MISSING <新しい merge-base>` を返す。
+- **AC-14**: 判定が merge commit で有効でなくなったときに Fable が見る範囲は、新しい merge-base から HEAD まで（PR の全体）である。merge の前の記録の START が古い merge-base でも、ブランチの commit でも、同じである。たとえば、START がブランチの commit である記録の後に `origin/main` を merge したブランチでも、記録の後に中身のある commit X を足してから `origin/main` を merge したブランチでも、判定は `MISSING <新しい merge-base>` を返す。記録の後に merge commit が 1 つでもあれば、この範囲になる。
 - **AC-15**: Fable の起動の後、記録の commit の前に merge commit ができたブランチでも、push の直前の判定は有効でなく、Fable は PR の全体を見る。AC-03 の単独の部分レビューの途中で merge commit ができたときは、AC-05 の判定が有効でなくなり、AC-06 のとおり止まる。
 
 #### F-003: PR の説明の、どちらの CLI もレビューしなかった commit
@@ -146,8 +148,8 @@ PR の説明の「どちらの CLI もレビューしなかった commit」（`t
 
 **Acceptance Criteria**:
 
-- **AC-16**: PR の説明の「どちらの CLI もレビューしなかった commit」は、`origin/main..HEAD` の commit のうち、`/runpr` の `coverage` が「見たと分かる」と数えないもの（`review-records.sh:26-42`）を挙げる。タスク文書の PR でも、`/runplan` の PR でも同じである。記録の後・push の前にできた merge commit、CHECKS の直し、`README.en.md` だけを変える commit も、どちらの CLI も見ていなければ挙げる。
-- **AC-17**: 空の commit と、計画書の PR の進み具合のチェックボックスの行だけを変える commit は挙げない。たとえば、#987 の形のブランチ（記録の commit の後に merge commit が 1 つ）では、merge commit だけを挙げ、空の記録の commit は挙げない。
+- **AC-16**: PR の説明の「どちらの CLI もレビューしなかった commit」は、`origin/main..HEAD` の commit のうち、空の commit、計画書の PR の進み具合のチェックボックスの行だけを変える commit、ブランチの見た範囲の行（`Local CLI reviewed:`）の範囲に入る commit のどれでもないものを挙げる。タスク文書の PR でも、`/runplan` の PR でも同じである。記録の後・push の前にできた merge commit、CHECKS の直し、`README.en.md` だけを変える commit も、どちらの CLI も見ていなければ挙げる。
+- **AC-17**: 見た範囲の行の範囲に入る commit は、その後に `origin/main` を merge して merge-base が動いても挙げない。たとえば、#987 の形のブランチ（CLI がレビューした commit の後に、空の記録の commit と merge commit が 1 つずつ）では、merge commit だけを挙げる。
 - **AC-18**: `/runplan` の PR で、チェックポイントの印の後に merge commit があるブランチでは、その merge commit を挙げる。
 - **AC-19**: AC-03 の単独の部分レビューが作った直しの commit のうち、その直しのローカルの CLI レビューで、どちらかの CLI が見たものは挙げない。
 - **AC-20**: AC-03 で走った Fable の部分レビューの記録は、PR の説明の `## Fable の部分レビュー` の節に、それより前の記録と並べて、別の記録として示す。
@@ -156,7 +158,7 @@ PR の説明の「どちらの CLI もレビューしなかった commit」（`t
 
 **Acceptance Criteria**:
 
-- **AC-21**: ADR-0050 の「決定」は、記録を無効にする commit と無効にしない commit について、本書の決定だけを述べ、前の決定と食い違う文を残さない。述べるのは次の 4 点である。push の直前に記録が有効かをもう一度判定し、有効でなければ足りない commit について Fable の部分レビューを行うこと。タスク文書の PR の CHECKS の直しは記録を無効にしないこと。merge commit はいつも記録を無効にすること。merge の後は Fable が PR の全体を見ること。
+- **AC-21**: ADR-0050 の「決定」は、記録を無効にする commit と無効にしない commit について、本書の決定だけを述べ、前の決定と食い違う文を残さない。述べるのは次の 4 点である。push の直前に記録が有効かをもう一度判定し、有効でなければ足りない commit について Fable の部分レビューを行うこと。タスク文書の PR でも Part B step 2 の前に印を残し、印の後の commit は記録を無効にしないこと（印の後に手で足した commit の危険を受け入れることを含む）。merge commit はいつも記録を無効にすること。merge の後は Fable が PR の全体を見ること。決定のうち、まだ手順と判定のスクリプトに入っていない部分は、#988 にリンクする食い違いの文で示す（`docs/dev/conventions/adr.md`「Discrepancy statements」）。
 - **AC-22**: ADR-0050 の「採らなかった案」は、本書の「要件定義の際に決めたこと」の、ADR-0050 を更新する決定の採らなかった案を、理由とともに挙げる。ADR-0050 の「経緯」の末尾には、本タスクの決定の 1 行を、本書へのリンクとともに足す。
 - **AC-23**: 本タスクの PR は、タスク 0098 の文書（`docs/tasks/0098_fable_partial_review/` の下）を変えない。`git diff origin/main...HEAD -- docs/tasks/0098_fable_partial_review/` は空である。
 
@@ -170,7 +172,7 @@ PR の説明の「どちらの CLI もレビューしなかった commit」（`t
 ### 4.2. セキュリティ (Security)
 
 -   `docs/dev/security.md` の条件（`yt-dlp` の起動、API キー、キャッシュ、LLM API への送信、信頼しないテキストの埋め込み）のどれにも当たらないので、N/A とする。開発の道具の手順だけを変え、製品の振る舞いを変えない。
--   判定の関門の性質は保つ。判定のスクリプトは、`origin/main` から取り出して走らせ、作業ツリーのものを使わない。失敗は「有効でない」と読む（ADR-0050、AC-01）。有効と判定する側を広げるのは、タスク文書の PR の CHECKS の直しだけで、その見分けはスクリプトが行う（AC-11、AC-12）。merge commit は無効にしない commit に数えない（AC-13）。CHECKS の直しを見分ける手段が手順の中の位置（たとえば印の後）に頼るときは、その位置に人やほかのセッションが手で足した中身のある commit を Fable が見ない危険が残る。手順の上で、その位置に作られるのは Part B の commit だけなので、`/runplan` のチェックポイントの印で ADR-0050 がすでに受け入れているのと同じ危険として受け入れる。merge の後の START の変更（AC-14）は、Fable が見る範囲を決めるだけで、有効と判定する側を広げない。
+-   判定の関門の性質は保つ。判定のスクリプトは、`origin/main` から取り出して走らせ、作業ツリーのものを使わない。失敗は「有効でない」と読む（ADR-0050、AC-01）。有効と判定する側を広げるのは、タスク文書の PR の印の後の commit だけで、印の後かどうかはスクリプトが決める（AC-11、AC-12）。merge commit は無効にしない commit に数えない（AC-13）。印の後に人やほかのセッションが手で足した中身のある commit を Fable が見ない危険は残る。この危険は、`/runplan` のチェックポイントの印で ADR-0050 がすでに受け入れているのと同じ形で、人と決めて受け入れた（要件定義の際に決めたこと）。push するのは判定した commit なので、判定の後にできた commit は、判定されないまま push されない（AC-05）。merge の後の START の変更（AC-14）は、Fable が見る範囲を決めるだけで、有効と判定する側を広げない。
 -   信頼しない入力として、新しく読むものはない。判定のスクリプトの出力の受け入れる形（`fable-review.md:99-103`）と、Fable の出力の受け入れる形（`fable-review.md:330-352`「Checking the output」）は変えない。Fable の出力の文をコミットメッセージにも PR の説明にも写さないこと（`fable-review.md:332-338`）と、メンションの確かめ（`fable-review.md:520-525`）も、単独の経路で今の規則のまま適用する。
 
 ### 4.3. 信頼性・可用性 (Reliability/Availability)
@@ -199,7 +201,7 @@ PR の説明の「どちらの CLI もレビューしなかった commit」（`t
 -   **Fable の記録:** `Fable review: run` か `Fable review: not run` の行（`fable-review.md`「Record lines」）。
 -   **記録の commit:** Fable の記録と、並列のローカルの CLI レビューの見た範囲の行を持つ commit。
 -   **有効かの判定:** `review-records.sh fable` の出力が `VALID` か `MISSING <START>` か（`fable-review.md`「The validity decision」）。
--   **チェックポイントの印:** `/runplan` のチェックポイントの入口が、記録が有効なときに残す空の commit の行 `Fable review: checkpoint`（`fable-review.md:244-248`）。
+-   **チェックポイントの印（印）:** `/runplan` のチェックポイントの入口が、記録が有効なときに残す空の commit の行 `Fable review: checkpoint`（`fable-review.md:244-248`）。本書の決定で、タスク文書の PR でも Part B step 2 の前に残す。
 -   **中身のない commit:** 親が 1 つで、空の commit、`README.en.md` だけを変える commit、計画書の PR の進み具合のチェックボックスの行だけを変える commit、その 2 つだけを変える commit のどれかである（`fable-review.md:114-121`）。Fable の記録の有効かの判定で使う。
 -   **中身のある commit:** 中身のない commit でない commit。merge commit は、いつも中身のある commit である。
 -   **CHECKS の直し・タスクの PR・push の直前:** 3.1 の定義による。
