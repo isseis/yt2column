@@ -119,3 +119,14 @@ want: no-checkbox
 -----
 want: none
 2 章にステップはない。
+-----
+want: near-miss
+#### ステップ　1-1: 全角の空白
+- [ ] 項目
+-----
+want: near-miss
+**ステップ１-１: 全角の数字**
+- [ ] 項目
+-----
+want: near-miss
+- [x] **ステップ　M-1**: 全角の空白
