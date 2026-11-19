@@ -365,7 +365,7 @@ GitHub の読み取りの数は、1 ラウンドに、履歴で開いていて�
 `readRound` を次の 2 つに分ける。
 
 -   `readFacts`：Herdr・fetch・送り先の表・旧い値の表・各 workspace の読み取り（今の `readWorkspace`）。記録を作らない。
--   `buildRows`：履歴の記録を読み、各 `main` の worktree の特定の結果を決めて `applyMainTask` を当てる。そのうえで、今のとおり `classifyWorkspace` で行を決め、記録・リセット・削除の提案を行に付ける（`addRecords`・`addResets`・`addRemovals`）。記録を作らない。特定したタスクの文書を読む（`Tasks.Read`）ほかは、今の読み取り（先のコミット、ブランチの計画書、削除の確かめ）と同じものを読む。
+-   `buildRows`：呼び出し元が読んだ履歴の記録を受け取り、各 `main` の worktree の特定の結果を決めて `applyMainTask` を当てる。そのうえで、今のとおり `classifyWorkspace` で行を決め、記録・リセット・削除の提案を行に付ける（`addRecords`・`addResets`・`addRemovals`）。記録を作らない。特定したタスクの文書を読む（`Tasks.Read`）ほかは、今の読み取り（先のコミット、ブランチの計画書、削除の確かめ）と同じものを読む。
 
 `TakeSnapshot` と `Targets` は、`readFacts` の後に `buildRows` を呼ぶ。`Targets`（`chief targets`）は、履歴の記録を読まず、`main` の行を特定しなかったもの（マージの記録なし）として決める。`main` の行は特定してもしなくても `/mkreq` を提案しないので、読んでも `targets` の結果は変わらないためである。`Tick` は 2.3 の順で呼ぶ。`BeginRound` に失敗したラウンドは、今のとおり事象も観測も書かずに、`buildRows` で行を決めて返す（`internal/chief/tick.go:41-45`）。
 

@@ -2,6 +2,7 @@ package chief
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -501,6 +502,57 @@ func identifyMainTask(h traceHistory, w Worktree) mainTaskResult {
 		return mainTaskResult{Kind: mainTaskOpenPR, Detail: prList(open)}
 	}
 	return mainTaskResult{Kind: mainTaskIdentified, Task: task, Branch: branch}
+}
+
+// mainTaskReason returns why a worktree on main has no next command from
+// its identification (the design, 4.2), empty for an identified task.
+// Contract: every kind but mainTaskIdentified has a reason, the zero value
+// included, so a worktree on main is never read as one without a task.
+func mainTaskReason(r mainTaskResult) string {
+	switch r.Kind {
+	case mainTaskIdentified:
+		return ""
+	case mainTaskUnreadable:
+		return "the worktree is on main and a history record of this chief session cannot be read (start a new chief session with /clear): " + r.Detail
+	case mainTaskNoMerge:
+		return "the worktree is on main and this chief session has seen no merged PR of it, so its task is not known"
+	case mainTaskOtherTask:
+		return "the worktree is on main and this chief session has seen it with more than one task or with a PR of no task: " + r.Detail
+	case mainTaskOpenPR:
+		return "the worktree is on main and a PR this chief session saw open on it is not known to be merged or closed: " + r.Detail
+	default:
+		return "the worktree is on main and its history was not read, so its task is not known"
+	}
+}
+
+// applyMainTask fills the facts of a worktree on main from its
+// identification: for mainTaskIdentified, the task and origin/main's
+// documents read with Tasks.Read on the branch of the task's last merged
+// PR, as a feature branch's are; for a history that cannot be read, the
+// reason as a failed read, so the row needs a check before anything else
+// decides it; for any other kind, the result alone, whose reason
+// headProblem gives. Facts of any other HEAD are returned as they are.
+// Contract: it is the only place an identification reaches a row's facts,
+// so no other HEAD ever takes a task from the history.
+func applyMainTask(ctx context.Context, tasks Tasks, f workspaceFacts, result mainTaskResult) workspaceFacts {
+	if f.Head != headMain {
+		return f
+	}
+	f.MainTask = result
+	switch result.Kind {
+	case mainTaskIdentified:
+		f.Task = result.Task
+		docs, err := tasks.Read(ctx, f.Workspace, result.Branch)
+		if err != nil {
+			f.Unreadable = append(f.Unreadable, "task documents on origin/main")
+			f.DocsUnreadable = true
+		} else {
+			f.Docs = &docs
+		}
+	case mainTaskUnreadable:
+		f.Unreadable = append(f.Unreadable, mainTaskReason(result))
+	}
+	return f
 }
 
 // mergedTask returns the task every pr_open of the merged PRs names and the

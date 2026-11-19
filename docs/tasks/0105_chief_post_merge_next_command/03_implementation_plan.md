@@ -108,13 +108,13 @@
 
 **変えるファイル:** `internal/chief/state.go`・`internal/chief/position.go`・`internal/chief/snapshot.go`・`internal/chief/trace.go`・`internal/chief/create.go`・`internal/chief/resetoffer.go`・`internal/chief/tick.go`（`readRound` の呼び出しを置き換えるだけ）と、そのテスト
 
--   [ ] **ステップ 2-1**: `state.go` に `headMain` を足し、`workspaceFacts` に特定の結果を足す。`readWorkspace` は、ブランチの名前がバイト列でちょうど `main` のとき `headMain` とする（ほかの読み取りは今のまま。`Branch` は `main` のまま、§1.4）。比べる値は定数 1 つにする。`Branch` と `Row.Idle` の注釈（`state.go:153-159`・`:199`）を新しい意味に合わせる。
--   [ ] **ステップ 2-2**: `trace.go` に `applyMainTask` を置く（設計書 3.2 の宣言と「行への当てはめ」）。T と特定したときは `Tasks.Read(worktree, Branch)` で文書を読み、読めなければ `DocsUnreadable` にする。読めないときは理由を `Unreadable` に入れる。
--   [ ] **ステップ 2-3**: `state.go` の `headProblem` を `workspaceFacts` を受け取る形にし、`headMain` の理由を設計書 4.2 の文言で返す。`decideNext` は、特定しなかった `headMain` に `/mkreq` の規則を当てない。`needsTakeoverCheck` は `headMain` で偽を返す。`classify` の `Idle` を設計書 3.2 の「印」のとおりにする。そのラウンドで状態を読めなかった PR を理由に挙げる行に `Idle` を付けないため、特定の結果か `workspaceFacts` に、その行の PR の読み取りに失敗したことを持たせる（値はフェーズ 3 で `tick` が渡す）。
--   [ ] **ステップ 2-4**: `position.go` の `taskDocumentOf` で、特定しなかった `headMain` の行が要確認になり（`PositionDocNoTask` にしない）、`/mkreq` が走っている行は要件定義書になることをテストで固める。今の規則では、タスクがなく `headBranch` でない行は最後の `default` の要確認に落ちる（`position.go:246-269`）ので、テストが通れば規則を足さない。
--   [ ] **ステップ 2-5**: `snapshot.go` の `readRound` を `readFacts` と `buildRows` に分ける（設計書 3.4）。`buildRows` は、渡されたセッションの履歴の記録を読み（ステップ 1-3）、`main` の行ごとに特定の結果を決めて `applyMainTask` を当ててから、今の `classifyWorkspace`・`addRecords`・`addResets`・`addRemovals` を行う。`TakeSnapshot` は `owner` のセッションを渡す。`Targets` は履歴を読まず、事象のない入力で `identifyMainTask` を呼んだ結果を使う。`buildRows` は履歴の記録を書かず、`gh` も走らせない（設計書 1.2）。`Tick` はこのステップでは `readFacts` の後にすぐ `buildRows` を呼び、今の振る舞いを保つ（書く順はフェーズ 3）。
--   [ ] **ステップ 2-6**: `resetoffer.go` の `SendOfferedReset` で、行を作り直すときに `owner` のセッションの履歴を読み、`applyMainTask` を当てる（設計書 3.5 の最後）。
--   [ ] **ステップ 2-7**: テストを書く（§4.1 の PR-2 のうちフェーズ 2 の行）。
+-   [x] **ステップ 2-1**: `state.go` に `headMain` を足し、`workspaceFacts` に特定の結果を足す。`readWorkspace` は、ブランチの名前がバイト列でちょうど `main` のとき `headMain` とする（ほかの読み取りは今のまま。`Branch` は `main` のまま、§1.4）。比べる値は定数 1 つにする。`Branch` と `Row.Idle` の注釈（`state.go:153-159`・`:199`）を新しい意味に合わせる。
+-   [x] **ステップ 2-2**: `trace.go` に `applyMainTask` を置く（設計書 3.2 の宣言と「行への当てはめ」）。T と特定したときは `Tasks.Read(worktree, Branch)` で文書を読み、読めなければ `DocsUnreadable` にする。読めないときは理由を `Unreadable` に入れる。
+-   [x] **ステップ 2-3**: `state.go` の `headProblem` を `workspaceFacts` を受け取る形にし、`headMain` の理由を設計書 4.2 の文言で返す。`decideNext` は、特定しなかった `headMain` に `/mkreq` の規則を当てない。`needsTakeoverCheck` は `headMain` で偽を返す。`classify` の `Idle` を設計書 3.2 の「印」のとおりにする。そのラウンドで状態を読めなかった PR を理由に挙げる行に `Idle` を付けないため、特定の結果か `workspaceFacts` に、その行の PR の読み取りに失敗したことを持たせる（値はフェーズ 3 で `tick` が渡す）。
+-   [x] **ステップ 2-4**: `position.go` の `taskDocumentOf` で、特定しなかった `headMain` の行が要確認になり（`PositionDocNoTask` にしない）、`/mkreq` が走っている行は要件定義書になることをテストで固める。今の規則では、タスクがなく `headBranch` でない行は最後の `default` の要確認に落ちる（`position.go:246-269`）ので、テストが通れば規則を足さない。
+-   [x] **ステップ 2-5**: `snapshot.go` の `readRound` を `readFacts` と `buildRows` に分ける（設計書 3.4）。`buildRows` は、呼び出し元がセッションについて読んだ履歴の記録（ステップ 1-3）を受け取り、`main` の行ごとに特定の結果を決めて `applyMainTask` を当ててから、今の `classifyWorkspace`・`addRecords`・`addResets`・`addRemovals` を行う。`TakeSnapshot` は `owner` のセッションの履歴を読んで渡す。`Targets` は履歴を読まず、事象のない履歴を渡して、事象のない入力で `identifyMainTask` を呼んだ結果を使う。`buildRows` は履歴の記録を書かず、`gh` も走らせない（設計書 1.2）。`Tick` はこのステップでは `readFacts` の後にすぐ `buildRows` を呼び、今の振る舞いを保つ（書く順はフェーズ 3）。
+-   [x] **ステップ 2-6**: `resetoffer.go` の `SendOfferedReset` で、行を作り直すときに `owner` のセッションの履歴を読み、`applyMainTask` を当てる（設計書 3.5 の最後）。
+-   [x] **ステップ 2-7**: テストを書く（§4.1 の PR-2 のうちフェーズ 2 の行）。
 
 **完了の条件:** `make test` と `make lint` が通る。フェーズ 2 だけでは PR を作らない（`main` の行が提案を出すので、フェーズ 4 の照合と同じ PR に入れる）。
 

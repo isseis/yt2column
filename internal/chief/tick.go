@@ -32,12 +32,13 @@ func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 	// command the human sends by hand while the workspaces are read counts as
 	// sent since this round, and the round that sends next sees it.
 	at := deps.Now()
-	view, err := readRound(ctx, deps)
+	view, err := readFacts(ctx, deps)
 	if err != nil {
 		// No round is recorded: a round that read nothing would become the
 		// next tick's previous round and drop every observation before it.
 		return TickOutcome{}, err
 	}
+	buildRows(ctx, deps, &view, deps.Store.readTraces(owner.Session))
 	// The table sources are read before the round is recorded, so both
 	// snapshots below lay out the same table.
 	src := readTableSources(ctx, deps, view)

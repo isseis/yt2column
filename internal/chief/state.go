@@ -152,7 +152,9 @@ type Row struct {
 	Resets []ResetItem
 	// Idle marks a worktree left over or not yet used, which waits on
 	// nothing: no agent works or asks, every read succeeded, and either the
-	// next command is /mkreq or the only problem is a detached HEAD. A stop
+	// next command is /mkreq or the only problem is a detached HEAD, or a
+	// worktree on main whose history shows no merged PR or an open one
+	// (idleNeedsCheck). A stop
 	// of the workspace or a stop record that cannot be read (addRecords) and
 	// any automatic-send result of the round (applyAutoSends) clear it. It orders the row last; it never decides a
 	// send.
@@ -194,12 +196,23 @@ type workspaceFacts struct {
 	// Unreadable collects what the readers could not read (git, gh, task
 	// documents), each as a short name.
 	Unreadable []string
-	// Head is what the worktree's HEAD is; a task is read only from a branch.
+	// Head is what the worktree's HEAD is; a task is read only from a branch,
+	// or, on main, from the session's history (MainTask).
 	Head headState
-	// Branch is the checked-out branch, empty unless Head is headBranch.
+	// Branch is the checked-out branch, empty unless Head is headBranch or
+	// headMain (where it is main, the branch its open PRs are read on).
 	Branch string
-	// Task is the task of the branch, zero when the branch names none.
+	// Task is the task of the branch, or of the identification on main;
+	// zero when neither names one.
 	Task paneinput.TaskID
+	// MainTask is the identification of a worktree on main, which only
+	// applyMainTask sets; its zero value (mainTaskUnread) is a worktree on
+	// main whose history was not applied, which gives no task.
+	MainTask mainTaskResult
+	// MainStateUnread is true when this round could not read the state of a
+	// PR the identification names as open, so the row is not idle: whether
+	// the PR is still open cannot be told.
+	MainStateUnread bool
 	// Docs is origin/main's documents of the task, nil when there is no task.
 	Docs *TaskDocs
 	// DocsUnreadable is true when the documents of the task could not be
@@ -230,7 +243,15 @@ const (
 	// final PR and when it stopped before creating the next branch of the
 	// task, so the worktree names no task and cannot be told to have none.
 	headDetached
+	// headMain is the checked-out branch main, where mergepr leaves a
+	// worktree after a merge. Only readWorkspace compares a branch's name
+	// with main; its task comes from the session's history, never from the
+	// name, and a worktree on main is never one without a task.
+	headMain
 )
+
+// mainBranch is the name readWorkspace reads as headMain, compared as bytes.
+const mainBranch = "main"
 
 // takeoverFacts are the reads behind the takeover proposal.
 type takeoverFacts struct {
@@ -286,12 +307,15 @@ func makeNext(kind TaskNextKind, cmd paneinput.Command, key paneinput.RouteKey, 
 	return next
 }
 
-// headProblem returns why no next command can be decided from a HEAD, empty
-// for a checked-out branch, the only HEAD a task is read from.
-func headProblem(h headState) string {
-	switch h {
+// headProblem returns why no next command can be decided from a worktree's
+// HEAD, empty for a checked-out branch and for main with an identified task,
+// the only HEADs a task is read from.
+func headProblem(f workspaceFacts) string {
+	switch h := f.Head; h {
 	case headBranch:
 		return ""
+	case headMain:
+		return mainTaskReason(f.MainTask)
 	case headDetached:
 		return "HEAD is detached, so no branch tells whether the worktree has a task"
 	case headUnread:
@@ -306,7 +330,7 @@ func headProblem(h headState) string {
 // none matching returns TaskNextNone with a reason in why; it never guesses a
 // command from a document it could not read.
 func decideNext(f workspaceFacts) (next *Next, done bool, why string) {
-	if why := headProblem(f.Head); why != "" {
+	if why := headProblem(f); why != "" {
 		return nil, false, why
 	}
 	if f.Task.IsZero() {
@@ -380,6 +404,11 @@ func nextFromPlan(f workspaceFacts, plan *Plan) (next *Next, done bool, why stri
 // requirement whose review needs Claude Code, nothing is open or running,
 // and a Claude Code agent waits for input.
 func needsTakeoverCheck(f workspaceFacts, next *Next) bool {
+	// A takeover continues the commits of a task's branch, which main does
+	// not hold.
+	if f.Head == headMain {
+		return false
+	}
 	if next == nil || next.Kind != TaskNextRunplan || next.Command == nil || next.Agent != paneinput.AgentOpenCode {
 		return false
 	}
@@ -459,9 +488,7 @@ func classify(f workspaceFacts) Row {
 	case next == nil:
 		row.State = StateNeedsCheck
 		row.Unreadable = []string{why}
-		// A failed fetch is a read that did not succeed, so the row is not
-		// idle even when the detached HEAD is its only shown problem.
-		row.Idle = f.Head == headDetached && !f.FetchFailed
+		row.Idle = idleNeedsCheck(f)
 	case f.FetchFailed:
 		row.State = StateNeedsCheck
 		row.Unreadable = []string{"git fetch origin main failed, so the documents may be stale"}
@@ -472,6 +499,27 @@ func classify(f workspaceFacts) Row {
 		row.Idle = next.Kind == TaskNextMkreq
 	}
 	return row
+}
+
+// idleNeedsCheck reports whether a row that needs a check only for its HEAD
+// is a worktree left over or not yet used: a detached HEAD, or main whose
+// history shows no merged PR or a PR still open. Contract: a failed fetch,
+// or a PR of the reason whose state this round could not read, is a read
+// that did not succeed, so the row is not idle; main with a history that
+// cannot be read or names another task waits on the human, so it is not
+// idle either.
+func idleNeedsCheck(f workspaceFacts) bool {
+	if f.FetchFailed {
+		return false
+	}
+	switch f.Head {
+	case headDetached:
+		return true
+	case headMain:
+		return (f.MainTask.Kind == mainTaskNoMerge || f.MainTask.Kind == mainTaskOpenPR) && !f.MainStateUnread
+	default:
+		return false
+	}
 }
 
 // takeoverProposal returns the proposal to hand a stopped /runplan to Claude

@@ -152,7 +152,8 @@ type positionFacts struct {
 	// read.
 	docsUnreadable bool
 	head           headState
-	// hasTask is true when the branch follows the feature branch convention.
+	// hasTask is true when the branch follows the feature branch convention,
+	// or the worktree is on main with an identified task.
 	hasTask bool
 	// stage is the stage of origin/main's documents, read only when hasTask
 	// and the documents were read; stageOther otherwise.

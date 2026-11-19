@@ -87,10 +87,11 @@ type roundView struct {
 // workspace StateNeedsCheck instead of failing the round, unless Herdr's own
 // list or chief's worktree cannot be read, which fails the call.
 func TakeSnapshot(ctx context.Context, deps Deps, owner Owner) (Snapshot, error) {
-	view, err := readRound(ctx, deps)
+	view, err := readFacts(ctx, deps)
 	if err != nil {
 		return Snapshot{}, err
 	}
+	buildRows(ctx, deps, &view, deps.Store.readTraces(owner.Session))
 	return finishSnapshot(deps, owner, view, readTableSources(ctx, deps, view), nil), nil
 }
 
@@ -100,7 +101,7 @@ func TakeSnapshot(ctx context.Context, deps Deps, owner Owner) (Snapshot, error)
 const tableNoteMaxBytes = 512
 
 // readTableSources reads the tab labels and the chief pane's width for the
-// status table, and adds the pane-to-tab map readRound read. Contract: the
+// status table, and adds the pane-to-tab map readFacts read. Contract: the
 // sources are used for the table only; a source that cannot be read is left
 // at its zero value with a note, capped and sanitized, and never fails the
 // round, adds a problem, or changes a row.
@@ -138,10 +139,10 @@ func tableNote(source string, err error) string {
 	return source + " cannot be read: " + Sanitize(text)
 }
 
-// readRound reads Herdr, fetches origin/main once, reads the routing and
-// old-value tables, reads and classifies every task workspace, and reads
-// the removal candidates among them. It creates no record.
-func readRound(ctx context.Context, deps Deps) (roundView, error) {
+// readFacts reads Herdr, fetches origin/main once, reads the routing and
+// old-value tables, and reads the facts of every task workspace; buildRows
+// makes the rows from them. It creates no record.
+func readFacts(ctx context.Context, deps Deps) (roundView, error) {
 	herdr := NewHerdr(deps.Cmds)
 	git := NewGitReader(deps.Cmds)
 	tasks := NewTasks(deps.Cmds)
@@ -186,17 +187,35 @@ func readRound(ctx context.Context, deps Deps) (roundView, error) {
 	for _, w := range view.found {
 		f := readWorkspace(ctx, herdr, git, tasks, w)
 		f.Routing, f.RoutingErr, f.FetchFailed = view.routing, view.routingErr, view.fetchFailed
+		view.facts = append(view.facts, f)
+	}
+	return view, nil
+}
+
+// buildRows makes the rows of the workspaces readFacts read: it identifies
+// the task of each worktree on main from history and applies it
+// (applyMainTask), classifies every workspace, and puts on the rows their
+// records, resets, and removal proposals. view.facts becomes the facts the
+// rows were classified from. Contract: it writes no record and runs no gh
+// command; besides the reads of classifyWorkspace, addRecords, and
+// addRemovals, it reads only the documents of an identified task; history
+// is the history of the caller's session, or an empty one for a caller that
+// reads none, which identifies no task.
+func buildRows(ctx context.Context, deps Deps, view *roundView, history traceHistory) {
+	git := NewGitReader(deps.Cmds)
+	tasks := NewTasks(deps.Cmds)
+	for i, w := range view.found {
+		f := applyMainTask(ctx, tasks, view.facts[i], identifyMainTask(history, w.Tree))
 		row := classifyWorkspace(ctx, git, tasks, f, view.old, view.oldErr)
 		if err := addRecords(ctx, deps, git, w, &row); err != nil {
 			view.problems = append(view.problems, "the records of "+w.Worktree+" cannot be read: "+err.Error())
 		} else {
 			view.problems = append(view.problems, addResets(deps.Store, w, &row, view.routing)...)
 		}
-		view.facts = append(view.facts, f)
+		view.facts[i] = f
 		view.rows = append(view.rows, row)
 	}
-	view.problems = append(view.problems, addRemovals(ctx, deps, &view)...)
-	return view, nil
+	view.problems = append(view.problems, addRemovals(ctx, deps, view)...)
 }
 
 // finishSnapshot sets each row's urgency, turn, and position (finishRow),
@@ -332,7 +351,8 @@ func readAgentFacts(ctx context.Context, herdr Herdr, agents []Agent) []agentFac
 
 // readWorkspace reads one workspace's facts: its agents and screens, its
 // branch, its open PR, and the task documents. A failed read is named in
-// Unreadable, never defaulted.
+// Unreadable, never defaulted. The branch main is headMain, whose task only
+// applyMainTask gives.
 func readWorkspace(ctx context.Context, herdr Herdr, git GitReader, tasks Tasks, w TaskWorkspace) workspaceFacts {
 	f := workspaceFacts{Workspace: w.Worktree, Label: w.Label, Agents: readAgentFacts(ctx, herdr, w.Agents)}
 	branch, err := git.Branch(ctx, w.Worktree)
@@ -340,11 +360,17 @@ func readWorkspace(ctx context.Context, herdr Herdr, git GitReader, tasks Tasks,
 		f.Unreadable = append(f.Unreadable, "branch of the worktree")
 		return f
 	}
-	if branch == "" {
+	switch branch {
+	case "":
 		f.Head = headDetached
 		return f
+	case mainBranch:
+		// The one comparison of a branch's name with main: everything after
+		// it goes by headMain.
+		f.Head, f.Branch = headMain, branch
+	default:
+		f.Head, f.Branch = headBranch, branch
 	}
-	f.Head, f.Branch = headBranch, branch
 	prs, err := git.OpenPRs(ctx, w.Worktree, branch)
 	switch {
 	case err != nil:

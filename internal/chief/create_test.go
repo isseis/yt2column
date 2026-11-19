@@ -972,12 +972,17 @@ func TestTargets(t *testing.T) {
 	for _, c := range []struct {
 		name string
 		free bool
-	}{{"a workspace without a task", true}, {"no candidate", false}} {
+		// main adds a workspace on main, which is never a candidate.
+		main bool
+	}{{"a workspace without a task", true, false}, {"no candidate", false, false}, {"a workspace on main and one without a task", true, true}} {
 		t.Run(c.name, func(t *testing.T) {
 			sw := newSendWorld(t)
 			var free string
 			if c.free {
 				free = sw.addTask(fakeWorkspace{ID: "w1", Label: "free", Branch: "user/feature"}, "claude")
+			}
+			if c.main {
+				sw.addTask(fakeWorkspace{ID: "w3", Label: "main", Branch: mainBranch}, "claude")
 			}
 			sw.addTask(fakeWorkspace{ID: "w2", Label: "task", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
 			sw.issueAnswer(createIssue, reply{out: readTestdata(t, "gh/issue-open-839.json")})
