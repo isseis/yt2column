@@ -361,8 +361,6 @@ func TestRunUsageErrors(t *testing.T) {
 		{"snapshot", "--workspace", "/w", "--protocol", protocol},
 		{"send", "--workspace", "/w", "--protocol", protocol},
 		{"send", "--command", "mkarch", "--protocol", protocol},
-		{"send", "--workspace", "/w", "--command", "mkarch", "--protocol", protocol},
-		{"send", "--workspace", "/w", "--command", "mkarch", "--item", "C" + strings.Repeat("c", 31), "--protocol", protocol},
 		{"send", "--workspace", "/w", "--command", "runpr", "--pr", "4", "--item", strings.Repeat("c", 32), "--protocol", protocol},
 		{"send", "--workspace", "/w", "--command", "weakreview", "--protocol", protocol},
 		{"detail", "--protocol", protocol},

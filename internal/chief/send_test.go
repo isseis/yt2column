@@ -742,23 +742,25 @@ func TestSendArgumentValidation(t *testing.T) {
 	propose := sw.addTask(fakeWorkspace{ID: "w1", Label: "propose", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
 	review := sw.addTask(fakeWorkspace{ID: "w2", Label: "review", Branch: taskBranch, PRs: openPRJSON}, "claude", "opencode")
 	deps := sw.finish()
+	// The kind's refusals pass the item the workspace offers (its
+	// /runplan), so only the check of the kind can refuse them.
+	offer := string(chosenReq(t, deps, sw.owner(), propose, "runplan").item)
 	cases := []struct {
 		name   string
 		req    SendRequest
 		reason NotSentReason
 	}{
-		{"mkplan when the next is runplan", sendReq(t, propose, "mkplan", "", "", anyItem), NotSentNotOffered},
-		{"a takeover not proposed", sendReq(t, propose, "runplan-takeover", "", "", anyItem), NotSentNotOffered},
+		{"mkplan when the next is runplan", sendReq(t, propose, "mkplan", "", "", offer), NotSentNotOffered},
+		{"a takeover not proposed", sendReq(t, propose, "runplan-takeover", "", "", offer), NotSentNotOffered},
 		{"runpr where no PR is open", sendReq(t, propose, "runpr", "", "42", ""), NotSentNotOffered},
 		{"runpr of another PR", sendReq(t, review, "runpr", "", "43", ""), NotSentNotOffered},
 		{"runplan to a workspace awaiting review", sendReq(t, review, "runplan", "", "", anyItem), NotSentNotOffered},
-		{"runplan of an item the workspace does not offer", sendReq(t, propose, "runplan", "", "", anyItem), NotSentNotOffered},
 		{"no task workspace", sendReq(t, propose+"-elsewhere", "runplan", "", "", anyItem), NotSentNoWorkspace},
 	}
 	for _, c := range cases {
 		out, err := Send(context.Background(), deps, sw.owner(), c.req)
-		if err != nil || len(out.Actions) != 1 || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != c.reason {
-			t.Errorf("%s: Send = %+v, %v; want not sent, %s", c.name, out, err, c.reason)
+		if err != nil || len(out.Actions) != 1 || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != c.reason || strings.HasPrefix(out.Actions[0].Detail, otherItemDetail) {
+			t.Errorf("%s: Send = %+v, %v; want not sent, %s, for the kind", c.name, out, err, c.reason)
 		}
 	}
 	if got := sw.rec.prompts(); len(got) != 0 {
@@ -1111,7 +1113,8 @@ func TestSendChecksTheChosenItem(t *testing.T) {
 			sw, tree, deps := mainWorld(t)
 			req := chosenReq(t, deps, sw.owner(), tree, "mkplan")
 			out, err := Send(context.Background(), deps, c.change(t, sw, tree), req)
-			if err != nil || len(out.Actions) != 1 || out.Actions[0].Reason != NotSentNotOffered || strings.HasPrefix(out.Actions[0].Detail, otherItemDetail) {
+			// The row needs a check, so it offers no /mkplan.
+			if err != nil || len(out.Actions) != 1 || out.Actions[0].Reason != NotSentNotOffered || out.Actions[0].Detail != "the workspace's next command is not this one (state needs_check)" {
 				t.Errorf("Send = %+v, %v; want not offered for the kind", out, err)
 			}
 			if got := sw.rec.prompts(); len(got) != 0 {
