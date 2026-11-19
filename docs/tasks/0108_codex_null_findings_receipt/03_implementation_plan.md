@@ -373,7 +373,7 @@ docs/tasks/0108_codex_null_findings_receipt/03_implementation_plan.md
     -   変えない絞り込みを `per_page=5` を付けて `--paginate` で実行した。終了コードは 0、標準エラーは 0 バイト、出力は 5 件で、5 件目が `#issuecomment-6996903008` の `receipt` だった。
     -   `.id` が `6996903008` のときに決まった文の `error` を出す分岐を、本文を読む前に置いた絞り込みを、同じ `per_page=5` で `--paginate` で実行した。終了コードは 1、標準エラーのファイルは 24 バイトで、仕込んだ文が 1 つあった。出力は 4 件で、変えない絞り込みの出力の 1〜4 件目（1 ページ目の分）と同じだった。
     -   前のページの出力が残り、終了コードが 0 以外になり、標準エラーに書かれた。設計書 1.2 の決定 10 の前提と同じである。
--   **(iii) ガードテストの偽の応答。** `TestRunprDocContract` の `issues/<number>/comments` の偽の応答（49 件）と、テストと同じ値に置き換えた絞り込みを、作業ツリーに置いた一時的なテストのファイルで書き出した（コミットしていない）。ループバックの Python の `http.server`（作業ツリーの外の一時ディレクトリ）から返し、`HTTP_PROXY` を付けた `gh api --hostname github.localhost --paginate` で実行した。終了コードは 0、標準エラーは 0 バイトで、出力の 49 件は、jq 1.7.1 の出力と、鍵の並び（gojq は鍵を名前の順に出す）を除いて同じだった（`jq -S -c` で並びをそろえて `diff` が空）。`no-result` の状態、形に合う受領コメント 4 件と形に合わない受領コメント 17 件の `form_ok`・`short_sha` も同じで、`bodyMarker` は出なかった。
+-   **(iii) ガードテストの偽の応答。** `TestRunprDocContract` の `issues/<number>/comments` の偽の応答（54 件。うち 5 件は何も出さない）と、テストと同じ値に置き換えた絞り込みを、作業ツリーに置いた一時的なテストのファイルで書き出した（コミットしていない）。ループバックの Python の `http.server`（作業ツリーの外の一時ディレクトリ）から返し、`HTTP_PROXY` を付けた `gh api --hostname github.localhost --paginate` で実行した。終了コードは 0、標準エラーは 0 バイトで、出力の 49 件は、jq 1.7.1 の出力と、鍵の並び（gojq は鍵を名前の順に出す）を除いて同じだった（`jq -S -c` で並びをそろえて `diff` が空）。`no-result` の状態、形に合う受領コメント 4 件と形に合わない受領コメント 17 件の `form_ok`・`short_sha` も同じで、`bodyMarker` は出なかった。
 
 ## 8. 成功の基準 (Success Criteria)
 
