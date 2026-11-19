@@ -231,7 +231,7 @@ PR の説明の「どちらの CLI もレビューしなかった commit」（`t
 -   **CHECKS の直し・タスクの PR・push の直前:** 3.1 の定義による。
 -   **merge の後の確認:** 記録の後の merge commit について、Opus のサブエージェントが、merge で手で解いた箇所と、merge で `main` から入った ADR・先行のタスク文書・コマンドの定義の変更を、PR の文書やコードが参照している箇所だけを確かめるレビュー（F-005）。
 -   **merge の後の確認の記録:** merge commit を名指しした merge の後の確認の行（`not run` を含む）。Fable の記録ではなく、最後の Fable の記録を変えない。
--   **未確認の merge commit:** 記録の後の merge commit のうち、それを名指しした merge の後の確認の記録がまだないもの。
+-   **未確認の merge commit:** 最後の Fable の記録が見た範囲の終わり（END）より後の merge commit のうち、それを名指しした merge の後の確認の記録がまだないもの。Fable の起動の後、記録の commit の前にできた merge commit も含む（AC-15）。
 -   **単独の経路:** ローカルの CLI レビューと並列にせず、Fable の部分レビューだけを行う流れ（`fable-review.md`「The standalone path」）。
 -   **merge-base:** `git merge-base origin/main HEAD`。
 -   ほかの用語は `docs/translation_glossary.md` と統一する。
