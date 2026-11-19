@@ -4,7 +4,6 @@ package mergepr
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -177,8 +176,8 @@ func TestMergedLines(t *testing.T) {
 	if err != nil || !slices.EqualFunc(got, want, bytes.Equal) {
 		t.Fatalf("mergedLines = %q, %v; want %q", got, err, want)
 	}
-	if _, err := src.mergedLines(t.Context(), "no-such-branch", squash); err == nil {
-		t.Error("mergedLines of a branch origin lacks: error = nil, want the fetch failure")
+	if _, err := src.mergedLines(t.Context(), "no-such-branch", squash); !isExitError(err) {
+		t.Errorf("mergedLines of a branch origin lacks: error = %v, want the fetch's exit status", err)
 	}
 }
 
@@ -202,8 +201,9 @@ func TestMergedLinesRejectsInvalidNames(t *testing.T) {
 				err:  &cmdrunner.ExitError{Code: 1},
 			}}}
 			src := &gitCorrectionSource{reader: gitReader{run: runner}}
-			if _, err := src.mergedLines(t.Context(), name, testMergeOID); err == nil {
-				t.Errorf("mergedLines(%q) error = nil, want a stop", name)
+			_, err := src.mergedLines(t.Context(), name, testMergeOID)
+			if e, ok := errors.AsType[*rangeError](err); !ok || e.Stage != rangeStageBase {
+				t.Errorf("mergedLines(%q) error = %v, want a base-stage range error", name, err)
 			}
 			runner.done()
 		})
@@ -226,6 +226,8 @@ func TestTrailerReadingIgnoresConfig(t *testing.T) {
 			writeConfig(t, filepath.Join(r.Home, ".gitconfig"), config)
 			return t.TempDir()
 		}},
+		// GIT_CONFIG_GLOBAL also keeps git from this file, so this row
+		// overlaps the HOME row's guard.
 		{"XDG_CONFIG_HOME", func(t *testing.T) string {
 			writeConfig(t, filepath.Join(r.Home, ".config", "git", "config"), config)
 			return t.TempDir()
@@ -455,20 +457,6 @@ func TestCorrectionBlock(t *testing.T) {
 	})
 }
 
-func TestCorrectionBlockStops(t *testing.T) {
-	lines := []correctionLine{lineOf(commitA, 3, lineA), lineOf(commitB, 3, lineReject)}
-	t.Run("a line named twice", func(t *testing.T) {
-		for _, drops := range []Drops{
-			{Accepted: []Drop{{1, DropDisputed}, {1, DropReverted}}},
-			{Rejected: []RejectedDrop{rejectedAt, rejectedAt}},
-		} {
-			if _, err := correctionBlock(classifyCorrectionLines(lines), drops); !errors.Is(err, errInvalidDrop) {
-				t.Errorf("correctionBlock(%+v) error = %v, want errInvalidDrop", drops, err)
-			}
-		}
-	})
-}
-
 func TestParseDrop(t *testing.T) {
 	for in, want := range map[string]Drop{"1:disputed": {1, DropDisputed}, "12:reverted": {12, DropReverted}} {
 		if got, err := ParseDrop(in); err != nil || got != want {
@@ -499,40 +487,6 @@ func TestParseRejectedDrop(t *testing.T) {
 	}
 }
 
-// fakeCorrectionSource returns fixed range lines and merge-commit lines and
-// reads trailers with the production git, so a check that depends on how git
-// reads trailers is checked against git itself.
-type fakeCorrectionSource struct {
-	lines     []correctionLine
-	err       error
-	merged    [][]byte
-	mergedErr error
-	trailErr  error
-	real      *gitCorrectionSource
-	gotBase   string // the base rangeLines was last given
-	gotHead   string // the head rangeLines was last given
-}
-
-func (f *fakeCorrectionSource) rangeLines(_ context.Context, base, head string) ([]correctionLine, error) {
-	f.gotBase, f.gotHead = base, head
-	return f.lines, f.err
-}
-
-func (f *fakeCorrectionSource) mergedLines(context.Context, string, string) ([][]byte, error) {
-	return f.merged, f.mergedErr
-}
-
-func (f *fakeCorrectionSource) trailers(ctx context.Context, message []byte) ([]byte, error) {
-	if f.trailErr != nil {
-		return nil, f.trailErr
-	}
-	return f.real.trailers(ctx, message)
-}
-
-func newFakeSource(t *testing.T, lines ...correctionLine) *fakeCorrectionSource {
-	return &fakeCorrectionSource{lines: lines, real: newGitCorrectionSource(t.TempDir())}
-}
-
 const (
 	testSubject  = "docs(0001): fix the guide (#42)"
 	testTrailer  = "Co-Authored-By: Test <test@example.com>"
@@ -559,7 +513,6 @@ func TestCheckCorrections(t *testing.T) {
 		notParagraph    bool
 		trailersChanged bool
 		undeclared      int
-		unknown         int
 		pass            bool
 	}
 	tests := []struct {
@@ -569,28 +522,39 @@ func TestCheckCorrections(t *testing.T) {
 		subject string
 		body    []byte
 		want    want
+		unknown []string // the UnknownDrops values
 	}{
-		{"block before the trailers", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA, lineB}, []string{"Closes #1"}, trailer), want{pass: true}},
-		{"block last after Closes", ab, Drops{}, testSubject, bodyOf(summary, []string{"Closes #1"}, []string{lineA, lineB}), want{pass: true}},
-		{"block alone", ab, Drops{}, testSubject, bodyOf([]string{lineA, lineB}), want{pass: true}},
-		{"block last without a final LF", ab, Drops{}, testSubject, []byte(testSummary2 + "\n\n" + lineA + "\n" + lineB), want{pass: true}},
-		{"an extra last line without a final LF", ab, Drops{}, testSubject, []byte(testSummary2 + "\n\n" + lineA + "\n" + lineB + "\n" + lineC), want{extra: 1}},
-		{"no correction line", nil, Drops{}, testSubject, bodyOf(summary, trailer), want{pass: true}},
-		{"a rejected line dropped", withRejected, dropR, testSubject, bodyOf(summary, []string{lineA, lineB, dropped(0, 0, 1)}, trailer), want{pass: true}},
-		{"a missing line", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA}, trailer), want{missing: 1}},
-		{"an extra line", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA, lineB, lineC}, trailer), want{extra: 1}},
-		{"lines out of order", ab, Drops{}, testSubject, bodyOf(summary, []string{lineB, lineA}, trailer), want{missing: 1, extra: 1}},
-		{"a reserved line in the subject", ab, Drops{}, lineA, bodyOf(summary, []string{lineA, lineB}, trailer), want{extra: 1}},
-		{"the rejected line in the body", withRejected, dropR, testSubject, bodyOf(summary, []string{lineA, lineB, lineReject, dropped(0, 0, 1)}, trailer), want{extra: 1}},
-		{"a dropped line nothing was dropped for", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA, lineB, dropped(1, 0, 0)}, trailer), want{extra: 1}},
-		{"a reserved line with no correction line", nil, Drops{}, testSubject, bodyOf(summary, []string{lineA}, trailer), want{extra: 1}},
-		{"an undeclared rejected line", withRejected, Drops{}, testSubject, bodyOf(summary, []string{lineA, lineB}, trailer), want{undeclared: 1}},
-		{"a number past the accepted lines", ab, Drops{Accepted: []Drop{{3, DropDisputed}}}, testSubject, bodyOf(summary, []string{lineA, lineB}, trailer), want{unknown: 1}},
-		{"a declaration naming no rejected line", ab, dropR, testSubject, bodyOf(summary, []string{lineA, lineB}, trailer), want{unknown: 1}},
-		{"no empty line before", ab, Drops{}, testSubject, bodyOf(append(slices.Clone(summary), lineA, lineB), trailer), want{notParagraph: true}},
-		{"a line inside", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA, "between", lineB}, trailer), want{notParagraph: true}},
-		{"in the trailers' paragraph", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA, lineB, testTrailer}), want{notParagraph: true}},
-		{"after the trailers", ab, Drops{}, testSubject, bodyOf(summary, trailer, []string{lineA, lineB}), want{trailersChanged: true}},
+		{"block before the trailers", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA, lineB}, []string{"Closes #1"}, trailer), want{pass: true}, nil},
+		{"block last after Closes", ab, Drops{}, testSubject, bodyOf(summary, []string{"Closes #1"}, []string{lineA, lineB}), want{pass: true}, nil},
+		{"block alone", ab, Drops{}, testSubject, bodyOf([]string{lineA, lineB}), want{pass: true}, nil},
+		{"block last without a final LF", ab, Drops{}, testSubject, []byte(testSummary2 + "\n\n" + lineA + "\n" + lineB), want{pass: true}, nil},
+		{"an extra last line without a final LF", ab, Drops{}, testSubject, []byte(testSummary2 + "\n\n" + lineA + "\n" + lineB + "\n" + lineC), want{extra: 1}, nil},
+		{"no correction line", nil, Drops{}, testSubject, bodyOf(summary, trailer), want{pass: true}, nil},
+		{"a rejected line dropped", withRejected, dropR, testSubject, bodyOf(summary, []string{lineA, lineB, dropped(0, 0, 1)}, trailer), want{pass: true}, nil},
+		{"a missing line", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA}, trailer), want{missing: 1}, nil},
+		{"an extra line", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA, lineB, lineC}, trailer), want{extra: 1}, nil},
+		{"lines out of order", ab, Drops{}, testSubject, bodyOf(summary, []string{lineB, lineA}, trailer), want{missing: 1, extra: 1}, nil},
+		{"a reserved line in the subject", ab, Drops{}, lineA, bodyOf(summary, []string{lineA, lineB}, trailer), want{extra: 1}, nil},
+		{"the rejected line in the body", withRejected, dropR, testSubject, bodyOf(summary, []string{lineA, lineB, lineReject, dropped(0, 0, 1)}, trailer), want{extra: 1}, nil},
+		{"a dropped line nothing was dropped for", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA, lineB, dropped(1, 0, 0)}, trailer), want{extra: 1}, nil},
+		{"a reserved line with no correction line", nil, Drops{}, testSubject, bodyOf(summary, []string{lineA}, trailer), want{extra: 1}, nil},
+		{"an undeclared rejected line", withRejected, Drops{}, testSubject, bodyOf(summary, []string{lineA, lineB}, trailer), want{undeclared: 1}, nil},
+		{"a number past the accepted lines", ab, Drops{Accepted: []Drop{{3, DropDisputed}}}, testSubject, bodyOf(summary, []string{lineA, lineB}, trailer), want{}, []string{"--drop 3:disputed"}},
+		{"a declaration naming no rejected line", ab, dropR, testSubject, bodyOf(summary, []string{lineA, lineB}, trailer), want{}, []string{"--drop-rejected " + rejectedAt.String()}},
+		// One declaration names the rejected line and one an accepted line:
+		// only the second is reported.
+		{
+			"a declaration naming an accepted line", withRejected,
+			Drops{Rejected: []RejectedDrop{rejectedAt, {Commit: commitA, Line: 3}}},
+			testSubject,
+			bodyOf(summary, []string{lineA, lineB, dropped(0, 0, 1)}, trailer),
+			want{},
+			[]string{"--drop-rejected " + commitA + ":3"},
+		},
+		{"no empty line before", ab, Drops{}, testSubject, bodyOf(append(slices.Clone(summary), lineA, lineB), trailer), want{notParagraph: true}, nil},
+		{"a line inside", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA, "between", lineB}, trailer), want{notParagraph: true}, nil},
+		{"in the trailers' paragraph", ab, Drops{}, testSubject, bodyOf(summary, []string{lineA, lineB, testTrailer}), want{notParagraph: true}, nil},
+		{"after the trailers", ab, Drops{}, testSubject, bodyOf(summary, trailer, []string{lineA, lineB}), want{trailersChanged: true}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -608,17 +572,15 @@ func TestCheckCorrections(t *testing.T) {
 			if !ok || !errors.Is(err, errCorrectionMismatch) {
 				t.Fatalf("checkCorrections error = %v, want a *CorrectionMismatchError", err)
 			}
-			got := want{missing: len(e.Missing), extra: len(e.Extra), notParagraph: e.NotParagraph, trailersChanged: e.TrailersChanged, undeclared: len(e.Undeclared), unknown: len(e.UnknownDrops)}
+			got := want{missing: len(e.Missing), extra: len(e.Extra), notParagraph: e.NotParagraph, trailersChanged: e.TrailersChanged, undeclared: len(e.Undeclared)}
 			if got != tt.want {
 				t.Errorf("error = %+v, want %+v", e, tt.want)
 			}
 			if tt.want.undeclared > 0 && (e.Undeclared[0].Commit != commitB || e.Undeclared[0].Line != 3 || !slices.Equal(e.Undeclared[0].Kinds, []RejectKind{RejectAt})) {
 				t.Errorf("Undeclared = %+v, want the line at %s line 3 with kind at", e.Undeclared, commitB)
 			}
-			for _, d := range e.UnknownDrops {
-				if d != "--drop 3:disputed" && d != "--drop-rejected "+rejectedAt.String() {
-					t.Errorf("UnknownDrops = %q, want the value that names no line", e.UnknownDrops)
-				}
+			if !slices.Equal(e.UnknownDrops, tt.unknown) {
+				t.Errorf("UnknownDrops = %q, want %q", e.UnknownDrops, tt.unknown)
 			}
 		})
 	}
@@ -631,19 +593,28 @@ func TestCheckCorrections(t *testing.T) {
 			t.Errorf("checkCorrections error = %v, read %q..%q; want errCorrectionUnreadable reading release..%s", err, src.gotBase, src.gotHead, testOtherOID)
 		}
 	})
-	t.Run("trailer reading fails", func(t *testing.T) {
-		src := newFakeSource(t, ab...)
-		src.trailErr = fmt.Errorf("%w: git interpret-trailers failed", errCorrectionUnreadable)
-		_, err := checkCorrections(t.Context(), src, mainBranch, testHeadOID, Drops{}, []byte(testSubject), bodyOf(summary, []string{lineA, lineB}, trailer))
-		if !errors.Is(err, errCorrectionUnreadable) {
-			t.Errorf("checkCorrections error = %v, want errCorrectionUnreadable", err)
-		}
-	})
+	// Check 7 reads the trailers twice, with and without the block; each
+	// read's failure stops on its own.
+	for _, call := range []int{1, 2} {
+		t.Run(fmt.Sprintf("trailer reading %d fails", call), func(t *testing.T) {
+			src := newFakeSource(t, ab...)
+			src.trailFailAt = call
+			_, err := checkCorrections(t.Context(), src, mainBranch, testHeadOID, Drops{}, []byte(testSubject), bodyOf(summary, []string{lineA, lineB}, trailer))
+			if !errors.Is(err, errCorrectionUnreadable) {
+				t.Errorf("checkCorrections error = %v, want errCorrectionUnreadable", err)
+			}
+		})
+	}
 	t.Run("a line named twice", func(t *testing.T) {
-		drops := Drops{Accepted: []Drop{{1, DropDisputed}, {1, DropReverted}}}
-		_, err := checkCorrections(t.Context(), newFakeSource(t, ab...), mainBranch, testHeadOID, drops, []byte(testSubject), bodyOf(summary))
-		if !errors.Is(err, errCorrectionMismatch) || !errors.Is(err, errInvalidDrop) {
-			t.Errorf("checkCorrections error = %v, want errCorrectionMismatch and errInvalidDrop", err)
+		for _, drops := range []Drops{
+			{Accepted: []Drop{{1, DropDisputed}, {1, DropReverted}}},
+			{Rejected: []RejectedDrop{rejectedAt, rejectedAt}},
+		} {
+			src := newFakeSource(t, withRejected...)
+			_, err := checkCorrections(t.Context(), src, mainBranch, testHeadOID, drops, []byte(testSubject), bodyOf(summary))
+			if !errors.Is(err, errCorrectionMismatch) || !errors.Is(err, errInvalidDrop) || src.gotBase != "" {
+				t.Errorf("checkCorrections(%+v) error = %v, read %q; want errCorrectionMismatch and errInvalidDrop before reading", drops, err, src.gotBase)
+			}
 		}
 	})
 	t.Run("shown forms", func(t *testing.T) {
@@ -657,34 +628,35 @@ func TestCheckCorrections(t *testing.T) {
 }
 
 func TestTrailerReading(t *testing.T) {
+	r := newGitRepo(t)
 	src := newGitCorrectionSource(t.TempDir())
 	tests := []struct {
 		name    string
 		message string
 		want    string
+		// plainEmpty: plain git --parse reads nothing here, so the row
+		// reads the trailer only because of --no-divider.
+		plainEmpty bool
 	}{
-		{"same paragraph as the block", "s\n\n" + lineA + "\n" + dropped(1, 0, 0) + "\n" + testTrailer + "\n", ""},
-		{"own paragraph", "s\n\n" + lineA + "\n" + dropped(1, 0, 0) + "\n\n" + testTrailer + "\n", testTrailer + "\n"},
-		{"Signed-off-by in the block's paragraph", "s\n\n" + lineA + "\nSigned-off-by: Test <test@example.com>\n", "Signed-off-by: Test <test@example.com>\n"},
-		{"after a divider", "s\n\nintro\n---\n\n" + testTrailer + "\n", testTrailer + "\n"},
-		{"first paragraph", testTrailer + "\n", ""},
+		{"same paragraph as the block", "s\n\n" + lineA + "\n" + dropped(1, 0, 0) + "\n" + testTrailer + "\n", "", false},
+		{"own paragraph", "s\n\n" + lineA + "\n" + dropped(1, 0, 0) + "\n\n" + testTrailer + "\n", testTrailer + "\n", false},
+		{"Signed-off-by in the block's paragraph", "s\n\n" + lineA + "\nSigned-off-by: Test <test@example.com>\n", "Signed-off-by: Test <test@example.com>\n", false},
+		{"after a divider", "s\n\nintro\n---\n\n" + testTrailer + "\n", testTrailer + "\n", true},
+		{"first paragraph", testTrailer + "\n", "", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.plainEmpty {
+				if out := r.withT(t).gitInput(t.TempDir(), []byte(tt.message), "interpret-trailers", "--parse"); out != "" {
+					t.Fatalf("precondition: git interpret-trailers --parse = %q, want nothing", out)
+				}
+			}
 			got, err := src.trailers(t.Context(), []byte(tt.message))
 			if err != nil || string(got) != tt.want {
 				t.Errorf("trailers = %q, %v; want %q", got, err, tt.want)
 			}
 		})
 	}
-	t.Run("the divider stops git without --no-divider", func(t *testing.T) {
-		// The row "after a divider" reads the trailer only because of
-		// --no-divider.
-		r := newGitRepo(t)
-		if out := r.gitInput(t.TempDir(), []byte("s\n\nintro\n---\n\n"+testTrailer+"\n"), "interpret-trailers", "--parse"); out != "" {
-			t.Errorf("git interpret-trailers --parse = %q, want nothing", out)
-		}
-	})
 }
 
 func TestCompareMergedLines(t *testing.T) {
@@ -707,7 +679,10 @@ func TestCompareMergedLines(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			src := &fakeCorrectionSource{merged: tt.merged, mergedErr: tt.mergedErr}
-			n, err := compareMergedLines(t.Context(), src, mainBranch, testMergeOID, subject, body)
+			n, err := compareMergedLines(t.Context(), src, "release", testMergeOID, subject, body)
+			if src.gotBase != "release" || src.gotMerge != testMergeOID {
+				t.Errorf("read the merge commit %q from %q, want %s from release", src.gotMerge, src.gotBase, testMergeOID)
+			}
 			if tt.missing == nil && tt.extra == nil && !tt.detail {
 				if err != nil || n != len(sent) {
 					t.Errorf("compareMergedLines = %d, %v; want %d, nil", n, err, len(sent))
@@ -722,15 +697,6 @@ func TestCompareMergedLines(t *testing.T) {
 				t.Errorf("error = %+v, want missing %q, extra %q, detail %v", e, tt.missing, tt.extra, tt.detail)
 			}
 		})
-	}
-}
-
-func TestBaseRefRejectsHead(t *testing.T) {
-	// refs/remotes/origin/HEAD passes check-ref-format, so the name itself
-	// is refused, before any git runs.
-	runner := &fakeRunner{t: t}
-	if _, err := (gitReader{run: runner}).baseRef(t.Context(), "HEAD"); !errors.Is(err, errBaseIsHead) {
-		t.Errorf("baseRef(HEAD) error = %v, want errBaseIsHead", err)
 	}
 }
 
@@ -750,4 +716,10 @@ func TestReportWords(t *testing.T) {
 	if !strings.HasPrefix(notCarried, "post-merge check: ") || !strings.Contains(notCarried, testMergeOID) {
 		t.Errorf("CorrectionsNotCarriedError = %q, want the prefix post-merge check: and the merge commit", notCarried)
 	}
+}
+
+// isExitError reports whether err wraps a command's exit status.
+func isExitError(err error) bool {
+	_, ok := errors.AsType[*cmdrunner.ExitError](err)
+	return ok
 }

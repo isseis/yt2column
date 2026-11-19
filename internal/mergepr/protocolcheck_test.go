@@ -695,15 +695,6 @@ func TestReadRevisionExitStatus(t *testing.T) {
 	}
 }
 
-// invalidBaseNames are base branch names that refs/remotes/origin/<name>
-// makes an invalid ref name.
-var invalidBaseNames = []string{"main^", "a:b", "a..b", "x~1", ""}
-
-// hardened returns the arguments the reader passes git for args.
-func hardened(args ...string) []string {
-	return append(cmdrunner.GitHardening(), args...)
-}
-
 func TestBaseRefRejectsInvalidNames(t *testing.T) {
 	for _, name := range invalidBaseNames {
 		t.Run(name, func(t *testing.T) {
@@ -726,6 +717,23 @@ func TestBaseRefRejectsInvalidNames(t *testing.T) {
 			}
 			runner.done()
 		})
+	}
+}
+
+func TestBaseRefRejectsHead(t *testing.T) {
+	// refs/remotes/origin/HEAD passes check-ref-format, so the name itself
+	// is refused, before any git runs.
+	runner := &fakeRunner{t: t}
+	if _, err := (gitReader{run: runner}).baseRef(t.Context(), "HEAD"); !errors.Is(err, errBaseIsHead) {
+		t.Errorf("baseRef(HEAD) error = %v, want errBaseIsHead", err)
+	}
+}
+
+func TestListPRCommitsRejectsZeroOrder(t *testing.T) {
+	// The scripted runner has no step, so an order never chosen lists nothing.
+	runner := &fakeRunner{t: t}
+	if _, err := (gitReader{run: runner}).listPRCommits(t.Context(), testHeadOID, testOtherOID, rangeOrder(0)); !errors.Is(err, errInvalidRangeOrder) {
+		t.Errorf("listPRCommits error = %v, want errInvalidRangeOrder", err)
 	}
 }
 

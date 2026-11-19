@@ -476,11 +476,9 @@ func droppedLine(disputed, reverted, rejected int) []byte {
 // line when at least one line is dropped. Contract: a drop that names no
 // line and a rejected line no drop declares stop with a
 // *CorrectionMismatchError, so the block never silently leaves out a line
-// or takes in a rejected one.
+// or takes in a rejected one. drops has passed Validate: correctionParagraph,
+// its only caller, validates them before reading anything.
 func correctionBlock(set correctionSet, drops Drops) ([][]byte, error) {
-	if err := drops.Validate(); err != nil {
-		return nil, err
-	}
 	mismatch := &CorrectionMismatchError{}
 	dropped := make(map[int]struct{})
 	var disputed, reverted int
