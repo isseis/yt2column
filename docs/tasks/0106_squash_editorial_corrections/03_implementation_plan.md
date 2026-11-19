@@ -101,7 +101,7 @@
     -   `rangeLines`（範囲の訂正の行）、`mergedLines`、トレーラーの読み取りの 3 つを持たせる。トレーラーの読み取りを `correctionSource` に入れるのは、設計書 3.4 の確かめ 7 が「3.1 の読み取りを通して強化した git で呼ぶ」と定めるためである。
     -   メッセージは `git cat-file commit <oid>` の出力の最初の空行より後ろとし（ヘッダーに `gpgsig` などがあっても同じ）、LF で分け、件名を 1 行目と数え、行末の CR を残す。空行のない出力は読めないものとする。どのコミットで失敗しても、読めたところまでを返さない。
     -   `mergedLines` は、base の名前を確かめた後に作る refspec `+refs/heads/<base>:refs/remotes/origin/<base>` で、強化した git で取得し、squash コミットのメッセージから予約した接頭辞の 2 つで始まる行（件名を含む）を読む。
-    -   トレーラーの読み取りの環境は §1.3 の決定 2 のとおりにし、一時ディレクトリは呼ぶたびに作って消す。`newGitRunner` は `Runner` を返すので、標準入力を渡せる型（`cmdrunner.InputRunner`）で持つ形にする。`os.Environ` の呼び出しは `runner.go` の 1 回のままにする（§1.4）。
+    -   トレーラーの読み取りの環境は §1.3 の決定 2 のとおりにし、一時ディレクトリは呼ぶたびに作って消す。標準入力を渡せる runner（`cmdrunner.InputRunner`）は、その一時ディレクトリと環境で呼ぶたびに作る（`runner.go` の `newTrailerRunner`）。`newGitRunner` は `Runner` を返すまま変えない。`os.Environ` の呼び出しは `runner.go` の 1 回のままにする（§1.4）。
     -   `test_helpers_git.go` に、任意のバイト列のメッセージと、指定した committer の日時を持つコミットを `git hash-object -t commit -w --stdin` で作る補助を足す。今の `gitIn` を標準入力を渡せる形にして使い、`gosec` の抑止を足すときは今の補助と同じく 1 行に限る。
     -   テスト（`corrections_test.go::TestRangeLines`、実際の git）: 件名の行の訂正の行と行番号、範囲の順、`main` から取り込んだコミットの除外、字下げした行・大文字と小文字の違う行・文の途中の語句の除外、パスの種類と残りの形を問わないこと、`encoding` のヘッダーのあるコミットのバイト列、`refs/replace` の無視、shallow のリポジトリでの停止。範囲の順は、日時が入れ違う 2 つの枝とマージのコミットで作り、既定の順序と `--topo-order` の順序が違うことを先に確かめる。
     -   テスト（`::TestRangeLinesStopsMidway`、`fakeRunner` で台本にした git）: 3 つのうち 2 つめの `cat-file` が失敗したとき、結果を返さずに `errCorrectionUnreadable` で止まること。空行のない出力でも止まること。

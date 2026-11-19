@@ -28,6 +28,10 @@ import (
 // alike.
 
 const (
+	// invalidName is how a String method shows the invalid zero value of an
+	// enumeration.
+	invalidName = "invalid"
+
 	// mainRef is the remote-tracking ref of main, spelled out in full so a
 	// local branch named origin/main is never read in its place.
 	mainRef = "refs/remotes/origin/main"
@@ -81,7 +85,7 @@ func (v protocolValue) String() string {
 	case protocolUnreadable:
 		return "unreadable"
 	default:
-		return "invalid"
+		return invalidName
 	}
 }
 
