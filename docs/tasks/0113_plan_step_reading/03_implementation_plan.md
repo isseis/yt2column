@@ -125,7 +125,7 @@ chief の計画書の読み取り（`internal/chief/task.go` の `ParsePlan`）�
 
 - [x] フェーズ 1（ステップ 1-1〜1-5）
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/1035
-- [ ] PR がマージされた
+- [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -157,18 +157,18 @@ chief の計画書の読み取り（`internal/chief/task.go` の `ParsePlan`）�
 Diff record (AC-14・AC-15・AC-16):
 
 - Compared paths: `CLAUDE.md`, `internal/chief/records.go`, `internal/chief/state.go`
-- Merge-base: `a68f2532fecd2c0f9d44e0c6b1da190a23f2c800`
-- Compared commit: `8fe37726fefe4def140216326b2757df512849d0`
+- Merge-base: `9b74229608edb4f6cbba8d2c85cbf56a399c9b13`
+- Compared commit: `8c2fcd3f6dc595ff6ada3eaeed5a71429ba7ab8b`
 - 読み方（実装の際の注記）: `records.go` に差分はなく、`state.go` の差分は、`errors` の import、理由の定数、`stepsUnreadableReason`、`nextFromPlan` に限られる。`CLAUDE.md` の差分は `task.go` の例外の 1 項目に限られる。製品コードの差分は `task.go` と `state.go` だけである（下のファイルの一覧）。
 
 Path diff:
 
 ````text
 diff --git a/CLAUDE.md b/CLAUDE.md
-index 8873fc5526ed1eba74c923eb22fc1a4e077aed46..9f5be33a22f9dfe3ec1b45d2eb0c1b7f510067e5 100644
+index 48f0e79aded9e20ccb47a96a9a91e995ab21a7b7..0a8c98ac24a7a49059d6b7c74838e258cb9fce3f 100644
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
-@@ -948,13 +948,15 @@ Only the conventions a linter does not check are worth stating:
+@@ -978,13 +978,15 @@ Only the conventions a linter does not check are worth stating:
    as for a guard test.
  - The same exception covers the chief tool's task reader,
    `internal/chief/task.go`: a literal that has to equal a heading's text or a
@@ -277,11 +277,13 @@ File list:
 
 ````text
 CLAUDE.md
+docs/tasks/0113_plan_step_reading/02_architecture.md
 docs/tasks/0113_plan_step_reading/03_implementation_plan.md
 internal/chief/snapshot_test.go
 internal/chief/state.go
 internal/chief/task.go
 internal/chief/task_test.go
+internal/chief/test_helpers.go
 internal/chief/testdata/README.md
 internal/chief/testdata/plans/real-0069-pr-open.md
 internal/chief/testdata/plans/real-0069.md
