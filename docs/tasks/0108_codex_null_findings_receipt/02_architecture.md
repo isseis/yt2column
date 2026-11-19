@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容と `file:line` の行番号は、コミット `c2342f37` のものである。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。「計画で決める」は、本タスクの実装計画書（`03_implementation_plan.md`）で決めることを指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
@@ -742,3 +742,7 @@ PR の分け方、実装モデル要件、実装の PR をどの `runpr.md` で�
 | AC-21 | 3.6（要件書の PR で済み） | `TestADRRecords`、PR のレビュー（manual） |
 | AC-22 | 3.6 | 実装の PR の差分を読む（manual） |
 | AC-23 | 2.2、3.7 | 実装の PR の差分を読む（manual） |
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1023）
