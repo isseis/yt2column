@@ -336,7 +336,7 @@ HEAD の確かめ（今の `headProblem(h headState)`、`internal/chief/state.go
 
 **印（`Row.Idle`）。** マージの記録なしと開いている PR ありの行に付け、fetch に失敗した行と、そのラウンドで挙げた PR の状態を読めなかった行には付けない（今の `Row.Idle` の「すべての読み取りが成功した」、`internal/chief/state.go:153-159`）。読めない・ほかのタスクありの行には付けない（1.2）。
 
-**進行の位置の文書（`taskDocumentOf`、`internal/chief/position.go:246-269`）。** `headMain` で特定しなかった行は要確認とし、タスクのないブランチの「-」（`PositionDocNoTask`）にしない（AC-07）。T と特定した行は、機能ブランチの行と同じ規則で決まる。行で `/mkreq` が走っている（人が pane で打った）ときは、今の最初の規則のとおり要件定義書になる。
+**作業項目の表示（`taskDocumentOf`、`internal/chief/position.go:246-269`）。** `headMain` で特定しなかった行は要確認とし、タスクのないブランチの「-」（`PositionDocNoTask`）にしない（AC-07）。T と特定した行は、機能ブランチの行と同じ規則で決まる。行で `/mkreq` が走っている（人が pane で打った）ときは、今の最初の規則のとおり要件定義書になる。
 
 **削除の提案。** 変えない。T のタスクが完了していれば、行はタスク完了になる。T の workspace を chief が作っていれば、今の `addRemovals`（`internal/chief/removal.go:380-402`）が削除の提案を付け、HEAD が detached でない（`main` にある）ので、削除の確かめは止まる（AC-03）。
 
@@ -397,7 +397,7 @@ func Send(ctx context.Context, deps Deps, owner Owner, req SendRequest) (SendOut
 
 -   **`/chief` の定義（`.claude/commands/chief.md`）。** 提案を送る呼び出しを `chief send --workspace <workspace> --command <request> --item <id> --protocol <番号>` にする。`<id>` は、人が選んだ項目の `id` である。`mkreq` と `runpr` の呼び出しは変えない（`--item` を付けない）。出力の項目は変えない（要件定義書 4.4）。
 -   **プロトコル番号（H-04）。** `chief send` の引数が変わり、古い定義の呼び出し（`--item` なし）は新しい道具に拒まれ、新しい定義の呼び出しは古い道具に拒まれる。そのため `main` の値 + 1 にする（今の値は `internal/chief/records.go:29` の `Protocol`）。値の組み合わせの変化だけなら上げる必要はない。`/chief` の定義は、行の `task` が空かどうかで送るコマンドを決めておらず、`position.document` の値の表（`.claude/commands/chief.md:176-182`）にも新しい値はないためである。
--   **利用ガイド（AC-12）。** `docs/dev/guides/chief_guide.md` の進行の位置の説明（今の `chief_guide.md:82`）に、要件定義書 AC-12 の 4 点と、「-」が `main` をチェックアウトした worktree には使われないことを書く。あわせて次を書く。
+-   **利用ガイド（AC-12）。** `docs/dev/guides/chief_guide.md` の 3.1 の作業項目の表示の段落に、要件定義書 AC-12 の 4 点と、「-」が `main` をチェックアウトした worktree には使われないことを書く。あわせて次を書く。
     -   要確認から戻す方法：読めない記録とほかのタスクありは、chief の pane で `/clear` をするか Claude Code を起動し直して、新しいセッションにする（`start` が古いセッションの記録を消す。すべての worktree の特定もやり直しになる）。読めない記録のファイルだけを消すことは勧めない。中身の分からない記録を消すと、ほかのタスクを示す事象が失われ、古いタスクを特定しうるためである。一覧を読めないディレクトリは、理由に示したディレクトリの権限などを直す。
     -   道具を入れ直しても、同じ Claude Code のセッションで `/chief` を起動し直すだけなら、セッションは変わらず、特定は続く。
     -   `chief send` の `--item`。
@@ -590,7 +590,7 @@ flowchart TD
     -   タスクの空の PR がある場合（特定しない）。
     -   閉じた PR が開き直された場合。
 -   **書く条件（3.1・3.3）。** 変化がないラウンドでは事象を書かないこと。`OPEN` と読み取りの失敗では書かないこと。同じ PR の状態を 1 ラウンドに 1 回しか読まないこと。排他を取れないときと、排他の下でブランチが変わっていたときに書かないこと。
--   **行の判定（AC-01〜AC-03・AC-07）。** `headMain` と特定の結果を与えた `classify`・`documentOf` の結果（状態・文書・進み具合・次のコマンド・`Idle`）。質問で止まったエージェントがあれば質問の行になること。引き継ぎを出さないこと。AC-03 では、chief が作った workspace の削除の提案が detached の確かめで止まること。
+-   **行の判定（AC-01〜AC-03・AC-07）。** `headMain` と特定の結果を与えた `classify`・`documentOf` の結果（状態・作業項目の表示・状態の詳細・次のコマンド・`Idle`）。質問で止まったエージェントがあれば質問の行になること。引き継ぎを出さないこと。AC-03 では、chief が作った workspace の削除の提案が detached の確かめで止まること。
 -   **送信（AC-04・AC-05・AC-08）。** `--item` が要るコマンドと要らないコマンドの `ParseSendRequest`。行の提案が変わったときと、自動送信の提案が行と別のタスクを示すときの `not_offered`。`main` の行への `mkreq` の拒否。特定した行への `/mkplan` が今の送る前の確かめを通ること。`chief reset` が特定した `main` の行のリセットを送れること。`targets` が `main` の worktree を挙げないこと。
 -   **変えない振る舞い（AC-10・AC-11）。** 特定した `main` の worktree の PR の自動送信の結果が、今と同じ理由で送らないこと。機能ブランチ・detached HEAD・ほかのブランチの行が、事象があっても今と同じ行になること。
 -   **消し方。** `ClearRecords` が履歴の記録を消すこと。`start` がほかのセッションの事象を消し、今のセッションの事象を残すこと。

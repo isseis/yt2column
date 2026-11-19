@@ -130,7 +130,7 @@
 -   [ ] **ステップ 2-1**: 生成の道具（`textwidth_gen.go`）を書き、Unicode 17.0.0 の `EastAsianWidth.txt` から幅の表を作って `textwidth.go` に置く（§1.3 の決定 3・4、設計書 3.5）。元のファイルを取りに行く前に人の承認を得る。`@missing` の既定（設計書 3.5）も表に含める。版・取得元の URL・SHA-256 を表の注釈と §7 の「PR-2 の実行の記録」に書く。§1.3 の決定 4 の `awk` での数の比べと、`TestUnitWidth` の期待値に引いた元のファイルの行も §7 に書く。`TestGuardedTypesAreBuiltOnlyByTheirConstructors` はビルドの印によらずパッケージのすべての `.go` のファイルを読むので、`package main` の生成の道具を置いた後もこのテストが通ることを確かめる。
 -   [ ] **ステップ 2-2**: `textwidth.go` に、表示の単位の表示幅を返す関数を書く（設計書 3.5 の表）。`TestUnitWidth` を足し、設計書 7.1 の「表示幅」のとおり、W・F の文字（`🛑`・`🔶`・`🟢` を含む）が 2、ASCII・曖昧な文字（`…`・`─`）・結合文字・異体字セレクタが 1、エスケープがそのバイト数であること、幅の表の範囲の境目の前後の文字を確かめる。境目の期待値は、元のファイルの行から人手で選ぶ（§1.3 の決定 4）。F の文字（U+FF01 など）、W になる未割り当ての符号位置（CJK の区画の未割り当ての符号位置。元のファイルが `@missing` の行で示すか、範囲の行で明示するかは版によるので、どちらの行で W になるかを §7 に書く）と、元のファイルのどの行にもなく 1 桁になる符号位置、Unicode 15.0 の後に W になった符号位置を含める。最後のものは、表が 17.0.0 から作られ、Go 1.26.5 の表によらないことを示す。入力は `\u` か `\U` のエスケープで書く。
 -   [ ] **ステップ 2-3**: `table.go` に、`tableSources`、決まった語、内容の文字列の組み方を書く（設計書 3.3・3.4）。決まった語は型の値ごとの `switch` で選び、`default` は `?` にする。外から来る値は、単位に分ける前に `CapHead` で 16 KiB までに切る（設計書 3.4 の「値の長さ」、4 章の「同じ処理を 2 つ書かない」）。表の `─` と `…` は `\u` か `\U` のエスケープで書き、日本語の literal は AC-26 の語だけにする。テストは `table_test.go` に置き、次を確かめる。
-    -   `TestTableFixedWords`: 急ぎの度合い・進み具合・文書・実行中のコマンドが決まらない理由の、型のすべての値が `?` でない語を持ち、語が要件書 AC-11〜AC-13・AC-20 の表のとおりであること、表にない値が `?` になること。値は `namesUpToUnknown` に出力の名前の関数を渡して数える（設計書 7.1）。
+    -   `TestTableFixedWords`: 急ぎの度合い・状態の詳細・作業項目の表示・実行中のコマンドが決まらない理由の、型のすべての値が `?` でない語を持ち、語が要件書 AC-11〜AC-13・AC-20 の表のとおりであること、表にない値が `?` になること。値は `namesUpToUnknown` に出力の名前の関数を渡して数える（設計書 7.1）。
     -   `TestTableContent`: 状態の文字列ごとの部品と、値がない部品を並べないこと（AC-14）。
     -   `TestTableQuestions`: 示す質問と、件数と `マージ確認` の添え書き（AC-16）。
     -   `TestTableTabDisplay`: タブの表示と、引けない 5 つの場合に pane の ID を示して `table_unreadable` に挙げること（AC-18・AC-19）。
@@ -173,7 +173,7 @@
 
 -   [ ] **ステップ 3-1**: `readRound` を `agentListing` に替え、`roundView` に pane とタブの対応とその読み取りのエラーを持たせる。`snapshot.go` に `readTableSources` を書き、`TakeSnapshot` と `Tick`（`BeginRound` より前）が呼ぶ。`finishSnapshot` が、行を並べた後に `layoutTable` で表を組み、`Snapshot` の `Table` と `TableUnreadable` に入れる（設計書 2.3・3.7・4 章）。材料のエラーの文は 512 バイトまでに切り（`CapHead`）、`Sanitize` する。同じコミットで、テストの world のエージェントの JSON に `tab_id` を足し、`tab list` と `pane layout` の答えを `world.finish` に、`cmd/chief` の答えを `fakeHerdr` に足す（§1.4）。記録係と `fakeHerdr` は答えのないコマンドでテストを失敗させるので、このコミットだけで `make test` が通るようにする。
 -   [ ] **ステップ 3-2**: `SnapshotOutput` に `table` と `table_unreadable` を足す（設計書 3.1・3.8）。テストは次を確かめる。
-    -   `TestSnapshotTableMatchesRows`（`snapshot_test.go`）: 出力の表に、同じ出力の `rows` の名前・タスク・PR の番号と、各行の急ぎの度合いと進み具合から `table.go` が決める印と状態の文字列が、`rows` と同じ並びで現れること（AC-01・AC-02）。
+    -   `TestSnapshotTableMatchesRows`（`snapshot_test.go`）: 出力の表に、同じ出力の `rows` の名前・タスク・PR の番号と、各行の急ぎの度合いと状態の詳細から `table.go` が決める印と状態の文字列が、`rows` と同じ並びで現れること（AC-01・AC-02）。
     -   `TestTableSourcesUnreadable`（`snapshot_test.go`）: `tab list` と `pane layout` が失敗する・形に合わないラウンドと、エージェントの一覧の pane とタブの対応が読めない（`tab_id` がない、`pane_id` が重なる）ラウンドでも、ラウンドが失敗せず、行の状態・急ぎの度合い・`pending`・`problems` が読めたときと同じで、表が 80 桁と pane の ID で組まれ、`table_unreadable` が空でないこと（AC-05・AC-19、要件書 4.3）。512 バイトを超え ESC を含む Herdr のエラーの文が、`table_unreadable` で切られてエスケープされること。
     -   `TestTickTableSourcesUnreadable`（`autosend_test.go`）: `tick` で表の材料が読めなくても、`AutoSends` と pane への入力が読めたときと同じで、表が 80 桁と pane の ID で組まれること（AC-05・AC-19）。
     -   `TestTickTableShowsAutoSend`（`autosend_test.go`）: `tick` の出力の表に、自動送信の後の行の状態の文字列（`table.go` の対応で決まるもの）が現れること（AC-01）。送る前の行で組んだ表では失敗することを確かめる。
