@@ -17,8 +17,6 @@ chief は、Herdr の workspace で並行して進むタスクを見渡し、人
 
 `chief` は `main` から入れ、道具を変えたマージの後と、プロトコル番号を上げる PR の前に入れ直す。
 
-**入れる手順.** 次のコマンドを実行する。
-
 ```bash
 make install-chief
 ```

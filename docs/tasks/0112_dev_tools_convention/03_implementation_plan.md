@@ -185,7 +185,7 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [x] フェーズ 1（ステップ 1-1〜1-6）
+- [ ] フェーズ 1（ステップ 1-1〜1-6）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 

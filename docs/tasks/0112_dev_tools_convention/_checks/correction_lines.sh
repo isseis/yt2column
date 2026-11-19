@@ -10,7 +10,7 @@
 # first column with "Editorial correction: ". The checks:
 #
 #   1. The range changes ADR-0014, and at least one commit that changes it has
-#      a correction line that names ADR-0014's path. No correction line is
+#      a correction line whose path field names ADR-0014. No correction line is
 #      required of each such commit: a later commit that revises text the PR
 #      itself added is not an editorial correction.
 #   2. Every correction line of the range has the fixed form: a repository
@@ -84,15 +84,18 @@ while IFS= read -r commit; do
 		esac
 		line_count=$((line_count + 1))
 
-		# Check 1: a line of a commit that changes the ADR names its path.
-		if [ "$changes_adr" -eq 1 ] && [[ $line == *"$adr_path"* ]]; then
+		# Check 2 reads the path field first, and check 1 uses it too.
+		rest=${line#'Editorial correction: '}
+		path=${rest%%: *}
+		description=${rest#*: }
+
+		# Check 1: a line of a commit that changes the ADR names its path in
+		# the path field, not merely somewhere in its description.
+		if [ "$changes_adr" -eq 1 ] && [ "$path" = "$adr_path" ]; then
 			named_by_change=1
 		fi
 
 		# Check 2: path, description, and closing phrase.
-		rest=${line#'Editorial correction: '}
-		path=${rest%%: *}
-		description=${rest#*: }
 		if [[ ! $path =~ ^[A-Za-z0-9._/-]+\.md$ ]]; then
 			echo "fail: no repository .md path before the colon: $line"
 			form_failures=$((form_failures + 1))

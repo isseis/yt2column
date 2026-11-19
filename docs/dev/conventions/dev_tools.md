@@ -60,8 +60,11 @@ open ([fixprguard_guide.md](../guides/fixprguard_guide.md), chapter 9).
 
 The contract is written in `CLAUDE.md` ("Build Commands", "Test Commands",
 "Development Notes"), in the "Guard tool" row of
-[_context.md](../../../.claude/commands/_context.md), and in the guides under
-`docs/dev/guides/`.
+[_context.md](../../../.claude/commands/_context.md), and in the guides of the
+installed tools: [fixprguard_guide.md](../guides/fixprguard_guide.md),
+[mergepr_guide.md](../guides/mergepr_guide.md),
+[chief_guide.md](../guides/chief_guide.md), and
+[numreserve_guide.md](../guides/numreserve_guide.md).
 
 ## Rule 5: Install tools from main; agents never install or build them
 
@@ -117,10 +120,10 @@ A procedure that decides otherwise wins. Today these do:
   step 3 records `not run` and goes on.
 - When a number does not match, `/fixpr`, `/runpr`, and `/mergepr` show two
   fixes and stop: reinstall the tool from `main` when the tool is old, or
-  merge `origin/main` into the branch when the branch is old
-  ([runpr.md](../../../.claude/commands/runpr.md) steps 199-203,
-  [fixpr.md](../../../.claude/commands/fixpr.md) lines 68-74,
-  [mergepr.md](../../../.claude/commands/mergepr.md) lines 20-25).
+  merge `origin/main` into the branch when the branch is old (`/runpr`'s
+  "not a branch of this repository" step, `/fixpr`'s "A tool of another
+  protocol" bullet, and the paragraph of `/mergepr` that follows the
+  install step).
 
 To ask, name the tool and the command the user runs, and say in which
 checkout to run it. The command is normally `make install-<name>` in an
@@ -152,8 +155,8 @@ asks the user, and the user runs the command in a local clone.
 
 ### Links
 
-- `CLAUDE.md`, "Tool Execution Safety"
-- `CLAUDE.md`, "Protocol numbers"
+- [CLAUDE.md](../../../CLAUDE.md), "Tool Execution Safety"
+- [CLAUDE.md](../../../CLAUDE.md), "Protocol numbers"
 
 ## Rule 6: Exception: a side-effect-free record check may be a shell script
 

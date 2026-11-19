@@ -6,8 +6,6 @@ numreserve は、タスク番号と ADR 番号を、別のクローンや cloud 
 
 `numreserve` は `main` から入れ、番号を決めるときだけ呼ぶ。
 
-**入れる手順.** 次のコマンドを実行する。
-
 ```bash
 make install-numreserve
 ```
