@@ -148,24 +148,24 @@
 
 **変えるファイル:** `internal/mergepr/mergepr.go`、`internal/mergepr/test_helpers.go`、`internal/mergepr/mergepr_test.go`、`cmd/mergepr/main.go`、`cmd/mergepr/main_test.go`、`cmd/mergepr/docs_test.go`、`.claude/commands/mergepr.md`、`.claude/commands/runpr.md`、`.claude/commands/_context.md`、`docs/dev/guides/mergepr_guide.md`、`docs/dev/conventions/requirements_process.md`、`docs/dev/conventions/adr.md`、`docs/dev/conventions/package_reference.md`、`docs/dev/adr/0039-adr-writing-criteria.md`、`docs/dev/adr/0036-task-document-status-records.md`、`docs/dev/adr/0047-runpr-merge-question.md`
 
--   [ ] **ステップ 2-1**: `Tool` に配線する（設計書 3.5・3.6・3.7・6.2）。
+-   [x] **ステップ 2-1**: `Tool` に配線する（設計書 3.5・3.6・3.7・6.2）。
     -   `Tool` に `correctionSource` を持たせ、`New` は本番の実装を入れる。`test_helpers.go` に偽物を足す。偽物は、`fakeChecker` と同じく呼ばれた時点の `fakeRunner` の位置を記録する。
     -   `test_helpers.go` の `fakeRunner` に、呼ばれた時点で引数とファイルを調べるフックを持つ手順を足す。`gh pr merge` の手順は、`--body-file` の値のパスを除いて引数を比べ、フックの中でそのファイルの中身・モード・場所を記録し、呼び出し側の本文のファイルを書き換える。
     -   `Prepare` は、作業ディレクトリを作る前に範囲の訂正の行を読む（読めなければ何も作らずに止まる）。`corrections.txt` を書き、`Prepared` に `Accepted` と `Rejected` を返す。拒否した行があっても止まらない。
     -   `Paragraph`・`CheckBody` を足す。どちらも `state.json` の head と base から範囲を求め直し、ネットワークに触れない。`Paragraph` が書く前の作業ディレクトリの確かめは、`removeWorkDir`（`internal/mergepr/mergepr.go:421-440`）の確かめを共有の関数に切り出して使う。
-    -   `Merge` は設計書 6.2 の順序で動く。本文は最初に 1 回だけ読み、確かめたバイト列を `os.CreateTemp` の一時ファイル（作業ディレクトリの外）に書いて `--body-file` で渡し、どの道筋でも返る前に消す。片付けの後にマージの後の照合を行う。作業ディレクトリは、照合の結果によらず、今と同じく片付けが終われば消す（設計書 3.5 の「作業ディレクトリ」）。照合の誤りは、捨てる準備がないことを示す（設計書 3.5 の「結果の示し方」）。`Cleanup` は任意の本文のパスを受け取る。
+    -   `Merge` は設計書 6.2 の順序で動く。本文は最初に 1 回だけ読み、確かめたバイト列を `os.CreateTemp` の一時ファイル（作業ディレクトリの外）に書いて `--body-file` で渡し、どの道筋でも返る前に消す。片付けの後にマージの後の照合を行う。作業ディレクトリは、照合の結果によらず、今と同じく片付けが終われば消す（設計書 3.5 の「作業ディレクトリ」）。照合の誤りは、マージが済んでいて準備を捨てずマージをやり直さないことを示す（設計書 3.5 の「結果の示し方」）。`Cleanup` は任意の本文のパスを受け取る。
     -   `Report` に照合の結果を足す。`cleanupCommand` と `ShownCommands` は本文のパスを付けた `cleanup` を示す。`Protocol` を `origin/main` の値 + 1 にする。パッケージの説明（`internal/mergepr/mergepr.go:1-11`）の保証の文に、訂正の確かめとマージの後の照合を足す。
     -   `mergepr_test.go` の既存のテスト: `Merge` と `Cleanup` の引数の変更に、呼び出すテスト（§1.4）をすべて合わせる。`TestPrepare` に `corrections.txt` を足す。
     -   新しいテスト（`mergepr_test.go`）: `::TestMergePassesCheckedBody`（渡したファイルが確かめたバイト列で、モード 0600、作業ディレクトリの外にあり、`Merge` が返った後に消えている。`gh pr merge` が失敗する道筋でも消えている）、`::TestMergeStopsOnCorrectionCheck`（`gh pr merge` を呼ばず、確かめがプロトコル番号の確かめの後、番号の確かめの前に走る）、`::TestMergePostMergeCheck`（照合の相手が、フックが書き換えた後の本文のファイルではなく確かめたバイト列である。片付けの誤りが照合の誤りより先に並ぶ。照合が食い違っても、片付けが終わっていれば作業ディレクトリが消えている）、`::TestCleanupPostMergeCheck`（`--body-file` のときだけ照合する）、`::TestPrepareWritesCorrections`、`::TestParagraph`・`::TestCheckBody`（台本の手順が 0 の `fakeRunner` で、git と gh を呼ばない）、`::TestParagraphKeepsForgedWorkDirectory`（偽の親のディレクトリ、目印のないディレクトリ、無関係のディレクトリには書かない）。
     -   壊して確かめる: `Merge` の訂正の確かめを外す、本文を確かめの後に読み直す、照合で本文のファイルを読み直す、一時ファイルを消さない、`Paragraph` の作業ディレクトリの確かめを外す。
--   [ ] **ステップ 2-2**: `cmd/mergepr` を変える（設計書 3.6・4.2）。
+-   [x] **ステップ 2-2**: `cmd/mergepr` を変える（設計書 3.6・4.2）。
     -   `paragraph`・`check-body` のサブコマンドを足す。`--drop`・`--drop-rejected`（繰り返し）を `flag.Value` で集め、`cleanup --body-file` を解析する。形の誤りと重複（同じ番号で場合が違うものを含む）は、何も読まずに `errUsage` で止める。
     -   `prepare` の出力を書き先を受け取る関数に切り出し、`printReport` も書き先を受け取る形にする。設計書 3.6 の出力の行（`corrections:`・`correction rejected:`・`paragraph:`・`corrections carried:` と、`dir:` の行のファイルの並びへの `corrections.txt`）を足す。`errUsage` の文とパッケージの説明（`cmd/mergepr/main.go:1-8`）に、設計書 3.6 のサブコマンドの形を足す。
     -   `printError` は、`CorrectionMismatchError` と `CorrectionsNotCarriedError` を理由ごとに 1 行ずつ出す（設計書 4.2）。
     -   テスト（`main_test.go`）: `::TestParseRequiresProtocol` の表に、新しいサブコマンド・落とす指定・`cleanup --body-file` の行と、落とす指定の形の誤り・重複、`prepare`・`cleanup`・`discard` への `--drop`、`discard` への `--body-file` の行を足す。`::TestShownCommandsParse` は本文のパスを付けた `cleanup` を通す。`::TestPrintPrepared`（`correction rejected:` の行）、`::TestPrintReport`（`corrections carried:` の 2 つの形）、`::TestPrintErrorListsCorrectionMismatch` を足す。
     -   壊して確かめる: 重複の検出を外す、`printError` の理由ごとの行を外す、`corrections carried: not verified` の行を外す。
--   [ ] **ステップ 2-3**: `.claude/commands/mergepr.md` の step 1〜4 を、設計書 3.8 の「`.claude/commands/mergepr.md`」のとおりに変える（AC-07・AC-08・AC-09・AC-10・AC-11・AC-13・AC-15・AC-17）。拒否した行の問いと、本文の組み立て（`paragraph` と `cat`）、`check-body` と `merge` の呼び出し、受け付ける修正と適用しない修正、止まったときの報告である。訂正の行の形は `requirements_process.md`「Recording in the PR description」を名指して参照し、書き写さない。呼び出しは §1.3 の決定 6 の形で書く。
--   [ ] **ステップ 2-4**: `.claude/commands/runpr.md` を、設計書 3.8 の「`.claude/commands/runpr.md`」と §1.3 の決定 7・8 のとおりに変える。
+-   [x] **ステップ 2-3**: `.claude/commands/mergepr.md` の step 1〜4 を、設計書 3.8 の「`.claude/commands/mergepr.md`」のとおりに変える（AC-07・AC-08・AC-09・AC-10・AC-11・AC-13・AC-15・AC-17）。拒否した行の問いと、本文の組み立て（`paragraph` と `cat`）、`check-body` と `merge` の呼び出し、受け付ける修正と適用しない修正、止まったときの報告である。訂正の行の形は `requirements_process.md`「Recording in the PR description」を名指して参照し、書き写さない。呼び出しは §1.3 の決定 6 の形で書く。
+-   [x] **ステップ 2-4**: `.claude/commands/runpr.md` を、設計書 3.8 の「`.claude/commands/runpr.md`」と §1.3 の決定 7・8 のとおりに変える。
     -   step 4 の item 2: 拒否した行の問い（`rejected-<round>.md`）と、本文の形ごとの `check-body`。問いごとの規則（問いの前の言及の確かめ、ラウンドと詳細ファイル、詳細ファイルを書けないときに準備を捨てて止まること、選択肢でない答えには何もせず新しいラウンドとして聞き直すこと）を、deferred の問いとマージの質問と同じく、この問いにも当てはめる（`.claude/commands/runpr.md:786-823` と、item 1 の答えの扱い）。
     -   item 3: 詳細ファイルの `C<番号>` と落とす指定、要約の `訂正の行:` の行と、要約の行の上限の文（「at most 13 lines」を 14 行に）。
     -   item 3 の自由記述: `C<番号>:<場合>` の答え。数字だけの答えは今のまま除外したスレッドの番号として読むこと（`.claude/commands/runpr.md:1140-1152`）。ほかの自由記述で本文を書き直したときは、新しいラウンドの前に本文の形ごとに `check-body` を走らせること。
@@ -174,11 +174,11 @@
     -   item 5: 訂正の確かめで止まったときと、マージの後の照合が食い違ったときの報告。
     -   step 1・step 5 の `cleanup`（§1.3 の決定 8）。
     -   ほかのガードが読む `runpr.md` の見出しと `fixprguard` の呼び出し（`cmd/yt2column/fixpr_docs_test.go`、`cmd/yt2column/codex_review_docs_test.go`、`cmd/fixprguard/docs_test.go`）は変えない。変えるときは、同じコミットでそれらのガードを直す。
--   [ ] **ステップ 2-5**: 手引き `docs/dev/guides/mergepr_guide.md` と、文書のガード `cmd/mergepr/docs_test.go` を変える（設計書 3.7・3.9、1.2 の決定 9）。
+-   [x] **ステップ 2-5**: 手引き `docs/dev/guides/mergepr_guide.md` と、文書のガード `cmd/mergepr/docs_test.go` を変える（設計書 3.7・3.9、1.2 の決定 9）。
     -   手引き: 3 章のプロトコル番号（地の文の番号を含む）、4 章の流れと図、5.2 の `paragraph`・`check-body`・落とす指定・`cleanup --body-file`・受け付けた行の番号の振り方、6.1 の保証、7 章の `correction check:` と `post-merge check:` で止まったときの対処を変える。
     -   `docs_test.go`: `definitionCalls` を設計書 3.7 のとおりにし、`placeholderValues` に `<drop>`・`<rejected-drop>` と、文書の呼び出しが新しく使う置き換えの名前をすべて足す（§1.3 の決定 6）。
--   [ ] **ステップ 2-6**: 規則の文書を、設計書 3.9 の表のとおりに変える（AC-18）。対象は、`.claude/commands/_context.md` の「PR merge method」、`docs/dev/conventions/requirements_process.md` の記録の置き場所の段落と「Recording in the PR description」、`docs/dev/conventions/adr.md` の「Editorial corrections」の「Recording」である。あわせて、`docs/dev/conventions/package_reference.md` の `internal/mergepr` と `cmd/mergepr` の行に、訂正の行の引き継ぎと、このフェーズで公開する名前（`Paragraph`・`CheckBody` など）を足す。
--   [ ] **ステップ 2-7**: ADR のずれの記述を消す（AC-16、設計書 3.9）。ADR-0039 の「決定」の項目（`:21`）の最後の 2 文を消し、仕様の置き場所のリンクを要件書から `mergepr.md` と手引きに変える。ADR-0036（`:25`）と ADR-0047（`:24`）の項目からも、最後のずれの記述を消す。どれも編集上の訂正なので、このコミットのメッセージに訂正の行を書く（`docs/dev/conventions/adr.md`「Editorial corrections」）。§7 の AC-16 の diff 記録を、このコミットについて取る。
+-   [x] **ステップ 2-6**: 規則の文書を、設計書 3.9 の表のとおりに変える（AC-18）。対象は、`.claude/commands/_context.md` の「PR merge method」、`docs/dev/conventions/requirements_process.md` の記録の置き場所の段落と「Recording in the PR description」、`docs/dev/conventions/adr.md` の「Editorial corrections」の「Recording」である。あわせて、`docs/dev/conventions/package_reference.md` の `internal/mergepr` と `cmd/mergepr` の行に、訂正の行の引き継ぎと、このフェーズで公開する名前（`Paragraph`・`CheckBody` など）を足す。
+-   [x] **ステップ 2-7**: ADR のずれの記述を消す（AC-16、設計書 3.9）。ADR-0039 の「決定」の項目（`:21`）の最後の 2 文を消し、仕様の置き場所のリンクを要件書から `mergepr.md` と手引きに変える。ADR-0036（`:25`）と ADR-0047（`:24`）の項目からも、最後のずれの記述を消す。どれも編集上の訂正なので、このコミットのメッセージに訂正の行を書く（`docs/dev/conventions/adr.md`「Editorial corrections」）。§7 の AC-16 の diff 記録を、このコミットについて取る。
 
 **完了の条件:** `make fmt`・`make test`・`make lint` が通る。§4.4 の照合の項目を済ませた。
 
@@ -196,10 +196,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1036
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -240,11 +240,11 @@ PR-2 は `Protocol` を上げるので、PR-2 の `/runpr` の前に、PR-2 の�
 
 ### 4.4. 照合の項目（`make test` と `make lint` が見ないもの）
 
--   [ ] 手引き 3 章の地の文の番号（`docs/dev/guides/mergepr_guide.md:48` の「現在の番号は `2`」）を、新しい番号に直した。
--   [ ] `runpr.md` と `mergepr.md` の、準備を捨てる・捨てないの指示が、`correction check:`（食い違いと読めないこと）と `post-merge check:` のそれぞれで、設計書 3.5 と 4.2 と合っている。
--   [ ] 拒否した行の問いの文が、chief の `mergeQuestionText`（`internal/chief/screen.go:113`）にも `mergeQuestionSqueezed`（`:117`）にも合わない。
--   [ ] マージの質問の要約に `訂正の行:` の行を足しても、chief の画面の読み取り（`internal/chief/screen*.go`）が問いと選択肢を今までどおり読める。
--   [ ] ステップ 2-4 の小項目（自由記述の 3 つの扱い、落とす指定を保つ期間を含む）が、設計書 3.8 の `runpr.md` の項目をどれも漏らさず含む。
+-   [x] 手引き 3 章の地の文の番号（`docs/dev/guides/mergepr_guide.md:48` の「現在の番号は `2`」）を、新しい番号に直した。
+-   [x] `runpr.md` と `mergepr.md` の、準備を捨てる・捨てないの指示が、`correction check:`（食い違いと読めないこと）と `post-merge check:` のそれぞれで、設計書 3.5 と 4.2 と合っている。
+-   [x] 拒否した行の問いの文が、chief の `mergeQuestionText`（`internal/chief/screen.go:113`）にも `mergeQuestionSqueezed`（`:117`）にも合わない。
+-   [x] マージの質問の要約に `訂正の行:` の行を足しても、chief の画面の読み取り（`internal/chief/screen*.go`）が問いと選択肢を今までどおり読める。
+-   [x] ステップ 2-4 の小項目（自由記述の 3 つの扱い、落とす指定を保つ期間を含む）が、設計書 3.8 の `runpr.md` の項目をどれも漏らさず含む。
 
 ## 5. リスク管理 (Risk Management)
 
@@ -259,7 +259,7 @@ PR-2 は `Protocol` を上げるので、PR-2 の `/runpr` の前に、PR-2 の�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -302,6 +302,52 @@ PR-2 は `Protocol` を上げるので、PR-2 の `/runpr` の前に、PR-2 の�
 Diff record (AC-16):
 
 - Compared paths: `docs/dev/adr/0039-adr-writing-criteria.md` `docs/dev/adr/0036-task-document-status-records.md` `docs/dev/adr/0047-runpr-merge-question.md`
+- Merge-base: `1b8da1cf87623f80ae0c2a54f5fdcf9d25f50559`
+- Compared commit: `aa9f0c94d344149b9417b2741a1b3aa7ca6868cf`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/adr/0036-task-document-status-records.md b/docs/dev/adr/0036-task-document-status-records.md
+index 108be06b6dba1e354d7a1759620c323f673720ff..4c1530d286f7f65c419abf0674eca21e690e405c 100644
+--- a/docs/dev/adr/0036-task-document-status-records.md
++++ b/docs/dev/adr/0036-task-document-status-records.md
+@@ -22,7 +22,7 @@
+ -   **状態の遷移は、文書の末尾の変更履歴に 1 件 1 行で追記する。** 変更履歴には編集上の訂正を書かない。各行は、原則としてその行を加えた PR の番号を持ち、PR を作る前に書いた行の番号は `/runpr` がマージの直前に埋める（[runpr.md](../../../.claude/commands/runpr.md)）。行の形と PR 番号の例外は、[requirements_process.md](../conventions/requirements_process.md)「Change history」に従う。状態の遷移を `Comments` に積むと、今の状態の理由が過去の行に埋もれるためである。
+ -   **変更履歴のない文書は、最初の状態の遷移を書くときに移す。** 旧 `Comments` を変更履歴の先頭の項目にし、承認済みの文書なら状態表から承認の行を写す。写せないときは、遷移を書かずに止まる。一括では移さない。対象と手順は、[requirements_process.md](../conventions/requirements_process.md)「Documents without a change history」に従う。一括で移すと、それ自体が決定の変更になって、新たに決める内容のない再承認が必要になるためである（[0056 要件定義書](../../tasks/0056_legacy_approval_history/01_requirements.md)「要件定義の際に決めたこと（2026-11-02）」）。
+ -   **編集上の訂正と決定の変更は、PR の説明にも書く。** 編集上の訂正はコミットのメッセージに訂正の行として書き、PR の説明の訂正の段落はその行から作る（[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md) の Part B、[fixpr.md](../../../.claude/commands/fixpr.md)）。形は、[requirements_process.md](../conventions/requirements_process.md)「Recording in the PR description」に従う。`/fixpr` が PR の説明に追記する道具と、その文面を信頼しないデータとして扱うことは、[ADR-0015](0015-untrusted-review-threads.md) が定める。スレッドへの返信やコミットメッセージだけに残すと、訂正の説明が PR の説明にあることを満たさないためである。
+--   **`/mergepr` で squash マージするときは、タスク文書の訂正の行も、ADR の訂正の行と同じく squash コミットの本文に引き継ぐ。** 引き継ぎ方は [ADR-0039](0039-adr-writing-criteria.md) の「決定」に従う。squash マージの後は PR のコミットが `main` からたどれなくなり、PR の説明はリポジトリの外にあって書き換えられるためである。今の `/mergepr` の手順と規約は、まだ訂正の行を squash コミットの本文に引き継がない。このずれは、[#747](https://github.com/isseis/yt2column/issues/747) で扱う。
++-   **`/mergepr` で squash マージするときは、タスク文書の訂正の行も、ADR の訂正の行と同じく squash コミットの本文に引き継ぐ。** 引き継ぎ方は [ADR-0039](0039-adr-writing-criteria.md) の「決定」に従う。squash マージの後は PR のコミットが `main` からたどれなくなり、PR の説明はリポジトリの外にあって書き換えられるためである。
+ -   **書式は規則の 1 か所で定め、コマンドの定義は規則の節を名指しして参照する。** `Comments` の値、変更履歴の行の形、訂正の行と訂正の段落の形は、[requirements_process.md](../conventions/requirements_process.md) だけに書く。[runpr.md](../../../.claude/commands/runpr.md)・[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md)・[runplan.md](../../../.claude/commands/runplan.md)・[fixpr.md](../../../.claude/commands/fixpr.md) などのコマンドの定義には、いつどの文書に書くかだけを書く。理由は記録されていない。
+
+ ## 採らなかった案
+diff --git a/docs/dev/adr/0039-adr-writing-criteria.md b/docs/dev/adr/0039-adr-writing-criteria.md
+index cd978c78bd1ddd03f76f88f58b90e6e7debe7774..fb0000d865c2bebaddd124e62769cc39c6bd8c7b 100644
+--- a/docs/dev/adr/0039-adr-writing-criteria.md
++++ b/docs/dev/adr/0039-adr-writing-criteria.md
+@@ -18,7 +18,7 @@ ADR は、後の開発者が、変えようとしている主題の決定とそ
+ -   **「背景」には、決定が答えている問題と、決定を縛る前提だけを書く。** 決定の根拠そのものである数字は残す。前の決定は「経緯」に、退けた形は「採らなかった案」にあり、「背景」に重ねると今の決定が読み取りにくくなるためである。規則は [adr.md](../conventions/adr.md) の「Writing an ADR」にある。
+ -   **「決定」には、後の変更が守るべき規則を 1 項目ずつ、短い理由と、正本の文書かコードの場所とともに書く。** 正本の文書の一覧と腐りやすい実装の細部は書かない。正本とのずれの記述と、その issue へのリンクは残す。ADR を、決定が変わらない限り古くならない文書にするためである。規則は [adr.md](../conventions/adr.md) の「Writing an ADR」にある。
+ -   **ADR を作るか変えるのは、その決定を下すか変える PR である。ただし、決定を下しも変えもしない PR も、ADR に編集上の訂正を加えてよい。** 訂正は、決定を変えない決まった種類の直しに限る。訂正はコミットメッセージと PR の説明に記録し、「経緯」には項目を足さない。タスク文書の編集上の訂正（[requirements_process.md](../conventions/requirements_process.md) の「Editing an approved document」）と記録の置き場所をそろえ、例外を作らずに ADR を直せるようにするためである。直した結果が今の決定と食い違う変更と、訂正か迷う変更は、決定の変更として扱う。記録を失わない側に倒すためである。PR を作った後のレビューを受けた修正でも、ADR に訂正を加えてよい。訂正の行と訂正の段落の形は、タスク文書と ADR の両方について 1 か所で定める。コマンドの手順も、タスク文書の訂正と同じく ADR の訂正を記録して PR の説明へ運ぶ。このため、PR を作った後の訂正でも、レビュアーが分類を確かめられる。ただし、PR を作った後に `main` を取り込むときは、ADR に訂正を加えない。その経路には訂正を PR の説明へ運ぶ手順がないためである。訂正の行と訂正の段落の形は [requirements_process.md](../conventions/requirements_process.md) の「Recording in the PR description」にある。レビュアーが分類に異を唱えた変更は決定の変更として扱い、タスク文書のない PR では、決定を PR の説明に記録し、「経緯」の項目からその PR へリンクする。規則は [adr.md](../conventions/adr.md) の「Approval and the PR」「Editorial corrections」「History entries」にある。
+--   **`/mergepr` で squash マージするときは、PR のコミットにある訂正の行を、タスク文書と ADR のどちらのものも、要約せず 1 行ずつそのまま squash コミットの本文に引き継ぐ。** 行数にも 1 行の長さにも上限を設けない。人は承認のときに訂正の行を消せず、要件定義書が定める場合に限って落とせる。落としたときは、落としたことを本文に記録する。squash マージの後は PR のコミットが `main` からたどれなくなり、PR の説明はリポジトリの外にあって書き換えられるので、訂正の記録を `main` の履歴からたどれるようにするためである。行を受け付ける条件と落とし方の仕様は、[0106 要件定義書](../../tasks/0106_squash_editorial_corrections/01_requirements.md) の「3. 機能要件」にある。今の `/mergepr` の手順と規約は、まだ訂正の行を squash コミットの本文に引き継がない。このずれは、[#747](https://github.com/isseis/yt2column/issues/747) で扱う。
++-   **`/mergepr` で squash マージするときは、PR のコミットにある訂正の行を、タスク文書と ADR のどちらのものも、要約せず 1 行ずつそのまま squash コミットの本文に引き継ぐ。** 行数にも 1 行の長さにも上限を設けない。人は承認のときに訂正の行を消せず、決まった 3 つの場合に限って落とせる。落としたときは、落としたことを本文に記録する。squash マージの後は PR のコミットが `main` からたどれなくなり、PR の説明はリポジトリの外にあって書き換えられるので、訂正の記録を `main` の履歴からたどれるようにするためである。行を受け付ける条件と落とし方の仕様は、[mergepr.md](../../../.claude/commands/mergepr.md) と [mergepr の手引き](../guides/mergepr_guide.md) の「6.5 訂正の行の引き継ぎ」にある。
+ -   **ずれの記述は、ずれを直す PR が同じ PR で消す。** ずれの記述が事実でない期間を作らないためである。ずれを直す人が記述を見つけられるように、issue から ADR を、ADR から issue をたどれるようにする。ずれの記述を足す PR は、マージを頼む前と `main` を取り込むときに、最新の `main` に照らして、そのずれの記述がまだ事実かどうかを確かめ直す。規則は [adr.md](../conventions/adr.md) の「Writing an ADR」「Editorial corrections」にある。
+ -   **`main` の上で `TestADRRecords` が失敗したときの、番号を付け替える直しは、その直しだけの PR で行う。** 番号の付け替えは ADR の識別子を変え、ほかの文書の参照にも及ぶ。関係のない PR のレビュアーは、これを承認する立場にないためである。規則は [adr.md](../conventions/adr.md) の「Taking in `main`」にある。
+ -   **ADR の書式（太字の使い方と、項目の多い節の組み立て方）は、日本語の文書の書式の規約に従う。既存の ADR を書式の規約に合わせる書き直しは求めないが、編集上の訂正の 1 種目（基準に合わせる書き直し）として、どの PR も行ってよい。** 書式の規則を、ADR に限らず日本語の文書で 1 つにするためである。書き直しを訂正として認めるのは、訂正がコミットと PR の説明に記録され、レビュアーが確かめられるためである。規則は [書式の規約](../conventions/document_formatting.md) と [adr.md](../conventions/adr.md) の「Writing an ADR」にある。
+diff --git a/docs/dev/adr/0047-runpr-merge-question.md b/docs/dev/adr/0047-runpr-merge-question.md
+index 4f52b3e3ff631a6e9a3d18f2c27405ba4ff0ad3b..0d53d8fff76715647db828a7bcbfa8d0e4dbd008 100644
+--- a/docs/dev/adr/0047-runpr-merge-question.md
++++ b/docs/dev/adr/0047-runpr-merge-question.md
+@@ -21,7 +21,7 @@
+ -   **マージの質問に、NEXT をその `/runpr` のセッションで実行する選択肢を置かない。`/runpr` は NEXT を示すだけで、実行しない。** 次のコマンドは chief が送るためである（ADR-0046）。step 5 が NEXT の前に `/clear` を勧めていることとも食い違っていた（F-003）。
+ -   **承認の判断に要る詳細は、マージの質問のたびに作業ツリーの外の詳細ファイルに書き直し、会話には 1 項目 1 行の要約と、そのファイルのパスだけを出す。question の文は 1 行にし、長い本文を question の欄にも選択肢にも入れない。** 本文が多い PR でも、要約と選択肢を画面に収めるためである。問いのたびに書き直すのは、古い中身で承認しないためである（F-002）。
+ -   **`/runpr` の中では、squash commit の件名を要約に、本文と接頭辞を決めた規則の記録を詳細ファイルに示して承認を尋ねる。単独で実行する `/mergepr` は、件名と本文の全文を会話に示す。** 本文は長くなりやすく、要約を画面に収めるためである。単独の `/mergepr` は、承認に要る項目だけを示すので画面に収まる（F-004）。
+--   **PR のコミットの訂正の行に受け付けない文字を含む行があるときは、マージの質問の前に、すべてのその行について 1 つの単一選択の問いで、すべて落とすか、ブランチで直すために止まるかを人が選ぶ。行ごとの報告は詳細ファイルに書く。マージの質問では、訂正の行を落とす答えを `C<番号>:<場合>` の形の自由記述で受け付け、訂正の行があるときだけ要約に訂正の行の行を出す。** 受け付けない文字を含む行を `main` に写さないことと、落とす場合を限ることは [ADR-0039](0039-adr-writing-criteria.md) の決定で、どの場合を落とせるかは [0106 要件定義書](../../tasks/0106_squash_editorial_corrections/01_requirements.md) の F-004 が持つ。ブランチで直すときは行によらず `/mergepr` をやり直すので、行ごとに問うても選べる組み合わせは増えない。単一選択にするのは、deferred のスレッドの問いと同じく、chief が中継するのが 1 つを選ぶ問いだけだからである（ADR-0046）。`C` を付けるのは、除外スレッドの判定を覆す数字だけの答えと見分けるためである（[0106 設計書](../../tasks/0106_squash_editorial_corrections/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-19）」）。今の [runpr.md](../../../.claude/commands/runpr.md) と [mergepr.md](../../../.claude/commands/mergepr.md) は、まだこの問いと答えの形を持たない。このずれは、[#747](https://github.com/isseis/yt2column/issues/747) で扱う。
++-   **PR のコミットの訂正の行に受け付けない文字を含む行があるときは、マージの質問の前に、すべてのその行について 1 つの単一選択の問いで、すべて落とすか、ブランチで直すために止まるかを人が選ぶ。行ごとの報告は詳細ファイルに書く。マージの質問では、訂正の行を落とす答えを `C<番号>:<場合>` の形の自由記述で受け付け、訂正の行があるときだけ要約に訂正の行の行を出す。** 受け付けない文字を含む行を `main` に写さないことと、落とす場合を限ることは [ADR-0039](0039-adr-writing-criteria.md) の決定で、どの場合を落とせるかは [0106 要件定義書](../../tasks/0106_squash_editorial_corrections/01_requirements.md) の F-004 が持つ。ブランチで直すときは行によらず `/mergepr` をやり直すので、行ごとに問うても選べる組み合わせは増えない。単一選択にするのは、deferred のスレッドの問いと同じく、chief が中継するのが 1 つを選ぶ問いだけだからである（ADR-0046）。`C` を付けるのは、除外スレッドの判定を覆す数字だけの答えと見分けるためである（[0106 設計書](../../tasks/0106_squash_editorial_corrections/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-19）」）。
+ -   **3 文書の PR の「通常の進め方へ戻す」と除外スレッドは、マージの質問で示す。** [ADR-0040](0040-simple-task-documents.md) の決定を保つためである。deferred の問いからも戻せるようにしたことで、ADR-0040 の戻す入口が 1 つ増えた。除外スレッドの判定を覆すスレッドは、番号を自由記述で指定する（F-003）。
+
+ ## 採らなかった案
+````
 
 ## 8. 成功の基準 (Success Criteria)
 

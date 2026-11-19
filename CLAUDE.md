@@ -978,13 +978,15 @@ Only the conventions a linter does not check are worth stating:
   as for a guard test.
 - The same exception covers the chief tool's task reader,
   `internal/chief/task.go`: a literal that has to equal a heading's text or a
-  fixed part of it, a field label, a value line's prefix, or a checkbox's text
-  in an implementation plan (such as `作成ポイント`, `**実装モデル要件**: `,
-  `**自動送信**: `, `PR 構成`, and `PR を作成した`), which it reads to find
-  a plan's PRs, their values, and their progress; and the start of the line
-  of a requirements document that names its issue (`対応 issue: `) with the
-  full-width parenthesis (`（`) that ends the part of the line it reads,
-  which it reads to find the task that answers an issue. Comments,
+  fixed part of it, a field label, a value line's prefix, the start of a
+  step's bold line, or a checkbox's text in an implementation plan (such as
+  `作成ポイント`, `**実装モデル要件**: `, `**自動送信**: `, `PR 構成`,
+  `PR を作成した`, and `ステップ`), which it reads to find a plan's PRs,
+  their values and progress, and its steps and their progress; and the
+  start of the line of a requirements document that names its issue
+  (`対応 issue: `) with the full-width parenthesis (`（`) that ends the part
+  of the line it reads, which it reads to find the task that answers an
+  issue. Comments,
   identifiers, and the text the tool prints, other than the status table's
   fixed words (the status table exception below), stay English, and the
   plans and
@@ -998,7 +1000,8 @@ Only the conventions a linter does not check are worth stating:
   literals. Scope: the literals of `internal/chief/table.go` that are the
   status table's fixed words — the header, the legend, the status words, the
   work item strings, the reasons no running command is decided, `＋指示`, the
-  count (`件`) and `マージ確認` put before a question, and the line shown when
+  count (`件`) and `マージ確認` put before a question, `削除を提案` on the row
+  of a finished task whose removal chief proposes, and the line shown when
   there are no rows (`workspace なし`) — which reach the tool's output as the
   text of the table; and the same words in its test,
   `internal/chief/table_test.go`. Reason: the

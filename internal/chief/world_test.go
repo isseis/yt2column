@@ -16,6 +16,16 @@ import (
 type fakeAgent struct {
 	Pane, Workspace, Kind, Status, Session, Dir string
 	Seq                                         int
+	// Tab is the agent's tab, "<Workspace>:t1" when empty.
+	Tab string
+}
+
+// tab is the agent's tab ID.
+func (a fakeAgent) tab() string {
+	if a.Tab != "" {
+		return a.Tab
+	}
+	return a.Workspace + ":t1"
 }
 
 func (a fakeAgent) object() string {
@@ -23,8 +33,29 @@ func (a fakeAgent) object() string {
 	if a.Session != "" {
 		session = fmt.Sprintf(`"agent_session":{"agent":%q,"kind":"id","source":"herdr:%[1]s","value":%q},`, a.Kind, a.Session)
 	}
-	return fmt.Sprintf(`{"agent":%q,%s"agent_status":%q,"cwd":%q,"pane_id":%q,"state_change_seq":%d,"workspace_id":%q}`,
-		a.Kind, session, a.Status, a.Dir, a.Pane, a.Seq, a.Workspace)
+	return fmt.Sprintf(`{"agent":%q,%s"agent_status":%q,"cwd":%q,"pane_id":%q,"state_change_seq":%d,"tab_id":%q,"workspace_id":%q}`,
+		a.Kind, session, a.Status, a.Dir, a.Pane, a.Seq, a.tab(), a.Workspace)
+}
+
+// tabListOutput is `herdr tab list` for the agents' tabs, each labeled with
+// the kind of its first agent.
+func tabListOutput(agents []fakeAgent) []byte {
+	var objs []string
+	seen := map[string]struct{}{}
+	for _, a := range agents {
+		if _, ok := seen[a.tab()]; ok {
+			continue
+		}
+		seen[a.tab()] = struct{}{}
+		objs = append(objs, fmt.Sprintf(`{"label":%q,"number":1,"tab_id":%q,"workspace_id":%q}`, a.Kind, a.tab(), a.Workspace))
+	}
+	return []byte(`{"id":"cli:tab:list","result":{"tabs":[` + strings.Join(objs, ",") + `],"type":"tab_list"}}`)
+}
+
+// paneLayoutOutput is `herdr pane layout` for a tab holding only pane, of
+// the given width, not split.
+func paneLayoutOutput(pane string, width int) []byte {
+	return []byte(fmt.Sprintf(`{"id":"cli:pane:layout","result":{"layout":{"area":{"height":40,"width":%[2]d,"x":0,"y":0},"panes":[{"pane_id":%[1]q,"rect":{"height":40,"width":%[2]d,"x":0,"y":0}}],"splits":[],"zoomed":false},"type":"pane_layout"}}`, pane, width))
 }
 
 func agentListOutput(agents []fakeAgent) []byte {
@@ -95,6 +126,9 @@ type world struct {
 }
 
 const worldChiefPane = "wc:p1"
+
+// worldChiefWidth is the width of the chief pane the fake Herdr reports.
+const worldChiefWidth = 120
 
 // newWorld sets up the fake chief workspace, the state directory, and the
 // replies chief's own worktree needs.
@@ -228,6 +262,8 @@ func (w *world) docs(tree string, d fakeDocs) {
 // finish sets the Herdr replies from the agents added so far.
 func (w *world) finish() Deps {
 	w.rec.reply("herdr agent list", agentListOutput(w.agents))
+	w.rec.reply("herdr tab list", tabListOutput(w.agents))
+	w.rec.reply("herdr pane layout --pane "+worldChiefPane, paneLayoutOutput(worldChiefPane, worldChiefWidth))
 	w.rec.reply("herdr workspace list", workspaceListOutput(w.labels))
 	w.rec.reply("herdr agent get "+worldChiefPane, agentGetOutput(w.chief))
 	return Deps{Env: w.env, Cmds: w.rec.commands(os.Environ()), Store: w.store, Now: func() time.Time { return w.now }, Sleep: func(context.Context, time.Duration) error { return nil }}

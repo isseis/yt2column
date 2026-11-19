@@ -84,6 +84,7 @@
 ### 1.5. 実装の際に決めたこと（2026-11-19）
 
 1.  **使える幅は、chief のタブを分割していなければ pane の幅 − 2、分割していれば pane の幅 − 4 とし、分割しているかを pane の配置の `layout.splits` が空かどうかで読む（人が選んだ）。** ステップ 1-1 の実物の確かめで、分割した pane では Herdr の枠の分の 2 桁が減り、拡大したときは `rect.width` が分割したときの幅のままだと分かった（§7「PR-1 の実行の記録」）。分割しない使い方が主なので、そのときの幅を最適にする。理由と採らなかった案は、要件書と設計書 1.5 の「実装の際に決めたこと（2026-11-19）」にある。これに合わせ、ステップ 1-5 で `parsePaneLayout` が `splits` を読み、そのテストを足し、ステップ 2-4 の `TestTableWidth` に分割したときの余白を足した。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
+2.  **タスク完了の行のうち、chief が workspace の削除を提案している行は、内容に `削除を提案` を示す（人が選んだ）。** 理由と採らなかった案は、要件書と設計書 1.5 の「実装の際に決めたこと（2026-11-19）」にある。PR-3 の中で、`table.go` に語と `contentOf` の分岐を、`TestTableContent` にその行を、CLAUDE.md の例外の語に `削除を提案` を足し、ガイドの 3.1 と 3.4 に書いた。ADR: なし（表示の細部のため）。
 
 ## 2. 実装のステップ (Implementation Steps)
 
@@ -171,8 +172,8 @@
 
 **変更するファイル:** `internal/chief/snapshot.go`・`tick.go`・`output.go`・`records.go`・`test_helpers.go` とそのテスト（`snapshot_test.go`・`autosend_test.go`・`output_test.go`・`world_test.go`）、`cmd/chief/main_test.go`・`docs_test.go`、`.claude/commands/chief.md`、`docs/dev/guides/chief_guide.md`、`docs/dev/conventions/package_reference.md`、`docs/tasks/0102_chief_text_table/_checks/`（新規）、本計画（§7 の実行の記録）
 
--   [ ] **ステップ 3-1**: `readRound` を `agentListing` に替え、`roundView` に pane とタブの対応とその読み取りのエラーを持たせる。`snapshot.go` に `readTableSources` を書き、`TakeSnapshot` と `Tick`（`BeginRound` より前）が呼ぶ。`finishSnapshot` が、行を並べた後に `layoutTable` で表を組み、`Snapshot` の `Table` と `TableUnreadable` に入れる（設計書 2.3・3.7・4 章）。材料のエラーの文は 512 バイトまでに切り（`CapHead`）、`Sanitize` する。同じコミットで、テストの world のエージェントの JSON に `tab_id` を足し、`tab list` と `pane layout` の答えを `world.finish` に、`cmd/chief` の答えを `fakeHerdr` に足す（§1.4）。記録係と `fakeHerdr` は答えのないコマンドでテストを失敗させるので、このコミットだけで `make test` が通るようにする。
--   [ ] **ステップ 3-2**: `SnapshotOutput` に `table` と `table_unreadable` を足す（設計書 3.1・3.8）。テストは次を確かめる。
+-   [x] **ステップ 3-1**: `readRound` を `agentListing` に替え、`roundView` に pane とタブの対応とその読み取りのエラーを持たせる。`snapshot.go` に `readTableSources` を書き、`TakeSnapshot` と `Tick`（`BeginRound` より前）が呼ぶ。`finishSnapshot` が、行を並べた後に `layoutTable` で表を組み、`Snapshot` の `Table` と `TableUnreadable` に入れる（設計書 2.3・3.7・4 章）。材料のエラーの文は 512 バイトまでに切り（`CapHead`）、`Sanitize` する。同じコミットで、テストの world のエージェントの JSON に `tab_id` を足し、`tab list` と `pane layout` の答えを `world.finish` に、`cmd/chief` の答えを `fakeHerdr` に足す（§1.4）。記録係と `fakeHerdr` は答えのないコマンドでテストを失敗させるので、このコミットだけで `make test` が通るようにする。
+-   [x] **ステップ 3-2**: `SnapshotOutput` に `table` と `table_unreadable` を足す（設計書 3.1・3.8）。テストは次を確かめる。
     -   `TestSnapshotTableMatchesRows`（`snapshot_test.go`）: 出力の表に、同じ出力の `rows` の名前・タスク・PR の番号と、各行の急ぎの度合いと状態の詳細から `table.go` が決める印と状態の文字列が、`rows` と同じ並びで現れること（AC-01・AC-02）。
     -   `TestTableSourcesUnreadable`（`snapshot_test.go`）: `tab list` と `pane layout` が失敗する・形に合わないラウンドと、エージェントの一覧の pane とタブの対応が読めない（`tab_id` がない、`pane_id` が重なる）ラウンドでも、ラウンドが失敗せず、行の状態・急ぎの度合い・`pending`・`problems` が読めたときと同じで、表が 80 桁と pane の ID で組まれ、`table_unreadable` が空でないこと（AC-05・AC-19、要件書 4.3）。512 バイトを超え ESC を含む Herdr のエラーの文が、`table_unreadable` で切られてエスケープされること。
     -   `TestTickTableSourcesUnreadable`（`autosend_test.go`）: `tick` で表の材料が読めなくても、`AutoSends` と pane への入力が読めたときと同じで、表が 80 桁と pane の ID で組まれること（AC-05・AC-19）。
@@ -181,12 +182,12 @@
     -   `TestTickRunsOnlyReadsInTheRightPlaces` と `TestSnapshotRunsOnlyReadsInTheRightPlaces`（`network_test.go`）が変えずに通ること。
     -   `TestStartThenSnapshot` と `TestStartThenTickAndWait`（`cmd/chief/main_test.go`）: `table` が空でないリストで、`table_unreadable` が `null` でないリストであること（AC-01）。
     -   `internal/chief` の中で表を組むこれらのテストは、ステップ 2-5 のヘルパーを組んだ表に当てる。`cmd/chief` のテストは別のパッケージなのでヘルパーを呼べず、`table` が空でないことだけを確かめる。
--   [ ] **ステップ 3-3**: `TestDisplayValuesMatchTool` と定数 `displayTableHeader` を、単独のコミットで除く（§1.3 の決定 6）。`make coverage-compare BASE=<親のコミット>` を、10 分以上のコマンドの時間制限を付けるか、バックグラウンドで走らせ、最後の行までの出力をコミットのメッセージと PR の説明に書く。
--   [ ] **ステップ 3-4**: `OutputValueNames` を除き、`namesUpToUnknown` と `maxValueNames` を `test_helpers.go` に移す。`TestOutputValueNames` を、`OutputValueNames` なしで出力の名前が値ごとに 1 つずつあることを確かめる形に直す（設計書 3.12）。`package_reference.md` から `OutputValueNames` を除く（§1.3 の決定 7）。
--   [ ] **ステップ 3-5**: `Protocol` を `origin/main` の値 + 1 にし、`/chief` の定義のすべての `--protocol` とガイドの 2 章の値を同じ値にする（AC-25）。`/chief` の定義の手順 2 の項目 2 を、設計書 3.9 のとおり置き換え、規則 2 に `table` と `table_unreadable` を足す（AC-03）。
--   [ ] **ステップ 3-6**: `_checks/` に、§1.3 の決定 5 のシェルのスクリプトを書く。各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、PR のブランチで走らせて、出力とマージの基点・比べたコミットの ID を §7 の「PR-3 の実行の記録」に書く。
--   [ ] **ステップ 3-7**: ガイドを設計書 3.10 のとおり直す（AC-24）。2 章に入れ直しの順と `protocol_mismatch` の意味を、3.1 に表の見方を、8 章に既知の制限を書き、8 章の今の項の語を直す。
--   [ ] **ステップ 3-8**: 実物の確かめを行う（§1.3 の決定 11、設計書 7.3 の (1)〜(5)）。人が、動いている `/chief` を止め、chief の worktree を PR-3 のブランチの先頭にして `make install-chief` を行い、`/chief` を起動し直す（ガイドの 2 章の順）。(3) は、人が chief の pane の幅を狭めて確かめる（幅を読めないときの 80 桁は `TestTableSourcesUnreadable` が確かめる）。(5) は、人が本タスクの workspace（PR-3 の `/runplan` のセッションがある workspace。表には名前の列に出る）の名前に ```` ``` ```` と `~~~` を一時的に入れて確かめ、確かめた後に元の名前に戻す。PR の題名・質問の文・タブのラベルに入れたときは、`TestTableKeepsCodeBlockOpen` が確かめる。ほかのタスクの workspace の名前、PR の題名、質問の文は変えない。`/runplan` のセッションは Herdr にも GitHub にも書かず、これらの操作は人が行う。結果を §7 の「PR-3 の実行の記録」に書く。どれかが成り立たなければ、ここで止まって人と決め直す。(1)・(4) は設計書 1.2 のとおり、(2)・(3)・(5) は行の組み方か幅の数え方を決め直すか、既知の制限として受け入れるかを尋ねる。確かめたコミットを §7 に書く。その後のコミット（`/fixpr` を含む）が `internal/chief` か `.claude/commands/chief.md` を変えたときは、マージの前に、変わった部分に関わる確かめをやり直して §7 に書く。
+-   [x] **ステップ 3-3**: `TestDisplayValuesMatchTool` と定数 `displayTableHeader` を、単独のコミットで除く（§1.3 の決定 6）。`make coverage-compare BASE=<親のコミット>` を、10 分以上のコマンドの時間制限を付けるか、バックグラウンドで走らせ、最後の行までの出力をコミットのメッセージと PR の説明に書く。
+-   [x] **ステップ 3-4**: `OutputValueNames` を除き、`namesUpToUnknown` と `maxValueNames` を `test_helpers.go` に移す。`TestOutputValueNames` を、`OutputValueNames` なしで出力の名前が値ごとに 1 つずつあることを確かめる形に直す（設計書 3.12）。`package_reference.md` から `OutputValueNames` を除く（§1.3 の決定 7）。
+-   [x] **ステップ 3-5**: `Protocol` を `origin/main` の値 + 1 にし、`/chief` の定義のすべての `--protocol` とガイドの 2 章の値を同じ値にする（AC-25）。`/chief` の定義の手順 2 の項目 2 を、設計書 3.9 のとおり置き換え、規則 2 に `table` と `table_unreadable` を足す（AC-03）。
+-   [x] **ステップ 3-6**: `_checks/` に、§1.3 の決定 5 のシェルのスクリプトを書く。各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、PR のブランチで走らせて、出力とマージの基点・比べたコミットの ID を §7 の「PR-3 の実行の記録」に書く。
+-   [x] **ステップ 3-7**: ガイドを設計書 3.10 のとおり直す（AC-24）。2 章に入れ直しの順と `protocol_mismatch` の意味を、3.1 に表の見方を、8 章に既知の制限を書き、8 章の今の項の語を直す。
+-   [x] **ステップ 3-8**: 実物の確かめを行う（§1.3 の決定 11、設計書 7.3 の (1)〜(5)）。人が、動いている `/chief` を止め、chief の worktree を PR-3 のブランチの先頭にして `make install-chief` を行い、`/chief` を起動し直す（ガイドの 2 章の順）。(3) は、人が chief の pane の幅を狭めて確かめる（幅を読めないときの 80 桁は `TestTableSourcesUnreadable` が確かめる）。(5) は、人が本タスクの workspace（PR-3 の `/runplan` のセッションがある workspace。表には名前の列に出る）の名前に ```` ``` ```` と `~~~` を一時的に入れて確かめ、確かめた後に元の名前に戻す。PR の題名・質問の文・タブのラベルに入れたときは、`TestTableKeepsCodeBlockOpen` が確かめる。ほかのタスクの workspace の名前、PR の題名、質問の文は変えない。`/runplan` のセッションは Herdr にも GitHub にも書かず、これらの操作は人が行う。結果を §7 の「PR-3 の実行の記録」に書く。どれかが成り立たなければ、ここで止まって人と決め直す。(1)・(4) は設計書 1.2 のとおり、(2)・(3)・(5) は行の組み方か幅の数え方を決め直すか、既知の制限として受け入れるかを尋ねる。確かめたコミットを §7 に書く。その後のコミット（`/fixpr` を含む）が `internal/chief` か `.claude/commands/chief.md` を変えたときは、マージの前に、変わった部分に関わる確かめをやり直して §7 に書く。
 
 **完了の条件:** 各ステップのテストとスクリプトが通る。`make test`・`make lint`・`make deadcode` が通る。実物の確かめの結果が §7 にある。
 
@@ -204,10 +205,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1034
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -258,12 +259,12 @@
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
-- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
+- [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
 
 `make lint` と `make test` で見つからない後始末は次のとおりである。
 
-- [ ] `OutputValueNames`・`TestDisplayValuesMatchTool`・`displayTableHeader` を引く文書が、本タスクの文書と、完了したタスクの記録（0093・0103）のほかに残っていない（ステップ 3-3・3-4。完了したタスクの記録は変えない）。
-- [ ] ガイドの 3.1 と 8 章に、使わなくなった語（「🔴 今」「🟡 後」「🟢 待」「（後に指示あり）」「作成中」「`/runpr` 実行中」）が、今の表の説明として残っていない（ステップ 3-7。PR のレビューで読む）。
+- [x] `OutputValueNames`・`TestDisplayValuesMatchTool`・`displayTableHeader` を引く文書が、本タスクの文書と、完了したタスクの記録（0093・0103）のほかに残っていない（ステップ 3-3・3-4。完了したタスクの記録は変えない）。
+- [x] ガイドの 3.1 と 8 章に、使わなくなった語（「🔴 今」「🟡 後」「🟢 待」「（後に指示あり）」「作成中」「`/runpr` 実行中」）が、今の表の説明として残っていない（ステップ 3-7。PR のレビューで読む）。
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -336,11 +337,42 @@
 
 ### PR-3 の実行の記録
 
-（ステップ 3-3 の比較の出力と、ステップ 3-8 の結果・確かめたコミット・やり直した確かめを `/runplan` が書く。）
+**ステップ 3-3（テストの削除の比較、2026-11-19）。** `TestDisplayValuesMatchTool` と `displayTableHeader` を除くコミット（ツリー `b9f8913a0574ed51533da793d3ead0de8b70e5ae`）で、親のコミットを `BASE` にして `make coverage-compare` を走らせた。1 回目は、走らせている間に作業ツリーを変えたので `STOP internal`（`the user's git status changed during the run`）で止まった。作業ツリーをきれいにして走らせ直した 2 回目の出力は次のとおりで、同じものを削除のコミットのメッセージに書いた。`head` のコミットの ID は、メッセージを書き直す前のものである。
+
+```text
+target    make coverage-compare BASE="fd54f4f2"
+base      fd54f4f2715347ce5dca8e567ee79898b5fae3c0
+head      b6cc914e622bb357d994bbe165595a7d3584b528 tree b9f8913a0574ed51533da793d3ead0de8b70e5ae
+toolchain go1.27.1
+tests     base 1640 head 1639
+files     base 185 head 185
+functions base 1941 head 1941
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+**ステップ 3-8（実物の確かめ、2026-11-19）。** Claude Code 2.1.328、herdr 0.9.1。確かめたコミットは `599785787571`（`git rev-parse` の先頭 12 桁。ステップ 3-1〜3-7 とレビューの修正をすべて含む）。人が `/chief` を止め、chief の worktree をこのコミットに detached で切り替えて `make install-chief` を行い、`/chief` を起動し直して、画面で確かめた。
+
+-   (1) 成り立った。分割していない chief の pane で、表のどの行も code block の右端で折り返さなかった。
+-   (2) 成り立った。全角の文字・絵文字・`…`・`─` を含む表で、列がそろった。
+-   (3) 成り立った。pane を狭めると、次のラウンドの表が狭い幅で組み直された。
+-   (4) 成り立った。1 回目は、左右に分割した chief の pane が `rect.width` 41（`splits` が 1 つ）で、使える幅 37 桁に対し、この表は内容の列より前に 44 桁（状態 15・名前 10・タスク 6・PR 5・間の空白 8）と最小の内容の列 20 桁を使うので、すべての行が折り返した。AC-05 で受け入れた狭い pane の場合で、「pane の幅 − 4 の行が折り返さない」ことはこの幅では確かめられないので、Fable の部分レビューの指摘を受けて、人が幅を広げてやり直すことを選んだ。やり直しでは、端末を広げ（`area.width` 166）、左右に分割した chief の pane（`rect.width` 83、`splits` が 1 つ）と、それをさらに上下に分割した入れ子の分割の chief の pane（`rect.width` 83、`splits` が 2 つ）のどちらでも、次のラウンドの表（使える幅 79 桁）が折り返さなかった。上下に分割したとき、分割して拡大したとき、分割せずに拡大したときも、次のラウンドの表が折り返さず、はみ出さなかった。
+-   (5) 成り立った。人が本タスクの workspace の名前に ```` ``` ```` と `~~~` を一時的に入れ、表が code block の中に収まり、後ろの行が Markdown として描かれないことを確かめ、元の名前に戻した。
+-   確かめの間の表に、chief が作った終わったタスクの workspace（issue-1011）の行が「タスク完了」と `削除を提案` で示された（§1.5 の決定 2）。
 
 AC-03 の diff の記録（ステップ 3-6 のスクリプトの出力、マージの基点と比べたコミットの ID）:
 
-（`/runplan` が書く。）
+-   スクリプト: `docs/tasks/0102_chief_text_table/_checks/ac03_step2_diff.sh`
+-   マージの基点: `bd08ef9dd6cd2d19b8bc91c871697ce9fa02353e`
+-   比べたコミット: `2078ad843c240b1eff5d614d89dd3c13d0a47089`（`/chief` の定義を変えたステップ 3-5 のコミット。その後のコミットは `.claude/commands/chief.md` を変えていない）
+-   壊し方の確かめ: 比べるコミットの定義を変えた一時のコミット（`git commit-tree` で作り、ブランチには置かない）で、項目 1 の文を変える・項目 3 の文を変える・項目 3 の見出しを消す、と、比べるコミットにマージの基点を渡して項目 2 を変えないものは、それぞれ失敗した。`--protocol` の値だけを変えたものは通った。
+
+```text
+$ bash docs/tasks/0102_chief_text_table/_checks/ac03_step2_diff.sh bd08ef9dd6cd2d19b8bc91c871697ce9fa02353e 2078ad843c240b1eff5d614d89dd3c13d0a47089
+OK: step 2 outside item 2 is unchanged but for --protocol values
+OK: item 2 changed
+```
 
 ## 8. 成功の基準 (Success Criteria)
 
@@ -358,3 +390,4 @@ AC-03 の diff の記録（ステップ 3-6 のスクリプトの出力、マー
 
 - 2026-11-19 承認（isseis、#1000）
 - 2026-11-19 セッション中の再承認：使える幅を、タブを分割していれば pane の幅 − 4 にし、parsePaneLayout が splits を読むステップとテストを足した（isseis、#1012）
+- 2026-11-19 セッション中の再承認：chief が削除を提案しているタスク完了の行に「削除を提案」を示す変更を PR-3 に足した（isseis、#1034）

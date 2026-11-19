@@ -5,6 +5,7 @@ package mergepr
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -87,6 +88,8 @@ func TestPrepare(t *testing.T) {
 		statFileName:   " a.txt | 1 +\n",
 		bodyFileName:   "the PR description",
 		markerFileName: markerContent,
+		// The fake reading finds no correction line.
+		correctionsFileName: "",
 	} {
 		if got := readFile(t, filepath.Join(prepared.Dir, name)); got != want {
 			t.Errorf("%s = %q, want %q", name, got, want)
@@ -295,7 +298,7 @@ func viewHeadStep(state, base, head string) commandStep {
 }
 
 func mergeStep() commandStep {
-	return ghStep("", "pr", "merge", "42", "--squash", "--subject", "feat: subject (#42)", "--body", "body text\n", "--match-head-commit", testHeadOID)
+	return ghStep("", "pr", "merge", "42", "--squash", "--subject", "feat: subject (#42)", "--body-file", anyBodyFile, "--match-head-commit", testHeadOID)
 }
 
 // cleanupSteps is a cleanup run from the head branch in a checkout where no
@@ -335,12 +338,12 @@ func TestMerge(t *testing.T) {
 	steps := []commandStep{viewStep(openState, "main"), fetchMainStep(), mergeStep()}
 	tool, runner := newTool(t, append(steps, cleanupSteps(testHeadOID)...)...)
 
-	report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+	report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
 	if err != nil {
 		t.Fatalf("Merge returned error: %v", err)
 	}
 	runner.done()
-	want := Report{ProtocolCheck: testSummary.String(), MergeCommitOID: testMergeOID, BaseUpdated: true, LocalDeleted: true}
+	want := Report{ProtocolCheck: testSummary.String(), MergeCommitOID: testMergeOID, BaseUpdated: true, LocalDeleted: true, Merged: true, CorrectionsChecked: true}
 	if !reflect.DeepEqual(report, want) {
 		t.Errorf("report = %+v, want %+v", report, want)
 	}
@@ -363,7 +366,7 @@ func TestMergeRejectsLivePR(t *testing.T) {
 			_, statePath, subjectPath, bodyPath := mergeFiles(t)
 			tool, runner := newTool(t, tt.view)
 
-			if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, tt.want) {
+			if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{}); !errors.Is(err, tt.want) {
 				t.Fatalf("Merge error = %v, want %v", err, tt.want)
 			}
 			runner.done()
@@ -377,7 +380,7 @@ func TestMergeRejectsInvalidSubject(t *testing.T) {
 		subjectPath := writeTempFile(t, t.TempDir(), "subject.txt", subject)
 		tool, runner := newTool(t)
 
-		if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, errInvalidSubject) {
+		if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{}); !errors.Is(err, errInvalidSubject) {
 			t.Errorf("Merge(subject %q) error = %v, want errInvalidSubject", subject, err)
 		}
 		runner.done()
@@ -388,7 +391,7 @@ func TestCleanupKeepsMovedLocalBranch(t *testing.T) {
 	statePath := writeStateFile(t, t.TempDir())
 	tool, runner := newTool(t, cleanupSteps(testOtherOID)...)
 
-	report, err := tool.Cleanup(t.Context(), statePath)
+	report, err := tool.Cleanup(t.Context(), statePath, "")
 	if !errors.Is(err, errLocalBranchMoved) {
 		t.Fatalf("Cleanup error = %v, want errLocalBranchMoved", err)
 	}
@@ -402,12 +405,12 @@ func TestCleanupWithoutLocalBranch(t *testing.T) {
 	statePath := writeStateFile(t, t.TempDir())
 	tool, runner := newTool(t, cleanupSteps("")...)
 
-	report, err := tool.Cleanup(t.Context(), statePath)
+	report, err := tool.Cleanup(t.Context(), statePath, "")
 	if err != nil {
 		t.Fatalf("Cleanup returned error: %v", err)
 	}
 	runner.done()
-	want := Report{MergeCommitOID: testMergeOID, BaseUpdated: true}
+	want := Report{MergeCommitOID: testMergeOID, BaseUpdated: true, Merged: true}
 	if !reflect.DeepEqual(report, want) {
 		t.Errorf("report = %+v, want %+v", report, want)
 	}
@@ -417,7 +420,7 @@ func TestCleanupRejectsUnmergedPR(t *testing.T) {
 	statePath := writeStateFile(t, t.TempDir())
 	tool, runner := newTool(t, viewStep(openState, "main"))
 
-	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errPRNotMerged) {
+	if _, err := tool.Cleanup(t.Context(), statePath, ""); !errors.Is(err, errPRNotMerged) {
 		t.Fatalf("Cleanup error = %v, want errPRNotMerged", err)
 	}
 	runner.done()
@@ -427,7 +430,7 @@ func TestCleanupRejectsMergedHeadMoved(t *testing.T) {
 	statePath := writeStateFile(t, t.TempDir())
 	tool, runner := newTool(t, viewHeadStep(mergedState, "main", testOtherOID))
 
-	report, err := tool.Cleanup(t.Context(), statePath)
+	report, err := tool.Cleanup(t.Context(), statePath, "")
 	if !errors.Is(err, errMergedHeadMoved) {
 		t.Fatalf("Cleanup error = %v, want errMergedHeadMoved", err)
 	}
@@ -448,7 +451,7 @@ func TestCleanupOnBaseBranchSkipsSwitch(t *testing.T) {
 		gitStep("", "branch", "-D", "feature/foo"),
 	)
 
-	if _, err := tool.Cleanup(t.Context(), statePath); err != nil {
+	if _, err := tool.Cleanup(t.Context(), statePath, ""); err != nil {
 		t.Fatalf("Cleanup returned error: %v", err)
 	}
 	runner.done()
@@ -463,7 +466,7 @@ func TestCleanupLeavesBaseInAnotherWorktree(t *testing.T) {
 		gitStep("worktree /repo\nbranch refs/heads/main\n\nworktree /wt\nbranch refs/heads/feature/foo\n\n", "worktree", "list", "--porcelain"),
 	)
 
-	report, err := tool.Cleanup(t.Context(), statePath)
+	report, err := tool.Cleanup(t.Context(), statePath, "")
 	if err != nil {
 		t.Fatalf("Cleanup returned error: %v", err)
 	}
@@ -484,7 +487,7 @@ func TestCleanupRemovesWorkDirectory(t *testing.T) {
 	writeTempFile(t, workDir, "subject.txt", "feat: subject (#42)\n")
 	tool, runner := newTool(t, cleanupSteps(testHeadOID)...)
 
-	if _, err := tool.Cleanup(t.Context(), statePath); err != nil {
+	if _, err := tool.Cleanup(t.Context(), statePath, ""); err != nil {
 		t.Fatalf("Cleanup returned error: %v", err)
 	}
 	runner.done()
@@ -506,7 +509,7 @@ func TestCleanupKeepsUnrelatedFilesInWorkDirectory(t *testing.T) {
 	unrelated := writeTempFile(t, workDir, "notes.md", "keep me")
 	tool, runner := newTool(t, cleanupSteps(testHeadOID)...)
 
-	if _, err := tool.Cleanup(t.Context(), statePath); err != nil {
+	if _, err := tool.Cleanup(t.Context(), statePath, ""); err != nil {
 		t.Fatalf("Cleanup returned error: %v", err)
 	}
 	runner.done()
@@ -526,7 +529,7 @@ func TestCleanupKeepsWorkDirectoryOnError(t *testing.T) {
 	statePath := writeStateFileRecording(t, workDir, workDir)
 	tool, runner := newTool(t, cleanupSteps(testOtherOID)...)
 
-	if _, err := tool.Cleanup(t.Context(), statePath); !errors.Is(err, errLocalBranchMoved) {
+	if _, err := tool.Cleanup(t.Context(), statePath, ""); !errors.Is(err, errLocalBranchMoved) {
 		t.Fatalf("Cleanup error = %v, want errLocalBranchMoved", err)
 	}
 	runner.done()
@@ -797,7 +800,7 @@ func TestMergeRunsProtocolCheck(t *testing.T) {
 		t.Run(stop.name, func(t *testing.T) {
 			dir, statePath, subjectPath, bodyPath := mergeFiles(t)
 			tool, runner, checker := newCheckedTool(t, stop.err, lead...)
-			report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+			report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
 			if !errors.Is(err, stop.err) {
 				t.Fatalf("Merge error = %v, want %v", err, stop.err)
 			}
@@ -842,7 +845,7 @@ func TestProtocolFetchFailureStops(t *testing.T) {
 	t.Run("merge", func(t *testing.T) {
 		_, statePath, subjectPath, bodyPath := mergeFiles(t)
 		tool, runner, checker := newCheckedTool(t, nil, viewStep(openState, "main"), failedFetch)
-		_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+		_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
 		assertFetchUnreadable(t, err)
 		// A failed fetch leaves the preparation usable, so the operator is
 		// not told to discard it.
@@ -874,7 +877,7 @@ func TestMergeKeepsSummaryWhenMergeFails(t *testing.T) {
 	refused := mergeStep()
 	refused.err = errors.New("exit status 1")
 	tool, runner := newTool(t, viewStep(openState, "main"), fetchMainStep(), refused)
-	report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+	report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
 	if err == nil {
 		t.Fatal("Merge returned nil, want the refused merge's error")
 	}
@@ -999,7 +1002,7 @@ func TestMergeNumberCheck(t *testing.T) {
 	t.Run("pass", func(t *testing.T) {
 		_, statePath, subjectPath, bodyPath := mergeFiles(t)
 		tool, runner, numbers := newNumberedTool(t, nil, nil, append(append(slices.Clone(lead), mergeStep()), cleanupSteps(testHeadOID)...)...)
-		if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); err != nil {
+		if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{}); err != nil {
 			t.Fatalf("Merge returned error: %v", err)
 		}
 		runner.done()
@@ -1011,7 +1014,7 @@ func TestMergeNumberCheck(t *testing.T) {
 		t.Run(stop.name, func(t *testing.T) {
 			dir, statePath, subjectPath, bodyPath := mergeFiles(t)
 			tool, runner, numbers := newNumberedTool(t, stop.issues, stop.err, lead...)
-			_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath)
+			_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
 			assertNumberStop(t, err, stop.issues)
 			runner.done()
 			if !slices.Equal(numbers.calls, wantCall) {
@@ -1046,7 +1049,7 @@ func TestMergeNumberCheck(t *testing.T) {
 		refused := mergeStep()
 		refused.err = errors.New("exit status 1")
 		tool, runner, numbers := newNumberedTool(t, numberStops[0].issues, nil, viewStep(openState, "release"), fetchMainStep(), refused)
-		if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath); !errors.Is(err, refused.err) {
+		if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{}); !errors.Is(err, refused.err) {
 			t.Fatalf("Merge error = %v, want the refused merge's error", err)
 		}
 		runner.done()
@@ -1054,4 +1057,570 @@ func TestMergeNumberCheck(t *testing.T) {
 			t.Errorf("number check calls = %+v, want none for a PR into release", numbers.calls)
 		}
 	})
+}
+
+// testCommitA and testCommitB are commits of the fake correction reading.
+const (
+	testCommitA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	testCommitB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+)
+
+// testCorrection and testOtherCorrection are accepted correction lines.
+const (
+	testCorrection      = "Editorial correction: docs/dev/adr/0001-x.md: fixed a link; no decision changed"
+	testOtherCorrection = "Editorial correction: docs/tasks/0001_x/02_architecture.md: renamed a step; no decision changed"
+)
+
+// correctedBody is a body that carries testCorrection as its block, between
+// the summary and the trailers, as the command documents build it.
+const correctedBody = "Summary line.\n\n" + testCorrection + "\n\nCo-Authored-By: Someone <someone@example.com>\n"
+
+// sourceOf returns the fake correction reading of a Tool newCheckedTool made.
+func sourceOf(t *testing.T, tool *Tool) *fakeCorrectionSource {
+	t.Helper()
+	source, ok := tool.corrections.(*fakeCorrectionSource)
+	if !ok {
+		t.Fatalf("corrections = %T, want the fake", tool.corrections)
+	}
+	return source
+}
+
+// TestPrepareWritesCorrections verifies that Prepare reads the correction
+// lines of the range on the head and base gh reported, after the diff stat
+// and before the work directory is located, writes the accepted lines (each
+// byte sequence once) to corrections.txt, returns the rejected lines without
+// stopping, and that a range it cannot read stops it with nothing created.
+func TestPrepareWritesCorrections(t *testing.T) {
+	newGitDir := func(t *testing.T) (string, string) {
+		workRoot := t.TempDir()
+		gitDir := filepath.Join(workRoot, ".git")
+		if err := os.Mkdir(gitDir, 0o700); err != nil {
+			t.Fatalf("create git dir: %v", err)
+		}
+		return workRoot, gitDir
+	}
+	// The reading runs after the PR view and the first five tail steps.
+	const readAt = 6
+	t.Run("lines", func(t *testing.T) {
+		workRoot, gitDir := newGitDir(t)
+		tool, runner := newTool(t, append([]commandStep{
+			ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+		}, prepareTailSteps(workRoot, gitDir)...)...)
+		source := sourceOf(t, tool)
+		rejected := "Editorial correction: mail me@example.com"
+		source.lines = []correctionLine{
+			{Commit: testCommitA, Line: 3, Text: []byte(testCorrection)},
+			{Commit: testCommitA, Line: 4, Text: []byte(rejected)},
+			{Commit: testCommitB, Line: 1, Text: []byte(testCorrection)},
+			{Commit: testCommitB, Line: 5, Text: []byte(testOtherCorrection)},
+		}
+		prepared, err := tool.Prepare(t.Context(), "42")
+		if err != nil {
+			t.Fatalf("Prepare returned error: %v", err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
+		runner.done()
+		if want := []sourceCall{{method: "rangeLines", index: readAt}}; !slices.Equal(source.calls, want) {
+			t.Errorf("reading calls = %+v, want %+v", source.calls, want)
+		}
+		if source.gotBase != "main" || source.gotHead != testHeadOID {
+			t.Errorf("reading base, head = %q, %q, want main, %s", source.gotBase, source.gotHead, testHeadOID)
+		}
+		if got, want := readFile(t, filepath.Join(prepared.Dir, correctionsFileName)), testCorrection+"\n"+testOtherCorrection+"\n"; got != want {
+			t.Errorf("corrections.txt = %q, want %q", got, want)
+		}
+		if prepared.Accepted != 2 {
+			t.Errorf("Accepted = %d, want 2", prepared.Accepted)
+		}
+		wantRejected := []RejectedLine{{Commit: testCommitA, Line: 4, Kinds: []RejectKind{RejectAt}, Shown: `"` + rejected + `"`}}
+		if !reflect.DeepEqual(prepared.Rejected, wantRejected) {
+			t.Errorf("Rejected = %+v, want %+v", prepared.Rejected, wantRejected)
+		}
+	})
+	t.Run("unreadable", func(t *testing.T) {
+		workRoot, gitDir := newGitDir(t)
+		tail := prepareTailSteps(workRoot, gitDir)
+		// The steps that locate the work directory must not run.
+		tool, runner := newTool(t, append([]commandStep{
+			ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+		}, tail[:readAt-1]...)...)
+		source := sourceOf(t, tool)
+		source.err = fmt.Errorf("%w: cat-file failed", errCorrectionUnreadable)
+		if _, err := tool.Prepare(t.Context(), "42"); !errors.Is(err, errCorrectionUnreadable) {
+			t.Fatalf("Prepare error = %v, want errCorrectionUnreadable", err)
+		}
+		runner.done()
+		entries, err := os.ReadDir(gitDir)
+		if err != nil {
+			t.Fatalf("read git dir: %v", err)
+		}
+		if len(entries) != 0 {
+			t.Errorf("git dir holds %d entries after an unreadable range, want none", len(entries))
+		}
+	})
+}
+
+// TestParagraph verifies that Paragraph writes the block with the drops
+// applied into the work directory, without running any command, and that a
+// rejected line no drop declares stops it before it writes.
+func TestParagraph(t *testing.T) {
+	lines := []correctionLine{
+		{Commit: testCommitA, Line: 3, Text: []byte(testCorrection)},
+		{Commit: testCommitA, Line: 4, Text: []byte("Editorial correction: <tag>")},
+		{Commit: testCommitB, Line: 2, Text: []byte(testOtherCorrection)},
+	}
+	tests := []struct {
+		name      string
+		drops     Drops
+		want      string
+		wantLines int
+		wantErr   error
+	}{
+		{
+			name:      "drops applied",
+			drops:     Drops{Accepted: []Drop{{Index: 2, Case: DropReverted}}, Rejected: []RejectedDrop{{Commit: testCommitA, Line: 4}}},
+			want:      testCorrection + "\nDropped editorial corrections: 0 disputed by a reviewer, 1 reverted on the branch, 1 with rejected characters\n\n",
+			wantLines: 2,
+		},
+		{
+			name:    "undeclared rejected line",
+			drops:   Drops{},
+			wantErr: errCorrectionMismatch,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, statePath, _, _ := mergeFiles(t)
+			tool, runner := newTool(t)
+			source := sourceOf(t, tool)
+			source.lines = lines
+			path, n, err := tool.Paragraph(t.Context(), statePath, tt.drops)
+			runner.done()
+			if source.gotBase != "main" || source.gotHead != testHeadOID {
+				t.Errorf("range read on base %q, head %q, want main, %s from the state file", source.gotBase, source.gotHead, testHeadOID)
+			}
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("Paragraph error = %v, want %v", err, tt.wantErr)
+				}
+				if _, err := os.Stat(filepath.Join(dir, paragraphFileName)); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("paragraph.txt exists after a stop: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Paragraph returned error: %v", err)
+			}
+			if path != filepath.Join(dir, paragraphFileName) {
+				t.Errorf("path = %s, want paragraph.txt in %s", path, dir)
+			}
+			if n != tt.wantLines {
+				t.Errorf("lines = %d, want %d", n, tt.wantLines)
+			}
+			if got := readFile(t, path); got != tt.want {
+				t.Errorf("paragraph.txt = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestParagraphKeepsForgedWorkDirectory verifies that Paragraph writes only
+// into the directory Prepare made and marked: a state file in a directory
+// without the generated shape, without the marker, or that records another
+// directory gets errWorkDirMismatch, and no paragraph.txt appears.
+func TestParagraphKeepsForgedWorkDirectory(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T) (dir, statePath string)
+	}{
+		{"forged parent", func(t *testing.T) (string, string) {
+			repo := filepath.Join(t.TempDir(), "repo")
+			if err := os.Mkdir(repo, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			return repo, writeStateFileRecording(t, repo, repo)
+		}},
+		{"no marker", func(t *testing.T) (string, string) {
+			dir, err := os.MkdirTemp(t.TempDir(), workDirPrefix)
+			if err != nil {
+				t.Fatal(err)
+			}
+			statePath := writeStateFileRecording(t, dir, dir)
+			if err := os.Remove(filepath.Join(dir, markerFileName)); err != nil {
+				t.Fatal(err)
+			}
+			return dir, statePath
+		}},
+		{"unrelated directory", func(t *testing.T) (string, string) {
+			dir, err := os.MkdirTemp(t.TempDir(), workDirPrefix)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return dir, writeStateFileRecording(t, dir, filepath.Join(t.TempDir(), workDirPrefix+"original"))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, statePath := tt.setup(t)
+			tool, runner := newTool(t)
+			sourceOf(t, tool).lines = []correctionLine{{Commit: testCommitA, Line: 3, Text: []byte(testCorrection)}}
+			if _, _, err := tool.Paragraph(t.Context(), statePath, Drops{}); !errors.Is(err, errWorkDirMismatch) {
+				t.Fatalf("Paragraph error = %v, want errWorkDirMismatch", err)
+			}
+			runner.done()
+			if _, err := os.Stat(filepath.Join(dir, paragraphFileName)); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("paragraph.txt written into %s: %v", dir, err)
+			}
+		})
+	}
+}
+
+// TestCheckBody verifies that CheckBody passes a body that carries the
+// block, stops one that does not, and runs no command either way.
+func TestCheckBody(t *testing.T) {
+	tests := []struct {
+		name      string
+		subject   string
+		body      string
+		drops     Drops
+		wantLines int
+		wantErr   error
+	}{
+		{"block carried", "feat: subject (#42)\n", correctedBody, Drops{}, 1, nil},
+		{"line dropped", "feat: subject (#42)\n", "Summary line.\n\nDropped editorial corrections: 1 disputed by a reviewer, 0 reverted on the branch, 0 with rejected characters\n", Drops{Accepted: []Drop{{Index: 1, Case: DropDisputed}}}, 1, nil},
+		// Only the subject file's wiring can stop this row: the body is right.
+		{"correction line in the subject", testCorrection + "\n", correctedBody, Drops{}, 0, errCorrectionMismatch},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, statePath, _, _ := mergeFiles(t)
+			subjectPath := writeTempFile(t, dir, "checked-subject.txt", tt.subject)
+			bodyPath := writeTempFile(t, dir, "checked.txt", tt.body)
+			tool, runner := newTool(t)
+			source := sourceOf(t, tool)
+			source.lines = []correctionLine{{Commit: testCommitA, Line: 3, Text: []byte(testCorrection)}}
+			n, err := tool.CheckBody(t.Context(), statePath, subjectPath, bodyPath, tt.drops)
+			runner.done()
+			if source.gotBase != "main" || source.gotHead != testHeadOID {
+				t.Errorf("range read on base %q, head %q, want main, %s from the state file", source.gotBase, source.gotHead, testHeadOID)
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("CheckBody error = %v, want %v", err, tt.wantErr)
+			}
+			if n != tt.wantLines {
+				t.Errorf("lines = %d, want %d", n, tt.wantLines)
+			}
+		})
+	}
+}
+
+// bodyFileSeen is what the gh pr merge hook saw of the file it was given.
+type bodyFileSeen struct {
+	path    string
+	content string
+	mode    os.FileMode
+}
+
+// seeBodyFile returns a hook that records the --body-file the merge passes,
+// then rewrites the caller's body file at rewrite (when not empty), so a test
+// can tell the checked bytes from the file's later content.
+func seeBodyFile(t *testing.T, seen *bodyFileSeen, rewrite string) func([]string) {
+	return func(args []string) {
+		i := slices.Index(args, "--body-file")
+		if i < 0 || i+1 >= len(args) {
+			t.Errorf("gh pr merge args %q have no --body-file value", args)
+			return
+		}
+		seen.path = args[i+1]
+		info, err := os.Stat(seen.path)
+		if err != nil {
+			t.Errorf("stat the body file: %v", err)
+			return
+		}
+		seen.mode = info.Mode().Perm()
+		seen.content = readFile(t, seen.path)
+		if rewrite != "" {
+			writeTempFile(t, filepath.Dir(rewrite), filepath.Base(rewrite), "Summary line.\n\n"+testOtherCorrection+"\n")
+		}
+	}
+}
+
+// TestMergePassesCheckedBody verifies that Merge hands gh the body it
+// checked (not the file as rewritten during the check) through a file of mode
+// 0600 outside the work directory, and that the file is gone when Merge
+// returns, after a merge and after a refused one.
+func TestMergePassesCheckedBody(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		t.Run(fmt.Sprintf("refused=%t", refused), func(t *testing.T) {
+			dir, statePath, subjectPath, bodyPath := mergeFiles(t)
+			writeTempFile(t, dir, filepath.Base(bodyPath), correctedBody)
+			var seen bodyFileSeen
+			merge := mergeStep()
+			merge.hook = seeBodyFile(t, &seen, "")
+			steps := []commandStep{viewStep(openState, "main"), fetchMainStep(), merge}
+			if refused {
+				steps[2].err = errors.New("exit status 1")
+			} else {
+				steps = append(steps, cleanupSteps(testHeadOID)...)
+			}
+			tool, runner := newTool(t, steps...)
+			source := sourceOf(t, tool)
+			source.lines = []correctionLine{{Commit: testCommitA, Line: 3, Text: []byte(testCorrection)}}
+			source.merged = [][]byte{[]byte(testCorrection)}
+			// A body file rewritten while the check reads the range must not
+			// reach GitHub: the merge sends the bytes it read before.
+			source.onRange = func() { writeTempFile(t, dir, filepath.Base(bodyPath), "Summary line.\n") }
+			_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
+			if (err != nil) != refused {
+				t.Fatalf("Merge error = %v, want an error %t", err, refused)
+			}
+			runner.done()
+			if seen.content != correctedBody {
+				t.Errorf("body file held %q, want the checked body %q", seen.content, correctedBody)
+			}
+			if seen.mode != 0o600 {
+				t.Errorf("body file mode = %v, want 0600", seen.mode)
+			}
+			if rel, err := filepath.Rel(dir, seen.path); err == nil && !strings.HasPrefix(rel, "..") {
+				t.Errorf("body file %s is inside the work directory %s", seen.path, dir)
+			}
+			if _, err := os.Stat(seen.path); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("body file %s still exists after Merge returned: %v", seen.path, err)
+			}
+		})
+	}
+}
+
+// TestMergeStopsOnCorrectionCheck verifies that the correction check runs
+// after the protocol check (a protocol stop leaves it unread) and before the
+// number check (its stop leaves that check uncalled), that a stop never calls
+// gh pr merge and keeps the work directory, and that it shows the discard
+// command for a mismatch and the same merge again for an unreadable range.
+func TestMergeStopsOnCorrectionCheck(t *testing.T) {
+	lead := []commandStep{viewStep(openState, "main"), fetchMainStep()}
+	accepted := correctionLine{Commit: testCommitA, Line: 3, Text: []byte(testCorrection)}
+	tests := []struct {
+		name        string
+		lines       []correctionLine
+		readErr     error
+		wantErr     error
+		wantDiscard bool
+	}{
+		{"missing line", []correctionLine{accepted, {Commit: testCommitB, Line: 2, Text: []byte(testOtherCorrection)}}, nil, errCorrectionMismatch, true},
+		{"undeclared rejected line", []correctionLine{accepted, {Commit: testCommitB, Line: 2, Text: []byte("Editorial correction: \u200bhidden")}}, nil, errCorrectionMismatch, true},
+		{"unreadable", nil, fmt.Errorf("%w: rev-list failed", errCorrectionUnreadable), errCorrectionUnreadable, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, statePath, subjectPath, bodyPath := mergeFiles(t)
+			writeTempFile(t, dir, filepath.Base(bodyPath), correctedBody)
+			tool, runner, numbers := newNumberedTool(t, nil, nil, lead...)
+			source := sourceOf(t, tool)
+			source.lines, source.err = tt.lines, tt.readErr
+			report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("Merge error = %v, want %v", err, tt.wantErr)
+			}
+			runner.done()
+			if want := []sourceCall{{method: "rangeLines", index: len(lead)}}; !slices.Equal(source.calls, want) {
+				t.Errorf("reading calls = %+v, want %+v", source.calls, want)
+			}
+			if len(numbers.calls) != 0 {
+				t.Errorf("number check calls = %+v, want none after a correction stop", numbers.calls)
+			}
+			if report.ProtocolCheck != testSummary.String() || report.MergeCommitOID != "" {
+				t.Errorf("report = %+v, want the passed protocol check and no merge", report)
+			}
+			if _, err := os.Stat(dir); err != nil {
+				t.Errorf("work directory %s removed on a stopped merge: %v", dir, err)
+			}
+			// The command the operator is told to run is the contract.
+			if got := strings.Contains(err.Error(), discardCommand(statePath)); got != tt.wantDiscard {
+				t.Errorf("Merge error = %q, shows the discard command: %t, want %t", err, got, tt.wantDiscard)
+			}
+			if got := strings.Contains(err.Error(), "run the same merge command again"); got == tt.wantDiscard {
+				t.Errorf("Merge error = %q, tells to run the same merge again: %t, want %t", err, got, !tt.wantDiscard)
+			}
+		})
+	}
+	t.Run("after the protocol check", func(t *testing.T) {
+		_, statePath, subjectPath, bodyPath := mergeFiles(t)
+		tool, runner, _ := newCheckedTool(t, stopErrors[0].err, lead...)
+		source := sourceOf(t, tool)
+		if _, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{}); !errors.Is(err, stopErrors[0].err) {
+			t.Fatalf("Merge error = %v, want the protocol stop", err)
+		}
+		runner.done()
+		if len(source.calls) != 0 {
+			t.Errorf("reading calls = %+v, want none after a protocol stop", source.calls)
+		}
+	})
+}
+
+// TestMergePostMergeCheck verifies that the post-merge comparison runs after
+// the cleanup on the merge commit the cleanup learned, against the bytes the
+// merge checked (a body file rewritten during the merge changes nothing),
+// that a difference is a CorrectionsNotCarriedError after the cleanup's own
+// error, and that the work directory goes once the cleanup succeeded.
+func TestMergePostMergeCheck(t *testing.T) {
+	tests := []struct {
+		name        string
+		merged      []string
+		localOID    string
+		wantErrs    []error
+		wantChecked bool
+		wantDirGone bool
+	}{
+		{"carried", []string{testCorrection}, testHeadOID, nil, true, true},
+		{"not carried", nil, testHeadOID, []error{errCorrectionsNotCarried}, false, true},
+		{"cleanup stopped too", nil, testOtherOID, []error{errLocalBranchMoved, errCorrectionsNotCarried}, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, statePath, subjectPath, bodyPath := mergeFiles(t)
+			writeTempFile(t, dir, filepath.Base(bodyPath), correctedBody)
+			var seen bodyFileSeen
+			merge := mergeStep()
+			merge.hook = seeBodyFile(t, &seen, bodyPath)
+			tool, runner := newTool(t, append([]commandStep{viewStep(openState, "main"), fetchMainStep(), merge}, cleanupSteps(tt.localOID)...)...)
+			source := sourceOf(t, tool)
+			source.lines = []correctionLine{{Commit: testCommitA, Line: 3, Text: []byte(testCorrection)}}
+			for _, l := range tt.merged {
+				source.merged = append(source.merged, []byte(l))
+			}
+			report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
+			runner.done()
+			if len(tt.wantErrs) == 0 && err != nil {
+				t.Fatalf("Merge returned error: %v", err)
+			}
+			last := -1
+			for _, want := range tt.wantErrs {
+				if !errors.Is(err, want) {
+					t.Fatalf("Merge error = %v, want it to wrap %v", err, want)
+				}
+				// The order of the reasons is the contract: the cleanup's
+				// stop is read first.
+				at := strings.Index(err.Error(), want.Error())
+				if at <= last {
+					t.Errorf("Merge error = %q, want %q after the earlier reasons", err, want)
+				}
+				last = at
+			}
+			if want := (sourceCall{method: "mergedLines", index: len(runner.steps)}); len(source.calls) != 2 || source.calls[1] != want {
+				t.Errorf("reading calls = %+v, want the merge commit read after every command", source.calls)
+			}
+			if source.gotMerge != testMergeOID || source.gotBase != "main" {
+				t.Errorf("merge commit read = %s on %s, want %s on main", source.gotMerge, source.gotBase, testMergeOID)
+			}
+			if report.CorrectionsChecked != tt.wantChecked || (tt.wantChecked && report.CorrectionsVerified != 1) {
+				t.Errorf("report = %+v, want checked %t with 1 line", report, tt.wantChecked)
+			}
+			if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) != tt.wantDirGone {
+				t.Errorf("work directory gone: %t, want %t", errors.Is(err, os.ErrNotExist), tt.wantDirGone)
+			}
+		})
+	}
+}
+
+// TestCleanupPostMergeCheck verifies that Cleanup runs the post-merge
+// comparison only with a body file, and reports "not verified" without one.
+func TestCleanupPostMergeCheck(t *testing.T) {
+	tests := []struct {
+		name        string
+		withBody    bool
+		merged      [][]byte
+		wantErr     error
+		wantChecked bool
+		wantReads   int
+	}{
+		{"no body file", false, nil, nil, false, 0},
+		{"carried", true, [][]byte{[]byte(testCorrection)}, nil, true, 1},
+		{"not carried", true, nil, errCorrectionsNotCarried, false, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, statePath, _, bodyPath := mergeFiles(t)
+			writeTempFile(t, dir, filepath.Base(bodyPath), correctedBody)
+			if !tt.withBody {
+				bodyPath = ""
+			}
+			tool, runner := newTool(t, cleanupSteps(testHeadOID)...)
+			source := sourceOf(t, tool)
+			source.merged = tt.merged
+			report, err := tool.Cleanup(t.Context(), statePath, bodyPath)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("Cleanup error = %v, want %v", err, tt.wantErr)
+			}
+			runner.done()
+			if len(source.calls) != tt.wantReads {
+				t.Errorf("reading calls = %+v, want %d", source.calls, tt.wantReads)
+			}
+			if report.CorrectionsChecked != tt.wantChecked {
+				t.Errorf("CorrectionsChecked = %t, want %t", report.CorrectionsChecked, tt.wantChecked)
+			}
+		})
+	}
+}
+
+// TestMergeStopsAfterTheMergeKnown verifies what Merge reports when it stops
+// at or after gh pr merge: a refused merge shows the cleanup command with
+// the body file, so the cleanup can run the post-merge comparison; a merge
+// whose cleanup could not read the PR reports the merge as done but not
+// verified; and a body file that cannot be made stops before gh pr merge
+// with the preparation kept for the same merge again.
+func TestMergeStopsAfterTheMergeKnown(t *testing.T) {
+	t.Run("refused", func(t *testing.T) {
+		_, statePath, subjectPath, bodyPath := mergeFiles(t)
+		refused := mergeStep()
+		refused.err = errors.New("exit status 1")
+		tool, runner := newTool(t, viewStep(openState, "main"), fetchMainStep(), refused)
+		_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
+		runner.done()
+		// The command the operator is told to run is the contract.
+		if err == nil || !strings.Contains(err.Error(), cleanupCommand(statePath, bodyPath)) {
+			t.Errorf("Merge error = %v, want it to show %q", err, cleanupCommand(statePath, bodyPath))
+		}
+	})
+	t.Run("cleanup cannot read the PR", func(t *testing.T) {
+		_, statePath, subjectPath, bodyPath := mergeFiles(t)
+		view := viewStep(mergedState, "main")
+		view.err = errors.New("exit status 1")
+		tool, runner := newTool(t, viewStep(openState, "main"), fetchMainStep(), mergeStep(), view)
+		report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
+		runner.done()
+		if !errors.Is(err, view.err) {
+			t.Fatalf("Merge error = %v, want the cleanup's error %v", err, view.err)
+		}
+		if !report.Merged || report.MergeCommitOID != "" || report.CorrectionsChecked {
+			t.Errorf("report = %+v, want merged, no merge commit, not verified", report)
+		}
+	})
+	t.Run("body file cannot be made", func(t *testing.T) {
+		dir, statePath, subjectPath, bodyPath := mergeFiles(t)
+		t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
+		tool, runner := newTool(t, viewStep(openState, "main"), fetchMainStep())
+		_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
+		runner.done()
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("Merge error = %v, want the missing temporary directory", err)
+		}
+		// The guidance shown to the operator is the contract.
+		if err == nil || !strings.Contains(err.Error(), "run the same merge command again") {
+			t.Errorf("Merge error = %v, want it to keep the preparation for the same merge", err)
+		}
+		if _, err := os.Stat(dir); err != nil {
+			t.Errorf("work directory %s removed: %v", dir, err)
+		}
+	})
+}
+
+// TestCleanupUnreadableBodyFile verifies that Cleanup with a body file it
+// cannot read stops before it touches anything.
+func TestCleanupUnreadableBodyFile(t *testing.T) {
+	_, statePath, _, _ := mergeFiles(t)
+	tool, runner := newTool(t)
+	if _, err := tool.Cleanup(t.Context(), statePath, filepath.Join(t.TempDir(), "missing.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Cleanup error = %v, want the missing body file", err)
+	}
+	runner.done()
 }

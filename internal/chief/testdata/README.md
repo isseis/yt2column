@@ -163,6 +163,23 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 | `plans/marker-opus-pr-open.md` | `marker-opus.md` の PR-2 の「PR を作成した」だけを済ませた形。`origin/main` では PR を開いている間にしか現れない状態で、作業項目の表示の PR 番号（PR-2）が変わらないことを確かめる |
 | `plans/marker-merged-not-created.md` | `marker-all-merged.md` の PR-3 の「PR を作成した」を外した形。すべての PR が「マージされた」なのに作られていない PR があり、計画が完了ともマージしていない PR があるとも言えない場合を確かめる |
 
+### 計画書のステップのサンプル
+
+タスク 0113 で、`plans/` に次のサンプルを足した。計画書のステップの 3 つの書き方（書き方 A・書き方 B・書き方 C。要件書 `docs/tasks/0113_plan_step_reading/01_requirements.md` の 1 章と 3 章の冒頭）を、読めるものと読めないものに分けて確かめる。
+
+**実物の写し。** `b93d1111`（`origin/main`）の計画書を、そのまま写した。
+
+| ファイル | 元 | 目的 |
+|---|---|---|
+| `plans/real-0110.md`・`plans/real-0111.md` | `docs/tasks/0110_chief_work_item_terms/03_implementation_plan.md`・`docs/tasks/0111_doc_style_rules/03_implementation_plan.md` | 書き方 B で書いた、PR が残る計画書。issue #1021 の原因 |
+| `plans/real-0102.md`・`plans/real-0098.md` | `docs/tasks/0102_chief_text_table/03_implementation_plan.md`・`docs/tasks/0098_fable_partial_review/03_implementation_plan.md` | 2 章の外に、書き方 B・書き方 C と同じ見た目の行を持つ計画書 |
+| `plans/real-0069.md` | `docs/tasks/0069_readme_display_language/03_implementation_plan.md` | 書き方 A の行と、書き方 A に似た行を持つ計画書。すべてマージ済み |
+| `plans/real-0069-pr-open.md` | 上の写しの、PR の 2 つの進み具合のチェックボックス（163・164 行）を `[ ]` に戻したもの | 同じ計画書で PR が残っているときを確かめる |
+
+**作ったサンプル。** 実物から採ったものではなく、要件書の定義から作った。ファイル名は `plans/steps-<形>-<状態>.md` で、書き方 B（`b`）・書き方 C（`c`）の PR マーカー付きの計画書、残りのあるもの（`-open`）とすべて済んだもの（`-all-done`）、小見出しの下にだけ未了のチェックボックスがあるもの（`steps-b-subheading.md`）、2 章の外に似た行や重複を持つもの（`-outside-*`）、読めない 4 つの条件のもの（`-no-checkbox`・`-near-miss-*`・`-other-checkbox-*`・`-duplicate`）、ステップが 0 件のもの（`-none`・`-none-near-miss`）、すべてマージ済みでステップを読めないもの（`-merged-*`）である。
+
+`plans/steps-grammar.txt` は、ステップの書き方の境界を 1 つずつ確かめる小さな計画書の断片を、`-----` の行で区切って並べたものである。各断片の最初の行 `want: <読み取りの結果>` が期待する結果を持ち、断片は計画書の 2 章に入れて、LF と CRLF の両方で読む。
+
 ### 報告の transcript
 
 `transcript/` の `claude-runpr-report.jsonl`・`claude-command-report.jsonl`・`claude-recap-notification.jsonl`・`claude-synthetic.jsonl`・`claude-compact.jsonl`・`claude-auto-continuation.jsonl` は、タスク 0095 の PR-1（実装計画書のステップ 1-1〜1-5）で、2026-11-17 に、このプロジェクトの worktree の Claude Code の transcript から、読み取りだけで採った。
