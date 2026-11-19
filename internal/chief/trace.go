@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/privatefile"
@@ -99,10 +100,6 @@ type traceFile struct {
 	Branch   string `json:"branch"`
 }
 
-// mainBranch is the branch a pr_open never holds; the reader that declares
-// tracePlaceMain is the only one that compares a branch's name with it.
-const mainBranch = "main"
-
 // traceKeys are the members of a history record, every one required.
 var traceKeys = []string{"session", "round", memberWorktree, "kind", "pr", "task", "branch"}
 
@@ -129,6 +126,11 @@ func (e traceEvent) check() error {
 	if e.Session == "" {
 		return fmt.Errorf("%w: a history record without a session", errRecord)
 	}
+	if !utf8.ValidString(e.Session) || !utf8.ValidString(e.Worktree.path) || !utf8.ValidString(e.Branch) {
+		// json.Marshal would write U+FFFD in place of the invalid bytes, so
+		// the record read back would not be the event written.
+		return fmt.Errorf("%w: a history record with invalid UTF-8", errRecord)
+	}
 	if !sendIDForm.MatchString(e.Round) {
 		// The round is part of the record's name, so a writer must never
 		// take one of another form.
@@ -137,8 +139,7 @@ func (e traceEvent) check() error {
 	var prOK, taskOK, branchOK bool
 	switch e.Kind {
 	case tracePROpen:
-		// main is never written: a PR seen open on main names no task.
-		prOK, branchOK = e.PR > 0, e.Branch != "" && e.Branch != mainBranch
+		prOK, branchOK = e.PR > 0, e.Branch != ""
 		if e.Task.IsZero() {
 			taskOK = true
 		} else {
@@ -277,9 +278,10 @@ func (s Store) readTraces(session string) traceHistory {
 // round, and event must be the ones its name gives (the round's form, the
 // kind's members, and the task are checked as the writer checks them), and
 // its worktree the one whose directory holds it; a pr_merged or pr_closed of
-// a PR with no pr_open
-// in the directory is unreadable, since a merge of a PR never seen open is no
-// merge chief read; err is a failure to list the directory.
+// a PR with no pr_open before it, in the order the events are applied, is
+// unreadable, since a merge of a PR not seen open first is no merge chief
+// read (the writer writes a merge only after the open's round); err is a
+// failure to list the directory.
 func (r WorkspaceRecords) traces(session string) (events []traceEvent, bad []traceUnreadable, err error) {
 	entries, err := os.ReadDir(r.dir)
 	if err != nil {
@@ -324,21 +326,21 @@ func (r WorkspaceRecords) traces(session string) (events []traceEvent, bad []tra
 		}
 		events = append(events, ev)
 	}
+	sortTrace(events)
 	opened := map[int]struct{}{}
-	for _, ev := range events {
-		if ev.Kind == tracePROpen {
-			opened[ev.PR] = struct{}{}
-		}
-	}
 	kept := events[:0]
 	for _, ev := range events {
-		if _, ok := opened[ev.PR]; (ev.Kind == tracePRMerged || ev.Kind == tracePRClosed) && !ok {
-			bad = append(bad, traceUnreadable{Path: filepath.Join(r.dir, ev.name()), Err: fmt.Errorf("%w: a %s record of a PR never seen open", errRecord, ev.Kind)})
-			continue
+		switch ev.Kind {
+		case tracePROpen:
+			opened[ev.PR] = struct{}{}
+		case tracePRMerged, tracePRClosed:
+			if _, ok := opened[ev.PR]; !ok {
+				bad = append(bad, traceUnreadable{Path: filepath.Join(r.dir, ev.name()), Err: fmt.Errorf("%w: a %s record of a PR not seen open before it", errRecord, ev.Kind)})
+				continue
+			}
 		}
 		kept = append(kept, ev)
 	}
-	sortTrace(kept)
 	return kept, bad, nil
 }
 
@@ -396,23 +398,26 @@ type traceState struct {
 	// branchTask is the task of the last branch_task, zero when there is
 	// none.
 	branchTask paneinput.TaskID
+	// branchAfterEnd is false when a pr_merged or pr_closed has no
+	// branch_task after it (the last one), true otherwise.
+	branchAfterEnd bool
 }
 
 // applyTrace applies the events of one worktree in the order of sortTrace.
 func applyTrace(events []traceEvent) traceState {
 	sorted := slices.Clone(events)
 	sortTrace(sorted)
-	st := traceState{events: sorted, prs: map[int]tracePRState{}}
+	st := traceState{events: sorted, prs: map[int]tracePRState{}, branchAfterEnd: true}
 	for _, e := range sorted {
 		switch e.Kind {
 		case tracePROpen:
 			st.prs[e.PR] = tracePRIsOpen
 		case tracePRMerged:
-			st.prs[e.PR] = tracePRIsMerged
+			st.prs[e.PR], st.branchAfterEnd = tracePRIsMerged, false
 		case tracePRClosed:
-			st.prs[e.PR] = tracePRIsClosed
+			st.prs[e.PR], st.branchAfterEnd = tracePRIsClosed, false
 		case traceBranchTask:
-			st.branchTask = e.Task
+			st.branchTask, st.branchAfterEnd = e.Task, true
 		}
 	}
 	return st
@@ -620,8 +625,11 @@ func (st traceState) unseenOpenPRs(r traceReading) []int {
 // Contract: it writes only a change: a merge or a close of a PR open in the
 // history and not seen open, only when its state was read as such; a pr_open
 // of the one open PR of a branch other than main whose last state is not
-// open; a branch_task of a feature branch whose task is not the last one, or
-// in a round that writes a merge or a close; nothing for a HEAD not read, a
+// open; a branch_task of a feature branch whose task is not the last one,
+// in a round that writes a merge or a close, or when no branch_task follows
+// the last merge or close (a worktree that comes back to a feature branch
+// after a merge written off it), so the identification sees the branch after
+// the merge; nothing for a HEAD not read, a
 // state not read, or a PR still open. It reads and writes nothing itself.
 func traceWrites(st traceState, r traceReading, states map[int]prStateRead, session, round string, w Worktree) []traceEvent {
 	at := func(kind traceKind, pr int, task paneinput.TaskID, branch string) traceEvent {
@@ -643,7 +651,7 @@ func traceWrites(st traceState, r traceReading, states map[int]prStateRead, sess
 	if r.Place != tracePlaceBranch {
 		return out
 	}
-	if !r.BranchTask.IsZero() && (len(out) > 0 || r.BranchTask != st.branchTask) {
+	if !r.BranchTask.IsZero() && (len(out) > 0 || r.BranchTask != st.branchTask || !st.branchAfterEnd) {
 		out = append(out, at(traceBranchTask, 0, r.BranchTask, ""))
 	}
 	if r.PR > 0 && st.prs[r.PR] != tracePRIsOpen {

@@ -255,27 +255,30 @@ type StartResult struct {
 // left without an end becomes a stop of its workspace before any record is
 // removed. A history record of the caller's session is never removed; a
 // name that starts with the history records' prefix but is of no record's
-// form is removed only when the caller did not hold the lock already (it
-// created or took over the lock), since the history reader counts such a name
-// as the current session's and the same session's start must not drop an
-// event that names another task.
+// form is removed only when the start took over the lock of another session,
+// since the history reader counts such a name as the current session's and
+// the same session's start must not drop an event that names another task.
 func (s Store) Start(ctx context.Context, herdr Herdr, caller Owner, now time.Time) (StartResult, error) {
 	var res StartResult
 	rec := lockRecord{Owner: caller, Started: now.UTC()}
 	err := s.create(lockFile, rec)
-	newLock := true
+	// malformed is true only when the lock of another session was taken
+	// over: a lock this start created names no session before it (the lock
+	// may have been removed by hand), and the same session may take over its
+	// own lock from another pane.
+	malformed := false
 	switch {
 	case err == nil:
 	case errors.Is(err, privatefile.ErrExist):
-		took, err := s.settleExistingLock(ctx, herdr, caller, rec)
+		took, replaced, err := s.settleExistingLock(ctx, herdr, caller, rec)
 		if err != nil {
 			return res, err
 		}
-		res.TookOver, newLock = took, took
+		res.TookOver, malformed = took, took && replaced != caller.Session
 	default:
 		return res, err
 	}
-	settled, settleErr := s.settleWorkspaces(now, caller.Session, newLock)
+	settled, settleErr := s.settleWorkspaces(now, caller.Session, malformed)
 	res.Stopped, res.RemovedSends = settled.stopped, settled.removed
 	removed, err := s.removeFinishedSessions(caller.Session)
 	res.Removed = removed + settled.traces
@@ -287,20 +290,21 @@ func (s Store) Start(ctx context.Context, herdr Herdr, caller Owner, now time.Ti
 
 // settleExistingLock handles a lock that already exists: the caller's own
 // lock is kept, a live owner's lock refuses, a stale lock is taken over.
-func (s Store) settleExistingLock(ctx context.Context, herdr Herdr, caller Owner, rec lockRecord) (bool, error) {
+// replaced is the session of the lock taken over, "" when none was.
+func (s Store) settleExistingLock(ctx context.Context, herdr Herdr, caller Owner, rec lockRecord) (took bool, replaced string, err error) {
 	held, err := s.readLock()
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 	if held.Owner == caller {
-		return false, nil
+		return false, "", nil
 	}
 	live, err := ownerLive(ctx, herdr, held.Owner)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 	if live {
-		return false, ErrLockHeld
+		return false, "", ErrLockHeld
 	}
 	if s.betweenStaleReadAndLock != nil {
 		s.betweenStaleReadAndLock()
@@ -309,37 +313,37 @@ func (s Store) settleExistingLock(ctx context.Context, herdr Herdr, caller Owner
 	// judged below is the one that is replaced.
 	excl, err := cachelock.Acquire(s.dir)
 	if errors.Is(err, cachelock.ErrLocked) {
-		return false, fmt.Errorf("%w: %w", ErrLockHeld, err)
+		return false, "", fmt.Errorf("%w: %w", ErrLockHeld, err)
 	}
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 	defer func() { _ = excl.Close() }()
 	held, err = s.readLock()
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 	if held.Owner != caller {
 		live, err := ownerLive(ctx, herdr, held.Owner)
 		if err != nil {
-			return false, err
+			return false, "", err
 		}
 		if live {
-			return false, ErrLockHeld
+			return false, "", ErrLockHeld
 		}
 		if err := privatefile.Remove(filepath.Join(s.dir, lockFile)); err != nil {
-			return false, err
+			return false, "", err
 		}
 		if err := s.create(lockFile, rec); err != nil {
 			if errors.Is(err, privatefile.ErrExist) {
 				// Another chief created its lock first.
-				return false, ErrLockHeld
+				return false, "", ErrLockHeld
 			}
-			return false, err
+			return false, "", err
 		}
-		return true, nil
+		return true, held.Session, nil
 	}
-	return false, nil
+	return false, "", nil
 }
 
 // readLock reads the lock; a lock that cannot be read is not taken over,
@@ -1093,7 +1097,15 @@ func (h *HeldWorkspace) writeTrace(e traceEvent) error {
 	if workspaceDirOf(e.Worktree) != filepath.Base(h.dir) {
 		return fmt.Errorf("%w: the event's worktree is not the one these records belong to", errRecord)
 	}
-	err := h.store().create(e.name(), e.file())
+	data, err := json.Marshal(e.file())
+	if err != nil {
+		return err
+	}
+	if len(data) > recordLimit {
+		// The reader refuses a record over the limit.
+		return fmt.Errorf("%w: the event is over the size of a record", errRecord)
+	}
+	err = h.store().create(e.name(), e.file())
 	if errors.Is(err, privatefile.ErrExist) {
 		return nil
 	}
