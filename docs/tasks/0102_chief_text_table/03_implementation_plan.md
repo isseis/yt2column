@@ -336,11 +336,35 @@
 
 ### PR-3 の実行の記録
 
-（ステップ 3-3 の比較の出力と、ステップ 3-8 の結果・確かめたコミット・やり直した確かめを `/runplan` が書く。）
+**ステップ 3-3（テストの削除の比較、2026-11-19）。** `TestDisplayValuesMatchTool` と `displayTableHeader` を除くコミット（ツリー `b9f8913a0574ed51533da793d3ead0de8b70e5ae`）で、親のコミットを `BASE` にして `make coverage-compare` を走らせた。1 回目は、走らせている間に作業ツリーを変えたので `STOP internal`（`the user's git status changed during the run`）で止まった。作業ツリーをきれいにして走らせ直した 2 回目の出力は次のとおりで、同じものを削除のコミットのメッセージに書いた。`head` のコミットの ID は、メッセージを書き直す前のものである。
+
+```text
+target    make coverage-compare BASE="fd54f4f2"
+base      fd54f4f2715347ce5dca8e567ee79898b5fae3c0
+head      b6cc914e622bb357d994bbe165595a7d3584b528 tree b9f8913a0574ed51533da793d3ead0de8b70e5ae
+toolchain go1.27.1
+tests     base 1640 head 1639
+files     base 185 head 185
+functions base 1941 head 1941
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+```
+
+（ステップ 3-8 の結果・確かめたコミット・やり直した確かめを `/runplan` が書く。）
 
 AC-03 の diff の記録（ステップ 3-6 のスクリプトの出力、マージの基点と比べたコミットの ID）:
 
-（`/runplan` が書く。）
+-   スクリプト: `docs/tasks/0102_chief_text_table/_checks/ac03_step2_diff.sh`
+-   マージの基点: `bd08ef9dd6cd2d19b8bc91c871697ce9fa02353e`
+-   比べたコミット: `2078ad843c240b1eff5d614d89dd3c13d0a47089`（`/chief` の定義を変えたステップ 3-5 のコミット。その後のコミットは `.claude/commands/chief.md` を変えていない）
+-   壊し方の確かめ: 比べるコミットの定義を変えた一時のコミット（`git commit-tree` で作り、ブランチには置かない）で、項目 1 の文を変える・項目 3 の文を変える・項目 3 の見出しを消す、と、比べるコミットにマージの基点を渡して項目 2 を変えないものは、それぞれ失敗した。`--protocol` の値だけを変えたものは通った。
+
+```text
+$ bash docs/tasks/0102_chief_text_table/_checks/ac03_step2_diff.sh bd08ef9dd6cd2d19b8bc91c871697ce9fa02353e 2078ad843c240b1eff5d614d89dd3c13d0a47089
+OK: step 2 outside item 2 is unchanged but for --protocol values
+OK: item 2 changed
+```
 
 ## 8. 成功の基準 (Success Criteria)
 
