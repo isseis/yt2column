@@ -62,7 +62,6 @@
 -   `PATH` にある道具のビルド元のコミットは `go version -m` の `vcs.revision` で分かるが、コミットしていない変更からの入れ直し（`vcs.modified` にだけ出る）、`go run` や別の場所のバイナリでの実行、`-buildvcs=false` のビルドは分からない。
 -   プロトコル番号を上げる PR で利用者がブランチから入れ直した道具は、`/runpr` が途中で止まるか PR をやめたときも、利用者が `main` から入れ直すまで、すべての worktree で使われる。
 -   道具を入れる手順に来たエージェントは止まるので、利用者が入れる手間が増える。
--   拒否の規則は、gofumpt や deadcode のような外部の Go の道具の `go install` にも当たる。エージェントはそれらを入れず、要るときは止まって利用者に頼む。cloud のセッションでも同じである。
 
 ## 経緯
 
@@ -76,4 +75,3 @@
 - 2026-11-17 プロトコル番号の確かめを `mergepr` の `prepare` と `merge` に置き、`merge` は GitHub にマージを依頼する直前に `origin/main` を取り直して確かめ直すことにした。番号は `internal/<名前>/` に `const Protocol = <整数>` の 1 行で置くこととし、規則の正本を CLAUDE.md の「Development Notes」の「Protocol numbers」に置いた（[0099 設計書](../../tasks/0099_protocol_number_rule/02_architecture.md)「設計の際に決めたこと（2026-11-17）」）
 - 2026-11-17 記録の行を読むだけの判定を、`origin/main` から取り出して走らせるテスト付きのシェルスクリプトにしてよいとする例外を加えた（[0098 設計書](../../tasks/0098_fable_partial_review/02_architecture.md)「設計の際に決めたこと（2026-11-17）」）
 - 2026-11-19 エージェントが道具をインストールもビルドもしないことを、利用者が `main` から入れる道具のすべて（`fixprguard`・`mergepr` を含む）に当てはめ、ビルドの意味と開発のための例外を定め、プロトコル番号を上げる PR のブランチで入れ直すのも利用者とした。規則は指示の文と、`make install-*` と `go install` を拒む `.claude/settings.json` の規則で守る（[0112 要件定義書](../../tasks/0112_dev_tools_convention/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）
-- 2026-11-19 拒否の規則が外部の Go の道具の `go install` にも当たり、エージェントはそれも止まって利用者に頼むこと、cloud のセッションでもエージェントは道具を入れないことを、結果に加えた（[0112 設計書](../../tasks/0112_dev_tools_convention/02_architecture.md)「設計の際に決めたこと（2026-11-19）」）
