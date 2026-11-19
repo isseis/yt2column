@@ -211,7 +211,7 @@
 | PR-2（フェーズ 2） | `internal/chief/resetoffer_test.go::TestSendOfferedResetOnIdentifiedMain` | 特定した `main` の行のリセットの項目を送れる |
 | PR-2（フェーズ 2） | `internal/chief/create_test.go::TestTargets`（今のテストに足す） | `targets` が `main` の worktree を挙げない |
 | PR-2（フェーズ 2） | `internal/chief/position_test.go`（今のテストに足す） | `taskDocumentOf` が特定しなかった `headMain` を要確認にし、`/mkreq` が走っている行を要件定義書にする |
-| PR-2（フェーズ 4） | `cmd/chief/main_test.go::TestRunUsageErrors`・`::TestRunWorkspaceSubcommands`（今のテストに足す） | `--item` の欠け・余り・形の誤りが使い方の誤りか不正な求めになる。`:501` は `--item` を足して `no_workspace` のまま |
+| PR-2（フェーズ 4） | `cmd/chief/main_test.go::TestRunUsageErrors`・`::TestRunWorkspaceSubcommands`（今のテストに足す） | `--item` の余り（`cmd/chief` が `--item` を `ParseSendRequest` へ渡すこと）が使い方の誤りになる。欠けと形の誤りは `internal/chief/send_test.go::TestSendArgumentValidation` が確かめる。`:501` は `--item` を足して `no_workspace` のまま |
 | PR-2（フェーズ 4） | `cmd/chief/main_test.go::TestRunSendPassesTheOwner` | `run` を通した `send` が、`start` したセッションの履歴を読む（`main` の行を特定して送る）。`dispatch` が `Owner` を渡さないと `not_offered` になる |
 
 PR-2 の各テストは、括弧のフェーズのコミットで足す。フェーズ 2 と 3 にまたがる行は、フェーズ 2 で行の判定を通る場合を、フェーズ 3 で `tick` の書き込みを通る場合を足す。§4.2 の結合テストはフェーズ 4 で足す。

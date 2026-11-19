@@ -212,6 +212,15 @@ func TestRunRefusals(t *testing.T) {
 			t.Errorf("run = %d, %v, calls %v", code, out, h.fake.calls)
 		}
 	})
+	t.Run("a send of the previous protocol's form", func(t *testing.T) {
+		// The previous definition sends a task command without --item: it
+		// is told to reinstall, not that its request is malformed.
+		h := newHarness(t)
+		code, out := h.run("send", "--workspace", "/w", "--command", "mkarch", "--protocol", strconv.Itoa(chief.Protocol-1))
+		if code != exitRefused || out["reason"] != "protocol_mismatch" || len(h.fake.calls) != 0 {
+			t.Errorf("run = %d, %v, calls %v; want refused, protocol_mismatch", code, out, h.fake.calls)
+		}
+	})
 	t.Run("state base is missing", func(t *testing.T) {
 		h := newHarness(t)
 		code, out := h.runWithoutBase("start", "--protocol", protocol)

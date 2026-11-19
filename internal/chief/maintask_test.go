@@ -260,8 +260,8 @@ func TestMainRowNotIdentified(t *testing.T) {
 		if r := classify(f); r.Idle || r.State != StateNeedsCheck {
 			t.Errorf("row = %+v; want it to need a check, not idle", r)
 		}
-		// A PR seen open and never merged gives no merge, and its state not
-		// read keeps that row from being idle too.
+		// A PR seen open and never merged gives no merge, whose reason
+		// names no PR: the row is idle whatever the state read.
 		noMerge := opened(t, 1, 7, taskBranch)
 		for i := range noMerge {
 			noMerge[i].Session, noMerge[i].Worktree = "s", tree
@@ -270,8 +270,8 @@ func TestMainRowNotIdentified(t *testing.T) {
 		if f.MainTask.Kind != mainTaskNoMerge {
 			t.Fatalf("identification = %+v; want no merge", f.MainTask)
 		}
-		if r := classify(f); r.Idle {
-			t.Errorf("row = %+v; want it not idle", r)
+		if r := classify(f); !r.Idle {
+			t.Errorf("row = %+v; want it idle", r)
 		}
 	})
 }
@@ -583,6 +583,9 @@ func TestTickWritesHistory(t *testing.T) {
 		// reading decides it.
 		for _, unread := range []bool{false, true} {
 			mw := newMergeWorld(t, mkarchDocs)
+			// An earlier PR of the task was merged, so the row's reason is
+			// PR 42 still open, which names the PR.
+			mw.putHistory(mw.tree, mergedOn(t, 41, taskBranch)...)
 			mw.tick(time.Minute)
 			mw.onMain(mw.tree)
 			if unread {

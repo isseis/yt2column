@@ -555,6 +555,16 @@ func applyMainTask(ctx context.Context, tasks Tasks, f workspaceFacts, result ma
 	return f
 }
 
+// withHistory applies session's history to the facts of a worktree on main,
+// as a send reads its row again, and returns any other HEAD's facts as they
+// are without reading the history (the design, 3.5).
+func withHistory(ctx context.Context, store Store, tasks Tasks, f workspaceFacts, session string, tree Worktree) workspaceFacts {
+	if f.Head != headMain {
+		return f
+	}
+	return applyMainTask(ctx, tasks, f, identifyMainTask(store.readTraces(session), tree))
+}
+
 // mergedTask returns the task every pr_open of the merged PRs names and the
 // branch of the last merged PR, lastMerge. When those opens name more than
 // one task, or no task, it returns them as the other tasks instead.

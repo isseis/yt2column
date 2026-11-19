@@ -167,12 +167,6 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 		return exitUsage
 	}
 	protocol := flags[flagProtocol]
-	// A malformed request is a usage error, found before anything is read.
-	req, err := parseRequests(subcommand, flags)
-	if err != nil {
-		_, _ = fmt.Fprintln(stderr, "chief:", err)
-		return exitUsage
-	}
 	refuse := func(reason, message string) int {
 		return write(stdout, stderr, result{Protocol: chief.Protocol, Outcome: "refused", Reason: reason, Message: message}, exitRefused)
 	}
@@ -181,6 +175,14 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 	}
 	if protocol != strconv.Itoa(chief.Protocol) {
 		return refuse("protocol_mismatch", fmt.Sprintf("this chief speaks protocol %d, not %s; reinstall it", chief.Protocol, chief.Sanitize(protocol)))
+	}
+	// A malformed request is a usage error, found before anything is read.
+	// The protocol comes first: a definition of another protocol may write
+	// a request this one refuses, and it must be told to reinstall.
+	req, err := parseRequests(subcommand, flags)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, "chief:", err)
+		return exitUsage
 	}
 	// Outside Herdr nothing is read: no file, no command.
 	if env.PaneID == "" {

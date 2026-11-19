@@ -252,7 +252,7 @@ func Send(ctx context.Context, deps Deps, owner Owner, req SendRequest) (SendOut
 	// workspace's exclusion, which every write of this worktree's events
 	// takes too, so they do not change before the send; a record of another
 	// worktree can only make the row need a check.
-	f = applyMainTask(ctx, tasks, f, identifyMainTask(deps.Store.readTraces(owner.Session), loc.ws.Tree))
+	f = withHistory(ctx, deps.Store, tasks, f, owner.Session, loc.ws.Tree)
 	row := classifyWorkspace(ctx, git, tasks, f, old, oldErr)
 	cmd, proposal, why := offered(row, req)
 	if why != "" {
