@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -346,3 +346,7 @@ README は、何をどこに送り、何を保存するかを示す。
 - **開発者向けの手引き:** `docs/dev/guides/` の `cli.md`、`development.md`、またはそこに新しく置く手引き。
 - **INSTALL.md:** リポジトリのルートに置く、インストールと利用の手順の文書。当面は日本語だけである。
 - **API のクレジット:** Claude Console の組織の残高。Claude API の利用に使う。Max・Ultra・Team の契約に付く毎月の分と、購入した分がある。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1046）
