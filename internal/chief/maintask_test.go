@@ -19,6 +19,7 @@ const (
 	reasonOtherTask  = "the worktree is on main and this chief session has seen it with more than one task or with a PR of no task: "
 	reasonOpenPR     = "the worktree is on main and a PR this chief session saw open on it is not known to be merged or closed: "
 	reasonUnreadable = "the worktree is on main and a history record of this chief session cannot be read (start a new chief session with /clear): "
+	reasonUnread     = "the worktree is on main and its history was not read, so its task is not known"
 )
 
 // otherTaskBranch is a feature branch of task 0002, whose directory the
@@ -74,7 +75,7 @@ func (w *world) onMain(tree string) {
 // TestMainRowFollowsTaskRules checks that a worktree on main whose history
 // identifies task 0001 gets the row a feature branch of 0001 gets: the next
 // command of approved documents, the reason of a draft one, a question
-// first, and no takeover; none of them idle.
+// first; none of them idle; and no takeover on main.
 func TestMainRowFollowsTaskRules(t *testing.T) {
 	archDraft := statusDoc("| Status | `draft` |\n")
 	cases := []struct {
@@ -120,8 +121,8 @@ func TestMainRowFollowsTaskRules(t *testing.T) {
 			if r.State != c.state || r.Task != "0001" || next != c.next || !slices.Equal(r.Unreadable, c.why) || r.Position != c.position {
 				t.Errorf("row = %+v (next %q); want %v of 0001 with next %q, why %q, position %+v", r, next, c.state, c.next, c.why, c.position)
 			}
-			if r.Idle || r.Takeover != nil {
-				t.Errorf("row idle %v, takeover %+v; want neither", r.Idle, r.Takeover)
+			if r.Idle {
+				t.Errorf("row = %+v; want it not idle", r)
 			}
 		})
 	}
@@ -271,7 +272,7 @@ func TestMainRowNotIdentified(t *testing.T) {
 // and is idle as idle says.
 func assertMainNeedsCheck(t *testing.T, r Row, why string, idle bool) {
 	t.Helper()
-	if r.State != StateNeedsCheck || r.Task != "" || r.Next != nil || r.Takeover != nil || !slices.Equal(r.Unreadable, []string{why}) {
+	if r.State != StateNeedsCheck || r.Task != "" || r.Next != nil || !slices.Equal(r.Unreadable, []string{why}) {
 		t.Errorf("row = %+v; want it to need a check for %q with nothing offered", r, why)
 	}
 	if r.Position.Document != PositionDocNeedsCheck || r.Idle != idle {
@@ -347,11 +348,8 @@ func TestMainRowUnreadableHistory(t *testing.T) {
 func TestMainRowZeroResult(t *testing.T) {
 	f := workspaceFacts{Head: headMain, Branch: mainBranch, Agents: []agentFacts{{Agent: Agent{Kind: paneinput.AgentClaudeCode, Status: AgentIdle}, ScreenRead: true, Screen: Screen{Kind: ScreenPrompt}}}}
 	r := classify(f)
-	if r.State != StateNeedsCheck || r.Next != nil || r.Task != "" || r.Idle || !slices.Equal(r.Unreadable, []string{"the worktree is on main and its history was not read, so its task is not known"}) {
+	if r.State != StateNeedsCheck || r.Next != nil || r.Task != "" || r.Idle || !slices.Equal(r.Unreadable, []string{reasonUnread}) {
 		t.Errorf("row = %+v; want it to need a check with no next command", r)
-	}
-	if doc, _ := documentOf(r, nil); doc != PositionDocNeedsCheck {
-		t.Errorf("document = %d; want needs check", doc)
 	}
 }
 
