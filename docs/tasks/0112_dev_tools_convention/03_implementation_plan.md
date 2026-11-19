@@ -20,25 +20,30 @@
 
 ### 1.2. 実装の原則
 
--   **書く中身は設計書に従う。** 規約の見出しと各節が持つものは設計書 3.1、ADR-0014 から外す文の行き先は 3.2、`CLAUDE.md` の 4 種類の箇所は 3.3、主語の直しは 3.4、例外への参照は 3.5、参照の付け替えは 3.6、拒否の規則と用語集は 3.7 に従う。本計画は、それらを繰り返さない。
--   **規則の内容は変えない。** 規約の各節は、ADR-0014 の対応する項目の条件を落とさず、広げない（AC-02）。行き先の決まっていない文は、ADR-0014 から外さない（設計書 1.1）。
--   **直す場所は中身で探す。** 設計書の行番号は `e43f8161` のもので、`CLAUDE.md` はその後のコミットで行がずれている（1.4）。
--   **既存のガードが読む値と構造を変えない。** 直す箇所を読むテストは設計書 3.8 の表のとおりで、どのテストも直さない。`mergepr_guide.md` の `--protocol` を含む記述（設計書 3.4）と、`CLAUDE.md`「Tool Execution Safety」の `numreserve` の呼び出しの形（設計書 3.3）には触れない。
--   **編集上の訂正として記録する。** ADR-0014 の書き換えは、コミットのメッセージに訂正行を書き、PR の説明に訂正の段落を書く（AC-11、設計書 3.2「記録」）。訂正行は文を写さずに自分の言葉で書き、`<` と `@` を含めない（I-03）。
+-   **書く中身の出どころ。** 書く中身は設計書に従う。規約の見出しと各節が持つものは設計書 3.1、ADR-0014 から外す文の行き先は 3.2、`CLAUDE.md` の 4 種類の箇所は 3.3、主語の直しは 3.4、例外への参照は 3.5、参照の付け替えは 3.6、拒否の規則と用語集は 3.7 に従う。本計画は、それらを繰り返さない。
+-   **規則の内容。** 規則の内容は変えない。規約の各節は、ADR-0014 の対応する項目の条件を落とさず、広げない（AC-02）。行き先の決まっていない文は、ADR-0014 から外さない（設計書 1.1）。
+-   **直す場所の探し方。** 直す場所は中身で探す。設計書の行番号は `e43f8161` のもので、`CLAUDE.md` はその後のコミットで行がずれている（1.4）。
+-   **既存のガードが読む値と構造。** これらは変えない。書式の規約に揃える直しでも、ガードが読む見出し・表・値は変えない。直す箇所を読むテストは設計書 3.8 の表のとおりで、どのテストも直さない。`mergepr_guide.md` の `--protocol` を含む記述（設計書 3.4）と、`CLAUDE.md`「Tool Execution Safety」の `numreserve` の呼び出しの形（設計書 3.3）には触れない。
+-   **日本語の文書の書式。** ADR-0014 の「決定」の節と、中身を直すガイドの節は、`docs/dev/conventions/document_formatting.md` に揃える（AC-10・AC-22、設計書 3.2「『決定』の節の書式」・3.4・3.5）。揃えるのは書式だけである。
+-   **編集上の訂正の記録。** ADR-0014 の書き換えは、コミットのメッセージに訂正行を書き、PR の説明に訂正の段落を書く（AC-11、設計書 3.2「記録」）。書式の規約に揃える直しも、編集上の訂正の 1 つ目の種類（基準に沿った書き直し）として記録する（`docs/dev/conventions/adr.md`「Format」）。訂正行は文を写さずに自分の言葉で書き、`<` と `@` を含めない（I-03）。
 
 ### 1.3. 計画の際に決めたこと（2026-11-19）
 
--   **差分の範囲の AC（AC-10・AC-18・AC-20・AC-21・AC-22）と AC-24 は、記録した diff を読んで確かめる。** 2026-11-19 に人が選んだ。どれも小さな文書の差分で、スクリプトで判定するより読むほうが確かなためである（`docs/dev/conventions/requirements_process.md` §4「`diff` verification」の「Proportion」）。I-02 のとおり、AC ごとに記録を持つ。読み切れないと分かったら、同じ節の「Output too long to read」に従う。
+-   **差分の範囲の AC の確かめ方。** 差分の範囲の AC（AC-10・AC-18・AC-20・AC-21・AC-22）と AC-24 は、記録した diff を読んで確かめる。2026-11-19 に人が選んだ。どれも小さな文書の差分で、スクリプトで判定するより読むほうが確かなためである（`docs/dev/conventions/requirements_process.md` §4「`diff` verification」の「Proportion」）。I-02 のとおり、AC ごとに記録を持つ。読み切れないと分かったら、同じ節の「Output too long to read」に従う。
     -   採らなかった案：AC ごとに `_checks/` のシェルのスクリプトを書く案。読む量は減るが、作る量と、壊して確かめる量が増える。
     -   ADR: なし。確かめ方の選択で、本タスクの中で閉じる。
--   **拒否の規則が Claude Code で効くことは、PR のレビューで人が確かめる（`manual`）。** 2026-11-19 に人が選んだ。実装モデル要件が `sonnet` の `/runplan` は OpenCode で走り（`.claude/commands/_context.md`「Command routing」）、OpenCode には `.claude/settings.json` が効かないので、設計書 7 章の確認を `/runplan` の中では行えないためである。人は、PR のブランチを checkout した作業ツリーで Claude Code のセッションを開き、確かめる。確かめるのは PR を作った後なので、自動送信は `auto` のままとする（3.2）。
+-   **拒否の規則の効き方の確かめ。** 拒否の規則が Claude Code で効くことは、PR のレビューで人が確かめる（`manual`）。2026-11-19 に人が選んだ。理由は次のとおりである。実装モデル要件が `sonnet` の `/runplan` は OpenCode で走る（`.claude/commands/_context.md`「Command routing」）。OpenCode には `.claude/settings.json` の拒否の規則が効かない（要件書 1 章の「要件定義の際に決めたこと」の拒否の規則の項目）。そのため、設計書 7 章の確認を `/runplan` の中では行えない。人は、PR のブランチを checkout した作業ツリーで Claude Code のセッションを開いて確かめる。結果は PR のコメントに書き、`/runpr` のマージの質問に答える前に済ませる。確かめるのは PR を作った後なので、自動送信は `auto` のままとする（3.2）。
     -   採らなかった案：自動送信を `hold` にし、`/runplan` の前後に人が対話のセッションで確かめる案。PR のレビューで確かめれば足りる。
     -   採らなかった案：Claude Code では確かめず、`cmd/chief/docs_test.go` の `matchesRule` のモデルに頼る案。設計書 7 章と食い違う。
     -   ADR: なし。確かめ方の選択で、本タスクの中で閉じる。
--   **AC-11 の訂正行は、`_checks/` のシェルのスクリプトで確かめる（`static`）。** 2026-11-19 に人が選んだ。訂正行はコミットのメッセージにあり、今の `/mergepr` の手順はそれを読まない（`.claude/commands/mergepr.md` に訂正行を扱う手順がない。`efb51aac` で確かめた）。読むだけでは、AC に `test`・`static`・`diff` の確かめを持たせる規則を満たさないためである。PR の説明の訂正の段落は、PR のレビューで読む（`manual`）。
+-   **AC-11 の訂正行の確かめ方。** AC-11 の訂正行は、`_checks/` のシェルのスクリプトで確かめる（`static`）。2026-11-19 に人が選んだ。訂正行はコミットのメッセージにあるが、今の `/mergepr` の手順はそれを読まない（`.claude/commands/mergepr.md` に訂正行を扱う手順がない。`efb51aac` で確かめた）。`mergepr` の道具には訂正行を読んで分ける処理があるが（`internal/mergepr/corrections.go`、`1b8da1cf`）、手順にはまだ組み込まれていない。読むだけでは、AC に `test`・`static`・`diff` のいずれかの確かめを持たせる規則を満たせない。PR の説明の訂正の段落は、PR のレビューで読む（`manual`）。
     -   採らなかった案：コミットのメッセージと PR の説明を読むだけにする案。
     -   ADR: なし。確かめ方の選択で、本タスクの中で閉じる。
--   **フェーズは 1 つ、PR は 1 本とする。** I-01（確かめ済み）と設計書 8 章のとおりである。ステップの順は設計書 8 章に従う。実装モデル要件は I-01 の決定（`sonnet`）を採る。
+-   **書式の規約の当て方。** ADR-0014 の「決定」の節と、AC-16・AC-23 で中身を直すガイドの節は、日本語の文書の書式の規約 `docs/dev/conventions/document_formatting.md` に揃える。揃えるのは書式（太字の使い方と、項目の多い節の構成）だけで、中身は変えない。このために、要件書の AC-10・AC-22 と 2.3、設計書の 3.2・3.4・3.5・3.8 を本 PR で直し、両方を `draft` に戻した。2026-11-19 に人が選んだ。書式の規約は要件書と設計書の承認の後に入った（`94e3a1f5`、タスク 0111）。この規約は、項目の中身を書き換える節を、触れない項目も含めて節全体で揃えるよう求める（`document_formatting.md`「Where the rules apply」）。これが、今の AC-10・AC-22 の差分の限定とぶつかる。
+    -   採らなかった案：差分の限定を優先し、本タスクでは書式の規約を当てない案。後から入った規約から外れた節が残る。
+    -   採らなかった案：本タスクの書き換えを、規約の義務の範囲に入らない編集上の訂正と読む案。規約が義務から除くのは、リンク・名前・見出しの直しなどだけである。
+    -   ADR: なし。書式を揃えることは編集上の訂正の 1 つ目の種類（`docs/dev/conventions/adr.md`「Editorial corrections」）で、ADR-0014 の決定を変えない。
+-   **フェーズと PR の数。** フェーズは 1 つ、PR は 1 本とする。I-01（確かめ済み）と設計書 8 章のとおりである。ステップの順は設計書 8 章に従う。実装モデル要件は I-01 の決定（`sonnet`）を採る。
     -   ADR: なし（I-01 のとおり）。
 
 ### 1.4. 既存コード調査結果
@@ -49,6 +54,7 @@
     -   `CLAUDE.md` は、`:35` の後に 4 行、`:582` の後に 30 行が足された。そのため、設計書の `CLAUDE.md:1051-1052`・`:1060-1061`・`:1076-1077` は今の `:1085-1086`・`:1093-1095`・`:1110-1111`、`:842-843` は今の `:876-877` である。
     -   `chief_guide.md` の変更は 3.1 節と 5 章だけで、本タスクが直す `:22` と `:30` は変わっていない。
     -   用語集の変更は「ラウンド」の行の後への 5 行の追加で、設計書 3.7 が 3 行を足す位置の「ガードツール」の行（`docs/translation_glossary.md:134`）は変わっていない。
+-   **書式の規約と訂正行の道具。** `e43f8161..efb51aac` で、日本語の文書の書式の規約 `docs/dev/conventions/document_formatting.md` と、`docs/dev/conventions/adr.md` の「Format」が入った（`94e3a1f5`、タスク 0111）。ADR-0014 の「決定」の項目は、今は文全体が太字で（`docs/dev/adr/0014-deterministic-checks-in-go.md:17-26`）、規約の「Bold」に合わない。中身を直すガイドの節は、`mergepr_guide.md` の 3 章（`:38-51`）と 7 章（`:252-304`）、`fixprguard_guide.md` の 3 章（`:36-59`）、`chief_guide.md` の 2 章（`:16-43`）、`numreserve_guide.md` の 1 章（`:5-26`）である。また、`mergepr` の道具に訂正行を読んで分ける処理が入った（`internal/mergepr/corrections.go`、`1b8da1cf`）。
 -   **ADR-0014。** `e43f8161` から変わっていない。「決定」の項目は `:17`〜`:26`、「結果」の拒否の規則の文は `:61` で、設計書 3.2 の表のとおりである。
 -   **直す箇所の今の文。** 設計書 3.4〜3.6 の表の「今の文」は、`efb51aac` でも同じである。`.claude/commands/mergepr.md:18-19`、`.claude/commands/_lib/local-cli-review.md:91-93`、`.claude/commands/_lib/adr-correction-candidates.sh:63-64`、`docs/dev/guides/numreserve_guide.md:11`、`docs/dev/guides/chief_guide.md:22`・`:30`、`docs/dev/guides/fixprguard_guide.md:54`、`docs/dev/guides/mergepr_guide.md:48`・`:286` を読んで確かめた。
 -   **`.claude/settings.json`。** `permissions.deny` は 33 の規則（`herdr` と `git worktree`）で、最後は `Bash(git worktree move*)`（`.claude/settings.json:46`）である。`make` と `go` の規則はない。
@@ -58,7 +64,7 @@
     -   `cmd/codexreview/docs_test.go`：`TestDocumentedProtocolMatches`・`TestDocumentedInvocationsParse`・`TestNoDirectCodexInvocation`・`TestSettingsAllowsTool`
     -   `cmd/chief/docs_test.go`：`TestSettingsDeniesPaneInput`・`TestSettingsDeniesWorktreeChanges`・`TestSettingsAsksBeforeRemove`・`TestGuideValuesMatchTool`
     -   `cmd/numreserve/docs_test.go`：`TestDocumentedInvocations`・`TestSettingsAllowsTool`・`TestGuideValuesMatchTool`
-    -   `cmd/fixprguard/docs_test.go`：ガイドの表と値を読むテスト
+    -   `cmd/fixprguard/docs_test.go`：`TestGuideTable`・`TestGuideCoversStopKindsAndScope`・`TestDocumentedProtocolMatches` などのガイドの表と値を読むテスト
 -   **規約の置き場所を読むテスト。** `cmd/chief`・`cmd/mergepr`・`cmd/codexreview`・`cmd/fixprguard`・`cmd/numreserve` の文書のテストは、`docs/dev/conventions/` のうち `adr.md` だけを読み（`cmd/numreserve/docs_test.go:197`）、ほかの規約を走査しない。新しい規約が読まれるのは `TestInstructionDocPaths`（リンクの解決）だけである。
 -   **再利用。** 新しいテストも補助のファイルも足さない（設計書 7 章）。確かめは既存のガードと diff の記録、AC-11 のスクリプトで行う。`_checks/` のスクリプトは、本タスクで新しく書く。
 
@@ -84,8 +90,9 @@
 **変えるファイル:** `docs/dev/adr/0014-deterministic-checks-in-go.md`
 
 - [ ] 設計書 3.2 の表の 7 つの項目（`:17`・`:18`・`:20`・`:22`・`:23`・`:25`・`:26`）を、「外す文の行き先」の表のとおりに書き直す（AC-09）。規約の節は、アンカーを使わず見出しの名前を本文で示してリンクする（`docs/dev/conventions/adr.md`「Links」）
-- [ ] `:19`・`:21`・`:24` の 3 項目と、「背景」「採らなかった案」「結果」「経緯」には触れない（AC-10）。「結果」の `:61` の文も直さない（設計書 3.2「『結果』の 1 文」）
-- [ ] コミットのメッセージに、ADR-0014 の訂正行を書く（AC-11）。消す 2 つの参照（「（タスク 0112 の実装で足す）」と「規則は…0112 要件定義書にある」）は古くなった参照、それ以外は基準に沿った書き直しとして書き分ける（設計書 3.2「記録」）。訂正行は自分の言葉で書き、`<` と `@` を含めない（I-03）
+- [ ] 「決定」の節を、`:19`・`:21`・`:24` の 3 項目も含めて、書式の規約に揃える（AC-10、設計書 3.2「『決定』の節の書式」）。3 項目は書式だけを直し、中身は変えない
+- [ ] 「背景」「採らなかった案」「結果」「経緯」には触れない（AC-10）。「結果」の `:61` の文も直さない（設計書 3.2「『結果』の 1 文」）
+- [ ] コミットのメッセージに、ADR-0014 の訂正行を書く（AC-11）。消す 2 つの参照（「（タスク 0112 の実装で足す）」と「規則は…0112 要件定義書にある」）は古くなった参照、それ以外は基準に沿った書き直しとして書き分ける（設計書 3.2「記録」）。3 項目の書式の直しも、基準に沿った書き直しとして書く。訂正行は自分の言葉で書き、`<` と `@` を含めない（I-03）
 
 **完了の条件:** `go test -tags test ./cmd/yt2column` が通る（`TestADRRecords` と、ADR のリンクの解決を含む）。
 
@@ -108,6 +115,7 @@
 - [ ] `mergepr_guide.md` の `:48` と 7 章の手順 5、`fixprguard_guide.md:54`、`chief_guide.md:30` の主語を、設計書 3.4 のとおりに利用者にする（AC-16）。`mergepr_guide.md:48` は主語の部分だけを直し、`--protocol` を含む記述と「マージの直後に `main` から再インストールする」は変えない
 - [ ] `local-cli-review.md:91-93` と `numreserve_guide.md:11` に、開発のための例外への参照を設計書 3.5 のとおりに添える（AC-23）
 - [ ] `chief_guide.md:22` と `numreserve_guide.md:11` の ADR-0014 への参照を、規約の規則 5 の節へのリンクに付け替える（AC-19、設計書 3.6）
+- [ ] 中身を直したガイドの節（設計書 3.4・3.5 に挙げた節）を、書式の規約に揃える（AC-22）。中身と、ガードが読む見出し・表・値は変えない。AC-19 のリンクの付け替えだけでは、節を揃える義務は生じない
 - [ ] `adr-correction-candidates.sh:63-64` のコメントの ADR-0014 のパスを、規約のパスに付け替える（AC-20）。コードは変えない
 
 **完了の条件:** `go test -tags test ./cmd/yt2column ./cmd/mergepr ./cmd/codexreview ./cmd/chief ./cmd/numreserve ./cmd/fixprguard` が通る（`TestADRCorrectionCandidates`・`TestDocumentedProtocolMatches`・`TestGuideValuesMatchTool`・リンクの解決を含む）。
@@ -124,11 +132,11 @@
 
 **変えるファイル:** `docs/tasks/0112_dev_tools_convention/_checks/correction_lines.sh`（新規）、本計画書
 
-- [ ] AC-11 のスクリプトを `_checks/correction_lines.sh` に書く。merge-base から `HEAD` までのコミットについて、ADR-0014 を変えたコミットに ADR-0014 のパスを名指す訂正行が 1 つ以上あることと、範囲のどの訂正行も `<` と `@` を含まないことを確かめる。言語はシェルとする。各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、そのことをコミットのメッセージに書く
-- [ ] スクリプトを PR のブランチで走らせ、出力と、merge-base と比べたコミットの ID を 7 章に記録する
+- [ ] AC-11 のスクリプトを `_checks/correction_lines.sh` に書く。merge-base から `HEAD` までのコミットについて、ADR-0014 を変えたコミットに ADR-0014 のパスを名指す訂正行が 1 つ以上あることと、範囲のどの訂正行も `<` と `@` を含まないことを確かめる。訂正行は、行の 1 文字目から `Editorial correction: ` で始まる行だけとする（`requirements_process.md`「Recording in the PR description」）。言語はシェルとする。各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、そのことをコミットのメッセージに書く
+- [ ] スクリプトを PR のブランチで走らせ、出力と、merge-base と比べたコミットの ID を 7 章に記録する。記録の後に ADR-0014 を変えるコミットか訂正行を持つコミットが足されたら（`/fixpr` のラウンドなど）、走らせ直して記録し直す
 - [ ] `make test` と `make lint` を通す（AC-12・AC-25）
 - [ ] 7 章の diff の記録（AC-10・AC-18・AC-20・AC-21・AC-22・AC-24）を、`requirements_process.md` §4 の決まったコマンドで取り、書く。AC-21 の記録は、PR の実装の最後のコミットで取る（I-02）
-- [ ] PR の説明に、ステップ 1-1 の AC-02 の照らし合わせの結果と、7 章の AC-24 の Claude Code での確認の手順（人が行う）を書く
+- [ ] PR の説明に、ステップ 1-1 の AC-02 の照らし合わせの結果と、7 章の AC-24 の Claude Code での確認の手順（人が行い、結果を PR のコメントに書く）を書く
 
 **完了の条件:** グリーンゲートが通り、7 章の記録がすべてある。
 
@@ -148,7 +156,7 @@
 
 **実装モデル要件**: sonnet
 
-**判定理由**: どのトリガーにも当たらない（文書と設定の 2 行だけの変更で、方式の選択も危険度の高いステップもない。I-01 で確かめ済み）
+**判定理由**: どのトリガーにも当たらない（文書の変更と、設定への 2 行の追加だけで、方式の選択も危険度の高いステップもない。I-01 で確かめ済み）
 
 **自動送信**: auto
 
@@ -158,7 +166,7 @@
 -   **既存のガード:** 設計書 3.8 の表のテストを、ステップごとの完了の条件で走らせ、ステップ 1-6 で `make test` 全体を走らせる（AC-12・AC-25、I-04）。
 -   **差分の確かめ:** 7 章の diff の記録を PR のレビューで読む（1.3）。
 -   **訂正行:** `_checks/correction_lines.sh` を PR のブランチで一度走らせ、記録する（AC-11）。常設のテストではない。
--   **拒否の規則の効き方:** 人が、PR のブランチの Claude Code のセッションで一度確かめる（7 章の AC-24）。引数のない `go install` は、拒まれなかったときにパッケージを入れてしまうので試さない（設計書 7 章）。
+-   **拒否の規則の効き方:** 人が、PR のブランチの Claude Code のセッションで一度確かめ、結果を PR のコメントに書く（7 章の AC-24）。設計書 3.7 の表の各例が当たるか当たらないかは、PR のレビューで規則の形に照らして読む。引数のない `go install` は、拒まれなかったときにパッケージを入れてしまうので試さない（設計書 7 章）。
 -   **文の内容:** 規約・ADR・`CLAUDE.md`・ガイドの文は、PR のレビューで読む（`CLAUDE.md`「Testing Strategy」）。
 -   **後方互換:** N/A。道具とコマンドの振る舞いと、プロトコル番号を変えない（要件書 4.4）。
 
@@ -169,6 +177,7 @@
 | 規約を書くときに、ADR-0014 の条件を落とすか広げる | ステップ 1-1 で、ADR-0014 の項目ごとに規約と照らし、結果を PR の説明に書く。レビューで読む（AC-02） |
 | ADR-0014 から、行き先のない文を外す | 設計書 3.2 の「外す文の行き先」の表の行ごとに書き直す。AC-10 の diff の記録をレビューで読む |
 | 文の直しで、ガードが読む値（`--protocol N`、`numreserve` の呼び出しの形、`@codex`）を壊す | 設計書 3.3・3.4 の注意に従い、ステップごとに読むパッケージのテストを走らせる（I-04） |
+| 書式の規約に揃える直しで、中身を変えるか、ガードが読む見出し・表・値を壊す | 書式だけを直す。ステップごとに読むパッケージのテストを走らせ、AC-10・AC-22 の diff の記録をレビューで読む |
 | 訂正行に `<` や `@` が入る | 自分の言葉で書く（I-03）。`_checks/correction_lines.sh` で確かめる |
 | 拒否の規則の形を誤り、守りが効かないか、`make test` などを拒む | 設計書 3.7 の形のとおりに書き、PR のレビューで人が Claude Code で確かめる（AC-24） |
 | 本タスクのマージの前に、ほかの PR が同じファイル（`CLAUDE.md`、ガイド、`settings.json`）を変える | 後からマージする側が `origin/main` を取り込んで解く。直す場所は中身で探す（1.2） |
@@ -190,9 +199,9 @@
 | AC-05 | `manual` | PR のレビューで、規約の Rule 5 の各段落を読む |
 | AC-06 | `manual` | PR のレビューで、規約の冒頭のリンクを読む |
 | AC-07 | `manual` | PR のレビューで、規約の Not covered here を読む |
-| AC-08 | `static`・`manual` | 要件定義の PR（#1024）で満たし、そのレビューで読んだ。ADR の構造は `cmd/yt2column/adr_test.go::TestADRRecords` が確かめる。AC-08 の項目が実装の PR で変わらないことは、AC-10 の記録で読む |
+| AC-08 | `static`・`manual` | 要件定義の PR（#1024）で満たし、そのレビューで読んだ。ADR の構造は `cmd/yt2column/adr_test.go::TestADRRecords` が確かめる。AC-08 で足した「結果」「採らなかった案」「経緯」の部分が実装の PR で変わらないことは、AC-10 の記録で読む。書き直した `:23` の項目が要約と理由を持つことは、AC-09 の読み取りで読む |
 | AC-09 | `static`・`manual` | `cmd/yt2column/adr_test.go::TestADRRecords`（ADR の構造）、`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`（規約へのリンクの解決）。7 つの項目が規則の本文を持たないことは、PR のレビューで書き直した後の ADR-0014 を読む |
-| AC-10 | `diff` | 下の記録で、差分が 7 つの項目の書き換えに限られることを読む |
+| AC-10 | `diff` | 下の記録で、差分が 7 つの項目の書き換えと「決定」の節の書式の直しに限られ、`:19`・`:21`・`:24` の 3 項目の中身が変わらないことを読む |
 | AC-11 | `static`・`manual` | `docs/tasks/0112_dev_tools_convention/_checks/correction_lines.sh`（下の記録）。PR の説明の訂正の段落は、PR のレビューで読む |
 | AC-12 | `static` | `make test`（`cmd/yt2column/adr_test.go::TestADRRecords` を含む） |
 | AC-13 | `static`・`manual` | `cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`（リンクの解決）。要旨は PR のレビューで読む |
@@ -204,9 +213,9 @@
 | AC-19 | `static`・`manual` | `cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`（2 つのガイドから規約へのリンクの解決）。リンクが規則 5 の節を見出しの名前で指すことは、PR のレビューで読む |
 | AC-20 | `diff`・`test` | 下の記録で、差分がコメントの行だけであることを読む。`cmd/yt2column/adr_candidates_docs_test.go::TestADRCorrectionCandidates` が通る |
 | AC-21 | `diff` | 下の記録の、変わったファイルの一覧を読む |
-| AC-22 | `diff` | 下の記録で、差分が AC-16・AC-17・AC-19・AC-20・AC-23・AC-24 の箇所に限られることを読む |
+| AC-22 | `diff` | 下の記録で、差分が AC-16・AC-17・AC-19・AC-20・AC-23・AC-24 の箇所と、中身を直したガイドの節の書式の直しに限られることを読む |
 | AC-23 | `static`・`manual` | `cmd/codexreview/docs_test.go::TestNoDirectCodexInvocation`・`TestDocumentedInvocationsParse`（`local-cli-review.md` の呼び出しが変わらない）、`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`（規約へのリンクの解決）。例外への参照は PR のレビューで読む |
-| AC-24 | `diff`・`static`・`manual` | 下の記録で、`deny` の最後に 2 つの規則が足され、ほかの規則が変わらないことを読む。`settings.json` を読む既存のテスト（`cmd/chief/docs_test.go::TestSettingsDeniesPaneInput`・`TestSettingsDeniesWorktreeChanges`・`TestSettingsAsksBeforeRemove`、`cmd/codexreview/docs_test.go::TestSettingsAllowsTool`、`cmd/numreserve/docs_test.go::TestSettingsAllowsTool`）が通る。PR のレビューで、人が PR のブランチの Claude Code のセッションで、拒む形（`make install-` と `go install` で始まり、当たっても何も入らない書き方。たとえば存在しないターゲットやパス）が拒まれ、拒まない形（たとえば `make -n test`）が拒まれないことを確かめる（1.3） |
+| AC-24 | `diff`・`static`・`manual` | 下の記録で、`deny` の最後に 2 つの規則が足され、ほかの規則が変わらないことを読む。`settings.json` を読む既存のテスト（`cmd/chief/docs_test.go::TestSettingsDeniesPaneInput`・`TestSettingsDeniesWorktreeChanges`・`TestSettingsAsksBeforeRemove`、`cmd/codexreview/docs_test.go::TestSettingsAllowsTool`、`cmd/numreserve/docs_test.go::TestSettingsAllowsTool`）が通る。PR のレビューで、設計書 3.7 の表の各例が当たるか当たらないかを、規則の前方一致の形に照らして読む。引数のない `go install` は、`cmd/chief/docs_test.go` の `matchesRule` のモデル（`Bash(x *)` は引数のない `x` にも当たる。`cmd/chief/docs_test.go:320-342`）に照らして読む。<br>あわせて、人が PR のブランチの Claude Code のセッションで、拒む形（`make install-` と `go install` で始まり、当たっても何も入らない書き方。たとえば存在しないターゲットやパス）が拒まれ、拒まない形（たとえば `make -n test`）が拒まれないことを確かめ、結果を PR のコメントに書く（1.3） |
 | AC-25 | `static` | `make test`（`settings.json` を読む上記のテストを含む） |
 
 **I-NN の扱い:**
@@ -223,7 +232,7 @@ Script record (AC-11): `_checks/correction_lines.sh`
 - Merge-base:
 - Compared commit:
 
-Output:
+Output（スクリプトの出力の全体を、行の頭から始まるコードブロックに書く）:
 
 Diff record (AC-10):
 
@@ -238,6 +247,8 @@ Diff record (AC-20):
 - Compared paths: `.claude/commands/_lib/adr-correction-candidates.sh`
 
 Diff record (AC-21):
+
+比べるパスに用語集を選ぶのは、AC-21 のうち条件付きのファイルが用語集だけで、ほかの記録がその差分を持たないためである。
 
 - Compared paths: `docs/translation_glossary.md`
 
@@ -254,8 +265,10 @@ Diff record (AC-24):
 -   7 章のすべての AC の確かめが済み、記録がある。
 -   `make test` と `make lint` が通る。
 -   規約が規則 1〜6 の正本になり、ADR-0014・`CLAUDE.md`・ガイド・コマンドの定義が規約を指す。
--   セキュリティ：拒否の規則が Claude Code で効くことを、人が確かめた（AC-24）。
+-   セキュリティ：拒否の規則が Claude Code で効くことを人が確かめ、結果が PR のコメントにある（AC-24）。
 
 ## 9. 次のステップ (Next Steps)
 
--   実装の PR のマージの後、設計書 9 章の別の issue の候補（拒否の規則のガード、依頼にビルド元を添えること、番号の不一致の直し方に PR のブランチの場合を足すこと、OpenCode の許可の設定、ADR-0014 の「結果」の 1 文、規則 1 と規則 6 の範囲の食い違い、外部の道具をまとめて入れるターゲット）を、人が issue にするかを決める。
+-   実装の PR のマージの後に、人が次の 2 点を issue にするかを決める。
+    -   設計書 9 章の別の issue の候補（拒否の規則のガード、依頼にビルド元を添えること、番号の不一致の直し方に PR のブランチの場合を足すこと、OpenCode の許可の設定、ADR-0014 の「結果」の 1 文、規則 1 と規則 6 の範囲の食い違い、外部の道具をまとめて入れるターゲット）
+    -   `docs/dev/guides/chief_guide.md` の 6 章（`.claude/settings.json` の拒否）が herdr と git の規則だけを挙げ、本タスクで足す 2 つの規則を挙げないこと

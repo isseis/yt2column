@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-11-19 |
-| Review date | 2026-11-19 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 決定の変更で draft に戻した：ADR-0014 の「決定」の節と、中身を直すガイドの節を、日本語の文書の書式の規約に揃える |
 
 本書は [01_requirements.md](01_requirements.md) を設計に落とす。実装の PR が変えるのは文書と `.claude/settings.json` だけで、Go と TypeScript のコードは変えない。以下の `file:line` は、とくに断らない限りコミット `e43f8161`（`origin/main`）で確かめた。要件定義書の行番号はコミット `a73b2c4e` のものなので、`CLAUDE.md` などでは本書と行番号が違う。本書の F-nn と AC-nn は要件定義書の機能要件と受け入れ基準の番号、H-nn は `design_handoff.md` の項目、I-nn は `implementation_handoff.md` の項目である。
 
@@ -235,7 +235,9 @@ flowchart TB
 | `:25` | 引数・出力・終了コードは契約 | 太字の要約、理由（契約が食い違うと境界が働かない） | Rule 4 |
 | `:26` | 副作用のない判定のシェルスクリプトの例外 | 太字の要約、今ある 2 つのスクリプトと、`opus-review-decision.sh` の常設のテストが確かめる範囲の事実、理由、採らなかった案との違い | Rule 6 |
 
-`:19`（chief の例外）、`:21`（TypeScript の補助）、`:24`（プロトコル番号）と、「背景」「採らなかった案」「結果」「経緯」は、実装の PR では変えない（AC-10）。
+`:19`（chief の例外）、`:21`（TypeScript の補助）、`:24`（プロトコル番号）の中身と、「背景」「採らなかった案」「結果」「経緯」は、実装の PR では変えない（AC-10）。
+
+**「決定」の節の書式。** 7 つの項目を書き換えるので、「決定」の節は、上の 3 項目も含めて、日本語の文書の書式の規約 `docs/dev/conventions/document_formatting.md` に揃える（同「Where the rules apply」、`docs/dev/conventions/adr.md`「Format」、AC-10）。各項目の太字は、文全体ではなく名詞で終わるラベルにする（同「Bold」）。下の表の「太字の要約」も、この形で書く。節の構成（要旨を先に置き、小見出しか入れ子の箇条書きにするか）は、同「Sections with many items」に従って実装で決める。揃えるのは書式だけで、項目の中身は変えない。この規約は、要件定義書と本書の承認の後に入った（`94e3a1f5`、タスク 0111）。
 
 **外す文の行き先（H-02）。** 7 つの項目のすべての文について、行き先を示す。「ADR に残す」は、書き換え後の項目に残す要約・理由・事実である。
 
@@ -320,6 +322,8 @@ flowchart TB
 | `docs/dev/guides/chief_guide.md:30` | 「その PR のブランチで入れ直す。」 | 利用者が入れ直すことを述べる | AC-16 |
 | `CLAUDE.md` の「Protocol numbers」 | 3.3 | 3.3 | AC-15 |
 
+中身を直すガイドの節（`mergepr_guide.md` の 3 章と 7 章、`fixprguard_guide.md` の 3 章、`chief_guide.md` の 2 章）は、書式の規約 `docs/dev/conventions/document_formatting.md` に揃える（同「Where the rules apply」、AC-22）。揃えるのは書式だけで、中身は変えない。
+
 `mergepr_guide.md:48` は `--protocol 2` を文の中に書いている。`cmd/mergepr/docs_test.go` の `TestDocumentedProtocolMatches` は、ガイドの文の中の `--protocol N` まで読む（`cmd/mergepr/docs_test.go:53-60` のコメント）。そのため、直すのは主語の部分だけにし、`--protocol` を含む記述は変えない。
 
 ### 3.5. 開発のための例外への参照（AC-23）
@@ -330,6 +334,8 @@ flowchart TB
 | `.claude/commands/_lib/local-cli-review.md:91-93` | 「never install or build the tool」の文を残し、規約の Rule 5 の開発のための例外があること、その場合でも手順の中で入れた道具の代わりに使わないことを添える |
 | `docs/dev/guides/numreserve_guide.md:11` | 「エージェントは道具を入れたりビルドしたりしない。」の後に、開発のための例外は規約の Rule 5 にあることを添える（参照の付け替えは 3.6） |
 
+`numreserve_guide.md` の 1 章は、文を足すので、書式の規約に揃える（3.4 と同じ。AC-22）。
+
 ### 3.6. 参照の付け替え（F-005）
 
 | 箇所 | 今の参照 | 変更後 | AC |
@@ -338,7 +344,7 @@ flowchart TB
 | `docs/dev/guides/numreserve_guide.md:11` | `[ADR-0014](../adr/0014-deterministic-checks-in-go.md)` の「道具は `main` からインストールして使う」 | 同上 | AC-19 |
 | `.claude/commands/_lib/adr-correction-candidates.sh:63-64` のコメント | `docs/dev/adr/0014-deterministic-checks-in-go.md puts in Go` | `docs/dev/conventions/dev_tools.md`（Rule 1）を名指す。コードは変えない | AC-20 |
 
-3.3〜3.7 の表に挙げた箇所が、AC-22 の対象のファイルで変える箇所のすべてである。
+3.3〜3.7 の表に挙げた箇所と、3.4・3.5 で書式の規約に揃えるガイドの節が、AC-22 の対象のファイルで変える箇所のすべてである。
 
 ### 3.7. 拒否の規則と用語集
 
@@ -529,3 +535,4 @@ flowchart TD
 ## 変更履歴
 
 - 2026-11-19 承認（isseis、#1032）
+- 2026-11-19 draft への戻し：ADR-0014 の「決定」の節と、中身を直すガイドの節を、日本語の文書の書式の規約に揃える（#未記入）
