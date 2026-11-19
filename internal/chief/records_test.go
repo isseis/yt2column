@@ -998,6 +998,9 @@ func TestClearRecordsKeepsOnlyTheExclusion(t *testing.T) {
 		t.Fatal(err)
 	}
 	sha := strings.Repeat("a", 40)
+	// A history record of the record's form and a name of the prefix of no
+	// form: the clear removes both, the second because every trace- name is
+	// one the history reader reads.
 	trace := traceEvent{Session: ownerA().Session, Round: traceRound(1), Worktree: Worktree{path: "/x"}, Kind: tracePRClosed, PR: 7}
 	for _, name := range []string{"detail-7-" + sha + ".json", "report-7-" + sha + ".json", trace.name(), "trace-backup.json"} {
 		if _, err := privatefile.Create(filepath.Join(held.dir, name), []byte("{}")); err != nil {
@@ -1056,6 +1059,14 @@ func TestStartRemovesOtherSessionTraces(t *testing.T) {
 	if !exists(kept) || !exists(unrelated) {
 		t.Errorf("the session's own record or a file of no record's name was removed")
 	}
+	again := []string{put(theirs.name()), put("trace-backup.json")}
+	res, err = store.Start(ctx, herdrWith(t, liveAgent(ownerA())), ownerA(), now.Add(time.Minute))
+	if err != nil || res.CleanupError != nil || res.Removed != 1 {
+		t.Fatalf("Start by the holder = %+v, %v; want 1 record removed", res, err)
+	}
+	if exists(again[0]) || !exists(again[1]) || !exists(kept) {
+		t.Errorf("start by the holder: the other session's record kept %v, the malformed name kept %v, its own kept %v; want false, true, true", exists(again[0]), exists(again[1]), exists(kept))
+	}
 	t.Run("a takeover of a stale lock", func(t *testing.T) {
 		// ownerB's start after /clear in ownerA's pane: the lock is ownerA's
 		// and its pane holds another session now.
@@ -1076,14 +1087,6 @@ func TestStartRemovesOtherSessionTraces(t *testing.T) {
 			t.Errorf("after the takeover: ownerA's record kept %v, the malformed name kept %v, ownerB's kept %v; want false, false, true", exists(goneA[0]), exists(goneA[1]), exists(keptB))
 		}
 	})
-	again := []string{put(theirs.name()), put("trace-backup.json")}
-	res, err = store.Start(ctx, herdrWith(t, liveAgent(ownerA())), ownerA(), now.Add(time.Minute))
-	if err != nil || res.CleanupError != nil || res.Removed != 1 {
-		t.Fatalf("Start by the holder = %+v, %v; want 1 record removed", res, err)
-	}
-	if exists(again[0]) || !exists(again[1]) || !exists(kept) {
-		t.Errorf("start by the holder: the other session's record kept %v, the malformed name kept %v, its own kept %v; want false, true, true", exists(again[0]), exists(again[1]), exists(kept))
-	}
 }
 
 // TestClearRecordsKeepsTheCreatedRecordWhenAnotherRemovalFails checks the

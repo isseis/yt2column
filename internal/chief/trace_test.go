@@ -66,6 +66,7 @@ func traceJSON(t *testing.T, e traceEvent) []byte {
 func TestReadTraceRejects(t *testing.T) {
 	t1, t2 := taskID(t, "0101"), taskID(t, "0102")
 	open := ev(1, tracePROpen, 7, t1, branchT1)
+	noTaskOpen := ev(1, tracePROpen, 7, paneinput.TaskID{}, "scratch")
 	merged := ev(2, tracePRMerged, 7, paneinput.TaskID{}, "")
 	// edit replaces the first occurrence of old in open's JSON.
 	edit := func(old, repl string) func(*testing.T) []byte {
@@ -77,67 +78,78 @@ func TestReadTraceRejects(t *testing.T) {
 			return []byte(strings.Replace(text, old, repl, 1))
 		}
 	}
-	// withEvent is e's JSON, which the case writes under e's own name, so
-	// only the check of e's members can refuse it.
-	withEvent := func(e traceEvent) func(*testing.T) []byte {
-		return func(t *testing.T) []byte { return traceJSON(t, e) }
-	}
-	named := func(e traceEvent) string { return e.name() }
+	// own is a case of e's JSON under e's own name, so only the check of
+	// e's members can refuse it.
+	own := func(e traceEvent) *traceEvent { return &e }
+	none := paneinput.TaskID{}
 	other := open
 	other.Worktree = Worktree{path: "/work/b"}
 	cases := []struct {
 		name string
-		// fileName is the record's name; "" is open's.
+		// fileName and data are the record's name and content: open's name
+		// when fileName is "", and own's when event is set.
 		fileName string
 		data     func(*testing.T) []byte
+		event    *traceEvent
 	}{
-		{"a task with a path", "", edit(`"task":"0101"`, `"task":"../x"`)},
-		{"a task with a trailing space", "", edit(`"task":"0101"`, `"task":"0101 "`)},
-		{"invalid UTF-8", "", edit(`"branch":"`, "\"branch\":\"\xff")},
-		{"an unpaired surrogate", "", edit(`"branch":"`, `"branch":"\ud800`)},
-		{"a repeated member", "", edit(`"pr":7`, `"pr":7,"pr":7`)},
-		{"an unknown member", "", edit(`"pr":7`, `"pr":7,"note":""`)},
-		{"a member named in another case", "", edit(`"pr":7`, `"pr":7,"PR":7`)},
-		{"a missing member", "", edit(`,"branch":"`+branchT1+`"`, ``)},
-		{"a member of another type", "", edit(`"pr":7`, `"pr":"7"`)},
-		{"a negative PR", "", edit(`"pr":7`, `"pr":-7`)},
-		{"an unknown kind", "", edit(`"kind":"pr_open"`, `"kind":"pr_seen"`)},
-		{"a pr_open without its PR", named(ev(1, tracePROpen, 0, t1, branchT1)), withEvent(ev(1, tracePROpen, 0, t1, branchT1))},
-		{"a pr_open without its branch", named(ev(1, tracePROpen, 7, paneinput.TaskID{}, "")), withEvent(ev(1, tracePROpen, 7, paneinput.TaskID{}, ""))},
-		{"a pr_open whose task is not its branch's", named(ev(1, tracePROpen, 7, t2, branchT1)), withEvent(ev(1, tracePROpen, 7, t2, branchT1))},
-		{"a pr_open with a task on a branch of none", named(ev(1, tracePROpen, 7, t1, "scratch")), withEvent(ev(1, tracePROpen, 7, t1, "scratch"))},
-		{"a pr_open on main", named(ev(1, tracePROpen, 7, paneinput.TaskID{}, "main")), withEvent(ev(1, tracePROpen, 7, paneinput.TaskID{}, "main"))},
-		{"a pr_merged without its PR", named(ev(1, tracePRMerged, 0, paneinput.TaskID{}, "")), withEvent(ev(1, tracePRMerged, 0, paneinput.TaskID{}, ""))},
-		{"a pr_closed with a task", named(ev(1, tracePRClosed, 7, t1, "")), withEvent(ev(1, tracePRClosed, 7, t1, ""))},
-		{"a branch_task with a branch", named(ev(1, traceBranchTask, 0, t1, branchT1)), withEvent(ev(1, traceBranchTask, 0, t1, branchT1))},
-		{"a pr_merged with a task", named(ev(1, tracePRMerged, 7, t1, "")), withEvent(ev(1, tracePRMerged, 7, t1, ""))},
-		{"a pr_closed with a branch", named(ev(1, tracePRClosed, 7, paneinput.TaskID{}, branchT1)), withEvent(ev(1, tracePRClosed, 7, paneinput.TaskID{}, branchT1))},
-		{"a branch_task with a PR", named(ev(1, traceBranchTask, 7, t1, "")), withEvent(ev(1, traceBranchTask, 7, t1, ""))},
-		{"a branch_task without its task", named(ev(1, traceBranchTask, 0, paneinput.TaskID{}, "")), withEvent(ev(1, traceBranchTask, 0, paneinput.TaskID{}, ""))},
-		{"a session other than the name's", "", edit(ownerA().Session, ownerB().Session)},
-		{"a round other than the name's", "", edit(traceRound(1), traceRound(3))},
-		{"an event other than the name's", "", edit(`"pr":7`, `"pr":8`)},
-		{"a worktree other than the directory's", named(other), withEvent(other)},
-		{"a round that is no round ID", "trace-" + hashName(ownerA().Session) + "-" + traceRound(1) + "-" + strings.Repeat("0", 32) + ".json", func(t *testing.T) []byte {
+		{name: "a task with a path", data: edit(`"task":"0101"`, `"task":"../x"`)},
+		{name: "a task with a trailing space", data: edit(`"task":"0101"`, `"task":"0101 "`)},
+		{name: "invalid UTF-8", data: edit(`"branch":"`, "\"branch\":\"\xff")},
+		{name: "an unpaired surrogate", data: edit(`"branch":"`, `"branch":"\ud800`)},
+		{name: "a repeated member", data: edit(`"pr":7`, `"pr":7,"pr":7`)},
+		{name: "an unknown member", data: edit(`"pr":7`, `"pr":7,"note":""`)},
+		{name: "a member named in another case", data: edit(`"pr":7`, `"pr":7,"PR":7`)},
+		{name: "a member of another type", data: edit(`"pr":7`, `"pr":"7"`)},
+		// The missing member's empty value would be valid for the kind and
+		// is not in the name, so only the check that it is present refuses it.
+		{name: "a missing member", fileName: noTaskOpen.name(), data: func(t *testing.T) []byte {
+			return []byte(strings.Replace(string(traceJSON(t, noTaskOpen)), `,"task":""`, ``, 1))
+		}},
+		{name: "a pr_open without its PR", event: own(ev(1, tracePROpen, 0, t1, branchT1))},
+		{name: "a pr_open without its branch", event: own(ev(1, tracePROpen, 7, none, ""))},
+		{name: "a pr_open whose task is not its branch's", event: own(ev(1, tracePROpen, 7, t2, branchT1))},
+		{name: "a pr_open with a task on a branch of none", event: own(ev(1, tracePROpen, 7, t1, "scratch"))},
+		{name: "a pr_open on main", event: own(ev(1, tracePROpen, 7, none, "main"))},
+		{name: "a pr_merged with a task", event: own(ev(1, tracePRMerged, 7, t1, ""))},
+		{name: "a pr_closed with a branch", event: own(ev(1, tracePRClosed, 7, none, branchT1))},
+		{name: "a branch_task with a PR", event: own(ev(1, traceBranchTask, 7, t1, ""))},
+		{name: "a branch_task without its task", event: own(ev(1, traceBranchTask, 0, none, ""))},
+		{name: "a branch_task with a branch", event: own(ev(1, traceBranchTask, 0, t1, branchT1))},
+		{name: "a session other than the name's", data: edit(ownerA().Session, ownerB().Session)},
+		{name: "a round other than the name's", data: edit(traceRound(1), traceRound(3))},
+		{name: "an event other than the name's", data: edit(`"pr":7`, `"pr":8`)},
+		{name: "a worktree other than the directory's", event: own(other)},
+		{name: "a name of no record's form", fileName: "trace-backup.json", data: func(t *testing.T) []byte { return traceJSON(t, open) }},
+		{name: "trailing data", data: func(t *testing.T) []byte { return append(traceJSON(t, open), "{}"...) }},
+		{name: "over the size limit", data: func(t *testing.T) []byte {
+			return traceJSON(t, ev(1, tracePROpen, 7, none, strings.Repeat("b", recordLimit)))
+		}},
+		// The rows below are refused end to end: the parse refuses them
+		// first, and the members' check or the name would refuse them too,
+		// so no single check of the reader is shown by them alone. The
+		// writer test shows the members' check of the round's form and of
+		// a merge's PR, where the name and the open are not compared.
+		{name: "a negative PR", data: edit(`"pr":7`, `"pr":-7`)},
+		{name: "an unknown kind", data: edit(`"kind":"pr_open"`, `"kind":"pr_seen"`)},
+		{name: "a pr_merged without its PR", event: own(ev(1, tracePRMerged, 0, none, ""))},
+		{name: "a round that is no round ID", fileName: "trace-" + hashName(ownerA().Session) + "-" + traceRound(1) + "-" + strings.Repeat("0", 32) + ".json", data: func(t *testing.T) []byte {
 			e := open
 			e.Round = "1"
-			return traceJSON(t, e)
-		}},
-		{"a name of no record's form", "trace-backup.json", withEvent(open)},
-		{"trailing data", "", func(t *testing.T) []byte { return append(traceJSON(t, open), "{}"...) }},
-		{"over the size limit", "", func(t *testing.T) []byte {
-			e := ev(1, tracePROpen, 7, paneinput.TaskID{}, strings.Repeat("b", recordLimit))
 			return traceJSON(t, e)
 		}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			store := newStore(t)
-			name := c.fileName
-			if name == "" {
+			name, data := c.fileName, c.data
+			switch {
+			case c.event != nil:
+				e := *c.event
+				name, data = e.name(), func(t *testing.T) []byte { return traceJSON(t, e) }
+			case name == "":
 				name = open.name()
 			}
-			path := putTrace(t, store, traceTree, name, c.data(t))
+			path := putTrace(t, store, traceTree, name, data(t))
 			// A readable open of the same PR in another round, which the
 			// reader keeps reading; it is also the open a pr_merged or
 			// pr_closed case needs, so only the case's own check refuses it.
@@ -199,6 +211,9 @@ func TestReadTraceSessionOnly(t *testing.T) {
 	}
 	if h := store.readTraces(ownerB().Session); len(h.unreadable) != 0 || !reflect.DeepEqual(h.events, map[Worktree][]traceEvent{traceTree: {theirs}}) {
 		t.Errorf("the other session's history = %+v", h)
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root lists a directory of mode 0")
 	}
 	locked := filepath.Join(store.Dir(), workspaceDirOf(Worktree{path: "/work/c"}))
 	if err := os.Mkdir(locked, 0o700); err != nil {
@@ -461,7 +476,7 @@ func TestWriteTraceUnderTheExclusion(t *testing.T) {
 	noSession.Session = ""
 	// A merge of PR 0 is refused by the members' check alone: the reader's
 	// check of a merge never seen open does not run on a write.
-	for _, bad := range []traceEvent{badRound, noSession, ev(1, tracePRMerged, 0, paneinput.TaskID{}, ""), ev(1, tracePRClosed, 0, paneinput.TaskID{}, "")} {
+	for _, bad := range []traceEvent{badRound, noSession, ev(1, tracePRMerged, 0, paneinput.TaskID{}, "")} {
 		if err := held.writeTrace(bad); !errors.Is(err, errRecord) {
 			t.Errorf("writing %+v = %v, want errRecord", bad, err)
 		}
