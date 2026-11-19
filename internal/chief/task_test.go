@@ -633,3 +633,114 @@ func TestTasksReadDir(t *testing.T) {
 		}
 	})
 }
+
+// near0069 is the first form-A look-alike line of the 0069 sample.
+const near0069 = "-   [x] **ステップ 1-1（内容のコミット 1）**: `README.md:574-575` の段落を、設計書 3.1 の表の 3 文の内容に改める。1 文目の主語は画面の文言だけを指す語にし、記事の本文が選んだ言語で表示されるとは読めない形にする（AC-01）。段落は 1 つのまま、場所も変えない。段落の外は変えない（AC-04）。"
+
+// TestParsePlanSteps reads the plan samples of the three step forms and the
+// unreadable ones, and checks StepsLeft, the step-reading error, and that PR
+// progress and completion do not depend on the steps.
+func TestParsePlanSteps(t *testing.T) {
+	// A plan has either steps (left says whether some is not done), no step
+	// (errNoSteps), or an unreadable step (kind and detail).
+	type want struct {
+		left     bool
+		noSteps  bool
+		kind     stepErrorKind
+		detail   string
+		next     string // NextPR's target, "" when none
+		taskDone bool
+	}
+	cases := map[string]want{
+		// Form B and form C.
+		"steps-b-open.md":       {left: true, next: singleTarget},
+		"steps-b-all-done.md":   {next: singleTarget},
+		"steps-c-open.md":       {left: true, next: singleTarget},
+		"steps-c-all-done.md":   {next: singleTarget},
+		"steps-b-subheading.md": {left: true, next: singleTarget},
+		"steps-b-markers.md":    {left: true, next: "2"},
+		"steps-c-markers.md":    {left: true, next: "2"},
+		"real-0110.md":          {left: true, next: singleTarget},
+		"real-0111.md":          {left: true, next: singleTarget},
+		// Lines outside chapter 2 are not steps and not near-miss lines.
+		"steps-outside-chapter2.md": {left: true, next: singleTarget},
+		"real-0102.md":              {left: true, next: "2"},
+		"real-0098.md":              {taskDone: true},
+		// Unreadable steps.
+		"steps-no-checkbox.md":         {kind: stepNoCheckbox, detail: "1-2", next: singleTarget},
+		"steps-near-miss-heading.md":   {kind: stepNearMiss, detail: "#### ステップ 1-2・1-3: 受け入れる形にない見出し", next: singleTarget},
+		"steps-near-miss-bold.md":      {kind: stepNearMiss, detail: "**ステップ 1-2・1-3 の完了の条件:** 通る。", next: singleTarget},
+		"steps-near-miss-checkbox.md":  {kind: stepNearMiss, detail: "- [x] **ステップ 1-2（内容のコミット 1）**: 受け入れる形にない行。", next: singleTarget},
+		"steps-other-checkbox-open.md": {kind: stepOtherCheckbox, detail: "* [ ] 別の形の項目", next: singleTarget},
+		"steps-other-checkbox-done.md": {kind: stepOtherCheckbox, detail: "1. [x] 別の形の項目", next: singleTarget},
+		"steps-duplicate.md":           {kind: stepDuplicate, detail: "1-1", next: singleTarget},
+		"steps-outside-duplicate.md":   {kind: stepDuplicate, detail: "1-1", next: singleTarget},
+		"steps-none-near-miss.md":      {kind: stepNearMiss, detail: "#### ステップ 1・2: 受け入れる形にない見出し", next: singleTarget},
+		// No step of any form.
+		"steps-none.md": {noSteps: true, next: singleTarget},
+		// Every PR merged: the plan is done whatever its steps.
+		"steps-merged-unreadable.md": {kind: stepNoCheckbox, detail: "1-2", taskDone: true},
+		"steps-merged-duplicate.md":  {kind: stepDuplicate, detail: "1-1", taskDone: true},
+		// 0069 holds 7 near-miss lines among 8 steps; its PR is merged.
+		"real-0069.md":         {kind: stepNearMiss, detail: near0069, taskDone: true},
+		"real-0069-pr-open.md": {kind: stepNearMiss, detail: near0069, next: singleTarget},
+		// Form A only, the plans the reading must not change.
+		"marker-opus.md":            {left: true, next: "2"},
+		"marker-steps-all-done.md":  {next: "2"},
+		"marker-opus-steps-open.md": {left: true, next: "2"},
+		"single-sonnet.md":          {left: true, next: singleTarget},
+		"single-recorded.md":        {taskDone: true},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			plan, err := ParsePlan(planSample(t, name), testOldValues)
+			if err != nil {
+				t.Fatalf("ParsePlan: %v", err)
+			}
+			left, err := plan.StepsLeft()
+			switch {
+			case c.noSteps:
+				if !errors.Is(err, errNoSteps) || errors.Is(err, errTaskDocument) {
+					t.Errorf("error = %v, want errNoSteps alone", err)
+				}
+			case c.kind != 0:
+				se, ok := errors.AsType[*stepError](err)
+				if !ok || se.Kind != c.kind || se.Detail != c.detail || !errors.Is(err, errTaskDocument) {
+					t.Errorf("error = %v, want kind %d with detail %q wrapping errTaskDocument", err, c.kind, c.detail)
+				}
+				// StepsDone fails on the same error before it reads a target.
+				target := singleTarget
+				if len(plan.PRs) > 0 {
+					target = plan.PRs[0].Target
+				}
+				if _, doneErr := plan.StepsDone(target); !errors.Is(doneErr, err) {
+					t.Errorf("StepsDone error = %v, want %v", doneErr, err)
+				}
+			default:
+				if err != nil || left != c.left {
+					t.Errorf("StepsLeft = %v, %v; want %v", left, err, c.left)
+				}
+			}
+			next, ok := plan.NextPR()
+			if got := map[bool]string{true: next.Target, false: ""}[ok]; got != c.next {
+				t.Errorf("NextPR = %q, want %q", got, c.next)
+			}
+			if plan.Done() != c.taskDone {
+				t.Errorf("Done = %v, want %v", plan.Done(), c.taskDone)
+			}
+		})
+	}
+}
+
+// TestStepsDoneFormsBC checks that a target's steps of form B and form C are
+// done only when every checkbox of each is done or skipped.
+func TestStepsDoneFormsBC(t *testing.T) {
+	for _, name := range []string{"steps-b-markers.md", "steps-c-markers.md"} {
+		plan := mustPlan(t, name)
+		for target, want := range map[string]bool{"1": true, "2": true, "3": false} {
+			if got, err := plan.StepsDone(target); err != nil || got != want {
+				t.Errorf("%s: StepsDone(%s) = %v, %v; want %v", name, target, got, err, want)
+			}
+		}
+	}
+}

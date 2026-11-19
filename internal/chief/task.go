@@ -504,7 +504,13 @@ type Plan struct {
 	Status DocStatus
 	PRs    []PlanPR
 	// steps maps each step's ID to whether its checkbox is done or skipped.
+	// It is meaningless when stepsErr is set.
 	steps map[string]bool
+	// stepsErr is why the plan's steps could not be read (a *stepError). It
+	// is not a ParsePlan error: only the two judgments that use the steps
+	// (StepsLeft and StepsDone) fail on it, so PR progress and completion
+	// are still read for a plan whose steps are unreadable.
+	stepsErr error
 }
 
 var (
@@ -518,7 +524,8 @@ var (
 	// not in a form above makes the plan unreadable rather than read as no
 	// checkbox.
 	progressLike = regexp.MustCompile(`^[ \t>]*(?:[-*+]|[0-9]+[.)])[ \t\x{3000}]*\[[^\]]*\][ \t\x{3000}]*PR[ \t\x{3000}]*(?:を作成した|がマージされた)`)
-	// stepBox is a step's checkbox: done, skipped, or not started.
+	// stepBox is a form-A step: a checkbox line, done, skipped, or not
+	// started, read anywhere in the document.
 	stepBox = regexp.MustCompile(`^-[ \t]+\[([ x-])\][ \t]+\*\*ステップ ([0-9]+-[0-9]+)\*\*`)
 	// stepID is one step of a marker's target step list.
 	stepID = regexp.MustCompile(`^[0-9]+-[0-9]+$`)
@@ -538,7 +545,8 @@ func ParsePlan(doc []byte, old OldValues) (Plan, error) {
 	if unclosed {
 		return Plan{}, fmt.Errorf("%w: unclosed code fence", errTaskDocument)
 	}
-	plan := Plan{Status: info.Status, steps: map[string]bool{}}
+	plan := Plan{Status: info.Status}
+	plan.steps, plan.stepsErr = readSteps(lines)
 	var sections [][]docLine
 	var current []docLine
 	var targets []string
@@ -546,12 +554,6 @@ func ParsePlan(doc []byte, old OldValues) (Plan, error) {
 	for _, l := range lines {
 		if l.fenced {
 			continue
-		}
-		if m := stepBox.FindStringSubmatch(l.text); m != nil {
-			if _, dup := plan.steps[m[2]]; dup {
-				return Plan{}, fmt.Errorf("%w: step %s twice", errTaskDocument, m[2])
-			}
-			plan.steps[m[2]] = m[1] != " "
 		}
 		if anyHeading.MatchString(l.text) {
 			if inMarker {
@@ -679,15 +681,22 @@ func (p Plan) NextPR() (PlanPR, bool) {
 	return PlanPR{}, false
 }
 
-// StepsLeft reports whether some step of the plan is not started. A plan
-// with no step checkbox has none left.
-func (p Plan) StepsLeft() bool {
+// StepsLeft reports whether some step of the plan is not started. It returns
+// the plan's step-reading error when the steps cannot be read, and errNoSteps
+// when the plan has no step of any form.
+func (p Plan) StepsLeft() (bool, error) {
+	if p.stepsErr != nil {
+		return false, p.stepsErr
+	}
+	if len(p.steps) == 0 {
+		return false, errNoSteps
+	}
 	for _, done := range p.steps {
 		if !done {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // Done reports whether the task is complete: the plan is approved and every
@@ -706,8 +715,12 @@ func (p Plan) Done() bool {
 
 // StepsDone reports whether every step of the PR target is done or skipped:
 // for a marker, its target steps; for a plan without markers, every step of
-// the plan. A step without a checkbox is an error.
+// the plan. A step without a checkbox is an error, and so is a plan whose
+// steps cannot be read.
 func (p Plan) StepsDone(target string) (bool, error) {
+	if p.stepsErr != nil {
+		return false, p.stepsErr
+	}
 	i := slices.IndexFunc(p.PRs, func(pr PlanPR) bool { return pr.Target == target })
 	if i < 0 {
 		return false, fmt.Errorf("%w: no PR %s", errTaskDocument, target)
@@ -1044,4 +1057,172 @@ func (t Tasks) listTree(ctx context.Context, worktree, prefix string) ([]string,
 // show returns the blob at path in rev.
 func (t Tasks) show(ctx context.Context, worktree, rev, path string) ([]byte, error) {
 	return t.cmds.git(ctx, worktree, "show", rev+":"+path)
+}
+
+// errNoSteps is StepsLeft's result for a plan with no step of any form. It is
+// not an errTaskDocument: a plan with no steps is well formed.
+var errNoSteps = errors.New("no step in the plan")
+
+// stepErrorKind is which of the four conditions made a plan's steps
+// unreadable. The zero value is none of them.
+type stepErrorKind int
+
+const (
+	// stepNoCheckbox is a heading or bold step with no step checkbox in its
+	// range. Detail is the step ID.
+	stepNoCheckbox stepErrorKind = iota + 1
+	// stepNearMiss is a line in chapter 2 that looks like a step line but is
+	// in no accepted form. Detail is the line.
+	stepNearMiss
+	// stepOtherCheckbox is a checkbox in a form-B or form-C step's range that
+	// is not a step checkbox. Detail is the line.
+	stepOtherCheckbox
+	// stepDuplicate is a step ID that appears twice, in any form. Detail is
+	// the step ID.
+	stepDuplicate
+)
+
+// stepError reports why the steps of a plan cannot be read. It wraps
+// errTaskDocument.
+type stepError struct {
+	Kind   stepErrorKind
+	Detail string
+}
+
+func (e *stepError) Error() string {
+	return fmt.Sprintf("%v: steps: kind %d: %q", errTaskDocument, e.Kind, e.Detail)
+}
+
+func (e *stepError) Unwrap() error { return errTaskDocument }
+
+var (
+	// chapter2Heading is the heading that opens chapter 2 of a plan.
+	chapter2Heading = regexp.MustCompile(`^## 2\.[ \t]`)
+	// stepHeading is a form-B step: a heading whose text starts with the
+	// step ID. The heading's level is the number of '#'.
+	stepHeading = regexp.MustCompile(`^(#+)[ \t]+ステップ ([0-9]+-[0-9]+)(?:$|[:：])`)
+	// stepBold is the start of a form-C step: a bold paragraph; readSteps
+	// also checks the closing "**".
+	stepBold = regexp.MustCompile(`^\*\*ステップ ([0-9]+-[0-9]+)[:：]`)
+	// nearHeading, nearBold, and nearCheckbox are lines that look like a step
+	// line but, once the accepted forms are ruled out, are in none of them.
+	nearHeading  = regexp.MustCompile(`^#+[ \t]+ステップ[ \t]*[0-9]`)
+	nearBold     = regexp.MustCompile(`^\*\*ステップ[ \t]*[0-9]`)
+	nearCheckbox = regexp.MustCompile(`^[ \t]*(?:[-*+]|[0-9]+[.)])[ \t]+\[.\][ \t]+\*\*ステップ[ \t]*[0-9A-Za-z]`)
+	// rangeStepBox is a step checkbox inside a form-B or form-C range.
+	rangeStepBox = regexp.MustCompile(`^[ \t]*-[ \t]+\[([ x-])\]`)
+	// otherBox is a checkbox of any list form.
+	otherBox = regexp.MustCompile(`^[ \t]*(?:[-*+]|[0-9]+[.)])[ \t]+\[.\]`)
+)
+
+// stepRange is the open range of a form-B or form-C step.
+type stepRange struct {
+	id string
+	// level is the heading level of a form-B step; 0 for form C.
+	level int
+	marks []byte
+}
+
+// stepReader is the state of readSteps.
+type stepReader struct {
+	steps      map[string]bool
+	firstErr   error
+	open       *stepRange
+	inChapter2 bool
+}
+
+func (r *stepReader) fail(kind stepErrorKind, detail string) {
+	if r.firstErr == nil {
+		r.firstErr = &stepError{Kind: kind, Detail: detail}
+	}
+}
+
+func (r *stepReader) add(id string, done bool) {
+	if _, dup := r.steps[id]; dup {
+		r.fail(stepDuplicate, id)
+	}
+	r.steps[id] = done
+}
+
+func (r *stepReader) closeRange() {
+	if r.open == nil {
+		return
+	}
+	if len(r.open.marks) == 0 {
+		r.fail(stepNoCheckbox, r.open.id)
+	}
+	r.add(r.open.id, !slices.Contains(r.open.marks, ' '))
+	r.open = nil
+}
+
+// heading reads a heading line.
+func (r *stepReader) heading(text string) {
+	level := len(text) - len(strings.TrimLeft(text, "#"))
+	if r.open != nil && (r.open.level == 0 || level <= r.open.level) {
+		r.closeRange()
+	}
+	if level <= chapterLevel {
+		r.inChapter2 = chapter2Heading.MatchString(text)
+		return
+	}
+	if !r.inChapter2 {
+		return
+	}
+	if m := stepHeading.FindStringSubmatch(text); m != nil {
+		r.closeRange()
+		r.open = &stepRange{id: m[2], level: len(m[1])}
+	} else if nearHeading.MatchString(text) {
+		r.fail(stepNearMiss, text)
+	}
+}
+
+// line reads a line that is not a heading.
+func (r *stepReader) line(text string) {
+	if m := stepBox.FindStringSubmatch(text); m != nil {
+		r.closeRange()
+		r.add(m[2], m[1] != " ")
+		return
+	}
+	if !r.inChapter2 {
+		return
+	}
+	if m := stepBold.FindStringSubmatch(text); m != nil && strings.HasSuffix(text, "**") && strings.Count(text, "**") == 2 {
+		r.closeRange()
+		r.open = &stepRange{id: m[1]}
+		return
+	}
+	if nearBold.MatchString(text) || nearCheckbox.MatchString(text) {
+		r.fail(stepNearMiss, text)
+		return
+	}
+	if r.open == nil {
+		return
+	}
+	if m := rangeStepBox.FindStringSubmatch(text); m != nil {
+		r.open.marks = append(r.open.marks, m[1][0])
+	} else if otherBox.MatchString(text) {
+		r.fail(stepOtherCheckbox, text)
+	}
+}
+
+// readSteps reads the plan's steps from the lines outside code fences, as
+// 01_requirements.md section 3.1 defines. Form A is read anywhere; forms B
+// and C only in chapter 2. It returns the first problem as a *stepError, and
+// the steps then mean nothing.
+func readSteps(lines []docLine) (map[string]bool, error) {
+	r := &stepReader{steps: map[string]bool{}}
+	for _, l := range lines {
+		switch {
+		case l.fenced:
+		case anyHeading.MatchString(l.text):
+			r.heading(l.text)
+		default:
+			r.line(l.text)
+		}
+	}
+	r.closeRange()
+	if r.firstErr != nil {
+		return nil, r.firstErr
+	}
+	return r.steps, nil
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -332,6 +333,40 @@ func TestTakeoverProposal(t *testing.T) {
 			r := rowOf(t, take(t, w), "ws")
 			if r.Takeover != nil {
 				t.Errorf("takeover proposed without %s: %+v", name, r.Takeover)
+			}
+		})
+	}
+	// The plan on main and the plan on the branch are written in form B or
+	// form C: the target steps (PR-2) are done while PR-3's step is not, and
+	// the proposal does not wait for the steps outside the target.
+	for _, sample := range []string{"steps-b-markers.md", "steps-c-markers.md"} {
+		t.Run("steps of "+sample, func(t *testing.T) {
+			w, tree := takeoverSetup(t)
+			w.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, sample)})
+			w.rec.replyIn(tree, "git show HEAD:docs/tasks/"+taskDir+"/"+planFile, planSample(t, sample))
+			r := rowOf(t, take(t, w), "ws")
+			if r.Takeover == nil || r.Takeover.Kind != TaskNextRunplanTakeover {
+				t.Fatalf("takeover = %+v (unreadable %v), want a proposal", r.Takeover, r.Unreadable)
+			}
+			// The branch's plan leaves a target step undone, or cannot be read.
+			doc := string(planSample(t, sample))
+			for name, edit := range map[string][2]string{
+				"a target step not done":   {"- [-] 項目\n", "- [ ] 項目\n"},
+				"a target step unreadable": {"- [-] 項目\n", ""},
+			} {
+				if !strings.Contains(doc, edit[0]) {
+					t.Fatalf("%s: the edit's anchor is not in the sample", name)
+				}
+				w, tree := takeoverSetup(t)
+				w.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, sample)})
+				w.rec.replyIn(tree, "git show HEAD:docs/tasks/"+taskDir+"/"+planFile, []byte(strings.Replace(doc, edit[0], edit[1], 1)))
+				r := rowOf(t, take(t, w), "ws")
+				if r.Takeover != nil {
+					t.Errorf("%s: takeover proposed: %+v", name, r.Takeover)
+				}
+				if name == "a target step unreadable" && !slices.Contains(r.Unreadable, "the steps of the next PR on the branch") {
+					t.Errorf("%s: unreadable = %v, want the steps of the next PR on the branch", name, r.Unreadable)
+				}
 			}
 		})
 	}
@@ -973,5 +1008,69 @@ func TestRunningOutputHasNoRawText(t *testing.T) {
 		if strings.Contains(string(data), "evil") {
 			t.Errorf("row %v holds the raw argument: %s", r["label"], data)
 		}
+	}
+}
+
+// TestTakeSnapshotPlanSteps checks the row a plan's steps give for a plan
+// whose next PR is not created: /runplan for steps of any form that are left,
+// and a needs-check row with a reason of its own for each reading that
+// proposes nothing. The reasons are compared whole, built from the constants
+// and the step error's detail, so that two reasons cannot be taken for one.
+func TestTakeSnapshotPlanSteps(t *testing.T) {
+	quoted := func(prefix, detail string) string { return prefix + ": " + fmt.Sprintf("%q", detail) }
+	unreadable := func(cond, detail string) string { return quoted(reasonStepsUnreadable+": "+cond, detail) }
+	cases := []struct {
+		sample string
+		state  WorkspaceState
+		reason string // the only unreadable reason of a needs-check row
+	}{
+		{"real-0110.md", StateProposeNext, ""},
+		{"real-0111.md", StateProposeNext, ""},
+		{"steps-b-open.md", StateProposeNext, ""},
+		{"steps-c-open.md", StateProposeNext, ""},
+		{"steps-b-subheading.md", StateProposeNext, ""},
+		{"steps-b-markers.md", StateProposeNext, ""},
+		{"steps-c-markers.md", StateProposeNext, ""},
+		{"steps-outside-chapter2.md", StateProposeNext, ""},
+		{"steps-b-all-done.md", StateNeedsCheck, reasonNoStepLeft},
+		{"steps-c-all-done.md", StateNeedsCheck, reasonNoStepLeft},
+		{"steps-none.md", StateNeedsCheck, reasonNoSteps},
+		{"steps-no-checkbox.md", StateNeedsCheck, unreadable(reasonStepNoCheckbox, "1-2")},
+		{"steps-near-miss-heading.md", StateNeedsCheck, unreadable(reasonStepNearMiss, "#### ステップ 1-2・1-3: 受け入れる形にない見出し")},
+		{"steps-other-checkbox-open.md", StateNeedsCheck, unreadable(reasonStepOtherCheckbox, "* [ ] 別の形の項目")},
+		{"steps-other-checkbox-done.md", StateNeedsCheck, unreadable(reasonStepOtherCheckbox, "1. [x] 別の形の項目")},
+		{"steps-duplicate.md", StateNeedsCheck, unreadable(reasonStepDuplicate, "1-1")},
+		// A plan with no step and a look-alike line gets the unreadable reason.
+		{"steps-none-near-miss.md", StateNeedsCheck, unreadable(reasonStepNearMiss, "#### ステップ 1・2: 受け入れる形にない見出し")},
+		// 0069 with its PR not created: look-alike lines among its steps.
+		{"real-0069-pr-open.md", StateNeedsCheck, unreadable(reasonStepNearMiss, near0069)},
+		// Every PR merged: done whatever the steps.
+		{"steps-merged-unreadable.md", StateTaskDone, ""},
+		{"steps-merged-duplicate.md", StateTaskDone, ""},
+		{"real-0069.md", StateTaskDone, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.sample, func(t *testing.T) {
+			w := newWorld(t)
+			w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, c.sample)}})
+			r := rowOf(t, take(t, w), "ws")
+			if r.State != c.state {
+				t.Fatalf("state = %v (%v), want %v", r.State, r.Unreadable, c.state)
+			}
+			switch c.state {
+			case StateProposeNext:
+				if r.Next == nil || r.Next.Kind != TaskNextRunplan || r.Next.Text != "/runplan 0001" {
+					t.Errorf("next = %+v, want /runplan 0001", r.Next)
+				}
+			case StateNeedsCheck:
+				if r.Next != nil || !slices.Equal(r.Unreadable, []string{c.reason}) {
+					t.Errorf("row = %+v, want no command and the reason %q", r, c.reason)
+				}
+			}
+		})
+	}
+	// The three kinds of reason differ from one another.
+	if reasonNoStepLeft == reasonNoSteps || reasonNoSteps == reasonStepsUnreadable || reasonNoStepLeft == reasonStepsUnreadable {
+		t.Error("two reasons are the same text")
 	}
 }
