@@ -58,7 +58,8 @@ func (f *fakeHerdr) agent(pane, session string) string {
 	if f.paneDir != "" {
 		dir = f.paneDir
 	}
-	return fmt.Sprintf(`{"agent":"claude",%s"agent_status":"working","cwd":%q,"pane_id":%q,"state_change_seq":1,"workspace_id":%q}`, sessionJSON, dir, pane, strings.Split(pane, ":")[0])
+	ws, _, _ := strings.Cut(pane, ":")
+	return fmt.Sprintf(`{"agent":"claude",%s"agent_status":"working","cwd":%q,"pane_id":%q,"state_change_seq":1,"tab_id":%q,"workspace_id":%q}`, sessionJSON, dir, pane, ws+":t1", ws)
 }
 
 // sessions maps each pane the fake Herdr lists to its session.
@@ -105,6 +106,11 @@ func (f *fakeHerdr) Run(_ context.Context, name string, args ...string) ([]byte,
 			agents += "," + f.agent(otherPane, otherSession)
 		}
 		return []byte(`{"id":"cli:agent:list","result":{"agents":[` + agents + `],"type":"agent_list"}}`), nil
+	case name == "herdr" && has("tab", "list"):
+		return []byte(`{"id":"cli:tab:list","result":{"tabs":[{"label":"claude","tab_id":"wc:t1"},{"label":"claude","tab_id":"wd:t1"}],"type":"tab_list"}}`), nil
+	case name == "herdr" && has("pane", "layout"):
+		pane := args[len(args)-1]
+		return []byte(`{"id":"cli:pane:layout","result":{"layout":{"panes":[{"pane_id":"` + pane + `","rect":{"width":100}}],"splits":[]},"type":"pane_layout"}}`), nil
 	case name == "herdr" && has("workspace", "list"):
 		return []byte(`{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"label":"chief","workspace_id":"wc"}]}}`), nil
 	case name == "git" && has("--show-toplevel"):
