@@ -82,30 +82,37 @@ func checkRunprNextExamples(doc string, routes []nextRoute) []string {
 }
 
 // nextLineExamples returns the NEXT line examples of a section: the code spans
-// outside its fenced code blocks whose text, with its surrounding spaces
-// removed, starts with the word NEXT after an optional list bullet. A span
-// whose whole text is NEXT or NEXT: only names the form and is not an example.
-// A span over several lines is joined with one space, as one line of a report
-// reads.
+// of each Markdown block outside its fenced code blocks whose text, with its
+// surrounding spaces removed, starts with the word NEXT after an optional list
+// bullet. A span whose whole text is NEXT or NEXT: only names the form and is
+// not an example. A span over several lines is joined with one space, as one
+// line of a report reads. Spans are read in each block alone, so an unmatched
+// backtick in one block cannot pair with a span in another.
 func nextLineExamples(section string) []string {
-	var prose strings.Builder
-	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(section))) {
-		if !line.Block {
-			prose.WriteString(line.Text)
-		}
-		prose.WriteString("\n")
-	}
 	var examples []string
-	for _, m := range codeSpanInProse.FindAllStringSubmatch(prose.String(), -1) {
-		example := strings.TrimSpace(spanLineBreak.ReplaceAllString(m[1], " "))
-		text := strings.TrimPrefix(example, "- ")
-		if !nextExampleWord.MatchString(text) || text == "NEXT" || text == "NEXT:" {
+	var block strings.Builder
+	flush := func() {
+		for _, m := range codeSpanInProse.FindAllStringSubmatch(block.String(), -1) {
+			example := strings.TrimSpace(spanLineBreak.ReplaceAllString(m[1], " "))
+			text := strings.TrimPrefix(example, "- ")
+			if nextExampleWord.MatchString(text) && text != "NEXT" && text != "NEXT:" {
+				// Keep a list bullet in the example: the report grammar allows
+				// it, so the readers are checked against the form as the
+				// document writes it.
+				examples = append(examples, example)
+			}
+		}
+		block.Reset()
+	}
+	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(section))) {
+		if line.Block || strings.TrimSpace(line.Text) == "" {
+			flush()
 			continue
 		}
-		// Keep a list bullet in the example: the report grammar allows it, so
-		// the readers are checked against the form as the document writes it.
-		examples = append(examples, example)
+		block.WriteString(line.Text)
+		block.WriteString("\n")
 	}
+	flush()
 	return examples
 }
 
@@ -142,6 +149,11 @@ func TestNextLineExamples(t *testing.T) {
 		{
 			name:    "over two lines with a CRLF break",
 			section: "`NEXT: /mkplan\r\n4242`\n",
+			want:    []string{"NEXT: /mkplan 4242"},
+		},
+		{
+			name:    "an unmatched backtick in another block",
+			section: "An unmatched ` here.\n\n`NEXT: /mkplan 4242`\n",
 			want:    []string{"NEXT: /mkplan 4242"},
 		},
 		{
