@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。
@@ -316,3 +316,7 @@ Diff record (AC-16):
 -   PR-2 の `/runpr` の前に、PR-2 のブランチで `mergepr` を入れ直す。マージの直後に `main` から入れ直す（手引き 3 章）。
 -   PR-2 のマージで、`mergepr` の報告の `corrections carried:` の行と、`git cat-file commit <squash コミット> | grep '^Editorial correction: '` の出力が、PR-2 のコミットの訂正の行（ステップ 2-7 の行を含む）と一致することを確かめる。squash コミットに `git interpret-trailers --parse` を実行し、予約した接頭辞の行が出ないことも確かめる。結果を PR-2 にコメントとして記録する（設計書 7.3、AC-01・AC-06 の manual の行）。
 -   PR-2 のマージの後、`/runpr` が issue #747 を閉じる（タスクの最後の計画の PR）。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1018）
