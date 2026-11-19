@@ -416,7 +416,7 @@ func (s *sectionScan) heading(text string) bool {
 		s.inSection = m != nil && m[1] == s.target
 		return s.inSection
 	}
-	if level := len(text) - len(strings.TrimLeft(text, "#")); level <= chapterLevel {
+	if headingLevel(text) <= chapterLevel {
 		s.inChapter3 = chapterThree.MatchString(text)
 		s.inSection = false
 		return false
@@ -1123,6 +1123,11 @@ type stepRange struct {
 	marks []byte
 }
 
+// headingLevel is the number of '#' that start a heading line.
+func headingLevel(text string) int {
+	return len(text) - len(strings.TrimLeft(text, "#"))
+}
+
 // stepReader is the state of readSteps.
 type stepReader struct {
 	steps      map[string]bool
@@ -1157,7 +1162,7 @@ func (r *stepReader) closeRange() {
 
 // heading reads a heading line.
 func (r *stepReader) heading(text string) {
-	level := len(text) - len(strings.TrimLeft(text, "#"))
+	level := headingLevel(text)
 	if r.open != nil && (r.open.level == 0 || level <= r.open.level) {
 		r.closeRange()
 	}
@@ -1186,7 +1191,7 @@ func (r *stepReader) line(text string) {
 	if !r.inChapter2 {
 		return
 	}
-	if m := stepBold.FindStringSubmatch(text); m != nil && strings.HasSuffix(text, "**") && strings.Count(text, "**") == 2 {
+	if m := stepBold.FindStringSubmatch(text); m != nil && isBoldLine(text) {
 		r.closeRange()
 		r.open = &stepRange{id: m[1]}
 		return
@@ -1225,4 +1230,11 @@ func readSteps(lines []docLine) (map[string]bool, error) {
 		return nil, r.firstErr
 	}
 	return r.steps, nil
+}
+
+// isBoldLine reports whether text is one bold span: it starts and ends with
+// "**" and holds no other "**", so a run of three asterisks at the end is not
+// one.
+func isBoldLine(text string) bool {
+	return strings.HasSuffix(text, "**") && !strings.HasSuffix(text, "***") && strings.Count(text, "**") == 2
 }

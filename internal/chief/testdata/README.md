@@ -178,6 +178,8 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 
 **作ったサンプル。** 実物から採ったものではなく、要件書の定義から作った。ファイル名は `plans/steps-<形>-<状態>.md` で、書き方 B（`b`）・書き方 C（`c`）の PR マーカー付きの計画書、残りのあるもの（`-open`）とすべて済んだもの（`-all-done`）、小見出しの下にだけ未了のチェックボックスがあるもの（`steps-b-subheading.md`）、2 章の外に似た行や重複を持つもの（`-outside-*`）、読めない 4 つの条件のもの（`-no-checkbox`・`-near-miss-*`・`-other-checkbox-*`・`-duplicate`）、ステップが 0 件のもの（`-none`・`-none-near-miss`）、すべてマージ済みでステップを読めないもの（`-merged-*`）である。
 
+`plans/steps-grammar.txt` は、ステップの書き方の境界を 1 つずつ確かめる小さな計画書の断片を、`-----` の行で区切って並べたものである。各断片の最初の行 `want: <読み取りの結果>` が期待する結果を持ち、断片は計画書の 2 章に入れて、LF と CRLF の両方で読む。
+
 ### 報告の transcript
 
 `transcript/` の `claude-runpr-report.jsonl`・`claude-command-report.jsonl`・`claude-recap-notification.jsonl`・`claude-synthetic.jsonl`・`claude-compact.jsonl`・`claude-auto-continuation.jsonl` は、タスク 0095 の PR-1（実装計画書のステップ 1-1〜1-5）で、2026-11-17 に、このプロジェクトの worktree の Claude Code の transcript から、読み取りだけで採った。

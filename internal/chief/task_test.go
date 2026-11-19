@@ -5,6 +5,7 @@ package chief
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -634,20 +635,29 @@ func TestTasksReadDir(t *testing.T) {
 	})
 }
 
-// near0069 is the first form-A look-alike line of the 0069 sample.
-const near0069 = "-   [x] **ステップ 1-1（内容のコミット 1）**: `README.md:574-575` の段落を、設計書 3.1 の表の 3 文の内容に改める。1 文目の主語は画面の文言だけを指す語にし、記事の本文が選んだ言語で表示されるとは読めない形にする（AC-01）。段落は 1 つのまま、場所も変えない。段落の外は変えない（AC-04）。"
+// planSampleLine returns line n (1-based) of the plan sample name.
+func planSampleLine(t *testing.T, name string, n int) string {
+	t.Helper()
+	lines := strings.Split(string(planSample(t, name)), "\n")
+	if n < 1 || n > len(lines) {
+		t.Fatalf("%s has no line %d", name, n)
+	}
+	return lines[n-1]
+}
 
 // TestParsePlanSteps reads the plan samples of the three step forms and the
 // unreadable ones, and checks StepsLeft, the step-reading error, and that PR
 // progress and completion do not depend on the steps.
 func TestParsePlanSteps(t *testing.T) {
 	// A plan has either steps (left says whether some is not done), no step
-	// (errNoSteps), or an unreadable step (kind and detail).
+	// (errNoSteps), or an unreadable step: its kind and its detail, the step
+	// ID or the number of the offending line of the sample.
 	type want struct {
 		left     bool
 		noSteps  bool
 		kind     stepErrorKind
-		detail   string
+		id       string
+		line     int
 		next     string // NextPR's target, "" when none
 		taskDone bool
 	}
@@ -667,23 +677,23 @@ func TestParsePlanSteps(t *testing.T) {
 		"real-0102.md":              {left: true, next: "2"},
 		"real-0098.md":              {taskDone: true},
 		// Unreadable steps.
-		"steps-no-checkbox.md":         {kind: stepNoCheckbox, detail: "1-2", next: singleTarget},
-		"steps-near-miss-heading.md":   {kind: stepNearMiss, detail: "#### ステップ 1-2・1-3: 受け入れる形にない見出し", next: singleTarget},
-		"steps-near-miss-bold.md":      {kind: stepNearMiss, detail: "**ステップ 1-2・1-3 の完了の条件:** 通る。", next: singleTarget},
-		"steps-near-miss-checkbox.md":  {kind: stepNearMiss, detail: "- [x] **ステップ 1-2（内容のコミット 1）**: 受け入れる形にない行。", next: singleTarget},
-		"steps-other-checkbox-open.md": {kind: stepOtherCheckbox, detail: "* [ ] 別の形の項目", next: singleTarget},
-		"steps-other-checkbox-done.md": {kind: stepOtherCheckbox, detail: "1. [x] 別の形の項目", next: singleTarget},
-		"steps-duplicate.md":           {kind: stepDuplicate, detail: "1-1", next: singleTarget},
-		"steps-outside-duplicate.md":   {kind: stepDuplicate, detail: "1-1", next: singleTarget},
-		"steps-none-near-miss.md":      {kind: stepNearMiss, detail: "#### ステップ 1・2: 受け入れる形にない見出し", next: singleTarget},
+		"steps-no-checkbox.md":         {kind: stepNoCheckbox, id: "1-2", next: singleTarget},
+		"steps-near-miss-heading.md":   {kind: stepNearMiss, line: 23, next: singleTarget},
+		"steps-near-miss-bold.md":      {kind: stepNearMiss, line: 23, next: singleTarget},
+		"steps-near-miss-checkbox.md":  {kind: stepNearMiss, line: 16, next: singleTarget},
+		"steps-other-checkbox-open.md": {kind: stepOtherCheckbox, line: 20, next: singleTarget},
+		"steps-other-checkbox-done.md": {kind: stepOtherCheckbox, line: 20, next: singleTarget},
+		"steps-duplicate.md":           {kind: stepDuplicate, id: "1-1", next: singleTarget},
+		"steps-outside-duplicate.md":   {kind: stepDuplicate, id: "1-1", next: singleTarget},
+		"steps-none-near-miss.md":      {kind: stepNearMiss, line: 15, next: singleTarget},
 		// No step of any form.
 		"steps-none.md": {noSteps: true, next: singleTarget},
 		// Every PR merged: the plan is done whatever its steps.
-		"steps-merged-unreadable.md": {kind: stepNoCheckbox, detail: "1-2", taskDone: true},
-		"steps-merged-duplicate.md":  {kind: stepDuplicate, detail: "1-1", taskDone: true},
-		// 0069 holds 7 near-miss lines among 8 steps; its PR is merged.
-		"real-0069.md":         {kind: stepNearMiss, detail: near0069, taskDone: true},
-		"real-0069-pr-open.md": {kind: stepNearMiss, detail: near0069, next: singleTarget},
+		"steps-merged-unreadable.md": {kind: stepNoCheckbox, id: "1-2", taskDone: true},
+		"steps-merged-duplicate.md":  {kind: stepDuplicate, id: "1-1", taskDone: true},
+		// 0069 holds 7 look-alike lines among 8 steps; its PR is merged.
+		"real-0069.md":         {kind: stepNearMiss, line: 72, taskDone: true},
+		"real-0069-pr-open.md": {kind: stepNearMiss, line: 72, next: singleTarget},
 		// Form A only, the plans the reading must not change.
 		"marker-opus.md":            {left: true, next: "2"},
 		"marker-steps-all-done.md":  {next: "2"},
@@ -704,9 +714,13 @@ func TestParsePlanSteps(t *testing.T) {
 					t.Errorf("error = %v, want errNoSteps alone", err)
 				}
 			case c.kind != 0:
+				detail := c.id
+				if c.line > 0 {
+					detail = planSampleLine(t, name, c.line)
+				}
 				se, ok := errors.AsType[*stepError](err)
-				if !ok || se.Kind != c.kind || se.Detail != c.detail || !errors.Is(err, errTaskDocument) {
-					t.Errorf("error = %v, want kind %d with detail %q wrapping errTaskDocument", err, c.kind, c.detail)
+				if !ok || se.Kind != c.kind || se.Detail != detail || !errors.Is(err, errTaskDocument) {
+					t.Errorf("error = %v, want kind %d with detail %q wrapping errTaskDocument", err, c.kind, detail)
 				}
 				// StepsDone fails on the same error before it reads a target.
 				target := singleTarget
@@ -721,8 +735,11 @@ func TestParsePlanSteps(t *testing.T) {
 					t.Errorf("StepsLeft = %v, %v; want %v", left, err, c.left)
 				}
 			}
-			next, ok := plan.NextPR()
-			if got := map[bool]string{true: next.Target, false: ""}[ok]; got != c.next {
+			got := ""
+			if next, ok := plan.NextPR(); ok {
+				got = next.Target
+			}
+			if got != c.next {
 				t.Errorf("NextPR = %q, want %q", got, c.next)
 			}
 			if plan.Done() != c.taskDone {
@@ -730,17 +747,65 @@ func TestParsePlanSteps(t *testing.T) {
 			}
 		})
 	}
+	// A target's steps of form B and form C are done only when every checkbox
+	// of each is done or skipped.
+	for _, name := range []string{"steps-b-markers.md", "steps-c-markers.md"} {
+		for target, want := range map[string]bool{"1": true, "2": true, "3": false} {
+			t.Run("StepsDone "+name+" PR-"+target, func(t *testing.T) {
+				if got, err := mustPlan(t, name).StepsDone(target); err != nil || got != want {
+					t.Errorf("StepsDone = %v, %v; want %v", got, err, want)
+				}
+			})
+		}
+	}
 }
 
-// TestStepsDoneFormsBC checks that a target's steps of form B and form C are
-// done only when every checkbox of each is done or skipped.
-func TestStepsDoneFormsBC(t *testing.T) {
-	for _, name := range []string{"steps-b-markers.md", "steps-c-markers.md"} {
-		plan := mustPlan(t, name)
-		for target, want := range map[string]bool{"1": true, "2": true, "3": false} {
-			if got, err := plan.StepsDone(target); err != nil || got != want {
-				t.Errorf("%s: StepsDone(%s) = %v, %v; want %v", name, target, got, err, want)
-			}
+// grammarSkeleton wraps a case of steps-grammar.txt in a plan whose chapter 2
+// holds it.
+const grammarSkeleton = "# Plan\n\n## Document Status\n\n| Item | Value |\n|---|---|\n| Status | `approved` |\n\n## 2. Steps\n\n%s\n## 3. Rest\n"
+
+// TestStepGrammar feeds the edges of the step grammar one at a time, as LF
+// and as CRLF documents. Each case of steps-grammar.txt starts with the
+// reading it must give: left, done, none, or the kind of the step error. A
+// "{SP}" in a case stands for a space, which an editor hook would strip from
+// the end of a line.
+func TestStepGrammar(t *testing.T) {
+	kinds := map[string]stepErrorKind{
+		"no-checkbox": stepNoCheckbox, "near-miss": stepNearMiss,
+		"other-checkbox": stepOtherCheckbox, "duplicate": stepDuplicate,
+	}
+	for i, c := range strings.Split(string(readTestdata(t, "plans/steps-grammar.txt")), "-----\n") {
+		first, body, _ := strings.Cut(c, "\n")
+		reading, ok := strings.CutPrefix(first, "want: ")
+		if !ok {
+			t.Fatalf("case %d has no want line: %q", i, first)
+		}
+		for _, crlf := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%d %s crlf=%v", i, reading, crlf), func(t *testing.T) {
+				doc := fmt.Sprintf(grammarSkeleton, strings.ReplaceAll(body, "{SP}", " "))
+				if crlf {
+					doc = strings.ReplaceAll(doc, "\n", "\r\n")
+				}
+				plan, err := ParsePlan([]byte(doc), testOldValues)
+				if err != nil {
+					t.Fatalf("ParsePlan: %v", err)
+				}
+				left, err := plan.StepsLeft()
+				switch reading {
+				case "left", "done":
+					if err != nil || left != (reading == "left") {
+						t.Errorf("StepsLeft = %v, %v; want %s", left, err, reading)
+					}
+				case "none":
+					if !errors.Is(err, errNoSteps) {
+						t.Errorf("error = %v, want errNoSteps", err)
+					}
+				default:
+					if se, ok := errors.AsType[*stepError](err); !ok || se.Kind != kinds[reading] {
+						t.Errorf("error = %v, want a %s step error", err, reading)
+					}
+				}
+			})
 		}
 	}
 }
