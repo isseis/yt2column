@@ -551,8 +551,8 @@ receipt comment shows a result without findings and the user confirms it
   is missing or whose size cannot be read counts as not empty), set aside
   everything this poll read from the three listings: judge nothing from them
   and post nothing, and read them again on the next poll. Until a poll reads
-  them, the state judged last stands, and nothing new is decided. `--paginate` runs
-  the filter page by page, so a listing that fails on a later page has already
+  them, the state judged last stands, and nothing new is decided.
+  `--paginate` runs the filter page by page, so a listing that fails on a later page has already
   printed the items of the earlier ones, and judging from part of a list could
   miss a second summary comment or a second receipt. Stop when the listings
   have failed on every poll for about fifteen minutes since the first failure
@@ -737,10 +737,10 @@ receipt comment shows a result without findings and the user confirms it
   current summary comment's completion marker, that every other is an ancestor
   of (`git merge-base --is-ancestor`). An approved `commit_sha` stays among
   them after its approval loses its effect, as a completion marker seen in
-  this run stays after the summary comment is rewritten. It is none
-  when there is neither a completion marker nor an approved `commit_sha`, when no such commit exists (a force push
-  split the history), or when `git merge-base` exits with a code other than `0`
-  or `1`. The summary comment is rewritten, so an earlier run's markers count
+  this run stays after the summary comment is rewritten. It is none when
+  there is neither a completion marker nor an approved `commit_sha`, when no
+  such commit exists (a force push split the history), or when
+  `git merge-base` exits with a code other than `0` or `1`. The summary comment is rewritten, so an earlier run's markers count
   only while the current summary comment still shows one: LAST_REVIEWED may
   come out older than it was, never newer. When it is none, step 4's merge
   question treats the PR as having changes Codex has not reviewed (the "先に PR

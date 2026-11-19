@@ -261,12 +261,21 @@ var runprCommentKeys = func() map[string][]string {
 var mentionAuthorKeys = []string{"by_user", "by_bot"}
 
 // runprRequiredKeys are the keys each kind of object runpr.md step 3's
-// listings must hold.
-var runprRequiredKeys = map[string][]string{"mention": mentionAuthorKeys}
+// listings must hold. A summary must hold its state and time, which runpr.md
+// judges the request by, so a filter that leaves one out fails instead of
+// leaving the summary rows unchecked.
+var runprRequiredKeys = map[string][]string{
+	"mention": mentionAuthorKeys,
+	"summary": {"url", "updated_at", "state"},
+}
 
 // runprCommentRequiredKeys are runprRequiredKeys with the receipt's keys, for
 // the conversation-comment listing alone.
-var runprCommentRequiredKeys = map[string][]string{"mention": mentionAuthorKeys, "receipt": receiptKeys}
+var runprCommentRequiredKeys = func() map[string][]string {
+	keys := maps.Clone(runprRequiredKeys)
+	keys["receipt"] = receiptKeys
+	return keys
+}()
 
 // mentionWriter is who wrote a mention, which by_user and by_bot must report:
 // notMention for an item that is no mention.
@@ -351,6 +360,9 @@ func stateLine(stateJSON string) string {
 // bodies with and without the mention, null included.
 func runprListingFixtures() map[string]listingFixture {
 	sha := strings.Repeat("a1", 20)
+	// allHexSHA holds every hexadecimal digit, so a filter whose class of
+	// digits is narrower than [0-9a-f] fails on it.
+	const allHexSHA = "0123456789abcdef0123456789abcdef01234567"
 	reviewState := func(status string, rest string) string {
 		return `{"code_review":{"status":` + status + `,"commit_sha":"` + sha + `"` + rest + `},"note":"` + bodyMarker + `"}`
 	}
@@ -390,7 +402,7 @@ func runprListingFixtures() map[string]listingFixture {
 			// third line that is the fixed start alone, and a CR inside the
 			// third line.
 			{bot, awaited, receiptBody(receiptNoIssues+" "+marked("Looking forward."), reviewedCommit(sha[:7]), marked("A sixth line."), ""), "receipt", sha[:7], notMention},
-			{bot, awaited, receiptBody(receiptNoIssues+" "+marked("Looking forward."), reviewedCommit(sha)), "receipt", sha, notMention},
+			{bot, awaited, receiptBody(receiptNoIssues+" "+marked("Looking forward."), reviewedCommit(allHexSHA)), "receipt", allHexSHA, notMention},
 			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha[:10]), marked("More.")), "receipt", sha[:10], notMention},
 			{bot, awaited, receiptBody(receiptNoIssues+" "+marked("A")+"\r"+marked("B"), reviewedCommit(sha[:10])), "receipt", sha[:10], notMention},
 			// Receipts not in the accepted form: a CR at the end of each of
@@ -747,6 +759,15 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 	if strings.Contains(strings.ToLower(out), bodyMarker) {
 		t.Errorf("the filter printed a body or a part of one:\n%s", out)
 	}
+	for i, item := range fixture.items {
+		if (item.kind == "mention") != (item.wrote != notMention) {
+			t.Fatalf("item %d: kind %q with writer %d; a mention needs its writer, and only a mention has one", i, item.kind, item.wrote)
+		}
+		if item.kind == "summary" && item.derived == "" ||
+			item.derived != "" && item.kind != "summary" && item.kind != "receipt" {
+			t.Fatalf("item %d: kind %q with derived %q; a summary needs one, and only a summary or a receipt has one", i, item.kind, item.derived)
+		}
+	}
 	byURL := map[string]int{}
 	for i, obj := range response {
 		byURL[obj["html_url"].(string)] = i
@@ -770,12 +791,6 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 		item := fixture.items[i]
 		if kind := fixture.kindOf(obj); kind != item.kind {
 			t.Errorf("item %d: printed kind %v, want %q", i, kind, item.kind)
-		}
-		if (item.kind == "mention") != (item.wrote != notMention) {
-			t.Fatalf("item %d: kind %q with writer %d; a mention needs its writer, and only a mention has one", i, item.kind, item.wrote)
-		}
-		if item.derived != "" && item.kind != "summary" && item.kind != "receipt" {
-			t.Fatalf("item %d: kind %q with derived %q; only a summary or a receipt has one", i, item.kind, item.derived)
 		}
 		for _, key := range fixture.required[item.kind] {
 			if _, ok := obj[key]; !ok {
