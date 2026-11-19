@@ -279,7 +279,7 @@
 | AC-03 | `test` | `listings_print_no_body`：形に合う受領コメントが `codex` でなく `receipt` で `form_ok` が真になり、1 行目の終わりに CR があるコメントは `codex` になる |
 | AC-03 | `manual` | 規則 4 と、形に合う `receipt` を想定外の投稿に数えない文を読む |
 | AC-04 | `test` | `listings_print_no_body`：今の要約コメントの項目が期待する状態を変えずに通り、`running` で `has_any_findings` が `null` の要約コメントが `running <sha>` になる |
-| AC-04 | `manual` | 規則 1・2・5〜7 が今の規則 1・2・4〜6 と同じことを述べるのを読む |
+| AC-04 | `manual` | 規則 1・2・5・7 が今の規則 1・2・4・6 と同じことを述べ、規則 6 が今の規則 5 に、依頼の後に形に合う `receipt` がないこと（AC-03 の例外）だけを足したものであることを読む |
 | AC-05 | `test` | `listings_print_no_body`：著者が違うコメント（`Bot` でないもの、名前が違うもの）と 1 行目が違うものが `receipt` にならない |
 | AC-05 | `manual` | 定義の段落が受領コメントの定義を述べることを読む |
 | AC-06 | `test` | `listings_print_no_body`：形に合うもの（7 桁と 40 桁の SHA、ちょうど 5 行、書き出しだけの 3 行目、3 行目の途中の CR）と、形に合わないもの（設計書 3.5 の項目と 4 行の本文）の `form_ok` |
