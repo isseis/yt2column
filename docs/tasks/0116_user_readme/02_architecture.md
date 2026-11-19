@@ -85,8 +85,8 @@ flowchart LR
    - **採らなかった案:**
      - **`cli.md` の同名の節に入れる案。** 新しい文書を増やさずに済むが、`cli.md` の範囲が CLI の実行の仕方に収まらなくなる。
      - **設定と推奨構成だけを `cli.md` に置く案。** CLI が読む変数は 1 つの文書にそろうが、LLM の構成の説明が 2 つの文書に分かれる。
-   - **ADR:** [ADR-0004](../../dev/adr/0004-production-profile.md) を更新する。推奨構成の移る先を `generation.md` と名指しする。手引きの選び方そのものは、このタスクの中で閉じる（「開発者向けの内容は `docs/dev/guides/` に置く」という方針は [ADR-0035](../../dev/adr/0035-language-policy.md) がすでに定める）。
-2. **移した内容の確かめ方（AC-04・AC-05・AC-24）は、`_checks/` のシェルのスクリプトを主にする。** スクリプトは、マージベースの README の各ブロックと移った先の節を取り出し、段落と空白、見出しの階層をそろえてから比べ、残った差分とリンクの先の対応を出力する。残った差分の各行が「重複の削除」か「書式の規約による組み直し」かは、レビュアーが記録した出力を読んで判断する。AC-05 は、移行の節がどの文書にも残っていないことをスクリプトで確かめる。AC-24 は、今の README の文ごとに `INSTALL.md` のどこで述べたかの対応表を作り、それを読んで確かめる（`manual`）。詳細は 7.3 節にある。
+   - **ADR:** [ADR-0004](../../dev/adr/0004-production-profile.md) を更新し、推奨構成の移る先を `generation.md` と名指しする。[ADR-0025](../../dev/adr/0025-claude-output-limit.md) を更新し、数値を書かない文書と `max` の effort を案内する文書を、README から `generation.md` に改める。手引きの選び方そのものは、このタスクの中で閉じる（「開発者向けの内容は `docs/dev/guides/` に置く」という方針は [ADR-0035](../../dev/adr/0035-language-policy.md) がすでに定める）。
+2. **移した内容の確かめ方（AC-04・AC-05・AC-24）は、`_checks/` のシェルのスクリプトを主にする。** スクリプトは、PR のマージベースの README から、その PR で移すブロックと移った先の節を取り出し、段落と空白、見出しの階層をそろえてから比べ、残った差分とリンクの先の対応を出力する。残った差分の各行が「重複の削除」か「書式の規約による組み直し」かは、レビュアーが記録した出力を読んで判断する。AC-05 は、移行の節がどの文書にも残っていないことをスクリプトで確かめる。AC-24 は、今の README の文ごとに `INSTALL.md` のどこで述べたかの対応表を作り、それを読んで確かめる（`manual`）。詳細は 7.3 節にある。
    - **理由:** 文がファイルをまたいで移るので、そのままの `git diff` では、古い文の削除と新しい文の追加が別のファイルに分かれて出る。記録した差分を読む方法（`requirements_process.md` §4「`diff` verification」）は使えない。そろえてから比べれば、AC-04 が認める差分のうち機械で除けるもの（見出しの階層、行の折り返し）を除いた残りだけを読めばよい。
    - **採らなかった案:** 正規化をせず、移した節を並べた `diff` の出力だけを記録して読む案。スクリプトは単純になるが、行の折り返しだけの違いも読むことになり、読む量が増える。
    - **ADR:** なし。このタスクの確かめ方で、タスクの中で閉じる。
@@ -100,7 +100,7 @@ flowchart LR
    - **`INSTALL.md`:** 必要なブラウザとして版を述べる（AC-08、要件 §4.5）。
    - **`development.md`:** 今の README の「Chrome 142 以降で動く」（`README.md:123`）を含むビルドの説明を、そのまま移すので、版を述べることになる。照合しないと、版を上げたときに古くなっても気づけない（AC-39）。
    - **理由:** ADR-0030 の決定と結果は、版を述べる文書と、値を変えるときに直す箇所を挙げている（`docs/dev/adr/0030-minimum-chrome-version.md:23`、`:37`）。文書が増えると ADR が古くなる。
-   - **要件定義との関係:** 要件定義の決定 4 は「ADR-0030 は変えない」とした。これは必要なブラウザを README が引き続き書くという意味で、版を述べる文書が増えることを扱っていなかった。本書は、この ADR の判断を改める。
+   - **要件定義との関係:** 要件定義の決定 4 は、`INSTALL.md` も版を述べ照合する（AC-08、§4.5）としながら、「ADR-0030 は変えない」と判断した。しかし ADR-0030 の決定は版を述べる文書を名指しで挙げているので、その判断のままでは ADR-0030 が古くなる。本書は、この ADR の判断を改める。要件定義の文は変えない。
    - **ADR:** [ADR-0030](../../dev/adr/0030-minimum-chrome-version.md) を更新する。`INSTALL.md` と `development.md` の記述は実装の PR で置くので、まだないことを示す一文を添える。
 6. **`README.en.md` の文を英語のカタログと照合していた検査（`metadataDocs.test.ts`）は外す。** `INSTALL.md` の英語版を足すとき（[#1044](https://github.com/isseis/yt2column/issues/1044)）に戻す。戻すことを 9 章に書き、#1044 にも 2026-11-19 にコメントで書き添えた（[コメント](https://github.com/isseis/yt2column/issues/1044#issuecomment-7011292079)）。
    - **理由:** 画面の名前と工程の名前を述べる文書は `INSTALL.md`（日本語だけ）に移り、英語で述べる文書がなくなる（3.3 節）。戻す作業を忘れないよう、作業を持つ issue に書いておく。
@@ -276,7 +276,7 @@ flowchart LR
 | `:75-86` | 生成の後の工程 | `generation.md`「生成の後の工程」。利用者に見える 2 点は `INSTALL.md`（AC-26） | 移す（`INSTALL.md` は書き直す） |
 | `:88-93` | 出力の書式 | `generation.md`「出力の書式」 | 移す |
 | `:95-118` | 推定の料金 | `generation.md`「推定の料金」。失敗した生成の料金は `INSTALL.md`（AC-35） | 移す（`INSTALL.md` は書き直す） |
-| `:120-155` | ビルド・読み込み・更新・拡張の ID・シークレットモード | `development.md`「拡張のビルドと読み込み」。「Chrome 142 以降で動く」（`:123`）も移り、テストで照合する（決定 5）。シークレットモードは `INSTALL.md`（AC-19） | 移す（`INSTALL.md` は書き直す） |
+| `:120-155` | ビルド・読み込み・更新・拡張の ID・シークレットモード | `development.md`「拡張のビルドと読み込み」。「Chrome 142 以降で動く」（`:123`）も移り、テストで照合する（決定 5）。シークレットモードの文（`:155`）も `development.md` に移し、`INSTALL.md` にも書き直して置く（AC-19） | 移す（`INSTALL.md` は書き直す） |
 | `:157-158` | 表示の言語 | `INSTALL.md`「使い方」の「画面の言語」（AC-27、ADR-0029） | 書き直す |
 | `:160-178` | API キーの設定 | `INSTALL.md`「初期設定」（AC-20〜AC-22） | 書き直す |
 | `:180` | API キーの保存の範囲、ワークスペースの勧め | 保存の範囲は README「プライバシー」（AC-36）、ワークスペースの勧めは `INSTALL.md`（AC-11） | 書き直す |
@@ -324,7 +324,7 @@ flowchart LR
 ## インストール
 ### zip を入手する            AC-14。このリポジトリの Releases のページ以外から入手しない。未リリースの注記（決定 7）
   （#1039 がここに「zip を確かめる」を足す）
-### 拡張のフォルダを作る      AC-15。ほかの人と共有しない、自分のユーザーのディレクトリに作る
+### 拡張のフォルダを作る      AC-15
 ### 拡張を読み込む            AC-16
 ### ツールバーに固定する      AC-17
 ### ブラウザの警告とシークレットモード   AC-18・AC-19
@@ -344,7 +344,7 @@ flowchart LR
 ## 参考                       AC-24 の細部（記録の上限の値、ビューアの URL が持つ値、同じ動画の照会の限界、選択範囲の行の扱い）
 ```
 
-「ブラウザの警告」で想定どおりとするのは、デベロッパー モードとパッケージ化されていない拡張機能について出る警告に限る。権限を求める思いがけない確認など、ほかの警告が出たときは読み込みをやめるよう示す（AC-18）。
+「ブラウザの警告」で想定どおりとするのは、実装のときに Chrome と Brave で確かめた警告に限り、その文言を確かめた日付とともに引用する（AC-18）。
 
 **`docs/dev/guides/generation.md`**（新しい手引き）:
 
@@ -364,7 +364,7 @@ flowchart LR
 **`docs/dev/guides/development.md`**（足す節）:
 
 ```text
-## 拡張のビルドと読み込み   今の README:63-68 の Go と Node.js、:120-155（シークレットモードの文を除く）
+## 拡張のビルドと読み込み   今の README:63-68 の Go と Node.js、:120-155
 ## 拡張のログ               :266-268
 ```
 
@@ -384,7 +384,7 @@ flowchart LR
 | `docs/dev/guides/development.md` | 変更 | 「拡張のビルドと読み込み」「拡張のログ」を足し、リンクを付け替える。AC-04、AC-06 |
 | `docs/dev/guides/claude_output_limit.md`、`openai_output_limit.md`、`pricing_update.md` | 変更 | 参照の付け替え（4.2 節）。AC-06、AC-41 |
 | `docs/dev/production_profile.md`、`docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md` | 変更 | 参照の付け替え（4.2 節）。AC-06、AC-41 |
-| `docs/dev/security.md` | 変更 | `:142` の参照先を `INSTALL.md` にする。§8 の残余のリスクに、拡張のフォルダの書き換えを 1 項目加える（5 章） |
+| `docs/dev/security.md` | 変更 | `:142` の参照先を `INSTALL.md` にする（4.2 節） |
 | `docs/translation_glossary.md` | 変更 | 古くなる項目を直し、新しい語を足す（4.2 節、AC-43） |
 | `extension/test/helpers/installGuide.ts` | 新規 | `INSTALL.md` のパスと言語（`ja`）を持つ（3.5 節） |
 | `extension/test/helpers/readmeVersions.ts` | 変更 | 最低の Chrome の版を述べる文書の一覧（`minimumChromeDocs`）を持つ。README の 2 つの版の一覧（`readmeVersions`）は残し、その説明から「その版が引用するカタログ」を除く。`browserExtensionHeading` は読む節がなくなるので除く（3.5 節） |
@@ -426,7 +426,7 @@ flowchart LR
 | 概要欄のメッセージと手順 | `metadataDocs.test.ts` | 2 つの README の `## ブラウザ拡張`（`## Browser extension`）の節 | `INSTALL.md` 全体 | 日本語のカタログの `expandPrompt` |
 | 工程の名前 | 同上 | 同上 | `INSTALL.md` 全体 | 日本語のカタログの `stepNames` |
 | ポップアップとビューアの画面の名前 | 同上 | 同上 | `INSTALL.md` 全体 | 日本語のカタログ（今と同じ 10 個の名前。`metadataDocs.test.ts:55-63`） |
-| 困ったときのメッセージ（AC-33） | 同上（新しい `it`） | なし | `INSTALL.md` 全体 | 日本語のカタログの次の項目の `text`。`keyRejected`、`failure.llm_failed`、`setup.api_key_missing`、`rejection["empty-selection"]`、`startRejected.invalid_body`、`expandPrompt`、`stopped` |
+| 困ったときのメッセージ（AC-33） | 同上（新しい `it`） | なし | `INSTALL.md` 全体 | 日本語のカタログの次の項目の `text`。`keyRejected`、`failure.llm_failed`、`setup.api_key_missing`、`rejection["empty-selection"]`、`startRejected.invalid_body`、`stopped`。概要欄が折りたたまれている場合のメッセージ（`expandPrompt`）は、上の行の検査が確かめるので重ねない |
 | 拡張の ID | `extension_docs_test.go`（`:60-69`） | `README.md`、`README.en.md`、`security.md` | `development.md`、`security.md` | manifest の `key` から求めた ID |
 | 推奨構成の設定のブロック | `TestProductionProfileDocsContract` | 2 つの README の `### 推奨構成`（`### Recommended configuration`） | `generation.md` の `### 推奨構成` | 本番の構成の変数とコードの既定 |
 | LLM の既定 | `TestLLMDefaultsDocsContract` | 2 つの README の設定の表、`project_overview.md` | `generation.md` の設定の表、`project_overview.md` | `internal/config` の既定 |
@@ -532,13 +532,13 @@ Go のロケータ（`internal/doctestutil/guides.go`）は、`generation.md` �
 | `docs/translation_glossary.md:55` | 「推奨構成」の定義が README の小節を指す | `generation.md` の小節を指す |
 | `docs/translation_glossary.md:61`、`:168`、`:179` | 移行の手順で使う語、移行の節の見出し | 移行の節がなくなるので、`:179` を除き、`:61`・`:168` の備考から移行の手順を除く |
 | `docs/translation_glossary.md:175-181` | README と `cli.md` の見出し（クイックスタート、必要なもの、出力の書式、設定、API キーの設定、ブラウザ拡張） | README の見出しでなくなる語は、備考を新しい置き場所（`generation.md` など）に直すか項目を除く。新しい見出しの語は AC-43 で足す |
-| `docs/dev/adr/0025-claude-output-limit.md:18`、`:20`、`:34` | README（上限の案内、「設定」） | `generation.md`（「設定」） |
-| `docs/dev/adr/0004-production-profile.md:22` | ずれを示す一文 | 推奨構成を `generation.md` に移した PR で除く |
+| `docs/dev/adr/0025-claude-output-limit.md:20` | ずれを示す一文 | 「設定」を `generation.md` に移した PR で除く。決定の文が README を名指ししていたので、本書の PR で決定を `generation.md` に改めた（1.3 節の決定 1） |
+| `docs/dev/adr/0004-production-profile.md:22` | ずれを示す一文 | 推奨構成を `generation.md` に移した PR で、`INSTALL.md` の費用の目安だけが残ることを示す文に書き直し、`INSTALL.md` を置いた PR で除く |
 | `docs/dev/adr/0029-extension-ui-languages.md:24` | ずれを示す一文 | `INSTALL.md` の「画面の言語」を置いた PR で除く |
-| `docs/dev/adr/0030-minimum-chrome-version.md:23` | ずれを示す一文 | `INSTALL.md` と `development.md` の版の記述を置いた PR で除く |
+| `docs/dev/adr/0030-minimum-chrome-version.md:23` | ずれを示す一文 | `development.md` の版とその確かめを置いた PR で、`INSTALL.md` の分だけが残ることを示す文に書き直し、`INSTALL.md` を置いた PR で除く |
 | `docs/dev/adr/0035-language-policy.md:24` | ずれを示す一文 | CLAUDE.md を直した PR で除く |
 
-ADR の名指しの付け替えとずれを示す一文の削除は、決定を変えない編集上の訂正として扱う（`docs/dev/conventions/adr.md`「Editorial corrections」）。ずれを示す一文は、ずれを直した PR で除く（同「Discrepancy statements」）。
+ずれを示す一文の削除と、決定の文に含まれない名指しの付け替えは、決定を変えない編集上の訂正として扱う（`docs/dev/conventions/adr.md`「Editorial corrections」）。ずれを示す一文は、ずれを直した PR で除く（同「Discrepancy statements」）。
 
 `docs/dev/conventions/package_reference.md:28-30` は、パッケージの詳しい挙動を書く先として「`docs/dev/` の下の今の文書、`README.md`、`prompts/README.md`」を挙げている。`generation.md` は `docs/dev/` の下にあるので、この一覧は変えない。
 
@@ -553,11 +553,11 @@ ADR の名指しの付け替えとずれを示す一文の削除は、決定を�
 | `INSTALL.md`「zip を入手する」と「拡張のフォルダを作る」の間 | なし | 「zip を確かめる」の小節（`gh attestation verify` の手順）を足す |
 | `INSTALL.md`「更新」 | 新しい zip も Releases のページから入手すること | 置く前に zip を確かめる手順（「zip を確かめる」へのリンク）を足す |
 
-注記を外す変更と、確かめる手順を足す変更は、#1039 の同じ変更で行う。リリースがあると知らせる前に、確かめ方を示すためである。この表は #1039 が読む引き継ぎで、#1039 の作業はこのタスクの範囲の外である。
+注記を外す変更と、確かめる手順を足す変更は、#1039 の同じ変更で行う。リリースがあると知らせる前に、確かめ方を示すためである。この表は #1039 が読む引き継ぎで、#1039 の作業はこのタスクの範囲の外である。同じ内容を 2026-11-20 に #1039 へコメントで書き添えた（[コメント](https://github.com/isseis/yt2column/issues/1039#issuecomment-7022551767)）。
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
 
-本タスクは `docs/dev/security.md` の規則と前提を変えない。利用者向けの文書が security.md §8 の受け入れた危険を利用者に伝える箇所は保ち（要件 §4.2）、受け入れた危険の記録を 1 つ加える。
+本タスクは `docs/dev/security.md` の規則と前提を変えない。利用者向けの文書が security.md §8 の受け入れた危険を利用者に伝える箇所は保つ（要件 §4.2）。
 
 図 5-1 は、利用者向けの文書が伝える危険と、その対処を示す。矢印 A → B は「A が B に影響する」、点線の矢印 A -.-> B は「文書 A が対処 B を利用者に伝える」を表す。
 
@@ -614,9 +614,9 @@ flowchart LR
 
 - **API キーの漏れ:** `INSTALL.md` は、月ごとの利用の上限を設けた専用のワークスペースで API キーを作ることを勧める（AC-11）。漏れたと思ったときと、アンインストールして使わなくなったときは、Claude Console で API キーを無効にするよう示す。拡張を削除しても、Anthropic の側ではキーが有効なままだからである。security.md §8 の残余のリスク（`docs/dev/security.md:142`）の参照先を `INSTALL.md` に直す（4.2 節）。
 - **改ざんされた zip:** 拡張の ID は manifest の公開鍵で決まるので、拡張のフォルダに置いたどのコードも同じ ID の拡張として動き、保存した API キーを読める（security.md §8 の「秘密鍵をリポジトリに含めない」の項）。更新のたびに zip を置き換えるので、入手のときも更新のときも、zip はこのリポジトリの Releases のページからだけ入手するよう示す。来歴の検証の手順は #1039 で、入手と更新の両方に足す（4.3 節）。このタスクの時点では zip を配っていない。
-- **拡張のフォルダの書き換え:** 展開したフォルダは、同じ OS ユーザーとして動くプロセスが書き換えうる。書き換えたコードは拡張として動き、API キーを読める。security.md §8 が `chrome.storage.local` について受け入れている、同じ OS ユーザーのプロセスという危険と同じ種類であり、新しい規則は設けない（要件 §4.2）。ただし、受け入れたことを §8 の残余のリスクに 1 項目として記録する。`INSTALL.md` は、フォルダをほかの人と共有しない、自分のユーザーのディレクトリに作るよう示す。
+- **拡張のフォルダの書き換え:** 展開したフォルダは、同じ OS ユーザーとして動くプロセスが書き換えうる。書き換えたコードは拡張として動き、API キーを読める。security.md §8 が `chrome.storage.local` について受け入れている、同じ OS ユーザーのプロセスという危険と同じ種類であり、新しい規則は設けない（要件 §4.2）。フォルダはプロファイルのディレクトリの外にあるので、ほかの OS ユーザーから守られるかは、利用者がフォルダを置く場所による。security.md §8 と ADR-0006 はこの場合を扱っていない。これを記録するか、`INSTALL.md` で置き場所を案内するかは、このタスクでは決めず、PR のレビューに委ねる。
 - **細工したビューアの URL:** README の「プライバシー」は、見出しが記事の内容を保証しないことを述べる（AC-36）。`docs/dev/security.md:131` の「README に書く」は、そのまま正しい。
-- **ブラウザの警告:** 想定どおりとするのは、デベロッパー モードとパッケージ化されていない拡張機能について出る警告に限る（2.4 節）。警告を一般に読み飛ばしてよいと読まれないようにするためである。
+- **ブラウザの警告:** 想定どおりとするのは、実装のときに確かめた警告に限る（2.4 節）。警告を一般に読み飛ばしてよいと読まれないようにするためである。
 - **文書の例:** 実際の API キーを含めない。API キーの欄の例は、値の形を示さずに欄の名前で示す。
 - **信頼できない入力:** N/A。文書とテストだけの変更で、新しく受け取る信頼できない入力はないため。
 
@@ -679,15 +679,15 @@ N/A。実行時の処理を変えないため。`make test`、`make lint`、`mak
 
 `diff` 検証（`requirements_process.md` §4「`diff` verification」）はシェルのスクリプトで行う。スクリプトは `docs/tasks/0116_user_readme/_checks/` に置き、比べるコミットを引数に取る。
 
-**比べる元の固定。** 移す前の README は、本書が基準にしたコミット `417d2ddf` の `README.md` に固定する。スクリプトは、その `README.md` のブロブの ID を自分の中に持ち、`git rev-parse 417d2ddf:README.md` と一致しないときは止まる。マージベースは PR ごとに変わり、移した後の PR のマージベースでは README から内容がすでに消えているので、マージベースを比べる元にしない。比べる元のコミットとブロブの ID は、記録の出力に書く。
+**比べる元。** 移す前の README は、`requirements_process.md` §4 と ADR-0016 のとおり、PR のマージベースの `README.md` とする。各 PR は、その PR で移すブロックだけを比べる。その PR のマージベースには、移す前のブロックがまだあるためである。比べる元を本書の基準のコミットに固定しないのは、その後に別のタスクが README のブロックを直したとき、古い文を写して直しを黙って戻すことになるためである。マージベースとその `README.md` のブロブの ID は、記録の出力に書く。
 
 | AC | スクリプトが確かめること | 読む人の判断 |
 |---|---|---|
-| AC-04 | 移すブロック（2.3 節の表の「移す」の行）ごとに、元の README の見出しで範囲を探して取り出し、移った先の文書の見出しの節を取り出す。両方とも空でないこと、最初の行が想定の見出しであることを確かめ、そうでなければ失敗にする。両方の見出しの `#` の数をそろえ、段落の行をつないで空白をまとめ、文の終わり（`。`）で区切ってから比べ、残った差分をブロックごとの見出しを付けて出力する。リンクは消さずに、元のリンクの先と新しいリンクの先の組を一覧にして出力する。`:120-155` のブロックのうち、`INSTALL.md` に書き直すシークレットモードの文（`:155`）は比べる範囲から除き、除いたことを出力に書く。最後に、比べたブロックの数を出す。あわせて、比べたブロックの数が、2.3 節の表の「移す」の行から決まるブロックの数と一致することを確かめ、違えば失敗にする。表の行を飛ばしたまま記録されないようにするためである | 残った差分の各行が、重複の削除か、書式の規約による組み直しかを読む。リンクの組が、移った先の正しい節を指しているかを読む。それ以外の変化があれば、AC-04 を満たさない |
-| AC-05 | (a) 移行の節の見出し（`## 以前の版からの移行` と `## Migrating from the earlier version`）が、比べるコミットのどの `.md` にもないこと。(b) 元の README の移行の節（`:270-290`）とクイックスタートの移行の案内（`:61`）の各行（空白をまとめたもの。空の行、コードフェンスの行、20 文字に満たない行は除く）が、`docs/tasks/` を除くどの `.md` にもないこと。(c) 移行の節に固有の語（`yt2column-nmhost`、`NativeMessagingHosts`、`config.env`、`sharedToken`）が現れる （ファイル, 語）の組を、`README.md`・`README.en.md`・`docs/translation_glossary.md` と `docs/tasks/` を除いて、元のコミットと比べるコミットで比べ、増えていないこと。用語集の組は、4.2 節の表の変更をした後に残る組と一致すること。元のコミットは `417d2ddf` に固定する。組の一覧を出力する | なし（スクリプトが合否を出す）。出力の組の一覧で、残った言及が移行の手順でないことを読める |
+| AC-04 | その PR で移すブロック（2.3 節の表の「移す」の行のうち、その PR が移すもの。スクリプトの引数で渡す）ごとに、マージベースの README の見出しで範囲を探して取り出し、移った先の文書の見出しの節を取り出す。両方とも空でないこと、最初の行が想定の見出しであることを確かめ、そうでなければ失敗にする。両方の見出しの `#` の数をそろえ、段落の行をつないで空白をまとめ、文の終わり（`。`）で区切ってから比べ、残った差分をブロックごとの見出しを付けて出力する。リンクは消さずに、元のリンクの先と新しいリンクの先の組を一覧にして出力する。最後に、比べたブロックの数を出し、引数で渡したブロックの数と一致することを確かめる。移す作業の最後の PR では、あわせて、2.3 節の表の「移す」の行の見出しが、比べるコミットの README にもう残っていないことを確かめ、残っていれば失敗にする。表の行を飛ばしたまま移す作業が終わらないようにするためである | 残った差分の各行が、重複の削除か、書式の規約による組み直しかを読む。リンクの組が、移った先の正しい節を指しているかを読む。それ以外の変化があれば、AC-04 を満たさない |
+| AC-05 | (a) 移行の節の見出し（`## 以前の版からの移行` と `## Migrating from the earlier version`）が、比べるコミットのどの `.md` にもないこと。(b) 元の README の移行の節（`:270-290`）とクイックスタートの移行の案内（`:61`）の各行（空白をまとめたもの。空の行、コードフェンスの行、20 文字に満たない行は除く）が、`docs/tasks/` を除くどの `.md` にもないこと。(c) 移行の節に固有の語（`yt2column-nmhost`、`NativeMessagingHosts`、`config.env`、`sharedToken`）が現れる （ファイル, 語）の組を、`README.md`・`README.en.md`・`docs/translation_glossary.md` と `docs/tasks/` を除いて、マージベースと比べるコミットで比べ、増えていないこと。用語集の組は、4.2 節の表の変更をした後に残る組と一致すること。組の一覧を出力する | なし（スクリプトが合否を出す）。出力の組の一覧で、残った言及が移行の手順でないことを読める |
 | AC-24 | なし | 今の README の `:182-264` の文ごとに、`INSTALL.md` のどの節で述べたかの対応表を作り、それを読んで、挙動が漏れていないかを確かめる（`manual`）。対応表の置き場所は実装計画で決める |
 
-スクリプトは、CLAUDE.md の規則どおり、各検査が少なくとも 1 つの壊し方で失敗することを確かめてから記録する（例: 移した文の 1 語を変える、表から 1 つのブロックを除く、移行の節の 1 行を `generation.md` に残す、比べる元のブロブの ID を変える）。
+スクリプトは、CLAUDE.md の規則どおり、各検査が少なくとも 1 つの壊し方で失敗することを確かめてから記録する（例: 移した文の 1 語を変える、表から 1 つのブロックを除く、移行の節の 1 行を `generation.md` に残す、引数から 1 つのブロックを除く）。
 
 スクリプトは、移す内容をすべて含むコミットで走らせる。移す作業が複数の PR に分かれるときは、各 PR がその PR で移したブロックについて走らせ、記録する。
 
@@ -712,10 +712,10 @@ PR の区切りは実装計画で決める。どの区切りでも、次の制�
 
 | フェーズ | 内容 | 主な AC |
 |---|---|---|
-| 1 | `generation.md` を置き、今の README から構成の図・工程・書式・料金の規則・設定・推奨構成を移す。ビルド・読み込み・更新・ID・ログを `development.md` に移す。Go のテストと `manifest.test.ts`（`development.md`）の読む先を変える。README からその内容を除き、`README.en.md` を同期する。移した節を指す参照（`cli.md` の範囲の文と `:7`・`:58`・`:189`・`:234`、`development.md:99`、`package_reference.md`、`production_profile.md`、`pricing_update.md`、`project_overview.md`、上限の 2 つの手引き、ADR-0025、用語集の該当の行）と、CLAUDE.md の「Development Notes」の Go のガードの記述を付け替える。ADR-0004 のずれを示す一文を除く | AC-04、AC-39 |
-| 2 | `INSTALL.md` を置く。拡張のテスト（`manifest.test.ts`、`metadataDocs.test.ts`）と CI の判定を変える。README から手順を除き、`README.en.md` を同期する。手順を指す参照（`cli.md:4`・`:16`、`development.md:3`、`security.md:142`）と、CLAUDE.md の「Development Notes」の `make ext-test` の記述を付け替える。ADR-0029 と ADR-0030 のずれを示す一文を除く | AC-03、AC-08〜AC-35、AC-39、AC-42 |
+| 1 | `generation.md` を置き、今の README から構成の図・工程・書式・料金の規則・設定・推奨構成を移す。ビルド・読み込み・更新・ID・ログを `development.md` に移す。Go のテストと `manifest.test.ts`（`development.md`）の読む先を変える。README からその内容を除き、`README.en.md` を同期する。移した節を指す参照（`cli.md` の範囲の文と `:7`・`:58`・`:189`・`:234`、`development.md:99`、`package_reference.md`、`production_profile.md`、`pricing_update.md`、`project_overview.md`、上限の 2 つの手引き、ADR-0025、用語集の該当の行）と、CLAUDE.md の「Development Notes」の Go のガードの記述を付け替える。ADR-0004 と ADR-0030 のずれを示す一文を、残るずれだけを示す文に書き直し、ADR-0025 のずれを示す一文を除く | AC-04、AC-39 |
+| 2 | `INSTALL.md` を置く。拡張のテスト（`manifest.test.ts`、`metadataDocs.test.ts`）と CI の判定を変える。README から手順を除き、`README.en.md` を同期する。手順を指す参照（`cli.md:4`・`:16`、`development.md:3`、`security.md:142`）と、CLAUDE.md の「Development Notes」の `make ext-test` の記述を付け替える。ADR-0004・ADR-0029・ADR-0030 のずれを示す一文を除く | AC-03、AC-08〜AC-35、AC-39、AC-42 |
 | 3 | README を利用者向けの概要と案内に作り直し、移行の節を削除する。`README.en.md` を同期する | AC-01、AC-02、AC-05、AC-07、AC-36、AC-37 |
-| 4 | フェーズ 1〜3 で付け替えなかった参照（4.2 節）、CLAUDE.md の「Documents」「Document language」「Architecture Overview」と規約とコマンド（3.4 節）、用語集の残りと新しい語、security.md の残余のリスクの記録。ADR-0035 のずれを示す一文を除く | AC-06、AC-38、AC-40、AC-41、AC-43 |
+| 4 | フェーズ 1〜3 で付け替えなかった参照（4.2 節）、CLAUDE.md の「Documents」「Document language」「Architecture Overview」と規約とコマンド（3.4 節）、用語集の残りと新しい語。ADR-0035 のずれを示す一文を除く | AC-06、AC-38、AC-40、AC-41、AC-43 |
 | 5 | `_checks/` のスクリプトの結果を記録する（スクリプトは、移す内容を含むフェーズで置いてよい） | AC-04、AC-05、AC-24 |
 
 ## 9. 将来の拡張 (Future Extensibility)
@@ -733,7 +733,7 @@ PR の区切りは実装計画で決める。どの区切りでも、次の制�
 | 項目 | 対応 |
 |---|---|
 | H-01 テストの読む先 | 3.3 節の表に値ごとの読む先を書いた。英語のカタログとの照合は外し、テストの削除として扱い、#1044 に書き添えた（決定 6）。`INSTALL.md` と `development.md` の版も照合する（決定 5）。CI の判定に `INSTALL.md` を加える（3.1 節） |
-| H-02 `diff` 検証 | `_checks/` のスクリプトで、比べる元を固定し、段落と見出しをそろえて比べ、残った差分とリンクの組をレビュアーが読む。AC-05 はスクリプトの合否、AC-24 は対応表を読む（決定 2、7.3 節） |
+| H-02 `diff` 検証 | `_checks/` のスクリプトで、PR のマージベースとその PR で移したブロックを、段落と見出しをそろえて比べ、残った差分とリンクの組をレビュアーが読む。AC-05 はスクリプトの合否、AC-24 は対応表を読む（決定 2、7.3 節） |
 | H-03 リンクの付け替え | 4.2 節の表に付け替える先を書いた。要件定義の一覧に、ADR-0025・用語集・`package_reference.md` の箇所を加えた。`TestReadmeLinks` が `INSTALL.md` と `generation.md` も見る（3.3 節） |
 | H-04 `security.md` の参照先 | `:142` を `INSTALL.md` に直し、`:131` は README のままにする（4.2 節、5 章） |
 | H-05 クレジットの額 | 額は写さず、公式のページへのリンクと確かめた日付で示す（決定 3） |
