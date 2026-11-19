@@ -106,21 +106,21 @@
 
 **変えるファイル:** `cmd/yt2column/fixpr_docs_test.go`
 
-- [ ] `listingItem` の `state` を `derived` に改名し、`listingItem`・`listingFixture`・`checkListings` の説明のコメントを、`summary` では期待する状態、`receipt` では期待する `short_sha`（形に合わないときは `""`）と書き直す（1.3 の決定 1）
-- [ ] `receipt` を含む鍵の一覧と必須の鍵の一覧を作り、`issues/<number>/comments` の偽のデータにだけ渡す（1.3 の決定 7）。`receipt` の鍵は `kind`・`url`・`created_at`・`updated_at`・`form_ok`・`short_sha`、必須は `kind` 以外の 5 つである
-- [ ] `checkListingOutput` に、`form_ok` を `derived != ""` と、`short_sha` を `derived`（`""` のときは `null`）と比べる分岐を足す。`summary` と `receipt` 以外の種類の項目で `derived` が `""` でないときにテストを落とす確かめも足す
-- [ ] `listingFixture` と鍵の一覧の説明のコメントを、`form_ok` と `short_sha` に合わせて直す（設計書 3.5 の「説明のコメント」）
-- [ ] `runprListingFixtures` の `issues/<number>/comments` に、次の要約コメントを足す
+- [x] `listingItem` の `state` を `derived` に改名し、`listingItem`・`listingFixture`・`checkListings` の説明のコメントを、`summary` では期待する状態、`receipt` では期待する `short_sha`（形に合わないときは `""`）と書き直す（1.3 の決定 1）
+- [x] `receipt` を含む鍵の一覧と必須の鍵の一覧を作り、`issues/<number>/comments` の偽のデータにだけ渡す（1.3 の決定 7）。`receipt` の鍵は `kind`・`url`・`created_at`・`updated_at`・`form_ok`・`short_sha`、必須は `kind` 以外の 5 つである
+- [x] `checkListingOutput` に、`form_ok` を `derived != ""` と、`short_sha` を `derived`（`""` のときは `null`）と比べる分岐を足す。`summary` と `receipt` 以外の種類の項目で `derived` が `""` でないときにテストを落とす確かめも足す
+- [x] `listingFixture` と鍵の一覧の説明のコメントを、`form_ok` と `short_sha` に合わせて直す（設計書 3.5 の「説明のコメント」）
+- [x] `runprListingFixtures` の `issues/<number>/comments` に、次の要約コメントを足す
     - `completed` で `has_any_findings` が `null` のもの（期待は `no-result <sha>`）
     - `running` で `has_any_findings` が `null` のもの（期待は `running <sha>`）
-- [ ] 同じ所に、設計書 3.5 の「偽の受領コメント」の各項目を足す。受領コメントの本文は、組み立てる関数（`summaryBody` と同じ形の小さな関数）で作る。`bodyMarker` を置く所は設計書 3.5 のとおりにする。設計書 3.5 の項目に加えて、次の点を満たす
+- [x] 同じ所に、設計書 3.5 の「偽の受領コメント」の各項目を足す。受領コメントの本文は、組み立てる関数（`summaryBody` と同じ形の小さな関数）で作る。`bodyMarker` を置く所は設計書 3.5 のとおりにする。設計書 3.5 の項目に加えて、次の点を満たす
     - 形に合う 2 件の 5 行目の SHA は、1 件を 7 桁、もう 1 件を 40 桁にする
     - ちょうど 5 行の受領コメントは、本文の終わりに LF を付けない
     - 形に合わないものに、4 行の本文（5 行目がない）を加える
     - 形に合うものに、3 行目が決まった書き出しだけのものと、3 行目の後ろの文の途中に CR があるもの（設計書 1.2 の決定 9）を加える
     - 形に合わないものに、3 行目の決まった書き出しの前に文字があるものと、5 行目の SHA の位置に 16 進でない小文字だけの 7〜40 文字を置いたものを加える
-- [ ] `checkListings` に、`runpr.md` の step 3 の 3 つの一覧の読み取りが、どれも標準エラーをファイルに書き出す形であることを確かめる引数を足し、`TestRunprDocContract` からだけ使う（設計書 3.5 の「標準エラーの書き出し」）
-- [ ] 今の絞り込みのままでテストが落ちることを確かめる（`receipt` の項目が出ない、`no-result` にならない）。この確かめは実行して見るだけで、テストが落ちる状態ではコミットしない。ステップ 1-1 と 1-2 は 1 つのコミットにする
+- [x] `checkListings` に、`runpr.md` の step 3 の 3 つの一覧の読み取りが、どれも標準エラーをファイルに書き出す形であることを確かめる引数を足し、`TestRunprDocContract` からだけ使う（設計書 3.5 の「標準エラーの書き出し」）
+- [x] 今の絞り込みのままでテストが落ちることを確かめる（`receipt` の項目が出ない、`no-result` にならない）。この確かめは実行して見るだけで、テストが落ちる状態ではコミットしない。ステップ 1-1 と 1-2 は 1 つのコミットにする
 
 **完了の条件:** 足した偽のデータと比べ方が、設計書 3.5 の項目と上の項目をすべて含む。今の `runpr.md` の絞り込みでは `listings_print_no_body` が落ちる。
 
@@ -128,14 +128,14 @@
 
 **変えるファイル:** `.claude/commands/runpr.md`（step 3「Reading the PR」）
 
-- [ ] `def state` に、設計書 3.1 の `no-result <sha>` の分岐を足す。`status` が `completed` であることと、`has_any_findings` のメンバーがあることを `has` で確かめる
-- [ ] `<awaited-reviewer>[bot]` の分岐の中で、`summary` と `codex` の間に `receipt` の分岐を足す。出すのは `{kind: "receipt", url, created_at, updated_at, form_ok, short_sha}` の 1 つのオブジェクトである。形の判定は設計書 3.1 の 4 つの条件のとおりにし、文字列か `null` のどんな本文にも誤りを出さない形にする
-- [ ] 3 行目の決まった書き出しのアポストロフィは `([39] | implode)` で作る。絞り込みには、U+0027 のバイトも、`u0027` のようなバックスラッシュで始まる Unicode のエスケープも、正規表現の `x27` のエスケープも置かない（設計書 1.2 の決定 4）。今の絞り込みにある `\n` や `\\s` のエスケープは、そのままにする
-- [ ] 定義の段落に、`no-result <sha>`、`receipt`、`form_ok`、`short_sha` の定義、6 行目から後は読まず大きさの上限を設けないこと、形に合わない受領コメントの例を足す（設計書 3.1 の「`runpr.md` の文」）
-- [ ] 3 つの一覧の読み取りのコマンドを、標準エラーを実行の初めに `mktemp -d` で作ったディレクトリの中のファイルに書き出す形にする（設計書 1.2 の決定 10、3.2）
-- [ ] `:413-414` の本文を出さない文を、受領コメントの 1〜5 行目を絞り込みの中で判定し、判定の結果だけを出すことを含めて書き直す
-- [ ] `go test -tags test -run TestRunprDocContract ./cmd/yt2column` を通す
-- [ ] 次の壊し方を 1 つずつ絞り込みに加えて、テストが落ちることを確かめる。どの壊し方でどの項目がどの理由で落ちたかを、このステップのコミットのメッセージに書く。落ちない壊し方があれば、その壊し方が通る経路の偽のデータを足す
+- [x] `def state` に、設計書 3.1 の `no-result <sha>` の分岐を足す。`status` が `completed` であることと、`has_any_findings` のメンバーがあることを `has` で確かめる
+- [x] `<awaited-reviewer>[bot]` の分岐の中で、`summary` と `codex` の間に `receipt` の分岐を足す。出すのは `{kind: "receipt", url, created_at, updated_at, form_ok, short_sha}` の 1 つのオブジェクトである。形の判定は設計書 3.1 の 4 つの条件のとおりにし、文字列か `null` のどんな本文にも誤りを出さない形にする
+- [x] 3 行目の決まった書き出しのアポストロフィは `([39] | implode)` で作る。絞り込みには、U+0027 のバイトも、`u0027` のようなバックスラッシュで始まる Unicode のエスケープも、正規表現の `x27` のエスケープも置かない（設計書 1.2 の決定 4）。今の絞り込みにある `\n` や `\\s` のエスケープは、そのままにする
+- [x] 定義の段落に、`no-result <sha>`、`receipt`、`form_ok`、`short_sha` の定義、6 行目から後は読まず大きさの上限を設けないこと、形に合わない受領コメントの例を足す（設計書 3.1 の「`runpr.md` の文」）
+- [x] 3 つの一覧の読み取りのコマンドを、標準エラーを実行の初めに `mktemp -d` で作ったディレクトリの中のファイルに書き出す形にする（設計書 1.2 の決定 10、3.2）
+- [x] `:413-414` の本文を出さない文を、受領コメントの 1〜5 行目を絞り込みの中で判定し、判定の結果だけを出すことを含めて書き直す
+- [x] `go test -tags test -run TestRunprDocContract ./cmd/yt2column` を通す
+- [x] 次の壊し方を 1 つずつ絞り込みに加えて、テストが落ちることを確かめる。どの壊し方でどの項目がどの理由で落ちたかを、このステップのコミットのメッセージに書く。落ちない壊し方があれば、その壊し方が通る経路の偽のデータを足す
     - 設計書 7.2 の 11 項目
     - `no-result` の分岐で `status` の確かめを外す
     - `receipt` の分岐を、著者を確かめる分岐の外（その前）に移し、`summary` の分岐はそのままにする。落ちた項目が、受領コメントの 1 行目を持つ著者の違うコメントであることを確かめる（設計書 7.3 の T2）
