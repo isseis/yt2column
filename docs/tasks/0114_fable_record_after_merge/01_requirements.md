@@ -80,7 +80,7 @@
     -   ADR：なし。本タスクの範囲の選択である。
 -   **確かめられない merge commit（2026-11-20、設計の際に決め直した）：** merge の後の確認は、範囲を正しく求められる merge commit（確認できる merge commit。6 章で定義）だけに行う。確認できない merge commit と、範囲を求める git が失敗した（終了コードが 0 でないか、標準エラーに何か書いた）merge commit は、merge commit でない中身のある commit と同じに扱い、Fable が PR の全体（merge-base から HEAD まで）を見る（AC-13、AC-24、AC-26）。親が 3 つ以上の merge commit では `git show --remerge-diff` が差分を出さずに終了コード 0 で終わり、`main` の側で作った merge commit では `main` から入った変更を取り違えるので、確認しても手で入れた変更が範囲に入らず、誰も見ないまま確認済みに数えられるためである。範囲を求める git の失敗で止まらないのは、止まった後の再開の手段がない（上の「止まった後の扱い」）ためである。設計の Fable の部分レビューで、設計書が人に問わずにこの扱いを入れ、要件と食い違っていると分かったので、人に問うた。人の答え：どちらも Fable へ。
     -   採らなかった案：(A) 確認できない merge commit は Fable に回し、範囲を求める git の失敗では止まる。止まった後の再開の手段がない。(B) 要件のとおり、どの merge commit も確認に回し、git の失敗は `not run` と記録して進む。手で入れた変更を誰も見ないまま、merge commit が確認済みに数えられる。
-    -   ADR：[ADR-0050](../../dev/adr/0050-fable-partial-review.md) を更新する（「merge commit の扱い」の項目）。判定の関門が確認済みに数える merge commit の範囲を決めるので、主要な決定に当たる。
+    -   ADR：[ADR-0050](../../dev/adr/0050-fable-partial-review.md) を更新する（決定の節「5. Fable が見た後に足された commit は、判定のスクリプトが分け、push の直前に確かめ直す」の、merge commit の扱い）。判定の関門が確認済みに数える merge commit の範囲を決めるので、主要な決定に当たる。
 
 ## 2. 目的とスコープ (Goals and Scope)
 
