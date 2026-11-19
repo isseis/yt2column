@@ -50,7 +50,7 @@ func TestBranch(t *testing.T) {
 // another repository or of no repository are not task workspaces.
 func TestFindTaskWorkspaces(t *testing.T) {
 	w := newWorld(t)
-	w.add(fakeWorkspace{ID: "w1", Label: "task", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w1", Label: "task", Branch: "scratch"})
 	// A second pane of the chief's own workspace must not count.
 	w.agents = append(w.agents, fakeAgent{Pane: "wc:p2", Workspace: "wc", Kind: "claude", Status: "idle", Dir: w.chiefTree, Seq: 2})
 	other := filepath.Join(filepath.Dir(w.chiefTree), "elsewhere")

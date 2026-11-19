@@ -179,6 +179,8 @@ func TestTableContent(t *testing.T) {
 		{"running with no reason", Row{Position: Position{Progress: ProgressRunning}}, ""},
 		{"needs check", Row{Position: Position{Progress: ProgressNeedsCheck}, Unreadable: []string{"git status", "gh pr list"}}, "git status, gh pr list"},
 		{"task done", Row{Position: Position{Progress: ProgressTaskDone}, PR: &OpenPR{Number: 9, Title: "x"}}, ""},
+		{"task done with its removal proposed", Row{Position: Position{Progress: ProgressTaskDone}, RemovalRow: true}, "削除を提案"},
+		{"removal row of another progress", Row{Position: Position{Progress: ProgressAwaitingReview}, RemovalRow: true}, ""},
 		{"unknown progress", Row{Position: Position{Progress: Progress(99)}, PR: &OpenPR{Number: 9, Title: "x"}}, ""},
 	}
 	for _, tt := range tests {

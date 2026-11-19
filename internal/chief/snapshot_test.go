@@ -6,12 +6,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/privatefile"
@@ -68,9 +72,9 @@ func TestTakeSnapshotStates(t *testing.T) {
 				t.Errorf("merge question row = %+v, want it marked and with no command offered", r)
 			}
 		}},
-		{"opencode question while idle", fakeWorkspace{Kind: "opencode", Branch: "main", Status: "idle", Screen: "opencode-question-single.ansi"}, StateQuestion, nil},
-		{"opencode prompt", fakeWorkspace{Kind: "opencode", Branch: "main", Status: "done", Screen: "opencode-done.ansi"}, StateProposeNext, nil},
-		{"idle on a screen of no known shape", fakeWorkspace{Branch: "main", Status: "idle", Screen: "opencode-done.ansi"}, StateNeedsCheck, func(t *testing.T, r Row) {
+		{"opencode question while idle", fakeWorkspace{Kind: "opencode", Branch: "scratch", Status: "idle", Screen: "opencode-question-single.ansi"}, StateQuestion, nil},
+		{"opencode prompt", fakeWorkspace{Kind: "opencode", Branch: "scratch", Status: "done", Screen: "opencode-done.ansi"}, StateProposeNext, nil},
+		{"idle on a screen of no known shape", fakeWorkspace{Branch: "scratch", Status: "idle", Screen: "opencode-done.ansi"}, StateNeedsCheck, func(t *testing.T, r Row) {
 			if len(r.Unreadable) != 1 || !strings.Contains(r.Unreadable[0], "w1:p1") {
 				t.Errorf("unreadable = %v", r.Unreadable)
 			}
@@ -96,7 +100,7 @@ func TestTakeSnapshotStates(t *testing.T) {
 			}
 		}},
 		{"task done", fakeWorkspace{Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")}}, StateTaskDone, nil},
-		{"no task", fakeWorkspace{Branch: "main"}, StateProposeNext, func(t *testing.T, r Row) {
+		{"no task", fakeWorkspace{Branch: "scratch"}, StateProposeNext, func(t *testing.T, r Row) {
 			if r.Next == nil || r.Next.Kind != TaskNextMkreq || r.Next.Command != nil {
 				t.Errorf("next = %+v", r.Next)
 			}
@@ -151,7 +155,7 @@ func TestTakeSnapshotUnreadable(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			w := newWorld(t)
 			tree := w.add(fakeWorkspace{ID: "w1", Label: "broken", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}})
-			w.add(fakeWorkspace{ID: "w2", Label: "fine", Branch: "main"})
+			w.add(fakeWorkspace{ID: "w2", Label: "fine", Branch: "scratch"})
 			breakIt(w, tree)
 			snap := take(t, w)
 			if r := rowOf(t, snap, "broken"); r.State != StateNeedsCheck || len(r.Unreadable) == 0 || r.Next != nil {
@@ -169,7 +173,7 @@ func TestTakeSnapshotUnreadable(t *testing.T) {
 // instead, since origin/main may be stale.
 func TestTakeSnapshotFetchFailure(t *testing.T) {
 	w := newWorld(t)
-	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: "scratch"})
 	w.rec.failIn(w.chiefTree, "git fetch origin main", errors.New("offline"))
 	snap := take(t, w)
 	if len(snap.Problems) != 1 || !strings.Contains(snap.Problems[0], "git fetch origin main") {
@@ -335,6 +339,65 @@ func TestTakeoverProposal(t *testing.T) {
 			}
 		})
 	}
+	// The plan on main and the plan on the branch are written in form B or
+	// form C: the target steps (PR-2) are done while PR-3's step is not, and
+	// the proposal does not wait for the steps outside the target.
+	for _, sample := range []string{"steps-b-markers.md", "steps-c-markers.md"} {
+		t.Run("steps of "+sample, func(t *testing.T) {
+			w, tree := takeoverSetup(t)
+			w.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, sample)})
+			w.rec.replyIn(tree, "git show HEAD:docs/tasks/"+taskDir+"/"+planFile, planSample(t, sample))
+			r := rowOf(t, take(t, w), "ws")
+			if r.Takeover == nil || r.Takeover.Kind != TaskNextRunplanTakeover {
+				t.Fatalf("takeover = %+v (unreadable %v), want a proposal", r.Takeover, r.Unreadable)
+			}
+		})
+	}
+	// The branch's plan leaves a target step undone, or has a step without a
+	// checkbox; the step checkbox "[-]" of PR-2 is the one changed.
+	dropSkipped := func(doc string) string {
+		var kept []string
+		dropped := false
+		for l := range strings.SplitSeq(doc, "\n") {
+			if !dropped && strings.HasPrefix(l, "- [-] ") {
+				dropped = true
+				continue
+			}
+			kept = append(kept, l)
+		}
+		return strings.Join(kept, "\n")
+	}
+	for _, sample := range []string{"steps-b-markers.md", "steps-c-markers.md"} {
+		for _, c := range []struct {
+			name       string
+			edit       func(string) string
+			unreadable bool
+		}{
+			{"a target step not done", func(doc string) string { return strings.Replace(doc, "- [-] ", "- [ ] ", 1) }, false},
+			{"a target step without a checkbox", dropSkipped, true},
+		} {
+			t.Run(c.name+" in "+sample, func(t *testing.T) {
+				doc := string(planSample(t, sample))
+				branch := c.edit(doc)
+				if branch == doc {
+					t.Fatal("the edit did not apply")
+				}
+				w, tree := takeoverSetup(t)
+				w.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, sample)})
+				w.rec.replyIn(tree, "git show HEAD:docs/tasks/"+taskDir+"/"+planFile, []byte(branch))
+				r := rowOf(t, take(t, w), "ws")
+				if r.Takeover != nil {
+					t.Errorf("takeover proposed: %+v", r.Takeover)
+				}
+				if got := slices.Contains(r.Unreadable, "the steps of the next PR on the branch"); got != c.unreadable {
+					t.Errorf("unreadable = %v, want the steps of the next PR on the branch named: %v", r.Unreadable, c.unreadable)
+				}
+				if !c.unreadable && len(r.Unreadable) != 0 {
+					t.Errorf("unreadable = %v, want none (the steps are readable, only not done)", r.Unreadable)
+				}
+			})
+		}
+	}
 	t.Run("a requirement that is sonnet", func(t *testing.T) {
 		w, tree := takeoverSetup(t)
 		w.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-sonnet.md")})
@@ -462,7 +525,7 @@ func TestTakeoverReadFailures(t *testing.T) {
 // limit and the local reads the shorter one.
 func TestFetchUsesItsOwnTimeLimit(t *testing.T) {
 	w := newWorld(t)
-	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: "scratch"})
 	take(t, w)
 	for _, c := range w.rec.recorded() {
 		long := c.line() == "git fetch origin main"
@@ -483,17 +546,17 @@ func TestRowOrderRules(t *testing.T) {
 	// The earlier sighting has the later path, so only the waiting time puts it first.
 	w.add(fakeWorkspace{ID: "w9", Label: "review-old", Branch: taskBranch, PRs: openPRJSON})
 	w.add(fakeWorkspace{ID: "w5", Label: "needs-check", Branch: taskBranch})
-	w.add(fakeWorkspace{ID: "wa", Label: "no-task-blocked", Branch: "main", Status: "blocked", Screen: "claude-idle.ansi"})
+	w.add(fakeWorkspace{ID: "wa", Label: "no-task-blocked", Branch: "scratch", Status: "blocked", Screen: "claude-idle.ansi"})
 	w.add(fakeWorkspace{ID: "w6", Label: "done", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")}})
 	w.add(fakeWorkspace{ID: "w4", Label: "running", Branch: taskBranch, Status: "working"})
 	w.add(fakeWorkspace{ID: "w3", Label: "proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
-	w.add(fakeWorkspace{ID: "w0", Label: "idle-mkreq", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w0", Label: "idle-mkreq", Branch: "scratch"})
 	w.add(fakeWorkspace{ID: "w2", Label: "idle-detached", Branch: detachedHead})
 	w.add(fakeWorkspace{ID: "w7", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
 	take(t, w)
 	w.now = w.now.Add(time.Hour)
 	w.add(fakeWorkspace{ID: "w1", Label: "review-new", Branch: taskBranch, PRs: openPRJSON})
-	w.add(fakeWorkspace{ID: "w8", Label: "question", Branch: "main", Status: "blocked", Screen: "claude-question-single.ansi"})
+	w.add(fakeWorkspace{ID: "w8", Label: "question", Branch: "scratch", Status: "blocked", Screen: "claude-question-single.ansi"})
 	snap := take(t, w)
 	var labels []string
 	for _, r := range snap.Rows {
@@ -704,7 +767,7 @@ func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
 	}
 	t.Run("a stop that cannot be read", func(t *testing.T) {
 		w := newWorld(t)
-		tree := w.add(fakeWorkspace{ID: "w1", Label: "unread", Branch: "main"})
+		tree := w.add(fakeWorkspace{ID: "w1", Label: "unread", Branch: "scratch"})
 		dir, err := w.store.WorkspaceDir(Worktree{path: tree})
 		if err != nil {
 			t.Fatal(err)
@@ -727,7 +790,7 @@ func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
 	})
 	t.Run("a stop", func(t *testing.T) {
 		w := newWorld(t)
-		tree := w.add(fakeWorkspace{ID: "w1", Label: "stopped", Branch: "main"})
+		tree := w.add(fakeWorkspace{ID: "w1", Label: "stopped", Branch: "scratch"})
 		records, err := w.store.Records(Worktree{path: tree})
 		if err != nil {
 			t.Fatal(err)
@@ -877,8 +940,8 @@ func TestSnapshotRowOutput(t *testing.T) {
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
 	w.add(fakeWorkspace{ID: "w2", Label: "plan", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}})
-	w.add(fakeWorkspace{ID: "w3", Label: "idle", Branch: "main"})
-	unread := w.add(fakeWorkspace{ID: "w4", Label: "unread-stop", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w3", Label: "idle", Branch: "scratch"})
+	unread := w.add(fakeWorkspace{ID: "w4", Label: "unread-stop", Branch: "scratch"})
 	dir, err := w.store.WorkspaceDir(Worktree{path: unread})
 	if err != nil {
 		t.Fatal(err)
@@ -972,6 +1035,249 @@ func TestRunningOutputHasNoRawText(t *testing.T) {
 		}
 		if strings.Contains(string(data), "evil") {
 			t.Errorf("row %v holds the raw argument: %s", r["label"], data)
+		}
+	}
+}
+
+// tableFirstLines returns the first line of each row of a laid-out table
+// of n rows, checking first that the table cannot leave its code block:
+// the legend, a blank line, the heading, and the rule come first, each row
+// has two lines, and a blank line separates two rows.
+func tableFirstLines(t *testing.T, table []string, n int) []string {
+	t.Helper()
+	if err := codeBlockCheck(table); err != nil {
+		t.Fatalf("%v\n%s", err, strings.Join(table, "\n"))
+	}
+	if len(table) != 4+3*n-1 {
+		t.Fatalf("table has %d lines, want %d for %d rows:\n%s", len(table), 4+3*n-1, n, strings.Join(table, "\n"))
+	}
+	var firsts []string
+	for i := range n {
+		firsts = append(firsts, table[4+3*i])
+	}
+	return firsts
+}
+
+// TestSnapshotTableMatchesRows checks that the table of a snapshot's output
+// shows its rows in the rows' order, each first line with the mark and the
+// status word table.go gives the row's urgency and progress, then the
+// row's name, task, and PR number as the same output's rows hold them.
+func TestSnapshotTableMatchesRows(t *testing.T) {
+	w := newWorld(t)
+	// The workspaces are added in another order than the rows', so a table
+	// laid out from the rows before they are ordered fails.
+	w.add(fakeWorkspace{ID: "w1", Label: "idle", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w2", Label: "plan", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}})
+	w.add(fakeWorkspace{ID: "w3", Label: "review", Branch: taskBranch, PRs: openPRJSON})
+	w.add(fakeWorkspace{ID: "w4", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
+	snap := take(t, w)
+	out := snap.Output()
+	if len(out.TableUnreadable) != 0 {
+		t.Errorf("table_unreadable = %v, want none when every source was read", out.TableUnreadable)
+	}
+	var labels []string
+	for _, r := range out.Rows {
+		labels = append(labels, r.Label)
+	}
+	if !slices.Equal(labels, []string{"merge", "review", "plan", "idle"}) {
+		t.Fatalf("rows = %v; the checks below assume another order", labels)
+	}
+	firsts := tableFirstLines(t, out.Table, len(out.Rows))
+	for i, r := range out.Rows {
+		row := snap.Rows[i]
+		mark, word := urgencyMark(row.Urgency), progressWord(row.Position.Progress)
+		task, pr := r.Task, "-"
+		if task == "" {
+			task = "-"
+		}
+		if r.PR != nil {
+			pr = "#" + strconv.Itoa(r.PR.Number)
+		}
+		want := []string{mark, word, r.Label, task, pr}
+		if got := strings.Fields(firsts[i]); len(got) < len(want) || !slices.Equal(got[:len(want)], want) {
+			t.Errorf("row %d first line = %q, want it to start with %v", i, firsts[i], want)
+		}
+	}
+}
+
+// TestTableSourcesUnreadable breaks one table source at a time: the tab
+// list or the chief pane's layout fails or has another shape, or the agent
+// list's panes cannot be mapped to tabs (a tab_id missing, a pane listed
+// twice). The round still succeeds, its rows, pending items, and problems
+// are those of a round that read every source, the table is laid out at 80
+// columns or shows the question pane by its ID, and table_unreadable says
+// why. An error text over 512 bytes holding an ESC is cut and escaped.
+func TestTableSourcesUnreadable(t *testing.T) {
+	long := "\x1b[2J" + strings.Repeat("x", 600)
+	const (
+		width = iota
+		tab
+	)
+	cases := []struct {
+		name   string
+		breaks func(w *world)
+		lost   int
+		// notes is the number of notes: one for a lost width; for a lost
+		// tab, the source's and the question pane's.
+		notes int
+		// longErr marks the case whose error is over 512 bytes with an ESC.
+		longErr bool
+	}{
+		{"tab list fails", func(w *world) { w.rec.fail("herdr tab list", errors.New("herdr is down")) }, tab, 2, false},
+		{"tab list of another shape", func(w *world) {
+			w.rec.reply("herdr tab list", []byte(`{"id":"cli:tab:list","result":{"tabs":"none","type":"tab_list"}}`))
+		}, tab, 2, false},
+		{"pane layout fails with a long error", func(w *world) { w.rec.fail("herdr pane layout --pane "+worldChiefPane, errors.New(long)) }, width, 1, true},
+		{"pane layout of another shape", func(w *world) {
+			w.rec.reply("herdr pane layout --pane "+worldChiefPane, paneLayoutOutput(worldChiefPane, 0))
+		}, width, 1, false},
+		{"agent list without a tab_id", func(w *world) {
+			w.rec.reply("herdr agent list", []byte(strings.Replace(string(agentListOutput(w.agents)), `"tab_id":"w1:t1",`, "", 1)))
+		}, tab, 2, false},
+		{"agent list with a pane twice", func(w *world) {
+			dup := w.agents[len(w.agents)-1]
+			dup.Tab = "w2:t2"
+			w.rec.reply("herdr agent list", agentListOutput(append(slices.Clone(w.agents), dup)))
+		}, tab, 2, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.add(fakeWorkspace{ID: "w1", Label: "ask", Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
+			w.add(fakeWorkspace{ID: "w2", Label: "plan", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}})
+			deps := w.finish()
+			read, err := TakeSnapshot(context.Background(), deps, w.owner())
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.breaks(w)
+			got, err := TakeSnapshot(context.Background(), deps, w.owner())
+			if err != nil {
+				t.Fatalf("the round failed: %v", err)
+			}
+			if !reflect.DeepEqual(got.Rows, read.Rows) || !slices.Equal(got.Problems, read.Problems) || !reflect.DeepEqual(notNew(got.Pending), notNew(read.Pending)) {
+				t.Errorf("the round changed:\nrows %+v\nwant %+v\nproblems %v, want %v\npending %+v\nwant %+v", got.Rows, read.Rows, got.Problems, read.Problems, got.Pending, read.Pending)
+			}
+			if len(read.TableUnreadable) != 0 || len(got.TableUnreadable) != c.notes {
+				t.Errorf("table_unreadable = %v, then %v; want none, then %d notes", read.TableUnreadable, got.TableUnreadable, c.notes)
+			}
+			firsts := tableFirstLines(t, got.Table, len(got.Rows))
+			ruleWidth := utf8.RuneCountInString(got.Table[3])
+			switch c.lost {
+			case width:
+				if ruleWidth != tablePaneDefault-tableMarginWhole {
+					t.Errorf("rule is %d wide, want the table laid out at 80 columns", ruleWidth)
+				}
+			case tab:
+				if ruleWidth != worldChiefWidth-tableMarginWhole || !strings.Contains(firsts[0], "[w1:p1]") {
+					t.Errorf("rule is %d wide and the question row is %q; want the pane's width and the pane ID", ruleWidth, firsts[0])
+				}
+			}
+			if c.longErr {
+				note := got.TableUnreadable[0]
+				if strings.Contains(note, "\x1b") || !strings.Contains(note, `\x1b`) || !strings.Contains(note, "[truncated]") || len(note) > tableNoteMaxBytes+100 {
+					t.Errorf("note = %q (%d bytes), want the error cut at %d bytes and escaped", note, len(note), tableNoteMaxBytes)
+				}
+				// The note was sanitized as it was made; the output must not
+				// escape its backslashes a second time.
+				if out := got.Output().TableUnreadable; !slices.Equal(out, got.TableUnreadable) {
+					t.Errorf("output table_unreadable = %q, want the snapshot's %q unchanged", out, got.TableUnreadable)
+				}
+			}
+		})
+	}
+}
+
+// notNew returns the items with New cleared: a second round of the same
+// session has announced every item already.
+func notNew(items []PendingItem) []PendingItem {
+	out := slices.Clone(items)
+	for i := range out {
+		out[i].New = false
+	}
+	return out
+}
+
+// TestTakeSnapshotPlanSteps checks the row a plan's steps give for a plan
+// whose next PR is not created: /runplan when steps of any form are left, and
+// a needs-check row with a reason of its own for each reading that proposes
+// nothing. The reasons are compared whole, built from the constants and the
+// step error's detail, a line of the sample.
+func TestTakeSnapshotPlanSteps(t *testing.T) {
+	unreadable := func(cond, sample string, line int) string {
+		return fmt.Sprintf("%s: %s: %q", reasonStepsUnreadable, cond, planSampleLine(t, sample, line))
+	}
+	cases := []struct {
+		sample string
+		state  WorkspaceState
+		reason string // the only unreadable reason of a needs-check row
+	}{
+		{"real-0110.md", StateProposeNext, ""},
+		{"real-0111.md", StateProposeNext, ""},
+		{"steps-b-open.md", StateProposeNext, ""},
+		{"steps-c-markers.md", StateProposeNext, ""},
+		{"steps-b-all-done.md", StateNeedsCheck, reasonNoStepLeft},
+		{"steps-c-all-done.md", StateNeedsCheck, reasonNoStepLeft},
+		{"steps-none.md", StateNeedsCheck, reasonNoSteps},
+		{"steps-no-checkbox.md", StateNeedsCheck, reasonStepsUnreadable + ": " + reasonStepNoCheckbox + ": \"1-2\""},
+		{"steps-near-miss-heading.md", StateNeedsCheck, unreadable(reasonStepNearMiss, "steps-near-miss-heading.md", 23)},
+		{"steps-other-checkbox-open.md", StateNeedsCheck, unreadable(reasonStepOtherCheckbox, "steps-other-checkbox-open.md", 20)},
+		{"steps-other-checkbox-done.md", StateNeedsCheck, unreadable(reasonStepOtherCheckbox, "steps-other-checkbox-done.md", 20)},
+		{"steps-duplicate.md", StateNeedsCheck, reasonStepsUnreadable + ": " + reasonStepDuplicate + ": \"1-1\""},
+		// A plan with no step and a look-alike line gets the unreadable reason.
+		{"steps-none-near-miss.md", StateNeedsCheck, unreadable(reasonStepNearMiss, "steps-none-near-miss.md", 15)},
+		// 0069 with its PR not created: look-alike lines among its steps.
+		{"real-0069-pr-open.md", StateNeedsCheck, unreadable(reasonStepNearMiss, "real-0069-pr-open.md", 72)},
+		// Every PR merged: done whatever the steps.
+		{"steps-merged-unreadable.md", StateTaskDone, ""},
+		{"steps-merged-duplicate.md", StateTaskDone, ""},
+		{"real-0069.md", StateTaskDone, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.sample, func(t *testing.T) {
+			w := newWorld(t)
+			w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, c.sample)}})
+			r := rowOf(t, take(t, w), "ws")
+			if r.State != c.state {
+				t.Fatalf("state = %v (%v), want %v", r.State, r.Unreadable, c.state)
+			}
+			switch c.state {
+			case StateProposeNext:
+				if r.Next == nil || r.Next.Kind != TaskNextRunplan || r.Next.Text != "/runplan 0001" {
+					t.Errorf("next = %+v, want /runplan 0001", r.Next)
+				}
+			case StateNeedsCheck:
+				if r.Next != nil || !slices.Equal(r.Unreadable, []string{c.reason}) {
+					t.Errorf("row = %+v, want no command and the reason %q", r, c.reason)
+				}
+			}
+		})
+	}
+}
+
+// TestStepReasonsDiffer checks that the reasons for a plan PR left with no
+// /runplan are pairwise different, so that a plan whose steps were not read
+// is not taken for one whose steps are all done, and that a step error
+// of an unknown kind, or an error of another type, still gets the plain
+// unreadable reason.
+func TestStepReasonsDiffer(t *testing.T) {
+	reasons := []string{reasonNoStepLeft, reasonNoSteps}
+	for _, kind := range []stepErrorKind{stepNoCheckbox, stepNearMiss, stepOtherCheckbox, stepDuplicate} {
+		reasons = append(reasons, stepsUnreadableReason(&stepError{Kind: kind, Detail: "x"}))
+	}
+	seen := map[string]struct{}{}
+	for _, r := range reasons {
+		if _, dup := seen[r]; dup {
+			t.Errorf("reason %q is given for two readings", r)
+		}
+		seen[r] = struct{}{}
+	}
+	for name, err := range map[string]error{
+		"a kind of none": &stepError{Detail: "x"},
+		"another error":  errors.New("boom"),
+	} {
+		if got := stepsUnreadableReason(err); got != reasonStepsUnreadable {
+			t.Errorf("%s: reason = %q, want %q", name, got, reasonStepsUnreadable)
 		}
 	}
 }

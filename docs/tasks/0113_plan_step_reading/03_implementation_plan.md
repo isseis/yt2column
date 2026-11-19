@@ -52,7 +52,7 @@ chief の計画書の読み取り（`internal/chief/task.go` の `ParsePlan`）�
 
 ### フェーズ 1: ステップの読み取りと理由の文（設計書 3 章、AC-01〜AC-16）
 
-- [ ] **ステップ 1-1**: ステップの読み取り
+- [x] **ステップ 1-1**: ステップの読み取り
     - 変えるファイル: `internal/chief/task.go`・`internal/chief/task_test.go`・`internal/chief/testdata/plans/`（新しいサンプル）・`internal/chief/testdata/README.md`。`StepsLeft` の形を変えるので、唯一の呼び出し側（`state.go:357`）も、コンパイルが通るようにこのステップで合わせる。理由の文の分け方はステップ 1-2 で行う
     - 設計書 3.2 節のとおり、`ParsePlan` が 2 章を判定し、書き方 B・書き方 C のステップと、その範囲のステップのチェックボックスを読むようにする。ステップの行に似た行、別の形のチェックボックス、チェックボックスのないステップ、ステップ ID の重複を、`Plan` のステップの読み取りの誤りとする（AC-01〜AC-04・AC-07・AC-09・AC-10）
     - 設計書 3.3 節のとおり、`StepsLeft` を `(bool, error)` にし、0 件では `errNoSteps` を返す。`StepsDone` は、ステップの読み取りの誤りを最初に返す。ステップの問題で `ParsePlan` が誤りを返さないようにする（AC-11）
@@ -66,22 +66,22 @@ chief の計画書の読み取り（`internal/chief/task.go` の `ParsePlan`）�
     - `task_test.go` に、サンプルごとの `StepsLeft`・`StepsDone`・`Done`・`NextPR` の表のテストを足す。今の書き方 A のサンプルの結果が変わらないことも同じ表で確かめる（AC-13）。誤りは `errors.AsType[*stepError]` で `Kind` と `Detail` を比べ、`errNoSteps` は `errors.Is` で見分ける（設計書 3.2 節）
     - テストが想定した理由で失敗できることを確かめる。読み取りの部分を 1 つずつ外して失敗することを見て、コミットメッセージに書く（設計書 7 章）。外す部分は、書き方 B、書き方 C、2 章の判定、似た行の判定、別の形のチェックボックスの判定、チェックボックスのないステップの判定、重複の判定、`errNoSteps` の分岐である
     - 完了の条件: `go test -tags test ./internal/chief` が通る。上の壊し方でテストが失敗したことを、コミットメッセージが述べる
-- [ ] **ステップ 1-2**: 判定の理由
+- [x] **ステップ 1-2**: 判定の理由
     - 変えるファイル: `internal/chief/state.go`・`internal/chief/snapshot_test.go`（引き継ぎのテストが別のファイルなら、そのファイルも）
     - 設計書 3.4 節のとおり、`nextFromPlan` が `StepsLeft` の 3 つの結果で理由を選ぶようにする（AC-03・AC-06・AC-07・AC-12）
     - 状態の表のテストに、次の行を足す（AC-01・AC-02・AC-06・AC-07・AC-11・AC-12）。0110 と 0111 の写しで `/runplan` を提案すること。書き方 C で `/runplan` を提案すること。読めない計画書と 0 件の計画書で要確認になり、理由が互いに違い、`no step left` の理由とも違うこと。すべてマージ済みで読めない計画書が完了になること
     - 引き継ぎのテストに、次のことを足す（AC-05・AC-08）。ブランチの計画書が書き方 B のときと書き方 C のときに、対象ステップが済んでいれば提案すること。対象の外のステップが残っていても提案すること。読めないときに提案せず、要確認の理由を示すこと
     - テストが想定した理由で失敗できることを、`nextFromPlan` の分岐を 1 つずつ外して確かめ、コミットメッセージに書く
     - 完了の条件: `go test -tags test ./internal/chief` が通る
-- [ ] **ステップ 1-3**: `main` の計画書の一括の確認
+- [x] **ステップ 1-3**: `main` の計画書の一括の確認
     - 実装の際に一度だけ、`main`（実装の時点の `origin/main`）のすべての `docs/tasks/*/03_implementation_plan.md` を `ParsePlan` に通す。ステップの読み取りの誤りが出る計画書と、その誤りを一覧にする（設計書 7 章）。通すプログラムは使い捨てとし、コミットしない
     - 結果と、通したコミットを 7 章の「`main` の計画書の一括の確認の記録」に書く。PR が残っている計画書（作業中のタスク）に誤りが出たら、作業を止めて人に知らせる
     - 完了の条件: 記録が 7 章にある
-- [ ] **ステップ 1-4**: `CLAUDE.md` の例外
+- [x] **ステップ 1-4**: `CLAUDE.md` の例外
     - 変えるファイル: `CLAUDE.md`
     - 「Go Idioms」の `internal/chief/task.go` の例外（`CLAUDE.md:919-933`）が挙げるリテラルの種類に、ステップの太字の行の頭を足し、リテラルを読む目的に、計画書のステップとその進み具合を足す。例の一覧に `ステップ` を足すかどうかは、文の長さを見て決める（AC-15）
     - 完了の条件: 例外が、ステップの太字の行の頭と、計画書のステップとその進み具合を挙げる
-- [ ] **ステップ 1-5**: 仕上げ
+- [x] **ステップ 1-5**: 仕上げ
     - `make fmt`・`make test`・`make lint`・`make deadcode` を通す
     - 7 章の AC-14・AC-16 の diff の記録を書く
     - 完了の条件: グリーンゲートが通り、diff の記録がある
@@ -123,7 +123,9 @@ chief の計画書の読み取り（`internal/chief/task.go` の `ParsePlan`）�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1（ステップ 1-1〜1-5）
+- [x] フェーズ 1（ステップ 1-1〜1-5）
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1035
+- [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -142,17 +144,175 @@ chief の計画書の読み取り（`internal/chief/task.go` の `ParsePlan`）�
 | AC-11 | `test` | 読み取りの表と状態の表の、すべてマージ済みで読めない計画書（書き方 A の重複を含む）が完了になること |
 | AC-12 | `test` | 読み取りの表の `errNoSteps`（`errors.Is`）。状態の表の、0 件の理由が 0 件の理由の定数と完全に一致すること。0 件で似た行も持つ計画書が AC-07 の理由になること |
 | AC-13 | `test` | 読み取りの表の、今の書き方 A のサンプルの結果。既存の状態の表と引き継ぎのテストが変更なしで通ること |
-| AC-14 | `diff` | 下の diff の記録で、`internal/chief/records.go` に差分がなく、製品コードの差分が `task.go` と `state.go` に限られ、`state.go` の差分が `nextFromPlan` と理由の定数に限られることを読む（設計書 7 章） |
+| AC-14 | `diff` | 下の diff の記録で、`internal/chief/records.go` に差分がなく、製品コードの差分が `task.go` と `state.go` に限られ、`state.go` の差分が `nextFromPlan`・理由の定数・理由を組み立てる関数 `stepsUnreadableReason`・`errors` の import に限られることを読む（設計書 7 章） |
 | AC-15 | `manual` | PR のレビューで、`CLAUDE.md` の例外が、ステップの太字の行の頭と、計画書のステップとその進み具合を挙げることを読む。差分は下の diff の記録にある |
 | AC-16 | `diff` | 下の diff の記録の、変わったファイルの一覧を PR のレビューで読む |
 
+検証するテストの名前（`internal/chief` のテストファイル）: 読み取りの表は `task_test.go::TestParsePlanSteps`、書き方の境界の表は `task_test.go::TestStepGrammar`（AC-03・AC-04・AC-07・AC-09・AC-10 の境界）、状態の表は `snapshot_test.go::TestTakeSnapshotPlanSteps`、引き継ぎは `snapshot_test.go::TestTakeoverProposal`、理由の違いと既定の理由は `snapshot_test.go::TestStepReasonsDiffer`（AC-07・AC-12）である。
+
 `main` の計画書の一括の確認の記録（ステップ 1-3）:
 
--   （実装の際に書く）
+-   2026-11-19、コミット `a68f2532`（`origin/main`）の 107 件の `docs/tasks/*/03_implementation_plan.md` を、実装したコードの `ParsePlan` に通した（使い捨てのテストで、コミットしていない）。`ParsePlan` 自体の誤りは 0014 の 1 件で、PR の進み具合のチェックボックスの誤りである（本タスクの前から同じ。ステップの読み取りの変更とは関係がない）。残る 106 件のうち、ステップの読み取りの誤りが出たのは 10 件で、どれも終わったタスクの計画書であり、すべての PR がマージ済みなので AC-11 により完了と読む。誤りの内訳（Kind は `stepNearMiss`）は、0022（`- [x] **ステップ M-1**:`）、0028（`#### ステップ 4-10a:`）、0051（`**ステップ 4-1・4-2 の完了の条件:**`）、0057（`#### ステップ 1-1・1-2:`）、0069・0070・0071・0074・0075・0083（`- [x] **ステップ N-M（…）**:`）である。承認済みで作っていない PR が残る計画書（0102・0105・0106・0110、と本タスク自身の 0113）に、誤りは出なかった（0111 は、この時点で PR がマージ済みである）。
 
 Diff record (AC-14・AC-15・AC-16):
 
--   （実装の際に、`docs/dev/conventions/requirements_process.md` §4「`diff` verification」の形で書く。比べるパスは `CLAUDE.md`・`internal/chief/records.go`・`internal/chief/state.go`、ファイルの一覧も付ける）
+- Compared paths: `CLAUDE.md`, `internal/chief/records.go`, `internal/chief/state.go`
+- Merge-base: `9b74229608edb4f6cbba8d2c85cbf56a399c9b13`
+- Compared commit: `8c2fcd3f6dc595ff6ada3eaeed5a71429ba7ab8b`
+- 読み方（実装の際の注記）: `records.go` に差分はなく、`state.go` の差分は、`errors` の import、理由の定数、`stepsUnreadableReason`、`nextFromPlan` に限られる。`CLAUDE.md` の差分は `task.go` の例外の 1 項目に限られる。製品コードの差分は `task.go` と `state.go` だけである（下のファイルの一覧）。
+
+Path diff:
+
+````text
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 48f0e79aded9e20ccb47a96a9a91e995ab21a7b7..0a8c98ac24a7a49059d6b7c74838e258cb9fce3f 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -978,13 +978,15 @@ Only the conventions a linter does not check are worth stating:
+   as for a guard test.
+ - The same exception covers the chief tool's task reader,
+   `internal/chief/task.go`: a literal that has to equal a heading's text or a
+-  fixed part of it, a field label, a value line's prefix, or a checkbox's text
+-  in an implementation plan (such as `作成ポイント`, `**実装モデル要件**: `,
+-  `**自動送信**: `, `PR 構成`, and `PR を作成した`), which it reads to find
+-  a plan's PRs, their values, and their progress; and the start of the line
+-  of a requirements document that names its issue (`対応 issue: `) with the
+-  full-width parenthesis (`（`) that ends the part of the line it reads,
+-  which it reads to find the task that answers an issue. Comments,
++  fixed part of it, a field label, a value line's prefix, the start of a
++  step's bold line, or a checkbox's text in an implementation plan (such as
++  `作成ポイント`, `**実装モデル要件**: `, `**自動送信**: `, `PR 構成`,
++  `PR を作成した`, and `ステップ`), which it reads to find a plan's PRs,
++  their values and progress, and its steps and their progress; and the
++  start of the line of a requirements document that names its issue
++  (`対応 issue: `) with the full-width parenthesis (`（`) that ends the part
++  of the line it reads, which it reads to find the task that answers an
++  issue. Comments,
+   identifiers, and the text the tool prints, other than the status table's
+   fixed words (the status table exception below), stay English, and the
+   plans and
+diff --git a/internal/chief/state.go b/internal/chief/state.go
+index e413a05f962d2bf3b3d57a5cbc12233658c32783..0b69bef572ff14c20a3f21e360fc9024f43727af 100644
+--- a/internal/chief/state.go
++++ b/internal/chief/state.go
+@@ -1,6 +1,7 @@
+ package chief
+
+ import (
++	"errors"
+ 	"fmt"
+ 	"slices"
+
+@@ -341,6 +342,50 @@ func decideNext(f workspaceFacts) (next *Next, done bool, why string) {
+ 	}
+ }
+
++// The reasons nextFromPlan gives for a plan PR left to create with no
++// /runplan to propose. They differ from one another so that a plan whose
++// steps were not read is not taken for one whose steps are all done.
++const (
++	reasonNoStepLeft = "the plan has a PR left to create but no step left to do"
++	reasonNoSteps    = "the plan has a PR left to create but no step could be read from it"
++	// reasonStepsUnreadable is the start of the reasons for a plan whose
++	// steps cannot be read; stepsUnreadableReason adds the condition's text
++	// and the step ID or line.
++	reasonStepsUnreadable = "the steps of the plan cannot be read"
++)
++
++// Condition texts of reasonStepsUnreadable, one for each stepErrorKind.
++const (
++	reasonStepNoCheckbox    = "a step has no checkbox"
++	reasonStepNearMiss      = "a line looks like a step but is in no accepted form"
++	reasonStepOtherCheckbox = "a checkbox in a step is in no accepted form"
++	reasonStepDuplicate     = "a step ID appears twice"
++)
++
++// stepsUnreadableReason builds the reason for a plan whose steps cannot be
++// read. An error that is not a *stepError, or has no known kind, still gives
++// the plain reason.
++func stepsUnreadableReason(err error) string {
++	se, ok := errors.AsType[*stepError](err)
++	if !ok {
++		return reasonStepsUnreadable
++	}
++	var cond string
++	switch se.Kind {
++	case stepNoCheckbox:
++		cond = reasonStepNoCheckbox
++	case stepNearMiss:
++		cond = reasonStepNearMiss
++	case stepOtherCheckbox:
++		cond = reasonStepOtherCheckbox
++	case stepDuplicate:
++		cond = reasonStepDuplicate
++	default:
++		return reasonStepsUnreadable
++	}
++	return fmt.Sprintf("%s: %s: %q", reasonStepsUnreadable, cond, se.Detail)
++}
++
+ // nextFromPlan decides the next command from an approved plan: the task is
+ // done when every PR is merged, else the next PR to create picks the route of
+ // its /runplan by its model requirement.
+@@ -354,8 +399,14 @@ func nextFromPlan(f workspaceFacts, plan *Plan) (next *Next, done bool, why stri
+ 	}
+ 	// /runpr offers no /runplan for a plan with no step left to do, so a
+ 	// plan PR left to create without one is not guessed to be a /runplan.
+-	if !plan.StepsLeft() {
+-		return nil, false, "the plan has a PR left to create but no step left to do"
++	left, err := plan.StepsLeft()
++	switch {
++	case errors.Is(err, errNoSteps):
++		return nil, false, reasonNoSteps
++	case err != nil:
++		return nil, false, stepsUnreadableReason(err)
++	case !left:
++		return nil, false, reasonNoStepLeft
+ 	}
+ 	key := routeKeyOf(pr.Requirement.Value)
+ 	if key == paneinput.RouteUnknown {
+````
+
+File list:
+
+````text
+CLAUDE.md
+docs/tasks/0113_plan_step_reading/02_architecture.md
+docs/tasks/0113_plan_step_reading/03_implementation_plan.md
+internal/chief/snapshot_test.go
+internal/chief/state.go
+internal/chief/task.go
+internal/chief/task_test.go
+internal/chief/test_helpers.go
+internal/chief/testdata/README.md
+internal/chief/testdata/plans/real-0069-pr-open.md
+internal/chief/testdata/plans/real-0069.md
+internal/chief/testdata/plans/real-0098.md
+internal/chief/testdata/plans/real-0102.md
+internal/chief/testdata/plans/real-0110.md
+internal/chief/testdata/plans/real-0111.md
+internal/chief/testdata/plans/steps-b-all-done.md
+internal/chief/testdata/plans/steps-b-markers.md
+internal/chief/testdata/plans/steps-b-open.md
+internal/chief/testdata/plans/steps-b-subheading.md
+internal/chief/testdata/plans/steps-c-all-done.md
+internal/chief/testdata/plans/steps-c-markers.md
+internal/chief/testdata/plans/steps-c-open.md
+internal/chief/testdata/plans/steps-duplicate.md
+internal/chief/testdata/plans/steps-grammar.txt
+internal/chief/testdata/plans/steps-merged-duplicate.md
+internal/chief/testdata/plans/steps-merged-unreadable.md
+internal/chief/testdata/plans/steps-near-miss-bold.md
+internal/chief/testdata/plans/steps-near-miss-checkbox.md
+internal/chief/testdata/plans/steps-near-miss-heading.md
+internal/chief/testdata/plans/steps-no-checkbox.md
+internal/chief/testdata/plans/steps-none-near-miss.md
+internal/chief/testdata/plans/steps-none.md
+internal/chief/testdata/plans/steps-other-checkbox-done.md
+internal/chief/testdata/plans/steps-other-checkbox-open.md
+internal/chief/testdata/plans/steps-outside-chapter2.md
+internal/chief/testdata/plans/steps-outside-duplicate.md
+````
 
 ## 8. 成功の基準 (Success Criteria)
 

@@ -38,10 +38,13 @@ func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 		// next tick's previous round and drop every observation before it.
 		return TickOutcome{}, err
 	}
+	// The table sources are read before the round is recorded, so both
+	// snapshots below lay out the same table.
+	src := readTableSources(ctx, deps, view)
 	start, roundErr := deps.Store.BeginRound(owner.Session, at)
 	if roundErr != nil {
 		view.problems = append(view.problems, "the round cannot be recorded, so nothing is observed or sent automatically: "+roundErr.Error())
-		return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, nil)}, nil
+		return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, src, nil)}, nil
 	}
 	if start.PruneErr != nil {
 		view.problems = append(view.problems, "a record of an older round cannot be removed: "+start.PruneErr.Error())
@@ -83,7 +86,7 @@ func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 		}
 	}
 	extra := applyAutoSends(&view, deps.Store, results)
-	return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, extra), AutoSends: results}, nil
+	return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, src, extra), AutoSends: results}, nil
 }
 
 // applyAutoSends updates the rows of the workspaces an automatic send went
