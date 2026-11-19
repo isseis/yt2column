@@ -201,11 +201,11 @@
 
 **変えるファイル:** `docs/dev/adr/0013-review-setup.md`、本計画
 
-- [ ] `git grep -nE 'issues/1005([^0-9]|$)' origin/main -- docs/dev/adr/` で、消す記述を探す（`docs/dev/conventions/adr.md` の「Discrepancy statements」）
-- [ ] ADR-0013 の「決定」から、`:92` の食い違いの記述を消す（AC-22）。そのコミットのメッセージに、編集上の訂正の行を書く。実装で ADR の決定と違うことにしたときは、同じ PR で「決定」を直す（AC-23）
-- [ ] `go test -tags test -run TestADRRecords ./cmd/yt2column` を通す
-- [ ] `make fmt`、`make test`、`make lint` を通す
-- [ ] 7 章の AC-22・AC-23 の diff の記録を書く
+- [x] `git grep -nE 'issues/1005([^0-9]|$)' origin/main -- docs/dev/adr/` で、消す記述を探す（`docs/dev/conventions/adr.md` の「Discrepancy statements」）
+- [x] ADR-0013 の「決定」から、`:92` の食い違いの記述を消す（AC-22）。そのコミットのメッセージに、編集上の訂正の行を書く。実装で ADR の決定と違うことにしたときは、同じ PR で「決定」を直す（AC-23）
+- [x] `go test -tags test -run TestADRRecords ./cmd/yt2column` を通す
+- [x] `make fmt`、`make test`、`make lint` を通す
+- [x] 7 章の AC-22・AC-23 の diff の記録を書く
 
 **完了の条件:** `make fmt`・`make test`・`make lint` が通り、diff の記録がある。
 
@@ -262,7 +262,7 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1（ステップ 1-1〜1-6）
+- [x] フェーズ 1（ステップ 1-1〜1-6）
 - [ ] PR を作成した
 - [ ] PR がマージされた
 
@@ -310,10 +310,57 @@ AC-22 と AC-23 は、記録した diff を読む方法で確かめる。ADR-001
 Diff record (AC-22):
 
 - Compared paths: `docs/dev/adr/0013-review-setup.md`
+- Merge-base: `8fe6d52051c5757ab5590a09534b1610ee73014a`
+- Compared commit: `c5c644a17650c40fc0441582d0bc8ae671900a6c`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/adr/0013-review-setup.md b/docs/dev/adr/0013-review-setup.md
+index bdaa179c63447a640971d39cd7017bb70bd6d1ea..699694bd18a368414abdd52d24edc5f6a83fa110 100644
+--- a/docs/dev/adr/0013-review-setup.md
++++ b/docs/dev/adr/0013-review-setup.md
+@@ -89,7 +89,6 @@ PR レビューは、PR を開いたときに 1 回だけ Codex に頼み、そ
+     -   記録: 永続的には記録せず、その実行の報告と step 4 のマージの質問に示すだけにする。再実行では、もう一度利用者に尋ねる。
+     -   理由: 受領コメントがレビューしたコミットを示しているので、含めないと PR レビューの依頼を余分に勧めて割り当てを使うため。承認が効かなくなる条件を広く取るのは、承認の根拠が後のコメントで崩れうるので、止まる側に倒すため。記録を足さないのは、要約コメントと受領コメントが GitHub に残り、マージは利用者がマージの質問に答えて決めるため。
+     -   正本: [.claude/commands/runpr.md](../../../.claude/commands/runpr.md) の step 3、[0108 要件定義書](../../tasks/0108_codex_null_findings_receipt/01_requirements.md) の F-005。
+--   食い違い: `runpr.md` の step 3 は、まだ結果のない完了で受領コメントを確かめずに止まり、要約コメントの完了より先に届いた受領コメントを想定外の投稿に数える。この ADR の決定に合っていない（[#1005](https://github.com/isseis/yt2column/issues/1005)）。
+ -   信頼する自動レビュアーの一覧と、完了を待つ PR レビュアーは別の値にする。
+     -   内容: 一覧は [.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Automated reviewer list」に 1 か所だけ置き、各名前は GraphQL の `author.login` の形（`[bot]` を付けない）で持つ。完了を待つレビュアーは「Awaited PR reviewer」の行が決め、REST の `user.login` の形はその名前に `[bot]` を付けて作る。一覧は「誰のスレッドを処理するか」（[ADR-0015](0015-untrusted-review-threads.md)）を決め、完了を待つレビュアーは「何をもってレビュー済みとするか」を決める。
+     -   理由: 名前を一覧にすると、どの名前に `[bot]` を付けるかが決まらなくなるため。
+````
 
 Diff record (AC-23):
 
 - Compared paths: `docs/dev/adr/0013-review-setup.md`
+- Merge-base: `8fe6d52051c5757ab5590a09534b1610ee73014a`
+- Compared commit: `c5c644a17650c40fc0441582d0bc8ae671900a6c`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/adr/0013-review-setup.md b/docs/dev/adr/0013-review-setup.md
+index bdaa179c63447a640971d39cd7017bb70bd6d1ea..699694bd18a368414abdd52d24edc5f6a83fa110 100644
+--- a/docs/dev/adr/0013-review-setup.md
++++ b/docs/dev/adr/0013-review-setup.md
+@@ -89,7 +89,6 @@ PR レビューは、PR を開いたときに 1 回だけ Codex に頼み、そ
+     -   記録: 永続的には記録せず、その実行の報告と step 4 のマージの質問に示すだけにする。再実行では、もう一度利用者に尋ねる。
+     -   理由: 受領コメントがレビューしたコミットを示しているので、含めないと PR レビューの依頼を余分に勧めて割り当てを使うため。承認が効かなくなる条件を広く取るのは、承認の根拠が後のコメントで崩れうるので、止まる側に倒すため。記録を足さないのは、要約コメントと受領コメントが GitHub に残り、マージは利用者がマージの質問に答えて決めるため。
+     -   正本: [.claude/commands/runpr.md](../../../.claude/commands/runpr.md) の step 3、[0108 要件定義書](../../tasks/0108_codex_null_findings_receipt/01_requirements.md) の F-005。
+--   食い違い: `runpr.md` の step 3 は、まだ結果のない完了で受領コメントを確かめずに止まり、要約コメントの完了より先に届いた受領コメントを想定外の投稿に数える。この ADR の決定に合っていない（[#1005](https://github.com/isseis/yt2column/issues/1005)）。
+ -   信頼する自動レビュアーの一覧と、完了を待つ PR レビュアーは別の値にする。
+     -   内容: 一覧は [.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Automated reviewer list」に 1 か所だけ置き、各名前は GraphQL の `author.login` の形（`[bot]` を付けない）で持つ。完了を待つレビュアーは「Awaited PR reviewer」の行が決め、REST の `user.login` の形はその名前に `[bot]` を付けて作る。一覧は「誰のスレッドを処理するか」（[ADR-0015](0015-untrusted-review-threads.md)）を決め、完了を待つレビュアーは「何をもってレビュー済みとするか」を決める。
+     -   理由: 名前を一覧にすると、どの名前に `[bot]` を付けるかが決まらなくなるため。
+````
+
+File list (only for an AC that limits which files change):
+
+````text
+.claude/commands/runpr.md
+cmd/yt2column/fixpr_docs_test.go
+docs/dev/adr/0013-review-setup.md
+docs/tasks/0108_codex_null_findings_receipt/03_implementation_plan.md
+````
 
 ### 7.2 gojq での確かめの記録
 
