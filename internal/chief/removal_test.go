@@ -229,8 +229,8 @@ func TestRemovalRowFallsBack(t *testing.T) {
 		failed RemovalCheck
 	}{
 		{"HEAD on a branch", func(sw *sendWorld, rs *removalSetup) {
-			sw.git(rs.tree, "rev-parse --abbrev-ref HEAD", "main\n")
-			sw.rec.replyIn(rs.tree, "gh pr list --head main --state open --json headRefName,number,title,url", []byte("[]"))
+			sw.git(rs.tree, "rev-parse --abbrev-ref HEAD", "scratch\n")
+			sw.rec.replyIn(rs.tree, "gh pr list --head scratch --state open --json headRefName,number,title,url", []byte("[]"))
 		}, StateProposeNext, RemovalCheckDetached},
 		{"an agent working", func(sw *sendWorld, _ *removalSetup) {
 			p := sw.byPane[removalWS+":p1"]
