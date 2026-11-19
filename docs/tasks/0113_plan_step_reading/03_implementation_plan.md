@@ -81,7 +81,7 @@ chief の計画書の読み取り（`internal/chief/task.go` の `ParsePlan`）�
     - 変えるファイル: `CLAUDE.md`
     - 「Go Idioms」の `internal/chief/task.go` の例外（`CLAUDE.md:919-933`）が挙げるリテラルの種類に、ステップの太字の行の頭を足し、リテラルを読む目的に、計画書のステップとその進み具合を足す。例の一覧に `ステップ` を足すかどうかは、文の長さを見て決める（AC-15）
     - 完了の条件: 例外が、ステップの太字の行の頭と、計画書のステップとその進み具合を挙げる
-- [ ] **ステップ 1-5**: 仕上げ
+- [x] **ステップ 1-5**: 仕上げ
     - `make fmt`・`make test`・`make lint`・`make deadcode` を通す
     - 7 章の AC-14・AC-16 の diff の記録を書く
     - 完了の条件: グリーンゲートが通り、diff の記録がある
@@ -152,7 +152,161 @@ chief の計画書の読み取り（`internal/chief/task.go` の `ParsePlan`）�
 
 Diff record (AC-14・AC-15・AC-16):
 
--   （実装の際に、`docs/dev/conventions/requirements_process.md` §4「`diff` verification」の形で書く。比べるパスは `CLAUDE.md`・`internal/chief/records.go`・`internal/chief/state.go`、ファイルの一覧も付ける）
+- Compared paths: `CLAUDE.md`, `internal/chief/records.go`, `internal/chief/state.go`
+- Merge-base: `a68f2532fecd2c0f9d44e0c6b1da190a23f2c800`
+- Compared commit: `8fe37726fefe4def140216326b2757df512849d0`
+- 読み方（実装の際の注記）: `records.go` に差分はない。`state.go` の差分は、`errors` の import、理由の定数、理由を組み立てる関数 `stepsUnreadableReason`、`nextFromPlan` に限られる（AC-14 の行の「`nextFromPlan` と理由の定数」は、設計書 3.4 節の「条件ごとの文」を組み立てる関数と import を含むものとして読む）。`CLAUDE.md` の差分は `task.go` の例外の 1 項目に限られる（AC-15）。製品コードの差分は `task.go` と `state.go` だけである（下のファイルの一覧）。
+
+Path diff:
+
+````text
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 8873fc5526ed1eba74c923eb22fc1a4e077aed46..9f5be33a22f9dfe3ec1b45d2eb0c1b7f510067e5 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -948,13 +948,15 @@ Only the conventions a linter does not check are worth stating:
+   as for a guard test.
+ - The same exception covers the chief tool's task reader,
+   `internal/chief/task.go`: a literal that has to equal a heading's text or a
+-  fixed part of it, a field label, a value line's prefix, or a checkbox's text
+-  in an implementation plan (such as `作成ポイント`, `**実装モデル要件**: `,
+-  `**自動送信**: `, `PR 構成`, and `PR を作成した`), which it reads to find
+-  a plan's PRs, their values, and their progress; and the start of the line
+-  of a requirements document that names its issue (`対応 issue: `) with the
+-  full-width parenthesis (`（`) that ends the part of the line it reads,
+-  which it reads to find the task that answers an issue. Comments,
++  fixed part of it, a field label, a value line's prefix, the start of a
++  step's bold line, or a checkbox's text in an implementation plan (such as
++  `作成ポイント`, `**実装モデル要件**: `, `**自動送信**: `, `PR 構成`,
++  `PR を作成した`, and `ステップ`), which it reads to find a plan's PRs,
++  their values and progress, and its steps and their progress; and the
++  start of the line of a requirements document that names its issue
++  (`対応 issue: `) with the full-width parenthesis (`（`) that ends the part
++  of the line it reads, which it reads to find the task that answers an
++  issue. Comments,
+   identifiers, and the text the tool prints, other than the status table's
+   fixed words (the status table exception below), stay English, and the
+   plans and
+diff --git a/internal/chief/state.go b/internal/chief/state.go
+index e413a05f962d2bf3b3d57a5cbc12233658c32783..0b69bef572ff14c20a3f21e360fc9024f43727af 100644
+--- a/internal/chief/state.go
++++ b/internal/chief/state.go
+@@ -1,6 +1,7 @@
+ package chief
+
+ import (
++	"errors"
+ 	"fmt"
+ 	"slices"
+
+@@ -341,6 +342,50 @@ func decideNext(f workspaceFacts) (next *Next, done bool, why string) {
+ 	}
+ }
+
++// The reasons nextFromPlan gives for a plan PR left to create with no
++// /runplan to propose. They differ from one another so that a plan whose
++// steps were not read is not taken for one whose steps are all done.
++const (
++	reasonNoStepLeft = "the plan has a PR left to create but no step left to do"
++	reasonNoSteps    = "the plan has a PR left to create but no step could be read from it"
++	// reasonStepsUnreadable is the start of the reasons for a plan whose
++	// steps cannot be read; stepsUnreadableReason adds the condition's text
++	// and the step ID or line.
++	reasonStepsUnreadable = "the steps of the plan cannot be read"
++)
++
++// Condition texts of reasonStepsUnreadable, one for each stepErrorKind.
++const (
++	reasonStepNoCheckbox    = "a step has no checkbox"
++	reasonStepNearMiss      = "a line looks like a step but is in no accepted form"
++	reasonStepOtherCheckbox = "a checkbox in a step is in no accepted form"
++	reasonStepDuplicate     = "a step ID appears twice"
++)
++
++// stepsUnreadableReason builds the reason for a plan whose steps cannot be
++// read. An error that is not a *stepError, or has no known kind, still gives
++// the plain reason.
++func stepsUnreadableReason(err error) string {
++	se, ok := errors.AsType[*stepError](err)
++	if !ok {
++		return reasonStepsUnreadable
++	}
++	var cond string
++	switch se.Kind {
++	case stepNoCheckbox:
++		cond = reasonStepNoCheckbox
++	case stepNearMiss:
++		cond = reasonStepNearMiss
++	case stepOtherCheckbox:
++		cond = reasonStepOtherCheckbox
++	case stepDuplicate:
++		cond = reasonStepDuplicate
++	default:
++		return reasonStepsUnreadable
++	}
++	return fmt.Sprintf("%s: %s: %q", reasonStepsUnreadable, cond, se.Detail)
++}
++
+ // nextFromPlan decides the next command from an approved plan: the task is
+ // done when every PR is merged, else the next PR to create picks the route of
+ // its /runplan by its model requirement.
+@@ -354,8 +399,14 @@ func nextFromPlan(f workspaceFacts, plan *Plan) (next *Next, done bool, why stri
+ 	}
+ 	// /runpr offers no /runplan for a plan with no step left to do, so a
+ 	// plan PR left to create without one is not guessed to be a /runplan.
+-	if !plan.StepsLeft() {
+-		return nil, false, "the plan has a PR left to create but no step left to do"
++	left, err := plan.StepsLeft()
++	switch {
++	case errors.Is(err, errNoSteps):
++		return nil, false, reasonNoSteps
++	case err != nil:
++		return nil, false, stepsUnreadableReason(err)
++	case !left:
++		return nil, false, reasonNoStepLeft
+ 	}
+ 	key := routeKeyOf(pr.Requirement.Value)
+ 	if key == paneinput.RouteUnknown {
+````
+
+File list:
+
+````text
+CLAUDE.md
+docs/tasks/0113_plan_step_reading/03_implementation_plan.md
+internal/chief/snapshot_test.go
+internal/chief/state.go
+internal/chief/task.go
+internal/chief/task_test.go
+internal/chief/testdata/README.md
+internal/chief/testdata/plans/real-0069-pr-open.md
+internal/chief/testdata/plans/real-0069.md
+internal/chief/testdata/plans/real-0098.md
+internal/chief/testdata/plans/real-0102.md
+internal/chief/testdata/plans/real-0110.md
+internal/chief/testdata/plans/real-0111.md
+internal/chief/testdata/plans/steps-b-all-done.md
+internal/chief/testdata/plans/steps-b-markers.md
+internal/chief/testdata/plans/steps-b-open.md
+internal/chief/testdata/plans/steps-b-subheading.md
+internal/chief/testdata/plans/steps-c-all-done.md
+internal/chief/testdata/plans/steps-c-markers.md
+internal/chief/testdata/plans/steps-c-open.md
+internal/chief/testdata/plans/steps-duplicate.md
+internal/chief/testdata/plans/steps-grammar.txt
+internal/chief/testdata/plans/steps-merged-duplicate.md
+internal/chief/testdata/plans/steps-merged-unreadable.md
+internal/chief/testdata/plans/steps-near-miss-bold.md
+internal/chief/testdata/plans/steps-near-miss-checkbox.md
+internal/chief/testdata/plans/steps-near-miss-heading.md
+internal/chief/testdata/plans/steps-no-checkbox.md
+internal/chief/testdata/plans/steps-none-near-miss.md
+internal/chief/testdata/plans/steps-none.md
+internal/chief/testdata/plans/steps-other-checkbox-done.md
+internal/chief/testdata/plans/steps-other-checkbox-open.md
+internal/chief/testdata/plans/steps-outside-chapter2.md
+internal/chief/testdata/plans/steps-outside-duplicate.md
+````
 
 ## 8. 成功の基準 (Success Criteria)
 
