@@ -2,7 +2,6 @@ package chief
 
 import (
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -495,43 +494,6 @@ func runningUnknownName(u RunningUnknown) string {
 		return unknownName
 	}
 }
-
-// OutputValueNames returns, for each row item /chief's definition maps to
-// its display ("urgency", "position.document", "position.progress", and
-// "running_unknown"), every name the output can give it but unknown and
-// running_unknown's "". Each
-// list is built from the name function the output uses, walking the values
-// from zero up to the first that names unknown, so it cannot drift from
-// the output.
-func OutputValueNames() map[string][]string {
-	return map[string][]string{
-		"urgency":           namesUpToUnknown(urgencyName),
-		"position.document": namesUpToUnknown(positionDocumentName),
-		"position.progress": namesUpToUnknown(progressName),
-		// RunningUnknownNone is named "" and shows nothing.
-		"running_unknown": slices.DeleteFunc(namesUpToUnknown(runningUnknownName), func(n string) bool { return n == "" }),
-	}
-}
-
-// namesUpToUnknown returns name(0), name(1), ... up to the first value
-// whose name is unknownName, which it leaves out. A name function that names
-// no value unknown stops at maxValueNames values instead of looping, and its
-// list then repeats names, which the definition's guard test reports.
-func namesUpToUnknown[T ~int](name func(T) string) []string {
-	var names []string
-	for v := T(0); v < maxValueNames; v++ {
-		n := name(v)
-		if n == unknownName {
-			return names
-		}
-		names = append(names, n)
-	}
-	return names
-}
-
-// maxValueNames bounds the values namesUpToUnknown walks, far above the
-// number any of the output's types declares.
-const maxValueNames = 64
 
 // ActionOutput is one send or reset.
 type ActionOutput struct {

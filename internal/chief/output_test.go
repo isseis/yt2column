@@ -10,16 +10,15 @@ import (
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
 
-// TestOutputValueNames checks the names the output gives each row item: the
-// lists /chief's definition maps (OutputValueNames) and the items the output
-// carries but /chief does not show (state and turn). Each list names every
-// value of its type up to the last declared today, each with a name of its
-// own, and leaves out unknown (and running_unknown's "" of a decided
-// command); a value just outside each type's range, on either side, is named
-// unknown. A value declared after the last one here and left unnamed is not
-// caught.
+// TestOutputValueNames checks the names the output gives each row item
+// (urgency, position.document, position.progress, running_unknown, state,
+// and turn): walking each type's values from zero up to the first named
+// unknown (namesUpToUnknown) gives every value up to the last declared
+// today, each with a name of its own, and leaves out unknown (and
+// running_unknown's "" of a decided command, its value zero); a value just
+// outside each type's range, on either side, is named unknown. A value
+// declared after the last one here and left unnamed is not caught.
 func TestOutputValueNames(t *testing.T) {
-	names := OutputValueNames()
 	for _, c := range []struct {
 		key string
 		// got is the list checked.
@@ -29,12 +28,12 @@ func TestOutputValueNames(t *testing.T) {
 		first, count int
 		name         func(i int) string
 	}{
-		{"urgency", names["urgency"], 0, int(UrgencyWait) + 1, func(i int) string { return urgencyName(Urgency(i)) }},
-		{"position.document", names["position.document"], 0, int(PositionDocNone) + 1, func(i int) string { return positionDocumentName(PositionDocument(i)) }},
-		{"position.progress", names["position.progress"], 0, int(ProgressTaskDone) + 1, func(i int) string { return progressName(Progress(i)) }},
-		{"running_unknown", names["running_unknown"], 1, int(RunningUnknownPanesDisagree), func(i int) string { return runningUnknownName(RunningUnknown(i)) }},
-		{"state, not shown", namesUpToUnknown(WorkspaceState.String), 0, int(StateTaskDone) + 1, func(i int) string { return WorkspaceState(i).String() }},
-		{"turn, not shown", namesUpToUnknown(turnName), 0, int(TurnNone) + 1, func(i int) string { return turnName(Turn(i)) }},
+		{"urgency", namesUpToUnknown(urgencyName), 0, int(UrgencyWait) + 1, func(i int) string { return urgencyName(Urgency(i)) }},
+		{"position.document", namesUpToUnknown(positionDocumentName), 0, int(PositionDocNone) + 1, func(i int) string { return positionDocumentName(PositionDocument(i)) }},
+		{"position.progress", namesUpToUnknown(progressName), 0, int(ProgressTaskDone) + 1, func(i int) string { return progressName(Progress(i)) }},
+		{"running_unknown", namesUpToUnknown(runningUnknownName)[1:], 1, int(RunningUnknownPanesDisagree), func(i int) string { return runningUnknownName(RunningUnknown(i)) }},
+		{"state", namesUpToUnknown(WorkspaceState.String), 0, int(StateTaskDone) + 1, func(i int) string { return WorkspaceState(i).String() }},
+		{"turn", namesUpToUnknown(turnName), 0, int(TurnNone) + 1, func(i int) string { return turnName(Turn(i)) }},
 	} {
 		t.Run(c.key, func(t *testing.T) {
 			got := c.got
@@ -52,9 +51,6 @@ func TestOutputValueNames(t *testing.T) {
 				}
 			}
 		})
-	}
-	if len(names) != 4 {
-		t.Errorf("keys = %v, want the four checked here", names)
 	}
 	if n := runningUnknownName(RunningUnknownNone); n != "" {
 		t.Errorf("a decided command's running_unknown is %q, want empty", n)
