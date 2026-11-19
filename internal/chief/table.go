@@ -55,6 +55,9 @@ const (
 	wordLater       = "＋指示"
 	wordCount       = "件"
 	wordMerge       = "マージ確認"
+	// wordRemoval is shown on the row of a finished task whose workspace
+	// chief made and proposes to remove (Row.RemovalRow).
+	wordRemoval = "削除を提案"
 	// wordUnknown is shown for a value no word is defined for; the table
 	// never guesses what such a value means.
 	wordUnknown = "?"
@@ -329,6 +332,10 @@ func contentOf(row Row, src tableSources, notes *[]string) []cellUnit {
 		return joinCells(cellOf(row.Running.Command.Text()), later, modelCell(row.Running.Model))
 	case ProgressNeedsCheck:
 		return cellOf(strings.Join(row.Unreadable, ", "))
+	case ProgressTaskDone:
+		if row.RemovalRow {
+			return cellOf(wordRemoval)
+		}
 	}
 	return nil
 }

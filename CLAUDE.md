@@ -998,7 +998,8 @@ Only the conventions a linter does not check are worth stating:
   literals. Scope: the literals of `internal/chief/table.go` that are the
   status table's fixed words — the header, the legend, the status words, the
   work item strings, the reasons no running command is decided, `＋指示`, the
-  count (`件`) and `マージ確認` put before a question, and the line shown when
+  count (`件`) and `マージ確認` put before a question, `削除を提案` on the row
+  of a finished task whose removal chief proposes, and the line shown when
   there are no rows (`workspace なし`) — which reach the tool's output as the
   text of the table; and the same words in its test,
   `internal/chief/table_test.go`. Reason: the
