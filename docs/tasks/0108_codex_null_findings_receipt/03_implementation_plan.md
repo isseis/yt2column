@@ -334,7 +334,7 @@ Diff record (AC-23):
 
 - Compared paths: `docs/dev/adr/0013-review-setup.md`
 - Merge-base: `8fe6d52051c5757ab5590a09534b1610ee73014a`
-- Compared commit: `c5c644a17650c40fc0441582d0bc8ae671900a6c`
+- Compared commit: `e9663eb08992ac510893f8348c0c333768d31a56`
 
 Path diff:
 
@@ -359,6 +359,8 @@ File list (only for an AC that limits which files change):
 .claude/commands/runpr.md
 cmd/yt2column/fixpr_docs_test.go
 docs/dev/adr/0013-review-setup.md
+docs/tasks/0108_codex_null_findings_receipt/01_requirements.md
+docs/tasks/0108_codex_null_findings_receipt/02_architecture.md
 docs/tasks/0108_codex_null_findings_receipt/03_implementation_plan.md
 ````
 
