@@ -59,7 +59,7 @@
 | `CapHead` | `CapHead(text string)`（`internal/chief/sanitize.go:32-41`）が `headMaxBytes`（64 KiB、`:17`）で切る。呼び出しは `internal/chief/detail.go:605`・`:627` と `TestCapHead`（`internal/chief/sanitize_test.go:35`）だけ（`790652e3` で `grep -rn 'CapHead(' internal cmd` の結果がこの 3 か所と定義だけだった） | 上限を引数で受け取る。2 つの呼び出しは `headMaxBytes` を渡す（設計書 4 章）。PR-1 |
 | Herdr の読み取り | `Agents`（`internal/chief/herdr.go:136-142`）が `herdr agent list` を走らせ `parseAgentList`（`:238-256`）で読む。`parseAgent`（`:273-321`）は `tab_id` を読まない。封筒の確かめは `herdrResult`（`:190-224`）、ID の形は `paneIDForm` と `tabIDForm`（`:483`）、形に合わない出力は `errHerdrOutput`（`:19`）。`tab list` と `pane layout` を読む関数はない | `agentListing`・`parseAgentTabs`・`tabLabels`・`parseTabList`・`paneWidth`・`parsePaneLayout` と `tabLabel` を足し、`Agents` は `agentListing` のエージェントを返す（設計書 3.1・3.7）。`parseAgent` は変えない（設計書 1.2）。封筒は `herdrResult`、配列は `requiredArray`（`:226`）、タブの ID は `tabID`（`:474`）と `tabIDForm` を使い、項目ごとの読み方は `parsePaneList`（`:631-678`）に倣う。`label` は空を受け付けるので `strictjson.RequiredStringAllowEmpty` で読み、空の文字列を拒む `strictjson.RequiredString` と `requiredObjectStrings`（`:832`）は使わない。PR-1 |
 | `Agents` のほかの呼び出し | `readRound`（`internal/chief/snapshot.go:98`）、`chiefWorktree`（`internal/chief/create.go:380`）、`checkMadePanes`（`:538`）、`removal.go:657`・`:685`・`:820`、ほかに `wait.go`・`request.go`・`records.go` | `readRound` だけを `agentListing` に替える（PR-3）。ほかは変えない（設計書 3.7） |
-| Herdr のサンプル | `internal/chief/testdata/herdr/` に `agent-list.json` などがあり、`tab list` と `pane layout` のサンプルはない。採った日と版は `internal/chief/testdata/README.md` | `tab-list.json` と `pane-layout.json`（分割したタブ）を足し、README に採った日・版・置き換えを書く。PR-1 |
+| Herdr のサンプル | `internal/chief/testdata/herdr/` に `agent-list.json` などがあり、`tab list` と `pane layout` のサンプルはない。採った日と版は `internal/chief/testdata/README.md` | `tab-list.json`、`pane-layout.json`（分割していないタブ）、`pane-layout-split.json`（分割したタブ）を足し、README に採った日・版・置き換えを書く。PR-1 |
 | 記録係 | `readOnlyCommands`（`internal/chief/test_helpers.go:217-221`）の herdr の行が、`agent list/get/read`・`workspace list`・`pane list`・`pane process-info` を許す | `tab list` と `pane layout` を足す。PR-1 |
 | テストの world | `newWorld`（`internal/chief/world_test.go:101`）がエージェントの一覧を作る。エージェントの JSON（`world_test.go:24` の周り）は `tab_id` を持たない | エージェントの JSON に `tab_id` を足し、`tab list` と `pane layout` の答えを `world.finish`（`internal/chief/world_test.go:229`）に持たせる。`sendWorld`・`waitWorld`・`mergeWorld`・`createWorld` は `finish` を通るので、それを受け継ぐ。記録係は答えのないコマンドでテストを失敗させる（`internal/chief/test_helpers.go:502`）。PR-3 |
 | `cmd/chief` の結合テスト | `fakeHerdr.Run`（`cmd/chief/main_test.go:88-120`）は、知らないコマンドでテストを失敗させる。`TestStartThenSnapshot` と `TestStartThenTickAndWait` が `snapshot` と `tick` を走らせ、出力のリストが `null` でないことを確かめる（`:329-336`・`:357`） | `fakeHerdr` に `tab list` と `pane layout` の答えを足し、出力の確かめに `table` と `table_unreadable` を足す。PR-3 |
@@ -72,7 +72,7 @@
 | ガイド | 2 章の値の表（`docs/dev/guides/chief_guide.md:28`）、入れ直しの手順（`:30-`）、3.1（`:55-100`）、8 章（`:175-199`）。8 章の「人が引数なしで打ったコマンドは示されない」の項（`:196`） | 設計書 3.10 のとおり直す。PR-3 |
 | CLAUDE.md | 「Declare, don't infer」の chief の画面の読み取りの例外（`CLAUDE.md:518-519` の「Every other file of the tool …」）、「Go Idioms」の例外の項（`:872`・`:909-918`・`:919-933`） | 設計書 3.11 のとおり 2 つの例外を足し、3 つの文を直す。PR-2 |
 | パッケージの一覧 | `docs/dev/conventions/package_reference.md:122` が `OutputValueNames` を挙げる | 除く（§1.3 の決定 7）。PR-3 |
-| ADR | ADR-0046 の決定（`docs/dev/adr/0046-chief-of-staff.md:30`・`:46`）と経緯（`:147`）、ADR-0035 の経緯（`docs/dev/adr/0035-language-policy.md:72`）は要件定義のときに更新済み | 変えない（AC-27、設計書 1.2 の末尾） |
+| ADR | ADR-0046 の決定（`docs/dev/adr/0046-chief-of-staff.md:30`・`:46`）と経緯（`:147`）、ADR-0035 の経緯（`docs/dev/adr/0035-language-policy.md:72`）は要件定義のときに更新済み | 要件定義の際の決定については変えない（AC-27、設計書 1.2 の末尾）。実装の際に、決定・結果・採らなかった案・経緯を更新した（§1.5 の決定 1） |
 
 具体の型で振る舞いを選ぶ設計は 2 つある。
 
@@ -81,19 +81,24 @@
 
 `internal/chief` の中では、どちらも複合リテラルで作れる。本計画は、型をほかのパッケージへ移さず、同じパッケージのガードで守る。今のガード（`internal/chief/construction_test.go:20-25` の `guardedTypes`。`TestGuardedTypesAreBuiltOnlyByTheirConstructors` が、テストでない `.go` のファイルの複合リテラルとフィールドへの代入を、許した関数の外で見つける）に、`displayUnit` は `sanitizeUnits` を、`tabLabel` は `parseTabList` を許した関数として足す（ステップ 1-3・1-5）。型をほかのパッケージへ移す案は、`Sanitize` の規則を `internal/chief` の外へ出すことになり、設計書 3.5 の「同じ規則を 2 か所に書かない」に反するので採らない。`unitKind` の 0 の値は、`unitText` を含むどの種類でもない値にし、`table.go` の `switch` の `default` は、その単位の文字を示さず `?` を示す（CLAUDE.md の「Declare, don't infer」）。
 
+### 1.5. 実装の際に決めたこと（2026-11-19）
+
+1.  **使える幅は、chief のタブを分割していなければ pane の幅 − 2、分割していれば pane の幅 − 4 とし、分割しているかを pane の配置の `layout.splits` が空かどうかで読む（人が選んだ）。** ステップ 1-1 の実物の確かめで、分割した pane では Herdr の枠の分の 2 桁が減り、拡大したときは `rect.width` が分割したときの幅のままだと分かった（§7「PR-1 の実行の記録」）。分割しない使い方が主なので、そのときの幅を最適にする。理由と採らなかった案は、要件書と設計書 1.5 の「実装の際に決めたこと（2026-11-19）」にある。これに合わせ、ステップ 1-5 で `parsePaneLayout` が `splits` を読み、そのテストを足し、ステップ 2-4 の `TestTableWidth` に分割したときの余白を足した。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 実物の確かめ、サンプル、入力の部品（設計書 8 章の 1、2 の一部、3 の一部）
 
 **変更するファイル:** `internal/chief/sanitize.go`・`sanitize_test.go`、`internal/chief/construction_test.go`、`internal/chief/detail.go`、`internal/chief/herdr.go`・`herdr_test.go`、`internal/chief/test_helpers.go`、`internal/chief/testdata/herdr/`・`testdata/README.md`、本計画（§7 の実行の記録）
 
--   [ ] **ステップ 1-1**: 実物の確かめを行う（§1.3 の決定 2、設計書 1.2）。セッションの pane の幅を `herdr pane layout --pane "$HERDR_PANE_ID"` で読み、次の 2 つを確かめる。(1) 表示幅が「pane の幅 − 2」の行と「pane の幅 − 1」の行を code block で示し、人に折り返すかを尋ねる。(2) 人にタブを分割してもらい、分割した後と拡大した後の `rect.width` を読み、人に画面の幅と等しいかを尋ねる。結果と Claude Code・Herdr の版を §7 の「PR-1 の実行の記録」に書く。どちらかが成り立たなければ、ここで止まって §1.3 の決定 2 のとおり人と決め直す。
--   [ ] **ステップ 1-2**: `herdr tab list` と、分割したタブでの `herdr pane layout --pane <pane>` のサンプルを `internal/chief/testdata/herdr/` に採る（§1.3 の決定 8）。採った日・版・置き換えを `testdata/README.md` に足す。`agent-list.json` のすべてのエージェントが `tab_id` を持つことは、設計書 3.7 が確かめている。
--   [ ] **ステップ 1-3**: `sanitize.go` に `displayUnit`・`unitKind`・`sanitizeUnits` を足し、`Sanitize` を単位をつなぐ形にする（設計書 3.1・3.5）。`TestSanitize` は変えずに通す。`TestSanitizeUnits` を足し、エスケープ・`\\`・改行・タブ・そのほかの文字がそれぞれ 1 つの単位で、改行とタブがその種類を持つことを、決まった期待値で確かめる。`TestSanitize` の入力について、単位をつないだものが `Sanitize` と等しいことも確かめる。ASCII でない入力は `\u` か `\U` のエスケープで書き、Unicode 15.0 の後に書式文字かどうかが変わった符号位置は使わない（Go の版で結果が変わるため。§1.3 の決定 3）。`unitKind` の 0 の値を §1.4 のとおりにし、`guardedTypes` に `displayUnit` を足す。`TestConstructionGuardFindsViolations` と同じやり方で、`sanitizeUnits` の外の `displayUnit` の複合リテラルをガードが見つけることを確かめる。
--   [ ] **ステップ 1-4**: `CapHead` が上限を引数で受け取るようにし、`detail.go` の 2 つの呼び出しは `headMaxBytes` を渡す（設計書 4 章）。`TestCapHead` を、上限を渡す形に直し、上限の前後と UTF-8 の文字の途中で切らないことを確かめる。
--   [ ] **ステップ 1-5**: `herdr.go` に `tabLabel`・`agentListing`・`parseAgentTabs`・`tabLabels`・`parseTabList`・`paneWidth`・`parsePaneLayout` を足し、`Agents` は `agentListing` のエージェントを返す形にする（設計書 3.1・3.7）。`readOnlyCommands` に `tab list` と `pane layout` を足し、`guardedTypes` に `tabLabel` を足す。テストは次を確かめる。
+-   [x] **ステップ 1-1**: 実物の確かめを行う（§1.3 の決定 2、設計書 1.2）。セッションの pane の幅を `herdr pane layout --pane "$HERDR_PANE_ID"` で読み、次の 2 つを確かめる。(1) 表示幅が「pane の幅 − 2」の行と「pane の幅 − 1」の行を code block で示し、人に折り返すかを尋ねる。(2) 人にタブを分割してもらい、分割した後と拡大した後の `rect.width` を読み、人に画面の幅と等しいかを尋ねる。結果と Claude Code・Herdr の版を §7 の「PR-1 の実行の記録」に書く。どちらかが成り立たなければ、ここで止まって §1.3 の決定 2 のとおり人と決め直す。
+-   [x] **ステップ 1-2**: `herdr tab list` と、分割したタブでの `herdr pane layout --pane <pane>` のサンプルを `internal/chief/testdata/herdr/` に採る（§1.3 の決定 8）。採った日・版・置き換えを `testdata/README.md` に足す。`agent-list.json` のすべてのエージェントが `tab_id` を持つことは、設計書 3.7 が確かめている。
+-   [x] **ステップ 1-3**: `sanitize.go` に `displayUnit`・`unitKind`・`sanitizeUnits` を足し、`Sanitize` を単位をつなぐ形にする（設計書 3.1・3.5）。`TestSanitize` は変えずに通す。`TestSanitizeUnits` を足し、エスケープ・`\\`・改行・タブ・そのほかの文字がそれぞれ 1 つの単位で、改行とタブがその種類を持つことを、決まった期待値で確かめる。`TestSanitize` の入力について、単位をつないだものが `Sanitize` と等しいことも確かめる。ASCII でない入力は `\u` か `\U` のエスケープで書き、Unicode 15.0 の後に書式文字かどうかが変わった符号位置は使わない（Go の版で結果が変わるため。§1.3 の決定 3）。`unitKind` の 0 の値を §1.4 のとおりにし、`guardedTypes` に `displayUnit` を足す。`TestConstructionGuardFindsViolations` と同じやり方で、`sanitizeUnits` の外の `displayUnit` の複合リテラルをガードが見つけることを確かめる。
+-   [x] **ステップ 1-4**: `CapHead` が上限を引数で受け取るようにし、`detail.go` の 2 つの呼び出しは `headMaxBytes` を渡す（設計書 4 章）。`TestCapHead` を、上限を渡す形に直し、上限の前後と UTF-8 の文字の途中で切らないことを確かめる。
+-   [x] **ステップ 1-5**: `herdr.go` に `tabLabel`・`agentListing`・`parseAgentTabs`・`tabLabels`・`parseTabList`・`paneWidth`・`parsePaneLayout` を足し、`Agents` は `agentListing` のエージェントを返す形にする（設計書 3.1・3.7）。`readOnlyCommands` に `tab list` と `pane layout` を足し、`guardedTypes` に `tabLabel` を足す。テストは次を確かめる。
     -   `TestReadHerdrSamples` に、ステップ 1-2 のサンプルと `agent-list.json` の pane とタブの対応を足す。空のラベルが `hasLabel` 偽に、空でないラベルが `hasLabel` 真になることも確かめる。サンプルのラベルに ASCII でない文字があれば、`\u` か `\U` のエスケープで書く。
-    -   `TestHerdrRejectsUnknownShapes` に、設計書 7.1 の「Herdr の読み取り」の形に合わない出力をそれぞれ足し、`errHerdrOutput` で拒むこと（一部だけを使わないこと）を確かめる。幅は 0・負・1001 を拒み、1 と 1000 を受け付ける。
+    -   `TestHerdrRejectsUnknownShapes` に、設計書 7.1 の「Herdr の読み取り」の形に合わない出力をそれぞれ足し、`errHerdrOutput` で拒むこと（一部だけを使わないこと）を確かめる。幅は 0・負・1001 を拒み、1 と 1000 を受け付ける。`layout.splits` がない・配列でない出力も拒む（§1.5 の決定 1）。
+    -   `parsePaneLayout` が、`splits` が空の配置を分割していないと、空でない配置を分割していると読むこと（§1.5 の決定 1）。
     -   `TestAgentListingTabsUnreadable` を足し、pane とタブの対応だけが読めないとき、エージェントの一覧は読め、エラーが `paneTabsErr` に残ることを確かめる。
     -   `TestHerdrCommandLines` に、`tab list` と `pane layout --pane <ID>` のコマンドの行を足す。
 
@@ -105,7 +110,7 @@
 
 **推奨タイトル**: `feat(0102): 表の材料の Herdr の読み取りと Sanitize の表示の単位を作る`
 
-**レビュー観点**: 実物の確かめの結果が設計書 1.2 の前提（左の余白 2 桁、`rect.width` が描く幅）を満たしているか / Herdr の 3 つの読み取りが形に合わない出力を一部だけ使わずに拒むか / `Sanitize` の結果が変わらず、単位の境目と種類が決まった期待値で確かめられているか / サンプルに採った人を特定できる値が残っていないか
+**レビュー観点**: 実物の確かめの結果と、それに合わせた §1.5 の決定 1（分割していなければ − 2、分割していれば − 4）が食い違わないか / Herdr の 3 つの読み取りが形に合わない出力を一部だけ使わずに拒むか / `Sanitize` の結果が変わらず、単位の境目と種類が決まった期待値で確かめられているか / サンプルに採った人を特定できる値が残っていないか
 
 **実装モデル要件**: opus
 
@@ -113,10 +118,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1012
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 表示幅、表を組む処理、CLAUDE.md の例外（設計書 8 章の 2 の残り、4 の一部、5 の CLAUDE.md）
 
@@ -133,7 +138,7 @@
 -   [ ] **ステップ 2-4**: `table.go` に、列の幅、名前の切り方、内容の折り返しと切り方、`layoutTable` を書く（設計書 3.2・3.6・6.2）。テストは次を確かめる。
     -   `TestTableShape`: 行の並び（AC-06）、同じ列が見出しとすべての行で同じ表示幅の位置から始まること（AC-07。全角と絵文字を含む値で）、各列の 1 行目と 2 行目の値（AC-09）、行がないときの `workspace なし`（AC-10）、末尾の空白がないこと。
     -   `TestTableNameColumn`: 名前の列の幅と 20 桁での切り方（AC-08）。ちょうど 20 桁と 21 桁の名前、20 桁目にまたがる幅 2 の文字を含める。
-    -   `TestTableWidth`: どの行の表示幅も使える幅以下であること（AC-04）。幅が 0（読めない）なら 80 桁で組むこと（AC-05）。内容の列の幅が 19・20・21 桁になる使える幅を試し、内容の列が 20 桁を取れないときは列を 20 桁で組み、行が使える幅を超えても行の頭が変わらないこと（AC-05）。幅が 1 と 1000 のとき。
+    -   `TestTableWidth`: どの行の表示幅も使える幅以下であること（AC-04）。使える幅が、分割していなければ pane の幅 − 2、分割していれば pane の幅 − 4 であること（§1.5 の決定 1）。幅が 0（読めない）なら 80 桁で組むこと（AC-05）。内容の列の幅が 19・20・21 桁になる使える幅を試し、内容の列が 20 桁を取れないときは列を 20 桁で組み、行が使える幅を超えても行の頭が変わらないこと（AC-05）。幅が 1 と 1000 のとき。
     -   `TestTableWrap`: 設計書 7.1 の「内容」の折り返しの位置と `…` での切り方、エスケープの途中で折り返しも切りもしないこと（AC-15）。
     -   `TestTableEscapes`: AC-21 の 8 つの外から来る値（名前、PR の題名、質問の文、送れない理由、読めなかったもの、モデル、タブのラベル、pane の ID）のそれぞれに、ESC・C1 制御文字・ゼロ幅の文字・正しくない UTF-8 を入れ、表の中でエスケープとして現れること（値ごとに 1 つの行の表）。
     -   `TestTableLargeValues`: 64 KiB の題名と、結合文字を 1 万個連ねた質問の文でも、内容が 2 行、名前が 20 桁に収まること。16 KiB の境目にまたがる複数バイトの文字を含める。
@@ -251,7 +256,7 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5 / 3-6 / 3-7 / 3-8）
 
@@ -280,8 +285,8 @@
 | AC-14 | test | `internal/chief/table_test.go::TestTableContent` | ステップ 2-3 |
 | AC-15 | test | `internal/chief/table_test.go::TestTableWrap`、`internal/chief/textwidth_test.go::TestUnitWidth`、`internal/chief/sanitize_test.go::TestSanitizeUnits` | ステップ 1-3・2-2・2-4 |
 | AC-16 | test | `internal/chief/table_test.go::TestTableQuestions` | ステップ 2-3 |
-| AC-17 | test | `internal/chief/table_test.go::TestTableNewlinesAndTabs`、`internal/chief/construction_test.go::TestGuardedTypesAreBuiltOnlyByTheirConstructors` | ステップ 1-3・2-3 |
-| AC-18 | test | `internal/chief/table_test.go::TestTableTabDisplay`、`internal/chief/herdr_test.go::TestReadHerdrSamples`、`internal/chief/construction_test.go::TestGuardedTypesAreBuiltOnlyByTheirConstructors` | ステップ 1-5・2-3 |
+| AC-17 | test | `internal/chief/table_test.go::TestTableNewlinesAndTabs`、`internal/chief/construction_test.go::TestGuardedTypesAreBuiltOnlyByTheirConstructors`、`internal/chief/construction_test.go::TestConstructionGuardCoversDeclaredValues` | ステップ 1-3・2-3 |
+| AC-18 | test | `internal/chief/table_test.go::TestTableTabDisplay`、`internal/chief/herdr_test.go::TestReadHerdrSamples`、`internal/chief/construction_test.go::TestGuardedTypesAreBuiltOnlyByTheirConstructors`、`internal/chief/construction_test.go::TestConstructionGuardCoversDeclaredValues` | ステップ 1-5・2-3 |
 | AC-19 | test | `internal/chief/table_test.go::TestTableTabDisplay`、`internal/chief/snapshot_test.go::TestTableSourcesUnreadable`、`internal/chief/autosend_test.go::TestTickTableSourcesUnreadable`、`internal/chief/herdr_test.go::TestAgentListingTabsUnreadable` | ステップ 1-5・2-3・3-1 |
 | AC-20 | test | `internal/chief/table_test.go::TestTableFixedWords` | ステップ 2-3 |
 | AC-21 | test | `internal/chief/table_test.go::TestTableEscapes`、`internal/chief/snapshot_test.go::TestTableSourcesUnreadable`（`table_unreadable` の文） | ステップ 2-3・2-4・3-1 |
@@ -295,7 +300,22 @@
 
 ### PR-1 の実行の記録
 
-（ステップ 1-1・1-2 の結果を `/runplan` が書く。）
+**ステップ 1-1（実物の確かめ、2026-11-19）。** Claude Code 2.1.328、herdr 0.9.1。chief の代わりに、この `/runplan` のセッションの pane（`w27:p3`）で、`herdr pane layout --pane "$HERDR_PANE_ID"` で幅を読み、code block の試しの行を人が画面で読んだ。
+
+| 状態 | `rect.width` | `area.width` | 1 行に収まった桁 | 差 |
+|---|---|---|---|---|
+| 分割なし | 82 | 82 | 80（81 桁の行は末尾の 1 桁が折り返した） | rect − 2 |
+| 左右に分割 | 41 | 82 | 37 | rect − 4 |
+| 左右に分割（境目を動かした後） | 48 | 82 | 44 | rect − 4 |
+| 左右に分割して拡大（`zoomed: true`） | 49 | 83 | 79 | area − 4 |
+
+-   (1) は成り立った。分割していない pane で、表示幅が「pane の幅 − 2」の行は折り返さず、「pane の幅 − 1」の行は折り返した。
+-   (2) は成り立たなかった。分割した pane では、`rect.width` より 4 桁少ない幅までしか収まらなかった（Claude Code の左の余白 2 桁のほかに、Herdr が分割した pane に描く枠の 2 桁）。拡大したときは、`rect.width` が 49 で、描かれる幅の 79 より狭かった。拡大の前に分割したときの幅を、`area.width` が 83 のときに読んではいないので、49 が分割したときの幅と同じであることは、`area.width` が 82 から 83 に変わったことによる推測である（48 の幅の比は 83 の幅で 49 になる）。どちらであっても、`rect.width` から引いた幅は描かれる幅に収まる。
+-   分割は左右の分割だけで確かめた。上下の分割と、入れ子の分割は確かめていない。PR-3 の実物の確かめ（設計書 7.3 の (4)）で確かめる。
+-   人と決め直し、§1.5 の決定 1 のとおり、分割していなければ − 2、分割していれば − 4 とした。拡大したときは、表が画面より狭く組まれることを受け入れた。
+-   分割したときの 1 回目の試しの行は、エージェントの数え違いで 39 桁でなく 40 桁だった。人が「37 桁の後で折り返した」と答えたので、結果は上の表のとおりで、2 回目（目盛りの行）でも同じ差を確かめた。
+
+**ステップ 1-2（Herdr のサンプル、2026-11-19）。** `herdr tab list` と、分割していないタブと左右に分割したタブでの `herdr pane layout --pane w27:p3` を、読み取りだけで `internal/chief/testdata/herdr/tab-list.json`・`pane-layout.json`・`pane-layout-split.json` に採った。採った人を特定できる値はなく、置き換えはない（`internal/chief/testdata/README.md` の「タスク 0102 の表の材料」）。空のラベルのタブはなかったので、空のラベルはテストの中で作った出力で確かめる。
 
 ### PR-2 の実行の記録
 
@@ -324,3 +344,4 @@ AC-03 の diff の記録（ステップ 3-6 のスクリプトの出力、マー
 ## 変更履歴
 
 - 2026-11-19 承認（isseis、#1000）
+- 2026-11-19 セッション中の再承認：使える幅を、タブを分割していれば pane の幅 − 4 にし、parsePaneLayout が splits を読むステップとテストを足した（isseis、#1012）

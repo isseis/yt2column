@@ -22,6 +22,10 @@ var guardedTypes = map[string][]string{
 	"WorkspaceMaker":   {"NewWorkspaceMaker"},
 	"RemovalCandidate": {"newRemovalCandidate"},
 	"WorkspaceCloser":  {"newWorkspaceCloser"},
+	// The status table chooses behavior by these declared values, so only
+	// the reader that declares them may make one.
+	"displayUnit": {"sanitizeUnits"},
+	"tabLabel":    {"parseTabList"},
 }
 
 // emptyImporter gives every import an empty package, so type checking of
@@ -178,5 +182,42 @@ func (other) NewTaskSpace() TaskSpace { return TaskSpace{path: "x"} }
 	}
 	if n := strings.Count(strings.Join(got, "\n"), "built in NewTaskSpace at"); n != 1 {
 		t.Errorf("want exactly the method named like the constructor reported, got %d: %v", n, got)
+	}
+}
+
+// TestConstructionGuardCoversDeclaredValues runs the guard on source that
+// makes a type whose declared value the status table chooses behavior by, in
+// its maker and outside it: only the one outside is reported.
+func TestConstructionGuardCoversDeclaredValues(t *testing.T) {
+	const src = `package chief
+
+type unitKind int
+
+type displayUnit struct {
+	text string
+	kind unitKind
+}
+
+func sanitizeUnits() []displayUnit { return []displayUnit{{text: "a", kind: 1}} }
+
+func forged() displayUnit { return displayUnit{text: "a"} }
+
+type tabLabel struct {
+	text     string
+	hasLabel bool
+}
+
+func parseTabList() tabLabel { return tabLabel{text: "a", hasLabel: true} }
+
+func forgedLabel(l tabLabel) tabLabel { l.hasLabel = true; return l }
+`
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "declared.go", src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := constructionViolations(t, fset, []*ast.File{file})
+	if len(got) != 2 || !strings.HasPrefix(got[0], "displayUnit built in forged at") || !strings.HasPrefix(got[1], "tabLabel built in forgedLabel at") {
+		t.Errorf("want only forged and forgedLabel reported, got %v", got)
 	}
 }

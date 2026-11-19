@@ -45,7 +45,7 @@
 -   **折り返しは、原則として語の途中を避ける。ただし、語と ASCII でない文字の境目、および ASCII でない文字どうしの境目では折り返してよい。全角の空白（U+3000）は空白に含めず、ASCII でない文字の 1 つとして扱う（申し送りの H-06）。** 日本語の文には空白がないので、境目で折り返せないと、日本語の質問の文がほとんど語の途中扱いになるためである。ADR: なし（表示の細部のため）。
 -   **表の日本語の literal は `internal/chief/table.go` とそのテストだけに置く。表示幅の数え方は `internal/chief/textwidth.go` に置く（申し送りの H-07）。** CLAUDE.md の 2 つの例外（AC-26・AC-28）が、ファイルの名前で範囲を名指せるようにするためである。ADR: なし（ファイルの置き方の細部のため）。
 
-この設計で新しく作る ADR も、更新する ADR もない。表を道具が組むこと、印、pane の幅を Herdr から読むこと、2 つの例外は、要件定義のときに [ADR-0046](../../dev/adr/0046-chief-of-staff.md) と [ADR-0035](../../dev/adr/0035-language-policy.md) に記録済みである。上の各項は、chief の中で閉じる表示と読み取りの細部である。
+設計の際（2026-11-18）の決定では、新しく作る ADR も、更新する ADR もない（実装の際の 1.5 の決定は ADR-0046 を更新した）。表を道具が組むこと、印、pane の幅を Herdr から読むこと、2 つの例外は、要件定義のときに [ADR-0046](../../dev/adr/0046-chief-of-staff.md) と [ADR-0035](../../dev/adr/0035-language-policy.md) に記録済みである。上の各項は、chief の中で閉じる表示と読み取りの細部である。
 
 ### 1.3. なぜ今の仕組みでは足りないか
 
@@ -93,6 +93,10 @@ flowchart LR
 -   **表の材料:** pane の幅は使える幅を決め、pane とタブの対応とタブのラベルはタブの表示を決める。
 -   **表示の単位:** セルの文字列を、`Sanitize` と同じ規則で分けたもの。幅は 3.5 の規則で決まる。
 -   **配置:** 列の幅を決め、内容の列を 2 行に流し込み、名前と内容を切る（3.2・3.6）。
+
+### 1.5. 実装の際に決めたこと（2026-11-19）
+
+-   **使える幅は、chief のタブを分割していなければ「chief の pane の幅 − 2」、分割していれば「chief の pane の幅 − 4」とする。分割しているかは、pane の配置の `layout.splits` が空かどうかで読む。** 人が選んだ。1.2 の実物の確かめを PR-1 の最初に行った（[03_implementation_plan.md](03_implementation_plan.md) §7「PR-1 の実行の記録」）。分割していない pane では、`rect.width` 82 で「pane の幅 − 2」の 80 桁の行が収まり、81 桁の行が折り返した。分割した pane では、`rect.width` 41 で 37 桁、48 で 44 桁までしか収まらなかった。Herdr が分割した pane の枠を `rect` の中に描き、その分の 2 桁が減ると見る。拡大（zoom）したときは、`rect.width` が 49 で、描かれる幅（`area.width` 83 − 4 の 79 桁）より狭かった。49 は、分割したときの幅が拡大しても変わらないと見たものである（実装計画書 §7 の推測の注）。分割は左右の分割だけで確かめ、上下の分割と入れ子の分割は 7.3 の (4) で確かめる。分割しない使い方が主なので、そのときは 1.2 のとおり − 2 で最適にし、分割したときもはみ出さないようにする。拡大したときは、`rect.width` が分割したときの幅なので、表は画面より狭く組まれるが、はみ出さない。いつも − 4 にする案は、主な使い方で右の 2 桁が空くので採らない。分割したときのはみ出しを既知の制限とする案は、分割した chief で長い行が毎回折り返すので採らない。拡大したときに `area.width` を読む案は、読むメンバー（`zoomed`・`area`）が増え、拡大の規則が 1 回の観測にしか拠らないので採らない。要件書 AC-04 と 4.2 を改め、3.1・3.2・3.7・6.2 をこの形に直した。ADR: [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する（決定が「Claude Code の code block の余白を引いた幅」と述べているため）。
 
 ## 2. システム構成 (System Structure)
 
@@ -229,6 +233,7 @@ sequenceDiagram
 // table is still laid out (80 columns, pane IDs).
 type tableSources struct {
 	paneWidth int              // the chief pane's width; 0 when unread
+	paneSplit bool             // the chief pane's tab is split; false when unread
 	paneTabs  map[string]tabID // keyed by the pane ID as Herdr wrote it; nil when unread
 	tabLabels map[tabID]tabLabel // nil when unread
 	// notes says, in English, which source could not be read and why,
@@ -248,7 +253,7 @@ type agentListing struct {
 // another shape (section 3.7).
 func (h Herdr) agentListing(ctx context.Context) (agentListing, error)
 func (h Herdr) tabLabels(ctx context.Context) (map[tabID]tabLabel, error)
-func (h Herdr) paneWidth(ctx context.Context, pane PaneID) (int, error)
+func (h Herdr) paneWidth(ctx context.Context, pane PaneID) (width int, split bool, err error)
 func parseAgentTabs(out []byte) (map[string]tabID, error)
 func parseTabList(out []byte) (map[tabID]tabLabel, error)
 
@@ -258,7 +263,7 @@ type tabLabel struct {
 	text     string
 	hasLabel bool
 }
-func parsePaneLayout(out []byte, pane PaneID) (width int, err error)
+func parsePaneLayout(out []byte, pane PaneID) (width int, split bool, err error)
 
 // readTableSources reads the tab labels and the chief pane's width for
 // TakeSnapshot and Tick, and adds the pane-to-tab map readRound read.
@@ -276,7 +281,7 @@ type displayUnit struct {
 // doubled backslash) is one unit, every other character one unit, a
 // newline and a tab included, each with its kind. Sanitize(text) equals
 // the units' texts joined.
-func sanitizeUnits(text string) []displayUnit
+func sanitizeUnits(text string) iter.Seq[displayUnit]
 
 // layoutTable lays out the status table from the sorted rows. It returns
 // the lines, each without a newline or trailing spaces, and src.notes
@@ -329,7 +334,7 @@ type SnapshotOutput struct {
 
 状態の列の値は決まった語だけなので、幅は表によって 4 桁（見出しの `状態`）から 15 桁（`🛑 レビュー待ち`）の間になる。2 行目は、状態の列の空白（4 桁以上）と間の空白（2 桁）で、6 桁以上の空白から始まり、タスクの列の文書の段がいつも値を持つ（タスクがなければ `-`）ので、空の行にはならない。
 
-**使える幅。** 使える幅は、chief の pane の幅 − 2 である（1.2）。pane の幅を読めなければ、80 桁とみなす（AC-05）。使える幅が狭く、内容の列が最小の 20 桁を取れないとき（pane の幅が 1 か 2 で、使える幅が 0 以下になるときを含む）は、内容の列を 20 桁として組み、行が使える幅を超えることを受け入れる（AC-05）。凡例（27 桁）は、使える幅が 27 桁未満のときにだけ使える幅を超える。これも同じく受け入れる。どちらの場合も、行の頭は変わらないので、下の code block を閉じないことは保たれる。
+**使える幅。** 使える幅は、chief のタブを分割していなければ chief の pane の幅 − 2、分割していれば chief の pane の幅 − 4 である（1.2・1.5）。pane の配置を読めなければ、pane の幅を 80 桁とみなし、分割していないものとして − 2 とする（AC-05）。使える幅が狭く、内容の列が最小の 20 桁を取れないとき（pane の幅が 1 か 2 で、使える幅が 0 以下になるときを含む）は、内容の列を 20 桁として組み、行が使える幅を超えることを受け入れる（AC-05）。凡例（27 桁）は、使える幅が 27 桁未満のときにだけ使える幅を超える。これも同じく受け入れる。どちらの場合も、行の頭は変わらないので、下の code block を閉じないことは保たれる。
 
 **区切り線の長さ。** 区切り線は、列の幅と間の空白の合計（表の幅）だけ `─` を並べる。内容の列が最小の幅に広げられたときも、表の幅に合わせる。
 
@@ -420,12 +425,12 @@ type SnapshotOutput struct {
 | 読み取り | 呼び出し | 受け付ける形と使うメンバ | 読めないとき |
 |---|---|---|---|
 | タブのラベル | `herdr tab list`（`--workspace` なし。すべての workspace のタブを 1 回で返す） | 封筒の `id` が `cli:tab:list`、`result.type` が `tab_list`、`result.tabs` が配列。各タブの `tab_id`（今の pane の一覧と同じ形、`tabIDForm`、`internal/chief/herdr.go:483`）と `label`（文字列。空でもよい）。同じ `tab_id` が 2 つ以上あれば読めない | すべての質問のタブの表示が pane の ID になる |
-| chief の pane の幅 | `herdr pane layout --pane <chief の pane の ID>` | 封筒の `id` が `cli:pane:layout`、`result.type` が `pane_layout`、`result.layout` がオブジェクトで、その `panes` が配列。各 pane の `pane_id`（`paneIDForm`）。`pane_id` が chief の pane の ID と等しい項目がちょうど 1 つあり、その `rect.width` が 1 以上 1000 以下の整数。chief の pane でない項目は `pane_id` だけを読み、`rect` は読まない | 80 桁とみなす |
+| chief の pane の幅 | `herdr pane layout --pane <chief の pane の ID>` | 封筒の `id` が `cli:pane:layout`、`result.type` が `pane_layout`、`result.layout` がオブジェクトで、その `panes` が配列。各 pane の `pane_id`（`paneIDForm`）。`pane_id` が chief の pane の ID と等しい項目がちょうど 1 つあり、その `rect.width` が 1 以上 1000 以下の整数。chief の pane でない項目は `pane_id` だけを読み、`rect` は読まない。`result.layout.splits` が配列で、空なら分割していない、空でなければ分割している。`splits` の要素は読まない（1.5） | 80 桁で、分割していないものとみなす |
 | pane とタブの対応 | 増やさない。`readRound` が読む `herdr agent list` の同じ出力から読む | 封筒の `id` が `cli:agent:list`、`result.type` が `agent_list`、`result.agents` が配列。各エージェントの `pane_id`（`paneIDForm`）と `tab_id`（`tabIDForm`）。同じ `pane_id` が 2 つ以上あれば読めない | すべての質問のタブの表示が pane の ID になる |
 
--   どの読み取りでも、使うメンバが欠けているか、型か形が違うとき、`strictjson` が同じメンバ名の重複として拒むときは、その読み取り全体を読めないものとする。ほかのメンバ（タブの `number`・`agent_status`・`focused`・`pane_count`、配置の `area`・`splits`・`zoomed` など）は読まず、Herdr が足しても受け付ける。
+-   どの読み取りでも、使うメンバが欠けているか、型か形が違うとき、`strictjson` が同じメンバ名の重複として拒むときは、その読み取り全体を読めないものとする。ほかのメンバ（タブの `number`・`agent_status`・`focused`・`pane_count`、配置の `area`・`zoomed`、`splits` の要素など）は読まず、Herdr が足しても受け付ける。
 -   幅の上限を 1000 とするのは、形の正しい出力でも、とても大きな幅が来ると区切り線が巨大になり、道具がメモリを使い切りうるためである（要件書 4.2 の受け付ける形も同じに改めた）。1000 は、ふつうの端末の幅を十分に超える。
--   幅には、`layout.area` ではなく chief の pane の `rect.width` を使う。`area` はタブ全体の大きさで、タブを分割したときに chief の pane より広い（申し送りの H-04）。
+-   幅には、`layout.area` ではなく chief の pane の `rect.width` を使う。`area` はタブ全体の大きさで、タブを分割したときに chief の pane より広い（申し送りの H-04）。タブを分割すると、Herdr は pane の枠を `rect` の中に描くので、使える幅は 2 桁少なくなる（1.5）。拡大（zoom）したときも `rect.width` は分割したときの幅のままで、表は画面より狭く組まれる。`zoomed` と `area` は読まない（1.5）。
 -   pane の配置を読む pane は、ラウンドがすでに確かめた chief の pane（`HERDR_PANE_ID` を `ParsePaneID` で読み、エージェントの一覧で確かめたもの、`internal/chief/snapshot.go:94-109`）である。ID は `paneIDForm` に合うので、`-` で始まって Herdr にオプションと読まれることはない。
 -   `herdr tab list` はすべての workspace のタブを返すので、関係のない workspace に同じ `tab_id` が 2 つあっても、すべての質問のタブの表示が pane の ID になる。一部だけを使わない（AC-23）ことを優先する。
 -   2026-11-18 に herdr 0.9.1 で、3 つの出力が上の形であることを確かめた。`herdr agent list` の出力は、今のサンプル（`internal/chief/testdata/herdr/agent-list.json`）でも、すべてのエージェントが `tab_id` を持つ。
@@ -450,10 +455,11 @@ type SnapshotOutput struct {
 ### 3.10. chief 利用ガイド（`docs/dev/guides/chief_guide.md`）
 
 -   **2 章。** プロトコル番号の値（`docs/dev/guides/chief_guide.md:28`）を新しい番号にする（AC-25）。`TestGuideValuesMatchTool`（`cmd/chief/docs_test.go:405`）が道具の番号と比べる。道具を入れ直すときは、動いている `/chief` を止めてから `make install-chief` を実行し、`/chief` を起動し直すと書く。止めずに入れ直すと、動いている `/chief` は次のラウンドで `protocol_mismatch` に当たり、入れ直しを促して止まるが、そのときの手当ては `/chief` の起動し直しであることも書く（3.8）。
--   **3.1。** 表の見方を、本書の形で書き直す（AC-24）。凡例、5 つの列、2 行目（文書の段と内容の続き）、使える幅の決め方（pane の幅 − 2、読めなければ 80 桁）、内容の列の流し込みと切り方、タブの表示（`[claude]`、引けなければ pane の ID）。急ぎの度合いと番の表、行の並び、実行中のコマンドの節は残し、印と語を新しいものにする。「調べ方」に、`table_unreadable` で表の材料を読めなかった理由が分かることを足す。
+-   **3.1。** 表の見方を、本書の形で書き直す（AC-24）。凡例、5 つの列、2 行目（文書の段と内容の続き）、使える幅の決め方（pane の幅 − 2、タブを分割していれば − 4、読めなければ 80 桁）、内容の列の流し込みと切り方、タブの表示（`[claude]`、引けなければ pane の ID）。急ぎの度合いと番の表、行の並び、実行中のコマンドの節は残し、印と語を新しいものにする。「調べ方」に、`table_unreadable` で表の材料を読めなかった理由が分かることを足す。
 -   **8 章の今の項目。** 「人が引数なしで打ったコマンドは示されない」の項（`docs/dev/guides/chief_guide.md:196`）は、「（後に指示あり）」、状態の「作成中」、「状態の列と文書の列」と、この設計で使わなくなる語で表を説明している。語を「＋指示」と「作業中」と状態の列・タスクの列に直す。`/runplan` も `/runpr` も「作業中」になるので、状態が「作成中」のままという例は、内容の列に前のコマンドが示されるという例に直す。
 -   **8 章（既知の制限）。** 次を足す（AC-24）。
-    -   Claude Code の code block の余白が変わると表が折り返しうること。
+    -   Claude Code の code block の余白や、Herdr が分割した pane に描く枠の幅が変わると、表が折り返しうること。
+    -   chief のタブを拡大（zoom）したときは、表が分割したときの幅で組まれ、画面より狭くなること（1.5）。
     -   pane の幅を変えた表は次のラウンドまで古い幅のままであること。
     -   狭い pane では行がはみ出しうること。
     -   セッションの写しは機械的には保証されないこと。
@@ -600,7 +606,7 @@ flowchart TD
 
 ### 6.2. 表を組む
 
-1.  使える幅を決める（pane の幅 − 2、読めなければ 80 − 2）。
+1.  使える幅を決める（pane の幅 − 2、タブを分割していれば pane の幅 − 4、読めなければ 80 − 2）。
 2.  各行のセルを作る（3.3・3.4）。外から来る値は、単位に分ける前に UTF-8 の文字の境目で 16 KiB までに切り（表に入る分より十分長い）、表示の単位に分ける（3.5）。
 3.  名前を切る（3.6）。状態・名前・タスク・PR の列の幅を、見出しと値（名前は切った後のもの）から決める。
 4.  内容の列の幅を、使える幅から決める（最小 20 桁）。
@@ -633,7 +639,7 @@ flowchart TD
 
 -   **code block を閉じないこと（AC-22）。** 表の行の頭の決まりを、1 つのテストのヘルパーで確かめる。どの行も、空であるか、決まった語（凡例・見出し・区切り線・`workspace なし`）か状態の列の印か 4 桁以上の空白で始まり（行がすべて `作業中` のように状態の列が狭い表と、値がすべて `?` の表も組む）、0〜3 桁の空白に続く ```` ``` ```` か `~~~` で始まらず、改行と CR を含まないこと。表を組むすべてのテストが、組んだ表にこのヘルパーを当てる。加えて、名前・PR の題名・質問の文・タブのラベル・送れない理由・読めなかったもの・モデルに、```` ``` ````・`~~~`・空白で始まる値・`#`・`|`・`-` で始まる値・改行のあとの ```` ``` ```` を入れた表を組む。さらに、これらの値を任意の文字列にする Go の fuzz テストで、同じヘルパーを当てる。
 -   **端末の制御文字（AC-21）。** ESC・C1 制御文字・ゼロ幅の文字・正しくない UTF-8 を含む値が、表の中でエスケープとして現れること。
--   **手で確かめること（計画で手順を決める）。** 実物の `/chief` で、(1) code block の右端で折り返す桁（1.2）、(2) 全角・絵文字・`…`・`─` を含む表の列が実際にそろうこと、(3) 幅の狭い pane と 80 桁とみなしたときの表の形、(4) chief のタブを拡大（zoom）したときと分割したときに、pane の配置の `rect.width` が見えている幅と等しいかを、(5) 名前・PR の題名・質問の文・タブのラベルに ```` ``` ```` や `~~~` を含む表が、Claude Code の描く code block の中に収まり、後ろの行が Markdown として描かれないかを、Claude Code の画面で確かめる。(5) は、code block を閉じないことの議論（3.2）が CommonMark の規則によるのに対し、描くのは Claude Code の Markdown の描画なので、その描画が同じ規則に従うことを実物で確かめるものである。(5) が成り立たなければ、行の組み方を決め直す。違ったときの扱いは 1.2 のとおりである。(1) で右端が pane の幅より手前だと分かれば、使える幅の値を直す。
+-   **手で確かめること（計画で手順を決める）。** 実物の `/chief` で、(1) code block の右端で折り返す桁（1.2）、(2) 全角・絵文字・`…`・`─` を含む表の列が実際にそろうこと、(3) 幅の狭い pane と 80 桁とみなしたときの表の形、(4) chief のタブを左右と上下に分割したときに「pane の幅 − 4」の行が折り返さないこと、分割せずに拡大（zoom）したときと、分割して拡大したときに、表がはみ出さないことを（1.5）、(5) 名前・PR の題名・質問の文・タブのラベルに ```` ``` ```` や `~~~` を含む表が、Claude Code の描く code block の中に収まり、後ろの行が Markdown として描かれないかを、Claude Code の画面で確かめる。(5) は、code block を閉じないことの議論（3.2）が CommonMark の規則によるのに対し、描くのは Claude Code の Markdown の描画なので、その描画が同じ規則に従うことを実物で確かめるものである。(5) が成り立たなければ、行の組み方を決め直す。違ったときの扱いは 1.2 のとおりである。(1) で右端が pane の幅より手前だと分かれば、使える幅の値を直す。
 
 ## 8. 実装の優先順位 (Implementation Priorities)
 
@@ -671,7 +677,7 @@ flowchart TD
 | AC-01 | 3.1・3.8（`snapshot` と `tick` の出力の `table`。並びは `rows` と同じ） |
 | AC-02 | 1.1・3.1・3.8（同じ `Row` から組み、`rows` は変えない） |
 | AC-03 | 3.9 |
-| AC-04 | 1.2・3.2（pane の幅 − 2） |
+| AC-04 | 1.2・1.5・3.2（pane の幅 − 2、分割していれば − 4） |
 | AC-05 | 3.2・3.7・4 章（80 桁、最小 20 桁） |
 | AC-06 | 3.2 |
 | AC-07 | 3.2・3.5 |
@@ -702,3 +708,4 @@ flowchart TD
 - 2026-11-18 承認（isseis、#997）
 - 2026-11-19 draft への戻し：CLAUDE.md の 2 つの例外を、`Protocol` を上げる PR ではなく、例外が名指すファイル（`table.go`・`textwidth.go`）を足す PR で入れることにした（#1000）
 - 2026-11-19 承認（isseis、#1000）
+- 2026-11-19 セッション中の再承認：使える幅を、タブを分割していれば pane の幅 − 4 にし、pane の配置の splits を読むことにした（isseis、#1012）

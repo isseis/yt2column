@@ -13,3 +13,6 @@ agent-start-name-taken exit=1
 agent-start-pane-busy exit=1
 agent-start-timeout exit=1
 workspace-close-not-found exit=1
+tab-list exit=0
+pane-layout exit=0
+pane-layout-split exit=0
