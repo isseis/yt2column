@@ -3,6 +3,7 @@
 package chief
 
 import (
+	"context"
 	"os"
 	"reflect"
 	"slices"
@@ -684,5 +685,92 @@ func TestTraceReadingOf(t *testing.T) {
 				t.Errorf("reading = %+v, want %+v", got, c.want)
 			}
 		})
+	}
+}
+
+// TestReadOnlySubcommandsWriteNoHistory checks that snapshot, send, and
+// reset read a worktree on main's history and never write it: with PR 42
+// open in the history and the worktree on main, none of them makes a
+// history record or reads the PR's state.
+func TestReadOnlySubcommandsWriteNoHistory(t *testing.T) {
+	ctx := context.Background()
+	for _, c := range []struct {
+		name string
+		run  func(mw *mergeWorld)
+	}{
+		{"snapshot", func(mw *mergeWorld) { mw.snapshot() }},
+		{"send", func(mw *mergeWorld) {
+			if _, err := Send(ctx, mw.deps, mw.owner(), sendReq(mw.t, mw.tree, "mkarch", "", "", anyItem)); err != nil {
+				mw.t.Fatal(err)
+			}
+		}},
+		{"reset", func(mw *mergeWorld) {
+			req, err := ParseOfferedResetRequest(mw.tree, strings.Repeat("a", 64))
+			if err != nil {
+				mw.t.Fatal(err)
+			}
+			if _, err := SendOfferedReset(ctx, mw.deps, mw.owner(), req); err != nil {
+				mw.t.Fatal(err)
+			}
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			mw := newMergeWorld(t, mkarchDocs)
+			mw.tick(time.Minute)
+			mw.merge(mainBranch, "")
+			before, views := traceNames(t, mw.store, mw.tree), prViews(mw.rec)
+			c.run(mw)
+			if after := traceNames(t, mw.store, mw.tree); !slices.Equal(after, before) || prViews(mw.rec) != views {
+				t.Errorf("history %v (was %v), #42 read %d times; want nothing written or read", after, before, prViews(mw.rec)-views)
+			}
+		})
+	}
+}
+
+// TestMainAfterMergeFlow runs the flow of issue #996: PR 42 of 0001 is
+// open on its branch, merged, and the worktree left on main. The round
+// that reads the merge shows 0001's next command on the row; the human's
+// choice of that item sends it; and a new chief session no longer
+// identifies the task, its start having removed the old session's history.
+func TestMainAfterMergeFlow(t *testing.T) {
+	mw := newMergeWorld(t, mkarchDocs)
+	mw.tick(time.Minute)
+	mw.merge(mainBranch, "")
+	out := mw.tick(time.Minute)
+	r := rowOf(t, out.Snapshot, "ws")
+	if r.Task != "0001" || r.State != StateProposeNext || r.Next == nil || r.Next.Text != "/mkarch 0001" {
+		t.Fatalf("row = %+v; want /mkarch 0001 offered on main", r)
+	}
+	var item ItemID
+	for _, p := range out.Output().Pending {
+		if p.Kind == "proposal" && p.Workspace == mw.tree && p.Proposal != nil && p.Proposal.Command == "/mkarch 0001" {
+			item = p.ID
+		}
+	}
+	sent, err := Send(context.Background(), mw.deps, mw.owner(), sendReq(t, mw.tree, "mkarch", "", "", string(item)))
+	if err != nil || len(sent.Actions) != 1 || sent.Actions[0].Outcome != OutcomeSent || sent.Actions[0].Command != "/mkarch 0001" {
+		t.Fatalf("Send = %+v, %v; want /mkarch 0001 sent", sent, err)
+	}
+	// The pane the send typed into works on; it is idle again before the
+	// next session looks.
+	mw.mu.Lock()
+	p := mw.byPane["w1:p1"]
+	p.Status, p.screen = "idle", readScreenSample(t, "claude-idle.ansi")
+	mw.mu.Unlock()
+	cleared := mw.chief
+	cleared.Session = "00000000-0000-4000-8000-0000000000c9"
+	owner := Owner{Pane: cleared.Pane, Session: cleared.Session}
+	if _, err := mw.store.Start(context.Background(), herdrWith(t, cleared), owner, mw.now); err != nil {
+		t.Fatal(err)
+	}
+	if names := traceNames(t, mw.store, mw.tree); len(names) != 0 {
+		t.Errorf("history after the new session's start = %v; want the old session's removed", names)
+	}
+	snap, err := TakeSnapshot(context.Background(), mw.deps, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := rowOf(t, snap, "ws"); r.Task != "" || r.State != StateNeedsCheck || r.Next != nil {
+		t.Errorf("row in the new session = %+v; want main with no task identified", r)
 	}
 }

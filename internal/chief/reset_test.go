@@ -33,11 +33,13 @@ func withInput(t *testing.T, screen, text string) string {
 // sendRunpr sends /runpr 42 to the workspace at tree.
 func sendRunpr(t *testing.T, deps Deps, tree string) SendOutcome {
 	t.Helper()
-	req, err := ParseSendRequest(tree, "runpr", "", "42")
+	req, err := ParseSendRequest(tree, "runpr", "", "42", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := Send(context.Background(), deps, req)
+	// The workspace is on its feature branch, which reads no history, so
+	// no owner's session is needed.
+	out, err := Send(context.Background(), deps, Owner{}, req)
 	if err != nil {
 		t.Fatal(err)
 	}

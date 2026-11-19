@@ -45,6 +45,8 @@ type fakeHerdr struct {
 	// agent, and git reports each directory as its own worktree, so the
 	// pane's worktree differs from the process's.
 	paneDir string
+	// lenient fails a command it does not answer without failing the test.
+	lenient bool
 }
 
 // agent returns the Herdr JSON of the agent in pane with session; the
@@ -126,7 +128,9 @@ func (f *fakeHerdr) Run(_ context.Context, name string, args ...string) ([]byte,
 		// internal/chief.
 		return os.ReadFile(filepath.Join("..", "..", "internal", "chief", "testdata", "gh", "issue-open-839.json"))
 	}
-	f.t.Errorf("unexpected command %s %v", name, args)
+	if !f.lenient {
+		f.t.Errorf("unexpected command %s %v", name, args)
+	}
 	return nil, errors.New("unexpected command")
 }
 
@@ -357,6 +361,9 @@ func TestRunUsageErrors(t *testing.T) {
 		{"snapshot", "--workspace", "/w", "--protocol", protocol},
 		{"send", "--workspace", "/w", "--protocol", protocol},
 		{"send", "--command", "mkarch", "--protocol", protocol},
+		{"send", "--workspace", "/w", "--command", "mkarch", "--protocol", protocol},
+		{"send", "--workspace", "/w", "--command", "mkarch", "--item", "C" + strings.Repeat("c", 31), "--protocol", protocol},
+		{"send", "--workspace", "/w", "--command", "runpr", "--pr", "4", "--item", strings.Repeat("c", 32), "--protocol", protocol},
 		{"send", "--workspace", "/w", "--command", "weakreview", "--protocol", protocol},
 		{"detail", "--protocol", protocol},
 		{"detail", "--workspace", "/w", "--command", "runpr", "--protocol", protocol},
@@ -520,7 +527,7 @@ func TestRunWorkspaceSubcommands(t *testing.T) {
 		args  []string
 		check func(map[string]any) bool
 	}{
-		{[]string{"send", "--workspace", "/nowhere", "--command", "mkarch", "--protocol", protocol}, noWorkspace},
+		{[]string{"send", "--workspace", "/nowhere", "--command", "mkarch", "--item", strings.Repeat("c", 32), "--protocol", protocol}, noWorkspace},
 		{[]string{"relay", "--workspace", "/nowhere", "--check", testCheck, "--answer", "1=1", "--protocol", protocol}, noWorkspace},
 		{[]string{"reset", "--workspace", "/nowhere", "--check", testCheck, "--protocol", protocol}, noWorkspace},
 		{[]string{"detail", "--workspace", "/nowhere", "--protocol", protocol}, func(out map[string]any) bool {
@@ -554,4 +561,157 @@ func TestRunWorkspaceSubcommands(t *testing.T) {
 			t.Errorf("release before start = %d, %v; want refused, not_started", code, out)
 		}
 	})
+}
+
+// mainFake is the fake Herdr, git, and gh of TestRunSendPassesTheOwner: the
+// chief workspace of fakeHerdr and a task workspace w1, whose one Claude Code
+// pane is idle in tree, on branch with PR 42 in prState. It answers what a
+// round and a send read, and fails, without failing the test, every command
+// it does not know (a send's checks of the pane among them), so a send that
+// passes the check of the chosen item stops there with nothing typed.
+type mainFake struct {
+	*fakeHerdr
+	tree, branch, prState string
+	screen                []byte
+	docs                  map[string][]byte
+}
+
+// errNotFaked is the failure of a command mainFake does not answer.
+var errNotFaked = errors.New("not faked")
+
+func (m *mainFake) factory(o cmdrunner.Options) cmdrunner.Runner {
+	return mainRunner{m: m, dir: o.Dir}
+}
+
+type mainRunner struct {
+	m   *mainFake
+	dir string
+}
+
+func (r mainRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	m := r.m
+	line := name + " " + strings.Join(args, " ")
+	has := func(words ...string) bool {
+		for _, w := range words {
+			if !slices.Contains(args, w) {
+				return false
+			}
+		}
+		return true
+	}
+	task := m.agent("w1:p1", "00000000-0000-4000-8000-000000000011")
+	task = strings.Replace(strings.Replace(task, `"agent_status":"working"`, `"agent_status":"idle"`, 1), `"cwd":"`+m.dir+`"`, `"cwd":"`+m.tree+`"`, 1)
+	switch {
+	case name == "herdr" && has("agent", "list"):
+		m.calls = append(m.calls, line)
+		return []byte(`{"id":"cli:agent:list","result":{"agents":[` + m.agent(testPane, sessions[testPane]) + `,` + task + `],"type":"agent_list"}}`), nil
+	case name == "herdr" && has("workspace", "list"):
+		m.calls = append(m.calls, line)
+		return []byte(`{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[{"label":"chief","workspace_id":"wc"},{"label":"ws","workspace_id":"w1"}]}}`), nil
+	case name == "herdr" && has("agent", "read", "w1:p1"):
+		m.calls = append(m.calls, line)
+		return m.screen, nil
+	case r.dir != m.tree:
+		return m.Run(ctx, name, args...)
+	}
+	m.calls = append(m.calls, line)
+	switch {
+	case name == "git" && has("--show-toplevel"):
+		return []byte(m.tree + "\n"), nil
+	case name == "git" && has("--git-common-dir"):
+		return []byte(filepath.Join(m.dir, ".git") + "\n"), nil
+	case name == "git" && has("--abbrev-ref", "HEAD"):
+		return []byte(m.branch + "\n"), nil
+	case name == "gh" && has("pr", "list"):
+		if m.prState == "OPEN" && has(m.branch) {
+			return []byte(`[{"headRefName":"` + m.branch + `","number":42,"title":"x","url":"https://github.com/owner/repo/pull/42"}]`), nil
+		}
+		return []byte("[]"), nil
+	case name == "gh" && has("pr", "view", "42"):
+		return []byte(`{"headRefName":"user/0001-test-task-02","number":42,"state":"` + m.prState + `"}`), nil
+	case name == "git" && has("ls-tree"):
+		if has("docs/tasks/") {
+			return []byte("docs/tasks/0001_test_task\x00"), nil
+		}
+		var names []string
+		for path := range m.docs {
+			names = append(names, path)
+		}
+		slices.Sort(names)
+		return []byte(strings.Join(names, "\x00") + "\x00"), nil
+	case name == "git" && has("show"):
+		for path, body := range m.docs {
+			if has("refs/remotes/origin/main:" + path) {
+				return body, nil
+			}
+		}
+	}
+	return nil, errNotFaked
+}
+
+// TestRunSendPassesTheOwner runs, through the tool, the merge of PR 42 of
+// task 0001 read with the worktree on main, then the send of the /mkarch
+// 0001 its tick offers: the send reads the started session's history, so
+// the row it reads again under the exclusion still offers the chosen item,
+// and it gets past that check (it stops at the pane's checks, which the
+// fake does not answer); with no owner's session it would find main with
+// no task and answer not_offered.
+func TestRunSendPassesTheOwner(t *testing.T) {
+	h := newHarness(t)
+	tree := filepath.Join(filepath.Dir(h.fake.dir), "tree-w1")
+	if err := os.MkdirAll(tree, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	screen, err := os.ReadFile(filepath.Join("..", "..", "internal", "chief", "testdata", "screens", "claude-idle.ansi"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := "| Item | Value |\n|---|---|\n| Status | `approved` |\n| Process | `full` |\n"
+	h.fake.lenient = true
+	m := &mainFake{
+		fakeHerdr: h.fake, tree: tree, branch: "user/0001-test-task-02", prState: "OPEN", screen: screen,
+		docs: map[string][]byte{"docs/tasks/0001_test_task/01_requirements.md": []byte("## Document Status\n\n" + status)},
+	}
+	clock := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
+	runOne := func(args ...string) map[string]any {
+		t.Helper()
+		clock = clock.Add(time.Minute)
+		var stdout, stderr bytes.Buffer
+		code := run(context.Background(), append(args, "--protocol", protocol), h.env, nil, m.factory, func() time.Time { return clock }, noSleep, &stdout, &stderr)
+		var out map[string]any
+		if err := json.Unmarshal(stdout.Bytes(), &out); err != nil || code != exitOK {
+			t.Fatalf("%v = %d, %q (%v)", args, code, stdout.String(), err)
+		}
+		return out
+	}
+	if err := os.MkdirAll(h.state, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	runOne("start")
+	runOne("tick")
+	m.branch, m.prState = "main", "MERGED"
+	out := runOne("tick")
+	item := ""
+	pending, _ := out["pending"].([]any)
+	for _, p := range pending {
+		p, _ := p.(map[string]any)
+		if proposal, ok := p["proposal"].(map[string]any); ok && proposal["command"] == "/mkarch 0001" && p["workspace"] == tree {
+			item, _ = p["id"].(string)
+		}
+	}
+	if item == "" {
+		t.Fatalf("the tick offers no /mkarch 0001 on main: %v", out)
+	}
+	sent := runOne("send", "--workspace", tree, "--command", "mkarch", "--item", item)
+	actions, _ := sent["actions"].([]any)
+	if len(actions) != 1 {
+		t.Fatalf("send = %v; want one action", sent)
+	}
+	action, _ := actions[0].(map[string]any)
+	if action["outcome"] != "not_sent" || action["reason"] == "not_offered" || action["command"] != "/mkarch 0001" {
+		t.Errorf("send action = %v; want /mkarch 0001 past the check of the item", action)
+	}
+	if slices.ContainsFunc(m.calls, func(c string) bool { return strings.HasPrefix(c, "herdr agent prompt") }) {
+		t.Errorf("typed into a pane: %v", m.calls)
+	}
 }

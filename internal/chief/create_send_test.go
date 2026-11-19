@@ -43,7 +43,7 @@ func TestSendAfterCreate(t *testing.T) {
 		sw, tree, deps := createdWorld(t)
 		// The offer is the one check left out: the workspace is on a
 		// detached HEAD, so Send itself would not type /mkreq into it.
-		out, err := Send(ctx, deps, sendReq(t, tree, "mkreq", "12", ""))
+		out, err := Send(ctx, deps, sw.owner(), sendReq(t, tree, "mkreq", "12", "", ""))
 		if err != nil || len(out.Actions) != 1 || out.Actions[0].Reason != NotSentNotOffered {
 			t.Fatalf("Send to the detached workspace = %+v, %v; want not offered", out, err)
 		}

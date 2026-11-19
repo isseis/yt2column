@@ -514,11 +514,11 @@ func TestSendRemovesThePaneSkips(t *testing.T) {
 	kept := mw.skipPane(mw.byPane["w1:p1"], sceneAfterRunpr, mkarchRan)
 	mw.rec.replyIn(mw.tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", nil))
 	mw.rec.replyIn(mw.tree, "gh pr checks 42 --json "+prChecksFields, readTestdata(t, "gh/pr-checks-200-fail.json"))
-	req, err := ParseSendRequest(mw.tree, "runpr", "", "42")
+	req, err := ParseSendRequest(mw.tree, "runpr", "", "42", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := Send(context.Background(), mw.deps, req)
+	out, err := Send(context.Background(), mw.deps, mw.owner(), req)
 	if err != nil || len(out.Actions) == 0 || out.Actions[0].Outcome != OutcomeSent || out.Actions[0].Pane != "w1:p2" {
 		t.Fatalf("Send = %+v, %v; want /runpr sent to w1:p2", out, err)
 	}

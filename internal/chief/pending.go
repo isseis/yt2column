@@ -2,6 +2,8 @@ package chief
 
 import (
 	"cmp"
+	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,6 +15,21 @@ import (
 // ItemID identifies a pending item within one chief session. It is opaque:
 // the session passes it back and never builds or parses it.
 type ItemID string
+
+// itemIDForm is the form every ItemID has: hashName's 32 lowercase
+// hexadecimal digits (itemID).
+var itemIDForm = regexp.MustCompile(`^[0-9a-f]{32}$`)
+
+// ParseItemID returns s as the ID of an item when it has the form every
+// item ID has. Contract: the form only turns a mistyped ID into
+// ErrBadRequest; nothing is read from an ID, and one of the form that no
+// item has is refused by whatever compares it with the item it names.
+func ParseItemID(s string) (ItemID, error) {
+	if !itemIDForm.MatchString(s) {
+		return "", fmt.Errorf("%w: --item is not an item ID", ErrBadRequest)
+	}
+	return ItemID(s), nil
+}
 
 // PendingKind is the kind of an item waiting on the human. The zero value is
 // PendingUnknown and is never listed.

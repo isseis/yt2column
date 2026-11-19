@@ -613,11 +613,13 @@ func TestWorkspaceBusy(t *testing.T) {
 	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
 	deps := sw.finish()
 	heldRecords(t, deps.Store, tree)
-	req, err := ParseSendRequest(tree, "runplan", "", "")
+	// The exclusion is held before the row could be read, so no item is
+	// shown; one of the right form is refused only by the exclusion.
+	req, err := ParseSendRequest(tree, "runplan", "", "", anyItem)
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := Send(context.Background(), deps, req)
+	out, err := Send(context.Background(), deps, sw.owner(), req)
 	if err != nil || len(out.Actions) != 1 || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != NotSentBusy {
 		t.Fatalf("Send = %+v, %v; want not sent, busy", out, err)
 	}

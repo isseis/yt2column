@@ -133,14 +133,14 @@
 
 **変えるファイル:** `internal/chief/pending.go`・`internal/chief/request.go`・`internal/chief/records.go`（`Protocol`）・`cmd/chief/main.go`・`cmd/chief/main_test.go`・`cmd/chief/docs_test.go`・`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` と、`ParseSendRequest`・`Send` を呼ぶテスト（`send_test.go`・`create_send_test.go`・`records_test.go`・`reset_test.go`・`resetoffer_test.go`）
 
--   [ ] **ステップ 4-1**: `pending.go` に、文字列が項目 ID の形（§1.3 の 3）かを確かめて `ItemID` を返す関数を置く。
--   [ ] **ステップ 4-2**: `request.go` の `SendRequest` に `item` を足し、`ParseSendRequest` に `item` の引数を足す。`--item` は `mkarch`・`mkplan`・`runplan`・`runplan-takeover` で必須、`mkreq`・`runpr` では受け付けず、形に合わなければ `ErrBadRequest` とする（設計書 3.5）。
--   [ ] **ステップ 4-3**: `Send` に `owner` を足す。排他を持って行を作り直すときに、`owner` のセッションの履歴を読み、`applyMainTask` を当てる。`offered` は今のとおりコマンドの種類を確かめ、合ったときは送るコマンドに加えて、そのコマンドを持つ提案の `*Next`（`mkarch`・`mkplan`・`runplan` では `row.Next`、`runplan-takeover` では `row.Takeover`）も返すようにする。その `*Next` の項目 ID を `proposalID` で作り、`--item` と違えば、何も送らずに `NotSentNotOffered` で拒む。理由は設計書 4.2 の文言にする。種類の確かめで拒んだときは今の理由のままにする。送る前の確かめ（`sendCommand`）は変えない。
--   [ ] **ステップ 4-4**: `cmd/chief/main.go` に `--item` を足し（`send` の任意のフラグ、使い方の文）、`parseRequests` から渡し、`dispatch` の `send` に `owner` を渡す。`main_test.go:501` に形の合う `--item` を足す。
--   [ ] **ステップ 4-5**: `Protocol`（`internal/chief/records.go:29`）を、実装するときの `origin/main` の値 + 1 にする（CLAUDE.md の「Protocol numbers」。タスク 0102 の PR-3 も上げるので、実装するときに読み直す）。`/chief` の定義のすべての `--protocol` とガイドの番号の表を同じ値にする。
--   [ ] **ステップ 4-6**: `/chief` の定義の提案の送信（`.claude/commands/chief.md:418`）を、設計書 3.6 の形にし、`<id>` が人の選んだ項目の `id` であることを書く。`mkreq` と `runpr` の呼び出しは変えない。`cmd/chief/docs_test.go` の `placeholderValues` に `<id>` の値を足す。
--   [ ] **ステップ 4-7**: `docs/dev/guides/chief_guide.md` に、要件書 AC-12 の 4 点と「-」が `main` の worktree に使われないこと、設計書 3.6 の要確認から戻す方法と、セッションが続く場合（`/chief` を起動し直すだけでは特定が続くこと）、`chief send` の `--item` を書く。作業項目の表示の段落（`:84`）と、サブコマンドの表（`:126-139`）の `send`・`tick`（履歴の記録を書く）・`start`（ほかのセッションの履歴の記録を消す）の行を直す。
--   [ ] **ステップ 4-8**: テストを書く（§4.1 の PR-2 のうちフェーズ 4 の行と、結合テスト）。
+-   [x] **ステップ 4-1**: `pending.go` に、文字列が項目 ID の形（§1.3 の 3）かを確かめて `ItemID` を返す関数を置く。
+-   [x] **ステップ 4-2**: `request.go` の `SendRequest` に `item` を足し、`ParseSendRequest` に `item` の引数を足す。`--item` は `mkarch`・`mkplan`・`runplan`・`runplan-takeover` で必須、`mkreq`・`runpr` では受け付けず、形に合わなければ `ErrBadRequest` とする（設計書 3.5）。
+-   [x] **ステップ 4-3**: `Send` に `owner` を足す。排他を持って行を作り直すときに、`owner` のセッションの履歴を読み、`applyMainTask` を当てる。`offered` は今のとおりコマンドの種類を確かめ、合ったときは送るコマンドに加えて、そのコマンドを持つ提案の `*Next`（`mkarch`・`mkplan`・`runplan` では `row.Next`、`runplan-takeover` では `row.Takeover`）も返すようにする。その `*Next` の項目 ID を `proposalID` で作り、`--item` と違えば、何も送らずに `NotSentNotOffered` で拒む。理由は設計書 4.2 の文言にする。種類の確かめで拒んだときは今の理由のままにする。送る前の確かめ（`sendCommand`）は変えない。
+-   [x] **ステップ 4-4**: `cmd/chief/main.go` に `--item` を足し（`send` の任意のフラグ、使い方の文）、`parseRequests` から渡し、`dispatch` の `send` に `owner` を渡す。`main_test.go:501` に形の合う `--item` を足す。
+-   [x] **ステップ 4-5**: `Protocol`（`internal/chief/records.go:29`）を、実装するときの `origin/main` の値 + 1 にする（CLAUDE.md の「Protocol numbers」。タスク 0102 の PR-3 も上げるので、実装するときに読み直す）。`/chief` の定義のすべての `--protocol` とガイドの番号の表を同じ値にする。
+-   [x] **ステップ 4-6**: `/chief` の定義の提案の送信（`.claude/commands/chief.md:418`）を、設計書 3.6 の形にし、`<id>` が人の選んだ項目の `id` であることを書く。`mkreq` と `runpr` の呼び出しは変えない。`cmd/chief/docs_test.go` の `placeholderValues` に `<id>` の値を足す。
+-   [x] **ステップ 4-7**: `docs/dev/guides/chief_guide.md` に、要件書 AC-12 の 4 点と「-」が `main` の worktree に使われないこと、設計書 3.6 の要確認から戻す方法と、セッションが続く場合（`/chief` を起動し直すだけでは特定が続くこと）、`chief send` の `--item` を書く。作業項目の表示の段落（`:84`）と、サブコマンドの表（`:126-139`）の `send`・`tick`（履歴の記録を書く）・`start`（ほかのセッションの履歴の記録を消す）の行を直す。
+-   [x] **ステップ 4-8**: テストを書く（§4.1 の PR-2 のうちフェーズ 4 の行と、結合テスト）。
 
 **完了の条件:** `make test` と `make lint` が通る。`/runpr` の前に、人が `chief` を PR のブランチで入れ直す（ガイドの 2 章の手順）。エージェントは道具を入れず、PR の説明と報告でそのことを示すだけにする（CLAUDE.md の「Tool Execution Safety」）。
 
