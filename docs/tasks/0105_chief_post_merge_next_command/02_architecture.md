@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -647,3 +647,7 @@ flowchart TD
 | H-05 | 最後にマージを確かめた T の PR のブランチ名で `Tasks.Read` を使う | 1.2・3.2 |
 | H-06 | 形の求めは履歴の記録にだけ当てる（1 つ目）。使う項目は worktree・PR の番号・タスク・事象の種類・`pr_open` のブランチで、それぞれの形は 3.1 の読み取りのとおり（2 つ目）。キーは worktree の正規化したパスで、作り直しは排他の下の `ClearRecords` が消す（3 つ目）。fetch に失敗した AC-07 の行には印を付けない（4 つ目）。T のディレクトリが `origin/main` にないときは、機能ブランチの行と同じく要件定義書がない要確認（5 つ目） | 1.2・3.1・3.2・5 |
 | H-07 | 履歴の記録の `branch_task`・`pr_open`（タスクが空のものを含む）と PR の最後の状態で、chief が確かめたほかのタスクと、chief が最後に開いていると確かめた PR を決める | 3.1・3.2 |
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1015）
