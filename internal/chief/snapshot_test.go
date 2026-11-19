@@ -1055,23 +1055,25 @@ func TestTableSourcesUnreadable(t *testing.T) {
 		name   string
 		breaks func(w *world)
 		lost   int
+		// longErr marks the case whose error is over 512 bytes with an ESC.
+		longErr bool
 	}{
-		{"tab list fails", func(w *world) { w.rec.fail("herdr tab list", errors.New("herdr is down")) }, tab},
+		{"tab list fails", func(w *world) { w.rec.fail("herdr tab list", errors.New("herdr is down")) }, tab, false},
 		{"tab list of another shape", func(w *world) {
 			w.rec.reply("herdr tab list", []byte(`{"id":"cli:tab:list","result":{"tabs":"none","type":"tab_list"}}`))
-		}, tab},
-		{"pane layout fails with a long error", func(w *world) { w.rec.fail("herdr pane layout --pane "+worldChiefPane, errors.New(long)) }, width},
+		}, tab, false},
+		{"pane layout fails with a long error", func(w *world) { w.rec.fail("herdr pane layout --pane "+worldChiefPane, errors.New(long)) }, width, true},
 		{"pane layout of another shape", func(w *world) {
 			w.rec.reply("herdr pane layout --pane "+worldChiefPane, paneLayoutOutput(worldChiefPane, 0))
-		}, width},
+		}, width, false},
 		{"agent list without a tab_id", func(w *world) {
 			w.rec.reply("herdr agent list", []byte(strings.Replace(string(agentListOutput(w.agents)), `"tab_id":"w1:t1",`, "", 1)))
-		}, tab},
+		}, tab, false},
 		{"agent list with a pane twice", func(w *world) {
 			dup := w.agents[len(w.agents)-1]
 			dup.Tab = "w2:t2"
 			w.rec.reply("herdr agent list", agentListOutput(append(slices.Clone(w.agents), dup)))
-		}, tab},
+		}, tab, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -1108,10 +1110,15 @@ func TestTableSourcesUnreadable(t *testing.T) {
 					t.Errorf("rule is %d wide and the question row is %q; want the pane's width and the pane ID", ruleWidth, firsts[0])
 				}
 			}
-			if strings.Contains(c.name, "long") {
+			if c.longErr {
 				note := got.TableUnreadable[0]
 				if strings.Contains(note, "\x1b") || !strings.Contains(note, `\x1b`) || !strings.Contains(note, "[truncated]") || len(note) > tableNoteMaxBytes+100 {
 					t.Errorf("note = %q (%d bytes), want the error cut at %d bytes and escaped", note, len(note), tableNoteMaxBytes)
+				}
+				// The note was sanitized as it was made; the output must not
+				// escape its backslashes a second time.
+				if out := got.Output().TableUnreadable; !slices.Equal(out, got.TableUnreadable) {
+					t.Errorf("output table_unreadable = %q, want the snapshot's %q unchanged", out, got.TableUnreadable)
 				}
 			}
 		})

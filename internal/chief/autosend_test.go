@@ -1061,6 +1061,12 @@ func TestTickWithoutRound(t *testing.T) {
 	if !slices.ContainsFunc(out.Snapshot.Problems, func(p string) bool { return strings.Contains(p, "the round cannot be recorded") }) {
 		t.Errorf("problems = %v; want the round's failure", out.Snapshot.Problems)
 	}
+	// The tick without its round still lays out the table from the sources
+	// it read, at the chief pane's width.
+	tableFirstLines(t, out.Snapshot.Table, len(out.Snapshot.Rows))
+	if w := utf8.RuneCountInString(out.Snapshot.Table[3]); w != worldChiefWidth-tableMarginWhole {
+		t.Errorf("rule %d wide, want the chief pane's width less the margin", w)
+	}
 	mw.merge(nextBranch, "`/mkarch 0001`")
 	if out := mw.tick(time.Minute); len(out.AutoSends) != 0 || len(mw.rec.prompts()) != 0 {
 		t.Errorf("a tick without its round considered %+v", out.AutoSends)
@@ -1873,8 +1879,8 @@ func TestTickTableShowsAutoSend(t *testing.T) {
 // TestTickTableSourcesUnreadable runs the ticks around a merge twice, once
 // with every table source read and once with the tab list and the chief
 // pane's layout failing: the automatic send, its inputs, the rows, and the
-// problems are the same, and the second table is laid out at 80 columns
-// with table_unreadable saying why.
+// problems are the same, and the second table is laid out at 80 columns and
+// shows the question pane by its ID, with table_unreadable saying why.
 func TestTickTableSourcesUnreadable(t *testing.T) {
 	type sent struct {
 		pane, command, model string
@@ -1890,7 +1896,11 @@ func TestTickTableSourcesUnreadable(t *testing.T) {
 		notes    []string
 	}
 	run := func(broken bool) round {
-		mw := newMergeWorld(t, mkarchDocs)
+		// A second workspace waits on a question, so the table shows a tab.
+		mw := newMergeWorldWith(t, mkarchDocs, "", func(sw *sendWorld) {
+			sw.addTask(fakeWorkspace{ID: "w2", Label: "ask", Branch: "main"}, "claude")
+			sw.ask(sw.byPane["w2:p1"], "claude-question-single.ansi")
+		})
 		if broken {
 			mw.rec.replyFunc("herdr tab list", func() reply { return reply{err: errors.New("herdr is down")} })
 			mw.rec.fail("herdr pane layout --pane "+worldChiefPane, errors.New("herdr is down"))
@@ -1919,7 +1929,12 @@ func TestTickTableSourcesUnreadable(t *testing.T) {
 	if !slices.Equal(got.rows, read.rows) || !slices.Equal(got.problems, read.problems) {
 		t.Errorf("rows %v and problems %v, want %v and %v", got.rows, got.problems, read.rows, read.problems)
 	}
-	if w := utf8.RuneCountInString(got.table[3]); w != tablePaneDefault-tableMarginWhole || len(read.notes) != 0 || len(got.notes) != 2 {
-		t.Errorf("rule %d wide, notes %v then %v; want 80 columns and a note for each source lost", w, read.notes, got.notes)
+	// The notes are one for each lost source and one for the question pane
+	// shown by its ID.
+	if w := utf8.RuneCountInString(got.table[3]); w != tablePaneDefault-tableMarginWhole || len(read.notes) != 0 || len(got.notes) != 3 {
+		t.Errorf("rule %d wide, notes %v then %v; want 80 columns and three notes", w, read.notes, got.notes)
+	}
+	if !slices.ContainsFunc(read.table, func(l string) bool { return strings.Contains(l, "[claude]") }) || !slices.ContainsFunc(got.table, func(l string) bool { return strings.Contains(l, "[w2:p1]") }) {
+		t.Errorf("tables\n%s\nthen\n%s\nwant the question's tab label, then its pane ID", strings.Join(read.table, "\n"), strings.Join(got.table, "\n"))
 	}
 }

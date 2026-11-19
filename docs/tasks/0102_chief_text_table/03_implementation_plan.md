@@ -171,8 +171,8 @@
 
 **変更するファイル:** `internal/chief/snapshot.go`・`tick.go`・`output.go`・`records.go`・`test_helpers.go` とそのテスト（`snapshot_test.go`・`autosend_test.go`・`output_test.go`・`world_test.go`）、`cmd/chief/main_test.go`・`docs_test.go`、`.claude/commands/chief.md`、`docs/dev/guides/chief_guide.md`、`docs/dev/conventions/package_reference.md`、`docs/tasks/0102_chief_text_table/_checks/`（新規）、本計画（§7 の実行の記録）
 
--   [ ] **ステップ 3-1**: `readRound` を `agentListing` に替え、`roundView` に pane とタブの対応とその読み取りのエラーを持たせる。`snapshot.go` に `readTableSources` を書き、`TakeSnapshot` と `Tick`（`BeginRound` より前）が呼ぶ。`finishSnapshot` が、行を並べた後に `layoutTable` で表を組み、`Snapshot` の `Table` と `TableUnreadable` に入れる（設計書 2.3・3.7・4 章）。材料のエラーの文は 512 バイトまでに切り（`CapHead`）、`Sanitize` する。同じコミットで、テストの world のエージェントの JSON に `tab_id` を足し、`tab list` と `pane layout` の答えを `world.finish` に、`cmd/chief` の答えを `fakeHerdr` に足す（§1.4）。記録係と `fakeHerdr` は答えのないコマンドでテストを失敗させるので、このコミットだけで `make test` が通るようにする。
--   [ ] **ステップ 3-2**: `SnapshotOutput` に `table` と `table_unreadable` を足す（設計書 3.1・3.8）。テストは次を確かめる。
+-   [x] **ステップ 3-1**: `readRound` を `agentListing` に替え、`roundView` に pane とタブの対応とその読み取りのエラーを持たせる。`snapshot.go` に `readTableSources` を書き、`TakeSnapshot` と `Tick`（`BeginRound` より前）が呼ぶ。`finishSnapshot` が、行を並べた後に `layoutTable` で表を組み、`Snapshot` の `Table` と `TableUnreadable` に入れる（設計書 2.3・3.7・4 章）。材料のエラーの文は 512 バイトまでに切り（`CapHead`）、`Sanitize` する。同じコミットで、テストの world のエージェントの JSON に `tab_id` を足し、`tab list` と `pane layout` の答えを `world.finish` に、`cmd/chief` の答えを `fakeHerdr` に足す（§1.4）。記録係と `fakeHerdr` は答えのないコマンドでテストを失敗させるので、このコミットだけで `make test` が通るようにする。
+-   [x] **ステップ 3-2**: `SnapshotOutput` に `table` と `table_unreadable` を足す（設計書 3.1・3.8）。テストは次を確かめる。
     -   `TestSnapshotTableMatchesRows`（`snapshot_test.go`）: 出力の表に、同じ出力の `rows` の名前・タスク・PR の番号と、各行の急ぎの度合いと進み具合から `table.go` が決める印と状態の文字列が、`rows` と同じ並びで現れること（AC-01・AC-02）。
     -   `TestTableSourcesUnreadable`（`snapshot_test.go`）: `tab list` と `pane layout` が失敗する・形に合わないラウンドと、エージェントの一覧の pane とタブの対応が読めない（`tab_id` がない、`pane_id` が重なる）ラウンドでも、ラウンドが失敗せず、行の状態・急ぎの度合い・`pending`・`problems` が読めたときと同じで、表が 80 桁と pane の ID で組まれ、`table_unreadable` が空でないこと（AC-05・AC-19、要件書 4.3）。512 バイトを超え ESC を含む Herdr のエラーの文が、`table_unreadable` で切られてエスケープされること。
     -   `TestTickTableSourcesUnreadable`（`autosend_test.go`）: `tick` で表の材料が読めなくても、`AutoSends` と pane への入力が読めたときと同じで、表が 80 桁と pane の ID で組まれること（AC-05・AC-19）。
@@ -181,11 +181,11 @@
     -   `TestTickRunsOnlyReadsInTheRightPlaces` と `TestSnapshotRunsOnlyReadsInTheRightPlaces`（`network_test.go`）が変えずに通ること。
     -   `TestStartThenSnapshot` と `TestStartThenTickAndWait`（`cmd/chief/main_test.go`）: `table` が空でないリストで、`table_unreadable` が `null` でないリストであること（AC-01）。
     -   `internal/chief` の中で表を組むこれらのテストは、ステップ 2-5 のヘルパーを組んだ表に当てる。`cmd/chief` のテストは別のパッケージなのでヘルパーを呼べず、`table` が空でないことだけを確かめる。
--   [ ] **ステップ 3-3**: `TestDisplayValuesMatchTool` と定数 `displayTableHeader` を、単独のコミットで除く（§1.3 の決定 6）。`make coverage-compare BASE=<親のコミット>` を、10 分以上のコマンドの時間制限を付けるか、バックグラウンドで走らせ、最後の行までの出力をコミットのメッセージと PR の説明に書く。
--   [ ] **ステップ 3-4**: `OutputValueNames` を除き、`namesUpToUnknown` と `maxValueNames` を `test_helpers.go` に移す。`TestOutputValueNames` を、`OutputValueNames` なしで出力の名前が値ごとに 1 つずつあることを確かめる形に直す（設計書 3.12）。`package_reference.md` から `OutputValueNames` を除く（§1.3 の決定 7）。
--   [ ] **ステップ 3-5**: `Protocol` を `origin/main` の値 + 1 にし、`/chief` の定義のすべての `--protocol` とガイドの 2 章の値を同じ値にする（AC-25）。`/chief` の定義の手順 2 の項目 2 を、設計書 3.9 のとおり置き換え、規則 2 に `table` と `table_unreadable` を足す（AC-03）。
--   [ ] **ステップ 3-6**: `_checks/` に、§1.3 の決定 5 のシェルのスクリプトを書く。各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、PR のブランチで走らせて、出力とマージの基点・比べたコミットの ID を §7 の「PR-3 の実行の記録」に書く。
--   [ ] **ステップ 3-7**: ガイドを設計書 3.10 のとおり直す（AC-24）。2 章に入れ直しの順と `protocol_mismatch` の意味を、3.1 に表の見方を、8 章に既知の制限を書き、8 章の今の項の語を直す。
+-   [x] **ステップ 3-3**: `TestDisplayValuesMatchTool` と定数 `displayTableHeader` を、単独のコミットで除く（§1.3 の決定 6）。`make coverage-compare BASE=<親のコミット>` を、10 分以上のコマンドの時間制限を付けるか、バックグラウンドで走らせ、最後の行までの出力をコミットのメッセージと PR の説明に書く。
+-   [x] **ステップ 3-4**: `OutputValueNames` を除き、`namesUpToUnknown` と `maxValueNames` を `test_helpers.go` に移す。`TestOutputValueNames` を、`OutputValueNames` なしで出力の名前が値ごとに 1 つずつあることを確かめる形に直す（設計書 3.12）。`package_reference.md` から `OutputValueNames` を除く（§1.3 の決定 7）。
+-   [x] **ステップ 3-5**: `Protocol` を `origin/main` の値 + 1 にし、`/chief` の定義のすべての `--protocol` とガイドの 2 章の値を同じ値にする（AC-25）。`/chief` の定義の手順 2 の項目 2 を、設計書 3.9 のとおり置き換え、規則 2 に `table` と `table_unreadable` を足す（AC-03）。
+-   [x] **ステップ 3-6**: `_checks/` に、§1.3 の決定 5 のシェルのスクリプトを書く。各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、PR のブランチで走らせて、出力とマージの基点・比べたコミットの ID を §7 の「PR-3 の実行の記録」に書く。
+-   [x] **ステップ 3-7**: ガイドを設計書 3.10 のとおり直す（AC-24）。2 章に入れ直しの順と `protocol_mismatch` の意味を、3.1 に表の見方を、8 章に既知の制限を書き、8 章の今の項の語を直す。
 -   [ ] **ステップ 3-8**: 実物の確かめを行う（§1.3 の決定 11、設計書 7.3 の (1)〜(5)）。人が、動いている `/chief` を止め、chief の worktree を PR-3 のブランチの先頭にして `make install-chief` を行い、`/chief` を起動し直す（ガイドの 2 章の順）。(3) は、人が chief の pane の幅を狭めて確かめる（幅を読めないときの 80 桁は `TestTableSourcesUnreadable` が確かめる）。(5) は、人が本タスクの workspace（PR-3 の `/runplan` のセッションがある workspace。表には名前の列に出る）の名前に ```` ``` ```` と `~~~` を一時的に入れて確かめ、確かめた後に元の名前に戻す。PR の題名・質問の文・タブのラベルに入れたときは、`TestTableKeepsCodeBlockOpen` が確かめる。ほかのタスクの workspace の名前、PR の題名、質問の文は変えない。`/runplan` のセッションは Herdr にも GitHub にも書かず、これらの操作は人が行う。結果を §7 の「PR-3 の実行の記録」に書く。どれかが成り立たなければ、ここで止まって人と決め直す。(1)・(4) は設計書 1.2 のとおり、(2)・(3)・(5) は行の組み方か幅の数え方を決め直すか、既知の制限として受け入れるかを尋ねる。確かめたコミットを §7 に書く。その後のコミット（`/fixpr` を含む）が `internal/chief` か `.claude/commands/chief.md` を変えたときは、マージの前に、変わった部分に関わる確かめをやり直して §7 に書く。
 
 **完了の条件:** 各ステップのテストとスクリプトが通る。`make test`・`make lint`・`make deadcode` が通る。実物の確かめの結果が §7 にある。
@@ -262,8 +262,8 @@
 
 `make lint` と `make test` で見つからない後始末は次のとおりである。
 
-- [ ] `OutputValueNames`・`TestDisplayValuesMatchTool`・`displayTableHeader` を引く文書が、本タスクの文書と、完了したタスクの記録（0093・0103）のほかに残っていない（ステップ 3-3・3-4。完了したタスクの記録は変えない）。
-- [ ] ガイドの 3.1 と 8 章に、使わなくなった語（「🔴 今」「🟡 後」「🟢 待」「（後に指示あり）」「作成中」「`/runpr` 実行中」）が、今の表の説明として残っていない（ステップ 3-7。PR のレビューで読む）。
+- [x] `OutputValueNames`・`TestDisplayValuesMatchTool`・`displayTableHeader` を引く文書が、本タスクの文書と、完了したタスクの記録（0093・0103）のほかに残っていない（ステップ 3-3・3-4。完了したタスクの記録は変えない）。
+- [x] ガイドの 3.1 と 8 章に、使わなくなった語（「🔴 今」「🟡 後」「🟢 待」「（後に指示あり）」「作成中」「`/runpr` 実行中」）が、今の表の説明として残っていない（ステップ 3-7。PR のレビューで読む）。
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 

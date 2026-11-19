@@ -5,6 +5,7 @@ package chief
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -86,8 +87,12 @@ func TestRunningOutputLaterInput(t *testing.T) {
 // null.
 func TestSnapshotOutputTable(t *testing.T) {
 	w := newWorld(t)
-	w.add(fakeWorkspace{ID: "w1", Label: "ask", Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
-	data, err := json.Marshal(take(t, w).Output())
+	// The label holds a backslash, which the table shows doubled: the
+	// output must carry the table as it was laid out, not sanitized a
+	// second time.
+	w.add(fakeWorkspace{ID: "w1", Label: `a\b`, Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
+	snap := take(t, w)
+	data, err := json.Marshal(snap.Output())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +103,10 @@ func TestSnapshotOutputTable(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatal(err)
 	}
-	tableFirstLines(t, got.Table, 1)
+	first := tableFirstLines(t, got.Table, 1)[0]
+	if !strings.Contains(first, `a\\b`) || !slices.Equal(got.Table, snap.Table) {
+		t.Errorf("table = %q, want the snapshot's table %q, the backslash doubled once", got.Table, snap.Table)
+	}
 	if string(got.TableUnreadable) != "[]" {
 		t.Errorf("table_unreadable = %s, want []", got.TableUnreadable)
 	}
