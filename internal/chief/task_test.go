@@ -635,16 +635,6 @@ func TestTasksReadDir(t *testing.T) {
 	})
 }
 
-// planSampleLine returns line n (1-based) of the plan sample name.
-func planSampleLine(t *testing.T, name string, n int) string {
-	t.Helper()
-	lines := strings.Split(string(planSample(t, name)), "\n")
-	if n < 1 || n > len(lines) {
-		t.Fatalf("%s has no line %d", name, n)
-	}
-	return lines[n-1]
-}
-
 // TestParsePlanSteps reads the plan samples of the three step forms and the
 // unreadable ones, and checks StepsLeft, the step-reading error, and that PR
 // progress and completion do not depend on the steps.
@@ -776,13 +766,19 @@ func TestStepGrammar(t *testing.T) {
 	}
 	for i, c := range strings.Split(string(readTestdata(t, "plans/steps-grammar.txt")), "-----\n") {
 		first, body, _ := strings.Cut(c, "\n")
-		reading, ok := strings.CutPrefix(first, "want: ")
+		want, ok := strings.CutPrefix(first, "want: ")
 		if !ok {
 			t.Fatalf("case %d has no want line: %q", i, first)
 		}
+		// "eof" after the reading leaves chapter 2 as the last chapter.
+		reading, eof := strings.CutSuffix(want, " eof")
 		for _, crlf := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%d %s crlf=%v", i, reading, crlf), func(t *testing.T) {
-				doc := fmt.Sprintf(grammarSkeleton, strings.ReplaceAll(body, "{SP}", " "))
+				skeleton := grammarSkeleton
+				if eof {
+					skeleton = strings.TrimSuffix(skeleton, "\n## 3. Rest\n")
+				}
+				doc := fmt.Sprintf(skeleton, strings.ReplaceAll(body, "{SP}", " "))
 				if crlf {
 					doc = strings.ReplaceAll(doc, "\n", "\r\n")
 				}

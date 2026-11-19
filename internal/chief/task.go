@@ -1106,11 +1106,9 @@ var (
 	stepBold = regexp.MustCompile(`^\*\*ステップ ([0-9]+-[0-9]+)[:：]`)
 	// nearHeading, nearBold, and nearCheckbox are lines that look like a step
 	// line but, once the accepted forms are ruled out, are in none of them.
-	// A full-width space after "ステップ", or a full-width digit, also makes
-	// a look-alike: such a line is rejected rather than skipped.
-	nearHeading  = regexp.MustCompile(`^#+[ \t]+ステップ[ \t\x{3000}]*[0-9０-９]`)
-	nearBold     = regexp.MustCompile(`^\*\*ステップ[ \t\x{3000}]*[0-9０-９]`)
-	nearCheckbox = regexp.MustCompile(`^[ \t]*(?:[-*+]|[0-9]+[.)])[ \t]+\[.\][ \t]+\*\*ステップ[ \t\x{3000}]*[0-9０-９A-Za-z]`)
+	nearHeading  = regexp.MustCompile(`^#+[ \t]+ステップ[ \t]*[0-9]`)
+	nearBold     = regexp.MustCompile(`^\*\*ステップ[ \t]*[0-9]`)
+	nearCheckbox = regexp.MustCompile(`^[ \t]*(?:[-*+]|[0-9]+[.)])[ \t]+\[.\][ \t]+\*\*ステップ[ \t]*[0-9A-Za-z]`)
 	// rangeStepBox is a step checkbox inside a form-B or form-C range.
 	rangeStepBox = regexp.MustCompile(`^[ \t]*-[ \t]+\[([ x-])\]`)
 	// otherBox is a checkbox of any list form.

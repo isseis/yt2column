@@ -123,7 +123,7 @@ chief の計画書の読み取り（`internal/chief/task.go` の `ParsePlan`）�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1（ステップ 1-1〜1-5）
+- [x] フェーズ 1（ステップ 1-1〜1-5）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -142,9 +142,11 @@ chief の計画書の読み取り（`internal/chief/task.go` の `ParsePlan`）�
 | AC-11 | `test` | 読み取りの表と状態の表の、すべてマージ済みで読めない計画書（書き方 A の重複を含む）が完了になること |
 | AC-12 | `test` | 読み取りの表の `errNoSteps`（`errors.Is`）。状態の表の、0 件の理由が 0 件の理由の定数と完全に一致すること。0 件で似た行も持つ計画書が AC-07 の理由になること |
 | AC-13 | `test` | 読み取りの表の、今の書き方 A のサンプルの結果。既存の状態の表と引き継ぎのテストが変更なしで通ること |
-| AC-14 | `diff` | 下の diff の記録で、`internal/chief/records.go` に差分がなく、製品コードの差分が `task.go` と `state.go` に限られ、`state.go` の差分が `nextFromPlan` と理由の定数に限られることを読む（設計書 7 章） |
+| AC-14 | `diff` | 下の diff の記録で、`internal/chief/records.go` に差分がなく、製品コードの差分が `task.go` と `state.go` に限られ、`state.go` の差分が `nextFromPlan`・理由の定数・理由を組み立てる関数 `stepsUnreadableReason`・`errors` の import に限られることを読む（設計書 7 章） |
 | AC-15 | `manual` | PR のレビューで、`CLAUDE.md` の例外が、ステップの太字の行の頭と、計画書のステップとその進み具合を挙げることを読む。差分は下の diff の記録にある |
 | AC-16 | `diff` | 下の diff の記録の、変わったファイルの一覧を PR のレビューで読む |
+
+検証するテストの名前（`internal/chief` のテストファイル）: 読み取りの表は `task_test.go::TestParsePlanSteps`、書き方の境界の表は `task_test.go::TestStepGrammar`（AC-03・AC-04・AC-07・AC-09・AC-10 の境界）、状態の表は `snapshot_test.go::TestTakeSnapshotPlanSteps`、引き継ぎは `snapshot_test.go::TestTakeoverProposal`、理由の違いと既定の理由は `snapshot_test.go::TestStepReasonsDiffer`（AC-07・AC-12）である。
 
 `main` の計画書の一括の確認の記録（ステップ 1-3）:
 
@@ -155,7 +157,7 @@ Diff record (AC-14・AC-15・AC-16):
 - Compared paths: `CLAUDE.md`, `internal/chief/records.go`, `internal/chief/state.go`
 - Merge-base: `a68f2532fecd2c0f9d44e0c6b1da190a23f2c800`
 - Compared commit: `8fe37726fefe4def140216326b2757df512849d0`
-- 読み方（実装の際の注記）: `records.go` に差分はない。`state.go` の差分は、`errors` の import、理由の定数、理由を組み立てる関数 `stepsUnreadableReason`、`nextFromPlan` に限られる（AC-14 の行は「`nextFromPlan` と理由の定数」と書く。実装は、設計書 3.4 節の「条件ごとに 1 つずつの文」を `Detail` から組み立てる処理を、`nextFromPlan` の外の関数に出した。型・欄・引数は足していないので、AC-14 の実質は満たすと読む。この読みは実装者のもので、レビューで確かめてほしい）。`CLAUDE.md` の差分は `task.go` の例外の 1 項目に限られる（AC-15）。製品コードの差分は `task.go` と `state.go` だけである（下のファイルの一覧）。
+- 読み方（実装の際の注記）: `records.go` に差分はなく、`state.go` の差分は、`errors` の import、理由の定数、`stepsUnreadableReason`、`nextFromPlan` に限られる。`CLAUDE.md` の差分は `task.go` の例外の 1 項目に限られる。製品コードの差分は `task.go` と `state.go` だけである（下のファイルの一覧）。
 
 Path diff:
 
