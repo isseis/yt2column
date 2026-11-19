@@ -23,6 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [fixprguard Guide](docs/dev/guides/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool for `/fixpr` and `/runpr`
 - [chief Guide](docs/dev/guides/chief_guide.md) - Setup, usage, subcommands, guarantees, the settings' herdr denials, the state directory, and known limits of the `chief` tool that `/chief` drives
 - [numreserve Guide](docs/dev/guides/numreserve_guide.md) - Installation, invocation, stop reasons and what to do next, the record ruleset and removing a wrong record tag, and the cloud-session limits of the `numreserve` tool that decides task and ADR numbers
+- [Developer Tools](docs/dev/conventions/dev_tools.md) - Rules for adding or changing a developer tool: write it in Go with tests, install installed tools from `main` (the user installs them; agents never install or build them), and keep its arguments, output, and exit codes as a contract
 
 ## Documents
 
@@ -873,8 +874,8 @@ stops the merge check as unreadable (the form is in
   otherwise. How to fix a stop is in
   [mergepr_guide.md](docs/dev/guides/mergepr_guide.md) chapter 7: merge
   `origin/main` into the branch, set the number and every `--protocol` the
-  documents write to the expected value, commit and push, reinstall the tool
-  from the branch, and merge again; when the head number equals
+  documents write to the expected value, commit and push, ask the user to
+  reinstall the tool from the branch, and merge again; when the head number equals
   `origin/main`'s, rebuilding the history on `origin/main` is a fix too, but
   only when the PR's own changes do not change the tool's contract.
 - **Accepted risks.** (1) Before the merge, parallel branches that raise the
@@ -1086,7 +1087,9 @@ section of the Requirements Process Guide.
   Codex CLI (`codex exec review`), which sends the diff and whatever Codex reads
   during the review to OpenAI's service and spends the Codex allowance the PR
   review shares. Codex CLI itself is never run directly, and the agents never
-  install or build `codexreview`: the user installs it from `main`
+  install or build `codexreview`: the user installs it from `main`. The
+  development exception is in
+  [Developer Tools](docs/dev/conventions/dev_tools.md), Rule 5.
 - `numreserve task` and `numreserve adr` (the developer tool that decides a task
   or an ADR number) may be executed without explicit approval, written exactly
   in one of these two forms and run only when a procedure needs a new number
@@ -1095,7 +1098,21 @@ section of the Requirements Process Guide.
   writes to the network: it creates one record tag on `origin`
   (`refs/tags/task-number/NNNN` or `refs/tags/adr-number/NNNN`), which cannot
   be deleted. The agents never install or build the tool: the user installs
-  it from `main` (`make install-numreserve`)
+  it from `main` (`make install-numreserve`). The development exception is in
+  [Developer Tools](docs/dev/conventions/dev_tools.md), Rule 5
+- The agents never install or build an installed developer tool. "Build" means
+  making a binary that runs the tool or running it from source
+  (`make install-<name>`, `go install`, `go build ./cmd/<name>`,
+  `go run ./cmd/<name>`); compiling a tool's package for tests or lint is not
+  building. When a step comes to installing or building an installed tool, or
+  a command fails because a tool is missing or its protocol number does not
+  match, stop there, ask the user, and show the command to run. Show it for an
+  up-to-date `main` checkout; ask the user to reinstall from the PR's branch
+  only when that PR raises the tool's protocol number. A procedure that
+  decides otherwise wins (for `codexreview`, step 3 of
+  `.claude/commands/_lib/local-cli-review.md`). The development exception and
+  the details are in [Developer Tools](docs/dev/conventions/dev_tools.md),
+  Rule 5
 - Creating, changing, or deleting a record tag (a ref under
   `refs/tags/task-number/` or `refs/tags/adr-number/`) other than through the
   two calls above, by `git push`, `gh api`, or any other means, requires the
@@ -1111,4 +1128,6 @@ section of the Requirements Process Guide.
   with the tool's one `gh api graphql` query of `issueOrPullRequest` (its
   number, state, title, and labels). It approves no write (push, merge,
   comment, or issue operation); the tool runs none. The tool is called only in the form `.claude/commands/chief.md` gives,
-  and the agents never install or build it: the user installs it from `main`
+  and the agents never install or build it: the user installs it from `main`.
+  The development exception is in
+  [Developer Tools](docs/dev/conventions/dev_tools.md), Rule 5
