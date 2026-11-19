@@ -16,12 +16,12 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 
 ## 決定
 
--   **文書の言語は、置き場所ではなく、誰が読み誰が承認するかで決める。** 人間が判断・承認する文書と人間向けの手引きは日本語、エージェントの実行を制御する指示とコードは英語、エンドユーザー向けの文書（README）は日本語を正本として英語版を同期する。原則、ディレクトリへの当てはめ、例外は、[CLAUDE.md](../../../CLAUDE.md) の「Document language」に従う。置き場所ごとの例外の列挙では原則から導けず、新しい文書を足すたびに判断が要るためである。
+-   **文書の言語は、置き場所ではなく、誰が読み誰が承認するかで決める。** 人間が判断・承認する文書と人間向けの手引きは日本語、エージェントの実行を制御する指示とコードは英語、エンドユーザー向けの文書（README と `INSTALL.md`）は日本語を正本として英語版を同期する（原則 (c)。`INSTALL.md` の期限付きの例外は下の項目）。原則、ディレクトリへの当てはめ、例外は、[CLAUDE.md](../../../CLAUDE.md) の「Document language」に従う。置き場所ごとの例外の列挙では原則から導けず、新しい文書を足すたびに判断が要るためである。
 -   **会話・リポジトリ・AI へのプロンプト・GitHub のそれぞれの言語は、[CLAUDE.md](../../../CLAUDE.md) の「Language」に従う。** Claude Code のセッションの会話と GitHub に置くものは日本語、コード・コミットのメッセージ・プロンプトは英語である。理由は記録されていない。
 -   **ソースのコメント・識別子・文字列リテラルは英語とし、日本語のリテラルを置いてよい場所は例外として範囲を限る。** エージェントの実行を制御する指示とコードは英語で書く、という原則によるものである。例外の一覧と、それぞれの範囲・理由・境界は、[CLAUDE.md](../../../CLAUDE.md) の「Go Idioms」に従う。現在のコードでは、例外に当たらない日本語の文字列リテラルも製品のコードにある。記事の本文として出力する出典のブロックの見出しと、YouTube の文字起こしパネルが出す文字列と照合する字幕のパーサの単位と操作のラベルである。どちらもコメントで日本語にする理由を述べている。このずれは、記録した issue [#726](https://github.com/isseis/yt2column/issues/726) で扱う。拡張の UI を 2 言語にすることは [ADR-0029](0029-extension-ui-languages.md) が定める。
 -   **2 言語で持つ文書は README だけである。** `README.md` を先に変え、[mktrans.md](../../../.claude/commands/mktrans.md) の `/mktrans` で `README.en.md` に反映し、両方を 1 つのコミットに入れる。`README.en.md` の 1 行目の同期の印は、翻訳の元にした `README.md` の版を指し、`/mktrans` はその版からの差分を翻訳する。印の形と翻訳の手順は [mktrans.md](../../../.claude/commands/mktrans.md) に、同期の規則は [CLAUDE.md](../../../CLAUDE.md) の「Translation Guidelines (Japanese to English)」に従う。2 つの言語で持つ文書は、片方を変えたときにもう片方が古くなりやすく、同期をエージェントの判断に任せると、手作業の変更や手順を通らない変更で同期が抜けるためである。
--   **利用者向けの文書は、README を概要と案内に、ルートの `INSTALL.md` をインストールと利用の手順に分け、開発者向けの内容は `docs/dev/guides/` の手引きに置く。** README を、初めて使う利用者が読める文書にするためである。開発者向けの手引きは日本語だけの文書なので、英語版で訳す量も減る。規則は [0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md) の F-001 にある。
--   **`INSTALL.md` は、Chrome Web Store に申請する前まで、日本語だけで持つ。** 利用者向けの文書の英語版を同期する原則（principle (c)）の、期限付きの例外である。zip で配る初期の利用者は日本語の話者に限られる一方、Web Store に載せると日本語を読まない利用者が来るためである。英語版を足す作業と、`/mktrans` と同期の検査の一般化は [#1044](https://github.com/isseis/yt2column/issues/1044) で扱う。規則は [0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md) の「要件定義の際に決めたこと（2026-11-19）」にある。
+-   **利用者向けの文書は、README を概要と案内に、ルートの `INSTALL.md` をインストールと利用の手順に分け、開発者向けの内容は `docs/dev/guides/` の手引きに置く。** README を、初めて使う利用者が読める文書にするためである。開発者向けの手引きは日本語だけの文書なので、英語版に訳す量も減る。規則は [0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md) の F-001 にある。
+-   **`INSTALL.md` は、README と同じくリポジトリのルートに置き、Chrome Web Store に申請するまで日本語だけで持つ。** ルートに置くのは、利用者が README の隣で見つけられ、Releases や zip からも指せるためである。日本語だけで持つことは、利用者向けの文書の英語版を同期する原則 (c) の、期限付きの例外である。zip で配る初期の利用者は日本語の話者に限られる一方、Web Store に載せると日本語を読めない利用者が来るためである。英語版を足す作業と、`/mktrans` と同期の検査の一般化は [#1044](https://github.com/isseis/yt2column/issues/1044) で扱う。規則は [0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md) の「要件定義の際に決めたこと（2026-11-19）」にある。
 -   **同期の印は、エージェントの判断ではなく Go のテスト `TestReadmeSyncMarker` で確かめる。** テストは、印が今の `README.md` を指すことを確かめ、`make test`・CI の `doc-guard` のジョブ・pre-commit のフックで走る。同期の手順を持つコマンドは、この検査が失敗したときに `/mktrans` を実行する。プロンプトの判定は決定的でなく、手作業の変更は手順を通らないためである。規則は [CLAUDE.md](../../../CLAUDE.md) の「Translation Guidelines (Japanese to English)」にある。
 -   **PR のタイトルは日本語で書き、squash のコミットの件名と本文は英語で書く。** PR のタイトルは conventional-commit の接頭辞を ASCII のまま残し、その後の要約を日本語で書く。squash の件名は、`/mergepr` が PR の材料から英語で書き、PR のタイトルからは接頭辞だけを読む。squash のコミットは `main` に残る唯一のコミットであり、リポジトリに残るものは英語で書くためである。形は [_context.md](../../../.claude/commands/_context.md) の「PR title and squash subject」の 1 か所に定める。
 -   **PR のタイトルと説明の日本語は、用語集 [docs/translation_glossary.md](../../translation_glossary.md) の語で書く。** コマンドは書く前に用語集を読み、旧称と、用語集が使わないとする訳を使わない。用語集にない語が要るときは、勝手に作らず、最終報告で挙げて利用者に追加を委ねる。規則は [_context.md](../../../.claude/commands/_context.md) の「Translation glossary」の 1 か所に置き、PR の説明を書く手順（[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md) の Part B と [runpr.md](../../../.claude/commands/runpr.md) の単独の変更の PR）はそこを指す。用語集はそれまで文書の翻訳と `japrose` の基準としてだけ使い、PR の説明には英語の直訳（cover を「覆う」とするなど）が残っていたためである。
@@ -42,8 +42,8 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 -   **`_checks/` のスクリプトのリテラルの例外を、guard のテストと同じ 4 種類（見出し・表のセル・行の始めの項目の名前・太字の印）に限る。** 確かめに要る語・文の断片・文を置く `data.json` が残る（[0080 要件定義書](../../tasks/0080_diff_check_proportion/01_requirements.md)「要件定義の際に決めたこと（2026-11-10）」）。
 -   **`_checks/` のスクリプトで見出しを構造で見つけることを既定にし、例外を広げない。** 構造で見つけられるのは節の位置だけで、語や文そのものを確かめる場合には足りない（同）。
 -   **Opus のレビューの判断のスクリプトには例外を広げず、計画書の見出しと欄名を、それを引用する英語のコマンドの定義から引数で渡す。** 写し誤りがあると値を見つけられず、値がないものとして Opus のレビューを行わない側に倒れる（[0081 実装計画書](../../tasks/0081_implementation_model_choice/03_implementation_plan.md)「1.3. 計画の際に決めたこと（2026-11-11）」）。
--   **`INSTALL.md` と `INSTALL.en.md` を対で置き、`/mktrans` と同期の検査を対ごとに動くように一般化する。** 0116 では採らず、英語版を足すときまで一般化を先送りした（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）。
--   **インストールの手順を README と分けず、README の中で構成を整える。** 理由は記録されていない（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）。
+-   **`INSTALL.md` と `INSTALL.en.md` を対で置き、`/mktrans` と同期の検査を対ごとに動くように一般化する。** 初期の利用者は日本語の話者に限られ、一般化の費用を今は払わないためである。英語版を足すときまで一般化を先送りした（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）。
+-   **インストールの手順を README と分けず、README の中で構成を整える。** 画面の手順を含む長い説明で README の概要が埋もれ、Releases や zip から手順だけを指せないためである（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）。
 
 ## 結果
 
@@ -56,7 +56,7 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 -   0032 より前のプランに残る英語の `推奨タイトル` は書き換えない。`/runplan` は、英語の `推奨タイトル` からも日本語の PR のタイトルを書く（[0032 要件定義書](../../tasks/0032_japanese_pr_title/01_requirements.md)「要件定義の際に決めたこと（2026-10-21）」）。
 -   ソースに日本語のリテラルが要るときは、「Go Idioms」の例外に当たるかを確かめる。当たらない場合、0061 は、範囲を狭く限った例外を CLAUDE.md の「Go Idioms」に足した（[0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-04）」）。この例外は、0075 で軽量プロセスとともに除くことにした（[0075 要件定義書](../../tasks/0075_remove_lightweight_process/01_requirements.md)）。
 -   README に開発者向けの内容を足さない。CLI の設定や料金の推定の規則などは、`docs/dev/guides/` の手引きに書く（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）。
--   `INSTALL.md` に英語版がない間は、英語の利用者はインストールの手順を英語で読めない。`README.en.md` は、手順が日本語版だけであることを示して `INSTALL.md` へリンクする（同）。
+-   `INSTALL.md` に英語版がない間は、英語を読む利用者はインストールの手順を英語で読めない。`README.en.md` は、手順が日本語でしか書かれていないことを示して `INSTALL.md` へリンクする（同）。
 
 ## 経緯
 
@@ -76,4 +76,4 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 - 2026-11-11 PR のタイトルと説明の日本語を、用語集の語で書くことにした。規則は `_context.md` の「Translation glossary」に置き、PR の説明を書く手順からそこを指す（[PR #825](https://github.com/isseis/yt2column/pull/825)）
 - 2026-11-17 guard のテストの日本語のリテラルの例外を、ローカルの CLI レビューが見たかと Fable の記録が有効かを決める判定のスクリプト `.claude/commands/_lib/review-records.sh` にも広げることにした。範囲は、実装計画書の PR の進み具合のチェックボックスの行と PR マーカーの見出しと一致しなければならないリテラルに限る。`CLAUDE.md` の例外の文は、スクリプトを入れる実装の PR で変える（[0098 設計書](../../tasks/0098_fable_partial_review/02_architecture.md) 1.2 の決定 22）
 - 2026-11-18 chief の道具が、状況の表の決まった語（見出し・凡例・状態の文字列・文書の段など）を日本語で出力してよい例外を、CLAUDE.md の「Go Idioms」に足すことにした。これまでの例外は日本語の文書の文字列と一致しなければならないリテラルだったが、この例外は道具が人に示す語そのものである。範囲は表の決まった語に限り、道具の出力のほかの値、エラーのメッセージ、ほかのサブコマンドの出力は英語のままにする（[0102 要件定義書](../../tasks/0102_chief_text_table/01_requirements.md)「要件定義の際に決めたこと（2026-11-18）」）
-- 2026-11-19 利用者向けの文書を、概要と案内の README と、インストールと利用の手順の `INSTALL.md` に分け、開発者向けの内容を `docs/dev/guides/` の手引きに移すことにした。`INSTALL.md` は Chrome Web Store に申請する前まで日本語だけで持ち、principle (c) の期限付きの例外とした。`CLAUDE.md` の「Document language」の文は、実装の PR で変える（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）
+- 2026-11-19 利用者向けの文書を、概要と案内の README と、インストールと利用の手順の `INSTALL.md` に分け、開発者向けの内容を `docs/dev/guides/` の手引きに移すことにした。`INSTALL.md` は Chrome Web Store に申請するまで日本語だけで持ち、原則 (c) の期限付きの例外とした。`CLAUDE.md` の「Document language」と「Documents」の文は、実装の PR で変える（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）
