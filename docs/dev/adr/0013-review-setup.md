@@ -89,7 +89,6 @@ PR レビューは、PR を開いたときに 1 回だけ Codex に頼み、そ�
     -   記録: 永続的には記録せず、その実行の報告と step 4 のマージの質問に示すだけにする。再実行では、もう一度利用者に尋ねる。
     -   理由: 受領コメントがレビューしたコミットを示しているので、含めないと PR レビューの依頼を余分に勧めて割り当てを使うため。承認が効かなくなる条件を広く取るのは、承認の根拠が後のコメントで崩れうるので、止まる側に倒すため。記録を足さないのは、要約コメントと受領コメントが GitHub に残り、マージは利用者がマージの質問に答えて決めるため。
     -   正本: [.claude/commands/runpr.md](../../../.claude/commands/runpr.md) の step 3、[0108 要件定義書](../../tasks/0108_codex_null_findings_receipt/01_requirements.md) の F-005。
--   食い違い: `runpr.md` の step 3 は、まだ結果のない完了で受領コメントを確かめずに止まり、要約コメントの完了より先に届いた受領コメントを想定外の投稿に数える。この ADR の決定に合っていない（[#1005](https://github.com/isseis/yt2column/issues/1005)）。
 -   信頼する自動レビュアーの一覧と、完了を待つ PR レビュアーは別の値にする。
     -   内容: 一覧は [.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Automated reviewer list」に 1 か所だけ置き、各名前は GraphQL の `author.login` の形（`[bot]` を付けない）で持つ。完了を待つレビュアーは「Awaited PR reviewer」の行が決め、REST の `user.login` の形はその名前に `[bot]` を付けて作る。一覧は「誰のスレッドを処理するか」（[ADR-0015](0015-untrusted-review-threads.md)）を決め、完了を待つレビュアーは「何をもってレビュー済みとするか」を決める。
     -   理由: 名前を一覧にすると、どの名前に `[bot]` を付けるかが決まらなくなるため。
