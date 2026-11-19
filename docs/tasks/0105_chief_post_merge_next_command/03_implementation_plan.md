@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。
@@ -273,3 +273,7 @@ PR-2 の各テストは、括弧のフェーズのコミットで足す。フェ
 
 -   PR-2 のマージの後、`make install-chief` で道具を入れ直し、`/chief` を起動し直す（ガイドの 2 章）。
 -   本計画が approved になった後、`/runplan 0105` で PR-1 から実装する。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1025）
