@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -384,3 +384,7 @@ chief は、待ち受けの間、コンフリクトの行の workspace の Claud
 -   **マージコンフリクト（コンフリクト）**・**衝突**・**内容の衝突**・**PR の head**・**コンフリクトの行**：3.1 のとおり。用語集にはまだない。
 -   **ラウンド**：用語集のとおり、`/chief` が状況を読み取って示す 1 回分（`snapshot` か `tick` の 1 回）。
 -   **マージの質問**：`/runpr` が人に尋ねる、マージと記録の確認の問い。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1047）
