@@ -34,6 +34,8 @@ Japanese writing tends to introduce:
    notation, or a deprecated term (旧称) that the glossary says not to use.
 6. **冗長・回りくどい言い回し** — wording that can be made more direct without losing
    meaning.
+7. **太字の使いすぎ** — a whole sentence, or a span longer than a sentence, set in
+   bold where only a label or a word the reader must not miss should be.
 
 ## Preparation
 
@@ -51,6 +53,44 @@ document is open in the IDE, use that; otherwise ask the user which file to revi
   `mktrans`. If the target is such an English file, stop and say so.
 - If the file is not in Japanese, stop and report that this command is for Japanese
   documents.
+
+**Lines to check for bold.** Decide once, before any fix, which lines of the target
+this branch added or changed. The bold item of the review applies only to those
+lines, and only in the first review pass.
+
+1. Get the repository top level with `git rev-parse --show-toplevel`, and make the
+   target path relative to it. When the target is outside the top level, the lines
+   cannot be decided.
+2. Get the merge base with `git merge-base origin/main HEAD`. Do not fetch: the
+   caller fetched `origin/main` when it prepared the branch.
+3. Check whether the path exists at the merge base with
+   `git ls-tree --name-only <base> -- <path>`. Empty output means it does not; one
+   line naming the path means it does.
+4. When the path is absent, run
+   `git diff --name-status --no-renames --no-color <base> --`. When any line starts
+   with `D`, the branch deletes a file, and the target may have been moved there, so
+   the lines cannot be decided. Otherwise treat every line of the document as added.
+5. When the path is present, run
+   `env -u GIT_DIFF_OPTS git --no-pager diff --no-color --no-ext-diff --no-textconv --text --unified=0 --inter-hunk-context=0 <base> -- <path>`,
+   and read the work-tree line ranges from the lines that start with
+   `@@ -a[,b] +c[,d] @@` (ignore the text after the second `@@`). A missing `d`
+   means one line, and `d` equal to 0 means no line, a deletion only. Those are the
+   added and changed lines.
+6. Every `git` of steps 1 to 5 must exit 0. A non-zero exit, or output of another
+   form in steps 3 to 5, means the lines cannot be decided.
+
+Run each `git` of steps 2 to 5 as
+`git -C <top> --literal-pathspecs -c core.quotePath=false ...`. The paths then
+resolve from the top level even when `japrose` is called from a subdirectory, a
+path holding `[` is not read as a pattern, and the output form does not change with
+path quoting.
+
+Decide the lines once, before the fixes: a line that `japrose`'s own expression
+fixes changed is not a line the branch added or changed, so the bold item does not
+run again on a second pass. `git diff` compares with the work tree, so uncommitted
+changes count, and the step works both after the caller committed and when
+`japrose` runs alone. On `main` alone the merge base is `HEAD`, so only uncommitted
+changes are added or changed; with none, the bold item has no line to check.
 
 ## Load the Glossary
 
@@ -79,7 +119,13 @@ these inputs:
   `02_architecture.md`, `03_implementation_plan.md`) — all as resolved absolute-path
   strings. The sibling documents are **read-only reference** so the reviewer can check
   terminology consistency against them (e.g. a plan vs. its architecture); only the
-  target document is edited.
+  target document is edited. Also give it the formatting convention
+  (`docs/dev/conventions/document_formatting.md`) as a resolved absolute path, and a
+  file in the scratchpad that holds the ranges of the lines the branch added or
+  changed ("Preparation") and the diff hunks of its step 5. The hunks let the
+  reviewer compare a changed line with the line before it and tell whether the
+  change is only a link, a name, a heading, or a typo fix. When the ranges could not
+  be decided, the file says so and gives the reason instead.
 - **CRITERIA**: every item from the Prose-quality checklist and the Hard constraints
   below, copied verbatim.
 - **MODEL**: `sonnet`. This review is a fixed-checklist Japanese prose/terminology
@@ -96,6 +142,7 @@ these inputs:
 - [ ] 同一概念には常に同一の日本語表記が使われ、用語集に一致している。用語集が「旧称」と記す語は使われていない。
 - [ ] 冗長・回りくどい言い回しが、意味を変えずに簡潔にされている。
 - [ ] 図（Mermaid）のラベル・キャプション中の日本語にも上記が適用されている（ノード識別子・コード識別子は除く）。
+- [ ] 確かめる行（「Review」の FILES で渡すファイルにある）の太字が、書式の規約の太字の規則に合っている（文全体や、文より長いまとまりを太字にしていない）。規則の外にある固定のラベルは対象外とし、確かめる行の外の太字と、確かめる行の外までまたがる太字のまとまりは指摘しない。変えた行のうち、変更がリンク・名前・見出し・誤字の直しだけの行の太字も指摘しない。確かめる行を決められなかったときと、対象が README（`README.md`・`README.en.md`）のときは、この項目を確かめない。
 
 **Hard constraints (use verbatim; the reviewer must flag any fix that would violate one of these as out of scope):**
 - [ ] 技術的な内容・事実・数値・固有名・構造・節の順序・見出し・文書ステータスを変更しない。表現だけを直す。
@@ -118,6 +165,15 @@ From the review findings, apply the fixes to the document in place:
   note why.
 - Preserve Mermaid syntax and code fences exactly; re-check that fence counts stay
   balanced after editing diagram labels.
+- For a bold finding, remove only the `**` markers and keep every character as it
+  is. Do not remove the bold of a fixed label the formatting convention puts outside
+  its rules, and do not touch a bold span that reaches outside the checked lines.
+  Removing the markers is an expression-only fix: do not add subheadings or
+  restructure the document to satisfy the formatting convention.
+- When the lines could not be decided, do not check the bold item. Say in the report
+  that it was not checked and why, and continue the other items.
+- In the report, give the number of lines the bold item checked. When the number is
+  0, say that there was no line to check.
 
 If any Critical or Major finding required a fix, run a second review pass to verify
 the fixes (subject to the three-pass limit in the shared pattern), then stop.

@@ -174,6 +174,18 @@ statement of the discrepancy (a discrepancy statement), linked to the issue
 that handles it by the issue's full URL. "Editorial corrections", its
 "Discrepancy statements" paragraph, says who adds and removes one.
 
+**Format.** An ADR follows the bold and many-item-section rules of the
+Japanese document formatting convention
+([document_formatting.md](document_formatting.md)). The sections that tend to
+hold many items are 決定, 採らなかった案, and 結果; a short section may stay a
+bullet list, as the convention says. The formatting applies to the whole
+section, while the content criteria for what each section holds keep their
+current scope: a PR that changes the decision of an ADR written before these
+criteria brings only the part it changes to the criteria. Rewriting an existing
+ADR to the formatting convention is not required, but any PR may do it as the
+first kind of editorial correction ("Editorial corrections" below), a rewrite
+to the criteria, which now include this formatting convention.
+
 **Links.** When an ADR states how the code behaves or what a document
 specifies, it links to the document that holds the specification, or to the
 task document that recorded it. Use relative links without line numbers: an
