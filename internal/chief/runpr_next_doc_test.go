@@ -111,8 +111,8 @@ func nextLineExamples(section string) []string {
 
 // TestNextLineExamples checks the rules that pick the examples out of a
 // section: spans outside fenced blocks, a list bullet kept, a span over two
-// lines joined, and a span that only names the form dropped. The fixtures are
-// not the document's text.
+// lines joined, a word longer than NEXT dropped, and a span that only names
+// the form dropped. The fixtures are not the document's text.
 func TestNextLineExamples(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -135,6 +135,21 @@ func TestNextLineExamples(t *testing.T) {
 			want:    []string{"NEXT: /mkplan 4242"},
 		},
 		{
+			name:    "over two lines, continuation indented",
+			section: "`NEXT: /mkplan\n   4242`\n",
+			want:    []string{"NEXT: /mkplan 4242"},
+		},
+		{
+			name:    "over two lines with a CRLF break",
+			section: "`NEXT: /mkplan\r\n4242`\n",
+			want:    []string{"NEXT: /mkplan 4242"},
+		},
+		{
+			name:    "a longer word",
+			section: "See `NEXT_STEP 4242`.\n",
+			want:    nil,
+		},
+		{
 			name:    "only the form",
 			section: "Write `NEXT` or `NEXT: ` before the command.\n",
 			want:    nil,
@@ -152,12 +167,11 @@ func TestNextLineExamples(t *testing.T) {
 // read, and a route that reads none of them. The fixtures are not the
 // document's text.
 func TestCheckRunprNextExamples(t *testing.T) {
-	const (
-		step4 = "## 4. Confirm, record, and merge\n"
-		step5 = "## 5. Switch branch, then show NEXT\n"
-		valid = step4 + "\n`- NEXT: /mkplan 4242`\n\n" + step5 + "\n`NEXT: /runplan 4242`\n"
-	)
+	step4 := runprNextSections[0] + "\n"
+	step5 := runprNextSections[1] + "\n"
+	valid := step4 + "\n`- NEXT: /mkplan 4242`\n\n" + step5 + "\n`NEXT: /runplan 4242`\n"
 	brokenRoute := nextRoute{name: "broken", read: func(string) NextKind { return NextUnmatched }}
+	noneRoute := nextRoute{name: "none", read: func(string) NextKind { return NextNone }}
 	cases := []struct {
 		name   string
 		doc    string
@@ -165,26 +179,33 @@ func TestCheckRunprNextExamples(t *testing.T) {
 		want   []string
 	}{
 		{name: "both sections readable", doc: valid},
+		{name: "a route reading none", doc: valid, routes: []nextRoute{noneRoute, nextRoutes[1]}},
 		{
 			name: "missing section",
 			doc:  step5 + "\n`NEXT: /runplan 4242`\n",
-			want: []string{"section not found"},
+			want: []string{fmt.Sprintf("%q: section not found", runprNextSections[0])},
 		},
 		{
 			name: "no example",
 			doc:  step4 + "\n`NEXT` and `NEXT: `\n\n" + step5 + "\n`NEXT: /runplan 4242`\n",
-			want: []string{"no NEXT line example"},
+			want: []string{fmt.Sprintf("%q: no NEXT line example", runprNextSections[0])},
 		},
 		{
 			name: "unreadable example",
 			doc:  step4 + "\n`NEXT /mkplan 4242`\n\n" + step5 + "\n`NEXT: /runplan 4242`\n",
-			want: []string{"the screen route cannot read", "the transcript route cannot read"},
+			want: []string{
+				fmt.Sprintf("%q: the screen route cannot read %q", runprNextSections[0], "NEXT /mkplan 4242"),
+				fmt.Sprintf("%q: the transcript route cannot read %q", runprNextSections[0], "NEXT /mkplan 4242"),
+			},
 		},
 		{
 			name:   "one route broken",
 			doc:    valid,
 			routes: []nextRoute{brokenRoute, nextRoutes[1]},
-			want:   []string{"the broken route cannot read", "the broken route cannot read"},
+			want: []string{
+				fmt.Sprintf("%q: the broken route cannot read %q", runprNextSections[0], "- NEXT: /mkplan 4242"),
+				fmt.Sprintf("%q: the broken route cannot read %q", runprNextSections[1], "NEXT: /runplan 4242"),
+			},
 		},
 	}
 	for _, c := range cases {
@@ -192,15 +213,10 @@ func TestCheckRunprNextExamples(t *testing.T) {
 		if routes == nil {
 			routes = nextRoutes
 		}
-		got := checkRunprNextExamples(c.doc, routes)
-		if len(got) != len(c.want) {
-			t.Errorf("%s: got %d failures %q; want %d", c.name, len(got), got, len(c.want))
-			continue
-		}
-		for i, want := range c.want {
-			if !strings.Contains(got[i], want) {
-				t.Errorf("%s: failure %q does not hold %q", c.name, got[i], want)
-			}
+		// The failure's wording is the observable contract: it shows the
+		// section, the example, and the route that could not read it.
+		if got := checkRunprNextExamples(c.doc, routes); !slices.Equal(got, c.want) {
+			t.Errorf("%s: failures = %q; want %q", c.name, got, c.want)
 		}
 	}
 }
