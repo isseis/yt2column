@@ -30,7 +30,7 @@ const toolWord = doctestutil.ToolMergepr
 // it calls merge only through that definition.
 var definitionCalls = map[string][]string{
 	".claude/commands/mergepr.md": {"prepare", "paragraph", "check-body", "merge", "cleanup", "discard"},
-	".claude/commands/runpr.md":   {"prepare", "cleanup", "discard"},
+	".claude/commands/runpr.md":   {"prepare", "paragraph", "check-body", "cleanup", "discard"},
 }
 
 // nonCommandBlock is a fenced block that holds no command to run: a Mermaid
