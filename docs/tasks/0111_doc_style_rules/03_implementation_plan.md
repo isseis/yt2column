@@ -147,7 +147,7 @@ Diff record (AC-12):
 
 - Compared paths: `docs/dev/conventions/document_formatting.md` `CLAUDE.md` `docs/dev/conventions/adr.md` `.claude/commands/japrose.md` `docs/dev/adr/0039-adr-writing-criteria.md`
 - Merge-base: `b93d1111834de21a5dbe9de2093f2f80d26606bf`
-- Compared commit: `07ec09d0d4f90584a295369fb2faf2a479da2081`
+- Compared commit: `d0feba07b2a6a903d24ce0e8c77093fcd40fca0f`
 
 Path diff:
 
@@ -395,13 +395,14 @@ CLAUDE.md
 docs/dev/adr/0039-adr-writing-criteria.md
 docs/dev/conventions/adr.md
 docs/dev/conventions/document_formatting.md
+docs/tasks/0111_doc_style_rules/03_implementation_plan.md
 ````
 
 Diff record (AC-13):
 
 - Compared paths: `CLAUDE.md` `docs/dev/conventions/adr.md` `.claude/commands/japrose.md` `docs/dev/adr/0039-adr-writing-criteria.md`
 - Merge-base: `b93d1111834de21a5dbe9de2093f2f80d26606bf`
-- Compared commit: `07ec09d0d4f90584a295369fb2faf2a479da2081`
+- Compared commit: `d0feba07b2a6a903d24ce0e8c77093fcd40fca0f`
 
 Path diff:
 
@@ -559,7 +560,6 @@ index 8ca3d754e9a56a38d305d2d12434757c4e80cf76..f681d0e23230697f663240b09e6baa1f
  specifies, it links to the document that holds the specification, or to the
  task document that recorded it. Use relative links without line numbers: an
 ````
-
 
 ## 8. 成功の基準 (Success Criteria)
 
