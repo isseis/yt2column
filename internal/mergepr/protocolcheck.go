@@ -641,6 +641,7 @@ var (
 	errInvalidRangeOrder = errors.New("invalid range order")
 	errShallowRepository = errors.New("the repository is shallow; run git fetch --unshallow")
 	errHeadNotObjectID   = errors.New("the PR head is not a full commit ID")
+	errBaseIsHead        = errors.New("HEAD is origin's symbolic ref, not a branch")
 )
 
 // rangeStage names the stage of listRange that failed. The zero value is not
@@ -682,11 +683,16 @@ func (e *rangeError) Error() string {
 func (e *rangeError) Unwrap() error { return e.Err }
 
 // baseRef returns the remote-tracking ref of the base branch baseRefName.
-// Contract: the name is used only when refs/remotes/origin/<baseRefName> is a
-// valid ref name by git check-ref-format, so a name such as "main^" or
+// Contract: the name is used only when it is not HEAD and
+// refs/remotes/origin/<baseRefName> is a valid ref name by git
+// check-ref-format, so a name such as "main^" or
 // "a:b" is never put into a revision or a refspec.
 func (g gitReader) baseRef(ctx context.Context, baseRefName string) (string, error) {
 	ref := remoteBranchPrefix + baseRefName
+	// refs/remotes/origin/HEAD is origin's symbolic ref, not a branch.
+	if baseRefName == "HEAD" {
+		return "", &rangeError{Stage: rangeStageBase, Rev: ref, Err: errBaseIsHead}
+	}
 	if _, err := g.git(ctx, "check-ref-format", ref); err != nil {
 		return "", &rangeError{Stage: rangeStageBase, Rev: ref, Err: fmt.Errorf("not a valid branch name: %w", err)}
 	}

@@ -47,9 +47,10 @@ func (e *NumberIssuesError) Error() string {
 	return fmt.Sprintf("number check: %d finding(s) on the numbers the PR adds", len(e.Issues))
 }
 
-// errUnexpectedGitOutput reports git output the check cannot parse. The check
-// reports it as the Detail of a protocolUnreadableError, which is what callers
-// match.
+// errUnexpectedGitOutput reports git output a check cannot parse. It is
+// wrapped in the error the check reports (the Detail of a
+// protocolUnreadableError, or an error wrapping errCorrectionUnreadable),
+// which is what callers match.
 var errUnexpectedGitOutput = errors.New("unexpected git output")
 
 // errCorrectionUnreadable reports that the correction lines of the PR's

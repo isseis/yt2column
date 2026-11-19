@@ -104,15 +104,15 @@ func (s *gitCorrectionSource) rangeLines(ctx context.Context, baseRefName, headO
 // built only from a base name git check-ref-format accepts, and the message
 // is read from the commit object as stored.
 func (s *gitCorrectionSource) mergedLines(ctx context.Context, baseRefName, mergeOID string) ([][]byte, error) {
+	if !isObjectID(mergeOID) {
+		return nil, fmt.Errorf("%w: %q", errMergeNotObjectID, mergeOID)
+	}
 	ref, err := s.reader.baseRef(ctx, baseRefName)
 	if err != nil {
 		return nil, err
 	}
 	if _, err := s.reader.git(ctx, "fetch", "origin", "+refs/heads/"+baseRefName+":"+ref); err != nil {
 		return nil, fmt.Errorf("fetch %s: %w", ref, err)
-	}
-	if !isObjectID(mergeOID) {
-		return nil, fmt.Errorf("%w: %q", errMergeNotObjectID, mergeOID)
 	}
 	message, err := s.reader.commitMessage(ctx, mergeOID)
 	if err != nil {
@@ -564,7 +564,7 @@ func paragraphBytes(block [][]byte) []byte {
 // errCorrectionUnreadable instead of returning a shorter block.
 func correctionParagraph(ctx context.Context, src correctionSource, baseRefName, headOID string, drops Drops) ([][]byte, error) {
 	if err := drops.Validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", errCorrectionMismatch, err)
 	}
 	lines, err := src.rangeLines(ctx, baseRefName, headOID)
 	if err != nil {

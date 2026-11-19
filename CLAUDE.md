@@ -561,12 +561,13 @@ its security rules in `docs/dev/security.md` §8.
   Exception: `mergepr` chooses behavior by inspecting the content of a PR's
   commit messages, of the subject and body files an agent writes for the
   squash merge, and of the merge commit's message
-  (`internal/mergepr/corrections.go`). Scope: whether a commit message's
-  line starts in its first column with `Editorial correction: `, and the
+  (`internal/mergepr/corrections.go`). Scope: where a commit object's
+  header ends and its message starts (its first empty line); whether a
+  commit message's line starts in its first column with `Editorial correction: `, and the
   class of each character of such a line (general category Cc other than
   tab, Cf, Zl, and Zp; bytes that are not UTF-8 and noncharacters; `@`; and
   `<`), which sort the correction lines into accepted and rejected ones
-  for `prepare` and `paragraph`; the lines of the subject and the body that
+  for `prepare`, `paragraph`, `check-body`, and `merge`; the lines of the subject and the body that
   start in their first column with `Editorial correction: ` or
   `Dropped editorial corrections: `, and whether those of the body form one
   paragraph of their own, which `check-body` and `merge` compare with the
@@ -581,7 +582,7 @@ its security rules in `docs/dev/security.md` §8.
   commit message an agent or a human wrote, and the body is text an agent
   writes, external values the tool cannot express in a type. Boundary: a
   line is compared as bytes and never repaired; a correction line that
-  holds a rejected character is not carried until it is dropped by a
+  holds a rejected character is never carried: it must be dropped by a
   declaration or rewritten on the branch; a subject or body whose
   reserved-prefix lines are not the block byte for byte and in order, are
   not one paragraph of their own, or change the trailers git reads stops the
