@@ -750,8 +750,8 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   permission and command-document checks, `cmd/mergepr`'s checks of the
   `mergepr` calls and of the tools with a protocol number, `cmd/numreserve`'s
   checks of its permission rules, its calls, and its guide's values, the ADR guard
-  `TestADRRecords`, and `internal/chief`'s readings of the routing table and
-  the PR markers) are Go tests included
+  `TestADRRecords`, and `internal/chief`'s readings of the routing table, the
+  PR markers, and `runpr.md`'s NEXT line examples) are Go tests included
   in `make test` and need no node. The `doc-guard` CI job runs these guards
   (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`)
   on every pull request, so a documentation-only change is checked in CI by
