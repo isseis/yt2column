@@ -247,13 +247,24 @@ func fillPlaceholders(t *testing.T, args []string) []string {
 	return filled
 }
 
+// promptedSubcommand is the one subcommand the settings' ask rule makes
+// Claude Code confirm at every call: the removal, which closes a workspace
+// and removes a worktree.
+const promptedSubcommand = cmdRemove
+
+// askRemove is the ask rule that makes Claude Code confirm every removal.
+const askRemove = "Bash(" + toolWord + " " + promptedSubcommand + " *)"
+
 // TestDocumentedInvocationsParse: every chief call in the command documents
-// is written in the form the permission rule Bash(chief *) allows without
-// the prompt, and passes the tool's own checks of its subcommand, flags, and
-// request with its placeholders filled in, so the installed tool runs it
-// instead of stopping at the prompt or returning a usage error. The /chief
-// definition must hold a call of every subcommand: one that lost a call
-// would pass every check of the calls left.
+// is written in the form the permission rule Bash(chief *) allows (the bare
+// tool name alone in its command), and passes the tool's own checks of its
+// subcommand, flags, and request with its placeholders filled in, so the
+// installed tool runs it instead of returning a usage error. In that bare
+// form a call of promptedSubcommand begins with the prefix of askRemove,
+// the settings' only ask rule (TestSettingsAsksBeforeRemove), so Claude
+// Code's permission prompt appears at every documented removal and at no
+// other call. The /chief definition must hold a call of every subcommand:
+// one that lost a call would pass every check of the calls left.
 func TestDocumentedInvocationsParse(t *testing.T) {
 	called := map[string]struct{}{}
 	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
@@ -301,8 +312,34 @@ func TestNoDirectHerdrInvocation(t *testing.T) {
 type settings struct {
 	Permissions struct {
 		Allow []string `json:"allow"`
+		Ask   []string `json:"ask"`
 		Deny  []string `json:"deny"`
 	} `json:"permissions"`
+}
+
+// matchesRule reports whether the Bash permission rule rule matches the
+// command text. It models only the forms the settings use: Bash(<prefix>*),
+// where a prefix ending in a space also matches the command without it
+// (Bash(x *) matches x alone, as Claude Code does), and Bash(<command>) for
+// one exact command; it fails t for a rule of any other form, so a rule it
+// cannot read never passes as matching nothing. Claude Code also tries
+// normalized forms of a command against deny and ask rules, which this
+// model leaves out.
+func matchesRule(t *testing.T, rule, text string) bool {
+	t.Helper()
+	inner, ok := strings.CutPrefix(rule, "Bash(")
+	inner, ok2 := strings.CutSuffix(inner, ")")
+	if !ok || !ok2 || inner == "" || strings.ContainsAny(inner, "():") {
+		t.Fatalf("permission rule %q is neither Bash(<prefix>*) nor Bash(<command>)", rule)
+	}
+	body, prefixRule := strings.CutSuffix(inner, "*")
+	if strings.Contains(body, "*") {
+		t.Fatalf("permission rule %q has a wildcard before its end, which matchesRule does not model", rule)
+	}
+	if prefixRule {
+		return strings.HasPrefix(text, body) || (strings.HasSuffix(body, " ") && text == strings.TrimSuffix(body, " "))
+	}
+	return text == inner
 }
 
 func readSettings(t *testing.T) settings {
@@ -320,13 +357,15 @@ func readSettings(t *testing.T) settings {
 // checks read; the calls that close or remove a pane, tab, workspace,
 // session, or worktree, change Herdr's agent integration, or stop or
 // replace Herdr, which would end the work of a task without typing into it;
-// and the global flags before a subcommand that point at another session or
-// machine, which would get past the prefixes above. A rule of the closing
+// the global flags before a subcommand that point at another session or
+// machine, which would get past the prefixes above; and the calls that
+// create a workspace, a tab, a pane, or a worktree, or move a pane, which
+// only the tool does, from a validated issue number. A rule of the closing
 // group ends in "*" with no space, so it also matches the call with no
-// argument, which acts on the current pane, tab, or workspace. A
-// rule ending in " *" matches the call with arguments; one ending in "*"
-// right after the flag also matches the flag's =value form and its longer
-// spellings such as --remote-keybindings.
+// argument, which acts on the current pane, tab, or workspace (a rule
+// ending in " *" matches the call with no argument too). A rule ending in
+// "*" right after the flag also matches the flag's =value form and its
+// longer spellings such as --remote-keybindings.
 var deniedHerdr = []string{
 	"Bash(herdr agent prompt *)",
 	"Bash(herdr agent send-keys *)",
@@ -352,6 +391,21 @@ var deniedHerdr = []string{
 	"Bash(herdr --session*)",
 	"Bash(herdr --machine*)",
 	"Bash(herdr --remote*)",
+	"Bash(herdr workspace create*)",
+	"Bash(herdr tab create*)",
+	"Bash(herdr pane split*)",
+	"Bash(herdr pane move*)",
+	"Bash(herdr worktree create*)",
+	"Bash(herdr worktree open*)",
+}
+
+// deniedGit are the git calls the settings must deny (ADR-0046): adding,
+// removing, or moving a worktree, which only the tool does, removing only a
+// worktree that passed every removal check.
+var deniedGit = []string{
+	"Bash(git worktree add*)",
+	"Bash(git worktree remove*)",
+	"Bash(git worktree move*)",
 }
 
 // TestSettingsDeniesPaneInput: .claude/settings.json denies every herdr
@@ -369,6 +423,49 @@ func TestSettingsDeniesPaneInput(t *testing.T) {
 		if strings.HasPrefix(rule, "Bash(herdr") {
 			t.Errorf("permissions.allow has %q, which may reach a pane without the tool", rule)
 		}
+	}
+}
+
+// worktreeChanges are commands that add, remove, or move a worktree,
+// including the forms with git's options before the subcommand, which the
+// deny rules' prefixes do not reach.
+var worktreeChanges = []string{
+	"git worktree add /p HEAD",
+	"git worktree remove /p",
+	"git -C /r worktree add /p HEAD",
+	"git -c core.x=y worktree remove /p",
+	"git --git-dir=/r/.git worktree move /p /q",
+}
+
+// TestSettingsDeniesWorktreeChanges: .claude/settings.json denies every git
+// call of deniedGit, and no allow rule lets a command of worktreeChanges run
+// unchecked (an allowed command skips both the prompt and auto mode's
+// classifier), so a session cannot make or remove a task's worktree without
+// the tool and its checks, past what the deny rules' prefixes reach.
+func TestSettingsDeniesWorktreeChanges(t *testing.T) {
+	s := readSettings(t)
+	for _, rule := range deniedGit {
+		if !slices.Contains(s.Permissions.Deny, rule) {
+			t.Errorf("permissions.deny %q does not contain %q", s.Permissions.Deny, rule)
+		}
+	}
+	for _, rule := range s.Permissions.Allow {
+		for _, text := range worktreeChanges {
+			if matchesRule(t, rule, text) {
+				t.Errorf("permissions.allow has %q, which lets %q run without the tool", rule, text)
+			}
+		}
+	}
+}
+
+// TestSettingsAsksBeforeRemove: the only ask rule of .claude/settings.json
+// is askRemove, so Claude Code asks the human to confirm every removal
+// outside the session too (an ask rule wins over the allow rule
+// Bash(chief *)), and no other call of the tool, however its arguments are
+// written, stops watching at a prompt.
+func TestSettingsAsksBeforeRemove(t *testing.T) {
+	if ask := readSettings(t).Permissions.Ask; !slices.Equal(ask, []string{askRemove}) {
+		t.Errorf("permissions.ask %q, want only %q", ask, askRemove)
 	}
 }
 

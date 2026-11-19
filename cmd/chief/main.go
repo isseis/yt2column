@@ -1,8 +1,11 @@
 // Package main is the entry point of chief, the developer tool a Claude Code
-// session drives to watch the Herdr workspaces of this repository.
+// session drives to watch the Herdr workspaces of this repository, and to
+// create a task's worktree and workspace from an issue and remove them once
+// the task is done.
 //
 // The command line is `chief <subcommand> [flags] --protocol N`, the
-// subcommands start, snapshot, tick, wait, send, relay, reset, detail, and release. Standard output is
+// subcommands start, snapshot, tick, wait, send, relay, reset, detail,
+// release, targets, create, and remove. Standard output is
 // one JSON value. The exit code is 0 for a finished run (a decision not to
 // send is a finished run), 1 for a failure of the tool, 2 for a wrong
 // command line, and 3 for a refusal that did nothing: outside Herdr, another
@@ -46,6 +49,9 @@ const (
 	cmdReset    = "reset"
 	cmdDetail   = "detail"
 	cmdRelease  = "release"
+	cmdTargets  = "targets"
+	cmdCreate   = "create"
+	cmdRemove   = "remove"
 )
 
 // The flags.
@@ -72,6 +78,11 @@ var subcommandFlags = map[string]struct{ required, optional []string }{
 	cmdReset:    {required: []string{flagProtocol, flagWorkspace, flagCheck}},
 	cmdDetail:   {required: []string{flagProtocol, flagWorkspace}},
 	cmdRelease:  {required: []string{flagProtocol, flagWorkspace}},
+	// targets and create take --issue as text: the tool checks its form and
+	// answers a number of another form with issue_form, not a usage error.
+	cmdTargets: {required: []string{flagProtocol, flagIssue}},
+	cmdCreate:  {required: []string{flagProtocol, flagIssue}},
+	cmdRemove:  {required: []string{flagProtocol, flagWorkspace}},
 }
 
 var errUsage = errors.New("usage: chief start|snapshot|tick --protocol N | " +
@@ -79,7 +90,9 @@ var errUsage = errors.New("usage: chief start|snapshot|tick --protocol N | " +
 	"send --workspace W --command K [--issue N|--pr N] --protocol N | " +
 	"relay --workspace W --check C --answer 1=N --protocol N | " +
 	"reset --workspace W --check C --protocol N | " +
-	"detail --workspace W --protocol N | release --workspace W --protocol N")
+	"detail --workspace W --protocol N | release --workspace W --protocol N | " +
+	"targets --issue N --protocol N | create --issue N --protocol N | " +
+	"remove --workspace W --protocol N")
 
 func main() {
 	os.Exit(signalrun.Run(func(ctx context.Context) int {
@@ -268,6 +281,15 @@ func dispatch(ctx context.Context, subcommand string, flags map[string]string, r
 		return out.Output(), err
 	case cmdRelease:
 		out, err := chief.Release(ctx, deps, flags[flagWorkspace])
+		return out.Output(), err
+	case cmdTargets:
+		out, err := chief.Targets(ctx, deps, flags[flagIssue])
+		return out.Output(), err
+	case cmdCreate:
+		out, err := chief.Create(ctx, deps, flags[flagIssue])
+		return out.Output(), err
+	case cmdRemove:
+		out, err := chief.Remove(ctx, deps, flags[flagWorkspace])
 		return out.Output(), err
 	default:
 		return nil, errUsage

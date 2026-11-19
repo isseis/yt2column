@@ -853,12 +853,16 @@ type TargetOutput struct {
 	Label     string `json:"label"`
 }
 
-// TargetsOutput is the output of `chief targets`: refusal is issue_form for
-// a number of another form, and workspaces the task workspaces whose row
+// TargetsOutput is the output of `chief targets`: title is the issue's
+// title when GitHub answered with an issue; refusal is issue_form for a
+// number of another form, or a creation's refusal of an issue that is not
+// open or has the draft label; and workspaces the task workspaces whose row
 // offers /mkreq.
 type TargetsOutput struct {
 	Protocol   int            `json:"protocol"`
 	Issue      string         `json:"issue"`
+	Title      string         `json:"title"`
+	TitleCut   bool           `json:"title_truncated"`
 	Refusal    string         `json:"refusal"`
 	Failure    string         `json:"failure"`
 	Workspaces []TargetOutput `json:"workspaces"`
@@ -866,7 +870,8 @@ type TargetsOutput struct {
 
 // Output converts the targets into the JSON type. Lists are never nil.
 func (o TargetsOutcome) Output() TargetsOutput {
-	out := TargetsOutput{Protocol: Protocol, Issue: o.Issue.String(), Refusal: o.Refusal.String(), Failure: Sanitize(o.Failure), Workspaces: []TargetOutput{}}
+	// The title is already made visible and cut (Issue.Title).
+	out := TargetsOutput{Protocol: Protocol, Issue: o.Issue.String(), Title: o.Title, TitleCut: o.TitleCut, Refusal: o.Refusal.String(), Failure: Sanitize(o.Failure), Workspaces: []TargetOutput{}}
 	for _, w := range o.Workspaces {
 		out.Workspaces = append(out.Workspaces, TargetOutput{Workspace: Sanitize(w.Workspace), Label: Sanitize(w.Label)})
 	}

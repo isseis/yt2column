@@ -113,7 +113,7 @@ add a kind here or to widen one of these definitions.
 
 | Package | Responsibility |
 |---|---|
-| `cmd/chief` | Entry point of the `chief` developer tool: `main` reads the environment once (`chief.ReadEnv`), parses `--protocol`, the subcommand (`start`, `snapshot`, `tick`, `wait`, `send`, `relay`, `reset`, `detail`, `release` today), and its flags, and prints one JSON value with the exit code of the design (3.1.1). |
+| `cmd/chief` | Entry point of the `chief` developer tool: `main` reads the environment once (`chief.ReadEnv`), parses `--protocol`, the subcommand (`start`, `snapshot`, `tick`, `wait`, `send`, `relay`, `reset`, `detail`, `release`, `targets`, `create`, `remove` today), and its flags (`targets` and `create` take `--issue` as text, which `internal/chief` checks), and prints one JSON value with the exit code of the 0088 design (3.1.1) and the 0092 design (3.1). |
 | `cmd/codexreview` | Entry point of the `codexreview` developer tool, which runs Codex CLI's local review when the CodeRabbit CLI fails: `main` parses `--protocol` and `--base`, runs `codexreview.Run`, and prints its `Result` as JSON. |
 | `cmd/coveragecompare` | Entry point of the coverage comparison tool behind `make coverage-compare` and `make ext-coverage-compare`: it parses `go --base <rev>` or `ext --base <rev>` and runs `coveragecompare.Run`. |
 | `cmd/fixprguard` | Entry point of the `fixprguard` guard tool behind `/fixpr` and `/runpr`: it parses the subcommands and orders the `internal/fixprguard` calls. Usage: [fixprguard guide](../guides/fixprguard_guide.md). |

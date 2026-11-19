@@ -383,6 +383,56 @@ func TestSendStopsBetweenInputs(t *testing.T) {
 	}
 }
 
+// TestSendWaitsForAnAcceptingPane checks that a pane Herdr still reports as
+// working after an input finished is waited for, not stopped: seen live,
+// Herdr reported working for a while after /clear gave the pane a new
+// session and its screen showed the empty prompt. The pane reads working for
+// a few reads after the input, then idle, and the send goes through.
+func TestSendWaitsForAnAcceptingPane(t *testing.T) {
+	cases := []struct {
+		name  string
+		kind  string
+		after string
+		cmd   func(*testing.T) paneinput.Command
+		route func(*testing.T) paneinput.Route
+	}{
+		{"Claude Code after /clear", "claude", "/clear", runplanCmd, opus},
+		{"Claude Code after /model", "claude", "/model opus", runplanCmd, opus},
+		{"OpenCode after /new", "opencode", "/new", runprCmd, flash},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			sw := newSendWorld(t)
+			sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, c.kind)
+			deps := sw.finish()
+			// lag is the number of waits the pane still reads working.
+			lag := 0
+			sw.react = func(p *simPane, text string) error {
+				err := sw.realReact(p, text)
+				if text == c.after {
+					p.Status, lag = "working", 3
+				}
+				return err
+			}
+			deps.Sleep = func(context.Context, time.Duration) error {
+				sw.mu.Lock()
+				defer sw.mu.Unlock()
+				if lag > 0 {
+					lag--
+					if lag == 0 {
+						sw.firstPane().Status = "idle"
+					}
+				}
+				return nil
+			}
+			res := sw.sendContextOf(deps).sendCommand(context.Background(), c.cmd(t), c.route(t))
+			if res.Outcome != OutcomeSent {
+				t.Errorf("result = %+v, want sent", res)
+			}
+		})
+	}
+}
+
 // TestSendFailureAfterInputStops checks that a workspace a failed send
 // stopped takes nothing more: a later send, made by a tool built anew on the
 // same state directory, types nothing and says the workspace is stopped.
