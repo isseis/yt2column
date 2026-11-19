@@ -484,9 +484,9 @@ func ParseRejectedDrop(s string) (RejectedDrop, error)
 
 ### 3.5. マージの後の照合（H-07）
 
--   **本文の渡し方:** `merge` は、本文のファイルを最初に 1 回だけ読み、そのバイト列で訂正の確かめを行う。GitHub には、確かめたバイト列を `merge` が新しく作るファイル（作業ディレクトリの外の一時ファイル、所有者だけが読み書きできるもの）に書き、`gh pr merge --body-file <そのファイル>` で渡す。確かめた後に呼び出し側の本文のファイルが書き換えられても、マージされるのは確かめたバイト列である。今の `--body <本文>` の引数（`internal/mergepr/mergepr.go:382`）は、Linux で 1 つの引数の長さの上限（128 KiB）を超えうる。訂正の行の数に上限がない（AC-05）ので、引数では渡さない。一時ファイルは `merge` が返る前に消す。
+-   **本文の渡し方:** `merge` は、本文のファイルを最初に 1 回だけ読み、そのバイト列で訂正の確かめを行う。GitHub には、確かめたバイト列を `merge` が新しく作るファイル（作業ディレクトリの外の一時ファイル、所有者だけが読み書きできるもの）に書き、`gh pr merge --body-file <そのファイル>` で渡す。確かめた後に呼び出し側の本文のファイルが書き換えられても、マージされるのは確かめたバイト列である。今の `--body <本文>` の引数（`internal/mergepr/mergepr.go:382`）は、Linux で 1 つの引数の長さの上限（128 KiB）を超えうる。訂正の行の数に上限がない（AC-05）ので、引数では渡さない。一時ファイルは `merge` が返る前に消す。消せなかったときは、マージの誤りとせず、報告の note にそのパスを示す。
 -   **照合の順序:** `gh pr merge` が成功した後、今の片付け（`cleanup`）を先に行う。その後、片付けが読んだ squash コミットの ID（`Report.MergeCommitOID`）について、3.1 の読み取りの `mergedLines` で `origin` の base を取得し、squash コミットのメッセージの予約した接頭辞で始まる行を読む。それを、確かめたバイト列（メモリにあるもの）の同じ行の並びと、バイト列として比べる。本文のファイルを読み直さない。
--   **結果の示し方:** 一致すれば、報告に `corrections carried: <行の数> line(s) verified` の行を足す。食い違えば、`post-merge check: ` で始まる誤りを返す。誤りのメッセージには、PR が `<ID>` としてマージ済みで捨てる準備がないことと、食い違った行を示す。`main` の squash コミットが訂正の行を正しく持たないことを、人に知らせるためである。マージは取り消さない（取り消せない）。
+-   **結果の示し方:** 一致すれば、報告に `corrections carried: <行の数> line(s) verified` の行を足す。食い違えば、`post-merge check: ` で始まる誤りを返す。誤りのメッセージには、PR が `<ID>` としてマージ済みで、準備を捨てずマージをやり直さないことと、食い違った行を示す。`main` の squash コミットが訂正の行を正しく持たないことを、人に知らせるためである。マージは取り消さない（取り消せない）。
 -   **片付けとの組み合わせ:** 片付けが止まったときも、squash コミットの ID が分かっていれば照合を行う。誤りは、片付けの誤り、照合の誤りの順に並べて返す。ID が分からず照合できなかったときは、報告に `corrections carried: not verified` の行を出す。
 -   **作業ディレクトリ:** 今と同じく、片付けが終われば消す（`internal/mergepr/mergepr.go:390`）。照合の比べる相手は確かめたバイト列で、作業ディレクトリのファイルを使わないので、消す時点によらない。食い違いの証拠は、誤りのメッセージが示す行と、`main` の squash コミットそのものである。
 -   **`cleanup` での照合:** `cleanup` サブコマンドは、任意の `--body-file` を受け取る。渡されたときは、片付けの前に本文を読み、片付けの後に同じ照合を行う。マージは成功したが `merge` が片付けの前に止まったときに、照合を行えるようにするためである。回復の道筋は 3 つあり、どれも `--body-file` を渡す。
@@ -501,7 +501,7 @@ func ParseRejectedDrop(s string) (RejectedDrop, error)
 | サブコマンド | 変わること |
 |---|---|
 | `prepare --protocol N [PR]` | `corrections.txt` を書く。出力に `corrections: <受け付けた行の数> accepted, <拒否した行の数> rejected` の行を足す。拒否した行ごとに `correction rejected: <コミット ID> line <行番号>: <種類>[,<種類>...]: <表示形>` の行も足す。拒否した行があっても止まらない（AC-11 で「落とす」を選べるように、準備を残す） |
-| `paragraph --protocol N --state FILE [--drop I:CASE]... [--drop-rejected C:L]...`（新規） | 3.3 のとおり `paragraph.txt` を書き、そのパスと `paragraph: <行の数> line(s)` を出力する。ネットワークに触れない |
+| `paragraph --protocol N --state FILE [--drop I:CASE]... [--drop-rejected C:L]...`（新規） | 3.3 のとおり `paragraph.txt` を書き、`paragraph: <行の数> line(s) in <そのパス>` の 1 行を出力する。ネットワークに触れない |
 | `check-body --protocol N --state FILE --subject-file FILE --body-file FILE [--drop I:CASE]... [--drop-rejected C:L]...`（新規） | 3.4 の確かめ 1〜7 を行う。通れば `corrections: <訂正のブロックの行の数> line(s) checked` を出力して終了コード 0、止まれば 4 章の報告をして終了コード 1。ネットワークに触れない |
 | `merge --protocol N --state FILE --subject-file FILE --body-file FILE [--drop I:CASE]... [--drop-rejected C:L]...` | 3.4 の確かめを番号の確かめの間に行い、本文を `--body-file` で渡し、マージの後に 3.5 の照合を行う |
 | `cleanup --protocol N --state FILE [--body-file FILE]` | `--body-file` のときに 3.5 の照合を行う |
@@ -537,6 +537,10 @@ type Report struct {
 	BaseUpdated    bool
 	LocalDeleted   bool
 	Note           string
+	// Merged is true once the run knows the PR is merged (gh pr merge
+	// succeeded, or the cleanup read the merge commit); the report then
+	// always says whether the correction lines were verified.
+	Merged bool
 	// CorrectionsChecked is true only when the post-merge comparison ran
 	// and found the lines equal, so the zero value means "not verified".
 	CorrectionsChecked bool
@@ -680,7 +684,7 @@ type CorrectionsNotCarriedError struct {
 -   **`merge` の訂正の確かめの文:** 今の番号の確かめと同じく、何もマージしなかったことを示す。
     -   食い違いのとき: 準備を捨てる `discard` のコマンドも示す。本文か落とす指定を直して、承認を聞き直す必要があるためである。
     -   読めないとき: 準備が残っていて、同じ `merge` をもう一度走らせられることを示す。プロトコル番号の確かめの取得の失敗と同じ扱いである（`internal/mergepr/mergepr.go:364-367`）。
--   マージの後の照合の誤りは、マージの報告（`merge commit:` などの行）を出した後に出す。squash コミットの ID と、食い違った行の表示形と、捨てる準備がないことを示す。
+-   マージの後の照合の誤りは、マージの報告（`merge commit:` などの行）を出した後に出す。squash コミットの ID と、食い違った行の表示形と、準備を捨てずマージをやり直さないことを示す。
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
 
