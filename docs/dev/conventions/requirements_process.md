@@ -135,7 +135,8 @@ now. The change history holds the status transitions, for every later reader.
 A `…で決めたこと（YYYY-MM-DD）` section of the body holds a decision and its
 reason. The PR description holds what that PR's reviewer reads once, such as an
 editorial correction. The commit message holds the correction line the PR
-description is written from. An ADR under `docs/dev/adr/` holds a major
+description is written from; when the PR is squash-merged with `/mergepr`,
+the line also stays in the squash commit's body on `main`. An ADR under `docs/dev/adr/` holds a major
 decision across tasks: its current form, its reasons, the alternatives not
 taken, and its history; the task document that makes or changes the decision
 records it in its `…で決めたこと` section as well and links to the ADR
@@ -480,6 +481,14 @@ above says.
   replaces every paragraph already there (the correction lines stay in the
   branch's commits, so nothing is lost). When the
   range has no correction line, no paragraph is written.
+- **Squash body:** when the PR is squash-merged with `/mergepr`, its squash
+  commit's body carries every correction line of the PR's commits, byte for
+  byte, so the record stays on `main` after the branch's commits become
+  unreachable. Only the three cases `.claude/commands/mergepr.md` names may
+  leave a line out, and the body then records how many lines each case left
+  out. How the lines are read, checked, and carried is in `mergepr.md` and
+  `docs/dev/guides/mergepr_guide.md`; this bullet does not change the forms
+  of the correction line and the correction paragraph above.
 - **Decision changes (PR description):** when a PR is created, its description
   names the decision changes that the `draft` revert lines and the session
   re-approval lines the branch added to change histories show
