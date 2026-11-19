@@ -150,20 +150,20 @@
 | AC-12 | `diff` | 下の ADR の diff の記録で、決定の 3 つの文の語が替わり、中身が変わらないことを読む |
 | AC-13 | `manual` | PR のレビューで、`internal/chief/testdata/README.md` の 1 行を読む |
 | AC-14 | `diff` | 下の ADR の diff の記録を読む。訂正の行と訂正の段落は、コミットのメッセージと PR の説明で読む |
-| AC-15 | `diff` | 下の 0102・0105 の diff の記録で、ファイルごとに、古い用語を含んで消えた行の数を読み、設計書 3.5 節の数（実装の時点の `origin/main` で数え直した数）と比べる。足りなければ、触れなかった行に古い用語が残っている。数え直した数と比べた結果をここに書く。0093 の内部の段を指す「文書の段」（AC-15 の除外）は、その分を差し引く。行の値を指す「文書」は数に入らないので、置き換えた箇所を記録で読む。数え直し（`b93d1111`、`git grep -c -e 進行の位置 -e 文書の段 -e 進み具合`）と、古い用語を含んで消えた行の数は、0102 の要件定義書 14/14、設計書 12/12、計画書 2/2、design_handoff 1/1、0105 の要件定義書 11/11、design_handoff 0/0 で一致した。0105 の設計書は設計書 3.5 節の表にない（実装の時点で `origin/main` にあった）ので数え直し、3/3 で一致した。0102 の設計書に残る 1 行は、0093 の内部の段（`docStage`）を指す除外である。行の値を指す「文書」は数に入らないので、対象の文書の「文書」を 1 か所ずつ読み、行の値の意味の箇所（たとえば 0105 の要件定義書の「行の文書」「行のタスク、文書、次のコマンド」、0102 の設計書の「行の文書（`Row.Position.Document`…）」）を置き換え、列の見出し、タスクの文書、`origin/main` の文書、0093 の内部の段を指す「文書の段」はそのままにした |
+| AC-15 | `diff` | 下の 0102・0105 の diff の記録で、ファイルごとに、古い用語を含んで消えた行の数を読み、設計書 3.5 節の数（実装の時点の `origin/main` で数え直した数）と比べる。足りなければ、触れなかった行に古い用語が残っている。数え直した数と比べた結果をここに書く。0093 の内部の段を指す「文書の段」（AC-15 の除外）は、その分を差し引く。行の値を指す「文書」は数に入らないので、置き換えた箇所を記録で読む。数え直し（`94e3a1f5`、`git grep -c -e 進行の位置 -e 文書の段 -e 進み具合`）と、古い用語を含んで消えた行の数は、0102 の要件定義書 14/14、設計書 12/12、計画書 2/2、design_handoff 1/1、0105 の要件定義書 11/11、設計書 3/3、design_handoff 0/0 で一致した。設計書 3.5 節の表にない 0105 の設計書と `03_implementation_plan.md` は、実装の時点の `origin/main` にあったので数え直した。0105 の `03_implementation_plan.md` は 4 行のうち 3 行を置き換え、残る 1 行は「0102 の進み具合」で、タスクの進み具合を指す別の意味なので置き換えない（要件書 2.3 節）。0102 の設計書に残る 1 行は、0093 の内部の段（`docStage`）を指す除外である。行の値を指す「文書」は数に入らないので、対象の文書の「文書」を 1 か所ずつ読み、行の値の意味の箇所（たとえば 0105 の要件定義書の「行の文書」「行のタスク、文書、次のコマンド」、0102 の設計書の「行の文書（`Row.Position.Document`…）」）を置き換え、列の見出し、タスクの文書、`origin/main` の文書、0093 の内部の段を指す「文書の段」はそのままにした |
 | AC-16 | `diff` | 同じ記録で、差分が語の置き換えと言い回しに限られることを読む |
 | AC-17 | `diff` | 同じ記録に、Document Status の表と変更履歴の行がないことを読む。訂正の行と訂正の段落は、コミットのメッセージと PR の説明で読む |
-| AC-18 | `manual` | ステップ 1-4 で、0102 の実装が古い用語かその英訳を書いていたかを確かめ、書いていたなら直した箇所をここに書く。書いていなければ「当たらない」と書く。直した箇所は下の差分の範囲の記録で読む。0102 の実装（PR-2・PR-3）は実装の時点でまだマージされておらず、`origin/main` の CLAUDE.md・ガイド・`.claude/commands/chief.md` に、0102 が書いた古い用語もその英訳（document stage など）もない。当たらない |
+| AC-18 | `manual` | ステップ 1-4 で、0102 の実装が古い用語かその英訳を書いていたかを確かめ、書いていたなら直した箇所をここに書く。書いていなければ「当たらない」と書く。直した箇所は下の差分の範囲の記録で読む。0102 の実装の PR-2（#1022）が、実装の時点で `origin/main` にマージされ、CLAUDE.md の「Go Idioms」の状況の表の例外に、状態の文字列と「文書の段」の英訳 "the document stages" を書いていた。これを AC-18 に従い、用語集の訳語 "the work item strings" に直した。ガイドと `.claude/commands/chief.md` には、0102 が書いた古い用語もその英訳もなかった（当たらなかった）。設計書と計画書の「文書の段」は、0093 の内部の段（`docStage`）を指す除外である |
 | AC-19 | `diff` | 下の差分の範囲の記録（変わったファイルの一覧を含む）を読む |
 | AC-20 | `diff` | 差分の範囲の記録の、変わったファイルの一覧に `internal/chief/records.go` がないことを読む |
 | AC-21 | `manual` | PR のレビューで、用語集の「作業項目の文字列」の定義と旧称を読む |
 | AC-22 | `manual` | 同じく、旧称の備考が記録として残ることを述べるのを読む |
 
 Diff record (AC-07, AC-09):
-
 - Compared paths: `docs/dev/guides/chief_guide.md`
-- Merge-base: `b93d1111834de21a5dbe9de2093f2f80d26606bf`
-- Compared commit: `3f8a0d94a8c5a360efb60a458dd01535b8e2d17a`
+
+- Merge-base: `94e3a1f510aaa5fbcbd19d2fa79748b6db6634be`
+- Compared commit: `b55046240410ccb0ffa7d2cb9c1a9eea1a84d5fa`
 
 Path diff:
 
@@ -224,10 +224,10 @@ index 4fe25cb1b23d65bb5d2874fcc59f9e43bbc5a43d..0282d3aec0ceffeb5bb23a346db50722
 ```
 
 Diff record (AC-12, AC-14):
-
 - Compared paths: `docs/dev/adr/0046-chief-of-staff.md`
-- Merge-base: `b93d1111834de21a5dbe9de2093f2f80d26606bf`
-- Compared commit: `3f8a0d94a8c5a360efb60a458dd01535b8e2d17a`
+
+- Merge-base: `94e3a1f510aaa5fbcbd19d2fa79748b6db6634be`
+- Compared commit: `b55046240410ccb0ffa7d2cb9c1a9eea1a84d5fa`
 
 Path diff:
 
@@ -265,10 +265,10 @@ index ddcd1d5ea12ea05733d3f6a30243b17f9f44b60a..372151800bfa6e813e2f7c67cb997f80
 ```
 
 Diff record (AC-15, AC-16, AC-17):
-
 - Compared paths: `docs/tasks/0102_chief_text_table/01_requirements.md`, `docs/tasks/0102_chief_text_table/02_architecture.md`, `docs/tasks/0102_chief_text_table/03_implementation_plan.md`, `docs/tasks/0102_chief_text_table/design_handoff.md`, `docs/tasks/0105_chief_post_merge_next_command/01_requirements.md`, `docs/tasks/0105_chief_post_merge_next_command/02_architecture.md`, `docs/tasks/0105_chief_post_merge_next_command/03_implementation_plan.md`, `docs/tasks/0105_chief_post_merge_next_command/design_handoff.md`, `docs/tasks/0105_chief_post_merge_next_command/implementation_handoff.md`
-- Merge-base: `b93d1111834de21a5dbe9de2093f2f80d26606bf`
-- Compared commit: `3f8a0d94a8c5a360efb60a458dd01535b8e2d17a`
+
+- Merge-base: `94e3a1f510aaa5fbcbd19d2fa79748b6db6634be`
+- Compared commit: `b55046240410ccb0ffa7d2cb9c1a9eea1a84d5fa`
 
 Path diff:
 
@@ -487,13 +487,13 @@ index 5e93b2198f9b381eb52f8e60e125091f1e8595e5..d0799302c668a5813a19bc4cb9ffa7e7
  -   **`rows` との一致（`snapshot_test.go`）。** 同じスナップショットの出力の `rows` の値（名前・タスク・PR の番号）が表に現れ、行の並びが同じであること（AC-01・AC-02）。
  -   **Herdr の読み取り（`herdr_test.go`）。** 実物のサンプル（`tab list`・`pane layout`・今の `agent list`）を読めること。要件書 4.2 と 3.7 の、形に合わないそれぞれの出力（封筒の `id` か `type` が違う、メンバが欠ける、型が違う、メンバ名が重複する、`tab_id` が重複する、agent list の `pane_id` が重複する、chief の pane の項目が 0 か 2 つ、幅が 0・負・1000 を超える、`error` を持つ、後ろにデータがある）を `errHerdrOutput` で拒み、一部だけを使わないこと（AC-23）。
 diff --git a/docs/tasks/0102_chief_text_table/03_implementation_plan.md b/docs/tasks/0102_chief_text_table/03_implementation_plan.md
-index 6688d38c3b930262d94a1643b0288f3839b2a3cc..de4880be07a4852c4c5ac56868d36e1b28f1abd3 100644
+index 900c6414c8be3676b1c08b50eb94c33994026196..909cf96b22290e1005802829f98a33bb5d8c7079 100644
 --- a/docs/tasks/0102_chief_text_table/03_implementation_plan.md
 +++ b/docs/tasks/0102_chief_text_table/03_implementation_plan.md
 @@ -130,7 +130,7 @@
- -   [ ] **ステップ 2-1**: 生成の道具（`textwidth_gen.go`）を書き、Unicode 17.0.0 の `EastAsianWidth.txt` から幅の表を作って `textwidth.go` に置く（§1.3 の決定 3・4、設計書 3.5）。元のファイルを取りに行く前に人の承認を得る。`@missing` の既定（設計書 3.5）も表に含める。版・取得元の URL・SHA-256 を表の注釈と §7 の「PR-2 の実行の記録」に書く。§1.3 の決定 4 の `awk` での数の比べと、`TestUnitWidth` の期待値に引いた元のファイルの行も §7 に書く。`TestGuardedTypesAreBuiltOnlyByTheirConstructors` はビルドの印によらずパッケージのすべての `.go` のファイルを読むので、`package main` の生成の道具を置いた後もこのテストが通ることを確かめる。
- -   [ ] **ステップ 2-2**: `textwidth.go` に、表示の単位の表示幅を返す関数を書く（設計書 3.5 の表）。`TestUnitWidth` を足し、設計書 7.1 の「表示幅」のとおり、W・F の文字（`🛑`・`🔶`・`🟢` を含む）が 2、ASCII・曖昧な文字（`…`・`─`）・結合文字・異体字セレクタが 1、エスケープがそのバイト数であること、幅の表の範囲の境目の前後の文字を確かめる。境目の期待値は、元のファイルの行から人手で選ぶ（§1.3 の決定 4）。F の文字（U+FF01 など）、W になる未割り当ての符号位置（CJK の区画の未割り当ての符号位置。元のファイルが `@missing` の行で示すか、範囲の行で明示するかは版によるので、どちらの行で W になるかを §7 に書く）と、元のファイルのどの行にもなく 1 桁になる符号位置、Unicode 15.0 の後に W になった符号位置を含める。最後のものは、表が 17.0.0 から作られ、Go 1.26.5 の表によらないことを示す。入力は `\u` か `\U` のエスケープで書く。
- -   [ ] **ステップ 2-3**: `table.go` に、`tableSources`、決まった語、内容の文字列の組み方を書く（設計書 3.3・3.4）。決まった語は型の値ごとの `switch` で選び、`default` は `?` にする。外から来る値は、単位に分ける前に `CapHead` で 16 KiB までに切る（設計書 3.4 の「値の長さ」、4 章の「同じ処理を 2 つ書かない」）。表の `─` と `…` は `\u` か `\U` のエスケープで書き、日本語の literal は AC-26 の語だけにする。テストは `table_test.go` に置き、次を確かめる。
+ -   [x] **ステップ 2-1**: 生成の道具（`textwidth_gen.go`）を書き、Unicode 17.0.0 の `EastAsianWidth.txt` から幅の表を作って `textwidth.go` に置く（§1.3 の決定 3・4、設計書 3.5）。元のファイルを取りに行く前に人の承認を得る。`@missing` の既定（設計書 3.5）も表に含める。版・取得元の URL・SHA-256 を表の注釈と §7 の「PR-2 の実行の記録」に書く。§1.3 の決定 4 の `awk` での数の比べと、`TestUnitWidth` の期待値に引いた元のファイルの行も §7 に書く。`TestGuardedTypesAreBuiltOnlyByTheirConstructors` はビルドの印によらずパッケージのすべての `.go` のファイルを読むので、`package main` の生成の道具を置いた後もこのテストが通ることを確かめる。
+ -   [x] **ステップ 2-2**: `textwidth.go` に、表示の単位の表示幅を返す関数を書く（設計書 3.5 の表）。`TestUnitWidth` を足し、設計書 7.1 の「表示幅」のとおり、W・F の文字（`🛑`・`🔶`・`🟢` を含む）が 2、ASCII・曖昧な文字（`…`・`─`）・結合文字・異体字セレクタが 1、エスケープがそのバイト数であること、幅の表の範囲の境目の前後の文字を確かめる。境目の期待値は、元のファイルの行から人手で選ぶ（§1.3 の決定 4）。F の文字（U+FF01 など）、W になる未割り当ての符号位置（CJK の区画の未割り当ての符号位置。元のファイルが `@missing` の行で示すか、範囲の行で明示するかは版によるので、どちらの行で W になるかを §7 に書く）と、元のファイルのどの行にもなく 1 桁になる符号位置、Unicode 15.0 の後に W になった符号位置を含める。最後のものは、表が 17.0.0 から作られ、Go 1.26.5 の表によらないことを示す。入力は `\u` か `\U` のエスケープで書く。
+ -   [x] **ステップ 2-3**: `table.go` に、`tableSources`、決まった語、内容の文字列の組み方を書く（設計書 3.3・3.4）。決まった語は型の値ごとの `switch` で選び、`default` は `?` にする。外から来る値は、単位に分ける前に `CapHead` で 16 KiB までに切る（設計書 3.4 の「値の長さ」、4 章の「同じ処理を 2 つ書かない」）。表の `─` と `…` は `\u` か `\U` のエスケープで書き、日本語の literal は AC-26 の語だけにする。テストは `table_test.go` に置き、次を確かめる。
 -    -   `TestTableFixedWords`: 急ぎの度合い・進み具合・文書・実行中のコマンドが決まらない理由の、型のすべての値が `?` でない語を持ち、語が要件書 AC-11〜AC-13・AC-20 の表のとおりであること、表にない値が `?` になること。値は `namesUpToUnknown` に出力の名前の関数を渡して数える（設計書 7.1）。
 +    -   `TestTableFixedWords`: 急ぎの度合い・状態の詳細・作業項目の表示・実行中のコマンドが決まらない理由の、型のすべての値が `?` でない語を持ち、語が要件書 AC-11〜AC-13・AC-20 の表のとおりであること、表にない値が `?` になること。値は `namesUpToUnknown` に出力の名前の関数を渡して数える（設計書 7.1）。
      -   `TestTableContent`: 状態の文字列ごとの部品と、値がない部品を並べないこと（AC-14）。
@@ -659,22 +659,67 @@ index a98b3c3cf1f590ce9b698ffe82884fa8e851273e..280f06417110377caa1a9f06577a74a7
  -   **送信（AC-04・AC-05・AC-08）。** `--item` が要るコマンドと要らないコマンドの `ParseSendRequest`。行の提案が変わったときと、自動送信の提案が行と別のタスクを示すときの `not_offered`。`main` の行への `mkreq` の拒否。特定した行への `/mkplan` が今の送る前の確かめを通ること。`chief reset` が特定した `main` の行のリセットを送れること。`targets` が `main` の worktree を挙げないこと。
  -   **変えない振る舞い（AC-10・AC-11）。** 特定した `main` の worktree の PR の自動送信の結果が、今と同じ理由で送らないこと。機能ブランチ・detached HEAD・ほかのブランチの行が、事象があっても今と同じ行になること。
  -   **消し方。** `ClearRecords` が履歴の記録を消すこと。`start` がほかのセッションの事象を消し、今のセッションの事象を残すこと。
+diff --git a/docs/tasks/0105_chief_post_merge_next_command/03_implementation_plan.md b/docs/tasks/0105_chief_post_merge_next_command/03_implementation_plan.md
+index 6c8fdea6b6abb3219b4247df292ccdc65f27eadc..1d45a4dff12c4ac8e253c3fed022f4cc89d2d97b 100644
+--- a/docs/tasks/0105_chief_post_merge_next_command/03_implementation_plan.md
++++ b/docs/tasks/0105_chief_post_merge_next_command/03_implementation_plan.md
+@@ -53,7 +53,7 @@
+ | `cmd/chief` | フラグ（`cmd/chief/main.go:59-67`）、`subcommandFlags`（`:71-86`）、使い方の文（`:88-`）、`parseRequests`（`:243-256`）、`dispatch` の `send`（`:270-272`）。`cmd/chief/main_test.go:501`（`TestRunWorkspaceSubcommands`）は `--item` なしで `send --command mkarch` を走らせ、`no_workspace` を期待する | `--item` を足し、`Send` に `owner` を渡す。`main_test.go:501` に形の合う `--item` を足す。PR-2 |
+ | `/chief` の定義 | 提案の送信 `chief send --workspace <workspace> --command <request> --protocol 4`（`.claude/commands/chief.md:418`）。ほかの `chief send` は `runpr`（`:393`）と `mkreq`（`:416`・`:463`）。すべての呼び出しが `--protocol 4` | `:418` に `--item <id>` を足す。すべての `--protocol` を `main` の値 + 1 にする。PR-2 |
+ | 文書のテスト | `TestDocumentedProtocolMatches`（`cmd/chief/docs_test.go:205`）、`TestDocumentedInvocationsParse`（`:268`、プレースホルダーの値は `placeholderValues`、`:217-225`）、`TestGuideValuesMatchTool`（`:502`） | `placeholderValues` に `<id>` を足す。ほかは番号が合えば今のまま通る。PR-2 |
+-| 利用ガイド | 番号の表（`docs/dev/guides/chief_guide.md:24-28`）、進行の位置（`:82`）、サブコマンドの表（`:126-139`） | AC-12 の説明、要確認から戻す方法、`--item`、番号（設計書 3.6）。PR-2 |
++| 利用ガイド | 番号の表（`docs/dev/guides/chief_guide.md:24-28`）、作業項目の表示（`:84`）、サブコマンドの表（`:126-139`） | AC-12 の説明、要確認から戻す方法、`--item`、番号（設計書 3.6）。PR-2 |
+ | ブランチ `main` を使うテスト | `internal/chief/snapshot_test.go` の `Branch: "main"`（`:71-73`・`:99`・`:154`・`:172`・`:465`・`:486`・`:490`・`:496`・`:707`・`:730`・`:880-881`）、`internal/chief/workspace_test.go:53`、`internal/chief/removal_test.go:232-233`（`TestRemovalRowFallsBack` の「HEAD on a branch」。行の判定で `/mkreq` の行を期待する。設計書 3.7 は削除の確かめの読み取りとしていたが、行の判定である） | `main` でも機能ブランチでもない名前に替える（設計書 3.7）。PR-1 |
+ | 変えない `"main"` | `autosend_test.go:61`・`:71`（自動送信の `headRef` と `branch`、AC-10 の理由の確かめ）、`task_test.go:282`・`:357`（ブランチの名前の読み取り）、`running_test.go:38`・`:499`（引数の文）、`create_test.go:1060`、`removal_test.go:247`・`:533`・`:1101`（削除の確かめの HEAD の読み取り。`:247` はスナップショットの中だが、行は detached の読み取りで決まる） | 変えない |
+ | 型の作られ方の確かめ | `guardedTypes`（`internal/chief/construction_test.go:19-28`） | `mainTaskResult` を足す（§1.3 の 2）。PR-1 |
+@@ -130,7 +130,7 @@
+ -   [ ] **ステップ 4-4**: `cmd/chief/main.go` に `--item` を足し（`send` の任意のフラグ、使い方の文）、`parseRequests` から渡し、`dispatch` の `send` に `owner` を渡す。`main_test.go:501` に形の合う `--item` を足す。
+ -   [ ] **ステップ 4-5**: `Protocol`（`internal/chief/records.go:29`）を、実装するときの `origin/main` の値 + 1 にする（CLAUDE.md の「Protocol numbers」。タスク 0102 の PR-3 も上げるので、実装するときに読み直す）。`/chief` の定義のすべての `--protocol` とガイドの番号の表を同じ値にする。
+ -   [ ] **ステップ 4-6**: `/chief` の定義の提案の送信（`.claude/commands/chief.md:418`）を、設計書 3.6 の形にし、`<id>` が人の選んだ項目の `id` であることを書く。`mkreq` と `runpr` の呼び出しは変えない。`cmd/chief/docs_test.go` の `placeholderValues` に `<id>` の値を足す。
+--   [ ] **ステップ 4-7**: `docs/dev/guides/chief_guide.md` に、要件書 AC-12 の 4 点と「-」が `main` の worktree に使われないこと、設計書 3.6 の要確認から戻す方法と、セッションが続く場合（`/chief` を起動し直すだけでは特定が続くこと）、`chief send` の `--item` を書く。進行の位置の説明（`:82`）と、サブコマンドの表（`:126-139`）の `send`・`tick`（履歴の記録を書く）・`start`（ほかのセッションの履歴の記録を消す）の行を直す。
++-   [ ] **ステップ 4-7**: `docs/dev/guides/chief_guide.md` に、要件書 AC-12 の 4 点と「-」が `main` の worktree に使われないこと、設計書 3.6 の要確認から戻す方法と、セッションが続く場合（`/chief` を起動し直すだけでは特定が続くこと）、`chief send` の `--item` を書く。作業項目の表示の段落（`:84`）と、サブコマンドの表（`:126-139`）の `send`・`tick`（履歴の記録を書く）・`start`（ほかのセッションの履歴の記録を消す）の行を直す。
+ -   [ ] **ステップ 4-8**: テストを書く（§4.1 の PR-2 のうちフェーズ 4 の行と、結合テスト）。
+
+ **完了の条件:** `make test` と `make lint` が通る。`/runpr` の前に、人が `chief` を PR のブランチで入れ直す（ガイドの 2 章の手順）。エージェントは道具を入れず、PR の説明と報告でそのことを示すだけにする（CLAUDE.md の「Tool Execution Safety」）。
+@@ -186,7 +186,7 @@
+ | PR-1 | `internal/chief/records_test.go::TestClearRecordsKeepsOnlyTheExclusion`（今のテストに履歴の記録を足す） | `ClearRecords` が履歴の記録を消す。`remove` の残りの確かめ（`leftAfter`）は同じ `isRecordFile` を読むので、`isRecordFile` から `trace-` を外すとこのテストが落ちることで合わせて確かめる |
+ | PR-1 | `internal/chief/records_test.go::TestStartRemovesOtherSessionTraces` | 新しいセッションの `start` が、ほかのセッションの事象と形に合わない `trace-` の名前を消し、今のセッションの事象を残す。すでにロックを持つセッションの `start` は、形に合わない名前を消さない |
+ | PR-1 | `internal/chief/construction_test.go`（今のガード） | `mainTaskResult` を `identifyMainTask` のほかで作らない |
+-| PR-2（フェーズ 2） | `internal/chief/maintask_test.go::TestMainRowFollowsTaskRules` | T と特定した `main` の行が、T の設計書が approved で計画書がないとき、次のコマンドが `/mkplan T`・文書が計画書・進み具合が作成待ち（AC-01）、T の設計書が `draft` のとき要確認と今の理由 `the architecture document is not approved`（`internal/chief/state.go:328`）（AC-02）、T の計画書のすべての PR がマージ済みのときタスク完了で、chief が作った workspace の削除の提案が detached の確かめで止まる（AC-03）。質問で止まったエージェントがあれば質問の行、引き継ぎを出さない、`Idle` が付かない |
++| PR-2（フェーズ 2） | `internal/chief/maintask_test.go::TestMainRowFollowsTaskRules` | T と特定した `main` の行が、T の設計書が approved で計画書がないとき、次のコマンドが `/mkplan T`・作業項目の表示が計画書・状態の詳細が作成待ち（AC-01）、T の設計書が `draft` のとき要確認と今の理由 `the architecture document is not approved`（`internal/chief/state.go:328`）（AC-02）、T の計画書のすべての PR がマージ済みのときタスク完了で、chief が作った workspace の削除の提案が detached の確かめで止まる（AC-03）。質問で止まったエージェントがあれば質問の行、引き継ぎを出さない、`Idle` が付かない |
+ | PR-2（フェーズ 2・3） | `internal/chief/maintask_test.go::TestMainRowNotIdentified` | マージの記録なし・開いている PR あり・ほかのタスクあり・読めない、の各行の状態・文書（要確認）・理由・次のコマンドなし・`Idle`（設計書 3.2 の「印」。fetch に失敗した行と、そのラウンドで状態を読めなかった PR を挙げる行には付かない）（AC-06・AC-07・AC-09）。読めない記録は、`main` の worktree が 2 つある world で、ほかの `main` の worktree のディレクトリと、`main` でない worktree のディレクトリ（一覧を読めないものを含む）に置き、どちらの `main` の行も要確認になる |
+ | PR-2（フェーズ 2） | `internal/chief/maintask_test.go::TestMainRowZeroResult` | `applyMainTask` を通らない `headMain` の行（特定の結果がゼロ値）が、要確認で、次のコマンドを示さず、`/mkreq` も示さない |
+ | PR-2（フェーズ 2） | `internal/chief/maintask_test.go::TestOtherHeadsIgnoreHistory` | 同じ worktree に、別のタスク T'（文書は approved）のマージを確かめた履歴を置く。先に、同じ履歴で `main` の行が T' の行になることを確かめ、そのうえで機能ブランチ・detached HEAD（chief が作った完了したタスクの削除の提案の行を含む）・ほかのブランチの行が、履歴のないときと同じ行と削除の提案になる（AC-11） |
 ```
 
 Diff record (AC-19, AC-20):
-
 - Compared paths: `CLAUDE.md`, `.claude/commands/chief.md`
-- Merge-base: `b93d1111834de21a5dbe9de2093f2f80d26606bf`
-- Compared commit: `3f8a0d94a8c5a360efb60a458dd01535b8e2d17a`
+
+- Merge-base: `94e3a1f510aaa5fbcbd19d2fa79748b6db6634be`
+- Compared commit: `b55046240410ccb0ffa7d2cb9c1a9eea1a84d5fa`
 
 Path diff:
 
 ```text
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 8873fc5526ed1eba74c923eb22fc1a4e077aed46..768fab6c6b4aa8057f273391ad4e59be5dd3c4b0 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -967,7 +967,7 @@ Only the conventions a linter does not check are worth stating:
+   its status table in Japanese, so the table's fixed words are Japanese
+   literals. Scope: the literals of `internal/chief/table.go` that are the
+   status table's fixed words — the header, the legend, the status words, the
+-  document stages, the reasons no running command is decided, `＋指示`, the
++  work item strings, the reasons no running command is decided, `＋指示`, the
+   count (`件`) and `マージ確認` put before a question, and the line shown when
+   there are no rows (`workspace なし`) — which reach the tool's output as the
+   text of the table; and the same words in its test,
 ```
 
 File list (only for an AC that limits which files change):
 
 ```text
+CLAUDE.md
 docs/dev/adr/0046-chief-of-staff.md
 docs/dev/guides/chief_guide.md
 docs/tasks/0102_chief_text_table/01_requirements.md
@@ -683,6 +728,7 @@ docs/tasks/0102_chief_text_table/03_implementation_plan.md
 docs/tasks/0102_chief_text_table/design_handoff.md
 docs/tasks/0105_chief_post_merge_next_command/01_requirements.md
 docs/tasks/0105_chief_post_merge_next_command/02_architecture.md
+docs/tasks/0105_chief_post_merge_next_command/03_implementation_plan.md
 docs/tasks/0110_chief_work_item_terms/02_architecture.md
 docs/tasks/0110_chief_work_item_terms/03_implementation_plan.md
 docs/translation_glossary.md
