@@ -20,7 +20,8 @@ const (
 	tablePaneDefault = 80
 	// tableMarginWhole is the margin Claude Code takes left of a code block.
 	tableMarginWhole = 2
-	// tableMarginSplit adds the frame Herdr draws inside a split pane.
+	// tableMarginSplit is the margin for a split pane: the code block margin
+	// and the frame Herdr draws inside the pane.
 	tableMarginSplit = 4
 	// tableValueMaxBytes caps a value before it is split into units: the
 	// content column shows at most two lines of at most 1000 columns, so a
@@ -410,7 +411,12 @@ func wrapContent(units []cellUnit, width int) (first, second []cellUnit) {
 		return nil, nil
 	}
 	breakable := breakPoints(units, width)
-	best, w, trailing := 0, 0, 0
+	// The leading spaces are shown as they are, so the first line never
+	// ends among them, which would drop them and leave it empty.
+	for p := 1; p < len(units) && units[p-1].class == classSpace; p++ {
+		breakable[p] = false
+	}
+	best, fit, w, trailing := 0, 0, 0, 0
 	for p := 1; p <= len(units); p++ {
 		u := units[p-1]
 		w += u.width
@@ -422,9 +428,15 @@ func wrapContent(units []cellUnit, width int) (first, second []cellUnit) {
 		if w-trailing > width {
 			break
 		}
+		fit = p
 		if breakable[p] {
 			best = p
 		}
+	}
+	if best == 0 {
+		// Leading spaces left no room for the word after them: break it at
+		// the last unit that fits, as a word wider than a line breaks.
+		best = fit
 	}
 	// Trailing spaces never count against the width, so the first line
 	// takes every space at its break, and the rest starts with a unit that

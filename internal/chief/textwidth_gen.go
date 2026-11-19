@@ -119,6 +119,8 @@ func parse(data []byte) (string, []bool, error) {
 			if err := set(m[1], m[2], m[3]); err != nil {
 				return "", nil, fmt.Errorf("line %d: %w", n, err)
 			}
+		case strings.HasPrefix(line, "# @missing"):
+			return "", nil, fmt.Errorf("line %d is an @missing line of another form: %q", n, line)
 		case line == "" || strings.HasPrefix(line, "#"):
 		default:
 			m := dataLine.FindStringSubmatch(line)

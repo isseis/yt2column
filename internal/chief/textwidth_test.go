@@ -62,3 +62,16 @@ func TestUnitWidth(t *testing.T) {
 		})
 	}
 }
+
+// TestWideRangesSortedAndDisjoint checks the order isWide's binary search
+// relies on, which the boundary rows of TestUnitWidth reach only in part.
+func TestWideRangesSortedAndDisjoint(t *testing.T) {
+	for i, r := range wideRanges {
+		if r.lo > r.hi {
+			t.Errorf("range %d: %#x > %#x", i, r.lo, r.hi)
+		}
+		if i > 0 && wideRanges[i-1].hi >= r.lo {
+			t.Errorf("range %d starts at %#x, not after %#x", i, r.lo, wideRanges[i-1].hi)
+		}
+	}
+}

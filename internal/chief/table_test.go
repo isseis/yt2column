@@ -378,7 +378,8 @@ func TestTableNameColumn(t *testing.T) {
 		{"short name widens to the header", "ab", "ab", 4},
 		{"20 columns kept", "abcdefghijklmnopqrst", "abcdefghijklmnopqrst", 20},
 		{"21 columns cut", "abcdefghijklmnopqrstu", "abcdefghijklmnopqrs\u2026", 20},
-		{"wide character across column 20", "abcdefghijklmnopqr漢字", "abcdefghijklmnopqr\u2026", 19},
+		{"wide character before the ellipsis", "abcdefghijklmnopqr漢字", "abcdefghijklmnopqr\u2026", 19},
+		{"wide character across column 20", "abcdefghijklmnopqrs漢", "abcdefghijklmnopqrs\u2026", 20},
 		{"spaces before the cut dropped", "abcdefghijklmnopq   xyz", "abcdefghijklmnopq\u2026", 18},
 	}
 	for _, tt := range tests {
@@ -399,8 +400,9 @@ func TestTableNameColumn(t *testing.T) {
 // a split pane, 80 less 2 when the width was not read, and the content
 // column kept at 20 columns when the pane is narrower.
 func TestTableWidth(t *testing.T) {
-	// Status 9 (the mark, a space, and 要確認), name 4, task 6, PR 2, and
-	// four gaps of 2: 29 columns before the content column.
+	// Status 9 (the mark, a space, and the three-character needs-check word),
+	// name 4, task 6, PR 2, and four gaps of 2: 29 columns before the content
+	// column.
 	rows := []Row{{
 		Label: "ws", Urgency: UrgencyNow,
 		Position:   Position{Document: PositionDocNoTask, Progress: ProgressNeedsCheck},
@@ -459,6 +461,7 @@ func TestTableWrap(t *testing.T) {
 		{"moves a wide character that does not fit", strings.Repeat("a", 19) + "漢", strings.Repeat("a", 19), "漢"},
 		{"drops the spaces at a break", strings.Repeat("a", 20) + "   bbb", strings.Repeat("a", 20), "bbb"},
 		{"keeps the leading spaces", "  abc  def", "  abc  def", ""},
+		{"keeps the leading spaces before a long word", "   " + strings.Repeat("a", 19), "   " + strings.Repeat("a", 17), "aa"},
 		{"a full-width space is not a space", strings.Repeat("a", 19) + "\u3000bb", strings.Repeat("a", 19), "\u3000bb"},
 		{"cuts the second line", "aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii", "aaaa bbbb cccc dddd", "eeee ffff gggg hhhh\u2026"},
 		{"drops spaces before the ellipsis", "aaaa bbbb cccc dddd eeee ffff gggg hhh iiii", "aaaa bbbb cccc dddd", "eeee ffff gggg hhh\u2026"},
@@ -622,7 +625,10 @@ func fuzzRows(name, title, text, label, problem, unreadable, model string) []Row
 }
 
 // FuzzTableKeepsCodeBlockOpen checks the code block check and the usable
-// width on tables built from arbitrary values.
+// width on tables built from arbitrary values. TestMain's PATH isolation
+// keeps `go test -fuzz` from starting its workers in this package, so fuzz
+// it in a copy of the package without main_test.go; `make test` runs the
+// seeds.
 func FuzzTableKeepsCodeBlockOpen(f *testing.F) {
 	for _, v := range fenceValues {
 		f.Add(v, v, v, v, v, v, v)
