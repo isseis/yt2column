@@ -155,7 +155,7 @@ func TestCheckRunprNextExamples(t *testing.T) {
 	const (
 		step4 = "## 4. Confirm, record, and merge\n"
 		step5 = "## 5. Switch branch, then show NEXT\n"
-		valid = step4 + "\n`- NEXT: /mkplan 4242`\n\n" + step5 + "\n`NEXT: なし`\n"
+		valid = step4 + "\n`- NEXT: /mkplan 4242`\n\n" + step5 + "\n`NEXT: /runplan 4242`\n"
 	)
 	brokenRoute := nextRoute{name: "broken", read: func(string) NextKind { return NextUnmatched }}
 	cases := []struct {
@@ -167,17 +167,17 @@ func TestCheckRunprNextExamples(t *testing.T) {
 		{name: "both sections readable", doc: valid},
 		{
 			name: "missing section",
-			doc:  step5 + "\n`NEXT: なし`\n",
+			doc:  step5 + "\n`NEXT: /runplan 4242`\n",
 			want: []string{"section not found"},
 		},
 		{
 			name: "no example",
-			doc:  step4 + "\n`NEXT` and `NEXT: `\n\n" + step5 + "\n`NEXT: なし`\n",
+			doc:  step4 + "\n`NEXT` and `NEXT: `\n\n" + step5 + "\n`NEXT: /runplan 4242`\n",
 			want: []string{"no NEXT line example"},
 		},
 		{
 			name: "unreadable example",
-			doc:  step4 + "\n`NEXT /mkplan 4242`\n\n" + step5 + "\n`NEXT: なし`\n",
+			doc:  step4 + "\n`NEXT /mkplan 4242`\n\n" + step5 + "\n`NEXT: /runplan 4242`\n",
 			want: []string{"the screen route cannot read", "the transcript route cannot read"},
 		},
 		{
