@@ -94,9 +94,10 @@ var allowedEnvRefs = map[string]map[string]int{
 	// The mergepr developer tool passes its environment to numreserve.New for
 	// the pre-merge number check, which narrows it as for cmd/numreserve.
 	"cmd/mergepr/main.go": {"call:os.Environ": 1},
-	// The mergepr developer tool's protocol-number check runs git with the
-	// environment of the process minus GIT_*, captured when its runner is
-	// built (newGitRunner).
+	// The mergepr developer tool's protocol-number check and correction-line
+	// reading run git with the environment of the process minus GIT_*,
+	// captured when a runner is built (gitEnviron); the trailer reading
+	// narrows the same capture further (newTrailerRunner).
 	"internal/mergepr/runner.go": {"call:os.Environ": 1},
 }
 
