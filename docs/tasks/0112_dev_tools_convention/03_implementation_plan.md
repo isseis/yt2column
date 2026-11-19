@@ -392,7 +392,7 @@ Diff record (AC-21):
 
 - Compared paths: `docs/translation_glossary.md`
 - Merge-base: `9122d1aaad7244eac37198da4ca30e1da133a504`
-- Compared commit: `ff31c6465eeda9de15ad1cc3e9f0d21d5036db3b`
+- Compared commit: `0bd9a6a72eee0d068edca375335f23fb4c4fb6f0`
 
 Path diff:
 
@@ -427,6 +427,7 @@ docs/dev/guides/chief_guide.md
 docs/dev/guides/fixprguard_guide.md
 docs/dev/guides/mergepr_guide.md
 docs/dev/guides/numreserve_guide.md
+docs/tasks/0112_dev_tools_convention/03_implementation_plan.md
 docs/tasks/0112_dev_tools_convention/_checks/correction_lines.sh
 docs/translation_glossary.md
 ```
