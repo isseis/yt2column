@@ -185,8 +185,16 @@ func TestMainRowTaskDone(t *testing.T) {
 	if r.State != StateTaskDone || r.Task != removalTask || r.RemovalRow || r.Next != nil || r.Idle {
 		t.Errorf("row = %+v; want task %s done, not the removal row", r, removalTask)
 	}
-	if r.Removal == nil || passedCheck(r.Removal.Checks, RemovalCheckDetached) || !passedCheck(r.Removal.Checks, RemovalCheckAgentsIdle) {
-		t.Errorf("removal = %+v; want it proposed and stopped by the detached check alone", r.Removal)
+	if r.Removal == nil {
+		t.Fatal("no removal proposed")
+	}
+	// The detached check is there and fails; every other check passes.
+	others := slices.ContainsFunc(r.Removal.Checks, func(c CheckResult) bool {
+		return c.Check != RemovalCheckDetached && (!c.Passed || len(c.Unreadable) > 0)
+	})
+	detached := slices.IndexFunc(r.Removal.Checks, func(c CheckResult) bool { return c.Check == RemovalCheckDetached })
+	if len(r.Removal.Checks) != len(removalChecks) || detached < 0 || r.Removal.Checks[detached].Passed || others {
+		t.Errorf("checks = %+v; want the removal stopped by the detached check alone", r.Removal.Checks)
 	}
 }
 
@@ -300,6 +308,9 @@ func TestMainRowUnreadableHistory(t *testing.T) {
 			return putTrace(t, store, Worktree{path: branch}, "trace-broken.json", []byte("{}"))
 		}},
 		{"an unlistable directory of a feature branch worktree", func(t *testing.T, store Store, _, branch string) string {
+			if os.Geteuid() == 0 {
+				t.Skip("root lists a directory of mode 0")
+			}
 			records, err := store.Records(Worktree{path: branch})
 			if err != nil {
 				t.Fatal(err)
