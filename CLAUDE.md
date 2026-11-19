@@ -22,6 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [mergepr Guide](docs/dev/guides/mergepr_guide.md) - Setup, usage, guarantees, and troubleshooting for the `/mergepr` tool
 - [fixprguard Guide](docs/dev/guides/fixprguard_guide.md) - Setup, subcommands, guarantees, scope rules, and recovery for the `fixprguard` guard tool for `/fixpr` and `/runpr`
 - [chief Guide](docs/dev/guides/chief_guide.md) - Setup, usage, subcommands, guarantees, the settings' herdr denials, the state directory, and known limits of the `chief` tool that `/chief` drives
+- [tools Guide](docs/dev/guides/tools_guide.md) - Purpose and usage of the developer scripts under `tools/`: the low-cost `/chief` launcher and the scripts that estimate `/chief`'s token cost
 - [numreserve Guide](docs/dev/guides/numreserve_guide.md) - Installation, invocation, stop reasons and what to do next, the record ruleset and removing a wrong record tag, and the cloud-session limits of the `numreserve` tool that decides task and ADR numbers
 
 ## Documents
