@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
@@ -409,5 +410,231 @@ func TestOtherHeadsIgnoreHistory(t *testing.T) {
 				t.Errorf("row on main = %+v; want the history to identify 0002", r)
 			}
 		})
+	}
+}
+
+// traceNames returns the names of the history records in tree's directory
+// of records.
+func traceNames(t *testing.T, store Store, tree string) []string {
+	t.Helper()
+	records, ok, err := store.existingRecords(Worktree{path: tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		return nil
+	}
+	entries, err := os.ReadDir(records.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), tracePrefix) {
+			names = append(names, e.Name())
+		}
+	}
+	return names
+}
+
+// prViews counts the readings of PR 42's state so far.
+func prViews(rec *recorder) int {
+	n := 0
+	for _, c := range rec.recorded() {
+		if c.name == ghProgram && strings.Join(c.args, " ") == "pr view 42 --json "+prStateFields {
+			n++
+		}
+	}
+	return n
+}
+
+// hasProblem reports whether a problem of snap starts with prefix.
+func hasProblem(snap Snapshot, prefix string) bool {
+	return slices.ContainsFunc(snap.Problems, func(p string) bool { return strings.HasPrefix(p, prefix) })
+}
+
+// TestTickWritesHistory runs the merge world's PR 42 from open on the task
+// branch to merged with the worktree on main, and checks the history the
+// ticks write: the open's round writes the branch and the open, and the
+// merge's round writes the merge and shows task 0001 on main in the same
+// round, reading the PR's state once. When the merge cannot be written
+// safely (the exclusion is held, the branch or the open record changed
+// under it, the state cannot be read, the record cannot be made, or the
+// round cannot be recorded) nothing is written and the round says why; a
+// held creation exclusion does not stop the write.
+func TestTickWritesHistory(t *testing.T) {
+	branchReads := func(mw *mergeWorld, under func(n int) string) {
+		n := 0
+		mw.rec.replyFunc("git rev-parse --abbrev-ref HEAD", func() reply {
+			n++
+			return reply{out: []byte(under(n) + "\n")}
+		})
+	}
+	cases := []struct {
+		name string
+		// before runs after the merge, before the merge's tick; it returns
+		// what the round's problems must hold, "" for none.
+		before func(t *testing.T, mw *mergeWorld) string
+		// written is whether the merge's tick writes the merge.
+		written bool
+		// views is how many times the merge's tick reads #42's state.
+		views int
+	}{
+		{"nothing in the way", func(*testing.T, *mergeWorld) string { return "" }, true, 1},
+		{"the creation exclusion is held", func(t *testing.T, mw *mergeWorld) string {
+			lock, err := mw.deps.Store.LockCreation()
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = lock.Close() })
+			return ""
+		}, true, 1},
+		{"the worktree's exclusion is held", func(t *testing.T, mw *mergeWorld) string {
+			records, err := mw.store.Records(Worktree{path: mw.tree})
+			if err != nil {
+				t.Fatal(err)
+			}
+			held, err := records.Lock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = held.Close() })
+			return "the history record of " + mw.tree + " cannot be written: its exclusion cannot be taken"
+		}, false, 1},
+		{"the branch changes under the exclusion", func(_ *testing.T, mw *mergeWorld) string {
+			// The round reads main; the reading under the exclusion is the
+			// second.
+			branchReads(mw, func(n int) string {
+				if n == 1 {
+					return mainBranch
+				}
+				return "scratch"
+			})
+			return "the history record of " + mw.tree + " cannot be written: " + errHistoryChanged.Error()
+		}, false, 1},
+		{"the open record is gone under the exclusion", func(t *testing.T, mw *mergeWorld) string {
+			branchReads(mw, func(n int) string {
+				if n == 2 {
+					removeOpenRecord(t, mw.store, mw.tree)
+				}
+				return mainBranch
+			})
+			return "the history record of " + mw.tree + " cannot be written: " + errHistoryChanged.Error()
+		}, false, 1},
+		{"the state cannot be read", func(_ *testing.T, mw *mergeWorld) string {
+			mw.rec.failIn(mw.tree, prStateLine, errNoReply)
+			return "the state of #42 cannot be read for the history of " + mw.tree
+		}, false, 1},
+		{"the record cannot be made", func(_ *testing.T, mw *mergeWorld) string {
+			mw.store.beforeCreate = failCreates(tracePrefix)
+			mw.deps.Store = mw.store
+			return "the history record of " + mw.tree + " cannot be written: "
+		}, false, 1},
+		{"the round cannot be recorded", func(_ *testing.T, mw *mergeWorld) string {
+			mw.store.beforeCreate = failCreates(roundPrefix)
+			mw.deps.Store = mw.store
+			return "the round cannot be recorded"
+		}, false, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mw := newMergeWorld(t, mkarchDocs)
+			mw.tick(time.Minute)
+			if got := len(traceNames(t, mw.store, mw.tree)); got != 2 {
+				t.Fatalf("history after the open's round = %d records; want the branch and the open", got)
+			}
+			mw.merge(mainBranch, "")
+			want := c.before(t, mw)
+			views := prViews(mw.rec)
+			snap := mw.tick(time.Minute).Snapshot
+			if want != "" && !hasProblem(snap, want) {
+				t.Errorf("problems = %q; want one starting %q", snap.Problems, want)
+			}
+			if got := prViews(mw.rec) - views; got != c.views {
+				t.Errorf("the merge's round read #42's state %d times; want %d", got, c.views)
+			}
+			r := rowOf(t, snap, "ws")
+			names := traceNames(t, mw.store, mw.tree)
+			if !c.written {
+				if len(names) > 2 {
+					t.Errorf("history = %v; want the merge not written", names)
+				}
+				// The row goes by the history without the merge.
+				if r.Task != "" || r.State != StateNeedsCheck {
+					t.Errorf("row = %+v; want main with no task identified", r)
+				}
+				return
+			}
+			if len(names) != 3 || r.Task != "0001" || r.Next == nil || r.Next.Text != "/mkarch 0001" {
+				t.Errorf("history %v, row %+v; want the merge written and /mkarch 0001 shown", names, r)
+			}
+		})
+	}
+	t.Run("a state not read keeps the row from idle", func(t *testing.T) {
+		// The tick comes after the observation window, so no automatic
+		// send considers the PR and clears the mark: only the history's
+		// reading decides it.
+		for _, unread := range []bool{false, true} {
+			mw := newMergeWorld(t, mkarchDocs)
+			mw.tick(time.Minute)
+			mw.onMain(mw.tree)
+			if unread {
+				mw.rec.failIn(mw.tree, prStateLine, errNoReply)
+			}
+			out := mw.tick(observeWindow + time.Minute)
+			if r := rowOf(t, out.Snapshot, "ws"); len(out.AutoSends) != 0 || r.State != StateNeedsCheck || r.Idle == unread {
+				t.Errorf("state unread %v: row %+v, auto sends %+v; want it idle only when the state was read", unread, r, out.AutoSends)
+			}
+		}
+	})
+	t.Run("a merge not written is written by the next round", func(t *testing.T) {
+		mw := newMergeWorld(t, mkarchDocs)
+		mw.tick(time.Minute)
+		mw.merge(mainBranch, "")
+		mw.store.beforeCreate = failCreates(tracePrefix)
+		mw.deps.Store = mw.store
+		mw.tick(time.Minute)
+		mw.store.beforeCreate = nil
+		mw.deps.Store = mw.store
+		if r := rowOf(t, mw.tick(time.Minute).Snapshot, "ws"); r.Task != "0001" || len(traceNames(t, mw.store, mw.tree)) != 3 {
+			t.Errorf("row = %+v; want the merge written and 0001 identified", r)
+		}
+	})
+}
+
+// removeOpenRecord removes the pr_open record of tree's history.
+func removeOpenRecord(t *testing.T, store Store, tree string) {
+	t.Helper()
+	records, err := store.Records(Worktree{path: tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range traceNames(t, store, tree) {
+		data, err := os.ReadFile(records.dir + "/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), `"kind":"`+tracePROpen.String()+`"`) {
+			if err := os.Remove(records.dir + "/" + name); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}
+
+// TestMainRowNoAutoSend checks that the merge of PR 42 read with the
+// worktree on main, which identifies task 0001, is not sent automatically
+// and is proposed for the reason that main is no feature branch of 0001.
+func TestMainRowNoAutoSend(t *testing.T) {
+	mw := newMergeWorld(t, mkarchDocs)
+	mw.tick(time.Minute)
+	mw.merge(mainBranch, "`/mkarch 0001`")
+	out := mw.tick(time.Minute)
+	if r := rowOf(t, out.Snapshot, "ws"); r.Task != "0001" {
+		t.Fatalf("row = %+v; want main identified as 0001", r)
+	}
+	res := only(t, out)
+	if sentCommand(res) || len(mw.rec.prompts()) != 0 || !slices.Contains(res.Reasons, `the branch "main" is no feature branch of task 0001`) {
+		t.Errorf("auto send = %+v; want nothing sent because main is no feature branch of 0001", res)
 	}
 }

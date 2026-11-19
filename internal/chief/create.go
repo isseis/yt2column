@@ -859,7 +859,7 @@ func Targets(ctx context.Context, deps Deps, issueArg string) (TargetsOutcome, e
 	}
 	// No history is read: a worktree on main offers no /mkreq whatever its
 	// task, so its identification cannot change the list.
-	buildRows(ctx, deps, &view, traceHistory{})
+	buildRows(ctx, deps, &view, traceHistory{}, nil)
 	for _, row := range view.rows {
 		// The same check as the send of /mkreq, so every workspace listed
 		// is one `chief send --command mkreq` accepts.

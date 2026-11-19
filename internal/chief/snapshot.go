@@ -79,6 +79,27 @@ type roundView struct {
 	oldErr      error
 	fetchFailed bool
 	problems    []string
+	// prStates are the states of PRs read this round outside any
+	// exclusion, by number (prState); nil until the first is read.
+	prStates map[int]prStateRead
+}
+
+// prState returns PR number's state as this round read it, reading it in
+// dir and keeping it when the round has not. Contract: outside an
+// exclusion a round reads a PR's state at most once, a failed read
+// included, so the history and the automatic send's first reading agree;
+// a read under an exclusion does not come here.
+func (v *roundView) prState(ctx context.Context, git GitReader, dir string, number int) prStateRead {
+	if read, ok := v.prStates[number]; ok {
+		return read
+	}
+	state, head, err := git.PRStateOf(ctx, dir, number)
+	read := prStateRead{State: state, HeadRef: head, Err: err}
+	if v.prStates == nil {
+		v.prStates = map[int]prStateRead{}
+	}
+	v.prStates[number] = read
+	return read
 }
 
 // TakeSnapshot reads every task workspace and classifies it. Contract: it
@@ -91,7 +112,7 @@ func TakeSnapshot(ctx context.Context, deps Deps, owner Owner) (Snapshot, error)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	buildRows(ctx, deps, &view, deps.Store.readTraces(owner.Session))
+	buildRows(ctx, deps, &view, deps.Store.readTraces(owner.Session), nil)
 	return finishSnapshot(deps, owner, view, readTableSources(ctx, deps, view), nil), nil
 }
 
@@ -200,12 +221,21 @@ func readFacts(ctx context.Context, deps Deps) (roundView, error) {
 // command; besides the reads of classifyWorkspace, addRecords, and
 // addRemovals, it reads only the documents of an identified task; history
 // is the history of the caller's session, or an empty one for a caller that
-// reads none, which identifies no task.
-func buildRows(ctx context.Context, deps Deps, view *roundView, history traceHistory) {
+// reads none, which identifies no task; unread are the PRs whose state this
+// round could not read (nil when it read none), and a worktree on main whose
+// history has one of them open is marked MainStateUnread.
+func buildRows(ctx context.Context, deps Deps, view *roundView, history traceHistory, unread map[int]struct{}) {
 	git := NewGitReader(deps.Cmds)
 	tasks := NewTasks(deps.Cmds)
 	for i, w := range view.found {
-		f := applyMainTask(ctx, tasks, view.facts[i], identifyMainTask(history, w.Tree))
+		f := view.facts[i]
+		if f.Head == headMain {
+			f.MainStateUnread = slices.ContainsFunc(applyTrace(history.events[w.Tree]).openPRs(), func(pr int) bool {
+				_, bad := unread[pr]
+				return bad
+			})
+		}
+		f = applyMainTask(ctx, tasks, f, identifyMainTask(history, w.Tree))
 		row := classifyWorkspace(ctx, git, tasks, f, view.old, view.oldErr)
 		if err := addRecords(ctx, deps, git, w, &row); err != nil {
 			view.problems = append(view.problems, "the records of "+w.Worktree+" cannot be read: "+err.Error())

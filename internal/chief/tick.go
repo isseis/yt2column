@@ -16,9 +16,10 @@ type TickOutcome struct {
 }
 
 // Tick is one round of chief's wait (the design, 3.1.1 and 3.7): it records
-// the round, takes the snapshot, records an observation of every open PR of
-// a task workspace, and considers each PR the previous round of this session
-// saw open for an automatic send. The round is recorded with the time its
+// the round, records an observation of every open PR of a task workspace,
+// writes the session's history of each worktree, makes the rows from it,
+// and considers each PR the previous round of this session saw open for an
+// automatic send. The round is recorded with the time its
 // reading began, so a send made by hand while the reading runs counts as made
 // since this round. Contract: only a PR the previous round saw open, when
 // that round is less than observeWindow before this one, can be sent
@@ -26,7 +27,8 @@ type TickOutcome struct {
 // cannot be read, makes no observation and sends nothing; a round that
 // cannot take the creation exclusion sends nothing and carries every PR it
 // would have sent; every merged PR that is not sent is shown as a proposal
-// with the conditions that did not hold.
+// with the conditions that did not hold; a round that cannot be recorded
+// writes no history, and the rows go by the history already written.
 func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 	// The round's time is taken before the reading it covers starts, so a
 	// command the human sends by hand while the workspaces are read counts as
@@ -38,30 +40,20 @@ func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 		// next tick's previous round and drop every observation before it.
 		return TickOutcome{}, err
 	}
-	buildRows(ctx, deps, &view, deps.Store.readTraces(owner.Session))
 	// The table sources are read before the round is recorded, so both
 	// snapshots below lay out the same table.
 	src := readTableSources(ctx, deps, view)
 	start, roundErr := deps.Store.BeginRound(owner.Session, at)
 	if roundErr != nil {
 		view.problems = append(view.problems, "the round cannot be recorded, so nothing is observed or sent automatically: "+roundErr.Error())
+		// Nothing is written; the rows go by the history written so far.
+		buildRows(ctx, deps, &view, deps.Store.readTraces(owner.Session), nil)
 		return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, src, nil)}, nil
 	}
 	if start.PruneErr != nil {
 		view.problems = append(view.problems, "a record of an older round cannot be removed: "+start.PruneErr.Error())
 	}
-	open := map[observedPR]struct{}{}
-	for i, row := range view.rows {
-		f := view.facts[i]
-		if row.PR == nil || f.Task.IsZero() || f.Head != headBranch {
-			continue
-		}
-		open[observedPR{row.Workspace, row.PR.Number}] = struct{}{}
-		obs := Observation{Session: owner.Session, Round: start.Cur.ID, PR: row.PR.Number, Worktree: row.Workspace, Task: f.Task.String(), Branch: f.Branch}
-		if err := deps.Store.RecordObservation(obs); err != nil {
-			view.problems = append(view.problems, "the observation of #"+strconv.Itoa(row.PR.Number)+" cannot be recorded: "+err.Error())
-		}
-	}
+	open := recordObservations(deps, &view, owner, start.Cur.ID)
 	var prev []Observation
 	var prevAt time.Time
 	if start.Prev != nil && start.Cur.At.Sub(start.Prev.At) < observeWindow {
@@ -72,6 +64,12 @@ func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 			view.problems = append(view.problems, "an observation of the previous round cannot be read: "+err.Error())
 		}
 	}
+	// The history is written before the rows are made, so the round that
+	// reads a merge already shows the task it identifies; the creation
+	// exclusion is not needed for it.
+	unread, problems := writeHistory(ctx, deps, &view, owner, start.Cur.ID)
+	view.problems = append(view.problems, problems...)
+	buildRows(ctx, deps, &view, deps.Store.readTraces(owner.Session), unread)
 	// The creation exclusion is held from before the first automatic send
 	// until the last one ends, so `create` never starts between a send's
 	// check and its input.
@@ -88,6 +86,26 @@ func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 	}
 	extra := applyAutoSends(&view, deps.Store, results)
 	return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, src, extra), AutoSends: results}, nil
+}
+
+// recordObservations records an observation of every open PR of a feature
+// branch of a task workspace for the round, and returns those PRs. Contract:
+// it reads the facts the round read, never the rows, so it observes what it
+// did before the rows were made later in the round; a worktree on main is
+// not observed, whatever its history.
+func recordObservations(deps Deps, view *roundView, owner Owner, round string) map[observedPR]struct{} {
+	open := map[observedPR]struct{}{}
+	for _, f := range view.facts {
+		if f.PR == nil || f.Task.IsZero() || f.Head != headBranch {
+			continue
+		}
+		open[observedPR{f.Workspace, f.PR.Number}] = struct{}{}
+		obs := Observation{Session: owner.Session, Round: round, PR: f.PR.Number, Worktree: f.Workspace, Task: f.Task.String(), Branch: f.Branch}
+		if err := deps.Store.RecordObservation(obs); err != nil {
+			view.problems = append(view.problems, "the observation of #"+strconv.Itoa(f.PR.Number)+" cannot be recorded: "+err.Error())
+		}
+	}
+	return open
 }
 
 // applyAutoSends updates the rows of the workspaces an automatic send went
