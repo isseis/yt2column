@@ -106,21 +106,21 @@
 
 **変えるファイル:** `cmd/yt2column/fixpr_docs_test.go`
 
-- [ ] `listingItem` の `state` を `derived` に改名し、`listingItem`・`listingFixture`・`checkListings` の説明のコメントを、`summary` では期待する状態、`receipt` では期待する `short_sha`（形に合わないときは `""`）と書き直す（1.3 の決定 1）
-- [ ] `receipt` を含む鍵の一覧と必須の鍵の一覧を作り、`issues/<number>/comments` の偽のデータにだけ渡す（1.3 の決定 7）。`receipt` の鍵は `kind`・`url`・`created_at`・`updated_at`・`form_ok`・`short_sha`、必須は `kind` 以外の 5 つである
-- [ ] `checkListingOutput` に、`form_ok` を `derived != ""` と、`short_sha` を `derived`（`""` のときは `null`）と比べる分岐を足す。`summary` と `receipt` 以外の種類の項目で `derived` が `""` でないときにテストを落とす確かめも足す
-- [ ] `listingFixture` と鍵の一覧の説明のコメントを、`form_ok` と `short_sha` に合わせて直す（設計書 3.5 の「説明のコメント」）
-- [ ] `runprListingFixtures` の `issues/<number>/comments` に、次の要約コメントを足す
+- [x] `listingItem` の `state` を `derived` に改名し、`listingItem`・`listingFixture`・`checkListings` の説明のコメントを、`summary` では期待する状態、`receipt` では期待する `short_sha`（形に合わないときは `""`）と書き直す（1.3 の決定 1）
+- [x] `receipt` を含む鍵の一覧と必須の鍵の一覧を作り、`issues/<number>/comments` の偽のデータにだけ渡す（1.3 の決定 7）。`receipt` の鍵は `kind`・`url`・`created_at`・`updated_at`・`form_ok`・`short_sha`、必須は `kind` 以外の 5 つである
+- [x] `checkListingOutput` に、`form_ok` を `derived != ""` と、`short_sha` を `derived`（`""` のときは `null`）と比べる分岐を足す。`summary` と `receipt` 以外の種類の項目で `derived` が `""` でないときにテストを落とす確かめも足す
+- [x] `listingFixture` と鍵の一覧の説明のコメントを、`form_ok` と `short_sha` に合わせて直す（設計書 3.5 の「説明のコメント」）
+- [x] `runprListingFixtures` の `issues/<number>/comments` に、次の要約コメントを足す
     - `completed` で `has_any_findings` が `null` のもの（期待は `no-result <sha>`）
     - `running` で `has_any_findings` が `null` のもの（期待は `running <sha>`）
-- [ ] 同じ所に、設計書 3.5 の「偽の受領コメント」の各項目を足す。受領コメントの本文は、組み立てる関数（`summaryBody` と同じ形の小さな関数）で作る。`bodyMarker` を置く所は設計書 3.5 のとおりにする。設計書 3.5 の項目に加えて、次の点を満たす
+- [x] 同じ所に、設計書 3.5 の「偽の受領コメント」の各項目を足す。受領コメントの本文は、組み立てる関数（`summaryBody` と同じ形の小さな関数）で作る。`bodyMarker` を置く所は設計書 3.5 のとおりにする。設計書 3.5 の項目に加えて、次の点を満たす
     - 形に合う 2 件の 5 行目の SHA は、1 件を 7 桁、もう 1 件を 40 桁にする
     - ちょうど 5 行の受領コメントは、本文の終わりに LF を付けない
     - 形に合わないものに、4 行の本文（5 行目がない）を加える
     - 形に合うものに、3 行目が決まった書き出しだけのものと、3 行目の後ろの文の途中に CR があるもの（設計書 1.2 の決定 9）を加える
     - 形に合わないものに、3 行目の決まった書き出しの前に文字があるものと、5 行目の SHA の位置に 16 進でない小文字だけの 7〜40 文字を置いたものを加える
-- [ ] `checkListings` に、`runpr.md` の step 3 の 3 つの一覧の読み取りが、どれも標準エラーをファイルに書き出す形であることを確かめる引数を足し、`TestRunprDocContract` からだけ使う（設計書 3.5 の「標準エラーの書き出し」）
-- [ ] 今の絞り込みのままでテストが落ちることを確かめる（`receipt` の項目が出ない、`no-result` にならない）。この確かめは実行して見るだけで、テストが落ちる状態ではコミットしない。ステップ 1-1 と 1-2 は 1 つのコミットにする
+- [x] `checkListings` に、`runpr.md` の step 3 の 3 つの一覧の読み取りが、どれも標準エラーをファイルに書き出す形であることを確かめる引数を足し、`TestRunprDocContract` からだけ使う（設計書 3.5 の「標準エラーの書き出し」）
+- [x] 今の絞り込みのままでテストが落ちることを確かめる（`receipt` の項目が出ない、`no-result` にならない）。この確かめは実行して見るだけで、テストが落ちる状態ではコミットしない。ステップ 1-1 と 1-2 は 1 つのコミットにする
 
 **完了の条件:** 足した偽のデータと比べ方が、設計書 3.5 の項目と上の項目をすべて含む。今の `runpr.md` の絞り込みでは `listings_print_no_body` が落ちる。
 
@@ -128,14 +128,14 @@
 
 **変えるファイル:** `.claude/commands/runpr.md`（step 3「Reading the PR」）
 
-- [ ] `def state` に、設計書 3.1 の `no-result <sha>` の分岐を足す。`status` が `completed` であることと、`has_any_findings` のメンバーがあることを `has` で確かめる
-- [ ] `<awaited-reviewer>[bot]` の分岐の中で、`summary` と `codex` の間に `receipt` の分岐を足す。出すのは `{kind: "receipt", url, created_at, updated_at, form_ok, short_sha}` の 1 つのオブジェクトである。形の判定は設計書 3.1 の 4 つの条件のとおりにし、文字列か `null` のどんな本文にも誤りを出さない形にする
-- [ ] 3 行目の決まった書き出しのアポストロフィは `([39] | implode)` で作る。絞り込みには、U+0027 のバイトも、`u0027` のようなバックスラッシュで始まる Unicode のエスケープも、正規表現の `x27` のエスケープも置かない（設計書 1.2 の決定 4）。今の絞り込みにある `\n` や `\\s` のエスケープは、そのままにする
-- [ ] 定義の段落に、`no-result <sha>`、`receipt`、`form_ok`、`short_sha` の定義、6 行目から後は読まず大きさの上限を設けないこと、形に合わない受領コメントの例を足す（設計書 3.1 の「`runpr.md` の文」）
-- [ ] 3 つの一覧の読み取りのコマンドを、標準エラーを実行の初めに `mktemp -d` で作ったディレクトリの中のファイルに書き出す形にする（設計書 1.2 の決定 10、3.2）
-- [ ] `:413-414` の本文を出さない文を、受領コメントの 1〜5 行目を絞り込みの中で判定し、判定の結果だけを出すことを含めて書き直す
-- [ ] `go test -tags test -run TestRunprDocContract ./cmd/yt2column` を通す
-- [ ] 次の壊し方を 1 つずつ絞り込みに加えて、テストが落ちることを確かめる。どの壊し方でどの項目がどの理由で落ちたかを、このステップのコミットのメッセージに書く。落ちない壊し方があれば、その壊し方が通る経路の偽のデータを足す
+- [x] `def state` に、設計書 3.1 の `no-result <sha>` の分岐を足す。`status` が `completed` であることと、`has_any_findings` のメンバーがあることを `has` で確かめる
+- [x] `<awaited-reviewer>[bot]` の分岐の中で、`summary` と `codex` の間に `receipt` の分岐を足す。出すのは `{kind: "receipt", url, created_at, updated_at, form_ok, short_sha}` の 1 つのオブジェクトである。形の判定は設計書 3.1 の 4 つの条件のとおりにし、文字列か `null` のどんな本文にも誤りを出さない形にする
+- [x] 3 行目の決まった書き出しのアポストロフィは `([39] | implode)` で作る。絞り込みには、U+0027 のバイトも、`u0027` のようなバックスラッシュで始まる Unicode のエスケープも、正規表現の `x27` のエスケープも置かない（設計書 1.2 の決定 4）。今の絞り込みにある `\n` や `\\s` のエスケープは、そのままにする
+- [x] 定義の段落に、`no-result <sha>`、`receipt`、`form_ok`、`short_sha` の定義、6 行目から後は読まず大きさの上限を設けないこと、形に合わない受領コメントの例を足す（設計書 3.1 の「`runpr.md` の文」）
+- [x] 3 つの一覧の読み取りのコマンドを、標準エラーを実行の初めに `mktemp -d` で作ったディレクトリの中のファイルに書き出す形にする（設計書 1.2 の決定 10、3.2）
+- [x] `:413-414` の本文を出さない文を、受領コメントの 1〜5 行目を絞り込みの中で判定し、判定の結果だけを出すことを含めて書き直す
+- [x] `go test -tags test -run TestRunprDocContract ./cmd/yt2column` を通す
+- [x] 次の壊し方を 1 つずつ絞り込みに加えて、テストが落ちることを確かめる。どの壊し方でどの項目がどの理由で落ちたかを、このステップのコミットのメッセージに書く。落ちない壊し方があれば、その壊し方が通る経路の偽のデータを足す
     - 設計書 7.2 の 11 項目
     - `no-result` の分岐で `status` の確かめを外す
     - `receipt` の分岐を、著者を確かめる分岐の外（その前）に移し、`summary` の分岐はそのままにする。落ちた項目が、受領コメントの 1 行目を持つ著者の違うコメントであることを確かめる（設計書 7.3 の T2）
@@ -149,13 +149,13 @@
 
 **変えるファイル:** `docs/tasks/0108_codex_null_findings_receipt/03_implementation_plan.md`（7.2 の記録）
 
-- [ ] 利用者の許可を得て、ステップ 1-2 の一覧の読み取りのコマンドを、プレースホルダを実際の値に置き換えて PR #998 に実行する。受領コメント 2 件の項目、終了コード、標準エラーのファイルのバイト数を 7.2 に記録する（1.3 の決定 4 (i)）
-- [ ] 利用者の許可を得て、`--paginate` を付けずに `per_page` と `page=2` を付けた読み取りで、2 ページ目の 1 件の `.id` を選ぶ
-- [ ] 利用者の許可を得て、ステップ 1-2 の一覧の読み取りのコマンドを、同じ `per_page` を付けて実行し、出力の件数を記録する
-- [ ] 利用者の許可を得て、選んだ 1 件で決まった文の `error` を出すように一時的に変えた絞り込みを、同じ `per_page` を付けて `--paginate` で実行する。出力の件数、1 ページ目の出力が残ったか、終了コード、標準エラーのファイルのバイト数と仕込んだ文の数を 7.2 に記録する（1.3 の決定 4 (ii)）。一時的に変えた絞り込みはコミットしない
-- [ ] ガードテストの偽の応答をループバックの HTTP サーバから返し、同じ絞り込みを `gh api` で実行して、出力が jq の出力と同じであることを確かめ、7.2 に記録する（1.3 の決定 4 (iii)）
-- [ ] どの実行でも、標準エラーはファイルに書き出し、セッションではバイト数と仕込んだ文の数だけを見る。7.2 に標準エラーの中身を写さない
-- [ ] 結果を設計書 1.2 の決定 10 の前提（途中の失敗で、前のページの出力が残り、終了コードが 0 以外になるか標準エラーに何か出る）と比べる。違ったときは、ステップ 1-4 に進まず、設計の変更として利用者に確かめる。(iii) で jq と gojq の出力が違ったときは、ステップ 1-2 の絞り込みを直す
+- [x] 利用者の許可を得て、ステップ 1-2 の一覧の読み取りのコマンドを、プレースホルダを実際の値に置き換えて PR #998 に実行する。受領コメント 2 件の項目、終了コード、標準エラーのファイルのバイト数を 7.2 に記録する（1.3 の決定 4 (i)）
+- [x] 利用者の許可を得て、`--paginate` を付けずに `per_page` と `page=2` を付けた読み取りで、2 ページ目の 1 件の `.id` を選ぶ
+- [x] 利用者の許可を得て、ステップ 1-2 の一覧の読み取りのコマンドを、同じ `per_page` を付けて実行し、出力の件数を記録する
+- [x] 利用者の許可を得て、選んだ 1 件で決まった文の `error` を出すように一時的に変えた絞り込みを、同じ `per_page` を付けて `--paginate` で実行する。出力の件数、1 ページ目の出力が残ったか、終了コード、標準エラーのファイルのバイト数と仕込んだ文の数を 7.2 に記録する（1.3 の決定 4 (ii)）。一時的に変えた絞り込みはコミットしない
+- [x] ガードテストの偽の応答をループバックの HTTP サーバから返し、同じ絞り込みを `gh api` で実行して、出力が jq の出力と同じであることを確かめ、7.2 に記録する（1.3 の決定 4 (iii)）
+- [x] どの実行でも、標準エラーはファイルに書き出し、セッションではバイト数と仕込んだ文の数だけを見る。7.2 に標準エラーの中身を写さない
+- [x] 結果を設計書 1.2 の決定 10 の前提（途中の失敗で、前のページの出力が残り、終了コードが 0 以外になるか標準エラーに何か出る）と比べる。違ったときは、ステップ 1-4 に進まず、設計の変更として利用者に確かめる。(iii) で jq と gojq の出力が違ったときは、ステップ 1-2 の絞り込みを直す
 
 **完了の条件:** 7.2 に (i)〜(iii) の結果が記録され、(i) で受領コメント 2 件が形に合い、本文の文字列が出ていない。(iii) で jq と gojq の出力が同じである。設計書の前提と違う点がないか、あれば利用者が答えている。
 
@@ -163,23 +163,23 @@
 
 **変えるファイル:** `.claude/commands/runpr.md`（step 3）
 
-- [ ] 「State of the latest request」の規則を設計書 3.2 の表のとおりにする。規則 3 を足し、今の規則 3〜6 を 4〜7 に繰り下げ、規則 4 に形に合わない `receipt` を足す。規則 3 の中の 3a〜3e を書き、「数える項目」を定義する
-- [ ] 「None of these is an unexpected post」の一覧とは別の文で、`form_ok` が真の `receipt` は想定外の投稿でなく、規則 3 の中でだけ数えることを書く（設計書 3.2）
-- [ ] `short_sha` と `<sha>` の前方一致を、2 つの値を文字のまま書いた 1 つのコマンドの `case` で確かめ、同じコマンドで `short_sha` の形も確かめると書く（1.3 の決定 5）
-- [ ] 一覧を読めなかったときの扱いを書く（設計書 3.2、1.2 の決定 10）。書くのは次の 4 つである
+- [x] 「State of the latest request」の規則を設計書 3.2 の表のとおりにする。規則 3 を足し、今の規則 3〜6 を 4〜7 に繰り下げ、規則 4 に形に合わない `receipt` を足す。規則 3 の中の 3a〜3e を書き、「数える項目」を定義する
+- [x] 「None of these is an unexpected post」の一覧とは別の文で、`form_ok` が真の `receipt` は想定外の投稿でなく、規則 3 では数える項目になり、自動の依頼を規則 6 に当てないことを書く（設計書 3.2）
+- [x] `short_sha` と `<sha>` の前方一致を、2 つの値を文字のまま書いた 1 つのコマンドの `case` で確かめ、同じコマンドで `short_sha` の形も確かめると書く（1.3 の決定 5）
+- [x] 一覧を読めなかったときの扱いを書く（設計書 3.2、1.2 の決定 10）。書くのは次の 4 つである
     - 読めなかったポーリングの出力を捨て、次のポーリングで読み直す
     - 約 15 分続けて読めなければ止まる
     - 止まるときの報告の中身
     - 再実行では依頼しない
-- [ ] 新しい項目「Confirming a completion without a result」を置き、次のことを書く（設計書 3.3）
+- [x] 新しい項目「Confirming a completion without a result」を置き、次のことを書く（設計書 3.3）
     - 承認の組と承認の記録
     - 問い（1.3 の決定 6 の文と選択肢）
     - 答えの当てはめと直前の読み直し
     - 見直しと、承認の後の見直し
     - 実行の中だけで持つこと
-- [ ] 「Requesting the review」の「On arriving at this step」「Never post while ...」に確認待ちを足す。「Stops」の indeterminate の報告に、規則 3 で止まったときの値を足す（設計書 3.2）
-- [ ] LAST_REVIEWED の定義に、承認の記録のすべての `commit_sha` を「その実行で見た完了の印」に含めると書き足す（設計書 3.4）
-- [ ] `:626` の "rule 1" が、繰り下げの後も規則 1（Indeterminate）を指していることを確かめる
+- [x] 「Requesting the review」の「On arriving at this step」「Never post while ...」に確認待ちを足す。「Stops」の indeterminate の報告に、規則 3 で止まったときの値を足す（設計書 3.2）
+- [x] LAST_REVIEWED の定義に、承認の記録のすべての `commit_sha` を「その実行で見た完了の印」に含めると書き足す（設計書 3.4）
+- [x] `:626` の "rule 1" が、繰り下げの後も規則 1（Indeterminate）を指していることを確かめる
 
 **完了の条件:** step 3 の文が、AC-01〜AC-04、AC-09〜AC-17 の内容を述べる。`TestRunprDocContract` が通る。
 
@@ -187,13 +187,13 @@
 
 **変えるファイル:** `.claude/commands/runpr.md`（step 3 の止まるときの報告、step 4、step 5）
 
-- [ ] step 4 の問いの前（`:786-790` の読み直しの所）とマージに渡す直前に、最新の依頼の状態を判定し直すと書く（設計書 3.3 の「承認の後の見直し」）。判定し直すのは、その回の step 4 に入ったときの Completed が承認によるもの（規則 3 の 3c）だったときだけである。次のどちらかなら、問いもマージもせずに step 3 に戻る（設計書 1.2 の決定 11）
+- [x] step 4 の問いの前（`:786-790` の読み直しの所）とマージに渡す直前に、最新の依頼の状態を判定し直すと書く（設計書 3.3 の「承認の後の見直し」）。判定し直すのは、その回の step 4 に入ったときの Completed が承認によるもの（規則 3 の 3c）だったときだけである。次のどちらかなら、問いもマージもせずに step 3 に戻る（設計書 1.2 の決定 11）
     - 承認の組が変わっていた
     - 最新の依頼が承認による Completed でなくなっていた（規則 2 の Completed に置き換わった場合を含む）
-- [ ] step 4 の問いの前とマージの前の一覧の読み取りで、一覧を読めなかったときは、問わず、マージせずに止まると書く。どの規則の Completed で step 4 に入ったかによらない（設計書 1.2 の決定 10）
-- [ ] マージの質問の詳細ファイルに、承認の記録の組ごとの 3 つの値を書くと定める（設計書 3.4）
-- [ ] 要約の 4 行目の決まりに、承認の記録がある実行では 1.3 の決定 6 の文を足すと書き、例の行を足す。最も長い形（Escalation の決定の値のうち最も長いものを使った形）の表示幅を数え、その値をこのステップのコミットのメッセージに書く。80 桁を超えるときは、文を短くして利用者に確かめる
-- [ ] step 5 の最後の報告と、承認の後に止まるときの報告に、承認の記録の `commit_sha` と受領コメントの URL を示すと書く。止まるときの報告には、step 3 の `fixpr` の停止と CI の失敗、step 4 の停止を含む。その行は `NEXT` で始めない（設計書 3.4）
+- [x] step 4 の問いの前とマージの前の一覧の読み取りで、一覧を読めなかったときは、問わず、マージせずに止まると書く。どの規則の Completed で step 4 に入ったかによらない（設計書 1.2 の決定 10）
+- [x] マージの質問の詳細ファイルに、承認の記録の組ごとの 3 つの値を書くと定める（設計書 3.4）
+- [x] 要約の 4 行目の決まりに、承認の記録がある実行では 1.3 の決定 6 の文を足すと書き、例の行を足す。最も長い形（Escalation の決定の値のうち最も長いものを使った形）の表示幅を数え、その値をこのステップのコミットのメッセージに書く。80 桁を超えるときは、文を短くして利用者に確かめる
+- [x] step 5 の最後の報告と、承認の後に止まるときの報告に、承認の記録の `commit_sha` と受領コメントの URL を示すと書く。止まるときの報告には、step 3 の `fixpr` の停止と CI の失敗、step 4 の停止を含む。その行は `NEXT` で始めない（設計書 3.4）
 
 **完了の条件:** step 3〜5 の文が、AC-13 の step 4 の部分と AC-18 の内容を述べる。
 
@@ -201,11 +201,11 @@
 
 **変えるファイル:** `docs/dev/adr/0013-review-setup.md`、本計画
 
-- [ ] `git grep -nE 'issues/1005([^0-9]|$)' origin/main -- docs/dev/adr/` で、消す記述を探す（`docs/dev/conventions/adr.md` の「Discrepancy statements」）
-- [ ] ADR-0013 の「決定」から、`:92` の食い違いの記述を消す（AC-22）。そのコミットのメッセージに、編集上の訂正の行を書く。実装で ADR の決定と違うことにしたときは、同じ PR で「決定」を直す（AC-23）
-- [ ] `go test -tags test -run TestADRRecords ./cmd/yt2column` を通す
-- [ ] `make fmt`、`make test`、`make lint` を通す
-- [ ] 7 章の AC-22・AC-23 の diff の記録を書く
+- [x] `git grep -nE 'issues/1005([^0-9]|$)' origin/main -- docs/dev/adr/` で、消す記述を探す（`docs/dev/conventions/adr.md` の「Discrepancy statements」）
+- [x] ADR-0013 の「決定」から、`:92` の食い違いの記述を消す（AC-22）。そのコミットのメッセージに、編集上の訂正の行を書く。実装で ADR の決定と違うことにしたときは、同じ PR で「決定」を直す（AC-23）
+- [x] `go test -tags test -run TestADRRecords ./cmd/yt2column` を通す
+- [x] `make fmt`、`make test`、`make lint` を通す
+- [x] 7 章の AC-22・AC-23 の diff の記録を書く
 
 **完了の条件:** `make fmt`・`make test`・`make lint` が通り、diff の記録がある。
 
@@ -262,9 +262,9 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1（ステップ 1-1〜1-6）
-- [ ] PR を作成した
-- [ ] PR がマージされた
+- [x] フェーズ 1（ステップ 1-1〜1-6）
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1040
+- [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -279,7 +279,7 @@
 | AC-03 | `test` | `listings_print_no_body`：形に合う受領コメントが `codex` でなく `receipt` で `form_ok` が真になり、1 行目の終わりに CR があるコメントは `codex` になる |
 | AC-03 | `manual` | 規則 4 と、形に合う `receipt` を想定外の投稿に数えない文を読む |
 | AC-04 | `test` | `listings_print_no_body`：今の要約コメントの項目が期待する状態を変えずに通り、`running` で `has_any_findings` が `null` の要約コメントが `running <sha>` になる |
-| AC-04 | `manual` | 規則 1・2・5〜7 が今の規則 1・2・4〜6 と同じことを述べるのを読む |
+| AC-04 | `manual` | 規則 1・2・5・7 が今の規則 1・2・4・6 と同じことを述べ、規則 6 が今の規則 5 に、依頼の後に形に合う `receipt` がないこと（AC-03 の例外）だけを足したものであることを読む |
 | AC-05 | `test` | `listings_print_no_body`：著者が違うコメント（`Bot` でないもの、名前が違うもの）と 1 行目が違うものが `receipt` にならない |
 | AC-05 | `manual` | 定義の段落が受領コメントの定義を述べることを読む |
 | AC-06 | `test` | `listings_print_no_body`：形に合うもの（7 桁と 40 桁の SHA、ちょうど 5 行、書き出しだけの 3 行目、3 行目の途中の CR）と、形に合わないもの（設計書 3.5 の項目と 4 行の本文）の `form_ok` |
@@ -310,14 +310,72 @@ AC-22 と AC-23 は、記録した diff を読む方法で確かめる。ADR-001
 Diff record (AC-22):
 
 - Compared paths: `docs/dev/adr/0013-review-setup.md`
+- Merge-base: `8fe6d52051c5757ab5590a09534b1610ee73014a`
+- Compared commit: `c5c644a17650c40fc0441582d0bc8ae671900a6c`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/adr/0013-review-setup.md b/docs/dev/adr/0013-review-setup.md
+index bdaa179c63447a640971d39cd7017bb70bd6d1ea..699694bd18a368414abdd52d24edc5f6a83fa110 100644
+--- a/docs/dev/adr/0013-review-setup.md
++++ b/docs/dev/adr/0013-review-setup.md
+@@ -89,7 +89,6 @@ PR レビューは、PR を開いたときに 1 回だけ Codex に頼み、そ
+     -   記録: 永続的には記録せず、その実行の報告と step 4 のマージの質問に示すだけにする。再実行では、もう一度利用者に尋ねる。
+     -   理由: 受領コメントがレビューしたコミットを示しているので、含めないと PR レビューの依頼を余分に勧めて割り当てを使うため。承認が効かなくなる条件を広く取るのは、承認の根拠が後のコメントで崩れうるので、止まる側に倒すため。記録を足さないのは、要約コメントと受領コメントが GitHub に残り、マージは利用者がマージの質問に答えて決めるため。
+     -   正本: [.claude/commands/runpr.md](../../../.claude/commands/runpr.md) の step 3、[0108 要件定義書](../../tasks/0108_codex_null_findings_receipt/01_requirements.md) の F-005。
+--   食い違い: `runpr.md` の step 3 は、まだ結果のない完了で受領コメントを確かめずに止まり、要約コメントの完了より先に届いた受領コメントを想定外の投稿に数える。この ADR の決定に合っていない（[#1005](https://github.com/isseis/yt2column/issues/1005)）。
+ -   信頼する自動レビュアーの一覧と、完了を待つ PR レビュアーは別の値にする。
+     -   内容: 一覧は [.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Automated reviewer list」に 1 か所だけ置き、各名前は GraphQL の `author.login` の形（`[bot]` を付けない）で持つ。完了を待つレビュアーは「Awaited PR reviewer」の行が決め、REST の `user.login` の形はその名前に `[bot]` を付けて作る。一覧は「誰のスレッドを処理するか」（[ADR-0015](0015-untrusted-review-threads.md)）を決め、完了を待つレビュアーは「何をもってレビュー済みとするか」を決める。
+     -   理由: 名前を一覧にすると、どの名前に `[bot]` を付けるかが決まらなくなるため。
+````
 
 Diff record (AC-23):
 
 - Compared paths: `docs/dev/adr/0013-review-setup.md`
+- Merge-base: `8fe6d52051c5757ab5590a09534b1610ee73014a`
+- Compared commit: `e9663eb08992ac510893f8348c0c333768d31a56`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/adr/0013-review-setup.md b/docs/dev/adr/0013-review-setup.md
+index bdaa179c63447a640971d39cd7017bb70bd6d1ea..699694bd18a368414abdd52d24edc5f6a83fa110 100644
+--- a/docs/dev/adr/0013-review-setup.md
++++ b/docs/dev/adr/0013-review-setup.md
+@@ -89,7 +89,6 @@ PR レビューは、PR を開いたときに 1 回だけ Codex に頼み、そ
+     -   記録: 永続的には記録せず、その実行の報告と step 4 のマージの質問に示すだけにする。再実行では、もう一度利用者に尋ねる。
+     -   理由: 受領コメントがレビューしたコミットを示しているので、含めないと PR レビューの依頼を余分に勧めて割り当てを使うため。承認が効かなくなる条件を広く取るのは、承認の根拠が後のコメントで崩れうるので、止まる側に倒すため。記録を足さないのは、要約コメントと受領コメントが GitHub に残り、マージは利用者がマージの質問に答えて決めるため。
+     -   正本: [.claude/commands/runpr.md](../../../.claude/commands/runpr.md) の step 3、[0108 要件定義書](../../tasks/0108_codex_null_findings_receipt/01_requirements.md) の F-005。
+--   食い違い: `runpr.md` の step 3 は、まだ結果のない完了で受領コメントを確かめずに止まり、要約コメントの完了より先に届いた受領コメントを想定外の投稿に数える。この ADR の決定に合っていない（[#1005](https://github.com/isseis/yt2column/issues/1005)）。
+ -   信頼する自動レビュアーの一覧と、完了を待つ PR レビュアーは別の値にする。
+     -   内容: 一覧は [.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Automated reviewer list」に 1 か所だけ置き、各名前は GraphQL の `author.login` の形（`[bot]` を付けない）で持つ。完了を待つレビュアーは「Awaited PR reviewer」の行が決め、REST の `user.login` の形はその名前に `[bot]` を付けて作る。一覧は「誰のスレッドを処理するか」（[ADR-0015](0015-untrusted-review-threads.md)）を決め、完了を待つレビュアーは「何をもってレビュー済みとするか」を決める。
+     -   理由: 名前を一覧にすると、どの名前に `[bot]` を付けるかが決まらなくなるため。
+````
+
+File list (only for an AC that limits which files change):
+
+````text
+.claude/commands/runpr.md
+cmd/yt2column/fixpr_docs_test.go
+docs/dev/adr/0013-review-setup.md
+docs/tasks/0108_codex_null_findings_receipt/01_requirements.md
+docs/tasks/0108_codex_null_findings_receipt/02_architecture.md
+docs/tasks/0108_codex_null_findings_receipt/03_implementation_plan.md
+````
 
 ### 7.2 gojq での確かめの記録
 
-ステップ 1-3 で書く。
+2026-11-19 に、コミット `08c4cea5` の `runpr.md` の絞り込みで、`gh` 2.96.0（gojq）を使って確かめた。プレースホルダは、`<awaited-reviewer>` を `chatgpt-codex-connector`、`<user-login>` を `isseis`、`<review-request>` を `@codex review`、`<review-mention>` を `@codex` に置き換えた。標準エラーは `mktemp -d` で作ったディレクトリの中のファイルに書き出し、セッションではバイト数と仕込んだ文の数だけを見た。
+
+-   **(i) PR #998 の会話のコメント。** 終了コードは 0、標準エラーのファイルは 0 バイトだった。出力は 5 件（`summary` 1 件、`request` 2 件、`receipt` 2 件）で、本文の文字列（結果の行と 5 行目の文字列）は出なかった。`receipt` の 2 件は次のとおりである。
+    -   `#issuecomment-6980619384`：`form_ok` は真、`short_sha` は `9130d9c2cc`
+    -   `#issuecomment-6996903008`：`form_ok` は真、`short_sha` は `9c73a8180b`
+-   **(ii) `--paginate` の途中の失敗。** `per_page=5` と `page=2` を付け、`--paginate` を付けない読み取り（`.id` だけを出す）で、2 ページ目の最初の 1 件として `6996903008` を選んだ（終了コード 0、標準エラー 0 バイト）。
+    -   変えない絞り込みを `per_page=5` を付けて `--paginate` で実行した。終了コードは 0、標準エラーは 0 バイト、出力は 5 件で、5 件目が `#issuecomment-6996903008` の `receipt` だった。
+    -   `.id` が `6996903008` のときに決まった文の `error` を出す分岐を、本文を読む前に置いた絞り込みを、同じ `per_page=5` で `--paginate` で実行した。終了コードは 1、標準エラーのファイルは 24 バイトで、仕込んだ文が 1 つあった。出力は 4 件で、変えない絞り込みの出力の 1〜4 件目（1 ページ目の分）と同じだった。
+    -   前のページの出力が残り、終了コードが 0 以外になり、標準エラーに書かれた。設計書 1.2 の決定 10 の前提と同じである。
+-   **(iii) ガードテストの偽の応答。** `TestRunprDocContract` の `issues/<number>/comments` の偽の応答（54 件。うち 5 件は何も出さない）と、テストと同じ値に置き換えた絞り込みを、作業ツリーに置いた一時的なテストのファイルで書き出した（コミットしていない）。ループバックの Python の `http.server`（作業ツリーの外の一時ディレクトリ）から返し、`HTTP_PROXY` を付けた `gh api --hostname github.localhost --paginate` で実行した。終了コードは 0、標準エラーは 0 バイトで、出力の 49 件は、jq 1.7.1 の出力と、鍵の並び（gojq は鍵を名前の順に出す）を除いて同じだった（`jq -S -c` で並びをそろえて `diff` が空）。`no-result` の状態、形に合う受領コメント 4 件と形に合わない受領コメント 17 件の `form_ok`・`short_sha` も同じで、`bodyMarker` は出なかった。
 
 ## 8. 成功の基準 (Success Criteria)
 

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -185,7 +186,7 @@ func TestRunprDocContract(t *testing.T) {
 	})
 
 	t.Run("listings_print_no_body", func(t *testing.T) {
-		checkListings(t, "runpr.md step 3", step3, runprListingFixtures(), step3ReadCalls)
+		checkListings(t, "runpr.md step 3", step3, runprListingFixtures(), step3ReadCalls, true)
 	})
 }
 
@@ -194,7 +195,7 @@ func TestRunprDocContract(t *testing.T) {
 // no comment body, as runpr.md step 3's listings do (see checkListings).
 func TestHandoffListingPrintsNoBody(t *testing.T) {
 	step5 := itemSection("5. Make sure Codex starts reviewing the PR.", "\n6. ")(t, doctestutil.ReadDoc(t, handoffPath))
-	checkListings(t, "_lib/task-pr-handoff.md Part B step 5", step5, handoffListingFixtures(), handoffReadCalls)
+	checkListings(t, "_lib/task-pr-handoff.md Part B step 5", step5, handoffListingFixtures(), handoffReadCalls, false)
 }
 
 // The values the listing filters' placeholders are replaced with before the
@@ -213,8 +214,14 @@ const bodyMarker = "zq7mark"
 
 var (
 	// paginatedListing is a gh api --paginate listing: the endpoint under
-	// repos/<owner>/<repo>/ and the --jq filter, which holds no single quote.
-	paginatedListing = regexp.MustCompile(`gh api --paginate repos/<owner>/<repo>/(\S+) --jq '([^']*)'`)
+	// repos/<owner>/<repo>/, the --jq filter, which holds no single quote,
+	// and the rest of the line the filter ends on.
+	paginatedListing = regexp.MustCompile(`gh api --paginate repos/<owner>/<repo>/(\S+) --jq '([^']*)'(.*)`)
+	// stderrToFile is the rest of a listing's line when it writes its
+	// standard error to a file in the directory the run made for it, and
+	// nothing else, so an error message quoting a body never reaches the
+	// session. The file's name is the submatch.
+	stderrToFile = regexp.MustCompile(`^ 2>"<stderr-dir>/([a-z-]+)"$`)
 	// leftPlaceholder is a placeholder the replacement did not cover.
 	leftPlaceholder = regexp.MustCompile(`<[a-z][a-z-]*>`)
 )
@@ -230,13 +237,45 @@ var runprListingKeys = map[string][]string{
 	"mention": {"kind", "url", "created_at", "updated_at", "by_user", "by_bot"},
 }
 
+// receiptKeys are the keys a receipt other than its kind must hold. runpr.md
+// tells a receipt posted after the request by created_at, binds an approval
+// to updated_at, and judges the form by form_ok and short_sha, so a filter
+// that leaves one out fails. Neither form_ok nor short_sha copies the body:
+// form_ok is computed from the receipt's first five lines, and short_sha is
+// taken from its fifth line only after the whole line matched the accepted
+// form, which leaves nothing in it but lowercase hexadecimal digits.
+var receiptKeys = []string{"url", "created_at", "updated_at", "form_ok", "short_sha"}
+
+// runprCommentKeys are the keys of the conversation-comment listing, the only
+// listing that may print a receipt: runprListingKeys and the receipt's keys.
+// The other two listings take runprListingKeys, so a receipt they printed
+// would fail.
+var runprCommentKeys = func() map[string][]string {
+	keys := maps.Clone(runprListingKeys)
+	keys["receipt"] = append([]string{"kind"}, receiptKeys...)
+	return keys
+}()
+
 // mentionAuthorKeys are the keys a mention must hold: runpr.md decides
 // whether to stop by them, so a filter that leaves one out fails.
 var mentionAuthorKeys = []string{"by_user", "by_bot"}
 
 // runprRequiredKeys are the keys each kind of object runpr.md step 3's
-// listings must hold.
-var runprRequiredKeys = map[string][]string{"mention": mentionAuthorKeys}
+// listings must hold. A summary must hold its state and time, which runpr.md
+// judges the request by, so a filter that leaves one out fails instead of
+// leaving the summary rows unchecked.
+var runprRequiredKeys = map[string][]string{
+	"mention": mentionAuthorKeys,
+	"summary": {"url", "updated_at", "state"},
+}
+
+// runprCommentRequiredKeys are runprRequiredKeys with the receipt's keys, for
+// the conversation-comment listing alone.
+var runprCommentRequiredKeys = func() map[string][]string {
+	keys := maps.Clone(runprRequiredKeys)
+	keys["receipt"] = receiptKeys
+	return keys
+}()
 
 // mentionWriter is who wrote a mention, which by_user and by_bot must report:
 // notMention for an item that is no mention.
@@ -250,18 +289,22 @@ const (
 )
 
 // listingItem is one item of a fake GitHub response and what the filter must
-// print for it: kind is "" when it must print nothing, state is the summary
-// comment's expected state, and wrote is a mention's expected author.
+// print for it: kind is "" when it must print nothing, derived is the value
+// the filter derives from the body, and wrote is a mention's expected author.
+// For a summary, derived is its expected state; for a receipt, it is its
+// expected short_sha, or "" when the receipt must not match the accepted form
+// (form_ok false and short_sha null). Every other kind has derived "".
 type listingItem struct {
 	userType, login string
 	body            any
-	kind, state     string
+	kind, derived   string
 	wrote           mentionWriter
 }
 
 // listingFixture is the fake response for one listing: its items, the field
-// of an item each output key other than kind and state must equal, and the
-// keys each kind of output object may hold. An object without a kind key is
+// of an item each output key other than kind and the derived keys (state,
+// form_ok, short_sha) must equal, and the keys each kind of output object may
+// hold. An object without a kind key is
 // of kind kindless, when that is set. required lists the keys each kind of
 // object must hold, when a command decides by them.
 type listingFixture struct {
@@ -289,6 +332,23 @@ func summaryBody(stateLine string) string {
 	return "<!-- codex-pull-request-review-summary -->\n" + stateLine + "\n" + marked("Findings follow.")
 }
 
+// The fixed parts of a Codex receipt comment in the accepted form: its first
+// line and the start of its third line.
+const (
+	receiptFirstLine = "<!-- codex-review-receipt:v1 -->"
+	receiptNoIssues  = "Codex Review: Didn't find any major issues."
+)
+
+// reviewedCommit is a receipt's fifth line naming sha.
+func reviewedCommit(sha string) string { return "**Reviewed commit:** `" + sha + "`" }
+
+// receiptBody is a Codex receipt comment's body: the first line, an empty
+// second line, result as the third, an empty fourth, reviewed as the fifth,
+// and then the lines of rest. It ends without an LF unless rest ends with "".
+func receiptBody(result, reviewed string, rest ...string) string {
+	return strings.Join(append([]string{receiptFirstLine, "", result, "", reviewed}, rest...), "\n")
+}
+
 // stateLine is a well-formed state line around stateJSON.
 func stateLine(stateJSON string) string {
 	return "<!-- codex-review-state:v1 " + stateJSON + " -->"
@@ -300,6 +360,9 @@ func stateLine(stateJSON string) string {
 // bodies with and without the mention, null included.
 func runprListingFixtures() map[string]listingFixture {
 	sha := strings.Repeat("a1", 20)
+	// allHexSHA holds every hexadecimal digit, so a filter whose class of
+	// digits is narrower than [0-9a-f] fails on it.
+	const allHexSHA = "0123456789abcdef0123456789abcdef01234567"
 	reviewState := func(status string, rest string) string {
 		return `{"code_review":{"status":` + status + `,"commit_sha":"` + sha + `"` + rest + `},"note":"` + bodyMarker + `"}`
 	}
@@ -308,7 +371,7 @@ func runprListingFixtures() map[string]listingFixture {
 	awaited := fakeAwaited + "[bot]"
 	comments := map[string]string{"url": "html_url", "created_at": "created_at", "updated_at": "updated_at"}
 	return map[string]listingFixture{
-		"issues/<number>/comments": {source: comments, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
+		"issues/<number>/comments": {source: comments, keys: runprCommentKeys, required: runprCommentRequiredKeys, items: []listingItem{
 			{bot, awaited, summaryBody(stateLine(completed)), "summary", "completed " + sha, notMention},
 			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":false`))), "summary", "completed " + sha, notMention},
 			{bot, awaited, summaryBody(stateLine(reviewState(`"running"`, `,"note":"`+bodyMarker+`"`))), "summary", "running " + sha, notMention},
@@ -327,16 +390,59 @@ func runprListingFixtures() map[string]listingFixture {
 			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, ``))), "summary", "indeterminate", notMention},
 			// An unknown status, which the marker itself is.
 			{bot, awaited, summaryBody(stateLine(reviewState(`"`+bodyMarker+`"`, ``))), "summary", "indeterminate", notMention},
-			// Codex's other comments.
+			// A completion without a result: has_any_findings is there and
+			// null. Only a completed status makes one; a missing member stays
+			// indeterminate (above).
+			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":null`))), "summary", "no-result " + sha, notMention},
+			{bot, awaited, summaryBody(stateLine(reviewState(`"running"`, `,"has_any_findings":null`))), "summary", "running " + sha, notMention},
+			{bot, awaited, summaryBody(stateLine(reviewState(`"queued"`, `,"has_any_findings":null`))), "summary", "indeterminate", notMention},
+			// Receipts in the accepted form: a 7- and a 40-digit SHA, the text
+			// after the fixed start of the third line and the lines after
+			// the fifth marked, exactly five lines with no LF at the end, a
+			// third line that is the fixed start alone, and a CR inside the
+			// third line.
+			{bot, awaited, receiptBody(receiptNoIssues+" "+marked("Looking forward."), reviewedCommit(sha[:7]), marked("A sixth line."), ""), "receipt", sha[:7], notMention},
+			{bot, awaited, receiptBody(receiptNoIssues+" "+marked("Looking forward."), reviewedCommit(allHexSHA)), "receipt", allHexSHA, notMention},
+			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha[:10]), marked("More.")), "receipt", sha[:10], notMention},
+			{bot, awaited, receiptBody(receiptNoIssues+" "+marked("A")+"\r"+marked("B"), reviewedCommit(sha[:10])), "receipt", sha[:10], notMention},
+			// Receipts not in the accepted form: a CR at the end of each of
+			// the second to fifth lines, a second or fourth line that is not
+			// empty, another third line (an apostrophe U+2019 included, and
+			// text before the fixed start), a fifth line with an uppercase,
+			// 6-digit, 41-digit, or non-hexadecimal SHA or with text around
+			// it, and bodies of fewer than five lines.
+			{bot, awaited, strings.Join([]string{receiptFirstLine, "\r", receiptNoIssues, "", reviewedCommit(sha[:10])}, "\n"), "receipt", "", notMention},
+			{bot, awaited, receiptBody(receiptNoIssues+"\r", reviewedCommit(sha[:10])), "receipt", "", notMention},
+			{bot, awaited, strings.Join([]string{receiptFirstLine, "", receiptNoIssues, "\r", reviewedCommit(sha[:10])}, "\n"), "receipt", "", notMention},
+			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha[:10])+"\r", marked("More.")), "receipt", "", notMention},
+			{bot, awaited, strings.Join([]string{receiptFirstLine, marked("Second."), receiptNoIssues, "", reviewedCommit(sha[:10])}, "\n"), "receipt", "", notMention},
+			{bot, awaited, strings.Join([]string{receiptFirstLine, "", receiptNoIssues, marked("Fourth."), reviewedCommit(sha[:10])}, "\n"), "receipt", "", notMention},
+			{bot, awaited, receiptBody("Codex Review: "+marked("Found issues."), reviewedCommit(sha[:10])), "receipt", "", notMention},
+			{bot, awaited, receiptBody("Codex Review: Didn\u2019t find any major issues. "+marked("More."), reviewedCommit(sha[:10])), "receipt", "", notMention},
+			{bot, awaited, receiptBody(marked("Before.")+" "+receiptNoIssues, reviewedCommit(sha[:10])), "receipt", "", notMention},
+			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(strings.ToUpper(sha[:10]))), "receipt", "", notMention},
+			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha[:6])), "receipt", "", notMention},
+			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha+"a")), "receipt", "", notMention},
+			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(bodyMarker)), "receipt", "", notMention},
+			{bot, awaited, receiptBody(receiptNoIssues, bodyMarker+" "+reviewedCommit(sha[:10])), "receipt", "", notMention},
+			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha[:10])+" "+bodyMarker), "receipt", "", notMention},
+			{bot, awaited, strings.Join([]string{receiptFirstLine, "", receiptNoIssues + " " + marked("Short."), ""}, "\n"), "receipt", "", notMention},
+			{bot, awaited, receiptFirstLine, "receipt", "", notMention},
+			// Codex's other comments: a receipt's first line ended by a CR is
+			// no receipt.
 			{bot, awaited, marked("A note.") + "\n" + marked(fixprguard.CodexMention+" a second line."), "codex", "", notMention},
 			{bot, awaited, nil, "codex", "", notMention},
+			{bot, awaited, receiptFirstLine + "\r\n" + strings.TrimPrefix(receiptBody(receiptNoIssues, reviewedCommit(sha[:10])), receiptFirstLine+"\n"), "codex", "", notMention},
 			// The request, and the comments that are not one.
 			{user, fakeUser, "  " + fakeRequest + "\n", "request", "", notMention},
 			{user, fakeUser, marked(fakeRequest), "mention", "", byTheUser},
 			{user, "other-user", fakeRequest, "mention", "", byAPerson},
 			{bot, fakeUser, fakeRequest, "mention", "", byABot},
-			// The summary's author must be a Bot.
+			// The summary's and the receipt's author must be a Bot named
+			// like Codex.
 			{user, awaited, summaryBody(stateLine(completed)), "", "", notMention},
+			{user, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha[:10])), "", "", notMention},
+			{bot, "other-bot[bot]", receiptBody(receiptNoIssues, reviewedCommit(sha[:10])), "", "", notMention},
 			// A User named like Codex is a person, whose mention counts.
 			{user, awaited, marked(fixprguard.CodexMention + " from a User"), "mention", "", byAPerson},
 			{user, "other-user", marked(strings.ToUpper(fixprguard.CodexMention)+" please look") + "\n" + marked("Thanks."), "mention", "", byAPerson},
@@ -439,12 +545,15 @@ func (f listingFixture) response() []map[string]any {
 // names, with jq on its fake response from fixtures, and checks that it prints
 // no body: every object the filter builds holds only its kind's keys, no
 // output holds bodyMarker, and every printed value is the item's own non-body
-// field or, for state, the state the item's state line yields. Every other
-// gh api call of section must be one of readCalls. extra holds further
+// field or, for state, form_ok, and short_sha, the value the item's body
+// yields. Every other gh api call of section must be one of readCalls. When
+// stderrFile is set, each listing must write its standard error to a file of
+// its own (stderrToFile), so one listing's error is never overwritten by
+// another's before its size is read. extra holds further
 // placeholder and value pairs for the filters, beyond the four every listing
 // may use. jq must be installed: a missing jq fails the test instead of
 // skipping it, so the check never passes unrun.
-func checkListings(t *testing.T, where, section string, fixtures map[string]listingFixture, readCalls []string, extra ...string) {
+func checkListings(t *testing.T, where, section string, fixtures map[string]listingFixture, readCalls []string, stderrFile bool, extra ...string) {
 	t.Helper()
 	jq, err := exec.LookPath("jq")
 	if err != nil {
@@ -463,8 +572,18 @@ func checkListings(t *testing.T, where, section string, fixtures map[string]list
 		"<review-mention>", fixprguard.CodexMention,
 	}, extra...)...)
 	seen := map[string]struct{}{}
+	stderrFiles := map[string]string{}
 	for _, m := range matches {
 		endpoint, filter := m[1], replacer.Replace(m[2])
+		if stderrFile {
+			if file := stderrToFile.FindStringSubmatch(m[3]); file == nil {
+				t.Errorf("%s lists %s without writing its standard error to a file alone: the line ends %q", where, endpoint, m[3])
+			} else if other, dup := stderrFiles[file[1]]; dup {
+				t.Errorf("%s lists %s and %s with the same standard error file %q", where, other, endpoint, file[1])
+			} else {
+				stderrFiles[file[1]] = endpoint
+			}
+		}
 		fixture, ok := fixtures[endpoint]
 		if !ok {
 			t.Errorf("%s lists %s, which has no fake response", where, endpoint)
@@ -640,6 +759,15 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 	if strings.Contains(strings.ToLower(out), bodyMarker) {
 		t.Errorf("the filter printed a body or a part of one:\n%s", out)
 	}
+	for i, item := range fixture.items {
+		if (item.kind == "mention") != (item.wrote != notMention) {
+			t.Fatalf("item %d: kind %q with writer %d; a mention needs its writer, and only a mention has one", i, item.kind, item.wrote)
+		}
+		if item.kind == "summary" && item.derived == "" ||
+			item.derived != "" && item.kind != "summary" && item.kind != "receipt" {
+			t.Fatalf("item %d: kind %q with derived %q; a summary needs one, and only a summary or a receipt has one", i, item.kind, item.derived)
+		}
+	}
 	byURL := map[string]int{}
 	for i, obj := range response {
 		byURL[obj["html_url"].(string)] = i
@@ -664,9 +792,6 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 		if kind := fixture.kindOf(obj); kind != item.kind {
 			t.Errorf("item %d: printed kind %v, want %q", i, kind, item.kind)
 		}
-		if (item.kind == "mention") != (item.wrote != notMention) {
-			t.Fatalf("item %d: kind %q with writer %d; a mention needs its writer, and only a mention has one", i, item.kind, item.wrote)
-		}
 		for _, key := range fixture.required[item.kind] {
 			if _, ok := obj[key]; !ok {
 				t.Errorf("item %d: printed no %s", i, key)
@@ -678,8 +803,20 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 				t.Errorf("item %d: printed the key %q, which a %q may not hold", i, key, item.kind)
 			case key == "kind":
 			case key == "state":
-				if value != item.state {
-					t.Errorf("item %d: printed state %v, want %q", i, value, item.state)
+				if value != item.derived {
+					t.Errorf("item %d: printed state %v, want %q", i, value, item.derived)
+				}
+			case key == "form_ok":
+				if value != (item.derived != "") {
+					t.Errorf("item %d: printed form_ok %v, want %t", i, value, item.derived != "")
+				}
+			case key == "short_sha":
+				var want any
+				if item.derived != "" {
+					want = item.derived
+				}
+				if value != want {
+					t.Errorf("item %d: printed short_sha %v, want %v", i, value, want)
 				}
 			case key == "by_user":
 				if value != (item.wrote == byTheUser) {
