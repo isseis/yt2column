@@ -140,17 +140,17 @@
 - **AC-15**: 対象の文書の、chief の状況の表の意味での「進行の位置」「進行の位置の文書」「文書の段」「進み具合」と、その意味での「文書」（例：「行の文書（`Row.Position.Document`）」）が、F-001 の用語で書かれている。
 - **AC-16**: 対象の文書の差分は、AC-15 の語の置き換えと、それに伴う文の言い回しの調整に限られる。決定、受け入れ基準の求める振る舞い、表示する文字列（「要件」「設計」「計画」など）は変わらない。
 - **AC-17**: 対象の文書の Document Status（`Status`・`Review date`・`Reviewer`・`Comments`）と変更履歴は変わらない。実装の PR の説明とコミットのメッセージは、これを編集上の訂正として記す（`requirements_process.md`「Editing an approved document」と「Recording in the PR description」）。
-- **AC-18**: 実装の PR を作る時点で、0102 の実装が CLAUDE.md かガイドに「文書の段」（英語では、その語を訳した語）をすでに書いていれば、実装の PR は、その箇所も F-001 の用語（英語は用語集の訳語）に直す。
+- **AC-18**: 実装の PR を作る時点で、0102 の実装が CLAUDE.md・ガイド・`.claude/commands/chief.md` の文に「文書の段」（英語では、その語を訳した語）をすでに書いていれば、実装の PR は、その箇所も F-001 の用語（英語は用語集の訳語）に直す。`chief.md` の表の列の見出しと、出力の値と表示の対応の表は変えない（F-005）。
 
 #### F-005: 変えないもの
 
 **Acceptance Criteria**:
-- **AC-19**: 実装の PR の差分は、次のものに限られる。たとえば `.claude/commands/chief.md`、`internal/chief` の Go のファイル、`internal/chief/testdata/` のサンプル、0092・0093 のタスクの文書は変わらない。
+- **AC-19**: 実装の PR の差分は、次のものに限られる。たとえば `.claude/commands/chief.md` の表の列の見出しと値の対応の表、`internal/chief` の Go のファイル、`internal/chief/testdata/` のサンプル、0092・0093 のタスクの文書は変わらない。
     -   `docs/translation_glossary.md`（F-001）
     -   `docs/dev/guides/chief_guide.md`（F-002）
     -   `docs/dev/adr/0046-chief-of-staff.md`・`docs/dev/adr/0035-language-policy.md`・`internal/chief/testdata/README.md`（F-003）
     -   F-004 の対象の文書
-    -   AC-18 に当たる CLAUDE.md の箇所
+    -   AC-18 に当たる CLAUDE.md と `.claude/commands/chief.md` の箇所
     -   本タスクのディレクトリ（`docs/tasks/0110_chief_work_item_terms/`）
 - **AC-20**: chief の protocol 番号（`internal/chief/records.go:29` の `Protocol`）は変わらない。
 
