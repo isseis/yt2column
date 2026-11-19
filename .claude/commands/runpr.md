@@ -1029,8 +1029,7 @@ character as 2); the line shapes below are the examples to follow.
      `mergepr check-body --protocol 3 --state <state-file> --subject-file <subject-file> --body-file <body-file> --drop <drop>`.
      When it stops with a mismatch, rebuild that body and check it again;
      make no PRE_MERGE commit and no push before every version passes. When it
-     stops with `correction check: cannot read`, run the same `check-body`
-     once more, and when it stops again, run
+     stops with `correction check: cannot read`, do not rebuild: run
      `mergepr discard --protocol 3 --state <state-file>`, make no PRE_MERGE
      commit and no push, stop, and report the error.
    - **Drops of this run.** The drops (`mergepr.md` step 1, "Drops") are kept
@@ -1235,16 +1234,18 @@ character as 2); the line shapes below are the examples to follow.
        `mergepr paragraph --protocol 3 --state <state-file> --drop <drop>`),
        rebuild both versions of the body as `mergepr.md` step 2 does, run `check-body` on each, and ask this
        question again as a new round. A drop for a line already dropped
-       replaces the earlier one, so no line is passed two drops. Any other
-       text that names a `C` number, or a drop answer whose number is out of
-       that range, is no drop answer: it changes nothing, and asks this
-       question again as a new round. When `paragraph` stops, it wrote
-       nothing: run `mergepr discard --protocol 3 --state <state-file>`,
-       stop, and report what it printed.
-     - Any other free text revises the message: rewrite the subject and body
+       replaces the earlier one, so no line is passed two drops. When
+       `paragraph` stops, it wrote nothing: run
+       `mergepr discard --protocol 3 --state <state-file>`, stop, and report
+       what it printed.
+     - Any other free text revises the message, including text that names a
+       `C` number in another form (a request to remove a line, a drop mixed
+       with other changes, taking a drop back): rewrite the subject and body
        files (and the version without the approval line), applying
-       `mergepr.md` step 3 to any part that would change a correction line
-       (that part is not applied, and the next round's detail file says why),
+       `mergepr.md` step 3 to any part that would change the correction
+       block (a drop under case (1) or (2) whose case the text states, or
+       taking a drop back, is applied with `paragraph` as above; any other
+       part is not applied, and the next round's detail file says why),
        check the subject
        again as `mergepr.md` step 2 does, run `check-body` on each version of
        the body again, and ask this question again as a new
@@ -1455,8 +1456,10 @@ Once `mergepr.md` reports the merge:
   file of the approval message files when PRE_MERGE was none), and
   only then continue. When the merge's post-merge comparison already found
   a difference, this cleanup repeats it and ends with the same
-  `post-merge check:` error; it does not stop this step when the cleanup
-  also printed `base branch updated:  true` and no other error. When another worktree has the base branch checked out,
+  `post-merge check:` error. When the only error the merge (or a cleanup run
+  again) printed is the `post-merge check:` error, the cleanup finished and
+  the work directory is gone: do not run `cleanup` again, and go on with this
+  step. When another worktree has the base branch checked out,
   the cleanup leaves the local base branch stale; do not rely on it.
 - `git fetch origin main`. When NEXT is set, create the next branch from
   `origin/main`, naming it and linking it to the task's issue by

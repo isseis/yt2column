@@ -198,13 +198,12 @@ around it with your own shell commands. Work in order; do not skip a step.
    as they are. When it stops with a mismatch, each `missing:`, `extra:`, or
    other reason it printed shows what to fix: rebuild the body as above and
    run `check-body` again. When it stops with `correction check: cannot read`,
-   do not rebuild: run the same `check-body` once more, and when it stops
-   again, discard the preparation with
-   `mergepr discard --protocol 3 --state <state-file>`, report the error, and
-   stop. When `paragraph` stops, it wrote nothing: a drop that names no line
+   do not rebuild: report the error and stop; the preparation still holds.
+   When `paragraph` stops, it wrote nothing: a drop that names no line
    or a rejected line no `--drop-rejected` declares is a mistake in the drops
    of this run; fix them from what `prepare` printed and run `paragraph`
-   again, and report and stop when it cannot read the range. Never go on to
+   again. When it cannot read the range, report the error and stop, as for
+   `check-body`. Never go on to
    step 3 before `check-body` passes on the body you will show.
 3. **Ask for approval.** Show the user the PR URL, the base branch, the CI
    result, the full subject and body, and the record of which rule decided
@@ -289,9 +288,9 @@ around it with your own shell commands. Work in order; do not skip a step.
    commit or was given no body file. When they differ, or the merge commit
    cannot be read, the error starts with `post-merge check: `: the PR is
    merged, so do not discard anything or merge again. A cleanup run again
-   after such an error repeats the comparison and ends with the same error;
-   when it also printed `base branch updated:  true` and no other error, the
-   cleanup finished and the error does not block it. Report that the PR is
+   after such an error repeats the comparison and ends with the same error.
+   When the only error printed is the `post-merge check:` error, the cleanup
+   finished and the work directory is gone: do not run `cleanup` again. Report that the PR is
    merged, its merge commit, and each `post-merge check:` line, and stop; the
    merge cannot be undone, and how to record the difference is the user's
    choice.
