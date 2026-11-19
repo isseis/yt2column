@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。要件書・設計書・本計画を、以下「3 文書」と呼ぶ。本タスクに `design_handoff.md` と `implementation_handoff.md` はない。
@@ -160,3 +160,7 @@ Diff record (AC-13):
 
 -   次に日本語の文書を書くタスクで、`japrose` の太字の確認が働くことを観察する。
 -   既存の ADR を書式の規約に合わせる書き直しは、編集上の訂正として、#729 などで行える。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1020）

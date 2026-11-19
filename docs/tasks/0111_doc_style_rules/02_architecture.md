@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -161,3 +161,7 @@ N/A。`docs/dev/security.md` の条件のどれにも当たらない（[01_requi
 
 -   英語の文書にも書式の規則を当てるときは、規約の対象を広げる。
 -   構造化の規則を道具で確かめたくなったときは、`japrose` の Hard constraints との関係を決め直す。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1020）
