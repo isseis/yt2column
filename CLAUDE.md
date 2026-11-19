@@ -549,8 +549,9 @@ its security rules in `docs/dev/security.md` §8.
   needs each character's width, which only its content gives. Boundary: the
   result is used for the table's layout only, never to decide what is sent,
   a row's state or urgency, or the values of `rows`; a value is changed only
-  by the cap on its length, by dropping the spaces at a break or before a
-  cut, and by the ellipsis put where it is cut; and the split into display
+  by the cap on its length, by dropping the spaces at a break, before a cut,
+  and at the end of a line, and by the ellipsis put where it is cut; and the
+  split into display
   units is `Sanitize`'s own rule, so `sanitize.go`, which chooses a
   replacement per character as it did before, is not in this exception.
   Exception: `numreserve` chooses behavior by inspecting the content of the
@@ -965,15 +966,13 @@ Only the conventions a linter does not check are worth stating:
   document stages, the reasons no running command is decided, `＋指示`, the
   count (`件`) and `マージ確認` put before a question, and the line shown when
   there are no rows (`workspace なし`) — which reach the tool's output as the
-  text of the table; and in its test, `internal/chief/table_test.go`, those
-  words and the Japanese values the test lays a table out from. Reason: the
+  text of the table; and the same words in its test,
+  `internal/chief/table_test.go`. Reason: the
   table is a Japanese table for the human that the tool lays out, so its
   words can only live in the tool. Boundary: the tool's other output values,
   its error messages, the output of its other subcommands,
   `table_unreadable`, and the values from outside the table shows are not in
-  scope as words the tool prints (a test may still lay a table out from
-  Japanese values), and no other file holds a Japanese literal under it;
-  comments and
+  scope, and no other file holds a Japanese literal under it; comments and
   identifiers stay English. It is not an item of the guard-test literal
   exception: the words are the text the tool shows, not text that has to
   equal a document's.

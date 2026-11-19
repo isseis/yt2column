@@ -324,7 +324,7 @@ func TestTableShape(t *testing.T) {
 	})
 
 	rows := []Row{
-		{Label: "日本語の名前", Task: "0102", Urgency: UrgencyNow, Position: Position{Document: PositionDocPlanPR, PlanPR: 2, Progress: ProgressAwaitingReview}, PR: &OpenPR{Number: 1012, Title: "全角の題名"}},
+		{Label: "\u65e5\u672c\u8a9e\u306e\u540d\u524d", Task: "0102", Urgency: UrgencyNow, Position: Position{Document: PositionDocPlanPR, PlanPR: 2, Progress: ProgressAwaitingReview}, PR: &OpenPR{Number: 1012, Title: "\u5168\u89d2\u306e\u984c\u540d"}},
 		{Label: "ws", Urgency: UrgencyWait, Position: Position{Document: PositionDocNoTask, Progress: ProgressTaskDone}, PR: &OpenPR{Number: 7}},
 	}
 	lines, _ := layoutChecked(t, rows, tableSources{paneWidth: 100})
@@ -350,10 +350,10 @@ func TestTableShape(t *testing.T) {
 		column string
 		value  string
 	}{
-		{4, "name", "日本語の名前"},
+		{4, "name", "\u65e5\u672c\u8a9e\u306e\u540d\u524d"},
 		{4, "task", "0102"},
 		{4, "pr", "#1012"},
-		{4, "content", "全角の題名"},
+		{4, "content", "\u5168\u89d2\u306e\u984c\u540d"},
 		{5, "task", "PR-2"},
 		{7, "name", "ws"},
 		{7, "task", "-"},
@@ -390,8 +390,8 @@ func TestTableNameColumn(t *testing.T) {
 		{"short name widens to the header", "ab", "ab", 4},
 		{"20 columns kept", "abcdefghijklmnopqrst", "abcdefghijklmnopqrst", 20},
 		{"21 columns cut", "abcdefghijklmnopqrstu", "abcdefghijklmnopqrs\u2026", 20},
-		{"wide character before the ellipsis", "abcdefghijklmnopqr漢字", "abcdefghijklmnopqr\u2026", 19},
-		{"wide character across column 20", "abcdefghijklmnopqrs漢", "abcdefghijklmnopqrs\u2026", 20},
+		{"wide character before the ellipsis", "abcdefghijklmnopqr\u6f22\u5b57", "abcdefghijklmnopqr\u2026", 19},
+		{"wide character across column 20", "abcdefghijklmnopqrs\u6f22", "abcdefghijklmnopqrs\u2026", 20},
 		{"spaces before the cut dropped", "abcdefghijklmnopq   xyz", "abcdefghijklmnopq\u2026", 18},
 	}
 	for _, tt := range tests {
@@ -466,11 +466,11 @@ func TestTableWrap(t *testing.T) {
 		{"breaks at a space", "aaaa bbbb cccc dddd eeee", "aaaa bbbb cccc dddd", "eeee"},
 		{"keeps a word whole", "aaaaaaaaaaaaaaaaa bbbbbbbbbb", "aaaaaaaaaaaaaaaaa", "bbbbbbbbbb"},
 		{"breaks a word wider than a line", "x " + strings.Repeat("a", 30), "x " + strings.Repeat("a", 18), strings.Repeat("a", 12)},
-		{"breaks between a word and other characters", "abcdefghijklmnopq漢字", "abcdefghijklmnopq漢", "字"},
-		{"moves a wide character that does not fit", strings.Repeat("a", 19) + "漢", strings.Repeat("a", 19), "漢"},
+		{"breaks between a word and other characters", "abcdefghijklmnopq\u6f22\u5b57", "abcdefghijklmnopq\u6f22", "\u5b57"},
+		{"moves a wide character that does not fit", strings.Repeat("a", 19) + "\u6f22", strings.Repeat("a", 19), "\u6f22"},
 		{"drops the spaces at a break", strings.Repeat("a", 20) + "   bbb", strings.Repeat("a", 20), "bbb"},
 		{"keeps the leading spaces", "  abc  def", "  abc  def", ""},
-		{"keeps the leading spaces before a long word", "   " + strings.Repeat("a", 19), "   " + strings.Repeat("a", 17), "aa"},
+		{"breaks after leading spaces before a word that fits a line", "   " + strings.Repeat("a", 19), "", strings.Repeat("a", 19)},
 		{"a full-width space is not a space", strings.Repeat("a", 19) + "\u3000bb", strings.Repeat("a", 19), "\u3000bb"},
 		{"cuts the second line", "aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii", "aaaa bbbb cccc dddd", "eeee ffff gggg hhhh\u2026"},
 		{"drops spaces before the ellipsis", "aaaa bbbb cccc dddd eeee ffff gggg hhh iiii", "aaaa bbbb cccc dddd", "eeee ffff gggg hhh\u2026"},
@@ -546,9 +546,14 @@ func TestTableLargeValues(t *testing.T) {
 		t.Errorf("name not cut to 20 columns: %q", lines[4])
 	}
 
-	// cellOf applies the 16 KiB cap; TestCapHead covers the UTF-8 boundary.
-	if units := cellOf(strings.Repeat("a", tableValueMaxBytes-1) + "漢"); len(units) != tableValueMaxBytes-1 {
-		t.Errorf("cut at 16 KiB kept %d units, want %d", len(units), tableValueMaxBytes-1)
+	// cellOf applies the 16 KiB cap and shows the cut with an ellipsis, also
+	// when the head kept ends in spaces; TestCapHead covers the UTF-8 boundary.
+	if units := cellOf(strings.Repeat("a", tableValueMaxBytes-1) + "\u6f22"); len(units) != tableValueMaxBytes || units[len(units)-1] != ellipsisUnit {
+		t.Errorf("cut at 16 KiB kept %d units, want %d ending in the ellipsis", len(units), tableValueMaxBytes)
+	}
+	spaced := Row{Position: Position{Progress: ProgressAwaitingReview}, PR: &OpenPR{Number: 1, Title: "Merge?" + strings.Repeat("\n", 17000) + "tail"}}
+	if lines, _ := layoutChecked(t, []Row{spaced}, tableSources{}); !strings.HasSuffix(lines[4]+lines[5], "\u2026") {
+		t.Errorf("cut of a head ending in spaces does not show: %q", lines[4:])
 	}
 }
 
@@ -558,10 +563,10 @@ func TestTableGolden(t *testing.T) {
 	runpr := runningCommand(t, paneinput.CommandRunpr, "981")
 	rows := []Row{
 		{
-			Label: "日本語ws", Task: "0102", Urgency: UrgencyNow,
+			Label: "\u65e5\u672c\u8a9ews", Task: "0102", Urgency: UrgencyNow,
 			Position:  Position{Document: PositionDocPlanPR, PlanPR: 2, Progress: ProgressQuestion},
 			PR:        &OpenPR{Number: 1012},
-			Questions: []QuestionItem{question("w1:p2", "どちらにしますか？ option-a or option-b", false), question("w1:p3", "second", false)},
+			Questions: []QuestionItem{question("w1:p2", "\u3069\u3061\u3089\u306b\u3057\u307e\u3059\u304b\uff1f option-a or option-b", false), question("w1:p3", "second", false)},
 		},
 		{
 			Label: "beta\x1b", Task: "0099", Urgency: UrgencyLater,
@@ -582,8 +587,8 @@ func TestTableGolden(t *testing.T) {
 		"",
 		"状態" + sp(13) + "名前" + sp(18) + "タスク" + sp(2) + "PR" + sp(5) + "内容",
 		strings.Repeat("\u2500", 78),
-		"\U0001F6D1 質問で停止" + sp(4) + "日本語ws" + sp(14) + "0102" + sp(4) + "#1012" + sp(2) + "2 件 [claude] どちらにし",
-		sp(39) + "PR-2" + sp(11) + "ますか？ option-a or op\u2026",
+		"\U0001F6D1 質問で停止" + sp(4) + "\u65e5\u672c\u8a9ews" + sp(14) + "0102" + sp(4) + "#1012" + sp(2) + "2 件 [claude] \u3069\u3061\u3089\u306b\u3057",
+		sp(39) + "PR-2" + sp(11) + "\u307e\u3059\u304b\uff1f option-a or op\u2026",
 		"",
 		"\U0001F536 レビュー待ち" + sp(2) + `beta\x1b` + sp(14) + "0099" + sp(4) + "#985" + sp(3) + "feat(chief): lay out the",
 		sp(39) + "なし" + sp(11) + "status table in the too\u2026",

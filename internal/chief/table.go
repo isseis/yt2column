@@ -109,8 +109,16 @@ var (
 // cutting it at a UTF-8 boundary to tableValueMaxBytes. Every value, an
 // outside one or a fixed word, takes this path, so the table holds the same
 // escapes as the output's values.
+//
+// A value cut by the cap ends with an ellipsis, so the cut shows even when
+// the head kept ends in spaces the layout drops.
 func cellOf(text string) []cellUnit {
-	return cellFromUnits(sanitizeUnits(CapHead(text, tableValueMaxBytes).Text))
+	capped := CapHead(text, tableValueMaxBytes)
+	units := cellFromUnits(sanitizeUnits(capped.Text))
+	if capped.Truncated {
+		units = append(units, ellipsisUnit)
+	}
+	return units
 }
 
 // cellFromUnits turns display units into the table's units. A newline and a
@@ -411,12 +419,7 @@ func wrapContent(units []cellUnit, width int) (first, second []cellUnit) {
 		return nil, nil
 	}
 	breakable := breakPoints(units, width)
-	// The leading spaces are shown as they are, so the first line never
-	// ends among them, which would drop them and leave it empty.
-	for p := 1; p < len(units) && units[p-1].class == classSpace; p++ {
-		breakable[p] = false
-	}
-	best, fit, w, trailing := 0, 0, 0, 0
+	best, w, trailing := 0, 0, 0
 	for p := 1; p <= len(units); p++ {
 		u := units[p-1]
 		w += u.width
@@ -428,15 +431,9 @@ func wrapContent(units []cellUnit, width int) (first, second []cellUnit) {
 		if w-trailing > width {
 			break
 		}
-		fit = p
 		if breakable[p] {
 			best = p
 		}
-	}
-	if best == 0 {
-		// Leading spaces left no room for the word after them: break it at
-		// the last unit that fits, as a word wider than a line breaks.
-		best = fit
 	}
 	// Trailing spaces never count against the width, so the first line
 	// takes every space at its break, and the rest starts with a unit that
