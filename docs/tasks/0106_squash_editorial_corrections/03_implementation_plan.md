@@ -303,7 +303,7 @@ Diff record (AC-16):
 
 - Compared paths: `docs/dev/adr/0039-adr-writing-criteria.md` `docs/dev/adr/0036-task-document-status-records.md` `docs/dev/adr/0047-runpr-merge-question.md`
 - Merge-base: `1b8da1cf87623f80ae0c2a54f5fdcf9d25f50559`
-- Compared commit: `8a341ee14fdfc41242da6818474d598e32033e64`
+- Compared commit: `aa9f0c94d344149b9417b2741a1b3aa7ca6868cf`
 
 Path diff:
 
@@ -322,7 +322,7 @@ index 108be06b6dba1e354d7a1759620c323f673720ff..4c1530d286f7f65c419abf0674eca21e
 
  ## 採らなかった案
 diff --git a/docs/dev/adr/0039-adr-writing-criteria.md b/docs/dev/adr/0039-adr-writing-criteria.md
-index cd978c78bd1ddd03f76f88f58b90e6e7debe7774..c26d465a20f87c4503e22611fc02228f58ac9677 100644
+index cd978c78bd1ddd03f76f88f58b90e6e7debe7774..fb0000d865c2bebaddd124e62769cc39c6bd8c7b 100644
 --- a/docs/dev/adr/0039-adr-writing-criteria.md
 +++ b/docs/dev/adr/0039-adr-writing-criteria.md
 @@ -18,7 +18,7 @@ ADR は、後の開発者が、変えようとしている主題の決定とそ
@@ -330,7 +330,7 @@ index cd978c78bd1ddd03f76f88f58b90e6e7debe7774..c26d465a20f87c4503e22611fc02228f
  -   **「決定」には、後の変更が守るべき規則を 1 項目ずつ、短い理由と、正本の文書かコードの場所とともに書く。** 正本の文書の一覧と腐りやすい実装の細部は書かない。正本とのずれの記述と、その issue へのリンクは残す。ADR を、決定が変わらない限り古くならない文書にするためである。規則は [adr.md](../conventions/adr.md) の「Writing an ADR」にある。
  -   **ADR を作るか変えるのは、その決定を下すか変える PR である。ただし、決定を下しも変えもしない PR も、ADR に編集上の訂正を加えてよい。** 訂正は、決定を変えない決まった種類の直しに限る。訂正はコミットメッセージと PR の説明に記録し、「経緯」には項目を足さない。タスク文書の編集上の訂正（[requirements_process.md](../conventions/requirements_process.md) の「Editing an approved document」）と記録の置き場所をそろえ、例外を作らずに ADR を直せるようにするためである。直した結果が今の決定と食い違う変更と、訂正か迷う変更は、決定の変更として扱う。記録を失わない側に倒すためである。PR を作った後のレビューを受けた修正でも、ADR に訂正を加えてよい。訂正の行と訂正の段落の形は、タスク文書と ADR の両方について 1 か所で定める。コマンドの手順も、タスク文書の訂正と同じく ADR の訂正を記録して PR の説明へ運ぶ。このため、PR を作った後の訂正でも、レビュアーが分類を確かめられる。ただし、PR を作った後に `main` を取り込むときは、ADR に訂正を加えない。その経路には訂正を PR の説明へ運ぶ手順がないためである。訂正の行と訂正の段落の形は [requirements_process.md](../conventions/requirements_process.md) の「Recording in the PR description」にある。レビュアーが分類に異を唱えた変更は決定の変更として扱い、タスク文書のない PR では、決定を PR の説明に記録し、「経緯」の項目からその PR へリンクする。規則は [adr.md](../conventions/adr.md) の「Approval and the PR」「Editorial corrections」「History entries」にある。
 --   **`/mergepr` で squash マージするときは、PR のコミットにある訂正の行を、タスク文書と ADR のどちらのものも、要約せず 1 行ずつそのまま squash コミットの本文に引き継ぐ。** 行数にも 1 行の長さにも上限を設けない。人は承認のときに訂正の行を消せず、要件定義書が定める場合に限って落とせる。落としたときは、落としたことを本文に記録する。squash マージの後は PR のコミットが `main` からたどれなくなり、PR の説明はリポジトリの外にあって書き換えられるので、訂正の記録を `main` の履歴からたどれるようにするためである。行を受け付ける条件と落とし方の仕様は、[0106 要件定義書](../../tasks/0106_squash_editorial_corrections/01_requirements.md) の「3. 機能要件」にある。今の `/mergepr` の手順と規約は、まだ訂正の行を squash コミットの本文に引き継がない。このずれは、[#747](https://github.com/isseis/yt2column/issues/747) で扱う。
-+-   **`/mergepr` で squash マージするときは、PR のコミットにある訂正の行を、タスク文書と ADR のどちらのものも、要約せず 1 行ずつそのまま squash コミットの本文に引き継ぐ。** 行数にも 1 行の長さにも上限を設けない。人は承認のときに訂正の行を消せず、要件定義書が定める場合に限って落とせる。落としたときは、落としたことを本文に記録する。squash マージの後は PR のコミットが `main` からたどれなくなり、PR の説明はリポジトリの外にあって書き換えられるので、訂正の記録を `main` の履歴からたどれるようにするためである。行を受け付ける条件と落とし方の仕様は、[mergepr.md](../../../.claude/commands/mergepr.md) と [mergepr の手引き](../guides/mergepr_guide.md) の「6.5 訂正の行の引き継ぎ」にある。
++-   **`/mergepr` で squash マージするときは、PR のコミットにある訂正の行を、タスク文書と ADR のどちらのものも、要約せず 1 行ずつそのまま squash コミットの本文に引き継ぐ。** 行数にも 1 行の長さにも上限を設けない。人は承認のときに訂正の行を消せず、決まった 3 つの場合に限って落とせる。落としたときは、落としたことを本文に記録する。squash マージの後は PR のコミットが `main` からたどれなくなり、PR の説明はリポジトリの外にあって書き換えられるので、訂正の記録を `main` の履歴からたどれるようにするためである。行を受け付ける条件と落とし方の仕様は、[mergepr.md](../../../.claude/commands/mergepr.md) と [mergepr の手引き](../guides/mergepr_guide.md) の「6.5 訂正の行の引き継ぎ」にある。
  -   **ずれの記述は、ずれを直す PR が同じ PR で消す。** ずれの記述が事実でない期間を作らないためである。ずれを直す人が記述を見つけられるように、issue から ADR を、ADR から issue をたどれるようにする。ずれの記述を足す PR は、マージを頼む前と `main` を取り込むときに、最新の `main` に照らして、そのずれの記述がまだ事実かどうかを確かめ直す。規則は [adr.md](../conventions/adr.md) の「Writing an ADR」「Editorial corrections」にある。
  -   **`main` の上で `TestADRRecords` が失敗したときの、番号を付け替える直しは、その直しだけの PR で行う。** 番号の付け替えは ADR の識別子を変え、ほかの文書の参照にも及ぶ。関係のない PR のレビュアーは、これを承認する立場にないためである。規則は [adr.md](../conventions/adr.md) の「Taking in `main`」にある。
  -   **ADR の書式（太字の使い方と、項目の多い節の組み立て方）は、日本語の文書の書式の規約に従う。既存の ADR を書式の規約に合わせる書き直しは求めないが、編集上の訂正の 1 種目（基準に合わせる書き直し）として、どの PR も行ってよい。** 書式の規則を、ADR に限らず日本語の文書で 1 つにするためである。書き直しを訂正として認めるのは、訂正がコミットと PR の説明に記録され、レビュアーが確かめられるためである。規則は [書式の規約](../conventions/document_formatting.md) と [adr.md](../conventions/adr.md) の「Writing an ADR」にある。
