@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-18 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番で、どれも設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。
@@ -320,3 +320,7 @@ AC-03 の diff の記録（ステップ 3-6 のスクリプトの出力、マー
 
 -   PR-3 のマージの後、動いている `/chief` を止め、chief の worktree を `main` に戻して `make install-chief` で道具を入れ直し、`/chief` を起動し直す（ガイドの 2 章）。
 -   要件書 2.3 のスコープ外の、モデル名の短縮と経過時間の列は、別の issue で扱う。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1000）

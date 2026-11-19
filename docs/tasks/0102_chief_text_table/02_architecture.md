@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-18 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：CLAUDE.md の 2 つの例外を、`Protocol` を上げる PR ではなく、例外が名指すファイル（`table.go`・`textwidth.go`）を足す PR で入れることにした |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
+| Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。以下、実装計画書を計画書と略し、「計画で決める」は本タスクの `03_implementation_plan.md` で決めることを指す。既存のファイルの内容は、コミット `0bbba2c8` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を指し、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
 
@@ -700,4 +700,5 @@ flowchart TD
 ## 変更履歴
 
 - 2026-11-18 承認（isseis、#997）
-- 2026-11-19 draft への戻し：CLAUDE.md の 2 つの例外を、`Protocol` を上げる PR ではなく、例外が名指すファイル（`table.go`・`textwidth.go`）を足す PR で入れることにした（#未記入）
+- 2026-11-19 draft への戻し：CLAUDE.md の 2 つの例外を、`Protocol` を上げる PR ではなく、例外が名指すファイル（`table.go`・`textwidth.go`）を足す PR で入れることにした（#1000）
+- 2026-11-19 承認（isseis、#1000）
