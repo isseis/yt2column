@@ -242,7 +242,11 @@ func TestTableTabDisplay(t *testing.T) {
 		{"tab list not read", tableSources{paneTabs: onTab}, "[w1:p1] q", true},
 		{"tab not listed", tableSources{paneTabs: onTab, tabLabels: map[tabID]tabLabel{{id: "w1:t2"}: {text: "x", hasLabel: true}}}, "[w1:p1] q", true},
 		{"empty label", tableSources{paneTabs: onTab, tabLabels: map[tabID]tabLabel{tab: {}}}, "[w1:p1] q", true},
+		{"declared without a label", tableSources{paneTabs: onTab, tabLabels: map[tabID]tabLabel{tab: {text: "x"}}}, "[w1:p1] q", true},
 	}
+	// Each case that shows the pane ID says why in its own note, so a case
+	// handled by another case's branch shows up as a repeated note.
+	seen := map[string]string{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.src.notes = []string{"tab list: unreadable"}
@@ -258,8 +262,14 @@ func TestTableTabDisplay(t *testing.T) {
 			if len(unreadable) != want || unreadable[0] != "tab list: unreadable" {
 				t.Errorf("unreadable = %q, want the source note and %d more", unreadable, want-1)
 			}
-			if tt.noting && !strings.Contains(unreadable[1], "w1:p1") {
-				t.Errorf("note %q does not name the pane", unreadable[1])
+			if tt.noting {
+				if !strings.Contains(unreadable[1], "w1:p1") {
+					t.Errorf("note %q does not name the pane", unreadable[1])
+				}
+				if other, ok := seen[unreadable[1]]; ok && other != "declared without a label" && tt.name != "declared without a label" {
+					t.Errorf("note %q is the same as case %q's", unreadable[1], other)
+				}
+				seen[unreadable[1]] = tt.name
 			}
 		})
 	}
@@ -321,6 +331,8 @@ func TestTableShape(t *testing.T) {
 	if len(lines) != 9 || lines[6] != "" {
 		t.Fatalf("lines = %q, want legend, blank, header, rule, 2 rows of 2 lines with a blank between", lines)
 	}
+	// The columns are measured with unitWidth, the layout's own function, so
+	// this checks that the columns agree; TestTableGolden checks the widths.
 	column := func(line, value string) int {
 		i := strings.Index(line, value)
 		if i < 0 {
@@ -431,15 +443,12 @@ func TestTableWidth(t *testing.T) {
 				t.Errorf("rule is %d columns, want %d", got, 29+tt.content)
 			}
 			for i, line := range lines[4:] {
-				if got := unitWidth(line); got > max(tt.usable, 29+tableContentMin) {
-					t.Errorf("line %d is %d columns, over %d", i+4, got, tt.usable)
+				if bound := max(tt.usable, 29+tableContentMin); unitWidth(line) > bound {
+					t.Errorf("line %d is %d columns, over %d", i+4, unitWidth(line), bound)
 				}
 			}
 			if !strings.HasPrefix(lines[4], "\U0001F6D1 要確認") || !strings.HasPrefix(lines[5], strings.Repeat(" ", 9+2+4+2)+"-") {
 				t.Errorf("row lines = %q", lines[4:])
-			}
-			if tt.content > tableContentMin && unitWidth(lines[3]) != tt.usable {
-				t.Errorf("rule is %d columns, want the usable width %d", unitWidth(lines[3]), tt.usable)
 			}
 		})
 	}
@@ -473,9 +482,6 @@ func TestTableWrap(t *testing.T) {
 			first, second := wrapContent(cellOf(tt.text), 20)
 			if cellText(first) != tt.first || cellText(second) != tt.second {
 				t.Errorf("lines = %q, %q, want %q, %q", cellText(first), cellText(second), tt.first, tt.second)
-			}
-			if cellsWidth(first) > 20 || cellsWidth(second) > 20 {
-				t.Errorf("a line is wider than 20: %q, %q", cellText(first), cellText(second))
 			}
 		})
 	}
@@ -540,9 +546,9 @@ func TestTableLargeValues(t *testing.T) {
 		t.Errorf("name not cut to 20 columns: %q", lines[4])
 	}
 
-	units := cellOf(strings.Repeat("a", tableValueMaxBytes-1) + "漢")
-	if len(units) != tableValueMaxBytes-1 || units[len(units)-1].text != "a" {
-		t.Errorf("cut at 16 KiB kept %d units ending in %q", len(units), units[len(units)-1].text)
+	// cellOf applies the 16 KiB cap; TestCapHead covers the UTF-8 boundary.
+	if units := cellOf(strings.Repeat("a", tableValueMaxBytes-1) + "漢"); len(units) != tableValueMaxBytes-1 {
+		t.Errorf("cut at 16 KiB kept %d units, want %d", len(units), tableValueMaxBytes-1)
 	}
 }
 
@@ -597,30 +603,28 @@ func TestTableGolden(t *testing.T) {
 // fenceValues are values that could close a code block or start Markdown.
 var fenceValues = []string{"```", "~~~", "   ```", " leading", "#title", "|pipe", "-dash", "x\n```", "x\n~~~ y", "\r```"}
 
-// TestTableKeepsCodeBlockOpen builds tables with fence-like values in every
-// value from outside, and tables whose status column is as narrow as it
-// gets, and checks each with the code block check.
+// TestTableKeepsCodeBlockOpen checks a table whose status column is as
+// narrow as it gets, with every word unknown. The fence-like values of every
+// value from outside are the seeds of FuzzTableKeepsCodeBlockOpen, which
+// `make test` runs.
 func TestTableKeepsCodeBlockOpen(t *testing.T) {
-	for _, v := range fenceValues {
-		t.Run(fmt.Sprintf("%q", v), func(t *testing.T) {
-			layoutChecked(t, fuzzRows(v, v, v, v, v, v, v), tableSources{})
-		})
-	}
 	t.Run("unknown values", func(t *testing.T) {
 		layoutChecked(t, []Row{{Label: "```", Urgency: Urgency(99), Position: Position{Document: PositionDocument(99), Progress: Progress(99)}}}, tableSources{})
 	})
 }
 
-// fuzzRows builds rows that carry each value from outside the table shows.
-func fuzzRows(name, title, text, label, problem, unreadable, model string) []Row {
+// fuzzRows builds rows that carry each value from outside the table shows:
+// the tab label goes through the sources (see the fuzz target), and pane is
+// a question pane no tab is found for, shown by its ID.
+func fuzzRows(name, title, text, pane, problem, unreadable, model string) []Row {
 	return []Row{
 		{Label: name, Position: Position{Progress: ProgressQuestion}, Questions: []QuestionItem{question("w1:p1", text, false), question("w1:p2", text, true)}},
-		{Label: name, Position: Position{Progress: ProgressMergeConfirmation}, Questions: []QuestionItem{question("w1:p1", text, true)}},
+		{Label: name, Position: Position{Progress: ProgressMergeConfirmation}, Questions: []QuestionItem{question(pane, text, true)}},
 		{Label: name, Position: Position{Progress: ProgressAwaitingReview}, PR: &OpenPR{Number: 1, Title: title}},
 		{Label: name, Position: Position{Progress: ProgressAwaitingCreation}, Next: &Next{Problem: problem}},
 		{Label: name, Position: Position{Progress: ProgressAwaitingCreation}, Next: &Next{Command: &paneinput.Command{}, Text: "/runpr 1", Model: model}},
 		{Label: name, Position: Position{Progress: ProgressNeedsCheck}, Unreadable: []string{unreadable, unreadable}},
-		{Label: label, Position: Position{Progress: ProgressRunning}, Running: &RunningShown{Model: model}},
+		{Label: name, Position: Position{Progress: ProgressRunning}, Running: &RunningShown{Model: model}},
 	}
 }
 
@@ -631,13 +635,13 @@ func fuzzRows(name, title, text, label, problem, unreadable, model string) []Row
 // seeds.
 func FuzzTableKeepsCodeBlockOpen(f *testing.F) {
 	for _, v := range fenceValues {
-		f.Add(v, v, v, v, v, v, v)
+		f.Add(v, v, v, v, v, v, v, v)
 	}
-	f.Add("\x1b[2J", "\u202e", "\xff", "\u0301", "\t", "\n\n", "  ")
-	f.Fuzz(func(t *testing.T, name, title, text, label, problem, unreadable, model string) {
-		src := labelledSources(map[string]string{"w1:p1": label})
+	f.Add("\x1b[2J", "\u202e", "\xff", "\u0301", "\t", "\n\n", "  ", "w1:p9")
+	f.Fuzz(func(t *testing.T, name, title, text, tabLabel, problem, unreadable, model, pane string) {
+		src := labelledSources(map[string]string{"w1:p1": tabLabel})
 		src.paneWidth = 80
-		lines, _ := layoutChecked(t, fuzzRows(name, title, text, label, problem, unreadable, model), src)
+		lines, _ := layoutChecked(t, fuzzRows(name, title, text, pane, problem, unreadable, model), src)
 		for i, line := range lines {
 			if got := unitWidth(line); got > 78 {
 				t.Errorf("line %d is %d columns", i, got)

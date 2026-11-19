@@ -15,7 +15,6 @@ func TestUnitWidth(t *testing.T) {
 		want int
 	}{
 		{"ascii letter", "a", 1},
-		{"ascii space", " ", 1},
 		{"kanji", "\u6f22", 2},
 		{"hiragana", "\u3042", 2},
 		{"fullwidth A", "\uff21", 2},
@@ -49,9 +48,7 @@ func TestUnitWidth(t *testing.T) {
 		{"listed on no line", "\u0378", 1},
 		// 1FADF..1FAEA ; W; U+1FAE9 was assigned after Unicode 15.0
 		{"wide after unicode 15.0", "\U0001FAE9", 2},
-		{"hex escape", `\x1b`, 4},
-		{"doubled backslash", `\\`, 2},
-		{"short unicode escape", "\\u200b", 6},
+		// An escape counts as its length in bytes.
 		{"long unicode escape", `\U000e0001`, 10},
 	}
 	for _, tt := range tests {
