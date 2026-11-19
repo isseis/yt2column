@@ -19,7 +19,7 @@
 -   **END:** 最後の Fable の記録が見た範囲の終わりの commit（記録の行の `<END12>` が指す commit）。
 -   **救済:** 有効かの判定が `VALID` でないときに行う、merge の後の確認か、単独の経路の Fable の部分レビュー（3.3.1）。
 -   **判定した commit（D）:** push の直前の判定で `VALID` を返したスクリプトの実行に、引数 `<HEAD>` として渡した 40 桁の ID。スクリプトが返った後に HEAD を読み直して D にすることはしない。読み直すと、引数を渡した後にできた commit が、判定されないまま D に入るためである。push するのはこの commit である（AC-05）。
--   **確認できる merge commit:** 親がちょうど 2 つで、第 1 親がブランチの commit か merge-base であり、第 2 親が `origin/main` から届く commit である merge commit（3.1.3）。親が 3 つ以上の merge commit や、第 1 親が `main` 側の merge commit は、merge の後の確認で範囲を正しく求められないので、確認できる merge commit に数えない。
+-   **確認できる merge commit・確認できない merge commit:** 要件書 6 章の定義による。親がちょうど 2 つで、第 1 親がブランチの commit か merge-base であり、第 2 親が `origin/main` から届く commit である merge commit が、確認できる merge commit である（3.1.3）。ほかの merge commit（親が 3 つ以上のもの、`main` の側で作ったもの、`origin/main` にない別のブランチを取り込んだものなど）は、merge の後の確認で範囲を正しく求められないので、確認できない merge commit とする。
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -33,11 +33,11 @@
 
 ### 1.2. 設計の際に決めたこと（2026-11-19）
 
-人に問うて決めた項目（決定 1〜3、決定 11）と、要件と申し送りから設計が決めた項目（決定 4〜10）を挙げる。
+人に問うて決めた項目（決定 1〜3、決定 11、決定 12）と、要件と申し送りから設計が決めた項目（決定 4〜10）を挙げる。
 
 -   **決定 1. merge の後の確認は、チェックポイントの入口でも走らせる。** 判定が `MERGE` を返したとき、チェックポイントの入口（`/runplan` の step 5a と step 8、タスク文書の PR の Part B step 1.5）でも merge の後の確認を走らせる。push の直前の入口は、その後にできた merge commit を扱う。`/runplan` では、チェックポイントの入口（`runplan.md:98`）が、green gate（`:99`）と「Before the PR」の B2（Opus のレビューの判断、`:296-298`）より前に走る。そのため、確認の直しが Opus のレビューの範囲に入り、Opus のレビューは 1 回で済む。push の直前だけで走らせると、確認が直したときに AC-09 で Opus のレビューの判断をやり直し、PR の全体に Opus のレビューがもう 1 回走りうる。人の答え：チェックポイントでも（推奨）。
     -   採らなかった案：push の直前だけで走らせる（要件の字面どおり）。上のとおり、Opus のレビューが 2 回走りうる。
-    -   ADR：[ADR-0050](../../dev/adr/0050-fable-partial-review.md) を更新する（「`/runplan` のチェックポイント」と「merge commit の扱い」の項目）。確認を走らせる時点は、両方のタスクの PR と、Opus のレビューとの順序（[ADR-0042](../../dev/adr/0042-implementation-model-tiers.md)）を縛る。
+    -   ADR：[ADR-0050](../../dev/adr/0050-fable-partial-review.md) を更新する（「push の直前の判定」と「`/runplan` のチェックポイント」の項目）。確認を走らせる時点は、両方のタスクの PR と、Opus のレビューとの順序（[ADR-0042](../../dev/adr/0042-implementation-model-tiers.md)）を縛る。
 -   **決定 2. PR の説明の「どちらの CLI もレビューしなかった commit」は、判定のスクリプトの新しいモード `unreviewed` で求める。** 規則（AC-16〜AC-19）は、スクリプトのヘッダーに置き、Go のテストで確かめる。今の規則は、セッションのレビューの SUMMARY・`not run` の行・Opus のレビューの直しを、セッションが組み合わせる（`task-pr-handoff.md:250-260`）。記録の後の commit を扱う文がないので、#987 では空の記録の commit まで挙がった。文の規則を広げても、AC-17 の「merge で merge-base が動いた後も、見た範囲の行を数える」はセッションが確かめられない。人の答え：スクリプトのモード（推奨）。
     -   採らなかった案：セッションの文の規則を、記録の後の commit まで広げる。テストで確かめられない。
     -   採らなかった案：`coverage` のモードに、START の確かめを緩める引数を足す。`/runpr` の関門のモードに、関門でない用途の分岐が入る。
@@ -61,22 +61,23 @@
     -   衝突のない merge commit では、差分が何も出ない。
     -   衝突のない merge に、merge commit の中で手で足した変更は、差分として出る。
     -   利用者の git の設定で `log.showSignature` が有効だと、出力の先頭に署名の行が混じる。色・パスの接頭辞・改名の検出・textconv などの設定も、出力の行番号やパスを変えうる。この git は、判定のスクリプトの `GIT_OVERRIDES`（`review-records.sh:163-171`）と同じ `-c` の上書きに、`-c log.showSignature=false`・`--no-color`・`--no-textconv`・`--no-ext-diff` を加えて走らせる。
-    -   親が 3 つ以上の merge commit では、警告だけを標準エラーに出し、差分を出さずに終了コード 0 で終わる。そのため、そのような merge commit は確認できる merge commit に数えない（決定 12）。
-    -   このオプションは git 2.36 で入った。古い git では、知らないオプションとして失敗する。失敗は、決定 12 のとおり止まる。
+    -   親が 3 つ以上の merge commit では、警告の 1 行（`diff: warning: Skipping remerge-diff for octopus merges.`）を標準出力に出し、差分を出さずに終了コード 0 で終わる（設計の Fable の部分レビューの実験でも同じだった）。そのため、そのような merge commit は確認できる merge commit に数えない（決定 12）。
+    -   このオプションは、オブジェクトの一時ディレクトリを `.git/objects` の下に作る。作れないときは、標準エラーに書いて、差分を出さずに終了コード 0 で終わることがある（Fable の部分レビューの実験）。そのため、失敗は終了コードだけでなく、標準エラーに何か書いたことでも見分ける。また、このコマンドはセッションが走らせ、出力をファイルにしてサブエージェントに渡す。サブエージェントには、書き込む git を禁じているためである（3.3.5）。
+    -   このオプションは git 2.36 で入った。古い git では、知らないオプションとして失敗する。失敗の扱いは決定 12 による。
     -   ADR：なし。merge の後の確認の範囲の求め方で、本タスクの中で閉じる。
 -   **決定 10. push は、判定した commit を名指しして行う。** `git push origin <D>:refs/heads/<branch>` で D だけを送り、その後に `git branch --set-upstream-to=origin/<branch>` で上流を設定する。2026-11-19 に、手元の git 2.50.1 で次のことを確かめた（H-01）。
     -   commit の ID を送り元に書いた push は、その commit だけを送る。HEAD がその先に進んでいても送らない。
     -   この push では、`-u` を付けても上流が設定されない。
     -   この push で、追跡のブランチ `refs/remotes/origin/<branch>` は送った commit に更新され、その後の `--set-upstream-to` は通る。
 
-    上流の設定は、`gh pr create`（`--head` でブランチを名指しするので、上流は要らない）の後に行う。失敗したら、PR の URL と D を添えて報告し、AFTER_CREATE を走らせずに止まる。上流を設定し直すのは、Part A step 4 の `git switch -c <branch> origin/main` が上流を `origin/main` にしており、今の `-u` がそれを直しているためである。`runplan.md` の AFTER_CREATE（`git push`）も、上流を前提にする。
+    上流の設定は、`gh pr create`（`--head` でブランチを名指しするので、上流は要らない）の後に行う。失敗したら、PR の URL と D を添えて報告し、AFTER_CREATE を走らせずに止まる。上流を設定し直すのは、Part A step 4 の `git switch -c <branch> origin/main` が上流を `origin/main` にしており、今の `-u` がそれを直しているためである。`runplan.md` の AFTER_CREATE（`git push`）も、上流を前提にする。AFTER_CREATE は、自分の commit を作る前に HEAD が D であることを確かめ、違えば止まる。名前だけの `git push` がブランチの全体を送るので、確かめないと、D の確かめの後に足された commit が判定されないまま送られるためである（Fable の部分レビューの指摘）。
     -   ADR：なし。ADR-0050 の「push の直前の判定」の項目に「push するのは判定した commit である」がすでにあり、本決定はその手段である。
 -   **決定 11. merge の後の確認の直しは、AC-30 の字面どおり、見た範囲の行（`Local CLI reviewed:`）の範囲に入るものだけを数える。** `Local CLI review: not run` の行の範囲は数えない。Fable の規則 2（`review-records.sh:99-103`）は `not run` の行の範囲も数えるので、扱いが違う。帰結は入口によって違う。チェックポイントの入口では、確認は印より前に走る。確認が直しを作り、その直しを CodeRabbit CLI も Codex CLI もレビューできなかったときは、2 回目の判定が `MISSING` になって止まる（3.3.3）。止まった後の再開は範囲外である（要件 2.3）。push の直前の入口では、確認は印の後に走るので、直しは規則 3（印の後の commit）に当たって記録を無効にせず、止まらない。印の後の commit を Fable が見ない危険（5.2 の T3）として受け入れる。どちらの CLI も走らないことは稀である。2026-11-19 に人が選んだ。人の答え：字面どおり（推奨）。
     -   採らなかった案：Fable の規則 2 と同じく、`not run` の行の範囲も数える。AC-30 を変える決定の変更になり、要件定義書を `draft` に戻すことになる。
     -   ADR：なし。要件の決定（AC-30）のままで、決定を変えない。
 
--   **決定 12. merge の後の確認は、確認できる merge commit だけに行う。範囲を求められないときは、`not run` と記録せずに止まる。** 判定のスクリプトは、確認できる merge commit（用語を参照）だけを `MERGE` に挙げ、確認の記録の名指しとしても数える。親が 3 つ以上の merge commit と、第 1 親が `main` 側の merge commit（`main` の側で merge してブランチに戻した形）は、merge commit でない、記録を無効にする commit と同じに扱い、`MISSING <merge-base>` にする（Fable が PR の全体を見る）。範囲を求める git（`git show --remerge-diff`、`git diff`）が失敗したときは、確認を走らせず、記録も書かず、救済の途中で止まったとき（AC-08）と同じく止まる。AC-28 が `not run` と記録して進むのは、Opus を呼べないなど、確認するモデルの側の理由である。範囲を求められないのは、古い git のように、手元の環境から決まって起こる理由で、そこで `not run` を書くと、誰も merge を見ないまま merge commit が確認済みに数えられるためである（本書のレビューでの指摘）。
-    -   採らなかった案：範囲を求められないときも `not run scope-error` と記録して進む（最初の版）。上のとおり、手元の理由で関門を素通りする。
+-   **決定 12. merge の後の確認は、確認できる merge commit だけに行う。範囲を求める git が失敗したときも、確認せずに Fable に回す。** 判定のスクリプトは、確認できる merge commit（用語を参照）だけを `MERGE` に挙げ、確認の記録の名指しとしても数える。確認できない merge commit は、merge commit でない、記録を無効にする commit と同じに扱い、`MISSING <merge-base>` にする（Fable が PR の全体を見る）。範囲を求める git（`git show --remerge-diff`、`git diff`）が失敗したとき（終了コードが 0 でないか、標準エラーに何か書いたとき）は、その merge commit の確認を走らせず、確認の記録も書かずに、merge-base から HEAD までについて単独の経路を走らせる（3.3.5）。確認できない merge commit では、確認しても手で入れた変更が範囲に入らず、誰も見ないまま確認済みに数えられるためである。範囲を求める git の失敗で止まらないのは、止まった後の再開の手段がないためである。要件の AC-13・AC-24 と用語「未確認の merge commit」を変える決定の変更なので、要件書を `draft` に戻し、要件書の「要件定義の際に決めたこと」に記録した（2026-11-20）。人の答え：どちらも Fable へ（推奨）。
+    -   採らなかった案：(A) 確認できない merge commit は Fable に回し、範囲を求める git の失敗では止まる（本書の前の版）。止まった後の再開の手段がない。(B) 要件のとおり、どの merge commit も確認に回し、git の失敗は `not run` と記録して進む。手で入れた変更を誰も見ないまま、merge commit が確認済みに数えられる。
     -   ADR：ADR-0050 を更新する（「merge commit の扱い」の項目）。判定の関門が確認済みに数える merge commit の範囲を決めるので、主要な決定に当たる。
 
 ### 1.3. なぜ今の仕組みでは足りないか
@@ -135,7 +136,7 @@ flowchart TD
 
 -   **記録を無効にしない commit（規則 1〜4）:** 規則 1（中身のない commit）、規則 2（同じ実行の直し）、規則 3（印の後の commit。merge commit は除く）、規則 4（merge の後の確認の直し。3.1.2 で足す）のどれかに当たる、親が 1 つの commit。
 -   **確認済みの merge commit:** merge の後の確認の記録が名指ししている merge commit（3.1.3）。
--   **記録を無効にする中身のある commit:** 確認できない merge commit（親が 3 つ以上か、第 1 親が `main` 側）も、ここに入る（決定 12）。
+-   **記録を無効にする中身のある commit:** 確認できない merge commit も、ここに入る（決定 12）。
 -   **START:** 記録の後に merge commit が 1 つでもあれば、merge-base である（AC-14）。なければ今のとおり、記録を無効にする最初の commit の第 1 親である。
 
 ## 2. システム構成 (System Structure)
@@ -269,7 +270,7 @@ sequenceDiagram
     -   Q の祖先である（Q 自身を含む）。
     -   Q のメッセージの見た範囲の行（`Local CLI reviewed:`）の範囲に入る。範囲の行は 3.1.4 の確かめで読む。`Local CLI review: not run` の行の範囲は、AC-30 のとおり数えない（決定 11）。
 
-merge commit（親が 2 つ以上）は、どの規則にも当たらない（今のとおり、`:109`）。確認できる merge commit は、3.1.3 の確認の記録で名指しされているときだけ「確認済み」とし、記録を無効にする commit に数えない。確認できない merge commit（親が 3 つ以上か、第 1 親が `main` 側）は、merge commit でない、記録を無効にする commit と同じに扱う（決定 12）。
+merge commit（親が 2 つ以上）は、どの規則にも当たらない（今のとおり、`:109`）。確認できる merge commit は、3.1.3 の確認の記録で名指しされているときだけ「確認済み」とし、記録を無効にする commit に数えない。確認できない merge commit（用語を参照）は、merge commit でない、記録を無効にする commit と同じに扱う（決定 12）。
 
 結果は次の順で決める。
 
@@ -335,9 +336,9 @@ bash <records-script> unreviewed <HEAD> <PLAN>
 -   **挙げる commit:** `origin/main..HEAD` の commit のうち、次のどれでもないもの（AC-16）。
     -   空の commit（親が 1 つで、親との差分がない）。
     -   計画書の PR の進み具合のチェックボックスの行だけを変える commit（`coverage` の `checkbox_only`、`review-records.sh:280-302`）。
-    -   見た範囲の行（`Local CLI reviewed:`）の範囲に入る、親が 1 つの commit。範囲の行は、3.1.4 の広げた確かめで読む（AC-17）。
+    -   見た範囲の行（`Local CLI reviewed:`）の範囲に入る commit。merge commit も、範囲に入れば挙げない（AC-16 の「どちらの CLI も見ていなければ挙げる」）。範囲の行は、3.1.4 の広げた確かめで読む（AC-17）。
 -   **挙げる commit の例:** merge commit・CHECKS の直し・`README.en.md` だけを変える commit・Opus のレビューの直し・`not run` の範囲の commit は、どの CLI の見た範囲にも入らなければ挙がる（AC-16、AC-18）。単独の経路の直しで、そのローカルの CLI レビューが見たものは、その記録の commit の見た範囲の行に入るので挙がらない（AC-19）。
--   **`coverage` との違い:** `unreviewed <HEAD> <PLAN>` は、`coverage none <HEAD> <PLAN>`（`origin/main..HEAD` を判定する、`review-records.sh:26-28`・`:445-446`）と、見た範囲の行の START の確かめ（3.1.4）だけが違う。スクリプトは、2 つのモードで判定の関数を 1 つ共有し、範囲の行の確かめの規則だけを引数で選ぶ。ヘッダーは `unreviewed` を「`coverage none` に、3.1.4 の START の確かめを当てたもの」と定義し、規則を 2 度書かない。中身のない commit の定義（空の commit とチェックボックスの commit。`README.en.md` だけの commit は挙げる）は `coverage` と同じになる（要件定義の際に決めたこと「PR の説明の一覧」）。出力の `ALL` と `PARTIAL` も `coverage` と同じ語にし、読む側の規則を 1 つにする（`ALL` は「すべて見た」で、挙げる commit がないことを表す）。
+-   **`coverage` との違い:** `unreviewed <HEAD> <PLAN>` は、`coverage none <HEAD> <PLAN>`（`origin/main..HEAD` を判定する、`review-records.sh:26-28`・`:445-446`）と 2 点だけが違う。見た範囲の行の START の確かめ（3.1.4）と、見た範囲に入る merge commit を見たものと数えること（`coverage` は merge commit をいつも見ていないと数える、`:42`）である。スクリプトは、2 つのモードで判定の関数を 1 つ共有し、この 2 点だけを引数で選ぶ。ヘッダーは `unreviewed` を「`coverage none` に、この 2 点を当てたもの」と定義し、規則を 2 度書かない。中身のない commit の定義（空の commit とチェックボックスの commit。`README.en.md` だけの commit は挙げる）は `coverage` と同じになる（要件定義の際に決めたこと「PR の説明の一覧」）。出力の `ALL` と `PARTIAL` も `coverage` と同じ語にし、読む側の規則を 1 つにする（`ALL` は「すべて見た」で、挙げる commit がないことを表す）。
 -   **`/runplan` の PR で挙がるようになる commit:** green gate の確かめのチェックボックスを付ける commit（`runplan.md:103`）と、`diff` の記録の確かめ直しの commit は、`checkbox_only` に当たらず（`review-records.sh:280-302` は「PR を作成した」「PR がマージされた」「次のブランチへ切り替えた」の行だけを扱う）、どの見た範囲にも入らないので、毎回挙がる。今の SUMMARY による規則では挙がらなかった。AC-16 のとおりの結果である。
 -   **失敗:** 呼ぶ側は、終了コードが 0 でないとき、1 行目の形が違うとき、`PARTIAL <n>` の後の行の数が `<n>` でないか、行が `<12 桁の ID> <件名>` の形でないとき、`origin/main..D` のすべての commit を挙げ、一覧を決められなかったと書く。挙げすぎる側に倒すのは、この一覧が、人が PR レビューを追加で頼むかの判断の材料だからである。
 
@@ -385,7 +386,7 @@ push の直前の入口は、2 つの段からなる。呼ぶ側（Part B step 2
 
 救済の途中で止まったとき（作業ツリーの確かめ、状態の確かめ、メンションの確かめ、ローカルの CLI レビューが止まったとき）も、push せずに止まり、止まった理由、今の HEAD、作った commit を報告する（AC-08）。Fable が走らない（`not run`）ときと、merge の後の確認が走らないとき（`not run`）は、止めずに記録して進む（AC-07、AC-28）。
 
--   **最初の段が見る出力:** 印が Entry 4 より前にかならずあるので、印の後の merge commit でない commit は規則 3 に当たり、記録を無効にしない。最初の段が見るのは、ふつう `VALID`・`MERGE`・失敗で、`MISSING` は、失敗と、印の後に実装の記録があるとき（規則 3 を使わない例外）に限られる。
+-   **最初の段が見る出力:** 印が Entry 4 より前にかならずあるので、印の後の merge commit でない commit は規則 3 に当たり、記録を無効にしない。最初の段が見るのは、ふつう `VALID`・`MERGE`・失敗で、`MISSING` は、失敗、印の後に実装の記録があるとき（規則 3 を使わない例外）、印の後に確認できない merge commit があるときに限られる。
 
 > Entry 4 は救済を 1 回だけ行う。最後の段で `VALID` でなければ止まり、もう一度は救済しない。救済の後に有効でなくなるのは、救済の途中で merge commit や手作業の commit が足されたときで（AC-15）、もう一度救済しても同じことが起きうるためである。止まった後の再開は、本タスクの範囲外である（要件 2.3）。
 
@@ -408,13 +409,13 @@ merge の後の確認は、merge commit M 1 つについて、単独の経路（
 | 記録の commit | 空の commit に、範囲の行と Fable の行 | 空の commit に、範囲の行と merge の後の確認の行（3.3.6） |
 
 -   **範囲の一覧:** セッションが、M について次の 2 種類の箇所を挙げる（AC-26）。
-    -   **`resolution`（手で解いた箇所）:** `git show --remerge-diff --format= <M>`（決定 9 の上書きを付ける）の差分の塊ごとに、`<path>:<start>-<end>`（M の木での行）。`remerge CONFLICT` の見出しを持つファイルは、塊がなくても（バイナリ、モード、改名の衝突）、M の木にパスがなくても（削除で解いた衝突）、ファイル全体（`<path>`）を箇所にする。差分がなければ、この種類の箇所はない。
+    -   **`resolution`（手で解いた箇所）:** `git show --remerge-diff --format= <M>`（決定 9 の上書きを付ける）の差分の塊ごとに、`<path>:<start>-<end>`（M の木での行）。次の 2 つのファイルは、ファイル全体（`<path>`）を箇所にする。`remerge CONFLICT` の見出しを持ち、塊がないファイル（バイナリ、モード、改名の衝突）。M の木にパスがないファイル（削除で解いた衝突と、衝突のない merge の中で手で消したファイル）。消したファイルは、M の第 1 親の木で読ませる。差分がなければ、この種類の箇所はない。
     -   **`main-reference`（`main` から入った文書を参照する箇所）:** まず、`git diff --name-only <M>^1...<M>^2`（M は確認できる merge commit なので、第 2 親が `main` 側である）で、merge で `main` から入った変更のうち、`docs/dev/adr/`・`docs/tasks/`・`.claude/commands/` の下のファイルを挙げる。次に、PR が変えたファイル（`git diff --name-only <merge-base>..HEAD`）の中で、それらのファイルのパス、ファイル名、ADR の番号（`ADR-NNNN`）、タスクの番号（タスクのディレクトリの `NNNN`）を参照する箇所を、検索で挙げる。
     -   **どちらもないとき:** 確認を走らせ、当たる箇所がないことを確かめさせる（AC-26）。サブエージェントには、`main` から入った文書の一覧も渡す。
--   **範囲を求められないとき:** `git show --remerge-diff` か `git diff` が失敗したら、確認を走らせず、記録も書かずに、救済の途中で止まったとき（AC-08）と同じく止まる（決定 12）。
+-   **範囲を求められないとき:** `git show --remerge-diff` か `git diff` が失敗したら（終了コードが 0 でないか、標準エラーに何か書いたら）、M の確認を走らせず、記録も書かずに、merge-base から HEAD までについて単独の経路を走らせる（決定 12、AC-24）。単独の経路の Fable の記録の END は HEAD なので、M はその範囲に入り、記録を無効にしなくなる。
 -   **指示:** 「The prompt」（`fable-review.md:271-328`）に倣い、自己完結した指示を作る。
     -   **役目:** `resolution` の箇所では、merge の両側の意図が失われず、解き方が両側の文書やコードと食い違っていないかを確かめさせる。`main-reference` の箇所では、PR の文書やコードが、`main` で変わった ADR・タスク文書・コマンドの定義と食い違っていないかを確かめさせる。一般の正しさのレビューはさせない（Opus のレビューと Codex の PR レビューの役目である）。
-    -   **範囲:** M の ID と、`git show --remerge-diff` と `git diff <M>^1...<M>^2` を自分で走らせる指示、範囲の一覧。
+    -   **範囲:** M の ID、範囲の一覧、セッションが走らせた `git show --remerge-diff` と `git diff <M>^1...<M>^2` の出力のファイル（スクラッチパッド）。`--remerge-diff` は `.git/objects` の下に一時ディレクトリを書くので、サブエージェントには走らせない（決定 9）。
     -   **外した箇所:** `main` から入った文書の一覧。一覧の箇所の外で、それらを参照する箇所を見つけたら、`exclusion-error` として指摘させる。
     -   **制約:** Fable の指示の Constraints と同じ（AC-29）。
     -   **出力の形:** 1 行目は `Model: <model-id>`。2 行目からは、Fable と同じ 4 行の塊で、`Criterion` は `resolution`・`main-reference`・`exclusion-error` のどれかである。指摘がなければ `No findings.` だけを書く。
@@ -474,8 +475,9 @@ step 2.5 の前の CHECKS の直しは、step 1.5 の印の後にあるので、
 -   **どちらの CLI もレビューしなかった commit:** 今の文（`task-pr-handoff.md:250-260`）を、判定のスクリプトの `unreviewed` のモードを `<HEAD>` = D で走らせ、`PARTIAL` の一覧を挙げる形に置き換える（3.2）。step 3 のコードの塊に、有効かの判定と同じ 2 行（`git rev-parse --verify ...` と `git --no-replace-objects show ...`）と、3 行目 `bash <records-script> unreviewed <HEAD> <PLAN>` を、参照ではなく文字どおりに書く。`TestReviewRecordsCallSite` が、この 3 行の並びを探すためである（3.7）。`runplan.md` の「Opus のレビューの直しを足す」文と、「セッションの SUMMARY の範囲だけを挙げる」文は要らなくなる。スクリプトが、見た範囲の行に入らない commit をすべて挙げるためである。
 -   **Fable の部分レビューの節:** 今のまま、`origin/main..D` の Fable の行から書く。単独の経路の記録も、別の記録として並ぶ（AC-20）。
 -   **merge の後の確認の節（新規）:** 見出し `## merge の後の確認` を足し、merge の後の確認の記録ごとに、走ったか（`not run` ならその理由）、名指しした merge commit（12 桁）、範囲の箇所とその種類、直した指摘の数、却下・`deferred`・`unclear` の指摘を、場所とセッションの要約で示す（AC-31）。確認の記録がなければ、この節は置かない。行を写す `<details>` の塊は作らない。後から行を集める用途（ADR-0050 の「記録」、#936）は、Fable の部分レビューのためのものだからである。
--   **push の直前の判定の行（新規）:** `## Fable の部分レビュー` の節に、push の直前の判定の結果を 1 行で示す：`push の直前の判定: VALID（判定のスクリプト: origin/main <12 桁>、D: <12 桁>）`。後から誤った `VALID` を調べるとき、どの版のスクリプトがどの commit を判定したかを PR から辿れるようにするためである。
--   **push:** 題名と本文のファイルを書き、メンションの確かめとラベルの読み取りを終えた後、push の直前に `git rev-parse HEAD` が D と同じかを確かめる。違えば、救済をせずに判定だけを 1 回やり直す（AC-05）。`VALID` なら、その判定の `<HEAD>` を新しい D として題名と本文を書き直し、メンションの確かめとラベルの読み取りもやり直して、もう一度 HEAD を確かめる。要件の「判定からやり直す」を、救済を含まない 1 回の判定に絞るのは、この設計の選択である。`VALID` でないか、2 度目も HEAD が D と違えば、AC-06 の内容に D と HEAD の間の commit を加えて報告し、止まる。HEAD が動くのは、ほかのプロセスかセッションが同じ worktree に commit しているときで、救済を繰り返すと終わらないことがあるためである。同じなら、`git push origin <D>:refs/heads/<current-branch>` を走らせ、`gh pr create` の後に `git branch --set-upstream-to=origin/<current-branch>` を走らせる（決定 10）。
+-   **push の直前の判定の行（新規）:** `## Fable の部分レビュー` の節に、push の直前の判定の結果を 1 行で示す：`push の直前の判定: VALID（判定のスクリプト: origin/main <12 桁>、D: <12 桁>）`。後から誤った `VALID` を調べるとき、どの版のスクリプトがどの commit を判定したかを PR から辿れるようにするためである。push の直前の判定を経ない呼び出し（`runpr.md` step 4 の戻し）では、`push の直前の判定: なし` と書く。
+-   **push:** 題名と本文のファイルを書き、メンションの確かめとラベルの読み取りを終えた後、push の直前に `git rev-parse HEAD` が D と同じかを確かめる。違えば、step 2 の CHECKS を走らせ直してから、救済をせずに判定だけを 1 回やり直す（AC-05）。CHECKS を走らせ直すのは、足された commit が CHECKS を通っていないためである。`VALID` なら、その判定の `<HEAD>` を新しい D として題名と本文を書き直し、メンションの確かめとラベルの読み取りもやり直して、もう一度 HEAD を確かめる。要件の「判定からやり直す」を、救済を含まない 1 回の判定に絞るのは、この設計の選択である。`VALID` でないか、2 度目も HEAD が D と違えば、AC-06 の内容に D と HEAD の間の commit を加えて報告し、止まる。HEAD が動くのは、ほかのプロセスかセッションが同じ worktree に commit しているときで、救済を繰り返すと終わらないことがあるためである。同じなら、`git push origin <D>:refs/heads/<current-branch>` を走らせ、`gh pr create` の後に `git branch --set-upstream-to=origin/<current-branch>` を走らせる（決定 10）。
+    -   **AFTER_CREATE:** PR を作った後、AFTER_CREATE（`runplan.md` の計画書の印と push）を走らせる前に、HEAD が D であることを確かめ、違えば止まる（決定 10）。
     -   **AC-05 の「最後の手順」との関係:** 判定の後、push までに行うのは、D から題名と本文を書くこと、ラベルを読むこと、HEAD が D かを確かめることだけで、どれも commit を作らない。D を名指しして push するので、確かめの後にできた commit は送られない。
     -   **step 番号:** 新しい手順を 1.5 と 2.5 にし、今の step 2〜7 の番号は変えない。ほかの文書（`runplan.md`・`runpr.md`・`local-cli-review.md`・`fable-review.md`）が `Part B step 2`・`Part B step 3` と書き、`codex_review_docs_test.go:75-77` が step 3 と step 4 の書き出しで節を探すためである。
 
@@ -503,11 +505,11 @@ Part B の呼び出し（`runplan.md:104-149`）に、FABLE（KIND `implementati
 
 -   **「決定」:**
     -   「push の直前の判定」に、チェックポイントの入口でも判定が `MERGE` なら merge の後の確認を行うこと（決定 1）を足す。
-    -   「merge commit の扱い」に、確認を merge commit ごとに行い、記録が 1 つの merge commit を名指しすること（決定 7）と、確認できる merge commit に限り、範囲を求める git が失敗したら止まること（決定 12）を足す。
+    -   「merge commit の扱い」に、確認を merge commit ごとに行い、記録が 1 つの merge commit を名指しすること（決定 7）と、確認するのは確認できる merge commit に限り、確認できない merge commit と範囲を求める git の失敗では Fable が PR の全体を見ること（決定 12）を足す。「記録の後の commit」の「そのような commit が merge commit だけのとき」を、確認できる merge commit だけのときに直す。
     -   「`/runplan` のチェックポイント」の「印より後の merge commit も…push の直前の判定で見つかる」に、印より前の merge commit はチェックポイントの入口の判定で見つかり、確認されることを足す。タスク文書の PR の印も同じ入口で残すことを足す（決定 1、決定 4）。
     -   「手順の置き場所」に、merge の後の確認と push の直前の入口を `_lib/fable-review.md` に置くこと（決定 3）を足す。
     -   食い違いの文（`0050-fable-partial-review.md:40`）に、タスク文書の PR がまだチェックポイントの入口を走らせないことを足す。既存の「merge の後の確認を持たない」は、チェックポイントの入口での確認がないことも含む。文は #988 の実装の PR で消す。
--   **「採らなかった案」:** 決定 1・決定 3・決定 7 の採らなかった案を、理由とともに足す（AC-22）。決定 12 の採らなかった案（`not run scope-error`）は、本書の最初の版の案で、ADR の決定になったことがないので足さない。
+-   **「採らなかった案」:** 決定 1・決定 3・決定 7 の採らなかった案を、理由とともに足す（AC-22）。決定 12 の採らなかった案のうち、要件のとおりの案（B）を足す。止まる案（A）は本書の前の版の案で、ADR の決定になったことがないので足さない。
 -   **「経緯」:** 本書へのリンクを持つ 1 行を、末尾に足す（AC-22）。
 -   **0098 の文書:** 変えない（AC-23）。
 
@@ -532,8 +534,8 @@ Part B の呼び出し（`runplan.md:104-149`）に、FABLE（KIND `implementati
 | 判定のスクリプトが失敗した（取り出せない、終了コードが 0 でない、1 行目の形が違う、`MERGE` の行の数が合わない） | 起動・チェックポイントの最初の判定・push の直前の最初の段では `MISSING <merge-base>` と読む。チェックポイントの 2 回目の判定と push の直前の最後の段では、止まって標準エラーの内容を報告する | AC-01、AC-03、AC-06 |
 | Fable が走らない | `not run <reason>` と記録して進む | AC-07 |
 | merge の後の確認が走らない（呼べない、エラー、利用上限、時間切れ、Opus でない、読めない出力） | `not run <reason>` と記録して進む。merge commit は確認済みに数える | AC-28 |
-| merge の後の確認の範囲を求める git が失敗した | 記録を書かず、救済の途中で止まったときと同じく止まる | 決定 12 |
-| 確認できない merge commit（親が 3 つ以上か、第 1 親が `main` 側） | merge commit でない、記録を無効にする commit と同じに扱い、`MISSING <merge-base>` で Fable を走らせる | 決定 12 |
+| merge の後の確認の範囲を求める git が失敗した（終了コードが 0 でないか、標準エラーに何か書いた） | その merge commit の確認の記録を書かず、merge-base から HEAD までについて単独の経路を走らせる | AC-24、決定 12 |
+| 確認できない merge commit | merge commit でない、記録を無効にする commit と同じに扱い、`MISSING <merge-base>` で Fable を走らせる | 決定 12 |
 | 救済の途中で止まった（作業ツリー、状態、メンション、ローカルの CLI レビュー） | push せず、理由・HEAD・作った commit を報告して止まる | AC-08 |
 | merge の後の確認の直しを、どちらの CLI もレビューできなかった | チェックポイントの入口では、直しがどの規則にも当たらず、2 回目の判定が `MISSING` を返して止まる。push の直前の入口では、直しが印の後にあるので規則 3 に当たり、止まらない | AC-30、決定 11 |
 | 状態の確かめで違いが出た（merge の後の確認） | 結果を使わず、push せず、AC-06 と同じ内容を報告して止まる | AC-29 |
@@ -595,9 +597,9 @@ flowchart TD
 
 -   **偽の確認の記録（T1）:** 確認の記録の行はブランチのコミットメッセージにあり、ローカルの CLI レビューの見た範囲の行や Fable の記録と同じく、ブランチの書き手なら書ける。ADR-0050 は、Fable の記録についてこれを信頼の前提にしている（記録はセッション自身の手順が書く）。新しく足す確かめは、名指しの読み違えを防ぐ（3.1.3）。誤って確認していない merge commit を数えると、関門を素通りするためである（申し送り H-03）。
 -   **範囲の誤読（T2）:** 広げた START の条件は、範囲がブランチの commit だけのときに限る（3.1.4）。merge の後に作った、`main` 側の commit を含む範囲は読まない。
--   **範囲を正しく求められない merge commit（T5）:** 親が 3 つ以上の merge commit では `git show --remerge-diff` が差分を出さず、第 1 親が `main` 側の merge commit では `main` から入った変更を取り違える。どちらも確認済みに数えず、Fable に回す（決定 12）。範囲を求める git が失敗したときも、`not run` を書かずに止まる。
+-   **範囲を正しく求められない merge commit（T5）:** 親が 3 つ以上の merge commit では `git show --remerge-diff` が差分を出さず、第 1 親が `main` 側の merge commit では `main` から入った変更を取り違える。どちらも確認済みに数えず、Fable に回す（決定 12）。範囲を求める git が失敗したときも、`not run` を書かずに Fable に回す。失敗は、終了コードだけでなく標準エラーへの出力でも見分ける。
 -   **印の後の手作業の commit（T3）:** 要件定義の際に決めたこと「CHECKS の直しの見分け方」で、人と決めて受け入れた危険である。`/runplan` のチェックポイントの印で ADR-0050 が受け入れているものと同じ形である。
--   **判定と push の間の commit（T4）:** D は判定に渡した `<HEAD>` そのもので、D を名指しして push するので、判定されない commit は送られない（決定 10、AC-05）。
+-   **判定と push の間の commit（T4）:** D は判定に渡した `<HEAD>` そのもので、D を名指しして push するので、判定されない commit は送られない（決定 10、AC-05）。PR を作った後の AFTER_CREATE の `git push` も、HEAD が D であることを確かめてから走らせる。
 -   **スクリプトの取り出し方:** 今のとおり、`origin/main` の commit から作業ツリーの外に取り出して走らせる（`fable-review.md:88-92`）。ブランチのスクリプトの変更は、判定に効かない（要件 4.4）。
 -   **信頼しない入力:** 新しく読むのは、merge の後の確認のサブエージェントの出力だけである。Fable の出力と同じく、1 行目と各指摘の 4 つの値だけを使い、文をコミットメッセージにも PR の説明にも写さない。記録の commit の前に、メンションの確かめを行う（3.3.5、要件 4.2）。
 -   **サブエージェントの制約と状態の確かめ:** Fable と同じ制約を指示で課し、同じ状態の確かめを、起動の前と出口と出口の後で行う（AC-29）。
@@ -696,6 +698,7 @@ flowchart TD
 | 確認の記録が M を 12 桁で名指しする、または形が少し違う | launch | 名指しを数えない | AC-27 |
 | 記録 → 親が 3 つの merge commit → 確認の記録 | launch | `MISSING <merge-base>` | 決定 12 |
 | 記録 → 第 1 親が `main` 側の merge commit → 確認の記録 | launch | `MISSING <merge-base>` | 決定 12 |
+| 記録 → 第 1 親がブランチ側で、第 2 親が `origin/main` にない merge commit → 確認の記録 | launch | `MISSING <merge-base>` | 決定 12 |
 | Fable の記録と確認の記録を同じ commit に持つ | launch | 両方を読む（確認の記録は、その commit より前の M だけを名指しできる） | AC-27 |
 
 `unreviewed` のモードには、`coverage` のモードの件（`coverageCases`、`:231`）のうち `origin/main..HEAD` を判定するものと、次の件を足す。
@@ -707,6 +710,7 @@ flowchart TD
 | 単独の経路の直し（見た範囲の行が直しを含む） | 直しを挙げない | AC-19 |
 | `README.en.md` だけの commit、CHECKS の直し | 挙げる | AC-16 |
 | 見た範囲の行（START＝古い merge-base、END が merge commit の後） | その行を読まず、範囲の commit を挙げる | AC-17 |
+| 見た範囲の行の範囲に入る merge commit | 挙げない | AC-16 |
 
 各件の期待する出力は、件ごとに規則を壊して失敗することを確かめる（`CLAUDE.md`「Testing Strategy」）。たとえば、規則 4 の「M の子孫」の条件を外すと、「確認の記録の見た範囲の行が、M より前の commit を含む」件が失敗することを確かめる。有効と判定する側を広げる 3 つの変更（3.1.2 の規則 4、3.1.3 の名指し、3.1.4 の範囲の確かめ）には、上の表のとおり、受け付けない側の件をそれぞれ置く。
 
