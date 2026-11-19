@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -204,3 +204,7 @@
 -   **タスクの進行・作業項目・作業項目の表示・作業項目の文字列・状態の詳細:** F-001 で用語集に足す語。「今の作業項目」は、作業項目の語の中で定義する。
 -   **古い用語:** chief の状況の表の意味での「進行の位置」「進行の位置の文書」「文書の段」「進み具合」。
 -   **編集上の訂正:** 決定を変えずに、名前や言い回しだけを直すこと（`requirements_process.md`「Editing an approved document」、`adr.md`「Editorial corrections」）。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1016）

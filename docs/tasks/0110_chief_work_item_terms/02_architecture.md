@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -168,3 +168,7 @@ N/A。chief の処理の流れは変わらない。
 
 -   道具の出力の項目とコードの名前を新しい用語に合わせるなら、0102 の後に別の issue で行う。protocol 番号が上がる（要件書 1 章）。
 -   簡易な進め方のタスクを、3 つの文書の PR のマージの前に要件定義書と区別して示すなら、ブランチの文書を読む仕組みを別の issue で作る。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1016）
