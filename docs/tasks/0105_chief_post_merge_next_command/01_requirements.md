@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-18 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -228,3 +228,7 @@ issue が挙げた未確認のことの答えは次のとおりである。
 -   **進行の位置の文書**：[0093 要件定義書](../0093_chief_status_sheet/01_requirements.md) が定めた、行の進行の位置（文書 × 進み具合）のうちの文書の値。要件定義書・設計書・計画書・PR-N・なし・-・要確認のどれかで、表の「文書」の列に示す（`chief_guide.md:82`）。
 -   **要確認**：chief の行の状態の 1 つ（`needs_check`）。
 -   **worktree と workspace**：条件は worktree（git の作業ツリー）について述べ、表の行は workspace（Herdr の workspace）ごとに示す。chief のタスクの workspace は worktree を 1 つ持つ。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#999）
