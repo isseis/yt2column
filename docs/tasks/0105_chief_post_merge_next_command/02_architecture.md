@@ -48,10 +48,10 @@
     -   毎ラウンド履歴の全体を新しい記録へ引き継ぎ、古いラウンドの分を消す案は採らなかった。書けなかったことと空の履歴を見分けられず、作り直したパスの記録を消す規則も別に要るためである。人の答え：変化の事象を追記する。
     -   今の観測の記録と、PR が開いていることを二重に記録することになる。それでも観測の記録は変えない。観測の記録はラウンドごとに消え、自動送信の窓と引き継ぎに合わせた形で、自動送信を変えないためである。
     -   ADR：ADR-0046 を更新する（「記録」の記録の種類と、「ブランチ `main` をチェックアウトした worktree のタスク」に、履歴の記録の形と消し方を足す）。記録の種類と消し方の決定を変えるので、主要な決定に当たる。
--   **履歴の事象は、その worktree の排他（`HeldWorkspace`）を持って書く。書く前に、排他の下でその worktree のブランチを読み直し、ラウンドで読んだものと同じときだけ書く（3.3）。** 今、worktree ごとのディレクトリへ書くのは、すべて排他を持つ処理である（送信の記録、停止、作ったことの記録、`ClearRecords`）。`create` と `remove` も、同じ排他を持って記録を消す（`internal/chief/create.go:500`、`internal/chief/removal.go:873`）。排他を持って読み直せば、消した後に古い worktree の事象を書くことはない。排他を取れなければ（送信の最中）、そのラウンドはその worktree の事象を書かない。
+-   **履歴の事象は、その worktree の排他（`HeldWorkspace`）を持って書く。書く前に、排他の下でその worktree のブランチと履歴の記録を読み直し、ラウンドで読んだブランチと同じで、マージや閉じたことを書く PR の `pr_open` が残っているときだけ書く（3.3）。** `create` と `remove` は、同じ排他を持って記録を消す（`internal/chief/create.go:500`、`internal/chief/removal.go:873`）。排他の下で読み直せば、消された後のディレクトリに古い worktree の事象を書くことはない。排他を取れなければ（送信の最中）、そのラウンドはその worktree の事象を書かず、ラウンドの問題に示す。
     -   作成の排他（`LockCreation`）で書く案は採らなかった。`remove` はその排他を取らず、ラウンドの読み取りは排他の前に行うので、消した直後に古い事象を書きうるためである。
     -   ADR：なし。記録の書き方の細部で、このタスクの中で閉じる。
--   **同じラウンドの事象の順は、安全な側に決める。** 同じラウンドに、T の PR のマージの事象と、T でない `branch_task` があれば、`branch_task` はマージの後とみなす（3.2 の順 4）。ファイルの名前の順（事象のハッシュの順）で決まると、順に意味がなく、特定する側に倒れることがあるためである。
+-   **マージを書くラウンドには、そのときの機能ブランチも書き、同じラウンドの事象の順は安全な側に決める。** worktree の PR のマージか閉じたことを書くラウンドでは、worktree が機能ブランチにいれば、その `branch_task` を、最後の `branch_task` と同じでも書く（3.1）。同じラウンドに、T の PR のマージの事象と、T でない `branch_task` があれば、`branch_task` はマージの後とみなす（3.2 の順 4）。マージの前から T2 のブランチにいた worktree は、変化だけを書く規則ではマージの後に事象が残らず、その後 `main` に戻ると T を特定してしまうためである。ファイルの名前の順（事象のハッシュの順）で決めないのは、順に意味がなく、特定する側に倒れることがあるためである。
     -   ADR：なし。このタスクの中で閉じる。
 -   **機能ブランチでも `main` でもないブランチで開いていた PR も、タスクを空にして記録する。タスクが空の PR は「ほかのタスク」とみなし、その worktree は特定しない（3.1・3.2）。** タスクの分からない仕事に使い回した worktree が `main` に戻ったとき、前のタスクを特定しないためである（H-07）。本 PR で要件定義書 3.1 の「chief が確かめたほかのタスク」に足した。人の答え：空のタスクで記録し要確認にする。
     -   ADR：ADR-0046 の同じ更新に含める。
@@ -59,7 +59,7 @@
     -   ADR：ADR-0046 の「結果」に書く。
 -   **`tick` は、そのラウンドの履歴を書いてから行を決める（3.4）。** 今の `readRound`（`internal/chief/snapshot.go:90-149`）を、workspace の読み取りと行の判定の 2 つに分け、`tick` はその間で履歴を書く。こうすると、マージを確かめたラウンドの行に、もう特定したタスクが示される。分けずに次のラウンドから示す案は採らなかった。`chief wait` は変化があるまで次のラウンドを始めないので、要確認の行が長く残りうるためである。
     -   ADR：なし。`internal/chief` の中の処理の順で、このタスクの中で閉じる。
--   **`snapshot`・`chief send`・`chief reset`・`chief targets` は、履歴の記録を読むだけで書かない。** `snapshot` の「記録を作らない」約束（`internal/chief/snapshot.go:74-78`）を保つためである。今のセッションで `tick` が一度も走っていなければ、事象がないので要確認になる（AC-07）。
+-   **`snapshot`・`chief send`・`chief reset` は、履歴の記録を読むだけで書かない。`chief targets` は読まない（3.4）。** `snapshot` の「記録を作らない」約束（`internal/chief/snapshot.go:74-78`）を保つためである。今のセッションで `tick` が一度も走っていなければ、事象がないので要確認になる（AC-07）。
     -   ADR：なし。ADR-0046 の「結果」がすでに書いている振る舞いの実現である。
 -   **`main` の worktree は、新しいタスクを始める先（`chief targets`、`internal/chief/create.go:856`）に入らない。** 今、`targets` は `/mkreq` を提案する workspace を挙げ、その中には `main` の worktree も入る。本タスクで `main` の行は `/mkreq` を提案しなくなり、`/mkreq` の送信も拒む（AC-08）。そのため、`targets` もこれに合わせる。
     -   ADR：なし。AC-08 の帰結である。
@@ -254,8 +254,8 @@ JSON の項目は `session`・`round`・`worktree`・`kind`（`pr_open`・`pr_me
 
 **名前とディレクトリ。** 読む側は、ディレクトリを作らずに読む（今の `existingRecords`、`internal/chief/records.go:621`）。次のものは読めない記録として扱う。
 
--   `trace-` で始まり上の形に合わない名前。どのセッションのものか分からないので、今のセッションのものとみなす。
--   一覧を読めない worktree ごとのディレクトリ。
+-   `trace-` で始まり上の形に合わない名前。どのセッションのものか分からないので、今のセッションのものとみなす。`start` は、ほかのセッションの事象と同じくこれを消し、`isRecordFile` も `trace-` で始まる名前をすべて履歴の記録として扱う（`ClearRecords` が消す）。
+-   一覧を読めない worktree ごとのディレクトリ。セッションを変えても戻らないので、理由にそのディレクトリを示し、人が権限などを直す。
 
 ほかのセッションのハッシュを持つ記録は読まない。
 
@@ -263,7 +263,7 @@ JSON の項目は `session`・`round`・`worktree`・`kind`（`pr_open`・`pr_me
 
 | 事象 | 書く条件 |
 |---|---|
-| `branch_task` | worktree が機能ブランチにいて、その worktree の最後の `branch_task` のタスクと違うか、`branch_task` がまだない |
+| `branch_task` | worktree が機能ブランチにいて、その worktree の最後の `branch_task` のタスクと違うか、`branch_task` がまだないか、そのラウンドにその worktree の PR の `pr_merged`・`pr_closed` を書く |
 | `pr_open` | worktree が `main` でないブランチにいて、そのブランチに開いている PR が 1 つあり（`readWorkspace` の `f.PR`）、その PR の最後の状態が「開いている」ではない（事象がない、マージ、閉じた） |
 | `pr_merged`・`pr_closed` | 状態が開いている PR を、そのラウンドの worktree のブランチで開いているのを見ず、その PR の状態を読んだら `MERGED`・`CLOSED` だった |
 
@@ -321,7 +321,7 @@ type mainTaskResult struct {
 func applyMainTask(ctx context.Context, tasks Tasks, f workspaceFacts, result mainTaskResult) workspaceFacts
 ```
 
-`applyMainTask` は、`main` の行の読み取りに特定の結果を当てる唯一の関数である。呼ぶのは、`buildRows`（`snapshot`・`tick`・`targets`）、`Send`、`SendOfferedReset`（`internal/chief/resetoffer.go:144`）である。どれも、その後で今の `classifyWorkspace` を呼ぶ。
+`applyMainTask` は、`main` の行の読み取りに特定の結果を当てる唯一の関数である。呼ぶのは、`buildRows`（`snapshot`・`tick`。`targets` は履歴を渡さない）、`Send`、`SendOfferedReset`（`internal/chief/resetoffer.go:144`）である。どれも、その後で今の `classifyWorkspace` を呼ぶ。
 
 **行への当てはめ。** `workspaceFacts`（`internal/chief/state.go:190-218`）に、HEAD の種類 `headMain` と特定の結果を足す。
 
@@ -332,7 +332,7 @@ HEAD の確かめ（今の `headProblem(h headState)`、`internal/chief/state.go
 
 `main` の行には、引き継ぎの提案を出さない。`needsTakeoverCheck`（`internal/chief/state.go:382-`）は、`headMain` なら偽を返す。引き継ぎは、ブランチにそのタスクのコミットと計画書があることが前提で、`main` にはないためである。こうすると、`classifyWorkspace` が `main` の worktree の先のコミットとブランチの計画書を読むこともない。
 
-**印（`Row.Idle`）。** マージの記録なしと開いている PR ありの行に付け、fetch に失敗した行には付けない。読めない・ほかのタスクありの行には付けない（1.2）。
+**印（`Row.Idle`）。** マージの記録なしと開いている PR ありの行に付け、fetch に失敗した行と、そのラウンドで挙げた PR の状態を読めなかった行には付けない（今の `Row.Idle` の「すべての読み取りが成功した」、`internal/chief/state.go:153-159`）。読めない・ほかのタスクありの行には付けない（1.2）。
 
 **進行の位置の文書（`taskDocumentOf`、`internal/chief/position.go:246-269`）。** `headMain` で特定しなかった行は要確認とし、タスクのないブランチの「-」（`PositionDocNoTask`）にしない（AC-07）。T と特定した行は、機能ブランチの行と同じ規則で決まる。行で `/mkreq` が走っている（人が pane で打った）ときは、今の最初の規則のとおり要件定義書になる。
 
@@ -345,7 +345,7 @@ HEAD の確かめ（今の `headProblem(h headState)`、`internal/chief/state.go
 `tick` は、観測の記録を書いた後、ラウンドの各 worktree について次を行う。
 
 1.  最後の状態が開いている PR のうち、そのラウンドでその worktree のブランチで開いているのを見なかったものについて、`PRStateOf` で今の状態を読む。そのラウンドに Herdr にある worktree の PR に限る。読んだ状態は、ラウンドの中の表（PR の番号ごと）に置く。自動送信の `gather` が同じ PR を読むときは、表の値を使う。こうして、1 つの PR を 1 ラウンドに 2 回読まない。
-2.  3.1 の書く条件に当たる事象があれば、その worktree の排他（`Records(...).Lock()`）を取る。排他の下で worktree のブランチを読み直し、ラウンドで読んだブランチと同じときだけ事象を書く。排他を取れないとき（送信の最中）と、ブランチが変わったときは書かない。違いが残っていれば、次のラウンドで書く。
+2.  3.1 の書く条件に当たる事象があれば、その worktree の排他（`Records(...).Lock()`）を取る。排他の下で worktree のブランチと履歴の記録を読み直し、ラウンドで読んだブランチと同じときだけ事象を書く。`pr_merged`・`pr_closed` は、その PR の `pr_open` がディレクトリに残っているときだけ書く。排他を取れないとき（送信の最中）、ブランチが変わったとき、`pr_open` が消えていたときは書かず、書かなかった事象をラウンドの問題に示す。違いが残っていれば、次のラウンドで書く。違いが残らなければ（その間に worktree が `main` に戻った）、その事象は失われる。これは書けなかった事象と同じ、受け入れた残る危険である（5 章）。
 
 GitHub の読み取りの数は、1 ラウンドに、履歴で開いていて今回開いているのを見なかった PR ごとに 1 回までである。ふつうはマージの後の 1 回で、その PR の状態は決まる。開いたまま worktree が別のブランチに移った PR は、閉じるかマージされるまで、ラウンドごとに 1 回読む。
 
@@ -358,7 +358,7 @@ GitHub の読み取りの数は、1 ラウンドに、履歴で開いていて�
 -   `readFacts`：Herdr・fetch・送り先の表・旧い値の表・各 workspace の読み取り（今の `readWorkspace`）。記録を作らない。
 -   `buildRows`：履歴の記録を読み、各 `main` の worktree の特定の結果を決めて `applyMainTask` を当てる。そのうえで、今のとおり `classifyWorkspace` で行を決め、記録・リセット・削除の提案を行に付ける（`addRecords`・`addResets`・`addRemovals`）。記録を作らない。特定したタスクの文書を読む（`Tasks.Read`）ほかは、今の読み取り（先のコミット、ブランチの計画書、削除の確かめ）と同じものを読む。
 
-`TakeSnapshot` と `Targets` は、`readFacts` の後に `buildRows` を呼ぶ。`Targets`（`chief targets`）はセッションを受け取らないので、履歴の記録を読まず、`main` の行を特定しなかったもの（マージの記録なし）として決める。`main` の行は特定してもしなくても `/mkreq` を提案しないので、`targets` の結果は変わらない。`Tick` は 2.3 の順で呼ぶ。`BeginRound` に失敗したラウンドは、今のとおり事象も観測も書かずに、`buildRows` で行を決めて返す（`internal/chief/tick.go:41-45`）。
+`TakeSnapshot` と `Targets` は、`readFacts` の後に `buildRows` を呼ぶ。`Targets`（`chief targets`）は、履歴の記録を読まず、`main` の行を特定しなかったもの（マージの記録なし）として決める。`main` の行は特定してもしなくても `/mkreq` を提案しないので、読んでも `targets` の結果は変わらないためである。`Tick` は 2.3 の順で呼ぶ。`BeginRound` に失敗したラウンドは、今のとおり事象も観測も書かずに、`buildRows` で行を決めて返す（`internal/chief/tick.go:41-45`）。
 
 ### 3.5. 人が選ぶ送信（`chief send`）
 
@@ -393,11 +393,11 @@ func Send(ctx context.Context, deps Deps, owner Owner, req SendRequest) (SendOut
 
 ### 3.6. `/chief` の定義・利用ガイド・プロトコル番号
 
--   **`/chief` の定義（`.claude/commands/chief.md`）。** 提案を送る呼び出しを `chief send --workspace <workspace> --command <request> --item <id> --protocol <番号>` にする。`<id>` は、人が選んだ項目の `id` である。`mkreq` の呼び出しは変えない。出力の項目は変えない（要件定義書 4.4）。
+-   **`/chief` の定義（`.claude/commands/chief.md`）。** 提案を送る呼び出しを `chief send --workspace <workspace> --command <request> --item <id> --protocol <番号>` にする。`<id>` は、人が選んだ項目の `id` である。`mkreq` と `runpr` の呼び出しは変えない（`--item` を付けない）。出力の項目は変えない（要件定義書 4.4）。
 -   **プロトコル番号（H-04）。** `chief send` の引数が変わり、古い定義の呼び出し（`--item` なし）は新しい道具に拒まれ、新しい定義の呼び出しは古い道具に拒まれる。そのため `main` の値 + 1 にする（今の値は `internal/chief/records.go:29` の `Protocol`）。値の組み合わせの変化だけなら上げる必要はない。`/chief` の定義は、行の `task` が空かどうかで送るコマンドを決めておらず、`position.document` の値の表（`.claude/commands/chief.md:176-182`）にも新しい値はないためである。
 -   **利用ガイド（AC-12）。** `docs/dev/guides/chief_guide.md` の進行の位置の説明（今の `chief_guide.md:82`）に、要件定義書 AC-12 の 4 点と、「-」が `main` をチェックアウトした worktree には使われないことを書く。あわせて次を書く。
-    -   要確認から戻す方法：読めない記録は、理由に示されたファイルを消す。ほかのタスクありは、chief の pane で `/clear` をして新しいセッションにする（そのセッションの、すべての worktree の特定もやり直しになる）。
-    -   道具を入れ直して `/chief` を起動し直すと、新しいセッションになり、その前に見たマージでは特定されない。
+    -   要確認から戻す方法：読めない記録とほかのタスクありは、chief の pane で `/clear` をするか Claude Code を起動し直して、新しいセッションにする（`start` が古いセッションの記録を消す。すべての worktree の特定もやり直しになる）。読めない記録のファイルだけを消すことは勧めない。中身の分からない記録を消すと、ほかのタスクを示す事象が失われ、古いタスクを特定しうるためである。一覧を読めないディレクトリは、理由に示したディレクトリの権限などを直す。
+    -   道具を入れ直しても、同じ Claude Code のセッションで `/chief` を起動し直すだけなら、セッションは変わらず、特定は続く。
     -   `chief send` の `--item`。
 
 ### 3.7. コンポーネントの責務
@@ -439,7 +439,7 @@ func Send(ctx context.Context, deps Deps, owner Owner, req SendRequest) (SendOut
 
 | 特定の結果 | 理由 |
 |---|---|
-| 読めない | `the worktree is on main and a history record of this chief session cannot be read (remove it, or start a new chief session): <記録のパスと誤り>` |
+| 読めない | `the worktree is on main and a history record of this chief session cannot be read (start a new chief session with /clear): <記録のパスと誤り>` |
 | マージの記録なし | `the worktree is on main and this chief session has seen no merged PR of it, so its task is not known` |
 | ほかのタスクあり | `the worktree is on main and this chief session has seen it with more than one task or with a PR of no task: <タスクと PR の並び>` |
 | 開いている PR あり | `the worktree is on main and a PR this chief session saw open on it is not known to be merged or closed: <PR の並び>` |
@@ -461,7 +461,7 @@ func Send(ctx context.Context, deps Deps, owner Owner, req SendRequest) (SendOut
 |---|---|
 | 履歴の記録を読めない（形に合わない名前、一覧を読めないディレクトリを含む） | そのラウンドのすべての `main` の行を要確認にする（AC-09）。読めない記録を除いて特定しない |
 | 履歴の記録を書けない | ラウンドの問題に示す。次のラウンドで同じ違いがあれば書き直す。残る危険は 5 章 |
-| worktree の排他を取れない、排他の下でブランチが変わっていた | そのラウンドはその worktree の事象を書かない。次のラウンドで書く |
+| worktree の排他を取れない、排他の下でブランチが変わっていた、`pr_open` が消えていた | そのラウンドはその worktree の事象を書かず、ラウンドの問題に示す。違いが残れば次のラウンドで書く |
 | PR の状態を読めない | 事象を書かず、ラウンドの問題に示す。その PR は開いているままで、`main` の行は特定しない |
 | `BeginRound` に失敗した | 今のとおり事象も観測も書かず、自動送信もしない。行は書かれている事象から決める |
 | 作成の排他を取れない | 今のとおり自動送信をしない。履歴の事象は書く（作成の排他は使わない） |
@@ -514,10 +514,10 @@ flowchart LR
     class L4 process
 ```
 
--   **形の求め。** 3.1 の読み取りが、要件定義書 4.2 の形をすべて求める。形に合わない記録は、直さずに拒み、すべての `main` の行を要確認にする。偽った記録や壊れた記録が 1 つあるだけで、そのセッションが続く間、すべての `main` の行が要確認になりうる。これは安全な側の失敗で、理由に示したファイルを消すか、新しいセッションにすれば戻る（3.6）。
+-   **形の求め。** 3.1 の読み取りが、要件定義書 4.2 の形をすべて求める。形に合わない記録は、直さずに拒み、すべての `main` の行を要確認にする。偽った記録や壊れた記録が 1 つあるだけで、そのセッションが続く間、すべての `main` の行が要確認になりうる。これは安全な側の失敗で、新しいセッションにすれば戻る（3.6）。
 -   **送るもの。** 偽った事象が別のタスク T' を示すと、`main` の行は T' の次のコマンドを示しうる。それでも、自動送信はせず（AC-10）、人が行と項目を見て選んだときだけ送る。送られるのは、T' の `origin/main` の文書が示す次のコマンドだけで、送りうる入力の範囲（ADR-0046）は変わらない。これは要件定義書 4.2 が受け入れた残る危険である。
 -   **書けなかった事象。** 事象を書けないと、その worktree がほかのタスクのブランチにいたことを履歴が知らないまま `main` に戻ることがある。そのとき行は古いタスクを示しうる。ラウンドの問題に書けなかったことが示され、送るには人の選択が要る。これを残る危険として受け入れた（1.2）。
--   **作り直したパス。** chief の `create` と `remove` を通さずに、人が同じパスに worktree を作り直して `main` をチェックアウトすると、そのセッションの古い事象が当てはまりうる。行に示されるタスクを人が見てから選ぶので、同じく残る危険として受け入れる。chief の `create` と `remove` を通せば、その worktree の排他の下で `ClearRecords` が消す。事象を書くのも同じ排他の下で、ブランチを読み直してからなので、消した後に古い worktree の事象を書くことはない。
+-   **作り直したパス。** chief の `create` と `remove` を通さずに、人が同じパスに worktree を作り直して `main` をチェックアウトすると、そのセッションの古い事象が当てはまりうる。行に示されるタスクを人が見てから選ぶので、同じく残る危険として受け入れる。chief の `create` と `remove` を通せば、その worktree の排他の下で `ClearRecords` が消す。事象を書くのも同じ排他の下で、ブランチと履歴の記録を読み直してからなので、消された後のディレクトリに古い worktree の事象を書くことはない。
 -   **競り合い。** `chief send` は worktree の排他の下で行を作り直してから照合して送り、事象を書くのも同じ排他の下なので、照合と送信の間に履歴は変わらない。履歴以外の変化（ブランチの切り替えなど）が人の見た後に起きていれば、項目 ID の照合で拒まれる。
 
 ## 6. 処理フローの詳細
@@ -582,7 +582,8 @@ flowchart TD
 -   **特定の結果（3.2）。** 表形式のテストで、6 つの順の条件ごとに結果を確かめる。次の場合を含める。
     -   AC-06 の 2 つの例と、AC-07 の 3 つの例。
     -   T の PR のマージの後に T2 のブランチを見てから、T のブランチに戻った場合（特定しない）。
-    -   T2 のブランチを見た後に、T の PR のマージを確かめた場合（特定する）。
+    -   T2 のブランチを見て T のブランチに戻った後に、T の PR のマージを確かめた場合（特定する）。
+    -   T2 のブランチにいる間に T の PR のマージを確かめ、その後 `main` に戻った場合（特定しない）。
     -   T の PR のマージと T2 の `branch_task` が同じラウンドにある場合（特定しない）。
     -   タスクの空の PR がある場合（特定しない）。
     -   閉じた PR が開き直された場合。
