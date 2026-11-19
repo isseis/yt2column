@@ -48,11 +48,11 @@
 
 **変えるファイル:** `internal/chief/runpr_next_doc_test.go`（新規。名前を `screen` で始めない、設計書 3.1 節）
 
-- [ ] 文書全体のテキストと、読み取りの経路の一覧（名前と関数の組）を受け取り、step 4 と step 5 の節ごとの失敗を返す関数を書く（設計書 3.3 節・7 章）。節は `SectionOutsideBlocks` で取り出し、見つからなければ失敗とする（AC-03）
-- [ ] 節から、コードブロックの外のコードスパンを取り出し、中の改行と、それに続く空白を 1 つの空白にまとめる。`- ` の後か先頭から語の `NEXT` で始まるもの（中身が `NEXT` だけか `NEXT:` だけのものを除く）を例とする。例が 1 つもない節は失敗とする（設計書 3.2 節、AC-03）
-- [ ] 例のそれぞれを経路の一覧の各関数に渡し、`NextNone` か `NextCommand` でなければ、節と例と経路の名前を示す失敗とする（設計書 3.3 節、AC-01・AC-02・AC-04）
-- [ ] テストは `ReadDoc` で `runpr.md` を相対パス（設計書 3.2 節）から読み、`readRunprNext` と `readReportNext` の 2 つの経路で、上の関数が失敗を返さないことを確かめる
-- [ ] テストが想定した理由で失敗できることを確かめる。次のそれぞれで失敗することを見て、確かめたことをコミットメッセージに書く（`CLAUDE.md`「Testing Strategy」）
+- [x] 文書全体のテキストと、読み取りの経路の一覧（名前と関数の組）を受け取り、step 4 と step 5 の節ごとの失敗を返す関数を書く（設計書 3.3 節・7 章）。節は `SectionOutsideBlocks` で取り出し、見つからなければ失敗とする（AC-03）
+- [x] 節から、コードブロックの外のコードスパンを取り出し、中の改行と、それに続く空白を 1 つの空白にまとめる。`- ` の後か先頭から語の `NEXT` で始まるもの（中身が `NEXT` だけか `NEXT:` だけのものを除く）を例とする。例が 1 つもない節は失敗とする（設計書 3.2 節、AC-03）
+- [x] 例のそれぞれを経路の一覧の各関数に渡し、`NextNone` か `NextCommand` でなければ、節と例と経路の名前を示す失敗とする（設計書 3.3 節、AC-01・AC-02・AC-04）
+- [x] テストは `ReadDoc` で `runpr.md` を相対パス（設計書 3.2 節）から読み、`readRunprNext` と `readReportNext` の 2 つの経路で、上の関数が失敗を返さないことを確かめる
+- [x] テストが想定した理由で失敗できることを確かめる。次のそれぞれで失敗することを見て、確かめたことをコミットメッセージに書く（`CLAUDE.md`「Testing Strategy」）
     - `runpr.md` の中身を変えたコピーを渡す: step 4 か step 5 の 1 つの例を読めない形に変える（タスク番号を 3 桁に、知らないコマンドに、`NEXT: なし（…）` の全角の括弧を半角に、コロンの後の空白を消す、コロンを消す）。1 つの節から例をすべて消す。1 つの節の見出しを変える
     - 経路の一覧の 1 つを、常に読めない結果を返す関数に替えて渡す。経路ごとに行い、その経路の名前が失敗に示されることを見る
 
@@ -62,14 +62,14 @@
 
 **変えるファイル:** `CLAUDE.md`
 
-- [ ] 「Development Notes」の `internal/chief`'s readings of the routing table and the PR markers（`CLAUDE.md:753`）に、`runpr.md` の NEXT 行の例を足す（AC-06）
+- [x] 「Development Notes」の `internal/chief`'s readings of the routing table and the PR markers（`CLAUDE.md:753`）に、`runpr.md` の NEXT 行の例を足す（AC-06）
 
 **完了の条件:** 一覧が `runpr.md` の NEXT 行の例を挙げる。
 
 #### ステップ 1-3: 仕上げ
 
-- [ ] `make fmt`・`make test`・`make lint`・`make deadcode` を通す（AC-05）
-- [ ] 7 章の AC-07 の diff の記録を書く
+- [x] `make fmt`・`make test`・`make lint`・`make deadcode` を通す（AC-05）
+- [x] 7 章の AC-07 の diff の記録を書く
 
 **完了の条件:** グリーンゲートが通り、diff の記録がある。
 
@@ -95,7 +95,7 @@
 
 -   新しいテスト（ステップ 1-1）が AC-01〜AC-04 を確かめる。テストが想定した理由で失敗できることは、ステップ 1-1 の最後の項目で、`runpr.md` の中身を変えたコピーと、経路の 1 つを替えた一覧を渡して確かめる。
 -   AC-05 は、テストを `internal/chief` に置き、ビルドタグ `test` で走らせることで満たす。`make test` と `doc-guard` ジョブがこのパッケージを含む。
--   既存の NEXT の読み取りのテスト（`screen_transcript_report_test.go` など）は変えない。文法そのものの確認は既存のテストが受け持ち、新しいテストは文書の例と文法の照合だけを受け持つ。
+-   既存の NEXT の読み取りのテスト（`screen_transcript_report_test.go` など）は変えない。文法そのものの確認は既存のテストが受け持ち、新しいテストは、文書の例と文法の照合と、例の取り出しの規則を受け持つ。
 -   AC-06 は PR のレビューで読む。AC-07 は記録した diff を読む。
 
 ## 5. リスク管理 (Risk Management)
@@ -109,9 +109,9 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1（ステップ 1-1〜1-3）
-- [ ] PR を作成した
-- [ ] PR がマージされた
+- [x] フェーズ 1（ステップ 1-1〜1-3）
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1017
+- [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -128,6 +128,36 @@
 Diff record (AC-07):
 
 - Compared paths: `CLAUDE.md`
+- Merge-base: `c6fe505a58fcad3a432067caf1dea54ed8a1b956`
+- Compared commit: `3ade184e82091d7c3be5df61c2987b50253d8293`
+
+Path diff:
+
+````text
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 7ba2d9e36e64fa45746ada29ec26a78887d2bd4b..69115868f9cb3e1c5b35f90854f42df725be4121 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -750,8 +750,8 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
+   permission and command-document checks, `cmd/mergepr`'s checks of the
+   `mergepr` calls and of the tools with a protocol number, `cmd/numreserve`'s
+   checks of its permission rules, its calls, and its guide's values, the ADR guard
+-  `TestADRRecords`, and `internal/chief`'s readings of the routing table and
+-  the PR markers) are Go tests included
++  `TestADRRecords`, and `internal/chief`'s readings of the routing table, the
++  PR markers, and `runpr.md`'s NEXT line examples) are Go tests included
+   in `make test` and need no node. The `doc-guard` CI job runs these guards
+   (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`)
+   on every pull request, so a documentation-only change is checked in CI by
+````
+
+File list:
+
+````text
+CLAUDE.md
+docs/tasks/0107_runpr_next_line/03_implementation_plan.md
+internal/chief/runpr_next_doc_test.go
+````
 
 ## 8. 成功の基準 (Success Criteria)
 
