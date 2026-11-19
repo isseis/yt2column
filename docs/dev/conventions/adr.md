@@ -181,10 +181,11 @@ hold many items are 決定, 採らなかった案, and 結果; a short section m
 bullet list, as the convention says. The formatting applies to the whole
 section, while the content criteria for what each section holds keep their
 current scope: a PR that changes the decision of an ADR written before these
-criteria brings only the part it changes to the criteria. Rewriting an existing
-ADR to the formatting convention is not required, but any PR may do it as the
-first kind of editorial correction ("Editorial corrections" below), a rewrite
-to the criteria, which now include this formatting convention.
+criteria brings only the part it changes to the content criteria; the formatting
+still applies to the whole section. Rewriting an existing ADR to the formatting
+convention is not required, but any PR may do it as the first kind of editorial
+correction ("Editorial corrections" below), a rewrite to the criteria, which now
+include this formatting convention.
 
 **Links.** When an ADR states how the code behaves or what a document
 specifies, it links to the document that holds the specification, or to the

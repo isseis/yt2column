@@ -61,8 +61,9 @@ lines, and only in the first review pass.
 1. Get the repository top level with `git rev-parse --show-toplevel`, and make the
    target path relative to it. When the target is outside the top level, the lines
    cannot be decided.
-2. Get the merge base with `git merge-base origin/main HEAD`. Do not fetch: the
-   caller fetched `origin/main` when it prepared the branch.
+2. Get the merge base with `git merge-base origin/main HEAD`. Do not fetch: a
+   caller prepared the branch and has fetched `origin/main`; a standalone run uses
+   the local `origin/main` as it is.
 3. Check whether the path exists at the merge base with
    `git ls-tree --name-only <base> -- <path>`. Empty output means it does not; one
    line naming the path means it does.
@@ -89,8 +90,9 @@ Decide the lines once, before the fixes: a line that `japrose`'s own expression
 fixes changed is not a line the branch added or changed, so the bold item does not
 run again on a second pass. `git diff` compares with the work tree, so uncommitted
 changes count, and the step works both after the caller committed and when
-`japrose` runs alone. On `main` alone the merge base is `HEAD`, so only uncommitted
-changes are added or changed; with none, the bold item has no line to check.
+`japrose` runs alone. When the local `origin/main` is at `HEAD`, as on `main` after
+a fetch, the merge base is `HEAD`, so only uncommitted changes are added or changed;
+with none, the bold item has no line to check.
 
 ## Load the Glossary
 
@@ -142,7 +144,7 @@ these inputs:
 - [ ] 同一概念には常に同一の日本語表記が使われ、用語集に一致している。用語集が「旧称」と記す語は使われていない。
 - [ ] 冗長・回りくどい言い回しが、意味を変えずに簡潔にされている。
 - [ ] 図（Mermaid）のラベル・キャプション中の日本語にも上記が適用されている（ノード識別子・コード識別子は除く）。
-- [ ] 確かめる行（「Review」の FILES で渡すファイルにある）の太字が、書式の規約の太字の規則に合っている（文全体や、文より長いまとまりを太字にしていない）。規則の外にある固定のラベルは対象外とし、確かめる行の外の太字と、確かめる行の外までまたがる太字のまとまりは指摘しない。変えた行のうち、変更がリンク・名前・見出し・誤字の直しだけの行の太字も指摘しない。確かめる行を決められなかったときと、対象が README（`README.md`・`README.en.md`）のときは、この項目を確かめない。
+- [ ] 確かめる行（「Review」の FILES で渡すファイルにある）の太字が、書式の規約の太字の規則に合っている（太字は、項目や段落の頭のラベルと、読み落とすと誤解を招く語句に限られ、文全体や、文より長いまとまりは太字にしない）。規則の外にある固定のラベルは対象外とし、確かめる行の外の太字と、確かめる行の外までまたがる太字のまとまりは指摘しない。変えた行のうち、変更がリンク・名前・見出し・誤字の直しだけの行の太字も指摘しない。確かめる行を決められなかったときと、対象が README（`README.md`・`README.en.md`）のときは、この項目を確かめない。
 
 **Hard constraints (use verbatim; the reviewer must flag any fix that would violate one of these as out of scope):**
 - [ ] 技術的な内容・事実・数値・固有名・構造・節の順序・見出し・文書ステータスを変更しない。表現だけを直す。
@@ -171,9 +173,10 @@ From the review findings, apply the fixes to the document in place:
   Removing the markers is an expression-only fix: do not add subheadings or
   restructure the document to satisfy the formatting convention.
 - When the lines could not be decided, do not check the bold item. Say in the report
-  that it was not checked and why, and continue the other items.
-- In the report, give the number of lines the bold item checked. When the number is
-  0, say that there was no line to check.
+  that it was not checked and why, and continue the other items. This case reports
+  the reason, not a count.
+- Otherwise, in the report, give the number of lines the bold item checked. When the
+  number is 0, say that there was no line to check.
 
 If any Critical or Major finding required a fix, run a second review pass to verify
 the fixes (subject to the three-pass limit in the shared pattern), then stop.
