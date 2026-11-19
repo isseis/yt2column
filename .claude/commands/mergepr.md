@@ -198,8 +198,14 @@ around it with your own shell commands. Work in order; do not skip a step.
    as they are. When it stops with a mismatch, each `missing:`, `extra:`, or
    other reason it printed shows what to fix: rebuild the body as above and
    run `check-body` again. When it stops with `correction check: cannot read`,
-   report the error and stop without rebuilding. Never go on to step 3 before
-   `check-body` passes on the body you will show.
+   do not rebuild: run the same `check-body` once more, and when it stops
+   again, discard the preparation with
+   `mergepr discard --protocol 3 --state <state-file>`, report the error, and
+   stop. When `paragraph` stops, it wrote nothing: a drop that names no line
+   or a rejected line no `--drop-rejected` declares is a mistake in the drops
+   of this run; fix them from what `prepare` printed and run `paragraph`
+   again, and report and stop when it cannot read the range. Never go on to
+   step 3 before `check-body` passes on the body you will show.
 3. **Ask for approval.** Show the user the PR URL, the base branch, the CI
    result, the full subject and body, and the record of which rule decided
    the subject's prefix (step 2), and ask whether to merge with this
@@ -210,7 +216,10 @@ around it with your own shell commands. Work in order; do not skip a step.
    - **Accepted revision:** dropping accepted line `i` under case (1) or (2)
      of step 1, when the user says which case holds. Add
      `--drop <i>:disputed` or `--drop <i>:reverted` to the drops of this run,
-     run `paragraph` again, and rebuild the body file as step 2 says.
+     run `paragraph` again, and rebuild the body file as step 2 says. A drop
+     for a line already dropped replaces the earlier one (never pass two
+     drops for one line: `mergepr` refuses that), and the user may also take
+     a drop back; `i` is from 1 to the number of lines of `corrections.txt`.
    - **Revisions not applied:** removing or rewriting a correction line for
      any other reason, and adding a line that starts with
      `Editorial correction: ` or `Dropped editorial corrections: `. Do not
@@ -271,15 +280,18 @@ around it with your own shell commands. Work in order; do not skip a step.
    prepared work directory. If the merge or cleanup stops after the PR was
    merged, fix the reported cause and run
    `mergepr cleanup --protocol 3 --state <state-file> --body-file <body-file>`,
-   with the body file the merge was given (the `cleanup` command `merge`
-   shows names it), so the cleanup also checks the merge commit as below.
+   with the same state file and body file the merge was given, so the
+   cleanup also checks the merge commit as below.
    After the cleanup, `mergepr` compares the correction lines of the merge
    commit with those of the body it checked and sent, and prints
    `corrections carried: <n> line(s) verified`, or
    `corrections carried: not verified` when it could not learn the merge
    commit or was given no body file. When they differ, or the merge commit
    cannot be read, the error starts with `post-merge check: `: the PR is
-   merged and no preparation is left to discard. Report that the PR is
+   merged, so do not discard anything or merge again. A cleanup run again
+   after such an error repeats the comparison and ends with the same error;
+   when its other lines show that the cleanup finished, the error does not
+   block the cleanup. Report that the PR is
    merged, its merge commit, and each `post-merge check:` line, and stop; the
    merge cannot be undone, and how to record the difference is the user's
    choice.

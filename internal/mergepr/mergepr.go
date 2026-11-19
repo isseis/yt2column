@@ -218,6 +218,10 @@ type Report struct {
 	LocalDeleted   bool
 	// Note tells the operator what was left for them to do, if anything.
 	Note string
+	// Merged is true once this run knows the PR is merged: gh pr merge
+	// succeeded, or the cleanup read the merge commit. The report then says
+	// whether the correction lines were verified.
+	Merged bool
 	// CorrectionsChecked is true only when the post-merge comparison ran and
 	// found the lines equal, so the zero value means "not verified".
 	CorrectionsChecked bool
@@ -513,20 +517,26 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 	// prepare, so the merged content is exactly what CI passed and the message
 	// describes.
 	_, mergeErr := t.gh(ctx, "pr", "merge", state.number(), "--squash", "--subject", subject, "--body-file", bodyFile, "--match-head-commit", state.HeadRefOID)
-	var removeErr error
+	// A body file left behind is not a failure of the merge, so it is
+	// reported as a note, never as an error that would read as one.
+	var leftover string
 	if rmErr := os.Remove(bodyFile); rmErr != nil {
-		removeErr = fmt.Errorf("remove the body file %s: %w", bodyFile, rmErr)
+		leftover = fmt.Sprintf("could not remove the body file %s (%v); remove it yourself", bodyFile, rmErr)
 	}
 	if mergeErr != nil {
-		return checked, errors.Join(fmt.Errorf("merge PR: %w\ncheck the PR; if it was merged anyway, run `%s`", mergeErr, cleanupCommand(statePath, bodyPath)), removeErr)
+		checked.Note = leftover
+		return checked, fmt.Errorf("merge PR: %w\ncheck the PR; if it was merged anyway, run `%s`", mergeErr, cleanupCommand(statePath, bodyPath))
 	}
 	report, err := t.cleanup(ctx, state)
 	report.ProtocolCheck = checked.ProtocolCheck
+	report.Merged = true
+	if leftover != "" {
+		report.Note = strings.TrimPrefix(report.Note+"; "+leftover, "; ")
+	}
 	if err == nil {
 		_ = removeWorkDir(state, statePath)
 	}
-	report, err = t.compareAfterMerge(ctx, state, report, err, []byte(subject), body)
-	return report, errors.Join(err, removeErr)
+	return t.compareAfterMerge(ctx, state, report, err, []byte(subject), body)
 }
 
 // writeBodyFile writes body to a new file for gh pr merge --body-file and
@@ -664,7 +674,7 @@ func (t *Tool) cleanup(ctx context.Context, state State) (Report, error) {
 	if live.State != mergedState {
 		return Report{}, fmt.Errorf("%w: state is %s; run cleanup again once it is merged", errPRNotMerged, live.State)
 	}
-	report := Report{MergeCommitOID: live.MergeCommit.OID}
+	report := Report{MergeCommitOID: live.MergeCommit.OID, Merged: true}
 	// A head force-pushed and merged after prepare means the local branch at
 	// the prepared OID may hold commits the merge dropped, so touch nothing.
 	if live.HeadRefOID != state.HeadRefOID {

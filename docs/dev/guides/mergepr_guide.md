@@ -229,7 +229,7 @@ local branch deleted: true
 corrections carried:  2 line(s) verified
 ```
 
-`corrections carried:` の行は、マージコミットが分かったときに必ず出る。照合で一致したときは一致した行の数を、照合しなかったとき（`cleanup` に `--body-file` を渡さなかったとき、照合で食い違ったとき）は `not verified` を示す。
+`corrections carried:` の行は、PR がマージされたと分かったときに必ず出る。照合で一致したときは一致した行の数を、照合しなかったとき（マージコミットが分からなかったとき、`cleanup` に `--body-file` を渡さなかったとき、照合で食い違ったとき）は `not verified` を示す。
 
 #### `discard --state FILE`
 
@@ -359,6 +359,7 @@ Dropped editorial corrections: <a> disputed by a reviewer, <b> reverted on the b
 | `correction check: cannot read the correction lines of the PR's commits` | `prepare`、`paragraph`、`check-body`、`merge` | 範囲のコミットやトレーラーを読めない（shallow なリポジトリ、ref を解決できない、git の失敗。続く理由を見る） | 下の「訂正の確かめで止まったとき」 |
 | `correction check: the message does not match the PR's correction lines` | `paragraph`、`check-body`、`merge` | 件名と本文の訂正の行がブロックと合わない、1 つの段落でない、トレーラーの読まれ方が変わる、落とす指定が行を指さない、宣言のない拒否した行がある（その前の `mergepr: correction check:` と `mergepr: correction rejected:` の行を見る） | 下の「訂正の確かめで止まったとき」 |
 | `post-merge check: the merged commit does not carry the body's correction lines` | `merge`、`cleanup` | マージコミットの訂正の行が、渡した本文と違う、またはマージコミットを読めない | 下の「マージの後の照合で食い違ったとき」 |
+| `could not remove the body file`（`note:` の行） | `merge` | `merge` が作った一時ファイルを消せなかった。マージの成否には関わらない | 示されたファイルを自分で消す |
 | `invalid drop` | すべて | `--drop` か `--drop-rejected` の値の形が違う、同じ行を 2 回指している | 5.2 節の形で指定し直す |
 | `PR is not open` | `prepare` | PR がクローズまたはマージ済み | 対象の PR を確認する |
 | `CI checks failed` | `prepare` | 失敗したチェックがある、またはチェックが無い | CI を直して push し、`prepare` からやり直す |
@@ -374,9 +375,9 @@ Dropped editorial corrections: <a> disputed by a reviewer, <b> reverted on the b
 | `invalid state` | `merge`、`cleanup`、`discard` | `--state` に `prepare` が書いたファイル以外を指定した | `prepare` が表示したパスを指定する |
 | `state file does not name a generated work directory it lives in` | `discard` | `--state` が、`prepare` が作ったディレクトリの外へ移動・コピーされた state ファイルを指している、またはそのディレクトリ名が `mergepr-` 接頭辞を持たない | `prepare` が表示したパスを指定する。安全と分かっているなら準備したディレクトリを自分で削除する |
 
-**訂正の確かめで止まったとき.** マージしていない。`cannot read` のときは、準備はそのまま使えるので、理由を取り除いてから同じサブコマンドを実行し直す（shallow なリポジトリなら `git fetch --unshallow`）。`merge` で止まったときは、もう一度だけ同じ `merge` を実行し、また止まれば準備を捨てて報告する。食い違いのときは、`mergepr: correction check:` の各行が直す所を示す。`check-body` で止まったなら、本文を `paragraph.txt` から作り直して `check-body` をやり直す。`merge` で止まったなら、表示された `discard` で準備を捨て、本文か落とす指定を直して、承認を聞き直す。拒否した行の宣言がないときは、その行を `--drop-rejected` で落とすか、ブランチでコミットのメッセージを書き直して `prepare` からやり直す。`/runpr` の PRE_MERGE の commit と push の後に `merge` で止まったときは、その commit はブランチに残る。
+**訂正の確かめで止まったとき.** マージしていない。`cannot read` のときは、理由を取り除いてから実行し直す（shallow なリポジトリなら `git fetch --unshallow`）。`prepare` で止まったときは何も作っていないので、`prepare` をやり直す。`paragraph`・`check-body`・`merge` で止まったときは準備がそのまま使えるので、もう一度だけ同じサブコマンドを実行し、また止まれば準備を捨てて報告する。食い違いのときは、`mergepr: correction check:` の各行が直す所を示す。`check-body` で止まったなら、本文を `paragraph.txt` から作り直して `check-body` をやり直す。`merge` で止まったなら、表示された `discard` で準備を捨て、本文か落とす指定を直して、承認を聞き直す。拒否した行の宣言がないときは、その行を `--drop-rejected` で落とすか、ブランチでコミットのメッセージを書き直して `prepare` からやり直す。`/runpr` の PRE_MERGE の commit と push の後に `merge` で止まったときは、その commit はブランチに残る。
 
-**マージの後の照合で食い違ったとき.** PR はマージ済みで、捨てる準備はない。誤りの前の `mergepr: post-merge check:` の行が、渡した本文にあってマージコミットにない行（`missing:`）と、その逆（`extra:`）を示す。マージは取り消せないので、`git cat-file commit <マージコミット>` で実際の行を確かめ、`main` の履歴を書き換えない直し方（後の PR の本文に記録するなど）を選ぶ。マージコミットを読めなかったとき（`could not read the merged commit`）は、`origin` に届くようになってから、`merge` に渡した本文ファイルで `cleanup --body-file` を実行すると照合をやり直せる。
+**マージの後の照合で食い違ったとき.** PR はマージ済みで、捨てる準備はない。誤りの前の `mergepr: post-merge check:` の行が、渡した本文にあってマージコミットにない行（`missing:`）と、その逆（`extra:`）を示す。マージは取り消せないので、`git cat-file commit <マージコミット>` で実際の行を確かめ、`main` の履歴を書き換えない直し方（後の PR の本文に記録するなど）を選ぶ。マージコミットを読めなかったとき（`could not read the merged commit`）は、片付けが終わっていれば作業ディレクトリはもうないので、`cleanup` では照合をやり直せない。`origin` に届くようになってから、`git fetch origin <base>` の後に `git cat-file commit <マージコミット>` で、`Editorial correction: ` と `Dropped editorial corrections: ` で始まる行を、承認した本文の同じ行と手で比べる。片付けも止まっていて照合で食い違ったときは、片付けを `cleanup --body-file` でやり直すと照合も繰り返されて同じ誤りで終わる。ほかの報告の行で片付けが終わったことを確かめれば、その誤りは片付けを妨げていない。
 
 `merge` の確かめ直しで止まったときは、マージしていない。`origin/main` の取得に失敗したとき（`could not fetch origin/main`）は、準備はそのまま使えるので、`origin` に届くようになってから同じ `merge` を実行し直す。それ以外で止まったときは、表示された `mergepr discard --protocol 3 --state ...` で準備を捨ててから直す。
 

@@ -1029,7 +1029,8 @@ character as 2); the line shapes below are the examples to follow.
      `mergepr check-body --protocol 3 --state <state-file> --subject-file <subject-file> --body-file <body-file> --drop <drop>`.
      When it stops with a mismatch, rebuild that body and check it again;
      make no PRE_MERGE commit and no push before every version passes. When it
-     stops with `correction check: cannot read`, run
+     stops with `correction check: cannot read`, run the same `check-body`
+     once more, and when it stops again, run
      `mergepr discard --protocol 3 --state <state-file>`, make no PRE_MERGE
      commit and no push, stop, and report the error.
    - **Drops of this run.** The drops (`mergepr.md` step 1, "Drops") are kept
@@ -1069,8 +1070,9 @@ character as 2); the line shapes below are the examples to follow.
      (step 3), numbered 1, 2, ... in order, each marked as excluded, with its
      topic, the reason, and its URL; under a heading of their own, the
      accepted correction lines, each numbered `C1`, `C2`, ... in the order of
-     `corrections.txt` (`C<n>` is its line `n`) and built by concatenating
-     `corrections.txt` into the detail file with `cat` (never retyped), with
+     `corrections.txt` (`C<n>` is its line `n`), written by appending the
+     output of `awk '{ printf "C%d: %s\n", NR, $0 }' <corrections-file>` to
+     the detail file (never retyped), with
      the drops of this run and the rejected lines dropped under case (3) as
      `prepare` reported them, and the form of a drop answer (below); the
      Escalation decision and its reason,
@@ -1223,8 +1225,8 @@ character as 2); the line shapes below are the examples to follow.
        round.
      - A drop answer, when the detail file lists accepted correction lines:
        one or more `C<n>:disputed` or `C<n>:reverted`, separated by ASCII `,`
-       or spaces, with no other text, each `<n>` a `C` number of the detail
-       file, at most once. `disputed` says a reviewer of the PR disputed that
+       or spaces, with no other text, each `<n>` from 1 to the number of
+       lines of `corrections.txt`, at most once. `disputed` says a reviewer of the PR disputed that
        the line is an editorial correction, and `reverted` that its correction
        was reverted later on the branch and is still reverted at the head
        (`mergepr.md` step 1, "Drops"). Add `--drop <n>:<case>` for each to the
@@ -1232,10 +1234,13 @@ character as 2); the line shapes below are the examples to follow.
        (for example
        `mergepr paragraph --protocol 3 --state <state-file> --drop <drop>`),
        rebuild both versions of the body as `mergepr.md` step 2 does, run `check-body` on each, and ask this
-       question again as a new round. Any other text that names a `C` number,
-       or a drop answer whose number is not in the detail file, is no drop
-       answer: it changes nothing, and asks this question again as a new
-       round.
+       question again as a new round. A drop for a line already dropped
+       replaces the earlier one, so no line is passed two drops. Any other
+       text that names a `C` number, or a drop answer whose number is out of
+       that range, is no drop answer: it changes nothing, and asks this
+       question again as a new round. When `paragraph` stops, it wrote
+       nothing: run `mergepr discard --protocol 3 --state <state-file>`,
+       stop, and report what it printed.
      - Any other free text revises the message: rewrite the subject and body
        files (and the version without the approval line), applying
        `mergepr.md` step 3 to any part that would change a correction line
@@ -1448,7 +1453,10 @@ Once `mergepr.md` reports the merge:
   `mergepr cleanup --protocol 3 --state <state-file> --body-file <body-file>`,
   with the body file the merge used (`approved-<round>.body`, or the body
   file of the approval message files when PRE_MERGE was none), and
-  only then continue. When another worktree has the base branch checked out,
+  only then continue. When the merge's post-merge comparison already found
+  a difference, this cleanup repeats it and ends with the same
+  `post-merge check:` error; it does not stop this step when the cleanup's
+  other lines show the cleanup finished. When another worktree has the base branch checked out,
   the cleanup leaves the local base branch stale; do not rely on it.
 - `git fetch origin main`. When NEXT is set, create the next branch from
   `origin/main`, naming it and linking it to the task's issue by

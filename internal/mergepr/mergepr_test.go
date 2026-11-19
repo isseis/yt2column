@@ -343,7 +343,7 @@ func TestMerge(t *testing.T) {
 		t.Fatalf("Merge returned error: %v", err)
 	}
 	runner.done()
-	want := Report{ProtocolCheck: testSummary.String(), MergeCommitOID: testMergeOID, BaseUpdated: true, LocalDeleted: true, CorrectionsChecked: true}
+	want := Report{ProtocolCheck: testSummary.String(), MergeCommitOID: testMergeOID, BaseUpdated: true, LocalDeleted: true, Merged: true, CorrectionsChecked: true}
 	if !reflect.DeepEqual(report, want) {
 		t.Errorf("report = %+v, want %+v", report, want)
 	}
@@ -410,7 +410,7 @@ func TestCleanupWithoutLocalBranch(t *testing.T) {
 		t.Fatalf("Cleanup returned error: %v", err)
 	}
 	runner.done()
-	want := Report{MergeCommitOID: testMergeOID, BaseUpdated: true}
+	want := Report{MergeCommitOID: testMergeOID, BaseUpdated: true, Merged: true}
 	if !reflect.DeepEqual(report, want) {
 		t.Errorf("report = %+v, want %+v", report, want)
 	}
@@ -1549,4 +1549,63 @@ func TestCleanupPostMergeCheck(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestMergeStopsAfterTheMergeKnown verifies what Merge reports when it stops
+// at or after gh pr merge: a refused merge shows the cleanup command with
+// the body file, so the cleanup can run the post-merge comparison; a merge
+// whose cleanup could not read the PR reports the merge as done but not
+// verified; and a body file that cannot be made stops before gh pr merge
+// with the preparation kept for the same merge again.
+func TestMergeStopsAfterTheMergeKnown(t *testing.T) {
+	t.Run("refused", func(t *testing.T) {
+		_, statePath, subjectPath, bodyPath := mergeFiles(t)
+		refused := mergeStep()
+		refused.err = errors.New("exit status 1")
+		tool, runner := newTool(t, viewStep(openState, "main"), fetchMainStep(), refused)
+		_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
+		runner.done()
+		// The command the operator is told to run is the contract.
+		if err == nil || !strings.Contains(err.Error(), cleanupCommand(statePath, bodyPath)) {
+			t.Errorf("Merge error = %v, want it to show %q", err, cleanupCommand(statePath, bodyPath))
+		}
+	})
+	t.Run("cleanup cannot read the PR", func(t *testing.T) {
+		_, statePath, subjectPath, bodyPath := mergeFiles(t)
+		view := viewStep(mergedState, "main")
+		view.err = errors.New("exit status 1")
+		tool, runner := newTool(t, viewStep(openState, "main"), fetchMainStep(), mergeStep(), view)
+		report, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
+		runner.done()
+		if err == nil {
+			t.Fatal("Merge returned nil, want the cleanup's error")
+		}
+		if !report.Merged || report.MergeCommitOID != "" || report.CorrectionsChecked {
+			t.Errorf("report = %+v, want merged, no merge commit, not verified", report)
+		}
+	})
+	t.Run("body file cannot be made", func(t *testing.T) {
+		dir, statePath, subjectPath, bodyPath := mergeFiles(t)
+		t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
+		tool, runner := newTool(t, viewStep(openState, "main"), fetchMainStep())
+		_, err := tool.Merge(t.Context(), statePath, subjectPath, bodyPath, Drops{})
+		runner.done()
+		if err == nil || !strings.Contains(err.Error(), "run the same merge command again") {
+			t.Errorf("Merge error = %v, want it to keep the preparation for the same merge", err)
+		}
+		if _, err := os.Stat(dir); err != nil {
+			t.Errorf("work directory %s removed: %v", dir, err)
+		}
+	})
+}
+
+// TestCleanupUnreadableBodyFile verifies that Cleanup with a body file it
+// cannot read stops before it touches anything.
+func TestCleanupUnreadableBodyFile(t *testing.T) {
+	_, statePath, _, _ := mergeFiles(t)
+	tool, runner := newTool(t)
+	if _, err := tool.Cleanup(t.Context(), statePath, filepath.Join(t.TempDir(), "missing.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Cleanup error = %v, want the missing body file", err)
+	}
+	runner.done()
 }

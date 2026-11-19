@@ -185,11 +185,12 @@ func TestPrintPrepared(t *testing.T) {
 	}
 }
 
-// TestPrintReport verifies that once the merge commit is known the report
-// says whether the post-merge comparison verified the correction lines, and
-// that a report with no merge commit says nothing about them.
+// TestPrintReport verifies that once the PR is known to be merged the report
+// says whether the post-merge comparison verified the correction lines, also
+// when the merge commit is unknown, and that a report of no merge says
+// nothing about them.
 func TestPrintReport(t *testing.T) {
-	merged := mergepr.Report{ProtocolCheck: "passed", MergeCommitOID: "m", BaseUpdated: true, LocalDeleted: true}
+	merged := mergepr.Report{ProtocolCheck: "passed", MergeCommitOID: "m", BaseUpdated: true, LocalDeleted: true, Merged: true}
 	head := "protocol:             passed\nmerge commit:         m\nbase branch updated:  true\nlocal branch deleted: true\n"
 	verified := merged
 	verified.CorrectionsChecked, verified.CorrectionsVerified = true, 3
@@ -200,6 +201,7 @@ func TestPrintReport(t *testing.T) {
 	}{
 		{"verified", verified, head + "corrections carried:  3 line(s) verified\n"},
 		{"not verified", merged, head + "corrections carried:  not verified\n"},
+		{"merge commit unknown", mergepr.Report{ProtocolCheck: "passed", Merged: true}, "protocol:             passed\ncorrections carried:  not verified\n"},
 		{"not merged", mergepr.Report{ProtocolCheck: "passed"}, "protocol:             passed\n"},
 	}
 	for _, tt := range tests {

@@ -298,19 +298,21 @@ func printPrepared(w io.Writer, prepared mergepr.Prepared) {
 	_, _ = fmt.Fprintf(w, "state: %s\n", filepath.Join(prepared.Dir, "state.json"))
 }
 
-// printReport writes what merge or cleanup did. Once the merge commit is
-// known it always says whether the post-merge comparison verified the
-// correction lines.
+// printReport writes what merge or cleanup did. Once the PR is known to be
+// merged it always says whether the post-merge comparison verified the
+// correction lines, also when the merge commit could not be learned.
 func printReport(w io.Writer, report mergepr.Report) {
 	if report.ProtocolCheck != "" {
 		_, _ = fmt.Fprintf(w, "protocol:             %s\n", report.ProtocolCheck)
 	}
-	if report.MergeCommitOID == "" {
+	if !report.Merged {
 		return
 	}
-	_, _ = fmt.Fprintf(w, "merge commit:         %s\n", report.MergeCommitOID)
-	_, _ = fmt.Fprintf(w, "base branch updated:  %t\n", report.BaseUpdated)
-	_, _ = fmt.Fprintf(w, "local branch deleted: %t\n", report.LocalDeleted)
+	if report.MergeCommitOID != "" {
+		_, _ = fmt.Fprintf(w, "merge commit:         %s\n", report.MergeCommitOID)
+		_, _ = fmt.Fprintf(w, "base branch updated:  %t\n", report.BaseUpdated)
+		_, _ = fmt.Fprintf(w, "local branch deleted: %t\n", report.LocalDeleted)
+	}
 	if report.CorrectionsChecked {
 		_, _ = fmt.Fprintf(w, "corrections carried:  %d line(s) verified\n", report.CorrectionsVerified)
 	} else {
