@@ -5,11 +5,13 @@ package mergepr
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 
+	"github.com/isseis/yt2column/internal/cmdrunner"
 	"github.com/isseis/yt2column/internal/numreserve"
 )
 
@@ -190,4 +192,54 @@ func writeScript(t testing.TB, body string) string {
 		t.Fatalf("write helper script: %v", err)
 	}
 	return path
+}
+
+// invalidBaseNames are base branch names that refs/remotes/origin/<name>
+// makes an invalid ref name.
+var invalidBaseNames = []string{"main^", "a:b", "a..b", "x~1", ""}
+
+// hardened returns the arguments the reader passes git for args.
+func hardened(args ...string) []string {
+	return append(cmdrunner.GitHardening(), args...)
+}
+
+// fakeCorrectionSource stands in for the correction-line reading. It returns
+// fixed range lines and merge-commit lines, records the arguments it was
+// given, and reads trailers with the production git, so a check that depends
+// on how git reads trailers is checked against git itself.
+type fakeCorrectionSource struct {
+	lines     []correctionLine
+	err       error
+	merged    [][]byte
+	mergedErr error
+	// trailFailAt makes the n-th trailers call fail (1-based); 0 never.
+	trailFailAt int
+	trailCalls  int
+	real        *gitCorrectionSource
+	gotBase     string // the base rangeLines or mergedLines was last given
+	gotHead     string // the head rangeLines was last given
+	gotMerge    string // the merge commit mergedLines was last given
+}
+
+func (f *fakeCorrectionSource) rangeLines(_ context.Context, base, head string) ([]correctionLine, error) {
+	f.gotBase, f.gotHead = base, head
+	return f.lines, f.err
+}
+
+func (f *fakeCorrectionSource) mergedLines(_ context.Context, base, merge string) ([][]byte, error) {
+	f.gotBase, f.gotMerge = base, merge
+	return f.merged, f.mergedErr
+}
+
+func (f *fakeCorrectionSource) trailers(ctx context.Context, message []byte) ([]byte, error) {
+	f.trailCalls++
+	if f.trailCalls == f.trailFailAt {
+		return nil, fmt.Errorf("%w: git interpret-trailers failed", errCorrectionUnreadable)
+	}
+	return f.real.trailers(ctx, message)
+}
+
+func newFakeSource(t *testing.T, lines ...correctionLine) *fakeCorrectionSource {
+	t.Helper()
+	return &fakeCorrectionSource{lines: lines, real: newGitCorrectionSource(t.TempDir())}
 }
