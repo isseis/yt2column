@@ -40,7 +40,7 @@
     -   **採らなかった案:** 1 つの PR にまとめる案は、新しい Go のファイルとテスト、`runpr.md` の大きな改訂が 1 つのレビューに集まるので採らない。3 つに分けて規則の文書と ADR を最後に置く案も採らない。理由は 2 つある。1 つは、ADR-0047 のずれの記述を、`runpr.md` を直す PR で消す必要があること。もう 1 つは、配線の PR と規則の文書の PR の間、ADR-0039 のずれの記述が半分だけ正しい状態になることである。
     -   ADR：なし。PR の切り方はこのタスクの中で閉じる。
 2.  **トレーラーの読み取りでは、利用者の git の設定を読ませない（人が選んだ）。** 設計書 3.4 が計画に委ねた 2 点を、次のとおり決める。
-    -   設定を読ませない方法: `git` を、環境変数 `GIT_CONFIG_NOSYSTEM=1` と `GIT_CONFIG_GLOBAL=/dev/null` を付けて走らせる。`HOME` と `XDG_CONFIG_HOME` は、新しく作った空の一時ディレクトリに向ける。走らせる場所はリポジトリの外のその一時ディレクトリにし、`GIT_CEILING_DIRECTORIES` でリポジトリを探させない。`HOME` と `XDG_CONFIG_HOME` を向けるのは、`GIT_CONFIG_GLOBAL` を読まない古い git でも、利用者の設定を読ませないためである。
+    -   設定を読ませない方法: `git` を、環境変数 `GIT_CONFIG_NOSYSTEM=1` と `GIT_CONFIG_GLOBAL=/dev/null` を付けて走らせる。`HOME` と `XDG_CONFIG_HOME` は、新しく作った空の一時ディレクトリに向ける。走らせる場所はリポジトリの外のその一時ディレクトリにし、`GIT_CEILING_DIRECTORIES` にその親のディレクトリを指定して、リポジトリを探させない（作業ディレクトリそのものを指定しても探すのを止めない。git 2.50.1 で確かめた）。`HOME` と `XDG_CONFIG_HOME` を向けるのは、`GIT_CONFIG_GLOBAL` を読まない古い git でも、利用者の設定を読ませないためである。
     -   本文の渡し方: 件名・空行・本文をつなげたメッセージを、標準入力で渡す（`cmdrunner` の `RunInput`）。一時ファイルは作らない。
     -   **理由:** git 2.50.1 で、同じメッセージに対する `--parse` の出力が、`~/.gitconfig` の `trailer.separators` と `core.commentChar` で変わった（2026-11-19 にコミット `21aef492` の作業ツリーで確かめた）。設定を足すと、既定の設定では何も出力しないメッセージから 2 行が出力された。上の環境を付けると、同じ `~/.gitconfig` があっても何も出力しなかった。GitHub や後の読み手は利用者の設定を使わないので、既定の設定で確かめる。
     -   **採らなかった案:** `-c` で既知のキーだけを固定する案は、`include` や、将来足されるキーが残るので採らない。利用者の設定のまま走らせる案は、確かめの結果がマシンの設定で変わるので採らない。
@@ -69,7 +69,7 @@
 -   **`log.txt` の書き方（変えない）:** `internal/mergepr/mergepr.go:250` は `git log --format=%h %s%n%n%b` で書く。設計書 2.2 のとおり、下書きの材料として今のまま使う。
 -   **`git log` は再エンコードし、`cat-file` はしない:** 手元の一時リポジトリで確かめた（2026-11-19、git 2.50.1）。`encoding ISO-8859-1` のヘッダーと、`\xff`・U+FFFE（非文字）・行末の CR を含むメッセージのコミットを、`git hash-object -t commit -w --stdin` で作った（拒まれずに作れた）。`git cat-file commit` は、格納したバイト列をそのまま出した。`git log --format=%B` は、`\xff` などを UTF-8 に変換して出した。テストの補助（ステップ 1-2）は、この方法でコミットを作る。今の `gitRepo.Commit`（`internal/mergepr/test_helpers_git.go:82-115`）は `commit-tree -m` を使うので、任意のバイト列のメッセージを作れない。
 -   **範囲の列挙:** `listPRCommits`（`internal/mergepr/protocolcheck.go:508-514`）は `rev-list --reverse --no-commit-header <revListFormat> <head> ^<main>` で列挙し、`--topo-order` を付けない。`history`（`:585-608`）は shallow を拒み、`origin/main` を `resolveCommit`（`:487-498`）で解決し、`isObjectID`（`:474-484`）で head を確かめる。このうち `origin/main` を決め打ちで解決するのは `history` だけで（`mainRef`、`:33`・`:593`）、`listPRCommits` と `resolveCommit` は渡されたコミットを使う。訂正の行の読み取りは `origin/<baseRefName>` を読むので、base を引数に取る形にする（ステップ 1-1）。`history` は、どの失敗も `protocol check: ` で始まる `*protocolUnreadableError` に包むので、共有する部分は素の誤りを返す形にする（ステップ 1-1）。プロトコル番号の確かめの `changedTools`（`:656-674`）は列挙の順に変更を並べるので、その順序は変えない（§1.3 の決定 5）。
--   **base の名前の確かめ:** `refs/remotes/origin/` に base の名前をつなげた文字列を、`git check-ref-format` に通す。手元の git 2.50.1 で、`refs/remotes/origin/main^` と `refs/remotes/origin/a..b` は終了コード 1、`refs/remotes/origin/feat/x` は 0 だった（2026-11-19）。正しい ref の名前は `^`・`~`・`:`・`..`・`@{` を含めないので、通った名前は `rev-parse` に渡しても別の rev として読まれない。
+-   **base の名前の確かめと解決:** `refs/remotes/origin/` に base の名前をつなげた文字列を、`git check-ref-format` に通す。手元の git 2.50.1 で、`refs/remotes/origin/main^` と `refs/remotes/origin/a..b` は終了コード 1、`refs/remotes/origin/feat/x` は 0 だった（2026-11-19）。ただし、通った名前でも `rev-parse` は別のものとして読みうる。その ref がないとき、`refs/remotes/origin/feat-1-g9c6a73bb` は `git describe` の出力として読まれて短縮のコミット ID に解決し、`refs/heads/refs/remotes/origin/zzz` という名前のブランチがあれば `refs/remotes/origin/zzz` はそのブランチに解決した（`resolveCommit` と同じ `rev-parse --verify --quiet '<名前>^{commit}'` の形。git 2.50.1）。`git show-ref --verify --hash <ref>` はどちらも拒み（終了コード 128）、`refs/remotes/origin/main` は解決した。そのため base は、名前の確かめの後に `git show-ref --verify --hash` で ref そのものの値を読み、その ID を `resolveCommit` に渡してコミットであることを確かめる（ステップ 1-1）。
 -   **強化した git の runner:** `newGitRunner`（`internal/mergepr/runner.go:18-20`）は、`os.Environ()` から `GIT_*` を除いた環境（`cmdrunner.GitEnv`、`internal/cmdrunner/git.go:36-45`）で git を走らせる。`internal/config/envaccess_test.go:100` は、`internal/mergepr/runner.go` の `os.Environ` の呼び出しを 1 回と数える。トレーラーの読み取りの環境は、同じ 1 回の呼び出しから作る。呼び出しを増やすときは、同じコミットで `envaccess_test.go` の表とその説明を直す。`cmdrunner.NewOS` の runner は `RunInput`（`internal/cmdrunner/runner.go:106`）で標準入力を渡せる。
 -   **`merge` の本文の渡し方:** `internal/mergepr/mergepr.go:382` は `gh pr merge … --body <本文>` で渡す。テストでこの引数を書くのは `internal/mergepr/mergepr_test.go:298` の `mergeStep` の 1 か所で、`TestMerge`・`TestMergeKeepsSummaryWhenMergeFails`・`TestMergeNumberCheck` がそれを使う。`fakeRunner.Run`（`internal/mergepr/test_helpers.go:56-67`）は引数を `slices.Equal` で比べるので、一時ファイルの乱数のパスと、返る前に消えるファイルの中身を確かめるには、手順にフックが要る（ステップ 2-1）。`Merge` と `Cleanup` の引数が変わるので、`TestMergeRejectsLivePR`・`TestMergeRejectsInvalidSubject`・`TestMergeRunsProtocolCheck`・`TestProtocolFetchFailureStops` の merge の部分・`Cleanup` を呼ぶテストのすべても呼び方を直す。一時ファイルは `os.CreateTemp` で作る（所有者だけが読み書きできるモード 0600 で作られる。Go の `os` パッケージの説明による）。`internal/privatefile` は chief のための確かめた読み書きで、ここでは要らない。
 -   **示すコマンド:** `cleanupCommand`（`internal/mergepr/mergepr.go:131`）と `ShownCommands`（`:138-140`）は `cleanup --state` だけを作る。`cmd/mergepr/main_test.go:75` の `TestShownCommandsParse` は、示すコマンドを `parse` に通す。`cleanup --body-file` を示すようにするので、`ShownCommands` に本文のパスを渡す形にする（ステップ 2-1）。
@@ -93,10 +93,10 @@
 
 -   [ ] **ステップ 1-1**: 範囲の列挙を共有できる形にする（設計書 3.1 の「列挙の部品の共有」、§1.3 の決定 5）。
     -   `history` を 2 つに分ける。1 つは、段ごとに素の誤りを返す共有の関数（shallow の拒否、base と head の解決、列挙）である。もう 1 つは、各段の誤りを今の `protocolUnreadableError` の種類（`unreadableHistory`・`unreadableCommits`）に包む、プロトコル番号の確かめの側である。訂正の行の読み取りは、同じ素の誤りを `errCorrectionUnreadable` に包む（設計書 4.1）。
-    -   列挙に順序の引数を足し、base を `origin/main` 決め打ちから「`refs/remotes/origin/<baseRefName>` として解決したコミット」に一般化する。base の名前は、`refs/remotes/origin/` をつなげた名前が `git check-ref-format` を通るときだけ使う。
+    -   列挙に順序の引数を足し、base を `origin/main` 決め打ちから「`refs/remotes/origin/<baseRefName>` の ref の値」に一般化する。base の名前は、`refs/remotes/origin/` をつなげた名前が `git check-ref-format` を通るときだけ使い、`git show-ref --verify --hash` で ref そのものの値を読む（§1.4）。
     -   プロトコル番号の確かめは、今と同じ順序と同じ base（`origin/main`）で列挙する。既存の `TestCheckProtocolHistories` と `TestCheckProtocolUnreadable`（誤りの種類）が変わらず通ることを確かめる。
-    -   テスト（`protocolcheck_test.go`）: `check-ref-format` を通らない base の名前で止まること。入力には、確かめがなければ別のコミットに解決する名前（`main^`）を含める。範囲の順そのものは、ステップ 1-2 の `TestRangeLines` で確かめ、ここでは重ねない。
-    -   壊して確かめる: 名前の確かめを外して `main^` の行が失敗すること。
+    -   テスト（`protocolcheck_test.go`）: `check-ref-format` を通らない base の名前で止まること。入力には、確かめがなければ別のコミットに解決する名前（`main^`）と、名前の確かめは通るが `rev-parse` なら別のものに解決する名前（`git describe` の形の名前と、同じ名前のローカルのブランチがある名前）を含める。範囲の順そのものは、ステップ 1-2 の `TestRangeLines` で確かめ、ここでは重ねない。
+    -   壊して確かめる: 名前の確かめを外して `main^` の行が失敗すること。`show-ref` を `rev-parse` に替えて、`git describe` の形の行とローカルのブランチの行が失敗すること。
 -   [ ] **ステップ 1-2**: 訂正の行の読み取り `correctionSource` とその本番の実装を `internal/mergepr/corrections.go` に作る（設計書 3.1・3.5、§1.3 の決定 2・3）。
     -   `rangeLines`（範囲の訂正の行）、`mergedLines`、トレーラーの読み取りの 3 つを持たせる。トレーラーの読み取りを `correctionSource` に入れるのは、設計書 3.4 の確かめ 7 が「3.1 の読み取りを通して強化した git で呼ぶ」と定めるためである。
     -   メッセージは `git cat-file commit <oid>` の出力の最初の空行より後ろとし（ヘッダーに `gpgsig` などがあっても同じ）、LF で分け、件名を 1 行目と数え、行末の CR を残す。空行のない出力は読めないものとする。どのコミットで失敗しても、読めたところまでを返さない。
@@ -153,10 +153,10 @@
     -   `test_helpers.go` の `fakeRunner` に、呼ばれた時点で引数とファイルを調べるフックを持つ手順を足す。`gh pr merge` の手順は、`--body-file` の値のパスを除いて引数を比べ、フックの中でそのファイルの中身・モード・場所を記録し、呼び出し側の本文のファイルを書き換える。
     -   `Prepare` は、作業ディレクトリを作る前に範囲の訂正の行を読む（読めなければ何も作らずに止まる）。`corrections.txt` を書き、`Prepared` に `Accepted` と `Rejected` を返す。拒否した行があっても止まらない。
     -   `Paragraph`・`CheckBody` を足す。どちらも `state.json` の head と base から範囲を求め直し、ネットワークに触れない。`Paragraph` が書く前の作業ディレクトリの確かめは、`removeWorkDir`（`internal/mergepr/mergepr.go:421-440`）の確かめを共有の関数に切り出して使う。
-    -   `Merge` は設計書 6.2 の順序で動く。本文は最初に 1 回だけ読み、確かめたバイト列を `os.CreateTemp` の一時ファイル（作業ディレクトリの外）に書いて `--body-file` で渡し、どの道筋でも返る前に消す。片付けの後にマージの後の照合を行う。`Cleanup` は任意の本文のパスを受け取る。
+    -   `Merge` は設計書 6.2 の順序で動く。本文は最初に 1 回だけ読み、確かめたバイト列を `os.CreateTemp` の一時ファイル（作業ディレクトリの外）に書いて `--body-file` で渡し、どの道筋でも返る前に消す。片付けの後にマージの後の照合を行う。作業ディレクトリは、照合の結果によらず、今と同じく片付けが終われば消す（設計書 3.5 の「作業ディレクトリ」）。照合の誤りは、捨てる準備がないことを示す（設計書 3.5 の「結果の示し方」）。`Cleanup` は任意の本文のパスを受け取る。
     -   `Report` に照合の結果を足す。`cleanupCommand` と `ShownCommands` は本文のパスを付けた `cleanup` を示す。`Protocol` を `origin/main` の値 + 1 にする。パッケージの説明（`internal/mergepr/mergepr.go:1-11`）の保証の文に、訂正の確かめとマージの後の照合を足す。
     -   `mergepr_test.go` の既存のテスト: `Merge` と `Cleanup` の引数の変更に、呼び出すテスト（§1.4）をすべて合わせる。`TestPrepare` に `corrections.txt` を足す。
-    -   新しいテスト（`mergepr_test.go`）: `::TestMergePassesCheckedBody`（渡したファイルが確かめたバイト列で、モード 0600、作業ディレクトリの外にあり、`Merge` が返った後に消えている。`gh pr merge` が失敗する道筋でも消えている）、`::TestMergeStopsOnCorrectionCheck`（`gh pr merge` を呼ばず、確かめがプロトコル番号の確かめの後、番号の確かめの前に走る）、`::TestMergePostMergeCheck`（照合の相手が、フックが書き換えた後の本文のファイルではなく確かめたバイト列である。片付けの誤りが照合の誤りより先に並ぶ）、`::TestCleanupPostMergeCheck`（`--body-file` のときだけ照合する）、`::TestPrepareWritesCorrections`、`::TestParagraph`・`::TestCheckBody`（台本の手順が 0 の `fakeRunner` で、git と gh を呼ばない）、`::TestParagraphKeepsForgedWorkDirectory`（偽の親のディレクトリ、目印のないディレクトリ、無関係のディレクトリには書かない）。
+    -   新しいテスト（`mergepr_test.go`）: `::TestMergePassesCheckedBody`（渡したファイルが確かめたバイト列で、モード 0600、作業ディレクトリの外にあり、`Merge` が返った後に消えている。`gh pr merge` が失敗する道筋でも消えている）、`::TestMergeStopsOnCorrectionCheck`（`gh pr merge` を呼ばず、確かめがプロトコル番号の確かめの後、番号の確かめの前に走る）、`::TestMergePostMergeCheck`（照合の相手が、フックが書き換えた後の本文のファイルではなく確かめたバイト列である。片付けの誤りが照合の誤りより先に並ぶ。照合が食い違っても、片付けが終わっていれば作業ディレクトリが消えている）、`::TestCleanupPostMergeCheck`（`--body-file` のときだけ照合する）、`::TestPrepareWritesCorrections`、`::TestParagraph`・`::TestCheckBody`（台本の手順が 0 の `fakeRunner` で、git と gh を呼ばない）、`::TestParagraphKeepsForgedWorkDirectory`（偽の親のディレクトリ、目印のないディレクトリ、無関係のディレクトリには書かない）。
     -   壊して確かめる: `Merge` の訂正の確かめを外す、本文を確かめの後に読み直す、照合で本文のファイルを読み直す、一時ファイルを消さない、`Paragraph` の作業ディレクトリの確かめを外す。
 -   [ ] **ステップ 2-2**: `cmd/mergepr` を変える（設計書 3.6・4.2）。
     -   `paragraph`・`check-body` のサブコマンドを足す。`--drop`・`--drop-rejected`（繰り返し）を `flag.Value` で集め、`cleanup --body-file` を解析する。形の誤りと重複（同じ番号で場合が違うものを含む）は、何も読まずに `errUsage` で止める。
@@ -166,7 +166,7 @@
     -   壊して確かめる: 重複の検出を外す、`printError` の理由ごとの行を外す、`corrections carried: not verified` の行を外す。
 -   [ ] **ステップ 2-3**: `.claude/commands/mergepr.md` の step 1〜4 を、設計書 3.8 の「`.claude/commands/mergepr.md`」のとおりに変える（AC-07・AC-08・AC-09・AC-10・AC-11・AC-13・AC-15・AC-17）。拒否した行の問いと、本文の組み立て（`paragraph` と `cat`）、`check-body` と `merge` の呼び出し、受け付ける修正と適用しない修正、止まったときの報告である。訂正の行の形は `requirements_process.md`「Recording in the PR description」を名指して参照し、書き写さない。呼び出しは §1.3 の決定 6 の形で書く。
 -   [ ] **ステップ 2-4**: `.claude/commands/runpr.md` を、設計書 3.8 の「`.claude/commands/runpr.md`」と §1.3 の決定 7・8 のとおりに変える。
-    -   step 4 の item 2: 拒否した行の問い（`rejected-<round>.md`）と、本文の形ごとの `check-body`。
+    -   step 4 の item 2: 拒否した行の問い（`rejected-<round>.md`）と、本文の形ごとの `check-body`。問いごとの規則（問いの前の言及の確かめ、ラウンドと詳細ファイル、詳細ファイルを書けないときに準備を捨てて止まること、選択肢でない答えには何もせず新しいラウンドとして聞き直すこと）を、deferred の問いとマージの質問と同じく、この問いにも当てはめる（`.claude/commands/runpr.md:786-823` と、item 1 の答えの扱い）。
     -   item 3: 詳細ファイルの `C<番号>` と落とす指定、要約の `訂正の行:` の行と、要約の行の上限の文（「at most 13 lines」を 14 行に）。
     -   item 3 の自由記述: `C<番号>:<場合>` の答え。数字だけの答えは今のまま除外したスレッドの番号として読むこと（`.claude/commands/runpr.md:1140-1152`）。ほかの自由記述で本文を書き直したときは、新しいラウンドの前に本文の形ごとに `check-body` を走らせること。
     -   落とす指定を保つ期間: マージの質問を最初に聞いてから step 2 に戻るまで。PRE_MERGE の後の準備のやり直しの間も保ち、step 2 に戻ったら捨てる。
@@ -241,7 +241,7 @@ PR-2 は `Protocol` を上げるので、PR-2 の `/runpr` の前に、PR-2 の�
 ### 4.4. 照合の項目（`make test` と `make lint` が見ないもの）
 
 -   [ ] 手引き 3 章の地の文の番号（`docs/dev/guides/mergepr_guide.md:48` の「現在の番号は `2`」）を、新しい番号に直した。
--   [ ] `runpr.md` と `mergepr.md` の、準備を捨てる・捨てないの指示が、`correction check:`（食い違いと読めないこと）と `post-merge check:` のそれぞれで、設計書 4.2 と合っている。
+-   [ ] `runpr.md` と `mergepr.md` の、準備を捨てる・捨てないの指示が、`correction check:`（食い違いと読めないこと）と `post-merge check:` のそれぞれで、設計書 3.5 と 4.2 と合っている。
 -   [ ] 拒否した行の問いの文が、chief の `mergeQuestionText`（`internal/chief/screen.go:113`）にも `mergeQuestionSqueezed`（`:117`）にも合わない。
 -   [ ] マージの質問の要約に `訂正の行:` の行を足しても、chief の画面の読み取り（`internal/chief/screen*.go`）が問いと選択肢を今までどおり読める。
 -   [ ] ステップ 2-4 の小項目（自由記述の 3 つの扱い、落とす指定を保つ期間を含む）が、設計書 3.8 の `runpr.md` の項目をどれも漏らさず含む。
