@@ -65,7 +65,7 @@ func TestSanitizeUnits(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			if got := sanitizeUnits(c.in); !slices.Equal(got, c.want) {
+			if got := slices.Collect(sanitizeUnits(c.in)); !slices.Equal(got, c.want) {
 				t.Errorf("sanitizeUnits(%q) = %+v, want %+v", c.in, got, c.want)
 			}
 		})
@@ -73,7 +73,7 @@ func TestSanitizeUnits(t *testing.T) {
 	for name, c := range sanitizeCases {
 		t.Run("joined/"+name, func(t *testing.T) {
 			var b strings.Builder
-			for _, u := range sanitizeUnits(c.in) {
+			for u := range sanitizeUnits(c.in) {
 				b.WriteString(u.text)
 			}
 			if b.String() != c.want {

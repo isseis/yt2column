@@ -2,6 +2,7 @@ package chief
 
 import (
 	"fmt"
+	"iter"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -53,7 +54,7 @@ func CapHead(text string, maxBytes int) Capped {
 func Sanitize(text string) string {
 	var b strings.Builder
 	b.Grow(len(text))
-	for _, u := range sanitizeUnits(text) {
+	for u := range sanitizeUnits(text) {
 		b.WriteString(u.text)
 	}
 	return b.String()
@@ -86,30 +87,33 @@ type displayUnit struct {
 // each escape (an invalid byte, a hidden character, the doubled backslash) is
 // one unit, and every other character is one unit, a newline and a tab
 // included, each with its kind. Sanitize(text) is the units' texts joined, so
-// the rule is written once.
-func sanitizeUnits(text string) []displayUnit {
-	units := make([]displayUnit, 0, utf8.RuneCountInString(text))
-	for i := 0; i < len(text); {
-		r, size := utf8.DecodeRuneInString(text[i:])
-		var u displayUnit
-		switch {
-		case r == utf8.RuneError && size == 1:
-			u = displayUnit{text: fmt.Sprintf(`\x%02x`, text[i]), kind: unitText}
-		case r == '\\':
-			u = displayUnit{text: `\\`, kind: unitText}
-		case r == '\n':
-			u = displayUnit{text: "\n", kind: unitNewline}
-		case r == '\t':
-			u = displayUnit{text: "\t", kind: unitTab}
-		case hiddenRune(r):
-			u = displayUnit{text: escapeOf(r), kind: unitText}
-		default:
-			u = displayUnit{text: text[i : i+size], kind: unitText}
+// the rule is written once. The units are yielded one at a time, so Sanitize
+// holds no unit per byte of a large text.
+func sanitizeUnits(text string) iter.Seq[displayUnit] {
+	return func(yield func(displayUnit) bool) {
+		for i := 0; i < len(text); {
+			r, size := utf8.DecodeRuneInString(text[i:])
+			var u displayUnit
+			switch {
+			case r == utf8.RuneError && size == 1:
+				u = displayUnit{text: fmt.Sprintf(`\x%02x`, text[i]), kind: unitText}
+			case r == '\\':
+				u = displayUnit{text: `\\`, kind: unitText}
+			case r == '\n':
+				u = displayUnit{text: "\n", kind: unitNewline}
+			case r == '\t':
+				u = displayUnit{text: "\t", kind: unitTab}
+			case hiddenRune(r):
+				u = displayUnit{text: escapeOf(r), kind: unitText}
+			default:
+				u = displayUnit{text: text[i : i+size], kind: unitText}
+			}
+			if !yield(u) {
+				return
+			}
+			i += size
 		}
-		units = append(units, u)
-		i += size
 	}
-	return units
 }
 
 // Code points Sanitize replaces besides the format characters.
