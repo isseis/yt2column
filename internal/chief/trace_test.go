@@ -149,10 +149,11 @@ func TestReadTraceRejects(t *testing.T) {
 				name = open.name()
 			}
 			path := putTrace(t, store, traceTree, name, data(t))
-			// A readable open of the same PR in another round, which the
-			// reader keeps reading; it is also the open a pr_merged or
-			// pr_closed case needs, so only the case's own check refuses it.
-			fine := ev(3, tracePROpen, 7, t1, branchT1)
+			// A readable open of the same PR in round 0, before every case's
+			// round, which the reader keeps reading; it is also the open a
+			// pr_merged or pr_closed case needs first, so the order check
+			// passes it and only the case's own check refuses it.
+			fine := ev(0, tracePROpen, 7, t1, branchT1)
 			putTrace(t, store, traceTree, fine.name(), traceJSON(t, fine))
 			h := store.readTraces(ownerA().Session)
 			if len(h.unreadable) != 1 || h.unreadable[0].Path != path || !errors.Is(h.unreadable[0].Err, errRecord) {
@@ -163,27 +164,31 @@ func TestReadTraceRejects(t *testing.T) {
 			}
 		})
 	}
-	t.Run("a merge of a PR never seen open", func(t *testing.T) {
-		store := newStore(t)
-		path := putTrace(t, store, traceTree, merged.name(), traceJSON(t, merged))
-		h := store.readTraces(ownerA().Session)
-		if len(h.unreadable) != 1 || h.unreadable[0].Path != path || !errors.Is(h.unreadable[0].Err, errRecord) || len(h.events) != 0 {
-			t.Fatalf("history = %+v; want the merge unreadable", h)
-		}
-	})
-	t.Run("a merge before the open of its PR", func(t *testing.T) {
-		// Both records are of the reader's form and named as their own;
-		// only the order the events are applied in refuses the merge.
-		store := newStore(t)
-		early := ev(1, tracePRMerged, 7, paneinput.TaskID{}, "")
-		late := ev(2, tracePROpen, 7, t1, branchT1)
-		path := putTrace(t, store, traceTree, early.name(), traceJSON(t, early))
-		putTrace(t, store, traceTree, late.name(), traceJSON(t, late))
-		h := store.readTraces(ownerA().Session)
-		if len(h.unreadable) != 1 || h.unreadable[0].Path != path || !errors.Is(h.unreadable[0].Err, errRecord) || !reflect.DeepEqual(h.events[traceTree], []traceEvent{late}) {
-			t.Fatalf("history = %+v; want the merge unreadable and the open read", h)
-		}
-	})
+	// The order check, for both kinds that end a PR: every record below is
+	// of the reader's form and named as its own, so only the order the
+	// events are applied in refuses the end.
+	for _, kind := range []traceKind{tracePRMerged, tracePRClosed} {
+		t.Run(fmt.Sprintf("a %s of a PR never seen open", kind), func(t *testing.T) {
+			store := newStore(t)
+			end := ev(2, kind, 7, none, "")
+			path := putTrace(t, store, traceTree, end.name(), traceJSON(t, end))
+			h := store.readTraces(ownerA().Session)
+			if len(h.unreadable) != 1 || h.unreadable[0].Path != path || !errors.Is(h.unreadable[0].Err, errRecord) || len(h.events) != 0 {
+				t.Fatalf("history = %+v; want the %s unreadable", h, kind)
+			}
+		})
+		t.Run(fmt.Sprintf("a %s before the open of its PR", kind), func(t *testing.T) {
+			store := newStore(t)
+			early := ev(1, kind, 7, none, "")
+			late := ev(2, tracePROpen, 7, t1, branchT1)
+			path := putTrace(t, store, traceTree, early.name(), traceJSON(t, early))
+			putTrace(t, store, traceTree, late.name(), traceJSON(t, late))
+			h := store.readTraces(ownerA().Session)
+			if len(h.unreadable) != 1 || h.unreadable[0].Path != path || !errors.Is(h.unreadable[0].Err, errRecord) || !reflect.DeepEqual(h.events[traceTree], []traceEvent{late}) {
+				t.Fatalf("history = %+v; want the %s unreadable and the open read", h, kind)
+			}
+		})
+	}
 	t.Run("a record of exactly the size limit", func(t *testing.T) {
 		store := newStore(t)
 		e := ev(1, tracePROpen, 7, paneinput.TaskID{}, "")
