@@ -144,6 +144,34 @@ func TestMainRowFollowsTaskRules(t *testing.T) {
 	})
 }
 
+// TestMainRowDocumentsOfTheTask checks a worktree on main identified as
+// 0001 whose documents cannot be read, or whose task has no directory on
+// origin/main: the row needs a check as a feature branch's would.
+func TestMainRowDocumentsOfTheTask(t *testing.T) {
+	listing := "git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/"
+	cases := []struct {
+		name     string
+		setup    func(w *world, tree string)
+		why      string
+		document PositionDocument
+	}{
+		{"the documents cannot be read", func(w *world, tree string) { w.rec.failIn(tree, listing, os.ErrPermission) }, "task documents on origin/main", PositionDocNeedsCheck},
+		{"no directory of the task", func(w *world, tree string) { w.rec.replyIn(tree, listing, nil) }, "no requirements document of the task on origin/main", PositionDocRequirements},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			w := newWorld(t)
+			tree := w.add(fakeWorkspace{ID: "w1", Label: "main", Branch: mainBranch})
+			c.setup(w, tree)
+			w.putHistory(tree, mergedOn(t, 7, taskBranch)...)
+			r := rowOf(t, take(t, w), "main")
+			if r.State != StateNeedsCheck || r.Task != "0001" || r.Next != nil || r.Idle || !slices.Equal(r.Unreadable, []string{c.why}) || r.Position.Document != c.document {
+				t.Errorf("row = %+v; want 0001 to need a check for %q with document %d", r, c.why, c.document)
+			}
+		})
+	}
+}
+
 // TestMainRowTaskDone checks that a worktree on main identified as a done
 // task chief made the workspace for shows the task done with the removal
 // proposed, stopped by the check that HEAD is detached.
@@ -220,6 +248,19 @@ func TestMainRowNotIdentified(t *testing.T) {
 		f.MainStateUnread = true
 		if r := classify(f); r.Idle || r.State != StateNeedsCheck {
 			t.Errorf("row = %+v; want it to need a check, not idle", r)
+		}
+		// A PR seen open and never merged gives no merge, and its state not
+		// read keeps that row from being idle too.
+		noMerge := opened(t, 1, 7, taskBranch)
+		for i := range noMerge {
+			noMerge[i].Session, noMerge[i].Worktree = "s", tree
+		}
+		f.MainTask = identifyMainTask(traceHistory{events: map[Worktree][]traceEvent{tree: noMerge}}, tree)
+		if f.MainTask.Kind != mainTaskNoMerge {
+			t.Fatalf("identification = %+v; want no merge", f.MainTask)
+		}
+		if r := classify(f); r.Idle {
+			t.Errorf("row = %+v; want it not idle", r)
 		}
 	})
 }
@@ -306,7 +347,7 @@ func TestMainRowUnreadableHistory(t *testing.T) {
 func TestMainRowZeroResult(t *testing.T) {
 	f := workspaceFacts{Head: headMain, Branch: mainBranch, Agents: []agentFacts{{Agent: Agent{Kind: paneinput.AgentClaudeCode, Status: AgentIdle}, ScreenRead: true, Screen: Screen{Kind: ScreenPrompt}}}}
 	r := classify(f)
-	if r.State != StateNeedsCheck || r.Next != nil || r.Task != "" || r.Idle || len(r.Unreadable) != 1 || !strings.HasPrefix(r.Unreadable[0], "the worktree is on main") {
+	if r.State != StateNeedsCheck || r.Next != nil || r.Task != "" || r.Idle || !slices.Equal(r.Unreadable, []string{"the worktree is on main and its history was not read, so its task is not known"}) {
 		t.Errorf("row = %+v; want it to need a check with no next command", r)
 	}
 	if doc, _ := documentOf(r, nil); doc != PositionDocNeedsCheck {

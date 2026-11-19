@@ -210,8 +210,8 @@ type workspaceFacts struct {
 	// main whose history was not applied, which gives no task.
 	MainTask mainTaskResult
 	// MainStateUnread is true when this round could not read the state of a
-	// PR the identification names as open, so the row is not idle: whether
-	// the PR is still open cannot be told.
+	// PR whose last state in the worktree's history is open, so the row is
+	// not idle: whether the PR is still open cannot be told.
 	MainStateUnread bool
 	// Docs is origin/main's documents of the task, nil when there is no task.
 	Docs *TaskDocs
@@ -504,8 +504,8 @@ func classify(f workspaceFacts) Row {
 // idleNeedsCheck reports whether a row that needs a check only for its HEAD
 // is a worktree left over or not yet used: a detached HEAD, or main whose
 // history shows no merged PR or a PR still open. Contract: a failed fetch,
-// or a PR of the reason whose state this round could not read, is a read
-// that did not succeed, so the row is not idle; main with a history that
+// or a PR open in the history whose state this round could not read, is a
+// read that did not succeed, so the row is not idle; main with a history that
 // cannot be read or names another task waits on the human, so it is not
 // idle either.
 func idleNeedsCheck(f workspaceFacts) bool {
