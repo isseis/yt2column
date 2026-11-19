@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -206,3 +206,7 @@ chief は、承認済みの計画書のステップを、書き方 A・書き方
 -   **ステップのチェックボックス:** 3 章の冒頭で定める、`- [ ]`・`- [x]`・`- [-]` の行。
 -   **要確認（`needs_check`）:** chief の状態の表の行の状態の 1 つ。何かを読めなかった workspace で、何も送らない（`docs/dev/guides/chief_guide.md` の 3.1）。
 -   **引き継ぎの提案:** OpenCode に送った `/runplan` が PR を開かずに止まったとき、同じ `/runplan` を Claude Code に送ることを示す chief の提案（0088 の要件 AC-40）。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1028）
