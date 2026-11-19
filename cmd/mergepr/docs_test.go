@@ -29,7 +29,7 @@ const toolWord = doctestutil.ToolMergepr
 // because the calls left pass. runpr.md merges through mergepr.md step 4, so
 // it calls merge only through that definition.
 var definitionCalls = map[string][]string{
-	".claude/commands/mergepr.md": {"prepare", "merge", "cleanup", "discard"},
+	".claude/commands/mergepr.md": {"prepare", "paragraph", "check-body", "merge", "cleanup", "discard"},
 	".claude/commands/runpr.md":   {"prepare", "cleanup", "discard"},
 }
 
@@ -87,11 +87,15 @@ var placeholderValues = map[string]string{
 	"<state-file>":   "/repo/.git/mergepr-1/state.json",
 	"<subject-file>": "/repo/.git/mergepr-1/subject.txt",
 	"<body-file>":    "/repo/.git/mergepr-1/body.txt",
-	"<number>":       "42",
-	"<PR>":           "42",
-	"$ARGUMENTS":     "42",
-	"FILE":           "/repo/.git/mergepr-1/state.json",
-	"[PR]":           "42",
+	// <drop> and <rejected-drop> stand for one value each, so a call writes
+	// each at most once: the same value twice is a duplicate drop.
+	"<drop>":          "1:disputed",
+	"<rejected-drop>": "0123456789abcdef0123456789abcdef01234567:3",
+	"<number>":        "42",
+	"<PR>":            "42",
+	"$ARGUMENTS":      "42",
+	"FILE":            "/repo/.git/mergepr-1/state.json",
+	"[PR]":            "42",
 }
 
 // placeholder is a value a document leaves to be filled in.
