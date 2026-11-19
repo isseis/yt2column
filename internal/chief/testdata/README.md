@@ -126,6 +126,18 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 | `requirements/*.md` | 要件定義書の `対応 issue: ` の行の読み方を確かめるための、小さな要件定義書。実際の文書の形（見出し、状態の表、概要）に、行の書き方のひとつずつ（`（` の中のリンク、リンクでない番号、形の合わないリンク、壊れたリンク、2 つの行、コードのフェンスの中、行頭でない行、同じ issue を挙げる 2 つの文書など）を置いた。実際の文書から採ったものではなく、書いたものである |
 | `git/worktree-list-porcelain.txt` | `git worktree list --porcelain` の出力 |
 
+### タスク 0102 の表の材料
+
+タスク 0102 の PR-1（実装計画書のステップ 1-2）で、2026-11-19 に採った。版は Herdr 0.9.1、Claude Code 2.1.328 である。
+
+-   **採り方。** `/runplan` のセッションが、自分の pane（`w27:p3`）で、読み取りのコマンドだけで採った。ステップ 1-1 の実物の確かめのために、人がその pane のタブを左右に分割し、拡大（zoom）していた。そのため、`pane-layout-split.json` は、分割して拡大したタブの配置で、`zoomed` が `true`、`splits` が 1 つ、`panes` が 2 つ（chief の代わりの `w27:p3` と、もう 1 つの pane）である。chief は `zoomed` を読まない。
+-   **置き換え。** 採った人を特定できる値はなかったので、何も置き換えていない。タブのラベルは `chief`・`claude`・`cmd`・`opencode` だけで、空のラベルのタブはなかった。
+
+| ファイル | 中身 |
+|---|---|
+| `herdr/tab-list.json` | `herdr tab list` の出力。すべての workspace の 17 のタブ |
+| `herdr/pane-layout-split.json` | `herdr pane layout --pane w27:p3` の出力。分割して拡大したタブ |
+
 ### 人の入力の transcript
 
 `transcript/claude-human-input.jsonl` は、タスク 0088 の PR-4 で、2026-11-15 に Claude Code 2.1.325 の transcript から採った。PR-4 の `/runplan` のセッションの transcript で、行の種類（人が打ったカスタムコマンド、人が打った文、`/clear` の記録、ほかのエージェントからの報告、タスクの通知、ツールの結果、エージェントの応答）ごとに最初の 1 行を、順序を保って取った。各行は、chief が読む項目（`type`・`origin` の `kind`・`message`）と、行の種類を表す項目（`isMeta`・`promptSource`・`turnOrigin`）だけに絞った。人が打った 2 行の `message` は採ったままである。それ以外の行の `message` は、長い本文や作業ディレクトリのパスを含むので、同じ形の短い文に置き換えた。ID は上の表の規則で置き換えた。
