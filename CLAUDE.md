@@ -515,8 +515,9 @@ its security rules in `docs/dev/security.md` §8.
   line is the human's only by the origin Claude Code declares on it, never
   by its text), and of the text of the last finished response; a PR record is
   a value the transcript declares and is not in scope; the chief session's
-  summary of the report of the command that created a PR is in scope too. Every other file of the tool chooses behavior only
-  by the types the screen readers return. Reason: the screens are drawn by
+  summary of the report of the command that created a PR is in scope too. Every other file of the tool, other than the two
+  status table files of the exception below, chooses behavior only by the
+  types the screen readers return. Reason: the screens are drawn by
   Claude Code and OpenCode and the transcript is written by Claude Code,
   external values the tool cannot express in a type, and OpenCode's question
   screen cannot be changed. Boundary: a screen that matches no shape read
@@ -530,6 +531,29 @@ its security rules in `docs/dev/security.md` §8.
   and the trigger of chief's automatic send is the
   state of GitHub and git, never a screen: a screen reading only stops a send
   or narrows its conditions.
+  Exception: the chief tool's status table (`internal/chief/table.go` and
+  `internal/chief/textwidth.go`) chooses behavior by inspecting the content
+  of the values the table shows. Scope: it counts each character's display
+  width (`textwidth.go`, by a table of East Asian Width generated from one
+  fixed Unicode version) and decides where the content column and the name
+  column break and are cut (`table.go`); this is the only place those
+  values' content selects behavior. Whether a newline or a tab shows as a
+  space is chosen by the kind `sanitizeUnits` declares on each unit
+  (`displayUnit.kind`), and whether a question pane shows its tab's label or
+  its pane ID by the value the tab list reader declares
+  (`tabLabel.hasLabel`), so neither reads the content; reading an empty
+  label as no label is the Herdr reader's work (`herdr.go`), which checks
+  the output's shape and moves it into the type. Reason: the values are text
+  other agents, GitHub, Herdr, and the human write, external values the tool
+  cannot express in a type, and lining up columns on a monospace terminal
+  needs each character's width, which only its content gives. Boundary: the
+  result is used for the table's layout only, never to decide what is sent,
+  a row's state or urgency, or the values of `rows`; a value is changed only
+  by the cap on its length, by dropping the spaces at a break, before a cut,
+  and at the end of a line, and by the ellipsis put where it is cut; and the
+  split into display
+  units is `Sanitize`'s own rule, so `sanitize.go`, which chooses a
+  replacement per character as it did before, is not in this exception.
   Exception: `numreserve` chooses behavior by inspecting the content of the
   output of `gh` and `git` (`internal/numreserve`). Scope: the HTTP status
   line of `gh api -i` and its rate-limit headers (`X-RateLimit-Remaining` and
@@ -869,7 +893,8 @@ Only the conventions a linter does not check are worth stating:
 - Use `map[T]struct{}` rather than `map[T]bool` for set semantics.
 - In tests, prefer `t.Cleanup` over manual `defer` chains and `t.TempDir` over
   `os.MkdirTemp` + `defer os.RemoveAll`.
-- Go comments, identifiers, and string literals are English. One exception, the
+- Go comments, identifiers, and string literals are English. There are two
+  exceptions, each with the items that extend it. The first is the
   guard-test literal exception: a guard test's literal that must match text in
   a Japanese document. Scope: the Go guard tests (`_test.go` files that read a
   document) and the test-only package `internal/doctestutil` that holds their
@@ -911,7 +936,8 @@ Only the conventions a linter does not check are worth stating:
   included) that has to equal the fixed text an agent draws on its pane
   screen, such as a footer, a fixed option label, a title, a mark, the
   logo, or `/runpr`'s question and report wording. Comments, identifiers, and
-  the text the tool prints stay English, and the whole screens a test reads
+  the text the tool prints, other than the status table's fixed words (the
+  status table exception below), stay English, and the whole screens a test reads
   are sample files under `internal/chief/testdata/screens/`, not Go
   literals; a test may still hold a fragment of such text.
   Reason: the screen is drawn in that text, so the literal has to equal it,
@@ -925,12 +951,31 @@ Only the conventions a linter does not check are worth stating:
   of a requirements document that names its issue (`対応 issue: `) with the
   full-width parenthesis (`（`) that ends the part of the line it reads,
   which it reads to find the task that answers an issue. Comments,
-  identifiers, and the text the tool prints stay English, and the plans and
+  identifiers, and the text the tool prints, other than the status table's
+  fixed words (the status table exception below), stay English, and the
+  plans and
   requirements documents its tests read are sample files under
   `internal/chief/testdata/plans/` and `internal/chief/testdata/requirements/`,
   not Go literals. Reason: the plan and the requirements document are
   Japanese documents, so the literal has to equal their text, as for
   `opus-review-decision.sh`, whose reading the tool's must match for a plan.
+- The second exception, the status table exception: the chief tool prints
+  its status table in Japanese, so the table's fixed words are Japanese
+  literals. Scope: the literals of `internal/chief/table.go` that are the
+  status table's fixed words — the header, the legend, the status words, the
+  document stages, the reasons no running command is decided, `＋指示`, the
+  count (`件`) and `マージ確認` put before a question, and the line shown when
+  there are no rows (`workspace なし`) — which reach the tool's output as the
+  text of the table; and the same words in its test,
+  `internal/chief/table_test.go`. Reason: the
+  table is a Japanese table for the human that the tool lays out, so its
+  words can only live in the tool. Boundary: the tool's other output values,
+  its error messages, the output of its other subcommands,
+  `table_unreadable`, and the values from outside the table shows are not in
+  scope, and no other file holds a Japanese literal under it; comments and
+  identifiers stay English. It is not an item of the guard-test literal
+  exception: the words are the text the tool shows, not text that has to
+  equal a document's.
 - The same rule applies to the browser extension: its comments, identifiers,
   and string literals are English. There are three exceptions: the messages in
   a catalog file for a language other than English under
