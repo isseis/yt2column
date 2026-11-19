@@ -106,6 +106,10 @@ func TestReadTraceRejects(t *testing.T) {
 		{"a pr_open without its branch", named(ev(1, tracePROpen, 7, paneinput.TaskID{}, "")), withEvent(ev(1, tracePROpen, 7, paneinput.TaskID{}, ""))},
 		{"a pr_open whose task is not its branch's", named(ev(1, tracePROpen, 7, t2, branchT1)), withEvent(ev(1, tracePROpen, 7, t2, branchT1))},
 		{"a pr_open with a task on a branch of none", named(ev(1, tracePROpen, 7, t1, "scratch")), withEvent(ev(1, tracePROpen, 7, t1, "scratch"))},
+		{"a pr_open on main", named(ev(1, tracePROpen, 7, paneinput.TaskID{}, "main")), withEvent(ev(1, tracePROpen, 7, paneinput.TaskID{}, "main"))},
+		{"a pr_merged without its PR", named(ev(1, tracePRMerged, 0, paneinput.TaskID{}, "")), withEvent(ev(1, tracePRMerged, 0, paneinput.TaskID{}, ""))},
+		{"a pr_closed with a task", named(ev(1, tracePRClosed, 7, t1, "")), withEvent(ev(1, tracePRClosed, 7, t1, ""))},
+		{"a branch_task with a branch", named(ev(1, traceBranchTask, 0, t1, branchT1)), withEvent(ev(1, traceBranchTask, 0, t1, branchT1))},
 		{"a pr_merged with a task", named(ev(1, tracePRMerged, 7, t1, "")), withEvent(ev(1, tracePRMerged, 7, t1, ""))},
 		{"a pr_closed with a branch", named(ev(1, tracePRClosed, 7, paneinput.TaskID{}, branchT1)), withEvent(ev(1, tracePRClosed, 7, paneinput.TaskID{}, branchT1))},
 		{"a branch_task with a PR", named(ev(1, traceBranchTask, 7, t1, "")), withEvent(ev(1, traceBranchTask, 7, t1, ""))},
@@ -210,16 +214,29 @@ func TestReadTraceSessionOnly(t *testing.T) {
 	if err := os.WriteFile(notDir, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// A link to a readable directory of records is not followed.
+	link := filepath.Join(store.Dir(), workspaceDirOf(Worktree{path: "/work/e"}))
+	if err := os.Symlink(filepath.Join(store.Dir(), workspaceDirOf(traceTree)), link); err != nil {
+		t.Fatal(err)
+	}
 	h = store.readTraces(ownerA().Session)
 	var paths []string
 	for _, u := range h.unreadable {
 		paths = append(paths, u.Path)
 	}
 	slices.Sort(paths)
-	wantPaths := []string{locked, notDir}
+	wantPaths := []string{locked, notDir, link}
 	slices.Sort(wantPaths)
 	if !slices.Equal(paths, wantPaths) || !reflect.DeepEqual(h.events, want) {
-		t.Errorf("history = %+v; want the two entries unreadable and the records still read", h)
+		t.Errorf("history = %+v; want the three entries unreadable and the records still read", h)
+	}
+	if err := os.Chmod(store.Dir(), 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(store.Dir(), 0o700) })
+	h = store.readTraces(ownerA().Session)
+	if len(h.unreadable) != 1 || h.unreadable[0].Path != store.Dir() || len(h.events) != 0 {
+		t.Errorf("history of a state directory that cannot be listed = %+v; want it unreadable", h)
 	}
 }
 
@@ -252,7 +269,7 @@ func TestIdentifyMainTask(t *testing.T) {
 		{
 			"a record of some worktree cannot be read",
 			[]traceEvent{branch(1, t1), open(1, 7, t1, branchT1), merged(2, 7)},
-			true, mainTaskUnreadable, none, "", "/x: " + errRecord.Error(),
+			true, mainTaskUnreadable, none, "", `"/x": ` + errRecord.Error(),
 		},
 		{
 			"merged PRs of two tasks",
@@ -405,7 +422,7 @@ func TestTraceWrites(t *testing.T) {
 			"a closed PR open again", append(slices.Clone(openT1), ev(2, tracePRClosed, 7, none, "")), withPR(onT1, 7), nil,
 			[]traceEvent{ev(now, tracePROpen, 7, t1, branchT1)},
 		},
-		{"a merged PR seen on main's branch is not read", openT1, withPR(onT1, 7), read(PRStateMerged), nil},
+		{"a PR seen on main is still read", openT1, withPR(onMain, 7), read(PRStateMerged), []traceEvent{ev(now, tracePRMerged, 7, none, "")}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -442,7 +459,9 @@ func TestWriteTraceUnderTheExclusion(t *testing.T) {
 	badRound.Round = "../r"
 	noSession := ev(1, tracePROpen, 8, t1, branchT1)
 	noSession.Session = ""
-	for _, bad := range []traceEvent{badRound, noSession} {
+	// A merge of PR 0 is refused by the members' check alone: the reader's
+	// check of a merge never seen open does not run on a write.
+	for _, bad := range []traceEvent{badRound, noSession, ev(1, tracePRMerged, 0, paneinput.TaskID{}, ""), ev(1, tracePRClosed, 0, paneinput.TaskID{}, "")} {
 		if err := held.writeTrace(bad); !errors.Is(err, errRecord) {
 			t.Errorf("writing %+v = %v, want errRecord", bad, err)
 		}

@@ -528,6 +528,10 @@ func (s Store) removeFinishedSessions(session string) (int, error) {
 // Only CanonicalWorktree (for a worktree that exists) and TaskSpace.Worktree
 // (for the one chief is about to make) make one, so a record keyed by a
 // worktree cannot be looked up with a path that was never made canonical.
+// The readers of a record that names its worktree (Created and the history
+// reader) also make one from the record, and accept it only when its hash is
+// the name of the directory that holds the record, so it is a path one of
+// the two made.
 type Worktree struct {
 	path string
 }

@@ -99,6 +99,10 @@ type traceFile struct {
 	Branch   string `json:"branch"`
 }
 
+// mainBranch is the branch a pr_open never holds; the reader that declares
+// tracePlaceMain is the only one that compares a branch's name with it.
+const mainBranch = "main"
+
 // traceKeys are the members of a history record, every one required.
 var traceKeys = []string{"session", "round", memberWorktree, "kind", "pr", "task", "branch"}
 
@@ -133,7 +137,8 @@ func (e traceEvent) check() error {
 	var prOK, taskOK, branchOK bool
 	switch e.Kind {
 	case tracePROpen:
-		prOK, branchOK = e.PR > 0, e.Branch != ""
+		// main is never written: a PR seen open on main names no task.
+		prOK, branchOK = e.PR > 0, e.Branch != "" && e.Branch != mainBranch
 		if e.Task.IsZero() {
 			taskOK = true
 		} else {
@@ -233,6 +238,10 @@ type traceHistory struct {
 // told, so it counts as this session's), and a worktree directory that
 // cannot be listed are returned in unreadable, never skipped, since the
 // events they hide could name another task.
+//
+// A record's path and error go into the row's reason through
+// mainTaskResult.Detail, so a path is quoted: a name of no record's form is
+// chosen by whatever process made it.
 func (s Store) readTraces(session string) traceHistory {
 	h := traceHistory{events: map[Worktree][]traceEvent{}}
 	entries, err := os.ReadDir(s.dir)
@@ -245,6 +254,11 @@ func (s Store) readTraces(session string) traceHistory {
 			continue
 		}
 		dir := filepath.Join(s.dir, e.Name())
+		if e.Type()&os.ModeType != os.ModeDir {
+			// A link is not followed, as existingRecords does not follow one.
+			h.unreadable = append(h.unreadable, traceUnreadable{Path: dir, Err: fmt.Errorf("%w: not a directory", errRecord)})
+			continue
+		}
 		events, bad, err := WorkspaceRecords{dir: dir}.traces(session)
 		if err != nil {
 			h.unreadable = append(h.unreadable, traceUnreadable{Path: dir, Err: err})
@@ -262,8 +276,8 @@ func (s Store) readTraces(session string) traceHistory {
 // the order they are applied (sortTrace). Contract: each record's session,
 // round, and event must be the ones its name gives (the round's form, the
 // kind's members, and the task are checked as the writer checks them), and
-// its worktree the one
-// whose directory holds it; a pr_merged or pr_closed of a PR with no pr_open
+// its worktree the one whose directory holds it; a pr_merged or pr_closed of
+// a PR with no pr_open
 // in the directory is unreadable, since a merge of a PR never seen open is no
 // merge chief read; err is a failure to list the directory.
 func (r WorkspaceRecords) traces(session string) (events []traceEvent, bad []traceUnreadable, err error) {
@@ -455,7 +469,7 @@ func identifyMainTask(h traceHistory, w Worktree) mainTaskResult {
 	if len(h.unreadable) > 0 {
 		parts := make([]string, 0, len(h.unreadable))
 		for _, u := range h.unreadable {
-			parts = append(parts, u.Path+": "+u.Err.Error())
+			parts = append(parts, strconv.Quote(u.Path)+": "+u.Err.Error())
 		}
 		return mainTaskResult{Kind: mainTaskUnreadable, Detail: strings.Join(parts, "; ")}
 	}

@@ -1056,6 +1056,26 @@ func TestStartRemovesOtherSessionTraces(t *testing.T) {
 	if !exists(kept) || !exists(unrelated) {
 		t.Errorf("the session's own record or a file of no record's name was removed")
 	}
+	t.Run("a takeover of a stale lock", func(t *testing.T) {
+		// ownerB's start after /clear in ownerA's pane: the lock is ownerA's
+		// and its pane holds another session now.
+		takeover := newStore(t)
+		if _, err := takeover.Start(ctx, herdrWith(t, liveAgent(ownerA())), ownerA(), now); err != nil {
+			t.Fatal(err)
+		}
+		mineB := mine
+		mineB.Session = ownerB().Session
+		putIn := func(name string) string { return putTrace(t, takeover, traceTree, name, []byte("{}")) }
+		keptB := putIn(mineB.name())
+		goneA := []string{putIn(mine.name()), putIn("trace-backup.json")}
+		res, err := takeover.Start(ctx, herdrWith(t, liveAgent(ownerB())), ownerB(), now.Add(time.Minute))
+		if err != nil || !res.TookOver || res.Removed != len(goneA) {
+			t.Fatalf("Start = %+v, %v; want a takeover that removes %d records", res, err, len(goneA))
+		}
+		if exists(goneA[0]) || exists(goneA[1]) || !exists(keptB) {
+			t.Errorf("after the takeover: ownerA's record kept %v, the malformed name kept %v, ownerB's kept %v; want false, false, true", exists(goneA[0]), exists(goneA[1]), exists(keptB))
+		}
+	})
 	again := []string{put(theirs.name()), put("trace-backup.json")}
 	res, err = store.Start(ctx, herdrWith(t, liveAgent(ownerA())), ownerA(), now.Add(time.Minute))
 	if err != nil || res.CleanupError != nil || res.Removed != 1 {
