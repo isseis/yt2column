@@ -238,7 +238,7 @@
 Script record (AC-11): `_checks/correction_lines.sh`
 
 - Merge-base: `9122d1aaad7244eac37198da4ca30e1da133a504`
-- Compared commit: `2e5fce2a8b4cd3e7fb46d1910c9db7d82415490f`
+- Compared commit: `1cdd18d02309fb8ab5effa7c8170184f28f59be3`
 
 Output（スクリプトの出力の全体を、行の頭から始まるコードブロックに書く）:
 
@@ -246,8 +246,8 @@ Output（スクリプトの出力の全体を、行の頭から始まるコー�
 ok: a commit that changes docs/dev/adr/0014-deterministic-checks-in-go.md has an editorial correction line naming it
 ok: every editorial correction line has the fixed form
 ok: no editorial correction line contains '<' or '@'
-commits in 9122d1aaad7244eac37198da4ca30e1da133a504..2e5fce2a8b4cd3e7fb46d1910c9db7d82415490f: 18
-commits that change docs/dev/adr/0014-deterministic-checks-in-go.md: 4
+commits in 9122d1aaad7244eac37198da4ca30e1da133a504..1cdd18d02309fb8ab5effa7c8170184f28f59be3: 21
+commits that change docs/dev/adr/0014-deterministic-checks-in-go.md: 5
 editorial correction lines: 10
 ```
 
@@ -255,13 +255,13 @@ Diff record (AC-10):
 
 - Compared paths: `docs/dev/adr/0014-deterministic-checks-in-go.md`
 - Merge-base: `9122d1aaad7244eac37198da4ca30e1da133a504`
-- Compared commit: `2e5fce2a8b4cd3e7fb46d1910c9db7d82415490f`
+- Compared commit: `1cdd18d02309fb8ab5effa7c8170184f28f59be3`
 
 Path diff:
 
 ```text
 diff --git a/docs/dev/adr/0014-deterministic-checks-in-go.md b/docs/dev/adr/0014-deterministic-checks-in-go.md
-index 0d18821715691cdaf5ffbd6484dca976268f21bf..3115d9f5359679ec0f56c7adc6a77ad9a019913a 100644
+index 0d18821715691cdaf5ffbd6484dca976268f21bf..b2afc8743bcfb45ded8796daab1d18625686584e 100644
 --- a/docs/dev/adr/0014-deterministic-checks-in-go.md
 +++ b/docs/dev/adr/0014-deterministic-checks-in-go.md
 @@ -12,41 +12,82 @@
@@ -287,11 +287,11 @@ index 0d18821715691cdaf5ffbd6484dca976268f21bf..3115d9f5359679ec0f56c7adc6a77ad9
 --   **`--protocol` の番号（プロトコル番号）を上げる PR は、番号を実装の時点の `origin/main` の値にちょうど 1 を足した値にし、マージの時点でも `origin/main` の値 + 1 であることを確かめる。食い違えばマージしない。タスク文書には上げた後の番号を書かず、「`main` の値 + 1」と書く。確かめは、`/runpr` からのマージにも `/mergepr` を単独で使うマージにも当てはめ、マージの直前にも確かめ直す。`mergepr` も番号を持ち、`/mergepr` の定義と版を照合する。** 並行する 2 つのブランチが同じ番号に上げると、git は定数の行の同じ変更を衝突なしにまとめ、文書のガードテストも通る。その結果、違う約束が 1 つの番号を共有したまま `main` に入り、古い文書と新しい道具が黙って違う規則で動きうるためである。対象は、道具とそれを呼ぶ文書の版を照合する番号で、今は `fixprguard`・`codexreview`・`chief` と、確かめを入れる `mergepr` の 4 つである。`mergepr` に番号を持たせるのは、確かめを入れる前の `mergepr` や古い定義でマージして、確かめが黙って抜けることを防ぐためである。確かめは `mergepr` の `prepare` と `merge` が行い、`merge` は GitHub にマージを依頼する直前に、`origin/main` を取り直して確かめ直す。`/runpr` と単独の `/mergepr` のどちらのマージも、この 2 つのサブコマンドを必ず通るためである。番号を持つ道具は、`internal/<名前>/` の直下のファイルに、`const Protocol = <整数>` の 1 行で番号を置く。確かめがこの形の行だけを番号として読むためである。この形でない宣言は、確かめが読めない値として止まるか、確かめの対象の道具と文書のガードの一覧を突き合わせるテストが CI で止める。確かめの仕様は [mergepr_guide.md](../guides/mergepr_guide.md) にある。受け入れた危険は 4 つある。(1) マージの前は、同じ道具の番号を上げる並行するブランチが同じ番号を共有し、片方のブランチから入れた道具がもう片方の文書を受け付けうる。ブランチごとに一意の番号を配る仕組みは、issue #933 の範囲を超えるためである。(2) マージの直前の確かめ直しと GitHub のマージの間の数秒に、ほかの PR が同じ番号でマージされうる。(3) 番号を上げたブランチを、同じ番号の入った `main` の上へ rebase するか履歴をまとめ直すと、確かめが衝突を見落としうる。(4) 一度消した道具を同じ名前で足し直すと、番号が `1` に戻る。規則の正本は [CLAUDE.md](../../../CLAUDE.md) の「Development Notes」の「Protocol numbers」にあり、確かめの要件は [0099 要件定義書](../../tasks/0099_protocol_number_rule/01_requirements.md) の F-003 にある。
 --   **道具の引数・出力・終了コードは、コマンドの定義と文書のガードが読む契約にする。** 変えたときは、道具と、それを呼ぶ文書と、ガードを同じ PR で変える。契約が食い違うと、レビューの信頼の境界が実行時に働かなくなるためである。契約は、[CLAUDE.md](../../../CLAUDE.md) の「Build Commands」「Test Commands」「Development Notes」、[.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Guard tool」の行、[fixprguard_guide.md](../guides/fixprguard_guide.md)、[mergepr_guide.md](../guides/mergepr_guide.md)、[chief_guide.md](../guides/chief_guide.md)、[numreserve_guide.md](../guides/numreserve_guide.md) にある。
 --   **例外として、記録の行を読んで判定するだけで副作用を持たない判定は、コマンドの定義から独立したシェルスクリプトにしてよい。スクリプトは `.claude/commands/_lib/` に置く。呼ぶ手順は、このスクリプトを `origin/main` の commit から作業ツリーの外に取り出して走らせる。失敗は安全な側の判定とし、規則を壊して失敗することを Go のテストで確かめる。** 今あるのは、Opus のレビューの判断のスクリプト `_lib/opus-review-decision.sh`（[ADR-0042](0042-implementation-model-tiers.md)）と、ローカルの CLI レビューが見たかと Fable の記録が有効かを決める `_lib/review-records.sh`（[ADR-0013](0013-review-setup.md)、[ADR-0050](0050-fable-partial-review.md)）である。`opus-review-decision.sh` は、この例外より前に作られ、常設の Go テストが確かめるのは計画書の値の読み方だけで、判断の規則はタスク 0081 の一度きりの確かめで確かめた。新しいスクリプトは、規則の全体を常設の Go テストで確かめる。判定は記録の行と `git rev-list` の組み合わせで足り、Go の道具にすると、新しい `cmd/` と `internal/` を足し、利用者にも入れ直しを求めることになるためである。採らなかった案の「判定をコマンドの定義に書いたシェルの手順」では、エージェントが文を読んで判定する。この例外では、テストを持つ 1 つのファイルが判定する点が違う（[0098 設計書](../../tasks/0098_fable_partial_review/02_architecture.md) 1.2 の決定 15）。
-+4 つの問いに、次のように答えた。判定はテストのある Go の道具に置き、基準値と順序は道具のコードが守り、道具と文書は契約とプロトコル番号で揃え、道具は利用者が `main` から入れてエージェントは入れもビルドもしない。規則の本文と手順は [dev_tools.md](../conventions/dev_tools.md) が持ち、規則 1〜6 の項目は規約の節をその見出しの名前で指す。各問いで比べたほかの選択肢と、採らなかった理由は、「採らなかった案」の同じ見出しの下にある。
++4 つの問いに、次のように答えた。判定と副作用を持つ道具はテストのある Go で書き、基準値と順序は道具のコードが守り、道具と文書は契約とプロトコル番号で揃え、道具は利用者が `main` から入れてエージェントは入れもビルドもしない。規則の本文と手順は [dev_tools.md](../conventions/dev_tools.md) が持ち、規則 1〜6 の項目は規約の節をその見出しの名前で指す。各問いで比べたほかの選択肢と、採らなかった理由は、「採らなかった案」の同じ見出しの下にある。
 +
 +### 1. 判定の置き場所
 +
-+**選んだもの:** 判定は、エージェントの判断にも、コマンドの定義に書いたシェルの手順にも任せず、テストのある Go の道具のコードに置く。判定の誤りを、テストで壊して失敗を確かめて見つけられるのは、テストのあるコードだけだからである。例外は 2 つあり、どちらも判定をテストのある 1 か所に保つ。
++**選んだもの:** 判定と副作用を持つ道具の判定は、エージェントの判断にも、コマンドの定義に書いたシェルの手順にも任せず、テストのある Go の道具のコードに置く。判定の誤りを、テストで壊して失敗を確かめて見つけられるのは、テストのあるコードだけだからである。拡張の関数の範囲を求める TypeScript の補助と、副作用を持たない判定のシェルスクリプトも、判定をテストのある 1 か所に保つ。
 +
 +-   **Go の道具とテスト:** 判定と副作用を持つ開発の道具は、Go で書き、テストを持つ。判定の誤りを、テストで壊して失敗を確かめることで見つけられるようにするためである。何を決めるかは [ADR-0015](0015-untrusted-review-threads.md)・[ADR-0013](0013-review-setup.md)・[ADR-0037](0037-test-deletion-coverage.md)・[ADR-0046](0046-chief-of-staff.md)・[ADR-0051](0051-number-reservation.md) と [mergepr_guide.md](../guides/mergepr_guide.md) が定める。規則は [dev_tools.md](../conventions/dev_tools.md) の「Rule 1: Write a tool in Go, with tests」と「Kinds of tools」にある。
 +-   **拡張の関数の範囲を求める TypeScript の補助:** 拡張の関数の範囲だけは、TypeScript の補助に求める。`coveragecompare` は Go と拡張の両方の比較を受け持つが、拡張の関数の終わりの行は node の lcov が出さないので、`extension/scripts/function-ranges.ts` が入っている `typescript` の構文木から求める。新しい npm のパッケージは加えない。拡張の関数の終わりの行を、lcov からは求められないためである。規則は [0055 設計書](../../tasks/0055_coverage_compare/02_architecture.md) の 3.5「拡張の測り方」にある。
@@ -299,7 +299,7 @@ index 0d18821715691cdaf5ffbd6484dca976268f21bf..3115d9f5359679ec0f56c7adc6a77ad9
 +
 +### 2. 基準値と順序の守り方
 +
-+**選んだもの:** 判定の基準値はディスクのファイルに置かず、セッションが会話に持って次の呼び出しの引数で渡す。処理の順序は、コマンドの定義ではなく道具のコードで強制する。ファイルに置いた基準値は修正のフェーズが実行するコードに書き換えられ、定義に書いた順序はエージェントが読み違えうるためである。例外は chief だけである。
++**選んだもの:** 判定の基準値はディスクのファイルに置かず、セッションが会話に持って次の呼び出しの引数で渡す。処理の順序は、コマンドの定義ではなく道具のコードで強制する。ファイルに置いた基準値は修正のフェーズが実行するコードに書き換えられ、定義に書いた順序はエージェントが読み違えうるためである。基準値の例外は chief である。
 +
 +-   **基準値を状態のファイルから読み返さないこと:** 道具は、判定に使う基準値を状態のファイルから読み返さない。判定をディスクに置くと、修正のフェーズや build checks が実行するコードに書き換えられるためである。例外は次の項目にある。規則は [dev_tools.md](../conventions/dev_tools.md) の「Rule 2: Do not read a decision's baseline back from a state file」にある。
 +-   **chief の例外:** chief の道具は、リポジトリの外の状態のディレクトリにある次の記録を、判定に読み返す。自動送信の記録、送信の記録、送信の停止、待ち受けの記録（待ち受けのラウンドごとの記録と、PR が開いているのを見た記録）、通知の記録、PR の詳細の控え、ロック、workspace を作ったときの記録である。記録は、送るコマンドとタスクを決めるためには使わない。送ることについては、送ることを止める条件（リセットの候補を狭める PR の詳細の控えを含む）として使うか、自動送信の候補の workspace を名指して Herdr・git・GitHub で確かめ直す条件として使うだけである。通知の記録は通知の重複を防ぐことと待っている時間による並べ方に、送信の記録は送った入力の履歴と「実行中」の行の表示に使い、どちらも送る中身を左右しない。送ることに関わる記録が読めなければ送らない。workspace を作ったときの記録は、削除の候補の workspace を名指すことと、その行に示すタスクを探す手がかりにだけ使い、名指した workspace は Herdr・git・`origin/main` の文書で確かめ直す。読めなければ削除を提案しない。作ったときの記録は worktree ごとにあり、同じパスに作り直す前と、消し終えた後に、そのパスの分をすべて消す。起動し直しても自動送信を 2 回しないこと、送信を止めた workspace を覚えていること、chief を 1 つに限ることを、セッションの記憶では守れないためである（[ADR-0046](0046-chief-of-staff.md)）。範囲と、記録が条件として働く範囲は [0088 設計書](../../tasks/0088_chief_of_staff/02_architecture.md) の 3.5「状態のディレクトリの記録とロック」と [0092 設計書](../../tasks/0092_chief_task_workspace/02_architecture.md) の 3.5「作ったことの記録」にある。
@@ -307,7 +307,7 @@ index 0d18821715691cdaf5ffbd6484dca976268f21bf..3115d9f5359679ec0f56c7adc6a77ad9
 +
 +### 3. 道具と文書の食い違いの防ぎ方
 +
-+**選んだもの:** 道具の引数・出力・終了コードを、文書が読む契約にする。道具は `main` から入れ、道具と文書の版はプロトコル番号で照合し、番号はマージの時点で `mergepr` が確かめる。人の手順や `/runpr` だけに確かめを任せると、確かめが黙って抜けうるためである。
++**選んだもの:** 道具の引数・出力・終了コードを、文書が読む契約にする。道具は `main` から入れる。道具と文書の版を照合する道具はプロトコル番号を持ち、番号はマージの時点で `mergepr` が確かめる。人の手順や `/runpr` だけに確かめを任せると、確かめが黙って抜けうるためである。
 +
 +-   **引数・出力・終了コードの契約:** 道具の引数・出力・終了コードは、コマンドの定義と文書のガードが読む契約にする。契約が食い違うと、レビューの信頼の境界が実行時に働かなくなるためである。規則と、契約が書かれている場所の一覧は [dev_tools.md](../conventions/dev_tools.md) の「Rule 4: Arguments, output, and exit codes are a contract」にある。
 +-   **`main` からのインストール:** 道具は `main` からインストールして使う。インストール済みの古い道具が、古い想定で黙って判定しないようにするためである。規則は [dev_tools.md](../conventions/dev_tools.md) の「Rule 5: Install tools from main; agents never install or build them」に、文書と道具を変える順序は同じ規約の「Rule 4: Arguments, output, and exit codes are a contract」にある。
