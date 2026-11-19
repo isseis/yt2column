@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番、H-NN は [design_handoff.md](design_handoff.md)、I-NN は [implementation_handoff.md](implementation_handoff.md) の項目を指す。節番号は、とくに断らない限り [02_architecture.md](02_architecture.md)（以下、設計書）の節である。
@@ -271,3 +271,7 @@ Diff record (AC-24):
 -   実装の PR のマージの後に、人が次の 2 点を issue にするかを決める。
     -   設計書 9 章の別の issue の候補（拒否の規則のガード、依頼にビルド元を添えること、番号の不一致の直し方に PR のブランチの場合を足すこと、OpenCode の許可の設定、ADR-0014 の「結果」の 1 文、規則 1 と規則 6 の範囲の食い違い、外部の道具をまとめて入れるターゲット）
     -   `docs/dev/guides/chief_guide.md` の 6 章（`.claude/settings.json` の拒否）が herdr と git の規則だけを挙げ、本タスクで足す 2 つの規則を挙げないこと
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1037）

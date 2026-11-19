@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：ADR-0014 の「決定」の節と、中身を直すガイドの節を、日本語の文書の書式の規約に揃える<br>決定の変更で draft に戻した：AC-11 の訂正行をスクリプトで確かめる |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
+| Comments | - |
 
 本書は [01_requirements.md](01_requirements.md) を設計に落とす。実装の PR が変えるのは文書と `.claude/settings.json` だけで、Go と TypeScript のコードは変えない。以下の `file:line` は、とくに断らない限りコミット `e43f8161`（`origin/main`）で確かめた。要件定義書の行番号はコミット `a73b2c4e` のものなので、`CLAUDE.md` などでは本書と行番号が違う。本書の F-nn と AC-nn は要件定義書の機能要件と受け入れ基準の番号、H-nn は `design_handoff.md` の項目、I-nn は `implementation_handoff.md` の項目である。
 
@@ -535,4 +535,5 @@ flowchart TD
 ## 変更履歴
 
 - 2026-11-19 承認（isseis、#1032）
-- 2026-11-19 draft への戻し：ADR-0014 の「決定」の節と、中身を直すガイドの節を、日本語の文書の書式の規約に揃える；AC-11 の訂正行をスクリプトで確かめる（#未記入）
+- 2026-11-19 draft への戻し：ADR-0014 の「決定」の節と、中身を直すガイドの節を、日本語の文書の書式の規約に揃える；AC-11 の訂正行をスクリプトで確かめる（#1037）
+- 2026-11-19 承認（isseis、#1037）

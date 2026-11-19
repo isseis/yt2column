@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：日本語の文書の書式の規約に揃える書式だけの直しを、ADR-0014 の「決定」と直すガイドの節に許した |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -279,4 +279,5 @@ Claude Code が `make install-*` と `go install` を走らせないように、
 ## 変更履歴
 
 - 2026-11-19 承認（isseis、#1024）
-- 2026-11-19 draft への戻し：日本語の文書の書式の規約に揃える書式だけの直しを、ADR-0014 の「決定」と直すガイドの節に許した（#未記入）
+- 2026-11-19 draft への戻し：日本語の文書の書式の規約に揃える書式だけの直しを、ADR-0014 の「決定」と直すガイドの節に許した（#1037）
+- 2026-11-19 承認（isseis、#1037）
