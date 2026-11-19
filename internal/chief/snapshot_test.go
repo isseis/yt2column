@@ -1015,10 +1015,15 @@ func TestSnapshotTableMatchesRows(t *testing.T) {
 	if len(out.TableUnreadable) != 0 {
 		t.Errorf("table_unreadable = %v, want none when every source was read", out.TableUnreadable)
 	}
-	firsts := tableFirstLines(t, out.Table, len(out.Rows))
 	var labels []string
-	for i, r := range out.Rows {
+	for _, r := range out.Rows {
 		labels = append(labels, r.Label)
+	}
+	if !slices.Equal(labels, []string{"merge", "review", "plan", "idle"}) {
+		t.Fatalf("rows = %v; the checks below assume another order", labels)
+	}
+	firsts := tableFirstLines(t, out.Table, len(out.Rows))
+	for i, r := range out.Rows {
 		row := snap.Rows[i]
 		mark, word := urgencyMark(row.Urgency), progressWord(row.Position.Progress)
 		task, pr := r.Task, "-"
@@ -1032,9 +1037,6 @@ func TestSnapshotTableMatchesRows(t *testing.T) {
 		if got := strings.Fields(firsts[i]); len(got) < len(want) || !slices.Equal(got[:len(want)], want) {
 			t.Errorf("row %d first line = %q, want it to start with %v", i, firsts[i], want)
 		}
-	}
-	if !slices.Equal(labels, []string{"merge", "review", "plan", "idle"}) {
-		t.Errorf("rows = %v; the checks above assume another order", labels)
 	}
 }
 
@@ -1055,25 +1057,28 @@ func TestTableSourcesUnreadable(t *testing.T) {
 		name   string
 		breaks func(w *world)
 		lost   int
+		// notes is the number of notes: one for a lost width; for a lost
+		// tab, the source's and the question pane's.
+		notes int
 		// longErr marks the case whose error is over 512 bytes with an ESC.
 		longErr bool
 	}{
-		{"tab list fails", func(w *world) { w.rec.fail("herdr tab list", errors.New("herdr is down")) }, tab, false},
+		{"tab list fails", func(w *world) { w.rec.fail("herdr tab list", errors.New("herdr is down")) }, tab, 2, false},
 		{"tab list of another shape", func(w *world) {
 			w.rec.reply("herdr tab list", []byte(`{"id":"cli:tab:list","result":{"tabs":"none","type":"tab_list"}}`))
-		}, tab, false},
-		{"pane layout fails with a long error", func(w *world) { w.rec.fail("herdr pane layout --pane "+worldChiefPane, errors.New(long)) }, width, true},
+		}, tab, 2, false},
+		{"pane layout fails with a long error", func(w *world) { w.rec.fail("herdr pane layout --pane "+worldChiefPane, errors.New(long)) }, width, 1, true},
 		{"pane layout of another shape", func(w *world) {
 			w.rec.reply("herdr pane layout --pane "+worldChiefPane, paneLayoutOutput(worldChiefPane, 0))
-		}, width, false},
+		}, width, 1, false},
 		{"agent list without a tab_id", func(w *world) {
 			w.rec.reply("herdr agent list", []byte(strings.Replace(string(agentListOutput(w.agents)), `"tab_id":"w1:t1",`, "", 1)))
-		}, tab, false},
+		}, tab, 2, false},
 		{"agent list with a pane twice", func(w *world) {
 			dup := w.agents[len(w.agents)-1]
 			dup.Tab = "w2:t2"
 			w.rec.reply("herdr agent list", agentListOutput(append(slices.Clone(w.agents), dup)))
-		}, tab, false},
+		}, tab, 2, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -1093,10 +1098,8 @@ func TestTableSourcesUnreadable(t *testing.T) {
 			if !reflect.DeepEqual(got.Rows, read.Rows) || !slices.Equal(got.Problems, read.Problems) || !reflect.DeepEqual(notNew(got.Pending), notNew(read.Pending)) {
 				t.Errorf("the round changed:\nrows %+v\nwant %+v\nproblems %v, want %v\npending %+v\nwant %+v", got.Rows, read.Rows, got.Problems, read.Problems, got.Pending, read.Pending)
 			}
-			// A lost width is one note; a lost tab is the source's note and
-			// the question pane's.
-			if notes := 1 + c.lost; len(read.TableUnreadable) != 0 || len(got.TableUnreadable) != notes {
-				t.Errorf("table_unreadable = %v, then %v; want none, then %d notes", read.TableUnreadable, got.TableUnreadable, notes)
+			if len(read.TableUnreadable) != 0 || len(got.TableUnreadable) != c.notes {
+				t.Errorf("table_unreadable = %v, then %v; want none, then %d notes", read.TableUnreadable, got.TableUnreadable, c.notes)
 			}
 			firsts := tableFirstLines(t, got.Table, len(got.Rows))
 			ruleWidth := utf8.RuneCountInString(got.Table[3])

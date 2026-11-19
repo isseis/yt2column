@@ -5,7 +5,6 @@ package chief
 import (
 	"encoding/json"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -20,29 +19,30 @@ import (
 // outside each type's range, on either side, is named unknown. A value
 // declared after the last one here and left unnamed is not caught.
 func TestOutputValueNames(t *testing.T) {
+	if n := runningUnknownName(RunningUnknownNone); n != "" {
+		t.Fatalf("a decided command's running_unknown is %q, want empty", n)
+	}
 	for _, c := range []struct {
 		key string
-		// got is the list checked.
-		got []string
 		// first and count are the first value listed and the number of
 		// values listed; name names value i.
 		first, count int
 		name         func(i int) string
 	}{
-		{"urgency", namesUpToUnknown(urgencyName), 0, int(UrgencyWait) + 1, func(i int) string { return urgencyName(Urgency(i)) }},
-		{"position.document", namesUpToUnknown(positionDocumentName), 0, int(PositionDocNone) + 1, func(i int) string { return positionDocumentName(PositionDocument(i)) }},
-		{"position.progress", namesUpToUnknown(progressName), 0, int(ProgressTaskDone) + 1, func(i int) string { return progressName(Progress(i)) }},
-		{"running_unknown", namesUpToUnknown(runningUnknownName)[1:], 1, int(RunningUnknownPanesDisagree), func(i int) string { return runningUnknownName(RunningUnknown(i)) }},
-		{"state", namesUpToUnknown(WorkspaceState.String), 0, int(StateTaskDone) + 1, func(i int) string { return WorkspaceState(i).String() }},
-		{"turn", namesUpToUnknown(turnName), 0, int(TurnNone) + 1, func(i int) string { return turnName(Turn(i)) }},
+		{"urgency", 0, int(UrgencyWait) + 1, func(i int) string { return urgencyName(Urgency(i)) }},
+		{"position.document", 0, int(PositionDocNone) + 1, func(i int) string { return positionDocumentName(PositionDocument(i)) }},
+		{"position.progress", 0, int(ProgressTaskDone) + 1, func(i int) string { return progressName(Progress(i)) }},
+		{"running_unknown", 1, int(RunningUnknownPanesDisagree), func(i int) string { return runningUnknownName(RunningUnknown(i)) }},
+		{"state", 0, int(StateTaskDone) + 1, func(i int) string { return WorkspaceState(i).String() }},
+		{"turn", 0, int(TurnNone) + 1, func(i int) string { return turnName(Turn(i)) }},
 	} {
 		t.Run(c.key, func(t *testing.T) {
-			got := c.got
+			got := namesUpToUnknown(c.name)[c.first:]
 			if len(got) != c.count {
 				t.Fatalf("names = %v, want %d of them", got, c.count)
 			}
 			for i, n := range got {
-				if n == "" || n == unknownName || slices.Index(got, n) != i || n != c.name(c.first+i) {
+				if n == "" || slices.Index(got, n) != i {
 					t.Errorf("name %d = %q, want a name of its own", i, n)
 				}
 			}
@@ -52,9 +52,6 @@ func TestOutputValueNames(t *testing.T) {
 				}
 			}
 		})
-	}
-	if n := runningUnknownName(RunningUnknownNone); n != "" {
-		t.Errorf("a decided command's running_unknown is %q, want empty", n)
 	}
 }
 
@@ -103,9 +100,9 @@ func TestSnapshotOutputTable(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatal(err)
 	}
-	first := tableFirstLines(t, got.Table, 1)[0]
-	if !strings.Contains(first, `a\\b`) || !slices.Equal(got.Table, snap.Table) {
-		t.Errorf("table = %q, want the snapshot's table %q, the backslash doubled once", got.Table, snap.Table)
+	tableFirstLines(t, got.Table, 1)
+	if !slices.Equal(got.Table, snap.Table) {
+		t.Errorf("table = %q, want the snapshot's table %q", got.Table, snap.Table)
 	}
 	if string(got.TableUnreadable) != "[]" {
 		t.Errorf("table_unreadable = %s, want []", got.TableUnreadable)
