@@ -305,9 +305,16 @@ func printReport(w io.Writer, report mergepr.Report) {
 	if report.ProtocolCheck != "" {
 		_, _ = fmt.Fprintf(w, "protocol:             %s\n", report.ProtocolCheck)
 	}
-	if !report.Merged {
-		return
+	if report.Merged {
+		printMerged(w, report)
 	}
+	if report.Note != "" {
+		_, _ = fmt.Fprintf(w, "note: %s\n", report.Note)
+	}
+}
+
+// printMerged writes the lines of a merge that is known to have happened.
+func printMerged(w io.Writer, report mergepr.Report) {
 	if report.MergeCommitOID != "" {
 		_, _ = fmt.Fprintf(w, "merge commit:         %s\n", report.MergeCommitOID)
 		_, _ = fmt.Fprintf(w, "base branch updated:  %t\n", report.BaseUpdated)
@@ -317,8 +324,5 @@ func printReport(w io.Writer, report mergepr.Report) {
 		_, _ = fmt.Fprintf(w, "corrections carried:  %d line(s) verified\n", report.CorrectionsVerified)
 	} else {
 		_, _ = fmt.Fprintln(w, "corrections carried:  not verified")
-	}
-	if report.Note != "" {
-		_, _ = fmt.Fprintf(w, "note: %s\n", report.Note)
 	}
 }

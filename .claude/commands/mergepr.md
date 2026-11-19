@@ -290,8 +290,8 @@ around it with your own shell commands. Work in order; do not skip a step.
    cannot be read, the error starts with `post-merge check: `: the PR is
    merged, so do not discard anything or merge again. A cleanup run again
    after such an error repeats the comparison and ends with the same error;
-   when its other lines show that the cleanup finished, the error does not
-   block the cleanup. Report that the PR is
+   when it also printed `base branch updated:  true` and no other error, the
+   cleanup finished and the error does not block it. Report that the PR is
    merged, its merge commit, and each `post-merge check:` line, and stop; the
    merge cannot be undone, and how to record the difference is the user's
    choice.

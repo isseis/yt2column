@@ -203,6 +203,7 @@ func TestPrintReport(t *testing.T) {
 		{"not verified", merged, head + "corrections carried:  not verified\n"},
 		{"merge commit unknown", mergepr.Report{ProtocolCheck: "passed", Merged: true}, "protocol:             passed\ncorrections carried:  not verified\n"},
 		{"not merged", mergepr.Report{ProtocolCheck: "passed"}, "protocol:             passed\n"},
+		{"not merged with a note", mergepr.Report{ProtocolCheck: "passed", Note: "n"}, "protocol:             passed\nnote: n\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

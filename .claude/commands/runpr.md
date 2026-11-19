@@ -1455,8 +1455,8 @@ Once `mergepr.md` reports the merge:
   file of the approval message files when PRE_MERGE was none), and
   only then continue. When the merge's post-merge comparison already found
   a difference, this cleanup repeats it and ends with the same
-  `post-merge check:` error; it does not stop this step when the cleanup's
-  other lines show the cleanup finished. When another worktree has the base branch checked out,
+  `post-merge check:` error; it does not stop this step when the cleanup
+  also printed `base branch updated:  true` and no other error. When another worktree has the base branch checked out,
   the cleanup leaves the local base branch stale; do not rely on it.
 - `git fetch origin main`. When NEXT is set, create the next branch from
   `origin/main`, naming it and linking it to the task's issue by
