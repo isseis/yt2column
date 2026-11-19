@@ -35,6 +35,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   [mermaid_reference.md](docs/dev/conventions/mermaid_reference.md) (node-label
   quoting, `<br>` line breaks, cylinder `[(...)]` data nodes, the standard classDef
   palette, and Legend blocks).
+- Japanese documents use bold and structure a section with many items as
+  [document_formatting.md](docs/dev/conventions/document_formatting.md) says
+  (labels and easy-to-miss qualifiers only; a summary first, then subheadings or
+  nested lists).
 - Each task lives in `docs/tasks/NNNN_<name>/` (four-digit sequence number).
   `docs/tasks/0000_template/requirements.md` is the starting point for
   `01_requirements.md`.
