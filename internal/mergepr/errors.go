@@ -48,9 +48,8 @@ func (e *NumberIssuesError) Error() string {
 }
 
 // errUnexpectedGitOutput reports git output a check cannot parse. It is
-// wrapped in the error the check reports (the Detail of a
-// protocolUnreadableError, or an error wrapping errCorrectionUnreadable),
-// which is what callers match.
+// always wrapped in the error the calling check reports, which is what
+// callers match.
 var errUnexpectedGitOutput = errors.New("unexpected git output")
 
 // errCorrectionUnreadable reports that the correction lines of the PR's

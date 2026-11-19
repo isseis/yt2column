@@ -563,8 +563,8 @@ its security rules in `docs/dev/security.md` §8.
   squash merge, and of the merge commit's message
   (`internal/mergepr/corrections.go`). Scope: where a commit object's
   header ends and its message starts (its first empty line); whether a
-  commit message's line starts in its first column with `Editorial correction: `, and the
-  class of each character of such a line (general category Cc other than
+  commit message's line starts in its first column with
+  `Editorial correction: `, and the class of each character of such a line (general category Cc other than
   tab, Cf, Zl, and Zp; bytes that are not UTF-8 and noncharacters; `@`; and
   `<`), which sort the correction lines into accepted and rejected ones
   for `prepare`, `paragraph`, `check-body`, and `merge`; the lines of the subject and the body that
