@@ -111,7 +111,7 @@
 
 - [x] フェーズ 1（ステップ 1-1〜1-3）
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/1017
-- [ ] PR がマージされた
+- [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
