@@ -720,6 +720,13 @@ receipt comment shows a result without findings and the user confirms it
     was summarized, for example) counts as absent, so the question is asked
     again. A rerun starts with an empty record, so it asks again even for the
     same summary comment and receipt.
+  - **Reports after an approval.** Once the approval record holds a tuple,
+    every report of a stop in this run (in this step, a stop of `fixpr` and a
+    CI failure included, and in step 4) and step 5's final report give, for
+    each tuple of the record, its `commit_sha`, the receipt's URL, and that
+    the user confirmed Codex's completion by that receipt. No such line starts
+    with `NEXT`. Nothing else records it: no commit, no PR comment, and no PR
+    description.
 - **LAST_REVIEWED** is the commit, among the `<sha>` of every completion marker
   seen in this run, of every `commit_sha` of the approval record, and of the
   current summary comment's completion marker, that every other is an ancestor
@@ -966,6 +973,26 @@ mention lists of step 3, "Reading the PR", just before it, and apply step 3's
 "Mentions by other accounts" to them. When it stops, stop here: no question,
 no merge.
 
+**An approved completion, checked again.** When this arrival at step 4 came
+with a Completed that rule 3c decided (a completion the user confirmed, step
+3, "Confirming a completion without a result"), then before each question of
+this step and again right before the merge (item 5), read what a poll of step
+3 reads (the three listings, the PR's `headRefOid`, `git fetch origin`, and
+the `Date` line) and judge the latest request again by step 3's rules. When
+the approval tuple has changed, or the latest request is no longer Completed
+by rule 3c (a Completed by rule 2 included, so that Codex's late result goes
+through step 3's threads, Escalation, and LAST_REVIEWED), ask nothing and
+merge nothing: discard the preparation when it exists
+(`mergepr discard --protocol 2 --state <state-file>`) and return to step 3,
+which judges again and goes on from what it finds. An arrival that came with
+a Completed of rule 2 does not check this.
+
+**A listing that fails here.** Whatever rule decided the Completed this
+arrival came with, when a listing read in this step (before a question or
+before the merge) fails as step 3's "A listing that fails" defines, do not
+wait for the next poll: ask nothing, merge nothing, discard the preparation
+when it exists, and stop with that bullet's report. A rerun asks again.
+
 **Summary and detail file.** Each question shows the conversation a short
 summary of fixed lines, and puts everything long in a detail file outside the
 work tree, so the question and its options stay on the screen. Write the
@@ -1185,7 +1212,11 @@ character as 2); the line shapes below are the examples to follow.
      "PR number" bullet says); the excluded threads of a three-document PR
      (step 3), numbered 1, 2, ... in order, each marked as excluded, with its
      topic, the reason, and its URL; the Escalation decision and its reason,
-     when there are changes Codex has not reviewed; NEXT, and, when NEXT is
+     when there are changes Codex has not reviewed; for each tuple of the
+     approval record (step 3, "Confirming a completion without a result"),
+     the summary comment's `commit_sha` and the receipt's URL, that the user
+     confirmed Codex's completion by that receipt, and whether the tuple
+     still has effect or lost it later; NEXT, and, when NEXT is
      `/runplan`, the `実装モデル要件` of the PR that NEXT will open and the
      agent and model to start the new session with (below); and LIMITS_NOTE in full when
      there is one.
@@ -1240,7 +1271,13 @@ character as 2); the line shapes below are the examples to follow.
        and files; which line of which file is in the detail file. Line 4 says
        there are changes Codex has not reviewed when LAST_REVIEWED is behind
        the head or none, with the Escalation decision (`ask`, `skip`, ...) on
-       the same line; the reason is in the detail file.
+       the same line; the reason is in the detail file. When the approval
+       record holds a tuple, line 4 ends with ` ／ 受領コメントで認めた完了あり`
+       (for example `未レビューの変更: なし ／ 受領コメントで認めた完了あり`),
+       with no URL: the commits and the receipts are in the detail file. Its
+       longest form,
+       `未レビューの変更: あり（Escalation: request） ／ 受領コメントで認めた完了あり`,
+       is 77 columns.
      - Kind 13 appears only when there are changes Codex has not reviewed
        (LAST_REVIEWED is behind the head or none), and stays within 80
        columns. Its first half says whether the local CLI review saw them,
@@ -1499,7 +1536,9 @@ character as 2); the line shapes below are the examples to follow.
      again.
    - Otherwise merge with the approved message files (the copies) without
      asking again: the answer approved this message for exactly this head.
-5. Merge with `mergepr.md` step 4, and report as its step 5 says, adding the
+5. Right before the merge, check an approved completion again when this
+   arrival came with one ("An approved completion, checked again" above).
+   Merge with `mergepr.md` step 4, and report as its step 5 says, adding the
    path of the details directory and of the detail file of the round that
    decided the merge, with its head commit (the report convention above). If
    the merge is refused because the head moved, discard the preparation and
@@ -1570,7 +1609,9 @@ Once `mergepr.md` reports the merge:
   Japanese, gives the path of the details directory and, when the PR merged,
   the path of the detail file of the round that decided the merge and its head
   commit (step 4), and gives LIMITS_NOTE when there is one, or else the expiry
-  date step 1 kept for the 有効 state, on one line. It also holds exactly one
+  date step 1 kept for the 有効 state, on one line. When the approval record
+  holds a tuple, it gives the approved commits and the receipts' URLs as step
+  3, "Reports after an approval", says. It also holds exactly one
   **NEXT line**, which the `chief` tool reads to compare with the next command
   it decides itself (`docs/dev/guides/chief_guide.md`): a line of its own,
   outside any code block, that starts with `NEXT: ` (a list bullet `- ` before
