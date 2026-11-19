@@ -174,7 +174,7 @@ PR #1009 は ADR-0013 だけを組み直した。まとめを先に書き、`###
 - **AC-13**: 既存の 3 つのファイルの差分は、次に限る。
     -   `CLAUDE.md`：「Documents」の箇条書きに 1 項目を足すこと。
     -   `adr.md`：「Writing an ADR」に 1 段落を足すこと。
-    -   `japrose.md`：太字の項目を足すことと、足した行と変えた行を決める手順を足すこと。
+    -   `japrose.md`：太字の確認のための追加。対象は、問題の一覧（Purpose）、足した行と変えた行を決める手順（Preparation）、サブエージェントに渡すファイル（Review）、基準の項目（Prose-quality checklist）、直し方（Apply Fixes）である。ほかの行は変えない。
 - **AC-14**: `go test -tags test ./cmd/yt2column` が通る（文書のリンクの先があることと、ADR の記録の形を確かめるガードを含む）。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
