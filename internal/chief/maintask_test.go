@@ -587,6 +587,26 @@ func TestTickWritesHistory(t *testing.T) {
 			}
 		}
 	})
+	t.Run("a merge read on a detached HEAD", func(t *testing.T) {
+		mw := newMergeWorld(t, mkarchDocs)
+		mw.tick(time.Minute)
+		mw.merge(detachedHead, "")
+		mw.tick(time.Minute)
+		if names := traceNames(t, mw.store, mw.tree); len(names) != 3 {
+			t.Errorf("history = %v; want the merge written", names)
+		}
+	})
+	t.Run("a round that cannot be recorded goes by the history written", func(t *testing.T) {
+		mw := newMergeWorld(t, mkarchDocs)
+		mw.tick(time.Minute)
+		mw.merge(mainBranch, "")
+		mw.tick(time.Minute)
+		mw.store.beforeCreate = failCreates(roundPrefix)
+		mw.deps.Store = mw.store
+		if r := rowOf(t, mw.tick(time.Minute).Snapshot, "ws"); r.Task != "0001" {
+			t.Errorf("row = %+v; want 0001 from the merge written before", r)
+		}
+	})
 	t.Run("a merge not written is written by the next round", func(t *testing.T) {
 		mw := newMergeWorld(t, mkarchDocs)
 		mw.tick(time.Minute)
@@ -636,5 +656,32 @@ func TestMainRowNoAutoSend(t *testing.T) {
 	res := only(t, out)
 	if sentCommand(res) || len(mw.rec.prompts()) != 0 || !slices.Contains(res.Reasons, `the branch "main" is no feature branch of task 0001`) {
 		t.Errorf("auto send = %+v; want nothing sent because main is no feature branch of 0001", res)
+	}
+}
+
+// TestTraceReadingOf checks what the history's writes take from a round's
+// facts: the place each HEAD is, the open PR, and a branch's task, which a
+// pr_open names only when the round read that task's documents.
+func TestTraceReadingOf(t *testing.T) {
+	task := taskID(t, "0001")
+	docs := &TaskDocs{Dir: taskDir}
+	cases := []struct {
+		name  string
+		facts workspaceFacts
+		want  traceReading
+	}{
+		{"a HEAD not read", workspaceFacts{PR: &OpenPR{Number: 7}}, traceReading{Place: tracePlaceUnread, PR: 7}},
+		{"a detached HEAD", workspaceFacts{Head: headDetached}, traceReading{Place: tracePlaceDetached}},
+		{"main", workspaceFacts{Head: headMain, Branch: mainBranch}, traceReading{Place: tracePlaceMain, Branch: mainBranch}},
+		{"a task branch with its documents", workspaceFacts{Head: headBranch, Branch: taskBranch, Task: task, Docs: docs, PR: &OpenPR{Number: 7}}, traceReading{Place: tracePlaceBranch, Branch: taskBranch, BranchTask: task, DocsRead: true, PR: 7}},
+		{"a task branch whose documents were not read", workspaceFacts{Head: headBranch, Branch: taskBranch, Task: task, DocsUnreadable: true}, traceReading{Place: tracePlaceBranch, Branch: taskBranch, BranchTask: task}},
+		{"a branch of no task", workspaceFacts{Head: headBranch, Branch: "scratch"}, traceReading{Place: tracePlaceBranch, Branch: "scratch"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := traceReadingOf(c.facts); got != c.want {
+				t.Errorf("reading = %+v, want %+v", got, c.want)
+			}
+		})
 	}
 }

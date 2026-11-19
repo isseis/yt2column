@@ -731,6 +731,9 @@ var errHistoryChanged = errors.New("the worktree changed since the round read it
 // detached HEAD) and every merge or close has its PR's open record; a
 // failure to write one event stops the rest.
 func writeEvents(ctx context.Context, store Store, git GitReader, w TaskWorkspace, branch, session string, events []traceEvent) error {
+	// Taking the exclusion makes the directory again for a worktree removed
+	// since the round read it; its branch can no longer be read then, so
+	// nothing is written into it, as an automatic send's exclusion does.
 	records, err := store.Records(w.Tree)
 	if err != nil {
 		return err
