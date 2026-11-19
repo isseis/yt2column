@@ -115,6 +115,10 @@ func (f *fakeHerdr) Run(_ context.Context, name string, args ...string) ([]byte,
 		return nil, nil
 	case name == "git" && has("show"):
 		return f.context, nil
+	case name == "gh" && has("api", "graphql") && has("n="+openIssue):
+		// The answer GitHub gave about an open issue, sampled for
+		// internal/chief.
+		return os.ReadFile(filepath.Join("..", "..", "internal", "chief", "testdata", "gh", "issue-open-839.json"))
 	}
 	f.t.Errorf("unexpected command %s %v", name, args)
 	return nil, errors.New("unexpected command")
@@ -212,13 +216,15 @@ func TestRunRefusals(t *testing.T) {
 			t.Errorf("run = %d, %v", code, out)
 		}
 	})
-	t.Run("reset before start", func(t *testing.T) {
-		h := newHarness(t)
-		code, out := h.run("reset", "--workspace", "/w", "--check", testCheck, "--protocol", protocol)
-		if code != exitRefused || out["reason"] != "not_started" {
-			t.Errorf("run = %d, %v", code, out)
-		}
-	})
+	for _, args := range ownerCalls {
+		t.Run(args[0]+" before start", func(t *testing.T) {
+			h := newHarness(t)
+			code, out := h.run(args...)
+			if code != exitRefused || out["reason"] != "not_started" {
+				t.Errorf("run = %d, %v", code, out)
+			}
+		})
+	}
 	t.Run("a pane without a session", func(t *testing.T) {
 		h := newHarness(t)
 		h.fake.sessionless = true
@@ -256,10 +262,67 @@ func TestRunRefusals(t *testing.T) {
 		if code, out := h.run("snapshot", "--protocol", protocol); code != exitRefused || out["reason"] != "not_owner" {
 			t.Errorf("snapshot by another chief = %d, %v; want refused, not_owner", code, out)
 		}
-		if code, out := h.run("reset", "--workspace", "/w", "--check", testCheck, "--protocol", protocol); code != exitRefused || out["reason"] != "not_owner" {
-			t.Errorf("reset by another chief = %d, %v; want refused, not_owner", code, out)
+		for _, args := range ownerCalls {
+			if code, out := h.run(args...); code != exitRefused || out["reason"] != "not_owner" {
+				t.Errorf("%s by another chief = %d, %v; want refused, not_owner", args[0], code, out)
+			}
 		}
 	})
+}
+
+// ownerCalls are calls of some of the subcommands that act only for the
+// lock's owner (the three of task 0092 and reset), with arguments that would
+// otherwise run them.
+var ownerCalls = [][]string{
+	{"reset", "--workspace", "/w", "--check", testCheck, "--protocol", protocol},
+	{"targets", "--issue", "12", "--protocol", protocol},
+	{"create", "--issue", "12", "--protocol", protocol},
+	{"remove", "--workspace", "/w", "--protocol", protocol},
+}
+
+// TestIssueFormIsNoUsageError checks that targets and create answer an
+// --issue of another form than an issue number with exit 0 and issue_form,
+// a finished run that tells the human what to type, and not with the usage
+// error a mistake of the definition gets. The fake fails the test on any
+// command it does not answer, and it answers only reads and git fetch, so
+// neither writes to Herdr. The forms a number is refused for are
+// internal/chief's tests (TestCreateIssueForm, TestTargets); one value
+// shows that cmd/chief passes the text through.
+func TestIssueFormIsNoUsageError(t *testing.T) {
+	for _, c := range []struct{ subcommand, member string }{{"targets", "refusal"}, {"create", "create_refusal"}} {
+		for _, issue := range []string{"#12"} {
+			t.Run(c.subcommand+" "+issue, func(t *testing.T) {
+				h := newHarness(t)
+				if code, out := h.run("start", "--protocol", protocol); code != exitOK {
+					t.Fatalf("start = %d, %v", code, out)
+				}
+				code, out := h.run(c.subcommand, "--issue", issue, "--protocol", protocol)
+				if code != exitOK || out[c.member] != "issue_form" {
+					t.Errorf("%s --issue %q = %d, %v; want exit 0 with %s issue_form", c.subcommand, issue, code, out, c.member)
+				}
+			})
+		}
+	}
+}
+
+// openIssue is the number of the open issue the fake GitHub answers about.
+const openIssue = "839"
+
+// TestTargetsListsNoWorkspaceAndTypesNothing runs targets with an open
+// issue's number when no task workspace offers /mkreq: it finishes with the
+// issue, its title, no refusal, and an empty list (not null), and the fake,
+// which fails the test on any command it does not answer and answers only
+// reads and git fetch, gets no call that writes to Herdr or adds a
+// worktree.
+func TestTargetsListsNoWorkspaceAndTypesNothing(t *testing.T) {
+	h := newHarness(t)
+	if code, out := h.run("start", "--protocol", protocol); code != exitOK {
+		t.Fatalf("start = %d, %v", code, out)
+	}
+	code, out := h.run("targets", "--issue", openIssue, "--protocol", protocol)
+	if list, ok := out["workspaces"].([]any); code != exitOK || out["issue"] != openIssue || out["title"] != "Sample title of an open issue" || out["refusal"] != "" || !ok || len(list) != 0 {
+		t.Errorf("targets = %d, %v; want exit 0, issue %s with its title, no refusal, no workspace", code, out, openIssue)
+	}
 }
 
 // testCheck has the shape of a check value and is no question's.
@@ -302,6 +365,12 @@ func TestRunUsageErrors(t *testing.T) {
 		{"reset", "--workspace", "/w", "--check", "not-a-check", "--protocol", protocol},
 		{"reset", "--workspace", "w", "--check", testCheck, "--protocol", protocol},
 		{"reset", "--workspace", "/w", "--check", testCheck, "--answer", "1=1", "--protocol", protocol},
+		{"targets", "--protocol", protocol},
+		{"targets", "--issue", "12", "--workspace", "/w", "--protocol", protocol},
+		{"create", "--protocol", protocol},
+		{"create", "--issue", "12", "--pr", "34", "--protocol", protocol},
+		{"remove", "--protocol", protocol},
+		{"remove", "--workspace", "/w", "--issue", "12", "--protocol", protocol},
 	} {
 		h := newHarness(t)
 		var stdout bytes.Buffer
@@ -420,7 +489,7 @@ func noWorkspace(out map[string]any) bool {
 	return ok && a["outcome"] == "not_sent" && a["reason"] == "no_workspace"
 }
 
-// TestRunWorkspaceSubcommands runs send, relay, reset, detail, and release after start
+// TestRunWorkspaceSubcommands runs send, relay, reset, detail, release, and remove after start
 // with a --workspace that is no task workspace: each finishes (exit 0) and
 // says so, and nothing is typed into a pane (the fake fails on any command it
 // does not answer, prompt among them).
@@ -439,6 +508,9 @@ func TestRunWorkspaceSubcommands(t *testing.T) {
 		{[]string{"release", "--workspace", "/nowhere", "--protocol", protocol}, func(out map[string]any) bool {
 			p, ok := out["problem"].(string)
 			return out["released"] == false && ok && p != ""
+		}},
+		{[]string{"remove", "--workspace", "/nowhere", "--protocol", protocol}, func(out map[string]any) bool {
+			return out["result"] == "refused" && out["remove_refusal"] == "no_workspace"
 		}},
 	}
 	for _, c := range cases {

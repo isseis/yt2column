@@ -273,7 +273,7 @@ func (s sendContext) relay(ctx context.Context, res ActionResult, req RelayReque
 		// counts as sent.
 		return s.fail(res, id, StepKey, &checkFailure{reason: NotSentUnreadable, detail: "herdr agent send-keys failed: " + err.Error(), agent: a})
 	}
-	if _, failed := s.poll(ctx, a, "the agent did not leave the question after the key", func(now Agent, _ string) bool {
+	if _, failed := s.poll(ctx, a, NotSentNoStep, "the agent did not leave the question after the key", func(now Agent, _ string) bool {
 		return now.Status != a.Status || now.StateChangeSeq != a.StateChangeSeq
 	}); failed != nil {
 		return s.fail(res, id, StepKey, failed)

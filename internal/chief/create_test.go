@@ -121,11 +121,32 @@ func newCreateWorld(t *testing.T, setup func(cw *createWorld)) *createWorld {
 }
 
 // issueAnswer sets GitHub's answer about issue n, in chief's worktree.
-func (cw *createWorld) issueAnswer(n string, rep reply) {
-	line := "gh " + strings.Join(issueArgs(issueNumber(cw.t, n)), " ")
-	cw.rec.mu.Lock()
-	defer cw.rec.mu.Unlock()
-	cw.rec.dirReplies[cw.chiefTree+"\x00"+line] = rep
+func (sw *sendWorld) issueAnswer(n string, rep reply) {
+	line := "gh " + strings.Join(issueArgs(issueNumber(sw.t, n)), " ")
+	sw.rec.mu.Lock()
+	defer sw.rec.mu.Unlock()
+	sw.rec.dirReplies[sw.chiefTree+"\x00"+line] = rep
+}
+
+// issueRefusalCase is an answer about an issue that is not an open issue
+// without the draft label, and the refusal both a creation and the targets
+// give it.
+type issueRefusalCase struct {
+	number  string
+	answer  reply
+	refusal CreateRefusal
+}
+
+func issueRefusalCases(t *testing.T) []issueRefusalCase {
+	t.Helper()
+	return []issueRefusalCase{
+		{"838", reply{out: readTestdata(t, "gh/issue-closed-838.json")}, CreateRefusalIssueClosed},
+		{"932", reply{out: readTestdata(t, "gh/issue-draft-932.json")}, CreateRefusalIssueDraft},
+		{"897", reply{out: readTestdata(t, "gh/issue-pr-897.json")}, CreateRefusalIssueIsPR},
+		{"999999", reply{err: &cmdrunner.ExitError{Code: 1, Stdout: readTestdata(t, "gh/issue-missing.json")}}, CreateRefusalIssueNotFound},
+		{"840", reply{out: readTestdata(t, "gh/issue-open-839.json")}, CreateRefusalIssueUnreadable}, // the answer of another number
+		{"841", reply{err: errInjected}, CreateRefusalIssueUnreadable},
+	}
 }
 
 // writeLines are the writes of a whole creation, in order.
@@ -626,19 +647,7 @@ func TestCreateDeadline(t *testing.T) {
 // open issue without the draft label: nothing is run after the read, nothing
 // is made, and the refusal names the answer.
 func TestCreateRefusesIssue(t *testing.T) {
-	cases := []struct {
-		number  string
-		answer  reply
-		refusal CreateRefusal
-	}{
-		{"838", reply{out: readTestdata(t, "gh/issue-closed-838.json")}, CreateRefusalIssueClosed},
-		{"932", reply{out: readTestdata(t, "gh/issue-draft-932.json")}, CreateRefusalIssueDraft},
-		{"897", reply{out: readTestdata(t, "gh/issue-pr-897.json")}, CreateRefusalIssueIsPR},
-		{"999999", reply{err: &cmdrunner.ExitError{Code: 1, Stdout: readTestdata(t, "gh/issue-missing.json")}}, CreateRefusalIssueNotFound},
-		{"840", reply{out: readTestdata(t, "gh/issue-open-839.json")}, CreateRefusalIssueUnreadable}, // the answer of another number
-		{"841", reply{err: errInjected}, CreateRefusalIssueUnreadable},
-	}
-	for _, c := range cases {
+	for _, c := range issueRefusalCases(t) {
 		t.Run(c.refusal.String()+" "+c.number, func(t *testing.T) {
 			cw := newCreateWorld(t, func(cw *createWorld) { cw.issueAnswer(c.number, c.answer) })
 			before := stateEntries(t, cw.deps.Store.Dir())
@@ -941,9 +950,10 @@ func TestCreateBusyWhileThePathIsHeld(t *testing.T) {
 }
 
 // TestTargets checks the targets of /mkreq: a number of another form is
-// refused before anything is read; otherwise the workspaces whose row offers
-// /mkreq are listed, GitHub is not asked about the issue, and no record is
-// written.
+// refused before anything is read; an answer about the issue that is not an
+// open issue without the draft label is refused as a creation refuses it,
+// with nothing run after the read; otherwise the issue's title is given and
+// the workspaces whose row offers /mkreq are listed. No record is written.
 func TestTargets(t *testing.T) {
 	ctx := context.Background()
 	t.Run("issue_form", func(t *testing.T) {
@@ -970,10 +980,11 @@ func TestTargets(t *testing.T) {
 				free = sw.addTask(fakeWorkspace{ID: "w1", Label: "free", Branch: "user/feature"}, "claude")
 			}
 			sw.addTask(fakeWorkspace{ID: "w2", Label: "task", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
+			sw.issueAnswer(createIssue, reply{out: readTestdata(t, "gh/issue-open-839.json")})
 			deps := sw.finish()
 			before := stateEntries(t, deps.Store.Dir())
 			out, err := Targets(ctx, deps, createIssue)
-			if err != nil || out.Refusal != CreateRefusalUnknown || out.Issue.String() != createIssue {
+			if err != nil || out.Refusal != CreateRefusalUnknown || out.Issue.String() != createIssue || out.Title != "Sample title of an open issue" {
 				t.Fatalf("Targets = %+v, %v", out, err)
 			}
 			var want []TargetWorkspace
@@ -983,15 +994,40 @@ func TestTargets(t *testing.T) {
 			if !slices.Equal(out.Workspaces, want) {
 				t.Errorf("workspaces = %+v, want %+v", out.Workspaces, want)
 			}
-			for _, call := range sw.rec.recorded() {
-				if call.name == ghProgram && isIssueRead(call.args) {
-					t.Errorf("asked GitHub about the issue: %s", call.line())
+			if after := stateEntries(t, deps.Store.Dir()); !slices.Equal(after, before) {
+				t.Errorf("state directory %v, was %v", after, before)
+			}
+			if o := out.Output(); len(o.Workspaces) != len(want) || o.Refusal != "" || o.Title != out.Title {
+				t.Errorf("output = %+v", o)
+			}
+		})
+	}
+	for _, c := range issueRefusalCases(t) {
+		t.Run(c.refusal.String()+" "+c.number, func(t *testing.T) {
+			sw := newSendWorld(t)
+			sw.addTask(fakeWorkspace{ID: "w1", Label: "free", Branch: "user/feature"}, "claude")
+			sw.issueAnswer(c.number, c.answer)
+			deps := sw.finish()
+			before := stateEntries(t, deps.Store.Dir())
+			out, err := Targets(ctx, deps, c.number)
+			if err != nil || out.Refusal != c.refusal || len(out.Workspaces) != 0 {
+				t.Fatalf("Targets = %+v, %v; want refused %s with no workspace", out, err, c.refusal)
+			}
+			calls := sw.rec.recorded()
+			if last := calls[len(calls)-1]; last.name != ghProgram || !isIssueRead(last.args) {
+				t.Errorf("ran %s after the issue read", last.line())
+			}
+			// The round's reads (the fetch and the PR list among them) never
+			// run, before the issue read either.
+			for _, call := range calls {
+				if (call.name == ghProgram && !isIssueRead(call.args)) || (call.name == gitProgram && slices.Contains(call.args, "fetch")) {
+					t.Errorf("read the round: %s", call.line())
 				}
 			}
 			if after := stateEntries(t, deps.Store.Dir()); !slices.Equal(after, before) {
 				t.Errorf("state directory %v, was %v", after, before)
 			}
-			if o := out.Output(); len(o.Workspaces) != len(want) || o.Refusal != "" {
+			if o := out.Output(); o.Refusal != c.refusal.String() || o.Workspaces == nil {
 				t.Errorf("output = %+v", o)
 			}
 		})

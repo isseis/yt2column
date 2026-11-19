@@ -6,7 +6,7 @@
 |---|---|
 | Status | `approved` |
 | Created | 2026-11-18 |
-| Review date | 2026-11-18 |
+| Review date | 2026-11-19 |
 | Reviewer | isseis |
 | Comments | - |
 
@@ -643,7 +643,7 @@ flowchart TD
 2.  表示幅と表示の単位（`textwidth.go`、`sanitize.go` の分割）。
 3.  Herdr の読み取り（`herdr.go` の 3 つの読み取り、`readRound` の pane とタブの対応、`readTableSources`）。
 4.  表を組む（`table.go`、`finishSnapshot`、出力の `table`・`table_unreadable`）。
-5.  `Protocol` を上げ、`/chief` の定義、ガイド、CLAUDE.md を同じ PR で直す。定義が表を前提にするので、道具が表を出力する変更と、定義が表を示す変更は、同じ番号で入る必要がある。`TestDisplayValuesMatchTool` を除くコミットは、ほかの変更を含まない単独のコミットにし、`make coverage-compare` で確かめる。`OutputValueNames` を除くことと `TestOutputValueNames` を直すことは、その後の別のコミットにする。
+5.  `Protocol` を上げ、`/chief` の定義とガイドを同じ PR で直す。定義が表を前提にするので、道具が表を出力する変更と、定義が表を示す変更は、同じ番号で入る必要がある。CLAUDE.md の 2 つの例外（3.11）は、この PR ではなく、例外が名指すファイル（`table.go`・`textwidth.go`）を足す PR で入れる。日本語の literal と、値の中身で振る舞いを選ぶ処理が、例外より先に `main` に入らないようにするためである。`TestDisplayValuesMatchTool` を除くコミットは、ほかの変更を含まない単独のコミットにし、`make coverage-compare` で確かめる。`OutputValueNames` を除くことと `TestOutputValueNames` を直すことは、その後の別のコミットにする。
 6.  手で確かめること（7.3）。
 
 ## 9. 将来の拡張 (Future Extensibility)
@@ -700,3 +700,5 @@ flowchart TD
 ## 変更履歴
 
 - 2026-11-18 承認（isseis、#997）
+- 2026-11-19 draft への戻し：CLAUDE.md の 2 つの例外を、`Protocol` を上げる PR ではなく、例外が名指すファイル（`table.go`・`textwidth.go`）を足す PR で入れることにした（#1000）
+- 2026-11-19 承認（isseis、#1000）

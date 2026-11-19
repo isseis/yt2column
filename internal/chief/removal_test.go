@@ -726,6 +726,7 @@ func TestCreatedDetachedRowOffersNoMkreq(t *testing.T) {
 // the state directory, the created record among it, is as it was.
 func TestRemovalLeavesRecordsOnSnapshotAndTargets(t *testing.T) {
 	sw, rs := newRemovalWorld(t)
+	sw.issueAnswer(createIssue, reply{out: readTestdata(t, "gh/issue-open-839.json")})
 	deps := sw.finish()
 	before := stateEntries(t, deps.Store.Dir())
 	if !slices.ContainsFunc(before, func(p string) bool { return strings.HasSuffix(p, createdFile) }) {

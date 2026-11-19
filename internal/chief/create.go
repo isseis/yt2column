@@ -281,22 +281,13 @@ func Create(ctx context.Context, deps Deps, issueArg string) (CreateOutcome, err
 	}
 	herdr := NewHerdr(deps.Cmds)
 	git := NewGitReader(deps.Cmds)
-	chiefTree, err := chiefWorktree(ctx, deps, herdr)
+	chiefTree, found, refusal, failure, err := readOpenIssue(ctx, deps, herdr, git, issue)
 	if err != nil {
 		return CreateOutcome{}, err
 	}
-	found, err := git.ReadIssue(ctx, chiefTree.String(), issue)
-	if err != nil {
-		return refusedCreate(out, CreateRefusalIssueUnreadable, err.Error()), nil
-	}
 	out.Title, out.TitleCut = found.Title, found.TitleCut
-	if found.Status != IssueOpen {
-		refusal, ok := issueRefusals[found.Status]
-		if !ok {
-			// A status this map does not know is not read more widely.
-			refusal = CreateRefusalIssueUnreadable
-		}
-		return refusedCreate(out, refusal, ""), nil
+	if refusal != CreateRefusalUnknown {
+		return refusedCreate(out, refusal, failure), nil
 	}
 	if err := git.Fetch(ctx, chiefTree.String()); err != nil {
 		return refusedCreate(out, CreateRefusalFetchFailed, err.Error()), nil
@@ -372,6 +363,33 @@ func spaceRefusal(err error) (CreateRefusal, bool) {
 }
 
 // chiefWorktree reads chief's own worktree from the pane chief runs in.
+// readOpenIssue reads issue from GitHub in chief's worktree, which it also
+// returns. Contract: the refusal is CreateRefusalUnknown only for an open
+// issue without the draft label; an answer that cannot be read, a gh that
+// fails, and a status issueRefusals does not know are
+// CreateRefusalIssueUnreadable, with failure saying why. An error is
+// returned only when chief's worktree cannot be found, before GitHub is
+// asked.
+func readOpenIssue(ctx context.Context, deps Deps, herdr Herdr, git GitReader, issue paneinput.IssueNumber) (Worktree, Issue, CreateRefusal, string, error) {
+	chiefTree, err := chiefWorktree(ctx, deps, herdr)
+	if err != nil {
+		return Worktree{}, Issue{}, CreateRefusalUnknown, "", err
+	}
+	found, err := git.ReadIssue(ctx, chiefTree.String(), issue)
+	if err != nil {
+		return chiefTree, Issue{}, CreateRefusalIssueUnreadable, err.Error(), nil
+	}
+	if found.Status == IssueOpen {
+		return chiefTree, found, CreateRefusalUnknown, "", nil
+	}
+	refusal, ok := issueRefusals[found.Status]
+	if !ok {
+		// A status this map does not know is not read more widely.
+		refusal = CreateRefusalIssueUnreadable
+	}
+	return chiefTree, found, refusal, "", nil
+}
+
 func chiefWorktree(ctx context.Context, deps Deps, herdr Herdr) (Worktree, error) {
 	chiefPane, err := ParsePaneID(deps.Env.PaneID)
 	if err != nil {
@@ -792,12 +810,17 @@ func (m WorkspaceMaker) waitShell(ctx context.Context, pane PaneID) error {
 	return fmt.Errorf("%w: the shell of pane %s is not at its prompt", errMakerRefused, pane)
 }
 
-// TargetsOutcome is what `chief targets` found: the issue number's form
-// and the workspaces /mkreq of it can go to now.
+// TargetsOutcome is what `chief targets` found: the issue as GitHub
+// answered, and the workspaces /mkreq of it can go to now.
 type TargetsOutcome struct {
 	Issue paneinput.IssueNumber
-	// Refusal is CreateRefusalIssueForm for a number of another form, and
-	// otherwise none.
+	// Title is the issue's title, made visible and cut (Issue.Title), when
+	// GitHub answered with an issue.
+	Title    string
+	TitleCut bool
+	// Refusal is CreateRefusalIssueForm for a number of another form, the
+	// refusal of an answer that is not an open issue without the draft label
+	// (the same as a creation's), and otherwise none.
 	Refusal    CreateRefusal
 	Failure    string
 	Workspaces []TargetWorkspace
@@ -809,20 +832,31 @@ type TargetWorkspace struct {
 	Label     string
 }
 
-// Targets checks the form of the issue number and lists the task workspaces
-// whose row offers /mkreq now (the design, 3.3.5). Contract: it reads only:
-// it makes nothing, writes no record (no notice either), and never asks
-// GitHub about the issue; a number of another form reads nothing.
+// Targets checks the form of the issue number, reads the issue from GitHub,
+// and lists the task workspaces whose row offers /mkreq now (the design,
+// 3.3.5). Contract: it reads only: it makes nothing and writes no record
+// (no notice either); a number of another form reads nothing; an issue
+// that is not open, or has the draft label, is refused as a creation would
+// refuse it, with no workspace listed and no round read. `chief create`
+// reads the issue again before it makes anything.
 func Targets(ctx context.Context, deps Deps, issueArg string) (TargetsOutcome, error) {
 	issue, err := paneinput.ParseIssueNumber(issueArg)
 	if err != nil {
 		return TargetsOutcome{Refusal: CreateRefusalIssueForm, Failure: err.Error()}, nil
 	}
+	_, found, refusal, failure, err := readOpenIssue(ctx, deps, NewHerdr(deps.Cmds), NewGitReader(deps.Cmds), issue)
+	if err != nil {
+		return TargetsOutcome{}, err
+	}
+	out := TargetsOutcome{Issue: issue, Title: found.Title, TitleCut: found.TitleCut}
+	if refusal != CreateRefusalUnknown {
+		out.Refusal, out.Failure = refusal, failure
+		return out, nil
+	}
 	view, err := readRound(ctx, deps)
 	if err != nil {
 		return TargetsOutcome{}, err
 	}
-	out := TargetsOutcome{Issue: issue}
 	for _, row := range view.rows {
 		// The same check as the send of /mkreq, so every workspace listed
 		// is one `chief send --command mkreq` accepts.

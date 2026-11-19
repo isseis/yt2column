@@ -136,6 +136,16 @@
 
 21. **削除の候補でなくなった workspace は、確かめの結果に `not_candidate` だけを持つ（2026-11-18、人が承認した）。** `remove` の中で読み直した workspace が削除の候補でないときは、ほかの 7 つの確かめは削除の候補（`RemovalCandidate`）を前提にするので走らせず、`checks_failed` と `not_candidate` だけを返す。ステップ 6-2 にこれを編集上の訂正として書いたが、PR-6 の Fable の部分レビューが、設計書 3.4.2 の「通らなかったものをすべて返す」から外れる選択で、PR-7 の `/chief` の定義が読む出力の形（`checks` が 1 件のときがある）にもなると指摘した。ほかの案（7 つを `unreadable` として 8 件を返す、`locate` の見つけた worktree で 7 つを走らせる）は採らない。後者は削除の候補の型の不変条件に例外が要る。要件定義書の AC-28 と、設計書 1.6・3.4.2 に書き足した（ローカルの CLI レビューが、AC-28 との食い違いを指摘した）。ADR: なし（PR-6 の中で閉じるため）。
 
+22. **「新しいタスクを始める」に固定の英字 `N` を付ける（2026-11-18、人が承認した）。** PR-7 の実地の確かめで、人が、番号のない選択肢は選びにくいと指摘した。`/chief` の定義は、待ち受けの一覧でこの選択肢を `[N] 新しいタスクを始める` と示し、`N`（`n`）でも選べるようにする。名前で選ぶことも残す（待ち受けの間は、英字と同じく `新しいタスクを始める 930` の形で番号を添え、名前だけのときは `N` だけのときと同じく形を示す）。道具の番号は数字だけで、この選択肢は一覧にいつも 1 つなので、固定の文字は重ならず、ラウンドをまたいで意味も変わらない。`停止を解く`・`送り直す` は複数並びうるので文字を付けない。ステップ 7-2 で直し、設計書 1.6・3.7 に書き足した。
+
+    同じ実地の確かめで、人が、番号を打ち間違えても作る前に気づけるよう始める先を選ぶ前に issue の題名を見たいと求め、`N` の後の番号の問いと候補のないときの始める先の問いが手間だと指摘した。そこで、次のとおりにした（2026-11-18、人が承認した）。
+    -   待ち受けの一覧で `N <番号>` を受け付け、番号を尋ねずに `targets` を呼ぶ。`N` だけのときは問いを開かず、その形で打つよう示す。`once` では、今のとおり選択式で番号を尋ねる。
+    -   `targets` は、`create` と同じ問い合わせで issue を読み（`readOpenIssue` を共有する）、拒む issue なら周を読まずに `create` と同じ理由で拒む。通れば題名を返す。`/chief` の定義は題名を示してから始める先を尋ね、候補のないときも作る前の確認として残す。
+    -   既存の workspace へ送る経路も issue の確かめを通る（要件書 AC-02・AC-04 を直した）。CLAUDE.md の「Tool Execution Safety」の承認を `targets` にも広げた。
+    -   ステップ 7-1 の出力の形も変わるが、`Protocol` は本 PR で上げた値のままである。
+
+    ADR: なし（`/chief` の定義の示し方と、ADR-0046 の issue を読んで拒む決定の中で閉じるため）。
+
 ## 2. 実装のステップ (Implementation Steps)
 
 ### フェーズ 1: 実地の確かめ、サンプル、Herdr の新しい出力の読み取り（設計書 8 章の 1、2 のうち Herdr の出力）
@@ -394,24 +404,24 @@
 
 **変更するファイル:** `cmd/chief/main.go`・`main_test.go`・`docs_test.go`、`internal/chief/records.go`（`Protocol`）、`.claude/commands/chief.md`、`.claude/settings.json`、`CLAUDE.md`、`docs/dev/guides/chief_guide.md`、`docs/dev/conventions/package_reference.md`、本計画。ステップ 7-6 で足すときは、0093 の部品のファイルとテスト
 
--   [ ] **ステップ 7-1**: `cmd/chief/main.go` に `targets --issue <N>`・`create --issue <N>`・`remove --workspace <W>` を足し、パッケージのコメントと使い方の文を直す（設計書 3.1）。`targets` と `create` は `--issue` を文字列のまま道具へ渡す。`Protocol` を、`origin/main` の値より 1 大きくする（決定 3・14。0093 が先に 2 にしていれば 3）。テストは次を確かめる。
+-   [x] **ステップ 7-1**: `cmd/chief/main.go` に `targets --issue <N>`・`create --issue <N>`・`remove --workspace <W>` を足し、パッケージのコメントと使い方の文を直す（設計書 3.1）。`targets` と `create` は `--issue` を文字列のまま道具へ渡す。`Protocol` を、`origin/main` の値より 1 大きくする（決定 3・14。0093 が先に 2 にしていれば 3）。テストは次を確かめる。
     -   引数の表、3 つのサブコマンドがロックの持ち主を確かめること、出力と終了コード。
     -   形の違う `--issue` が、終了コード 2 ではなく、終了コード 0 と `issue_form` になること（AC-06）。
     -   `targets` で、`cmd/chief` の fake が書き込みの呼び出しを受けないこと（決定 7）。
--   [ ] **ステップ 7-2**: `.claude/commands/chief.md` を直す（設計書 3.7）。新しいタスクを始める入口と流れ、作成の結果、削除の提案と人の確認の問い、削除の結果を書き、`create` と `remove` に Bash の上限を渡す（決定 6）。すべての `--protocol` を `2` にする（§1.4）。
--   [ ] **ステップ 7-3**: `.claude/settings.json` の `deny` と `ask` を設計書 3.8 のとおりに直し、`cmd/chief/docs_test.go` を直す（設計書 3.9）。
+-   [x] **ステップ 7-2**: `.claude/commands/chief.md` を直す（設計書 3.7）。新しいタスクを始める入口と流れ、作成の結果、削除の提案と人の確認の問い、削除の結果を書き、`create` と `remove` に Bash の上限を渡す（決定 6）。すべての `--protocol` を、ステップ 7-1 で決めた値にする（§1.4、決定 14。`origin/main` の値 + 1）。
+-   [x] **ステップ 7-3**: `.claude/settings.json` の `deny` と `ask` を設計書 3.8 のとおりに直し、`cmd/chief/docs_test.go` を直す（設計書 3.9）。
     -   `deniedHerdr` に herdr の規則を足す。git の規則を確かめるテストを足し、`allow` に `Bash(git worktree` で始まる規則がないことも確かめる。
     -   `settings` の構造体に `Ask` を足し、`ask` が `Bash(chief remove *)` を持つことを確かめるテストを足す。
     -   `TestDocumentedInvocationsParse` の契約（すべての呼び出しが確認なしに許される）を、`remove` は `ask` の確認を出すと直す。定義の `remove` の呼び出しが `chief remove` で始まることを確かめる。
--   [ ] **ステップ 7-4**: CLAUDE.md の「Tool Execution Safety」（issue の読み取り）と「Claude Commands」の `/chief` の項、chief 利用ガイドの 1〜8 章（設計書 3.8。7 章の記録の表には作成の排他のディレクトリ `create` も足す。決定 5）、`package_reference.md` の `cmd/chief` の行を直す。
--   [ ] **ステップ 7-5**: 最後の実地の確かめをする（設計書 7.3、決定 10・12）。人が、決定 12 のとおり chief の worktree をこのブランチにして入れ直し、`/chief` で次を行う。結果を §7 の「PR-7 の実行の記録」に書く。マージの後に `main` へ戻すことも、決定 12 のとおりである。
+-   [x] **ステップ 7-4**: CLAUDE.md の「Tool Execution Safety」（issue の読み取り）と「Claude Commands」の `/chief` の項、chief 利用ガイドの 1〜8 章（設計書 3.8。7 章の記録の表には作成の排他のディレクトリ `create` も足す。決定 5）、`package_reference.md` の `cmd/chief` の行を直す。
+-   [x] **ステップ 7-5**: 最後の実地の確かめをする（設計書 7.3、決定 10・12）。（実施した。既存の workspace への送信と、`once` で名前で選ぶ場面は、当たる状況がなく実地では確かめていない。§7 の「PR-7 の実行の記録」に書き、テストと定義の読み取りが受け持つ。）人が、決定 12 のとおり chief の worktree をこのブランチにして入れ直し、`/chief` で次を行う。結果を §7 の「PR-7 の実行の記録」に書く。マージの後に `main` へ戻すことも、決定 12 のとおりである。
     -   新しいタスクを始めること（新しい workspace と既存の workspace）。新しく作る issue は人が選ぶ。
     -   作成の拒否（存在しない番号、閉じた issue、ラベル `draft` が付いた issue、PR、すでにあるパス）。
     -   削除の提案、削除、削除の拒否。決定 10 の workspace を使う。拒否は、その workspace に追跡していないファイルを置くなどして起こす。
     -   `once` の問いで、示せる数を超える項目があるときに、「新しいタスクを始める」を名前で選べること。
     -   作成で作った workspace は、確かめの後に人が端末で片付けるか、そのタスクに使う。
 
--   [ ] **ステップ 7-6**: ステップ 7-5 の実地の確かめの前に、ステップ 5-6 の手順で 0093 の部品を確かめ、当たるものに削除の提案の行を足す（決定 13）。結果を §7 の「0093 の部品の確かめの記録」に書き足し、入っていない部品を、0093 が後で足すものとして書く。
+-   [x] **ステップ 7-6**: ステップ 7-5 の実地の確かめの前に、ステップ 5-6 の手順で 0093 の部品を確かめ、当たるものに削除の提案の行を足す（決定 13）。結果を §7 の「0093 の部品の確かめの記録」に書き足し、入っていない部品を、0093 が後で足すものとして書く。
 
 **完了の条件:** 各ステップのテストが通り、§7 に PR-7 の実行の記録がある。`make test`・`make lint`・`make deadcode` が通る。
 
@@ -429,10 +439,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/998
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -502,7 +512,7 @@
 - [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 - [x] PR-5 マージ済み（対象ステップ: 5-1 / 5-2 / 5-3 / 5-4 / 5-5 / 5-6）
 - [x] PR-6 マージ済み（対象ステップ: 6-1 / 6-2 / 6-3 / 6-4 / 6-5）
-- [ ] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5 / 7-6）
+- [x] PR-7 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5 / 7-6）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -513,7 +523,7 @@
 | AC-01 | 定義の入口の位置と `once` の扱い、実地の確かめ（`once` の問いで名前で選ぶ） | manual | 7-2・7-5 | PR-7 |
 | AC-02 | `ic/create_test.go::TestTargets`（番号の形、候補、候補のないとき）、定義の問いの順 | test、manual | 4-3・7-2 | PR-4、PR-7 |
 | AC-03 | `ic/send_test.go::TestMkreqTarget`、`ic/snapshot_test.go::TestNextCommandRules`（どちらも変えずに通る） | test | 3-3・5-3 | PR-3、PR-5 |
-| AC-04 | `ic/create_test.go::TestTargets`（`gh api graphql` を走らせない）、`ic/send_test.go::TestMkreqTarget` | test | 4-3 | PR-4 |
+| AC-04 | `ic/create_test.go::TestTargets`（issue を読み、拒む issue では周を読まず候補を返さない）、`ic/send_test.go::TestMkreqTarget`、定義の既存の workspace の分岐（`targets` の候補の `workspace` と確かめた番号を `send` に渡し、issue を読み直さない） | test、manual | 4-3・7-1・7-2 | PR-4、PR-7 |
 | AC-05 | `ic/issue_test.go::TestParseIssueSamples`、`ic/issue_test.go::TestParseIssueRejects`、`ic/create_test.go::TestCreateRefusesIssue`（何も作らない） | test | 2-5・4-2 | PR-2、PR-4 |
 | AC-06 | `ic/create_test.go::TestCreateIssueForm`、`ic/create_test.go::TestTargets`（`issue_form`）、`cc/main_test.go::TestIssueFormIsNoUsageError` | test | 4-2・4-3・7-1 | PR-4、PR-7 |
 | AC-07 | `ic/issue_test.go::TestParseIssueTitle`、`ic/create_test.go::TestCreateTitleSteersNothing` | test | 2-5・4-2 | PR-2、PR-4 |
@@ -544,7 +554,7 @@
 | AC-32 | `ic/removal_test.go::TestRemoveStopsAtEachStage`、`ic/removal_test.go::TestRemoveStopsWhenHeadMoved`、`ic/removal_test.go::TestRemoveDeadline` | test | 6-2 | PR-6 |
 | AC-33 | `ic/removal_test.go::TestCreateToRemove`（消した後の周で行も項目もない） | test | 6-3 | PR-6 |
 
-設計書 7.4 のセキュリティのテストは、AC-07（題名）、AC-11・`ic/taskspace_test.go::TestTaskSpaceIgnoresOtherInputs`（パスと名前）、AC-13（書く部品の型）、AC-24（偽った記録）、AC-26（書き込みをしない）の行が受け持つ。
+設計書 7.4 のセキュリティのテストは、AC-07（題名）、AC-11・`ic/taskspace_test.go::TestNewTaskSpace`・`ic/create_test.go::TestCreateTitleSteersNothing`（パスと名前）、AC-13（書く部品の型）、AC-24（偽った記録）、AC-26（書き込みをしない）の行が受け持つ。
 
 0093 の AC-05・AC-07 の規則 2・AC-15 は本タスクの AC ではない。ステップ 5-6・6-5・7-6 の確かめで、0093 の部品が `main` にあり、削除の提案の行がまだなかったときに、`ic/removal_test.go::TestRemovalRowUrgencyAndDocument`（急ぎの度合い・番・文書）と `ic/removal_test.go::TestRemovalRowSortsLater`（並ぶ位置）で確かめる。部品が入っていなかったときは本タスクでは確かめず、0093 の計画書に頼る（決定 13）。どちらだったかは「0093 の部品の確かめの記録」に書く。
 
@@ -603,9 +613,33 @@
 -   **走らせたコマンド。** `git fetch origin main`、`git rev-parse origin/main`、`git show <commit>:docs/tasks/0093_chief_status_sheet/03_implementation_plan.md` の「PR がマージされた」の行（3 つとも `[x]`）、`git grep -n -e UrgencyLater -e TurnHuman -e PositionDocNone <commit> -- internal/chief/position.go`、`git grep -n RemovalRow <commit> -- 'internal/chief/*.go'`、`git grep -n -A20 'func sortRows' <commit> -- internal/chief/snapshot.go`（`Urgency` を比べる行があった）。
 -   **確かめたテスト。** 足したものがないので、新しいテストはない。PR-5 の `ic/removal_test.go::TestRemovalRowUrgencyAndDocument` と `ic/removal_test.go::TestRemovalRowSortsLater` が、変わらずに通る。
 
+**PR-7（ステップ 7-6、2026-11-18）。** `git fetch origin main` の後、`origin/main` のコミット `441cc110f0fc2a713221aa0f8945483361ac5581` で確かめた。このブランチは、そのコミットから分かれている。
+
+| 部品 | あるか | 行がまだないか | 扱い |
+|---|---|---|---|
+| 急ぎの度合いの対応表（`urgencyOf`） | あり。0093 の計画書の PR-1 が「PR がマージされた」で、`git grep` が `internal/chief/position.go` に `UrgencyLater`・`TurnHuman` を見つけた | ある（`position.go` の `case r.RemovalRow:` の行） | 変えない |
+| 文書の規則（`documentOf`） | あり。同じ PR-1 で、`git grep` が `PositionDocNone` を見つけた | ある（同上） | 変えない |
+| 並べ方（`sortRows`） | あり。0093 の計画書の PR-3 が「PR がマージされた」で、`origin/main` の `sortRows` は `Urgency` を比べる | 行は要らない（PR-5 の確かめ直しのとおり） | 変えない |
+
+-   **走らせたコマンド。** `git fetch origin main`、`git rev-parse origin/main`、`git show <commit>:docs/tasks/0093_chief_status_sheet/03_implementation_plan.md` の「PR がマージされた」の行（3 つとも `[x]`）、`git grep -n -e UrgencyLater -e TurnHuman -e PositionDocNone <commit> -- internal/chief/position.go`、`git grep -n RemovalRow <commit> -- 'internal/chief/*.go'`、`git grep -n -A20 'func sortRows' <commit> -- internal/chief/snapshot.go`（`Urgency` を比べる行があった）。
+-   **確かめたテスト。** 足したものがないので、新しいテストはない。PR-5 の 2 つのテストが、変わらずに通る。
+-   **0093 が後で足すもの。** ない。0093 の 3 つの部品はすべて `main` にあり、どれも削除の印を読む（並べ方は印を読む行が要らない）。0093 の計画書の 3 つの PR はすべてマージされたので、本 PR の後に入る 0093 の部品もない。
+
 ### PR-7 の実行の記録
 
-（PR-7 の `/runplan` が書く。）
+2026-11-18 に、本計画のステップ 7-5 のとおりに、人が本物の Herdr で `/chief` を使って確かめた。セッションは手順を示し、結果を読み取りの呼び出し（`herdr workspace list`・`agent list`・`pane list`、`git worktree list`、状態のディレクトリの一覧）で確かめた。人が「OK」とだけ答えた項目は、そのとおりに書く。
+
+-   **準備（決定 12）。** chief は本体のチェックアウト（workspace `yt2column`）で動いていた。人が、本体のチェックアウトをこのブランチの先頭に detached で合わせ、`make install-chief` をして `/chief` を起動し直した。確かめの途中で道具か定義を変えたときは、そのたびに同じ手順で入れ直した。手順 1〜3 は `origin/main` を取り込んだマージ（`ce0f0405`）の道具で、手順 4 以降は `targets` が issue を読む版（`8e9c0831`）の道具で確かめた。新しい定義と道具は、本 PR で上げたプロトコル（`origin/main` の値 + 1）で合い、表とほかの workspace の待ち受けは続いた。一覧の最後、「何もしない」の前に「新しいタスクを始める」が出た（AC-01）。
+-   **確かめの中で決めたこと（決定 22）。** 人が、番号のない選択肢は選びにくいこと、`N` の後の番号の問いと候補のないときの始める先の問いが手間なこと、作る前に issue の題名を見たいことを指摘した。人の承認を得て、`[N]` と `N <番号>`、`targets` が issue を読んで題名か拒否を返すことを足した（決定 22）。
+-   **削除（AC-20・AC-25・AC-27〜AC-30）。** 決定 10 のとおり、人が、#838（0088 の `対応 issue`。0088 はすべての PR がマージ済み）の worktree `~/.herdr/worktrees/yt2column/issue-838` を `origin/main` で detached に作り、workspace を作って Claude Code と OpenCode を起動し、`created.json` を手で置いた。
+    -   最初は、その worktree に pane を持つ workspace が 2 つ（pane 1 つの `w2A` と、エージェントのいる `w2B`）あり、行は削除の提案にならず「要確認」（HEAD が detached）だった。セッションは、記録の中身・パーミッション・置き場所と worktree の状態がどれも正しく、パスの workspace がちょうど 1 つという AC-23 の条件が外れたためと確かめた。安全側に倒れる振る舞いである。
+    -   人が `w2A` を閉じると、行が「タスク完了」・「削除を提案」になり、削除の提案が出た。人は、追跡していないファイルを置いたときの `not_clean` の拒否、Claude Code の許可の確認を断ったときに何も消えないこと、許可したときの `removed` を確かめ、「OK」と答えた。
+    -   消した後、セッションが、worktree の登録とディレクトリ、workspace、`created.json` がないことを確かめた。workspace ごとの排他のファイル `.yt2column.lock` は残った。`ClearRecords` は記録だけを消し、排他のファイルを残す（`internal/chief/records.go` の `ClearRecords`）ので、設計どおりである。
+-   **作成の拒否（AC-05・AC-06・AC-11）。** 人が、`N` だけ、`N #12`、`N 999999`、`N 838`、ラベル `draft` の付いた issue、`N 994`（PR）、`N 982` を試し、「OK」と答えた。`N 982` の出力は、題名を示して始める先を尋ね（候補がないので、作るか何もしないかの 2 つ）、作ると答えると `target_exists` で、`existing` にパス、worktree、workspace `w27` を示し、何も作らなかった。このとき `/chief` のセッションは、道具の出力にない、表の行との結び付けと対処の案を書き足した（規則 6 に外れる）。定義に `target_exists` で示す対処を 1 つに決めて書き、規則 6 を明記した。
+-   **新しいタスク（AC-02・AC-09・AC-10・AC-15）。** 人が `N 996` と打った。題名を示して始める先を尋ね、「新しい workspace を作る」で、worktree、記録、workspace `w2C`、タブと pane 3 組、エージェント 2 つ（`issue-996-opencode`・`issue-996-claude`）を作り、`/mkreq 996` を `w2C:p3` に送った（`sent`）。表に `issue-996` の行が「作成中」・`/mkreq 996` で出た。作成の間に、背景の `wait` が 1 回、終了コード 1 で終わり、`/chief` が定義のとおり走らせ直した。出力からは、時間切れか失敗かは分からなかった。この workspace は、人が #996 のタスクに使う。
+-   **既存の workspace へ送ること。** `/mkreq` を提案するタスクのない workspace がなかったので、実地では確かめていない。候補がないときに始める先が 2 つになること（AC-02）は確かめた。既存の workspace へ送る振る舞いは、0088 のままで（`ic/send_test.go::TestMkreqTarget`）、本タスクのテストが受け持つ。
+-   **`once`（AC-01）。** 人の判断を待つものが 1 つだったので、「新しいタスクを始める」は選択肢に直接出た。名前で選ぶ場面は起きなかった。選ぶと、自由記述で issue 番号を尋ねる問い（選択肢は「何もしない」「ほかの項目を見る」）が出て、「何もしない」で何も送らずに止まった。セッションの要約が、選択肢にない `issue-996` の `/mkreq 996` を選べるように書き、問いの文が、選択肢に出ている項目を自由記述で選ぶよう書いた。どちらも判断には影響しない文の誤りで、直していない。
+-   **後片付け。** `issue-838` は chief が消した。`issue-996` は人がタスクに使う。マージの後に本体のチェックアウトを `main` に戻すことは、決定 12 のとおりである。
 
 ## 8. 成功の基準 (Success Criteria)
 
@@ -631,3 +665,5 @@
 - 2026-11-18 セッション中の再承認：`remove` が git を走らせる場所に、`locate` が読むほかのエージェントの作業ディレクトリを加えた（決定 19）（isseis、#986）
 - 2026-11-18 セッション中の再承認：消す手順の確かめを、閉じる直前と消す直前にも当てた（決定 20）（isseis、#986）
 - 2026-11-18 セッション中の再承認：削除の候補でなくなった workspace の確かめの結果を `not_candidate` だけにした（決定 21）（isseis、#986）
+- 2026-11-18 セッション中の再承認：「新しいタスクを始める」に固定の英字 `N` を付け、`N` でも選べるようにした（決定 22）（isseis、#998）
+- 2026-11-18 セッション中の再承認：`targets` が issue を読んで題名か拒否を返し、待ち受けの一覧で `N <番号>` を受け付けることにした（決定 22）（isseis、#998）

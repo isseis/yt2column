@@ -7,6 +7,9 @@
       "Bash(numreserve task)",
       "Bash(numreserve adr)"
     ],
+    "ask": [
+      "Bash(chief remove *)"
+    ],
     "deny": [
       "Bash(herdr agent prompt *)",
       "Bash(herdr agent send-keys *)",
@@ -31,7 +34,16 @@
       "Bash(herdr update*)",
       "Bash(herdr --session*)",
       "Bash(herdr --machine*)",
-      "Bash(herdr --remote*)"
+      "Bash(herdr --remote*)",
+      "Bash(herdr workspace create*)",
+      "Bash(herdr tab create*)",
+      "Bash(herdr pane split*)",
+      "Bash(herdr pane move*)",
+      "Bash(herdr worktree create*)",
+      "Bash(herdr worktree open*)",
+      "Bash(git worktree add*)",
+      "Bash(git worktree remove*)",
+      "Bash(git worktree move*)"
     ]
   }
 }
