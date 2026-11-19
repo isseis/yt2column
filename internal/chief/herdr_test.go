@@ -104,8 +104,9 @@ func TestReadHerdrSamples(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := labels[tabID{id: "wC:t1"}]; got != (tabLabel{}) {
-			t.Errorf("tab with an empty label = %+v, want no label", got)
+		got, listed := labels[tabID{id: "wC:t1"}]
+		if !listed || got != (tabLabel{}) || len(labels) != 17 {
+			t.Errorf("tab with an empty label = %+v (listed %v, %d tabs), want it listed with no label among 17", got, listed, len(labels))
 		}
 	})
 	layouts := map[string]struct {
@@ -269,6 +270,11 @@ func TestHerdrRejectsUnknownShapes(t *testing.T) {
 			})
 		}
 	}
+	t.Run("agents not an array for the pane-to-tab map", func(t *testing.T) {
+		if _, err := parseAgentTabs([]byte(`{"id":"cli:agent:list","result":{"type":"agent_list","agents":{}}}`)); !errors.Is(err, errHerdrOutput) {
+			t.Errorf("error = %v, want errHerdrOutput", err)
+		}
+	})
 	t.Run("tabs not an array", func(t *testing.T) {
 		if _, err := parseTabList([]byte(`{"id":"cli:tab:list","result":{"tabs":{},"type":"tab_list"}}`)); !errors.Is(err, errHerdrOutput) {
 			t.Errorf("error = %v, want errHerdrOutput", err)

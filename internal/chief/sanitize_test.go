@@ -39,26 +39,29 @@ func TestSanitize(t *testing.T) {
 // TestSanitizeUnits checks the unit boundaries and kinds against fixed
 // expectations: joining the units back cannot find an error the units and
 // Sanitize share, so the units are checked on their own. The joined subtests
-// only keep a later rewrite of Sanitize from leaving the units' rule.
+// compare the units' texts with Sanitize's fixed expectations.
 func TestSanitizeUnits(t *testing.T) {
 	text := func(s string) displayUnit { return displayUnit{text: s, kind: unitText} }
 	cases := map[string]struct {
 		in   string
 		want []displayUnit
 	}{
-		"empty":                          {"", []displayUnit{}},
-		"ASCII characters":               {"ab", []displayUnit{text("a"), text("b")}},
-		"non-ASCII character":            {"\u00e9\u3042", []displayUnit{text("\u00e9"), text("\u3042")}},
-		"four-byte character":            {"\U0001f6d1", []displayUnit{text("\U0001f6d1")}},
-		"combining mark is its own":      {"e\u0301", []displayUnit{text("e"), text("\u0301")}},
-		"newline and tab carry a kind":   {"a\nb\tc", []displayUnit{text("a"), {text: "\n", kind: unitNewline}, text("b"), {text: "\t", kind: unitTab}, text("c")}},
-		"ESC is one escape unit":         {"\x1b[", []displayUnit{text(`\x1b`), text("[")}},
-		"C1 control":                     {"\u009b", []displayUnit{text(`\u009b`)}},
-		"format character":               {"\u200b\u202e", []displayUnit{text(`\u200b`), text(`\u202e`)}},
-		"tag-block code point":           {"\U000e0041", []displayUnit{text(`\U000e0041`)}},
-		"invalid UTF-8 bytes":            {"\xff\xfe", []displayUnit{text(`\xff`), text(`\xfe`)}},
-		"doubled backslash is one unit":  {`\x1b`, []displayUnit{text(`\\`), text("x"), text("1"), text("b")}},
-		"CR is an escape, not a newline": {"\r\n", []displayUnit{text(`\x0d`), {text: "\n", kind: unitNewline}}},
+		"empty":                                {"", []displayUnit{}},
+		"ASCII characters":                     {"ab", []displayUnit{text("a"), text("b")}},
+		"non-ASCII character":                  {"\u00e9\u3042", []displayUnit{text("\u00e9"), text("\u3042")}},
+		"four-byte character":                  {"\U0001f6d1", []displayUnit{text("\U0001f6d1")}},
+		"combining mark is its own":            {"e\u0301", []displayUnit{text("e"), text("\u0301")}},
+		"newline and tab carry a kind":         {"a\nb\tc", []displayUnit{text("a"), {text: "\n", kind: unitNewline}, text("b"), {text: "\t", kind: unitTab}, text("c")}},
+		"ESC is one escape unit":               {"\x1b[", []displayUnit{text(`\x1b`), text("[")}},
+		"C1 control":                           {"\u009b", []displayUnit{text(`\u009b`)}},
+		"format character":                     {"\u200b\u202e", []displayUnit{text(`\u200b`), text(`\u202e`)}},
+		"tag-block code point":                 {"\U000e0041", []displayUnit{text(`\U000e0041`)}},
+		"invalid UTF-8 bytes":                  {"\xff\xfe", []displayUnit{text(`\xff`), text(`\xfe`)}},
+		"doubled backslash is one unit":        {`\x1b`, []displayUnit{text(`\\`), text("x"), text("1"), text("b")}},
+		"CR is an escape, not a newline":       {"\r\n", []displayUnit{text(`\x0d`), {text: "\n", kind: unitNewline}}},
+		"separators are escapes, not newlines": {"\u2028\u2029", []displayUnit{text(`\u2028`), text(`\u2029`)}},
+		"DEL":                                  {"\x7f", []displayUnit{text(`\x7f`)}},
+		"truncated multibyte sequence":         {"\xe3\x81", []displayUnit{text(`\xe3`), text(`\x81`)}},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -73,8 +76,8 @@ func TestSanitizeUnits(t *testing.T) {
 			for _, u := range sanitizeUnits(c.in) {
 				b.WriteString(u.text)
 			}
-			if b.String() != Sanitize(c.in) {
-				t.Errorf("joined units of %q = %q, want Sanitize's %q", c.in, b.String(), Sanitize(c.in))
+			if b.String() != c.want {
+				t.Errorf("joined units of %q = %q, want %q", c.in, b.String(), c.want)
 			}
 		})
 	}
@@ -101,5 +104,8 @@ func TestCapHead(t *testing.T) {
 				t.Errorf("CapHead(%q, %d) = %+v, want {Text:%q Truncated:%v}", c.in, capBytes, got, c.want, c.truncated)
 			}
 		})
+	}
+	if got := CapHead("a", 0); got != (Capped{Truncated: true}) {
+		t.Errorf("CapHead(%q, 0) = %+v, want an empty truncated head", "a", got)
 	}
 }
