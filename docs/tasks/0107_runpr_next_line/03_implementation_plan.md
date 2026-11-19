@@ -68,8 +68,8 @@
 
 #### ステップ 1-3: 仕上げ
 
-- [ ] `make fmt`・`make test`・`make lint`・`make deadcode` を通す（AC-05）
-- [ ] 7 章の AC-07 の diff の記録を書く
+- [x] `make fmt`・`make test`・`make lint`・`make deadcode` を通す（AC-05）
+- [x] 7 章の AC-07 の diff の記録を書く
 
 **完了の条件:** グリーンゲートが通り、diff の記録がある。
 
@@ -109,7 +109,7 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1（ステップ 1-1〜1-3）
+- [x] フェーズ 1（ステップ 1-1〜1-3）
 - [ ] PR を作成した
 - [ ] PR がマージされた
 
@@ -128,6 +128,36 @@
 Diff record (AC-07):
 
 - Compared paths: `CLAUDE.md`
+- Merge-base: `c6fe505a58fcad3a432067caf1dea54ed8a1b956`
+- Compared commit: `3ade184e82091d7c3be5df61c2987b50253d8293`
+
+Path diff:
+
+````text
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 7ba2d9e36e64fa45746ada29ec26a78887d2bd4b..69115868f9cb3e1c5b35f90854f42df725be4121 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -750,8 +750,8 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
+   permission and command-document checks, `cmd/mergepr`'s checks of the
+   `mergepr` calls and of the tools with a protocol number, `cmd/numreserve`'s
+   checks of its permission rules, its calls, and its guide's values, the ADR guard
+-  `TestADRRecords`, and `internal/chief`'s readings of the routing table and
+-  the PR markers) are Go tests included
++  `TestADRRecords`, and `internal/chief`'s readings of the routing table, the
++  PR markers, and `runpr.md`'s NEXT line examples) are Go tests included
+   in `make test` and need no node. The `doc-guard` CI job runs these guards
+   (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`)
+   on every pull request, so a documentation-only change is checked in CI by
+````
+
+File list:
+
+````text
+CLAUDE.md
+docs/tasks/0107_runpr_next_line/03_implementation_plan.md
+internal/chief/runpr_next_doc_test.go
+````
 
 ## 8. 成功の基準 (Success Criteria)
 
