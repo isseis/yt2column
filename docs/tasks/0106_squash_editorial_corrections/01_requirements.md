@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -233,3 +233,7 @@
 -   **トレーラー:** コミットメッセージの最後の段落にある `Co-Authored-By:` などの `キー: 値` の行（`git interpret-trailers` が読むもの）。
 -   **ずれの記述:** ADR の「決定」に置く、決定と正本の文書やコードとのずれを述べて issue へリンクする記述（`docs/dev/conventions/adr.md`「Writing an ADR」）。
 -   用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1003）
