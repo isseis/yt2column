@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -239,3 +239,4 @@ PR の説明の「どちらの CLI もレビューしなかった commit」（`t
 ## 変更履歴
 
 - 2026-11-19 初版（draft）
+- 2026-11-19 承認（isseis、#1041）
