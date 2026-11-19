@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号と「決定 N」は [02_architecture.md](02_architecture.md)（以下、設計書）の節と 1.2 の決定を指す。「規則 N」は、設計書と同じく、設計書 3.2 で定める新しい番号を指す。用語は設計書の冒頭の定義（一覧の絞り込み、`no-result` の状態、`receipt` の項目、形の判定、確認待ち、承認の組、承認の記録）に従う。本タスクに `implementation_handoff.md` はない。`design_handoff.md` の H-01〜H-06 は、設計書の付録 A に記録されている。
@@ -330,3 +330,7 @@ Diff record (AC-23):
 
 -   実装の PR を、1.3 の決定 3 のとおりブランチの `/runpr` で進める。step 3 の Codex のレビューの判定で止まったら、GitHub で Codex のレビューを確かめ、diff の記録を確かめ直してから、`/mergepr` で直接マージする。
 -   実装の後、結果のない完了の要約コメントが実際に出たときに、`/runpr` が問いを出すことを観察する（設計書 7.4）。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1031）
