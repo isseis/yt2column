@@ -520,8 +520,8 @@ Go のロケータ（`internal/doctestutil/guides.go`）は、`generation.md` �
 | `docs/dev/guides/development.md:3` | README（拡張の使い方） | `INSTALL.md` と README |
 | `docs/dev/guides/development.md:99` | README「ブラウザ拡張」 | 同じ文書の「拡張のビルドと読み込み」 |
 | `docs/dev/conventions/package_reference.md:103` | README「設定」 | `generation.md`「設定」 |
-| `docs/dev/production_profile.md:5` | README「推奨構成」 | `generation.md`「推奨構成」と、`INSTALL.md` の費用の目安（AC-41） |
-| `docs/dev/guides/pricing_update.md:38` | README「推定の料金」 | `generation.md`「推定の料金」。あわせて、料金が変わったときに見直す箇所として `INSTALL.md` の費用の目安を加える（AC-41） |
+| `docs/dev/production_profile.md:5` | README「推奨構成」 | `generation.md`「推奨構成」（フェーズ 1）。`INSTALL.md` の費用の目安は、`INSTALL.md` を置くフェーズ 2 で加える（AC-41） |
+| `docs/dev/guides/pricing_update.md:38` | README「推定の料金」 | `generation.md`「推定の料金」（フェーズ 1）。料金が変わったときに見直す箇所として `INSTALL.md` の費用の目安を、フェーズ 2 で加える（AC-41） |
 | `docs/dev/guides/pricing_update.md:40` | README「設定」 | `generation.md`「設定」 |
 | `docs/dev/project_overview.md:89` | README の表 | `generation.md` の表 |
 | `docs/dev/project_overview.md:161` | README「設定」 | `generation.md`「設定」 |
@@ -683,7 +683,7 @@ N/A。実行時の処理を変えないため。`make test`、`make lint`、`mak
 
 | AC | スクリプトが確かめること | 読む人の判断 |
 |---|---|---|
-| AC-04 | その PR で移すブロック（2.3 節の表の「移す」の行のうち、その PR が移すもの。スクリプトの引数で渡す）ごとに、マージベースの README の見出しで範囲を探して取り出し、移った先の文書の見出しの節を取り出す。両方とも空でないこと、最初の行が想定の見出しであることを確かめ、そうでなければ失敗にする。両方の見出しの `#` の数をそろえ、段落の行をつないで空白をまとめ、文の終わり（`。`）で区切ってから比べ、残った差分をブロックごとの見出しを付けて出力する。リンクは消さずに、元のリンクの先と新しいリンクの先の組を一覧にして出力する。最後に、比べたブロックの数を出し、引数で渡したブロックの数と一致することを確かめる。移す作業の最後の PR では、あわせて、2.3 節の表の「移す」の行の見出しが、比べるコミットの README にもう残っていないことを確かめ、残っていれば失敗にする。表の行を飛ばしたまま移す作業が終わらないようにするためである | 残った差分の各行が、重複の削除か、書式の規約による組み直しかを読む。リンクの組が、移った先の正しい節を指しているかを読む。それ以外の変化があれば、AC-04 を満たさない |
+| AC-04 | その PR で移すブロック（2.3 節の表の「移す」の行のうち、その PR が移すもの。スクリプトの引数で渡す）ごとに、マージベースの README の見出しで範囲を探して取り出し、移った先の文書の見出しの節を取り出す。両方とも空でないこと、最初の行が想定の見出しであることを確かめ、そうでなければ失敗にする。両方の見出しの `#` の数をそろえ、段落の行をつないで空白をまとめ、文の終わり（`。`）で区切ってから比べ、残った差分をブロックごとの見出しを付けて出力する。リンクは消さずに、元のリンクの先と新しいリンクの先の組を一覧にして出力する。最後に、比べたブロックの数を出す。スクリプトは、引数とは別に、2.3 節の表の「移す」の行から決まるすべてのブロックの一覧を自分の中に持つ。各ブロックの範囲は、見出しのないブロック（`:266-268` など）も含めて、最初の文と最後の文で決める。移す作業の最後の PR では、この一覧のどのブロックについても、最初の文と最後の文が比べるコミットの README になく、移った先の文書にあることを確かめ、そうでなければ失敗にする。引数からブロックを落としたまま、移す作業が終わらないようにするためである | 残った差分の各行が、重複の削除か、書式の規約による組み直しかを読む。リンクの組が、移った先の正しい節を指しているかを読む。それ以外の変化があれば、AC-04 を満たさない |
 | AC-05 | (a) 移行の節の見出し（`## 以前の版からの移行` と `## Migrating from the earlier version`）が、比べるコミットのどの `.md` にもないこと。(b) 元の README の移行の節（`:270-290`）とクイックスタートの移行の案内（`:61`）の各行（空白をまとめたもの。空の行、コードフェンスの行、20 文字に満たない行は除く）が、`docs/tasks/` を除くどの `.md` にもないこと。(c) 移行の節に固有の語（`yt2column-nmhost`、`NativeMessagingHosts`、`config.env`、`sharedToken`）が現れる （ファイル, 語）の組を、`README.md`・`README.en.md`・`docs/translation_glossary.md` と `docs/tasks/` を除いて、マージベースと比べるコミットで比べ、増えていないこと。用語集の組は、4.2 節の表の変更をした後に残る組と一致すること。組の一覧を出力する | なし（スクリプトが合否を出す）。出力の組の一覧で、残った言及が移行の手順でないことを読める |
 | AC-24 | なし | 今の README の `:182-264` の文ごとに、`INSTALL.md` のどの節で述べたかの対応表を作り、それを読んで、挙動が漏れていないかを確かめる（`manual`）。対応表の置き場所は実装計画で決める |
 
@@ -713,7 +713,7 @@ PR の区切りは実装計画で決める。どの区切りでも、次の制�
 | フェーズ | 内容 | 主な AC |
 |---|---|---|
 | 1 | `generation.md` を置き、今の README から構成の図・工程・書式・料金の規則・設定・推奨構成を移す。ビルド・読み込み・更新・ID・ログを `development.md` に移す。Go のテストと `manifest.test.ts`（`development.md`）の読む先を変える。README からその内容を除き、`README.en.md` を同期する。移した節を指す参照（`cli.md` の範囲の文と `:7`・`:58`・`:189`・`:234`、`development.md:99`、`package_reference.md`、`production_profile.md`、`pricing_update.md`、`project_overview.md`、上限の 2 つの手引き、ADR-0025、用語集の該当の行）と、CLAUDE.md の「Development Notes」の Go のガードの記述を付け替える。ADR-0004 と ADR-0030 のずれを示す一文を、残るずれだけを示す文に書き直し、ADR-0025 のずれを示す一文を除く | AC-04、AC-39 |
-| 2 | `INSTALL.md` を置く。拡張のテスト（`manifest.test.ts`、`metadataDocs.test.ts`）と CI の判定を変える。README から手順を除き、`README.en.md` を同期する。手順を指す参照（`cli.md:4`・`:16`、`development.md:3`、`security.md:142`）と、CLAUDE.md の「Development Notes」の `make ext-test` の記述を付け替える。ADR-0004・ADR-0029・ADR-0030 のずれを示す一文を除く | AC-03、AC-08〜AC-35、AC-39、AC-42 |
+| 2 | `INSTALL.md` を置く。拡張のテスト（`manifest.test.ts`、`metadataDocs.test.ts`）と CI の判定を変える。README から手順を除き、`README.en.md` を同期する。手順を指す参照（`cli.md:4`・`:16`、`development.md:3`、`security.md:142`）を付け替え、`production_profile.md:5` と `pricing_update.md` に `INSTALL.md` の費用の目安を加える。あわせて、CLAUDE.md の「Development Notes」の `make ext-test` の記述を付け替える。ADR-0004・ADR-0029・ADR-0030 のずれを示す一文を除く | AC-03、AC-08〜AC-35、AC-39、AC-42 |
 | 3 | README を利用者向けの概要と案内に作り直し、移行の節を削除する。`README.en.md` を同期する | AC-01、AC-02、AC-05、AC-07、AC-36、AC-37 |
 | 4 | フェーズ 1〜3 で付け替えなかった参照（4.2 節）、CLAUDE.md の「Documents」「Document language」「Architecture Overview」と規約とコマンド（3.4 節）、用語集の残りと新しい語。ADR-0035 のずれを示す一文を除く | AC-06、AC-38、AC-40、AC-41、AC-43 |
 | 5 | `_checks/` のスクリプトの結果を記録する（スクリプトは、移す内容を含むフェーズで置いてよい） | AC-04、AC-05、AC-24 |
