@@ -134,10 +134,10 @@ type CorrectionsNotCarriedError struct {
 	Detail      string   // set when the merge commit could not be read
 }
 
-// Error names the merge commit, says that nothing is left to discard, and
+// Error names the merge commit, says that the merge is done, and
 // counts the lines or gives why the commit could not be read.
 func (e *CorrectionsNotCarriedError) Error() string {
-	msg := fmt.Sprintf("%v: the PR is merged as %s, and no preparation is left to discard", errCorrectionsNotCarried, e.MergeCommit)
+	msg := fmt.Sprintf("%v: the PR is merged as %s; the merge is done, so do not discard or merge again", errCorrectionsNotCarried, e.MergeCommit)
 	if e.Detail != "" {
 		return msg + "; could not read the merged commit: " + e.Detail
 	}
