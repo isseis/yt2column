@@ -9,6 +9,7 @@
 - Go のテスト：`cmd/yt2column/docs_test.go`（`TestOpenAIDocsContract`、`TestLLMDefaultsDocsContract`、`TestEffortValuesDocsContract`、`TestProductionProfileDocsContract`、`TestReadmeLinks`）、`extension_docs_test.go`（拡張の ID）、`readme_structure_test.go`（2 つの版の構造）。
 
 **新しい構成での変化:**
+- 必要なブラウザの版は、引き続き両方の README が書く（AC-01、ADR-0030）ので、`manifest.test.ts` の README の検査はそのまま残る。INSTALL.md の版も同じ正本と照合するかを決める。
 - 手順と画面の名前は INSTALL.md（日本語だけ）に移る。README.en.md の文を英語のカタログと照合する検査は、照合する文書がなくなる。
 - 設定や料金の値は、日本語だけの開発者向けの手引きに移る。
 
@@ -26,9 +27,9 @@
 
 **なぜ大事か:** 移すときに文を落とすか書き換えると、述べる挙動が黙って変わる。
 
-**案:** 実装の PR で、マージベースとの差分を読むスクリプトを `_checks/` に置くか、差分を読んだ記録を残す（`requirements_process.md` §4「`diff` verification」）。どちらにするかと、重複として削除してよい文の判定の仕方、書式だけの変更を意味の変更と見分ける方法を設計で決める。
+**案:** 実装の PR で、マージベースとの差分を読むスクリプトを `_checks/` に置くか、差分を読んだ記録を残す（`requirements_process.md` §4「`diff` verification」）。どちらにするかと、重複として削除してよい文の判定の仕方、書式だけの変更を意味の変更と見分ける方法を設計で決める。AC-24（ポップアップとビューアの挙動を、書き直して INSTALL.md で述べる）は差分で限れないので、今の README の文ごとに INSTALL.md のどこで述べたかを対応づけて読んだ記録の残し方も決める。
 
-**関連:** AC-04、AC-05
+**関連:** AC-04、AC-05、AC-24
 
 ## H-03: ほかの文書から README の節へのリンクを付け替える
 
@@ -67,7 +68,7 @@
 
 ## H-05: 契約の記述で、クレジットの額を写すかどうか
 
-**懸念:** 公式の情報には、Max（月 100 USD）、Ultra（月 200 USD）、Team（最大 500 USD）のクレジットの額がある（01_requirements.md の決定 6）。額は Anthropic が変えうる。
+**懸念:** 決定 6 は、Max（月 100 USD）、Ultra（月 200 USD）、Team（最大月 500 USD）のクレジットの額を、公式のページ（[API credits for Max, Ultra, and Team plans](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers)、2026-11-19 に確かめた）から記録している。額は Anthropic が変えうる。
 
 **なぜ大事か:** 写した額が古くなると、利用者が誤解する。
 
@@ -82,6 +83,13 @@
 - 「Development Notes」の、README を読むテストの記述（`make ext-test` が要る文書の一覧と、Go のガードの一覧）。
 - 「Commands」の `/mktrans` の説明。
 - 「Documents」の、ルートに置く文書の例外（INSTALL.md）。
+- 「Architecture Overview」の、拡張の使い方を README とその英語版が説明するとする文。
+
+CLAUDE.md の外にも、README の内容を前提とする箇所がある。
+- `.claude/commands/mktrans.md` の、README が拡張のカタログの文言を引用するときの訳し方の規則（README が画面の文言を引用しなくなる）。
+- `docs/translation_glossary.md` の、README の見出しや移行の手順で使う語として定義している項目（移行の節を削除し、見出しが変わる）。
+
+一覧は要件定義のときに見つけたもので、すべてとは限らない。実装の前に探し直す。
 
 あわせて、書式の規約（`docs/dev/conventions/document_formatting.md` の「Target documents」）と `japrose` が README を対象から外している扱いを、INSTALL.md にも当てるかを決める。INSTALL.md は、決定 8 で画面の名前を太字で引用するため、太字を名前と見落としやすい限定に限る規約とぶつかる。
 

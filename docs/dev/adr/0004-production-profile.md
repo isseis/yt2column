@@ -19,7 +19,7 @@
 -   **品質の目標は、記事が必須の観点をすべて満たし、品質の観点に 1（不十分）がないこととする。** 目標は、既定のテンプレートを選ぶための関門ではなく、記事が目指す水準である。理由は記録されていない。目標は [production_profile.md](../production_profile.md) の「品質の目標と結果」にあり、観点と段階の基準は [0008 要件定義書](../../tasks/0008_column_prompt/01_requirements.md) の F-006 が定める。
 -   **本番の構成で起こりうる記事の誤りや欠けを、製品の制約として受け入れる。** 品質の目標に届かなかった点を製品の制約として明記し、この構成で使い始めることにしたためである（[0008 評価記録](../../tasks/0008_column_prompt/02_evaluation.md) §6.1）。製品の制約の項目は [production_profile.md](../production_profile.md) の「製品の制約」にある。
 -   **本番の構成・品質の目標・製品の制約・構成の比較を、`docs/dev/production_profile.md` にまとめる。** これらを、タスクの評価記録を読まずに、1 つの共通の文書で把握できるようにするためである（[0040 要件定義書](../../tasks/0040_production_profile/01_requirements.md) §2.1）。まとめる先の文書は [production_profile.md](../production_profile.md) である。
--   **本番の構成・品質の目標・製品の制約を変えるタスクは、`docs/dev/production_profile.md` と、本番の構成の値を繰り返している README の推奨構成の小節を合わせて更新する。** 共通の文書が最新の値を持ち続けるには、更新する者を決めておく必要があるためである（[0040 要件定義書](../../tasks/0040_production_profile/01_requirements.md) §1）。規則は [production_profile.md](../production_profile.md) の冒頭の段落「本書を更新するタスク」にある。
+-   **本番の構成・品質の目標・製品の制約を変えるタスクは、`docs/dev/production_profile.md` と、その値を繰り返している箇所（推奨構成の小節と、`INSTALL.md` の記事 1 本あたりの費用の目安）を合わせて更新する。** 推奨構成の小節は、0116 の実装で README から開発者向けの手引きに移す。このずれは https://github.com/isseis/yt2column/issues/1042 で扱う。 共通の文書が最新の値を持ち続けるには、更新する者を決めておく必要があるためである（[0040 要件定義書](../../tasks/0040_production_profile/01_requirements.md) §1）。規則は [production_profile.md](../production_profile.md) の冒頭の段落「本書を更新するタスク」にある。
 
 Claude アダプタの出力の上限の既定は [ADR-0025](0025-claude-output-limit.md) が定める。
 
@@ -43,7 +43,7 @@ Claude アダプタの出力の上限の既定は [ADR-0025](0025-claude-output-
 -   何も設定しない実行（`ANTHROPIC_API_KEY` だけを設定した実行）は、本番の構成で記事を作る。記事 1 本あたりの推定コストは約 0.36 USD である（[0008 評価記録](../../tasks/0008_column_prompt/02_evaluation.md) §6.3・§6.4）。
 -   本番の構成の品質は、記録した製品の制約に縛られる。意味の変わる言い換え、節の中身と見出しのずれ、話者の取り違えが残りうる。検証・推敲は構成を直さない。字数の調整が本文を上限まで縮められないと、記事は出ない。
 -   ほかの構成は本番の構成より安いが、品質が下がる。生成を `deepseek-flash` にすると 10 件中 6 件、検証・推敲も外すと 4 件になる。OpenAI を使う構成は 10 件中 5〜7 件で、最も安い構成（生成と検証・推敲を `gpt-6.1-sol`）は約 0.067 USD だが 6 件である。どの構成でも、製品の制約は直らなかった（[0087 評価記録](../../tasks/0087_openai_combination_eval/04_evaluation.md) §10）。
--   本番の構成・品質の目標・製品の制約を変えるときは、共通の文書と README の推奨構成を同じタスクで更新する。コード上の既定を変えるときも同じである。
+-   本番の構成・品質の目標・製品の制約を変えるときは、共通の文書と、推奨構成と `INSTALL.md` の費用の目安を同じタスクで更新する。コード上の既定を変えるときも同じである。
 
 ## 経緯
 
@@ -53,3 +53,4 @@ Claude アダプタの出力の上限の既定は [ADR-0025](0025-claude-output-
 - 2026-10-25 本番の構成・品質の目標・製品の制約・構成の比較を `docs/dev/production_profile.md` にまとめた（[0040 要件定義書](../../tasks/0040_production_profile/01_requirements.md)）
 - 2026-11-12 0087 で OpenAI の `gpt-6-astra`・`gpt-6.1-sol` との組み合わせ 5 構成を評価し、品質の向上も同等の品質での費用の低下も示した構成がないので、本番の構成を変えないと決めた（[0087 評価記録](../../tasks/0087_openai_combination_eval/04_evaluation.md)）
 - 2026-11-12 本番の構成で動く入口を、CLI と拡張にした。拡張は構成を選べない（[0090 設計書](../../tasks/0090_extension_only_architecture/02_architecture.md)）
+- 2026-11-19 推奨構成の小節を README から開発者向けの手引きに移し、`INSTALL.md` に記事 1 本あたりの費用の目安を置くことにしたので、本番の構成の値を繰り返す箇所に両方を挙げた（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）

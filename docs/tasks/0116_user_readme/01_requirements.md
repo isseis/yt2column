@@ -50,13 +50,13 @@
      - INSTALL.md と INSTALL.en.md を対で置き、`/mktrans` と同期の検査を対ごとに動くよう一般化する案。初期の利用者は日本語の話者に限られ、一般化の費用を今は払わないためである。
      - INSTALL を分けず、README の中で構成を整える案。画面の手順を含む長い説明で README の概要が埋もれ、Releases や zip から手順だけを指せないためである。
    - **ADR:** [ADR-0035](../../dev/adr/0035-language-policy.md)（文書の言語の方針）を更新する。principle (c) の例外を定め、後のタスクを縛るため。
-3. INSTALL.md の英語版は、Chrome Web Store に申請する前に足す。この作業を [#1044](https://github.com/isseis/yt2column/issues/1044) として記録した。それまで、README.en.md は「インストールの手順は今は日本語版だけである」と書いて INSTALL.md へリンクする。
+3. INSTALL.md の英語版は、Chrome Web Store に申請する前に足す。この作業を [#1044](https://github.com/isseis/yt2column/issues/1044) として記録した。それまで、README の 2 つの版は、INSTALL.md が今は日本語だけであることを示して INSTALL.md へリンクする（AC-07）。
    - **理由:** Web Store に載せると、日本語を読まない利用者が来る。zip で配る初期の利用者は、日本語の話者に限られる。
    - **ADR:** ADR-0035 を更新する（決定 2 と同じ項目）。
 4. README にある開発者向けの内容は `docs/dev/guides/` の手引きに移し、README からはリンクで案内する。「以前の版からの移行」の節は、移さずに削除する。
    - **移す内容:** CLI の設定（環境変数）、推奨構成、料金の推定の細かな規則、生成の後の工程と出力の書式の詳細、ソースからのビルドと読み込み・更新、ログを見る方法。
    - **理由:** README を利用者向けの内容だけにするためである。移した先の手引きは日本語だけの文書（principle (a)）なので、英語版で訳す量も減る。以前の版（localhost サーバと Native Messaging）を使っていたのは開発者 1 人だけで（[ADR-0048](../../dev/adr/0048-extension-only-generation.md)）、移行はもう済んでいる。
-   - **ADR:** ADR-0035 を更新する。「README は利用者向けの内容だけを持ち、開発者向けの内容は `docs/dev/guides/` に置く」と決め、後のタスクを縛るため。
+   - **ADR:** ADR-0035 を更新する。「README は利用者向けの内容だけを持ち、開発者向けの内容は `docs/dev/guides/` に置く」と決め、後のタスクを縛るため。あわせて、内容が移ることで決定の文が古くなる 2 つの ADR を更新する。[ADR-0029](../../dev/adr/0029-extension-ui-languages.md)（表示の言語を利用者に説明する場所が INSTALL.md に移る）と [ADR-0004](../../dev/adr/0004-production-profile.md)（推奨構成が手引きに移る。決定 7 も参照）である。[ADR-0030](../../dev/adr/0030-minimum-chrome-version.md) は変えない。必要なブラウザは、引き続き両方の README が書く（AC-01）。
 5. #1039 との分担：このタスクは、zip の入手・展開・読み込み・更新・アンインストールの手順まで書く。#1039 は、来歴の検証（`gh attestation verify`）の手順を足し、未リリースの注記を外す。
    - **理由:** このタスクは #1039 より先にマージされるので、マージした時点では zip がまだない。一方、来歴の検証は、#1039 のワークフローが作る attestation がないと書けない。それ以外の手順は、zip の中のフォルダの構成によらずに書ける。AC-16 が、読み込むフォルダを「`manifest.json` のあるフォルダ」と示すからである。
    - **最初のリリースまでの扱い:** README と INSTALL.md は、まだリリースしていないことを示し、ソースからのビルドは開発者向けの手引きにあると案内する。
@@ -64,16 +64,16 @@
 6. API キーを使える契約は、要件定義のときに Anthropic の公式の情報で確かめた（2026-11-19）。
    - **確かめた内容:**
      - Claude の有料の契約（claude.ai）と Claude API は別の製品で、API の利用には別に課金される（[Claude ヘルプセンター](https://support.claude.com/en/articles/9876003-i-have-a-paid-claude-subscription-pro-max-team-or-enterprise-plans-why-do-i-have-to-pay-separately-to-use-the-claude-api-and-console)）。
-     - Max・Ultra・Team の契約には、毎月の Claude API のクレジットが付く。claude.ai の請求の設定から Claude Console の組織を結び付けると、その組織に届く。クレジットを使い切ると、API のリクエストは次のクレジットが届くまで止まる。契約の側には請求されない。Free・Pro・Enterprise は対象外である（[API credits for Max, Ultra, and Team plans](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers)）。
+     - Max・Ultra・Team の契約には、毎月の Claude API のクレジットが付く。claude.ai の請求の設定から Claude Console の組織を結び付けると、その組織に届く。付いたクレジットは繰り越せず、購入したクレジットより先に使う。付いたクレジットを使い切ると、購入したクレジットがあればそれを使い、なければ API のリクエストは次のクレジットが届くまで止まる。契約の側には請求されない。新しく契約した人がクレジットを受け取れるのは契約から 7 日後で、1 つの契約に結び付けられる Console の組織は 1 つだけ（後から変えるにはサポートへの連絡が要る）、結び付けるには組織の Admin か Billing の役割が要る。額は Max が月 100 USD、Ultra が月 200 USD、Team が最大月 500 USD である。Free・Pro・Enterprise は対象外である（[API credits for Max, Ultra, and Team plans](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers)）。
      - どの場合も、API キーは Claude Console で作る。ワークスペースごとに利用の上限（spend limit）を設けられる（同）。
    - **理由:** 書く内容がこの結果で変わるからである（issue の「要確認」）。
    - **ADR:** なし。文書に書く事実の確認で、決定ではないため。
 7. 記事 1 本あたりの費用の目安として「約 0.4 USD」を示す。
    - **根拠:** [production_profile.md](../../dev/production_profile.md) の製品の制約「費用」（約 0.36 USD。0018 の評価記録 §4.8）。
    - **添える内容:** 目安は評価のときの値で、請求額ではない。実際の額は、ビューアが示す推定の料金と Claude Console で確かめる。
-   - **値の更新:** production_profile.md の「本書を更新するタスク」が挙げる、本番の構成の値を繰り返している箇所に、INSTALL.md の目安を加える（AC-41）。
+   - **値の更新:** production_profile.md の「本書を更新するタスク」が挙げる、本番の構成の値を繰り返している箇所に INSTALL.md の目安を加え、料金表の更新の手引き（`docs/dev/guides/pricing_update.md`）にも目安を見直す箇所として加える（AC-41）。
    - **理由:** 利用の上限を決めるときの手がかりになる。根拠の文書を名指ししておけば、値が古くなったときに直す元をたどれる。
-   - **ADR:** なし。production_profile.md がすでに持つ更新の箇所の一覧に 1 か所を足すだけで、新しい決定ではないため。
+   - **ADR:** [ADR-0004](../../dev/adr/0004-production-profile.md)（本番の構成）を更新する。ADR-0004 は、本番の構成の値を繰り返す箇所を README の推奨構成と定めており、決定 4 でそれが手引きに移り、INSTALL.md の目安も加わるため。
 8. 手順に画面の画像は入れない。画面の名前（ボタンなど）は、今の README と同じく太字で引用する。
    - **理由:** UI は日本語と英語の 2 言語で、画面を変えるたびに画像を撮り直す負担が大きい。
    - **ADR:** なし。このタスクの中で閉じるため。
@@ -121,6 +121,7 @@ README は概要と案内、INSTALL.md は手順、開発者向けの手引き�
   - これは何か（できること）
   - 仕組みの概要（ブラウザの中だけで動き、記事の生成のためのサーバもホストも要らないこと。API キーの送り先は `https://api.anthropic.com` だけであること）
   - プライバシー（F-009）
+  - 必要なブラウザ（「Chrome 142 以降、または Chromium 142 以降の Brave」。AC-08 と同じ値）。両方の README が書くことは [ADR-0030](../../dev/adr/0030-minimum-chrome-version.md) の決定による
   - INSTALL.md への案内
   - 開発者向けの手引きへのリンク
 - **AC-02**: `README.md` と `README.en.md` には、次のどれも含まれない。
@@ -134,7 +135,7 @@ README は概要と案内、INSTALL.md は手順、開発者向けの手引き�
   - CLI と yt-dlp の説明と、CLI で使えるプロバイダの説明（`README.md:8-9`、`:39-44`、`:72-73`）
 
   ただし、開発者向けの CLI があることを 1 文で述べ、開発者向けの手引きへリンクしてよい。図と CLI の説明は、開発者向けの手引きにすでに同じ内容がなければ、そこへ移す（AC-04 が差分を限る規則に従う）。
-- **AC-03**: ルートに `INSTALL.md` があり、日本語で書かれ、次の内容を順に持つ：使う前に必要なもの（F-002）、インストール（F-003）、初期設定（F-004）、使い方（F-005）、更新（F-006）、アンインストール（F-007）、困ったとき（F-008）。
+- **AC-03**: ルートに `INSTALL.md` があり、日本語で書かれ、次の内容を順に持つ：使う前に必要なもの（F-002）、インストール（F-003）、初期設定（F-004）、使い方（F-005）、更新（F-006）、アンインストール（F-007）、困ったとき（F-008）。その後に、AC-24 の参考の節を置いてよい。
 - **AC-04**: 今の README にある次の内容は、開発者向けの手引きにある。
   - CLI の設定（`README.md:292-366`）
   - 推奨構成（`README.md:368-385`）
@@ -150,7 +151,7 @@ README は概要と案内、INSTALL.md は手順、開発者向けの手引き�
   - 移した先の文書に適用される書式の規約（`docs/dev/conventions/document_formatting.md`）が求める、太字と項目の多い節の組み方の変更
 - **AC-05**: 「以前の版からの移行」の節（`README.md:270-290`）は、どの文書にも移さずに削除する。クイックスタートからその節への案内（`README.md:61`）も削除する。
 - **AC-06**: 利用者向けの文書と開発者向けの手引きにあるすべての相対リンクとアンカーは、存在するファイルと見出しを指す。ほかの文書が今の README の節を指す箇所は、リンクでも、リンクのない名指しでも、内容が移った先を指す。現時点で分かっている箇所は [design_handoff.md](design_handoff.md) の H-03 にある。
-- **AC-07**: `README.md` と `README.en.md` は、インストールと使い方の手順が INSTALL.md にあることを示し、INSTALL.md へリンクする。`README.en.md` は、手順が今は日本語版だけであることを示す。
+- **AC-07**: `README.md` と `README.en.md` は、インストールと使い方の手順が INSTALL.md にあること、INSTALL.md が今は日本語だけであることを示し、INSTALL.md へリンクする。2 つの版は同じ内容を述べる（`README.en.md` だけが述べる文は置かない）。
 
 #### F-002: 使う前に必要なもの
 
@@ -160,7 +161,8 @@ INSTALL.md は、使い始める前にそろえるものと、それにかかる
 - **AC-08**: 必要なブラウザとして「Chrome 142 以降、または Chromium 142 以降の Brave」を示す。示す版は、`extension/static/manifest.json` の `minimum_chrome_version` と一致する。
 - **AC-09**: API キーを使える契約について、次を示す。
   - Claude API は claude.ai の契約とは別の製品で、API の利用は API のクレジットで支払うこと。
-  - Max・Ultra・Team の契約には、毎月の API のクレジットが付くこと。claude.ai の請求の設定から Claude Console の組織を結び付けると使えること。
+  - Max・Ultra・Team の契約には、毎月の API のクレジットが付くこと。claude.ai の請求の設定から Claude Console の組織を結び付けると使えること。結び付けには決定 6 の条件（契約から 7 日後、組織は 1 つだけで後から変えにくい、組織の Admin か Billing の役割）があること。
+  - 付いたクレジットを使い切ると、購入したクレジットがあればそれを使い、なければ次のクレジットが届くまで API が使えないこと。
   - Free・Pro・Enterprise の契約には、API の利用分が含まれないこと。
   - どの場合も、API キーは Claude Console で作ること。
 
@@ -179,7 +181,7 @@ INSTALL.md は、配布された zip から拡張を読み込むまでの手順�
 
 **Acceptance Criteria**:
 - **AC-14**: zip を GitHub Releases から入手することを示し、リポジトリの Releases のページへリンクする。最初のリリースまでは、まだリリースしていないことを示し、ソースからのビルドの手順が開発者向けの手引きにあることを案内する（決定 5）。
-- **AC-15**: zip を展開する場所は、後で消したり動かしたりしない場所にすること、その理由（フォルダを消すか動かすと拡張が動かなくなること）を示す。
+- **AC-15**: zip の中身は、この拡張のためだけに新しく作った空のフォルダに置くこと、そのフォルダは後で消したり動かしたりしない場所に作ることを示す。理由として、フォルダを消すか動かすと拡張が動かなくなること、更新のときにフォルダの中身をすべて消すこと（AC-28）を示す。
 - **AC-16**: 次の順の手順を示す。
   1. `chrome://extensions/`（Brave: `brave://extensions/`）を開く。
   2. **デベロッパー モード**（**Developer mode**）をオンにする。
@@ -223,13 +225,13 @@ INSTALL.md は、新しい版に更新する手順を示す。
 
 **Acceptance Criteria**:
 - **AC-28**: 次の順の手順を示す。
-  1. 拡張を読み込んだフォルダ（同じパス）の中身を、すべて消す。
+  1. 拡張を読み込んだフォルダ（AC-15 の、この拡張のためだけのフォルダ）の中身を、すべて消す。
   2. 新しい zip の中身を、そのフォルダに置く。`manifest.json` が、そのフォルダの直下に来るようにする。
   3. `chrome://extensions/`（Brave: `brave://extensions/`）で拡張の再読み込みのボタンを押す。
-  4. 更新できたことを、オプションページが示す拡張のビルドの情報で確かめる。
+  4. 更新できたことを、`chrome://extensions/`（Brave: `brave://extensions/`）が示す拡張の版が、入手したリリースの版と同じであることで確かめる。
 
-  あわせて、zip の展開ツールが、別名のフォルダや入れ子のフォルダに中身を置くと、古い版が動き続けることも示す。
-- **AC-29**: 拡張の ID が固定されているので、更新しても保存した API キーが引き継がれることを示す。
+  あわせて、zip の展開ツールが別名のフォルダや入れ子のフォルダに中身を置くと、フォルダの直下に `manifest.json` がなく、再読み込みで読み込めなくなることと、その対処を示す。
+- **AC-29**: 拡張の ID が固定されているので、zip の版から zip の版へ更新しても、保存した API キーが引き継がれることを示す。Chrome Web Store の版へ移るときは ID が変わりうる（[ADR-0026](../../dev/adr/0026-extension-platform.md)、[ADR-0010](../../dev/adr/0010-extension-stores-nothing.md)）ので、その場合の記述は Web Store に申請する issue で直す。
 - **AC-30**: 再読み込みすると、開いている拡張のページ（ビューアを含む）が閉じられ、生成中の記事も完成した記事の記録も失われることを示す。そのため、必要な記事は先に保存するよう勧める。
 
 #### F-007: アンインストール
@@ -258,7 +260,7 @@ INSTALL.md は、よくある失敗とその対処を示す。
   - 選んだフォルダに `manifest.json` がなく、読み込めない。
   - ブラウザの版が、AC-08 の版より古い。
   - 展開したフォルダを消したか動かしたため、拡張が動かない。
-  - 別のブラウザのプロファイルで使う。API キーはプロファイルごとに保存するので、そのプロファイルでも保存し直す必要がある。
+  - 別のブラウザのプロファイルで使う。拡張はプロファイルごとに読み込むので、そのプロファイルでも拡張を読み込み（AC-16）、API キーを保存し直す（F-004）必要がある。
 - **AC-35**: 失敗した記事の生成で料金がかかりうること、やり直すたびにその費用がかかることを示す（今の README の「推定の料金」の節と [production_profile.md](../../dev/production_profile.md) による）。
 
 #### F-009: プライバシー
@@ -294,9 +296,9 @@ README は、何をどこに送り、何を保存するかを示す。
 - **AC-40**: CLAUDE.md の「Development Notes」で、README を読むテストについて述べた文は、テストが読む文書を正しく示す。
 - **AC-41**: 本番の構成と料金の値を繰り返している箇所を挙げる文書が、新しい置き場所を挙げる。
   - `docs/dev/production_profile.md` の「本書を更新するタスク」（`docs/dev/production_profile.md:5`）は、推奨構成の移った先と、INSTALL.md の費用の目安を挙げる。
-  - `docs/dev/guides/pricing_update.md:38-40` は、料金の規則とモデルの名前の移った先を挙げる。
+  - `docs/dev/guides/pricing_update.md`（「料金の変更がほかに触れるもの」、`:34-40`）は、料金の規則とモデルの名前の移った先と、料金が変わったときに見直す箇所として INSTALL.md の費用の目安を挙げる。
 - **AC-42**: 拡張のテストが読む文書は、どれも、それを変える PR で CI の拡張のジョブを走らせる。今その対象は、`README.md`、`README.en.md`、`docs/dev/guides/development.md` である（`extension/scripts/has-extension-changes.sh` の冒頭の説明）。CLAUDE.md の「Development Notes」で `make ext-test` が要る文書として挙げる一覧も、同じ文書を挙げる。
-- **AC-43**: 利用者向けの文書が新しく使う語のうち、英語版に訳す語（API のクレジット、利用の上限、ワークスペースなど）は、`docs/translation_glossary.md` にある。
+- **AC-43**: 利用者向けの文書が新しく使う語（API のクレジット、利用の上限、ワークスペースなど）は、`docs/translation_glossary.md` にある。INSTALL.md の英語版を足すとき（#1044）に同じ訳語を使うためである。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
 
