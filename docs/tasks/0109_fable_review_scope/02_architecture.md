@@ -46,7 +46,7 @@ N/A。コンポーネントの構成とデータの流れを変えない。
 書き換えた `prior-docs` の項は、英語で次のことを述べる（`CLAUDE.md`「Document language」の原則 (b)）。
 
 1.  変更が、先行文書・ADR の決定と食い違う点、または断りなく離れた点を見つける。KIND `documents` では、同じ PR の文書どうしの決定の食い違いも見る。今の項の、食い違う点と断りなく離れた点を見る形は保ち、見る対象を決定に絞る。求めること・許すこと・退けることを変える言い回しの違いは、決定の食い違いとして見る（AC-01）。
-2.  読み手を別の決定に導く相互参照の誤り（別の決定や、決定が違う節を指す参照、参照先が引いた理由や前提を支えない `file:line` の引用）は、決定の食い違いとして見る（AC-02）。
+2.  読み手を別の決定に導く相互参照の誤り（別の決定や、決定が違う節を指す参照）は、決定の食い違いとして見る（AC-02）。
 3.  読み手が取る決定を変えない行番号のずれ・言い回しの違い・参照先のずれは報告しない（AC-03）。
 
 項の文は次のとおりとする。実装は、これを `fable-review.md:280-282` の項と置き換える。境目の判断が要る文なので、文言を実装に任せず、本書の PR のレビュー（Fable の部分レビューを含む）で読む。
@@ -55,15 +55,11 @@ N/A。コンポーネントの構成とデータの流れを変えない。
   - `prior-docs`: find where the change contradicts, or silently departs
     from, a decision of the prior documents or an ADR (for KIND
     `documents`, also where the documents of the PR contradict one
-    another's decisions). A decision is what a document requires, allows,
-    or rejects, with the reasons and premises it gives. Report a wording
-    difference that changes what is required, allowed, or rejected, and a
-    reference or a `file:line` citation that leads the reader to a
-    different decision or whose target does not support the premise it is
-    cited for. Do not report an error that leaves every decision as it is:
-    a line number that drifted but still points to text supporting the same
-    claim, a wording difference with the same meaning, or a reference whose
-    target moved but still holds the same decision;
+    another's decisions). Report a wording difference that changes what is
+    required, allowed, or rejected, and a reference that leads the reader
+    to a different decision. Do not report an error that leaves every
+    decision as it is, such as a drifted line number, a wording difference
+    with the same meaning, or a reference whose target moved;
 ```
 
 Role の項は、基準ごとに Fable に与える役目である。そのため、範囲から外した箇所を Fable が `prior-docs` に当たると見てレビューするとき（`exclusion-error`）も、この項がそのまま当てはまる。「Left out」の項（`fable-review.md:292-294`）は変えない。
