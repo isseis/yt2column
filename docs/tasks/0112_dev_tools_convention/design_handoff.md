@@ -10,8 +10,6 @@
 **人の答え:** 種類で定義してリンク
 **ADR:** なし。規約の書き方の選択で、本タスクの中で閉じる。
 
-人が答えたときの案は、リンク先を「Build Commands」としていた。そこにある一覧は入れる道具の `make install-*`（`CLAUDE.md:181-185`）だけである。そのつどビルドする道具のターゲットは「Test Commands」（`make coverage-compare`、`CLAUDE.md:190`）と「Extension Commands」（`make ext-coverage-compare`、`CLAUDE.md:277`）にある。種類ごとに正しい節へリンクすること。
-
 ## H-02: ADR-0014 から外す本文の行き先を、文ごとに決める
 
 **懸念:** ADR-0014 の規則 1〜6 の項目を要約に書き直すとき（AC-09）、外す本文には、規約に移る規則のほかに、どの規則の節にも収まらない文がある。
@@ -22,7 +20,7 @@
 
 **なぜ大事か:** 行き先のない文を消すと、規則が黙って落ち、書き直しが編集上の訂正でなくなる。
 
-**案:** 外す文ごとに、規約の節、ほかの正本（`CLAUDE.md`、ガイド）、ADR に残す、のどれかを設計書の表に書く。順序の規則は、規約の規則 4 の節からガイドの §9 へリンクするか、ADR の項目にリンクとして残す。`:25` のスクリプトの一覧は、規約にない事実として ADR に残すなら、`adr-correction-candidates.sh` の扱い（規則 1 と 6 の食い違い、別の issue）とあわせて決める。
+**案:** 外す文ごとに、行き先を設計書の表に書く。行き先は、規約の節、ADR の項目に事実として残す（AC-09）、本タスクで変えてよい箇所（AC-18・AC-22）にすでにある正本、のどれかである。どれにも当たらない文は外さない。順序の規則は、規約の規則 4 の節からガイドの §9 へリンクするか、ADR の項目にリンクとして残す。`:25` のスクリプトの一覧は、規約にない事実として ADR に残すなら、`adr-correction-candidates.sh` の扱い（規則 1 と 6 の食い違い、別の issue）とあわせて決める。
 
 **関連:** AC-02、AC-09、AC-10
 
@@ -38,7 +36,7 @@
 
 ## H-04: CLAUDE.md の写しと規約の正本の関係を書く
 
-**懸念:** 「エージェントはインストールもビルドもしない」は、規約、`CLAUDE.md`「Tool Execution Safety」の新しい項目、同じ節の 3 つの道具ごとの記述、`numreserve_guide.md:11`、ADR-0014 に書かれる。
+**懸念:** 「エージェントはインストールもビルドもしない」は、規約、`CLAUDE.md`「Tool Execution Safety」の新しい項目、同じ節の 3 つの道具ごとの記述、`.claude/commands/_lib/local-cli-review.md:91-93`、`numreserve_guide.md:11`、ADR-0014 に書かれる。
 
 **なぜ大事か:** どれが正本かが分からないと、後で 1 か所だけが直される。
 
@@ -48,10 +46,20 @@
 
 ## H-05: mergepr.md の文を変えたときに読む文書のテスト
 
-**懸念:** `.claude/commands/mergepr.md` は、`cmd/mergepr` の文書のテストが呼び出しの形とプロトコル番号を読む。`CLAUDE.md`「Protocol numbers」と `mergepr_guide.md` も、ガードのテストが値を読む（`CLAUDE.md`「Development Notes」）。
+**懸念:** `.claude/commands/mergepr.md` は、`cmd/mergepr` の文書のテストが呼び出しの形とプロトコル番号を読む。`CLAUDE.md`「Protocol numbers」と `mergepr_guide.md` も、ガードのテストが値を読む（`CLAUDE.md`「Development Notes」）。`cmd/numreserve/docs_test.go` の `TestDocumentedInvocations` は、AC-14 が項目を足す「Tool Execution Safety」の節を読み、`numreserve` の呼び出しの形を確かめる。
 
 **なぜ大事か:** 主語の直し（AC-15〜AC-17）で、テストが読む値や構造を壊しうる。
 
 **案:** 設計で、直す箇所ごとに、それを読むテストとその対象（値、見出し、段落の始まり）を確かめ、直し方がそれを変えないようにする。
 
-**関連:** AC-15、AC-16、AC-17
+**関連:** AC-14、AC-15、AC-16、AC-17
+
+## H-06: 種類ごとの一覧のリンク先
+
+**懸念:** H-01 を人が答えたときの案は、リンク先を「Build Commands」としていた。そこにある一覧は、入れる道具の `make install-*`（`CLAUDE.md:181-185`）だけである。そのつどビルドする道具のターゲットは「Test Commands」（`make coverage-compare`、`CLAUDE.md:190`）と「Extension Commands」（`make ext-coverage-compare`、`CLAUDE.md:277`）にある。
+
+**なぜ大事か:** リンク先にそのつどビルドする道具がないと、規約の読み手が一覧を見つけられない（AC-03）。
+
+**案:** 種類ごとに、一覧のある節へリンクする。
+
+**関連:** AC-03、H-01
