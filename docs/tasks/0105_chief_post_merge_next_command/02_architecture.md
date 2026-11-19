@@ -218,7 +218,8 @@ const (
 	traceUnknown traceKind = iota
 	// tracePROpen: the round saw the PR open on the worktree's branch, which
 	// is not main. Branch is that branch; Task is its task, or zero when the
-	// branch is no feature branch.
+	// branch is no feature branch or its task directory on origin/main
+	// contradicts it.
 	tracePROpen
 	// tracePRMerged: the round read the PR's state as MERGED. PR only.
 	tracePRMerged
@@ -247,7 +248,7 @@ JSON の項目は `session`・`round`・`worktree`・`kind`（`pr_open`・`pr_me
 
 -   1 件の大きさは `recordLimit`（512 KiB、`internal/chief/records.go:103`）までとする。
 -   `internal/strictjson` で読み、不正な UTF-8・対のないサロゲート・項目の繰り返し・知らない項目を拒む。
--   `task` は、空でなければ `paneinput.ParseTaskID`（4 桁の数字だけ、`internal/chief/paneinput/paneinput.go:37-47`）で読み、前後の空白やほかの文字を直さずに拒む。`pr_open` では、`task` は `branch` から `branchTask` で抽出したものと等しくなければならない（機能ブランチでなければ空）。
+-   `task` は、空でなければ `paneinput.ParseTaskID`（4 桁の数字だけ、`internal/chief/paneinput/paneinput.go:37-47`）で読み、前後の空白やほかの文字を直さずに拒む。`pr_open` では、`task` は `branch` から `branchTask` で抽出したものと等しいか、空でなければならない。
 -   `kind` が 4 つのどれでもないもの、種類に要る項目がないか使わない項目に値があるもの、`session`・`round`・`worktree` が名前やディレクトリと合わないものも拒む。
 -   同じ worktree に、`pr_open` のない PR の `pr_merged`・`pr_closed` があれば、その記録を読めない記録とする。開いていると確かめていない PR のマージは、要件定義書 3.1 の「chief がマージを確かめた PR」に当たらないためである。
 -   拒んだ記録は `errRecord`（`internal/chief/records.go:32`）で包み、`errors.Is` で判定できる。
@@ -264,7 +265,7 @@ JSON の項目は `session`・`round`・`worktree`・`kind`（`pr_open`・`pr_me
 | 事象 | 書く条件 |
 |---|---|
 | `branch_task` | worktree が機能ブランチにいて、その worktree の最後の `branch_task` のタスクと違うか、`branch_task` がまだないか、そのラウンドにその worktree の PR の `pr_merged`・`pr_closed` を書く |
-| `pr_open` | worktree が `main` でないブランチにいて、そのブランチに開いている PR が 1 つあり（`readWorkspace` の `f.PR`）、その PR の最後の状態が「開いている」ではない（事象がない、マージ、閉じた） |
+| `pr_open` | worktree が `main` でないブランチにいて、そのブランチに開いている PR が 1 つあり（`readWorkspace` の `f.PR`）、その PR の最後の状態が「開いている」ではない（事象がない、マージ、閉じた）。タスクは、ブランチから抽出でき、そのラウンドの `Tasks.Read` が `origin/main` のタスクのディレクトリと矛盾なく読めたとき（要件定義書 3.1）だけ書き、そうでなければ空にする（3.2 でほかのタスクとみなされる） |
 | `pr_merged`・`pr_closed` | 状態が開いている PR を、そのラウンドの worktree のブランチで開いているのを見ず、その PR の状態を読んだら `MERGED`・`CLOSED` だった |
 
 PR の状態を読めなかったときと、まだ `OPEN` だったときは何も書かない。その PR は開いているままになり、`main` の行は特定しない（AC-07）。
@@ -326,7 +327,8 @@ func applyMainTask(ctx context.Context, tasks Tasks, f workspaceFacts, result ma
 **行への当てはめ。** `workspaceFacts`（`internal/chief/state.go:190-218`）に、HEAD の種類 `headMain` と特定の結果を足す。
 
 -   T と特定したとき：`Task` を T とし、`Docs` を `Tasks.Read(worktree, Branch)` で読む。読めなければ、今の機能ブランチの行と同じく `DocsUnreadable` になる。そのうえで `classify` は、機能ブランチの行と同じ規則で状態と次のコマンドを決める（AC-01〜AC-03）。T のディレクトリが `origin/main` にないときは、機能ブランチの行と同じく、要件定義書がない要確認になる（H-06 の 5 つ目）。
--   特定しなかったとき：特定しなかった理由（4.2）は、`decideNext` の HEAD の確かめから返す。detached HEAD の理由と同じ経路で返す。そのため、質問で止まったエージェント、実行中のエージェント、開いている PR は、今の `classify`（`internal/chief/state.go:415-`）の順のとおり、先に行の状態を決める。それらがなければ要確認で、次のコマンドは示さず、`/mkreq` も示さない。
+-   読めないとき（3.2 の順 1）：理由（4.2）を、読み取りの失敗として `workspaceFacts.Unreadable` に入れる。今のほかの読み取りの失敗と同じく、実行中のエージェントや開いている PR より先に、行は要確認になる（AC-09）。
+-   そのほかで特定しなかったとき：特定しなかった理由（4.2）は、`decideNext` の HEAD の確かめから返す。detached HEAD の理由と同じ経路で返す。そのため、質問で止まったエージェント、実行中のエージェント、開いている PR は、今の `classify`（`internal/chief/state.go:415-`）の順のとおり、先に行の状態を決める。それらがなければ要確認で、次のコマンドは示さず、`/mkreq` も示さない。
 
 HEAD の確かめ（今の `headProblem(h headState)`、`internal/chief/state.go:291-302`）は、特定の結果も見るように引数を `workspaceFacts` に変える。`headMain` は、T と特定したときだけブランチと同じに扱う。特定しなかった `headMain` には、タスクのないブランチの `/mkreq` の規則（`internal/chief/state.go:312-314`）を当てない。
 
