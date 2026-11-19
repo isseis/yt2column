@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/cachelock"
+	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/privatefile"
 )
 
@@ -997,7 +998,8 @@ func TestClearRecordsKeepsOnlyTheExclusion(t *testing.T) {
 		t.Fatal(err)
 	}
 	sha := strings.Repeat("a", 40)
-	for _, name := range []string{"detail-7-" + sha + ".json", "report-7-" + sha + ".json"} {
+	trace := traceEvent{Session: ownerA().Session, Round: traceRound(1), Worktree: Worktree{path: "/x"}, Kind: tracePRClosed, PR: 7}
+	for _, name := range []string{"detail-7-" + sha + ".json", "report-7-" + sha + ".json", trace.name(), "trace-backup.json"} {
 		if _, err := privatefile.Create(filepath.Join(held.dir, name), []byte("{}")); err != nil {
 			t.Fatal(err)
 		}
@@ -1019,6 +1021,48 @@ func TestClearRecordsKeepsOnlyTheExclusion(t *testing.T) {
 	// A clear of an empty directory is no error.
 	if err := held.ClearRecords(); err != nil {
 		t.Errorf("a second ClearRecords = %v", err)
+	}
+}
+
+// TestStartRemovesOtherSessionTraces checks start's cleanup of the history
+// records: a start that takes a new lock removes the records of other
+// sessions and the names of no record's form, and keeps its own session's;
+// a start by the lock's holder removes the other sessions' records but
+// keeps the names of no record's form, which its history counts as its own.
+func TestStartRemovesOtherSessionTraces(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 11, 19, 9, 0, 0, 0, time.UTC)
+	store := newStore(t)
+	mine := ev(1, tracePRClosed, 7, paneinput.TaskID{}, "")
+	theirs := mine
+	theirs.Session = ownerB().Session
+	put := func(name string) string { return putTrace(t, store, traceTree, name, []byte("{}")) }
+	kept := put(mine.name())
+	gone := []string{put(theirs.name()), put("trace-backup.json")}
+	unrelated := put("notes.json")
+	res, err := store.Start(ctx, herdrWith(t, liveAgent(ownerA())), ownerA(), now)
+	if err != nil || res.CleanupError != nil || res.Removed != len(gone) {
+		t.Fatalf("Start = %+v, %v; want %d records removed", res, err, len(gone))
+	}
+	exists := func(path string) bool {
+		_, err := os.Lstat(path)
+		return err == nil
+	}
+	for _, path := range gone {
+		if exists(path) {
+			t.Errorf("%s was kept", path)
+		}
+	}
+	if !exists(kept) || !exists(unrelated) {
+		t.Errorf("the session's own record or a file of no record's name was removed")
+	}
+	again := []string{put(theirs.name()), put("trace-backup.json")}
+	res, err = store.Start(ctx, herdrWith(t, liveAgent(ownerA())), ownerA(), now.Add(time.Minute))
+	if err != nil || res.CleanupError != nil || res.Removed != 1 {
+		t.Fatalf("Start by the holder = %+v, %v; want 1 record removed", res, err)
+	}
+	if exists(again[0]) || !exists(again[1]) || !exists(kept) {
+		t.Errorf("start by the holder: the other session's record kept %v, the malformed name kept %v, its own kept %v; want false, true, true", exists(again[0]), exists(again[1]), exists(kept))
 	}
 }
 

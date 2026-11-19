@@ -68,9 +68,9 @@ func TestTakeSnapshotStates(t *testing.T) {
 				t.Errorf("merge question row = %+v, want it marked and with no command offered", r)
 			}
 		}},
-		{"opencode question while idle", fakeWorkspace{Kind: "opencode", Branch: "main", Status: "idle", Screen: "opencode-question-single.ansi"}, StateQuestion, nil},
-		{"opencode prompt", fakeWorkspace{Kind: "opencode", Branch: "main", Status: "done", Screen: "opencode-done.ansi"}, StateProposeNext, nil},
-		{"idle on a screen of no known shape", fakeWorkspace{Branch: "main", Status: "idle", Screen: "opencode-done.ansi"}, StateNeedsCheck, func(t *testing.T, r Row) {
+		{"opencode question while idle", fakeWorkspace{Kind: "opencode", Branch: "scratch", Status: "idle", Screen: "opencode-question-single.ansi"}, StateQuestion, nil},
+		{"opencode prompt", fakeWorkspace{Kind: "opencode", Branch: "scratch", Status: "done", Screen: "opencode-done.ansi"}, StateProposeNext, nil},
+		{"idle on a screen of no known shape", fakeWorkspace{Branch: "scratch", Status: "idle", Screen: "opencode-done.ansi"}, StateNeedsCheck, func(t *testing.T, r Row) {
 			if len(r.Unreadable) != 1 || !strings.Contains(r.Unreadable[0], "w1:p1") {
 				t.Errorf("unreadable = %v", r.Unreadable)
 			}
@@ -96,7 +96,7 @@ func TestTakeSnapshotStates(t *testing.T) {
 			}
 		}},
 		{"task done", fakeWorkspace{Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")}}, StateTaskDone, nil},
-		{"no task", fakeWorkspace{Branch: "main"}, StateProposeNext, func(t *testing.T, r Row) {
+		{"no task", fakeWorkspace{Branch: "scratch"}, StateProposeNext, func(t *testing.T, r Row) {
 			if r.Next == nil || r.Next.Kind != TaskNextMkreq || r.Next.Command != nil {
 				t.Errorf("next = %+v", r.Next)
 			}
@@ -151,7 +151,7 @@ func TestTakeSnapshotUnreadable(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			w := newWorld(t)
 			tree := w.add(fakeWorkspace{ID: "w1", Label: "broken", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}})
-			w.add(fakeWorkspace{ID: "w2", Label: "fine", Branch: "main"})
+			w.add(fakeWorkspace{ID: "w2", Label: "fine", Branch: "scratch"})
 			breakIt(w, tree)
 			snap := take(t, w)
 			if r := rowOf(t, snap, "broken"); r.State != StateNeedsCheck || len(r.Unreadable) == 0 || r.Next != nil {
@@ -169,7 +169,7 @@ func TestTakeSnapshotUnreadable(t *testing.T) {
 // instead, since origin/main may be stale.
 func TestTakeSnapshotFetchFailure(t *testing.T) {
 	w := newWorld(t)
-	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: "scratch"})
 	w.rec.failIn(w.chiefTree, "git fetch origin main", errors.New("offline"))
 	snap := take(t, w)
 	if len(snap.Problems) != 1 || !strings.Contains(snap.Problems[0], "git fetch origin main") {
@@ -462,7 +462,7 @@ func TestTakeoverReadFailures(t *testing.T) {
 // limit and the local reads the shorter one.
 func TestFetchUsesItsOwnTimeLimit(t *testing.T) {
 	w := newWorld(t)
-	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: "scratch"})
 	take(t, w)
 	for _, c := range w.rec.recorded() {
 		long := c.line() == "git fetch origin main"
@@ -483,17 +483,17 @@ func TestRowOrderRules(t *testing.T) {
 	// The earlier sighting has the later path, so only the waiting time puts it first.
 	w.add(fakeWorkspace{ID: "w9", Label: "review-old", Branch: taskBranch, PRs: openPRJSON})
 	w.add(fakeWorkspace{ID: "w5", Label: "needs-check", Branch: taskBranch})
-	w.add(fakeWorkspace{ID: "wa", Label: "no-task-blocked", Branch: "main", Status: "blocked", Screen: "claude-idle.ansi"})
+	w.add(fakeWorkspace{ID: "wa", Label: "no-task-blocked", Branch: "scratch", Status: "blocked", Screen: "claude-idle.ansi"})
 	w.add(fakeWorkspace{ID: "w6", Label: "done", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")}})
 	w.add(fakeWorkspace{ID: "w4", Label: "running", Branch: taskBranch, Status: "working"})
 	w.add(fakeWorkspace{ID: "w3", Label: "proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
-	w.add(fakeWorkspace{ID: "w0", Label: "idle-mkreq", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w0", Label: "idle-mkreq", Branch: "scratch"})
 	w.add(fakeWorkspace{ID: "w2", Label: "idle-detached", Branch: detachedHead})
 	w.add(fakeWorkspace{ID: "w7", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
 	take(t, w)
 	w.now = w.now.Add(time.Hour)
 	w.add(fakeWorkspace{ID: "w1", Label: "review-new", Branch: taskBranch, PRs: openPRJSON})
-	w.add(fakeWorkspace{ID: "w8", Label: "question", Branch: "main", Status: "blocked", Screen: "claude-question-single.ansi"})
+	w.add(fakeWorkspace{ID: "w8", Label: "question", Branch: "scratch", Status: "blocked", Screen: "claude-question-single.ansi"})
 	snap := take(t, w)
 	var labels []string
 	for _, r := range snap.Rows {
@@ -704,7 +704,7 @@ func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
 	}
 	t.Run("a stop that cannot be read", func(t *testing.T) {
 		w := newWorld(t)
-		tree := w.add(fakeWorkspace{ID: "w1", Label: "unread", Branch: "main"})
+		tree := w.add(fakeWorkspace{ID: "w1", Label: "unread", Branch: "scratch"})
 		dir, err := w.store.WorkspaceDir(Worktree{path: tree})
 		if err != nil {
 			t.Fatal(err)
@@ -727,7 +727,7 @@ func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
 	})
 	t.Run("a stop", func(t *testing.T) {
 		w := newWorld(t)
-		tree := w.add(fakeWorkspace{ID: "w1", Label: "stopped", Branch: "main"})
+		tree := w.add(fakeWorkspace{ID: "w1", Label: "stopped", Branch: "scratch"})
 		records, err := w.store.Records(Worktree{path: tree})
 		if err != nil {
 			t.Fatal(err)
@@ -877,8 +877,8 @@ func TestSnapshotRowOutput(t *testing.T) {
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
 	w.add(fakeWorkspace{ID: "w2", Label: "plan", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}})
-	w.add(fakeWorkspace{ID: "w3", Label: "idle", Branch: "main"})
-	unread := w.add(fakeWorkspace{ID: "w4", Label: "unread-stop", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w3", Label: "idle", Branch: "scratch"})
+	unread := w.add(fakeWorkspace{ID: "w4", Label: "unread-stop", Branch: "scratch"})
 	dir, err := w.store.WorkspaceDir(Worktree{path: unread})
 	if err != nil {
 		t.Fatal(err)

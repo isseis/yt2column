@@ -235,8 +235,9 @@ type StartResult struct {
 	// CleanupError is why some finished session's record could not be
 	// removed; the lock is taken regardless.
 	CleanupError error
-	// Removed counts the notice, round, and observation records of finished
-	// sessions that were removed.
+	// Removed counts the notice, round, observation, and history records
+	// of finished sessions that were removed, with the names of no history
+	// record's form that start with the history records' prefix.
 	Removed int
 	// Stopped counts the sends found without an end, each of which stopped
 	// its workspace.
@@ -252,11 +253,17 @@ type StartResult struct {
 // again under that exclusion, so two chiefs that start at once cannot both
 // win; Herdr unreadable is ErrLockUnverifiable. After the lock, every send
 // left without an end becomes a stop of its workspace before any record is
-// removed.
+// removed. A history record of the caller's session is never removed; a
+// name that starts with the history records' prefix but is of no record's
+// form is removed only when the caller did not hold the lock already (it
+// created or took over the lock), since the history reader counts such a name
+// as the current session's and the same session's start must not drop an
+// event that names another task.
 func (s Store) Start(ctx context.Context, herdr Herdr, caller Owner, now time.Time) (StartResult, error) {
 	var res StartResult
 	rec := lockRecord{Owner: caller, Started: now.UTC()}
 	err := s.create(lockFile, rec)
+	newLock := true
 	switch {
 	case err == nil:
 	case errors.Is(err, privatefile.ErrExist):
@@ -264,14 +271,14 @@ func (s Store) Start(ctx context.Context, herdr Herdr, caller Owner, now time.Ti
 		if err != nil {
 			return res, err
 		}
-		res.TookOver = took
+		res.TookOver, newLock = took, took
 	default:
 		return res, err
 	}
-	stopped, removedSends, settleErr := s.settleWorkspaces(now)
-	res.Stopped, res.RemovedSends = stopped, removedSends
+	settled, settleErr := s.settleWorkspaces(now, caller.Session, newLock)
+	res.Stopped, res.RemovedSends = settled.stopped, settled.removed
 	removed, err := s.removeFinishedSessions(caller.Session)
-	res.Removed = removed
+	res.Removed = removed + settled.traces
 	// A record that cannot be settled or removed does not undo the lock; it
 	// is reported and left for the human.
 	res.CleanupError = errors.Join(settleErr, err)
@@ -980,13 +987,23 @@ func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 	return removed, errors.Join(errs...)
 }
 
+// settledWorkspaces counts what settleWorkspaces did: the sends found
+// without an end, the send and detail records removed, and the history
+// records removed.
+type settledWorkspaces struct {
+	stopped, removed, traces int
+}
+
 // settleWorkspaces turns the unfinished sends of every worktree into stops,
-// then removes the finished sends and old details. A worktree whose
-// exclusion is held is skipped: a send is under way there.
-func (s Store) settleWorkspaces(now time.Time) (stopped, removed int, err error) {
+// then removes the finished sends and old details, and the history records
+// of sessions other than session (with the names of no history record's form
+// when malformed is true). A worktree whose exclusion is held is skipped: a
+// send is under way there.
+func (s Store) settleWorkspaces(now time.Time, session string, malformed bool) (settledWorkspaces, error) {
+	var res settledWorkspaces
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
-		return 0, 0, err
+		return res, err
 	}
 	var errs []error
 	for _, e := range entries {
@@ -1002,14 +1019,19 @@ func (s Store) settleWorkspaces(now time.Time) (stopped, removed int, err error)
 			continue
 		}
 		n, err := held.SettleUnfinished(now)
-		stopped += n
+		res.stopped += n
 		if err != nil {
 			errs = append(errs, err)
 		} else {
 			// Only a settled workspace is cleaned: a send left unfinished
 			// must become a stop before anything near it is removed.
 			r, err := held.cleanup(now)
-			removed += r
+			res.removed += r
+			if err != nil {
+				errs = append(errs, err)
+			}
+			t, err := held.removeOtherTraces(session, malformed)
+			res.traces += t
 			if err != nil {
 				errs = append(errs, err)
 			}
@@ -1018,7 +1040,60 @@ func (s Store) settleWorkspaces(now time.Time) (stopped, removed int, err error)
 			errs = append(errs, err)
 		}
 	}
-	return stopped, removed, errors.Join(errs...)
+	return res, errors.Join(errs...)
+}
+
+// removeOtherTraces removes the history records of sessions other than
+// session, and, when malformed is true, the names that start with
+// tracePrefix but are of no history record's form. Contract: it needs the
+// exclusion; a record of session is never removed; a record already gone is
+// not an error.
+func (h *HeldWorkspace) removeOtherTraces(session string, malformed bool) (int, error) {
+	entries, err := os.ReadDir(h.dir)
+	if err != nil {
+		return 0, err
+	}
+	own := tracePrefix + hashName(session) + "-"
+	removed := 0
+	var errs []error
+	for _, e := range entries {
+		name := e.Name()
+		switch {
+		case !strings.HasPrefix(name, tracePrefix):
+			continue
+		case traceFileName.MatchString(name):
+			if strings.HasPrefix(name, own) {
+				continue
+			}
+		case !malformed:
+			continue
+		}
+		if err := privatefile.Remove(filepath.Join(h.dir, name)); err != nil && !errors.Is(err, privatefile.ErrNotExist) {
+			errs = append(errs, err)
+			continue
+		}
+		removed++
+	}
+	return removed, errors.Join(errs...)
+}
+
+// writeTrace writes one event of the worktree's history. Contract: it needs
+// the exclusion; the event passes the reader's check and belongs to the
+// worktree whose directory this is, or nothing is written; a record is
+// created, never replaced, and the same event of the same round written
+// before is no failure.
+func (h *HeldWorkspace) writeTrace(e traceEvent) error {
+	if err := e.check(); err != nil {
+		return err
+	}
+	if workspaceDirOf(e.Worktree) != filepath.Base(h.dir) {
+		return fmt.Errorf("%w: the event's worktree is not the one these records belong to", errRecord)
+	}
+	err := h.store().create(e.name(), e.file())
+	if errors.Is(err, privatefile.ErrExist) {
+		return nil
+	}
+	return err
 }
 
 // The prefixes of the records of the rounds of `chief tick`, their
@@ -1346,15 +1421,17 @@ func (r WorkspaceRecords) Created(home string) (*CreatedRecord, error) {
 
 // isRecordFile reports whether name is one of the records of a worktree's
 // directory (a temporary file a failed create left is not one). The exclusion's file is not one: it is not a record.
+// Every name that starts with tracePrefix is one, of a history record's form
+// or not, since the history reader reads such a name as an unreadable record.
 func isRecordFile(name string) bool {
 	return name == stopFile || name == createdFile ||
 		sendFileName.MatchString(name) || detailFileName.MatchString(name) || reportFileName.MatchString(name) ||
-		skipFileName.MatchString(name)
+		skipFileName.MatchString(name) || strings.HasPrefix(name, tracePrefix)
 }
 
 // ClearRecords removes every record of the worktree's directory (its sends,
-// its stop, its PR details and report records, its skip records, and its
-// created record) and
+// its stop, its PR details and report records, its skip records, its
+// history records, and its created record) and
 // leaves the exclusion's file. Contract: it needs the exclusion; the
 // created record goes last, so a clear that stops halfway still names the
 // worktree; a record already gone is not an error, any other failure is

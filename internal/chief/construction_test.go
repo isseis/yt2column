@@ -26,6 +26,9 @@ var guardedTypes = map[string][]string{
 	// the reader that declares them may make one.
 	"displayUnit": {"sanitizeUnits"},
 	"tabLabel":    {"parseTabList"},
+	// A main row is classified by the identification's declared kind, so only
+	// the identification may make one.
+	"mainTaskResult": {"identifyMainTask"},
 }
 
 // emptyImporter gives every import an empty package, so type checking of
