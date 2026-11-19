@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -69,6 +70,79 @@ func TestReadHerdrSamples(t *testing.T) {
 			t.Errorf("workspaces = %+v", workspaces)
 		}
 	})
+	t.Run("pane to tab of the agent list", func(t *testing.T) {
+		tabs, err := parseAgentTabs(readTestdata(t, "herdr/agent-list.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tabs) != 10 || tabs["wC:pB"] != (tabID{id: "wC:t8"}) || tabs["w1N:p3"] != (tabID{id: "w1N:t3"}) {
+			t.Errorf("pane to tab = %v", tabs)
+		}
+	})
+	t.Run("tab list", func(t *testing.T) {
+		labels, err := parseTabList(readTestdata(t, "herdr/tab-list.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(labels) != 17 {
+			t.Fatalf("read %d tabs, want 17", len(labels))
+		}
+		want := map[tabID]tabLabel{
+			{id: "wC:t1"}:  {text: "chief", hasLabel: true},
+			{id: "wC:tG"}:  {text: "cmd", hasLabel: true},
+			{id: "w2D:t3"}: {text: "claude", hasLabel: true},
+		}
+		for id, w := range want {
+			if got := labels[id]; got != w {
+				t.Errorf("tab %s = %+v, want %+v", id, got, w)
+			}
+		}
+	})
+	t.Run("tab list with an empty label", func(t *testing.T) {
+		sample := strings.Replace(string(readTestdata(t, "herdr/tab-list.json")), `"label":"chief"`, `"label":""`, 1)
+		labels, err := parseTabList([]byte(sample))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, listed := labels[tabID{id: "wC:t1"}]
+		if !listed || got != (tabLabel{}) || len(labels) != 17 {
+			t.Errorf("tab with an empty label = %+v (listed %v, %d tabs), want it listed with no label among 17", got, listed, len(labels))
+		}
+	})
+	layouts := map[string]struct {
+		file, pane string
+		width      int
+		split      bool
+	}{
+		"pane layout":                {"pane-layout.json", "w27:p3", 83, false},
+		"pane layout of a split tab": {"pane-layout-split.json", "w27:p3", 42, true},
+		"other pane of a split tab":  {"pane-layout-split.json", "w27:p5", 41, true},
+	}
+	for name, want := range layouts {
+		t.Run(name, func(t *testing.T) {
+			width, split, err := parsePaneLayout(readTestdata(t, "herdr/"+want.file), PaneID{id: want.pane})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if width != want.width || split != want.split {
+				t.Errorf("width %d split %v, want %d %v", width, split, want.width, want.split)
+			}
+		})
+	}
+}
+
+// TestPaneLayoutWidthBounds checks the width bounds: 1 and maxPaneWidth are
+// read, so the rejections of TestHerdrRejectsUnknownShapes are of the bounds
+// alone.
+func TestPaneLayoutWidthBounds(t *testing.T) {
+	sample := string(readTestdata(t, "herdr/pane-layout-split.json"))
+	for _, width := range []string{"1", "1000"} {
+		edited := strings.Replace(sample, `"width":42`, `"width":`+width, 1)
+		got, _, err := parsePaneLayout([]byte(edited), PaneID{id: "w27:p3"})
+		if err != nil || strconv.Itoa(got) != width {
+			t.Errorf("width %s read as %d, %v", width, got, err)
+		}
+	}
 }
 
 // TestHerdrRejectsUnknownShapes edits the real `herdr agent get` sample into
@@ -106,6 +180,111 @@ func TestHerdrRejectsUnknownShapes(t *testing.T) {
 			}
 		})
 	}
+	readers := map[string]struct {
+		file  string
+		parse func([]byte) error
+		edits map[string][2]string
+	}{
+		"pane to tab": {
+			file:  "agent-list.json",
+			parse: func(b []byte) error { _, err := parseAgentTabs(b); return err },
+			edits: map[string][2]string{
+				"missing tab":        {`"tab_id":"wC:t8",`, ``},
+				"item not an object": {`"agents":[{`, `"agents":[1,{`},
+				"pane not a string":  {`"pane_id":"wC:pB"`, `"pane_id":5`},
+				"tab not a string":   {`"tab_id":"wC:t8"`, `"tab_id":8`},
+				"option-like tab":    {`"tab_id":"wC:t8"`, `"tab_id":"--x"`},
+				"missing pane":       {`"pane_id":"wC:pB",`, ``},
+				"malformed pane":     {`"pane_id":"wC:pB"`, `"pane_id":"wC"`},
+				"pane listed twice":  {`"pane_id":"wC:pD"`, `"pane_id":"wC:pB"`},
+				"tab named twice":    {`"tab_id":"wC:t8"`, `"tab_id":"wC:t8","tab_id":"wC:t9"`},
+				"another envelope":   {`"cli:agent:list"`, `"cli:agent:get"`},
+				"error member":       {`{"id":"cli:agent:list",`, `{"error":{},"id":"cli:agent:list",`},
+			},
+		},
+		"tab list": {
+			file:  "tab-list.json",
+			parse: func(b []byte) error { _, err := parseTabList(b); return err },
+			edits: map[string][2]string{
+				"missing tab":         {`"tab_id":"wC:t1",`, ``},
+				"tab not a string":    {`"tab_id":"wC:t1"`, `"tab_id":1`},
+				"item not an object":  {`"tabs":[{`, `"tabs":[1,{`},
+				"option-like tab":     {`"tab_id":"wC:t1"`, `"tab_id":"--x"`},
+				"tab listed twice":    {`"tab_id":"wC:tG"`, `"tab_id":"wC:t1"`},
+				"missing label":       {`"label":"chief",`, ``},
+				"label not a string":  {`"label":"chief"`, `"label":1`},
+				"null label":          {`"label":"chief"`, `"label":null`},
+				"label named twice":   {`"label":"chief"`, `"label":"chief","label":"x"`},
+				"missing tabs":        {`"tabs":[`, `"tabz":[`},
+				"another envelope":    {`"cli:tab:list"`, `"cli:pane:list"`},
+				"another result type": {`"type":"tab_list"`, `"type":"pane_list"`},
+				"error member":        {`{"id":"cli:tab:list",`, `{"error":{},"id":"cli:tab:list",`},
+				"trailing data":       {`"type":"tab_list"}}`, `"type":"tab_list"}}{}`},
+			},
+		},
+		"pane layout": {
+			file:  "pane-layout-split.json",
+			parse: func(b []byte) error { _, _, err := parsePaneLayout(b, PaneID{id: "w27:p3"}); return err },
+			edits: map[string][2]string{
+				"zero width":                 {`"width":42`, `"width":0`},
+				"negative width":             {`"width":42`, `"width":-1`},
+				"width over the bound":       {`"width":42`, `"width":1001`},
+				"fractional width":           {`"width":42`, `"width":41.5`},
+				"width not a number":         {`"width":42`, `"width":"42"`},
+				"width named twice":          {`"width":42`, `"width":42,"width":40`},
+				"missing width":              {`"width":42,`, ``},
+				"rect not an object":         {`"rect":{"height":63,"width":42,"x":0,"y":0}`, `"rect":42`},
+				"missing rect":               {`"rect":{"height":63,"width":42,"x":0,"y":0}`, `"frame":{}`},
+				"no item for the pane":       {`"pane_id":"w27:p3"`, `"pane_id":"w27:p9"`},
+				"two items for the pane":     {`"pane_id":"w27:p5"`, `"pane_id":"w27:p3"`},
+				"malformed other pane":       {`"pane_id":"w27:p5"`, `"pane_id":"-x"`},
+				"other pane ID not a string": {`"pane_id":"w27:p5"`, `"pane_id":5`},
+				"other pane without an ID":   {`"pane_id":"w27:p5",`, ``},
+				"item not an object":         {`"panes":[{`, `"panes":[1,{`},
+				"pane named twice":           {`"pane_id":"w27:p3"`, `"pane_id":"w27:p3","pane_id":"w27:p5"`},
+				"missing panes":              {`"panes":[`, `"panez":[`},
+				"missing splits":             {`"splits":[`, `"splitz":[`},
+				"splits not an array":        {`"splits":[{"direction":"right","id":"split_0_root","ratio":0.5,"rect":{"height":63,"width":83,"x":0,"y":0}}]`, `"splits":{}`},
+				"null splits":                {`"splits":[{"direction":"right","id":"split_0_root","ratio":0.5,"rect":{"height":63,"width":83,"x":0,"y":0}}]`, `"splits":null`},
+				"another envelope":           {`"cli:pane:layout"`, `"cli:pane:list"`},
+				"another result type":        {`"type":"pane_layout"`, `"type":"pane_list"`},
+				"error member":               {`{"id":"cli:pane:layout",`, `{"error":{},"id":"cli:pane:layout",`},
+				"trailing data":              {`"type":"pane_layout"}}`, `"type":"pane_layout"}}{}`},
+			},
+		},
+	}
+	for reader, r := range readers {
+		sample := string(readTestdata(t, "herdr/"+r.file))
+		if err := r.parse([]byte(sample)); err != nil {
+			t.Fatalf("%s: the sample itself is unreadable: %v", reader, err)
+		}
+		for name, edit := range r.edits {
+			t.Run(reader+"/"+name, func(t *testing.T) {
+				edited := strings.Replace(sample, edit[0], edit[1], 1)
+				if edited == sample {
+					t.Fatalf("the sample has no %q", edit[0])
+				}
+				if err := r.parse([]byte(edited)); !errors.Is(err, errHerdrOutput) {
+					t.Errorf("error = %v, want errHerdrOutput", err)
+				}
+			})
+		}
+	}
+	t.Run("agents not an array for the pane-to-tab map", func(t *testing.T) {
+		if _, err := parseAgentTabs([]byte(`{"id":"cli:agent:list","result":{"type":"agent_list","agents":{}}}`)); !errors.Is(err, errHerdrOutput) {
+			t.Errorf("error = %v, want errHerdrOutput", err)
+		}
+	})
+	t.Run("tabs not an array", func(t *testing.T) {
+		if _, err := parseTabList([]byte(`{"id":"cli:tab:list","result":{"tabs":{},"type":"tab_list"}}`)); !errors.Is(err, errHerdrOutput) {
+			t.Errorf("error = %v, want errHerdrOutput", err)
+		}
+	})
+	t.Run("layout not an object", func(t *testing.T) {
+		if _, _, err := parsePaneLayout([]byte(`{"id":"cli:pane:layout","result":{"layout":[],"type":"pane_layout"}}`), PaneID{id: "w27:p3"}); !errors.Is(err, errHerdrOutput) {
+			t.Errorf("error = %v, want errHerdrOutput", err)
+		}
+	})
 	t.Run("agents not an array", func(t *testing.T) {
 		if _, err := parseAgentList([]byte(`{"id":"cli:agent:list","result":{"type":"agent_list","agents":{}}}`)); !errors.Is(err, errHerdrOutput) {
 			t.Errorf("error = %v, want errHerdrOutput", err)
@@ -131,6 +310,64 @@ func TestHerdrUnknownAgentIsNoTarget(t *testing.T) {
 	}
 }
 
+// TestAgentListingTabsUnreadable checks that an agent list whose pane-to-tab
+// map cannot be read still gives its agents, with the map's error kept, so
+// the table's reading never fails a round.
+func TestAgentListingTabsUnreadable(t *testing.T) {
+	sample := string(readTestdata(t, "herdr/agent-list.json"))
+	broken := strings.Replace(sample, `"tab_id":"wC:t8",`, ``, 1)
+	cases := map[string]struct {
+		out      string
+		tabsRead bool
+	}{
+		"map read":       {sample, true},
+		"map unreadable": {broken, false},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			rec := newRecorder(t)
+			rec.reply("herdr agent list", []byte(c.out))
+			listing, err := NewHerdr(rec.commands(nil)).agentListing(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(listing.agents) != 10 {
+				t.Errorf("read %d agents, want 10", len(listing.agents))
+			}
+			if c.tabsRead {
+				if listing.paneTabsErr != nil || len(listing.paneTabs) != 10 {
+					t.Errorf("map = %v, error %v; want 10 panes", listing.paneTabs, listing.paneTabsErr)
+				}
+				return
+			}
+			if !errors.Is(listing.paneTabsErr, errHerdrOutput) || listing.paneTabs != nil {
+				t.Errorf("map = %v, error %v; want no map and errHerdrOutput", listing.paneTabs, listing.paneTabsErr)
+			}
+		})
+	}
+}
+
+// TestTableSourceReadsPassHerdrFailures checks that a failing herdr command
+// fails each table source read with that command's error, before any parse.
+func TestTableSourceReadsPassHerdrFailures(t *testing.T) {
+	failure := errors.New("herdr failed")
+	rec := newRecorder(t)
+	rec.fail("herdr agent list", failure)
+	rec.fail("herdr tab list", failure)
+	rec.fail("herdr pane layout --pane w27:p3", failure)
+	h := NewHerdr(rec.commands(nil))
+	ctx := context.Background()
+	if _, err := h.agentListing(ctx); !errors.Is(err, failure) {
+		t.Errorf("agentListing error = %v", err)
+	}
+	if _, err := h.tabLabels(ctx); !errors.Is(err, failure) {
+		t.Errorf("tabLabels error = %v", err)
+	}
+	if _, _, err := h.paneWidth(ctx, PaneID{id: "w27:p3"}); !errors.Is(err, failure) {
+		t.Errorf("paneWidth error = %v", err)
+	}
+}
+
 // TestHerdrCommandLines checks the herdr command lines each read runs, and
 // that a read without a pane or a source runs nothing.
 func TestHerdrCommandLines(t *testing.T) {
@@ -140,6 +377,8 @@ func TestHerdrCommandLines(t *testing.T) {
 	rec.reply("herdr workspace list", readTestdata(t, "herdr/workspace-list.json"))
 	rec.reply("herdr agent read w1N:p3 --source visible --lines 200 --format ansi", []byte("screen"))
 	rec.reply("herdr agent read w1N:p3 --source recent --lines 200 --format ansi", []byte("recent"))
+	rec.reply("herdr tab list", readTestdata(t, "herdr/tab-list.json"))
+	rec.reply("herdr pane layout --pane w27:p3", readTestdata(t, "herdr/pane-layout-split.json"))
 	h := NewHerdr(rec.commands(nil))
 	ctx := context.Background()
 	agents, err := h.Agents(ctx)
@@ -160,6 +399,12 @@ func TestHerdrCommandLines(t *testing.T) {
 	if recent, err := h.Screen(ctx, pane, ScreenRecent); err != nil || recent != "recent" {
 		t.Errorf("Screen(recent) = %q, %v", recent, err)
 	}
+	if labels, err := h.tabLabels(ctx); err != nil || len(labels) != 17 {
+		t.Errorf("tabLabels read %d tabs, %v", len(labels), err)
+	}
+	if width, split, err := h.paneWidth(ctx, PaneID{id: "w27:p3"}); err != nil || width != 42 || !split {
+		t.Errorf("paneWidth = %d, %v, %v", width, split, err)
+	}
 	before := len(rec.recorded())
 	if _, err := h.Screen(ctx, pane, ScreenSourceUnknown); !errors.Is(err, errHerdrOutput) {
 		t.Errorf("Screen without a source: %v", err)
@@ -169,6 +414,9 @@ func TestHerdrCommandLines(t *testing.T) {
 	}
 	if _, err := h.Agent(ctx, PaneID{}); !errors.Is(err, errHerdrOutput) {
 		t.Errorf("Agent without a pane: %v", err)
+	}
+	if _, _, err := h.paneWidth(ctx, PaneID{}); !errors.Is(err, errHerdrOutput) {
+		t.Errorf("paneWidth without a pane: %v", err)
 	}
 	if calls := rec.recorded(); len(calls) != before {
 		t.Errorf("the rejected reads ran %v", calls[before:])

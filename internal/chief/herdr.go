@@ -134,11 +134,63 @@ func NewHerdr(cmds Commands) Herdr { return Herdr{cmds: cmds} }
 
 // Agents returns every agent pane `herdr agent list` reports.
 func (h Herdr) Agents(ctx context.Context) ([]Agent, error) {
-	out, err := h.cmds.herdr(ctx, herdrAgent, "list")
+	listing, err := h.agentListing(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return parseAgentList(out)
+	return listing.agents, nil
+}
+
+// agentListing is one `herdr agent list` read: the agents as Agents returns
+// them, and the pane-to-tab map read from the same output for the status
+// table. paneTabsErr holds why the map could not be read; the agents are
+// returned all the same, so a reading only the table needs never fails a
+// round.
+type agentListing struct {
+	agents []Agent
+	// paneTabs maps a pane ID, as Herdr wrote it, to its tab. It is nil when
+	// paneTabsErr is set.
+	paneTabs    map[string]tabID
+	paneTabsErr error
+}
+
+// agentListing runs `herdr agent list` once and reads its output twice: the
+// agents, whose failure is the call's error, and the pane-to-tab map, whose
+// failure is kept in paneTabsErr.
+func (h Herdr) agentListing(ctx context.Context) (agentListing, error) {
+	out, err := h.cmds.herdr(ctx, herdrAgent, "list")
+	if err != nil {
+		return agentListing{}, err
+	}
+	agents, err := parseAgentList(out)
+	if err != nil {
+		return agentListing{}, err
+	}
+	paneTabs, tabsErr := parseAgentTabs(out)
+	return agentListing{agents: agents, paneTabs: paneTabs, paneTabsErr: tabsErr}, nil
+}
+
+// tabLabels returns the label of every tab `herdr tab list` reports, in every
+// workspace, by tab ID.
+func (h Herdr) tabLabels(ctx context.Context) (map[tabID]tabLabel, error) {
+	out, err := h.cmds.herdr(ctx, herdrTab, "list")
+	if err != nil {
+		return nil, err
+	}
+	return parseTabList(out)
+}
+
+// paneWidth returns the width of one pane and whether its tab is split, read
+// with `herdr pane layout`.
+func (h Herdr) paneWidth(ctx context.Context, pane PaneID) (width int, split bool, err error) {
+	if pane.id == "" {
+		return 0, false, fmt.Errorf("%w: no pane", errHerdrOutput)
+	}
+	out, err := h.cmds.herdr(ctx, herdrPane, "layout", "--pane", pane.id)
+	if err != nil {
+		return 0, false, err
+	}
+	return parsePaneLayout(out, pane)
 }
 
 // Agent returns the agent of one pane, read with `herdr agent get`.
@@ -851,4 +903,198 @@ func requiredObjectStrings(members map[string]strictjson.Value, key string, name
 		strs[name] = s
 	}
 	return strs, nil
+}
+
+// parseAgentTabs reads the pane-to-tab map from `herdr agent list`, for the
+// status table only. Contract: every agent has a pane_id and a tab_id of the
+// samples' shapes, and no pane is listed twice; otherwise the whole map is
+// unreadable, never read in part. The other members are not read.
+func parseAgentTabs(out []byte) (map[string]tabID, error) {
+	members, err := herdrResult(out, "cli:agent:list", "agent_list", "agents")
+	if err != nil {
+		return nil, err
+	}
+	items, err := requiredArray(members, "agents")
+	if err != nil {
+		return nil, err
+	}
+	tabs := make(map[string]tabID, len(items))
+	for i, item := range items {
+		object, err := item.AsObject()
+		if err != nil {
+			return nil, fmt.Errorf("%w: agent %d: %w", errHerdrOutput, i, err)
+		}
+		fields, err := object.Collect("pane_id", "tab_id")
+		if err != nil {
+			return nil, fmt.Errorf("%w: agent %d: %w", errHerdrOutput, i, err)
+		}
+		pane, err := strictjson.RequiredString(fields, "pane_id")
+		if err != nil {
+			return nil, fmt.Errorf("%w: agent %d: %w", errHerdrOutput, i, err)
+		}
+		tab, err := strictjson.RequiredString(fields, "tab_id")
+		if err != nil {
+			return nil, fmt.Errorf("%w: agent %d: %w", errHerdrOutput, i, err)
+		}
+		if !paneIDForm.MatchString(pane) || !tabIDForm.MatchString(tab) {
+			return nil, fmt.Errorf("%w: agent %d IDs", errHerdrOutput, i)
+		}
+		if _, dup := tabs[pane]; dup {
+			return nil, fmt.Errorf("%w: agent %d: pane listed twice", errHerdrOutput, i)
+		}
+		tabs[pane] = tabID{id: tab}
+	}
+	return tabs, nil
+}
+
+// tabLabel is a tab's label as `herdr tab list` gave it. hasLabel is false
+// for an empty label, so the status table chooses between the label and the
+// pane ID by this declared value, never by reading the text. Only
+// parseTabList makes one.
+type tabLabel struct {
+	text     string
+	hasLabel bool
+}
+
+// parseTabList reads `herdr tab list`. Contract: every tab has a tab_id of
+// the samples' shape and a string label (empty allowed), and no tab is listed
+// twice; otherwise the whole list is unreadable, never read in part. The
+// other members (number, agent_status, focused, pane_count, ...) are not
+// read.
+func parseTabList(out []byte) (map[tabID]tabLabel, error) {
+	members, err := herdrResult(out, "cli:tab:list", "tab_list", "tabs")
+	if err != nil {
+		return nil, err
+	}
+	items, err := requiredArray(members, "tabs")
+	if err != nil {
+		return nil, err
+	}
+	labels := make(map[tabID]tabLabel, len(items))
+	for i, item := range items {
+		object, err := item.AsObject()
+		if err != nil {
+			return nil, fmt.Errorf("%w: tab %d: %w", errHerdrOutput, i, err)
+		}
+		fields, err := object.Collect("tab_id", "label")
+		if err != nil {
+			return nil, fmt.Errorf("%w: tab %d: %w", errHerdrOutput, i, err)
+		}
+		id, err := strictjson.RequiredString(fields, "tab_id")
+		if err != nil {
+			return nil, fmt.Errorf("%w: tab %d: %w", errHerdrOutput, i, err)
+		}
+		if !tabIDForm.MatchString(id) {
+			return nil, fmt.Errorf("%w: tab %d ID", errHerdrOutput, i)
+		}
+		label, err := strictjson.RequiredStringAllowEmpty(fields, "label")
+		if err != nil {
+			return nil, fmt.Errorf("%w: tab %d: %w", errHerdrOutput, i, err)
+		}
+		tab := tabID{id: id}
+		if _, dup := labels[tab]; dup {
+			return nil, fmt.Errorf("%w: tab %d: listed twice", errHerdrOutput, i)
+		}
+		labels[tab] = tabLabel{text: label, hasLabel: label != ""}
+	}
+	return labels, nil
+}
+
+// maxPaneWidth bounds the pane width read from Herdr: a width of a correct
+// shape but huge would make the table's rule line huge.
+const maxPaneWidth = 1000
+
+// parsePaneLayout reads `herdr pane layout` for pane. Contract: the layout
+// has a panes array in which exactly one item has pane's ID, and that item's
+// rect.width is an integer from 1 to maxPaneWidth; the layout's splits is an
+// array, read only for whether it is empty (split is true when it is not).
+// Any other shape is unreadable, never read in part. Of the other panes only
+// pane_id is read; area, zoomed, and the splits' items are not read.
+func parsePaneLayout(out []byte, pane PaneID) (width int, split bool, err error) {
+	members, err := herdrResult(out, "cli:pane:layout", "pane_layout", "layout")
+	if err != nil {
+		return 0, false, err
+	}
+	layoutValue, err := strictjson.Required(members, "layout")
+	if err != nil {
+		return 0, false, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	layout, err := layoutValue.AsObject()
+	if err != nil {
+		return 0, false, fmt.Errorf("%w: layout: %w", errHerdrOutput, err)
+	}
+	fields, err := layout.Collect("panes", "splits")
+	if err != nil {
+		return 0, false, fmt.Errorf("%w: layout: %w", errHerdrOutput, err)
+	}
+	panes, err := requiredArray(fields, "panes")
+	if err != nil {
+		return 0, false, err
+	}
+	splits, err := requiredArray(fields, "splits")
+	if err != nil {
+		return 0, false, err
+	}
+	found := 0
+	for i, item := range panes {
+		object, err := item.AsObject()
+		if err != nil {
+			return 0, false, fmt.Errorf("%w: pane %d: %w", errHerdrOutput, i, err)
+		}
+		ids, err := object.Collect("pane_id")
+		if err != nil {
+			return 0, false, fmt.Errorf("%w: pane %d: %w", errHerdrOutput, i, err)
+		}
+		id, err := strictjson.RequiredString(ids, "pane_id")
+		if err != nil {
+			return 0, false, fmt.Errorf("%w: pane %d: %w", errHerdrOutput, i, err)
+		}
+		if !paneIDForm.MatchString(id) {
+			return 0, false, fmt.Errorf("%w: pane %d ID", errHerdrOutput, i)
+		}
+		if id != pane.id {
+			continue
+		}
+		found++
+		if width, err = paneRectWidth(object); err != nil {
+			return 0, false, fmt.Errorf("pane %d: %w", i, err)
+		}
+	}
+	if found != 1 {
+		return 0, false, fmt.Errorf("%w: %d items for the pane", errHerdrOutput, found)
+	}
+	return width, len(splits) > 0, nil
+}
+
+// paneRectWidth reads rect.width of one pane of a layout, from 1 to
+// maxPaneWidth.
+func paneRectWidth(object strictjson.Object) (int, error) {
+	fields, err := object.Collect("rect")
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	rectValue, err := strictjson.Required(fields, "rect")
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", errHerdrOutput, err)
+	}
+	rect, err := rectValue.AsObject()
+	if err != nil {
+		return 0, fmt.Errorf("%w: rect: %w", errHerdrOutput, err)
+	}
+	size, err := rect.Collect("width")
+	if err != nil {
+		return 0, fmt.Errorf("%w: rect: %w", errHerdrOutput, err)
+	}
+	widthValue, err := strictjson.Required(size, "width")
+	if err != nil {
+		return 0, fmt.Errorf("%w: rect: %w", errHerdrOutput, err)
+	}
+	width, err := widthValue.AsNonNegativeInt64()
+	if err != nil {
+		return 0, fmt.Errorf("%w: rect width: %w", errHerdrOutput, err)
+	}
+	if width < 1 || width > maxPaneWidth {
+		return 0, fmt.Errorf("%w: rect width %d out of range", errHerdrOutput, width)
+	}
+	return int(width), nil
 }

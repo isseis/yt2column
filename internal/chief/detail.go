@@ -602,7 +602,7 @@ func readReport(env Env, ws TaskWorkspace, pr OpenPR, view *prView, now time.Tim
 			found.Kind = PaneReportNotNamed
 			if cr.Report.Names(pr.Number, pr.URL) {
 				found.Kind = PaneReportCandidate
-				capped := CapHead(cr.Report.Text)
+				capped := CapHead(cr.Report.Text, headMaxBytes)
 				hits = append(hits, detailRecord{Text: capped.Text, Truncated: capped.Truncated, Pane: a.Pane.String(), Seq: a.StateChangeSeq})
 			}
 		case SessionReportAbsent:
@@ -624,7 +624,7 @@ func readReport(env Env, ws TaskWorkspace, pr OpenPR, view *prView, now time.Tim
 		reading.reason = DescriptionReasonSeveralCandidates
 	}
 	if view != nil {
-		capped := CapHead(view.Body)
+		capped := CapHead(view.Body, headMaxBytes)
 		rec.Source, rec.Text, rec.Truncated = ReportFromDescription.String(), capped.Text, capped.Truncated
 	}
 	return rec, reading
