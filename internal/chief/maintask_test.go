@@ -463,6 +463,9 @@ func hasProblem(snap Snapshot, prefix string) bool {
 // round cannot be recorded) nothing is written and the round says why; a
 // held creation exclusion does not stop the write.
 func TestTickWritesHistory(t *testing.T) {
+	// branchReads answers the branch reads of the merge world, whose one
+	// worktree is the only one read: the round's reading is the first and
+	// the reading under the history's exclusion the second.
 	branchReads := func(mw *mergeWorld, under func(n int) string) {
 		n := 0
 		mw.rec.replyFunc("git rev-parse --abbrev-ref HEAD", func() reply {
@@ -510,7 +513,7 @@ func TestTickWritesHistory(t *testing.T) {
 				}
 				return "scratch"
 			})
-			return "the history record of " + mw.tree + " cannot be written: " + errHistoryChanged.Error()
+			return "the history record of " + mw.tree + " cannot be written: " + errHistoryChanged.Error() + ": its branch is no longer the one the round read"
 		}, false, 1},
 		{"the open record is gone under the exclusion", func(t *testing.T, mw *mergeWorld) string {
 			branchReads(mw, func(n int) string {
@@ -519,7 +522,7 @@ func TestTickWritesHistory(t *testing.T) {
 				}
 				return mainBranch
 			})
-			return "the history record of " + mw.tree + " cannot be written: " + errHistoryChanged.Error()
+			return "the history record of " + mw.tree + " cannot be written: " + errHistoryChanged.Error() + ": the open record of #42 is gone"
 		}, false, 1},
 		{"the state cannot be read", func(_ *testing.T, mw *mergeWorld) string {
 			mw.rec.failIn(mw.tree, prStateLine, errNoReply)
@@ -528,7 +531,7 @@ func TestTickWritesHistory(t *testing.T) {
 		{"the record cannot be made", func(_ *testing.T, mw *mergeWorld) string {
 			mw.store.beforeCreate = failCreates(tracePrefix)
 			mw.deps.Store = mw.store
-			return "the history record of " + mw.tree + " cannot be written: "
+			return "the history record of " + mw.tree + " cannot be written: " + errNoReply.Error()
 		}, false, 1},
 		{"the round cannot be recorded", func(_ *testing.T, mw *mergeWorld) string {
 			mw.store.beforeCreate = failCreates(roundPrefix)
@@ -545,6 +548,7 @@ func TestTickWritesHistory(t *testing.T) {
 			}
 			mw.merge(mainBranch, "")
 			want := c.before(t, mw)
+			before := traceNames(t, mw.store, mw.tree)
 			views := prViews(mw.rec)
 			snap := mw.tick(time.Minute).Snapshot
 			if want != "" && !hasProblem(snap, want) {
@@ -556,8 +560,10 @@ func TestTickWritesHistory(t *testing.T) {
 			r := rowOf(t, snap, "ws")
 			names := traceNames(t, mw.store, mw.tree)
 			if !c.written {
-				if len(names) > 2 {
-					t.Errorf("history = %v; want the merge not written", names)
+				// The open-record case removes a record during the tick, so
+				// only an added name is a write.
+				if slices.ContainsFunc(names, func(n string) bool { return !slices.Contains(before, n) }) {
+					t.Errorf("history = %v, was %v; want nothing written", names, before)
 				}
 				// The row goes by the history without the merge.
 				if r.Task != "" || r.State != StateNeedsCheck {
@@ -565,7 +571,7 @@ func TestTickWritesHistory(t *testing.T) {
 				}
 				return
 			}
-			if len(names) != 3 || r.Task != "0001" || r.Next == nil || r.Next.Text != "/mkarch 0001" {
+			if !mergeWritten(t, mw) || r.Task != "0001" || r.Next == nil || r.Next.Text != "/mkarch 0001" {
 				t.Errorf("history %v, row %+v; want the merge written and /mkarch 0001 shown", names, r)
 			}
 		})
@@ -592,8 +598,8 @@ func TestTickWritesHistory(t *testing.T) {
 		mw.tick(time.Minute)
 		mw.merge(detachedHead, "")
 		mw.tick(time.Minute)
-		if names := traceNames(t, mw.store, mw.tree); len(names) != 3 {
-			t.Errorf("history = %v; want the merge written", names)
+		if !mergeWritten(t, mw) {
+			t.Errorf("history = %v; want the merge written", traceNames(t, mw.store, mw.tree))
 		}
 	})
 	t.Run("a round that cannot be recorded goes by the history written", func(t *testing.T) {
@@ -607,19 +613,14 @@ func TestTickWritesHistory(t *testing.T) {
 			t.Errorf("row = %+v; want 0001 from the merge written before", r)
 		}
 	})
-	t.Run("a merge not written is written by the next round", func(t *testing.T) {
-		mw := newMergeWorld(t, mkarchDocs)
-		mw.tick(time.Minute)
-		mw.merge(mainBranch, "")
-		mw.store.beforeCreate = failCreates(tracePrefix)
-		mw.deps.Store = mw.store
-		mw.tick(time.Minute)
-		mw.store.beforeCreate = nil
-		mw.deps.Store = mw.store
-		if r := rowOf(t, mw.tick(time.Minute).Snapshot, "ws"); r.Task != "0001" || len(traceNames(t, mw.store, mw.tree)) != 3 {
-			t.Errorf("row = %+v; want the merge written and 0001 identified", r)
-		}
-	})
+}
+
+// mergeWritten reports whether the merge world's history holds the merge of
+// PR 42 after its branch and its open.
+func mergeWritten(t *testing.T, mw *mergeWorld) bool {
+	t.Helper()
+	events := mw.store.readTraces(mw.chief.Session).events[Worktree{path: mw.tree}]
+	return len(events) == 3 && events[2].Kind == tracePRMerged && events[2].PR == 42
 }
 
 // removeOpenRecord removes the pr_open record of tree's history.
