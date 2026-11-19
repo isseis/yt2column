@@ -695,6 +695,79 @@ func TestReadRevisionExitStatus(t *testing.T) {
 	}
 }
 
+// invalidBaseNames are base branch names that refs/remotes/origin/<name>
+// makes an invalid ref name.
+var invalidBaseNames = []string{"main^", "a:b", "a..b", "x~1", ""}
+
+// hardened returns the arguments the reader passes git for args.
+func hardened(args ...string) []string {
+	return append(cmdrunner.GitHardening(), args...)
+}
+
+func TestBaseRefRejectsInvalidNames(t *testing.T) {
+	for _, name := range invalidBaseNames {
+		t.Run(name, func(t *testing.T) {
+			// Real git rejects the name, so the scripted failure below is
+			// what git does.
+			reader := gitReader{run: newGitRunner(t.TempDir())}
+			if _, err := reader.baseRef(t.Context(), name); err == nil {
+				t.Fatalf("git check-ref-format accepted %q", remoteBranchPrefix+name)
+			}
+			// The scripted runner fails on any command after the name check,
+			// so the ref is never read.
+			runner := &fakeRunner{t: t, steps: []commandStep{{
+				name: gitCommand,
+				args: hardened("check-ref-format", remoteBranchPrefix+name),
+				err:  &cmdrunner.ExitError{Code: 1},
+			}}}
+			_, err := gitReader{run: runner}.baseCommit(t.Context(), name)
+			if e, ok := errors.AsType[*rangeError](err); !ok || e.Stage != rangeStageBase {
+				t.Errorf("baseCommit(%q) error = %v, want a base-stage range error", name, err)
+			}
+			runner.done()
+		})
+	}
+}
+
+func TestBaseCommitReadsTheRefItself(t *testing.T) {
+	r := newGitRepo(t)
+	m0 := r.Commit("main", snapshot(nil))
+	r.SetMain(m0)
+	other := r.Commit("other", snapshot(nil, "a.md", "a\n"), m0)
+	reader := gitReader{run: newGitRunner(r.Dir)}
+
+	got, err := reader.baseCommit(t.Context(), mainBranch)
+	if err != nil || got != m0 {
+		t.Fatalf("baseCommit(main) = %q, %v; want %s", got, err, m0)
+	}
+	tests := []struct {
+		name  string
+		setup func(rt *gitRepo)
+	}{
+		// git rev-parse reads the missing ref's name as git describe output
+		// and resolves it to the abbreviated commit.
+		{"feat-1-g" + other[:12], func(*gitRepo) {}},
+		// git rev-parse resolves the name to the local branch that ends in it.
+		{"zzz", func(rt *gitRepo) { rt.Git("update-ref", "refs/heads/"+remoteBranchPrefix+"zzz", other) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rt := r.withT(t)
+			tt.setup(rt)
+			ref := remoteBranchPrefix + tt.name
+			// rev-parse alone would resolve the name, so only reading the
+			// ref itself stops here.
+			if resolved := rt.Git("rev-parse", "--verify", "--quiet", ref+"^{commit}"); resolved != other {
+				t.Fatalf("precondition: rev-parse %s = %q, want %s", ref, resolved, other)
+			}
+			_, err := reader.baseCommit(t.Context(), tt.name)
+			if e, ok := errors.AsType[*rangeError](err); !ok || e.Stage != rangeStageBase {
+				t.Errorf("baseCommit(%q) error = %v, want a base-stage range error", tt.name, err)
+			}
+		})
+	}
+}
+
 func TestUnreadableKindDescriptions(t *testing.T) {
 	// The kinds run from 1 to unreadableNoTools, the last one declared; each
 	// needs a description of its own, distinct from the invalid zero kind's.
