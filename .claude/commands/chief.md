@@ -421,8 +421,9 @@ answer as "Sending again after a model switch" says.
 returns `model_mismatch`, add to the list of unanswered questions: whether
 to send the same command again once the human has switched the pane's
 model. Keep it under the table until the human answers. On yes, run the same
-`send` again (the same workspace and `request`, and for `/mkreq` the same
-issue); on no, drop it.
+`send` again with the same flags (the same workspace and `request`, and the
+same `--item`, `--issue`, or `--pr` as the first send); the tool answers
+`not_offered` when the row no longer offers that item. On no, drop it.
 
 ### The PR detail
 

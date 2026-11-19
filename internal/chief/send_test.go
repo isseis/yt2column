@@ -1151,6 +1151,16 @@ func TestSendChecksTheChosenItem(t *testing.T) {
 		}
 		assertOtherItem(t, mw.sendWorld, mw.deps, sendReq(t, mw.tree, "mkarch", "", "", string(item)), "/mkarch 0002")
 	})
+	t.Run("/runplan of another PR of the plan", func(t *testing.T) {
+		// The plan's next PR moves from PR-2 to PR-3 after the item was
+		// shown: the command line is the same, the item is not.
+		sw := newSendWorld(t)
+		tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
+		deps := sw.finish()
+		req := chosenReq(t, deps, sw.owner(), tree, "runplan")
+		sw.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-real-forms.md")})
+		assertOtherItem(t, sw, deps, req, "/runplan 0001")
+	})
 	t.Run("the takeover's item for /runplan", func(t *testing.T) {
 		sw, tree, deps := takeoverWorld(t)
 		takeover := chosenReq(t, deps, sw.owner(), tree, "runplan-takeover")

@@ -123,8 +123,8 @@ func ParseSendRequest(workspace, command, issue, pr, item string) (SendRequest, 
 	}
 	var err error
 	if item != "" {
-		if req.item, err = ParseItemID(item); err != nil {
-			return SendRequest{}, err
+		if req.item, err = parseItemID(item); err != nil {
+			return SendRequest{}, fmt.Errorf("--item: %w", err)
 		}
 	}
 	if issue != "" {
@@ -248,9 +248,10 @@ func Send(ctx context.Context, deps Deps, owner Owner, req SendRequest) (SendOut
 	f := readWorkspace(ctx, herdr, git, tasks, loc.ws)
 	f.Routing = routing
 	// A worktree on main is classified from the caller's history, as the
-	// round that showed the item classified it. The history is read under
-	// the workspace's exclusion, which every write of it takes too, so it
-	// does not change before the send.
+	// round that showed the item classified it. It is read under the
+	// workspace's exclusion, which every write of this worktree's events
+	// takes too, so they do not change before the send; a record of another
+	// worktree can only make the row need a check.
 	f = applyMainTask(ctx, tasks, f, identifyMainTask(deps.Store.readTraces(owner.Session), loc.ws.Tree))
 	row := classifyWorkspace(ctx, git, tasks, f, old, oldErr)
 	cmd, proposal, why := offered(row, req)

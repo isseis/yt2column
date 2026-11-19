@@ -747,6 +747,9 @@ func TestMainAfterMergeFlow(t *testing.T) {
 			item = p.ID
 		}
 	}
+	if item == "" {
+		t.Fatalf("pending = %+v; want the item of /mkarch 0001", out.Output().Pending)
+	}
 	sent, err := Send(context.Background(), mw.deps, mw.owner(), sendReq(t, mw.tree, "mkarch", "", "", string(item)))
 	if err != nil || len(sent.Actions) != 1 || sent.Actions[0].Outcome != OutcomeSent || sent.Actions[0].Command != "/mkarch 0001" {
 		t.Fatalf("Send = %+v, %v; want /mkarch 0001 sent", sent, err)

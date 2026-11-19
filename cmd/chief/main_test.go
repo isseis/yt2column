@@ -667,7 +667,6 @@ func TestRunSendPassesTheOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	status := "| Item | Value |\n|---|---|\n| Status | `approved` |\n| Process | `full` |\n"
-	h.fake.lenient = true
 	m := &mainFake{
 		fakeHerdr: h.fake, tree: tree, branch: "user/0001-test-task-02", prState: "OPEN", screen: screen,
 		docs: map[string][]byte{"docs/tasks/0001_test_task/01_requirements.md": []byte("## Document Status\n\n" + status)},
@@ -690,6 +689,10 @@ func TestRunSendPassesTheOwner(t *testing.T) {
 	runOne("start")
 	runOne("tick")
 	m.branch, m.prState = "main", "MERGED"
+	// From here, the automatic send's reads of the merge and the send's
+	// checks of the pane are left unanswered; the start and the first tick
+	// are answered in full.
+	h.fake.lenient = true
 	out := runOne("tick")
 	item := ""
 	pending, _ := out["pending"].([]any)

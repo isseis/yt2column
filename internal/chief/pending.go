@@ -20,13 +20,13 @@ type ItemID string
 // hexadecimal digits (itemID).
 var itemIDForm = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
-// ParseItemID returns s as the ID of an item when it has the form every
+// parseItemID returns s as the ID of an item when it has the form every
 // item ID has. Contract: the form only turns a mistyped ID into
 // ErrBadRequest; nothing is read from an ID, and one of the form that no
 // item has is refused by whatever compares it with the item it names.
-func ParseItemID(s string) (ItemID, error) {
+func parseItemID(s string) (ItemID, error) {
 	if !itemIDForm.MatchString(s) {
-		return "", fmt.Errorf("%w: --item is not an item ID", ErrBadRequest)
+		return "", fmt.Errorf("%w: not an item ID", ErrBadRequest)
 	}
 	return ItemID(s), nil
 }

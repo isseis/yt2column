@@ -393,6 +393,7 @@ func (s Store) Require(caller Owner) error {
 
 // hashName returns the hex of the first 16 bytes of the SHA-256 of s, for a
 // record's file name.
+// Its form is the form of an item ID too (itemIDForm).
 func hashName(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:16])
