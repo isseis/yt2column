@@ -95,8 +95,8 @@
     -   `history` を 2 つに分ける。1 つは、段ごとに素の誤りを返す共有の関数（shallow の拒否、base と head の解決、列挙）である。もう 1 つは、各段の誤りを今の `protocolUnreadableError` の種類（`unreadableHistory`・`unreadableCommits`）に包む、プロトコル番号の確かめの側である。訂正の行の読み取りは、同じ素の誤りを `errCorrectionUnreadable` に包む（設計書 4.1）。
     -   列挙に順序の引数を足し、base を `origin/main` 決め打ちから「`refs/remotes/origin/<baseRefName>` の ref の値」に一般化する。base の名前は、`refs/remotes/origin/` をつなげた名前が `git check-ref-format` を通るときだけ使い、`git show-ref --verify --hash` で ref そのものの値を読む（§1.4）。
     -   プロトコル番号の確かめは、今と同じ順序と同じ base（`origin/main`）で列挙する。既存の `TestCheckProtocolHistories` と `TestCheckProtocolUnreadable`（誤りの種類）が変わらず通ることを確かめる。
-    -   テスト（`protocolcheck_test.go`）: `check-ref-format` を通らない base の名前で止まること。入力には、確かめがなければ別のコミットに解決する名前（`main^`）と、名前の確かめは通るが `rev-parse` なら別のものに解決する名前（`git describe` の形の名前と、同じ名前のローカルのブランチがある名前）を含める。範囲の順そのものは、ステップ 1-2 の `TestRangeLines` で確かめ、ここでは重ねない。
-    -   壊して確かめる: 名前の確かめを外して `main^` の行が失敗すること。`show-ref` を `rev-parse` に替えて、`git describe` の形の行とローカルのブランチの行が失敗すること。
+    -   テスト（`protocolcheck_test.go`）: 名前の確かめは、台本にした runner で、通らない名前（`main^`、`a:b` など）では ref の読み取りも取得の refspec も作らずに止まることを確かめる。ref の値の読み取りは、実際の git で、名前の確かめは通るが `rev-parse` なら別のものに解決する名前（`git describe` の形の名前と、同じ名前のローカルのブランチがある名前）で止まることを確かめる。範囲の順そのものは、ステップ 1-2 の `TestRangeLines` で確かめ、ここでは重ねない。
+    -   壊して確かめる: 名前の確かめを外して、台本にした runner の行が失敗すること。`show-ref` を `rev-parse` に替えて、`git describe` の形の行とローカルのブランチの行が失敗すること。
 -   [ ] **ステップ 1-2**: 訂正の行の読み取り `correctionSource` とその本番の実装を `internal/mergepr/corrections.go` に作る（設計書 3.1・3.5、§1.3 の決定 2・3）。
     -   `rangeLines`（範囲の訂正の行）、`mergedLines`、トレーラーの読み取りの 3 つを持たせる。トレーラーの読み取りを `correctionSource` に入れるのは、設計書 3.4 の確かめ 7 が「3.1 の読み取りを通して強化した git で呼ぶ」と定めるためである。
     -   メッセージは `git cat-file commit <oid>` の出力の最初の空行より後ろとし（ヘッダーに `gpgsig` などがあっても同じ）、LF で分け、件名を 1 行目と数え、行末の CR を残す。空行のない出力は読めないものとする。どのコミットで失敗しても、読めたところまでを返さない。
