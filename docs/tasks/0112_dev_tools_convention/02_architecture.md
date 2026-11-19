@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md) を設計に落とす。実装の PR が変えるのは文書と `.claude/settings.json` だけで、Go と TypeScript のコードは変えない。以下の `file:line` は、とくに断らない限りコミット `e43f8161`（`origin/main`）で確かめた。要件定義書の行番号はコミット `a73b2c4e` のものなので、`CLAUDE.md` などでは本書と行番号が違う。本書の F-nn と AC-nn は要件定義書の機能要件と受け入れ基準の番号、H-nn は `design_handoff.md` の項目、I-nn は `implementation_handoff.md` の項目である。
@@ -525,3 +525,7 @@ flowchart TD
 | H-05 | 3.8 の表で、直す箇所ごとに読むテストと対象を確かめた。`mergepr_guide.md` の `--protocol` を含む文は変えない（3.4）。`CLAUDE.md` の新しい項目は `numreserve` の呼び出しを書かない（3.3） |
 | H-06 | 入れる道具は「Build Commands」、そのつどビルドする道具は「Test Commands」と「Extension Commands」を指す（3.1） |
 | H-07 | 3.7 で規則の形と、拒む例と拒まない例を示した。3.8 で、`settings.json` を読むテストが `deny` を「含む」ことだけを確かめることを確かめた |
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1032）
