@@ -163,23 +163,23 @@
 
 **変えるファイル:** `.claude/commands/runpr.md`（step 3）
 
-- [ ] 「State of the latest request」の規則を設計書 3.2 の表のとおりにする。規則 3 を足し、今の規則 3〜6 を 4〜7 に繰り下げ、規則 4 に形に合わない `receipt` を足す。規則 3 の中の 3a〜3e を書き、「数える項目」を定義する
-- [ ] 「None of these is an unexpected post」の一覧とは別の文で、`form_ok` が真の `receipt` は想定外の投稿でなく、規則 3 の中でだけ数えることを書く（設計書 3.2）
-- [ ] `short_sha` と `<sha>` の前方一致を、2 つの値を文字のまま書いた 1 つのコマンドの `case` で確かめ、同じコマンドで `short_sha` の形も確かめると書く（1.3 の決定 5）
-- [ ] 一覧を読めなかったときの扱いを書く（設計書 3.2、1.2 の決定 10）。書くのは次の 4 つである
+- [x] 「State of the latest request」の規則を設計書 3.2 の表のとおりにする。規則 3 を足し、今の規則 3〜6 を 4〜7 に繰り下げ、規則 4 に形に合わない `receipt` を足す。規則 3 の中の 3a〜3e を書き、「数える項目」を定義する
+- [x] 「None of these is an unexpected post」の一覧とは別の文で、`form_ok` が真の `receipt` は想定外の投稿でなく、規則 3 の中でだけ数えることを書く（設計書 3.2）
+- [x] `short_sha` と `<sha>` の前方一致を、2 つの値を文字のまま書いた 1 つのコマンドの `case` で確かめ、同じコマンドで `short_sha` の形も確かめると書く（1.3 の決定 5）
+- [x] 一覧を読めなかったときの扱いを書く（設計書 3.2、1.2 の決定 10）。書くのは次の 4 つである
     - 読めなかったポーリングの出力を捨て、次のポーリングで読み直す
     - 約 15 分続けて読めなければ止まる
     - 止まるときの報告の中身
     - 再実行では依頼しない
-- [ ] 新しい項目「Confirming a completion without a result」を置き、次のことを書く（設計書 3.3）
+- [x] 新しい項目「Confirming a completion without a result」を置き、次のことを書く（設計書 3.3）
     - 承認の組と承認の記録
     - 問い（1.3 の決定 6 の文と選択肢）
     - 答えの当てはめと直前の読み直し
     - 見直しと、承認の後の見直し
     - 実行の中だけで持つこと
-- [ ] 「Requesting the review」の「On arriving at this step」「Never post while ...」に確認待ちを足す。「Stops」の indeterminate の報告に、規則 3 で止まったときの値を足す（設計書 3.2）
-- [ ] LAST_REVIEWED の定義に、承認の記録のすべての `commit_sha` を「その実行で見た完了の印」に含めると書き足す（設計書 3.4）
-- [ ] `:626` の "rule 1" が、繰り下げの後も規則 1（Indeterminate）を指していることを確かめる
+- [x] 「Requesting the review」の「On arriving at this step」「Never post while ...」に確認待ちを足す。「Stops」の indeterminate の報告に、規則 3 で止まったときの値を足す（設計書 3.2）
+- [x] LAST_REVIEWED の定義に、承認の記録のすべての `commit_sha` を「その実行で見た完了の印」に含めると書き足す（設計書 3.4）
+- [x] `:626` の "rule 1" が、繰り下げの後も規則 1（Indeterminate）を指していることを確かめる
 
 **完了の条件:** step 3 の文が、AC-01〜AC-04、AC-09〜AC-17 の内容を述べる。`TestRunprDocContract` が通る。
 
