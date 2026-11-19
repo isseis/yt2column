@@ -90,7 +90,9 @@ asking the user.
 
 Never run Codex CLI directly or by any other path, and never install or build
 the tool (`make install-codexreview`, `go build`): the user installs it from
-`main`, and the permission settings allow it under its own name only.
+`main`, and the permission settings allow it under its own name only. The
+development exception is in `docs/dev/conventions/dev_tools.md`, Rule 5; even
+under it, a run may not stand in for the installed tool inside this procedure.
 
 ## Terms
 

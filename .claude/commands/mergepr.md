@@ -15,8 +15,10 @@ Invoking this command authorizes the network operations `mergepr` performs
 (`git fetch`, `gh` queries) but **not the merge itself**: step 3 asks the user to
 approve the commit message first (CLAUDE.md, "Tool Execution Safety").
 
-The mechanics live in the `mergepr` binary (package `internal/mergepr`). Install
-it with `make install-mergepr` from an up-to-date `main` checkout. Every call
+The mechanics live in the `mergepr` binary (package `internal/mergepr`). The
+user installs it from an up-to-date `main` checkout with `make install-mergepr`;
+the agent never installs or builds it (see `docs/dev/conventions/dev_tools.md`,
+Rule 5). Every call
 below passes, with `--protocol`, the protocol number of the `mergepr` these
 steps are written for. When `mergepr` refuses it with `--protocol is missing or does
 not match`, report the error and the two fixes it names (reinstall `mergepr`
