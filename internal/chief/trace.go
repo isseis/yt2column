@@ -2,6 +2,7 @@ package chief
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -503,6 +504,67 @@ func identifyMainTask(h traceHistory, w Worktree) mainTaskResult {
 	return mainTaskResult{Kind: mainTaskIdentified, Task: task, Branch: branch}
 }
 
+// mainTaskReason returns why a worktree on main has no next command from
+// its identification (the design, 4.2), empty for an identified task.
+// Contract: every kind but mainTaskIdentified has a reason, the zero value
+// included, so a worktree on main is never read as one without a task.
+func mainTaskReason(r mainTaskResult) string {
+	switch r.Kind {
+	case mainTaskIdentified:
+		return ""
+	case mainTaskUnreadable:
+		return "the worktree is on main and a history record of this chief session cannot be read (start a new chief session with /clear): " + r.Detail
+	case mainTaskNoMerge:
+		return "the worktree is on main and this chief session has seen no merged PR of it, so its task is not known"
+	case mainTaskOtherTask:
+		return "the worktree is on main and this chief session has seen it with more than one task or with a PR of no task: " + r.Detail
+	case mainTaskOpenPR:
+		return "the worktree is on main and a PR this chief session saw open on it is not known to be merged or closed: " + r.Detail
+	default:
+		return "the worktree is on main and its history was not read, so its task is not known"
+	}
+}
+
+// applyMainTask fills the facts of a worktree on main from its
+// identification: for mainTaskIdentified, the task and origin/main's
+// documents read with Tasks.Read on the branch of the task's last merged
+// PR, as a feature branch's are; for a history that cannot be read, the
+// reason as a failed read, so the row needs a check before anything else
+// decides it; for any other kind, the result alone, whose reason
+// headProblem gives. Facts of any other HEAD are returned as they are.
+// Contract: it is the only place an identification reaches a row's facts,
+// so no other HEAD ever takes a task from the history.
+func applyMainTask(ctx context.Context, tasks Tasks, f workspaceFacts, result mainTaskResult) workspaceFacts {
+	if f.Head != headMain {
+		return f
+	}
+	f.MainTask = result
+	switch result.Kind {
+	case mainTaskIdentified:
+		f.Task = result.Task
+		docs, err := tasks.Read(ctx, f.Workspace, result.Branch)
+		if err != nil {
+			f.Unreadable = append(f.Unreadable, "task documents on origin/main")
+			f.DocsUnreadable = true
+		} else {
+			f.Docs = &docs
+		}
+	case mainTaskUnreadable:
+		f.Unreadable = append(f.Unreadable, mainTaskReason(result))
+	}
+	return f
+}
+
+// withHistory applies session's history to the facts of a worktree on main,
+// as a send reads its row again, and returns any other HEAD's facts as they
+// are without reading the history (the design, 3.5).
+func withHistory(ctx context.Context, store Store, tasks Tasks, f workspaceFacts, session string, tree Worktree) workspaceFacts {
+	if f.Head != headMain {
+		return f
+	}
+	return applyMainTask(ctx, tasks, f, identifyMainTask(store.readTraces(session), tree))
+}
+
 // mergedTask returns the task every pr_open of the merged PRs names and the
 // branch of the last merged PR, lastMerge. When those opens name more than
 // one task, or no task, it returns them as the other tasks instead.
@@ -601,10 +663,124 @@ type traceReading struct {
 	PR int
 }
 
-// prStateRead is what reading the state of one PR gave in a round.
+// prStateRead is what reading the state of one PR gave in a round: its
+// state, its head branch, and the failure, as PRStateOf returns them.
 type prStateRead struct {
-	State PRState
-	Err   error
+	State   PRState
+	HeadRef string
+	Err     error
+}
+
+// traceReadingOf is what the round read of a worktree, from its facts, as
+// the write conditions take it. Contract: the place is the HEAD the reader
+// declared (headMain is main, never a branch compared here); a branch's
+// task is the one its name gives, and DocsRead is true only when the
+// round read that task's documents from origin/main.
+func traceReadingOf(f workspaceFacts) traceReading {
+	r := traceReading{Branch: f.Branch}
+	switch f.Head {
+	case headMain:
+		r.Place = tracePlaceMain
+	case headBranch:
+		r.Place = tracePlaceBranch
+		r.BranchTask, r.DocsRead = f.Task, f.Docs != nil && !f.DocsUnreadable
+	case headDetached:
+		r.Place = tracePlaceDetached
+	default:
+		r.Place = tracePlaceUnread
+	}
+	if f.PR != nil {
+		r.PR = f.PR.Number
+	}
+	return r
+}
+
+// writeHistory writes this round's events of every worktree of view to
+// owner's history (the design, 3.3), after reading the state of each PR
+// open in the history that the round did not see open on its worktree's
+// branch. It returns the PRs whose state could not be read and the round's
+// problems. Contract: a PR's state is read at most once per round (the
+// round's table, view.prStates, which the automatic send's first reading
+// shares); an event is written only under the worktree's exclusion, and
+// only when the worktree's branch read again under it is the one the round
+// read and, for a merge or a close, the PR's open record is still there;
+// whatever is not written is named in the problems, never retried in the
+// round.
+func writeHistory(ctx context.Context, deps Deps, view *roundView, owner Owner, round string) (unread map[int]struct{}, problems []string) {
+	git := NewGitReader(deps.Cmds)
+	history := deps.Store.readTraces(owner.Session)
+	unread = map[int]struct{}{}
+	for i, w := range view.found {
+		f := view.facts[i]
+		reading := traceReadingOf(f)
+		st := applyTrace(history.events[w.Tree])
+		for _, pr := range st.unseenOpenPRs(reading) {
+			if read := view.prState(ctx, git, w.Worktree, pr); read.Err != nil {
+				unread[pr] = struct{}{}
+				problems = append(problems, "the state of #"+strconv.Itoa(pr)+" cannot be read for the history of "+w.Worktree+": "+read.Err.Error())
+			}
+		}
+		events := traceWrites(st, reading, view.prStates, owner.Session, round, w.Tree)
+		if len(events) == 0 {
+			continue
+		}
+		if err := writeEvents(ctx, deps.Store, git, w, f.Branch, owner.Session, events); err != nil {
+			problems = append(problems, "the history record of "+w.Worktree+" cannot be written: "+err.Error())
+		}
+	}
+	return unread, problems
+}
+
+// errHistoryChanged reports a worktree whose branch or history changed
+// between the round's reading and its exclusion.
+var errHistoryChanged = errors.New("the worktree changed since the round read it")
+
+// writeEvents writes events into w's history under its exclusion, after
+// reading w's branch and session's history again under it. Contract:
+// nothing is written unless the branch is still branch (empty for a
+// detached HEAD) and every merge or close has its PR's open record; a
+// failure to write one event stops the rest.
+func writeEvents(ctx context.Context, store Store, git GitReader, w TaskWorkspace, branch, session string, events []traceEvent) error {
+	// Taking the exclusion makes the directory again for a worktree removed
+	// since the round read it; its branch can no longer be read then, so
+	// nothing is written into it, as an automatic send's exclusion does.
+	records, err := store.Records(w.Tree)
+	if err != nil {
+		return err
+	}
+	held, err := records.Lock()
+	if err != nil {
+		return fmt.Errorf("its exclusion cannot be taken: %w", err)
+	}
+	defer func() { _ = held.Close() }()
+	now, err := git.Branch(ctx, w.Worktree)
+	switch {
+	case err != nil:
+		return fmt.Errorf("its branch cannot be read again: %w", err)
+	case now != branch:
+		return fmt.Errorf("%w: its branch is no longer the one the round read", errHistoryChanged)
+	}
+	kept, _, err := held.traces(session)
+	if err != nil {
+		return fmt.Errorf("its history cannot be read again: %w", err)
+	}
+	opened := map[int]struct{}{}
+	for _, e := range kept {
+		if e.Kind == tracePROpen {
+			opened[e.PR] = struct{}{}
+		}
+	}
+	for _, e := range events {
+		if _, ok := opened[e.PR]; (e.Kind == tracePRMerged || e.Kind == tracePRClosed) && !ok {
+			return fmt.Errorf("%w: the open record of #%d is gone", errHistoryChanged, e.PR)
+		}
+	}
+	for _, e := range events {
+		if err := held.writeTrace(e); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // unseenOpenPRs returns, in number order, the PRs whose last state is open

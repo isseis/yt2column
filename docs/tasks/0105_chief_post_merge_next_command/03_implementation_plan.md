@@ -108,13 +108,13 @@
 
 **変えるファイル:** `internal/chief/state.go`・`internal/chief/position.go`・`internal/chief/snapshot.go`・`internal/chief/trace.go`・`internal/chief/create.go`・`internal/chief/resetoffer.go`・`internal/chief/tick.go`（`readRound` の呼び出しを置き換えるだけ）と、そのテスト
 
--   [ ] **ステップ 2-1**: `state.go` に `headMain` を足し、`workspaceFacts` に特定の結果を足す。`readWorkspace` は、ブランチの名前がバイト列でちょうど `main` のとき `headMain` とする（ほかの読み取りは今のまま。`Branch` は `main` のまま、§1.4）。比べる値は定数 1 つにする。`Branch` と `Row.Idle` の注釈（`state.go:153-159`・`:199`）を新しい意味に合わせる。
--   [ ] **ステップ 2-2**: `trace.go` に `applyMainTask` を置く（設計書 3.2 の宣言と「行への当てはめ」）。T と特定したときは `Tasks.Read(worktree, Branch)` で文書を読み、読めなければ `DocsUnreadable` にする。読めないときは理由を `Unreadable` に入れる。
--   [ ] **ステップ 2-3**: `state.go` の `headProblem` を `workspaceFacts` を受け取る形にし、`headMain` の理由を設計書 4.2 の文言で返す。`decideNext` は、特定しなかった `headMain` に `/mkreq` の規則を当てない。`needsTakeoverCheck` は `headMain` で偽を返す。`classify` の `Idle` を設計書 3.2 の「印」のとおりにする。そのラウンドで状態を読めなかった PR を理由に挙げる行に `Idle` を付けないため、特定の結果か `workspaceFacts` に、その行の PR の読み取りに失敗したことを持たせる（値はフェーズ 3 で `tick` が渡す）。
--   [ ] **ステップ 2-4**: `position.go` の `taskDocumentOf` で、特定しなかった `headMain` の行が要確認になり（`PositionDocNoTask` にしない）、`/mkreq` が走っている行は要件定義書になることをテストで固める。今の規則では、タスクがなく `headBranch` でない行は最後の `default` の要確認に落ちる（`position.go:246-269`）ので、テストが通れば規則を足さない。
--   [ ] **ステップ 2-5**: `snapshot.go` の `readRound` を `readFacts` と `buildRows` に分ける（設計書 3.4）。`buildRows` は、渡されたセッションの履歴の記録を読み（ステップ 1-3）、`main` の行ごとに特定の結果を決めて `applyMainTask` を当ててから、今の `classifyWorkspace`・`addRecords`・`addResets`・`addRemovals` を行う。`TakeSnapshot` は `owner` のセッションを渡す。`Targets` は履歴を読まず、事象のない入力で `identifyMainTask` を呼んだ結果を使う。`buildRows` は履歴の記録を書かず、`gh` も走らせない（設計書 1.2）。`Tick` はこのステップでは `readFacts` の後にすぐ `buildRows` を呼び、今の振る舞いを保つ（書く順はフェーズ 3）。
--   [ ] **ステップ 2-6**: `resetoffer.go` の `SendOfferedReset` で、行を作り直すときに `owner` のセッションの履歴を読み、`applyMainTask` を当てる（設計書 3.5 の最後）。
--   [ ] **ステップ 2-7**: テストを書く（§4.1 の PR-2 のうちフェーズ 2 の行）。
+-   [x] **ステップ 2-1**: `state.go` に `headMain` を足し、`workspaceFacts` に特定の結果を足す。`readWorkspace` は、ブランチの名前がバイト列でちょうど `main` のとき `headMain` とする（ほかの読み取りは今のまま。`Branch` は `main` のまま、§1.4）。比べる値は定数 1 つにする。`Branch` と `Row.Idle` の注釈（`state.go:153-159`・`:199`）を新しい意味に合わせる。
+-   [x] **ステップ 2-2**: `trace.go` に `applyMainTask` を置く（設計書 3.2 の宣言と「行への当てはめ」）。T と特定したときは `Tasks.Read(worktree, Branch)` で文書を読み、読めなければ `DocsUnreadable` にする。読めないときは理由を `Unreadable` に入れる。
+-   [x] **ステップ 2-3**: `state.go` の `headProblem` を `workspaceFacts` を受け取る形にし、`headMain` の理由を設計書 4.2 の文言で返す。`decideNext` は、特定しなかった `headMain` に `/mkreq` の規則を当てない。`needsTakeoverCheck` は `headMain` で偽を返す。`classify` の `Idle` を設計書 3.2 の「印」のとおりにする。そのラウンドで状態を読めなかった PR を理由に挙げる行に `Idle` を付けないため、特定の結果か `workspaceFacts` に、その行の PR の読み取りに失敗したことを持たせる（値はフェーズ 3 で `tick` が渡す）。
+-   [x] **ステップ 2-4**: `position.go` の `taskDocumentOf` で、特定しなかった `headMain` の行が要確認になり（`PositionDocNoTask` にしない）、`/mkreq` が走っている行は要件定義書になることをテストで固める。今の規則では、タスクがなく `headBranch` でない行は最後の `default` の要確認に落ちる（`position.go:246-269`）ので、テストが通れば規則を足さない。
+-   [x] **ステップ 2-5**: `snapshot.go` の `readRound` を `readFacts` と `buildRows` に分ける（設計書 3.4）。`buildRows` は、呼び出し元がセッションについて読んだ履歴の記録（ステップ 1-3）を受け取り、`main` の行ごとに特定の結果を決めて `applyMainTask` を当ててから、今の `classifyWorkspace`・`addRecords`・`addResets`・`addRemovals` を行う。`TakeSnapshot` は `owner` のセッションの履歴を読んで渡す。`Targets` は履歴を読まず、事象のない履歴を渡して、事象のない入力で `identifyMainTask` を呼んだ結果を使う。`buildRows` は履歴の記録を書かず、`gh` も走らせない（設計書 1.2）。`Tick` はこのステップでは `readFacts` の後にすぐ `buildRows` を呼び、今の振る舞いを保つ（書く順はフェーズ 3）。
+-   [x] **ステップ 2-6**: `resetoffer.go` の `SendOfferedReset` で、行を作り直すときに `owner` のセッションの履歴を読み、`applyMainTask` を当てる（設計書 3.5 の最後）。
+-   [x] **ステップ 2-7**: テストを書く（§4.1 の PR-2 のうちフェーズ 2 の行）。
 
 **完了の条件:** `make test` と `make lint` が通る。フェーズ 2 だけでは PR を作らない（`main` の行が提案を出すので、フェーズ 4 の照合と同じ PR に入れる）。
 
@@ -122,10 +122,10 @@
 
 **変えるファイル:** `internal/chief/tick.go`・`internal/chief/autosend.go`・`internal/chief/snapshot.go`（`roundView` に表を足す）と、そのテスト
 
--   [ ] **ステップ 3-1**: `roundView` に、そのラウンドで読んだ PR の状態の表（PR の番号ごとに、`PRStateOf` の 3 つの戻り値：状態・head のブランチ・誤り）を足す。読めなかった結果も表に置き、同じラウンドでは読み直さない。最初の `gather`（`consider` から）は、表に値があればそれを使い、なければ今のとおり読んで表に置く。排他の下の `recheck` は表を使わず、今のとおり新しく読む（§1.3 の 4）。自動送信の条件と結果は変えない。
--   [ ] **ステップ 3-2**: `Tick` を設計書 2.3 の順にする。`readFacts` → `BeginRound` → 観測の記録（今のまま。`view.rows` ではなく読み取りの `PR` を使い、書く観測は今と同じにする）→ 前のラウンドの観測の読み取り（今の `tick.go:62-70`）→ 履歴の PR の状態の読み取り（設計書 3.3 の 1）→ worktree ごとの事象の書き込み（3.3 の 2）→ `buildRows`（状態を読めなかった PR を渡す、ステップ 2-3）→ 作成の排他と自動送信 → `applyAutoSends`。`BeginRound` に失敗したラウンドは、事象を書かずに `buildRows` で行を決める。履歴の読み書きは `Tick` の外の関数に分け、`Tick` の複雑さを `gocyclo` の上限（20、`.golangci.yml:42-43`）の中に保つ。
--   [ ] **ステップ 3-3**: 事象の書き込みは、書く事象があるときだけ、その worktree の排他を取り、排他の下でブランチと履歴の記録を読み直してから書く（設計書 3.3 の 2）。排他を取れない、ブランチが変わった、`pr_open` が消えていた、PR の状態を読めない、書けない、のどれでも書かず、設計書 4.2 の文言でラウンドの問題に示す。
--   [ ] **ステップ 3-4**: テストを書く（§4.1 の PR-2 のうちフェーズ 3 の行）。`gh pr view` の回数で変化を差し込む今のテスト（`autosend_test.go:519`・`:1001`・`:1189`・`:1504`）が、期待を変えずに、それぞれ意図した時点（1 回目は排他の前、2 回目は排他の下）で変化を差し込んでいることを、差し込む回を変えて失敗させて確かめ、コミットのメッセージに書く。
+-   [x] **ステップ 3-1**: `roundView` に、そのラウンドで読んだ PR の状態の表（PR の番号ごとに、`PRStateOf` の 3 つの戻り値：状態・head のブランチ・誤り）を足す。読めなかった結果も表に置き、同じラウンドでは読み直さない。最初の `gather`（`consider` から）は、表に値があればそれを使い、なければ今のとおり読んで表に置く。排他の下の `recheck` は表を使わず、今のとおり新しく読む（§1.3 の 4）。自動送信の条件と結果は変えない。
+-   [x] **ステップ 3-2**: `Tick` を設計書 2.3 の順にする。`readFacts` → `BeginRound` → 観測の記録（今のまま。`view.rows` ではなく読み取りの `PR` を使い、書く観測は今と同じにする）→ 前のラウンドの観測の読み取り（今の `tick.go:62-70`）→ 履歴の PR の状態の読み取り（設計書 3.3 の 1）→ worktree ごとの事象の書き込み（3.3 の 2）→ `buildRows`（状態を読めなかった PR を渡す、ステップ 2-3）→ 作成の排他と自動送信 → `applyAutoSends`。`BeginRound` に失敗したラウンドは、事象を書かずに `buildRows` で行を決める。履歴の読み書きは `Tick` の外の関数に分け、`Tick` の複雑さを `gocyclo` の上限（20、`.golangci.yml:42-43`）の中に保つ。
+-   [x] **ステップ 3-3**: 事象の書き込みは、書く事象があるときだけ、その worktree の排他を取り、排他の下でブランチと履歴の記録を読み直してから書く（設計書 3.3 の 2）。排他を取れない、ブランチが変わった、`pr_open` が消えていた、PR の状態を読めない、書けない、のどれでも書かず、設計書 4.2 の文言でラウンドの問題に示す。
+-   [x] **ステップ 3-4**: テストを書く（§4.1 の PR-2 のうちフェーズ 3 の行）。`gh pr view` の回数で変化を差し込む今のテスト（`autosend_test.go:519`・`:1001`・`:1189`・`:1504`）が、期待を変えずに、それぞれ意図した時点（1 回目は排他の前、2 回目は排他の下）で変化を差し込んでいることを、差し込む回を変えて失敗させて確かめ、コミットのメッセージに書く。
 
 **完了の条件:** `make test` と `make lint` が通る。今の `autosend_test.go` のテストが、期待を変えずに通る。
 
@@ -133,14 +133,14 @@
 
 **変えるファイル:** `internal/chief/pending.go`・`internal/chief/request.go`・`internal/chief/records.go`（`Protocol`）・`cmd/chief/main.go`・`cmd/chief/main_test.go`・`cmd/chief/docs_test.go`・`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` と、`ParseSendRequest`・`Send` を呼ぶテスト（`send_test.go`・`create_send_test.go`・`records_test.go`・`reset_test.go`・`resetoffer_test.go`）
 
--   [ ] **ステップ 4-1**: `pending.go` に、文字列が項目 ID の形（§1.3 の 3）かを確かめて `ItemID` を返す関数を置く。
--   [ ] **ステップ 4-2**: `request.go` の `SendRequest` に `item` を足し、`ParseSendRequest` に `item` の引数を足す。`--item` は `mkarch`・`mkplan`・`runplan`・`runplan-takeover` で必須、`mkreq`・`runpr` では受け付けず、形に合わなければ `ErrBadRequest` とする（設計書 3.5）。
--   [ ] **ステップ 4-3**: `Send` に `owner` を足す。排他を持って行を作り直すときに、`owner` のセッションの履歴を読み、`applyMainTask` を当てる。`offered` は今のとおりコマンドの種類を確かめ、合ったときは送るコマンドに加えて、そのコマンドを持つ提案の `*Next`（`mkarch`・`mkplan`・`runplan` では `row.Next`、`runplan-takeover` では `row.Takeover`）も返すようにする。その `*Next` の項目 ID を `proposalID` で作り、`--item` と違えば、何も送らずに `NotSentNotOffered` で拒む。理由は設計書 4.2 の文言にする。種類の確かめで拒んだときは今の理由のままにする。送る前の確かめ（`sendCommand`）は変えない。
--   [ ] **ステップ 4-4**: `cmd/chief/main.go` に `--item` を足し（`send` の任意のフラグ、使い方の文）、`parseRequests` から渡し、`dispatch` の `send` に `owner` を渡す。`main_test.go:501` に形の合う `--item` を足す。
--   [ ] **ステップ 4-5**: `Protocol`（`internal/chief/records.go:29`）を、実装するときの `origin/main` の値 + 1 にする（CLAUDE.md の「Protocol numbers」。タスク 0102 の PR-3 も上げるので、実装するときに読み直す）。`/chief` の定義のすべての `--protocol` とガイドの番号の表を同じ値にする。
--   [ ] **ステップ 4-6**: `/chief` の定義の提案の送信（`.claude/commands/chief.md:418`）を、設計書 3.6 の形にし、`<id>` が人の選んだ項目の `id` であることを書く。`mkreq` と `runpr` の呼び出しは変えない。`cmd/chief/docs_test.go` の `placeholderValues` に `<id>` の値を足す。
--   [ ] **ステップ 4-7**: `docs/dev/guides/chief_guide.md` に、要件書 AC-12 の 4 点と「-」が `main` の worktree に使われないこと、設計書 3.6 の要確認から戻す方法と、セッションが続く場合（`/chief` を起動し直すだけでは特定が続くこと）、`chief send` の `--item` を書く。作業項目の表示の段落（`:84`）と、サブコマンドの表（`:126-139`）の `send`・`tick`（履歴の記録を書く）・`start`（ほかのセッションの履歴の記録を消す）の行を直す。
--   [ ] **ステップ 4-8**: テストを書く（§4.1 の PR-2 のうちフェーズ 4 の行と、結合テスト）。
+-   [x] **ステップ 4-1**: `pending.go` に、文字列が項目 ID の形（§1.3 の 3）かを確かめて `ItemID` を返す関数を置く。
+-   [x] **ステップ 4-2**: `request.go` の `SendRequest` に `item` を足し、`ParseSendRequest` に `item` の引数を足す。`--item` は `mkarch`・`mkplan`・`runplan`・`runplan-takeover` で必須、`mkreq`・`runpr` では受け付けず、形に合わなければ `ErrBadRequest` とする（設計書 3.5）。
+-   [x] **ステップ 4-3**: `Send` に `owner` を足す。排他を持って行を作り直すときに、`owner` のセッションの履歴を読み、`applyMainTask` を当てる。`offered` は今のとおりコマンドの種類を確かめ、合ったときは送るコマンドに加えて、そのコマンドを持つ提案の `*Next`（`mkarch`・`mkplan`・`runplan` では `row.Next`、`runplan-takeover` では `row.Takeover`）も返すようにする。その `*Next` の項目 ID を `proposalID` で作り、`--item` と違えば、何も送らずに `NotSentNotOffered` で拒む。理由は設計書 4.2 の文言にする。種類の確かめで拒んだときは今の理由のままにする。送る前の確かめ（`sendCommand`）は変えない。
+-   [x] **ステップ 4-4**: `cmd/chief/main.go` に `--item` を足し（`send` の任意のフラグ、使い方の文）、`parseRequests` から渡し、`dispatch` の `send` に `owner` を渡す。`main_test.go:501` に形の合う `--item` を足す。
+-   [x] **ステップ 4-5**: `Protocol`（`internal/chief/records.go:29`）を、実装するときの `origin/main` の値 + 1 にする（CLAUDE.md の「Protocol numbers」。タスク 0102 の PR-3 も上げるので、実装するときに読み直す）。`/chief` の定義のすべての `--protocol` とガイドの番号の表を同じ値にする。
+-   [x] **ステップ 4-6**: `/chief` の定義の提案の送信（`.claude/commands/chief.md:418`）を、設計書 3.6 の形にし、`<id>` が人の選んだ項目の `id` であることを書く。`mkreq` と `runpr` の呼び出しは変えない。`cmd/chief/docs_test.go` の `placeholderValues` に `<id>` の値を足す。
+-   [x] **ステップ 4-7**: `docs/dev/guides/chief_guide.md` に、要件書 AC-12 の 4 点と「-」が `main` の worktree に使われないこと、設計書 3.6 の要確認から戻す方法と、セッションが続く場合（`/chief` を起動し直すだけでは特定が続くこと）、`chief send` の `--item` を書く。作業項目の表示の段落（`:84`）と、サブコマンドの表（`:126-139`）の `send`・`tick`（履歴の記録を書く）・`start`（ほかのセッションの履歴の記録を消す）の行を直す。
+-   [x] **ステップ 4-8**: テストを書く（§4.1 の PR-2 のうちフェーズ 4 の行と、結合テスト）。
 
 **完了の条件:** `make test` と `make lint` が通る。`/runpr` の前に、人が `chief` を PR のブランチで入れ直す（ガイドの 2 章の手順）。エージェントは道具を入れず、PR の説明と報告でそのことを示すだけにする（CLAUDE.md の「Tool Execution Safety」）。
 
@@ -158,10 +158,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1045
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -195,12 +195,15 @@
 | PR-1 | `internal/chief/records_test.go::TestClearRecordsKeepsOnlyTheExclusion`（今のテストに履歴の記録を足す） | `ClearRecords` が履歴の記録を消す。`remove` の残りの確かめ（`leftAfter`）は同じ `isRecordFile` を読むので、`isRecordFile` から `trace-` を外すとこのテストが落ちることで合わせて確かめる |
 | PR-1 | `internal/chief/records_test.go::TestStartRemovesOtherSessionTraces` | `start` が、ほかのセッションの事象を消し、今のセッションの事象を残す。形に合わない `trace-` の名前は、ほかのセッションのロックを引き継いだ `start` だけが消し、ロックを作った `start`、すでにロックを持つ `start`、同じセッションのロックをほかの pane から引き継いだ `start` は消さない（§1.5） |
 | PR-1 | `internal/chief/construction_test.go`（今のガード） | `mainTaskResult` を `identifyMainTask` のほかで作らない |
-| PR-2（フェーズ 2） | `internal/chief/maintask_test.go::TestMainRowFollowsTaskRules` | T と特定した `main` の行が、T の設計書が approved で計画書がないとき、次のコマンドが `/mkplan T`・作業項目の表示が計画書・状態の詳細が作成待ち（AC-01）、T の設計書が `draft` のとき要確認と今の理由 `the architecture document is not approved`（`internal/chief/state.go:328`）（AC-02）、T の計画書のすべての PR がマージ済みのときタスク完了で、chief が作った workspace の削除の提案が detached の確かめで止まる（AC-03）。質問で止まったエージェントがあれば質問の行、引き継ぎを出さない、`Idle` が付かない |
-| PR-2（フェーズ 2・3） | `internal/chief/maintask_test.go::TestMainRowNotIdentified` | マージの記録なし・開いている PR あり・ほかのタスクあり・読めない、の各行の状態・文書（要確認）・理由・次のコマンドなし・`Idle`（設計書 3.2 の「印」。fetch に失敗した行と、そのラウンドで状態を読めなかった PR を挙げる行には付かない）（AC-06・AC-07・AC-09）。読めない記録は、`main` の worktree が 2 つある world で、ほかの `main` の worktree のディレクトリと、`main` でない worktree のディレクトリ（一覧を読めないものを含む）に置き、どちらの `main` の行も要確認になる |
+| PR-2（フェーズ 2） | `internal/chief/maintask_test.go::TestMainRowFollowsTaskRules` | T と特定した `main` の行が、T の設計書が approved で計画書がないとき、次のコマンドが `/mkplan T`・作業項目の表示が計画書・状態の詳細が作成待ち（AC-01）、T の設計書が `draft` のとき要確認と今の理由 `the architecture document is not approved`（`internal/chief/state.go:328`）（AC-02）。質問で止まったエージェントがあれば質問の行、引き継ぎを出さない、`Idle` が付かない |
+| PR-2（フェーズ 2） | `internal/chief/maintask_test.go::TestMainRowTaskDone` | T と特定した `main` の行が、T の計画書のすべての PR がマージ済みのときタスク完了で、chief が作った workspace の削除の提案が detached の確かめで止まる（AC-03） |
+| PR-2（フェーズ 2） | `internal/chief/maintask_test.go::TestMainRowDocumentsOfTheTask` | T と特定した `main` の行で、T の文書を読めないときは `DocsUnreadable` の要確認、T のディレクトリが `origin/main` にないときは要件定義書がない要確認になる（設計書 4.3、H-06 の 5 つ目） |
+| PR-2（フェーズ 2・3） | `internal/chief/maintask_test.go::TestMainRowNotIdentified` | マージの記録なし・開いている PR あり・ほかのタスクあり、の各行の状態・文書（要確認）・理由・次のコマンドなし・`Idle`（設計書 3.2 の「印」。fetch に失敗した行と、そのラウンドで状態を読めなかった PR を挙げる行には付かない）（AC-06・AC-07）。`tick` が状態を読めなかったラウンドの行は、`TestTickWritesHistory` が確かめる |
+| PR-2（フェーズ 2） | `internal/chief/maintask_test.go::TestMainRowUnreadableHistory` | 読めない記録を、`main` の worktree が 2 つある world で、ほかの `main` の worktree のディレクトリと、`main` でない worktree のディレクトリ（一覧を読めないものを含む）に置き、どちらの `main` の行も要確認になる（AC-09） |
 | PR-2（フェーズ 2） | `internal/chief/maintask_test.go::TestMainRowZeroResult` | `applyMainTask` を通らない `headMain` の行（特定の結果がゼロ値）が、要確認で、次のコマンドを示さず、`/mkreq` も示さない |
 | PR-2（フェーズ 2） | `internal/chief/maintask_test.go::TestOtherHeadsIgnoreHistory` | 同じ worktree に、別のタスク T'（文書は approved）のマージを確かめた履歴を置く。先に、同じ履歴で `main` の行が T' の行になることを確かめ、そのうえで機能ブランチ・detached HEAD（chief が作った完了したタスクの削除の提案の行を含む）・ほかのブランチの行が、履歴のないときと同じ行と削除の提案になる（AC-11） |
 | PR-2（フェーズ 4） | `internal/chief/maintask_test.go::TestReadOnlySubcommandsWriteNoHistory` | 履歴で開いている PR を持つ `main` の worktree で、`TakeSnapshot`・`Send`・`SendOfferedReset` が状態のディレクトリに `trace-` の記録を作らず、`gh pr view` を走らせない（設計書 1.2） |
-| PR-2（フェーズ 3） | `internal/chief/maintask_test.go::TestTickWritesHistory` | `tick` が書く順のとおりに書き、マージを確かめたラウンドの行に T を示す。排他を取れないとき、排他の下でブランチが変わっていたとき、`pr_open` が消えていたとき、状態を読めなかったとき、書けなかったとき（`Store.beforeCreate` で失敗させる）は書かず、ラウンドの問題に示し、書けなかった事象は次のラウンドで書く。`BeginRound` に失敗したラウンドは書かずに今の事象から行を決め、作成の排他を取れないラウンドでも書く。自動送信が送らない `main` のマージで、その PR の `gh pr view` が 1 ラウンドに 1 回だけ走る（要件書 4.1、§1.3 の 4）。ブランチの変化は worktree ごとの答えで差し込む（足りなければ `test_helpers.go` に dir ごとの `replyFunc` を足す） |
+| PR-2（フェーズ 3） | `internal/chief/maintask_test.go::TestTickWritesHistory` | `tick` が書く順のとおりに書き、マージを確かめたラウンドの行に T を示す。排他を取れないとき、排他の下でブランチが変わっていたとき、`pr_open` が消えていたとき、状態を読めなかったとき、書けなかったとき（`Store.beforeCreate` で失敗させる）は書かず、ラウンドの問題に示し、書けなかった事象を次のラウンドで書くことは、履歴の事象から書く事象を決める `internal/chief/trace_test.go::TestTraceWrites` が確かめる。`BeginRound` に失敗したラウンドは書かずに今の事象から行を決め、作成の排他を取れないラウンドでも書く。自動送信が送らない `main` のマージで、その PR の `gh pr view` が 1 ラウンドに 1 回だけ走る（要件書 4.1、§1.3 の 4）。ブランチの変化は worktree ごとの答えで差し込む（足りなければ `test_helpers.go` に dir ごとの `replyFunc` を足す） |
 | PR-2（フェーズ 3） | `internal/chief/maintask_test.go::TestMainRowNoAutoSend` | `mergeWorld` で worktree を `main` に移してマージを確かめた `Tick` の、自動送信の結果の理由が、今と同じく機能ブランチでないこと（AC-10） |
 | PR-2（フェーズ 4） | `internal/chief/send_test.go::TestSendArgumentValidation`（今のテストに足す） | `--item` が要るコマンドで欠けたとき、要らないコマンドに付いたとき、形に合わないとき（31 桁・33 桁・大文字・16 進数でない文字・空）の `ErrBadRequest` |
 | PR-2（フェーズ 4） | `internal/chief/send_test.go::TestSendChecksTheChosenItem` | 作り直した行の提案が `--item` の項目でないとき（行のタスクが変わった、セッションが変わった、ほかのタスクの事象が増えた、記録を読めなくなった、自動送信の提案が行と別のタスクを示す、`runplan` に引き継ぎの項目 ID を渡した）に `not_offered` で何も送らない（AC-05）。理由は、作り直した行が同じ種類の提案を別の項目で示すとき（タスクが変わった、自動送信の提案が別のタスクを示す、引き継ぎの項目 ID）は設計書 4.2 の文言、行が要確認になって提案がないとき（セッションが変わった、ほかのタスクの事象が増えた、記録を読めなくなった）は今の種類の確かめの理由（`internal/chief/request.go:388-390`）である。項目 ID は出力の `pending[].id` から取る。項目が同じなら、特定した `main` の行へ `/mkplan T` を送り、送る前の確かめと送信の記録を経る（AC-04）。今の `not_offered` のテストは、正しい `--item` を渡して種類の確かめで拒まれることを保つ |
@@ -208,7 +211,7 @@
 | PR-2（フェーズ 2） | `internal/chief/resetoffer_test.go::TestSendOfferedResetOnIdentifiedMain` | 特定した `main` の行のリセットの項目を送れる |
 | PR-2（フェーズ 2） | `internal/chief/create_test.go::TestTargets`（今のテストに足す） | `targets` が `main` の worktree を挙げない |
 | PR-2（フェーズ 2） | `internal/chief/position_test.go`（今のテストに足す） | `taskDocumentOf` が特定しなかった `headMain` を要確認にし、`/mkreq` が走っている行を要件定義書にする |
-| PR-2（フェーズ 4） | `cmd/chief/main_test.go::TestRunUsageErrors`・`::TestRunWorkspaceSubcommands`（今のテストに足す） | `--item` の欠け・余り・形の誤りが使い方の誤りか不正な求めになる。`:501` は `--item` を足して `no_workspace` のまま |
+| PR-2（フェーズ 4） | `cmd/chief/main_test.go::TestRunUsageErrors`・`::TestRunWorkspaceSubcommands`（今のテストに足す） | `--item` の余り（`cmd/chief` が `--item` を `ParseSendRequest` へ渡すこと）が使い方の誤りになる。欠けと形の誤りは `internal/chief/send_test.go::TestSendArgumentValidation` が確かめる。`:501` は `--item` を足して `no_workspace` のまま |
 | PR-2（フェーズ 4） | `cmd/chief/main_test.go::TestRunSendPassesTheOwner` | `run` を通した `send` が、`start` したセッションの履歴を読む（`main` の行を特定して送る）。`dispatch` が `Owner` を渡さないと `not_offered` になる |
 
 PR-2 の各テストは、括弧のフェーズのコミットで足す。フェーズ 2 と 3 にまたがる行は、フェーズ 2 で行の判定を通る場合を、フェーズ 3 で `tick` の書き込みを通る場合を足す。§4.2 の結合テストはフェーズ 4 で足す。
@@ -249,7 +252,7 @@ PR-2 の各テストは、括弧のフェーズのコミットで足す。フェ
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 〜 2-7 / 3-1 〜 3-4 / 4-1 〜 4-8）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 〜 2-7 / 3-1 〜 3-4 / 4-1 〜 4-8）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -257,13 +260,13 @@ PR-2 の各テストは、括弧のフェーズのコミットで足す。フェ
 |---|---|---|---|
 | AC-01 | test | `internal/chief/maintask_test.go::TestMainRowFollowsTaskRules`、`internal/chief/maintask_test.go::TestMainAfterMergeFlow`、`internal/chief/trace_test.go::TestIdentifyMainTask` | ステップ 1-4・2-1〜2-5・3-2 |
 | AC-02 | test | `internal/chief/maintask_test.go::TestMainRowFollowsTaskRules` | ステップ 2-2・2-3 |
-| AC-03 | test | `internal/chief/maintask_test.go::TestMainRowFollowsTaskRules` | ステップ 2-2・2-3 |
+| AC-03 | test | `internal/chief/maintask_test.go::TestMainRowTaskDone` | ステップ 2-2・2-3 |
 | AC-04 | test | `internal/chief/send_test.go::TestSendChecksTheChosenItem`、`internal/chief/maintask_test.go::TestMainAfterMergeFlow`、`cmd/chief/main_test.go::TestRunSendPassesTheOwner` | ステップ 4-3・4-4 |
 | AC-05 | test | `internal/chief/send_test.go::TestSendChecksTheChosenItem`、`internal/chief/send_test.go::TestSendArgumentValidation` | ステップ 4-1〜4-4 |
 | AC-06 | test | `internal/chief/trace_test.go::TestIdentifyMainTask`、`internal/chief/maintask_test.go::TestMainRowNotIdentified` | ステップ 1-4・2-3 |
 | AC-07 | test | `internal/chief/trace_test.go::TestIdentifyMainTask`、`internal/chief/maintask_test.go::TestMainRowNotIdentified`、`internal/chief/maintask_test.go::TestMainRowZeroResult`、`internal/chief/maintask_test.go::TestMainAfterMergeFlow`（別のセッション）、`internal/chief/position_test.go` | ステップ 1-4・2-3・2-4・2-5 |
 | AC-08 | test | `internal/chief/send_test.go::TestSendMkreqToMainRefused`、`internal/chief/create_test.go::TestTargets` | ステップ 2-3・2-5・4-3 |
-| AC-09 | test | `internal/chief/trace_test.go::TestReadTraceRejects`、`internal/chief/trace_test.go::TestReadTraceSessionOnly`、`internal/chief/maintask_test.go::TestMainRowNotIdentified` | ステップ 1-3・2-2・2-5 |
+| AC-09 | test | `internal/chief/trace_test.go::TestReadTraceRejects`、`internal/chief/trace_test.go::TestReadTraceSessionOnly`、`internal/chief/maintask_test.go::TestMainRowUnreadableHistory` | ステップ 1-3・2-2・2-5 |
 | AC-10 | test | `internal/chief/maintask_test.go::TestMainRowNoAutoSend`、今の `internal/chief/autosend_test.go::TestAutoSendConditions`（補い） | ステップ 3-1・3-2 |
 | AC-11 | test | `internal/chief/maintask_test.go::TestOtherHeadsIgnoreHistory`。ステップ 1-1 でブランチ名を替えた `internal/chief/snapshot_test.go::TestTakeSnapshotStates`・`::TestTakeSnapshotUnreadable`・`::TestTakeSnapshotFetchFailure`・`::TestFetchUsesItsOwnTimeLimit`・`::TestRowOrderRules`・`::TestIdleClearedByWhatTheHumanMustSee`・`::TestSnapshotRowOutput`、`internal/chief/workspace_test.go::TestFindTaskWorkspaces`、`internal/chief/removal_test.go::TestRemovalRowFallsBack` | ステップ 1-1・2-1・2-3 |
 | AC-12 | manual | PR-2 のレビューで、`docs/dev/guides/chief_guide.md` の説明を読んで確かめる。`--protocol` の値は `cmd/chief/docs_test.go::TestGuideValuesMatchTool` | ステップ 4-5・4-7 |

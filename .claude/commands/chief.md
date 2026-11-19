@@ -117,7 +117,7 @@ The refusals (`reason`):
 
 ## 1. Start
 
-Run `chief start --protocol 5`. On exit `3`, handle the refusal as above and
+Run `chief start --protocol 6`. On exit `3`, handle the refusal as above and
 stop. On `0`, note `state_dir` for the guide's questions; when
 `stopped_sends` is above 0, say that many workspaces were stopped because a
 send there did not finish (they are listed in the table); and when
@@ -126,7 +126,7 @@ send there did not finish (they are listed in the table); and when
 ## 2. One round
 
 A round reads the status and shows it. With the argument `once`, read it with
-`chief snapshot --protocol 5`; otherwise with `chief tick --protocol 5`,
+`chief snapshot --protocol 6`; otherwise with `chief tick --protocol 6`,
 which also sends the command after a merge when every condition holds. Run
 one round at a time: never start a `snapshot` or `tick` while another is
 running, since the tool numbers the new items of a round on the premise that
@@ -320,24 +320,24 @@ answer as "Sending again after a model switch" says.
     three, the rest named in the question text with their numbers) and
     答えない. A free-text answer is an option only when it is one of the
     question's option numbers. When the human chooses an option, run
-    `chief relay --workspace <workspace> --check <check> --answer 1=<number> --protocol 5`,
+    `chief relay --workspace <workspace> --check <check> --answer 1=<number> --protocol 6`,
     with `<number>` the option's number. Show its results as step 2 does.
     The tool sends nothing when the question changed since it was shown
     (`check_mismatch`); say so.
-- **A review** (`review`): run `chief detail --workspace <workspace> --protocol 5`
+- **A review** (`review`): run `chief detail --workspace <workspace> --protocol 6`
   and show the detail (below). Then ask with `AskUserQuestion`:
   `/runpr` を送る (with `runpr`'s agent and model; offered only when the
   detail's `runpr` is `sendable`, otherwise show its `problem`), 送らない,
   and ほかの PR を見る (requirements AC-22).
   - `/runpr` を送る: run
-    `chief send --workspace <workspace> --command runpr --pr <pr> --protocol 5`
+    `chief send --workspace <workspace> --command runpr --pr <pr> --protocol 6`
     with `<pr>` the detail's PR number, in the background (`run_in_background`),
     and go on without waiting for it (requirements AC-24). When it ends,
     show its results as step 2 does.
   - ほかの PR を見る: offer the remaining items again (step 3).
 - **A reset item** (`reset`): ask nothing more; choosing it is the human's
   decision (requirements AC-08). Run
-  `chief reset --workspace <workspace> --check <check> --protocol 5` at
+  `chief reset --workspace <workspace> --check <check> --protocol 6` at
   once, with `<check>` the item's `reset.check`, and show its results as
   step 2 does. The tool checks the pane again and types nothing when the
   item is no longer offered as it was shown (`check_mismatch`).
@@ -353,13 +353,16 @@ answer as "Sending again after a model switch" says.
   remaining items again as step 3 says, in step 3's form for the mode; with
   `once`, when no item is left to offer, it is the same as 何もしない, so
   say so and stop. When the free-text answer is only digits, run
-  `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 5`.
+  `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 6`.
   When it is not `mkreq`, run
-  `chief send --workspace <workspace> --command <request> --protocol 5`.
+  `chief send --workspace <workspace> --command <request> --item <id> --protocol 6`,
+  with `<id>` the chosen item's `id`. The tool sends only when the row it
+  reads again still offers that item, and otherwise answers `not_offered`
+  (the row's task or proposal changed since it was shown).
   Show the results as step 2 does.
 - **`停止を解く: <label>`**: show the row's `stopped` (reason, screen, time)
   and ask whether to release it. On yes, run
-  `chief release --workspace <workspace> --protocol 5` and show `released`
+  `chief release --workspace <workspace> --protocol 6` and show `released`
   and `problem`.
 - **新しいタスクを始める** (0092 requirements AC-02 to AC-04): while
   watching, the issue number came with the answer (`N <issue>`, step 3).
@@ -367,7 +370,7 @@ answer as "Sending again after a model switch" says.
   are 何もしない and ほかの項目を見る, the human writing the number in its
   free-text answer; 何もしない sends nothing, and ほかの項目を見る offers the
   remaining items again, as for an `/mkreq` proposal. Then run
-  `chief targets --issue '<issue>' --protocol 5`, with `<issue>` as the
+  `chief targets --issue '<issue>' --protocol 6`, with `<issue>` as the
   human wrote it, inside single quotes so the shell passes it as one
   argument (an unquoted `#` would start a comment): the tool checks its
   form, so never correct, reformat, or take a number out of it yourself.
@@ -396,11 +399,11 @@ answer as "Sending again after a model switch" says.
   - 新しい workspace を作る: first wait until every `send` you started in
     the background has ended, so nothing is typed into any pane while the
     workspace is made (0092 requirements AC-13). Then run
-    `chief create --issue <issue> --protocol 5` as "Calling the tool" says
+    `chief create --issue <issue> --protocol 6` as "Calling the tool" says
     (foreground, `timeout` `600000`), and show its result as "The creation
     result" below says.
   - A workspace: run
-    `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 5`
+    `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 6`
     with `<workspace>` that entry's `workspace` from the `targets` output,
     and show the results as step 2 does. The issue was checked by
     `targets`; it is not checked again.
@@ -409,7 +412,7 @@ answer as "Sending again after a model switch" says.
   closes every pane of the workspace (`removal.panes` of them), with the
   agents and anything running in its shells, and removes the worktree.
   Then ask with `AskUserQuestion`: 消す, 消さない. On 消さない, send nothing.
-  On 消す, run `chief remove --workspace <workspace> --protocol 5`, with
+  On 消す, run `chief remove --workspace <workspace> --protocol 6`, with
   `<workspace>` the item's `removal.workspace`, as "Calling the tool" says
   (foreground, `timeout` `600000`, and Claude Code's permission prompt), and
   show its result as "The removal result" below says.
@@ -418,8 +421,9 @@ answer as "Sending again after a model switch" says.
 returns `model_mismatch`, add to the list of unanswered questions: whether
 to send the same command again once the human has switched the pane's
 model. Keep it under the table until the human answers. On yes, run the same
-`send` again (the same workspace and `request`, and for `/mkreq` the same
-issue); on no, drop it.
+`send` again with the same flags (the same workspace and `request`, and the
+same `--item`, `--issue`, or `--pr` as the first send); the tool answers
+`not_offered` when the row no longer offers that item. On no, drop it.
 
 ### The PR detail
 
@@ -574,7 +578,7 @@ names the row's state, say that state and show the row in the next round.
 ## 5. Watching
 
 Without `once`, keep one wait running in the background: after each round,
-run `chief wait --since <baseline> --protocol 5` with `run_in_background`,
+run `chief wait --since <baseline> --protocol 6` with `run_in_background`,
 `<baseline>` being the round's `baseline`. Never run two waits at once.
 
 - When it ends with exit `0` (`outcome` `changed`), or with `outcome`

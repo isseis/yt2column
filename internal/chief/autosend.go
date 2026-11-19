@@ -346,8 +346,11 @@ func (a *autoSender) workspaceAt(worktree string) (int, int) {
 }
 
 // gather reads the facts of the conditions for obs in the workspace ws
-// whose facts are f (ws is nil when Herdr has no workspace there).
-func (a *autoSender) gather(ctx context.Context, obs Observation, ws *TaskWorkspace, f workspaceFacts) autoSendFacts {
+// whose facts are f (ws is nil when Herdr has no workspace there). The PR's
+// state comes from the round's table when fromRound is true (the first
+// reading, outside the exclusion, which the history may have made already)
+// and is read again otherwise (under the exclusion, so it is fresh).
+func (a *autoSender) gather(ctx context.Context, obs Observation, ws *TaskWorkspace, f workspaceFacts, fromRound bool) autoSendFacts {
 	facts := autoSendFacts{obs: obs, present: ws != nil, fetchFailed: a.view.fetchFailed}
 	if obs.MergedSince != nil && a.round.At.Sub(*obs.MergedSince) >= carryWindow {
 		facts.expired = true
@@ -356,7 +359,12 @@ func (a *autoSender) gather(ctx context.Context, obs Observation, ws *TaskWorksp
 	if ws != nil {
 		dir = ws.Worktree
 	}
-	facts.state, facts.headRef, facts.stateErr = a.git.PRStateOf(ctx, dir, obs.PR)
+	if fromRound {
+		read := a.view.prState(ctx, a.git, dir, obs.PR)
+		facts.state, facts.headRef, facts.stateErr = read.State, read.HeadRef, read.Err
+	} else {
+		facts.state, facts.headRef, facts.stateErr = a.git.PRStateOf(ctx, dir, obs.PR)
+	}
 	facts.sent, facts.sentErr = a.deps.Store.AutoSent(obs.PR)
 	if ws == nil || facts.stateErr != nil || facts.state != PRStateMerged {
 		facts.partial = true
@@ -668,7 +676,7 @@ func (a *autoSender) consider(ctx context.Context, obs Observation) (*AutoSendRe
 	if n == 1 {
 		ws, f = &a.view.found[i], a.view.facts[i]
 	}
-	facts := a.gather(ctx, obs, ws, f)
+	facts := a.gather(ctx, obs, ws, f, true)
 	facts.shared = n
 	if facts.stateErr == nil && facts.state != PRStateMerged {
 		// Still open (in another branch now) or closed: nothing to send.
@@ -786,7 +794,7 @@ func (a *autoSender) recheck(ctx context.Context, held *HeldWorkspace, loc *loca
 	// The remote is compared again: it may have moved since the first
 	// reading of this round.
 	a.remote = nil
-	facts := a.gather(ctx, obs, &loc.ws, f)
+	facts := a.gather(ctx, obs, &loc.ws, f, false)
 	// The NEXT check read under the exclusion is the one the send goes by.
 	res.ReportChecks = facts.reportChecks
 	// A send made since the merge was first seen (by the human, between

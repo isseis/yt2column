@@ -156,6 +156,9 @@ func TestDocumentRule(t *testing.T) {
 		{"rule 10: a detached HEAD with nothing running", Row{State: StateNeedsCheck, position: positionFacts{head: headDetached}}, nil, PositionDocNeedsCheck, 0},
 		{"rule 10: a detached HEAD with another command running", Row{State: StateRunning, position: positionFacts{head: headDetached}}, mustRunning(t, paneinput.CommandRunplan, "0001"), PositionDocNeedsCheck, 0},
 		{"rule 10: a detached HEAD whose proposal is /mkreq", proposeMkreq(positionFacts{head: headDetached}), nil, PositionDocNeedsCheck, 0},
+		{"rule 3: a running /mkreq on main with no task identified", Row{State: StateRunning, position: positionFacts{head: headMain}}, mustMkreq(t), PositionDocRequirements, 0},
+		{"rule 10, not rule 4: main with no task identified", Row{State: StateNeedsCheck, position: positionFacts{head: headMain}}, nil, PositionDocNeedsCheck, 0},
+		{"rule 10, not rule 4: main with no task identified and another command running", Row{State: StateRunning, position: positionFacts{head: headMain}}, mustRunning(t, paneinput.CommandRunpr, "12"), PositionDocNeedsCheck, 0},
 		{"the state needs a check but the documents are read", Row{State: StateNeedsCheck, Unreadable: []string{"screen of pane w1:p1"}, position: task(stageArchApproved)}, nil, PositionDocPlan, 0},
 	}
 	for _, c := range cases {

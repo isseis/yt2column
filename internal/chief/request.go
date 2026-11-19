@@ -75,20 +75,35 @@ var requestNames = map[TaskNextKind]string{
 }
 
 // SendRequest is a validated `chief send`: the workspace, the command kind,
-// and the one number the kind takes. Only ParseSendRequest makes one.
+// the one number the kind takes, and the item the human chose for a task
+// command. Only ParseSendRequest makes one.
 type SendRequest struct {
 	workspace string
 	kind      RequestKind
 	issue     paneinput.IssueNumber
 	pr        fixprguard.PRNumber
+	// item is the ID of the proposal the human chose, set for the task
+	// commands (itemKinds) and for no other.
+	item ItemID
 }
 
-// ParseSendRequest validates the arguments of `chief send`; an empty issue
-// or pr means the flag was not given. Contract: --issue is taken by mkreq
-// alone and required by it, --pr by runpr alone and required by it, and each
-// number passes its grammar; anything else is ErrBadRequest. The task is
-// never an argument: the tool reads it from the workspace.
-func ParseSendRequest(workspace, command, issue, pr string) (SendRequest, error) {
+// itemKinds are the requests of a task's command, which name the proposal
+// the human chose: the row a send rebuilds may offer the same kind of
+// command for another task.
+var itemKinds = map[RequestKind]struct{}{
+	RequestMkarch:          {},
+	RequestMkplan:          {},
+	RequestRunplan:         {},
+	RequestRunplanTakeover: {},
+}
+
+// ParseSendRequest validates the arguments of `chief send`; an empty issue,
+// pr, or item means the flag was not given. Contract: --issue is taken by
+// mkreq alone and required by it, --pr by runpr alone and required by it,
+// --item by the task commands alone and required by them, and each value
+// passes its form; anything else is ErrBadRequest. The task is never an
+// argument: the tool reads it from the workspace.
+func ParseSendRequest(workspace, command, issue, pr, item string) (SendRequest, error) {
 	kind, ok := requestKinds[command]
 	if !ok {
 		return SendRequest{}, fmt.Errorf("%w: unknown command %q", ErrBadRequest, command)
@@ -103,7 +118,15 @@ func ParseSendRequest(workspace, command, issue, pr string) (SendRequest, error)
 	if (kind == RequestRunpr) != (pr != "") {
 		return SendRequest{}, fmt.Errorf("%w: --pr goes with runpr and only with it", ErrBadRequest)
 	}
+	if _, task := itemKinds[kind]; task != (item != "") {
+		return SendRequest{}, fmt.Errorf("%w: --item goes with mkarch, mkplan, runplan, and runplan-takeover and only with them", ErrBadRequest)
+	}
 	var err error
+	if item != "" {
+		if req.item, err = parseItemID(item); err != nil {
+			return SendRequest{}, fmt.Errorf("--item: %w", err)
+		}
+	}
 	if issue != "" {
 		if req.issue, err = paneinput.ParseIssueNumber(issue); err != nil {
 			return SendRequest{}, fmt.Errorf("%w: %w", ErrBadRequest, err)
@@ -189,9 +212,13 @@ type SendOutcome struct {
 // holds the workspace's exclusion, settles unfinished sends first, and sends
 // nothing to a stopped workspace; the workspace's row is read and the
 // command checked only once the exclusion is held, so two sends cannot both
-// act on a row read before either sent; after /runpr the detail is kept before the
-// send and the maker's pane is reset only as resetAfterRunpr allows.
-func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) {
+// act on a row read before either sent; a task command is sent only when the
+// proposal of the row read again is the item the human chose (its item ID
+// is req's), so a row whose task or proposal changed since it was shown
+// sends nothing; a worktree on main is read with owner's history; after
+// /runpr the detail is kept before the send and the maker's pane is reset
+// only as resetAfterRunpr allows.
+func Send(ctx context.Context, deps Deps, owner Owner, req SendRequest) (SendOutcome, error) {
 	if req.kind == RequestUnknown {
 		return SendOutcome{}, fmt.Errorf("%w: a request no parser made", ErrBadRequest)
 	}
@@ -220,10 +247,21 @@ func Send(ctx context.Context, deps Deps, req SendRequest) (SendOutcome, error) 
 	old, oldErr := readOldValues(ctx, tasks, loc.chiefTree.String())
 	f := readWorkspace(ctx, herdr, git, tasks, loc.ws)
 	f.Routing = routing
+	// A worktree on main is classified from the caller's history, as the
+	// round that showed the item classified it. It is read under the
+	// workspace's exclusion, which every write of this worktree's events
+	// takes too, so they do not change before the send; a record of another
+	// worktree can only make the row need a check.
+	f = withHistory(ctx, deps.Store, tasks, f, owner.Session, loc.ws.Tree)
 	row := classifyWorkspace(ctx, git, tasks, f, old, oldErr)
-	cmd, why := offered(row, req)
+	cmd, proposal, why := offered(row, req)
 	if why != "" {
 		return one(notSent(base, NotSentNotOffered, why)), nil
+	}
+	if _, task := itemKinds[req.kind]; task && proposalID(row.Workspace, proposal) != req.item {
+		// The same kind of command, for another task or another PR of the
+		// plan, or another proposal than the one the human chose.
+		return one(notSent(base, NotSentNotOffered, "the workspace no longer offers the chosen item (it offers "+proposal.Text+" now)")), nil
 	}
 	base.Command, _ = cmd.Text()
 	route, err := routing.Route(cmd.Route())
@@ -381,18 +419,20 @@ func (s sendContext) resetMaker(ctx context.Context, f workspaceFacts, runprPane
 	})
 }
 
-// offered returns the command of req when the workspace's row offers it, or
-// why it does not.
-func offered(row Row, req SendRequest) (paneinput.Command, string) {
-	next := func(kind TaskNextKind) (paneinput.Command, string) {
+// offered returns the command of req when the workspace's row offers it,
+// with the proposal that offers it for a task command (row.Next, or
+// row.Takeover for the takeover), or why it does not.
+func offered(row Row, req SendRequest) (paneinput.Command, *Next, string) {
+	next := func(kind TaskNextKind) (paneinput.Command, *Next, string) {
 		if row.State != StateProposeNext || row.Next == nil || row.Next.Kind != kind || row.Next.Command == nil {
-			return paneinput.Command{}, fmt.Sprintf("the workspace's next command is not this one (state %s)", row.State)
+			return paneinput.Command{}, nil, fmt.Sprintf("the workspace's next command is not this one (state %s)", row.State)
 		}
-		return *row.Next.Command, ""
+		return *row.Next.Command, row.Next, ""
 	}
 	switch req.kind {
 	case RequestMkreq:
-		return offeredMkreq(row, req.issue)
+		cmd, why := offeredMkreq(row, req.issue)
+		return cmd, nil, why
 	case RequestMkarch:
 		return next(TaskNextMkarch)
 	case RequestMkplan:
@@ -401,13 +441,14 @@ func offered(row Row, req SendRequest) (paneinput.Command, string) {
 		return next(TaskNextRunplan)
 	case RequestRunplanTakeover:
 		if row.State != StateProposeNext || row.Takeover == nil || row.Takeover.Command == nil {
-			return paneinput.Command{}, "the workspace has no takeover proposal"
+			return paneinput.Command{}, nil, "the workspace has no takeover proposal"
 		}
-		return *row.Takeover.Command, ""
+		return *row.Takeover.Command, row.Takeover, ""
 	case RequestRunpr:
-		return offeredRunpr(row, req.pr)
+		cmd, why := offeredRunpr(row, req.pr)
+		return cmd, nil, why
 	default:
-		return paneinput.Command{}, "no command"
+		return paneinput.Command{}, nil, "no command"
 	}
 }
 

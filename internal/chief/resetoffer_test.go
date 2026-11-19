@@ -319,6 +319,23 @@ func TestSendOfferedReset(t *testing.T) {
 	}
 }
 
+// TestSendOfferedResetOnIdentifiedMain checks that the reset item a
+// snapshot offers on a worktree on main identified as task 0001 is sent:
+// the send classifies the row from the caller's history as the snapshot
+// did, so the row does not read as one that needs a check.
+func TestSendOfferedResetOnIdentifiedMain(t *testing.T) {
+	mw := newMergeWorld(t, mkarchDocs)
+	mw.skipOpenCode()
+	mw.onMain(mw.tree)
+	mw.putHistory(mw.tree, mergedOn(t, 42, taskBranch)...)
+	if r := rowOf(t, mw.snapshot(), "ws"); r.Task != "0001" || r.State != StateProposeNext {
+		t.Fatalf("row = %+v; want main identified as 0001", r)
+	}
+	if got := mw.offeredReset(mw.shownCheck()); got.Outcome != OutcomeSent || got.Pane != "w1:p2" || got.Command != "/new" {
+		t.Errorf("reset = %+v; want w1:p2 /new sent", got)
+	}
+}
+
 // TestSendOfferedResetRefusals checks that a chosen reset types nothing
 // when a check fails, with the reason: the item changed or is gone
 // (check_mismatch), the routing table cannot be read, the transcript does
@@ -497,11 +514,11 @@ func TestSendRemovesThePaneSkips(t *testing.T) {
 	kept := mw.skipPane(mw.byPane["w1:p1"], sceneAfterRunpr, mkarchRan)
 	mw.rec.replyIn(mw.tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", nil))
 	mw.rec.replyIn(mw.tree, "gh pr checks 42 --json "+prChecksFields, readTestdata(t, "gh/pr-checks-200-fail.json"))
-	req, err := ParseSendRequest(mw.tree, "runpr", "", "42")
+	req, err := ParseSendRequest(mw.tree, "runpr", "", "42", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := Send(context.Background(), mw.deps, req)
+	out, err := Send(context.Background(), mw.deps, mw.owner(), req)
 	if err != nil || len(out.Actions) == 0 || out.Actions[0].Outcome != OutcomeSent || out.Actions[0].Pane != "w1:p2" {
 		t.Fatalf("Send = %+v, %v; want /runpr sent to w1:p2", out, err)
 	}

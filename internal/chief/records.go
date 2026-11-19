@@ -26,7 +26,7 @@ import (
 // Protocol is the number of the command-line and output contract. The skill
 // that drives the tool passes the same number with --protocol, so an old
 // install is refused instead of misread.
-const Protocol = 5
+const Protocol = 6
 
 // errRecord reports a record that is not in the accepted form.
 var errRecord = errors.New("unreadable record")
@@ -393,6 +393,7 @@ func (s Store) Require(caller Owner) error {
 
 // hashName returns the hex of the first 16 bytes of the SHA-256 of s, for a
 // record's file name.
+// Its form is the form of an item ID too (itemIDForm).
 func hashName(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:16])

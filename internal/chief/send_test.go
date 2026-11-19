@@ -446,11 +446,8 @@ func TestSendFailureAfterInputStops(t *testing.T) {
 		}
 		return sw.realReact(p, text)
 	}
-	req, err := ParseSendRequest(sw.trees["w1"], "runplan", "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	out, err := Send(context.Background(), deps, req)
+	req := chosenReq(t, deps, sw.owner(), sw.trees["w1"], "runplan")
+	out, err := Send(context.Background(), deps, sw.owner(), req)
 	if err != nil || len(out.Actions) != 1 || out.Actions[0].Outcome != OutcomeSentThenFailed {
 		t.Fatalf("first send = %+v, %v; want sent then failed", out, err)
 	}
@@ -461,7 +458,7 @@ func TestSendFailureAfterInputStops(t *testing.T) {
 	}
 	deps.Store = store
 	typed := len(sw.rec.prompts())
-	out, err = Send(context.Background(), deps, req)
+	out, err = Send(context.Background(), deps, sw.owner(), req)
 	if err != nil || len(out.Actions) != 1 || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != NotSentStopped {
 		t.Fatalf("second send = %+v, %v; want not sent, stopped", out, err)
 	}
@@ -602,14 +599,35 @@ func TestTranscriptPath(t *testing.T) {
 }
 
 // sendReq parses a send request, failing the test when it is malformed.
-func sendReq(t *testing.T, workspace, command, issue, pr string) SendRequest {
+func sendReq(t *testing.T, workspace, command, issue, pr, item string) SendRequest {
 	t.Helper()
-	req, err := ParseSendRequest(workspace, command, issue, pr)
+	req, err := ParseSendRequest(workspace, command, issue, pr, item)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return req
 }
+
+// chosenReq is the send of the proposal a snapshot shows for workspace
+// whose --command value is command, with the item ID the output gives it,
+// as the /chief session passes both back.
+func chosenReq(t *testing.T, deps Deps, owner Owner, workspace, command string) SendRequest {
+	t.Helper()
+	snap, err := TakeSnapshot(context.Background(), deps, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range snap.Output().Pending {
+		if p.Kind == "proposal" && p.Workspace == workspace && p.Proposal != nil && p.Proposal.Request == command {
+			return sendReq(t, workspace, command, "", "", string(p.ID))
+		}
+	}
+	t.Fatalf("no proposal of %s for %s in %+v", command, workspace, snap.Output().Pending)
+	return SendRequest{}
+}
+
+// anyItem is an item ID of the right form that no item has.
+const anyItem = "0123456789abcdef0123456789abcdef"
 
 // TestMkreqTarget checks that /mkreq goes, with the human's issue number,
 // only to a workspace without a task, and never to one with a task.
@@ -618,14 +636,14 @@ func TestMkreqTarget(t *testing.T) {
 	free := sw.addTask(fakeWorkspace{ID: "w1", Label: "free", Branch: "user/feature"}, "claude")
 	busy := sw.addTask(fakeWorkspace{ID: "w2", Label: "task", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
 	deps := sw.finish()
-	out, err := Send(context.Background(), deps, sendReq(t, busy, "mkreq", "12", ""))
+	out, err := Send(context.Background(), deps, sw.owner(), sendReq(t, busy, "mkreq", "12", "", ""))
 	if err != nil || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != NotSentNotOffered {
 		t.Fatalf("mkreq to a task workspace = %+v, %v; want not offered", out, err)
 	}
 	if got := sw.rec.prompts(); len(got) != 0 {
 		t.Fatalf("typed %v", got)
 	}
-	out, err = Send(context.Background(), deps, sendReq(t, free, "mkreq", "12", ""))
+	out, err = Send(context.Background(), deps, sw.owner(), sendReq(t, free, "mkreq", "12", "", ""))
 	if err != nil || out.Actions[0].Outcome != OutcomeSent {
 		t.Fatalf("mkreq to a free workspace = %+v, %v; want sent", out, err)
 	}
@@ -653,12 +671,12 @@ func TestRequestNameSendsTheOffer(t *testing.T) {
 	for _, kind := range kinds {
 		offer := &Next{Kind: kind, Command: &cmd}
 		row := Row{State: StateProposeNext, Next: offer}
-		issue, pr := "", ""
+		issue, pr, item := "", "", anyItem
 		switch kind {
 		case TaskNextMkreq:
-			issue, offer.Command = "12", nil
+			issue, item, offer.Command = "12", "", nil
 		case TaskNextRunpr:
-			pr, row.State, row.PR = "34", StateAwaitingReview, &OpenPR{Number: 34}
+			pr, item, row.State, row.PR = "34", "", StateAwaitingReview, &OpenPR{Number: 34}
 		case TaskNextRunplanTakeover:
 			row.Next, row.Takeover = &Next{Kind: TaskNextRunplan, Command: &cmd}, offer
 		}
@@ -667,12 +685,12 @@ func TestRequestNameSendsTheOffer(t *testing.T) {
 			t.Errorf("offer kind %d has no --command value in the output", kind)
 			continue
 		}
-		req, err := ParseSendRequest("/w", name, issue, pr)
+		req, err := ParseSendRequest("/w", name, issue, pr, item)
 		if err != nil {
 			t.Errorf("offer kind %d: --command %q is refused: %v", kind, name, err)
 			continue
 		}
-		if _, why := offered(row, req); why != "" {
+		if _, _, why := offered(row, req); why != "" {
 			t.Errorf("offer kind %d: --command %q does not send the offer: %s", kind, name, why)
 		}
 	}
@@ -684,50 +702,65 @@ func TestRequestNameSendsTheOffer(t *testing.T) {
 // not proposed, a path that is no task workspace), none of which types
 // anything.
 func TestSendArgumentValidation(t *testing.T) {
-	for _, c := range []struct{ workspace, command, issue, pr string }{
-		{"/w", "weakreview", "", ""},
-		{"/w", "", "", ""},
-		{"w", "mkarch", "", ""},
-		{"/w", "mkreq", "", ""},
-		{"/w", "mkreq", "0", ""},
-		{"/w", "mkarch", "3", ""},
-		{"/w", "runpr", "", ""},
-		{"/w", "runpr", "", "042"},
-		{"/w", "runplan", "", "42"},
-		{"/w", "runpr", "3", "42"},
+	for _, c := range []struct{ workspace, command, issue, pr, item string }{
+		{"/w", "weakreview", "", "", ""},
+		{"/w", "", "", "", ""},
+		{"w", "mkarch", "", "", anyItem},
+		{"/w", "mkreq", "", "", ""},
+		{"/w", "mkreq", "0", "", ""},
+		{"/w", "mkarch", "3", "", anyItem},
+		{"/w", "runpr", "", "", ""},
+		{"/w", "runpr", "", "042", ""},
+		{"/w", "runplan", "", "42", anyItem},
+		{"/w", "runpr", "3", "42", ""},
+		// --item: missing for a task command, given for another, or of
+		// another form (31 or 33 digits, upper case, not hexadecimal).
+		{"/w", "mkarch", "", "", ""},
+		{"/w", "mkplan", "", "", ""},
+		{"/w", "runplan", "", "", ""},
+		{"/w", "runplan-takeover", "", "", ""},
+		{"/w", "mkreq", "12", "", anyItem},
+		{"/w", "runpr", "", "42", anyItem},
+		{"/w", "mkplan", "", "", anyItem[:31]},
+		{"/w", "mkplan", "", "", anyItem + "0"},
+		{"/w", "mkplan", "", "", strings.ToUpper(anyItem)},
+		{"/w", "mkplan", "", "", "g" + anyItem[1:]},
 	} {
-		if _, err := ParseSendRequest(c.workspace, c.command, c.issue, c.pr); !errors.Is(err, ErrBadRequest) {
+		if _, err := ParseSendRequest(c.workspace, c.command, c.issue, c.pr, c.item); !errors.Is(err, ErrBadRequest) {
 			t.Errorf("ParseSendRequest(%+v) = %v, want ErrBadRequest", c, err)
 		}
 	}
-	for _, c := range []struct{ command, issue, pr string }{{"mkreq", "12", ""}, {"mkarch", "", ""}, {"runplan-takeover", "", ""}, {"runpr", "", "42"}} {
-		if _, err := ParseSendRequest("/w", c.command, c.issue, c.pr); err != nil {
+	for _, c := range []struct{ command, issue, pr, item string }{{"mkreq", "12", "", ""}, {"mkarch", "", "", anyItem}, {"runplan-takeover", "", "", anyItem}, {"runpr", "", "42", ""}} {
+		if _, err := ParseSendRequest("/w", c.command, c.issue, c.pr, c.item); err != nil {
 			t.Errorf("ParseSendRequest(%+v) = %v, want a request", c, err)
 		}
 	}
-	if _, err := Send(context.Background(), Deps{}, SendRequest{}); !errors.Is(err, ErrBadRequest) {
+	if _, err := Send(context.Background(), Deps{}, Owner{}, SendRequest{}); !errors.Is(err, ErrBadRequest) {
 		t.Errorf("Send of the zero request = %v, want ErrBadRequest", err)
 	}
 	sw := newSendWorld(t)
 	propose := sw.addTask(fakeWorkspace{ID: "w1", Label: "propose", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
 	review := sw.addTask(fakeWorkspace{ID: "w2", Label: "review", Branch: taskBranch, PRs: openPRJSON}, "claude", "opencode")
 	deps := sw.finish()
+	// The kind's refusals pass the item the workspace offers (its
+	// /runplan), so only the check of the kind can refuse them.
+	offer := string(chosenReq(t, deps, sw.owner(), propose, "runplan").item)
 	cases := []struct {
 		name   string
 		req    SendRequest
 		reason NotSentReason
 	}{
-		{"mkplan when the next is runplan", sendReq(t, propose, "mkplan", "", ""), NotSentNotOffered},
-		{"a takeover not proposed", sendReq(t, propose, "runplan-takeover", "", ""), NotSentNotOffered},
-		{"runpr where no PR is open", sendReq(t, propose, "runpr", "", "42"), NotSentNotOffered},
-		{"runpr of another PR", sendReq(t, review, "runpr", "", "43"), NotSentNotOffered},
-		{"runplan to a workspace awaiting review", sendReq(t, review, "runplan", "", ""), NotSentNotOffered},
-		{"no task workspace", sendReq(t, propose+"-elsewhere", "runplan", "", ""), NotSentNoWorkspace},
+		{"mkplan when the next is runplan", sendReq(t, propose, "mkplan", "", "", offer), NotSentNotOffered},
+		{"a takeover not proposed", sendReq(t, propose, "runplan-takeover", "", "", offer), NotSentNotOffered},
+		{"runpr where no PR is open", sendReq(t, propose, "runpr", "", "42", ""), NotSentNotOffered},
+		{"runpr of another PR", sendReq(t, review, "runpr", "", "43", ""), NotSentNotOffered},
+		{"runplan to a workspace awaiting review", sendReq(t, review, "runplan", "", "", anyItem), NotSentNotOffered},
+		{"no task workspace", sendReq(t, propose+"-elsewhere", "runplan", "", "", anyItem), NotSentNoWorkspace},
 	}
 	for _, c := range cases {
-		out, err := Send(context.Background(), deps, c.req)
-		if err != nil || len(out.Actions) != 1 || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != c.reason {
-			t.Errorf("%s: Send = %+v, %v; want not sent, %s", c.name, out, err, c.reason)
+		out, err := Send(context.Background(), deps, sw.owner(), c.req)
+		if err != nil || len(out.Actions) != 1 || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != c.reason || strings.HasPrefix(out.Actions[0].Detail, otherItemDetail) {
+			t.Errorf("%s: Send = %+v, %v; want not sent, %s, for the kind", c.name, out, err, c.reason)
 		}
 	}
 	if got := sw.rec.prompts(); len(got) != 0 {
@@ -746,13 +779,14 @@ func TestActionResults(t *testing.T) {
 		sw := newSendWorld(t)
 		tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
 		deps := sw.finish()
+		req := chosenReq(t, deps, sw.owner(), tree, "runplan")
 		if react != nil {
 			sw.react = func(p *simPane, text string) error { return react(sw, p, text) }
 		}
 		if set != nil {
 			set(sw)
 		}
-		out, err := Send(context.Background(), deps, sendReq(t, tree, "runplan", "", ""))
+		out, err := Send(context.Background(), deps, sw.owner(), req)
 		if err != nil || len(out.Actions) != 1 {
 			t.Fatalf("Send = %+v, %v", out, err)
 		}
@@ -794,17 +828,8 @@ func TestActionResults(t *testing.T) {
 // when the tool proposes it, to the Claude Code pane with the takeover row's
 // model, though the plan's route is OpenCode.
 func TestSendTakeover(t *testing.T) {
-	sw := newSendWorld(t)
-	routed := strings.Replace(string(repoContext(t)), "| `runplan-opus` | `/runplan` for the requirement `opus` | Claude Code | `opus` |", "| `runplan-opus` | `/runplan` for the requirement `opus` | OpenCode | `"+openCodeModel+"` |", 1)
-	if routed == string(repoContext(t)) {
-		t.Fatal("the routing row to change was not found in _context.md")
-	}
-	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude", "opencode")
-	sw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", []byte(routed))
-	sw.git(tree, "rev-list --count refs/remotes/origin/main..HEAD", "3\n")
-	sw.git(tree, "show HEAD:docs/tasks/"+taskDir+"/"+planFile, string(planSample(t, "marker-opus.md")))
-	deps := sw.finish()
-	out, err := Send(context.Background(), deps, sendReq(t, tree, "runplan-takeover", "", ""))
+	sw, tree, deps := takeoverWorld(t)
+	out, err := Send(context.Background(), deps, sw.owner(), chosenReq(t, deps, sw.owner(), tree, "runplan-takeover"))
 	if err != nil || len(out.Actions) != 1 || out.Actions[0].Outcome != OutcomeSent {
 		t.Fatalf("Send = %+v, %v; want sent", out, err)
 	}
@@ -817,6 +842,23 @@ func TestSendTakeover(t *testing.T) {
 	if recs := startRecords(t, deps, tree); len(recs) != 1 || recs[0].Kind != "runplan" || recs[0].Arg != "0001" {
 		t.Errorf("start records = %+v; want one declaring runplan 0001", recs)
 	}
+}
+
+// takeoverWorld is a workspace whose plan's /runplan goes to OpenCode while
+// a Claude Code pane waits, with commits beyond origin/main and every step
+// of the next PR done: the row proposes the takeover.
+func takeoverWorld(t *testing.T) (*sendWorld, string, Deps) {
+	t.Helper()
+	sw := newSendWorld(t)
+	routed := strings.Replace(string(repoContext(t)), "| `runplan-opus` | `/runplan` for the requirement `opus` | Claude Code | `opus` |", "| `runplan-opus` | `/runplan` for the requirement `opus` | OpenCode | `"+openCodeModel+"` |", 1)
+	if routed == string(repoContext(t)) {
+		t.Fatal("the routing row to change was not found in _context.md")
+	}
+	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude", "opencode")
+	sw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", []byte(routed))
+	sw.git(tree, "rev-list --count refs/remotes/origin/main..HEAD", "3\n")
+	sw.git(tree, "show HEAD:docs/tasks/"+taskDir+"/"+planFile, string(planSample(t, "marker-opus.md")))
+	return sw, tree, sw.finish()
 }
 
 // TestSendWriterRefusalSendsNothing checks that a prompt the writer refuses
@@ -942,6 +984,7 @@ func TestSendRereadsAgentsUnderTheLock(t *testing.T) {
 	sw := newSendWorld(t)
 	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
 	deps := sw.finish()
+	req := chosenReq(t, deps, sw.owner(), tree, "runplan")
 	lists := 0
 	sw.rec.replyFunc("herdr agent list", func() reply {
 		sw.mu.Lock()
@@ -956,7 +999,7 @@ func TestSendRereadsAgentsUnderTheLock(t *testing.T) {
 		}
 		return reply{out: agentListOutput(agents)}
 	})
-	out, err := Send(context.Background(), deps, sendReq(t, tree, "runplan", "", ""))
+	out, err := Send(context.Background(), deps, sw.owner(), req)
 	if err != nil || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != NotSentNotOffered {
 		t.Fatalf("Send = %+v, %v; want not offered", out, err)
 	}
@@ -975,7 +1018,7 @@ func TestSendRefusesAWorktreeOfTwoWorkspaces(t *testing.T) {
 	sw.byPane[p.Pane] = p
 	sw.labels = append(sw.labels, [2]string{"w2", "two"})
 	deps := sw.finish()
-	out, err := Send(context.Background(), deps, sendReq(t, tree, "runplan", "", ""))
+	out, err := Send(context.Background(), deps, sw.owner(), sendReq(t, tree, "runplan", "", "", anyItem))
 	if err != nil || out.Actions[0].Outcome != OutcomeNotSent || out.Actions[0].Reason != NotSentNoWorkspace {
 		t.Fatalf("Send = %+v, %v; want no workspace", out, err)
 	}
@@ -1009,5 +1052,154 @@ func TestTargetPaneStaysInTheWorktree(t *testing.T) {
 	}
 	if a, _, ok := targetPane(TaskWorkspace{Worktree: tree, Agents: []Agent{agent("w1:p1", tree)}}, paneinput.AgentOpenCode); !ok || a.Pane.id != "w1:p1" {
 		t.Errorf("the pane at the worktree's root was not chosen: %v %v", a, ok)
+	}
+}
+
+// The detail of a send refused because the row offers the same kind of
+// command for another item; the wording is the output the human reads.
+const otherItemDetail = "the workspace no longer offers the chosen item (it offers "
+
+// TestSendChecksTheChosenItem checks the send of a task command against
+// the item the human chose: the proposal the row offers when it is read
+// again under the exclusion must be that item. A worktree on main
+// identified as 0001 gets /mkplan 0001, through the checks of any send, and
+// the send is recorded. A row that offers the same kind of command for
+// another item (another task, an automatic send's proposal of another task
+// than the row's, the takeover's ID for /runplan) refuses with the item's
+// reason; a row on main that no longer identifies the task (another
+// session, another task's event, a record that cannot be read) offers
+// nothing, and refuses for the kind as before.
+func TestSendChecksTheChosenItem(t *testing.T) {
+	mainWorld := func(t *testing.T) (*sendWorld, string, Deps) {
+		sw := newSendWorld(t)
+		tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "main", Branch: mainBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved}}, "claude")
+		sw.putHistory(tree, mergedOn(t, 7, taskBranch)...)
+		return sw, tree, sw.finish()
+	}
+	t.Run("the chosen item on main is sent", func(t *testing.T) {
+		sw, tree, deps := mainWorld(t)
+		out, err := Send(context.Background(), deps, sw.owner(), chosenReq(t, deps, sw.owner(), tree, "mkplan"))
+		if err != nil || len(out.Actions) != 1 || out.Actions[0].Outcome != OutcomeSent {
+			t.Fatalf("Send = %+v, %v; want sent", out, err)
+		}
+		if want := []string{"w1:p1 /clear", "w1:p1 /model opus", "w1:p1 /mkplan 0001"}; !slices.Equal(sw.rec.prompts(), want) {
+			t.Errorf("typed %v, want %v", sw.rec.prompts(), want)
+		}
+		records, err := sw.store.Records(Worktree{path: tree})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if last, err := records.LastSend("w1:p1"); err != nil || last == nil || last.Command != "/mkplan 0001" {
+			t.Errorf("last send = %+v, %v; want /mkplan 0001 recorded", last, err)
+		}
+	})
+	for _, c := range []struct {
+		name   string
+		change func(t *testing.T, sw *sendWorld, tree string) Owner
+	}{
+		{"another session", func(_ *testing.T, sw *sendWorld, _ string) Owner {
+			return Owner{Pane: sw.chief.Pane, Session: "00000000-0000-4000-8000-0000000000c9"}
+		}},
+		{"another task's event", func(t *testing.T, sw *sendWorld, tree string) Owner {
+			sw.putHistory(tree, traceEvent{Round: traceRound(3), Kind: traceBranchTask, Task: taskID(t, "0002")})
+			return sw.owner()
+		}},
+		{"a record that cannot be read", func(t *testing.T, sw *sendWorld, tree string) Owner {
+			putTrace(t, sw.store, Worktree{path: tree}, "trace-broken.json", []byte("{}"))
+			return sw.owner()
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			sw, tree, deps := mainWorld(t)
+			req := chosenReq(t, deps, sw.owner(), tree, "mkplan")
+			out, err := Send(context.Background(), deps, c.change(t, sw, tree), req)
+			// The row needs a check, so it offers no /mkplan.
+			if err != nil || len(out.Actions) != 1 || out.Actions[0].Reason != NotSentNotOffered || out.Actions[0].Detail != "the workspace's next command is not this one (state needs_check)" {
+				t.Errorf("Send = %+v, %v; want not offered for the kind", out, err)
+			}
+			if got := sw.rec.prompts(); len(got) != 0 {
+				t.Errorf("typed %v", got)
+			}
+		})
+	}
+	t.Run("another task on the branch", func(t *testing.T) {
+		sw := newSendWorld(t)
+		tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved}}, "claude")
+		deps := sw.finish()
+		req := chosenReq(t, deps, sw.owner(), tree, "mkplan")
+		sw.git(tree, "rev-parse --abbrev-ref HEAD", otherTaskBranch+"\n")
+		sw.rec.replyIn(tree, "gh pr list --head "+otherTaskBranch+" --state open --json headRefName,number,title,url", []byte("[]"))
+		sw.docs(tree, fakeDocs{Dir: otherTaskDir, Req: reqApproved, Arch: archApproved})
+		assertOtherItem(t, sw, deps, req, "/mkplan 0002")
+	})
+	t.Run("an automatic send's proposal of another task", func(t *testing.T) {
+		mw := newMergeWorld(t, mkarchDocs)
+		mw.tick(time.Minute)
+		// PR 42 of 0001 is merged and the worktree moved to a branch of
+		// 0002, whose next command is /mkarch 0002: the automatic send
+		// proposes /mkarch 0001, which the row does not offer.
+		mw.merge(otherTaskBranch, "`/mkarch 0001`")
+		mw.docs(mw.tree, fakeDocs{Dir: otherTaskDir, Req: reqApproved})
+		mw.docs(mw.tree, mkarchDocs)
+		mw.rec.replyIn(mw.tree, "git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/", []byte("docs/tasks/"+taskDir+"\x00docs/tasks/"+otherTaskDir+"\x00"))
+		out := mw.tick(time.Minute)
+		var item ItemID
+		for _, p := range out.Output().Pending {
+			if p.Kind == "proposal" && p.Proposal != nil && p.Proposal.Command == "/mkarch 0001" {
+				item = p.ID
+			}
+		}
+		if item == "" || rowOf(t, out.Snapshot, "ws").Next == nil || rowOf(t, out.Snapshot, "ws").Next.Text != "/mkarch 0002" {
+			t.Fatalf("pending %+v; want the automatic send's /mkarch 0001 next to the row's /mkarch 0002", out.Output().Pending)
+		}
+		assertOtherItem(t, mw.sendWorld, mw.deps, sendReq(t, mw.tree, "mkarch", "", "", string(item)), "/mkarch 0002")
+	})
+	t.Run("/runplan of another PR of the plan", func(t *testing.T) {
+		// The plan's next PR moves from PR-2 to PR-3 after the item was
+		// shown: the command line is the same, the item is not.
+		sw := newSendWorld(t)
+		tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
+		deps := sw.finish()
+		req := chosenReq(t, deps, sw.owner(), tree, "runplan")
+		sw.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-real-forms.md")})
+		assertOtherItem(t, sw, deps, req, "/runplan 0001")
+	})
+	t.Run("the takeover's item for /runplan", func(t *testing.T) {
+		sw, tree, deps := takeoverWorld(t)
+		takeover := chosenReq(t, deps, sw.owner(), tree, "runplan-takeover")
+		assertOtherItem(t, sw, deps, sendReq(t, tree, "runplan", "", "", string(takeover.item)), "/runplan 0001")
+	})
+}
+
+// assertOtherItem sends req and checks it is refused because the row offers
+// the same kind of command as another item, offer, and types nothing.
+func assertOtherItem(t *testing.T, sw *sendWorld, deps Deps, req SendRequest, offer string) {
+	t.Helper()
+	out, err := Send(context.Background(), deps, sw.owner(), req)
+	if err != nil || len(out.Actions) != 1 || out.Actions[0].Reason != NotSentNotOffered || out.Actions[0].Detail != otherItemDetail+offer+" now)" {
+		t.Errorf("Send = %+v, %v; want not offered for another item, %s", out, err, offer)
+	}
+	if got := sw.rec.prompts(); len(got) != 0 {
+		t.Errorf("typed %v", got)
+	}
+}
+
+// TestSendMkreqToMainRefused checks that /mkreq is never sent to a worktree
+// on main, whether its history identifies a task or not.
+func TestSendMkreqToMainRefused(t *testing.T) {
+	for _, identified := range []bool{false, true} {
+		sw := newSendWorld(t)
+		tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "main", Branch: mainBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved}}, "claude")
+		if identified {
+			sw.putHistory(tree, mergedOn(t, 7, taskBranch)...)
+		}
+		deps := sw.finish()
+		out, err := Send(context.Background(), deps, sw.owner(), sendReq(t, tree, "mkreq", "12", "", ""))
+		if err != nil || len(out.Actions) != 1 || out.Actions[0].Reason != NotSentNotOffered {
+			t.Errorf("identified %v: Send = %+v, %v; want not offered", identified, out, err)
+		}
+		if got := sw.rec.prompts(); len(got) != 0 {
+			t.Errorf("identified %v: typed %v", identified, got)
+		}
 	}
 }

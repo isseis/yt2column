@@ -141,6 +141,9 @@ func SendOfferedReset(ctx context.Context, deps Deps, owner Owner, req OfferedRe
 	old, oldErr := readOldValues(ctx, tasks, loc.chiefTree.String())
 	f := readWorkspace(ctx, herdr, git, tasks, loc.ws)
 	f.Routing = routing
+	// A worktree on main is classified from the caller's history, as the
+	// round that offered the item classified it.
+	f = withHistory(ctx, deps.Store, tasks, f, owner.Session, loc.ws.Tree)
 	row := classifyWorkspace(ctx, git, tasks, f, old, oldErr)
 	if row.State == StateNeedsCheck {
 		return one(notSent(base, NotSentCheckMismatch, "the workspace needs a check, so it offers no reset")), nil

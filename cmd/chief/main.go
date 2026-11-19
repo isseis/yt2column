@@ -61,6 +61,7 @@ const (
 	flagCommand   = "--command"
 	flagIssue     = "--issue"
 	flagPR        = "--pr"
+	flagItem      = "--item"
 	flagCheck     = "--check"
 	flagAnswer    = "--answer"
 	flagSince     = "--since"
@@ -73,7 +74,7 @@ var subcommandFlags = map[string]struct{ required, optional []string }{
 	cmdSnapshot: {required: []string{flagProtocol}},
 	cmdTick:     {required: []string{flagProtocol}},
 	cmdWait:     {required: []string{flagProtocol, flagSince}, optional: []string{flagTimeout}},
-	cmdSend:     {required: []string{flagProtocol, flagWorkspace, flagCommand}, optional: []string{flagIssue, flagPR}},
+	cmdSend:     {required: []string{flagProtocol, flagWorkspace, flagCommand}, optional: []string{flagIssue, flagPR, flagItem}},
 	cmdRelay:    {required: []string{flagProtocol, flagWorkspace, flagCheck, flagAnswer}},
 	cmdReset:    {required: []string{flagProtocol, flagWorkspace, flagCheck}},
 	cmdDetail:   {required: []string{flagProtocol, flagWorkspace}},
@@ -87,7 +88,7 @@ var subcommandFlags = map[string]struct{ required, optional []string }{
 
 var errUsage = errors.New("usage: chief start|snapshot|tick --protocol N | " +
 	"wait --since B [--timeout S] --protocol N | " +
-	"send --workspace W --command K [--issue N|--pr N] --protocol N | " +
+	"send --workspace W --command K [--issue N|--pr N|--item I] --protocol N | " +
 	"relay --workspace W --check C --answer 1=N --protocol N | " +
 	"reset --workspace W --check C --protocol N | " +
 	"detail --workspace W --protocol N | release --workspace W --protocol N | " +
@@ -166,12 +167,6 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 		return exitUsage
 	}
 	protocol := flags[flagProtocol]
-	// A malformed request is a usage error, found before anything is read.
-	req, err := parseRequests(subcommand, flags)
-	if err != nil {
-		_, _ = fmt.Fprintln(stderr, "chief:", err)
-		return exitUsage
-	}
 	refuse := func(reason, message string) int {
 		return write(stdout, stderr, result{Protocol: chief.Protocol, Outcome: "refused", Reason: reason, Message: message}, exitRefused)
 	}
@@ -180,6 +175,14 @@ func run(ctx context.Context, args []string, env chief.Env, environ []string, fa
 	}
 	if protocol != strconv.Itoa(chief.Protocol) {
 		return refuse("protocol_mismatch", fmt.Sprintf("this chief speaks protocol %d, not %s; reinstall it", chief.Protocol, chief.Sanitize(protocol)))
+	}
+	// A malformed request is a usage error, found before anything is read.
+	// The protocol comes first: a definition of another protocol may write
+	// a request this one refuses, and it must be told to reinstall.
+	req, err := parseRequests(subcommand, flags)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, "chief:", err)
+		return exitUsage
 	}
 	// Outside Herdr nothing is read: no file, no command.
 	if env.PaneID == "" {
@@ -243,7 +246,7 @@ func parseRequests(subcommand string, flags map[string]string) (requests, error)
 	var err error
 	switch subcommand {
 	case cmdSend:
-		req.send, err = chief.ParseSendRequest(flags[flagWorkspace], flags[flagCommand], flags[flagIssue], flags[flagPR])
+		req.send, err = chief.ParseSendRequest(flags[flagWorkspace], flags[flagCommand], flags[flagIssue], flags[flagPR], flags[flagItem])
 	case cmdRelay:
 		req.relay, err = chief.ParseRelayRequest(flags[flagWorkspace], flags[flagCheck], flags[flagAnswer])
 	case cmdReset:
@@ -268,7 +271,7 @@ func dispatch(ctx context.Context, subcommand string, flags map[string]string, r
 		out, err := chief.Wait(ctx, deps, owner, req.wait)
 		return out.Output(), err
 	case cmdSend:
-		out, err := chief.Send(ctx, deps, req.send)
+		out, err := chief.Send(ctx, deps, owner, req.send)
 		return out.Output(), err
 	case cmdRelay:
 		out, err := chief.Relay(ctx, deps, req.relay)

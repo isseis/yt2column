@@ -217,6 +217,7 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 var placeholderValues = map[string]string{
 	"<workspace>": "/w",
 	"<request>":   "mkarch",
+	"<id>":        strings.Repeat("c", 32),
 	"<issue>":     "12",
 	"<pr>":        "34",
 	"<check>":     strings.Repeat("a", 64),
