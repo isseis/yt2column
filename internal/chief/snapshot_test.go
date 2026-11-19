@@ -8,10 +8,13 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/privatefile"
@@ -974,4 +977,153 @@ func TestRunningOutputHasNoRawText(t *testing.T) {
 			t.Errorf("row %v holds the raw argument: %s", r["label"], data)
 		}
 	}
+}
+
+// tableFirstLines returns the first line of each row of a laid-out table
+// of n rows, checking first that the table cannot leave its code block:
+// the legend, a blank line, the heading, and the rule come first, each row
+// has two lines, and a blank line separates two rows.
+func tableFirstLines(t *testing.T, table []string, n int) []string {
+	t.Helper()
+	if err := codeBlockCheck(table); err != nil {
+		t.Fatalf("%v\n%s", err, strings.Join(table, "\n"))
+	}
+	if len(table) != 4+3*n-1 {
+		t.Fatalf("table has %d lines, want %d for %d rows:\n%s", len(table), 4+3*n-1, n, strings.Join(table, "\n"))
+	}
+	var firsts []string
+	for i := range n {
+		firsts = append(firsts, table[4+3*i])
+	}
+	return firsts
+}
+
+// TestSnapshotTableMatchesRows checks that the table of a snapshot's output
+// shows its rows in the rows' order, each first line with the mark and the
+// status word table.go gives the row's urgency and progress, then the
+// row's name, task, and PR number as the same output's rows hold them.
+func TestSnapshotTableMatchesRows(t *testing.T) {
+	w := newWorld(t)
+	// The workspaces are added in another order than the rows', so a table
+	// laid out from the rows before they are ordered fails.
+	w.add(fakeWorkspace{ID: "w1", Label: "idle", Branch: "main"})
+	w.add(fakeWorkspace{ID: "w2", Label: "plan", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}})
+	w.add(fakeWorkspace{ID: "w3", Label: "review", Branch: taskBranch, PRs: openPRJSON})
+	w.add(fakeWorkspace{ID: "w4", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
+	snap := take(t, w)
+	out := snap.Output()
+	if len(out.TableUnreadable) != 0 {
+		t.Errorf("table_unreadable = %v, want none when every source was read", out.TableUnreadable)
+	}
+	firsts := tableFirstLines(t, out.Table, len(out.Rows))
+	var labels []string
+	for i, r := range out.Rows {
+		labels = append(labels, r.Label)
+		row := snap.Rows[i]
+		mark, word := urgencyMark(row.Urgency), progressWord(row.Position.Progress)
+		task, pr := r.Task, "-"
+		if task == "" {
+			task = "-"
+		}
+		if r.PR != nil {
+			pr = "#" + strconv.Itoa(r.PR.Number)
+		}
+		want := []string{mark, word, r.Label, task, pr}
+		if got := strings.Fields(firsts[i]); len(got) < len(want) || !slices.Equal(got[:len(want)], want) {
+			t.Errorf("row %d first line = %q, want it to start with %v", i, firsts[i], want)
+		}
+	}
+	if !slices.Equal(labels, []string{"merge", "review", "plan", "idle"}) {
+		t.Errorf("rows = %v; the checks above assume another order", labels)
+	}
+}
+
+// TestTableSourcesUnreadable breaks one table source at a time: the tab
+// list or the chief pane's layout fails or has another shape, or the agent
+// list's panes cannot be mapped to tabs (a tab_id missing, a pane listed
+// twice). The round still succeeds, its rows, pending items, and problems
+// are those of a round that read every source, the table is laid out at 80
+// columns or shows the question pane by its ID, and table_unreadable says
+// why. An error text over 512 bytes holding an ESC is cut and escaped.
+func TestTableSourcesUnreadable(t *testing.T) {
+	long := "\x1b[2J" + strings.Repeat("x", 600)
+	const (
+		width = iota
+		tab
+	)
+	cases := []struct {
+		name   string
+		breaks func(w *world)
+		lost   int
+	}{
+		{"tab list fails", func(w *world) { w.rec.fail("herdr tab list", errors.New("herdr is down")) }, tab},
+		{"tab list of another shape", func(w *world) {
+			w.rec.reply("herdr tab list", []byte(`{"id":"cli:tab:list","result":{"tabs":"none","type":"tab_list"}}`))
+		}, tab},
+		{"pane layout fails with a long error", func(w *world) { w.rec.fail("herdr pane layout --pane "+worldChiefPane, errors.New(long)) }, width},
+		{"pane layout of another shape", func(w *world) {
+			w.rec.reply("herdr pane layout --pane "+worldChiefPane, paneLayoutOutput(worldChiefPane, 0))
+		}, width},
+		{"agent list without a tab_id", func(w *world) {
+			w.rec.reply("herdr agent list", []byte(strings.Replace(string(agentListOutput(w.agents)), `"tab_id":"w1:t1",`, "", 1)))
+		}, tab},
+		{"agent list with a pane twice", func(w *world) {
+			dup := w.agents[len(w.agents)-1]
+			dup.Tab = "w2:t2"
+			w.rec.reply("herdr agent list", agentListOutput(append(slices.Clone(w.agents), dup)))
+		}, tab},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.add(fakeWorkspace{ID: "w1", Label: "ask", Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
+			w.add(fakeWorkspace{ID: "w2", Label: "plan", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}})
+			deps := w.finish()
+			read, err := TakeSnapshot(context.Background(), deps, w.owner())
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.breaks(w)
+			got, err := TakeSnapshot(context.Background(), deps, w.owner())
+			if err != nil {
+				t.Fatalf("the round failed: %v", err)
+			}
+			if !reflect.DeepEqual(got.Rows, read.Rows) || !slices.Equal(got.Problems, read.Problems) || !reflect.DeepEqual(notNew(got.Pending), notNew(read.Pending)) {
+				t.Errorf("the round changed:\nrows %+v\nwant %+v\nproblems %v, want %v\npending %+v\nwant %+v", got.Rows, read.Rows, got.Problems, read.Problems, got.Pending, read.Pending)
+			}
+			// A lost width is one note; a lost tab is the source's note and
+			// the question pane's.
+			if notes := 1 + c.lost; len(read.TableUnreadable) != 0 || len(got.TableUnreadable) != notes {
+				t.Errorf("table_unreadable = %v, then %v; want none, then %d notes", read.TableUnreadable, got.TableUnreadable, notes)
+			}
+			firsts := tableFirstLines(t, got.Table, len(got.Rows))
+			ruleWidth := utf8.RuneCountInString(got.Table[3])
+			switch c.lost {
+			case width:
+				if ruleWidth != tablePaneDefault-tableMarginWhole {
+					t.Errorf("rule is %d wide, want the table laid out at 80 columns", ruleWidth)
+				}
+			case tab:
+				if ruleWidth != worldChiefWidth-tableMarginWhole || !strings.Contains(firsts[0], "[w1:p1]") {
+					t.Errorf("rule is %d wide and the question row is %q; want the pane's width and the pane ID", ruleWidth, firsts[0])
+				}
+			}
+			if strings.Contains(c.name, "long") {
+				note := got.TableUnreadable[0]
+				if strings.Contains(note, "\x1b") || !strings.Contains(note, `\x1b`) || !strings.Contains(note, "[truncated]") || len(note) > tableNoteMaxBytes+100 {
+					t.Errorf("note = %q (%d bytes), want the error cut at %d bytes and escaped", note, len(note), tableNoteMaxBytes)
+				}
+			}
+		})
+	}
+}
+
+// notNew returns the items with New cleared: a second round of the same
+// session has announced every item already.
+func notNew(items []PendingItem) []PendingItem {
+	out := slices.Clone(items)
+	for i := range out {
+		out[i].New = false
+	}
+	return out
 }

@@ -414,6 +414,21 @@ func TestStartThenSnapshot(t *testing.T) {
 	if out["state_dir"] != filepath.Join(h.state, "yt2column", "chief") {
 		t.Errorf("state_dir = %v", out["state_dir"])
 	}
+	checkTableMembers(t, out)
+}
+
+// checkTableMembers checks the status table members of a snapshot or tick
+// output: table is a list of lines that is not empty (a table with no row
+// still has its legend and heading), and table_unreadable is a list, not
+// null. The layout itself is internal/chief's to test.
+func checkTableMembers(t *testing.T, out map[string]any) {
+	t.Helper()
+	if table, ok := out["table"].([]any); !ok || len(table) == 0 {
+		t.Errorf("table = %v, want a list of lines", out["table"])
+	}
+	if _, ok := out["table_unreadable"].([]any); !ok {
+		t.Errorf("table_unreadable = %v, want a list and not null", out["table_unreadable"])
+	}
 }
 
 // TestStartThenTickAndWait runs tick and wait after start: the tick prints
@@ -434,6 +449,7 @@ func TestStartThenTickAndWait(t *testing.T) {
 			t.Errorf("%s = %v, want an empty list and not null", key, out[key])
 		}
 	}
+	checkTableMembers(t, out)
 	baseline, ok := out["baseline"].(string)
 	if !ok || baseline == "" {
 		t.Fatalf("baseline = %v", out["baseline"])

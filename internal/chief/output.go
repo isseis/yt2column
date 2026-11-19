@@ -24,6 +24,15 @@ type SnapshotOutput struct {
 	Problems   []string `json:"problems"`
 	// Baseline is the value `chief wait --since` takes.
 	Baseline WaitBaseline `json:"baseline"`
+	// Table is the status table, one line per element, which /chief pastes
+	// in a code block unchanged.
+	Table []string `json:"table"`
+	// TableUnreadable names the table sources that could not be read and
+	// the question panes shown by their pane IDs, for investigation; /chief
+	// does not show it. Its wording is not part of the output's contract;
+	// it is empty when every source was read and every question pane was
+	// shown by its tab's label.
+	TableUnreadable []string `json:"table_unreadable"`
 }
 
 // RowOutput is one row of the status table.
@@ -268,6 +277,10 @@ func (s Snapshot) Output() SnapshotOutput {
 		NewNotices: []ItemID{},
 		Problems:   sanitizeAll(s.Problems),
 		Baseline:   s.Baseline,
+		// The table and its notes were sanitized as they were made; a second
+		// Sanitize would double every backslash of their escapes.
+		Table:           append([]string{}, s.Table...),
+		TableUnreadable: append([]string{}, s.TableUnreadable...),
 	}
 	for _, r := range s.Rows {
 		row := RowOutput{

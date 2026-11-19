@@ -270,6 +270,15 @@ func (sw *sendWorld) finish() Deps {
 		}
 		return reply{out: agentListOutput(agents)}
 	})
+	sw.rec.replyFunc("herdr tab list", func() reply {
+		sw.mu.Lock()
+		defer sw.mu.Unlock()
+		agents := []fakeAgent{sw.chief}
+		for _, p := range sw.panes {
+			agents = append(agents, p.fakeAgent)
+		}
+		return reply{out: tabListOutput(agents)}
+	})
 	sw.rec.onPrompt = func(pane, text string) error {
 		sw.mu.Lock()
 		defer sw.mu.Unlock()

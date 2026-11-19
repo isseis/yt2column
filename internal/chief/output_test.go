@@ -83,3 +83,27 @@ func TestRunningOutputLaterInput(t *testing.T) {
 		}
 	}
 }
+
+// TestSnapshotOutputTable checks the table members of a snapshot's JSON
+// when every table source was read and the question pane is shown by its
+// tab's label: table holds the lines, and table_unreadable is [] and not
+// null.
+func TestSnapshotOutputTable(t *testing.T) {
+	w := newWorld(t)
+	w.add(fakeWorkspace{ID: "w1", Label: "ask", Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
+	data, err := json.Marshal(take(t, w).Output())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Table           []string        `json:"table"`
+		TableUnreadable json.RawMessage `json:"table_unreadable"`
+	}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	tableFirstLines(t, got.Table, 1)
+	if string(got.TableUnreadable) != "[]" {
+		t.Errorf("table_unreadable = %s, want []", got.TableUnreadable)
+	}
+}
