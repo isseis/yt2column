@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -337,6 +338,65 @@ func TestTakeoverProposal(t *testing.T) {
 				t.Errorf("takeover proposed without %s: %+v", name, r.Takeover)
 			}
 		})
+	}
+	// The plan on main and the plan on the branch are written in form B or
+	// form C: the target steps (PR-2) are done while PR-3's step is not, and
+	// the proposal does not wait for the steps outside the target.
+	for _, sample := range []string{"steps-b-markers.md", "steps-c-markers.md"} {
+		t.Run("steps of "+sample, func(t *testing.T) {
+			w, tree := takeoverSetup(t)
+			w.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, sample)})
+			w.rec.replyIn(tree, "git show HEAD:docs/tasks/"+taskDir+"/"+planFile, planSample(t, sample))
+			r := rowOf(t, take(t, w), "ws")
+			if r.Takeover == nil || r.Takeover.Kind != TaskNextRunplanTakeover {
+				t.Fatalf("takeover = %+v (unreadable %v), want a proposal", r.Takeover, r.Unreadable)
+			}
+		})
+	}
+	// The branch's plan leaves a target step undone, or has a step without a
+	// checkbox; the step checkbox "[-]" of PR-2 is the one changed.
+	dropSkipped := func(doc string) string {
+		var kept []string
+		dropped := false
+		for l := range strings.SplitSeq(doc, "\n") {
+			if !dropped && strings.HasPrefix(l, "- [-] ") {
+				dropped = true
+				continue
+			}
+			kept = append(kept, l)
+		}
+		return strings.Join(kept, "\n")
+	}
+	for _, sample := range []string{"steps-b-markers.md", "steps-c-markers.md"} {
+		for _, c := range []struct {
+			name       string
+			edit       func(string) string
+			unreadable bool
+		}{
+			{"a target step not done", func(doc string) string { return strings.Replace(doc, "- [-] ", "- [ ] ", 1) }, false},
+			{"a target step without a checkbox", dropSkipped, true},
+		} {
+			t.Run(c.name+" in "+sample, func(t *testing.T) {
+				doc := string(planSample(t, sample))
+				branch := c.edit(doc)
+				if branch == doc {
+					t.Fatal("the edit did not apply")
+				}
+				w, tree := takeoverSetup(t)
+				w.docs(tree, fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, sample)})
+				w.rec.replyIn(tree, "git show HEAD:docs/tasks/"+taskDir+"/"+planFile, []byte(branch))
+				r := rowOf(t, take(t, w), "ws")
+				if r.Takeover != nil {
+					t.Errorf("takeover proposed: %+v", r.Takeover)
+				}
+				if got := slices.Contains(r.Unreadable, "the steps of the next PR on the branch"); got != c.unreadable {
+					t.Errorf("unreadable = %v, want the steps of the next PR on the branch named: %v", r.Unreadable, c.unreadable)
+				}
+				if !c.unreadable && len(r.Unreadable) != 0 {
+					t.Errorf("unreadable = %v, want none (the steps are readable, only not done)", r.Unreadable)
+				}
+			})
+		}
 	}
 	t.Run("a requirement that is sonnet", func(t *testing.T) {
 		w, tree := takeoverSetup(t)
@@ -1136,4 +1196,88 @@ func notNew(items []PendingItem) []PendingItem {
 		out[i].New = false
 	}
 	return out
+}
+
+// TestTakeSnapshotPlanSteps checks the row a plan's steps give for a plan
+// whose next PR is not created: /runplan when steps of any form are left, and
+// a needs-check row with a reason of its own for each reading that proposes
+// nothing. The reasons are compared whole, built from the constants and the
+// step error's detail, a line of the sample.
+func TestTakeSnapshotPlanSteps(t *testing.T) {
+	unreadable := func(cond, sample string, line int) string {
+		return fmt.Sprintf("%s: %s: %q", reasonStepsUnreadable, cond, planSampleLine(t, sample, line))
+	}
+	cases := []struct {
+		sample string
+		state  WorkspaceState
+		reason string // the only unreadable reason of a needs-check row
+	}{
+		{"real-0110.md", StateProposeNext, ""},
+		{"real-0111.md", StateProposeNext, ""},
+		{"steps-b-open.md", StateProposeNext, ""},
+		{"steps-c-markers.md", StateProposeNext, ""},
+		{"steps-b-all-done.md", StateNeedsCheck, reasonNoStepLeft},
+		{"steps-c-all-done.md", StateNeedsCheck, reasonNoStepLeft},
+		{"steps-none.md", StateNeedsCheck, reasonNoSteps},
+		{"steps-no-checkbox.md", StateNeedsCheck, reasonStepsUnreadable + ": " + reasonStepNoCheckbox + ": \"1-2\""},
+		{"steps-near-miss-heading.md", StateNeedsCheck, unreadable(reasonStepNearMiss, "steps-near-miss-heading.md", 23)},
+		{"steps-other-checkbox-open.md", StateNeedsCheck, unreadable(reasonStepOtherCheckbox, "steps-other-checkbox-open.md", 20)},
+		{"steps-other-checkbox-done.md", StateNeedsCheck, unreadable(reasonStepOtherCheckbox, "steps-other-checkbox-done.md", 20)},
+		{"steps-duplicate.md", StateNeedsCheck, reasonStepsUnreadable + ": " + reasonStepDuplicate + ": \"1-1\""},
+		// A plan with no step and a look-alike line gets the unreadable reason.
+		{"steps-none-near-miss.md", StateNeedsCheck, unreadable(reasonStepNearMiss, "steps-none-near-miss.md", 15)},
+		// 0069 with its PR not created: look-alike lines among its steps.
+		{"real-0069-pr-open.md", StateNeedsCheck, unreadable(reasonStepNearMiss, "real-0069-pr-open.md", 72)},
+		// Every PR merged: done whatever the steps.
+		{"steps-merged-unreadable.md", StateTaskDone, ""},
+		{"steps-merged-duplicate.md", StateTaskDone, ""},
+		{"real-0069.md", StateTaskDone, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.sample, func(t *testing.T) {
+			w := newWorld(t)
+			w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, c.sample)}})
+			r := rowOf(t, take(t, w), "ws")
+			if r.State != c.state {
+				t.Fatalf("state = %v (%v), want %v", r.State, r.Unreadable, c.state)
+			}
+			switch c.state {
+			case StateProposeNext:
+				if r.Next == nil || r.Next.Kind != TaskNextRunplan || r.Next.Text != "/runplan 0001" {
+					t.Errorf("next = %+v, want /runplan 0001", r.Next)
+				}
+			case StateNeedsCheck:
+				if r.Next != nil || !slices.Equal(r.Unreadable, []string{c.reason}) {
+					t.Errorf("row = %+v, want no command and the reason %q", r, c.reason)
+				}
+			}
+		})
+	}
+}
+
+// TestStepReasonsDiffer checks that the reasons for a plan PR left with no
+// /runplan are pairwise different, so that a plan whose steps were not read
+// is not taken for one whose steps are all done, and that a step error
+// of an unknown kind, or an error of another type, still gets the plain
+// unreadable reason.
+func TestStepReasonsDiffer(t *testing.T) {
+	reasons := []string{reasonNoStepLeft, reasonNoSteps}
+	for _, kind := range []stepErrorKind{stepNoCheckbox, stepNearMiss, stepOtherCheckbox, stepDuplicate} {
+		reasons = append(reasons, stepsUnreadableReason(&stepError{Kind: kind, Detail: "x"}))
+	}
+	seen := map[string]struct{}{}
+	for _, r := range reasons {
+		if _, dup := seen[r]; dup {
+			t.Errorf("reason %q is given for two readings", r)
+		}
+		seen[r] = struct{}{}
+	}
+	for name, err := range map[string]error{
+		"a kind of none": &stepError{Detail: "x"},
+		"another error":  errors.New("boom"),
+	} {
+		if got := stepsUnreadableReason(err); got != reasonStepsUnreadable {
+			t.Errorf("%s: reason = %q, want %q", name, got, reasonStepsUnreadable)
+		}
+	}
 }
