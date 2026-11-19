@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -91,3 +91,7 @@ N/A。chief の処理の流れは変わらない。
 
 -   chief が NEXT 行を読む経路を足したら、3.3 節の表とテストにも足す。
 -   `runpr.md` の step の番号か見出しが変わったら、テストの見出しも変える。見出しが見つからないとテストが失敗するので、変え忘れは残らない。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1004）

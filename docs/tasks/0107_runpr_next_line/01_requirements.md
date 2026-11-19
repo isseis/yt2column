@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -134,3 +134,7 @@
 -   **NEXT 行:** `/runpr` の報告で、次のコマンドを `NEXT: <値>` の形で示す行（`runpr.md` step 5 の「NEXT line」）。
 -   **NEXT 行の例:** F-001 の冒頭で定めるテキスト。
 -   **chief の読み取り:** chief が NEXT 行を読む 2 つの経路。画面から読む `readRunprNext` と、transcript から読む `readReportNext`（1 章の背景）。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1004）
