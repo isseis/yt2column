@@ -12,7 +12,7 @@
 
 AC-05 は、push するのを判定した commit とし、判定の後にブランチの先頭が動いたら判定からやり直すことを求める。今の Part B step 3 は、題名と本文を書き、ラベルを読んでから、ブランチの先頭を `git push -u origin <current-branch>` で push する（`task-pr-handoff.md:209-230`）。
 
-**案:** 新しい入口を足す。有効なら何も作らない。push は、判定した commit を名指しして行う（例：`git push -u origin <判定した commit>:refs/heads/<branch>`）か、push の直前にブランチの先頭が判定した commit と同じかを確かめる。判定が merge の後の確認だけを求めるときは、それを走らせる（AC-24、H-05）。Fable の部分レビューを求めるときは、単独の経路（`fable-review.md`「The standalone path」）を走らせる。どちらも、その後にREADME の同期と CHECKS を走らせ直してから（AC-04）、もう一度判定する（AC-05）。`/runplan` では、その間に Opus のレビューの判断をやり直す（AC-09）。`<ENTRY>` は、`/runplan` の PR では `checkpoint`、タスク文書の PR では H-02 の手段に合う値を渡す。
+**案:** 新しい入口を足す。有効なら何も作らない。push は、判定した commit を名指しして行う（例：`git push -u origin <判定した commit>:refs/heads/<branch>`）。ブランチの先頭を確かめてからブランチ名で push する形は、確かめと push の間に足された commit を送りうるので採らない。ブランチの先頭が判定した commit と違うときは、判定からやり直す。判定が merge の後の確認だけを求めるときは、それを走らせる（AC-24、H-05）。Fable の部分レビューを求めるときは、単独の経路（`fable-review.md`「The standalone path」）を走らせる。どちらも、その後にREADME の同期と CHECKS を走らせ直してから（AC-04）、もう一度判定する（AC-05）。`/runplan` では、その間に Opus のレビューの判断をやり直す（AC-09）。`<ENTRY>` は、`/runplan` の PR では `checkpoint`、タスク文書の PR では H-02 の手段に合う値を渡す。
 
 **関連:** F-001、AC-01〜AC-09、AC-24
 
@@ -29,7 +29,7 @@ AC-05 は、push するのを判定した commit とし、判定の後にブラ�
 ## H-03: 判定のスクリプトの変更（merge の後の確認の記録と、START の決め方）と、そのテスト
 
 **懸念:** 判定のスクリプトには 3 つの変更が要る。
-- **記録の START の確かめ:** 今は、START が今の merge-base かブランチの commit である記録だけを読む（`review-records.sh:46-52`、`:87-91`）。merge で merge-base が動くと、最初の記録（START が古い merge-base）が無視され、Fable が PR の全体を走り直す。AC-32 は、その記録を読み続けることを求める。START が `origin/main` の commit で END の祖先であることを確かめれば、記録の範囲（START..END）はブランチの commit だけのままなので、有効と判定する側は広がらない。
+- **記録の START の確かめ:** 今は、START が今の merge-base かブランチの commit である記録だけを読む（`review-records.sh:46-52`、`:87-91`）。merge で merge-base が動くと、最初の記録（START が古い merge-base）が無視され、Fable が PR の全体を走り直す。AC-32 は、その記録を読み続けることを求める。START が `origin/main` の commit で END の祖先であり、START..END に `origin/main` が届く commit がない（範囲がブランチの commit だけである）ことを確かめれば、有効と判定する側は広がらない。END が merge の後の commit で、START..END に merge で入った `main` 側の commit が入る記録は、読まない。
 - **merge の後の確認の記録:** merge commit を名指しした確認の記録（`not run` を含む）があれば、その merge commit を記録を無効にしない commit に数える（AC-27、AC-28）。また、記録を無効にする commit が、確認の記録のない merge commit だけのときは、Fable ではなく merge の後の確認を求めることを、出力で区別する必要がある（AC-24）。今の出力は `VALID` か `MISSING <START>` だけである。
 - **START の決め方:** Fable を走らせ直すとき、記録の後に merge commit が 1 つでもあれば、START を新しい merge-base にする（AC-14）。今は、最初に規則に当たらない commit の第 1 親がブランチの commit なら、その第 1 親を START にする（`review-records.sh:570-578`）。
 
