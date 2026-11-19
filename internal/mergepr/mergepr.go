@@ -7,8 +7,13 @@
 // only when the protocol-number check passes against a freshly fetched
 // origin/main both before CI is awaited and right before the merge, only when,
 // for a PR into main, the number check finds nothing wrong with the task and
-// ADR numbers the PR adds both after CI passed and right before the merge, and
-// never to delete a local branch that holds commits outside the PR.
+// ADR numbers the PR adds both after CI passed and right before the merge,
+// only when the subject and body carry the editorial correction lines of the
+// PR's commits exactly as the correction check reads them from the commit
+// objects both before the approval (check-body) and right before the merge,
+// and never to delete a local branch that holds commits outside the PR. After
+// the merge it compares the merge commit's correction lines with the body it
+// checked and sent, and reports a difference; it cannot undo the merge.
 package mergepr
 
 import (
@@ -38,6 +43,9 @@ const (
 	bodyFileName   = "body.txt"
 	markerFileName = "marker"
 
+	correctionsFileName = "corrections.txt"
+	paragraphFileName   = "paragraph.txt"
+
 	// markerContent is written to markerFileName so removal can tell a directory
 	// Prepare created from one that merely shares its name prefix.
 	markerContent = "mergepr work directory\n"
@@ -52,7 +60,7 @@ const (
 // Protocol is the version of the tool's command-line contract. The command
 // documents pass it back with --protocol, so an installed binary that predates
 // the documents stops instead of merging without the checks they expect.
-const Protocol = 2
+const Protocol = 3
 
 // mainRefspec fetches main into its remote-tracking ref whatever the
 // repository's remote.origin.fetch says, so the protocol-number check always
@@ -73,6 +81,9 @@ type Tool struct {
 	mainFetch Runner
 	protocol  protocolChecker
 	numbers   NumberChecker
+	// corrections reads the correction lines of the PR's commits and of the
+	// merge commit, and the trailers git reads from a message.
+	corrections correctionSource
 }
 
 // NumberChecker checks the task and ADR numbers a PR head adds before it is
@@ -96,7 +107,7 @@ type protocolChecker interface {
 // removed from the environment.
 func New(runner Runner, numbers NumberChecker) *Tool {
 	git := newGitRunner("")
-	return &Tool{run: runner, mainFetch: git, protocol: newProtocolCheck(git), numbers: numbers}
+	return &Tool{run: runner, mainFetch: git, protocol: newProtocolCheck(git), numbers: numbers, corrections: newGitCorrectionSource("")}
 }
 
 // checkNumbers runs the number check on the prepared head.
@@ -128,15 +139,22 @@ func command(subcommand string, args ...string) string {
 
 func prepareCommand(number int) string { return command("prepare", strconv.Itoa(number)) }
 
-func cleanupCommand(statePath string) string { return command("cleanup", "--state", statePath) }
+// cleanupCommand is the cleanup an error message shows. With the body file
+// the merge was given, the cleanup also runs the post-merge comparison.
+func cleanupCommand(statePath, bodyPath string) string {
+	if bodyPath == "" {
+		return command("cleanup", "--state", statePath)
+	}
+	return command("cleanup", "--state", statePath, "--body-file", bodyPath)
+}
 
 func discardCommand(statePath string) string { return command("discard", "--state", statePath) }
 
 // ShownCommands returns every mergepr command an error message of this
-// package can show for the PR number and the state file, built the same way
-// the messages build them.
-func ShownCommands(number int, statePath string) []string {
-	return []string{prepareCommand(number), cleanupCommand(statePath), discardCommand(statePath)}
+// package can show for the PR number, the state file, and the body file a
+// merge was given, built the same way the messages build them.
+func ShownCommands(number int, statePath, bodyPath string) []string {
+	return []string{prepareCommand(number), cleanupCommand(statePath, bodyPath), discardCommand(statePath)}
 }
 
 // checkProtocol fetches main into origin/main, then runs the protocol-number
@@ -181,6 +199,13 @@ type Prepared struct {
 	// ProtocolCheck is the one-line summary of the protocol-number check that
 	// passed.
 	ProtocolCheck string
+	// Accepted is the number of accepted correction lines, the lines of
+	// corrections.txt.
+	Accepted int
+	// Rejected are the correction lines that hold a rejected character, in
+	// range order. Prepare does not stop on them: the caller asks whether to
+	// drop them or fix the branch.
+	Rejected []RejectedLine
 }
 
 // Report describes what Merge or Cleanup did.
@@ -193,6 +218,12 @@ type Report struct {
 	LocalDeleted   bool
 	// Note tells the operator what was left for them to do, if anything.
 	Note string
+	// CorrectionsChecked is true only when the post-merge comparison ran and
+	// found the lines equal, so the zero value means "not verified".
+	CorrectionsChecked bool
+	// CorrectionsVerified is the number of reserved-prefix lines found equal;
+	// meaningful only when CorrectionsChecked is true.
+	CorrectionsVerified int
 }
 
 // writeFile is a variable only so a test can force a write failure after the
@@ -246,14 +277,9 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (prepared Prepared, er
 	if err := t.checkNumbers(ctx, state); err != nil {
 		return Prepared{}, err
 	}
-	baseRef := "origin/" + state.BaseRefName
-	logOut, err := t.git(ctx, "log", "--format=%h %s%n%n%b", baseRef+".."+state.HeadRefOID)
+	material, err := t.readMaterial(ctx, state)
 	if err != nil {
-		return Prepared{}, fmt.Errorf("read commit log: %w", err)
-	}
-	statOut, err := t.git(ctx, "diff", "--stat", baseRef+"..."+state.HeadRefOID)
-	if err != nil {
-		return Prepared{}, fmt.Errorf("read diff stat: %w", err)
+		return Prepared{}, err
 	}
 	gitDir, err := t.git(ctx, "rev-parse", "--absolute-git-dir")
 	if err != nil {
@@ -290,17 +316,108 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (prepared Prepared, er
 	}
 	files := map[string][]byte{
 		stateFileName:  append(stateOut, '\n'),
-		logFileName:    logOut,
-		statFileName:   statOut,
+		logFileName:    material.log,
+		statFileName:   material.stat,
 		bodyFileName:   []byte(pr.Body),
 		markerFileName: []byte(markerContent),
+		// Line n of corrections.txt is accepted line n, the number --drop
+		// names.
+		correctionsFileName: linesBytes(material.corrections.Accepted),
 	}
 	for name, data := range files {
 		if err := writeFile(filepath.Join(dir, name), data, fileMode); err != nil {
 			return Prepared{}, fmt.Errorf("write %s: %w", name, err)
 		}
 	}
-	return Prepared{State: state, Dir: dir, ProtocolCheck: summary.String()}, nil
+	return Prepared{State: state, Dir: dir, ProtocolCheck: summary.String(), Accepted: len(material.corrections.Accepted), Rejected: material.corrections.Rejected}, nil
+}
+
+// material is what Prepare reads for drafting: the commit log, the diff
+// stat, and the range's correction lines.
+type material struct {
+	log, stat   []byte
+	corrections correctionSet
+}
+
+// readMaterial reads the drafting material of the prepared range. It runs
+// before the work directory exists, so a range whose correction lines cannot
+// be read leaves nothing behind. Rejected lines are returned, not an error:
+// the preparation must hold while the operator chooses to drop them.
+func (t *Tool) readMaterial(ctx context.Context, state State) (material, error) {
+	baseRef := "origin/" + state.BaseRefName
+	logOut, err := t.git(ctx, "log", "--format=%h %s%n%n%b", baseRef+".."+state.HeadRefOID)
+	if err != nil {
+		return material{}, fmt.Errorf("read commit log: %w", err)
+	}
+	statOut, err := t.git(ctx, "diff", "--stat", baseRef+"..."+state.HeadRefOID)
+	if err != nil {
+		return material{}, fmt.Errorf("read diff stat: %w", err)
+	}
+	lines, err := t.corrections.rangeLines(ctx, state.BaseRefName, state.HeadRefOID)
+	if err != nil {
+		return material{}, err
+	}
+	return material{log: logOut, stat: statOut, corrections: classifyCorrectionLines(lines)}, nil
+}
+
+// linesBytes returns lines each ended by an LF, or no byte for no line.
+func linesBytes(lines [][]byte) []byte {
+	var b []byte
+	for _, l := range lines {
+		b = append(append(b, l...), '\n')
+	}
+	return b
+}
+
+// Paragraph writes paragraph.txt, the correction block with drops applied,
+// into the prepared work directory, and returns its path and the number of
+// lines of the block. Contract: it touches no network and reads the range
+// again from git, never from corrections.txt; it writes only into the
+// directory Prepare recorded and marked (the check Discard applies before a
+// removal), and a drop or a rejected line that does not match the range
+// stops it before it writes.
+func (t *Tool) Paragraph(ctx context.Context, statePath string, drops Drops) (string, int, error) {
+	state, err := loadState(statePath)
+	if err != nil {
+		return "", 0, err
+	}
+	dir, err := checkWorkDir(state, statePath)
+	if err != nil {
+		return "", 0, err
+	}
+	block, err := correctionParagraph(ctx, t.corrections, state.BaseRefName, state.HeadRefOID, drops)
+	if err != nil {
+		return "", 0, err
+	}
+	path := filepath.Join(dir, paragraphFileName)
+	if err := writeFile(path, paragraphBytes(block), fileMode); err != nil {
+		return "", 0, fmt.Errorf("write %s: %w", paragraphFileName, err)
+	}
+	return path, len(block), nil
+}
+
+// CheckBody runs the correction check on a subject and body before the
+// approval question and returns the number of lines of the block. Contract:
+// it touches no network, reads the range again from git, and writes
+// nothing.
+func (t *Tool) CheckBody(ctx context.Context, statePath, subjectPath, bodyPath string, drops Drops) (int, error) {
+	state, err := loadState(statePath)
+	if err != nil {
+		return 0, err
+	}
+	subject, err := readSubject(subjectPath)
+	if err != nil {
+		return 0, err
+	}
+	body, err := os.ReadFile(bodyPath) //nolint:gosec // an operator-supplied path
+	if err != nil {
+		return 0, fmt.Errorf("read body file: %w", err)
+	}
+	block, err := checkCorrections(ctx, t.corrections, state.BaseRefName, state.HeadRefOID, drops, []byte(subject), body)
+	if err != nil {
+		return 0, err
+	}
+	return len(block), nil
 }
 
 // workDirBase returns a directory inside the active worktree in which to create
@@ -333,8 +450,11 @@ func outputLine(out []byte) string {
 }
 
 // Merge squash-merges the prepared head into the prepared base with the
-// approved message, then cleans up.
-func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath string) (Report, error) {
+// approved message, then cleans up and compares the merge commit's
+// correction lines with the body. Contract: the body file is read once, and
+// the bytes the correction check passed are the bytes GitHub receives and
+// the post-merge comparison uses, whatever happens to the file afterwards.
+func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath string, drops Drops) (Report, error) {
 	state, err := loadState(statePath)
 	if err != nil {
 		return Report{}, err
@@ -352,7 +472,7 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 		return Report{}, err
 	}
 	if live.State != openState {
-		return Report{}, fmt.Errorf("%w: state is %s; if it is already merged, run `%s`", errPRNotOpen, live.State, cleanupCommand(statePath))
+		return Report{}, fmt.Errorf("%w: state is %s; if it is already merged, run `%s`", errPRNotOpen, live.State, cleanupCommand(statePath, bodyPath))
 	}
 	if live.BaseRefName != state.BaseRefName {
 		return Report{}, fmt.Errorf("%w: base is %s, prepared for %s; re-run `%s`", errBaseChanged, live.BaseRefName, state.BaseRefName, prepareCommand(state.Number))
@@ -368,6 +488,15 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 		return Report{}, fmt.Errorf("%w\nnothing was merged; discard the preparation with `%s`, then fix the PR", err, discardCommand(statePath))
 	}
 	checked := Report{ProtocolCheck: summary.String()}
+	// The correction check runs on the bytes read above, after the protocol
+	// check and before the number check, which stays the last step before gh
+	// pr merge.
+	if _, err := checkCorrections(ctx, t.corrections, state.BaseRefName, state.HeadRefOID, drops, []byte(subject), body); err != nil {
+		if errors.Is(err, errCorrectionUnreadable) {
+			return checked, fmt.Errorf("%w\nnothing was merged; the preparation still holds, so run the same merge command again", err)
+		}
+		return checked, fmt.Errorf("%w\nnothing was merged; discard the preparation with `%s`, then fix the body or the drops and ask for approval again", err, discardCommand(statePath))
+	}
 	// A number another PR merged since prepare must stop this merge, so the
 	// number check runs again as the last step before gh pr merge.
 	if err := t.checkNumbers(ctx, state); err != nil {
@@ -376,35 +505,96 @@ func (t *Tool) Merge(ctx context.Context, statePath, subjectPath, bodyPath strin
 		}
 		return checked, fmt.Errorf("%w\nnothing was merged; discard the preparation with `%s`, then fix the PR", err, discardCommand(statePath))
 	}
+	bodyFile, err := writeBodyFile(body)
+	if err != nil {
+		return checked, fmt.Errorf("%w\nnothing was merged; the preparation still holds, so run the same merge command again", err)
+	}
 	// --match-head-commit makes GitHub refuse the merge if the head moved after
 	// prepare, so the merged content is exactly what CI passed and the message
 	// describes.
-	if _, err := t.gh(ctx, "pr", "merge", state.number(), "--squash", "--subject", subject, "--body", string(body), "--match-head-commit", state.HeadRefOID); err != nil {
-		return checked, fmt.Errorf("merge PR: %w\ncheck the PR; if it was merged anyway, run `%s`", err, cleanupCommand(statePath))
+	_, mergeErr := t.gh(ctx, "pr", "merge", state.number(), "--squash", "--subject", subject, "--body-file", bodyFile, "--match-head-commit", state.HeadRefOID)
+	var removeErr error
+	if rmErr := os.Remove(bodyFile); rmErr != nil {
+		removeErr = fmt.Errorf("remove the body file %s: %w", bodyFile, rmErr)
+	}
+	if mergeErr != nil {
+		return checked, errors.Join(fmt.Errorf("merge PR: %w\ncheck the PR; if it was merged anyway, run `%s`", mergeErr, cleanupCommand(statePath, bodyPath)), removeErr)
 	}
 	report, err := t.cleanup(ctx, state)
 	report.ProtocolCheck = checked.ProtocolCheck
-	if err != nil {
-		return report, err
+	if err == nil {
+		_ = removeWorkDir(state, statePath)
 	}
-	_ = removeWorkDir(state, statePath)
-	return report, nil
+	report, err = t.compareAfterMerge(ctx, state, report, err, []byte(subject), body)
+	return report, errors.Join(err, removeErr)
+}
+
+// writeBodyFile writes body to a new file for gh pr merge --body-file and
+// returns its path. Contract: the file is created outside the work directory
+// (in the system's temporary directory), readable and writable by its owner
+// only, and holds exactly body; on a failure no file is left. The body never
+// goes on the command line, whose length is bounded, and the caller removes
+// the file right after gh returns.
+func writeBodyFile(body []byte) (string, error) {
+	f, err := os.CreateTemp("", "mergepr-body-")
+	if err != nil {
+		return "", fmt.Errorf("create the body file: %w", err)
+	}
+	_, err = f.Write(body)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		_ = os.Remove(f.Name())
+		return "", fmt.Errorf("write the body file: %w", err)
+	}
+	return f.Name(), nil
+}
+
+// compareAfterMerge runs the post-merge comparison when the cleanup learned
+// the merge commit, and returns the report with the cleanup's error first
+// and the comparison's second. Contract: the comparison is with subject and
+// body as the caller read them, never with a file read again; a merge
+// commit it could not learn leaves the report "not verified".
+func (t *Tool) compareAfterMerge(ctx context.Context, state State, report Report, cleanupErr error, subject, body []byte) (Report, error) {
+	if report.MergeCommitOID == "" {
+		return report, cleanupErr
+	}
+	n, cmpErr := compareMergedLines(ctx, t.corrections, state.BaseRefName, report.MergeCommitOID, subject, body)
+	if cmpErr != nil {
+		return report, errors.Join(cleanupErr, cmpErr)
+	}
+	report.CorrectionsChecked, report.CorrectionsVerified = true, n
+	return report, cleanupErr
 }
 
 // Cleanup updates the local base branch and deletes the local head branch after
 // the PR is merged. The remote head branch is deleted by GitHub's "Automatically
-// delete head branches" setting.
-func (t *Tool) Cleanup(ctx context.Context, statePath string) (Report, error) {
+// delete head branches" setting. With a body file (bodyPath not empty), it
+// reads the body before the cleanup and runs the post-merge comparison after
+// it, as Merge does; without one the comparison does not run and the report
+// stays "not verified".
+func (t *Tool) Cleanup(ctx context.Context, statePath, bodyPath string) (Report, error) {
 	state, err := loadState(statePath)
 	if err != nil {
 		return Report{}, err
 	}
+	var body []byte
+	if bodyPath != "" {
+		if body, err = os.ReadFile(bodyPath); err != nil { //nolint:gosec // an operator-supplied path
+			return Report{}, fmt.Errorf("read body file: %w", err)
+		}
+	}
 	report, err := t.cleanup(ctx, state)
-	if err != nil {
+	if err == nil {
+		_ = removeWorkDir(state, statePath)
+	}
+	if bodyPath == "" {
 		return report, err
 	}
-	_ = removeWorkDir(state, statePath)
-	return report, nil
+	// The subject has no reserved-prefix line (the correction check stops
+	// one), so the body alone holds the lines the merge sent.
+	return t.compareAfterMerge(ctx, state, report, err, nil, body)
 }
 
 // removeWorkDir deletes the prepared work directory. The directory is the unit
@@ -419,24 +609,37 @@ func (t *Tool) Cleanup(ctx context.Context, statePath string) (Report, error) {
 // Merge and Cleanup ignore a leftover directory after a cleanup that already
 // succeeded.
 func removeWorkDir(state State, statePath string) error {
+	dir, err := checkWorkDir(state, statePath)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(dir)
+}
+
+// checkWorkDir returns the prepared work directory when the state file lives
+// in the directory it records, that directory has the shape Prepare
+// generates, and it holds the marker file Prepare wrote; otherwise it returns
+// errWorkDirMismatch. Removal and Paragraph's write both go through it, so a
+// forged state file can neither remove nor write into another directory.
+func checkWorkDir(state State, statePath string) (string, error) {
 	if state.WorkDir == "" {
-		return errWorkDirMismatch
+		return "", errWorkDirMismatch
 	}
 	dir, err := filepath.Abs(filepath.Dir(statePath))
 	if err != nil || dir != state.WorkDir {
-		return errWorkDirMismatch
+		return "", errWorkDirMismatch
 	}
-	// A forged state file can name any directory it lives in, so only a directory of the shape Prepare generates may be removed.
+	// A forged state file can name any directory it lives in, so only a directory of the shape Prepare generates is accepted.
 	if !strings.HasPrefix(filepath.Base(dir), workDirPrefix) {
-		return errWorkDirMismatch
+		return "", errWorkDirMismatch
 	}
 	// A forged state file can also live in a directory that merely shares the
 	// prefix, so require the marker file Prepare writes and nothing else does.
 	marker, err := os.ReadFile(filepath.Join(dir, markerFileName)) //nolint:gosec // dir is the work directory this state file records
 	if err != nil || string(marker) != markerContent {
-		return errWorkDirMismatch
+		return "", errWorkDirMismatch
 	}
-	return os.RemoveAll(dir)
+	return dir, nil
 }
 
 // Discard removes the prepared work directory without requiring the PR to be
