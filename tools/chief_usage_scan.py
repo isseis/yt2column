@@ -1,4 +1,30 @@
-import json, glob, os, sys, collections
+import json, glob, os, re, sys, collections
+
+# A slash command the human typed is recorded as a user record whose content is
+# a string that starts with the command tags. The tag names are joined from
+# parts so that this source, when a session reads it, does not itself look like
+# a recorded command.
+_TAG = 'command-' + 'name'
+_COMMAND = re.compile(
+    r'\A\s*(?:<command-message>[^<]*</command-message>\s*)?<' + _TAG + r'>([^<]*)</' + _TAG + '>')
+_CHIEF = '/' + 'chief'
+
+
+def typed_command(o):
+    """Return the command name of a human-typed slash command record, else None.
+
+    Tool results (list content), meta records, compact summaries, and sidechain
+    records are never a human-typed command.
+    """
+    if o.get('type') != 'user' or o.get('isMeta') or o.get('isSidechain') or o.get('isCompactSummary'):
+        return None
+    m = o.get('message')
+    c = m.get('content') if isinstance(m, dict) else None
+    if not isinstance(c, str):
+        return None
+    hit = _COMMAND.match(c)
+    return hit.group(1).strip() if hit else None
+
 rows=[]
 for f in glob.glob(os.path.expanduser('~/.claude/projects/*/*.jsonl')):
     try:
@@ -10,11 +36,8 @@ for f in glob.glob(os.path.expanduser('~/.claude/projects/*/*.jsonl')):
         try: o=json.loads(ln)
         except: continue
         t=o.get('timestamp')
-        if o.get('type')=='user':
-            c=o.get('message',{}).get('content')
-            s=c if isinstance(c,str) else json.dumps(c,ensure_ascii=False)
-            if '<command-name>/chief</command-name>' in s and not o.get('isSidechain'):
-                chief=True; first=first or t
+        if typed_command(o)==_CHIEF:
+            chief=True; first=first or t
         if o.get('type')=='assistant' and chief:
             m=o.get('message',{}); mid=m.get('id'); u=m.get('usage')
             if not u or mid in seen: continue

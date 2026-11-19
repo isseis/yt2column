@@ -38,6 +38,7 @@ python3 -I tools/chief_usage_cost.py /path/to/chief.json
 `~/.claude/projects/*/*.jsonl` をすべて読み、`/chief` を起動したセッションのトークン使用量をモデルごとに集める。結果を引数の JSON ファイルに書き、セッションごとの一覧（始まり、終わり、ディレクトリ、セッション ID、モデルごとの呼び出し回数と出力トークン数）を表示する。
 
 - **数える範囲:** 人が打った `/chief` が最初に現れた後の assistant 応答をすべて数える。同じセッションで `/chief` の後に別の作業をした分も含まれる。
+- **`/chief` の見分け方:** content が文字列の user レコードのうち、`isMeta`、サイドチェーン、compact の要約のどれでもなく、先頭のコマンドタグ（`command-name`）の値がちょうど `/chief` のものだけを、人が打った `/chief` とみなす。ツールの結果（content がリストのもの）や、文中に引用されたタグは数えない。
 - **重複:** 同じ message id の応答は 1 回だけ数える。
 - **数えないもの:** サブエージェントの transcript（`subagents/` の下）は読まない。
 
