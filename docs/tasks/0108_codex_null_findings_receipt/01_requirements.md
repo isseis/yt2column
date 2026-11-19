@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-19 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -273,3 +273,7 @@ Acceptance Criteria:
 -   受領コメント: 完了を待つ PR レビュアーが投稿した、本文の 1 行目がちょうど `<!-- codex-review-receipt:v1 -->` のコメント（AC-05）。
 -   断りのコメント: ほかのアカウントのメンションから数秒のうちに Codex が投稿する、誰も名指さないコメント。`runpr.md` の step 3 は、作られた時刻の 1 分前より後からその時刻までに、3 つの一覧のどれかのメンションが作られたか更新された `codex` の種類のコメントを、想定外の投稿に数えない（断りのコメントの例外。`.claude/commands/runpr.md:544-549`）。
 -   利用者が認めた完了: 結果のない完了の要約コメントについて、受領コメントで利用者が「指摘なしとして進む」を選んだもの（AC-11）。その実行の中だけで完了の印として扱う。
+
+## 変更履歴
+
+- 2026-11-19 承認（isseis、#1009）
