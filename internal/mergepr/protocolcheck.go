@@ -683,14 +683,16 @@ func (e *rangeError) Error() string {
 func (e *rangeError) Unwrap() error { return e.Err }
 
 // baseRef returns the remote-tracking ref of the base branch baseRefName.
-// Contract: the name is used only when it is not HEAD and
+// Contract: the name is used only when it is not HEAD in any case and
 // refs/remotes/origin/<baseRefName> is a valid ref name by git
 // check-ref-format, so a name such as "main^" or
 // "a:b" is never put into a revision or a refspec.
 func (g gitReader) baseRef(ctx context.Context, baseRefName string) (string, error) {
 	ref := remoteBranchPrefix + baseRefName
-	// refs/remotes/origin/HEAD is origin's symbolic ref, not a branch.
-	if baseRefName == "HEAD" {
+	// refs/remotes/origin/HEAD is origin's symbolic ref, not a branch. On a
+	// case-insensitive file system a case variant such as "head" opens the
+	// same file, so every case variant is refused.
+	if strings.EqualFold(baseRefName, "HEAD") {
 		return "", &rangeError{Stage: rangeStageBase, Rev: ref, Err: errBaseIsHead}
 	}
 	if _, err := g.git(ctx, "check-ref-format", ref); err != nil {

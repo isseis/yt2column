@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -123,7 +124,8 @@ func (s *gitCorrectionSource) mergedLines(ctx context.Context, baseRefName, merg
 
 // trailers implements correctionSource. Contract: git runs in an empty
 // directory made for this call and removed before it returns, outside any
-// repository, with no system, global, or repository configuration
+// repository (a directory whose absolute parent cannot be written as one
+// GIT_CEILING_DIRECTORIES entry stops instead), with no system, global, or repository configuration
 // (newTrailerRunner), and reads the message from its standard input, so no
 // temporary file holds it.
 func (s *gitCorrectionSource) trailers(ctx context.Context, message []byte) (out []byte, err error) {
@@ -136,6 +138,15 @@ func (s *gitCorrectionSource) trailers(ctx context.Context, message []byte) (out
 			out, err = nil, fmt.Errorf("%w: remove %s: %w", errCorrectionUnreadable, dir, rmErr)
 		}
 	}()
+	// GIT_CEILING_DIRECTORIES is a list of absolute paths, so the parent
+	// must be absolute and hold no list separator, or git could look for a
+	// repository above dir.
+	if dir, err = filepath.Abs(dir); err != nil {
+		return nil, fmt.Errorf("%w: %w", errCorrectionUnreadable, err)
+	}
+	if strings.ContainsRune(filepath.Dir(dir), filepath.ListSeparator) {
+		return nil, fmt.Errorf("%w: %w: %q", errCorrectionUnreadable, errCeilingNotListable, filepath.Dir(dir))
+	}
 	args := append(cmdrunner.GitHardening(), "interpret-trailers", "--parse", "--no-divider")
 	out, err = newTrailerRunner(dir, s.env).RunInput(ctx, message, gitCommand, args...)
 	if err != nil {

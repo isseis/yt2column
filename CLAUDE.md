@@ -586,8 +586,8 @@ its security rules in `docs/dev/security.md` §8.
   declaration or rewritten on the branch; a subject or body whose
   reserved-prefix lines are not the block byte for byte and in order, are
   not one paragraph of their own, or change the trailers git reads stops the
-  merge; and the rest of a correction line has no required form and is not
-  read.
+  merge; and the rest of a correction line has no required form: only its
+  characters are classified.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than

@@ -723,9 +723,12 @@ func TestBaseRefRejectsInvalidNames(t *testing.T) {
 func TestBaseRefRejectsHead(t *testing.T) {
 	// refs/remotes/origin/HEAD passes check-ref-format, so the name itself
 	// is refused, before any git runs.
-	runner := &fakeRunner{t: t}
-	if _, err := (gitReader{run: runner}).baseRef(t.Context(), "HEAD"); !errors.Is(err, errBaseIsHead) {
-		t.Errorf("baseRef(HEAD) error = %v, want errBaseIsHead", err)
+	// A case variant opens the same file on a case-insensitive file system.
+	for _, name := range []string{"HEAD", "head", "Head"} {
+		runner := &fakeRunner{t: t}
+		if _, err := (gitReader{run: runner}).baseRef(t.Context(), name); !errors.Is(err, errBaseIsHead) {
+			t.Errorf("baseRef(%q) error = %v, want errBaseIsHead", name, err)
+		}
 	}
 }
 

@@ -251,12 +251,16 @@ func TestTrailerReadingIgnoresConfig(t *testing.T) {
 				t.Fatal("precondition: plain git read no trailer with the configuration")
 			}
 			// The trailer reading makes its directory inside the repository,
-			// where git would find .git/config by looking upward.
-			src := newGitCorrectionSource(r.Dir)
-			src.tempParent = r.Dir
-			out, err := src.trailers(t.Context(), message)
-			if err != nil || len(out) != 0 {
-				t.Errorf("trailers = %q, %v; want no output", out, err)
+			// where git would find .git/config by looking upward; the
+			// relative parent is the form a relative TMPDIR gives.
+			t.Chdir(r.Dir)
+			for _, parent := range []string{r.Dir, "."} {
+				src := newGitCorrectionSource(r.Dir)
+				src.tempParent = parent
+				out, err := src.trailers(t.Context(), message)
+				if err != nil || len(out) != 0 {
+					t.Errorf("trailers in %q = %q, %v; want no output", parent, out, err)
+				}
 			}
 			left, err := filepath.Glob(filepath.Join(r.Dir, "mergepr-trailers-*"))
 			if err != nil || len(left) != 0 {
@@ -722,4 +726,22 @@ func TestReportWords(t *testing.T) {
 func isExitError(err error) bool {
 	_, ok := errors.AsType[*cmdrunner.ExitError](err)
 	return ok
+}
+
+func TestTrailerReadingRefusesUnlistableParent(t *testing.T) {
+	// A parent holding the list separator would be split into two
+	// GIT_CEILING_DIRECTORIES entries, so the reading stops instead.
+	parent := filepath.Join(t.TempDir(), "a"+string(filepath.ListSeparator)+"b")
+	if err := os.MkdirAll(parent, testRepoDirMode); err != nil {
+		t.Fatalf("create %s: %v", parent, err)
+	}
+	src := newGitCorrectionSource(t.TempDir())
+	src.tempParent = parent
+	_, err := src.trailers(t.Context(), []byte("s\n\n"+testTrailer+"\n"))
+	if !errors.Is(err, errCorrectionUnreadable) || !errors.Is(err, errCeilingNotListable) {
+		t.Errorf("trailers error = %v, want errCorrectionUnreadable and errCeilingNotListable", err)
+	}
+	if left, _ := filepath.Glob(filepath.Join(parent, "mergepr-trailers-*")); len(left) != 0 {
+		t.Errorf("left behind %v, want the directory removed", left)
+	}
 }

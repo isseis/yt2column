@@ -60,6 +60,10 @@ var errUnexpectedGitOutput = errors.New("unexpected git output")
 // the other stops.
 var errCorrectionUnreadable = errors.New("correction check: cannot read the correction lines of the PR's commits")
 
+// errCeilingNotListable reports a temporary directory whose parent holds the
+// path list separator, so GIT_CEILING_DIRECTORIES cannot name it.
+var errCeilingNotListable = errors.New("the temporary directory's parent cannot be one GIT_CEILING_DIRECTORIES entry")
+
 // errMergeNotObjectID reports a merge commit ID that is not a full object
 // ID, so it is never passed to git.
 var errMergeNotObjectID = errors.New("the merge commit is not a full commit ID")
