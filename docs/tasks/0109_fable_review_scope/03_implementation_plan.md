@@ -25,7 +25,7 @@
 
 ### 1.3. 計画の際に決めたこと（2026-11-19）
 
--   なし。人に聞くべき未決の判断はなかった。フェーズは 1 つ、PR は 1 本である（3.2 節）。実装の方針も 1 つしかない。変更の範囲（AC-04）は、記録した diff を読んで確かめる。読む diff は 2 つのファイルの数行で、スクリプトを書くより diff を読むほうが手間が少ないためである（`docs/dev/conventions/requirements_process.md` §4「`diff` verification」）。
+-   なし。人に聞くべき未決の判断はなかった。フェーズは 1 つ、PR は 1 本である（3.2 節）。実装の方針も 1 つしかない。変更の範囲（AC-04）は、記録した diff を読んで確かめる。読む diff は 2 つのファイルの数行にとどまり、スクリプトを書くより読むほうが手間が少ないためである（`docs/dev/conventions/requirements_process.md` §4「`diff` verification」）。
     -   ADR: なし。本タスクの中で閉じる。
 
 ### 1.4. 既存コード調査結果
@@ -33,7 +33,7 @@
 コミット `c6fe505a`（`origin/main`）で確かめた。
 
 -   `prior-docs` の役目は `fable-review.md:280-282` にある。「Scope criteria」の表の 2 行目は `fable-review.md:258`、「Left out」の項は `fable-review.md:292-294` で、どちらも変えない（設計書 3.3 節）。
--   `prior-docs` という語は、`.claude/` と `docs/dev/` と `CLAUDE.md` の中では、`fable-review.md` の 4 か所（`:258`・`:280`・`:324`・`:465`）と ADR-0050 にだけ現れる（`grep -rn 'prior-docs\|先行文書との照合' .claude docs/dev CLAUDE.md` で確かめた）。役目を述べるのは `:280` だけで、ほかの 3 か所は表の行・出力の形・記録の値である。
+-   `git grep -n 'prior-docs\|先行文書との照合' c6fe505a -- .claude docs/dev CLAUDE.md` の結果は 6 行である。`prior-docs` は `fable-review.md` の 4 か所（`:258`・`:280`・`:324`・`:465`）に、「先行文書との照合」は ADR-0050 の 2 か所（`:22`・`:49`）に現れる。役目を述べるのは `fable-review.md:280` だけで、ほかの 3 か所は表の行・出力の形・記録の値である。ADR-0050 の 2 か所は範囲の基準の決定と採らなかった案で、役目の文ではない。
 -   `fable-review.md` を読むテストは `cmd/yt2column/fable_state_docs_test.go` と `cmd/yt2column/review_records_test.go` の 2 つで、状態の確かめのブロックと記録の行を読む（設計書 7 章）。Role の項は読まない。
 -   ADR-0050 の食い違いの文は、本タスクの要件定義書のコミットで「決定」に加えた（AC-06）。
 
@@ -45,9 +45,9 @@
 
 **変えるファイル:** `.claude/commands/_lib/fable-review.md`
 
-- [ ] 「The prompt」の Role の `prior-docs` の項を、設計書 3.2 節の 3 点を述べる文に書き換える（AC-01〜AC-03）。ほかの項と節は変えない
+- [ ] 「The prompt」の Role の `prior-docs` の項（`fable-review.md:280-282`）を、設計書 3.2 節のコードブロックの文で置き換える（AC-01〜AC-03）。文は写し、言い換えない。ほかの項と節は変えない
 
-**完了の条件:** Role の `prior-docs` の項が設計書 3.2 節の 3 点を述べる。
+**完了の条件:** Role の `prior-docs` の項が設計書 3.2 節の文と一致する。
 
 #### ステップ 1-2: ADR-0050 の食い違いの文
 
@@ -78,7 +78,7 @@
 
 **実装モデル要件**: sonnet
 
-**判定理由**: どのトリガーにも当たらない（手順の文 1 か所の書き換えと ADR の 1 行の削除で、方式の選択も危険度の高いステップもない）
+**判定理由**: どのトリガーにも当たらない（設計書 3.2 節が決めた文の写しと ADR の 1 行の削除で、方式の選択も危険度の高いステップもない）
 
 **自動送信**: auto
 
@@ -93,7 +93,7 @@
 
 | リスク | 対策 |
 |---|---|
-| 書き換えた文が、決定を変えない誤りの例を挙げすぎ、決定の食い違いまで報告させなくなる | 設計書 3.2 節の 2 点目（別の決定に導く参照は見る）を文に残す。PR のレビューで AC-01〜AC-03 を読む |
+| 書き換えた文が、決定を変えない誤りの例を挙げすぎ、決定の食い違いまで報告させなくなる | 文は 3 文書の PR で決め（設計書 3.2 節）、その PR のレビューで読む。実装はそれを写す |
 | 役目の文のほかに、Scope criteria の表や記録の行まで変えてしまう | AC-04 の diff の記録で、変わった行を読む |
 
 ## 6. 実装チェックリスト (Implementation Checklist)
@@ -111,9 +111,9 @@
 | AC-03 | `manual` | 同じレビューで、決定を変えない誤りを報告させないと伝えることを読む |
 | AC-04 | `diff` | 下の diff の記録にある、変わったファイルの一覧と 2 つのファイルの差分を、実装の PR のレビューで読む |
 | AC-05 | `manual` | 3 文書の PR のレビューで、ADR-0050 の「決定」「採らなかった案」「経緯」を読む |
-| AC-06 | `manual`・`diff` | 前半は 3 文書の PR のレビューで ADR-0050 の食い違いの文を読む。後半（削除）は、下の diff の記録で読む |
+| AC-06 | `manual`・`diff` | 前半は 3 文書の PR のレビューで ADR-0050 の食い違いの文を読む。後半（削除）は、AC-04 の diff の記録で読む |
 
-Diff record (AC-04, AC-06):
+Diff record (AC-04):
 
 - Compared paths: `.claude/commands/_lib/fable-review.md`, `docs/dev/adr/0050-fable-partial-review.md`
 

@@ -20,6 +20,7 @@
 
 **設計の際に決めたこと（2026-11-19）:**
 
+-   **項の文（3.2 節）は本書で決め、実装はそれを写す。** 理由: 文の境目（報告させる誤りと報告させない誤り）がこのタスクの中身で、実装モデル要件 `sonnet` の PR は OpenCode で走り、Fable の部分レビューも Opus のレビューも受けないため（`.claude/commands/_context.md`「Command routing」と「PR marker conventions」）。本書の PR で文を決めれば、文はこの PR のレビューを受ける。ADR: なし（タスクの中で閉じる）。2026-11-19 のセルフレビューの指摘を受けて、人に問わずに決めた。
 -   **変える場所は「The prompt」の Role の `prior-docs` の項だけとし、「Scope criteria」の表は変えない。** 理由: 要件が変えるのは Fable に報告させるものであり、範囲に入れる箇所の基準ではないため。表も変えると、範囲の選び方が変わり、要件の外に出る（要件書 2.3 節）。2026-11-19 に人が選んだ。ADR: なし（ADR-0050 の決定は要件の決定として更新済みで、文の置き場所はタスクの中で閉じる）。
     -   採らない案: Role と「Scope criteria」の表の両方を変える案。上の理由で採らない。
 
@@ -42,11 +43,28 @@ N/A。コンポーネントの構成とデータの流れを変えない。
 
 ### 3.2. 役目の文が述べること
 
-書き換えた `prior-docs` の項は、英語で次のことを述べる（`CLAUDE.md`「Document language」の原則 (b)）。文言は実装で決める。
+書き換えた `prior-docs` の項は、英語で次のことを述べる（`CLAUDE.md`「Document language」の原則 (b)）。
 
-1.  変更が、先行文書・ADR の決定と食い違う点、または断りなく離れた点を見つける。KIND `documents` では、同じ PR の文書どうしの決定の食い違いも見る（AC-01）。今の項の内容を保つ。
-2.  読み手を別の決定に導く相互参照の誤り（別の決定や、決定が違う節を指す参照）は、決定の食い違いとして見る（AC-02）。
-3.  読み手が取る決定を変えない誤り（行番号のずれ、言い回しの違い、参照先のずれで決定が変わらないもの）は報告しない（AC-03）。
+1.  変更が、先行文書・ADR の決定と食い違う点、または断りなく離れた点を見つける。KIND `documents` では、同じ PR の文書どうしの決定の食い違いも見る。今の項の、食い違う点と断りなく離れた点を見る形は保ち、見る対象を決定に絞る。求めること・許すこと・退けることを変える言い回しの違いは、決定の食い違いとして見る（AC-01）。
+2.  読み手を別の決定に導く相互参照の誤り（別の決定や、決定が違う節を指す参照、参照先が引いた理由や前提を支えない `file:line` の引用）は、決定の食い違いとして見る（AC-02）。
+3.  読み手が取る決定を変えない行番号のずれ・言い回しの違い・参照先のずれは報告しない（AC-03）。
+
+項の文は次のとおりとする。実装は、これを `fable-review.md:280-282` の項と置き換える。境目の判断が要る文なので、文言を実装に任せず、本書の PR のレビュー（Fable の部分レビューを含む）で読む。
+
+```markdown
+  - `prior-docs`: find where the change contradicts, or silently departs
+    from, a decision of the prior documents or an ADR (for KIND
+    `documents`, also where the documents of the PR contradict one
+    another's decisions). A decision is what a document requires, allows,
+    or rejects, with the reasons and premises it gives. Report a wording
+    difference that changes what is required, allowed, or rejected, and a
+    reference or a `file:line` citation that leads the reader to a
+    different decision or whose target does not support the premise it is
+    cited for. Do not report an error that leaves every decision as it is:
+    a line number that drifted but still points to text supporting the same
+    claim, a wording difference with the same meaning, or a reference whose
+    target moved but still holds the same decision;
+```
 
 Role の項は、基準ごとに Fable に与える役目である。そのため、範囲から外した箇所を Fable が `prior-docs` に当たると見てレビューするとき（`exclusion-error`）も、この項がそのまま当てはまる。「Left out」の項（`fable-review.md:292-294`）は変えない。
 
@@ -72,7 +90,7 @@ N/A。Fable の部分レビューの流れ（起動・待ち合わせ・トリ�
 
 -   AC-01〜AC-03 は、役目の文の内容だけを定めるので、PR のレビューで読む（`manual`）。文書のテストは文の意味を確かめない（`CLAUDE.md`「Testing Strategy」）。
 -   AC-04 は、実装の PR の差分を記録して読む（`diff`）。
--   AC-05 と AC-06 の前半（決定の更新と食い違いの文）は、本書の PR のレビューで読む（`manual`）。AC-06 の後半（食い違いの文の削除）は、AC-04 の diff の記録で読む。
+-   AC-05 と AC-06 の前半（決定の更新と食い違いの文）は、3 文書の PR のレビューで読む（`manual`）。AC-06 の後半（食い違いの文の削除）は、AC-04 の diff の記録で読む。
 -   `fable-review.md` を読む既存のテスト（`cmd/yt2column/fable_state_docs_test.go`・`cmd/yt2column/review_records_test.go`）が見る節（状態の確かめのブロックと記録の行）は変えないので、それらのテストは変わらない。テストは `make test` で通ることを確かめる。
 
 ## 8. 実装の優先順位
