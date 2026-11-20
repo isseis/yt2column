@@ -224,7 +224,7 @@ chief の今の仕様を 1 か所にまとめた新しい文書を `docs/dev/chi
 - [x] ステップ 1-4: 並行するタスクの確かめと範囲の外の事柄
 - [x] ステップ 1-5: 差分の記録
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/1069
-- [ ] PR がマージされた
+- [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
