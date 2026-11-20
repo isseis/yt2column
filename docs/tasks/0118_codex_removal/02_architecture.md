@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-20 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-20 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
@@ -970,3 +970,7 @@ PR を 3 つに分ける。分け方の細部と、各 PR のステップは計�
 | H-07 | ADR-0040・0046 の Codex の箇所を、実装の PR で決定・理由・結果に分けて直す。`CLAUDE.md` の例外と、ガードテストと CI の一覧は F-008 の PR で外す | 3.9 |
 | H-08 | まだ見ていない commit のレビューを、Opus のレビューの後、PR を開く直前に 1 回だけ置く。0114 の push の直前の確認より前に置く | 1.3、3.2 |
 | H-09 | CodeRabbit の PR レビューは `AGENTS.md` を読むので、`TestAgentsCodeReviewRules` の理由を CodeRabbit に改める。`AGENTS.md` は変えない | 1.3、3.8 |
+
+## 変更履歴
+
+- 2026-11-20 承認（isseis、#1070）
