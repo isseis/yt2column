@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-20 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-20 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。設計への申し送り [design_handoff.md](design_handoff.md) の H-01〜H-07 は、設計書 10 章が対応を記録している。本タスクに `implementation_handoff.md` はない。
@@ -431,3 +431,7 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
 -   #1039 が、未リリースの注記を外し、来歴の検証の手順を `INSTALL.md` に足す（設計書 4.3 節）。
 -   #1044 で `INSTALL.md` の英語版を足すとき、英語のカタログとの照合と `minimumChromeDocs` の英語版を戻す（設計書 9 章）。
 -   最後の PR のマージの後、issue #1042 を閉じる。
+
+## 変更履歴
+
+- 2026-11-20 承認（isseis、#1058）
