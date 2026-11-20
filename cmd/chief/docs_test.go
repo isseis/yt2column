@@ -537,7 +537,7 @@ func TestArchitectureValuesMatchTool(t *testing.T) {
 			t.Errorf("%s has no heading %q", architecturePath, tc.heading)
 			continue
 		}
-		table := doctestutil.FindTable(section, tc.column)
+		table := doctestutil.FindTable(outsideBlocks(section), tc.column)
 		if table == nil {
 			t.Errorf("%s: the section %q has no table with a %s column", architecturePath, tc.heading, tc.column)
 			continue
@@ -571,6 +571,19 @@ func TestArchitectureValuesMatchTool(t *testing.T) {
 	if want := "`$XDG_STATE_HOME/" + filepath.ToSlash(rel) + "/`"; !strings.Contains(section, want) {
 		t.Errorf("%s: the section %q does not name the state directory %s", architecturePath, heading, want)
 	}
+}
+
+// outsideBlocks returns text with lines inside fenced code blocks replaced by
+// blank lines so a table inside an example block does not satisfy FindTable.
+func outsideBlocks(text string) string {
+	var b strings.Builder
+	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(text))) {
+		if !line.Block {
+			b.WriteString(line.Text)
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 // guideValue returns the value cell of the guide's value table (the table

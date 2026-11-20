@@ -98,7 +98,7 @@ flowchart LR
 | `snapshot` | 状況を読み、状況の表、人の判断を待つもの、新しい通知を返す。何も送らない | `--protocol` | なし | `SnapshotOutput`（[3.4.3](#343-snapshotoutput)） |
 | `tick` | `snapshot` に加えて、ラウンドの記録と PR が開いているのを見た記録、worktree ごとの履歴の記録を書き、自動送信の条件を満たすコマンドを送る | `--protocol` | なし | `TickOutput`（[3.4.25](#3425-tickoutput)） |
 | `wait` | 前のラウンドの基準から、タスクの workspace のエージェントの状態が変わるまで待つ | `--protocol`、`--since` | `--timeout` | `WaitOutput`（[3.4.28](#3428-waitoutput)。時間切れは `result`） |
-| `send` | 人の選んだコマンドを送る。タスクのコマンドは、送る直前に作り直した行が同じ項目を提案しているときだけ送る | `--protocol`、`--workspace`、`--command`（`mkreq`・`mkarch`・`mkplan`・`runplan`・`runplan-takeover`・`runpr`） | `--issue`、`--pr`、`--item` | `SendOutput`（[3.4.17](#3417-sendoutput)） |
+| `send` | 人の選んだコマンドを送る。タスクのコマンドは、送る直前に作り直した行が同じ項目を提案しているときだけ送る | `--protocol`、`--workspace`、`--command`（`mkreq`・`mkarch`・`mkplan`・`runplan`・`runplan-takeover`・`runpr`）、コマンドに応じて `--issue`・`--pr`・`--item` のいずれか 1 つ | なし | `SendOutput`（[3.4.17](#3417-sendoutput)） |
 | `relay` | 人の選んだ答えを、質問で止まっているエージェントへ中継する | `--protocol`、`--workspace`、`--check`、`--answer`（`1=<選択肢の番号>`） | なし | `SendOutput`（[3.4.17](#3417-sendoutput)） |
 | `reset` | 人の選んだ、見送ったリセットを、確かめ直してから送る | `--protocol`、`--workspace`、`--check` | なし | `SendOutput`（[3.4.17](#3417-sendoutput)） |
 | `detail` | workspace の開いている PR の詳細を集め、控える | `--protocol`、`--workspace` | なし | `DetailOutput`（[3.4.20](#3420-detailoutput)） |
@@ -109,7 +109,7 @@ flowchart LR
 
 フラグの受け付ける値の形は次のとおりである。`--workspace` は worktree の絶対パスである。`--issue` は 10 進の数字だけで、`#`・符号・先頭の 0 を付けない。`--pr` は PR の番号である。`--item` は道具が出力した項目の `id` である。`--check` は道具が出力した照合値である。`--answer` の番号は 1 から 9 までの 1 桁である。`--since` は道具が出力した `baseline` である。`--timeout` は 1 秒から 3600 秒までの整数で、省略すると 600 秒である。`--command` と `--answer` が受け付ける値の集合は、サブコマンドの表の「必須のフラグ」の列にある。
 
-`send` では、`--issue` は `mkreq` だけが、`--pr` は `runpr` だけが、`--item` はタスクのコマンド（`mkarch`・`mkplan`・`runplan`・`runplan-takeover`）だけが取る。ほかの組み合わせは使い方の誤りである。タスクは引数で受け取らず、道具が workspace から読む。
+`send` では、`--issue` は `mkreq` で必須（ほかでは指定不可）、`--pr` は `runpr` で必須（ほかでは指定不可）、`--item` はタスクのコマンド（`mkarch`・`mkplan`・`runplan`・`runplan-takeover`）で必須（ほかでは指定不可）である。ほかの組み合わせや欠けは使い方の誤りである。タスクは引数で受け取らず、道具が workspace から読む。
 
 ### 3.2. 終了コード
 
@@ -668,7 +668,7 @@ PR の CI のジョブ 1 つである。
 | ロック | `lock.json` | ロックを持つ pane とセッション、取った時刻 | chief を 1 つに限り、持ち主を確かめる | `start` | 古いロックは、次の `start` が排他の下で置き換える。人が消すこともある | 含まない（pane とセッションは Herdr の値） |
 | 通知の記録 | `notice-<セッションのハッシュ>-<項目のハッシュ>.json` | セッション、項目の ID、最初に見た時刻、一覧の番号 | 同じものを 2 回通知しないこと、待っている時間による並べ方、番号が項目に付いたままであること | `snapshot`・`tick` が新しい項目を見たとき | 終わったセッションの分を `start` が消す | 含まない |
 | ラウンドの記録 | `round-<セッションのハッシュ>-<ID>.json` | セッション、ラウンドの ID、時刻 | 前のラウンドとの間隔、自動送信の窓 | `tick` | 終わったセッションの分を `start` が消す。同じセッションでも前のラウンドより古い分は `tick` が消す | 含まない |
-| PR が開いているのを見た記録 | `observe-<セッションのハッシュ>-<ラウンドの ID>-<worktree と PR のハッシュ>.json` | ラウンド、worktree、PR、見た状態と時刻 | 自動送信の条件（chief の待ち受けの中で PR が開いているのを見てからマージになったこと） | `tick` | 終わったセッションの分を `start` が消す | 含まない |
+| PR が開いているのを見た記録 | `observe-<セッションのハッシュ>-<ラウンドの ID>-<worktree と PR のハッシュ>.json` | ラウンド、worktree、PR、見た状態と時刻 | 自動送信の条件（chief の待ち受けの中で PR が開いているのを見てからマージになったこと） | `tick` | 終わったセッションの分を `start` が消す。同じセッションでも前のラウンドより古い分は `tick` が消す | 含まない |
 | 自動送信の記録 | `autosend-<PR の番号>.json` | PR、worktree、タスク、コマンド、ラウンド、時刻 | マージした PR 1 件につき 1 回に限る | 自動送信の直前 | 消さない（消すと、同じマージで 2 回送りうる） | 含まない |
 | 送信の記録 | `<worktree のディレクトリ>/send-<ID>-start.json`・`send-<ID>-end.json` | 送った入力の種類、コマンド、pane、エージェント、モデル、始めた時刻と終わり、結果と理由 | 実行中の行、作業項目の表示、送れたか分からない送信の検出 | 入力を送る前（始め）と、送り終えたとき（終わり） | 始めと終わりの両方があり、25 分より古いものを `start` が消す。終わりのない記録は消さず、送信の停止に変える | コマンドの行に、無害化した外から来た文字列を含みうる |
 | PR の詳細の控え | `<worktree のディレクトリ>/detail-<PR の番号>-<head のコミット>.json` | 集めた PR の詳細と要約、保存した時刻 | PR の詳細を、次に見たときに読み直さずに示すこと | `detail` | 14 日より古いものを `start` が消す | 要約に、無害化した外から来た文字列を含む |
@@ -692,7 +692,7 @@ PR の CI のジョブ 1 つである。
 
 終わりの記録のない送信の記録は消さない。その workspace への送信を止めてから片付ける。自動送信の記録は消さない。worktree ごとの片付けは、その workspace の排他を取れるときだけ行う。送信中の workspace は飛ばす。
 
-`tick` は、同じセッションの前のラウンドより古いラウンドの記録を消す。どのラウンドも読まないためである。
+`tick` は、同じセッションの前のラウンドより古いラウンドの記録と観測の記録（PR が開いているのを見た記録）を消す。どのラウンドも読まないためである。
 
 ### 4.6. 作るときと消すときの記録
 

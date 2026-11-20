@@ -84,7 +84,7 @@ Two calls differ:
 |---|---|---|
 | `0` | Done (a decision not to send is done too) | Read the JSON |
 | `1` | The tool failed (`outcome` `failed`, or `timeout` from `wait`) | Show `message`, and say that this call's result could not be read (for a round, that its table was not updated; for `wait`, step 5 says what to do). Do not judge from `message` which workspaces it concerns |
-| `2` | Usage error, or the tool and this definition are from different commits | A mistake in this definition or in your arguments: stop and report the call and its standard error. A tool that does not know this call also exits `2`, so in every case also tell the human that the tool and this definition may be from different commits (the tool may be older), and that the fix is to stop `/chief`, update the chief worktree to `main`, reinstall the tool, and start `/chief` again, in the order the guide's chapter 2 gives |
+| `2` | Usage error, or the tool and this definition are from different commits | A mistake in this definition or in your arguments: stop and report the call and its standard error. A tool that does not know this call also exits `2`, so in every case also tell the human that the tool and this definition may be from different commits (the tool may be older), and that, if the tool is older, the fix is to stop `/chief`, update the chief worktree to `main`, reinstall the tool, and start `/chief` again, in the order the guide's chapter 2 gives |
 | `3` | Refused, nothing done (`outcome` `refused`, `reason`) | See below |
 
 The refusals (`reason`):
