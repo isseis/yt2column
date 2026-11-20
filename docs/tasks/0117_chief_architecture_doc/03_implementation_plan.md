@@ -263,13 +263,13 @@ Diff record (AC-14b):
 
 - Compared paths: `.claude/commands/chief.md`
 - Merge-base: `c2df59f3daa72de99354a2992f92746517dc8ad1`
-- Compared commit: `7798f4b4e610482ef66ee355846a3ea080236676`
+- Compared commit: `f9f77343c16d05e53a1792baf67239bac8071770`
 
 Path diff:
 
 ```text
 diff --git a/.claude/commands/chief.md b/.claude/commands/chief.md
-index bd8b3a2da77f501d1cfe94f265fbcd134c85d95e..5daab9f24909d3883bd8a6ff4fc84304638e5132 100644
+index bd8b3a2da77f501d1cfe94f265fbcd134c85d95e..90ef35d4d9e645b3834175e7e901b9b567c107ca 100644
 --- a/.claude/commands/chief.md
 +++ b/.claude/commands/chief.md
 @@ -15,7 +15,9 @@ worktree and workspace are made and a finished one's removed. You
@@ -288,7 +288,7 @@ index bd8b3a2da77f501d1cfe94f265fbcd134c85d95e..5daab9f24909d3883bd8a6ff4fc84304
  | `0` | Done (a decision not to send is done too) | Read the JSON |
  | `1` | The tool failed (`outcome` `failed`, or `timeout` from `wait`) | Show `message`, and say that this call's result could not be read (for a round, that its table was not updated; for `wait`, step 5 says what to do). Do not judge from `message` which workspaces it concerns |
 -| `2` | Usage error | A mistake in this definition or in your arguments: stop and report the call and its standard error |
-+| `2` | Usage error, or the tool and this definition are from different commits | A mistake in this definition or in your arguments: stop and report the call and its standard error. A tool that does not know this call also exits `2`, so in every case also tell the human that the tool and this definition may be from different commits (the tool may be older), and that the fix is to stop `/chief`, update the chief worktree to `main`, reinstall the tool, and start `/chief` again, in the order the guide's chapter 2 gives |
++| `2` | Usage error, or the tool and this definition are from different commits | A mistake in this definition or in your arguments: stop and report the call and its standard error. A tool that does not know this call also exits `2`, so in every case also tell the human that the tool and this definition may be from different commits (the tool may be older), and that, if the tool is older, the fix is to stop `/chief`, update the chief worktree to `main`, reinstall the tool, and start `/chief` again, in the order the guide's chapter 2 gives |
  | `3` | Refused, nothing done (`outcome` `refused`, `reason`) | See below |
 
  The refusals (`reason`):
@@ -739,13 +739,13 @@ Diff record (AC-19a):
 
 - Compared paths: `CLAUDE.md` `.claude/commands/chief.md`
 - Merge-base: `c2df59f3daa72de99354a2992f92746517dc8ad1`
-- Compared commit: `7798f4b4e610482ef66ee355846a3ea080236676`
+- Compared commit: `f9f77343c16d05e53a1792baf67239bac8071770`
 
 Path diff:
 
 ```text
 diff --git a/.claude/commands/chief.md b/.claude/commands/chief.md
-index bd8b3a2da77f501d1cfe94f265fbcd134c85d95e..5daab9f24909d3883bd8a6ff4fc84304638e5132 100644
+index bd8b3a2da77f501d1cfe94f265fbcd134c85d95e..90ef35d4d9e645b3834175e7e901b9b567c107ca 100644
 --- a/.claude/commands/chief.md
 +++ b/.claude/commands/chief.md
 @@ -15,7 +15,9 @@ worktree and workspace are made and a finished one's removed. You
@@ -764,7 +764,7 @@ index bd8b3a2da77f501d1cfe94f265fbcd134c85d95e..5daab9f24909d3883bd8a6ff4fc84304
  | `0` | Done (a decision not to send is done too) | Read the JSON |
  | `1` | The tool failed (`outcome` `failed`, or `timeout` from `wait`) | Show `message`, and say that this call's result could not be read (for a round, that its table was not updated; for `wait`, step 5 says what to do). Do not judge from `message` which workspaces it concerns |
 -| `2` | Usage error | A mistake in this definition or in your arguments: stop and report the call and its standard error |
-+| `2` | Usage error, or the tool and this definition are from different commits | A mistake in this definition or in your arguments: stop and report the call and its standard error. A tool that does not know this call also exits `2`, so in every case also tell the human that the tool and this definition may be from different commits (the tool may be older), and that the fix is to stop `/chief`, update the chief worktree to `main`, reinstall the tool, and start `/chief` again, in the order the guide's chapter 2 gives |
++| `2` | Usage error, or the tool and this definition are from different commits | A mistake in this definition or in your arguments: stop and report the call and its standard error. A tool that does not know this call also exits `2`, so in every case also tell the human that the tool and this definition may be from different commits (the tool may be older), and that, if the tool is older, the fix is to stop `/chief`, update the chief worktree to `main`, reinstall the tool, and start `/chief` again, in the order the guide's chapter 2 gives |
  | `3` | Refused, nothing done (`outcome` `refused`, `reason`) | See below |
 
  The refusals (`reason`):
@@ -804,7 +804,7 @@ docs/tasks/0117_chief_architecture_doc/_checks/check-ac22.sh
 
 - Script: `docs/tasks/0117_chief_architecture_doc/_checks/check-ac22.sh`
 - Merge-base: `c2df59f3daa72de99354a2992f92746517dc8ad1`
-- Compared commit: `5e00e64e5971c037706044625dbec7d54159e634`
+- Compared commit: `f9f77343c16d05e53a1792baf67239bac8071770`
 
 壊して確かめたこと（各確かめが少なくとも 1 つの壊し方で失敗すること）:
 
