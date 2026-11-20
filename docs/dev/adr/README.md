@@ -58,4 +58,4 @@
 | [ADR-0050](0050-fable-partial-review.md) | タスクの PR を開く前に Fable の部分レビューを範囲を絞って行い、走らないときは止めずに記録する | `有効` |
 | [ADR-0051](0051-number-reservation.md) | タスク番号と ADR 番号は GitHub の上で重複しないように道具で決め、決められなければ止め、ADR 番号の欠番を許す | `有効` |
 | [ADR-0053](0053-draft-issue-label.md) | 下書きの issue をラベル draft で宣言し、/mkreq と chief はそこからタスクを始めない | `有効` |
-| [ADR-0054](0054-ci-skip-doc-only-commit.md) | 直前コミットで CI 通過済みかつ非コード・非拡張のみの変更時は check-changes で重いジョブをスキップする | `有効` |
+| [ADR-0054](0054-ci-skip-doc-only-commit.md) | 直前コミットで CI 通過済みかつ非コード・非ブラウザ拡張のみの変更時は check-changes で重いジョブをスキップする | `有効` |
