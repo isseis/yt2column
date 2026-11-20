@@ -1497,7 +1497,10 @@ func fableCases() []rrCase {
 			f.mainMerge("m2")
 			return launch(f)
 		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.head()} }},
-		// mm is a merge commit of origin/main, outside the branch.
+		// mm is a merge commit of origin/main, outside the branch. Its first
+		// parent is neither the merge-base nor a branch commit either, so the
+		// case holds the two conditions together; each alone is backed by the
+		// other (see the test's comment).
 		{name: "merge check naming a merge outside the branch", setup: func(f *rrFixture) []string {
 			tree := f.rev(f.mb + "^{tree}")
 			m2 := strings.TrimSpace(f.git("commit-tree", tree, "-p", f.mb, "-m", "m2"))

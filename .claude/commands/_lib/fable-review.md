@@ -127,9 +127,9 @@ file is right and the script is fixed. The last Fable record of
    checkpoint mark, unless a commit after the mark holds an
    `Implementation model:` line (a phase group implemented after the mark);
 4. a fix of a merge check: for a commit Q holding a merge check record that
-   names the merge commit M, a commit after M, up to Q, inside the range of
-   a `Local CLI reviewed:` line of Q that passes the checks of a seen-range
-   line. The range of a `Local CLI review: not run` line does not count.
+   names the merge commit M, a descendant of M (M excluded) that is an
+   ancestor of Q (Q included), inside the range of a `Local CLI reviewed:`
+   line of Q that passes the checks of a seen-range line. The range of a `Local CLI review: not run` line does not count.
 
 Rules 1 to 4 cover only a commit with one parent. A merge commit is covered
 only when it is a **confirmable merge commit** (exactly two parents, the
