@@ -40,8 +40,8 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
    - **採らなかった案:** 冒頭をフェーズ 3 の作り直しまで残す案。AC-04 の確かめが PR-1 と PR-3 にまたがり、両方の PR がスクリプトを使う。
    - **ADR:** なし。タスクの中のフェーズの分け方で、このタスクの中で閉じる。
 2. **PR は 4 本にする。** フェーズ 1、2、3 をそれぞれ 1 本、フェーズ 4 と 5 を 1 本にする（3.2 節）。
-   - **理由:** フェーズ 5 は記録がそろっていることの確かめだけで、単独の PR にするほどの変更がない。README の作り直し（フェーズ 3）と、CLAUDE.md と用語集の変更（フェーズ 4）は、読む観点が違うので分ける。
-   - **採らなかった案:** フェーズ 3〜5 を 1 本にする 3 本の案。README の作り直しと、CLAUDE.md の変更が 1 つのレビューに混ざる。
+   - **理由:** フェーズ 5 は記録がそろっていることの確かめだけで、単独の PR にするほどの変更がない。README の作り直し（フェーズ 3）と、CLAUDE.md・規約・コマンドの変更（フェーズ 4）は、読む観点が違うので分ける。
+   - **採らなかった案:** フェーズ 3〜5 を 1 本にする 3 本の案。README の作り直しと、CLAUDE.md・コマンドの変更が 1 つのレビューに混ざる。
    - **ADR:** なし。
 3. **AC-24 の対応表は、本計画の 7 章の AC-24 の行の下に置く。** 今の README `:182-264` の文ごとに、`INSTALL.md` のどの節で述べたかを書く（設計書 7.3 節が置き場所を実装計画に委ねた）。
    - **理由:** ほかの `diff` 検証の記録と同じ場所にあり、レビュアーが 1 か所で読める。
@@ -59,10 +59,6 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 6. **フェーズ 2 の README の途中の形。** フェーズ 2 で README から手順を除くときは、除いた箇所に `INSTALL.md` への一時的なリンクを置き、移行の節とその案内、プライバシーにあたる文はフェーズ 3 まで残す。フェーズ 3 の作り直しで、設計書 2.4 節の「インストールと使い方」と「プライバシー」の節に置き換える。
    - **理由:** PR-2 と PR-3 の間の `main` で、README から手順への道が切れず、`security.md:131` の「README に書く」が偽にならないようにするため。移行の節は、AC-05 の確かめが PR-3 のマージベースで読む（決定 5）。
    - **ADR:** なし。
-7. **規約とコマンドで `INSTALL.md` を扱う変更のフェーズ。** `INSTALL.md` を書式の規約・`japrose` の太字の確認・Fable の文書の種類で README と同じに扱う 3 つの変更（設計書 1.3 節の決定 4 と 3.4 節の `fable-review.md` の行）は、設計書 8 章の表のフェーズ 4 ではなく、`INSTALL.md` を置くフェーズ 2 で行う。
-   - **理由:** 設計書 8 章の制約「説明は、説明する変更と同じ PR で直す」による。フェーズ 4 まで待つと、PR-2 と PR-3 の `japrose` が `INSTALL.md` の画面の名前の太字（要件書の決定 8）を直すよう求め、それに従うと `metadataDocs.test.ts` が照合する引用が壊れる。Fable の部分レビューも、`INSTALL.md` の変更を文書でない種類として扱ってしまう。
-   - **ADR:** なし。設計書の決定 4 の内容は変えず、行うフェーズだけを早める。
-
 ### 1.4. 既存コード調査結果
 
 コミット `bec22f3d`（`origin/main`）で確かめた。設計書の行番号は `417d2ddf` のもので、次の差を除き、本計画が触れるファイルは同じである（`git diff --stat 417d2ddf bec22f3d` で確かめた）。
@@ -123,7 +119,7 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 - [ ] **手引きを置く:** 設計書 2.4 節の構成で `generation.md` を置き、移すブロック（設計書 2.3 節の表の「移す」の行のうち `generation.md` 行き）を移す。設定の表を、文書の中で列名「変数」を持つ最初の表にする（設計書 3.3 節）
 - [ ] **README から除く:** 移したブロックを README から除く（1.3 節の決定 1。冒頭の CLI と構成の文と図を含む）。設計書 2.3 節で「削除（重複）」の `:72-73`（CLI に必要なもの）も除く。README の中の、除いた節へのリンクを `generation.md` へ付け替え、移したブロックの中の、README に残る節へのリンク（設定の節の `#api-キーの設定` など）を `README.md` の節へ付け替える。`/mktrans README.md` で同期する
 - [ ] **Go のガード:** 設計書 3.3 節の表のとおり、4 つの設定・上限のテストの読む先を `generation.md` に変える。`guides.go` に `generation.md` のロケータを足し、冒頭の説明を 3 つの手引きに直す。`readmeGuides` に `generation.md` を足し、`TestReadmeLinks` が手引きを `readmeGuides` から読むようにする。呼び出し元がなくなる `readmeVersionsUnder` を除く。`Locator` の型と README のロケータは、`TestLocatorIn` が使うのでステップ 1-4 で除く。読む先を変えたテストの説明のコメント（README を名指しするもの）を直す（設計書 3.1 節の該当の行）
-- [ ] **参照の付け替え:** 設計書 4.2 節の表のうち、ステップ 1-2 で付け替えていないフェーズ 1 の行を付け替える。`cli.md` の範囲の文（`:3-7`）と「設定」の書き出し（`:233-234`）を書き直す。`cli.md` の `:7`・`:58`・`:189`・`:234` のリンク、`package_reference.md:103`、`production_profile.md:5`（推奨構成の行き先）、`pricing_update.md:38`・`:40`、`project_overview.md:89`・`:161`、`claude_output_limit.md:60`、`openai_output_limit.md:59`、用語集の「推奨構成」（`:55`）と、見出しが `generation.md` に移る「出力の書式」「設定」「必要なもの」（`:179`〜`:181`）の備考を、それぞれ移った先に付け替える
+- [ ] **参照の付け替え:** 設計書 4.2 節の表のうち、ステップ 1-2 で付け替えていないフェーズ 1 の行を付け替える。`cli.md` の範囲の文（`:3-7`）と「設定」の書き出し（`:233-234`）を書き直す。`cli.md` の `:7`・`:58`・`:189`・`:234` のリンク、`package_reference.md:103`、`production_profile.md:5`（推奨構成の行き先）、`pricing_update.md:38`・`:40`、`project_overview.md:89`・`:161`、`claude_output_limit.md:60`、`openai_output_limit.md:59`、用語集の「推奨構成」（`:55`）と、見出しが `generation.md` に移る「出力の書式」「設定」（`:180`・`:181`）の備考を、それぞれ移った先に付け替える
 - [ ] **説明:** CLAUDE.md の「Development Notes」の Go のガードの一覧（「the configuration block of both READMEs」「the values `cli.md` and `development.md` hold」）を `generation.md` に直す
 - [ ] **ADR:** ADR-0025 のずれを示す一文を除き、ADR-0004 のずれを示す一文を、`INSTALL.md` の分だけが残ることを示す文に書き直す。編集上の訂正の行をコミットのメッセージに書き、PR の説明にも載せる
 - [ ] **壊して確かめる:** 4 つの設定・上限のテストと、`TestReadmeLinks` の `generation.md` を、それぞれ `generation.md` で壊して失敗することを確かめ、コミットのメッセージに書く。出力の上限は、文書にある値のすべての出現を壊す（設計書 3.3 節）
@@ -159,7 +155,7 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **実装モデル要件**: sonnet+opus-review
 
-**判定理由**: ステップ 1-2・1-3 が、Conditional checks の 2 つに当たる。複数の検査と文書に固定された README の値を 1 つのコミットで動かすこと（結び付いた成果物の変更）と、`//go:build test` だけでコンパイルされる `internal/doctestutil/guides.go` にロケータを足すこと（ビルドタグの下のソース）である。Sonnet が実装すると、次のおそれがある。どの検査も読まない値のコピーが残る。ロケータが別の表に当たる（`FindTable` は列名を持つ最初の表を使う）。読む先を変えた検査を、新しい文書で壊して確かめずに済ませてしまう。移行の型のパネルのトリガー（挙動を上げ下げする多くのテストの変更）には当たらない。変えるのは実行時の挙動のない文書のガードだけで、外す検査はカバレッジの比較と記録で単独に確かめるため
+**判定理由**: ステップ 1-3 が、Conditional checks の 2 つに当たる。複数の検査と文書に固定された README の値を 1 つのコミットで動かすこと（結び付いた成果物の変更）と、`//go:build test` だけでコンパイルされる `internal/doctestutil/guides.go` にロケータを足すこと（ビルドタグの下のソースの変更）である。Sonnet が実装すると、次のおそれがある。どの検査も読まない値のコピーが残る。ロケータが別の表に当たる（`FindTable` は列名を持つ最初の表を使う）。読む先を変えた検査を、新しい文書で壊して確かめずに済ませてしまう。移行の型のパネルのトリガー（挙動を上げ下げする多くのテストの変更）には当たらない。変えるのは実行時の挙動のない文書のガードだけで、外す検査はカバレッジの比較と記録で単独に確かめるため
 
 **自動送信**: auto
 
@@ -190,7 +186,7 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 次のすべてを 1 つのコミットにする。
 
-**変えるファイル:** `INSTALL.md`（新規）、`README.md`・`README.en.md`、`docs/dev/guides/generation.md`、`extension/test/helpers/installGuide.ts`（新規）・`readmeVersions.ts`、`metadataDocs.test.ts`・`manifest.test.ts`、`extension/scripts/has-extension-changes.sh`・`extension/test/ciChanges.test.ts`、`cmd/yt2column/docs_test.go`、参照を持つ文書（下の一覧）、CLAUDE.md、ADR-0004・0029・0030、`docs/dev/conventions/document_formatting.md`、`.claude/commands/japrose.md`、`.claude/commands/_lib/fable-review.md`
+**変えるファイル:** `INSTALL.md`（新規）、`README.md`・`README.en.md`、`docs/dev/guides/generation.md`、`extension/test/helpers/installGuide.ts`（新規）・`readmeVersions.ts`、`metadataDocs.test.ts`・`manifest.test.ts`、`extension/scripts/has-extension-changes.sh`・`extension/test/ciChanges.test.ts`、`cmd/yt2column/docs_test.go`、参照を持つ文書（下の一覧）、CLAUDE.md、ADR-0004・0029・0030
 
 - [ ] **INSTALL.md:** 設計書 2.4 節の構成で、AC-08〜AC-35 の内容を日本語で書く。画面の名前とメッセージは日本語のカタログの文を写し、画面の名前は太字で引用する。引用するメッセージは 1 行に収める（照合は空白をまとめて比べるので、日本語の文の途中の改行は空白になり一致しない）。見出しは文書の中で重ならないようにする（`TestReadmeLinks` が重なりを失敗にする）。契約のクレジットの額は写さない（設計書 1.3 節の決定 3）。未リリースの注記は「zip を入手する」に置く（同 決定 7）。ステップ 2-1 の文言を日付とともに引用する。AC-24 の細部は「参考」に置く
 - [ ] **README から除く:** 手順（クイックスタートの手順の 3 項目、表示の言語、API キーの設定、ポップアップ、ビューア、ZDR の注記）を README から除き、除いた箇所に `INSTALL.md` へのリンクを置く（1.3 節の決定 6）。次のものはフェーズ 3 まで残す。
@@ -204,7 +200,6 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 - [ ] **CI の判定:** `has-extension-changes.sh` の判定と冒頭の説明に `INSTALL.md` を加え、README の説明を今の検査に合わせる。`ciChanges.test.ts` に、`INSTALL.md` が走らせる行と、`docs/INSTALL.md`・`INSTALL.md.bak` が走らせない行を足す（AC-42）
 - [ ] **参照の付け替え:** 設計書 4.2 節の表のうちフェーズ 2 の行（`cli.md:4`、`cli.md:16` の API キーの部分、`development.md:3`、`security.md:142`）を付け替え、`production_profile.md:5` と `pricing_update.md` に `INSTALL.md` の費用の目安を加える（AC-41）。PR-1 で `generation.md` と `development.md` に移したブロックの中の、このステップで README から除く節へのリンクを付け替える。用語集の、このステップで README の見出しでなくなる語（「クイックスタート」「API キーの設定」「ブラウザ拡張」。`:178`・`:183`・`:184`）の備考を直すか項目を除く
 - [ ] **説明:** CLAUDE.md の「Development Notes」の `make ext-test` が要る文書の一覧と読む内容、「A change that touches only documents」の文書の一覧に `INSTALL.md` を加える（設計書 3.4 節の表、AC-40・AC-42）
-- [ ] **規約とコマンド:** `document_formatting.md:18-19` と `japrose.md:147` が対象から外す文書の一覧に `INSTALL.md` を加え（設計書 1.3 節の決定 4）、`fable-review.md:483` の文書の種類 `doc` に `INSTALL.md` を加える（1.3 節の決定 7）。この PR の `japrose` は、`INSTALL.md` の画面の名前の太字を直さない
 - [ ] **ADR:** ADR-0004・ADR-0029・ADR-0030 のずれを示す一文を除く。編集上の訂正の行をコミットのメッセージに書き、PR の説明にも載せる
 - [ ] **壊して確かめる:** 次のそれぞれで、対応する検査が失敗することを確かめ、コミットのメッセージに書く。`metadataDocs.test.ts` は文書全体から語句を探すので、壊すのはその語句の `INSTALL.md` にあるすべての出現である
   - `INSTALL.md` の版を 141 にする（`manifest.test.ts`）
@@ -228,7 +223,7 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **推奨タイトル**: `docs(0116): インストールと使い方の手順を INSTALL.md に置く`
 
-**レビュー観点**: INSTALL.md の手順と対処が拡張の挙動と合っているか（AC-09〜AC-35、AC-24 の対応表） / 引用したブラウザの文言が確かめたものだけか / 照合の検査が INSTALL.md 全体と AC-33 のメッセージを読み、英語の照合を外した記録があるか / CI の判定が INSTALL.md を拾うか（INSTALL.md の画面の名前の太字は要件の決定 8 による意図したもので、この PR で書式の規約と japrose の対象から外す）
+**レビュー観点**: INSTALL.md の手順と対処が拡張の挙動と合っているか（AC-09〜AC-35、AC-24 の対応表） / 引用したブラウザの文言が確かめたものだけか / 照合の検査が INSTALL.md 全体と AC-33 のメッセージを読み、英語の照合を外した記録があるか / CI の判定が INSTALL.md を拾うか / INSTALL.md の拡張のフォルダの置き場所を案内するか（設計書 5 章が PR のレビューに委ねた論点）
 
 **実装モデル要件**: sonnet+opus-review
 
@@ -286,9 +281,9 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 #### ステップ 4-1: CLAUDE.md・規約・コマンド
 
-**変えるファイル:** `CLAUDE.md`、ADR-0035
+**変えるファイル:** `CLAUDE.md`、`docs/dev/conventions/document_formatting.md`、`.claude/commands/japrose.md`、`.claude/commands/_lib/fable-review.md`、ADR-0035
 
-- [ ] 設計書 3.4 節の表のうち、まだ直していない行を直す。対象は CLAUDE.md の「Documents」と「Document language」（どちらも AC-38）、および「Architecture Overview」である。規約とコマンドの 3 行は、ステップ 2-3 で直した（1.3 節の決定 7）
+- [ ] 設計書 3.4 節の表のうち、まだ直していない行を直す。対象は CLAUDE.md の「Documents」と「Document language」（どちらも AC-38）、「Architecture Overview」、`document_formatting.md:18-19` と `japrose.md:147`（設計書 1.3 節の決定 4）、`fable-review.md:483` である
 - [ ] ADR-0035 のずれを示す一文を除く。編集上の訂正の行をコミットのメッセージに書き、PR の説明にも載せる
 
 **完了の条件:** 設計書 3.4 節の表の「変更」の行がすべて反映され、`make test`・`make lint`・`make ext-check`・`make deadcode` が通る。
@@ -312,13 +307,13 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **完了の条件:** 3 つの記録があり、(a) が通る。
 
-### PR-4 作成ポイント: update CLAUDE.md, the glossary, and remaining references
+### PR-4 作成ポイント: update CLAUDE.md, conventions, and remaining references
 
 **対象ステップ**: 4-1 / 4-2 / 5-1
 
-**推奨タイトル**: `docs(0116): CLAUDE.md と用語集を新しい文書の構成に合わせる`
+**推奨タイトル**: `docs(0116): CLAUDE.md と規約と用語集を新しい文書の構成に合わせる`
 
-**レビュー観点**: CLAUDE.md の「Documents」と「Document language」が INSTALL.md の例外と期限と #1044 を述べ、ADR-0035 と一致するか / 「Architecture Overview」が文書の分担を正しく述べるか / 用語集の新しい語と古い項目の直し
+**レビュー観点**: CLAUDE.md の「Documents」と「Document language」が INSTALL.md の例外と期限と #1044 を述べ、ADR-0035 と一致するか / 規約とコマンドが INSTALL.md を README と同じに扱うか / 用語集の新しい語と古い項目の直し
 
 **実装モデル要件**: sonnet
 
@@ -338,18 +333,18 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 | マイルストーン | 成果物 |
 |---|---|
 | M1（フェーズ 1） | `generation.md`、`development.md` の拡張のビルドとログ、読む先を変えた Go のガードと `manifest.test.ts`、AC-04 の記録 |
-| M2（フェーズ 2） | `INSTALL.md`、`metadataDocs.test.ts` の照合、CI の判定、規約とコマンドの対象、AC-24 の対応表 |
+| M2（フェーズ 2） | `INSTALL.md`、`metadataDocs.test.ts` の照合、CI の判定、AC-24 の対応表 |
 | M3（フェーズ 3） | 作り直した README と英語版、AC-05 の記録 |
-| M4（フェーズ 4・5） | CLAUDE.md・用語集の付け替え、記録の確かめ |
+| M4（フェーズ 4・5） | CLAUDE.md・規約・コマンド・用語集の付け替え、記録の確かめ |
 
 ### 3.2 PR 構成
 
 | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 | 自動送信 |
 |---|---|---|---|---|
 | PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 | 開発者向けの内容を `generation.md` と `development.md` に移し、Go のガードと `manifest.test.ts` の読む先を変える | sonnet+opus-review | auto |
-| PR-2 | 2-1 / 2-2 / 2-3 / 2-4 | `INSTALL.md` を置き、拡張のテストと CI の判定、規約とコマンドの対象を変える | sonnet+opus-review | hold |
+| PR-2 | 2-1 / 2-2 / 2-3 / 2-4 | `INSTALL.md` を置き、拡張のテストと CI の判定を変える | sonnet+opus-review | hold |
 | PR-3 | 3-1 / 3-2 | README を作り直し、移行の節を削除する | sonnet | auto |
-| PR-4 | 4-1 / 4-2 / 5-1 | CLAUDE.md と用語集を合わせ、記録を確かめる | sonnet | auto |
+| PR-4 | 4-1 / 4-2 / 5-1 | CLAUDE.md・規約・コマンド・用語集を合わせ、記録を確かめる | sonnet | auto |
 
 PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウザで表示を確かめるためである（1.3 節の決定 4）。
 
@@ -394,9 +389,9 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
 | AC-06 | `test`、`manual` | 利用者向けの文書と 3 つの手引きのリンクとアンカー: `cmd/yt2column/docs_test.go::TestReadmeLinks`。ほかの文書のリンクの先のファイル: `cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`（アンカーは確かめない）。ほかの文書のアンカーとリンクのない名指し: 各 PR の説明に貼った `git grep -n 'README' -- ':!docs/tasks'` の出力を、PR のレビューで読む |
 | AC-07 | `test`、`manual` | 2 つの版の構造: `cmd/yt2column/readme_structure_test.go::TestReadmeVersionsShareStructure`。リンクがあれば先があること: `TestReadmeLinks`。`INSTALL.md` へのリンクがあることと述べる内容: PR-3 のレビューで読む |
 | AC-08 | `test` | `extension/test/manifest.test.ts`（`minimumChromeDocs` の `INSTALL.md`） |
-| AC-09〜AC-13 | `manual` | PR-2 のレビューで、要件書の決定 6 が挙げる Anthropic の公式のページ（実装の時に確かめた日付を PR の説明に書く）と照らして読む。AC-12 は `production_profile.md` の「費用」と照らす（「約 0.4 USD」は丸めた値で、照合するコードの値はない）。AC-13 は今の README `:70` と照らす |
+| AC-09〜AC-13 | `manual` | PR-2 のレビューで、要件書の決定 6 が記録した公式の情報（2026-11-19 に確かめたもの）と照らして読む。`INSTALL.md` が添える確かめた日付は、設計書 1.3 節の決定 3 の 2026-11-19 である。AC-12 は `production_profile.md` の「費用」と照らす（「約 0.4 USD」は丸めた値で、照合するコードの値はない）。AC-13 は今の README `:70` と照らす |
 | AC-14〜AC-19 | `manual` | PR-2 のレビューで、今の README `:120-155` と設計書 4.3 節・5 章と照らして読む。AC-18 の引用は、ステップ 2-1 で確かめた文言と日付であることを読む |
-| AC-20〜AC-22 | `test`、`manual` | ポップアップの **設定**: `extension/test/metadataDocs.test.ts`。オプションページの名前（**保存する**・**削除する**）と保存の 6 つの結果は、設計書 3.3 節が照合の対象を今と同じ 10 個の名前に決めたので、テストでは照合しない。PR-2 のレビューで、今の README `:160-178` と `ja.ts` の `optionsPage`・`options` の項目と照らして読む |
+| AC-20〜AC-22 | `manual` | ポップアップの **設定**（`openOptions.link`）、オプションページの名前（**保存する**・**削除する**）、保存の 6 つの結果は、設計書 3.3 節が照合の対象を今と同じ 10 個の名前に決めたので、テストでは照合しない。PR-2 のレビューで、今の README `:160-178` と `ja.ts` の `openOptions`・`optionsPage`・`options` の項目と照らして読む |
 | AC-23 | `test`、`manual` | 画面の名前: `extension/test/metadataDocs.test.ts`。流れの順: PR-2 のレビューで読む |
 | AC-24 | `manual` | PR-2 のレビューで、下の対応表を読む |
 | AC-25 | `test` | `extension/test/metadataDocs.test.ts`（概要欄のメッセージと手順、工程の名前、画面の名前） |
