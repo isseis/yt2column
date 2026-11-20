@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-20 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md) の設計である。要件定義から申し送られた設計事項は [design_handoff.md](design_handoff.md) にあり、各項目への対応は 10 章にまとめる。本書が引用するファイルの行番号は、特に断らない限り、コミット `417d2ddf`（本書の作成時の `main`）のものである。
@@ -766,3 +766,7 @@ PR の区切りは実装計画で決める。どの区切りでも、次の制�
 | AC-41 | 4.2 節 |
 | AC-42 | 3.1 節（`has-extension-changes.sh`、`ciChanges.test.ts`）、3.4 節 |
 | AC-43 | 4.2 節（用語集） |
+
+## 変更履歴
+
+- 2026-11-20 承認（isseis、#1050）
