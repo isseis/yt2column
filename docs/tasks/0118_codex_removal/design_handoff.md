@@ -4,7 +4,7 @@
 
 ## H-01: 手動の PR レビューの完了をどの値で判定するか
 
-**懸念:** AC-14〜AC-20 は、CodeRabbit の完了の印、割り当てを使い切った知らせ、本文だけにある指摘の有無、一部のファイルをレビューしなかったことを、本文を出さずに読むことを求める。0031 より前は、`StatusContext` の `CodeRabbit` が `SUCCESS` であることと、本文の「between `<sha>` and `<headRefOid>`.」の行で判定していた（`docs/tasks/0031_codex_pr_review/01_requirements.md` の 1 節）。一方、割り当てを使い切っても CheckRun が `pass`（説明は `Review rate limited`）になる観測がある（PR #404）。
+**懸念:** AC-14〜AC-20 は、CodeRabbit の完了の印、割り当てを使い切った知らせ、本文だけにある指摘の有無、一部のファイルをレビューしなかったことを、本文を出さずに読むことを求める。0031 より前は、`StatusContext` の `CodeRabbit` が `SUCCESS` であることと、本文の「between `<sha>` and `<headRefOid>`.」の行で判定していた（`docs/tasks/0031_codex_pr_review/01_requirements.md` の 1 節）。一方、利用者は、割り当てを使い切っても CheckRun が `pass`（説明は `Review rate limited`）になるのを PR #404 で見ている（リポジトリに記録はない）。
 
 **なぜ重要か:** 状態だけで判定すると、割り当てを使い切った依頼をレビュー済みとしうる。本文の行を読むなら、本文をセッションに出さない原則（[ADR-0015](../../dev/adr/0015-untrusted-review-threads.md)、4.2）を保つ絞り込みが要る。今の `runpr.md` step 3 は、Codex の要約コメントを `--jq` の中で判定し、決まった値だけを出している。
 
@@ -42,18 +42,19 @@
 
 **関連:** F-008、F-009、F-012、AC-35・AC-38
 
-## H-04: 撤去する道具とガードテストの削除の確かめ方
+## H-04: 撤去する道具のテストの削除の確かめ方
 
-**懸念:** F-008 は `cmd/codexreview` と `internal/codexreview` を消す。製品のコードと一緒に、その `_test.go`、`cmd/yt2column/codex_review_docs_test.go`、`internal/doctestutil` の関連する部分も消える。`CLAUDE.md` の「Testing Strategy」は、テストの削除をそれだけの commit にし、`make coverage-compare` で網羅が下がらないことを確かめるよう求める。
+**懸念:** F-008 は `cmd/codexreview` と `internal/codexreview` を消す。製品のコードと一緒に、その `_test.go` と、`internal/doctestutil` の `codexreview` の部分も消える。`CLAUDE.md` の「Testing Strategy」は、テストの削除をそれだけの commit にし、`make coverage-compare` で網羅が下がらないことを確かめるよう求める。一方、`cmd/yt2column/codex_review_docs_test.go` は、名前に反して `codexreview` のテストではなく、メンションの確かめと `.coderabbit.yaml` のガードを持つ。これは AC-56 で残す。
 
-**なぜ重要か:** 製品のコードごと消えるテストは、比べる相手の関数も消える。比べ方の結果（消えた関数は一覧に出るだけで失敗しない）がそのまま使えるかを決めないと、実装の PR で手順が止まる。
+**なぜ重要か:** 製品のコードごと消えるテストは、比べる相手の関数も消える。比べ方の結果（消えた関数は一覧に出るだけで失敗しない）がそのまま使えるかを決めないと、実装の PR で手順が止まる。残すガードを、撤去とともに消してはならない。
 
 **候補:**
 
 -   製品のコードとテストを一緒に消す commit で `make coverage-compare` を走らせ、消えた関数が一覧に出るだけで PASS になることを確かめる。
 -   残る製品のコード（`internal/fixprguard`、`internal/doctestutil` など）のテストを消すものは、別の commit に分けて比べる。
+-   `codex_review_docs_test.go` のガードは、2 つのメンションに広げて残す。ファイルの名前を変えるかを決める。
 
-**関連:** F-008、AC-32・AC-37
+**関連:** F-008、F-009、AC-32・AC-37・AC-56
 
 ## H-05: PR の分け方と移行の順序
 
@@ -63,7 +64,7 @@
 
 **候補:**
 
--   文書と手順の変更（F-002〜F-007、F-009、F-010）を先に入れ、道具の撤去（F-008）を後にする。F-009・F-010 は F-002・F-003 と同じ PR か、それより後の PR に入れる（AC-45）。利用者は F-002・F-003 の PR のマージの直後に連携を切るので、どの PR がそれに当たるかを計画書で示す。
+-   文書と手順の変更（F-002〜F-007、F-009、F-010）を先に入れ、道具の撤去（F-008）を後にする。F-009・F-010 は F-002・F-003 と同じ PR か、それより後の PR に入れる（AC-45）。利用者は F-002・F-003 の PR のマージの直後に連携を切るので、どの PR がそれに当たるかを計画書で示す。 F-008（道具の撤去）は F-006 より後なら、連携を切った後の PR でもよい。そのときローカルの CLI レビューはもう `codexreview` を呼ばないためである。AC-45 は、F-004・F-007 と AC-46 も F-002・F-003 と同じ PR か、それより前に置くことを求める。
 -   各 PR がマージされた時点で、`main` の手順と道具がそろって動くことを、PR ごとに確かめる。
 
 **関連:** F-002〜F-010、AC-28・AC-45、4.4
@@ -93,3 +94,29 @@
 -   `CLAUDE.md` の例外と、ガードテストや CI の `doc-guard` のジョブが挙げる `codexreview` は、F-008 と同じ PR で外す。
 
 **関連:** F-011、AC-47・AC-49
+
+## H-08: PR を開く前の最後のローカルの CLI レビューと Opus のレビューの順序
+
+**懸念:** AC-29 は、PR を開く直前に、まだ見ていない commit をローカルの CLI レビューにかける。[ADR-0042](../../dev/adr/0042-implementation-model-tiers.md) では、Opus のレビューの判断を、記録の後の commit が中身のない commit だけのときに省き、それ以外の commit があればやり直す。`runplan.md` の B1 は、ブランチのレビューの直しを Opus のレビューの範囲に入れるため、ブランチのレビューを Opus のレビューより前に置く。
+
+**なぜ重要か:** この最後のローカルの CLI レビューの直しの commit は、Opus が見ない Sonnet の commit になるか、Opus のレビューのやり直しの理由になる。後者なら、その直しがまたローカルの CLI レビューを要し、終わらなくなりうる。
+
+**候補:**
+
+-   最後のローカルの CLI レビューを Opus のレビューの後に置き、その直しの commit は Opus のレビューの判断で中身のない commit と同じに扱う（ローカルの CLI レビューの 2 回目の試行が見る）。
+-   直しを `must-fix` に限り、Opus のレビューのやり直しを 1 回までにする。
+
+**関連:** F-007、AC-29〜AC-31
+
+## H-09: `AGENTS.md` と、Codex を前提にした文書のガード
+
+**懸念:** `AGENTS.md` の `## Code Review Rules` の節は Codex が読むものとして置いた。`TestAgentsCodeReviewRules` は、その見出しを「Codex がレビューの規則を読む節」として固定している。2.3 は `AGENTS.md` を変えないとし、CodeRabbit が読むかは AC-01 の 11 で確かめる。
+
+**なぜ重要か:** CodeRabbit が読まないなら、ガードテストのコメントと理由が今の振る舞いに合わなくなる（AC-47）。
+
+**候補:**
+
+-   CodeRabbit が読むなら、ガードテストの理由を CodeRabbit に改める。
+-   読まないなら、`AGENTS.md` はほかの自動のエージェントへの指示として残し、ガードテストのコメントだけを直す。
+
+**関連:** F-001、F-011、AC-01・AC-47
