@@ -94,31 +94,31 @@ flowchart LR
 
 | サブコマンド | 何をするか | 必須のフラグ | 任意のフラグ | 出力 |
 |---|---|---|---|---|
-| `start` | ロックを取り、状態のディレクトリを確かめ、終わったセッションの記録を片付け、終わり方の分からない送信を送信の停止に変える | `--protocol` | なし | `result` |
-| `snapshot` | 状況を読み、状況の表、人の判断を待つもの、新しい通知を返す。何も送らない | `--protocol` | なし | `SnapshotOutput` |
-| `tick` | `snapshot` に加えて、ラウンドの記録と PR が開いているのを見た記録、worktree ごとの履歴の記録を書き、自動送信の条件を満たすコマンドを送る | `--protocol` | なし | `TickOutput` |
-| `wait` | 前のラウンドの基準から、タスクの workspace のエージェントの状態が変わるまで待つ | `--protocol`、`--since` | `--timeout` | `WaitOutput`（時間切れは `result`） |
-| `send` | 人の選んだコマンドを送る。タスクのコマンドは、送る直前に作り直した行が同じ項目を提案しているときだけ送る | `--protocol`、`--workspace`、`--command` | `--issue`、`--pr`、`--item` | `SendOutput` |
-| `relay` | 人の選んだ答えを、質問で止まっているエージェントへ中継する | `--protocol`、`--workspace`、`--check`、`--answer` | なし | `SendOutput` |
-| `reset` | 人の選んだ、見送ったリセットを、確かめ直してから送る | `--protocol`、`--workspace`、`--check` | なし | `SendOutput` |
-| `detail` | workspace の開いている PR の詳細を集め、控える | `--protocol`、`--workspace` | なし | `DetailOutput` |
-| `release` | 人の選択で、workspace の送信の停止を解く | `--protocol`、`--workspace` | なし | `ReleaseOutput` |
-| `targets` | issue 番号の形を確かめ、issue を読んで題名か拒否を返し、通れば `/mkreq` を提案しているタスクのない workspace を返す。何も作らない | `--protocol`、`--issue` | なし | `TargetsOutput` |
-| `create` | issue を確かめ、worktree と workspace を作ってエージェントを起動し、`/mkreq` を送る | `--protocol`、`--issue` | なし | `CreateOutput` |
-| `remove` | 削除の確かめを行い直し、通れば workspace を閉じて worktree を消す | `--protocol`、`--workspace` | なし | `RemoveOutput` |
+| `start` | ロックを取り、状態のディレクトリを確かめ、終わったセッションの記録を片付け、終わり方の分からない送信を送信の停止に変える | `--protocol` | なし | `result`（[3.4.2](#342-result)） |
+| `snapshot` | 状況を読み、状況の表、人の判断を待つもの、新しい通知を返す。何も送らない | `--protocol` | なし | `SnapshotOutput`（[3.4.3](#343-snapshotoutput)） |
+| `tick` | `snapshot` に加えて、ラウンドの記録と PR が開いているのを見た記録、worktree ごとの履歴の記録を書き、自動送信の条件を満たすコマンドを送る | `--protocol` | なし | `TickOutput`（[3.4.25](#3425-tickoutput)） |
+| `wait` | 前のラウンドの基準から、タスクの workspace のエージェントの状態が変わるまで待つ | `--protocol`、`--since` | `--timeout` | `WaitOutput`（[3.4.28](#3428-waitoutput)。時間切れは `result`） |
+| `send` | 人の選んだコマンドを送る。タスクのコマンドは、送る直前に作り直した行が同じ項目を提案しているときだけ送る | `--protocol`、`--workspace`、`--command`（`mkreq`・`mkarch`・`mkplan`・`runplan`・`runplan-takeover`・`runpr`） | `--issue`、`--pr`、`--item` | `SendOutput`（[3.4.17](#3417-sendoutput)） |
+| `relay` | 人の選んだ答えを、質問で止まっているエージェントへ中継する | `--protocol`、`--workspace`、`--check`、`--answer`（`1=<選択肢の番号>`） | なし | `SendOutput`（[3.4.17](#3417-sendoutput)） |
+| `reset` | 人の選んだ、見送ったリセットを、確かめ直してから送る | `--protocol`、`--workspace`、`--check` | なし | `SendOutput`（[3.4.17](#3417-sendoutput)） |
+| `detail` | workspace の開いている PR の詳細を集め、控える | `--protocol`、`--workspace` | なし | `DetailOutput`（[3.4.20](#3420-detailoutput)） |
+| `release` | 人の選択で、workspace の送信の停止を解く | `--protocol`、`--workspace` | なし | `ReleaseOutput`（[3.4.24](#3424-releaseoutput)） |
+| `targets` | issue 番号の形を確かめ、issue を読んで題名か拒否を返し、通れば `/mkreq` を提案しているタスクのない workspace を返す。何も作らない | `--protocol`、`--issue` | なし | `TargetsOutput`（[3.4.32](#3432-targetsoutput)） |
+| `create` | issue を確かめ、worktree と workspace を作ってエージェントを起動し、`/mkreq` を送る | `--protocol`、`--issue` | なし | `CreateOutput`（[3.4.30](#3430-createoutput)） |
+| `remove` | 削除の確かめを行い直し、通れば workspace を閉じて worktree を消す | `--protocol`、`--workspace` | なし | `RemoveOutput`（[3.4.33](#3433-removeoutput)） |
 
-フラグの受け付ける値は次のとおりである。`--workspace` は worktree の絶対パスである。`--command` は `mkreq`・`mkarch`・`mkplan`・`runplan`・`runplan-takeover`・`runpr` のどれかである。`--issue` は 10 進の数字だけで、`#`・符号・先頭の 0 を付けない。`--pr` は PR の番号である。`--item` は道具が出力した項目の `id` である。`--check` は道具が出力した照合値である。`--answer` は `1=<選択肢の番号>` の形で、番号は 1 から 9 までの 1 桁である。`--since` は道具が出力した `baseline` である。`--timeout` は 1 秒から 3600 秒までの整数で、省略すると 600 秒である。
+フラグの受け付ける値の形は次のとおりである。`--workspace` は worktree の絶対パスである。`--issue` は 10 進の数字だけで、`#`・符号・先頭の 0 を付けない。`--pr` は PR の番号である。`--item` は道具が出力した項目の `id` である。`--check` は道具が出力した照合値である。`--answer` の番号は 1 から 9 までの 1 桁である。`--since` は道具が出力した `baseline` である。`--timeout` は 1 秒から 3600 秒までの整数で、省略すると 600 秒である。`--command` と `--answer` が受け付ける値の集合は、サブコマンドの表の「必須のフラグ」の列にある。
 
-`--issue` は `mkreq` だけが、`--pr` は `runpr` だけが、`--item` はタスクのコマンド（`mkarch`・`mkplan`・`runplan`・`runplan-takeover`）だけが取る。ほかの組み合わせは使い方の誤りである。タスクは引数で受け取らず、道具が workspace から読む。
+`send` では、`--issue` は `mkreq` だけが、`--pr` は `runpr` だけが、`--item` はタスクのコマンド（`mkarch`・`mkplan`・`runplan`・`runplan-takeover`）だけが取る。ほかの組み合わせは使い方の誤りである。タスクは引数で受け取らず、道具が workspace から読む。
 
 ### 3.2. 終了コード
 
 | 終了コード | 意味 |
 |---|---|
-| `0` | 処理を終えた。送らなかった判断、作らなかった判断、消さなかった判断、作成と削除が途中で止まったことも含む。標準出力にそのサブコマンドの型の JSON を書く |
-| `1` | 道具の失敗。標準出力に `result` の型の JSON を書き、`outcome` を `failed` に、`message` に理由を入れる。`wait` の時間切れは `outcome` を `timeout` にする |
+| `0` | 処理を終えた。送らなかった判断、作らなかった判断（issue 番号の形の違いを含む）、消さなかった判断、作成と削除が途中で止まったことも含み、出力が理由を持つ。標準出力にそのサブコマンドの型の JSON を書く |
+| `1` | 道具の失敗（読めない入力、記録を作れない、外部のコマンドの失敗、`wait` の時間切れ）。標準出力に `result` の型の JSON を書き、`outcome` を `failed` に、`message` に理由を入れる。`wait` の時間切れは `outcome` を `timeout` にする |
 | `2` | 使い方の誤り。標準出力に何も書かず、標準エラーに理由を書く。Go の実行時のパニックも終了コード `2` で、標準エラーにスタックトレースを書く |
-| `3` | 何もせずに拒んだ。標準出力に `result` の型の JSON を書き、`outcome` を `refused` に、`reason` に理由を入れる |
+| `3` | 何もせずに拒んだ（Herdr の外、ほかの chief がロックを持つ、`start` していない、`--protocol` が合わない、状態のディレクトリの土台がない、`HERDR_PANE_ID` がほかの worktree の pane を指す）。標準出力に `result` の型の JSON を書き、`outcome` を `refused` に、`reason` に理由を入れる |
 
 結果を書き出せなかったときは、標準出力が空か途中までになり、標準エラーに理由を書いて終了コード `1` で終わる。終了コード `2` のときに書くのは標準エラーだけで、JSON は書かない。
 
@@ -128,7 +128,7 @@ flowchart LR
 
 1. サブコマンドとフラグの形を確かめる。知らないサブコマンド、そのサブコマンドが取らないフラグ、2 回書いたフラグ、値のないフラグ、必須のフラグの欠けは、使い方の誤り（終了コード `2`）である。
 2. `--protocol` の値を道具の `Protocol` と照合する。合わなければ、何も読まずに `protocol_mismatch` で拒む（終了コード `3`）。
-3. フラグの値の形を確かめる。`--command` と番号と `--answer` の形、`--workspace` が絶対パスであること、`--issue`・`--pr`・`--item` をそのコマンドが取るかを確かめる。合わなければ使い方の誤り（終了コード `2`）である。番号の形の誤りはここで使い方の誤りになり、`targets` と `create` の `--issue` は値の形を道具が答えの種類として返す（`issue_form`）。
+3. フラグの値の形を確かめる。`--command` と番号と `--answer` の形、`send`・`relay`・`reset` の `--workspace` が絶対パスであること、`--issue`・`--pr`・`--item` をそのコマンドが取るかを確かめる。`detail`・`release`・`remove` は `--workspace` の値を workspace の特定にだけ使い、形は確かめない。合わなければ使い方の誤り（終了コード `2`）である。番号の形の誤りはここで使い方の誤りになり、`targets` と `create` の `--issue` は値の形を道具が答えの種類として返す（`issue_form`）。
 4. Herdr の中にいるかを確かめる。`HERDR_PANE_ID` がなければ、何も読まずに `not_in_herdr` で拒む。
 5. 状態のディレクトリの土台を決める。`XDG_STATE_HOME` も `HOME` も絶対パスでなければ `no_state_base` で拒む。
 6. 状態のディレクトリを開く。開けなければ拒むか失敗する。
@@ -154,7 +154,7 @@ flowchart LR
 
 `protocol` は、どの最上位の型にもある。道具が話すプロトコル番号で、道具の `Protocol` の値である。定義は読まない（呼び出しのたびに自分で `--protocol` を渡す）。
 
-`outcome` は、`result` の型だけにある。値は `started`（`start` がロックを取った）、`failed`、`timeout`、`refused` のどれかである。
+`outcome` は型ごとに値の集合が違う。`result` は `started`（`start` がロックを取った）・`failed`・`timeout`・`refused`、`ActionOutput` は `sent`・`not_sent`・`sent_then_failed`・`recorded_not_sent`、`WaitOutput` は `changed` である（3.4.2・3.4.16・3.4.28）。
 
 #### 3.4.2. `result`
 
@@ -164,7 +164,7 @@ flowchart LR
 |---|---|---|---|
 | `protocol` | 数 | 3.4.1 | 読まない |
 | `outcome` | 文字列 | `started`・`failed`・`timeout`・`refused` | 分岐 |
-| `reason` | 文字列（省略あり） | 拒んだ理由、または時間切れの理由 | 分岐 |
+| `reason` | 文字列（省略あり） | 拒んだ理由。時間切れのときは空文字列で、理由は `message` にある | 分岐 |
 | `message` | 文字列（省略あり） | 人に示す理由。外から来た文字列を含みうる | 示す |
 | `state_dir` | 文字列（省略あり） | 解決した状態のディレクトリのパス | 示す |
 | `took_over` | 真偽（省略あり） | ほかのセッションの古いロックを引き継いだ | 読まない |
@@ -368,7 +368,32 @@ workspace の送信の停止である。
 | `status` | 文字列 | 読んだときのエージェントの状態。`idle`・`working`・`blocked`・`done`、または空文字列 | 示す |
 | `screen` | 文字列 | 読んだ画面。外から来た文字列 | 示す |
 
-`reason` の値は `not_accepting`・`input_left`・`model_mismatch`・`no_transcript`・`pane_ambiguous`・`unreadable`・`stopped`・`busy`・`not_offered`・`no_workspace`・`same_pane`・`no_report`・`pane_changed`・`step_not_finished`・`other_input`・`unsupported_path`・`check_mismatch`・`not_relayable`・`bad_option`・`auto_send_record`・`conditions`・`agent_not_ready` である。`agent_not_ready` は `create` の `/mkreq` にだけ現れる。
+`reason` は値が多いので、値の意味を次の表に置く。
+
+| `reason` | 意味 |
+|---|---|
+| `not_accepting` | pane のエージェントが入力を待っていない、または質問を出している |
+| `input_left` | pane の入力欄に送っていない文字が残っている |
+| `model_mismatch` | OpenCode の pane が別のモデルで動いている、または Claude Code の pane のモデルの切り替えが確かめられない |
+| `no_transcript` | Claude Code の pane のセッションか transcript が分からない、またはモデルの切り替えを確かめられない |
+| `pane_ambiguous` | 送り先の種類のエージェントの pane がない、または 2 つ以上ある |
+| `unreadable` | 画面、送り先の表、Herdr、記録のどれかを読めない |
+| `stopped` | その workspace への送信が停止している |
+| `busy` | その workspace の送信をほかの呼び出しが持っている |
+| `not_offered` | その workspace にそのコマンドを提案していない（ほかの次のコマンド、その番号の開いている PR がない、引き継ぎがない、`/mkreq` のタスクがすでにある） |
+| `no_workspace` | `--workspace` が今のタスクの workspace の worktree でない |
+| `same_pane` | リセットの候補が、`/runpr` を送った pane と同じ |
+| `no_report` | リセットのよりどころになる報告がない（PR の詳細がその pane の報告を控えていない、最後の報告がない、その報告がその PR を名指さない） |
+| `pane_changed` | リセットの候補の状態が、PR の詳細が報告を控えたときから変わった |
+| `step_not_finished` | 入力が終わらなかった（`/clear` でセッションが変わらない、`/new` で新しい画面にならない、コマンドが始まらない） |
+| `other_input` | リセットの候補のセッションで、人が最後に入力した行が PR を作ったコマンドでない |
+| `unsupported_path` | worktree のパスに、transcript の場所を決められない文字（`_` など）がある |
+| `check_mismatch` | 中継の照合値が今の画面の質問と合わない、または選んだリセットの照合値が今の項目と合わない |
+| `not_relayable` | 中継しない質問（複数選択、タブ、権限の確認）へ中継しようとした |
+| `bad_option` | 質問にない選択肢の番号、または中継しない選択肢（自由記述、チャット）を中継しようとした |
+| `auto_send_record` | 自動送信の記録を書けない、または記録がすでにある（そのマージの自動送信はしない） |
+| `conditions` | workspace の排他を取った後に、自動送信の条件が成り立たなくなった |
+| `agent_not_ready` | `create` が起動した Claude Code が入力を待っていない（`create` の `/mkreq` にだけ現れる） |
 
 #### 3.4.17. `SendOutput`
 
@@ -527,7 +552,32 @@ PR の CI のジョブ 1 つである。
 | `label` | 文字列 | 作った workspace の名前 | 示す |
 | `mkreq` | `ActionOutput`（null あり） | `/mkreq` の送信の結果。すべての段が通ったときだけ入る | 分岐 |
 
-`create_refusal` の値は `issue_form`・`issue_not_found`・`issue_closed`・`issue_draft`・`issue_is_pr`・`issue_unreadable`・`target_exists`・`unsupported_path`・`fetch_failed`・`busy` である。`stage` の値は `records`・`worktree`・`record`・`workspace`・`tabs`・`opencode`・`claude`・`panes`・`deadline` である。
+`create_refusal` と `stage` は値が多いので、意味を次の表に置く。
+
+| `create_refusal` | 意味 |
+|---|---|
+| `issue_form` | issue の番号の形でない（10 進の数字だけである） |
+| `issue_not_found` | その番号の issue も PR もない |
+| `issue_closed` | issue が閉じている |
+| `issue_draft` | issue にラベル `draft` が付いている（下書きの issue） |
+| `issue_is_pr` | その番号が PR のものである |
+| `issue_unreadable` | GitHub の答えを読めない |
+| `target_exists` | worktree のパスに何かがある、または worktree か workspace がそのパスを使っている（`existing`） |
+| `unsupported_path` | パスに、chief が送れない文字がある |
+| `fetch_failed` | `origin/main` を取得できない |
+| `busy` | ほかの作成、ラウンドの自動送信、同じパスへの送信か削除が動いている |
+
+| `stage` | 作成が止まった段 |
+|---|---|
+| `records` | 前の使い方の記録を消す |
+| `worktree` | worktree を作る |
+| `record` | 作ったことの記録を書く |
+| `workspace` | workspace を作る |
+| `tabs` | タブを作って名前を付ける |
+| `opencode` | OpenCode を起動する |
+| `claude` | Claude Code を起動する |
+| `panes` | 起動したエージェントを確かめる |
+| `deadline` | 作成の制限時間を過ぎた |
 
 #### 3.4.31. `TargetOutput`
 
@@ -568,6 +618,25 @@ PR の CI のジョブ 1 つである。
 | `left` | `MadeOutput` の配列 | 残ったもの | 示す |
 | `failure` | 文字列 | 止まった理由 | 示す |
 
+`remove_refusal` と `stage` の値の意味は、次の表のとおりである。
+
+| `remove_refusal` | 意味 |
+|---|---|
+| `no_workspace` | パスが今のタスクの workspace の worktree でない、または 2 つ以上の Herdr の workspace がそのパスを持つ |
+| `fetch_failed` | `origin/main` を取得できない |
+| `busy` | そのパスへの送信、作成、ほかの削除が動いている |
+| `checks_failed` | 確かめが 1 つ通らなかった（`checks`） |
+| `changed` | 閉じる直前に読み直した workspace が、確かめが読んだものと違う |
+
+| `stage` | 削除が止まった段 |
+|---|---|
+| `close_workspace` | workspace を閉じる |
+| `wait_panes` | pane がなくなるのを待つ |
+| `recheck_head` | worktree の HEAD を確かめ直す |
+| `remove_worktree` | worktree を消す |
+| `remove_records` | chief の記録を消す |
+| `deadline` | 削除の制限時間を過ぎた |
+
 ## 4. 状態のディレクトリ・ロック・記録
 
 本章は、chief が記録とロックを置く場所と、記録の種類ごとの中身・読む目的・書くとき・消えるときを述べる。人が行う手順（停止を解く、記録を手で消す、すべてを消す）は [chief_guide.md](guides/chief_guide.md) の 7 章にある。
@@ -576,7 +645,7 @@ PR の CI のジョブ 1 つである。
 
 状態のディレクトリは `$XDG_STATE_HOME/yt2column/chief/` である。`XDG_STATE_HOME` が絶対パスでなければ `$HOME/.local/state/yt2column/chief/` にする。どちらも絶対パスでなければ、道具は `no_state_base` で拒む。土台のディレクトリがなければ作らずに拒む。状態のディレクトリ自体は、なければ作る。解決したパスは `start` と `snapshot` の出力の `state_dir` にある。
 
-ファイルは利用者だけが読み書きできる形（`0600`）で作り、同じ名前の記録がすでにあれば作らず、上書きしない。記録は JSON で、読むときに知らない項目があれば、その記録は読めないものとして扱い、一部だけを読むことはしない。
+ファイルは利用者だけが読み書きできる形（`0600`）で作り、同じ名前の記録がすでにあれば作らず、上書きしない。読むときも、利用者のものでないファイル、`0600` でないファイル、シンボリックリンクは読まない。規則そのものは [security.md](security.md) の §8.2 にある。記録は JSON で、読むときに知らない項目があれば、その記録は読めないものとして扱い、一部だけを読むことはしない。
 
 ### 4.2. ロック
 
@@ -604,8 +673,8 @@ PR の CI のジョブ 1 つである。
 | 送信の記録 | `<worktree のディレクトリ>/send-<ID>-start.json`・`send-<ID>-end.json` | 送った入力の種類、コマンド、pane、エージェント、モデル、始めた時刻と終わり、結果と理由 | 実行中の行、作業項目の表示、送れたか分からない送信の検出 | 入力を送る前（始め）と、送り終えたとき（終わり） | 始めと終わりの両方があり、25 分より古いものを `start` が消す。終わりのない記録は消さず、送信の停止に変える | コマンドの行に、無害化した外から来た文字列を含みうる |
 | PR の詳細の控え | `<worktree のディレクトリ>/detail-<PR の番号>-<head のコミット>.json` | 集めた PR の詳細と要約、保存した時刻 | PR の詳細を、次に見たときに読み直さずに示すこと | `detail` | 14 日より古いものを `start` が消す | 要約に、無害化した外から来た文字列を含む |
 | 報告の控え | `<worktree のディレクトリ>/report-<PR の番号>-<head のコミット>.json` | PR を作ったコマンドの報告と、その出どころ、保存した時刻 | `/runpr` の後の pane のリセットで、PR を作ったコマンドの報告を使うこと | 人が PR の詳細を見直し、報告がちょうど 1 つの pane で読めたとき | 14 日より古いものを `start` が消す | 報告に、無害化した外から来た文字列を含む |
-| 送信の停止 | `<worktree のディレクトリ>/stop.json` | 理由、止まったときの画面、止まった送信、時刻 | その workspace への送信を止めること | 送信が途中で失敗したとき、終わりのない送信を見つけたとき | `release`、または人が `stop.json` を消す | 画面に、無害化した外から来た文字列を含む |
-| 見送りの記録 | `<worktree のディレクトリ>/skip-<ハッシュ>.json` | pane、セッション、状態の変化の番号、場面、走ったコマンド | 報告が読めずに見送ったリセットを、後のラウンドで人に示すこと | リセットを見送ったとき | 人が選んだリセットを送る直前、その pane にコマンドかリセットを打てたとき、14 日より古いとき（読めない記録はファイルの更新が 14 日より古いとき） | 走ったコマンドに、無害化した外から来た文字列を含みうる |
+| 送信の停止 | `<worktree のディレクトリ>/stop.json` | 理由、止まったときの画面、止まった送信、時刻 | その workspace への送信を止めること | 送信が途中で失敗したとき、終わりのない送信を見つけたとき | `release`、または人が `stop.json` を消す（人が消してよい。手順は [chief_guide.md](guides/chief_guide.md) の 7 章） | 画面に、無害化した外から来た文字列を含む |
+| 見送りの記録 | `<worktree のディレクトリ>/skip-<ハッシュ>.json` | pane、セッション、状態の変化の番号、場面、走ったコマンド | 報告が読めずに見送ったリセットを、後のラウンドで人に示すこと | リセットを見送ったとき | 人が選んだリセットを送る直前、その pane にコマンドかリセットを打てたとき、14 日より古いとき（読めない記録はファイルの更新が 14 日より古いとき）。決まった形に合わない記録は、人が消してよい（手順は [chief_guide.md](guides/chief_guide.md) の 7 章） | 走ったコマンドに、無害化した外から来た文字列を含みうる |
 | 作ったことの記録 | `<worktree のディレクトリ>/created.json` | worktree のパス、作ったときの issue、作った時刻 | 削除の候補を名指すこと、その行のタスクを探す手がかり | `create` が worktree を作った後 | `remove` が記録を消すときの最後 | 含まない |
 | 履歴の記録 | `<worktree のディレクトリ>/trace-<セッションのハッシュ>-<ID>-<ハッシュ>.json` | セッション、worktree、PR、ブランチ、確かめたことと時刻 | `main` をチェックアウトした worktree のタスクの特定 | `tick` が PR とブランチについて確かめたことが変わったとき | ほかのセッションの分を `start` が消す。worktree を作り直す前と、workspace を消し終えた後に消す | ブランチの名前は git の値で、PR の題名などは含まない |
 
@@ -660,7 +729,7 @@ worktree を作り直す前と、workspace を消し終えた後には、履歴�
 **読み取る構成要素。**
 
 - 画面は、`internal/chief` の `screen.go`・`screen_ansi.go`・`screen_claude.go`・`screen_opencode.go`・`screen_report.go` が読む。道具は pane の画面を `herdr agent read` で読み、標本から採った形に照らして `Screen` にする。
-- Claude Code の transcript は、`transcript.go`・`screen_transcript.go`・`screen_transcript_report.go` が読む。transcript は `~/.claude/projects/` の下の、作業ディレクトリから作った名前のディレクトリにある、セッション ID の `.jsonl` のファイルである。読み取るのは、最後に終わった応答の本文（報告）、PR の記録（`pr-link` の行）、人が最後に入力した行（`HumanInput`）である。
+- Claude Code の transcript は、`transcript.go`・`screen_transcript.go`・`screen_transcript_report.go` が読む。transcript は、`CLAUDE_CONFIG_DIR`（なければ `$HOME/.claude`）の `projects/` の下の、作業ディレクトリから作った名前のディレクトリにある、セッション ID の `.jsonl` のファイルである。読み取るのは、最後に終わった応答の本文（報告）、PR の記録（`pr-link` の行）、人が最後に入力した行（`HumanInput`）である。
 
 **ほかの部分が受け取る型。** 判定は、次の値だけを使う。
 
@@ -675,7 +744,9 @@ worktree を作り直す前と、workspace を消し終えた後には、履歴�
 
 - 形に合わない画面は `ScreenUnmatched` にし、その pane には送らず、その workspace を「要確認」にする。推し量って別の形として読むことはしない。
 - 中継しない質問は、中身を示すだけで、人がその pane で答える。中継するのは、1 つを選ぶ問いの選択肢だけである。
-- transcript を読めないときは、画面に戻らず、その pane に報告がないものとして扱う。自動送信の前の NEXT の照合はその pane を照合せずに通り、PR の詳細は PR の説明から要約し、`/runpr` の後の pane のリセットはしない（[chief_guide.md](guides/chief_guide.md) の 8 章）。
+- Claude Code の pane の transcript を読めないときは、画面に戻らない。理由によって 2 つに分かれる。
+    - transcript のファイルがないときと、transcript の値や種類の名前だけが変わったときは、その pane に報告がないものとし、自動送信の前の NEXT の照合はその pane を照合せずに通る（`no_report`）。
+    - それ以外の理由（セッションがない、worktree のパスに読めない文字がある、64 MiB を超える、最後の行が書きかけ、設定のディレクトリを決められない）で読めないときは、その `/runpr` の報告を読めないものとし、その workspace には自動送信しない（送り先が OpenCode の pane でも送らない）。PR の詳細は PR の説明から要約し、`/runpr` の後の pane のリセットはしない。細部は [chief_guide.md](guides/chief_guide.md) の 8 章にある。
 - 最後の行が書きかけの transcript は、200 ms の間隔で 3 回まで読み直す。それでも終わらなければ、何も示さない（`partial_line`）。
 
 **標本の置き場所。** 画面の標本は `internal/chief/testdata/screens/`、transcript の標本は `internal/chief/testdata/transcript/` にある。標本の採り方は 9 章にある。
@@ -699,13 +770,16 @@ worktree を作り直す前と、workspace を消し終えた後には、履歴�
 | 送信の停止と解除 | 送信の記録、停止の記録 | あたる（送ることを止める、または解く） | [chief_guide.md](guides/chief_guide.md) の 3.2 と 5.1 | [0088 設計書](../tasks/0088_chief_of_staff/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「記録」 |
 | workspace の作成 | issue の番号と状態、`origin/main` の取得、作る場所のパス | あたる（worktree と workspace を作り、起動し、`/mkreq` を送る） | [chief_guide.md](guides/chief_guide.md) の 3.3 と 5.1 | [0092 設計書](../tasks/0092_chief_task_workspace/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「workspace の作成と削除」 |
 | workspace の削除 | 作ったことの記録、`origin/main` の文書、git と Herdr の状態、pane の前面のプロセス | あたる（workspace を閉じ、worktree を消す） | [chief_guide.md](guides/chief_guide.md) の 3.4 と 5.1 | [0092 設計書](../tasks/0092_chief_task_workspace/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「workspace の作成と削除」 |
-| 通知 | 通知の記録、人の判断を待つ項目 | あたらない | [chief_guide.md](guides/chief_guide.md) の 3.1 | [0093 設計書](../tasks/0093_chief_status_sheet/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「記録」 |
+| 通知 | 通知の記録、人の判断を待つ項目 | あたらない | [.claude/commands/chief.md](../../.claude/commands/chief.md) の step 2 の項目 4（Notifications） | [0093 設計書](../tasks/0093_chief_status_sheet/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「記録」 |
+| 送った後の pane のリセット | 送信の記録、PR の詳細の控え、画面、transcript、人の最後の入力 | あたる（pane へ `/clear` か `/new` を送る） | [chief_guide.md](guides/chief_guide.md) の 8 章 | [0097 設計書](../tasks/0097_chief_reset_offer/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「pane の選び方とリセット」 |
+
+**送った後の pane のリセット。** `/runpr` を送れた後、chief は PR を作ったコマンドの pane を空にする（Claude Code は `/clear`、OpenCode は `/new`）。自動送信の後は、`/runpr` の pane を空にする。空にする先は送り先の表から決め、画面からは選ばない。空にするのは、`/runpr` を送った pane とは別の pane で、人が PR の詳細を見たときにその pane の報告を控えていて、その状態が変わっておらず、transcript が最後の報告で終わり、そのセッションの PR の記録がその PR を名指し、人が最後に入力した行が PR を作ったコマンドであるときだけである。それ以外は送らず、報告が見つからないか読めないことで見送ったものは、見送りの記録として人に示す（4.4）。報告が別のものだったときと、OpenCode の pane で PR を作ったときは、人に示さない。
 
 **副作用の条件にあたるもの。** 表で「あたる」とした判定のほかに、`paneinput` の検証（送る入力を決める）と、送るかを決める読み取り（中継の直前の照合、NEXT の照合、人の後の入力の確かめ）も、副作用の条件にあたる。`Sanitize` と `CapHead` は、人とセッションに示す文字列だけを変え、送る条件を変えない。
 
 ## 8. プロトコル番号
 
-本章は、chief のプロトコル番号を上げる基準、上げる手順、入れ直す順を述べる。番号の値そのものは本書に書かない。値は [chief_guide.md](guides/chief_guide.md) の 2 章だけが持つ。番号の決め方とマージの時点の確かめは [CLAUDE.md](../../CLAUDE.md) の「Protocol numbers」と [mergepr_guide.md](guides/mergepr_guide.md) が持つ。
+本章は、chief のプロトコル番号を上げる基準、上げる手順、当てはめの例を述べる。番号の値そのものは本書に書かない。値は [chief_guide.md](guides/chief_guide.md) の 2 章だけが持つ。番号の決め方とマージの時点の確かめは [CLAUDE.md](../../CLAUDE.md) の「Protocol numbers」と [mergepr_guide.md](guides/mergepr_guide.md) が持つ。
 
 ### 8.1. 約束
 
@@ -827,6 +901,6 @@ flowchart TD
 - `TestArchitectureValuesMatchTool`: 本書の 3.1 のサブコマンドの表、3.2 の終了コードの表、4.1 の状態のディレクトリの名前。
 - `TestGuideProtocolMatchesTool`: chief_guide の 2 章のプロトコル番号。
 
-どちらも、値を見出しの節の中で探す。ほかの表や節にある同じ名前は読まない。出力の JSON の項目とフラグを照らすテストは置かない。それらの値は、本書を直す PR のレビューで読んで確かめる。
+`TestArchitectureValuesMatchTool` は、3 つの値をそれぞれ見出しの節の中で探す。ほかの表や節にある同じ名前は読まない。`TestGuideProtocolMatchesTool` は、今と同じく chief_guide の全体から値の表を探す。出力の JSON の項目とフラグを照らすテストは置かない。それらの値は、本書を直す PR のレビューで読んで確かめる。
 
 **`make test` に要るもの。** chief のテストは、[CLAUDE.md](../../CLAUDE.md) の「Development Notes」に挙げた `jq` と bash 4 以上を要る。要るものそのものは、そこが持つ。
