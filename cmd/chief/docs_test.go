@@ -491,40 +491,66 @@ func TestInstallTargetInMakefile(t *testing.T) {
 	}
 }
 
-// guidePath is the human guide, whose values the tool defines.
+// guidePath is the human guide, whose protocol number the tool defines.
 const guidePath = "docs/dev/guides/chief_guide.md"
 
-// TestGuideValuesMatchTool: the guide's table of subcommands names exactly
-// the tool's subcommands, its table of exit codes exactly the four codes the
-// tool defines (a code added to main.go must be added here),
-// its protocol number is the tool's Protocol, and the state directory it
-// names is the one the tool opens below XDG_STATE_HOME, so the guide is not
-// left describing another version of the tool.
-func TestGuideValuesMatchTool(t *testing.T) {
+// architecturePath is the developer document that holds chief's current
+// specification, whose values the tool defines.
+const architecturePath = "docs/dev/chief_architecture.md"
+
+// TestGuideProtocolMatchesTool: the guide's value table holds the tool's
+// Protocol, and the guide is not left describing another version of the tool
+// when the number is raised.
+func TestGuideProtocolMatchesTool(t *testing.T) {
 	guide := readRepoFile(t, guidePath)
-	var subcommands []string
+	if got := guideValue(guide, "プロトコル番号"); got != strconv.Itoa(chief.Protocol) {
+		t.Errorf("%s: protocol number %q, want %d", guidePath, got, chief.Protocol)
+	}
+}
+
+// TestArchitectureValuesMatchTool: the document's table of subcommands names
+// exactly the tool's subcommands, its table of exit codes exactly the four
+// codes the tool defines (a code added to main.go must be added here), and the
+// section on the state directory names the one the tool opens below
+// XDG_STATE_HOME, so the document is not left describing another version of
+// the tool. Each value is looked for inside its own heading's section: the
+// document holds other tables and names the state directory elsewhere, and a
+// document-wide search would read one of them.
+func TestArchitectureValuesMatchTool(t *testing.T) {
+	doc := readRepoFile(t, architecturePath)
+	subcommands := make([]string, 0, len(subcommandFlags))
 	for subcommand := range subcommandFlags {
 		subcommands = append(subcommands, subcommand)
 	}
 	codes := []string{strconv.Itoa(exitOK), strconv.Itoa(exitFailure), strconv.Itoa(exitUsage), strconv.Itoa(exitRefused)}
-	for header, want := range map[string][]string{"サブコマンド": subcommands, "終了コード": codes} {
-		table := doctestutil.FindTable(guide, header)
+	for _, tc := range []struct {
+		heading string
+		column  string
+		want    []string
+	}{
+		{"### 3.1. サブコマンド", "サブコマンド", subcommands},
+		{"### 3.2. 終了コード", "終了コード", codes},
+	} {
+		section := doctestutil.SectionOutsideBlocks(doc, tc.heading)
+		if section == "" {
+			t.Errorf("%s has no heading %q", architecturePath, tc.heading)
+			continue
+		}
+		table := doctestutil.FindTable(section, tc.column)
 		if table == nil {
-			t.Errorf("%s has no table with a %s column", guidePath, header)
+			t.Errorf("%s: the section %q has no table with a %s column", architecturePath, tc.heading, tc.column)
 			continue
 		}
 		var got []string
 		for _, row := range table[1:] {
 			got = append(got, doctestutil.StripBackticks(row[0]))
 		}
+		want := slices.Clone(tc.want)
 		slices.Sort(got)
 		slices.Sort(want)
 		if !slices.Equal(got, want) {
-			t.Errorf("%s: the %s table lists %q, the tool has %q", guidePath, header, got, want)
+			t.Errorf("%s: the %s table of the section %q lists %q, the tool has %q", architecturePath, tc.column, tc.heading, got, want)
 		}
-	}
-	if got := guideValue(guide, "プロトコル番号"); got != strconv.Itoa(chief.Protocol) {
-		t.Errorf("%s: protocol number %q, want %d", guidePath, got, chief.Protocol)
 	}
 	base := t.TempDir()
 	store, err := chief.OpenStore(base)
@@ -535,8 +561,14 @@ func TestGuideValuesMatchTool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "`$XDG_STATE_HOME/" + filepath.ToSlash(rel) + "/`"; !strings.Contains(guide, want) {
-		t.Errorf("%s does not name the state directory %s", guidePath, want)
+	const heading = "### 4.1. 状態のディレクトリの場所"
+	section := doctestutil.SectionOutsideBlocks(doc, heading)
+	if section == "" {
+		t.Errorf("%s has no heading %q", architecturePath, heading)
+		return
+	}
+	if want := "`$XDG_STATE_HOME/" + filepath.ToSlash(rel) + "/`"; !strings.Contains(section, want) {
+		t.Errorf("%s: the section %q does not name the state directory %s", architecturePath, heading, want)
 	}
 }
 
