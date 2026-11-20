@@ -314,7 +314,7 @@ fixprguard review-state --protocol <N> --reviewer <awaited-reviewer> --request <
     -   **道具が読むもの:** 利用者の login は、道具が `gh api user` で読む。待つ時間の上限（15 分）は、道具のコードの定数とする。
 -   **読む順:**
     0.  PR（REST の `pulls/<n>`）の `head.sha`。どの状態でも、この値が読めたときは出力の `head` に入れる。マージの質問のラウンドごとの照合（3.4.2）に使うためである。
-    1.  PR の会話のコメント（REST の `issues/<n>/comments`、全ページ）の id・著者・本文・`created_at`・`html_url`。本文は、依頼のコメントかどうかの比較にだけ使い、出力しない。依頼のコメントがなければ、ここで `none` を返し、2 以下を読まない。依頼がない PR（ふつうの PR）で、commit と CheckRun を読まずに済ませ、commit の多い PR でも上限に当たらないためである。
+    1.  PR の会話のコメント（REST の `issues/<n>/comments`、全ページ）の id・著者・本文・`created_at`・`updated_at`・`html_url`。本文は、依頼のコメントかどうかの比較にだけ使い、出力しない。`updated_at` は依頼のコメントが編集されていないかを確かめるために使う（3.3.3）。依頼のコメントがなければ、ここで `none` を返し、2 以下を読まない。依頼がない PR（ふつうの PR）で、commit と CheckRun を読まずに済ませ、commit の多い PR でも上限に当たらないためである。
     2.  PR の head（`headRefOid`）と、PR の commit の一覧（GraphQL の `pullRequest.commits`、全ページ）。各ページで `headRefOid` が読む順の 0 の `head.sha` と等しいことを確かめ、食い違えば（読み取りの途中の push や force push）一覧を捨てて `unreadable` の `call-failed` で返す。各 commit の `oid` と CheckSuite の `app.slug`、その CheckRun を `checkRuns(filterBy: {checkName: "CodeRabbit", checkType: ALL})` で読む。CheckRun から読む項目は、`databaseId`・`status`・`conclusion`・`title`・`startedAt`・`completedAt`・`url` である。`checkType: ALL` は、名前ごとの最新に限らず、すべての CheckRun を返す（観測の記録 3.1）。CheckSuite の `app.slug` が `--reviewer` と等しいものだけを使う。
     3.  CodeRabbit の PR レビュー（REST の `pulls/<n>/reviews`、全ページ）の著者・`commit_id`・`submitted_at`・`html_url`。完了の印に URL を添えるためだけに使う。
     4.  GitHub の時刻。最後に読んだ応答の `Date` ヘッダとする。
@@ -332,15 +332,16 @@ fixprguard review-state --protocol <N> --reviewer <awaited-reviewer> --request <
 ```go
 // ReviewState is the output of fixprguard review-state.
 type ReviewState struct {
-	Protocol          int              `json:"protocol"`
-	State             RequestState     `json:"state"`             // the state of the latest request comment
-	Reason            UnreadableReason `json:"reason"`            // set for state unreadable only
-	Head              string           `json:"head"`              // the PR's head, 40 lowercase hex; "" only when step 0 could not be read
-	Now               string           `json:"now"`               // GitHub's clock, RFC 3339 UTC
-	Request           *ReviewRequest   `json:"request"`           // the latest request comment; null for none and unreadable
-	Response          *ReviewResponse  `json:"response"`          // its response; null when it has none
-	IndeterminateURLs []string         `json:"indeterminateUrls"` // competing check run URLs for state indeterminate only; never details_url
-	Markers           []ReviewMarker   `json:"markers"`           // every completion marker, oldest first; empty for none and unreadable
+	Protocol            int                 `json:"protocol"`
+	State               RequestState        `json:"state"`               // the state of the latest request comment
+	Reason              UnreadableReason    `json:"reason"`              // set for state unreadable only
+	IndeterminateReason IndeterminateReason `json:"indeterminateReason"` // set for state indeterminate only
+	Head                string              `json:"head"`                // the PR's head, 40 lowercase hex; "" only when step 0 could not be read
+	Now                 string              `json:"now"`                 // GitHub's clock, RFC 3339 UTC
+	Request             *ReviewRequest      `json:"request"`             // the latest request comment; null for none and unreadable
+	Response            *ReviewResponse     `json:"response"`            // its response; null when it has none
+	IndeterminateURLs   []string            `json:"indeterminateUrls"`   // competing check run URLs for state indeterminate with reason competing-runs only; never details_url
+	Markers             []ReviewMarker      `json:"markers"`             // every completion marker, oldest first; empty for none and unreadable
 }
 
 // ReviewRequest is a request comment.
@@ -404,14 +405,24 @@ const (
 	UnreadableRejected                         // "rejected": a response failed the strict checks
 	UnreadableLimit                            // "limit": a fixed limit was exceeded
 )
+
+// IndeterminateReason says why the latest request's response could not be determined.
+type IndeterminateReason int
+
+const (
+	IndeterminateNone          IndeterminateReason = iota // "" (the state is not indeterminate)
+	IndeterminateCompetingRuns                            // "competing-runs": two or more check runs compete as the response
+	IndeterminateEditedRequest                            // "edited-request": the request comment was edited (updated_at != created_at)
+)
 ```
 
 -   **ゼロ値:** `RequestState` のゼロ値は `RequestIndeterminate`、`RunKind` のゼロ値は `RunUnknown` とする。どちらも、入力について最も少なく仮定する解釈である（`CLAUDE.md` の「Declare, don't infer」）。
 -   **JSON の形:** 列挙は `MarshalText` で、コメントに書いた決まった語として出す。今の `InteractionState` と同じ作りである（`internal/fixprguard/limits.go:26-39`）。項目の名前と列挙の語は、文書が読む契約であり、`fixprguard_guide.md` に書く（[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) の 3）。
--   **文書が読む項目:** `state`、`reason`、`head`、`now`、`request`、`response`、`indeterminateUrls`、`markers` の全部である。ほかの値（CheckRun の id など）は出さない。
+-   **文書が読む項目:** `state`、`reason`、`indeterminateReason`、`head`、`now`、`request`、`response`、`indeterminateUrls`、`markers` の全部である。ほかの値（CheckRun の id など）は出さない。
 -   **項目の間の約束:** 道具のコードが、状態と一緒に次の約束を作る。
     -   `request` は、`state` が `none` と `unreadable` のときだけ `null` で、ほかのときは値を持つ。
-    -   `indeterminateUrls` は、`state` が `indeterminate` のときだけ競合した CheckRun の URL（`details_url` は含めない）を持ち、ほかのときは空である。
+    -   `indeterminateReason` は、`state` が `indeterminate` のときだけ理由（`competing-runs` または `edited-request`）を持ち、ほかのときは空である。
+    -   `indeterminateUrls` は、`state` が `indeterminate` で `indeterminateReason` が `competing-runs` のときだけ競合した CheckRun の URL（`details_url` は含めない）を持ち、ほかのときは空である。
     -   `head` は、`state` が `unreadable` で、読む順の 0 が読めなかったとき（`call-failed`、または `head.sha` が検査を通らない `rejected`）だけ空で、ほかのときは 40 桁の小文字の 16 進である。
 
 #### 3.3.2. CheckRun の分類
@@ -442,14 +453,16 @@ CodeRabbit の CheckRun は、次の値の組だけで分類する。CheckSuite 
 
 1.  **`unreadable`:** 読む順の 0〜4 または `gh api user` で、呼び出しが失敗した（`call-failed`）、読む順の 2 で `headRefOid` が読む順の 0 の `head.sha` と食い違った（`call-failed`）、応答が厳密な検査を通らなかった（`rejected`）、上限を超えた（`limit`）。
 2.  **`none`:** 依頼のコメントがない。
-3.  **`indeterminate`:** 最新の依頼の応答が決まらない。最新の依頼の後に始まった数える CheckRun のうち、最も早く始まったものが 2 つ以上ある（同じ秒）か、最も早いものが終わる前に、別の数える CheckRun が始まった（AC-16 の (a)）。
+3.  **`indeterminate`:** 最新の依頼の応答が決まらない。次のどちらかに当たる（AC-16 の (a)）。
+    -   **`edited-request`:** 最新の依頼のコメントが編集されている（`updated_at` が `created_at` と等しくない）。通常のコメントを後から依頼の本文へ編集した場合、元の `created_at` を依頼時刻として使うと、編集前に始まった CheckRun を応答と取り違えうるため、完了と判定しない。
+    -   **`competing-runs`:** 最新の依頼の後に始まった数える CheckRun のうち、最も早く始まったものが 2 つ以上ある（同じ秒）か、最も早いものが終わる前に、別の数える CheckRun が始まった。
 4.  **`completed`・`rate-limited`・`unrecognized`:** 応答があり、その分類が `RunFinished`・`RunRateLimited`・`RunUnknown` である。
 5.  **`timed-out`:** 依頼の時刻から 15 分を過ぎた。`RunRunning` の応答があっても、上限は延ばさない。
 6.  **`waiting`:** 上のどれでもない。
 
 -   **時刻の比べ方:** 「後に始まった」は、CheckRun の `startedAt` が依頼の `created_at` より厳密に後であることとする。同じ秒は数えない。今の Codex の判定と同じ規則である（`runpr.md:547-549`）。`status` が `COMPLETED` 以外で `startedAt` が `null` の CheckRun（`QUEUED` や `PENDING` など）はまだ始まっていないものとして応答に数えず、`startedAt` が入るか 15 分の上限に達するまで `waiting` のまま待つ。
 -   **応答の後の CheckRun:** 応答が終わった後に始まった数える CheckRun（CheckRun の再実行、Web からのレビュー、`/fixpr` の返信に応じたレビュー）は、その依頼の応答でも完了の印でもない。手動の PR レビューは依頼のコメントで始まるものだけだからである（要件定義書 3.1）。そのため、最新の依頼が終わった後に何が起きても、状態は応答で決まったまま変わらない。
--   **前の依頼の応答:** 前の依頼のコメントにも同じ規則で応答を決め、`RunFinished` の応答を完了の印として `markers` に入れる。前の依頼の応答は、次の依頼より前に始まったものに限る（AC-17）。依頼のコメントのない CheckRun は、完了の印にならない。前の依頼の応答が決まらないとき（規則 3 に当たるとき）は、その依頼からは完了の印を作らない。安全側に倒すためである。
+-   **前の依頼の応答:** 前の依頼のコメントにも同じ規則で応答を決め、`RunFinished` の応答を完了の印として `markers` に入れる。前の依頼の応答は、次の依頼より前に始まったものに限る（AC-17）。依頼のコメントのない CheckRun は、完了の印にならない。前の依頼の応答が決まらないとき（規則 3 に当たるとき：編集された依頼コメントや競合する CheckRun があるとき）は、その依頼からは完了の印を作らない。安全側に倒すためである。
 -   **示すコミット（AC-16 の (c)・(d)）:** 道具は、PR の commit の一覧にある commit の CheckRun だけを読み、読む順の 2 の各ページで `headRefOid` が読む順の 0 の `head.sha` と等しいことを確かめる。そのため、読み取りの途中で force push が起きて head が変われば `unreadable`（`call-failed`）で読み直しになり、完了の印が示すコミットは、出力する `head` かその祖先に限られる。この性質は本書が実装に課す要件で、テストで確かめる（7.1）。示すコミットが 40 桁の小文字の 16 進でない CheckRun があれば、`unreadable` の `rejected` になる。force push で一覧から消えた commit の上の完了の印は読まれないので、LAST_REVIEWED は古くなる側にしか変わらない。
 -   **スレッドへの返信に応じた投稿（AC-54）:** 観測では、返信に応じて CodeRabbit が付けたのは反応だけで、CheckRun はできなかった（観測の記録 3.10）。返信に応じたレビューが CheckRun を作っても、上の「応答の後の CheckRun」として数えない。
 
@@ -567,7 +580,7 @@ CodeRabbit の CheckRun は、次の値の組だけで分類する。CheckSuite 
 | `rate-limited` | 割り当てを使い切ったこと、依頼のコメントの URL、CheckRun の URL | 割り当てが戻ってから `/runpr` を再実行して選び直す、またはレビューなしでマージに進む |
 | `unrecognized` | 判定できない終わり方の知らせを受けたこと、CheckRun の `status` と `conclusion`、依頼のコメントの URL、CheckRun の URL | 同上 |
 | `timed-out` | 15 分を過ぎても完了の印がないこと、依頼のコメントの URL と時刻、`now`、応答があればその分類と CheckRun の URL | 応答が途中なら、しばらくして `/runpr` を再実行する（遅れて届いた完了の印を拾う）。応答がなければ、上と同じ |
-| `indeterminate` | 応答が決まらないこと、依頼の後に始まった数える CheckRun の URL、依頼のコメントの URL | CodeRabbit の画面で確かめ、手動で依頼のコメントを投稿してから `/runpr` を再実行する。新しい依頼が最新の依頼になる |
+| `indeterminate` | 応答が決まらないことと理由（`indeterminateReason`：`edited-request` のときは依頼のコメントが編集されていて依頼時刻を特定できないこと、`competing-runs` のときは依頼の後に始まった数える CheckRun の URL）、依頼のコメントの URL | CodeRabbit の画面で確かめ、手動で新しい依頼のコメントを投稿してから `/runpr` を再実行する。新しい依頼が最新の依頼になる |
 | `unreadable` | 理由（`call-failed`・`rejected`・`limit`） | `call-failed` は再実行する。`rejected` と `limit` は、道具と観測の記録を直す |
 
 -   **本文を出さない:** どの報告も、CodeRabbit の投稿の本文と、CheckRun の `title` を示さない（AC-16）。
@@ -731,7 +744,7 @@ flowchart LR
 | 脅威 | 対策 |
 |---|---|
 | CodeRabbit の投稿の本文が、セッションへの指示として働く | 本文はセッションに出さない。`review-state` は本文を出力せず、メンションのフィルタは種類と URL だけを出す（AC-16、AC-19） |
-| 偽の完了の印で、レビューされていない変更をレビュー済みとする | 完了の印は、CheckSuite の app の slug が完了を待つ PR レビュアーの CheckRun に限る。CheckRun はその GitHub App しか作れない。依頼の後に始まった最初のものだけを応答とし、応答が決まらなければ止まる（AC-15〜AC-17） |
+| 偽の完了の印で、レビューされていない変更をレビュー済みとする | 完了の印は、CheckSuite の app の slug が完了を待つ PR レビュアーの CheckRun に限る。CheckRun はその GitHub App しか作れない。依頼の後に始まった最初のものだけを応答とし、編集された依頼のコメント（`updated_at` が `created_at` と等しくないもの）は依頼時刻を特定できないため完了の印を作らず、応答が決まらなければ止まる（AC-15〜AC-17） |
 | 依頼のコメントを装う | 依頼のコメントは、著者の種類が `User` で、login が利用者のものだけを数える。同じ名前の `Bot` も、ほかの `User` も数えない（AC-15） |
 | 割り当て切れやエラーを完了と取り違える | `status`・`conclusion`・`title` の組を表で照合し、表にない組は判定できない終わり方として、レビュー済みとしない。「between」の行は使わない（観測の記録 3.3） |
 | 判定した head と違う head をマージする | 各ラウンドの問いの前に、`review-state` の `head` と、準備した `headRefOid` と、手元の HEAD を照合する（3.4.2） |
@@ -871,7 +884,8 @@ PR を 3 つに分ける。分け方の細部と、各 PR のステップは計�
         -   `COMPLETED` 以外の状態を途中とすること。
         -   同じ秒を数えないこと。
         -   応答の後の CheckRun を数えないこと。
-        -   重なった 2 つの CheckRun で `indeterminate` になること。
+        -   重なった 2 つの CheckRun で `indeterminate`（`competing-runs`）になること。
+        -   編集された依頼のコメント（`updated_at` が `created_at` と等しくないもの）について、最新の依頼なら `indeterminate`（`edited-request`）になり、前の依頼なら完了の印を作らないこと。
         -   15 分の上限。
         -   前の依頼の応答を完了の印に入れることと、次の依頼の後に始まったものを入れないこと。
         -   依頼のない CheckRun を数えないこと。
