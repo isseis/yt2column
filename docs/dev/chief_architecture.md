@@ -811,34 +811,55 @@ worktree を作り直す前と、workspace を消し終えた後には、履歴�
 
 ## 6. 画面と transcript の読み取り
 
-本章は、chief が画面と transcript から何を読み、その結果をどの型で受け取るかを述べる。読み取りは `chief` コマンドが行う。`/chief` のセッションは画面も transcript も読まない。
+本章は、chief が pane の画面と Claude Code の transcript ファイルから何をどう読み、その結果をどの型で受け取るかを述べる。読み取りは `chief` コマンドが行う。`/chief` のセッションは画面も transcript も読まない。
 
-**読み取る構成要素。**
+### 6.1. 画面ではなく transcript を読む方針と場所
 
-- 画面は、`internal/chief` の `screen.go`・`screen_ansi.go`・`screen_claude.go`・`screen_opencode.go`・`screen_report.go` が読む。`chief` コマンドは pane の画面を `herdr agent read` で読み、標本から採った形に照らして `Screen` にする。
-- Claude Code の transcript は、`transcript.go`・`screen_transcript.go`・`screen_transcript_report.go` が読む。transcript は、`CLAUDE_CONFIG_DIR`（なければ `$HOME/.claude`）の `projects/` の下の、作業ディレクトリから作った名前のディレクトリにある、セッション ID の `.jsonl` のファイルである。読み取るのは、最後に終わった応答の本文（報告）、PR の記録（`pr-link` の行）、人が最後に入力した行（`HumanInput`）である。
+Herdr の `herdr agent read` は pane の高さの分の行しか返さないため、画面より長い報告はスクロールで切れ、折り返しや再描画で文字列が崩れうる。これに対し、Claude Code がセッションごとに書き出す **transcript ファイル**（1 行 = 1 JSON オブジェクトの `.jsonl`）には、折り返しなしの完全な応答本文と構造化レコードが残る。
 
-**ほかの部分が受け取る型。** 判定は、次の値だけを使う。
+そのため、Claude Code の pane では報告・PR 記録・人の入力・モデル切替を**画面ではなく transcript ファイルから直接読む**。transcript を読めないときも画面読み取りには戻らない（[ADR-0046](adr/0046-chief-of-staff.md) の「画面と transcript の読み取り」）。OpenCode の pane には transcript がないため、画面から読む。画面（`herdr agent read`）は、質問待ち・プロンプト待ち・入力欄の書きかけ・OpenCode のモデルや報告の読み取りに使う。
+
+**transcript ファイルの場所と安全策（`internal/chief/transcript.go`）。**
+
+- **パス**: `<CLAUDE_CONFIG_DIR または $HOME/.claude>/projects/<作業ディレクトリの変換名>/<session_id>.jsonl`
+    - `<作業ディレクトリの変換名>` は、worktree の絶対パス中の `/` と `.` をすべて `-` に置き換えた名前である。
+    - 作業ディレクトリのパスに英数字・`/`・`.`・`-` 以外の文字が含まれる場合は、Claude Code 側の変換規則を推測せず `unsupported_path` として送信を止める。
+- **読み取りの上限と種別検査**: `O_NONBLOCK` で開いて通常ファイルであることを確かめ（FIFO 等を拒む）、`/model` 確認用は 1 MiB、セッション全体の読み取りは 64 MiB を上限とする。
+
+### 6.2. 読み取る構成要素と transcript から取り出す内容
+
+- **画面の読み取り**: `internal/chief` の `screen.go`・`screen_ansi.go`・`screen_claude.go`・`screen_opencode.go`・`screen_report.go` が担当する。`chief` コマンドは `herdr agent read` で読んだ画面を標本から採った形に照合して `Screen` にする。
+- **transcript の読み取り**: `transcript.go`・`screen_transcript.go`・`screen_transcript_report.go` が担当する。各行を `strictjson` で 1 つの JSON オブジェクトとして読み、次の 4 つを取り出す。
+
+| 取り出す内容 | transcript 上の根拠 | 主な用途 |
+|---|---|---|
+| 最後に終わった応答の本文（報告） | アシスタントの最後の完了応答 | 自動送信前の `/runpr` 報告の `NEXT` 照合、PR 詳細（`detail`）の報告要約、pane リセット前の確認 |
+| PR の記録 | `pr-link` 行 | そのセッションが作成・操作した PR 番号の特定（`detail` やリセット対象の照合） |
+| 人が最後に入力した行（`HumanInput`） | Claude Code が `origin: "human"` と宣言した行 | 状況の表の「実行中コマンド」と、タスクコマンド後に追加指示があったか（`＋指示`）の判定 |
+| モデル切替の記録（`ModelSwitch`） | `/model` 実行後の `<local-command-stdout>Set model to ...` 行 | 送信前の `/model` 切替が意図したモデルへ反映されたかの確認（500 ms 間隔で最大 10 回再読込） |
+
+### 6.3. ほかの部分が受け取る型
+
+判定は、次の型が持つ値だけを使う。
 
 - `Screen`。`Kind`（`ScreenPrompt`・`ScreenQuestion`・`ScreenUnmatched`）、`Question`、`Input`（入力欄に残っている文字）、`OpenCodeModel`（OpenCode の状態の行のモデル）、`NewSession`（`/new` の後の、会話のない画面）を持つ。
 - `Question`。`Kind`（`QuestionSingle`・`QuestionMulti`・`QuestionTabs`・`QuestionPermission`）、`Relay`（中継できるか）、`Merge`（`/runpr` のマージの確認か）、`Text`、`Options`、`Tabs`、`Cursor`（選択の位置。中継の照合値にだけ入る）を持つ。
 - `HumanInput`。人が最後に入力した行が、読めるタスクのコマンドか、そのほかの入力か。
+- `ModelSwitch`。最後に記録された `/model` 切替先のモデル（または未記録・読めない）。
 - 報告の本文と、PR の記録が名指す PR の番号。
 
 画面の生の文字列を、判定の条件には使わない。例外は 2 つある。中継の照合値は、人に示した質問と選択肢から作り、送る直前に読み直した画面から作った値と比べる。OpenCode の pane では、モデルを状態の行の `OpenCodeModel` と送り先の表の値の全体で比べる。
 
-**読めない画面と行の扱い。**
+### 6.4. 読めない画面・transcript の扱いと標本
 
 - 形に合わない画面は `ScreenUnmatched` にし、その pane には送らず、その workspace を「要確認」にする。推し量って別の形として読むことはしない。
 - 中継しない質問は、中身を示すだけで、人がその pane で答える。中継するのは、1 つを選ぶ問いの選択肢だけである。
-- Claude Code の pane の transcript を読めないときは、画面に戻らない。理由によって 2 つに分かれる。
-    - transcript のファイルがないときと、transcript の値や種類の名前だけが変わったときは、その pane に報告がないものとし、自動送信の前の NEXT の照合はその pane を照合せずに通る（`no_report`）。
+- Claude Code の pane の transcript を読めないときは、**画面に戻らない**。理由によって 2 つに分かれる。
+    - transcript のファイルがないとき（`/clear` 直後など）と、transcript の値や種類の名前だけが変わったときは、その pane に報告がないものとし、自動送信の前の `NEXT` の照合はその pane を照合せずに通る（`no_report`）。
     - それ以外の理由（セッションがない、worktree のパスに読めない文字がある、64 MiB を超える、最後の行が書きかけ、設定のディレクトリを決められない）で読めないときは、その `/runpr` の報告を読めないものとし、その workspace には自動送信しない（送り先が OpenCode の pane でも送らない）。PR の詳細は PR の説明から要約し、`/runpr` の後の pane のリセットはしない。細部は [chief_guide.md](guides/chief_guide.md) の 8 章にある。
-- 最後の行が書きかけの transcript は、200 ms の間隔で 3 回まで読み直す。それでも終わらなければ、何も示さない（`partial_line`）。
-
-**標本の置き場所。** 画面の標本は `internal/chief/testdata/screens/`、transcript の標本は `internal/chief/testdata/transcript/` にある。標本の採り方は 9 章にある。
-
-**読み取りの範囲。** 画面と transcript の文字列から判断してよい範囲と、その例外の規則は、[CLAUDE.md](../../CLAUDE.md) の「Declare, don't infer」の chief の例外が持つ。本章はこれを繰り返さない。
+- 最後の行が書きかけの transcript（末尾が改行でない）は、200 ms の間隔で 3 回まで読み直す。それでも終わらなければ、途中で切らずに何も示さない（`partial_line`）。
+- **標本の置き場所。** 画面の標本は `internal/chief/testdata/screens/`、transcript の標本は `internal/chief/testdata/transcript/` にある。標本の採り方は 9 章にある。
+- **読み取りの範囲。** 画面と transcript の文字列から判断してよい範囲と、その例外の規則は、[CLAUDE.md](../../CLAUDE.md) の「Declare, don't infer」の chief の例外が持つ。本章はこれを繰り返さない。
 
 ## 7. 判定と副作用の条件
 
