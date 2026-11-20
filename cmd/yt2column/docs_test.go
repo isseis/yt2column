@@ -45,11 +45,21 @@ const productionProfileSection = "## 本番の構成"
 // table, by which checkProfileTable finds the table.
 const profileTableColumn = "工程"
 
-// readmeVersionsUnder runs check once per README version, as a subtest named
-// by the version's path, with the version's text read from the repository.
+// valueReadmeVersions returns the README versions whose values the guard
+// tests of the configuration, the limits, and the extension ID check: the
+// Japanese primary only. The English version no longer states those values.
+func valueReadmeVersions() []doctestutil.ReadmeVersion {
+	return slices.DeleteFunc(doctestutil.ReadmeVersions(), func(v doctestutil.ReadmeVersion) bool {
+		return v.Lang != doctestutil.LangJA
+	})
+}
+
+// readmeVersionsUnder runs check once per version of valueReadmeVersions, as
+// a subtest named by the version's path, with the version's text read from
+// the repository.
 func readmeVersionsUnder(t *testing.T, check func(t *testing.T, v doctestutil.ReadmeVersion, readme string)) {
 	t.Helper()
-	for _, v := range doctestutil.ReadmeVersions() {
+	for _, v := range valueReadmeVersions() {
 		t.Run(v.Path, func(t *testing.T) {
 			check(t, v, doctestutil.ReadDoc(t, v.From(repositoryRoot)))
 		})
@@ -285,7 +295,7 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 	}{
 		{"project_overview.md", projectOverviewPath, "変数", "未設定のとき"},
 	}
-	for _, v := range doctestutil.ReadmeVersions() {
+	for _, v := range valueReadmeVersions() {
 		docs = append(docs, struct{ name, path, nameHeader, unsetHeader string }{
 			v.Path, v.From(repositoryRoot), doctestutil.ReadmeVariableColumn.In(t, v.Lang), doctestutil.ReadmeUnsetColumn.In(t, v.Lang),
 		})
@@ -334,7 +344,7 @@ func TestEffortValuesDocsContract(t *testing.T) {
 	}{
 		{"project_overview.md", projectOverviewPath, "プロバイダ", "受理する effort"},
 	}
-	for _, v := range doctestutil.ReadmeVersions() {
+	for _, v := range valueReadmeVersions() {
 		docs = append(docs, struct{ name, path, providerHeader, valuesHeader string }{
 			v.Path, v.From(repositoryRoot),
 			doctestutil.ReadmeEffortProviderColumn.In(t, v.Lang), doctestutil.ReadmeEffortValuesColumn.In(t, v.Lang),
