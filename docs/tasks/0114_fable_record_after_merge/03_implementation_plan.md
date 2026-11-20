@@ -129,7 +129,7 @@
 
 **変更するファイル:** `.claude/commands/_lib/review-records.sh`、`cmd/yt2column/review_records_test.go`、`.claude/commands/_lib/fable-review.md`（「The validity decision」の規則の箇条と「Record lines」の表だけ）、`docs/dev/adr/0050-fable-partial-review.md`（食い違いの文だけ）、本計画
 
--   [ ] **ステップ 1-1**: `fable` のモードを変える（設計書 3.1）。
+-   [x] **ステップ 1-1**: `fable` のモードを変える（設計書 3.1）。
     -   範囲の確かめで、START の条件を広げる（3.1.4）。Fable の記録、同じ実行の直しの範囲の行、規則 4 の見た範囲の行に当てる。`coverage` の確かめは変えない。
     -   merge の後の確認の記録を読む（3.1.3）。`Merge check: run` と `Merge check: not run` の形の正規表現を足す。名指しした ID の 4 つの条件を確かめる。ID が何のオブジェクトも指さないときと、commit でないオブジェクトを指すときは、その行を数えずに読み進め、失敗にしない。
     -   確認できる merge commit を見分ける（用語、決定 12）。
@@ -137,42 +137,42 @@
     -   結果を `MISSING`・`MERGE <n>`・`VALID` の順で決める（3.1.2、3.1.1）。
     -   START を決め直す（3.1.5）。
     -   ヘッダーの使い方、`ENTRY` の説明（決定 5）、`fable` の契約、「Where the rules are defined」の段落（`Merge check:` の行の形の定義が `fable-review.md` にあること）を合わせる。
--   [ ] **ステップ 1-2**: `unreviewed` のモードを足す（設計書 3.2、§1.3 の決定 4）。引数は `<HEAD> [<PLAN>]` とする。`coverage` と判定の関数を共有し、3.2 の 2 点（範囲の確かめと merge commit の扱い）だけを引数で選ぶ。ヘッダーは `unreviewed` を「`coverage none` に 2 点を当てたもの」と定義し、規則を 2 度書かない。「Where the rules are defined」の段落に、`unreviewed` の 2 点の根拠が本タスクの設計書 3.2 にあることを足す。失敗のときは `PARTIAL` だけを出して、終了コード 1 で終わる。
--   [ ] **ステップ 1-3**: `_lib/fable-review.md` を変える（§1.3 の決定 2）。
+-   [x] **ステップ 1-2**: `unreviewed` のモードを足す（設計書 3.2、§1.3 の決定 4）。引数は `<HEAD> [<PLAN>]` とする。`coverage` と判定の関数を共有し、3.2 の 2 点（範囲の確かめと merge commit の扱い）だけを引数で選ぶ。ヘッダーは `unreviewed` を「`coverage none` に 2 点を当てたもの」と定義し、規則を 2 度書かない。「Where the rules are defined」の段落に、`unreviewed` の 2 点の根拠が本タスクの設計書 3.2 にあることを足す。失敗のときは `PARTIAL` だけを出して、終了コード 1 で終わる。
+-   [x] **ステップ 1-3**: `_lib/fable-review.md` を変える（§1.3 の決定 2）。
     -   「The validity decision」の規則の箇条に、規則 4、確認できる merge commit と確認済みの merge commit の扱い、広げた範囲の確かめ、START の決め方を足す（設計書 3.1.2〜3.1.5）。「A merge commit is never covered」（`:134-135`）を、それに合わせて直す。出力の読み方（`:94-106`）は PR-2 で変える。
     -   「Record lines」の表に、`Merge check:` の 4 行を足す。値（`<reason>`・`<criterion>`）の説明も足す（設計書 3.3.6）。
--   [ ] **ステップ 1-4**: スクリプトのテストの fixture を足す。
+-   [x] **ステップ 1-4**: スクリプトのテストの fixture を足す。
     -   `readFableForms` が `Merge check: run` と `Merge check: not run` の形を表から読む。
     -   確認の記録の行を作る関数を足す。
     -   確認できる merge の fixture を足す。merge commit の親がちょうど 2 つで、第 1 親がブランチの commit か merge-base、第 2 親が `origin/main` から届くことを確かめ、違えば `t.Fatal`（「so the case checks nothing」の形）で止める。
     -   確認できない merge commit の 3 つの形を作る関数を足す（§1.4）。
--   [ ] **ステップ 1-5**: `fableCases` に、設計書 7.1 の `fable` のモードの表の件を足す。足し方には、次の 6 つの決まりがある。
+-   [x] **ステップ 1-5**: `fableCases` に、設計書 7.1 の `fable` のモードの表の件を足す。足し方には、次の 6 つの決まりがある。
     -   確認できる merge commit を使う件は、確認できる merge の fixture で作る。
     -   受け付けない側の件（名指しを数えない、範囲の行を読まない、規則 4 に当てない）は、数えれば出力が変わる配置で作り、期待する出力を 1 行として書く。可能なら、正しい形の行で同じ配置を作ると出力が変わることを先に確かめ、変わらなければ `t.Fatal` で止める。たとえば、merge commit でない commit N の名指しは、記録 → 中身のない commit N（空の commit）→ 中身のある commit X → N を名指しする確認の記録（見た範囲が X を含む）の配置で、`MISSING` を期待する。名指しを除いた同じ配置が `MISSING` を返し、名指しを数えれば X が規則 4 で除かれる配置であることを、先に確かめる。
     -   名指しの件に、何のオブジェクトも指さない 40 桁の ID と、tree の ID を名指しする件を足す。確認できる merge commit の横に置き、名指しを数えない出力（`MERGE 1`）と終了コード 0 を期待する。
     -   AC-14 は、merge の前の記録の START が古い merge-base の件と、ブランチの commit の件の 2 つを置く。どちらも、記録 → 中身のある commit X → 確認できる merge commit の順にし、`MISSING <新しい merge-base>` を期待する。それぞれ、X を除いた同じ配置が `MERGE 1` を返すこと（記録が読まれていること）を先に確かめ、違えば `t.Fatal` で止める。
     -   設計書 7.1 の件が既存の件と同じ配置と出力になるとき（「README.en.md after the record」、ステップ 1-6 で直す「record from a merge-base origin/main moved past」）は、新しい件を足さず、既存の件をその行の確かめとして使う。
     -   決定 12 の「第 2 親が `origin/main` にない merge commit」の件は、ステップ 1-6 で直す「merge after the record」と同じ形になる。違いが確認の記録の有無だけなら 1 つにまとめ、確認の記録を持つ形を残す（確認できない merge commit を名指しする記録を数えないことを確かめるため）。残す件が何を確かめるかをコメントに書く。
--   [ ] **ステップ 1-6**: 期待する出力が変わる既存の件を、それぞれ直す（設計書 3.7）。
-    -   [ ] 「record from a merge-base origin/main moved past」: `MERGE 1` と、その merge commit（設計書 3.1.2 の M）の ID にする。
-    -   [ ] 「merge after the record」: `MISSING <merge-base>` にする。件の前のコメントも、`MISSING` の理由が確認できない merge commit であること（決定 12）と、START が merge-base になる理由（3.1.5）を述べる形に直す。
-    -   [ ] 「range of the record's commit beyond it」: `MISSING <merge-base>` にする。コメントに、START が merge-base になる理由が 3.1.5 であることを書く。
-    -   [ ] merge を作るほかの件を走らせ、期待する出力が変わらないことを確かめる。出力が変わらない件ごとに、新しい規則のどれがその出力を作るかをコメントに書く。「parent of the first missing commit behind the merge-base」（`:930-946`）は、START を merge-base に戻す分岐（`review-records.sh:574-577`）ではなく決定 12 か 3.1.5 の規則で merge-base になる。その分岐に届く件を残せるならそれを足し、届かなくなったなら、その分岐が守りのためだけに残ることをスクリプトのコメントと commit のメッセージに書く。
--   [ ] **ステップ 1-7**: `unreviewed` のテスト `TestReviewRecordsUnreviewed` を足す。
+-   [x] **ステップ 1-6**: 期待する出力が変わる既存の件を、それぞれ直す（設計書 3.7）。
+    -   [x] 「record from a merge-base origin/main moved past」: `MERGE 1` と、その merge commit（設計書 3.1.2 の M）の ID にする。
+    -   [x] 「merge after the record」: `MISSING <merge-base>` にする。件の前のコメントも、`MISSING` の理由が確認できない merge commit であること（決定 12）と、START が merge-base になる理由（3.1.5）を述べる形に直す。
+    -   [x] 「range of the record's commit beyond it」: `MISSING <merge-base>` にする。コメントに、START が merge-base になる理由が 3.1.5 であることを書く。
+    -   [x] merge を作るほかの件を走らせ、期待する出力が変わらないことを確かめる。出力が変わらない件ごとに、新しい規則のどれがその出力を作るかをコメントに書く。「parent of the first missing commit behind the merge-base」（`:930-946`）は、START を merge-base に戻す分岐（`review-records.sh:574-577`）ではなく決定 12 か 3.1.5 の規則で merge-base になる。その分岐に届く件を残せるならそれを足し、届かなくなったなら、その分岐が守りのためだけに残ることをスクリプトのコメントと commit のメッセージに書く。
+-   [x] **ステップ 1-7**: `unreviewed` のテスト `TestReviewRecordsUnreviewed` を足す。
     -   `coverageCases` を再利用する。setup が返す引数の先頭が `none` の件だけを取り、`none` を除いて `unreviewed` の引数にする関数を通す。先頭が `none` でない件（LAST_REVIEWED に固有の件と、LAST_REVIEWED の形の失敗の件）は、対象にしない。
     -   3.2 の 2 点で期待する出力が変わる件は、走らせる前に設計書 3.2 から期待する出力を決めて上書きする。上書きした件と、それを変えた 3.2 の点を、commit のメッセージに書く（たとえば「merge commit inside a seen range」は `ALL` になる）。
     -   設計書 7.1 の `unreviewed` の表の件を足す。merge を使う件は、確認できる merge の fixture で作る。「見た範囲の行の範囲に入る merge commit」は、上書きした「merge commit inside a seen range」で兼ねる。
-    -   `unreviewed` に固有の引数の失敗の件を足す（引数がない、引数が多すぎる、HEAD の形が違う、PLAN の形が違う）。
+    -   `unreviewed` の引数の失敗の件（引数がない、引数が多すぎる、HEAD の形が違う、PLAN の形が違う）は、再利用した `coverage` の件から `none` を除いた形（「too few arguments」「too many arguments」「HEAD of another form」「PLAN of another form」など）で確かめ、同じ件を別に足さない。
     -   `coverage` と同じく、各 bash と、環境を変えた走らせ方で確かめる。
--   [ ] **ステップ 1-8**: `coverage` が広げた範囲の確かめを使わないことを固定する件を、`coverageCases` に足す（要件書 2.3）。START が古い merge-base の見た範囲の行の後に、確認できる merge commit を置く（#987 の形）。範囲の commit を `PARTIAL` に挙げることを期待する。
--   [ ] **ステップ 1-9**: git の設定と、置き換えの ref の件を、新しい読み方にも当てる。
+-   [x] **ステップ 1-8**: `coverage` が広げた範囲の確かめを使わないことを固定する件を、`coverageCases` に足す（要件書 2.3）。START が古い merge-base の見た範囲の行の後に、確認できる merge commit を置く（#987 の形）。範囲の commit を `PARTIAL` に挙げることを期待する。
+-   [x] **ステップ 1-9**: git の設定と、置き換えの ref の件を、新しい読み方にも当てる。
     -   確認できる merge commit と確認の記録を持つ分岐の上で、`rrConfigScenarios` を走らせる。基準の出力は `MERGE 1` か、確認の記録のある `VALID` とする。
     -   置き換えの ref（`refs/replace/`）で、確認できない merge commit を確認できるように見せる件を足し、名指しを数えないことを確かめる（`coverage` の「replace ref」の件と同じ扱い）。
--   [ ] **ステップ 1-10**: guard のテストを直す（設計書 3.7）。
+-   [x] **ステップ 1-10**: guard のテストを直す（設計書 3.7）。
     -   `TestReviewRecordsMode` のモードの一覧に `Unreviewed` を足し、コメントを 3 つのモードに合わせる。
     -   `TestRecordLinePrefixesDistinct` が、`Fable ...` の接頭辞と `Merge check ...` の接頭辞も互いに比べるようにする。同じ族の中の同じ接頭辞（`Fable review:` が 3 行にある）は比べない。読んだ接頭辞の数の下限を、足した行に合わせて上げる。
--   [ ] **ステップ 1-11**: ステップ 1-5〜1-10 の各件について、スクリプトの該当する規則か、文書の行の形を壊すと失敗することを確かめ、commit のメッセージに書く。§1.2 のとおり、ほかの確かめが裏打ちする条件は、その旨と裏打ちする確かめを書く。たとえば、広げた範囲の確かめの「START が `origin/main` から届く」は、今の「START が END の祖先」と「END がブランチの commit」が裏打ちしうる。規則 4 の「確認の記録の commit（設計書 3.1.2 の Q）の祖先」は、`checked_range` の「END が Q の真の祖先」が裏打ちしうる。
--   [ ] **ステップ 1-12**: ADR-0050 の食い違いの文（`:84`）を、残る食い違いだけを述べる形に書き直す。
+-   [x] **ステップ 1-11**: ステップ 1-5〜1-10 の各件について、スクリプトの該当する規則か、文書の行の形を壊すと失敗することを確かめ、commit のメッセージに書く。§1.2 のとおり、ほかの確かめが裏打ちする条件は、その旨と裏打ちする確かめを書く。たとえば、広げた範囲の確かめの「START が `origin/main` から届く」は、今の「START が END の祖先」と「END がブランチの commit」が裏打ちしうる。規則 4 の「確認の記録の commit（設計書 3.1.2 の Q）の祖先」は、`checked_range` の「END が Q の真の祖先」が裏打ちしうる。
+-   [x] **ステップ 1-12**: ADR-0050 の食い違いの文（`:84`）を、残る食い違いだけを述べる形に書き直す。
     -   PR を作る前に、`git grep -nE 'issues/988([^0-9]|$)' origin/main -- docs/dev/adr/` で、`origin/main` の文を探す（`docs/dev/conventions/adr.md`「Discrepancy statements」）。
     -   判定のスクリプトの読み方（merge の後の確認の記録、広げた範囲の確かめ、START の決め方）は PR-1 で解消する。残るのは手順の部分で、次の 3 つを述べる。
         -   タスク文書の PR はまだ印を残さないので、CHECKS の直しが記録を無効にすること。

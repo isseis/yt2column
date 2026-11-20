@@ -125,14 +125,39 @@ file is right and the script is fixed. The last Fable record of
    of a seen-range line;
 3. at the checkpoint entry only: a commit after the last commit holding the
    checkpoint mark, unless a commit after the mark holds an
-   `Implementation model:` line (a phase group implemented after the mark).
+   `Implementation model:` line (a phase group implemented after the mark);
+4. a fix of a merge check: for a commit Q holding a merge check record that
+   names the merge commit M, a commit after M, up to Q, inside the range of
+   a `Local CLI reviewed:` line of Q that passes the checks of a seen-range
+   line. The range of a `Local CLI review: not run` line does not count.
+
+Rules 1 to 4 cover only a commit with one parent. A merge commit is covered
+only when it is a **confirmable merge commit** (exactly two parents, the
+first the merge-base or a commit of `origin/main..HEAD`, the second a commit
+`origin/main` reaches) that a merge check record names: a `Merge check: run`
+or `Merge check: not run` line ("Record lines") of a commit Q of
+`origin/main..HEAD`, naming by its 40 characters a confirmable merge commit
+of `origin/main..HEAD` that is a proper ancestor of Q. A line that names
+anything else counts for nothing, and every such line of the branch is read,
+not only the last. Any other merge commit (three or more parents, a first
+parent on main's side, a second parent `origin/main` does not reach) counts
+as a commit with content, since the merge check could not take its range.
+
+The result: when a commit after END is neither covered nor a confirmable
+merge commit, the record is not valid (`MISSING`); otherwise, when a
+confirmable merge commit no record names is left, the record waits for the
+merge check (`MERGE`, the commits listed); otherwise it is valid.
 
 A record whose START and END do not pass the checks of a seen-range line
-(`_lib/review-records.sh`, its header) is ignored. With no Fable record,
-START is the merge-base; otherwise it is the first parent of the first
-commit that none of the rules covers, or the merge-base when that parent is
-neither the merge-base nor a commit of `origin/main..HEAD`. A merge commit
-is never covered.
+(`_lib/review-records.sh`, its header) is ignored, with one widening, which
+applies also to the ranges of rules 2 and 4: START passes when it is a
+commit `origin/main` reaches and the range holds no commit `origin/main`
+reaches, so a record made before a merge of `origin/main` still counts. With
+no Fable record, START is the merge-base. With a merge commit after END (a
+named one included), START is the merge-base too, since a range from the
+record would hold what main brought in. Otherwise it is the first parent of
+the first commit that is not covered, or the merge-base when that parent is
+neither the merge-base nor a commit of `origin/main..HEAD`.
 
 ## Entry 1: launch
 
@@ -449,8 +474,12 @@ message's prose with one of these prefixes.
 | `Fable scope: out` | `Fable scope: out <location> (<reason>)` | each place left out |
 | `Fable finding:` | `Fable finding: <location> criterion=<criterion> kind=<kind> severity=<severity> local=<local> handling=<handling>[ (<reason>)][: <summary>]` | each Fable finding, fixed and `invalid` ones included |
 | `Fable review: checkpoint` | `Fable review: checkpoint` | the checkpoint entry found a valid record ("Entry 3") |
+| `Merge check: run` | `Merge check: run <MERGE> (model <model-id>; fixed <n>, rejected <n>, deferred <n>, unclear <n>, invalid <n>; <seconds>s, tokens <tokens>)` | the merge check's result went to the triage |
+| `Merge check: not run` | `Merge check: not run <MERGE> (<reason>[; <seconds>s, tokens <tokens>])` | the merge check's result did not go to the triage; the cost only when the subagent was called |
+| `Merge check scope:` | `Merge check scope: <location> (<criterion>)` | each place of the merge check's range list |
+| `Merge check finding:` | `Merge check finding: <location> criterion=<criterion> severity=<severity> handling=<handling>[ (<reason>)][: <summary>]` | each merge check finding, fixed and `invalid` ones included |
 
-The values:
+The values of the Fable lines:
 
 - `<START12>..<END12>`: RANGE, each commit ID cut to its first 12
   characters.
@@ -507,6 +536,29 @@ The values:
 - `<summary>` and every `<reason>`: your own words. Never copy Fable's text,
   and never write a value taken from the diff or an experiment's output (a
   key, a token, an output string), only a description of what happened.
+
+The values of the merge check lines, which are not Fable records and do not
+change which Fable record is the last:
+
+- `<MERGE>`: the 40 characters of the ID of the one merge commit the merge
+  check looked at. "The validity decision" counts a line only by this ID; a
+  line naming a commit by 12 characters names nothing.
+- `<model-id>`: the model the subagent reported, which starts with
+  `claude-opus-`.
+- `<n>`, `<seconds>`, and `<tokens>`: as for a Fable record.
+- `<reason>` of a not-run line: `unavailable` (an error or a usage limit,
+  twice), `timeout` (30 minutes passed), `not-opus` (another model, or a
+  first line of another form), `unreadable` (the rest of the output is of
+  another form), `agent-cannot-call` (this agent cannot call Opus). There is
+  no `no-target`: the check runs even when no place is listed.
+- `<criterion>`: on a scope line, `resolution` (a place resolved by hand in
+  the merge) or `main-reference` (a place of the PR that refers to an ADR, a
+  task document, or a command definition main brought in); on a finding
+  line, also `exclusion-error` and `unreadable`.
+- `<location>`, `<severity>`, `<handling>`, `<summary>`, and the `<reason>`
+  of a finding: as for a Fable finding, except that a `<location>`'s path is
+  kept when it is a path changed between the merge-base and HEAD or a path
+  of the merge check's range list (otherwise `(not in range)`).
 
 **Where they go.** The Fable lines of a run go in the commit that holds its
 seen-range and not-run lines (the record lines of the parallel local CLI
