@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：merge の後の確認の指摘の場所は、Fable の規則（merge-base から HEAD までに変わったファイル）に加えて、範囲の一覧のパスも有効とする |
+| Review date | 2026-11-20 |
+| Reviewer | isseis |
+| Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容は、commit `0051d3f4`（`origin/main`）で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は 10 章に、受け入れ基準との対応は付録 A にまとめる。
 
@@ -802,4 +802,5 @@ PR の順序は計画で決める（申し送り H-03）。設計としての順
 ## 変更履歴
 
 - 2026-11-20 承認（isseis、#1049）
-- 2026-11-20 draft への戻し：merge の後の確認の指摘の場所は、Fable の規則（merge-base から HEAD までに変わったファイル）に加えて、範囲の一覧のパスも有効とする（#未記入）
+- 2026-11-20 draft への戻し：merge の後の確認の指摘の場所は、Fable の規則（merge-base から HEAD までに変わったファイル）に加えて、範囲の一覧のパスも有効とする（#1060）
+- 2026-11-20 承認（isseis、#1060）

@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-20 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-20 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を指す。節番号と「決定 N」は [02_architecture.md](02_architecture.md)（以下、設計書）の節と 1.2 の決定を、H-NN は [design_handoff.md](design_handoff.md) の項番を指す。H-NN の扱いは、どれも設計書 10 章が記録している。本タスクに `implementation_handoff.md` はない。
@@ -444,3 +444,7 @@ PR-3:
 
 -   PR-3 のマージの後、issue #988 を閉じる（`/runpr` が、タスクの最後の計画の PR のマージの後に扱う）。
 -   止まった後の再開の手段と、PR を開いた後の merge の扱いは、範囲外として残る（設計書 9 章）。必要になったら、別の issue で扱う。
+
+## 変更履歴
+
+- 2026-11-20 承認（isseis、#1060）
