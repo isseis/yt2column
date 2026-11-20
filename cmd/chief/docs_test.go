@@ -513,9 +513,10 @@ func TestGuideProtocolMatchesTool(t *testing.T) {
 // codes the tool defines (a code added to main.go must be added here), and the
 // section on the state directory names the one the tool opens below
 // XDG_STATE_HOME, so the document is not left describing another version of
-// the tool. Each value is looked for inside its own heading's section: the
-// document holds other tables and names the state directory elsewhere, and a
-// document-wide search would read one of them.
+// the tool. Each value is looked for inside its own heading's section: a
+// second table, or the state directory's path moved to another section, must
+// not satisfy the check (the break-to-fail record in the commit that split
+// this test shows both).
 func TestArchitectureValuesMatchTool(t *testing.T) {
 	doc := readRepoFile(t, architecturePath)
 	subcommands := make([]string, 0, len(subcommandFlags))
