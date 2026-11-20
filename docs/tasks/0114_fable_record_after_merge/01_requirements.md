@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：merge の後の確認で確かめられない merge commit は、Fable が PR の全体を見る |
+| Review date | 2026-11-20 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -244,4 +244,5 @@ PR の説明の「どちらの CLI もレビューしなかった commit」（`t
 
 - 2026-11-19 初版（draft）
 - 2026-11-19 承認（isseis、#1041）
-- 2026-11-20 draft への戻し：merge の後の確認で確かめられない merge commit は、Fable が PR の全体を見る（#未記入）
+- 2026-11-20 draft への戻し：merge の後の確認で確かめられない merge commit は、Fable が PR の全体を見る（#1049）
+- 2026-11-20 承認（isseis、#1049）

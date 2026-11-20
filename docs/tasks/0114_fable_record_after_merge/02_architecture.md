@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-20 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルの内容は、commit `0051d3f4`（`origin/main`）で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は 10 章に、受け入れ基準との対応は付録 A にまとめる。
@@ -793,3 +793,7 @@ PR の順序は計画で決める（申し送り H-03）。設計としての順
 | AC-30 | 3.1.2（規則 4）、3.3.5、7.1 |
 | AC-31 | 3.3.6、3.4.4 |
 | AC-32 | 3.1.4、7.1 |
+
+## 変更履歴
+
+- 2026-11-20 承認（isseis、#1049）
