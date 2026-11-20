@@ -180,7 +180,7 @@
         -   今の手順が `MERGE` を `MISSING <merge-base>` と読み、Fable が PR の全体を見ること。
     -   書き直した文も、#988 へのリンクを保つ（ステップ 2-8 がそのリンクで文を探す）。
     -   編集上の訂正の 2 つ目の種類（`docs/dev/conventions/adr.md`「Editorial corrections」）として、commit のメッセージに訂正の行を書く。
--   [ ] **ステップ 1-13**: AC-23 の差分の記録を書く（§7 の「差分の記録」の PR-1 の欄）。
+-   [x] **ステップ 1-13**: AC-23 の差分の記録を書く（§7 の「差分の記録」の PR-1 の欄）。
 
 **完了の条件:**
 
@@ -420,6 +420,13 @@ Diff record (AC-23):
 PR-1:
 
 - Compared paths: `docs/tasks/0098_fable_partial_review/`
+- Merge-base: `ca11254c451d01ddb3abf8995024f239304d5d8a`
+- Compared commit: `bf5308f227f1d980c09e762038b5d616188424e6`
+
+Path diff:
+
+```text
+```
 
 PR-2:
 
