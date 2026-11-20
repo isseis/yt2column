@@ -519,7 +519,7 @@ Part B の呼び出し（`runplan.md:104-149`）に、FABLE（KIND `implementati
 
 | テスト | 影響 |
 |---|---|
-| `TestReviewRecordsFable`（`review_records_test.go:1146`）の `fableCases` | 3.1 の規則を読み当てて、次の 3 件の期待する出力が変わると見込む。実装の PR で、merge を作る件（`f.merge` と `git merge` を呼ぶ件）をすべて走らせ直して確かめる。「record from a merge-base origin/main moved past」（`:948-956`）は `MISSING <merge-base>` から `MERGE 1` に、「merge after the record」（`:1007-1014`）は `MISSING HEAD^1` から `MERGE 1` に、「range of the record's commit beyond it」（`:918-928`）は、記録を無効にする側の commit と merge commit があるので `MISSING HEAD~2` から `MISSING <merge-base>` になる（AC-14）。「parent of the first missing commit behind the merge-base」（`:930-946`）は `MISSING <merge-base>` のまま |
+| `TestReviewRecordsFable`（`review_records_test.go:1146`）の `fableCases` | 3.1 の規則を読み当てて、次の 3 件の期待する出力が変わると見込む。実装の PR で、merge を作る件（`f.merge` と `git merge` を呼ぶ件）をすべて走らせ直して確かめる。「record from a merge-base origin/main moved past」（`:948-956`）は `MISSING <merge-base>` から `MERGE 1` に、「merge after the record」（`:1007-1014`）は、第 2 親が `origin/main` から届かない確認できない merge commit なので（決定 12）、`MISSING HEAD^1` から `MISSING <merge-base>` に、「range of the record's commit beyond it」（`:918-928`）は、記録を無効にする側の commit と merge commit があるので `MISSING HEAD~2` から `MISSING <merge-base>` になる（AC-14）。「parent of the first missing commit behind the merge-base」（`:930-946`）は `MISSING <merge-base>` のまま |
 | `readFableForms`（`:735-749`） | merge の後の確認の行の形も読む |
 | `TestReviewRecordsCallSite`（`:1234-1260`） | `bash <records-script> unreviewed <HEAD> <PLAN>` を、許す呼び出しの行に足す。Part B step 3 にその 3 行の並びがあることを確かめる箇所を足す |
 | `TestReviewRecordsMode`（`:715-725`） | 大文字の `Unreviewed` も失敗することを確かめる |
