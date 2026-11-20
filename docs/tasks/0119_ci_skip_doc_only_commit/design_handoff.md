@@ -22,7 +22,8 @@
 **重要性:** 誤ったエンドポイントを選ぶと、別ワークフローの同名ジョブとの取り違えや、「Re-run failed jobs」後の親コミットでの意図しないフォールバック・誤判定を招く。また、同一実行内に同じ名前のジョブが重複して現れる異常応答も拒否する必要がある。
 
 **候補アプローチ:**
--   GitHub Actions REST API（`actions: read` のみを `check-changes` ジョブに付与）で、`ci.yml` ワークフローの `head_sha=<parent_sha>` かつ `event=pull_request` の run 一覧を取得し、対象 PR に紐付く最新実行（`status == completed`）を選んだうえで、`/actions/runs/{run_id}/jobs?filter=latest`（全 attempt を横断した最新ジョブ一覧）を取得し、必須 4 ジョブがそれぞれちょうど 1 件ずつ存在して条件を満たすか検証する案を検討する。
+-   GitHub Actions REST API（`actions: read` のみを `check-changes` ジョブに付与）で、`ci.yml` ワークフローの `head_sha=<parent_sha>` かつ `event=pull_request` の run 一覧を取得し、完了状態で絞り込む前にまず対象 PR に紐付く全実行の中から最新実行を選ぶ。その最新実行が `status == completed` かつ結論が `success` または `failure`（`cancelled`・`timed_out` 等を除外し、未完了・キャンセル時は古い完了実行へ遡らず通常分類へフォールバックする）であることを確認したうえで、`/actions/runs/{run_id}/jobs?filter=latest`（全 attempt を横断した最新ジョブ一覧）を取得し、必須 4 ジョブがそれぞれちょうど 1 件ずつ存在して条件を満たすか検証する案を検討する。
+-   `check-changes` 成功後にワークフローがキャンセルされた場合のワークフロー結論と後続ジョブ結論（`skipped` / `cancelled`）の挙動を、設計時に GitHub Actions の仕様で確認する。
 -   ワークフローの識別（ファイルパス `.github/workflows/ci.yml` か ID か）、PR 紐付けの検証（`pull_requests` 配列が空または対象 PR を含まない場合の扱い）、ページネーション打ち切り上限・応答サイズ上限（展開後を含む）・タイムアウト・HTTPS 固定とリダイレクト拒否を設計で確定する。
 
 **関連 ID:** F-002, F-003, F-004, §3.2, §4.2, AC-05〜AC-08, AC-12, AC-15
