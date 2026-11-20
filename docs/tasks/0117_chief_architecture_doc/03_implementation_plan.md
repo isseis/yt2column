@@ -317,13 +317,13 @@ Diff record (AC-16):
 
 - Compared paths: `docs/dev/adr/0046-chief-of-staff.md` `docs/dev/conventions/dev_tools.md` `docs/dev/adr/README.md`
 - Merge-base: `c2df59f3daa72de99354a2992f92746517dc8ad1`
-- Compared commit: `5e00e64e5971c037706044625dbec7d54159e634`
+- Compared commit: `3650239cdca2b0f8f830a5a1145e28ab4c903dc8`
 
 Path diff:
 
 ```text
 diff --git a/docs/dev/adr/0046-chief-of-staff.md b/docs/dev/adr/0046-chief-of-staff.md
-index fcba9199e8b47722a5d78bf8db132ef4a3b5c54d..49ce6e00bd675131489c414f61173526a3fa8c27 100644
+index fcba9199e8b47722a5d78bf8db132ef4a3b5c54d..68a847d005e8c7b65253315bed694aeeece2150d 100644
 --- a/docs/dev/adr/0046-chief-of-staff.md
 +++ b/docs/dev/adr/0046-chief-of-staff.md
 @@ -20,7 +20,7 @@ Herdr はリポジトリの外の道具で、chief はその CLI の出力に依
@@ -340,7 +340,7 @@ index fcba9199e8b47722a5d78bf8db132ef4a3b5c54d..49ce6e00bd675131489c414f61173526
  -   送れたかが分からない送信は送り直さず、その workspace への送信を、人が解除するまで止める。
      -   理由：同じコマンドを 2 回走らせるより、人に示して止まるほうを選ぶためである（F-006）。
 --   次のコマンドを `/runplan` と決めるために読む計画書のステップは、受け入れる 3 つの書き方（チェックボックスの行、2 章の見出し、2 章の 1 行の太字の段落）からだけ読む。2 章の中のステップに似た行（書き方 A に似たチェックボックスの行を含む）や、チェックボックスのないステップがあれば、ステップを読めないものとし、推し量らずに要確認にして送らない。すべての PR がマージ済みの計画書は、ステップを読めるかどうかにかかわらず完了とする。受け入れる書き方と読めない条件は、[0113 要件定義書](../../tasks/0113_plan_step_reading/01_requirements.md) の 3 章が持つ。
-+-   次のコマンドを `/runplan` と決めるために読む計画書のステップは、受け入れる 3 つの書き方（チェックボックスの行、2 章の見出し、2 章の 1 行の太字の段落）からだけ読む。2 章の中のステップに似た行（書き方 A に似たチェックボックスの行を含む）や、チェックボックスのないステップがあれば、ステップを読めないものとし、推し量らずに要確認にして送らない。すべての PR がマージ済みの計画書は、ステップを読めるかどうかにかかわらず完了とする。今の仕様は [chief_architecture.md](../chief_architecture.md) の 7 章（判定と副作用の条件）にあり、決定の出典は [0113 要件定義書](../../tasks/0113_plan_step_reading/01_requirements.md) の 3 章である。
++-   次のコマンドを `/runplan` と決めるために読む計画書のステップは、受け入れる 3 つの書き方（チェックボックスの行、2 章の見出し、2 章の 1 行の太字の段落）からだけ読む。2 章の中のステップに似た行（書き方 A に似たチェックボックスの行を含む）や、チェックボックスのないステップがあれば、ステップを読めないものとし、推し量らずに要確認にして送らない。すべての PR がマージ済みの計画書は、ステップを読めるかどうかにかかわらず完了とする。今の仕様は [chief_architecture.md](../chief_architecture.md) の 3.5（判定と副作用の条件）にあり、決定の出典は [0113 要件定義書](../../tasks/0113_plan_step_reading/01_requirements.md) の 3 章である。
      -   理由：規約はステップをチェックボックスで書くことだけを求め、`main` の計画書は見出しと太字の段落でもステップを書いている。それを読まないと、PR が残るタスクの次のコマンドが決まらない。似た行を読み替えないのは、残りのステップを見落として「残りなし」と誤って読まないためである（[0113 要件定義書](../../tasks/0113_plan_step_reading/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）。
 
  ### マージコンフリクトの解消の自動送信
@@ -349,7 +349,7 @@ index fcba9199e8b47722a5d78bf8db132ef4a3b5c54d..49ce6e00bd675131489c414f61173526
  ### 画面と transcript の読み取り
 
 -報告を transcript から読む仕様は [0095 要件定義書](../../tasks/0095_chief_transcript_report/01_requirements.md) の F-001〜F-003 に、PR の記録の確かめの結果は [0095 設計書](../../tasks/0095_chief_transcript_report/02_architecture.md) の 1.2 にある。
-+報告を transcript から読む今の仕様は [chief_architecture.md](../chief_architecture.md) の 6 章にあり、決定の出典は [0095 要件定義書](../../tasks/0095_chief_transcript_report/01_requirements.md) の F-001〜F-003 に、PR の記録の確かめの結果は [0095 設計書](../../tasks/0095_chief_transcript_report/02_architecture.md) の 1.2 にある。
++報告を transcript から読む今の仕様は [chief_architecture.md](../chief_architecture.md) の 3 章にあり、決定の出典は [0095 要件定義書](../../tasks/0095_chief_transcript_report/01_requirements.md) の F-001〜F-003 に、PR の記録の確かめの結果は [0095 設計書](../../tasks/0095_chief_transcript_report/02_architecture.md) の 1.2 にある。
 
  -   pane の画面とセッションの記録の文字列から判断することは、CLAUDE.md の「Declare, don't infer」の例外とする。対象は、エージェントが質問で止まっているかどうか、その質問が 1 つを選ぶ問いかどうか、権限の確認で止まっているかどうか、`/runpr` の報告の次のコマンド、モデル、入力欄に残っている文字、PR を作ったコマンドの報告の要約である。
      -   合わない画面とセッションの記録は広く解釈せず、「要確認」か「送らない」にする。transcript の行も、サンプルで確かめた形に合わなければ広く解釈しない。
@@ -365,7 +365,7 @@ index fcba9199e8b47722a5d78bf8db132ef4a3b5c54d..49ce6e00bd675131489c414f61173526
 
  -   chief の判定と送信は、Go の開発用の道具 `chief`（`cmd/chief`・`internal/chief`）に置く。`/chief` のコマンドの定義は、道具の呼び出し、人への問い、報告の要約だけを持つ。道具は送る入力を、コマンドの種類と検証した引数から型で組み立て、文字列の入力を受け取らない。
 -    -   理由：エージェントが手順を読み違えても、決まった範囲の外の入力が送られないようにし、判定をテストで確かめるためである（[ADR-0014](0014-deterministic-checks-in-go.md)）。構成は [0088 設計書](../../tasks/0088_chief_of_staff/02_architecture.md) の 3.1「道具 `chief`」にある。
-+    -   理由：エージェントが手順を読み違えても、決まった範囲の外の入力が送られないようにし、判定をテストで確かめるためである（[ADR-0014](0014-deterministic-checks-in-go.md)）。構成は [chief_architecture.md](../chief_architecture.md) の 2 章にある。
++    -   理由：エージェントが手順を読み違えても、決まった範囲の外の入力が送られないようにし、判定をテストで確かめるためである（[ADR-0014](0014-deterministic-checks-in-go.md)）。構成は [chief_architecture.md](../chief_architecture.md) の 1 章と 2 章にある。
  -   自動の進行と通知は、chief のセッションが待ち受けている間だけ行い、セッションと別に常駐するプロセスを置かない。chief は同時に 1 つだけ動かす。chief の読み取り専用のネットワークの操作（PR・CI・レビューの状態の取得、`git fetch`、workspace を作る前の issue の取得）は、chief を起動したことで承認したものとする。
      -   理由：常駐のプロセスは、エージェントのいないところでほかのセッションへ入力を送ることになり、信頼の境界が広がるためである。1 つに限るのは、2 つの chief が同じコマンドを送らないためである。読み取りの承認は、人がいないときにも状態を読む必要があるためで、書き込みの操作は含めない。規則は CLAUDE.md の「Tool Execution Safety」に書く（F-010）。
  -   chief は Herdr の中でだけ動き、Herdr の出力を読めないときは状態を推し量らずに「要確認」とする。
@@ -392,7 +392,7 @@ index fcba9199e8b47722a5d78bf8db132ef4a3b5c54d..49ce6e00bd675131489c414f61173526
      -   パスと名前は issue 番号だけから決める。同じパスの worktree か workspace がすでにあれば作らない。
      -   途中で失敗したら、そこで止まって人に示し、作ったものは消さない。
 -    -   理由：人が issue 番号を答えるだけでタスクを始められるようにし、タスクにならない番号（存在しない issue、閉じた issue、下書きの issue、PR）で、片付けられずに残る workspace を作らないためである。許可や信頼を与える引数を付けないのは、chief が人の代わりにリポジトリの hooks や設定を信頼しないためである。名前を issue 番号だけから決めるのは、issue の題名などの中身で振る舞いを選ばず（CLAUDE.md の「Declare, don't infer」）、chief が入力を送れなくなる文字をパスに入れないためである。detached にするのは、`/mkreq` がタスクのブランチを作った後に一時的なブランチを残さないためである。仕様は [0092 要件定義書](../../tasks/0092_chief_task_workspace/01_requirements.md) の F-001〜F-004 にある。
-+    -   理由：人が issue 番号を答えるだけでタスクを始められるようにし、タスクにならない番号（存在しない issue、閉じた issue、下書きの issue、PR）で、片付けられずに残る workspace を作らないためである。許可や信頼を与える引数を付けないのは、chief が人の代わりにリポジトリの hooks や設定を信頼しないためである。名前を issue 番号だけから決めるのは、issue の題名などの中身で振る舞いを選ばず（CLAUDE.md の「Declare, don't infer」）、chief が入力を送れなくなる文字をパスに入れないためである。detached にするのは、`/mkreq` がタスクのブランチを作った後に一時的なブランチを残さないためである。今の仕様は [chief_architecture.md](../chief_architecture.md) の 7 章にあり、決定の出典は [0092 要件定義書](../../tasks/0092_chief_task_workspace/01_requirements.md) の F-001〜F-004 である。
++    -   理由：人が issue 番号を答えるだけでタスクを始められるようにし、タスクにならない番号（存在しない issue、閉じた issue、下書きの issue、PR）で、片付けられずに残る workspace を作らないためである。許可や信頼を与える引数を付けないのは、chief が人の代わりにリポジトリの hooks や設定を信頼しないためである。名前を issue 番号だけから決めるのは、issue の題名などの中身で振る舞いを選ばず（CLAUDE.md の「Declare, don't infer」）、chief が入力を送れなくなる文字をパスに入れないためである。detached にするのは、`/mkreq` がタスクのブランチを作った後に一時的なブランチを残さないためである。今の仕様は [chief_architecture.md](../chief_architecture.md) の 3.5 にあり、決定の出典は [0092 要件定義書](../../tasks/0092_chief_task_workspace/01_requirements.md) の F-001〜F-004 である。
  -   chief が削除を提案するのは、chief が作った workspace のうち、記録した issue を `対応 issue` とするタスクが `origin/main` でちょうど 1 つあり、完了したものだけにする。人が選び、消すかどうかの問いに答えたときだけ、消す直前に次を確かめ直し、通ったときだけ workspace を閉じて worktree を消す。
      -   追跡していないファイルを含めて変更がないこと。
      -   HEAD が `origin/main` から届くこと。
@@ -401,7 +401,7 @@ index fcba9199e8b47722a5d78bf8db132ef4a3b5c54d..49ce6e00bd675131489c414f61173526
  ### 状況の表
 
 -仕様は [0093 要件定義書](../../tasks/0093_chief_status_sheet/01_requirements.md) の F-001〜F-006 と、表の形については [0102 要件定義書](../../tasks/0102_chief_text_table/01_requirements.md) の F-001〜F-005 にある。
-+今の仕様は [chief_architecture.md](../chief_architecture.md) の 7 章にあり、決定の出典は [0093 要件定義書](../../tasks/0093_chief_status_sheet/01_requirements.md) の F-001〜F-006 と、表の形については [0102 要件定義書](../../tasks/0102_chief_text_table/01_requirements.md) の F-001〜F-005 である。
++今の仕様は [chief_architecture.md](../chief_architecture.md) の 3.5 にあり、決定の出典は [0093 要件定義書](../../tasks/0093_chief_status_sheet/01_requirements.md) の F-001〜F-006 と、表の形については [0102 要件定義書](../../tasks/0102_chief_text_table/01_requirements.md) の F-001〜F-005 である。
 
  -   状況の表の各行に、急ぎの度合いの印（すぐ 🛑・あとで 🔶・待つ 🟢。色だけでなく形でも区別でき、表の上の凡例で意味を示す）と、タスクの作業項目の表示（`origin/main` の文書から決まる）と状態の詳細を示し、行を急ぎの度合いの順に並べる。次に動くのが人か AI か（番）も道具が決めて出力に含めるが、表には示さない。これらは道具が決める。
      -   理由：人が表を一目見て、何から手を付ければよいかを分かるようにするためである。道具が決めるのは、セッションに判断を残さず、判定をテストで確かめるためである。番を表に示さないのは、表を pane の幅に収めるためで、番は状態から分かる。印の形を変えたのは、色だけに頼らないためと、「待」が「人の対応を待っている」とも読めたためである。
@@ -441,13 +441,13 @@ Diff record (AC-17):
 
 - Compared paths: `docs/dev/guides/chief_guide.md`
 - Merge-base: `c2df59f3daa72de99354a2992f92746517dc8ad1`
-- Compared commit: `7798f4b4e610482ef66ee355846a3ea080236676`
+- Compared commit: `3650239cdca2b0f8f830a5a1145e28ab4c903dc8`
 
 Path diff:
 
 ```text
 diff --git a/docs/dev/guides/chief_guide.md b/docs/dev/guides/chief_guide.md
-index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec2dbaba55 100644
+index 0c48af5cdc7083640de019e26f27426da522ae40..b002865e50ea145fbae5075f8313b179dac0547e 100644
 --- a/docs/dev/guides/chief_guide.md
 +++ b/docs/dev/guides/chief_guide.md
 @@ -1,6 +1,6 @@
@@ -463,7 +463,7 @@ index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec
  | プロトコル番号 | `6` |
 
 -番号が合わないと、道具は何もせずに `protocol_mismatch` で拒む。番号を上げる PR では、その PR の `/runpr` の前に、利用者がその PR のブランチで入れ直す。
-+番号が合わないと、道具は何もせずに `protocol_mismatch` で拒む。引数の形が合わない呼び出しは、番号の照合より前に使い方の誤り（終了コード `2`）になる。番号を上げる PR では、その PR の `/runpr` の前に、利用者がその PR のブランチで入れ直す。組み合わせの誤りに当たったときの見分け方は [chief_architecture.md](../chief_architecture.md) の 8 章にある。
++番号が合わないと、道具は何もせずに `protocol_mismatch` で拒む。引数の形が合わない呼び出しは、番号の照合より前に使い方の誤り（終了コード `2`）になる。番号を上げる PR では、その PR の `/runpr` の前に、利用者がその PR のブランチで入れ直す。組み合わせの誤りに当たったときの見分け方は [chief_architecture.md](../chief_architecture.md) の 4.8 にある。
 
  **入れ直す順。** 動いている `/chief` を止めてから `make install-chief` を実行し、`/chief` を起動し直す。番号を上げた道具を `/chief` を止めずに入れると、動いている `/chief` は古い定義の番号のまま次のラウンドを走らせ、新しい道具に `protocol_mismatch` で拒まれる。定義はこのとき `make install-chief` での入れ直しを促して止まるが、道具はすでに新しいので、入れ直しても直らない。手当ては、`/chief` を起動し直して新しい定義を読ませることである。
 
@@ -472,10 +472,10 @@ index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec
  3.  `/chief` を起動し直す。
 
 -**古い版に戻すとき。** 道具と `/chief` の定義を、同じコミットから入れる。新しい道具が書いた送信の記録は `kind`・`arg` の欄を持ち、古い道具は知らない欄を持つ記録を読まない。戻す前に、新しい道具の `chief start` を実行して、終わりの記録のない送信を送信の停止に変える（7 章の「片付け」）。停止した workspace があれば、その pane で送信が何をしたかを確かめてから停止を解く。そのうえで、最後の送信から 25 分たってから `chief start` をもう一度実行して終わった送信の記録を片付けさせるか、状態のディレクトリの workspace ごとの送信の記録（`send-*.json`）を消す。終わりの記録のない送信を停止に変える前に記録を消すと、送れたかが分からない送信が分からなくなる（5.1 の「送れたかが分からない送信は送り直さない」）。
-+**古い版に戻すとき。** 道具と `/chief` の定義を、同じコミットから入れる。新しい道具が書いた送信の記録は `kind`・`arg` の欄を持ち、古い道具は知らない欄を持つ記録を読まない。戻す前に、新しい道具の `chief start` を実行して、終わりの記録のない送信を送信の停止に変える（[chief_architecture.md](../chief_architecture.md) の 4.5）。停止した workspace があれば、その pane で送信が何をしたかを確かめてから停止を解く。そのうえで、最後の送信から 25 分たってから `chief start` をもう一度実行して終わった送信の記録を片付けさせるか、状態のディレクトリの workspace ごとの送信の記録（`send-*.json`）を消す。終わりの記録のない送信を停止に変える前に記録を消すと、送れたかが分からない送信が分からなくなる（5.1 の「送れたかが分からない送信は送り直さない」）。
++**古い版に戻すとき。** 道具と `/chief` の定義を、同じコミットから入れる。新しい道具が書いた送信の記録は `kind`・`arg` の欄を持ち、古い道具は知らない欄を持つ記録を読まない。戻す前に、新しい道具の `chief start` を実行して、終わりの記録のない送信を送信の停止に変える（[chief_architecture.md](../chief_architecture.md) の 6.5）。停止した workspace があれば、その pane で送信が何をしたかを確かめてから停止を解く。そのうえで、最後の送信から 25 分たってから `chief start` をもう一度実行して終わった送信の記録を片付けさせるか、状態のディレクトリの workspace ごとの送信の記録（`send-*.json`）を消す。終わりの記録のない送信を停止に変える前に記録を消すと、送れたかが分からない送信が分からなくなる（5.1 の「送れたかが分からない送信は送り直さない」）。
 
 -番号を変えずに道具と定義が変わることもある（たとえばサブコマンドや出力の欄が増える）。道具を入れ直したら、動いている `/chief` のセッションを終えて、`/chief` を起動し直す。古いセッションは、読み込んだときの定義のまま動き続けるためである。
-+番号を上げるかどうかは [chief_architecture.md](../chief_architecture.md) の 8 章の基準で決める。道具を入れ直したら、動いている `/chief` のセッションを終えて、`/chief` を起動し直す。古いセッションは、読み込んだときの定義のまま動き続けるためである。
++番号を上げるかどうかは [chief_architecture.md](../chief_architecture.md) の 4 章の基準で決める。道具を入れ直したら、動いている `/chief` のセッションを終えて、`/chief` を起動し直す。古いセッションは、読み込んだときの定義のまま動き続けるためである。
 
  `.claude/settings.json` は `Bash(chief *)` を許すので、待ち受けの間に許可を尋ねない。道具は `chief` の語で始まり、ほかのコマンドと連ねない形でだけ呼ぶ（`/chief` の定義の「Calling the tool」）。ただし、削除の `chief remove` は `ask` の規則 `Bash(chief remove *)` に当たるので、呼ぶたびに Claude Code が許可を尋ねる（6 章）。
 
@@ -506,7 +506,7 @@ index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec
 -| `1` | 道具の失敗（読めない入力、記録を作れない、外部のコマンドの失敗、`wait` の時間切れ） |
 -| `2` | 使い方の誤り |
 -| `3` | 何もせずに拒んだ（Herdr の外、ほかの chief がロックを持つ、`start` していない、`--protocol` が合わない、状態のディレクトリの土台がない、`HERDR_PANE_ID` がほかの worktree の pane を指す） |
-+どのサブコマンドも `--protocol` を必須とし、標準出力に 1 つの JSON を書く。サブコマンドとそのフラグ、出力の JSON の項目、終了コードは [chief_architecture.md](../chief_architecture.md) の 3 章にある。
++どのサブコマンドも `--protocol` を必須とし、標準出力に 1 つの JSON を書く。サブコマンドとそのフラグ、出力の JSON の項目、終了コードは [chief_architecture.md](../chief_architecture.md) の 5 章にある。
 
  ## 5. 保証すること・しないこと
 
@@ -524,7 +524,7 @@ index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec
 -| 自動送信の記録 | `autosend-<PR 番号>.json` | マージした PR 1 件につき 1 回に限る |
 -| 作成の排他 | 下のディレクトリ `create` | 作成と、`tick` の自動送信を重ねない |
 -| workspace ごとの記録 | worktree の正規のパスの SHA-256 の 16 進を名前にした下のディレクトリ | 送信の記録（`send-*.json`）、PR の詳細の控え（`detail-*.json`）、報告の控え（`report-*.json`。PR の詳細の控えを作った後に書かれた、PR を作ったコマンドの報告を、人が PR の詳細を見直したときに控える）、送信の停止（`stop.json`）、見送りの記録（`skip-*.json`。報告が読めずに見送ったリセットを、後のラウンドで人に示すためのもの）、作ったことの記録（`created.json`。chief が作った worktree のパスと issue 番号。削除の候補を名指すことにだけ読む）、履歴の記録（`trace-*.json`。chief の pane のセッションごとに、`tick` が PR とブランチについて確かめたことを 1 件ずつ書く。`main` をチェックアウトした worktree のタスクの特定にだけ読む） |
-+記録とロックの場所とその決め方、記録の種類ごとの中身・何のために読むか・書くとき・消えるときは、[chief_architecture.md](../chief_architecture.md) の 4 章にある。`start` の出力の `state_dir` が、解決したパスである。
++記録とロックの場所とその決め方、記録の種類ごとの中身・何のために読むか・書くとき・消えるときは、[chief_architecture.md](../chief_architecture.md) の 6 章にある。`start` の出力の `state_dir` が、解決したパスである。
 
  -   **送信の停止を解く。** `/chief` の問いで `停止を解く: <workspace の名前>` と答えるか、ほかの方法がないときだけ、その workspace のディレクトリの `stop.json` を人が消す。停止の記録を読めない workspace（表に、停止の記録を読めないと示される）には `停止を解く` は示されないので、`stop.json` の中身と pane を人が確かめてから消す。停止の理由と、そのときの画面は、状況の表に示される。消す前に、止まった送信がその pane で何をしたかを確かめる。
 --   **見送りの記録。** ラウンドは見送りの記録を読むだけで、作りも消しもしない。記録が消えるのは、人が選んだリセットを送る直前、chief がその pane へコマンドかリセットを打てたとき、`start` の片付けのときである。決まった形に合わない記録は項目にならず、ラウンドの `problems` にパスと理由が示される。その記録は、人が手で消してよい。
@@ -539,7 +539,7 @@ index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec
  -   **`/clear` の直後は古いセッションのコマンドを示しうる。** ラウンドの初めに読んだ Herdr のセッションの識別が、`/clear` の直後でまだ古いと、古いセッションの記録のコマンドを示しうる。
  -   **人が引数なしで打ったコマンドは示されない。** 人が引数なしで打ったコマンド（`/runpr` など）は、記録の形が人の入力の読み取りの受け付ける形と違い、「そのほかの人の入力」と読まれる。その前にタスクのコマンドがあればそれに `＋指示` を添えて示し、なければ何も示さない（`not_task_command`）。たとえば `/runplan` の後に引数なしの `/runpr` を打つと、`/runpr` が走っている間も、内容の列には前の `/runplan` のコマンドが `＋指示` を添えて示される。
 --   **起動し直すと長く走る OpenCode のコマンドは示されない。** `chief start` は、始めと終わりの両方を書いた 25 分より古い送信の記録を消す（7 章の「片付け」）。そのため、長く走る OpenCode のコマンドは、chief を起動し直した後に示されなくなる。
-+-   **起動し直すと長く走る OpenCode のコマンドは示されない。** `chief start` は、始めと終わりの両方を書いた 25 分より古い送信の記録を消す（[chief_architecture.md](../chief_architecture.md) の 4.5）。そのため、長く走る OpenCode のコマンドは、chief を起動し直した後に示されなくなる。
++-   **起動し直すと長く走る OpenCode のコマンドは示されない。** `chief start` は、始めと終わりの両方を書いた 25 分より古い送信の記録を消す（[chief_architecture.md](../chief_architecture.md) の 6.5）。そのため、長く走る OpenCode のコマンドは、chief を起動し直した後に示されなくなる。
  -   **エージェントのいない workspace は提案されない。** chief はエージェントの作業ディレクトリから workspace を見つけるので、エージェントがすべて終了した workspace は表に出ず、削除も提案されない。人が端末で片付ける。
  -   **作ったことの記録だけが残った worktree は表に出ない。** 作成が workspace を作る前に止まったときや、削除が workspace を閉じた後に止まったときは、worktree と記録が残っても表に出ない。結果に示された残ったものを、人が端末で片付ける。
  -   **作るか消すと、ほかの workspace の `make coverage-compare` が止まる。** 比較は、走っている間の `git worktree list` の変化を見つけると止まる（`internal/coveragecompare/userstate.go`）。比較の間は作成と削除を避けるか、止まったら走らせ直す。
@@ -566,13 +566,13 @@ Diff record (AC-18):
 
 - Compared paths: `docs/dev/guides/chief_guide.md`
 - Merge-base: `c2df59f3daa72de99354a2992f92746517dc8ad1`
-- Compared commit: `7798f4b4e610482ef66ee355846a3ea080236676`
+- Compared commit: `3650239cdca2b0f8f830a5a1145e28ab4c903dc8`
 
 Path diff:
 
 ```text
 diff --git a/docs/dev/guides/chief_guide.md b/docs/dev/guides/chief_guide.md
-index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec2dbaba55 100644
+index 0c48af5cdc7083640de019e26f27426da522ae40..b002865e50ea145fbae5075f8313b179dac0547e 100644
 --- a/docs/dev/guides/chief_guide.md
 +++ b/docs/dev/guides/chief_guide.md
 @@ -1,6 +1,6 @@
@@ -588,7 +588,7 @@ index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec
  | プロトコル番号 | `6` |
 
 -番号が合わないと、道具は何もせずに `protocol_mismatch` で拒む。番号を上げる PR では、その PR の `/runpr` の前に、利用者がその PR のブランチで入れ直す。
-+番号が合わないと、道具は何もせずに `protocol_mismatch` で拒む。引数の形が合わない呼び出しは、番号の照合より前に使い方の誤り（終了コード `2`）になる。番号を上げる PR では、その PR の `/runpr` の前に、利用者がその PR のブランチで入れ直す。組み合わせの誤りに当たったときの見分け方は [chief_architecture.md](../chief_architecture.md) の 8 章にある。
++番号が合わないと、道具は何もせずに `protocol_mismatch` で拒む。引数の形が合わない呼び出しは、番号の照合より前に使い方の誤り（終了コード `2`）になる。番号を上げる PR では、その PR の `/runpr` の前に、利用者がその PR のブランチで入れ直す。組み合わせの誤りに当たったときの見分け方は [chief_architecture.md](../chief_architecture.md) の 4.8 にある。
 
  **入れ直す順。** 動いている `/chief` を止めてから `make install-chief` を実行し、`/chief` を起動し直す。番号を上げた道具を `/chief` を止めずに入れると、動いている `/chief` は古い定義の番号のまま次のラウンドを走らせ、新しい道具に `protocol_mismatch` で拒まれる。定義はこのとき `make install-chief` での入れ直しを促して止まるが、道具はすでに新しいので、入れ直しても直らない。手当ては、`/chief` を起動し直して新しい定義を読ませることである。
 
@@ -597,10 +597,10 @@ index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec
  3.  `/chief` を起動し直す。
 
 -**古い版に戻すとき。** 道具と `/chief` の定義を、同じコミットから入れる。新しい道具が書いた送信の記録は `kind`・`arg` の欄を持ち、古い道具は知らない欄を持つ記録を読まない。戻す前に、新しい道具の `chief start` を実行して、終わりの記録のない送信を送信の停止に変える（7 章の「片付け」）。停止した workspace があれば、その pane で送信が何をしたかを確かめてから停止を解く。そのうえで、最後の送信から 25 分たってから `chief start` をもう一度実行して終わった送信の記録を片付けさせるか、状態のディレクトリの workspace ごとの送信の記録（`send-*.json`）を消す。終わりの記録のない送信を停止に変える前に記録を消すと、送れたかが分からない送信が分からなくなる（5.1 の「送れたかが分からない送信は送り直さない」）。
-+**古い版に戻すとき。** 道具と `/chief` の定義を、同じコミットから入れる。新しい道具が書いた送信の記録は `kind`・`arg` の欄を持ち、古い道具は知らない欄を持つ記録を読まない。戻す前に、新しい道具の `chief start` を実行して、終わりの記録のない送信を送信の停止に変える（[chief_architecture.md](../chief_architecture.md) の 4.5）。停止した workspace があれば、その pane で送信が何をしたかを確かめてから停止を解く。そのうえで、最後の送信から 25 分たってから `chief start` をもう一度実行して終わった送信の記録を片付けさせるか、状態のディレクトリの workspace ごとの送信の記録（`send-*.json`）を消す。終わりの記録のない送信を停止に変える前に記録を消すと、送れたかが分からない送信が分からなくなる（5.1 の「送れたかが分からない送信は送り直さない」）。
++**古い版に戻すとき。** 道具と `/chief` の定義を、同じコミットから入れる。新しい道具が書いた送信の記録は `kind`・`arg` の欄を持ち、古い道具は知らない欄を持つ記録を読まない。戻す前に、新しい道具の `chief start` を実行して、終わりの記録のない送信を送信の停止に変える（[chief_architecture.md](../chief_architecture.md) の 6.5）。停止した workspace があれば、その pane で送信が何をしたかを確かめてから停止を解く。そのうえで、最後の送信から 25 分たってから `chief start` をもう一度実行して終わった送信の記録を片付けさせるか、状態のディレクトリの workspace ごとの送信の記録（`send-*.json`）を消す。終わりの記録のない送信を停止に変える前に記録を消すと、送れたかが分からない送信が分からなくなる（5.1 の「送れたかが分からない送信は送り直さない」）。
 
 -番号を変えずに道具と定義が変わることもある（たとえばサブコマンドや出力の欄が増える）。道具を入れ直したら、動いている `/chief` のセッションを終えて、`/chief` を起動し直す。古いセッションは、読み込んだときの定義のまま動き続けるためである。
-+番号を上げるかどうかは [chief_architecture.md](../chief_architecture.md) の 8 章の基準で決める。道具を入れ直したら、動いている `/chief` のセッションを終えて、`/chief` を起動し直す。古いセッションは、読み込んだときの定義のまま動き続けるためである。
++番号を上げるかどうかは [chief_architecture.md](../chief_architecture.md) の 4 章の基準で決める。道具を入れ直したら、動いている `/chief` のセッションを終えて、`/chief` を起動し直す。古いセッションは、読み込んだときの定義のまま動き続けるためである。
 
  `.claude/settings.json` は `Bash(chief *)` を許すので、待ち受けの間に許可を尋ねない。道具は `chief` の語で始まり、ほかのコマンドと連ねない形でだけ呼ぶ（`/chief` の定義の「Calling the tool」）。ただし、削除の `chief remove` は `ask` の規則 `Bash(chief remove *)` に当たるので、呼ぶたびに Claude Code が許可を尋ねる（6 章）。
 
@@ -631,7 +631,7 @@ index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec
 -| `1` | 道具の失敗（読めない入力、記録を作れない、外部のコマンドの失敗、`wait` の時間切れ） |
 -| `2` | 使い方の誤り |
 -| `3` | 何もせずに拒んだ（Herdr の外、ほかの chief がロックを持つ、`start` していない、`--protocol` が合わない、状態のディレクトリの土台がない、`HERDR_PANE_ID` がほかの worktree の pane を指す） |
-+どのサブコマンドも `--protocol` を必須とし、標準出力に 1 つの JSON を書く。サブコマンドとそのフラグ、出力の JSON の項目、終了コードは [chief_architecture.md](../chief_architecture.md) の 3 章にある。
++どのサブコマンドも `--protocol` を必須とし、標準出力に 1 つの JSON を書く。サブコマンドとそのフラグ、出力の JSON の項目、終了コードは [chief_architecture.md](../chief_architecture.md) の 5 章にある。
 
  ## 5. 保証すること・しないこと
 
@@ -649,7 +649,7 @@ index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec
 -| 自動送信の記録 | `autosend-<PR 番号>.json` | マージした PR 1 件につき 1 回に限る |
 -| 作成の排他 | 下のディレクトリ `create` | 作成と、`tick` の自動送信を重ねない |
 -| workspace ごとの記録 | worktree の正規のパスの SHA-256 の 16 進を名前にした下のディレクトリ | 送信の記録（`send-*.json`）、PR の詳細の控え（`detail-*.json`）、報告の控え（`report-*.json`。PR の詳細の控えを作った後に書かれた、PR を作ったコマンドの報告を、人が PR の詳細を見直したときに控える）、送信の停止（`stop.json`）、見送りの記録（`skip-*.json`。報告が読めずに見送ったリセットを、後のラウンドで人に示すためのもの）、作ったことの記録（`created.json`。chief が作った worktree のパスと issue 番号。削除の候補を名指すことにだけ読む）、履歴の記録（`trace-*.json`。chief の pane のセッションごとに、`tick` が PR とブランチについて確かめたことを 1 件ずつ書く。`main` をチェックアウトした worktree のタスクの特定にだけ読む） |
-+記録とロックの場所とその決め方、記録の種類ごとの中身・何のために読むか・書くとき・消えるときは、[chief_architecture.md](../chief_architecture.md) の 4 章にある。`start` の出力の `state_dir` が、解決したパスである。
++記録とロックの場所とその決め方、記録の種類ごとの中身・何のために読むか・書くとき・消えるときは、[chief_architecture.md](../chief_architecture.md) の 6 章にある。`start` の出力の `state_dir` が、解決したパスである。
 
  -   **送信の停止を解く。** `/chief` の問いで `停止を解く: <workspace の名前>` と答えるか、ほかの方法がないときだけ、その workspace のディレクトリの `stop.json` を人が消す。停止の記録を読めない workspace（表に、停止の記録を読めないと示される）には `停止を解く` は示されないので、`stop.json` の中身と pane を人が確かめてから消す。停止の理由と、そのときの画面は、状況の表に示される。消す前に、止まった送信がその pane で何をしたかを確かめる。
 --   **見送りの記録。** ラウンドは見送りの記録を読むだけで、作りも消しもしない。記録が消えるのは、人が選んだリセットを送る直前、chief がその pane へコマンドかリセットを打てたとき、`start` の片付けのときである。決まった形に合わない記録は項目にならず、ラウンドの `problems` にパスと理由が示される。その記録は、人が手で消してよい。
@@ -664,7 +664,7 @@ index 0c48af5cdc7083640de019e26f27426da522ae40..fa9ae74794ff881482eaccd5dc3389ec
  -   **`/clear` の直後は古いセッションのコマンドを示しうる。** ラウンドの初めに読んだ Herdr のセッションの識別が、`/clear` の直後でまだ古いと、古いセッションの記録のコマンドを示しうる。
  -   **人が引数なしで打ったコマンドは示されない。** 人が引数なしで打ったコマンド（`/runpr` など）は、記録の形が人の入力の読み取りの受け付ける形と違い、「そのほかの人の入力」と読まれる。その前にタスクのコマンドがあればそれに `＋指示` を添えて示し、なければ何も示さない（`not_task_command`）。たとえば `/runplan` の後に引数なしの `/runpr` を打つと、`/runpr` が走っている間も、内容の列には前の `/runplan` のコマンドが `＋指示` を添えて示される。
 --   **起動し直すと長く走る OpenCode のコマンドは示されない。** `chief start` は、始めと終わりの両方を書いた 25 分より古い送信の記録を消す（7 章の「片付け」）。そのため、長く走る OpenCode のコマンドは、chief を起動し直した後に示されなくなる。
-+-   **起動し直すと長く走る OpenCode のコマンドは示されない。** `chief start` は、始めと終わりの両方を書いた 25 分より古い送信の記録を消す（[chief_architecture.md](../chief_architecture.md) の 4.5）。そのため、長く走る OpenCode のコマンドは、chief を起動し直した後に示されなくなる。
++-   **起動し直すと長く走る OpenCode のコマンドは示されない。** `chief start` は、始めと終わりの両方を書いた 25 分より古い送信の記録を消す（[chief_architecture.md](../chief_architecture.md) の 6.5）。そのため、長く走る OpenCode のコマンドは、chief を起動し直した後に示されなくなる。
  -   **エージェントのいない workspace は提案されない。** chief はエージェントの作業ディレクトリから workspace を見つけるので、エージェントがすべて終了した workspace は表に出ず、削除も提案されない。人が端末で片付ける。
  -   **作ったことの記録だけが残った worktree は表に出ない。** 作成が workspace を作る前に止まったときや、削除が workspace を閉じた後に止まったときは、worktree と記録が残っても表に出ない。結果に示された残ったものを、人が端末で片付ける。
  -   **作るか消すと、ほかの workspace の `make coverage-compare` が止まる。** 比較は、走っている間の `git worktree list` の変化を見つけると止まる（`internal/coveragecompare/userstate.go`）。比較の間は作成と削除を避けるか、止まったら走らせ直す。
@@ -691,13 +691,13 @@ Diff record (AC-19):
 
 - Compared paths: `docs/dev/conventions/package_reference.md`
 - Merge-base: `c2df59f3daa72de99354a2992f92746517dc8ad1`
-- Compared commit: `7798f4b4e610482ef66ee355846a3ea080236676`
+- Compared commit: `3650239cdca2b0f8f830a5a1145e28ab4c903dc8`
 
 Path diff:
 
 ```text
 diff --git a/docs/dev/conventions/package_reference.md b/docs/dev/conventions/package_reference.md
-index bfc9484edd62b4926fe48312a69bbe214f8af3ca..898a656da8bfab609db9f3e3db942d47050f3802 100644
+index bfc9484edd62b4926fe48312a69bbe214f8af3ca..6cebc391c8929a803e5530d4ee137b9b64c1a6f5 100644
 --- a/docs/dev/conventions/package_reference.md
 +++ b/docs/dev/conventions/package_reference.md
 @@ -113,14 +113,14 @@ add a kind here or to widen one of these definitions.
@@ -705,7 +705,7 @@ index bfc9484edd62b4926fe48312a69bbe214f8af3ca..898a656da8bfab609db9f3e3db942d47
  | Package | Responsibility |
  |---|---|
 -| `cmd/chief` | Entry point of the `chief` developer tool: `main` reads the environment once (`chief.ReadEnv`), parses `--protocol`, the subcommand (`start`, `snapshot`, `tick`, `wait`, `send`, `relay`, `reset`, `detail`, `release`, `targets`, `create`, `remove` today), and its flags (`targets` and `create` take `--issue` as text, which `internal/chief` checks), and prints one JSON value with the exit code of the 0088 design (3.1.1) and the 0092 design (3.1). |
-+| `cmd/chief` | Entry point of the `chief` developer tool: `main` reads the environment once (`chief.ReadEnv`), parses `--protocol`, the subcommand (`start`, `snapshot`, `tick`, `wait`, `send`, `relay`, `reset`, `detail`, `release`, `targets`, `create`, `remove` today), and its flags (`targets` and `create` take `--issue` as text, which `internal/chief` checks), and prints one JSON value with the exit code listed in chapter 3 of [chief_architecture.md](../chief_architecture.md). |
++| `cmd/chief` | Entry point of the `chief` developer tool: `main` reads the environment once (`chief.ReadEnv`), parses `--protocol`, the subcommand (`start`, `snapshot`, `tick`, `wait`, `send`, `relay`, `reset`, `detail`, `release`, `targets`, `create`, `remove` today), and its flags (`targets` and `create` take `--issue` as text, which `internal/chief` checks), and prints one JSON value with the exit code listed in chapter 5 of [chief_architecture.md](../chief_architecture.md). |
  | `cmd/codexreview` | Entry point of the `codexreview` developer tool, which runs Codex CLI's local review when the CodeRabbit CLI fails: `main` parses `--protocol` and `--base`, runs `codexreview.Run`, and prints its `Result` as JSON. |
  | `cmd/coveragecompare` | Entry point of the coverage comparison tool behind `make coverage-compare` and `make ext-coverage-compare`: it parses `go --base <rev>` or `ext --base <rev>` and runs `coveragecompare.Run`. |
  | `cmd/fixprguard` | Entry point of the `fixprguard` guard tool behind `/fixpr` and `/runpr`: it parses the subcommands and orders the `internal/fixprguard` calls. Usage: [fixprguard guide](../guides/fixprguard_guide.md). |
@@ -713,7 +713,7 @@ index bfc9484edd62b4926fe48312a69bbe214f8af3ca..898a656da8bfab609db9f3e3db942d47
  | `cmd/numreserve` | Entry point of the `numreserve` developer tool: `main` takes one word (`task` or `adr`), runs `numreserve.Tool.Reserve`, and prints the number, or one stop line with its reason word, with the exit code of the design (3.1). The design: [0100 design](../../tasks/0100_number_reservation/02_architecture.md). |
 -| `internal/chief` | The decisions and side effects of the `chief` developer tool: the screen readers, which read an agent's pane screen and Claude Code's transcript into typed results (`Screen`, `Question`, `InputLine`, `RunprNext`, `RunprReport`, `ModelSwitch`, `HumanInput`, `SessionReport`); the sanitizing and read caps for text shown to the human (`Sanitize`, `CapHead`); the one path that runs herdr, git, and gh (`Commands`); and the readers of Herdr (`Herdr`), of a task's documents and PR markers (`Tasks`, `ParsePlan`), and of the routing table (`ParseRouting`, `ReadRouting`); the state directory and the lock (`Store`, `OpenStore`, `Owner`), the git and GitHub reader of a worktree (`GitReader`), the classification of each task workspace and its pending items (`TakeSnapshot`, `Snapshot`, `Row`, `PendingItem`), with each row's urgency, turn, and position (`Urgency`, `Turn`, `Position`, `PositionDocument`, `Progress`) and the command its working agents run (`RunningCommand`, `RunningShown`, `RunningUnknown`); the place a task is made in and the workspaces at a path (`TaskSpace`, `NewTaskSpace`), the read of an issue from GitHub (`GitReader.ReadIssue`, `Issue`, `IssueStatus`), the registered worktrees and the ancestry of a commit (`GitReader.Worktrees`, `GitReader.IsAncestor`, `WorktreeEntry`), the task that answers an issue (`Tasks.IssueIndex`, `IssueIndex`, `Tasks.ReadDir`); the removal proposal of a workspace chief made whose task is done, with the checks before a removal (`RemovalCandidate`, `RemovalProposal`, `RemovalCheck`, `CheckResult`, `PendingRemoval`, `Row.RemovalRow`); the only writer of input to a pane (`PaneWriter`), the creation of a task's worktree and workspace with its `/mkreq` and the workspaces `/mkreq` can go to (`Create`, `CreateOutcome`, `CreateRefusal`, `CreateStage`, `CreateResult`, `Made`, `MadeKind`, `NotReady`, `Targets`, `TargetsOutcome`, `TargetWorkspace`), the only maker of a workspace (`WorkspaceMaker`, `NewWorkspaceMaker`), the removal of a finished task's workspace and worktree (`Remove`, `RemoveOutcome`, `RemoveRefusal`, `RemoveStage`, `RemoveResult`) by the only closer of a workspace and remover of a worktree (`WorkspaceCloser`), the exclusion between a creation and the automatic sends (`Store.LockCreation`, `CreationLock`, `ErrCreationBusy`), the send of a command with its checks and the reset after `/runpr` (`Send`, `ParseSendRequest`, `ActionResult`), the send of a reset skipped for want of a report and offered to the human (`SendOfferedReset`, `ParseOfferedResetRequest`, `ResetItem`), the send records, stops, and per-workspace exclusion (`WorkspaceRecords`, `HeldWorkspace`, `Release`), the record of a worktree chief made (`CreatedRecord`, `HeldWorkspace.KeepCreated`, `WorkspaceRecords.Created`, `HeldWorkspace.ClearRecords`), a PR's detail (`Detail`, `CollectDetail`, `PRDetail`), the wait for a change of the task agents (`Wait`, `WaitBaseline`), and the round of the wait with its observations and the automatic send after a merge (`Tick`, `Store.BeginRound`, `Observation`, `AutoSendResult`). The design: [0088 design](../../tasks/0088_chief_of_staff/02_architecture.md); the urgency, position, and running command: [0093 design](../../tasks/0093_chief_status_sheet/02_architecture.md). |
 -| `internal/chief/paneinput` | The only types that describe an input `chief` may send to an agent's pane, each built only by a validating constructor: `Command` (`NewMkreq`, `NewMkarch`, `NewMkplan`, `NewRunplan`, `NewRunpr`; its kind and argument read back by `Command.Parts`), `CommandKind` (named by `CommandKind.Name` and read from a name by `ParseCommandKind`), `Prompt` (`ClearSession`, `NewSession`, `SwitchModel`, `TypeCommand`), `Route`, `RouteKey`, `TaskID`, `IssueNumber`. The design: [0088 design §3.1.3](../../tasks/0088_chief_of_staff/02_architecture.md). |
-+| `internal/chief` | The decisions and side effects of the `chief` developer tool: the screen readers, which read an agent's pane screen and Claude Code's transcript into typed results (`Screen`, `Question`, `InputLine`, `RunprNext`, `RunprReport`, `ModelSwitch`, `HumanInput`, `SessionReport`); the sanitizing and read caps for text shown to the human (`Sanitize`, `CapHead`); the one path that runs herdr, git, and gh (`Commands`); and the readers of Herdr (`Herdr`), of a task's documents and PR markers (`Tasks`, `ParsePlan`), and of the routing table (`ParseRouting`, `ReadRouting`); the state directory and the lock (`Store`, `OpenStore`, `Owner`), the git and GitHub reader of a worktree (`GitReader`), the classification of each task workspace and its pending items (`TakeSnapshot`, `Snapshot`, `Row`, `PendingItem`), with each row's urgency, turn, and position (`Urgency`, `Turn`, `Position`, `PositionDocument`, `Progress`) and the command its working agents run (`RunningCommand`, `RunningShown`, `RunningUnknown`); the place a task is made in and the workspaces at a path (`TaskSpace`, `NewTaskSpace`), the read of an issue from GitHub (`GitReader.ReadIssue`, `Issue`, `IssueStatus`), the registered worktrees and the ancestry of a commit (`GitReader.Worktrees`, `GitReader.IsAncestor`, `WorktreeEntry`), the task that answers an issue (`Tasks.IssueIndex`, `IssueIndex`, `Tasks.ReadDir`); the removal proposal of a workspace chief made whose task is done, with the checks before a removal (`RemovalCandidate`, `RemovalProposal`, `RemovalCheck`, `CheckResult`, `PendingRemoval`, `Row.RemovalRow`); the only writer of input to a pane (`PaneWriter`), the creation of a task's worktree and workspace with its `/mkreq` and the workspaces `/mkreq` can go to (`Create`, `CreateOutcome`, `CreateRefusal`, `CreateStage`, `CreateResult`, `Made`, `MadeKind`, `NotReady`, `Targets`, `TargetsOutcome`, `TargetWorkspace`), the only maker of a workspace (`WorkspaceMaker`, `NewWorkspaceMaker`), the removal of a finished task's workspace and worktree (`Remove`, `RemoveOutcome`, `RemoveRefusal`, `RemoveStage`, `RemoveResult`) by the only closer of a workspace and remover of a worktree (`WorkspaceCloser`), the exclusion between a creation and the automatic sends (`Store.LockCreation`, `CreationLock`, `ErrCreationBusy`), the send of a command with its checks and the reset after `/runpr` (`Send`, `ParseSendRequest`, `ActionResult`), the send of a reset skipped for want of a report and offered to the human (`SendOfferedReset`, `ParseOfferedResetRequest`, `ResetItem`), the send records, stops, and per-workspace exclusion (`WorkspaceRecords`, `HeldWorkspace`, `Release`), the record of a worktree chief made (`CreatedRecord`, `HeldWorkspace.KeepCreated`, `WorkspaceRecords.Created`, `HeldWorkspace.ClearRecords`), a PR's detail (`Detail`, `CollectDetail`, `PRDetail`), the wait for a change of the task agents (`Wait`, `WaitBaseline`), and the round of the wait with its observations and the automatic send after a merge (`Tick`, `Store.BeginRound`, `Observation`, `AutoSendResult`). The design: chapter 2 of [chief_architecture.md](../chief_architecture.md); the urgency, position, and running command: chapter 7 of it. |
++| `internal/chief` | The decisions and side effects of the `chief` developer tool: the screen readers, which read an agent's pane screen and Claude Code's transcript into typed results (`Screen`, `Question`, `InputLine`, `RunprNext`, `RunprReport`, `ModelSwitch`, `HumanInput`, `SessionReport`); the sanitizing and read caps for text shown to the human (`Sanitize`, `CapHead`); the one path that runs herdr, git, and gh (`Commands`); and the readers of Herdr (`Herdr`), of a task's documents and PR markers (`Tasks`, `ParsePlan`), and of the routing table (`ParseRouting`, `ReadRouting`); the state directory and the lock (`Store`, `OpenStore`, `Owner`), the git and GitHub reader of a worktree (`GitReader`), the classification of each task workspace and its pending items (`TakeSnapshot`, `Snapshot`, `Row`, `PendingItem`), with each row's urgency, turn, and position (`Urgency`, `Turn`, `Position`, `PositionDocument`, `Progress`) and the command its working agents run (`RunningCommand`, `RunningShown`, `RunningUnknown`); the place a task is made in and the workspaces at a path (`TaskSpace`, `NewTaskSpace`), the read of an issue from GitHub (`GitReader.ReadIssue`, `Issue`, `IssueStatus`), the registered worktrees and the ancestry of a commit (`GitReader.Worktrees`, `GitReader.IsAncestor`, `WorktreeEntry`), the task that answers an issue (`Tasks.IssueIndex`, `IssueIndex`, `Tasks.ReadDir`); the removal proposal of a workspace chief made whose task is done, with the checks before a removal (`RemovalCandidate`, `RemovalProposal`, `RemovalCheck`, `CheckResult`, `PendingRemoval`, `Row.RemovalRow`); the only writer of input to a pane (`PaneWriter`), the creation of a task's worktree and workspace with its `/mkreq` and the workspaces `/mkreq` can go to (`Create`, `CreateOutcome`, `CreateRefusal`, `CreateStage`, `CreateResult`, `Made`, `MadeKind`, `NotReady`, `Targets`, `TargetsOutcome`, `TargetWorkspace`), the only maker of a workspace (`WorkspaceMaker`, `NewWorkspaceMaker`), the removal of a finished task's workspace and worktree (`Remove`, `RemoveOutcome`, `RemoveRefusal`, `RemoveStage`, `RemoveResult`) by the only closer of a workspace and remover of a worktree (`WorkspaceCloser`), the exclusion between a creation and the automatic sends (`Store.LockCreation`, `CreationLock`, `ErrCreationBusy`), the send of a command with its checks and the reset after `/runpr` (`Send`, `ParseSendRequest`, `ActionResult`), the send of a reset skipped for want of a report and offered to the human (`SendOfferedReset`, `ParseOfferedResetRequest`, `ResetItem`), the send records, stops, and per-workspace exclusion (`WorkspaceRecords`, `HeldWorkspace`, `Release`), the record of a worktree chief made (`CreatedRecord`, `HeldWorkspace.KeepCreated`, `WorkspaceRecords.Created`, `HeldWorkspace.ClearRecords`), a PR's detail (`Detail`, `CollectDetail`, `PRDetail`), the wait for a change of the task agents (`Wait`, `WaitBaseline`), and the round of the wait with its observations and the automatic send after a merge (`Tick`, `Store.BeginRound`, `Observation`, `AutoSendResult`). The design: chapters 1 and 2 of [chief_architecture.md](../chief_architecture.md); the urgency, position, and running command: section 3.5 of it. |
 +| `internal/chief/paneinput` | The only types that describe an input `chief` may send to an agent's pane, each built only by a validating constructor: `Command` (`NewMkreq`, `NewMkarch`, `NewMkplan`, `NewRunplan`, `NewRunpr`; its kind and argument read back by `Command.Parts`), `CommandKind` (named by `CommandKind.Name` and read from a name by `ParseCommandKind`), `Prompt` (`ClearSession`, `NewSession`, `SwitchModel`, `TypeCommand`), `Route`, `RouteKey`, `TaskID`, `IssueNumber`. The design: chapter 2 of [chief_architecture.md](../chief_architecture.md). |
  | `internal/codexreview` | The checks behind the `codexreview` tool: `Run`, `Result`, `Kind`, `Protocol`. |
  | `internal/coveragecompare` | The coverage comparison tool's core: `Run`, `Write`, `ExitCode`, `StopError`, and the input parsers. |
@@ -806,7 +806,7 @@ docs/tasks/0117_chief_architecture_doc/_checks/check-ac22.sh
 
 - Script: `docs/tasks/0117_chief_architecture_doc/_checks/check-ac22.sh`
 - Merge-base: `c2df59f3daa72de99354a2992f92746517dc8ad1`
-- Compared commit: `f9f77343c16d05e53a1792baf67239bac8071770`
+- Compared commit: `3650239cdca2b0f8f830a5a1145e28ab4c903dc8`
 
 壊して確かめたこと（各確かめが少なくとも 1 つの壊し方で失敗すること）:
 
