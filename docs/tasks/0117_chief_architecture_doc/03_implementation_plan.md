@@ -315,13 +315,13 @@ Diff record (AC-16):
 
 - Compared paths: `docs/dev/adr/0046-chief-of-staff.md` `docs/dev/conventions/dev_tools.md` `docs/dev/adr/README.md`
 - Merge-base: `c2df59f3daa72de99354a2992f92746517dc8ad1`
-- Compared commit: `7798f4b4e610482ef66ee355846a3ea080236676`
+- Compared commit: `5e00e64e5971c037706044625dbec7d54159e634`
 
 Path diff:
 
 ```text
 diff --git a/docs/dev/adr/0046-chief-of-staff.md b/docs/dev/adr/0046-chief-of-staff.md
-index fcba9199e8b47722a5d78bf8db132ef4a3b5c54d..da6387d120de887aaa56569ee659c561266125dc 100644
+index fcba9199e8b47722a5d78bf8db132ef4a3b5c54d..49ce6e00bd675131489c414f61173526a3fa8c27 100644
 --- a/docs/dev/adr/0046-chief-of-staff.md
 +++ b/docs/dev/adr/0046-chief-of-staff.md
 @@ -20,7 +20,7 @@ Herdr はリポジトリの外の道具で、chief はその CLI の出力に依
@@ -377,7 +377,7 @@ index fcba9199e8b47722a5d78bf8db132ef4a3b5c54d..da6387d120de887aaa56569ee659c561
  ### 今の仕様の文書とプロトコル番号
 
 --   chief の今の仕様は、`docs/dev/` の直下の開発者向けの文書 chief_architecture.md が持つ。持つのは、構成要素と信頼の境界、`/chief` の定義と道具の契約、状態のディレクトリ・ロック・記録、道具が書き出すもの（中身・書き出す先・残る期間・信頼できない文字列を含むか）、画面と transcript の読み取りの扱い、判定と副作用の条件の要約（判定ごとに、読むもの、副作用の条件にあたるか、細部の置き場所を示す）、プロトコル番号を上げる基準である。読み取りの範囲は CLAUDE.md の例外の一覧が持つ。この文書が述べる事柄を変える PR は、同じ PR でこの文書を直す。
-+-   chief の今の仕様は、`docs/dev/` の直下の開発者向けの文書 [chief_architecture.md](../chief_architecture.md) が持つ。持つのは、構成要素と信頼の境界、`/chief` の定義と道具の契約、状態のディレクトリ・ロック・記録、道具が書き出すもの（中身・書き出す先・残る期間・信頼できない文字列を含むか）、画面と transcript の読み取りの扱い、判定と副作用の条件の要約（判定ごとに、読むもの、副作用の条件にあたるか、細部の置き場所を示す）、プロトコル番号を上げる基準である。読み取りの範囲は CLAUDE.md の例外の一覧が持つ。この文書が述べる事柄を変える PR は、同じ PR でこの文書を直す。
++-   chief の今の仕様は、`docs/dev/` の直下の開発者向けの文書 [chief_architecture.md](../chief_architecture.md) が持つ。持つのは、構成要素と信頼の境界、`/chief` の定義と道具の契約、状態のディレクトリ・ロック・記録、道具が書き出すもの（中身・書き出す先・残る期間・信頼できない文字列を含むか）、画面と transcript の読み取りの扱い、判定と副作用の条件の要約（判定ごとに、読むもの、副作用の条件にあたるか、細部の置き場所を示す）、プロトコル番号を上げる基準、テストのしかたである。読み取りの範囲は CLAUDE.md の例外の一覧が持つ。この文書が述べる事柄を変える PR は、同じ PR でこの文書を直す。
      -   理由：今の仕様が 10 本のタスクの設計書に分かれ、後のタスクが上書きした部分を読む人が自分で差し引く必要があったためである。同じ PR で直さなければ、文書はまた古くなる（[0117 要件定義書](../../tasks/0117_chief_architecture_doc/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）。
 -    -   食い違い：この文書はまだなく、[issue #1055](https://github.com/isseis/yt2column/issues/1055) の実装で作る。それまで、今の仕様はこの ADR の各節が指す要件定義書・設計書と chief_guide にあり、番号を上げる基準の一覧は 0117 要件定義書の F-003 にある。
 --   chief のプロトコル番号は、道具と `/chief` の定義の間の約束を変える PR と、pane へ送る・自動で送る・workspace と worktree を作る・消すといった副作用の条件を変える PR で上げる。約束を変える追加でも、古い道具と新しい定義、新しい道具と古い定義のどちらの組み合わせも黙って誤らないことを示す 3 つの条件がすべて成り立てば、上げなくてよい。状況の表の分類など、副作用の条件でない判定だけを変える PR は上げない。定義だけを変える PR も、定義が読まなかった出力の項目を読み始めるか、示すだけだった項目で分岐し始めるときは上げる。約束と 3 つの条件の一覧は chief_architecture.md のプロトコル番号の節にあり、番号の決め方とマージの時点の確かめは CLAUDE.md の「Protocol numbers」にある。
@@ -804,11 +804,12 @@ docs/tasks/0117_chief_architecture_doc/_checks/check-ac22.sh
 
 - Script: `docs/tasks/0117_chief_architecture_doc/_checks/check-ac22.sh`
 - Merge-base: `c2df59f3daa72de99354a2992f92746517dc8ad1`
-- Compared commit: `7798f4b4e610482ef66ee355846a3ea080236676`
+- Compared commit: `5e00e64e5971c037706044625dbec7d54159e634`
 
 壊して確かめたこと（各確かめが少なくとも 1 つの壊し方で失敗すること）:
 
 - `cmd/chief/docs_test.go` のほかに変えたテストのファイルを 1 つ置くと、1 つ目の確かめが失敗した（`FAIL: a test file other than cmd/chief/docs_test.go changed:` と、そのファイルを挙げた）。
+- `cmd/chief/docs_test.go` のほかにテストのファイルを 1 つ消すと、1 つ目の確かめが失敗した（同じ理由を挙げた）。
 - 消したテストの関数に `TestSettingsAllowsTool` を足すと、2 つ目の確かめが失敗した（消えた関数として 2 つを挙げた）。
 - 足したテストの関数に `TestOutputFieldsMatchTool` を足すと、3 つ目の確かめが失敗した（足した関数として 3 つを挙げた）。
 
