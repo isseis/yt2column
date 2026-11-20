@@ -24,14 +24,14 @@
 
 **候補:**
 
--   共通の項目（`protocol`・`outcome`・`reason` など）と、`/chief` の定義が読む項目と値だけを、サブコマンドごとに表にする。そのほかの項目は、型の doc コメントへ案内する。
--   定義が分岐に使う値には、表で印を付ける。
+-   共通の項目（`protocol`・`outcome`・`reason` など）を 1 つの表にまとめ、サブコマンドごとの表には、そのサブコマンドに固有の項目だけを置く。AC-06 はすべての項目とその意味を求めるので、項目を省かない。
+-   定義が読む項目と、分岐に使う値には、表で印を付ける。プロトコル番号の基準（F-003）が、その印を使える。
 
 **関連:** F-002・F-003、AC-06・AC-11
 
 ## H-03: CLAUDE.md の Quick Links とほかの索引への登録
 
-**懸念:** CLAUDE.md の「Quick Links」は、`docs/dev/` の直下の文書（`security.md`・`production_profile.md`・`cache_consistency.md`）を挙げている。issue は ADR-0046・chief_guide・package_reference からのリンクだけを求めている。CLAUDE.md の chief の例外の記述や、`docs/dev/project_overview.md` からリンクするかは決めていない。
+**懸念:** CLAUDE.md の「Quick Links」は、`docs/dev/` の直下の文書（`security.md`・`production_profile.md`・`cache_consistency.md`）を挙げている。chief_guide の行の説明を直すことは AC-19a が求めるが、chief_architecture.md の行を新しく足すかは決めていない。CLAUDE.md の chief の例外の記述や、`docs/dev/project_overview.md` からリンクするかは決めていない。
 
 **なぜ重要か:** 索引にない文書は、開発者に見つけられない。一方、CLAUDE.md は agent の指示であり、足す行は毎回のセッションで読まれる。
 
