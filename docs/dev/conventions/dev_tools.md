@@ -63,7 +63,7 @@ The contract is written in `CLAUDE.md` ("Build Commands", "Test Commands",
 [_context.md](../../../.claude/commands/_context.md), and in the guides of the
 installed tools: [fixprguard_guide.md](../guides/fixprguard_guide.md),
 [mergepr_guide.md](../guides/mergepr_guide.md),
-[chief_guide.md](../guides/chief_guide.md), and
+[chief_architecture.md](../chief_architecture.md), and
 [numreserve_guide.md](../guides/numreserve_guide.md).
 
 ## Rule 5: Install tools from main; agents never install or build them

@@ -15,7 +15,9 @@ worktree and workspace are made and a finished one's removed. You
 never decide any of these yourself, you never type into another pane, and
 you never make or remove a worktree or a workspace yourself.
 How the tool works, what it guarantees, and how to install it are in the
-guide, [chief_guide.md](../../docs/dev/guides/chief_guide.md) (Japanese).
+guide, [chief_guide.md](../../docs/dev/guides/chief_guide.md) (Japanese). The
+tool's contract and records, to read beside this definition, are in
+[chief_architecture.md](../../docs/dev/chief_architecture.md) (Japanese).
 
 Talk to the human in Japanese (`CLAUDE.md`, "Language"). Show the tool's
 agent values as their names: `claude_code` as Claude Code, `opencode` as
@@ -82,7 +84,7 @@ Two calls differ:
 |---|---|---|
 | `0` | Done (a decision not to send is done too) | Read the JSON |
 | `1` | The tool failed (`outcome` `failed`, or `timeout` from `wait`) | Show `message`, and say that this call's result could not be read (for a round, that its table was not updated; for `wait`, step 5 says what to do). Do not judge from `message` which workspaces it concerns |
-| `2` | Usage error | A mistake in this definition or in your arguments: stop and report the call and its standard error |
+| `2` | Usage error, or the tool and this definition are from different commits | A mistake in this definition or in your arguments: stop and report the call and its standard error. A tool that does not know this call also exits `2`, so in every case also tell the human that the tool and this definition may be from different commits (the tool may be older), and that the fix is to stop `/chief`, update the chief worktree to `main`, reinstall the tool, and start `/chief` again, in the order the guide's chapter 2 gives |
 | `3` | Refused, nothing done (`outcome` `refused`, `reason`) | See below |
 
 The refusals (`reason`):
