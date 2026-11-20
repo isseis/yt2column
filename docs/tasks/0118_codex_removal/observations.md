@@ -10,7 +10,7 @@
     -   **commit 1（`7cefaa5e`）:** `tmp-coderabbit-probe/README.md` だけを加える。指摘が出にくい短い文書である。
     -   **commit 2（`f24ee60a`）:** わざと欠陥を入れた Go のファイル（`tmp-coderabbit-probe/probe/probe.go`）と、4.4 MB のテキストのファイル（`tmp-coderabbit-probe/large.txt`）を加える。
 -   **依頼のコメント:** すべて利用者（`isseis`、`User`）が GitHub の画面から投稿した。本文は `@coderabbitai review` である。エージェントは依頼のコメントを投稿していない（AC-02）。
--   **エージェントが行った操作:** 試験の PR の作成、commit 2 の push、スレッドへの返信（項目 10）、PR を閉じてブランチを消すこと。どれも利用者の承認を得て行った（5 節の制約）。
+-   **エージェントが行った操作:** 試験の PR の作成、commit 2 の push、スレッドへの返信（項目 10）、PR を閉じてブランチを消すこと。どれも利用者の承認を得て行った（要件定義書 5 節の制約）。
 -   **CodeRabbit の設定:** `.coderabbit.yaml` は `reviews.auto_review.enabled: false` である。要約コメントの「Run configuration」には `Plan: Advanced` と出た。一方、割り当ては「free OSS reviews」として「up to 1 included review per hour」と示された（項目 3）。
 -   **別の PR での観測:** 項目 3 の一部は、利用者が別のタスクの PR [#1063](https://github.com/isseis/yt2column/pull/1063) に投稿した依頼のコメントでも観測した。その PR はこの観測のためのものではなく、閉じていない。
 
@@ -52,12 +52,17 @@
 | 04:29:19Z | 依頼への返信を同じ場所で書き換える | 本文は「Review finished.」 |
 
 -   **PR の説明:** 最初に完了したレビュー（R1）の後に、PR の説明の末尾へ `<!-- This is an auto-generated comment: release notes by coderabbit.ai -->` で囲んだ「Summary by CodeRabbit」を書き足した（03:22 ごろ）。
--   **`StatusContext`:** どの head にも作らなかった。`commits/<sha>/status` は `state: pending`、`statuses` は空である。0031 より前の判定が見ていた `StatusContext` の `CodeRabbit` は、今は存在しない。
+-   **`StatusContext`:** どの head にも作らなかった。`commits/<sha>/status` は `state: pending`、`statuses` は空である。タスク 0031 より前の判定が見ていた `StatusContext` の `CodeRabbit` は、今は存在しない。
 -   **CheckRun の識別:**
     -   **app:** CheckRun の app は `id: 347564`、`slug: coderabbitai`、`owner.login: coderabbitai` である。
     -   **`external_id`:** `coderabbit-review-progress-v1:<64 桁の 16 進>` の形だった。
     -   **CheckRun の数:** 1 つの commit に、依頼のたびに新しい CheckRun ができた。`f24ee60a` の上には、`skipped`（03:23:35Z）、`neutral`（03:58:46Z）、`success`（04:26:25Z）の 3 つがある。
 -   **`filter` の違い:** REST の `commits/<sha>/check-runs` は、既定（`filter=latest`）では同じ名前の最新の 1 つだけを返し、`filter=all` で 3 つすべてを返した。GraphQL の `statusCheckRollup.contexts` も、名前ごとに最新の 1 つだけを返した。
+-   **GraphQL の `checkRuns`:** PR を閉じた後（2026-11-20T05:07Z ごろ）に、GraphQL の `pullRequest.commits.nodes.commit.checkSuites.nodes.checkRuns(filterBy: {checkName: "CodeRabbit", checkType: ...})` を読んだ。
+    -   **`checkType: ALL`:** `7cefaa5e` の上の 2 つ（`SUCCESS`/`Finished` と `SKIPPED`）と、`f24ee60a` の上の 3 つ（`SUCCESS`/`Finished`、`NEUTRAL`/`Review rate limited`、`SKIPPED`）をすべて返した。新しいものから順に並んでいた。
+    -   **`checkType: LATEST`:** 各 commit の最新の 1 つ（どちらも `SUCCESS`/`Finished`）だけを返した。
+    -   **CheckSuite の app:** `app.slug` は `coderabbitai`、`app.databaseId` は 347564 だった。
+    -   **CheckRun の `url`:** `https://github.com/isseis/yt2column/runs/<databaseId>` の形で、CodeRabbit のサイトの値を含まない。
 
 ### 3.2. 項目 2：完了したことと、レビューしたコミットを示す値
 
@@ -75,7 +80,7 @@
 
 ### 3.3. 項目 3：割り当てを使い切ったとき、エラーのとき
 
-割り当て切れは、R0（PR #1063、03:27:39Z）と R2（PR #1064、03:58:32Z）で観測した。どちらも R1 のレビューから 1 時間の内だった。
+割り当て切れは、R0（PR #1063、03:27:39Z）と R2（PR #1064、03:58:32Z）で観測した。どちらも R1 のレビューから 1 時間以内だった。
 
 | 値 | R0（#1063） | R2（#1064） |
 |---|---|---|
@@ -112,7 +117,7 @@
     -   CodeRabbit は 03:23:34Z に要約コメントを書き換え、「Review skipped」の節を足した。
     -   新しい head に、同じ `skipped` の CheckRun を作った（03:23:35Z）。
     -   レビューは始めなかった。
--   **要件の決定との関係:** どちらも CodeRabbit が自分でレビューを始めたのではないので、AC-04 の止める条件には当たらない。ただし、依頼のない CheckRun（`skipped`）は PR を開いたときにも push のときにもできるので、完了の印の判定はこれを数えない必要がある。
+-   **要件の決定との関係:** どちらも CodeRabbit が自分でレビューを始めたのではないので、AC-04 の止める条件には当たらない。ただし、依頼のない CheckRun（`skipped`）は PR を開いたときにも push のときにもできるので、完了の印の判定は、これを数えてはならない。
 
 ### 3.6. 項目 6：`@coderabbitai` と `@codex` の文字列
 
@@ -127,9 +132,9 @@
 
 ### 3.7. 項目 7：指摘をスレッドにせず本文だけに書くこと
 
--   **R3 の数の食い違い:** R3 の PR レビューの本文は「**Actionable comments posted: 4**」と書いたが、スレッドは 3 件だった。同じ行（26 行目）への 2 つの指摘が 1 つのスレッドにまとまったと読める。
+-   **R3 の数の食い違い:** R3 の PR レビューの本文は「Actionable comments posted: 4」と書いたが、スレッドは 3 件だった。同じ行（26 行目）への 2 つの指摘が 1 つのスレッドにまとまったと読める。
 -   **PR #852 の記録:** `internal/chief/testdata/gh/pr-view-852-reviews.json` では、本文の中の `<summary>` に「Additional comments: 1」があり、指摘がスレッドにならずに本文だけにあった。
--   **値の有無:** 本文だけにある指摘の有無や数を、本文を読まずに示す値（API の欄）はなかった。数は本文の文言の中にしかなく、その文言の種類も公開されていない。そのため、AC-52 の場合に当たる。
+-   **値の有無:** 本文だけにある指摘の有無や数を、本文を読まずに示す値（API の欄）はなかった。数は本文の文言の中にしかなく、その文言の種類も公開されていない。そのため、AC-52 が定める場合（本文だけにある指摘の有無が、本文を読まずには分からない場合）に当たる。
 
 ### 3.8. 項目 8：一部のファイルをレビューしなかったことを示す値
 
