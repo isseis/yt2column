@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-20 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-20 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -309,3 +309,7 @@ chief の読み取りのサンプルは残し、`/runpr` の報告の形が変�
 -   用語は `docs/translation_glossary.md` と統一する。「割り当て」「完了を待つ PR レビュアー」「自動レビュアーの一覧」「試行」は、用語集の定義に従う（試行は AC-48 で改める）。
 -   「PR レビュー」「ローカルの CLI レビュー」「手動の PR レビュー」「完了の印」「応答を待つ依頼のコメント」「メンションの対象」「現在の仕様を書く文書」は、3.1 で定める。
 -   「要約コメント」と「受領コメント」は Codex の投稿で、[0108 要件定義書](../0108_codex_null_findings_receipt/01_requirements.md) の用語に従う。
+
+## 変更履歴
+
+-   2026-11-20 承認（isseis、#1062）
