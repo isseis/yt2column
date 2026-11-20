@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-20 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-20 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -319,3 +319,7 @@ chief_architecture.md が述べる事柄を変える PR に、同じ PR でこ�
 -   **約束（道具と定義の間の）:** サブコマンド、フラグ、出力の JSON の形、定義が読む出力の項目の意味、定義が分岐に使う出力の値、終了コードの意味。状態のディレクトリの記録の形式は含めない。プロトコル番号はこの約束の版を表す。
 -   **プロトコル番号:** 道具とそれを呼ぶ文書が `--protocol` で照合する番号（CLAUDE.md の「Protocol numbers」）。
 -   **状態のディレクトリ:** chief が記録とロックを置く、リポジトリの外のディレクトリ（`docs/dev/guides/chief_guide.md` の 7 章）。
+
+## 変更履歴
+
+- 2026-11-20 承認（isseis、#1056）
