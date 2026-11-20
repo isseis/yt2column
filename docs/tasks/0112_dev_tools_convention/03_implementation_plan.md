@@ -194,7 +194,8 @@
 
 - [x] フェーズ 1（ステップ 1-1〜1-6）
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/1048
-- [ ] PR がマージされた
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（最終の PR のため）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -473,7 +474,7 @@ Diff record (AC-21):
 
 - Compared paths: `docs/translation_glossary.md`
 - Merge-base: `9122d1aaad7244eac37198da4ca30e1da133a504`
-- Compared commit: `0bd9a6a72eee0d068edca375335f23fb4c4fb6f0`
+- Compared commit: `95f55e3d10d83e52c84e80620c85c306cb7783fe`
 
 Path diff:
 
@@ -508,6 +509,8 @@ docs/dev/guides/chief_guide.md
 docs/dev/guides/fixprguard_guide.md
 docs/dev/guides/mergepr_guide.md
 docs/dev/guides/numreserve_guide.md
+docs/tasks/0112_dev_tools_convention/01_requirements.md
+docs/tasks/0112_dev_tools_convention/02_architecture.md
 docs/tasks/0112_dev_tools_convention/03_implementation_plan.md
 docs/tasks/0112_dev_tools_convention/_checks/correction_lines.sh
 docs/translation_glossary.md
