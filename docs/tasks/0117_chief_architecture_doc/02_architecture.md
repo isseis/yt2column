@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-20 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-20 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md) の設計である。要件定義から申し送られた設計事項は [design_handoff.md](design_handoff.md) にあり、各項目への対応は本書の 10 章にまとめる。本書が引用するファイルの行番号は、特に断らない限り、コミット `f9d27314`（本書の作成時の `main`）のものである。要件定義書が引く chief_guide の行番号のうち、`:40`（古い版に戻すとき）と `:42`（番号を変えずに欄が増える文）は、このコミットではそれぞれ `:42` と `:44` にある。本書は、このコミットでの行番号で書く。
@@ -755,3 +755,7 @@ N/A（本書の 5 章）。`.claude/settings.json` の規則を照合する既�
 | AC-22 | 3.2 節、7.1 節 |
 | AC-23 | 2.3 節（冒頭）、6.1 節、7.3 節 |
 | AC-24 | 3.6 節（ADR-0046） |
+
+## 変更履歴
+
+- 2026-11-20 承認（isseis、#1063）
