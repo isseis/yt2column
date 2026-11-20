@@ -17,7 +17,7 @@ head=${2:-HEAD}
 doc=cmd/chief/docs_test.go
 status=0
 
-changed=$(git diff --name-only --diff-filter=d "$base" "$head" -- '*_test.go')
+changed=$(git diff --name-only "$base" "$head" -- '*_test.go')
 extra=$(printf '%s\n' "$changed" | grep -v -x -e "$doc" -e '' || true)
 printf 'changed test files:\n%s\n' "${changed:-（なし）}"
 if [ -n "$extra" ]; then
