@@ -56,7 +56,7 @@
 4.  **`unreviewed` のモードの引数は `<HEAD> [<PLAN>]` とし、`coverage none` から LAST_REVIEWED を除いた形にする。** `<PLAN>` は `coverage` と同じく省ける。これで、`unreviewed` と `coverage none` の違いは、設計書 3.2 の 2 点だけになる。Part B step 3 の呼び出しは、設計書 3.4.4 のとおり `<PLAN>` をいつも渡す。タスク文書の PR の時点で計画書がまだなくても、パスは決まる（`fable-review.md:41-42` と同じ扱い）。
     -   経緯：最初の版は `<PLAN>` を必ず渡す形にしていた。計画のレビューで、3 つ目の違いになり、設計書 3.2 の「2 点だけが違う」と食い違うと分かったので、この形にした。
     -   ADR：なし。スクリプトの引数の形で、本タスクの中で閉じる。
-5.  **merge の後の確認の指摘の場所の規則を、Fable の規則から替える（設計書の決定 13）。** 範囲の一覧にあるパスか、merge commit が親のどちらかに対して変えたパスなら、有効な場所とする。計画のレビューで、Fable の規則のままでは、衝突を `main` 側に寄せて解いたファイルへの指摘が INVALID になると分かった。設計書を変える決定の変更なので、設計書を `draft` に戻し、決定 13 として記録した。人の答え：規則を変える（推奨）。
+5.  **merge の後の確認の指摘の場所の規則を、Fable の規則に範囲の一覧のパスを加えたものにする（設計書の決定 13、要件書 4.2）。** merge-base から HEAD までに変わったファイル（Fable の規則）か、範囲の一覧にあるパスなら、有効な場所とする。計画のレビューで、Fable の規則のままでは、衝突を `main` 側に寄せて解いたファイルへの指摘が INVALID になると分かった。最初は「範囲の一覧のパスか、merge commit が親のどちらかに対して変えたパス」としたが、Fable の部分レビューで、親に対する差分は PR が触れていないファイルまで加え、Fable の規則も置き換えてしまうと分かったので、狭めた。要件書 4.2 の「受け入れる形は Fable と揃える」を変えるので、要件書と設計書を `draft` に戻した。人の答え：規則を変える（推奨）、続けて、狭めて要件も draft に戻す（推奨）。
     -   ADR：なし（設計書の決定 13 の判断のとおり）。
 
 ### 1.4. 既存コード調査結果
@@ -150,9 +150,9 @@
     -   確認できる merge commit を使う件は、確認できる merge の fixture で作る。
     -   受け付けない側の件（名指しを数えない、範囲の行を読まない、規則 4 に当てない）は、数えれば出力が変わる配置で作り、期待する出力を 1 行として書く。可能なら、正しい形の行で同じ配置を作ると出力が変わることを先に確かめ、変わらなければ `t.Fatal` で止める。たとえば、merge commit でない commit N の名指しは、記録 → 中身のない commit N（空の commit）→ 中身のある commit X → N を名指しする確認の記録（見た範囲が X を含む）の配置で、`MISSING` を期待する。名指しを除いた同じ配置が `MISSING` を返し、名指しを数えれば X が規則 4 で除かれる配置であることを、先に確かめる。
     -   名指しの件に、何のオブジェクトも指さない 40 桁の ID と、tree の ID を名指しする件を足す。確認できる merge commit の横に置き、名指しを数えない出力（`MERGE 1`）と終了コード 0 を期待する。
-    -   AC-14 は、merge の前の記録の START が古い merge-base の件と、ブランチの commit の件の 2 つを置く。どちらも、記録 → 中身のある commit X → 確認できる merge commit の順にし、`MISSING <新しい merge-base>` を期待する。
+    -   AC-14 は、merge の前の記録の START が古い merge-base の件と、ブランチの commit の件の 2 つを置く。どちらも、記録 → 中身のある commit X → 確認できる merge commit の順にし、`MISSING <新しい merge-base>` を期待する。それぞれ、X を除いた同じ配置が `MERGE 1` を返すこと（記録が読まれていること）を先に確かめ、違えば `t.Fatal` で止める。
     -   設計書 7.1 の件が既存の件と同じ配置と出力になるとき（「README.en.md after the record」、ステップ 1-6 で直す「record from a merge-base origin/main moved past」）は、新しい件を足さず、既存の件をその行の確かめとして使う。
-    -   決定 12 の「第 2 親が `origin/main` にない merge commit」の件は、ステップ 1-6 で直す「merge after the record」と同じ形になる。違いが確認の記録の有無だけなら 1 つにまとめ、残す件が何を確かめるかをコメントに書く。
+    -   決定 12 の「第 2 親が `origin/main` にない merge commit」の件は、ステップ 1-6 で直す「merge after the record」と同じ形になる。違いが確認の記録の有無だけなら 1 つにまとめ、確認の記録を持つ形を残す（確認できない merge commit を名指しする記録を数えないことを確かめるため）。残す件が何を確かめるかをコメントに書く。
 -   [ ] **ステップ 1-6**: 期待する出力が変わる既存の件を、それぞれ直す（設計書 3.7）。
     -   [ ] 「record from a merge-base origin/main moved past」: `MERGE 1` と、その merge commit（設計書 3.1.2 の M）の ID にする。
     -   [ ] 「merge after the record」: `MISSING <merge-base>` にする。件の前のコメントも、`MISSING` の理由が確認できない merge commit であること（決定 12）と、START が merge-base になる理由（3.1.5）を述べる形に直す。
@@ -230,7 +230,6 @@
 -   [ ] **ステップ 2-3**: `_lib/local-cli-review.md` を変える（設計書 2.1）。
     -   呼び出し元の一覧（`:10-23`）に「The merge check」を足し、「Seven callers」の数を直す。
     -   RECORD の表（`:70-79`）に、「The merge check」（RECORD `return`）を足す。
-    -   ローカルの CLI レビューのものでない記録の行の一覧（`:424-426`）に、`Merge check` の行を足す。
 -   [ ] **ステップ 2-4**: `_lib/task-pr-handoff.md` を変える（設計書 3.4）。
     -   「Inputs」に FABLE・CHECKPOINT・AFTER_REMEDY を足す（3.4.1）。step 1 は、FABLE を受け取って渡す形にする。step 1 の「stop before step 2」（`:196`・`:205`）を、step 1.5 より前で止まることが分かる形に直す。
     -   step 1.5（3.4.2）と step 2.5（3.4.3）を足す。
@@ -249,7 +248,7 @@
 -   [ ] **ステップ 2-7**: 手順の変更の後、次の箇所を読み、新しい手順と食い違う文がないことを確かめる。食い違えば直し、PR の説明に書く。
     -   `CLAUDE.md:224-235`、`_lib/simple-process.md:232`。
     -   `runpr.md` のうち、`task-pr-handoff.md` Part B step 3 を指す箇所（`:164`・`:177`・`:1555`）。
-    -   `local-cli-review.md:337`・`:411`。
+    -   `local-cli-review.md:337`・`:351-353`（何も起動しなかったときの SUMMARY。`MERGE` でも起動しない）・`:357`（「Triage rules」で扱う指摘の出どころ。merge の後の確認の指摘も入る）・`:411`・`:424-426`（ローカルの CLI レビューのものでない記録の行の一覧）。
 -   [ ] **ステップ 2-8**: ADR-0050 の食い違いの文を消す。
     -   PR を作る前に、`git grep -nE 'issues/988([^0-9]|$)' origin/main -- docs/dev/adr/` で、`origin/main` の文を探す。
     -   決定の節にあり、この食い違いを述べる文だけを消す。commit のメッセージに訂正の行を書く（`docs/dev/conventions/adr.md`「Discrepancy statements」）。
@@ -290,10 +289,11 @@
         -   その PR の URL。
         -   その実行の判定の出力の 1 行目：step 1.5 の 2 回と step 2.5 の最初の段の 1 回。
         -   step 3 で走った push の命令と、上流を設定したか。
+        -   merge の後の確認を起動した Agent ツールの呼び出しの `model` の値。
     -   セッションが自分で読む値もある。記録の commit、merge commit、merge の後の確認の記録の commit の ID、`Merge check:` と `Model:` の行の形である。セッションはこれらを、その PR のブランチの commit から読む。ブランチを取ってくる `git fetch` はネットワークの操作なので、人に許可を求める。
     -   書くのは次の 4 つである。
         -   上の値。
-        -   `Merge check:` の行が `run` か `not run` か。`run` なら、モデル ID が `claude-opus-` で始まること（AC-25）。
+        -   `Merge check:` の行が `run` か `not run` か。`run` なら、その行のモデル ID が `claude-opus-` で始まること（AC-25）。`not run` なら AC-25 は確かめられていないので、そう書き、次の機会に確かめ直すかを人と決める。
         -   新しい `Fable review:` の記録が足されていないこと（AC-24）。
         -   push したのが step 2.5 の判定した commit であること（AC-05）。
     -   設計書と違う振る舞いがあれば、その内容を書き、決定の変更として人と決める。
@@ -404,7 +404,7 @@ PR-1 のマージから PR-2 のマージまでの間は、今の手順が `MERG
 | AC-24 | `rr_test::TestReviewRecordsFable`（`MERGE <n>` の件）。Entry 3・Entry 4 の救済と、「The merge check」の範囲を求められないときの扱いを読む。実地の確かめ（ステップ 3-1） | test、manual | ステップ 1-1・1-5・2-1・2-2・3-1 | PR-1、PR-2、PR-3 |
 | AC-25 | 「The merge check」のモデルとモデルの確かめを読む。実地の確かめ（ステップ 3-1） | manual | ステップ 2-2・3-1 | PR-2、PR-3 |
 | AC-26 | 「The merge check」の範囲の一覧を読む | manual | ステップ 2-2 | PR-2 |
-| AC-27 | `rr_test::TestReviewRecordsFable`（名指しの条件、何も指さない ID と tree の ID、形の違う行、12 桁の名指し。行は `readFableForms` が表から読んだ形で作る） | test | ステップ 1-1・1-3・1-4・1-5 | PR-1 |
+| AC-27 | `rr_test::TestReviewRecordsFable`（名指しの条件、何も指さない ID と tree の ID、形の違う行、12 桁の名指し。行は `readFableForms` が表から読んだ形で作る）。「The merge check」が merge commit を名指しした行を記録の commit に残すことを読む | test、manual | ステップ 1-1・1-3・1-4・1-5・2-2 | PR-1、PR-2 |
 | AC-28 | `rr_test::TestReviewRecordsFable`（`not run` の確認の記録で `VALID`）。「The merge check」の `not run` の扱いを読む | test、manual | ステップ 1-5・2-2 | PR-1、PR-2 |
 | AC-29 | 「The merge check」の制約と状態の確かめを読む（状態の確かめのコードブロックは `cmd/yt2column/fable_state_docs_test.go::TestFableStateCheckBlock` が確かめる） | manual | ステップ 2-2 | PR-2 |
 | AC-30 | `rr_test::TestReviewRecordsFable`（規則 4 の件。M より前の commit、`not run` の範囲だけの直し）。「The merge check」のトリアージと直しの確かめを読む | test、manual | ステップ 1-1・1-5・2-2 | PR-1、PR-2 |
