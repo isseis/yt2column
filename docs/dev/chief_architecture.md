@@ -374,7 +374,7 @@ workspace の送信の停止である。
 |---|---|
 | `not_accepting` | pane のエージェントが入力を待っていない、または質問を出している |
 | `input_left` | pane の入力欄に送っていない文字が残っている |
-| `model_mismatch` | OpenCode の pane が別のモデルで動いている、または Claude Code の pane のモデルの切り替えが確かめられない |
+| `model_mismatch` | OpenCode の pane が別のモデルで動いている、または Claude Code の pane の transcript が別のモデルへの切り替えを記録している |
 | `no_transcript` | Claude Code の pane のセッションか transcript が分からない、またはモデルの切り替えを確かめられない |
 | `pane_ambiguous` | 送り先の種類のエージェントの pane がない、または 2 つ以上ある |
 | `unreadable` | 画面、送り先の表、Herdr、記録のどれかを読めない |
@@ -773,7 +773,12 @@ worktree を作り直す前と、workspace を消し終えた後には、履歴�
 | 通知 | 通知の記録、人の判断を待つ項目 | あたらない | [.claude/commands/chief.md](../../.claude/commands/chief.md) の step 2 の項目 4（Notifications） | [0093 設計書](../tasks/0093_chief_status_sheet/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「記録」 |
 | 送った後の pane のリセット | 送信の記録、PR の詳細の控え、画面、transcript、人の最後の入力 | あたる（pane へ `/clear` か `/new` を送る） | [chief_guide.md](guides/chief_guide.md) の 8 章 | [0097 設計書](../tasks/0097_chief_reset_offer/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「pane の選び方とリセット」 |
 
-**送った後の pane のリセット。** `/runpr` を送れた後、chief は PR を作ったコマンドの pane を空にする（Claude Code は `/clear`、OpenCode は `/new`）。自動送信の後は、`/runpr` の pane を空にする。空にする先は送り先の表から決め、画面からは選ばない。空にするのは、`/runpr` を送った pane とは別の pane で、人が PR の詳細を見たときにその pane の報告を控えていて、その状態が変わっておらず、transcript が最後の報告で終わり、そのセッションの PR の記録がその PR を名指し、人が最後に入力した行が PR を作ったコマンドであるときだけである。それ以外は送らず、報告が見つからないか読めないことで見送ったものは、見送りの記録として人に示す（4.4）。報告が別のものだったときと、OpenCode の pane で PR を作ったときは、人に示さない。
+**送った後の pane のリセット。** chief は、送ったコマンドの文脈を次のコマンドへ持ち越さないため、決まった 2 つの場面で pane を空にする。Claude Code の pane には `/clear` を、OpenCode の pane には `/new` を送る。空にする pane は送り先の表から決め、画面からは選ばない。
+
+- **`/runpr` を送った後。** PR を作ったコマンドの pane を空にする。空にするのは、次のすべてを満たすときだけである。そのコマンドの送り先のエージェントの pane がちょうど 1 つある。その pane は `/runpr` を送った pane と違う。その pane は Claude Code である。chief が `/runpr` を送る直前に控えた PR の詳細が、その pane の報告を読んでいる。その pane の状態は、報告を控えたときから変わっていない。そのセッションの transcript が最後の報告で終わり、PR の記録がその PR を名指し、人が最後に入力した行が PR を作ったコマンドである。PR を作ったのが OpenCode の pane のときは、chief が人の入力も最後の報告も確かめられないので、空にせず、人にも示さない。
+- **自動送信の後。** `/runpr` の送り先のエージェントの pane を空にする。空にするのは、次のすべてを満たすときだけである。その pane がちょうど 1 つある。その pane は自動送信を送った pane と違う。workspace のエージェントを読んでから、その pane の状態が変わっていない。最後のメッセージが、そのマージの `/runpr` の報告で、NEXT が送ったコマンドを名指す。chief のロックの持ち主が、自動送信の前と変わっていない。OpenCode の pane では画面を読み、メッセージの始まりが画面の上にあるときは、残りがその PR を名指し、NEXT が合っていれば空にする。
+
+報告が見つからないことで見送ったもの（最後の報告がない、PR の詳細が PR の説明から作られた、OpenCode の pane の報告の始まりが画面の上にある）は、ほかの条件も満たしていれば、見送りの記録として人に示す（4.4）。Claude Code の pane の transcript を読めないことで見送ったもの（`no_transcript`・`unsupported_path`）は、人に示さない。報告が別のものだったときと、PR を作ったのが OpenCode の pane のときも、示さない。
 
 **副作用の条件にあたるもの。** 表で「あたる」とした判定のほかに、`paneinput` の検証（送る入力を決める）と、送るかを決める読み取り（中継の直前の照合、NEXT の照合、人の後の入力の確かめ）も、副作用の条件にあたる。`Sanitize` と `CapHead` は、人とセッションに示す文字列だけを変え、送る条件を変えない。
 
