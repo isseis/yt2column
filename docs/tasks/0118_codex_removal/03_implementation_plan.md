@@ -55,9 +55,13 @@
     -   Codex に触れる残りの ADR: `0040`（`:11`）、`0046`（`:284,473`）。
     -   `docs/translation_glossary.md:119` に「試行」、`.coderabbit.yaml:9-12` にコメントがある。
 
-### 1.2 計画の際に決めたこと（2026-11-20）
+### 1.2 計画の際に決めたこと（2026-11-20・2026-11-21）
 
-利用者に尋ねるべき未決の計画判断はなかった（設計書と要件定義書で主要な決定は確定済み）。設計書が計画書に委ねた細部と計画上の配置を次のとおり決めた。
+利用者に尋ねて決めたこと（2026-11-21）:
+
+-   **フェーズ 2 の PR 分割（4 本構成）:** 設計書 §6.3 は 3 本の PR を想定しているが、フェーズ 2 を PR-2（`fixprguard review-state` 単独、`Protocol` 据え置き、`sonnet+opus-review`）と PR-3（2 メンション拒否・`Protocol` 引き上げ・コマンド定義とガードテストの切り替え、`opus`）の 2 本に分け、フェーズ 3 を PR-4（`sonnet`、`hold`）とする。高リスクな状態機械と厳密 JSON 検査のレビューをコマンド定義 10 ファイルの書き換えから切り離し、PR-2 を `sonnet+opus-review` で回すためである（設計書 §6.3 の「分け方の細部と、各 PR のステップは計画書で決める」および AC-45 に適合）。PR-2 で `fixprguard` を先行変更し Codex 連携解除が PR-3 マージ後になる点は受け入れる。推奨に従って利用者が選んだ。ADR の判断: ADR なし（本タスク内の PR 分割であり、タスク内で閉じるため）。
+
+設計書が計画書に委ねた細部と計画上の配置（2026-11-20）:
 
 -   **`_lib/task-pr-handoff.md` Part B の新しい手順の番号:** `2.5.` とする。0114 は `dc224b5c` に入っておらず、既存の step 3・step 4 の番号と `codex_review_docs_test.go`・他文書からの `Part B step 3` 参照を保てるためである。ADR の判断: ADR なし（文書内の手順番号であり、タスク内で閉じるため）。
 -   **`review-state` の配置:** `internal/fixprguard/review_state.go`・`review_state_test.go`・`testdata/` とする。既存の `limits.go`・`limits_test.go` と同じ構成にそろえるためである。ADR の判断: ADR なし（ファイル配置であり、タスク内で閉じるため）。
@@ -237,9 +241,9 @@
 
 **レビュー観点**: fixprguard review-state の厳密 JSON 検査・CheckRun 分類表・状態遷移の正確さ / 境界条件（edited-request・competing-runs・startedAt == null・15 分上限・PR 外 commit 除外）のテスト網羅 / 本文・title・details_url の非出力と CLAUDE.md 例外の境界
 
-**実装モデル要件**: opus
+**実装モデル要件**: sonnet+opus-review
 
-**判定理由**: ステップ 2-1 が信頼の境界となる新しい状態機械と厳密 JSON 検査（fixprguard review-state）の実装に当たり、Sonnet では厳密 JSON 検査の抜けや境界条件（edited-request・competing-runs・startedAt == null・headRefOid 一貫性）の検証漏れを起こしやすいため。
+**判定理由**: ステップ 2-1 が独立した高リスク・複雑な状態機械と厳密 JSON 検査（fixprguard review-state）の実装に当たり、Sonnet では厳密 JSON 検査の抜けや境界条件（edited-request・competing-runs・startedAt == null・headRefOid 一貫性）の検証漏れを起こしやすいため。
 
 **自動送信**: auto
 
@@ -335,7 +339,7 @@
   - `TestCodeRabbitConfigStopsReview`: そのまま維持する。
 - [ ] `cmd/yt2column/fixpr_docs_test.go` の `wantReviewers` を `[]string{"coderabbitai"}` に更新し、`runprListingKeys["summary"]`・`runprCommentKeys["receipt"]` を外して、`TestContextAndCommandsAgree`（`awaited` = `coderabbitai`、`PR review request`・`Rejected mentions` 照合）、`TestContextReviewerRowsMalformed`（新構成と `Rejected mentions` 行の異常系）、`TestRunprDocContract`（新しい step 3 見出し・メンション 2 種・CodeRabbit の観測 2 行・`review-state` との依頼コメント判定一致テスト）を更新する。
 - [ ] `cmd/fixprguard/docs_test.go` に `review-state` の呼び出し形（`runpr.md` の呼び出し検証）と `TestGuideDescribesMentionCheck`（`fixprguard.RejectedMentions()` の 2 値）を追加・更新し、`docs/dev/guides/fixprguard_guide.md` の `current-body-mention`、2 つのメンション、新しいプロトコル番号を更新する。
-- [ ] `docs/dev/adr/0013`・`0015`・`0047`・`0050` の `食い違い:` 記述を外す（AC-49）。
+- [ ] `docs/dev/adr/0013`・`0015`・`0047`・`0050` の `食い違い:` 記述を外し、`docs/dev/adr/0047-runpr-merge-question.md:45`（`## 結果` の要約の最大行数）を 14 行から 15 行へ編集上の訂正として更新する（AC-47・AC-49）。
 
 **完了基準:**
 - `make test && make lint && make deadcode` および `doc-guard` が通る（`cmd/fixprguard` の `append-pr` 結合テストおよび全ガードテストを含む）。
@@ -450,7 +454,7 @@
 | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 | 自動送信 |
 |---|---|---|---|---|
 | PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 | Codex CLI 撤去、Part B step 2.5 追加、`codexreview` 一括撤去、関連ガード更新、検証スクリプト、ADR-0013/0014/0042 整理 | opus | auto |
-| PR-2 | 2-1 | `fixprguard review-state` サブコマンド（厳密 JSON 検査・CheckRun 分類・状態遷移・テスト・ガイド・`CLAUDE.md` 例外、`Protocol` 据え置き） | opus | auto |
+| PR-2 | 2-1 | `fixprguard review-state` サブコマンド（厳密 JSON 検査・CheckRun 分類・状態遷移・テスト・ガイド・`CLAUDE.md` 例外、`Protocol` 据え置き） | sonnet+opus-review | auto |
 | PR-3 | 2-2 / 2-3 / 2-4 / 2-5 | 旧テスト削除、`fixprguard` メンション拒否拡張・`current-body-mention`・プロトコル番号引き上げ、`_context.md`・`runpr.md`・エスカレーション・文書ガード・ガイド・ADR-0013/0015/0047/0050 更新 | opus | auto |
 | PR-4 | 3-1 / 3-2 / 3-3 | `.coderabbit.yaml`・`CLAUDE.md`・規約・ガイド・用語集・ADR-0040/0046 更新、chief テスト確認、フォローアップ issue 作成（PR-3 マージ後に利用者が `fixprguard` 入れ直しと Codex 連携解除を行ってから着手） | sonnet | hold |
 
