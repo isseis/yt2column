@@ -842,15 +842,17 @@ func unreviewedCases() []rrCase {
 			f.record("record", f.seen(f.mb, merge, "coderabbit"))
 			return head(f)
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1^1"), f.rev("HEAD~1")) }},
-		// The mark is an empty commit, which unreviewed does not list; the
-		// merge after it is listed.
+		// The checkpoint mark, which makes the fable mode cover what follows
+		// it, does not make unreviewed count the merge and the fix after it
+		// as seen; the mark itself is an empty commit.
 		{name: "merge after the checkpoint mark", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			f.record("record", f.seen(f.mb, c1, "coderabbit"))
-			f.record("mark")
+			f.record("mark", f.forms.checkpoint)
 			f.mainMerge("m2")
+			f.work("checks fix")
 			return head(f)
-		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1"), f.rev("HEAD")) }},
 		// The standalone path's fix, which its local CLI review saw.
 		{name: "fix seen by the standalone path's review", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
@@ -872,6 +874,25 @@ func unreviewedCases() []rrCase {
 	}
 }
 
+// rrUnreviewedConfigBranch builds a branch on which the unreviewed mode
+// lists two commits only through the widened START check: a seen commit
+// and a plan checkbox commit, a merge of origin/main, a seen-range line from
+// the old merge-base over the first two, and a last commit whose file name
+// and subject are not ASCII. HEAD~4..HEAD~3 is the checkbox commit and
+// HEAD~1..HEAD the last commit, so the configuration scenarios' plain git
+// commands change their output.
+func rrUnreviewedConfigBranch(f *rrFixture) []string {
+	f.write(".gitattributes", "*.md diff=upper\n")
+	f.commit("attributes")
+	f.plan(rrMarkersPlan, "markers-created.md")
+	checkbox := f.head()
+	f.mainMerge("m2")
+	f.record("record", f.seen(f.mb, checkbox, "coderabbit"))
+	f.write("caf\u00e9.txt", "x\n")
+	f.commit("unseen caf\u00e9")
+	return []string{f.head(), rrMarkersPlan}
+}
+
 // TestReviewRecordsUnreviewed runs the unreviewed mode of the review records
 // script. It reuses the coverage cases that judge origin/main..HEAD
 // (LAST_REVIEWED none), with that argument dropped, so the rules and
@@ -879,13 +900,16 @@ func unreviewedCases() []rrCase {
 // of LAST_REVIEWED..HEAD do not apply. unreviewedOverrides gives the outputs
 // the two differences change, and unreviewedCases adds the cases of those
 // differences. Each case runs with each bash scriptBashes returns, and the
-// configuration scenarios run on rrConfigBranch, as for coverage.
+// configuration scenarios run on rrUnreviewedConfigBranch.
 func TestReviewRecordsUnreviewed(t *testing.T) {
 	form := seenRangeForm(t)
+	forms := readFableForms(t)
 	var cases []rrCase
+	used := map[string]struct{}{}
 	for _, c := range coverageCases() {
 		if want, ok := unreviewedOverrides[c.name]; ok {
 			c.want = want
+			used[c.name] = struct{}{}
 		}
 		setup := c.setup
 		c.setup = func(f *rrFixture) []string {
@@ -897,14 +921,24 @@ func TestReviewRecordsUnreviewed(t *testing.T) {
 		}
 		cases = append(cases, c)
 	}
+	for name := range unreviewedOverrides {
+		if _, ok := used[name]; !ok {
+			t.Fatalf("unreviewedOverrides names %q, which is no coverage case", name)
+		}
+	}
 	cases = append(cases, unreviewedCases()...)
+	fixture := func(t *testing.T) *rrFixture {
+		f := newRRFixture(t, form)
+		f.forms = forms
+		return f
+	}
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
 			for _, c := range cases {
 				t.Run(c.name, func(t *testing.T) {
 					t.Parallel()
-					f := newRRFixture(t, form)
+					f := fixture(t)
 					args := append([]string{"unreviewed"}, c.setup(f)...)
 					var opts scriptRunOptions
 					if c.env != nil {
@@ -923,9 +957,8 @@ func TestReviewRecordsUnreviewed(t *testing.T) {
 					}
 				})
 			}
-			checkConfigScenarios(t, "git config", bash, func(t *testing.T) *rrFixture { return newRRFixture(t, form) },
-				"unreviewed", func(f *rrFixture) []string { return rrConfigBranch(f)[1:] },
-				func(*rrFixture) string { return "PARTIAL 1\n" })
+			checkConfigScenarios(t, "git config", bash, fixture, "unreviewed", rrUnreviewedConfigBranch,
+				func(*rrFixture) string { return "PARTIAL 2\n" })
 		})
 	}
 }
@@ -1193,10 +1226,7 @@ func fableCases() []rrCase {
 		// merge check.
 		{name: "record from a merge-base origin/main moved past", setup: func(f *rrFixture) []string {
 			recorded(f)
-			tree := f.rev(f.mb + "^{tree}")
-			m2 := strings.TrimSpace(f.git("commit-tree", tree, "-p", f.mb, "-m", "m2"))
-			f.git("update-ref", "refs/remotes/origin/main", m2)
-			f.git("merge", "-q", "--no-ff", "--no-edit", m2)
+			f.mainMerge("m2")
 			return launch(f)
 		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.head()} }},
 		// The commits without content. These stay covered at the pre-push
@@ -1491,6 +1521,8 @@ func fableCases() []rrCase {
 			})
 			return launch(f)
 		}, want: rrMissing("HEAD~2")},
+		// A merge check record names only the commit of its ID: one naming
+		// the record's commit leaves the later merge unconfirmed.
 		{name: "merge check naming another commit before the merge", setup: func(f *rrFixture) []string {
 			recorded(f)
 			f.record("check", f.mergeRun(f.head()))
@@ -1818,8 +1850,9 @@ func tableLinePrefixes(t *testing.T, where, section string) []string {
 // TestRecordLinePrefixesDistinct checks that the record lines the Fable
 // partial review, the merge check, and the seen-range line add cannot be
 // read as an existing record line or as one another: no new prefix equals
-// an existing one or another new one, and neither starts with the other. The existing prefixes are those of local-cli-review.md
-// step 7's table (the seen-range line aside) and of the code blocks of
+// an existing one or another new one, and neither starts with the other.
+// The existing prefixes are those of local-cli-review.md step 7's table
+// (the seen-range line aside) and of the code blocks of
 // opus-review.md's "Record lines", which _lib/opus-review-decision.sh and
 // the local CLI review's readers read; the new ones are those of
 // fable-review.md's "Record lines" table and the seen-range line.
@@ -1842,9 +1875,10 @@ func TestRecordLinePrefixesDistinct(t *testing.T) {
 	}
 	fable := requireSection(t, "fable-review.md", doctestutil.ReadDoc(t, fableReviewPath), "## Record lines")
 	// The table's rows are of two families, the Fable lines and the merge
-	// check lines; the rows of one family may share a prefix (three rows are
-	// "Fable review:"), so each family's prefixes are kept once and compared
-	// with the other family's.
+	// check lines. The rows of one family may share a prefix (three rows are
+	// "Fable review:"), so each distinct prefix is compared once; the
+	// families give the lower bounds, so a merge check row moved into the
+	// Fable family's prefixes fails them.
 	families := map[bool]map[string]struct{}{false: {}, true: {}}
 	for _, prefix := range tableLinePrefixes(t, "fable-review.md \"Record lines\"", fable) {
 		families[strings.HasPrefix(prefix, mergeCheckFamily)][prefix] = struct{}{}
