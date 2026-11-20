@@ -529,8 +529,8 @@ func TestArchitectureValuesMatchTool(t *testing.T) {
 		column  string
 		want    []string
 	}{
-		{"### 3.1. サブコマンド", "サブコマンド", subcommands},
-		{"### 3.2. 終了コード", "終了コード", codes},
+		{"### 5.1. サブコマンド", "サブコマンド", subcommands},
+		{"### 5.2. 終了コード", "終了コード", codes},
 	} {
 		section := doctestutil.SectionOutsideBlocks(doc, tc.heading)
 		if section == "" {
@@ -562,7 +562,7 @@ func TestArchitectureValuesMatchTool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const heading = "### 4.1. 状態のディレクトリの場所"
+	const heading = "### 6.1. 状態のディレクトリの場所"
 	section := doctestutil.SectionOutsideBlocks(doc, heading)
 	if section == "" {
 		t.Errorf("%s has no heading %q", architecturePath, heading)
