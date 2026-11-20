@@ -290,7 +290,7 @@
         -   その実行の判定の出力の 1 行目：step 1.5 の 2 回と step 2.5 の最初の段の 1 回。
         -   step 3 で走った push の命令と、上流を設定したか。
         -   merge の後の確認を起動した Agent ツールの呼び出しの `model` の値。
-    -   セッションが自分で読む値もある。記録の commit、merge commit、merge の後の確認の記録の commit の ID、`Merge check:` と `Model:` の行の形である。セッションはこれらを、その PR のブランチの commit から読む。ブランチを取ってくる `git fetch` はネットワークの操作なので、人に許可を求める。
+    -   セッションが自分で読む値もある。記録の commit、merge commit、merge の後の確認の記録の commit の ID と、`Merge check:` の行（`run` なら、確かめたモデル ID を持つ）である。サブエージェントの出力の `Model:` の行は commit に残らないので、読まない。セッションはこれらを、その PR のブランチの commit から読む。ブランチを取ってくる `git fetch` はネットワークの操作なので、人に許可を求める。
     -   書くのは次の 4 つである。
         -   上の値。
         -   `Merge check:` の行が `run` か `not run` か。`run` なら、その行のモデル ID が `claude-opus-` で始まること（AC-25）。`not run` なら AC-25 は確かめられていないので、そう書き、次の機会に確かめ直すかを人と決める。
