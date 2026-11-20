@@ -34,7 +34,8 @@ PR を開く前に、Fable の部分レビューを、4 つの基準に当たる
 ### 1. PR を開く前に、1 つの PR につき 1 回行う
 
 -   **選んだもの：** タスクの PR を開くコマンド（`/mkreq`・`/mkarch`・`/mkplan`・`/mkplan2`・`/runplan`）は、PR を開く前に、ローカルの CLI レビューと並列に Fable の部分レビューを行う。
--   **理由：** PR を開く前に直せば、Codex の最初の PR レビューが修正を見るためである。PR を作った後に行う形（採らなかった案）では、修正が Codex の PR レビューに見られない。
+-   **理由：** PR を開く前に直せば、直しがローカルの CLI レビューを通り、人のレビューは直した後の PR から始まるためである。PR を開いたときの PR レビューはない（[ADR-0013](0013-review-setup.md)）。この理由は [0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) で改めたもので、それまでは Codex の最初の PR レビューが修正を見ることを理由にしていた。
+-   **食い違い:** `.claude/commands/_lib/fable-review.md` は、まだ Codex の最初の PR レビューを前提に書かれている。この食い違いは https://github.com/isseis/yt2column/issues/1059 の実装で解消する。
 -   **回数：** `/runplan` でも phase group ごとではなく、PR につき 1 回とする。費用が phase group の数だけ増えるためである。
 -   **`/mkplan2` も含める：** PR の境界などを人に問わずに決めるためであり、共有の手順に置けば例外が要らないためでもある（F-001）。
 
@@ -152,7 +153,7 @@ Fable が見た範囲の後にも、直し・チェックポイントの commit�
 
 -   **PR を開くまでの時間：** Fable の部分レビューとローカルの CLI レビューのうち、長い方の分だけ延びる。
 -   **記録の後に `origin/main` を merge した PR：** merge の後の確認（Opus のサブエージェント 1 回）と、その直しの確かめ、CHECKS の走り直し、`/runplan` では Opus のレビューの判断のやり直しの分だけ、PR を開くまでの時間が延びる。記録の後に merge commit 以外の中身のある commit もあれば、Fable が PR の全体を見る 1 回分が加わる。
--   **merge の後の確認が見ないもの：** 範囲の外にある merge の意味の衝突（コードの振る舞いの食い違い）は見ない。それは CHECKS と Codex の PR レビューに任せる。確認が `not run` のとき（OpenCode で動く `/runplan` では、いつも）は、merge を PR の前に見るのは CHECKS だけである。
+-   **merge の後の確認が見ないもの：** 範囲の外にある merge の意味の衝突（コードの振る舞いの食い違い）は見ない。それは CHECKS だけに任せる。この危険は受け入れる（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）。確認が `not run` のとき（OpenCode で動く `/runplan` では、いつも）は、merge を PR の前に見るのは CHECKS だけである。
 -   **OpenCode：** `sonnet` の PR を OpenCode で実装すると、Fable の部分レビューは走らない。
 -   **却下の手間：** トリアージの却下には、確かめた方法と結果が要るので、却下の手間が増える。
 -   **出力の扱い：** Fable の出力の文は、コミットメッセージにも PR の説明にも写さない。出力は、差分にある秘密やメンションを引用しうるためである。指摘は、場所とセッション自身の要約で記録する。
@@ -165,3 +166,4 @@ Fable が見た範囲の後にも、直し・チェックポイントの commit�
 - 2026-11-17 Fable の部分レビューをこのタスクの PR に手で行い、共有の状態がほかのセッションの作業で変わることを確かめたので、状態の確かめをこの worktree の状態に絞った（[0098 設計書](../../tasks/0098_fable_partial_review/02_architecture.md) 1.2 の決定 20）
 - 2026-11-19 タスクの PR は push の直前に Fable の記録が有効かをもう一度判定し、有効でなければ足りない commit について Fable の部分レビューを行うことにした。タスク文書の PR の CHECKS の直しは印で扱って記録を無効にせず、記録の後の merge commit は、Opus のサブエージェントが merge に関わる箇所だけを確かめる merge の後の確認で扱う（[0114 要件定義書](../../tasks/0114_fable_record_after_merge/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）
 - 2026-11-19 merge の後の確認を、push の直前に加えてチェックポイントの入口でも行い、merge commit 1 つにつき 1 回行うことにした。タスク文書の PR の印は、チェックポイントの入口で残す。確かめる merge commit は確認できるものに限り、確かめられない merge commit は Fable が PR の全体を見る。push の直前の入口と merge の後の確認は `_lib/fable-review.md` に置く（[0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md)「設計の際に決めたこと（2026-11-19）」）
+- 2026-11-20 PR を開く前に行う理由を、直しがローカルの CLI レビューを通り、人のレビューが直した後の PR から始まることに改めた。Codex の PR レビューを外すので、merge の後の意味の衝突は CHECKS だけに任せる危険として受け入れた（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）
