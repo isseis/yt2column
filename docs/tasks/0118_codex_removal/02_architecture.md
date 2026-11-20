@@ -315,12 +315,12 @@ fixprguard review-state --protocol <N> --reviewer <awaited-reviewer> --request <
 -   **読む順:**
     0.  PR（REST の `pulls/<n>`）の `head.sha`。どの状態でも、この値が読めたときは出力の `head` に入れる。マージの質問のラウンドごとの照合（3.4.2）に使うためである。
     1.  PR の会話のコメント（REST の `issues/<n>/comments`、全ページ）の id・著者・本文・`created_at`・`html_url`。本文は、依頼のコメントかどうかの比較にだけ使い、出力しない。依頼のコメントがなければ、ここで `none` を返し、2 以下を読まない。依頼がない PR（ふつうの PR）で、commit と CheckRun を読まずに済ませ、commit の多い PR でも上限に当たらないためである。
-    2.  PR の head と、PR の commit の一覧（GraphQL の `pullRequest.commits`、全ページ）。各 commit の `oid` と CheckSuite の `app.slug`、その CheckRun を `checkRuns(filterBy: {checkName: "CodeRabbit", checkType: ALL})` で読む。CheckRun から読む項目は、`databaseId`・`status`・`conclusion`・`title`・`startedAt`・`completedAt`・`url` である。`checkType: ALL` は、名前ごとの最新に限らず、すべての CheckRun を返す（観測の記録 3.1）。CheckSuite の `app.slug` が `--reviewer` と等しいものだけを使う。
+    2.  PR の head（`headRefOid`）と、PR の commit の一覧（GraphQL の `pullRequest.commits`、全ページ）。各ページで `headRefOid` が読む順の 0 の `head.sha` と等しいことを確かめ、食い違えば（読み取りの途中の push や force push）一覧を捨てて `unreadable` の `call-failed` で返す。各 commit の `oid` と CheckSuite の `app.slug`、その CheckRun を `checkRuns(filterBy: {checkName: "CodeRabbit", checkType: ALL})` で読む。CheckRun から読む項目は、`databaseId`・`status`・`conclusion`・`title`・`startedAt`・`completedAt`・`url` である。`checkType: ALL` は、名前ごとの最新に限らず、すべての CheckRun を返す（観測の記録 3.1）。CheckSuite の `app.slug` が `--reviewer` と等しいものだけを使う。
     3.  CodeRabbit の PR レビュー（REST の `pulls/<n>/reviews`、全ページ）の著者・`commit_id`・`submitted_at`・`html_url`。完了の印に URL を添えるためだけに使う。
     4.  GitHub の時刻。最後に読んだ応答の `Date` ヘッダとする。
 -   **応答の検査:**
     -   **読む項目:** 各応答は、上に挙げた項目だけを読む。ほかの項目は読まずに受け入れる。GitHub の応答には、読まない項目が増えうるためである（`docs/dev/conventions/requirements_process.md` の「Untrusted input boundaries」の、拡張できると宣言した入力）。
-    -   **拒否するもの:** 読む項目が重複するとき、ないとき、型が違うときは拒否する。
+    -   **拒否するもの:** 読む項目が重複するとき、ないとき、型が違うときは拒否する。ただし CheckRun の `status` が `COMPLETED` 以外のとき（`QUEUED`・`IN_PROGRESS`・`PENDING` など）は、`conclusion`・`completedAt`・`title`・`startedAt` に `null` を許す。`status` が `COMPLETED` のときは、これら 4 つがすべて `null` でない文字列であることを求める。
 -   **上限:** 道具の定数とし、超えたら `unreadable` の `limit` で返す。
     -   会話のコメントと PR レビューは、それぞれ 3000 件まで。
     -   PR の commit は 1000 件まで。
@@ -332,14 +332,15 @@ fixprguard review-state --protocol <N> --reviewer <awaited-reviewer> --request <
 ```go
 // ReviewState is the output of fixprguard review-state.
 type ReviewState struct {
-	Protocol    int             `json:"protocol"`
-	State       RequestState    `json:"state"`       // the state of the latest request comment
-	Reason      UnreadableReason `json:"reason"`     // set for state unreadable only
-	Head        string          `json:"head"`        // the PR's head, 40 lowercase hex; "" only when step 0 could not be read
-	Now         string          `json:"now"`         // GitHub's clock, RFC 3339 UTC
-	Request     *ReviewRequest  `json:"request"`     // the latest request comment; null for none and unreadable
-	Response    *ReviewResponse `json:"response"`    // its response; null when it has none
-	Markers     []ReviewMarker  `json:"markers"`     // every completion marker, oldest first; empty for none and unreadable
+	Protocol          int              `json:"protocol"`
+	State             RequestState     `json:"state"`             // the state of the latest request comment
+	Reason            UnreadableReason `json:"reason"`            // set for state unreadable only
+	Head              string           `json:"head"`              // the PR's head, 40 lowercase hex; "" only when step 0 could not be read
+	Now               string           `json:"now"`               // GitHub's clock, RFC 3339 UTC
+	Request           *ReviewRequest   `json:"request"`           // the latest request comment; null for none and unreadable
+	Response          *ReviewResponse  `json:"response"`          // its response; null when it has none
+	IndeterminateURLs []string         `json:"indeterminateUrls"` // competing check run URLs for state indeterminate only; never details_url
+	Markers           []ReviewMarker   `json:"markers"`           // every completion marker, oldest first; empty for none and unreadable
 }
 
 // ReviewRequest is a request comment.
@@ -407,9 +408,10 @@ const (
 
 -   **ゼロ値:** `RequestState` のゼロ値は `RequestIndeterminate`、`RunKind` のゼロ値は `RunUnknown` とする。どちらも、入力について最も少なく仮定する解釈である（`CLAUDE.md` の「Declare, don't infer」）。
 -   **JSON の形:** 列挙は `MarshalText` で、コメントに書いた決まった語として出す。今の `InteractionState` と同じ作りである（`internal/fixprguard/limits.go:26-39`）。項目の名前と列挙の語は、文書が読む契約であり、`fixprguard_guide.md` に書く（[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) の 3）。
--   **文書が読む項目:** `state`、`reason`、`head`、`now`、`request`、`response`、`markers` の全部である。ほかの値（CheckRun の id など）は出さない。
+-   **文書が読む項目:** `state`、`reason`、`head`、`now`、`request`、`response`、`indeterminateUrls`、`markers` の全部である。ほかの値（CheckRun の id など）は出さない。
 -   **項目の間の約束:** 道具のコードが、状態と一緒に次の約束を作る。
     -   `request` は、`state` が `none` と `unreadable` のときだけ `null` で、ほかのときは値を持つ。
+    -   `indeterminateUrls` は、`state` が `indeterminate` のときだけ競合した CheckRun の URL（`details_url` は含めない）を持ち、ほかのときは空である。
     -   `head` は、`state` が `unreadable` で、読む順の 0 が読めなかったとき（`call-failed`、または `head.sha` が検査を通らない `rejected`）だけ空で、ほかのときは 40 桁の小文字の 16 進である。
 
 #### 3.3.2. CheckRun の分類
@@ -438,17 +440,17 @@ CodeRabbit の CheckRun は、次の値の組だけで分類する。CheckSuite 
 
 最新の依頼のコメントの状態は、次の順に、最初に当たったもので決める。
 
-1.  **`unreadable`:** 読む順の 1〜4 で、呼び出しが失敗した（`call-failed`）、応答が厳密な検査を通らなかった（`rejected`）、上限を超えた（`limit`）。
+1.  **`unreadable`:** 読む順の 0〜4 または `gh api user` で、呼び出しが失敗した（`call-failed`）、読む順の 2 で `headRefOid` が読む順の 0 の `head.sha` と食い違った（`call-failed`）、応答が厳密な検査を通らなかった（`rejected`）、上限を超えた（`limit`）。
 2.  **`none`:** 依頼のコメントがない。
 3.  **`indeterminate`:** 最新の依頼の応答が決まらない。最新の依頼の後に始まった数える CheckRun のうち、最も早く始まったものが 2 つ以上ある（同じ秒）か、最も早いものが終わる前に、別の数える CheckRun が始まった（AC-16 の (a)）。
 4.  **`completed`・`rate-limited`・`unrecognized`:** 応答があり、その分類が `RunFinished`・`RunRateLimited`・`RunUnknown` である。
 5.  **`timed-out`:** 依頼の時刻から 15 分を過ぎた。`RunRunning` の応答があっても、上限は延ばさない。
 6.  **`waiting`:** 上のどれでもない。
 
--   **時刻の比べ方:** 「後に始まった」は、CheckRun の `startedAt` が依頼の `created_at` より厳密に後であることとする。同じ秒は数えない。今の Codex の判定と同じ規則である（`runpr.md:547-549`）。
+-   **時刻の比べ方:** 「後に始まった」は、CheckRun の `startedAt` が依頼の `created_at` より厳密に後であることとする。同じ秒は数えない。今の Codex の判定と同じ規則である（`runpr.md:547-549`）。`status` が `COMPLETED` 以外で `startedAt` が `null` の CheckRun（`QUEUED` や `PENDING` など）はまだ始まっていないものとして応答に数えず、`startedAt` が入るか 15 分の上限に達するまで `waiting` のまま待つ。
 -   **応答の後の CheckRun:** 応答が終わった後に始まった数える CheckRun（CheckRun の再実行、Web からのレビュー、`/fixpr` の返信に応じたレビュー）は、その依頼の応答でも完了の印でもない。手動の PR レビューは依頼のコメントで始まるものだけだからである（要件定義書 3.1）。そのため、最新の依頼が終わった後に何が起きても、状態は応答で決まったまま変わらない。
 -   **前の依頼の応答:** 前の依頼のコメントにも同じ規則で応答を決め、`RunFinished` の応答を完了の印として `markers` に入れる。前の依頼の応答は、次の依頼より前に始まったものに限る（AC-17）。依頼のコメントのない CheckRun は、完了の印にならない。前の依頼の応答が決まらないとき（規則 3 に当たるとき）は、その依頼からは完了の印を作らない。安全側に倒すためである。
--   **示すコミット（AC-16 の (c)・(d)）:** 道具は、PR の commit の一覧にある commit の CheckRun だけを読む。そのため、完了の印が示すコミットは、PR の head かその祖先に限られる。この性質は本書が実装に課す要件で、テストで確かめる（7.1）。示すコミットが 40 桁の小文字の 16 進でない CheckRun があれば、`unreadable` の `rejected` になる。force push で一覧から消えた commit の上の完了の印は読まれないので、LAST_REVIEWED は古くなる側にしか変わらない。
+-   **示すコミット（AC-16 の (c)・(d)）:** 道具は、PR の commit の一覧にある commit の CheckRun だけを読み、読む順の 2 の各ページで `headRefOid` が読む順の 0 の `head.sha` と等しいことを確かめる。そのため、読み取りの途中で force push が起きて head が変われば `unreadable`（`call-failed`）で読み直しになり、完了の印が示すコミットは、出力する `head` かその祖先に限られる。この性質は本書が実装に課す要件で、テストで確かめる（7.1）。示すコミットが 40 桁の小文字の 16 進でない CheckRun があれば、`unreadable` の `rejected` になる。force push で一覧から消えた commit の上の完了の印は読まれないので、LAST_REVIEWED は古くなる側にしか変わらない。
 -   **スレッドへの返信に応じた投稿（AC-54）:** 観測では、返信に応じて CodeRabbit が付けたのは反応だけで、CheckRun はできなかった（観測の記録 3.10）。返信に応じたレビューが CheckRun を作っても、上の「応答の後の CheckRun」として数えない。
 
 #### 3.3.4. LAST_REVIEWED
@@ -520,10 +522,10 @@ CodeRabbit の CheckRun は、次の値の組だけで分類する。CheckSuite 
 -   **要約の行:** 今の 4 行目と 13 行目（`runpr.md:1334`、`runpr.md:1343`）を次に改め、Codex の名前を出さない（AC-11）。
     -   **4 行目:** `未レビューの変更: あり（推奨: PR レビュー）`、`未レビューの変更: あり（推奨: マージ）`、`未レビューの変更: なし` のどれかを出す。「未レビュー」は、LAST_REVIEWED が head でないことである。
     -   **13 行目:** 未レビューの変更があるときだけ、`未レビュー分: ローカル CLI 済 ／ Fable（PR 前）: run` の形で出す。前半は LAST_REVIEWED（なしなら merge-base）から head までをローカルの CLI レビューが見たかで、後半は Fable の記録である。読み方は今と同じである（AC-11）。
-    -   **新しい行:** 依頼のコメントがあるときだけ、`手動 PR レビュー: <状態>（<URL>）` を足す。
-        -   **完了のとき:** `完了 <12 桁の SHA>` と、本文に指摘やレビューしなかったファイルの知らせがありうること（AC-19、AC-20、AC-52）を示す。URL は、完了の印の PR レビューの URL、それがなければ依頼のコメントの URL とする。
-        -   **最新の依頼が終わっているとき:** `割り当て切れ`・`判定できない終わり方`・`時間切れ` のどれかを出す（AC-53）。URL は依頼のコメントの URL とする。
-        -   **読めないとき:** `読めない（上限）` を出す（3.4.1 の `limit`）。
+    -   **新しい行:** `request` があるとき、または `state` が `unreadable`（理由 `limit`）のときに、`手動 PR レビュー: …` を足す。
+        -   **最新の依頼が完了のとき:** `完了 <12 桁の SHA>（<URL>、本文に指摘やレビューしなかったファイルの知らせがありうる）` を出す（AC-19、AC-20、AC-52）。URL は、完了の印の PR レビューの URL、それがなければ依頼のコメントの URL とする。
+        -   **最新の依頼が終わっているとき（`rate-limited`・`unrecognized`・`timed-out`）:** `割り当て切れ`・`判定できない終わり方`・`時間切れ` のどれかと、依頼のコメントの URL を出す（AC-53）。前の依頼の完了の印（`markers`）もあるときは、最新の完了の印の 12 桁の SHA・URL・本文に指摘等がありうる旨も同じ行に併記する。
+        -   **読めないとき（`unreadable` の `limit`）:** `読めない（上限）` を出す（3.4.1 の `limit`。`request` は `null` なので URL は付かない）。
     -   **行の数:** 要約の行は、今の 14 行から 15 行になる。
 -   **詳細のファイル:** 承認の記録の項目（`runpr.md:1297-1301`）を外し、手動の PR レビューの `markers` と最新の依頼の状態を足す。
 -   **「先に PR レビューを依頼」を選んだとき（AC-13、AC-14）:**
@@ -533,6 +535,7 @@ CodeRabbit の CheckRun は、次の値の組だけで分類する。CheckSuite 
         -   `indeterminate` と `unreadable` なら、止まって報告する。
         -   それ以外なら、依頼のコメントを `gh pr comment <number> --body "<review-request>"` で 1 件投稿する。`gh` が出した URL の末尾の `#issuecomment-<id>` の id を、この依頼の id として控える。
     3.  `review-state` を約 30 秒ごとに読み、`waiting` でなくなるまで待つ。
+        -   **一時的な読み取り失敗（`unreadable` の `call-failed`）:** `request.id` の照合や停止の前に、3.4.1 と同じ読み直し（約 15 分続けて読めなければ止まる）を当てはめる。
         -   **新しい依頼が見えるまで:** 投稿の直後は、GitHub の一覧にまだ新しい依頼が出ていないことがある。そのため、`request.id` が控えた id と等しくなるまで読み直す。約 2 分たっても等しくならなければ、止まって報告する。
         -   **見えた後:** 読み直したときの `request.id` が控えた id と違えば、止まって報告する（ほかの依頼が重なった）。
     4.  `completed` なら、step 3 のスレッドの処理に戻り、step 2 を経て、step 4 の item 1 から問い直す。それ以外は 3.5 のとおり止まる。
@@ -637,16 +640,18 @@ chief の製品のコードは、Codex の文言で分岐しない（要件定�
 | `docs/dev/adr/0013`・`0014`・`0015`・`0042`・`0047`・`0050` | 各 `## 決定` の食い違いの記述を、食い違いを解いた PR で外す。本書の決定で 0013 と 0042 を更新する（1.3） | AC-49 |
 | `docs/dev/adr/0040`・`0046` | Codex に触れる箇所の直し（H-07、3.9） | F-011 |
 | `cmd/yt2column/codex_review_docs_test.go` | 名前を `review_mention_docs_test.go` に改め、2 つのメンションと 2 つの置き換え名を対象にする。`TestAgentsCodeReviewRules` の理由を CodeRabbit に改める | AC-56、H-09 |
-| `cmd/yt2column/fixpr_docs_test.go` | `wantReviewers` を `coderabbitai` だけにする。要約コメントと受領コメントのフィルタのテストを外し、メンションのフィルタのテストを新しい分類に合わせる。step 3 の見出しの定数。Part B step 5 のテストを外す | F-003、F-009、F-010 |
-| `cmd/fixprguard/docs_test.go` | `codexreview` の呼び出しの記述、`review-state` の呼び出しの形 | F-004、F-008 |
+| `cmd/yt2column/fixpr_docs_test.go` | `TestLocalReviewGuard` の step 3 の確認を外す（PR-1）。`wantReviewers` を `coderabbitai` だけにする。要約コメントと受領コメントのフィルタのテストを外し、メンションのフィルタのテストを新しい分類に合わせる。step 3 の見出しの定数。Part B step 5 のテストを外す（PR-2） | F-003、F-006、F-009、F-010 |
+| `cmd/yt2column/review_records_test.go` | `seenRangeForm` の `(coderabbit)` の形、`TestRecordLinePrefixesDistinct` の下限、`TestReviewRecordsCallSite` の `coverage none` の呼び出しを PR-1 で更新する | F-006、F-007 |
+| `cmd/fixprguard/docs_test.go` | `codexreview` の呼び出しの記述（PR-1）、`review-state` の呼び出しの形（PR-2） | F-004、F-008 |
 | `internal/config/envaccess_test.go`、`internal/cmdrunner/runner.go`、`cmd/coveragecompare/main.go` | `codexreview` を名指すコメントと表の行 | AC-36 |
 
 **既存のテストで、振る舞いの変更に合わせて直すもの:**
 
+-   **`TestLocalReviewGuard`（`cmd/yt2column/fixpr_docs_test.go`）:** `_lib/local-cli-review.md` の step 3 を撤去するので、確認する手順の一覧から step 3 を外す（PR-1）。
+-   **`cmd/yt2column/review_records_test.go` の文書ガード:** `seenRangeForm`（`<cli>` から `(coderabbit)` への変更）、`TestRecordLinePrefixesDistinct`（step 7 の表から `Codex local review:` を外すことによる下限の変更）、`TestReviewRecordsCallSite`（`_lib/task-pr-handoff.md` の `coverage none` の呼び出しの追加）を PR-1 で更新する。一方、`TestReviewRecordsCoverage` は判定の規則を変えないので直さず、`(codex)` の行を見た範囲として読む既存の行を AC-28 の確認として残す。
 -   **`TestRunprDocContract`、`TestHandoffListingPrintsNoBody`（`cmd/yt2column/fixpr_docs_test.go`）:** `runpr.md` step 3 と Part B step 5 の `--jq` のフィルタを走らせるテストである。前者は、要約コメントと受領コメントの行を外し、メンションの行を 2 つのメンションと CodeRabbit の観測した形に合わせる。後者は、Part B step 5 がなくなるので外す。
 -   **`TestCodexMentionOnlyInRequestRow`、`TestPostingPathsCheckMention`:** 2 つのメンションと `<mention-check>` に合わせる（AC-56）。
 -   **`cmd/fixprguard/docs_test.go` のプロトコル番号のテスト:** 番号を上げたことに合わせる。
--   **`TestReviewRecordsCoverage`（`cmd/yt2column/review_records_test.go`）:** 判定の規則は変えないので、直さない。`(codex)` の行を見た範囲として読む既存の行は、AC-28 を確かめるものとして残す。
 
 ### 3.9. Codex にだけ触れる ADR と文書（H-07）
 
@@ -740,6 +745,7 @@ flowchart LR
 
 -   **PR の説明の書き込みの重なり:** CodeRabbit は、手動の PR レビューの後に PR の説明に要約を書き足す（観測の記録 3.1）。`append-pr` は今の説明を読んでから書くので、その間に CodeRabbit が書くと、どちらかの書き込みが失われうる。`/runpr` は完了の印を待ってから `/fixpr` を走らせるので、重なるのは、完了の後に CodeRabbit が説明を書き直したときに限られる。頻度が低く、失われるのは要約か訂正の段落で、再実行で戻せるため、受け入れる。
 -   **古い記録の行:** 3.6 の「新しく書かれた `(codex)` の行」を受け入れる。
+-   **同じ commit を指す別 PR の CheckRun:** GitHub の CheckRun は commit に紐づくため、base の異なる別 PR が同じ head SHA を持つ場合に、別 PR で走った CheckRun が同じ commit 上に現れうる。本リポジトリの PR はすべて `main` をベースとし、観測していない API の欄は使わない（AC-05）ため、この危険は受け入れる。
 
 ### 5.2. 外へ送るもの
 
@@ -838,9 +844,9 @@ PR を 3 つに分ける。分け方の細部と、各 PR のステップは計�
 
 | PR | 入れるもの | マージの時点で動くもの |
 |---|---|---|
-| PR-1 | F-006（Codex CLI を外したローカルの CLI レビュー、AC-28 の古い行の読み方）、F-007（PR を開く直前のレビュー） | Codex の PR レビューと今の `/runpr` は動いたまま。ローカルの CLI レビューは、もう `codexreview` を呼ばない |
+| PR-1 | F-006（Codex CLI を外したローカルの CLI レビュー、AC-28 の古い行の読み方）、F-007（PR を開く直前のレビュー）、F-008（`codexreview` の撤去と `Makefile`・`.claude/settings.json`・CI・`CLAUDE.md` の該当箇所） | Codex の PR レビューと今の `/runpr` は動いたまま。ローカルの CLI レビューは、もう `codexreview` を呼ばない。F-006 と F-008 を同じ PR にすることで、`cmd/codexreview/docs_test.go` の食い違いを出さずに `make test` と `doc-guard` を通す |
 | PR-2 | F-002〜F-005、F-009、F-010、AC-46（`fixprguard` の `review-state` とメンションの拒否、番号の引き上げを含む） | PR を開いても依頼せず、`/runpr` は Codex を待たない。利用者は、このマージの直後に Codex の連携を切り、契約を終える |
-| PR-3 | F-008（`codexreview` の撤去）、F-011 の残り（ADR の食い違いの記述、ADR-0040・0046、ガイド、用語集）、F-012 の確かめ、古い形の行を読む規則を外すための issue | Codex に触れるのは、AC-47 の例外だけになる |
+| PR-3 | F-011 の残り（ADR の食い違いの記述、ADR-0040・0046、ガイド、用語集、`CLAUDE.md` の Codex PR レビューの記述）、F-012 の確かめ、古い形の行を読む規則を外すための issue | Codex に触れるのは、AC-47 の例外だけになる |
 
 -   **AC-45 との関係:** F-004・F-006・F-007・AC-46 は PR-2 かそれより前に入る。F-009・AC-43・AC-44 は PR-2 に入る。AC-45 を満たす。
 -   **PR-2 は自分の新しい定義で回る:** コマンドの定義はブランチの作業ツリーから読まれる（要件定義書 4.4）。そのため、PR-2 は自分の `/runpr` で回り、Codex を待たない。
@@ -917,7 +923,8 @@ PR を 3 つに分ける。分け方の細部と、各 PR のステップは計�
     1.  `_lib/local-cli-review.md` の step 3 の撤去と、記録の行の新しい形。
     2.  `_lib/task-pr-handoff.md` の新しい手順。
     3.  `runplan.md` と `fixpr.md` の Codex CLI の記述と、`runplan.md` の Part B の CHECKS の文。
-    4.  [ADR-0042](../../dev/adr/0042-implementation-model-tiers.md) と ADR-0013 のローカルの CLI レビューの食い違いの記述を外す。
+    4.  `codexreview` の撤去（F-008）と、そのテスト・文書ガードの更新（`TestLocalReviewGuard`、`cmd/yt2column/review_records_test.go`、7.4）。
+    5.  [ADR-0042](../../dev/adr/0042-implementation-model-tiers.md)、ADR-0014、ADR-0013 のローカルの CLI レビューの食い違いの記述を外す。
 2.  **PR-2:**
     1.  `fixprguard` の `review-state`、メンションの拒否、`current-body-mention`、番号と、`CLAUDE.md` の「Declare, don't infer」の `review-state` の例外。
     2.  `_context.md` の値と置き換え名。
@@ -926,9 +933,8 @@ PR を 3 つに分ける。分け方の細部と、各 PR のステップは計�
     5.  エスカレーションのファイル。
     6.  ガードテストと、PR-2 で解いた ADR の食い違いの記述。
 3.  **PR-3:**
-    1.  `codexreview` の撤去と、そのテストの削除（7.4）。
-    2.  `CLAUDE.md`・規約・ガイド・用語集・ADR の残り。
-    3.  F-012 の確かめと、古い形の行を読む規則を外すための issue。
+    1.  `CLAUDE.md`・規約・ガイド・用語集・ADR の残り（ADR-0040・0046 を含む）。
+    2.  F-012 の確かめと、古い形の行を読む規則を外すための issue。
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
