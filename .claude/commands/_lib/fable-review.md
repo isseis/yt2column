@@ -543,8 +543,10 @@ change which Fable record is the last:
 - `<MERGE>`: the 40 characters of the ID of the one merge commit the merge
   check looked at. "The validity decision" counts a line only by this ID; a
   line naming a commit by 12 characters names nothing.
-- `<model-id>`: the model the subagent reported, which starts with
-  `claude-opus-`.
+- `<model-id>`: the model the subagent reported: `claude-opus-` followed by
+  1 to 48 lowercase letters, digits, `.`, and `-`. "The validity decision"
+  does not read a `run` line with a model ID of another form, so a merge
+  check whose reported model is of another form is recorded `not-opus`.
 - `<n>`, `<seconds>`, and `<tokens>`: as for a Fable record.
 - `<reason>` of a not-run line: `unavailable` (an error or a usage limit,
   twice), `timeout` (30 minutes passed), `not-opus` (another model, or a

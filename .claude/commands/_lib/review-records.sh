@@ -62,8 +62,9 @@
 #     blobs are read with plumbing commands (cat-file, diff-tree --raw,
 #     rev-list), so no diff driver, text conversion, or attribute applies.
 #     A submodule's change always counts (--ignore-submodules=none, so
-#     neither .gitmodules nor the configuration hides one), and replace refs
-#     are not followed (GIT_NO_REPLACE_OBJECTS).
+#     neither .gitmodules nor the configuration hides one), and neither
+#     replace refs nor a grafts file are followed (GIT_NO_REPLACE_OBJECTS,
+#     and GIT_GRAFT_FILE set to /dev/null).
 #   - Failure: any failed git step, an argument of another form, or an
 #     unreadable refs/remotes/origin/main prints "PARTIAL" alone (no
 #     count), a diagnostic on standard error, and exits 1. A caller reads a
@@ -154,11 +155,12 @@
 #          that passes the checks under the widened START check; a not-run
 #          line's range does not count.
 #     A confirmable merge commit is confirmed when a merge check record
-#     names it. Every other commit, an unconfirmable merge commit included,
-#     invalidates the record.
+#     names it, and otherwise waits for the merge check. Every other commit,
+#     a commit with one parent no rule covers or an unconfirmable merge
+#     commit, invalidates the record.
 #   - The result: MISSING <START> when a commit invalidates the record; else
-#     MERGE <n> when a confirmable merge commit is not confirmed; else
-#     VALID.
+#     MERGE <n> when a confirmable merge commit waits for the merge check;
+#     else VALID.
 #   - START of MISSING is the merge-base of origin/main and HEAD when there
 #     is no record, or when HEAD ^END ^origin/main holds a commit with other
 #     than one parent (a confirmed one included). Otherwise it is the first
@@ -213,7 +215,7 @@ for name in ${!GIT_@}; do
 done
 unset -f git awk printf
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ATTR_NOSYSTEM=1
-export GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 GIT_NO_REPLACE_OBJECTS=1
+export GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null
 
 GIT_OVERRIDES=(
 	-c core.attributesFile=/dev/null
@@ -222,6 +224,7 @@ GIT_OVERRIDES=(
 	-c diff.noprefix=false
 	-c color.ui=false
 	-c log.showSignature=false
+	-c advice.graftFileDeprecated=false
 	-c i18n.logOutputEncoding=UTF-8
 )
 

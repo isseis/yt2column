@@ -1186,10 +1186,13 @@ func fableCases() []rrCase {
 			f.record("record", f.seen(f.mb, fix, "coderabbit"))
 			return launch(f)
 		}, want: rrMissing("HEAD~3")},
-		// The side commit is inside the record's line by its IDs, but the
-		// line fails the checks: its END is not an ancestor of the record's
-		// commit. So s1 invalidates the record, and START is the merge-base
-		// because a merge commit follows END.
+		// The side commit is inside the record's line by its IDs, and the
+		// merge of the side branch is unconfirmable, so the record is not
+		// valid whether or not the line counts; the case pins START, the
+		// merge-base because a merge commit follows END. The check that a
+		// line's END is an ancestor of its commit is held by "record naming
+		// its own commit's descendant" and coverage's "END not an ancestor of
+		// the line's commit".
 		{name: "range of the record's commit beyond it", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			s1 := f.side("side", c1)
@@ -1521,28 +1524,75 @@ func fableCases() []rrCase {
 			})
 			return launch(f)
 		}, want: rrMissing("HEAD~2")},
-		// A merge check record names only the commit of its ID: one naming
-		// the record's commit leaves the later merge unconfirmed.
-		{name: "merge check naming another commit before the merge", setup: func(f *rrFixture) []string {
+		// A merge check record confirms only the merge of its ID: the record
+		// naming the first merge leaves the second waiting.
+		{name: "merge check naming another merge", setup: func(f *rrFixture) []string {
 			recorded(f)
-			f.record("check", f.mergeRun(f.head()))
-			f.mainMerge("m2")
+			first := f.mainMerge("m2")
+			f.record("check", f.mergeRun(first))
+			f.mainMerge("m3")
 			return launch(f)
 		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.head()} }},
-		// mm is a merge commit of origin/main, outside the branch. Its first
-		// parent is neither the merge-base nor a branch commit either, so the
-		// case holds the two conditions together; each alone is backed by the
-		// other (see the test's comment).
+		// mm is a merge commit of origin/main, outside the branch, named with
+		// a seen range over x after the branch's merge: counting the name
+		// would cover x by rule 4, as naming the branch's merge does. mm's
+		// first parent is not the merge-base either, so the case holds the
+		// branch condition and the first-parent condition together.
 		{name: "merge check naming a merge outside the branch", setup: func(f *rrFixture) []string {
-			tree := f.rev(f.mb + "^{tree}")
-			m2 := strings.TrimSpace(f.git("commit-tree", tree, "-p", f.mb, "-m", "m2"))
-			mm := strings.TrimSpace(f.git("commit-tree", tree, "-p", f.mb, "-p", m2, "-m", "main merge"))
-			f.git("update-ref", "refs/remotes/origin/main", mm)
-			recorded(f)
-			f.mainMerge("m3")
-			f.record("check", f.mergeRun(mm))
+			build := func(s *rrFixture, outside bool) {
+				tree := s.rev(s.mb + "^{tree}")
+				m2 := strings.TrimSpace(s.git("commit-tree", tree, "-p", s.mb, "-m", "m2"))
+				mm := strings.TrimSpace(s.git("commit-tree", tree, "-p", s.mb, "-p", m2, "-m", "main merge"))
+				s.git("update-ref", "refs/remotes/origin/main", mm)
+				recorded(s)
+				merge := s.mainMerge("m3")
+				s.record("check", s.mergeRun(merge))
+				x := s.work("x")
+				named := merge
+				if outside {
+					named = mm
+				}
+				s.record("check", s.mergeRun(named), s.seen(merge, x, "coderabbit"))
+			}
+			f.requireProbe("VALID", func(s *rrFixture) { build(s, false) })
+			build(f, true)
 			return launch(f)
-		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.rev("HEAD^1")} }},
+		}, want: rrMissing("refs/remotes/origin/main")},
+		// C merges origin/main's B into the fork point A: its second parent
+		// is origin/main, but its first is behind the merge-base B. Named
+		// with a seen range over x, it would cover x by rule 4, as a merge
+		// whose first parent is a branch commit does.
+		{name: "merge check naming a merge whose first parent is behind the merge-base", setup: func(f *rrFixture) []string {
+			build := func(s *rrFixture, branchFirst bool) {
+				tree := s.rev(s.mb + "^{tree}")
+				b := strings.TrimSpace(s.git("commit-tree", tree, "-p", s.mb, "-m", "B"))
+				s.git("update-ref", "refs/remotes/origin/main", b)
+				first := s.mb
+				if branchFirst {
+					first = s.work("c0")
+				}
+				c := strings.TrimSpace(s.git("commit-tree", tree, "-p", first, "-p", b, "-m", "merge B"))
+				s.git("reset", "-q", "--hard", c)
+				c1 := s.work("c1")
+				s.record("record", s.fableRun(b, c1))
+				x := s.work("x")
+				s.record("check", s.mergeRun(c), s.seen(c1, x, "coderabbit"))
+			}
+			f.requireProbe("VALID", func(s *rrFixture) { build(s, true) })
+			build(f, false)
+			return launch(f)
+		}, want: rrMissing("HEAD~2")},
+		// The seen range of y starts at the merge's second parent, the
+		// merge-base until the second merge moves it; the widened START check
+		// keeps the line, so y stays covered by rule 4.
+		{name: "fix of a merge check kept after a second merge", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			y := f.work("merge fix")
+			f.record("check", f.mergeRun(merge), f.seen(f.rev(merge+"^2"), y, "coderabbit"))
+			f.mainMerge("m3")
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.head()} }},
 		{name: "merge check lines of another form", setup: func(f *rrFixture) []string {
 			recorded(f)
 			merge := f.mainMerge("m2")
@@ -1590,6 +1640,21 @@ func fableCases() []rrCase {
 			f.git("replace", "--graft", merge, r, f.mb)
 			if f.rev(merge+"^2") != f.mb {
 				f.t.Fatal("the replace ref does not change the merge's second parent for plain git, so the case checks nothing")
+			}
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		// A grafts file does the same for plain git as the replace ref.
+		{name: "grafts file making a merge look confirmable", setup: func(f *rrFixture) []string {
+			recorded(f)
+			r := f.head()
+			f.git("switch", "-q", "-c", "side")
+			f.record("empty side")
+			f.git("switch", "-q", "feature")
+			merge := f.merge("side")
+			f.record("check", f.mergeRun(merge))
+			f.write(".git/info/grafts", merge+" "+r+" "+f.mb+"\n")
+			if f.rev(merge+"^2") != f.mb {
+				f.t.Fatal("the grafts file does not change the merge's second parent for plain git, so the case checks nothing")
 			}
 			return launch(f)
 		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
@@ -1682,17 +1747,15 @@ func rrFableMergeConfigBranch(f *rrFixture) []string {
 // that a widened START is a commit origin/main reaches (START must be an
 // ancestor of END, a branch commit, and the range must hold no commit
 // origin/main reaches); that a merge check record's name is a branch commit
-// and that its first parent is a branch commit or the merge-base (only a
-// merge commit after END is judged, and one joining a line outside
-// origin/main always has a parent origin/main does not reach as its second
-// parent); that the name is not the record's own commit (a message cannot
+// (a confirmable merge commit origin/main reaches would have the merge-base
+// as its first parent and be a common ancestor descending from it, which
+// cannot be); that the name is not the record's own commit (a message cannot
 // name its own commit); that the name is a commit and a proper ancestor of
-// the record's commit (a name that is not one is no confirmable branch
-// commit after END, or reaches the branch only through a merge that is
-// unconfirmable); that a rule 4 commit is an ancestor of the merge check's
-// commit (a seen range's END is a proper ancestor of it); and the widened
-// START check on a rule 4 range (a range from behind the merge that holds a
-// descendant of the merge holds main's commits too).
+// the record's commit (rule 4 needs it to be an ancestor of the record's
+// commit, and a merge after END that is not one reaches the branch only
+// through a merge that is unconfirmable); and that a rule 4 commit is an
+// ancestor of the merge check's commit (a seen range's END is a proper
+// ancestor of it).
 //
 // The environment cases and the failures of the shared branch loading repeat
 // TestReviewRecordsCoverage's on purpose: they show the fable mode keeps the
