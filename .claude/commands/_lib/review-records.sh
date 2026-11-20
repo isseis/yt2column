@@ -681,8 +681,10 @@ fable() {
 		while IFS= read -r line; do
 			[[ $line =~ $MERGE_RUN_RE ]] || [[ $line =~ $MERGE_NOT_RUN_RE ]] || continue
 			m=${BASH_REMATCH[1]}
-			# A name that is no object, or no commit, names nothing.
-			[ "$(g cat-file -t "$m" 2>/dev/null)" = commit ] || continue
+			# Only a branch commit can be named. BRANCH lists commits only, so
+			# a name of no object, or of another object, names nothing; testing
+			# it before any lookup keeps a name the repository lacks from making
+			# git fetch it (a partial clone's lazy fetch).
 			in_list "$m" "$BRANCH" || continue
 			[ "$m" != "$holder" ] || continue
 			g merge-base --is-ancestor "$m" "$holder" || continue

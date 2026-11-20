@@ -1750,8 +1750,8 @@ func rrFableMergeConfigBranch(f *rrFixture) []string {
 // (a confirmable merge commit origin/main reaches would have the merge-base
 // as its first parent and be a common ancestor descending from it, which
 // cannot be); that the name is not the record's own commit (a message cannot
-// name its own commit); that the name is a commit and a proper ancestor of
-// the record's commit (rule 4 needs it to be an ancestor of the record's
+// name its own commit); that the name is a proper ancestor of the record's
+// commit (rule 4 needs it to be an ancestor of the record's
 // commit, and a merge after END that is not one reaches the branch only
 // through a merge that is unconfirmable); and that a rule 4 commit is an
 // ancestor of the merge check's commit (a seen range's END is a proper
