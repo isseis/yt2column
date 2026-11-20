@@ -26,9 +26,63 @@ chief がしないことは次のとおりである。
 
 ## 2. 構成要素と信頼の境界
 
-本章は、chief の構成要素と、信頼できない文字列が入ってくる場所を示す。
+本章は、chief の構成要素と、信頼できない文字列が入ってくる場所を示す。図 2-1 の実線の矢印 A → B は、A が B を呼ぶか、B に書くか、B の振る舞いを決めることを表す。点線の矢印 A -.-> B は、A の信頼できない文字列が B に入ることを表す。
 
-{{TODO chapter 2}}
+```mermaid
+flowchart LR
+    classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+
+    DEF[("/chief の定義<br>(.claude/commands/chief.md)")]
+    SETTINGS[(".claude/settings.json<br>(拒否・確認の規則)")]
+    SESSION["chief のセッション<br>(Claude Code)"]
+    TOOL["道具 chief<br>(cmd/chief・internal/chief)"]
+    STATE[("状態のディレクトリ")]
+    MAINDOCS[("origin/main のタスクの文書と送り先の表<br>(レビューを経た入力)")]
+    HERDR["Herdr"]
+    GIT["git"]
+    GH["gh"]
+
+    subgraph Untrusted["信頼できない文字列の出どころ（すべてではない）"]
+        PANES["作業する側のエージェントの pane<br>(画面)"]
+        HERDRTEXT[("Herdr のタブの名前・エラーの文")]
+        TRANSCRIPT[("Claude Code の transcript")]
+        GITHUB[("GitHub<br>(PR の題名・説明・ブランチ・CI の名前、issue の題名)")]
+    end
+
+    DEF -->|"手順"| SESSION
+    SETTINGS -->|"拒否と確認"| SESSION
+    SESSION -->|"chief の呼び出し"| TOOL
+    TOOL -->|"記録とロック"| STATE
+    TOOL -->|"paneinput の型からの入力・作成・削除"| HERDR
+    HERDR -->|"入力"| PANES
+    TOOL -->|"fetch・worktree の作成と削除"| GIT
+    GIT -->|"文書の読み取り"| MAINDOCS
+    TOOL -->|"読み取りだけ"| GH
+
+    PANES -.->|"画面"| HERDR
+    HERDRTEXT -.->|"タブの名前・エラーの文"| HERDR
+    HERDR -.->|"画面・タブの名前・エラーの文"| TOOL
+    TRANSCRIPT -.->|"報告・人の入力"| TOOL
+    GITHUB -.->|"PR と issue の文字列"| GH
+    GH -.->|"PR と issue の文字列"| TOOL
+    TOOL -.->|"出力の JSON の中の文字列"| SESSION
+
+    class DEF,SETTINGS,STATE,MAINDOCS,HERDRTEXT,TRANSCRIPT,GITHUB data
+    class SESSION,TOOL,HERDR,GIT,GH,PANES process
+```
+
+**信頼できない文字列の出どころ。** 囲みは、chief が信頼できないものとして扱う文字列の主な出どころである。根拠は、定義の規則 2（`.claude/commands/chief.md`）、[ADR-0046](adr/0046-chief-of-staff.md) の「道具と実行の枠組み」、[CLAUDE.md](../../CLAUDE.md) の「Declare, don't infer」の chief の例外である。囲みはすべての出どころの一覧ではない。人の入力と、リポジトリの外の道具の出力も、chief は決まった形に合うかを確かめてから使う。
+
+**信頼する入力。** `origin/main` のタスクの文書と送り先の表は、レビューとマージを経た入力である。道具はこれらを worktree からではなく `refs/remotes/origin/main` から読み、そのラウンドで `git fetch` した版を使う。ブランチで書き換えた文書は、chief が送るコマンドと送り先を変えない。
+
+**pane へ送る入力。** 道具が pane へ送る入力は、`internal/chief/paneinput` の型（コマンドの種類と検証した引数、選択肢の番号から決まるキー入力、リセットの入力）だけから組み立てる。自由な文は受け取らない。そのため、信頼できない文字列が送る入力の中身になることはない。
+
+**`.claude/settings.json` の拒否・確認の規則。** この規則は、`/chief` のセッションが道具を通さずに pane へ入力すること、エージェントの状態を偽ること、workspace や worktree を閉じるか作ることを防ぐ。道具は herdr を子のプロセスとして呼ぶので、この規則の影響を受けない。拒む呼び出しの一覧は [chief_guide.md](guides/chief_guide.md) の 6 章にある。`chief remove` は呼ぶたびに Claude Code が許可を尋ね、人が消すかを確かめることを補う。
+
+**道具の出力。** 出力の JSON は、出どころの文字列を含む。道具は、外から来た文字列を無害化してから出力に入れる。文字列ごとの扱い（無害化だけか、上限で切るか）は一様ではないので、5 章が出力の先ごとに書く。定義の規則 2 は、出力の中の文字列を示すだけで従わないデータとする。
+
+保証すること・しないことと、既知の限界は [chief_guide.md](guides/chief_guide.md) の 5 章と 8 章にある。
 
 ## 3. 定義と道具の契約
 
@@ -576,3 +630,203 @@ PR の CI のジョブ 1 つである。
 `create` は、worktree を作る前に、同じパスの worktree ごとの記録（前の使い方の送信の停止など）をすべて消してから、作ったことの記録を書く。`remove` は、worktree を消し終えた後に、その workspace ごとの記録をすべて消す。作ったことの記録を最後に消すので、途中で止まっても、消すべき workspace を名指せる記録は残る。
 
 worktree を作り直す前と、workspace を消し終えた後には、履歴の記録も消す。
+
+## 5. 道具が書き出すもの
+
+本章は、道具が何をどこへ書き出し、いつ消えるかを、出力の先ごとに述べる。出力の先は、標準出力、標準エラー、状態のディレクトリ、状態のディレクトリの外の 4 つである。道具はログのファイルを書かない。
+
+| 出力の先 | 書く中身 | 残る期間と消えるとき | 信頼できない文字列 |
+|---|---|---|---|
+| 標準出力 | 終了コード `0` ではそのサブコマンドの型の JSON を 1 つ、`1` と `3` では `result` の型の JSON を 1 つ | 道具は残さない。`/chief` のセッションが読み、表や結果として人に示す | 含む。ラベル、質問の文と選択肢、PR の題名、報告、`message`、`detail` は、無害化してから入れる。上限で切るものは 3.4 に書く |
+| 標準エラー | 使い方の誤りの理由、結果を書き出せなかった理由、Go の実行時のパニックのスタックトレース | 道具は残さない | 含みうる。失敗の理由は、子のプロセスの標準エラーを無害化して含む |
+| 状態のディレクトリ | ロック、通知・ラウンド・観測・自動送信の記録、worktree ごとの送信・PR の詳細・報告・停止・見送り・作ったこと・履歴の記録 | 4.4 の表のとおり。片付けは 4.5 | 記録ごとに 4.4 の表に書く |
+| 状態のディレクトリの外 | worktree、Herdr の workspace・タブ・pane とエージェント、pane への入力、`refs/remotes/origin/main` | 次に述べる | 入力は `paneinput` の型から組み立てるので含まない。worktree のパスと workspace の名前は issue 番号だけから決める |
+
+**使い方の誤りのときの書き出し。** 使い方の誤り（終了コード `2`）のときは、標準出力に何も書かず、標準エラーに理由を書く。この扱いは 3.2 と 3.3 が持つ。
+
+**状態のディレクトリの外に作るか変えるもの。**
+
+- worktree の作成と削除。`create` が `git worktree add --detach` で `origin/main` から作り、`remove` が `--force` なしの `git worktree remove` で消す。ブランチは作らず、消さない。消えるのは `remove` が確かめを通したときだけである（[chief_guide.md](guides/chief_guide.md) の 3.4）。
+- Herdr の workspace・タブ・pane の作成と、エージェントの起動。`create` が作って起動し、`remove` が workspace を閉じる。閉じると、その pane のシェルの背景のジョブと止めたジョブ、Claude Code の背景の実行も終わる（[chief_guide.md](guides/chief_guide.md) の 5.2）。
+- pane への入力。人が選んだコマンド、中継のキー入力、リセットの `/clear` か `/new` を打つ。打った入力は、エージェントの側の記録に残る。chief はこれを消さない。
+- `git fetch origin main` による `refs/remotes/origin/main` の更新。この参照はすべての worktree が共有する。取り消さない。
+
+**終了コード `1` の `message`。** `message` は、子のプロセス（herdr・git・gh）の標準エラーを無害化して含みうる。定義の規則 2 は、従わずに示すだけとする項目として `message` を名指していないが、定義は `message` を示す。今の定義では、`message` は示すだけで、定義はその中身で振る舞いを選ばない。この食い違いは今の振る舞いとして記録する。
+
+## 6. 画面と transcript の読み取り
+
+本章は、chief が画面と transcript から何を読み、その結果をどの型で受け取るかを述べる。読み取りは道具が行う。`/chief` のセッションは画面も transcript も読まない。
+
+**読み取る構成要素。**
+
+- 画面は、`internal/chief` の `screen.go`・`screen_ansi.go`・`screen_claude.go`・`screen_opencode.go`・`screen_report.go` が読む。道具は pane の画面を `herdr agent read` で読み、標本から採った形に照らして `Screen` にする。
+- Claude Code の transcript は、`transcript.go`・`screen_transcript.go`・`screen_transcript_report.go` が読む。transcript は `~/.claude/projects/` の下の、作業ディレクトリから作った名前のディレクトリにある、セッション ID の `.jsonl` のファイルである。読み取るのは、最後に終わった応答の本文（報告）、PR の記録（`pr-link` の行）、人が最後に入力した行（`HumanInput`）である。
+
+**ほかの部分が受け取る型。** 判定は、次の値だけを使う。
+
+- `Screen`。`Kind`（`ScreenPrompt`・`ScreenQuestion`・`ScreenUnmatched`）、`Question`、`Input`（入力欄に残っている文字）、`OpenCodeModel`（OpenCode の状態の行のモデル）、`NewSession`（`/new` の後の、会話のない画面）を持つ。
+- `Question`。`Kind`（`QuestionSingle`・`QuestionMulti`・`QuestionTabs`・`QuestionPermission`）、`Relay`（中継できるか）、`Merge`（`/runpr` のマージの確認か）、`Text`、`Options`、`Tabs`、`Cursor`（選択の位置。中継の照合値にだけ入る）を持つ。
+- `HumanInput`。人が最後に入力した行が、読めるタスクのコマンドか、そのほかの入力か。
+- 報告の本文と、PR の記録が名指す PR の番号。
+
+画面の生の文字列を、判定の条件には使わない。例外は 2 つある。中継の照合値は、人に示した質問と選択肢から作り、送る直前に読み直した画面から作った値と比べる。OpenCode の pane では、モデルを状態の行の `OpenCodeModel` と送り先の表の値の全体で比べる。
+
+**読めない画面と行の扱い。**
+
+- 形に合わない画面は `ScreenUnmatched` にし、その pane には送らず、その workspace を「要確認」にする。推し量って別の形として読むことはしない。
+- 中継しない質問は、中身を示すだけで、人がその pane で答える。中継するのは、1 つを選ぶ問いの選択肢だけである。
+- transcript を読めないときは、画面に戻らず、その pane に報告がないものとして扱う。自動送信の前の NEXT の照合はその pane を照合せずに通り、PR の詳細は PR の説明から要約し、`/runpr` の後の pane のリセットはしない（[chief_guide.md](guides/chief_guide.md) の 8 章）。
+- 最後の行が書きかけの transcript は、200 ms の間隔で 3 回まで読み直す。それでも終わらなければ、何も示さない（`partial_line`）。
+
+**標本の置き場所。** 画面の標本は `internal/chief/testdata/screens/`、transcript の標本は `internal/chief/testdata/transcript/` にある。標本の採り方は 9 章にある。
+
+**読み取りの範囲。** 画面と transcript の文字列から判断してよい範囲と、その例外の規則は、[CLAUDE.md](../../CLAUDE.md) の「Declare, don't infer」の chief の例外が持つ。本章はこれを繰り返さない。
+
+## 7. 判定と副作用の条件
+
+本章は、chief の判定を領域ごとに要約し、どれが 8 章のいう副作用の条件にあたるかを示す。手順の細部は書かない。表の「副作用の条件」が「あたる」の判定は、pane へ送る、自動で送る、workspace と worktree を作る、消すのどれかにあたる。
+
+| 判定 | 読むもの | 副作用の条件 | 人に見える振る舞い | 細部と理由 |
+|---|---|---|---|---|
+| 状況の表の組み方（行の状態、急ぎの度合い、並び、行の中身、幅と折り返し） | Herdr の workspace・タブ・pane・エージェント、git と `origin/main` のタスクの文書、GitHub の PR、transcript、状態のディレクトリの記録 | あたらない | [chief_guide.md](guides/chief_guide.md) の 3.1 | [0093 設計書](../tasks/0093_chief_status_sheet/02_architecture.md) の 3 章、[0102 設計書](../tasks/0102_chief_text_table/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「状況の表」 |
+| 状態の変化の待ち受け（`wait`） | Herdr のエージェントの状態と、前のラウンドの基準 | あたらない | [chief_guide.md](guides/chief_guide.md) の 3 章 | [0088 設計書](../tasks/0088_chief_of_staff/02_architecture.md) の 3 章 |
+| タスクと作業項目の特定 | `origin/main` のタスクの文書、ブランチ、履歴の記録 | あたらない | [chief_guide.md](guides/chief_guide.md) の 3.1 | [0105 設計書](../tasks/0105_chief_post_merge_next_command/02_architecture.md) の 3 章、[0113 設計書](../tasks/0113_plan_step_reading/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「ブランチ `main` をチェックアウトした worktree のタスク」 |
+| 次のコマンドの提案 | `origin/main` の計画書のステップ、送り先の表 | あたらない（人が選べば、送信の条件に当たる） | [chief_guide.md](guides/chief_guide.md) の 3.1 と 3.2 | [0105 設計書](../tasks/0105_chief_post_merge_next_command/02_architecture.md) の 3 章、[0113 設計書](../tasks/0113_plan_step_reading/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「マージの後の自動送信」 |
+| マージの後の自動送信 | GitHub の PR の状態、git の状態、ラウンドと観測の記録、送り先の表、transcript | あたる（自動で送る） | [chief_guide.md](guides/chief_guide.md) の 3.1 と 5.1 | [0105 設計書](../tasks/0105_chief_post_merge_next_command/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「マージの後の自動送信」 |
+| 人が選んだコマンドの送信 | 人が選んだ項目、作り直した行、pane とエージェント、画面、transcript、送り先の表 | あたる（pane へ送る） | [chief_guide.md](guides/chief_guide.md) の 3.2 と 5.1 | [0088 設計書](../tasks/0088_chief_of_staff/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「送る入力と送り先」 |
+| 質問の抽出と中継 | 画面、照合値、transcript | あたる（中継は pane へ送る） | [chief_guide.md](guides/chief_guide.md) の 3.2 と 5.1 | [0088 設計書](../tasks/0088_chief_of_staff/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「人の判断の中継」 |
+| リセットの送信と、見送ったリセットの提示 | 画面、transcript、報告の控え、見送りの記録 | あたる（pane へ送る） | [chief_guide.md](guides/chief_guide.md) の 3.2 と 8 章 | [0097 設計書](../tasks/0097_chief_reset_offer/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「pane の選び方とリセット」 |
+| 送信の停止と解除 | 送信の記録、停止の記録 | あたる（送ることを止める、または解く） | [chief_guide.md](guides/chief_guide.md) の 3.2 と 5.1 | [0088 設計書](../tasks/0088_chief_of_staff/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「記録」 |
+| workspace の作成 | issue の番号と状態、`origin/main` の取得、作る場所のパス | あたる（worktree と workspace を作り、起動し、`/mkreq` を送る） | [chief_guide.md](guides/chief_guide.md) の 3.3 と 5.1 | [0092 設計書](../tasks/0092_chief_task_workspace/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「workspace の作成と削除」 |
+| workspace の削除 | 作ったことの記録、`origin/main` の文書、git と Herdr の状態、pane の前面のプロセス | あたる（workspace を閉じ、worktree を消す） | [chief_guide.md](guides/chief_guide.md) の 3.4 と 5.1 | [0092 設計書](../tasks/0092_chief_task_workspace/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「workspace の作成と削除」 |
+| 通知 | 通知の記録、人の判断を待つ項目 | あたらない | [chief_guide.md](guides/chief_guide.md) の 3.1 | [0093 設計書](../tasks/0093_chief_status_sheet/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「記録」 |
+
+**副作用の条件にあたるもの。** 表で「あたる」とした判定のほかに、`paneinput` の検証（送る入力を決める）と、送るかを決める読み取り（中継の直前の照合、NEXT の照合、人の後の入力の確かめ）も、副作用の条件にあたる。`Sanitize` と `CapHead` は、人とセッションに示す文字列だけを変え、送る条件を変えない。
+
+## 8. プロトコル番号
+
+本章は、chief のプロトコル番号を上げる基準、上げる手順、入れ直す順を述べる。番号の値そのものは本書に書かない。値は [chief_guide.md](guides/chief_guide.md) の 2 章だけが持つ。番号の決め方とマージの時点の確かめは [CLAUDE.md](../../CLAUDE.md) の「Protocol numbers」と [mergepr_guide.md](guides/mergepr_guide.md) が持つ。
+
+### 8.1. 約束
+
+約束とは、道具と `/chief` の定義の間の取り決めである。約束に含めるのは次のものである。
+
+- サブコマンド。
+- フラグ。受け付ける値の集合を含む。
+- 出力の JSON の形。
+- 定義が読む出力の項目の意味。分岐に使う項目も、人に示すだけの項目も含む。
+- 定義が分岐に使う出力の値。
+- 終了コードの意味。
+
+約束に含めないのは、状態のディレクトリの記録の形式と、標準エラーの文言である。記録を約束に含めないのは、記録を読み書きするのが道具だけで、`/chief` の定義が読まないためである。古い版に戻すときの記録の扱いは、[chief_guide.md](guides/chief_guide.md) の 2 章にある。
+
+「定義が読む項目」と「分岐に使う値」は、3.4 の表の「定義の使い方」の列で分かる。列は判断の助けで、判断の拠り所は今の定義である。番号を判断する PR は、変える項目について定義を読んで確かめる。
+
+### 8.2. 上げる基準
+
+約束を変える PR は、番号を上げる。定義が分岐に使う項目に新しい値を足すことも、約束の変更にあたる。定義が人に示すだけの項目でも、その意味を変える PR は上げる。
+
+### 8.3. 上げなくてよい 3 つの条件
+
+約束を変える追加でも、次の 3 つがすべて成り立つときだけ、番号を上げなくてよい。
+
+1. 古い道具が、新しい定義が新しく足した呼び出し（足したサブコマンドやフラグを使う呼び出し）を使い方の誤り（終了コード `2`）として拒む。
+2. 新しい道具が、古い定義の呼び出しを受け付け、同じ形の出力を返す。
+3. 古い定義がする呼び出しについて、出力の形、定義が読む項目の意味、定義が分岐に使う値、終了コードの意味が変わらない。新しいサブコマンドの出力の形は、この条件を妨げない。
+
+条件 (3) が見るのは、古い定義がする呼び出しの出力だけである。古い呼び出しの実際の出力で判断する。古い呼び出しが決して書かない項目（`omitempty` の項目など）を足しても、出力は変わらない。条件 (1) の「新しく足した呼び出し」には、既存のフラグに足した値を使う呼び出しを含める。新しいサブコマンドが既存の型に項目を足し、古い呼び出しの出力にもその項目が現れるなら、条件 (3) は成り立たない。
+
+### 8.4. 判定の変更
+
+約束を変えずに道具の判定を変える PR は、副作用の条件を変えるときだけ番号を上げる。副作用の条件とは、pane へ入力を送る、自動で送る、workspace と worktree を作る、消す条件である。7 章の表で「副作用の条件」が「あたる」の判定と、`paneinput` の検証と、送るかを決める読み取りが、これにあたる。状況の表の分類や文書の読み方など、それ以外の判定だけを変える PR は上げない。
+
+無害化と読む量の上限の修正は上げない。これらはマージの後の入れ直しだけに頼る（[chief_guide.md](guides/chief_guide.md) の 2 章）。
+
+### 8.5. 当てはめの例
+
+| 変更 | 上げるか | 根拠 |
+|---|---|---|
+| 出力の JSON に項目を足す | 上げる | 出力の JSON の形は約束で、条件 (3) が成り立たない |
+| 既存のフラグに値の集合を足す | 上げる（古い道具が新しい値を使い方の誤りとして拒み、ほかの 2 つの条件も成り立てば上げない） | フラグの受け付ける値は約束で、条件 (1) |
+| 新しいサブコマンドを足し、古い道具がその呼び出しを使い方の誤りとして拒む | 上げない | 3 つの条件がすべて成り立つ |
+| 自動で送る条件を変える | 上げる | 副作用の条件 |
+| 状況の表の分類だけを変える | 上げない | 副作用の条件でない判定だけの変更 |
+| 定義が人に示すだけの出力の項目の意味を変える | 上げる | 項目の意味は約束 |
+| 送るかを変える画面か transcript の読み取りの変更 | 上げる | 副作用の条件 |
+| 新しいサブコマンドが既存の型に項目を足し、古い呼び出しの出力にも現れる | 上げる | 条件 (3) が成り立たない |
+| 無害化の修正 | 上げない | 上げない修正。マージの後の入れ直しだけに頼る |
+| 定義だけを変え、読まなかった項目を読み始める、または示すだけだった項目で分岐し始める | 上げる | 定義が項目の使い方を広げる変更 |
+| 定義だけを変え、項目の使い方を狭める、または文を直すだけにする | 上げない | 定義が項目の使い方を広げない変更 |
+
+### 8.6. 判定の流れ
+
+図 8-1 は、8.1 から 8.5 までの判断の順を示す。図は規則の文を繰り返すものである。文と図が食い違うときは、文を正とする。
+
+```mermaid
+flowchart TD
+    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
+    classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
+
+    Start(["chief を変える PR"]) --> Contract{"約束を変えるか"}
+    Contract -->|"変える"| Conditions{"3 つの条件が<br>すべて成り立つか"}
+    Conditions -->|"成り立たない"| Raise["番号を上げる"]
+    Conditions -->|"成り立つ"| Reinstall
+    Contract -->|"変えない"| Side{"副作用の条件を<br>変えるか"}
+    Side -->|"変える"| Raise
+    Side -->|"変えない"| Definition{"定義だけを変え、<br>項目の使い方を広げるか"}
+    Definition -->|"広げる"| Raise
+    Definition -->|"広げない"| Reinstall["入れ直しだけに頼る"]
+    Raise --> Places["Protocol・定義の --protocol・<br>chief_guide の値の表を直す"]
+    Places --> Reinstall
+
+    class Raise,Places enhanced
+    class Contract,Conditions,Side,Definition,Reinstall process
+```
+
+### 8.7. 上げる PR が変える場所
+
+番号を上げる PR が変えるのは、次の 3 か所である。
+
+- 道具の `Protocol` の定数（`internal/chief/records.go`）。
+- `/chief` の定義の `--protocol`。
+- [chief_guide.md](guides/chief_guide.md) の 2 章の値の表。
+
+本書は番号の値を持たないので、変える場所に入らない。
+
+番号の値の決め方とマージの時点の確かめは、[CLAUDE.md](../../CLAUDE.md) の「Protocol numbers」と [mergepr_guide.md](guides/mergepr_guide.md) に任せる。入れ直す順は [chief_guide.md](guides/chief_guide.md) の 2 章に任せる。
+
+番号を上げる PR が引数の形も変える（サブコマンドかフラグを消すか名前を変える、フラグを必須にする）と、新しい道具は古い定義の呼び出しを、番号の照合より前に使い方の誤りとして拒む（3.3）。
+
+### 8.8. 組み合わせの誤りに当たったとき
+
+道具と定義が違うコミットのものだと、渡した番号が道具の番号と違えば `protocol_mismatch` になり、引数の確かめが呼び出しを拒めば終了コード `2` になる。道具と定義のコミットが違うことは、誤りの条件ではなく、見分ける手がかりである。
+
+**確かめの順。** 道具は、サブコマンドとフラグの形、`--protocol` の照合、リクエストの値の形、Herdr の中か、状態のディレクトリの土台、ロックの持ち主の順に確かめる（3.3）。そのため、番号を上げない追加で古い道具が新しい呼び出しを受けると、何も読まず、何も送らずに、終了コード `2` で止まる。
+
+**人が見るもの。** 定義は、終了コード `2` で止まって、呼び出しと標準エラーを人に報告する。その報告から、人が次を見分ける。
+
+- 入れてある道具が作られたコミット（`go version -m` の `vcs.revision`）と、chief の worktree のコミットが違う。
+- 標準エラーが、定義の呼び出しにあるサブコマンド、フラグ、またはフラグの値を道具が知らないと述べている。
+- 標準エラーに Go の実行時のパニックのスタックトレースがある。パニックも終了コード `2` になる。
+
+**戻し方。** chief の worktree を `main` に更新してから、`main` から道具を入れ直し、`/chief` を起動し直す。順は [chief_guide.md](guides/chief_guide.md) の 2 章にある。
+
+## 9. テストのしかた
+
+本章は、chief のテストのしかたを要約する。手順の細部は [internal/chief/testdata/README.md](../../internal/chief/testdata/README.md) にある。
+
+**標本の足し方と採り直し方。**
+
+- 足すときと採り直すとき: エージェント（Claude Code・OpenCode・Herdr）の版が上がって画面や transcript の形が変わったとき。画面の形が変わると、その workspace は「要確認」になり、何も送らない。
+- 採る人: 人が使い捨ての workspace の pane で入力して状態を作り、エージェントは `herdr agent read` で画面を読むだけにする。`.claude/settings.json` が pane への入力を拒むためである。
+- 置く場所: 画面は `internal/chief/testdata/screens/`、transcript は `internal/chief/testdata/transcript/`。
+- 記録すること: 採った日と、Herdr・Claude Code・OpenCode・gh の版を `internal/chief/testdata/README.md` に書く。
+
+**ガードテストが照らすもの。** `cmd/chief/docs_test.go` の 2 つのテストが、本書と chief_guide の値を道具と照らす。
+
+- `TestArchitectureValuesMatchTool`: 本書の 3.1 のサブコマンドの表、3.2 の終了コードの表、4.1 の状態のディレクトリの名前。
+- `TestGuideProtocolMatchesTool`: chief_guide の 2 章のプロトコル番号。
+
+どちらも、値を見出しの節の中で探す。ほかの表や節にある同じ名前は読まない。出力の JSON の項目とフラグを照らすテストは置かない。それらの値は、本書を直す PR のレビューで読んで確かめる。
+
+**`make test` に要るもの。** chief のテストは、[CLAUDE.md](../../CLAUDE.md) の「Development Notes」に挙げた `jq` と bash 4 以上を要る。要るものそのものは、そこが持つ。
