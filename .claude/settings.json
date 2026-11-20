@@ -43,7 +43,9 @@
       "Bash(herdr worktree open*)",
       "Bash(git worktree add*)",
       "Bash(git worktree remove*)",
-      "Bash(git worktree move*)"
+      "Bash(git worktree move*)",
+      "Bash(make install-*)",
+      "Bash(go install *)"
     ]
   }
 }

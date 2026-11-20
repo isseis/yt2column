@@ -15,19 +15,21 @@ chief は、Herdr の workspace で並行して進むタスクを見渡し、人
 
 ## 2. インストール
 
+`chief` は `main` から入れ、道具を変えたマージの後と、プロトコル番号を上げる PR の前に入れ直す。
+
 ```bash
 make install-chief
 ```
 
-`go install ./cmd/chief` を実行する。道具は `main` から入れ、道具を変えた PR がマージされたら、`main` を更新してから入れ直す（ADR-0014 の「道具は `main` からインストールして使う」）。インストール済みのバイナリが作られたコミットは、`go version -m "$(command -v chief)"` の `vcs.revision` で確かめられる。
+`go install ./cmd/chief` を実行する。道具は `main` から入れ、道具を変えた PR がマージされたら、`main` を更新してから入れ直す（[dev_tools.md](../conventions/dev_tools.md) の「Rule 5: Install tools from main; agents never install or build them」）。インストール済みのバイナリが作られたコミットは、`go version -m "$(command -v chief)"` の `vcs.revision` で確かめられる。
 
-`/chief` の定義と道具は `--protocol` の番号で版を照合する。今の番号は次の表のとおりである。
+**プロトコル番号.** `/chief` の定義と道具は `--protocol` の番号で版を照合する。今の番号は次の表のとおりである。
 
 | 項目 | 値 |
 |---|---|
 | プロトコル番号 | `6` |
 
-番号が合わないと、道具は何もせずに `protocol_mismatch` で拒む。番号を上げる PR では、その PR の `/runpr` の前に、その PR のブランチで入れ直す。
+番号が合わないと、道具は何もせずに `protocol_mismatch` で拒む。番号を上げる PR では、その PR の `/runpr` の前に、利用者がその PR のブランチで入れ直す。
 
 **入れ直す順。** 動いている `/chief` を止めてから `make install-chief` を実行し、`/chief` を起動し直す。番号を上げた道具を `/chief` を止めずに入れると、動いている `/chief` は古い定義の番号のまま次のラウンドを走らせ、新しい道具に `protocol_mismatch` で拒まれる。定義はこのとき `make install-chief` での入れ直しを促して止まるが、道具はすでに新しいので、入れ直しても直らない。手当ては、`/chief` を起動し直して新しい定義を読ませることである。
 

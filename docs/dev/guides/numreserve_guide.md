@@ -4,13 +4,15 @@ numreserve は、タスク番号と ADR 番号を、別のクローンや cloud 
 
 ## 1. インストールと呼び出し
 
+`numreserve` は `main` から入れ、番号を決めるときだけ呼ぶ。
+
 ```bash
 make install-numreserve
 ```
 
-`go install ./cmd/numreserve` を実行する。道具は `main` から入れ、道具を変えた PR がマージされたら、`main` を更新してから入れ直す（[ADR-0014](../adr/0014-deterministic-checks-in-go.md) の「道具は `main` からインストールして使う」）。エージェントは道具を入れたりビルドしたりしない。道具が見つからないと、`/mkreq` と ADR の手順は番号を決めずに止まる。
+`go install ./cmd/numreserve` を実行する。道具は `main` から入れ、道具を変えた PR がマージされたら、`main` を更新してから入れ直す（[dev_tools.md](../conventions/dev_tools.md) の「Rule 5: Install tools from main; agents never install or build them」）。エージェントは道具を入れたりビルドしたりしない。開発のための例外は、同じ規約の Rule 5 にある。道具が見つからないと、`/mkreq` と ADR の手順は番号を決めずに止まる。
 
-呼び出しの形は次の 2 つだけである。引数は番号の空間を選ぶ 1 語で、ほかの引数とフラグは受け付けない（終了コード 2）。リポジトリの作業ツリーのどこかで実行する。ADR 番号は、ADR を加える PR のブランチの作業ツリーで実行する。
+**呼び出しの形.** 呼び出しの形は次の 2 つだけである。引数は番号の空間を選ぶ 1 語で、ほかの引数とフラグは受け付けない（終了コード 2）。リポジトリの作業ツリーのどこかで実行する。ADR 番号は、ADR を加える PR のブランチの作業ツリーで実行する。
 
 | 番号の空間 | 呼び出し | 記録の tag | ruleset の対象 |
 |---|---|---|---|
@@ -20,9 +22,9 @@ make install-numreserve
 -   **番号を決めたとき:** 標準出力に 4 桁の番号を 1 行だけ出し、終了コード 0 で終わる。標準エラーには、作った記録の tag の名前と、それが指す `origin/main` の commit を 1 行出す。
 -   **止まったとき:** 標準出力に何も出さず、標準エラーに `numreserve: stop <理由の語>: <段>: <詳細>` の 1 行を出し、終了コード 1 で終わる。理由の語ごとの意味と次にすることは 2 章の表にある。詳細には、止まった段、HTTP の状態コードやコマンドの終了コード、原因のブランチ名やファイルのパスを出す。ブランチ名とファイルのパスは Go の引用の形で、200 バイトまでに切って出す。GitHub の応答の本文、`gh` と `git` の標準エラー、`origin` の URL、認証の情報は出さない。
 
-`.claude/settings.json` は `Bash(numreserve task)` と `Bash(numreserve adr)` の 2 つだけを許すので、この 2 つの形なら許可を尋ねない。呼ぶたびに消せない記録の tag を作るので、エージェントは手順が新しい番号を求めるときだけ呼び、試しや確かめのためには呼ばない（[CLAUDE.md](../../../CLAUDE.md) の「Tool Execution Safety」）。番号を決めた後に作業が止まると、その番号は欠番として残る。欠番は誤りではない。
+**許可の規則.** `.claude/settings.json` は `Bash(numreserve task)` と `Bash(numreserve adr)` の 2 つだけを許すので、この 2 つの形なら許可を尋ねない。呼ぶたびに消せない記録の tag を作るので、エージェントは手順が新しい番号を求めるときだけ呼び、試しや確かめのためには呼ばない（[CLAUDE.md](../../../CLAUDE.md) の「Tool Execution Safety」）。番号を決めた後に作業が止まると、その番号は欠番として残る。欠番は誤りではない。
 
-道具は、`origin` が GitHub の `isseis/yt2column` であることを前提にする。リポジトリの名前は道具の定数で、`origin` の URL は読まない。`origin` が別のリポジトリや古いクローンを指すと、使用中の番号を見落としうる。
+**前提.** 道具は、`origin` が GitHub の `isseis/yt2column` であることを前提にする。リポジトリの名前は道具の定数で、`origin` の URL は読まない。`origin` が別のリポジトリや古いクローンを指すと、使用中の番号を見落としうる。
 
 ## 2. 止める理由と次にすること
 

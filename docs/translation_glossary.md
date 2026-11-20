@@ -132,6 +132,9 @@
 | 指示ファイル | instruction file | Claude Code や自動レビュアーが、置かれたディレクトリへの指示として自動で読むファイル（`CLAUDE.md`・`AGENTS.md` など） |
 | Go のビルドの入力 | Go build input | Go がパッケージのビルドで、`.go` のファイルのほかに扱うファイル（`.c`・`.s`・`.syso` など） |
 | ガードツール | guard tool | `/fixpr` と `/runpr` が判定と書き込みを任せる開発用ツール `fixprguard` |
+| 開発の道具 | developer tool | `cmd/<名前>` と `internal/<名前>` の組で作る、開発の手順のための Go の道具。製品のバイナリには入らない（`docs/dev/conventions/dev_tools.md`） |
+| 入れる道具 | installed tool | 開発の道具のうち、利用者が `make install-<名前>` で `main` から入れるもの |
+| そのつどビルドする道具 | per-run tool | 開発の道具のうち、make のターゲットが走らせるたびに一時ディレクトリにビルドするもの |
 | 区切りのブロック | fenced block | 信頼できないテキストを、実行ごとの乱数（nonce）を含む `BEGIN-UNTRUSTED-<nonce>` と `END-UNTRUSTED-<nonce>` の行で囲んだもの |
 | 指紋 | fingerprint | スレッドの ID と、コメントの ID・著者・時刻、コメントの数、続きのページの有無から作る識別子。コメントの追加・編集・削除で変わる |
 | 基準値 | baseline | `fixprguard begin` が出力する git の状態の識別子の組。セッションが会話に持ち、後のサブコマンドに渡す |
