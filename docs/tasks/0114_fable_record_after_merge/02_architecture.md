@@ -33,7 +33,7 @@
 
 ### 1.2. 設計の際に決めたこと（2026-11-19）
 
-人に問うて決めた項目（決定 1〜3、決定 11、決定 12）と、要件と申し送りから設計が決めた項目（決定 4〜10）を挙げる。
+人に問うて決めた項目（決定 1〜3、決定 11〜13）と、要件と申し送りから設計が決めた項目（決定 4〜10）を挙げる。
 
 -   **決定 1. merge の後の確認は、チェックポイントの入口でも走らせる。** 判定が `MERGE` を返したとき、チェックポイントの入口（`/runplan` の step 5a と step 8、タスク文書の PR の Part B step 1.5）でも merge の後の確認を走らせる。push の直前の入口は、その後にできた merge commit を扱う。`/runplan` では、チェックポイントの入口（`runplan.md:98`）が、green gate（`:99`）と「Before the PR」の B2（Opus のレビューの判断、`:296-298`）より前に走る。そのため、確認の直しが Opus のレビューの範囲に入り、Opus のレビューは 1 回で済む。push の直前だけで走らせると、確認が直したときに AC-09 で Opus のレビューの判断をやり直し、PR の全体に Opus のレビューがもう 1 回走りうる。人の答え：チェックポイントでも（推奨）。
     -   採らなかった案：push の直前だけで走らせる（要件の字面どおり）。上のとおり、Opus のレビューが 2 回走りうる。
@@ -79,6 +79,11 @@
 -   **決定 12. merge の後の確認は、確認できる merge commit だけに行う。範囲を求める git が失敗したときも、確認せずに Fable に回す。** 判定のスクリプトは、確認できる merge commit（用語を参照）だけを `MERGE` に挙げ、確認の記録の名指しとしても数える。確認できない merge commit は、merge commit でない、記録を無効にする commit と同じに扱い、`MISSING <merge-base>` にする（Fable が PR の全体を見る）。範囲を求める git（`git show --remerge-diff`、`git diff`）が失敗したとき（終了コードが 0 でないか、標準エラーに何か書いたとき）は、その merge commit の確認を走らせず、確認の記録も書かずに、merge-base から HEAD までについて単独の経路を走らせる（3.3.5）。確認できない merge commit では、確認しても手で入れた変更が範囲に入らず、誰も見ないまま確認済みに数えられるためである。範囲を求める git の失敗で止まらないのは、止まった後の再開の手段がないためである。要件の AC-13・AC-24 と用語「未確認の merge commit」を変える決定の変更なので、要件書を `draft` に戻し、要件書の「要件定義の際に決めたこと」に記録した（2026-11-20）。人の答え：どちらも Fable へ（推奨）。
     -   採らなかった案：(A) 確認できない merge commit は Fable に回し、範囲を求める git の失敗では止まる（本書の前の版）。止まった後の再開の手段がない。(B) 要件のとおり、どの merge commit も確認に回し、git の失敗は `not run` と記録して進む。手で入れた変更を誰も見ないまま、merge commit が確認済みに数えられる。
     -   ADR：ADR-0050 を更新する（決定の節「5. Fable が見た後に足された commit は、判定のスクリプトが分け、push の直前に確かめ直す」の、merge commit の扱い）。判定の関門が確認済みに数える merge commit の範囲を決めるので、主要な決定に当たる。
+
+-   **決定 13. merge の後の確認の指摘の場所は、Fable の規則に加えて、範囲の一覧のパスも有効とする。** Fable の「Checking the output」の step 3 は、merge-base から HEAD までに変わったファイルにない場所の指摘を INVALID にする（`fable-review.md:347-352`）。merge の後は merge-base が新しい `origin/main` になるので、衝突を `main` 側の内容に寄せて解いたファイルや、解く際に消したファイルは、PR の差分から消える。それらは `resolution` の箇所（3.3.5）で、PR の意図が失われうる、確認したい箇所そのものである。Fable の規則のままでは、そこへの指摘が INVALID になり、セッションが言い直す道もない。そこで、merge-base から HEAD までに変わったファイル（Fable の規則）か、範囲の一覧（3.3.5）にあるパスなら、有効な場所とする。上の 2 種類のファイルは、`git show --remerge-diff` に現れるので、範囲の一覧に入る（計画の Fable の部分レビューの実験、git 2.50.1）。範囲の一覧はセッションが確認の前に作るので、新しい git の命令は要らない。2026-11-20 の計画のレビューで分かり、人が選んだ。人の答え：規則を変える（推奨）、続けて、狭めて要件も draft に戻す（推奨）。
+    -   採らなかった案：(A′) 範囲の一覧のパスか、M が第 1 親か第 2 親に対して変えたパスなら有効とする（この決定の最初の版）。第 1 親に対する差分は、`main` 側だけが変えて衝突なく merge されたファイル、つまり PR が触れていないファイルを加える。そのため、ほかのタスクの ADR やコマンドの定義への指摘がトリアージに入り、この PR がそのファイルを変えうる。また、Fable の規則を置き換えるので、merge の後の CHECKS の直しで変わったファイルへの `exclusion-error` が INVALID になる。(B) Fable の規則のまま受け入れ、INVALID として記録する。確認したい箇所の指摘が、トリアージに入らない。(C) 計画では決めず、実装の PR で人と決める。設計と計画が食い違ったまま進む。
+    -   要件：要件書 4.2 の「受け入れる形は Fable と揃える」を変えるので、要件書も draft に戻した。
+    -   ADR：なし。merge の後の確認の中の、出力の確かめの細部で、本タスクの中で閉じる。
 
 ### 1.3. なぜ今の仕組みでは足りないか
 
@@ -419,7 +424,7 @@ merge の後の確認は、merge commit M 1 つについて、単独の経路（
     -   **外した箇所:** `main` から入った文書の一覧。一覧の箇所の外で、それらを参照する箇所を見つけたら、`exclusion-error` として指摘させる。
     -   **制約:** Fable の指示の Constraints と同じ（AC-29）。
     -   **出力の形:** 1 行目は `Model: <model-id>`。2 行目からは、Fable と同じ 4 行の塊で、`Criterion` は `resolution`・`main-reference`・`exclusion-error` のどれかである。指摘がなければ `No findings.` だけを書く。
--   **出力の確かめ:** Fable の「Checking the output」（`fable-review.md:330-357`）の 1〜3 を、モデルの確かめの正規表現と `Criterion` の値を替えて当てはめる。出力は信頼しない入力で、出力の文はコミットメッセージにも PR の説明にも写さない（要件 4.2、AC-31）。
+-   **出力の確かめ:** Fable の「Checking the output」（`fable-review.md:330-357`）の 1〜3 を、モデルの確かめの正規表現、`Criterion` の値、指摘の場所の規則を替えて当てはめる。指摘の場所は、merge-base から HEAD までに変わったファイル（Fable の規則）か、範囲の一覧にあるパスにあれば有効とする（決定 13）。出力は信頼しない入力で、出力の文はコミットメッセージにも PR の説明にも写さない（要件 4.2、AC-31）。
 -   **記録の commit:** 単独の経路の step 4（`fable-review.md:224-229`）と同じく、空の commit に、直しのローカルの CLI レビューが返した範囲の行と、merge の後の確認の行を書く。その前に、メンションの確かめと、出口の後の状態の比較を行う。
 
 #### 3.3.6. 記録の行（AC-27、AC-28、AC-31）
@@ -436,7 +441,7 @@ merge の後の確認は、merge commit M 1 つについて、単独の経路（
 -   **`<reason>`（not run）:** `unavailable`（エラーか利用上限が 2 回）・`timeout`・`not-opus`・`unreadable`・`agent-cannot-call`。どれも AC-28 が挙げる、確認するモデルの側の理由である。Fable の `no-target` はない。当たる箇所がないときも確認を走らせるためである（AC-26）。範囲を求められないときは記録を書かない（決定 12）。
 -   **Fable の行との違い:** `Merge check scope: out` の行はない。範囲は git の出力と検索から機械的に決まり、外した箇所に当たるのは「`main` から入った文書の一覧」で、箇所ではないためである。指摘の行に `kind=` と `local=` はない。どちらも、Fable の部分レビューの効果を後から測るための値（ADR-0050「記録」）で、merge の後の確認には測る予定がないためである（YAGNI）。
 -   **`<criterion>`:** 範囲の行では `resolution` か `main-reference`。指摘の行では、それに `exclusion-error` と `unreadable` を加える。
--   **`<location>`・`<severity>`・`<handling>`・`<summary>`・`<reason>`（指摘）:** Fable の行の同じ値（`fable-review.md:486-509`）と同じ規則で、セッションが確かめた値と自分の言葉で書く。
+-   **`<location>`・`<severity>`・`<handling>`・`<summary>`・`<reason>`（指摘）:** Fable の行の同じ値（`fable-review.md:486-509`）と同じ規則で、セッションが確かめた値と自分の言葉で書く。ただし `<location>` のパスは、3.3.5 の「出力の確かめ」の場所の規則（決定 13）で確かめ、それに当たらなければ `(not in range)` と書く。
 -   **接頭辞:** `Merge check:`・`Merge check scope:`・`Merge check finding:` は、既存の記録の行の接頭辞（`local-cli-review.md` step 7 の表と、`opus-review.md`「Record lines」）のどれとも重ならない。`TestRecordLinePrefixesDistinct` が `fable-review.md`「Record lines」の表から読むので、表に足せば既存の接頭辞との確かめに入る。足す接頭辞どうしの確かめは今のテストにないので、テストに足す（3.7）。
 -   **読み方:** 「Reading the record lines」（`fable-review.md:527-546`）に、merge の後の確認の行は Fable の記録ではないこと、Fable の記録の読み方とローカルの CLI レビューの行の読み方を変えないことを足す。`/runpr` のマージの質問の要約（`runpr.md:1343-1383`）は Fable の記録だけを読むので、変わらない（要件 2.3）。
 
@@ -519,7 +524,7 @@ Part B の呼び出し（`runplan.md:104-149`）に、FABLE（KIND `implementati
 
 | テスト | 影響 |
 |---|---|
-| `TestReviewRecordsFable`（`review_records_test.go:1146`）の `fableCases` | 3.1 の規則を読み当てて、次の 3 件の期待する出力が変わると見込む。実装の PR で、merge を作る件（`f.merge` と `git merge` を呼ぶ件）をすべて走らせ直して確かめる。「record from a merge-base origin/main moved past」（`:948-956`）は `MISSING <merge-base>` から `MERGE 1` に、「merge after the record」（`:1007-1014`）は `MISSING HEAD^1` から `MERGE 1` に、「range of the record's commit beyond it」（`:918-928`）は、記録を無効にする側の commit と merge commit があるので `MISSING HEAD~2` から `MISSING <merge-base>` になる（AC-14）。「parent of the first missing commit behind the merge-base」（`:930-946`）は `MISSING <merge-base>` のまま |
+| `TestReviewRecordsFable`（`review_records_test.go:1146`）の `fableCases` | 3.1 の規則を読み当てて、次の 3 件の期待する出力が変わると見込む。実装の PR で、merge を作る件（`f.merge` と `git merge` を呼ぶ件）をすべて走らせ直して確かめる。「record from a merge-base origin/main moved past」（`:948-956`）は `MISSING <merge-base>` から `MERGE 1` に、「merge after the record」（`:1007-1014`）は、第 2 親が `origin/main` から届かない確認できない merge commit なので（決定 12）、`MISSING HEAD^1` から `MISSING <merge-base>` に、「range of the record's commit beyond it」（`:918-928`）は、記録を無効にする側の commit と merge commit があるので `MISSING HEAD~2` から `MISSING <merge-base>` になる（AC-14）。「parent of the first missing commit behind the merge-base」（`:930-946`）は `MISSING <merge-base>` のまま |
 | `readFableForms`（`:735-749`） | merge の後の確認の行の形も読む |
 | `TestReviewRecordsCallSite`（`:1234-1260`） | `bash <records-script> unreviewed <HEAD> <PLAN>` を、許す呼び出しの行に足す。Part B step 3 にその 3 行の並びがあることを確かめる箇所を足す |
 | `TestReviewRecordsMode`（`:715-725`） | 大文字の `Unreviewed` も失敗することを確かめる |
@@ -797,3 +802,5 @@ PR の順序は計画で決める（申し送り H-03）。設計としての順
 ## 変更履歴
 
 - 2026-11-20 承認（isseis、#1049）
+- 2026-11-20 draft への戻し：merge の後の確認の指摘の場所は、Fable の規則（merge-base から HEAD までに変わったファイル）に加えて、範囲の一覧のパスも有効とする（#1060）
+- 2026-11-20 承認（isseis、#1060）
