@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-20 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-20 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件定義書）の項番を、「設計書の N 節」は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。設計への申し送り [design_handoff.md](design_handoff.md) の H-01〜H-05 は、設計書の 10 章が対応を記録している。本タスクに `implementation_handoff.md` はない。
@@ -301,3 +301,7 @@ Diff record (AC-19a):
 
 -   PR のマージの後、issue #1055 を閉じる（`/runpr` が案内する）。
 -   0115 が後にマージされるときは、その PR が F-006 の決まりで新しい文書を直す（設計書の決定 5）。
+
+## 変更履歴
+
+- 2026-11-20 承認（isseis、#1065）
