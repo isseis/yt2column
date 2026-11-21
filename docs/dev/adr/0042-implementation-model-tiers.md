@@ -1,4 +1,4 @@
-# ADR-0042: 実装モデル要件を high・standard+high-review・low の 3 つにし、上位モデル実装の記録で覆われない PR は開く前に上位モデルでレビューする
+# ADR-0042: 実装モデル要件を high・standard+high-review・low の 3 つにし、上位モデルで実装した記録がない commit を含む PR は開く前に上位モデルでレビューする
 
 ## 状態
 
@@ -8,24 +8,24 @@
 
 ## 背景
 
-計画書は、PR ごとに `/runplan` を実行するモデルの目安（実装モデル要件）を持つ。人はこれを見て、セッションのハーネスとモデルを選ぶ。上位のモデル（Claude Code の Opus など）は標準のモデルより誤りが少ないが、単価が高い。軽いモデルに任せられる PR を軽いモデルで実装し、誤りを見つけられる層には PR を開く前に上位モデルのレビューを 1 回足せば、費用を抑えられる。
+計画書は、PR ごとに `/runplan` を実行するモデルの目安（実装モデル要件）を持つ。人はこれを見て、セッションのハーネスとモデルを選ぶ。上位のモデル（Claude Code の Opus など）は標準のモデルより誤りが少ないが、単価が高い。軽いモデルに任せられる PR を軽いモデルで実装し、レビューで誤りを拾える層には PR を開く前に上位モデルのレビューを 1 回足せば、費用を抑えられる。
 
 PR を開いたときの PR レビューはなく、PR レビューは利用者が選んだときだけ CodeRabbit に手動で頼む。PR を開いた後の変更はローカルの CLI レビューで見る（[ADR-0013](0013-review-setup.md)）。`/runplan` の中の一般のサブエージェントのレビューはセッションのモデルを引き継ぐため、標準以下のモデルのセッションでは上位モデルによるレビューは行われない。また、1 つの PR は複数の `/runplan` のセッションや複数のハーネス（Claude Code・Antigravity・OpenCode。[ADR-0055](0055-harness-independent-commands.md)）にまたがりうる。Antigravity ではセッション自身がシステムプロンプトから自分のモデルの ID を確かめられない。
 
-過去の Claude Code での `/runplan` のセッション 123 件を Opus 5.5 の単価で換算すると、1 セッションの中央値は約 $13 だった。上位モデルのレビュー（二つのレビューと確認のレビュー）は約 $1.5〜4 と見込むが、PR のすべての commit を範囲とするので、これより大きくなりうる。Sonnet が使うトークンが Opus の約 1.4〜1.8 倍（上位モデルのレビューの費用によって変わる）を超えなければ、Sonnet で実装して上位モデルのレビューを足しても安くなる。この倍率は測っていない（[0081 要件定義書](../../tasks/0081_implementation_model_choice/01_requirements.md) の「費用の目安」）。
+過去の Claude Code での `/runplan` のセッション 123 件を Opus 5.5 の単価で換算すると、1 セッションの中央値は約 $13 だった。上位モデルのレビュー（2 つのレビューと確認のレビュー）は約 $1.5〜4 と見込むが、PR のすべての commit を範囲とするので、これより大きくなりうる。Sonnet が使うトークンが Opus の約 1.4〜1.8 倍（上位モデルのレビューの費用によって変わる）を超えなければ、Sonnet で実装して上位モデルのレビューを足しても安くなる。この倍率は測っていない（[0081 要件定義書](../../tasks/0081_implementation_model_choice/01_requirements.md) の「費用の目安」）。
 
 ## 決定
 
-実装モデル要件の値をモデル固有名から役割名（`high`・`standard+high-review`・`low`）へ改め、ハーネスごとの実モデルとの対応を `_context.md` に集約し、上位モデルで実装された記録で覆われない `high`・`standard+high-review` の PR では開く前にハーネスの `high` 役割モデルで上位モデルのレビューを行う。
+実装モデル要件の値をモデル固有名から役割名（`high`・`standard+high-review`・`low`）へ改め、ハーネスごとの実モデルとの対応を `_context.md` に集約し、上位モデルで実装した記録がない commit を含む `high`・`standard+high-review` の PR では開く前にハーネスの `high` 役割モデルで上位モデルのレビューを行う。
 
-仕様は [0081 要件定義書](../../tasks/0081_implementation_model_choice/01_requirements.md)・[0081 設計書](../../tasks/0081_implementation_model_choice/02_architecture.md)・[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md) の F-003・F-004・F-008 と、値・読み替え・ハーネス別のモデル対応表を定める [_context.md](../../../.claude/commands/_context.md) が持つ。手順はコマンドの定義（`mkplan2.md`・`mkplan.md`・`runplan.md`・`runpr.md`・`weakreview.md`）と `.claude/commands/_lib/` の上位モデルのレビューの共有手順（現在は `_lib/opus-review.md`）およびハーネスのアダプタ（[ADR-0055](0055-harness-independent-commands.md)）が持つ。
+仕様は [0081 要件定義書](../../tasks/0081_implementation_model_choice/01_requirements.md)、[0081 設計書](../../tasks/0081_implementation_model_choice/02_architecture.md)、[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md) の F-003・F-004・F-008、および値・読み替え・ハーネス別のモデル対応表を定める [_context.md](../../../.claude/commands/_context.md) が持つ。手順はコマンドの定義（`mkplan2.md`・`mkplan.md`・`runplan.md`・`runpr.md`・`weakreview.md`）と `.claude/commands/_lib/` の上位モデルのレビューの共有手順（現在は `_lib/opus-review.md`）およびハーネスのアダプタ（[ADR-0055](0055-harness-independent-commands.md)）が持つ。
 
 **食い違い:** コマンド定義・`_context.md`・共有手順と判定スクリプトのファイル名および中身（`_lib/opus-review.md`・`_lib/opus-review-decision.sh`）・`internal/chief` は、まだ `opus`・`sonnet+opus-review`・`sonnet` の値、`claude-opus-*` のハードコード、`Opus review:` の記録行と `opus` の固有名を前提としている。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装で解消する。
 
 ### 1. 実装モデル要件の値と読み替え
 
 -   **3 つの役割値:** 計画書の `**実装モデル要件**` の値は `high`・`standard+high-review`・`low` の 3 つとし、とるべき行動と役割を表す。`high` は上位役割（`high`）のモデルで実装する。`standard+high-review` は標準役割（`standard`）のモデルで実装し、PR を開く前に上位モデルのレビューを行う。`low` は軽量役割（`low`、chief の送り先では OpenCode の DeepSeek V4.1 Flash。[ADR-0046](0046-chief-of-staff.md)）で実装し、上位モデルのレビューは行わない。ハーネスごとの具体的なモデルは `_context.md` の対応表 1 か所で定める。
-    -   **理由:** 計画書と手順書から特定のモデル固有名を切り離して複数ハーネスで共有できるようにし、最下位 tier の名前と実態のずれ（旧 `sonnet` が Flash を指していた問題）をなくすためである（0120 要件定義書の F-003）。
+    -   **理由:** 計画書と手順書から特定のモデル固有名を切り離して複数ハーネスで共有できるようにし、最下位の区分の名前と実態のずれ（旧 `sonnet` が Flash を指していた問題）をなくすためである（0120 要件定義書の F-003）。
 -   **当てはめる契機と判定理由:** 当てはめる契機は旧区分の契機を引き継ぐ。`**判定理由**` には、`high` と `standard+high-review` では `high` より軽いモデルに任せたときに何が起きやすいかを書き、`low` では当たる契機がないことを書く。
     -   **理由:** モデルとハーネスを選ぶ人が、軽いモデルにしたときの危険を読めるようにするためである（0081 要件定義書の F-001、0120 要件定義書の F-003）。
 -   **単一フェーズの計画書の値:** 単一フェーズの計画書も、計画書の「PR 構成」の節の終わりに `**実装モデル要件**` の値を持つ。
@@ -37,19 +37,19 @@ PR を開いたときの PR レビューはなく、PR レビューは利用者�
 
 ### 2. 上位モデルのレビューの実行条件・モデル検証・記録
 
--   **実行する時点と条件:** 上位モデルのレビューは、`/runplan` が PR を開く前に行う。行うのは、値が `standard+high-review`・`high`・読めない値のどれかで、かつ、除外できる commit（チェックボックスの commit、記録の行の commit、`README.en.md` の同期の commit）を除くいずれかの commit が `high` 役割モデルの実装記録で覆われていない場合である。有効な完了記録があり、その後の commit が除外できる commit だけのときは省く。この判断は `origin/main` から取り出す判定スクリプトで行い、計画書の値は `origin/main` とブランチの両方から読み、`high` 役割と認めるモデルの ID の規則は `origin/main` の `_context.md` から読む。
+-   **実行する時点と条件:** 上位モデルのレビューは、`/runplan` が PR を開く前に行う。行うのは、値が `standard+high-review`・`high`・読めない値のどれかで、かつ、除外できる commit（チェックボックスの commit、記録の行の commit、`README.en.md` の同期の commit）を除くいずれかの commit に `high` 役割モデルで実装した記録がない場合である。有効な完了記録があり、その後の commit が除外できる commit だけのときは省く。この判断は `origin/main` から取り出す判定スクリプトで行い、計画書の値は `origin/main` とブランチの両方から読み、`high` 役割と認めるモデルの ID の規則は `origin/main` の `_context.md` から読む。
     -   **理由:** PR を開く前に直せば直しがローカルの CLI レビューを通り、人のレビューが直した後のコードから始まるためである。1 つの PR が複数のセッションにまたがっても、軽いモデルが書いた commit や記録のない commit をレビューなしで通さず、ブランチ上の変更で関門が緩まないようにするためでもある（0081 要件定義書の F-005、0081 設計書、0120 要件定義書の F-004）。
--   **自己のモデルの ID を検証できないハーネスでの扱い:** セッションがシステムプロンプトから自身のモデルの ID を確かめられるハーネス（Claude Code）では phase group ごとに `Implementation model:` 行を記録する。確かめられないハーネス（Antigravity）では `Implementation model:` 行を書かないため、`high` の PR でも上位モデルのレビューを必ず走らせる。
+-   **自身のモデルの ID を検証できないハーネスでの扱い:** セッションがシステムプロンプトから自身のモデルの ID を確かめられるハーネス（Claude Code）では、phase group（`/runplan` が一度に実装するフェーズのまとまり）ごとに `Implementation model:` 行を記録する。確かめられないハーネス（Antigravity）では `Implementation model:` 行を書かないため、`high` の PR でも上位モデルのレビューを必ず走らせる。
     -   **理由:** 検証できない自己申告でレビュー関門を省けるようにすると、実際のモデルが不明なまま上位モデルの実装とみなされるためである（0120 要件定義書「要件定義の際に決めたこと（2026-11-21）」）。
 -   **レビューの内容と指摘の扱い:** 正しさのレビューと弱いモデルの失敗のレビューの 2 つをハーネスの `high` 役割モデルで走らせ、指摘を統合する。cleanup（再利用・単純化・効率の指摘）は範囲に入れない。セッションは Critical と Major の指摘をすべて直し、確認のレビューも `high` 役割モデルで走らせる。指摘を自分の判断で退けず、誤りと考えるときは人に尋ねる。手順とチェックリストは `/runplan` と `/weakreview` が共有する 1 つの手順に置き、組み込みの `/code-review` スキルは呼ばない。
     -   **理由:** 指摘は場所が決まっているので標準モデルでも直せ、直し方の誤りは確認のレビューで見つかり、セッションが勝手に退けられるとレビューを足す意味が失われるためである。組み込みスキルは cleanup を含みリポジトリの外で変わりうる（0081 要件定義書の F-005・F-006、0081 設計書）。
--   **ハーネス別のモデル固定・検証と走らせられないときの停止:** Claude Code では `Agent` ツールのモデル指定とサブエージェントが報告するモデルの ID で `high` 役割モデルで走ったかを確かめる。Antigravity では `invoke_subagent` を使わず、`swarm(action: "models", all: true)` で `_context.md` の `high` 役割モデルの存在と割り当ての残りを確かめたうえで `swarm(action: "add", ...)` でモデルを固定し、返却 JSON の `"model"` が指定モデルの ID と完全一致することを確かめ、終了時に `swarm(action: "kill")` する。指定された `high` 役割モデルで走らせられないとき（OpenCode、利用不可、割り当て切れ、モデル不一致、エラー）は、別モデルで代替せずに止まり、PR を開かず何も push しない。
+-   **ハーネス別のモデル固定・検証と走らせられないときの停止:** Claude Code では `Agent` ツールのモデル指定とサブエージェントが 1 行目に報告するモデルの ID で `high` 役割モデルで走ったかを確かめる。Antigravity では `invoke_subagent` を使わず、プロンプトに `Model:` 行も求めない。まず `swarm(action: "models", all: true)` で `_context.md` の `high` 役割モデルの存在と割り当ての残りを確かめたうえで、`swarm(action: "add", ...)` でモデルを固定し、返却 JSON の `"model"` が指定モデルの ID と完全一致することを検証する。あわせて実行前後の worktree の状態チェック（[ADR-0050](0050-fable-partial-review.md)）と終了時の全ワーカーの `swarm(action: "kill")` を行う（外部 worktree での差分の渡し方は `0120` の設計で実測確認して定める）。指定された `high` 役割モデルで完了できないとき（OpenCode、利用不可、割り当て切れ、モデル不一致、再試行後のエラー・タイムアウト、状態変化）は、別モデルで代替せずに止まり、PR を開かず何も push しない。
     -   **理由:** Antigravity の `invoke_subagent` は具体的なモデルを固定できず本文の自己申告も検証にならないため、ハーネスが返すモデル識別子で検証する必要がある。走らせられないときに止めないと、上位モデルのレビューを経たと思い込んだまま PR が開かれるためである（0081 要件定義書の F-005・F-006、0120 要件定義書の F-004）。
 -   **`/weakreview` の振る舞い:** `/weakreview` は同じ上位モデルのレビューを行い、既定で直して commit し、push はしない。`--no-fix` を付けたときだけ報告だけにし、`--fix` は何もしない引数として受け入れる。直すのは今 checkout しているブランチの範囲だけで、作業ツリーが clean でなければ止まり、完了記録は書かない。
     -   **理由:** 1 つのコマンドで同じレビューを済ませ、ほかのブランチや作業中の変更を書き換えず、PR の範囲と一致しない自由な範囲の実行で PR の完了記録を残さないためである（既定で直すこと自体の理由は記録されていない。0081 要件定義書の F-006、0081 設計書）。
 -   **記録行の新旧両読み:** 新しく書く完了記録と退けた指摘の記録行は、モデル固有名（`Opus`）を含まない役割名に基づく接頭辞を使う。判定スクリプトと読み取り手順は、新しい記録行と既存の `Opus review: done` / `Opus review: kept` の行の両方を同じ意味で読む。
     -   **理由:** 記録の用語を役割名に揃えつつ、進行中ブランチや過去のコミットの記録を壊さないためである（0120 要件定義書の F-004）。
--   **直しの commit のローカルの CLI レビュー:** 上位モデルのレビューの直しの commit は、PR を開く前の、まだ見ていない commit をまとめてかけるローカルの CLI レビュー（[ADR-0013](0013-review-setup.md)）に含め、上位モデルのレビューの後、PR を開く直前（`_lib/task-pr-handoff.md` Part B の CHECKS の後）に 1 回だけ置く。このレビューの直しの commit は CodeRabbit CLI の 2 回目の試行が見て、上位モデルのレビューは見ない。CodeRabbit CLI が失敗したときは `not run` として記録し、PR の説明に示す。
+-   **直しの commit のローカルの CLI レビュー:** 上位モデルのレビューの直しの commit は、PR を開く前の、まだ見ていない commit をまとめてかけるローカルの CLI レビュー（[ADR-0013](0013-review-setup.md)）に含める。このローカルの CLI レビューは、上位モデルのレビューの後、PR を開く直前（`_lib/task-pr-handoff.md` Part B の CHECKS の後）に 1 回だけ置く。このレビューの直しの commit は CodeRabbit CLI の 2 回目の試行が見て、上位モデルのレビューは見ない。CodeRabbit CLI が失敗したときは `not run` として記録し、PR の説明に示す。
     -   **理由:** PR を開いたときの自動の PR レビューがなくなり、かけないと直しを別系統の CLI レビューが一度も見ないためである。上位モデルのレビューの前に置くと直しの commit のためにもう 1 回かけることになる（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) の F-007、[0118 設計書](../../tasks/0118_codex_removal/02_architecture.md) の 1.3）。
     -   **食い違い:** `runplan.md` は、まだ直しの commit をかけ直さない手順のままである。この食い違いは https://github.com/isseis/yt2column/issues/1059 の実装で解消する。
 
@@ -60,7 +60,7 @@ PR を開いたときの PR レビューはなく、PR レビューは利用者�
 -   **2 段階（上位と最下位のみ）にする案:** 仕組みは最も単純だが、大きくて誤りの入りやすい PR で最も大きな節約を手放す（[0081 要件定義書](../../tasks/0081_implementation_model_choice/01_requirements.md)「要件定義の際に決めたこと（2026-11-10）」）。
 -   **2 段階（上位と中間のみ）にし、軽いモデルで実装するときは必ず上位モデルがレビューする案:** 小さな PR ではレビューの費用が実装の費用と同じくらいになる（同上）。
 -   **値の名前をモデル固有名（`opus`・`sonnet+opus-review`・`sonnet`）のままにする案:** 0081 で採った形だが、Antigravity など別ハーネスのモデルと対応せず、`sonnet` が実際には DeepSeek V4.1 Flash を指していて名前と実態も食い違っていた（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「要件定義の際に決めたこと（2026-11-21）」）。
--   **値の名前を `high`・`standard+high-review`・`standard` にする案:** 旧 `standard` と綴りは揃うが、`standard` が中間 tier の実装モデルと最下位 tier（レビューなし）の 2 つの意味を持つ（同上）。
+-   **値の名前を `high`・`standard+high-review`・`standard` にする案:** 旧 `standard` と綴りは揃うが、`standard` が中間の区分の実装モデルと最下位の区分（レビューなし）の 2 つの意味を持つ（同上）。
 -   **Antigravity で `high` を実行するときは利用者申告などで上位モデルのレビューを省略できるようにする案:** セッションのモデルの ID を機械的に検証できないままレビュー関門を飛ばす経路が増える（同上）。
 -   **コミット記録行の接頭辞を `Opus review:` のまま固定する案:** Antigravity のモデルで走った記録にも Claude のモデル名が残り続ける（同上）。
 -   **上位モデルのレビューを、PR を作った後 `/runpr` の前に人が `/weakreview` で実行する案、または `/runpr` が最初に実行する案:** 人の手順が増え、人のレビューが直す前のコードから始まる（0081 要件定義書「要件定義の際に決めたこと（2026-11-10）」）。
@@ -100,4 +100,4 @@ PR を開いたときの PR レビューはなく、PR レビューは利用者�
 - 2026-11-11 実装モデル要件が `sonnet` の PR は、OpenCode の DeepSeek V4.1 Flash で実装することにした。DeepSeek V4.1 Flash を候補にしない案は、`sonnet` と `/runpr` については取り下げた（[0088 要件定義書](../../tasks/0088_chief_of_staff/01_requirements.md)「要件定義の際に決めたこと（2026-11-11）」、[ADR-0046](0046-chief-of-staff.md)）
 - 2026-11-20 Opus のレビューの直しの commit を、PR を開く前にローカルの CLI レビューにかけることにした。最初の Codex の PR レビューが直しを見るという、かけ直さない理由が、Codex の PR レビューを外すことで成り立たなくなったためである（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）
 - 2026-11-20 PR を開く前の、まだ見ていない commit のローカルの CLI レビューを、Opus のレビューの後、PR を開く直前に 1 回だけ置き、このレビューの直しの commit は Opus のレビューが見ないことにした（[0118 設計書](../../tasks/0118_codex_removal/02_architecture.md)「設計の際に決めたこと（2026-11-20）」）
-- 2026-11-21 実装モデル要件の値を役割名 `high`・`standard+high-review`・`low` に改め、旧値（`opus`・`sonnet+opus-review`・`sonnet` を含む）とハーネス別のモデル対応表を `_context.md` に置いて判定スクリプトが参照することにした。自己のモデルの ID を検証できない Antigravity では `Implementation model:` を書かず、`high` でも `swarm` のモデル固定と返却 JSON 検証で上位モデルのレビューを走らせる。記録行の接頭辞も役割名に改め、新旧両方を読むことにした（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「issue #1072 で決めたこと」「要件定義の際に決めたこと（2026-11-21）」）
+- 2026-11-21 実装モデル要件の値を役割名 `high`・`standard+high-review`・`low` に改め、旧値（`opus`・`sonnet+opus-review`・`sonnet` を含む）とハーネス別のモデル対応表を `_context.md` に置いて判定スクリプトが参照することにした。自身のモデルの ID を検証できない Antigravity では `Implementation model:` を書かず、`high` でも `swarm` のモデル固定と返却 JSON 検証で上位モデルのレビューを走らせる。記録行の接頭辞も役割名に改め、新旧両方を読むことにした（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「issue #1072 で決めたこと」「要件定義の際に決めたこと（2026-11-21）」）

@@ -47,7 +47,7 @@
 | [ADR-0039](0039-adr-writing-criteria.md) | ADR の背景には決定が答える問題と前提だけを、決定には守るべき規則を理由と正本の場所とともに書き、決定を変えない直しは編集上の訂正として認める | `有効` |
 | [ADR-0040](0040-simple-task-documents.md) | 小さな変更のタスクは、人の判断で 3 文書を簡易な内容にして 1 本の PR で作れるようにし、機械的な判定は設けない | `有効` |
 | [ADR-0041](0041-openai-api.md) | OpenAI は Responses API を応答の保存なしで呼び、出力上限は実測で決める | `有効` |
-| [ADR-0042](0042-implementation-model-tiers.md) | 実装モデル要件を high・standard+high-review・low の 3 つにし、上位モデル実装の記録で覆われない PR は開く前に上位モデルでレビューする | `有効` |
+| [ADR-0042](0042-implementation-model-tiers.md) | 実装モデル要件を high・standard+high-review・low の 3 つにし、上位モデルで実装した記録がない commit を含む PR は開く前に上位モデルでレビューする | `有効` |
 | [ADR-0043](0043-copy-mention-neutralization.md) | ビューアの表示とクリップボードへのコピーで記事のメンションを無効化し、コピーは拒否しない | `有効` |
 | [ADR-0044](0044-package-reference-row-granularity.md) | package_reference.md の行には責務の要約・主な公開の名前・仕様の置き場所だけを書き、挙動の詳細は doc コメントと仕様の文書に置く | `有効` |
 | [ADR-0045](0045-dev-fake-llm.md) | 本番の成果物に fake の LLM を入れず、fake の LLM はサーバに依存しない構成要素にして開発用の拡張のビルドから使う | `有効` |
