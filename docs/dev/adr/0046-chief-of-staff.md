@@ -26,7 +26,7 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
 
 -   chief は、人の代わりに判断しない。止まっているエージェントの質問には、人が chief の選択肢で選んだ答えだけを中継し、送る直前に質問と選択肢が人に示したときと同じであることを確かめる。中継するのは 1 つを選ぶ問いの選択肢だけで、権限の確認、自由に書く答え、複数を選ぶ問いは中継しない。質問と選択肢は画面のとおりに示す。
     -   理由：人の判断であることを保ったまま、pane を移る手間をなくすためである。権限の確認を中継しないのは、実行されるコマンドを見ないまま許可しやすくなるためである。自由に書く答えを中継しないのは、chief が送る入力が人の書いた任意の文まで広がるためである（0088 要件定義書の F-005）。
-    -   `/runpr` のマージの質問には、NEXT をそのセッションで実行する答えはない（[ADR-0047](0047-runpr-merge-question.md)）。
+    -   `/runpr` のマージの質問には、次のコマンド（NEXT）をそのセッションで実行する答えはない（[ADR-0047](0047-runpr-merge-question.md)）。
 -   画面は、実画面のサンプルで確かめた形だけを受け付ける。答えを中継するときは、人に示した質問と選択肢から作った照合値を、送る直前に読み直した画面から作った照合値と比べ、一致したときに、選択肢の番号から決まったキー入力だけを送る。
     -   理由：確かめていない形の画面で、人が選んでいない答えを送らないためである（0088 設計書の 3.4・3.6）。
 -   レビュー待ちの PR への `/runpr` は、人が PR の詳細を見てから選んだときだけ送る。
@@ -40,18 +40,19 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
     -   `/clear`・`/model`（Claude Code）、`/new`（OpenCode）
     -   `/mkreq`・`/mkarch`・`/mkplan`・`/runplan`・`/runpr`・`/mergemain`
     -   1 つを選ぶ問いの選択肢を選ぶ入力
-    -   理由：送る入力の範囲を決めておけば、chief の誤りで送られうるものも、その範囲に限られるためである。`/weakreview` を送らないのは、Opus のレビューを `/runplan` が PR を開く前に行う（[ADR-0042](0042-implementation-model-tiers.md)）からである（F-006）。`/mergemain` は、コンフリクトの解消を自由な文ではなく決まった形のコマンドで送るために足した（[0115 要件定義書](../../tasks/0115_chief_conflict_resolution/01_requirements.md) の F-006）。
--   コマンドごとのエージェントとモデルは、次のとおりとする。モデルが切り替わったこと（OpenCode では、モデルが合っていること）を確かめてからコマンドを送り、確かめられなければ送らない。値が読めないときと、値がないときは、推し量らず、コマンドを送らない。
+    -   理由：送る入力の範囲を決めておけば、chief の誤りで送られうるものも、その範囲に限られるためである。`/weakreview` を送らないのは、上位モデルのレビューを `/runplan` が PR を開く前に行う（[ADR-0042](0042-implementation-model-tiers.md)）からである（F-006）。`/mergemain` は、コンフリクトの解消を自由な文ではなく決まった形のコマンドで送るために足した（[0115 要件定義書](../../tasks/0115_chief_conflict_resolution/01_requirements.md) の F-006）。
+-   コマンドごとのエージェントとモデルは、次のとおりとする。モデルが切り替わったこと（OpenCode では、モデルが合っていること）を確かめてからコマンドを送り、確かめられなければ送らない。値が読めないときと、値がないときは、推し量らず、コマンドを送らない。`chief` 自身の Antigravity 操作対応（pane・記録の読み取りや送信）は対象外であり、送り先は現行の Claude Code と OpenCode のままとする。`_context.md` の送り先の表（`Command routing` 表）における `/runplan` 用の行キーは `runplan-high`・`runplan-standard+high-review`・`runplan-low` とする（[ADR-0055](0055-harness-independent-commands.md)）。
     -   `/mkreq`・`/mkarch`・`/mkplan`：Claude Code・Opus
-    -   `/runplan`：実装モデル要件の値に従う。`opus` は Claude Code・Opus、`sonnet+opus-review` は Claude Code・Sonnet、`sonnet` は OpenCode・DeepSeek V4.1 Flash
+    -   `/runplan`：実装モデル要件の値（[ADR-0042](0042-implementation-model-tiers.md)）に従う。`high`（旧 `opus`）は Claude Code・Opus、`standard+high-review`（旧 `sonnet+opus-review`）は Claude Code・Sonnet、`low`（旧 `sonnet`）は OpenCode・DeepSeek V4.1 Flash
     -   `/runpr`：OpenCode・DeepSeek V4.1 Flash
     -   `/mergemain`：Claude Code・Opus
-    -   理由：送り先とモデルの取り違えをなくすためである。`/mergemain` に Opus を使うのは、文書の衝突を、両側の変更を保てるかどうか判断しながら解消させるためである（0115 要件定義書「要件定義の際に決めたこと（2026-11-19）」）。`/runpr` と `sonnet` の `/runplan` に Flash を使うのは、これらに Opus までは要らないと利用者が判断し、2026-11-11 の時点で運用がすでにそうなっていたためである。`sonnet` の対応は ADR-0042 が持つ（F-006）。
--   実装モデル要件の値ごとの送り先とモデルは 1 か所に置き、そこを直すだけで差し替えられるようにする。`sonnet+opus-review` を OpenCode に差し替えた後は、OpenCode のセッションが Opus のレビューを走らせられずに PR を開かずに止まるので、chief は同じ workspace の Claude Code・Sonnet へ同じ `/runplan` を送ることを提案し、Claude Code が Opus のレビューと PR の作成を行う。
-    -   理由：`sonnet+opus-review` を DeepSeek V4.1 Flash で実装して Opus のレビューを受ける形と、今の Sonnet の形の成果物の品質を、別の issue で比べてからどちらにするかを決めるためである（0088 要件定義書の F-006）。
+    -   理由：送り先とモデルの取り違えをなくすためである。`/mergemain` に Opus を使うのは、文書の衝突を、両側の変更を保てるかどうか判断しながら解消させるためである（0115 要件定義書「要件定義の際に決めたこと（2026-11-19）」）。`/runpr` と `low`（旧 `sonnet`）の `/runplan` に Flash を使うのは、これらに Opus までは要らないと利用者が判断し、2026-11-11 の時点で運用がすでにそうなっていたためである。`low` の対応は ADR-0042 が持つ（F-006）。
+    -   **食い違い:** `internal/chief` と [chief_architecture.md](../chief_architecture.md) と `_context.md` は、まだ `opus`・`sonnet+opus-review`・`sonnet` の値名と `runplan-opus`・`runplan-sonnet+opus-review`・`runplan-sonnet` の行キーを前提としている。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装（`chief` のプロトコル番号更新を含む）で解消する。
+-   実装モデル要件の値ごとの送り先とモデルは 1 か所に置き、そこを直すだけで差し替えられるようにする。`standard+high-review`（旧 `sonnet+opus-review`）を OpenCode に差し替えた後は、OpenCode のセッションが上位モデルのレビューを走らせられないため PR を開かずに止まるので、chief は同じ workspace の Claude Code・Sonnet へ同じ `/runplan` を送ることを提案し、Claude Code が上位モデルのレビューと PR の作成を行う。
+    -   理由：`standard+high-review` を DeepSeek V4.1 Flash で実装して上位モデルのレビューを受ける形と、今の Sonnet の形の成果物の品質を、別の issue で比べてからどちらにするかを決めるためである（0088 要件定義書の F-006）。
 -   コマンドごとの送り先のエージェントとモデルは、`_context.md` の送り先の表 1 か所に置き、chief は `origin/main` の版から読む。
     -   理由：人への案内と chief が同じ表を読み、値ごとの送り先を 1 行の直しで差し替えられるようにし、ブランチで表を書き換えても送り先が変わらないようにするためである。表は [_context.md](../../../.claude/commands/_context.md) が持つ（0088 設計書の 3.3）。
--   `/runpr` と `sonnet` の `/runplan` は、OpenCode を通して DeepSeek のサービスにリポジトリのコード、レビューのスレッド、コマンドの定義を送る。この送り先を選ぶことを受け入れる。
+-   `/runpr` と `low`（旧 `sonnet`）の `/runplan` は、OpenCode を通して DeepSeek のサービスにリポジトリのコード、レビューのスレッド、コマンドの定義を送る。この送り先を選ぶことを受け入れる。
     -   理由：上の項のとおり Flash を使うと決めたことに伴うものである。DeepSeek V4.1 Flash が手順を守れるかは、[#790](https://github.com/isseis/yt2column/issues/790) で確かめていない（0088 要件定義書の 4.2）。
 
 ### マージの後の自動送信
@@ -66,7 +67,7 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
     -   理由：値を ASCII にして、似た文字による読み違いをなくすためである。形は `_context.md` の「PR marker conventions」が持つ（0088 設計書の 3.8）。
 -   送れたかが分からない送信は送り直さず、その workspace への送信を、人が解除するまで止める。
     -   理由：同じコマンドを 2 回走らせるより、人に示して止まるほうを選ぶためである（F-006）。
--   次のコマンドを `/runplan` と決めるために読む計画書のステップは、受け入れる 3 つの書き方（チェックボックスの行、2 章の見出し、2 章の 1 行の太字の段落）からだけ読む。2 章の中のステップに似た行（書き方 A に似たチェックボックスの行を含む）や、チェックボックスのないステップがあれば、ステップを読めないものとし、推し量らずに要確認にして送らない。すべての PR がマージ済みの計画書は、ステップを読めるかどうかにかかわらず完了とする。今の仕様は [chief_architecture.md](../chief_architecture.md) の 3.5（判定と副作用の条件）にあり、決定の出典は [0113 要件定義書](../../tasks/0113_plan_step_reading/01_requirements.md) の 3 章である。
+-   次のコマンドを `/runplan` と決めるために読む計画書のステップは、受け入れる 3 つの書き方（チェックボックスの行、2 章の見出し、2 章の 1 行の太字の段落）からだけ読む。2 章の中のステップに似た行（書き方 A（`- [ ] **ステップ N-M**`）に似たチェックボックスの行を含む）や、チェックボックスのないステップがあれば、ステップを読めないものとし、推し量らずに要確認にして送らない。すべての PR がマージ済みの計画書は、ステップを読めるかどうかにかかわらず完了とする。今の仕様は [chief_architecture.md](../chief_architecture.md) の 3.5（判定と副作用の条件）にあり、決定の出典は [0113 要件定義書](../../tasks/0113_plan_step_reading/01_requirements.md) の 3 章である。
     -   理由：規約はステップをチェックボックスで書くことだけを求め、`main` の計画書は見出しと太字の段落でもステップを書いている。それを読まないと、PR が残るタスクの次のコマンドが決まらない。似た行を読み替えないのは、残りのステップを見落として「残りなし」と誤って読まないためである（[0113 要件定義書](../../tasks/0113_plan_step_reading/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）。
 
 ### マージコンフリクトの解消の自動送信
@@ -281,7 +282,7 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
 -   `/runpr` に、コンフリクトを解消する段を足す。
     -   理由：範囲が広がる。`/runpr` の中で `main` を取り込むときは、今の「Taking in `main`」の規則で足りる（同上）。
 -   `/mergemain` が、解消の差分（`git diff --cc` の範囲）をローカルの CLI レビューにかける。
-    -   理由：CodeRabbit の allowance（失敗したときは Codex の allowance）を使う。解消の結果は `/runpr` とマージの質問で人の判断を通る（同上）。
+    -   理由：CodeRabbit の割り当て（失敗したときは Codex の割り当て）を使う。解消の結果は `/runpr` とマージの質問で人の判断を通る（同上）。
 -   `/mergemain` を Claude Code・Sonnet で走らせる。
     -   理由：文書の衝突の判断の質が下がりうる（同上）。
 -   PR のブランチに `/mergemain` の定義があれば、`origin/main` と違っても送る。
@@ -470,8 +471,7 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
 
 ### モデルと送り先
 
--   リポジトリのコードとレビューのスレッドが DeepSeek のサービスへ送られる。`sonnet` の PR は Opus のレビューを受けないので、Flash の実装の誤りは、`/runplan` の中のレビュー、ローカルの CLI レビュー、Codex の PR レビューで見つける。
--   実装モデル要件の値の名前 `sonnet` が、Sonnet ではなく Flash を指す。名前の見直しは [#760](https://github.com/isseis/yt2column/issues/760) で扱う。
+-   リポジトリのコードとレビューのスレッドが DeepSeek のサービスへ送られる。`low`（旧 `sonnet`）の PR は上位モデルのレビューを受けないので、Flash の実装の誤りは、`/runplan` の中のレビューとローカルの CLI レビュー（および利用者が選んだときの手動の PR レビュー。[ADR-0013](0013-review-setup.md)）で見つける。
 
 ### 外の道具の形への依存
 
@@ -533,3 +533,4 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
 - 2026-11-19 chief が開いている PR の `mergeable` を読んでマージコンフリクトを示し、待ち受けで `CONFLICTING` の PR がある workspace の Claude Code・Opus へ、新しいコマンド `/mergemain` を PR の head ごとに 1 回自動で送ることにした。送るのは、worktree が PR の head にあって変更がなく、ブランチの `/mergemain` の定義が `origin/main` と同じときだけとした。`/mergemain` は `origin/main` を merge で取り込み、`.md` の衝突とプロトコル番号の行だけの衝突を解消し、それ以外の衝突と ADR の番号か主題の重なりでは作業の前の状態に戻して止まる。解消できなかったことは GitHub の状態から判定し、人が選んで送ることもできる（[0115 要件定義書](../../tasks/0115_chief_conflict_resolution/01_requirements.md)「issue #1019 で決めたこと」「要件定義の際に決めたこと（2026-11-19）」）
 - 2026-11-20 chief の今の仕様（書き出す記録と出力を含む）を、`docs/dev/` の直下の開発者向けの文書 chief_architecture.md に集めることにした。その文書が述べる事柄を変える PR は、同じ PR でその文書を直す。あわせて、プロトコル番号を上げる基準を決めた。番号は、道具と定義の約束を変える PR と、副作用の条件を変える PR で上げる。約束には定義が読む出力の項目の意味が入り、記録の形式は入らない。ただし、約束を変える追加でも、古い道具が新しい呼び出しを使い方の誤りとして拒み、新しい道具が古い呼び出しを同じ形で扱い、古い定義がする呼び出しの出力が変わらないときは上げなくてよい（[0117 要件定義書](../../tasks/0117_chief_architecture_doc/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）
 - 2026-11-20 chief の今の仕様の文書に、状況の表・タスクの文書の読み方・自動送信・作成と削除などの判定ごとに、読むもの、副作用の条件にあたるか、細部の置き場所を示す要約を持たせることにした。ADR と package_reference がこれらの判定の今の仕様の置き場所としてその要約を指し、番号の基準が使う副作用の条件をその文書から引けるようにするためである。あわせて、定義だけを変える PR も、出力の項目の使い方を広げるときは番号を上げることにした。定義が読まない項目の意味は番号を上げずに変えてよいので、定義が読み始めるときに上げないと、古い道具と新しい定義の組み合わせが黙って誤るためである（[0117 設計書](../../tasks/0117_chief_architecture_doc/02_architecture.md)「設計の際に決めたこと（2026-11-20）」）
+- 2026-11-21 実装モデル要件の値名の変更（[ADR-0042](0042-implementation-model-tiers.md)）に合わせ、`chief` が計画書から読む `/runplan` の区分を `high`・`standard+high-review`・`low`（旧値は読み替え）へ、`_context.md` の送り先の表（`Command routing` 表）の行キーを `runplan-high`・`runplan-standard+high-review`・`runplan-low` へそれぞれ改め、`chief` のプロトコル番号を上げることとした。`chief` 自身の Antigravity 操作対応は別タスクに切り出し、送り先は現行の Claude Code と OpenCode のままとする（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「要件定義の際に決めたこと（2026-11-21）」、[ADR-0055](0055-harness-independent-commands.md)）
