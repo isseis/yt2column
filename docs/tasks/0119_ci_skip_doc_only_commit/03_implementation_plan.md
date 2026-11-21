@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-21 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-21 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番であり、すべて設計書の付録 A に扱いが記録されている。本タスクに `implementation_handoff.md` はない。既存のファイルの内容と `file:line` の行番号は、コミット `d45909cf` で確かめた。設計書が確かめたコミット `b004f8c0` から `d45909cf` までの差分（`git diff --stat b004f8c0 d45909cf`）は、本タスクの文書・ADR-0014・ADR-0054・`docs/translation_glossary.md` の 5 ファイルのみであり、設計書が引用する既存コードと設定の行番号は今も一致する。
@@ -413,3 +413,7 @@ PR-4 の実装時に `_checks/check-ac16-ci-diff.sh` を実行し、merge-base �
 
 -   全 PR のマージ後、`/runpr` が issue #1073 を閉じる。
 -   将来 `.github/workflows/ci.yml` に `check-changes` の出力で制御される新しい重いジョブを追加するときは、同じ PR で `internal/ciskip` の必須ジョブ一覧と `workflow_pin_test.go` を更新する（[ADR-0054](../../dev/adr/0054-ci-skip-doc-only-commit.md)「結果」）。
+
+## 変更履歴
+
+- 2026-11-21 承認（isseis、#1078）
