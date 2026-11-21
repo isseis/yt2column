@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-21 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-21 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -232,3 +232,7 @@ GitHub Actions 上での挙動を実機で確認し、確認日・PR 番号・�
 -   **通常分類:** 既存の `check-changes` が行う、PR 全体の差分（`origin/main...HEAD`）に対する `has-code-changes` と `has-extension-changes` の分類。
 -   **安全側フォールバック（fail-safe）:** スキップ条件を満たすことを確実に証明できない場合（前提崩れ・情報取得失敗・形式不備等）に、スキップせず通常分類の結果を採用して重いジョブを実行すること。
 -   **食い違いの記述:** ADR の決定と、その仕様を持つ文書やコードが食い違うときに、`## 決定` に残す記述（`docs/dev/conventions/adr.md`「Writing an ADR」）。
+
+## 変更履歴
+
+- 2026-11-21 承認（isseis、#1075）
