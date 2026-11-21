@@ -15,13 +15,12 @@ import (
 // The tools whose calls the command documents give a --protocol N. The
 // guard of each checks the numbers that ProtocolFlags assigns to it.
 const (
-	ToolFixprguard  = "fixprguard"
-	ToolCodexreview = "codexreview"
-	ToolChief       = "chief"
-	ToolMergepr     = "mergepr"
+	ToolFixprguard = "fixprguard"
+	ToolChief      = "chief"
+	ToolMergepr    = "mergepr"
 )
 
-var protocolTools = []string{ToolFixprguard, ToolCodexreview, ToolChief, ToolMergepr}
+var protocolTools = []string{ToolFixprguard, ToolChief, ToolMergepr}
 
 // ProtocolTools returns a copy of the tools whose --protocol flags the guards
 // check, so a test can compare the list with the tools the protocol-number
@@ -48,8 +47,8 @@ var (
 	protocolFlag = regexp.MustCompile(`--protocol[ =]([0-9]\S*)`)
 	// CommandBoundary ends a command and starts the next: a line break, a
 	// pipe, a list operator, a command substitution, or a backquote, which in
-	// prose also closes a code span. The protocol guards and the codex
-	// invocation guard split commands with it.
+	// prose also closes a code span. The protocol and command invocation
+	// guards split commands with it.
 	CommandBoundary = regexp.MustCompile("[\n|;&`]|\\$\\(")
 )
 
@@ -95,7 +94,7 @@ func protocolFlagsOf(doc string, names []string) []ProtocolFlag {
 
 // lastTool returns the one of names written last as a word in text, or "".
 // A word is the name alone or a path ending in it, with optional quotes:
-// "codexreview-x", "my_fixprguard", or "chiefs" is not one.
+// "mergepr-x", "my_fixprguard", or "chiefs" is not one.
 func lastTool(text string, names []string) string {
 	for _, word := range slices.Backward(strings.Fields(text)) {
 		word = path.Base(strings.Trim(word, `"'`))

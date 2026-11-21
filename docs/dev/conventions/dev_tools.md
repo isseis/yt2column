@@ -113,11 +113,8 @@ Stop and ask the user in two situations: a step comes to a point where it
 would install or build an installed tool, or a command fails because a tool is
 missing or its number does not match.
 
-A procedure that decides otherwise wins. Today these do:
+A procedure that decides otherwise wins. Today this does:
 
-- When `codexreview` is missing or its number does not match,
-  [local-cli-review.md](../../../.claude/commands/_lib/local-cli-review.md)
-  step 3 records `not run` and goes on.
 - When a number does not match, `/fixpr`, `/runpr`, and `/mergepr` show two
   fixes and stop: reinstall the tool from `main` when the tool is old, or
   merge `origin/main` into the branch when the branch is old (`/runpr`'s

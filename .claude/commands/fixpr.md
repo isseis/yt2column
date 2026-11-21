@@ -113,10 +113,7 @@ count the correction paragraphs, printing no body),
 `push-review`), `git push` (made by the guard tool: `push` in Phase 4 and
 `push-review` in Phase 4.5), `git fetch origin main` (Phase 1, run by
 this session before `begin`, for the PR kind), and `git fetch --prune` (Phase
-4, run by this session). `coderabbit review` and `codexreview` (Phase 4.5) have standing
-approval (`CLAUDE.md`, "Tool Execution Safety"): the local CLI review runs
-`codexreview`, which runs Codex CLI and sends the diff and what Codex reads to
-OpenAI's service, only when the CodeRabbit CLI fails. Invoking this command also approves
+4, run by this session). `coderabbit review` (Phase 4.5) has standing approval in `CLAUDE.md`. Invoking this command also approves
 the commit of `README.en.md` that Phase 4.5 makes after its README sync; that commit is
 pushed by Phase 4.5's `push-review`.
 
@@ -900,9 +897,7 @@ failures), and stop — do not run Phase 4.5, 5, or 6.
 Skip this phase when Phase 4 made no commit (`commitSha` is empty).
 
 The fix is not seen by a PR review, so review it here with the local CLI
-review: the CodeRabbit CLI, whose allowance is separate from the PR review's,
-or, when it fails, Codex CLI, which spends the allowance the Codex PR review
-shares. Do it yourself in this session, not in a subagent.
+review using CodeRabbit CLI. Do it yourself in this session, not in a subagent.
 
 Phase 4's push checked the git state for the last time; from here on, every
 git this phase runs, itself or through the procedure, comes after the guard
@@ -974,13 +969,12 @@ been rewritten. Build the values for the Final report from what you kept:
   report "the push result is unknown" instead of the count. A stop in its
   comparison (`git-state-changed`, or a `git-failed` of another rule such as
   `ls-remote`) pushed nothing.
-- **Range neither CLI reviewed:** in the form of the procedure's
+- **Range the CLI did not review:** in the form of the procedure's
   `Local CLI review: not run` line. When the range ends at a commit made after
   the last passing `check`, whose SHA you do not know, end it at that
   `check`'s `head` and add the number of commits made after it.
 - **The point that stopped:** Phase 4.5 step 1, 3, 4, or 5, or the
-  procedure's step and the point in it (before the attempt, before step 3's
-  git, before the build checks, the README sync check, staging, or
+  procedure's step and the point in it (before the attempt, before the build checks, the README sync check, staging, or
   `findings --clear`), or `push-review`.
 - **A fix left uncommitted:** a stop inside the procedure's fix step (before
   its build checks, README sync check, or staging) leaves the fix in the work
@@ -1267,8 +1261,8 @@ the user with **all** of the following — bare counts alone are not enough:
    paragraph, say so.
 
 10. **Local CLI review**: when Phase 4.5 ran, the SUMMARY of
-   `_lib/local-cli-review.md`: each attempt's result with each failed CLI's
-   failure kind, how many times Codex CLI ran, the findings by CLI, and every
-   range neither CLI reviewed (its `Local CLI review: not run` line). When
-   the Phase 4.5 comparison stopped, the range neither CLI reviewed as
+   `_lib/local-cli-review.md`: each attempt's result with any CodeRabbit
+   failure kind, the findings, and every
+   range the CLI did not review (its `Local CLI review: not run` line). When
+   the Phase 4.5 comparison stopped, the range the CLI did not review as
    Phase 4.5, "Stops", gives it.

@@ -186,7 +186,6 @@ change, retire, and withdraw an ADR is in the convention,
 - `make all` - Default build target
 - `make install-mergepr` - Install the `/mergepr` developer tool (`go install ./cmd/mergepr`)
 - `make install-fixprguard` - Install the `fixprguard` guard tool (`go install ./cmd/fixprguard`); rerun it after a merge that changes the tool
-- `make install-codexreview` - Install the `codexreview` developer tool, which runs Codex CLI's local review when the CodeRabbit CLI fails (`go install ./cmd/codexreview`); rerun it after a merge that changes the tool
 - `make install-chief` - Install the `chief` developer tool that `/chief` drives (`go install ./cmd/chief`); rerun it after a merge that changes the tool
 - `make install-numreserve` - Install the `numreserve` developer tool, which decides a task or ADR number by creating a record tag on GitHub (`go install ./cmd/numreserve`); rerun it after a merge that changes the tool
 
@@ -224,7 +223,7 @@ Project-specific values these commands depend on are defined once in
 Each task PR is handled by two commands. The command that produces it —
 `/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
 feature branch, reviews its work (subagent review, `japrose` for documents,
-the local CLI review — the CodeRabbit CLI, or Codex CLI when it fails —),
+the local CodeRabbit CLI review),
 opens the PR, pings the reviewer, and stops. Before it opens the PR, it also
 runs the Fable partial review (`_lib/fable-review.md`): a subagent on Fable
 reviews only the places that meet its scope criteria (a trust boundary, the
@@ -253,10 +252,8 @@ opens. Codex is set up outside the repository, by the user: it reviews
 automatically only when a PR is created, never on a push, and its thorough
 code review is off.
 `.coderabbit.yaml` turns CodeRabbit's automatic review off, so the PR is not
-reviewed twice. Later changes are reviewed with the local CLI review — the
-CodeRabbit CLI, or Codex CLI when it fails. The CodeRabbit CLI's allowance is
-separate from the PR review's, but the fallback Codex CLI spends the same
-allowance as the PR review. `/runpr` requests another PR review by itself
+reviewed twice. Later changes are reviewed with the CodeRabbit CLI, whose allowance is
+separate from the PR review's. `/runpr` requests another PR review by itself
 only when the changes since the last PR review touch a trust boundary,
 security, or durability, a change to a review gate included
 ([pr-review-escalation.md](.claude/commands/_lib/pr-review-escalation.md)).
@@ -458,19 +455,6 @@ its security rules in `docs/dev/security.md` §8.
   only `parseArticleMarkdown`; an input that matches no rule is not
   interpreted more widely but is kept as text, and a link is made only from
   an `https` autolink that meets every link condition, as the `LinkUrl` type.
-  Exception: `codexreview` chooses whether Codex CLI's final message reports
-  findings, reports none, or cannot be read by inspecting the content of that
-  message (`parseFinalMessage` in `internal/codexreview/message.go`). Scope:
-  the parse of the final message only — the summary paragraph, the heading
-  line, and the shape of each finding line and its indented body decide the
-  findings' boundaries and the message's form. Telling a completed run from
-  `codex exec review --json` output is not part of it: those lines are chosen
-  by their declared `type` member. Reason: the final message is an external
-  value written by `codex`, which the tool cannot express in a type, and the
-  published output has no structured member that declares completion or the
-  list of findings. Boundary: a message that matches neither accepted form is
-  not read more widely but is reported as unreadable, with none of the
-  findings read before the line that broke the form.
   Exception: the coverage-compare tool's input parsers choose behavior by
   inspecting the content of the reports and the diff they read
   (`parseTAP` in `internal/coveragecompare/tap.go`, `parseLCOV` in
@@ -763,8 +747,7 @@ info.json parsers with real samples under `testdata/`.
   matching test. Two exceptions stay tested: the automated-reviewer list, and the
   commands the agents run at their trust boundary (the `fixprguard` call sites,
   the commands that would bypass it, the mention check, the `--jq` filters
-  that must not print a body, the `--protocol` value of the `codexreview`
-  calls, the absence of a command that runs `codex` directly, and the form of
+  that must not print a body, and the form of
   the `numreserve` calls and of their permission rules). A mistake
   there disables a guard at run time, so a test is worth its brittleness. A
   property of the change itself, such as "the diff of section S is limited to
@@ -806,14 +789,13 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   `costPrefix`), the production profile's configuration block and step table in
   `docs/dev/production_profile.md`, the configuration block of both READMEs,
   the values `cli.md` and `development.md` hold, the
-  `/fixpr` and `/runpr` command documents, the `codexreview`
-  permission and command-document checks, `cmd/mergepr`'s checks of the
+  `/fixpr` and `/runpr` command documents, `cmd/mergepr`'s checks of the
   `mergepr` calls and of the tools with a protocol number, `cmd/numreserve`'s
   checks of its permission rules, its calls, and its guide's values, the ADR guard
   `TestADRRecords`, and `internal/chief`'s readings of the routing table, the
   PR markers, and `runpr.md`'s NEXT line examples) are Go tests included
   in `make test` and need no node. The `doc-guard` CI job runs these guards
-  (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`)
+  (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`)
   on every pull request, so a documentation-only change is checked in CI by
   those guards even though `check-changes` classifies it as non-code.
 - A change that touches only `.gitignore` can still break the extension's
@@ -846,7 +828,7 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
 A protocol number is the number a developer tool and the documents that call
 it compare to agree on a version: the documents pass it with `--protocol`,
 and the tool refuses a number that is not its own. The rules below cover
-every tool that has one: today `fixprguard`, `codexreview`, `chief`, and
+every tool that has one: today `fixprguard`, `chief`, and
 `mergepr`. A tool declares it in exactly one line,
 `const Protocol = <number>`, in a file directly inside `internal/<name>/`
 that is not a `_test.go` file; any other form, or a second declaration,
@@ -1082,15 +1064,6 @@ section of the Requirements Process Guide.
 - `coderabbit review` (the local CodeRabbit CLI, a development tool used on every
   change) may be executed without explicit approval, although it sends the diff to
   CodeRabbit's service
-- `codexreview` (the developer tool the local CLI review runs only when the
-  CodeRabbit CLI fails, as its fallback) may be executed without explicit approval,
-  in the form `.claude/commands/_lib/local-cli-review.md` gives, although it runs
-  Codex CLI (`codex exec review`), which sends the diff and whatever Codex reads
-  during the review to OpenAI's service and spends the Codex allowance the PR
-  review shares. Codex CLI itself is never run directly, and the agents never
-  install or build `codexreview`: the user installs it from `main`. The
-  development exception is in
-  [Developer Tools](docs/dev/conventions/dev_tools.md), Rule 5.
 - `numreserve task` and `numreserve adr` (the developer tool that decides a task
   or an ADR number) may be executed without explicit approval, written exactly
   in one of these two forms and run only when a procedure needs a new number
@@ -1109,9 +1082,7 @@ section of the Requirements Process Guide.
   a command fails because a tool is missing or its protocol number does not
   match, stop there, ask the user, and show the command to run. Show it for an
   up-to-date `main` checkout; ask the user to reinstall from the PR's branch
-  only when that PR raises the tool's protocol number. A procedure that
-  decides otherwise wins (for `codexreview`, step 3 of
-  `.claude/commands/_lib/local-cli-review.md`). The development exception and
+  only when that PR raises the tool's protocol number. The development exception and
   the details are in [Developer Tools](docs/dev/conventions/dev_tools.md),
   Rule 5
 - Creating, changing, or deleting a record tag (a ref under
