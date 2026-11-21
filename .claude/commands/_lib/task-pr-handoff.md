@@ -37,7 +37,7 @@ next command after the merge and never runs it (`runpr.md` steps 2, 4, and 5).
 - **REPORT** — where the calling command gives its final report.
 - **CHECKS** — what runs before the push: for a task-document command, the
   documentation guards
-  (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline`);
+  (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./internal/pipeline`);
   for `runplan.md`, the green gate (`_context.md`).
 - **LOCAL_REVIEW** — `run` for a task-document command; `done` for
   `runplan.md`, which reviews each phase group locally (its step 7.7).
@@ -64,11 +64,7 @@ operations this file names: `gh api user`, `gh pr list`, `gh pr view`,
 sub-issues only), `gh issue view` to read the labels of the task's issue
 (Part B step 3), `git push` (including `-u`), `gh pr create`, `gh api` to
 read the PR's comments and, with `gh api -i`, the `Date` header (Part B step
-5), and `gh pr comment` for the PR review request to Codex. `coderabbit review`
-and `codexreview` have standing approval (`CLAUDE.md`, "Tool Execution
-Safety"): the local CLI review runs `codexreview`, which runs Codex CLI and
-sends the diff and what Codex reads to OpenAI's service, only when the
-CodeRabbit CLI fails. Anything else that touches the network is asked for
+5), and `gh pr comment` for the PR review request to Codex. `coderabbit review` has standing approval under `CLAUDE.md`. Anything else that touches the network is asked for
 first.
 
 ## Part A — prepare the branch
@@ -182,7 +178,7 @@ holding them (a **link sub-issue**), not to ISSUE itself.
 Run this after the calling command's last commit, with a clean working tree.
 
 1. When LOCAL_REVIEW is `run`, review the branch with the local CLI review
-   (the CodeRabbit CLI, or Codex CLI when the CodeRabbit CLI fails), with the
+   (CodeRabbit CLI), with the
    Fable partial review in parallel: follow
    `.claude/commands/_lib/local-cli-review.md` with
    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
@@ -206,6 +202,28 @@ Run this after the calling command's last commit, with a clean working tree.
 
 2. Run CHECKS. If they fail, fix, commit, and run them again; do not go on to
    the push until they pass.
+2.5. Check the commits still awaiting local CLI review. Resolve HEAD and the
+   merge-base with origin/main. Run these commands separately, using a new
+   scratchpad file outside the work tree and the full ID from the first
+   command. Supply PLAN only for runplan.
+
+   ```bash
+   git rev-parse --verify 'refs/remotes/origin/main^{commit}'
+   git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
+   bash <records-script> coverage none <HEAD> [<PLAN>]
+   ```
+
+   On success with `ALL`, continue to step 3. For `PARTIAL <n>`, take
+   BASE as the first parent of the oldest listed commit if that parent
+   belongs to origin/main..HEAD, otherwise use the merge-base. If any
+   command fails or its result is unreadable, use the merge-base.
+   Run `_lib/local-cli-review.md` once with this BASE, SCOPE = commits
+   awaiting review before the PR, SUMMARY = REPORT and RECORD = commit.
+   Its two-attempt cap applies. A CLI failure records the unreviewed
+   range and continues. After fix commits, rerun CHECKS until they pass.
+   Include any further CHECKS fixes in step 3’s unreviewed ranges.
+   Proceed to step 3 without repeating this review.
+
 3. Push and create the PR for the current branch. Ignore the calling command's
    `$ARGUMENTS` here (it is a task or an issue, not a PR or a branch). First
    write the title and the body to files, as below, and run the mention check
@@ -237,7 +255,7 @@ Run this after the calling command's last commit, with a clean working tree.
    - lists the decisions made with the reviewer during this run, if any;
    - names the points the reviewer should check (for `runplan.md`, the
      `レビュー観点`), including every `unclear` or `deferred` finding of the
-     local CLI reviews, from either CLI: this run's SUMMARY, and the finding
+     local CLI reviews, including earlier records: this run's SUMMARY, and the finding
      lines earlier sessions recorded in commit messages on the branch
      (`git log origin/main..HEAD`; the `CodeRabbit local review:` and
      `Codex local review:` lines, read as `_lib/local-cli-review.md`,
@@ -247,22 +265,18 @@ Run this after the calling command's last commit, with a clean working tree.
      Describe a Codex CLI or a Fable finding only by its location and your
      own summary, as the record line does, never with Codex's or Fable's
      text;
-   - names the commits of this PR that neither CLI reviewed, if any. When this
+   - names the commits of this PR that the local CLI did not review, if any. When this
      session reviewed the whole branch (step 1 or `runplan.md` step 5a), give
      only the unreviewed ranges in that review's SUMMARY: a range that review
      covered counts as reviewed even when a commit message has a `not run`
      line. Otherwise give the ranges of the `not run` lines in
      `git log origin/main..HEAD`, of either form (`Local CLI review: not run`,
      or an earlier session's `CodeRabbit local review: not run`, which stands
-     for the whole branch). For `runplan.md`, the Opus review's fix commits
-     are reviewed by neither CLI (Codex's PR review sees them instead), and
-     are outside any branch review's SUMMARY: add them to the unreviewed
-     ranges;
+     for the whole branch). Account for step 2.5’s result: omit ranges it covered,
+     include its remaining unreviewed ranges and any subsequent CHECKS fixes;
    - for `runplan.md`, gives PR_TEXT's Opus review result: whether the Opus
      review ran, and with what result, or which condition kept it from
      running;
-   - gives how many times Codex CLI ran in this session's local CLI reviews,
-     from their SUMMARY;
    - carries the Fable partial review section, written from the Fable lines
      of `git log --reverse origin/main..HEAD`, read as
      `_lib/fable-review.md`, "Reading the record lines", says (the

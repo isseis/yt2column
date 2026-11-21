@@ -6,8 +6,7 @@ argument-hint: "[#PR | branch | task]"
 > **Project context (read first)**: Read `.claude/commands/_context.md`. The
 > fix and merge mechanics are in `.claude/commands/fixpr.md` and
 > `.claude/commands/mergepr.md`; follow them rather than copying their content
-> here. The local CLI review (the CodeRabbit CLI, or Codex CLI when the
-> CodeRabbit CLI fails) is `.claude/commands/_lib/local-cli-review.md`.
+> here. The local CLI review (CodeRabbit CLI) is `.claude/commands/_lib/local-cli-review.md`.
 
 This command reads the PR's review threads only through the guard tool
 `fixprguard` (`_context.md`, "Guard tool"; `head` and `interaction-limits` in
@@ -91,10 +90,7 @@ title and body), and the thread replies and resolutions of the return. After the
 `対応 issue` and that issue's link sub-issues (step 5, and step 1's `MERGED`
 case). It also covers what `fixpr.md` and `mergepr.md` authorize when run from
 here. It does **not** approve running the next command (NEXT), nor the merge
-itself: only the user's answer to step 4's merge question approves the merge (`CLAUDE.md`, "Tool Execution Safety"). `coderabbit review` and
-`codexreview` have standing approval: the local CLI review runs `codexreview`,
-which runs Codex CLI and sends the diff and what Codex reads to OpenAI's
-service, only when the CodeRabbit CLI fails.
+itself: only the user's answer to step 4's merge question approves the merge (`CLAUDE.md`, "Tool Execution Safety"). `coderabbit review` has standing approval.
 
 Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
 (`<number>`), never `$ARGUMENTS`, which may be a task ID or a branch.
@@ -133,9 +129,8 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     `$(git merge-base origin/main HEAD)`, **SCOPE** = branch, **SUMMARY** = the
     final report. (The review reads the local checkout, so skip it for another
     branch.) When it stops, stop before the push. When it leaves a range
-    neither CLI reviewed, give that range (its `Local CLI review: not run`
-    line) in the final report; the PR body stays as below and does not carry
-    the review's record.
+    the CLI did not review, give that range (its `Local CLI review: not run`
+    line) in the final report and PR body.
   - **README sync.** When that branch is the checked-out one, run the README
     sync check as `.claude/commands/mktrans.md`, "When a caller runs it",
     says. For `translated`, commit
@@ -145,6 +140,10 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     push. For another branch, the sync cannot run (it changes the checkout);
     CI's `TestReadmeSyncMarker` fails the PR if it is out of sync, and step 3
     stops on that failure.
+  - For the checked-out branch, follow `_lib/task-pr-handoff.md` Part B
+    step 2.5 after README sync, with no PLAN. Report any remaining
+    unreviewed ranges in the PR body. For another branch, report in the
+    body that this checkout could not run the review for it.
   - Write the PR title and body to files first, as the paragraph after the
     commands says, then run the mention check on both files:
     **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
@@ -1541,7 +1540,7 @@ character as 2); the line shapes below are the examples to follow.
       **RECORD** = `return`.
       Its fixes are new commits on the branch. When it stops, push nothing and
       stop: the return commit stays on the local branch. When it leaves a
-      range neither CLI reviewed, give that range (its `Local CLI review: not
+      range the CLI did not review, give that range (its `Local CLI review: not
       run` line) in the final report.
    4. **Push.** `git push`. When it is rejected (the head moved), stop and
       report, keeping the local commits; do not rebase. The report says that

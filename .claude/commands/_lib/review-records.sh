@@ -11,6 +11,9 @@
 # last PR review (.claude/commands/runpr.md, step 3, and
 # .claude/commands/_lib/local-cli-review.md, "Reading the record lines").
 #
+#   Before a PR opens, task-pr-handoff.md Part B step 2.5 calls coverage
+#   with "none" to include the entire branch.
+#
 #   LAST_REVIEWED  the commit of Codex's last PR review, 40 hexadecimal
 #                  characters, or "none" when there is none
 #   HEAD           the PR's head, 40 hexadecimal characters

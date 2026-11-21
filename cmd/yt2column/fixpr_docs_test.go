@@ -1287,7 +1287,7 @@ var numberedStep = regexp.MustCompile(`^[0-9]+\. \*\*`)
 
 // TestLocalReviewGuard: the guard call at the trust boundary of fixpr.md
 // Phase 4.5 is wired in. local-cli-review.md declares a GUARD input, steps 1,
-// 3, 5, 6, and 7 (the record commit) run it (each names it; how many points
+// 5, 6, and 7 (the record commit) run it (each names it; how many points
 // one step holds is read in review), and fixpr.md Phase 4.5 passes
 // fixprguard check as GUARD.
 func TestLocalReviewGuard(t *testing.T) {
@@ -1297,7 +1297,7 @@ func TestLocalReviewGuard(t *testing.T) {
 		t.Error("local-cli-review.md declares no **GUARD** input")
 	}
 	procedure := requireSection(t, "local-cli-review.md", review, "## Procedure")
-	for _, n := range []int{1, 3, 5, 6, 7} {
+	for _, n := range []int{1, 5, 6, 7} {
 		step := procedureStep(procedure, n)
 		if step == "" {
 			t.Errorf("local-cli-review.md has no step %d", n)

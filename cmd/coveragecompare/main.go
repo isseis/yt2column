@@ -24,7 +24,7 @@ import (
 // exitWriteFailed is the exit code when the result could not be written. It
 // is none of the three the result lines stand for, so the make recipe writes
 // the internal final line in their place. 2 is left out: Go exits with it on a
-// runtime panic (cmd/codexreview/main.go gives the same reason).
+// runtime panic.
 const exitWriteFailed = 4
 
 // flagBase is the one flag, given as its own argument followed by its value.
@@ -60,8 +60,7 @@ func main() {
 // Contract: no signal ends the process before compare has returned, so the
 // work directory is removed and the user's state checked whatever signal
 // comes. signalrun lets a second signal terminate a stuck process by default;
-// holding the signals subscribed for the whole run keeps them from ending it,
-// as cmd/codexreview/main.go does with the same lines. A SIGKILL is not
+// holding the signals subscribed for the whole run keeps them from ending it. A SIGKILL is not
 // covered.
 func runMain(compare compareFunc) int {
 	held := make(chan os.Signal, 1)
