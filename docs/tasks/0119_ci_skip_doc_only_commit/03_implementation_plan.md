@@ -94,24 +94,24 @@
 **ステップ 1-1: 公開値型・上限・コンテキスト入力検証・環境分離を実装する**
 
 -   対象ファイル：`internal/ciskip/ciskip.go`、`internal/ciskip/ciskip_test.go`（`//go:build test`）、`internal/ciskip/test_helpers.go`（`//go:build test`）
--   [ ] 設計書 §3.2・§3.4 の公開値型（`Reason` 全定数・`Input`・`Decision`・`Decision.Skip`）、非公開の `evalLimits`、および設計書 §3.1・§3.3.1 のコンテキスト入力検証（リポジトリ許可リストと同一性、`BaseRef == "main"`、`HeadSHA` 40 桁小文字 16 進、`PRNumber`・`RunAttempt` の正の 10 進整数と `RunAttempt > 1` 拒否、`WasmDepDirsOK` 検証）を実装する（`Evaluator`・`New`・`Evaluate` はステップ 1-4 で追加する）。
--   [ ] 設計書 §3.3.3・§3.4 の `git`・`script`・`gh` 各ランナーの `cmdrunner.Options` と環境変数サニタイズを純粋な関数として実装し、パッケージ doc コメントに外部出力・パス・API ヘッダの解析範囲と境界を明記する（設計書 §2.2）。
--   [ ] `ciskip_test.go` でコンテキスト入力検証の正常／異常系（AC-09・AC-10・AC-12）、`Reason` ゼロ値・未知値の安全側動作、および各ランナーの環境分離と `Options` 上限を検証する。
+-   [x] 設計書 §3.2・§3.4 の公開値型（`Reason` 全定数・`Input`・`Decision`・`Decision.Skip`）、非公開の `evalLimits`、および設計書 §3.1・§3.3.1 のコンテキスト入力検証（リポジトリ許可リストと同一性、`BaseRef == "main"`、`HeadSHA` 40 桁小文字 16 進、`PRNumber`・`RunAttempt` の正の 10 進整数と `RunAttempt > 1` 拒否、`WasmDepDirsOK` 検証）を実装する（`Evaluator`・`New`・`Evaluate` はステップ 1-4 で追加する）。
+-   [x] 設計書 §3.3.3・§3.4 の `git`・`script`・`gh` 各ランナーの `cmdrunner.Options` と環境変数サニタイズを純粋な関数として実装し、パッケージ doc コメントに外部出力・パス・API ヘッダの解析範囲と境界を明記する（設計書 §2.2）。
+-   [x] `ciskip_test.go` でコンテキスト入力検証の正常／異常系（AC-09・AC-10・AC-12）、`Reason` ゼロ値・未知値の安全側動作、および各ランナーの環境分離と `Options` 上限を検証する。
 -   完了の基準：`go test -tags test -race ./internal/ciskip` が通り、対応する検証を壊したときにテストが失敗することを確かめ、コミットメッセージに記録する。
 
 **ステップ 1-2: `git` 検証と親コミット差分分類を実装する**
 
 -   対象ファイル：`internal/ciskip/git.go`、`internal/ciskip/git_test.go`（`//go:build test`）、`internal/ciskip/test_helpers.go`（`//go:build test`）
--   [ ] 設計書 §3.3.1・§3.3.2 の合成マージコミット検証（`HEAD^2 == HeadSHA` 照合と `HEAD^1` 取得）、`origin/main` 照合、単一親確認、`depDirsFile` の有界読み取り（`os.Open`＋`io.LimitReader` 64 KiB+1 バイト＋`defer Close`、必要な場合のみ該当行へ最小範囲の `//nolint:gosec` と根拠コメント）・非空／`/` 終端検証、`git -c core.quotePath=false diff -z --no-renames --name-only <parentSHA> <headSHA> --` 解析（0 バイト空コミット許容・末尾 NUL 欠落と空要素拒否）、非コード分類、および `has-extension-changes.sh` 呼び出しを実装する。
--   [ ] `git_test.go` に、`cmdrunnertestutil.Fake` による合成マージコミット不整合・`HEAD^1 != origin/main`・親数（0 個／1 個／2 個以上）・`depDirsFile` 境界（64 KiB 受理・64 KiB+1 拒否・空行のみ）・空コミット時の `has-extension-changes.sh` 未呼出・分類器自身（`.github/workflows/ci.yml`・`cmd/ciskip/`・`internal/ciskip/`・`extension/scripts/*.sh`）を含むコード／拡張対象分類、および `git`・スクリプト異常系のユニットテストを書く。
--   [ ] `git_test.go` に、`t.TempDir()` の実 `git` とリポジトリ直下の実 `extension/scripts/has-extension-changes.sh`（`cmdrunner.Options.Dir` でリポジトリルート指定）を使う結合テストを書く（対象は合成マージコミット、コードおよび拡張対象 `.md` のリネーム両側、ASCII エスケープ表記の非日本語 UTF-8 文字列を含む非 ASCII・タブ・改行パス、64 KiB を超える標準入力での早期終了時にデッドロックしないこと、設計書 §7.2）。補助関数は `test_helpers.go` に置き、`exec.Command` 等を使う場合はテストセットアップ専用である旨の根拠コメント付きで最小範囲の `//nolint:gosec` を付与し、`HOME`・`XDG_CONFIG_HOME` は `t.TempDir()` 配下へ分離する。
+-   [x] 設計書 §3.3.1・§3.3.2 の合成マージコミット検証（`HEAD^2 == HeadSHA` 照合と `HEAD^1` 取得）、`origin/main` 照合、単一親確認、`depDirsFile` の有界読み取り（`os.Open`＋`io.LimitReader` 64 KiB+1 バイト＋`defer Close`、必要な場合のみ該当行へ最小範囲の `//nolint:gosec` と根拠コメント）・非空／`/` 終端検証、`git -c core.quotePath=false diff -z --no-renames --name-only <parentSHA> <headSHA> --` 解析（0 バイト空コミット許容・末尾 NUL 欠落と空要素拒否）、非コード分類、および `has-extension-changes.sh` 呼び出しを実装する。
+-   [x] `git_test.go` に、`cmdrunnertestutil.Fake` による合成マージコミット不整合・`HEAD^1 != origin/main`・親数（0 個／1 個／2 個以上）・`depDirsFile` 境界（64 KiB 受理・64 KiB+1 拒否・空行のみ）・空コミット時の `has-extension-changes.sh` 未呼出・分類器自身（`.github/workflows/ci.yml`・`cmd/ciskip/`・`internal/ciskip/`・`extension/scripts/*.sh`）を含むコード／拡張対象分類、および `git`・スクリプト異常系のユニットテストを書く。
+-   [x] `git_test.go` に、`t.TempDir()` の実 `git` とリポジトリ直下の実 `extension/scripts/has-extension-changes.sh`（`cmdrunner.Options.Dir` でリポジトリルート指定）を使う結合テストを書く（対象は合成マージコミット、コードおよび拡張対象 `.md` のリネーム両側、ASCII エスケープ表記の非日本語 UTF-8 文字列を含む非 ASCII・タブ・改行パス、64 KiB を超える標準入力での早期終了時にデッドロックしないこと、設計書 §7.2）。補助関数は `test_helpers.go` に置き、`exec.Command` 等を使う場合はテストセットアップ専用である旨の根拠コメント付きで最小範囲の `//nolint:gosec` を付与し、`HOME`・`XDG_CONFIG_HOME` は `t.TempDir()` 配下へ分離する。
 -   完了の基準：`go test -tags test -race ./internal/ciskip` が通り、対応する判定を壊したときに各テストが失敗することを確かめ、コミットメッセージに記録する。
 
 **ステップ 1-3: PR-1 のパッケージ参照・`CLAUDE.md` 例外を更新する**
 
 -   対象ファイル：`docs/dev/conventions/package_reference.md`、`CLAUDE.md`
--   [ ] `package_reference.md` の「Kinds of package」の `Development tools` 定義へ CI 専用ツールを含める記述を加え、「Development Tools」表へ `internal/ciskip` の行を追加する（PR-1 時点では `internal/strictjson` をまだ import しないため、`internal/strictjson` 行の利用者一覧はステップ 1-5 で更新する。記載は `package_reference.md:14-22` の規約に従う）。
--   [ ] `CLAUDE.md` の「Declare, don't infer」へ `internal/ciskip` の例外（対象範囲・理由・境界）を追加する（設計書 §2.2・§3.5）。
+-   [x] `package_reference.md` の「Kinds of package」の `Development tools` 定義へ CI 専用ツールを含める記述を加え、「Development Tools」表へ `internal/ciskip` の行を追加する（PR-1 時点では `internal/strictjson` をまだ import しないため、`internal/strictjson` 行の利用者一覧はステップ 1-5 で更新する。記載は `package_reference.md:14-22` の規約に従う）。
+-   [x] `CLAUDE.md` の「Declare, don't infer」へ `internal/ciskip` の例外（対象範囲・理由・境界）を追加する（設計書 §2.2・§3.5）。
 -   完了の基準：`make test`（`TestPackageReferenceListsPackages`・`TestPackageReferenceStrictjsonUsers`・`TestFakesCarryBuildTag` を含む）・`make lint`（`go vet -tags integration ./...` および `-tags test,integration` の `golangci-lint` で `test_helpers.go` もコンパイル）・`make deadcode` がすべて通る。あわせて `CLAUDE.md` の例外記述と `internal/ciskip` のパッケージ doc／実装境界、`package_reference.md` の `internal/ciskip` 行と `ciskip.go` の公開型および記載規約（`package_reference.md:14-22`）の一致を実コードと突合して確認する。
 
 ### PR-1 作成ポイント: internal/ciskip local validation, git diff, and extension classification
