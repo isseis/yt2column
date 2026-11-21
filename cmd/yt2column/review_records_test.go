@@ -386,6 +386,14 @@ func coverageCases() []rrCase {
 			return rrNone(f, "")
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
 		// The plan checkbox commits.
+		{name: "green gate confirmed in a marker section", setup: func(f *rrFixture) []string {
+			f.plan(rrMarkersPlan, "markers-greengate.md")
+			return rrNone(f, rrMarkersPlan)
+		}, want: rrAll},
+		{name: "green gate text reworded", setup: func(f *rrFixture) []string {
+			f.plan(rrMarkersPlan, "markers-greengate-reworded.md")
+			return rrNone(f, rrMarkersPlan)
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
 		{name: "PR created in a marker section", setup: func(f *rrFixture) []string {
 			f.plan(rrMarkersPlan, "markers-created.md")
 			return rrNone(f, rrMarkersPlan)

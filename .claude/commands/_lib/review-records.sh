@@ -35,11 +35,11 @@
 #       * empty: one parent, and no difference from it;
 #       * a plan checkbox commit: one parent, changing only PLAN, a regular
 #         file before and after, by marking the PR progress checkboxes (the
-#         "PR created", "PR merged", and "switched to the next branch"
-#         lines) of a PR marker's section, or of the single-PR record of a
-#         plan without markers, the way /runplan and /runpr mark them (see
-#         checkbox_only below), with the line end (LF or CRLF) of every kept
-#         line unchanged; never with PLAN absent;
+#         "green gate confirmed", "PR created", "PR merged", and "switched to
+#         the next branch" lines) of a PR marker's section, or of the
+#         single-PR record of a plan without markers, the way /runplan and
+#         /runpr mark them (see checkbox_only below), with the line end (LF or
+#         CRLF) of every kept line unchanged; never with PLAN absent;
 #       * inside the range of a seen-range line ("Local CLI reviewed:") that
 #         passes every check below.
 #     Any other commit, a merge commit included, is not known to be seen.
@@ -284,6 +284,8 @@ plan_lines() {
 # by marking its PR progress checkboxes:
 #   - in place, in a PR marker's section or the single-PR record, with the
 #     same list prefix before and after:
+#       the "green gate confirmed" box from "[ ]" to "[x]", the rest of the
+#       line unchanged (runplan.md step 5a);
 #       the "PR created" box from "[ ]" to "[x]" with ": <PR URL>" appended
 #       (runplan.md step 5a);
 #       the "PR merged" box from "[ ]" to "[x]" (runpr.md);
@@ -327,6 +329,9 @@ plan_marked() {
 			if (substr(b, 1, length(p)) != p) return 0
 			ta = substr(a, length(p) + 1)
 			tb = substr(b, length(p) + 1)
+			if (substr(ta, 1, length("[ ] グリーンゲート")) == "[ ] グリーンゲート") {
+				return tb == "[x]" substr(ta, 4)
+			}
 			if (ta == "[ ] PR を作成した") {
 				if (substr(tb, 1, length("[x] PR を作成した: ")) != "[x] PR を作成した: ") return 0
 				url = substr(tb, length("[x] PR を作成した: ") + 1)
