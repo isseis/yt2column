@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-21 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：GitHub API 呼び出しに gh コマンドを採用し、HTTP リダイレクトを拒否できない点・HTTP 層で応答サイズ上限を指定できない点を制限として受け入れ、呼び出し側の読み込み上限とタイムアウトでメモリ枯渇を防ぐ方針に変更<br>決定の変更で draft に戻した：GitHub API 応答の重複キー検査範囲を internal/strictjson の契約（消費するメンバに対する重複・大文字小文字違いの拒否）に整合 |
+| Review date | 2026-11-21 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -244,4 +244,5 @@ GitHub Actions 上での挙動を実機で確認し、確認日・PR 番号・�
 ## 変更履歴
 
 - 2026-11-21 承認（isseis、#1075）
-- 2026-11-21 draft への戻し：GitHub API 呼び出しに gh コマンドを採用し、HTTP リダイレクトを拒否できない点・HTTP 層で応答サイズ上限を指定できない点を制限として受け入れ、呼び出し側の読み込み上限とタイムアウトでメモリ枯渇を防ぐ方針に変更；GitHub API 応答の重複キー検査範囲を internal/strictjson の契約に整合（#未記入）
+- 2026-11-21 draft への戻し：GitHub API 呼び出しに gh コマンドを採用し、HTTP リダイレクトを拒否できない点・HTTP 層で応答サイズ上限を指定できない点を制限として受け入れ、呼び出し側の読み込み上限とタイムアウトでメモリ枯渇を防ぐ方針に変更；GitHub API 応答の重複キー検査範囲を internal/strictjson の契約に整合（#1076）
+- 2026-11-21 承認（isseis、#1076）

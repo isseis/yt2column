@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-21 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-21 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。「計画で決める」は、本タスクの実装計画書（`03_implementation_plan.md`）で決めることを指す。既存のファイルの内容は、コミット `b004f8c0` で確かめた。`file:line` の行番号は、このコミットでの行番号である。F-NNN・AC-NN は要件書の項番を、H-NN は [design_handoff.md](design_handoff.md)（以下、申し送り）の項番を指す。申し送りへの対応は付録 A に、受け入れ基準との対応は付録 B にまとめる。
@@ -917,3 +917,7 @@ flowchart TD
 | AC-18 | ADR-0054 が有効で索引行があり `TestADRRecords` が通る | §1.2・§7.2（本 PR で ADR-0054・ADR-0014 更新） |
 | AC-19 | 実装 PR で ADR-0054 の未実装「食い違い」記述を除去し実装と一致 | §3.5・§8（フェーズ 3） |
 | AC-20 | GitHub Actions 実機確認（通常実行＋スキップ＋常時実行）と `03_implementation_plan.md` 記録 | §5.3・§7.3・§8（フェーズ 3） |
+
+## 変更履歴
+
+- 2026-11-21 承認（isseis、#1076）
