@@ -116,6 +116,11 @@ flowchart LR
 -   **`AGENTS.md` のガードテストの理由を CodeRabbit に改める（H-09）:** CodeRabbit の PR レビューは `AGENTS.md` を既定で読む（観測の記録 3.11）。ADR の判断: ADR なし。テストのコメントの直しであるためである。
 -   **Codex CLI を直接走らせるコマンドがないことのガード（`TestRunsCodex`）は、`cmd/codexreview` とともに外す:** このガードは、`codexreview` を迂回して Codex CLI を走らせることを防ぐものだった。Codex CLI を使わなくなれば、守る対象がない。ADR の判断: ADR なし。F-008 の撤去の範囲の中で閉じるためである。
 
+### 1.4 実装の際に決めたこと（2026-11-21）
+
+-   **フェーズ 1 のコミット順:** ステップ 1-3 のテスト移設とカバレッジ比較を先に行う。旧手順を検査するテストが各コミットで通るよう、ステップ 1-1 の手順撤去はステップ 1-4 の製品コード・テスト削除と同じコミットにする。ADR の判断: ADR なし（タスク内のコミット順の変更であるため）。
+-   **`review-records.sh` の `flip` にグリーンゲート確認チェックボックスを追加:** `/runplan` step 5a は Part B step 2.5 より前に計画書のグリーンゲート確認チェックボックス（`[ ] グリーンゲート…` → `[x]`）を付けて commit するが、既存の `review-records.sh` の `flip` は `PR を作成した`・`PR がマージされた`・`次のブランチへ切り替えた` の 3 種しか受け入れず、Part B step 2.5 が常に `PARTIAL 1` を返して AC-31 を満たせない。`flip` にグリーンゲート確認チェックボックスを追加し、`TestReviewRecordsCoverage` にテストケースを足す（`PR を作成した` 等と同じく行の残りが不変のときだけ許可し、`(coderabbit|codex)` や範囲判定の規則は変えない）。推奨に従って利用者が選んだ。ADR の判断: ADR なし（既存スクリプトのチェックボックス判定の漏れ修正であり、アーキテクチャの決定を変えないため）。
+
 ## 2. システム構成 (System Structure)
 
 ### 2.1. 全体の構成
@@ -170,8 +175,8 @@ flowchart TB
     RUNPR -->|"利用者が選んだときだけ依頼"| COMMENTS
 
     class COMMENTS,CHECKRUNS,THREADS data
-    class RR,CLI process
-    class HANDOFF,RUNPR,FIXPR,LCR,ESC,FPG,CTX enhanced
+    class CLI process
+    class HANDOFF,RUNPR,FIXPR,LCR,ESC,FPG,RR,CTX enhanced
     class CODEXREVIEW problem
 
     subgraph Legend["Legend"]
@@ -186,7 +191,7 @@ flowchart TB
     class L4 problem
 ```
 
--   **`RR` を「変えないもの」とする理由:** `review-records.sh` は header の説明だけを変え、判定の規則は変えない（3.8）。
+-   **`RR` の変更:** `review-records.sh` は、header の説明の更新に加え、1.4 の決定に従い `flip` にグリーンゲート確認チェックボックスを追加する（3.8）。範囲判定や `(coderabbit|codex)` の規則は変えない。
 -   **`problem` の色:** `mermaid_reference.md` は `problem` を問題のあるコードに使う色としている。本書では、撤去するもの（2.1）と信頼しない入力（5.1）に使い、各図の Legend で意味を示す。
 -   **今の振る舞いを示す辺:** `RUNPR → FIXPR`、`FIXPR → LCR`、`FIXPR → FPG`、`LCR → CLI`、`FPG → THREADS`、`RUNPR → RR`、`LCR → CODEXREVIEW` は今あるものである（`runpr.md:837`、`fixpr.md` Phase 4.5、`local-cli-review.md:131`、`local-cli-review.md:170`、`runpr.md:828`、`runpr.md:875`）。
 -   **このタスクで足す辺:** `HANDOFF → RR`（F-007）、`FPG → COMMENTS` と `FPG → CHECKRUNS`（`review-state`）。今の `RUNPR → COMMENTS` は Codex への依頼で、このタスクで、CodeRabbit への、利用者が選んだときだけの依頼に変わる。
@@ -275,7 +280,7 @@ sequenceDiagram
 **新しい手順の中身:**
 
 -   **判定:** `origin/main` から取り出した `review-records.sh` を、`coverage none <HEAD> [<PLAN>]` で呼ぶ。呼び方は `runpr.md` の COVERAGE（`runpr.md:871-876`）と同じく、スクリプトをスクラッチパッドに書き出してから走らせる。`<PLAN>` は、`/runplan` のときはその計画書、ほかのときは渡さない。
--   **見たとみなす commit（AC-31）:** `ALL` なら、このためのレビューは走らない。スクリプトは、空の commit と、計画書の PR の進み具合のチェックボックスだけを変える commit を、見たものとみなす（`review-records.sh` の header の Contract）。記録だけの commit は空の commit なので、ここに入る。
+-   **見たとみなす commit（AC-31）:** `ALL` なら、このためのレビューは走らない。スクリプトは、空の commit と、計画書の PR の進み具合のチェックボックス（グリーンゲート確認・PR 作成・PR マージ・次のブランチへの切り替え）だけを変える commit を、見たものとみなす（`review-records.sh` の header の Contract、1.4）。記録だけの commit は空の commit なので、ここに入る。
 -   **範囲（AC-29）:** `PARTIAL <n>` なら、ローカルの CLI レビューを次の入力で走らせる。
     -   `BASE` = 一覧の最も古い commit の第 1 の親。その親が merge-base でも `origin/main..HEAD` の commit でもないときは、merge-base とする。
     -   `SCOPE` = PR 前の残り。
@@ -557,7 +562,7 @@ CodeRabbit の CheckRun は、次の値の組だけで分類する。CheckSuite 
 #### 3.4.3. エスカレーションと推奨（F-005、H-02）
 
 -   **範囲（AC-21）:** LAST_REVIEWED があるときは LAST_REVIEWED から head まで、ないときは `origin/main` との merge-base から head までとする。LAST_REVIEWED が「なし」のときにエスカレーションの判定を走らせずに `ask` とする今の規則（`runpr.md:893`、`_lib/pr-review-escalation.md` の Inputs）は外す。
--   **COVERAGE:** 今と同じく `review-records.sh coverage <LAST_REVIEWED> <HEAD> [<PLAN>]` で求める。`none` を渡したときの範囲は、すでに `origin/main..HEAD` である（`review-records.sh:445-446`）。そのため、スクリプトの判定の規則は変えない。
+-   **COVERAGE:** 今と同じく `review-records.sh coverage <LAST_REVIEWED> <HEAD> [<PLAN>]` で求める。`none` を渡したときの範囲は、すでに `origin/main..HEAD` である（`review-records.sh:445-446`）。そのため、`LAST_REVIEWED` の扱いに関する判定の規則は変えない。
 -   **答えを推奨に写す規則:** `runpr.md` の 1 か所に置き、最初に当たったもので決める。今の規則 1〜5（`runpr.md:897-905`）の結果の語を、推奨に置き換えたものである。
 
 | 規則 | エスカレーションの答え | 推奨 | 要件 |
@@ -627,7 +632,7 @@ chief の製品のコードは、Codex の文言で分岐しない（要件定�
 | `.claude/commands/runpr.md` | step 1（単独の PR）、step 3、step 4、step 5 の報告、`<mention-check>` と `<rejected-mentions>`、`fixprguard` の `--protocol` | F-002〜F-005、F-009 |
 | `.claude/commands/_lib/pr-review-escalation.md` | 冒頭の説明、Inputs、基準 4 の関門の範囲 | F-005 |
 | `.claude/commands/_lib/local-cli-review.md` | 3.6 | F-006、AC-28 |
-| `.claude/commands/_lib/review-records.sh` | header の説明（LAST_REVIEWED は手動の PR レビューの完了の印、F-007 の呼び方）。判定の規則は変えない | F-005、F-007 |
+| `.claude/commands/_lib/review-records.sh` | header の説明（LAST_REVIEWED は手動の PR レビューの完了の印、F-007 の呼び方）と、`flip` へのグリーンゲート確認チェックボックス追加（1.4）。範囲判定や `(coderabbit\|codex)` の規則は変えない | F-005、F-007、AC-31 |
 | `.claude/commands/fixpr.md` | `<mention-check>`、`replyBody` の規則、Phase 4.5 の Codex CLI の記述、`append-pr` の `current-body-mention` の報告、`--protocol` | F-006、F-009、AC-39 |
 | `.claude/commands/runplan.md` | 「Before the PR」の理由と B1、step 7.7 の Codex CLI の記述、Part B の CHECKS の文（新しい手順の commit は Opus のレビューの判断のやり直しを引き起こさない） | F-006、F-007 |
 | `.claude/commands/_lib/fable-review.md` | 冒頭の理由（[ADR-0050](../../dev/adr/0050-fable-partial-review.md) の新しい理由）、Codex CLI の指摘の記述、`<mention-check>` | F-009、F-011 |
@@ -654,14 +659,14 @@ chief の製品のコードは、Codex の文言で分岐しない（要件定�
 | `docs/dev/adr/0040`・`0046` | Codex に触れる箇所の直し（H-07、3.9） | F-011 |
 | `cmd/yt2column/codex_review_docs_test.go` | 名前を `review_mention_docs_test.go` に改め、2 つのメンションと 2 つの置き換え名を対象にする。`TestAgentsCodeReviewRules` の理由を CodeRabbit に改める | AC-56、H-09 |
 | `cmd/yt2column/fixpr_docs_test.go` | `TestLocalReviewGuard` の step 3 の確認を外す（PR-1）。`wantReviewers` を `coderabbitai` だけにする。要約コメントと受領コメントのフィルタのテストを外し、メンションのフィルタのテストを新しい分類に合わせる。step 3 の見出しの定数。Part B step 5 のテストを外す（PR-2） | F-003、F-006、F-009、F-010 |
-| `cmd/yt2column/review_records_test.go` | `seenRangeForm` の `(coderabbit)` の形、`TestRecordLinePrefixesDistinct` の下限、`TestReviewRecordsCallSite` の `coverage none` の呼び出しを PR-1 で更新する | F-006、F-007 |
+| `cmd/yt2column/review_records_test.go` | `seenRangeForm` の `(coderabbit)` の形、`TestRecordLinePrefixesDistinct` の下限、`TestReviewRecordsCallSite` の `coverage none` の呼び出し、`TestReviewRecordsCoverage` のグリーンゲート確認チェックボックスのケース（1.4）を PR-1 で更新する | F-006、F-007、AC-31 |
 | `cmd/fixprguard/docs_test.go` | `codexreview` の呼び出しの記述（PR-1）、`review-state` の呼び出しの形（PR-2） | F-004、F-008 |
 | `internal/config/envaccess_test.go`、`internal/cmdrunner/runner.go`、`cmd/coveragecompare/main.go` | `codexreview` を名指すコメントと表の行 | AC-36 |
 
 **既存のテストで、振る舞いの変更に合わせて直すもの:**
 
 -   **`TestLocalReviewGuard`（`cmd/yt2column/fixpr_docs_test.go`）:** `_lib/local-cli-review.md` の step 3 を撤去するので、確認する手順の一覧から step 3 を外す（PR-1）。
--   **`cmd/yt2column/review_records_test.go` の文書ガード:** `seenRangeForm`（`<cli>` から `(coderabbit)` への変更）、`TestRecordLinePrefixesDistinct`（step 7 の表から `Codex local review:` を外すことによる下限の変更）、`TestReviewRecordsCallSite`（`_lib/task-pr-handoff.md` の `coverage none` の呼び出しの追加）を PR-1 で更新する。一方、`TestReviewRecordsCoverage` は判定の規則を変えないので直さず、`(codex)` の行を見た範囲として読む既存の行を AC-28 の確認として残す。
+-   **`cmd/yt2column/review_records_test.go` の文書ガード:** `seenRangeForm`（`<cli>` から `(coderabbit)` への変更）、`TestRecordLinePrefixesDistinct`（step 7 の表から `Codex local review:` を外すことによる下限の変更）、`TestReviewRecordsCallSite`（`_lib/task-pr-handoff.md` の `coverage none` の呼び出しの追加）を PR-1 で更新する。また、`TestReviewRecordsCoverage` にグリーンゲート確認チェックボックスのケースを追加し（1.4）、`(codex)` の行を見た範囲として読む既存の行は AC-28 の確認として残す。
 -   **`TestRunprDocContract`、`TestHandoffListingPrintsNoBody`（`cmd/yt2column/fixpr_docs_test.go`）:** `runpr.md` step 3 と Part B step 5 の `--jq` のフィルタを走らせるテストである。前者は、要約コメントと受領コメントの行を外し、メンションの行を 2 つのメンションと CodeRabbit の観測した形に合わせる。後者は、Part B step 5 がなくなるので外す。
 -   **`TestCodexMentionOnlyInRequestRow`、`TestPostingPathsCheckMention`:** 2 つのメンションと `<mention-check>` に合わせる（AC-56）。
 -   **`cmd/fixprguard/docs_test.go` のプロトコル番号のテスト:** 番号を上げたことに合わせる。
@@ -933,7 +938,7 @@ PR を 3 つに分ける。分け方の細部と、各 PR のステップは計�
 
 6.3 の 3 つの PR の順に実装する。
 
-1.  **PR-1:**
+1.  **PR-1:** 以下の項目のコミット順は §1.4 に従う。
     1.  `_lib/local-cli-review.md` の step 3 の撤去と、記録の行の新しい形。
     2.  `_lib/task-pr-handoff.md` の新しい手順。
     3.  `runplan.md` と `fixpr.md` の Codex CLI の記述と、`runplan.md` の Part B の CHECKS の文。
@@ -974,3 +979,5 @@ PR を 3 つに分ける。分け方の細部と、各 PR のステップは計�
 ## 変更履歴
 
 - 2026-11-20 承認（isseis、#1070）
+- 2026-11-21 セッション中の再承認：フェーズ 1 のテスト移設と削除のコミット順を変更（isseis、#未記入）
+- 2026-11-21 セッション中の再承認：review-records.sh の flip にグリーンゲート確認チェックボックスを追加（isseis、#未記入）
