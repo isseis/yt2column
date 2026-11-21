@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-20 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-21 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
@@ -561,3 +561,7 @@
 
 1.  本計画書の PR をレビューし、`/runpr` で承認・マージする。
 2.  承認後、`/runplan 0118` でフェーズ 1 から順に実装する。
+
+## 変更履歴
+
+- 2026-11-21 承認（isseis、#1074）
