@@ -104,11 +104,11 @@
 - `cmd/yt2column/review_records_test.go`（`seenRangeForm`・`TestRecordLinePrefixesDistinct`）
 
 **作業内容:**
-- [ ] `_lib/local-cli-review.md` の step 3（`codexreview` の実行・表・`stop` の扱い）を撤去し、step 2 の失敗をすべて `not run` 記録として進む形に改める（設計書 3.6）。
-- [ ] `_lib/local-cli-review.md` の step 7 の新しく書く記録行を `(coderabbit)` / `(coderabbit: <kind>)` の形に改め、「Reading the record lines」には古い `Codex local review:`・`(codex)`・`(coderabbit: <kind>; codex: <kind>)` の読み方を残し、外せる条件（古い形を持つ開いたブランチがなくなったとき）を記す（AC-28）。
-- [ ] `_lib/local-cli-review.md` の step 8 SUMMARY から「Codex CLI が走った回数」と `instructions_changed` の注記を外す。
-- [ ] `fixpr.md`（Authorization の `codexreview` 記述、Phase 4.5、Phase 7 の Codex CLI 回数）、`runplan.md`（step 7.7・B1・step 8 の Codex CLI フォールバック・回数・instructions 注記）、`runpr.md`（`:9,95-96` の Codex CLI / `codexreview` 記述）を更新する。
-- [ ] 同じ commit で `cmd/yt2column/fixpr_docs_test.go` の `TestLocalReviewGuard`（step 3 確認を外す）と `cmd/yt2column/review_records_test.go` の `seenRangeForm`（`(coderabbit)` 形式）・`TestRecordLinePrefixesDistinct` の下限を更新し、リポジトリ全体でテストが通る状態を保つ。`TestReviewRecordsCoverage` の `(codex)` を読む既存テストは AC-28 の検証として残す。
+- [x] `_lib/local-cli-review.md` の step 3（`codexreview` の実行・表・`stop` の扱い）を撤去し、step 2 の失敗をすべて `not run` 記録として進む形に改める（設計書 3.6）。
+- [x] `_lib/local-cli-review.md` の step 7 の新しく書く記録行を `(coderabbit)` / `(coderabbit: <kind>)` の形に改め、「Reading the record lines」には古い `Codex local review:`・`(codex)`・`(coderabbit: <kind>; codex: <kind>)` の読み方を残し、外せる条件（古い形を持つ開いたブランチがなくなったとき）を記す（AC-28）。
+- [x] `_lib/local-cli-review.md` の step 8 SUMMARY から「Codex CLI が走った回数」と `instructions_changed` の注記を外す。
+- [x] `fixpr.md`（Authorization の `codexreview` 記述、Phase 4.5、Phase 7 の Codex CLI 回数）、`runplan.md`（step 7.7・B1・step 8 の Codex CLI フォールバック・回数・instructions 注記）、`runpr.md`（`:9,95-96` の Codex CLI / `codexreview` 記述）を更新する。
+- [x] 同じ commit で `cmd/yt2column/fixpr_docs_test.go` の `TestLocalReviewGuard`（step 3 確認を外す）と `cmd/yt2column/review_records_test.go` の `seenRangeForm`（`(coderabbit)` 形式）・`TestRecordLinePrefixesDistinct` の下限を更新し、リポジトリ全体でテストが通る状態を保つ。`TestReviewRecordsCoverage` の `(codex)` を読む既存テストは AC-28 の検証として残す。
 
 **完了基準:**
 - `_lib/local-cli-review.md`・`fixpr.md`・`runplan.md` に `codexreview` と Codex CLI フォールバックの記述が残らず、`go test -tags test ./...` が通る。
@@ -122,11 +122,11 @@
 - `cmd/yt2column/review_records_test.go`（`TestReviewRecordsCallSite`）
 
 **作業内容:**
-- [ ] `_lib/task-pr-handoff.md` Part B の step 2（CHECKS）と step 3（push と PR 作成）の間に step 2.5 を追加する（設計書 3.2）。`origin/main` の `review-records.sh coverage none <HEAD> [<PLAN>]` を呼び、`ALL` ならレビューせず、`PARTIAL <n>` またはスクリプト失敗時はローカルの CLI レビューを 1 回だけ走らせ、直しがあれば CHECKS を再実行する手順を書く。
-- [ ] `_lib/task-pr-handoff.md` の Authorization（`codexreview` 記述）、Part B step 1（Codex CLI フォールバック記述）、step 2（CHECKS 一覧の `./cmd/codexreview/...`）、step 3（PR 説明の「Codex CLI が走った回数」）を更新する。
-- [ ] `_lib/review-records.sh` のヘッダコメントに F-007 の `coverage none` 呼び出しを追記する（判定ロジックと `(coderabbit|codex)` の正規表現は変えない）。
-- [ ] `runplan.md` の「Before the PR」の理由を ADR-0042 に合わせ、Part B の CHECKS の規則に「step 2.5 の直しとその後の CHECKS の直しは Opus レビューの判断のやり直しを引き起こさない」旨を追記する（設計書 3.2）。
-- [ ] 同じ commit で `cmd/yt2column/review_records_test.go` の `TestReviewRecordsCallSite` に `_lib/task-pr-handoff.md` Part B step 2.5 の `coverage none` 呼び出しを追加する。
+- [x] `_lib/task-pr-handoff.md` Part B の step 2（CHECKS）と step 3（push と PR 作成）の間に step 2.5 を追加する（設計書 3.2）。`origin/main` の `review-records.sh coverage none <HEAD> [<PLAN>]` を呼び、`ALL` ならレビューせず、`PARTIAL <n>` またはスクリプト失敗時はローカルの CLI レビューを 1 回だけ走らせ、直しがあれば CHECKS を再実行する手順を書く。
+- [x] `_lib/task-pr-handoff.md` の Authorization（`codexreview` 記述）、Part B step 1（Codex CLI フォールバック記述）、step 2（CHECKS 一覧の `./cmd/codexreview/...`）、step 3（PR 説明の「Codex CLI が走った回数」）を更新する。
+- [x] `_lib/review-records.sh` のヘッダコメントに F-007 の `coverage none` 呼び出しを追記する（判定ロジックと `(coderabbit|codex)` の正規表現は変えない）。
+- [x] `runplan.md` の「Before the PR」の理由を ADR-0042 に合わせ、Part B の CHECKS の規則に「step 2.5 の直しとその後の CHECKS の直しは Opus レビューの判断のやり直しを引き起こさない」旨を追記する（設計書 3.2）。
+- [x] 同じ commit で `cmd/yt2column/review_records_test.go` の `TestReviewRecordsCallSite` に `_lib/task-pr-handoff.md` Part B step 2.5 の `coverage none` 呼び出しを追加する。
 
 **完了基準:**
 - 設計書 3.2・6.2 のフローと一致し、`go test -tags test ./...` が通る。
@@ -143,9 +143,9 @@
 - `internal/cmdrunner/runner_test.go`
 
 **作業内容:**
-- [ ] 1 つ目の commit で、`cmd/codexreview/docs_test.go::TestRunsCodex` が担っていた `doctestutil.RunsCommand` のコマンド形式テストを `internal/doctestutil/commands_test.go` へ汎用コマンド名で移し、`cmd/codexreview` を名指すコメント（`:9`）を外す（`doctestutil` のカバレッジ低下を防ぐため）。
-- [ ] 2 つ目の commit（テスト削除のみ）で、`internal/mergepr/protocolcheck_test.go`（`TestMismatchRemedy` の `"codexreview"` 要素）と `cmd/fixprguard/docs_test.go`（`TestFixprguardProtocolMismatches` の `codexreview` ケースおよびコメント `:345,393`）を外し、`make coverage-compare BASE=<親>` で PASS を確認する（設計書 7.4）。
-- [ ] 3 つ目の commit で、`internal/cmdrunner/runner.go` の `signalGroup` フォールバック分岐（`codexreview` の削除後に未到達になりうる箇所）を `internal/cmdrunner/runner_test.go` で直接検証できるようにする。
+- [x] 1 つ目の commit で、`cmd/codexreview/docs_test.go::TestRunsCodex` が担っていた `doctestutil.RunsCommand` のコマンド形式テストを `internal/doctestutil/commands_test.go` へ汎用コマンド名で移し、`cmd/codexreview` を名指すコメント（`:9`）を外す（`doctestutil` のカバレッジ低下を防ぐため）。
+- [x] 2 つ目の commit（テスト削除のみ）で、`internal/mergepr/protocolcheck_test.go`（`TestMismatchRemedy` の `"codexreview"` 要素）と `cmd/fixprguard/docs_test.go`（`TestFixprguardProtocolMismatches` の `codexreview` ケースおよびコメント `:345,393`）を外し、`make coverage-compare BASE=<親>` で PASS を確認する（設計書 7.4）。
+- [x] 3 つ目の commit で、`internal/cmdrunner/runner.go` の `signalGroup` フォールバック分岐（`codexreview` の削除後に未到達になりうる箇所）を `internal/cmdrunner/runner_test.go` で直接検証できるようにする。
 
 **完了基準:**
 - 2 つ目の commit で `make coverage-compare BASE=<親>` が PASS し、`go test -tags test ./...` が通る。
@@ -170,7 +170,7 @@
 - `.claude/commands/_lib/simple-process.md`（CHECKS の `./cmd/codexreview/...`）
 
 **作業内容:**
-- [ ] 1 つの commit で `cmd/codexreview/` と `internal/codexreview/` を削除し、同時に連動する全ガード・設定を更新して `<親>`・`HEAD` ともにテストが通る状態を保ち、`make coverage-compare BASE=<親>` で PASS（消えた関数が一覧に出るのみ）を確認して結果を commit メッセージに残す（設計書 7.4）。
+- [x] 1 つの commit で `cmd/codexreview/` と `internal/codexreview/` を削除し、同時に連動する全ガード・設定を更新して `<親>`・`HEAD` ともにテストが通る状態を保ち、`make coverage-compare BASE=<親>` で PASS（消えた関数が一覧に出るのみ）を確認して結果を commit メッセージに残す（設計書 7.4）。
   - `internal/pipeline/pipeline_test.go` の `TestFakesCarryBuildTag`（ファイル数 24 → 22）と `docs/dev/conventions/package_reference.md`（`cmd/codexreview`・`internal/codexreview`・`internal/codexreview/testutil` 行と `internal/strictjson` 利用元）。
   - `internal/config/envaccess_test.go`（`cmd/codexreview/main.go` 行とコメント）。
   - `internal/doctestutil/protocol.go`（`ToolCodexreview`・`protocolTools` 要素・コメント `:51,98`）、`internal/doctestutil/protocol_test.go`（`TestProtocolFlags` の境界テスト群を削除せず残存ツール `chief`・`mergepr`・`fixprguard` へ書き換え、コメント `:11` 更新）、`internal/doctestutil/commands.go`（コメント `:118-119,200` の `codex` 例を差し替え）。
@@ -189,8 +189,8 @@
 - `docs/tasks/0118_codex_removal/_checks/check_codexreview_removed.sh`（新規）
 
 **作業内容:**
-- [ ] `docs/dev/adr/0014-deterministic-checks-in-go.md` と `docs/dev/adr/0042-implementation-model-tiers.md` の `食い違い:` を外し、`docs/dev/adr/0013-review-setup.md` の `食い違い:` から Codex CLI（`codexreview`）の部分を外す。
-- [ ] `docs/tasks/0118_codex_removal/_checks/check_codexreview_removed.sh` を作成し、`cmd/codexreview`・`internal/codexreview` が存在しないこと、`Makefile` に `install-codexreview` がないこと、`.claude/settings.json` に `codexreview` の許可がないこと、`cmd/`・`internal/` 配下の Go ソース（`docs/tasks/` 配下の過去 `_checks/` は除外）に `codexreview` 参照がないことを検証する（実装時に各検査を 1 件以上壊して失敗することを確認する）。
+- [x] `docs/dev/adr/0014-deterministic-checks-in-go.md` と `docs/dev/adr/0042-implementation-model-tiers.md` の `食い違い:` を外し、`docs/dev/adr/0013-review-setup.md` の `食い違い:` から Codex CLI（`codexreview`）の部分を外す。
+- [x] `docs/tasks/0118_codex_removal/_checks/check_codexreview_removed.sh` を作成し、`cmd/codexreview`・`internal/codexreview` が存在しないこと、`Makefile` に `install-codexreview` がないこと、`.claude/settings.json` に `codexreview` の許可がないこと、`cmd/`・`internal/` 配下の Go ソース（`docs/tasks/` 配下の過去 `_checks/` は除外）に `codexreview` 参照がないことを検証する（実装時に各検査を 1 件以上壊して失敗することを確認する）。
 
 **完了基準:**
 - スクリプトが終了コード 0 で通り、`make test && make lint && make deadcode` および `doc-guard` が通る。
