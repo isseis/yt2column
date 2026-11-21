@@ -335,8 +335,8 @@ fixprguard review-state --protocol <N> --reviewer <awaited-reviewer> --request <
     -   **終了コード 2:** 引数の形が違うときだけ、今の `stop` の規則で終了コード 2 になる（`cmd/fixprguard/main.go:304-319`）。
 
 ```go
-// ReviewState is the output of fixprguard review-state.
-type ReviewState struct {
+// PRReviewState is the output of fixprguard review-state.
+type PRReviewState struct {
 	Protocol            int                 `json:"protocol"`
 	State               RequestState        `json:"state"`               // the state of the latest request comment
 	Reason              UnreadableReason    `json:"reason"`              // set for state unreadable only

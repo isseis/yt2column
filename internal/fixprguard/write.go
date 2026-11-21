@@ -225,7 +225,7 @@ func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error {
 // cancellation, or an unreadable success response is ErrReplyNotResolved, since
 // the reply may exist.
 func (g *GitHub) postReply(ctx context.Context, repo repository, pr PRNumber, commentID int64, body string) (int64, error) {
-	request, err := json.Marshal(map[string]string{"body": body})
+	request, err := json.Marshal(map[string]string{keyBody: body})
 	if err != nil {
 		return 0, fmt.Errorf("encode reply: %w", err)
 	}

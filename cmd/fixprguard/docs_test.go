@@ -102,6 +102,58 @@ func TestGuideListsInteractionLimitsValues(t *testing.T) {
 	}
 }
 
+// TestGuideListsReviewStateValues: the review-state section of chapter 5
+// lists, in code spans, every state, unreadable reason, indeterminate reason
+// and run kind the tool prints, each in its own table. Reading the tables
+// alone keeps the same word elsewhere in the section from standing in for a
+// row.
+func TestGuideListsReviewStateValues(t *testing.T) {
+	sub := subsection(readRepoFile(t, guidePath), "### `review-state ")
+	type listing struct {
+		marker string
+		names  []string
+	}
+	var states, unreadable, indeterminate, kinds []string
+	text := func(v interface{ MarshalText() ([]byte, error) }) string {
+		name, err := v.MarshalText()
+		if err != nil {
+			t.Fatalf("MarshalText(%v) = %v", v, err)
+		}
+		return string(name)
+	}
+	for _, v := range fixprguard.RequestStates() {
+		states = append(states, text(v))
+	}
+	for _, v := range fixprguard.UnreadableReasons() {
+		unreadable = append(unreadable, text(v))
+	}
+	for _, v := range fixprguard.IndeterminateReasons() {
+		indeterminate = append(indeterminate, text(v))
+	}
+	for _, v := range fixprguard.RunKinds() {
+		kinds = append(kinds, text(v))
+	}
+	for _, l := range []listing{
+		{"**状態。**", states},
+		{"**読めない理由。**", unreadable},
+		{"**決まらない理由。**", indeterminate},
+		// The classification table of the section, which names the kinds the
+		// tool prints for a check run.
+		{"**応答の分類。**", kinds},
+	} {
+		table := guideTable(sub, l.marker)
+		if table == "" {
+			t.Errorf("%s: the review-state section has no table after %s", guidePath, l.marker)
+			continue
+		}
+		for _, name := range l.names {
+			if !strings.Contains(table, "`"+name+"`") {
+				t.Errorf("%s: the review-state table after %s does not list `%s`", guidePath, l.marker, name)
+			}
+		}
+	}
+}
+
 // guideTable returns the lines of the first table after the line of doc that
 // starts with marker. It returns "" when there is no such line or another
 // bold heading comes before a table, so a missing table never borrows the
@@ -307,28 +359,42 @@ func cutSection(doc, heading string, ends ...string) string {
 }
 
 // TestGuideDescribesReviewerList: the subcommand headings that write
-// "--reviewer LOGIN ..." in the guide are exactly the subcommands whose
-// spec takes --reviewer, so a subcommand that starts or stops taking the flag
-// fails here until the guide changes too.
+// "--reviewer LOGIN" in the guide are exactly the subcommands whose spec takes
+// --reviewer, and the ones that write "--reviewer LOGIN ..." (a name repeated
+// once per reviewer) are those but review-state, which takes one name. A
+// subcommand that starts or stops taking the flag fails here until the guide
+// changes too.
 func TestGuideDescribesReviewerList(t *testing.T) {
 	takesReviewer := map[string]struct{}{}
+	repeats := map[string]struct{}{}
 	for name, sp := range specs {
 		if slices.Contains(sp.flags, flagReviewer) {
 			takesReviewer[name] = struct{}{}
+			if name != cmdReviewState {
+				repeats[name] = struct{}{}
+			}
 		}
 	}
 	headed := map[string]struct{}{}
+	headedRepeating := map[string]struct{}{}
 	for line := range strings.Lines(readRepoFile(t, guidePath)) {
 		rest, ok := strings.CutPrefix(line, "### `")
 		if !ok {
 			continue
 		}
-		if name, _, _ := strings.Cut(rest, " "); strings.Contains(rest, "--reviewer LOGIN ...") {
+		name, _, _ := strings.Cut(rest, " ")
+		if strings.Contains(rest, "--reviewer LOGIN") {
 			headed[name] = struct{}{}
+		}
+		if strings.Contains(rest, "--reviewer LOGIN ...") {
+			headedRepeating[name] = struct{}{}
 		}
 	}
 	if !maps.Equal(headed, takesReviewer) {
-		t.Errorf("headings with --reviewer LOGIN ... are %v, want the subcommands taking --reviewer %v", slices.Sorted(maps.Keys(headed)), slices.Sorted(maps.Keys(takesReviewer)))
+		t.Errorf("headings with --reviewer LOGIN are %v, want the subcommands taking --reviewer %v", slices.Sorted(maps.Keys(headed)), slices.Sorted(maps.Keys(takesReviewer)))
+	}
+	if !maps.Equal(headedRepeating, repeats) {
+		t.Errorf("headings with --reviewer LOGIN ... are %v, want the subcommands taking it repeatedly %v", slices.Sorted(maps.Keys(headedRepeating)), slices.Sorted(maps.Keys(repeats)))
 	}
 }
 

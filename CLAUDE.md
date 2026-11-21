@@ -490,6 +490,19 @@ its security rules in `docs/dev/security.md` §8.
   kept: only an '@' inside a word and a URL path '/@' that meets every
   condition are left as they are; and the neutralization inserts U+200B and
   changes no other character.
+  Exception: `fixprguard review-state` (`internal/fixprguard/review_state.go`)
+  chooses behavior by inspecting the content of a reviewer check run's
+  `status`, `conclusion`, and `title`. Scope: it compares that triple with the
+  fixed table of the classification (`checkRun.kind`) and nothing else about
+  the check run's text; this is the only place a check run's title selects
+  behavior, and the tool prints only the resulting kind, never the title.
+  Reason: the title is written by the reviewer service, an external value the
+  tool cannot express in a type, and it is needed to tell a finished review
+  from a rate limit or an error, which can end with the same conclusion.
+  Boundary: a `COMPLETED` triple that is not in the table is `RunUnknown` and
+  is never read as a finished review; the titles are compared in full and not
+  repaired; a status other than `COMPLETED` is a run in progress whatever its
+  title.
   Exception: the chief tool's screen readers (the files of `internal/chief`
   whose names start with `screen`) choose behavior by inspecting the content
   of an agent's pane screen and of Claude Code's transcript. Scope: they read

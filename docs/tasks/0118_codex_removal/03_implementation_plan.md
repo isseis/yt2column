@@ -236,11 +236,11 @@
 - `CLAUDE.md`（「Declare, don't infer」に `review-state` の CheckRun 照合例外を追記）
 
 **作業内容:**
-- [ ] `internal/fixprguard/review_state.go` に設計書 3.3.1〜3.3.3 の型（`ReviewState`・`ReviewRequest`・`ReviewResponse`・`ReviewMarker`・`RunKind`・`RequestState`・`UnreadableReason`・`IndeterminateReason`、`MarshalText`、ゼロ値規則）と取得・厳密検査・分類・状態遷移のロジックを実装する。既存の `runGH`・`resolveRepository`・`strictjson`・`parseDateHeader` を再利用する。このステップではまだコマンド定義が `review-state` を呼ばないため、`Protocol` は `main` の値のまま据え置く。
-- [ ] `cmd/fixprguard/main.go` に `review-state` サブコマンド（`--protocol`・`--reviewer`・`--request`・必須 PR 引数）を登録し、終了コード 0（引数不正のみ 2）で JSON を出力する。
-- [ ] `internal/fixprguard/review_state_test.go` と `cmd/fixprguard/main_test.go` で設計書 7.1・7.2・7.5 の全ケース（分類表の全行、`RunSkipNotice` 除外、`status != COMPLETED` かつ `startedAt == null` の非カウントによる `waiting` 維持、同秒除外、応答後 CheckRun 除外、競合 `competing-runs`、編集済み依頼 `edited-request` と前の依頼が編集済みの場合の `markers` 非生成、15 分上限、依頼なし時の後段スキップ、厳密 JSON 拒否、上限超過 `limit`、`gh` 失敗 `call-failed`、head 変化時の再取得扱い、PR 外 commit の混入除外、偽の著者・app slug 除外、本文・`title`・`details_url` の非出力）をテストする。実装時に分類表の行や検査を壊して失敗することを確認する。
-- [ ] `docs/dev/guides/fixprguard_guide.md` に `review-state` の章（項目の名前・状態と理由の列挙語）を追加し、`cmd/fixprguard/docs_test.go` にその値一覧を検証するテストを追加する。
-- [ ] `CLAUDE.md` の「Declare, don't infer」に設計書 3.3.2 の `review-state` 例外（範囲・理由・境界）を追加する。
+- [x] `internal/fixprguard/review_state.go` に設計書 3.3.1〜3.3.3 の型（`PRReviewState`・`ReviewRequest`・`ReviewResponse`・`ReviewMarker`・`RunKind`・`RequestState`・`UnreadableReason`・`IndeterminateReason`、`MarshalText`、ゼロ値規則）と取得・厳密検査・分類・状態遷移のロジックを実装する。既存の `runGH`・`resolveRepository`・`strictjson`・`parseDateHeader` を再利用する。このステップではまだコマンド定義が `review-state` を呼ばないため、`Protocol` は `main` の値のまま据え置く。
+- [x] `cmd/fixprguard/main.go` に `review-state` サブコマンド（`--protocol`・`--reviewer`・`--request`・必須 PR 引数）を登録し、終了コード 0（引数不正のみ 2）で JSON を出力する。
+- [x] `internal/fixprguard/review_state_test.go` と `cmd/fixprguard/main_test.go` で設計書 7.1・7.2・7.5 の全ケース（分類表の全行、`RunSkipNotice` 除外、`status != COMPLETED` かつ `startedAt == null` の非カウントによる `waiting` 維持、同秒除外、応答後 CheckRun 除外、競合 `competing-runs`、編集済み依頼 `edited-request` と前の依頼が編集済みの場合の `markers` 非生成、15 分上限、依頼なし時の後段スキップ、厳密 JSON 拒否、上限超過 `limit`、`gh` 失敗 `call-failed`、head 変化時の再取得扱い、PR 外 commit の混入除外、偽の著者・app slug 除外、本文・`title`・`details_url` の非出力）をテストする。実装時に分類表の行や検査を壊して失敗することを確認する。
+- [x] `docs/dev/guides/fixprguard_guide.md` に `review-state` の章（項目の名前・状態と理由の列挙語）を追加し、`cmd/fixprguard/docs_test.go` にその値一覧を検証するテストを追加する。
+- [x] `CLAUDE.md` の「Declare, don't infer」に設計書 3.3.2 の `review-state` 例外（範囲・理由・境界）を追加する。
 
 **完了基準:**
 - `make test && make lint && make deadcode` および `doc-guard` が通る（`cmd/fixprguard` の `review-state` 結合テストで本文・`title`・`details_url` が標準出力にもエラーにも現れないことが検証される）。

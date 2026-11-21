@@ -72,6 +72,7 @@ const (
 	cmdAppendPR   = "append-pr"
 
 	cmdInteractionLimits = "interaction-limits"
+	cmdReviewState       = "review-state"
 )
 
 // The flags.
@@ -88,6 +89,7 @@ const (
 	flagFingerprint = "fingerprint"
 	flagBodyFile    = "body-file"
 	flagTitleFile   = "title-file"
+	flagRequest     = "request"
 )
 
 // positional says what positional argument a subcommand takes.
@@ -132,6 +134,10 @@ var specs = map[string]spec{
 	// interaction-limits reads only; it judges no thread, so it takes no
 	// --reviewer, and /runpr always names the PR.
 	cmdInteractionLimits: {arg: argRequiredPR, usesGH: true},
+	// review-state reads the state of the latest review request comment of
+	// the PR. It judges no thread, but it takes exactly one --reviewer: the
+	// App whose check runs and PR reviews count.
+	cmdReviewState: {flags: []string{flagReviewer, flagRequest}, required: []string{flagReviewer, flagRequest}, arg: argRequiredPR, usesGH: true},
 }
 
 // ghTargetVariables point gh at another repository or host than the work
@@ -396,6 +402,8 @@ func execute(ctx context.Context, inv invocation, e env) (any, int, error) {
 		return appendPR(ctx, inv, e)
 	case cmdInteractionLimits:
 		return interactionLimits(ctx, inv, e)
+	case cmdReviewState:
+		return reviewState(ctx, inv, e)
 	default:
 		return nil, 0, errUsage
 	}
@@ -476,6 +484,36 @@ func interactionLimits(ctx context.Context, inv invocation, e env) (any, int, er
 	info := g.InteractionLimits(ctx, pr)
 	info.Protocol = fixprguard.Protocol
 	return info, exitContinue, nil
+}
+
+// reviewState prints the state of the latest review request comment with exit
+// code 0 whatever the state, unreadable included: the caller decides from the
+// state what to do. Only an argument outside its grammar is an error. The
+// reviewer is the one --reviewer value; the request is the exact text of a
+// request comment.
+func reviewState(ctx context.Context, inv invocation, e env) (any, int, error) {
+	pr, err := fixprguard.ParsePRNumber(inv.arg)
+	if err != nil {
+		return nil, 0, err
+	}
+	names := inv.multi[flagReviewer]
+	if len(names) != 1 {
+		return nil, 0, fmt.Errorf("--%s: %w: exactly one name", flagReviewer, fixprguard.ErrInvalidInput)
+	}
+	reviewer, err := fixprguard.ParseLogin(names[0])
+	if err != nil {
+		return nil, 0, fmt.Errorf("--%s: %w", flagReviewer, err)
+	}
+	g, err := fixprguard.NewGitHubWithoutReviewer(e.gh)
+	if err != nil {
+		return nil, 0, err
+	}
+	state, err := g.PRReviewState(ctx, fixprguard.ReviewStateRequest{PR: pr, Reviewer: reviewer, Request: inv.values[flagRequest]})
+	if err != nil {
+		return nil, 0, fmt.Errorf("--%s: %w", flagRequest, err)
+	}
+	state.Protocol = fixprguard.Protocol
+	return state, exitContinue, nil
 }
 
 func list(ctx context.Context, inv invocation, e env) (any, int, error) {
