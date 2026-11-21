@@ -1226,10 +1226,11 @@ var reviewRecordsNames = []string{
 // block that names the script or its placeholder is the write-out or a run,
 // and every code span that names them is the name alone. Running the work
 // tree's copy would let the branch under review change the decision that
-// lets it skip a PR review or a Fable partial review. runpr.md's step 3 and
-// fable-review.md's validity decision, which the launch and the checkpoint
-// entries run, have the reading of the reference, the write-out, and the run
-// on consecutive lines, so a renamed form does not pass by matching nothing.
+// lets it skip a PR review or a Fable partial review. task-pr-handoff.md's
+// Part B step 2.5, runpr.md's step 3, and fable-review.md's validity decision,
+// which the launch and the checkpoint entries run, have the reading of the
+// reference, the write-out, and the run on consecutive lines, so a renamed form
+// does not pass by matching nothing.
 // A line that names neither the script nor its placeholder, or a block
 // fenced otherwise, is out of its reach.
 func TestReviewRecordsCallSite(t *testing.T) {

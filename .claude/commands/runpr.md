@@ -140,10 +140,17 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     push. For another branch, the sync cannot run (it changes the checkout);
     CI's `TestReadmeSyncMarker` fails the PR if it is out of sync, and step 3
     stops on that failure.
-  - For the checked-out branch, follow `_lib/task-pr-handoff.md` Part B
-    step 2.5 after README sync, with no PLAN. Report any remaining
-    unreviewed ranges in the PR body. For another branch, report in the
-    body that this checkout could not run the review for it.
+  - For the checked-out branch, run the pre-PR coverage check of
+    `_lib/task-pr-handoff.md` Part B step 2.5 after README sync, with no PLAN,
+    **SUMMARY** = the final report, no FABLE, and no separate CHECKS beyond
+    `_lib/local-cli-review.md` step 5's build checks. Do not rerun
+    `_lib/local-cli-review.md` for a range the branch review above already
+    attempted in this run (left `not run` or stopped at its two-attempt cap):
+    report those unreviewed ranges in the PR body instead. When step 2.5's
+    review stops, stop before the push; otherwise continue to the mention check
+    and PR creation below (not step 3 of this command), reporting any remaining
+    unreviewed ranges in the PR body. For another branch, report in the body
+    that this checkout could not run the review for it.
   - Write the PR title and body to files first, as the paragraph after the
     commands says, then run the mention check on both files:
     **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`

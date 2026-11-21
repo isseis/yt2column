@@ -16,8 +16,8 @@ func TestRunsCommandHonoursTheName(t *testing.T) {
 	}{
 		{"herdr agent prompt --pane x hi", "herdr", true},
 		{"env FOO=1 herdr pane run x", "herdr", true},
-		{"codex exec review", "herdr", false},
-		{"herdr agent prompt x", "codex", false},
+		{"widget exec review", "herdr", false},
+		{"herdr agent prompt x", "widget", false},
 	} {
 		if got := RunsCommand(tc.text, tc.name); got != tc.want {
 			t.Errorf("RunsCommand(%q, %q) = %v, want %v", tc.text, tc.name, got, tc.want)

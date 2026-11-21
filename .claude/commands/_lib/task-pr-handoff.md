@@ -219,9 +219,10 @@ Run this after the calling command's last commit, with a clean working tree.
    command fails or its result is unreadable, use the merge-base.
    Run `_lib/local-cli-review.md` once with this BASE, SCOPE = commits
    awaiting review before the PR, SUMMARY = REPORT and RECORD = commit.
-   Its two-attempt cap applies. A CLI failure records the unreviewed
-   range and continues. After fix commits, rerun CHECKS until they pass.
-   Include any further CHECKS fixes in step 3’s unreviewed ranges.
+   Pass no FABLE. Its two-attempt cap applies. When `_lib/local-cli-review.md`
+   stops, stop before step 3: nothing is pushed. A CLI failure records the
+   unreviewed range and continues. After fix commits, rerun CHECKS until they
+   pass. Include any further CHECKS fixes in step 3's unreviewed ranges.
    Proceed to step 3 without repeating this review.
 
 3. Push and create the PR for the current branch. Ignore the calling command's
@@ -272,7 +273,7 @@ Run this after the calling command's last commit, with a clean working tree.
      line. Otherwise give the ranges of the `not run` lines in
      `git log origin/main..HEAD`, of either form (`Local CLI review: not run`,
      or an earlier session's `CodeRabbit local review: not run`, which stands
-     for the whole branch). Account for step 2.5’s result: omit ranges it covered,
+     for the whole branch). Account for step 2.5's result: omit ranges it covered,
      include its remaining unreviewed ranges and any subsequent CHECKS fixes;
    - for `runplan.md`, gives PR_TEXT's Opus review result: whether the Opus
      review ran, and with what result, or which condition kept it from

@@ -119,6 +119,7 @@
 - `.claude/commands/_lib/task-pr-handoff.md`
 - `.claude/commands/_lib/review-records.sh`
 - `.claude/commands/runplan.md`
+- `.claude/commands/runpr.md`（step 1 の単独 PR 作成）
 - `cmd/yt2column/review_records_test.go`（`TestReviewRecordsCallSite`）
 
 **作業内容:**
@@ -133,7 +134,7 @@
 
 #### ステップ 1-3: `RunsCommand` テストの移設と、残存パッケージの `codexreview` テスト削除（AC-35・AC-36、H-04）
 
-`make coverage-compare BASE=<親>` は `<親>` と `HEAD` の両方で `go test -tags test ./...` を通す必要があるため、`cmd/codexreview`・`internal/codexreview` 削除より前に、リポジトリのテストが通る状態で次の 2 つの commit を順に作る。
+`make coverage-compare BASE=<親>` は `<親>` と `HEAD` の両方で `go test -tags test ./...` を通す必要があるため、`cmd/codexreview`・`internal/codexreview` 削除より前に、リポジトリのテストが通る状態で次の 3 つの commit を順に作る。
 
 **変更ファイル:**
 - `internal/doctestutil/commands_test.go`
@@ -190,7 +191,7 @@
 
 **作業内容:**
 - [x] `docs/dev/adr/0014-deterministic-checks-in-go.md` と `docs/dev/adr/0042-implementation-model-tiers.md` の `食い違い:` を外し、`docs/dev/adr/0013-review-setup.md` の `食い違い:` から Codex CLI（`codexreview`）の部分を外す。
-- [x] `docs/tasks/0118_codex_removal/_checks/check_codexreview_removed.sh` を作成し、`cmd/codexreview`・`internal/codexreview` が存在しないこと、`Makefile` に `install-codexreview` がないこと、`.claude/settings.json` に `codexreview` の許可がないこと、`cmd/`・`internal/` 配下の Go ソース（`docs/tasks/` 配下の過去 `_checks/` は除外）に `codexreview` 参照がないことを検証する（実装時に各検査を 1 件以上壊して失敗することを確認する）。
+- [x] `docs/tasks/0118_codex_removal/_checks/check_codexreview_removed.sh` を作成し、`cmd/codexreview`・`internal/codexreview` が存在しないこと、`Makefile` に `install-codexreview` がないこと、`.claude/settings.json` に `codexreview` の許可がないこと、`.claude/commands/` に `codexreview` 参照がないこと、`cmd/`・`internal/`・`prompts/` 配下の Go ソース（`docs/tasks/` 配下の過去 `_checks/` は除外）に `codexreview` 参照がないことを検証する（実装時に各検査を 1 件以上壊して失敗することを確認する）。
 
 **完了基準:**
 - スクリプトが終了コード 0 で通り、`make test && make lint && make deadcode` および `doc-guard` が通る。

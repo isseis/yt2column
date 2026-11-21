@@ -33,7 +33,7 @@ check_absent() {
 	fail=1
 }
 
-if [ ! -f "$ROOT/Makefile" ] || [ ! -f "$ROOT/.claude/settings.json" ] || [ ! -d "$ROOT/cmd" ] || [ ! -d "$ROOT/internal" ]; then
+if [ ! -f "$ROOT/Makefile" ] || [ ! -f "$ROOT/.claude/settings.json" ] || [ ! -d "$ROOT/.claude/commands" ] || [ ! -d "$ROOT/cmd" ] || [ ! -d "$ROOT/internal" ] || [ ! -d "$ROOT/prompts" ]; then
 	printf 'FAIL: %s does not look like the repository root\n' "$ROOT" >&2
 	exit 1
 fi
@@ -42,7 +42,8 @@ check_no_path "cmd/codexreview"
 check_no_path "internal/codexreview"
 check_absent "Makefile still mentions install-codexreview" grep -nF -- 'install-codexreview' "$ROOT/Makefile"
 check_absent ".claude/settings.json still mentions codexreview" grep -inF -- 'codexreview' "$ROOT/.claude/settings.json"
-check_absent "Go sources under cmd/ or internal/ still mention codexreview" grep -rni --include='*.go' -- 'codexreview' "$ROOT/cmd" "$ROOT/internal"
+check_absent ".claude/commands/ still mentions codexreview" grep -rniF -- 'codexreview' "$ROOT/.claude/commands"
+check_absent "Go sources under cmd/, internal/, or prompts/ still mention codexreview" grep -rniF --include='*.go' -- 'codexreview' "$ROOT/cmd" "$ROOT/internal" "$ROOT/prompts"
 
 if [ "$fail" -ne 0 ]; then
 	exit 1
