@@ -320,7 +320,7 @@ fixprguard review-state --protocol <N> --reviewer <awaited-reviewer> --request <
 -   **読む順:**
     0.  PR（REST の `pulls/<n>`）の `head.sha`。どの状態でも、この値が読めたときは出力の `head` に入れる。マージの質問のラウンドごとの照合（3.4.2）に使うためである。
     1.  PR の会話のコメント（REST の `issues/<n>/comments`、全ページ）の id・著者・本文・`created_at`・`updated_at`・`html_url`。本文は、依頼のコメントかどうかの比較にだけ使い、出力しない。`updated_at` は依頼のコメントが編集されていないかを確かめるために使う（3.3.3）。依頼のコメントがなければ、ここで `none` を返し、2 以下を読まない。依頼がない PR（ふつうの PR）で、commit と CheckRun を読まずに済ませ、commit の多い PR でも上限に当たらないためである。
-    2.  PR の head（`headRefOid`）と、PR の commit の一覧（GraphQL の `pullRequest.commits`、全ページ）。各ページで `headRefOid` が読む順の 0 の `head.sha` と等しいことを確かめ、食い違えば（読み取りの途中の push や force push）一覧を捨てて `unreadable` の `call-failed` で返す。各 commit の `oid` と CheckSuite の `app.slug`、その CheckRun を `checkRuns(filterBy: {checkName: "CodeRabbit", checkType: ALL})` で読む。CheckRun から読む項目は、`databaseId`・`status`・`conclusion`・`title`・`startedAt`・`completedAt`・`url` である。`checkType: ALL` は、名前ごとの最新に限らず、すべての CheckRun を返す（観測の記録 3.1）。CheckSuite の `app.slug` が `--reviewer` と等しいものだけを使う。
+    2.  PR の head（`headRefOid`）と、PR の commit の一覧（GraphQL の `pullRequest.commits`、全ページ）。各ページで `headRefOid` が読む順の 0 の `head.sha` と等しいことを確かめ、食い違えば（読み取りの途中の push や force push）一覧を捨てて `unreadable` の `call-failed` で返す。各 commit の `oid` と CheckSuite の `app.slug`、その CheckRun を `checkRuns(filterBy: {checkName: "CodeRabbit", checkType: ALL})` で読む。CheckRun から読む項目は、`status`・`conclusion`・`title`・`startedAt`・`completedAt`・`url` である。`checkType: ALL` は、名前ごとの最新に限らず、すべての CheckRun を返す（観測の記録 3.1）。CheckSuite の `app.slug` が `--reviewer` と等しいものだけを使う。
     3.  CodeRabbit の PR レビュー（REST の `pulls/<n>/reviews`、全ページ）の著者・`commit_id`・`submitted_at`・`html_url`。完了の印に URL を添えるためだけに使う。
     4.  GitHub の時刻。最後に読んだ応答の `Date` ヘッダとする。
 -   **応答の検査:**

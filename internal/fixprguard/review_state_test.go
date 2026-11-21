@@ -454,7 +454,6 @@ func TestReviewStateUnreadable(t *testing.T) {
 		{"run_status_null", with(rsStageGraphQL, bad(`"status":"COMPLETED"`, `"status":null`)), rsUnreadable(UnreadableRejected, rsHead)},
 		{"run_start_not_a_time", with(rsStageGraphQL, bad(`"startedAt":"`+at("10:00:20")+`"`, `"startedAt":"soon"`)), rsUnreadable(UnreadableRejected, rsHead)},
 		{"run_url_not_github", with(rsStageGraphQL, bad(`"url":"https://github.com/`, `"url":"https://example.com/`)), rsUnreadable(UnreadableRejected, rsHead)},
-		{"run_id_zero", with(rsStageGraphQL, bad(`"databaseId":11`, `"databaseId":0`)), rsUnreadable(UnreadableRejected, rsHead)},
 		{"run_title_duplicated", with(rsStageGraphQL, bad(`"title":"Finished"`, `"title":"Finished","title":"Finished"`)), rsUnreadable(UnreadableRejected, rsHead)},
 		{
 			"suites_continue", func() rsInput {
@@ -718,6 +717,27 @@ func TestReviewStateDateHeader(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestReviewStateTolerates: members the tool does not need must not make a
+// read unreadable. A check run needs no id, a review of a commit GitHub no
+// longer has may carry no commit_id, and a pending review has no
+// submitted_at; the finished run still completes the request.
+func TestReviewStateTolerates(t *testing.T) {
+	finished := rsFinished(11, at("10:00:20"), at("10:03:00"))
+	in := rsInput{
+		comments: defaultComments(), commits: []rsCommit{rsCommitOf(rsHead, finished)},
+		reviews: []rsReview{{login: testReviewer + botLoginSuffix, kind: typenameBot, id: 1}, rsBotReview(2, rsHead, at("10:03:10"))},
+		edit: map[string]func(string) string{
+			rsStageGraphQL: func(s string) string { return strings.Replace(s, `"databaseId":11,`, "", 1) },
+			rsStageReviews: func(s string) string {
+				s = strings.Replace(s, `"commit_id":"",`, `"commit_id":null,`, 1)
+				return strings.Replace(s, `"submitted_at":null,`, "", 1)
+			},
+		},
+	}
+	want := rsWant(RequestCompleted, withResponse(RunFinished, finished, rsHead), withMarkers(marker(1, rsHead, finished, rsReviewURL(2))))
+	checkReviewState(t, in, want)
 }
 
 // TestReviewStateCommitPages: the commits are read in pages of twenty. Each

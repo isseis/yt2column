@@ -666,7 +666,7 @@ const reviewCommitsQuery = `query($owner: String!, $name: String!, $number: Int!
                 app { slug }
                 checkRuns(first: 100, filterBy: {checkName: "CodeRabbit", checkType: ALL}) {
                   pageInfo { hasNextPage }
-                  nodes { databaseId status conclusion title startedAt completedAt url }
+                  nodes { status conclusion title startedAt completedAt url }
                 }
               }
             }
@@ -928,12 +928,9 @@ func parseCheckRun(node strictjson.Value, commit string) (checkRun, error) {
 	if err != nil {
 		return checkRun{}, rejected("check run")
 	}
-	members, err := obj.Collect(keyDatabaseID, "status", "conclusion", "title", "startedAt", "completedAt", keyURL)
+	members, err := obj.Collect("status", "conclusion", "title", "startedAt", "completedAt", keyURL)
 	if err != nil {
 		return checkRun{}, rejected("check run")
-	}
-	if _, err := positiveInt64Member(members, keyDatabaseID); err != nil {
-		return checkRun{}, err
 	}
 	run := checkRun{commit: commit}
 	if run.status, err = strictjson.RequiredString(members, "status"); err != nil {
@@ -996,6 +993,16 @@ func nullableTimeMember(members map[string]strictjson.Value, key string) (*time.
 	return &t, true, nil
 }
 
+// optionalTimeMember reads a member that may be missing or null, and is an
+// RFC 3339 date-time otherwise.
+func optionalTimeMember(members map[string]strictjson.Value, key string) (*time.Time, error) {
+	if _, ok := members[key]; !ok {
+		return nil, nil
+	}
+	t, _, err := nullableTimeMember(members, key)
+	return t, err
+}
+
 // readReviews reads the PR reviews of the reviewer App: its login with the
 // bot suffix, of kind Bot. They only add a URL to a completion marker.
 func (r *reviewReader) readReviews(ctx context.Context, reviewer Login) ([]prReview, *reviewError) {
@@ -1014,11 +1021,14 @@ func (r *reviewReader) readReviews(ctx context.Context, reviewer Login) ([]prRev
 		if err != nil {
 			return err
 		}
-		commit, err := strictjson.RequiredStringAllowEmpty(members, "commit_id")
+		// A review of a commit GitHub no longer has may carry no commit_id, and
+		// a pending review (one the user has not submitted) has no submitted_at:
+		// neither may make the whole read unreadable.
+		commit, _, err := nullableStringMember(members, "commit_id")
 		if err != nil {
 			return rejected("review commit_id")
 		}
-		submitted, _, err := nullableTimeMember(members, "submitted_at")
+		submitted, err := optionalTimeMember(members, "submitted_at")
 		if err != nil {
 			return err
 		}
