@@ -651,7 +651,7 @@ classDiagram
 
 ### 5.3. 受け入れる制限・残存リスクおよび導入時の挙動
 
--   **`gh` コマンドの HTTP 層制限（要件書 §3.2・§4.2、§1.2）:** `gh api` は HTTP 3xx リダイレクトを拒否できず、HTTP 層での応答サイズ上限も指定できない。この 2 点は制限として受け入れる（なお、`gh` 内部の Go `net/http` は別ドメインへのリダイレクト時に既定で `Authorization` ヘッダを取り除くが、`ciskip` 側で 3xx 自体を遮断するわけではない。また `gh api` に `--jq` を付けずに呼ぶことで `gh` 側のストリーミング転送を活かしつつ、呼び出し側の `cmdrunner.Options.MaxOutput` とタイムアウトでメモリ枯渇とハングを防ぐ）。
+-   **`gh` コマンドの HTTP 層制限（要件書 §3.2・§4.2、§1.2）:** `gh api` は HTTP 3xx リダイレクトを拒否できず、HTTP 層での応答サイズ上限も指定できない。この 2 点は制限として受け入れる（なお、`gh` 内部の Go `net/http` は別ドメインへのリダイレクト時に既定で `Authorization` ヘッダを取り除くが、`ciskip` 側で 3xx 自体を遮断するわけではない。また `cmdrunner.Options.MaxOutput` が制限するのは呼び出し側である `ciskip` の保持メモリであり、`gh` 子プロセス内部での読み込み——大きな HTTP 4xx/5xx エラー応答を `gh` が内部で一括読み込みする場合を含む——自体は直接制限できないため、子プロセスの異常な滞留には `CommandTimeout` と `ProcessGroup: true` による強制停止で対処する）。
 -   **同一リポジトリ内 PR の信頼境界:** `check-changes` は PR ブランチのコード（`cmd/ciskip` と `.github/workflows/ci.yml`）を実行する。フォーク PR はそもそも本スキップの対象外であり、同一リポジトリ内にブランチを push できる書き込み権限者（リポジトリ管理者・コラボレータ）は `.github/workflows/ci.yml` 自体も編集できるため、同一リポジトリ内の書き込み権限者による意図的なワークフロー改ざんは本機能の脅威モデルの外とする。
 -   **GitHub Actions 固有の未実測挙動:**
     -   `::notice title=ci-base-sha::<sha>` を `GITHUB_TOKEN` + `checks: read` で `GET /check-runs/{id}/annotations` から確実に読み戻せるかは実装 PR の実機確認（F-006・AC-20）で検証する。取得できない場合は `ReasonParentBaseMissing` となり安全側（通常実行）へ倒れるため、誤スキップ（偽陽性）は起きない。
