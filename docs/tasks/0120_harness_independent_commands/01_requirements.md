@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-21 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-22 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -302,3 +302,7 @@ Claude Code の権限設定を保ったまま、Antigravity でのサンドボ�
 
 -   用語は `docs/translation_glossary.md` と統一する（「通常の進め方」「簡易な進め方」「進め方の記録」「プランの PR」「割り当て」「試行」「指摘」「確認」「照合する」「モデルの ID」「開発ツール」「インストール型ツール」「ガードツール」「監視の一覧」「対象のファイル」「指示ファイル」「バックグラウンド」など）。
 -   本タスクで導入・定義する「ハーネス」「ハーネスのアダプタ」「上位モデルのレビュー」「クロスチェックの部分レビュー」「スクラッチパッド」は 3.1 で定義したとおりとする。リポジトリ横断の用語統一で必要になる語は、設計・実装段階で `docs/translation_glossary.md` に追加する。
+
+## 変更履歴
+
+- 2026-11-22 承認（isseis、#1079）
