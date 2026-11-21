@@ -20,8 +20,11 @@
 -   **スキップの単位:** Go 側（`test`・`lint`）とブラウザ拡張側（`extension`）をまとめて判定し、親コミットとの差分が既存の分類規則で非コードかつ非ブラウザ拡張のファイルのみであり、かつ親コミットで 3 ジョブすべてが通過済みのときだけ、両出力（`has-code-changes` と `has-extension-changes`）を `false` にする。系統別に独立判定すると条件分岐と境界ケースが増えるためである（[0119 要件定義書](../../tasks/0119_ci_skip_doc_only_commit/01_requirements.md) F-001）。
 -   **親コミットの CI 結果の条件:** PR head コミットの親がちょうど 1 つ（マージコミットでない）であることを前提とする。そのうえで、親コミットに対する本リポジトリ・同一 PR の `CI` ワークフロー（`pull_request`）の最新実行が完了状態かつ結論が `success` または `failure`（`cancelled` 等ではない）であり、かつ `check-changes` が `success`、`test`・`lint`・`extension` がすべて `success` または `skipped` で完了していることを要求する。別 PR の実行との取り違えやジョブ一覧が揃う前の競合、およびワークフローのキャンセルによる未実行ジョブの誤認を防ぎつつ、`doc-guard` や `secret-scan` の失敗を文書修正で直した場合や、文書のみを連続して push した場合でも無駄な再実行を避けるためである（[0119 要件定義書](../../tasks/0119_ci_skip_doc_only_commit/01_requirements.md) F-001・F-002）。
 -   **前提条件と安全側フォールバック:** 同一リポジトリ内の `main` 向け PR で、手動再実行（`run_attempt > 1`）ではなく、かつ親コミットの CI 実行後に `main` が進んでいないことを確かめられたときだけスキップする。フォークからの PR、非 `main` ベース、手動再実行、`main` の更新、および判定に必要な情報取得、API 応答の検査、またはブラウザ拡張の変更分類に失敗したときは、ジョブを失敗させずに通常分類（`origin/main...HEAD`）へフォールバックする。未検証のコードや古い `main` との合成結果が誤って CI を通過することを防ぎつつ、手動再実行（「Re-run all jobs」）を強制再実行の逃げ道として残すためである（[0119 要件定義書](../../tasks/0119_ci_skip_doc_only_commit/01_requirements.md) F-003）。
--   **最小権限:** 親コミットの CI 結果の確認に要する読み取り権限は `check-changes` ジョブに限り付与し、ワークフロー全体や他ジョブの権限を広げず、書き込み権限は付与しない。CI の最小権限の原則を守るためである（[0119 要件定義書](../../tasks/0119_ci_skip_doc_only_commit/01_requirements.md) F-004）。
--   **食い違い:** この決定はまだ [.github/workflows/ci.yml](../../../.github/workflows/ci.yml) に実装されていない。`check-changes` ジョブは現在も `origin/main...HEAD` のみで分類しており、直前コミットの CI 結果に基づくスキップは行わない。この食い違いは https://github.com/isseis/yt2column/issues/1073 の実装で解消する。
+-   **最小権限:** 親コミットの CI 結果とベース整合性の確認に要する読み取り権限（`actions: read` および `checks: read`）は `check-changes` ジョブに限り付与し、ワークフロー全体や他ジョブの権限を広げず、書き込み権限は付与しない。CI の最小権限の原則を守るためである（[0119 要件定義書](../../tasks/0119_ci_skip_doc_only_commit/01_requirements.md) F-004、[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
+-   **`main` 不変性の検証方式:** 毎回の `check-changes` 実行で合成マージコミットの第 1 親（`HEAD^1`、その実行が実際に検証した `main` コミット）を固定形式の `::notice` アノテーション（`title=ci-base-sha`）として記録し、次回のスキップ判定時に親コミットの `Check changed files` ジョブの check-run annotations（Checks API）から読み戻して今回の `HEAD^1` および `origin/main` と照合する。GitHub Actions REST API は過去の合成マージコミットの `HEAD^1` を返さず、`pull_requests[].base.sha` も古くなりうるため、明示的に記録した SHA を照合することで偽陽性を防ぎつつ、PR ブランチが `main` を取り込んでいない一般的なケースでもスキップを有効にするためである（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
+-   **判定ロジックの配置先:** [ADR-0014](0014-deterministic-checks-in-go.md) の方針に従い、CI 専用の Go ツール `cmd/ciskip` + `internal/ciskip` として実装し、`.github/workflows/ci.yml` の `check-changes` ジョブから `go run ./cmd/ciskip` で呼び出す。利用者がローカルに入れる道具ではなく CI 専用のため、`make install-*` やプロトコル番号の対象外とする。既存の通常分類ステップはそのまま残し、後段の最終出力ステップでスキップ判定を適用する（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
+-   **GitHub API の呼び出し方式:** 既存の Go 開発ツールと同じく `internal/cmdrunner` 経由で `gh api --hostname github.com -i` を呼び出す（`GH_HOST`・`GH_REPO` 等を環境から除外し、`git`・`bash` へは `GH_TOKEN`・`GITHUB_TOKEN` を渡さない）。HTTP リダイレクト（3xx）を拒否できない点と HTTP 層で応答サイズ上限を指定できない点は `gh` の制限として受け入れ、呼び出し側で出力読み込み上限（`cmdrunner.Options.MaxOutput`）とタイムアウト・プロセスグループ終了を課すことでメモリ枯渇とハングを防ぐ。既存の `cmdrunner`・`gh` パターンを再利用して実装の複雑さを抑え、[ADR-0024](0024-env-access-in-config.md) の方針変更も不要にするためである（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
+-   **食い違い:** この決定はまだ [.github/workflows/ci.yml](../../../.github/workflows/ci.yml) に実装されておらず、`cmd/ciskip` および `internal/ciskip` も未作成である。`check-changes` ジョブは現在も `origin/main...HEAD` のみで分類しており、直前コミットの CI 結果に基づくスキップは行わない。この食い違いは https://github.com/isseis/yt2column/issues/1073 の実装で解消する。
 
 ## 採らなかった案
 
@@ -30,14 +33,21 @@
 -   **親コミットのワークフロー全体の成功要求案:** 親コミットのワークフロー全体の成功を要求すると、`test`・`lint`・`extension` が成功して `doc-guard` だけが失敗した PR で文書を直したとき、重いジョブまで再実行されてしまう（[0119 要件定義書](../../tasks/0119_ci_skip_doc_only_commit/01_requirements.md)「要件定義の際に決めたこと（2026-11-21）」）。
 -   **手動再実行でのスキップ適用案:** 手動再実行（`run_attempt > 1`）でもスキップを適用すると、重いジョブを強制的に走らせ直したいときの逃げ道がなくなる（[0119 要件定義書](../../tasks/0119_ci_skip_doc_only_commit/01_requirements.md)「要件定義の際に決めたこと（2026-11-21）」）。
 -   **フォークからの PR へのスキップ適用案:** フォークからの PR もスキップ対象に含めると、別リポジトリ由来のコミットやワークフロー実行との取り違えリスクを負うことになり、本リポジトリの通常運用にも利点がない（[0119 要件定義書](../../tasks/0119_ci_skip_doc_only_commit/01_requirements.md)「要件定義の際に決めたこと（2026-11-21）」）。
+-   **`main` 不変性の git 祖先判定のみ案:** `origin/main` が親コミットの祖先である場合だけスキップする方式は `checks: read` を不要にするが、PR 作成後に他 PR が `main` にマージされた場合、ブランチ自体に最新 `main` を取り込んでいなければスキップが効かず、実運用での削減効果が下がる（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
+-   **シェルスクリプト（`.github/scripts/`）＋ `curl` / `jq` 実装案:** 厳密な JSON 検査（重複キー・不正 UTF-8・型・末尾データ拒否）と包括的ユニットテストをシェルで書くのは保守性が低く、[ADR-0014](0014-deterministic-checks-in-go.md) の方針にも合わない（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
+-   **Go `net/http` 直接呼び出し案:** リダイレクト拒否と HTTP 層のサイズ上限を直接制御できる一方、認証トークンの受け渡し経路や独自の HTTP クライアント管理が増える。本リポジトリの他の開発ツールと同じ `gh` + `cmdrunner` の仕組みを使い、出力上限とタイムアウトでメモリ枯渇を防ぐ方が単純で一貫する（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
 
 ## 結果
 
 -   `mergepr` と `/runpr` の仕様・プロトコル番号を変えずに、`PRE_MERGE` コミットや文書のみの追加 push 後の CI 待ち時間と実行コストを削減できる。
 -   `doc-guard`（文書の値・構造・同期ガード）と `secret-scan`（追跡対象ファイル内の PEM 秘密鍵の検査）はスキップ時も毎回実行される。
--   将来 `.github/workflows/ci.yml` に `check-changes` の出力で制御される新しい重いジョブを追加する場合は、同じ PR で親コミットで通過済みかを確認する対象ジョブの一覧も更新する必要がある。
+-   `check-changes` ジョブに `actions: read` と `checks: read` の読み取り権限が加わり、各ワークフロー実行の Summary の Annotations 欄に `ci-base-sha` の notice が 1 件表示される。
+-   `gh` コマンドの仕様上、HTTP 3xx リダイレクトの拒否と HTTP 層での応答サイズ上限の指定は行えない残存制限がある（呼び出し側の `cmdrunner.Options.MaxOutput` とタイムアウトでメモリ枯渇とハングを防ぐ）。
+-   `::notice` アノテーションを `GITHUB_TOKEN` + `checks: read` で Checks API から読み戻せるかは実装 PR の実機確認（F-006）で確かめる（読み戻せない場合は安全側で通常実行に倒れる）。
+-   将来 `.github/workflows/ci.yml` に `check-changes` の出力で制御される新しい重いジョブを追加する場合は、同じ PR で親コミットで通過済みかを確認する対象ジョブの一覧（`internal/ciskip`）も更新する必要がある。
 -   1 回の push で複数コミットをまとめて積んだ場合や、`README.md`・`README.en.md`・`docs/dev/guides/development.md` を含む文書修正を積んだ場合、および `main` が進んだ場合は、重いジョブはスキップされず、通常どおり実行される。
 
 ## 経緯
 
 - 2026-11-21 `[skip ci]` を採らず、`.github/workflows/ci.yml` の `check-changes` で、直前コミットで CI 通過済みかつ非コード・非ブラウザ拡張のみの変更時に重いジョブ（`test`・`lint`・`extension`）をまとめてスキップする方針と安全条件（同一 PR 限定・ワークフロー完了確認＋ジョブ単位判定・連続 push の連鎖許可・手動再実行時はスキップしない・フォーク PR 除外・`main` 不変性・安全側フォールバック・最小読み取り権限）を定めた（[0119 要件定義書](../../tasks/0119_ci_skip_doc_only_commit/01_requirements.md)「issue #1073 で決めたこと」「要件定義の際に決めたこと（2026-11-21）」）
+- 2026-11-21 設計で、`main` 不変性の検証方式（`::notice` による `HEAD^1` 記録＋Checks API 読み戻し、`checks: read` 追加）、判定ロジックの配置先（CI 専用 Go ツール `cmd/ciskip` + `internal/ciskip`）、および GitHub API 呼び出し方式（`internal/cmdrunner` 経由の `gh api`、リダイレクト拒否不可・HTTP 層サイズ上限なしを制限として受け入れ、呼び出し側の読み込み上限とタイムアウトでメモリ枯渇を防止）を確定した（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）
