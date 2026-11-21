@@ -39,7 +39,7 @@
         -   **PR-1（ステップ 1-1〜1-3）:** `internal/ciskip` のローカル検証単位（公開値型・入力検証・環境分離・`git.go`・ユニット／実 `git` 結合テスト）と `package_reference.md`（`Development tools` 定義拡張・`internal/ciskip` 行）・`CLAUDE.md`（「Declare, don't infer」例外）。
         -   **PR-2（ステップ 1-4〜1-5）:** `internal/ciskip` の GitHub API 検証と `Evaluator` 統合単位（`github.go`・`Evaluator`/`New`/`Evaluate`・セキュリティテスト）と `package_reference.md`（`internal/strictjson` 利用者一覧・`internal/ciskip` 行更新）。
         -   **PR-3（ステップ 2-1〜2-2）:** `cmd/ciskip`・`envaccess_test.go`・`package_reference.md`（`cmd/ciskip` 行）・`dev_tools.md`。本番の CI ワークフローには触れない。
-        -   **PR-4（ステップ 2-3〜2-4）:** `.github/workflows/ci.yml`（`check-changes` ジョブのみ）・`internal/ciskip/workflow_pin_test.go`（静的ピン＋`id: check` 実行テスト）・`_checks/check-ac16-ci-diff.sh`。
+        -   **PR-4（ステップ 2-3〜2-4）:** `.github/workflows/ci.yml`（`check-changes` ジョブのみ）・`internal/ciskip/workflow_pin_test.go`（静的ピン＋`id: check` 実行テスト）・`_checks/check-ac16-ci-diff.sh`・`03_implementation_plan.md`（§7 の AC-16 実行記録）。
         -   **PR-5（ステップ 3-1〜3-2、`自動送信: hold`）:** PR-4 の GitHub Actions 実行結果（コード変更を含む push の通常実行と、続く非コード・非拡張のみコミットでのスキップ）を `03_implementation_plan.md` に記録し（AC-20）、ADR-0054・ADR-0014 の食い違いの記述を除去する（AC-19）。
     -   **理由:** ローカル git／差分分類（PR-1）とリモート GitHub API／厳密 JSON（PR-2）の 2 つのセキュリティ関門を脅威の対象ごとに分離してレビュー規模を抑える。さらに、本番の CI ワークフローに影響しない `cmd/ciskip`＋規約（PR-3）と `.github/workflows/ci.yml` 統合（PR-4）を分けることで、CI ワークフローの変更だけを単独の squash コミットとして安全にレビュー・切り戻しでき、PR-3 のモデル要件も `sonnet` に下げられる。PR-4 は `.github/workflows/ci.yml` と `workflow_pin_test.go` を含むため AC-20 の実機確認対象になり、PR-4 マージ後に利用者が 2 ケースの実行ログ（`::notice` 読み戻し・先頭コミット種別・レビュー中の `main` 更新有無）を確認してから PR-5 を始めるため `PR-5` を `hold` とする。
     -   **人の答え:** 初回確認で 3 PR 構成（PR-3 は `hold`）を選んだ後、PR 境界レビューの Major 指摘（フェーズ 1 の脅威の対象ごとの分離とフェーズ 2 の CI ワークフロー変更の分離）を受けて 5 PR 構成（PR-1/2/4 は `opus`、PR-3/5 は `sonnet`、PR-5 のみ `hold`）を採用した。
@@ -213,7 +213,7 @@
 
 **ステップ 2-4: 常設ピン留めテスト・`id: check` 実行テスト・AC-16 検証スクリプトを追加する**
 
--   対象ファイル：`internal/ciskip/workflow_pin_test.go`（`//go:build test`）、`docs/tasks/0119_ci_skip_doc_only_commit/_checks/check-ac16-ci-diff.sh`
+-   対象ファイル：`internal/ciskip/workflow_pin_test.go`（`//go:build test`）、`docs/tasks/0119_ci_skip_doc_only_commit/_checks/check-ac16-ci-diff.sh`、`docs/tasks/0119_ci_skip_doc_only_commit/03_implementation_plan.md`
 -   [ ] `workflow_pin_test.go` に、設計書 §7.1 に基づく次の 5 項目の常設ピン留めテストを書く。(1) `ci.yml` から抽出した非コード除外正規表現を `regexp.Compile` し、代表パス群で `internal/ciskip` の非コード分類関数と一致することを検証する。(2) `ci.yml` 全ジョブから `check-changes` と `needs: check-changes` を持つジョブの `name:` 集合を抽出し、`internal/ciskip` の必須ジョブ定数集合と要素・基数が一致することを検証する。(3) `doc-guard`・`secret-scan` に `needs:`/`if:` がないこと、および `test`・`lint`・`extension` の `if:` 条件と出力名を検証する（AC-14・AC-17）。(4) トップレベル `permissions` が `contents: read` のみ、`check-changes` が `{contents, actions, checks}: read` のみ、他ジョブに `permissions:` がなく、非コメント行に `: write`／`write-all`／`read-all` が不在であることを検証する（AC-15）。(5) `check-changes` の `run:` 本文に `${{` が直接埋め込まれていないこと、`timeout-minutes`・`GOTOOLCHAIN`・`steps.normal.outputs.*` の伝播、および `id: check` が渡す全フラグ名と `cmd/ciskip` の実フラグ集合の一致を検証する。
 -   [ ] `workflow_pin_test.go` に、`ci.yml` から `id: check` の `run:` 本文を抽出して `bash -eo pipefail` で実際に動かして確かめる実行テスト（`t.TempDir()` 上のフェイク `go`／`mktemp` とテスト用の `RUNNER_TEMP`・`GITHUB_OUTPUT` を注入）を書く。このテストで、両 `false` 時の `go` 未呼出、空文字／不正値の `true` 正規化、`skip=true\n` 時の `false`/`false` 出力と `stdout`（`::notice`・ログ）通過、`skip=false\n` 時の終了コード 0・通常分類出力維持、および不正内容／`go` 非ゼロ終了（1・2）／`mktemp` 失敗時の終了コード 0・通常分類出力維持・終了コード番号付きフォールバックログを検証する（AC-12・AC-13・AC-14・AC-17）。
 -   [ ] `docs/tasks/0119_ci_skip_doc_only_commit/_checks/check-ac16-ci-diff.sh` を作成し、merge-base と比較対象コミットの `.github/workflows/ci.yml` について §1.3 決定 2 の 3 条件（アンカーの一意性と順序、`check-changes` 前後のバイト一致、中間への別ジョブ／トップレベルキー非挿入）を検証する。各チェックが少なくとも 1 つの意図的な破損で失敗することを確かめ、PR ブランチ上で実行した結果と両コミット ID を §7「AC-16 検証スクリプト実行記録」へ記録する。
@@ -291,7 +291,7 @@
 | M1：`internal/ciskip` ローカル検証・差分分類 | `internal/ciskip` ローカル側（公開値型・入力検証・環境分離・`git.go`・ユニット／実 `git` 結合テスト）、`package_reference.md`（`Development tools` 定義拡張・`internal/ciskip` 行）、`CLAUDE.md` 例外 | PR-1 |
 | M2：`internal/ciskip` GitHub API・`Evaluator` 統合 | `internal/ciskip/github.go`・`Evaluator`/`New`/`Evaluate`・セキュリティテスト、`package_reference.md`（`strictjson` 利用者・`internal/ciskip` 行更新） | PR-2 |
 | M3：`cmd/ciskip` CLI と開発ツール規約 | `cmd/ciskip`、`envaccess_test.go`、`package_reference.md`（`cmd/ciskip`）・`dev_tools.md` | PR-3 |
-| M4：CI ワークフロー統合とピン留め・実行テスト | `.github/workflows/ci.yml`（`check-changes` のみ）、`workflow_pin_test.go`（静的ピン＋`id: check` 実行テスト）、`_checks/check-ac16-ci-diff.sh` | PR-4 |
+| M4：CI ワークフロー統合とピン留め・実行テスト | `.github/workflows/ci.yml`（`check-changes` のみ）、`workflow_pin_test.go`（静的ピン＋`id: check` 実行テスト）、`_checks/check-ac16-ci-diff.sh`、§7 の AC-16 実行記録 | PR-4 |
 | M5：実機確認記録と ADR 整合 | §7 の GitHub Actions 実機確認記録（AC-20）、ADR-0054・ADR-0014 の食い違いの記述除去（AC-19） | PR-5 |
 
 ### 3.2 PR 構成
@@ -301,7 +301,7 @@
 | PR-1 | 1-1 / 1-2 / 1-3 | `internal/ciskip` ローカル検証・差分分類とユニット／結合テスト、`package_reference.md`（`internal/ciskip`）・`CLAUDE.md` 例外 | opus | auto |
 | PR-2 | 1-4 / 1-5 | `internal/ciskip` GitHub API 検証・`Evaluator` 統合・セキュリティテスト、`package_reference.md`（`strictjson` 利用者一覧） | opus | auto |
 | PR-3 | 2-1 / 2-2 | `cmd/ciskip`、`envaccess_test.go`、`package_reference.md`（`cmd/ciskip`）・`dev_tools.md` | sonnet | auto |
-| PR-4 | 2-3 / 2-4 | `.github/workflows/ci.yml` 統合、`workflow_pin_test.go`（静的ピン＋`id: check` 実行テスト）、`_checks/check-ac16-ci-diff.sh` | opus | auto |
+| PR-4 | 2-3 / 2-4 | `.github/workflows/ci.yml` 統合、`workflow_pin_test.go`（静的ピン＋`id: check` 実行テスト）、`_checks/check-ac16-ci-diff.sh`、§7 の AC-16 実行記録 | opus | auto |
 | PR-5 | 3-1 / 3-2 | PR-4 の GitHub Actions 実機確認結果の記録（AC-20）、ADR-0054・ADR-0014 の食い違いの記述除去（AC-19） | sonnet | hold |
 
 PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利用者が PR-4 の GitHub Actions 実行ログで AC-20 の 2 ケースと `::notice` 読み戻しを確認してから PR-5 の `/runplan` を開始するため、PR-5 の `自動送信` を `hold` とする。
@@ -333,7 +333,7 @@ PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利�
 | 2 | PR-4 のレビュー中に別 PR が `main` へマージされて `PRE_MERGE` が `ReasonMainAdvanced` になる、または `/runplan` の記録コミットにより PR-4 でコード変更先頭コミットの push が走らない | PR-5 を `自動送信: hold` とし、利用者が PR-4 の実行ログを確認する。2 ケースのどちらかが未確認なら、ADR 更新へ進まずに追加の確認手順を利用者と決める（ステップ 3-1） |
 | 3 | `ci.yml` の `id: normal` 書き換えで `extension/test/repository.test.ts:232-235` の正規表現ピンが壊れる | `wasm_dep_dirs_ok=false` を `if` の前に初期化し、`else` 直後の構造を変えない（§1.4）。ステップ 2-3 の完了基準で `make ext-test` を実行して確認する |
 | 4 | `os.Open(depDirsFile)`（64 KiB+1 バイト上限の `io.LimitReader` 付き有界読み取り）・`os.WriteFile(resultFile, ...)`、および `test_helpers.go`（`_test.go` 除外対象外）の `exec.Command` 等が `golangci-lint` の `gosec` に抵触する | 該当行のみに最小範囲の `//nolint:gosec` と用途を限定した根拠コメント（`test_helpers.go` ではテストセットアップ専用と明記）を付け、ファイル・パッケージ全体への抑制は行わない。`make lint` で確認する |
-| 5 | `make deadcode` で PR-1・PR-2 単体時に未到達関数が報告される | PR-1（ステップ 1-1・1-2）では `Evaluator` を含めずローカル関数群をテストからすべて呼び、PR-2（ステップ 1-4）では `ciskip_test.go` から `New`・`Evaluate`・`Skip` を呼ぶ。両 PR で `make deadcode` を完了基準に含める |
+| 5 | `make deadcode` で PR-1・PR-2 単体時に未到達関数が報告される | `make deadcode`（`Makefile:370`）は `deadcode -test -tags test,integration ./...` でテストからの呼び出しも到達可能と判定する。PR-1（ステップ 1-1・1-2）では `Evaluator` を含めずローカル関数群をテストからすべて呼び、PR-2（ステップ 1-4）では `ciskip_test.go` から `New`・`Evaluate`・`Skip` を呼ぶ。両 PR で `make deadcode` を完了基準に含める |
 | 6 | 将来 `.github/workflows/ci.yml` に新しい重いジョブを追加した際に `internal/ciskip` の必須ジョブ一覧と乖離する | `workflow_pin_test.go` で `ci.yml` の `check-changes` と `needs: check-changes` を持つジョブ集合（要素・基数）と `internal/ciskip` の必須ジョブ定数集合の一致を常設ピン留めする（ステップ 2-4） |
 
 **日程上のリスク:** フェーズ 3（PR-5）は PR-4 マージ後の GitHub Actions 実機結果を利用者が確認する待ち時間を含む。`PR-5` を `自動送信: hold` として確認完了後に着手する。
