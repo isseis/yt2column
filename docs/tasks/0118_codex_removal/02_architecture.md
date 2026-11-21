@@ -632,7 +632,7 @@ chief の製品のコードは、Codex の文言で分岐しない（要件定�
 | `.claude/commands/runpr.md` | step 1（単独の PR）、step 3、step 4、step 5 の報告、`<mention-check>` と `<rejected-mentions>`、`fixprguard` の `--protocol` | F-002〜F-005、F-009 |
 | `.claude/commands/_lib/pr-review-escalation.md` | 冒頭の説明、Inputs、基準 4 の関門の範囲 | F-005 |
 | `.claude/commands/_lib/local-cli-review.md` | 3.6 | F-006、AC-28 |
-| `.claude/commands/_lib/review-records.sh` | header の説明（LAST_REVIEWED は手動の PR レビューの完了の印、F-007 の呼び方）と、`flip` へのグリーンゲート確認チェックボックス追加（1.4）。範囲判定や `(coderabbit|codex)` の規則は変えない | F-005、F-007、AC-31 |
+| `.claude/commands/_lib/review-records.sh` | header の説明（LAST_REVIEWED は手動の PR レビューの完了の印、F-007 の呼び方）と、`flip` へのグリーンゲート確認チェックボックス追加（1.4）。範囲判定や `(coderabbit\|codex)` の規則は変えない | F-005、F-007、AC-31 |
 | `.claude/commands/fixpr.md` | `<mention-check>`、`replyBody` の規則、Phase 4.5 の Codex CLI の記述、`append-pr` の `current-body-mention` の報告、`--protocol` | F-006、F-009、AC-39 |
 | `.claude/commands/runplan.md` | 「Before the PR」の理由と B1、step 7.7 の Codex CLI の記述、Part B の CHECKS の文（新しい手順の commit は Opus のレビューの判断のやり直しを引き起こさない） | F-006、F-007 |
 | `.claude/commands/_lib/fable-review.md` | 冒頭の理由（[ADR-0050](../../dev/adr/0050-fable-partial-review.md) の新しい理由）、Codex CLI の指摘の記述、`<mention-check>` | F-009、F-011 |
