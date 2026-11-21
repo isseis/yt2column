@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -30,9 +31,11 @@ const (
 	keyUser       = "user"
 	keyData       = "data"
 	ghAPI         = "api"
-	keyPageInfo   = "pageInfo"
-	keyLogin      = "login"
-	keyType       = "type"
+	// ghUserEndpoint is the gh api endpoint of the authenticated user.
+	ghUserEndpoint = "user"
+	keyPageInfo    = "pageInfo"
+	keyLogin       = "login"
+	keyType        = "type"
 
 	// keyHasNextPage is the page-info member that says a list continues.
 	keyHasNextPage = "hasNextPage"
@@ -431,7 +434,7 @@ func formatReviewTime(t time.Time) string { return t.UTC().Format(time.RFC3339) 
 // readUser reads the login of the user gh acts as; only that user's comments
 // can be request comments.
 func (r *reviewReader) readUser(ctx context.Context) (string, *reviewError) {
-	out, err := r.g.runGH(ctx, nil, ghAPI, keyUser)
+	out, err := r.g.runGH(ctx, nil, ghAPI, ghUserEndpoint)
 	if err != nil {
 		return "", callFailure(err)
 	}
@@ -582,7 +585,7 @@ func (r *reviewReader) readRequests(ctx context.Context, user, request string) (
 		if err != nil || !validCommentURL(url) {
 			return rejected("comment html_url")
 		}
-		if kind == typenameUser && login == user && body == request {
+		if kind == typenameUser && login == user && strings.TrimSpace(body) == request {
 			requests = append(requests, requestComment{id: id, url: url, created: created, updated: updated})
 		}
 		return nil

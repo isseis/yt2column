@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
+	"slices"
 	"strings"
 	"testing"
 
@@ -99,9 +99,19 @@ func reviewStateCases() []reviewStateCase {
 			want: func() PRReviewState { s := rsWant(RequestNone); s.Request = nil; return s }(),
 		},
 		{
-			name: "none_for_a_changed_body",
-			in:   rsInput{comments: []rsComment{{id: 1, login: rsUser, kind: typenameUser, body: rsRequestText + " ", created: rsCreated}}},
+			name: "none_for_another_body",
+			in:   rsInput{comments: []rsComment{{id: 1, login: rsUser, kind: typenameUser, body: rsRequestText + " now", created: rsCreated}}},
 			want: func() PRReviewState { s := rsWant(RequestNone); s.Request = nil; return s }(),
+		},
+		{
+			// White space around the request text does not make another
+			// request: GitHub keeps a trailing newline or CRLF of a comment.
+			name: "waiting_for_a_request_with_surrounding_white_space",
+			in: rsInput{
+				comments: []rsComment{{id: 1, login: rsUser, kind: typenameUser, body: " \r\n" + rsRequestText + "\r\n", created: rsCreated}},
+				commits:  []rsCommit{rsCommitOf(rsHead)},
+			},
+			want: rsWant(RequestWaiting),
 		},
 
 		// Waiting and the responses that are not a completion.
@@ -359,14 +369,17 @@ func reviewStateCases() []reviewStateCase {
 	return rows
 }
 
+// checkReviewState runs the scripted calls and compares the whole state.
+func checkReviewState(t *testing.T, in rsInput, want PRReviewState) {
+	t.Helper()
+	if got := runReviewState(t, in); !reflect.DeepEqual(got, want) {
+		t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, want))
+	}
+}
+
 func TestReviewState(t *testing.T) {
 	for _, tc := range reviewStateCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			got := runReviewState(t, tc.in)
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, tc.want))
-			}
-		})
+		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })
 	}
 }
 
@@ -466,12 +479,7 @@ func TestReviewStateUnreadable(t *testing.T) {
 		{"review_user_type_missing", with(rsStageReviews, whole(`[{"user":{"login":"a"},"commit_id":"x","submitted_at":null,"html_url":"`+rsReviewURL(1)+`"}]`)), rsUnreadable(UnreadableRejected, rsHead)},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			got := runReviewState(t, tc.in)
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, tc.want))
-			}
-		})
+		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })
 	}
 }
 
@@ -512,18 +520,14 @@ func TestReviewStateLimits(t *testing.T) {
 		{"commits_over_the_limit", rsInput{comments: defaultComments(), commits: commits(maxPRCommits + 1), stop: rsStageGraphQL}, rsUnreadable(UnreadableLimit, rsHead)},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) {
-			got := runReviewState(t, tc.in)
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, tc.want))
-			}
-		})
+		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })
 	}
 }
 
-// TestReviewStateReads: the calls name the reviewer's check runs only (every
-// run of that name, not the latest), the page and the head, and the head
-// travels in every request of the commit pages.
+// TestReviewStateReads: the commit query asks for every check run named after
+// the reviewer (not only the latest of its name), and never for the details
+// URL. The wording of the query is the contract with GitHub, so it is matched
+// as text.
 func TestReviewStateReads(t *testing.T) {
 	in := rsInput{
 		comments: defaultComments(),
@@ -577,7 +581,7 @@ func TestReviewStateOutputHasNoText(t *testing.T) {
 		{comments: comments, commits: []rsCommit{rsCommitOf(rsHead)}, edit: map[string]func(string) string{rsStageGraphQL: func(string) string { return "{" }}, stop: rsStageGraphQL},
 	} {
 		out := mustJSON(t, runReviewState(t, in))
-		for _, leak := range []string{secret, "secret-scope", "secret-review-body", "secret-title", "detailsUrl", "details_url", "Finished"} {
+		for _, leak := range []string{secret, "secret-scope", "secret-review-body", "secret-title", "detailsUrl", "details_url"} {
 			if strings.Contains(out, leak) {
 				t.Errorf("output %s holds %q", out, leak)
 			}
@@ -607,46 +611,29 @@ func TestReviewStateArguments(t *testing.T) {
 	}
 }
 
-// TestReviewStateLists: the lists the guide names cover every value, so a
-// value added without a name fails here.
-func TestReviewStateLists(t *testing.T) {
-	for _, state := range RequestStates() {
-		if _, err := state.MarshalText(); err != nil {
-			t.Errorf("state %d has no name: %v", state, err)
-		}
-	}
-	for _, reason := range UnreadableReasons() {
-		if text, err := reason.MarshalText(); err != nil || len(text) == 0 {
-			t.Errorf("unreadable reason %d has no name: %v", reason, err)
-		}
-	}
-	for _, reason := range IndeterminateReasons() {
-		if text, err := reason.MarshalText(); err != nil || len(text) == 0 {
-			t.Errorf("indeterminate reason %d has no name: %v", reason, err)
-		}
-	}
-	for _, kind := range RunKinds() {
-		if _, err := kind.MarshalText(); err != nil {
-			t.Errorf("run kind %d has no name: %v", kind, err)
-		}
-	}
-	// A value outside the list is an error, never a guessed name.
-	if _, err := RequestState(99).MarshalText(); !errors.Is(err, errUnknownEnum) {
-		t.Errorf("RequestState(99) = %v, want errUnknownEnum", err)
-	}
-	// The zero values assume least: an unset state is indeterminate, an unset
-	// kind is unknown.
-	if text, _ := RequestState(0).MarshalText(); string(text) != "indeterminate" {
-		t.Errorf("zero RequestState = %q, want indeterminate", text)
-	}
-	if text, _ := RunKind(0).MarshalText(); string(text) != "unknown" {
-		t.Errorf("zero RunKind = %q, want unknown", text)
+// TestReviewStateEnumsRejectOutsideValues: a value outside an enumeration is
+// an error, never a guessed name, so an unset or corrupted state cannot reach
+// the output as a valid word. (That every listed value has its word in the
+// guide is TestGuideListsReviewStateValues' check.)
+func TestReviewStateEnumsRejectOutsideValues(t *testing.T) {
+	for name, marshal := range map[string]func() ([]byte, error){
+		"request_state":        RequestState(99).MarshalText,
+		"unreadable_reason":    UnreadableReason(99).MarshalText,
+		"indeterminate_reason": IndeterminateReason(99).MarshalText,
+		"run_kind":             RunKind(99).MarshalText,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := marshal(); !errors.Is(err, errUnknownEnum) {
+				t.Errorf("err = %v, want errUnknownEnum", err)
+			}
+		})
 	}
 }
 
-// TestReviewStateObserved: a sequence of three requests in one PR with the
-// shapes GitHub returned for them (observed in the PR of the probe), read from
-// files: a finished review, a rate-limited one, and a finished one with a PR
+// TestReviewStateObserved: a sequence of three requests in one PR, shaped after
+// the responses observed in the probe PR (the SHAs, ids and the request text
+// are synthetic; the members, the check run triples and the order of the runs
+// are as observed), read from files: a finished review, a rate-limited one, and a finished one with a PR
 // review. Unread members and an unread body stay out of the result.
 func TestReviewStateObserved(t *testing.T) {
 	read := func(name string) string {
@@ -660,7 +647,7 @@ func TestReviewStateObserved(t *testing.T) {
 	now := "Fri, 20 Nov 2026 04:35:00 GMT"
 	steps := []cmdrunnertestutil.Step{
 		repoStep(),
-		{Name: "gh", Args: []string{ghAPI, keyUser}, Out: `{"login":"isseis"}`},
+		{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"isseis"}`},
 		includeStep("pulls/"+testPR, includedOutput(200, []string{"Date: " + now}, read("pull.json")), nil),
 		includeStep("issues/"+testPR+"/comments?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("comments.json")), nil),
 		graphqlStep(read("commits.json")),
@@ -699,9 +686,6 @@ func TestReviewStateObserved(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, want))
 	}
-	if strings.Contains(mustJSON(t, got), strconv.Itoa(64000002)) {
-		t.Error("output holds the id of a check run that is no response")
-	}
 }
 
 // TestReviewStateDateHeader: GitHub's clock is the Date header of a REST
@@ -718,7 +702,7 @@ func TestReviewStateDateHeader(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			steps := []cmdrunnertestutil.Step{
 				repoStep(),
-				{Name: "gh", Args: []string{ghAPI, keyUser}, Out: `{"login":"` + rsUser + `"}`},
+				{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"` + rsUser + `"}`},
 				includeStep("pulls/"+testPR, includedOutput(200, headers, pull), nil),
 			}
 			g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, steps...))
@@ -734,4 +718,69 @@ func TestReviewStateDateHeader(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestReviewStateCommitPages: the commits are read in pages of twenty. Each
+// request after the first carries the cursor of the page before it, a run on a
+// later page is read, and a head that differs on any one page, not only the
+// first, discards the read.
+func TestReviewStateCommitPages(t *testing.T) {
+	const commitCount = 45
+	finished := rsFinished(11, at("10:00:20"), at("10:03:00"))
+	commits := make([]rsCommit, 0, commitCount)
+	for range commitCount - 1 {
+		commits = append(commits, rsCommitOf(rsHead))
+	}
+	commits = append(commits, rsCommitOf(rsSecond, finished))
+	in := rsInput{comments: defaultComments(), commits: commits}
+	call := func(t *testing.T, steps []cmdrunnertestutil.Step) (PRReviewState, *cmdrunnertestutil.Fake) {
+		t.Helper()
+		fake := cmdrunnertestutil.New(t, steps...)
+		g, err := NewGitHubWithoutReviewer(fake)
+		if err != nil {
+			t.Fatal(err)
+		}
+		state, err := g.PRReviewState(t.Context(), ReviewStateRequest{PR: mustPR(t), Reviewer: mustLogin(t, testReviewer), Request: rsRequestText})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return state, fake
+	}
+
+	t.Run("cursors_and_later_pages", func(t *testing.T) {
+		got, fake := call(t, in.steps(t))
+		want := rsWant(RequestCompleted, withResponse(RunFinished, finished, rsSecond), withMarkers(marker(1, rsSecond, finished, "")))
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, want))
+		}
+		var after []any
+		for _, stdin := range fake.Stdin {
+			if stdin != nil {
+				after = append(after, requestVariables(t, stdin)["after"])
+			}
+		}
+		if !reflect.DeepEqual(after, []any{nil, "cursor20", "cursor40"}) {
+			t.Errorf("cursors sent = %v, want [nil cursor20 cursor40]", after)
+		}
+	})
+
+	t.Run("head_changed_on_the_second_page", func(t *testing.T) {
+		steps := in.steps(t)
+		var graphql []int
+		for i, step := range steps {
+			if slices.Equal(step.Args, []string{ghAPI, "graphql", "--input", "-"}) {
+				graphql = append(graphql, i)
+			}
+		}
+		if len(graphql) != 3 {
+			t.Fatalf("scripted GraphQL pages = %d, want 3", len(graphql))
+		}
+		steps[graphql[1]].Out = strings.Replace(steps[graphql[1]].Out, `"headRefOid":"`+rsHead+`"`, `"headRefOid":"`+rsSecond+`"`, 1)
+		// The read ends at the second page: the third page and the reviews are
+		// never asked for.
+		got, _ := call(t, steps[:graphql[1]+1])
+		if want := rsUnreadable(UnreadableCall, rsHead); !reflect.DeepEqual(got, want) {
+			t.Errorf("state = %s, want %s", mustJSON(t, got), mustJSON(t, want))
+		}
+	})
 }

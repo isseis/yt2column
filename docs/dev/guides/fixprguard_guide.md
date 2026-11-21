@@ -314,7 +314,7 @@ fixprguard review-state --protocol 6 --reviewer coderabbitai --request 'please r
 
 読む順は、リポジトリの名前（`gh repo view`）、利用者の login（`gh api user`）、PR の head（`pulls/<n>` の `head.sha`）、会話のコメント（`issues/<n>/comments`、100 件ずつ全ページ）、PR の commit の一覧と CheckRun（GraphQL）、レビュアーの PR レビュー（`pulls/<n>/reviews`、100 件ずつ全ページ）である。REST は `gh api --include` で読み、最後に読んだ REST の応答の `Date` ヘッダを GitHub の時刻とする。依頼のコメントがなければ、`none` を返して、その後の読み取りをしない。
 
-**依頼のコメント。** 著者の種類が `User` で、login が利用者のものと等しく、本文が `--request` と完全に等しいコメントだけを数える。同じ名前の `Bot`、ほかの利用者、本文が少しでも違うコメントは数えない。最新の依頼は、`updated_at` の順で最後のものである。同じ秒の中に編集されたもの（`updated_at` が `created_at` と等しくない）があれば、編集されたものが最新とする。
+**依頼のコメント。** 著者の種類が `User` で、login が利用者のものと等しく、本文の前後の空白を除いたものが `--request` と完全に等しいコメントだけを数える。同じ名前の `Bot`、ほかの利用者、本文が少しでも違うコメント（前後の空白以外）は数えない。最新の依頼は、`updated_at` の順で最後のものである。同じ秒の中に編集されたもの（`updated_at` が `created_at` と等しくない）があれば、編集されたものが最新とする。
 
 **応答の分類。** CheckSuite の `app.slug` が `--reviewer` と等しく、名前が `CodeRabbit` の CheckRun だけを読み、`status`・`conclusion`・`title` の組を次の表と完全一致で照合する。表にない `COMPLETED` の組は `unknown` で、レビュー済みとしない。
 

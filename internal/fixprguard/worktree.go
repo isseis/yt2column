@@ -294,13 +294,16 @@ func (w *Worktree) Finish(ctx context.Context, base Baseline, judged JudgedSetID
 	return FinishResult{Protocol: Protocol, Committed: true, Commit: commit}, nil
 }
 
+// gitCommit is the git subcommand that records a commit.
+const gitCommit = "commit"
+
 // commit commits the staged set and checks the commit (checkCommit). With a
 // pinned message it commits that text verbatim; otherwise the fixed subject
 // alone, as finish always did. A failed commit undoes the staging.
 func (w *Worktree) commit(ctx context.Context, base Baseline, staged []change, pr PRNumber, message finishMessage) (string, error) {
-	args := []string{keyCommit, "-q", "-m", CommitSubject(pr)}
+	args := []string{gitCommit, "-q", "-m", CommitSubject(pr)}
 	if message.pinned {
-		args = []string{keyCommit, "-q", "--cleanup=verbatim", "-m", message.text}
+		args = []string{gitCommit, "-q", "--cleanup=verbatim", "-m", message.text}
 	}
 	if _, err := w.git(ctx, "commit", args...); err != nil {
 		return "", w.undoStage(ctx, base, err)

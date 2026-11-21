@@ -79,7 +79,7 @@ func (c rsComment) json() map[string]any {
 }
 
 func (c rsComment) isRequest() bool {
-	return c.kind == typenameUser && c.login == rsUser && c.body == rsRequestText
+	return c.kind == typenameUser && c.login == rsUser && strings.TrimSpace(c.body) == rsRequestText
 }
 
 // rsRun is one check run; an empty string is null. url is derived from id.
@@ -271,7 +271,7 @@ func (in rsInput) steps(t testing.TB) []cmdrunnertestutil.Step {
 	if f := in.edit[rsStageUser]; f != nil {
 		userOut = f(userOut)
 	}
-	if add(rsStageUser, cmdrunnertestutil.Step{Name: "gh", Args: []string{ghAPI, keyUser}, Out: userOut}) || in.stop == rsStageUser {
+	if add(rsStageUser, cmdrunnertestutil.Step{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: userOut}) || in.stop == rsStageUser {
 		return steps
 	}
 	head := in.head
