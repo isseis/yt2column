@@ -56,7 +56,8 @@ func TestRunsCommandForms(t *testing.T) {
 		{"assignment", "```bash\nFOO=1 widget review\n```\n", true},
 		{"redirection", "```bash\n2>/dev/null widget review\n```\n", true},
 		// A redirection written as its own word takes the next word as its
-		// target, so the command after them is the one that runs.
+		// target, so the command after them is the one that runs; in a block
+		// that is not quoted, a leading '>' is also kept as a redirection.
 		{"redirection_word", "```bash\n> /tmp/log widget review\n```\n", true},
 		{"redirection_append_word", "```bash\n2>> /tmp/log widget review\n```\n", true},
 		{"redirection_both", "```bash\n&>/tmp/log widget review\n```\n", true},
@@ -111,10 +112,10 @@ func TestRunsCommandForms(t *testing.T) {
 		{"comment_kind_span", "A `widget` is any other comment by the same author.\n", false},
 		{"html_marker", "```bash\n  | select((.body // \"\" | split(\"\\n\"))[0] == \"<!-- widget-pull-request-review-summary -->\")\n```\n", false},
 		{"html_marker_span", "Its first line is `<!-- widget-pull-request-review-summary -->`.\n", false},
-		{"login", "| Awaited PR reviewer | `chatgpt-widget-connector` - the reviewer |\n", false},
+		{"login", "```bash\nchatgpt-widget-connector review\n```\n", false},
 		{"mention", "| PR review request | `@widget review` - the body of the comment |\n", false},
 		{"tool", "```bash\nwidgetreview --protocol 1 --base <BASE>\n```\n", false},
-		{"prose_without_span", "Widget CLI runs widget exec review.\n", false},
+		{"prose_without_span", "widget exec review.\n", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := slices.ContainsFunc(CommandTexts(tc.doc), func(text string) bool { return RunsCommand(text, "widget") })

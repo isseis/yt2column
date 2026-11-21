@@ -8,9 +8,8 @@ import (
 )
 
 // TestProtocolFlags pins which tool each --protocol belongs to, the choice
-// that splits the flags between the fixprguard and the mergepr guards.
+// that splits the flags across the fixprguard, chief, and mergepr guards.
 func TestProtocolFlags(t *testing.T) {
-	const sha = "0123456789abcdef0123456789abcdef01234567"
 	for _, tc := range []struct {
 		name string
 		doc  string
@@ -18,52 +17,52 @@ func TestProtocolFlags(t *testing.T) {
 	}{
 		{
 			"both_tools_on_one_line",
-			"fixprguard head --protocol 4 && mergepr --protocol 1 --state " + sha + "\n",
+			"fixprguard head --protocol 4 && mergepr prepare --protocol 1 42\n",
 			[]ProtocolFlag{{"--protocol 4", "4", ToolFixprguard}, {"--protocol 1", "1", ToolMergepr}},
 		},
 		{
 			"another_flag_before_protocol",
-			"mergepr --state " + sha + " --protocol 1\nfixprguard list --reviewer <reviewer> --protocol=4\n",
+			"mergepr prepare 42 --protocol 1\nfixprguard list --reviewer <reviewer> --protocol=4\n",
 			[]ProtocolFlag{{"--protocol 1", "1", ToolMergepr}, {"--protocol=4", "4", ToolFixprguard}},
 		},
 		{
 			// The pipe ends mergepr's command, so the flag after it is
 			// not mergepr's.
 			"pipe",
-			"mergepr --protocol 1 --state " + sha + " | tee x --protocol 9\n",
+			"mergepr prepare --protocol 1 42 | tee x --protocol 9\n",
 			[]ProtocolFlag{{"--protocol 1", "1", ToolMergepr}, {"--protocol 9", "9", ""}},
 		},
 		{
 			"semicolon",
-			"mergepr --state " + sha + "; tee --protocol 9\n",
+			"mergepr prepare 42; tee --protocol 9\n",
 			[]ProtocolFlag{{"--protocol 9", "9", ""}},
 		},
 		{
 			"and_list",
-			"mergepr --state " + sha + " && tee --protocol 9\n",
+			"mergepr prepare 42 && tee --protocol 9\n",
 			[]ProtocolFlag{{"--protocol 9", "9", ""}},
 		},
 		{
 			// A substitution ends the command too, so the flag after one is
 			// not the call's: the documents write a call's values literally.
 			"substitution",
-			"mergepr --state \"$(git rev-parse HEAD)\" --protocol 1\n",
+			"mergepr prepare \"$(git rev-parse HEAD)\" --protocol 1\n",
 			[]ProtocolFlag{{"--protocol 1", "1", ""}},
 		},
 		{
 			"backquote_in_block",
-			"mergepr --state `git rev-parse HEAD` --protocol 1\n",
+			"mergepr prepare `git rev-parse HEAD` --protocol 1\n",
 			[]ProtocolFlag{{"--protocol 1", "1", ""}},
 		},
 		{
 			// Each code span is its own command.
 			"code_spans_in_prose",
-			"Run `mergepr --protocol 1 --state <BASE>`, then `fixprguard begin --protocol 4`.\n",
+			"Run `mergepr prepare --protocol 1 <PR>`, then `fixprguard begin --protocol 4`.\n",
 			[]ProtocolFlag{{"--protocol 1", "1", ToolMergepr}, {"--protocol 4", "4", ToolFixprguard}},
 		},
 		{
 			"path_and_quotes",
-			"\"/go/bin/mergepr\" --protocol 1 --state " + sha + "\n",
+			"\"/go/bin/mergepr\" prepare --protocol 1 42\n",
 			[]ProtocolFlag{{"--protocol 1", "1", ToolMergepr}},
 		},
 		{
@@ -76,13 +75,13 @@ func TestProtocolFlags(t *testing.T) {
 			// The value is the whole word, so a guard rejects one with a
 			// tail the tool would reject.
 			"value_with_a_tail",
-			"mergepr --protocol 1junk --state " + sha + "\nfixprguard head --protocol=4x\n",
+			"mergepr prepare --protocol 1junk 42\nfixprguard head --protocol=4x\n",
 			[]ProtocolFlag{{"--protocol 1junk", "1junk", ToolMergepr}, {"--protocol=4x", "4x", ToolFixprguard}},
 		},
 		{
 			// chief's flag is its own, next to another tool's.
 			"chief_and_mergepr",
-			"chief snapshot --protocol 1 && mergepr --protocol 1 --state " + sha + "\n",
+			"chief snapshot --protocol 1 && mergepr prepare --protocol 1 42\n",
 			[]ProtocolFlag{{"--protocol 1", "1", ToolChief}, {"--protocol 1", "1", ToolMergepr}},
 		},
 		{
