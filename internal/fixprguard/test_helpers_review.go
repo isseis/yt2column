@@ -267,13 +267,6 @@ func (in rsInput) steps(t testing.TB) []cmdrunnertestutil.Step {
 	if add(rsStageRepo, repoStep()) || in.stop == rsStageRepo {
 		return steps
 	}
-	userOut := `{"login":"` + rsUser + `","id":1}`
-	if f := in.edit[rsStageUser]; f != nil {
-		userOut = f(userOut)
-	}
-	if add(rsStageUser, cmdrunnertestutil.Step{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: userOut}) || in.stop == rsStageUser {
-		return steps
-	}
 	head := in.head
 	if head == "" {
 		head = rsHead
@@ -283,6 +276,13 @@ func (in rsInput) steps(t testing.TB) []cmdrunnertestutil.Step {
 		now = rsNow
 	}
 	if add(rsStagePull, in.pullStep(t, head, now)) || in.stop == rsStagePull {
+		return steps
+	}
+	userOut := `{"login":"` + rsUser + `","id":1}`
+	if f := in.edit[rsStageUser]; f != nil {
+		userOut = f(userOut)
+	}
+	if add(rsStageUser, cmdrunnertestutil.Step{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: userOut}) || in.stop == rsStageUser {
 		return steps
 	}
 	comments := make([]any, 0, len(in.comments))

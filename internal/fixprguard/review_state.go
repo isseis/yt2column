@@ -391,24 +391,25 @@ func (g *GitHub) PRReviewState(ctx context.Context, req ReviewStateRequest) (PRR
 }
 
 // read runs the reads in order and stops at the first failure: the
-// repository, the user, the PR's head, the conversation comments (with no
+// repository, the PR's head, the user, the conversation comments (with no
 // request comment, nothing after them is read), the PR's commits with their
-// check runs, then the reviewer's PR reviews.
+// check runs, then the reviewer's PR reviews. The head is read before the user
+// so that a failed gh api user still reports the head it managed to read.
 func (r *reviewReader) read(ctx context.Context, req ReviewStateRequest) (PRReviewState, *reviewError) {
 	repo, err := r.g.resolveRepository(ctx)
 	if err != nil {
 		return PRReviewState{}, failReview(UnreadableCall)
 	}
 	r.repo = repo
-	user, failure := r.readUser(ctx)
-	if failure != nil {
-		return PRReviewState{}, failure
-	}
 	head, failure := r.readHead(ctx)
 	if failure != nil {
 		return PRReviewState{}, failure
 	}
 	r.head = head
+	user, failure := r.readUser(ctx)
+	if failure != nil {
+		return PRReviewState{}, failure
+	}
 	requests, failure := r.readRequests(ctx, user, req.Request)
 	if failure != nil {
 		return PRReviewState{}, failure

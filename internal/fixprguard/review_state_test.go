@@ -417,7 +417,7 @@ func TestReviewStateUnreadable(t *testing.T) {
 	}{
 		// Failed calls.
 		{"repository_call_fails", failing(rsStageRepo, boom), rsUnreadable(UnreadableCall, "")},
-		{"user_call_fails", failing(rsStageUser, boom), rsUnreadable(UnreadableCall, "")},
+		{"user_call_fails", failing(rsStageUser, boom), rsUnreadable(UnreadableCall, rsHead)},
 		{"pull_call_fails", failing(rsStagePull, boom), rsUnreadable(UnreadableCall, "")},
 		{"pull_status_is_not_200", rsInput{pullStatus: http.StatusNoContent, stop: rsStagePull}, rsUnreadable(UnreadableCall, "")},
 		{"comments_call_fails", failing(rsStageComments, boom), rsUnreadable(UnreadableCall, rsHead)},
@@ -427,8 +427,8 @@ func TestReviewStateUnreadable(t *testing.T) {
 		{"graphql_response_over_max_bytes", with(rsStageGraphQL, whole(strings.Repeat(" ", maxResponseBytes+1))), rsUnreadable(UnreadableLimit, rsHead)},
 
 		// The user and the head.
-		{"user_login_outside_the_grammar", with(rsStageUser, bad(rsUser, "bad name")), rsUnreadable(UnreadableRejected, "")},
-		{"user_login_duplicated", with(rsStageUser, bad(`"id":1`, `"login":"x"`)), rsUnreadable(UnreadableRejected, "")},
+		{"user_login_outside_the_grammar", with(rsStageUser, bad(rsUser, "bad name")), rsUnreadable(UnreadableRejected, rsHead)},
+		{"user_login_duplicated", with(rsStageUser, bad(`"id":1`, `"login":"x"`)), rsUnreadable(UnreadableRejected, rsHead)},
 		{"head_not_hex", with(rsStagePull, bad(rsHead, strings.Repeat("g", 40))), rsUnreadable(UnreadableRejected, "")},
 		{"head_upper_case", with(rsStagePull, bad(rsHead, strings.Repeat("A", 40))), rsUnreadable(UnreadableRejected, "")},
 		{"head_too_short", with(rsStagePull, bad(rsHead, strings.Repeat("a", 39))), rsUnreadable(UnreadableRejected, "")},
@@ -678,8 +678,8 @@ func TestReviewStateObserved(t *testing.T) {
 	now := "Fri, 20 Nov 2026 04:35:00 GMT"
 	steps := []cmdrunnertestutil.Step{
 		repoStep(),
-		{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"isseis"}`},
 		includeStep("pulls/"+testPR, includedOutput(200, []string{"Date: " + now}, read("pull.json")), nil),
+		{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"isseis"}`},
 		includeStep("issues/"+testPR+"/comments?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("comments.json")), nil),
 		graphqlStep(read("commits.json")),
 		includeStep("pulls/"+testPR+"/reviews?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("reviews.json")), nil),
@@ -733,7 +733,6 @@ func TestReviewStateDateHeader(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			steps := []cmdrunnertestutil.Step{
 				repoStep(),
-				{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"` + rsUser + `"}`},
 				includeStep("pulls/"+testPR, includedOutput(200, headers, pull), nil),
 			}
 			g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, steps...))

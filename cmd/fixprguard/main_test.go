@@ -550,8 +550,8 @@ func reviewStateSteps(comments, graphql, reviews string) []cmdrunnertestutil.Ste
 	}
 	steps := []cmdrunnertestutil.Step{
 		repoStep(),
-		ghStep(`{"login":"isseis"}`, nil, "api", "user"),
 		api(`{"head":{"sha":"`+head+`"},"title":"`+testSecret+`"}`, "pulls/"+testPR),
+		ghStep(`{"login":"isseis"}`, nil, "api", "user"),
 		api(comments, "issues/"+testPR+"/comments?per_page=100&page=1"),
 	}
 	if graphql == "" {
@@ -616,12 +616,26 @@ func TestReviewStateRun(t *testing.T) {
 				`"indeterminateUrls":[],"markers":[]}`,
 		},
 		{
-			name: "unreadable_call_failed",
+			name: "pull_call_failed",
 			steps: []cmdrunnertestutil.Step{
 				repoStep(),
-				ghStep("", &cmdrunner.ExitError{Code: 1, Stdout: []byte(testSecret), Stderr: []byte("gh: " + testSecret)}, "api", "user"),
+				ghStep("", &cmdrunner.ExitError{Code: 1, Stdout: []byte(testSecret), Stderr: []byte("gh: " + testSecret)},
+					"api", "--include", "repos/isseis/yt2column/pulls/"+testPR),
 			},
 			want: proto + `"state":"unreadable","reason":"call-failed","indeterminateReason":"","head":"","now":"","request":null,"response":null,` +
+				`"indeterminateUrls":[],"markers":[]}`,
+		},
+		{
+			// The head is read before the user, so a failed gh api user
+			// still reports the head it managed to read.
+			name: "user_call_failed_keeps_the_head",
+			steps: []cmdrunnertestutil.Step{
+				repoStep(),
+				ghStep(includedOutput(200, []string{"Date: Fri, 20 Nov 2026 10:05:00 GMT"}, `{"head":{"sha":"`+head+`"}}`), nil,
+					"api", "--include", "repos/isseis/yt2column/pulls/"+testPR),
+				ghStep("", &cmdrunner.ExitError{Code: 1, Stdout: []byte(testSecret), Stderr: []byte("gh: " + testSecret)}, "api", "user"),
+			},
+			want: proto + `"state":"unreadable","reason":"call-failed","indeterminateReason":"","head":"` + head + `","now":"","request":null,"response":null,` +
 				`"indeterminateUrls":[],"markers":[]}`,
 		},
 		{
