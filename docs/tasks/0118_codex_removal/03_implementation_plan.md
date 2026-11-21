@@ -81,11 +81,17 @@
 | `TestReplyRejectsCodexMention` | `TestReplyRejectsMention` | `internal/fixprguard/write_test.go` | フェーズ 2 |
 | `TestEditPRRejectsCodexMention` | `TestEditPRRejectsMention` | `internal/fixprguard/write_test.go` | フェーズ 2 |
 
+### 1.4 実装の際に決めたこと（2026-11-21）
+
+ステップ 1-3 のテスト移設とカバレッジ比較を先に行う。旧手順を検査するテストが各コミットで通るよう、ステップ 1-1 の手順撤去はステップ 1-4 の製品コード・テスト削除と同じコミットにする。タスク内のコミット順の変更につき ADR は追加しない。
+
 ## 2. 実装ステップ (Implementation Steps)
 
 ### フェーズ 1: ローカルの CLI レビューの変更・PR 前のレビュー追加・`codexreview` の撤去
 
 設計書 §3.2・§3.6・§3.8・§7.4・§8（PR-1）に対応する。
+
+実行順は §1.4 に従い、1-3 を先に行う。
 
 #### ステップ 1-1: ローカルの CLI レビューから Codex CLI を外す（F-006、AC-26〜AC-28）
 
@@ -565,3 +571,4 @@
 ## 変更履歴
 
 - 2026-11-21 承認（isseis、#1074）
+- 2026-11-21 セッション中の再承認：フェーズ 1 のテスト移設と削除のコミット順を変更（isseis、#未記入）
