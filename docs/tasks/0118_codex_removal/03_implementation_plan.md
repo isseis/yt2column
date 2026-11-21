@@ -139,10 +139,13 @@
 - `internal/doctestutil/commands_test.go`
 - `internal/mergepr/protocolcheck_test.go`
 - `cmd/fixprguard/docs_test.go`
+- `internal/cmdrunner/runner.go`
+- `internal/cmdrunner/runner_test.go`
 
 **作業内容:**
 - [ ] 1 つ目の commit で、`cmd/codexreview/docs_test.go::TestRunsCodex` が担っていた `doctestutil.RunsCommand` のコマンド形式テストを `internal/doctestutil/commands_test.go` へ汎用コマンド名で移し、`cmd/codexreview` を名指すコメント（`:9`）を外す（`doctestutil` のカバレッジ低下を防ぐため）。
 - [ ] 2 つ目の commit（テスト削除のみ）で、`internal/mergepr/protocolcheck_test.go`（`TestMismatchRemedy` の `"codexreview"` 要素）と `cmd/fixprguard/docs_test.go`（`TestFixprguardProtocolMismatches` の `codexreview` ケースおよびコメント `:345,393`）を外し、`make coverage-compare BASE=<親>` で PASS を確認する（設計書 7.4）。
+- [ ] 3 つ目の commit で、`internal/cmdrunner/runner.go` の `signalGroup` フォールバック分岐（`codexreview` の削除後に未到達になりうる箇所）を `internal/cmdrunner/runner_test.go` で直接検証できるようにする。
 
 **完了基準:**
 - 2 つ目の commit で `make coverage-compare BASE=<親>` が PASS し、`go test -tags test ./...` が通る。

@@ -284,9 +284,13 @@ func waitClosed(done <-chan struct{}, limit time.Duration) bool {
 // already gone needs nothing; when the group cannot be signaled for another
 // reason (for example only zombies remain), the direct child still gets sig.
 func signalGroup(process *os.Process, sig syscall.Signal) {
-	err := syscall.Kill(-process.Pid, sig)
+	signalGroupWith(process.Pid, sig, syscall.Kill, process.Signal)
+}
+
+func signalGroupWith(pid int, sig syscall.Signal, killGroup func(int, syscall.Signal) error, signalDirect func(os.Signal) error) {
+	err := killGroup(-pid, sig)
 	if err != nil && !errors.Is(err, syscall.ESRCH) {
-		_ = process.Signal(sig)
+		_ = signalDirect(sig)
 	}
 }
 

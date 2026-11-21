@@ -616,3 +616,53 @@ func TestProcessGroupWaitDelayBoundsEscapedDescendant(t *testing.T) {
 		t.Errorf("error = %v, want exec.ErrWaitDelay", err)
 	}
 }
+
+func TestSignalGroupWith(t *testing.T) {
+	const pid = 4242
+	tests := []struct {
+		name           string
+		groupErr       error
+		sig            syscall.Signal
+		wantDirectCall bool
+	}{
+		{"group_signaled", nil, syscall.SIGTERM, false},
+		{"group_already_gone", syscall.ESRCH, syscall.SIGKILL, false},
+		{"group_error_falls_back_to_direct", syscall.EPERM, syscall.SIGKILL, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotPGID int
+			var gotGroupSig syscall.Signal
+			var directCalls int
+			var gotDirectSig os.Signal
+
+			signalGroupWith(
+				pid,
+				tt.sig,
+				func(pgid int, sig syscall.Signal) error {
+					gotPGID = pgid
+					gotGroupSig = sig
+					return tt.groupErr
+				},
+				func(sig os.Signal) error {
+					directCalls++
+					gotDirectSig = sig
+					return nil
+				},
+			)
+			if gotPGID != -pid || gotGroupSig != tt.sig {
+				t.Errorf("killGroup called with (%d, %v), want (%d, %v)", gotPGID, gotGroupSig, -pid, tt.sig)
+			}
+			wantCalls := 0
+			if tt.wantDirectCall {
+				wantCalls = 1
+			}
+			if directCalls != wantCalls {
+				t.Errorf("signalDirect calls = %d, want %d", directCalls, wantCalls)
+			}
+			if tt.wantDirectCall && gotDirectSig != tt.sig {
+				t.Errorf("signalDirect sig = %v, want %v", gotDirectSig, tt.sig)
+			}
+		})
+	}
+}
