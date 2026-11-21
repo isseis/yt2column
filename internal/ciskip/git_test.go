@@ -552,9 +552,11 @@ func TestClassifyDiffWithRealGitAndScript(t *testing.T) {
 			wantReason: ReasonCodeChanged,
 		},
 		{
+			// Whole path is code, but splitting on "\n" would yield two non-code,
+			// non-extension fragments ("internal/x.md" and "LICENSE") and wrongly skip.
 			name:       "code_newline_path",
-			parentTree: map[string]string{"internal/a\nb.go": "package x\n"},
-			headTree:   map[string]string{"internal/a\nb.go": "package x\n// changed\n"},
+			parentTree: map[string]string{"internal/x.md\nLICENSE": "package x\n"},
+			headTree:   map[string]string{"internal/x.md\nLICENSE": "package x\n// changed\n"},
 			wantOK:     false,
 			wantReason: ReasonCodeChanged,
 		},
@@ -596,9 +598,10 @@ func (r *recordingInputRunner) RunInput(ctx context.Context, stdin []byte, name 
 }
 
 // TestCheckExtensionChangesEarlyExitNoDeadlock verifies that passing more than 64 KiB
-// on stdin to has-extension-changes.sh when it exits early (exit 2 on an invalid
-// dependency directory line without reading stdin) returns promptly with exit code 2
-// rather than timing out on a deadlocked pipe.
+// on stdin to the real has-extension-changes.sh when it exits early (exit 2 on an invalid
+// dependency directory line without reading stdin) returns promptly with *cmdrunner.ExitError
+// (code 2) rather than timing out on a full stdin pipe. The ProcessGroup=false runner setting
+// itself is pinned by TestRunnerOptions.
 func TestCheckExtensionChangesEarlyExitNoDeadlock(t *testing.T) {
 	_, scriptOpts, _ := runnerOptions(os.Environ(), defaultLimits())
 	scriptOpts.Dir = filepath.Join("..", "..")

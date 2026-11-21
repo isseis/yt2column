@@ -176,8 +176,13 @@ func parseDiffZ(raw []byte) ([]string, bool) {
 	return paths, true
 }
 
-// isNonCodePath reports whether path is excluded from Go code/lint checks under
-// the same rule as .github/workflows/ci.yml: *.md, docs/*, .claude/*, or LICENSE.
+// isNonCodePath reports whether a raw (unquoted, NUL-delimited) path matches
+// the non-code exclusion pattern in .github/workflows/ci.yml: *.md, docs/*,
+// .claude/*, or LICENSE. Note that ci.yml's normal-classification `git diff --name-only`
+// runs with default core.quotePath=true (so C-quoted non-ASCII/control-char paths
+// fail the regex and are treated as code there), whereas ciskip evaluates the raw
+// unquoted path per the design and still passes every matched path through
+// has-extension-changes.sh.
 // Invariant: empty paths and all other paths return false (treated as code).
 func isNonCodePath(path string) bool {
 	return strings.HasSuffix(path, ".md") ||
