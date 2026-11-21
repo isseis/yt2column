@@ -21,7 +21,7 @@
 
 **背景:**
 
-現在、`.claude/commands/` 配下の開発コマンド定義（`mkreq.md`・`mkarch.md`・`mkplan.md`・`mkplan2.md`・`runplan.md`・`runpr.md`・`fixpr.md`・`mergepr.md`・`weakreview.md`・`japrose.md`・`mktrans.md`・`chief.md`、`CLAUDE.md:208-222`）と共有手順（`_lib/`）、判定用のシェルスクリプトは、Claude Code（一部 OpenCode）で動くことを前提に書かれている。Antigravity CLI（`agy`）で同じ手順を動かそうとすると、モデルの名前を置き換えるだけでは次の 4 か所の前提に阻まれる。
+現在、`.claude/commands/` 配下の開発コマンド定義（`mkreq.md`・`mkarch.md`・`mkplan.md`・`mkplan2.md`・`runplan.md`・`runpr.md`・`fixpr.md`・`mergepr.md`・`weakreview.md`・`japrose.md`・`mktrans.md`・`chief.md`、`CLAUDE.md:207-221`）と共有手順（`_lib/`）、判定用のシェルスクリプトは、Claude Code（一部 OpenCode）で動くことを前提に書かれている。Antigravity CLI（`agy`）で同じ手順を動かそうとすると、モデルの名前を置き換えるだけでは次の 4 か所の前提に阻まれる。
 
 1.  **組み込みツールと実行制約の違い:**
     -   **選択式の質問:** コマンド定義と `.claude/commands/_lib/settle-decisions.md:37` は Claude Code の `AskUserQuestion` を名指ししている。Antigravity の質問ツールは `ask_question` である。
@@ -30,11 +30,11 @@
     -   **シェル実行・タイマー・通知・停止:** `.claude/commands/_lib/fable-review.md:147-161` は `Bash` のバックグラウンド `sleep 1800` と `TaskStop`・`ToolSearch` を使い、`.claude/commands/_context.md:52` は `PushNotification` を名指ししている。Antigravity は `run_command`・`schedule`・`manage_task` を持ち、シェルの `sleep` をタイマーとして使わず、`PushNotification` に相当するツールを持たない。
 2.  **決定論的スクリプト・設定のハードコード:**
     -   `.claude/commands/_lib/opus-review-decision.sh:307-318` と `.claude/commands/_lib/opus-review.md:53-75` は、上位モデルの ID を `claude-opus-*` にハードコードし、システムプロンプトから自分のモデルの ID を読めることを前提としている。Antigravity のセッションとサブエージェントはシステムプロンプトから自身のモデルの ID を読めない（issue #1072 コメント 1）。
-    -   `.claude/commands/_lib/review-records.sh:192-193` と `.claude/commands/_lib/fable-review.md:317-318,340-347` は、部分レビューのモデルの ID を `claude-fable-[a-z0-9.-]{1,48}` にハードコードし、サブエージェント出力 1 行目の自己申告（`Model: <model-id>`）を必須としている。記録行の接頭辞も `Opus review:`（`_lib/opus-review.md:85,112`）・`Fable review:`（`_lib/fable-review.md:446-451`）とモデル固有名を持つ。
+    -   `.claude/commands/_lib/review-records.sh:195-196` と `.claude/commands/_lib/fable-review.md:317-318,340-347` は、部分レビューのモデルの ID を `claude-fable-[a-z0-9.-]{1,48}` にハードコードし、サブエージェント出力 1 行目の自己申告（`Model: <model-id>`）を必須としている。記録行の接頭辞も `Opus review:`（`_lib/opus-review.md:85,112`）・`Fable review:`（`_lib/fable-review.md:446-451`）とモデル固有名を持つ。
     -   実装計画書の `**実装モデル要件**` の値が `opus`・`sonnet+opus-review`・`sonnet` というモデル固有名になっており（`.claude/commands/_context.md:67`、`.claude/commands/mkplan2.md:41-45`、`internal/chief/task.go:250-274`）、[ADR-0042](../../dev/adr/0042-implementation-model-tiers.md) でも `sonnet` の値が実際には DeepSeek V4.1 Flash を指していて名前と実態が合わない課題があった。
     -   `.claude/commands/_context.md:157-174` の `Command routing` 表と `internal/chief/routing.go:27-34,127-140` は行キーに `runplan-opus` 等のモデル固有名を持ち、エージェントを `Claude Code` と `OpenCode` の 2 値に限定している。
 3.  **権限・サンドボックスモデルと監視の一覧の違い:**
-    -   Claude Code は `.claude/settings.json:1-51` の接頭辞一致ルールで許可と拒否（`herdr` の書き込み系、`git worktree` の追加・削除・移動、`make install-*`、`go install` の拒否）を強制している（[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md)、[ADR-0046](../../dev/adr/0046-chief-of-staff.md)）。
+    -   Claude Code は `.claude/settings.json:1-50` の接頭辞一致ルールで許可と拒否（`herdr` の書き込み系、`git worktree` の追加・削除・移動、`make install-*`、`go install` の拒否）を強制している（[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md)、[ADR-0046](../../dev/adr/0046-chief-of-staff.md)）。
     -   Antigravity CLI は `.claude/settings.json` を読まず、既定の OS サンドボックス（ネットワークとワークスペース外へのアクセスを遮断）と `BypassSandbox: true`（利用者の明示承認）で保護されている。外部の git worktree（`.git` がワークスペース外の本体リポジトリを指す構成）での `git` 操作や、`gh`・`coderabbit review`・`numreserve`・ループバック HTTP テストなどは標準サンドボックスでは拒否される。
     -   また、git が無視する実行関連ファイルの改ざんを検出する `fixprguard` の監視の一覧（`internal/fixprguard/ignored.go:38-42`）と部分レビューの状態チェック（`.claude/commands/_lib/fable-review.md:389`）は `.claude/` と `claude.md` だけを監視しており、Antigravity が読む `.agents/` や `AGENTS.md`・`GEMINI.md` をまだ監視していない。
 4.  **コマンドの配置とクロスチェックの部分レビューの一般化:**
@@ -199,7 +199,7 @@ Antigravity CLI から F-001 の各開発コマンドをカスタムスキルと
   1.  スクリプトの部分レビュー有効性判定は、モデル固有名を含まない新しいモード名を受け入れる（移行中のブランチ互換のため既存の `fable` モード名も受け入れるかは `02_architecture.md` で決める）。
   2.  実施記録の `<model-id>` として、`origin/main` の `_context.md` が認めるすべてのハーネスのクロスチェックモデルの ID（既存の `claude-fable-...` と Antigravity の採用モデルの ID）を受け入れる。`_context.md` から読んだモデルの ID の文字列は安全な ASCII 文字集合に合うことを確かめてから照合し、認めないモデルの ID や壊れた形式の記録行は補正せず無視する。
   3.  AC-29 の新しい記録行・理由コードと、既存の `Fable review: run`・`Fable review: not run`（理由 `not-fable` を含む）・`Fable scope: in`・`Fable scope: out`・`Fable finding:`・`Fable review: checkpoint` の行の両方を同じ意味の記録として読む。
-  4.  部分レビュー有効性モードで git エラー・不正な引数・`origin/main:.claude/commands/_context.md` の欠落やモデル表の欠落・形式不正が起きたときは、安全側に倒して標準出力に `MISSING`、標準エラーに診断を出して終了コード `1` で終わる。既存の `coverage` モードの動作と失敗時の出力（`PARTIAL`、終了コード `1`。`.claude/commands/_lib/review-records.sh:179-186`）は変えない。
+  4.  部分レビュー有効性モードで git エラー・不正な引数・`origin/main:.claude/commands/_context.md` の欠落やモデル表の欠落・形式不正が起きたときは、安全側に倒して標準出力に `MISSING`、標準エラーに診断を出して終了コード `1` で終わる。既存の `coverage` モードの動作と失敗時の出力（`PARTIAL`、終了コード `1`。`.claude/commands/_lib/review-records.sh:182-189`）は変えない。
 - **AC-31**: 部分レビューのワーカー／サブエージェントの出力は信頼しないデータとして扱う。指摘ブロックが決められた形式でないときや上限（30 件。現行 `.claude/commands/_lib/fable-review.md:319`）を超えるときは `not run`（理由 `unreadable`）とし、ブランチの変更ファイル外の場所や読めない場所・重大度の指摘は `invalid` とし、出力の文面をコミットメッセージ・SUMMARY・PR の説明に一切写さない（同 `:330-353,507-509` の規則を維持する）。
 
 #### F-006: Antigravity のサンドボックス・権限規則と git 無視ファイルの監視拡張
@@ -238,7 +238,7 @@ Claude Code の権限設定を保ったまま、Antigravity でのサンドボ�
   1.  `CLAUDE.md` の「Document language」原則 (b) の対象に `.agents/skills/` を加える。
   2.  `CLAUDE.md` の「Language」の対話言語の規則（日本語）を特定のハーネス名に限定されない記述に改める。
   3.  `CLAUDE.md` の「Commands」の節で、ハーネス非依存化されたコマンドと `.agents/skills/` の入口を説明する。
-  4.  判定スクリプトのファイル名が変わる場合は、`CLAUDE.md`「Go Idioms」の日本語リテラル例外（`CLAUDE.md:954-970`）と `docs/dev/conventions/dev_tools.md` Rule 6 を更新する（新たに例外を取る第 3 のシェルスクリプトは増やさない）。
+  4.  判定スクリプトのファイル名が変わる場合は、`CLAUDE.md`「Go Idioms」の日本語リテラル例外（`CLAUDE.md:936-952`）と `docs/dev/conventions/dev_tools.md` Rule 6 を更新する（新たに例外を取る第 3 のシェルスクリプトは増やさない）。
 - **AC-42**: `.agents/skills/` 配下のすべての Markdown ファイルが、既存の `.claude/commands/` と同様に、(1) 相対リンクと `docs/dev/` パス参照の実在検査、(2) コマンド指示文書の信頼境界検査（禁止メンション、生の投稿コマンド、直接の `herdr` 呼び出し、未承認形の `numreserve` 呼び出しが含まれないこと）、および (3) `chief` を除く開発コマンドとの 1 対 1 対応と `chief` スキルが存在しないことの検査の対象になる。
 - **AC-43**: すべての単体テスト・文書のガード・静的検査（`make test`・`make lint`・`make deadcode`・`make readme-sync-check`、および CI の `doc-guard` ジョブの対象パッケージ）が成功する。
 - **AC-44**: [ADR-0055](../../dev/adr/0055-harness-independent-commands.md)（新規作成）、[ADR-0013](../../dev/adr/0013-review-setup.md)、[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md)、[ADR-0035](../../dev/adr/0035-language-policy.md)、[ADR-0042](../../dev/adr/0042-implementation-model-tiers.md)、[ADR-0046](../../dev/adr/0046-chief-of-staff.md)、[ADR-0047](../../dev/adr/0047-runpr-merge-question.md)、[ADR-0050](../../dev/adr/0050-fable-partial-review.md)、および [ADR の索引](../../dev/adr/README.md) が本書の決定および ADR 規約（`docs/dev/conventions/adr.md`）と一致する。本タスクの実装が完了するまで残る仕様文書・コードとの食い違いは、各 ADR の `## 決定` に `https://github.com/isseis/yt2column/issues/1072` へのリンク付きの食い違い記述として示し、食い違いを解消した実装 PR で取り除く。
@@ -278,7 +278,7 @@ Claude Code の権限設定を保ったまま、Antigravity でのサンドボ�
 -   **進行中および過去のブランチ・計画書との互換性:**
     -   既存の計画書にある 6 種類の旧値（`opus`・`sonnet+opus-review`・`sonnet`・`frontier-required`・`frontier-recommended`・`standard`）は `_context.md` の読み替えの表で新しい 3 値として読まれる（AC-14）。
     -   既存のコミットメッセージにある `Opus review:`・`Fable review:`・`Fable scope:`・`Fable finding:`・`Fable review: checkpoint` および理由 `not-fable` は、更新後の判定スクリプト・PR の説明の生成・`/runpr` でも引き続き有効な記録として読まれる（AC-23、AC-30）。
--   **OS・実行環境:** リポジトリの既存の前提（macOS および Linux、`bash` 4 以上、`jq` が `PATH` にあること。`CLAUDE.md:824-834`）を維持する。`_lib/review-records.sh` が bash 3.2 互換を保っている契約（`.claude/commands/_lib/review-records.sh:70-71`）も壊さない。
+-   **OS・実行環境:** リポジトリの既存の前提（macOS および Linux、`bash` 4 以上、`jq` が `PATH` にあること。`CLAUDE.md:806-816`）を維持する。`_lib/review-records.sh` が bash 3.2 互換を保っている契約（`.claude/commands/_lib/review-records.sh:70-71`）も壊さない。
 -   **前提・並行タスクとの順序と再インストール:**
     -   本タスクの実装 PR は、前提タスク #1059（タスク 0118：Codex 撤去）の実装が `main` に入った後にマージする。
     -   タスク 0114（#988：記録後の merge commit 確認）とは互いを前提にして待たず、後から実装をマージする側がもう一方に合わせる（AC-28）。
@@ -294,8 +294,8 @@ Claude Code の権限設定を保ったまま、Antigravity でのサンドボ�
 -   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。
 -   `CLAUDE.md` の「Document language」「Language」「Go Idioms」「Protocol numbers」「Testing Strategy」「Tool Execution Safety」および `docs/dev/conventions/dev_tools.md` に従う。
     -   `CLAUDE.md:48-75`（「Document language」原則 (b)）および `CLAUDE.md:161-165`（「Language」の会話言語）に対する対象拡張（`.agents/skills/` の追加、および対話言語規則のハーネス非依存化）は 1 章「要件定義の際に決めたこと」に記録したとおりであり、[ADR-0035](../../dev/adr/0035-language-policy.md) を更新する（AC-41、AC-44）。
-    -   `CLAUDE.md:954-970`（「Go Idioms」のシェルスクリプトに対する日本語リテラル例外）および `docs/dev/conventions/dev_tools.md` Rule 6 の境界を守り、`.claude/commands/` 配下に日本語リテラルを持つ新しい第 3 のシェルスクリプトは追加しない（既存スクリプトを改名する場合は同箇所のファイル名を同じ PR で更新する。AC-41）。
-    -   `fixprguard` と `chief` のプロトコル番号を上げる変更（AC-36、AC-40）では、`CLAUDE.md:844-889`（「Protocol numbers」）に従い、タスク文書には具体的な番号を書かず「`main` の値 + 1」と記す。
+    -   `CLAUDE.md:936-952`（「Go Idioms」のシェルスクリプトに対する日本語リテラル例外）および `docs/dev/conventions/dev_tools.md` Rule 6 の境界を守り、`.claude/commands/` 配下に日本語リテラルを持つ新しい第 3 のシェルスクリプトは追加しない（既存スクリプトを改名する場合は同箇所のファイル名を同じ PR で更新する。AC-41）。
+    -   `fixprguard` と `chief` のプロトコル番号を上げる変更（AC-36、AC-40）では、`CLAUDE.md:826-871`（「Protocol numbers」）に従い、タスク文書には具体的な番号を書かず「`main` の値 + 1」と記す。
 -   承認済み先行タスクの決定に対する変更（タスク 0081 の [ADR-0042](../../dev/adr/0042-implementation-model-tiers.md)、タスク 0088・0115・0117 の [ADR-0046](../../dev/adr/0046-chief-of-staff.md)、タスク 0089・0118 の [ADR-0047](../../dev/adr/0047-runpr-merge-question.md)、タスク 0098・0114・0118 の [ADR-0050](../../dev/adr/0050-fable-partial-review.md)、タスク 0112・0118 の [ADR-0013](../../dev/adr/0013-review-setup.md)・[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md)）と新規の [ADR-0055](../../dev/adr/0055-harness-independent-commands.md) の作成は 1 章に記録したとおりであり、すべての ADR 更新を本 PR に含める。
 
 ## 6. 用語集 (Glossary)

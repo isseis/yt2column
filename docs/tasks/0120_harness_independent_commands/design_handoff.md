@@ -19,7 +19,7 @@
 ## H-03: 一般化した手順ファイル名・モード名・記録行・判定スクリプトの具体的な文法と移行順序
 
 - **論点:** モデル固有名を外した共有手順の新しいファイル名（例: `_lib/high-review.md`・`_lib/high-review-decision.sh`・`_lib/cross-check-review.md`）、呼び出し入力名（例: `CROSS_CHECK`）、`review-records.sh` のモード名（例: `cross-check` と移行用の旧 `fable`）、判定スクリプトの理由コード（例: `all-high`）、新しい記録行の接頭辞（例: `High review: done` / `High review: kept`、`Cross-check review: run` / `Cross-check review: not run` / `Cross-check scope: in` / `Cross-check scope: out` / `Cross-check finding:` / `Cross-check review: checkpoint`）、モデル不一致の理由コード（例: `wrong-model`）、および PR 説明の見出し（例: `## クロスチェックの部分レビュー`）を設計で一意に決める必要がある。
-- **重要である理由:** コミットの記録行と PR 説明のブロックは判定スクリプト・`review-records.sh`・`task-pr-handoff.md`・`runpr.md`・`cmd/yt2column/review_records_test.go`・`cmd/yt2column/fable_state_docs_test.go`・`internal/chief/markers_parity_test.go` および PR 集計（#936）が機械的に読む契約である。また、進行中ブランチのコマンド定義は `origin/main` からスクリプトをパス指定で取り出すため、スクリプトのファイル名やモード名を変える場合は `CLAUDE.md:954-970` の日本語リテラル例外・`docs/dev/conventions/dev_tools.md` Rule 6・移行中の旧ブランチ互換を考慮した PR 分割順序が要る。
+- **重要である理由:** コミットの記録行と PR 説明のブロックは判定スクリプト・`review-records.sh`・`task-pr-handoff.md`・`runpr.md`・`cmd/yt2column/review_records_test.go`・`cmd/yt2column/fable_state_docs_test.go`・`internal/chief/markers_parity_test.go` および PR 集計（#936）が機械的に読む契約である。また、進行中ブランチのコマンド定義は `origin/main` からスクリプトをパス指定で取り出すため、スクリプトのファイル名やモード名を変える場合は `CLAUDE.md:936-952` の日本語リテラル例外・`docs/dev/conventions/dev_tools.md` Rule 6・移行中の旧ブランチ互換を考慮した PR 分割順序が要る。
 - **候補となる方針:** 記録行の正確な正規表現（新旧両読み）と `_context.md` からの安全なモデル ID 読み取り規則を設計で一意に定め、`origin/main` からスクリプトを取り出す移行中に進行中ブランチが失敗しない移行手順（段階的なモード追加または旧パスの段階的廃止）を設計する。
 - **関連する要件:** `F-004`（`AC-18`、`AC-23`）、`F-005`（`AC-25`、`AC-29`、`AC-30`）、`F-007`（`AC-38`）、`F-008`（`AC-41`、`AC-43`）
 

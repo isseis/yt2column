@@ -342,8 +342,7 @@ var (
 // TestDocumentedProtocolMatches: every protocol number the documents write
 // is the binary's Protocol: each --protocol N in the guide and in every
 // command document under .claude/commands (prose included, not only code
-// blocks) that is not in a codexreview call, which codexreview's own guard
-// checks, each "protocol":N of the output examples in the guide and runpr.md
+// blocks) outside another tool's call, each "protocol":N of the output examples in the guide and runpr.md
 // (the command document that shows fixprguard's output), and the current
 // number chapter 4 of the guide states. The guide must write each at least
 // once, so a guide that stops writing them is not read as agreeing; that
@@ -390,9 +389,8 @@ func fixprguardProtocolMismatches(doc string) []string {
 
 // TestFixprguardProtocolMismatches: the check skips the other tools' flags
 // only, so a wrong number in a fixprguard call, or in prose naming no tool,
-// is still found next to a codexreview or a chief call.
+// is still found next to another tool's call.
 func TestFixprguardProtocolMismatches(t *testing.T) {
-	const sha = "0123456789abcdef0123456789abcdef01234567"
 	right := strconv.Itoa(fixprguard.Protocol)
 	wrong := strconv.Itoa(fixprguard.Protocol + 1)
 	for _, tc := range []struct {
@@ -400,8 +398,6 @@ func TestFixprguardProtocolMismatches(t *testing.T) {
 		doc  string
 		want []string
 	}{
-		{"codexreview_call_skipped", "codexreview --protocol " + wrong + " --base " + sha + "\n", nil},
-		{"wrong_fixprguard_call_after_codexreview", "codexreview --protocol " + wrong + " --base " + sha + " && fixprguard head --protocol " + wrong + "\n", []string{"--protocol " + wrong}},
 		{"chief_call_skipped", "chief snapshot --protocol " + wrong + "\n", nil},
 		{"wrong_fixprguard_call_after_chief", "chief snapshot --protocol " + wrong + " && fixprguard head --protocol " + wrong + "\n", []string{"--protocol " + wrong}},
 		{"mergepr_call_skipped", "mergepr discard --protocol " + wrong + " --state s\n", nil},

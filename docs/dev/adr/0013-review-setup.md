@@ -16,7 +16,7 @@
 
 PR レビューは、利用者がマージの質問で選んだときだけ CodeRabbit に手動で頼み、PR を開いた後の変更はローカルの CLI レビュー（CodeRabbit CLI）で見る。エスカレーションの判定は、マージの質問で PR レビューを推奨にするかだけを決める。「レビュー済み」は、手動の PR レビューの完了の印と CI で判定する。
 
-**食い違い:** この決定は [0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) で改めたものである。コマンドの定義と開発ツールは、まだ Codex の PR レビューと Codex CLI（`codexreview`）を前提にしている。この食い違いは https://github.com/isseis/yt2column/issues/1059 の実装で解消する。
+**食い違い:** この決定は [0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) で改めたものである。コマンドの定義と開発ツールは、まだ Codex の PR レビューを前提にしている。この食い違いは https://github.com/isseis/yt2column/issues/1059 の実装で解消する。
 
 ### PR レビューの依頼
 

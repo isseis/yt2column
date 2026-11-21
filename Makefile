@@ -50,7 +50,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-codexreview install-chief install-numreserve ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-build-dev ext-check coverage-compare ext-coverage-compare
+.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-chief install-numreserve ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-build-dev ext-check coverage-compare ext-coverage-compare
 
 all: build
 
@@ -69,12 +69,6 @@ install-mergepr:
 # that changes the tool (docs/dev/guides/fixprguard_guide.md).
 install-fixprguard:
 	$(GOCMD) install ./cmd/fixprguard
-
-# Install the codexreview developer tool, which the local CLI review runs when
-# the CodeRabbit CLI fails, into $(go env GOPATH)/bin. Run from an up-to-date
-# main checkout after every merge that changes the tool.
-install-codexreview:
-	$(GOCMD) install ./cmd/codexreview
 
 # Install the chief developer tool, which /chief runs, into
 # $(go env GOPATH)/bin. Run from an up-to-date main checkout after every merge

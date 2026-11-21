@@ -51,7 +51,6 @@ PR を開いたときの PR レビューはなく、PR レビューは利用者�
     -   **理由:** 記録の用語を役割名に揃えつつ、進行中ブランチや過去のコミットの記録を壊さないためである（0120 要件定義書の F-004）。
 -   **直しの commit のローカルの CLI レビュー:** 上位モデルのレビューの直しの commit は、PR を開く前の、まだ見ていない commit をまとめてかけるローカルの CLI レビュー（[ADR-0013](0013-review-setup.md)）に含める。このローカルの CLI レビューは、上位モデルのレビューの後、PR を開く直前（`_lib/task-pr-handoff.md` Part B の CHECKS の後）に 1 回だけ置く。このレビューの直しの commit は CodeRabbit CLI の 2 回目の試行が見て、上位モデルのレビューは見ない。CodeRabbit CLI が失敗したときは `not run` として記録し、PR の説明に示す。
     -   **理由:** PR を開いたときの自動の PR レビューがなくなり、かけないと直しを別系統の CLI レビューが一度も見ないためである。上位モデルのレビューの前に置くと直しの commit のためにもう 1 回かけることになる（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) の F-007、[0118 設計書](../../tasks/0118_codex_removal/02_architecture.md) の 1.3）。
-    -   **食い違い:** `runplan.md` は、まだ直しの commit をかけ直さない手順のままである。この食い違いは https://github.com/isseis/yt2column/issues/1059 の実装で解消する。
 
 ## 採らなかった案
 
