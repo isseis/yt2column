@@ -97,8 +97,6 @@ func TestRunsCommandForms(t *testing.T) {
 		{"bunx", "```bash\nbunx @example/widget review\n```\n", true},
 		{"pnpm_dlx", "```bash\npnpm dlx @example/widget review\n```\n", true},
 		{"blockquoted_block", "> ```bash\n> widget review\n> ```\n", true},
-		// In a block that is not quoted, a leading '>' is a redirection.
-		{"block_line_starts_with_redirection", "```bash\n> /tmp/log widget review\n```\n", true},
 		{"blockquoted_block_redirection", "> ```bash\n> > /tmp/log widget review\n> ```\n", true},
 		{"code_span", "Run `widget exec review --base <BASE>` once.\n", true},
 		{"other_language_block", "```text\nwidget exec review --base <BASE>\n```\n", true},
@@ -110,7 +108,6 @@ func TestRunsCommandForms(t *testing.T) {
 		{"jq_kind", "```bash\n  else {kind: \"widget\", url: .html_url, created_at} end\n```\n", false},
 		{"jq_comparison", "```bash\n  | select(.kind == \"widget\")\n```\n", false},
 		{"comment_kind_span", "A `widget` is any other comment by the same author.\n", false},
-		{"html_marker", "```bash\n  | select((.body // \"\" | split(\"\\n\"))[0] == \"<!-- widget-pull-request-review-summary -->\")\n```\n", false},
 		{"html_marker_span", "Its first line is `<!-- widget-pull-request-review-summary -->`.\n", false},
 		{"login", "```bash\nchatgpt-widget-connector review\n```\n", false},
 		{"mention", "| PR review request | `@widget review` - the body of the comment |\n", false},

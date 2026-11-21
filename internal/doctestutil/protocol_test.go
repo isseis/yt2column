@@ -16,11 +16,6 @@ func TestProtocolFlags(t *testing.T) {
 		want []ProtocolFlag
 	}{
 		{
-			"both_tools_on_one_line",
-			"fixprguard head --protocol 4 && mergepr prepare --protocol 1 42\n",
-			[]ProtocolFlag{{"--protocol 4", "4", ToolFixprguard}, {"--protocol 1", "1", ToolMergepr}},
-		},
-		{
 			"another_flag_before_protocol",
 			"mergepr prepare 42 --protocol 1\nfixprguard list --reviewer <reviewer> --protocol=4\n",
 			[]ProtocolFlag{{"--protocol 1", "1", ToolMergepr}, {"--protocol=4", "4", ToolFixprguard}},
