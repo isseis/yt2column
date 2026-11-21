@@ -325,7 +325,7 @@ fixprguard review-state --protocol <N> --reviewer <awaited-reviewer> --request <
     4.  GitHub の時刻。最後に読んだ応答の `Date` ヘッダとする。
 -   **応答の検査:**
     -   **読む項目:** 各応答は、上に挙げた項目だけを読む。ほかの項目は読まずに受け入れる。GitHub の応答には、読まない項目が増えうるためである（`docs/dev/conventions/requirements_process.md` の「Untrusted input boundaries」の、拡張できると宣言した入力）。
-    -   **拒否するもの:** 読む項目が重複するとき、ないとき、型が違うときは拒否する。ただし CheckRun の `status` が `COMPLETED` 以外のとき（`QUEUED`・`IN_PROGRESS`・`PENDING` など）は、`conclusion`・`completedAt`・`title`・`startedAt` に `null` を許す。`status` が `COMPLETED` のときは、これら 4 つがすべて `null` でない文字列であることを求める。
+    -   **拒否するもの:** 読む項目が重複するとき、ないとき、型が違うときは拒否する。ただし次の例外を許す。(a) CheckRun の `status` が `COMPLETED` 以外のとき（`QUEUED`・`IN_PROGRESS`・`PENDING` など）は、`conclusion`・`completedAt`・`title`・`startedAt` に `null` を許す（`status` が `COMPLETED` のときは、これら 4 つがすべて `null` でない文字列であることを求める）。(b) コメントと PR レビューの `user`、CheckSuite の `app` には `null`（削除済みアカウント等）を許す。(c) PR レビューの `commit_id` には `null`（force push 後の古いレビュー等）、`submitted_at` には省略または `null`（未提出の `PENDING` レビュー）を許す。
 -   **上限:** 道具の定数とし、超えたら `unreadable` の `limit` で返す。
     -   会話のコメントと PR レビューは、それぞれ 3000 件まで。
     -   PR の commit は 1000 件まで。

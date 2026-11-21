@@ -706,6 +706,9 @@ func (r *reviewReader) readRuns(ctx context.Context, reviewer Login) ([]checkRun
 		if err != nil {
 			return nil, callFailure(err)
 		}
+		if len(out) > maxResponseBytes {
+			return nil, failReview(UnreadableLimit)
+		}
 		page, err := parseCommitsPage(out, r.head, reviewer.String())
 		if err != nil {
 			return nil, parseFailure(err)
@@ -1084,11 +1087,12 @@ func (r *reviewReader) decide(requests []requestComment, runs []checkRun, review
 		case RunRateLimited:
 			out.State = RequestRateLimited
 			return out
-		case RunUnknown:
+		case RunRunning:
+			// Still running; check the wait limit below.
+		default:
+			// RunUnknown, or any unexpected kind, fails secure as unrecognized.
 			out.State = RequestUnrecognized
 			return out
-		case RunRunning, RunSkipNotice:
-			// Still running; a skip notice is never a response.
 		}
 	}
 	if r.now.Sub(latest.created) > reviewWaitLimit {

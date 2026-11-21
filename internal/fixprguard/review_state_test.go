@@ -5,6 +5,7 @@ package fixprguard
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -418,11 +419,12 @@ func TestReviewStateUnreadable(t *testing.T) {
 		{"repository_call_fails", failing(rsStageRepo, boom), rsUnreadable(UnreadableCall, "")},
 		{"user_call_fails", failing(rsStageUser, boom), rsUnreadable(UnreadableCall, "")},
 		{"pull_call_fails", failing(rsStagePull, boom), rsUnreadable(UnreadableCall, "")},
-		{"pull_status_is_not_200", failing(rsStagePull, rsServerError()), rsUnreadable(UnreadableCall, "")},
+		{"pull_status_is_not_200", rsInput{pullStatus: http.StatusNoContent, stop: rsStagePull}, rsUnreadable(UnreadableCall, "")},
 		{"comments_call_fails", failing(rsStageComments, boom), rsUnreadable(UnreadableCall, rsHead)},
 		{"graphql_call_fails", failing(rsStageGraphQL, boom), rsUnreadable(UnreadableCall, rsHead)},
 		{"reviews_call_fails", failing(rsStageReviews, boom), rsUnreadable(UnreadableCall, rsHead)},
 		{"output_over_the_cap", failing(rsStageGraphQL, cmdrunner.ErrOutputTooLarge), rsUnreadable(UnreadableLimit, rsHead)},
+		{"graphql_response_over_max_bytes", with(rsStageGraphQL, whole(strings.Repeat(" ", maxResponseBytes+1))), rsUnreadable(UnreadableLimit, rsHead)},
 
 		// The user and the head.
 		{"user_login_outside_the_grammar", with(rsStageUser, bad(rsUser, "bad name")), rsUnreadable(UnreadableRejected, "")},
@@ -556,7 +558,10 @@ func TestReviewStateReads(t *testing.T) {
 	if len(queries) != 1 {
 		t.Fatalf("GraphQL requests = %d, want 1", len(queries))
 	}
-	for _, want := range []string{`checkName: "CodeRabbit"`, "checkType: ALL", "headRefOid", "checkSuites(first: 50)", "checkRuns(first: 100"} {
+	for _, want := range []string{
+		"pullRequest(number: $number)", "commits(first: 20",
+		`checkName: "CodeRabbit"`, "checkType: ALL", "headRefOid", "checkSuites(first: 50)", "checkRuns(first: 100",
+	} {
 		if !strings.Contains(queries[0], want) {
 			t.Errorf("query lacks %q", want)
 		}
@@ -627,6 +632,33 @@ func TestReviewStateEnumsRejectOutsideValues(t *testing.T) {
 			}
 		})
 	}
+	// The zero values assume least: an unset PRReviewState marshals as
+	// indeterminate and an unset ReviewResponse kind marshals as unknown.
+	zeroState := mustJSON(t, PRReviewState{})
+	if !strings.Contains(zeroState, `"state":"indeterminate"`) {
+		t.Errorf("zero PRReviewState JSON = %s, want state indeterminate", zeroState)
+	}
+	zeroResp := mustJSON(t, ReviewResponse{})
+	if !strings.Contains(zeroResp, `"kind":"unknown"`) {
+		t.Errorf("zero ReviewResponse JSON = %s, want kind unknown", zeroResp)
+	}
+}
+
+// TestReviewStateNonPRCommitIgnored: a finished check run belonging to a commit
+// outside the PR's commit list, even if mixed into the GraphQL response outside
+// pullRequest.commits.nodes, is never read as a response or completion marker.
+func TestReviewStateNonPRCommitIgnored(t *testing.T) {
+	outside := mustJSON(t, rsCommitOf(rsSecond, rsFinished(99, at("10:00:20"), at("10:03:00"))).json())
+	in := rsInput{
+		comments: defaultComments(),
+		commits:  []rsCommit{rsCommitOf(rsHead)},
+		edit: map[string]func(string) string{
+			rsStageGraphQL: func(s string) string {
+				return strings.Replace(s, `"commits":{`, `"otherCommit":`+outside+`,"commits":{`, 1)
+			},
+		},
+	}
+	checkReviewState(t, in, rsWant(RequestWaiting))
 }
 
 // TestReviewStateObserved: a sequence of three requests in one PR, shaped after

@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/isseis/yt2column/internal/cmdrunner"
 	cmdrunnertestutil "github.com/isseis/yt2column/internal/cmdrunner/testutil"
 )
 
@@ -198,13 +197,14 @@ func rsBotReview(id int64, commit, submitted string) rsReview {
 // page, the whole GraphQL response); fail makes the stage's call fail and ends
 // the script there; stop ends it after the stage.
 type rsInput struct {
-	comments []rsComment
-	commits  []rsCommit
-	reviews  []rsReview
-	head     string
-	now      string
-	edit     map[string]func(string) string
-	fail     map[string]error
+	comments   []rsComment
+	commits    []rsCommit
+	reviews    []rsReview
+	head       string
+	now        string
+	pullStatus int // HTTP status of the pull response; http.StatusOK when 0
+	edit       map[string]func(string) string
+	fail       map[string]error
 	// stop ends the script after the named stage, for an input that is
 	// rejected there so no later call is made.
 	stop string
@@ -282,12 +282,7 @@ func (in rsInput) steps(t testing.TB) []cmdrunnertestutil.Step {
 	if now == "" {
 		now = rsNow
 	}
-	pullBody := `{"head":{"sha":"` + head + `","ref":"feature"},"title":"secret-title"}`
-	if f := in.edit[rsStagePull]; f != nil {
-		pullBody = f(pullBody)
-	}
-	pullOut := includedOutput(http.StatusOK, []string{"Date: " + rsDate(t, now)}, pullBody)
-	if add(rsStagePull, includeStep("pulls/"+testPR, pullOut, nil)) || in.stop == rsStagePull {
+	if add(rsStagePull, in.pullStep(t, head, now)) || in.stop == rsStagePull {
 		return steps
 	}
 	comments := make([]any, 0, len(in.comments))
@@ -310,6 +305,20 @@ func (in rsInput) steps(t testing.TB) []cmdrunnertestutil.Step {
 		reviews = append(reviews, r.json())
 	}
 	return append(steps, in.restSteps(t, rsStageReviews, "pulls/"+testPR+"/reviews", reviews)...)
+}
+
+// pullStep is the gh api --include step for the PR's head.
+func (in rsInput) pullStep(t testing.TB, head, now string) cmdrunnertestutil.Step {
+	t.Helper()
+	body := `{"head":{"sha":"` + head + `","ref":"feature"},"title":"secret-title"}`
+	if f := in.edit[rsStagePull]; f != nil {
+		body = f(body)
+	}
+	status := in.pullStatus
+	if status == 0 {
+		status = http.StatusOK
+	}
+	return includeStep("pulls/"+testPR, includedOutput(status, []string{"Date: " + rsDate(t, now)}, body), nil)
 }
 
 // graphqlSteps is the GraphQL pages of the PR's commits, twenty commits each;
@@ -352,15 +361,6 @@ func rsCommitsResponse(t testing.TB, head string, nodes []any, more bool, cursor
 	return mustJSON(t, map[string]any{keyData: map[string]any{"repository": map[string]any{"pullRequest": map[string]any{
 		"headRefOid": head, "commits": map[string]any{keyPageInfo: pageInfo, nodesKey: nodes},
 	}}}})
-}
-
-// rsServerError is the error gh api --include returns for a 5xx status.
-func rsServerError() error {
-	return &cmdrunner.ExitError{
-		Code:   ghExitFailure,
-		Stdout: []byte(includedOutput(http.StatusInternalServerError, []string{"Date: Tue, 10 Nov 2026 00:00:00 GMT"}, `{"message":"secret-message"}`)),
-		Stderr: []byte("gh: request failed"),
-	}
 }
 
 // rsWant is the state a call is expected to return: Head and Now as the
