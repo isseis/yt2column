@@ -68,13 +68,17 @@ func TestValidateBaseContext(t *testing.T) {
 		}
 	})
 
-	t.Run("valid_repo_punctuation", func(t *testing.T) {
+	t.Run("valid_repo_punctuation_and_exact_max_len_and_hex_digits", func(t *testing.T) {
 		in := valid
-		in.Repo = "a.b-c_1/repo.name-2_x"
+		in.Repo = "a.b-c_1/" + strings.Repeat("x", maxRepoLen-len("a.b-c_1/"))
 		in.HeadRepo = in.Repo
 		in.BaseRepo = in.Repo
+		in.HeadSHA = "0123456789abcdef0123456789abcdef01234567"
+		if len(in.Repo) != maxRepoLen {
+			t.Fatalf("len(in.Repo) = %d, want %d", len(in.Repo), maxRepoLen)
+		}
 		if reason, ok := validateBaseContext(in); !ok || reason != ReasonUnspecified {
-			t.Errorf("validateBaseContext(punctuation) = (%q, %v), want (%q, true)", reason, ok, ReasonUnspecified)
+			t.Errorf("validateBaseContext(boundary) = (%q, %v), want (%q, true)", reason, ok, ReasonUnspecified)
 		}
 	})
 
@@ -158,6 +162,33 @@ func TestValidateBaseContext(t *testing.T) {
 			want: ReasonForkOrRepoMismatch,
 		},
 		{
+			name: "repo_no_slash",
+			mutate: func(in *Input) {
+				in.Repo = "noslash"
+				in.HeadRepo = in.Repo
+				in.BaseRepo = in.Repo
+			},
+			want: ReasonForkOrRepoMismatch,
+		},
+		{
+			name: "repo_empty_owner",
+			mutate: func(in *Input) {
+				in.Repo = "/yt2column"
+				in.HeadRepo = in.Repo
+				in.BaseRepo = in.Repo
+			},
+			want: ReasonForkOrRepoMismatch,
+		},
+		{
+			name: "repo_empty_name",
+			mutate: func(in *Input) {
+				in.Repo = "isseis/"
+				in.HeadRepo = in.Repo
+				in.BaseRepo = in.Repo
+			},
+			want: ReasonForkOrRepoMismatch,
+		},
+		{
 			name: "repo_exceeds_max_len",
 			mutate: func(in *Input) {
 				in.Repo = "a/" + strings.Repeat("b", maxRepoLen-1)
@@ -169,6 +200,11 @@ func TestValidateBaseContext(t *testing.T) {
 		{
 			name:   "non_main_base_ref",
 			mutate: func(in *Input) { in.BaseRef = "release" },
+			want:   ReasonNonMainBase,
+		},
+		{
+			name:   "base_ref_exact_max_len_non_main",
+			mutate: func(in *Input) { in.BaseRef = strings.Repeat("m", maxBaseRefLen) },
 			want:   ReasonNonMainBase,
 		},
 		{
@@ -187,8 +223,8 @@ func TestValidateBaseContext(t *testing.T) {
 			want:   ReasonInvalidInput,
 		},
 		{
-			name:   "head_sha_uppercase",
-			mutate: func(in *Input) { in.HeadSHA = strings.Repeat("A", 40) },
+			name:   "head_sha_uppercase_last_char",
+			mutate: func(in *Input) { in.HeadSHA = testSHA1[:39] + "A" },
 			want:   ReasonInvalidInput,
 		},
 		{
@@ -202,8 +238,8 @@ func TestValidateBaseContext(t *testing.T) {
 			want:   ReasonInvalidInput,
 		},
 		{
-			name:   "head_sha_non_hex",
-			mutate: func(in *Input) { in.HeadSHA = strings.Repeat("g", 40) },
+			name:   "head_sha_non_hex_last_char",
+			mutate: func(in *Input) { in.HeadSHA = testSHA1[:39] + "g" },
 			want:   ReasonInvalidInput,
 		},
 	}
@@ -238,6 +274,15 @@ func TestValidateRemainingContext(t *testing.T) {
 		}
 	})
 
+	t.Run("valid_max_10_digits_pr", func(t *testing.T) {
+		in := valid
+		in.PRNumber = "9999999999"
+		pr, reason, ok := validateRemainingContext(in)
+		if !ok || reason != ReasonUnspecified || pr != 9999999999 {
+			t.Errorf("validateRemainingContext(max PR) = (%d, %q, %v), want (9999999999, %q, true)", pr, reason, ok, ReasonUnspecified)
+		}
+	})
+
 	cases := []struct {
 		name   string
 		mutate func(*Input)
@@ -249,12 +294,16 @@ func TestValidateRemainingContext(t *testing.T) {
 		{name: "pr_negative", mutate: func(in *Input) { in.PRNumber = "-1" }, want: ReasonInvalidInput},
 		{name: "pr_plus_sign", mutate: func(in *Input) { in.PRNumber = "+1" }, want: ReasonInvalidInput},
 		{name: "pr_padded", mutate: func(in *Input) { in.PRNumber = " 10 " }, want: ReasonInvalidInput},
+		{name: "pr_trailing_space", mutate: func(in *Input) { in.PRNumber = "10 " }, want: ReasonInvalidInput},
+		{name: "pr_non_digit_suffix", mutate: func(in *Input) { in.PRNumber = "1a" }, want: ReasonInvalidInput},
 		{name: "pr_too_long", mutate: func(in *Input) { in.PRNumber = "10000000000" }, want: ReasonInvalidInput},
 		{name: "run_attempt_2_manual_rerun", mutate: func(in *Input) { in.RunAttempt = "2" }, want: ReasonManualRerun},
-		{name: "run_attempt_99_manual_rerun", mutate: func(in *Input) { in.RunAttempt = "99" }, want: ReasonManualRerun},
+		{name: "run_attempt_max_10_digits_manual_rerun", mutate: func(in *Input) { in.RunAttempt = "9999999999" }, want: ReasonManualRerun},
 		{name: "run_attempt_zero", mutate: func(in *Input) { in.RunAttempt = "0" }, want: ReasonInvalidInput},
 		{name: "run_attempt_negative", mutate: func(in *Input) { in.RunAttempt = "-1" }, want: ReasonInvalidInput},
 		{name: "run_attempt_non_int", mutate: func(in *Input) { in.RunAttempt = "one" }, want: ReasonInvalidInput},
+		{name: "run_attempt_trailing_space", mutate: func(in *Input) { in.RunAttempt = "1 " }, want: ReasonInvalidInput},
+		{name: "run_attempt_non_digit_suffix", mutate: func(in *Input) { in.RunAttempt = "1a" }, want: ReasonInvalidInput},
 		{name: "run_attempt_padded", mutate: func(in *Input) { in.RunAttempt = " 1" }, want: ReasonInvalidInput},
 		{name: "run_attempt_too_long", mutate: func(in *Input) { in.RunAttempt = "10000000000" }, want: ReasonInvalidInput},
 		{name: "wasm_dep_dirs_false", mutate: func(in *Input) { in.WasmDepDirsOK = "false" }, want: ReasonWasmDepDirsFailed},

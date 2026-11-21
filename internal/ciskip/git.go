@@ -55,8 +55,8 @@ func verifyOriginMain(ctx context.Context, runner cmdrunner.Runner, timeout time
 	if err != nil {
 		return ReasonGitFailed, false
 	}
-	originMainSHA := strings.TrimSuffix(string(out), "\n")
-	if !isHexSHA40(originMainSHA) {
+	originMainSHA, hasNL := strings.CutSuffix(string(out), "\n")
+	if !hasNL || !isHexSHA40(originMainSHA) {
 		return ReasonGitFailed, false
 	}
 	if originMainSHA != mergeBaseSHA {
@@ -85,8 +85,8 @@ func resolveSingleParent(ctx context.Context, runner cmdrunner.Runner, timeout t
 // parseParentLine parses a single line of space-separated 40-char lowercase hex SHAs
 // produced by `git rev-list --parents -n 1`.
 func parseParentLine(out []byte) ([]string, bool) {
-	line := strings.TrimSuffix(string(out), "\n")
-	if line == "" || strings.ContainsAny(line, "\r\n") {
+	line, hasNL := strings.CutSuffix(string(out), "\n")
+	if !hasNL || line == "" || strings.ContainsAny(line, "\r\n") {
 		return nil, false
 	}
 	tokens := strings.Split(line, " ")

@@ -3,7 +3,6 @@
 package ciskip
 
 import (
-	"bytes"
 	"errors"
 	"os"
 	"os/exec"
@@ -74,16 +73,8 @@ func (r *testGitRepo) git(args ...string) string {
 
 func (r *testGitRepo) gitIn(dir string, args ...string) string {
 	r.t.Helper()
-	return r.gitInput(dir, nil, args...)
-}
-
-func (r *testGitRepo) gitInput(dir string, stdin []byte, args ...string) string {
-	r.t.Helper()
 	cmd := exec.Command("git", args...) //nolint:gosec // test setup invokes git with fixed arguments inside t.TempDir
 	cmd.Dir = dir
-	if stdin != nil {
-		cmd.Stdin = bytes.NewReader(stdin)
-	}
 	cmd.Env = cmdrunner.GitEnv(os.Environ())
 	out, err := cmd.Output()
 	if err != nil {

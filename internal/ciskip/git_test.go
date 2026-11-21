@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -38,6 +39,7 @@ func TestResolveSyntheticMergeBase(t *testing.T) {
 		{name: "single_parent_not_merge", out: testSHA2 + " " + testSHA1 + "\n", want: ReasonMergeCommitMismatch},
 		{name: "root_commit", out: testSHA2 + "\n", want: ReasonMergeCommitMismatch},
 		{name: "three_parents_octopus", out: testSHA4 + " " + testSHA1 + " " + testSHA2 + " " + testSHA3 + "\n", want: ReasonMergeCommitMismatch},
+		{name: "missing_trailing_newline", out: testSHA3 + " " + testSHA1 + " " + testSHA2, want: ReasonGitFailed},
 		{name: "empty_output", out: "", want: ReasonGitFailed},
 		{name: "uppercase_sha", out: strings.Repeat("A", 40) + " " + testSHA1 + " " + testSHA2 + "\n", want: ReasonGitFailed},
 		{name: "extra_line", out: testSHA3 + " " + testSHA1 + " " + testSHA2 + "\n" + testSHA4 + "\n", want: ReasonGitFailed},
@@ -80,6 +82,17 @@ func TestCheckOriginMain(t *testing.T) {
 		})
 		if reason, ok := verifyOriginMain(t.Context(), fake, time.Second, testSHA1); ok || reason != ReasonMainMovedAtCheckout {
 			t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonMainMovedAtCheckout)
+		}
+	})
+
+	t.Run("missing_trailing_newline", func(t *testing.T) {
+		fake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
+			Name: "git",
+			Args: gitArgs("rev-parse", "--verify", originMainCommitRef),
+			Out:  testSHA1,
+		})
+		if reason, ok := verifyOriginMain(t.Context(), fake, time.Second, testSHA1); ok || reason != ReasonGitFailed {
+			t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonGitFailed)
 		}
 	})
 
@@ -128,6 +141,7 @@ func TestVerifyParentCount(t *testing.T) {
 		{name: "root_commit", out: testSHA2 + "\n", want: ReasonNotSingleParent},
 		{name: "merge_two_parents", out: testSHA2 + " " + testSHA1 + " " + testSHA3 + "\n", want: ReasonNotSingleParent},
 		{name: "merge_three_parents", out: testSHA2 + " " + testSHA1 + " " + testSHA3 + " " + testSHA4 + "\n", want: ReasonNotSingleParent},
+		{name: "missing_trailing_newline", out: testSHA2 + " " + testSHA1, want: ReasonGitFailed},
 		{name: "unexpected_commit_sha", out: testSHA4 + " " + testSHA1 + "\n", want: ReasonGitFailed},
 		{name: "malformed_output", out: "garbage\n", want: ReasonGitFailed},
 		{name: "git_error", err: errors.New("missing object"), want: ReasonGitFailed},
@@ -227,11 +241,15 @@ func TestValidateDepDirsFile(t *testing.T) {
 		})
 	}
 
-	t.Run("missing_file_and_empty_path", func(t *testing.T) {
+	t.Run("missing_file_directory_and_empty_path", func(t *testing.T) {
 		if reason, ok := validateDepDirsFile("", defaultScriptMaxOutput); ok || reason != ReasonWasmDepDirsFailed {
 			t.Errorf("empty path: got (%q, %v), want (%q, false)", reason, ok, ReasonWasmDepDirsFailed)
 		}
-		missing := filepath.Join(t.TempDir(), "does-not-exist")
+		dir := t.TempDir()
+		if reason, ok := validateDepDirsFile(dir, defaultScriptMaxOutput); ok || reason != ReasonWasmDepDirsFailed {
+			t.Errorf("directory path: got (%q, %v), want (%q, false)", reason, ok, ReasonWasmDepDirsFailed)
+		}
+		missing := filepath.Join(dir, "does-not-exist")
 		if reason, ok := validateDepDirsFile(missing, defaultScriptMaxOutput); ok || reason != ReasonWasmDepDirsFailed {
 			t.Errorf("missing file: got (%q, %v), want (%q, false)", reason, ok, ReasonWasmDepDirsFailed)
 		}
@@ -271,8 +289,11 @@ func TestIsNonCodePath(t *testing.T) {
 		{path: "sub/LICENSE", want: false},
 		{path: "sub/docs/a.go", want: false},
 		{path: "sub/.claude/a.sh", want: false},
+		{path: "docs", want: false},
+		{path: ".claude", want: false},
 		{path: "foo.md.go", want: false},
 		{path: "foo.MD", want: false},
+		{path: "internal/foo.md\na.go", want: false},
 		{path: "internal/a.go\ndocs/x.md", want: true}, // ends in .md, same as ci.yml regex \.md$
 		{path: "internal/a\nb.go", want: false},
 		{path: "internal/a\tb.go", want: false},
@@ -644,12 +665,33 @@ func TestClassifyDiffWithRealGitAndScript(t *testing.T) {
 	}
 }
 
+// recordingInputRunner wraps a real cmdrunner.InputRunner to record the raw error
+// returned by RunInput so deadlock tests can distinguish exit 2 from a timeout.
+type recordingInputRunner struct {
+	inner  cmdrunner.InputRunner
+	calls  int
+	rawErr error
+}
+
+func (r *recordingInputRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return r.RunInput(ctx, nil, name, args...)
+}
+
+func (r *recordingInputRunner) RunInput(ctx context.Context, stdin []byte, name string, args ...string) ([]byte, error) {
+	r.calls++
+	out, err := r.inner.RunInput(ctx, stdin, name, args...)
+	r.rawErr = err
+	return out, err
+}
+
 // TestCheckExtensionChangesEarlyExitNoDeadlock verifies that passing more than 64 KiB
 // on stdin to has-extension-changes.sh when it exits early (exit 2 on an invalid
-// dependency directory line without reading stdin) returns promptly without deadlocking.
+// dependency directory line without reading stdin) returns promptly with exit code 2
+// rather than timing out on a deadlocked pipe.
 func TestCheckExtensionChangesEarlyExitNoDeadlock(t *testing.T) {
-	repo := newTestGitRepo(t)
-	_, scriptRunner := repo.runners()
+	_, scriptOpts, _ := runnerOptions(os.Environ(), defaultLimits())
+	scriptOpts.Dir = filepath.Join("..", "..")
+	rec := &recordingInputRunner{inner: cmdrunner.NewOS(scriptOpts)}
 
 	// Invalid line (no trailing "/") forces has-extension-changes.sh to exit 2
 	// before entering the stdin read loop.
@@ -661,8 +703,18 @@ func TestCheckExtensionChangesEarlyExitNoDeadlock(t *testing.T) {
 		t.Fatalf("largeStdin len = %d, want > 65536", len(largeStdin))
 	}
 
-	reason, ok := checkExtensionChanges(t.Context(), scriptRunner, 5*time.Second, badDepFile, largeStdin)
+	reason, ok := checkExtensionChanges(t.Context(), rec, 5*time.Second, badDepFile, largeStdin)
 	if ok || reason != ReasonExtensionCheckFailed {
 		t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonExtensionCheckFailed)
+	}
+	if rec.calls != 1 {
+		t.Fatalf("runner calls = %d, want 1", rec.calls)
+	}
+	if errors.Is(rec.rawErr, context.DeadlineExceeded) {
+		t.Fatalf("script timed out (possible stdin deadlock): %v", rec.rawErr)
+	}
+	exitErr, isExit := errors.AsType[*cmdrunner.ExitError](rec.rawErr)
+	if !isExit || exitErr.Code != 2 {
+		t.Fatalf("raw error = %v, want *cmdrunner.ExitError with exit code 2", rec.rawErr)
 	}
 }
