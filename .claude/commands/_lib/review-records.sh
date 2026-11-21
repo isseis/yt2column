@@ -3,6 +3,7 @@
 # messages and decides, by fixed rules, what a review gate needs to know.
 #
 # Usage: bash review-records.sh coverage <LAST_REVIEWED> <HEAD> [<PLAN>]
+#        bash review-records.sh unreviewed <HEAD> [<PLAN>]
 #        bash review-records.sh fable <ENTRY> <HEAD> <PLAN>
 #
 # The first argument chooses the mode; any other mode is a failure.
@@ -61,8 +62,9 @@
 #     blobs are read with plumbing commands (cat-file, diff-tree --raw,
 #     rev-list), so no diff driver, text conversion, or attribute applies.
 #     A submodule's change always counts (--ignore-submodules=none, so
-#     neither .gitmodules nor the configuration hides one), and replace refs
-#     are not followed (GIT_NO_REPLACE_OBJECTS).
+#     neither .gitmodules nor the configuration hides one), and neither
+#     replace refs nor a grafts file are followed (GIT_NO_REPLACE_OBJECTS,
+#     and GIT_GRAFT_FILE set to /dev/null).
 #   - Failure: any failed git step, an argument of another form, or an
 #     unreadable refs/remotes/origin/main prints "PARTIAL" alone (no
 #     count), a diagnostic on standard error, and exits 1. A caller reads a
@@ -70,48 +72,101 @@
 #   - It uses no network, writes no file, and uses no bash feature newer
 #     than 3.2.
 #
+# Mode unreviewed: the commits of a PR neither local CLI reviewed, for the PR
+# description (.claude/commands/_lib/task-pr-handoff.md, Part B step 3).
+#
+#   HEAD   the commit to be pushed, 40 hexadecimal characters
+#   PLAN   optional, as for coverage
+#
+# unreviewed <HEAD> [<PLAN>] is coverage none <HEAD> [<PLAN>] with two
+# differences, and every other rule, output, and failure as for coverage:
+#   - a seen-range line's START also passes under the widened START check
+#     (the fable mode's contract below), so a line read before a merge of
+#     origin/main moved the merge-base still counts;
+#   - a merge commit inside the range of a seen-range line that passes the
+#     checks is known to be seen.
+#
 # Mode fable: whether the branch's last Fable record still covers the branch
 # (.claude/commands/_lib/fable-review.md, "The validity decision").
 #
-#   ENTRY  launch (the launch entry) or checkpoint (the checkpoint entry)
+#   ENTRY  launch (the launch entry) or checkpoint (the checkpoint and the
+#          pre-push entries); it chooses only whether the rule of the
+#          commits after the checkpoint mark applies
 #   HEAD   the branch's head, 40 hexadecimal characters
 #   PLAN   the task's docs/tasks/<task-dir>/03_implementation_plan.md, which
 #          need not exist
 #
-# Output, on standard output:
-#   VALID            the last Fable record is valid
+# Output, on standard output, the same at either ENTRY:
+#   VALID            the last Fable record is valid and no merge commit
+#                    after it waits for the merge check
 #   MISSING <START>  it is not, or there is none; Fable is to see
 #                    <START>..HEAD (<START> is 40 hexadecimal characters)
+#   MERGE <n>        the record is valid but for <n> confirmable merge
+#                    commits no merge check record names; one line of the
+#                    merge commit's 40 hexadecimal characters follows for
+#                    each, in the order of git rev-list --reverse
+#                    --topo-order
 #
 # Contract:
+#   - The widened START check: a range line's START passes it when START is
+#     the merge-base of origin/main and HEAD, a commit of origin/main..HEAD,
+#     or a commit origin/main reaches such that origin/main reaches no
+#     commit of END ^START. Every other check of a seen-range line above
+#     stays. A line read before a merge of origin/main thus keeps counting,
+#     while a range that holds a commit of origin/main is still ignored.
 #   - A Fable record is a whole line, from the first column, of the message
 #     of a commit in origin/main..HEAD, matching the run or the not-run form
 #     exactly, whose START and END pass the checks of a seen-range line
-#     above; a record that fails them is ignored. The last record is the
-#     last such line of the last commit holding one, in the order of
-#     git rev-list --reverse --topo-order.
-#   - The last record, with END and the commit H holding it, is valid when
-#     every commit of HEAD ^END that origin/main does not reach is any of:
-#       * without content: one parent, and it changes nothing, or only
-#         README.en.md (a regular file before and after), or only PLAN by
-#         marking its checkboxes as a plan checkbox commit does above, or
-#         those two together;
-#       * a fix of the same run: an ancestor of H (H included) inside the
-#         range of a seen-range line or of a not-run line ("Local CLI
-#         review: not run <START12>..<END12> (...)") of H's message, the
-#         line passing the checks of a seen-range line above with H as the
-#         commit holding it;
-#       * at ENTRY checkpoint only: a commit after the last commit K of
-#         origin/main..HEAD whose message holds the line "Fable review:
-#         checkpoint", unless a commit of HEAD ^K ^origin/main holds a line
-#         starting "Implementation model: " (any such line counts, so
-#         reading more lines only turns the rule off).
-#     A merge commit is never any of them.
+#     above under the widened START check; a record that fails them is
+#     ignored. The last record is the last such line of the last commit
+#     holding one, in the order of git rev-list --reverse --topo-order.
+#   - A confirmable merge commit has exactly two parents, the first the
+#     merge-base or a commit of origin/main..HEAD, the second a commit
+#     origin/main reaches. Any other commit with other than one parent is an
+#     unconfirmable merge commit.
+#   - A merge check record is a whole line, from the first column, of the
+#     message of a commit Q in origin/main..HEAD, matching the run or the
+#     not-run form exactly. It names the merge commit M of its 40
+#     hexadecimal characters only when M is a commit of origin/main..HEAD,
+#     a confirmable merge commit, and a proper ancestor of Q; a line naming
+#     anything else (no object, an object that is not a commit, another
+#     commit) names nothing and is not a failure. Every such line of the
+#     branch is read, not only the last.
+#   - The last record, with END and the commit H holding it, is judged on
+#     every commit of HEAD ^END that origin/main does not reach. A commit
+#     with one parent is covered when it is any of:
+#       1. without content: it changes nothing, or only README.en.md (a
+#          regular file before and after), or only PLAN by marking its
+#          checkboxes as a plan checkbox commit does above, or those two
+#          together;
+#       2. a fix of the same run: an ancestor of H (H included) inside the
+#          range of a seen-range line or of a not-run line ("Local CLI
+#          review: not run <START12>..<END12> (...)") of H's message, the
+#          line passing the checks of a seen-range line above, under the
+#          widened START check, with H as the commit holding it;
+#       3. at ENTRY checkpoint only: a commit after the last commit K of
+#          origin/main..HEAD whose message holds the line "Fable review:
+#          checkpoint", unless a commit of HEAD ^K ^origin/main holds a line
+#          starting "Implementation model: " (any such line counts, so
+#          reading more lines only turns the rule off);
+#       4. a fix of a merge check: for a commit Q whose merge check record
+#          names M, a descendant of M (M excluded) and an ancestor of Q (Q
+#          included) inside the range of a seen-range line of Q's message
+#          that passes the checks under the widened START check; a not-run
+#          line's range does not count.
+#     A confirmable merge commit is confirmed when a merge check record
+#     names it, and otherwise waits for the merge check. Every other commit,
+#     a commit with one parent no rule covers or an unconfirmable merge
+#     commit, invalidates the record.
+#   - The result: MISSING <START> when a commit invalidates the record; else
+#     MERGE <n> when a confirmable merge commit waits for the merge check;
+#     else VALID.
 #   - START of MISSING is the merge-base of origin/main and HEAD when there
-#     is no record. Otherwise it is the first parent of the first commit,
-#     in git rev-list --reverse --topo-order, that none of the rules
-#     covers; when that parent is neither the merge-base nor a commit of
-#     origin/main..HEAD, START is the merge-base.
+#     is no record, or when HEAD ^END ^origin/main holds a commit with other
+#     than one parent (a confirmed one included). Otherwise it is the first
+#     parent of the first commit, in git rev-list --reverse --topo-order,
+#     that invalidates the record; when that parent is neither the
+#     merge-base nor a commit of origin/main..HEAD, START is the merge-base.
 #   - Inputs, environment, and plumbing are as for coverage.
 #   - Failure: any failed git step, an argument of another form, or an
 #     unreadable refs/remotes/origin/main prints "MISSING" alone, a
@@ -122,17 +177,19 @@
 # Where the rules are defined. The command documents define the record
 # lines and what is done with the result, and those definitions win over
 # this file: the seen-range and not-run lines' forms in
-# .claude/commands/_lib/local-cli-review.md, step 7, the Fable records' and
-# the checkpoint mark's forms and the validity rules in
-# .claude/commands/_lib/fable-review.md ("Record lines" and "The validity
-# decision"), the form of the "PR created" line in
+# .claude/commands/_lib/local-cli-review.md, step 7, the Fable records',
+# the checkpoint mark's, and the merge check records' forms and the
+# validity rules in .claude/commands/_lib/fable-review.md ("Record lines"
+# and "The validity decision"), the form of the "PR created" line in
 # .claude/commands/runplan.md, step 5a (AFTER_CREATE), and the rules that
 # turn the coverage result into a decision in .claude/commands/runpr.md,
 # step 3. When they disagree, the script is fixed. The coverage judging
 # rules themselves (which commits are judged, which count as seen, and the
 # checks on a seen-range line's START and END) are defined by this header,
 # on the basis of the design of task 0098
-# (docs/tasks/0098_fable_partial_review/02_architecture.md, 3.6.1); no
+# (docs/tasks/0098_fable_partial_review/02_architecture.md, 3.6.1), and the
+# two differences of unreviewed on the basis of the design of task 0114
+# (docs/tasks/0114_fable_record_after_merge/02_architecture.md, 3.2); no
 # command document restates them. A change to them changes this header
 # and the tests in cmd/yt2column/review_records_test.go together.
 #
@@ -158,7 +215,7 @@ for name in ${!GIT_@}; do
 done
 unset -f git awk printf
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ATTR_NOSYSTEM=1
-export GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 GIT_NO_REPLACE_OBJECTS=1
+export GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null
 
 GIT_OVERRIDES=(
 	-c core.attributesFile=/dev/null
@@ -167,6 +224,7 @@ GIT_OVERRIDES=(
 	-c diff.noprefix=false
 	-c color.ui=false
 	-c log.showSignature=false
+	-c advice.graftFileDeprecated=false
 	-c i18n.logOutputEncoding=UTF-8
 )
 
@@ -179,7 +237,7 @@ MODE=${1-}
 fail() {
 	printf 'review-records: %s\n' "$1" >&2
 	case $MODE in
-	coverage) printf 'PARTIAL\n' ;;
+	coverage | unreviewed) printf 'PARTIAL\n' ;;
 	fable) printf 'MISSING\n' ;;
 	esac
 	exit 1
@@ -192,6 +250,8 @@ NOT_RUN_RE='^Local CLI review: not run ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(.*\)$'
 FABLE_RUN_RE='^Fable review: run ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(model claude-fable-[a-z0-9.-]{1,48}; fixed [0-9]+, rejected [0-9]+, deferred [0-9]+, unclear [0-9]+, invalid [0-9]+; [0-9]+s, tokens ([0-9]+|unknown)\)$'
 FABLE_NOT_RUN_RE='^Fable review: not run ([0-9a-f]{12})\.\.([0-9a-f]{12}) \((no-target|unavailable|timeout|not-fable|unreadable|agent-cannot-call)(; [0-9]+s, tokens ([0-9]+|unknown))?\)$'
 CHECKPOINT_LINE='Fable review: checkpoint'
+MERGE_RUN_RE='^Merge check: run ([0-9a-f]{40}) \(model claude-opus-[a-z0-9.-]{1,48}; fixed [0-9]+, rejected [0-9]+, deferred [0-9]+, unclear [0-9]+, invalid [0-9]+; [0-9]+s, tokens ([0-9]+|unknown)\)$'
+MERGE_NOT_RUN_RE='^Merge check: not run ([0-9a-f]{40}) \((unavailable|timeout|not-opus|unreadable|agent-cannot-call)(; [0-9]+s, tokens ([0-9]+|unknown))?\)$'
 MODIFIED_RE='^:100644 100644 [0-9a-f]{40} [0-9a-f]{40} M$'
 TAB=$(printf '\t')
 IMPLEMENTATION_PREFIX='Implementation model: '
@@ -412,16 +472,43 @@ load_branch() {
 
 # checked_range sets RANGE_START and RANGE_END to the commits the 12-hex
 # prefixes $2 and $3 of a line in the message of commit $1 name, and reports
-# whether the line passes the checks of a seen-range line.
+# whether the line passes the checks of a seen-range line; with $4 "widen"
+# START passes the widened START check instead (the fable mode's contract).
 checked_range() {
-	local holder=$1
+	local holder=$1 widen=${4-} all inside
 	RANGE_START=$(resolve12 "$2") || return 1
 	RANGE_END=$(resolve12 "$3") || return 1
 	g merge-base --is-ancestor "$RANGE_START" "$RANGE_END" || return 1
 	[ "$RANGE_END" != "$holder" ] || return 1
 	g merge-base --is-ancestor "$RANGE_END" "$holder" || return 1
-	[ "$RANGE_START" = "$MERGE_BASE" ] || in_list "$RANGE_START" "$BRANCH" || return 1
-	in_list "$RANGE_END" "$BRANCH"
+	in_list "$RANGE_END" "$BRANCH" || return 1
+	if [ "$RANGE_START" = "$MERGE_BASE" ] || in_list "$RANGE_START" "$BRANCH"; then
+		return 0
+	fi
+	# Widened: a START behind a merge of origin/main passes only when the
+	# range holds no commit origin/main reaches, so a range made after the
+	# merge, which holds main's commits, is still ignored.
+	[ "$widen" = widen ] || return 1
+	g merge-base --is-ancestor "$RANGE_START" "$ORIGIN_MAIN" || return 1
+	all=$(g rev-list --count "$RANGE_END" "^$RANGE_START") || return 1
+	inside=$(g rev-list --count "$RANGE_END" "^$RANGE_START" "^$ORIGIN_MAIN") || return 1
+	[ "$all" = "$inside" ]
+}
+
+# confirmable reports whether commit $1 is a confirmable merge commit:
+# exactly two parents, the first the merge-base or a branch commit, the
+# second a commit origin/main reaches. Only for such a merge commit can the
+# merge check take the changes made by hand and the changes main brought in;
+# any other is judged like a commit with content.
+confirmable() {
+	local first second
+	[ "$(parent_count "$1")" = 2 ] || return 1
+	first=$(g rev-parse --verify --quiet "$1^1") || return 1
+	second=$(g rev-parse --verify --quiet "$1^2") || return 1
+	if [ "$first" != "$MERGE_BASE" ] && ! in_list "$first" "$BRANCH"; then
+		return 1
+	fi
+	g merge-base --is-ancestor "$second" "$ORIGIN_MAIN"
 }
 
 coverage() {
@@ -447,7 +534,29 @@ coverage() {
 	else
 		judged=$(g rev-list --reverse "$head" "^$last" "^$ORIGIN_MAIN") || fail "git rev-list failed"
 	fi
+	judge_seen "$judged" narrow
+}
 
+# unreviewed is coverage none with the two differences the header names.
+unreviewed() {
+	[ "$#" -eq 1 ] || [ "$#" -eq 2 ] || fail "unreviewed expects 1 or 2 arguments, got $#"
+	local head=$1 judged
+	PLAN=${2-}
+	[[ $head =~ $HEX40 ]] || fail "HEAD is not 40 hexadecimal characters"
+	if [ -n "$PLAN" ]; then
+		[[ $PLAN =~ $PLAN_RE ]] || fail "PLAN is not docs/tasks/<task-dir>/03_implementation_plan.md"
+	fi
+	load_branch "$head"
+	judged=$(g rev-list --reverse "$head" "^$ORIGIN_MAIN") || fail "git rev-list failed"
+	judge_seen "$judged" widen
+}
+
+# judge_seen prints the result of coverage for the commits $1 judged, oldest
+# first. $2 chooses the two points where unreviewed differs: "narrow"
+# (coverage) or "widen" (unreviewed: the widened START check, and a merge
+# commit inside a seen range is seen).
+judge_seen() {
+	local judged=$1 how=$2 c line holder
 	# seen holds every commit inside the range of a seen-range line that
 	# passes the checks.
 	local seen="" msg range
@@ -455,7 +564,7 @@ coverage() {
 		msg=$(message "$holder") || fail "cannot read a commit message"
 		while IFS= read -r line; do
 			[[ $line =~ $SEEN_RE ]] || continue
-			checked_range "$holder" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" || continue
+			checked_range "$holder" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "$how" || continue
 			range=$(g rev-list "$RANGE_END" "^$RANGE_START") || fail "git rev-list of a seen range failed"
 			seen=$seen$'\n'$range
 		done < <(printf '%s\n' "$msg")
@@ -469,6 +578,8 @@ coverage() {
 			parent=$(g rev-parse --verify --quiet "$c^1") || fail "cannot read a parent"
 			empty_commit "$c" "$parent" && continue
 			checkbox_only "$c" "$parent" && continue
+			in_list "$c" "$seen" && continue
+		elif [ "$how" = widen ]; then
 			in_list "$c" "$seen" && continue
 		fi
 		unseen=$unseen$'\n'$c
@@ -520,7 +631,7 @@ fable() {
 		msg=$(message "$holder") || fail "cannot read a commit message"
 		while IFS= read -r line; do
 			[[ $line =~ $FABLE_RUN_RE ]] || [[ $line =~ $FABLE_NOT_RUN_RE ]] || continue
-			checked_range "$holder" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" || continue
+			checked_range "$holder" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" widen || continue
 			rec_end=$RANGE_END
 			rec_holder=$holder
 		done < <(printf '%s\n' "$msg")
@@ -536,7 +647,7 @@ fable() {
 	msg=$(message "$rec_holder") || fail "cannot read a commit message"
 	while IFS= read -r line; do
 		[[ $line =~ $SEEN_RE ]] || [[ $line =~ $NOT_RUN_RE ]] || continue
-		checked_range "$rec_holder" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" || continue
+		checked_range "$rec_holder" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" widen || continue
 		range=$(g rev-list "$RANGE_END" "^$RANGE_START") || fail "git rev-list of a range failed"
 		fixes=$fixes$'\n'$range
 	done < <(printf '%s\n' "$msg")
@@ -561,7 +672,45 @@ fable() {
 		fi
 	fi
 
-	local judged parents parent start
+	# confirmed holds every merge commit a merge check record names, and
+	# merge_fixes every commit rule 4 covers.
+	local confirmed="" merge_fixes="" named m
+	for holder in $ordered; do
+		msg=$(message "$holder") || fail "cannot read a commit message"
+		named=""
+		while IFS= read -r line; do
+			[[ $line =~ $MERGE_RUN_RE ]] || [[ $line =~ $MERGE_NOT_RUN_RE ]] || continue
+			m=${BASH_REMATCH[1]}
+			# Only a branch commit can be named. BRANCH lists commits only, so
+			# a name of no object, or of another object, names nothing; testing
+			# it before any lookup keeps a name the repository lacks from making
+			# git fetch it (a partial clone's lazy fetch).
+			in_list "$m" "$BRANCH" || continue
+			[ "$m" != "$holder" ] || continue
+			g merge-base --is-ancestor "$m" "$holder" || continue
+			confirmable "$m" || continue
+			confirmed=$confirmed$'\n'$m
+			named=$named$'\n'$m
+		done < <(printf '%s\n' "$msg")
+		[ -n "$named" ] || continue
+		while IFS= read -r line; do
+			[[ $line =~ $SEEN_RE ]] || continue
+			checked_range "$holder" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" widen || continue
+			range=$(g rev-list "$RANGE_END" "^$RANGE_START") || fail "git rev-list of a range failed"
+			# M itself is inside the range of its descendants' test, but it
+			# has two parents, which no rule covers.
+			for c in $range; do
+				for m in $named; do
+					g merge-base --is-ancestor "$m" "$c" || continue
+					g merge-base --is-ancestor "$c" "$holder" || continue
+					merge_fixes=$merge_fixes$'\n'$c
+					break
+				done
+			done
+		done < <(printf '%s\n' "$msg")
+	done
+
+	local judged parents parent start invalid="" merged=0 unconfirmed="" count=0
 	judged=$(g rev-list --reverse --topo-order "$head" "^$rec_end" "^$ORIGIN_MAIN") || fail "git rev-list failed"
 	for c in $judged; do
 		parents=$(parent_count "$c") || fail "cannot read a commit"
@@ -570,14 +719,44 @@ fable() {
 			contentless "$c" "$parent" && continue
 			in_list "$c" "$fixes" && continue
 			in_list "$c" "$after_mark" && continue
+			in_list "$c" "$merge_fixes" && continue
+		else
+			merged=1
+			if confirmable "$c"; then
+				in_list "$c" "$confirmed" && continue
+				unconfirmed=$unconfirmed$'\n'$c
+				count=$((count + 1))
+				continue
+			fi
 		fi
-		start=$(g rev-parse --verify --quiet "$c^1") || start=$MERGE_BASE
-		if [ "$start" != "$MERGE_BASE" ] && ! in_list "$start" "$BRANCH"; then
+		[ -n "$invalid" ] || invalid=$c
+	done
+
+	if [ -n "$invalid" ]; then
+		# After a merge, a range from the record would hold the changes main
+		# brought in, so Fable sees the whole PR.
+		if [ "$merged" = 1 ]; then
 			start=$MERGE_BASE
+		else
+			start=$(g rev-parse --verify --quiet "$invalid^1") || start=$MERGE_BASE
+			# Defensive only: with no merge commit after END, the commits after
+			# it form one line of single parents down to END, so this parent
+			# is END or a commit after it, both branch commits.
+			if [ "$start" != "$MERGE_BASE" ] && ! in_list "$start" "$BRANCH"; then
+				start=$MERGE_BASE
+			fi
 		fi
 		printf 'MISSING %s\n' "$start" || exit 1
 		return
-	done
+	fi
+	if [ "$count" -gt 0 ]; then
+		local out="MERGE $count"
+		for c in $unconfirmed; do
+			out=$out$'\n'$c
+		done
+		printf '%s\n' "$out" || exit 1
+		return
+	fi
 	printf 'VALID\n' || exit 1
 }
 
@@ -585,6 +764,10 @@ case $MODE in
 coverage)
 	shift
 	coverage "$@"
+	;;
+unreviewed)
+	shift
+	unreviewed "$@"
 	;;
 fable)
 	shift
