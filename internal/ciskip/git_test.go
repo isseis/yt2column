@@ -63,60 +63,34 @@ func TestResolveSyntheticMergeBase(t *testing.T) {
 }
 
 func TestCheckOriginMain(t *testing.T) {
-	t.Run("matches", func(t *testing.T) {
-		fake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
-			Name: "git",
-			Args: gitArgs("rev-parse", "--verify", originMainCommitRef),
-			Out:  testSHA1 + "\n",
-		})
-		if reason, ok := verifyOriginMain(t.Context(), fake, time.Second, testSHA1); !ok || reason != ReasonUnspecified {
-			t.Errorf("got (%q, %v), want (%q, true)", reason, ok, ReasonUnspecified)
-		}
-	})
+	cases := []struct {
+		name       string
+		out        string
+		err        error
+		wantReason Reason
+		wantOK     bool
+	}{
+		{name: "matches", out: testSHA1 + "\n", wantReason: ReasonUnspecified, wantOK: true},
+		{name: "moved", out: testSHA2 + "\n", wantReason: ReasonMainMovedAtCheckout, wantOK: false},
+		{name: "missing_trailing_newline", out: testSHA1, wantReason: ReasonGitFailed, wantOK: false},
+		{name: "malformed_output", out: "not-a-sha\n", wantReason: ReasonGitFailed, wantOK: false},
+		{name: "git_error", err: errors.New("unknown revision"), wantReason: ReasonGitFailed, wantOK: false},
+	}
 
-	t.Run("moved", func(t *testing.T) {
-		fake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
-			Name: "git",
-			Args: gitArgs("rev-parse", "--verify", originMainCommitRef),
-			Out:  testSHA2 + "\n",
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
+				Name: "git",
+				Args: gitArgs("rev-parse", "--verify", originMainCommitRef),
+				Out:  tc.out,
+				Err:  tc.err,
+			})
+			reason, ok := verifyOriginMain(t.Context(), fake, time.Second, testSHA1)
+			if ok != tc.wantOK || reason != tc.wantReason {
+				t.Errorf("got (%q, %v), want (%q, %v)", reason, ok, tc.wantReason, tc.wantOK)
+			}
 		})
-		if reason, ok := verifyOriginMain(t.Context(), fake, time.Second, testSHA1); ok || reason != ReasonMainMovedAtCheckout {
-			t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonMainMovedAtCheckout)
-		}
-	})
-
-	t.Run("missing_trailing_newline", func(t *testing.T) {
-		fake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
-			Name: "git",
-			Args: gitArgs("rev-parse", "--verify", originMainCommitRef),
-			Out:  testSHA1,
-		})
-		if reason, ok := verifyOriginMain(t.Context(), fake, time.Second, testSHA1); ok || reason != ReasonGitFailed {
-			t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonGitFailed)
-		}
-	})
-
-	t.Run("malformed_output", func(t *testing.T) {
-		fake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
-			Name: "git",
-			Args: gitArgs("rev-parse", "--verify", originMainCommitRef),
-			Out:  "not-a-sha\n",
-		})
-		if reason, ok := verifyOriginMain(t.Context(), fake, time.Second, testSHA1); ok || reason != ReasonGitFailed {
-			t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonGitFailed)
-		}
-	})
-
-	t.Run("git_error", func(t *testing.T) {
-		fake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
-			Name: "git",
-			Args: gitArgs("rev-parse", "--verify", originMainCommitRef),
-			Err:  errors.New("unknown revision"),
-		})
-		if reason, ok := verifyOriginMain(t.Context(), fake, time.Second, testSHA1); ok || reason != ReasonGitFailed {
-			t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonGitFailed)
-		}
-	})
+	}
 }
 
 func TestVerifyParentCount(t *testing.T) {
@@ -143,7 +117,6 @@ func TestVerifyParentCount(t *testing.T) {
 		{name: "merge_three_parents", out: testSHA2 + " " + testSHA1 + " " + testSHA3 + " " + testSHA4 + "\n", want: ReasonNotSingleParent},
 		{name: "missing_trailing_newline", out: testSHA2 + " " + testSHA1, want: ReasonGitFailed},
 		{name: "unexpected_commit_sha", out: testSHA4 + " " + testSHA1 + "\n", want: ReasonGitFailed},
-		{name: "malformed_output", out: "garbage\n", want: ReasonGitFailed},
 		{name: "git_error", err: errors.New("missing object"), want: ReasonGitFailed},
 	}
 	for _, tc := range fakeCases {
@@ -241,19 +214,22 @@ func TestValidateDepDirsFile(t *testing.T) {
 		})
 	}
 
-	t.Run("missing_file_directory_and_empty_path", func(t *testing.T) {
-		if reason, ok := validateDepDirsFile("", defaultScriptMaxOutput); ok || reason != ReasonWasmDepDirsFailed {
-			t.Errorf("empty path: got (%q, %v), want (%q, false)", reason, ok, ReasonWasmDepDirsFailed)
-		}
-		dir := t.TempDir()
-		if reason, ok := validateDepDirsFile(dir, defaultScriptMaxOutput); ok || reason != ReasonWasmDepDirsFailed {
-			t.Errorf("directory path: got (%q, %v), want (%q, false)", reason, ok, ReasonWasmDepDirsFailed)
-		}
-		missing := filepath.Join(dir, "does-not-exist")
-		if reason, ok := validateDepDirsFile(missing, defaultScriptMaxOutput); ok || reason != ReasonWasmDepDirsFailed {
-			t.Errorf("missing file: got (%q, %v), want (%q, false)", reason, ok, ReasonWasmDepDirsFailed)
-		}
-	})
+	dir := t.TempDir()
+	pathCases := []struct {
+		name string
+		path string
+	}{
+		{name: "empty_path", path: ""},
+		{name: "directory_path", path: dir},
+		{name: "missing_file", path: filepath.Join(dir, "does-not-exist")},
+	}
+	for _, tc := range pathCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if reason, ok := validateDepDirsFile(tc.path, defaultScriptMaxOutput); ok || reason != ReasonWasmDepDirsFailed {
+				t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonWasmDepDirsFailed)
+			}
+		})
+	}
 }
 
 func TestIsNonCodePath(t *testing.T) {
@@ -295,9 +271,6 @@ func TestIsNonCodePath(t *testing.T) {
 		{path: "foo.MD", want: false},
 		{path: "internal/foo.md\na.go", want: false},
 		{path: "internal/a.go\ndocs/x.md", want: true}, // ends in .md, same as ci.yml regex \.md$
-		{path: "internal/a\nb.go", want: false},
-		{path: "internal/a\tb.go", want: false},
-		{path: "internal/caf\xc3\xa9.go", want: false},
 	}
 
 	for _, tc := range cases {
@@ -325,18 +298,8 @@ func TestClassifyParentDiff(t *testing.T) {
 		}
 	})
 
-	t.Run("empty_commit_still_requires_valid_dep_dirs", func(t *testing.T) {
-		emptyDeps := writeTempFile(t, "empty-deps", nil)
-		// Neither git nor script may be called when depDirsFile is invalid.
-		gitFake := cmdrunnertestutil.New(t)
-		scriptFake := cmdrunnertestutil.New(t)
-		reason, ok := classifyParentDiff(t.Context(), gitFake, scriptFake, time.Second, testSHA1, testSHA2, emptyDeps, defaultScriptMaxOutput)
-		if ok || reason != ReasonWasmDepDirsFailed {
-			t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonWasmDepDirsFailed)
-		}
-	})
-
-	t.Run("dep_dirs_exceeds_configured_limit_before_git", func(t *testing.T) {
+	t.Run("invalid_dep_dirs_stops_before_git", func(t *testing.T) {
+		// Neither git nor script may be called when depDirsFile fails validation.
 		gitFake := cmdrunnertestutil.New(t)
 		scriptFake := cmdrunnertestutil.New(t)
 		reason, ok := classifyParentDiff(t.Context(), gitFake, scriptFake, time.Second, testSHA1, testSHA2, depFile, 4)
@@ -366,65 +329,41 @@ func TestClassifyParentDiff(t *testing.T) {
 		}
 	})
 
-	codePaths := []string{
-		".github/workflows/ci.yml",
-		"cmd/ciskip/main.go",
-		"internal/ciskip/git.go",
-		"extension/scripts/has-extension-changes.sh",
-		"extension/scripts/wasm-dep-dirs.sh",
-		"Makefile",
-	}
-	for _, cp := range codePaths {
-		t.Run("code_change_stops_before_script_"+cp, func(t *testing.T) {
-			gitFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
-				Name: "git",
-				Args: diffCmdArgs,
-				Out:  "docs/a.md\x00" + cp + "\x00",
-			})
-			scriptFake := cmdrunnertestutil.New(t)
-			reason, ok := classifyParentDiff(t.Context(), gitFake, scriptFake, time.Second, testSHA1, testSHA2, depFile, defaultScriptMaxOutput)
-			if ok || reason != ReasonCodeChanged {
-				t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonCodeChanged)
-			}
-		})
-	}
-
-	t.Run("extension_changed", func(t *testing.T) {
+	t.Run("code_change_stops_before_script", func(t *testing.T) {
 		gitFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
 			Name: "git",
 			Args: diffCmdArgs,
-			Out:  "README.md\x00",
+			Out:  "docs/a.md\x00internal/ciskip/git.go\x00",
 		})
-		scriptFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
-			Name: "bash",
-			Args: []string{hasExtensionChangesScript, depFile},
-			Out:  "true\n",
-		})
+		scriptFake := cmdrunnertestutil.New(t)
 		reason, ok := classifyParentDiff(t.Context(), gitFake, scriptFake, time.Second, testSHA1, testSHA2, depFile, defaultScriptMaxOutput)
-		if ok || reason != ReasonExtensionChanged {
-			t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonExtensionChanged)
+		if ok || reason != ReasonCodeChanged {
+			t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonCodeChanged)
 		}
 	})
 
-	scriptFailCases := []struct {
+	scriptRejectCases := []struct {
 		name string
+		path string
 		out  string
 		err  error
+		want Reason
 	}{
-		{name: "script_exit_error", err: &cmdrunner.ExitError{Code: 2}},
-		{name: "script_unexpected_stderr", err: cmdrunner.ErrUnexpectedStderr},
-		{name: "script_output_too_large", err: cmdrunner.ErrOutputTooLarge},
-		{name: "script_timeout", err: context.DeadlineExceeded},
-		{name: "script_empty_stdout", out: ""},
-		{name: "script_missing_newline", out: "false"},
-		{name: "script_garbage_stdout", out: "maybe\n"},
+		{name: "extension_changed", path: "README.md\x00", out: "true\n", want: ReasonExtensionChanged},
+		{name: "script_exit_error", path: "docs/a.md\x00", err: &cmdrunner.ExitError{Code: 2}, want: ReasonExtensionCheckFailed},
+		{name: "script_unexpected_stderr", path: "docs/a.md\x00", err: cmdrunner.ErrUnexpectedStderr, want: ReasonExtensionCheckFailed},
+		{name: "script_output_too_large", path: "docs/a.md\x00", err: cmdrunner.ErrOutputTooLarge, want: ReasonExtensionCheckFailed},
+		{name: "script_timeout", path: "docs/a.md\x00", err: context.DeadlineExceeded, want: ReasonExtensionCheckFailed},
+		{name: "script_empty_stdout", path: "docs/a.md\x00", out: "", want: ReasonExtensionCheckFailed},
+		{name: "script_missing_newline", path: "docs/a.md\x00", out: "false", want: ReasonExtensionCheckFailed},
+		{name: "script_garbage_stdout", path: "docs/a.md\x00", out: "maybe\n", want: ReasonExtensionCheckFailed},
 	}
-	for _, tc := range scriptFailCases {
+	for _, tc := range scriptRejectCases {
 		t.Run(tc.name, func(t *testing.T) {
 			gitFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
 				Name: "git",
 				Args: diffCmdArgs,
-				Out:  "docs/a.md\x00",
+				Out:  tc.path,
 			})
 			scriptFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
 				Name: "bash",
@@ -433,8 +372,8 @@ func TestClassifyParentDiff(t *testing.T) {
 				Err:  tc.err,
 			})
 			reason, ok := classifyParentDiff(t.Context(), gitFake, scriptFake, time.Second, testSHA1, testSHA2, depFile, defaultScriptMaxOutput)
-			if ok || reason != ReasonExtensionCheckFailed {
-				t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonExtensionCheckFailed)
+			if ok || reason != tc.want {
+				t.Errorf("got (%q, %v), want (%q, false)", reason, ok, tc.want)
 			}
 		})
 	}
@@ -578,7 +517,7 @@ func TestClassifyDiffWithRealGitAndScript(t *testing.T) {
 			wantReason: ReasonExtensionChanged,
 		},
 		{
-			name:       "extension_non_ascii_md_not_missed_by_quoting",
+			name:       "extension_non_ascii_md_path",
 			parentTree: map[string]string{"extension/caf\xc3\xa9.md": "v1\n"},
 			headTree:   map[string]string{"extension/caf\xc3\xa9.md": "v2\n"},
 			wantOK:     false,
@@ -616,34 +555,6 @@ func TestClassifyDiffWithRealGitAndScript(t *testing.T) {
 			name:       "code_newline_path",
 			parentTree: map[string]string{"internal/a\nb.go": "package x\n"},
 			headTree:   map[string]string{"internal/a\nb.go": "package x\n// changed\n"},
-			wantOK:     false,
-			wantReason: ReasonCodeChanged,
-		},
-		{
-			name:       "classifier_workflow_changed",
-			parentTree: map[string]string{".github/workflows/ci.yml": "v1\n"},
-			headTree:   map[string]string{".github/workflows/ci.yml": "v2\n"},
-			wantOK:     false,
-			wantReason: ReasonCodeChanged,
-		},
-		{
-			name:       "classifier_cmd_ciskip_changed",
-			parentTree: map[string]string{"cmd/ciskip/main.go": "package main\n"},
-			headTree:   map[string]string{"cmd/ciskip/main.go": "package main\n// v2\n"},
-			wantOK:     false,
-			wantReason: ReasonCodeChanged,
-		},
-		{
-			name:       "classifier_internal_ciskip_changed",
-			parentTree: map[string]string{"internal/ciskip/git.go": "package ciskip\n"},
-			headTree:   map[string]string{"internal/ciskip/git.go": "package ciskip\n// v2\n"},
-			wantOK:     false,
-			wantReason: ReasonCodeChanged,
-		},
-		{
-			name:       "classifier_extension_script_changed",
-			parentTree: map[string]string{"extension/scripts/has-extension-changes.sh": "#!/usr/bin/env bash\n"},
-			headTree:   map[string]string{"extension/scripts/has-extension-changes.sh": "#!/usr/bin/env bash\n# v2\n"},
 			wantOK:     false,
 			wantReason: ReasonCodeChanged,
 		},

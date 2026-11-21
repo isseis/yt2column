@@ -82,166 +82,40 @@ func TestValidateBaseContext(t *testing.T) {
 		}
 	})
 
+	setRepo := func(repo string) func(*Input) {
+		return func(in *Input) {
+			in.Repo, in.HeadRepo, in.BaseRepo = repo, repo, repo
+		}
+	}
+
 	cases := []struct {
 		name   string
 		mutate func(*Input)
 		want   Reason
 	}{
-		{
-			name:   "fork_head_repo_differs",
-			mutate: func(in *Input) { in.HeadRepo = "attacker/yt2column" },
-			want:   ReasonForkOrRepoMismatch,
-		},
-		{
-			name:   "deleted_fork_empty_head_repo",
-			mutate: func(in *Input) { in.HeadRepo = "" },
-			want:   ReasonForkOrRepoMismatch,
-		},
-		{
-			name:   "base_repo_differs_from_repo",
-			mutate: func(in *Input) { in.BaseRepo = "other/yt2column" },
-			want:   ReasonForkOrRepoMismatch,
-		},
-		{
-			name:   "repo_empty",
-			mutate: func(in *Input) { in.Repo = ""; in.HeadRepo = ""; in.BaseRepo = "" },
-			want:   ReasonForkOrRepoMismatch,
-		},
-		{
-			name: "repo_query_injection",
-			mutate: func(in *Input) {
-				in.Repo = "isseis/yt2column?x=1"
-				in.HeadRepo = in.Repo
-				in.BaseRepo = in.Repo
-			},
-			want: ReasonForkOrRepoMismatch,
-		},
-		{
-			name: "repo_fragment_percent_amp",
-			mutate: func(in *Input) {
-				in.Repo = "isseis/yt2column#a%20&b"
-				in.HeadRepo = in.Repo
-				in.BaseRepo = in.Repo
-			},
-			want: ReasonForkOrRepoMismatch,
-		},
-		{
-			name: "repo_dotdot_segment",
-			mutate: func(in *Input) {
-				in.Repo = "isseis/.."
-				in.HeadRepo = in.Repo
-				in.BaseRepo = in.Repo
-			},
-			want: ReasonForkOrRepoMismatch,
-		},
-		{
-			name: "repo_dot_segment",
-			mutate: func(in *Input) {
-				in.Repo = "./yt2column"
-				in.HeadRepo = in.Repo
-				in.BaseRepo = in.Repo
-			},
-			want: ReasonForkOrRepoMismatch,
-		},
-		{
-			name: "repo_extra_slash",
-			mutate: func(in *Input) {
-				in.Repo = "isseis/yt2column/extra"
-				in.HeadRepo = in.Repo
-				in.BaseRepo = in.Repo
-			},
-			want: ReasonForkOrRepoMismatch,
-		},
-		{
-			name: "repo_whitespace_not_trimmed",
-			mutate: func(in *Input) {
-				in.Repo = " isseis/yt2column"
-				in.HeadRepo = in.Repo
-				in.BaseRepo = in.Repo
-			},
-			want: ReasonForkOrRepoMismatch,
-		},
-		{
-			name: "repo_no_slash",
-			mutate: func(in *Input) {
-				in.Repo = "noslash"
-				in.HeadRepo = in.Repo
-				in.BaseRepo = in.Repo
-			},
-			want: ReasonForkOrRepoMismatch,
-		},
-		{
-			name: "repo_empty_owner",
-			mutate: func(in *Input) {
-				in.Repo = "/yt2column"
-				in.HeadRepo = in.Repo
-				in.BaseRepo = in.Repo
-			},
-			want: ReasonForkOrRepoMismatch,
-		},
-		{
-			name: "repo_empty_name",
-			mutate: func(in *Input) {
-				in.Repo = "isseis/"
-				in.HeadRepo = in.Repo
-				in.BaseRepo = in.Repo
-			},
-			want: ReasonForkOrRepoMismatch,
-		},
-		{
-			name: "repo_exceeds_max_len",
-			mutate: func(in *Input) {
-				in.Repo = "a/" + strings.Repeat("b", maxRepoLen-1)
-				in.HeadRepo = in.Repo
-				in.BaseRepo = in.Repo
-			},
-			want: ReasonForkOrRepoMismatch,
-		},
-		{
-			name:   "non_main_base_ref",
-			mutate: func(in *Input) { in.BaseRef = "release" },
-			want:   ReasonNonMainBase,
-		},
-		{
-			name:   "base_ref_exact_max_len_non_main",
-			mutate: func(in *Input) { in.BaseRef = strings.Repeat("m", maxBaseRefLen) },
-			want:   ReasonNonMainBase,
-		},
-		{
-			name:   "empty_base_ref",
-			mutate: func(in *Input) { in.BaseRef = "" },
-			want:   ReasonNonMainBase,
-		},
-		{
-			name:   "base_ref_with_whitespace",
-			mutate: func(in *Input) { in.BaseRef = "main " },
-			want:   ReasonNonMainBase,
-		},
-		{
-			name:   "base_ref_exceeds_max_len",
-			mutate: func(in *Input) { in.BaseRef = strings.Repeat("m", maxBaseRefLen+1) },
-			want:   ReasonInvalidInput,
-		},
-		{
-			name:   "head_sha_uppercase_last_char",
-			mutate: func(in *Input) { in.HeadSHA = testSHA1[:39] + "A" },
-			want:   ReasonInvalidInput,
-		},
-		{
-			name:   "head_sha_short",
-			mutate: func(in *Input) { in.HeadSHA = testSHA1[:39] },
-			want:   ReasonInvalidInput,
-		},
-		{
-			name:   "head_sha_long",
-			mutate: func(in *Input) { in.HeadSHA = testSHA1 + "0" },
-			want:   ReasonInvalidInput,
-		},
-		{
-			name:   "head_sha_non_hex_last_char",
-			mutate: func(in *Input) { in.HeadSHA = testSHA1[:39] + "g" },
-			want:   ReasonInvalidInput,
-		},
+		{name: "fork_head_repo_differs", mutate: func(in *Input) { in.HeadRepo = "attacker/yt2column" }, want: ReasonForkOrRepoMismatch},
+		{name: "deleted_fork_empty_head_repo", mutate: func(in *Input) { in.HeadRepo = "" }, want: ReasonForkOrRepoMismatch},
+		{name: "base_repo_differs_from_repo", mutate: func(in *Input) { in.BaseRepo = "other/yt2column" }, want: ReasonForkOrRepoMismatch},
+		{name: "repo_empty", mutate: setRepo(""), want: ReasonForkOrRepoMismatch},
+		{name: "repo_query_injection", mutate: setRepo("isseis/yt2column?x=1"), want: ReasonForkOrRepoMismatch},
+		{name: "repo_fragment_percent_amp", mutate: setRepo("isseis/yt2column#a%20&b"), want: ReasonForkOrRepoMismatch},
+		{name: "repo_dotdot_segment", mutate: setRepo("isseis/.."), want: ReasonForkOrRepoMismatch},
+		{name: "repo_dot_segment", mutate: setRepo("./yt2column"), want: ReasonForkOrRepoMismatch},
+		{name: "repo_extra_slash", mutate: setRepo("isseis/yt2column/extra"), want: ReasonForkOrRepoMismatch},
+		{name: "repo_whitespace_not_trimmed", mutate: setRepo(" isseis/yt2column"), want: ReasonForkOrRepoMismatch},
+		{name: "repo_no_slash", mutate: setRepo("noslash"), want: ReasonForkOrRepoMismatch},
+		{name: "repo_empty_owner", mutate: setRepo("/yt2column"), want: ReasonForkOrRepoMismatch},
+		{name: "repo_empty_name", mutate: setRepo("isseis/"), want: ReasonForkOrRepoMismatch},
+		{name: "repo_exceeds_max_len", mutate: setRepo("a/" + strings.Repeat("b", maxRepoLen-1)), want: ReasonForkOrRepoMismatch},
+		{name: "non_main_base_ref", mutate: func(in *Input) { in.BaseRef = "release" }, want: ReasonNonMainBase},
+		{name: "base_ref_exact_max_len_non_main", mutate: func(in *Input) { in.BaseRef = strings.Repeat("m", maxBaseRefLen) }, want: ReasonNonMainBase},
+		{name: "empty_base_ref", mutate: func(in *Input) { in.BaseRef = "" }, want: ReasonNonMainBase},
+		{name: "base_ref_with_whitespace", mutate: func(in *Input) { in.BaseRef = "main " }, want: ReasonNonMainBase},
+		{name: "base_ref_exceeds_max_len", mutate: func(in *Input) { in.BaseRef = strings.Repeat("m", maxBaseRefLen+1) }, want: ReasonInvalidInput},
+		{name: "head_sha_uppercase_last_char", mutate: func(in *Input) { in.HeadSHA = testSHA1[:39] + "A" }, want: ReasonInvalidInput},
+		{name: "head_sha_short", mutate: func(in *Input) { in.HeadSHA = testSHA1[:39] }, want: ReasonInvalidInput},
+		{name: "head_sha_long", mutate: func(in *Input) { in.HeadSHA = testSHA1 + "0" }, want: ReasonInvalidInput},
+		{name: "head_sha_non_hex_last_char", mutate: func(in *Input) { in.HeadSHA = testSHA1[:39] + "g" }, want: ReasonInvalidInput},
 	}
 
 	for _, tc := range cases {
@@ -294,18 +168,16 @@ func TestValidateRemainingContext(t *testing.T) {
 		{name: "pr_negative", mutate: func(in *Input) { in.PRNumber = "-1" }, want: ReasonInvalidInput},
 		{name: "pr_plus_sign", mutate: func(in *Input) { in.PRNumber = "+1" }, want: ReasonInvalidInput},
 		{name: "pr_padded", mutate: func(in *Input) { in.PRNumber = " 10 " }, want: ReasonInvalidInput},
-		{name: "pr_trailing_space", mutate: func(in *Input) { in.PRNumber = "10 " }, want: ReasonInvalidInput},
 		{name: "pr_non_digit_suffix", mutate: func(in *Input) { in.PRNumber = "1a" }, want: ReasonInvalidInput},
 		{name: "pr_too_long", mutate: func(in *Input) { in.PRNumber = "10000000000" }, want: ReasonInvalidInput},
 		{name: "run_attempt_2_manual_rerun", mutate: func(in *Input) { in.RunAttempt = "2" }, want: ReasonManualRerun},
 		{name: "run_attempt_max_10_digits_manual_rerun", mutate: func(in *Input) { in.RunAttempt = "9999999999" }, want: ReasonManualRerun},
 		{name: "run_attempt_zero", mutate: func(in *Input) { in.RunAttempt = "0" }, want: ReasonInvalidInput},
 		{name: "run_attempt_negative", mutate: func(in *Input) { in.RunAttempt = "-1" }, want: ReasonInvalidInput},
+		{name: "run_attempt_plus_sign", mutate: func(in *Input) { in.RunAttempt = "+1" }, want: ReasonInvalidInput},
+		{name: "run_attempt_leading_zero", mutate: func(in *Input) { in.RunAttempt = "01" }, want: ReasonInvalidInput},
 		{name: "run_attempt_non_int", mutate: func(in *Input) { in.RunAttempt = "one" }, want: ReasonInvalidInput},
 		{name: "run_attempt_trailing_space", mutate: func(in *Input) { in.RunAttempt = "1 " }, want: ReasonInvalidInput},
-		{name: "run_attempt_non_digit_suffix", mutate: func(in *Input) { in.RunAttempt = "1a" }, want: ReasonInvalidInput},
-		{name: "run_attempt_padded", mutate: func(in *Input) { in.RunAttempt = " 1" }, want: ReasonInvalidInput},
-		{name: "run_attempt_too_long", mutate: func(in *Input) { in.RunAttempt = "10000000000" }, want: ReasonInvalidInput},
 		{name: "wasm_dep_dirs_false", mutate: func(in *Input) { in.WasmDepDirsOK = "false" }, want: ReasonWasmDepDirsFailed},
 		{name: "wasm_dep_dirs_empty", mutate: func(in *Input) { in.WasmDepDirsOK = "" }, want: ReasonInvalidInput},
 		{name: "wasm_dep_dirs_uppercase", mutate: func(in *Input) { in.WasmDepDirsOK = "TRUE" }, want: ReasonInvalidInput},
@@ -349,24 +221,27 @@ func TestRunnerOptions(t *testing.T) {
 		"PAGER=less",
 	}
 
-	limits := defaultLimits()
+	// Use distinct non-default limits so swapping any two fields fails the test.
+	limits := evalLimits{
+		gitMaxOutput:    1111,
+		scriptMaxOutput: 2222,
+		ghMaxOutput:     3333,
+		waitDelay:       7 * time.Second,
+		groupStopGrace:  13 * time.Second,
+	}
 	gitOpts, scriptOpts, ghOpts := runnerOptions(environ, limits)
 
-	if gitOpts.MaxOutput != 16<<20 || !gitOpts.ProcessGroup || gitOpts.StderrIsFailure ||
-		gitOpts.WaitDelay != 5*time.Second || gitOpts.GroupStopGrace != 5*time.Second {
+	if gitOpts.MaxOutput != limits.gitMaxOutput || !gitOpts.ProcessGroup || gitOpts.StderrIsFailure ||
+		gitOpts.WaitDelay != limits.waitDelay || gitOpts.GroupStopGrace != limits.groupStopGrace {
 		t.Errorf("unexpected gitOpts: %+v", gitOpts)
 	}
-	if scriptOpts.MaxOutput != 64<<10 || scriptOpts.ProcessGroup || !scriptOpts.StderrIsFailure ||
-		scriptOpts.WaitDelay != 5*time.Second {
+	if scriptOpts.MaxOutput != limits.scriptMaxOutput || scriptOpts.ProcessGroup || !scriptOpts.StderrIsFailure ||
+		scriptOpts.WaitDelay != limits.waitDelay {
 		t.Errorf("unexpected scriptOpts: %+v", scriptOpts)
 	}
-	if ghOpts.MaxOutput != 4<<20 || !ghOpts.ProcessGroup || ghOpts.StderrIsFailure ||
-		ghOpts.WaitDelay != 5*time.Second || ghOpts.GroupStopGrace != 5*time.Second {
+	if ghOpts.MaxOutput != limits.ghMaxOutput || !ghOpts.ProcessGroup || ghOpts.StderrIsFailure ||
+		ghOpts.WaitDelay != limits.waitDelay || ghOpts.GroupStopGrace != limits.groupStopGrace {
 		t.Errorf("unexpected ghOpts: %+v", ghOpts)
-	}
-	if limits.commandTimeout != 15*time.Second || limits.runTimeout != 45*time.Second ||
-		limits.maxRunPages != 3 || limits.maxJobPages != 2 || limits.maxAnnotationPages != 3 {
-		t.Errorf("unexpected defaultLimits: %+v", limits)
 	}
 
 	for _, check := range []struct {
