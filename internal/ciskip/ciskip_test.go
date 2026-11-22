@@ -3,10 +3,13 @@
 package ciskip
 
 import (
+	"os"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	cmdrunnertestutil "github.com/isseis/yt2column/internal/cmdrunner/testutil"
 )
 
 func TestDecisionSkip(t *testing.T) {
@@ -286,4 +289,291 @@ func TestRunnerOptions(t *testing.T) {
 	if !slices.Equal(ghOpts.Env, wantGHEnv) {
 		t.Errorf("gh env = %q, want %q", ghOpts.Env, wantGHEnv)
 	}
+}
+
+func TestEvaluateSkipEligible(t *testing.T) {
+	depFile := writeTempFile(t, "wasm-dep-dirs", []byte("internal/llm/devfake/\n"))
+
+	t.Run("doc_only_diff_skips", func(t *testing.T) {
+		diffOut := "docs/tasks/0119_ci_skip_doc_only_commit/03_implementation_plan.md\x00.claude/commands/runplan.md\x00LICENSE\x00"
+		gitFake := cmdrunnertestutil.New(t, localGitPassSteps(diffOut)...)
+		scriptFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
+			Name: "bash",
+			Args: []string{hasExtensionChangesScript, depFile},
+			Out:  "false\n",
+		})
+		ghFake := cmdrunnertestutil.New(t, ghHappySteps(testRunID)...)
+
+		ev := newWithRunners(gitFake, scriptFake, ghFake, defaultLimits())
+		dec := ev.Evaluate(t.Context(), validEvalInput(depFile))
+
+		if !dec.Skip() || dec.Reason != ReasonSkipped {
+			t.Fatalf("decision = %+v, want Skip()=true Reason=%q", dec, ReasonSkipped)
+		}
+		if dec.NoticeBaseSHA != testSHA1 || dec.ParentSHA != testSHA4 || dec.ParentRunID != testRunID || dec.HTTPStatus != 0 {
+			t.Errorf("decision fields = %+v, want NoticeBaseSHA=%q ParentSHA=%q ParentRunID=%d HTTPStatus=0",
+				dec, testSHA1, testSHA4, testRunID)
+		}
+	})
+
+	t.Run("empty_commit_skips_without_calling_extension_script", func(t *testing.T) {
+		gitFake := cmdrunnertestutil.New(t, localGitPassSteps("")...)
+		// Zero scripted steps: fails if has-extension-changes.sh is invoked on an empty diff.
+		scriptFake := cmdrunnertestutil.New(t)
+		ghFake := cmdrunnertestutil.New(t, ghHappySteps(testRunID)...)
+
+		ev := newWithRunners(gitFake, scriptFake, ghFake, defaultLimits())
+		dec := ev.Evaluate(t.Context(), validEvalInput(depFile))
+
+		if !dec.Skip() || dec.Reason != ReasonSkipped {
+			t.Fatalf("decision = %+v, want Skip()=true Reason=%q", dec, ReasonSkipped)
+		}
+		if dec.NoticeBaseSHA != testSHA1 || dec.ParentSHA != testSHA4 || dec.ParentRunID != testRunID {
+			t.Errorf("decision fields = %+v, want NoticeBaseSHA=%q ParentSHA=%q ParentRunID=%d",
+				dec, testSHA1, testSHA4, testRunID)
+		}
+	})
+
+	t.Run("empty_commit_still_validates_dep_dirs_file_before_diff", func(t *testing.T) {
+		badDepFile := writeTempFile(t, "empty-deps", nil)
+		// Only synthetic merge, origin/main, and single-parent run; diff/script/gh must not run.
+		gitFake := cmdrunnertestutil.New(t, localGitPassSteps("")[:3]...)
+		scriptFake := cmdrunnertestutil.New(t)
+		ghFake := cmdrunnertestutil.New(t)
+
+		ev := newWithRunners(gitFake, scriptFake, ghFake, defaultLimits())
+		dec := ev.Evaluate(t.Context(), validEvalInput(badDepFile))
+
+		if dec.Skip() || dec.Reason != ReasonWasmDepDirsFailed {
+			t.Fatalf("decision = %+v, want Reason=%q", dec, ReasonWasmDepDirsFailed)
+		}
+		if dec.NoticeBaseSHA != testSHA1 {
+			t.Errorf("NoticeBaseSHA = %q, want %q", dec.NoticeBaseSHA, testSHA1)
+		}
+	})
+}
+
+func TestEvaluateChangedFilesReject(t *testing.T) {
+	depFile := writeTempFile(t, "wasm-dep-dirs", []byte("internal/llm/devfake/\n"))
+
+	codeCases := []struct {
+		name    string
+		diffOut string
+	}{
+		{name: "go_source", diffOut: "internal/foo/a.go\x00"},
+		{name: "ci_workflow", diffOut: ".github/workflows/ci.yml\x00"},
+		{name: "cmd_ciskip", diffOut: "cmd/ciskip/main.go\x00"},
+		{name: "internal_ciskip", diffOut: "internal/ciskip/github.go\x00"},
+		{name: "extension_script", diffOut: "extension/scripts/has-extension-changes.sh\x00"},
+	}
+
+	for _, tc := range codeCases {
+		t.Run("code_"+tc.name, func(t *testing.T) {
+			gitFake := cmdrunnertestutil.New(t, localGitPassSteps(tc.diffOut)...)
+			// Neither script nor gh may be called when a code change is detected.
+			scriptFake := cmdrunnertestutil.New(t)
+			ghFake := cmdrunnertestutil.New(t)
+
+			ev := newWithRunners(gitFake, scriptFake, ghFake, defaultLimits())
+			dec := ev.Evaluate(t.Context(), validEvalInput(depFile))
+
+			if dec.Skip() || dec.Reason != ReasonCodeChanged {
+				t.Fatalf("decision = %+v, want Reason=%q", dec, ReasonCodeChanged)
+			}
+			if dec.NoticeBaseSHA != testSHA1 || dec.ParentSHA != testSHA4 {
+				t.Errorf("decision = %+v, want NoticeBaseSHA=%q ParentSHA=%q", dec, testSHA1, testSHA4)
+			}
+		})
+	}
+
+	t.Run("extension_change_stops_before_gh", func(t *testing.T) {
+		gitFake := cmdrunnertestutil.New(t, localGitPassSteps("README.md\x00")...)
+		scriptFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
+			Name: "bash",
+			Args: []string{hasExtensionChangesScript, depFile},
+			Out:  "true\n",
+		})
+		ghFake := cmdrunnertestutil.New(t)
+
+		ev := newWithRunners(gitFake, scriptFake, ghFake, defaultLimits())
+		dec := ev.Evaluate(t.Context(), validEvalInput(depFile))
+
+		if dec.Skip() || dec.Reason != ReasonExtensionChanged {
+			t.Fatalf("decision = %+v, want Reason=%q", dec, ReasonExtensionChanged)
+		}
+		if dec.NoticeBaseSHA != testSHA1 || dec.ParentSHA != testSHA4 {
+			t.Errorf("decision = %+v, want NoticeBaseSHA=%q ParentSHA=%q", dec, testSHA1, testSHA4)
+		}
+	})
+}
+
+func TestEvaluateContextValidation(t *testing.T) {
+	depFile := writeTempFile(t, "wasm-dep-dirs", []byte("internal/llm/devfake/\n"))
+
+	baseRejects := []struct {
+		name   string
+		mutate func(*Input)
+		want   Reason
+	}{
+		{name: "fork_pr", mutate: func(in *Input) { in.HeadRepo = "other/yt2column" }, want: ReasonForkOrRepoMismatch},
+		{name: "deleted_fork_empty_head_repo", mutate: func(in *Input) { in.HeadRepo = "" }, want: ReasonForkOrRepoMismatch},
+		{name: "non_main_base", mutate: func(in *Input) { in.BaseRef = "release" }, want: ReasonNonMainBase},
+		{name: "invalid_head_sha", mutate: func(in *Input) { in.HeadSHA = "not-a-sha" }, want: ReasonInvalidInput},
+	}
+
+	for _, tc := range baseRejects {
+		t.Run("base_"+tc.name, func(t *testing.T) {
+			in := validEvalInput(depFile)
+			tc.mutate(&in)
+			// Base context failure must not invoke git, script, or gh, and must leave NoticeBaseSHA empty.
+			ev := newWithRunners(cmdrunnertestutil.New(t), cmdrunnertestutil.New(t), cmdrunnertestutil.New(t), defaultLimits())
+			dec := ev.Evaluate(t.Context(), in)
+
+			if dec.Skip() || dec.Reason != tc.want {
+				t.Fatalf("decision = %+v, want Reason=%q", dec, tc.want)
+			}
+			if dec.NoticeBaseSHA != "" {
+				t.Errorf("NoticeBaseSHA = %q, want empty", dec.NoticeBaseSHA)
+			}
+		})
+	}
+
+	postMergeRejects := []struct {
+		name   string
+		mutate func(*Input)
+		want   Reason
+	}{
+		{name: "manual_rerun", mutate: func(in *Input) { in.RunAttempt = "2" }, want: ReasonManualRerun},
+		{name: "invalid_run_attempt", mutate: func(in *Input) { in.RunAttempt = "0" }, want: ReasonInvalidInput},
+		{name: "invalid_pr_number", mutate: func(in *Input) { in.PRNumber = "abc" }, want: ReasonInvalidInput},
+		{name: "wasm_dep_dirs_ok_false", mutate: func(in *Input) { in.WasmDepDirsOK = "false" }, want: ReasonWasmDepDirsFailed},
+	}
+
+	for _, tc := range postMergeRejects {
+		t.Run("remaining_"+tc.name, func(t *testing.T) {
+			in := validEvalInput(depFile)
+			tc.mutate(&in)
+			gitFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
+				Name: "git",
+				Args: gitArgs("rev-list", "--parents", "-n", "1", "HEAD"),
+				Out:  testSHA3 + " " + testSHA1 + " " + testSHA2 + "\n",
+			})
+			ev := newWithRunners(gitFake, cmdrunnertestutil.New(t), cmdrunnertestutil.New(t), defaultLimits())
+			dec := ev.Evaluate(t.Context(), in)
+
+			if dec.Skip() || dec.Reason != tc.want {
+				t.Fatalf("decision = %+v, want Reason=%q", dec, tc.want)
+			}
+			if dec.NoticeBaseSHA != testSHA1 {
+				t.Errorf("NoticeBaseSHA = %q, want %q", dec.NoticeBaseSHA, testSHA1)
+			}
+		})
+	}
+}
+
+func TestEvaluateBaseConsistency(t *testing.T) {
+	depFile := writeTempFile(t, "wasm-dep-dirs", []byte("internal/llm/devfake/\n"))
+
+	t.Run("merge_commit_mismatch_leaves_notice_empty", func(t *testing.T) {
+		gitFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
+			Name: "git",
+			Args: gitArgs("rev-list", "--parents", "-n", "1", "HEAD"),
+			Out:  testSHA3 + " " + testSHA1 + " " + testSHA4 + "\n",
+		})
+		ev := newWithRunners(gitFake, cmdrunnertestutil.New(t), cmdrunnertestutil.New(t), defaultLimits())
+		dec := ev.Evaluate(t.Context(), validEvalInput(depFile))
+
+		if dec.Skip() || dec.Reason != ReasonMergeCommitMismatch {
+			t.Fatalf("decision = %+v, want Reason=%q", dec, ReasonMergeCommitMismatch)
+		}
+		if dec.NoticeBaseSHA != "" {
+			t.Errorf("NoticeBaseSHA = %q, want empty on merge commit mismatch", dec.NoticeBaseSHA)
+		}
+	})
+
+	t.Run("origin_main_moved_preserves_notice_base_sha", func(t *testing.T) {
+		gitFake := cmdrunnertestutil.New(t,
+			cmdrunnertestutil.Step{
+				Name: "git",
+				Args: gitArgs("rev-list", "--parents", "-n", "1", "HEAD"),
+				Out:  testSHA3 + " " + testSHA1 + " " + testSHA2 + "\n",
+			},
+			cmdrunnertestutil.Step{
+				Name: "git",
+				Args: gitArgs("rev-parse", "--verify", originMainCommitRef),
+				Out:  testSHA4 + "\n",
+			},
+		)
+		ev := newWithRunners(gitFake, cmdrunnertestutil.New(t), cmdrunnertestutil.New(t), defaultLimits())
+		dec := ev.Evaluate(t.Context(), validEvalInput(depFile))
+
+		if dec.Skip() || dec.Reason != ReasonMainMovedAtCheckout {
+			t.Fatalf("decision = %+v, want Reason=%q", dec, ReasonMainMovedAtCheckout)
+		}
+		if dec.NoticeBaseSHA != testSHA1 {
+			t.Errorf("NoticeBaseSHA = %q, want %q", dec.NoticeBaseSHA, testSHA1)
+		}
+	})
+
+	t.Run("merge_commit_pr_head_preserves_notice_base_sha", func(t *testing.T) {
+		gitFake := cmdrunnertestutil.New(t,
+			cmdrunnertestutil.Step{
+				Name: "git",
+				Args: gitArgs("rev-list", "--parents", "-n", "1", "HEAD"),
+				Out:  testSHA3 + " " + testSHA1 + " " + testSHA2 + "\n",
+			},
+			cmdrunnertestutil.Step{
+				Name: "git",
+				Args: gitArgs("rev-parse", "--verify", originMainCommitRef),
+				Out:  testSHA1 + "\n",
+			},
+			cmdrunnertestutil.Step{
+				Name: "git",
+				Args: gitArgs("rev-list", "--parents", "-n", "1", testSHA2),
+				Out:  testSHA2 + " " + testSHA4 + " " + testSHA1 + "\n",
+			},
+		)
+		ev := newWithRunners(gitFake, cmdrunnertestutil.New(t), cmdrunnertestutil.New(t), defaultLimits())
+		dec := ev.Evaluate(t.Context(), validEvalInput(depFile))
+
+		if dec.Skip() || dec.Reason != ReasonNotSingleParent {
+			t.Fatalf("decision = %+v, want Reason=%q", dec, ReasonNotSingleParent)
+		}
+		if dec.NoticeBaseSHA != testSHA1 {
+			t.Errorf("NoticeBaseSHA = %q, want %q", dec.NoticeBaseSHA, testSHA1)
+		}
+	})
+}
+
+func TestEvaluateFailSafe(t *testing.T) {
+	t.Run("zero_value_evaluator_fails_safe", func(t *testing.T) {
+		var zero Evaluator
+		dec := zero.Evaluate(t.Context(), validEvalInput("/tmp/unused"))
+		if dec.Skip() || dec.Reason != ReasonUnspecified || dec.NoticeBaseSHA != "" {
+			t.Errorf("zero Evaluator.Evaluate = %+v, want zero Decision", dec)
+		}
+	})
+
+	t.Run("nil_evaluator_fails_safe", func(t *testing.T) {
+		var nilEval *Evaluator
+		dec := nilEval.Evaluate(t.Context(), validEvalInput("/tmp/unused"))
+		if dec.Skip() || dec.Reason != ReasonUnspecified {
+			t.Errorf("nil Evaluator.Evaluate = %+v, want zero Decision", dec)
+		}
+	})
+
+	t.Run("new_builds_production_evaluator", func(t *testing.T) {
+		ev := New(os.Environ())
+		if ev == nil || ev.git == nil || ev.script == nil || ev.gh == nil {
+			t.Fatalf("New(os.Environ()) returned incomplete evaluator: %+v", ev)
+		}
+		if ev.limits != defaultLimits() {
+			t.Errorf("New limits = %+v, want %+v", ev.limits, defaultLimits())
+		}
+		// Base context check runs without invoking external commands.
+		dec := ev.Evaluate(t.Context(), Input{Repo: testRepo, BaseRepo: testRepo, HeadRepo: "fork/yt2column", BaseRef: "main", HeadSHA: testSHA2})
+		if dec.Skip() || dec.Reason != ReasonForkOrRepoMismatch {
+			t.Errorf("production evaluator fork decision = %+v, want Reason=%q", dec, ReasonForkOrRepoMismatch)
+		}
+	})
 }

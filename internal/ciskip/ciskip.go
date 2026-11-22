@@ -15,6 +15,7 @@
 package ciskip
 
 import (
+	"context"
 	"slices"
 	"strconv"
 	"strings"
@@ -89,6 +90,104 @@ type Decision struct {
 // Invariant: only ReasonSkipped yields true; the zero value and any unknown Reason fail safe.
 func (d Decision) Skip() bool {
 	return d.Reason == ReasonSkipped
+}
+
+// Evaluator runs the CI skip decision using bounded external command runners.
+type Evaluator struct {
+	git    cmdrunner.Runner
+	script cmdrunner.InputRunner
+	gh     cmdrunner.Runner
+	limits evalLimits
+}
+
+// New builds a production Evaluator with isolated, bounded cmdrunner instances
+// derived from the process environment (environ).
+func New(environ []string) *Evaluator {
+	limits := defaultLimits()
+	gitOpts, scriptOpts, ghOpts := runnerOptions(environ, limits)
+	return &Evaluator{
+		git:    cmdrunner.NewOS(gitOpts),
+		script: cmdrunner.NewOS(scriptOpts),
+		gh:     cmdrunner.NewOS(ghOpts),
+		limits: limits,
+	}
+}
+
+// newWithRunners builds an Evaluator with explicit runners and limits for tests.
+func newWithRunners(git cmdrunner.Runner, script cmdrunner.InputRunner, gh cmdrunner.Runner, limits evalLimits) *Evaluator {
+	return &Evaluator{
+		git:    git,
+		script: script,
+		gh:     gh,
+		limits: limits,
+	}
+}
+
+// Evaluate determines whether heavy CI jobs may be skipped for the current PR head commit.
+// Contract: Evaluate never returns an error for operational failures; every failure maps
+// to a Decision with Skip() == false and a specific Reason (fail-safe).
+// Invariant: NoticeBaseSHA is populated only after base context validation and HEAD^2 == HeadSHA
+// verification succeed, and is preserved on every subsequent non-skip decision; gh is never
+// called unless all local checks pass.
+func (e *Evaluator) Evaluate(ctx context.Context, in Input) Decision {
+	if e == nil || e.git == nil || e.script == nil || e.gh == nil {
+		return Decision{Reason: ReasonUnspecified}
+	}
+
+	evalCtx := ctx
+	if e.limits.runTimeout > 0 {
+		var cancel context.CancelFunc
+		evalCtx, cancel = context.WithTimeout(ctx, e.limits.runTimeout)
+		defer cancel()
+	}
+
+	if reason, ok := validateBaseContext(in); !ok {
+		return Decision{Reason: reason}
+	}
+
+	mergeBaseSHA, reason, ok := resolveSyntheticMergeBase(evalCtx, e.git, e.limits.commandTimeout, in.HeadSHA)
+	if !ok {
+		return Decision{Reason: reason}
+	}
+
+	// HEAD^2 == in.HeadSHA is now proven on a same-repo main PR; preserve NoticeBaseSHA
+	// on every decision from this point onward so the caller can record ci-base-sha.
+	dec := Decision{NoticeBaseSHA: mergeBaseSHA}
+
+	prNumber, reason, ok := validateRemainingContext(in)
+	if !ok {
+		dec.Reason = reason
+		return dec
+	}
+
+	if reason, ok := verifyOriginMain(evalCtx, e.git, e.limits.commandTimeout, mergeBaseSHA); !ok {
+		dec.Reason = reason
+		return dec
+	}
+
+	parentSHA, reason, ok := resolveSingleParent(evalCtx, e.git, e.limits.commandTimeout, in.HeadSHA)
+	if !ok {
+		dec.Reason = reason
+		return dec
+	}
+	dec.ParentSHA = parentSHA
+
+	if reason, ok := classifyParentDiff(
+		evalCtx,
+		e.git,
+		e.script,
+		e.limits.commandTimeout,
+		parentSHA,
+		in.HeadSHA,
+		in.DepDirsFile,
+		e.limits.scriptMaxOutput,
+	); !ok {
+		dec.Reason = reason
+		return dec
+	}
+
+	e.verifyParentCI(evalCtx, in.Repo, prNumber, parentSHA, mergeBaseSHA, &dec)
+	return dec
 }
 
 // evalLimits holds the operational bounds enforced on external commands and API paging.

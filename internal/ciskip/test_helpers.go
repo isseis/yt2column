@@ -4,6 +4,7 @@ package ciskip
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,13 +12,19 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
+	cmdrunnertestutil "github.com/isseis/yt2column/internal/cmdrunner/testutil"
 )
 
 const (
+	testGitCmd      = "git"
+	testRepo        = "isseis/yt2column"
+	testPRNumber    = "1073"
 	testSHA1        = "1111111111111111111111111111111111111111"
 	testSHA2        = "2222222222222222222222222222222222222222"
 	testSHA3        = "3333333333333333333333333333333333333333"
 	testSHA4        = "4444444444444444444444444444444444444444"
+	testRunID       = int64(5001)
+	testCheckJobID  = int64(9001)
 	testRepoDirMode = 0o750
 )
 
@@ -141,4 +148,142 @@ func (r *testGitRepo) runners() (cmdrunner.Runner, cmdrunner.InputRunner) {
 	gitOpts.Dir = r.dir
 	scriptOpts.Dir = filepath.Join("..", "..")
 	return cmdrunner.NewOS(gitOpts), cmdrunner.NewOS(scriptOpts)
+}
+
+// ghAPIArgs builds the full argument list ghAPIGet passes to cmdrunner.Runner.
+func ghAPIArgs(endpoint string) []string {
+	return []string{"api", "--hostname", ghHostname, "-i", endpoint}
+}
+
+// ghHTTPResponse builds a `gh api -i` response with an LF-terminated status line
+// and CRLF-terminated headers followed by a CRLF blank line and body.
+func ghHTTPResponse(statusLine string, extraHeaders []string, body string) string {
+	var b strings.Builder
+	b.WriteString(statusLine)
+	b.WriteByte('\n')
+	b.WriteString("Content-Type: application/json\r\n")
+	for _, h := range extraHeaders {
+		b.WriteString(h)
+		b.WriteString("\r\n")
+	}
+	b.WriteString("\r\n")
+	b.WriteString(body)
+	return b.String()
+}
+
+func runsEndpoint(page int) string {
+	return fmt.Sprintf(
+		"repos/%s/actions/workflows/ci.yml/runs?event=pull_request&head_sha=%s&per_page=100&page=%d",
+		testRepo, testSHA4, page,
+	)
+}
+
+func jobsEndpoint(runID int64, page int) string {
+	return fmt.Sprintf(
+		"repos/%s/actions/runs/%d/jobs?filter=latest&per_page=100&page=%d",
+		testRepo, runID, page,
+	)
+}
+
+func annotationsEndpoint(page int) string {
+	return fmt.Sprintf(
+		"repos/%s/check-runs/%d/annotations?per_page=100&page=%d",
+		testRepo, testCheckJobID, page,
+	)
+}
+
+// validEvalInput builds a valid Input whose HEAD^1 is testSHA1, HeadSHA is testSHA2,
+// synthetic merge is testSHA3, and parent commit is testSHA4.
+func validEvalInput(depFile string) Input {
+	return Input{
+		Repo:          testRepo,
+		HeadRepo:      testRepo,
+		BaseRepo:      testRepo,
+		BaseRef:       "main",
+		PRNumber:      testPRNumber,
+		HeadSHA:       testSHA2,
+		RunAttempt:    "1",
+		DepDirsFile:   depFile,
+		WasmDepDirsOK: "true",
+	}
+}
+
+// localGitPassSteps returns the four git steps for a synthetic merge commit
+// (HEAD -> testSHA3, HEAD^1 -> testSHA1, HEAD^2 -> testSHA2), matching origin/main,
+// single parent testSHA4, and the given NUL-delimited parent diff output.
+func localGitPassSteps(diffOut string) []cmdrunnertestutil.Step {
+	return []cmdrunnertestutil.Step{
+		{
+			Name: testGitCmd,
+			Args: gitArgs("rev-list", "--parents", "-n", "1", "HEAD"),
+			Out:  testSHA3 + " " + testSHA1 + " " + testSHA2 + "\n",
+		},
+		{
+			Name: testGitCmd,
+			Args: gitArgs("rev-parse", "--verify", originMainCommitRef),
+			Out:  testSHA1 + "\n",
+		},
+		{
+			Name: testGitCmd,
+			Args: gitArgs("rev-list", "--parents", "-n", "1", testSHA2),
+			Out:  testSHA2 + " " + testSHA4 + "\n",
+		},
+		{
+			Name: testGitCmd,
+			Args: gitArgs("-c", "core.quotePath=false", "diff", "-z", "--no-renames", "--name-only", testSHA4, testSHA2, "--"),
+			Out:  diffOut,
+		},
+	}
+}
+
+// ghHappySteps returns the three single-page GitHub API responses for a passing parent CI.
+func ghHappySteps(runID int64) []cmdrunnertestutil.Step {
+	runsBody := fmt.Sprintf(`{
+		"total_count": 1,
+		"workflow_runs": [{
+			"id": %d,
+			"path": ".github/workflows/ci.yml",
+			"event": "pull_request",
+			"head_sha": %q,
+			"status": "completed",
+			"conclusion": "success",
+			"created_at": "2026-11-21T10:00:00Z",
+			"run_started_at": "2026-11-21T10:00:05Z",
+			"repository": {"full_name": %q},
+			"head_repository": {"full_name": %q},
+			"pull_requests": [{"number": 1073}]
+		}]
+	}`, runID, testSHA4, testRepo, testRepo)
+
+	jobsBody := fmt.Sprintf(`{
+		"total_count": 4,
+		"jobs": [
+			{"id": %d, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "success"},
+			{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "success"},
+			{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "success"},
+			{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": "skipped"}
+		]
+	}`, testCheckJobID, testSHA4, testSHA4, testSHA4, testSHA4)
+
+	annBody := fmt.Sprintf(`[
+		{"annotation_level": "notice", "title": "ci-base-sha", "message": %q}
+	]`, testSHA1)
+
+	return []cmdrunnertestutil.Step{
+		{
+			Name: "gh",
+			Args: ghAPIArgs(runsEndpoint(1)),
+			Out:  ghHTTPResponse("HTTP/2.0 200 OK", nil, runsBody),
+		},
+		{
+			Name: "gh",
+			Args: ghAPIArgs(jobsEndpoint(runID, 1)),
+			Out:  ghHTTPResponse("HTTP/2.0 200 OK", nil, jobsBody),
+		},
+		{
+			Name: "gh",
+			Args: ghAPIArgs(annotationsEndpoint(1)),
+			Out:  ghHTTPResponse("HTTP/2.0 200 OK", nil, annBody),
+		},
+	}
 }
