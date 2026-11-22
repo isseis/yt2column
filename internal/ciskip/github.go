@@ -363,7 +363,7 @@ func readLinkQuotedString(s string, start int) (string, int, bool) {
 }
 
 // relContainsNext reports whether a rel parameter value designates "next".
-// Per RFC 8288 §3.3, a quoted rel value may hold space-separated relation types.
+// Per RFC 8288 section 3.3, a quoted rel value may hold space-separated relation types.
 func relContainsNext(val string, quoted bool) bool {
 	if !quoted {
 		return strings.EqualFold(val, "next")
