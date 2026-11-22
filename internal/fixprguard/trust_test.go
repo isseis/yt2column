@@ -152,7 +152,7 @@ func TestAssessUnverifiableAuthor(t *testing.T) {
 		{"missing_login", []testComment{{id: 1, kind: "User", omitLogin: true}}, []Finding{noName}},
 		{"login_outside_grammar", []testComment{userComment(1, "evil_name")}, []Finding{noName}},
 		{"bot_login_outside_grammar", []testComment{botComment(1, "coderabbitai[bot]")}, []Finding{noName}},
-		{"second_bot_login_outside_grammar", []testComment{botComment(1, "chatgpt-codex-connector[bot]")}, []Finding{noName}},
+		{"second_bot_login_outside_grammar", []testComment{botComment(1, "second-reviewer-bot[bot]")}, []Finding{noName}},
 		{"kind_organization", []testComment{{id: 1, kind: "Organization", login: "alice"}}, []Finding{unknownKind}},
 		{"kind_empty", []testComment{{id: 1, kind: "", login: "alice"}}, []Finding{unknownKind}},
 		{"kind_missing", []testComment{{id: 1, omitKind: true, login: "alice"}}, []Finding{unknownKind}},

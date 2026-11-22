@@ -21,7 +21,7 @@ const (
 	testReviewer = "coderabbitai"
 	// testSecondReviewer is the second automated reviewer of the tests that
 	// pass two names; newTestGitHub does not trust it.
-	testSecondReviewer = "chatgpt-codex-connector"
+	testSecondReviewer = "second-reviewer-bot"
 	testTime           = "2026-10-21T00:00:00Z"
 	testLaterAt        = "2026-10-21T01:00:00Z"
 

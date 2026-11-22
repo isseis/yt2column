@@ -15,10 +15,10 @@ import (
 
 // mentionCheckCommand is the command every section that posts text to GitHub
 // runs in its mention check before its posting command, so the user's account
-// never posts the mention. The guard tool checks the text only for reply,
-// edit-pr, append-pr, and finish's body, so on every other posting path this
-// command is what stops it.
-const mentionCheckCommand = "`grep -qiF -- '<review-mention>' <file>`"
+// never posts a rejected mention. The guard tool checks the text only for
+// reply, edit-pr, append-pr, and finish's body, so on every other posting path
+// this command is what stops it.
+const mentionCheckCommand = "`<mention-check> <file>`"
 
 // postingSection is a section of a command document that posts text to
 // GitHub: where it is and the posting commands it runs.
@@ -85,37 +85,64 @@ const (
 	handoffLinkIssue = "### Choosing the issue to link"
 )
 
-// TestCodexMentionOnlyInRequestRow checks that the mention appears, in any
-// letter case, in no command document and not in CLAUDE.md, except on
-// _context.md's "PR review request" row: a document that wrote it would lead
-// a session to post it from the user's account.
-func TestCodexMentionOnlyInRequestRow(t *testing.T) {
+// TestMentionsOnlyInAllowedRows checks that none of the mentions in
+// fixprguard.RejectedMentions() appears, in any letter case, in any command
+// document or in CLAUDE.md, except on _context.md's "PR review request" and
+// "Rejected mentions" rows: a document that wrote one elsewhere could lead a
+// session to post it from the user's account.
+func TestMentionsOnlyInAllowedRows(t *testing.T) {
 	var paths []string
 	for _, rel := range doctestutil.CommandDocs(t, repositoryRoot) {
 		paths = append(paths, filepath.Join(repositoryRoot, rel))
 	}
-	rows := 0
+	rejected := fixprguard.RejectedMentions()
+	if len(rejected) == 0 {
+		t.Fatal("fixprguard.RejectedMentions() is empty")
+	}
+	requestRows := 0
+	rejectedRowMentions := map[string]int{}
 	for _, path := range append(paths, claudePath) {
+		isContext := filepath.Clean(path) == filepath.Clean(contextPath)
 		for i, line := range strings.Split(doctestutil.ReadDoc(t, path), "\n") {
-			if !strings.Contains(strings.ToLower(line), strings.ToLower(fixprguard.CodexMention)) {
-				continue
+			low := strings.ToLower(line)
+			onRequestRow := isContext && strings.HasPrefix(line, "| "+requestRow+" | ")
+			onRejectedRow := isContext && strings.HasPrefix(line, "| "+rejectedMentionsRow+" | ")
+			matchedRequest := false
+			for _, mention := range rejected {
+				if !strings.Contains(low, strings.ToLower(mention)) {
+					continue
+				}
+				switch {
+				case onRequestRow:
+					matchedRequest = true
+				case onRejectedRow:
+					rejectedRowMentions[mention]++
+				default:
+					t.Errorf("%s:%d writes %q outside _context.md's %q and %q rows", path, i+1, mention, requestRow, rejectedMentionsRow)
+				}
 			}
-			if filepath.Clean(path) == filepath.Clean(contextPath) && strings.HasPrefix(line, "| "+requestRow+" | ") {
-				rows++
-				continue
+			if matchedRequest {
+				requestRows++
 			}
-			t.Errorf("%s:%d writes the mention outside _context.md's %q row", path, i+1, requestRow)
 		}
 	}
-	if rows != 1 {
-		t.Errorf("_context.md's %q row holds the mention on %d lines, want 1", requestRow, rows)
+	if requestRows != 1 {
+		t.Errorf("_context.md's %q row holds a rejected mention on %d lines, want 1", requestRow, requestRows)
+	}
+	for _, mention := range rejected {
+		if n := rejectedRowMentions[mention]; n != 1 {
+			t.Errorf("_context.md's %q row holds %q on %d lines, want 1", rejectedMentionsRow, mention, n)
+		}
 	}
 }
 
 // TestPostingPathsCheckMention checks that each section that posts text to
 // GitHub runs the mention check's command: the first sentence after its
-// "**Mention check.**" label holds mentionCheckCommand. Whether any posting
-// command comes before the check is TestPostingCommandsInventory's to judge.
+// "**Mention check.**" label holds mentionCheckCommand. It also checks that
+// _context.md's "Rejected mentions" row defines <mention-check> (using
+// grep -qiF with -e per value and --) and <rejected-mentions>. Whether any
+// posting command comes before the check is TestPostingCommandsInventory's to
+// judge.
 func TestPostingPathsCheckMention(t *testing.T) {
 	const label = "**Mention check.**"
 	for _, ps := range postingSections {
@@ -129,6 +156,16 @@ func TestPostingPathsCheckMention(t *testing.T) {
 			}
 		})
 	}
+	t.Run("context_placeholder_definitions", func(t *testing.T) {
+		row := contextRow(t, rejectedMentionsRow)
+		_, desc, found := strings.Cut(row[1], valueSeparator)
+		if !found {
+			t.Fatalf("_context.md %q row has no description separator %q", rejectedMentionsRow, valueSeparator)
+		}
+		requirePhrases(t, "_context.md "+rejectedMentionsRow, desc,
+			"`<mention-check>`", "`grep -qiF`", "`-e '<mention>'`", "`--`", "`<rejected-mentions>`",
+		)
+	})
 }
 
 var (
@@ -191,12 +228,13 @@ func isPost(command string) bool {
 }
 
 // TestPostingCommandsInventory checks every invocation of a posting command in
-// the command documents: it must be a PR review request, which is the one text
-// that holds the mention, or the squash merge in mergepr.md, which is not a
-// comment, or one of a posting section's listed commands, after that
-// section's mention check. A new posting command added without the check
-// fails here, inside a posting section too. A post the documents describe in
-// prose, without a command, is out of its reach.
+// the command documents: it must be the single PR review request in runpr.md
+// step 4 (the one text that holds a rejected mention, allowed nowhere else),
+// or the squash merge in mergepr.md, which is not a comment, or one of a
+// posting section's listed commands, after that section's mention check. A new
+// posting command added without the check fails here, inside a posting section
+// too. A post the documents describe in prose, without a command, is out of
+// its reach.
 func TestPostingCommandsInventory(t *testing.T) {
 	// span is a posting section's place in its document: where it starts,
 	// where its first mention check starts, and where it ends.
@@ -216,21 +254,33 @@ func TestPostingCommandsInventory(t *testing.T) {
 		key := filepath.Clean(ps.path)
 		sections[key] = append(sections[key], span{at, at + check, at + len(section), ps.commands})
 	}
+	runprDoc := doctestutil.ReadDoc(t, runprPath)
+	step4 := requireSection(t, "runpr.md", runprDoc, runprStep4)
+	step4Start := strings.Index(runprDoc, step4)
+	step4End := step4Start + len(step4)
+	runprKey := filepath.Clean(runprPath)
 
 	posts := 0
+	requestPosts := 0
 	for _, rel := range doctestutil.CommandDocs(t, repositoryRoot) {
 		path := filepath.Join(repositoryRoot, rel)
 		doc := doctestutil.ReadDoc(t, path)
 		key := filepath.Clean(path)
 		for _, m := range postingCommand.FindAllStringIndex(doc, -1) {
 			command := invocation(doc, m[0])
-			if !isPost(command) || strings.HasPrefix(command, `gh pr comment <number> --body "<review-request>"`) ||
-				isReadOnly(doc, m[0], command) ||
+			if !isPost(command) || isReadOnly(doc, m[0], command) ||
 				(filepath.Base(path) == "mergepr.md" && strings.HasPrefix(command, "gh pr merge")) {
 				continue
 			}
-			posts++
 			line := strings.Count(doc[:m[0]], "\n") + 1
+			if strings.HasPrefix(command, `gh pr comment <number> --body "<review-request>"`) {
+				requestPosts++
+				if key != runprKey || m[0] < step4Start || step4End <= m[0] {
+					t.Errorf("%s:%d posts the PR review request (%q) outside runpr.md step 4", path, line, command)
+				}
+				continue
+			}
+			posts++
 			where := "outside the sections that run the mention check"
 			for _, s := range sections[key] {
 				switch {
@@ -251,6 +301,9 @@ func TestPostingCommandsInventory(t *testing.T) {
 	// A matcher that stopped matching would pass every document.
 	if posts == 0 {
 		t.Error("found no posting command in the command documents")
+	}
+	if requestPosts != 1 {
+		t.Errorf("found %d PR review request commands in the command documents, want 1 (in runpr.md step 4)", requestPosts)
 	}
 }
 
@@ -374,7 +427,7 @@ func TestCodeRabbitConfigStopsReview(t *testing.T) {
 		// count of auto_review keys, the inline-comment strip, and the
 		// comment-line skip.
 		{"second_auto_review_without_enabled", enabled, enabled + "  auto_review:\n    drafts: true\n", false},
-		{"inline_comment", enabled, "  auto_review:\n    enabled: false # PR review is Codex's\n", true},
+		{"inline_comment", enabled, "  auto_review:\n    enabled: false # PR review is manual\n", true},
 		{"comment_line_between", enabled, "  auto_review:\n# note: kept\n    enabled: false\n", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -390,7 +443,7 @@ func TestCodeRabbitConfigStopsReview(t *testing.T) {
 }
 
 // TestAgentsCodeReviewRules checks that AGENTS.md holds exactly one heading of
-// the section Codex reads its review rules from.
+// the section CodeRabbit reads its review rules from.
 func TestAgentsCodeReviewRules(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, agentsPath)
 	const heading = "## Code Review Rules"

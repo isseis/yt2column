@@ -38,7 +38,6 @@ PR を開く前に、ハーネスごとに `_context.md` が定めるクロス�
 
 -   **選んだもの：** タスクの PR を開くコマンド（`/mkreq`・`/mkarch`・`/mkplan`・`/mkplan2`・`/runplan`）は、PR を開く前に、ローカルの CLI レビューと並列にクロスチェックの部分レビューを行う。
 -   **理由：** PR を開く前に直せば、直しがローカルの CLI レビューを通り、人のレビューは直した後の PR から始まるためである。PR を開いたときの PR レビューはない（[ADR-0013](0013-review-setup.md)）。この理由は [0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) で改めたもので、それまでは Codex の最初の PR レビューが修正を見ることを理由にしていた。
--   **食い違い:** `.claude/commands/_lib/fable-review.md` は、まだ Codex の最初の PR レビューを前提に書かれており、`runpr.md` のマージの質問の要約は、まだ「Codex が見ていない変更」を示す。この食い違いは https://github.com/isseis/yt2column/issues/1059 の実装で解消する。
 -   **回数：** `/runplan` でも phase group ごとではなく、PR につき 1 回とする。費用が phase group の数だけ増えるためである。
 -   **`/mkplan2` も含める：** PR の境界などを人に問わずに決めるためであり、共有の手順に置けば例外が要らないためでもある（0098 要件定義書の F-001）。
 
@@ -59,11 +58,11 @@ PR を開く前に、ハーネスごとに `_context.md` が定めるクロス�
 
 ### 4. ハーネスごとにモデルを固定・検証し、走らないときは止めずに記録する
 
--   **選んだもの：** 担当モデルは `_context.md` の対応表にハーネスごとに定める（Claude Code は `fable`、Antigravity（Gemini 系）は Gemini 4 Carbon `gemini-4-carbon-*` または Gemini 4 Argon `gemini-4-argon-*` のうち `0120` のアーキテクチャ設計で評価して決定するモデル）。基準に当たる箇所がない、エラーや利用上限に達した、走ったモデルが指定モデルでない、エージェントがクロスチェックモデルを呼べない、のどれかのときは、止めずに `not run` とその理由を記録して進む。
--   **理由：** 部分レビューは追加のレビューであり、使えないことで PR を止めないためである。
+-   **選んだもの：** 担当モデルは `_context.md` の対応表にハーネスごとに定める（Claude Code は `fable`、Antigravity は組み込みの `claude-opus-5-5-medium`）。基準に当たる箇所がない、エラーや利用上限に達した、走ったモデルが指定モデルでない、エージェントがクロスチェックモデルを呼べない、のどれかのときは、止めずに `not run` とその理由を記録して進む。
+-   **理由：** 部分レビューは追加のレビューであり、使えないことで PR を止めないためである。Antigravity に `claude-opus-5-5-medium` を選んだのは、136 PR の実運用で `gemini-4-argon-medium` / `high` が延べ 9 回すべて指摘 0 件と検出力に欠け、`gemini-4-carbon-medium` と `gemini-4-neon-xhigh` は実測で 10 分超タイムアウトかつ割り当て消費が大きかったためである。一方、`claude-opus-5-5-medium` は実 PR `#1076` を 4 分 19 秒で完了し、4 つの範囲基準と `exclusion-error` の計 5 区分すべてにわたって 6 件の具体的な指摘を厳密形式で返し、通常セッションの Gemini 4 Neon に対する異系統クロスチェックとして機能した（[0120 設計書](../../tasks/0120_harness_independent_commands/02_architecture.md)「設計の際に決めたこと（2026-11-22）」）。
 -   **ハーネス別の起動とモデル検証：** ほかのモデルで代えず、指定モデルで走ったかを検証する。
     -   **Claude Code：** `Agent` ツールで起動し、サブエージェントが出力 1 行目に報告するモデルの ID で確かめる。
-    -   **Antigravity：** `invoke_subagent`（`Model: "pro"` を含む）は使わず、プロンプトに `Model:` 行の出力も求めない。起動前に `swarm(action: "models", all: true)` で指定モデルの存在と割り当ての残りを確かめ、利用不可なら別モデルで代えず `not run`（`unavailable`）とする。利用可能なら `swarm(action: "add", ...)` でモデルを固定し、サブエージェント本文の自己申告ではなくハーネス返却 JSON の `"model"` が指定モデルの ID と完全一致することを確かめる。不一致なら即座に `swarm(action: "kill")` で終了させ、モデル不一致の `not run` とする。起動後は完了を待機し（並列タスクで早期解除されない `schedule` で 30 分のタイムアウトを設ける）、結果は `read_board` で取得し、終了時に `swarm(action: "kill")` でワーカーを終了させる（外部 worktree での差分の渡し方は `0120` の設計で実測確認して定める。[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md) の F-005）。
+    -   **Antigravity：** `invoke_subagent`（`Model: "pro"` を含む）は使わず、プロンプトに `Model:` 行の出力も求めない。起動前に `swarm(action: "models", all: true)` で指定モデルの存在と割り当ての残りを確かめ、利用不可なら別モデルで代えず `not run`（`unavailable`）とする。利用可能ならメインセッションが起動前状態チェックより前に差分・ログ・変更ファイル一覧をスクラッチパッドへ直接リダイレクトして書き出し、`swarm(action: "add", ...)` でモデルを固定して起動し、ワーカーは `git` を実行せず `read_file` でそれを読む。モデル検証はサブエージェント本文の自己申告ではなくハーネス返却 JSON の `"model"`（欠落時のみ起動直後の `status` を 1 回予備参照）が指定モデルの ID と完全一致することで確かめ、不一致なら即座に `swarm(action: "kill")` と終了時状態チェックを行い、モデル不一致の `not run`（`wrong-model`）とする。起動後は完了を待機し（並列タスクで早期解除されない `schedule` で 30 分のタイムアウトを設ける）、結果は `read_board` で取得し、終了時に `swarm(action: "kill")` でワーカーを終了させる（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md) の F-005、[0120 設計書](../../tasks/0120_harness_independent_commands/02_architecture.md) 1.4「実測検証の結果（H-01・H-04）」）。
     -   **理由：** Antigravity の `invoke_subagent` は具体的なモデルを固定できず、サブエージェントはシステムプロンプトから自身のモデルの ID を読めないため本文の自己申告が検証にならないからである。
 -   **OpenCode で動く `/runplan`：** `not run`（`agent-cannot-call`）とする。chief の送り先（[ADR-0046](0046-chief-of-staff.md)）を変えないためである（0098 要件定義書の F-005）。
 -   **待つ時間：** 30 分までとし、超えたら `not run`（時間切れ）とする。呼び直しは 1 回とする。上限がないと、応答が返らないときに PR を開けないためである。30 分は、これまでの実績の最長（16 分）のおよそ 2 倍である（[0098 設計書](../../tasks/0098_fable_partial_review/02_architecture.md) 1.2 の決定 4）。
@@ -126,6 +125,9 @@ PR を開く前に、ハーネスごとに `_context.md` が定めるクロス�
 -   **ほかのモデルでの代替：** 指定されたクロスチェックモデルで走らせられないときに、上位モデルかセッションのモデルで代える。上位モデルのレビューと役目が重なり、記録の意味も曖昧になる（0098 要件定義書「要件定義の際に決めたこと（2026-11-17）」）。
 -   **モデルの ID を確かめない案、または Antigravity で本文の自己申告を使う案：** 指定が効いたことが分からず、Antigravity ではサブエージェントがプロンプト中の語をオウム返しして検査を素通りしうる（同上、[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「issue #1072 で決めたこと」）。
 -   **Antigravity で `invoke_subagent`（`Model: "pro"`）を使う案：** `invoke_subagent` は 4 段階の列挙しか持たず、指定した具体的なクロスチェックモデルのプールに固定できない（0120 要件定義書「issue #1072 で決めたこと」）。
+-   **Antigravity で `gemini-4-argon-medium` / `high` を選ぶ案：** 136 PR の実運用（7 日間）で延べ 9 回すべて指摘 0 件であり、上位モデルのレビューがない文書 PR でも問題を検出できなかった（[0120 設計書](../../tasks/0120_harness_independent_commands/02_architecture.md) 1.4「実測検証の結果（H-01・H-04）」）。
+-   **Antigravity で `gemini-4-carbon-medium` または `gemini-4-neon-xhigh` を選ぶ案：** 実測でどちらも 10 分以内に完了せず（Carbon は小規模パッチでも 3 分超で無応答）、Gemini の割り当て消費も大きかった（同上）。
+-   **Antigravity からローカルの Claude Code CLI（`claude -p --model fable`）を本タスク内で直接呼び出す案：** `--restricted`・`--output-format json` の実挙動確認および `BypassSandbox: true` 下の実行境界（固定フラグを強制するラッパーの要否など）の設計が別途要るため（ログイン済み `claude` CLI の利用を前提とし、認証自体の設計は不要）、後続 issue（[#1082](https://github.com/isseis/yt2column/issues/1082)、`#1072` が前提）へ分離した（[0120 設計書](../../tasks/0120_harness_independent_commands/02_architecture.md)「設計の際に決めたこと（2026-11-22）」）。
 -   **Antigravity で部分レビューを行わない案、またはメインセッションと別系統モデルの利用を毎回確認・強制する案：** 前者は信頼の境界と暗黙の選択を PR の前に見る層を失い、後者は毎回の確認やモデル選択制約を増やす（0120 要件定義書「要件定義の際に決めたこと（2026-11-21）」）。
 -   **OpenCode からの引き継ぎ：** OpenCode で動く `/runplan` では、PR を開く前に Claude Code に引き継いで部分レビューを走らせる。`runplan-takeover` の行の役目を広げることになり、chief の動きが変わる（0098 要件定義書「要件定義の際に決めたこと（2026-11-17）」）。
 -   **待つ時間の別案：** 待つ時間の上限を 20 分にする、または上限を設けない。前者は、これまでの最長（16 分）に近い回が時間切れになりうる。後者は応答が返らないときに PR を開けない（[0098 設計書](../../tasks/0098_fable_partial_review/02_architecture.md) 1.2 の決定 4）。
@@ -163,7 +165,7 @@ PR を開く前に、ハーネスごとに `_context.md` が定めるクロス�
 -   **PR を開くまでの時間：** クロスチェックの部分レビューとローカルの CLI レビューのうち、長い方の分だけ延びる。
 -   **記録の後に `origin/main` を merge した PR：** merge の後の確認（`high` 役割モデルでの 1 回）と、その直しの確かめ、CHECKS の走り直し、`/runplan` では上位モデルのレビューの判断のやり直しの分だけ、PR を開くまでの時間が延びる。記録の後に merge commit 以外の中身のある commit もあれば、部分レビューが PR の全体を見る 1 回分が加わる。
 -   **merge の後の確認が見ないもの：** 範囲の外にある merge の意味の衝突（コードの振る舞いの食い違い）は見ない。それは CHECKS だけに任せる。この危険は受け入れる（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）。確認が `not run` のとき（OpenCode で動く `/runplan` では、いつも）は、merge を PR の前に見るのは CHECKS だけである。
--   **Antigravity でのモデル系統の重なり：** Antigravity ではメインセッションのモデルの ID をセッション側から検証できないため、利用者が選んだメインセッションのモデルと `swarm` のクロスチェック担当モデルが同系統または同一モデルになりうる。別ワーカーの独立した文脈での検証と CodeRabbit CLI のレビューがあることを踏まえ、この危険を受け入れる（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「要件定義の際に決めたこと（2026-11-21）」）。
+-   **Antigravity での Claude 割り当て枠の消費とモデル系統の重なり：** Antigravity 組み込みの `claude-opus-5-5-medium` は週次リセットの Claude 枠を 1 PR あたり数 % 消費するため、枠が尽きたときは `not run`（`unavailable`）として PR を止めずに進む。また、通常のメインセッション（Gemini 4 Neon）とは異系統になる一方、メインセッションのモデルの ID をセッション側から検証できないため、利用者が手動で Claude 系をメインセッションに選んだ場合は同系統または同一モデルになりうる。別ワーカーの独立した文脈での検証と CodeRabbit CLI のレビューがあることを踏まえ、この危険を受け入れる（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「要件定義の決定変更（2026-11-22）」）。
 -   **OpenCode：** `low`（旧 `sonnet`）の PR を OpenCode で実装すると、部分レビューは走らない。
 -   **却下の手間と両読み保守：** トリアージの却下には確かめた方法と結果が要り、判定のスクリプトと読み取り手順は新旧 2 系統の記録行を扱う。
 -   **出力の扱い：** 部分レビューの出力の文は、コミットメッセージにも PR の説明にも写さない。出力は、差分にある秘密やメンションを引用しうるためである。指摘は、場所とセッション自身の要約で記録する。
@@ -177,4 +179,5 @@ PR を開く前に、ハーネスごとに `_context.md` が定めるクロス�
 - 2026-11-19 タスクの PR は push の直前に Fable の記録が有効かをもう一度判定し、有効でなければ足りない commit について Fable の部分レビューを行うことにした。タスク文書の PR の CHECKS の直しは印で扱って記録を無効にせず、記録の後の merge commit は、Opus のサブエージェントが merge に関わる箇所だけを確かめる merge の後の確認で扱う（[0114 要件定義書](../../tasks/0114_fable_record_after_merge/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）
 - 2026-11-19 merge の後の確認を、push の直前に加えてチェックポイントの入口でも行い、merge commit 1 つにつき 1 回行うことにした。タスク文書の PR の印は、チェックポイントの入口で残す。確かめる merge commit は確認できるものに限り、確かめられない merge commit は Fable が PR の全体を見る。push の直前の入口と merge の後の確認は `_lib/fable-review.md` に置く（[0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md)「設計の際に決めたこと（2026-11-19）」）
 - 2026-11-20 PR を開く前に行う理由を、直しがローカルの CLI レビューを通り、人のレビューが直した後の PR から始まることに改めた。Codex の PR レビューを外すので、merge の後の意味の衝突は CHECKS だけに任せる危険として受け入れた（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）
-- 2026-11-21 部分レビューをハーネス別のアダプタ経由で行うクロスチェックの部分レビューへ広げ、Antigravity では `swarm` のモデル固定・事前確認・返却 JSON の `"model"` 一致検証（採用モデルは設計で評価して決定）を行い、メインセッションと同系統になりうる危険を受け入れた。記録行と不一致理由コードも役割名に基づく形へ改め、新旧両方の記録行を読むことにした（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「issue #1072 で決めたこと」「要件定義の際に決めたこと（2026-11-21）」）
+- 2026-11-21 部分レビューをハーネス別のアダプタ経由で行うクロスチェックの部分レビューへ広げ、Antigravity では `swarm` のモデル固定・事前確認・返却 JSON の `"model"` 一致検証を行い、記録行と不一致理由コードも役割名に基づく形へ改めて新旧両方の記録行を読むことにした（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「issue #1072 で決めたこと」「要件定義の際に決めたこと（2026-11-21）」）
+- 2026-11-22 設計段階の比較評価（Argon の 136 PR 実績と Carbon・Neon XHigh・Opus Medium の実測）に基づき、Antigravity のクロスチェック担当モデルを当初の Gemini 系候補から組み込みの `claude-opus-5-5-medium` に改めた。ローカルの Claude Code CLI 経由の呼び出しは [#1082](https://github.com/isseis/yt2column/issues/1082) に分離した（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「要件定義の決定変更（2026-11-22）」、[0120 設計書](../../tasks/0120_harness_independent_commands/02_architecture.md)「設計の際に決めたこと（2026-11-22）」）
