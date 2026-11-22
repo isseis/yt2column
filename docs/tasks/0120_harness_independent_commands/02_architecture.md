@@ -72,7 +72,7 @@
 |---|---|---|
 | ワーカーの標準サンドボックスでの `git log -1 --oneline` | 終了コード 128 で失敗（`fatal: not a git repository: /Users/issei/git/yt2column/.git/worktrees/issue-1072`） | `git`・`gh` を要する全ワーカー／サブエージェントにこれらを実行させず、メインセッションがスクラッチパッドへ直接リダイレクト書き出ししたファイルを `read_file` で渡す |
 | メインセッションのスクラッチパッドに対するワーカーの `read_file` | 成功（同一会話の `scratch/` 配下を読み取り可能。1 回の読み取り上限は 800 行 / 46,080 バイト） | スクラッチパッドをデータ受け渡し先に使い、brief でページ分割読み取り（`StartLine`/`ByteOffset`）と変更ファイル一覧との突合を必須化する |
-| `swarm(action: "add")` の返却 JSON | `{"status":"added","name":...,"model":"<exact-model-id>","model_display_name":...,"conversation_id":...,"open_board":...,"note":...}` | 返却 JSON の `"model"` フィールドをバイト単位で完全一致検証する（欠落・非文字列の場合のみ起動直後の `status` を 1 回予備参照し、それでも一致しなければ即 `kill`） |
+| `swarm(action: "add")` の返却 JSON | `{"status":"added","name":...,"model":"<exact-model-id>","model_display_name":...,"conversation_id":...,"open_board":...,"note":...}` | 返却 JSON の `"model"` フィールドをバイト単位で完全一致検証する（`"model"` フィールド自体が `add` のスキーマに欠落している場合のみ起動直後の `status` を 1 回予備参照し、型違いを含む不一致時は補完せず即 `kill`） |
 | `swarm(action: "status")` の返却 JSON | `head`、`members[].{name, role, model, model_display_name, state, killed, last_read_seq, last_post_seq, last_post_time}` を返却 | 起動前の残存ワーカー掃除、異常終了時の確認、および `@coordinator` 漏れ投稿によるハング回避に使用する |
 | トークンの使用量の取得可否 | `add`・`status`・`read_board` のいずれもトークン数を返さない | Antigravity のクロスチェック記録は常に経過秒数と `tokens unknown` を記録する（AC-27） |
 | ワーカーのシステムプロンプトとツール構成 | 自身のモデルの ID は含まれない。`post_message`・`read_board`・`swarm_wait`・`swarm` を持ち、`send_message` は持たない | ワーカーには `Model:` 出力を求めず、単一投稿の 1 行目に厳密に `@coordinator` のみを置いた `post_message` で返し、メインセッション（コーディネータ）が 1 行目を検証・除去したうえで 2 行目以降を厳密検査する |
@@ -564,7 +564,7 @@ var errAgentsGitName = fmt.Errorf("%w: ignored .git name below .agents", ErrGitF
 
 ### 4.2. 並列ワーカー・再試行・タイムアウトの協調規則
 
--   **起動前の残存掃除と一意命名:** Antigravity の `pinned-worker` と `subagent-role` は起動前に `swarm(action: "status")` を確認し、前回の実行の異常終了等で残存する未終了ワーカーがあれば先に `swarm(action: "kill")` で掃除する。ワーカー名とスクラッチパッドのファイル名は固定名にせず、役割・パス・試行番号（例: `high-correct-1`、`high-weak-1`、`cc-review-1`、`<run-id>-diff.patch`）で一意化する。
+-   **起動前の残存掃除と一意命名:** Antigravity の `pinned-worker` と `subagent-role` は、1 回の実行単位（並列 2 ワーカー起動時は 1 本目を起動する直前の 1 回のみ）の開始前に `swarm(action: "status")` を確認し、前回の実行の異常終了等で残存する未終了ワーカーだけを先に `swarm(action: "kill")` で掃除する（同一実行単位で並列起動した稼働中のワーカーは対象外とし、2 本目の起動時に 1 本目を `kill` しない）。ワーカー名とスクラッチパッドのファイル名は固定名にせず、役割・パス・試行番号（例: `high-correct-1`、`high-weak-1`、`cc-review-1`、`<run-id>-diff.patch`）で一意化する。
 -   **並列 2 ワーカー（`high-review`）の部分失敗規則:**
     -   2 本の並列発見ワーカーのうち一方でもモデル不一致または状態チェック差分が出たときは、もう一方の稼働中ワーカーを含め全アクティブワーカーを直ちに `swarm(action: "kill")` し、タイマーを解除して終了時状態チェックを行ったうえで即時停止する（再試行しない）。
     -   一方が一時的なエラー（`add` エラーや実行エラー）で失敗したときは、残る稼働中ワーカーの完了または `kill` を済ませてアクティブワーカーを 0 にしてから終了時状態チェックを行い、差分がなければ 1 回限り再試行する。
@@ -619,7 +619,7 @@ flowchart LR
 1.  **モデルすり替わりと自己申告偽装の防止（AC-07・AC-21・AC-27）:**
     -   Antigravity の `swarm` ワーカーはシステムプロンプトから自分のモデルの ID を読めず、本文の自己申告はプロンプトのオウム返しで偽装しうる。そのため本文の `Model:` 行は一切求めず、ハーネス自身が返す JSON のみを信頼する。
     -   `swarm(action: "models", all: true)` では、`models` 配列に指定モデルの ID が完全一致で含まれ、かつ `quotas.<model-id>.quota_remaining` が正の百分率文字列（`%` 終端かつ数値部 `> 0`）であることだけを検証し、他のメンバは無視する。欠落・型違い・`"0%"`・非百分率文字列は利用不可として拒否する。
-    -   `swarm(action: "add")` の返却 JSON では `"model"`（文字列）だけを検証する（`"model"` フィールド自体が欠落または非文字列の場合のみ起動直後に `swarm(action: "status")` を 1 回予備参照する）。指定モデルの ID とバイト単位で完全一致しなければ、正規化や別モデル代替をせず即座に `swarm(action: "kill")` と終了時状態チェックを実行して終了する。
+    -   `swarm(action: "add")` の返却 JSON では `"model"`（文字列）だけを検証する（`"model"` フィールド自体が `add` のスキーマに欠落している場合のみ起動直後に `swarm(action: "status")` を 1 回予備参照する）。`"model"` が非文字列（`null`・数値・真偽値など）の場合や指定モデルの ID とバイト単位で完全一致しない場合は、`status` による補完・正規化・別モデル代替を一切行わず即座に `swarm(action: "kill")` と終了時状態チェックを実行して終了する。
 2.  **`_context.md` パターン読み取りの改ざん・正規表現インジェクション防止（AC-18・AC-30）:**
     -   判定スクリプトは必ず `origin/main` の `.claude/commands/_context.md` を `--no-replace-objects`・クリーン環境下で読み、作業ブランチによる改変を無視する。
     -   `Verification pattern` は 3.3 節の厳密文法（リテラルまたは末尾 `*` 前方一致）で全行を検証し、照合時はパターン文字列を正規表現・非引用 glob として評価しない（`.` はリテラル文字 `.` のみ一致、接尾辞は固定文字集合・48 文字上限 `^[a-z0-9.-]{1,48}$`）。
