@@ -138,6 +138,7 @@
 - `.claude/commands/fixpr.md`
 - `.claude/commands/runpr.md`
 - `docs/dev/guides/fixprguard_guide.md`
+- `docs/dev/adr/0055-harness-independent-commands.md`
 
 **作業内容:**
 - [ ] `internal/fixprguard/ignored_test.go` を次のとおり更新し、実装時に各新検査を 1 か所ずつ壊して該当テストが失敗することを確認する。
@@ -146,6 +147,7 @@
     - `.claude` 向けの境界ケース（`.git` ファイル・`.GIT`・`a.git`・ネストリポジトリ・リンクされた worktree・最上位ネストリポジトリ・合算 `walkEntries` 上限）を `.agents` にも対称に追加し、`errAgentsGitName` を検証する。
 - [ ] `.claude/commands/fixpr.md` と `.claude/commands/runpr.md` の全 `fixprguard --protocol` および `runpr.md:220` の `"protocol":<N>` 出力例を `origin/main` の値 + 1 に更新する。
 - [ ] `docs/dev/guides/fixprguard_guide.md` の `--protocol N` の現在の番号（`:66`）・5 章の全 `--protocol` / `"protocol":<N>` 出力例、7.1 の監視の一覧表と本文、7.2.3・7.2.5 の旧「`AGENTS.md`・`GEMINI.md` 等は一覧外」記述、8.1 の本文と一覧コマンド（`:613,617`。`.agents` が存在しないときもエラーにならない存在確認付きとする）、8.2 の規則表（`ignored .git name below .agents` 追加、および `:638,642` の `.claude/` 記述へ `.agents/` を併記）を更新する。
+- [ ] `ADR-0055`（`:25`）の `#1072` 食い違い記述から、本 PR で解消した `fixprguard` 監視拡張分を取り除き、残余の食い違いのみを示す形へ書き換える（`docs/dev/conventions/adr.md`「Discrepancy statements」、コミットメッセージに `Editorial correction:` 行を残す）。
 - [ ] `cmd/fixprguard/docs_test.go` を実行し、`TestGuideListsWatchList`・`TestGuideDescribesIgnoredFiles`・`TestDocumentedProtocolMatches` がすべて通ることを確認する。
 
 **完了基準:**
@@ -261,7 +263,7 @@
     - (c) 新旧の `done` 記録での `SKIP <done-line>`（`done` 記録の `<END>` 以降にある除外可能コミットの出力、字下げ・不正形式の無視を含む）。
     - (d) パターン照合の境界（`.` の非リテラル扱い・48 文字接尾辞の受理と 49 文字接尾辞の拒否・空接尾辞・空白を含むモデルの ID）、および `value-low`・`value-absent` の計画書であっても `_context.md` が不正（メタ文字・表破損・欠落等）なときは早期返却より前に期待する診断を標準エラーへ出力して `RUN` となること。
     - (e) 環境隔離（`GIT_DIR`・`GIT_WORK_TREE`・`BASH_FUNC_*`・`BASH_ENV`・`refs/replace`）および不正引数・`origin/main` 欠落・`MULTIPLE`・未閉鎖フェンス・`HEAD` での要件引き下げ。
-    - (f) `TestHighReviewDecisionCallSite`（`origin/main` から `--no-replace-objects` で取り出す契約）。
+    - (f) `TestHighReviewDecisionCallSite`（`TestReviewRecordsCallSite` と同様に `doctestutil.CommandDocs(t, repositoryRoot)` が返す全ファイルを走査し、`high-review-decision.sh` を呼ぶ箇所が許可された呼び出し元（PR-2 では `_lib/opus-review.md` のみ）に限られ、`origin/main` から `--no-replace-objects` で取り出す契約を満たすこと）。
 - [ ] `CLAUDE.md` のスクリプト名参照（`:841,965-966,1009`）を更新し、`ADR-0014`（`:33`）・`ADR-0035`（`:24` のスクリプト名部分）・`ADR-0042`（`:23` の残っている食い違い記述）・`ADR-0046`（`:50` の食い違い記述解消）を更新する（編集上の訂正はコミットメッセージに `Editorial correction:` 行を残す）。
 
 **完了基準:**
@@ -328,7 +330,7 @@
 **作業内容:**
 - [ ] `newRRFixture` に実リポジトリの `.claude/commands/_context.md` を配置し、`coverage` モードについては `_context.md` 不在でも動作するテストケースを追加する。
 - [ ] 既存の `fable` テストを `TestReviewRecordsCrossCheck`（`cross-check` モードの全パターンを bash 3.2・bash 4+ の双方で実行）と、最小限の互換別名テスト `TestReviewRecordsFableAlias`（`fable` モードの代表ケース: `VALID`・`MISSING <base>`・失敗時の `MISSING` と終了コード `1` を両 bash で実行）へ整理する。新旧記録行・チェックポイント行・`wrong-model` / `not-fable`・`agent-cannot-call`、および Claude Code（`claude-fable-*`）と Antigravity（`claude-opus-5-5-medium`）のモデルの ID が受理されることを検証する（`_lib/fable-review.md` の表読み取りはフェーズ 4 で `_lib/cross-check-review.md` へ一本化する）。
-- [ ] 設計書 7.5 のセキュリティ・境界テストを追加し、48 文字の接尾辞を受理する一方、49 文字の接尾辞や次の不正入力では `MISSING`（終了コード `1`）で拒否することを検証する: パターン長超過（リテラル 65 文字・前方一致 64 文字）、`Launch != none` での `-`、未知の `Harness`・`Role`・`Launch`、メタ文字、途中ワイルドカード、`.` の非リテラル扱い、空接尾辞、空白を含むモデルの ID、未登録モデル、重複する `(Harness, Role)`、別役割行の破損、表の欠落。実装時に各検証を壊して失敗することを確認する。
+- [ ] 設計書 7.5 のセキュリティ・境界テストを追加し、48 文字の接尾辞を受理する一方、49 文字の接尾辞や次の不正入力では `MISSING`（終了コード `1`）で拒否することを検証する: パターン長超過（リテラル 65 文字・前方一致 65 文字（接頭辞 64 文字＋`*`））、`Launch != none` での `-`、未知の `Harness`・`Role`・`Launch`、メタ文字、途中ワイルドカード、`.` の非リテラル扱い、空接尾辞、空白を含むモデルの ID、未登録モデル、重複する `(Harness, Role)`、別役割行の破損、表の欠落。実装時に各検証を壊して失敗することを確認する。
 - [ ] `TestReviewRecordsMode` に未知モードの拒否（`Cross-check` 等）を含めて更新する。
 
 **完了基準:**
@@ -341,17 +343,21 @@
 - `.claude/commands/_lib/harness-claude.md`（新規）
 - `.claude/commands/_lib/harness-antigravity.md`（新規）
 - `cmd/yt2column/fixpr_docs_test.go`（`TestHarnessAntigravityPhase6Redirect` 追加）
+- `docs/dev/adr/0014-deterministic-checks-in-go.md`
+- `docs/dev/adr/0050-fable-partial-review.md`
+- `docs/dev/adr/0055-harness-independent-commands.md`
 - `docs/tasks/0120_harness_independent_commands/03_implementation_plan.md`（§7 の差分記録）
 
 **作業内容:**
 - [ ] `.claude/commands/_lib/harness.md` を英語で新設し、設計書 3.1 の決定的ハーネス判別表（Antigravity は `ask_question`・`run_command` の 2 条件、Claude Code は `AskUserQuestion`・`Bash`・`Agent` の 3 条件）、10 種の抽象操作カタログ、および OpenCode フォールバック規則を記述する。
 - [ ] `.claude/commands/_lib/harness-claude.md` を英語で新設し、10 種の抽象操作の Claude Code 実装（`AskUserQuestion`・`Agent`＋出力 1 行目 `Model:` 検証・30 分タイマー＋`TaskStop`・`PushNotification` 等）を記述する。
 - [ ] `.claude/commands/_lib/harness-antigravity.md` を英語で新設し、10 種の抽象操作の Antigravity 実装を設計書 3.1・4.1・4.2・5.2・6.1 に従って記述する。`CommandDocs` の既存信頼境界ガード（`TestNoDirectHerdrInvocation`・`cmd/numreserve` `TestDocumentedInvocations`・`TestPostingCommandsInventory`）に抵触しないよう、禁止コマンド一覧と PR タイトルの安全な渡し方は生の `herdr <subcmd>` コードスパン・未許可形 `numreserve ...`・`gh pr create/edit --title ...` を書かず、`docs/dev/guides/chief_guide.md` 6 章・`CLAUDE.md`「Tool Execution Safety」・`_context.md`「Passing a title to `gh`」への参照で記述する。
-- [ ] `cmd/yt2column/fixpr_docs_test.go` に `TestHarnessAntigravityPhase6Redirect` を追加し、`harness-antigravity.md` 内のすべての `gh ... --json ... body` コマンド行がスクラッチパッドへの直接リダイレクト形であり標準出力へ本文を漏らさないことを検証する（実装時にリダイレクトを外して失敗することを確認する）。
+- [ ] `cmd/yt2column/fixpr_docs_test.go` に `TestHarnessAntigravityPhase6Redirect` を追加し、`harness-antigravity.md` 内のすべてのコードフェンスおよびインラインコード（環境変数前置や複数行折り返しを含む）から `gh ... --json ... body` の呼び出しを抽出し、1 件以上検出されること、およびその全件がスクラッチパッドへの直接リダイレクト形であり標準出力へ本文を漏らさないことを検証する（実装時にリダイレクトを外して失敗すること、および 0 件一致で失敗することを確認する）。
+- [ ] `ADR-0014`（`:56`）・`ADR-0050`（`:35`）・`ADR-0055`（`:25`）の `#1072` 食い違い記述から、本 PR で解消した `review-records.sh` 一般化およびハーネスのアダプタ新設分を取り除き、残余の食い違いのみを示す形へ書き換える（コミットメッセージに `Editorial correction:` 行を残す）。
 - [ ] §7.2 の PR-3 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録する。
 
 **完了基準:**
-- `make test && make lint && make deadcode`・`doc-guard`（全 7 呼び出しテスト・`TestInstructionDocPaths`・`TestHarnessAntigravityPhase6Redirect` を含む）が通り、§7.2 の PR-3 差分記録が最新 HEAD と一致する。
+- `make test && make lint && make deadcode`・`doc-guard`（`TestHighReviewDecisionCallSite` を含む `CommandDocs` 経由の全 8 呼び出しテスト・`TestInstructionDocPaths`・`TestHarnessAntigravityPhase6Redirect` を含む）が通り、§7.2 の PR-3 差分記録が最新 HEAD と一致する。
 
 ### PR-3 作成ポイント: generalized review-records script and harness adapters
 
@@ -395,10 +401,10 @@
 - [ ] `.claude/commands/_context.md` の `:5`（見出しの Claude 限定表現の一般化）、`:52`（`PushNotification` → `notify-user`）、`:73,98,120`（`_lib/opus-review.md` → `_lib/high-review.md`）、`:210`（`Write tool` → `file-io`/`scratchpad`、`_lib/harness.md` 参照）を更新する。
 - [ ] `_lib/opus-review.md` を `_lib/high-review.md` へ改名し、1.3 のリネーム一覧どおり `High review: done` / `kept`（旧行も両読み）へ更新する。あわせて、`pinned-worker`（役割 `high`）への委譲、共通状態チェックの参照、フェーズ 2 で入れた `--no-replace-objects` の維持、および失敗時の Fail-Closed 停止を反映する（設計書 3.4・4.1・6.2）。
 - [ ] `_lib/fable-review.md` を `_lib/cross-check-review.md` へ改名し、1.3 のリネーム一覧どおり `CROSS_CHECK`・`cross-check` モード呼び出し・`Cross-check ...:` 記録行・`wrong-model`（旧行と `not-fable` も両読み）へ更新する。あわせて、`.agents/skills/` を `command`・その他の `.agents/` を `agent-config` とする分類、`pinned-worker`（役割 `cross-check`）への委譲、および `## The state check` の `watched` 拡張（`.agents/`・4 指示ファイル・`.claude` / `.agents` 配下の `.git` 検出・一時ファイル名 `cross-check-index.XXXXXX`）を反映する（設計書 3.5・5.2）。タスク 0114（`#988`）がマージ済みなら、マージ後確認の `high` 役割への一般化も反映する（AC-28）。
-- [ ] `_lib/local-cli-review.md`・`_lib/pr-review-escalation.md`・`_lib/review-subagent-pattern.md`・`_lib/settle-decisions.md`・`_lib/simple-process.md`・`_lib/task-pr-handoff.md` の 6 ファイルからハーネス固有ツール名とモデル固有名を除去し、抽象操作へ置き換える。あわせて、`_lib/pr-review-escalation.md`（`high` 固定 `pinned-worker`・状態チェック・失敗時 `ask`）、`_lib/review-subagent-pattern.md`（段階指定と確認パスの役割指定化）、`_lib/task-pr-handoff.md`（`CROSS_CHECK`・新 PR 説明見出し・新旧記録行および `High review: kept` / `scope:` / `finding:` の両読み）を更新する。
+- [ ] `_lib/local-cli-review.md`・`_lib/pr-review-escalation.md`・`_lib/review-subagent-pattern.md`・`_lib/settle-decisions.md`・`_lib/simple-process.md`・`_lib/task-pr-handoff.md` の 6 ファイルからハーネス固有ツール名とモデル固有名を除去し、抽象操作へ置き換える。あわせて、`_lib/pr-review-escalation.md`（`high` 固定 `pinned-worker`・状態チェック・起動や割り当てやモデルや JSON やタイムアウトの失敗時は Fail-Safe の `ask`、状態チェック差分または不正ヘルパー検出時は Fail-Closed 停止）、`_lib/review-subagent-pattern.md`（段階指定と確認パスの役割指定化）、`_lib/task-pr-handoff.md`（`CROSS_CHECK`・新 PR 説明見出し・新旧記録行および `High review: kept` / `scope:` / `finding:` の両読み）を更新する。
 
 **完了基準:**
-- 上記 9 ファイルの相互参照が新ファイル名・新パラメータ名で一致し、設計書 3.1・3.4・3.5 の契約を満たす。
+- 上記 9 ファイルの相互参照が新ファイル名・新パラメータ名で一致し、設計書 3.1・3.4・3.5・4.1 の契約を満たす。
 
 #### ステップ 4-2: 全 11 コマンド正本をハーネス非依存化・新役割名・新パスへ更新する（F-001・F-003〜F-005、AC-01〜AC-08・AC-12・AC-13・AC-17・AC-19・AC-20・AC-22・AC-24・AC-29・AC-30）
 
@@ -438,13 +444,14 @@
 - `docs/dev/adr/0042-implementation-model-tiers.md`
 - `docs/dev/adr/0047-runpr-merge-question.md`
 - `docs/dev/adr/0050-fable-partial-review.md`
+- `docs/dev/adr/0055-harness-independent-commands.md`
 
 **作業内容:**
 - [ ] `cmd/yt2column/fable_state_docs_test.go` を `cmd/yt2column/cross_check_state_docs_test.go` へ改名する独立コミットを作る。そのうえで `_lib/cross-check-review.md` の `## The state check` を対象に `TestCrossCheckStateCheckBlock` へ更新し、git 無視された `.agents/skills/evil/SKILL.md` と全 4 指示ファイル（`AGENTS.md`・`AGENT.md`・`GEMINI.md`・`AGENTS.override.md`）で `status` 不変のまま `watched` ハッシュが変わること、および `.claude/` と `.agents/` 双方の配下の `.git` エントリ検出（`watched` 変化または非ゼロ終了）を検証する。
 - [ ] `cmd/yt2column/review_records_test.go` の参照パスを `_lib/cross-check-review.md`・`_lib/high-review.md` へ更新し、`readCrossCheckForms` が新表から新形式を読み取る形へ一本化する。あわせて、`TestReviewRecordsCallSite`（`cross-check` モードのみ許可）、`TestRecordLinePrefixesDistinct`（文書から抽出した全接頭辞と旧互換接頭辞 `Opus review:`・`Fable review:`・`Fable scope:`・`Fable finding:` の全組で相互非衝突を検証）、および `TestRecordCommitsCheckMention`（`high-review.md` を含むメンション確認）を更新する。
 - [ ] `cmd/yt2column/fixpr_docs_test.go` の `fixprPhase6` 定数を新しい見出しに合わせ、`TestFixprPhase6CountFilter`・`TestFixprguardCallSites`・`TestRemovedCommandLiterals` がすべて通ることを確認する。
-- [ ] `cmd/yt2column/high_review_decision_test.go` の呼び出し箇所ガード対象を `_lib/high-review.md` へ更新する。また、`cmd/chief/docs_test.go` に `TestMarkerFormsCarryModelRequirement` を追加し、`mkplan2.md` step 6 から抽出した 3 値（`high`・`standard+high-review`・`low`）が `mkplan2.md` step 6 と `mkplan.md` step 8.5（`<value>` 置換）の双方で `chief.ParsePlan` により対応する `Requirement` として読み取られることを検証する。実装時に各新規ガードを壊して失敗することを確認する。
-- [ ] `ADR-0016:25` の `_lib/opus-review.md` リンクを `_lib/high-review.md` へ訂正する。あわせて、`ADR-0013`・`ADR-0047` の食い違い記述、および `ADR-0042`（`:21,23,46`）・`ADR-0050`（`:33,35,76`）の旧パス・食い違い記述・設計前の暫定記述を解消する（編集上の訂正はコミットメッセージに `Editorial correction:` 行を残す）。
+- [ ] `cmd/yt2column/high_review_decision_test.go` の `TestHighReviewDecisionCallSite` が全 `CommandDocs` 走査を維持したまま許可呼び出し元を `_lib/opus-review.md` から `_lib/high-review.md` へ切り替える。また、`cmd/chief/docs_test.go` に `TestMarkerFormsCarryModelRequirement` を追加し、`mkplan2.md` step 6 から抽出した 3 値（`high`・`standard+high-review`・`low`）が `mkplan2.md` step 6 と `mkplan.md` step 8.5（`<value>` 置換）の双方で `chief.ParsePlan` により対応する `Requirement` として読み取られることを検証する。実装時に各新規ガードを壊して失敗することを確認する。
+- [ ] `ADR-0016:25` の `_lib/opus-review.md` リンクを `_lib/high-review.md` へ訂正する。あわせて、`ADR-0013`・`ADR-0047` の食い違い記述、`ADR-0042`（`:21,23,46`）・`ADR-0050`（`:33,35,76`）の旧パス・食い違い記述・設計前の暫定記述を解消し、`ADR-0055`（`:25`）の食い違い記述から PR-4 で解消したコマンド・共有手順・状態チェック分を取り除いて PR-5 の残余のみへ書き換える（編集上の訂正はコミットメッセージに `Editorial correction:` 行を残す）。
 
 **完了基準:**
 - `make test && make lint && make deadcode` および `doc-guard` の全対象パッケージが通る。
@@ -611,7 +618,7 @@
     -   `cmd/yt2column/review_records_test.go`: `review-records.sh` の `cross-check` モード（全マトリクス）・互換別名 `fable` モード（代表ケースのスモークテスト）・`coverage` モード（`_context.md` 非依存）を bash 3.2（`/bin/bash`）と bash 4+ の双方で実行検証する。
     -   `cmd/yt2column/cross_check_state_docs_test.go`: `_lib/cross-check-review.md` の `## The state check` ブロックを実行し、既存項目に加えて git 無視された `.agents/` 配下・全 4 指示ファイル（`AGENTS.md`・`AGENT.md`・`GEMINI.md`・`AGENTS.override.md`、`status` 不変の確認付き）・`.claude/` および `.agents/` 配下 `.git` エントリの検出を検証する。
 -   **文書・構造ガードテスト（設計書 7.4）:**
-    -   `internal/doctestutil/protocol_test.go::TestCommandDocs`（`.agents/skills` 返却の直接検証）および `CommandDocs` 経由の全 7 呼び出しテスト（5 パッケージ）。
+    -   `internal/doctestutil/protocol_test.go::TestCommandDocs`（`.agents/skills` 返却の直接検証）および `CommandDocs` 経由の全 8 呼び出しテスト（5 パッケージ、新設の `cmd/yt2column/high_review_decision_test.go::TestHighReviewDecisionCallSite` を含む）。
     -   `cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`（`.agents/skills` 含有検証とリンク実在）。
     -   `cmd/yt2column/skills_docs_test.go::TestSkillsMatchCommands`（1 対 1 対応・余分なエントリや `chief/` の不在・YAML フロントマター・参照構造）。
     -   `cmd/yt2column/fixpr_docs_test.go`（`TestFixprPhase6CountFilter`・`TestHarnessAntigravityPhase6Redirect`）。
@@ -659,7 +666,7 @@
 | AC-04 | `manual` | PR レビュー（`_lib/harness*.md`・コマンド正本） | 3-3, 4-1, 4-2 | 選択式の質問（最大 4 問・2〜4 択・先頭推奨・選択肢外聞き直し）の自然言語手順確認 |
 | AC-05 | `manual` | PR レビュー（`_context.md`・`_lib/harness*.md`・コマンド正本） | 3-3, 4-1, 4-2 | スクラッチパッド（作業ツリー外、Antigravity `<appDataDir>/brain/<conversation-id>/scratch/`）の手順確認 |
 | AC-06 | `test` / `manual` | `cmd/yt2column/fixpr_docs_test.go::TestFixprPhase6CountFilter`・`TestFixprguardCallSites`・`TestRemovedCommandLiterals`・`TestHarnessAntigravityPhase6Redirect`、PR レビュー | 3-3, 4-1〜4-3 | `fixpr` Phase 6 の役割表記・件数フィルタ・Antigravity 直接リダイレクト隔離の検証、および他コマンドの段階指定手順確認 |
-| AC-07 | `manual` | PR レビュー（`_lib/pr-review-escalation.md`・`_lib/harness*.md`） | 3-3, 4-1 | エスカレーション判定の `high` 役割固定ワーカー化・固定 3 メンバ JSON・失敗時 `ask` 手順の確認 |
+| AC-07 | `manual` | PR レビュー（`_lib/pr-review-escalation.md`・`_lib/harness*.md`） | 3-3, 4-1 | エスカレーション判定の `high` 役割固定ワーカー化・固定 3 メンバ JSON、起動や割り当てやモデルや JSON やタイムアウトの失敗時は `ask`、状態チェック差分・不正ヘルパー検出時は Fail-Closed 停止となる手順の確認 |
 | AC-08 | `manual` | PR レビュー（`_context.md`・`_lib/harness*.md`・コマンド正本） | 3-3, 4-1 | ハーネス別の待機・タイマー（Antigravity は `schedule`、シェル `sleep` 禁止）・通知代替手順の確認 |
 | AC-09 | `test` / `manual` | `cmd/yt2column/skills_docs_test.go::TestSkillsMatchCommands`、`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`、PR レビュー | 4-5, 4-6 | `.agents/skills/<cmd>/SKILL.md` の 1 対 1 存在・YAML フロントマター・参照リンク実在・英語薄い入口記述の確認 |
 | AC-10 | `test` / `manual` | `cmd/yt2column/skills_docs_test.go::TestSkillsMatchCommands`、PR レビュー | 4-5, 4-6 | 各 `SKILL.md` が正本・`_context.md`・アダプタへの参照のみを持ち手順本文を複製しないことの確認 |
@@ -694,9 +701,9 @@
 | AC-39 | `test` | `internal/chief/routing_test.go`、`internal/chief/paneinput/paneinput_test.go`、`internal/chief/snapshot_test.go`、`internal/chief/send_test.go`、`internal/chief/task_test.go::TestParseOldValues` | 2-1, 2-2 | 改名後 3 行キー・2 エージェント維持・異常系 `errRouting`・`### Harness model mapping` 非干渉の検証 |
 | AC-40 | `test` | `cmd/chief/docs_test.go::TestDocumentedProtocolMatches`・`TestGuideProtocolMatchesTool`・`TestArchitectureValuesMatchTool` | 2-2 | `internal/chief` プロトコル番号と `chief.md`・`chief_guide.md`・`chief_architecture.md` の同時整合検証 |
 | AC-41 | `static` / `manual` | `docs/tasks/0120_harness_independent_commands/_checks/check_harness_tools.sh`、PR レビュー（`CLAUDE.md`・`AGENTS.md`・`docs/dev/`・`docs/translation_glossary.md`） | 2-3, 4-7, 4-8 | `.claude/commands/` 配下全体の `*.sh` 集合に第 3 の判定スクリプトが増えていないことの検証、および一般化名称・用語集照合・`CLAUDE.md` 4 項目更新の確認 |
-| AC-42 | `test` | `internal/doctestutil/protocol_test.go::TestCommandDocs`、`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`、`CommandDocs` 経由の全 7 テスト、`cmd/yt2column/skills_docs_test.go::TestSkillsMatchCommands` | 4-6 | `.agents/skills/` 全ファイルの (1) パス解決、(2) 信頼境界検査、(3) 1 対 1 対応と `chief` 不在の検証 |
+| AC-42 | `test` | `internal/doctestutil/protocol_test.go::TestCommandDocs`、`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`、`CommandDocs` 経由の全 8 テスト（`TestHighReviewDecisionCallSite` 含む）、`cmd/yt2column/skills_docs_test.go::TestSkillsMatchCommands` | 4-6 | `.agents/skills/` 全ファイルの (1) パス解決、(2) 信頼境界検査、(3) 1 対 1 対応と `chief` 不在の検証 |
 | AC-43 | `test` / `static` | `make test`・`make lint`・`make deadcode`・`make readme-sync-check`・CI `doc-guard` コマンド | 1-2, 2-3, 3-3, 4-3, 4-8 | 全単体テスト・文書ガード・静的検査・README 同期確認の成功 |
-| AC-44 | `test` / `manual` | `cmd/yt2column/adr_test.go::TestADRRecords`、`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`、PR レビュー（関連 8 ADR・ADR-0016・索引） | 2-3, 4-3, 4-7 | ADR 構造・索引一致・リンク実在検証、および全 `#1072` 食い違い記述の解消確認 |
+| AC-44 | `test` / `manual` | `cmd/yt2column/adr_test.go::TestADRRecords`、`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths`、PR レビュー（関連 8 ADR・ADR-0016・索引） | 1-2, 2-3, 3-3, 4-3, 4-7 | ADR 構造・索引一致・リンク実在検証、および各 PR での段階的書き換えと全 `#1072` 食い違い記述の解消確認 |
 
 ### 7.1 静的検証結果（`_checks/check_harness_tools.sh`）
 
