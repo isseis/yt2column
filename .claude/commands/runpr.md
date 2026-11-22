@@ -517,12 +517,13 @@ in step 4; this step never posts a PR review request on its own.
     and that the PR is to be recreated as for the interaction-limits stops of
     step 1 (the guide's chapter 10): while such a comment stays on the PR,
     every run stops here.
-  - Otherwise, any with `by_bot` true, a Bot (for example a Codex post or a
-    review that quotes a changed line holding a rejected mention): ask the user
-    with one `AskUserQuestion` call whether to continue, showing the URL of
-    each such comment not yet asked about in this run, never its body. Continue
-    only when the user answers to continue; otherwise stop and report those
-    URLs.
+  - Otherwise, any with `by_bot` true whose URL has not yet been asked about in
+    this run, a Bot (for example a Codex post or a review that quotes a changed
+    line holding a rejected mention): ask the user with one `AskUserQuestion`
+    call whether to continue, showing the URL of each such comment, never its
+    body. Continue only when the user answers to continue; otherwise stop and
+    report those URLs. Once every `by_bot` URL has already been asked about and
+    approved in this run, continue without asking again.
   - Those with `by_user` true are no reason to stop: the user's own post in
     another form.
 
@@ -745,7 +746,11 @@ fixprguard review-state --protocol 7 --reviewer <awaited-reviewer> --request "<r
 - Confirm that `review-state`'s `head`, the prepared `headRefOid` (when
   `prepare` has run), and `git rev-parse HEAD` are all equal. When any
   pair differs, discard the preparation when it exists
-  (`mergepr discard --protocol 3 --state <state-file>`) and return to step 2.
+  (`mergepr discard --protocol 3 --state <state-file>`). When `review-state`'s
+  `head` differs from `git rev-parse HEAD`, bring the checked-out branch up to
+  date with `git pull --ff-only`, and stop and report (do not loop) if
+  `git pull --ff-only` fails or `git rev-parse HEAD` still does not equal
+  `review-state`'s `head`. Otherwise return to step 2.
 
 **A listing that fails here.** When a mention listing read in this step (before
 a question) fails as step 3's "A listing that fails" defines, do not wait for

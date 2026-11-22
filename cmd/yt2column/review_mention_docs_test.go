@@ -140,9 +140,9 @@ func TestMentionsOnlyInAllowedRows(t *testing.T) {
 // GitHub runs the mention check's command: the first sentence after its
 // "**Mention check.**" label holds mentionCheckCommand. It also checks that
 // _context.md's "Rejected mentions" row defines <mention-check> (using
-// grep -qiF with -e per value and --) and <rejected-mentions> from every value
-// of fixprguard.RejectedMentions(). Whether any posting command comes before
-// the check is TestPostingCommandsInventory's to judge.
+// grep -qiF with -e per value and --) and <rejected-mentions>. Whether any
+// posting command comes before the check is TestPostingCommandsInventory's to
+// judge.
 func TestPostingPathsCheckMention(t *testing.T) {
 	const label = "**Mention check.**"
 	for _, ps := range postingSections {
