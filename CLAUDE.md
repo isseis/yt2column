@@ -212,7 +212,7 @@ Project-specific values these commands depend on are defined once in
 - `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR; it stops without writing for a task that takes the simple process, whose documents `/mkreq` writes
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
 - `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
-- `/runpr [PR | branch | task]` - Drive a PR through Codex's PR review and CI, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and show the next command, which it does not run; for a standalone change it also creates the PR
+- `/runpr [PR | branch | task]` - Drive a PR through CI and its review threads, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and show the next command, which it does not run; it requests a CodeRabbit PR review only when the user chooses it in the merge question; for a standalone change it also creates the PR
 - `/weakreview [range | PR] [--no-fix | --fix]` - Opus review of a commit range: a correctness review and a weak-model failure review run on Opus in one pass; by default it fixes the Critical and Major findings and commits the fixes on the current branch without pushing, and `--no-fix` only reports
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
@@ -240,28 +240,25 @@ Before it opens the PR, `/runplan` also runs the Opus review
 on Opus, whose Critical and Major findings it fixes) when the PR's
 implementation model requirement is `opus`, `sonnet+opus-review`, or
 unreadable, and some commit of the PR is not recorded as implemented on Opus. After reviewing, the reviewer runs `/runpr`, which drives
-it: it waits for Codex's PR review and CI and resolves the threads with `/fixpr`. It
+it: it waits for CI and resolves the threads with `/fixpr`. It
 then asks, after a deferred question when deferred review threads are left, the
 merge question that decides the bookkeeping (for a document, its
 `approved` status) and the merge with `/mergepr`, and shows the next command
 when there is one; the user runs it, which opens the next PR and stops again.
 
-Codex does the PR review. Its allowance is shared with the user's other
-ChatGPT use and its size is not published, so a PR gets one PR review, when it
-opens. Codex is set up outside the repository, by the user: it reviews
-automatically only when a PR is created, never on a push, and its thorough
-code review is off.
-`.coderabbit.yaml` turns CodeRabbit's automatic review off, so the PR is not
-reviewed twice. Later changes are reviewed with the CodeRabbit CLI, whose allowance is
-separate from the PR review's. `/runpr` requests another PR review by itself
-only when the changes since the last PR review touch a trust boundary,
-security, or durability, a change to a review gate included
+CodeRabbit does not review a PR automatically (`.coderabbit.yaml` turns its
+automatic review off). `/runpr` waits while a request comment is outstanding,
+whether the user chose it in the merge question or wrote it by hand. Its
+allowance is shared across the user's PR reviews. Later changes are reviewed
+with the CodeRabbit CLI, whose allowance is separate from the PR review's.
+`/runpr` never requests a PR review by itself: it turns the escalation's
+answer into a recommendation in the merge question (its "先に PR レビューを依頼"
+option) and requests one only when the user chooses it
 ([pr-review-escalation.md](.claude/commands/_lib/pr-review-escalation.md)).
 For a change that falls only under the escalation's other criteria, the
 local review stands in when the branch's records show it saw every commit
-since the last PR review (`_lib/review-records.sh`, run from `origin/main`);
-otherwise the merge question asks. The user can also ask for one in the
-merge question (its "先に PR レビューを依頼" option).
+since the last completed review (`_lib/review-records.sh`, run from
+`origin/main`); otherwise the merge question recommends the PR review.
 
 ### Extension Commands
 

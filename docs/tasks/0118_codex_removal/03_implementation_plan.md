@@ -400,25 +400,28 @@
 - `docs/translation_glossary.md`
 
 **作業内容:**
-- [ ] `.coderabbit.yaml` のコメントを、手動の PR レビューと CodeRabbit CLI のみの説明に改める（`reviews.auto_review.enabled: false` の設定値は変えない）。
-- [ ] `CLAUDE.md`（Claude Commands の Codex PR レビュー段落等）、`docs/dev/conventions/dev_tools.md`、`docs/dev/conventions/requirements_process.md`、`docs/dev/guides/fixprguard_guide.md`、`docs/dev/guides/mergepr_guide.md` から、今の振る舞いとして書かれた Codex PR レビュー・Codex CLI・`codexreview`・受領コメントの記述を改める（AC-47 の例外に当たる過去出典・`@codex` 拒否・AC-28 古い記録行は残す）。
-- [ ] `docs/translation_glossary.md` の「試行」の定義を CodeRabbit CLI だけの定義に改め、「手動の PR レビュー」「完了の印」を追加するか用語集の規則に従って判断する（AC-48）。
+- [x] `.coderabbit.yaml` のコメントを、手動の PR レビューと CodeRabbit CLI のみの説明に改める（`reviews.auto_review.enabled: false` の設定値は変えない）。
+- [x] `CLAUDE.md`（Claude Commands の Codex PR レビュー段落等）、`docs/dev/conventions/dev_tools.md`、`docs/dev/conventions/requirements_process.md`、`docs/dev/guides/fixprguard_guide.md`、`docs/dev/guides/mergepr_guide.md` から、今の振る舞いとして書かれた Codex PR レビュー・Codex CLI・`codexreview`・受領コメントの記述を改める（AC-47 の例外に当たる過去出典・`@codex` 拒否・AC-28 古い記録行は残す）。
+- [x] `docs/translation_glossary.md` の「試行」の定義を CodeRabbit CLI だけの定義に改め、「手動の PR レビュー」「完了の印」を追加するか用語集の規則に従って判断する（AC-48。どちらも文書で使うため追加した）。
 
 **完了基準:**
 - `make test && make lint` および `doc-guard` が通り、現在の仕様を書く文書に AC-47 違反がない。
 
-#### ステップ 3-2: ADR-0040・ADR-0046 の Codex 記述を点検・更新する（F-011、H-07、AC-47）
+#### ステップ 3-2: ADR の Codex 記述を点検・更新する（F-011、H-07、AC-47）
 
 **変更ファイル:**
+- `docs/dev/adr/0015-untrusted-review-threads.md`
 - `docs/dev/adr/0040-simple-task-documents.md`
 - `docs/dev/adr/0046-chief-of-staff.md`
+- `docs/dev/adr/0047-runpr-merge-question.md`
+- `docs/dev/adr/0050-fable-partial-review.md`
 
 **作業内容:**
-- [ ] 設計書 3.9 に従い、ADR-0040（`:11`）と ADR-0046（`:284,473`）の Codex に触れる箇所を「過去の出典」「今の振る舞い」「理由が崩れる箇所」に分類する。
-- [ ] 今の振る舞いとしての記述は `docs/dev/conventions/adr.md` の「Editorial corrections」に従って直し、commit メッセージに `Editorial correction:` 行を残す。決定の理由が崩れる箇所があると判断した場合は、変更前に利用者へ確認する。
+- [x] 設計書 3.9 に従い、ADR-0040（`:11`）と ADR-0046（`:285`）の Codex に触れる箇所を「過去の出典」「今の振る舞い」「理由が崩れる箇所」に分類する。
+- [x] 今の振る舞いとしての記述は `docs/dev/conventions/adr.md` の「Editorial corrections」に従って直し、commit メッセージに `Editorial correction:` 行を残す。決定の理由が崩れる箇所があると判断した場合は、変更前に利用者へ確認する。同じ点検で、ADR-0015 の `背景`、ADR-0047 の `採らなかった案`、ADR-0050 の `決定` に残る、今の振る舞いとして読める Codex の記述も編集上の訂正として直す。
 
 **完了基準:**
-- ADR-0040・0046 が AC-47 と ADR 規約を満たす。
+- ADR-0015・0040・0046・0047・0050 が AC-47 と ADR 規約を満たす。
 
 #### ステップ 3-3: chief のテスト確認と古い記録行の整理用 issue 作成（F-012、AC-50・AC-51、設計書 3.6）
 
@@ -426,9 +429,9 @@
 - なし（`/runpr` の報告・NEXT 行の形が chief の読み取りに影響する変更になった場合のみ `internal/chief/testdata/` とテストを追加する）
 
 **作業内容:**
-- [ ] `go test -tags test ./cmd/chief ./internal/chief` を実行し、`internal/chief/testdata/` の既存サンプルがすべて残り成功することを確認する（AC-50）。
-- [ ] フェーズ 2 の `runpr.md` 変更で `/runpr` の報告・NEXT 行の形が chief の読み取り形式に当たらないことを確認し、当たらないならサンプルを足さない（当たる場合は AC-51 に従い実報告サンプルとテストを追加する）。
-- [ ] 古い記録行（`Codex local review:`、`(codex)`、`not run` の旧形）の読み方規則を、該当ブランチがなくなった後に外すためのフォローアップ issue を GitHub に作成する（設計書 3.6・6.3）。
+- [x] `go test -tags test ./cmd/chief ./internal/chief` を実行し、`internal/chief/testdata/` の既存サンプルがすべて残り成功することを確認する（AC-50）。
+- [x] フェーズ 2 の `runpr.md` 変更で `/runpr` の報告・NEXT 行の形が chief の読み取り形式に当たらないことを確認し、当たらないならサンプルを足さない（当たる場合は AC-51 に従い実報告サンプルとテストを追加する）。
+- [x] 古い記録行（`Codex local review:`、`(codex)`、`not run` の旧形）の読み方規則を、該当ブランチがなくなった後に外すためのフォローアップ issue を GitHub に作成する（設計書 3.6・6.3）: https://github.com/isseis/yt2column/issues/1087
 
 **完了基準:**
 - chief テストが成功し、フォローアップ issue の URL が記録されている。
@@ -439,7 +442,7 @@
 
 **推奨タイトル**: `docs(0118): 仕様文書・用語集・ADR の Codex 記述を更新し chief の読み取りを確認する`
 
-**レビュー観点**: 現在の仕様を書く文書・設定コメント・用語集に AC-47・AC-48 違反が残っていないこと / ADR-0040・0046 の Codex 記述が編集上の訂正と決定の変更で正しく分類されていること / chief の既存サンプル維持とフォローアップ issue の作成
+**レビュー観点**: 現在の仕様を書く文書・設定コメント・用語集に AC-47・AC-48 違反が残っていないこと / ADR-0015・0040・0046・0047・0050 の Codex 記述が編集上の訂正と決定の変更で正しく分類されていること / chief の既存サンプル維持とフォローアップ issue の作成
 
 **実装モデル要件**: sonnet
 
@@ -460,7 +463,7 @@
 |---|---|---|---|
 | M1: ローカル CLI レビュー移行と `codexreview` 撤去 | フェーズ 1（PR-1: ステップ 1-1〜1-5） | Codex CLI なしの `_lib/local-cli-review.md`、Part B step 2.5、`codexreview` 撤去、`check_codexreview_removed.sh`、ADR-0013/0014/0042 更新 | `make test && make lint && make deadcode`・`doc-guard`・`coverage-compare`・`check_codexreview_removed.sh` が通る |
 | M2: 手動 PR レビュー移行と境界更新 | フェーズ 2（PR-2: ステップ 2-1、PR-3: ステップ 2-2〜2-5） | `fixprguard review-state`（PR-2）、2 メンション拒否・`current-body-mention`・プロトコル番号引き上げ・`_context.md`・`runpr.md`・`task-pr-handoff.md`・ガードテスト・ガイド・ADR-0013/0015/0047/0050 更新（PR-3） | PR-2・PR-3 それぞれで `make test && make lint && make deadcode`・`doc-guard`・`coverage-compare` が通る。PR-3 マージ直後に利用者が `fixprguard` を入れ直し、Codex 連携を切る |
-| M3: 仕様文書整合と完了確認 | フェーズ 3（PR-4: ステップ 3-1〜3-3） | `.coderabbit.yaml`・`CLAUDE.md`・規約・ガイド・用語集・ADR-0040/0046 更新、chief テスト確認、フォローアップ issue | `make test && make lint`・`doc-guard` が通り、全 AC の検証が完了する |
+| M3: 仕様文書整合と完了確認 | フェーズ 3（PR-4: ステップ 3-1〜3-3） | `.coderabbit.yaml`・`CLAUDE.md`・規約・ガイド・用語集・ADR-0015/0040/0046/0047/0050 更新、chief テスト確認、フォローアップ issue | `make test && make lint`・`doc-guard` が通り、全 AC の検証が完了する |
 
 ### 3.2 PR 構成
 
@@ -469,7 +472,7 @@
 | PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 | Codex CLI 撤去、Part B step 2.5 追加、`codexreview` 一括撤去、関連ガード更新、検証スクリプト、ADR-0013/0014/0042 整理 | opus | auto |
 | PR-2 | 2-1 | `fixprguard review-state` サブコマンド（厳密 JSON 検査・CheckRun 分類・状態遷移・テスト・ガイド・`CLAUDE.md` 例外、`Protocol` 据え置き） | sonnet+opus-review | auto |
 | PR-3 | 2-2 / 2-3 / 2-4 / 2-5 | 旧テスト削除、`fixprguard` メンション拒否拡張・`current-body-mention`・プロトコル番号引き上げ、`_context.md`・`runpr.md`・エスカレーション・文書ガード・ガイド・ADR-0013/0015/0047/0050 更新 | opus | auto |
-| PR-4 | 3-1 / 3-2 / 3-3 | `.coderabbit.yaml`・`CLAUDE.md`・規約・ガイド・用語集・ADR-0040/0046 更新、chief テスト確認、フォローアップ issue 作成（PR-3 マージ後に利用者が `fixprguard` 入れ直しと Codex 連携解除を行ってから着手） | sonnet | hold |
+| PR-4 | 3-1 / 3-2 / 3-3 | `.coderabbit.yaml`・`CLAUDE.md`・規約・ガイド・用語集・ADR-0015/0040/0046/0047/0050 更新、chief テスト確認、フォローアップ issue 作成（PR-3 マージ後に利用者が `fixprguard` 入れ直しと Codex 連携解除を行ってから着手） | sonnet | hold |
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -499,7 +502,7 @@
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 -   [x] PR-2 マージ済み（対象ステップ: 2-1）
 -   [x] PR-3 マージ済み（対象ステップ: 2-2 / 2-3 / 2-4 / 2-5）
--   [ ] PR-3 マージ後に利用者が `fixprguard` 入れ直し・Codex 連携解除を完了（PR-4 の `自動送信: hold` 解除条件）
+-   [x] PR-3 マージ後に利用者が `fixprguard` 入れ直し・Codex 連携解除を完了（PR-4 の `自動送信: hold` 解除条件。2026-11-23 に利用者が完了を確認）
 -   [ ] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -550,11 +553,11 @@
 | AC-42 | `cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（`runpr.md` の `interaction-limits` 維持）、`internal/fixprguard/limits_test.go` | test / static | ステップ 2-4・2-5 | フェーズ 2 |
 | AC-43 | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（`wantReviewers` = `coderabbitai` のみ） | static | ステップ 2-3・2-5 | フェーズ 2 |
 | AC-44 | `internal/fixprguard/trust_test.go`（一覧外の Bot が `ReasonOtherBot` になる既存テスト）、`cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree` | test / static | ステップ 2-3・2-5 | フェーズ 2 |
-| AC-45 | 本書のフェーズ・PR 順序（PR-1 → PR-2 → PR-3 → 連携解除 → PR-4）の遵守を各 PR マージ時に確認 | manual | 全フェーズ | フェーズ 1〜3 |
+| AC-45 | 本書のフェーズ・PR 順序（PR-1 → PR-2 → PR-3 → 連携解除 → PR-4）の遵守を、PR #1077・#1080・#1084 のマージ記録と、利用者による連携解除の完了の確認で確かめる（連携解除はリポジトリの外の作業なので、test・static・diff では表せない） | manual | 全フェーズ | フェーズ 1〜3 |
 | AC-46 | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`、`cmd/yt2column/review_mention_docs_test.go::TestMentionsOnlyInAllowedRows` | static | ステップ 2-3・2-5 | フェーズ 2 |
 | AC-47 | 現在の仕様を書く文書一式を PR レビューで確認（AC-47 で `manual` と指定） | manual | ステップ 1-1・1-2・1-4・2-3・2-4・3-1・3-2 | フェーズ 1〜3 |
 | AC-48 | `docs/translation_glossary.md` の改訂内容を PR レビューで確認 | manual | ステップ 3-1 | フェーズ 3 |
-| AC-49 | `docs/dev/adr/0013`・`0014`・`0015`・`0042`・`0047`・`0050` の `食い違い:` 削除を PR レビューで確認 | manual | ステップ 1-5・2-5 | フェーズ 1・2 |
+| AC-49 | `docs/dev/adr/0013`・`0014`・`0015`・`0042`・`0047`・`0050` の `食い違い:` 削除と、変更した `## 決定`（ADR-0050）を PR レビューで確認 | manual | ステップ 1-5・2-5・3-2 | フェーズ 1〜3 |
 | AC-50 | `go test -tags test ./cmd/chief ./internal/chief` | test | ステップ 3-3 | フェーズ 3 |
 | AC-51 | `runpr.md` step 5 の変更差分が chief の読み取り形式に当たらないことを確認（当たる場合は新サンプル追加と `go test -tags test ./internal/chief`） | test / manual | ステップ 3-3 | フェーズ 3 |
 | AC-52 | `runpr.md` step 4 の手動 PR レビュー要約行（URL と本文に指摘がありうる旨）を PR レビューで確認 | manual | ステップ 2-4 | フェーズ 2 |
