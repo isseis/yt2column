@@ -42,9 +42,7 @@ record for the user as long as it does not read that record back to decide.
 
 There is an exception. This document states only that an exception exists; its
 scope is in [ADR-0014](../adr/0014-deterministic-checks-in-go.md) and
-[ADR-0046](../adr/0046-chief-of-staff.md), and, for the base commit the
-CI skip tool records and reads back, [ADR-0054](../adr/0054-ci-skip-doc-only-commit.md).
-Examples of this rule are in
+[ADR-0046](../adr/0046-chief-of-staff.md). Examples of this rule are in
 [fixprguard_guide.md](../guides/fixprguard_guide.md): chapter 1 (a tool that
 writes a record without reading it back) and chapter 7 (what the tool
 guarantees).
