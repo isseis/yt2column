@@ -24,7 +24,6 @@ GitHub App として入っている自動レビュアー（Codex・CodeRabbit）
 -   **interaction limits をアカウントに設定し、`/runpr` は PR ごとにその状態を確かめる。** 対象は 4 つの設定で、設定は利用者が行う。`/runpr` は、`fixprguard interaction-limits` で制限の状態を読み、PR の作成の時刻と比べ、利用者以外の `@codex` と `@coderabbitai` のメンションがないことを確かめる。確かめられないとき、制限がないとき、制限が弱いとき、PR が制限の設定より前に作られたときは、レビューを待たずに止まる。書き込み権限のない人が自動レビュアーに指示する入口を塞ぐためである。interaction limits は期限で自動に解除されるので、PR の作成の時刻と比べ、制限が外れていた間に作られたスレッドを見逃さない。規則は [fixprguard_guide.md](../guides/fixprguard_guide.md) の 10 章「GitHub の設定」と、[.claude/commands/runpr.md](../../../.claude/commands/runpr.md) の step 1・step 3 にある。
 -   **制限の状態の判定は、GitHub の応答を厳密に検査する Go のサブコマンドで行う。** 「今」は同じ応答の `Date` ヘッダ（GitHub の時刻）から取る。応答の検査は 1 つの番兵のエラーにまとめ、部分的な結果を使わない。`gh api --jq` は重複した項目を黙って後勝ちにするので応答を厳密に検査できず、ローカルの時計で判定すると時計のずれがそのまま判定のずれになるためである。規則は [fixprguard_guide.md](../guides/fixprguard_guide.md) の 5 章 `interaction-limits` と 10 章「GitHub の設定」、[0057 設計書](../../tasks/0057_reviewer_relay_guard/02_architecture.md) §1.2 にある。
 -   **信頼する自動レビュアーの一覧は `coderabbitai` だけにする。** Codex の連携を切った後は Codex のスレッドが作られないので、使っていない Bot を信頼したままにしないためである（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) の F-010）。
--   **食い違い:** 2 つのメンションの拒否と確かめ、自動レビュアーの一覧は、[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) で改めたものである。`fixprguard`、コマンドの定義、`_context.md` は、まだ `@codex` だけを拒否し、一覧に `chatgpt-codex-connector` を含む。この食い違いは https://github.com/isseis/yt2column/issues/1059 の実装で解消する。
 
 ## 採らなかった案
 
