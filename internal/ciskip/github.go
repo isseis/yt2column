@@ -87,7 +87,8 @@ type checkAnnotation struct {
 // against the parent commit and writes the final Reason (and ParentRunID / HTTPStatus)
 // into dec.
 // Invariant: never leaks non-200 bodies or stderr into dec, never follows Link URLs,
-// and sets ReasonSkipped only after every run, job, and annotation check passes.
+// and sets ReasonSkipped only after every run, job, and annotation check passes on a
+// context that was neither expired nor cancelled.
 func (e *Evaluator) verifyParentCI(
 	ctx context.Context,
 	repo string,
@@ -122,12 +123,17 @@ func (e *Evaluator) verifyParentCI(
 		return
 	}
 
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+	// A live context skips and an expired deadline keeps ReasonAPITimeout; any other
+	// context error means the evaluation was interrupted before it proved the parent
+	// CI passed, so it stays at the zero Reason, which means do not skip.
+	switch {
+	case ctx.Err() == nil:
+		dec.Reason = ReasonSkipped
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
 		dec.Reason = ReasonAPITimeout
-		return
+	default:
+		dec.Reason = ReasonUnspecified
 	}
-
-	dec.Reason = ReasonSkipped
 }
 
 // ghAPIGet calls `gh api --hostname github.com -i <endpoint>`, enforces the per-command
@@ -232,7 +238,9 @@ func splitGHResponse(out []byte) ([]httpHeader, []byte, bool) {
 // hasNextPage parses every Link header (case-insensitive header name) per RFC 8288
 // and reports whether any link item declares rel="next" or rel=next.
 // Invariant: text inside <URI> or inside other quoted parameter values is never
-// misread as rel=next; malformed Link headers return ok=false (fail-safe).
+// misread as rel=next; a link item without a rel parameter, or whose first rel
+// carries no relation type, and any other malformed Link header return ok=false
+// (fail-safe).
 func hasNextPage(headers []httpHeader) (hasNext bool, ok bool) {
 	for _, h := range headers {
 		if !strings.EqualFold(h.name, "Link") {
@@ -277,13 +285,23 @@ func parseLinkHeaderHasNext(value string) (hasNext bool, ok bool) {
 				return false, false
 			}
 			i = skipOWS(value, nextIdx)
-			// Per RFC 8288 section 3.3, only the first rel parameter in a link-value applies.
+			// Per RFC 8288 section 3.3, the rel parameter must be present, only the
+			// first one in a link-value applies, and it conveys the relation type in
+			// its value. A first rel without a relation type is rejected, so a
+			// valueless rel cannot hide a later rel=next.
 			if strings.EqualFold(paramName, "rel") && !seenRel {
+				if !hasVal || !relHasRelationType(paramVal, quoted) {
+					return false, false
+				}
 				seenRel = true
-				if hasVal && relContainsNext(paramVal, quoted) {
+				if relContainsNext(paramVal, quoted) {
 					hasNext = true
 				}
 			}
+		}
+
+		if !seenRel {
+			return false, false
 		}
 
 		if i >= len(value) {
@@ -441,6 +459,21 @@ func relContainsNext(val string, quoted bool) bool {
 	}
 	for field := range strings.FieldsSeq(val) {
 		if strings.EqualFold(field, "next") {
+			return true
+		}
+	}
+	return false
+}
+
+// relHasRelationType reports whether a rel parameter value carries at least one
+// relation type. The relation type is conveyed by the value (RFC 8288 section 3.3),
+// so an absent or empty value names no relation at all.
+func relHasRelationType(val string, quoted bool) bool {
+	if !quoted {
+		return val != ""
+	}
+	for i := range len(val) {
+		if val[i] != ' ' && val[i] != '\t' {
 			return true
 		}
 	}

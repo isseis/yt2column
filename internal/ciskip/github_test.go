@@ -40,6 +40,11 @@ func (r *deadlineBlockingRunner) Run(ctx context.Context, _ string, _ ...string)
 
 func evalWithDepFile(t *testing.T, depFile string, limits evalLimits, ghSteps ...cmdrunnertestutil.Step) Decision {
 	t.Helper()
+	return evalWithDepFileContext(t.Context(), t, depFile, limits, ghSteps...)
+}
+
+func evalWithDepFileContext(ctx context.Context, t *testing.T, depFile string, limits evalLimits, ghSteps ...cmdrunnertestutil.Step) Decision {
+	t.Helper()
 	gitFake := cmdrunnertestutil.New(t, localGitPassSteps("docs/note.md\x00")...)
 	scriptFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
 		Name: "bash",
@@ -48,7 +53,7 @@ func evalWithDepFile(t *testing.T, depFile string, limits evalLimits, ghSteps ..
 	})
 	ghFake := cmdrunnertestutil.New(t, ghSteps...)
 	ev := newWithRunners(gitFake, scriptFake, ghFake, limits)
-	return ev.Evaluate(t.Context(), validEvalInput(depFile))
+	return ev.Evaluate(ctx, validEvalInput(depFile))
 }
 
 func evalWithGHSteps(t *testing.T, limits evalLimits, ghSteps ...cmdrunnertestutil.Step) Decision {
@@ -831,6 +836,26 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 		})
 	})
 
+	t.Run("canceled_context_after_successful_checks_does_not_skip", func(t *testing.T) {
+		depFile := writeTempFile(t, "wasm-dep-dirs", []byte("internal/llm/devfake/\n"))
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		// The cancellation lands after the last API response: every run, job, and
+		// annotation check passed, but the evaluation was interrupted before it could
+		// declare a skip, so it must fail safe instead.
+		steps := ghHappySteps(testRunID)
+		steps[2].Effect = func() error {
+			cancel()
+			return nil
+		}
+		dec := evalWithDepFileContext(ctx, t, depFile, defaultLimits(), steps...)
+		if dec.Skip() || dec.Reason != ReasonUnspecified || dec.ParentRunID != testRunID || dec.NoticeBaseSHA != testSHA1 {
+			t.Errorf("decision = %+v, want Reason=%q ParentRunID=%d NoticeBaseSHA=%q",
+				dec, ReasonUnspecified, testRunID, testSHA1)
+		}
+	})
+
 	t.Run("framing_and_link_header_errors", func(t *testing.T) {
 		// Every case uses a valid empty workflow_runs body so that if a framing or Link
 		// check were broken, findLatestParentRun would return ReasonNoParentRun instead
@@ -873,11 +898,11 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 	})
 
 	t.Run("link_header_ignores_evil_host_and_false_rel_substrings", func(t *testing.T) {
-		// Page 1 carries multiple Link headers, a valueless parameter, and an evil host URL;
-		// evaluator MUST request fixed github.com endpoint page=2.
+		// Page 1 carries multiple Link headers, a valueless extension parameter, and an
+		// evil host URL; evaluator MUST request fixed github.com endpoint page=2.
 		// Page 2 carries rel=next and percent-encoded quotes inside URI, rel=next inside an
-		// escaped quoted title, and rel="next" after a valueless or prior rel parameter
-		// (ignored per RFC 8288 section 3.3); evaluator MUST NOT request page=3.
+		// escaped quoted title, and a rel="next" that follows the first, valid rel of its
+		// link item (ignored per RFC 8288 section 3.3); evaluator MUST NOT request page=3.
 		runsP1 := `{"workflow_runs": []}`
 		runsP2 := fmt.Sprintf(`{"workflow_runs": [%s]}`,
 			standardRunJSON(testRunID, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:05Z"))
@@ -896,7 +921,7 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 				Name: "gh",
 				Args: ghAPIArgs(runsEndpoint(2)),
 				Out: ghHTTPResponse("HTTP/2.0 200 OK", []string{
-					`Link: <https://api.github.com/x?q=a,b;rel=next&r=%22next%22>; title="fake\"; rel=next"; rel="last"; rel="next", <https://api.github.com/y>; rel; rel="next"`,
+					`Link: <https://api.github.com/x?q=a,b;rel=next&r=%22next%22>; title="fake\"; rel=next"; rel="last"; rel="next", <https://api.github.com/y>; rel="prev"`,
 				}, runsP2),
 			},
 			happy[1],
@@ -904,6 +929,47 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 		)
 		if !dec.Skip() || dec.Reason != ReasonSkipped {
 			t.Errorf("decision = %+v, want Skip()=true Reason=%q", dec, ReasonSkipped)
+		}
+	})
+
+	t.Run("link_header_ignores_duplicate_rel_after_first_valid_rel", func(t *testing.T) {
+		// RFC 8288 section 3.3: occurrences of rel after the first are ignored, so a
+		// later rel="next" cannot turn a link item that the first rel marks as "last"
+		// into a next-page declaration.
+		dec := evalWithGHSteps(t, defaultLimits(), cmdrunnertestutil.Step{
+			Name: "gh",
+			Args: ghAPIArgs(runsEndpoint(1)),
+			Out:  ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel="last"; rel="next"`}, `{"workflow_runs":[]}`),
+		})
+		if dec.Skip() || dec.Reason != ReasonNoParentRun {
+			t.Errorf("decision = %+v, want Reason=%q (page 1 treated as the last page)", dec, ReasonNoParentRun)
+		}
+	})
+
+	t.Run("link_header_without_valid_first_rel_is_rejected", func(t *testing.T) {
+		// RFC 8288 section 3.3 requires rel and conveys the relation type in its value,
+		// so a link item whose first rel has no relation type must not be accepted as a
+		// last-page declaration that hides a later rel="next".
+		cases := []struct {
+			name string
+			link string
+		}{
+			{name: "valueless_first_rel", link: `Link: <https://api.github.com/x>; rel; rel="next"`},
+			{name: "empty_first_rel", link: `Link: <https://api.github.com/x>; rel=""; rel="next"`},
+			{name: "no_rel_parameter", link: `Link: <https://api.github.com/x>; title="next"`},
+			{name: "second_item_without_rel", link: `Link: <https://api.github.com/x>; rel="last", <https://api.github.com/y>; rel; rel="next"`},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				dec := evalWithGHSteps(t, defaultLimits(), cmdrunnertestutil.Step{
+					Name: "gh",
+					Args: ghAPIArgs(runsEndpoint(1)),
+					Out:  ghHTTPResponse("HTTP/2.0 200 OK", []string{tc.link}, `{"workflow_runs":[]}`),
+				})
+				if dec.Skip() || dec.Reason != ReasonAPIInvalidResponse {
+					t.Errorf("decision = %+v, want Reason=%q", dec, ReasonAPIInvalidResponse)
+				}
+			})
 		}
 	})
 
@@ -966,6 +1032,8 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 			{name: "duplicate_consumed_key", body: `{"workflow_runs":[],"workflow_runs":[]}`},
 			{name: "case_variant_consumed_key", body: `{"workflow_runs":[],"Workflow_Runs":[]}`},
 			{name: "id_zero", body: `{"workflow_runs":[` + strings.Replace(validRun, fmt.Sprintf(`"id": %d`, testRunID), `"id": 0`, 1) + `]}`},
+			{name: "id_negative_zero", body: `{"workflow_runs":[` + strings.Replace(validRun, fmt.Sprintf(`"id": %d`, testRunID), `"id": -0`, 1) + `]}`},
+			{name: "id_negative", body: `{"workflow_runs":[` + strings.Replace(validRun, fmt.Sprintf(`"id": %d`, testRunID), `"id": -1`, 1) + `]}`},
 			{name: "id_float", body: `{"workflow_runs":[` + strings.Replace(validRun, fmt.Sprintf(`"id": %d`, testRunID), `"id": 1.0`, 1) + `]}`},
 			{name: "id_exponent", body: `{"workflow_runs":[` + strings.Replace(validRun, fmt.Sprintf(`"id": %d`, testRunID), `"id": 1e2`, 1) + `]}`},
 			{name: "empty_conclusion_string", body: `{"workflow_runs":[` + strings.Replace(validRun, `"conclusion": "success"`, `"conclusion": ""`, 1) + `]}`},
