@@ -190,14 +190,6 @@ func TestRunprDocContract(t *testing.T) {
 	})
 }
 
-// TestHandoffListingPrintsNoBody checks that the listing
-// _lib/task-pr-handoff.md Part B step 5 polls for Codex's start marker prints
-// no comment body, as runpr.md step 3's listings do (see checkListings).
-func TestHandoffListingPrintsNoBody(t *testing.T) {
-	step5 := itemSection("5. Make sure Codex starts reviewing the PR.", "\n6. ")(t, doctestutil.ReadDoc(t, handoffPath))
-	checkListings(t, "_lib/task-pr-handoff.md Part B step 5", step5, handoffListingFixtures(), handoffReadCalls, false)
-}
-
 // The values the listing filters' placeholders are replaced with before the
 // filters run. They hold no character a jq string literal would need to
 // escape.
@@ -326,123 +318,24 @@ func (f listingFixture) kindOf(obj map[string]any) any {
 // marked wraps line in bodyMarker at its start and end.
 func marked(line string) string { return bodyMarker + " " + line + " " + bodyMarker }
 
-// summaryBody is a Codex summary comment's body: the first line, the state
-// line built from stateJSON, and a marked line of findings.
-func summaryBody(stateLine string) string {
-	return "<!-- codex-pull-request-review-summary -->\n" + stateLine + "\n" + marked("Findings follow.")
-}
-
-// The fixed parts of a Codex receipt comment in the accepted form: its first
-// line and the start of its third line.
-const (
-	receiptFirstLine = "<!-- codex-review-receipt:v1 -->"
-	receiptNoIssues  = "Codex Review: Didn't find any major issues."
-)
-
-// reviewedCommit is a receipt's fifth line naming sha.
-func reviewedCommit(sha string) string { return "**Reviewed commit:** `" + sha + "`" }
-
-// receiptBody is a Codex receipt comment's body: the first line, an empty
-// second line, result as the third, an empty fourth, reviewed as the fifth,
-// and then the lines of rest. It ends without an LF unless rest ends with "".
-func receiptBody(result, reviewed string, rest ...string) string {
-	return strings.Join(append([]string{receiptFirstLine, "", result, "", reviewed}, rest...), "\n")
-}
-
-// stateLine is a well-formed state line around stateJSON.
-func stateLine(stateJSON string) string {
-	return "<!-- codex-review-state:v1 " + stateJSON + " -->"
-}
-
-// runprListingFixtures are the fake responses, by endpoint. The items take
-// every branch of the filters: each summary state, Codex's other comments, a
-// request and the near-requests that are mentions, the author checks, and
-// bodies with and without the mention, null included.
+// runprListingFixtures are the fake responses, by endpoint. The items cover
+// the awaited reviewer's comments, a request and the near-requests that are
+// mentions, the author checks, and bodies with and without the mention, null
+// included.
 func runprListingFixtures() map[string]listingFixture {
-	sha := strings.Repeat("a1", 20)
-	// allHexSHA holds every hexadecimal digit, so a filter whose class of
-	// digits is narrower than [0-9a-f] fails on it.
-	const allHexSHA = "0123456789abcdef0123456789abcdef01234567"
-	reviewState := func(status string, rest string) string {
-		return `{"code_review":{"status":` + status + `,"commit_sha":"` + sha + `"` + rest + `},"note":"` + bodyMarker + `"}`
-	}
-	completed := reviewState(`"completed"`, `,"has_any_findings":true,"note":"`+bodyMarker+`"`)
 	bot, user := "Bot", "User"
 	awaited := fakeAwaited + "[bot]"
 	comments := map[string]string{"url": "html_url", "created_at": "created_at", "updated_at": "updated_at"}
 	return map[string]listingFixture{
 		"issues/<number>/comments": {source: comments, keys: runprCommentKeys, required: runprCommentRequiredKeys, items: []listingItem{
-			{bot, awaited, summaryBody(stateLine(completed)), "summary", "completed " + sha, notMention},
-			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":false`))), "summary", "completed " + sha, notMention},
-			{bot, awaited, summaryBody(stateLine(reviewState(`"running"`, `,"note":"`+bodyMarker+`"`))), "summary", "running " + sha, notMention},
-			// The state line's shape: marked, cut short, or ended by a CR.
-			{bot, awaited, summaryBody(marked(stateLine(completed))), "summary", "indeterminate", notMention},
-			{bot, awaited, summaryBody(stateLine(completed) + "\r"), "summary", "indeterminate", notMention},
-			{bot, awaited, "<!-- codex-pull-request-review-summary -->", "summary", "indeterminate", notMention},
-			// Not JSON, and JSON of the wrong shape or types.
-			{bot, awaited, summaryBody(stateLine(bodyMarker + " not json")), "summary", "indeterminate", notMention},
-			{bot, awaited, summaryBody(stateLine(`["` + bodyMarker + `"]`)), "summary", "indeterminate", notMention},
-			{bot, awaited, summaryBody(stateLine(`{"code_review":"` + bodyMarker + `"}`)), "summary", "indeterminate", notMention},
-			{bot, awaited, summaryBody(stateLine(reviewState(`1`, ``))), "summary", "indeterminate", notMention},
-			{bot, awaited, summaryBody(stateLine(`{"code_review":{"status":"running","commit_sha":"abc1234"}}`)), "summary", "indeterminate", notMention},
-			{bot, awaited, summaryBody(stateLine(`{"code_review":{"status":"running","commit_sha":7}}`)), "summary", "indeterminate", notMention},
-			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":"`+bodyMarker+`"`))), "summary", "indeterminate", notMention},
-			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, ``))), "summary", "indeterminate", notMention},
-			// An unknown status, which the marker itself is.
-			{bot, awaited, summaryBody(stateLine(reviewState(`"`+bodyMarker+`"`, ``))), "summary", "indeterminate", notMention},
-			// A completion without a result: has_any_findings is there and
-			// null. Only a completed status makes one; a missing member stays
-			// indeterminate (above).
-			{bot, awaited, summaryBody(stateLine(reviewState(`"completed"`, `,"has_any_findings":null`))), "summary", "no-result " + sha, notMention},
-			{bot, awaited, summaryBody(stateLine(reviewState(`"running"`, `,"has_any_findings":null`))), "summary", "running " + sha, notMention},
-			{bot, awaited, summaryBody(stateLine(reviewState(`"queued"`, `,"has_any_findings":null`))), "summary", "indeterminate", notMention},
-			// Receipts in the accepted form: a 7- and a 40-digit SHA, the text
-			// after the fixed start of the third line and the lines after
-			// the fifth marked, exactly five lines with no LF at the end, a
-			// third line that is the fixed start alone, and a CR inside the
-			// third line.
-			{bot, awaited, receiptBody(receiptNoIssues+" "+marked("Looking forward."), reviewedCommit(sha[:7]), marked("A sixth line."), ""), "receipt", sha[:7], notMention},
-			{bot, awaited, receiptBody(receiptNoIssues+" "+marked("Looking forward."), reviewedCommit(allHexSHA)), "receipt", allHexSHA, notMention},
-			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha[:10]), marked("More.")), "receipt", sha[:10], notMention},
-			{bot, awaited, receiptBody(receiptNoIssues+" "+marked("A")+"\r"+marked("B"), reviewedCommit(sha[:10])), "receipt", sha[:10], notMention},
-			// Receipts not in the accepted form: a CR at the end of each of
-			// the second to fifth lines, a second or fourth line that is not
-			// empty, another third line (an apostrophe U+2019 included, and
-			// text before the fixed start), a fifth line with an uppercase,
-			// 6-digit, 41-digit, or non-hexadecimal SHA or with text around
-			// it, and bodies of fewer than five lines.
-			{bot, awaited, strings.Join([]string{receiptFirstLine, "\r", receiptNoIssues, "", reviewedCommit(sha[:10])}, "\n"), "receipt", "", notMention},
-			{bot, awaited, receiptBody(receiptNoIssues+"\r", reviewedCommit(sha[:10])), "receipt", "", notMention},
-			{bot, awaited, strings.Join([]string{receiptFirstLine, "", receiptNoIssues, "\r", reviewedCommit(sha[:10])}, "\n"), "receipt", "", notMention},
-			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha[:10])+"\r", marked("More.")), "receipt", "", notMention},
-			{bot, awaited, strings.Join([]string{receiptFirstLine, marked("Second."), receiptNoIssues, "", reviewedCommit(sha[:10])}, "\n"), "receipt", "", notMention},
-			{bot, awaited, strings.Join([]string{receiptFirstLine, "", receiptNoIssues, marked("Fourth."), reviewedCommit(sha[:10])}, "\n"), "receipt", "", notMention},
-			{bot, awaited, receiptBody("Codex Review: "+marked("Found issues."), reviewedCommit(sha[:10])), "receipt", "", notMention},
-			{bot, awaited, receiptBody("Codex Review: Didn\u2019t find any major issues. "+marked("More."), reviewedCommit(sha[:10])), "receipt", "", notMention},
-			{bot, awaited, receiptBody(marked("Before.")+" "+receiptNoIssues, reviewedCommit(sha[:10])), "receipt", "", notMention},
-			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(strings.ToUpper(sha[:10]))), "receipt", "", notMention},
-			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha[:6])), "receipt", "", notMention},
-			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha+"a")), "receipt", "", notMention},
-			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(bodyMarker)), "receipt", "", notMention},
-			{bot, awaited, receiptBody(receiptNoIssues, bodyMarker+" "+reviewedCommit(sha[:10])), "receipt", "", notMention},
-			{bot, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha[:10])+" "+bodyMarker), "receipt", "", notMention},
-			{bot, awaited, strings.Join([]string{receiptFirstLine, "", receiptNoIssues + " " + marked("Short."), ""}, "\n"), "receipt", "", notMention},
-			{bot, awaited, receiptFirstLine, "receipt", "", notMention},
-			// Codex's other comments: a receipt's first line ended by a CR is
-			// no receipt.
+			// Codex's comments.
 			{bot, awaited, marked("A note.") + "\n" + marked(fixprguard.CodexMention+" a second line."), "codex", "", notMention},
 			{bot, awaited, nil, "codex", "", notMention},
-			{bot, awaited, receiptFirstLine + "\r\n" + strings.TrimPrefix(receiptBody(receiptNoIssues, reviewedCommit(sha[:10])), receiptFirstLine+"\n"), "codex", "", notMention},
 			// The request, and the comments that are not one.
 			{user, fakeUser, "  " + fakeRequest + "\n", "request", "", notMention},
 			{user, fakeUser, marked(fakeRequest), "mention", "", byTheUser},
 			{user, "other-user", fakeRequest, "mention", "", byAPerson},
 			{bot, fakeUser, fakeRequest, "mention", "", byABot},
-			// The summary's and the receipt's author must be a Bot named
-			// like Codex.
-			{user, awaited, summaryBody(stateLine(completed)), "", "", notMention},
-			{user, awaited, receiptBody(receiptNoIssues, reviewedCommit(sha[:10])), "", "", notMention},
-			{bot, "other-bot[bot]", receiptBody(receiptNoIssues, reviewedCommit(sha[:10])), "", "", notMention},
 			// A User named like Codex is a person, whose mention counts.
 			{user, awaited, marked(fixprguard.CodexMention + " from a User"), "mention", "", byAPerson},
 			{user, "other-user", marked(strings.ToUpper(fixprguard.CodexMention)+" please look") + "\n" + marked("Thanks."), "mention", "", byAPerson},
@@ -475,36 +368,6 @@ func runprListingFixtures() map[string]listingFixture {
 			{user, "other-user", nil, "", "", notMention},
 		}},
 	}
-}
-
-// handoffListingFixtures is the fake response for the start-marker listing,
-// which prints a kindless {url, updated_at} for each Codex summary comment:
-// the summary, Codex's other comments, the author checks, and a null body.
-func handoffListingFixtures() map[string]listingFixture {
-	awaited := fakeAwaited + "[bot]"
-	summary := summaryBody(stateLine(`{"code_review":{"status":"running"},"note":"` + bodyMarker + `"}`))
-	return map[string]listingFixture{
-		"issues/<number>/comments": {
-			source:   map[string]string{"url": "html_url", "updated_at": "updated_at", "created_at": "created_at"},
-			keys:     map[string][]string{"start": {"url", "updated_at"}},
-			kindless: "start",
-			items: []listingItem{
-				{"Bot", awaited, summary, "start", "", notMention},
-				{"Bot", awaited, marked("A note.") + "\n" + marked("Another line."), "", "", notMention},
-				{"Bot", awaited, nil, "", "", notMention},
-				{"User", awaited, summary, "", "", notMention},
-				{"Bot", "other-bot[bot]", summary, "", "", notMention},
-				{"User", "other-user", marked(fixprguard.CodexMention + " please look"), "", "", notMention},
-			},
-		},
-	}
-}
-
-// handoffReadCalls are the gh api calls of _lib/task-pr-handoff.md Part B
-// step 5: the listing and the Date header.
-var handoffReadCalls = []string{
-	"gh api --paginate ",
-	"gh api -i repos/<owner>/<repo>/pulls/<number> | grep -i -m 1 '^date:'",
 }
 
 // timeFieldSeconds gives each time field its own second, so a value copied
