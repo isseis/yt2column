@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-21 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：Antigravity のクロスチェック担当モデルを Gemini 系（Carbon/Argon）候補から `claude-opus-5-5-medium` へ改めた |
+| Review date | 2026-11-22 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -307,4 +307,5 @@ Claude Code の権限設定を保ったまま、Antigravity でのサンドボ�
 ## 変更履歴
 
 - 2026-11-22 承認（isseis、#1079）
-- 2026-11-22 draft への戻し：Antigravity のクロスチェック担当モデルを Gemini 系（Carbon/Argon）候補から `claude-opus-5-5-medium` へ改めた（#未記入）
+- 2026-11-22 draft への戻し：Antigravity のクロスチェック担当モデルを Gemini 系（Carbon/Argon）候補から `claude-opus-5-5-medium` へ改めた（#1083）
+- 2026-11-22 承認（isseis、#1083）

@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-22 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-22 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
@@ -847,3 +847,7 @@ flowchart TD
 | F-006: サンドボックス・監視拡張 | AC-32〜AC-36 | 1.2、3.1、3.5、3.6.1、3.7、3.8、4.1、5.2、7.1、7.3、7.5 |
 | F-007: `chief` 追随と行キー改名 | AC-37〜AC-40 | 3.3、3.6.2、3.7、3.8、4.1、7.1、7.2 |
 | F-008: 文書・ADR・ガード更新 | AC-41〜AC-44 | 1.2、3.6.3、3.7、3.8、7.4、8 |
+
+## 変更履歴
+
+- 2026-11-22 承認（isseis、#1083）
