@@ -738,19 +738,33 @@ fixprguard review-state --protocol 7 --reviewer <awaited-reviewer> --request "<r
   thirty seconds; if it stays `call-failed` for about fifteen minutes, discard
   the preparation when it exists (`mergepr discard --protocol 3 --state <state-file>`)
   and stop with "Manual PR review stops" below.
-- When the re-read state changed from what step 3 saw, apply step 3's "Manual PR
-  review state" rules before comparing `head` (for example, if another request
-  is now `waiting`, discard any preparation and return to step 3 to wait and
-  handle threads; if `indeterminate` or `unreadable` with `rejected`, discard
-  any preparation and stop).
+- When `state`, `request.id`, or `markers` changed from what step 3 saw, handle
+  the change before comparing `head`:
+  - `waiting`: discard any preparation when it exists
+    (`mergepr discard --protocol 3 --state <state-file>`) and return to step 3
+    to wait and handle threads.
+  - `indeterminate`, or `unreadable` with `reason` `rejected`: discard any
+    preparation when it exists
+    (`mergepr discard --protocol 3 --state <state-file>`) and stop with "Manual
+    PR review stops" below.
+  - `rate-limited`, `unrecognized`, `timed-out`, or `unreadable` with `reason`
+    `limit` when `markers` is unchanged: update the state shown in this round's
+    summary and detail file (for `unreadable` with `reason` `limit`, treat
+    `LAST_REVIEWED` as `none`), then continue to the `head` check below.
+  - `completed`, or any other case where `markers` changed: discard any
+    preparation when it exists
+    (`mergepr discard --protocol 3 --state <state-file>`) and return to step 3
+    starting from "LAST_REVIEWED" (recompute `LAST_REVIEWED`, run step 3's
+    thread listing and `fixpr` if any thread opened, re-run
+    Escalation/COVERAGE, and check CI), then step 2, and back to step 4 item 1.
 - Confirm that `review-state`'s `head`, the prepared `headRefOid` (when
-  `prepare` has run), and `git rev-parse HEAD` are all equal. When any
-  pair differs, discard the preparation when it exists
-  (`mergepr discard --protocol 3 --state <state-file>`). When `review-state`'s
+  `prepare` has run), and `git rev-parse HEAD` are all equal. When any pair
+  differs: discard the preparation when it exists
+  (`mergepr discard --protocol 3 --state <state-file>`); if `review-state`'s
   `head` differs from `git rev-parse HEAD`, bring the checked-out branch up to
   date with `git pull --ff-only`, and stop and report (do not loop) if
   `git pull --ff-only` fails or `git rev-parse HEAD` still does not equal
-  `review-state`'s `head`. Otherwise return to step 2.
+  `review-state`'s `head`; then return to step 2.
 
 **A listing that fails here.** When a mention listing read in this step (before
 a question) fails as step 3's "A listing that fails" defines, do not wait for
