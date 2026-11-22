@@ -22,7 +22,7 @@ const (
 	testReviewer = "coderabbitai"
 	// testSecondReviewer is the second automated reviewer of the tests that
 	// pass two --reviewer flags.
-	testSecondReviewer = "chatgpt-codex-connector"
+	testSecondReviewer = "second-reviewer-bot"
 	testBranch         = "feature"
 	// testRequest is the text of a review request comment in the tests, and
 	// testSecret stands for text GitHub returned that must reach no output.

@@ -203,21 +203,28 @@ func TestGuideTable(t *testing.T) {
 	}
 }
 
-// reviewerPlaceholder is the --reviewer value the command documents write.
-// The documents write it once per call and define it as one --reviewer per
-// name of the automated reviewer list in _context.md, so the names live in
-// _context.md alone and the list can change without editing a call.
-const reviewerPlaceholder = "<reviewer>"
+// reviewerPlaceholder is the --reviewer value the command documents write for
+// the reviewer-list subcommands. awaitedReviewerPlaceholder and
+// requestPlaceholder are the --reviewer and --request values runpr.md writes
+// for review-state.
+const (
+	reviewerPlaceholder        = "<reviewer>"
+	awaitedReviewerPlaceholder = "<awaited-reviewer>"
+	requestPlaceholder         = "\"<review-request>\""
+)
 
 var (
 	errReviewerCount = errors.New("--reviewer not given exactly once")
 	errReviewerValue = errors.New("--reviewer is not the placeholder")
+	errRequestValue  = errors.New("--request is not the placeholder")
 )
 
 // checkDocumentedReviewer checks a parsed documented call of a subcommand that
 // takes --reviewer: its collected --reviewer values must be exactly one, the
-// placeholder. A call of another subcommand has nothing to check (parse
-// refuses --reviewer there).
+// subcommand's placeholder (<awaited-reviewer> for review-state, <reviewer>
+// for the rest), and review-state must pass the <review-request> placeholder.
+// A call of another subcommand has nothing to check (parse refuses --reviewer
+// there).
 func checkDocumentedReviewer(inv invocation) error {
 	if !slices.Contains(specs[inv.name].flags, flagReviewer) {
 		return nil
@@ -226,8 +233,15 @@ func checkDocumentedReviewer(inv invocation) error {
 	if len(values) != 1 {
 		return fmt.Errorf("%w: %d values", errReviewerCount, len(values))
 	}
-	if values[0] != reviewerPlaceholder {
+	wantReviewer := reviewerPlaceholder
+	if inv.name == cmdReviewState {
+		wantReviewer = awaitedReviewerPlaceholder
+	}
+	if values[0] != wantReviewer {
 		return fmt.Errorf("%w: %q", errReviewerValue, values[0])
+	}
+	if inv.name == cmdReviewState && inv.values[flagRequest] != requestPlaceholder {
+		return fmt.Errorf("%w: %q", errRequestValue, inv.values[flagRequest])
 	}
 	return nil
 }
@@ -267,7 +281,7 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 		want []string
 	}{
 		{".claude/commands/fixpr.md", []string{cmdBegin, cmdFence, cmdInspect, cmdFinish, cmdPush, cmdCheck, cmdPushReview, cmdReply, cmdEditPR, cmdAppendPR}},
-		{".claude/commands/runpr.md", []string{cmdHead, cmdInteractionLimits, cmdList, cmdReply, cmdEditPR}},
+		{".claude/commands/runpr.md", []string{cmdHead, cmdInteractionLimits, cmdReviewState, cmdList, cmdReply, cmdEditPR}},
 	} {
 		calls := documentedInvocations(readRepoFile(t, tc.rel))
 		seen := map[string]struct{}{}
@@ -301,6 +315,9 @@ func TestCheckDocumentedReviewer(t *testing.T) {
 	}{
 		{"one_placeholder", args(cmdList, "--reviewer", reviewerPlaceholder, testPR), nil},
 		{"no_reviewer_subcommand", args(cmdHead, testPR), nil},
+		{"review_state_placeholders", args(cmdReviewState, "--reviewer", awaitedReviewerPlaceholder, "--request", requestPlaceholder, testPR), nil},
+		{"review_state_wrong_reviewer", args(cmdReviewState, "--reviewer", reviewerPlaceholder, "--request", requestPlaceholder, testPR), errReviewerValue},
+		{"review_state_wrong_request", args(cmdReviewState, "--reviewer", awaitedReviewerPlaceholder, "--request", "literal", testPR), errRequestValue},
 		{"two_placeholders", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", reviewerPlaceholder, testPR), errReviewerCount},
 		{"placeholder_and_name", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", testReviewer, testPR), errReviewerCount},
 		{"name_itself", args(cmdInspect, "--reviewer", testReviewer, "--baseline", "<b>", testPR), errReviewerValue},
@@ -479,16 +496,24 @@ func TestFixprguardProtocolMismatches(t *testing.T) {
 	}
 }
 
-// TestGuideDescribesMentionCheck: the guide names, in 7.1 and 7.2, the
-// mention reply and edit-pr reject, taking the value from internal/fixprguard,
-// so changing the constant without the guide fails here. Whether the prose
-// around it is right is checked by review, not pinned by wording.
+// TestGuideDescribesMentionCheck: the guide names, in 7.1 and 7.2, every
+// mention reply, edit-pr, append-pr, and finish reject, taking the values from
+// internal/fixprguard, so changing RejectedMentions without the guide fails
+// here. Whether the prose around them is right is checked by review, not
+// pinned by wording.
 func TestGuideDescribesMentionCheck(t *testing.T) {
-	mention := "`" + fixprguard.CodexMention + "`"
+	mentions := fixprguard.RejectedMentions()
+	if len(mentions) == 0 {
+		t.Fatal("fixprguard.RejectedMentions() is empty")
+	}
 	guide := readRepoFile(t, guidePath)
 	for _, heading := range []string{"### 7.1", "### 7.2"} {
-		if !strings.Contains(subsection(guide, heading), mention) {
-			t.Errorf("%s %s does not name %s", guidePath, heading, mention)
+		sub := subsection(guide, heading)
+		for _, m := range mentions {
+			mention := "`" + m + "`"
+			if !strings.Contains(sub, mention) {
+				t.Errorf("%s %s does not name %s", guidePath, heading, mention)
+			}
 		}
 	}
 }

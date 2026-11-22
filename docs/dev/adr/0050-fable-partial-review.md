@@ -38,7 +38,6 @@ PR を開く前に、ハーネスごとに `_context.md` が定めるクロス�
 
 -   **選んだもの：** タスクの PR を開くコマンド（`/mkreq`・`/mkarch`・`/mkplan`・`/mkplan2`・`/runplan`）は、PR を開く前に、ローカルの CLI レビューと並列にクロスチェックの部分レビューを行う。
 -   **理由：** PR を開く前に直せば、直しがローカルの CLI レビューを通り、人のレビューは直した後の PR から始まるためである。PR を開いたときの PR レビューはない（[ADR-0013](0013-review-setup.md)）。この理由は [0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) で改めたもので、それまでは Codex の最初の PR レビューが修正を見ることを理由にしていた。
--   **食い違い:** `.claude/commands/_lib/fable-review.md` は、まだ Codex の最初の PR レビューを前提に書かれており、`runpr.md` のマージの質問の要約は、まだ「Codex が見ていない変更」を示す。この食い違いは https://github.com/isseis/yt2column/issues/1059 の実装で解消する。
 -   **回数：** `/runplan` でも phase group ごとではなく、PR につき 1 回とする。費用が phase group の数だけ増えるためである。
 -   **`/mkplan2` も含める：** PR の境界などを人に問わずに決めるためであり、共有の手順に置けば例外が要らないためでもある（0098 要件定義書の F-001）。
 
