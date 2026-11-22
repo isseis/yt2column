@@ -269,13 +269,10 @@ func parseLinkHeaderHasNext(value string) (hasNext bool, ok bool) {
 				return false, false
 			}
 			i = skipOWS(value, nextIdx)
-			if !hasVal {
-				continue
-			}
 			// Per RFC 8288 section 3.3, only the first rel parameter in a link-value applies.
 			if strings.EqualFold(paramName, "rel") && !seenRel {
 				seenRel = true
-				if relContainsNext(paramVal, quoted) {
+				if hasVal && relContainsNext(paramVal, quoted) {
 					hasNext = true
 				}
 			}

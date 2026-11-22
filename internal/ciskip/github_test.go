@@ -38,9 +38,8 @@ func (r *deadlineBlockingRunner) Run(ctx context.Context, _ string, _ ...string)
 	return nil, ctx.Err()
 }
 
-func evalWithGHSteps(t *testing.T, limits evalLimits, ghSteps ...cmdrunnertestutil.Step) Decision {
+func evalWithDepFile(t *testing.T, depFile string, limits evalLimits, ghSteps ...cmdrunnertestutil.Step) Decision {
 	t.Helper()
-	depFile := writeTempFile(t, "wasm-dep-dirs", []byte("internal/llm/devfake/\n"))
 	gitFake := cmdrunnertestutil.New(t, localGitPassSteps("docs/note.md\x00")...)
 	scriptFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
 		Name: "bash",
@@ -50,6 +49,43 @@ func evalWithGHSteps(t *testing.T, limits evalLimits, ghSteps ...cmdrunnertestut
 	ghFake := cmdrunnertestutil.New(t, ghSteps...)
 	ev := newWithRunners(gitFake, scriptFake, ghFake, limits)
 	return ev.Evaluate(t.Context(), validEvalInput(depFile))
+}
+
+func evalWithGHSteps(t *testing.T, limits evalLimits, ghSteps ...cmdrunnertestutil.Step) Decision {
+	t.Helper()
+	depFile := writeTempFile(t, "wasm-dep-dirs", []byte("internal/llm/devfake/\n"))
+	return evalWithDepFile(t, depFile, limits, ghSteps...)
+}
+
+type testJobSpec struct {
+	id         int64
+	name       string
+	headSHA    string
+	status     string
+	conclusion string // JSON literal, e.g. `"success"` or `null`
+}
+
+func jobsPayload(specs ...testJobSpec) string {
+	parts := make([]string, 0, len(specs))
+	for _, s := range specs {
+		sha := s.headSHA
+		if sha == "" {
+			sha = testSHA4
+		}
+		status := s.status
+		if status == "" {
+			status = "completed"
+		}
+		concl := s.conclusion
+		if concl == "" {
+			concl = `"success"`
+		}
+		parts = append(parts, fmt.Sprintf(
+			`{"id": %d, "name": %q, "head_sha": %q, "status": %q, "conclusion": %s}`,
+			s.id, s.name, sha, status, concl,
+		))
+	}
+	return `{"jobs": [` + strings.Join(parts, ",") + `]}`
 }
 
 func runJSON(id int64, path, event, headSHA, status, conclusionJSON, createdAt, startedAt, repo, headRepoJSON, prsJSON string) string {
@@ -126,24 +162,24 @@ func TestVerifyParentCIValid(t *testing.T) {
 	})
 
 	t.Run("multi_page_runs_jobs_and_annotations_with_link_variants", func(t *testing.T) {
-		// Page 1 of runs has only an unrelated PR run; page 2 has the matching run.
-		// Uses lowercase "link" header and unquoted rel=next, plus multi-value rel="prev next".
+		// Page 1 of runs has a newer cancelled run for a different single PR (must be ignored);
+		// page 2 has the matching run. Uses lowercase "link", unquoted rel=next, and multi-value rel.
 		runsP1 := fmt.Sprintf(`{"workflow_runs": [%s]}`, runJSON(
-			4001, ciWorkflowPath, pullRequestEvent, testSHA4, "completed", `"success"`,
-			"2026-11-21T09:00:00Z", "2026-11-21T09:00:01Z", testRepo,
+			9999, ciWorkflowPath, pullRequestEvent, testSHA4, "completed", `"cancelled"`,
+			"2026-11-21T11:00:00Z", "2026-11-21T11:00:01Z", testRepo,
 			fmt.Sprintf(`{"full_name": %q}`, testRepo), `[{"number": 9999}]`,
 		))
 		runsP2 := fmt.Sprintf(`{"workflow_runs": [%s]}`,
 			standardRunJSON(testRunID, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:05Z"))
 
-		jobsP1 := fmt.Sprintf(`{"jobs": [
-			{"id": %d, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "success"},
-			{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "success"}
-		]}`, testCheckJobID, testSHA4, testSHA4)
-		jobsP2 := fmt.Sprintf(`{"jobs": [
-			{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "success"},
-			{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": "success"}
-		]}`, testSHA4, testSHA4)
+		jobsP1 := jobsPayload(
+			testJobSpec{id: testCheckJobID, name: checkChangesJobName},
+			testJobSpec{id: 9002, name: testJobName},
+		)
+		jobsP2 := jobsPayload(
+			testJobSpec{id: 9003, name: lintJobName},
+			testJobSpec{id: 9004, name: extensionJobName},
+		)
 
 		annP1 := `[{"annotation_level": "notice", "title": "other", "message": "ignored"}]`
 		annP2 := fmt.Sprintf(`[{"annotation_level": "notice", "title": "ci-base-sha", "message": %q}]`, testSHA1)
@@ -186,28 +222,22 @@ func TestVerifyParentCIValid(t *testing.T) {
 				Out:  ghHTTPResponse("HTTP/2.0 200 OK", nil, annP2),
 			},
 		)
-		if !dec.Skip() || dec.Reason != ReasonSkipped {
-			t.Errorf("multi-page decision = %+v, want Skip()=true Reason=%q", dec, ReasonSkipped)
+		if !dec.Skip() || dec.Reason != ReasonSkipped || dec.ParentRunID != testRunID {
+			t.Errorf("multi-page decision = %+v, want Skip()=true Reason=%q ParentRunID=%d", dec, ReasonSkipped, testRunID)
 		}
 	})
 }
 
 func TestVerifyParentCISkipChain(t *testing.T) {
-	runsBody := fmt.Sprintf(`{"workflow_runs": [%s]}`,
-		standardRunJSON(testRunID, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:05Z"))
-	jobsBody := fmt.Sprintf(`{"jobs": [
-		{"id": %d, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "success"},
-		{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "skipped"},
-		{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "skipped"},
-		{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": "skipped"}
-	]}`, testCheckJobID, testSHA4, testSHA4, testSHA4, testSHA4)
-	annBody := fmt.Sprintf(`[{"annotation_level": "notice", "title": "ci-base-sha", "message": %q}]`, testSHA1)
+	steps := ghHappySteps(testRunID)
+	steps[1].Out = ghHTTPResponse("HTTP/2.0 200 OK", nil, jobsPayload(
+		testJobSpec{id: testCheckJobID, name: checkChangesJobName, conclusion: `"success"`},
+		testJobSpec{id: 9002, name: testJobName, conclusion: `"skipped"`},
+		testJobSpec{id: 9003, name: lintJobName, conclusion: `"skipped"`},
+		testJobSpec{id: 9004, name: extensionJobName, conclusion: `"skipped"`},
+	))
 
-	dec := evalWithGHSteps(t, defaultLimits(),
-		cmdrunnertestutil.Step{Name: "gh", Args: ghAPIArgs(runsEndpoint(1)), Out: ghHTTPResponse("HTTP/2.0 200 OK", nil, runsBody)},
-		cmdrunnertestutil.Step{Name: "gh", Args: ghAPIArgs(jobsEndpoint(testRunID, 1)), Out: ghHTTPResponse("HTTP/2.0 200 OK", nil, jobsBody)},
-		cmdrunnertestutil.Step{Name: "gh", Args: ghAPIArgs(annotationsEndpoint(1)), Out: ghHTTPResponse("HTTP/2.0 200 OK", nil, annBody)},
-	)
+	dec := evalWithGHSteps(t, defaultLimits(), steps...)
 	if !dec.Skip() || dec.Reason != ReasonSkipped || dec.NoticeBaseSHA != testSHA1 || dec.ParentRunID != testRunID {
 		t.Errorf("skip chain decision = %+v, want Skip()=true Reason=%q NoticeBaseSHA=%q ParentRunID=%d",
 			dec, ReasonSkipped, testSHA1, testRunID)
@@ -217,7 +247,7 @@ func TestVerifyParentCISkipChain(t *testing.T) {
 func TestVerifyParentCIRunSelection(t *testing.T) {
 	t.Run("no_matching_runs_and_non_matching_filtered_out", func(t *testing.T) {
 		sameHeadRepo := fmt.Sprintf(`{"full_name": %q}`, testRepo)
-		runsBody := fmt.Sprintf(`{"workflow_runs": [%s, %s, %s, %s, %s, %s, %s]}`,
+		runsBody := fmt.Sprintf(`{"workflow_runs": [%s, %s, %s, %s, %s, %s, %s, %s]}`,
 			// Different workflow
 			runJSON(101, ".github/workflows/deepseek-review.yml", pullRequestEvent, testSHA4, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:01Z", testRepo, sameHeadRepo, `[{"number": 1073}]`),
 			// Different event
@@ -230,8 +260,10 @@ func TestVerifyParentCIRunSelection(t *testing.T) {
 			runJSON(105, ciWorkflowPath, pullRequestEvent, testSHA4, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:01Z", testRepo, `{"full_name": "fork/yt2column"}`, `[{"number": 1073}]`),
 			// Deleted fork (head_repository: null) with empty pull_requests must be ignored, not ambiguous
 			runJSON(106, ciWorkflowPath, pullRequestEvent, testSHA4, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:01Z", testRepo, `null`, `[]`),
-			// Same repo, different PRs (single and multiple without our PR)
-			runJSON(107, ciWorkflowPath, pullRequestEvent, testSHA4, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:01Z", testRepo, sameHeadRepo, `[{"number": 900}, {"number": 901}]`),
+			// Same repo, single different PR (isolates case 1 PR-number check)
+			runJSON(107, ciWorkflowPath, pullRequestEvent, testSHA4, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:01Z", testRepo, sameHeadRepo, `[{"number": 999}]`),
+			// Same repo, multiple different PRs without our PR
+			runJSON(108, ciWorkflowPath, pullRequestEvent, testSHA4, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:01Z", testRepo, sameHeadRepo, `[{"number": 900}, {"number": 901}]`),
 		)
 
 		dec := evalWithGHSteps(t, defaultLimits(), cmdrunnertestutil.Step{
@@ -303,12 +335,14 @@ func TestVerifyParentCIRunSelection(t *testing.T) {
 				wantRsn:   ReasonSkipped,
 			},
 			{
-				name: "same_run_started_at_newer_created_at_wins",
+				// Older created_at has larger id so only created_at selects run 1000 (cancelled),
+				// also confirming an older success run is ignored when the latest run is cancelled.
+				name: "same_run_started_at_newer_created_at_wins_over_larger_id",
 				runs: []string{
-					standardRunJSON(1000, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:10:00Z"),
-					standardRunJSON(1001, "completed", `"cancelled"`, "2026-11-21T10:01:00Z", "2026-11-21T10:10:00Z"),
+					standardRunJSON(2000, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:10:00Z"),
+					standardRunJSON(1000, "completed", `"cancelled"`, "2026-11-21T10:01:00Z", "2026-11-21T10:10:00Z"),
 				},
-				wantRunID: 1001,
+				wantRunID: 1000,
 				wantSkip:  false,
 				wantRsn:   ReasonParentRunBadResult,
 			},
@@ -321,16 +355,6 @@ func TestVerifyParentCIRunSelection(t *testing.T) {
 				wantRunID: 2000,
 				wantSkip:  true,
 				wantRsn:   ReasonSkipped,
-			},
-			{
-				name: "older_success_ignored_when_newer_cancelled",
-				runs: []string{
-					standardRunJSON(1000, "completed", `"success"`, "2026-11-21T09:00:00Z", "2026-11-21T09:00:05Z"),
-					standardRunJSON(2000, "completed", `"cancelled"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:05Z"),
-				},
-				wantRunID: 2000,
-				wantSkip:  false,
-				wantRsn:   ReasonParentRunBadResult,
 			},
 		}
 
@@ -428,93 +452,93 @@ func TestVerifyParentCIInvalidStates(t *testing.T) {
 		}{
 			{
 				name: "missing_check_changes",
-				jobsJSON: fmt.Sprintf(`{"jobs": [
-					{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": "success"}
-				]}`, testSHA4, testSHA4, testSHA4),
+				jobsJSON: jobsPayload(
+					testJobSpec{id: 9002, name: testJobName},
+					testJobSpec{id: 9003, name: lintJobName},
+					testJobSpec{id: 9004, name: extensionJobName},
+				),
 			},
 			{
 				name: "missing_extension",
-				jobsJSON: fmt.Sprintf(`{"jobs": [
-					{"id": 9001, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "success"}
-				]}`, testSHA4, testSHA4, testSHA4),
+				jobsJSON: jobsPayload(
+					testJobSpec{id: 9001, name: checkChangesJobName},
+					testJobSpec{id: 9002, name: testJobName},
+					testJobSpec{id: 9003, name: lintJobName},
+				),
 			},
 			{
 				name: "duplicate_required_job",
-				jobsJSON: fmt.Sprintf(`{"jobs": [
-					{"id": 9001, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9012, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": "success"}
-				]}`, testSHA4, testSHA4, testSHA4, testSHA4, testSHA4),
+				jobsJSON: jobsPayload(
+					testJobSpec{id: 9001, name: checkChangesJobName},
+					testJobSpec{id: 9002, name: testJobName},
+					testJobSpec{id: 9012, name: testJobName},
+					testJobSpec{id: 9003, name: lintJobName},
+					testJobSpec{id: 9004, name: extensionJobName},
+				),
 			},
 			{
 				name: "job_head_sha_mismatch",
-				jobsJSON: fmt.Sprintf(`{"jobs": [
-					{"id": 9001, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9005, "name": "Documentation guard", "head_sha": %q, "status": "completed", "conclusion": "success"}
-				]}`, testSHA4, testSHA4, testSHA4, testSHA4, testSHA1),
+				jobsJSON: jobsPayload(
+					testJobSpec{id: 9001, name: checkChangesJobName},
+					testJobSpec{id: 9002, name: testJobName},
+					testJobSpec{id: 9003, name: lintJobName},
+					testJobSpec{id: 9004, name: extensionJobName},
+					testJobSpec{id: 9005, name: "Documentation guard", headSHA: testSHA1},
+				),
 			},
 			{
 				name: "in_progress_with_conclusion_success",
-				jobsJSON: fmt.Sprintf(`{"jobs": [
-					{"id": 9001, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9002, "name": "Test", "head_sha": %q, "status": "in_progress", "conclusion": "success"},
-					{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": "success"}
-				]}`, testSHA4, testSHA4, testSHA4, testSHA4),
+				jobsJSON: jobsPayload(
+					testJobSpec{id: 9001, name: checkChangesJobName},
+					testJobSpec{id: 9002, name: testJobName, status: "in_progress", conclusion: `"success"`},
+					testJobSpec{id: 9003, name: lintJobName},
+					testJobSpec{id: 9004, name: extensionJobName},
+				),
 			},
 			{
 				name: "check_changes_skipped_not_allowed",
-				jobsJSON: fmt.Sprintf(`{"jobs": [
-					{"id": 9001, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "skipped"},
-					{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": "success"}
-				]}`, testSHA4, testSHA4, testSHA4, testSHA4),
+				jobsJSON: jobsPayload(
+					testJobSpec{id: 9001, name: checkChangesJobName, conclusion: `"skipped"`},
+					testJobSpec{id: 9002, name: testJobName},
+					testJobSpec{id: 9003, name: lintJobName},
+					testJobSpec{id: 9004, name: extensionJobName},
+				),
 			},
 			{
 				name: "check_changes_failed",
-				jobsJSON: fmt.Sprintf(`{"jobs": [
-					{"id": 9001, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "failure"},
-					{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": "success"}
-				]}`, testSHA4, testSHA4, testSHA4, testSHA4),
+				jobsJSON: jobsPayload(
+					testJobSpec{id: 9001, name: checkChangesJobName, conclusion: `"failure"`},
+					testJobSpec{id: 9002, name: testJobName},
+					testJobSpec{id: 9003, name: lintJobName},
+					testJobSpec{id: 9004, name: extensionJobName},
+				),
 			},
 			{
 				name: "heavy_job_failure",
-				jobsJSON: fmt.Sprintf(`{"jobs": [
-					{"id": 9001, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "failure"},
-					{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": "success"}
-				]}`, testSHA4, testSHA4, testSHA4, testSHA4),
+				jobsJSON: jobsPayload(
+					testJobSpec{id: 9001, name: checkChangesJobName},
+					testJobSpec{id: 9002, name: testJobName, conclusion: `"failure"`},
+					testJobSpec{id: 9003, name: lintJobName},
+					testJobSpec{id: 9004, name: extensionJobName},
+				),
 			},
 			{
 				name: "heavy_job_cancelled",
-				jobsJSON: fmt.Sprintf(`{"jobs": [
-					{"id": 9001, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "cancelled"},
-					{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": "success"}
-				]}`, testSHA4, testSHA4, testSHA4, testSHA4),
+				jobsJSON: jobsPayload(
+					testJobSpec{id: 9001, name: checkChangesJobName},
+					testJobSpec{id: 9002, name: testJobName},
+					testJobSpec{id: 9003, name: lintJobName, conclusion: `"cancelled"`},
+					testJobSpec{id: 9004, name: extensionJobName},
+				),
 			},
 			{
 				name: "heavy_job_null_conclusion",
-				jobsJSON: fmt.Sprintf(`{"jobs": [
-					{"id": 9001, "name": "Check changed files", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9002, "name": "Test", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9003, "name": "Code Quality & Lint", "head_sha": %q, "status": "completed", "conclusion": "success"},
-					{"id": 9004, "name": "Browser extension", "head_sha": %q, "status": "completed", "conclusion": null}
-				]}`, testSHA4, testSHA4, testSHA4, testSHA4),
+				jobsJSON: jobsPayload(
+					testJobSpec{id: 9001, name: checkChangesJobName},
+					testJobSpec{id: 9002, name: testJobName},
+					testJobSpec{id: 9003, name: lintJobName},
+					testJobSpec{id: 9004, name: extensionJobName, conclusion: `null`},
+				),
 			},
 		}
 
@@ -619,39 +643,47 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 
 	t.Run("non_200_on_jobs_and_annotations_preserves_run_id_and_notice", func(t *testing.T) {
 		happy := ghHappySteps(testRunID)
-
-		t.Run("jobs_http_500", func(t *testing.T) {
-			dec := evalWithGHSteps(t, defaultLimits(),
-				happy[0],
-				cmdrunnertestutil.Step{
-					Name: "gh",
-					Args: ghAPIArgs(jobsEndpoint(testRunID, 1)),
-					Err:  &cmdrunner.ExitError{Code: 1, Stdout: []byte("HTTP/2.0 500 Internal Server Error\n\r\n{}")},
+		cases := []struct {
+			name       string
+			steps      []cmdrunnertestutil.Step
+			wantStatus int
+		}{
+			{
+				name: "jobs_http_500",
+				steps: []cmdrunnertestutil.Step{
+					happy[0],
+					{
+						Name: "gh",
+						Args: ghAPIArgs(jobsEndpoint(testRunID, 1)),
+						Err:  &cmdrunner.ExitError{Code: 1, Stdout: []byte("HTTP/2.0 500 Internal Server Error\n\r\n{}")},
+					},
 				},
-			)
-			if dec.Skip() || dec.Reason != ReasonAPIFailed || dec.HTTPStatus != 500 ||
-				dec.ParentRunID != testRunID || dec.NoticeBaseSHA != testSHA1 {
-				t.Errorf("decision = %+v, want Reason=%q HTTPStatus=500 ParentRunID=%d NoticeBaseSHA=%q",
-					dec, ReasonAPIFailed, testRunID, testSHA1)
-			}
-		})
-
-		t.Run("annotations_http_403", func(t *testing.T) {
-			dec := evalWithGHSteps(t, defaultLimits(),
-				happy[0],
-				happy[1],
-				cmdrunnertestutil.Step{
-					Name: "gh",
-					Args: ghAPIArgs(annotationsEndpoint(1)),
-					Err:  &cmdrunner.ExitError{Code: 1, Stdout: []byte("HTTP/2.0 403 Forbidden\n\r\n{}")},
+				wantStatus: 500,
+			},
+			{
+				name: "annotations_http_403",
+				steps: []cmdrunnertestutil.Step{
+					happy[0],
+					happy[1],
+					{
+						Name: "gh",
+						Args: ghAPIArgs(annotationsEndpoint(1)),
+						Err:  &cmdrunner.ExitError{Code: 1, Stdout: []byte("HTTP/2.0 403 Forbidden\n\r\n{}")},
+					},
 				},
-			)
-			if dec.Skip() || dec.Reason != ReasonAPIFailed || dec.HTTPStatus != 403 ||
-				dec.ParentRunID != testRunID || dec.NoticeBaseSHA != testSHA1 {
-				t.Errorf("decision = %+v, want Reason=%q HTTPStatus=403 ParentRunID=%d NoticeBaseSHA=%q",
-					dec, ReasonAPIFailed, testRunID, testSHA1)
-			}
-		})
+				wantStatus: 403,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				dec := evalWithGHSteps(t, defaultLimits(), tc.steps...)
+				if dec.Skip() || dec.Reason != ReasonAPIFailed || dec.HTTPStatus != tc.wantStatus ||
+					dec.ParentRunID != testRunID || dec.NoticeBaseSHA != testSHA1 {
+					t.Errorf("decision = %+v, want Reason=%q HTTPStatus=%d ParentRunID=%d NoticeBaseSHA=%q",
+						dec, ReasonAPIFailed, tc.wantStatus, testRunID, testSHA1)
+				}
+			})
+		}
 	})
 
 	t.Run("exit_error_with_200_or_unparseable_stdout_leaves_http_status_zero", func(t *testing.T) {
@@ -676,13 +708,17 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 	})
 
 	t.Run("exit_zero_with_non_200_status_maps_to_api_failed", func(t *testing.T) {
+		const secretToken = "ghp_EXIT_ZERO_NON200_SECRET"
 		dec := evalWithGHSteps(t, defaultLimits(), cmdrunnertestutil.Step{
 			Name: "gh",
 			Args: ghAPIArgs(runsEndpoint(1)),
-			Out:  ghHTTPResponse("HTTP/2.0 502 Bad Gateway", nil, `{"message":"ghp_SECRET"}`),
+			Out:  ghHTTPResponse("HTTP/2.0 502 Bad Gateway", nil, `{"message":"`+secretToken+`"}`),
 		})
 		if dec.Skip() || dec.Reason != ReasonAPIFailed || dec.HTTPStatus != 502 {
 			t.Errorf("decision = %+v, want Reason=%q HTTPStatus=502", dec, ReasonAPIFailed)
+		}
+		if serialized := fmt.Sprintf("%+v", dec); strings.Contains(serialized, secretToken) {
+			t.Errorf("Decision leaked secret token: %s", serialized)
 		}
 	})
 
@@ -768,15 +804,7 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 				return nil
 			}
 			// Jobs API must not even be invoked once RunTimeout has elapsed.
-			gitFake := cmdrunnertestutil.New(t, localGitPassSteps("docs/note.md\x00")...)
-			scriptFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
-				Name: "bash",
-				Args: []string{hasExtensionChangesScript, depFile},
-				Out:  "false\n",
-			})
-			ghFake := cmdrunnertestutil.New(t, okRunStep)
-			ev := newWithRunners(gitFake, scriptFake, ghFake, limits)
-			dec := ev.Evaluate(t.Context(), validEvalInput(depFile))
+			dec := evalWithDepFile(t, depFile, limits, okRunStep)
 			if dec.Skip() || dec.Reason != ReasonAPITimeout || dec.ParentRunID != testRunID {
 				t.Errorf("decision = %+v, want Reason=%q ParentRunID=%d", dec, ReasonAPITimeout, testRunID)
 			}
@@ -784,21 +812,25 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 	})
 
 	t.Run("framing_and_link_header_errors", func(t *testing.T) {
+		// Every case uses a valid empty workflow_runs body so that if a framing or Link
+		// check were broken, findLatestParentRun would return ReasonNoParentRun instead
+		// of ReasonAPIInvalidResponse.
+		const validRunsBody = `{"workflow_runs":[]}`
 		framingCases := []struct {
 			name string
 			raw  string
 		}{
 			{name: "empty_output", raw: ""},
-			{name: "crlf_status_line", raw: "HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n{}"},
-			{name: "bad_status_protocol", raw: "HTTP/3.0 200 OK\n\r\n{}"},
-			{name: "missing_header_blank_line", raw: "HTTP/2.0 200 OK\nContent-Type: application/json\r\n{}"},
-			{name: "malformed_header_no_colon", raw: "HTTP/2.0 200 OK\nBadHeader\r\n\r\n{}"},
-			{name: "malformed_header_space_in_name", raw: "HTTP/2.0 200 OK\nBad Name: 1\r\n\r\n{}"},
-			{name: "malformed_link_unclosed_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x; rel="next"`}, `{"workflow_runs":[]}`)},
-			{name: "malformed_link_unclosed_quote", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel="next`}, `{"workflow_runs":[]}`)},
-			{name: "malformed_link_trailing_comma", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel="last", `}, `{"workflow_runs":[]}`)},
-			{name: "malformed_link_dangling_escape", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; title="abc\`}, `{"workflow_runs":[]}`)},
-			{name: "malformed_link_invalid_token_char", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel=bad"val`}, `{"workflow_runs":[]}`)},
+			{name: "crlf_status_line", raw: "HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n" + validRunsBody},
+			{name: "bad_status_protocol", raw: "HTTP/3.0 200 OK\n\r\n" + validRunsBody},
+			{name: "missing_header_blank_line", raw: "HTTP/2.0 200 OK\nContent-Type: application/json\r\n" + validRunsBody},
+			{name: "malformed_header_no_colon", raw: "HTTP/2.0 200 OK\nBadHeader\r\n\r\n" + validRunsBody},
+			{name: "malformed_header_space_in_name", raw: "HTTP/2.0 200 OK\nBad Name: 1\r\n\r\n" + validRunsBody},
+			{name: "malformed_link_unclosed_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x; rel="next"`}, validRunsBody)},
+			{name: "malformed_link_unclosed_quote", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel="next`}, validRunsBody)},
+			{name: "malformed_link_trailing_comma", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel="last", `}, validRunsBody)},
+			{name: "malformed_link_dangling_escape", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; title="abc\`}, validRunsBody)},
+			{name: "malformed_link_invalid_token_char", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel=bad"val`}, validRunsBody)},
 		}
 		for _, tc := range framingCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -817,8 +849,8 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 	t.Run("link_header_ignores_evil_host_and_false_rel_substrings", func(t *testing.T) {
 		// Page 1 carries multiple Link headers, a valueless parameter, and an evil host URL;
 		// evaluator MUST request fixed github.com endpoint page=2.
-		// Page 2 carries rel="next" inside URI, inside an escaped quoted title, and as a
-		// duplicate second rel parameter (ignored per RFC 8288 section 3.3);
+		// Page 2 carries rel="next" inside URI, inside an escaped quoted title, and after a
+		// valueless or prior rel parameter (ignored per RFC 8288 section 3.3);
 		// evaluator MUST NOT request page=3.
 		runsP1 := `{"workflow_runs": []}`
 		runsP2 := fmt.Sprintf(`{"workflow_runs": [%s]}`,
@@ -838,7 +870,7 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 				Name: "gh",
 				Args: ghAPIArgs(runsEndpoint(2)),
 				Out: ghHTTPResponse("HTTP/2.0 200 OK", []string{
-					`Link: <https://api.github.com/x?q=a,b;rel="next">; title="fake\"; rel=next"; rel="last"; rel="next"`,
+					`Link: <https://api.github.com/x?q=a,b;rel="next">; title="fake\"; rel=next"; rel="last"; rel="next", <https://api.github.com/y>; rel; rel="next"`,
 				}, runsP2),
 			},
 			happy[1],
@@ -856,39 +888,43 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 		limits.maxAnnotationPages = 1
 
 		nextHdr := []string{`Link: <https://api.github.com/next>; rel="next"`}
+		happy := ghHappySteps(testRunID)
 
-		t.Run("runs_limit", func(t *testing.T) {
-			dec := evalWithGHSteps(t, limits,
-				cmdrunnertestutil.Step{Name: "gh", Args: ghAPIArgs(runsEndpoint(1)), Out: ghHTTPResponse("HTTP/2.0 200 OK", nextHdr, `{"workflow_runs":[]}`)},
-				cmdrunnertestutil.Step{Name: "gh", Args: ghAPIArgs(runsEndpoint(2)), Out: ghHTTPResponse("HTTP/2.0 200 OK", nextHdr, `{"workflow_runs":[]}`)},
-			)
-			if dec.Skip() || dec.Reason != ReasonAPIPaginationLimit {
-				t.Errorf("decision = %+v, want Reason=%q", dec, ReasonAPIPaginationLimit)
-			}
-		})
-
-		t.Run("jobs_limit", func(t *testing.T) {
-			happy := ghHappySteps(testRunID)
-			dec := evalWithGHSteps(t, limits,
-				happy[0],
-				cmdrunnertestutil.Step{Name: "gh", Args: ghAPIArgs(jobsEndpoint(testRunID, 1)), Out: ghHTTPResponse("HTTP/2.0 200 OK", nextHdr, `{"jobs":[]}`)},
-			)
-			if dec.Skip() || dec.Reason != ReasonAPIPaginationLimit {
-				t.Errorf("decision = %+v, want Reason=%q", dec, ReasonAPIPaginationLimit)
-			}
-		})
-
-		t.Run("annotations_limit", func(t *testing.T) {
-			happy := ghHappySteps(testRunID)
-			dec := evalWithGHSteps(t, limits,
-				happy[0],
-				happy[1],
-				cmdrunnertestutil.Step{Name: "gh", Args: ghAPIArgs(annotationsEndpoint(1)), Out: ghHTTPResponse("HTTP/2.0 200 OK", nextHdr, `[]`)},
-			)
-			if dec.Skip() || dec.Reason != ReasonAPIPaginationLimit {
-				t.Errorf("decision = %+v, want Reason=%q", dec, ReasonAPIPaginationLimit)
-			}
-		})
+		cases := []struct {
+			name  string
+			steps []cmdrunnertestutil.Step
+		}{
+			{
+				name: "runs_limit",
+				steps: []cmdrunnertestutil.Step{
+					{Name: "gh", Args: ghAPIArgs(runsEndpoint(1)), Out: ghHTTPResponse("HTTP/2.0 200 OK", nextHdr, `{"workflow_runs":[]}`)},
+					{Name: "gh", Args: ghAPIArgs(runsEndpoint(2)), Out: ghHTTPResponse("HTTP/2.0 200 OK", nextHdr, `{"workflow_runs":[]}`)},
+				},
+			},
+			{
+				name: "jobs_limit",
+				steps: []cmdrunnertestutil.Step{
+					happy[0],
+					{Name: "gh", Args: ghAPIArgs(jobsEndpoint(testRunID, 1)), Out: ghHTTPResponse("HTTP/2.0 200 OK", nextHdr, `{"jobs":[]}`)},
+				},
+			},
+			{
+				name: "annotations_limit",
+				steps: []cmdrunnertestutil.Step{
+					happy[0],
+					happy[1],
+					{Name: "gh", Args: ghAPIArgs(annotationsEndpoint(1)), Out: ghHTTPResponse("HTTP/2.0 200 OK", nextHdr, `[]`)},
+				},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				dec := evalWithGHSteps(t, limits, tc.steps...)
+				if dec.Skip() || dec.Reason != ReasonAPIPaginationLimit {
+					t.Errorf("decision = %+v, want Reason=%q", dec, ReasonAPIPaginationLimit)
+				}
+			})
+		}
 	})
 
 	t.Run("strictjson_violations", func(t *testing.T) {
@@ -903,7 +939,6 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 			{name: "trailing_json", body: `{"workflow_runs":[]}{}`},
 			{name: "duplicate_consumed_key", body: `{"workflow_runs":[],"workflow_runs":[]}`},
 			{name: "case_variant_consumed_key", body: `{"workflow_runs":[],"Workflow_Runs":[]}`},
-			{name: "id_negative_zero", body: `{"workflow_runs":[` + strings.Replace(validRun, fmt.Sprintf(`"id": %d`, testRunID), `"id": -0`, 1) + `]}`},
 			{name: "id_zero", body: `{"workflow_runs":[` + strings.Replace(validRun, fmt.Sprintf(`"id": %d`, testRunID), `"id": 0`, 1) + `]}`},
 			{name: "id_float", body: `{"workflow_runs":[` + strings.Replace(validRun, fmt.Sprintf(`"id": %d`, testRunID), `"id": 1.0`, 1) + `]}`},
 			{name: "id_exponent", body: `{"workflow_runs":[` + strings.Replace(validRun, fmt.Sprintf(`"id": %d`, testRunID), `"id": 1e2`, 1) + `]}`},
