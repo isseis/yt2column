@@ -261,41 +261,24 @@ func parseLinkHeaderHasNext(value string) (hasNext bool, ok bool) {
 		// Advance past both '<' and '>' of <URI>; the URI itself is never followed.
 		i += endURI + len("<>")
 		i = skipOWS(value, i)
+		seenRel := false
 
 		for i < len(value) && value[i] == ';' {
-			i = skipOWS(value, i+1)
-			paramName, nextIdx, valid := readLinkToken(value, i)
+			paramName, paramVal, hasVal, quoted, nextIdx, valid := parseLinkParam(value, i+1)
 			if !valid {
 				return false, false
 			}
 			i = skipOWS(value, nextIdx)
-			if i >= len(value) || value[i] == ';' || value[i] == ',' {
-				// Valueless link parameter.
+			if !hasVal {
 				continue
 			}
-			if value[i] != '=' {
-				return false, false
+			// Per RFC 8288 section 3.3, only the first rel parameter in a link-value applies.
+			if strings.EqualFold(paramName, "rel") && !seenRel {
+				seenRel = true
+				if relContainsNext(paramVal, quoted) {
+					hasNext = true
+				}
 			}
-			i = skipOWS(value, i+1)
-			if i >= len(value) {
-				return false, false
-			}
-
-			var paramVal string
-			var quoted bool
-			if value[i] == '"' {
-				quoted = true
-				paramVal, i, valid = readLinkQuotedString(value, i)
-			} else {
-				paramVal, i, valid = readLinkToken(value, i)
-			}
-			if !valid {
-				return false, false
-			}
-			if strings.EqualFold(paramName, "rel") && relContainsNext(paramVal, quoted) {
-				hasNext = true
-			}
-			i = skipOWS(value, i)
 		}
 
 		if i >= len(value) {
@@ -317,6 +300,36 @@ func skipOWS(s string, i int) int {
 		i++
 	}
 	return i
+}
+
+// parseLinkParam parses a single link-param starting right after ';'.
+func parseLinkParam(value string, start int) (name, val string, hasVal, quoted bool, nextIdx int, ok bool) {
+	i := skipOWS(value, start)
+	name, i, ok = readLinkToken(value, i)
+	if !ok {
+		return "", "", false, false, start, false
+	}
+	i = skipOWS(value, i)
+	if i >= len(value) || value[i] == ';' || value[i] == ',' {
+		return name, "", false, false, i, true
+	}
+	if value[i] != '=' {
+		return "", "", false, false, start, false
+	}
+	i = skipOWS(value, i+1)
+	if i >= len(value) {
+		return "", "", false, false, start, false
+	}
+	if value[i] == '"' {
+		quoted = true
+		val, i, ok = readLinkQuotedString(value, i)
+	} else {
+		val, i, ok = readLinkToken(value, i)
+	}
+	if !ok {
+		return "", "", false, false, start, false
+	}
+	return name, val, true, quoted, i, true
 }
 
 // readLinkToken reads a non-empty unquoted RFC 8288 parameter name or token value.

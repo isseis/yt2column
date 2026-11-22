@@ -9,11 +9,34 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
 	cmdrunnertestutil "github.com/isseis/yt2column/internal/cmdrunner/testutil"
 )
+
+// deadlineBlockingRunner implements cmdrunner.Runner by asserting the call context
+// carries a deadline within maxRemaining and waiting until that context expires.
+type deadlineBlockingRunner struct {
+	t            *testing.T
+	maxRemaining time.Duration
+	called       bool
+}
+
+func (r *deadlineBlockingRunner) Run(ctx context.Context, _ string, _ ...string) ([]byte, error) {
+	r.called = true
+	dl, ok := ctx.Deadline()
+	if !ok {
+		r.t.Errorf("gh runner context has no deadline")
+		return nil, errors.New("missing deadline")
+	}
+	if rem := time.Until(dl); rem <= 0 || rem > r.maxRemaining {
+		r.t.Errorf("gh runner deadline remaining = %v, want in (0, %v]", rem, r.maxRemaining)
+	}
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
 
 func evalWithGHSteps(t *testing.T, limits evalLimits, ghSteps ...cmdrunnertestutil.Step) Decision {
 	t.Helper()
@@ -594,6 +617,43 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 		}
 	})
 
+	t.Run("non_200_on_jobs_and_annotations_preserves_run_id_and_notice", func(t *testing.T) {
+		happy := ghHappySteps(testRunID)
+
+		t.Run("jobs_http_500", func(t *testing.T) {
+			dec := evalWithGHSteps(t, defaultLimits(),
+				happy[0],
+				cmdrunnertestutil.Step{
+					Name: "gh",
+					Args: ghAPIArgs(jobsEndpoint(testRunID, 1)),
+					Err:  &cmdrunner.ExitError{Code: 1, Stdout: []byte("HTTP/2.0 500 Internal Server Error\n\r\n{}")},
+				},
+			)
+			if dec.Skip() || dec.Reason != ReasonAPIFailed || dec.HTTPStatus != 500 ||
+				dec.ParentRunID != testRunID || dec.NoticeBaseSHA != testSHA1 {
+				t.Errorf("decision = %+v, want Reason=%q HTTPStatus=500 ParentRunID=%d NoticeBaseSHA=%q",
+					dec, ReasonAPIFailed, testRunID, testSHA1)
+			}
+		})
+
+		t.Run("annotations_http_403", func(t *testing.T) {
+			dec := evalWithGHSteps(t, defaultLimits(),
+				happy[0],
+				happy[1],
+				cmdrunnertestutil.Step{
+					Name: "gh",
+					Args: ghAPIArgs(annotationsEndpoint(1)),
+					Err:  &cmdrunner.ExitError{Code: 1, Stdout: []byte("HTTP/2.0 403 Forbidden\n\r\n{}")},
+				},
+			)
+			if dec.Skip() || dec.Reason != ReasonAPIFailed || dec.HTTPStatus != 403 ||
+				dec.ParentRunID != testRunID || dec.NoticeBaseSHA != testSHA1 {
+				t.Errorf("decision = %+v, want Reason=%q HTTPStatus=403 ParentRunID=%d NoticeBaseSHA=%q",
+					dec, ReasonAPIFailed, testRunID, testSHA1)
+			}
+		})
+	})
+
 	t.Run("exit_error_with_200_or_unparseable_stdout_leaves_http_status_zero", func(t *testing.T) {
 		for _, tc := range []struct {
 			name   string
@@ -668,23 +728,59 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 				}
 			})
 		}
+		t.Run("enforces_command_timeout_deadline", func(t *testing.T) {
+			depFile := writeTempFile(t, "wasm-dep-dirs", []byte("internal/llm/devfake/\n"))
+			synctest.Test(t, func(t *testing.T) {
+				limits := defaultLimits()
+				limits.runTimeout = time.Minute
+				limits.commandTimeout = 5 * time.Second
+
+				gitFake := cmdrunnertestutil.New(t, localGitPassSteps("docs/note.md\x00")...)
+				scriptFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
+					Name: "bash",
+					Args: []string{hasExtensionChangesScript, depFile},
+					Out:  "false\n",
+				})
+				ghRunner := &deadlineBlockingRunner{t: t, maxRemaining: limits.commandTimeout}
+
+				ev := newWithRunners(gitFake, scriptFake, ghRunner, limits)
+				dec := ev.Evaluate(t.Context(), validEvalInput(depFile))
+				if !ghRunner.called {
+					t.Fatalf("gh runner was not called")
+				}
+				if dec.Skip() || dec.Reason != ReasonAPITimeout || dec.HTTPStatus != 0 {
+					t.Errorf("decision = %+v, want Reason=%q HTTPStatus=0", dec, ReasonAPITimeout)
+				}
+			})
+		})
 	})
 
 	t.Run("overall_run_timeout_expires_before_next_api_call", func(t *testing.T) {
-		limits := defaultLimits()
-		limits.runTimeout = 15 * time.Millisecond
-		limits.commandTimeout = time.Second
+		depFile := writeTempFile(t, "wasm-dep-dirs", []byte("internal/llm/devfake/\n"))
+		synctest.Test(t, func(t *testing.T) {
+			limits := defaultLimits()
+			limits.runTimeout = 10 * time.Second
+			limits.commandTimeout = time.Minute
 
-		okRunStep := ghHappySteps(testRunID)[0]
-		okRunStep.Effect = func() error {
-			time.Sleep(30 * time.Millisecond)
-			return nil
-		}
-		// Jobs API must not even be invoked once RunTimeout has elapsed.
-		dec := evalWithGHSteps(t, limits, okRunStep)
-		if dec.Skip() || dec.Reason != ReasonAPITimeout || dec.ParentRunID != testRunID {
-			t.Errorf("decision = %+v, want Reason=%q ParentRunID=%d", dec, ReasonAPITimeout, testRunID)
-		}
+			okRunStep := ghHappySteps(testRunID)[0]
+			okRunStep.Effect = func() error {
+				time.Sleep(limits.runTimeout + time.Second)
+				return nil
+			}
+			// Jobs API must not even be invoked once RunTimeout has elapsed.
+			gitFake := cmdrunnertestutil.New(t, localGitPassSteps("docs/note.md\x00")...)
+			scriptFake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
+				Name: "bash",
+				Args: []string{hasExtensionChangesScript, depFile},
+				Out:  "false\n",
+			})
+			ghFake := cmdrunnertestutil.New(t, okRunStep)
+			ev := newWithRunners(gitFake, scriptFake, ghFake, limits)
+			dec := ev.Evaluate(t.Context(), validEvalInput(depFile))
+			if dec.Skip() || dec.Reason != ReasonAPITimeout || dec.ParentRunID != testRunID {
+				t.Errorf("decision = %+v, want Reason=%q ParentRunID=%d", dec, ReasonAPITimeout, testRunID)
+			}
+		})
 	})
 
 	t.Run("framing_and_link_header_errors", func(t *testing.T) {
@@ -700,6 +796,9 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 			{name: "malformed_header_space_in_name", raw: "HTTP/2.0 200 OK\nBad Name: 1\r\n\r\n{}"},
 			{name: "malformed_link_unclosed_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x; rel="next"`}, `{"workflow_runs":[]}`)},
 			{name: "malformed_link_unclosed_quote", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel="next`}, `{"workflow_runs":[]}`)},
+			{name: "malformed_link_trailing_comma", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel="last", `}, `{"workflow_runs":[]}`)},
+			{name: "malformed_link_dangling_escape", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; title="abc\`}, `{"workflow_runs":[]}`)},
+			{name: "malformed_link_invalid_token_char", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel=bad"val`}, `{"workflow_runs":[]}`)},
 		}
 		for _, tc := range framingCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -716,8 +815,11 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 	})
 
 	t.Run("link_header_ignores_evil_host_and_false_rel_substrings", func(t *testing.T) {
-		// Page 1 carries an evil host URL in Link; evaluator MUST still request fixed github.com endpoint page=2.
-		// Page 2 carries rel="next" inside URI and inside a quoted title parameter; evaluator MUST NOT request page=3.
+		// Page 1 carries multiple Link headers, a valueless parameter, and an evil host URL;
+		// evaluator MUST request fixed github.com endpoint page=2.
+		// Page 2 carries rel="next" inside URI, inside an escaped quoted title, and as a
+		// duplicate second rel parameter (ignored per RFC 8288 section 3.3);
+		// evaluator MUST NOT request page=3.
 		runsP1 := `{"workflow_runs": []}`
 		runsP2 := fmt.Sprintf(`{"workflow_runs": [%s]}`,
 			standardRunJSON(testRunID, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:05Z"))
@@ -728,14 +830,15 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 				Name: "gh",
 				Args: ghAPIArgs(runsEndpoint(1)),
 				Out: ghHTTPResponse("HTTP/2.0 200 OK", []string{
-					`Link: <https://evil.example/steal?page=99>; rel="next"`,
+					`Link: <https://api.github.com/prev>; rel="prev"`,
+					`Link: <https://evil.example/steal?page=99>; foo; rel="next"`,
 				}, runsP1),
 			},
 			cmdrunnertestutil.Step{
 				Name: "gh",
 				Args: ghAPIArgs(runsEndpoint(2)),
 				Out: ghHTTPResponse("HTTP/2.0 200 OK", []string{
-					`Link: <https://api.github.com/x?q=a,b;rel="next">; title="fake, <y>; rel=next"; rel="last"`,
+					`Link: <https://api.github.com/x?q=a,b;rel="next">; title="fake\"; rel=next"; rel="last"; rel="next"`,
 				}, runsP2),
 			},
 			happy[1],
