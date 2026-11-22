@@ -553,7 +553,7 @@
 | AC-42 | `cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`（`runpr.md` の `interaction-limits` 維持）、`internal/fixprguard/limits_test.go` | test / static | ステップ 2-4・2-5 | フェーズ 2 |
 | AC-43 | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`（`wantReviewers` = `coderabbitai` のみ） | static | ステップ 2-3・2-5 | フェーズ 2 |
 | AC-44 | `internal/fixprguard/trust_test.go`（一覧外の Bot が `ReasonOtherBot` になる既存テスト）、`cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree` | test / static | ステップ 2-3・2-5 | フェーズ 2 |
-| AC-45 | 本書のフェーズ・PR 順序（PR-1 → PR-2 → PR-3 → 連携解除 → PR-4）の遵守を、PR #1077・#1080・#1084 のマージ記録と、利用者による連携解除の完了の確認で確かめる（連携解除はリポジトリの外の作業なので、test・static・diff では表せない） | manual | 全フェーズ | フェーズ 1〜3 |
+| AC-45 | 本書のフェーズ・PR 順序（PR-1 → PR-2 → PR-3 → 連携解除 → PR-4）の遵守を、PR #1077・#1080・#1084 のマージ記録と、利用者による連携解除の完了の確認（2026-11-23）と、PR-4 の実装がその確認後に開始したこと（本ブランチの最初の commit、2026-11-23 00:06 JST）で確かめる（連携解除はリポジトリの外の作業なので、test・static・diff では表せない） | manual | 全フェーズ | フェーズ 1〜3 |
 | AC-46 | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`、`cmd/yt2column/review_mention_docs_test.go::TestMentionsOnlyInAllowedRows` | static | ステップ 2-3・2-5 | フェーズ 2 |
 | AC-47 | 現在の仕様を書く文書一式を PR レビューで確認（AC-47 で `manual` と指定） | manual | ステップ 1-1・1-2・1-4・2-3・2-4・3-1・3-2 | フェーズ 1〜3 |
 | AC-48 | `docs/translation_glossary.md` の改訂内容を PR レビューで確認 | manual | ステップ 3-1 | フェーズ 3 |
