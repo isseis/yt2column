@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -154,8 +155,11 @@ func (e *Evaluator) ghAPIGet(ctx context.Context, endpoint string) (body []byte,
 	}
 
 	out, err := e.gh.Run(cmdCtx, "gh", "api", "--hostname", ghHostname, "-i", endpoint)
+	if errors.Is(cmdCtx.Err(), context.DeadlineExceeded) {
+		return nil, false, ReasonAPITimeout, 0, false
+	}
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(cmdCtx.Err(), context.DeadlineExceeded) || errors.Is(err, exec.ErrWaitDelay) {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, exec.ErrWaitDelay) {
 			return nil, false, ReasonAPITimeout, 0, false
 		}
 		if errors.Is(err, cmdrunner.ErrOutputTooLarge) {
@@ -325,43 +329,191 @@ func skipOWS(s string, i int) int {
 	return i
 }
 
-// isValidLinkURI reports whether uri consists exclusively of valid RFC 3986
-// URI-Reference bytes (unreserved, reserved, and valid pct-encoded triplets).
+// isValidLinkURI reports whether uri is a syntactically valid RFC 3986
+// URI-reference (absolute URI or relative-ref) without resolving or following it.
 func isValidLinkURI(uri string) bool {
-	for i := 0; i < len(uri); i++ {
-		c := uri[i]
-		if c == '%' {
-			if i+2 >= len(uri) || !isHexDigit(uri[i+1]) || !isHexDigit(uri[i+2]) {
+	if before, frag, hasFrag := strings.Cut(uri, "#"); hasFrag {
+		if !isValidURIPctSeq(frag, isURIQueryOrFragmentChar) {
+			return false
+		}
+		uri = before
+	}
+	if before, query, hasQuery := strings.Cut(uri, "?"); hasQuery {
+		if !isValidURIPctSeq(query, isURIQueryOrFragmentChar) {
+			return false
+		}
+		uri = before
+	}
+
+	// If ':' precedes any '/', RFC 3986 requires a valid scheme prefix;
+	// path-noscheme forbids ':' in the first segment of a relative-ref.
+	colonIdx := strings.IndexByte(uri, ':')
+	slashIdx := strings.IndexByte(uri, '/')
+	if colonIdx >= 0 && (slashIdx < 0 || colonIdx < slashIdx) {
+		if !isURIScheme(uri[:colonIdx]) {
+			return false
+		}
+		uri = uri[colonIdx+1:]
+	}
+
+	if after, hasAuth := strings.CutPrefix(uri, "//"); hasAuth {
+		auth, path, hasPath := strings.Cut(after, "/")
+		if !isValidURIAuthority(auth) {
+			return false
+		}
+		if hasPath && !isValidURIPctSeq(path, isURIPathChar) {
+			return false
+		}
+		return true
+	}
+
+	return isValidURIPctSeq(uri, isURIPathChar)
+}
+
+func isValidURIAuthority(auth string) bool {
+	hostport := auth
+	if userinfo, rest, hasAt := strings.Cut(auth, "@"); hasAt {
+		if !isValidURIPctSeq(userinfo, isURIUserinfoChar) {
+			return false
+		}
+		hostport = rest
+	}
+	if strings.HasPrefix(hostport, "[") {
+		lit, rest, hasClose := strings.Cut(hostport[1:], "]")
+		if !hasClose {
+			return false
+		}
+		if !isValidIPvFuture(lit) {
+			addr, err := netip.ParseAddr(lit)
+			if err != nil || !addr.Is6() || addr.Zone() != "" {
 				return false
 			}
-			i += 2
-			continue
 		}
-		if !isURIReferenceChar(c) {
+		if rest == "" {
+			return true
+		}
+		port, hasColon := strings.CutPrefix(rest, ":")
+		return hasColon && isDigits(port)
+	}
+	host, port, hasColon := strings.Cut(hostport, ":")
+	if hasColon && !isDigits(port) {
+		return false
+	}
+	return isValidURIPctSeq(host, isURIRegNameChar)
+}
+
+func isValidIPvFuture(s string) bool {
+	if len(s) < 4 || (s[0] != 'v' && s[0] != 'V') {
+		return false
+	}
+	dot := strings.IndexByte(s[1:], '.')
+	if dot <= 0 {
+		return false
+	}
+	ver := s[1 : 1+dot]
+	for i := range len(ver) {
+		if !isHexDigit(ver[i]) {
+			return false
+		}
+	}
+	rest := s[1+dot+1:]
+	if len(rest) == 0 {
+		return false
+	}
+	for i := range len(rest) {
+		c := rest[i]
+		if !isURIUnreserved(c) && !isURISubDelim(c) && c != ':' {
 			return false
 		}
 	}
 	return true
 }
 
-// isURIReferenceChar reports whether c is an unreserved or reserved byte
-// permitted in an RFC 3986 URI-Reference (excluding pct-encoded '%').
-func isURIReferenceChar(c byte) bool {
-	if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+func isURIScheme(s string) bool {
+	if len(s) == 0 || !isASCIIAlpha(s[0]) {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
+		c := s[i]
+		if !isASCIIAlpha(c) && !isASCIIDigit(c) && c != '+' && c != '-' && c != '.' {
+			return false
+		}
+	}
+	return true
+}
+
+func isValidURIPctSeq(s string, allow func(byte) bool) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] == '%' {
+			if i+2 >= len(s) || !isHexDigit(s[i+1]) || !isHexDigit(s[i+2]) {
+				return false
+			}
+			i += 2
+			continue
+		}
+		if !allow(s[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func isASCIIAlpha(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+func isASCIIDigit(c byte) bool {
+	return c >= '0' && c <= '9'
+}
+
+func isDigits(s string) bool {
+	for i := range len(s) {
+		if !isASCIIDigit(s[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func isURIUnreserved(c byte) bool {
+	if isASCIIAlpha(c) || isASCIIDigit(c) {
 		return true
 	}
 	switch c {
-	case '-', '.', '_', '~',
-		':', '/', '?', '#', '[', ']', '@',
-		'!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=':
+	case '-', '.', '_', '~':
 		return true
 	default:
 		return false
 	}
 }
 
+func isURISubDelim(c byte) bool {
+	switch c {
+	case '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=':
+		return true
+	default:
+		return false
+	}
+}
+
+func isURIRegNameChar(c byte) bool {
+	return isURIUnreserved(c) || isURISubDelim(c)
+}
+
+func isURIUserinfoChar(c byte) bool {
+	return isURIRegNameChar(c) || c == ':'
+}
+
+func isURIPathChar(c byte) bool {
+	return isURIRegNameChar(c) || c == ':' || c == '@' || c == '/'
+}
+
+func isURIQueryOrFragmentChar(c byte) bool {
+	return isURIPathChar(c) || c == '?'
+}
+
 func isHexDigit(c byte) bool {
-	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+	return isASCIIDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 }
 
 // parseLinkParam parses a single link-param starting right after ';'.

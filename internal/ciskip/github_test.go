@@ -794,6 +794,27 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 				}
 			})
 		})
+		t.Run("command_timeout_expires_with_nil_error", func(t *testing.T) {
+			depFile := writeTempFile(t, "wasm-dep-dirs", []byte("internal/llm/devfake/\n"))
+			synctest.Test(t, func(t *testing.T) {
+				limits := defaultLimits()
+				limits.runTimeout = time.Minute
+				limits.commandTimeout = 5 * time.Second
+
+				// The final gh api call returns HTTP 200 with err == nil after the
+				// per-command deadline elapses while the overall run timeout still
+				// has headroom; ghAPIGet must still fail closed with ReasonAPITimeout.
+				steps := ghHappySteps(testRunID)
+				steps[2].Effect = func() error {
+					time.Sleep(limits.commandTimeout + time.Second)
+					return nil
+				}
+				dec := evalWithDepFile(t, depFile, limits, steps...)
+				if dec.Skip() || dec.Reason != ReasonAPITimeout || dec.HTTPStatus != 0 {
+					t.Errorf("decision = %+v, want Reason=%q HTTPStatus=0", dec, ReasonAPITimeout)
+				}
+			})
+		})
 	})
 
 	t.Run("overall_run_timeout_expires_before_next_api_call", func(t *testing.T) {
@@ -808,10 +829,11 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 				time.Sleep(limits.runTimeout + time.Second)
 				return nil
 			}
-			// Jobs API must not even be invoked once RunTimeout has elapsed.
+			// The runs call itself ran past RunTimeout, so ghAPIGet rejects its
+			// response before ParentRunID is parsed and before Jobs API is invoked.
 			dec := evalWithDepFile(t, depFile, limits, okRunStep)
-			if dec.Skip() || dec.Reason != ReasonAPITimeout || dec.ParentRunID != testRunID {
-				t.Errorf("decision = %+v, want Reason=%q ParentRunID=%d", dec, ReasonAPITimeout, testRunID)
+			if dec.Skip() || dec.Reason != ReasonAPITimeout || dec.ParentRunID != 0 {
+				t.Errorf("decision = %+v, want Reason=%q ParentRunID=0", dec, ReasonAPITimeout)
 			}
 		})
 	})
@@ -882,6 +904,12 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 			{name: "malformed_link_quote_in_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x?q="next">; rel="last"`}, validRunsBody)},
 			{name: "malformed_link_bad_pct_encoding_in_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x%2>; rel="last"`}, validRunsBody)},
 			{name: "malformed_link_non_hex_pct_encoding_in_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x%ZZ>; rel="last"`}, validRunsBody)},
+			{name: "malformed_link_multiple_fragments_in_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: </runs#one#two>; rel="last"`}, validRunsBody)},
+			{name: "malformed_link_bracket_in_query", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: </runs?a=[1]>; rel="last"`}, validRunsBody)},
+			{name: "malformed_link_invalid_scheme", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <123://api.github.com/runs>; rel="last"`}, validRunsBody)},
+			{name: "malformed_link_leading_colon_in_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <:runs>; rel="last"`}, validRunsBody)},
+			{name: "malformed_link_invalid_port", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com:abc/runs>; rel="last"`}, validRunsBody)},
+			{name: "malformed_link_unclosed_ipv6_literal", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://[::1/runs>; rel="last"`}, validRunsBody)},
 		}
 		for _, tc := range framingCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -921,7 +949,7 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 				Name: "gh",
 				Args: ghAPIArgs(runsEndpoint(2)),
 				Out: ghHTTPResponse("HTTP/2.0 200 OK", []string{
-					`Link: <https://api.github.com/x?q=a,b;rel=next&r=%22next%22>; title="fake\"; rel=next"; rel="last"; rel="next", <https://api.github.com/y>; rel="prev"`,
+					`Link: <https://api.github.com/x?q=a,b;rel=next&r=%22next%22>; title="fake\"; rel=next"; rel="last"; rel="next", </runs/page%202#top>; rel="prev"`,
 				}, runsP2),
 			},
 			happy[1],
