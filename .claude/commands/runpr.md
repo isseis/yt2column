@@ -435,7 +435,7 @@ in step 4; this step never posts a PR review request on its own.
     gh api --paginate repos/<owner>/<repo>/issues/<number>/comments --jq '
       def cr_observed:
         .user.type == "Bot" and .user.login == "<awaited-reviewer>[bot]"
-        and ((.body // "" | split("\n"))[0] | rtrimstr("\r")
+        and (((.body // "" | split("\n"))[0] // "") | rtrimstr("\r")
           | . == "<!-- coderabbit-ai-generated:v1 -->"
             or . == "<!-- This is an auto-generated comment: coding agent status by CodeRabbit -->");
       def has_mention($b):
@@ -454,7 +454,7 @@ in step 4; this step never posts a PR review request on its own.
     gh api --paginate repos/<owner>/<repo>/pulls/<number>/comments --jq '
       def cr_observed:
         .user.type == "Bot" and .user.login == "<awaited-reviewer>[bot]"
-        and ((.body // "" | split("\n"))[0] | rtrimstr("\r")
+        and (((.body // "" | split("\n"))[0] // "") | rtrimstr("\r")
           | . == "<!-- coderabbit-ai-generated:v1 -->"
             or . == "<!-- This is an auto-generated comment: coding agent status by CodeRabbit -->");
       def has_mention($b):
@@ -468,7 +468,7 @@ in step 4; this step never posts a PR review request on its own.
     gh api --paginate repos/<owner>/<repo>/pulls/<number>/reviews --jq '
       def cr_observed:
         .user.type == "Bot" and .user.login == "<awaited-reviewer>[bot]"
-        and ((.body // "" | split("\n"))[0] | rtrimstr("\r")
+        and (((.body // "" | split("\n"))[0] // "") | rtrimstr("\r")
           | . == "<!-- coderabbit-ai-generated:v1 -->"
             or . == "<!-- This is an auto-generated comment: coding agent status by CodeRabbit -->");
       def has_mention($b):
@@ -535,19 +535,21 @@ in step 4; this step never posts a PR review request on its own.
     Any review thread opened after a completed manual PR review is handled by
     `fixprguard list` and `fixpr` below.
   - `rate-limited`, `unrecognized`, or `timed-out`: the latest request has
-    ended. If this run was waiting on a request that this run posted (step 4),
-    stop and report as step 4, "Manual PR review stops", says. If the request
-    ended before this run, continue and show its state in step 4's summary.
+    ended. If this run waited on the request (it was `waiting` when this step
+    began), stop and report as step 4, "Manual PR review stops", says. If the
+    request had already ended before this step began (not `waiting` on
+    arrival), continue and show its state in step 4's summary.
   - `indeterminate`: stop and report as step 4, "Manual PR review stops", says.
   - `unreadable`:
     - `reason` `call-failed`: retry about every thirty seconds; stop and report
       after about fifteen minutes of consecutive `call-failed` results.
     - `reason` `rejected`: stop and report as step 4, "Manual PR review stops",
       says.
-    - `reason` `limit`: when not waiting on a request this run posted, treat
-      completion markers as unreadable (`LAST_REVIEWED` is `none`), continue,
-      and show it in step 4's summary; when waiting on a request this run
-      posted, stop and report as step 4, "Manual PR review stops", says.
+    - `reason` `limit`: when this run was not waiting on a `waiting` request,
+      treat completion markers as unreadable (`LAST_REVIEWED` is `none`),
+      continue, and show it in step 4's summary; when this run was waiting on a
+      `waiting` request, stop and report as step 4, "Manual PR review stops",
+      says.
 - **LAST_REVIEWED.** Run `git fetch origin` before the ancestor checks so the
   commits in `markers` are present. Among the `commit` values of
   `review-state`'s `markers`, `LAST_REVIEWED` is the one that every other
@@ -1094,7 +1096,7 @@ character as 2); the line shapes below are the examples to follow.
        is in the detail file), or `未レビューの変更: なし` when `LAST_REVIEWED`
        equals `head`.
      - Kind 13 appears only when there are unreviewed changes (`LAST_REVIEWED`
-       is behind `head` or `none`), and stays within 80 columns. Its first
+       is behind `head` or `none`). Its first
        half says whether the local CLI review saw the unreviewed range
        (`LAST_REVIEWED..HEAD`, or `origin/main..HEAD` when `LAST_REVIEWED` is
        `none`), from COVERAGE (step 3, "Escalation") decided again for this
@@ -1112,9 +1114,9 @@ character as 2); the line shapes below are the examples to follow.
        `not-fable`, `形式不正` for `unreadable`, and `呼べない` for
        `agent-cannot-call`; and `なし` when the branch has no record. With
        two or more records, append `（他 <n> 件）`, `<n>` being the number of
-       records not shown. The longest form,
-       `未レビュー分: ローカル CLI 未 12 件 ／ Fable（PR 前）: 未実施・時間切れ（他 1 件）`,
-       stays within 80 columns.
+       records not shown. Even in its longest form
+       (`未レビュー分: ローカル CLI 未 12 件 ／ Fable（PR 前）: 未実施・時間切れ（他 1 件）`,
+       82 columns), it stays compact on a single line.
      - Kinds 7 to 10 appear only for what exists. Kinds 7 to 9 give a kind and
        a count; kind 10 gives the state and the expiry date, not a count.
      - Kind 14 appears only when `prepare` reported an accepted or a rejected
@@ -1249,8 +1251,8 @@ character as 2); the line shapes below are the examples to follow.
    When the answer requests a PR review first, do not merge:
    1. Run `mergepr discard --protocol 3 --state <state-file>`.
    2. Read `fixprguard review-state --protocol 7 --reviewer <awaited-reviewer> --request "<review-request>" <number>`:
-      - `waiting`: do not post a second request; go to step 3 to wait on the
-        existing request.
+      - `waiting`: do not post a second request; go to sub-step 3 below to wait
+        on the existing request.
       - `indeterminate` or `unreadable` (for `call-failed`, retry about every
         thirty seconds for up to fifteen minutes first): stop and report as
         "Manual PR review stops" below says.
@@ -1274,9 +1276,12 @@ character as 2); the line shapes below are the examples to follow.
       - Once `request.id` equals `<posted-id>` has been observed: if a later
         poll returns a different `request.id`, stop and report (another request
         overlapped).
-   4. When `state` becomes `completed`, return to step 3's review-thread
-      handling (`fixprguard list` and `fixpr`), then step 2, and ask step 4
-      again from its item 1. For any other result (`rate-limited`,
+   4. When `state` becomes `completed`, return to step 3 starting from
+      "LAST_REVIEWED" (recompute `LAST_REVIEWED` from the new `markers`, run
+      `fixprguard list` and `fixpr`, run Escalation/COVERAGE when unreviewed
+      changes remain, handle deferred/excluded/untrusted threads, and wait for
+      CI), then run step 2 to update bookkeeping when `head` changed, and ask
+      step 4 again from its item 1. For any other result (`rate-limited`,
       `unrecognized`, `timed-out`, `indeterminate`, or `unreadable`), stop and
       report as "Manual PR review stops" below says.
 

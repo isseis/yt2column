@@ -306,7 +306,8 @@ of these prefixes.
   It is neither a finding line nor an unreviewed range, and it does not
   cancel a `not run` line. `runpr.md` step 3 reads it through
   `.claude/commands/_lib/review-records.sh`, which decides whether the local
-  CLI review saw every commit after Codex's last PR review; that script is
+  CLI review saw every commit after the last completed manual PR review (or on
+  the branch before a PR opens); that script is
   the executable form of this line's reading, and when they disagree, this
   file is right and the script is fixed.
 

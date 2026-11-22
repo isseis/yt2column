@@ -302,8 +302,10 @@ func runprListingFixtures() map[string]listingFixture {
 			{bot, awaited, crObservedHeader1 + "\r\n" + marked(m0+" summary"), "", notMention},
 			{bot, awaited, crObservedHeader2 + "\n" + marked(m1+" status"), "", notMention},
 			{bot, awaited, crObservedHeader2 + "\r\n" + marked(m0+" status"), "", notMention},
-			// Any other CodeRabbit comment with a rejected mention counts as by_bot.
+			// Any other CodeRabbit comment with a rejected mention counts as by_bot;
+			// empty and null bodies print nothing and must not crash gojq's rtrimstr.
 			{bot, awaited, marked("Unobserved header.") + "\n" + marked(m1+" note"), "mention", byABot},
+			{bot, awaited, "", "", notMention},
 			{bot, awaited, nil, "", notMention},
 			// A User with the awaited login and an observed header is still a person.
 			{user, awaited, crObservedHeader1 + "\n" + marked(m1+" spoof"), "mention", byAPerson},
@@ -328,6 +330,8 @@ func runprListingFixtures() map[string]listingFixture {
 			{bot, awaited, crObservedHeader1 + "\r\n" + marked(m1+" observed"), "", notMention},
 			{bot, awaited, crObservedHeader2 + "\n" + marked(m0+" observed"), "", notMention},
 			{bot, awaited, marked(m1 + " from unobserved CodeRabbit"), "mention", byABot},
+			{bot, awaited, "", "", notMention},
+			{bot, awaited, nil, "", notMention},
 			{user, "other-user", marked("No mention here."), "", notMention},
 			{user, "other-user", marked("Ask "+strings.ToUpper(m0)) + "\n" + marked("again"), "mention", byAPerson},
 			{user, awaited, crObservedHeader1 + "\n" + marked(m1+" from a User"), "mention", byAPerson},
@@ -342,6 +346,8 @@ func runprListingFixtures() map[string]listingFixture {
 			{bot, awaited, crObservedHeader1 + "\n" + marked(m1+" observed"), "", notMention},
 			{bot, awaited, crObservedHeader2 + "\r\n" + marked(m0+" observed"), "", notMention},
 			{bot, awaited, marked(m1 + " from unobserved CodeRabbit"), "mention", byABot},
+			{bot, awaited, "", "", notMention},
+			{bot, awaited, nil, "", notMention},
 			{user, "other-user", "", "", notMention},
 			{user, "other-user", marked("Ask "+strings.ToUpper(m1)) + "\n" + marked("again"), "mention", byAPerson},
 			{bot, "other-bot[bot]", marked(m0 + " from another Bot"), "mention", byABot},
