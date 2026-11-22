@@ -73,14 +73,14 @@ func isFormatOrNoncharacter(r rune) bool {
 	return unicode.Is(unicode.Cf, r) || (r >= 0xFDD0 && r <= 0xFDEF) || r&0xFFFE == 0xFFFE
 }
 
-// checkPostText rejects text that would make Codex act when posted from the
-// user's account. Contract: text containing CodexMention anywhere, with ASCII
-// letters compared case-insensitively and no word boundary required (so
-// "@codexbot" and "a@codex.example" are rejected too), is ErrInvalidInput;
-// nothing else is. Non-ASCII look-alikes (a full-width at sign, a zero-width
-// character inside the word) are not GitHub mentions and are not normalized.
-// It checks content only, so it runs after readTextFile and before any call
-// to GitHub.
+// checkPostText rejects text that would make an automated reviewer act when
+// posted from the user's account. Contract: text containing any value of
+// RejectedMentions anywhere, with ASCII letters compared case-insensitively
+// and no word boundary required (so longer names and email addresses are
+// rejected too), is ErrInvalidInput; nothing else is. Non-ASCII look-alikes
+// (a full-width at sign, a zero-width character inside the word) are not
+// GitHub mentions and are not normalized. It checks content only, so it runs
+// after readTextFile and before any call to GitHub.
 func checkPostText(text string) error {
 	folded := strings.Map(func(r rune) rune {
 		if 'A' <= r && r <= 'Z' {
@@ -88,8 +88,10 @@ func checkPostText(text string) error {
 		}
 		return r
 	}, text)
-	if strings.Contains(folded, CodexMention) {
-		return errCodexMention
+	for _, mention := range RejectedMentions() {
+		if strings.Contains(folded, mention) {
+			return errMention
+		}
 	}
 	return nil
 }
@@ -158,7 +160,8 @@ type ReplyRequest struct {
 // and the reply, so a comment that arrived meanwhile is not hidden in a
 // resolved thread. Once the reply may have been posted, every failure is
 // ErrReplyNotResolved, so the caller does not post it again. A body that
-// mentions Codex (checkPostText) is rejected before any call to GitHub.
+// contains a rejected mention (checkPostText) is rejected before any call to
+// GitHub.
 func (g *GitHub) Reply(ctx context.Context, req ReplyRequest) error {
 	if err := g.requireReviewer(); err != nil {
 		return err
@@ -336,7 +339,7 @@ type EditPRRequest struct {
 // title is passed as --title=<value>, so a title starting with '-' is not read
 // as a flag, and the body is passed on standard input (--body-file -), so gh
 // reads the text that was checked, not the file again. A title or body that
-// mentions Codex (checkPostText) is rejected before gh runs.
+// contains a rejected mention (checkPostText) is rejected before gh runs.
 func (g *GitHub) EditPR(ctx context.Context, req EditPRRequest) error {
 	if !req.PR.usable() {
 		return fmt.Errorf("%w: PR number", ErrInvalidInput)
@@ -373,12 +376,12 @@ type AppendPRRequest struct {
 // notification, or HTML comment that hides text), all checked before gh
 // runs. The current body is read with gh pr view and kept byte for byte; the
 // text follows it after an empty line (directly when the body is empty). The
-// result must fit maxTextFileBytes and pass checkPostText, a current body
-// that already mentions Codex included; otherwise it is ErrInvalidInput and
-// nothing is written. The result is written as the body alone, on standard
-// input, with no title. The current body never reaches an error or the
-// output. A reviewer's edit between the read and the write is overwritten:
-// gh pr edit has no conditional update.
+// result must fit maxTextFileBytes (else ErrInvalidInput) and pass
+// checkPostText: when the current body already contains a rejected mention,
+// AppendPR returns ErrCurrentBodyMention and writes nothing. The result is
+// written as the body alone, on standard input, with no title. The current
+// body never reaches an error or the output. A reviewer's edit between the
+// read and the write is overwritten: gh pr edit has no conditional update.
 func (g *GitHub) AppendPR(ctx context.Context, req AppendPRRequest) error {
 	if !req.PR.usable() {
 		return fmt.Errorf("%w: PR number", ErrInvalidInput)
@@ -402,7 +405,7 @@ func (g *GitHub) AppendPR(ctx context.Context, req AppendPRRequest) error {
 		return fmt.Errorf("%w: appended PR body size", ErrInvalidInput)
 	}
 	if err := checkPostText(body); err != nil {
-		return err
+		return ErrCurrentBodyMention
 	}
 	if _, err := g.runGH(ctx, []byte(body), "pr", "edit", req.PR.String(), "--body-file", "-"); err != nil {
 		return ghFailure("pr edit", err)

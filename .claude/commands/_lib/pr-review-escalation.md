@@ -1,41 +1,39 @@
 ---
-description: "Internal: when to request a further Codex PR review after the first (not a command)"
+description: "Internal: whether to recommend a manual CodeRabbit PR review in runpr's merge question (not a command)"
 ---
 
 # Shared pattern: PR review escalation
 
-Codex does the PR review, and its allowance is rationed: it is shared with the
-user's other ChatGPT use, and its size is not published, so after the review
-made when the PR opens, a PR review is requested only when it is needed. Codex
-is set to review only when the PR is created, never on a push (`CLAUDE.md`).
-Changes after that are reviewed locally with the local CLI review — the
-CodeRabbit CLI, or Codex CLI when it fails (`fixpr.md` Phase 4.5,
-`_lib/local-cli-review.md`). The CodeRabbit CLI's allowance is separate from
-the PR review's, but the fallback Codex CLI spends the same allowance as the PR
-review.
+Automatic PR reviews are turned off (`.coderabbit.yaml`), and a manual
+CodeRabbit PR review is requested only when the user chooses it in `runpr.md`
+step 4. Changes are reviewed locally with the local CLI review (CodeRabbit CLI;
+`_lib/local-cli-review.md`).
 
-A further PR review is requested in exactly two cases: the user asks for it
-(`runpr.md` step 4 offers it), or this file's judgement says the changes since
-the last PR review are of a kind the local review cannot stand in for. `runpr.md`
-step 3 invokes this file.
+This file judges whether unreviewed changes since LAST_REVIEWED (or since the
+merge-base with `origin/main` when LAST_REVIEWED is none) are of a kind the
+local review cannot stand in for. Its answer never posts a request by itself:
+`runpr.md` step 3 uses it (together with COVERAGE) only to decide whether the
+merge question in step 4 recommends "先に PR レビューを依頼" or merging.
 
 ## Inputs the calling command must supply
 
 - **PR** — the PR number.
-- **LAST_REVIEWED** — the commit Codex's last completed PR review was for, as
-  `runpr.md` step 3, "LAST_REVIEWED", defines it. When it is none, `runpr.md`
-  takes the decision as `ask` without running this file.
+- **LAST_REVIEWED** — the commit of the last completed manual PR review, as
+  `runpr.md` step 3, "LAST_REVIEWED", defines it, or `none` when there is none.
+  When it is `none`, the range to judge starts at `$(git merge-base origin/main HEAD)`.
 - **HEAD** — the PR's current head commit.
 - **FINDINGS** — the review threads handled since LAST_REVIEWED (their topics and
   how each was closed), or "none".
 
 ## Criteria
 
-Request a PR review when the changes in LAST_REVIEWED..HEAD do any of these.
-The criteria that apply decide what the calling command does with the
-answer: a change under criterion 4 gets a PR review; for a change under the
-other criteria only, the calling command decides from the local CLI review's
-records whether to request one.
+Recommend a manual PR review when the changes in `<range-start>..HEAD` (where
+`<range-start>` is LAST_REVIEWED, or the merge-base with `origin/main` when
+LAST_REVIEWED is `none`) do any of these.
+The criteria that apply decide what `runpr.md` recommends from the answer:
+a change under criterion 4 recommends a PR review; for a change under the other
+criteria only, `runpr.md` decides from the local CLI review's records
+(COVERAGE) whether to recommend a PR review or merging.
 
 1. **Change behavior or a contract.** Observable behavior changes — error
    handling, an exported API, a wire format, configuration, the cache format —
@@ -55,15 +53,16 @@ records whether to request one.
    or a ref, or has another side effect that cannot be undone. So does a
    change to a review gate itself: this file's criteria and its Procedure;
    `runpr.md` step 3's definition of LAST_REVIEWED, its rules that turn this
-   file's answer into a decision, and its comparison of the PR's
-   `headRefOid` with the local head; `_lib/review-records.sh` and the way
-   the command documents run it from `origin/main`; the steps of
-   `_lib/local-cli-review.md` that decide an attempt's result and the ranges
-   it covers (steps 2, 3, and 6); the sections that define the forms of the
-   review record lines and how they are read; and `fixprguard`. A change to
-   another part of a command document is judged by the other criteria.
+   file's answer into a recommendation, its mention filters, and its comparison
+   of `review-state`'s `head` with the prepared `headRefOid` and the local head;
+   `_lib/review-records.sh` and the way the command documents run it from
+   `origin/main`; the steps of `_lib/local-cli-review.md` that decide an
+   attempt's result and the ranges it covers (steps 2 and 6); the sections that
+   define the forms of the review record lines and how they are read; and
+   `fixprguard` (`review-state` included). A change to another part of a
+   command document is judged by the other criteria.
 5. **Add a mechanism the earlier review never saw.** A new code path, concurrency,
-   or state that did not exist at LAST_REVIEWED.
+   or state that did not exist at `<range-start>`.
 
 None applies to: mechanical changes (rename, move, formatting); wording in
 documents (a change to what a review gate does is not wording); tests added in
@@ -76,16 +75,19 @@ change to a cache write or to a review gate touches the fourth.
 
 ## Procedure
 
-1. If LAST_REVIEWED is not an ancestor of HEAD (`git merge-base --is-ancestor`),
-   the history was rewritten and the range cannot be judged: the decision is
-   `ask`, with that as the reason. If LAST_REVIEWED equals HEAD, nothing has
-   changed: the decision is `skip`.
+1. When LAST_REVIEWED is `none`, set `<range-start>` to
+   `$(git merge-base origin/main HEAD)`. Otherwise, if LAST_REVIEWED is not an
+   ancestor of HEAD (`git merge-base --is-ancestor`), the history was rewritten
+   and the range cannot be judged: the decision is `ask`, with that as the
+   reason. If LAST_REVIEWED equals HEAD, nothing has changed: the decision is
+   `skip`. Otherwise set `<range-start>` to LAST_REVIEWED.
 2. Spawn one subagent with the Agent tool and `model: "opus"`. Its prompt is
    self-contained: the criteria above copied verbatim, the commands to read the
-   range (`git log --oneline LAST_REVIEWED..HEAD`, `git diff LAST_REVIEWED..HEAD`
-   with the actual SHAs), FINDINGS, and the instruction to read the two
-   documents named in criterion 4 when it applies. It must decide from what the
-   changes do, not from how many lines or files they touch, and reply with only:
+   range (`git log --oneline <range-start>..HEAD`,
+   `git diff <range-start>..HEAD` with the actual SHAs), FINDINGS, and the
+   instruction to read the two documents named in criterion 4 when it applies.
+   It must decide from what the changes do, not from how many lines or files
+   they touch, and reply with only:
 
    ```json
    {"decision": "request" | "skip" | "ask", "criteria": [1], "reason": "one or two sentences"}
@@ -93,8 +95,8 @@ change to a cache write or to a review gate touches the fourth.
 
    `request`: at least one criterion clearly applies. `skip`: none does.
    `ask`: a criterion might apply and the diff does not settle it. Tell the
-   subagent that a wrong `ask` costs the human one question, while a wrong
-   `skip` lets an unreviewed change merge, so it should choose `ask` when in
-   doubt.
+   subagent that a wrong `ask` costs the human one recommendation to review,
+   while a wrong `skip` recommends merging an unreviewed change, so it should
+   choose `ask` when in doubt.
 3. Return the decision and its reason to the calling command, which reports the
    reason whatever the decision is.

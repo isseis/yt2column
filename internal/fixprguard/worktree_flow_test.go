@@ -445,17 +445,22 @@ func TestFinishRejectsBodyFile(t *testing.T) {
 			p.wantNoCommit(t, head)
 		})
 	}
-	t.Run("mention", func(t *testing.T) {
-		// The '@' rule would refuse a mention too; errCodexMention shows the
-		// mention check itself refused it.
-		p := prepareRound(t, fixTestFile)
-		head := p.r.Head()
-		_, _, err := p.finishBody(t, writeTextFile(t, correction+" @codex\n"))
-		if !errors.Is(err, errCodexMention) {
-			t.Errorf("Finish = %v, want errCodexMention", err)
-		}
-		p.wantNoCommit(t, head)
-	})
+	for name, mention := range map[string]string{
+		"codex":        "@codex",
+		"coderabbitai": "@coderabbitai",
+	} {
+		t.Run("mention/"+name, func(t *testing.T) {
+			// The '@' rule would refuse a mention too; errMention shows the
+			// mention check itself refused it.
+			p := prepareRound(t, fixTestFile)
+			head := p.r.Head()
+			_, _, err := p.finishBody(t, writeTextFile(t, correction+" "+mention+"\n"))
+			if !errors.Is(err, errMention) {
+				t.Errorf("Finish = %v, want errMention", err)
+			}
+			p.wantNoCommit(t, head)
+		})
+	}
 	t.Run("checked_before_the_work_tree", func(t *testing.T) {
 		// The work tree no longer matches the judged set, so a comparison
 		// made first would stop with a judged-set change instead.

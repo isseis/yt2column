@@ -30,8 +30,8 @@ This file defines the procedure once. A calling command invokes it by saying
 "follow `_lib/local-cli-review.md`" and supplying the inputs below. A caller
 does not run the CLI itself.
 
-Project-specific values (build checks, the PR review request whose first word
-is `<review-mention>`) are in `.claude/commands/_context.md`. Findings are
+Project-specific values (build checks, `<mention-check>` from "Rejected mentions")
+are in `.claude/commands/_context.md`. Findings are
 classified as `.claude/commands/_lib/triage-pattern.md` defines. The
 convergence rules are in `.claude/commands/_lib/review-subagent-pattern.md`.
 
@@ -196,8 +196,8 @@ convergence rules are in `.claude/commands/_lib/review-subagent-pattern.md`.
      record and launched nothing, there are no Fable lines.
    - **Mention check.** Before committing a message with an `Editorial correction:` line or a Fable
      line, write the message to a file and run
-     `grep -qiF -- '<review-mention>' <file>`. Exit code 1 means it is clear.
-     Any other exit code (0, the text contains the mention; above 1, the
+     `<mention-check> <file>`. Exit code 1 means it is clear.
+     Any other exit code (0, the text contains a rejected mention; above 1, the
      check failed): remove every
      `Editorial correction:` line and every free text the session wrote in
      a Fable line (each `<summary>` and `<reason>`, and the reasons of the
@@ -306,7 +306,8 @@ of these prefixes.
   It is neither a finding line nor an unreviewed range, and it does not
   cancel a `not run` line. `runpr.md` step 3 reads it through
   `.claude/commands/_lib/review-records.sh`, which decides whether the local
-  CLI review saw every commit after Codex's last PR review; that script is
+  CLI review saw every commit after the last completed manual PR review (or on
+  the branch before a PR opens); that script is
   the executable form of this line's reading, and when they disagree, this
   file is right and the script is fixed.
 

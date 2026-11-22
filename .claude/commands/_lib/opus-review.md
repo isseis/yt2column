@@ -24,8 +24,8 @@ whether a caller needs the review, and entry 2 is the review itself.
 `runplan.md` calls both, before it opens a PR; `weakreview.md` calls entry 2
 only.
 
-Project-specific values (the build checks, the PR review request whose first
-word is `<review-mention>`) are in `.claude/commands/_context.md`. The prompt
+Project-specific values (the build checks, `<mention-check>` from "Rejected
+mentions") are in `.claude/commands/_context.md`. The prompt
 assembly, panel mode, and convergence rules are in
 `.claude/commands/_lib/review-subagent-pattern.md`; this file says below which
 of its rules it uses, which it adds to, and which it replaces.
@@ -134,8 +134,8 @@ Opus review: kept internal/example/example.go:42 (major; rejected by human) the 
 
 **Mention check.** Before every commit this procedure makes (a fix commit or a
 commit of record lines), write the message to a file and run
-`grep -qiF -- '<review-mention>' <file>`. Commit only when it exits `1`. Exit
-code `0` means the message contains the mention, and any other code means the
+`<mention-check> <file>`. Commit only when it exits `1`. Exit
+code `0` means the message contains a rejected mention, and any other code means the
 check failed. When the first run does not exit `1`, remove every `<summary>`
 of a record line and every sentence of the message written from a finding, and
 run the check once more; commit when that run exits `1`, and otherwise
