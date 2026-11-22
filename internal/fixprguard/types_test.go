@@ -48,7 +48,7 @@ func TestParseReviewers(t *testing.T) {
 		names []string
 	}{
 		{"one", []string{"coderabbitai"}},
-		{"two", []string{"coderabbitai", "chatgpt-codex-connector"}},
+		{"two", []string{"coderabbitai", "second-reviewer-bot"}},
 		// Case is not folded, so names differing only in case are distinct.
 		{"case_differs", []string{"coderabbitai", "CodeRabbitAI"}},
 		// The number of names has no cap.

@@ -7,15 +7,15 @@
 #
 # The first argument chooses the mode; any other mode is a failure.
 #
-# Mode coverage: whether the local CLI review saw every commit after Codex's
-# last PR review (.claude/commands/runpr.md, step 3, and
+# Mode coverage: whether the local CLI review saw every commit after the last
+# completed manual PR review (.claude/commands/runpr.md, step 3, and
 # .claude/commands/_lib/local-cli-review.md, "Reading the record lines").
 #
 #   Before a PR opens, task-pr-handoff.md Part B step 2.5 calls coverage
 #   with "none" to include the entire branch.
 #
-#   LAST_REVIEWED  the commit of Codex's last PR review, 40 hexadecimal
-#                  characters, or "none" when there is none
+#   LAST_REVIEWED  the commit of the last completed manual PR review, 40
+#                  hexadecimal characters, or "none" when there is none
 #   HEAD           the PR's head, 40 hexadecimal characters
 #   PLAN           optional: for an implementation PR, the task's
 #                  docs/tasks/<task-dir>/03_implementation_plan.md

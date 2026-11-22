@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -15,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	cmdrunnertestutil "github.com/isseis/yt2column/internal/cmdrunner/testutil"
 	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/fixprguard"
 )
@@ -41,25 +41,26 @@ const (
 	fixprPhase5      = "## Phase 5 — Reply + resolve (this session)"
 	fixprPhase6      = "## Phase 6 — Wrap: PR description (model: haiku)"
 	runprStep1       = "## 1. Resolve the PR, and create it for a standalone change"
-	runprStep3       = "## 3. Wait for Codex's first review and CI, running fixpr as comments appear"
+	runprStep3       = "## 3. Wait for CI and the review threads, running fixpr as comments appear"
 	runprStep4       = "## 4. Confirm, record, and merge"
 )
 
-// Names of the _context.md rows that hold the automated reviewers and the PR
-// review request, and of the single row they replaced, which must not come
-// back.
+// Names of the _context.md rows that hold the automated reviewers, the PR
+// review request, and the rejected mentions, and of the single row they
+// replaced, which must not come back.
 const (
-	reviewerListRow = "Automated reviewer list"
-	awaitedRow      = "Awaited PR reviewer"
-	requestRow      = "PR review request"
-	oldReviewerRow  = "Automated reviewer"
+	reviewerListRow     = "Automated reviewer list"
+	awaitedRow          = "Awaited PR reviewer"
+	requestRow          = "PR review request"
+	rejectedMentionsRow = "Rejected mentions"
+	oldReviewerRow      = "Automated reviewer"
 )
 
 // wantReviewers is the automated reviewer list the task decided on, in sorted
 // order, since the list's names are sorted before they are compared with it.
 // Adding or removing a reviewer changes _context.md and this value in the same
 // commit.
-var wantReviewers = []string{"chatgpt-codex-connector", "coderabbitai"}
+var wantReviewers = []string{"coderabbitai"}
 
 // flat joins s's whitespace runs into single spaces and drops the blockquote
 // marker of each line, so a phrase matches however the document wraps it,
@@ -188,15 +189,26 @@ func TestRunprDocContract(t *testing.T) {
 	t.Run("listings_print_no_body", func(t *testing.T) {
 		checkListings(t, "runpr.md step 3", step3, runprListingFixtures(), step3ReadCalls, true)
 	})
+
+	t.Run("request_comment_agrees_with_review_state", func(t *testing.T) {
+		checkRequestAgreementWithReviewState(t, step3)
+	})
 }
 
 // The values the listing filters' placeholders are replaced with before the
 // filters run. They hold no character a jq string literal would need to
 // escape.
 const (
-	fakeAwaited = "codex-bot"
+	fakeAwaited = "coderabbit-bot"
 	fakeUser    = "octo-user"
-	fakeRequest = fixprguard.CodexMention + " review"
+	fakeRequest = "@coderabbitai review"
+)
+
+// Observed first lines of CodeRabbit's status comments that runpr.md step 3's
+// mention listings exclude as non-mentions.
+const (
+	crObservedHeader1 = "<!-- coderabbit-ai-generated:v1 -->"
+	crObservedHeader2 = "<!-- This is an auto-generated comment: coding agent status by CodeRabbit -->"
 )
 
 // bodyMarker is put wherever a fake body can hold it. A filter that prints a
@@ -219,55 +231,22 @@ var (
 )
 
 // runprListingKeys are the keys each kind of object runpr.md step 3's
-// listings print may hold. None of them carries a body: state is derived from
-// a summary comment's state line, never copied from it, and by_user and by_bot
+// listings print may hold. None of them carries a body: by_user and by_bot
 // are computed from the author.
 var runprListingKeys = map[string][]string{
-	"summary": {"kind", "url", "updated_at", "state"},
-	"codex":   {"kind", "url", "created_at"},
 	"request": {"kind", "url", "created_at"},
 	"mention": {"kind", "url", "created_at", "updated_at", "by_user", "by_bot"},
 }
-
-// receiptKeys are the keys a receipt other than its kind must hold. runpr.md
-// tells a receipt posted after the request by created_at, binds an approval
-// to updated_at, and judges the form by form_ok and short_sha, so a filter
-// that leaves one out fails. Neither form_ok nor short_sha copies the body:
-// form_ok is computed from the receipt's first five lines, and short_sha is
-// taken from its fifth line only after the whole line matched the accepted
-// form, which leaves nothing in it but lowercase hexadecimal digits.
-var receiptKeys = []string{"url", "created_at", "updated_at", "form_ok", "short_sha"}
-
-// runprCommentKeys are the keys of the conversation-comment listing, the only
-// listing that may print a receipt: runprListingKeys and the receipt's keys.
-// The other two listings take runprListingKeys, so a receipt they printed
-// would fail.
-var runprCommentKeys = func() map[string][]string {
-	keys := maps.Clone(runprListingKeys)
-	keys["receipt"] = append([]string{"kind"}, receiptKeys...)
-	return keys
-}()
 
 // mentionAuthorKeys are the keys a mention must hold: runpr.md decides
 // whether to stop by them, so a filter that leaves one out fails.
 var mentionAuthorKeys = []string{"by_user", "by_bot"}
 
 // runprRequiredKeys are the keys each kind of object runpr.md step 3's
-// listings must hold. A summary must hold its state and time, which runpr.md
-// judges the request by, so a filter that leaves one out fails instead of
-// leaving the summary rows unchecked.
+// listings must hold.
 var runprRequiredKeys = map[string][]string{
 	"mention": mentionAuthorKeys,
-	"summary": {"url", "updated_at", "state"},
 }
-
-// runprCommentRequiredKeys are runprRequiredKeys with the receipt's keys, for
-// the conversation-comment listing alone.
-var runprCommentRequiredKeys = func() map[string][]string {
-	keys := maps.Clone(runprRequiredKeys)
-	keys["receipt"] = receiptKeys
-	return keys
-}()
 
 // mentionWriter is who wrote a mention, which by_user and by_bot must report:
 // notMention for an item that is no mention.
@@ -281,91 +260,92 @@ const (
 )
 
 // listingItem is one item of a fake GitHub response and what the filter must
-// print for it: kind is "" when it must print nothing, derived is the value
-// the filter derives from the body, and wrote is a mention's expected author.
-// For a summary, derived is its expected state; for a receipt, it is its
-// expected short_sha, or "" when the receipt must not match the accepted form
-// (form_ok false and short_sha null). Every other kind has derived "".
+// print for it: kind is "" when it must print nothing, and wrote is a
+// mention's expected author.
 type listingItem struct {
 	userType, login string
 	body            any
-	kind, derived   string
+	kind            string
 	wrote           mentionWriter
 }
 
 // listingFixture is the fake response for one listing: its items, the field
-// of an item each output key other than kind and the derived keys (state,
-// form_ok, short_sha) must equal, and the keys each kind of output object may
-// hold. An object without a kind key is
-// of kind kindless, when that is set. required lists the keys each kind of
-// object must hold, when a command decides by them.
+// of an item each output key other than kind must equal, and the keys each
+// kind of output object may hold. required lists the keys each kind of object
+// must hold, when a command decides by them.
 type listingFixture struct {
 	items    []listingItem
 	source   map[string]string
 	keys     map[string][]string
 	required map[string][]string
-	kindless string
-}
-
-// kindOf returns the kind of obj, an object the listing printed.
-func (f listingFixture) kindOf(obj map[string]any) any {
-	if kind, ok := obj["kind"]; ok || f.kindless == "" {
-		return kind
-	}
-	return f.kindless
 }
 
 // marked wraps line in bodyMarker at its start and end.
 func marked(line string) string { return bodyMarker + " " + line + " " + bodyMarker }
 
 // runprListingFixtures are the fake responses, by endpoint. The items cover
-// the awaited reviewer's comments, a request and the near-requests that are
-// mentions, the author checks, and bodies with and without the mention, null
-// included.
+// both rejected mentions (in mixed case), CodeRabbit's two observed status
+// headers (with and without trailing CR), unobserved CodeRabbit posts, other
+// Bots (including Codex), a request and the near-requests that are mentions,
+// the author checks, and bodies with and without a mention, null included.
 func runprListingFixtures() map[string]listingFixture {
+	mentions := fixprguard.RejectedMentions()
+	m0, m1 := mentions[0], mentions[len(mentions)-1]
 	bot, user := "Bot", "User"
 	awaited := fakeAwaited + "[bot]"
 	comments := map[string]string{"url": "html_url", "created_at": "created_at", "updated_at": "updated_at"}
 	return map[string]listingFixture{
-		"issues/<number>/comments": {source: comments, keys: runprCommentKeys, required: runprCommentRequiredKeys, items: []listingItem{
-			// Codex's comments.
-			{bot, awaited, marked("A note.") + "\n" + marked(fixprguard.CodexMention+" a second line."), "codex", "", notMention},
-			{bot, awaited, nil, "codex", "", notMention},
-			// The request, and the comments that are not one.
-			{user, fakeUser, "  " + fakeRequest + "\n", "request", "", notMention},
-			{user, fakeUser, marked(fakeRequest), "mention", "", byTheUser},
-			{user, "other-user", fakeRequest, "mention", "", byAPerson},
-			{bot, fakeUser, fakeRequest, "mention", "", byABot},
-			// A User named like Codex is a person, whose mention counts.
-			{user, awaited, marked(fixprguard.CodexMention + " from a User"), "mention", "", byAPerson},
-			{user, "other-user", marked(strings.ToUpper(fixprguard.CodexMention)+" please look") + "\n" + marked("Thanks."), "mention", "", byAPerson},
-			{user, "other-user", marked("No mention here."), "", "", notMention},
-			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", "", byABot},
-			{user, "other-user", nil, "", "", notMention},
+		"issues/<number>/comments": {source: comments, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
+			// CodeRabbit's two observed headers (LF and CRLF) are excluded even
+			// when their bodies carry a rejected mention.
+			{bot, awaited, crObservedHeader1 + "\n" + marked(m1+" summary"), "", notMention},
+			{bot, awaited, crObservedHeader1 + "\r\n" + marked(m0+" summary"), "", notMention},
+			{bot, awaited, crObservedHeader2 + "\n" + marked(m1+" status"), "", notMention},
+			{bot, awaited, crObservedHeader2 + "\r\n" + marked(m0+" status"), "", notMention},
+			// Any other CodeRabbit comment with a rejected mention counts as by_bot.
+			{bot, awaited, marked("Unobserved header.") + "\n" + marked(m1+" note"), "mention", byABot},
+			{bot, awaited, nil, "", notMention},
+			// A User with the awaited login and an observed header is still a person.
+			{user, awaited, crObservedHeader1 + "\n" + marked(m1+" spoof"), "mention", byAPerson},
+			// The user's exact request comment, and the near-requests that are mentions.
+			{user, fakeUser, "  " + fakeRequest + "\n", "request", notMention},
+			{user, fakeUser, "\t" + fakeRequest + "\r\n", "request", notMention},
+			{user, fakeUser, marked(fakeRequest), "mention", byTheUser},
+			{user, "other-user", fakeRequest, "mention", byAPerson},
+			{bot, fakeUser, fakeRequest, "mention", byABot},
+			// Both rejected mentions across author kinds and cases.
+			{user, "other-user", marked(strings.ToUpper(m0)+" please look") + "\n" + marked("Thanks."), "mention", byAPerson},
+			{user, "other-user", marked(strings.ToUpper(m1) + " please look"), "mention", byAPerson},
+			{user, "other-user", marked("No mention here."), "", notMention},
+			{bot, "chatgpt-codex-connector[bot]", marked(m0 + " summary from Codex"), "mention", byABot},
+			{bot, "other-bot[bot]", marked(m1 + " from another Bot"), "mention", byABot},
+			{user, "other-user", nil, "", notMention},
 		}},
 		"pulls/<number>/comments": {source: comments, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
-			// A mention by each kind of author: the user, a Bot named like
-			// the user, and a User named like Codex.
-			{user, fakeUser, marked(fixprguard.CodexMention + " from the user"), "mention", "", byTheUser},
-			{bot, fakeUser, marked(fixprguard.CodexMention + " from a Bot named like the user"), "mention", "", byABot},
-			{bot, awaited, marked(fixprguard.CodexMention + " from Codex"), "", "", notMention},
-			{user, "other-user", marked("No mention here."), "", "", notMention},
-			{user, "other-user", marked("Ask "+strings.ToUpper(fixprguard.CodexMention)) + "\n" + marked("again"), "mention", "", byAPerson},
-			{user, awaited, marked(fixprguard.CodexMention + " from a User"), "mention", "", byAPerson},
-			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", "", byABot},
-			{user, "other-user", nil, "", "", notMention},
+			{user, fakeUser, marked(m0 + " from the user"), "mention", byTheUser},
+			{user, fakeUser, marked(m1 + " from the user"), "mention", byTheUser},
+			{bot, fakeUser, marked(m1 + " from a Bot named like the user"), "mention", byABot},
+			{bot, awaited, crObservedHeader1 + "\r\n" + marked(m1+" observed"), "", notMention},
+			{bot, awaited, crObservedHeader2 + "\n" + marked(m0+" observed"), "", notMention},
+			{bot, awaited, marked(m1 + " from unobserved CodeRabbit"), "mention", byABot},
+			{user, "other-user", marked("No mention here."), "", notMention},
+			{user, "other-user", marked("Ask "+strings.ToUpper(m0)) + "\n" + marked("again"), "mention", byAPerson},
+			{user, awaited, crObservedHeader1 + "\n" + marked(m1+" from a User"), "mention", byAPerson},
+			{bot, "other-bot[bot]", marked(m0 + " from another Bot"), "mention", byABot},
+			{user, "other-user", nil, "", notMention},
 		}},
 		"pulls/<number>/reviews": {source: map[string]string{"url": "html_url", "created_at": "submitted_at"}, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
-			// A mention by each kind of author: the user, a Bot named like
-			// the user, and a User named like Codex.
-			{user, fakeUser, marked(fixprguard.CodexMention + " from the user"), "mention", "", byTheUser},
-			{bot, fakeUser, marked(fixprguard.CodexMention + " from a Bot named like the user"), "mention", "", byABot},
-			{user, awaited, marked(fixprguard.CodexMention + " from a User"), "mention", "", byAPerson},
-			{bot, awaited, marked(fixprguard.CodexMention + " from Codex"), "", "", notMention},
-			{user, "other-user", "", "", "", notMention},
-			{user, "other-user", marked("Ask "+fixprguard.CodexMention) + "\n" + marked("again"), "mention", "", byAPerson},
-			{bot, "other-bot[bot]", marked(fixprguard.CodexMention + " from another Bot"), "mention", "", byABot},
-			{user, "other-user", nil, "", "", notMention},
+			{user, fakeUser, marked(m0 + " from the user"), "mention", byTheUser},
+			{user, fakeUser, marked(m1 + " from the user"), "mention", byTheUser},
+			{bot, fakeUser, marked(m0 + " from a Bot named like the user"), "mention", byABot},
+			{user, awaited, crObservedHeader2 + "\n" + marked(m1+" from a User"), "mention", byAPerson},
+			{bot, awaited, crObservedHeader1 + "\n" + marked(m1+" observed"), "", notMention},
+			{bot, awaited, crObservedHeader2 + "\r\n" + marked(m0+" observed"), "", notMention},
+			{bot, awaited, marked(m1 + " from unobserved CodeRabbit"), "mention", byABot},
+			{user, "other-user", "", "", notMention},
+			{user, "other-user", marked("Ask "+strings.ToUpper(m1)) + "\n" + marked("again"), "mention", byAPerson},
+			{bot, "other-bot[bot]", marked(m0 + " from another Bot"), "mention", byABot},
+			{user, "other-user", nil, "", notMention},
 		}},
 	}
 }
@@ -428,11 +408,15 @@ func checkListings(t *testing.T, where, section string, fixtures map[string]list
 		t.Fatalf("%s has %d gh api --paginate listings, %d of them in the expected form; want %d",
 			where, n, len(matches), len(fixtures))
 	}
+	rejectedJSON, err := json.Marshal(fixprguard.RejectedMentions())
+	if err != nil {
+		t.Fatal(err)
+	}
 	replacer := strings.NewReplacer(append([]string{
 		"<awaited-reviewer>", fakeAwaited,
 		"<user-login>", fakeUser,
 		"<review-request>", fakeRequest,
-		"<review-mention>", fixprguard.CodexMention,
+		"<rejected-mentions>", string(rejectedJSON),
 	}, extra...)...)
 	seen := map[string]struct{}{}
 	stderrFiles := map[string]string{}
@@ -468,16 +452,149 @@ func checkListings(t *testing.T, where, section string, fixtures map[string]list
 	}
 }
 
-// step3ReadCalls are the gh api calls of runpr.md step 3 other than the
-// listings: reading the user's login and the Date header, and the two reads
-// that report a stop, which may print a body because the session reads it
-// only to report the stop.
+// step3ReadCalls are the gh api calls of runpr.md step 3: the three mention
+// listings and reading the user's login.
 var step3ReadCalls = []string{
 	"gh api --paginate ",
 	"gh api user --jq .login",
-	"gh api -i repos/<owner>/<repo>/pulls/<number> | grep -i -m 1 '^date:'",
-	"gh api repos/<owner>/<repo>/issues/comments/<id> --jq .body",
-	`gh api repos/<owner>/<repo>/issues/comments/<id> --jq '(.body // "" | split("\n"))[1] // "" | .[:500]'`,
+}
+
+// checkRequestAgreementWithReviewState checks that runpr.md step 3's
+// conversation-comment jq filter and fixprguard.PRReviewState classify the
+// exact same comments as request comments, so a comment the jq filter skips
+// as a request is also a request to review-state and vice versa.
+func checkRequestAgreementWithReviewState(t *testing.T, step3 string) {
+	t.Helper()
+	jq, err := exec.LookPath("jq")
+	if err != nil {
+		t.Fatal("unsupported test environment: jq is not installed")
+	}
+	var rawFilter string
+	for _, m := range paginatedListing.FindAllStringSubmatch(step3, -1) {
+		if m[1] == "issues/<number>/comments" {
+			rawFilter = m[2]
+			break
+		}
+	}
+	if rawFilter == "" {
+		t.Fatal("runpr.md step 3 has no issues/<number>/comments listing")
+	}
+	rejectedJSON, err := json.Marshal(fixprguard.RejectedMentions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	filter := strings.NewReplacer(
+		"<awaited-reviewer>", fakeAwaited,
+		"<user-login>", fakeUser,
+		"<review-request>", fakeRequest,
+		"<rejected-mentions>", string(rejectedJSON),
+	).Replace(rawFilter)
+
+	pr, err := fixprguard.ParsePRNumber("42")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviewer, err := fixprguard.ParseLogin(fakeAwaited)
+	if err != nil {
+		t.Fatal(err)
+	}
+	headSHA := strings.Repeat("a1", 20)
+	const (
+		dateHeader = "HTTP/2.0 200 OK\r\nDate: Fri, 23 Oct 2026 09:05:00 GMT\r\n\r\n"
+		createdAt  = "2026-10-23T09:00:00Z"
+		commentURL = "https://github.com/isseis/yt2column/pull/42#issuecomment-7001"
+	)
+
+	for _, tc := range []struct {
+		name        string
+		userType    string
+		login       string
+		body        string
+		wantRequest bool
+	}{
+		{"exact", "User", fakeUser, fakeRequest, true},
+		{"spaces_and_lf", "User", fakeUser, "  " + fakeRequest + "\n", true},
+		{"tabs_and_crlf", "User", fakeUser, "\t " + fakeRequest + " \r\n", true},
+		{"extra_prefix", "User", fakeUser, "please " + fakeRequest, false},
+		{"extra_suffix", "User", fakeUser, fakeRequest + " please", false},
+		{"wrong_case", "User", fakeUser, strings.ToUpper(fakeRequest), false},
+		{"empty_body", "User", fakeUser, "", false},
+		{"other_user", "User", "other-user", fakeRequest, false},
+		{"bot_same_login", "Bot", fakeUser, fakeRequest, false},
+		{"awaited_bot", "Bot", fakeAwaited + "[bot]", fakeRequest, false},
+		{"awaited_bot_observed", "Bot", fakeAwaited + "[bot]", crObservedHeader1 + "\n" + fakeRequest, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			item := map[string]any{
+				"id":         float64(7001),
+				"user":       map[string]any{"type": tc.userType, "login": tc.login},
+				"body":       tc.body,
+				"created_at": createdAt,
+				"updated_at": createdAt,
+				"html_url":   commentURL,
+			}
+			// 1) Run the documented jq filter.
+			out := runJQ(t, jq, filter, []map[string]any{item})
+			jqRequest := false
+			dec := json.NewDecoder(strings.NewReader(out))
+			for {
+				var obj map[string]any
+				if err := dec.Decode(&obj); err == io.EOF {
+					break
+				} else if err != nil {
+					t.Fatalf("decode jq output %q: %v", out, err)
+				}
+				if obj["kind"] == "request" {
+					jqRequest = true
+				}
+			}
+			// 2) Run fixprguard.PRReviewState on the same comment.
+			commentsJSON, err := json.Marshal([]map[string]any{item})
+			if err != nil {
+				t.Fatal(err)
+			}
+			steps := []cmdrunnertestutil.Step{
+				{Name: "gh", Args: []string{"repo", "view", "--json", "nameWithOwner"}, Out: `{"nameWithOwner":"isseis/yt2column"}`},
+				{Name: "gh", Args: []string{"api", "--include", "repos/isseis/yt2column/pulls/42"}, Out: dateHeader + `{"head":{"sha":"` + headSHA + `"}}`},
+				{Name: "gh", Args: []string{"api", "user"}, Out: `{"login":"` + fakeUser + `"}`},
+				{Name: "gh", Args: []string{"api", "--include", "repos/isseis/yt2column/issues/42/comments?per_page=100&page=1"}, Out: dateHeader + string(commentsJSON)},
+			}
+			if tc.wantRequest {
+				steps = append(steps,
+					cmdrunnertestutil.Step{
+						Name: "gh",
+						Args: []string{"api", "graphql", "--input", "-"},
+						Out:  `{"data":{"repository":{"pullRequest":{"headRefOid":"` + headSHA + `","commits":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}}`,
+					},
+					cmdrunnertestutil.Step{
+						Name: "gh",
+						Args: []string{"api", "--include", "repos/isseis/yt2column/pulls/42/reviews?per_page=100&page=1"},
+						Out:  dateHeader + `[]`,
+					},
+				)
+			}
+			fake := cmdrunnertestutil.New(t, steps...)
+			gh, err := fixprguard.NewGitHubWithoutReviewer(fake)
+			if err != nil {
+				t.Fatalf("NewGitHubWithoutReviewer: %v", err)
+			}
+			got, err := gh.PRReviewState(t.Context(), fixprguard.ReviewStateRequest{
+				PR:       pr,
+				Reviewer: reviewer,
+				Request:  fakeRequest,
+			})
+			if err != nil {
+				t.Fatalf("PRReviewState: %v", err)
+			}
+			if got.State == fixprguard.RequestUnreadable {
+				t.Fatalf("PRReviewState returned unreadable (reason=%v)", got.Reason)
+			}
+			guardRequest := got.Request != nil
+			if jqRequest != tc.wantRequest || guardRequest != tc.wantRequest {
+				t.Errorf("jq request=%v, review-state request=%v, want %v", jqRequest, guardRequest, tc.wantRequest)
+			}
+		})
+	}
 }
 
 // checkGhAPICalls fails t for a gh api call in section that does not start
@@ -521,11 +638,8 @@ func checkListingConstructors(t *testing.T, filter string, fixture listingFixtur
 		entries := splitTopLevel(body)
 		kind, isKind := strings.CutPrefix(strings.TrimSpace(entries[0]), "kind: ")
 		kind = strings.Trim(kind, `"`)
-		if !isKind {
-			kind = fixture.kindless
-		}
 		allowed, known := fixture.keys[kind]
-		if kind == "" || !known {
+		if !isKind || kind == "" || !known {
 			t.Errorf("the filter builds {%s}, which does not start with a known kind", body)
 			continue
 		}
@@ -626,10 +740,6 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 		if (item.kind == "mention") != (item.wrote != notMention) {
 			t.Fatalf("item %d: kind %q with writer %d; a mention needs its writer, and only a mention has one", i, item.kind, item.wrote)
 		}
-		if item.kind == "summary" && item.derived == "" ||
-			item.derived != "" && item.kind != "summary" && item.kind != "receipt" {
-			t.Fatalf("item %d: kind %q with derived %q; a summary needs one, and only a summary or a receipt has one", i, item.kind, item.derived)
-		}
 	}
 	byURL := map[string]int{}
 	for i, obj := range response {
@@ -652,7 +762,7 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 		}
 		printed[i]++
 		item := fixture.items[i]
-		if kind := fixture.kindOf(obj); kind != item.kind {
+		if kind := obj["kind"]; kind != item.kind {
 			t.Errorf("item %d: printed kind %v, want %q", i, kind, item.kind)
 		}
 		for _, key := range fixture.required[item.kind] {
@@ -665,22 +775,6 @@ func checkListingOutput(t *testing.T, fixture listingFixture, response []map[str
 			case !slices.Contains(fixture.keys[item.kind], key):
 				t.Errorf("item %d: printed the key %q, which a %q may not hold", i, key, item.kind)
 			case key == "kind":
-			case key == "state":
-				if value != item.derived {
-					t.Errorf("item %d: printed state %v, want %q", i, value, item.derived)
-				}
-			case key == "form_ok":
-				if value != (item.derived != "") {
-					t.Errorf("item %d: printed form_ok %v, want %t", i, value, item.derived != "")
-				}
-			case key == "short_sha":
-				var want any
-				if item.derived != "" {
-					want = item.derived
-				}
-				if value != want {
-					t.Errorf("item %d: printed short_sha %v, want %v", i, value, want)
-				}
 			case key == "by_user":
 				if value != (item.wrote == byTheUser) {
 					t.Errorf("item %d: printed by_user %v, want %t", i, value, item.wrote == byTheUser)
@@ -725,7 +819,9 @@ func TestFixprguardCallSites(t *testing.T) {
 		{"fixpr.md", fixpr, fixprPhase6, "fixprguard append-pr "},
 		{"runpr.md", runpr, runprStep1, "fixprguard head "},
 		{"runpr.md", runpr, runprStep1, "fixprguard interaction-limits "},
+		{"runpr.md", runpr, runprStep3, "fixprguard review-state "},
 		{"runpr.md", runpr, runprStep3, "fixprguard list "},
+		{"runpr.md", runpr, runprStep4, "fixprguard review-state "},
 		{"runpr.md", runpr, runprStep4, "fixprguard reply "},
 		{"runpr.md", runpr, runprStep4, "fixprguard edit-pr "},
 	} {
@@ -858,9 +954,15 @@ const (
 	// problemRequestShape: the request value before the first " — " is not
 	// exactly one backquoted text.
 	problemRequestShape reviewerRowProblem = "request shape"
-	// problemRequestMention: the request's first word is not the mention
-	// fixprguard rejects, fixprguard.CodexMention.
+	// problemRequestMention: the request's first word is not one of the
+	// mentions fixprguard rejects (fixprguard.RejectedMentions).
 	problemRequestMention reviewerRowProblem = "request mention"
+	// problemRejectedShape: the rejected-mentions value before the first " — "
+	// is not backquoted mentions separated by ", ".
+	problemRejectedShape reviewerRowProblem = "rejected shape"
+	// problemRejectedNames: the rejected-mentions list is not exactly
+	// fixprguard.RejectedMentions().
+	problemRejectedNames reviewerRowProblem = "rejected names"
 )
 
 // valueSeparator ends the names part of a reviewer row's value; the
@@ -877,13 +979,16 @@ var (
 )
 
 // contextReviewers is what checkContextReviewers reads from _context.md: the
-// list's names, the awaited reviewer's name, and the PR review request's
-// description. A field is empty when its check failed before reaching it.
+// list's names, the awaited reviewer's name, the PR review request, and the
+// rejected mentions list and its description. A field is empty when its check
+// failed before reaching it.
 type contextReviewers struct {
-	names       []string
-	awaited     string
-	requestDesc string
-	problems    []reviewerRowProblem
+	names        []string
+	awaited      string
+	request      string
+	rejected     []string
+	rejectedDesc string
+	problems     []reviewerRowProblem
 }
 
 // checkContextReviewers reads the reviewer rows of the _context.md text doc
@@ -899,12 +1004,12 @@ func checkContextReviewers(doc string) contextReviewers {
 		if len(table) == 0 || len(table[0]) == 0 || table[0][0] != "Name" {
 			continue
 		}
-		for _, name := range []string{reviewerListRow, awaitedRow, requestRow, oldReviewerRow} {
+		for _, name := range []string{reviewerListRow, awaitedRow, requestRow, rejectedMentionsRow, oldReviewerRow} {
 			count[name] = append(count[name], tableRowsWithFirstCell(table, name)...)
 		}
 	}
 	if len(count[reviewerListRow]) != 1 || len(count[awaitedRow]) != 1 || len(count[requestRow]) != 1 ||
-		len(count[oldReviewerRow]) != 0 {
+		len(count[rejectedMentionsRow]) != 1 || len(count[oldReviewerRow]) != 0 {
 		got.problems = append(got.problems, problemRowCount)
 	}
 
@@ -918,6 +1023,9 @@ func checkContextReviewers(doc string) contextReviewers {
 	}
 	if rows := count[requestRow]; len(rows) == 1 {
 		got.checkRequest(valueCell(rows[0]))
+	}
+	if rows := count[rejectedMentionsRow]; len(rows) == 1 {
+		got.checkRejected(valueCell(rows[0]))
 	}
 	return got
 }
@@ -967,37 +1075,59 @@ func (c *contextReviewers) checkAwaited(value string) {
 }
 
 // checkRequest checks the PR review request row's value and records the
-// request. The request's first word must be the mention the guard tool
+// request. The request's first word must be one of the mentions the guard tool
 // rejects in replies and PR descriptions, so the tool and the command
-// documents keep out the same mention.
+// documents keep out the same mentions.
 func (c *contextReviewers) checkRequest(value string) {
-	request, desc, found := strings.Cut(value, valueSeparator)
+	request, _, found := strings.Cut(value, valueSeparator)
 	m := awaitedShape.FindStringSubmatch(request)
 	if !found || m == nil {
 		c.problems = append(c.problems, problemRequestShape)
 		return
 	}
-	if words := strings.Fields(m[1]); len(words) == 0 || words[0] != fixprguard.CodexMention {
+	if words := strings.Fields(m[1]); len(words) == 0 || !slices.Contains(fixprguard.RejectedMentions(), words[0]) {
 		c.problems = append(c.problems, problemRequestMention)
 		return
 	}
-	c.requestDesc = desc
+	c.request = m[1]
+}
+
+// checkRejected checks the Rejected mentions row's value and records its
+// mentions and description.
+func (c *contextReviewers) checkRejected(value string) {
+	names, desc, found := strings.Cut(value, valueSeparator)
+	if !found || !reviewerListShape.MatchString(names) {
+		c.problems = append(c.problems, problemRejectedShape)
+		return
+	}
+	var list []string
+	for _, m := range backquoted.FindAllStringSubmatch(names, -1) {
+		list = append(list, m[1])
+	}
+	want := slices.Sorted(slices.Values(fixprguard.RejectedMentions()))
+	if sorted := slices.Sorted(slices.Values(list)); !slices.Equal(sorted, want) {
+		c.problems = append(c.problems, problemRejectedNames)
+	}
+	c.rejected = list
+	c.rejectedDesc = desc
 }
 
 // TestContextAndCommandsAgree checks that _context.md is the one place the
-// automated reviewers' names are written: its reviewer rows parse and hold
-// the expected names, the PR review request row's description names the
-// mention fixprguard rejects, and fixpr.md, runpr.md, mkreq.md, and
-// _lib/task-pr-handoff.md never write a reviewer's name.
+// automated reviewer's name is written: its reviewer rows parse and hold the
+// expected names, its request and rejected mentions match fixprguard, and
+// fixpr.md, runpr.md, mkreq.md, and _lib/task-pr-handoff.md never write a
+// reviewer's name.
 func TestContextAndCommandsAgree(t *testing.T) {
 	got := checkContextReviewers(doctestutil.ReadDoc(t, contextPath))
 	if len(got.problems) > 0 {
 		t.Fatalf("_context.md reviewer rows have problems %v", got.problems)
 	}
-	if got.awaited != "chatgpt-codex-connector" {
-		t.Errorf("_context.md %s = %q, want chatgpt-codex-connector", awaitedRow, got.awaited)
+	if got.awaited != "coderabbitai" {
+		t.Errorf("_context.md %s = %q, want coderabbitai", awaitedRow, got.awaited)
 	}
-	requirePhrases(t, "_context.md "+requestRow, got.requestDesc, "`"+fixprguard.CodexMention+"`")
+	if got.request != "@coderabbitai review" {
+		t.Errorf("_context.md %s = %q, want %q", requestRow, got.request, "@coderabbitai review")
+	}
 
 	// The documents write every reviewer value through a placeholder, so a
 	// name has no place in them at all. A name followed by [bot] contains the
@@ -1019,16 +1149,18 @@ func TestContextAndCommandsAgree(t *testing.T) {
 
 // TestContextReviewerRowsMalformed checks that checkContextReviewers reports
 // each kind of broken reviewer row, on copies of the real _context.md with one
-// row edited, and that it reads exactly two names from a description holding
+// row edited, and that it reads the expected names from a description holding
 // backquoted code and a second separator.
 func TestContextReviewerRowsMalformed(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, contextPath)
 	listLine := contextLine(t, doc, reviewerListRow)
 	awaitedLine := contextLine(t, doc, awaitedRow)
 	requestLine := contextLine(t, doc, requestRow)
+	rejectedLine := contextLine(t, doc, rejectedMentionsRow)
 	listRow := func(value string) string { return "| " + reviewerListRow + " | " + value + " |" }
 	awaitedRowLine := func(value string) string { return "| " + awaitedRow + " | " + value + " |" }
 	requestRowLine := func(value string) string { return "| " + requestRow + " | " + value + " |" }
+	rejectedRowLine := func(value string) string { return "| " + rejectedMentionsRow + " | " + value + " |" }
 	const desc = " — the automated reviewers"
 
 	for _, tc := range []struct {
@@ -1040,37 +1172,44 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 		{"real", listLine, listLine, nil},
 		{
 			"description_with_code_and_separator", listLine,
-			listRow("`coderabbitai`, `chatgpt-codex-connector` — named in `[bot]`-less form — see `fixpr.md`"), nil,
+			listRow("`coderabbitai` — named in `[bot]`-less form — see `fixpr.md`"), nil,
 		},
 		{"list_row_missing", listLine + "\n", "", []reviewerRowProblem{problemRowCount}},
 		{"awaited_row_missing", awaitedLine + "\n", "", []reviewerRowProblem{problemRowCount}},
+		{"rejected_row_missing", rejectedLine + "\n", "", []reviewerRowProblem{problemRowCount}},
 		{"list_row_twice", listLine, listLine + "\n" + listLine, []reviewerRowProblem{problemRowCount}},
 		{"awaited_row_twice", awaitedLine, awaitedLine + "\n" + awaitedLine, []reviewerRowProblem{problemRowCount}},
+		{"rejected_row_twice", rejectedLine, rejectedLine + "\n" + rejectedLine, []reviewerRowProblem{problemRowCount}},
 		{"old_row_left", awaitedLine, awaitedLine + "\n| " + oldReviewerRow + " | `coderabbitai` — the reviewer |", []reviewerRowProblem{problemRowCount}},
 		{"list_no_value_cell", listLine, "| " + reviewerListRow + " |", []reviewerRowProblem{problemListShape}},
 		{"list_value_only_description", listLine, listRow(desc), []reviewerRowProblem{problemListShape}},
-		{"no_separator", listLine, listRow("`coderabbitai`, `chatgpt-codex-connector`"), []reviewerRowProblem{problemListShape}},
-		{"no_backquotes", listLine, listRow("coderabbitai, chatgpt-codex-connector" + desc), []reviewerRowProblem{problemListShape}},
-		{"no_space_after_comma", listLine, listRow("`coderabbitai`,`chatgpt-codex-connector`" + desc), []reviewerRowProblem{problemListShape}},
-		{"two_spaces_after_comma", listLine, listRow("`coderabbitai`,  `chatgpt-codex-connector`" + desc), []reviewerRowProblem{problemListShape}},
-		{"trailing_separator", listLine, listRow("`coderabbitai`, `chatgpt-codex-connector`," + desc), []reviewerRowProblem{problemListShape}},
-		{"name_outside_grammar", listLine, listRow("`coderabbitai[bot]`, `chatgpt-codex-connector`" + desc), []reviewerRowProblem{problemListParse}},
-		{"name_twice", listLine, listRow("`coderabbitai`, `chatgpt-codex-connector`, `coderabbitai`" + desc), []reviewerRowProblem{problemListParse}},
-		{"third_name", listLine, listRow("`coderabbitai`, `chatgpt-codex-connector`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
-		{"name_replaced", listLine, listRow("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
-		{"awaited_two_names", awaitedLine, awaitedRowLine("`coderabbitai`, `chatgpt-codex-connector`" + desc), []reviewerRowProblem{problemAwaitedShape}},
+		{"no_separator", listLine, listRow("`coderabbitai`"), []reviewerRowProblem{problemListShape}},
+		{"no_backquotes", listLine, listRow("coderabbitai" + desc), []reviewerRowProblem{problemListShape}},
+		{"no_space_after_comma", listLine, listRow("`coderabbitai`,`other-bot`" + desc), []reviewerRowProblem{problemListShape}},
+		{"two_spaces_after_comma", listLine, listRow("`coderabbitai`,  `other-bot`" + desc), []reviewerRowProblem{problemListShape}},
+		{"trailing_separator", listLine, listRow("`coderabbitai`," + desc), []reviewerRowProblem{problemListShape}},
+		{"name_outside_grammar", listLine, listRow("`coderabbitai[bot]`" + desc), []reviewerRowProblem{problemListParse}},
+		{"name_twice", listLine, listRow("`coderabbitai`, `coderabbitai`" + desc), []reviewerRowProblem{problemListParse}},
+		{"second_name", listLine, listRow("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
+		{"name_replaced", listLine, listRow("`other-bot`" + desc), []reviewerRowProblem{problemListNames}},
+		{"awaited_two_names", awaitedLine, awaitedRowLine("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemAwaitedShape}},
 		{"awaited_no_value_cell", awaitedLine, "| " + awaitedRow + " |", []reviewerRowProblem{problemAwaitedShape}},
 		{"awaited_value_only_description", awaitedLine, awaitedRowLine(desc), []reviewerRowProblem{problemAwaitedShape}},
 		{"awaited_no_separator", awaitedLine, awaitedRowLine("`coderabbitai`"), []reviewerRowProblem{problemAwaitedShape}},
 		{"awaited_outside_grammar", awaitedLine, awaitedRowLine("`coderabbitai[bot]`" + desc), []reviewerRowProblem{problemAwaitedParse}},
 		{"request_row_missing", requestLine + "\n", "", []reviewerRowProblem{problemRowCount}},
 		{"request_row_twice", requestLine, requestLine + "\n" + requestLine, []reviewerRowProblem{problemRowCount}},
-		{"request_two_values", requestLine, requestRowLine("`@codex review`, `@codex`" + desc), []reviewerRowProblem{problemRequestShape}},
-		{"request_no_backquotes", requestLine, requestRowLine("@codex review" + desc), []reviewerRowProblem{problemRequestShape}},
-		{"request_no_separator", requestLine, requestRowLine("`@codex review`"), []reviewerRowProblem{problemRequestShape}},
-		{"request_other_mention", requestLine, requestRowLine("`@chatgpt review`" + desc), []reviewerRowProblem{problemRequestMention}},
-		{"request_longer_mention", requestLine, requestRowLine("`@codexbot review`" + desc), []reviewerRowProblem{problemRequestMention}},
-		{"request_mention_not_first", requestLine, requestRowLine("`review @codex`" + desc), []reviewerRowProblem{problemRequestMention}},
+		{"request_two_values", requestLine, requestRowLine("`@coderabbitai review`, `@coderabbitai`" + desc), []reviewerRowProblem{problemRequestShape}},
+		{"request_no_backquotes", requestLine, requestRowLine("@coderabbitai review" + desc), []reviewerRowProblem{problemRequestShape}},
+		{"request_no_separator", requestLine, requestRowLine("`@coderabbitai review`"), []reviewerRowProblem{problemRequestShape}},
+		{"request_other_mention", requestLine, requestRowLine("`@other-bot review`" + desc), []reviewerRowProblem{problemRequestMention}},
+		{"request_longer_mention", requestLine, requestRowLine("`@coderabbitai-bot review`" + desc), []reviewerRowProblem{problemRequestMention}},
+		{"request_mention_not_first", requestLine, requestRowLine("`review @coderabbitai`" + desc), []reviewerRowProblem{problemRequestMention}},
+		{"rejected_no_value_cell", rejectedLine, "| " + rejectedMentionsRow + " |", []reviewerRowProblem{problemRejectedShape}},
+		{"rejected_no_separator", rejectedLine, rejectedRowLine("`@codex`, `@coderabbitai`"), []reviewerRowProblem{problemRejectedShape}},
+		{"rejected_no_backquotes", rejectedLine, rejectedRowLine("@codex, @coderabbitai" + desc), []reviewerRowProblem{problemRejectedShape}},
+		{"rejected_missing_one", rejectedLine, rejectedRowLine("`@codex`" + desc), []reviewerRowProblem{problemRejectedNames}},
+		{"rejected_extra_one", rejectedLine, rejectedRowLine("`@codex`, `@coderabbitai`, `@other`" + desc), []reviewerRowProblem{problemRejectedNames}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if strings.Count(doc, tc.old) != 1 {
