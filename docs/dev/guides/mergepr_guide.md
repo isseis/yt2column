@@ -168,7 +168,7 @@ PR #42: feat(writer): add column heading
 url:   https://github.com/isseis/yt2column/pull/42
 head:  feature/foo at 2222222222222222222222222222222222222222
 base:  main
-protocol: passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 1, codexreview 1, fixprguard 6, mergepr 1; changed: none
+protocol: passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 6, fixprguard 7, mergepr 3; changed: none
 CI:    all checks passed
 corrections: 2 accepted, 1 rejected
 correction rejected: 5555555555555555555555555555555555555555 line 4: invisible,at: "Editorial correction: aU+200Bb me@example.com"
@@ -228,7 +228,7 @@ paragraph: 3 line(s) in /repo/.git/mergepr-123456/paragraph.txt
 結果の出力例:
 
 ```text
-protocol:             passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 1, codexreview 1, fixprguard 6, mergepr 1; changed: none
+protocol:             passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 6, fixprguard 7, mergepr 3; changed: none
 merge commit:         3333333333333333333333333333333333333333
 base branch updated:  true
 local branch deleted: true

@@ -8,7 +8,7 @@
 
 ## 背景
 
-タスクの開発文書（要件定義書・設計書・計画書）は、1 本ずつ別の PR で作る。前の文書が承認されてから、次の文書を書く（[requirements_process.md](../conventions/requirements_process.md) の「LLM Constraints」と「Review Flow」）。PR ごとに、Codex の PR レビュー、CI、`/runpr` の往復がかかる。変更が小さくても、3 文書の分量と 3 回の PR の往復は変わらない。タスク 0069 と 0071 は文書の内容を簡易にとどめたが、コマンドの定義にその手順はなく、その場の判断に頼った（[0072 要件定義書](../../tasks/0072_simple_task_documents/01_requirements.md) §1）。
+タスクの開発文書（要件定義書・設計書・計画書）は、1 本ずつ別の PR で作る。前の文書が承認されてから、次の文書を書く（[requirements_process.md](../conventions/requirements_process.md) の「LLM Constraints」と「Review Flow」）。当時は、PR ごとに Codex の PR レビュー、CI、`/runpr` の往復がかかった。変更が小さくても、3 文書の分量と 3 回の PR の往復は変わらない。タスク 0069 と 0071 は文書の内容を簡易にとどめたが、コマンドの定義にその手順はなく、その場の判断に頼った（[0072 要件定義書](../../tasks/0072_simple_task_documents/01_requirements.md) §1）。
 
 負荷を減らすために導入した軽量プロセス（タスク文書を作らず、issue の仕様のコメントをもとに 1 本の PR にする進め方）は、一度も使われていない。一方で、その条件を機械的に判定するスクリプトとテストが、維持のコストの大半を占めた（[#743](https://github.com/isseis/yt2column/issues/743)）。
 

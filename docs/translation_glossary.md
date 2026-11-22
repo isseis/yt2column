@@ -116,9 +116,11 @@
 | 自動レビュアーの一覧 | automated reviewer list | `.claude/commands/_context.md` の「Automated reviewer list」に定める、スレッドを信頼する自動レビュアーの名前（GraphQL の `author.login` の形）の一覧。`fixprguard` には `--reviewer` で 1 つずつ渡す |
 | 完了を待つ PR レビュアー | awaited PR reviewer | `/runpr` がレビュー済みの判定に使う Bot。承認を待つのではなく、レビューがそのコミットまで完了したことを待つ。`.claude/commands/_context.md` の「Awaited PR reviewer」に、自動レビュアーの一覧とは別に定める |
 | 割り当て | quota | 自動レビュアーが一定時間に受け付けるレビューの回数の上限 |
-| 試行 | attempt | ローカルの CLI レビューを 1 回試みること。CodeRabbit CLI の実行 1 回と、それが失敗したときの Codex CLI の実行 1 回から成る。範囲ごとに最大 2 回（タスク 0049） |
+| 手動の PR レビュー | manual PR review | 依頼のコメントで始まる CodeRabbit の PR レビュー。依頼のコメントは、利用者のアカウントが書いた、前後の空白を除く本文が `_context.md` の「PR review request」の値と等しいコメント（0118 要件定義書 3.1） |
+| 完了の印 | completion marker | 手動の PR レビューが、あるコミットまでのレビューを終えたことを示す、CodeRabbit の CheckRun の値。`fixprguard review-state` が読む（0118 設計書 3.3） |
+| 試行 | attempt | ローカルの CLI レビューを 1 回試みること。CodeRabbit CLI の実行 1 回から成る。範囲ごとに最大 2 回（タスク 0049） |
 | 指摘 | finding | レビューが挙げる個々の問題。スレッドとして投稿されるものと、レビューの本文にだけ書かれるものがある |
-| （行為の動詞で書く） | cover | レビュー・テスト・検査が、コミットやコードに及ぶこと。「覆う」とは訳さず、その行為の動詞で書く（例: commits neither CLI review covered →「どちらの CLI もレビューしなかったコミット」、a test covers the branch →「テストがその分岐を確かめる」）。名詞の coverage は「カバレッジ」 |
+| （行為の動詞で書く） | cover | レビュー・テスト・検査が、コミットやコードに及ぶこと。「覆う」とは訳さず、その行為の動詞で書く（例: the CLI did not review the commit →「CLI がレビューしなかったコミット」、a test covers the branch →「テストがその分岐を確かめる」）。名詞の coverage は「カバレッジ」 |
 | スレッド | thread | PR のファイル・行に紐づくレビューコメントの連なり。`/fixpr` が処理する単位 |
 | 信頼する著者のスレッド | trusted thread | すべてのコメントを取得でき、そのすべての著者が信頼する著者と確かめられたレビュースレッド |
 | 想定外の著者のスレッド | untrusted thread | コメントの 1 件以上が信頼する著者のものでない、または著者を確かめられないレビュースレッド。本文を取得せず、名指しされるまで処理しない |

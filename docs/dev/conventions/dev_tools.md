@@ -99,7 +99,7 @@ run it, under three conditions:
 3. The run has no external side effect. A test, `--help`, and a run on local
    input or on a copy qualify. These do not: writing to the network or to
    GitHub, creating a record tag, typing into another agent's pane, and
-   sending to an outside service (an LLM API or Codex CLI included). A run
+   sending to an outside service (an LLM API included). A run
    that acts on shared state (chief's state directory, a Herdr workspace or
    pane, a worktree, `$(go env GOPATH)/bin`) is not a run on local input or on
    a copy.
