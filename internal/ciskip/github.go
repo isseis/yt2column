@@ -290,16 +290,23 @@ func parseLinkHeaderHasNext(value string) (hasNext bool, ok bool) {
 			}
 			i = skipOWS(value, nextIdx)
 			// Per RFC 8288 section 3.3, the rel parameter must be present, only the
-			// first one in a link-value applies, and it conveys the relation type in
-			// its value. A first rel without a relation type is rejected, so a
-			// valueless rel cannot hide a later rel=next.
+			// first one in a link-value applies, and its value is a relation-type or
+			// a space-separated list of them. A first rel that does not follow that
+			// grammar is rejected, so neither a valueless rel nor a malformed value
+			// such as "next,last" can hide or fake a later rel=next.
 			if strings.EqualFold(paramName, "rel") && !seenRel {
-				if !hasVal || !relHasRelationType(paramVal, quoted) {
+				if !hasVal {
+					return false, false
+				}
+				types, valid := relRelationTypes(paramVal, quoted)
+				if !valid {
 					return false, false
 				}
 				seenRel = true
-				if relContainsNext(paramVal, quoted) {
-					hasNext = true
+				for _, relationType := range types {
+					if strings.EqualFold(relationType, "next") {
+						hasNext = true
+					}
 				}
 			}
 		}
@@ -603,33 +610,57 @@ func readLinkQuotedString(s string, start int) (string, int, bool) {
 	return "", start, false
 }
 
-// relContainsNext reports whether a rel parameter value designates "next".
-// Per RFC 8288 section 3.3, a quoted rel value may hold space-separated relation types.
-func relContainsNext(val string, quoted bool) bool {
+// relRelationTypes parses an RFC 8288 section 3.3 rel parameter value into its
+// relation types. An unquoted value must be a single relation-type; a quoted
+// value must be one or more relation-types separated by one or more spaces.
+// Any other form, such as the comma-separated "next,last", is rejected.
+func relRelationTypes(val string, quoted bool) ([]string, bool) {
 	if !quoted {
-		return strings.EqualFold(val, "next")
-	}
-	for field := range strings.FieldsSeq(val) {
-		if strings.EqualFold(field, "next") {
-			return true
+		if !isRelationType(val) {
+			return nil, false
 		}
+		return []string{val}, true
 	}
-	return false
+	if val == "" || val[0] == ' ' || val[len(val)-1] == ' ' {
+		return nil, false
+	}
+	types := make([]string, 0)
+	for relationType := range strings.SplitSeq(val, " ") {
+		// The grammar allows 1*SP between relation types, so runs of spaces are
+		// acceptable between them.
+		if relationType == "" {
+			continue
+		}
+		if !isRelationType(relationType) {
+			return nil, false
+		}
+		types = append(types, relationType)
+	}
+	return types, true
 }
 
-// relHasRelationType reports whether a rel parameter value carries at least one
-// relation type. The relation type is conveyed by the value (RFC 8288 section 3.3),
-// so an absent or empty value names no relation at all.
-func relHasRelationType(val string, quoted bool) bool {
-	if !quoted {
-		return val != ""
+// isRelationType reports whether s is an RFC 8288 section 3.3 relation-type: a
+// registered relation type (an ASCII letter followed by letters, digits, "."
+// or "-") or an extension relation type, which is an absolute URI.
+func isRelationType(s string) bool {
+	if s == "" {
+		return false
 	}
-	for i := range len(val) {
-		if val[i] != ' ' && val[i] != '\t' {
+	if isASCIIAlpha(s[0]) {
+		registered := true
+		for i := 1; i < len(s); i++ {
+			c := s[i]
+			if !isASCIIAlpha(c) && !isASCIIDigit(c) && c != '.' && c != '-' {
+				registered = false
+				break
+			}
+		}
+		if registered {
 			return true
 		}
 	}
-	return false
+	colon := strings.IndexByte(s, ':')
+	return colon > 0 && isURIScheme(s[:colon]) && isValidLinkURI(s)
 }
 
 type prRunMatch uint8

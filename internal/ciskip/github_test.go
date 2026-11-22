@@ -896,6 +896,9 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 			{name: "malformed_link_unclosed_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x; rel="next"`}, validRunsBody)},
 			{name: "malformed_link_unclosed_quote", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel="next`}, validRunsBody)},
 			{name: "malformed_link_trailing_comma", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel="last", `}, validRunsBody)},
+			{name: "malformed_link_comma_separated_rel", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel="next,last"`}, validRunsBody)},
+			{name: "malformed_link_tab_separated_rel", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{"Link: <https://api.github.com/x>; rel=\"next\tlast\""}, validRunsBody)},
+			{name: "malformed_link_space_only_rel", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel=" "`}, validRunsBody)},
 			{name: "malformed_link_dangling_escape", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; title="abc\`}, validRunsBody)},
 			{name: "malformed_link_invalid_token_char", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel=bad"val`}, validRunsBody)},
 			{name: "malformed_link_slash_in_unquoted_token", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel=prev/next`}, validRunsBody)},
@@ -998,6 +1001,38 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 					t.Errorf("decision = %+v, want Reason=%q", dec, ReasonAPIInvalidResponse)
 				}
 			})
+		}
+	})
+
+	t.Run("link_header_accepts_space_separated_rel_list", func(t *testing.T) {
+		// RFC 8288 section 3.3 allows a quoted rel value to list relation types
+		// separated by spaces, so "next last" must still declare a next page.
+		limits := defaultLimits()
+		limits.maxRunPages = 1
+		dec := evalWithGHSteps(t, limits, cmdrunnertestutil.Step{
+			Name: "gh",
+			Args: ghAPIArgs(runsEndpoint(1)),
+			Out: ghHTTPResponse("HTTP/2.0 200 OK", []string{
+				`Link: <https://api.github.com/x>; rel="next last"`,
+			}, `{"workflow_runs":[]}`),
+		})
+		if dec.Skip() || dec.Reason != ReasonAPIPaginationLimit {
+			t.Errorf("decision = %+v, want Reason=%q", dec, ReasonAPIPaginationLimit)
+		}
+	})
+
+	t.Run("link_header_accepts_extension_relation_type", func(t *testing.T) {
+		// RFC 8288 section 3.3 allows an absolute URI as an extension relation type.
+		// It is not the registered "next" relation, so page 1 remains the last page.
+		dec := evalWithGHSteps(t, defaultLimits(), cmdrunnertestutil.Step{
+			Name: "gh",
+			Args: ghAPIArgs(runsEndpoint(1)),
+			Out: ghHTTPResponse("HTTP/2.0 200 OK", []string{
+				`Link: <https://api.github.com/x>; rel="https://example.com/relations/next"`,
+			}, `{"workflow_runs":[]}`),
+		})
+		if dec.Skip() || dec.Reason != ReasonNoParentRun {
+			t.Errorf("decision = %+v, want Reason=%q (page 1 treated as the last page)", dec, ReasonNoParentRun)
 		}
 	})
 
