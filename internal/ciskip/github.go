@@ -263,6 +263,9 @@ func parseLinkHeaderHasNext(value string) (hasNext bool, ok bool) {
 		if endURI < 0 {
 			return false, false
 		}
+		if !isValidLinkURI(value[i+1 : i+1+endURI]) {
+			return false, false
+		}
 		// Advance past both '<' and '>' of <URI>; the URI itself is never followed.
 		i += endURI + len("<>")
 		i = skipOWS(value, i)
@@ -302,6 +305,45 @@ func skipOWS(s string, i int) int {
 		i++
 	}
 	return i
+}
+
+// isValidLinkURI reports whether uri consists exclusively of valid RFC 3986
+// URI-Reference bytes (unreserved, reserved, and valid pct-encoded triplets).
+func isValidLinkURI(uri string) bool {
+	for i := 0; i < len(uri); i++ {
+		c := uri[i]
+		if c == '%' {
+			if i+2 >= len(uri) || !isHexDigit(uri[i+1]) || !isHexDigit(uri[i+2]) {
+				return false
+			}
+			i += 2
+			continue
+		}
+		if !isURIReferenceChar(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// isURIReferenceChar reports whether c is an unreserved or reserved byte
+// permitted in an RFC 3986 URI-Reference (excluding pct-encoded '%').
+func isURIReferenceChar(c byte) bool {
+	if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+		return true
+	}
+	switch c {
+	case '-', '.', '_', '~',
+		':', '/', '?', '#', '[', ']', '@',
+		'!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=':
+		return true
+	default:
+		return false
+	}
+}
+
+func isHexDigit(c byte) bool {
+	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 }
 
 // parseLinkParam parses a single link-param starting right after ';'.

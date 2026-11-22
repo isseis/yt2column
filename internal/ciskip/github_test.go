@@ -852,6 +852,11 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 			{name: "malformed_link_dangling_escape", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; title="abc\`}, validRunsBody)},
 			{name: "malformed_link_invalid_token_char", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel=bad"val`}, validRunsBody)},
 			{name: "malformed_link_slash_in_unquoted_token", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel=prev/next`}, validRunsBody)},
+			{name: "malformed_link_extra_open_angle_absorbing_next", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/a;rel=next,<https://api.github.com/b>;rel=last`}, validRunsBody)},
+			{name: "malformed_link_space_in_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/a b>; rel="last"`}, validRunsBody)},
+			{name: "malformed_link_quote_in_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x?q="next">; rel="last"`}, validRunsBody)},
+			{name: "malformed_link_bad_pct_encoding_in_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x%2>; rel="last"`}, validRunsBody)},
+			{name: "malformed_link_non_hex_pct_encoding_in_uri", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x%ZZ>; rel="last"`}, validRunsBody)},
 		}
 		for _, tc := range framingCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -870,9 +875,9 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 	t.Run("link_header_ignores_evil_host_and_false_rel_substrings", func(t *testing.T) {
 		// Page 1 carries multiple Link headers, a valueless parameter, and an evil host URL;
 		// evaluator MUST request fixed github.com endpoint page=2.
-		// Page 2 carries rel="next" inside URI, inside an escaped quoted title, and after a
-		// valueless or prior rel parameter (ignored per RFC 8288 section 3.3);
-		// evaluator MUST NOT request page=3.
+		// Page 2 carries rel=next and percent-encoded quotes inside URI, rel=next inside an
+		// escaped quoted title, and rel="next" after a valueless or prior rel parameter
+		// (ignored per RFC 8288 section 3.3); evaluator MUST NOT request page=3.
 		runsP1 := `{"workflow_runs": []}`
 		runsP2 := fmt.Sprintf(`{"workflow_runs": [%s]}`,
 			standardRunJSON(testRunID, "completed", `"success"`, "2026-11-21T10:00:00Z", "2026-11-21T10:00:05Z"))
@@ -891,7 +896,7 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 				Name: "gh",
 				Args: ghAPIArgs(runsEndpoint(2)),
 				Out: ghHTTPResponse("HTTP/2.0 200 OK", []string{
-					`Link: <https://api.github.com/x?q=a,b;rel="next">; title="fake\"; rel=next"; rel="last"; rel="next", <https://api.github.com/y>; rel; rel="next"`,
+					`Link: <https://api.github.com/x?q=a,b;rel=next&r=%22next%22>; title="fake\"; rel=next"; rel="last"; rel="next", <https://api.github.com/y>; rel; rel="next"`,
 				}, runsP2),
 			},
 			happy[1],
