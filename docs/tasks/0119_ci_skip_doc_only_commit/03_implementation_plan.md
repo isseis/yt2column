@@ -173,16 +173,16 @@
 **ステップ 2-1: `cmd/ciskip` CLI とユニットテストを実装する**
 
 -   対象ファイル：`cmd/ciskip/main.go`、`cmd/ciskip/main_test.go`（`//go:build test`）、`internal/config/envaccess_test.go`
--   [ ] 設計書 §3.1・§4.2 のとおり、`signalrun.Run`・フラグ解析（余分な位置引数 `fs.NArg() > 0` も終了コード `2` で拒否）・`os.Environ()` 1 回読み取り・`ciskip.New` 呼び出し・`NoticeBaseSHA` の `::notice title=ci-base-sha::<sha>` 出力・1 行診断ログ出力・`--result-file` 書き込み（`gosec` 対象になる場合のみ該当行へ最小範囲の `//nolint:gosec` と根拠コメント）・終了コード制御（`0` / `2`）を実装する。テスト差し替え用に非公開 `evaluator` インターフェースを置く。
--   [ ] `internal/config/envaccess_test.go` の `allowedEnvRefs` に `"cmd/ciskip/main.go": {"call:os.Environ": 1}` を追加する（設計書 §2.2）。
--   [ ] `cmd/ciskip/main_test.go` に、フラグ構文エラー・余分な位置引数・`--result-file` 欠落／書き込み失敗（終了 `2`・未検証引数／フラグ値非出力）、空コンテキスト値（終了 `0`）、`skip=true\n`／`skip=false\n` の結果ファイル書き込み、`::notice` の出力有無、および 1 行診断ログ形式（`run=`・`status=`・機密非露出）を検証するテストを書く（AC-02・AC-12・AC-13）。
+-   [x] 設計書 §3.1・§4.2 のとおり、`signalrun.Run`・フラグ解析（余分な位置引数 `fs.NArg() > 0` も終了コード `2` で拒否）・`os.Environ()` 1 回読み取り・`ciskip.New` 呼び出し・`NoticeBaseSHA` の `::notice title=ci-base-sha::<sha>` 出力・1 行診断ログ出力・`--result-file` 書き込み（`gosec` 対象になる場合のみ該当行へ最小範囲の `//nolint:gosec` と根拠コメント）・終了コード制御（`0` / `2`）を実装する。テスト差し替え用に非公開 `evaluator` インターフェースを置く。
+-   [x] `internal/config/envaccess_test.go` の `allowedEnvRefs` に `"cmd/ciskip/main.go": {"call:os.Environ": 1}` を追加する（設計書 §2.2）。
+-   [x] `cmd/ciskip/main_test.go` に、フラグ構文エラー・余分な位置引数・`--result-file` 欠落／書き込み失敗（終了 `2`・未検証引数／フラグ値非出力）、空コンテキスト値（終了 `0`）、`skip=true\n`／`skip=false\n` の結果ファイル書き込み、`::notice` の出力有無、および 1 行診断ログ形式（`run=`・`status=`・機密非露出）を検証するテストを書く（AC-02・AC-12・AC-13）。
 -   完了の基準：`go test -tags test -race ./cmd/ciskip ./internal/config` が通り、対応する振る舞いを壊したときにテストが失敗することを確かめ、コミットメッセージに記録する。
 
 **ステップ 2-2: `cmd/ciskip` のパッケージ参照と開発ツール規約を更新する**
 
 -   対象ファイル：`docs/dev/conventions/package_reference.md`、`docs/dev/conventions/dev_tools.md`
--   [ ] `package_reference.md` の「Development Tools」表へ `cmd/ciskip` の行を追加する（設計書 §2.2・§3.5、`package_reference.md:14-22` の記載規約に従う）。
--   [ ] `dev_tools.md` の「Kinds of tools」と「Rule 5」（`Per-run tools` 付近）へ CI 専用ツール（`ciskip`）の区分と Rule 5・プロトコル番号の適用除外を追記する（設計書 §2.2・§3.5）。
+-   [x] `package_reference.md` の「Development Tools」表へ `cmd/ciskip` の行を追加する（設計書 §2.2・§3.5、`package_reference.md:14-22` の記載規約に従う）。
+-   [x] `dev_tools.md` の「Kinds of tools」と「Rule 5」（`Per-run tools` 付近）へ CI 専用ツール（`ciskip`）の区分と Rule 5・プロトコル番号の適用除外を追記する（設計書 §2.2・§3.5）。
 -   完了の基準：`make test`・`make lint`・`make deadcode` がすべて通る。あわせて `dev_tools.md` の追記内容と `ADR-0014:30`・設計書 §1.2／§2.2、`package_reference.md` の `cmd/ciskip` 行と `cmd/ciskip/main.go` および記載規約（`package_reference.md:14-22`）の一致を突合して確認する。
 
 ### PR-3 作成ポイント: cmd/ciskip CLI and developer-tool conventions
@@ -199,10 +199,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1089
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 **ステップ 2-3: `.github/workflows/ci.yml` の `check-changes` ジョブを更新する**
 
@@ -344,7 +344,7 @@ PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利�
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
 - [x] PR-2 マージ済み（対象ステップ: 1-4 / 1-5）
-- [ ] PR-3 マージ済み（対象ステップ: 2-1 / 2-2）
+- [x] PR-3 マージ済み（対象ステップ: 2-1 / 2-2）
 - [ ] PR-4 マージ済み（対象ステップ: 2-3 / 2-4）
 - [ ] PR-5 マージ済み（対象ステップ: 3-1 / 3-2）
 
@@ -357,7 +357,7 @@ PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利�
 | AC | 種類 | 検証 | 実装 |
 |---|---|---|---|
 | AC-01 | test | `internal/ciskip/git_test.go::TestVerifyParentCount`（親コミット 2 つ以上および 0 個で `ReasonNotSingleParent`、一時 git リポジトリ結合テスト含む） | ステップ 1-2 |
-| AC-02 | test | `internal/ciskip/git_test.go::TestClassifyParentDiff`・`::TestClassifyDiffWithRealGitAndScript`・`internal/ciskip/ciskip_test.go::TestDecisionSkip`（PR-1 の単一親・非コード／非拡張のみおよび 0 バイト空コミットの判定と `Skip()`）、`internal/ciskip/ciskip_test.go::TestEvaluateSkipEligible`（単一親かつ非コード・非拡張ファイルのみ、および 0 バイト空コミットの先行検証通過で `ReasonSkipped`・`Skip() == true`）、`cmd/ciskip/main_test.go::TestRunSkipAndFallback`（結果ファイルへ `skip=true\n` を書き終了コード 0）、`internal/ciskip/workflow_pin_test.go::TestCIWorkflowCheckStepExecution`（`id: check` が `skip=true\n` を受けて両出力を `false` に書く） | ステップ 1-1・1-2・1-4・2-1・2-3・2-4 |
+| AC-02 | test | `internal/ciskip/git_test.go::TestClassifyParentDiff`・`::TestClassifyDiffWithRealGitAndScript`・`internal/ciskip/ciskip_test.go::TestDecisionSkip`（PR-1 の単一親・非コード／非拡張のみおよび 0 バイト空コミットの判定と `Skip()`）、`internal/ciskip/ciskip_test.go::TestEvaluateSkipEligible`（単一親かつ非コード・非拡張ファイルのみ、および 0 バイト空コミットの先行検証通過で `ReasonSkipped`・`Skip() == true`）、`cmd/ciskip/main_test.go::TestRunWritesDecision`・`::TestRunMapsFlagsToInput`（各フラグから `ciskip.Input` への対応と、skip の結果ファイルへ `skip=true\n` を書き終了コード 0）、`internal/ciskip/workflow_pin_test.go::TestCIWorkflowCheckStepExecution`（`id: check` が `skip=true\n` を受けて両出力を `false` に書く） | ステップ 1-1・1-2・1-4・2-1・2-3・2-4 |
 | AC-03 | test | `internal/ciskip/git_test.go::TestIsNonCodePath`・`::TestClassifyParentDiff`・`::TestClassifyDiffWithRealGitAndScript`・`internal/ciskip/ciskip_test.go::TestEvaluateChangedFilesReject`（分類器自身 `.github/workflows/ci.yml`・`cmd/ciskip/`・`internal/ciskip/`・`extension/scripts/*.sh` を含むコードファイルで `ReasonCodeChanged` かつ `gh` 未呼出、`extension/`・`README.md`・`README.en.md`・`docs/dev/guides/development.md`・WASM 依存配下で `ReasonExtensionChanged`） | ステップ 1-2・1-4 |
 | AC-04 | test | `internal/ciskip/git_test.go::TestClassifyDiffWithRealGitAndScript`（実 `git` と実 `has-extension-changes.sh` でコードおよび拡張対象 `.md` から文書へのリネーム両側、非 ASCII・タブ・改行パスを検出し `ReasonCodeChanged` または `ReasonExtensionChanged`） | ステップ 1-2 |
 | AC-05 | test | `internal/ciskip/github_test.go::TestVerifyParentCIValid`（親 run が `completed` かつ結論 `success`／`failure`、複数ページ正常取得含む、`Check changed files` が `success`、重い 3 ジョブが `success`／`skipped`、`doc-guard`・`secret-scan` 成否不問で `ReasonSkipped`） | ステップ 1-4 |
@@ -367,9 +367,9 @@ PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利�
 | AC-09 | test | `internal/ciskip/ciskip_test.go::TestValidateBaseContext`・`::TestEvaluateContextValidation`（フォーク PR・空 `headRepo`・リポジトリ形式違反・非 `main` ベース・欠損で `ReasonForkOrRepoMismatch` または `ReasonNonMainBase`・`Skip() == false`・`NoticeBaseSHA == ""`） | ステップ 1-1・1-4 |
 | AC-10 | test | `internal/ciskip/ciskip_test.go::TestValidateRemainingContext`・`::TestEvaluateContextValidation`（`run_attempt >= 2` で `ReasonManualRerun`、`0`・負数・非整数・空白付きで `ReasonInvalidInput`、`Skip() == false`） | ステップ 1-1・1-4 |
 | AC-11 | test | `internal/ciskip/git_test.go::TestResolveSyntheticMergeBase`・`::TestCheckOriginMain`・`internal/ciskip/ciskip_test.go::TestEvaluateBaseConsistency`・`internal/ciskip/github_test.go::TestVerifyParentBaseAnnotation`（`NoticeBaseSHA` 設定／非設定不変条件、`HEAD^1 != origin/main` で `ReasonMainMovedAtCheckout`、アノテーション 0 件／重複／不正 SHA／`mergeBaseSHA` 不一致で各非スキップ `Reason`） | ステップ 1-2・1-4 |
-| AC-12 | test | `internal/ciskip/ciskip_test.go::TestValidateBaseContext`・`::TestValidateRemainingContext`・`::TestRunnerOptions`・`internal/ciskip/git_test.go::TestValidateDepDirsFile`・`::TestClassifyParentDiff`・`::TestCheckExtensionChangesEarlyExitNoDeadlock`・`internal/ciskip/ciskip_test.go::TestEvaluateFailSafe`・`internal/ciskip/github_test.go::TestVerifyParentCIAPIFailures`・`cmd/ciskip/main_test.go::TestRunSkipAndFallback`（API 障害・非 200・非 `*cmdrunner.ExitError`・コマンドおよび `RunTimeout` タイムアウト・`ErrOutputTooLarge`・ページ上限・厳密 JSON 違反・`git` 失敗・`has-extension-changes.sh` 失敗・`wasm-dep-dirs-ok=false`・`depDirsFile` 空／64 KiB+1／不正で `Skip() == false`・終了コード 0・機密非露出）、`internal/ciskip/workflow_pin_test.go::TestCIWorkflowCheckStepExecution`（`set -eo pipefail` 下で `mktemp` 失敗・`go` 非ゼロ終了・不正結果ファイル時に終了 0 で通常分類へフォールバック） | ステップ 1-1・1-2・1-4・2-1・2-3・2-4 |
+| AC-12 | test | `internal/ciskip/ciskip_test.go::TestValidateBaseContext`・`::TestValidateRemainingContext`・`::TestRunnerOptions`・`internal/ciskip/git_test.go::TestValidateDepDirsFile`・`::TestClassifyParentDiff`・`::TestCheckExtensionChangesEarlyExitNoDeadlock`・`internal/ciskip/ciskip_test.go::TestEvaluateFailSafe`・`internal/ciskip/github_test.go::TestVerifyParentCIAPIFailures`・`cmd/ciskip/main_test.go::TestRunWritesDecision`・`::TestRunEvaluatesEmptyContext`・`::TestRunMapsFlagsToInput`（評価完了は終了コード 0 とフラグ対応）・`::TestRunRejectsCommandLine`・`::TestRunResultFileWriteFailure`（コマンド行不正・結果ファイル書き込み失敗は終了コード 2・固定 stderr）・`::TestRunDoesNotEchoFlagValues`（フラグ値・機密の非出力）（API 障害・非 200・非 `*cmdrunner.ExitError`・コマンドおよび `RunTimeout` タイムアウト・`ErrOutputTooLarge`・ページ上限・厳密 JSON 違反・`git` 失敗・`has-extension-changes.sh` 失敗・`wasm-dep-dirs-ok=false`・`depDirsFile` 空／64 KiB+1／不正で `Skip() == false`・終了コード 0・機密非露出）、`internal/ciskip/workflow_pin_test.go::TestCIWorkflowCheckStepExecution`（`set -eo pipefail` 下で `mktemp` 失敗・`go` 非ゼロ終了・不正結果ファイル時に終了 0 で通常分類へフォールバック） | ステップ 1-1・1-2・1-4・2-1・2-3・2-4 |
 | AC-12 | static | `internal/ciskip/workflow_pin_test.go::TestCIWorkflowCheckChangesPin`（`steps.normal.outputs.*` 伝播とフラグ集合一致）、`extension/test/repository.test.ts`（`make ext-test`：`wasm-dep-dirs.sh` 失敗時の `has_extension_changes=true` 維持） | ステップ 2-3・2-4 |
-| AC-13 | test | `cmd/ciskip/main_test.go::TestRunDiagnosticLog`（スキップ時・通常分類フォールバック時の 1 行診断ログ、`Reason`・`run=`・`status=` 形式、生本文・stderr・トークン・未検証引数／フラグ値の非出力）、`internal/ciskip/workflow_pin_test.go::TestCIWorkflowCheckStepExecution`（`id: check` の `stdout` 通過と終了コード番号付きフォールバックログ） | ステップ 2-1・2-3・2-4 |
+| AC-13 | test | `cmd/ciskip/main_test.go::TestRunWritesDecision`・`::TestShortSHA`（スキップ時・通常分類フォールバック時の 1 行診断ログ、`Reason`・短縮 SHA・`run=`・`status=` 形式）、`::TestRunDoesNotEchoFlagValues`・`::TestRunRejectsCommandLine`・`::TestRunResultFileWriteFailure`（フラグ値・未検証引数・結果ファイルパスの非出力と固定 stderr）、`internal/ciskip/workflow_pin_test.go::TestCIWorkflowCheckStepExecution`（`id: check` の `stdout` 通過と終了コード番号付きフォールバックログ） | ステップ 2-1・2-3・2-4 |
 | AC-14 | test | `internal/ciskip/workflow_pin_test.go::TestCIWorkflowCheckStepExecution`（`skip=true\n` 一致時に `$GITHUB_OUTPUT` へ `has-code-changes=false`・`has-extension-changes=false` を出力し `stdout` の `::notice` を通過させる） | ステップ 2-3・2-4 |
 | AC-14 | static | `internal/ciskip/workflow_pin_test.go::TestCIWorkflowCheckChangesPin`（`test`・`lint`・`extension` の `if:` 条件と必須ジョブ集合の一致、および `doc-guard`・`secret-scan` に `needs:`・`if:` がないこと） | ステップ 2-3・2-4 |
 | AC-14 | manual | 下の「GitHub Actions 実機確認の記録（AC-20）」（実機で重い 3 ジョブが `skipped`、常時実行 2 ジョブが実行・成功） | ステップ 3-1 |
