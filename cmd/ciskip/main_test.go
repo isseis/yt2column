@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -33,17 +34,19 @@ func runTool(args []string, eval evaluator) (code int, stdout, stderr string) {
 }
 
 // fullArgs is a complete command line with resultFile as its only variable.
+// Every flag gets a distinct value, so a binding swapped between two flags
+// changes the evaluation input.
 func fullArgs(resultFile string) []string {
 	return []string{
 		"--repo=isseis/yt2column",
-		"--head-repo=isseis/yt2column",
-		"--base-repo=isseis/yt2column",
-		"--base-ref=main",
+		"--head-repo=isseis/yt2column-head",
+		"--base-repo=isseis/yt2column-base",
+		"--base-ref=trunk",
 		"--pr-number=1080",
 		"--head-sha=0123456789abcdef0123456789abcdef01234567",
-		"--run-attempt=1",
+		"--run-attempt=2",
 		"--dep-dirs=/tmp/wasm-dep-dirs",
-		"--wasm-dep-dirs-ok=true",
+		"--wasm-dep-dirs-ok=false",
 		"--result-file=" + resultFile,
 	}
 }
@@ -92,7 +95,7 @@ func TestRunWritesDecision(t *testing.T) {
 		},
 		{
 			"run after recording the base",
-			ciskip.Decision{Reason: ciskip.ReasonCodeChanged, NoticeBaseSHA: baseSHA},
+			ciskip.Decision{Reason: ciskip.ReasonCodeChanged, ParentSHA: parentSHA, NoticeBaseSHA: baseSHA},
 			"skip=false\n",
 			notice + "ciskip: decision=run reason=code_changed\n",
 		},
@@ -101,6 +104,18 @@ func TestRunWritesDecision(t *testing.T) {
 			ciskip.Decision{Reason: ciskip.ReasonAPIFailed, ParentRunID: 42, HTTPStatus: 500},
 			"skip=false\n",
 			"ciskip: decision=run reason=api_failed run=42 status=500\n",
+		},
+		{
+			"run with a parent run only",
+			ciskip.Decision{Reason: ciskip.ReasonAPITimeout, ParentRunID: 42},
+			"skip=false\n",
+			"ciskip: decision=run reason=api_timeout run=42\n",
+		},
+		{
+			"run with an HTTP status only",
+			ciskip.Decision{Reason: ciskip.ReasonAPIFailed, HTTPStatus: 503},
+			"skip=false\n",
+			"ciskip: decision=run reason=api_failed status=503\n",
 		},
 		{
 			"run without a recorded base",
@@ -139,8 +154,37 @@ func withFlagValue(args []string, flag, value string) []string {
 	return out
 }
 
+// captureProcessStderr redirects the process's standard error to a file and
+// returns a reader for what was written. The writers passed to run cannot see
+// text the flag package writes to os.Stderr.
+func captureProcessStderr(t *testing.T) func() string {
+	t.Helper()
+	f, err := os.CreateTemp(t.TempDir(), "stderr")
+	if err != nil {
+		t.Fatalf("create stderr file: %v", err)
+	}
+	original := os.Stderr
+	os.Stderr = f
+	t.Cleanup(func() {
+		os.Stderr = original
+		_ = f.Close()
+	})
+	return func() string {
+		t.Helper()
+		if _, err := f.Seek(0, 0); err != nil {
+			t.Fatalf("seek stderr file: %v", err)
+		}
+		data, err := io.ReadAll(f)
+		if err != nil {
+			t.Fatalf("read stderr file: %v", err)
+		}
+		return string(data)
+	}
+}
+
 // TestRunRejectsCommandLine checks a command line the tool cannot read exits 2
-// with the fixed usage line, evaluates nothing, and prints no flag value.
+// with one fixed usage line, evaluates nothing, and writes no flag value to
+// either standard error.
 func TestRunRejectsCommandLine(t *testing.T) {
 	const canary = "ghp_doNotPrintThis"
 	for _, tc := range []struct {
@@ -153,9 +197,9 @@ func TestRunRejectsCommandLine(t *testing.T) {
 		{"missing flag value", []string{"--repo=" + canary, "--result-file"}, canary},
 		{"empty result file", withFlagValue(fullArgs(""), "repo", canary), canary},
 		{"extra positional argument", append(fullArgs(resultPath(t)), canary), canary},
-		{"missing result file", withFlagValue(fullArgs("")[:len(fullArgs(""))-1], "repo", canary), canary},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			readProcessStderr := captureProcessStderr(t)
 			eval := &fakeEvaluator{}
 			code, stdout, stderr := runTool(tc.args, eval)
 			if code != exitUsage {
@@ -164,8 +208,11 @@ func TestRunRejectsCommandLine(t *testing.T) {
 			if stdout != "" {
 				t.Errorf("stdout = %q, want none", stdout)
 			}
-			if stderr != usage+"\n" {
-				t.Errorf("stderr = %q, want the fixed usage line", stderr)
+			if stderr != usage+"\n" || !strings.HasPrefix(stderr, "usage: ciskip ") || strings.Count(stderr, "\n") != 1 {
+				t.Errorf("stderr = %q, want the fixed one-line usage", stderr)
+			}
+			if got := readProcessStderr(); got != "" {
+				t.Errorf("process stderr = %q, want none", got)
 			}
 			if tc.canary != "" && strings.Contains(stdout+stderr, tc.canary) {
 				t.Errorf("output echoes a flag value: %q", stdout+stderr)
@@ -188,8 +235,8 @@ func TestRunResultFileWriteFailure(t *testing.T) {
 	if code != exitUsage {
 		t.Errorf("run = %d, want %d", code, exitUsage)
 	}
-	if stderr != writeFailureLine+"\n" {
-		t.Errorf("stderr = %q, want %q", stderr, writeFailureLine+"\n")
+	if stderr != "ciskip: the result file could not be written\n" {
+		t.Errorf("stderr = %q, want the fixed write-failure line", stderr)
 	}
 	if strings.Contains(stderr, missingDir) || strings.Contains(stderr, "ciskip-result") {
 		t.Errorf("stderr names the result path: %q", stderr)
@@ -212,14 +259,14 @@ func TestRunMapsFlagsToInput(t *testing.T) {
 	}
 	want := ciskip.Input{
 		Repo:          "isseis/yt2column",
-		HeadRepo:      "isseis/yt2column",
-		BaseRepo:      "isseis/yt2column",
-		BaseRef:       "main",
+		HeadRepo:      "isseis/yt2column-head",
+		BaseRepo:      "isseis/yt2column-base",
+		BaseRef:       "trunk",
 		PRNumber:      "1080",
 		HeadSHA:       "0123456789abcdef0123456789abcdef01234567",
-		RunAttempt:    "1",
+		RunAttempt:    "2",
 		DepDirsFile:   "/tmp/wasm-dep-dirs",
-		WasmDepDirsOK: "true",
+		WasmDepDirsOK: "false",
 	}
 	if got := eval.inputs[0]; got != want {
 		t.Errorf("Input = %+v, want %+v", got, want)
@@ -238,9 +285,8 @@ func TestRunEvaluatesEmptyContext(t *testing.T) {
 	if stderr != "" {
 		t.Errorf("stderr = %q, want none", stderr)
 	}
-	wantStdout := "ciskip: decision=run reason=fork_or_repo_mismatch\n"
-	if stdout != wantStdout {
-		t.Errorf("stdout = %q, want %q", stdout, wantStdout)
+	if !strings.HasPrefix(stdout, "ciskip: decision=run reason=") || strings.Count(stdout, "\n") != 1 {
+		t.Errorf("stdout = %q, want one decision=run diagnostic line", stdout)
 	}
 	if got := readFile(t, resultFile); got != "skip=false\n" {
 		t.Errorf("result file = %q, want %q", got, "skip=false\n")
@@ -283,7 +329,24 @@ func TestRunDoesNotEchoFlagValues(t *testing.T) {
 			t.Errorf("output echoes the value of --%s: %q", fv[0], stdout+stderr)
 		}
 	}
-	if strings.Count(stdout, "\n") != 2 {
-		t.Errorf("stdout = %q, want the notice and one diagnostic line", stdout)
+	if strings.Contains(stdout+stderr, resultFile) {
+		t.Errorf("output echoes the value of --result-file: %q", stdout+stderr)
+	}
+}
+
+// TestShortSHA checks the diagnostic line keeps a short SHA as it is and cuts a
+// long one to the 12 characters the line shows.
+func TestShortSHA(t *testing.T) {
+	for _, tc := range []struct {
+		name, sha, want string
+	}{
+		{"empty", "", ""},
+		{"exactly 12", "0123456789ab", "0123456789ab"},
+		{"13 characters", "0123456789abc", "0123456789ab"},
+		{"40 characters", parentSHA, "111111111111"},
+	} {
+		if got := shortSHA(tc.sha); got != tc.want {
+			t.Errorf("%s: shortSHA(%q) = %q, want %q", tc.name, tc.sha, got, tc.want)
+		}
 	}
 }

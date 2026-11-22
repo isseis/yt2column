@@ -420,6 +420,9 @@ func TestEnvAccessConfined(t *testing.T) {
 	if got := rep.observed["cmd/yt2column-extjob/main.go value:os.LookupEnv"]; got != 1 {
 		t.Errorf("observed cmd/yt2column-extjob/main.go os.LookupEnv = %d, want 1", got)
 	}
+	if got := rep.observed["cmd/ciskip/main.go call:os.Environ"]; got != 1 {
+		t.Errorf("observed cmd/ciskip/main.go os.Environ = %d, want 1", got)
+	}
 }
 
 func TestEnvAccessScannerDetects(t *testing.T) {
