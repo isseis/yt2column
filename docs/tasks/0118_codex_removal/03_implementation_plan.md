@@ -282,12 +282,12 @@
 - `cmd/fixprguard/test_helpers.go`
 
 **作業内容:**
-- [ ] PR-3 の最初の commit（テスト削除のみ、`go test -tags test ./...` が通る状態）で、`cmd/yt2column/fixpr_docs_test.go` から `TestHandoffListingPrintsNoBody`（`handoffListingFixtures`・`handoffReadCalls` を含む）と要約・受領コメントの `listingItem` テストケース・本文ヘルパを削除し、`make coverage-compare BASE=<親>` で PASS を確認する（設計書 7.4。`checkListingConstructors` が `runpr.md` step 3 の現行 jq 構文を検査しているため、`runprListingKeys["summary"]` と `runprCommentKeys["receipt"]` はステップ 2-5 で `runpr.md` 更新と合わせて外す）。
-- [ ] `errors.go`・`write.go` の `checkPostText` を `@codex` と `@coderabbitai` の 2 つ（ASCII 大小文字無視、単語境界なし、全角やゼロ幅文字は正規化しない）を拒否するよう拡張し、1.3 のリネーム一覧どおり `errCodexMention` → `errMention`、`CodexMention` → `RejectedMentions() []string` に改める。
-- [ ] `ErrCurrentBodyMention`（`ErrInvalidInput` を含めない）と `StopCurrentBodyMention = "current-body-mention"` を追加し、`StopKinds()`・`StopKind()` に登録する。`AppendPR` で既存の PR 説明にメンションが含まれる場合は `ErrCurrentBodyMention`（終了コード 1）、追記文面自体に含まれる場合は `ErrInvalidInput`（終了コード 2）を返すようにする（設計書 3.3.5・4.2）。
-- [ ] `internal/fixprguard/types.go` の `Protocol` を `main` の値 + 1 に上げる（設計書 3.3.5）。
-- [ ] `internal/fixprguard/test_helpers.go`・`cmd/fixprguard/test_helpers.go` の `testSecondReviewer` および `types_test.go`・`trust_test.go` の `"chatgpt-codex-connector"` を Codex 名でない架空の名前に改める。
-- [ ] `write_test.go`・`worktree_flow_test.go`・`cmd/fixprguard/main_test.go` を更新し、`@coderabbitai` 拒否・`@coderabbit` や全角 `＠` の非拒否・`append-pr` の `current-body-mention`（終了コード 1）を検証する（実装時に判定を壊してテストが失敗することを確認する）。
+- [x] PR-3 の最初の commit（テスト削除のみ、`go test -tags test ./...` が通る状態）で、`cmd/yt2column/fixpr_docs_test.go` から `TestHandoffListingPrintsNoBody`（`handoffListingFixtures`・`handoffReadCalls` を含む）と要約・受領コメントの `listingItem` テストケース・本文ヘルパを削除し、`make coverage-compare BASE=<親>` で PASS を確認する（設計書 7.4。`checkListingConstructors` が `runpr.md` step 3 の現行 jq 構文を検査しているため、`runprListingKeys["summary"]` と `runprCommentKeys["receipt"]` はステップ 2-5 で `runpr.md` 更新と合わせて外す）。
+- [x] `errors.go`・`write.go` の `checkPostText` を `@codex` と `@coderabbitai` の 2 つ（ASCII 大小文字無視、単語境界なし、全角やゼロ幅文字は正規化しない）を拒否するよう拡張し、1.3 のリネーム一覧どおり `errCodexMention` → `errMention`、`CodexMention` → `RejectedMentions() []string` に改める。
+- [x] `ErrCurrentBodyMention`（`ErrInvalidInput` を含めない）と `StopCurrentBodyMention = "current-body-mention"` を追加し、`StopKinds()`・`StopKind()` に登録する。`AppendPR` で既存の PR 説明にメンションが含まれる場合は `ErrCurrentBodyMention`（終了コード 1）、追記文面自体に含まれる場合は `ErrInvalidInput`（終了コード 2）を返すようにする（設計書 3.3.5・4.2）。
+- [x] `internal/fixprguard/types.go` の `Protocol` を `main` の値 + 1 に上げる（設計書 3.3.5）。
+- [x] `internal/fixprguard/test_helpers.go`・`cmd/fixprguard/test_helpers.go` の `testSecondReviewer` および `types_test.go`・`trust_test.go` の `"chatgpt-codex-connector"` を Codex 名でない架空の名前に改める。
+- [x] `write_test.go`・`worktree_flow_test.go`・`cmd/fixprguard/main_test.go` を更新し、`@coderabbitai` 拒否・`@coderabbit` や全角 `＠` の非拒否・`append-pr` の `current-body-mention`（終了コード 1）を検証する（実装時に判定を壊してテストが失敗することを確認する）。
 
 **完了基準:**
 - 最初のテスト削除 commit で `make coverage-compare BASE=<親>` が PASS し、その後の変更で `go test -tags test ./internal/fixprguard` と `go build ./cmd/fixprguard` が通る（`cmd/fixprguard/docs_test.go` と文書ガードはプロトコル番号・`RejectedMentions()` 参照が文書と結合しているため、ステップ 2-5 で更新してグリーンゲートを通す）。
@@ -304,11 +304,11 @@
 - `.claude/commands/_lib/simple-process.md`
 
 **作業内容:**
-- [ ] `_context.md` を設計書 3.1 の表どおり更新する（`Automated reviewer list` = `coderabbitai`、`Awaited PR reviewer` = `coderabbitai`、`PR review request` = `@coderabbitai review`、新規 `Rejected mentions` = `@codex`・`@coderabbitai`、置き換え名 `<mention-check>`・`<rejected-mentions>` の定義）。
-- [ ] `_lib/task-pr-handoff.md` Part B step 5（Codex 開始待機・依頼投稿）を撤去し、冒頭・通知・報告の Codex 記述を外す（AC-06・AC-07）。
-- [ ] `_lib/task-pr-handoff.md`・`_lib/local-cli-review.md`（`:35,305`）・`fixpr.md`・`_lib/fable-review.md`・`_lib/opus-review.md` の `<review-mention>` による確かめを `<mention-check>` に置き換える。
-- [ ] `fixpr.md` の `--protocol` を `main` の値 + 1 に更新し、`append-pr` の `current-body-mention` 停止の報告手順（AC-39）、`replyBody` 規則、Codex PR レビュー記述（`:59,128-131`）、禁止メンションの記述（`:458,605,1071`）を更新する。
-- [ ] `_lib/fable-review.md` の冒頭理由を ADR-0050 の新しい理由に改めて Codex CLI 指摘の記述を外し、`_lib/simple-process.md:343` の Codex 未レビュー変更の記述を改める。
+- [x] `_context.md` を設計書 3.1 の表どおり更新する（`Automated reviewer list` = `coderabbitai`、`Awaited PR reviewer` = `coderabbitai`、`PR review request` = `@coderabbitai review`、新規 `Rejected mentions` = `@codex`・`@coderabbitai`、置き換え名 `<mention-check>`・`<rejected-mentions>` の定義）。
+- [x] `_lib/task-pr-handoff.md` Part B step 5（Codex 開始待機・依頼投稿）を撤去し、冒頭・通知・報告の Codex 記述を外す（AC-06・AC-07）。
+- [x] `_lib/task-pr-handoff.md`・`_lib/local-cli-review.md`（`:35,305`）・`fixpr.md`・`_lib/fable-review.md`・`_lib/opus-review.md` の `<review-mention>` による確かめを `<mention-check>` に置き換える。
+- [x] `fixpr.md` の `--protocol` を `main` の値 + 1 に更新し、`append-pr` の `current-body-mention` 停止の報告手順（AC-39）、`replyBody` 規則、Codex PR レビュー記述（`:59,128-131`）、禁止メンションの記述（`:458,605,1071`）を更新する。
+- [x] `_lib/fable-review.md` の冒頭理由を ADR-0050 の新しい理由に改めて Codex CLI 指摘の記述を外し、`_lib/simple-process.md:343` の Codex 未レビュー変更の記述を改める。
 
 **完了基準:**
 - 依頼のコメント以外の全投稿経路（記録 commit 経路を含む）が `<mention-check>` を参照し、Part B に PR 作成後のコメント投稿手順が存在しない。
@@ -321,11 +321,11 @@
 - `.claude/commands/_lib/review-records.sh`（ヘッダの LAST_REVIEWED 説明）
 
 **作業内容:**
-- [ ] `runpr.md` のフロントマター・冒頭・Authorization・step 2 等の Codex PR レビュー記述（`:2,48,75,231`）と step 1（単独 PR 作成）の Codex 開始待機・依頼投稿を外す（AC-06・AC-07）。
-- [ ] `runpr.md` step 3 を設計書 3.4.1 に従って書き換える。見出しを更新し、Codex 要約コメント・受領コメント・状態規則 1〜7・自動依頼を撤去する。`fixprguard review-state` の状態ごとの処理、`<rejected-mentions>` を使うメンションの 3 つの一覧（CodeRabbit の観測済み 2 行を除外し、Codex 投稿は `by_bot` とする）、`LAST_REVIEWED` の算出（設計書 3.3.4）、interaction limits 維持（AC-42）、`fixprguard list` によるスレッド処理（AC-10・AC-44）を書く。
-- [ ] `runpr.md` step 4 を設計書 3.4.2・3.4.3・3.5 に従って書き換える。「先に PR レビューを依頼」選択肢の表示条件・説明・位置、ラウンドごとの `head` 照合、要約の 15 行（Codex 名なし、手動の PR レビュー行の追加、本文に指摘や未レビューファイルがありうる旨の表示）、詳細ファイル更新、選択時の `gh pr comment` 依頼と `review-state` 待機、停止報告表を書く。自動エスカレーション依頼を撤去し、答えを推奨に写す規則 1〜5 を 1 か所に置く。
-- [ ] `runpr.md` step 5 の最終報告から受領コメントの行を外し、全 `fixprguard` 呼び出しの `--protocol` を `main` の値 + 1 に更新する。
-- [ ] `_lib/pr-review-escalation.md` の冒頭・Inputs（LAST_REVIEWED なしでも merge-base..HEAD で判定する）・基準 4 のレビュー関門の範囲（`fixprguard review-state` 等を含む）を更新し、`_lib/review-records.sh` ヘッダの LAST_REVIEWED 説明を合わせる。
+- [x] `runpr.md` のフロントマター・冒頭・Authorization・step 2 等の Codex PR レビュー記述（`:2,48,75,231`）と step 1（単独 PR 作成）の Codex 開始待機・依頼投稿を外す（AC-06・AC-07）。
+- [x] `runpr.md` step 3 を設計書 3.4.1 に従って書き換える。見出しを更新し、Codex 要約コメント・受領コメント・状態規則 1〜7・自動依頼を撤去する。`fixprguard review-state` の状態ごとの処理、`<rejected-mentions>` を使うメンションの 3 つの一覧（CodeRabbit の観測済み 2 行を除外し、Codex 投稿は `by_bot` とする）、`LAST_REVIEWED` の算出（設計書 3.3.4）、interaction limits 維持（AC-42）、`fixprguard list` によるスレッド処理（AC-10・AC-44）を書く。
+- [x] `runpr.md` step 4 を設計書 3.4.2・3.4.3・3.5 に従って書き換える。「先に PR レビューを依頼」選択肢の表示条件・説明・位置、ラウンドごとの `head` 照合、要約の 15 行（Codex 名なし、手動の PR レビュー行の追加、本文に指摘や未レビューファイルがありうる旨の表示）、詳細ファイル更新、選択時の `gh pr comment` 依頼と `review-state` 待機、停止報告表を書く。自動エスカレーション依頼を撤去し、答えを推奨に写す規則 1〜5 を 1 か所に置く。
+- [x] `runpr.md` step 5 の最終報告から受領コメントの行を外し、全 `fixprguard` 呼び出しの `--protocol` を `main` の値 + 1 に更新する。
+- [x] `_lib/pr-review-escalation.md` の冒頭・Inputs（LAST_REVIEWED なしでも merge-base..HEAD で判定する）・基準 4 のレビュー関門の範囲（`fixprguard review-state` 等を含む）を更新し、`_lib/review-records.sh` ヘッダの LAST_REVIEWED 説明を合わせる。
 
 **完了基準:**
 - 設計書 3.4・3.5・6.1 のすべての分岐と報告項目が `runpr.md` と `_lib/pr-review-escalation.md` に反映されている。
@@ -343,16 +343,16 @@
 - `docs/dev/adr/0050-fable-partial-review.md`
 
 **作業内容:**
-- [ ] `cmd/yt2column/codex_review_docs_test.go` を `cmd/yt2column/review_mention_docs_test.go` に改名する commit を独立して作る（設計書 7.4）。
-- [ ] `review_mention_docs_test.go` を設計書 7.3 に従って更新する。
+- [x] `cmd/yt2column/codex_review_docs_test.go` を `cmd/yt2column/review_mention_docs_test.go` に改名する commit を独立して作る（設計書 7.4）。
+- [x] `review_mention_docs_test.go` を設計書 7.3 に従って更新する。
   - `TestMentionsOnlyInAllowedRows`: `fixprguard.RejectedMentions()` の全値が `_context.md` の 2 行以外に出ないことを確かめる。
   - `TestPostingPathsCheckMention`: `<mention-check>` とその展開が `Rejected mentions` の全値を含むことを確かめる。
   - `TestPostingCommandsInventory`: `gh pr comment <number> --body "<review-request>"` の例外を `runpr.md` step 4 の 1 か所のみに制限し、Part B・`runpr.md` step 1・step 3 等に出たら失敗させる（実装時に許可外セクションへ置いて失敗を確かめる）。
   - `TestAgentsCodeReviewRules`: コメントの理由を CodeRabbit に更新する（H-09）。
   - `TestCodeRabbitConfigStopsReview`: そのまま維持する。
-- [ ] `cmd/yt2column/fixpr_docs_test.go` の `wantReviewers` を `[]string{"coderabbitai"}` に更新し、`runprListingKeys["summary"]`・`runprCommentKeys["receipt"]` を外して、`TestContextAndCommandsAgree`（`awaited` = `coderabbitai`、`PR review request`・`Rejected mentions` 照合）、`TestContextReviewerRowsMalformed`（新構成と `Rejected mentions` 行の異常系）、`TestRunprDocContract`（新しい step 3 見出し・メンション 2 種・CodeRabbit の観測 2 行・`review-state` との依頼コメント判定一致テスト）を更新する。
-- [ ] `cmd/fixprguard/docs_test.go` に `review-state` の呼び出し形（`runpr.md` の呼び出し検証）と `TestGuideDescribesMentionCheck`（`fixprguard.RejectedMentions()` の 2 値）を追加・更新し、`docs/dev/guides/fixprguard_guide.md` の `current-body-mention`、2 つのメンション、新しいプロトコル番号を更新する。
-- [ ] `docs/dev/adr/0013`・`0015`・`0047`・`0050` の `食い違い:` 記述を外し、`docs/dev/adr/0047-runpr-merge-question.md:45`（`## 結果` の要約の最大行数）を 14 行から 15 行へ編集上の訂正として更新する（AC-47・AC-49）。
+- [x] `cmd/yt2column/fixpr_docs_test.go` の `wantReviewers` を `[]string{"coderabbitai"}` に更新し、`runprListingKeys["summary"]`・`runprCommentKeys["receipt"]` を外して、`TestContextAndCommandsAgree`（`awaited` = `coderabbitai`、`PR review request`・`Rejected mentions` 照合）、`TestContextReviewerRowsMalformed`（新構成と `Rejected mentions` 行の異常系）、`TestRunprDocContract`（新しい step 3 見出し・メンション 2 種・CodeRabbit の観測 2 行・`review-state` との依頼コメント判定一致テスト）を更新する。
+- [x] `cmd/fixprguard/docs_test.go` に `review-state` の呼び出し形（`runpr.md` の呼び出し検証）と `TestGuideDescribesMentionCheck`（`fixprguard.RejectedMentions()` の 2 値）を追加・更新し、`docs/dev/guides/fixprguard_guide.md` の `current-body-mention`、2 つのメンション、新しいプロトコル番号を更新する。
+- [x] `docs/dev/adr/0013`・`0015`・`0047`・`0050` の `食い違い:` 記述を外し、`docs/dev/adr/0047-runpr-merge-question.md:45`（`## 結果` の要約の最大行数）を 14 行から 15 行へ編集上の訂正として更新する（AC-47・AC-49）。
 
 **完了基準:**
 - `make test && make lint && make deadcode` および `doc-guard` が通る（`cmd/fixprguard` の `append-pr` 結合テストおよび全ガードテストを含む）。
