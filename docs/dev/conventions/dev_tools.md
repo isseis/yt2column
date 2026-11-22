@@ -22,6 +22,10 @@ temporary directory each time it runs it. The list is in `CLAUDE.md`:
 `make coverage-compare` under "Test Commands" and `make ext-coverage-compare`
 under "Extension Commands".
 
+A **CI-only tool** is a developer tool that a GitHub Actions workflow runs from
+the checked-out tree with `go run`, not one a user installs. The only one today
+is `ciskip`, which the `check-changes` job of `.github/workflows/ci.yml` runs.
+
 ## Rule 1: Write a tool in Go, with tests
 
 Write a tool that makes a decision and has a side effect in Go, with tests.
@@ -137,6 +141,13 @@ procedure, not by this document.
 ### Per-run tools
 
 A per-run tool is not subject to this section.
+
+### CI-only tools
+
+A CI-only tool is not subject to this section. A GitHub Actions workflow runs
+it from the checked-out tree, so no user installs it and no agent builds it for
+a run. It carries no `--protocol` number either: there is no installed copy for
+a document to disagree with.
 
 ### The permission layer
 
