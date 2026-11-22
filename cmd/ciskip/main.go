@@ -3,11 +3,12 @@
 // documentation-only head commit whose parent commit already passed CI against
 // the same main commit.
 //
-// The check-changes job of .github/workflows/ci.yml runs it with
-// "go run ./cmd/ciskip" and passes the GitHub Actions context values as flags.
-// On standard output it writes one ::notice line, when the synthetic merge
-// commit's first parent was resolved, and one diagnostic line. It writes
-// exactly "skip=true\n" or "skip=false\n" to the file named by --result-file.
+// This is a CI-only tool, meant to be called only from the check-changes job
+// of .github/workflows/ci.yml with "go run ./cmd/ciskip"; that job passes the
+// GitHub Actions context values as flags. On standard output it writes one
+// ::notice line, when the synthetic merge commit's first parent was resolved,
+// and one diagnostic line. It writes exactly "skip=true\n" or "skip=false\n"
+// to the file named by --result-file.
 //
 // Contract: the exit code is 0 for every completed evaluation, whether the
 // heavy jobs may be skipped or must run, so a failed evaluation never fails

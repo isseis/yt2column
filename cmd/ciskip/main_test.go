@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -127,20 +128,32 @@ func TestRunWritesDecision(t *testing.T) {
 	}
 }
 
+// withFlagValue returns a copy of args with the named flag's value replaced.
+func withFlagValue(args []string, flag, value string) []string {
+	out := slices.Clone(args)
+	for i, arg := range out {
+		if strings.HasPrefix(arg, "--"+flag+"=") {
+			out[i] = "--" + flag + "=" + value
+		}
+	}
+	return out
+}
+
 // TestRunRejectsCommandLine checks a command line the tool cannot read exits 2
 // with the fixed usage line, evaluates nothing, and prints no flag value.
 func TestRunRejectsCommandLine(t *testing.T) {
 	const canary = "ghp_doNotPrintThis"
 	for _, tc := range []struct {
-		name string
-		args []string
+		name   string
+		args   []string
+		canary string
 	}{
-		{"no arguments", nil},
-		{"unknown flag", []string{"--unknown=" + canary}},
-		{"missing flag value", []string{"--result-file"}},
-		{"empty result file", []string{"--result-file="}},
-		{"extra positional argument", append(fullArgs(resultPath(t)), "extra")},
-		{"missing result file", fullArgs("")[:len(fullArgs(""))-1]},
+		{"no arguments", nil, ""},
+		{"unknown flag", []string{"--unknown=" + canary}, canary},
+		{"missing flag value", []string{"--repo=" + canary, "--result-file"}, canary},
+		{"empty result file", withFlagValue(fullArgs(""), "repo", canary), canary},
+		{"extra positional argument", append(fullArgs(resultPath(t)), canary), canary},
+		{"missing result file", withFlagValue(fullArgs("")[:len(fullArgs(""))-1], "repo", canary), canary},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			eval := &fakeEvaluator{}
@@ -154,7 +167,7 @@ func TestRunRejectsCommandLine(t *testing.T) {
 			if stderr != usage+"\n" {
 				t.Errorf("stderr = %q, want the fixed usage line", stderr)
 			}
-			if strings.Contains(stdout+stderr, canary) {
+			if tc.canary != "" && strings.Contains(stdout+stderr, tc.canary) {
 				t.Errorf("output echoes a flag value: %q", stdout+stderr)
 			}
 			if len(eval.inputs) != 0 {
@@ -237,10 +250,23 @@ func TestRunEvaluatesEmptyContext(t *testing.T) {
 // TestRunDoesNotEchoFlagValues checks the notice and the diagnostic line carry
 // no flag value, so a secret or an unverified argument cannot reach the log.
 func TestRunDoesNotEchoFlagValues(t *testing.T) {
-	const canary = "ghp_doNotPrintThis"
+	flagValues := [][2]string{
+		{"repo", "canaryrepo"},
+		{"head-repo", "canaryheadrepo"},
+		{"base-repo", "canarybaserepo"},
+		{"base-ref", "canarybaseref"},
+		{"pr-number", "canarypr"},
+		{"head-sha", "canarysha"},
+		{"run-attempt", "canaryattempt"},
+		{"dep-dirs", "canarydepdirs"},
+		{"wasm-dep-dirs-ok", "canarywasm"},
+	}
 	resultFile := resultPath(t)
-	args := fullArgs(resultFile)
-	args[7] = "--dep-dirs=/" + canary
+	args := make([]string, 0, len(flagValues)+1)
+	for _, fv := range flagValues {
+		args = append(args, "--"+fv[0]+"="+fv[1])
+	}
+	args = append(args, "--result-file="+resultFile)
 	eval := &fakeEvaluator{decision: ciskip.Decision{
 		Reason:        ciskip.ReasonSkipped,
 		ParentSHA:     parentSHA,
@@ -252,8 +278,10 @@ func TestRunDoesNotEchoFlagValues(t *testing.T) {
 	if code != exitEvaluated {
 		t.Errorf("run = %d, want %d", code, exitEvaluated)
 	}
-	if strings.Contains(stdout+stderr, canary) {
-		t.Errorf("output echoes a flag value: %q", stdout+stderr)
+	for _, fv := range flagValues {
+		if strings.Contains(stdout+stderr, fv[1]) {
+			t.Errorf("output echoes the value of --%s: %q", fv[0], stdout+stderr)
+		}
 	}
 	if strings.Count(stdout, "\n") != 2 {
 		t.Errorf("stdout = %q, want the notice and one diagnostic line", stdout)
