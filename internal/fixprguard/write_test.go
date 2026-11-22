@@ -423,33 +423,45 @@ func TestEditPRVerbatim(t *testing.T) {
 }
 
 func TestCheckPostText(t *testing.T) {
+	for _, mention := range RejectedMentions() {
+		name := strings.TrimPrefix(mention, "@")
+		for _, tc := range []struct {
+			kind   string
+			text   string
+			reject bool
+		}{
+			{"lower_case", "see " + mention, true},
+			{"upper_case", "see " + strings.ToUpper(mention), true},
+			{"line_start", "first line\n" + mention + " review", true},
+			// No word boundary is required, so a longer name and an email are rejected too.
+			{"longer_name", "ask " + mention + "bot", true},
+			{"email_address", "mail a" + mention + ".example", true},
+			// Non-ASCII look-alikes are not GitHub mentions and are not normalized.
+			{"full_width_at", "\uff20" + name, false},
+			{"zero_width_inside", "@\u200b" + name, false},
+		} {
+			t.Run(name+"/"+tc.kind, func(t *testing.T) {
+				err := checkPostText(tc.text)
+				if tc.reject && !errors.Is(err, errMention) {
+					t.Errorf("checkPostText(%q) = %v, want errMention", tc.text, err)
+				}
+				if !tc.reject && err != nil {
+					t.Errorf("checkPostText(%q) = %v, want nil", tc.text, err)
+				}
+			})
+		}
+	}
 	for _, tc := range []struct {
 		name   string
 		text   string
 		reject bool
 	}{
-		{name: "codex_lower_case", text: "see @codex", reject: true},
 		{name: "codex_title_case", text: "see @Codex", reject: true},
-		{name: "codex_upper_case", text: "see @CODEX", reject: true},
-		{name: "codex_line_start", text: "first line\n@codex please look", reject: true},
-		{name: "codex_request_text", text: "@codex review", reject: true},
-		// No word boundary is required, so a longer name is rejected too.
-		{name: "codex_longer_name", text: "ask @codexbot", reject: true},
-		{name: "codex_email_address", text: "mail a@codex.example", reject: true},
-		{name: "coderabbitai_lower_case", text: "see @coderabbitai", reject: true},
 		{name: "coderabbitai_mixed_case", text: "see @CodeRabbitAI", reject: true},
-		{name: "coderabbitai_upper_case", text: "see @CODERABBITAI", reject: true},
-		{name: "coderabbitai_line_start", text: "first line\n@coderabbitai review", reject: true},
-		{name: "coderabbitai_longer_name", text: "ask @coderabbitai-bot", reject: true},
-		{name: "coderabbitai_email_address", text: "mail a@coderabbitai.example", reject: true},
 		{name: "names_without_at", text: "Codex, codex, CodeRabbit, and coderabbitai flagged this"},
 		// Without the trailing "ai", "@coderabbit" is not a rejected mention.
 		{name: "coderabbit_without_ai", text: "@coderabbit flagged this"},
 		{name: "other_mention", text: "@other-bot flagged this"},
-		{name: "codex_full_width_at", text: "\uff20codex"},
-		{name: "codex_zero_width_inside", text: "@\u200bcodex"},
-		{name: "coderabbitai_full_width_at", text: "\uff20coderabbitai"},
-		{name: "coderabbitai_zero_width_inside", text: "@\u200bcoderabbitai"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := checkPostText(tc.text)
@@ -706,15 +718,12 @@ func TestAppendPRRejects(t *testing.T) {
 			}
 		})
 	}
-	for name, text := range map[string]string{
-		"codex":        "ask @Codex\n",
-		"coderabbitai": "ask @CodeRabbitAI\n",
-	} {
+	for name, text := range mentionTexts {
 		t.Run("file/mention/"+name, func(t *testing.T) {
 			// The '@' rule would refuse a mention too; errMention shows the
 			// mention check itself refused it.
 			g, _ := newTestGitHub(t)
-			if err := g.AppendPR(t.Context(), appendRequest(t, text)); !errors.Is(err, errMention) {
+			if err := g.AppendPR(t.Context(), appendRequest(t, text+"\n")); !errors.Is(err, errMention) {
 				t.Errorf("AppendPR = %v, want errMention", err)
 			}
 		})

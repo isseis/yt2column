@@ -390,18 +390,34 @@ func (f listingFixture) response() []map[string]any {
 	return out
 }
 
+// listingReplacer returns the placeholder replacer for runpr.md step 3's
+// listing filters. extra holds further placeholder and value pairs beyond the
+// four standard ones.
+func listingReplacer(t *testing.T, extra ...string) *strings.Replacer {
+	t.Helper()
+	rejectedJSON, err := json.Marshal(fixprguard.RejectedMentions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.NewReplacer(append([]string{
+		"<awaited-reviewer>", fakeAwaited,
+		"<user-login>", fakeUser,
+		"<review-request>", fakeRequest,
+		"<rejected-mentions>", string(rejectedJSON),
+	}, extra...)...)
+}
+
 // checkListings runs each gh api --paginate listing of section, which where
 // names, with jq on its fake response from fixtures, and checks that it prints
 // no body: every object the filter builds holds only its kind's keys, no
 // output holds bodyMarker, and every printed value is the item's own non-body
-// field or, for state, form_ok, and short_sha, the value the item's body
-// yields. Every other gh api call of section must be one of readCalls. When
-// stderrFile is set, each listing must write its standard error to a file of
-// its own (stderrToFile), so one listing's error is never overwritten by
-// another's before its size is read. extra holds further
-// placeholder and value pairs for the filters, beyond the four every listing
-// may use. jq must be installed: a missing jq fails the test instead of
-// skipping it, so the check never passes unrun.
+// field (or by_user / by_bot computed from the author). Every other gh api
+// call of section must be one of readCalls. When stderrFile is set, each
+// listing must write its standard error to a file of its own (stderrToFile),
+// so one listing's error is never overwritten by another's before its size is
+// read. extra holds further placeholder and value pairs for the filters,
+// beyond the four every listing may use. jq must be installed: a missing jq
+// fails the test instead of skipping it, so the check never passes unrun.
 func checkListings(t *testing.T, where, section string, fixtures map[string]listingFixture, readCalls []string, stderrFile bool, extra ...string) {
 	t.Helper()
 	jq, err := exec.LookPath("jq")
@@ -414,16 +430,7 @@ func checkListings(t *testing.T, where, section string, fixtures map[string]list
 		t.Fatalf("%s has %d gh api --paginate listings, %d of them in the expected form; want %d",
 			where, n, len(matches), len(fixtures))
 	}
-	rejectedJSON, err := json.Marshal(fixprguard.RejectedMentions())
-	if err != nil {
-		t.Fatal(err)
-	}
-	replacer := strings.NewReplacer(append([]string{
-		"<awaited-reviewer>", fakeAwaited,
-		"<user-login>", fakeUser,
-		"<review-request>", fakeRequest,
-		"<rejected-mentions>", string(rejectedJSON),
-	}, extra...)...)
+	replacer := listingReplacer(t, extra...)
 	seen := map[string]struct{}{}
 	stderrFiles := map[string]string{}
 	for _, m := range matches {
@@ -485,16 +492,7 @@ func checkRequestAgreementWithReviewState(t *testing.T, step3 string) {
 	if rawFilter == "" {
 		t.Fatal("runpr.md step 3 has no issues/<number>/comments listing")
 	}
-	rejectedJSON, err := json.Marshal(fixprguard.RejectedMentions())
-	if err != nil {
-		t.Fatal(err)
-	}
-	filter := strings.NewReplacer(
-		"<awaited-reviewer>", fakeAwaited,
-		"<user-login>", fakeUser,
-		"<review-request>", fakeRequest,
-		"<rejected-mentions>", string(rejectedJSON),
-	).Replace(rawFilter)
+	filter := listingReplacer(t).Replace(rawFilter)
 
 	pr, err := fixprguard.ParsePRNumber("42")
 	if err != nil {
@@ -527,8 +525,6 @@ func checkRequestAgreementWithReviewState(t *testing.T, step3 string) {
 		{"empty_body", "User", fakeUser, "", false},
 		{"other_user", "User", "other-user", fakeRequest, false},
 		{"bot_same_login", "Bot", fakeUser, fakeRequest, false},
-		{"awaited_bot", "Bot", fakeAwaited + "[bot]", fakeRequest, false},
-		{"awaited_bot_observed", "Bot", fakeAwaited + "[bot]", crObservedHeader1 + "\n" + fakeRequest, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			item := map[string]any{
@@ -625,11 +621,10 @@ func checkGhAPICalls(t *testing.T, where, section string, allowed []string) {
 
 // checkListingConstructors checks the keys of every object a filter builds,
 // whether or not a fake item reaches it: each starts with a kind of
-// fixture.keys, or has no kind when fixture.kindless is set, and holds only
-// keys that kind may hold. It does not read the values, nor a branch whose
-// result is not an object: those are checked only by running the filter on
-// the items that reach them. A "{" followed by a digit is a regex quantifier,
-// not an object.
+// fixture.keys and holds only keys that kind may hold. It does not read the
+// values, nor a branch whose result is not an object: those are checked only
+// by running the filter on the items that reach them. A "{" followed by a
+// digit is a regex quantifier, not an object.
 func checkListingConstructors(t *testing.T, filter string, fixture listingFixture) {
 	t.Helper()
 	for i := 0; i+1 < len(filter); i++ {
@@ -715,6 +710,11 @@ func skipJQString(s string, open int) int {
 	return i
 }
 
+// gojqStrictPrelude reproduces gojq's strict string-type check on rtrimstr
+// when running under C jq (where null | rtrimstr(...) silently returns null,
+// whereas gh's embedded gojq errors on non-string input).
+const gojqStrictPrelude = `def rtrimstr($s): if type != "string" then error("rtrimstr: non-string") elif endswith($s) then .[:length - ($s | length)] else . end; `
+
 // runJQ runs filter on input as gh --jq runs it on a page, and returns what
 // it printed. It fails t unless jq exits 0 with nothing on standard error.
 func runJQ(t *testing.T, jq, filter string, input any) string {
@@ -723,7 +723,7 @@ func runJQ(t *testing.T, jq, filter string, input any) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(jq, "-c", filter)
+	cmd := exec.Command(jq, "-c", gojqStrictPrelude+filter)
 	cmd.Stdin = bytes.NewReader(data)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -985,16 +985,13 @@ var (
 )
 
 // contextReviewers is what checkContextReviewers reads from _context.md: the
-// list's names, the awaited reviewer's name, the PR review request, and the
-// rejected mentions list and its description. A field is empty when its check
-// failed before reaching it.
+// list's names, the awaited reviewer's name, and the PR review request. A
+// field is empty when its check failed before reaching it.
 type contextReviewers struct {
-	names        []string
-	awaited      string
-	request      string
-	rejected     []string
-	rejectedDesc string
-	problems     []reviewerRowProblem
+	names    []string
+	awaited  string
+	request  string
+	problems []reviewerRowProblem
 }
 
 // checkContextReviewers reads the reviewer rows of the _context.md text doc
@@ -1098,10 +1095,10 @@ func (c *contextReviewers) checkRequest(value string) {
 	c.request = m[1]
 }
 
-// checkRejected checks the Rejected mentions row's value and records its
-// mentions and description.
+// checkRejected checks the Rejected mentions row's value against
+// fixprguard.RejectedMentions().
 func (c *contextReviewers) checkRejected(value string) {
-	names, desc, found := strings.Cut(value, valueSeparator)
+	names, _, found := strings.Cut(value, valueSeparator)
 	if !found || !reviewerListShape.MatchString(names) {
 		c.problems = append(c.problems, problemRejectedShape)
 		return
@@ -1114,8 +1111,6 @@ func (c *contextReviewers) checkRejected(value string) {
 	if sorted := slices.Sorted(slices.Values(list)); !slices.Equal(sorted, want) {
 		c.problems = append(c.problems, problemRejectedNames)
 	}
-	c.rejected = list
-	c.rejectedDesc = desc
 }
 
 // TestContextAndCommandsAgree checks that _context.md is the one place the

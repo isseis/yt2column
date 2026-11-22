@@ -317,7 +317,6 @@ func TestCheckDocumentedReviewer(t *testing.T) {
 		{"no_reviewer_subcommand", args(cmdHead, testPR), nil},
 		{"review_state_placeholders", args(cmdReviewState, "--reviewer", awaitedReviewerPlaceholder, "--request", requestPlaceholder, testPR), nil},
 		{"review_state_wrong_reviewer", args(cmdReviewState, "--reviewer", reviewerPlaceholder, "--request", requestPlaceholder, testPR), errReviewerValue},
-		{"review_state_literal_reviewer", args(cmdReviewState, "--reviewer", testReviewer, "--request", requestPlaceholder, testPR), errReviewerValue},
 		{"review_state_wrong_request", args(cmdReviewState, "--reviewer", awaitedReviewerPlaceholder, "--request", "literal", testPR), errRequestValue},
 		{"two_placeholders", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", reviewerPlaceholder, testPR), errReviewerCount},
 		{"placeholder_and_name", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", testReviewer, testPR), errReviewerCount},

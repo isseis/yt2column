@@ -157,14 +157,12 @@ func TestPostingPathsCheckMention(t *testing.T) {
 		})
 	}
 	t.Run("context_placeholder_definitions", func(t *testing.T) {
-		got := checkContextReviewers(doctestutil.ReadDoc(t, contextPath))
-		if len(got.problems) > 0 {
-			t.Fatalf("_context.md reviewer rows have problems %v", got.problems)
+		row := contextRow(t, rejectedMentionsRow)
+		_, desc, found := strings.Cut(row[1], valueSeparator)
+		if !found {
+			t.Fatalf("_context.md %q row has no description separator %q", rejectedMentionsRow, valueSeparator)
 		}
-		if !slices.Equal(slices.Sorted(slices.Values(got.rejected)), slices.Sorted(slices.Values(fixprguard.RejectedMentions()))) {
-			t.Errorf("_context.md %q values = %v, want %v", rejectedMentionsRow, got.rejected, fixprguard.RejectedMentions())
-		}
-		requirePhrases(t, "_context.md "+rejectedMentionsRow, got.rejectedDesc,
+		requirePhrases(t, "_context.md "+rejectedMentionsRow, desc,
 			"`<mention-check>`", "`grep -qiF`", "`-e '<mention>'`", "`--`", "`<rejected-mentions>`",
 		)
 	})
