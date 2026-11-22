@@ -806,7 +806,7 @@ flowchart TD
 
 ## 8. 実装優先順位とフェーズ分割 (Implementation Priorities)
 
-前提タスク `#1059`（タスク 0118：Codex 撤去）の完了後に、各フェーズ（各 PR）が単独で `make test`・`doc-guard`・実運用を壊さずにマージできる単位で次の 4 フェーズに分けて実装する。
+前提タスク `#1059`（タスク 0118：Codex 撤去）の完了後に、各 PR が単独で `make test`・`doc-guard`・実運用を壊さずにマージできる単位で次の 4 フェーズに分けて実装する。
 
 1.  **フェーズ 1: `fixprguard` の監視拡張とプロトコル番号更新（単独 PR で完結）:**
     -   `internal/fixprguard/{ignored.go,types.go,ignored_test.go}` の監視の一覧拡張（`.agents/`・4 指示ファイル）・`errAgentsGitName`・`Protocol` 引き上げ（`main` の値 + 1）。
@@ -819,10 +819,10 @@ flowchart TD
 3.  **フェーズ 3: `review-records.sh` 一般化とハーネスのアダプタ 3 ファイル新設（単独 PR で完結）:**
     -   `_lib/review-records.sh` の `cross-check` モード追加（`fable` 別名維持）、`_context.md` 非正規表現検証（`coverage` は非依存）、新旧記録行両読み、`cmd/yt2column/review_records_test.go`（`newRRFixture` への `_context.md` 追加と `cross-check`/`fable` 両モード・セキュリティテスト）の更新。
     -   `_lib/harness.md`・`harness-claude.md`・`harness-antigravity.md` の新設（既存コマンド手順のパスやパラメータは本フェーズで変えないため、`main` 上の既存コマンド参照を壊さない）。
-4.  **フェーズ 4: 共有手順・全コマンド正本の改名とハーネス非依存化、`.agents/skills/` 新設、および文書・ガード完結（単独 PR で完結）:**
-    -   共有手順の改名・一般化（`_lib/opus-review.md` → `_lib/high-review.md`、`_lib/fable-review.md` → `_lib/cross-check-review.md`、`FABLE` → `CROSS_CHECK`、`_lib/{local-cli-review,pr-review-escalation,review-subagent-pattern,settle-decisions,simple-process,task-pr-handoff}.md` の抽象操作化と状態チェック拡張）と、すべての呼び出し元（非 `chief` の 11 コマンドおよび実装時点の追加非 `chief` コマンド）のハーネス非依存化・新パス参照・新役割名・AC-13/AC-17 反映を同一 PR で原子的に行う。
-    -   同一 PR で `.agents/skills/<cmd>/SKILL.md` を新設し、`internal/doctestutil/protocol.go`（`CommandDocs` への `.agents/skills` 追加）・`cmd/yt2column/docpaths_test.go`・`fixpr_docs_test.go`・`review_records_test.go`（新パス参照と接頭辞一意性）・状態チェックテスト・1 対 1 / 非 `chief` 構造ガードを追加する。
-    -   同一 PR で `CLAUDE.md`・`AGENTS.md`・`docs/translation_glossary.md` の更新、`ADR-0016:25` の `_lib/high-review.md` リンク訂正、各 ADR から `#1072` 食い違い記述を除去、`03_implementation_plan.md` の `_checks/` で AC-02（ツール名非混入）を確認し、`make test`・`make lint`・`make deadcode`・`make readme-sync-check` および全 `doc-guard` パッケージの成功を確認する。
+4.  **フェーズ 4: 共有手順・全コマンド正本の改名とハーネス非依存化、`.agents/skills/` 新設、および文書・ガード完結（実装計画書で PR-4・PR-5 の 2 PR に分割）:**
+    -   PR-4 で共有手順の改名・一般化（`_lib/opus-review.md` → `_lib/high-review.md`、`_lib/fable-review.md` → `_lib/cross-check-review.md`、`FABLE` → `CROSS_CHECK`、`_lib/{local-cli-review,pr-review-escalation,review-subagent-pattern,settle-decisions,simple-process,task-pr-handoff}.md` の抽象操作化と状態チェック拡張）と、すべての呼び出し元（非 `chief` の 11 コマンドおよび実装時点の追加非 `chief` コマンド）のハーネス非依存化・新パス参照・新役割名・AC-13/AC-17 反映、および関連テスト（`fixpr_docs_test.go`・`review_records_test.go`・状態チェックテスト・`high_review_decision_test.go`・`cmd/chief/docs_test.go`）と `ADR-0016:25` 等の更新を原子的に行う。
+    -   PR-5 で `.agents/skills/<cmd>/SKILL.md` を新設し、`internal/doctestutil/protocol.go`（`CommandDocs` への `.agents/skills` 追加）・`cmd/yt2column/docpaths_test.go`・1 対 1 / 非 `chief` 構造ガードを追加する。
+    -   PR-5 で `CLAUDE.md`・`AGENTS.md`・`docs/translation_glossary.md` の更新、残りの各 ADR から `#1072` 食い違い記述を除去、`03_implementation_plan.md` の `_checks/` で AC-02（ツール名非混入）を確認し、`make test`・`make lint`・`make deadcode`・`make readme-sync-check` および全 `doc-guard` パッケージの成功を確認する。
 
 ## 9. 将来拡張性 (Future Extensibility)
 
