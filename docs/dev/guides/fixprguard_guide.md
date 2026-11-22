@@ -64,13 +64,13 @@ go version -m "$(command -v fixprguard)"
 | 項目 | 内容 |
 |---|---|
 | `--protocol N` | すべてのサブコマンドに必須。`N` がバイナリの番号と一致しなければ、終了コード `2` で止まる（古いバイナリが新しい文書の想定で判定するのを防ぐ）。現在の番号は `6` |
-| `--reviewer LOGIN` | `list`・`begin`・`inspect`・`reply` に 1 回以上必須で、ほかのサブコマンドには渡せない。信頼する自動レビュアーの GraphQL の `author.login`（例: `coderabbitai`）を、名前ごとに 1 回ずつ繰り返して渡す（例: `--reviewer <login-1> --reviewer <login-2>`）。`/fixpr`・`/runpr` が渡す名前は、`.claude/commands/_context.md` の `Automated reviewer list` のすべての名前である。渡す順序は判定に関係しない。1 つもないとき、同じ名前を 2 回以上渡したとき、名前の文法に合わないときは、使い方の誤り（終了コード `2`）になる。既定値はない |
-| `[PR]` | 10 進数の PR 番号だけを受け付ける。URL やブランチ名は拒否する。省略すると、現在のブランチの PR を `gh pr view` で求める。GitHub を読まない `finish` と、`interaction-limits` は省略できない |
-| フラグの位置 | フラグは位置引数（`PR`・`FILE`）の前に書く。同じフラグを 2 回渡すと拒否する（`--accept`・`--thread`・`--reviewer` は複数回渡せる。ただし、`--reviewer` に同じ名前を 2 回渡すと拒否する） |
+| `--reviewer LOGIN` | `list`・`begin`・`inspect`・`reply` に 1 回以上必須、`review-state` に 1 回だけ必須で、ほかのサブコマンドには渡せない。信頼する自動レビュアーの GraphQL の `author.login`（例: `coderabbitai`）を、名前ごとに 1 回ずつ繰り返して渡す（例: `--reviewer <login-1> --reviewer <login-2>`）。`/fixpr`・`/runpr` が渡す名前は、`.claude/commands/_context.md` の `Automated reviewer list` のすべての名前である。渡す順序は判定に関係しない。1 つもないとき、同じ名前を 2 回以上渡したとき、名前の文法に合わないときは、使い方の誤り（終了コード `2`）になる。既定値はない |
+| `[PR]` | 10 進数の PR 番号だけを受け付ける。URL やブランチ名は拒否する。省略すると、現在のブランチの PR を `gh pr view` で求める。GitHub を読まない `finish` と、`interaction-limits`・`review-state` は省略できない |
+| フラグの位置 | フラグは位置引数（`PR`・`FILE`）の前に書く。同じフラグを 2 回渡すと拒否する（`--accept`・`--thread`・`--reviewer` は複数回渡せる。ただし、`review-state` は `--reviewer` を 1 回しか受け付けず、ほかのサブコマンドでも `--reviewer` に同じ名前を 2 回以上渡すと拒否する） |
 | 標準出力 | 1 行の JSON（`fence` だけは区切りのブロックそのもの）。すべての JSON に `protocol` が入る |
 | 標準エラー | 1 行の診断。拒否した規則の名前だけを示し、GitHub から来た値や外部コマンドの引数・標準エラーは含めない |
 
-終了コードは次のとおり。呼び出し側は、これ以外の終了コード、信号による終了、JSON として読めない出力を、すべて「止める」として扱う。ただし、`interaction-limits` は、確かめられない結果も状態の 1 つとして終了コード `0` で出力する。止めるかどうかは、呼び出し側が出力の `state` で決める（5 章）。
+終了コードは次のとおり。呼び出し側は、これ以外の終了コード、信号による終了、JSON として読めない出力を、すべて「止める」として扱う。ただし、`interaction-limits` と `review-state` は、確かめられない結果や読めない結果も状態の 1 つとして終了コード `0` で出力する。止めるかどうかは、呼び出し側が出力の `state` で決める（5 章）。
 
 | 終了コード | 意味 | 標準出力 |
 |---|---|---|
@@ -303,6 +303,78 @@ fixprguard interaction-limits --protocol 6 42
 | `expires-at` | `expires_at` が RFC 3339 の日時として読めない |
 
 副作用: GitHub の読み取りだけ（`gh repo view`、`gh pr view`、`gh api --include repos/<owner>/<repo>/interaction-limits` の `GET`）。ファイル、git、GitHub への書き込みはなく、記録のファイル（8.1）も書かない。
+
+### `review-state --reviewer LOGIN --request TEXT PR`
+
+手動の PR レビューの状態を読む。`/runpr` が依頼のコメント（`--request` の本文だけのコメント）を投稿した後、そのレビューが終わったかを、レビュアーの CheckRun から求める。コメントの本文からは何も読まない。スレッドを判定しないが、`--reviewer` は 1 回だけ渡す（完了を待つレビュアーの GraphQL の `author.login`。複数渡すと使い方の誤りになる）。`--request` は依頼のコメントの本文そのもので、空にできず、1024 バイトを超えられない。PR 番号は省略できない。
+
+```sh
+fixprguard review-state --protocol 6 --reviewer coderabbitai --request 'please review' 42
+```
+
+読む順は、リポジトリの名前（`gh repo view`）、PR の head（`pulls/<n>` の `head.sha`）、利用者の login（`gh api user`）、会話のコメント（`issues/<n>/comments`、100 件ずつ全ページ）、PR の commit の一覧と CheckRun（GraphQL）、レビュアーの PR レビュー（`pulls/<n>/reviews`、100 件ずつ全ページ）である。REST は `gh api --include` で読み、最後に読んだ REST の応答の `Date` ヘッダを GitHub の時刻とする。依頼のコメントがなければ、`none` を返して、その後の読み取りをしない。
+
+**依頼のコメント。** 著者の種類が `User` で、login が利用者のものと等しく、本文の前後の空白を除いたものが `--request` と完全に等しいコメントだけを数える。同じ名前の `Bot`、ほかの利用者、本文が少しでも違うコメント（前後の空白以外）は数えない。最新の依頼は、`updated_at` の順で最後のものである。同じ秒の中に編集されたもの（`updated_at` が `created_at` と等しくない）があれば、編集されたものが最新とする。
+
+**応答の分類。** CheckSuite の `app.slug` が `--reviewer` と等しく、名前が `CodeRabbit` の CheckRun だけを読み、`status`・`conclusion`・`title` の組を次の表と完全一致で照合する。表にない `COMPLETED` の組は `unknown` で、レビュー済みとしない。
+
+| `status` | `conclusion` | `title` | 応答の種類 | 応答として |
+|---|---|---|---|---|
+| `COMPLETED` 以外のすべて | 問わない | 問わない | `running` | 数える |
+| `COMPLETED` | `SUCCESS` | `Finished` | `finished` | 数える |
+| `COMPLETED` | `NEUTRAL` | `Review rate limited` | `rate-limited` | 数える |
+| `COMPLETED` | `SKIPPED` | `Review skipped: automatic reviews are disabled` | `skip-notice` | 数えない |
+| `COMPLETED` で、上のどれでもない組 | | | `unknown` | 数える |
+
+応答は、依頼の時刻より厳密に後に始まった（同じ秒は数えない）数える CheckRun のうち、最も早く始まったものである。まだ始まっていない CheckRun（`startedAt` が `null`）は数えない。応答が終わった後に始まった CheckRun は、応答でも完了の印でもない。
+
+出力: `protocol`、`state`、`reason`、`indeterminateReason`、`head`、`now`、`request`、`response`、`indeterminateUrls`、`markers`。どの状態でも終了コード `0` で、引数の形が違うときだけ終了コード `2` になる。標準エラーには何も書かない。コメントの本文、CheckRun の `title`、CheckRun の `details_url` はどの項目にも入れない（`details_url` は共有用の値を含むので読まない）。
+
+| 項目 | 内容 |
+|---|---|
+| `state` | 最新の依頼の状態。下の表の値 |
+| `reason` | `state` が `unreadable` のとき、読めなかった理由。ほかは `""` |
+| `indeterminateReason` | `state` が `indeterminate` のとき、決まらない理由。ほかは `""` |
+| `head` | PR の head（40 桁の小文字の 16 進数）。`unreadable` で、head を読めなかったときだけ `""` |
+| `now` | GitHub の時刻（RFC 3339、UTC）。`unreadable` のときは `""` |
+| `request` | 最新の依頼（`id`・`url`・`createdAt`）。`none` と `unreadable` のときだけ `null` |
+| `response` | その応答（`kind`・`status`・`conclusion`・`commit`・`url`・`startedAt`）。応答がなければ `null` |
+| `indeterminateUrls` | `competing-runs` のとき、競合した CheckRun の URL。ほかは空の配列 |
+| `markers` | 完了の印（`commit`・`requestId`・`requestUrl`・`checkRunUrl`・`reviewUrl`・`completedAt`）を、古い依頼のものから順に。なければ空の配列 |
+
+**状態。** 上から順に調べ、最初に当たるものになる。
+
+| `state` | 条件 |
+|---|---|
+| `unreadable` | 呼び出しの失敗、応答が厳密な検査に通らない、または上限を超えた（`reason` が理由） |
+| `none` | 依頼のコメントがない |
+| `indeterminate` | 最新の依頼の応答が決まらない（`indeterminateReason` が理由） |
+| `completed` | 応答が `finished` |
+| `rate-limited` | 応答が `rate-limited` |
+| `unrecognized` | 応答が `unknown` |
+| `timed-out` | 依頼の時刻から 15 分を過ぎた（応答が `running` でも延ばさない） |
+| `waiting` | 上のどれでもない |
+
+**読めない理由。**
+
+| `reason` | 意味 |
+|---|---|
+| `call-failed` | `gh` の呼び出しが失敗した、HTTP の状態が `200` でない、または読んでいる間に PR の head が変わった（GraphQL の `headRefOid` が最初に読んだ `head.sha` と違う） |
+| `rejected` | 応答が厳密な検査に通らない（重複した項目、型の違い、16 進でない SHA、読めない時刻、`Date` ヘッダの誤りなど） |
+| `limit` | 上限を超えた（会話のコメントと PR レビューは各 3000 件、PR の commit は 1000 件、1 つの commit の CheckSuite は 50、1 つの CheckSuite の CheckRun は 100、または出力が大きさの上限を超えた） |
+
+**決まらない理由。**
+
+| `indeterminateReason` | 意味 |
+|---|---|
+| `competing-runs` | 数える CheckRun のうち最も早く始まったものが同じ秒に 2 つ以上ある、または最も早いものが終わる前に別の数える CheckRun が始まった |
+| `edited-request` | 最新の依頼のコメントが編集されている。元の時刻を依頼の時刻として使えないので、完了としない |
+
+**応答の種類。** `response.kind` の値は、上の分類の表の `running`・`finished`・`rate-limited`・`unknown` である（`skip-notice` は応答にならないので出力に現れない）。
+
+**完了の印。** 最新の依頼が `completed` のときはその応答、前の依頼については、依頼が編集されておらず、応答が決まり、その応答が `finished` のものを `markers` に入れる。前の依頼の応答は、次の依頼の `updated_at` より前に始まったものに限る。`reviewUrl` は、同じ commit に対するレビュアーの PR レビューのうち、依頼より後に提出された最初のものの URL で、なければ `""` である。示す commit は PR の commit の一覧にあるものだけである。
+
+副作用: GitHub の読み取りだけ。書き込みも git も記録のファイルもない。
 
 ## 6. 範囲の規則
 

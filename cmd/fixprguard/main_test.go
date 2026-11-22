@@ -46,6 +46,7 @@ func validArgs() map[string][]string {
 		cmdAppendPR: args(cmdAppendPR, "--body-file", "body.md", testPR),
 
 		cmdInteractionLimits: args(cmdInteractionLimits, testPR),
+		cmdReviewState:       args(cmdReviewState, "--reviewer", testReviewer, "--request", testRequest, testPR),
 	}
 }
 
@@ -79,7 +80,7 @@ func TestProtocolMismatch(t *testing.T) {
 // TestReviewerFlag: list, begin, inspect and reply require --reviewer; the
 // other subcommands judge no thread and refuse it.
 func TestReviewerFlag(t *testing.T) {
-	takesReviewer := []string{cmdList, cmdBegin, cmdInspect, cmdReply}
+	takesReviewer := []string{cmdList, cmdBegin, cmdInspect, cmdReply, cmdReviewState}
 	for name, valid := range validArgs() {
 		t.Run(name, func(t *testing.T) {
 			i := slices.Index(valid, "--reviewer")
@@ -240,6 +241,7 @@ func TestGhTargetEnvRejected(t *testing.T) {
 		cmdAppendPR: args(cmdAppendPR, "--body-file", text, testPR),
 
 		cmdInteractionLimits: args(cmdInteractionLimits, testPR),
+		cmdReviewState:       args(cmdReviewState, "--reviewer", testReviewer, "--request", testRequest, testPR),
 	}
 	for name, sp := range specs {
 		if _, ok := lines[name]; sp.usesGH != ok {
@@ -530,6 +532,158 @@ func TestInteractionLimitsRun(t *testing.T) {
 			t.Errorf("exit %d, want %d", code, exitUsage)
 		}
 	})
+}
+
+// reviewStateSteps scripts review-state's gh calls over one request comment
+// and the answer of the reviewer's check runs; out is the GitHub response of
+// each stage, in the order the tool reads them.
+func reviewStateSteps(comments, graphql, reviews string) []cmdrunnertestutil.Step {
+	const (
+		now  = "Fri, 20 Nov 2026 10:05:00 GMT"
+		head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	)
+	incl := func(body string) string {
+		return includedOutput(200, []string{"Date: " + now, "X-Marker: " + testSecret}, body)
+	}
+	api := func(out string, path string) cmdrunnertestutil.Step {
+		return ghStep(incl(out), nil, "api", "--include", "repos/isseis/yt2column/"+path)
+	}
+	steps := []cmdrunnertestutil.Step{
+		repoStep(),
+		api(`{"head":{"sha":"`+head+`"},"title":"`+testSecret+`"}`, "pulls/"+testPR),
+		ghStep(`{"login":"isseis"}`, nil, "api", "user"),
+		api(comments, "issues/"+testPR+"/comments?per_page=100&page=1"),
+	}
+	if graphql == "" {
+		return steps
+	}
+	return append(steps,
+		ghStep(graphql, nil, "api", "graphql", "--input", "-"),
+		api(reviews, "pulls/"+testPR+"/reviews?per_page=100&page=1"))
+}
+
+// TestReviewStateRun: every state prints with exit 0 and the binary's
+// protocol; an unreadable state writes nothing to standard error; and no
+// text GitHub returned (a comment body, a check run's title and details URL,
+// a header, a PR review body) reaches any output.
+func TestReviewStateRun(t *testing.T) {
+	const head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	proto := `{"protocol":` + strconv.Itoa(fixprguard.Protocol) + `,`
+	comment := func(id int, login, kind, body string) string {
+		return `{"id":` + strconv.Itoa(id) + `,"user":{"login":"` + login + `","type":"` + kind + `"},"body":"` + body +
+			`","created_at":"2026-11-20T10:00:00Z","updated_at":"2026-11-20T10:00:00Z","html_url":"https://github.com/isseis/yt2column/pull/42#issuecomment-` + strconv.Itoa(id) + `"}`
+	}
+	request := comment(1, "isseis", "User", testRequest)
+	other := comment(2, "alice", "User", testSecret)
+	run := func(title string) string {
+		return `{"databaseId":11,"status":"COMPLETED","conclusion":"SUCCESS","title":"` + title + `","startedAt":"2026-11-20T10:00:20Z",` +
+			`"completedAt":"2026-11-20T10:03:00Z","url":"https://github.com/isseis/yt2column/runs/11","detailsUrl":"https://example.com/` + testSecret + `"}`
+	}
+	commits := func(title string) string {
+		return `{"data":{"repository":{"pullRequest":{"headRefOid":"` + head + `","commits":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[` +
+			`{"commit":{"oid":"` + head + `","checkSuites":{"pageInfo":{"hasNextPage":false},"nodes":[{"app":{"slug":"coderabbitai"},"checkRuns":{"pageInfo":{"hasNextPage":false},"nodes":[` +
+			run(title) + `]}}]}}}]}}}}}`
+	}
+	reviews := `[{"user":{"login":"coderabbitai[bot]","type":"Bot"},"commit_id":"` + head + `","submitted_at":"2026-11-20T10:03:10Z","html_url":"https://github.com/isseis/yt2column/pull/42#pullrequestreview-5","body":"` + testSecret + `"}]`
+	const (
+		times = `"now":"2026-11-20T10:05:00Z"`
+		req   = `"request":{"id":1,"url":"https://github.com/isseis/yt2column/pull/42#issuecomment-1","createdAt":"2026-11-20T10:00:00Z"}`
+	)
+	for _, tc := range []struct {
+		name  string
+		steps []cmdrunnertestutil.Step
+		want  string
+	}{
+		{
+			name:  "completed",
+			steps: reviewStateSteps(`[`+other+`,`+request+`]`, commits("Finished"), reviews),
+			want: proto + `"state":"completed","reason":"","indeterminateReason":"","head":"` + head + `",` + times + `,` + req + `,` +
+				`"response":{"kind":"finished","status":"COMPLETED","conclusion":"SUCCESS","commit":"` + head + `","url":"https://github.com/isseis/yt2column/runs/11","startedAt":"2026-11-20T10:00:20Z"},` +
+				`"indeterminateUrls":[],"markers":[{"commit":"` + head + `","requestId":1,"requestUrl":"https://github.com/isseis/yt2column/pull/42#issuecomment-1",` +
+				`"checkRunUrl":"https://github.com/isseis/yt2column/runs/11","reviewUrl":"https://github.com/isseis/yt2column/pull/42#pullrequestreview-5","completedAt":"2026-11-20T10:03:00Z"}]}`,
+		},
+		{
+			name:  "unrecognized_title_is_not_printed",
+			steps: reviewStateSteps(`[`+request+`]`, commits(testSecret), `[]`),
+			want: proto + `"state":"unrecognized","reason":"","indeterminateReason":"","head":"` + head + `",` + times + `,` + req + `,` +
+				`"response":{"kind":"unknown","status":"COMPLETED","conclusion":"SUCCESS","commit":"` + head + `","url":"https://github.com/isseis/yt2column/runs/11","startedAt":"2026-11-20T10:00:20Z"},` +
+				`"indeterminateUrls":[],"markers":[]}`,
+		},
+		{
+			name:  "none",
+			steps: reviewStateSteps(`[`+other+`]`, "", ""),
+			want: proto + `"state":"none","reason":"","indeterminateReason":"","head":"` + head + `",` + times + `,"request":null,"response":null,` +
+				`"indeterminateUrls":[],"markers":[]}`,
+		},
+		{
+			name: "pull_call_failed",
+			steps: []cmdrunnertestutil.Step{
+				repoStep(),
+				ghStep("", &cmdrunner.ExitError{Code: 1, Stdout: []byte(testSecret), Stderr: []byte("gh: " + testSecret)},
+					"api", "--include", "repos/isseis/yt2column/pulls/"+testPR),
+			},
+			want: proto + `"state":"unreadable","reason":"call-failed","indeterminateReason":"","head":"","now":"","request":null,"response":null,` +
+				`"indeterminateUrls":[],"markers":[]}`,
+		},
+		{
+			// The head is read before the user, so a failed gh api user
+			// still reports the head it managed to read.
+			name: "user_call_failed_keeps_the_head",
+			steps: []cmdrunnertestutil.Step{
+				repoStep(),
+				ghStep(includedOutput(200, []string{"Date: Fri, 20 Nov 2026 10:05:00 GMT"}, `{"head":{"sha":"`+head+`"}}`), nil,
+					"api", "--include", "repos/isseis/yt2column/pulls/"+testPR),
+				ghStep("", &cmdrunner.ExitError{Code: 1, Stdout: []byte(testSecret), Stderr: []byte("gh: " + testSecret)}, "api", "user"),
+			},
+			want: proto + `"state":"unreadable","reason":"call-failed","indeterminateReason":"","head":"` + head + `","now":"","request":null,"response":null,` +
+				`"indeterminateUrls":[],"markers":[]}`,
+		},
+		{
+			name:  "unreadable_rejected_keeps_the_head",
+			steps: reviewStateSteps(`{}`, "", ""),
+			want: proto + `"state":"unreadable","reason":"rejected","indeterminateReason":"","head":"` + head + `","now":"","request":null,"response":null,` +
+				`"indeterminateUrls":[],"markers":[]}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestRun(t, tc.steps)
+			if code := r.Run(t, args(cmdReviewState, "--reviewer", testReviewer, "--request", testRequest, testPR)...); code != exitContinue {
+				t.Errorf("exit %d, want %d", code, exitContinue)
+			}
+			got := strings.TrimSuffix(r.Stdout.String(), "\n")
+			if got != tc.want {
+				t.Errorf("stdout = %s\nwant     %s", got, tc.want)
+			}
+			if strings.Contains(r.Stdout.String(), testSecret) || strings.Contains(r.Stderr.String(), testSecret) {
+				t.Errorf("a text GitHub returned reached the output: %s %s", r.Stdout, r.Stderr)
+			}
+			if r.Stderr.Len() != 0 {
+				t.Errorf("stderr %q, want none", r.Stderr)
+			}
+		})
+	}
+	// An argument outside its grammar stops with exit 2 before any gh call.
+	for _, tc := range []struct {
+		name string
+		line []string
+	}{
+		{"no_request", args(cmdReviewState, "--reviewer", testReviewer, testPR)},
+		{"empty_request", args(cmdReviewState, "--reviewer", testReviewer, "--request", "", testPR)},
+		{"two_reviewers", args(cmdReviewState, "--reviewer", testReviewer, "--reviewer", testSecondReviewer, "--request", testRequest, testPR)},
+		{"invalid_reviewer", args(cmdReviewState, "--reviewer", "bad name", "--request", testRequest, testPR)},
+		{"no_pr", args(cmdReviewState, "--reviewer", testReviewer, "--request", testRequest)},
+		{"bad_pr", args(cmdReviewState, "--reviewer", testReviewer, "--request", testRequest, "pull/42")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestRun(t, nil)
+			if code := r.Run(t, tc.line...); code != exitUsage {
+				t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
+			}
+			if r.Stdout.Len() != 0 {
+				t.Errorf("stdout %q, want none", r.Stdout)
+			}
+		})
+	}
 }
 
 // beginSteps scripts begin's gh calls: the head check, then Begin's own head

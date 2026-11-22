@@ -228,6 +228,7 @@
 **変更ファイル:**
 - `internal/fixprguard/review_state.go`（新規）
 - `internal/fixprguard/review_state_test.go`（新規）
+- `internal/fixprguard/test_helpers_review.go`（新規：`review-state` テスト用フィクスチャとヘルパ）
 - `internal/fixprguard/testdata/`（新規：観測の記録から抽出して本文と `details_url` を取り除いたサンプル）
 - `cmd/fixprguard/main.go`
 - `cmd/fixprguard/main_test.go`
@@ -236,11 +237,11 @@
 - `CLAUDE.md`（「Declare, don't infer」に `review-state` の CheckRun 照合例外を追記）
 
 **作業内容:**
-- [ ] `internal/fixprguard/review_state.go` に設計書 3.3.1〜3.3.3 の型（`ReviewState`・`ReviewRequest`・`ReviewResponse`・`ReviewMarker`・`RunKind`・`RequestState`・`UnreadableReason`・`IndeterminateReason`、`MarshalText`、ゼロ値規則）と取得・厳密検査・分類・状態遷移のロジックを実装する。既存の `runGH`・`resolveRepository`・`strictjson`・`parseDateHeader` を再利用する。このステップではまだコマンド定義が `review-state` を呼ばないため、`Protocol` は `main` の値のまま据え置く。
-- [ ] `cmd/fixprguard/main.go` に `review-state` サブコマンド（`--protocol`・`--reviewer`・`--request`・必須 PR 引数）を登録し、終了コード 0（引数不正のみ 2）で JSON を出力する。
-- [ ] `internal/fixprguard/review_state_test.go` と `cmd/fixprguard/main_test.go` で設計書 7.1・7.2・7.5 の全ケース（分類表の全行、`RunSkipNotice` 除外、`status != COMPLETED` かつ `startedAt == null` の非カウントによる `waiting` 維持、同秒除外、応答後 CheckRun 除外、競合 `competing-runs`、編集済み依頼 `edited-request` と前の依頼が編集済みの場合の `markers` 非生成、15 分上限、依頼なし時の後段スキップ、厳密 JSON 拒否、上限超過 `limit`、`gh` 失敗 `call-failed`、head 変化時の再取得扱い、PR 外 commit の混入除外、偽の著者・app slug 除外、本文・`title`・`details_url` の非出力）をテストする。実装時に分類表の行や検査を壊して失敗することを確認する。
-- [ ] `docs/dev/guides/fixprguard_guide.md` に `review-state` の章（項目の名前・状態と理由の列挙語）を追加し、`cmd/fixprguard/docs_test.go` にその値一覧を検証するテストを追加する。
-- [ ] `CLAUDE.md` の「Declare, don't infer」に設計書 3.3.2 の `review-state` 例外（範囲・理由・境界）を追加する。
+- [x] `internal/fixprguard/review_state.go` に設計書 3.3.1〜3.3.3 の型（`PRReviewState`・`ReviewRequest`・`ReviewResponse`・`ReviewMarker`・`RunKind`・`RequestState`・`UnreadableReason`・`IndeterminateReason`、`MarshalText`、ゼロ値規則）と取得・厳密検査・分類・状態遷移のロジックを実装する。既存の `runGH`・`resolveRepository`・`strictjson`・`parseDateHeader` を再利用する。このステップではまだコマンド定義が `review-state` を呼ばないため、`Protocol` は `main` の値のまま据え置く。
+- [x] `cmd/fixprguard/main.go` に `review-state` サブコマンド（`--protocol`・`--reviewer`・`--request`・必須 PR 引数）を登録し、終了コード 0（引数不正のみ 2）で JSON を出力する。
+- [x] `internal/fixprguard/review_state_test.go` と `cmd/fixprguard/main_test.go` で設計書 7.1・7.2・7.5 の全ケース（分類表の全行、`RunSkipNotice` 除外、`status != COMPLETED` かつ `startedAt == null` の非カウントによる `waiting` 維持、同秒除外、応答後 CheckRun 除外、競合 `competing-runs`、編集済み依頼 `edited-request` と前の依頼が編集済みの場合の `markers` 非生成、15 分上限、依頼なし時の後段スキップ、厳密 JSON 拒否、上限超過 `limit`、`gh` 失敗 `call-failed`、head 変化時の再取得扱い、PR 外 commit の混入除外、偽の著者・app slug 除外、本文・`title`・`details_url` の非出力）をテストする。実装時に分類表の行や検査を壊して失敗することを確認する。
+- [x] `docs/dev/guides/fixprguard_guide.md` に `review-state` の章（項目の名前・状態と理由の列挙語）を追加し、`cmd/fixprguard/docs_test.go` にその値一覧を検証するテストを追加する。
+- [x] `CLAUDE.md` の「Declare, don't infer」に設計書 3.3.2 の `review-state` 例外（範囲・理由・境界）を追加する。
 
 **完了基準:**
 - `make test && make lint && make deadcode` および `doc-guard` が通る（`cmd/fixprguard` の `review-state` 結合テストで本文・`title`・`details_url` が標準出力にもエラーにも現れないことが検証される）。
@@ -259,10 +260,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1080
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 #### ステップ 2-2: 旧テストの削除と `fixprguard` のメンション拒否拡張・`current-body-mention`・プロトコル番号引き上げ（F-009、AC-38・AC-39）
 
@@ -472,7 +473,7 @@
 
 ## 4. テスト戦略 (Test Strategy)
 
-設計書 §7 に従う。新しい `testutil/` パッケージは作らず、既存の `internal/fixprguard/test_helpers.go`・`cmd/fixprguard/test_helpers.go`（`//go:build test`）のみ更新する（`docs/dev/conventions/test_organization.md` に準拠）。
+設計書 §7 に従う。新しい `testutil/` パッケージは作らず、パッケージ内ヘルパ（既存の `internal/fixprguard/test_helpers.go`・`cmd/fixprguard/test_helpers.go` と、カテゴリ別の `internal/fixprguard/test_helpers_review.go`、いずれも `//go:build test`）を使う（`docs/dev/conventions/test_organization.md` に準拠）。
 
 -   **単体テスト（`internal/fixprguard`）:** `review_state_test.go` で CheckRun 分類表の全行・状態規則・境界値（`status != COMPLETED` かつ `startedAt == null` の `waiting` 維持、同秒除外、15 分上限、編集済み依頼の `edited-request` と前の依頼が編集済みの場合の `markers` 非生成、競合 CheckRun、上限、厳密 JSON 拒否、PR 外 commit 混入）を検証する。`write_test.go`・`worktree_flow_test.go` で 2 メンション拒否と `ErrCurrentBodyMention` を検証する。各テストは実装時に該当ロジックを壊して失敗することを確かめる。
 -   **結合テスト（`cmd/fixprguard`）:** 偽の `gh` で `review-state` と `append-pr` の標準出力 JSON・終了コード・本文・`title`・`details_url` 非出力を検証する。
@@ -496,7 +497,7 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
--   [ ] PR-2 マージ済み（対象ステップ: 2-1）
+-   [x] PR-2 マージ済み（対象ステップ: 2-1）
 -   [ ] PR-3 マージ済み（対象ステップ: 2-2 / 2-3 / 2-4 / 2-5）
 -   [ ] PR-3 マージ後に利用者が `fixprguard` 入れ直し・Codex 連携解除を完了（PR-4 の `自動送信: hold` 解除条件）
 -   [ ] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
@@ -518,12 +519,12 @@
 | AC-11 | `runpr.md` step 4 の要約 15 行の定義を PR レビューで確認（Codex 名の不在とローカル CLI・Fable 行の維持） | manual | ステップ 2-4 | フェーズ 2 |
 | AC-12 | `runpr.md` step 4 の選択肢条件（LAST_REVIEWED != head）を PR レビューで確認、`internal/fixprguard/review_state_test.go::TestReviewState`（`markers` の算出） | test / manual | ステップ 2-1・2-4 | フェーズ 2 |
 | AC-13 | `cmd/yt2column/review_mention_docs_test.go::TestPostingCommandsInventory`（`gh pr comment <number> --body "<review-request>"` を `runpr.md` step 4 の 1 か所のみに限定） | static | ステップ 2-4・2-5 | フェーズ 2 |
-| AC-14 | `internal/fixprguard/review_state_test.go::TestReviewState`（`waiting`・`completed`）、`cmd/fixprguard/main_test.go::TestReviewState` | test | ステップ 2-1・2-4 | フェーズ 2 |
-| AC-15 | `internal/fixprguard/review_state_test.go::TestReviewState`（app slug・CheckRun 名・`User`/`Bot` なりすましの拒否） | test | ステップ 2-1 | フェーズ 2 |
-| AC-16 | `internal/fixprguard/review_state_test.go::TestReviewState`（`competing-runs`・`edited-request`・`rejected`・非 16 進 SHA・PR 外 commit 除外・本文非出力）、`cmd/fixprguard/main_test.go::TestReviewState` | test | ステップ 2-1・2-4 | フェーズ 2 |
+| AC-14 | `internal/fixprguard/review_state_test.go::TestReviewState`（`waiting`・`completed`）、`cmd/fixprguard/main_test.go::TestReviewStateRun` | test | ステップ 2-1・2-4 | フェーズ 2 |
+| AC-15 | `internal/fixprguard/review_state_test.go::TestReviewState`（app slug・`User`/`Bot` なりすましの拒否）、`TestReviewStateReads`（CheckRun 名フィルタ） | test | ステップ 2-1 | フェーズ 2 |
+| AC-16 | `internal/fixprguard/review_state_test.go::TestReviewState`（`competing-runs`・`edited-request`）、`TestReviewStateUnreadable`（`rejected`・非 16 進 SHA）、`TestReviewStateNonPRCommitIgnored`（PR 外 commit 除外）、`TestReviewStateCommitPages`（ページ間 head 照合）、`TestReviewStateOutputHasNoText`（本文非出力）、`cmd/fixprguard/main_test.go::TestReviewStateRun` | test | ステップ 2-1・2-4 | フェーズ 2 |
 | AC-17 | `internal/fixprguard/review_state_test.go::TestReviewState`（依頼前の CheckRun 除外・同秒除外・前の依頼の応答範囲） | test | ステップ 2-1 | フェーズ 2 |
-| AC-18 | `internal/fixprguard/review_state_test.go::TestReviewState`（`rate-limited`・`unrecognized`・`timed-out`）、`cmd/fixprguard/main_test.go::TestReviewState` | test | ステップ 2-1・2-4 | フェーズ 2 |
-| AC-19 | `internal/fixprguard/review_state_test.go::TestReviewState`・`cmd/fixprguard/main_test.go::TestReviewState`（本文非出力）、`runpr.md` step 4 要約行の PR レビュー | test / manual | ステップ 2-1・2-4 | フェーズ 2 |
+| AC-18 | `internal/fixprguard/review_state_test.go::TestReviewState`（`rate-limited`・`unrecognized`・`timed-out`）、`cmd/fixprguard/main_test.go::TestReviewStateRun` | test | ステップ 2-1・2-4 | フェーズ 2 |
+| AC-19 | `internal/fixprguard/review_state_test.go::TestReviewStateOutputHasNoText`・`cmd/fixprguard/main_test.go::TestReviewStateRun`（本文非出力）、`runpr.md` step 4 要約行の PR レビュー | test / manual | ステップ 2-1・2-4 | フェーズ 2 |
 | AC-20 | `runpr.md` step 4 の手動 PR レビュー要約行（未レビューファイルがありうる旨と URL 表示）を PR レビューで確認（設計書 1.3 の決定） | manual | ステップ 2-4 | フェーズ 2 |
 | AC-21 | `_lib/pr-review-escalation.md`・`runpr.md` の範囲定義と `cmd/yt2column/review_records_test.go::TestReviewRecordsCoverage`（`none` 指定時の `origin/main..HEAD`） | test / manual | ステップ 2-4 | フェーズ 2 |
 | AC-22 | `runpr.md` step 4 の答えを推奨に写す規則 2 を PR レビューで確認 | manual | ステップ 2-4 | フェーズ 2 |

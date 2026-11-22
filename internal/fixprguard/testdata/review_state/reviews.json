@@ -1,0 +1,24 @@
+[
+  {
+    "user": {
+      "login": "coderabbitai[bot]",
+      "type": "Bot",
+      "id": 136622811
+    },
+    "commit_id": "f24ee60a00000000000000000000000000000000",
+    "submitted_at": "2026-11-20T04:29:15Z",
+    "state": "COMMENTED",
+    "html_url": "https://github.com/isseis/yt2column/pull/1064#pullrequestreview-4638479000"
+  },
+  {
+    "user": {
+      "login": "isseis",
+      "type": "User",
+      "id": 136622811
+    },
+    "commit_id": "f24ee60a00000000000000000000000000000000",
+    "submitted_at": "2026-11-20T04:30:14Z",
+    "state": "COMMENTED",
+    "html_url": "https://github.com/isseis/yt2column/pull/1064#pullrequestreview-4638479100"
+  }
+]

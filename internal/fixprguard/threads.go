@@ -26,6 +26,9 @@ const (
 	maxResponseBytes = 16 << 20
 
 	commentURLPrefix = "https://github.com/"
+
+	// nodesMember is the list member of a GraphQL connection.
+	nodesMember = "nodes"
 )
 
 // commentFields are the per-comment fields of the stage-one query. They carry
@@ -149,7 +152,7 @@ func (g *GitHub) fetchBodies(ctx context.Context, ids []string) ([]thread, error
 	if err != nil {
 		return nil, err
 	}
-	nodes, err := memberArray(data, "nodes")
+	nodes, err := memberNodes(data)
 	if err != nil {
 		return nil, err
 	}
@@ -217,11 +220,11 @@ func parseThreadPage(out []byte) (threadPage, error) {
 	if err != nil {
 		return threadPage{}, err
 	}
-	pageInfo, err := memberObject(reviewThreads, "pageInfo")
+	pageInfo, err := memberObject(reviewThreads, keyPageInfo)
 	if err != nil {
 		return threadPage{}, err
 	}
-	hasNextPage, err := memberBool(pageInfo, "hasNextPage")
+	hasNextPage, err := memberBool(pageInfo, keyHasNextPage)
 	if err != nil {
 		return threadPage{}, err
 	}
@@ -235,7 +238,7 @@ func parseThreadPage(out []byte) (threadPage, error) {
 			return threadPage{}, rejected("endCursor")
 		}
 	}
-	nodes, err := memberArray(reviewThreads, "nodes")
+	nodes, err := memberNodes(reviewThreads)
 	if err != nil {
 		return threadPage{}, err
 	}
@@ -275,15 +278,15 @@ func parseThread(node strictjson.Value, withBody bool) (thread, error) {
 	if err != nil {
 		return thread{}, err
 	}
-	pageInfo, err := memberObject(comments, "pageInfo")
+	pageInfo, err := memberObject(comments, keyPageInfo)
 	if err != nil {
 		return thread{}, err
 	}
-	more, err := memberBool(pageInfo, "hasNextPage")
+	more, err := memberBool(pageInfo, keyHasNextPage)
 	if err != nil {
 		return thread{}, err
 	}
-	nodes, err := memberArray(comments, "nodes")
+	nodes, err := memberNodes(comments)
 	if err != nil {
 		return thread{}, err
 	}
@@ -309,7 +312,7 @@ func parseComment(node strictjson.Value, withBody bool) (comment, error) {
 	if err != nil {
 		return comment{}, rejected("comment")
 	}
-	keys := []string{"databaseId", "url", "path", "line", "author", createdAtMember, "updatedAt", "lastEditedAt"}
+	keys := []string{keyDatabaseID, keyURL, "path", "line", "author", createdAtMember, "updatedAt", "lastEditedAt"}
 	if withBody {
 		keys = append(keys, "body")
 	}
@@ -318,14 +321,14 @@ func parseComment(node strictjson.Value, withBody bool) (comment, error) {
 		return comment{}, rejected("comment")
 	}
 	var c comment
-	id, err := strictjson.Required(members, "databaseId")
+	id, err := strictjson.Required(members, keyDatabaseID)
 	if err != nil {
 		return comment{}, rejected("comment databaseId")
 	}
 	if c.databaseID, err = id.AsNonNegativeInt64(); err != nil || c.databaseID == 0 {
 		return comment{}, rejected("comment databaseId")
 	}
-	if c.url, err = strictjson.RequiredString(members, "url"); err != nil || !validCommentURL(c.url) {
+	if c.url, err = strictjson.RequiredString(members, keyURL); err != nil || !validCommentURL(c.url) {
 		return comment{}, rejected("comment url")
 	}
 	if c.path, err = strictjson.RequiredString(members, "path"); err != nil {
@@ -452,18 +455,19 @@ func memberObject(obj strictjson.Object, key string) (strictjson.Object, error) 
 	return child, nil
 }
 
-func memberArray(obj strictjson.Object, key string) ([]strictjson.Value, error) {
-	members, err := obj.Collect(key)
+// memberNodes reads the "nodes" member of a GraphQL connection.
+func memberNodes(obj strictjson.Object) ([]strictjson.Value, error) {
+	members, err := obj.Collect(nodesMember)
 	if err != nil {
-		return nil, rejected(key)
+		return nil, rejected(nodesMember)
 	}
-	value, err := strictjson.Required(members, key)
+	value, err := strictjson.Required(members, nodesMember)
 	if err != nil {
-		return nil, rejected(key)
+		return nil, rejected(nodesMember)
 	}
 	values, err := value.AsArray()
 	if err != nil {
-		return nil, rejected(key)
+		return nil, rejected(nodesMember)
 	}
 	return values, nil
 }
