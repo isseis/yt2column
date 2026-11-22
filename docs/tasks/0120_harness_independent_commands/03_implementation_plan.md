@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-22 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-23 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の `F-NNN`・`AC-NN` は [01_requirements.md](01_requirements.md)（以下、要件定義書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を、`H-NN` は [design_handoff.md](design_handoff.md) の項番を指す。主要用語（ハーネス・ハーネスのアダプタ・上位モデルのレビュー・クロスチェックの部分レビュー・スクラッチパッド）の定義は要件定義書 3.1 に従う。
@@ -765,3 +765,7 @@ Diff record (AC-32):
 2.  前提タスク `#1059`（タスク 0118：Codex 撤去）の実装 PR がすべて `main` にマージされたことを確認する。
 3.  `/runplan 0120` でフェーズ 1（PR-1）から順に実装・PR 作成・マージを進める（PR-1 マージ後に `make install-fixprguard`、PR-2 マージ後に `/chief` 停止→`make install-chief`→再起動を手動で行う）。
 4.  本タスク完了後、後続タスク `#1057`（計画書・実装 PR の部分レビュー置き換え）および `#1082`（Antigravity からのローカル `claude -p --model fable` 呼び出し設計）へ進む。
+
+## 変更履歴
+
+- 2026-11-23 承認（isseis、#1085）
