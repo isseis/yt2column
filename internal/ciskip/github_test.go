@@ -811,6 +811,26 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 		})
 	})
 
+	t.Run("overall_run_timeout_expires_on_final_annotations_call", func(t *testing.T) {
+		depFile := writeTempFile(t, "wasm-dep-dirs", []byte("internal/llm/devfake/\n"))
+		synctest.Test(t, func(t *testing.T) {
+			limits := defaultLimits()
+			limits.runTimeout = 10 * time.Second
+			limits.commandTimeout = time.Minute
+
+			steps := ghHappySteps(testRunID)
+			steps[2].Effect = func() error {
+				time.Sleep(limits.runTimeout + time.Second)
+				return nil
+			}
+			dec := evalWithDepFile(t, depFile, limits, steps...)
+			if dec.Skip() || dec.Reason != ReasonAPITimeout || dec.ParentRunID != testRunID || dec.NoticeBaseSHA != testSHA1 {
+				t.Errorf("decision = %+v, want Reason=%q ParentRunID=%d NoticeBaseSHA=%q",
+					dec, ReasonAPITimeout, testRunID, testSHA1)
+			}
+		})
+	})
+
 	t.Run("framing_and_link_header_errors", func(t *testing.T) {
 		// Every case uses a valid empty workflow_runs body so that if a framing or Link
 		// check were broken, findLatestParentRun would return ReasonNoParentRun instead
@@ -831,6 +851,7 @@ func TestVerifyParentCIAPIFailures(t *testing.T) {
 			{name: "malformed_link_trailing_comma", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel="last", `}, validRunsBody)},
 			{name: "malformed_link_dangling_escape", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; title="abc\`}, validRunsBody)},
 			{name: "malformed_link_invalid_token_char", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel=bad"val`}, validRunsBody)},
+			{name: "malformed_link_slash_in_unquoted_token", raw: ghHTTPResponse("HTTP/2.0 200 OK", []string{`Link: <https://api.github.com/x>; rel=prev/next`}, validRunsBody)},
 		}
 		for _, tc := range framingCases {
 			t.Run(tc.name, func(t *testing.T) {

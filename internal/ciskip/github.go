@@ -122,6 +122,11 @@ func (e *Evaluator) verifyParentCI(
 		return
 	}
 
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		dec.Reason = ReasonAPITimeout
+		return
+	}
+
 	dec.Reason = ReasonSkipped
 }
 
@@ -329,7 +334,8 @@ func parseLinkParam(value string, start int) (name, val string, hasVal, quoted b
 	return name, val, true, quoted, i, true
 }
 
-// readLinkToken reads a non-empty unquoted RFC 8288 parameter name or token value.
+// readLinkToken reads a non-empty unquoted RFC 8288 / RFC 9110 HTTP token
+// consisting exclusively of tchar bytes.
 func readLinkToken(s string, start int) (string, int, bool) {
 	i := start
 	for i < len(s) {
@@ -337,7 +343,7 @@ func readLinkToken(s string, start int) (string, int, bool) {
 		if c == ' ' || c == '\t' || c == ';' || c == ',' || c == '=' {
 			break
 		}
-		if c == '"' || c < 0x21 || c > 0x7e {
+		if !isHTTPTokenChar(c) {
 			return "", start, false
 		}
 		i++
@@ -346,6 +352,19 @@ func readLinkToken(s string, start int) (string, int, bool) {
 		return "", start, false
 	}
 	return s[start:i], i, true
+}
+
+// isHTTPTokenChar reports whether c is an RFC 9110 section 5.6.2 tchar.
+func isHTTPTokenChar(c byte) bool {
+	if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+		return true
+	}
+	switch c {
+	case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+		return true
+	default:
+		return false
+	}
 }
 
 // readLinkQuotedString reads an RFC 7230/8288 quoted-string starting at opening '"'.
