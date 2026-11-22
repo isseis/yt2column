@@ -73,7 +73,7 @@
 | ワーカーの標準サンドボックスでの `git log -1 --oneline` | 終了コード 128 で失敗（`fatal: not a git repository: /Users/issei/git/yt2column/.git/worktrees/issue-1072`） | `git`・`gh` を要する全ワーカー／サブエージェントにこれらを実行させず、メインセッションがスクラッチパッドへ直接リダイレクト書き出ししたファイルを `read_file` で渡す |
 | メインセッションのスクラッチパッドに対するワーカーの `read_file` | 成功（同一会話の `scratch/` 配下を読み取り可能。1 回の読み取り上限は 800 行 / 46,080 バイト） | スクラッチパッドをデータ受け渡し先に使い、brief でページ分割読み取り（`StartLine`/`ByteOffset`）と変更ファイル一覧との突合を必須化する |
 | `swarm(action: "add")` の返却 JSON | `{"status":"added","name":...,"model":"<exact-model-id>","model_display_name":...,"conversation_id":...,"open_board":...,"note":...}` | 返却 JSON の `"model"` フィールドをバイト単位で完全一致検証する（`"model"` フィールド自体が `add` のスキーマに欠落している場合のみ起動直後の `status` を 1 回予備参照し、型違いを含む不一致時は補完せず即 `kill`） |
-| `swarm(action: "status")` の返却 JSON | `head`、`members[].{name, role, model, model_display_name, state, killed, last_read_seq, last_post_seq, last_post_time}` を返却 | 起動前の残存ワーカー掃除、異常終了時の確認、および `@coordinator` 漏れ投稿によるハング回避に使用する |
+| `swarm(action: "status")` の返却 JSON | `title`・`board`・`head`・`tail_from_seq`・`members[].{name, role, model, model_display_name, state, killed, last_read_seq}` を返却。未投稿メンバーでは `last_post_seq` と `last_post_time` が省略される | 起動前の自セッション残存ワーカー確認、終了時の不正ヘルパーワーカー検出、および `@coordinator` 漏れ投稿によるハング回避に使用する（`last_post_seq` 欠落は「未投稿」として扱う） |
 | トークンの使用量の取得可否 | `add`・`status`・`read_board` のいずれもトークン数を返さない | Antigravity のクロスチェック記録は常に経過秒数と `tokens unknown` を記録する（AC-27） |
 | ワーカーのシステムプロンプトとツール構成 | 自身のモデルの ID は含まれない。`post_message`・`read_board`・`swarm_wait`・`swarm` を持ち、`send_message` は持たない | ワーカーには `Model:` 出力を求めず、単一投稿の 1 行目に厳密に `@coordinator` のみを置いた `post_message` で返し、メインセッション（コーディネータ）が 1 行目を検証・除去したうえで 2 行目以降を厳密検査する |
 | 初回 `swarm(action: "add")` ターンのツール宣言遅延 | 初回 `add` 実行ターン内では `read_board`・`swarm_wait`・`post_message` が未宣言で、次ターンで宣言される。初回ターン中に長いフォアグラウンド作業（CodeRabbit CLI 等）の間にワーカーが投稿すると、単なるターン終了では起床しない | 初回 `swarm` ターンでは `status` で分岐せず、フォアグラウンド作業完了後に無条件で 1 秒タイマー（`schedule(DurationSeconds: 1, TimerCondition: "never")`）で第 2 ターンへ進める。第 2 ターンで宣言済みの `read_board(since: brief_seq)` を呼び、未着なら `swarm_wait(since: brief_seq, mentions_only: true)` で待機することで、確認と待機の間の取りこぼし（TOCTOU）なしに結果を取得する |
@@ -243,7 +243,7 @@ sequenceDiagram
     participant Swarm as swarm / schedule
     participant Worker as 固定モデルワーカー
 
-    Main->>Swarm: status で前回の残存ワーカーを確認・kill
+    Main->>Swarm: status で自セッション記録済みの残存ワーカーのみ掃除＋既存メンバー一覧を退避
     Main->>Swarm: models(all: true) で存在と残量確認
     alt モデルなし または 残量 <= 0%
         Main-->>Main: 代替せず停止 / not run (unavailable)
@@ -254,7 +254,7 @@ sequenceDiagram
         Main->>Swarm: add(unique_name, model, workspace: "inherit", brief)
         Swarm-->>Main: JSON（"model" フィールド含む）
         alt "model" != 指定モデル（バイト完全一致）
-            Main->>Swarm: kill(unique_name)
+            Main->>Swarm: kill(unique_name) ＋ status で不正ヘルパー検査
             Main->>Git: 状態チェック（終了時）
             Main-->>Main: 停止 / not run (wrong-model)
         else 一致
@@ -262,7 +262,7 @@ sequenceDiagram
             Worker->>Scratch: read_file（全範囲ページ読み取り）
             Worker->>Swarm: post_message（1行目 @coordinator）
             Main->>Swarm: 1s schedule（初回ターン）→ read_board / swarm_wait
-            Main->>Swarm: kill(unique_name) ＋ タイマー解除
+            Main->>Swarm: kill(unique_name) ＋ タイマー解除 ＋ status で不正ヘルパー検査・kill
             Main->>Git: 状態チェック（終了時）
         end
     end
@@ -307,9 +307,11 @@ sequenceDiagram
 
 | 判別順 | ハーネス | 必須の組み込みツール条件 | 読み込むアダプタ |
 |---|---|---|---|
-| 1 | `Antigravity` | `ask_question`・`run_command`・`swarm` の 3 つがすべて利用可能 | `_lib/harness-antigravity.md` |
+| 1 | `Antigravity` | `ask_question`・`run_command` の 2 つが利用可能（`swarm` の有無は `subagent-role` / `pinned-worker` の実行時に個別判定する） | `_lib/harness-antigravity.md` |
 | 2 | `Claude Code` | `AskUserQuestion`・`Bash`・`Agent` の 3 つがすべて利用可能 | `_lib/harness-claude.md` |
 | 3 | `OpenCode`（またはその他） | 上記 1・2 のいずれも満たさない | アダプタなし（`harness.md` 内のフォールバック規則に従う） |
+
+    -   **Antigravity で `swarm` が利用できない文脈（`invoke_subagent` 内など）の扱い:** 判別条件から `swarm` を外すことで、`swarm` が使えない Antigravity 文脈でも必ず `_lib/harness-antigravity.md` のサンドボックス最小昇格規則と禁止コマンド一覧が適用される。その文脈で `pinned-worker` または `subagent-role` が呼ばれたときは、`swarm` 不在として 4.1 節の安全なフォールバック（上位モデルのレビューは停止、クロスチェックの部分レビューは `not run (agent-cannot-call)`、エスカレーション判定は `ask`、`subagent-role` はフォールバック）へ倒す。
 
     -   **抽象操作カタログ（AC-02、AC-04〜AC-08）:** 正本手順で使う操作を次の 10 個に統一し、`harness-claude.md` と `harness-antigravity.md` が同一の見出し番号・操作名で具体実装を定義する。
 
@@ -321,8 +323,8 @@ sequenceDiagram
 | 4 | `shell-run` | タイムアウト付きシェル実行とサンドボックス規則 | `Bash`（`.claude/settings.json` 準拠） | `run_command`（標準サンドボックス優先、必要単一コマンドのみ `BypassSandbox: true`） | 利用可能なシェル実行ツール |
 | 5 | `web-lookup` | 外部仕様の確認（`mkreq`・`mkarch`・`mkplan` 等） | `WebSearch`・`WebFetch` | `search_web` | 利用可能な検索ツール（なければ省略せずその旨報告） |
 | 6 | `subagent-inherit` | セッションのモデルを引き継ぐ一般サブエージェント（セルフレビュー、パネルレビュー、`/fixpr` Triage/Fix、`runplan` step 7/7.5、`mktrans`） | `Agent`（model 未指定） | `invoke_subagent(TypeName: "self", Model: "inherit")` または読み取り専用時は `research`。`git` 差分が必要な呼び出し（`runplan` step 7/7.5 等）はメインセッションが事前にスクラッチパッドへ直接リダイレクト書き出しして `read_file` で渡す | OpenCode の既定サブエージェント機構（`/fixpr` 等） |
-| 7 | `subagent-role` | `standard` / `low` 段階を指定する一般サブエージェント（`japrose`、`fixpr` Phase 6、確認パス） | `Agent(model: "<mapping>")`（`sonnet` / `haiku`） | `swarm(action: "models", all: true)` で残量確認 → 必要入力をスクラッチパッドへ直接リダイレクト書き出し → `swarm(action: "add", model: "<mapping>", workspace: "inherit")` → 初回ターン 1 秒 `schedule` 遷移 + 30 分 `schedule(TimerCondition: "never")` + `read_board` / `swarm_wait` → 全出口 `kill` とタイマー解除。`models` 不可または失敗時は 4.1 節の呼び出し元別フォールバックに従う | OpenCode の既定サブエージェント機構 |
-| 8 | `pinned-worker` | 厳密なモデル固定と検証が必須のワーカー（上位モデルのレビュー、クロスチェックの部分レビュー、エスカレーション判定、マージ後の確認） | `Agent(model: "<mapping>")` + 出力 1 行目 `Model: <id>` 検証 + `TaskStop` | 起動前残存掃除 + `models` 事前確認 + スクラッチパッド直接リダイレクト書き出し + 起動前状態チェック + `swarm(action: "add")` + 返却 JSON `"model"` バイト完全一致検証 + 初回ターン無条件 1 秒 `schedule` 遷移 + 30 分 `schedule(TimerCondition: "never")` + `read_board` / `swarm_wait` + 全出口 `kill`・タイマー解除・終了時状態チェック | 呼び出し不可として安全側処理（エスカレーション=`ask`、上位モデルレビュー=停止、クロスチェック=`not run` 理由 `agent-cannot-call`） |
+| 7 | `subagent-role` | `standard` / `low` 段階を指定する一般サブエージェント（`japrose`、`fixpr` Phase 6、確認パス） | `Agent(model: "<mapping>")`（`sonnet` / `haiku`） | `swarm` 利用可否と `models` 残量を確認 → 既存メンバー一覧を退避 → 必要入力をスクラッチパッドへ直接リダイレクト書き出し → 起動前状態チェック → `swarm(action: "add", model: "<mapping>", workspace: "inherit")`（brief で `swarm` 呼び出し・ヘルパー追加を禁止）→ 初回ターン 1 秒 `schedule` 遷移 + 30 分 `schedule(TimerCondition: "never")` + `read_board` / `swarm_wait` → 全出口で `kill`・タイマー解除・`status` 不正ヘルパー検査・終了時状態チェック。`swarm` 不在または `models` 不可・失敗時は 4.1 節の呼び出し元別フォールバックに従う | OpenCode の既定サブエージェント機構 |
+| 8 | `pinned-worker` | 厳密なモデル固定と検証が必須のワーカー（上位モデルのレビュー、クロスチェックの部分レビュー、エスカレーション判定、マージ後の確認） | `Agent(model: "<mapping>")` + 出力 1 行目 `Model: <id>` 検証 + `TaskStop` | `swarm` 利用可否確認 → 自セッション記録済みの残存ワーカー掃除＋既存メンバー一覧退避 → `models` 事前確認 → スクラッチパッド直接リダイレクト書き出し → 起動前状態チェック → `swarm(action: "add")`（brief で `swarm` 呼び出し・ヘルパー追加を禁止）→ 返却 JSON `"model"` バイト完全一致検証 → 初回ターン無条件 1 秒 `schedule` 遷移 + 30 分 `schedule(TimerCondition: "never")` + `read_board` / `swarm_wait` → 全出口で `kill`・タイマー解除・`status` 不正ヘルパー検査・終了時状態チェック | 呼び出し不可として安全側処理（エスカレーション=`ask`、上位モデルレビュー=停止、クロスチェック=`not run` 理由 `agent-cannot-call`） |
 | 9 | `timer-wait` | 30 分タイムアウト監視と定期確認の待機 | バックグラウンド `sleep` + `TaskStop`（`ToolSearch` 経由） | `schedule(DurationSeconds: ..., TimerCondition: "never")` + `manage_task(Action: "kill")`（シェルの `sleep` 禁止） | 利用可能な待機手段 |
 | 10 | `notify-user` | 長時間作業完了時の利用者通知 | `PushNotification`（利用可能な場合） | ツール不在のため最終報告で代替（`_context.md:52`） | 最終報告で代替 |
 
@@ -339,7 +341,7 @@ Antigravity CLI がカスタムスキルとして自動検出する `.agents/ski
 -   **対象コマンド（`main` 現時点の 11 件）:** `mkreq`・`mkarch`・`mkplan`・`mkplan2`・`runplan`・`runpr`・`fixpr`・`mergepr`・`weakreview`・`japrose`・`mktrans`。実装時点で `main` に `chief.md` 以外の利用者起動コマンドが増えていれば同じ契約で追加する。`chief` のスキルは置かない（AC-11）。
 -   **言語と形式:** `CLAUDE.md`「Document language」原則 (b) に従い英語で書く。YAML フロントマター（`name`・`description`）と、次の 4 点を指す短い本文のみを置き、コマンド手順のステップ本文は一切複製しない（AC-10）。
     1.  `.claude/commands/_context.md` を読むこと。
-    2.  `.claude/commands/_lib/harness.md` と `.claude/commands/_lib/harness-antigravity.md` を読み、全手順の抽象操作を Antigravity アダプタで実行すること。
+    2.  `.claude/commands/_lib/harness.md` を読み、その決定的判別規則に従って該当アダプタ（Antigravity セッションでは `.claude/commands/_lib/harness-antigravity.md`）を読み込み、全手順の抽象操作をアダプタ経由で実行すること。
     3.  正本 `.claude/commands/<cmd>.md` を読み、引数仕様・事前認可（Authorization）・停止条件を含めてそのまま実行すること。
     4.  `AGENTS.md` および `CLAUDE.md` の禁止規則（インストール型ツールのビルド・インストール禁止、`herdr` / `git worktree` 変更禁止等）を遵守すること。
 
@@ -357,7 +359,7 @@ Antigravity CLI がカスタムスキルとして自動検出する `.agents/ski
 
 #### `### Harness model mapping` 表の固定スキーマ
 
-`_context.md` の末尾付近に独立した見出し `### Harness model mapping` を置き、次の固定 5 列（ヘッダ `| Harness | Role | Launch | Model | Verification pattern |`、区切り `|---|---|---|---|---|`、各データセルは単一バッククォート囲み）で表を定義する（AC-16）。
+`_context.md` の `## Process convention` 節配下（`### Command routing` の直後、かつ `## Domain-specific (replace wholesale when porting)` より前）に独立した見出し `### Harness model mapping` を置き、他プロジェクトへの移植時に誤って削除されない配置にする。表は次の固定 5 列（ヘッダ `| Harness | Role | Launch | Model | Verification pattern |`、区切り `|---|---|---|---|---|`、各データセルは単一バッククォート囲み）で定義する（AC-16）。
 
 | Harness | Role | Launch | Model | Verification pattern |
 |---|---|---|---|---|
@@ -409,7 +411,7 @@ Antigravity CLI がカスタムスキルとして自動検出する `.agents/ski
 -   **共有手順の改名（`.claude/commands/_lib/opus-review.md` → `_lib/high-review.md`）:**
     -   並列の発見レビュー 2 本（正しさ・弱いモデルの失敗）と確認のレビューの起動を `harness.md` の `pinned-worker`（役割 `high`）へ委譲する。
     -   Antigravity ではセッションが自身のモデルの ID を検証できないため、`runplan.md` は `Implementation model:` 行を書かない（AC-20）。その結果、`high`・`standard+high-review`・読めない値のプラン PR では、有効な完了記録がない限り `high-review-decision.sh` が `RUN` を返し、上位モデルのレビューが必ず走る。
-    -   Claude Code では現行どおり `Implementation model: <START12>..<END12> <model-id>[, ...]` を書き、`high-review-decision.sh` が `_context.md` の `Role == high` の全 `Verification pattern` と照合する（AC-19）。
+    -   Claude Code では現行どおり `Implementation model: <START12>..<END12> <model-id>[, ...]` を書き、`high-review-decision.sh` が `_context.md` の `Role == high` のうちセッションが自身のモデルの ID を検証できるハーネス（`Launch == agent`、すなわち Claude Code）の `Verification pattern` のみと照合する（AC-19・AC-20）。Antigravity の `Role == high` 行（`Launch == swarm`、`gemini-4-neon-high`）は `Implementation model:` の照合対象に**含めない**。これにより、自身のモデルの ID を検証できない Antigravity セッション（`hydrogen` や `neon-medium` 等）が誤って `Implementation model: <range> gemini-4-neon-high` を書き込んでも、`NONE all-high` で上位モデルのレビューを素通りすることが構造上起きない。
     -   状態チェック（`The state check`）は `_lib/cross-check-review.md` の共通ブロックを参照し、発見レビュー起動前・終了時・修正コミット直前の再比較（終了後の状態チェック）、および修正コミット後の確認レビュー起動前（新基準ハッシュ再取得）・終了時のすべてで実行する。
     -   **記録行の厳密形式（AC-23、現行 `_lib/opus-review.md:85, 112` の接頭辞のみ一般化）:**
         -   完了記録: `High review: done <START12>..<END12> (critical <n>, major <n>, minor <n>)`（互換読み取り: 旧 `Opus review: done ...`）
@@ -418,7 +420,7 @@ Antigravity CLI がカスタムスキルとして自動検出する `.agents/ski
 -   **判定スクリプトの改名と契約（`_lib/opus-review-decision.sh` → `_lib/high-review-decision.sh`）:**
     -   呼び出し元（`_lib/high-review.md` の Entry 1、すなわち判定スクリプトを経由する入口）は `git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/high-review-decision.sh > <decision-script>` で取り出して実行する。
     -   スクリプト本体に `review-records.sh` 相当の環境クリーンアップ、`set -o pipefail`、`GIT_NO_REPLACE_OBJECTS=1` を適用し、`origin/main:.claude/commands/_context.md` の取得失敗を `2>/dev/null` で握り潰さない。
-    -   `value-low`・`value-absent` の早期返却より**前**に `origin/main:.claude/commands/_context.md` の旧値読み替え表と `### Harness model mapping` 表全体を検証し、`Role == high` の有効パターンが 1 件以上あることを確認する（AC-18）。表欠落・形式不正時は標準エラーへ診断を出力し、`RUN`（終了コード `0`）を返す。
+    -   `value-low`・`value-absent` の早期返却より**前**に `origin/main:.claude/commands/_context.md` の旧値読み替え表と `### Harness model mapping` 表全体を検証し、`Role == high` かつ自己検証可能なハーネス（`Launch == agent`）の有効パターンが 1 件以上あることを確認する（AC-18・AC-19・AC-20）。表欠落・形式不正時は標準エラーへ診断を出力し、`RUN`（終了コード `0`）を返す。
     -   出力契約（現行 `_lib/opus-review-decision.sh:13-20, 43-47, 287-291` を維持し、理由コードのみ一般化）:
         -   `RUN`: レビュー必要、またはすべてのエラー時（終了コード `0`）。エラー時は標準エラーへ `high-review-decision: <reason>` を出力し、呼び出し元は `RUN` を受けたら標準エラーの診断を利用者へ表示する。
         -   `NONE value-low`（旧 `NONE value-sonnet`）
@@ -461,7 +463,7 @@ Antigravity CLI がカスタムスキルとして自動検出する `.agents/ski
 -   **プロトコル番号（`internal/fixprguard/types.go:21`）:** 現行 `const Protocol = 6` を実装時に `main` の値 + 1 へ引き上げる（AC-36）。
 -   **監視の一覧の拡張（`internal/fixprguard/ignored.go:35-90`）:**
     -   単一の `watchTopDir = ".claude"` を複数スライス `watchTopDirs = []string{".claude", ".agents"}` に改め、`WatchListPatterns()` が `".claude/"` と `".agents/"` の両方を先頭に出力する契約にする。
-    -   `watchNames` に `"agents.md"`, `"agent.md"`, `"gemini.md"`, `"agents.override.md"` を追加する（`internal/fixprguard/scope.go:54` の指示ファイル名集合と一致、Unicode 単純ケースフォールディング `foldEqual` で照合）。
+    -   `watchNames` に `"agents.md"`, `"agent.md"`, `"gemini.md"`, `"agents.override.md"` を追加する（AC-36 の 4 ファイル名を任意階層で Unicode 単純ケースフォールディング `foldEqual` により照合する。なお、`claude.local.md` は現行 `ignored.go:40` のとおり `watchTopFiles` として最上位のみ監視する点が任意階層の `scope.go:54` と異なるため、その既存仕様を維持する）。
 -   **`.agents/` 配下のネスト `.git` 検査と番兵エラー（`internal/fixprguard/ignored.go:190-222,370-422`）:**
     -   既存の `errClaudeGitName`（`fmt.Errorf("%w: .git name below .claude", ErrGitFailed)`）はそのまま残し、`.agents/` 向けに新しい番兵エラーを 1 つ追加する。
 
@@ -556,7 +558,7 @@ var errAgentsGitName = fmt.Errorf("%w: ignored .git name below .agents", ErrGitF
 | 上位モデルのレビュー（`_lib/high-review.md`、AC-22） | (1) モデル固定起動なし（OpenCode 等）<br>(2) `models` にモデルが存在しない、または割り当て `<= 0%`<br>(3) `add` 返却（予備 `status` 含む）の `"model"` 不一致<br>(4) `add` エラーまたは実行エラーの再試行（1 回）後失敗、または 30 分超過<br>(5) 出力形式不一致（複数投稿・1 行目 `@coordinator` 不一致含む）または状態チェック差分 | Fail-Closed: 別モデルで代替せず、呼び出し元コマンドを即時停止（`/runplan` は PR 作成も push もしない、`/weakreview` は修正コミットを作らない） | 停止理由と状態チェック差分パート名を利用者へ報告 | アクティブな全 `swarm` ワーカーを `kill`、タイマーを `manage_task(Action: "kill")` で解除、終了時状態チェック |
 | クロスチェックの部分レビュー（`_lib/cross-check-review.md`、AC-27・AC-28・AC-31） | (1) 起動手段なし（`agent-cannot-call`）<br>(2) 対象なし（`no-target`）<br>(3) モデルが存在しない・割り当て `<= 0%`・`add` エラーや実行エラーの再試行後失敗（`unavailable`）<br>(4) モデルの ID 不一致（`wrong-model`）<br>(5) 30 分超過（`timeout`）<br>(6) 出力形式不正（複数投稿・1 行目 `@coordinator` 不一致・30 件超過含む、`unreadable`） | Fail-Open（PR 自体は止めない）: 該当理由コード付きで `Cross-check review: not run <START12>..<END12> (<reason>[; <seconds>s, tokens <tokens>])` を記録して続行。<br>**ただし**状態チェック（`wrong-model` 出口含む全出口）で差分が出た場合のみ Fail-Closed として即時停止 | 記録行へ反映、結果破棄 | 同上（不一致時は `add` 直後に即時 `kill` → 終了時状態チェック） |
 | エスカレーション判定（`_lib/pr-review-escalation.md`、AC-07） | `high` ワーカー起動不可、割り当て切れ、モデルの ID 不一致、応答が固定 3 メンバ JSON（`decision`・`criteria`・`reason`）以外、タイムアウト | Fail-Safe: `ask`（マージの質問で PR レビュー依頼を推奨）として扱う。状態チェック差分時は Fail-Closed 停止 | `ask` 判定 | 同上 |
-| `subagent-role`（`japrose`・`fixpr` Phase 6・確認パス、AC-06） | Antigravity で `models` にモデルが存在しない・割り当て `<= 0%`・`add` エラー・30 分超過 | `japrose`・確認パス: `invoke_subagent(TypeName: "self", Model: "inherit")` へフォールバック（それでも不可なら停止して報告）。<br>`fixpr` Phase 6: PR 説明を変更せず Final report へ記録（`fixpr.md` 現行契約維持） | フォールバックまたは未変更報告 | 全出口で `swarm(action: "kill")`・タイマー解除 |
+| `subagent-role`（`japrose`・`fixpr` Phase 6・確認パス、AC-06） | Antigravity で `swarm` 不在・`models` にモデルが存在しない・割り当て `<= 0%`・`add` エラー・30 分超過。<br>不正ヘルパーワーカー出現または終了時状態チェック差分 | `swarm` 不在・利用不可・タイムアウト時: `japrose`・確認パスは `invoke_subagent(TypeName: "self", Model: "inherit")` へフォールバック（それでも不可なら停止して報告）、`fixpr` Phase 6 は PR 説明を変更せず Final report へ記録（`fixpr.md` 現行契約維持）。<br>**ただし**不正ヘルパーワーカー出現または状態チェック差分時は Fail-Closed として結果を破棄し呼び出し元コマンドを即時停止 | フォールバック／未変更報告、または Fail-Closed 停止 | 全出口で `swarm(action: "kill")`・タイマー解除・`status` 不正ヘルパー検査（出現時は全ヘルパーも `kill`）・終了時状態チェック |
 | `high-review-decision.sh`（AC-18） | 引数不正、git 失敗、`origin/main:_context.md` 欠落・表全体不正・パターン 0 件、計画書読取不能、重複値欄 | Fail-Closed: レビュー必要側へ倒す | 標準出力 `RUN`、標準エラー診断（呼び出し元が表示）、終了コード `0` | なし（読み取り専用） |
 | `review-records.sh`（AC-30） | `cross-check`（および別名 `fable`）モードでの引数不正、git 失敗、`_context.md` 欠落・表全体不正・パターン 0 件 | Fail-Closed: 記録無効側へ倒す | 標準出力 `MISSING`、標準エラー診断、終了コード `1`（`coverage` モードは `_context.md` 非依存、`PARTIAL`・終了コード `1`） | なし（読み取り専用） |
 | `internal/fixprguard`（AC-36） | `.claude/` または `.agents/` 配下の `.git` エントリ検出、走査上限超過、読み込み失敗 | Fail-Closed: ラウンドを停止し、ファイルパスや名称を漏らさず規則名のみを返す | `ErrGitFailed` を元のエラーに含めたエラー（`errClaudeGitName` / `errAgentsGitName` 等） | なし |
@@ -564,13 +566,14 @@ var errAgentsGitName = fmt.Errorf("%w: ignored .git name below .agents", ErrGitF
 
 ### 4.2. 並列ワーカー・再試行・タイムアウトの協調規則
 
--   **起動前の残存掃除と一意命名:** Antigravity の `pinned-worker` と `subagent-role` は、1 回の実行単位（並列 2 ワーカー起動時は 1 本目を起動する直前の 1 回のみ）の開始前に `swarm(action: "status")` を確認し、前回の実行の異常終了等で残存する未終了ワーカーだけを先に `swarm(action: "kill")` で掃除する（同一実行単位で並列起動した稼働中のワーカーは対象外とし、2 本目の起動時に 1 本目を `kill` しない）。ワーカー名とスクラッチパッドのファイル名は固定名にせず、役割・パス・試行番号（例: `high-correct-1`、`high-weak-1`、`cc-review-1`、`<run-id>-diff.patch`）で一意化する。
+-   **起動前の残存掃除と一意命名（他ワーカー非破壊）:** メインセッションは自身が起動したすべてのワーカー名をコマンド接頭辞＋実行 ID 付き（例: `high-correct-1`、`high-weak-1`、`cc-review-1`）でセッション文脈に記録する。1 回の実行単位（並列 2 ワーカー起動時は 1 本目を起動する直前の 1 回のみ）の開始前に `swarm(action: "status")` を確認し、**このセッションが前回の実行で起動・記録して未終了のまま残ったワーカーだけ**を `swarm(action: "kill")` で掃除する。利用者や別のライブ swarm が起動した無関係なワーカーは一切終了させない（`kill` は共有／分岐ワークスペースを恒久削除するため）。また同時に起動前の全メンバー名一覧をセッション文脈へ退避し、スクラッチパッドのファイル名も `<run-id>-diff.patch` のように一意化する。
+-   **ワーカーによるヘルパー追加の禁止と終了時検出:** Antigravity の `swarm` ワーカーはツール一覧に `swarm` を持ち、親ワーカーを `kill` しても子が残存する仕様である。そのため、すべての `pinned-worker` と `subagent-role` の brief で `swarm` ツールの呼び出しおよびヘルパーワーカーの追加を明示的に禁止する。さらに、すべての出口（完了・不一致・エラー・タイムアウト）で対象ワーカーを `kill` した直後かつ終了時状態チェックより前に `swarm(action: "status")` を取得し、起動前に退避したメンバー一覧と自分が起動したワーカー以外に新たなメンバーが増えていれば、不正ヘルパーと判断して増えたメンバーをすべて `swarm(action: "kill")` し、結果を破棄して Fail-Closed で即時停止する（別モデルへの勝手な委譲と状態チェック後の作業ツリー改変を防ぐ）。
 -   **並列 2 ワーカー（`high-review`）の部分失敗規則:**
     -   2 本の並列発見ワーカーのうち一方でもモデル不一致または状態チェック差分が出たときは、もう一方の稼働中ワーカーを含め全アクティブワーカーを直ちに `swarm(action: "kill")` し、タイマーを解除して終了時状態チェックを行ったうえで即時停止する（再試行しない）。
     -   一方が一時的なエラー（`add` エラーや実行エラー）で失敗したときは、残る稼働中ワーカーの完了または `kill` を済ませてアクティブワーカーを 0 にしてから終了時状態チェックを行い、差分がなければ 1 回限り再試行する。
 -   **一時的エラー時の再試行境界:** 上位モデルのレビューおよびクロスチェックの部分レビューともに、1 回目の呼び出しが一時的なエラー・利用上限で失敗した場合に限り 1 回だけ再試行する（クロスチェックで再試行も失敗した場合は理由 `unavailable` を記録）。モデルの ID 不一致・状態チェック差分・30 分タイムアウトでは再試行しない。
 -   **タイマーと並列作業の分離:** 30 分（1,800 秒）タイマーおよび初回ターン遷移用の 1 秒タイマーはいずれも `schedule(DurationSeconds: ..., TimerCondition: "never", Prompt: ...)` で設定し、並列の CodeRabbit CLI やサブエージェント通知による早期解除を防ぐ。ワーカーの応答取得・エラー・不一致・停止のすべての出口で `manage_task(Action: "kill", TaskId: ...)` により残存タイマーを必ず解除する。
--   **応答メッセージの厳密受理とハング防止:** Antigravity ワーカーは単一の `post_message` で 1 行目に `@coordinator` のみを置き、2 行目以降に本文を書く。メインセッションは 1 行目が厳密に `@coordinator`（前後空白除去後）であることと同一ワーカーからの投稿が 1 件のみであることを検証してから 1 行目を除いて形式検査し、違反は `unreadable`（クロスチェック）または `stopped-error`（上位モデルのレビュー）とする。また、ワーカーが `@coordinator` を付け忘れて `waiting` 状態になった場合に `swarm_wait` が 30 分間ハングするのを防ぐため、並列作業完了後の第 2 ターンで `swarm(action: "status")` と `read_board(since: brief_seq)` を併せて確認し、既に `waiting` かつ `last_post_seq > brief_seq` なら即座に回収・検査して終了する。
+-   **応答メッセージの厳密受理とハング防止:** Antigravity ワーカーは単一の `post_message` で 1 行目に `@coordinator` のみを置き、2 行目以降に本文を書く。メインセッションは 1 行目が厳密に `@coordinator`（前後空白除去後）であることと同一ワーカーからの投稿が 1 件のみであることを検証してから 1 行目を除いて形式検査し、違反は `unreadable`（クロスチェック）または `stopped-error`（上位モデルのレビュー）とする。また、ワーカーが `@coordinator` を付け忘れて `waiting` 状態になった場合に `swarm_wait` が 30 分間ハングするのを防ぐため、並列作業完了後の第 2 ターンで `swarm(action: "status")` と `read_board(since: brief_seq)` を併せて確認する。`last_post_seq` フィールドが欠落しているメンバーは「未投稿」（`0` 相当）として扱い（形式エラーにしない）、`waiting` かつ `last_post_seq` が存在して `last_post_seq > brief_seq` なら即座に回収・検査して終了する。
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
 
@@ -619,7 +622,9 @@ flowchart LR
 1.  **モデルすり替わりと自己申告偽装の防止（AC-07・AC-21・AC-27）:**
     -   Antigravity の `swarm` ワーカーはシステムプロンプトから自分のモデルの ID を読めず、本文の自己申告はプロンプトのオウム返しで偽装しうる。そのため本文の `Model:` 行は一切求めず、ハーネス自身が返す JSON のみを信頼する。
     -   `swarm(action: "models", all: true)` では、`models` 配列に指定モデルの ID が完全一致で含まれ、かつ `quotas.<model-id>.quota_remaining` が正の百分率文字列（`%` 終端かつ数値部 `> 0`）であることだけを検証し、他のメンバは無視する。欠落・型違い・`"0%"`・非百分率文字列は利用不可として拒否する。
-    -   `swarm(action: "add")` の返却 JSON では `"model"`（文字列）だけを検証する（`"model"` フィールド自体が `add` のスキーマに欠落している場合のみ起動直後に `swarm(action: "status")` を 1 回予備参照する）。`"model"` が非文字列（`null`・数値・真偽値など）の場合や指定モデルの ID とバイト単位で完全一致しない場合は、`status` による補完・正規化・別モデル代替を一切行わず即座に `swarm(action: "kill")` と終了時状態チェックを実行して終了する。
+    -   `swarm(action: "add")` の返却 JSON では `"model"`（文字列）だけを検証する（`"model"` フィールド自体が `add` のスキーマに欠落している場合のみ起動直後に `swarm(action: "status")` を 1 回予備参照する）。`"model"` が非文字列（`null`・数値・真偽値など）の場合や指定モデルの ID とバイト単位で完全一致しない場合は、`status` による補完・正規化・別モデル代替を一切行わず即座に `swarm(action: "kill")`・不正ヘルパー検査・終了時状態チェックを実行して終了する。
+    -   ワーカーによるヘルパー追加（別モデルへの委譲や状態チェック後の改変）を防ぐため、全 `pinned-worker`・`subagent-role` の brief で `swarm` 呼び出しを禁止し、起動前後の `swarm(action: "status")` メンバー一覧を照合して不正追加メンバーがいればすべて `kill` して Fail-Closed 停止する。
+    -   `high-review-decision.sh` が `Implementation model:` 行を照合する対象は、自己のモデルの ID を検証できるハーネス（`Launch == agent`、Claude Code）の `Role == high` パターンのみに限定し、Antigravity（`Launch == swarm`）の `gemini-4-neon-high` では `NONE all-high` を成立させない（AC-19・AC-20）。
 2.  **`_context.md` パターン読み取りの改ざん・正規表現インジェクション防止（AC-18・AC-30）:**
     -   判定スクリプトは必ず `origin/main` の `.claude/commands/_context.md` を `--no-replace-objects`・クリーン環境下で読み、作業ブランチによる改変を無視する。
     -   `Verification pattern` は 3.3 節の厳密文法（リテラルまたは末尾 `*` 前方一致）で全行を検証し、照合時はパターン文字列を正規表現・非引用 glob として評価しない（`.` はリテラル文字 `.` のみ一致、接尾辞は固定文字集合・48 文字上限 `^[a-z0-9.-]{1,48}$`）。
@@ -662,7 +667,7 @@ sequenceDiagram
     alt 有効な記録あり（VALID）
         Main-->>Main: 部分レビューをスキップし CodeRabbit のみ実行
     else MISSING（実行必要）
-        Main->>Swarm: swarm(action: "status") で前回の残存ワーカーを掃除
+        Main->>Swarm: swarm(action: "status") で自セッション記録済みの残存ワーカーのみ掃除＋メンバー一覧退避
         Main->>Swarm: swarm(action: "models", all: true)
         alt モデルなし または quota_remaining <= 0%
             Main-->>Main: not run (unavailable) を記録予定にし CodeRabbit のみ実行
@@ -673,10 +678,11 @@ sequenceDiagram
             Main->>Swarm: swarm(action: "add", name: "<run-id>", model: "claude-opus-5-5-medium", workspace: "inherit", brief)
             Swarm-->>Main: JSON（"model" フィールド含む）
             alt add エラー（再試行 1 回後も失敗）
+                Main->>Swarm: status 不正ヘルパー検査
                 Main->>Git: 状態チェック（終了時）
                 Main-->>Main: not run (unavailable) を記録予定にし CodeRabbit を実行
-            else "model" != "claude-opus-5-5-medium"（欠落時は status 1 回予備確認）
-                Main->>Swarm: swarm(action: "kill", name: "<run-id>")
+            else "model" != "claude-opus-5-5-medium"（欠落時は status 1 回予備確認、非文字列は即 kill）
+                Main->>Swarm: swarm(action: "kill", name: "<run-id>") ＋ status 不正ヘルパー検査・kill
                 Main->>Git: 状態チェック（終了時、差分時は Fail-Closed 停止）
                 Main-->>Main: not run (wrong-model) を記録予定にし CodeRabbit を実行
             else 一致
@@ -689,8 +695,8 @@ sequenceDiagram
                     Main->>Swarm: schedule(DurationSeconds: 1, TimerCondition: "never") で無条件に第 2 ターンへ遷移
                 end
                 Main->>Swarm: status ＋ read_board(since: brief_seq)（未着かつ working なら swarm_wait）
-                Main->>Swarm: swarm(action: "kill", name: "<run-id>") ＋ manage_task(Action: "kill", TaskId: timer_id)
-                Main->>Git: 状態チェック（終了時、差分時は Fail-Closed 停止）
+                Main->>Swarm: swarm(action: "kill", name: "<run-id>") ＋ manage_task(Action: "kill", TaskId: timer_id) ＋ status 不正ヘルパー検査・kill
+                Main->>Git: 状態チェック（終了時、差分・不正ヘルパー時は Fail-Closed 停止）
                 Main-->>Main: 単一投稿・1行目 @coordinator 検証除去 → 形式検査 → CodeRabbit と統合トリアージ
             end
         end
@@ -780,7 +786,7 @@ flowchart TD
 
 -   **`cmd/yt2column/review_records_test.go`:**
     -   `newRRFixture` に `_context.md`（`### Harness model mapping` 含む）を組み込み、`review-records.sh` の `cross-check` モードと互換別名 `fable` モードの両方で、新記録行（`Cross-check ...`）・旧記録行（`Fable ...`）・引数なしチェックポイント行・新理由 `wrong-model` と旧理由 `not-fable`・Claude Code（`claude-fable-*`）と Antigravity（`claude-opus-5-5-medium`）のモデルの ID が正しく判定されることを検証する（bash 3.2 と bash 4+ の双方で実行）。あわせて `coverage` モードが `_context.md` なしでも動作することを検証する。
-    -   `high-review-decision.sh` のフィクスチャテストを追加または拡張し、`_context.md` の `high` パターン（`claude-opus-*`・`gemini-4-neon-high`）での `NONE all-high`、新旧 `High review: done` / `Opus review: done` による `SKIP <done-line>`（END 以降の除外可能コミット一覧含む）、および不正 `_context.md` 時の安全側 `RUN`＋標準エラー診断を検証する。
+    -   `high-review-decision.sh` のフィクスチャテストを追加または拡張し、`_context.md` の自己検証可能な `high` パターン（`Launch == agent` の `claude-opus-*`）での `NONE all-high`、新旧 `High review: done` / `Opus review: done` による `SKIP <done-line>`（END 以降の除外可能コミット一覧含む）、および不正 `_context.md` 時の安全側 `RUN`＋標準エラー診断を検証する。
 -   **状態チェックのブロックテスト（現行 `cmd/yt2column/fable_state_docs_test.go` を一般化）:**
     -   `_lib/cross-check-review.md` の `## The state check` ブロックを実行し、既存の `flags`・`hooks`・`replace`・`ops`・破損インデックスに加えて、git 無視された `.agents/skills/evil/SKILL.md`・`AGENTS.md`・`GEMINI.md`・`AGENTS.override.md` の追加・変更、および `.agents/` 配下の `.git` エントリ検出で `watched` ハッシュ変化または非ゼロ終了となることを検証する。
 
@@ -795,7 +801,7 @@ flowchart TD
 ### 7.5. セキュリティテスト
 
 -   **`_context.md` のモデルパターン不正入力・非正規表現照合テスト（`review_records_test.go`）:** `Verification pattern` に正規表現メタ文字（`.*`・`[a-z]+`・`(a|b)`・`^foo$`）・空白・途中ワイルドカード（`foo*bar`）・長さ超過を含む表、重複 `(Harness, Role)` 行、表欠落、別役割行の 1 行破損を与えたとき、`review-records.sh` が `MISSING`（終了コード `1`）、`high-review-decision.sh` が `value-low` 計画であっても `RUN`（終了コード `0`）＋標準エラー診断を返すことを検証する。さらに `.` を含むパターン（例: `v1.0-*`）が `v1X0-a` に一致しない（`.` がリテラル一致のみである）ことと、49 文字以上の接尾辞が拒否されることを検証する。
--   **未許可モデルの ID とモデル不一致の拒否テスト:** `claude-opus-`（空接尾辞）、`claude-opus-4 7`（空白含む）、`gemini-4-argon-high`（未登録モデル）が実施記録として受理されないことを検証する。
+-   **未許可モデルの ID と自己検証不能ハーネスの拒否テスト:** `claude-opus-`（空接尾辞）、`claude-opus-4 7`（空白含む）、`gemini-4-argon-high`（未登録モデル）が実施記録として受理されないこと、および `Implementation model: <range> gemini-4-neon-high`（`Launch == swarm` の自己検証不能ハーネス）を含むブランチに対して `high-review-decision.sh` が `NONE all-high` ではなく `RUN` を返すことを検証する。
 -   **`.agents/` ネスト `.git` 隠蔽テスト（`internal/fixprguard/ignored_test.go`）:** `.agents/sub/.git` や `.agents/sub/.GIT` が存在するとき `errAgentsGitName` で停止することを検証する。
 
 ## 8. 実装優先順位とフェーズ分割 (Implementation Priorities)
