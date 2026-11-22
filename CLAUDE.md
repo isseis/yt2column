@@ -615,6 +615,21 @@ its security rules in `docs/dev/security.md` §8.
   not one paragraph of their own, or change the trailers git reads stops the
   merge; and the rest of a correction line has no required form: only its
   characters are classified.
+  Exception: `internal/ciskip` chooses behavior by inspecting the content of
+  external inputs from GitHub Actions, `git`, `extension/scripts/wasm-dep-dirs.sh`,
+  `extension/scripts/has-extension-changes.sh`, and `gh api -i`. Scope: GitHub
+  Actions context strings (repository allowlist, base ref, head SHA, PR number,
+  run attempt, `wasm-dep-dirs` flag), `git rev-list --parents` and `git rev-parse`
+  commit OIDs, NUL-delimited `git diff -z` file paths and the non-code path rule,
+  `wasm-dep-dirs` file lines, `has-extension-changes.sh` output, and `gh api -i`
+  HTTP status lines, RFC 8288 `Link` headers, and `ci-base-sha` check-run
+  annotation values; this is the only place their content selects behavior.
+  Reason: these are external values written by GitHub Actions, `git`, the
+  extension helper scripts, and GitHub's REST API, which the tool cannot express
+  in a type, and inspecting them is the purpose of the CI skip gate. Boundary:
+  every input is validated strictly without trimming or normalization, and any
+  unmatched, malformed, missing, duplicate, or oversized value maps to a non-skip
+  `Reason` (`Decision.Skip() == false`, falling back safely to a normal CI run).
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
