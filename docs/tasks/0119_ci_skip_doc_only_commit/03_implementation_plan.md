@@ -136,15 +136,15 @@
 **ステップ 1-4: GitHub API 検証と `Evaluator` 統合・セキュリティテストを実装する**
 
 -   対象ファイル：`internal/ciskip/github.go`、`internal/ciskip/ciskip.go`、`internal/ciskip/github_test.go`（`//go:build test`）、`internal/ciskip/ciskip_test.go`（`//go:build test`）
--   [ ] 設計書 §3.3.3・§3.4 の `gh api --hostname github.com -i` 呼び出し、LF ステータス行＋CRLF ヘッダ分離、非ゼロ終了時の `HTTPStatus` 抽出と本文・stderr 破棄、RFC 8288 `Link` ヘッダ解析（大小文字不問・引用符なし `rel=next` 含む）と固定エンドポイントでのページネーション上限、および `strictjson`（`ParseObject`・`ParseArray`・`CollectExactCase`・`AsNonNegativeInt64`）による 3 エンドポイント（Runs・Jobs・Annotations）の厳密検証を実装する。
--   [ ] `ciskip.go` へ設計書 §3.2・§3.4 の `Evaluator`・`New`・`Evaluator.Evaluate`・非公開 `newWithRunners` を追加し、`Evaluate` の全体タイムアウト（`RunTimeout: 45s`）・`nil` ランナーの安全側返却・`HEAD^2 == HeadSHA` 確認後のみ `NoticeBaseSHA = HEAD^1` を設定し以後の非スキップ判定でも保持する制御フロー（ローカル条件を先に検証し不通過時は `gh` を呼ばない）を配線する。
--   [ ] `github_test.go` には、設計書 §7.1・§7.3 の API 検証とセキュリティテストの全ケース（正常通過・複数ページ取得・`doc-guard`／`secret-scan` 失敗時の通過・連続スキップ連鎖・`(run_started_at, created_at, id)` タイブレークと不正 RFC3339・`in_progress`／`queued`・`cancelled` 等・別ワークフロー／別 PR／`head_repository: null`／`ReasonAmbiguousPRLink`・4 ジョブ欠損／重複／`head_sha` 不一致／`in_progress` かつ `conclusion: success`・アノテーション 0 件／重複／不正 SHA／`main` 更新・厳密 JSON 違反・終了 0 かつ HTTP 非 200・非 `*cmdrunner.ExitError`・ページ上限・`ErrOutputTooLarge`・コマンドおよび `RunTimeout` タイムアウト・偽 `Link` URL 無視・非 200 本文／stderr の機密非露出）を書く。あわせて `ciskip_test.go` には、`NoticeBaseSHA` の設定／非設定不変条件（基本文脈失敗や `ReasonMergeCommitMismatch` では空、`ReasonCodeChanged`・`ReasonManualRerun`・`ReasonWasmDepDirsFailed` では設定）、コード／拡張変更時の `gh` 未呼出、空コミット時の先行検証と `has-extension-changes.sh` 未呼出、ゼロ値 `Evaluator` の安全側動作、および `New(environ)` 呼び出し（`make deadcode` 到達性）を書く。
+-   [x] 設計書 §3.3.3・§3.4 の `gh api --hostname github.com -i` 呼び出し、LF ステータス行＋CRLF ヘッダ分離、非ゼロ終了時の `HTTPStatus` 抽出と本文・stderr 破棄、RFC 8288 `Link` ヘッダ解析（大小文字不問・引用符なし `rel=next` 含む）と固定エンドポイントでのページネーション上限、および `strictjson`（`ParseObject`・`ParseArray`・`CollectExactCase`・`AsNonNegativeInt64`）による 3 エンドポイント（Runs・Jobs・Annotations）の厳密検証を実装する。
+-   [x] `ciskip.go` へ設計書 §3.2・§3.4 の `Evaluator`・`New`・`Evaluator.Evaluate`・非公開 `newWithRunners` を追加し、`Evaluate` の全体タイムアウト（`RunTimeout: 45s`）・`nil` ランナーの安全側返却・`HEAD^2 == HeadSHA` 確認後のみ `NoticeBaseSHA = HEAD^1` を設定し以後の非スキップ判定でも保持する制御フロー（ローカル条件を先に検証し不通過時は `gh` を呼ばない）を配線する。
+-   [x] `github_test.go` には、設計書 §7.1・§7.3 の API 検証とセキュリティテストの全ケース（正常通過・複数ページ取得・`doc-guard`／`secret-scan` 失敗時の通過・連続スキップ連鎖・`(run_started_at, created_at, id)` タイブレークと不正 RFC3339・`in_progress`／`queued`・`cancelled` 等・別ワークフロー／別 PR／`head_repository: null`／`ReasonAmbiguousPRLink`・4 ジョブ欠損／重複／`head_sha` 不一致／`in_progress` かつ `conclusion: success`・アノテーション 0 件／重複／不正 SHA／`main` 更新・厳密 JSON 違反・終了 0 かつ HTTP 非 200・非 `*cmdrunner.ExitError`・ページ上限・`ErrOutputTooLarge`・コマンドおよび `RunTimeout` タイムアウト・偽 `Link` URL 無視・非 200 本文／stderr の機密非露出）を書く。あわせて `ciskip_test.go` には、`NoticeBaseSHA` の設定／非設定不変条件（基本文脈失敗や `ReasonMergeCommitMismatch` では空、`ReasonCodeChanged`・`ReasonManualRerun`・`ReasonWasmDepDirsFailed` では設定）、コード／拡張変更時の `gh` 未呼出、空コミット時の先行検証と `has-extension-changes.sh` 未呼出、ゼロ値 `Evaluator` の安全側動作、および `New(environ)` 呼び出し（`make deadcode` 到達性）を書く。
 -   完了の基準：`go test -tags test -race ./internal/ciskip` が通り、対応する判定を壊したときに各テストが失敗することを確かめ、コミットメッセージに記録する。
 
 **ステップ 1-5: `package_reference.md` の `strictjson` 利用者一覧と `internal/ciskip` 行を更新する**
 
 -   対象ファイル：`docs/dev/conventions/package_reference.md`
--   [ ] `package_reference.md` の `internal/strictjson` 行の `Shared by ...` 一覧へ `internal/ciskip` を追加し、`internal/ciskip` 行へ `Evaluator`・`New`・`Evaluate` を追記する（設計書 §2.2・§3.5、`package_reference.md:14-22` の記載規約に従う）。
+-   [x] `package_reference.md` の `internal/strictjson` 行の `Shared by ...` 一覧へ `internal/ciskip` を追加し、`internal/ciskip` 行へ `Evaluator`・`New`・`Evaluate` を追記する（設計書 §2.2・§3.5、`package_reference.md:14-22` の記載規約に従う）。
 -   完了の基準：`make test`（`TestPackageReferenceStrictjsonUsers` を含む）・`make lint`・`make deadcode` がすべて通り、`package_reference.md` の `internal/ciskip` 行が `ciskip.go` の公開 API と一致することを突合して確認する。
 
 ### PR-2 作成ポイント: internal/ciskip GitHub API verification and Evaluator orchestration
@@ -161,10 +161,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1086
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: `cmd/ciskip`・`.github/workflows/ci.yml` 統合・ピン留めテスト・規約更新
 
@@ -343,7 +343,7 @@ PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利�
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
-- [ ] PR-2 マージ済み（対象ステップ: 1-4 / 1-5）
+- [x] PR-2 マージ済み（対象ステップ: 1-4 / 1-5）
 - [ ] PR-3 マージ済み（対象ステップ: 2-1 / 2-2）
 - [ ] PR-4 マージ済み（対象ステップ: 2-3 / 2-4）
 - [ ] PR-5 マージ済み（対象ステップ: 3-1 / 3-2）

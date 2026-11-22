@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -226,6 +227,48 @@ func TestValidateDepDirsFile(t *testing.T) {
 	for _, tc := range pathCases {
 		t.Run(tc.name, func(t *testing.T) {
 			if reason, ok := validateDepDirsFile(tc.path, defaultScriptMaxOutput); ok || reason != ReasonWasmDepDirsFailed {
+				t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonWasmDepDirsFailed)
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name       string
+		withWriter bool
+	}{
+		// A named pipe with no writer would hold an ordinary open forever.
+		{name: "fifo_without_writer", withWriter: false},
+		{name: "fifo_with_writer", withWriter: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fifo := filepath.Join(t.TempDir(), "deps-fifo")
+			if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+				t.Fatalf("mkfifo: %v", err)
+			}
+			if tc.withWriter {
+				// O_RDWR keeps a writer endpoint open on the FIFO without blocking or
+				// failing with ENXIO when no reader has opened it yet.
+				w, err := os.OpenFile(fifo, os.O_RDWR, 0)
+				if err != nil {
+					t.Fatalf("open fifo writer: %v", err)
+				}
+				defer func() { _ = w.Close() }()
+			}
+
+			// The refusal must arrive without waiting for a writer or for content.
+			done := make(chan struct{})
+			var reason Reason
+			var ok bool
+			go func() {
+				defer close(done)
+				reason, ok = validateDepDirsFile(fifo, defaultScriptMaxOutput)
+			}()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatalf("validateDepDirsFile did not return on a named pipe")
+			}
+			if ok || reason != ReasonWasmDepDirsFailed {
 				t.Errorf("got (%q, %v), want (%q, false)", reason, ok, ReasonWasmDepDirsFailed)
 			}
 		})

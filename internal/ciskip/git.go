@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -101,17 +102,25 @@ func parseParentLine(out []byte) ([]string, bool) {
 // validateDepDirsFile reads depDirsFile up to maxBytes and checks that it is
 // non-empty, contains no NUL bytes, has at least one directory line ending in "/",
 // and that every non-empty line ends in "/".
-// Invariant: refuses empty or truncated dependency lists before calling has-extension-changes.sh,
-// which itself returns false on an empty file.
+// Invariant: only an opened regular file is read, and opening it never blocks, so a
+// named pipe or other special file placed at the path is refused instead of waiting
+// past Evaluate's overall timeout. Refuses empty or truncated dependency lists before
+// calling has-extension-changes.sh, which itself returns false on an empty file.
 func validateDepDirsFile(path string, maxBytes int) (Reason, bool) {
 	if path == "" || maxBytes <= 0 {
 		return ReasonWasmDepDirsFailed, false
 	}
-	f, err := os.Open(path) //nolint:gosec // depDirsFile path is supplied by the CI workflow's runner temp directory
+	// O_NONBLOCK keeps the open of a FIFO from waiting for a writer; the type check
+	// on the opened descriptor then refuses anything that is not a regular file.
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0) //nolint:gosec // depDirsFile path is supplied by the CI workflow's runner temp directory
 	if err != nil {
 		return ReasonWasmDepDirsFailed, false
 	}
 	defer func() { _ = f.Close() }()
+
+	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
+		return ReasonWasmDepDirsFailed, false
+	}
 
 	data, err := io.ReadAll(io.LimitReader(f, int64(maxBytes)+1))
 	if err != nil || len(data) == 0 || len(data) > maxBytes {
