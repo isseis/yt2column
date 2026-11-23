@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：解消の自動送信を 1 ラウンドに 1 件までとし、`/mergemain` の実行中は自動で送らない<br>決定の変更で draft に戻した：`/mergemain` の判定を `mergepr` に置くことに合わせてスコープと 4.5 を改め、AC-31 に `git ls-remote` を足し、AC-17 の「待つ 🟢」の行の選択肢をなくし、通知を 0088 AC-58 の例外とした |
+| Review date | 2026-11-23 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -408,4 +408,5 @@ chief は、待ち受けの間、コンフリクトの行の workspace の Claud
 ## 変更履歴
 
 - 2026-11-19 承認（isseis、#1047）
-- 2026-11-20 draft への戻し：解消の自動送信を 1 ラウンドに 1 件までとし、`/mergemain` の実行中は自動で送らない；`/mergemain` の判定を `mergepr` に置くことに合わせてスコープと 4.5 を改め、AC-31 に `git ls-remote` を足し、AC-17 の「待つ 🟢」の行の選択肢をなくし、通知を 0088 AC-58 の例外とした（#未記入）
+- 2026-11-20 draft への戻し：解消の自動送信を 1 ラウンドに 1 件までとし、`/mergemain` の実行中は自動で送らない；`/mergemain` の判定を `mergepr` に置くことに合わせてスコープと 4.5 を改め、AC-31 に `git ls-remote` を足し、AC-17 の「待つ 🟢」の行の選択肢をなくし、通知を 0088 AC-58 の例外とした（#1051）
+- 2026-11-23 承認（isseis、#1051）

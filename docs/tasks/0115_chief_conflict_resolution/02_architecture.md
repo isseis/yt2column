@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-19 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-23 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -1156,3 +1156,7 @@ flowchart TD
 
     AC-22 の規則（`origin/main` の値 + 1 にする）は、この確かめと合う。
 -   **結論。** 今の判定を変えずに、merge コミットはマージの質問で人が確かめる形になる。要件定義書が受け入れた費用（「Codex の PR レビューの再依頼か、マージの質問での確認が増えうる」）の範囲である。判定を変えることは要件の範囲（`/runpr` を変えない）を越えるので、本タスクでは行わない。
+
+## 変更履歴
+
+- 2026-11-23 承認（isseis、#1051）
