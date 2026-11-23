@@ -4,6 +4,7 @@ package ciskip
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -118,7 +119,7 @@ func parseWorkflow(t *testing.T, content string) *ciWorkflow {
 				}
 				end++
 			}
-			job := parseJob(jobID, lines[i:end])
+			job := parseJob(t, jobID, lines[i:end])
 			wf.jobs[jobID] = job
 			wf.jobOrder = append(wf.jobOrder, jobID)
 			i = end - 1
@@ -127,7 +128,8 @@ func parseWorkflow(t *testing.T, content string) *ciWorkflow {
 	return wf
 }
 
-func parseJob(id string, lines []string) *ciJob {
+func parseJob(t *testing.T, id string, lines []string) *ciJob {
+	t.Helper()
 	job := &ciJob{
 		id:          id,
 		permissions: make(map[string]string),
@@ -172,7 +174,7 @@ func parseJob(id string, lines []string) *ciJob {
 		case "outputs":
 			i = parseKeyValueMap(lines, i, nestedFieldIndent, job.outputs)
 		case "steps":
-			steps, nextIdx := parseSteps(lines, i)
+			steps, nextIdx := parseSteps(t, lines, i)
 			job.steps = steps
 			i = nextIdx
 		}
@@ -180,7 +182,8 @@ func parseJob(id string, lines []string) *ciJob {
 	return job
 }
 
-func parseSteps(lines []string, start int) ([]ciStep, int) {
+func parseSteps(t *testing.T, lines []string, start int) ([]ciStep, int) {
+	t.Helper()
 	var steps []ciStep
 	i := start + 1
 	for i < len(lines) {
@@ -204,7 +207,7 @@ func parseSteps(lines []string, start int) ([]ciStep, int) {
 				}
 				end++
 			}
-			steps = append(steps, parseOneStep(lines[i:end]))
+			steps = append(steps, parseOneStep(t, lines[i:end]))
 			i = end
 			continue
 		}
@@ -213,7 +216,8 @@ func parseSteps(lines []string, start int) ([]ciStep, int) {
 	return steps, i - 1
 }
 
-func parseOneStep(lines []string) ciStep {
+func parseOneStep(t *testing.T, lines []string) ciStep {
+	t.Helper()
 	step := ciStep{env: make(map[string]string)}
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
@@ -245,11 +249,14 @@ func parseOneStep(lines []string) ciStep {
 			i = parseKeyValueMap(lines, i, envEntryIndent, step.env)
 		case "run":
 			step.hasRun = true
-			if val == "|" || val == "|-" || val == "|+" || val == ">" || val == ">-" || val == ">+" {
+			switch val {
+			case "|", "|-":
 				body, nextIdx := parseBlockScalar(lines, i, stepFieldIndent)
 				step.runBody = body
 				i = nextIdx
-			} else {
+			case "|+", ">", ">-", ">+":
+				t.Fatalf("unsupported YAML block scalar %q in step %q; update parseOneStep", val, step.name)
+			default:
 				step.runBody = val
 			}
 		}
@@ -461,14 +468,14 @@ func extractWorkflowCLIFlags(t *testing.T, runBody string) []string {
 	}
 	flagRe := regexp.MustCompile(`--([a-z0-9-]+)=`)
 	submatches := flagRe.FindAllStringSubmatch(commands[0], -1)
-	seen := make(map[string]bool, len(submatches))
+	seen := make(map[string]struct{}, len(submatches))
 	var names []string
 	for _, m := range submatches {
 		name := m[1]
-		if seen[name] {
+		if _, dup := seen[name]; dup {
 			t.Fatalf("duplicate CLI flag --%s in ci.yml check step", name)
 		}
-		seen[name] = true
+		seen[name] = struct{}{}
 		names = append(names, name)
 	}
 	slices.Sort(names)
@@ -494,39 +501,29 @@ func TestCIWorkflowCheckChangesPin(t *testing.T) {
 			t.Fatalf("regexp.Compile(%q): %v", matches[0][1], err)
 		}
 
+		// One single-branch path per regex alternative plus anchor, escape,
+		// and case counterexamples so no single path matches two branches.
 		samplePaths := []string{
 			"",
 			".md",
-			"README.md",
-			"README.en.md",
-			"a.md",
-			"nested/dir/notes.md",
-			"docs/dev/security.md",
-			"docs/tasks/0119_ci_skip_doc_only_commit/_checks/check-ac16-ci-diff.sh",
-			".claude/commands/runplan.md",
+			"nested/a.md",
+			"docs/a.sh",
 			".claude/settings.json",
 			"LICENSE",
-			"LICENSE.txt",
-			"MY_LICENSE",
 			"cmd",
 			"foo_md",
 			"xclaude/a.go",
+			"LICENSE.txt",
+			"MY_LICENSE",
 			"docs",
 			".claude",
-			"internal/ciskip/ciskip.go",
-			"cmd/ciskip/main.go",
-			".github/workflows/ci.yml",
-			"Makefile",
-			"go.mod",
-			"go.sum",
-			"my_docs/file.go",
-			"foo/docs/file.go",
-			"foo/.claude/file.go",
+			"my_docs/a.go",
+			"foo/docs/a.go",
+			"foo/.claude/a.go",
 			"notes.md.bak",
 			"notes.mdx",
-			"extension/src/index.ts",
-			"extension/scripts/has-extension-changes.sh",
-			".gitignore",
+			"foo.MD",
+			"internal/a.go",
 		}
 		var nonCodeCount, codeCount int
 		for _, p := range samplePaths {
@@ -548,7 +545,7 @@ func TestCIWorkflowCheckChangesPin(t *testing.T) {
 
 	t.Run("required_job_names_match_ci_workflow", func(t *testing.T) {
 		var workflowNames []string
-		seen := make(map[string]bool)
+		seen := make(map[string]struct{})
 		for _, id := range wf.jobOrder {
 			job := wf.jobs[id]
 			if id != "check-changes" && !slices.Contains(job.needs, "check-changes") {
@@ -557,10 +554,10 @@ func TestCIWorkflowCheckChangesPin(t *testing.T) {
 			if job.name == "" {
 				t.Fatalf("job %q has empty name", id)
 			}
-			if seen[job.name] {
+			if _, dup := seen[job.name]; dup {
 				t.Fatalf("duplicate job display name %q in ci.yml", job.name)
 			}
-			seen[job.name] = true
+			seen[job.name] = struct{}{}
 			workflowNames = append(workflowNames, job.name)
 		}
 		slices.Sort(workflowNames)
@@ -571,6 +568,9 @@ func TestCIWorkflowCheckChangesPin(t *testing.T) {
 		}
 	})
 
+	// Intentionally mirrors secret-scan independence and extension's needs/if from
+	// extension/test/repository.test.ts so Go-only `make test` checks the full
+	// heavy vs always-run job partition without requiring Node.js.
 	t.Run("always_run_and_heavy_job_conditions", func(t *testing.T) {
 		for _, alwaysID := range []string{"doc-guard", "secret-scan"} {
 			job := wf.jobs[alwaysID]
@@ -621,34 +621,13 @@ func TestCIWorkflowCheckChangesPin(t *testing.T) {
 			if step.hasRun && strings.Contains(step.runBody, "${{") {
 				t.Errorf("check-changes step %q embeds ${{ directly in run body", step.name)
 			}
-		}
-
-		normal := findStepByID(t, checkJob, "normal")
-		if _, hasToken := normal.env["GH_TOKEN"]; hasToken {
-			t.Error("normal classification step must not receive GH_TOKEN")
-		}
-		normalDepDirsIdx := strings.Index(normal.runBody, `dep_dirs="$RUNNER_TEMP/wasm-dep-dirs"`)
-		normalInitIdx := strings.Index(normal.runBody, "wasm_dep_dirs_ok=false\n")
-		normalIfIdx := strings.Index(normal.runBody, `if bash extension/scripts/wasm-dep-dirs.sh > "$dep_dirs"; then`)
-		normalTrueIdx := strings.Index(normal.runBody, "wasm_dep_dirs_ok=true\n")
-		normalElseIdx := -1
-		if normalIfIdx >= 0 {
-			if rel := strings.Index(normal.runBody[normalIfIdx:], "\nelse\n"); rel >= 0 {
-				normalElseIdx = normalIfIdx + rel
+			if step.id != "check" {
+				for k, v := range step.env {
+					if k == "GH_TOKEN" || k == "GITHUB_TOKEN" || strings.Contains(v, "secrets.") {
+						t.Errorf("non-check step %q must not receive token/secret env %s=%q", step.name, k, v)
+					}
+				}
 			}
-		}
-		if normalDepDirsIdx < 0 {
-			t.Error(`normal step must define dep_dirs="$RUNNER_TEMP/wasm-dep-dirs"`)
-		}
-		if normalInitIdx < 0 || normalIfIdx < 0 || normalTrueIdx < 0 || normalElseIdx < 0 ||
-			normalInitIdx >= normalIfIdx || normalIfIdx >= normalTrueIdx || normalTrueIdx >= normalElseIdx {
-			t.Errorf(
-				"normal step must initialize wasm_dep_dirs_ok=false before if and set wasm_dep_dirs_ok=true inside then before else (indices: init=%d if=%d true=%d else=%d)",
-				normalInitIdx, normalIfIdx, normalTrueIdx, normalElseIdx,
-			)
-		}
-		if !strings.Contains(normal.runBody, `echo "wasm-dep-dirs-ok=$wasm_dep_dirs_ok" >> "$GITHUB_OUTPUT"`) {
-			t.Error("normal step does not write wasm-dep-dirs-ok to GITHUB_OUTPUT")
 		}
 
 		check := findStepByID(t, checkJob, "check")
@@ -674,6 +653,92 @@ func TestCIWorkflowCheckChangesPin(t *testing.T) {
 		cliFlags := extractCLIFlagsFromMain(t)
 		if !slices.Equal(wfFlags, cliFlags) {
 			t.Errorf("ci.yml check step flags = %v, cmd/ciskip flags = %v", wfFlags, cliFlags)
+		}
+	})
+
+	t.Run("normal_step_wasm_dep_dirs_ok_behavior", func(t *testing.T) {
+		normal := findStepByID(t, checkJob, "normal")
+		cases := []struct {
+			name        string
+			wasmScript  string
+			wantExt     string
+			wantWasmOK  string
+			wantDepDirs string
+		}{
+			{
+				name:        "wasm_dep_dirs_succeeds",
+				wasmScript:  "#!/usr/bin/env bash\nprintf 'internal/writer/\\n'\n",
+				wantExt:     "false",
+				wantWasmOK:  "true",
+				wantDepDirs: "internal/writer/\n",
+			},
+			{
+				name:       "wasm_dep_dirs_fails",
+				wasmScript: "#!/usr/bin/env bash\nexit 1\n",
+				wantExt:    "true",
+				wantWasmOK: "false",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				root := t.TempDir()
+				binDir := filepath.Join(root, "bin")
+				scriptsDir := filepath.Join(root, "extension", "scripts")
+				runnerTemp := filepath.Join(root, "runner-temp")
+				ghOutput := filepath.Join(root, "github-output")
+				for _, d := range []string{binDir, scriptsDir, runnerTemp} {
+					if err := os.MkdirAll(d, 0o700); err != nil {
+						t.Fatalf("mkdir %s: %v", d, err)
+					}
+				}
+				if err := os.WriteFile(ghOutput, nil, 0o600); err != nil {
+					t.Fatalf("init github output: %v", err)
+				}
+				fakeGit := "#!/usr/bin/env bash\nprintf 'docs/a.md\\n'\n"
+				fakeHasExt := "#!/usr/bin/env bash\ncat >/dev/null\nprintf 'false\\n'\n"
+				if err := os.WriteFile(filepath.Join(binDir, "git"), []byte(fakeGit), 0o700); err != nil {
+					t.Fatalf("write fake git: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(scriptsDir, "wasm-dep-dirs.sh"), []byte(tc.wasmScript), 0o700); err != nil {
+					t.Fatalf("write fake wasm-dep-dirs.sh: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(scriptsDir, "has-extension-changes.sh"), []byte(fakeHasExt), 0o700); err != nil {
+					t.Fatalf("write fake has-extension-changes.sh: %v", err)
+				}
+
+				cmd := exec.CommandContext(t.Context(), "bash", "-eo", "pipefail", "-c", normal.runBody)
+				cmd.Dir = root
+				cmd.Env = []string{
+					"PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
+					"RUNNER_TEMP=" + runnerTemp,
+					"GITHUB_OUTPUT=" + ghOutput,
+				}
+				var out bytes.Buffer
+				cmd.Stdout = &out
+				cmd.Stderr = &out
+				if err := cmd.Run(); err != nil {
+					t.Fatalf("normal step script failed: %v\noutput:\n%s", err, out.String())
+				}
+
+				outputs := readGitHubOutputs(t, ghOutput)
+				want := map[string]string{
+					"has-code-changes":      "false",
+					"has-extension-changes": tc.wantExt,
+					"wasm-dep-dirs-ok":      tc.wantWasmOK,
+				}
+				if !maps.Equal(outputs, want) {
+					t.Errorf("normal step GITHUB_OUTPUT = %v, want %v", outputs, want)
+				}
+				if tc.wantDepDirs != "" {
+					gotDep, err := os.ReadFile(filepath.Join(runnerTemp, "wasm-dep-dirs"))
+					if err != nil {
+						t.Fatalf("read RUNNER_TEMP/wasm-dep-dirs: %v", err)
+					}
+					if string(gotDep) != tc.wantDepDirs {
+						t.Errorf("RUNNER_TEMP/wasm-dep-dirs = %q, want %q", string(gotDep), tc.wantDepDirs)
+					}
+				}
+			})
 		}
 	})
 }
@@ -714,7 +779,7 @@ func TestCIWorkflowPermissions(t *testing.T) {
 		}
 	}
 
-	forbidden := regexp.MustCompile(`(?i):\s*write\b|\bwrite-all\b|\bread-all\b`)
+	forbidden := regexp.MustCompile(`(?i):\s*['"]?write\b|\bwrite-all\b|\bread-all\b`)
 	for idx, line := range wf.rawLines {
 		code := stripYAMLComment(line)
 		if forbidden.MatchString(code) {
@@ -742,6 +807,29 @@ func stripYAMLComment(line string) string {
 		}
 	}
 	return line
+}
+
+func readGitHubOutputs(t *testing.T, path string) map[string]string {
+	t.Helper()
+	outBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read GITHUB_OUTPUT: %v", err)
+	}
+	outputs := make(map[string]string)
+	for line := range strings.SplitSeq(strings.TrimSuffix(string(outBytes), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			t.Fatalf("malformed GITHUB_OUTPUT line %q", line)
+		}
+		if prev, dup := outputs[k]; dup {
+			t.Fatalf("duplicate GITHUB_OUTPUT key %q (previous=%q, next=%q)", k, prev, v)
+		}
+		outputs[k] = v
+	}
+	return outputs
 }
 
 type checkStepRunResult struct {
@@ -828,24 +916,7 @@ func runCheckStepScript(
 		t.Fatalf("check step script failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdout.String(), stderr.String())
 	}
 
-	outBytes, err := os.ReadFile(ghOutput)
-	if err != nil {
-		t.Fatalf("read GITHUB_OUTPUT: %v", err)
-	}
-	outputs := make(map[string]string)
-	for line := range strings.SplitSeq(strings.TrimSuffix(string(outBytes), "\n"), "\n") {
-		if line == "" {
-			continue
-		}
-		k, v, ok := strings.Cut(line, "=")
-		if !ok {
-			t.Fatalf("malformed GITHUB_OUTPUT line %q", line)
-		}
-		if prev, dup := outputs[k]; dup {
-			t.Fatalf("duplicate GITHUB_OUTPUT key %q (previous=%q, next=%q)", k, prev, v)
-		}
-		outputs[k] = v
-	}
+	outputs := readGitHubOutputs(t, ghOutput)
 
 	goCalls := 0
 	if data, err := os.ReadFile(goLog); err == nil {
@@ -902,6 +973,17 @@ func assertOutputs(t *testing.T, got map[string]string, wantCode, wantExt string
 	}
 }
 
+func assertTempDirEmpty(t *testing.T, dir string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read tempDir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("temporary file leaked in RUNNER_TEMP: %v", entries)
+	}
+}
+
 func TestCIWorkflowCheckStepExecution(t *testing.T) {
 	wf := readWorkflow(t)
 	checkJob := wf.jobs["check-changes"]
@@ -926,38 +1008,7 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 			t.Errorf("go was called %d times, want 0", res.goCalls)
 		}
 		assertOutputs(t, res.outputs, "false", "false")
-	})
-
-	t.Run("empty_and_invalid_normal_outputs_normalize_to_true", func(t *testing.T) {
-		cases := []struct {
-			name     string
-			codeEnv  string
-			extEnv   string
-			wantCode string
-			wantExt  string
-		}{
-			{name: "empty_code_false_ext", codeEnv: "", extEnv: "false", wantCode: "true", wantExt: "false"},
-			{name: "false_code_invalid_ext", codeEnv: "false", extEnv: "maybe", wantCode: "false", wantExt: "true"},
-			{name: "both_unset", codeEnv: "\x00UNSET", extEnv: "\x00UNSET", wantCode: "true", wantExt: "true"},
-		}
-		for _, tc := range cases {
-			t.Run(tc.name, func(t *testing.T) {
-				res := runCheckStepScript(
-					t,
-					script,
-					map[string]string{
-						"CISKIP_NORMAL_CODE": tc.codeEnv,
-						"CISKIP_NORMAL_EXT":  tc.extEnv,
-					},
-					fakeGoHelper(`printf 'skip=false\n' > "$result_file"`, 0),
-					"",
-				)
-				if res.goCalls != 1 {
-					t.Errorf("go calls = %d, want 1", res.goCalls)
-				}
-				assertOutputs(t, res.outputs, tc.wantCode, tc.wantExt)
-			})
-		}
+		assertTempDirEmpty(t, res.tempDir)
 	})
 
 	t.Run("skip_true_outputs_false_and_passes_stdout", func(t *testing.T) {
@@ -1021,28 +1072,24 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 		if !strings.HasPrefix(res.goArgs[len(wantPrefix)], "--result-file="+filepath.Join(res.tempDir, "ciskip-result.")) {
 			t.Errorf("unexpected --result-file arg: %q", res.goArgs[len(wantPrefix)])
 		}
-
-		// Verify the temporary result file was cleaned up on EXIT.
-		entries, err := os.ReadDir(res.tempDir)
-		if err != nil {
-			t.Fatalf("read tempDir: %v", err)
-		}
-		if len(entries) != 0 {
-			t.Errorf("temporary result file leaked in RUNNER_TEMP: %v", entries)
-		}
+		assertTempDirEmpty(t, res.tempDir)
 	})
 
-	t.Run("skip_false_preserves_normal_classification", func(t *testing.T) {
+	t.Run("skip_false_preserves_or_normalizes_normal_classification", func(t *testing.T) {
 		cases := []struct {
 			name     string
-			code     string
-			ext      string
+			codeEnv  string
+			extEnv   string
 			wasmOK   string
-			wantWasm string
+			wantCode string
+			wantExt  string
 		}{
-			{name: "code_only", code: "true", ext: "false", wasmOK: "true", wantWasm: "--wasm-dep-dirs-ok=true"},
-			{name: "wasm_dep_dirs_failed_fallback", code: "false", ext: "true", wasmOK: "false", wantWasm: "--wasm-dep-dirs-ok=false"},
-			{name: "code_and_ext_true_wasm_dep_dirs_failed", code: "true", ext: "true", wasmOK: "false", wantWasm: "--wasm-dep-dirs-ok=false"},
+			{name: "code_only", codeEnv: "true", extEnv: "false", wasmOK: "true", wantCode: "true", wantExt: "false"},
+			{name: "code_true_wasm_dep_dirs_failed", codeEnv: "true", extEnv: "true", wasmOK: "false", wantCode: "true", wantExt: "true"},
+			{name: "wasm_dep_dirs_failed_ext_only", codeEnv: "false", extEnv: "true", wasmOK: "false", wantCode: "false", wantExt: "true"},
+			{name: "empty_code_false_ext", codeEnv: "", extEnv: "false", wasmOK: "true", wantCode: "true", wantExt: "false"},
+			{name: "false_code_invalid_ext", codeEnv: "false", extEnv: "maybe", wasmOK: "true", wantCode: "false", wantExt: "true"},
+			{name: "both_unset", codeEnv: "\x00UNSET", extEnv: "\x00UNSET", wasmOK: "true", wantCode: "true", wantExt: "true"},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -1056,8 +1103,8 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 					t,
 					script,
 					map[string]string{
-						"CISKIP_NORMAL_CODE":      tc.code,
-						"CISKIP_NORMAL_EXT":       tc.ext,
+						"CISKIP_NORMAL_CODE":      tc.codeEnv,
+						"CISKIP_NORMAL_EXT":       tc.extEnv,
 						"CISKIP_WASM_DEP_DIRS_OK": tc.wasmOK,
 					},
 					fakeGo,
@@ -1066,9 +1113,10 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 				if res.goCalls != 1 {
 					t.Fatalf("go calls = %d, want 1", res.goCalls)
 				}
-				assertOutputs(t, res.outputs, tc.code, tc.ext)
-				if !slices.Contains(res.goArgs, tc.wantWasm) {
-					t.Errorf("go args %v missing %q", res.goArgs, tc.wantWasm)
+				assertOutputs(t, res.outputs, tc.wantCode, tc.wantExt)
+				wantWasmFlag := "--wasm-dep-dirs-ok=" + tc.wasmOK
+				if !slices.Contains(res.goArgs, wantWasmFlag) {
+					t.Errorf("go args %v missing %q", res.goArgs, wantWasmFlag)
 				}
 				if !strings.Contains(res.stdout, diagLine+"\n") {
 					t.Errorf("stdout missing diagnostic line:\n%s", res.stdout)
@@ -1076,21 +1124,100 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 				if strings.Contains(res.stdout, "fallback to normal classification") {
 					t.Errorf("unexpected fallback log on clean skip=false:\n%s", res.stdout)
 				}
+				assertTempDirEmpty(t, res.tempDir)
 			})
 		}
 	})
 
-	t.Run("unexpected_result_file_falls_back", func(t *testing.T) {
+	t.Run("fallback_preserves_normal_classification", func(t *testing.T) {
 		cases := []struct {
-			name       string
-			goBody     string
-			secretText string
-			wantStatus string
+			name        string
+			codeEnv     string
+			extEnv      string
+			fakeGo      string
+			fakeMktemp  string
+			wantGoCalls int
+			wantCause   string
+			wantStatus  string
+			secretText  string
 		}{
-			{name: "empty_file", goBody: `: > "$result_file"`, wantStatus: "status=1"},
-			{name: "missing_newline", goBody: `printf 'skip=true' > "$result_file"`, wantStatus: "status=1"},
-			{name: "extra_line", goBody: `printf 'skip=true\nSECRET_VALUE\n' > "$result_file"`, secretText: "SECRET_VALUE", wantStatus: "status=1"},
-			{name: "deleted_file", goBody: `rm -f "$result_file"`, wantStatus: "status=2"},
+			{
+				name:        "unexpected_empty_result_file",
+				codeEnv:     "true",
+				extEnv:      "false",
+				fakeGo:      fakeGoHelper(`: > "$result_file"`, 0),
+				wantGoCalls: 1,
+				wantCause:   "unexpected result file",
+				wantStatus:  "1",
+			},
+			{
+				name:        "unexpected_missing_newline",
+				codeEnv:     "true",
+				extEnv:      "false",
+				fakeGo:      fakeGoHelper(`printf 'skip=true' > "$result_file"`, 0),
+				wantGoCalls: 1,
+				wantCause:   "unexpected result file",
+				wantStatus:  "1",
+			},
+			{
+				name:        "unexpected_extra_line",
+				codeEnv:     "true",
+				extEnv:      "false",
+				fakeGo:      fakeGoHelper(`printf 'skip=true\nSECRET_VALUE\n' > "$result_file"`, 0),
+				wantGoCalls: 1,
+				wantCause:   "unexpected result file",
+				wantStatus:  "1",
+				secretText:  "SECRET_VALUE",
+			},
+			{
+				name:        "unexpected_deleted_result_file",
+				codeEnv:     "true",
+				extEnv:      "false",
+				fakeGo:      fakeGoHelper(`rm -f "$result_file"`, 0),
+				wantGoCalls: 1,
+				wantCause:   "unexpected result file",
+				wantStatus:  "2",
+			},
+			{
+				name: "go_exit_1",
+				// Asymmetric normal outputs prove normal classification is preserved rather than reset to true/true.
+				codeEnv: "true",
+				extEnv:  "false",
+				// Write skip=true before exiting non-zero to prove the exit code gates reading the file.
+				fakeGo:      fakeGoHelper(`printf 'skip=true\n' > "$result_file"`, 1),
+				wantGoCalls: 1,
+				wantCause:   "go run failed",
+				wantStatus:  "1",
+			},
+			{
+				name:        "go_exit_2",
+				codeEnv:     "false",
+				extEnv:      "true",
+				fakeGo:      fakeGoHelper(`printf 'skip=true\n' > "$result_file"`, 2),
+				wantGoCalls: 1,
+				wantCause:   "go run failed",
+				wantStatus:  "2",
+			},
+			{
+				name:        "mktemp_nonzero_exit",
+				codeEnv:     "true",
+				extEnv:      "false",
+				fakeGo:      fakeGoHelper("echo 'go should not be called' >&2", 1),
+				fakeMktemp:  "#!/usr/bin/env bash\nexit " + fakeMktempExit + "\n",
+				wantGoCalls: 0,
+				wantCause:   "mktemp failed",
+				wantStatus:  fakeMktempExit,
+			},
+			{
+				name:        "mktemp_empty_stdout",
+				codeEnv:     "true",
+				extEnv:      "false",
+				fakeGo:      fakeGoHelper("echo 'go should not be called' >&2", 1),
+				fakeMktemp:  "#!/usr/bin/env bash\nexit 0\n",
+				wantGoCalls: 0,
+				wantCause:   "mktemp failed",
+				wantStatus:  "0",
+			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -1098,74 +1225,25 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 					t,
 					script,
 					map[string]string{
-						"CISKIP_NORMAL_CODE": "true",
-						"CISKIP_NORMAL_EXT":  "false",
+						"CISKIP_NORMAL_CODE": tc.codeEnv,
+						"CISKIP_NORMAL_EXT":  tc.extEnv,
 					},
-					fakeGoHelper(tc.goBody, 0),
-					"",
+					tc.fakeGo,
+					tc.fakeMktemp,
 				)
-				assertOutputs(t, res.outputs, "true", "false")
-				if !strings.Contains(res.stdout, "fallback to normal classification") || !strings.Contains(res.stdout, tc.wantStatus) {
-					t.Errorf("stdout missing fallback log with %s:\n%s", tc.wantStatus, res.stdout)
+				if res.goCalls != tc.wantGoCalls {
+					t.Errorf("go calls = %d, want %d", res.goCalls, tc.wantGoCalls)
+				}
+				assertOutputs(t, res.outputs, tc.codeEnv, tc.extEnv)
+				// Assert the exact fallback cause and numeric status because the log line is the observable contract.
+				wantLine := fmt.Sprintf("ciskip: fallback to normal classification (%s, status=%s)\n", tc.wantCause, tc.wantStatus)
+				if !strings.Contains(res.stdout, wantLine) {
+					t.Errorf("stdout missing fallback line %q:\n%s", wantLine, res.stdout)
 				}
 				if tc.secretText != "" && (strings.Contains(res.stdout, tc.secretText) || strings.Contains(res.stderr, tc.secretText)) {
 					t.Errorf("output leaked unexpected result-file content %q:\nstdout:\n%s\nstderr:\n%s", tc.secretText, res.stdout, res.stderr)
 				}
-			})
-		}
-	})
-
-	t.Run("go_nonzero_exit_falls_back", func(t *testing.T) {
-		for _, code := range []int{1, 2} {
-			t.Run("exit_"+strconv.Itoa(code), func(t *testing.T) {
-				// Write skip=true even before exiting non-zero to prove the exit code gates reading the file.
-				res := runCheckStepScript(
-					t,
-					script,
-					map[string]string{
-						"CISKIP_NORMAL_CODE": "true",
-						"CISKIP_NORMAL_EXT":  "true",
-					},
-					fakeGoHelper(`printf 'skip=true\n' > "$result_file"`, code),
-					"",
-				)
-				assertOutputs(t, res.outputs, "true", "true")
-				wantStatus := "status=" + strconv.Itoa(code)
-				if !strings.Contains(res.stdout, "fallback to normal classification") || !strings.Contains(res.stdout, wantStatus) {
-					t.Errorf("stdout missing fallback log with %s:\n%s", wantStatus, res.stdout)
-				}
-			})
-		}
-	})
-
-	t.Run("mktemp_failure_falls_back", func(t *testing.T) {
-		cases := []struct {
-			name       string
-			fakeMktemp string
-			wantStatus string
-		}{
-			{name: "nonzero_exit", fakeMktemp: "#!/usr/bin/env bash\nexit " + fakeMktempExit + "\n", wantStatus: "status=" + fakeMktempExit},
-			{name: "empty_stdout", fakeMktemp: "#!/usr/bin/env bash\nexit 0\n", wantStatus: "status=0"},
-		}
-		for _, tc := range cases {
-			t.Run(tc.name, func(t *testing.T) {
-				res := runCheckStepScript(
-					t,
-					script,
-					map[string]string{
-						"CISKIP_NORMAL_CODE": "true",
-						"CISKIP_NORMAL_EXT":  "false",
-					},
-					fakeGoHelper("echo 'go should not be called' >&2", 1),
-					tc.fakeMktemp,
-				)
-				if res.goCalls != 0 {
-					t.Errorf("go was called %d times after mktemp failure, want 0", res.goCalls)
-				}
-				assertOutputs(t, res.outputs, "true", "false")
-				if !strings.Contains(res.stdout, "fallback to normal classification") || !strings.Contains(res.stdout, tc.wantStatus) {
-					t.Errorf("stdout missing fallback log with %s:\n%s", tc.wantStatus, res.stdout)
-				}
+				assertTempDirEmpty(t, res.tempDir)
 			})
 		}
 	})
