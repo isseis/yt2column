@@ -33,12 +33,17 @@ func TestIsWatched(t *testing.T) {
 		path string
 		want bool
 	}{
-		// The top-level .claude directory, and .claude itself.
+		// The top-level .claude and .agents directories, and themselves.
 		{"claude_settings", ".claude/settings.local.json", true},
 		{"claude_itself", ".claude", true},
 		{"claude_deep", ".claude/worktrees/x/internal/a.txt", true},
 		{"claude_not_top", "a/.claude/settings.local.json", false},
 		{"claude_prefix_only", ".claude.bak/settings.local.json", false},
+		{"agents_skills", ".agents/skills/runplan/SKILL.md", true},
+		{"agents_itself", ".agents", true},
+		{"agents_deep", ".agents/a/b/c.txt", true},
+		{"agents_not_top", "a/.agents/skills/runplan/SKILL.md", false},
+		{"agents_prefix_only", ".agents.bak/skills/runplan/SKILL.md", false},
 
 		// Top-level files.
 		{"env", ".env", true},
@@ -52,13 +57,18 @@ func TestIsWatched(t *testing.T) {
 
 		// Names in any directory.
 		{"claude_md", "docs/CLAUDE.md", true},
+		{"agents_md", "AGENTS.md", true},
+		{"agents_md_nested", "sub/agents.md", true},
+		{"agent_md", "docs/AGENT.md", true},
+		{"gemini_md", "sub/GEMINI.md", true},
+		{"agents_override_md", "sub/AGENTS.override.md", true},
 		{"makefile", "extension/node_modules/pkg/Makefile", true},
 		{"gnumakefile", "build/GNUmakefile", true},
 		{"go_mod", "build/x/go.mod", true},
 		{"go_work", "go.work", true},
 		{"go_sum", "go.sum", false},
-		{"agents_md", "AGENTS.md", false},
 		{"name_as_suffix", "build/xmakefile", false},
+		{"agent_md_prefix_not_matched", "sub/myagent.md", false},
 		{"name_with_more_after", "go.mod.bak", false},
 
 		// Suffixes in any directory.
@@ -87,6 +97,10 @@ func TestIsWatched(t *testing.T) {
 		// Case folding, ASCII and Unicode simple folding.
 		{"ascii_upper_suffix", "build/X.GO", true},
 		{"ascii_upper_top_dir", ".CLAUDE/settings.local.json", true},
+		{"ascii_upper_agents_top_dir", ".AGENTS/skills/runplan/SKILL.md", true},
+		{"agents_top_dir_long_s", ".agent\u017f/skills/x.md", true},
+		{"agents_md_long_s", "sub/agent\u017f.md", true},
+		{"agents_override_md_long_s", "sub/agent\u017f.override.md", true},
 		{"kelvin_sign", "go.wor\u212a", true},
 		{"long_s", "a/x.\u017f", true},
 
@@ -136,12 +150,12 @@ func TestFoldEqual(t *testing.T) {
 }
 
 // TestWatchListPatternsMatch: every pattern the guide prints names paths
-// isWatched matches, and the list has the 28 items of the requirements table
-// (1 directory, 3 top-level files, 5 names, 2 suffixes, 17 Go build inputs).
+// isWatched matches, and the list has the 33 items of the requirements table
+// (2 directories, 3 top-level files, 9 names, 2 suffixes, 17 Go build inputs).
 func TestWatchListPatternsMatch(t *testing.T) {
 	patterns := WatchListPatterns()
-	if len(patterns) != 28 {
-		t.Errorf("WatchListPatterns() has %d items, want 28: %q", len(patterns), patterns)
+	if len(patterns) != 33 {
+		t.Errorf("WatchListPatterns() has %d items, want 33: %q", len(patterns), patterns)
 	}
 	for _, pattern := range patterns {
 		if p := watchSamplePath(pattern); !isWatched(p) {
@@ -287,10 +301,10 @@ func TestCollectTargetsGitFailures(t *testing.T) {
 	listCall := cmdrunnertestutil.Step{Name: gitCommand, Args: slices.Concat(cmdrunner.GitHardening(), listIgnoredArgs)}
 	t.Run("unreadable_directory_warning", func(t *testing.T) {
 		requireNonRoot(t)
-		for _, dir := range []string{"build/locked", ".claude/locked"} {
+		for _, dir := range []string{"build/locked", ".claude/locked", ".agents/locked"} {
 			t.Run(strings.Split(dir, "/")[0], func(t *testing.T) {
 				r := newTestRepo(t)
-				r.ignore("build/", ".claude/")
+				r.ignore("build/", ".claude/", ".agents/")
 				r.Write(dir+"/x.go", "package x\n")
 				chmodForTest(t, filepath.Join(r.Dir, dir), 0o311)
 				if _, err := collect(t, wideLimits()); !errors.Is(err, errListIgnoredFailed) {
@@ -389,54 +403,65 @@ func TestCollectTargetsWalk(t *testing.T) {
 	})
 }
 
-// TestCollectTargetsClaudeGitNames: git lists nothing below an entry named
-// .git, so one below .claude stops the pass, unless it belongs to a nested
-// repository git listed.
-func TestCollectTargetsClaudeGitNames(t *testing.T) {
-	tests := []struct {
-		name    string
-		file    string
+// TestCollectTargetsWatchedDirGitNames: git lists nothing below an entry named
+// .git, so one below .claude or .agents stops the pass with its own rule,
+// unless it belongs to a nested repository git listed.
+func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
+	watched := []struct {
+		dir     string
 		wantErr error
 	}{
-		{"git_directory", ".claude/commands/.git/x.md", errClaudeGitName},
-		{"git_directory_upper", ".claude/skills/.GIT/SKILL.md", errClaudeGitName},
-		{"git_file", ".claude/agents/.git", errClaudeGitName},
-		{"git_suffix_only", ".claude/commands/a.git/x.md", nil},
+		{".claude", errClaudeGitName},
+		{".agents", errAgentsGitName},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := newTestRepo(t)
-			r.ignore(".claude/")
-			r.Write(tt.file, "x\n")
-			if _, err := collect(t, wideLimits()); !errors.Is(err, tt.wantErr) {
-				t.Errorf("error = %v, want %v", err, tt.wantErr)
+	for _, w := range watched {
+		t.Run(w.dir, func(t *testing.T) {
+			tests := []struct {
+				name    string
+				file    string
+				wantErr error
+			}{
+				{"git_directory", w.dir + "/commands/.git/x.md", w.wantErr},
+				{"git_directory_upper", w.dir + "/skills/.GIT/SKILL.md", w.wantErr},
+				{"git_file", w.dir + "/agents/.git", w.wantErr},
+				{"git_suffix_only", w.dir + "/commands/a.git/x.md", nil},
 			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					r := newTestRepo(t)
+					r.ignore(w.dir + "/")
+					r.Write(tt.file, "x\n")
+					if _, err := collect(t, wideLimits()); !errors.Is(err, tt.wantErr) {
+						t.Errorf("error = %v, want %v", err, tt.wantErr)
+					}
+				})
+			}
+			t.Run("nested_repository", func(t *testing.T) {
+				r := newTestRepo(t)
+				r.ignore(w.dir + "/")
+				r.gitIn(r.Dir, "init", "-q", "--template=", w.dir+"/worktrees/w")
+				if _, err := collect(t, wideLimits()); err != nil {
+					t.Errorf("collectTargets: %v, want a listed nested repository's .git allowed", err)
+				}
+			})
+			t.Run("linked_worktree", func(t *testing.T) {
+				r := newTestRepo(t)
+				r.ignore(w.dir + "/")
+				r.AddWorktree(filepath.Join(r.Dir, w.dir+"/worktrees/w"), "other")
+				if _, err := collect(t, wideLimits()); err != nil {
+					t.Errorf("collectTargets: %v, want an ignored worktree's .git file allowed", err)
+				}
+			})
+			t.Run("top_dir_is_a_nested_repository", func(t *testing.T) {
+				r := newTestRepo(t)
+				r.ignore(w.dir + "/")
+				r.gitIn(r.Dir, "init", "-q", "--template=", w.dir)
+				if _, err := collect(t, wideLimits()); err != nil {
+					t.Errorf("collectTargets: %v, want %s/.git allowed when git lists %s", err, w.dir, w.dir)
+				}
+			})
 		})
 	}
-	t.Run("nested_repository", func(t *testing.T) {
-		r := newTestRepo(t)
-		r.ignore(".claude/")
-		r.gitIn(r.Dir, "init", "-q", "--template=", ".claude/worktrees/w")
-		if _, err := collect(t, wideLimits()); err != nil {
-			t.Errorf("collectTargets: %v, want a listed nested repository's .git allowed", err)
-		}
-	})
-	t.Run("linked_worktree", func(t *testing.T) {
-		r := newTestRepo(t)
-		r.ignore(".claude/")
-		r.AddWorktree(filepath.Join(r.Dir, ".claude/worktrees/w"), "other")
-		if _, err := collect(t, wideLimits()); err != nil {
-			t.Errorf("collectTargets: %v, want an ignored worktree's .git file allowed", err)
-		}
-	})
-	t.Run("claude_is_a_nested_repository", func(t *testing.T) {
-		r := newTestRepo(t)
-		r.ignore(".claude/")
-		r.gitIn(r.Dir, "init", "-q", "--template=", ".claude")
-		if _, err := collect(t, wideLimits()); err != nil {
-			t.Errorf("collectTargets: %v, want .claude/.git allowed when git lists .claude", err)
-		}
-	})
 }
 
 // blockingRunner stands for a listing that does not return: it ignores the
@@ -485,6 +510,20 @@ func TestCollectTargetsLimits(t *testing.T) {
 			},
 			limit:   func(lim *targetLimits) *int { return &lim.walkEntries },
 			held:    func(t *testing.T) int { return walkedEntries(t, "build/nested") },
+			wantErr: errIgnoredWalkEntries,
+		},
+		{
+			name: "walked_entries_claude_and_agents_combined",
+			setup: func(r *testRepo) {
+				r.ignore(".claude/", ".agents/")
+				r.Write(".claude/a.md", "a\n")
+				r.Write(".claude/b.md", "b\n")
+				r.Write(".agents/skills/c.md", "c\n")
+			},
+			limit: func(lim *targetLimits) *int { return &lim.walkEntries },
+			held: func(t *testing.T) int {
+				return walkedEntries(t, ".claude") + walkedEntries(t, ".agents")
+			},
 			wantErr: errIgnoredWalkEntries,
 		},
 	}
@@ -955,7 +994,7 @@ func removeFile(t *testing.T, name string) {
 // writes before the baseline, except the rows where a new ignore rule hides a
 // new file.
 func TestCheckStateIgnoredChanges(t *testing.T) {
-	ignored := []string{".claude/", ".env", ".envrc", "build/", "coverage.out"}
+	ignored := []string{".claude/", ".agents/", ".env", ".envrc", "build/", "coverage.out"}
 	tests := []struct {
 		name   string
 		ignore []string
@@ -963,6 +1002,15 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 		after  func(t *testing.T, r *testRepo)
 		stops  bool
 	}{
+		{name: "agents_skill_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
+			r.Write(".agents/skills/evil/SKILL.md", "x\n")
+		}, stops: true},
+		{name: "ignored_agents_md_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
+			r.Write("build/AGENTS.md", "x\n")
+		}, stops: true},
+		{name: "ignored_gemini_md_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
+			r.Write("build/GEMINI.md", "x\n")
+		}, stops: true},
 		{name: "settings_local_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
 			r.Write(settingsLocalPath, `{"hooks":{}}`)
 		}, stops: true},

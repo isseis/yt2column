@@ -123,10 +123,10 @@
 - `internal/fixprguard/types.go`
 
 **作業内容:**
-- [ ] `internal/fixprguard/ignored.go` の単一の `watchTopDir` をスライス `watchTopDirs = []string{".claude", ".agents"}` に拡張し、`WatchListPatterns()` と `isWatched()` が `.claude/` と `.agents/` の双方を先頭一致（`foldEqual`）で扱うようにする（設計書 3.6.1）。
-- [ ] `watchNames` に `"agents.md"`・`"agent.md"`・`"gemini.md"`・`"agents.override.md"` を追加する（`watchTopFiles` の `"claude.local.md"` の既存仕様は維持）。
-- [ ] 番兵エラー `errAgentsGitName`（`ErrGitFailed` を元のエラーに含め、規則名 `ignored .git name below .agents`）を追加し、`ignoredFailures` に登録する。既存の `errClaudeGitName` を維持したまま、`.claude`・`.agents` 双方の直下走査で `.git`（`foldEqual` 一致）を検出し、走査上限 `lim.walkEntries` を両ディレクトリの合算で適用する。
-- [ ] `internal/fixprguard/types.go` の `Protocol` を実装時の `origin/main` の値 + 1 へ引き上げる。
+- [x] `internal/fixprguard/ignored.go` の単一の `watchTopDir` をスライス `watchTopDirs = []string{".claude", ".agents"}` に拡張し、`WatchListPatterns()` と `isWatched()` が `.claude/` と `.agents/` の双方を先頭一致（`foldEqual`）で扱うようにする（設計書 3.6.1）。
+- [x] `watchNames` に `"agents.md"`・`"agent.md"`・`"gemini.md"`・`"agents.override.md"` を追加する（`watchTopFiles` の `"claude.local.md"` の既存仕様は維持）。
+- [x] 番兵エラー `errAgentsGitName`（`ErrGitFailed` を元のエラーに含め、規則名 `ignored .git name below .agents`）を追加し、`ignoredFailures` に登録する。既存の `errClaudeGitName` を維持したまま、`.claude`・`.agents` 双方の直下走査で `.git`（`foldEqual` 一致）を検出し、走査上限 `lim.walkEntries` を両ディレクトリの合算で適用する。
+- [x] `internal/fixprguard/types.go` の `Protocol` を実装時の `origin/main` の値 + 1 へ引き上げる。
 
 **完了基準:**
 - `go test -tags test ./internal/fixprguard` がビルドできる（テスト更新はステップ 1-2）。
@@ -141,14 +141,14 @@
 - `docs/dev/adr/0055-harness-independent-commands.md`
 
 **作業内容:**
-- [ ] `internal/fixprguard/ignored_test.go` を次のとおり更新し、実装時に各新検査を 1 か所ずつ壊して該当テストが失敗することを確認する。
+- [x] `internal/fixprguard/ignored_test.go` を次のとおり更新し、実装時に各新検査を 1 か所ずつ壊して該当テストが失敗することを確認する。
     - `TestIsWatched` の `AGENTS.md` を `true` へ反転し、`.agents/` の境界ケース（`a/.agents/...`・`.agents.bak/...` 等）と、任意階層の 4 指示ファイル（大文字・小文字混在や Unicode 単純ケースフォールディングを含む）の監視検出を追加する。
     - `TestWatchListPatternsMatch` の期待件数を `33` へ更新し、`TestCollectTargetsGitFailures` に `.agents/locked` を追加する。
     - `.claude` 向けの境界ケース（`.git` ファイル・`.GIT`・`a.git`・ネストリポジトリ・リンクされた worktree・最上位ネストリポジトリ・合算 `walkEntries` 上限）を `.agents` にも対称に追加し、`errAgentsGitName` を検証する。
-- [ ] `.claude/commands/fixpr.md` と `.claude/commands/runpr.md` の全 `fixprguard --protocol` および `runpr.md:220` の `"protocol":<N>` 出力例を `origin/main` の値 + 1 に更新する。
-- [ ] `docs/dev/guides/fixprguard_guide.md` の `--protocol N` の現在の番号（`:66`）・5 章の全 `--protocol` / `"protocol":<N>` 出力例、7.1 の監視の一覧表と本文、7.2.3・7.2.5 の旧「`AGENTS.md`・`GEMINI.md` 等は一覧外」記述、8.1 の本文と一覧コマンド（`:613,617`。`.agents` が存在しないときもエラーにならない存在確認付きとする）、8.2 の規則表（`ignored .git name below .agents` 追加、および `:638,642` の `.claude/` 記述へ `.agents/` を併記）を更新する。
-- [ ] `ADR-0055`（`:25`）の `#1072` 食い違い記述から、本 PR で解消した `fixprguard` 監視拡張分を取り除き、残余の食い違いのみを示す形へ書き換える（`docs/dev/conventions/adr.md`「Discrepancy statements」、コミットメッセージに `Editorial correction:` 行を残す）。
-- [ ] `cmd/fixprguard/docs_test.go` を実行し、`TestGuideListsWatchList`・`TestGuideDescribesIgnoredFiles`・`TestDocumentedProtocolMatches` がすべて通ることを確認する。
+- [x] `.claude/commands/fixpr.md` と `.claude/commands/runpr.md` の全 `fixprguard --protocol` および `runpr.md:220` の `"protocol":<N>` 出力例を `origin/main` の値 + 1 に更新する。
+- [x] `docs/dev/guides/fixprguard_guide.md` の `--protocol N` の現在の番号（`:66`）・5 章の全 `--protocol` / `"protocol":<N>` 出力例、7.1 の監視の一覧表と本文、7.2.3・7.2.5 の旧「`AGENTS.md`・`GEMINI.md` 等は一覧外」記述、8.1 の本文と一覧コマンド（`:613,617`。`.agents` が存在しないときもエラーにならない存在確認付きとする）、8.2 の規則表（`ignored .git name below .agents` 追加、および `:638,642` の `.claude/` 記述へ `.agents/` を併記）を更新する。
+- [x] `ADR-0055`（`:25`）の `#1072` 食い違い記述から、本 PR で解消した `fixprguard` 監視拡張分を取り除き、残余の食い違いのみを示す形へ書き換える（`docs/dev/conventions/adr.md`「Discrepancy statements」、コミットメッセージに `Editorial correction:` 行を残す）。
+- [x] `cmd/fixprguard/docs_test.go` を実行し、`TestGuideListsWatchList`・`TestGuideDescribesIgnoredFiles`・`TestDocumentedProtocolMatches` がすべて通ることを確認する。
 
 **完了基準:**
 - `make test && make lint && make deadcode` および `doc-guard` の全対象パッケージが通る。

@@ -45,7 +45,7 @@ GitHub. Its subcommands, outputs, and stop kinds are in
   a `gh` or `git` command, and never fetch review-thread comments any other way:
   no `gh api graphql` query of review threads, no `gh pr view --comments`, no
   opening a thread URL.
-- Every call passes `--protocol 7`. `--reviewer <reviewer>` stands for one
+- Every call passes `--protocol 8`. `--reviewer <reviewer>` stands for one
   `--reviewer` per name in `_context.md`'s "Automated reviewer list": pass
   every name on that list, each once, in the GraphQL form (without `[bot]`).
   Build that sequence once, before Phase 1, and pass the same one to every
@@ -338,7 +338,7 @@ First run `git fetch origin main`, so the PR kind below reads a current
 `origin/main`; when it fails, report it and stop. Then run:
 
 ```
-fixprguard begin --protocol 7 --reviewer <reviewer> --accept <threadId>=<fingerprint> <number>
+fixprguard begin --protocol 8 --reviewer <reviewer> --accept <threadId>=<fingerprint> <number>
 ```
 
 - `<number>` is `$ARGUMENTS` when it was given, without a leading `#`; leave it
@@ -507,7 +507,7 @@ from Phase 2, and the Phase 2 entries of the `valid` and `off-level` threads
 ("The guard tool"), and fence it:
 
 ```
-fixprguard fence --protocol 7 <triage-file>
+fixprguard fence --protocol 8 <triage-file>
 ```
 
 Its output is a fenced block; its nonce is the text after `BEGIN-UNTRUSTED-` on
@@ -774,7 +774,7 @@ Before the build checks run any code, check what the fix changed. Run, with one
 each with the `fingerprint` `begin` printed for it:
 
 ```
-fixprguard inspect --protocol 7 --reviewer <reviewer> --baseline <baseline> --thread <threadId>=<fingerprint> <number>
+fixprguard inspect --protocol 8 --reviewer <reviewer> --baseline <baseline> --thread <threadId>=<fingerprint> <number>
 ```
 
 The tool compares the git state with the baseline before it starts `gh`, takes
@@ -834,8 +834,8 @@ on the remote branch (not the pre-fix revision).
    body file:
 
    ```
-   fixprguard finish --protocol 7 --baseline <baseline> --judged-set <judgedSet> <number>
-   fixprguard finish --protocol 7 --baseline <baseline> --judged-set <judgedSet> --body-file <correction-file> <number>
+   fixprguard finish --protocol 8 --baseline <baseline> --judged-set <judgedSet> <number>
+   fixprguard finish --protocol 8 --baseline <baseline> --judged-set <judgedSet> --body-file <correction-file> <number>
    ```
 
    It checks that the work tree still matches the judged set and the git state
@@ -870,7 +870,7 @@ on the remote branch (not the pre-fix revision).
 2. Only if a commit was made, push it:
 
    ```
-   fixprguard push --protocol 7 --baseline <baseline> --commit <commit>
+   fixprguard push --protocol 8 --baseline <baseline> --commit <commit>
    ```
 
    It checks again, just before pushing, that HEAD is that commit on top of the
@@ -910,8 +910,8 @@ each as a call of its own, never behind `cd ... &&`. When the current
 directory may not be `<root>`, first `cd <root>` as a call of its own:
 
 ```
-fixprguard check --protocol 7 --baseline <baseline> --commit <commitSha>
-fixprguard push-review --protocol 7 --baseline <baseline> --commit <commitSha>
+fixprguard check --protocol 8 --baseline <baseline> --commit <commitSha>
+fixprguard push-review --protocol 8 --baseline <baseline> --commit <commitSha>
 ```
 
 `check` prints `base` (the baseline's commit), `head` (the HEAD it checked),
@@ -1020,7 +1020,7 @@ check failed. Never rewrite the text to get past the check. When the check fails
 Otherwise run:
 
 ```
-fixprguard reply --protocol 7 --reviewer <reviewer> --thread-id <threadId> --comment-id <databaseId> --fingerprint <fingerprint> --body-file <reply-file> --accept <threadId>=<fingerprint> <number>
+fixprguard reply --protocol 8 --reviewer <reviewer> --thread-id <threadId> --comment-id <databaseId> --fingerprint <fingerprint> --body-file <reply-file> --accept <threadId>=<fingerprint> <number>
 ```
 
 Pass `--accept` (the same pair Phase 1 passed) only for a named thread
@@ -1095,7 +1095,7 @@ it is, and list it in the Final report.
 Otherwise run:
 
 ```
-fixprguard edit-pr --protocol 7 --title-file <title-file> --body-file <body-file> <number>
+fixprguard edit-pr --protocol 8 --title-file <title-file> --body-file <body-file> <number>
 ```
 
 The tool passes the title and body to `gh` without a shell, reading the title
@@ -1114,7 +1114,7 @@ description", gives, to a file outside the work tree, run the mention check
 above on it, and only when it passes run:
 
 ```
-fixprguard append-pr --protocol 7 --body-file <paragraph-file> <number>
+fixprguard append-pr --protocol 8 --body-file <paragraph-file> <number>
 ```
 
 The tool reads the current description, appends the paragraph after a blank

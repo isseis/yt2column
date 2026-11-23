@@ -32,14 +32,27 @@ import (
 // volume also applies the full folding that expands one rune into several
 // (U+FB01 to "fi"); a name equal to an item only under that expansion is not
 // matched, a residual risk the guide records.
+// watchedTopDir pairs a watched top-level directory with the sentinel error
+// returned when a .git entry is found below it outside a listed nested repo.
+type watchedTopDir struct {
+	dir        string
+	gitNameErr error
+}
+
 var (
-	// watchTopDir matches every path whose first element it is, the element
-	// itself included.
-	watchTopDir = ".claude"
+	// watchTopDirs match every path whose first element is one of them, the
+	// element itself included.
+	watchTopDirs = []watchedTopDir{
+		{dir: ".claude", gitNameErr: errClaudeGitName},
+		{dir: ".agents", gitNameErr: errAgentsGitName},
+	}
 	// watchTopFiles match a path of one element.
 	watchTopFiles = []string{".env", ".envrc", "claude.local.md"}
 	// watchNames match a base name in any directory.
-	watchNames = []string{"claude.md", "makefile", "gnumakefile", "go.mod", "go.work"}
+	watchNames = []string{
+		"claude.md", "agents.md", "agent.md", "gemini.md", "agents.override.md",
+		"makefile", "gnumakefile", "go.mod", "go.work",
+	}
 	// watchSuffixes match the end of a base name in any directory, a name
 	// that is only the suffix included; goBuildInputSuffixes are matched the
 	// same way.
@@ -49,12 +62,16 @@ var (
 )
 
 // WatchListPatterns lists the watch list in the form the guide prints it:
-// ".claude/" matches every path below the top-level .claude, a pattern
-// starting with "/" matches that file at the top level only, a bare name
-// matches a file name in any directory, and "*.ext" matches the end of a file
-// name in any directory. Matching folds case as foldEqual does.
+// ".claude/" and ".agents/" match every path below those top-level
+// directories, a pattern starting with "/" matches that file at the top level
+// only, a bare name matches a file name in any directory, and "*.ext" matches
+// the end of a file name in any directory. Matching folds case as foldEqual
+// does.
 func WatchListPatterns() []string {
-	patterns := []string{watchTopDir + "/"}
+	patterns := make([]string, 0, len(watchTopDirs)+len(watchTopFiles)+len(watchNames)+len(watchAllSuffixes))
+	for _, d := range watchTopDirs {
+		patterns = append(patterns, d.dir+"/")
+	}
 	for _, f := range watchTopFiles {
 		patterns = append(patterns, "/"+f)
 	}
@@ -71,7 +88,9 @@ func WatchListPatterns() []string {
 // list.
 func isWatched(p string) bool {
 	elems := strings.Split(p, "/")
-	if foldEqual(elems[0], watchTopDir) {
+	if slices.ContainsFunc(watchTopDirs, func(d watchedTopDir) bool {
+		return foldEqual(elems[0], d.dir)
+	}) {
 		return true
 	}
 	equalTo := func(name string) func(string) bool {
@@ -158,7 +177,7 @@ var listIgnoredArgs = []string{"ls-files", "--others", "--ignored", "--exclude-s
 // defaultTargetLimits; tests pass smaller values.
 type targetLimits struct {
 	files       int           // target files, settingsLocalPath included
-	walkEntries int           // entries visited under directory items and .claude
+	walkEntries int           // entries visited under directory items, .claude, and .agents
 	fileBytes   int64         // one regular file
 	totalBytes  int64         // bytes read in one pass
 	timeout     time.Duration // the whole pass, the listing included
@@ -200,6 +219,7 @@ var (
 	errReadIgnoredFile    = fmt.Errorf("%w: read ignored file", ErrGitFailed)
 	errIgnoredLinkToDir   = fmt.Errorf("%w: ignored link to a directory", ErrGitFailed)
 	errClaudeGitName      = fmt.Errorf("%w: .git name below .claude", ErrGitFailed)
+	errAgentsGitName      = fmt.Errorf("%w: ignored .git name below .agents", ErrGitFailed)
 	errWriteBeginRecord   = fmt.Errorf("%w: write ignored begin record", ErrGitFailed)
 )
 
@@ -207,7 +227,7 @@ var (
 var ignoredFailures = []error{
 	errListIgnoredFailed, errListIgnoredCap, errListIgnoredShape, errIgnoredTargetCount,
 	errIgnoredWalkEntries, errIgnoredFileSize, errIgnoredReadTotal, errIgnoredTimeout,
-	errReadIgnoredDir, errReadIgnoredFile, errIgnoredLinkToDir, errClaudeGitName, errWriteBeginRecord,
+	errReadIgnoredDir, errReadIgnoredFile, errIgnoredLinkToDir, errClaudeGitName, errAgentsGitName, errWriteBeginRecord,
 }
 
 // IgnoredFailureRules lists the rule names the git-failed diagnostic prints
@@ -367,38 +387,41 @@ func selectTargets(ctx context.Context, files, dirs []string, lim targetLimits) 
 			return nil, err
 		}
 	}
-	if err := checkClaudeGitNames(ctx, dirs, &walked, lim); err != nil {
-		return nil, err
+	for _, top := range watchTopDirs {
+		if err := checkTopDirGitNames(ctx, top.dir, top.gitNameErr, dirs, &walked, lim); err != nil {
+			return nil, err
+		}
 	}
 	return slices.Sorted(maps.Keys(targets)), nil
 }
 
-// checkClaudeGitNames walks the top-level .claude directory, counting each
-// entry against lim.walkEntries, and stops at any entry whose name folds to
-// .git, unless its parent is a directory item (a nested repository git
-// lists as ignored, which the walk above covered and this one skips). A
-// nested repository git does not ignore is not skipped, so its .git stops
-// the pass; git status shows it as untracked but not what changes inside.
-// The literal name .claude is walked, the one Claude Code reads. git lists nothing below an entry so named,
-// in any case when core.ignorecase is on, so a file there would be on the
-// watch list and yet in no listing. A .claude that is not a directory is
-// left to the listing.
-func checkClaudeGitNames(ctx context.Context, dirs []string, walked *int, lim targetLimits) error {
-	info, err := os.Lstat(watchTopDir)
+// checkTopDirGitNames walks one watched top-level directory (.claude or
+// .agents), counting each entry against the shared lim.walkEntries budget, and
+// stops with gitNameErr at any entry whose name folds to .git, unless its
+// parent is a directory item (a nested repository git lists as ignored, which
+// the walk above covered and this one skips). A nested repository git does not
+// ignore is not skipped, so its .git stops the pass; git status shows it as
+// untracked but not what changes inside. The literal directory name is walked,
+// the one the agent reads. git lists nothing below an entry named .git, in any
+// case when core.ignorecase is on, so a file there would be on the watch list
+// and yet in no listing. A top-level entry that is not a directory is left to
+// the listing.
+func checkTopDirGitNames(ctx context.Context, topDir string, gitNameErr error, dirs []string, walked *int, lim targetLimits) error {
+	info, err := os.Lstat(topDir)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return nil
 	case err != nil:
 		return errReadIgnoredDir
-	case !info.IsDir(), slices.Contains(dirs, watchTopDir):
+	case !info.IsDir(), slices.Contains(dirs, topDir):
 		// Not a directory, or a nested repository walked above.
 		return nil
 	}
-	return filepath.WalkDir(watchTopDir, func(p string, d fs.DirEntry, err error) error {
+	return filepath.WalkDir(topDir, func(p string, d fs.DirEntry, err error) error {
 		switch {
 		case err != nil:
 			return errReadIgnoredDir
-		case p == watchTopDir:
+		case p == topDir:
 			return nil
 		case ctx.Err() != nil:
 			return errIgnoredTimeout
@@ -415,7 +438,7 @@ func checkClaudeGitNames(ctx context.Context, dirs []string, walked *int, lim ta
 			return errIgnoredWalkEntries
 		}
 		if foldEqual(d.Name(), ".git") {
-			return errClaudeGitName
+			return gitNameErr
 		}
 		return nil
 	})
