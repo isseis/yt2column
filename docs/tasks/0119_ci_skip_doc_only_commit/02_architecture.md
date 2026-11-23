@@ -654,7 +654,7 @@ classDiagram
 -   **`gh` コマンドの HTTP 層制限（要件書 §3.2・§4.2、§1.2）:** `gh api` は HTTP 3xx リダイレクトを拒否できず、HTTP 層での応答サイズ上限も指定できない。この 2 点は制限として受け入れる（なお、`gh` 内部の Go `net/http` は別ドメインへのリダイレクト時に既定で `Authorization` ヘッダを取り除くが、`ciskip` 側で 3xx 自体を遮断するわけではない。また `cmdrunner.Options.MaxOutput` が制限するのは呼び出し側である `ciskip` の保持メモリであり、`gh` 子プロセス内部での読み込み——大きな HTTP 4xx/5xx エラー応答を `gh` が内部で一括読み込みする場合を含む——自体は直接制限できないため、子プロセスの異常な滞留には `CommandTimeout` と `ProcessGroup: true` による強制停止で対処する）。
 -   **同一リポジトリ内 PR の信頼境界:** `check-changes` は PR ブランチのコード（`cmd/ciskip` と `.github/workflows/ci.yml`）を実行する。フォーク PR はそもそも本スキップの対象外であり、同一リポジトリ内にブランチを push できる書き込み権限者（リポジトリ管理者・コラボレータ）は `.github/workflows/ci.yml` 自体も編集できるため、同一リポジトリ内の書き込み権限者による意図的なワークフロー改ざんは本機能の脅威モデルの外とする。
 -   **GitHub Actions 固有の未実測挙動:**
-    -   `::notice title=ci-base-sha::<sha>` を `GITHUB_TOKEN` + `checks: read` で `GET /check-runs/{id}/annotations` から確実に読み戻せるかは実装 PR の実機確認（F-006・AC-20）で検証する。取得できない場合は `ReasonParentBaseMissing` となり安全側（通常実行）へ倒れるため、誤スキップ（偽陽性）は起きない。
+    -   `::notice title=ci-base-sha::<sha>` を `GITHUB_TOKEN` + `checks: read` で `GET /check-runs/{id}/annotations` から読み戻せることは、PR-4（#1091）の実機確認（2026-11-23、F-006・AC-20）で確認した。取得できない場合は `ReasonParentBaseMissing` となり安全側（通常実行）へ倒れるため、誤スキップ（偽陽性）は起きない。
     -   親コミットで「Re-run failed jobs」が走り `check-changes` が attempt 1 から引き継がれた場合にも `jobs?filter=latest` が返す check-run `id` にアノテーションが残るかは未実測である。仮に残らない場合は `ReasonParentBaseMissing` で安全側（通常実行）に倒れるため、偽陽性は生じない（AC-20 の必須ケース外だが、可能なら併せて確認する）。
 -   **導入直後（コールドスタート）の挙動:** 本機能が `main` へマージされる前に親コミットの CI が走っていた既存 PR に文書のみのコミットを積んだ場合、親 run に `ci-base-sha` アノテーションがないため最初の 1 回は `reason=parent_base_missing` で通常実行へフォールバックし、その実行自身が `ci-base-sha` を記録する。以降に続く文書のみの push からはスキップが有効になる。
 
