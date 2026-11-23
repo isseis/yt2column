@@ -252,11 +252,15 @@ Execute every `pinned-worker` invocation in this exact sequence:
      foreground parallel work (such as CodeRabbit CLI), unconditionally
      schedule `schedule(DurationSeconds: 1, TimerCondition: "never", Prompt: ...)`
      and end the turn so the next turn receives `read_board` and `swarm_wait`.
-   - On the next turn, check `swarm(action: "status")` (treating an omitted
-     `last_post_seq` as not yet posted) and `read_board(since: pre_launch_seq)`.
-     If the worker has not posted yet and is still `working`, call
-     `swarm_wait(since: pre_launch_seq, mentions_only: false)` so even a post
-     that omits `@coordinator` wakes immediately without hanging.
+   - Maintain `last_seen_seq` initialized to `pre_launch_seq`. On the next turn
+     (and after each wake), check `swarm(action: "status")` (treating an
+     omitted `last_post_seq` as not yet posted) and drain all new messages by
+     calling `read_board(since: last_seen_seq)` repeatedly while messages are
+     returned, advancing `last_seen_seq` to the highest `seq` seen. While any
+     launched worker has not posted yet and is still `working`, call
+     `swarm_wait(since: last_seen_seq, mentions_only: false)` so even a post
+     that omits `@coordinator` wakes immediately without hanging or spinning on
+     already-read posts.
 8. **Mandatory cleanup, unauthorized-helper check, and exit state check (on
    EVERY exit: completion, mismatch, error, timeout, or caller stop):**
    - Call `swarm(action: "kill", name: ...)` for every worker launched in this
@@ -276,8 +280,10 @@ Execute every `pinned-worker` invocation in this exact sequence:
        undeclared, schedule `schedule(DurationSeconds: 1, TimerCondition: "never", Prompt: ...)`
        and end the turn so `read_board` becomes declared before reconciling
        ownership below.
-     - Reconcile `read_board(since: pre_launch_seq)` and
-       `swarm(action: "status")` against the pre-launch snapshot. Identify any
+     - Reconcile all board posts after `pre_launch_seq` (paginating
+       `read_board(since: ...)` from `pre_launch_seq` until no more messages
+       are returned) and `swarm(action: "status")` against the pre-launch
+       snapshot. Identify any
        descendant worker whose brief was posted by our worker(s) or by an
        already-identified descendant, recursively `swarm(action: "kill")` ONLY
        those owned descendants, and re-check `read_board` and `status` until no
@@ -288,8 +294,9 @@ Execute every `pinned-worker` invocation in this exact sequence:
      missing), discard all results and stop Fail-Closed immediately (even on
      `wrong-model`, `timeout`, or `unavailable` exits).
 9. **Validate post framing and record cost:**
-   - Verify each launched worker made exactly ONE post authored by that
-     worker's `name` after `pre_launch_seq` (excluding coordinator brief posts)
+   - Across all board posts after `pre_launch_seq` (paginating `read_board`
+     until drained), verify each launched worker made exactly ONE post authored
+     by that worker's `name` (excluding coordinator brief posts)
      and that its trimmed first line is strictly `@coordinator`. Strip line 1,
      save the remaining body to `<scratchpad>/<run-id>-output.txt`
      (`OUTPUT_FILE`), and pass it to the calling procedure's parser. Multiple
