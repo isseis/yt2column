@@ -296,8 +296,8 @@
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/1094
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ---
 
@@ -647,7 +647,7 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
--   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
+-   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4）
 -   [ ] PR-5 マージ済み（対象ステップ: 4-5 / 4-6 / 4-7 / 4-8）
@@ -744,8 +744,8 @@ PR-2:
 Diff record (AC-32):
 
 - Compared paths: `.claude/settings.json`
-- Merge-base: `2db8551f0a1030c936ca19089b0e952bf5d417b7`
-- Compared commit: `e919f98a41ca81f2a258626dc958bcf506687459`
+- Merge-base: `d74acaeb62c0aeebc1a85a2593324aac97aa3029`
+- Compared commit: `9c438744fe629f4a17d8b5a290b6bdc3fbcc48ff`
 
 Path diff:
 
@@ -760,6 +760,7 @@ File list:
 .claude/commands/_lib/opus-review-decision.sh
 .claude/commands/_lib/opus-review.md
 .claude/commands/chief.md
+.claude/commands/runplan.md
 CLAUDE.md
 cmd/yt2column/high_review_decision_test.go
 cmd/yt2column/review_records_test.go
