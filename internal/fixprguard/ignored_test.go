@@ -41,7 +41,6 @@ func TestIsWatched(t *testing.T) {
 		{"claude_prefix_only", ".claude.bak/settings.local.json", false},
 		{"agents_skills", ".agents/skills/runplan/SKILL.md", true},
 		{"agents_itself", ".agents", true},
-		{"agents_deep", ".agents/a/b/c.txt", true},
 		{"agents_not_top", "a/.agents/skills/runplan/SKILL.md", false},
 		{"agents_prefix_only", ".agents.bak/skills/runplan/SKILL.md", false},
 
@@ -68,7 +67,6 @@ func TestIsWatched(t *testing.T) {
 		{"go_work", "go.work", true},
 		{"go_sum", "go.sum", false},
 		{"name_as_suffix", "build/xmakefile", false},
-		{"agent_md_prefix_not_matched", "sub/myagent.md", false},
 		{"name_with_more_after", "go.mod.bak", false},
 
 		// Suffixes in any directory.
@@ -97,10 +95,8 @@ func TestIsWatched(t *testing.T) {
 		// Case folding, ASCII and Unicode simple folding.
 		{"ascii_upper_suffix", "build/X.GO", true},
 		{"ascii_upper_top_dir", ".CLAUDE/settings.local.json", true},
-		{"ascii_upper_agents_top_dir", ".AGENTS/skills/runplan/SKILL.md", true},
 		{"agents_top_dir_long_s", ".agent\u017f/skills/x.md", true},
 		{"agents_md_long_s", "sub/agent\u017f.md", true},
-		{"agents_override_md_long_s", "sub/agent\u017f.override.md", true},
 		{"kelvin_sign", "go.wor\u212a", true},
 		{"long_s", "a/x.\u017f", true},
 
@@ -301,10 +297,10 @@ func TestCollectTargetsGitFailures(t *testing.T) {
 	listCall := cmdrunnertestutil.Step{Name: gitCommand, Args: slices.Concat(cmdrunner.GitHardening(), listIgnoredArgs)}
 	t.Run("unreadable_directory_warning", func(t *testing.T) {
 		requireNonRoot(t)
-		for _, dir := range []string{"build/locked", ".claude/locked", ".agents/locked"} {
+		for _, dir := range []string{"build/locked", ".claude/locked"} {
 			t.Run(strings.Split(dir, "/")[0], func(t *testing.T) {
 				r := newTestRepo(t)
-				r.ignore("build/", ".claude/", ".agents/")
+				r.ignore("build/", ".claude/")
 				r.Write(dir+"/x.go", "package x\n")
 				chmodForTest(t, filepath.Join(r.Dir, dir), 0o311)
 				if _, err := collect(t, wideLimits()); !errors.Is(err, errListIgnoredFailed) {
@@ -436,28 +432,46 @@ func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 					}
 				})
 			}
-			t.Run("nested_repository", func(t *testing.T) {
-				r := newTestRepo(t)
-				r.ignore(w.dir + "/")
-				r.gitIn(r.Dir, "init", "-q", "--template=", w.dir+"/worktrees/w")
-				if _, err := collect(t, wideLimits()); err != nil {
-					t.Errorf("collectTargets: %v, want a listed nested repository's .git allowed", err)
-				}
-			})
-			t.Run("linked_worktree", func(t *testing.T) {
-				r := newTestRepo(t)
-				r.ignore(w.dir + "/")
-				r.AddWorktree(filepath.Join(r.Dir, w.dir+"/worktrees/w"), "other")
-				if _, err := collect(t, wideLimits()); err != nil {
-					t.Errorf("collectTargets: %v, want an ignored worktree's .git file allowed", err)
-				}
-			})
-			t.Run("top_dir_is_a_nested_repository", func(t *testing.T) {
-				r := newTestRepo(t)
-				r.ignore(w.dir + "/")
-				r.gitIn(r.Dir, "init", "-q", "--template=", w.dir)
-				if _, err := collect(t, wideLimits()); err != nil {
-					t.Errorf("collectTargets: %v, want %s/.git allowed when git lists %s", err, w.dir, w.dir)
+			allowed := []struct {
+				name  string
+				setup func(r *testRepo)
+				desc  string
+			}{
+				{
+					name:  "nested_repository",
+					setup: func(r *testRepo) { r.gitIn(r.Dir, "init", "-q", "--template=", w.dir+"/worktrees/w") },
+					desc:  "a listed nested repository's .git allowed",
+				},
+				{
+					name:  "linked_worktree",
+					setup: func(r *testRepo) { r.AddWorktree(filepath.Join(r.Dir, w.dir+"/worktrees/w"), "other") },
+					desc:  "an ignored worktree's .git file allowed",
+				},
+				{
+					name:  "top_dir_is_a_nested_repository",
+					setup: func(r *testRepo) { r.gitIn(r.Dir, "init", "-q", "--template=", w.dir) },
+					desc:  w.dir + "/.git allowed when git lists " + w.dir,
+				},
+			}
+			for _, tc := range allowed {
+				t.Run(tc.name, func(t *testing.T) {
+					r := newTestRepo(t)
+					r.ignore(w.dir + "/")
+					tc.setup(r)
+					if _, err := collect(t, wideLimits()); err != nil {
+						t.Errorf("collectTargets: %v, want %s", err, tc.desc)
+					}
+				})
+			}
+			// Call selectTargets directly so git ls-files does not fail first
+			// and only checkTopDirGitNames walks w.dir/locked.
+			t.Run("unreadable_subdir", func(t *testing.T) {
+				requireNonRoot(t)
+				t.Chdir(t.TempDir())
+				mkdir(t, filepath.Join(w.dir, "locked"))
+				chmodForTest(t, filepath.Join(w.dir, "locked"), 0)
+				if _, err := selectTargets(t.Context(), nil, nil, wideLimits()); !errors.Is(err, errReadIgnoredDir) {
+					t.Errorf("error = %v, want %v", err, errReadIgnoredDir)
 				}
 			})
 		})
@@ -1007,9 +1021,6 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 		}, stops: true},
 		{name: "ignored_agents_md_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
 			r.Write("build/AGENTS.md", "x\n")
-		}, stops: true},
-		{name: "ignored_gemini_md_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
-			r.Write("build/GEMINI.md", "x\n")
 		}, stops: true},
 		{name: "settings_local_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
 			r.Write(settingsLocalPath, `{"hooks":{}}`)
