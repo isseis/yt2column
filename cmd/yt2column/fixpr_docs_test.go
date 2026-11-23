@@ -1330,11 +1330,67 @@ var (
 	ghBodySafeRedirectRE = regexp.MustCompile(`^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*gh\s+[^|;&\n]+--json(?:=|\s+)\S*\bbody\b[^|;&\n]*\s+1?>\s*(?:"<scratchpad>/[^"\s]+"|<scratchpad>/[^\s"']+)\s*$`)
 )
 
+// stripShellComment returns s up to the first unquoted shell comment (# at the
+// start of a word outside single/double quotes and backslash escapes).
+func stripShellComment(s string) string {
+	inSingle := false
+	inDouble := false
+	escaped := false
+	wordStart := true
+	for i := range len(s) {
+		c := s[i]
+		if escaped {
+			escaped = false
+			wordStart = false
+			continue
+		}
+		if inSingle {
+			if c == '\'' {
+				inSingle = false
+			}
+			wordStart = false
+			continue
+		}
+		if inDouble {
+			switch c {
+			case '\\':
+				escaped = true
+			case '"':
+				inDouble = false
+			}
+			wordStart = false
+			continue
+		}
+		switch c {
+		case '\\':
+			escaped = true
+			wordStart = false
+		case '\'':
+			inSingle = true
+			wordStart = false
+		case '"':
+			inDouble = true
+			wordStart = false
+		case '#':
+			if wordStart {
+				return strings.TrimRight(s[:i], " \t")
+			}
+			wordStart = false
+		case ' ', '\t', '\r', '\n', ';', '&', '|', '(', ')':
+			wordStart = true
+		default:
+			wordStart = false
+		}
+	}
+	return s
+}
+
 // extractGHBodyCalls collects every gh ... --json ... body command from all
 // fenced code blocks (joining backslash continuations) and all inline code
-// spans in doc (folding soft-wrapped newlines to spaces). Each command line is
-// kept whole without splitting on ;, &&, or || so a chained leak after a
-// redirect is caught as unsafe.
+// spans in doc (folding soft-wrapped newlines to spaces), stripping unquoted
+// trailing shell comments so a commented-out redirection is never accepted as
+// executed. Each command line is kept whole without splitting on ;, &&, or ||
+// so a chained leak after a redirect is caught as unsafe.
 func extractGHBodyCalls(doc string) []string {
 	var rawCommands []string
 	var pending strings.Builder
@@ -1375,8 +1431,9 @@ func extractGHBodyCalls(doc string) []string {
 	}
 	var calls []string
 	for _, raw := range rawCommands {
-		if ghBodyCommandRE.MatchString(raw) {
-			calls = append(calls, raw)
+		execPart := stripShellComment(raw)
+		if ghBodyCommandRE.MatchString(execPart) {
+			calls = append(calls, execPart)
 		}
 	}
 	return calls
@@ -1440,6 +1497,8 @@ func TestHarnessAntigravityPhase6Redirect(t *testing.T) {
 		{"pipe_to_tee_leaks_stdout", "```bash\ngh pr view <number> --json title,body | tee \"<scratchpad>/pr.json\"\n```\n", 1, 1},
 		{"double_redirect_rejected", "```bash\ngh pr view <number> --json title,body > /dev/stdout > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
 		{"unspaced_double_redirect_rejected", "```bash\ngh pr view <number> --json title,body>/dev/stdout > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"commented_out_redirect_rejected", "```bash\ngh pr view <number> --json title,body # > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"trailing_comment_after_redirect", "```bash\ngh pr view <number> --json title,body > \"<scratchpad>/pr.json\" # save metadata\n```\n", 1, 0},
 		{"redirect_outside_scratchpad", "```bash\ngh pr view <number> --json title,body > /tmp/pr.json\n```\n", 1, 1},
 	}
 	for _, tc := range cases {

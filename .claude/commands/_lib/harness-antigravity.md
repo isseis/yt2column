@@ -131,10 +131,12 @@ subagents via `swarm` (`workspace: "inherit"`), using the `Model` from
 - **`fixpr` Phase 6 untrusted PR-body isolation:** the main session must never
   print the PR description into its own conversation. Before launching the
   Phase 6 worker, export the PR metadata and recent commit log by direct
-  redirection to scratchpad files (zero stdout to the main session):
+  redirection to scratchpad files (zero stdout to the main session, with
+  `GH_DEBUG=0 DEBUG=0` so inherited GitHub CLI debug settings cannot dump the
+  HTTP response body to stderr):
 
   ```bash
-  gh pr view <number> --json title,body > "<scratchpad>/<run-id>-pr.json"
+  GH_DEBUG=0 DEBUG=0 gh pr view <number> --json title,body > "<scratchpad>/<run-id>-pr.json"
   GIT_OPTIONAL_LOCKS=0 git --no-replace-objects log --oneline -10 > "<scratchpad>/<run-id>-log.txt"
   ```
 
