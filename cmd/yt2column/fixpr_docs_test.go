@@ -1319,18 +1319,23 @@ func TestLocalReviewGuard(t *testing.T) {
 }
 
 var (
-	// ghBodyCommandRE matches a shell command starting with gh (with optional
-	// leading VAR=val assignments) whose --json field list requests body.
-	ghBodyCommandRE = regexp.MustCompile(`^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*gh\b.*--json\s+\S*\bbody\b`)
+	// ghBodyCommandRE matches any shell command invoking gh (at command start,
+	// after VAR=val assignments, after wrapper words like command/env, or
+	// inside $(...)) whose --json field list requests body.
+	ghBodyCommandRE = regexp.MustCompile(`(?:^|[\s(])gh\b.*--json(?:=|\s+)\S*\bbody\b`)
 	// ghBodySafeRedirectRE matches a gh --json ... body command that writes
 	// stdout directly to a scratchpad file with no pipe, command chaining, or
 	// stdout tee.
-	ghBodySafeRedirectRE = regexp.MustCompile(`^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*gh\s+[^|;&\n]+--json\s+\S*\bbody\b[^|;&\n]*\s+1?>\s*(?:"<scratchpad>/[^"\s]+"|<scratchpad>/[^\s"']+)\s*$`)
+	ghBodySafeRedirectRE = regexp.MustCompile(`^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*gh\s+[^|;&\n]+--json(?:=|\s+)\S*\bbody\b[^|;&\n]*\s+1?>\s*(?:"<scratchpad>/[^"\s]+"|<scratchpad>/[^\s"']+)\s*$`)
+	// shellOutRedirectRE matches a shell output redirection operator preceded
+	// by whitespace (distinct from placeholder angle brackets like <number>).
+	shellOutRedirectRE = regexp.MustCompile(`(?:^|\s)(?:[0-9]*>>?|&>)`)
 )
 
 // extractGHBodyCalls collects every gh ... --json ... body command from all
 // fenced code blocks (joining backslash continuations) and all inline code
-// spans in doc, splitting chained commands on ;, &&, and ||.
+// spans in doc (folding soft-wrapped newlines to spaces), splitting chained
+// commands on ;, &&, and ||.
 func extractGHBodyCalls(doc string) []string {
 	var rawCommands []string
 	var pending strings.Builder
@@ -1365,7 +1370,9 @@ func extractGHBodyCalls(doc string) []string {
 	}
 	flush()
 	for _, m := range codeSpanRE.FindAllStringSubmatch(prose.String(), -1) {
-		rawCommands = append(rawCommands, strings.TrimSpace(m[1]))
+		span := strings.ReplaceAll(m[1], "\r\n", " ")
+		span = strings.ReplaceAll(span, "\n", " ")
+		rawCommands = append(rawCommands, strings.TrimSpace(span))
 	}
 	var calls []string
 	for _, raw := range rawCommands {
@@ -1417,12 +1424,13 @@ func splitShellList(cmd string) []string {
 
 // checkHarnessAntigravityPhase6Redirect verifies that doc contains at least
 // one gh ... --json ... body invocation and that every such invocation writes
-// directly to a scratchpad file without leaking stdout.
+// directly to a scratchpad file with a single output redirection and without
+// leaking stdout.
 func checkHarnessAntigravityPhase6Redirect(doc string) (int, []string) {
 	calls := extractGHBodyCalls(doc)
 	var unsafe []string
 	for _, call := range calls {
-		if !ghBodySafeRedirectRE.MatchString(call) {
+		if !ghBodySafeRedirectRE.MatchString(call) || len(shellOutRedirectRE.FindAllStringIndex(call, -1)) != 1 {
 			unsafe = append(unsafe, call)
 		}
 	}
@@ -1453,13 +1461,19 @@ func TestHarnessAntigravityPhase6Redirect(t *testing.T) {
 	}{
 		{"zero_matches", "```bash\ngit status\n```\n", 0, 0},
 		{"direct_redirect", "```bash\ngh pr view <number> --json title,body > \"<scratchpad>/<run-id>-pr.json\"\n```\n", 1, 0},
+		{"equals_json_with_redirect", "```bash\ngh pr view <number> --json=title,body > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
 		{"env_prefix_with_redirect", "```bash\nGH_HOST=github.com gh pr view <number> --json title,body > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
 		{"multiline_with_redirect", "```bash\ngh pr view <number> \\\n  --json title,body \\\n  > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
 		{"missing_redirect", "```bash\ngh pr view <number> --json title,body\n```\n", 1, 1},
+		{"equals_json_missing_redirect", "```bash\ngh pr view <number> --json=title,body\n```\n", 1, 1},
 		{"env_prefix_missing_redirect", "```bash\nGH_HOST=github.com gh pr view <number> --json title,body\n```\n", 1, 1},
+		{"command_sub_missing_redirect", "```bash\nout=$(gh pr view <number> --json title,body)\n```\n", 1, 1},
+		{"command_wrapper_missing_redirect", "```bash\ncommand gh pr view <number> --json title,body\n```\n", 1, 1},
 		{"multiline_missing_redirect", "```bash\ngh pr view <number> \\\n  --json title,body\n```\n", 1, 1},
 		{"inline_code_missing_redirect", "Run `gh pr view <number> --json title,body` first.\n", 1, 1},
+		{"wrapped_inline_code_missing_redirect", "Run `gh pr view <number>\n--json title,body` first.\n", 1, 1},
 		{"pipe_to_tee_leaks_stdout", "```bash\ngh pr view <number> --json title,body | tee \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"double_redirect_rejected", "```bash\ngh pr view <number> --json title,body > /dev/stdout > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
 		{"redirect_outside_scratchpad", "```bash\ngh pr view <number> --json title,body > /tmp/pr.json\n```\n", 1, 1},
 	}
 	for _, tc := range cases {

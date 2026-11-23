@@ -178,7 +178,8 @@ Execute every `pinned-worker` invocation in this exact sequence:
    before launching the first worker):** call `swarm(action: "status")`. Kill
    ONLY unfinished workers that this session previously launched and recorded
    in its own context — never kill unrelated workers belonging to the user or
-   another session. Record the pre-launch member name list in session context.
+   another session. Record the pre-launch member name list and
+   `pre_launch_seq = status.head` (or `0` when absent) in session context.
    Assign each new worker a unique name carrying a command prefix and run ID
    (for example `high-correct-1`, `high-weak-1`, `cc-review-1`, `esc-1`).
 3. **Verify model availability and remaining quota:** call
@@ -192,7 +193,7 @@ Execute every `pinned-worker` invocation in this exact sequence:
    → `not run` with reason `unavailable`; escalation → `ask`).
 4. **Export git inputs directly to scratchpad (before pre-launch state
    check):** run the direct-redirect commands of section 6 (`diff`, `--name-only`,
-   `log`, plus `GIT_OPTIONAL_LOCKS=0 git --no-replace-objects show --remerge-diff <MERGE> > "<scratchpad>/<run-id>-remerge.patch"`
+   `log`, plus `GIT_OPTIONAL_LOCKS=0 git --no-replace-objects -c core.fsmonitor=false show --no-ext-diff --no-textconv --remerge-diff <MERGE> > "<scratchpad>/<run-id>-remerge.patch"`
    as a single elevated command when running a post-merge check) so `.git/index`
    is untouched after the state check and huge diffs are never truncated in the
    main conversation.
@@ -225,49 +226,74 @@ Execute every `pinned-worker` invocation in this exact sequence:
      `swarm(action: "status")` once immediately after `add` and verify the new
      member's `"model"` byte-for-byte under the same fail rule.
    - On a transient `add` or execution error or usage limit: bring active
-     workers to 0 (finish or kill any sibling parallel worker), run the exit
-     state check (stop Fail-Closed on any difference), and retry at most ONCE.
-     Never retry on model mismatch, timeout, or state-check difference.
+     workers to 0 (finish or kill any sibling parallel worker), run step 8's
+     unauthorized-helper check and exit state check (stop Fail-Closed on any
+     unauthorized helper or state difference), and retry at most ONCE. Keep an
+     already-running 30-minute timer active across the single retry (so total
+     supervision stays bounded by 30 minutes and no duplicate timer is created;
+     if `add` failed before the timer started, start the timer once the retry's
+     `add` succeeds). If the retry also fails, run step 8 (including canceling
+     the timer) and fail without substituting another model (high-model review
+     → Fail-Closed stop; cross-check / post-merge check → `not run` with reason
+     `unavailable`; escalation → `ask`). Never retry on model mismatch,
+     timeout, or state-check difference.
 7. **Supervise timeout and collect output (first-turn safe, no TOCTOU):**
    - Start a 30-minute timer via `timer-wait`
      (`schedule(DurationSeconds: 1800, TimerCondition: "never", Prompt: ...)`)
-     so parallel tasks (such as CodeRabbit CLI) cannot cancel it early.
+     so parallel tasks (such as CodeRabbit CLI) cannot cancel it early. If the
+     30-minute timer fires before the worker completes, run step 8 immediately
+     and fail without retrying or substituting another model (high-model review
+     → Fail-Closed stop; cross-check / post-merge check → `not run` with reason
+     `timeout`; escalation → `ask`).
    - If this is the first turn in which `swarm(action: "add")` ran (when
      `read_board` and `swarm_wait` are not yet declared), after completing any
      foreground parallel work (such as CodeRabbit CLI), unconditionally
      schedule `schedule(DurationSeconds: 1, TimerCondition: "never", Prompt: ...)`
      and end the turn so the next turn receives `read_board` and `swarm_wait`.
    - On the next turn, check `swarm(action: "status")` (treating an omitted
-     `last_post_seq` as not yet posted) and `read_board(since: brief_seq)`. If
-     the worker has not posted yet and is still `working`, call
-     `swarm_wait(since: brief_seq, mentions_only: false)` so even a post that
-     omits `@coordinator` wakes immediately without hanging.
+     `last_post_seq` as not yet posted) and `read_board(since: pre_launch_seq)`.
+     If the worker has not posted yet and is still `working`, call
+     `swarm_wait(since: pre_launch_seq, mentions_only: false)` so even a post
+     that omits `@coordinator` wakes immediately without hanging.
 8. **Mandatory cleanup, unauthorized-helper check, and exit state check (on
    EVERY exit: completion, mismatch, error, timeout, or caller stop):**
    - Call `swarm(action: "kill", name: ...)` for every worker launched in this
      run. For parallel high-model discovery workers, a model mismatch or
      state-check difference on either worker kills BOTH immediately without
      retrying.
-   - Cancel every active timer with `manage_task(Action: "kill", TaskId: ...)`.
-   - Reconcile `read_board(since: brief_seq)` and `swarm(action: "status")`
-     against the pre-launch snapshot. Identify any descendant worker whose
-     brief was posted by our worker(s) or by an already-identified descendant,
-     recursively `swarm(action: "kill")` ONLY those owned descendants, and
-     re-check `read_board` and `status` until no owned descendants remain
-     (never kill unrelated members launched by the user or another subject). If
-     any unauthorized helper was detected, discard all results and stop
-     Fail-Closed immediately.
+   - Cancel every active timer with `manage_task(Action: "kill", TaskId: ...)`
+     (except when pausing to perform the single retry of step 6 with the same
+     30-minute timer).
+   - Call `swarm(action: "status")` and compare its members against the
+     pre-launch snapshot and our killed worker(s):
+     - When `read_board` is not yet declared (for example on a first-turn
+       model-mismatch or `add`-error exit): if `status` shows no unexpected new
+       member beyond the pre-launch snapshot and our killed worker(s), no
+       descendant exists and you may proceed directly to the exit state check.
+       If `status` shows any unexpected new member while `read_board` is
+       undeclared, schedule `schedule(DurationSeconds: 1, TimerCondition: "never", Prompt: ...)`
+       and end the turn so `read_board` becomes declared before reconciling
+       ownership below.
+     - Reconcile `read_board(since: pre_launch_seq)` and
+       `swarm(action: "status")` against the pre-launch snapshot. Identify any
+       descendant worker whose brief was posted by our worker(s) or by an
+       already-identified descendant, recursively `swarm(action: "kill")` ONLY
+       those owned descendants, and re-check `read_board` and `status` until no
+       owned descendants remain (never kill unrelated members launched by the
+       user or another subject). If any unauthorized helper was detected,
+       discard all results and stop Fail-Closed immediately.
    - Run the exit worktree state check. If any part differs (or the baseline is
      missing), discard all results and stop Fail-Closed immediately (even on
      `wrong-model`, `timeout`, or `unavailable` exits).
 9. **Validate post framing and record cost:**
-   - Verify the worker made exactly ONE post after `brief_seq` and that its
-     trimmed first line is strictly `@coordinator`. Strip line 1, save the
-     remaining body to `<scratchpad>/<run-id>-output.txt` (`OUTPUT_FILE`), and
-     pass it to the calling procedure's parser. Multiple posts or a missing /
-     malformed `@coordinator` line is treated as unreadable (`unreadable` for
-     cross-check / post-merge check, `stopped-error` for high-model review,
-     `ask` for escalation).
+   - Verify each launched worker made exactly ONE post authored by that
+     worker's `name` after `pre_launch_seq` (excluding coordinator brief posts)
+     and that its trimmed first line is strictly `@coordinator`. Strip line 1,
+     save the remaining body to `<scratchpad>/<run-id>-output.txt`
+     (`OUTPUT_FILE`), and pass it to the calling procedure's parser. Multiple
+     posts from the worker or a missing / malformed `@coordinator` line is
+     treated as unreadable (`unreadable` for cross-check / post-merge check,
+     `stopped-error` for high-model review, `ask` for escalation).
    - Because Antigravity `swarm` does not return worker token counts, record
      elapsed wall-clock seconds and `tokens unknown`.
 

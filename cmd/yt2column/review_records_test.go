@@ -2112,6 +2112,12 @@ func TestReviewRecordsFableAlias(t *testing.T) {
 					f.work("c1")
 					return rrFable(f, "launch")
 				}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+				{name: "MERGE waiting for merge check", setup: func(f *rrFixture) []string {
+					c1 := f.work("c1")
+					f.record("record", f.crossCheckRun(f.mb, c1, "claude-opus-5-5-medium"))
+					f.mainMerge("m2")
+					return rrFable(f, "launch")
+				}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.head()} }},
 				{name: "VALID after merge check with Antigravity high model", setup: func(f *rrFixture) []string {
 					c1 := f.work("c1")
 					f.record("record", f.crossCheckRun(f.mb, c1, "claude-opus-5-5-medium"))

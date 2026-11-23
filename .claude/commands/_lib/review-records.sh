@@ -85,7 +85,7 @@
 # unreviewed <HEAD> [<PLAN>] is coverage none <HEAD> [<PLAN>] with two
 # differences, and every other rule, output, and failure as for coverage:
 #   - a seen-range line's START also passes under the widened START check
-#     (the fable mode's contract below), so a line read before a merge of
+#     (the cross-check mode's contract below), so a line read before a merge of
 #     origin/main moved the merge-base still counts;
 #   - a merge commit inside the range of a seen-range line that passes the
 #     checks is known to be seen.
@@ -739,7 +739,7 @@ load_branch() {
 # checked_range sets RANGE_START and RANGE_END to the commits the 12-hex
 # prefixes $2 and $3 of a line in the message of commit $1 name, and reports
 # whether the line passes the checks of a seen-range line; with $4 "widen"
-# START passes the widened START check instead (the fable mode's contract).
+# START passes the widened START check instead (the cross-check mode's contract).
 checked_range() {
 	local holder=$1 widen=${4-} all inside
 	RANGE_START=$(resolve12 "$2") || return 1
