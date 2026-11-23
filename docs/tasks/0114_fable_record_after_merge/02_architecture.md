@@ -85,6 +85,17 @@
     -   要件：要件書 4.2 の「受け入れる形は Fable と揃える」を変えるので、要件書も draft に戻した。
     -   ADR：なし。merge の後の確認の中の、出力の確かめの細部で、本タスクの中で閉じる。
 
+### 1.2.1. 実装の際に決めたこと（2026-11-23）
+
+本書承認後にタスク 0118（`#1077`）が `_lib/task-pr-handoff.md` Part B にローカル CLI 未レビュー分の補完（`step 2.5`）を追加したため、フェーズ 2 の実装前に人と確認して次の 2 点を決めた（セッション中の再承認）。
+
+-   **Part B の順序とステップ番号:** 既存のタスク 0118 の手順を `step 2.5` のまま残し、本タスクの push の直前の判定（Entry 4）を **`step 2.6`** として `step 2.5` の直後・`step 3` の直前に置く。AC-05（push の前の最後の手順は Entry 4 の判定）を満たしつつ、`runpr.md`・`runplan.md`・`local-cli-review.md`・`review-records.sh` の既存 `Part B step 2.5` 参照を壊さないためである。`step 2.5` が作る修正・記録の commit は `step 1.5`／チェックポイントの印の後にあるので規則 3 で記録を無効にしない。人の答え：既存を `step 2.5` のまま残し Entry 4 を `step 2.6` とする（推奨）。
+    -   採らなかった案：0118 の手順の番号を振り直し、本タスクの Entry 4 を `step 2.5` のままにする。既存文書と guard テストの参照を広く書き換えることになる。
+    -   ADR：なし。`_lib/task-pr-handoff.md` 内のステップ番号と配置の調整で、ADR-0013・ADR-0042・ADR-0050 の決定を変えない。
+-   **`step 2.6` の救済後の再チェックで `step 2.5` を走らせ直さない:** `step 2.6` が救済を走らせた後の再チェックは、AC-04 と 3.4.3 のとおり `AFTER_REMEDY` → README の同期 → CHECKS → 最終段のみとし、`step 2.5` は走らせ直さない。救済自身の直しは単独の経路／merge の後の確認の中でローカルの CLI レビューを通り、残った未レビューの commit は `step 3` の `unreviewed` が PR の説明に挙げる。AC-04 と ADR-0042（「PR を開く直前に 1 回だけ置く」）を保ち、merge 後に `coverage none` が merge 前の commit まで再レビューするのも避けるためである。人の答え：走らせ直さない（推奨）。
+    -   採らなかった案：CHECKS の後に `step 2.5` を走らせ直してから最終段へ進む。AC-04 と ADR-0042 の変更が要り、merge 後は `coverage none` が merge 前の commit まで再レビューする。
+    -   ADR：なし。ADR-0042 の「1 回だけ置く」と一致し、ADR の決定を変えない。
+
 ### 1.3. なぜ今の仕組みでは足りないか
 
 -   **判定が入口でしか走らない。** 今の手順は、有効かを、起動の入口（`fable-review.md:139`）とチェックポイントの入口（`fable-review.md:236`）でしか判定しない。その後、push（`task-pr-handoff.md:218`）までにできた commit は、判定されない。#987 では、記録の commit の後の merge commit が、Fable にも何にも見られないまま PR が開かれた（要件 1 章）。入口を広げても、push の前の最後の commit は入口の後にできうるので、push の直前に判定を足すほかない。
@@ -171,8 +182,8 @@ flowchart LR
     HANDOFF -->|"step 1"| LOCAL
     LOCAL -->|"Entry 1・2"| FABLE
     FABLE -->|"直しの確かめ<br>（単独の経路・merge の後の確認）"| LOCAL
-    HANDOFF -->|"step 1.5: Entry 3<br>step 2.5: Entry 4"| FABLE
-    HANDOFF -->|"step 2.5: AFTER_REMEDY"| RUNPLAN
+    HANDOFF -->|"step 1.5: Entry 3<br>step 2.6: Entry 4"| FABLE
+    HANDOFF -->|"step 2.6: AFTER_REMEDY"| RUNPLAN
     RUNPLAN -->|"B2〜B4"| OPUS
     FABLE -.->|"fable のモード"| SCRIPT
     HANDOFF -.->|"step 3: unreviewed のモード"| SCRIPT
@@ -191,7 +202,7 @@ flowchart LR
     class L3 data
 ```
 
--   **`opus-review.md` は変えない。** Part B step 2.5 の AFTER_REMEDY として、`runplan.md` が「Before the PR」の B2〜B4 を走らせるだけである（3.5.2）。
+-   **`opus-review.md` は変えない。** Part B step 2.6 の AFTER_REMEDY として、`runplan.md` が「Before the PR」の B2〜B4 を走らせるだけである（3.5.2）。
 -   **`local-cli-review.md` は、呼び出し元の一覧だけを変える。** merge の後の確認が、直しの確かめにローカルの CLI レビューを呼ぶ新しい呼び出し元になる。冒頭の呼び出し元の一覧（`local-cli-review.md:10-23`）と、RECORD の表（`:70-79`）に、`_lib/fable-review.md`「The merge check」（RECORD `return`）を足す。起動の入口が `MERGE` を `VALID` と同じに読むことは `fable-review.md` の中で閉じる（3.3.2）。
 
 ### 2.2. コンポーネント配置
@@ -201,7 +212,7 @@ flowchart LR
 | `.claude/commands/_lib/review-records.sh` | 変更 | `fable` のモード：出力 `MERGE`、確認できる merge commit、規則 4、merge の後の確認の記録の読み方、ブランチの範囲の確かめ（AC-32）、START の決め方（AC-14）。新しい `unreviewed` のモード（AC-16〜AC-19）。ヘッダーの `ENTRY` の説明（`:76`） |
 | `.claude/commands/_lib/fable-review.md` | 変更 | 冒頭の入口の数（`:13`）と入口の表、判定を走らせる入口の文（`:81`）、有効かの判定の出力の読み方、Entry 1 と Entry 3 の `MERGE`、Entry 3 の FABLE、新しい Entry 4、新しい節「The merge check」、記録の行と読み方 |
 | `.claude/commands/_lib/local-cli-review.md` | 変更 | 呼び出し元の一覧と RECORD の表に「The merge check」を足す |
-| `.claude/commands/_lib/task-pr-handoff.md` | 変更 | 入力 FABLE・CHECKPOINT・AFTER_REMEDY、step 1.5（Entry 3）、step 2.5（Entry 4）、step 3 の push と PR の説明 |
+| `.claude/commands/_lib/task-pr-handoff.md` | 変更 | 入力 FABLE・CHECKPOINT・AFTER_REMEDY、step 1.5（Entry 3）、step 2.6（Entry 4）、step 3 の push と PR の説明 |
 | `.claude/commands/runplan.md` | 変更 | step 5a と step 8 の Entry 3 の `MERGE` と FABLE、Part B の入力（FABLE・CHECKPOINT・AFTER_REMEDY）、B1 と step 5a の文の直し |
 | `docs/dev/adr/0050-fable-partial-review.md` | 変更 | 決定・採らなかった案・経緯（本 PR）、食い違いの文の解消（実装の PR） |
 | `cmd/yt2column/review_records_test.go` | 変更 | 判定のスクリプトの新しい規則とモードのテスト、呼び出しの行と記録の行の形の読み取り（7 章） |
@@ -212,7 +223,7 @@ flowchart LR
 
 ### 2.3. データフロー
 
-図 3 は、タスク文書の PR の Part B で、記録の後に `origin/main` を merge したときの流れを示す。`/runplan` の PR では、step 1.5 の代わりに step 5a のチェックポイントの入口が走り、step 2.5 の AFTER_REMEDY で Opus のレビューの判断をやり直す（3.5）。
+図 3 は、タスク文書の PR の Part B で、記録の後に `origin/main` を merge したときの流れを示す。`/runplan` の PR では、step 1.5 の代わりに step 5a のチェックポイントの入口が走り、step 2.6 の AFTER_REMEDY で Opus のレビューの判断をやり直す（3.5）。
 
 ```mermaid
 sequenceDiagram
@@ -237,7 +248,7 @@ sequenceDiagram
     R-->>F: VALID
     F-->>H: 印の commit
     H->>H: step 2: CHECKS（直しは印の後）
-    H->>F: step 2.5: Entry 4
+    H->>F: step 2.6: Entry 4
     F->>R: fable checkpoint
     R-->>F: VALID（D = HEAD）
     H->>R: step 3: unreviewed D
@@ -358,7 +369,7 @@ bash <records-script> unreviewed <HEAD> <PLAN>
 | Entry 1: launch | `local-cli-review.md` step 1 | 今のまま。ただし `MERGE` は `VALID` と同じに読み、起動しない（3.3.2） |
 | Entry 2: collection | `local-cli-review.md` step 4 | 今のまま |
 | Entry 3: checkpoint | `runplan.md` step 5a・step 8、`task-pr-handoff.md` Part B step 1.5 | 判定し、有効でなければ救済を行い、もう一度判定して `VALID` なら印を残す（3.3.3） |
-| Entry 4: pre-push | `task-pr-handoff.md` Part B step 2.5 | 判定し、有効でなければ救済を行う。呼ぶ側の再チェックの後、最後の判定をして D を返す（3.3.4） |
+| Entry 4: pre-push | `task-pr-handoff.md` Part B step 2.6 | 判定し、有効でなければ救済を行う。呼ぶ側の再チェックの後、最後の判定をして D を返す（3.3.4） |
 
 -   **救済:** 判定が `MISSING <START>` なら単独の経路（RANGE `<START>..HEAD`）を、`MERGE` なら挙がった merge commit ごとに、古い順に merge の後の確認（3.3.5）を行う。merge commit の数に上限は設けない。記録の後に merge を何度もすることは稀で、1 つにつき 1 回の確認の費用を受け入れる。`MISSING` と `MERGE` は同時には返らない。記録を無効にする中身のある commit があれば、未確認の merge commit があっても `MISSING` を返すためである（3.1.2）。
 -   **有効かの判定の読み方:** `fable-review.md:94-106` に `MERGE` を足す（3.1.1）。取り出し方と走らせ方（`:88-92`）は変えない（AC-01）。
@@ -374,11 +385,11 @@ bash <records-script> unreviewed <HEAD> <PLAN>
 2.  `VALID` でなければ救済を行い、もう一度判定する。2 回目が `VALID` でなければ、今の `MISSING` と同じく止まって報告する（`fable-review.md:237-243`）。報告の内容は、Entry 4 の最後の段（3.3.4）と同じにする（止まった理由、判定の出力の 1 行目、失敗のときは標準エラーに書かれたこと、今の HEAD、作った commit）。
 3.  `VALID` なら、印の空の commit を作る（今のまま、`:244-248`）。
 
-印の後に作る commit の一覧（`:245-248`）に、タスク文書の PR の Part B step 2 の CHECKS の直しと、step 2.5 の救済とその後の commit を足す。
+印の後に作る commit の一覧（`:245-248`）に、タスク文書の PR の Part B step 2 の CHECKS の直し、step 2.5 のローカルの CLI レビューの直しと記録、step 2.6 の救済とその後の commit を足す。
 
 #### 3.3.4. Entry 4: pre-push（新規、AC-01〜AC-08、AC-15、AC-24）
 
-push の直前の入口は、2 つの段からなる。呼ぶ側（Part B step 2.5）は、2 つの段の間に、自分の再チェック（AFTER_REMEDY、README の同期、CHECKS）を走らせる（3.4.3）。
+push の直前の入口は、2 つの段からなる。呼ぶ側（Part B step 2.6）は、2 つの段の間に、自分の再チェック（AFTER_REMEDY、README の同期、CHECKS）を走らせる（3.4.3）。
 
 -   **最初の段:**
     1.  有効かの判定を、`<ENTRY>` `checkpoint` で走らせる（決定 5）。
@@ -451,9 +462,9 @@ merge の後の確認は、merge commit M 1 つについて、単独の経路（
 
 | 入力 | タスク文書のコマンド | `runplan.md` | 意味 |
 |---|---|---|---|
-| FABLE（新規） | KIND `documents`、TASK_DIR、SELF_REJECTED | KIND `implementation`、TASK_DIR、SELF_REJECTED（このセッションの step 7・7.5 が却下した指摘。ないときは空） | step 1.5 と step 2.5 が Entry 3 と Entry 4 に渡す。step 1 の FABLE（`task-pr-handoff.md:184-197`）は、これを渡す形に変える |
+| FABLE（新規） | KIND `documents`、TASK_DIR、SELF_REJECTED | KIND `implementation`、TASK_DIR、SELF_REJECTED（このセッションの step 7・7.5 が却下した指摘。ないときは空） | step 1.5 と step 2.6 が Entry 3 と Entry 4 に渡す。step 1 の FABLE（`task-pr-handoff.md:184-197`）は、これを渡す形に変える |
 | CHECKPOINT（新規） | `run` | `done` | `run` なら step 1.5 で Entry 3 を走らせる。`done` は、呼ぶ側がすでに Entry 3 を走らせたことを表す（`runplan.md` step 5a・step 8） |
-| AFTER_REMEDY（新規、任意） | なし | 3.5.2 | step 2.5 の最初の段が救済を行ったときに、再チェックの前に走らせること |
+| AFTER_REMEDY（新規、任意） | なし | 3.5.2 | step 2.6 の最初の段が救済を行ったときに、再チェックの前に走らせること |
 
 -   **LOCAL_REVIEW と CHECKPOINT を分ける理由:** どちらも、今はタスク文書のコマンドと `runplan.md` で値が分かれる。しかし、意味が違う（ローカルの CLI レビューを走らせるか、印を残すか）。1 つの入力で 2 つの意味を選ぶと、片方だけを変えたい呼び出しが出たときに、もう片方まで変わってしまうためである。
 
@@ -461,22 +472,22 @@ merge の後の確認は、merge commit M 1 つについて、単独の経路（
 
 step 1（README の同期を含む）の後、CHECKPOINT が `run` なら、`fable-review.md` の Entry 3 を FABLE で走らせる。止まったら、何も push しない。Entry 3 が救済を行ったときは、step 1 の README の同期をもう一度走らせる。救済の直しが `README.md` を変えうるためである（AC-04 の考え方）。`README.en.md` の commit は中身のない commit なので、印の前にあっても後にあっても記録を無効にしない。CHECKPOINT が `done` なら何もしない。
 
-#### 3.4.3. step 2.5: push の直前の判定（新規、AC-01〜AC-09）
+#### 3.4.3. step 2.6: push の直前の判定（新規、AC-01〜AC-09）
 
-step 2（CHECKS）の後、step 3 の push の前に、次を行う。
+step 2（CHECKS）とタスク 0118 の step 2.5（ローカルの CLI レビューの未レビュー分の補完）の後、step 3 の push の前に、次を行う。
 
 1.  Entry 4 の最初の段を FABLE で走らせる。`VALID` なら D を受け取って step 3 に進む。
-2.  救済を行ったときは、次の順で再チェックする。
+2.  救済を行ったときは、次の順で再チェックする（step 2.5 は走らせ直さない。1.2.1）。
     1.  AFTER_REMEDY（`runplan.md` では Opus のレビューの判断のやり直し、AC-09）。
     2.  step 1 の README の同期（AC-04）。
     3.  step 2 の CHECKS（AC-04）。ここでの直しは印の後の commit なので、記録を無効にしない（AC-10、AC-11）。
 3.  Entry 4 の最後の段を走らせる。`VALID` なら D を受け取って step 3 に進む。止まったら、止まった内容を REPORT に書いて止まる（AC-06）。
 
-step 2.5 の前の CHECKS の直しは、step 1.5 の印の後にあるので、最初の段の判定で記録を無効にしない（AC-11）。
+step 2.6 の前の CHECKS の直しと step 2.5 の直し・記録は、step 1.5 の印の後にあるので、最初の段の判定で記録を無効にしない（AC-11）。
 
 #### 3.4.4. step 3: PR の説明と push（AC-05、AC-16〜AC-20、AC-31、決定 2・10）
 
--   **本文を読む範囲:** 本文の記録の行（Fable の行、ローカルの CLI レビューの行、訂正の行）は、`origin/main..HEAD` ではなく `origin/main..<D>` から読む。step 2.5 の後に commit は作らないので、ふつうは同じ範囲である。push の直前の判定を経ない呼び出し（`runpr.md` step 4 の通常の進め方への戻し）では、そのときの HEAD を D とする。
+-   **本文を読む範囲:** 本文の記録の行（Fable の行、ローカルの CLI レビューの行、訂正の行）は、`origin/main..HEAD` ではなく `origin/main..<D>` から読む。step 2.6 の後に commit は作らないので、ふつうは同じ範囲である。push の直前の判定を経ない呼び出し（`runpr.md` step 4 の通常の進め方への戻し）では、そのときの HEAD を D とする。
 -   **どちらの CLI もレビューしなかった commit:** 今の文（`task-pr-handoff.md:250-260`）を、判定のスクリプトの `unreviewed` のモードを `<HEAD>` = D で走らせ、`PARTIAL` の一覧を挙げる形に置き換える（3.2）。step 3 のコードの塊に、有効かの判定と同じ 2 行（`git rev-parse --verify ...` と `git --no-replace-objects show ...`）と、3 行目 `bash <records-script> unreviewed <HEAD> <PLAN>` を、参照ではなく文字どおりに書く。`TestReviewRecordsCallSite` が、この 3 行の並びを探すためである（3.7）。`runplan.md` の「Opus のレビューの直しを足す」文と、「セッションの SUMMARY の範囲だけを挙げる」文は要らなくなる。スクリプトが、見た範囲の行に入らない commit をすべて挙げるためである。
 -   **Fable の部分レビューの節:** 今のまま、`origin/main..D` の Fable の行から書く。単独の経路の記録も、別の記録として並ぶ（AC-20）。
 -   **merge の後の確認の節（新規）:** 見出し `## merge の後の確認` を足し、merge の後の確認の記録ごとに、走ったか（`not run` ならその理由）、名指しした merge commit（12 桁）、範囲の箇所とその種類、直した指摘の数、却下・`deferred`・`unclear` の指摘を、場所とセッションの要約で示す（AC-31）。確認の記録がなければ、この節は置かない。行を写す `<details>` の塊は作らない。後から行を集める用途（ADR-0050 の「記録」、#936）は、Fable の部分レビューのためのものだからである。
@@ -484,7 +495,7 @@ step 2.5 の前の CHECKS の直しは、step 1.5 の印の後にあるので、
 -   **push:** 題名と本文のファイルを書き、メンションの確かめとラベルの読み取りを終えた後、push の直前に `git rev-parse HEAD` が D と同じかを確かめる。違えば、step 2 の CHECKS を走らせ直してから、救済をせずに判定だけを 1 回やり直す（AC-05）。CHECKS を走らせ直すのは、足された commit が CHECKS を通っていないためである。`VALID` なら、その判定の `<HEAD>` を新しい D として題名と本文を書き直し、メンションの確かめとラベルの読み取りもやり直して、もう一度 HEAD を確かめる。要件の「判定からやり直す」を、救済を含まない 1 回の判定に絞るのは、この設計の選択である。`VALID` でないか、2 度目も HEAD が D と違えば、AC-06 の内容に D と HEAD の間の commit を加えて報告し、止まる。HEAD が動くのは、ほかのプロセスかセッションが同じ worktree に commit しているときで、救済を繰り返すと終わらないことがあるためである。同じなら、`git push origin <D>:refs/heads/<current-branch>` を走らせ、`gh pr create` の後に `git branch --set-upstream-to=origin/<current-branch>` を走らせる（決定 10）。
     -   **AFTER_CREATE:** PR を作った後、AFTER_CREATE（`runplan.md` の計画書の印と push）を走らせる前に、HEAD が D であることを確かめ、違えば止まる（決定 10）。
     -   **AC-05 の「最後の手順」との関係:** 判定の後、push までに行うのは、D から題名と本文を書くこと、ラベルを読むこと、HEAD が D かを確かめることだけで、どれも commit を作らない。D を名指しして push するので、確かめの後にできた commit は送られない。
-    -   **step 番号:** 新しい手順を 1.5 と 2.5 にし、今の step 2〜7 の番号は変えない。ほかの文書（`runplan.md`・`runpr.md`・`local-cli-review.md`・`fable-review.md`）が `Part B step 2`・`Part B step 3` と書き、`codex_review_docs_test.go:75-77` が step 3 と step 4 の書き出しで節を探すためである。
+    -   **step 番号:** 新しい手順を 1.5 と 2.6 にし、今の step 2・2.5（タスク 0118）・3〜6 の番号は変えない（1.2.1）。ほかの文書（`runplan.md`・`runpr.md`・`local-cli-review.md`・`fable-review.md`・`review-records.sh`）が `Part B step 2`・`Part B step 2.5`・`Part B step 3` と書き、`review_mention_docs_test.go` が step 3 と step 4 の書き出しで節を探すためである。
 
 ### 3.5. `runplan.md`（AC-09、AC-13、AC-18、決定 1）
 
@@ -613,7 +624,7 @@ flowchart TD
 
 ## 6. 処理フローの詳細 (Processing Flow Details)
 
-図 5 は、Part B step 2.5（push の直前の判定）の流れを示す。矢印は処理の順序を表す。
+図 5 は、Part B step 2.6（push の直前の判定）の流れを示す。矢印は処理の順序を表す。
 
 ```mermaid
 flowchart TD
@@ -804,3 +815,4 @@ PR の順序は計画で決める（申し送り H-03）。設計としての順
 - 2026-11-20 承認（isseis、#1049）
 - 2026-11-20 draft への戻し：merge の後の確認の指摘の場所は、Fable の規則（merge-base から HEAD までに変わったファイル）に加えて、範囲の一覧のパスも有効とする（#1060）
 - 2026-11-20 承認（isseis、#1060）
+- 2026-11-23 セッション中の再承認：タスク 0118 の Part B step 2.5 を残して本タスクの push 直前判定を step 2.6 とし、step 2.6 の再チェックでは step 2.5 を走らせ直さない（isseis、#未記入）
