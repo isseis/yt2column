@@ -59,25 +59,59 @@ bash $R/classify.sh $DATA/data . | tee $DATA/candidates.txt
 
 ### 確定した一覧
 
-`candidates.txt` を読んで、次の表を埋めます。
+2026-11-24 に `fetch.sh 2026-11-20` を実行して作りました。対象は 2026-11-20 以降に `main` へマージされた 34 本で、`classify.sh` が候補とした 25 本を人の目で読んで分けています。
 
-| PR | squash | 種別 | Opus 再レビュー | Fable 再レビュー | 結果 | 修正 PR |
-|---|---|---|---|---|---|---|
-| #1097 | `bd72ac9e8e20` | feat(0114) | 要（squash 本文に「run on Gemini 4 Neon」） | 要確認 | | |
-| … | | | | | | |
+- **最初の代替:** #1070（2026-11-20 マージ）。それより前の 2026-11-20 の文書 PR（#1049・#1050・#1056・#1058・#1060・#1062・#1063・#1065）は、Fable が `claude-fable-5-2` で実行されています。
+- **行の順:** マージの順。**優先度:** 1 は信頼境界・セキュリティ・レビューゲート・CI ゲートを変えた PR、2 はそれ以外の実装 PR、3 はタスク文書 PR。
+- **「代替の根拠」の欄:** PR ブランチの記録行と PR 本文から読んだものです。
 
-**どちらの再レビューが要るか:**
+#### A. 代替でレビューされた PR（クオータ枯渇による。再レビューの対象）
+
+| 優先度 | PR | squash | 種別 | Opus 再レビュー | Fable 再レビュー | 代替の根拠 | 結果 | 修正 PR |
+|---|---|---|---|---|---|---|---|---|
+| 2 | #1069 | `7bf8f68b08f0` | docs(0117) chief_architecture.md | 要 | 要 | Opus レビューを Gemini のセッションでの Codex CLI レビューで「完了扱い」にした。Fable は `not run`。実装は OpenCode | | |
+| 3 | #1070 | `dc224b5c7754` | docs(0118) 設計書 | 不要 | 要 | Fable を Gemini 4 Neon のフルレビューで代替 | | |
+| 3 | #1074 | `6a266e990548` | docs(0118) 計画書 | 不要 | 要 | Fable を `gemini-4-argon-medium`（1 回目は Argon 以外）で代替 | | |
+| 3 | #1075 | `b004f8c01ba2` | docs(0119) 要件・ADR-0054 | 不要 | 要 | Fable を `gemini-4-argon-medium` で代替 | | |
+| 3 | #1076 | `d45909cf9d36` | docs(0119) 設計書 | 不要 | 要 | Fable を `gemini-4-argon-medium` で代替、残りは `not run` | | |
+| 1 | #1077 | `21400a98ad5b` | refactor(0118) codexreview 撤去 | 不要（`claude-opus-5-5-high` で実行） | 要 | Fable を `gemini-4-argon-medium` で代替（記録は `not-fable`） | | |
+| 3 | #1078 | `3fa62267b0c8` | docs(0119) 計画書 | 不要 | 要 | Fable を `gemini-4-argon-high` で代替（記録は `not run`） | | |
+| 3 | #1079 | `8fbbfc4b8b77` | docs(0120) 要件 | 不要 | 要 | Fable を `gemini-4-argon-medium` で代替、残りは `not run` | | |
+| 1 | #1080 | `4e8fd02e21e0` | feat(0118) fixprguard review-state | 要 | 要 | Opus を `gemini-4-neon-high`、Fable を `gemini-4-argon-high` で代替 | | |
+| 1 | #1081 | `fc4bb3dfbb5a` | feat(0119) internal/ciskip | 要 | 要 | Opus を Neon High、Fable を `gemini-4-argon-high` と `claude-opus-5-5-medium` で代替。実装も Neon High | | |
+| 3 | #1083 | `b93a22023ef7` | docs(0120) 設計書 | 不要 | 要 | Fable は `not run`（Antigravity のセッション） | | |
+| 1 | #1084 | `720fc313c595` | feat(0118) 手動 CodeRabbit・メンション拒否 | 要 | 要 | Opus が `stopped-unavailable` で Neon High に代替、Fable は `not run` | | |
+| 3 | #1085 | `3562af5a17b3` | docs(0120) 計画書 | 不要 | 要 | Fable を `gemini-4-neon-high` で代替（記録は `not run unavailable`） | | |
+| 1 | #1086 | `cd4a90aef0ae` | feat(0119) ciskip GitHub API 検証 | 要 | 要 | Opus を Neon High で代替（HTTP 429）、Fable は `not run` | | |
+| 1 | #1090 | `2db8551f0a10` | feat(0120) fixprguard 監視一覧 | 要 | 要 | Opus を `gemini-4-neon-high` で代替、Fable は `not run` | | |
+| 1 | #1091 | `d419fb5ddce7` | ci(0119) check-changes のスキップ統合 | 要 | 要 | Opus と Fable の両方を Neon High で代替 | | |
+| 3 | #1092 | `a3f3830e4a68` | docs(0121) 要件 | 不要 | 要 | Fable は `not run`（Antigravity のセッション） | | |
+| 1 | #1094 | `4aee4aa65011` | feat(0120) 役割名への移行・判定スクリプト改名 | 要 | 要 | Opus を `gemini-4-neon-high` で代替、Fable は `not run` | | |
+| 3 | #1098 | `7d86a397b237` | docs(0122) 要件・ADR | 不要 | 要 | Fable は `not run`（Antigravity のセッション） | | |
+| 1 | #1097 | `bd72ac9e8e20` | feat(0114) push 前の Fable 記録の再確認 | 要 | 要 | Opus を Neon High で代替、Fable は `not run` | | |
+
+**同時期の未マージ PR:** 0115 の計画、0121 の設計書、0120 PR-3 の各ブランチにも、同じ記録が残っています。これらは事後の再レビューではなく、マージ前に正規のレビューを通してください（手順 5）。
+
+#### B. OpenCode での実装による構造上の `not run`（判断待ち）
+
+実装モデル要件が `sonnet` で OpenCode が実装した PR です。OpenCode は Fable を呼べないので `not run agent-cannot-call` になります。これは設計どおりの動作で、クオータ枯渇による代替ではありません。この手順書の対象に含めるかどうかは人が決めます。
+
+| PR | squash | 種別 | 記録 |
+|---|---|---|---|
+| #1048 | `00e21e18ba21` | docs(0112) dev_tools 規約 | Fable `not run`（OpenCode） |
+| #1088 | `d7467569603e` | docs(0118) Codex 記述の更新 | Fable `not run`（OpenCode） |
+| #1089 | `812f94a0dc3e` | feat(0119) cmd/ciskip | Fable `not run`（OpenCode）。Opus は `NONE value-sonnet` |
+| #1093 | `063dd6d55e10` | docs(0119) 実機確認の記録・ADR | Fable `not run`（OpenCode） |
+
+#### C. 候補になったが対象外
+
+- **#1066:** `NO-HIGH-REVIEW-RECORD` が出ました。ただし、すべてのコミットが `claude-opus-5-5` の実装記録の範囲に入っていて Opus レビューは不要（`NONE all-opus`）であり、Fable も `claude-fable-5-2` で実行されています。
+
+**どちらの再レビューが要るか（判断の基準）:**
 
 - **タスク文書 PR**（`docs(NNNN)`、`/mkreq`・`/mkarch`・`/mkplan` が作ったもの）: Fable だけ。Opus レビューは `/runplan` の PR にしかありません。
 - **実装 PR**（`/runplan`）: Fable と、要件しだいで Opus。
 - **単独 PR**（タスク番号のない scope）: どちらの手順も通らないので対象外。
-
-**参考:** ローカルに残っていたブランチの記録だけで、次のものが見つかっています（未確定）。
-
-- **マージ済み:** #1097 では、Opus レビューが Gemini 4 Neon で行われた。
-- **未マージ:** 0115 の計画、0121 のアーキテクチャ、0120 PR-3 の各ブランチに、`Fable review: not run (agent-cannot-call)` が残っている。0120 PR-3 には、Claude の trailer がないコミットに `High review: done` が書かれている。
-
-未マージの PR は事後の再レビューではなく、マージ前に正規のレビューを通してください（手順 5）。
 
 ## 2. 優先順
 
