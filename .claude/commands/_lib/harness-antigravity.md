@@ -256,8 +256,11 @@ Execute every `pinned-worker` invocation in this exact sequence:
      (and after each wake), check `swarm(action: "status")` (treating an
      omitted `last_post_seq` as not yet posted) and drain all new messages by
      calling `read_board(since: last_seen_seq)` repeatedly while messages are
-     returned, advancing `last_seen_seq` to the highest `seq` seen. While any
-     launched worker has not posted yet and is still `working`, call
+     returned, advancing `last_seen_seq` to the highest `seq` seen. Count a
+     worker as having posted whenever a post authored by its `name` appears in
+     the drained board messages (even if the earlier `status` snapshot still
+     showed it `working` with no `last_post_seq`). While any launched worker
+     has not posted yet and is still `working`, call
      `swarm_wait(since: last_seen_seq, mentions_only: false)` so even a post
      that omits `@coordinator` wakes immediately without hanging or spinning on
      already-read posts.
