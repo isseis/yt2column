@@ -146,8 +146,9 @@ convergence rules are in `.claude/commands/_lib/review-subagent-pattern.md`.
 
 5. **Act on the triage** as "Triage rules" says:
    - After fixing, run the build checks (`_context.md`) and commit, with the
-     record lines of step 7 in the message (never a Fable line, step 7).
-     After a Fable launch, run the post-exit comparison of
+     record lines of step 7 in the message (never a Fable or merge check line,
+     step 7).
+     After a Fable or merge check launch, run the post-exit comparison of
      `_lib/fable-review.md`, "The state check", right before each commit. When a fix is an editorial
      correction to an approved task document (`docs/dev/conventions/requirements_process.md`,
      "Editing an approved document") or to an ADR

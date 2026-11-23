@@ -541,7 +541,7 @@ Part B の呼び出し（`runplan.md:104-149`）に、FABLE（KIND `implementati
 | `TestReviewRecordsMode`（`:715-725`） | 大文字の `Unreviewed` も失敗することを確かめる |
 | `TestRecordLinePrefixesDistinct`（`:1318-1360`） | 表に足す行がそのまま入る。今のテストは、足す接頭辞を既存の接頭辞とだけ比べる（`:1350-1356`）。足す接頭辞どうし（`Fable ...` と `Merge check ...`）も比べるように変える |
 | `TestRecordCommitsCheckMention`（`:1365-1389`） | 「The merge check」の節を、確かめる箇所に足す |
-| `codex_review_docs_test.go:75-77` | step 3 と step 4 の書き出しを変えないので、影響しない（3.4.4） |
+| `review_mention_docs_test.go:75-77` | step 3 と step 4 の書き出しを変えないので、影響しない（3.4.4） |
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 
