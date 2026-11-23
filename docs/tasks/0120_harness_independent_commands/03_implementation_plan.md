@@ -123,10 +123,10 @@
 - `internal/fixprguard/types.go`
 
 **作業内容:**
-- [ ] `internal/fixprguard/ignored.go` の単一の `watchTopDir` をスライス `watchTopDirs = []string{".claude", ".agents"}` に拡張し、`WatchListPatterns()` と `isWatched()` が `.claude/` と `.agents/` の双方を先頭一致（`foldEqual`）で扱うようにする（設計書 3.6.1）。
-- [ ] `watchNames` に `"agents.md"`・`"agent.md"`・`"gemini.md"`・`"agents.override.md"` を追加する（`watchTopFiles` の `"claude.local.md"` の既存仕様は維持）。
-- [ ] 番兵エラー `errAgentsGitName`（`ErrGitFailed` を元のエラーに含め、規則名 `ignored .git name below .agents`）を追加し、`ignoredFailures` に登録する。既存の `errClaudeGitName` を維持したまま、`.claude`・`.agents` 双方の直下走査で `.git`（`foldEqual` 一致）を検出し、走査上限 `lim.walkEntries` を両ディレクトリの合算で適用する。
-- [ ] `internal/fixprguard/types.go` の `Protocol` を実装時の `origin/main` の値 + 1 へ引き上げる。
+- [x] `internal/fixprguard/ignored.go` の単一の `watchTopDir` をスライス `watchTopDirs = []string{".claude", ".agents"}` に拡張し、`WatchListPatterns()` と `isWatched()` が `.claude/` と `.agents/` の双方を先頭一致（`foldEqual`）で扱うようにする（設計書 3.6.1）。
+- [x] `watchNames` に `"agents.md"`・`"agent.md"`・`"gemini.md"`・`"agents.override.md"` を追加する（`watchTopFiles` の `"claude.local.md"` の既存仕様は維持）。
+- [x] 番兵エラー `errAgentsGitName`（`ErrGitFailed` を元のエラーに含め、規則名 `ignored .git name below .agents`）を追加し、`ignoredFailures` に登録する。既存の `errClaudeGitName` を維持したまま、`.claude`・`.agents` 双方の直下走査で `.git`（`foldEqual` 一致）を検出し、走査上限 `lim.walkEntries` を両ディレクトリの合算で適用する。
+- [x] `internal/fixprguard/types.go` の `Protocol` を実装時の `origin/main` の値 + 1 へ引き上げる。
 
 **完了基準:**
 - `go test -tags test ./internal/fixprguard` がビルドできる（テスト更新はステップ 1-2）。
@@ -141,14 +141,14 @@
 - `docs/dev/adr/0055-harness-independent-commands.md`
 
 **作業内容:**
-- [ ] `internal/fixprguard/ignored_test.go` を次のとおり更新し、実装時に各新検査を 1 か所ずつ壊して該当テストが失敗することを確認する。
+- [x] `internal/fixprguard/ignored_test.go` を次のとおり更新し、実装時に各新検査を 1 か所ずつ壊して該当テストが失敗することを確認する。
     - `TestIsWatched` の `AGENTS.md` を `true` へ反転し、`.agents/` の境界ケース（`a/.agents/...`・`.agents.bak/...` 等）と、任意階層の 4 指示ファイル（大文字・小文字混在や Unicode 単純ケースフォールディングを含む）の監視検出を追加する。
-    - `TestWatchListPatternsMatch` の期待件数を `33` へ更新し、`TestCollectTargetsGitFailures` に `.agents/locked` を追加する。
-    - `.claude` 向けの境界ケース（`.git` ファイル・`.GIT`・`a.git`・ネストリポジトリ・リンクされた worktree・最上位ネストリポジトリ・合算 `walkEntries` 上限）を `.agents` にも対称に追加し、`errAgentsGitName` を検証する。
-- [ ] `.claude/commands/fixpr.md` と `.claude/commands/runpr.md` の全 `fixprguard --protocol` および `runpr.md:220` の `"protocol":<N>` 出力例を `origin/main` の値 + 1 に更新する。
-- [ ] `docs/dev/guides/fixprguard_guide.md` の `--protocol N` の現在の番号（`:66`）・5 章の全 `--protocol` / `"protocol":<N>` 出力例、7.1 の監視の一覧表と本文、7.2.3・7.2.5 の旧「`AGENTS.md`・`GEMINI.md` 等は一覧外」記述、8.1 の本文と一覧コマンド（`:613,617`。`.agents` が存在しないときもエラーにならない存在確認付きとする）、8.2 の規則表（`ignored .git name below .agents` 追加、および `:638,642` の `.claude/` 記述へ `.agents/` を併記）を更新する。
-- [ ] `ADR-0055`（`:25`）の `#1072` 食い違い記述から、本 PR で解消した `fixprguard` 監視拡張分を取り除き、残余の食い違いのみを示す形へ書き換える（`docs/dev/conventions/adr.md`「Discrepancy statements」、コミットメッセージに `Editorial correction:` 行を残す）。
-- [ ] `cmd/fixprguard/docs_test.go` を実行し、`TestGuideListsWatchList`・`TestGuideDescribesIgnoredFiles`・`TestDocumentedProtocolMatches` がすべて通ることを確認する。
+    - `TestWatchListPatternsMatch` の期待件数を `33` へ更新する。
+    - `.claude` 向けの境界ケース（`.git` ファイル・`.GIT`・`a.git`・ネストリポジトリ・リンクされた worktree・最上位ネストリポジトリ・非無視の読取不能サブディレクトリによる `errReadIgnoredDir`・合算 `walkEntries` 上限）を `.agents` にも対称に追加し、`errAgentsGitName` を検証する。
+- [x] `.claude/commands/fixpr.md` と `.claude/commands/runpr.md` の全 `fixprguard --protocol` および `runpr.md:220` の `"protocol":<N>` 出力例を `origin/main` の値 + 1 に更新する。
+- [x] `docs/dev/guides/fixprguard_guide.md` の `--protocol N` の現在の番号（`:66`）・5 章の全 `--protocol` / `"protocol":<N>` 出力例、7.1 の監視の一覧表と本文、7.2.3・7.2.5 の旧「`AGENTS.md`・`GEMINI.md` 等は一覧外」記述、8.1 の本文と一覧コマンド（`:613,617`。`.agents` が存在しないときもエラーにならない存在確認付きとする）、8.2 の規則表（`ignored .git name below .agents` 追加、および `:638,642` の `.claude/` 記述へ `.agents/` を併記）を更新する。
+- [x] `ADR-0055`（`:25`）の `#1072` 食い違い記述から、本 PR で解消した `fixprguard` 監視拡張分を取り除き、残余の食い違いのみを示す形へ書き換える（`docs/dev/conventions/adr.md`「Discrepancy statements」、コミットメッセージに `Editorial correction:` 行を残す）。
+- [x] `cmd/fixprguard/docs_test.go` を実行し、`TestGuideListsWatchList`・`TestGuideDescribesIgnoredFiles`・`TestDocumentedProtocolMatches` がすべて通ることを確認する。
 
 **完了基準:**
 - `make test && make lint && make deadcode` および `doc-guard` の全対象パッケージが通る。
@@ -159,7 +159,7 @@
 - `docs/tasks/0120_harness_independent_commands/03_implementation_plan.md`（§7 の差分記録）
 
 **作業内容:**
-- [ ] §7.2 の PR-1 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録し、`.claude/settings.json` および他タスクの計画書が変更されていないことを確認する。
+- [x] §7.2 の PR-1 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録し、`.claude/settings.json` および他タスクの計画書が変更されていないことを確認する。
 
 **完了基準:**
 - グリーンゲートがパスし、§7.2 の PR-1 差分記録が最新 HEAD と一致する。
@@ -178,10 +178,10 @@
 
 **自動送信**: hold
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1090
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ---
 
@@ -609,7 +609,7 @@
 設計書 7 章および `docs/dev/conventions/test_organization.md` に従う。新しい `testutil/` パッケージは作らず、既存のパッケージ内テストヘルパ（`internal/fixprguard/test_helpers.go`、`internal/chief/test_helpers.go`、`cmd/yt2column/test_helpers*.go`、いずれも `//go:build test`）を再利用する。
 
 -   **Go 単体テスト（設計書 7.1）:**
-    -   `internal/fixprguard/ignored_test.go`: `TestIsWatched`・`TestWatchListPatternsMatch`（33 件）・`TestCollectTargetsGitFailures`（`.agents/locked` 追加）、`.agents/` と任意階層 4 指示ファイル（Unicode 単純ケースフォールディング含む）の `PartIgnored` 検出、`.agents/` 配下 `.git` / `.GIT` 境界の `errAgentsGitName`、既存 `.claude/` の `errClaudeGitName`、合算 `walkEntries` 上限。
+    -   `internal/fixprguard/ignored_test.go`: `TestIsWatched`・`TestWatchListPatternsMatch`（33 件）・`TestCollectTargetsWatchedDirGitNames`（`.claude/`・`.agents/` 配下の `.git` / `.GIT` 境界による `errClaudeGitName` / `errAgentsGitName` および読取不能サブディレクトリによる `errReadIgnoredDir`）、`.agents/` と任意階層 4 指示ファイル（Unicode 単純ケースフォールディング含む）の `PartIgnored` 検出、合算 `walkEntries` 上限。
     -   `internal/chief/{task_test.go,routing_test.go,send_test.go,snapshot_test.go,maintask_test.go,running_test.go,autosend_test.go}`・`internal/chief/paneinput/paneinput_test.go`: 実 `_context.md` に対する `TestParseOldValues` の 6 件一致検証、`TestReadModelRequirement`・`TestParsePlanProgress`・`TestParsePlanRejects`（新 3 値・全 6 旧値・異常系 `RequirementUnreadable` / `errTaskDocument`、`testdata/plans/` 標本使用）、新 3 行キー・未知エージェント拒否（`errRouting`）・`### Harness model mapping` 非干渉。
 -   **パリティテスト（設計書 7.2）:**
     -   `internal/chief/markers_parity_test.go::TestMarkerReadingMatchesDecisionScript`: `internal/chief` と `_lib/high-review-decision.sh` の分類結果（`RUN`・`NONE value-low`・`NONE value-absent`）を全フィクスチャで照合する（`testTools` に `"env"` を追加）。
@@ -646,7 +646,7 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
+-   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
 -   [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
 -   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4）
@@ -718,7 +718,26 @@ PR-1:
 Diff record (AC-32):
 
 - Compared paths: `.claude/settings.json`
-- File list: required (all changed paths of the PR)
+- Merge-base: `d7467569603ebee9da629419ae299d430fb920f2`
+- Compared commit: `6dee92cb368e44d3e140203296c888b4e502b1de`
+
+Path diff:
+
+````text
+````
+
+File list:
+
+````text
+.claude/commands/fixpr.md
+.claude/commands/runpr.md
+docs/dev/adr/0055-harness-independent-commands.md
+docs/dev/guides/fixprguard_guide.md
+docs/tasks/0120_harness_independent_commands/03_implementation_plan.md
+internal/fixprguard/ignored.go
+internal/fixprguard/ignored_test.go
+internal/fixprguard/types.go
+````
 
 PR-2:
 
