@@ -787,26 +787,6 @@ func checkConfigScenarios(t *testing.T, name string, bash scriptBash, newFixture
 	}
 }
 
-// TestReviewRecordsCoverage runs the coverage mode of the review records
-// script on fixture repositories: the commits judged, the checks of a
-// seen-range line, the plan checkbox commits, the failures, and that the
-// caller's environment and git configuration change nothing. Each case runs
-// with each bash scriptBashes returns.
-//
-// Some guards back each other, so breaking one alone fails no case:
-// unsetting the GIT_ variables (env -i drops them too), reading lines only
-// from origin/main..HEAD (END must be a branch commit and an ancestor of
-// the line's commit), the check that END is a branch commit (a range whose
-// END origin/main reaches covers no branch commit), resolving a prefix only
-// as an ID (the ref check rejects a prefix a ref is named after), the check
-// that PLAN is given (the changed path must equal it), and the check that
-// END is not the line's own commit (a message cannot name its own commit).
-//
-// Most configuration scenarios and the attributes case guard the reading
-// through plumbing commands, which no such setting reaches today: they fail
-// only when the script starts reading through a porcelain diff. Only
-// core.abbrev and i18n.logOutputEncoding reach a command the script runs
-// (git log for the listed subjects).
 // runRRCases executes every case in cases under mode and bash, checking
 // fail-closed output failOut (exit 1 with diagnostic) when want is nil and
 // exact stdout (exit 0) otherwise.
@@ -842,6 +822,26 @@ func runRRCases(t *testing.T, bash scriptBash, mode, failOut, form string, forms
 	}
 }
 
+// TestReviewRecordsCoverage runs the coverage mode of the review records
+// script on fixture repositories: the commits judged, the checks of a
+// seen-range line, the plan checkbox commits, the failures, and that the
+// caller's environment and git configuration change nothing. Each case runs
+// with each bash scriptBashes returns.
+//
+// Some guards back each other, so breaking one alone fails no case:
+// unsetting the GIT_ variables (env -i drops them too), reading lines only
+// from origin/main..HEAD (END must be a branch commit and an ancestor of
+// the line's commit), the check that END is a branch commit (a range whose
+// END origin/main reaches covers no branch commit), resolving a prefix only
+// as an ID (the ref check rejects a prefix a ref is named after), the check
+// that PLAN is given (the changed path must equal it), and the check that
+// END is not the line's own commit (a message cannot name its own commit).
+//
+// Most configuration scenarios and the attributes case guard the reading
+// through plumbing commands, which no such setting reaches today: they fail
+// only when the script starts reading through a porcelain diff. Only
+// core.abbrev and i18n.logOutputEncoding reach a command the script runs
+// (git log for the listed subjects).
 func TestReviewRecordsCoverage(t *testing.T) {
 	for _, tool := range []string{"git", "awk", "tr"} {
 		if _, err := exec.LookPath(tool); err != nil {
