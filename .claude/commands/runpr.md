@@ -213,8 +213,11 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
   `--protocol does not match`, the installed tool and this document use
   different protocol numbers. Do not report it as a fork; stop, and give the
   user both fixes: when the tool is older, run `make install-fixprguard` from
-  an up-to-date `main`; when this branch is older than `main` (a newer tool
-  running this older document), merge `main` into the branch first.
+  an up-to-date `main`, or, while `main` still carries the older number
+  because the change that raises it is not merged, from this branch's work
+  tree (chapter 3 of `docs/dev/guides/fixprguard_guide.md`), and run `/runpr`
+  again; when this branch is older than `main` (a newer tool running this
+  older document), merge `main` into the branch first and run `/runpr` again.
 - Right after `head` passes, before the PR's branch is checked out, read the
   state of the interaction limits, once in this run:
 
