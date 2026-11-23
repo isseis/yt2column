@@ -31,7 +31,7 @@
 
 ### 実装構造と API 検証方式
 
--   **`main` 不変性の検証方式:** 通常分類でコードまたはブラウザ拡張の変更が検出されて `ciskip` が起動するたびに、`pull_request` イベントでチェックアウトされる合成マージコミットの第 1 親（`HEAD^1`、その実行が実際に検証した `main` コミット）を固定形式の `::notice` アノテーション（`title=ci-base-sha`）として記録する。次回のスキップ判定時には、親コミットの `check-changes`（表示名 `Check changed files`）ジョブのチェック実行アノテーション（Checks API）から読み戻して今回の `HEAD^1` および `origin/main` と照合する。
+-   **`main` 不変性の検証方式:** 通常分類でコードまたはブラウザ拡張の変更が検出されて `ciskip` が起動し、かつ同一リポジトリの `main` 向け PR で入力が有効であり、チェックアウトされた合成マージコミットの第 2 親が検証済みの PR head SHA と一致したときに、その合成マージコミットの第 1 親（`HEAD^1`、その実行が実際に検証した `main` コミット）を固定形式の `::notice` アノテーション（`title=ci-base-sha`）として記録する。フォーク PR・非 `main` ベース・不正な入力・合成マージコミットの不一致では記録しない。次回のスキップ判定時には、親コミットの `check-changes`（表示名 `Check changed files`）ジョブのチェック実行アノテーション（Checks API）から読み戻して今回の `HEAD^1` および `origin/main` と照合する。
     -   理由：GitHub Actions REST API は過去の合成マージコミットの `HEAD^1` を返さず、`pull_requests[].base.sha` も古くなりうるため、明示的に記録した SHA を照合することで偽陽性を防ぎつつ、PR ブランチが `main` を取り込んでいない一般的なケースでもスキップを有効にするため（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
 -   **判定ロジックの配置先:** [ADR-0014](0014-deterministic-checks-in-go.md) の方針に従い、Go 製の CI 専用ツール `cmd/ciskip` + `internal/ciskip` として実装し、`.github/workflows/ci.yml` の `check-changes` ジョブから `go run ./cmd/ciskip` で呼び出す。コンパイル済みバイナリの事前ビルド・配布は行わない。インストール型ツールではなく CI 専用のため、`make install-*` やプロトコル番号の対象外とする。既存の通常分類ステップはそのまま残し、後段の最終出力ステップでスキップ判定を適用する。
     -   理由：`check-changes` は `wasm-dep-dirs.sh` のためにすでに Go をセットアップ済みであり、`internal/strictjson` と `internal/cmdrunner` を再利用して厳密な検証と包括的なユニットテストを書けるため。また、`go.mod` は外部依存がなく `cmd/ciskip` の依存パッケージも少ないため、`GOCACHE` が空の状態から `go run` で都度ビルドしても数秒程度（4 vCPU 換算で約 4〜6 秒）で終わり、スキップ適用時は常時実行の `doc-guard`（約 1 分）と並列に走るため PR 全体の待ち時間を増やさない（文書のみ PR で通常分類が両方 `false` のときは `ciskip` 自体を起動しない）（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
@@ -58,7 +58,7 @@
 
 -   `mergepr` と `/runpr` の仕様・プロトコル番号を変えずに、`PRE_MERGE` コミットや文書のみの追加 push 後の CI 待ち時間と実行コストを削減できる。
 -   `doc-guard`（文書の値・構造・同期ガード）と `secret-scan`（追跡対象ファイル内の PEM 秘密鍵の検査）はスキップ時も毎回実行される。
--   `check-changes` ジョブに `actions: read` と `checks: read` の読み取り権限が加わり、通常分類でコードまたはブラウザ拡張の変更がある実行の Summary の Annotations 欄に `ci-base-sha` の notice が 1 件表示される。
+-   `check-changes` ジョブに `actions: read` と `checks: read` の読み取り権限が加わり、同一リポジトリの `main` 向け PR でコードまたはブラウザ拡張の変更があり、合成マージコミットの第 2 親が検証済みの PR head SHA と一致した実行では、Summary の Annotations 欄に `ci-base-sha` の notice が 1 件表示される（フォーク PR・非 `main` ベース・不正な入力・合成マージコミットの不一致では表示されない）。
 -   `gh` コマンドの仕様上、HTTP 3xx リダイレクトの拒否と HTTP 層での応答サイズ上限の指定は行えないという制限がある（呼び出し側の `cmdrunner.Options.MaxOutput` とタイムアウトでメモリ枯渇とハングを防ぐ）。
 -   `::notice` アノテーションは `GITHUB_TOKEN` + `checks: read` で Checks API から読み戻せることを、PR #1091 の GitHub Actions 実機確認（2026-11-23）で確かめた（読み戻せない場合は安全側で通常実行に倒れる）。
 -   将来 `.github/workflows/ci.yml` に `check-changes` の出力で制御される新しい重いジョブを追加する場合は、同じ PR 内で、親コミットの通過確認対象となるジョブの一覧（`internal/ciskip`）も更新する必要がある。

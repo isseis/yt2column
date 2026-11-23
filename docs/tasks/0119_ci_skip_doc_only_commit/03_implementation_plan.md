@@ -329,7 +329,7 @@ PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利�
 
 | # | リスク | 対策 |
 |---|---|---|
-| 1 | `GITHUB_TOKEN` + `checks: read` で `::notice title=ci-base-sha::<sha>` を Checks API から読み戻せない（未実測、設計書 §5.3） | 読み戻せない場合は `ReasonParentBaseMissing` で安全側（通常分類）へ倒れるため誤スキップは起きない。PR-4 の実機確認で検証し、問題があれば PR-5 で ADR の食い違いの記述を除去する前に停止して方式を見直す（ステップ 3-1） |
+| 1 | `GITHUB_TOKEN` + `checks: read` で `::notice title=ci-base-sha::<sha>` を Checks API から読み戻せない（設計書 §5.3） | 読み戻せない場合は `ReasonParentBaseMissing` で安全側（通常分類）へ倒れるため誤スキップは起きない。PR-4 の実機確認（2026-11-23、#1091）で読み戻しを確認し、このリスクは解消した（§7「GitHub Actions 実機確認の記録（AC-20）」） |
 | 2 | PR-4 のレビュー中に別 PR が `main` へマージされて `PRE_MERGE` が `ReasonMainAdvanced` になる、または `/runplan` の記録コミットにより PR-4 でコード変更先頭コミットの push が走らない | PR-5 を `自動送信: hold` とし、利用者が PR-4 の実行ログを確認する。2 ケースのどちらかが未確認なら、ADR 更新へ進まずに追加の確認手順を利用者と決める（ステップ 3-1） |
 | 3 | `ci.yml` の `id: normal` 書き換えで `extension/test/repository.test.ts:232-235` の正規表現ピンが壊れる | `wasm_dep_dirs_ok=false` を `if` の前に初期化し、`else` 直後の構造を変えない（§1.4）。ステップ 2-3 の完了基準で `make ext-test` を実行して確認する |
 | 4 | `os.Open(depDirsFile)`（64 KiB+1 バイト上限の `io.LimitReader` 付き有界読み取り）・`os.WriteFile(resultFile, ...)`、および `test_helpers.go`（`_test.go` 除外対象外）の `exec.Command` 等が `golangci-lint` の `gosec` に抵触する | 該当行のみに最小範囲の `//nolint:gosec` と用途を限定した根拠コメント（`test_helpers.go` ではテストセットアップ専用と明記）を付け、ファイル・パッケージ全体への抑制は行わない。`make lint` で確認する |
@@ -401,7 +401,7 @@ PASS: .github/workflows/ci.yml diff is confined to check-changes
 -   **対象 PR:** [#1091](https://github.com/isseis/yt2column/pull/1091)
 -   **ケース 1（コード変更を含む push での通常実行）:**
     -   実行 URL: https://github.com/isseis/yt2column/actions/runs/45108083604
-    -   先頭コミットの種別と全 6 ジョブの結果: 先頭コミット `e9cd5086` は `origin/main`（`2db8551f`）を取り込んだマージコミットで、`internal/fixprguard/*` のコード変更を含む。`check-changes` は `::notice title=ci-base-sha::2db8551f0a1030c936ca19089b0e952bf5d417b7` を出力し（判定は `decision=run reason=not_single_parent`）、`test`・`lint`・`extension`・`doc-guard`・`secret-scan` はいずれも実行されて成功した（`check-changes` を含む全 6 ジョブが success）。
+    -   先頭コミットの種別と全 6 ジョブの結果: 先頭コミット `e9cd5086` は `origin/main`（`2db8551f`）を取り込んだマージコミットであり、コード変更のコミットでも記録コミットでもない。`ciskip` の判定は親コミットが 1 つでないため `decision=run reason=not_single_parent` で安全側に終了し、`::notice title=ci-base-sha::2db8551f0a1030c936ca19089b0e952bf5d417b7` を出力した。重いジョブは、PR 全体（`origin/main...HEAD`）の通常分類がコードファイルを含むため実行され、`test`・`lint`・`extension`・`doc-guard`・`secret-scan` はいずれも成功した（`check-changes` を含む全 6 ジョブが success）。この run の先頭コミットの差分に含まれる `internal/fixprguard/*` の変更は、取り込んだ `origin/main` のものである。`reason=code_changed`（親コミットが 1 つでコード変更）の通常実行は GitHub Actions では観測していない。
     -   補足: 先頭コミット `21dcb81`（`docs(0119): record PR-4 URL in implementation plan`、記録コミット）の run https://github.com/isseis/yt2column/actions/runs/45103580506 も、PR 全体にコード変更を含むため通常分類で全 6 ジョブが実行されて成功し、`::notice title=ci-base-sha::812f94a0dc3eef41bd69d8a4e023f994d68a0ee9` を出力した（`decision=run reason=no_parent_run`）。
 -   **ケース 2（直後の非コード・非拡張のみコミットのスキップ）:**
     -   実行 URL: https://github.com/isseis/yt2column/actions/runs/45110835958
