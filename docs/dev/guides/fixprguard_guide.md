@@ -615,7 +615,7 @@ Linux では `sha256sum` を、macOS では `shasum -a 256` を使う。`diff` �
 
 ```sh
 git -c core.fsmonitor=false ls-files --others --ignored --exclude-standard -z | tr '\n\0' '\001\n' | LC_ALL=C sed 's/\^/^^/g' | LC_ALL=C cat -vt
-for d in .claude .agents; do [ -e "$d" ] && find "$d" -print0; done | tr '\n\0' '\001\n' | LC_ALL=C sed 's/\^/^^/g' | LC_ALL=C cat -vt
+for d in .claude .agents; do if [ -e "$d" ] || [ -L "$d" ]; then find "$d" -print0; fi; done | tr '\n\0' '\001\n' | LC_ALL=C sed 's/\^/^^/g' | LC_ALL=C cat -vt
 ```
 
 `begin` が `ignored` で止まったときは、このラウンドの記録はない（`begin` は、状態を求め直す前に前のラウンドの記録を消す）。上のブロックは実行せず、このコマンドで一覧にしたファイルを (c) のとおり確かめてから、やり直す。

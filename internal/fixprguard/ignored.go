@@ -32,6 +32,7 @@ import (
 // volume also applies the full folding that expands one rune into several
 // (U+FB01 to "fi"); a name equal to an item only under that expansion is not
 // matched, a residual risk the guide records.
+
 // watchedTopDir pairs a watched top-level directory with the sentinel error
 // returned when a .git entry is found below it outside a listed nested repo.
 type watchedTopDir struct {
