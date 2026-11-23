@@ -384,13 +384,13 @@ PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利�
 ### AC-16 検証スクリプト実行記録
 
 -   **Merge-base:** `812f94a0dc3eef41bd69d8a4e023f994d68a0ee9`
--   **比較対象コミット:** `61e002cc1e8fb67af640f03e436f719281182829`
+-   **比較対象コミット:** `e7bd67bea926930982ae59b852b9fe9ac27bb987`
 -   **実行出力:**
 
 ```text
 PASS: .github/workflows/ci.yml diff is confined to check-changes
   base:     812f94a0dc3eef41bd69d8a4e023f994d68a0ee9 (check-changes:12, test:74)
-  compared: 61e002cc1e8fb67af640f03e436f719281182829 (check-changes:12, test:150)
+  compared: e7bd67bea926930982ae59b852b9fe9ac27bb987 (check-changes:12, test:150)
 ```
 
 ### GitHub Actions 実機確認の記録（AC-20）
