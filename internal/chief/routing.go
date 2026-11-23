@@ -25,12 +25,12 @@ const (
 
 // routingRows names each route key's row in the table.
 var routingRows = map[string]paneinput.RouteKey{
-	"task-documents":             paneinput.RouteTaskDocuments,
-	"runplan-opus":               paneinput.RouteRunplanOpus,
-	"runplan-sonnet+opus-review": paneinput.RouteRunplanSonnetReview,
-	"runplan-sonnet":             paneinput.RouteRunplanSonnet,
-	"runplan-takeover":           paneinput.RouteRunplanTakeover,
-	"runpr":                      paneinput.RouteRunpr,
+	"task-documents":               paneinput.RouteTaskDocuments,
+	"runplan-high":                 paneinput.RouteRunplanHigh,
+	"runplan-standard+high-review": paneinput.RouteRunplanStandardReview,
+	"runplan-low":                  paneinput.RouteRunplanLow,
+	"runplan-takeover":             paneinput.RouteRunplanTakeover,
+	"runpr":                        paneinput.RouteRunpr,
 }
 
 // Routing is the parsed routing table: one route for each route key.

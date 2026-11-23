@@ -63,7 +63,7 @@ PR boundary markers embedded in the implementation plan use these labels:
 - Fields: `**対象ステップ**`, `**推奨タイトル**`, `**レビュー観点**`, `**実装モデル要件**`, `**判定理由**`, `**自動送信**`
 - `**推奨タイトル**`: the source `runplan.md` step 5a writes the PR title from. It is a PR title, not a squash subject (`mergepr.md` writes that at the merge); its form is in "PR title and squash subject" below
 - Implementation model requirement (`**実装モデル要件**`), in five parts:
-  1. **Values.** `opus`, `sonnet+opus-review`, and `sonnet`. `mkplan2.md`
+  1. **Values.** `high`, `standard+high-review`, and `low`. `mkplan2.md`
      step 4, "Model requirement", assigns them (`mkplan.md` runs it as its
      step 8.5, and `mkreq.md` runs it in the simple process; `mkplan.md` step
      8.5 also writes the value of a single-phase plan, and `_lib/simple-process.md`,
@@ -71,7 +71,7 @@ PR boundary markers embedded in the implementation plan use these labels:
      each value, when it applies, and how its `**判定理由**` is written are
      defined there only, not here. They are read by `runplan.md` (its
      guidance before a phase group), by `_lib/opus-review.md` (entry 1, which
-     decides whether the Opus review runs), by `runpr.md` (the merge
+     decides whether the high-model review runs), by `runpr.md` (the merge
      question of step 4 and the `/clear` guidance of step 5), and by the
      `chief` tool (`internal/chief/task.go`, which chooses the `/runplan` row
      of "Command routing" below from it).
@@ -94,11 +94,12 @@ PR boundary markers embedded in the implementation plan use these labels:
      - when there is no such line (including a single-phase plan with no
        `PR 構成` section), there is **no value**.
 
-     `_lib/opus-review-decision.sh` is the executable form of parts 2 to 4
-     for entry 1 of `_lib/opus-review.md`; it reads part 4 from
-     `origin/main`'s copy of this file. The `chief` tool reads parts 2 to 4
-     in Go (`internal/chief/task.go`), also with part 4 from `origin/main`,
-     and a test runs both readings on the same plans.
+     `_lib/high-review-decision.sh` is the executable form of parts 2 to 4
+     for entry 1 of `_lib/opus-review.md`; it reads part 4 and
+     "Harness model mapping" from `origin/main`'s copy of this file. The
+     `chief` tool reads parts 2 to 4 in Go (`internal/chief/task.go`), also
+     with part 4 from `origin/main`, and a test runs both readings on the same
+     plans.
   4. **Old values.** Plans written before these values existed carry the
      old values, which are read as follows. This table is the only place
      that maps them. It may be removed once no plan has an old value in a PR
@@ -106,25 +107,37 @@ PR boundary markers embedded in the implementation plan use these labels:
 
      | Old value | Read as |
      |---|---|
-     | `frontier-required` | `opus` |
-     | `frontier-recommended` | `sonnet+opus-review` |
-     | `standard` | `sonnet` |
+     | `opus` | `high` |
+     | `sonnet+opus-review` | `standard+high-review` |
+     | `sonnet` | `low` |
+     | `frontier-required` | `high` |
+     | `frontier-recommended` | `standard+high-review` |
+     | `standard` | `low` |
 
   5. **What a reading recommends.** This table names, for each reading,
-     the row of "Command routing" below whose agent and model a `/runplan`
-     session starts with. `runplan.md` and `runpr.md` take the agent and
-     model from that row, by naming it rather than repeating its values;
-     `chief` maps each reading to the same row in its code
+     the row of "Command routing" below whose agent and model a Claude Code or
+     OpenCode `/runplan` session starts with. `runplan.md` and `runpr.md` take
+     the agent and model from that row, by naming it rather than repeating its
+     values; `chief` maps each reading to the same row in its code
      (`internal/chief`) and reads the row's values from the table. The
-     Opus review column is decided in detail by entry 1 of
-     `_lib/opus-review.md`.
+     `(Claude Code, low)` row of "Harness model mapping" below is for
+     lightweight subagents (`fixpr` Phase 6, etc.) only and is never used as
+     the recommended implementation model for a plan PR. Antigravity sessions
+     are outside `chief`'s scope and have no rows in "Command routing";
+     `runplan.md` and `runpr.md` read Antigravity's recommended model for each
+     reading from the `Antigravity` rows of "Harness model mapping" below
+     (`high` → `high`, `standard+high-review` → `standard`, `low` → `low`) and
+     note that the high-model review always runs for `high`,
+     `standard+high-review`, and unreadable values because Antigravity
+     sessions cannot self-verify their model ID. The high-model review column
+     is decided in detail by entry 1 of `_lib/opus-review.md`.
 
-     | Reading | Command routing row | Opus review |
+     | Reading | Command routing row | High-model review |
      |---|---|---|
-     | `opus` | `runplan-opus` | decided by entry 1: runs when a commit is not covered by an Opus implementation record |
-     | `sonnet+opus-review` | `runplan-sonnet+opus-review` | decided by entry 1, as for `opus` |
-     | `sonnet` | `runplan-sonnet` | does not run |
-     | unreadable value | none (show the text and that it is unreadable) | treated as for `sonnet+opus-review` |
+     | `high` | `runplan-high` | decided by entry 1: runs when a commit is not covered by a self-verifying `high` implementation record (always runs on Antigravity) |
+     | `standard+high-review` | `runplan-standard+high-review` | decided by entry 1, as for `high` |
+     | `low` | `runplan-low` | does not run |
+     | unreadable value | none (show the text and that it is unreadable) | treated as for `standard+high-review` |
      | no value | none (show that there is no value) | does not run |
 
 - Auto-send field (`**自動送信**`): whether the `chief` tool may send the
@@ -140,7 +153,7 @@ PR boundary markers embedded in the implementation plan use these labels:
   hold the field, a value line inside a fenced code block of the place, or
   a code fence the plan never closes is unreadable, and `chief` sends nothing by itself for that PR; there are
   no old values. Only `chief` reads the field (`internal/chief/task.go`);
-  `_lib/opus-review-decision.sh` does not.
+  `_lib/high-review-decision.sh` does not.
 
 ### Command routing
 
@@ -152,14 +165,14 @@ this file to choose the pane and the model it sends a command to. To move a
 command to another agent or model, edit its row here; nothing else changes.
 
 This section stays outside "PR marker conventions", whose two-cell rows
-`_lib/opus-review-decision.sh` reads as old values.
+`_lib/high-review-decision.sh` reads as old values.
 
 | Row | Command | Agent | Model |
 |---|---|---|---|
 | `task-documents` | `/mkreq`, `/mkarch`, `/mkplan` | Claude Code | `opus` |
-| `runplan-opus` | `/runplan` for the requirement `opus` | Claude Code | `opus` |
-| `runplan-sonnet+opus-review` | `/runplan` for the requirement `sonnet+opus-review` | Claude Code | `sonnet` |
-| `runplan-sonnet` | `/runplan` for the requirement `sonnet` | OpenCode | `DeepSeek V4.1 Flash 1017 OpenCode Go` |
+| `runplan-high` | `/runplan` for the requirement `high` | Claude Code | `opus` |
+| `runplan-standard+high-review` | `/runplan` for the requirement `standard+high-review` | Claude Code | `sonnet` |
+| `runplan-low` | `/runplan` for the requirement `low` | OpenCode | `DeepSeek V4.1 Flash 1017 OpenCode Go` |
 | `runplan-takeover` | `/runplan` handed back to open the PR after an OpenCode run stopped before it | Claude Code | `sonnet` |
 | `runpr` | `/runpr` | OpenCode | `DeepSeek V4.1 Flash 1017 OpenCode Go` |
 
@@ -172,6 +185,52 @@ This section stays outside "PR marker conventions", whose two-cell rows
   reasoning effort), printable ASCII words separated by single spaces.
 - A table `chief` cannot read (a missing or repeated row, another column, an
   agent or a model outside these sets) makes it send nothing.
+
+### Harness model mapping
+
+The concrete model, launch mechanism, and model-ID verification pattern for
+each harness and role. This table is the single source of truth read by
+`_lib/high-review-decision.sh` and `_lib/review-records.sh` (from
+`origin/main`'s copy of this file) and by the harness adapters. It sits in its
+own section outside "PR marker conventions" and "Command routing", with
+`Harness` as its first column header, so `ParseOldValues`, `ParseRouting`, and
+`contextRow` do not scan it.
+
+| Harness | Role | Launch | Model | Verification pattern |
+|---|---|---|---|---|
+| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |
+| `Claude Code` | `standard` | `agent` | `sonnet` | `claude-sonnet-*` |
+| `Claude Code` | `low` | `agent` | `haiku` | `claude-haiku-*` |
+| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |
+| `Antigravity` | `high` | `swarm` | `gemini-4-neon-high` | `gemini-4-neon-high` |
+| `Antigravity` | `standard` | `swarm` | `gemini-4-neon-medium` | `gemini-4-neon-medium` |
+| `Antigravity` | `low` | `swarm` | `gemini-4-hydrogen-medium` | `gemini-4-hydrogen-medium` |
+| `Antigravity` | `cross-check` | `swarm` | `claude-opus-5-5-medium` | `claude-opus-5-5-medium` |
+| `OpenCode` | `low` | `none` | `DeepSeek V4.1 Flash 1017 OpenCode Go` | `-` |
+
+Strict grammar (validated fail-closed across the whole table by the decision scripts):
+
+- Exactly one unfenced `### Harness model mapping` heading in this file, with
+  the fixed five-column header `| Harness | Role | Launch | Model | Verification pattern |`
+  and separator `|---|---|---|---|---|`, and every data cell wrapped in a
+  single code span (no embedded backquote or `|`).
+- **Harness**: `Claude Code`, `Antigravity`, or `OpenCode`.
+- **Role**: `high`, `standard`, `low`, or `cross-check`.
+- **Launch**: `agent`, `swarm`, or `none`.
+- **Model**: non-empty printable ASCII string (not whitespace-only).
+- **Verification pattern**: `-` (only when `Launch` is `none`); otherwise
+  either a literal exact match `^[a-z0-9][a-z0-9.-]{0,63}$` or a
+  trailing-wildcard prefix `^[a-z0-9][a-z0-9.-]{0,62}\*$`.
+- Each `(Harness, Role)` pair may appear at most once.
+- **Non-regex matching**: patterns are never evaluated as regular expressions
+  or unquoted globs (`.` matches only a literal `.`). A literal pattern
+  matches by exact byte equality; a trailing `*` pattern strips the literal
+  prefix and matches the remaining suffix against `^[a-z0-9.-]{1,48}$`.
+- `_lib/high-review-decision.sh` validates the whole table before any early
+  return and matches `Implementation model:` records only against rows with
+  `Role` = `high` and `Launch` = `agent` (self-verifying harnesses).
+  `_lib/review-records.sh` validates the whole table in its partial-review
+  mode and collects rows with `Role` = `cross-check` (excluding `-`).
 
 ### PR title and squash subject
 

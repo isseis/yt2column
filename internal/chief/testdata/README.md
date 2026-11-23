@@ -163,6 +163,16 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 | `plans/marker-opus-pr-open.md` | `marker-opus.md` の PR-2 の「PR を作成した」だけを済ませた形。`origin/main` では PR を開いている間にしか現れない状態で、作業項目の表示の PR 番号（PR-2）が変わらないことを確かめる |
 | `plans/marker-merged-not-created.md` | `marker-all-merged.md` の PR-3 の「PR を作成した」を外した形。すべての PR が「マージされた」なのに作られていない PR があり、計画が完了ともマージしていない PR があるとも言えない場合を確かめる |
 
+タスク 0120 の PR-2 で、`plans/` に次の 5 つを足した。新しい役割名（`high`・`standard+high-review`・`low`）と旧値 `frontier-recommended` の読み取りおよびパリティ一致を確かめるために、既存のサンプルから作った。
+
+| ファイル | 作り方と目的 |
+|---|---|
+| `plans/marker-high.md` | `marker-opus.md` のモデル要件を `high`・`low` に置き換えた形。正規値 `high` の読み取りを確かめる |
+| `plans/marker-standard-review.md` | `marker-sonnet-review.md` のモデル要件を `standard+high-review` 等に置き換えた形。正規値 `standard+high-review` の読み取りを確かめる |
+| `plans/marker-low.md` | `marker-sonnet.md` のモデル要件を `low` 等に置き換えた形。正規値 `low`（LF / CRLF）の読み取りを確かめる |
+| `plans/marker-old-frontier-recommended.md` | `marker-old-frontier-required.md` の PR-2 を旧値 `frontier-recommended` にした形。全 6 旧値の読み替えを確かめる |
+| `plans/single-low.md` | `single-sonnet.md` の `PR 構成` を `low` にした形。PR マーカーのない計画書での正規値 `low` の読み取りを確かめる |
+
 ### 計画書のステップのサンプル
 
 タスク 0113 で、`plans/` に次のサンプルを足した。計画書のステップの 3 つの書き方（書き方 A・書き方 B・書き方 C。要件書 `docs/tasks/0113_plan_step_reading/01_requirements.md` の 1 章と 3 章の冒頭）を、読めるものと読めないものに分けて確かめる。

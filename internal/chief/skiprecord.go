@@ -129,7 +129,7 @@ func checkRanCommand(cmd ranCommand, scene skipScene) error {
 	case paneinput.CommandRunplan:
 		task, err := paneinput.ParseTaskID(cmd.argument)
 		switch cmd.route {
-		case paneinput.RouteRunplanOpus, paneinput.RouteRunplanSonnetReview, paneinput.RouteRunplanSonnet, paneinput.RouteRunplanTakeover:
+		case paneinput.RouteRunplanHigh, paneinput.RouteRunplanStandardReview, paneinput.RouteRunplanLow, paneinput.RouteRunplanTakeover:
 			routeOK = true
 		}
 		argOK = err == nil && task.String() == cmd.argument

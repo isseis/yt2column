@@ -28,14 +28,14 @@ import (
 // resolved first and reached only through testToolsDir.
 var (
 	// testToolsDir holds links to the programs a test runs on purpose (git
-	// and the utilities opus-review-decision.sh uses), never herdr or gh.
+	// and the utilities high-review-decision.sh uses), never herdr or gh.
 	testToolsDir string
 	// testBash is the bash found on PATH when the package started, or "".
 	testBash string
 )
 
 // testTools are the programs linked into testToolsDir.
-var testTools = []string{gitProgram, "awk", "grep", "tr", "tail"}
+var testTools = []string{gitProgram, "env", "awk", "grep", "tr", "tail"}
 
 // isolateTestPath resolves the test programs, links them into a new
 // directory, and points PATH at another, empty directory. It returns the
@@ -556,8 +556,12 @@ func planSampleLine(t *testing.T, name string, n int) string {
 // testOldValues is an old-value table for the tests that read plans, so they
 // do not depend on the old values _context.md still lists.
 var testOldValues = OldValues{
-	"frontier-required": RequirementOpus,
-	"standard":          RequirementSonnet,
+	"opus":                 RequirementHigh,
+	"sonnet+opus-review":   RequirementStandardReview,
+	"sonnet":               RequirementLow,
+	"frontier-required":    RequirementHigh,
+	"frontier-recommended": RequirementStandardReview,
+	"standard":             RequirementLow,
 }
 
 // mustPlan returns the plan the testdata sample name holds.

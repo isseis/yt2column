@@ -198,9 +198,9 @@
 - `.claude/commands/_context.md`
 
 **作業内容:**
-- [ ] `### PR marker conventions` の part 1〜5 を設計書 3.3 に従って更新する（正規 3 値 `high`・`standard+high-review`・`low`、旧値読み替え表 6 行、part 5 の `Command routing` と `Harness model mapping` の使い分け、`high-review-decision.sh` への名称更新）。
-- [ ] `### Command routing` の `/runplan` 用 3 行キーを 1.3 のリネーム一覧どおり改名する（他 3 行と `Claude Code`・`OpenCode` の 2 値は維持）。
-- [ ] `### Command routing` の直後（`## Domain-specific` より前）に独立した節 `### Harness model mapping` を新設し、設計書 3.3 の固定 5 列・9 行の表と厳密文法規則を記述する。
+- [x] `### PR marker conventions` の part 1〜5 を設計書 3.3 に従って更新する（正規 3 値 `high`・`standard+high-review`・`low`、旧値読み替え表 6 行、part 5 の `Command routing` と `Harness model mapping` の使い分け、`high-review-decision.sh` への名称更新）。
+- [x] `### Command routing` の `/runplan` 用 3 行キーを 1.3 のリネーム一覧どおり改名する（他 3 行と `Claude Code`・`OpenCode` の 2 値は維持）。
+- [x] `### Command routing` の直後（`## Domain-specific` より前）に独立した節 `### Harness model mapping` を新設し、設計書 3.3 の固定 5 列・9 行の表と厳密文法規則を記述する。
 
 **完了基準:**
 - `_context.md` の新表・旧値表・ルーティング表が設計書 3.3 と一致し、既存パーサ（`contextRow` 等）と衝突しない。
@@ -230,10 +230,10 @@
 - `docs/dev/chief_architecture.md`（該当箇所があれば更新し、`TestArchitectureValuesMatchTool` との整合を確認）
 
 **作業内容:**
-- [ ] 1.3 のリネーム一覧どおり、`internal/chief/task.go`（`Requirement*`・`requirementValues`・`oldValueRow`）、`internal/chief/routing.go`（`routingRows`）、`internal/chief/paneinput/paneinput.go`（`RouteRunplan*`・`RouteKeys()`）、`internal/chief/state.go`、`internal/chief/skiprecord.go` を更新する。
-- [ ] `internal/chief/records.go` の `Protocol` を実装時の `origin/main` の値 + 1 へ上げ、`.claude/commands/chief.md` の全 `chief --protocol` と `docs/dev/guides/chief_guide.md` のプロトコル番号表（`:30`）を更新し、`docs/dev/chief_architecture.md` を確認する。
-- [ ] `internal/chief/test_helpers.go` の `testTools` に `"env"` など `high-review-decision.sh` が呼ぶ外部コマンドを追加し、`:31` コメントを `high-review-decision.sh` へ更新したうえで、`testOldValues` と `task_test.go` の `testContext` を全 6 旧値へ拡張する。`internal/chief/testdata/plans/` に新 3 値・`single-low`・`frontier-recommended` の標本ファイルを追加し（Go リテラルで書かない）、`internal/chief/testdata/README.md` を更新する。
-- [ ] `internal/chief` と `paneinput` のテストを更新する。`TestParseOldValues` には実 `_context.md`（`repoContext(t)`）に対する 6 件の厳密一致と `### Harness model mapping` からの非干渉の検証を加える。また、`TestReadModelRequirement`・`TestParsePlanProgress`・`TestParsePlanRejects`・`routing_test.go` で新 3 値・全 6 旧値・異常系（`RequirementUnreadable`・`errTaskDocument`・`errRouting`、未知エージェント `Antigravity` を含む）を検証し、実装時に判定を壊して該当テストが失敗することを確認する。
+- [x] 1.3 のリネーム一覧どおり、`internal/chief/task.go`（`Requirement*`・`requirementValues`・`oldValueRow`）、`internal/chief/routing.go`（`routingRows`）、`internal/chief/paneinput/paneinput.go`（`RouteRunplan*`・`RouteKeys()`）、`internal/chief/state.go`、`internal/chief/skiprecord.go` を更新する。
+- [x] `internal/chief/records.go` の `Protocol` を実装時の `origin/main` の値 + 1 へ上げ、`.claude/commands/chief.md` の全 `chief --protocol` と `docs/dev/guides/chief_guide.md` のプロトコル番号表（`:30`）を更新し、`docs/dev/chief_architecture.md` を確認する。
+- [x] `internal/chief/test_helpers.go` の `testTools` に `"env"` など `high-review-decision.sh` が呼ぶ外部コマンドを追加し、`:31` コメントを `high-review-decision.sh` へ更新したうえで、`testOldValues` と `task_test.go` の `testContext` を全 6 旧値へ拡張する。`internal/chief/testdata/plans/` に新 3 値・`single-low`・`frontier-recommended` の標本ファイルを追加し（Go リテラルで書かない）、`internal/chief/testdata/README.md` を更新する。
+- [x] `internal/chief` と `paneinput` のテストを更新する。`TestParseOldValues` には実 `_context.md`（`repoContext(t)`）に対する 6 件の厳密一致と `### Harness model mapping` からの非干渉の検証を加える。また、`TestReadModelRequirement`・`TestParsePlanProgress`・`TestParsePlanRejects`・`routing_test.go` で新 3 値・全 6 旧値・異常系（`RequirementUnreadable`・`errTaskDocument`・`errRouting`、未知エージェント `Antigravity` を含む）を検証し、実装時に判定を壊して該当テストが失敗することを確認する。
 
 **完了基準:**
 - `go test -tags test ./cmd/chief ./internal/chief/...` のうち `markers_parity_test.go` 以外がすべて通る。
@@ -253,18 +253,18 @@
 - `docs/dev/adr/0046-chief-of-staff.md`
 
 **作業内容:**
-- [ ] `_lib/opus-review-decision.sh` を `_lib/high-review-decision.sh` へ改名し、設計書 3.3・3.4・5.2 に従って更新する。具体的には、環境クリーンアップ（`exec env -i`・`set -o pipefail`・`GIT_NO_REPLACE_OBJECTS=1`）、`value-low`・`value-absent` による早期返却より前の `_context.md` 全体検証と `Launch == agent` の `Role == high` パターン抽出、非正規表現照合、理由コード `value-low`・`all-high`、新旧 `High review: done` / `Opus review: done` の両読み、および失敗時の標準エラー診断＋`RUN`＋終了コード `0` を実装する。
-- [ ] 同じ PR で `_lib/opus-review.md` 内の呼び出し先コマンド（`:176`）を `git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/high-review-decision.sh > <decision-script>` へ更新し、出力読み取りを `value-low`・`all-high`・新旧完了記録行へ先行追随する（`_lib/opus-review.md` 本体の改名とアダプタ化はフェーズ 4 で行う）。
-- [ ] `internal/chief/markers_parity_test.go` を `_lib/high-review-decision.sh`・`RequirementLow`・`NONE value-low` へ更新し、新 3 値・全 6 旧値（`frontier-recommended` 含む）・読めない値・値なし・CRLF・フェンス・重複見出しでパリティ一致を検証する。
-- [ ] `cmd/yt2column/test_helpers_bash.go` に `requireBash4(t *testing.T) scriptBash`（`PATH` の `bash` が 4 未満・不在なら `t.Fatal`。非 `_test.go` の `//go:build test` ファイルのため `exec.Command` に最小範囲の `//nolint:gosec` と理由コメントを付与）を追加する。
-- [ ] `cmd/yt2column/high_review_decision_test.go` を新設する（`requireBash4` と `test_helpers_gitfixture.go` を再利用し、計画書標本は `cmd/yt2column/testdata/review_records/` から読み込んで Go ソースに日本語リテラルを書かない）。実装時に各検証規則を壊して失敗することを確認しつつ、次を検証する。
+- [x] `_lib/opus-review-decision.sh` を `_lib/high-review-decision.sh` へ改名し、設計書 3.3・3.4・5.2 に従って更新する。具体的には、環境クリーンアップ（`exec env -i`・`set -o pipefail`・`GIT_NO_REPLACE_OBJECTS=1`）、`value-low`・`value-absent` による早期返却より前の `_context.md` 全体検証と `Launch == agent` の `Role == high` パターン抽出、非正規表現照合、理由コード `value-low`・`all-high`、新旧 `High review: done` / `Opus review: done` の両読み、および失敗時の標準エラー診断＋`RUN`＋終了コード `0` を実装する。
+- [x] 同じ PR で `_lib/opus-review.md` 内の呼び出し先コマンド（`:176`）を `git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/high-review-decision.sh > <decision-script>` へ更新し、出力読み取りを `value-low`・`all-high`・新旧完了記録行へ先行追随する（`_lib/opus-review.md` 本体の改名とアダプタ化はフェーズ 4 で行う）。
+- [x] `internal/chief/markers_parity_test.go` を `_lib/high-review-decision.sh`・`RequirementLow`・`NONE value-low` へ更新し、新 3 値・全 6 旧値（`frontier-recommended` 含む）・読めない値・値なし・CRLF・フェンス・重複見出しでパリティ一致を検証する。
+- [x] `cmd/yt2column/test_helpers_bash.go` に `requireBash4(t *testing.T) scriptBash`（`PATH` の `bash` が 4 未満・不在なら `t.Fatal`。非 `_test.go` の `//go:build test` ファイルのため `exec.Command` に最小範囲の `//nolint:gosec` と理由コメントを付与）を追加する。
+- [x] `cmd/yt2column/high_review_decision_test.go` を新設する（`requireBash4` と `test_helpers_gitfixture.go` を再利用し、計画書標本は `cmd/yt2column/testdata/review_records/` から読み込んで Go ソースに日本語リテラルを書かない）。実装時に各検証規則を壊して失敗することを確認しつつ、次を検証する。
     - (a) 自己検証可能ハーネス（`Launch == agent`）での `NONE all-high`（除外可能コミット、非 `high` モデルの記録範囲にも含まれるコミット→`RUN`、マージコミット→`RUN` を含む）。
     - (b) 自己検証不能ハーネス（`Launch == swarm` の `gemini-4-neon-high`）での `RUN`。
     - (c) 新旧の `done` 記録での `SKIP <done-line>`（`done` 記録の `<END>` 以降にある除外可能コミットの出力、字下げ・不正形式の無視を含む）。
     - (d) パターン照合の境界（`.` の非リテラル扱い・48 文字接尾辞の受理と 49 文字接尾辞の拒否・空接尾辞・空白を含むモデルの ID）、および `value-low`・`value-absent` の計画書であっても `_context.md` が不正（メタ文字・表破損・欠落等）なときは早期返却より前に期待する診断を標準エラーへ出力して `RUN` となること。
     - (e) 環境隔離（`GIT_DIR`・`GIT_WORK_TREE`・`BASH_FUNC_*`・`BASH_ENV`・`refs/replace`）および不正引数・`origin/main` 欠落・`MULTIPLE`・未閉鎖フェンス・`HEAD` での要件引き下げ。
     - (f) `TestHighReviewDecisionCallSite`（`TestReviewRecordsCallSite` と同様に `doctestutil.CommandDocs(t, repositoryRoot)` が返す全ファイルを走査し、`high-review-decision.sh` を呼ぶ箇所が許可された呼び出し元（PR-2 では `_lib/opus-review.md` のみ）に限られ、`origin/main` から `--no-replace-objects` で取り出す契約を満たすこと）。
-- [ ] `CLAUDE.md` のスクリプト名参照（`:841,965-966,1009`）を更新し、`ADR-0014`（`:33`）・`ADR-0035`（`:24` のスクリプト名部分）・`ADR-0042`（`:23` の残っている食い違い記述）・`ADR-0046`（`:50` の食い違い記述解消）を更新する（編集上の訂正はコミットメッセージに `Editorial correction:` 行を残す）。
+- [x] `CLAUDE.md` のスクリプト名参照（`:841,965-966,1009`）を更新し、`ADR-0014`（`:33`）・`ADR-0035`（`:24` のスクリプト名部分）・`ADR-0042`（`:23` の残っている食い違い記述）・`ADR-0046`（`:50` の食い違い記述解消）を更新する（編集上の訂正はコミットメッセージに `Editorial correction:` 行を残す）。
 
 **完了基準:**
 - `bash -n .claude/commands/_lib/high-review-decision.sh`、`make test && make lint && make deadcode`、および `doc-guard` の全対象パッケージが通る。

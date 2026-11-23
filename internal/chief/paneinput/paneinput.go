@@ -149,13 +149,13 @@ const (
 	RouteUnknown RouteKey = iota
 	// RouteTaskDocuments is the row of /mkreq, /mkarch, and /mkplan.
 	RouteTaskDocuments
-	// RouteRunplanOpus is /runplan for the requirement opus.
-	RouteRunplanOpus
-	// RouteRunplanSonnetReview is /runplan for the requirement
-	// sonnet+opus-review.
-	RouteRunplanSonnetReview
-	// RouteRunplanSonnet is /runplan for the requirement sonnet.
-	RouteRunplanSonnet
+	// RouteRunplanHigh is /runplan for the requirement high.
+	RouteRunplanHigh
+	// RouteRunplanStandardReview is /runplan for the requirement
+	// standard+high-review.
+	RouteRunplanStandardReview
+	// RouteRunplanLow is /runplan for the requirement low.
+	RouteRunplanLow
 	// RouteRunplanTakeover is /runplan handed back to open the PR after an
 	// OpenCode run stopped before it.
 	RouteRunplanTakeover
@@ -168,9 +168,9 @@ const (
 func RouteKeys() []RouteKey {
 	return []RouteKey{
 		RouteTaskDocuments,
-		RouteRunplanOpus,
-		RouteRunplanSonnetReview,
-		RouteRunplanSonnet,
+		RouteRunplanHigh,
+		RouteRunplanStandardReview,
+		RouteRunplanLow,
 		RouteRunplanTakeover,
 		RouteRunpr,
 	}
@@ -349,7 +349,7 @@ func NewMkplan(task TaskID) (Command, error) {
 // /runplan routes.
 func NewRunplan(task TaskID, route RouteKey) (Command, error) {
 	switch route {
-	case RouteRunplanOpus, RouteRunplanSonnetReview, RouteRunplanSonnet, RouteRunplanTakeover:
+	case RouteRunplanHigh, RouteRunplanStandardReview, RouteRunplanLow, RouteRunplanTakeover:
 		return newTaskCommand(CommandRunplan, task, route)
 	default:
 		return Command{}, fmt.Errorf("%w: route %d is not a /runplan route", ErrInvalid, int(route))

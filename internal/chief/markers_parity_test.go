@@ -14,18 +14,18 @@ import (
 
 // decisionScript is the repository's executable form of the PR marker
 // reading.
-var decisionScript = filepath.Join("..", "..", ".claude", "commands", "_lib", "opus-review-decision.sh")
+var decisionScript = filepath.Join("..", "..", ".claude", "commands", "_lib", "high-review-decision.sh")
 
 // bashMajor matches the major version in `bash --version`.
 var bashMajor = regexp.MustCompile(`version ([0-9]+)\.`)
 
-// decisionClass is what opus-review-decision.sh can tell apart about a value
-// when no commit is covered by an implementation record: sonnet, no value,
+// decisionClass is what high-review-decision.sh can tell apart about a value
+// when no commit is covered by an implementation record: low, no value,
 // and everything else.
 func decisionClass(r Requirement) string {
 	switch r {
-	case RequirementSonnet:
-		return "NONE value-sonnet"
+	case RequirementLow:
+		return "NONE value-low"
 	case RequirementAbsent:
 		return "NONE value-absent"
 	default:
@@ -34,7 +34,7 @@ func decisionClass(r Requirement) string {
 }
 
 // TestMarkerReadingMatchesDecisionScript runs the tool's reading and
-// opus-review-decision.sh on the same plans and checks that they fall in the
+// high-review-decision.sh on the same plans and checks that they fall in the
 // same class. The repository is shaped so the script decides by the value
 // alone: origin/main and HEAD hold the same plan, HEAD is one commit ahead
 // and changes a file other than the plan, and no commit holds a record line.
@@ -63,10 +63,15 @@ func TestMarkerReadingMatchesDecisionScript(t *testing.T) {
 	old := ParseOldValues(contextDoc)
 	const plan = "docs/tasks/0001_parity/03_implementation_plan.md"
 	cases := []struct{ file, target string }{
+		{"marker-high.md", "2"},
+		{"marker-standard-review.md", "2"},
+		{"marker-low.md", "2"},
+		{"marker-low.md crlf", "2"},
 		{"marker-opus.md", "2"},
 		{"marker-sonnet-review.md", "2"},
 		{"marker-sonnet.md", "2"},
 		{"marker-old-frontier-required.md", "2"},
+		{"marker-old-frontier-recommended.md", "2"},
 		{"marker-old-standard.md", "2"},
 		{"marker-old-standard.md", "3"},
 		{"marker-unreadable.md", "2"},
@@ -76,6 +81,7 @@ func TestMarkerReadingMatchesDecisionScript(t *testing.T) {
 		{"marker-tilde-fence.md", "2"},
 		{"marker-sonnet.md crlf", "2"},
 		{"marker-duplicate.md", "2"},
+		{"single-low.md", singleTarget},
 		{"single-sonnet.md", singleTarget},
 		{"single-no-section.md", singleTarget},
 		{"single-outside-chapter3.md", singleTarget},
