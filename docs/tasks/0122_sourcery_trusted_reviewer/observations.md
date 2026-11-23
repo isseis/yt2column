@@ -52,7 +52,7 @@
 | PR レビューオブジェクト | なし（そのコミットに対する `pulls/<n>/reviews` の新規エントリなし） | あり（`user.type: Bot`、`user.login: sourcery-ai[bot]`、`state: COMMENTED`、`commit_id: <SHA>`） |
 | `StatusContext`（`commits/<sha>/status`） | `state: pending`、`statuses: []`（0 件） | 同じ |
 
--   **CheckRun だけが持つ値:** 指摘なしの完了を含め、本文を読まずに完了と対象コミット（`commit.oid` / `head_sha`）を示す API 値は CheckRun `Sourcery review` のみである。CheckRun の `html_url` は `https://github.com/isseis/yt2column/runs/<id>`、`details_url` は `https://sourcery.ai`、`external_id` は空文字列 `""` であった。
+-   **CheckRun だけが持つ値:** 指摘なしの完了を含め、本文を読まずに完了と対象コミット（`commit.oid` / `head_sha`）を示す API 値は CheckRun `Sourcery review` のみである。CheckRun の `html_url`（GraphQL `url`）は `https://github.com/isseis/yt2column/runs/<id>`、`details_url` は `https://sourcery.ai`、`external_id` は空文字列 `""` であった。GraphQL の `checkRuns.nodes` について PR #1096（`97871e35`）で実測したところ、`name`・`status`・`conclusion`・`startedAt`・`completedAt`・`title`・`url` が期待どおり取得できた（なお `databaseId` は現在 `137713398329` のように 32-bit 上限を超えるため、CheckRun の一意識別にはすでに必須取得している `url` を使う）。
 
 ### 2.3. 項目 3：割り当て切れ・再レビュー上限・スキップ・エラー時の値
 
@@ -118,7 +118,7 @@
 
 PR #1101 の `head` コミット（`168c9da1`・`b362fe23`）で `gh pr checks --json name,state,bucket,workflow,link` および REST/GraphQL の `checkSuites`・`checkRuns` を観測した。
 
--   **リポジトリの CI（`.github/workflows/ci.yml`）:** GraphQL では `checkSuite.app.slug == "github-actions"`、`workflowRun.workflow.name == "CI"`、`checkSuite.status == "COMPLETED"`・`conclusion == "SUCCESS"`、配下の `LATEST` CheckRun は `Check changed files`・`Documentation guard`・`Secret scan`・`Test`・`Code Quality & Lint`・`Browser extension`（条件付きスキップ時は `conclusion: "SKIPPED"`）。`gh pr checks --json` では `workflow: "CI"`。
+-   **リポジトリの CI（`.github/workflows/ci.yml`）:** GraphQL（PR #1096 `97871e35`・PR #1101 `168c9da1` で確認）では `checkSuite.app.slug == "github-actions"`、`workflowRun.workflow.name == "CI"`、`checkSuite.status == "COMPLETED"`・`conclusion == "SUCCESS"`、配下の `LATEST` CheckRun は `Check changed files`・`Documentation guard`・`Secret scan`・`Test`・`Code Quality & Lint`・`Browser extension`（条件付きスキップ時は `conclusion: "SKIPPED"`）。`gh pr checks --json` では `workflow: "CI"`。
 -   **外部レビュアー:** `app.slug == "coderabbitai"`（`CodeRabbit`）および `app.slug == "sourcery-ai"`（`Sourcery review`）。`gh pr checks --json` ではどちらも `workflow: ""`。
 -   **`main` ブランチの ruleset（`24096227`）:** `deletion`・`non_fast_forward`・`pull_request` のみで `required_status_checks` は未設定のため、`gh pr checks --required` は使えない。
 
