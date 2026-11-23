@@ -27,7 +27,7 @@
 - 既存の部品とテスト基盤を再利用する。 `internal/mergepr/protocolcheck.go` のプロトコル番号読み取り（`acceptedLine`・`commitChange`）と `gitReader`、既存テストヘルパー（`internal/mergepr/test_helpers.go`・`internal/mergepr/test_helpers_git.go`）、`internal/chief` の送信・記録・確かめ直し（`sendCommand`・`autoSender` の共通処理・`quietness`・`readReport`・`ReadRouting`）と既存のテスト基盤（`world_test.go`・`test_helpers.go`・`send_test.go`・`screen_test.go`）を再利用する。
 - プロトコル番号は常に `main` の値 + 1 にする。 `mergepr` と `chief` の契約を変える PR では、`Protocol` 定数と対応するコマンド定義・ガイドの `--protocol` を同じ PR で `main` の値 + 1 に揃える。エージェントはインストール型ツールをインストールもビルドもしない（`CLAUDE.md`・ADR-0014）。
 - **計画書で確定する細部。** 設計書が計画書へ委ねた 3 つの細部を次のとおり確定する。
-  - **取り込みの道具の行出力（設計書 4.1）。** 既存の `cmd/mergepr/main.go:285-328`（`printPrepared` 等、コミット `d74acaeb` で確認）と `docs/dev/guides/mergepr_guide.md:166-177` の `key: value` 形式に合わせ、1 行目を `status: ok` または `status: stop`、停止時は続けて `reason: <reason>`・`restore: <needed|not_needed|unknown>` を出力し、以降に `base_head`・`head_branch`・`main_head`・`conflict`（`<class> <path>`）・`protocol_tool`（`<tool> <new_protocol>`）・`readme_changed`・`adr_main_changed`・`adr_conflict_number`・`ext_check_hint`・`new_head`・`detail` の各行を `key: value` 形式で出力する。
+  - **取り込みの道具の行出力（設計書 4.1）。** 既存の `cmd/mergepr/main.go:285-328`（`printPrepared` 等、コミット `d74acaeb` で確認）と `docs/dev/guides/mergepr_guide.md:166-177` の `key: value` 形式に合わせ、1 行目を `status: ok` または `status: stop`、停止時は続けて `reason: <reason>`・`restore: <needed|not_needed|unknown>` を出力し、以降に `base_head`・`head_branch`・`main_head`・`conflict`（`<class> <path>`）・`protocol_tool`（`<tool> <new_protocol>`）・`readme_changed`・`adr_main_changed`・`adr_conflict_number`・`ext_check_hint`・`new_head`・`detail` の各行を `key: value` 形式で出力する。`conflict` の `<path>`・`detail`・`head_branch` などの可変値に含まれる改行や制御文字は 1 行にエスケープして出力し、行プロトコルの `status:`・`reason:`・`restore:` 等のフィールド偽装を防ぐ（`/mergemain` 側も可変値をフィールド名として解釈しない）。
   - **解消の自動送信の理由の種類（設計書 3.4.3）。** 設計書 3.4.3 の表の英語名に加え、作成排他を取れないときの `creation_locked` と、同ラウンドのマージ後自動送信が同じ workspace へ送ったときの `autosent_same_round` を定義する。
   - **報告の控えの引き継ぎ上限（設計書 3.7）。** `CollectDetail` が第 1 の親をたどる回数上限を `maxDetailMergeHops = 10` とする。
 - 壊して失敗を確かめる。 新設・更新するテストとガードは、対応する分岐・検証・制約を一時的に外した状態で失敗することを実装時に確かめ、コミットメッセージに記録する（`CLAUDE.md`「Testing Strategy」）。
@@ -102,9 +102,9 @@
 
 **対象ファイル:** `internal/mergepr/mergemain.go`, `internal/mergepr/mergemain_push.go`（新規）, `internal/mergepr/mergemain_restore.go`（新規）, `internal/mergepr/mergemain_test.go`
 
-- [ ] `MergemainRestore` を実装する（設計書 3.8.4）：戻してよい 2 状態（取り込み途中、または未 push の merge コミット）と戻さない 6 条件（ブランチ不一致、HEAD 不一致、コミット後変更、取り込み途中の対象外変更、基準 head 追跡パスを塞ぐ無視ファイル、未追跡ファイル存在）を検証し、安全なときのみ `git reset --hard <base_head>` で戻して戻し後の状態を検証する（`git clean`・`git merge --abort` は使わない、AC-28）。
-- [ ] `MergemainPush` を実装する（設計書 3.8.3）：PR 再読み取り（`main` 禁止・別リポジトリでないこと・ブランチ一致）、merge コミットの 2 親検証（第 2 の親と `refs/mergemain/<PR>/main` の一致、および同呼び出し内で再取得した `FETCH_HEAD` の祖先確認）、`git merge-tree --write-tree` による衝突分類と木の差分検証（許可パス・プロトコル番号 `main` の値 + 1 の全道具検証）、作業ツリー確認、`git ls-remote` での `origin` ブランチ確認、push URL と fetch URL の一致確認を行う。すべて通ったうえで、force なし・`--no-follow-tags --recurse-submodules=no` で push し、失敗時は `git ls-remote` で 3 結果（通った・拒まれた・結果不明）を判定する（AC-27・AC-30）。
-- [ ] `internal/mergepr/mergemain_test.go` に戻し・push の単体テスト、セキュリティテスト（設計書 7.1・7.3 の全拒否ケース）、および `begin`→`merge`→`push` と `begin`→`merge`→`restore` の結合テストを追加し、各検証を外したときのテスト失敗を確認する。
+- [ ] `MergemainRestore` を実装する（設計書 3.8.4）：戻してよい 2 状態（取り込み途中は `HEAD` が `base_head` かつ `MERGE_HEAD` が取り込む `main` と一致すること、未 push の merge コミットは `HEAD` の親が `(base_head, 取り込む main)` の順かつ手元の remote-tracking ref `refs/remotes/origin/<branch>` が `base_head` と一致すること）と戻さない 6 条件（ブランチ不一致、HEAD 不一致、コミット後変更、取り込み途中の対象外変更、基準 head 追跡パスを塞ぐ無視ファイル、未追跡ファイル存在）を検証し、安全なときのみ `git reset --hard <base_head>` で戻して戻し後の状態を検証する（`git clean`・`git merge --abort` は使わない、AC-28）。
+- [ ] `MergemainPush` を実装する（設計書 3.8.3）：PR 再読み取り（`main` 禁止・別リポジトリでないこと・ブランチ一致）、merge コミットの 2 親検証（第 1 の親が `base_head` と再読み取りした PR の head の両方に一致すること、および第 2 の親が取り込む `main` かつ `refs/mergemain/<PR>/main` と一致し同呼び出し内で再取得した `FETCH_HEAD` の祖先であること）、`git merge-tree --write-tree` による衝突分類と木の差分検証（許可パス・プロトコル番号 `main` の値 + 1 の全道具検証）、作業ツリー確認、`git ls-remote` での `origin` ブランチ確認、push URL と fetch URL の一致確認を行う。すべて通ったうえで、force なし・`--no-follow-tags --recurse-submodules=no` で push し、失敗時は `git ls-remote` で 3 結果（通った・拒まれた・結果不明）を判定する（AC-27・AC-30）。
+- [ ] `internal/mergepr/mergemain_test.go` に戻し・push の単体テスト（戻し時の `MERGE_HEAD` 不一致・親順序不一致・`refs/remotes/origin/<branch>` 不一致の拒否、および push 時の第 1 の親と `base_head` または再読み取りした PR の head の不一致拒否を含む）、セキュリティテスト（設計書 7.1・7.3 の全拒否ケース）、および `begin`→`merge`→`push` と `begin`→`merge`→`restore` の結合テストを追加し、各検証を外したときのテスト失敗を確認する。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスし、設計書 7.1・7.2・7.3 の取り込みの道具に関する全ケースと壊して失敗の確認が揃っていること。
 
@@ -131,7 +131,7 @@
 
 **対象ファイル:** `cmd/mergepr/main.go`, `cmd/mergepr/main_test.go`, `cmd/mergepr/docs_test.go`, `internal/mergepr/mergepr.go`, `.claude/commands/mergepr.md`, `.claude/commands/runpr.md`, `docs/dev/guides/mergepr_guide.md`, `CLAUDE.md`, `docs/dev/conventions/package_reference.md`
 
-- [ ] `cmd/mergepr/main.go` の `shapes` とディスパッチに `mergemain-begin`・`mergemain-merge`・`mergemain-restore`・`mergemain-push` を追加し、§1 で確定した `key: value` 形式の出力と終了コードを実装する。`cmd/mergepr/main_test.go` にフラグ検証・出力形式テストを追加する。
+- [ ] `cmd/mergepr/main.go` の `shapes` とディスパッチに `mergemain-begin`・`mergemain-merge`・`mergemain-restore`・`mergemain-push` を追加し、§1 で確定した `key: value` 形式の出力（`conflict` のパスや `detail` 等の可変値に含まれる改行・制御文字の 1 行エスケープを含む）と終了コードを実装する。`cmd/mergepr/main_test.go` にフラグ検証・出力形式テスト（改行・制御文字を含むパスや詳細でも `status:`・`reason:`・`restore:` 等の行が偽装されないことの確認を含む）を追加する。
 - [ ] `internal/mergepr/mergepr.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/mergepr.md`・`.claude/commands/runpr.md`・`docs/dev/guides/mergepr_guide.md` の `--protocol` を合わせる。
 - [ ] `docs/dev/guides/mergepr_guide.md` に取り込みの道具 4 サブコマンドの使い方・出力形式・保証事項を追記し、`CLAUDE.md` の「Declare, don't infer」に設計書 3.8.5 の取り込みの道具の読み取り例外（範囲と境界）を追記し、`docs/dev/conventions/package_reference.md` の `internal/mergepr`・`cmd/mergepr` 行を更新する。
 - [ ] `cmd/mergepr/docs_test.go` の `placeholderValues` を新フラグのプレースホルダに対応させ、`TestDocumentedProtocolMatches`・`TestDocumentedInvocationsParse`・`TestProtocolToolsAgree` を通す。
@@ -161,14 +161,14 @@
 
 ### フェーズ 2: コマンドの定義（`mergemain.md`）
 
-設計書 3.8.2・3.8.4・3.9・3.10・7.4・8 章（優先順位 2）に基づき、`/mergemain` のコマンド定義、拡張事前確認ターゲット、許可規則、および信頼境界ガードを整備する。
+設計書 3.8.2・3.8.4・3.9・3.10・7.4・8 章（優先順位 2）に基づき、`/mergemain` のコマンド定義、拡張事前確認ターゲット、許可規則、および信頼境界ガードを整備する。前提として、PR-2 マージ後に利用者が手で `make install-mergepr` を実行し、新サブコマンドと更新後プロトコル番号を持つ `mergepr` を入れ直してから `/mergemain` や更新後の `/mergepr`・`/runpr` を実行する（§3.1）。
 
 #### ステップ 2-1: `Makefile` の `ext-preflight`、`.claude/commands/mergemain.md`、`CLAUDE.md` 更新
 
 **対象ファイル:** `Makefile`, `.claude/commands/mergemain.md`（新規）, `CLAUDE.md`
 
 - [ ] `Makefile` に `.PHONY` 付きの `ext-preflight` ターゲット（`$(call ext_preflight)` の呼び出し）を追加し、`CLAUDE.md` の `### Extension Commands` に `make ext-preflight` の説明を追記する（AC-26）。
-- [ ] `.claude/commands/mergemain.md` を英語で新規作成する（設計書 3.9）。引数検証（AC-20）、`mergepr mergemain-begin`/`mergemain-merge` 呼び出し（`--protocol` は `mergepr` の現行値、allow 対象の 3 サブコマンドは前置や連結のない単独のコマンド呼び出しで記載）、README 同期（`mktrans.md` 参照、`stopped` で停止、AC-24）、ADR 確認（番号・主題重複と食い違い記述で停止し `numreserve` を使わない、AC-25）、文書 `--protocol` 更新と `.md` 衝突解消（両側を保てなければ停止、AC-22）を記載する。続けて、`git commit --no-edit`、`make test`・`make lint`・条件付き `make ext-preflight`→`make ext-check`（AC-26）、`mergepr mergemain-push`（AC-27）、条件に応じた `mergepr mergemain-restore` と一時ファイルの作業ツリー外配置（AC-28）を定める。あわせて、日本語報告の必須項目と 11 種の理由（AC-29）、AC-30 の 8 つの禁止事項と直接 `git merge`/`git reset`/`git push` 禁止、AC-31 の承認段落をすべて明記する。
+- [ ] `.claude/commands/mergemain.md` を英語で新規作成する（設計書 3.9）。引数検証（AC-20）、`mergepr mergemain-begin`/`mergemain-merge` 呼び出し（`--protocol` は `mergepr` の現行値、allow 対象の 3 サブコマンドは前置や連結のない単独のコマンド呼び出しで記載し、行出力の可変値をフィールド名として解釈しない扱いも明記）、README 同期（`mktrans.md` 参照、`stopped` で停止、AC-24）、ADR 確認（番号・主題重複と食い違い記述で停止し `numreserve` を使わない、AC-25）、文書 `--protocol` 更新と `.md` 衝突解消（両側を保てなければ停止、AC-22）を記載する。続けて、`git commit --no-edit`、`make test`・`make lint`・条件付き `make ext-preflight`→`make ext-check`（AC-26）、`mergepr mergemain-push`（AC-27）、条件に応じた `mergepr mergemain-restore` と一時ファイルの作業ツリー外配置（AC-28）を定める。あわせて、日本語報告の必須項目（停止時の 11 種の理由と衝突ファイル一覧、解消成功時の変更ファイルごとの適用規則・解消内容の要約・新しい head・プロトコル番号変更時の入れ直し案内、AC-29）、AC-30 の 8 つの禁止事項と直接 `git merge`/`git reset`/`git push` 禁止、AC-31 の承認段落をすべて明記する。
 - [ ] `CLAUDE.md` の「Claude Commands」に `/mergemain` を追加し（AC-36 の `/mergemain` 部分）、「Tool Execution Safety」に AC-31 の 4 操作（`gh pr view`・`git fetch origin`・PR head ブランチの `git ls-remote`・PR head ブランチへの `git push`）の承認段落を追加する（AC-31）。
 
 **完了基準:** `cmd/yt2column` の `TestExtensionDocumentation` を含む既存文書テストがすべて通ること。
@@ -263,7 +263,7 @@
 
 ### フェーズ 4: chief の送信
 
-設計書 3.3・3.4・3.5・3.7・8 章（優先順位 4）に基づき、解消の送信の記録保持、自動送信、人が選ぶ送信、報告の控えと引き継ぎ、および文書仕上げを実装する。
+設計書 3.3・3.4・3.5・3.7・8 章（優先順位 4）に基づき、解消の送信の記録保持、自動送信、人が選ぶ送信、報告の控えと引き継ぎ、および文書仕上げを実装する。前提として、PR-4・PR-5・PR-6 の各マージ後に利用者が手で `make install-chief` と `/chief` 再起動を行い、更新したバイナリとコマンド定義のプロトコル番号を揃えてから運用・次段階の呼び出しへ進む（§3.1）。
 
 #### ステップ 4-1: 解消の送信の記録と `conflictPhaseOf` の導入
 
@@ -355,12 +355,17 @@
 
 | マイルストーン | 対象フェーズ | 主な成果物 | 完了条件 |
 |---|---|---|---|
-| M1: 取り込みの道具 | フェーズ 1（ステップ 1-1〜1-3 / PR-1・PR-2） | `internal/mergepr` 4 サブコマンド、`cmd/mergepr`、`mergepr` プロトコル番号更新、`mergepr_guide.md`、`CLAUDE.md` 例外 | 道具の単体・結合・セキュリティ・文書ガードテストがすべて通る |
+| M1: 取り込みの道具 | フェーズ 1（ステップ 1-1〜1-3 / PR-1・PR-2） | `internal/mergepr` 4 サブコマンド、`cmd/mergepr`、`mergepr` プロトコル番号更新、`mergepr_guide.md`、`CLAUDE.md` 例外 | 道具の単体・結合・セキュリティ・文書ガードテストがすべて通る（PR-2 マージ後に利用者が手で `make install-mergepr` を実行） |
 | M2: `/mergemain` 定義 | フェーズ 2（ステップ 2-1〜2-2 / PR-3） | `.claude/commands/mergemain.md`、`Makefile` `ext-preflight`、`.claude/settings.json` allow とガード、`CLAUDE.md` 承認・一覧、未追跡ファイルと `review-records.sh` 実測記録 | 人が直接 `/mergemain <PR>` を実行できる状態になり、文書・許可ガードが通る |
-| M3: chief 検出・表示 | フェーズ 3（ステップ 3-1〜3-3 / PR-4） | `OpenPR` 4 メンバー、`CommitID` ガード、`StateConflict`・`ConflictPhase`・表・出力、`_context.md` 7 行化、`paneinput`・`LaterInput`、`chief` プロトコル番号更新、実物 PR `mergeable` 記録と実物採取サンプル | コンフリクト PR が chief の表と JSON に示され、全既存・新規テストと文書ガードが通る |
-| M4: chief 自動・手動送信 | フェーズ 4（ステップ 4-1〜4-4 / PR-5・PR-6） | 送信記録の PR/head/到達点と保持、`conflictPhaseOf`、`keepPaneReport`、`conflictSender`、`PendingConflict`、`chief send --command mergemain --item`、`CollectDetail` 親たどり引き継ぎ、`chief.md`・`chief_guide.md`・`CLAUDE.md` 仕上げ | 全 37 件の受け入れ基準を満たし、グリーンゲートが通る |
+| M3: chief 検出・表示 | フェーズ 3（ステップ 3-1〜3-3 / PR-4） | `OpenPR` 4 メンバー、`CommitID` ガード、`StateConflict`・`ConflictPhase`・表・出力、`_context.md` 7 行化、`paneinput`・`LaterInput`、`chief` プロトコル番号更新、実物 PR `mergeable` 記録と実物採取サンプル | コンフリクト PR が chief の表と JSON に示され、全既存・新規テストと文書ガードが通る（PR-4 マージ後に利用者が手で `make install-chief` と `/chief` 再起動を実行） |
+| M4: chief 自動・手動送信 | フェーズ 4（ステップ 4-1〜4-4 / PR-5・PR-6） | 送信記録の PR/head/到達点と保持、`conflictPhaseOf`、`keepPaneReport`、`conflictSender`、`PendingConflict`、`chief send --command mergemain --item`、`CollectDetail` 親たどり引き継ぎ、`chief.md`・`chief_guide.md`・`CLAUDE.md` 仕上げ | 全 37 件の受け入れ基準を満たし、グリーンゲートが通る（PR-5・PR-6 の各マージ後に利用者が手で `make install-chief` と `/chief` 再起動を実行） |
 
-依存順序は M1（PR-1 → PR-2）→ M2（PR-3）→ M3（PR-4）→ M4（PR-5 → PR-6）である。PR-3 は PR-2 の `mergepr` 契約とプロトコル番号を前提とし、PR-5 は PR-4 の `OpenPR`・`ConflictPhase`・`paneinput`・`LaterInput` と PR-3 の `.claude/commands/mergemain.md` を前提とする。また、PR-4 マージ後は `_context.md` が 7 行になるため、PR-5 の `/runplan` を始める前に利用者が手で `make install-chief` を実行して `/chief` を再起動し、ステップ 3-3 で記録した実物 PR の `mergeable` の確認結果を点検してから進む（そのため PR-5 は `**自動送信**: hold` とする）。
+依存順序は M1（PR-1 → PR-2）→ M2（PR-3）→ M3（PR-4）→ M4（PR-5 → PR-6）である。PR-3 は PR-2 の `mergepr` 契約とプロトコル番号を前提とし、PR-5 は PR-4 の `OpenPR`・`ConflictPhase`・`paneinput`・`LaterInput` と PR-3 の `.claude/commands/mergemain.md` を前提とする。エージェントはインストール型ツールを入れ直さない（`CLAUDE.md`・ADR-0014）ため、ツールを変更する各 PR のマージ後に利用者が手動で入れ直しと再起動を行う前提とする。
+
+- **PR-2 マージ後（M2 開始前・`/mergepr` や `/runpr` の実行前）:** 利用者が手で `make install-mergepr` を実行し、新サブコマンドと更新後プロトコル番号を持つ `mergepr` を入れ直す。
+- **PR-4 マージ後（PR-5 着手前）:** `_context.md` が 7 行になり `chief` のプロトコル番号も上がるため、利用者が手で `make install-chief` を実行して `/chief` を再起動し、ステップ 3-3 で記録した実物 PR の `mergeable` の確認結果を点検してから進む（そのため PR-5 は `**自動送信**: hold` とする）。
+- **PR-5 マージ後（更新後 `/chief` の実行前・PR-6 着手前）:** `chief` のプロトコル番号と `TickOutput` 契約が変わるため、利用者が手で `make install-chief` を実行して `/chief` を再起動する。
+- **PR-6 マージ後:** `chief` のプロトコル番号と `chief send --command mergemain` 契約が変わるため、利用者が手で `make install-chief` を実行して `/chief` を再起動する。
 
 ### 3.2 PR 構成
 
@@ -377,7 +382,7 @@
 
 ### 単体テスト
 
-- **`internal/mergepr`（`mergemain_test.go`）:** 既存の `test_helpers_git.go`・`test_helpers.go` を再利用し、一時 git リポジトリとローカル bare リモートで衝突分類（`.md`・両側追加・プロトコル行のみ・他行衝突・`_test.go`・modify/delete・3 種の名前変更・シンボリックリンク・バイナリ）、プロトコル番号更新（衝突あり/なし）、早送り禁止、無視ファイル保護、戻しの許可/拒否全条件、push の検証全項目と 3 結果、ゼロ値の安全側動作を検証する（設計書 7.1）。
+- **`internal/mergepr`（`mergemain_test.go`）・`cmd/mergepr`（`main_test.go`）:** 既存の `test_helpers_git.go`・`test_helpers.go` を再利用し、一時 git リポジトリとローカル bare リモートで衝突分類（`.md`・両側追加・プロトコル行のみ・他行衝突・`_test.go`・modify/delete・3 種の名前変更・シンボリックリンク・バイナリ）、プロトコル番号更新（衝突あり/なし）、早送り禁止、無視ファイル保護、戻しの許可/拒否全条件（`MERGE_HEAD` 不一致・親順序不一致・`refs/remotes/origin/<branch>` 不一致を含む）、push の検証全項目（第 1 の親の `base_head`・再読み取り PR head 一致を含む）と 3 結果、ゼロ値の安全側動作を検証し、`cmd/mergepr/main_test.go` で行出力の改行・制御文字エスケープを検証する（設計書 7.1）。
 - **`internal/chief`（`workspace_test.go`・`position_test.go`・`conflict_test.go`・`table_test.go`・`output_test.go`・`records_test.go`・`send_test.go`・`pending_test.go`・`detail_test.go`・`running_test.go`・`screen_test.go`・`skiprecord_test.go`・`routing_test.go`・`paneinput_test.go`）:** AC-04 の厳格 JSON 検証（欠落・`null`・型違い・大小文字違い・空白・head 形式・重複・1 要素拒否で一覧全体拒否）に加え、`classify`・`conflictPhaseOf`・`TestUrgencyTable`・`progressOf`・`TestTableFixedWords`・`TestOutputValueNames` を検証する。また、AC-05 の (1)〜(10) と再確認の 1 条件欠落ごとの拒否と境界ケース、`/mergemain` 記録の保持と他記録の消去、`LaterInput` 全 6 値、項目 ID 一致・`/runpr` 非提示・手動送信前の控え作成、および一時 git リポジトリでの `CollectDetail` 親たどり引き継ぎ（上限・取得成功/失敗・リセット非使用）を検証する（設計書 7.1）。日本語の状態の文字列リテラルを検証するテストは `CLAUDE.md`「Go Idioms」に従い `internal/chief/table_test.go` に限定する。
 
 ### 結合テスト
@@ -387,7 +392,7 @@
 
 ### セキュリティテストと静的ガード
 
-- **入力・送り先・別リポジトリの防御:** `paneinput_test.go`・`conflict_test.go`・`send_test.go`・`mergemain_test.go` で、送る入力に画面/transcript/PR 題名が入らないこと（AC-33）、`mergemain` 行が OpenCode なら自動送信でも手動送信でも送らないこと（AC-34）、`isCrossRepository` 真の PR を chief と `mergepr` の両方で拒否すること、および `mergemain-push` の改ざん防御（偽りの `main` 指定・別 `main` コミット・`refs/mergemain/<PR>/main` の履歴外書き換え・プロトコル値誤り・許可外ファイル変更・force push 禁止）を検証する（設計書 7.3）。
+- **入力・送り先・別リポジトリの防御:** `paneinput_test.go`・`conflict_test.go`・`send_test.go`・`mergemain_test.go`・`cmd/mergepr/main_test.go` で、送る入力に画面/transcript/PR 題名が入らないこと（AC-33）、`mergemain` 行が OpenCode なら自動送信でも手動送信でも送らないこと（AC-34）、`isCrossRepository` 真の PR を chief と `mergepr` の両方で拒否すること、`mergemain-push` の改ざん防御（第 1 の親と `base_head`/再読み取り PR head の不一致・偽りの `main` 指定・別 `main` コミット・`refs/mergemain/<PR>/main` の履歴外書き換え・プロトコル値誤り・許可外ファイル変更・force push 禁止）、および `cmd/mergepr` 行出力での改行・制御文字によるフィールド偽装防止を検証する（設計書 7.3）。
 - **型構築ガード:** `internal/chief/construction_test.go` の `guardedTypes` に `"CommitID": {"ParseCommitID"}` を追加し、複合リテラル・省略リテラル・ポインタリテラル・フィールド代入・メソッド内構築・クロージャ内構築の各経路のミューテーションテストで検証する（`test_helpers.go` も走査対象のため `ParseCommitID` を使う）。
 - **文書・設定ガード:** `cmd/mergepr/docs_test.go`（`TestDocumentedProtocolMatches`・`TestDocumentedInvocationsParse`（allow 対象 3 サブコマンドの `PromptFree` 検証含む）・`TestProtocolToolsAgree`・`TestSettingsAllowsOnlySafeMergemainSubcommands`・`TestMergemainNoDirectGitMutation`）、`cmd/chief/docs_test.go`（`TestDocumentedProtocolMatches`・`TestDocumentedInvocationsParse`・`TestGuideProtocolMatchesTool`・`TestArchitectureValuesMatchTool`）、`cmd/yt2column/extension_docs_test.go`（`TestExtensionDocumentation`）、`internal/chief/routing_test.go`・`markers_parity_test.go` を実行する（設計書 7.4）。
 
@@ -453,9 +458,9 @@
 | AC-24 | 2-1 | `manual` | `.claude/commands/mergemain.md` が `mktrans.md` の `stopped` 時に停止・戻し手順へ進むことを PR レビューで確認（自然言語手順のみの要件） |
 | AC-25 | 1-1, 2-1 | `test` / `manual` | `test`: `internal/mergepr/mergemain_test.go::TestMergemainReportsADRConflictFacts`（`docs/dev/adr/` 変更と番号重複の検出を検証）。`manual`: `.claude/commands/mergemain.md` の ADR 重複・食い違い記述時の停止と `numreserve` 非実行を PR レビューで確認 |
 | AC-26 | 1-1, 2-1 | `test` / `static` / `manual` | `test`: `internal/mergepr/mergemain_test.go::TestMergemainExtCheckHint`（`ext-check` 対象パス判定を検証）。`static`: `cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation`（`Makefile` の `ext-preflight` と `CLAUDE.md` の一致を検証）。`manual`: `.claude/commands/mergemain.md` の `make test`・`make lint`・`make ext-preflight`→`make ext-check` と依存未導入時の停止理由を PR レビューで確認 |
-| AC-27 | 1-2, 2-1 | `test` / `manual` | `test`: `internal/mergepr/mergemain_test.go::TestMergemainPushSuccessRejectedAndUnknown`（非 force push・拒否時停止・結果不明時非戻しを検証）。`manual`: `.claude/commands/mergemain.md` の push 結果分岐を PR レビューで確認 |
-| AC-28 | 1-2, 2-1, 2-2 | `test` / `static` / `manual` | `test`: `internal/mergepr/mergemain_test.go::TestMergemainRestoreSafeAndRefusesOtherChanges`（戻し後の状態、無視・未追跡ファイル保護、他変更時の非戻しを検証）。`static`: `cmd/mergepr/docs_test.go::TestSettingsAllowsOnlySafeMergemainSubcommands`（`mergemain-restore` を allow しないことを検証）。`manual`: `.claude/commands/mergemain.md` の戻し要否分岐（AC-20/21/27 結果不明時は戻さない）と一時ファイルの作業ツリー外配置を PR レビューで確認 |
-| AC-29 | 1-3, 2-1 | `test` / `manual` | `test`: `cmd/mergepr/main_test.go::TestMergemainStopReasonsAndOutput`（道具が出す理由種別・衝突ファイル一覧・新 head・番号変更道具一覧の出力を検証）。`manual`: `.claude/commands/mergemain.md` の日本語報告形式・11 種の理由・プロトコル番号変更時の入れ直し案内を PR レビューで確認 |
+| AC-27 | 1-2, 2-1 | `test` / `manual` | `test`: `internal/mergepr/mergemain_test.go::TestMergemainPushSuccessRejectedAndUnknown`（第 1 の親の `base_head`/再読み取り PR head 一致と第 2 の親・範囲検証、非 force push・拒否時停止・結果不明時非戻しを検証）。`manual`: `.claude/commands/mergemain.md` の push 結果分岐を PR レビューで確認 |
+| AC-28 | 1-2, 2-1, 2-2 | `test` / `static` / `manual` | `test`: `internal/mergepr/mergemain_test.go::TestMergemainRestoreSafeAndRefusesOtherChanges`（戻し後の状態、`MERGE_HEAD`・親順序・`refs/remotes/origin/<branch>` の不一致拒否、無視・未追跡ファイル保護、他変更時の非戻しを検証）。`static`: `cmd/mergepr/docs_test.go::TestSettingsAllowsOnlySafeMergemainSubcommands`（`mergemain-restore` を allow しないことを検証）。`manual`: `.claude/commands/mergemain.md` の戻し要否分岐（AC-20/21/27 結果不明時は戻さない）と一時ファイルの作業ツリー外配置を PR レビューで確認 |
+| AC-29 | 1-3, 2-1 | `test` / `manual` | `test`: `cmd/mergepr/main_test.go::TestMergemainStopReasonsAndOutput`（道具が出す理由種別・衝突ファイル一覧・新 head・番号変更道具一覧の出力と改行・制御文字の 1 行エスケープを検証）。`manual`: `.claude/commands/mergemain.md` の日本語報告形式（停止時の 11 種の理由と衝突ファイル一覧、解消成功時の変更ファイルごとの適用規則・解消内容の要約・新しい head・プロトコル番号変更時の入れ直し案内）を PR レビューで確認 |
 | AC-30 | 1-1, 1-2, 2-1, 2-2 | `test` / `static` / `manual` | `test`: `internal/mergepr/mergemain_test.go::TestMergemainPRViewReadsNarrowFields`・`TestMergemainPushRejectsNonHeadOrForce`（狭い PR 読み取り・PR head 以外への push 拒否を検証）。`static`: `cmd/mergepr/docs_test.go::TestMergemainNoDirectGitMutation`（`mergemain.md` の実行コマンドブロックでの直接 `git merge`/`git reset`/`git push` 禁止を検証）。`manual`: `.claude/commands/mergemain.md` の 8 つの禁止事項を PR レビューで確認 |
 | AC-31 | 2-1 | `manual` | `CLAUDE.md` の「Tool Execution Safety」と `.claude/commands/mergemain.md` の承認段落に 4 操作（`gh pr view`・`git fetch origin`・PR head ブランチの `git ls-remote`・PR head ブランチへの `git push`）が揃っていることを PR レビューで確認（自然言語承認文のみの要件） |
 | AC-32 | 3-2 | `test` / `manual` | `test`: `internal/chief/routing_test.go::TestRoutingReadsRepositoryContext`・`TestRoutingRowsMapToTheirKeys`・`TestRoutingRejects`・`TestReadRoutingFromOriginMain`（7 行読み取り・欠落/不明行拒否・`mergemain` 行の `Claude Code`/`opus` 読み取りを検証；併せて `markers_parity_test.go::TestMarkerReadingMatchesDecisionScript` の回帰通過を確認）。`manual`: `.claude/commands/_context.md` の「7 行」記述と Claude Code 限定の例外文を PR レビューで確認 |
