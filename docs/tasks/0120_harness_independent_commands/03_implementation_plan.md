@@ -801,7 +801,7 @@ Diff record (AC-32):
 
 - Compared paths: `.claude/settings.json`
 - Merge-base: `4aee4aa65011cb421b630e489dbb3779372ee900`
-- Compared commit: `a1dc254d7799ff70bf4596d5f70173f654a3e50c`
+- Compared commit: `ed7dac285c4fdcb3a4e693e8d970584e3394baf3`
 
 Path diff:
 
@@ -811,6 +811,7 @@ Path diff:
 File list:
 
 ````text
+.claude/commands/_context.md
 .claude/commands/_lib/harness-antigravity.md
 .claude/commands/_lib/harness-claude.md
 .claude/commands/_lib/harness.md
