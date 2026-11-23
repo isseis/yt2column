@@ -149,9 +149,11 @@ subagents via `swarm` (`workspace: "inherit"`), using the `Model` from
     stop and report.
   - For `fixpr` Phase 6: leave the PR description unchanged and record that in
     the Final report.
-  - **Fail-Closed exception:** if an unauthorized helper worker was detected or
-    the exit state check reports any difference, discard all results and stop
-    the calling command immediately.
+  - **Fail-Closed exception:** follow section 8 step 8 — finish killing owned
+    helpers and always run the exit state check before stopping; if an
+    unauthorized helper worker was detected or the exit state check reports any
+    difference (or the baseline is missing), discard all results and stop the
+    calling command Fail-Closed immediately.
 
 ## 8. pinned-worker
 
@@ -291,11 +293,16 @@ Execute every `pinned-worker` invocation in this exact sequence:
        already-identified descendant, recursively `swarm(action: "kill")` ONLY
        those owned descendants, and re-check `read_board` and `status` until no
        owned descendants remain (never kill unrelated members launched by the
-       user or another subject). If any unauthorized helper was detected,
-       discard all results and stop Fail-Closed immediately.
-   - Run the exit worktree state check. If any part differs (or the baseline is
-     missing), discard all results and stop Fail-Closed immediately (even on
-     `wrong-model`, `timeout`, or `unavailable` exits).
+       user or another subject). If any unauthorized helper was detected, mark
+       the run as having an unauthorized helper and discard all results, then
+       continue to the exit worktree state check below (do not stop before
+       running it).
+   - Run the exit worktree state check (including when an unauthorized helper
+     was detected). If any unauthorized helper was detected, or if any part
+     differs (or the baseline is missing), discard all results, report any
+     detected unauthorized helper(s) and state-check differences, and stop
+     Fail-Closed immediately (even on `wrong-model`, `timeout`, or
+     `unavailable` exits).
 9. **Validate post framing and record cost:**
    - Across all board posts after `pre_launch_seq` (paginating `read_board`
      until drained), verify each launched worker made exactly ONE post authored
