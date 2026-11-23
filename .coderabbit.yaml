@@ -6,10 +6,9 @@
 # `inheritance: true` keeps the existing organization/repository UI settings.
 inheritance: true
 reviews:
-  # CodeRabbit does not review PRs: Codex does the PR review, and a second
-  # automatic review of the same PR would spend both allowances for one
-  # review. The local CLI review still covers the changes after the PR opens:
-  # the CodeRabbit CLI, or Codex CLI when it fails.
+  # CodeRabbit does not review PRs automatically: it reviews a PR only on a
+  # request, never on its own. The local CLI review covers changes with the
+  # CodeRabbit CLI, both before the PR opens and in a fix round after it.
   auto_review:
     enabled: false
   pre_merge_checks:

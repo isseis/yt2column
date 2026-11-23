@@ -14,8 +14,13 @@ var (
 	// reply or edit-pr refuses to post (readTextFile, readTitleFile, and
 	// checkPostText give the rules), a commit body file finish refuses to
 	// commit (the same rules and checkCommitBody), and a text append-pr
-	// refuses to append or a PR body it would refuse to write (AppendPR).
+	// refuses to append or an appended PR body over the size cap (AppendPR).
 	ErrInvalidInput = errors.New("invalid input")
+	// ErrCurrentBodyMention reports an append-pr call whose result is refused
+	// because the PR's current description already contains a rejected mention.
+	// It does not wrap ErrInvalidInput so the CLI reports a stop (exit 1)
+	// rather than a usage error.
+	ErrCurrentBodyMention = errors.New("current PR body contains a rejected mention")
 	// ErrCrossRepository reports a PR whose head is not a branch of this
 	// repository.
 	ErrCrossRepository = errors.New("PR head is not in this repository")
@@ -53,9 +58,10 @@ var (
 	// in the expected shape, and a git metadata file that could not be read.
 	ErrGitFailed = errors.New("git command failed")
 
-	// errCodexMention rejects post text that contains CodexMention: a post
-	// from the user's account must not invoke Codex.
-	errCodexMention = fmt.Errorf("%w: text mentions Codex", ErrInvalidInput)
+	// errMention rejects post text that contains any mention in
+	// RejectedMentions: a post from the user's account must not invoke an
+	// automated reviewer.
+	errMention = fmt.Errorf("%w: text contains a rejected mention", ErrInvalidInput)
 
 	errNonceExhausted = errors.New("no fence nonce absent from the data")
 	errUnknownEnum    = errors.New("enum value has no name")
@@ -66,26 +72,30 @@ var (
 	errConfigList = fmt.Errorf("%w: config list shape", ErrGitFailed)
 )
 
-// CodexMention is the mention that makes Codex act on a comment. A reply
-// body, PR title, or PR body that contains it, compared case-insensitively
-// in ASCII, is rejected. It is lower case, the form checkPostText compares.
-const CodexMention = "@codex"
+// RejectedMentions returns the mentions that a post from the user's account
+// must not contain. A reply body, PR title, PR body, or finish commit body
+// that contains any of them, compared case-insensitively in ASCII, is
+// rejected. Each value is lower case, the form checkPostText compares.
+func RejectedMentions() []string {
+	return []string{"@codex", "@coderabbitai"}
+}
 
 // The stop kinds: the machine-readable name of why a subcommand stopped, as
 // the output's stop field and the command documents name it.
 const (
-	StopDirtyWorkTree     = "dirty-work-tree"
-	StopCrossRepository   = "cross-repository"
-	StopGitStateChanged   = "git-state-changed"
-	StopJudgedSetChanged  = "judged-set-changed"
-	StopThreadCap         = "thread-cap"
-	StopChangeCap         = "change-cap"
-	StopThreadChanged     = "thread-changed"
-	StopThreadNotTrusted  = "thread-not-trusted"
-	StopReplyNotResolved  = "reply-not-resolved"
-	StopResponseRejected  = "response-rejected"
-	StopBuildChecksFailed = "build-checks-failed"
-	StopGitFailed         = "git-failed"
+	StopDirtyWorkTree      = "dirty-work-tree"
+	StopCrossRepository    = "cross-repository"
+	StopGitStateChanged    = "git-state-changed"
+	StopJudgedSetChanged   = "judged-set-changed"
+	StopThreadCap          = "thread-cap"
+	StopChangeCap          = "change-cap"
+	StopThreadChanged      = "thread-changed"
+	StopThreadNotTrusted   = "thread-not-trusted"
+	StopReplyNotResolved   = "reply-not-resolved"
+	StopCurrentBodyMention = "current-body-mention"
+	StopResponseRejected   = "response-rejected"
+	StopBuildChecksFailed  = "build-checks-failed"
+	StopGitFailed          = "git-failed"
 	// StopFailed covers any other failure, so no failure goes unnamed.
 	StopFailed = "failed"
 )
@@ -94,7 +104,7 @@ const (
 func StopKinds() []string {
 	return []string{
 		StopDirtyWorkTree, StopCrossRepository, StopGitStateChanged, StopJudgedSetChanged, StopThreadCap,
-		StopChangeCap, StopThreadChanged, StopThreadNotTrusted, StopReplyNotResolved, StopResponseRejected, StopBuildChecksFailed, StopGitFailed, StopFailed,
+		StopChangeCap, StopThreadChanged, StopThreadNotTrusted, StopReplyNotResolved, StopCurrentBodyMention, StopResponseRejected, StopBuildChecksFailed, StopGitFailed, StopFailed,
 	}
 }
 
@@ -121,6 +131,8 @@ func StopKind(err error) string {
 		return StopThreadChanged
 	case errors.Is(err, ErrThreadNotTrusted):
 		return StopThreadNotTrusted
+	case errors.Is(err, ErrCurrentBodyMention):
+		return StopCurrentBodyMention
 	case errors.Is(err, ErrResponseRejected):
 		return StopResponseRejected
 	case errors.Is(err, ErrBuildChecksFailed):

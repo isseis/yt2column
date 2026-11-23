@@ -340,7 +340,7 @@ the thread says about itself, and judges a thread in doubt excluded.
   deferred question's "fix all" never includes them. While an excluded thread
   is unresolved, the merge question's options are only "return to the full
   process" and "do not merge", with "request a PR review first" added when the
-  PR has changes Codex has not reviewed.
+  PR has unreviewed changes (LAST_REVIEWED is behind the head or none).
 - A thread the human chose is passed to `/fixpr` as an override thread
   (`fixpr.md`, "Overriding an exclusion"), which fixes it without judging it
   again and records the override in the `要件定義の際に決めたこと（YYYY-MM-DD）`
@@ -428,7 +428,7 @@ handoff".
    to a deleted ADR from the files that remain; the confirmed item keeps its
    ADR judgment for `/mkarch` or `/mkplan` to act on.
 7. Run the documentation guards
-   (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/codexreview/... ./internal/pipeline`),
+   (`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./internal/pipeline`),
    and fix what they find before committing. When they cannot be made to
    pass, stop without committing: leave the changes in the work tree, list
    their files, and report that the user fixes and commits them, or discards
