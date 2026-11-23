@@ -435,6 +435,28 @@ classify() {
 
 OLD_TABLE=$(old_value_table) || run_on_failure "failed to parse old-value table"
 
+# check_regular_plan_file verifies that PLAN at rev is a regular file (mode
+# 100644 or 100755). When required=1, an absent path fails closed; when
+# required=0, an absent path returns 1. Any non-regular entry (such as a
+# symlink, mode 120000) or git error fails closed.
+check_regular_plan_file() {
+	local rev=$1 label=$2 required=$3 entry mode type
+	entry=$(g ls-tree "$rev" -- "$PLAN") || run_on_failure "cannot inspect $label tree for PLAN"
+	if [ -z "$entry" ]; then
+		if [ "$required" = 1 ]; then
+			run_on_failure "cannot read PLAN at $label"
+		fi
+		return 1
+	fi
+	[[ $entry != *$'\n'* ]] || run_on_failure "PLAN at $label matched multiple tree entries"
+	IFS=' ' read -r mode type _ <<<"$entry"
+	case "$mode $type" in
+	"100644 blob" | "100755 blob") return 0 ;;
+	*) run_on_failure "PLAN at $label is not a regular file (mode $mode)" ;;
+	esac
+}
+
+check_regular_plan_file "$HEAD_ID" HEAD 1
 HEAD_PLAN=$(g cat-file blob "$HEAD_ID:$PLAN" 2>/dev/null) || run_on_failure "cannot read PLAN at HEAD"
 HEAD_READ=$(printf '%s\n' "$HEAD_PLAN" | classify) || run_on_failure "cannot classify PLAN at HEAD"
 case $HEAD_READ in
@@ -450,10 +472,10 @@ esac
 
 # origin/main's copy counts only when it has the plan and the target place;
 # without them the decision rests on HEAD alone. Distinguish an absent path
-# from a present path whose blob cannot be read (fail closed).
+# from a present path whose blob cannot be read or is not a regular file (fail
+# closed).
 OM_READ=absent
-OM_TREE_ENTRY=$(g ls-tree --name-only "$OM" -- "$PLAN") || run_on_failure "cannot inspect origin/main tree for PLAN"
-if [ -n "$OM_TREE_ENTRY" ]; then
+if check_regular_plan_file "$OM" origin/main 0; then
 	OM_PLAN=$(g cat-file blob "$OM:$PLAN" 2>/dev/null) || run_on_failure "cannot read PLAN at origin/main"
 	OM_READ=$(printf '%s\n' "$OM_PLAN" | classify) || run_on_failure "cannot classify PLAN at origin/main"
 	case $OM_READ in
@@ -529,9 +551,14 @@ resolve12() {
 DONE_LINE=""
 for c in $COMMITS; do
 	msg=$(message "$c") || run_on_failure "cannot read commit $c"
-	line=$(printf '%s\n' "$msg" | { grep -E -- "$DONE_RE" || true; } | tail -n 1)
-	if [ -n "$line" ]; then
-		DONE_LINE=$line
+	last_done=""
+	while IFS= read -r line; do
+		if [[ $line =~ $DONE_RE ]]; then
+			last_done=$line
+		fi
+	done <<<"$msg"
+	if [ -n "$last_done" ]; then
+		DONE_LINE=$last_done
 		break
 	fi
 done

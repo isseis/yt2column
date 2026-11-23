@@ -390,6 +390,18 @@ func TestHighReviewDecision(t *testing.T) {
 			f.record("narrow done", "High review: done "+c1[:12]+".."+c2[:12]+" (critical 0, major 0, minor 0)")
 			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "RUN\n")
 		})
+
+		t.Run("multiple done records in one commit uses last matching line", func(t *testing.T) {
+			t.Parallel()
+			f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "high"), "")
+			c1 := f.work("step 1")
+			c2 := f.work("step 2")
+			firstDone := "High review: done " + c1[:12] + ".." + c2[:12] + " (critical 0, major 0, minor 0)"
+			lastDone := "High review: done " + f.mb[:12] + ".." + c2[:12] + " (critical 0, major 0, minor 1)"
+			rec := f.record("two done lines", firstDone, lastDone)
+			want := "SKIP " + lastDone + "\n" + rec[:12] + " two done lines\n"
+			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), want)
+		})
 	})
 
 	t.Run("model record and pattern matching", func(t *testing.T) {
@@ -753,6 +765,41 @@ func TestHighReviewDecision(t *testing.T) {
 					assertFailureRun(t, f.run(rrMarkersPlan, tc.target, f.mb, scriptRunOptions{}), tc.wantStderr)
 				})
 			}
+
+			t.Run("symlinked single plan at HEAD without origin/main plan", func(t *testing.T) {
+				t.Parallel()
+				f := newHRDFixture(t, bash, realContext, "", "")
+				linkPath := filepath.Join(f.repo, rrSinglePlan)
+				if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink("target.md", linkPath); err != nil {
+					t.Fatal(err)
+				}
+				f.commit("add symlinked single plan")
+				assertFailureRun(t, f.run(rrSinglePlan, "single", f.mb, scriptRunOptions{}), "PLAN at HEAD is not a regular file")
+			})
+
+			t.Run("symlinked plan at origin/main", func(t *testing.T) {
+				t.Parallel()
+				f := newHRDFixture(t, bash, realContext, "", "")
+				linkPath := filepath.Join(f.repo, rrSinglePlan)
+				if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink("target.md", linkPath); err != nil {
+					t.Fatal(err)
+				}
+				f.commit("add symlinked plan to origin/main")
+				f.mb = f.head()
+				f.git("update-ref", "refs/remotes/origin/main", f.mb)
+				if err := os.Remove(linkPath); err != nil {
+					t.Fatal(err)
+				}
+				f.write(rrSinglePlan, singlePlanWith(t, "low"))
+				f.commit("replace symlink with regular low plan")
+				assertFailureRun(t, f.run(rrSinglePlan, "single", f.mb, scriptRunOptions{}), "PLAN at origin/main is not a regular file")
+			})
 		})
 	})
 }
