@@ -18,7 +18,6 @@ import (
 // concern.
 const (
 	highReviewDecisionPath = "../../.claude/commands/_lib/high-review-decision.sh"
-	contextDocPath         = "../../.claude/commands/_context.md"
 	contextDocRepoPath     = ".claude/commands/_context.md"
 )
 
@@ -73,6 +72,12 @@ func (f *hrdFixture) record(subject string, body ...string) string {
 		message += "\n\n" + strings.Join(body, "\n")
 	}
 	f.git("commit", "-q", "--allow-empty", "-m", message)
+	return f.head()
+}
+
+func (f *hrdFixture) commitAndRev(message string) string {
+	f.t.Helper()
+	f.commit(message)
 	return f.head()
 }
 
@@ -179,6 +184,17 @@ func replaceMappingSection(t *testing.T, contextDoc, replacement string) string 
 	return before + replacement + "### " + after
 }
 
+// replaceContextRow replaces one exact row in contextDoc and fails t if the
+// row was not found, so a fixture edit cannot silently become a no-op.
+func replaceContextRow(t *testing.T, contextDoc, oldRow, newRow string) string {
+	t.Helper()
+	updated := strings.Replace(contextDoc, oldRow, newRow, 1)
+	if updated == contextDoc {
+		t.Fatalf("_context.md does not contain row %q", oldRow)
+	}
+	return updated
+}
+
 func assertRun(t *testing.T, got scriptRun, wantStdout string) {
 	t.Helper()
 	if got.code != 0 || got.stdout != wantStdout || got.stderr != "" {
@@ -186,6 +202,10 @@ func assertRun(t *testing.T, got scriptRun, wantStdout string) {
 	}
 }
 
+// assertFailureRun checks a fail-closed decision failure. Every failure of
+// high-review-decision.sh exits 0 and prints "RUN\n" on stdout, so the stderr
+// diagnostic substring is the only observable contract identifying which
+// validation rule rejected the input.
 func assertFailureRun(t *testing.T, got scriptRun, wantStderrSubstr string) {
 	t.Helper()
 	if got.code != 0 || got.stdout != "RUN\n" {
@@ -199,7 +219,12 @@ func assertFailureRun(t *testing.T, got scriptRun, wantStderrSubstr string) {
 func TestHighReviewDecision(t *testing.T) {
 	t.Parallel()
 	bash := requireBash4(t)
-	realContext := doctestutil.ReadDoc(t, contextDocPath)
+	realContext := doctestutil.ReadDoc(t, contextPath)
+
+	const (
+		claudeHighRow = "| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |"
+		agHighRow     = "| `Antigravity` | `high` | `swarm` | `gemini-4-neon-high` | `gemini-4-neon-high` |"
+	)
 
 	t.Run("values", func(t *testing.T) {
 		t.Parallel()
@@ -265,14 +290,6 @@ func TestHighReviewDecision(t *testing.T) {
 			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "NONE all-high\n")
 		})
 
-		t.Run("mixed high and non-high in one record runs", func(t *testing.T) {
-			t.Parallel()
-			f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "high"), "")
-			c1 := f.work("step 1")
-			f.record("record", "Implementation model: "+f.mb[:12]+".."+c1[:12]+" claude-opus-4-7, claude-sonnet-4-6")
-			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "RUN\n")
-		})
-
 		t.Run("commit covered by both high and non-high records is tainted", func(t *testing.T) {
 			t.Parallel()
 			f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "high"), "")
@@ -303,42 +320,6 @@ func TestHighReviewDecision(t *testing.T) {
 			m := f.head()
 			f.record("record", "Implementation model: "+f.mb[:12]+".."+m[:12]+" claude-opus-4-7")
 			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "RUN\n")
-		})
-	})
-
-	t.Run("swarm launch never satisfies all-high", func(t *testing.T) {
-		t.Parallel()
-		t.Run("gemini-4-neon-high runs", func(t *testing.T) {
-			t.Parallel()
-			f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "high"), "")
-			c1 := f.work("step 1")
-			f.record("record", "Implementation model: "+f.mb[:12]+".."+c1[:12]+" gemini-4-neon-high")
-			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "RUN\n")
-		})
-
-		t.Run("mixed agent high and swarm high runs", func(t *testing.T) {
-			t.Parallel()
-			f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "high"), "")
-			c1 := f.work("step 1")
-			f.record("record", "Implementation model: "+f.mb[:12]+".."+c1[:12]+" claude-opus-4-7, gemini-4-neon-high")
-			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "RUN\n")
-		})
-
-		t.Run("literal pattern with Launch agent satisfies all-high", func(t *testing.T) {
-			t.Parallel()
-			custom := strings.Replace(
-				realContext,
-				"| `Antigravity` | `high` | `swarm` | `gemini-4-neon-high` | `gemini-4-neon-high` |",
-				"| `Antigravity` | `high` | `agent` | `gemini-4-neon-high` | `gemini-4-neon-high` |",
-				1,
-			)
-			if custom == realContext {
-				t.Fatal("failed to rewrite Antigravity high row")
-			}
-			f := newHRDFixture(t, bash, custom, markersPlanWith(t, "high"), "")
-			c1 := f.work("step 1")
-			f.record("record", "Implementation model: "+f.mb[:12]+".."+c1[:12]+" gemini-4-neon-high")
-			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "NONE all-high\n")
 		})
 	})
 
@@ -401,30 +382,39 @@ func TestHighReviewDecision(t *testing.T) {
 		})
 	})
 
-	t.Run("pattern matching boundaries", func(t *testing.T) {
+	t.Run("model record and pattern matching", func(t *testing.T) {
 		t.Parallel()
-		dotContext := strings.Replace(
-			realContext,
-			"| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |",
-			"| `Claude Code` | `high` | `agent` | `opus` | `v1.0-*` |",
-			1,
-		)
-		exactDotContext := strings.Replace(
-			realContext,
-			"| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |",
-			"| `Claude Code` | `high` | `agent` | `opus` | `v1.0` |",
-			1,
-		)
+		agAgentContext := replaceContextRow(t, realContext, agHighRow,
+			"| `Antigravity` | `high` | `agent` | `gemini-4-neon-high` | `gemini-4-neon-high` |")
+		dotContext := replaceContextRow(t, realContext, claudeHighRow,
+			"| `Claude Code` | `high` | `agent` | `opus` | `v1.0-*` |")
+		exactDotContext := replaceContextRow(t, realContext, claudeHighRow,
+			"| `Claude Code` | `high` | `agent` | `opus` | `v1.0` |")
+		maxLiteral := strings.Repeat("a", 64)
+		maxLiteralContext := replaceContextRow(t, realContext, claudeHighRow,
+			"| `Claude Code` | `high` | `agent` | `opus` | `"+maxLiteral+"` |")
+		maxPrefix := strings.Repeat("b", 63)
+		maxPrefixContext := replaceContextRow(t, realContext, claudeHighRow,
+			"| `Claude Code` | `high` | `agent` | `opus` | `"+maxPrefix+"*` |")
+		fencedHeadingContext := realContext + "\n```markdown\n### Harness model mapping\n```\n"
+
 		cases := []struct {
-			name    string
-			ctx     string
-			modelID string
-			want    string
+			name   string
+			ctx    string
+			models string
+			want   string
 		}{
+			{"mixed high and non-high in one record runs", realContext, "claude-opus-4-7, claude-sonnet-4-6", "RUN\n"},
+			{"swarm launch gemini-4-neon-high runs", realContext, "gemini-4-neon-high", "RUN\n"},
+			{"mixed agent high and swarm high runs", realContext, "claude-opus-4-7, gemini-4-neon-high", "RUN\n"},
+			{"literal pattern with Launch agent satisfies all-high", agAgentContext, "gemini-4-neon-high", "NONE all-high\n"},
 			{"prefix dot literal matches", dotContext, "v1.0-a", "NONE all-high\n"},
 			{"prefix dot is not regex wildcard", dotContext, "v1X0-a", "RUN\n"},
 			{"exact dot literal matches", exactDotContext, "v1.0", "NONE all-high\n"},
 			{"exact dot is not regex wildcard", exactDotContext, "v1X0", "RUN\n"},
+			{"64-char literal pattern accepted", maxLiteralContext, maxLiteral, "NONE all-high\n"},
+			{"63-char prefix plus star accepted", maxPrefixContext, maxPrefix + "x", "NONE all-high\n"},
+			{"fenced Harness model mapping heading ignored", fencedHeadingContext, "claude-opus-4-7", "NONE all-high\n"},
 			{"48-char suffix accepted", realContext, "claude-opus-" + strings.Repeat("a", 48), "NONE all-high\n"},
 			{"49-char suffix rejected", realContext, "claude-opus-" + strings.Repeat("a", 49), "RUN\n"},
 			{"empty suffix rejected", realContext, "claude-opus-", "RUN\n"},
@@ -438,7 +428,7 @@ func TestHighReviewDecision(t *testing.T) {
 				t.Parallel()
 				f := newHRDFixture(t, bash, tc.ctx, markersPlanWith(t, "high"), "")
 				c1 := f.work("step 1")
-				f.record("record", "Implementation model: "+f.mb[:12]+".."+c1[:12]+" "+tc.modelID)
+				f.record("record", "Implementation model: "+f.mb[:12]+".."+c1[:12]+" "+tc.models)
 				assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), tc.want)
 			})
 		}
@@ -457,145 +447,162 @@ func TestHighReviewDecision(t *testing.T) {
 			name       string
 			ctx        string
 			wantStderr string
+			alsoAbsent bool
 		}{
 			{
-				"missing _context.md",
-				"",
-				"cannot read origin/main:.claude/commands/_context.md",
+				name:       "missing _context.md",
+				ctx:        "",
+				wantStderr: "cannot read origin/main:.claude/commands/_context.md",
+				alsoAbsent: true,
 			},
 			{
-				"missing mapping section",
-				replaceMappingSection(t, realContext, ""),
-				"missing Harness model mapping section",
+				name:       "missing mapping section",
+				ctx:        replaceMappingSection(t, realContext, ""),
+				wantStderr: "missing Harness model mapping section",
 			},
 			{
-				"duplicate mapping section",
-				replaceMappingSection(t, realContext, validTable+validTable),
-				"duplicate Harness model mapping section",
+				name:       "duplicate mapping section",
+				ctx:        replaceMappingSection(t, realContext, validTable+validTable),
+				wantStderr: "duplicate Harness model mapping section",
 			},
 			{
-				"unclosed fence in _context.md",
-				realContext + "\n```text\nunclosed\n",
-				"unclosed code fence in _context.md",
+				name:       "empty table with zero data rows",
+				ctx:        replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n\n"),
+				wantStderr: "missing or empty Harness model mapping table",
 			},
 			{
-				"wrong header",
-				replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Pattern |\n|---|---|---|---|---|\n| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n\n"),
-				"invalid Harness model mapping header",
+				name:       "unclosed fence in _context.md",
+				ctx:        realContext + "\n```text\nunclosed\n",
+				wantStderr: "unclosed code fence in _context.md",
 			},
 			{
-				"wrong separator",
-				replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|\n| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n\n"),
-				"invalid Harness model mapping separator",
+				name:       "wrong header",
+				ctx:        replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Pattern |\n|---|---|---|---|---|\n| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n\n"),
+				wantStderr: "invalid Harness model mapping header",
 			},
 			{
-				"indented table row",
-				replaceMappingSection(t, realContext, "### Harness model mapping\n\n | Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n\n"),
-				"indented table row",
+				name:       "wrong separator",
+				ctx:        replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|\n| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n\n"),
+				wantStderr: "invalid Harness model mapping separator",
 			},
 			{
-				"unquoted cell",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`opus`", "opus", 1)),
-				"single code span",
+				name:       "wrong column count",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "| `OpenCode` | `low` | `none` | `DeepSeek` | `-` |", "| `OpenCode` | `low` | `none` | `DeepSeek` |", 1)),
+				wantStderr: "must have 5 columns",
 			},
 			{
-				"multiple tables",
-				replaceMappingSection(t, realContext, validTable+"prose\n\n| Harness | Role | Launch | Model | Verification pattern |\n\n"),
-				"multiple tables",
+				name:       "indented table row",
+				ctx:        replaceMappingSection(t, realContext, "### Harness model mapping\n\n | Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n\n"),
+				wantStderr: "indented table row",
 			},
 			{
-				"unknown Harness",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`OpenCode`", "`OtherHarness`", 1)),
-				"unknown Harness",
+				name:       "unquoted cell",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`opus`", "opus", 1)),
+				wantStderr: "single code span",
 			},
 			{
-				"unknown Role",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`low`", "`ultra`", 1)),
-				"unknown Role",
+				name:       "multiple tables",
+				ctx:        replaceMappingSection(t, realContext, validTable+"prose\n\n| Harness | Role | Launch | Model | Verification pattern |\n\n"),
+				wantStderr: "multiple tables",
 			},
 			{
-				"unknown Launch",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`none`", "`cli`", 1)),
-				"unknown Launch",
+				name:       "unknown Harness",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`OpenCode`", "`OtherHarness`", 1)),
+				wantStderr: "unknown Harness",
 			},
 			{
-				"whitespace-only Model",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`DeepSeek`", "`   `", 1)),
-				"invalid Model",
+				name:       "unknown Role",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`low`", "`ultra`", 1)),
+				wantStderr: "unknown Role",
 			},
 			{
-				"duplicate Harness Role",
-				replaceMappingSection(t, realContext, strings.TrimSuffix(validTable, "\n")+"| `Claude Code` | `high` | `agent` | `opus2` | `claude-opus-2-*` |\n\n"),
-				"duplicate (Harness, Role)",
+				name:       "unknown Launch",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`none`", "`cli`", 1)),
+				wantStderr: "unknown Launch",
 			},
 			{
-				"none launch with non-dash pattern",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "| `-` |", "| `deepseek` |", 1)),
-				"Launch none row must have Verification pattern -",
+				name:       "whitespace-only Model",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`DeepSeek`", "`   `", 1)),
+				wantStderr: "invalid Model",
 			},
 			{
-				"agent launch with dash pattern",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`-`", 1)),
-				"cannot have Verification pattern -",
+				name:       "duplicate Harness Role",
+				ctx:        replaceMappingSection(t, realContext, strings.TrimSuffix(validTable, "\n")+"| `Claude Code` | `high` | `agent` | `opus2` | `claude-opus-2-*` |\n\n"),
+				wantStderr: "duplicate (Harness, Role)",
 			},
 			{
-				"regex dot-star metacharacter",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`.*`", 1)),
-				"invalid prefix Verification pattern",
+				name:       "none launch with non-dash pattern",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "| `-` |", "| `deepseek` |", 1)),
+				wantStderr: "Launch none row must have Verification pattern -",
 			},
 			{
-				"regex anchors metacharacter",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`^claude-opus$`", 1)),
-				"invalid literal Verification pattern",
+				name:       "agent launch with dash pattern",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`-`", 1)),
+				wantStderr: "cannot have Verification pattern -",
 			},
 			{
-				"regex alternation pipe forbidden",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`claude-(a|b)`", 1)),
-				"forbidden character",
+				name:       "whitespace in pattern",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`claude opus`", 1)),
+				wantStderr: "invalid literal Verification pattern",
 			},
 			{
-				"regex grouping metacharacter",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`claude-(ab)`", 1)),
-				"invalid literal Verification pattern",
+				name:       "regex dot-star metacharacter",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`.*`", 1)),
+				wantStderr: "invalid prefix Verification pattern",
+				alsoAbsent: true,
 			},
 			{
-				"regex char class in cross-check row",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-fable-*`", "`claude-[a-z]+`", 1)),
-				"invalid literal Verification pattern",
+				name:       "regex anchors metacharacter",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`^claude-opus$`", 1)),
+				wantStderr: "invalid literal Verification pattern",
 			},
 			{
-				"mid-wildcard",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`claude*opus`", 1)),
-				"invalid literal Verification pattern",
+				name:       "regex alternation pipe forbidden",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`claude-(a|b)`", 1)),
+				wantStderr: "forbidden character",
 			},
 			{
-				"65-char literal pattern",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`"+strings.Repeat("a", 65)+"`", 1)),
-				"invalid literal Verification pattern",
+				name:       "regex grouping metacharacter",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`claude-(ab)`", 1)),
+				wantStderr: "invalid literal Verification pattern",
 			},
 			{
-				"64-char prefix plus star",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`"+strings.Repeat("a", 64)+"*`", 1)),
-				"invalid prefix Verification pattern",
+				name:       "regex char class in cross-check row",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-fable-*`", "`claude-[a-z]+`", 1)),
+				wantStderr: "invalid literal Verification pattern",
 			},
 			{
-				"no high agent row",
-				replaceMappingSection(t, realContext, strings.Replace(validTable, "| `Claude Code` | `high` | `agent` |", "| `Claude Code` | `high` | `swarm` |", 1)),
-				"no high-role agent verification pattern",
+				name:       "mid-wildcard",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`claude*opus`", 1)),
+				wantStderr: "invalid literal Verification pattern",
+			},
+			{
+				name:       "65-char literal pattern",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`"+strings.Repeat("a", 65)+"`", 1)),
+				wantStderr: "invalid literal Verification pattern",
+			},
+			{
+				name:       "64-char prefix plus star",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "`claude-opus-*`", "`"+strings.Repeat("a", 64)+"*`", 1)),
+				wantStderr: "invalid prefix Verification pattern",
+			},
+			{
+				name:       "no high agent row",
+				ctx:        replaceMappingSection(t, realContext, strings.Replace(validTable, "| `Claude Code` | `high` | `agent` |", "| `Claude Code` | `high` | `swarm` |", 1)),
+				wantStderr: "no high-role agent verification pattern",
 			},
 		}
 
-		for _, planKind := range []struct {
-			name string
-			val  string
-		}{
-			{"low-plan", "low"},
-			{"absent-plan", ""},
-		} {
-			for _, tc := range cases {
-				t.Run(planKind.name+"/"+tc.name, func(t *testing.T) {
+		for _, tc := range cases {
+			t.Run("low-plan/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newHRDFixture(t, bash, tc.ctx, markersPlanWith(t, "low"), "")
+				assertFailureRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), tc.wantStderr)
+			})
+			if tc.alsoAbsent {
+				t.Run("absent-plan/"+tc.name, func(t *testing.T) {
 					t.Parallel()
-					f := newHRDFixture(t, bash, tc.ctx, markersPlanWith(t, planKind.val), "")
+					f := newHRDFixture(t, bash, tc.ctx, markersPlanWith(t, ""), "")
 					assertFailureRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), tc.wantStderr)
 				})
 			}
@@ -652,16 +659,16 @@ func TestHighReviewDecision(t *testing.T) {
 			t.Parallel()
 			f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "high"), "")
 			f.work("step 1")
-			// Write a replacement blob with value low and attach refs/replace to HEAD's plan blob.
 			tmpPlan := filepath.Join(t.TempDir(), "low.md")
 			if err := os.WriteFile(tmpPlan, []byte(markersPlanWith(t, "low")), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			lowBlobID := strings.TrimSpace(f.git("hash-object", "-w", tmpPlan))
-			headPlanBlob := strings.TrimSpace(f.git("rev-parse", "HEAD:"+rrMarkersPlan))
-			omPlanBlob := strings.TrimSpace(f.git("rev-parse", "refs/remotes/origin/main:"+rrMarkersPlan))
-			f.git("update-ref", "refs/replace/"+headPlanBlob, lowBlobID)
-			f.git("update-ref", "refs/replace/"+omPlanBlob, lowBlobID)
+			planBlob := strings.TrimSpace(f.git("rev-parse", "HEAD:"+rrMarkersPlan))
+			f.git("update-ref", "refs/replace/"+planBlob, lowBlobID)
+			if got := f.git("cat-file", "blob", "HEAD:"+rrMarkersPlan); !strings.Contains(got, ": low") {
+				t.Fatalf("plain git did not apply refs/replace, so the test checks nothing: %q", got)
+			}
 			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "RUN\n")
 		})
 
@@ -676,7 +683,12 @@ func TestHighReviewDecision(t *testing.T) {
 
 		t.Run("uncommitted work tree downgrade ignored", func(t *testing.T) {
 			t.Parallel()
-			f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "high"), "")
+			// origin/main holds low while HEAD holds high, so reading the
+			// uncommitted low file from the work tree instead of HEAD would
+			// return NONE value-low and fail this test.
+			f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "low"), "")
+			f.write(rrMarkersPlan, markersPlanWith(t, "high"))
+			f.commit("upgrade plan to high on branch")
 			f.work("step 1")
 			f.write(rrMarkersPlan, markersPlanWith(t, "low"))
 			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "RUN\n")
@@ -699,39 +711,27 @@ func TestHighReviewDecision(t *testing.T) {
 
 		t.Run("plan structure failures", func(t *testing.T) {
 			t.Parallel()
-			t.Run("missing target marker", func(t *testing.T) {
-				t.Parallel()
-				f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "low"), "")
-				assertFailureRun(t, f.run(rrMarkersPlan, "99", f.mb, scriptRunOptions{}), "no PR-99 marker")
-			})
-			t.Run("two value lines", func(t *testing.T) {
-				t.Parallel()
-				f := newHRDFixture(t, bash, realContext, markersPlanWithTwoValues(t), "")
-				assertFailureRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "more than one place")
-			})
-			t.Run("fenced value line", func(t *testing.T) {
-				t.Parallel()
-				f := newHRDFixture(t, bash, realContext, markersPlanWithFencedValue(t), "")
-				assertFailureRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "more than one place")
-			})
-			t.Run("unclosed fence in plan", func(t *testing.T) {
-				t.Parallel()
-				f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "low")+"\n```text\nunclosed\n", "")
-				assertFailureRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "more than one place")
-			})
-			t.Run("single target on markers plan", func(t *testing.T) {
-				t.Parallel()
-				f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "low"), "")
-				assertFailureRun(t, f.run(rrMarkersPlan, "single", f.mb, scriptRunOptions{}), "more than one place")
-			})
+			cases := []struct {
+				name       string
+				plan       string
+				target     string
+				wantStderr string
+			}{
+				{"missing target marker", markersPlanWith(t, "low"), "99", "no PR-99 marker"},
+				{"two value lines", markersPlanWithTwoValues(t), "1", "more than one place"},
+				{"fenced value line", markersPlanWithFencedValue(t), "1", "more than one place"},
+				{"unclosed fence in plan", markersPlanWith(t, "low") + "\n```text\nunclosed\n", "1", "more than one place"},
+				{"single target on markers plan", markersPlanWith(t, "low"), "single", "more than one place"},
+			}
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					f := newHRDFixture(t, bash, realContext, tc.plan, "")
+					assertFailureRun(t, f.run(rrMarkersPlan, tc.target, f.mb, scriptRunOptions{}), tc.wantStderr)
+				})
+			}
 		})
 	})
-}
-
-func (f *hrdFixture) commitAndRev(message string) string {
-	f.t.Helper()
-	f.commit(message)
-	return f.head()
 }
 
 const (
@@ -751,15 +751,13 @@ var highReviewDecisionCallers = []string{
 
 // TestHighReviewDecisionCallSite checks that every command document runs
 // high-review-decision.sh only from origin/main via --no-replace-objects, and
-// only from the allowed caller documents, with no stale opus-review-decision
-// references remaining.
+// only from the allowed caller documents.
 func TestHighReviewDecisionCallSite(t *testing.T) {
 	t.Parallel()
 	for _, rel := range doctestutil.CommandDocs(t, repositoryRoot) {
 		blockLines, spans := codeTexts(doctestutil.ReadDoc(t, filepath.Join(repositoryRoot, rel)))
 		for i, code := range slices.Concat(blockLines, spans) {
 			if !strings.Contains(code, "high-review-decision") &&
-				!strings.Contains(code, "opus-review-decision") &&
 				!strings.Contains(code, "<decision-script>") {
 				continue
 			}

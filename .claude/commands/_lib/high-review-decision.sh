@@ -153,8 +153,8 @@ parse_harness_mapping() {
 		}
 		!in_sec { next }
 		/^[ \t]*\|/ {
-			if ($0 !~ /^\|/) fail("indented table row in Harness model mapping")
-			if (table_state == 2) fail("multiple tables in Harness model mapping")
+			if ($0 !~ /^\|/) { fail("indented table row in Harness model mapping"); next }
+			if (table_state == 2) { fail("multiple tables in Harness model mapping"); next }
 			table_state = 1
 			row_num++
 			if (row_num == 1) {
@@ -171,20 +171,24 @@ parse_harness_mapping() {
 			}
 			if ($0 !~ /^\| / || $0 !~ / \|$/) {
 				fail("malformed Harness model mapping row")
+				next
 			}
 			inner = substr($0, 3, length($0) - 4)
 			n = split(inner, cells, " \\| ")
 			if (n != 5) {
 				fail("Harness model mapping row must have 5 columns")
+				next
 			}
 			for (i = 1; i <= 5; i++) {
 				cell = cells[i]
 				if (length(cell) < 3 || substr(cell, 1, 1) != "`" || substr(cell, length(cell), 1) != "`") {
 					fail("Harness model mapping cell must be a single code span")
+					next
 				}
 				val[i] = substr(cell, 2, length(cell) - 2)
 				if (index(val[i], "`") > 0 || index(val[i], "|") > 0) {
 					fail("Harness model mapping cell contains forbidden character")
+					next
 				}
 			}
 			harness = val[1]
@@ -194,36 +198,45 @@ parse_harness_mapping() {
 			pat = val[5]
 			if (harness != "Claude Code" && harness != "Antigravity" && harness != "OpenCode") {
 				fail("unknown Harness in Harness model mapping: " harness)
+				next
 			}
 			if (role != "high" && role != "standard" && role != "low" && role != "cross-check") {
 				fail("unknown Role in Harness model mapping: " role)
+				next
 			}
 			if (launch != "agent" && launch != "swarm" && launch != "none") {
 				fail("unknown Launch in Harness model mapping: " launch)
+				next
 			}
 			if (model !~ /^[ -~]+$/ || model !~ /[^ ]/) {
 				fail("invalid Model in Harness model mapping")
+				next
 			}
 			pair = harness SUBSEP role
 			if (seen[pair]++) {
 				fail("duplicate (Harness, Role) in Harness model mapping: " harness "/" role)
+				next
 			}
 			if (launch == "none") {
 				if (pat != "-") {
 					fail("Launch none row must have Verification pattern -")
+					next
 				}
 			} else {
 				if (pat == "-") {
 					fail("Launch " launch " row cannot have Verification pattern -")
+					next
 				}
 				if (substr(pat, length(pat), 1) == "*") {
 					pfx = substr(pat, 1, length(pat) - 1)
 					if (length(pfx) < 1 || length(pfx) > 63 || pfx !~ /^[a-z0-9][a-z0-9.-]*$/) {
 						fail("invalid prefix Verification pattern in Harness model mapping")
+						next
 					}
 				} else {
 					if (length(pat) < 1 || length(pat) > 64 || pat !~ /^[a-z0-9][a-z0-9.-]*$/) {
 						fail("invalid literal Verification pattern in Harness model mapping")
+						next
 					}
 				}
 			}

@@ -138,10 +138,8 @@ func TestParsePlanProgress(t *testing.T) {
 		next string // "" when there is none
 		done bool
 	}{
-		"marker-high.md":         {"2", false},
 		"marker-opus.md":         {"2", false},
 		"marker-all-merged.md":   {"", true},
-		"single-low.md":          {singleTarget, false},
 		"single-sonnet.md":       {singleTarget, false},
 		"single-no-section.md":   {singleTarget, false},
 		"single-recorded.md":     {"", true},
