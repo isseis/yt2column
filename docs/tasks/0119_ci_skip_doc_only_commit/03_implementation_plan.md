@@ -207,16 +207,16 @@
 **ステップ 2-3: `.github/workflows/ci.yml` の `check-changes` ジョブを更新する**
 
 -   対象ファイル：`.github/workflows/ci.yml`
--   [ ] 設計書 §3.3.4・§4.2 のとおり、`check-changes` ジョブ内のみを更新する（ワークフロー全体の `permissions` および他の 5 ジョブには一切触れない、AC-15・AC-16）。
--   [ ] `check-changes` にジョブ限定 `permissions`（`contents: read`・`actions: read`・`checks: read`）と `timeout-minutes: 10` を追加し、`id: normal`（既存の通常分類・`wasm_dep_dirs_ok` 出力、`GH_TOKEN` なし）と `id: check`（`env:` 経由の入力渡し、`GOTOOLCHAIN: local`、`mktemp`・`go run ./cmd/ciskip`・`cmp -s` による最終出力・安全側フォールバックおよび終了コード番号付きフォールバックログ、AC-12・AC-13・AC-14・AC-17）を構成する。
+-   [x] 設計書 §3.3.4・§4.2 のとおり、`check-changes` ジョブ内のみを更新する（ワークフロー全体の `permissions` および他の 5 ジョブには一切触れない、AC-15・AC-16）。
+-   [x] `check-changes` にジョブ限定 `permissions`（`contents: read`・`actions: read`・`checks: read`）と `timeout-minutes: 10` を追加し、`id: normal`（既存の通常分類・`wasm_dep_dirs_ok` 出力、`GH_TOKEN` なし）と `id: check`（`env:` 経由の入力渡し、`GOTOOLCHAIN: local`、`mktemp`・`go run ./cmd/ciskip`・`cmp -s` による最終出力・安全側フォールバックおよび終了コード番号付きフォールバックログ、AC-12・AC-13・AC-14・AC-17）を構成する。
 -   完了の基準：`make ext-test` で既存の `extension/test/repository.test.ts`（`:143-251`）が無変更のまま通る。
 
 **ステップ 2-4: 常設ピン留めテスト・`id: check` 実行テスト・AC-16 検証スクリプトを追加する**
 
 -   対象ファイル：`internal/ciskip/workflow_pin_test.go`（`//go:build test`）、`docs/tasks/0119_ci_skip_doc_only_commit/_checks/check-ac16-ci-diff.sh`、`docs/tasks/0119_ci_skip_doc_only_commit/03_implementation_plan.md`
--   [ ] `workflow_pin_test.go` に、設計書 §7.1 に基づく次の 5 項目の常設ピン留めテストを書く。(1) `ci.yml` から抽出した非コード除外正規表現を `regexp.Compile` し、代表パス群で `internal/ciskip` の非コード分類関数と一致することを検証する。(2) `ci.yml` 全ジョブから `check-changes` と `needs: check-changes` を持つジョブの `name:` 集合を抽出し、`internal/ciskip` の必須ジョブ定数集合と要素・基数が一致することを検証する。(3) `doc-guard`・`secret-scan` に `needs:`/`if:` がないこと、および `test`・`lint`・`extension` の `if:` 条件と出力名を検証する（AC-14・AC-17）。(4) トップレベル `permissions` が `contents: read` のみ、`check-changes` が `{contents, actions, checks}: read` のみ、他ジョブに `permissions:` がなく、非コメント行に `: write`／`write-all`／`read-all` が不在であることを検証する（AC-15）。(5) `check-changes` の `run:` 本文に `${{` が直接埋め込まれていないこと、`timeout-minutes`・`GOTOOLCHAIN`・`steps.normal.outputs.*` の伝播、および `id: check` が渡す全フラグ名と `cmd/ciskip` の実フラグ集合の一致を検証する。
--   [ ] `workflow_pin_test.go` に、`ci.yml` から `id: check` の `run:` 本文を抽出して `bash -eo pipefail` で実際に動かして確かめる実行テスト（`t.TempDir()` 上のフェイク `go`／`mktemp` とテスト用の `RUNNER_TEMP`・`GITHUB_OUTPUT` を注入）を書く。このテストで、両 `false` 時の `go` 未呼出、空文字／不正値の `true` 正規化、`skip=true\n` 時の `false`/`false` 出力と `stdout`（`::notice`・ログ）通過、`skip=false\n` 時の終了コード 0・通常分類出力維持、および不正内容／`go` 非ゼロ終了（1・2）／`mktemp` 失敗時の終了コード 0・通常分類出力維持・終了コード番号付きフォールバックログを検証する（AC-12・AC-13・AC-14・AC-17）。
--   [ ] `docs/tasks/0119_ci_skip_doc_only_commit/_checks/check-ac16-ci-diff.sh` を作成し、merge-base と比較対象コミットの `.github/workflows/ci.yml` について §1.3 決定 2 の 3 条件（アンカーの一意性と順序、`check-changes` 前後のバイト一致、中間への別ジョブ／トップレベルキー非挿入）を検証する。各チェックが少なくとも 1 つの意図的な破損で失敗することを確かめ、PR ブランチ上で実行した結果と両コミット ID を §7「AC-16 検証スクリプト実行記録」へ記録する。
+-   [x] `workflow_pin_test.go` に、設計書 §7.1 に基づく次の 5 項目の常設ピン留めテストを書く。(1) `ci.yml` から抽出した非コード除外正規表現を `regexp.Compile` し、代表パス群で `internal/ciskip` の非コード分類関数と一致することを検証する。(2) `ci.yml` 全ジョブから `check-changes` と `needs: check-changes` を持つジョブの `name:` 集合を抽出し、`internal/ciskip` の必須ジョブ定数集合と要素・基数が一致することを検証する。(3) `doc-guard`・`secret-scan` に `needs:`/`if:` がないこと、および `test`・`lint`・`extension` の `if:` 条件と出力名を検証する（AC-14・AC-17）。(4) トップレベル `permissions` が `contents: read` のみ、`check-changes` が `{contents, actions, checks}: read` のみ、他ジョブに `permissions:` がなく、非コメント行に `: write`／`write-all`／`read-all` が不在であることを検証する（AC-15）。(5) `check-changes` の `run:` 本文に `${{` が直接埋め込まれていないこと、`timeout-minutes`・`GOTOOLCHAIN`・`steps.normal.outputs.*` の伝播、および `id: check` が渡す全フラグ名と `cmd/ciskip` の実フラグ集合の一致を検証する。
+-   [x] `workflow_pin_test.go` に、`ci.yml` から `id: check` の `run:` 本文を抽出して `bash -eo pipefail` で実際に動かして確かめる実行テスト（`t.TempDir()` 上のフェイク `go`／`mktemp` とテスト用の `RUNNER_TEMP`・`GITHUB_OUTPUT` を注入）を書く。このテストで、両 `false` 時の `go` 未呼出、空文字／不正値の `true` 正規化、`skip=true\n` 時の `false`/`false` 出力と `stdout`（`::notice`・ログ）通過、`skip=false\n` 時の終了コード 0・通常分類出力維持、および不正内容／`go` 非ゼロ終了（1・2）／`mktemp` 失敗時の終了コード 0・通常分類出力維持・終了コード番号付きフォールバックログを検証する（AC-12・AC-13・AC-14・AC-17）。
+-   [x] `docs/tasks/0119_ci_skip_doc_only_commit/_checks/check-ac16-ci-diff.sh` を作成し、merge-base と比較対象コミットの `.github/workflows/ci.yml` について §1.3 決定 2 の 3 条件（アンカーの一意性と順序、`check-changes` 前後のバイト一致、中間への別ジョブ／トップレベルキー非挿入）を検証する。各チェックが少なくとも 1 つの意図的な破損で失敗することを確かめ、PR ブランチ上で実行した結果と両コミット ID を §7「AC-16 検証スクリプト実行記録」へ記録する。
 -   完了の基準：`make test`・`make lint`・`make deadcode`・`make ext-test`・`_checks/check-ac16-ci-diff.sh` がすべて通り、`dev_tools.md` の記述が `.github/workflows/ci.yml` の `go run ./cmd/ciskip` 呼び出しと一致することを突合して確認する。
 
 ### PR-4 作成ポイント: CI workflow integration, pin/execution tests, and AC-16 diff script
@@ -233,10 +233,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1091
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: ADR の整合と GitHub Actions 実機確認
 
@@ -345,7 +345,7 @@ PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利�
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
 - [x] PR-2 マージ済み（対象ステップ: 1-4 / 1-5）
 - [x] PR-3 マージ済み（対象ステップ: 2-1 / 2-2）
-- [ ] PR-4 マージ済み（対象ステップ: 2-3 / 2-4）
+- [x] PR-4 マージ済み（対象ステップ: 2-3 / 2-4）
 - [ ] PR-5 マージ済み（対象ステップ: 3-1 / 3-2）
 
 ---
@@ -383,7 +383,15 @@ PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利�
 
 ### AC-16 検証スクリプト実行記録
 
-PR-4 の実装時に `_checks/check-ac16-ci-diff.sh` を実行し、merge-base コミット ID・比較対象コミット ID・実行出力をここへ記録する。
+-   **Merge-base:** `812f94a0dc3eef41bd69d8a4e023f994d68a0ee9`
+-   **比較対象コミット:** `e7bd67bea926930982ae59b852b9fe9ac27bb987`
+-   **実行出力:**
+
+```text
+PASS: .github/workflows/ci.yml diff is confined to check-changes
+  base:     812f94a0dc3eef41bd69d8a4e023f994d68a0ee9 (check-changes:12, test:74)
+  compared: e7bd67bea926930982ae59b852b9fe9ac27bb987 (check-changes:12, test:150)
+```
 
 ### GitHub Actions 実機確認の記録（AC-20）
 
