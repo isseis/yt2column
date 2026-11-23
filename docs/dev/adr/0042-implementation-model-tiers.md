@@ -20,7 +20,7 @@ PR を開いたときの PR レビューはなく、PR レビューは利用者�
 
 仕様は [0081 要件定義書](../../tasks/0081_implementation_model_choice/01_requirements.md)、[0081 設計書](../../tasks/0081_implementation_model_choice/02_architecture.md)、[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md) の F-003・F-004・F-008、および値・読み替え・ハーネス別のモデル対応表を定める [_context.md](../../../.claude/commands/_context.md) が持つ。手順はコマンドの定義（`mkplan2.md`・`mkplan.md`・`runplan.md`・`runpr.md`・`weakreview.md`）と `.claude/commands/_lib/` の上位モデルのレビューの共有手順（現在は `_lib/opus-review.md`）およびハーネスのアダプタ（[ADR-0055](0055-harness-independent-commands.md)）が持つ。
 
-**食い違い:** コマンド定義・`_context.md`・共有手順と判定スクリプトのファイル名および中身（`_lib/opus-review.md`・`_lib/opus-review-decision.sh`）・`internal/chief` は、まだ `opus`・`sonnet+opus-review`・`sonnet` の値、`claude-opus-*` のハードコード、`Opus review:` の記録行と `opus` の固有名を前提としている。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装で解消する。
+**食い違い:** コマンド定義と共有手順のファイル名および中身（`_lib/opus-review.md`）は、まだ `opus`・`sonnet+opus-review`・`sonnet` の値、`Opus review:` の記録行と `opus` の固有名を前提としている（`_context.md`・`_lib/high-review-decision.sh`・`internal/chief` は追随済み）。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装で解消する。
 
 ### 1. 実装モデル要件の値と読み替え
 

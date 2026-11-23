@@ -100,7 +100,7 @@ func TestCommandText(t *testing.T) {
 		"mkreq":    {func() (paneinput.Command, error) { return paneinput.NewMkreq(issue) }, "/mkreq 836", paneinput.RouteTaskDocuments, paneinput.CommandMkreq, "836"},
 		"mkarch":   {func() (paneinput.Command, error) { return paneinput.NewMkarch(task) }, "/mkarch 0088", paneinput.RouteTaskDocuments, paneinput.CommandMkarch, "0088"},
 		"mkplan":   {func() (paneinput.Command, error) { return paneinput.NewMkplan(task) }, "/mkplan 0088", paneinput.RouteTaskDocuments, paneinput.CommandMkplan, "0088"},
-		"runplan":  {func() (paneinput.Command, error) { return paneinput.NewRunplan(task, paneinput.RouteRunplanSonnet) }, "/runplan 0088", paneinput.RouteRunplanSonnet, paneinput.CommandRunplan, "0088"},
+		"runplan":  {func() (paneinput.Command, error) { return paneinput.NewRunplan(task, paneinput.RouteRunplanLow) }, "/runplan 0088", paneinput.RouteRunplanLow, paneinput.CommandRunplan, "0088"},
 		"takeover": {func() (paneinput.Command, error) { return paneinput.NewRunplan(task, paneinput.RouteRunplanTakeover) }, "/runplan 0088", paneinput.RouteRunplanTakeover, paneinput.CommandRunplan, "0088"},
 		"runpr":    {func() (paneinput.Command, error) { return paneinput.NewRunpr(mustPR(t, "870")) }, "/runpr 870", paneinput.RouteRunpr, paneinput.CommandRunpr, "870"},
 	}
@@ -150,7 +150,7 @@ func TestConstructorsRejectInvalid(t *testing.T) {
 		"mkarch without task": func() error { _, err := paneinput.NewMkarch(paneinput.TaskID{}); return err },
 		"mkplan without task": func() error { _, err := paneinput.NewMkplan(paneinput.TaskID{}); return err },
 		"runplan without task": func() error {
-			_, err := paneinput.NewRunplan(paneinput.TaskID{}, paneinput.RouteRunplanOpus)
+			_, err := paneinput.NewRunplan(paneinput.TaskID{}, paneinput.RouteRunplanHigh)
 			return err
 		},
 		"runplan on docs route":   func() error { _, err := paneinput.NewRunplan(task, paneinput.RouteTaskDocuments); return err },
@@ -197,7 +197,7 @@ func TestZeroValuesAreUnusable(t *testing.T) {
 
 // TestPromptText checks the line each prompt types.
 func TestPromptText(t *testing.T) {
-	runplan, err := paneinput.NewRunplan(task0088(t), paneinput.RouteRunplanOpus)
+	runplan, err := paneinput.NewRunplan(task0088(t), paneinput.RouteRunplanHigh)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -92,7 +92,7 @@ func TestRunningCommandTextMatchesThePaneInput(t *testing.T) {
 	mkreq := must(paneinput.NewMkreq(issue))
 	mkarch := must(paneinput.NewMkarch(task))
 	mkplan := must(paneinput.NewMkplan(task))
-	runplan := must(paneinput.NewRunplan(task, paneinput.RouteRunplanOpus))
+	runplan := must(paneinput.NewRunplan(task, paneinput.RouteRunplanHigh))
 	runpr := must(paneinput.NewRunpr(pr))
 	cases := []struct {
 		kind paneinput.CommandKind

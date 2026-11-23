@@ -24,7 +24,7 @@ import (
 // #42 for which every condition holds.
 func passingFacts(t *testing.T) autoSendFacts {
 	t.Helper()
-	cmd, err := paneinput.NewRunplan(taskID(t, "0001"), paneinput.RouteRunplanOpus)
+	cmd, err := paneinput.NewRunplan(taskID(t, "0001"), paneinput.RouteRunplanHigh)
 	if err != nil {
 		t.Fatal(err)
 	}

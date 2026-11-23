@@ -835,7 +835,7 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   missing. The `doc-guard` CI job runs these tests too.
 - `make test` needs bash 4 or later as the first `bash` on `PATH` (macOS's
   `/bin/bash` is 3.2): `TestMarkerReadingMatchesDecisionScript` in
-  `internal/chief` runs `.claude/commands/_lib/opus-review-decision.sh`, which
+  `internal/chief` runs `.claude/commands/_lib/high-review-decision.sh`, which
   requires it, and fails instead of skipping when bash is missing or older.
   The `doc-guard` CI job runs this test too, because `internal/chief` reads
   `_context.md` and the plans' PR markers.
@@ -959,8 +959,8 @@ Only the conventions a linter does not check are worth stating:
   words, fragments, and sentences of a document, and limiting the kinds would
   keep the `data.json` file this extension exists to remove.
 - The same exception covers two scripts outside the guard tests and
-  `_checks/`: the Opus review's decision script
-  `.claude/commands/_lib/opus-review-decision.sh` and the review records
+  `_checks/`: the high-model review's decision script
+  `.claude/commands/_lib/high-review-decision.sh` and the review records
   script `.claude/commands/_lib/review-records.sh`. Scope: a literal that has
   to equal a heading's text or a fixed part of it, a field label, a value
   line's prefix, or a checkbox's text in an implementation plan (such as
@@ -1003,7 +1003,7 @@ Only the conventions a linter does not check are worth stating:
   `internal/chief/testdata/plans/` and `internal/chief/testdata/requirements/`,
   not Go literals. Reason: the plan and the requirements document are
   Japanese documents, so the literal has to equal their text, as for
-  `opus-review-decision.sh`, whose reading the tool's must match for a plan.
+  `high-review-decision.sh`, whose reading the tool's must match for a plan.
 - The second exception, the status table exception: the chief tool prints
   its status table in Japanese, so the table's fixed words are Japanese
   literals. Scope: the literals of `internal/chief/table.go` that are the

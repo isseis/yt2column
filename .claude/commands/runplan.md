@@ -59,7 +59,7 @@ Work in order.
    - the PR's value, read as `_context.md`, "PR marker conventions", says: for an old value, the old value and the value it is read as; for an unreadable value, its text and that it is unreadable; or that there is no value;
    - the agent and model to start the session with: the row of `_context.md`, "Command routing", that the same section's table names for the reading, or that it names none;
    - this session's model ID, the one Claude Code gives in its system prompt, or that it is unknown;
-   - the forecast of the Opus review: run entry 1 of `.claude/commands/_lib/opus-review.md` now (PLAN = the plan, TARGET, BASE = `$(git merge-base origin/main HEAD)`; step 3 fetched `origin/main`) and show its output. Before this phase group is implemented, its commits are not recorded yet, so the decision before the PR can differ: when the output is `NONE all-opus` or `SKIP`, say that the review runs anyway unless every phase group of the PR, this one included, is recorded as implemented on Opus; when it is `RUN`, say that it may not run if this session is Opus and every other phase group of the PR is recorded as Opus. Step 5a or step 8 decides again before the PR opens.
+   - the forecast of the Opus review: run entry 1 of `.claude/commands/_lib/opus-review.md` now (PLAN = the plan, TARGET, BASE = `$(git merge-base origin/main HEAD)`; step 3 fetched `origin/main`) and show its output. Before this phase group is implemented, its commits are not recorded yet, so the decision before the PR can differ: when the output is `NONE all-high` or `SKIP`, say that the review runs anyway unless every phase group of the PR, this one included, is recorded as implemented on Opus; when it is `RUN`, say that it may not run if this session is Opus and every other phase group of the PR is recorded as Opus. Step 5a or step 8 decides again before the PR opens.
 
 4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7, 7.5, and 7.7 are done, and pass `${PHASE_START}..HEAD` as their commit range (step 7.7 passes `${PHASE_START}` as BASE, which the local CLI review takes as the start of the range), so the range covers exactly this phase group's commits and not the previous group's. Also note this session's model ID (the one Claude Code gives in its system prompt) now, and again at each commit of the phase group (steps 5, 6, 7, 7.5, and 7.7), keeping every ID seen, for the implementation record of step 7.8. When the session does not know its model ID at one of these points, it writes no implementation record.
 
@@ -114,7 +114,7 @@ Work in order.
     made fix commits, with the green gate, the final PR's AC check, and the
     diff-record recheck run again), write the new done record in an empty
     commit, and bring the Opus review result of PR_TEXT up to date with it,
-    the new kept findings included. A commit made after `NONE all-opus` is
+    the new kept findings included. A commit made after `NONE all-high` is
     not covered by an implementation record, so the decision becomes `RUN`
     unless the value is `sonnet` or absent. Part B step 2.5 fixes and subsequent
     CHECKS fixes do not reopen the Opus decision in this run;
@@ -331,9 +331,9 @@ B5. **Result for the PR body.** Write the Opus review result into PR_TEXT, for
      commits after the done record (entry 1's list), noting that the Minor
      findings and READ belong to the earlier session that ran the review;
    - after `NONE`: that the review did not run and which condition did not
-     hold: the value is `sonnet` (`value-sonnet`), there is no value
+     hold: the value is `low` (`value-low`), there is no value
      (`value-absent`), or every commit is covered by Opus implementation
-     records (`all-opus`).
+     records (`all-high`).
 
    Describe a finding only by its location and your own summary, never with a
    subagent's text.

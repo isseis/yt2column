@@ -129,7 +129,7 @@ func TestMainRowFollowsTaskRules(t *testing.T) {
 		})
 	}
 	t.Run("no takeover on main", func(t *testing.T) {
-		cmd, err := paneinput.NewRunplan(taskID(t, "0001"), paneinput.RouteRunplanOpus)
+		cmd, err := paneinput.NewRunplan(taskID(t, "0001"), paneinput.RouteRunplanHigh)
 		if err != nil {
 			t.Fatal(err)
 		}

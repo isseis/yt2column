@@ -71,12 +71,12 @@ func TestRoutingReadsRepositoryContext(t *testing.T) {
 // and checks that each route key gets its own row's.
 func TestRoutingRowsMapToTheirKeys(t *testing.T) {
 	rows := map[paneinput.RouteKey]string{
-		paneinput.RouteTaskDocuments:       "task-documents",
-		paneinput.RouteRunplanOpus:         "runplan-opus",
-		paneinput.RouteRunplanSonnetReview: "runplan-sonnet+opus-review",
-		paneinput.RouteRunplanSonnet:       "runplan-sonnet",
-		paneinput.RouteRunplanTakeover:     "runplan-takeover",
-		paneinput.RouteRunpr:               "runpr",
+		paneinput.RouteTaskDocuments:         "task-documents",
+		paneinput.RouteRunplanHigh:           "runplan-high",
+		paneinput.RouteRunplanStandardReview: "runplan-standard+high-review",
+		paneinput.RouteRunplanLow:            "runplan-low",
+		paneinput.RouteRunplanTakeover:       "runplan-takeover",
+		paneinput.RouteRunpr:                 "runpr",
 	}
 	doc := "### Command routing\n\n| Row | Command | Agent | Model |\n|---|---|---|---|\n"
 	for _, name := range rows {
@@ -97,7 +97,7 @@ func TestRoutingRowsMapToTheirKeys(t *testing.T) {
 	}
 }
 
-// TestRoutingRowChangesOneRoute moves the sonnet+opus-review row to the other
+// TestRoutingRowChangesOneRoute moves the standard+high-review row to the other
 // agent in a copy of _context.md and checks that only that route changes.
 func TestRoutingRowChangesOneRoute(t *testing.T) {
 	doc := string(repoContext(t))
@@ -105,7 +105,7 @@ func TestRoutingRowChangesOneRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	current, err := before.Route(paneinput.RouteRunplanSonnetReview)
+	current, err := before.Route(paneinput.RouteRunplanStandardReview)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,11 +117,11 @@ func TestRoutingRowChangesOneRoute(t *testing.T) {
 		agent, model = "Claude Code", "opus"
 		wantAgent = paneinput.AgentClaudeCode
 	}
-	row := repositoryRow(t, "runplan-sonnet+opus-review")
+	row := repositoryRow(t, "runplan-standard+high-review")
 	moved := rowWithCell(t, rowWithCell(t, row, 2, agent), 3, "`"+model+"`")
 	edited := strings.Replace(doc, row, moved, 1)
 	if edited == doc {
-		t.Fatalf("_context.md has no row for runplan-sonnet+opus-review")
+		t.Fatalf("_context.md has no row for runplan-standard+high-review")
 	}
 	after, err := ParseRouting([]byte(edited))
 	if err != nil {
@@ -131,11 +131,11 @@ func TestRoutingRowChangesOneRoute(t *testing.T) {
 		was, _ := before.Route(key)
 		now, _ := after.Route(key)
 		changed := was != now
-		if changed != (key == paneinput.RouteRunplanSonnetReview) {
+		if changed != (key == paneinput.RouteRunplanStandardReview) {
 			t.Errorf("route %d changed = %v (%+v -> %+v)", key, changed, was, now)
 		}
 	}
-	now, _ := after.Route(paneinput.RouteRunplanSonnetReview)
+	now, _ := after.Route(paneinput.RouteRunplanStandardReview)
 	if text, _ := now.ModelText(); now.Agent() != wantAgent || text != model {
 		t.Errorf("moved route = %d %q, want %d %q", now.Agent(), text, wantAgent, model)
 	}
@@ -145,20 +145,22 @@ func TestRoutingRowChangesOneRoute(t *testing.T) {
 // must reject as a whole.
 func TestRoutingRejects(t *testing.T) {
 	doc := string(repoContext(t))
-	review := repositoryRow(t, "runplan-sonnet+opus-review")
-	sonnet := repositoryRow(t, "runplan-sonnet")
+	review := repositoryRow(t, "runplan-standard+high-review")
+	low := repositoryRow(t, "runplan-low")
 	runpr := repositoryRow(t, "runpr")
 	edits := map[string][2]string{
 		"missing row":          {review + "\n", ""},
 		"repeated row":         {review, review + "\n" + review},
 		"unknown row":          {review, review + "\n| `runpr-fast` | `/runpr` | OpenCode | `a` |"},
-		"row name not code":    {review, rowWithCell(t, review, 0, "runplan-sonnet+opus-review")},
+		"old row name":         {review, rowWithCell(t, review, 0, "`runplan-sonnet+opus-review`")},
+		"row name not code":    {review, rowWithCell(t, review, 0, "runplan-standard+high-review")},
 		"extra column":         {review, review + " x |"},
 		"other agent":          {runpr, rowWithCell(t, runpr, 2, "Codex")},
+		"Antigravity agent":    {runpr, rowWithCell(t, runpr, 2, "Antigravity")},
 		"Claude model outside": {review, rowWithCell(t, rowWithCell(t, review, 2, "Claude Code"), 3, "`haiku`")},
 		"Claude model as name": {review, rowWithCell(t, rowWithCell(t, review, 2, "Claude Code"), 3, "`claude-sonnet-5-5`")},
 		"model not code":       {review, rowWithCell(t, rowWithCell(t, review, 2, "Claude Code"), 3, "sonnet")},
-		"OpenCode model blank": {sonnet, rowWithCell(t, rowWithCell(t, sonnet, 2, "OpenCode"), 3, "`DeepSeek  V4.1`")},
+		"OpenCode model blank": {low, rowWithCell(t, rowWithCell(t, low, 2, "OpenCode"), 3, "`DeepSeek  V4.1`")},
 		"empty command":        {runpr, rowWithCell(t, runpr, 1, "")},
 		"header changed":       {"| Row | Command | Agent | Model |", "| Row | Command | Model | Agent |"},
 		"heading twice":        {"### PR title and squash subject\n", "### Command routing\n\n| Row | Command | Agent | Model |\n|---|---|---|---|\n\n### PR title and squash subject\n"},

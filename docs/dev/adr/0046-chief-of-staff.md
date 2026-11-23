@@ -47,7 +47,6 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
     -   `/runpr`：OpenCode・DeepSeek V4.1 Flash
     -   `/mergemain`：Claude Code・Opus
     -   理由：送り先とモデルの取り違えをなくすためである。`/mergemain` に Opus を使うのは、文書の衝突を、両側の変更を保てるかどうか判断しながら解消させるためである（0115 要件定義書「要件定義の際に決めたこと（2026-11-19）」）。`/runpr` と `low`（旧 `sonnet`）の `/runplan` に Flash を使うのは、これらに Opus までは要らないと利用者が判断し、2026-11-11 の時点で運用がすでにそうなっていたためである。`low` の対応は ADR-0042 が持つ（F-006）。
-    -   **食い違い:** `internal/chief` と [chief_architecture.md](../chief_architecture.md) と `_context.md` は、まだ `opus`・`sonnet+opus-review`・`sonnet` の値名と `runplan-opus`・`runplan-sonnet+opus-review`・`runplan-sonnet` の行キーを前提としている。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装（`chief` のプロトコル番号更新を含む）で解消する。
 -   実装モデル要件の値ごとの送り先とモデルは 1 か所に置き、そこを直すだけで差し替えられるようにする。`standard+high-review`（旧 `sonnet+opus-review`）を OpenCode に差し替えた後は、OpenCode のセッションが上位モデルのレビューを走らせられないため PR を開かずに止まるので、chief は同じ workspace の Claude Code・Sonnet へ同じ `/runplan` を送ることを提案し、Claude Code が上位モデルのレビューと PR の作成を行う。
     -   理由：`standard+high-review` を DeepSeek V4.1 Flash で実装して上位モデルのレビューを受ける形と、今の Sonnet の形の成果物の品質を、別の issue で比べてからどちらにするかを決めるためである（0088 要件定義書の F-006）。
 -   コマンドごとの送り先のエージェントとモデルは、`_context.md` の送り先の表 1 か所に置き、chief は `origin/main` の版から読む。

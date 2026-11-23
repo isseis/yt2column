@@ -1928,7 +1928,7 @@ func tableLinePrefixes(t *testing.T, where, section string) []string {
 // an existing one or another new one, and neither starts with the other.
 // The existing prefixes are those of local-cli-review.md step 7's table
 // (the seen-range line aside) and of the code blocks of
-// opus-review.md's "Record lines", which _lib/opus-review-decision.sh and
+// opus-review.md's "Record lines", which _lib/high-review-decision.sh and
 // the local CLI review's readers read; the new ones are those of
 // fable-review.md's "Record lines" table and the seen-range line.
 func TestRecordLinePrefixesDistinct(t *testing.T) {
