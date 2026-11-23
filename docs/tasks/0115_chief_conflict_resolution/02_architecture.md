@@ -25,12 +25,12 @@
 語は要件定義書 3.1 の定義に従う（「マージコンフリクト（コンフリクト）」「衝突」「内容の衝突」「PR の head」「コンフリクトの行」）。本書では次の語を足す。
 
 -   **解消の送信**：chief が `/mergemain <PR>` を送る 1 回の送信。自動の送信と、人が選んだ送信の両方を指す。
--   **解消の送信の記録**：今の送信の記録（`send-<ID>-start.json` と `send-<ID>-end.json`）のうち、コマンドが `/mergemain` のもの。PR と PR の head を持ち、worktree の記録を消すときまで残す（3.3）。
+-   **解消の送信の記録**：今の送信の記録（`send-<ID>-start.json` と `send-<ID>-end.json`）のうち、コマンドが `/mergemain` のもの。PR と PR の head を持ち、worktree のライフサイクルと切り離して残す（3.3）。
 -   **送信の到達点**：1 回の送信で、最後に打った入力が何だったか。何も打っていない、`/clear`、`/model`、コマンド、のいずれかである（3.3）。
 -   **コンフリクトの段階**：コンフリクトの行の細分。今の head の解消の送信の記録から決まる（3.2）。
 -   **取り込みの道具**：`mergepr` に足す 4 つのサブコマンド（`mergemain-begin`・`mergemain-merge`・`mergemain-restore`・`mergemain-push`）の総称（3.8）。
 -   **基準の head**：`/mergemain` が始めたときの PR の head のコミット。戻す先であり、merge コミットの第 1 の親である。
--   **取り込む `main`**：`mergemain-begin` が取得した `origin/main` のコミット。merge コミットの第 2 の親である。
+-   **取り込む `main`**：`mergemain-begin` が取得し、`refs/mergemain/<PR>/main` に記録したコミット。merge コミットの第 2 の親である。
 -   **衝突の分類**：取り込みの道具が、衝突したパスごとに決める種類（3.8.2）。
 -   **項目 ID**：`snapshot`・`tick` の出力が、人の判断を待つ項目ごとに示す `id`（`ItemID`、`internal/chief/pending.go:108-110` の `itemID`）。中身はハッシュで、どの値から作ったかは呼ぶ側に見せない。
 -   **H-NN**：設計への申し送り（[design_handoff.md](design_handoff.md)）の項目番号。各項目の扱いは付録 A にある。
@@ -67,12 +67,15 @@
         -   **手順を `mergemain.md` に書いてエージェントに判定させる案。** ADR-0014 の「決定的な判定は Go に置く」の例外になる。人に尋ねずに送るコマンドで、手順の読み違いにより範囲の外の衝突を解消しうる。
     -   人の答え：`mergepr` に足す。
     -   ADR：[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md) を更新する（`mergepr` が受け持つ判定に、`main` の取り込みの判定を足す）。[ADR-0046](../../dev/adr/0046-chief-of-staff.md) も更新する（「マージコンフリクトの解消の自動送信」に、決定的な判定を `mergepr` が行うことを足す）。道具の責務と、開発の手順の判定の置き場所を決めるので、主要な決定に当たる。
--   `mergemain-push` は、push の先と merge コミットの中身を確かめてから push する（3.8.3）。 確かめるのは次の 3 つである。
+-   `mergemain-push` は、push の先と merge コミットの中身を確かめてから push する（3.8.3）。 確かめるのは次の 4 つである。
     -   **push の先。** 送る直前に PR を読み直し（`gh pr view`）、今のブランチが PR の head ブランチであること、base が `main` であること、別のリポジトリのブランチでないことを確かめる。
-    -   **merge コミットの親。** 第 1 の親が基準の head で GitHub の PR の head でもあり、第 2 の親が取り込む `main` であることを確かめる。
+    -   **merge コミットの親。** 第 1 の親が基準の head で GitHub の PR の head でもあり、第 2 の親が取り込む `main` で、その値が `mergemain-begin` が取得した値（`refs/mergemain/<PR>/main`）と一致することを確かめる。
     -   **merge コミットが変えた範囲。** merge コミットの木を、2 つの親を git が自動で合わせた結果と比べる。違うパスは、`.md` のファイルと、プロトコル番号の宣言の行だけが違う Go のファイルに限る。
+    -   **プロトコル番号の値。** プロトコル番号の宣言の行だけが違う Go のファイルは、その行の値が取り込む `main` の値 + 1 であることを確かめる（AC-22）。宣言の形だけを比べると、エージェントが値だけを別の整数に変えた merge コミットが通るためである。
     -   引数だけを確かめる形では、セッションが `main` を push の先に渡すか、`.md` 以外のファイルを書き換えてから commit すると、範囲の外の変更を push しうる。それを防ぐためである。
     -   ADR：ADR-0046 と ADR-0014 の同じ更新に含める。
+-   取り込む `main` は、`mergemain-begin` が取得した値と一致することを `mergemain-merge` と `mergemain-push` で求める（3.8.1・3.8.3）。 `mergemain-begin` は取得した `main` を `refs/mergemain/<PR>/main` に記録し、後のサブコマンドが引数とこの ref を照合する。祖先であることだけを求めると、取得した `main` の前のコミットを渡した取り込みが、push の前の確かめをすべて通ってしまう。`origin/main` の今の値を基準にしないのは、chief がラウンドごとに `main` を取り直すので、`mergemain-begin` の後に進んだだけで止まらないようにするためである。
+    -   ADR：ADR-0014 の同じ更新に含める（基準の値を引数で渡す形は変えず、取得した値の ref との照合を足す）。
 -   `mergemain-restore` は allow に足さず、呼ぶたびに人の許可の確認を出す（3.8.4・3.10）。
     -   `mergemain-restore` は状態を持たないので、`/mergemain` が始めた取り込みと、人が手で始めた取り込みや merge コミットを見分けられない。手順を読み違えたエージェントが、人の手作業の取り込みを戻しうる。
     -   戻すのは `git reset --hard <基準の head>` の形にする。取り込みの取りやめ（`git merge --abort`）は、取り込みが触れていないファイルの変更を残し、取り込みが変えたファイルに追跡していない変更があれば失敗するので、AC-28 の状態に戻らないことがある（本書の Fable の部分レビューの実験）。そのため、戻す操作はより強く、人の確認を挟む。
@@ -119,10 +122,10 @@
     -   コンフリクトに気づくのは、最長で `chief wait` の制限時間（既定 10 分）の後のラウンドになる。`UNKNOWN` が続けば、さらにラウンドを重ねる。
     -   要件定義書 2.3 がスコープ外とした。
     -   ADR：なし。ADR-0046 の「結果」がすでにこの遅れを書いている。
--   解消の送信の記録は、今の送信の記録に PR・PR の head・送信の到達点を持たせ、コマンドが `/mergemain` のものは期間で消さず、worktree の記録を消すときまで残す（H-03、3.3）。別の種類の記録は作らない。
+-   解消の送信の記録は、今の送信の記録に PR・PR の head・送信の到達点を持たせ、コマンドが `/mergemain` のものは期間でも worktree のライフサイクルでも消さず、状態のディレクトリを消すまで残す（H-03、3.3）。別の種類の記録は作らない。
     -   今の送信の記録は 25 分で消える（`internal/chief/records.go:942` の `sendKeepAge`）。今の自動送信の記録（`autosend-<PR>.json`）は PR ごとに 1 件で、head を持たない。そのため、どちらもそのままでは、head ごとに 1 回の判定と「解消できず」の判定に使えない。
     -   送信の記録と同じ時点で、別の記録を書く案は採らなかった。2 つの記録の書き込みの間で失敗すると、互いに食い違い、行が「送信中」のまま残りうるためである。今の送信の記録は、始まりと終わりの順、送れたかが分からない送信の停止、人の解除まで、すでに扱っている（`internal/chief/records.go:739-851`）。
-    -   期間（例えば 14 日）で消す案は採らなかった。同じ head のままコンフリクトが続くと、記録が消えた後に自動でもう一度送り、AC-08 の「head ごとに 1 回」を破るためである。PR が閉じたかマージされた後に消す案も採らなかった。chief は開いている PR しか読まないので、閉じたことを確かめるための GitHub の呼び出しが増えるためである。記録は 1 回の送信で 2 つのファイルなので、残しても量は小さい。worktree を作り直す前と workspace を消し終えた後には、今の `ClearRecords`（`internal/chief/records.go:1456-1477`）が消す。
+    -   期間（例えば 14 日）で消す案は採らなかった。同じ head のままコンフリクトが続くと、記録が消えた後に自動でもう一度送り、AC-08 の「head ごとに 1 回」を破るためである。PR が閉じたかマージされた後に消す案も採らなかった。chief は開いている PR しか読まないので、閉じたことを確かめるための GitHub の呼び出しが増えるためである。記録は 1 回の送信で 2 つのファイルなので、残しても量は小さい。今の `ClearRecords`（`internal/chief/records.go:1456-1477`）は worktree を作り直す前と workspace を消し終えた後に走るが、この組は消さない。worktree を作り直しても、workspace を消した後に同じパスへ作り直しても、同じ PR の同じ head がまた `CONFLICTING` になれば記録が要るためである。消えるのは、人が状態のディレクトリを消したときだけにする。
     -   ADR：ADR-0046 を更新する（「記録」に解消の送信の記録の使い道と消し方を足す）。ADR-0014 も更新する（chief が判定に読み返す記録の説明）。記録の決定を変えるので、主要な決定に当たる。
 -   コンフリクトの項目は、PR の head ごとに「送る必要がある」と「解消できず」の 2 つの種類に分け、それぞれ新しい項目として通知する（H-12、3.5）。
     -   今の通知の記録は、項目 ID ごとに 1 回である（`internal/chief/records.go:403-457`）。[0088 要件定義書](../0088_chief_of_staff/01_requirements.md) の AC-58 は「同じ PR を 1 つのセッションで 2 回通知しない」と書くが、コードは項目 ID で数える。レビュー待ちの項目の ID は `("review", workspace, PR)` から作る（`internal/chief/pending.go:153`）。
@@ -135,6 +138,7 @@
 -   報告の控えの引き継ぎは、`chief detail` で PR の詳細を読むときに merge コミットの親をたどって行い、新しい記録は作らない（H-07、3.7）。
     -   リセットの確かめと、レビューを省けるかの表示は、今のとおり、ちょうどその head の控えだけを読む。
     -   AC-12 が求める引き継ぎは 1 回だけだが、`/mergemain` が続けて解消した場合に備え、親を上限の回数までたどるよう、設計で広げた。
+    -   新しい head が手元にないときは、AC-12 が例外を置いていないので、PR の head ブランチを `git fetch origin` で取得してから親をたどる（3.7）。`gh` の呼び出しは足さず、取得は `main` を取り直す今の読み取りと同じで、`/chief` の起動が承認する読み取りと、AC-31 の `git fetch origin` の範囲に入る。取得に失敗したときだけ、今のとおり PR の説明から要約する。
     -   引き継ぐ記録を作る案は採らなかった。`snapshot` は通知の記録のほかに記録を作らない（`internal/chief/snapshot.go:104-108`）ので、作る時点を `tick` か `detail` に限ることになるためである。
     -   ADR：なし。ADR-0046 の「`/mergemain` の merge コミットで head が変わったときは、控えを新しい head に引き継ぐ」の実現の細部である。
 -   PR のブランチの `mergemain.md` は、`git show` で `HEAD` のコミットの中身を読み、`origin/main` のものとバイト列で比べる（H-09、3.4）。 作業ツリーのファイルは読まない。AC-05 の (3) で、HEAD が PR の head と同じで、作業ツリーに変更がないことを、同じ確かめの中で確かめているためである。
@@ -424,7 +428,7 @@ const (
 
 -   **始まりの記録（`SendRecord`）。** コマンドが `/mergemain` の送信では、PR の番号と PR の head を必ず持たせる。それ以外のコマンドでは持たせない。
 -   **終わりの記録（`sendEnd`）。** 送信の到達点を、今の `SentStep`（`internal/chief/send.go:185-197`）の値として持たせる。今は、到達点が理由の文の中にしかない（`internal/chief/send.go:548-560`）。そのため、文から推し量らずに読めるよう、値として書く（CLAUDE.md の「Declare, don't infer」）。
--   **消し方。** コマンドが `/mergemain` の始まりと終わりの組は、今の 25 分（`sendKeepAge`）で消さない。worktree を作り直す前と workspace を消し終えた後に、今の `ClearRecords` が消すだけにする（1.2）。読めない始まりの記録は、コマンドが分からないので、今の `cleanup`（`internal/chief/records.go:947-973`）でも消さず、読めない記録として残す（3.3.3）。
+-   **消し方。** コマンドが `/mergemain` の始まりと終わりの組は、今の 25 分（`sendKeepAge`）でも、worktree のライフサイクル（worktree を作り直す前と、workspace を消し終えた後の `ClearRecords`）でも消さない。`ClearRecords` は、始まりの記録の `Kind` が `mergemain` の組を見分けて残す。消すのは、人が状態のディレクトリを消したときだけにする（1.2）。worktree を作り直しても、workspace を消した後に同じパスへ作り直しても、同じ PR の同じ head がまた `CONFLICTING` になったときは、記録があることで自動でもう一度送らない（AC-08）。読めない始まりの記録は、コマンドが分からないので、今の `cleanup`（`internal/chief/records.go:947-973`）でも消さず、読めない記録として残す（3.3.3）。
 
 今の `SentStep` は、`StepUnknown`（ゼロ値、何も打っていない）、`StepClear`、`StepModel`、`StepNew`、`StepCommand` を持つ。終わりの記録には、到達点を必ず書くメンバーとして足す。メンバーがない終わりの記録（人の解除が書くもの、3.3.1 の「人の解除」）は、到達点が分からないものとして読み、`/mergemain` を打ったかもしれないものとして扱う。今の型のゼロ値は「何も打っていない」なので、終わりの記録のメンバーがないことをゼロ値で表さない。
 
@@ -571,7 +575,10 @@ const (
     -   第 1 の親の控えがある。なければ、第 1 の親について同じ確かめを繰り返す。たどる回数には上限を設ける（値は計画書で決める）。
 
     `CollectDetail` は `chief detail`（`ReportRecordAllowed`）と `/runpr` の前の `ensureDetail`（`ReportRecordNone`、`internal/chief/request.go:488-497`）の両方から呼ばれる。親をたどる引き継ぎは、`ReportRecordAllowed` のときの表示用の項目（`d.Report`・`d.ReportText`・`d.ReportTruncated`）だけに当て、`d.record` には親の控えを入れず、新しい head の控えのファイルも親の控えからは作らない。
--   **親を読む git の呼び出し。** 今の chief には、コミットの親を読む呼び出しがない。親を読む呼び出し（`git rev-list --parents -n 1 <commit>` の形）を `GitReader` に足す。手元にそのコミットがなければ、引き継がず、今のとおり PR の説明から要約する。
+-   **親を読む git の呼び出しと、手元にない head の取得。** 今の chief には、コミットの親を読む呼び出しがない。親を読む呼び出し（`git rev-list --parents -n 1 <commit>` の形）を `GitReader` に足す。AC-12 は新しい head が手元にあることを条件にしないので、親を読む前に、その head が手元になければ、PR の head ブランチを `git fetch origin` で取得してから、もう一度読む。
+    -   取得は、取り込む先の ref を明示した refspec（3.8.1 の `mergemain-begin` と同じ形）で、その head のブランチだけを `refs/remotes/origin/<ブランチ>` に取る。ほかの ref は書き換えない。
+    -   GitHub の呼び出しは足さない（H-07）。取得は、`main` を取り直す今のラウンドの読み取りと同じ `git fetch origin` で、`/chief` の起動が承認する道具の読み取りの範囲に入る。`/mergemain` について AC-31 が承認する `git fetch origin` と同じ形なので、新しい承認は要らない。取得は表示のための引き継ぎのとき（`ReportRecordAllowed`）だけ行い、取得したコミットが手元にあれば次の表示では行わない。
+    -   取得に失敗したとき、AC-12 の条件を満たさないとき、第 1 の親の控えがないときは、引き継がず、今のとおり PR の説明から要約する。
 -   **使い道を `chief detail` の表示に限る。** 次のものは、今のとおり、ちょうどその head の記録だけを読み、引き継ぎを使わない（1.2）。
     -   リセットの確かめ（`resetAfterRunpr`、`internal/chief/reset.go:175-241`）。
     -   `/runpr` の前の `ensureDetail`（`CollectDetail` に `ReportRecordNone` を渡して `d.record` だけを読む）。
@@ -585,19 +592,19 @@ const (
 
 | サブコマンド | 受け取るもの | 行うこと |
 |---|---|---|
-| `mergemain-begin` | PR の番号 | PR の値の確かめ（AC-21）、`main` と PR の head ブランチの取得、手元の状態の確かめ。基準の head、PR の head ブランチ、取り込む `main` を出力する |
-| `mergemain-merge` | PR の番号、PR の head ブランチ、基準の head、取り込む `main` | 手元が基準のままで、取り込む `main` が手元の `origin/main` と同じかその祖先であることを確かめる。`--no-ff --no-commit` で取り込み、衝突を分類する。ブランチが変えたプロトコル番号を、取り込む `main` の値 + 1 にする |
+| `mergemain-begin` | PR の番号 | PR の値の確かめ（AC-21）、`main` と PR の head ブランチの取得、手元の状態の確かめ。基準の head、PR の head ブランチ、取り込む `main` を出力し、取り込む `main` を `refs/mergemain/<PR>/main` に記録する |
+| `mergemain-merge` | PR の番号、PR の head ブランチ、基準の head、取り込む `main` | 手元が基準のままで、取り込む `main` が `refs/mergemain/<PR>/main` の値と一致することを確かめる。`--no-ff --no-commit` で取り込み、衝突を分類する。ブランチが変えたプロトコル番号を、取り込む `main` の値 + 1 にする |
 | `mergemain-restore` | PR の番号、PR の head ブランチ、基準の head、取り込む `main` | 戻してよい形の状態であることを確かめて、基準の head へ戻す。呼ぶたびに人の許可の確認を出す（3.10） |
-| `mergemain-push` | PR の番号、基準の head、取り込む `main` | PR を読み直し、push の先、merge コミットの親、merge コミットが変えた範囲、`origin` のブランチを確かめて push する |
+| `mergemain-push` | PR の番号、基準の head、取り込む `main` | PR を読み直し、push の先、merge コミットの親（取り込む `main` が `refs/mergemain/<PR>/main` と一致することを含む）、merge コミットが変えた範囲とプロトコル番号の値、`origin` のブランチを確かめて push する |
 
--   **基準値の渡し方。** 基準の head と取り込む `main` は、`mergemain-begin` の出力をセッションが引数で渡す。道具は状態のファイルを判定に読み返さない（ADR-0014）。渡された値は、40 文字の小文字の 16 進数であることを確かめ、さらに次のように確かめ直す。
+-   **基準値の渡し方。** 基準の head と取り込む `main` は、`mergemain-begin` の出力をセッションが引数で渡す。道具は状態のファイルを判定に読み返さない（ADR-0014）。例外として、取り込む `main` は `mergemain-begin` が取得した値を git の ref `refs/mergemain/<PR>/main` に残し、後のサブコマンドが引数とこの ref を照合する。ref はブランチではなく、状態のファイルでもない。渡された値は、40 文字の小文字の 16 進数であることを確かめ、さらに次のように確かめ直す。
     -   `mergemain-begin` と `mergemain-push` は、PR の head ブランチを GitHub の PR から読む。`mergemain-merge` と `mergemain-restore` は、ネットワークを使わずに動くよう、`mergemain-begin` が出力した head ブランチを引数で受け取る。どのサブコマンドも、今のブランチがその head ブランチで、`main` でないことを確かめる。push の先は `mergemain-push` が GitHub で確かめ直す（3.8.3）。
-    -   取り込む `main` は、手元の `refs/remotes/origin/main` と同じか、その祖先であることを確かめる。chief はラウンドごとに `main` を取得するので、`mergemain-begin` の後に `origin/main` が進んでも止まらないためである。プロトコル番号の値は、取り込む `main` の値から決める。その後 `main` が番号を上げれば、マージの前の確かめ（`mergepr` の `prepare`）が止める。
+    -   取り込む `main` は、`refs/mergemain/<PR>/main` の値と一致することを確かめる。`mergemain-begin` は、取得した `main` をこの ref に記録し、出力する。`mergemain-merge` と `mergemain-push` は、引数の `main` がこの ref と違えば、手元の `origin/main` の祖先であっても止まる。`refs/mergemain/<PR>/main` は `mergemain-begin` が呼ばれるたびに書き換え、ほかの取得は書き換えず、push もしない。`mergemain-push` と `mergemain-restore` はこの ref を消さない。そのため、`mergemain-begin` の後に `origin/main` が進んでも、この ref は変わらず、取り込みは止まらない。chief はラウンドごとに `main` を取り直すので、`origin/main` の今の値を基準にすると、`mergemain-begin` の後に進んだだけで止まってしまうためである。プロトコル番号の値は、取り込む `main` の値から決める。その後 `main` が番号を上げれば、マージの前の確かめ（`mergepr` の `prepare`）が止める。
 -   **PR の読み取り（AC-21・AC-30）。** PR を読むのは `mergemain-begin` と `mergemain-push` だけである。どちらも、`gh pr view <PR> --json` で、状態、base ブランチ、head ブランチ、head のコミット、別のリポジトリかどうかだけを読む。本文、コメント、レビューは読まない。読み取りは、今の `mergepr` の PR の読み取り（`internal/mergepr/mergepr.go` の `prViewFields`、本文を含む）とは別の、狭いメンバーの組にする。
--   **取得。** `mergemain-begin` は、`main` と PR の head ブランチを、取り込む先の ref を明示した refspec で取得する。今の `prepare` が `main` を取得する形（`internal/mergepr/mergepr.go` の `mainRefspec`）と同じである。取得に失敗すれば、前提が合わないとして止まる。取得の後、手元の `refs/remotes/origin/<PR の head ブランチ>` が PR の head（および手元の HEAD）と一致することも確かめる。一致しなければ、`gh pr view` の後に `origin` が動いたか指す先が違うので、前提が合わないとして止まる（`mergemain-restore` が `refs/remotes/origin/<ブランチ>` と基準の head の一致を求める前提もここで揃える、3.8.4）。
+-   **取得。** `mergemain-begin` は、`main` と PR の head ブランチを、取り込む先の ref を明示した refspec で取得する。`main` の取り込み先は `refs/mergemain/<PR>/main`、PR の head ブランチの取り込み先は `refs/remotes/origin/<ブランチ>` とする。形は今の `prepare` が `main` を取得する形（`internal/mergepr/mergepr.go` の `mainRefspec`）と同じである。取得に失敗すれば、前提が合わないとして止まる。取得の後、手元の `refs/remotes/origin/<PR の head ブランチ>` が PR の head（および手元の HEAD）と一致することも確かめる。一致しなければ、`gh pr view` の後に `origin` が動いたか指す先が違うので、前提が合わないとして止まる（`mergemain-restore` が `refs/remotes/origin/<ブランチ>` と基準の head の一致を求める前提もここで揃える、3.8.4）。
 -   **取り込むものがない（AC-21）。** 取り込む `main` が基準の head の祖先なら、`mergemain-begin` は「取り込むものがない」で止まる。
 -   **無視されたファイルを上書きしない。** 取り込む `main` が、作業ツリーにある無視されたファイルと同じパスを追跡し始めるときは、`mergemain-merge` は取り込まずに止まる（前提が合わない）。git の取り込みは、無視されたファイルを上書きしうるためである（AC-28）。
--   **早送りにしない。** `--no-ff` で、基準の head が `origin/main` の祖先のときも merge コミットを作る。そのときは上の「取り込むものがない」に当たらないので、取り込む。
+-   **早送りにしない。** `--no-ff` で、基準の head が取り込む `main` の祖先のときも merge コミットを作る。そのときは上の「取り込むものがない」に当たらないので、取り込む。
 
 #### 3.8.2. 衝突の分類（AC-23）
 
@@ -633,7 +640,7 @@ const (
     -   バイナリのファイル。
     -   `.md` 以外のファイルの衝突。
 -   **止まる。** 対象外が 1 つでもあれば、`mergemain-merge` は解消に進まずに止まり、一覧を出力する（AC-23）。`/mergemain` は `mergemain-restore` で戻す。
--   **プロトコル番号。** `mergemain-merge` は、次の 2 つの場合に、番号を `origin/main` の値 + 1 にする（AC-22）。
+-   **プロトコル番号。** `mergemain-merge` は、次の 2 つの場合に、番号を、取り込む `main` の値 + 1 にする（AC-22）。
     -   プロトコル番号の行だけの衝突。
     -   衝突しなかったが、基準の head が merge base から番号を変えた道具。
 
@@ -650,14 +657,14 @@ const (
 `mergemain-push` は、次をすべて確かめてから push する。
 
 -   **push の先。** PR を読み直し、開いていて、base が `main` で、別のリポジトリのブランチでなく、今のブランチがその head ブランチであることを確かめる。head ブランチが `main` なら止まる。
--   **merge コミットの親。** HEAD が、ちょうど 2 つの親を持つ merge コミットである。第 1 の親は、基準の head であり、読み直した PR の head でもある。第 2 の親は、取り込む `main` である。
+-   **merge コミットの親。** HEAD が、ちょうど 2 つの親を持つ merge コミットである。第 1 の親は、基準の head であり、読み直した PR の head でもある。第 2 の親は、取り込む `main` であり、その値が `refs/mergemain/<PR>/main` と一致する。`mergemain-begin` の後に `origin/main` が進んでいても、この確かめは ref を読むので止まらない。
 -   **merge コミットが変えた範囲。** 2 つの親を git が自動で合わせた結果に対して、次の 2 つをどちらも確かめる。
     1.  **2 つの親の間の衝突の分類。** 2 つの親を自動で合わせたときに生じる衝突を、`mergemain-merge`（3.8.2）と同じ規則で分類する。対象外の衝突（`PathConflictOutOfScope`）が 1 つでもあれば止まる。木どうしの差分だけを比べる形では、対象外の衝突（modify/delete で変更側を残した衝突や、`.md` 以外のファイルで衝突の印を残したままステージした衝突）が自動の合わせの木と一致して素通りしうるため、衝突の一覧そのものも確かめる。
     2.  **merge コミットの木との差分。** merge コミットの木を、2 つの親を git が自動で合わせた結果の木と比べる。違うパスは、次のどちらかに限る。
         -   `.md` のファイルで、merge コミットでも通常のファイルのもの。
-        -   `internal/<name>/` の直下の、`_test.go` でない Go のファイルで、次を満たすもの。merge base と 2 つの親の 3 つの版の宣言の行を同じ値に置き換えると、git が衝突なく合わせられる。その結果と merge コミットの版は、`acceptedLine` の形の宣言の行だけが違う。プロトコル番号の行が衝突した場合、自動で合わせた結果には衝突の印が入るので、その結果とそのまま比べず、この形で比べる。
+        -   `internal/<name>/` の直下の、`_test.go` でない Go のファイルで、次を満たすもの。merge base と 2 つの親の 3 つの版の宣言の行を同じ値に置き換えると、git が衝突なく合わせられる。その結果と merge コミットの版は、`acceptedLine` の形の宣言の行だけが違う。プロトコル番号の行が衝突した場合、自動で合わせた結果には衝突の印が入るので、その結果とそのまま比べず、この形で比べる。宣言の行の値は、取り込む `main` の値 + 1 である（AC-22）。形が合っても値が違えば、範囲の外として止まる。
 
-    どちらかに外れれば、対象外の衝突として止まる。エージェントが解消の途中で `.md` 以外を書き換えても、対象外の衝突をそのままコミットしても、push されない。
+    どちらかに外れれば、対象外の衝突として止まる。エージェントが解消の途中で `.md` 以外を書き換えても、宣言の行の番号を別の整数に変えても、対象外の衝突をそのままコミットしても、push されない。
 -   **作業ツリー。** 追跡しているファイルの変更がない。
 -   **`origin` のブランチ。** `git ls-remote` で読み直し、基準の head のままである。
 -   **push の送り先。** `origin` の push の URL（`pushurl` や `insteadOf` の設定を当てた後のもの）が、取得の URL と同じで、GitHub で確かめた PR のリポジトリを指す。違えば止まる。`git ls-remote` が読む先と、`git push` が送る先を同じにするためである。
@@ -740,12 +747,12 @@ push は、確かめた merge コミットの ID を `<ID>:refs/heads/<ブラン
 
 | ファイル | 変更 | 責務 |
 |---|---|---|
-| `internal/chief/workspace.go` | 変える | `gh pr list` の `--json` と `parsePRList` に 4 つの値を足す。`OpenPR`、`Mergeable`、`CommitID`。コミットの親を読む呼び出し |
+| `internal/chief/workspace.go` | 変える | `gh pr list` の `--json` と `parsePRList` に 4 つの値を足す。`OpenPR`、`Mergeable`、`CommitID`。コミットの親を読む呼び出しと、PR の head ブランチの取得 |
 | `internal/chief/state.go` | 変える | `StateConflict` と `classify` の分岐 |
 | `internal/chief/position.go` | 変える | `Progress` に 3 つ、`urgencyOf`、`progressOf`、`documentOf` |
 | `internal/chief/conflict.go`（新しいファイル） | 足す | コンフリクトの段階を決める（`conflictPhaseOf`）。解消の自動送信の条件と `conflictSender` |
 | `internal/chief/autosend.go` | 変える | `conflictSender` が確かめ直しと送信の手順を使えるよう、条件の組を差し替えられる形にする |
-| `internal/chief/records.go` | 変える | 送信の記録に PR・head・到達点を足し、`/mergemain` の記録を期間で消さない |
+| `internal/chief/records.go` | 変える | 送信の記録に PR・head・到達点を足し、`/mergemain` の記録を期間でも `ClearRecords` でも消さない |
 | `internal/chief/send.go` | 変える | 終わりの記録に到達点を書く |
 | `internal/chief/tick.go` | 変える | 解消の自動送信を走らせ、結果を行と項目に当てる |
 | `internal/chief/snapshot.go` | 変える | コンフリクトの段階を `addRecords` で決める |
@@ -762,7 +769,7 @@ push は、確かめた merge コミットの ID を `<ID>:refs/heads/<ブラン
 | `internal/chief/paneinput/paneinput.go` | 変える | `CommandMergemain`、コンストラクタ、`RouteKey` |
 | `internal/chief/skiprecord.go` | 確かめる | `/mergemain` を記録の種類に足さないこと（3.6） |
 | `cmd/chief/main.go` | 変える | `send --command mergemain` の受け付け |
-| `internal/mergepr/`（新しいファイル） | 足す | 取り込みの道具の 4 つのサブコマンド |
+| `internal/mergepr/`（新しいファイル） | 足す | 取り込みの道具の 4 つのサブコマンド。取得した `main` を `refs/mergemain/<PR>/main` に記録し、merge と push で引数と照合する |
 | `internal/mergepr/mergepr.go`（`Protocol`） | 変える | プロトコル番号を `main` の値 + 1 |
 | `cmd/mergepr/main.go` | 変える | 4 つのサブコマンドの口 |
 | `.claude/commands/mergemain.md` | 足す | コマンドの定義（3.9） |
@@ -855,7 +862,7 @@ const (
 | 送れたかが分からない | 今のとおり workspace の送信を止める | 送らない側 |
 | 終わりの記録を書けない | 今のとおり workspace の送信を止める | 送らない側 |
 | 報告の控えを作れない | 控えなしで送る（AC-12） | 送る側（要件の決定） |
-| 親をたどれない | 引き継がず、PR の説明から要約する | 表示だけ |
+| 親をたどれない（head の取得に失敗したときを含む） | 引き継がず、PR の説明から要約する | 表示だけ |
 | `mergemain-push` の確かめが合わない | push しない | 送らない側 |
 | push の結果が分からない | 戻さずに止まる | 人の作業を消さない側 |
 | 戻す前の確かめで、ほかの変更を見つけた | 戻さずに止まる | 人の作業を消さない側 |
@@ -920,7 +927,7 @@ flowchart LR
 -   **偽られた PR の値。** GitHub の応答は `gh` を通して読み、形に合わない値は拒む（AC-04）。別のリポジトリのブランチの PR には送らない。同じ名前のこのリポジトリのブランチを動かさないためである。
 -   **コマンドの定義。** `mergemain.md` は、`origin/main` のものと同じときだけ送る（AC-05 の (8)）。
 -   **取り込みの道具の版。** `mergepr` は利用者が `main` から入れる。PR のブランチが `internal/mergepr` を変えても、走るのは入れた版である（ADR-0014）。
--   **push の先と中身。** `mergemain-push` は、GitHub から読み直した PR の head ブランチへだけ、force なしで送る。送る merge コミットは、基準の head と取り込む `main` を親とし、自動の合わせの結果と違うのは `.md` とプロトコル番号の行だけである（3.8.3）。`mergemain-push` を通す限り、セッションが引数を偽っても、エージェントが範囲の外のファイルを書き換えても、push されない。エージェントが道具を通さずに `git push` を打つことは、道具では防げない（5.3）。
+-   **push の先と中身。** `mergemain-push` は、GitHub から読み直した PR の head ブランチへだけ、force なしで送る。送る merge コミットは、基準の head と取り込む `main`（`mergemain-begin` が取得した値）を親とし、自動の合わせの結果と違うのは `.md` とプロトコル番号の行だけで、その行の値は取り込む `main` の値 + 1 である（3.8.3）。`mergemain-push` を通す限り、セッションが引数に別の `main` を渡しても、エージェントが範囲の外のファイルを書き換えても、プロトコル番号の行の値だけを変えても、push されない。エージェントが道具を通さずに `git push` を打つことは、道具では防げない（5.3）。
 -   **人の作業。** `mergemain-restore` は、戻してよい形の状態（取り込みの途中か、push していない merge コミット）のときだけ戻し、呼ぶたびに人の許可の確認を出す。追跡していないファイルは消さない（AC-28）。
 -   **信頼できない文字列を読まない。** `mergemain-begin` と `mergemain-push` は、PR の本文、コメント、レビューを読まない（AC-30、ADR-0015）。
 -   **allow の範囲。** `.claude/settings.json` の allow に足すのは、`mergemain-restore` を除く 3 つのサブコマンドだけで、リポジトリのすべてのセッションに当たる。3 つは、どのセッションから呼ばれても、上の確かめを通らなければ push しない。`prepare`・`merge` などのマージに関わるサブコマンドは、今のとおり許可の確認を出す。
@@ -1023,7 +1030,7 @@ flowchart TD
     -   実行中の `/mergemain` を、行の状態でなくエージェントの状態から見つけること。
     -   (6) をラウンドの後に変えれば、読み直しで送らないこと。
 -   **記録。** 次のことを確かめる。
-    -   `/mergemain` の送信の記録が期間で消えず、ほかのコマンドの記録は今のとおり 25 分で消えること。`ClearRecords` で消えること。
+    -   `/mergemain` の送信の記録が期間でも `ClearRecords` でも消えず、ほかのコマンドの記録は今のとおり 25 分で消え、`ClearRecords` で消えること。
     -   到達点が終わりの記録に書かれること。
     -   読めない記録で自動では送らないこと。
     -   `release` の後の段階。
@@ -1032,14 +1039,15 @@ flowchart TD
 -   **控え。** 送る前の控えが pane の報告からだけ作られ、PR の説明の控えを作らないことを確かめる。一時的な git のリポジトリで、引き継ぎについて次のことを確かめる。
     -   merge コミットの第 1 の親の控えを引き継ぐこと。
     -   第 2 の親が `origin/main` にないときと、親が 1 つのときは引き継がないこと。
+    -   手元にない head を取得できたときは引き継ぎ、取得に失敗したときは引き継がないこと。
     -   たどる回数の上限。
     -   リセットの確かめが引き継ぎを使わないこと。
 -   **取り込みの道具。** 一時的な git のリポジトリで、次のことを確かめる。
     -   **衝突の分類。** `.md` の衝突、両側の追加、modify/delete、シンボリックリンク、プロトコル番号の行だけの衝突、ほかの行も衝突した Go のファイル、`_test.go`。名前の変更では、両側が別のパスを同じパスに変えたもの、名前の変更と追加、名前の変更と中身の変更を、`.md` とプロトコル番号の行を持つ Go のファイルで確かめる。バイナリは、`.md` のパスのバイナリで確かめる。
-    -   **プロトコル番号。** `origin/main` の値 + 1 にすること。
+    -   **プロトコル番号。** 取り込む `main` の値 + 1 にすること。
     -   **早送りにしないこと。**
-    -   **戻す。** 戻してよい状態と戻さない状態。取り込みが触れていないファイルと触れたファイルに、追跡している変更と追跡していない変更があるときも、戻した後に基準の head の状態になること。
-    -   **push。** 確かめのそれぞれ（PR の head ブランチでない、`main` を指す、親が違う、2 つの親の間に対象外の衝突があり merge コミットの木が自動の合わせの木と一致する、`.md` 以外のパスが自動の合わせと違う、`origin` が動いた、push の URL が取得の URL と違う）と、3 つの結果。
+    -   **戻す。** 戻してよい状態と戻さない状態。取り込みが触れていないファイルと触れたファイルに追跡している変更があるときは、戻した後に基準の head の状態になること。無視されていない、追跡していないファイルがあるときは、戻さずに止まり、そのファイルを残すこと。
+    -   **push。** 確かめのそれぞれ（PR の head ブランチでない、`main` を指す、親が違う、取り込む `main` が `mergemain-begin` の値と違う、2 つの親の間に対象外の衝突があり merge コミットの木が自動の合わせの木と一致する、`.md` 以外のパスが自動の合わせと違う、プロトコル番号の行の値が取り込む `main` の値 + 1 でない、`origin` が動いた、push の URL が取得の URL と違う）と、3 つの結果。
     -   **前提の取得。** `mergemain-begin` で、取得した `refs/remotes/origin/<ブランチ>` が PR の head と違うときに止まること。
     -   **無視されたファイル。** 取り込む `main` が無視されたファイルのパスを追跡し始めるときに `mergemain-merge` が止まること、戻す先のパスを無視されたファイルがふさぐときに `mergemain-restore` が戻さないこと。
     -   **ゼロ値。** 止まる理由と `RestoreNeed` のゼロ値が戻さないこと。
@@ -1062,6 +1070,7 @@ flowchart TD
 -   **push の先と中身。** 次のときに `mergemain-push` が送らないことを確かめる。force の push を使わないことも確かめる。
     -   偽りの引数で `main` を push の先に向けたとき。
     -   取り込む `main` に別のコミットを渡したとき。
+    -   プロトコル番号の行の値だけを変えた merge コミットのとき。
     -   `.md` 以外を書き換えた merge コミットのとき。
 
 ### 7.4. 文書のテスト
@@ -1111,7 +1120,7 @@ flowchart TD
 |---|---|
 | H-01 | 今の `gh pr list` の `--json` に 4 つを足す。新しい呼び出しは足さない（3.1）。一覧の `mergeable` の振る舞いは、開いている PR がなく確かめられなかった。実装の PR で確かめる（1.2） |
 | H-02 | 今のラウンドの間隔のままにする（1.2）。遅れは ADR-0046 の「結果」にある |
-| H-03 | 今の送信の記録に PR・head・到達点を持たせ、`/mergemain` のものは期間で消さず、worktree の記録を消すときまで残す。別の記録は作らない（3.3） |
+| H-03 | 今の送信の記録に PR・head・到達点を持たせ、`/mergemain` のものは期間でも worktree のライフサイクルでも消さず、状態のディレクトリを消すまで残す。別の記録は作らない（3.3） |
 | H-04 | 衝突の分類を `mergepr` の `mergemain-merge` で決定的に行い、push の前に `mergemain-push` が変えた範囲を確かめる。エージェントは `.md` の両側を保てるかを判断する（3.8.2・3.8.3） |
 | H-05 | 判定は変えない。merge コミットはいつも「見ていない」になり、マージの質問で尋ねる形になる。実装の PR で走らせて確かめる（付録 B、8 章） |
 | H-06 | `mergemain-restore` が、取り込みの途中か push していない merge コミットのときだけ、`git reset --hard` の形で戻す。ほかの変更があれば戻さない。呼ぶたびに人の許可の確認を出す（3.8.4） |
