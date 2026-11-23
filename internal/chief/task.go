@@ -277,23 +277,30 @@ var oldValueRow = regexp.MustCompile("^[ \t]*\\| `([^`]+)` \\| `(high|standard\\
 var anyHeading = regexp.MustCompile(`^#+[ \t]`)
 
 // ParseOldValues reads the old-value table from _context.md as
-// high-review-decision.sh does: every matching row inside the "PR marker
-// conventions" section, with an old value that has two rows dropped so it
-// reads as unreadable.
+// high-review-decision.sh does: every unfenced matching row inside the
+// "PR marker conventions" section (with trailing CR stripped), with an old
+// value that has two rows dropped so it reads as unreadable, and an empty map
+// when _context.md leaves a code fence unclosed.
 func ParseOldValues(contextDoc []byte) OldValues {
+	lines, unclosed := fencedLines(contextDoc)
+	if unclosed {
+		return OldValues{}
+	}
 	counts := map[string]int{}
 	values := OldValues{}
 	inSection := false
-	for raw := range bytes.SplitSeq(contextDoc, []byte("\n")) {
-		line := string(raw)
-		if anyHeading.MatchString(line) {
-			inSection = strings.TrimRight(line, " \t") == contextMarkerSection
+	for _, l := range lines {
+		if l.fenced {
+			continue
+		}
+		if anyHeading.MatchString(l.text) {
+			inSection = strings.TrimRight(l.text, " \t") == contextMarkerSection
 			continue
 		}
 		if !inSection {
 			continue
 		}
-		if m := oldValueRow.FindStringSubmatch(line); m != nil {
+		if m := oldValueRow.FindStringSubmatch(l.text); m != nil {
 			if strings.ContainsAny(m[1], " \t") {
 				// The script splits an old value on blanks, so it never
 				// matches one that holds a blank; neither does the tool.

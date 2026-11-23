@@ -43,10 +43,22 @@ func repoContext(t *testing.T) []byte {
 // repository's real _context.md yields all six old values unaffected by
 // Harness model mapping.
 func TestParseOldValues(t *testing.T) {
-	doubled := []byte("### PR marker conventions\n\n| `a` | `high` |\n| `a` | `low` |\n| `b` | `low` |\n| `d e` | `high` |\n\n### Next\n\n| `c` | `high` |\n")
+	doubled := []byte("### PR marker conventions\n\n| `a` | `high` |\n| `a` | `low` |\n| `b` | `low` |\n| `d e` | `high` |\n\n```markdown\n| `fenced-low` | `low` |\n```\n\n### Next\n\n| `c` | `high` |\n")
 	if got := ParseOldValues(doubled); len(got) != 1 || got["b"] != RequirementLow {
-		t.Errorf("ParseOldValues(doubled) = %v, want only b (a twice, d e with a blank, c outside)", got)
+		t.Errorf("ParseOldValues(doubled) = %v, want only b (a twice, d e with a blank, fenced-low in fence, c outside)", got)
 	}
+	t.Run("CRLF line endings", func(t *testing.T) {
+		crlf := strings.ReplaceAll(testContext, "\n", "\r\n")
+		if got := ParseOldValues([]byte(crlf)); !maps.Equal(got, testOldValues) {
+			t.Errorf("ParseOldValues(CRLF) = %v, want %v", got, testOldValues)
+		}
+	})
+	t.Run("unclosed fence fails closed", func(t *testing.T) {
+		unclosed := testContext + "\n```markdown\n| `extra` | `low` |\n"
+		if got := ParseOldValues([]byte(unclosed)); len(got) != 0 {
+			t.Errorf("ParseOldValues(unclosed) = %v, want empty", got)
+		}
+	})
 	t.Run("repository _context.md", func(t *testing.T) {
 		doc := repoContext(t)
 		got := ParseOldValues(doc)
