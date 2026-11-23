@@ -21,12 +21,13 @@ import (
 
 // Paths from cmd/yt2column to the command documents these tests check.
 const (
-	fixprPath       = "../../.claude/commands/fixpr.md"
-	runprPath       = "../../.claude/commands/runpr.md"
-	contextPath     = "../../.claude/commands/_context.md"
-	handoffPath     = "../../.claude/commands/_lib/task-pr-handoff.md"
-	mkreqPath       = "../../.claude/commands/mkreq.md"
-	localReviewPath = "../../.claude/commands/_lib/local-cli-review.md"
+	fixprPath              = "../../.claude/commands/fixpr.md"
+	runprPath              = "../../.claude/commands/runpr.md"
+	contextPath            = "../../.claude/commands/_context.md"
+	handoffPath            = "../../.claude/commands/_lib/task-pr-handoff.md"
+	mkreqPath              = "../../.claude/commands/mkreq.md"
+	localReviewPath        = "../../.claude/commands/_lib/local-cli-review.md"
+	harnessAntigravityPath = "../../.claude/commands/_lib/harness-antigravity.md"
 )
 
 // Section headings of fixpr.md and runpr.md the contract tests read.
@@ -1314,5 +1315,160 @@ func TestLocalReviewGuard(t *testing.T) {
 	value, _, _ := strings.Cut(after, "**")
 	if !ok || !strings.Contains(value, "`fixprguard check`") {
 		t.Error("fixpr.md Phase 4.5 does not pass the fixprguard check call as **GUARD**")
+	}
+}
+
+var (
+	// ghBodyCommandRE matches a shell command starting with gh (with optional
+	// leading VAR=val assignments) whose --json field list requests body.
+	ghBodyCommandRE = regexp.MustCompile(`^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*gh\b.*--json\s+\S*\bbody\b`)
+	// ghBodySafeRedirectRE matches a gh --json ... body command that writes
+	// stdout directly to a scratchpad file with no pipe, command chaining, or
+	// stdout tee.
+	ghBodySafeRedirectRE = regexp.MustCompile(`^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*gh\s+[^|;&\n]+--json\s+\S*\bbody\b[^|;&\n]*\s+1?>\s*(?:"<scratchpad>/[^"\s]+"|<scratchpad>/[^\s"']+)\s*$`)
+)
+
+// extractGHBodyCalls collects every gh ... --json ... body command from all
+// fenced code blocks (joining backslash continuations) and all inline code
+// spans in doc, splitting chained commands on ;, &&, and ||.
+func extractGHBodyCalls(doc string) []string {
+	var rawCommands []string
+	var pending strings.Builder
+	flush := func() {
+		if pending.Len() > 0 {
+			rawCommands = append(rawCommands, pending.String())
+			pending.Reset()
+		}
+	}
+	var prose strings.Builder
+	for _, line := range doctestutil.ScanDocLines(slices.Collect(strings.Lines(doc))) {
+		switch {
+		case line.Fence:
+			flush()
+		case line.Block:
+			trimmed := strings.TrimSpace(line.Text)
+			if trimmed == "" {
+				flush()
+				continue
+			}
+			if before, cont := strings.CutSuffix(trimmed, "\\"); cont {
+				pending.WriteString(strings.TrimRight(before, " \t"))
+				pending.WriteByte(' ')
+				continue
+			}
+			pending.WriteString(trimmed)
+			flush()
+		default:
+			prose.WriteString(line.Text)
+			prose.WriteByte('\n')
+		}
+	}
+	flush()
+	for _, m := range codeSpanRE.FindAllStringSubmatch(prose.String(), -1) {
+		rawCommands = append(rawCommands, strings.TrimSpace(m[1]))
+	}
+	var calls []string
+	for _, raw := range rawCommands {
+		for _, part := range splitShellList(raw) {
+			if ghBodyCommandRE.MatchString(part) {
+				calls = append(calls, part)
+			}
+		}
+	}
+	return calls
+}
+
+// splitShellList splits a shell command line on unquoted ;, &&, and || while
+// preserving pipes inside each command so piped leaks are rejected as unsafe.
+func splitShellList(cmd string) []string {
+	var parts []string
+	var cur strings.Builder
+	inSingle, inDouble := false, false
+	for i := 0; i < len(cmd); i++ {
+		ch := cmd[i]
+		switch {
+		case ch == '\'' && !inDouble:
+			inSingle = !inSingle
+			cur.WriteByte(ch)
+		case ch == '"' && !inSingle:
+			inDouble = !inDouble
+			cur.WriteByte(ch)
+		case !inSingle && !inDouble && ch == ';':
+			if s := strings.TrimSpace(cur.String()); s != "" {
+				parts = append(parts, s)
+			}
+			cur.Reset()
+		case !inSingle && !inDouble && i+1 < len(cmd) &&
+			((ch == '&' && cmd[i+1] == '&') || (ch == '|' && cmd[i+1] == '|')):
+			if s := strings.TrimSpace(cur.String()); s != "" {
+				parts = append(parts, s)
+			}
+			cur.Reset()
+			i++
+		default:
+			cur.WriteByte(ch)
+		}
+	}
+	if s := strings.TrimSpace(cur.String()); s != "" {
+		parts = append(parts, s)
+	}
+	return parts
+}
+
+// checkHarnessAntigravityPhase6Redirect verifies that doc contains at least
+// one gh ... --json ... body invocation and that every such invocation writes
+// directly to a scratchpad file without leaking stdout.
+func checkHarnessAntigravityPhase6Redirect(doc string) (int, []string) {
+	calls := extractGHBodyCalls(doc)
+	var unsafe []string
+	for _, call := range calls {
+		if !ghBodySafeRedirectRE.MatchString(call) {
+			unsafe = append(unsafe, call)
+		}
+	}
+	return len(calls), unsafe
+}
+
+// TestHarnessAntigravityPhase6Redirect checks that harness-antigravity.md
+// isolates untrusted PR bodies in fixpr Phase 6 by redirecting every
+// gh ... --json ... body invocation directly to a scratchpad file with zero
+// stdout output to the main conversation.
+func TestHarnessAntigravityPhase6Redirect(t *testing.T) {
+	doc := doctestutil.ReadDoc(t, harnessAntigravityPath)
+	count, unsafe := checkHarnessAntigravityPhase6Redirect(doc)
+	if count == 0 {
+		t.Fatal("harness-antigravity.md contains no gh --json ... body invocation; want at least 1")
+	}
+	for _, call := range unsafe {
+		t.Errorf("harness-antigravity.md has non-redirected gh body read: %q", call)
+	}
+
+	// Verify the checker itself fails on missing redirects, zero matches,
+	// env-var prefixes, multiline continuations, inline code spans, and pipes.
+	cases := []struct {
+		name       string
+		doc        string
+		wantCount  int
+		wantUnsafe int
+	}{
+		{"zero_matches", "```bash\ngit status\n```\n", 0, 0},
+		{"direct_redirect", "```bash\ngh pr view <number> --json title,body > \"<scratchpad>/<run-id>-pr.json\"\n```\n", 1, 0},
+		{"env_prefix_with_redirect", "```bash\nGH_HOST=github.com gh pr view <number> --json title,body > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
+		{"multiline_with_redirect", "```bash\ngh pr view <number> \\\n  --json title,body \\\n  > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
+		{"missing_redirect", "```bash\ngh pr view <number> --json title,body\n```\n", 1, 1},
+		{"env_prefix_missing_redirect", "```bash\nGH_HOST=github.com gh pr view <number> --json title,body\n```\n", 1, 1},
+		{"multiline_missing_redirect", "```bash\ngh pr view <number> \\\n  --json title,body\n```\n", 1, 1},
+		{"inline_code_missing_redirect", "Run `gh pr view <number> --json title,body` first.\n", 1, 1},
+		{"pipe_to_tee_leaks_stdout", "```bash\ngh pr view <number> --json title,body | tee \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"redirect_outside_scratchpad", "```bash\ngh pr view <number> --json title,body > /tmp/pr.json\n```\n", 1, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotCount, gotUnsafe := checkHarnessAntigravityPhase6Redirect(tc.doc)
+			if gotCount != tc.wantCount || len(gotUnsafe) != tc.wantUnsafe {
+				t.Errorf("checkHarnessAntigravityPhase6Redirect = (%d, %v), want count=%d unsafe=%d",
+					gotCount, gotUnsafe, tc.wantCount, tc.wantUnsafe)
+			}
+		})
 	}
 }

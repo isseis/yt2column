@@ -4,7 +4,8 @@
 #
 # Usage: bash review-records.sh coverage <LAST_REVIEWED> <HEAD> [<PLAN>]
 #        bash review-records.sh unreviewed <HEAD> [<PLAN>]
-#        bash review-records.sh fable <ENTRY> <HEAD> <PLAN>
+#        bash review-records.sh cross-check <ENTRY> <HEAD> <PLAN>
+#        bash review-records.sh fable <ENTRY> <HEAD> <PLAN>   # migration alias
 #
 # The first argument chooses the mode; any other mode is a failure.
 #
@@ -89,8 +90,9 @@
 #   - a merge commit inside the range of a seen-range line that passes the
 #     checks is known to be seen.
 #
-# Mode fable: whether the branch's last Fable record still covers the branch
-# (.claude/commands/_lib/fable-review.md, "The validity decision").
+# Mode cross-check (alias: fable): whether the branch's last cross-check
+# partial review record still covers the branch (.claude/commands/_lib/fable-review.md,
+# "The validity decision"; renamed to _lib/cross-check-review.md in phase 4).
 #
 #   ENTRY  launch (the launch entry) or checkpoint (the checkpoint and the
 #          pre-push entries); it chooses only whether the rule of the
@@ -100,10 +102,11 @@
 #          need not exist
 #
 # Output, on standard output, the same at either ENTRY:
-#   VALID            the last Fable record is valid and no merge commit
+#   VALID            the last cross-check record is valid and no merge commit
 #                    after it waits for the merge check
-#   MISSING <START>  it is not, or there is none; Fable is to see
-#                    <START>..HEAD (<START> is 40 hexadecimal characters)
+#   MISSING <START>  it is not, or there is none; the cross-check partial
+#                    review is to see <START>..HEAD (<START> is 40 hexadecimal
+#                    characters)
 #   MERGE <n>        the record is valid but for <n> confirmable merge
 #                    commits no merge check record names; one line of the
 #                    merge commit's 40 hexadecimal characters follows for
@@ -111,15 +114,27 @@
 #                    --topo-order
 #
 # Contract:
+#   - Model pattern validation: in cross-check (and alias fable) mode only,
+#     read origin/main:.claude/commands/_context.md and validate its entire
+#     "### Harness model mapping" table fail-closed before judging records.
+#     Collect all non-"-" Verification patterns for Role == cross-check (for
+#     cross-check run records) and Role == high (for merge check run records).
+#     Match model IDs without regex or glob evaluation ("." matches only a
+#     literal "."; a trailing-* pattern matches its literal prefix plus a
+#     1..48-char suffix in [a-z0-9.-]). coverage and unreviewed modes do not
+#     read _context.md.
 #   - The widened START check: a range line's START passes it when START is
 #     the merge-base of origin/main and HEAD, a commit of origin/main..HEAD,
 #     or a commit origin/main reaches such that origin/main reaches no
 #     commit of END ^START. Every other check of a seen-range line above
 #     stays. A line read before a merge of origin/main thus keeps counting,
 #     while a range that holds a commit of origin/main is still ignored.
-#   - A Fable record is a whole line, from the first column, of the message
-#     of a commit in origin/main..HEAD, matching the run or the not-run form
-#     exactly, whose START and END pass the checks of a seen-range line
+#   - A cross-check record is a whole line, from the first column, of the
+#     message of a commit in origin/main..HEAD, matching the new
+#     ("Cross-check review:") or legacy ("Fable review:") run or not-run form
+#     exactly (accepting both "wrong-model" and legacy "not-fable", and any
+#     model ID matching a Role == cross-check pattern from origin/main's
+#     _context.md), whose START and END pass the checks of a seen-range line
 #     above under the widened START check; a record that fails them is
 #     ignored. The last record is the last such line of the last commit
 #     holding one, in the order of git rev-list --reverse --topo-order.
@@ -128,13 +143,15 @@
 #     origin/main reaches. Any other commit with other than one parent is an
 #     unconfirmable merge commit.
 #   - A merge check record is a whole line, from the first column, of the
-#     message of a commit Q in origin/main..HEAD, matching the run or the
-#     not-run form exactly. It names the merge commit M of its 40
-#     hexadecimal characters only when M is a commit of origin/main..HEAD,
-#     a confirmable merge commit, and a proper ancestor of Q; a line naming
-#     anything else (no object, an object that is not a commit, another
-#     commit) names nothing and is not a failure. Every such line of the
-#     branch is read, not only the last.
+#     message of a commit Q in origin/main..HEAD, matching the run (any model
+#     ID matching a Role == high pattern from origin/main's _context.md) or
+#     the not-run form (accepting both "wrong-model" and legacy "not-opus")
+#     exactly. It names the merge commit M of its 40 hexadecimal characters
+#     only when M is a commit of origin/main..HEAD, a confirmable merge
+#     commit, and a proper ancestor of Q; a line naming anything else (no
+#     object, an object that is not a commit, another commit) names nothing
+#     and is not a failure. Every such line of the branch is read, not only
+#     the last.
 #   - The last record, with END and the commit H holding it, is judged on
 #     every commit of HEAD ^END that origin/main does not reach. A commit
 #     with one parent is covered when it is any of:
@@ -148,10 +165,11 @@
 #          line passing the checks of a seen-range line above, under the
 #          widened START check, with H as the commit holding it;
 #       3. at ENTRY checkpoint only: a commit after the last commit K of
-#          origin/main..HEAD whose message holds the line "Fable review:
-#          checkpoint", unless a commit of HEAD ^K ^origin/main holds a line
-#          starting "Implementation model: " (any such line counts, so
-#          reading more lines only turns the rule off);
+#          origin/main..HEAD whose message holds the line "Cross-check
+#          review: checkpoint" or legacy "Fable review: checkpoint", unless
+#          a commit of HEAD ^K ^origin/main holds a line starting
+#          "Implementation model: " (any such line counts, so reading more
+#          lines only turns the rule off);
 #       4. a fix of a merge check: for a commit Q whose merge check record
 #          names M, a descendant of M (M excluded) and an ancestor of Q (Q
 #          included) inside the range of a seen-range line of Q's message
@@ -171,8 +189,9 @@
 #     that invalidates the record; when that parent is neither the
 #     merge-base nor a commit of origin/main..HEAD, START is the merge-base.
 #   - Inputs, environment, and plumbing are as for coverage.
-#   - Failure: any failed git step, an argument of another form, or an
-#     unreadable refs/remotes/origin/main prints "MISSING" alone, a
+#   - Failure: any failed git step, an argument of another form, an
+#     unreadable refs/remotes/origin/main, or a missing or malformed
+#     origin/main:.claude/commands/_context.md prints "MISSING" alone, a
 #     diagnostic on standard error, and exits 1. A caller reads a status
 #     other than 0, or a first line of another form, as MISSING from the
 #     merge-base.
@@ -241,7 +260,7 @@ fail() {
 	printf 'review-records: %s\n' "$1" >&2
 	case $MODE in
 	coverage | unreviewed) printf 'PARTIAL\n' ;;
-	fable) printf 'MISSING\n' ;;
+	cross-check | fable) printf 'MISSING\n' ;;
 	esac
 	exit 1
 }
@@ -250,14 +269,253 @@ HEX40='^[0-9a-f]{40}$'
 SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \((coderabbit|codex)\)$'
 PLAN_RE='^docs/tasks/[^/]+/03_implementation_plan\.md$'
 NOT_RUN_RE='^Local CLI review: not run ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(.*\)$'
-FABLE_RUN_RE='^Fable review: run ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(model claude-fable-[a-z0-9.-]{1,48}; fixed [0-9]+, rejected [0-9]+, deferred [0-9]+, unclear [0-9]+, invalid [0-9]+; [0-9]+s, tokens ([0-9]+|unknown)\)$'
-FABLE_NOT_RUN_RE='^Fable review: not run ([0-9a-f]{12})\.\.([0-9a-f]{12}) \((no-target|unavailable|timeout|not-fable|unreadable|agent-cannot-call)(; [0-9]+s, tokens ([0-9]+|unknown))?\)$'
-CHECKPOINT_LINE='Fable review: checkpoint'
-MERGE_RUN_RE='^Merge check: run ([0-9a-f]{40}) \(model claude-opus-[a-z0-9.-]{1,48}; fixed [0-9]+, rejected [0-9]+, deferred [0-9]+, unclear [0-9]+, invalid [0-9]+; [0-9]+s, tokens ([0-9]+|unknown)\)$'
-MERGE_NOT_RUN_RE='^Merge check: not run ([0-9a-f]{40}) \((unavailable|timeout|not-opus|unreadable|agent-cannot-call)(; [0-9]+s, tokens ([0-9]+|unknown))?\)$'
+CROSS_CHECK_RUN_RE='^(Cross-check|Fable) review: run ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(model ([^;]+); fixed [0-9]+, rejected [0-9]+, deferred [0-9]+, unclear [0-9]+, invalid [0-9]+; [0-9]+s, tokens ([0-9]+|unknown)\)$'
+CROSS_CHECK_NOT_RUN_RE='^(Cross-check|Fable) review: not run ([0-9a-f]{12})\.\.([0-9a-f]{12}) \((no-target|unavailable|timeout|wrong-model|not-fable|unreadable|agent-cannot-call)(; [0-9]+s, tokens ([0-9]+|unknown))?\)$'
+CHECKPOINT_LINE='Cross-check review: checkpoint'
+LEGACY_CHECKPOINT_LINE='Fable review: checkpoint'
+MERGE_RUN_RE='^Merge check: run ([0-9a-f]{40}) \(model ([^;]+); fixed [0-9]+, rejected [0-9]+, deferred [0-9]+, unclear [0-9]+, invalid [0-9]+; [0-9]+s, tokens ([0-9]+|unknown)\)$'
+MERGE_NOT_RUN_RE='^Merge check: not run ([0-9a-f]{40}) \((unavailable|timeout|wrong-model|not-opus|unreadable|agent-cannot-call)(; [0-9]+s, tokens ([0-9]+|unknown))?\)$'
+SUFFIX_RE='^[a-z0-9.-]+$'
 MODIFIED_RE='^:100644 100644 [0-9a-f]{40} [0-9a-f]{40} M$'
 TAB=$(printf '\t')
 IMPLEMENTATION_PREFIX='Implementation model: '
+
+# parse_harness_mapping validates the entire "### Harness model mapping" table
+# of _context.md fail-closed and emits CC<TAB><pat> for Role == cross-check
+# (excluding "-") and HI<TAB><pat> for Role == high (excluding "-"), or
+# ERR<TAB><msg> on any violation.
+parse_harness_mapping() {
+	awk '
+		function fail(msg) {
+			if (!failed) {
+				printf "ERR\t%s\n", msg
+				failed = 1
+			}
+		}
+		failed { next }
+		{ sub(/\r$/, "") }
+		{
+			t = $0
+			if (t ~ /^ ? ? ?[^ \t]/ || t == "") sub(/^ +/, "", t); else t = ""
+			c = substr(t, 1, 1)
+			if (substr(t, 1, 3) == "```" || substr(t, 1, 3) == "~~~") {
+				len = 0
+				while (substr(t, len + 1, 1) == c) len++
+				rest = substr(t, len + 1)
+				if (!fence) {
+					if (table_state == 1) table_state = 2
+					fence = 1; fchar = c; flen = len; next
+				}
+				if (c == fchar && len >= flen && rest ~ /^[ \t]*$/) { fence = 0; next }
+			}
+		}
+		fence { next }
+		/^#+[ \t]/ {
+			if ($0 ~ /^### Harness model mapping[ \t]*$/) {
+				sec_count++
+				if (sec_count > 1) fail("duplicate Harness model mapping section")
+				in_sec = 1
+				table_state = 0
+				row_num = 0
+			} else {
+				in_sec = 0
+			}
+			next
+		}
+		!in_sec { next }
+		/^[ \t]*\|/ {
+			if ($0 !~ /^\|/) { fail("indented table row in Harness model mapping"); next }
+			if (table_state == 2) { fail("multiple tables in Harness model mapping"); next }
+			table_state = 1
+			row_num++
+			if (row_num == 1) {
+				if ($0 != "| Harness | Role | Launch | Model | Verification pattern |") {
+					fail("invalid Harness model mapping header")
+				}
+				next
+			}
+			if (row_num == 2) {
+				if ($0 != "|---|---|---|---|---|") {
+					fail("invalid Harness model mapping separator")
+				}
+				next
+			}
+			if ($0 !~ /^\| / || $0 !~ / \|$/) {
+				fail("malformed Harness model mapping row")
+				next
+			}
+			inner = substr($0, 3, length($0) - 4)
+			n = split(inner, cells, " \\| ")
+			if (n != 5) {
+				fail("Harness model mapping row must have 5 columns")
+				next
+			}
+			for (i = 1; i <= 5; i++) {
+				cell = cells[i]
+				if (length(cell) < 3 || substr(cell, 1, 1) != "`" || substr(cell, length(cell), 1) != "`") {
+					fail("Harness model mapping cell must be a single code span")
+					next
+				}
+				val[i] = substr(cell, 2, length(cell) - 2)
+				if (index(val[i], "`") > 0 || index(val[i], "|") > 0) {
+					fail("Harness model mapping cell contains forbidden character")
+					next
+				}
+			}
+			harness = val[1]
+			role = val[2]
+			launch = val[3]
+			model = val[4]
+			pat = val[5]
+			if (harness != "Claude Code" && harness != "Antigravity" && harness != "OpenCode") {
+				fail("unknown Harness in Harness model mapping: " harness)
+				next
+			}
+			if (role != "high" && role != "standard" && role != "low" && role != "cross-check") {
+				fail("unknown Role in Harness model mapping: " role)
+				next
+			}
+			if (launch != "agent" && launch != "swarm" && launch != "none") {
+				fail("unknown Launch in Harness model mapping: " launch)
+				next
+			}
+			if (model !~ /^[ -~]+$/ || model !~ /[^ ]/) {
+				fail("invalid Model in Harness model mapping")
+				next
+			}
+			pair = harness SUBSEP role
+			if (seen[pair]++) {
+				fail("duplicate (Harness, Role) in Harness model mapping: " harness "/" role)
+				next
+			}
+			if (launch == "none") {
+				if (pat != "-") {
+					fail("Launch none row must have Verification pattern -")
+					next
+				}
+			} else {
+				if (pat == "-") {
+					fail("Launch " launch " row cannot have Verification pattern -")
+					next
+				}
+				if (substr(pat, length(pat), 1) == "*") {
+					pfx = substr(pat, 1, length(pat) - 1)
+					if (length(pfx) < 1 || length(pfx) > 63 || pfx !~ /^[a-z0-9][a-z0-9.-]*$/) {
+						fail("invalid prefix Verification pattern in Harness model mapping")
+						next
+					}
+				} else {
+					if (length(pat) < 1 || length(pat) > 64 || pat !~ /^[a-z0-9][a-z0-9.-]*$/) {
+						fail("invalid literal Verification pattern in Harness model mapping")
+						next
+					}
+				}
+			}
+			if (role == "cross-check" && pat != "-") {
+				cc_pats[++cc_count] = pat
+			}
+			if (role == "high" && pat != "-") {
+				high_pats[++high_count] = pat
+			}
+			next
+		}
+		table_state == 1 { table_state = 2 }
+		END {
+			if (failed) exit 0
+			if (fence) fail("unclosed code fence in _context.md")
+			else if (sec_count == 0) fail("missing Harness model mapping section")
+			else if (sec_count > 1) fail("duplicate Harness model mapping section")
+			else if (row_num < 3) fail("missing or empty Harness model mapping table")
+			else if (cc_count == 0) fail("no cross-check verification pattern in Harness model mapping")
+			else if (high_count == 0) fail("no high-role verification pattern in Harness model mapping")
+			if (failed) exit 0
+			for (i = 1; i <= cc_count; i++) {
+				printf "CC\t%s\n", cc_pats[i]
+			}
+			for (i = 1; i <= high_count; i++) {
+				printf "HI\t%s\n", high_pats[i]
+			}
+		}
+	'
+}
+
+# load_harness_patterns reads origin/main:.claude/commands/_context.md (must
+# be a regular file), validates the entire Harness model mapping table
+# fail-closed, and populates CROSS_CHECK_PATS and HIGH_PATS.
+load_harness_patterns() {
+	local entry mode type context_doc mapping_out mline
+	local err_pfx="ERR${TAB}" cc_pfx="CC${TAB}" hi_pfx="HI${TAB}"
+	entry=$(g ls-tree "$ORIGIN_MAIN" -- .claude/commands/_context.md) ||
+		fail "cannot inspect origin/main tree for _context.md"
+	[ -n "$entry" ] || fail "cannot read origin/main:.claude/commands/_context.md"
+	case $entry in
+	*$'\n'*) fail "origin/main:.claude/commands/_context.md matched multiple tree entries" ;;
+	esac
+	IFS=' ' read -r mode type _ < <(printf '%s\n' "$entry")
+	case "$mode $type" in
+	"100644 blob" | "100755 blob") ;;
+	*) fail "origin/main:.claude/commands/_context.md is not a regular file (mode $mode)" ;;
+	esac
+	context_doc=$(g cat-file blob "$ORIGIN_MAIN:.claude/commands/_context.md" 2>/dev/null) ||
+		fail "cannot read origin/main:.claude/commands/_context.md"
+	mapping_out=$(printf '%s\n' "$context_doc" | parse_harness_mapping) ||
+		fail "failed to parse Harness model mapping"
+	CROSS_CHECK_PATS=""
+	HIGH_PATS=""
+	while IFS= read -r mline; do
+		case $mline in
+		"$err_pfx"*)
+			fail "${mline#"$err_pfx"}"
+			;;
+		"$cc_pfx"*)
+			CROSS_CHECK_PATS=$CROSS_CHECK_PATS$'\n'${mline#"$cc_pfx"}
+			;;
+		"$hi_pfx"*)
+			HIGH_PATS=$HIGH_PATS$'\n'${mline#"$hi_pfx"}
+			;;
+		"") ;;
+		*)
+			fail "unexpected parser output for Harness model mapping"
+			;;
+		esac
+	done < <(printf '%s\n' "$mapping_out")
+	[ -n "$CROSS_CHECK_PATS" ] || fail "no cross-check verification pattern in Harness model mapping"
+	[ -n "$HIGH_PATS" ] || fail "no high-role verification pattern in Harness model mapping"
+}
+
+# matches_pattern checks id against a validated literal or trailing-* pattern
+# without regex or glob evaluation: "." matches only a literal ".", and a
+# trailing-* suffix must match ^[a-z0-9.-]{1,48}$.
+matches_pattern() {
+	local id=$1 pat=$2 pfx suffix
+	case $pat in
+	*'*')
+		pfx=${pat%\*}
+		[ "${#id}" -gt "${#pfx}" ] || return 1
+		[ "${id:0:${#pfx}}" = "$pfx" ] || return 1
+		suffix=${id:${#pfx}}
+		[ "${#suffix}" -ge 1 ] && [ "${#suffix}" -le 48 ] || return 1
+		[[ $suffix =~ $SUFFIX_RE ]] || return 1
+		return 0
+		;;
+	*)
+		[ "$id" = "$pat" ]
+		;;
+	esac
+}
+
+# matches_any_pattern reports whether $1 matches at least one newline-separated
+# pattern in $2.
+matches_any_pattern() {
+	local id=$1 list=$2 pat
+	while IFS= read -r pat; do
+		[ -n "$pat" ] || continue
+		if matches_pattern "$id" "$pat"; then
+			return 0
+		fi
+	done < <(printf '%s\n' "$list")
+	return 1
+}
 
 # in_list reports whether $1 is one of the newline-separated IDs in $2.
 in_list() {
@@ -621,25 +879,37 @@ has_line() {
 	return 1
 }
 
-fable() {
-	[ "$#" -eq 3 ] || fail "fable expects 3 arguments, got $#"
-	local entry=$1 head=$2 c line holder msg
+cross_check() {
+	[ "$#" -eq 3 ] || fail "$MODE expects 3 arguments, got $#"
+	local entry=$1 head=$2 c line holder msg start12 end12 model_id
 	PLAN=$3
 	[ "$entry" = launch ] || [ "$entry" = checkpoint ] || fail "ENTRY is neither launch nor checkpoint"
 	[[ $head =~ $HEX40 ]] || fail "HEAD is not 40 hexadecimal characters"
 	[[ $PLAN =~ $PLAN_RE ]] || fail "PLAN is not docs/tasks/<task-dir>/03_implementation_plan.md"
 
 	load_branch "$head"
+	load_harness_patterns
 	local ordered
 	ordered=$(g rev-list --reverse --topo-order "$head" "^$ORIGIN_MAIN") || fail "git rev-list failed"
 
-	# The last Fable record whose range passes the checks.
+	# The last cross-check (or legacy Fable) record whose range and model pass
+	# the checks.
 	local rec_end="" rec_holder=""
 	for holder in $ordered; do
 		msg=$(message "$holder") || fail "cannot read a commit message"
 		while IFS= read -r line; do
-			[[ $line =~ $FABLE_RUN_RE ]] || [[ $line =~ $FABLE_NOT_RUN_RE ]] || continue
-			checked_range "$holder" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" widen || continue
+			if [[ $line =~ $CROSS_CHECK_RUN_RE ]]; then
+				start12=${BASH_REMATCH[2]}
+				end12=${BASH_REMATCH[3]}
+				model_id=${BASH_REMATCH[4]}
+				matches_any_pattern "$model_id" "$CROSS_CHECK_PATS" || continue
+			elif [[ $line =~ $CROSS_CHECK_NOT_RUN_RE ]]; then
+				start12=${BASH_REMATCH[2]}
+				end12=${BASH_REMATCH[3]}
+			else
+				continue
+			fi
+			checked_range "$holder" "$start12" "$end12" widen || continue
 			rec_end=$RANGE_END
 			rec_holder=$holder
 		done < <(printf '%s\n' "$msg")
@@ -665,7 +935,7 @@ fable() {
 	local after_mark="" mark=""
 	if [ "$entry" = checkpoint ]; then
 		for holder in $ordered; do
-			if has_line "$holder" "$CHECKPOINT_LINE" exact; then
+			if has_line "$holder" "$CHECKPOINT_LINE" exact || has_line "$holder" "$LEGACY_CHECKPOINT_LINE" exact; then
 				mark=$holder
 			fi
 		done
@@ -687,8 +957,15 @@ fable() {
 		msg=$(message "$holder") || fail "cannot read a commit message"
 		named=""
 		while IFS= read -r line; do
-			[[ $line =~ $MERGE_RUN_RE ]] || [[ $line =~ $MERGE_NOT_RUN_RE ]] || continue
-			m=${BASH_REMATCH[1]}
+			if [[ $line =~ $MERGE_RUN_RE ]]; then
+				m=${BASH_REMATCH[1]}
+				model_id=${BASH_REMATCH[2]}
+				matches_any_pattern "$model_id" "$HIGH_PATS" || continue
+			elif [[ $line =~ $MERGE_NOT_RUN_RE ]]; then
+				m=${BASH_REMATCH[1]}
+			else
+				continue
+			fi
 			# Only a branch commit can be named. BRANCH lists commits only, so
 			# a name of no object, or of another object, names nothing; testing
 			# it before any lookup keeps a name the repository lacks from making
@@ -742,7 +1019,7 @@ fable() {
 
 	if [ -n "$invalid" ]; then
 		# After a merge, a range from the record would hold the changes main
-		# brought in, so Fable sees the whole PR.
+		# brought in, so the cross-check partial review sees the whole PR.
 		if [ "$merged" = 1 ]; then
 			start=$MERGE_BASE
 		else
@@ -777,9 +1054,9 @@ unreviewed)
 	shift
 	unreviewed "$@"
 	;;
-fable)
+cross-check | fable)
 	shift
-	fable "$@"
+	cross_check "$@"
 	;;
 *)
 	fail "unknown mode: ${MODE:-(none)}"
