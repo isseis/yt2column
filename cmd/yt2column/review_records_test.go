@@ -82,7 +82,7 @@ func localReviewStep7(t *testing.T) string {
 // local-cli-review.md step 7.
 func seenRangeForm(t *testing.T) string {
 	t.Helper()
-	return recordTableForm(t, "local-cli-review.md step 7", localReviewStep7(t), "Local CLI reviewed:", "<START12>", "<END12>", "<cli>")
+	return recordTableForm(t, "local-cli-review.md step 7", localReviewStep7(t), "Local CLI reviewed:", "<START12>", "<END12>", "(coderabbit)")
 }
 
 // rrFixture is one fixture repository: main has two commits (m0, then mb,
@@ -171,7 +171,7 @@ func (f *rrFixture) record(subject string, body ...string) {
 // seen is a seen-range line for start..end reviewed by cli, in the form of
 // local-cli-review.md.
 func (f *rrFixture) seen(start, end, cli string) string {
-	return strings.NewReplacer("<START12>", start[:12], "<END12>", end[:12], "<cli>", cli).Replace(f.form)
+	return strings.NewReplacer("<START12>", start[:12], "<END12>", end[:12], "(coderabbit)", "("+cli+")").Replace(f.form)
 }
 
 // plan writes the sample to the plan at path and commits it alone.
@@ -478,6 +478,14 @@ func coverageCases() []rrCase {
 			return rrNone(f, "")
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~2"), f.rev("HEAD")) }},
 		// The plan checkbox commits.
+		{name: "green gate confirmed in a marker section", setup: func(f *rrFixture) []string {
+			f.plan(rrMarkersPlan, "markers-greengate.md")
+			return rrNone(f, rrMarkersPlan)
+		}, want: rrAll},
+		{name: "green gate text reworded", setup: func(f *rrFixture) []string {
+			f.plan(rrMarkersPlan, "markers-greengate-reworded.md")
+			return rrNone(f, rrMarkersPlan)
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
 		{name: "PR created in a marker section", setup: func(f *rrFixture) []string {
 			f.plan(rrMarkersPlan, "markers-created.md")
 			return rrNone(f, rrMarkersPlan)
@@ -1811,10 +1819,11 @@ func TestReviewRecordsFable(t *testing.T) {
 // commit's copy to <records-script>, by the commit ID the reading printed;
 // and the run of that copy.
 const (
-	reviewRecordsRef         = "git rev-parse --verify 'refs/remotes/origin/main^{commit}'"
-	reviewRecordsShow        = "git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>"
-	reviewRecordsRunCoverage = "bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]"
-	reviewRecordsRunFable    = "bash <records-script> fable <ENTRY> <HEAD> <PLAN>"
+	reviewRecordsRef          = "git rev-parse --verify 'refs/remotes/origin/main^{commit}'"
+	reviewRecordsShow         = "git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>"
+	reviewRecordsRunCoverage  = "bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]"
+	reviewRecordsRunRemaining = "bash <records-script> coverage none <HEAD> [<PLAN>]"
+	reviewRecordsRunFable     = "bash <records-script> fable <ENTRY> <HEAD> <PLAN>"
 )
 
 // reviewRecordsNames are the code spans that only name the review records
@@ -1828,10 +1837,11 @@ var reviewRecordsNames = []string{
 // block that names the script or its placeholder is the write-out or a run,
 // and every code span that names them is the name alone. Running the work
 // tree's copy would let the branch under review change the decision that
-// lets it skip a PR review or a Fable partial review. runpr.md's step 3 and
-// fable-review.md's validity decision, which the launch and the checkpoint
-// entries run, have the reading of the reference, the write-out, and the run
-// on consecutive lines, so a renamed form does not pass by matching nothing.
+// lets it skip a PR review or a Fable partial review. task-pr-handoff.md's
+// Part B step 2.5, runpr.md's step 3, and fable-review.md's validity decision,
+// which the launch and the checkpoint entries run, have the reading of the
+// reference, the write-out, and the run on consecutive lines, so a renamed form
+// does not pass by matching nothing.
 // A line that names neither the script nor its placeholder, or a block
 // fenced otherwise, is out of its reach.
 func TestReviewRecordsCallSite(t *testing.T) {
@@ -1843,7 +1853,7 @@ func TestReviewRecordsCallSite(t *testing.T) {
 			}
 			inBlock := i < len(blockLines)
 			switch {
-			case inBlock && (code == reviewRecordsShow || code == reviewRecordsRunCoverage || code == reviewRecordsRunFable):
+			case inBlock && (code == reviewRecordsShow || code == reviewRecordsRunCoverage || code == reviewRecordsRunRemaining || code == reviewRecordsRunFable):
 			case !inBlock && slices.Contains(reviewRecordsNames, code):
 			default:
 				t.Errorf("%s has %q, which neither names the review records script nor writes out or runs origin/main's copy", rel, code)
@@ -1851,12 +1861,14 @@ func TestReviewRecordsCallSite(t *testing.T) {
 		}
 	}
 	for _, site := range []struct {
-		name, path, heading, run string
+		name, path, run string
+		section         func(*testing.T, string) string
 	}{
-		{"runpr.md's step 3", runprPath, runprStep3, reviewRecordsRunCoverage},
-		{"fable-review.md's validity decision", fableReviewPath, "## The validity decision", reviewRecordsRunFable},
+		{"handoff step 2.5", handoffPath, reviewRecordsRunRemaining, itemSection("\n2.5. ", "\n3. ")},
+		{"runpr.md's step 3", runprPath, reviewRecordsRunCoverage, headingSection(runprStep3)},
+		{"fable-review.md's validity decision", fableReviewPath, reviewRecordsRunFable, headingSection("## The validity decision")},
 	} {
-		blockLines, _ := codeTexts(requireSection(t, site.name, doctestutil.ReadDoc(t, site.path), site.heading))
+		blockLines, _ := codeTexts(site.section(t, doctestutil.ReadDoc(t, site.path)))
 		if i := slices.Index(blockLines, reviewRecordsShow); i < 1 || i+1 >= len(blockLines) ||
 			blockLines[i-1] != reviewRecordsRef || blockLines[i+1] != site.run {
 			t.Errorf("%s has no code block lines %q, %q, %q in this order",
@@ -1953,9 +1965,9 @@ func TestRecordLinePrefixesDistinct(t *testing.T) {
 	}
 	// The lower bounds keep a table the reading misses from passing with
 	// nothing compared.
-	if localCount < 4 || len(existing)-localCount < 2 || len(families[false]) < 3 || len(families[true]) < 3 ||
+	if localCount < 3 || len(existing)-localCount < 2 || len(families[false]) < 3 || len(families[true]) < 3 ||
 		!slices.Contains(added, seenPrefix) {
-		t.Fatalf("read %d prefixes from local-cli-review.md step 7, %d more from opus-review.md, %d Fable and %d merge check prefixes from fable-review.md, and the seen-range line %v; want at least 4, 2, 3, 3, and true",
+		t.Fatalf("read %d prefixes from local-cli-review.md step 7, %d more from opus-review.md, %d Fable and %d merge check prefixes from fable-review.md, and the seen-range line %v; want at least 3, 2, 3, 3, and true",
 			localCount, len(existing)-localCount, len(families[false]), len(families[true]), slices.Contains(added, seenPrefix))
 	}
 	for i, n := range added {

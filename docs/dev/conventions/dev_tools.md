@@ -22,6 +22,11 @@ temporary directory each time it runs it. The list is in `CLAUDE.md`:
 `make coverage-compare` under "Test Commands" and `make ext-coverage-compare`
 under "Extension Commands".
 
+A **CI-only tool** is a developer tool that a GitHub Actions workflow runs from
+the checked-out tree with `go run`, not one a user installs. The only one today
+is `ciskip`, a CI-only tool for the `check-changes` job of
+`.github/workflows/ci.yml`.
+
 ## Rule 1: Write a tool in Go, with tests
 
 Write a tool that makes a decision and has a side effect in Go, with tests.
@@ -63,7 +68,7 @@ The contract is written in `CLAUDE.md` ("Build Commands", "Test Commands",
 [_context.md](../../../.claude/commands/_context.md), and in the guides of the
 installed tools: [fixprguard_guide.md](../guides/fixprguard_guide.md),
 [mergepr_guide.md](../guides/mergepr_guide.md),
-[chief_guide.md](../guides/chief_guide.md), and
+[chief_architecture.md](../chief_architecture.md), and
 [numreserve_guide.md](../guides/numreserve_guide.md).
 
 ## Rule 5: Install tools from main; agents never install or build them
@@ -99,7 +104,7 @@ run it, under three conditions:
 3. The run has no external side effect. A test, `--help`, and a run on local
    input or on a copy qualify. These do not: writing to the network or to
    GitHub, creating a record tag, typing into another agent's pane, and
-   sending to an outside service (an LLM API or Codex CLI included). A run
+   sending to an outside service (an LLM API included). A run
    that acts on shared state (chief's state directory, a Herdr workspace or
    pane, a worktree, `$(go env GOPATH)/bin`) is not a run on local input or on
    a copy.
@@ -113,11 +118,8 @@ Stop and ask the user in two situations: a step comes to a point where it
 would install or build an installed tool, or a command fails because a tool is
 missing or its number does not match.
 
-A procedure that decides otherwise wins. Today these do:
+A procedure that decides otherwise wins. Today this does:
 
-- When `codexreview` is missing or its number does not match,
-  [local-cli-review.md](../../../.claude/commands/_lib/local-cli-review.md)
-  step 3 records `not run` and goes on.
 - When a number does not match, `/fixpr`, `/runpr`, and `/mergepr` show two
   fixes and stop: reinstall the tool from `main` when the tool is old, or
   merge `origin/main` into the branch when the branch is old (`/runpr`'s
@@ -140,6 +142,13 @@ procedure, not by this document.
 ### Per-run tools
 
 A per-run tool is not subject to this section.
+
+### CI-only tools
+
+A CI-only tool is not subject to this section. A GitHub Actions workflow runs
+it from the checked-out tree, so no user installs it and no agent builds it for
+a run. It carries no `--protocol` number either: there is no installed copy for
+a document to disagree with.
 
 ### The permission layer
 

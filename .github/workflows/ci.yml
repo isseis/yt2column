@@ -12,6 +12,11 @@ jobs:
   check-changes:
     name: Check changed files
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      checks: read
     outputs:
       has-code-changes: ${{ steps.check.outputs.has-code-changes }}
       has-extension-changes: ${{ steps.check.outputs.has-extension-changes }}
@@ -30,7 +35,7 @@ jobs:
           cache: true
 
       - name: Classify changed files
-        id: check
+        id: normal
         run: |
           changed_files=$(git diff --name-only origin/main...HEAD)
           echo "Changed files:"
@@ -61,15 +66,86 @@ jobs:
           # the article generation modules compile; when those cannot be
           # listed, it runs.
           dep_dirs="$RUNNER_TEMP/wasm-dep-dirs"
+          wasm_dep_dirs_ok=false
           if bash extension/scripts/wasm-dep-dirs.sh > "$dep_dirs"; then
             has_extension_changes=$(git -c core.quotePath=false diff -z --no-renames --name-only origin/main...HEAD \
               | bash extension/scripts/has-extension-changes.sh "$dep_dirs")
+            wasm_dep_dirs_ok=true
           else
             echo "Listing the article generation modules' Go packages failed; running the extension job"
             has_extension_changes=true
           fi
           echo "has-extension-changes=$has_extension_changes" >> "$GITHUB_OUTPUT"
+          echo "wasm-dep-dirs-ok=$wasm_dep_dirs_ok" >> "$GITHUB_OUTPUT"
           echo "Extension job needed: $has_extension_changes"
+
+      - name: Finalize change classification
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOTOOLCHAIN: local
+          CISKIP_NORMAL_CODE: ${{ steps.normal.outputs.has-code-changes }}
+          CISKIP_NORMAL_EXT: ${{ steps.normal.outputs.has-extension-changes }}
+          CISKIP_WASM_DEP_DIRS_OK: ${{ steps.normal.outputs.wasm-dep-dirs-ok }}
+          CISKIP_REPO: ${{ github.repository }}
+          CISKIP_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          CISKIP_BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+          CISKIP_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          CISKIP_PR_NUMBER: ${{ github.event.pull_request.number }}
+          CISKIP_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CISKIP_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if [ "${CISKIP_NORMAL_CODE:-}" = "false" ]; then
+            has_code_changes=false
+          else
+            has_code_changes=true
+          fi
+
+          if [ "${CISKIP_NORMAL_EXT:-}" = "false" ]; then
+            has_extension_changes=false
+          else
+            has_extension_changes=true
+          fi
+
+          if [ "$has_code_changes" = "true" ] || [ "$has_extension_changes" = "true" ]; then
+            dep_dirs="$RUNNER_TEMP/wasm-dep-dirs"
+            result_file=""
+            mktemp_status=0
+            result_file=$(mktemp "$RUNNER_TEMP/ciskip-result.XXXXXX") || mktemp_status=$?
+            if [ "$mktemp_status" -ne 0 ] || [ -z "$result_file" ]; then
+              echo "ciskip: fallback to normal classification (mktemp failed, status=$mktemp_status)"
+            else
+              trap 'rm -f -- "$result_file"' EXIT
+              run_status=0
+              go run ./cmd/ciskip \
+                --repo="${CISKIP_REPO:-}" \
+                --head-repo="${CISKIP_HEAD_REPO:-}" \
+                --base-repo="${CISKIP_BASE_REPO:-}" \
+                --base-ref="${CISKIP_BASE_REF:-}" \
+                --pr-number="${CISKIP_PR_NUMBER:-}" \
+                --head-sha="${CISKIP_HEAD_SHA:-}" \
+                --run-attempt="${CISKIP_RUN_ATTEMPT:-}" \
+                --dep-dirs="$dep_dirs" \
+                --wasm-dep-dirs-ok="${CISKIP_WASM_DEP_DIRS_OK:-}" \
+                --result-file="$result_file" || run_status=$?
+
+              if [ "$run_status" -ne 0 ]; then
+                echo "ciskip: fallback to normal classification (go run failed, status=$run_status)"
+              elif printf 'skip=true\n' | cmp -s -- - "$result_file"; then
+                has_code_changes=false
+                has_extension_changes=false
+              else
+                cmp_status=0
+                printf 'skip=false\n' | cmp -s -- - "$result_file" || cmp_status=$?
+                if [ "$cmp_status" -ne 0 ]; then
+                  echo "ciskip: fallback to normal classification (unexpected result file, status=$cmp_status)"
+                fi
+              fi
+            fi
+          fi
+
+          echo "has-code-changes=$has_code_changes" >> "$GITHUB_OUTPUT"
+          echo "has-extension-changes=$has_extension_changes" >> "$GITHUB_OUTPUT"
 
   test:
     name: Test
@@ -212,7 +288,7 @@ jobs:
           cache: true
 
       - name: Run documentation sync guards
-        run: go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/codexreview ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief
+        run: go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief
 
   # Runs on every pull request, independent of the change classification, so a
   # private key committed anywhere in the repository fails CI.

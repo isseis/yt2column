@@ -138,7 +138,7 @@ func TestMismatchRemedy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read Makefile: %v", err)
 	}
-	for _, tool := range []string{"fixprguard", "codexreview", "chief", "mergepr"} {
+	for _, tool := range []string{"fixprguard", "chief", "mergepr"} {
 		t.Run(tool, func(t *testing.T) {
 			target := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta("install-"+tool) + `:`)
 			if !target.Match(makefile) {

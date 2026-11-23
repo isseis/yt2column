@@ -102,6 +102,58 @@ func TestGuideListsInteractionLimitsValues(t *testing.T) {
 	}
 }
 
+// TestGuideListsReviewStateValues: the review-state section of chapter 5
+// lists, in code spans, every state, unreadable reason, indeterminate reason
+// and run kind the tool prints, each in its own table. Reading the tables
+// alone keeps the same word elsewhere in the section from standing in for a
+// row.
+func TestGuideListsReviewStateValues(t *testing.T) {
+	sub := subsection(readRepoFile(t, guidePath), "### `review-state ")
+	type listing struct {
+		marker string
+		names  []string
+	}
+	var states, unreadable, indeterminate, kinds []string
+	text := func(v interface{ MarshalText() ([]byte, error) }) string {
+		name, err := v.MarshalText()
+		if err != nil {
+			t.Fatalf("MarshalText(%v) = %v", v, err)
+		}
+		return string(name)
+	}
+	for _, v := range fixprguard.RequestStates() {
+		states = append(states, text(v))
+	}
+	for _, v := range fixprguard.UnreadableReasons() {
+		unreadable = append(unreadable, text(v))
+	}
+	for _, v := range fixprguard.IndeterminateReasons() {
+		indeterminate = append(indeterminate, text(v))
+	}
+	for _, v := range fixprguard.RunKinds() {
+		kinds = append(kinds, text(v))
+	}
+	for _, l := range []listing{
+		{"**状態。**", states},
+		{"**読めない理由。**", unreadable},
+		{"**決まらない理由。**", indeterminate},
+		// The classification table of the section, which names the kinds the
+		// tool prints for a check run.
+		{"**応答の分類。**", kinds},
+	} {
+		table := guideTable(sub, l.marker)
+		if table == "" {
+			t.Errorf("%s: the review-state section has no table after %s", guidePath, l.marker)
+			continue
+		}
+		for _, name := range l.names {
+			if !strings.Contains(table, "`"+name+"`") {
+				t.Errorf("%s: the review-state table after %s does not list `%s`", guidePath, l.marker, name)
+			}
+		}
+	}
+}
+
 // guideTable returns the lines of the first table after the line of doc that
 // starts with marker. It returns "" when there is no such line or another
 // bold heading comes before a table, so a missing table never borrows the
@@ -151,21 +203,28 @@ func TestGuideTable(t *testing.T) {
 	}
 }
 
-// reviewerPlaceholder is the --reviewer value the command documents write.
-// The documents write it once per call and define it as one --reviewer per
-// name of the automated reviewer list in _context.md, so the names live in
-// _context.md alone and the list can change without editing a call.
-const reviewerPlaceholder = "<reviewer>"
+// reviewerPlaceholder is the --reviewer value the command documents write for
+// the reviewer-list subcommands. awaitedReviewerPlaceholder and
+// requestPlaceholder are the --reviewer and --request values runpr.md writes
+// for review-state.
+const (
+	reviewerPlaceholder        = "<reviewer>"
+	awaitedReviewerPlaceholder = "<awaited-reviewer>"
+	requestPlaceholder         = "\"<review-request>\""
+)
 
 var (
 	errReviewerCount = errors.New("--reviewer not given exactly once")
 	errReviewerValue = errors.New("--reviewer is not the placeholder")
+	errRequestValue  = errors.New("--request is not the placeholder")
 )
 
 // checkDocumentedReviewer checks a parsed documented call of a subcommand that
 // takes --reviewer: its collected --reviewer values must be exactly one, the
-// placeholder. A call of another subcommand has nothing to check (parse
-// refuses --reviewer there).
+// subcommand's placeholder (<awaited-reviewer> for review-state, <reviewer>
+// for the rest), and review-state must pass the <review-request> placeholder.
+// A call of another subcommand has nothing to check (parse refuses --reviewer
+// there).
 func checkDocumentedReviewer(inv invocation) error {
 	if !slices.Contains(specs[inv.name].flags, flagReviewer) {
 		return nil
@@ -174,8 +233,15 @@ func checkDocumentedReviewer(inv invocation) error {
 	if len(values) != 1 {
 		return fmt.Errorf("%w: %d values", errReviewerCount, len(values))
 	}
-	if values[0] != reviewerPlaceholder {
+	wantReviewer := reviewerPlaceholder
+	if inv.name == cmdReviewState {
+		wantReviewer = awaitedReviewerPlaceholder
+	}
+	if values[0] != wantReviewer {
 		return fmt.Errorf("%w: %q", errReviewerValue, values[0])
+	}
+	if inv.name == cmdReviewState && inv.values[flagRequest] != requestPlaceholder {
+		return fmt.Errorf("%w: %q", errRequestValue, inv.values[flagRequest])
 	}
 	return nil
 }
@@ -215,7 +281,7 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 		want []string
 	}{
 		{".claude/commands/fixpr.md", []string{cmdBegin, cmdFence, cmdInspect, cmdFinish, cmdPush, cmdCheck, cmdPushReview, cmdReply, cmdEditPR, cmdAppendPR}},
-		{".claude/commands/runpr.md", []string{cmdHead, cmdInteractionLimits, cmdList, cmdReply, cmdEditPR}},
+		{".claude/commands/runpr.md", []string{cmdHead, cmdInteractionLimits, cmdReviewState, cmdList, cmdReply, cmdEditPR}},
 	} {
 		calls := documentedInvocations(readRepoFile(t, tc.rel))
 		seen := map[string]struct{}{}
@@ -249,6 +315,9 @@ func TestCheckDocumentedReviewer(t *testing.T) {
 	}{
 		{"one_placeholder", args(cmdList, "--reviewer", reviewerPlaceholder, testPR), nil},
 		{"no_reviewer_subcommand", args(cmdHead, testPR), nil},
+		{"review_state_placeholders", args(cmdReviewState, "--reviewer", awaitedReviewerPlaceholder, "--request", requestPlaceholder, testPR), nil},
+		{"review_state_wrong_reviewer", args(cmdReviewState, "--reviewer", reviewerPlaceholder, "--request", requestPlaceholder, testPR), errReviewerValue},
+		{"review_state_wrong_request", args(cmdReviewState, "--reviewer", awaitedReviewerPlaceholder, "--request", "literal", testPR), errRequestValue},
 		{"two_placeholders", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", reviewerPlaceholder, testPR), errReviewerCount},
 		{"placeholder_and_name", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", testReviewer, testPR), errReviewerCount},
 		{"name_itself", args(cmdInspect, "--reviewer", testReviewer, "--baseline", "<b>", testPR), errReviewerValue},
@@ -307,28 +376,42 @@ func cutSection(doc, heading string, ends ...string) string {
 }
 
 // TestGuideDescribesReviewerList: the subcommand headings that write
-// "--reviewer LOGIN ..." in the guide are exactly the subcommands whose
-// spec takes --reviewer, so a subcommand that starts or stops taking the flag
-// fails here until the guide changes too.
+// "--reviewer LOGIN" in the guide are exactly the subcommands whose spec takes
+// --reviewer, and the ones that write "--reviewer LOGIN ..." (a name repeated
+// once per reviewer) are those but review-state, which takes one name. A
+// subcommand that starts or stops taking the flag fails here until the guide
+// changes too.
 func TestGuideDescribesReviewerList(t *testing.T) {
 	takesReviewer := map[string]struct{}{}
+	repeats := map[string]struct{}{}
 	for name, sp := range specs {
 		if slices.Contains(sp.flags, flagReviewer) {
 			takesReviewer[name] = struct{}{}
+			if name != cmdReviewState {
+				repeats[name] = struct{}{}
+			}
 		}
 	}
 	headed := map[string]struct{}{}
+	headedRepeating := map[string]struct{}{}
 	for line := range strings.Lines(readRepoFile(t, guidePath)) {
 		rest, ok := strings.CutPrefix(line, "### `")
 		if !ok {
 			continue
 		}
-		if name, _, _ := strings.Cut(rest, " "); strings.Contains(rest, "--reviewer LOGIN ...") {
+		name, _, _ := strings.Cut(rest, " ")
+		if strings.Contains(rest, "--reviewer LOGIN") {
 			headed[name] = struct{}{}
+		}
+		if strings.Contains(rest, "--reviewer LOGIN ...") {
+			headedRepeating[name] = struct{}{}
 		}
 	}
 	if !maps.Equal(headed, takesReviewer) {
-		t.Errorf("headings with --reviewer LOGIN ... are %v, want the subcommands taking --reviewer %v", slices.Sorted(maps.Keys(headed)), slices.Sorted(maps.Keys(takesReviewer)))
+		t.Errorf("headings with --reviewer LOGIN are %v, want the subcommands taking --reviewer %v", slices.Sorted(maps.Keys(headed)), slices.Sorted(maps.Keys(takesReviewer)))
+	}
+	if !maps.Equal(headedRepeating, repeats) {
+		t.Errorf("headings with --reviewer LOGIN ... are %v, want the subcommands taking it repeatedly %v", slices.Sorted(maps.Keys(headedRepeating)), slices.Sorted(maps.Keys(repeats)))
 	}
 }
 
@@ -342,8 +425,7 @@ var (
 // TestDocumentedProtocolMatches: every protocol number the documents write
 // is the binary's Protocol: each --protocol N in the guide and in every
 // command document under .claude/commands (prose included, not only code
-// blocks) that is not in a codexreview call, which codexreview's own guard
-// checks, each "protocol":N of the output examples in the guide and runpr.md
+// blocks) outside another tool's call, each "protocol":N of the output examples in the guide and runpr.md
 // (the command document that shows fixprguard's output), and the current
 // number chapter 4 of the guide states. The guide must write each at least
 // once, so a guide that stops writing them is not read as agreeing; that
@@ -390,9 +472,8 @@ func fixprguardProtocolMismatches(doc string) []string {
 
 // TestFixprguardProtocolMismatches: the check skips the other tools' flags
 // only, so a wrong number in a fixprguard call, or in prose naming no tool,
-// is still found next to a codexreview or a chief call.
+// is still found next to another tool's call.
 func TestFixprguardProtocolMismatches(t *testing.T) {
-	const sha = "0123456789abcdef0123456789abcdef01234567"
 	right := strconv.Itoa(fixprguard.Protocol)
 	wrong := strconv.Itoa(fixprguard.Protocol + 1)
 	for _, tc := range []struct {
@@ -400,8 +481,6 @@ func TestFixprguardProtocolMismatches(t *testing.T) {
 		doc  string
 		want []string
 	}{
-		{"codexreview_call_skipped", "codexreview --protocol " + wrong + " --base " + sha + "\n", nil},
-		{"wrong_fixprguard_call_after_codexreview", "codexreview --protocol " + wrong + " --base " + sha + " && fixprguard head --protocol " + wrong + "\n", []string{"--protocol " + wrong}},
 		{"chief_call_skipped", "chief snapshot --protocol " + wrong + "\n", nil},
 		{"wrong_fixprguard_call_after_chief", "chief snapshot --protocol " + wrong + " && fixprguard head --protocol " + wrong + "\n", []string{"--protocol " + wrong}},
 		{"mergepr_call_skipped", "mergepr discard --protocol " + wrong + " --state s\n", nil},
@@ -417,16 +496,24 @@ func TestFixprguardProtocolMismatches(t *testing.T) {
 	}
 }
 
-// TestGuideDescribesMentionCheck: the guide names, in 7.1 and 7.2, the
-// mention reply and edit-pr reject, taking the value from internal/fixprguard,
-// so changing the constant without the guide fails here. Whether the prose
-// around it is right is checked by review, not pinned by wording.
+// TestGuideDescribesMentionCheck: the guide names, in 7.1 and 7.2, every
+// mention reply, edit-pr, append-pr, and finish reject, taking the values from
+// internal/fixprguard, so changing RejectedMentions without the guide fails
+// here. Whether the prose around them is right is checked by review, not
+// pinned by wording.
 func TestGuideDescribesMentionCheck(t *testing.T) {
-	mention := "`" + fixprguard.CodexMention + "`"
+	mentions := fixprguard.RejectedMentions()
+	if len(mentions) == 0 {
+		t.Fatal("fixprguard.RejectedMentions() is empty")
+	}
 	guide := readRepoFile(t, guidePath)
 	for _, heading := range []string{"### 7.1", "### 7.2"} {
-		if !strings.Contains(subsection(guide, heading), mention) {
-			t.Errorf("%s %s does not name %s", guidePath, heading, mention)
+		sub := subsection(guide, heading)
+		for _, m := range mentions {
+			mention := "`" + m + "`"
+			if !strings.Contains(sub, mention) {
+				t.Errorf("%s %s does not name %s", guidePath, heading, mention)
+			}
 		}
 	}
 }

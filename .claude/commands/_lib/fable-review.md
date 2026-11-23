@@ -8,7 +8,7 @@ The Fable partial review has a subagent running on Fable review, before a
 task PR opens, only the places of the PR that meet one of four criteria
 ("Scope criteria"), each with a narrow role. Its findings join the triage of
 the local CLI review (`_lib/local-cli-review.md`, "Triage rules"), so the
-fixes are in the PR before Codex's first PR review sees it.
+fixes pass local CLI review and human review starts from the fixed PR.
 
 This file defines the procedure once. It has three entry points:
 
@@ -29,8 +29,8 @@ This file and the prompt it builds never name a concrete model ID (one that
 carries a model version). A subagent that is not Fable could copy such an ID
 from its prompt when it reports its own model.
 
-Project-specific values (the PR review request whose first word is
-`<review-mention>`, the build checks) are in `.claude/commands/_context.md`.
+Project-specific values (`<mention-check>` from "Rejected mentions",
+the build checks) are in `.claude/commands/_context.md`.
 
 ## Inputs and outputs
 
@@ -321,8 +321,8 @@ part is a summary:
   own words, never a copied line. Fable may raise one again only with a
   concrete scenario:
   - the rejected findings of `CodeRabbit local review:`, `Codex local
-    review:`, and `Fable finding:` lines in `git log origin/main..HEAD`
-    (never the text of a Codex CLI finding);
+    review:` (legacy lines from older branches), and `Fable finding:` lines
+    in `git log origin/main..HEAD`;
   - the `Opus review: kept` lines of the same log;
   - SELF_REJECTED;
   - the decisions of the `…で決めたこと` sections of TASK_DIR's documents,

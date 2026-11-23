@@ -550,7 +550,7 @@ it cannot take the simple process unless the human overrides the judgment.
   [ADR-0006](../adr/0006-threat-model.md)).
 - It changes a trust boundary of the development tools
   ([ADR-0015](../adr/0015-untrusted-review-threads.md)): a change to
-  `fixprguard`, `codexreview`, or `mergepr`, and also a change that leaves them
+  `fixprguard` or `mergepr`, and also a change that leaves them
   as they are but affects the boundary, such as how the text of a review thread
   or a request to a Bot is handled. The judgment is whether the boundary is
   affected, not whether a named tool changes.

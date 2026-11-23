@@ -22,9 +22,13 @@ const (
 	testReviewer = "coderabbitai"
 	// testSecondReviewer is the second automated reviewer of the tests that
 	// pass two --reviewer flags.
-	testSecondReviewer = "chatgpt-codex-connector"
+	testSecondReviewer = "second-reviewer-bot"
 	testBranch         = "feature"
-	testTime           = "2026-10-21T00:00:00Z"
+	// testRequest is the text of a review request comment in the tests, and
+	// testSecret stands for text GitHub returned that must reach no output.
+	testRequest = "please review"
+	testSecret  = "secret-marker"
+	testTime    = "2026-10-21T00:00:00Z"
 	// testFile is the file the initial commit holds and the threads point at.
 	testFile = "docs/notes/a.md"
 

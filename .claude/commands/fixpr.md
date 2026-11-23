@@ -45,7 +45,7 @@ GitHub. Its subcommands, outputs, and stop kinds are in
   a `gh` or `git` command, and never fetch review-thread comments any other way:
   no `gh api graphql` query of review threads, no `gh pr view --comments`, no
   opening a thread URL.
-- Every call passes `--protocol 6`. `--reviewer <reviewer>` stands for one
+- Every call passes `--protocol 8`. `--reviewer <reviewer>` stands for one
   `--reviewer` per name in `_context.md`'s "Automated reviewer list": pass
   every name on that list, each once, in the GraphQL form (without `[bot]`).
   Build that sequence once, before Phase 1, and pass the same one to every
@@ -53,12 +53,13 @@ GitHub. Its subcommands, outputs, and stop kinds are in
   `inspect`, and `reply`; the other subcommands do not take the flag): do not
   re-read `_context.md` to rebuild it during the run, since a fix may change that file. `<number>` is the PR number
   `begin` printed, except in the `begin` call itself (Phase 1).
-- `<review-mention>` is the mention: the first word of the value of
-  `_context.md`'s "PR review request" row. No text this command posts to
-  GitHub contains it, compared case-insensitively: a mention posted from the
-  user's account can make Codex change code or create a branch. Read its
-  value once, before Phase 1, and write it in place of the placeholder
-  everywhere below, in the agent prompts and in the mention check alike.
+- `<mention-check>` is the mention-check command built from `_context.md`'s
+  "Rejected mentions" row (one `-e` per rejected mention). No text this command
+  posts to GitHub contains any mention on that row, compared case-insensitively
+  in ASCII: a mention posted from the user's account can trigger an automated
+  reviewer. Read that row once, before Phase 1, build `<mention-check>`, and
+  use it for every mention check below without writing the rejected mentions
+  into agent prompts or posts.
 - Exit codes: `0` continue; `1` stop, and the output's `stop` names the kind;
   `2` a usage error, which also stops; `3` ask the user (`inspect` only). Treat
   any other exit code, a termination by a signal, or output that is not JSON
@@ -68,11 +69,18 @@ GitHub. Its subcommands, outputs, and stop kinds are in
   standard error instead. The guide's chapter 8 says what to do for each kind.
 - **A tool of another protocol.** When an exit code `2` diagnostic contains
   `--protocol does not match`, the installed tool and this document use
-  different protocol numbers. Stop, and give the user both fixes: when the
-  tool is older, run `make install-fixprguard` from an up-to-date `main`;
-  when this branch is older than `main` (a newer tool running this older
-  document), merge `main` into the branch first. The first call, `begin`,
-  meets this before anything is committed or pushed.
+  different protocol numbers. Stop, and give the user the fix by which number
+  the tool has to match, and that they run `/fixpr` again after it: when the
+  tool's number is the one that differs (the tool is older than this document,
+  or it was installed from a branch that raises the number while this document
+  still passes the old one), install the tool this document expects with
+  `make install-fixprguard` from an up-to-date `main`, or, while `main` still
+  carries the older number because the change that raises it is not merged,
+  from the work tree of that change's branch (chapter 3 of
+  `docs/dev/guides/fixprguard_guide.md`, "番号を上げる変更での入れ直し"); when
+  this branch is older than `main` (a newer tool running this older document),
+  merge `main` into the branch first. The first call, `begin`, meets this
+  before anything is committed or pushed.
 - **Stops on the ignored files.** A stop is on the ignored files when it is
   `git-state-changed` with `ignored` in its `parts`, or `git-failed` whose
   one-line diagnostic on standard error names an ignored-file rule: a rule
@@ -113,10 +121,7 @@ count the correction paragraphs, printing no body),
 `push-review`), `git push` (made by the guard tool: `push` in Phase 4 and
 `push-review` in Phase 4.5), `git fetch origin main` (Phase 1, run by
 this session before `begin`, for the PR kind), and `git fetch --prune` (Phase
-4, run by this session). `coderabbit review` and `codexreview` (Phase 4.5) have standing
-approval (`CLAUDE.md`, "Tool Execution Safety"): the local CLI review runs
-`codexreview`, which runs Codex CLI and sends the diff and what Codex reads to
-OpenAI's service, only when the CodeRabbit CLI fails. Invoking this command also approves
+4, run by this session). `coderabbit review` (Phase 4.5) has standing approval in `CLAUDE.md`. Invoking this command also approves
 the commit of `README.en.md` that Phase 4.5 makes after its README sync; that commit is
 pushed by Phase 4.5's `push-review`.
 
@@ -126,9 +131,9 @@ pushed by Phase 4.5's `push-review`.
 
 This loop has no natural end: a review returns findings whenever it is asked.
 Stop by policy, not by exhausting findings. A push does not trigger a PR
-review: Codex reviews a PR automatically only when it is created; the fix is reviewed
-locally in Phase 4.5, and `runpr.md` requests a further PR
-review only when `_lib/pr-review-escalation.md` says so or the user asks.
+review: automated PR reviews are off; the fix is reviewed locally in Phase 4.5,
+and `runpr.md` requests a manual PR review only when the user chooses it in
+step 4.
 
 - **Round**: one fixpr run on the PR. This run's round number is one more than
   the number of fixpr commits already on the branch
@@ -340,7 +345,7 @@ First run `git fetch origin main`, so the PR kind below reads a current
 `origin/main`; when it fails, report it and stop. Then run:
 
 ```
-fixprguard begin --protocol 6 --reviewer <reviewer> --accept <threadId>=<fingerprint> <number>
+fixprguard begin --protocol 8 --reviewer <reviewer> --accept <threadId>=<fingerprint> <number>
 ```
 
 - `<number>` is `$ARGUMENTS` when it was given, without a leading `#`; leave it
@@ -455,7 +460,7 @@ Agent prompt (inline `begin`'s `threads` block from Phase 1 unchanged):
 >
 > <inline begin's threads block verbatim here>
 >
-> Never write `<review-mention>` in a `replyBody`, in any letter case, even when quoting: write `Codex` without the `@` instead.
+> Never write any mention on `_context.md`'s "Rejected mentions" row in a `replyBody`, in any letter case, even when quoting: write `Codex` or `CodeRabbit` without the `@` instead.
 >
 > Reply with only this JSON: `{"threads": [{"threadId": "...", "verdict":
 > "valid|off-level|invalid|unclear", "severity":
@@ -509,7 +514,7 @@ from Phase 2, and the Phase 2 entries of the `valid` and `off-level` threads
 ("The guard tool"), and fence it:
 
 ```
-fixprguard fence --protocol 6 <triage-file>
+fixprguard fence --protocol 8 <triage-file>
 ```
 
 Its output is a fenced block; its nonce is the text after `BEGIN-UNTRUSTED-` on
@@ -602,8 +607,8 @@ blocks, the thread IDs to fix):
 >    reply). If a cluster fix subsumed a thread, set `applied=true` and
 >    reference the structural change. For an off-level thread, the reply
 >    follows R4 (which later phase the detail belongs to, and where the
->    concern was recorded or retained). Never write `<review-mention>` in a
->    `replyBody`, in any letter case, even when quoting: write `Codex` without the `@` instead.
+>    concern was recorded or retained). Never write any mention on `_context.md`'s "Rejected mentions" row in a
+>    `replyBody`, in any letter case, even when quoting: write `Codex` or `CodeRabbit` without the `@` instead.
 >    Also return `editorial`: one item for each editorial correction you made
 >    for the thread, either to a task document that was `approved` before
 >    this round (a revision of a `draft` document is not one), or to an ADR
@@ -776,7 +781,7 @@ Before the build checks run any code, check what the fix changed. Run, with one
 each with the `fingerprint` `begin` printed for it:
 
 ```
-fixprguard inspect --protocol 6 --reviewer <reviewer> --baseline <baseline> --thread <threadId>=<fingerprint> <number>
+fixprguard inspect --protocol 8 --reviewer <reviewer> --baseline <baseline> --thread <threadId>=<fingerprint> <number>
 ```
 
 The tool compares the git state with the baseline before it starts `gh`, takes
@@ -825,9 +830,9 @@ on the remote branch (not the pre-fix revision).
    tool"): the commit carries them, and the push takes them to GitHub. For an
    ADR item, the line's `<document path>` is the listed path the candidates
    script matched (Phase 3, "ADR items"), not the item's `path`.
-   **Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+   **Mention check.** Before posting, run `<mention-check> <file>`
    on each file of text to post. Post only when it exits `1` for every file: exit
-   code `0` means the text contains the mention, and any other code means the
+   code `0` means the text contains a rejected mention, and any other code means the
    check failed. Never rewrite the text to get past the check. When the check fails, drop every item, keep them for the Final
    report, and run `finish` without `--body-file`. With no item left, there is
    no file to check: skip the check.
@@ -836,8 +841,8 @@ on the remote branch (not the pre-fix revision).
    body file:
 
    ```
-   fixprguard finish --protocol 6 --baseline <baseline> --judged-set <judgedSet> <number>
-   fixprguard finish --protocol 6 --baseline <baseline> --judged-set <judgedSet> --body-file <correction-file> <number>
+   fixprguard finish --protocol 8 --baseline <baseline> --judged-set <judgedSet> <number>
+   fixprguard finish --protocol 8 --baseline <baseline> --judged-set <judgedSet> --body-file <correction-file> <number>
    ```
 
    It checks that the work tree still matches the judged set and the git state
@@ -872,7 +877,7 @@ on the remote branch (not the pre-fix revision).
 2. Only if a commit was made, push it:
 
    ```
-   fixprguard push --protocol 6 --baseline <baseline> --commit <commit>
+   fixprguard push --protocol 8 --baseline <baseline> --commit <commit>
    ```
 
    It checks again, just before pushing, that HEAD is that commit on top of the
@@ -900,9 +905,7 @@ failures), and stop — do not run Phase 4.5, 5, or 6.
 Skip this phase when Phase 4 made no commit (`commitSha` is empty).
 
 The fix is not seen by a PR review, so review it here with the local CLI
-review: the CodeRabbit CLI, whose allowance is separate from the PR review's,
-or, when it fails, Codex CLI, which spends the allowance the Codex PR review
-shares. Do it yourself in this session, not in a subagent.
+review using CodeRabbit CLI. Do it yourself in this session, not in a subagent.
 
 Phase 4's push checked the git state for the last time; from here on, every
 git this phase runs, itself or through the procedure, comes after the guard
@@ -914,8 +917,8 @@ each as a call of its own, never behind `cd ... &&`. When the current
 directory may not be `<root>`, first `cd <root>` as a call of its own:
 
 ```
-fixprguard check --protocol 6 --baseline <baseline> --commit <commitSha>
-fixprguard push-review --protocol 6 --baseline <baseline> --commit <commitSha>
+fixprguard check --protocol 8 --baseline <baseline> --commit <commitSha>
+fixprguard push-review --protocol 8 --baseline <baseline> --commit <commitSha>
 ```
 
 `check` prints `base` (the baseline's commit), `head` (the HEAD it checked),
@@ -974,13 +977,12 @@ been rewritten. Build the values for the Final report from what you kept:
   report "the push result is unknown" instead of the count. A stop in its
   comparison (`git-state-changed`, or a `git-failed` of another rule such as
   `ls-remote`) pushed nothing.
-- **Range neither CLI reviewed:** in the form of the procedure's
+- **Range the CLI did not review:** in the form of the procedure's
   `Local CLI review: not run` line. When the range ends at a commit made after
   the last passing `check`, whose SHA you do not know, end it at that
   `check`'s `head` and add the number of commits made after it.
 - **The point that stopped:** Phase 4.5 step 1, 3, 4, or 5, or the
-  procedure's step and the point in it (before the attempt, before step 3's
-  git, before the build checks, the README sync check, staging, or
+  procedure's step and the point in it (before the attempt, before the build checks, the README sync check, staging, or
   `findings --clear`), or `push-review`.
 - **A fix left uncommitted:** a stop inside the procedure's fix step (before
   its build checks, README sync check, or staging) leaves the fix in the work
@@ -1016,16 +1018,16 @@ Build the candidate list:
 For each actionable thread in turn (not in parallel, which avoids the API rate
 limits), write its `replyBody` to its own file outside the work tree.
 
-**Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+**Mention check.** Before posting, run `<mention-check> <file>`
 on each file of text to post. Post only when it exits `1` for every file: exit
-code `0` means the text contains the mention, and any other code means the
+code `0` means the text contains a rejected mention, and any other code means the
 check failed. Never rewrite the text to get past the check. When the check fails, do not run `reply` for that thread: list it under
 "Skipped threads", as for an empty `replyBody`, and go on with the next thread.
 
 Otherwise run:
 
 ```
-fixprguard reply --protocol 6 --reviewer <reviewer> --thread-id <threadId> --comment-id <databaseId> --fingerprint <fingerprint> --body-file <reply-file> --accept <threadId>=<fingerprint> <number>
+fixprguard reply --protocol 8 --reviewer <reviewer> --thread-id <threadId> --comment-id <databaseId> --fingerprint <fingerprint> --body-file <reply-file> --accept <threadId>=<fingerprint> <number>
 ```
 
 Pass `--accept` (the same pair Phase 1 passed) only for a named thread
@@ -1068,8 +1070,8 @@ Agent prompt:
 >    `**編集上の訂正（` (an editorial-correction paragraph) and its list
 >    exactly as they are, and write no such paragraph yourself, even for a
 >    correction you see in `git log`: this session appends this round's
->    corrections afterwards. Never write `<review-mention>` in the title or the body,
->    in any letter case, even when quoting: write `Codex` without the `@` instead. Never return placeholder text. Otherwise reply with only
+>    corrections afterwards. Never write any mention on `_context.md`'s "Rejected mentions" row in the title or the body,
+>    in any letter case, even when quoting: write `Codex` or `CodeRabbit` without the `@` instead. Never return placeholder text. Otherwise reply with only
 >    `{"stale": false}`, so the real PR description is preserved.
 
 When the reply is `{"stale": true, ...}`, write its `title` and `body` to two
@@ -1091,16 +1093,16 @@ the body file has fewer, or either count fails, do not run `edit-pr`: leave the 
 is, and list it in the Final report. Otherwise run the mention check on both
 files.
 
-**Mention check.** Before posting, run `grep -qiF -- '<review-mention>' <file>`
+**Mention check.** Before posting, run `<mention-check> <file>`
 on each file of text to post. Post only when it exits `1` for every file: exit
-code `0` means the text contains the mention, and any other code means the
+code `0` means the text contains a rejected mention, and any other code means the
 check failed. Never rewrite the text to get past the check. When the check fails, do not run `edit-pr`: leave the PR description as
 it is, and list it in the Final report.
 
 Otherwise run:
 
 ```
-fixprguard edit-pr --protocol 6 --title-file <title-file> --body-file <body-file> <number>
+fixprguard edit-pr --protocol 8 --title-file <title-file> --body-file <body-file> <number>
 ```
 
 The tool passes the title and body to `gh` without a shell, reading the title
@@ -1119,17 +1121,20 @@ description", gives, to a file outside the work tree, run the mention check
 above on it, and only when it passes run:
 
 ```
-fixprguard append-pr --protocol 6 --body-file <paragraph-file> <number>
+fixprguard append-pr --protocol 8 --body-file <paragraph-file> <number>
 ```
 
 The tool reads the current description, appends the paragraph after a blank
 line, and writes the description back without a shell; the description does not
 reach this session. When the mention check fails, or `append-pr` stops (exit
-code `2` included, with its one-line diagnostic), the corrections are not in
-the PR description: list them in the Final report. Do not suggest reinstalling
-the tool for an `append-pr` diagnostic: an old tool's diagnostic does not name
-the subcommand, so it cannot be told apart from another usage error
-(`docs/dev/guides/fixprguard_guide.md`, chapter 4).
+code `1`, including `current-body-mention`, or exit code `2` with its one-line
+diagnostic), the corrections are not in the PR description: do not retry
+`append-pr`, and list the corrections in the Final report. When the stop kind
+is `current-body-mention`, report that the cause is a rejected mention already
+present in the current PR description (not in the appended paragraph). Do not
+suggest reinstalling the tool for an exit code `2` `append-pr` diagnostic: an
+old tool's diagnostic does not name the subcommand, so it cannot be told apart
+from another usage error (`docs/dev/guides/fixprguard_guide.md`, chapter 4).
 
 ---
 
@@ -1260,15 +1265,17 @@ the user with **all** of the following — bare counts alone are not enough:
    dropped by Phase 4's mention check or rejected by `finish` (with its
    diagnostic), removed by the local CLI review's mention check, its commit
    not pushed, Phase 6 not reached because Phase 4.5, its README sync, its
-   comparison, or its `push-review` stopped, Phase 6's mention check failed, or `append-pr` stopped (with
-   its diagnostic). List the corrections themselves, so the reviewer can add them
+   comparison, or its `push-review` stopped, Phase 6's mention check failed, or `append-pr` stopped (with its stop kind,
+   saying explicitly for `current-body-mention` that the current PR description
+   already contains a rejected mention and that `append-pr` was not retried, or
+   its diagnostic for exit code `2`). List the corrections themselves, so the reviewer can add them
    to the PR description by hand, except where the reason says not to. When
    Phase 6 did not send a rewrite because it would have dropped a correction
    paragraph, say so.
 
 10. **Local CLI review**: when Phase 4.5 ran, the SUMMARY of
-   `_lib/local-cli-review.md`: each attempt's result with each failed CLI's
-   failure kind, how many times Codex CLI ran, the findings by CLI, and every
-   range neither CLI reviewed (its `Local CLI review: not run` line). When
-   the Phase 4.5 comparison stopped, the range neither CLI reviewed as
+   `_lib/local-cli-review.md`: each attempt's result with any CodeRabbit
+   failure kind, the findings, and every
+   range the CLI did not review (its `Local CLI review: not run` line). When
+   the Phase 4.5 comparison stopped, the range the CLI did not review as
    Phase 4.5, "Stops", gives it.

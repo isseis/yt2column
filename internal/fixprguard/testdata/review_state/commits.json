@@ -1,0 +1,121 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "headRefOid": "f24ee60a00000000000000000000000000000000",
+        "commits": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "commit": {
+                "oid": "7cefaa5e00000000000000000000000000000000",
+                "checkSuites": {
+                  "pageInfo": {
+                    "hasNextPage": false
+                  },
+                  "nodes": [
+                    {
+                      "app": {
+                        "slug": "coderabbitai"
+                      },
+                      "checkRuns": {
+                        "pageInfo": {
+                          "hasNextPage": false
+                        },
+                        "nodes": [
+                          {
+                            "databaseId": 64000001,
+                            "status": "COMPLETED",
+                            "conclusion": "SUCCESS",
+                            "title": "Finished",
+                            "startedAt": "2026-11-20T03:20:24Z",
+                            "completedAt": "2026-11-20T03:22:24Z",
+                            "url": "https://github.com/isseis/yt2column/runs/64000001"
+                          },
+                          {
+                            "databaseId": 64000002,
+                            "status": "COMPLETED",
+                            "conclusion": "SKIPPED",
+                            "title": "Review skipped: automatic reviews are disabled",
+                            "startedAt": "2026-11-20T03:18:01Z",
+                            "completedAt": "2026-11-20T03:18:01Z",
+                            "url": "https://github.com/isseis/yt2column/runs/64000002"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "app": {
+                        "slug": "github-actions"
+                      },
+                      "checkRuns": {
+                        "pageInfo": {
+                          "hasNextPage": false
+                        },
+                        "nodes": []
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "commit": {
+                "oid": "f24ee60a00000000000000000000000000000000",
+                "checkSuites": {
+                  "pageInfo": {
+                    "hasNextPage": false
+                  },
+                  "nodes": [
+                    {
+                      "app": {
+                        "slug": "coderabbitai"
+                      },
+                      "checkRuns": {
+                        "pageInfo": {
+                          "hasNextPage": false
+                        },
+                        "nodes": [
+                          {
+                            "databaseId": 64000005,
+                            "status": "COMPLETED",
+                            "conclusion": "SUCCESS",
+                            "title": "Finished",
+                            "startedAt": "2026-11-20T04:26:25Z",
+                            "completedAt": "2026-11-20T04:29:18Z",
+                            "url": "https://github.com/isseis/yt2column/runs/64000005"
+                          },
+                          {
+                            "databaseId": 64000004,
+                            "status": "COMPLETED",
+                            "conclusion": "NEUTRAL",
+                            "title": "Review rate limited",
+                            "startedAt": "2026-11-20T03:58:46Z",
+                            "completedAt": "2026-11-20T03:58:46Z",
+                            "url": "https://github.com/isseis/yt2column/runs/64000004"
+                          },
+                          {
+                            "databaseId": 64000003,
+                            "status": "COMPLETED",
+                            "conclusion": "SKIPPED",
+                            "title": "Review skipped: automatic reviews are disabled",
+                            "startedAt": "2026-11-20T03:23:35Z",
+                            "completedAt": "2026-11-20T03:23:35Z",
+                            "url": "https://github.com/isseis/yt2column/runs/64000003"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

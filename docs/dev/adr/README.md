@@ -18,7 +18,7 @@
 | [ADR-0010](0010-extension-stores-nothing.md) | 拡張は API キーを chrome.storage.local に、ジョブの記録を chrome.storage.session に保存し、権限を activeTab・scripting・storage に、送り先を CSP で Anthropic の API に限る | `有効` |
 | [ADR-0011](0011-webhook-publishing.md) | 投稿先は Slack 互換の Incoming Webhook とし、投稿は利用者の操作でだけ行う | `廃止` |
 | [ADR-0012](0012-lightweight-check-in-bash.md) | 軽量プロセスの確かめ直しは、origin/main の版の bash スクリプトで行い、Go のツールにしない | `廃止` |
-| [ADR-0013](0013-review-setup.md) | PR レビューは作成時の 1 回だけ Codex に頼み、その後の変更はローカルの CLI レビューで見る | `有効` |
+| [ADR-0013](0013-review-setup.md) | PR レビューは利用者が選んだときだけ CodeRabbit に手動で頼み、PR を開いた後の変更はローカルの CLI レビューで見る | `有効` |
 | [ADR-0014](0014-deterministic-checks-in-go.md) | 決定的な判定はエージェントに任せず、テストのある Go の開発ツールに置く | `有効` |
 | [ADR-0015](0015-untrusted-review-threads.md) | レビューのスレッドと Bot への依頼は信頼せず、書き込み権限・範囲の規則・interaction limits で守る | `有効` |
 | [ADR-0016](0016-document-test-policy.md) | 文書のテストは値・構造・実行できる例だけを確かめ、文の意味は PR のレビューで読む | `有効` |
@@ -47,7 +47,7 @@
 | [ADR-0039](0039-adr-writing-criteria.md) | ADR の背景には決定が答える問題と前提だけを、決定には守るべき規則を理由と正本の場所とともに書き、決定を変えない直しは編集上の訂正として認める | `有効` |
 | [ADR-0040](0040-simple-task-documents.md) | 小さな変更のタスクは、人の判断で 3 文書を簡易な内容にして 1 本の PR で作れるようにし、機械的な判定は設けない | `有効` |
 | [ADR-0041](0041-openai-api.md) | OpenAI は Responses API を応答の保存なしで呼び、出力上限は実測で決める | `有効` |
-| [ADR-0042](0042-implementation-model-tiers.md) | 実装モデル要件を opus・sonnet+opus-review・sonnet の 3 つにし、Opus 以外で実装した部分がある sonnet+opus-review・opus の PR は、開く前に Opus がレビューする | `有効` |
+| [ADR-0042](0042-implementation-model-tiers.md) | 実装モデル要件を high・standard+high-review・low の 3 つにし、上位モデルで実装した記録がない commit を含む PR は開く前に上位モデルでレビューする | `有効` |
 | [ADR-0043](0043-copy-mention-neutralization.md) | ビューアの表示とクリップボードへのコピーで記事のメンションを無効化し、コピーは拒否しない | `有効` |
 | [ADR-0044](0044-package-reference-row-granularity.md) | package_reference.md の行には責務の要約・主な公開の名前・仕様の置き場所だけを書き、挙動の詳細は doc コメントと仕様の文書に置く | `有効` |
 | [ADR-0045](0045-dev-fake-llm.md) | 本番の成果物に fake の LLM を入れず、fake の LLM はサーバに依存しない構成要素にして開発用の拡張のビルドから使う | `有効` |
@@ -55,6 +55,8 @@
 | [ADR-0047](0047-runpr-merge-question.md) | /runpr のマージの質問は 1 つの単一選択の問いにし、詳細は作業ツリーの外のファイルに書いて会話には要約だけを出し、deferred のスレッドはその前に片付ける | `有効` |
 | [ADR-0048](0048-extension-only-generation.md) | 記事を拡張だけで作り、localhost サーバと Native Messaging のホストを廃止する | `有効` |
 | [ADR-0049](0049-wasm-core-sharing.md) | 記事を作る処理は Go のコアを WebAssembly にして CLI と拡張が共有し、拡張との境界を JSON の文字列にする | `有効` |
-| [ADR-0050](0050-fable-partial-review.md) | タスクの PR を開く前に Fable の部分レビューを範囲を絞って行い、走らないときは止めずに記録する | `有効` |
+| [ADR-0050](0050-fable-partial-review.md) | タスクの PR を開く前にクロスチェックの部分レビューを範囲を絞って行い、走らないときは止めずに記録する | `有効` |
 | [ADR-0051](0051-number-reservation.md) | タスク番号と ADR 番号は GitHub の上で重複しないように道具で決め、決められなければ止め、ADR 番号の欠番を許す | `有効` |
 | [ADR-0053](0053-draft-issue-label.md) | 下書きの issue をラベル draft で宣言し、/mkreq と chief はそこからタスクを始めない | `有効` |
+| [ADR-0054](0054-ci-skip-doc-only-commit.md) | 直前コミットで CI 通過済みかつ非コード・非ブラウザ拡張のみの変更時は check-changes で重いジョブをスキップする | `有効` |
+| [ADR-0055](0055-harness-independent-commands.md) | 開発コマンドの手順の正本を .claude/commands/ に保ち、ハーネス固有の操作・入口・権限境界をアダプタと薄いスキルに分離する | `有効` |
