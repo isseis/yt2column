@@ -52,7 +52,6 @@ type ciJob struct {
 	permScalar     string
 	outputs        map[string]string
 	steps          []ciStep
-	lines          []string
 }
 
 type ciWorkflow struct {
@@ -107,8 +106,9 @@ func parseWorkflow(t *testing.T, content string) *ciWorkflow {
 			}
 			continue
 		}
-		if inJobs && indent == jobIndent && strings.HasSuffix(trimmed, ":") {
-			jobID := strings.TrimSuffix(trimmed, ":")
+		header := strings.TrimSpace(stripYAMLComment(line))
+		if inJobs && indent == jobIndent && strings.HasSuffix(header, ":") {
+			jobID := strings.TrimSuffix(header, ":")
 			end := i + 1
 			for end < len(lines) {
 				next := lines[end]
@@ -132,7 +132,6 @@ func parseJob(id string, lines []string) *ciJob {
 		id:          id,
 		permissions: make(map[string]string),
 		outputs:     make(map[string]string),
-		lines:       lines,
 	}
 	for i := 1; i < len(lines); i++ {
 		line := lines[i]
@@ -246,7 +245,7 @@ func parseOneStep(lines []string) ciStep {
 			i = parseKeyValueMap(lines, i, envEntryIndent, step.env)
 		case "run":
 			step.hasRun = true
-			if val == "|" || val == "|-" || val == "|+" {
+			if val == "|" || val == "|-" || val == "|+" || val == ">" || val == ">-" || val == ">+" {
 				body, nextIdx := parseBlockScalar(lines, i, stepFieldIndent)
 				step.runBody = body
 				i = nextIdx
@@ -397,21 +396,28 @@ func extractCLIFlagsFromMain(t *testing.T) []string {
 			if !ok {
 				return true
 			}
-			var argIdx int
-			switch sel.Sel.Name {
-			case "StringVar":
-				argIdx = 1
-			case "String":
-				argIdx = 0
-			default:
+			recv, ok := sel.X.(*ast.Ident)
+			if !ok || recv.Name != "flags" {
 				return true
 			}
-			if len(call.Args) <= argIdx {
+			var argIdx int
+			switch sel.Sel.Name {
+			case "StringVar", "BoolVar", "IntVar", "Int64Var", "UintVar", "Uint64Var", "Float64Var", "DurationVar", "TextVar", "Var":
+				argIdx = 1
+			case "String", "Bool", "Int", "Int64", "Uint", "Uint64", "Float64", "Duration", "Func", "BoolFunc":
+				argIdx = 0
+			case "SetOutput", "Parse", "NArg":
 				return true
+			default:
+				t.Fatalf("unexpected flags.%s call in %s parseArgs; update extractCLIFlagsFromMain", sel.Sel.Name, cmdMainRelPath)
+				return false
+			}
+			if len(call.Args) <= argIdx {
+				t.Fatalf("flags.%s call has %d args, need index %d", sel.Sel.Name, len(call.Args), argIdx)
 			}
 			lit, ok := call.Args[argIdx].(*ast.BasicLit)
 			if !ok || lit.Kind != token.STRING {
-				return true
+				t.Fatalf("flags.%s flag name argument must be a string literal", sel.Sel.Name)
 			}
 			unquoted, err := strconv.Unquote(lit.Value)
 			if err != nil {
@@ -490,6 +496,7 @@ func TestCIWorkflowCheckChangesPin(t *testing.T) {
 
 		samplePaths := []string{
 			"",
+			".md",
 			"README.md",
 			"README.en.md",
 			"a.md",
@@ -501,6 +508,11 @@ func TestCIWorkflowCheckChangesPin(t *testing.T) {
 			"LICENSE",
 			"LICENSE.txt",
 			"MY_LICENSE",
+			"cmd",
+			"foo_md",
+			"xclaude/a.go",
+			"docs",
+			".claude",
 			"internal/ciskip/ciskip.go",
 			"cmd/ciskip/main.go",
 			".github/workflows/ci.yml",
@@ -614,6 +626,26 @@ func TestCIWorkflowCheckChangesPin(t *testing.T) {
 		normal := findStepByID(t, checkJob, "normal")
 		if _, hasToken := normal.env["GH_TOKEN"]; hasToken {
 			t.Error("normal classification step must not receive GH_TOKEN")
+		}
+		normalDepDirsIdx := strings.Index(normal.runBody, `dep_dirs="$RUNNER_TEMP/wasm-dep-dirs"`)
+		normalInitIdx := strings.Index(normal.runBody, "wasm_dep_dirs_ok=false\n")
+		normalIfIdx := strings.Index(normal.runBody, `if bash extension/scripts/wasm-dep-dirs.sh > "$dep_dirs"; then`)
+		normalTrueIdx := strings.Index(normal.runBody, "wasm_dep_dirs_ok=true\n")
+		normalElseIdx := -1
+		if normalIfIdx >= 0 {
+			if rel := strings.Index(normal.runBody[normalIfIdx:], "\nelse\n"); rel >= 0 {
+				normalElseIdx = normalIfIdx + rel
+			}
+		}
+		if normalDepDirsIdx < 0 {
+			t.Error(`normal step must define dep_dirs="$RUNNER_TEMP/wasm-dep-dirs"`)
+		}
+		if normalInitIdx < 0 || normalIfIdx < 0 || normalTrueIdx < 0 || normalElseIdx < 0 ||
+			normalInitIdx >= normalIfIdx || normalIfIdx >= normalTrueIdx || normalTrueIdx >= normalElseIdx {
+			t.Errorf(
+				"normal step must initialize wasm_dep_dirs_ok=false before if and set wasm_dep_dirs_ok=true inside then before else (indices: init=%d if=%d true=%d else=%d)",
+				normalInitIdx, normalIfIdx, normalTrueIdx, normalElseIdx,
+			)
 		}
 		if !strings.Contains(normal.runBody, `echo "wasm-dep-dirs-ok=$wasm_dep_dirs_ok" >> "$GITHUB_OUTPUT"`) {
 			t.Error("normal step does not write wasm-dep-dirs-ok to GITHUB_OUTPUT")
@@ -809,6 +841,9 @@ func runCheckStepScript(
 		if !ok {
 			t.Fatalf("malformed GITHUB_OUTPUT line %q", line)
 		}
+		if prev, dup := outputs[k]; dup {
+			t.Fatalf("duplicate GITHUB_OUTPUT key %q (previous=%q, next=%q)", k, prev, v)
+		}
 		outputs[k] = v
 	}
 
@@ -926,6 +961,11 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 	})
 
 	t.Run("skip_true_outputs_false_and_passes_stdout", func(t *testing.T) {
+		const (
+			distinctRepo     = "owner/repo"
+			distinctHeadRepo = "fork-owner/fork-repo"
+			distinctBaseRepo = "base-owner/base-repo"
+		)
 		noticeLine := "::notice title=ci-base-sha::" + testSHA1
 		diagLine := "ciskip: decision=skip reason=ok parent=444444444444 run=5001 base=111111111111"
 		fakeGo := fakeGoHelper(
@@ -940,6 +980,9 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 			map[string]string{
 				"CISKIP_NORMAL_CODE": "true",
 				"CISKIP_NORMAL_EXT":  "true",
+				"CISKIP_REPO":        distinctRepo,
+				"CISKIP_HEAD_REPO":   distinctHeadRepo,
+				"CISKIP_BASE_REPO":   distinctBaseRepo,
 			},
 			fakeGo,
 			"",
@@ -955,13 +998,13 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 			t.Errorf("stdout missing diagnostic line %q:\n%s", diagLine, res.stdout)
 		}
 
-		// Verify all expected flags and values reached cmd/ciskip.
+		// Verify every distinct env var lands on its own CLI flag.
 		wantPrefix := []string{
 			"run",
 			"./cmd/ciskip",
-			"--repo=" + testRepo,
-			"--head-repo=" + testRepo,
-			"--base-repo=" + testRepo,
+			"--repo=" + distinctRepo,
+			"--head-repo=" + distinctHeadRepo,
+			"--base-repo=" + distinctBaseRepo,
 			"--base-ref=main",
 			"--pr-number=" + testPRNumber,
 			"--head-sha=" + testSHA2,
@@ -999,6 +1042,7 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 		}{
 			{name: "code_only", code: "true", ext: "false", wasmOK: "true", wantWasm: "--wasm-dep-dirs-ok=true"},
 			{name: "wasm_dep_dirs_failed_fallback", code: "false", ext: "true", wasmOK: "false", wantWasm: "--wasm-dep-dirs-ok=false"},
+			{name: "code_and_ext_true_wasm_dep_dirs_failed", code: "true", ext: "true", wasmOK: "false", wantWasm: "--wasm-dep-dirs-ok=false"},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -1064,8 +1108,8 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 				if !strings.Contains(res.stdout, "fallback to normal classification") || !strings.Contains(res.stdout, tc.wantStatus) {
 					t.Errorf("stdout missing fallback log with %s:\n%s", tc.wantStatus, res.stdout)
 				}
-				if tc.secretText != "" && strings.Contains(res.stdout, tc.secretText) {
-					t.Errorf("stdout leaked unexpected result-file content %q:\n%s", tc.secretText, res.stdout)
+				if tc.secretText != "" && (strings.Contains(res.stdout, tc.secretText) || strings.Contains(res.stderr, tc.secretText)) {
+					t.Errorf("output leaked unexpected result-file content %q:\nstdout:\n%s\nstderr:\n%s", tc.secretText, res.stdout, res.stderr)
 				}
 			})
 		}
@@ -1095,24 +1139,34 @@ func TestCIWorkflowCheckStepExecution(t *testing.T) {
 	})
 
 	t.Run("mktemp_failure_falls_back", func(t *testing.T) {
-		fakeMktemp := "#!/usr/bin/env bash\nexit " + fakeMktempExit + "\n"
-		res := runCheckStepScript(
-			t,
-			script,
-			map[string]string{
-				"CISKIP_NORMAL_CODE": "true",
-				"CISKIP_NORMAL_EXT":  "false",
-			},
-			fakeGoHelper("echo 'go should not be called' >&2", 1),
-			fakeMktemp,
-		)
-		if res.goCalls != 0 {
-			t.Errorf("go was called %d times after mktemp failure, want 0", res.goCalls)
+		cases := []struct {
+			name       string
+			fakeMktemp string
+			wantStatus string
+		}{
+			{name: "nonzero_exit", fakeMktemp: "#!/usr/bin/env bash\nexit " + fakeMktempExit + "\n", wantStatus: "status=" + fakeMktempExit},
+			{name: "empty_stdout", fakeMktemp: "#!/usr/bin/env bash\nexit 0\n", wantStatus: "status=0"},
 		}
-		assertOutputs(t, res.outputs, "true", "false")
-		wantStatus := "status=" + fakeMktempExit
-		if !strings.Contains(res.stdout, "fallback to normal classification") || !strings.Contains(res.stdout, wantStatus) {
-			t.Errorf("stdout missing fallback log with %s:\n%s", wantStatus, res.stdout)
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				res := runCheckStepScript(
+					t,
+					script,
+					map[string]string{
+						"CISKIP_NORMAL_CODE": "true",
+						"CISKIP_NORMAL_EXT":  "false",
+					},
+					fakeGoHelper("echo 'go should not be called' >&2", 1),
+					tc.fakeMktemp,
+				)
+				if res.goCalls != 0 {
+					t.Errorf("go was called %d times after mktemp failure, want 0", res.goCalls)
+				}
+				assertOutputs(t, res.outputs, "true", "false")
+				if !strings.Contains(res.stdout, "fallback to normal classification") || !strings.Contains(res.stdout, tc.wantStatus) {
+					t.Errorf("stdout missing fallback log with %s:\n%s", tc.wantStatus, res.stdout)
+				}
+			})
 		}
 	})
 }

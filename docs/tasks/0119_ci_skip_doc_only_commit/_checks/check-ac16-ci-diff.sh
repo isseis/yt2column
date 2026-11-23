@@ -5,7 +5,7 @@
 #       in both commits;
 #   (b) all bytes before "  check-changes:" and all bytes from "  test:" to EOF
 #       match byte-for-byte between <base> and <commit>;
-#   (c) no sibling job or top-level key (^ {0,2}[^ #]) is inserted between
+#   (c) no sibling job or top-level key (^ ? ?[^ #]) is inserted between
 #       "  check-changes:" and "  test:" in <commit>.
 #
 # Usage: bash check-ac16-ci-diff.sh <base-commit> <compared-commit>
@@ -84,7 +84,7 @@ if ! cmp -s "$TMP/base.after" "$TMP/head.after"; then
 fi
 
 INTRUDERS=$(awk -v s="$HEAD_START" -v e="$HEAD_TEST" \
-  'NR > s && NR < e && /^ {0,2}[^ #]/ { printf "%d:%s\n", NR, $0 }' "$TMP/head.yml")
+  'NR > s && NR < e && /^ ? ?[^ #]/ { printf "%d:%s\n", NR, $0 }' "$TMP/head.yml")
 if [ -n "$INTRUDERS" ]; then
   echo "FAIL: unexpected top-level key or sibling job between '  check-changes:' and '  test:':" >&2
   printf '%s\n' "$INTRUDERS" >&2
