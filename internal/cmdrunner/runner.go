@@ -1,6 +1,6 @@
 // Package cmdrunner runs external commands without a shell. It is the shared
-// execution boundary of the developer tools (internal/mergepr,
-// internal/fixprguard, and internal/codexreview); tests substitute the fake in
+// execution boundary of the developer tools (internal/mergepr and
+// internal/fixprguard); tests substitute the fake in
 // internal/cmdrunner/testutil. It also holds the environment and the global
 // options those tools run git with (GitEnv and GitHardening).
 package cmdrunner
@@ -284,9 +284,13 @@ func waitClosed(done <-chan struct{}, limit time.Duration) bool {
 // already gone needs nothing; when the group cannot be signaled for another
 // reason (for example only zombies remain), the direct child still gets sig.
 func signalGroup(process *os.Process, sig syscall.Signal) {
-	err := syscall.Kill(-process.Pid, sig)
+	signalGroupWith(process.Pid, sig, syscall.Kill, process.Signal)
+}
+
+func signalGroupWith(pid int, sig syscall.Signal, killGroup func(int, syscall.Signal) error, signalDirect func(os.Signal) error) {
+	err := killGroup(-pid, sig)
 	if err != nil && !errors.Is(err, syscall.ESRCH) {
-		_ = process.Signal(sig)
+		_ = signalDirect(sig)
 	}
 }
 

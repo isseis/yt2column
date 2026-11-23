@@ -8,82 +8,76 @@ import (
 )
 
 // TestProtocolFlags pins which tool each --protocol belongs to, the choice
-// that splits the flags between the fixprguard and the codexreview guards.
+// that splits the flags across the fixprguard, chief, and mergepr guards.
 func TestProtocolFlags(t *testing.T) {
-	const sha = "0123456789abcdef0123456789abcdef01234567"
 	for _, tc := range []struct {
 		name string
 		doc  string
 		want []ProtocolFlag
 	}{
 		{
-			"both_tools_on_one_line",
-			"fixprguard head --protocol 4 && codexreview --protocol 1 --base " + sha + "\n",
-			[]ProtocolFlag{{"--protocol 4", "4", ToolFixprguard}, {"--protocol 1", "1", ToolCodexreview}},
-		},
-		{
 			"another_flag_before_protocol",
-			"codexreview --base " + sha + " --protocol 1\nfixprguard list --reviewer <reviewer> --protocol=4\n",
-			[]ProtocolFlag{{"--protocol 1", "1", ToolCodexreview}, {"--protocol=4", "4", ToolFixprguard}},
+			"mergepr prepare 42 --protocol 1\nfixprguard list --reviewer <reviewer> --protocol=4\n",
+			[]ProtocolFlag{{"--protocol 1", "1", ToolMergepr}, {"--protocol=4", "4", ToolFixprguard}},
 		},
 		{
-			// The pipe ends codexreview's command, so the flag after it is
-			// not codexreview's.
+			// The pipe ends mergepr's command, so the flag after it is
+			// not mergepr's.
 			"pipe",
-			"codexreview --protocol 1 --base " + sha + " | tee x --protocol 9\n",
-			[]ProtocolFlag{{"--protocol 1", "1", ToolCodexreview}, {"--protocol 9", "9", ""}},
+			"mergepr prepare --protocol 1 42 | tee x --protocol 9\n",
+			[]ProtocolFlag{{"--protocol 1", "1", ToolMergepr}, {"--protocol 9", "9", ""}},
 		},
 		{
 			"semicolon",
-			"codexreview --base " + sha + "; tee --protocol 9\n",
+			"mergepr prepare 42; tee --protocol 9\n",
 			[]ProtocolFlag{{"--protocol 9", "9", ""}},
 		},
 		{
 			"and_list",
-			"codexreview --base " + sha + " && tee --protocol 9\n",
+			"mergepr prepare 42 && tee --protocol 9\n",
 			[]ProtocolFlag{{"--protocol 9", "9", ""}},
 		},
 		{
 			// A substitution ends the command too, so the flag after one is
 			// not the call's: the documents write a call's values literally.
 			"substitution",
-			"codexreview --base \"$(git rev-parse HEAD)\" --protocol 1\n",
+			"mergepr prepare \"$(git rev-parse HEAD)\" --protocol 1\n",
 			[]ProtocolFlag{{"--protocol 1", "1", ""}},
 		},
 		{
 			"backquote_in_block",
-			"codexreview --base `git rev-parse HEAD` --protocol 1\n",
+			"mergepr prepare `git rev-parse HEAD` --protocol 1\n",
 			[]ProtocolFlag{{"--protocol 1", "1", ""}},
 		},
 		{
 			// Each code span is its own command.
 			"code_spans_in_prose",
-			"Run `codexreview --protocol 1 --base <BASE>`, then `fixprguard begin --protocol 4`.\n",
-			[]ProtocolFlag{{"--protocol 1", "1", ToolCodexreview}, {"--protocol 4", "4", ToolFixprguard}},
+			"Run `mergepr prepare --protocol 1 <PR>`, then `fixprguard begin --protocol 4`.\n",
+			[]ProtocolFlag{{"--protocol 1", "1", ToolMergepr}, {"--protocol 4", "4", ToolFixprguard}},
 		},
 		{
 			"path_and_quotes",
-			"\"/go/bin/codexreview\" --protocol 1 --base " + sha + "\n",
-			[]ProtocolFlag{{"--protocol 1", "1", ToolCodexreview}},
+			"\"/go/bin/mergepr\" prepare --protocol 1 42\n",
+			[]ProtocolFlag{{"--protocol 1", "1", ToolMergepr}},
 		},
 		{
 			// A longer word that contains the name is not the tool.
 			"name_inside_a_word",
-			"codexreview-old --protocol 2\n",
+			"mergepr-old --protocol 2\n",
 			[]ProtocolFlag{{"--protocol 2", "2", ""}},
 		},
 		{
 			// The value is the whole word, so a guard rejects one with a
 			// tail the tool would reject.
 			"value_with_a_tail",
-			"codexreview --protocol 1junk --base " + sha + "\nfixprguard head --protocol=4x\n",
-			[]ProtocolFlag{{"--protocol 1junk", "1junk", ToolCodexreview}, {"--protocol=4x", "4x", ToolFixprguard}},
+			"mergepr prepare --protocol 1junk 42\nfixprguard head --protocol=4x\n",
+			[]ProtocolFlag{{"--protocol 1junk", "1junk", ToolMergepr}, {"--protocol=4x", "4x", ToolFixprguard}},
 		},
 		{
 			// chief's flag is its own, next to another tool's.
-			"chief_and_codexreview",
-			"chief snapshot --protocol 1 && codexreview --protocol 1 --base " + sha + "\n",
-			[]ProtocolFlag{{"--protocol 1", "1", ToolChief}, {"--protocol 1", "1", ToolCodexreview}},
+			"chief_and_mergepr",
+			"chief snapshot --protocol 1 && mergepr prepare --protocol 1 42\n",
+			[]ProtocolFlag{{"--protocol 1", "1", ToolChief}, {"--protocol 1", "1", ToolMergepr}},
 		},
 		{
 			// A longer word that contains chief's name is not chief.

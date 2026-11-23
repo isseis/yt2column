@@ -37,7 +37,9 @@ gh api repos/isseis/yt2column --jq .delete_branch_on_merge
 
 ## 3. インストール
 
-最新の `main` をチェックアウトした状態で、次を実行する。
+`mergepr` は `main` から入れ、道具を変えたマージの後に入れ直す。プロトコル番号を上げる PR では、その PR のブランチでも入れ直す。
+
+**入れる手順.** 最新の `main` をチェックアウトした状態で、次を実行する。
 
 ```sh
 make install-mergepr
@@ -45,9 +47,13 @@ make install-mergepr
 
 `$(go env GOPATH)/bin` に `PATH` が通っていることを確認する。ツール自体を変更した PR がマージされたら、`main` を更新してから再インストールする。
 
-`mergepr` は、すべてのサブコマンドで `--protocol` を必須とし、自分のプロトコル番号（`internal/mergepr` の `Protocol`。現在の番号は `3`）と文字列として照合する。`/mergepr`・`/runpr` の定義は、`mergepr` を呼ぶたびに `--protocol 3` を渡す。番号が違うか渡されないとき、`mergepr` は何も読まず、何も書かずに止まる（7 章）。`mergepr` の `Protocol` を上げる PR では、その PR の `/runpr` が最初に `mergepr` を呼ぶ前に、その PR のブランチで再インストールし、マージの直後に `main` から再インストールする。その間、`main` を取り込んでいないほかの worktree の `/mergepr`・`/runpr` は番号の不一致で止まる。途中でほかの PR をマージする必要が生じたら、`main` から再インストールすれば、ほかの worktree は元どおり進める。入れ替える前に、どの worktree にも準備したままの作業ディレクトリ（`mergepr-*`）と終わっていない `cleanup` がないことを確かめる。新しい `mergepr` は、古い定義が書いた `--protocol` のない `discard`・`cleanup` を拒むので、残っていたら新しい `mergepr` で `mergepr discard --protocol 3 --state <state-file>`（片付けなら `mergepr cleanup --protocol 3 --state <state-file>`）を手で実行する。
+**プロトコル番号の照合.** `mergepr` は、すべてのサブコマンドで `--protocol` を必須とし、自分のプロトコル番号（`internal/mergepr` の `Protocol`。現在の番号は `3`）と文字列として照合する。`/mergepr`・`/runpr` の定義は、`mergepr` を呼ぶたびに `--protocol 3` を渡す。番号が違うか渡されないとき、`mergepr` は何も読まず、何も書かずに止まる（7 章）。
 
-`mergepr` を導入する PR そのものは、まだ `main` にツールが無いため `/mergepr` ではマージできない。`gh pr merge --squash` など、別の手段でマージする。
+**番号を上げる PR での入れ直し.** `mergepr` の `Protocol` を上げる PR では、その PR の `/runpr` が最初に `mergepr` を呼ぶ前に、利用者がその PR のブランチで再インストールし、マージの直後に `main` から再インストールする。その間、`main` を取り込んでいないほかの worktree の `/mergepr`・`/runpr` は番号の不一致で止まる。途中でほかの PR をマージする必要が生じたら、`main` から再インストールすれば、ほかの worktree は元どおり進める。
+
+**入れ替える前の確かめ.** どの worktree にも準備したままの作業ディレクトリ（`mergepr-*`）と終わっていない `cleanup` がないことを確かめる。新しい `mergepr` は、古い定義が書いた `--protocol` のない `discard`・`cleanup` を拒むので、残っていたら新しい `mergepr` で `mergepr discard --protocol 3 --state <state-file>`（片付けなら `mergepr cleanup --protocol 3 --state <state-file>`）を手で実行する。
+
+**導入する PR そのもの.** `mergepr` を導入する PR そのものは、まだ `main` にツールが無いため `/mergepr` ではマージできない。`gh pr merge --squash` など、別の手段でマージする。
 
 ## 4. 処理の流れ
 
@@ -162,7 +168,7 @@ PR #42: feat(writer): add column heading
 url:   https://github.com/isseis/yt2column/pull/42
 head:  feature/foo at 2222222222222222222222222222222222222222
 base:  main
-protocol: passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 1, codexreview 1, fixprguard 6, mergepr 1; changed: none
+protocol: passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 6, fixprguard 7, mergepr 3; changed: none
 CI:    all checks passed
 corrections: 2 accepted, 1 rejected
 correction rejected: 5555555555555555555555555555555555555555 line 4: invisible,at: "Editorial correction: aU+200Bb me@example.com"
@@ -222,7 +228,7 @@ paragraph: 3 line(s) in /repo/.git/mergepr-123456/paragraph.txt
 結果の出力例:
 
 ```text
-protocol:             passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 1, codexreview 1, fixprguard 6, mergepr 1; changed: none
+protocol:             passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 6, fixprguard 7, mergepr 3; changed: none
 merge commit:         3333333333333333333333333333333333333333
 base branch updated:  true
 local branch deleted: true
@@ -387,7 +393,7 @@ Dropped editorial corrections: <a> disputed by a reviewer, <b> reverted on the b
 2. その道具の `Protocol` を期待する値にする。
 3. コマンドの定義と手引きに書いた番号（`--protocol` の値を含む）を同じ値にする。
 4. commit して push する。
-5. その PR のブランチで、その道具を `make install-<道具>` で入れ直す。
+5. 利用者が、その PR のブランチで、その道具を `make install-<道具>` で入れ直す。
 6. マージをやり直す。`/runpr` から使ったときは `/runpr` を、単独のときは `/mergepr` を実行し直す。
 
 head の値が `origin/main` の値と同じ道具があるとき（上げた番号が `main` の取り込みで吸収された場合と、上げてから元に戻した場合）は、`origin/main` の上で PR の履歴をまとめ直し、番号を変えたコミットを残さないことも直し方になる。まとめ直してよいのは、この PR 自身の変更が道具の約束を変えないとき（番号を変えたコミットがほかのブランチから来たか、上げてから元に戻したとき）に限る。そうでなければ、まとめ直しは衝突を隠すので、上の手順だけが直し方である。

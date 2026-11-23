@@ -115,8 +115,8 @@ func isShell(name string) bool   { _, ok := shells[name]; return ok }
 // after a separator (CommandBoundary), after the reserved words,
 // variable assignments, and redirections that may precede a command, or as
 // the command a wrapper, env -S's split string, or a shell's -c script
-// runs. The name counts by name, by path (/opt/homebrew/bin/codex, ./codex,
-// @openai/codex for codex), quoted, escaped with a backslash, or opening a
+// runs. The name counts by name, by path (/opt/homebrew/bin/widget, ./widget,
+// @example/widget for widget), quoted, escaped with a backslash, or opening a
 // group. The
 // list of wrappers and of options with a value is not complete; the
 // permission prompt stops a form it misses.
@@ -197,7 +197,7 @@ func envSplitString(wrapper, opt string) (string, bool) {
 // holds an argument after a space. Blockquote markers are dropped first, so
 // the blocks of an agent prompt are read too; inside a block whose opening
 // fence is not quoted, a line keeps its leading '>', which is then a
-// redirection (> file codex ...), not a quote marker.
+// redirection (> file widget ...), not a quote marker.
 func CommandTexts(doc string) []string {
 	var raw, lines []string
 	for line := range strings.Lines(doc) {

@@ -21,7 +21,7 @@ const (
 	testReviewer = "coderabbitai"
 	// testSecondReviewer is the second automated reviewer of the tests that
 	// pass two names; newTestGitHub does not trust it.
-	testSecondReviewer = "chatgpt-codex-connector"
+	testSecondReviewer = "second-reviewer-bot"
 	testTime           = "2026-10-21T00:00:00Z"
 	testLaterAt        = "2026-10-21T01:00:00Z"
 
@@ -80,8 +80,8 @@ func testCommentURL(id int64) string {
 
 func (c testComment) json(withBody bool) map[string]any {
 	node := map[string]any{
-		"databaseId":   c.id,
-		"url":          testCommentURL(c.id),
+		keyDatabaseID:  c.id,
+		keyURL:         testCommentURL(c.id),
 		"path":         "internal/fixprguard/github.go",
 		"line":         1,
 		"createdAt":    testTime,
@@ -124,8 +124,8 @@ func (th testThread) json(withBody bool) map[string]any {
 		"id":         th.id,
 		"isResolved": th.resolved,
 		"comments": map[string]any{
-			"pageInfo": map[string]any{"hasNextPage": th.more},
-			nodesKey:   comments,
+			keyPageInfo: map[string]any{keyHasNextPage: th.more},
+			nodesKey:    comments,
 		},
 	}
 }
@@ -146,12 +146,12 @@ func stageOneResponse(t testing.TB, threads []testThread, hasNextPage bool, curs
 	for _, th := range threads {
 		nodes = append(nodes, th.json(false))
 	}
-	pageInfo := map[string]any{"hasNextPage": hasNextPage, "endCursor": nil}
+	pageInfo := map[string]any{keyHasNextPage: hasNextPage, "endCursor": nil}
 	if cursor != "" {
 		pageInfo["endCursor"] = cursor
 	}
-	return mustJSON(t, map[string]any{"data": map[string]any{"repository": map[string]any{"pullRequest": map[string]any{
-		"reviewThreads": map[string]any{"pageInfo": pageInfo, nodesKey: nodes},
+	return mustJSON(t, map[string]any{keyData: map[string]any{"repository": map[string]any{"pullRequest": map[string]any{
+		"reviewThreads": map[string]any{keyPageInfo: pageInfo, nodesKey: nodes},
 	}}}})
 }
 
@@ -162,7 +162,7 @@ func stageTwoResponse(t testing.TB, threads ...testThread) string {
 	for _, th := range threads {
 		nodes = append(nodes, th.json(true))
 	}
-	return mustJSON(t, map[string]any{"data": map[string]any{nodesKey: nodes}})
+	return mustJSON(t, map[string]any{keyData: map[string]any{nodesKey: nodes}})
 }
 
 // permissionResponse is gh api --include output for a successful lookup.
@@ -189,7 +189,7 @@ func prViewStep(fields, out string, err error) cmdrunnertestutil.Step {
 func includeStep(path, out string, err error) cmdrunnertestutil.Step {
 	return cmdrunnertestutil.Step{
 		Name: "gh",
-		Args: []string{"api", "--include", "repos/" + testOwner + "/" + testRepoName + "/" + path},
+		Args: []string{ghAPI, "--include", "repos/" + testOwner + "/" + testRepoName + "/" + path},
 		Out:  out,
 		Err:  err,
 	}

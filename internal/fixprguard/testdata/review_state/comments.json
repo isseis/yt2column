@@ -1,0 +1,86 @@
+[
+  {
+    "id": 7029283771,
+    "user": {
+      "login": "coderabbitai[bot]",
+      "type": "Bot",
+      "id": 136622811
+    },
+    "body": "<!-- coderabbit-ai-generated:v1 -->",
+    "created_at": "2026-11-20T03:18:00Z",
+    "updated_at": "2026-11-20T04:29:12Z",
+    "html_url": "https://github.com/isseis/yt2column/pull/1064#issuecomment-7029283771",
+    "author_association": "OWNER",
+    "issue_url": "https://github.com/isseis/yt2column/issues/1064"
+  },
+  {
+    "id": 7030001,
+    "user": {
+      "login": "isseis",
+      "type": "User",
+      "id": 136622811
+    },
+    "body": "please review",
+    "created_at": "2026-11-20T03:20:06Z",
+    "updated_at": "2026-11-20T03:20:06Z",
+    "html_url": "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030001",
+    "author_association": "OWNER",
+    "issue_url": "https://github.com/isseis/yt2column/issues/1064"
+  },
+  {
+    "id": 7030011,
+    "user": {
+      "login": "coderabbitai[bot]",
+      "type": "Bot",
+      "id": 136622811
+    },
+    "body": "<!-- coderabbit-ai-generated:v1 -->",
+    "created_at": "2026-11-20T03:20:13Z",
+    "updated_at": "2026-11-20T03:20:13Z",
+    "html_url": "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030011",
+    "author_association": "OWNER",
+    "issue_url": "https://github.com/isseis/yt2column/issues/1064"
+  },
+  {
+    "id": 7030002,
+    "user": {
+      "login": "isseis",
+      "type": "User",
+      "id": 136622811
+    },
+    "body": "please review",
+    "created_at": "2026-11-20T03:58:32Z",
+    "updated_at": "2026-11-20T03:58:32Z",
+    "html_url": "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030002",
+    "author_association": "OWNER",
+    "issue_url": "https://github.com/isseis/yt2column/issues/1064"
+  },
+  {
+    "id": 7030003,
+    "user": {
+      "login": "isseis",
+      "type": "User",
+      "id": 136622811
+    },
+    "body": "please review",
+    "created_at": "2026-11-20T04:26:01Z",
+    "updated_at": "2026-11-20T04:26:01Z",
+    "html_url": "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030003",
+    "author_association": "OWNER",
+    "issue_url": "https://github.com/isseis/yt2column/issues/1064"
+  },
+  {
+    "id": 7030004,
+    "user": {
+      "login": "isseis",
+      "type": "User",
+      "id": 136622811
+    },
+    "body": "not a request",
+    "created_at": "2026-11-20T04:30:14Z",
+    "updated_at": "2026-11-20T04:30:14Z",
+    "html_url": "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030004",
+    "author_association": "OWNER",
+    "issue_url": "https://github.com/isseis/yt2column/issues/1064"
+  }
+]

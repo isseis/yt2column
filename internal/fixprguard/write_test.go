@@ -423,28 +423,50 @@ func TestEditPRVerbatim(t *testing.T) {
 }
 
 func TestCheckPostText(t *testing.T) {
+	for _, mention := range RejectedMentions() {
+		name := strings.TrimPrefix(mention, "@")
+		for _, tc := range []struct {
+			kind   string
+			text   string
+			reject bool
+		}{
+			{"lower_case", "see " + mention, true},
+			{"upper_case", "see " + strings.ToUpper(mention), true},
+			{"line_start", "first line\n" + mention + " review", true},
+			// No word boundary is required, so a longer name and an email are rejected too.
+			{"longer_name", "ask " + mention + "bot", true},
+			{"email_address", "mail a" + mention + ".example", true},
+			// Non-ASCII look-alikes are not GitHub mentions and are not normalized.
+			{"full_width_at", "\uff20" + name, false},
+			{"zero_width_inside", "@\u200b" + name, false},
+		} {
+			t.Run(name+"/"+tc.kind, func(t *testing.T) {
+				err := checkPostText(tc.text)
+				if tc.reject && !errors.Is(err, errMention) {
+					t.Errorf("checkPostText(%q) = %v, want errMention", tc.text, err)
+				}
+				if !tc.reject && err != nil {
+					t.Errorf("checkPostText(%q) = %v, want nil", tc.text, err)
+				}
+			})
+		}
+	}
 	for _, tc := range []struct {
 		name   string
 		text   string
 		reject bool
 	}{
-		{name: "lower_case", text: "see @codex", reject: true},
-		{name: "title_case", text: "see @Codex", reject: true},
-		{name: "upper_case", text: "see @CODEX", reject: true},
-		{name: "line_start", text: "first line\n@codex please look", reject: true},
-		{name: "request_text", text: "@codex review", reject: true},
-		// No word boundary is required, so a longer name is rejected too.
-		{name: "longer_name", text: "ask @codexbot", reject: true},
-		{name: "email_address", text: "mail a@codex.example", reject: true},
-		{name: "name_without_at", text: "Codex and codex flagged this"},
-		{name: "other_mention", text: "@coderabbitai flagged this"},
-		{name: "full_width_at", text: "\uff20codex"},
-		{name: "zero_width_inside", text: "@\u200bcodex"},
+		{name: "codex_title_case", text: "see @Codex", reject: true},
+		{name: "coderabbitai_mixed_case", text: "see @CodeRabbitAI", reject: true},
+		{name: "names_without_at", text: "Codex, codex, CodeRabbit, and coderabbitai flagged this"},
+		// Without the trailing "ai", "@coderabbit" is not a rejected mention.
+		{name: "coderabbit_without_ai", text: "@coderabbit flagged this"},
+		{name: "other_mention", text: "@other-bot flagged this"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := checkPostText(tc.text)
-			if tc.reject && !errors.Is(err, errCodexMention) {
-				t.Errorf("checkPostText(%q) = %v, want errCodexMention", tc.text, err)
+			if tc.reject && !errors.Is(err, errMention) {
+				t.Errorf("checkPostText(%q) = %v, want errMention", tc.text, err)
 			}
 			if !tc.reject && err != nil {
 				t.Errorf("checkPostText(%q) = %v, want nil", tc.text, err)
@@ -453,67 +475,74 @@ func TestCheckPostText(t *testing.T) {
 	}
 }
 
-// mentionText is a post text that mentions Codex in the middle of a line.
-const mentionText = "Thanks; @Codex flagged this too."
+// mentionTexts hold one post text per rejected mention in the middle of a line.
+var mentionTexts = map[string]string{
+	"codex":        "Thanks; @Codex flagged this too.",
+	"coderabbitai": "Thanks; @CodeRabbitAI flagged this too.",
+}
 
-func TestReplyRejectsCodexMention(t *testing.T) {
+func TestReplyRejectsMention(t *testing.T) {
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
-	t.Run("mention", func(t *testing.T) {
-		// The fake holds no step, so any gh call fails the test.
-		g, _ := newTestGitHub(t)
-		if err := g.Reply(t.Context(), replyRequest(t, th, mentionText)); !errors.Is(err, errCodexMention) {
-			t.Errorf("Reply = %v, want errCodexMention", err)
-		}
-	})
+	for name, text := range mentionTexts {
+		t.Run("mention/"+name, func(t *testing.T) {
+			// The fake holds no step, so any gh call fails the test.
+			g, _ := newTestGitHub(t)
+			if err := g.Reply(t.Context(), replyRequest(t, th, text)); !errors.Is(err, errMention) {
+				t.Errorf("Reply = %v, want errMention", err)
+			}
+		})
+	}
 	// A body readTextFile rejects is reported as such even when it also
-	// mentions Codex: the file is checked before its content.
+	// contains a rejected mention: the file is checked before its content.
 	for name, body := range map[string]string{
-		"over_size_cap": mentionText + strings.Repeat("a", maxTextFileBytes),
-		"invalid_utf8":  mentionText + "\xff",
+		"over_size_cap": mentionTexts["coderabbitai"] + strings.Repeat("a", maxTextFileBytes),
+		"invalid_utf8":  mentionTexts["codex"] + "\xff",
 	} {
 		t.Run("file_rejected_first/"+name, func(t *testing.T) {
 			g, _ := newTestGitHub(t)
 			err := g.Reply(t.Context(), replyRequest(t, th, body))
-			if !errors.Is(err, ErrInvalidInput) || errors.Is(err, errCodexMention) {
-				t.Errorf("Reply = %v, want a file rejection, not errCodexMention", err)
+			if !errors.Is(err, ErrInvalidInput) || errors.Is(err, errMention) {
+				t.Errorf("Reply = %v, want a file rejection, not errMention", err)
 			}
 		})
 	}
 	t.Run("no_mention_posts", func(t *testing.T) {
 		g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), writeSteps(t, th)...)...)
-		if err := g.Reply(t.Context(), replyRequest(t, th, "Codex and @coderabbitai agree.")); err != nil {
+		if err := g.Reply(t.Context(), replyRequest(t, th, "Codex and CodeRabbit agree.")); err != nil {
 			t.Errorf("Reply = %v", err)
 		}
 	})
 }
 
-func TestEditPRRejectsCodexMention(t *testing.T) {
-	for name, files := range map[string][2]string{
-		"title": {"fix: " + mentionText, "## Summary\nbody"},
-		"body":  {"fix: a title", "## Summary\n" + mentionText},
-	} {
-		t.Run(name, func(t *testing.T) {
-			// The fake holds no step, so any gh call fails the test.
-			g, _ := newTestGitHub(t)
-			req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, files[0]), BodyFile: writeTextFile(t, files[1])}
-			if err := g.EditPR(t.Context(), req); !errors.Is(err, errCodexMention) {
-				t.Errorf("EditPR = %v, want errCodexMention", err)
-			}
-		})
+func TestEditPRRejectsMention(t *testing.T) {
+	for mentionName, text := range mentionTexts {
+		for field, files := range map[string][2]string{
+			"title": {"fix: " + text, "## Summary\nbody"},
+			"body":  {"fix: a title", "## Summary\n" + text},
+		} {
+			t.Run(field+"/"+mentionName, func(t *testing.T) {
+				// The fake holds no step, so any gh call fails the test.
+				g, _ := newTestGitHub(t)
+				req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, files[0]), BodyFile: writeTextFile(t, files[1])}
+				if err := g.EditPR(t.Context(), req); !errors.Is(err, errMention) {
+					t.Errorf("EditPR = %v, want errMention", err)
+				}
+			})
+		}
 	}
 	// A title readTitleFile rejects is reported as such even when it also
-	// mentions Codex.
+	// contains a rejected mention.
 	t.Run("file_rejected_first", func(t *testing.T) {
 		g, _ := newTestGitHub(t)
-		req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, mentionText+"\nmore"), BodyFile: writeTextFile(t, "body")}
-		if err := g.EditPR(t.Context(), req); !errors.Is(err, ErrInvalidInput) || errors.Is(err, errCodexMention) {
-			t.Errorf("EditPR = %v, want a file rejection, not errCodexMention", err)
+		req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, mentionTexts["coderabbitai"]+"\nmore"), BodyFile: writeTextFile(t, "body")}
+		if err := g.EditPR(t.Context(), req); !errors.Is(err, ErrInvalidInput) || errors.Is(err, errMention) {
+			t.Errorf("EditPR = %v, want a file rejection, not errMention", err)
 		}
 	})
 	t.Run("no_mention_edits", func(t *testing.T) {
-		title := "fix: what Codex flagged"
+		title := "fix: what CodeRabbit flagged"
 		g, _ := newTestGitHub(t, editStep(title))
-		req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, title), BodyFile: writeTextFile(t, "Codex and @coderabbitai agree.")}
+		req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, title), BodyFile: writeTextFile(t, "Codex and CodeRabbit agree.")}
 		if err := g.EditPR(t.Context(), req); err != nil {
 			t.Errorf("EditPR = %v", err)
 		}
@@ -689,14 +718,16 @@ func TestAppendPRRejects(t *testing.T) {
 			}
 		})
 	}
-	t.Run("file/mention", func(t *testing.T) {
-		// The '@' rule would refuse a mention too; errCodexMention shows the
-		// mention check itself refused it.
-		g, _ := newTestGitHub(t)
-		if err := g.AppendPR(t.Context(), appendRequest(t, "ask @Codex\n")); !errors.Is(err, errCodexMention) {
-			t.Errorf("AppendPR = %v, want errCodexMention", err)
-		}
-	})
+	for name, text := range mentionTexts {
+		t.Run("file/mention/"+name, func(t *testing.T) {
+			// The '@' rule would refuse a mention too; errMention shows the
+			// mention check itself refused it.
+			g, _ := newTestGitHub(t)
+			if err := g.AppendPR(t.Context(), appendRequest(t, text+"\n")); !errors.Is(err, errMention) {
+				t.Errorf("AppendPR = %v, want errMention", err)
+			}
+		})
+	}
 	t.Run("zero_pr", func(t *testing.T) {
 		g, _ := newTestGitHub(t)
 		req := appendRequest(t, appended)
@@ -707,17 +738,26 @@ func TestAppendPRRejects(t *testing.T) {
 	})
 	overCap := marker + strings.Repeat("a", maxTextFileBytes-len("\n\n")-len(appended)-len(marker)+1)
 	for name, row := range map[string]struct {
-		current string
-		want    error
+		current      string
+		want         error
+		wantStopKind string
+		notInvalid   bool
 	}{
-		"over_size_cap":   {overCap, ErrInvalidInput},
-		"current_mention": {"## Summary\n" + marker + " @codex review\n", errCodexMention},
+		"over_size_cap":                {overCap, ErrInvalidInput, "", false},
+		"current_mention_codex":        {"## Summary\n" + marker + " @codex review\n", ErrCurrentBodyMention, StopCurrentBodyMention, true},
+		"current_mention_coderabbitai": {"## Summary\n" + marker + " @coderabbitai review\n", ErrCurrentBodyMention, StopCurrentBodyMention, true},
 	} {
 		t.Run("result/"+name, func(t *testing.T) {
 			g, _ := newTestGitHub(t, viewBodyStep(bodyResponse(t, row.current)))
 			err := g.AppendPR(t.Context(), appendRequest(t, appended))
 			if !errors.Is(err, row.want) || strings.Contains(err.Error(), marker) {
 				t.Errorf("AppendPR = %v, want %v without the body", err, row.want)
+			}
+			if row.notInvalid && errors.Is(err, ErrInvalidInput) {
+				t.Errorf("AppendPR = %v, must not wrap ErrInvalidInput", err)
+			}
+			if row.wantStopKind != "" && StopKind(err) != row.wantStopKind {
+				t.Errorf("StopKind(%v) = %q, want %q", err, StopKind(err), row.wantStopKind)
 			}
 		})
 	}

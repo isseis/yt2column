@@ -73,10 +73,6 @@ var allowedEnvRefs = map[string]map[string]int{
 	// The fixprguard developer tool passes its environment, minus GIT_*, to
 	// git, and looks up GH_REPO and GH_HOST only to refuse them.
 	"cmd/fixprguard/main.go": {"call:os.Environ": 1, "value:os.LookupEnv": 1},
-	// The codexreview developer tool passes its environment to
-	// codexreview.Run, which gives git all of it minus GIT_* and codex only
-	// the variables it names.
-	"cmd/codexreview/main.go": {"call:os.Environ": 1},
 	// The coverage comparison tool passes its environment to
 	// coveragecompare.Run, which gives git all of it minus GIT_* and the test
 	// suites only the variables it names.
@@ -91,6 +87,11 @@ var allowedEnvRefs = map[string]map[string]int{
 	// which gives git all of it minus GIT_* and gh all of it minus the color
 	// and prompt variables it replaces and minus GH_REPO and GH_HOST.
 	"cmd/numreserve/main.go": {"call:os.Environ": 1},
+	// The CI-only ciskip tool passes its environment to ciskip.New, which
+	// gives git and has-extension-changes.sh all of it minus GIT_*,
+	// GH_TOKEN, GITHUB_TOKEN, and CISKIP_*, and gh all of it minus the host,
+	// repository, color, prompt, debug, pager, GIT_*, and CISKIP_* variables.
+	"cmd/ciskip/main.go": {"call:os.Environ": 1},
 	// The mergepr developer tool passes its environment to numreserve.New for
 	// the pre-merge number check, which narrows it as for cmd/numreserve.
 	"cmd/mergepr/main.go": {"call:os.Environ": 1},
@@ -418,6 +419,9 @@ func TestEnvAccessConfined(t *testing.T) {
 	}
 	if got := rep.observed["cmd/yt2column-extjob/main.go value:os.LookupEnv"]; got != 1 {
 		t.Errorf("observed cmd/yt2column-extjob/main.go os.LookupEnv = %d, want 1", got)
+	}
+	if got := rep.observed["cmd/ciskip/main.go call:os.Environ"]; got != 1 {
+		t.Errorf("observed cmd/ciskip/main.go os.Environ = %d, want 1", got)
 	}
 }
 

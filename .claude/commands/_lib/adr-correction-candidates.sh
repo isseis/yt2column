@@ -61,7 +61,7 @@
 #
 # Why bash: the script only reads git and prints, with no side effect, so it
 # is not a development tool with decisions and side effects that
-# docs/dev/adr/0014-deterministic-checks-in-go.md puts in Go; the comparison
+# docs/dev/conventions/dev_tools.md puts in Go; the comparison
 # is still made by the script, not by the agent, and TestADRCorrectionCandidates
 # (cmd/yt2column/adr_candidates_docs_test.go) checks each property above.
 
