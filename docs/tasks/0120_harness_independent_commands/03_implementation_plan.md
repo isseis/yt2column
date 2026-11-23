@@ -159,7 +159,7 @@
 - `docs/tasks/0120_harness_independent_commands/03_implementation_plan.md`（§7 の差分記録）
 
 **作業内容:**
-- [ ] §7.2 の PR-1 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録し、`.claude/settings.json` および他タスクの計画書が変更されていないことを確認する。
+- [x] §7.2 の PR-1 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録し、`.claude/settings.json` および他タスクの計画書が変更されていないことを確認する。
 
 **完了基準:**
 - グリーンゲートがパスし、§7.2 の PR-1 差分記録が最新 HEAD と一致する。
@@ -718,7 +718,26 @@ PR-1:
 Diff record (AC-32):
 
 - Compared paths: `.claude/settings.json`
-- File list: required (all changed paths of the PR)
+- Merge-base: `d7467569603ebee9da629419ae299d430fb920f2`
+- Compared commit: `6dee92cb368e44d3e140203296c888b4e502b1de`
+
+Path diff:
+
+````text
+````
+
+File list:
+
+````text
+.claude/commands/fixpr.md
+.claude/commands/runpr.md
+docs/dev/adr/0055-harness-independent-commands.md
+docs/dev/guides/fixprguard_guide.md
+docs/tasks/0120_harness_independent_commands/03_implementation_plan.md
+internal/fixprguard/ignored.go
+internal/fixprguard/ignored_test.go
+internal/fixprguard/types.go
+````
 
 PR-2:
 
