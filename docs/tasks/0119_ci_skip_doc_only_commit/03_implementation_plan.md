@@ -245,18 +245,18 @@
 **ステップ 3-1: PR-4 の GitHub Actions 実機確認結果を検証・記録する**
 
 -   対象ファイル：`docs/tasks/0119_ci_skip_doc_only_commit/03_implementation_plan.md`
--   [ ] PR-4 マージ後（`自動送信: hold` により利用者が確認した後に開始）、PR-4 の GitHub Actions 実行履歴から AC-20 の 2 ケースを確認する：
+-   [x] PR-4 マージ後（`自動送信: hold` により利用者が確認した後に開始）、PR-4 の GitHub Actions 実行履歴から AC-20 の 2 ケースを確認する：
     1.  コード変更を含む push（PR-4 上でコード変更コミットを先頭とする `/fixpr` 等の push、または PR-4 のコード変更に対する全 6 ジョブ通常実行の run）で、`check-changes` が `::notice title=ci-base-sha::<sha>` を出力し、`test`・`lint`・`extension`・`doc-guard`・`secret-scan` が通常実行されて成功したこと（なお `/runplan` は PR 作成前後に空の記録コミットや PR 作成直後の `AFTER_CREATE` コミットを積むため、対象 run の確認時に先頭コミット種別も併せて確認する）。
     2.  直後の非コード・非拡張のみのコミット（PR-4 の `/runpr` による `PRE_MERGE` コミット等）で、`check-changes` が親 run の `ci-base-sha` アノテーションを読み戻して `has-code-changes=false`・`has-extension-changes=false` を出力し、`test`・`lint`・`extension` が `skipped`、`doc-guard`・`secret-scan` が実行・成功したこと。
--   [ ] 確認日・PR 番号・2 ケースそれぞれのワークフロー実行 URL・全 6 ジョブの結果（およびケース 1 で先頭コミットがコード変更だったか記録コミットだったかの事実）を、本計画書 §7「GitHub Actions 実機確認の記録（AC-20）」へ記録する（AC-20）。
--   [ ] 万一ケース 1 が未確認の場合（PR-4 にコード変更先頭コミットの push が発生せず利用者が直接確認を求める場合を含む）、ケース 2 が `main` 更新などによりスキップされなかった場合、または `::notice` 読み戻しに設計想定と異なる挙動が見つかった場合は、ADR の食い違いの記述除去へ進まずに停止し、追加の確認手段または対処方針を利用者と決定する（設計書 §5.3）。
+-   [x] 確認日・PR 番号・2 ケースそれぞれのワークフロー実行 URL・全 6 ジョブの結果（およびケース 1 で先頭コミットがコード変更だったか記録コミットだったかの事実）を、本計画書 §7「GitHub Actions 実機確認の記録（AC-20）」へ記録する（AC-20）。
+-   [x] 万一ケース 1 が未確認の場合（PR-4 にコード変更先頭コミットの push が発生せず利用者が直接確認を求める場合を含む）、ケース 2 が `main` 更新などによりスキップされなかった場合、または `::notice` 読み戻しに設計想定と異なる挙動が見つかった場合は、ADR の食い違いの記述除去へ進まずに停止し、追加の確認手段または対処方針を利用者と決定する（設計書 §5.3）。
 -   完了の基準：§7「GitHub Actions 実機確認の記録（AC-20）」に 2 ケースの実行 URL と全 6 ジョブ結果が記録されている。
 
 **ステップ 3-2: ADR-0054 と ADR-0014 の食い違いの記述を除去する**
 
 -   対象ファイル：`docs/dev/adr/0054-ci-skip-doc-only-commit.md`、`docs/dev/adr/0014-deterministic-checks-in-go.md`
--   [ ] `docs/dev/adr/0054-ci-skip-doc-only-commit.md` の `## 決定` から未実装を示す「食い違い」の項目（`:40`）を除去し、本文が実装済みの振る舞いと一致していることを確かめる（AC-19）。また `## 結果` の未実測表記（`:64`）をステップ 3-1 の実機確認結果に合わせて更新する。
--   [ ] `docs/dev/adr/0014-deterministic-checks-in-go.md` の `## 決定` から、本タスクの CI 専用ツール（`ciskip`）に関する「食い違い」の項目（`:31`）のみを除去する（`:50` の `codexreview` に関する別タスクの食い違いは触れない）。
+-   [x] `docs/dev/adr/0054-ci-skip-doc-only-commit.md` の `## 決定` から未実装を示す「食い違い」の項目（`:40`）を除去し、本文が実装済みの振る舞いと一致していることを確かめる（AC-19）。また `## 結果` の未実測表記（`:64`）をステップ 3-1 の実機確認結果に合わせて更新する。
+-   [x] `docs/dev/adr/0014-deterministic-checks-in-go.md` の `## 決定` から、本タスクの CI 専用ツール（`ciskip`）に関する「食い違い」の項目（`:31`）のみを除去する（`:50` の `codexreview` に関する別タスクの食い違いは触れない）。
 -   完了の基準：`make test`（`TestADRRecords` を含む）・`make lint`・`make deadcode` がすべて通る。
 
 ### PR-5 作成ポイント: GitHub Actions verification record and ADR alignment
@@ -273,10 +273,10 @@
 
 **自動送信**: hold
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1093
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ---
 
@@ -329,7 +329,7 @@ PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利�
 
 | # | リスク | 対策 |
 |---|---|---|
-| 1 | `GITHUB_TOKEN` + `checks: read` で `::notice title=ci-base-sha::<sha>` を Checks API から読み戻せない（未実測、設計書 §5.3） | 読み戻せない場合は `ReasonParentBaseMissing` で安全側（通常分類）へ倒れるため誤スキップは起きない。PR-4 の実機確認で検証し、問題があれば PR-5 で ADR の食い違いの記述を除去する前に停止して方式を見直す（ステップ 3-1） |
+| 1 | `GITHUB_TOKEN` + `checks: read` で `::notice title=ci-base-sha::<sha>` を Checks API から読み戻せない（設計書 §5.3） | 読み戻せない場合は `ReasonParentBaseMissing` で安全側（通常分類）へ倒れるため誤スキップは起きない。PR-4 の実機確認（2026-11-23、#1091）で読み戻しを確認し、このリスクは解消した（§7「GitHub Actions 実機確認の記録（AC-20）」） |
 | 2 | PR-4 のレビュー中に別 PR が `main` へマージされて `PRE_MERGE` が `ReasonMainAdvanced` になる、または `/runplan` の記録コミットにより PR-4 でコード変更先頭コミットの push が走らない | PR-5 を `自動送信: hold` とし、利用者が PR-4 の実行ログを確認する。2 ケースのどちらかが未確認なら、ADR 更新へ進まずに追加の確認手順を利用者と決める（ステップ 3-1） |
 | 3 | `ci.yml` の `id: normal` 書き換えで `extension/test/repository.test.ts:232-235` の正規表現ピンが壊れる | `wasm_dep_dirs_ok=false` を `if` の前に初期化し、`else` 直後の構造を変えない（§1.4）。ステップ 2-3 の完了基準で `make ext-test` を実行して確認する |
 | 4 | `os.Open(depDirsFile)`（64 KiB+1 バイト上限の `io.LimitReader` 付き有界読み取り）・`os.WriteFile(resultFile, ...)`、および `test_helpers.go`（`_test.go` 除外対象外）の `exec.Command` 等が `golangci-lint` の `gosec` に抵触する | 該当行のみに最小範囲の `//nolint:gosec` と用途を限定した根拠コメント（`test_helpers.go` ではテストセットアップ専用と明記）を付け、ファイル・パッケージ全体への抑制は行わない。`make lint` で確認する |
@@ -346,7 +346,7 @@ PR 分割の理由は §1.3 の決定 1 にある。PR-4 のマージ後、利�
 - [x] PR-2 マージ済み（対象ステップ: 1-4 / 1-5）
 - [x] PR-3 マージ済み（対象ステップ: 2-1 / 2-2）
 - [x] PR-4 マージ済み（対象ステップ: 2-3 / 2-4）
-- [ ] PR-5 マージ済み（対象ステップ: 3-1 / 3-2）
+- [x] PR-5 マージ済み（対象ステップ: 3-1 / 3-2）
 
 ---
 
@@ -395,16 +395,18 @@ PASS: .github/workflows/ci.yml diff is confined to check-changes
 
 ### GitHub Actions 実機確認の記録（AC-20）
 
-フェーズ 3（ステップ 3-1）で、PR-4 の実行結果から以下を記録する。
+フェーズ 3（ステップ 3-1）で、PR-4（#1091）の実行結果から次を確認した。
 
--   **確認日:** （未記録）
--   **対象 PR:** （未記録）
+-   **確認日:** 2026-11-23
+-   **対象 PR:** [#1091](https://github.com/isseis/yt2column/pull/1091)
 -   **ケース 1（コード変更を含む push での通常実行）:**
-    -   実行 URL: （未記録）
-    -   先頭コミットの種別（コード変更／記録コミット）と `check-changes`（`ci-base-sha` notice 出力含む） / `test` / `lint` / `extension` / `doc-guard` / `secret-scan`: （未記録）
+    -   実行 URL: https://github.com/isseis/yt2column/actions/runs/45108083604
+    -   先頭コミットの種別と全 6 ジョブの結果: 先頭コミット `e9cd5086` は `origin/main`（`2db8551f`）を取り込んだマージコミットであり、コード変更のコミットでも記録コミットでもない。`ciskip` の判定は親コミットが 1 つでないため `decision=run reason=not_single_parent` で安全側に終了し、`::notice title=ci-base-sha::2db8551f0a1030c936ca19089b0e952bf5d417b7` を出力した。重いジョブは、PR 全体（`origin/main...HEAD`）の通常分類がコードファイルを含むため実行され、`test`・`lint`・`extension`・`doc-guard`・`secret-scan` はいずれも成功した（`check-changes` を含む全 6 ジョブが success）。この run の先頭コミットの差分に含まれる `internal/fixprguard/*` の変更は、取り込んだ `origin/main` のものである。`reason=code_changed`（親コミットが 1 つでコード変更）の通常実行は GitHub Actions では観測していない。
+    -   補足: 先頭コミット `21dcb81`（`docs(0119): record PR-4 URL in implementation plan`、記録コミット）の run https://github.com/isseis/yt2column/actions/runs/45103580506 も、PR 全体にコード変更を含むため通常分類で全 6 ジョブが実行されて成功し、`::notice title=ci-base-sha::812f94a0dc3eef41bd69d8a4e023f994d68a0ee9` を出力した（`decision=run reason=no_parent_run`）。
 -   **ケース 2（直後の非コード・非拡張のみコミットのスキップ）:**
-    -   実行 URL: （未記録）
-    -   `check-changes` / `test` / `lint` / `extension` / `doc-guard` / `secret-scan`: （未記録）
+    -   実行 URL: https://github.com/isseis/yt2column/actions/runs/45110835958
+    -   全 6 ジョブの結果: 先頭コミット `4e220f2`（`docs(0119): record the review of PR #1091`、実装計画書のみの変更）で、`check-changes` は親 run（45108083604）の `ci-base-sha` アノテーションを Checks API から読み戻し、`decision=skip reason=ok parent=e9cd5086d4ca run=45108083604 base=2db8551f0a10` を出力して `has-code-changes=false`・`has-extension-changes=false` を返した。`test`・`lint`・`extension` は `skipped`、`doc-guard`・`secret-scan` は実行されて成功した（`check-changes` success、重い 3 ジョブ skipped、常時実行 2 ジョブ success）。
+    -   `::notice` の読み戻し: `check-runs/137473873988/annotations` に `annotation_level=notice`・`title=ci-base-sha`・`message=2db8551f0a1030c936ca19089b0e952bf5d417b7` の 1 件が存在することを確認した。
 
 ---
 
