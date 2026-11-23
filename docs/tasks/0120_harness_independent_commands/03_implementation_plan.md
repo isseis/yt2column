@@ -354,7 +354,7 @@
 - [x] `.claude/commands/_lib/harness-antigravity.md` を英語で新設し、10 種の抽象操作の Antigravity 実装を設計書 3.1・4.1・4.2・5.2・6.1 に従って記述する。`CommandDocs` の既存信頼境界ガード（`TestNoDirectHerdrInvocation`・`cmd/numreserve` `TestDocumentedInvocations`・`TestPostingCommandsInventory`）に抵触しないよう、禁止コマンド一覧と PR タイトルの安全な渡し方は生の `herdr <subcmd>` コードスパン・未許可形 `numreserve ...`・`gh pr create/edit --title ...` を書かず、`docs/dev/guides/chief_guide.md` 6 章・`CLAUDE.md`「Tool Execution Safety」・`_context.md`「Passing a title to `gh`」への参照で記述する。
 - [x] `cmd/yt2column/fixpr_docs_test.go` に `TestHarnessAntigravityPhase6Redirect` を追加し、`harness-antigravity.md` 内のすべてのコードフェンスおよびインラインコード（環境変数前置や複数行折り返しを含む）から `gh ... --json ... body` の呼び出しを抽出し、1 件以上検出されること、およびその全件がスクラッチパッドへの直接リダイレクト形であり標準出力へ本文を漏らさないことを検証する（実装時にリダイレクトを外して失敗すること、および 0 件一致で失敗することを確認する）。
 - [x] `ADR-0014`（`:56`）・`ADR-0050`（`:35`）・`ADR-0055`（`:25`）の `#1072` 食い違い記述から、本 PR で解消した `review-records.sh` 一般化およびハーネスのアダプタ新設分を取り除き、残余の食い違いのみを示す形へ書き換える（コミットメッセージに `Editorial correction:` 行を残す）。
-- [ ] §7.2 の PR-3 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録する。
+- [x] §7.2 の PR-3 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録する。
 
 **完了基準:**
 - `make test && make lint && make deadcode`・`doc-guard`（`TestHighReviewDecisionCallSite` を含む `CommandDocs` 経由の全 8 呼び出しテスト・`TestInstructionDocPaths`・`TestHarnessAntigravityPhase6Redirect` を含む）が通り、§7.2 の PR-3 差分記録が最新 HEAD と一致する。
@@ -800,7 +800,28 @@ PR-3:
 Diff record (AC-32):
 
 - Compared paths: `.claude/settings.json`
-- File list: required (all changed paths of the PR)
+- Merge-base: `4aee4aa65011cb421b630e489dbb3779372ee900`
+- Compared commit: `a1dc254d7799ff70bf4596d5f70173f654a3e50c`
+
+Path diff:
+
+````text
+````
+
+File list:
+
+````text
+.claude/commands/_lib/harness-antigravity.md
+.claude/commands/_lib/harness-claude.md
+.claude/commands/_lib/harness.md
+.claude/commands/_lib/review-records.sh
+cmd/yt2column/fixpr_docs_test.go
+cmd/yt2column/review_records_test.go
+docs/dev/adr/0014-deterministic-checks-in-go.md
+docs/dev/adr/0050-fable-partial-review.md
+docs/dev/adr/0055-harness-independent-commands.md
+docs/tasks/0120_harness_independent_commands/03_implementation_plan.md
+````
 
 PR-4:
 
