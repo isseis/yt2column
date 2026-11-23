@@ -261,7 +261,7 @@
 -   [x] **ステップ 2-8**: ADR-0050 の食い違いの文を消す。
     -   PR を作る前に、`git grep -nE 'issues/988([^0-9]|$)' origin/main -- docs/dev/adr/` で、`origin/main` の文を探す。
     -   決定の節にあり、この食い違いを述べる文だけを消す。commit のメッセージに訂正の行を書く（`docs/dev/conventions/adr.md`「Discrepancy statements」）。
--   [ ] **ステップ 2-9**: AC-23 の差分の記録を書く（§7 の「差分の記録」の PR-2 の欄）。
+-   [x] **ステップ 2-9**: AC-23 の差分の記録を書く（§7 の「差分の記録」の PR-2 の欄）。
 
 **完了の条件:**
 
@@ -440,6 +440,13 @@ Path diff:
 PR-2:
 
 - Compared paths: `docs/tasks/0098_fable_partial_review/`
+- Merge-base: `d74acaeb62c0aeebc1a85a2593324aac97aa3029`
+- Compared commit: `5c71c0881c91953b42099dd7594b304329e6dda5`
+
+Path diff:
+
+```text
+```
 
 PR-3:
 
