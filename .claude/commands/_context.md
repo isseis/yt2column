@@ -127,14 +127,16 @@ PR boundary markers embedded in the implementation plan use these labels:
      `runplan.md` and `runpr.md` read Antigravity's recommended model for each
      reading from the `Antigravity` rows of "Harness model mapping" below
      (`high` → `high`, `standard+high-review` → `standard`, `low` → `low`) and
-     note that the high-model review always runs for `high`,
-     `standard+high-review`, and unreadable values because Antigravity
-     sessions cannot self-verify their model ID. The high-model review column
-     is decided in detail by entry 1 of `_lib/opus-review.md`.
+     note that Antigravity implementation records cannot satisfy `all-high`
+     because Antigravity sessions cannot self-verify their model ID (so for
+     `high`, `standard+high-review`, and unreadable values, the high-model
+     review runs unless a valid done record already covers the branch). The
+     high-model review column is decided in detail by entry 1 of
+     `_lib/opus-review.md`.
 
      | Reading | Command routing row | High-model review |
      |---|---|---|
-     | `high` | `runplan-high` | decided by entry 1: runs when a commit is not covered by a self-verifying `high` implementation record (always runs on Antigravity) |
+     | `high` | `runplan-high` | decided by entry 1: runs when a commit is not covered by a self-verifying `high` implementation record or a valid done record (Antigravity records cannot satisfy `all-high`) |
      | `standard+high-review` | `runplan-standard+high-review` | decided by entry 1, as for `high` |
      | `low` | `runplan-low` | does not run |
      | unreadable value | none (show the text and that it is unreadable) | treated as for `standard+high-review` |

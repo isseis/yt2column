@@ -59,7 +59,7 @@ for name in ${!GIT_@}; do
 done
 unset -f git awk grep tr tail printf
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ATTR_NOSYSTEM=1
-export GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 GIT_NO_REPLACE_OBJECTS=1
+export GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 GIT_NO_REPLACE_OBJECTS=1 GIT_NO_LAZY_FETCH=1
 
 GIT_OVERRIDES=(
 	-c core.attributesFile=/dev/null
@@ -371,11 +371,25 @@ locate_value() {
 
 # old_value_table prints "<old> <new>" for each row of the old-value table in
 # origin/main's _context.md: a two-cell row, inside "### PR marker
-# conventions", whose second cell is one of the three canonical values. An old
-# value with a blank or with two rows is dropped, so it reads as unreadable.
+# conventions" outside fenced code blocks, whose second cell is one of the
+# three canonical values. An old value with a blank or with two rows is
+# dropped, so it reads as unreadable.
 old_value_table() {
-	printf '%s\n' "$CONTEXT_DOC" | awk '
+	awk '
 		{ sub(/\r$/, "") }
+		{
+			t = $0
+			if (t ~ /^ ? ? ?[^ \t]/ || t == "") sub(/^ +/, "", t); else t = ""
+			c = substr(t, 1, 1)
+			if (substr(t, 1, 3) == "```" || substr(t, 1, 3) == "~~~") {
+				len = 0
+				while (substr(t, len + 1, 1) == c) len++
+				rest = substr(t, len + 1)
+				if (!fence) { fence = 1; fchar = c; flen = len; next }
+				if (c == fchar && len >= flen && rest ~ /^[ \t]*$/) { fence = 0; next }
+			}
+		}
+		fence { next }
 		/^#+[ \t]/ { insec = ($0 ~ /^### PR marker conventions[ \t]*$/); next }
 		insec && match($0, /^[ \t]*\| `[^`]+` \| `(high|standard\+high-review|low)` \|[ \t]*$/) {
 			line = $0
@@ -387,7 +401,7 @@ old_value_table() {
 			map[old] = new
 		}
 		END { for (o in map) if (count[o] == 1) print o, map[o] }
-	'
+	' <<<"$CONTEXT_DOC"
 }
 
 # classify reads one copy of the plan and prints high, standard+high-review,
@@ -435,9 +449,12 @@ MULTIPLE) run_on_failure "HEAD's plan has more than one place for the value" ;;
 esac
 
 # origin/main's copy counts only when it has the plan and the target place;
-# without them the decision rests on HEAD alone.
+# without them the decision rests on HEAD alone. Distinguish an absent path
+# from a present path whose blob cannot be read (fail closed).
 OM_READ=absent
-if OM_PLAN=$(g cat-file blob "$OM:$PLAN" 2>/dev/null); then
+OM_TREE_ENTRY=$(g ls-tree --name-only "$OM" -- "$PLAN") || run_on_failure "cannot inspect origin/main tree for PLAN"
+if [ -n "$OM_TREE_ENTRY" ]; then
+	OM_PLAN=$(g cat-file blob "$OM:$PLAN" 2>/dev/null) || run_on_failure "cannot read PLAN at origin/main"
 	OM_READ=$(printf '%s\n' "$OM_PLAN" | classify) || run_on_failure "cannot classify PLAN at origin/main"
 	case $OM_READ in
 	NOSECTION) OM_READ=absent ;;
@@ -473,17 +490,26 @@ parent_count() {
 }
 
 # excludable: one parent, and either empty or changing only PLAN and
-# README.en.md.
+# README.en.md. Preserves NUL delimiters from diff-tree -z and fails closed
+# on any git error instead of treating it as a normal non-excludable commit.
 excludable() {
-	local c=$1 path paths
-	[ "$(parent_count "$c")" = 1 ] || return 1
-	paths=$(
-		g diff-tree -z --no-commit-id --name-only -r --no-renames "$c" | tr '\0' '\n'
-	) || return 1
-	while IFS= read -r path; do
-		[ -z "$path" ] || [ "$path" = "$PLAN" ] || [ "$path" = README.en.md ] || return 1
-	done <<<"$paths"
-	return 0
+	local c=$1 pc path prev="" have_prev=0 excl=1
+	pc=$(parent_count "$c") || run_on_failure "cannot read commit $c"
+	[ "$pc" = 1 ] || return 1
+	while IFS= read -r -d '' path; do
+		if [ "$have_prev" = 1 ]; then
+			if [ "$prev" != "$PLAN" ] && [ "$prev" != README.en.md ]; then
+				excl=0
+			fi
+		fi
+		prev=$path
+		have_prev=1
+	done < <(
+		g diff-tree -z --no-commit-id --name-only -r --no-renames "$c"
+		printf '%d\0' "$?"
+	)
+	[ "$have_prev" = 1 ] && [ "$prev" = 0 ] || run_on_failure "git diff-tree failed for $c"
+	[ "$excl" = 1 ]
 }
 
 # An ID is printable ASCII without a space or a comma.
@@ -524,10 +550,15 @@ if [ -n "$DONE_LINE" ] && [[ $DONE_LINE =~ $DONE_RE ]]; then
 			}
 		done
 		if [ "$ok" = 1 ]; then
-			printf 'SKIP %s\n' "$DONE_LINE"
+			AFTER_LINES=()
 			for c in $AFTER; do
-				g log -1 --no-show-signature --format='%h %s' --abbrev=12 "$c" ||
+				entry=$(g log -1 --no-show-signature --format='%h %s' --abbrev=12 "$c") ||
 					run_on_failure "git log failed"
+				AFTER_LINES+=("$entry")
+			done
+			printf 'SKIP %s\n' "$DONE_LINE"
+			for entry in "${AFTER_LINES[@]}"; do
+				printf '%s\n' "$entry"
 			done
 			exit 0
 		fi
@@ -560,7 +591,8 @@ for c in $COMMITS; do
 done
 
 for c in $COMMITS; do
-	[ "$(parent_count "$c")" = 1 ] || {
+	pc=$(parent_count "$c") || run_on_failure "cannot read commit $c"
+	[ "$pc" = 1 ] || {
 		printf 'RUN\n'
 		exit 0
 	}

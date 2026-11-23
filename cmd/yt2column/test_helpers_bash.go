@@ -5,14 +5,10 @@ package main
 import (
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 )
-
-// bashMajorVersion matches the major version in `bash --version`.
-var bashMajorVersion = regexp.MustCompile(`version ([0-9]+)\.`)
 
 // scriptBash is a bash a test runs a command document's bash script with.
 type scriptBash struct {
@@ -25,22 +21,23 @@ const minBashMajorVersion = 4
 
 // requireBash4 returns the bash on PATH after confirming it is version 4 or
 // later, failing t otherwise. Scripts that use associative arrays require
-// bash 4+.
+// bash 4+. Reads BASH_VERSINFO[0] directly so localized --version output
+// cannot break version detection.
 func requireBash4(t *testing.T) scriptBash {
 	t.Helper()
 	onPath, err := exec.LookPath("bash")
 	if err != nil {
 		t.Fatalf("bash is not on PATH; bash 4 or later is required: %v", err)
 	}
-	out, err := exec.Command(onPath, "--version").Output() //nolint:gosec // runs the bash resolved from PATH
+	out, err := exec.Command(onPath, "-c", `printf %s "${BASH_VERSINFO[0]}"`).Output() //nolint:gosec // runs the bash resolved from PATH
 	if err != nil {
-		t.Fatalf("bash --version (%s): %v", onPath, err)
+		t.Fatalf("read BASH_VERSINFO[0] (%s): %v", onPath, err)
 	}
-	m := bashMajorVersion.FindStringSubmatch(string(out))
-	if m == nil {
+	major, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
 		t.Fatalf("cannot read the version of %s: %q", onPath, string(out))
 	}
-	if major, _ := strconv.Atoi(m[1]); major < minBashMajorVersion {
+	if major < minBashMajorVersion {
 		t.Fatalf("the bash on PATH (%s) is older than %d: %q", onPath, minBashMajorVersion, string(out))
 	}
 	return scriptBash{"path-bash", onPath}

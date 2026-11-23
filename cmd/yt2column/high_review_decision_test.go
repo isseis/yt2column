@@ -361,6 +361,16 @@ func TestHighReviewDecision(t *testing.T) {
 			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "RUN\n")
 		})
 
+		t.Run("filename containing newline after END is not excludable", func(t *testing.T) {
+			t.Parallel()
+			f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "high"), "")
+			c1 := f.work("step 1")
+			f.record("record high review", "High review: done "+f.mb[:12]+".."+c1[:12]+" (critical 0, major 0, minor 0)")
+			f.write("README.en.md\nREADME.en.md", "sneaky\n")
+			f.commit("add filename with newline")
+			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "RUN\n")
+		})
+
 		t.Run("indented and malformed done lines ignored", func(t *testing.T) {
 			t.Parallel()
 			f := newHRDFixture(t, bash, realContext, markersPlanWith(t, "high"), "")
@@ -669,6 +679,19 @@ func TestHighReviewDecision(t *testing.T) {
 			if got := f.git("cat-file", "blob", "HEAD:"+rrMarkersPlan); !strings.Contains(got, ": low") {
 				t.Fatalf("plain git did not apply refs/replace, so the test checks nothing: %q", got)
 			}
+			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "RUN\n")
+		})
+
+		t.Run("fenced old-value row in _context.md is ignored", func(t *testing.T) {
+			t.Parallel()
+			fencedOld := replaceContextRow(
+				t,
+				realContext,
+				"| `standard` | `low` |",
+				"| `standard` | `low` |\n\n```markdown\n| `fenced-low` | `low` |\n```",
+			)
+			f := newHRDFixture(t, bash, fencedOld, markersPlanWith(t, "fenced-low"), "")
+			f.work("step 1")
 			assertRun(t, f.run(rrMarkersPlan, "1", f.mb, scriptRunOptions{}), "RUN\n")
 		})
 
