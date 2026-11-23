@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-23 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-23 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -263,3 +263,7 @@ CodeRabbit（手動）と Sourcery AI（自動・手動）を併用し、`/runpr
 -   **手動の PR レビュー:** 利用者本人の依頼コメント（`@coderabbitai review`・`@sourcery-ai review`、または手動投稿の `@sourceryai review`）で始まる PR レビュー。
 -   **自動の PR レビュー:** 依頼コメントなしで、PR 作成や push に応じて Sourcery AI の GitHub App が自動で実行する PR レビュー。
 -   **割り当て:** 自動レビュアーが一定時間に受け付けるレビューの回数の上限。英語では quota。
+
+## 変更履歴
+
+- 2026-11-23 承認（isseis、#1098）
