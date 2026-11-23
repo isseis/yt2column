@@ -69,15 +69,18 @@ GitHub. Its subcommands, outputs, and stop kinds are in
   standard error instead. The guide's chapter 8 says what to do for each kind.
 - **A tool of another protocol.** When an exit code `2` diagnostic contains
   `--protocol does not match`, the installed tool and this document use
-  different protocol numbers. Stop, and give the user both fixes: when the
-  tool is older, run `make install-fixprguard` from an up-to-date `main`, or,
-  while `main` still carries the older number because the change that raises
-  it is not merged, from this branch's work tree (chapter 3 of
-  `docs/dev/guides/fixprguard_guide.md`, "番号を上げる変更での入れ直し"), and run
-  `/fixpr` again; when this branch is older than `main` (a newer tool running
-  this older document), merge `main` into the branch first and run `/fixpr`
-  again. The first call, `begin`, meets this before anything is committed or
-  pushed.
+  different protocol numbers. Stop, and give the user the fix by which number
+  the tool has to match, and that they run `/fixpr` again after it: when the
+  tool's number is the one that differs (the tool is older than this document,
+  or it was installed from a branch that raises the number while this document
+  still passes the old one), install the tool this document expects with
+  `make install-fixprguard` from an up-to-date `main`, or, while `main` still
+  carries the older number because the change that raises it is not merged,
+  from the work tree of that change's branch (chapter 3 of
+  `docs/dev/guides/fixprguard_guide.md`, "番号を上げる変更での入れ直し"); when
+  this branch is older than `main` (a newer tool running this older document),
+  merge `main` into the branch first. The first call, `begin`, meets this
+  before anything is committed or pushed.
 - **Stops on the ignored files.** A stop is on the ignored files when it is
   `git-state-changed` with `ignored` in its `parts`, or `git-failed` whose
   one-line diagnostic on standard error names an ignored-file rule: a rule
