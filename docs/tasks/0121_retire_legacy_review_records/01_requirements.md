@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-23 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-23 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -185,3 +185,7 @@
 -   **未見:** `review-records.sh` が、ローカルの CLI レビューが見た範囲に入っていないと判定したコミットの状態（`coverage` 等のモードの `PARTIAL`、または `fable` / `cross-check` モードの `MISSING` に現れる）。
 -   **レビューの関門:** `/runpr` が PR レビューを推奨するかどうかや、PR 作成前に追加のローカル CLI レビューを走らせるかを決める仕組み一式（[ADR-0013](../../dev/adr/0013-review-setup.md)、`.claude/commands/_lib/pr-review-escalation.md` 基準 4）。
 -   その他の用語は [docs/translation_glossary.md](../../translation_glossary.md) と統一する。
+
+## 変更履歴
+
+- 2026-11-23 承認（isseis、#1092）
