@@ -275,7 +275,7 @@
 - `docs/tasks/0120_harness_independent_commands/03_implementation_plan.md`（§7 の差分記録）
 
 **作業内容:**
-- [ ] §7.2 の PR-2 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録する。
+- [x] §7.2 の PR-2 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録する。
 
 **完了基準:**
 - グリーンゲートがパスし、§7.2 の PR-2 差分記録が最新 HEAD と一致する。
@@ -744,7 +744,55 @@ PR-2:
 Diff record (AC-32):
 
 - Compared paths: `.claude/settings.json`
-- File list: required (all changed paths of the PR)
+- Merge-base: `2db8551f0a1030c936ca19089b0e952bf5d417b7`
+- Compared commit: `e919f98a41ca81f2a258626dc958bcf506687459`
+
+Path diff:
+
+````text
+````
+
+File list:
+
+````text
+.claude/commands/_context.md
+.claude/commands/_lib/high-review-decision.sh
+.claude/commands/_lib/opus-review-decision.sh
+.claude/commands/_lib/opus-review.md
+.claude/commands/chief.md
+CLAUDE.md
+cmd/yt2column/high_review_decision_test.go
+cmd/yt2column/review_records_test.go
+cmd/yt2column/test_helpers_bash.go
+docs/dev/adr/0014-deterministic-checks-in-go.md
+docs/dev/adr/0035-language-policy.md
+docs/dev/adr/0042-implementation-model-tiers.md
+docs/dev/adr/0046-chief-of-staff.md
+docs/dev/guides/chief_guide.md
+docs/tasks/0120_harness_independent_commands/03_implementation_plan.md
+internal/chief/autosend_test.go
+internal/chief/maintask_test.go
+internal/chief/markers_parity_test.go
+internal/chief/paneinput/paneinput.go
+internal/chief/paneinput/paneinput_test.go
+internal/chief/records.go
+internal/chief/routing.go
+internal/chief/routing_test.go
+internal/chief/running_test.go
+internal/chief/send_test.go
+internal/chief/skiprecord.go
+internal/chief/snapshot_test.go
+internal/chief/state.go
+internal/chief/task.go
+internal/chief/task_test.go
+internal/chief/test_helpers.go
+internal/chief/testdata/README.md
+internal/chief/testdata/plans/marker-high.md
+internal/chief/testdata/plans/marker-low.md
+internal/chief/testdata/plans/marker-old-frontier-recommended.md
+internal/chief/testdata/plans/marker-standard-review.md
+internal/chief/testdata/plans/single-low.md
+````
 
 PR-3:
 
