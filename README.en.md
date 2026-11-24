@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 23ab53e32d65cb67eafd09634d6d034a6f6da665 -->
+<!-- translated-from: README.md febf24ab0299d91c04b2715d158b301f03c499a5 -->
 [日本語](README.md)
 
 Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
@@ -69,7 +69,7 @@ the section that explains it in detail.
 
 1. Run `make ext-install` once, then run `make ext-build`, and load
    `extension/dist` with **Load unpacked** on the extensions page. See
-   [Browser extension](#browser-extension).
+   [Building and loading the extension](docs/dev/guides/development.md#拡張のビルドと読み込み).
 2. Open the extension's options page and save your Anthropic API key. The
    options page opens from **Settings** in the popup. See
    [Setting the API key](#setting-the-api-key).
@@ -89,10 +89,6 @@ before you update the extension.
 
 **For the primary path (browser extension):**
 
-- Go (see `go.mod`), which the extension's build uses to build the article
-  generation module in the extension
-- Node.js, with the version pinned in `extension/.node-version` (used to build
-  the extension)
 - Chrome 142 or later, or Brave on Chromium 142 or later
 - An Anthropic API key. An API key of an organization that has enabled zero
   data retention (ZDR) or the Compliance API cannot be used: such an
@@ -183,60 +179,6 @@ The CLI's cost lines on standard error, which give the reason, are in
 [docs/dev/guides/cli.md](docs/dev/guides/cli.md#推定の料金).
 
 ## Browser extension
-
-A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
-TypeScript and built with Node.js. It is not published to a store: you build it
-and load the build as an unpacked extension. It runs on Chrome 142 or later.
-The extension collects a
-selection, the tab URL, and the tab title, and reads the video metadata (the
-video title, the channel name, and the description) from the video page. From
-the selection, the URL, and the video metadata, the article generation module
-in the extension generates the article and shows it in a tab of the extension's
-page (the viewer). The tab title is shown for checking (and must not be
-empty); it is not used to generate the article.
-
-Node.js 24 is required, and every `ext-*` target refuses to run when
-`node --version` does not match `extension/.node-version`. The version file sits
-inside `extension/`, so a Node.js version manager that reads the current
-directory (such as [fnm](https://github.com/Schniz/fnm)) must be activated
-inside `extension/`. Run the targets from the repository root with that version
-still active.
-
-The build also runs Go: it builds the article generation module that goes
-into the extension with the Go version on `go.mod`'s `go` line. When the local
-Go is another version, the first build downloads that version of Go (which uses
-the network).
-
-```sh
-cd extension && fnm use && cd ..
-make ext-install   # install the pinned dev dependencies (npm ci; needs network)
-make ext-build     # build extension/dist/
-```
-
-The development targets, such as the checks CI runs and the development build
-that calls no LLM API, are in
-[docs/dev/guides/development.md](docs/dev/guides/development.md).
-
-Load the build in Chrome or Brave:
-
-1. Open `chrome://extensions/` (Brave: `brave://extensions/`).
-2. Turn on **Developer mode**.
-3. Click **Load unpacked** and select the `extension/dist` directory.
-
-To update from an earlier build, first run `make ext-build` to rebuild
-`extension/dist/`, then click the extension's reload button on
-`chrome://extensions/` (Brave: `brave://extensions/`). `extension/dist/` is
-build output that pulling new source does not update, so reloading without
-rebuilding keeps running the earlier build. Reloading the extension closes the
-extension's open pages (the viewers included), and both the articles being
-generated and the finished articles are lost.
-
-The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk` and is the
-same on every machine and from every directory. The saved API key is kept per
-extension ID, so it survives a rebuild and a reload as long as the ID does not
-change.
-
-The extension cannot be enabled in incognito mode.
 
 The popup, the viewer, and the options page show their text in Japanese when
 the browser's UI language is Japanese, and in English otherwise. The extension
@@ -530,15 +472,6 @@ as a tab on any line, and a line that holds a run of ASCII digit, colon, digit
 (such as a malformed timestamp) before the first timestamp or where a timestamp
 line is expected.
 
-To see what was collected and the results, open the popup's console from the
-moment the popup opens: right-click the toolbar icon and choose **Inspect
-popup** (shown when Developer mode is on; when the icon is inside the
-extensions menu, pin the extension first). The viewer's log is in the viewer
-tab's DevTools, and the log of the coordination of the article generation is in
-the console opened from the extension's **Service Worker** link on
-`chrome://extensions/` (Brave: `brave://extensions/`). The logs never hold the
-transcript, the article, the video metadata values, the API key, or the job ID.
-
 ## Migrating from the earlier version
 
 The earlier version generated articles with the localhost server
@@ -550,7 +483,8 @@ these steps.
 2. With the earlier version's host binary, remove the host's manifest from each
    browser you used (the commands below). When you cannot run it, for example
    because the binary is gone, remove the manifest files below by hand.
-3. Rebuild and reload the extension (see [Browser extension](#browser-extension)),
+3. Rebuild and reload the extension (see
+   [Building and loading the extension](docs/dev/guides/development.md#拡張のビルドと読み込み)),
    and save the API key on the options page (see
    [Setting the API key](#setting-the-api-key)).
 4. Once you have made one article with the extension alone, delete the server's

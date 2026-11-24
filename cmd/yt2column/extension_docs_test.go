@@ -54,18 +54,17 @@ func TestExtensionDocumentation(t *testing.T) {
 		t.Fatalf("derive the extension ID from the manifest key: %v", err)
 	}
 	security := doctestutil.ReadDoc(t, securityPath)
+	development := doctestutil.ReadDoc(t, developmentDocPath)
 	claude := doctestutil.ReadDoc(t, claudePath)
 	makefile := doctestutil.ReadDoc(t, makefilePath)
 
-	t.Run("records the fixed extension ID in README and security.md", func(t *testing.T) {
+	t.Run("records the fixed extension ID in development.md and security.md", func(t *testing.T) {
 		if !strings.Contains(security, extensionID) {
 			t.Errorf("security.md does not record the extension ID %s", extensionID)
 		}
-		readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
-			if !strings.Contains(readme, extensionID) {
-				t.Errorf("%s does not record the extension ID %s", v.Path, extensionID)
-			}
-		})
+		if !strings.Contains(development, extensionID) {
+			t.Errorf("development.md does not record the extension ID %s", extensionID)
+		}
 	})
 
 	t.Run("lists every ext- target the Makefile defines, and no others", func(t *testing.T) {

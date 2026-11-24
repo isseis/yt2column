@@ -90,8 +90,8 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `cmd/yt2column/docs_test.go`
 
-- [ ] `TestOpenAIDocsContract`・`TestLLMDefaultsDocsContract`・`TestEffortValuesDocsContract`・`TestProductionProfileDocsContract` と拡張の ID の部分テストが、`README.md` だけを読むようにする（設計書 3.3 節「外す検査」の 2 行目）。そのために、`readmeVersionsUnder` と、`ReadmeVersions()` を直接回す 2 つのテストのループを、`README.md` の版だけを回すように変える。`readmeVersionsUnder` と `Locator` には呼び出し元が残るので、`make deadcode` は通る
-- [ ] このコミットだけで `make coverage-compare BASE=<親のコミット>` を走らせ、1.2 節の原則のとおり記録する。外した値（`README.en.md` の設定・上限・ID）を、このコミットでは `README.md` の部分テストが、ステップ 1-2・1-3 の後は `development.md` と `generation.md` の検査が確かめることを書く
+- [x] `TestOpenAIDocsContract`・`TestLLMDefaultsDocsContract`・`TestEffortValuesDocsContract`・`TestProductionProfileDocsContract` と拡張の ID の部分テストが、`README.md` だけを読むようにする（設計書 3.3 節「外す検査」の 2 行目）。そのために、`readmeVersionsUnder` と、`ReadmeVersions()` を直接回す 2 つのテストのループを、`README.md` の版だけを回すように変える。`readmeVersionsUnder` と `Locator` には呼び出し元が残るので、`make deadcode` は通る
+- [x] このコミットだけで `make coverage-compare BASE=<親のコミット>` を走らせ、1.2 節の原則のとおり記録する。外した値（`README.en.md` の設定・上限・ID）を、このコミットでは `README.md` の部分テストが、ステップ 1-2・1-3 の後は `development.md` と `generation.md` の検査が確かめることを書く
 
 **完了の条件:** 外すだけのコミットがあり、比較が `coverage-compare: PASS` で、記録がコミットのメッセージにある。
 
@@ -101,12 +101,12 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `README.md`・`README.en.md`、`docs/dev/guides/development.md`・`cli.md`、`cmd/yt2column/extension_docs_test.go`、`extension/test/helpers/readmeVersions.ts`・`manifest.test.ts`、`extension/scripts/has-extension-changes.sh`、CLAUDE.md、ADR-0030
 
-- [ ] **`development.md` に足す:** 設計書 2.4 節の「拡張のビルドと読み込み」（今の README の Go と Node.js の行と `:120-155`）と「拡張のログ」（`:266-268`）を移す
-- [ ] **README から除く:** 移したブロックを README から除く。`## ブラウザ拡張` の見出しと、その下の利用者向けの節（表示の言語・API キーの設定・ポップアップ・ビューア）は、`metadataDocs.test.ts` が読むので残す（設計書 8 章）。README の中の、除いた節へのリンクを `development.md` へ付け替える。`/mktrans README.md` で同期する
-- [ ] **検査:** 拡張の ID の読む先を `development.md` に変え、部分テストの名前を直す。`readmeVersions.ts` に `minimumChromeDocs`（この時点では 2 つの README と `development.md`）を足し、`manifest.test.ts` がそれを回すようにする（設計書 3.3 節の表、3.5 節）
-- [ ] **参照と説明:** `development.md:99`（設計書 4.2 節）と、`cli.md:15-16` のうち Go の部分（`development.md` へ。API キーの部分はフェーズ 2）を付け替える。CLAUDE.md の「Development Notes」の `make ext-test` の説明と `has-extension-changes.sh` の冒頭の説明に、`development.md` の最低の Chrome の版を加える（設計書 8 章「説明は、説明する変更と同じ PR で直す」）
-- [ ] **ADR:** ADR-0030 のずれを示す一文を、`INSTALL.md` の分だけが残ることを示す文に書き直す（設計書 4.2 節）。編集上の訂正の行（`Editorial correction: `）をコミットのメッセージに書き、PR の説明にも載せる（`docs/dev/conventions/adr.md`「Editorial corrections」）
-- [ ] **壊して確かめる:** `development.md` の拡張の ID と版を、それぞれすべての出現で壊し、`TestExtensionDocumentation` と `manifest.test.ts` が失敗することを確かめ、コミットのメッセージに書く（設計書 3.3 節）
+- [x] **`development.md` に足す:** 設計書 2.4 節の「拡張のビルドと読み込み」（今の README の Go と Node.js の行と `:120-155`）と「拡張のログ」（`:266-268`）を移す
+- [x] **README から除く:** 移したブロックを README から除く。`## ブラウザ拡張` の見出しと、その下の利用者向けの節（表示の言語・API キーの設定・ポップアップ・ビューア）は、`metadataDocs.test.ts` が読むので残す（設計書 8 章）。README の中の、除いた節へのリンクを `development.md` へ付け替える。`/mktrans README.md` で同期する
+- [x] **検査:** 拡張の ID の読む先を `development.md` に変え、部分テストの名前を直す。`readmeVersions.ts` に `minimumChromeDocs`（この時点では 2 つの README と `development.md`）を足し、`manifest.test.ts` がそれを回すようにする（設計書 3.3 節の表、3.5 節）
+- [x] **参照と説明:** `development.md:99`（設計書 4.2 節）と、`cli.md:15-16` のうち Go の部分（`development.md` へ。API キーの部分はフェーズ 2）を付け替える。CLAUDE.md の「Development Notes」の `make ext-test` の説明と `has-extension-changes.sh` の冒頭の説明に、`development.md` の最低の Chrome の版を加える（設計書 8 章「説明は、説明する変更と同じ PR で直す」）
+- [x] **ADR:** ADR-0030 のずれを示す一文を、`INSTALL.md` の分だけが残ることを示す文に書き直す（設計書 4.2 節）。編集上の訂正の行（`Editorial correction: `）をコミットのメッセージに書き、PR の説明にも載せる（`docs/dev/conventions/adr.md`「Editorial corrections」）
+- [x] **壊して確かめる:** `development.md` の拡張の ID と版を、それぞれすべての出現で壊し、`TestExtensionDocumentation` と `manifest.test.ts` が失敗することを確かめ、コミットのメッセージに書く（設計書 3.3 節）
 
 **完了の条件:** `make test`・`make lint`・`make ext-check`・`make deadcode` が通る。
 

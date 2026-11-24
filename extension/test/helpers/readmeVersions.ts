@@ -1,4 +1,5 @@
 import type { Locale } from "../../src/core/i18n/locale.ts";
+import { developmentDoc } from "./developmentDoc.ts";
 
 /**
  * The two versions of the README: README.md, the Japanese primary version, and
@@ -20,9 +21,18 @@ export const browserExtensionHeading: Record<Locale, string> = {
 };
 
 /**
- * How each version of the README states the minimum browser version, for
+ * Every document that states the minimum browser version, with the language
+ * whose phrase it uses: the README versions and the development guide.
+ */
+export const minimumChromeDocs: readonly { path: string; locale: Locale }[] = [
+  ...readmeVersions,
+  { path: developmentDoc.path, locale: "ja" },
+];
+
+/**
+ * How a document in each language states the minimum browser version, for
  * Chrome and for the Chromium that Brave is built on, with the version number
- * as the first group. The phrase must equal that version's wording.
+ * as the first group. The phrase must equal that language's wording.
  */
 export const minimumChromePhrase: Record<Locale, RegExp> = {
   ja: /(?:Chrome|Chromium) (\d+) 以降/gu,

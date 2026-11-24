@@ -12,7 +12,7 @@ CLI は補助の経路である。LLM の呼び出しと記事の生成を開発
 
 - `PATH` 上の `yt-dlp`（または `YT2COLUMN_YTDLP_PATH` を設定する）。[yt-dlp の準備](#yt-dlp-の準備)を参照
 
-Go や、選んだプロバイダの API キーなど、ほかに必要なものは README の
+Go（`go.mod` を参照）は、CLI を [make のターゲット](development.md#make-のターゲット)でビルドするのに使う。選んだプロバイダの API キーなど、ほかに必要なものは README の
 [必要なもの](../../../README.md#必要なもの)にある。
 
 ## 使い方

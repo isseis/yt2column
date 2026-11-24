@@ -10,7 +10,8 @@
 # whose go line chooses the toolchain the extension build uses) and go.sum, and
 # the files the extension tests read: README.md and README.en.md (their
 # browser extension sections, and the minimum Chrome version anywhere in
-# them), and docs/dev/guides/development.md (its job record value tables).
+# them), and docs/dev/guides/development.md (its job record value tables and
+# the minimum Chrome version it states).
 #
 # It also runs for any file under a directory listed in the dependency
 # directory file, one directory per line ending in "/", as
