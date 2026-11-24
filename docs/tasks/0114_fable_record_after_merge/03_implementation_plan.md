@@ -306,7 +306,7 @@
         -   新しい `Fable review:` の記録が足されていないこと（AC-24）。
         -   push したのが step 2.6 の判定した commit であること（AC-05）。
     -   設計書と違う振る舞いがあれば、その内容を書き、決定の変更として人と決める。
--   [ ] **ステップ 3-2**: AC-23 の差分の記録を書く（§7 の「差分の記録」の PR-3 の欄）。
+-   [x] **ステップ 3-2**: AC-23 の差分の記録を書く（§7 の「差分の記録」の PR-3 の欄）。
 
 **完了の条件:** §7 に実地の確かめの記録と PR-3 の差分の記録がある。`make test` と `make lint` が通る。
 
@@ -451,6 +451,13 @@ Path diff:
 PR-3:
 
 - Compared paths: `docs/tasks/0098_fable_partial_review/`
+- Merge-base: `d29bb3d730960dcf299f5801144c0cb92b888978`
+- Compared commit: `03bd990b6f984aba19c7ccf44a538836cc69188f`
+
+Path diff:
+
+```text
+```
 
 ### 実地の確かめの記録
 
