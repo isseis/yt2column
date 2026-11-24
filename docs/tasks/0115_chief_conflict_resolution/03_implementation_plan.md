@@ -43,6 +43,11 @@
 - `CommitID` 型は新規箇所（`OpenPR.Head` とコンフリクト解消関連）だけに適用する。 既存の `commitID` 正規表現を使う箇所（設計書 3.1 が挙げる `internal/chief/detail.go:129`、`internal/chief/workspace.go:134`、`internal/chief/create.go:483` に加え、`internal/chief/workspace.go:318,338,357`）のシグネチャは変えない。`CommitID` の構築は `internal/chief/construction_test.go` の `guardedTypes` で `ParseCommitID` に限定する。人の答え：新規箇所だけに適用する。
   - ADR：なし。型適用の範囲の選択で本タスク内に閉じる。
 
+### 実装の際に決めたこと（2026-11-24）
+
+- `mergemain-push` の push の送り先の確かめに、git の remote が `origin` だけであることと、環境変数 `GH_REPO` がないことの確かめを足す。`mergemain-begin` も、PR を読む前に同じことを確かめる（設計書 1.3・3.8.3）。 PR から読む値（AC-30）には PR のリポジトリの URL がなく、`gh` は PR を読むリポジトリを git の remote と `GH_REPO` から選ぶためである。人の答え：URL が同じことに、remote が `origin` だけであることと `GH_REPO` がないことを足す。
+  - ADR：なし。`mergemain-push` の確かめの細部で、このタスクの中で閉じる。
+
 ### 既存コード調査結果
 
 以下はコミット `d74acaeb`（`origin/main`）で確かめた事実である。
@@ -92,7 +97,7 @@
 **対象ファイル:** `internal/mergepr/mergemain.go`（新規）, `internal/mergepr/mergemain_test.go`（新規）, `internal/mergepr/test_helpers_git.go`, `internal/mergepr/test_helpers.go`
 
 - [ ] `PathConflictClass`・`MergemainStop`・`RestoreNeed`（ゼロ値はそれぞれ `PathConflictOutOfScope`・`MergemainStopUnknown`・`RestoreUnknown`）と、狭い PR 読み取り（`state,baseRefName,headRefName,headRefOid,isCrossRepository` のみ、本文・コメント・レビューを読まない）を実装する（AC-21・AC-30）。
-- [ ] `MergemainBegin` を実装する：PR 番号（10 進数字のみ）と PR 状態・`base=main`・別リポジトリでないことの検証、作業ツリーのクリーン確認（未追跡ファイル含む）、`main`（`refs/mergemain/<PR>/main`）と PR head ブランチ（`refs/remotes/origin/<branch>`）の明示 refspec での取得、HEAD・PR head・remote-tracking ref の一致確認、取り込むものがない場合の判定（`MergemainStopNothingToTakeIn`）を行う（AC-20・AC-21）。
+- [ ] `MergemainBegin` を実装する：PR 番号（10 進数字のみ）と PR 状態・`base=main`・別リポジトリでないことの検証、作業ツリーのクリーン確認（未追跡ファイル含む）、remote が `origin` だけで `GH_REPO` がないことの確認（PR を読む前）、`main`（`refs/mergemain/<PR>/main`）と PR head ブランチ（`refs/remotes/origin/<branch>`）の明示 refspec での取得、HEAD・PR head・remote-tracking ref の一致確認、取り込むものがない場合の判定（`MergemainStopNothingToTakeIn`）を行う（AC-20・AC-21）。
 - [ ] `MergemainMerge` を実装する：引数と `refs/mergemain/<PR>/main` の照合、無視ファイル上書きの事前検知、`--no-ff --no-commit` マージ、ステージ種別・バイナリ判定・名前変更検出・`acceptedLine` による衝突分類、ブランチが merge base から変更した道具（衝突あり・なし両方）のプロトコル番号を `main` の値 + 1 へ更新、および規則適用の事実（README 変更・ADR 変更/番号重複・`ext-check` 見込み・番号変更した道具一覧）の収集を行う（AC-22・AC-23）。
 - [ ] 既存の `test_helpers_git.go`・`test_helpers.go` を再利用・拡張し、`mergemain_test.go` に単体テスト（`.md`・両側追加・プロトコル行のみ・他行衝突・`_test.go`・modify/delete・3 種の名前変更・シンボリックリンク・バイナリ、早送り禁止、無視ファイル上書き拒否、ゼロ値の安全側動作）を追加して、各検証を外したときの失敗を確認する（`const Protocol = ...` を含むテスト用 Go ソース文字列は `mergemain_test.go` 内に置く）。
 
@@ -103,7 +108,7 @@
 **対象ファイル:** `internal/mergepr/mergemain.go`, `internal/mergepr/mergemain_push.go`（新規）, `internal/mergepr/mergemain_restore.go`（新規）, `internal/mergepr/mergemain_test.go`, `CLAUDE.md`
 
 - [ ] `MergemainRestore` を実装する（設計書 3.8.4）：戻してよい 2 状態（取り込み途中は `HEAD` が `base_head` かつ `MERGE_HEAD` が取り込む `main` と一致すること、未 push の merge コミットは `HEAD` の親が `(base_head, 取り込む main)` の順かつ手元の remote-tracking ref `refs/remotes/origin/<branch>` が `base_head` と一致すること）と戻さない 6 条件（ブランチ不一致、HEAD 不一致、コミット後変更、取り込み途中の対象外変更、基準 head 追跡パスを塞ぐ無視ファイル、未追跡ファイル存在）を検証し、安全なときのみ `git reset --hard <base_head>` で戻して戻し後の状態を検証する（`git clean`・`git merge --abort` は使わない、AC-28）。
-- [ ] `MergemainPush` を実装する（設計書 3.8.3）：PR 再読み取り（`main` 禁止・別リポジトリでないこと・ブランチ一致）、merge コミットの 2 親検証（第 1 の親が `base_head` と再読み取りした PR の head の両方に一致すること、および第 2 の親が取り込む `main` かつ `refs/mergemain/<PR>/main` と一致し同呼び出し内で再取得した `FETCH_HEAD` の祖先であること）、`git merge-tree --write-tree` による衝突分類と木の差分検証（許可パス・プロトコル番号 `main` の値 + 1 の全道具検証）、作業ツリー確認、`git ls-remote` での `origin` ブランチ確認、push URL と fetch URL の一致確認を行う。すべて通ったうえで、force なし・`--no-follow-tags --recurse-submodules=no` で push し、失敗時は `git ls-remote` で 3 結果（通った・拒まれた・結果不明）を判定する（AC-27・AC-30）。
+- [ ] `MergemainPush` を実装する（設計書 3.8.3）：PR 再読み取り（`main` 禁止・別リポジトリでないこと・ブランチ一致）、merge コミットの 2 親検証（第 1 の親が `base_head` と再読み取りした PR の head の両方に一致すること、および第 2 の親が取り込む `main` かつ `refs/mergemain/<PR>/main` と一致し同呼び出し内で再取得した `FETCH_HEAD` の祖先であること）、`git merge-tree --write-tree` による衝突分類と木の差分検証（許可パス・プロトコル番号 `main` の値 + 1 の全道具検証）、作業ツリー確認、`git ls-remote` での `origin` ブランチ確認、push URL と fetch URL の一致確認、remote が `origin` だけで `GH_REPO` がないことの確認（PR を読み直す前）を行う。すべて通ったうえで、force なし・`--no-follow-tags --recurse-submodules=no` で push し、失敗時は `git ls-remote` で 3 結果（通った・拒まれた・結果不明）を判定する（AC-27・AC-30）。
 - [ ] `internal/mergepr/mergemain_test.go` に戻し・push の単体テスト（戻し時の `MERGE_HEAD` 不一致・親順序不一致・`refs/remotes/origin/<branch>` 不一致の拒否、および push 時の第 1 の親と `base_head` または再読み取りした PR の head の不一致拒否を含む）、セキュリティテスト（設計書 7.1・7.3 の全拒否ケース）、および `begin`→`merge`→`push` と `begin`→`merge`→`restore` の結合テストを追加し、各検証を外したときのテスト失敗を確認する。
 - [ ] 出力の内容で振る舞いを選ぶ読み取り（衝突のステージ種別・`git merge-tree` の出力・`acceptedLine` による行の判定）を入れるこの PR で、`CLAUDE.md` の「Declare, don't infer」に設計書 3.8.5 の取り込みの道具の読み取り例外（範囲と境界）を追記する。
 
@@ -490,3 +495,4 @@
 ## 変更履歴
 
 - 2026-11-24 承認（isseis、#1096）
+- 2026-11-24 セッション中の再承認：`mergemain-push` と `mergemain-begin` の確かめに、remote が `origin` だけであることと `GH_REPO` がないことを足した（isseis、#未記入）
