@@ -4,6 +4,8 @@
 
 ## 構成
 
+主経路はブラウザ拡張で、[README](../../../README.md) が説明する。
+
 補助の経路として CLI も含む。CLI は動画の URL を受け取り、
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) で文字起こしを取得する。
 

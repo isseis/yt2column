@@ -14,8 +14,9 @@
 #     whitespace collapsed, one sentence per line, link targets replaced by a
 #     placeholder) and prints their remaining diff;
 #   - prints the pairs of the source and target link targets, in order.
-# Then it checks that the moving is complete: no block's first or last
-# sentence is still in README.md at <commit>, and each is in its target.
+# Then it checks that the moving is complete: no unit of any block is still
+# in README.md at <commit> (each block's presence in its target is checked
+# above).
 #
 # With --worktree, README.md and the target guides are read from the work
 # tree instead of <commit>; the source is still the merge-base README. It
@@ -43,7 +44,7 @@ readme_blob=$(git rev-parse "$base:README.md") || exit 2
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-git show "$base:README.md" >"$work/source.md"
+git show "$base:README.md" >"$work/source.md" || exit 2
 # compared prints the compared side's copy of the repository file $1.
 compared() {
   if [ "$worktree" = true ]; then
@@ -65,7 +66,7 @@ block() {
 gen=docs/dev/guides/generation.md
 dev=docs/dev/guides/development.md
 block intro-cli "$gen" 構成 '補助の経路として CLI も含む。' 'で文字起こしを取得する。'
-block diagram "$gen" 構成 'COPIED[("Copied transcript' 'class L2 process'
+block diagram "$gen" 構成 '```mermaid' 'class L2 process'
 block paths-and-providers "$gen" 構成 '主経路は、文字起こしパネルからコピーした字幕を使う。' 'プロバイダは差し替えられる。'
 block build-requirements "$dev" 拡張のビルドと読み込み '- Go（`go.mod` を参照）。' '（拡張のビルドに使う）'
 block post-generation-steps "$gen" 生成の後の工程 '記事を生成した後、2 つの工程が走る。' '拡張は、どの工程も飛ばさない。'
@@ -111,10 +112,10 @@ normalize() {
 # after it holding $3, from the normalized file $1. It prints nothing when
 # either sentence is missing.
 cut_block() {
-  awk -F '\t' -v first="$2" -v last="$3" '
-    !started && index($2, first) { started = 1 }
+  FIRST=$2 LAST=$3 awk -F '\t' '
+    !started && index($2, ENVIRON["FIRST"]) { started = 1 }
     started { lines[++n] = $0 }
-    started && index($2, last) { done = 1; exit }
+    started && index($2, ENVIRON["LAST"]) { done = 1; exit }
     END { if (done) for (i = 1; i <= n; i++) print lines[i] }
   ' "$1"
 }
@@ -156,6 +157,7 @@ for k in "${!names[@]}"; do
     continue
   fi
   cut_block "$work/source.norm" "$first" "$last" >"$work/src.blk"
+  cp "$work/src.blk" "$work/src-$count.blk"
   cut_block "$work/target.norm" "$first" "$last" >"$work/dst.blk"
   if [ ! -s "$work/src.blk" ]; then
     echo "FAIL: the merge-base README has no block from \"$first\" to \"$last\""
@@ -175,25 +177,43 @@ for k in "${!names[@]}"; do
     failed=1
   fi
   echo "--- remaining diff (README -> $target):"
-  if diff -u <(text <"$work/src.blk") <(text <"$work/dst.blk") | tail -n +3; then
-    echo "(none)"
-  fi
+  text <"$work/src.blk" >"$work/src.txt"
+  text <"$work/dst.blk" >"$work/dst.txt"
+  status=0
+  diff -u "$work/src.txt" "$work/dst.txt" >"$work/diff.out" || status=$?
+  case "$status" in
+    0) echo "(none)" ;;
+    1) tail -n +3 "$work/diff.out" ;;
+    *)
+      echo "FAIL: diff exited $status"
+      failed=1
+      ;;
+  esac
   echo "--- link pairs (README -> $target):"
-  # A side with fewer links shows "(none)" for the missing ones.
+  # Links are paired by position; a side with fewer links shows "(none)"
+  # for the missing ones, so a link dropped in the middle shifts the later
+  # pairs, which the reader has to allow for.
   paste <(links <"$work/src.blk") <(links <"$work/dst.blk") |
     awk -F '\t' '{ printf "  %s -> %s\n", ($1 == "" ? "(none)" : $1), ($2 == "" ? "(none)" : $2) }'
   echo
 done
 
 echo "=== completeness on the compared side"
+# Every unit of every source block must be gone from README.md, not only
+# its first and last sentence. Code fence lines and units shorter than 10
+# characters (such as a closing fence or a short table row) are skipped:
+# the README keeps such lines elsewhere.
+cut -f2- "$work/readme-now.norm" | sort -u >"$work/readme-now.units"
 for k in "${!names[@]}"; do
-  name=${names[k]}
-  for sentence in "${firsts[k]}" "${lasts[k]}"; do
-    if cut -f2- "$work/readme-now.norm" | grep -qF -- "$sentence"; then
-      echo "FAIL: $name: README.md still holds \"$sentence\""
+  [ -f "$work/src-$((k + 1)).blk" ] || continue
+  while IFS= read -r unit; do
+    case "$unit" in '```'*) continue ;; esac
+    [ "${#unit}" -ge 10 ] || continue
+    if grep -qxF -- "$unit" "$work/readme-now.units"; then
+      echo "FAIL: ${names[k]}: README.md still holds \"$unit\""
       failed=1
     fi
-  done
+  done < <(cut -f2- "$work/src-$((k + 1)).blk")
 done
 echo "blocks compared: $count"
 

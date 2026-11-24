@@ -3,8 +3,8 @@
 CLI は補助の経路である。LLM の呼び出しと記事の生成を開発し確かめるために使う。CLI は記事を `--out` のファイルに書く。主経路は
 [クイックスタート](../../../README.md#クイックスタート)の経路である。
 
-本書は、CLI の実行の仕方（フラグ、終了コード、キャッシュ、yt-dlp、実行環境の変数）を説明する。記事の生成の仕組みと LLM の設定の変数は
-[generation.md](generation.md) の[設定](generation.md#設定)にあり、CLI だけが読む実行環境の変数は下の[設定](#設定)にある。
+本書は、CLI の実行の仕方（フラグ、終了コード、キャッシュ、yt-dlp、実行環境の変数）を説明する。記事の生成の仕組みは
+[generation.md](generation.md) に、LLM の設定の変数はその[設定](generation.md#設定)にあり、CLI だけが読む実行環境の変数は下の[設定](#設定)にある。
 
 ## 必要なもの
 
@@ -12,8 +12,8 @@ CLI は補助の経路である。LLM の呼び出しと記事の生成を開発
 
 - `PATH` 上の `yt-dlp`（または `YT2COLUMN_YTDLP_PATH` を設定する）。[yt-dlp の準備](#yt-dlp-の準備)を参照
 
-Go（`go.mod` を参照）は、CLI を [make のターゲット](development.md#make-のターゲット)でビルドするのに使う。選んだプロバイダの API キーなど、ほかに必要なものは README の
-[必要なもの](../../../README.md#必要なもの)にある。
+Go（`go.mod` を参照）は、CLI を [make のターゲット](development.md#make-のターゲット)でビルドするのに使う。CLI では、選んだプロバイダの API キーが必要である。どの変数に設定するかは generation.md の
+[設定](generation.md#設定)にある。
 
 ## 使い方
 
