@@ -76,8 +76,10 @@ var (
 // must not contain. A reply body, PR title, PR body, or finish commit body
 // that contains any of them, compared case-insensitively in ASCII, is
 // rejected. Each value is lower case, the form checkPostText compares.
+// Sourcery AI answers both "@sourcery-ai" and "@sourceryai", so both are
+// listed: neither is a substring of the other.
 func RejectedMentions() []string {
-	return []string{"@codex", "@coderabbitai"}
+	return []string{"@codex", "@coderabbitai", "@sourcery-ai", "@sourceryai"}
 }
 
 // The stop kinds: the machine-readable name of why a subcommand stopped, as

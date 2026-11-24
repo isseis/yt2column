@@ -93,10 +93,10 @@
   - `internal/fixprguard/worktree_flow_test.go`
   - `cmd/fixprguard/main_test.go`
 - **作業内容:**
-  - [ ] `internal/fixprguard/errors.go` の `RejectedMentions()` を `[]string{"@codex", "@coderabbitai"}` から `[]string{"@codex", "@coderabbitai", "@sourcery-ai", "@sourceryai"}` へ変更する（[02_architecture.md](02_architecture.md) 3.2.1）。
-  - [ ] 既存テスト（`internal/fixprguard/trust_test.go::TestAssessAuthors`・`TestAssessUnverifiableAuthor`、`github_test.go::TestBeginAuthorType`、`write_test.go::TestReplyTrustsEveryReviewer`、`cmd/fixprguard/main_test.go::TestSecondReviewerBeginReply`）を再利用し、未検証の差分ケースのみ追加する：`TestAssessAuthors` へ 3 者混在スレッド（`coderabbitai`＋`sourcery-ai`＋write 権限 `User`）と大文字小文字違い `Sourcery-AI`、`TestAssessUnverifiableAuthor` へ `sourcery-ai[bot]`（`ReasonNoAuthorName`）、`cmd/fixprguard/main_test.go` へ複数 `--reviewer` の `inspect` CLI ケースを追加する（AC-07）。
-  - [ ] `internal/fixprguard/write_test.go`（`TestCheckPostText` のリテラル表・`mentionTexts`・`TestReplyRejectsMention`・`TestEditPRRejectsMention`・`TestAppendPRRejects`）・`worktree_flow_test.go`（`TestFinishRejectsBodyFile`）・`cmd/fixprguard/main_test.go`（`TestPostTextMentionExitsUsage`）に、`RejectedMentions()` の反復に頼らないリテラル指定で `@sourcery-ai`・`@sourceryai`（大文字小文字混在・部分文字列・既存 PR 本文の `current-body-mention`）の拒否ケースを追加する（AC-11）。
-  - [ ] 壊して確かめる検証: `RejectedMentions()` から `@sourcery-ai`・`@sourceryai` をそれぞれ一時的に外し、`TestCheckPostText`・`TestReplyRejectsMention`・`TestEditPRRejectsMention`・`TestAppendPRRejects`（`current-body-mention` 経路を含む）・`TestFinishRejectsBodyFile`・`TestPostTextMentionExitsUsage` が失敗することを確かめ、コミットメッセージに記録する。
+  - [x] `internal/fixprguard/errors.go` の `RejectedMentions()` を `[]string{"@codex", "@coderabbitai"}` から `[]string{"@codex", "@coderabbitai", "@sourcery-ai", "@sourceryai"}` へ変更する（[02_architecture.md](02_architecture.md) 3.2.1）。
+  - [x] 既存テスト（`internal/fixprguard/trust_test.go::TestAssessAuthors`・`TestAssessUnverifiableAuthor`、`github_test.go::TestBeginAuthorType`、`write_test.go::TestReplyTrustsEveryReviewer`、`cmd/fixprguard/main_test.go::TestSecondReviewerBeginReply`）を再利用し、未検証の差分ケースのみ追加する：`TestAssessAuthors` へ 3 者混在スレッド（`coderabbitai`＋`sourcery-ai`＋write 権限 `User`）と大文字小文字違い `Sourcery-AI`、`TestAssessUnverifiableAuthor` へ `sourcery-ai[bot]`（`ReasonNoAuthorName`）、`cmd/fixprguard/main_test.go` へ複数 `--reviewer` の `inspect` CLI ケースを追加する（AC-07）。
+  - [x] `internal/fixprguard/write_test.go`（`TestCheckPostText` のリテラル表・`mentionTexts`・`TestReplyRejectsMention`・`TestEditPRRejectsMention`・`TestAppendPRRejects`）・`worktree_flow_test.go`（`TestFinishRejectsBodyFile`）・`cmd/fixprguard/main_test.go`（`TestPostTextMentionExitsUsage`）に、`RejectedMentions()` の反復に頼らないリテラル指定で `@sourcery-ai`・`@sourceryai`（大文字小文字混在・部分文字列・既存 PR 本文の `current-body-mention`）の拒否ケースを追加する（AC-11）。
+  - [x] 壊して確かめる検証: `RejectedMentions()` から `@sourcery-ai`・`@sourceryai` をそれぞれ一時的に外し、`TestCheckPostText`・`TestReplyRejectsMention`・`TestEditPRRejectsMention`・`TestAppendPRRejects`（`current-body-mention` 経路を含む）・`TestFinishRejectsBodyFile`・`TestPostTextMentionExitsUsage` が失敗することを確かめ、コミットメッセージに記録する。
 - **完了条件:**
   - `go test -tags test ./internal/fixprguard` および `cmd/fixprguard` の CLI テストが通ること（`TestGuideDescribesMentionCheck` はステップ 1-2 のガイド更新後に通過）。
 
@@ -108,10 +108,10 @@
   - `cmd/yt2column/fixpr_docs_test.go`
   - `docs/dev/guides/fixprguard_guide.md`
 - **作業内容:**
-  - [ ] `.claude/commands/_context.md` の `Automated reviewer list` 行（`362` 行目）の値を `` `coderabbitai` `` から `` `coderabbitai`, `sourcery-ai` `` へ（説明の単数表現も複数へ）、`Rejected mentions` 行（`365` 行目）の値を `` `@codex`, `@coderabbitai` `` から `` `@codex`, `@coderabbitai`, `@sourcery-ai`, `@sourceryai` `` へ更新する（説明の `@` なし表記例へ `Sourcery AI` を追記し、`<mention-check>`・`<rejected-mentions>` 定義はフェーズ 3 まで維持する。AC-06・AC-10・AC-12）。
-  - [ ] `.claude/commands/fixpr.md` の `@` なし表記案内（`463,610-611,1073-1074` 行目）を `Codex, CodeRabbit, or Sourcery AI` へ更新する（AC-12）。
-  - [ ] `cmd/yt2column/fixpr_docs_test.go` の `wantReviewers` を `[]string{"coderabbitai"}` から `[]string{"coderabbitai", "sourcery-ai"}` へ更新し、`TestContextReviewerRowsMalformed` の壊した写しケースを 2 レビュアー・4 メンション前提へ更新する（AC-09）。
-  - [ ] `docs/dev/guides/fixprguard_guide.md` の 4 章・5 章（書き込み系 4 サブコマンド）・7.1・7.2.1・7.2.3・7.2.6・8 章（`current-body-mention`）・10 章（`sourcery-ai` と 4 メンション該当箇所）をフェーズ 1 の状態に合わせて更新する（`TestGuideDescribesMentionCheck` 通過、AC-26 先行分）。
+  - [x] `.claude/commands/_context.md` の `Automated reviewer list` 行（`362` 行目）の値を `` `coderabbitai` `` から `` `coderabbitai`, `sourcery-ai` `` へ（説明の単数表現も複数へ）、`Rejected mentions` 行（`365` 行目）の値を `` `@codex`, `@coderabbitai` `` から `` `@codex`, `@coderabbitai`, `@sourcery-ai`, `@sourceryai` `` へ更新する（説明の `@` なし表記例へ `Sourcery AI` を追記し、`<mention-check>`・`<rejected-mentions>` 定義はフェーズ 3 まで維持する。AC-06・AC-10・AC-12）。
+  - [x] `.claude/commands/fixpr.md` の `@` なし表記案内（`463,610-611,1073-1074` 行目）を `Codex, CodeRabbit, or Sourcery AI` へ更新する（AC-12）。
+  - [x] `cmd/yt2column/fixpr_docs_test.go` の `wantReviewers` を `[]string{"coderabbitai"}` から `[]string{"coderabbitai", "sourcery-ai"}` へ更新し、`TestContextReviewerRowsMalformed` の壊した写しケースを 2 レビュアー・4 メンション前提へ更新する（AC-09）。
+  - [x] `docs/dev/guides/fixprguard_guide.md` の 4 章・5 章（書き込み系 4 サブコマンド）・7.1・7.2.1・7.2.3・7.2.6・8 章（`current-body-mention`）・10 章（`sourcery-ai` と 4 メンション該当箇所）をフェーズ 1 の状態に合わせて更新する（`TestGuideDescribesMentionCheck` 通過、AC-26 先行分）。
 - **完了条件:**
   - `make fmt && make test && make lint && make deadcode` がすべて通ること。
   - **マージ後の手動作業:** 利用者が `main` から `make install-fixprguard` を実行する（`02_architecture.md` 8 章）。

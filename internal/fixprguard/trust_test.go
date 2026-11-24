@@ -15,6 +15,13 @@ import (
 	"github.com/isseis/yt2column/internal/cmdrunner/testutil"
 )
 
+// sourceryReviewer is Sourcery AI's login, and realReviewers the automated
+// reviewer list the command documents pass, so the rows that use them check
+// the names the list holds rather than a stand-in.
+const sourceryReviewer = "sourcery-ai"
+
+var realReviewers = []string{testReviewer, sourceryReviewer}
+
 // TestAssessAuthors judges with the test reviewer alone unless a row sets
 // reviewers; the rows with both reviewers cover each name separately.
 func TestAssessAuthors(t *testing.T) {
@@ -49,6 +56,19 @@ func TestAssessAuthors(t *testing.T) {
 			name: "second_reviewer_not_passed", comments: []testComment{botComment(1, testSecondReviewer)},
 			findings: func(t *testing.T) []Finding {
 				return []Finding{{Reason: ReasonOtherBot, Account: mustLogin(t, testSecondReviewer)}}
+			},
+		},
+		{
+			// Both real reviewers and a user with write access share one
+			// thread; every author is trusted, so the thread is.
+			name: "coderabbitai_sourcery_and_writer", reviewers: realReviewers,
+			comments: []testComment{reviewerComment(1), botComment(2, sourceryReviewer), userComment(3, "alice")},
+			lookups:  []cmdrunnertestutil.Step{roleStep("alice", "write")}, trusted: true,
+		},
+		{
+			name: "sourcery_case_differs", reviewers: realReviewers, comments: []testComment{botComment(1, "Sourcery-AI")},
+			findings: func(t *testing.T) []Finding {
+				return []Finding{{Reason: ReasonOtherBot, Account: mustLogin(t, "Sourcery-AI")}}
 			},
 		},
 		{name: "write", comments: []testComment{userComment(1, "alice")}, lookups: []cmdrunnertestutil.Step{roleStep("alice", "write")}, trusted: true},
@@ -153,6 +173,7 @@ func TestAssessUnverifiableAuthor(t *testing.T) {
 		{"login_outside_grammar", []testComment{userComment(1, "evil_name")}, []Finding{noName}},
 		{"bot_login_outside_grammar", []testComment{botComment(1, "coderabbitai[bot]")}, []Finding{noName}},
 		{"second_bot_login_outside_grammar", []testComment{botComment(1, "second-reviewer-bot[bot]")}, []Finding{noName}},
+		{"sourcery_bot_login_outside_grammar", []testComment{botComment(1, "sourcery-ai[bot]")}, []Finding{noName}},
 		{"kind_organization", []testComment{{id: 1, kind: "Organization", login: "alice"}}, []Finding{unknownKind}},
 		{"kind_empty", []testComment{{id: 1, kind: "", login: "alice"}}, []Finding{unknownKind}},
 		{"kind_missing", []testComment{{id: 1, omitKind: true, login: "alice"}}, []Finding{unknownKind}},
@@ -160,9 +181,9 @@ func TestAssessUnverifiableAuthor(t *testing.T) {
 		{"no_comments", nil, []Finding{{Reason: ReasonIncompleteComments}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			// Both reviewers are passed: a [bot] suffix on either name fails
-			// the login grammar before any comparison with the list.
-			got := listOneWith(t, bothReviewers, testThread{id: testThreadID(1), comments: tc.comments})
+			// Every reviewer is passed: a [bot] suffix on any of their names
+			// fails the login grammar before any comparison with the list.
+			got := listOneWith(t, append(slices.Clone(bothReviewers), sourceryReviewer), testThread{id: testThreadID(1), comments: tc.comments})
 			if got.Trusted || !slices.Equal(got.Findings, tc.want) {
 				t.Errorf("thread = %+v, want untrusted with %+v", got, tc.want)
 			}
