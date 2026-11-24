@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # high-review-decision.sh decides whether /runplan runs the high-model review
-# before it opens a PR (entry 1 of .claude/commands/_lib/high-review.md;
-# renamed to _lib/high-review.md in phase 4).
+# before it opens a PR (entry 1 of .claude/commands/_lib/high-review.md).
 #
 # Usage: bash high-review-decision.sh <PLAN> <TARGET> <BASE>
 #

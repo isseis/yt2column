@@ -467,7 +467,8 @@ absolute paths.
   comparison" says. On any difference, or when the kept text or a hash is no
   longer in this session's context word for word, stop every worker, use no
   result, commit nothing, and return `stopped-error` with the names of the
-  parts that differ.
+  parts that differ. An unauthorized helper worker the adapter finds is
+  handled the same way.
 - On Claude Code this model check keeps the review's quality but is not a
   security boundary: a model that is not the `high` model can still copy its
   ID from its context, which is why no concrete model ID is written in this

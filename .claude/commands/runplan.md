@@ -27,13 +27,14 @@ argument-hint: "<task>"
 > read as one of them) it runs when some commit of the PR is not covered by a
 > record of a self-verifying `high`-role implementation (entry 1 of
 > `_lib/high-review.md` decides); for `low` or no value it never runs.
+> Step 4.2 shows the value and the forecast; this command does not stop when
+> the session's model and the value disagree.
 >
 > **Harness.** The harness-specific operations this command and its shared
 > procedures name (`select-question`, `file-io`, `scratchpad`, `shell-run`,
 > `subagent-inherit`, `subagent-role`, `pinned-worker`, `timer-wait`,
 > `notify-user`) are defined in `.claude/commands/_lib/harness.md`: read it
-> and the adapter it selects for this session before step 1. Step 4.2 shows the value and the forecast; this command does
-> not stop when the session's model and the value disagree.
+> and the adapter it selects for this session before step 1.
 
 Your goal is to implement one task under `docs/tasks/` by following its `03_implementation_plan.md`.
 
@@ -214,7 +215,7 @@ Work in order.
 7. Run the critical-review subagent procedure in `.claude/commands/_lib/review-subagent-pattern.md` with these inputs:
    - **ARTIFACT**: this phase group's code changes.
    - **PERSONA**: an experienced senior Go engineer and senior SRE. Direct it to surface bugs, missing test coverage, architecture drift, and unclear code.
-   - **FILES**: the architecture document and the implementation plan document (paths in `_context.md`), as resolved absolute-path strings; instruct the subagent to read both in full before evaluating the code. Also list the source files added or modified in this phase group, and the files of any ADR changes `_lib/settle-decisions.md` returned in this phase group with `docs/dev/conventions/adr.md`, as resolved absolute-path strings (read in full). Provide `${PHASE_START}..HEAD` as the commit range and instruct the subagent to run `git diff ${PHASE_START}..HEAD` to see exactly what changed.
+   - **FILES**: the architecture document and the implementation plan document (paths in `_context.md`), as resolved absolute-path strings; instruct the subagent to read both in full before evaluating the code. Also list the source files added or modified in this phase group, and the files of any ADR changes `_lib/settle-decisions.md` returned in this phase group with `docs/dev/conventions/adr.md`, as resolved absolute-path strings (read in full). Provide `${PHASE_START}..HEAD` as the commit range and instruct the subagent to run `git diff ${PHASE_START}..HEAD` to see exactly what changed (when the adapter's `subagent-inherit` exports the diff, the changed-file list, and the log to the scratchpad instead, because the subagent cannot run git, export them for that range and instruct the subagent to read the exported files in full).
    - **CRITERIA**: every item from the phase-group review checklist below, copied verbatim.
 
    Extra rule: when fixing Critical and Major issues, run the build checks (defined in `_context.md`) and commit before spawning the verification pass.
@@ -242,7 +243,9 @@ Phase-group review checklist (use verbatim as evaluation criteria in the subagen
      `CLAUDE.md` (for the testing rules) and the implementation plan document
      (paths in `_context.md`), as resolved absolute-path strings (read in full).
      Provide `${PHASE_START}..HEAD` as the commit range and instruct the
-     subagent to run `git diff ${PHASE_START}..HEAD`.
+     subagent to run `git diff ${PHASE_START}..HEAD` (or, when the adapter's
+     `subagent-inherit` exports it instead, to read the exported files in
+     full, as for step 7).
    - **CRITERIA**: every item from the test-review checklist below, copied
      verbatim.
 

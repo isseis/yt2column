@@ -653,7 +653,12 @@ in step 4; this step never posts a PR review request on its own.
     1. The answer is not the JSON object the file defines, `criteria` holds a
        value other than the numbers 1 to 5, `decision` is `request` and
        `criteria` is empty, `decision` is `skip` and `criteria` is not empty,
-       or the escalation check could not run: recommend `PR レビュー`.
+       or the escalation check could not run (the causes the file maps to
+       `ask`): recommend `PR レビュー`. When the escalation file stops the
+       calling command instead (a worktree state difference or an
+       unauthorized helper worker), this is no recommendation: stop `/runpr`
+       before step 4, ask no merge question, and report the parts that
+       differ.
     2. `decision` is `request` and `criteria` holds 4: recommend `PR レビュー`.
     3. `decision` is `request` (its `criteria` from 1, 2, 3, and 5 only):
        recommend `マージ` when COVERAGE is `ALL`, `PR レビュー` otherwise.
@@ -701,8 +706,9 @@ in step 4; this step never posts a PR review request on its own.
   one `select-question` call, which of them to process (none included). Show
   each thread's URL and its reasons (every `findings` entry of the latest
   `list`); do not fetch or read their content: the user checks them on GitHub.
-  With one to three threads, use `multiSelect` with one option per thread plus
-  "process none"; with more, single-select "process all" / "process none", and
+  With one to three threads, when the harness's `select-question` offers a
+  multi-select question, use one with one option per thread plus "process
+  none"; with more threads, or without multi-select, single-select "process all" / "process none", and
   a subset by number in the free-text answer. Keep the `threadId` and
   `fingerprint` of the `list` output the question showed.
   - For the threads chosen, run `fixpr.md` for `<number>`, naming each as

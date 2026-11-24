@@ -100,7 +100,10 @@ func TestCrossCheckStateCheckBlock(t *testing.T) {
 
 	// Ignored files git status does not show: a skill below .agents/, each
 	// instruction file another harness reads, and a nested .git entry below
-	// .claude/ and .agents/. Each must change the watched part alone.
+	// .claude/ and .agents/. Each must change the watched part while git
+	// status stays the same. The lowercase .git below .agents/ is one git
+	// never lists on any platform, so only the block's nested .git scan can
+	// see it.
 	f.write(".git/info/exclude", ".agents/\n.claude/\nAGENTS.md\nAGENT.md\nGEMINI.md\nAGENTS.override.md\n")
 	prev := crossCheckStateParts(t, f, script)
 	status := f.git("status", "--porcelain", "--untracked-files=all")
@@ -112,6 +115,7 @@ func TestCrossCheckStateCheckBlock(t *testing.T) {
 		"sub/AGENTS.override.md",
 		".claude/nested/.git/HEAD",
 		".agents/nested/.GIT/HEAD",
+		".agents/lower/.git/HEAD",
 	} {
 		f.write(path, "x\n")
 		if got := f.git("status", "--porcelain", "--untracked-files=all"); got != status {

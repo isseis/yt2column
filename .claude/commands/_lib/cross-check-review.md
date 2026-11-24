@@ -213,8 +213,9 @@ neither the merge-base nor a commit of `origin/main..HEAD`.
    model, which on a mismatch makes STATUS `not run wrong-model` after the
    exit comparison of "The state check"). Keep the handle the launch returns
    (a task ID or a worker name) and the time of the launch.
-8. Start a 30-minute timer at once with `timer-wait`. Keep its handle. The
-   caller then runs the first attempt of the local CLI review in the
+8. Keep the handle of the 30-minute timer the adapter's `pinned-worker`
+   starts with the launch (`timer-wait`); start no second one. The caller
+   then runs the first attempt of the local CLI review in the
    foreground.
 
 From the launch to the exit of the collection entry, make no commit.
@@ -246,7 +247,8 @@ Otherwise:
      OUTPUT_FILE, a new file in the scratchpad, and check it ("Checking the
      output").
 4. **COST.** The seconds and the total tokens are those the adapter's
-   `pinned-worker` section records ("Cost recording"; seconds rounded to
+   `pinned-worker` section records (Claude Code's "Cost recording",
+   Antigravity's step 9; seconds rounded to
    whole seconds, the seconds waited since the launch when the harness gives
    none, and tokens `unknown` when it gives none). After a second call, add
    both calls. The output tokens are not given, and are not recorded.
@@ -417,7 +419,8 @@ cross-check partial review over the whole PR.
      `not run agent-cannot-call`, with no COST, and skip to step 5.
    - Otherwise follow launch entry steps 3 and 6–8 and collection entry
      steps 1–4 with the role `high` in place of `cross-check` (the adapter's
-     `pinned-worker` rules, its `--remerge-diff` export included), the same 30-minute
+     `pinned-worker` rules; step 1's `--remerge-diff` output file is the
+     export the adapter names, so it is not exported again), the same 30-minute
      timeout, 1 retry on error or usage limit (`not run unavailable`), the
      state checks of "The state check" (pre-launch, exit comparison, and
      post-exit comparison before every commit until the record commit), and
@@ -593,7 +596,9 @@ location and your own words.
    the launched worker's model in the harness's response must equal the row's
    `Model` byte for byte (checked at the launch). The worker ran on the
    `cross-check` model only when that check passes. Otherwise (another form,
-   another model, a failed check) STATUS is `not run wrong-model`. That row's
+   another model, a failed check) STATUS is `not run wrong-model`. An
+   unauthorized helper worker the adapter finds stops the calling command as
+   a state difference does ("The state check"). That row's
    pattern is the only rule that decides whether a model is the
    `cross-check` model. MODEL is the model ID that passed the check.
 2. **The form.** The rest (the output after the model declaration, or the

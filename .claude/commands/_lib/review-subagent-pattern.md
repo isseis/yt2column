@@ -10,7 +10,8 @@ calling command supplies. This file defines the procedure once; commands invoke
 it by saying "follow `_lib/review-subagent-pattern.md`" and providing the four
 inputs.
 
-This is project-independent. It depends on nothing in `_context.md`.
+This is project-independent. Of `_context.md` it uses only the "Harness model
+mapping" table, through the `subagent-role` operation of `_lib/harness.md`.
 
 ## Inputs the calling command must supply
 
@@ -105,8 +106,8 @@ model:
   Critical/Major fixes was applied correctly and introduced no regression. This is
   a narrower check and **may run on a cheaper model than the discovery pass**. When
   spawning the verification subagent, pass the explicit list of fixes to confirm and
-  request a cheaper tier (the `subagent-role` operation with the role `low`, or
-  `standard` when the session runs on the `high` model); if the cheaper pass reports anything ambiguous or a new Critical/Major
+  request a cheaper tier (the `subagent-role` operation with the role
+  `standard`); if the cheaper pass reports anything ambiguous or a new Critical/Major
   issue, re-run that pass once on the default model before trusting it. If the
   calling command supplied MODEL for the discovery pass, that MODEL is already the
   minimum competence the task requires — use the same MODEL for verification too,
