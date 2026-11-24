@@ -67,7 +67,11 @@ where it lives. Three principles decide it:
 - **(c) The end-user document: Japanese primary, English kept in sync.** The
   end users are the users of the browser extension, and their document is the
   README: `README.md` is the primary version, in Japanese, and `README.en.md`
-  is its English version.
+  is its English version. `INSTALL.md` at the root is also an end-user
+  document, written in Japanese only for now. The Japanese text of both is
+  addressed to the reader and uses the polite form (です・ます); quoted
+  messages from the extension's catalog stay as they are. Other Japanese
+  documents keep the plain form (である).
 
 Applied to directories: `docs/dev/conventions/` is English, and
 `docs/dev/guides/` and `docs/research/` are Japanese. A new document takes the language its reader and
