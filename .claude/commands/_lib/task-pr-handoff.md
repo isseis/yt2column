@@ -51,6 +51,22 @@ next command after the merge and never runs it (`runpr.md` steps 2, 4, and 5).
 - **AFTER_CREATE** (optional) — what the calling command does once the PR
   exists (`runplan.md`: mark `PR を作成した` with the
   PR URL, commit, and push).
+- **FABLE** — the `KIND`, `TASK_DIR`, and `SELF_REJECTED` passed to
+  `_lib/fable-review.md` (Part B steps 1, 1.5, and 2.6): for a task-document
+  command, KIND = `documents`, TASK_DIR, and SELF_REJECTED = the findings the
+  calling command's self-review (and, in the simple process, its review of
+  the three documents) rejected in this session, each as its location and
+  your own summary (`_lib/fable-review.md`, "Inputs and outputs"); for
+  `runplan.md`, KIND = `implementation`, TASK_DIR, and SELF_REJECTED = the
+  findings steps 7 and 7.5 rejected in this session (empty when the session
+  runs the checkpoint alone).
+- **CHECKPOINT** — `run` for a task-document command (Part B step 1.5 runs
+  Entry 3 of `_lib/fable-review.md` to leave the checkpoint mark before
+  CHECKS); `done` for `runplan.md`, which already ran Entry 3 in its step 5a
+  or step 8.
+- **AFTER_REMEDY** (optional) — what the calling command runs after a remedy
+  in Part B step 2.6, before README sync and CHECKS (`runplan.md`: redo the
+  Opus review decision; omitted by task-document commands).
 
 ## Authorization
 
@@ -59,7 +75,9 @@ operations this file names: `gh api user`, `gh pr list`, `gh pr view`,
 `git fetch origin main`, `gh issue develop` and the issue operations of
 "Choosing the issue to link" (Part A step 4, for the task's issue and its link
 sub-issues only), `gh issue view` to read the labels of the task's issue
-(Part B step 3), `git push` (including `-u`), and `gh pr create`. `coderabbit review` has standing approval under `CLAUDE.md`. Anything else that touches the network is asked for
+(Part B step 3), `git push` (including `-u` and
+`git push origin <D>:refs/heads/<current-branch>`),
+`git branch --set-upstream-to` (Part B step 3), and `gh pr create`. `coderabbit review` has standing approval under `CLAUDE.md`. Anything else that touches the network is asked for
 first.
 
 ## Part A — prepare the branch
@@ -178,13 +196,10 @@ Run this after the calling command's last commit, with a clean working tree.
    `.claude/commands/_lib/local-cli-review.md` with
    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
    **SUMMARY** = REPORT, **RECORD** = `commit`, so its record lines are in a
-   commit of their own before the push, and **FABLE** = KIND `documents`,
-   TASK_DIR, and SELF_REJECTED = the findings the calling command's
-   self-review (and, in the simple process, its review of the three
-   documents) rejected in this session, each as its location and your own
-   summary (`_lib/fable-review.md`, "Inputs and outputs"). This runs after
+   commit of their own before the push, and **FABLE** = the calling
+   command's **FABLE**. This runs after
    the calling command committed the fixes of its self-review and of
-   `japrose`. When it stops, stop before step 2: nothing is pushed, and the
+   `japrose`. When it stops, stop before step 1.5: nothing is pushed, and the
    Fable partial review leaves no record, so a run again reviews again.
 
    **README sync.** Run this paragraph even when the sentence above does not
@@ -193,7 +208,15 @@ Run this after the calling command's last commit, with a clean working tree.
    `translated`, commit `README.en.md` alone, with a message such as
    `docs: sync README.en.md with README.md`; CHECKS then
    runs on that commit, and step 3 lists the reported terms in the PR body.
-   For `stopped`, stop before step 2: nothing is pushed.
+   For `stopped`, stop before step 1.5: nothing is pushed.
+
+1.5. When CHECKPOINT is `run`, run the checkpoint entry (`Entry 3`) of
+   `.claude/commands/_lib/fable-review.md` with **FABLE** so the checkpoint
+   mark is in place before CHECKS. When it stops, push nothing and stop.
+   When it returned `REMEDY` = `done`, run the README sync check of step 1
+   again before step 2 (the remedy's fixes may have changed `README.md`; for
+   `stopped`, push nothing and stop). When CHECKPOINT is `done`, do nothing
+   here.
 
 2. Run CHECKS. If they fail, fix, commit, and run them again; do not go on to
    the push until they pass.
@@ -208,30 +231,74 @@ Run this after the calling command's last commit, with a clean working tree.
    bash <records-script> coverage none <HEAD> [<PLAN>]
    ```
 
-   On success with `ALL`, continue to step 3. For `PARTIAL <n>`, take
+   On success with `ALL`, continue to step 2.6. For `PARTIAL <n>`, take
    BASE as the first parent of the oldest listed commit if that parent
    belongs to origin/main..HEAD, otherwise use the merge-base. If any
    command fails or its result is unreadable, use the merge-base.
    Run `_lib/local-cli-review.md` once with this BASE, SCOPE = commits
    awaiting review before the PR, SUMMARY = REPORT and RECORD = commit.
    Pass no FABLE. Its two-attempt cap applies. When `_lib/local-cli-review.md`
-   stops, stop before step 3: nothing is pushed. A CLI failure records the
+   stops, stop before step 2.6: nothing is pushed. A CLI failure records the
    unreviewed range and continues. After fix commits, rerun CHECKS until they
-   pass. Include any further CHECKS fixes in step 3's unreviewed ranges.
-   Proceed to step 3 without repeating this review.
+   pass. Proceed to step 2.6 without repeating this review.
+
+2.6. Re-check the Fable record right before pushing: run the pre-push entry
+   (`Entry 4`) of `.claude/commands/_lib/fable-review.md` with **FABLE**.
+   1. Run Entry 4's first stage. On `VALID`, keep the returned `D` (the
+      exact commit ID passed as `<HEAD>`) and the `origin/main` commit ID
+      from which the script was extracted, and continue to step 3. When it
+      stops, write its stop report in REPORT and stop: push nothing and do
+      not open the PR.
+   2. When the first stage ran a remedy (`REMEDY` = `done`), run the
+      re-checks in this order (do not re-run step 2.5):
+      1. AFTER_REMEDY, if supplied (`runplan.md` redoes the Opus review
+         decision); when it stops, push nothing and stop.
+      2. The README sync check of step 1 (for `stopped`, push nothing and
+         stop).
+      3. Step 2's CHECKS (fix, commit, and rerun until they pass; these
+         commits follow the checkpoint mark and do not invalidate the Fable
+         record).
+   3. Run Entry 4's final stage. On `VALID`, keep the returned `D` and the
+      `origin/main` commit ID, and continue to step 3. When it stops, write
+      its stop report (reason, first line of the decision output, stderr on
+      failure, current `HEAD`, and commits created) in REPORT and stop: push
+      nothing and do not open the PR.
 
 3. Push and create the PR for the current branch. Ignore the calling command's
-   `$ARGUMENTS` here (it is a task or an issue, not a PR or a branch). First
-   write the title and the body to files, as below, and run the mention check
-   on both files:
+   `$ARGUMENTS` here (it is a task or an issue, not a PR or a branch). Let
+   `<D>` be the commit ID `D` step 2.6 returned; for a caller that writes a
+   PR body from this step without running step 2.6 (such as `runpr.md` step 4's
+   return to the full process), `<D>` is `HEAD`. Read the branch's commit
+   messages and diffs for the body from `origin/main..<D>` and
+   `origin/main...<D>`, not `HEAD`. First
+   write the title and the body to files, as below, read the issue labels,
+   and run the mention check on both files:
    **Mention check.** Before posting, run `<mention-check> <file>`
    on each file of text to post. Post only when it exits `1` for every file: exit
    code `0` means the text contains a rejected mention, and any other code means the
    check failed. Never rewrite the text to get past the check.
-   When the check fails, do not create the PR: stop and report. Otherwise run
-   `git push -u origin <current-branch>` and
-   `gh pr create --base main --head <current-branch> --title "$(cat "<title-file>")" --body-file <file> --assignee @me <label-flags>`,
-   writing the title and the body to files in the scratchpad with the Write tool
+   When the check fails, do not create the PR: stop and report.
+
+   Right before pushing, confirm `git rev-parse HEAD` equals `<D>`:
+   - When `HEAD` differs from `<D>`, do not push. Run step 2's CHECKS, then
+     run "The validity decision" of `_lib/fable-review.md` once
+     (`<ENTRY>` = `checkpoint`, `<HEAD>` = `git rev-parse HEAD`, no remedy).
+     When it prints `VALID`, set `<D>` to that `<HEAD>` (and keep the new
+     `origin/main` commit ID), rewrite the title and body files from the new
+     `<D>`, re-run the mention check and the label read, and confirm
+     `git rev-parse HEAD` equals `<D>` once more. When that decision is not
+     `VALID` (or fails), or when `HEAD` differs from `<D>` a second time,
+     push nothing, do not open the PR, and stop and report the stop reason,
+     the first line of the decision output, stderr on failure, the current
+     `HEAD`, the commits created, and the commits between `<D>` and `HEAD`.
+   - When `HEAD` equals `<D>`, run
+     `git push origin <D>:refs/heads/<current-branch>`,
+     `gh pr create --base main --head <current-branch> --title "$(cat "<title-file>")" --body-file <file> --assignee @me <label-flags>`,
+     and then `git branch --set-upstream-to=origin/<current-branch>`. When
+     `git branch --set-upstream-to` fails, report the PR URL and `<D>` and
+     stop without running AFTER_CREATE.
+
+   Write the title and the body to files in the scratchpad with the Write tool
    (`_context.md`, "Passing a title to `gh`"). `--assignee @me` assigns the PR
    to the GitHub user `gh` is authenticated as, the user who runs the command.
    `<label-flags>` carries over the labels of the task's issue (ISSUE, or the
@@ -253,7 +320,7 @@ Run this after the calling command's last commit, with a clean working tree.
      `レビュー観点`), including every `unclear` or `deferred` finding of the
      local CLI reviews, including earlier records: this run's SUMMARY, and the finding
      lines earlier sessions recorded in commit messages on the branch
-     (`git log origin/main..HEAD`; the `CodeRabbit local review:` and
+     (`git log origin/main..<D>`; the `CodeRabbit local review:` and
      `Codex local review:` lines, read as `_lib/local-cli-review.md`,
      "Reading the record lines", says; a `not run` line is not a finding),
      and every `unclear` or `deferred` Fable finding (its `Fable finding:`
@@ -261,28 +328,46 @@ Run this after the calling command's last commit, with a clean working tree.
      Describe a Codex CLI or a Fable finding only by its location and your
      own summary, as the record line does, never with Codex's or Fable's
      text;
-   - names the commits of this PR that the local CLI did not review, if any. When this
-     session reviewed the whole branch (step 1 or `runplan.md` step 5a), give
-     only the unreviewed ranges in that review's SUMMARY: a range that review
-     covered counts as reviewed even when a commit message has a `not run`
-     line. Otherwise give the ranges of the `not run` lines in
-     `git log origin/main..HEAD`, of either form (`Local CLI review: not run`,
-     or an earlier session's `CodeRabbit local review: not run`, which stands
-     for the whole branch). Account for step 2.5's result: omit ranges it covered,
-     include its remaining unreviewed ranges and any subsequent CHECKS fixes;
+   - names the commits of this PR that the local CLI did not review, if any,
+     by running `origin/main`'s review records script in `unreviewed` mode
+     with `<HEAD>` = `<D>` and `<PLAN>` = `TASK_DIR`'s
+     `03_implementation_plan.md` (repository-relative, even when the plan
+     does not exist yet). Run these three commands separately, writing the
+     script to a new scratchpad file outside the work tree and using the full
+     commit ID from the first command:
+
+     ```bash
+     git rev-parse --verify 'refs/remotes/origin/main^{commit}'
+     git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>
+     bash <records-script> unreviewed <HEAD> <PLAN>
+     ```
+
+     On exit `0` with `ALL` alone, no commit is unreviewed. On exit `0` with
+     `PARTIAL <n>` followed by exactly `<n>` lines each of the form
+     `<12-hex-id> <subject>`, list those commits. On any other outcome
+     (command failure, non-zero exit, unexpected first line, mismatched line
+     count, or a line of another form), list every commit of
+     `origin/main..<D>` and state that the unreviewed list could not be
+     determined;
    - for `runplan.md`, gives PR_TEXT's Opus review result: whether the Opus
      review ran, and with what result, or which condition kept it from
      running;
    - carries the Fable partial review section, written from the Fable lines
-     of `git log --reverse origin/main..HEAD`, read as
+     of `git --no-replace-objects log --reverse origin/main..<D>`, read as
      `_lib/fable-review.md`, "Reading the record lines", says (the
      seen-range lines do not go into the body):
-     - the heading `## Fable の部分レビュー`, and under it, for each Fable
-       record, whether it ran (`run`, or `not run` with its reason) and its
-       range; the places put in scope with their criteria and the places
-       left out with their reasons; the number of fixed findings; each
-       rejected finding with its reason; and the `deferred` and `unclear`
-       findings, each by its location and your own summary;
+     - the heading `## Fable の部分レビュー`, and under it, first one line for
+       the pre-push validity check:
+       `push の直前の判定: VALID（判定のスクリプト: origin/main <12-hex>、D: <12-hex>）`
+       (using the `origin/main` commit ID from which step 2.6 extracted the
+       script and `<D>`, each cut to 12 hex characters), or
+       `push の直前の判定: なし` when step 2.6 did not run (such as `runpr.md`
+       step 4's return);
+     - then, for each Fable record, whether it ran (`run`, or `not run` with
+       its reason) and its range; the places put in scope with their criteria
+       and the places left out with their reasons; the number of fixed
+       findings; each rejected finding with its reason; and the `deferred`
+       and `unclear` findings, each by its location and your own summary;
      - after it, `<details><summary>Fable の行</summary>`, holding a `text`
        code block with every Fable line, oldest commit first, exactly as
        written in the commit messages, and `</details>`. A later script
@@ -291,13 +376,25 @@ Run this after the calling command's last commit, with a clean working tree.
        leave the `Fable scope:` lines out of the code block and say so, and
        that they are in the branch's commits; when it would exceed the
        limit still, leave the code block out and say so;
-     - with no Fable record on the branch, the section says only `記録なし`;
+     - with no Fable record on the branch, write `記録なし` under the
+       pre-push validity check line;
+   - carries the merge check section when
+     `git --no-replace-objects log --reverse origin/main..<D>` holds any
+     merge check record (`Merge check: run` or `Merge check: not run`, read
+     as `_lib/fable-review.md`, "Reading the record lines", says): the
+     heading `## merge の後の確認`, and under it, for each record, whether it
+     ran (`run`, or `not run` with its reason), the named merge commit (cut
+     to 12 hex characters), the range entries with their criteria
+     (`Merge check scope:`), the count of fixed findings, and each rejected,
+     `deferred`, and `unclear` finding by its location and your own summary
+     (never copying the subagent's text). Omit this section when there is no
+     merge check record, and add no `<details>` block of raw lines;
    - lists the terms the README sync (step 1) reported as
      missing from the translation glossary, if any;
-   - when `git log origin/main..HEAD` has correction lines (read from the
+   - when `git log origin/main..<D>` has correction lines (read from the
      commits, not from what this session remembers), carries the correction
      paragraph written from them, and when the branch's change-history lines
-     (`git diff origin/main...HEAD`) record a `draft` revert or a session
+     (`git diff origin/main...<D>`) record a `draft` revert or a session
      re-approval, names those decision changes; both as
      `docs/dev/conventions/requirements_process.md`, "Recording in the PR
      description", says. The correction paragraph is in the body file the
@@ -307,7 +404,10 @@ Run this after the calling command's last commit, with a clean working tree.
      `Resolves`): the issue stays open until the task is implemented. The
      Development link comes from the branch (Part A step 4), not from the
      body. A task whose requirements name no issue gets no such line.
-4. Run AFTER_CREATE, if supplied.
+4. Run AFTER_CREATE, if supplied. Before running it (before it makes its
+   commit or runs `git push`), confirm `git rev-parse HEAD` still equals
+   `<D>`; when it differs, stop and report the PR URL, `<D>`, and the
+   current `HEAD` without committing or pushing.
 5. Ping the human reviewer (`_context.md`, "Reviewer ping") in Japanese with the
    PR URL and the next action: review the PR, then run `/runpr <PR>`. If the ping tool is
    unavailable or the ping is not sent, the report in step 6 carries the same

@@ -19,6 +19,8 @@ findings. These callers run it:
 - `_lib/task-pr-handoff.md` Part B step 2.5 (commits still awaiting review);
 - `fixpr.md` Phase 4.5 (a fix round);
 - `_lib/fable-review.md`, "The standalone path" (the fixes of Fable's
+  findings);
+- `_lib/fable-review.md`, "The merge check" (the fixes of a merge check's
   findings).
 
 Two of them pass FABLE, which runs the Fable partial review
@@ -76,6 +78,7 @@ convergence rules are in `.claude/commands/_lib/review-subagent-pattern.md`.
   | `runpr.md` step 4 (the return to the full process) | `return` |
   | `fixpr.md` Phase 4.5 | none (`commit`) |
   | `_lib/fable-review.md`, "The standalone path" | `return` |
+  | `_lib/fable-review.md`, "The merge check" | `return` |
 
 ## Authorization
 
@@ -143,8 +146,9 @@ convergence rules are in `.claude/commands/_lib/review-subagent-pattern.md`.
 
 5. **Act on the triage** as "Triage rules" says:
    - After fixing, run the build checks (`_context.md`) and commit, with the
-     record lines of step 7 in the message (never a Fable line, step 7).
-     After a Fable launch, run the post-exit comparison of
+     record lines of step 7 in the message (never a Fable or merge check line,
+     step 7).
+     After a Fable or merge check launch, run the post-exit comparison of
      `_lib/fable-review.md`, "The state check", right before each commit. When a fix is an editorial
      correction to an approved task document (`docs/dev/conventions/requirements_process.md`,
      "Editing an approved document") or to an ADR
@@ -193,16 +197,16 @@ convergence rules are in `.claude/commands/_lib/review-subagent-pattern.md`.
      list, and the findings), go in the record commit below, with this
      SCOPE's last seen-range and not-run lines, or in SUMMARY when RECORD is
      `return`; never in a fix commit. When the launch entry found a valid
-     record and launched nothing, there are no Fable lines.
+     record or `MERGE` and launched nothing, there are no Fable lines.
    - **Mention check.** Before committing a message with an `Editorial correction:` line or a Fable
-     line, write the message to a file and run
+     or merge check line, write the message to a file and run
      `<mention-check> <file>`. Exit code 1 means it is clear.
      Any other exit code (0, the text contains a rejected mention; above 1, the
      check failed): remove every
      `Editorial correction:` line and every free text the session wrote in
-     a Fable line (each `<summary>` and `<reason>`, and the reasons of the
-     `Fable scope: out` lines), cutting each Fable `<location>` to its
-     `<path>`. List each removed correction and Fable text in SUMMARY as not
+     a Fable or merge check line (each `<summary>` and `<reason>`, and the reasons of the
+     `Fable scope: out` lines), cutting each Fable or merge check `<location>` to its
+     `<path>`. List each removed correction and Fable or merge check text in SUMMARY as not
      recorded, and run the check once
      more. When that run does not exit 1, stop and report instead of
      committing. Removing your own summary is not rewriting the text to get
@@ -235,12 +239,15 @@ convergence rules are in `.claude/commands/_lib/review-subagent-pattern.md`.
    - the fixed, rejected, `deferred`, and `unclear` findings;
    - with FABLE, the Fable partial review's RANGE, STATUS, COST, the counts
      of its findings by handling, OUTPUT_FILE, and the Fable lines; with no
-     launch, that a valid record covered the branch.
+     launch, that a valid record covered the branch or `MERGE` deferred the
+     check.
 
 ## Triage rules
 
-Steps 4 and 5 and `_lib/fable-review.md`, "The standalone path", triage by
-these rules. The findings of one triage are those of one CodeRabbit attempt and, on the first attempt with FABLE, those of Fable's collection.
+Steps 4 and 5 and `_lib/fable-review.md`, "The standalone path" and "The
+merge check", triage by these rules. The findings of one triage are those of
+one CodeRabbit attempt and, on the first attempt with FABLE, those of Fable's
+collection.
 
 - **Classify** each finding as `triage-pattern.md` defines (`verdict`,
   `severity` with its calibration rule, `topic`, `replyBody`), after reading
@@ -299,7 +306,8 @@ of these prefixes.
   range; take its range as the whole branch. It is not a finding line.
 - Every other `CodeRabbit local review:` and `Codex local review:` line is a
   finding line; its handling (rejected, `deferred`, `unclear`) is in the line.
-- A `Fable review:`, `Fable scope:`, or `Fable finding:` line is not a
+- A `Fable review:`, `Fable scope:`, `Fable finding:`, `Merge check:`,
+  `Merge check scope:`, or `Merge check finding:` line is not a
   local CLI review line; `_lib/fable-review.md`, "Reading the record lines",
   reads it.
 - A `Local CLI reviewed: <START12>..<END12> (<cli>)` line names a seen range.

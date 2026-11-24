@@ -1819,11 +1819,12 @@ func TestReviewRecordsFable(t *testing.T) {
 // commit's copy to <records-script>, by the commit ID the reading printed;
 // and the run of that copy.
 const (
-	reviewRecordsRef          = "git rev-parse --verify 'refs/remotes/origin/main^{commit}'"
-	reviewRecordsShow         = "git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>"
-	reviewRecordsRunCoverage  = "bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]"
-	reviewRecordsRunRemaining = "bash <records-script> coverage none <HEAD> [<PLAN>]"
-	reviewRecordsRunFable     = "bash <records-script> fable <ENTRY> <HEAD> <PLAN>"
+	reviewRecordsRef           = "git rev-parse --verify 'refs/remotes/origin/main^{commit}'"
+	reviewRecordsShow          = "git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>"
+	reviewRecordsRunCoverage   = "bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]"
+	reviewRecordsRunRemaining  = "bash <records-script> coverage none <HEAD> [<PLAN>]"
+	reviewRecordsRunUnreviewed = "bash <records-script> unreviewed <HEAD> <PLAN>"
+	reviewRecordsRunFable      = "bash <records-script> fable <ENTRY> <HEAD> <PLAN>"
 )
 
 // reviewRecordsNames are the code spans that only name the review records
@@ -1838,10 +1839,10 @@ var reviewRecordsNames = []string{
 // and every code span that names them is the name alone. Running the work
 // tree's copy would let the branch under review change the decision that
 // lets it skip a PR review or a Fable partial review. task-pr-handoff.md's
-// Part B step 2.5, runpr.md's step 3, and fable-review.md's validity decision,
-// which the launch and the checkpoint entries run, have the reading of the
-// reference, the write-out, and the run on consecutive lines, so a renamed form
-// does not pass by matching nothing.
+// Part B step 2.5 and step 3, runpr.md's step 3, and fable-review.md's
+// validity decision, which the launch, checkpoint, and pre-push entries run,
+// have the reading of the reference, the write-out, and the run on
+// consecutive lines, so a renamed form does not pass by matching nothing.
 // A line that names neither the script nor its placeholder, or a block
 // fenced otherwise, is out of its reach.
 func TestReviewRecordsCallSite(t *testing.T) {
@@ -1853,7 +1854,7 @@ func TestReviewRecordsCallSite(t *testing.T) {
 			}
 			inBlock := i < len(blockLines)
 			switch {
-			case inBlock && (code == reviewRecordsShow || code == reviewRecordsRunCoverage || code == reviewRecordsRunRemaining || code == reviewRecordsRunFable):
+			case inBlock && (code == reviewRecordsShow || code == reviewRecordsRunCoverage || code == reviewRecordsRunRemaining || code == reviewRecordsRunUnreviewed || code == reviewRecordsRunFable):
 			case !inBlock && slices.Contains(reviewRecordsNames, code):
 			default:
 				t.Errorf("%s has %q, which neither names the review records script nor writes out or runs origin/main's copy", rel, code)
@@ -1864,7 +1865,8 @@ func TestReviewRecordsCallSite(t *testing.T) {
 		name, path, run string
 		section         func(*testing.T, string) string
 	}{
-		{"handoff step 2.5", handoffPath, reviewRecordsRunRemaining, itemSection("\n2.5. ", "\n3. ")},
+		{"handoff step 2.5", handoffPath, reviewRecordsRunRemaining, itemSection("\n2.5. ", "\n2.6. ")},
+		{"handoff step 3", handoffPath, reviewRecordsRunUnreviewed, itemSection("3. Push and create the PR for the current branch.", "\n4. Run AFTER_CREATE")},
 		{"runpr.md's step 3", runprPath, reviewRecordsRunCoverage, headingSection(runprStep3)},
 		{"fable-review.md's validity decision", fableReviewPath, reviewRecordsRunFable, headingSection("## The validity decision")},
 	} {
@@ -1993,10 +1995,10 @@ const mergeCheckFamily = "Merge check"
 const mentionCheckReference = "`_lib/local-cli-review.md` step 7, \"Mention check\""
 
 // TestRecordCommitsCheckMention checks that each section that makes a commit
-// holding a Fable line runs the mention check first: it holds the check's
-// command or names local-cli-review.md step 7's "Mention check". A Fable line
-// carries the session's summaries of Fable's findings, which may hold the
-// mention.
+// holding a Fable or merge check line runs the mention check first: it holds
+// the check's command or names local-cli-review.md step 7's "Mention check".
+// A Fable or merge check line carries the session's summaries of findings,
+// which may hold the mention.
 func TestRecordCommitsCheckMention(t *testing.T) {
 	runplan := doctestutil.ReadDoc(t, runplanPath)
 	var step78 string
@@ -2011,6 +2013,7 @@ func TestRecordCommitsCheckMention(t *testing.T) {
 		{"runplan.md step 7.8", step78},
 		{"fable-review.md \"Record lines\"", requireSection(t, "fable-review.md", fable, "## Record lines")},
 		{"fable-review.md \"The standalone path\"", requireSection(t, "fable-review.md", fable, "## The standalone path")},
+		{"fable-review.md \"The merge check\"", requireSection(t, "fable-review.md", fable, "## The merge check")},
 	} {
 		text := flat(site.text)
 		if text == "" {
