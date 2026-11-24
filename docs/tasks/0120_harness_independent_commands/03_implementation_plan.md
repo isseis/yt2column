@@ -892,7 +892,41 @@ PR-5:
 Diff record (AC-32):
 
 - Compared paths: `.claude/settings.json`
-- File list: required (all changed paths of the PR)
+- Merge-base: `3fff7f51b6bf51721f1bbbe09e87ec2e4ea9d67d`
+- Compared commit: `80e7e526c81df1c06d762730e3ede12a284e227c`
+
+Path diff:
+
+````text
+````
+
+File list:
+
+````text
+.agents/skills/fixpr/SKILL.md
+.agents/skills/japrose/SKILL.md
+.agents/skills/mergepr/SKILL.md
+.agents/skills/mkarch/SKILL.md
+.agents/skills/mkplan/SKILL.md
+.agents/skills/mkplan2/SKILL.md
+.agents/skills/mkreq/SKILL.md
+.agents/skills/mktrans/SKILL.md
+.agents/skills/runplan/SKILL.md
+.agents/skills/runpr/SKILL.md
+.agents/skills/weakreview/SKILL.md
+AGENTS.md
+CLAUDE.md
+cmd/yt2column/docpaths_test.go
+cmd/yt2column/skills_docs_test.go
+docs/dev/adr/0014-deterministic-checks-in-go.md
+docs/dev/adr/0035-language-policy.md
+docs/dev/adr/0055-harness-independent-commands.md
+docs/tasks/0120_harness_independent_commands/03_implementation_plan.md
+docs/tasks/0120_harness_independent_commands/_checks/check_harness_tools.sh
+docs/translation_glossary.md
+internal/doctestutil/protocol.go
+internal/doctestutil/protocol_test.go
+````
 
 ---
 
