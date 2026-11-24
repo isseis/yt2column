@@ -264,11 +264,12 @@ var nonCommandInfo = map[string]struct{}{
 }
 
 // forbiddenGitMutations are the git subcommands mergemain.md must never invoke
-// directly in an executable command block: taking in, restoring, cleaning,
-// rebasing, and pushing must go through mergepr's take-in subcommands or stay
-// prohibited.
+// directly in an executable command block: taking in (pull runs a merge),
+// restoring, cleaning, rebasing, and pushing must go through mergepr's take-in
+// subcommands or stay prohibited.
 var forbiddenGitMutations = map[string]struct{}{
 	"merge":  {},
+	"pull":   {},
 	"reset":  {},
 	"push":   {},
 	"clean":  {},
@@ -328,7 +329,7 @@ func gitSubcommandAfterOptions(args []string) string {
 	for i := 0; i < len(args); i++ {
 		arg := strings.Trim(args[i], `"'`)
 		if hasKey(gitValuedGlobalOpts, arg) {
-			i++
+			i = skipQuotedWord(args, i+1)
 			continue
 		}
 		if strings.HasPrefix(arg, "-") {
@@ -337,6 +338,25 @@ func gitSubcommandAfterOptions(args []string) string {
 		return stripWordDecorations(arg)
 	}
 	return ""
+}
+
+// skipQuotedWord returns the index of the last word of the shell word that
+// starts at args[i]: a value opened by a quote and split by strings.Fields at
+// its spaces ("-C "/my repo"") runs to the word that closes the quote.
+func skipQuotedWord(args []string, i int) int {
+	if i >= len(args) || args[i] == "" {
+		return i
+	}
+	q := args[i][:1]
+	if q != `"` && q != "'" || (len(args[i]) > 1 && strings.HasSuffix(args[i], q)) {
+		return i
+	}
+	for j := i + 1; j < len(args); j++ {
+		if strings.HasSuffix(args[j], q) {
+			return j
+		}
+	}
+	return len(args) - 1
 }
 
 func hasKey(m map[string]struct{}, k string) bool { _, ok := m[k]; return ok }
@@ -411,6 +431,11 @@ func TestDirectGitMutations(t *testing.T) {
 			wantSubs: []string{"clean", "rebase"},
 		},
 		{
+			name:     "direct_pull_and_quoted_value_with_spaces",
+			doc:      "```bash\ngit pull origin main\ngit -C \"/my repo\" push origin branch\n```\n",
+			wantSubs: []string{"pull", "push"},
+		},
+		{
 			name:     "wrapped_and_chained",
 			doc:      "```bash\necho ok && env -u GIT_DIR git --attr-source HEAD merge origin/main\n```\n",
 			wantSubs: []string{"merge"},
@@ -457,7 +482,7 @@ func TestDirectGitMutations(t *testing.T) {
 }
 
 // TestMergemainNoDirectGitMutation: .claude/commands/mergemain.md never invokes
-// git merge, git reset, git clean, git rebase, or git push directly in any
+// git merge, git pull, git reset, git clean, git rebase, or git push directly in any
 // executable command block; all take-in, restore, and push operations go
 // through mergepr.
 func TestMergemainNoDirectGitMutation(t *testing.T) {

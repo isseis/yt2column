@@ -74,7 +74,7 @@ Never do any of the following during `/mergemain`:
    the five narrow fields that `mergemain-begin` and `mergemain-push` fetch:
    state, head branch, head commit, base branch, and whether the head belongs to
    another repository.
-9. Never run `git merge`, `git reset`, or `git push` directly (and never run
+9. Never run `git merge`, `git pull`, `git reset`, or `git push` directly (and never run
    `git clean`, `git merge --abort`, or `make ext-install`). Perform taking in,
    restoring, and pushing strictly through the `mergepr` take-in subcommands.
 
@@ -191,7 +191,10 @@ applied to each, and a short summary of the resolution for step 10.
      including `--protocol` flags, JSON output examples (`"protocol": <N>`), and
      guide prose or value tables (such as `現在の番号は` and `プロトコル番号`).
      Remember the updated tools so step 10 reminds the user to reinstall them
-     from this branch.
+     from this branch. When `<tool>` is `mergepr`, this rewrites the
+     `--protocol` of this definition too, but the installed `mergepr` is not
+     reinstalled during `/mergemain`: keep passing the `--protocol` value step 2
+     used in steps 8 and 9, never the rewritten one.
 
    - **README sync:** When `readme_changed` is `true` (or when `README.md` or
      `README.en.md` was modified or conflicted):
