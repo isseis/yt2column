@@ -71,8 +71,7 @@ func testGraphQLArgs(req Request) []string {
 	}
 }
 
-func buildGraphQLResponse(t *testing.T, headRefOID, commitOID string, suitesNextPage bool, suites []testSuiteSpec) string {
-	t.Helper()
+func buildCommitNode(commitOID string, suitesNextPage bool, suites []testSuiteSpec) map[string]any {
 	suiteNodes := make([]map[string]any, 0, len(suites))
 	for _, s := range suites {
 		var app any
@@ -114,23 +113,26 @@ func buildGraphQLResponse(t *testing.T, headRefOID, commitOID string, suitesNext
 			},
 		})
 	}
+	return map[string]any{
+		"commit": map[string]any{
+			"oid": commitOID,
+			"checkSuites": map[string]any{
+				"pageInfo": map[string]any{"hasNextPage": suitesNextPage},
+				"nodes":    suiteNodes,
+			},
+		},
+	}
+}
+
+func buildGraphQLResponseWithCommits(t *testing.T, headRefOID string, commitNodes []any) string {
+	t.Helper()
 	payload := map[string]any{
 		"data": map[string]any{
 			"repository": map[string]any{
 				"pullRequest": map[string]any{
 					"headRefOid": headRefOID,
 					"commits": map[string]any{
-						"nodes": []any{
-							map[string]any{
-								"commit": map[string]any{
-									"oid": commitOID,
-									"checkSuites": map[string]any{
-										"pageInfo": map[string]any{"hasNextPage": suitesNextPage},
-										"nodes":    suiteNodes,
-									},
-								},
-							},
-						},
+						"nodes": commitNodes,
 					},
 				},
 			},
@@ -141,6 +143,13 @@ func buildGraphQLResponse(t *testing.T, headRefOID, commitOID string, suitesNext
 		t.Fatalf("marshal graphql fixture: %v", err)
 	}
 	return string(b)
+}
+
+func buildGraphQLResponse(t *testing.T, headRefOID, commitOID string, suitesNextPage bool, suites []testSuiteSpec) string {
+	t.Helper()
+	return buildGraphQLResponseWithCommits(t, headRefOID, []any{
+		buildCommitNode(commitOID, suitesNextPage, suites),
+	})
 }
 
 func passingCISuite() testSuiteSpec {
@@ -205,8 +214,10 @@ func TestResolveRepo(t *testing.T) {
 		{name: "rejected_not_json", out: "not-json " + testMarker, wantReason: UnreadableRejected},
 		{name: "rejected_duplicate_key", out: `{"nameWithOwner":"a/b","nameWithOwner":"c/d"}`, wantReason: UnreadableRejected},
 		{name: "rejected_trailing_json", out: `{"nameWithOwner":"a/b"} {}`, wantReason: UnreadableRejected},
-		{name: "rejected_invalid_utf8", out: "{\"nameWithOwner\":\"a/b\xff\"}", wantReason: UnreadableRejected},
-		{name: "rejected_unpaired_surrogate", out: `{"nameWithOwner":"a/\uD800"}`, wantReason: UnreadableRejected},
+		// Place invalid UTF-8 and unpaired surrogate in an unconsumed member so
+		// strictjson whole-document validation is isolated from validRepoName.
+		{name: "rejected_invalid_utf8", out: "{\"nameWithOwner\":\"octo/repo\",\"extra\":\"x\xff\"}", wantReason: UnreadableRejected},
+		{name: "rejected_unpaired_surrogate", out: `{"nameWithOwner":"octo/repo","extra":"\uD800"}`, wantReason: UnreadableRejected},
 		{name: "rejected_missing_member", out: `{}`, wantReason: UnreadableRejected},
 		{name: "rejected_empty_string", out: `{"nameWithOwner":""}`, wantReason: UnreadableRejected},
 		{name: "rejected_no_slash", out: `{"nameWithOwner":"octo-org"}`, wantReason: UnreadableRejected},
@@ -765,12 +776,15 @@ func TestReadPRStrictJSONRejections(t *testing.T) {
 		{name: "unpaired_surrogate", out: strings.Replace(validJSON, `"Test"`, `"\uD800"`, 1)},
 		{name: "trailing_json", out: validJSON + " {}"},
 		{name: "duplicate_headRefOid", out: strings.Replace(validJSON, `"headRefOid":"`+testHead+`"`, `"headRefOid":"`+testHead+`","headRefOid":"`+testHead+`"`, 1)},
-		{name: "graphql_errors_non_empty", out: `{"data":null,"errors":[{"message":"` + testMarker + `"}]}`},
-		{name: "graphql_errors_not_array", out: `{"data":{},"errors":"boom"}`},
+		{name: "graphql_errors_non_empty", out: strings.Replace(validJSON, `{"data":`, `{"errors":[{"message":"`+testMarker+`"}],"data":`, 1)},
+		{name: "graphql_errors_not_array", out: strings.Replace(validJSON, `{"data":`, `{"errors":"boom","data":`, 1)},
 		{name: "null_pull_request", out: `{"data":{"repository":{"pullRequest":null}}}`},
 		{name: "missing_suite_app_member", out: `{"data":{"repository":{"pullRequest":{"headRefOid":"` + testHead + `","commits":{"nodes":[{"commit":{"oid":"` + testHead + `","checkSuites":{"pageInfo":{"hasNextPage":false},"nodes":[{"status":"COMPLETED","conclusion":"SUCCESS","createdAt":"2026-11-24T10:00:00Z","workflowRun":null,"checkRuns":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]}}}]}}}}}`},
 		{name: "empty_commits_nodes", out: `{"data":{"repository":{"pullRequest":{"headRefOid":"` + testHead + `","commits":{"nodes":[]}}}}}`},
-		{name: "two_commits_nodes", out: `{"data":{"repository":{"pullRequest":{"headRefOid":"` + testHead + `","commits":{"nodes":[{"commit":{"oid":"` + testHead + `"}},{"commit":{"oid":"` + testHead + `"}}]}}}}}`},
+		{name: "two_commits_nodes", out: buildGraphQLResponseWithCommits(t, testHead, []any{
+			buildCommitNode(testHead, false, []testSuiteSpec{passingCISuite()}),
+			buildCommitNode(testHead, false, []testSuiteSpec{passingCISuite()}),
+		})},
 		{name: "uppercase_headRefOid", out: strings.ReplaceAll(validJSON, testHead, strings.ToUpper(testHead))},
 		{name: "completed_suite_null_conclusion", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
 			{appSlug: "github-actions", status: "COMPLETED", conclusion: nil, hasWorkflowRun: true, workflowName: "CI"},
