@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-24 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-25 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -270,3 +270,7 @@ ADR の判断は、進め方の選択を除き、どれも [ADR-0056](../../dev/
 -   **想定運用環境**: 一時スクリプトを実行する環境。既定は、スクリプトを実行する人またはエージェントの、手元の機械にあるこのリポジトリの作業ツリー（AC-06）。
 -   **壊し確認**: 確かめの対象を壊して、確かめが失敗することを確かめる手順（`CLAUDE.md`「Testing Strategy」の「Every test must be able to fail for its stated reason」）。
 -   **移行ゲート**: 移行の前提が成り立つかを、実装の開始やマージの前に確かめる一時スクリプト（例：タスク 0121 の `check_open_branches.sh`）。
+
+## 変更履歴
+
+- 2026-11-25 承認（isseis、#1134）
