@@ -50,10 +50,12 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 # docs_at prints the tracked .md files at revision $1, other than docs/tasks/,
-# which holds past task records that quote the migration on purpose.
+# which holds past task records that quote the migration on purpose. It lists
+# the whole tree whatever the caller's directory, and leaves non-ASCII paths
+# unquoted so the .md filter sees them.
 docs_at() {
   local rev=$1 tree
-  tree=$(git ls-tree -r --name-only "$rev") || return 1
+  tree=$(git -c core.quotePath=false ls-tree -r --full-tree --name-only "$rev") || return 1
   printf '%s\n' "$tree" | grep -E '\.md$' | grep -v '^docs/tasks/' || true
 }
 
@@ -64,11 +66,19 @@ collapse() {
 }
 
 # old_lines prints, with an S or N marker, the lines of the migration section
-# and of the quick-start note that points at it, from the README file $1. $2 is
-# the migration heading and $3 the phrase the note uses.
+# and of the whole paragraph of the quick-start note that points at it, from
+# the README file $1. $2 is the migration heading and $3 the phrase the note
+# paragraph uses.
 old_lines() {
   awk -v mig="$2" -v note="$3" '
+    function flush(   i) {
+      if (n > 0 && para ~ note)
+        for (i = 1; i <= n; i++) print "N\t" lines[i]
+      n = 0
+      para = ""
+    }
     /^##[[:space:]]/ {
+      flush()
       if ($0 ~ mig) {
         insec = 1
         next
@@ -77,8 +87,20 @@ old_lines() {
       inquick = ($0 ~ /^## (クイックスタート|Quick start)[[:space:]]*$/)
       next
     }
-    insec { print "S\t" $0 }
-    inquick && $0 ~ note { print "N\t" $0 }
+    insec {
+      print "S\t" $0
+      next
+    }
+    inquick {
+      if ($0 ~ /^[[:space:]]*$/) {
+        flush()
+        next
+      }
+      lines[++n] = $0
+      para = (para == "" ? $0 : para " " $0)
+      next
+    }
+    END { flush() }
   ' "$1"
 }
 
