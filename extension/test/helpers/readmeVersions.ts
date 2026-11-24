@@ -1,10 +1,11 @@
 import type { Locale } from "../../src/core/i18n/locale.ts";
 import { developmentDoc } from "./developmentDoc.ts";
+import { installGuide } from "./installGuide.ts";
 
 /**
  * The two versions of the README: README.md, the Japanese primary version, and
- * README.en.md, its English version. A version's locale is also the message
- * catalog whose popup text that version quotes.
+ * README.en.md, its English version. A version's locale selects the wording of
+ * the minimum browser version it states.
  */
 export const readmeVersions: readonly { path: string; locale: Locale }[] = [
   { path: "README.md", locale: "ja" },
@@ -12,20 +13,13 @@ export const readmeVersions: readonly { path: string; locale: Locale }[] = [
 ];
 
 /**
- * The heading of the README's browser extension section in each version. Each
- * spelling must equal that version's heading line.
- */
-export const browserExtensionHeading: Record<Locale, string> = {
-  ja: "## ブラウザ拡張",
-  en: "## Browser extension",
-};
-
-/**
  * Every document that states the minimum browser version, with the language
- * whose phrase it uses: the README versions and the development guide.
+ * whose phrase it uses: the README versions, the install guide, and the
+ * development guide.
  */
 export const minimumChromeDocs: readonly { path: string; locale: Locale }[] = [
   ...readmeVersions,
+  installGuide,
   { path: developmentDoc.path, locale: "ja" },
 ];
 

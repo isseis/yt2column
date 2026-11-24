@@ -14,7 +14,7 @@
 
 | 担当 | 内容 |
 |---|---|
-| `mergepr` バイナリ（`cmd/mergepr`、`internal/mergepr`） | PR 情報と材料の取得、プロトコル番号の確かめ（6.3 節）、CI 待ち、マージ、マージ後の片付け |
+| `mergepr` バイナリ（`cmd/mergepr`、`internal/mergepr`） | PR 情報と材料の取得、プロトコル番号の確かめ（6.3 節）、CI 待ち、マージ、マージ後の片付け。`/mergemain` のための `origin/main` の取り込みの判定（`mergemain-*`、5.4 節） |
 | `/mergepr` コマンド（`.claude/commands/mergepr.md`） | 上記の呼び出し順の制御、コミットメッセージの下書き、ユーザーへの承認依頼 |
 | 開発者 | メッセージの確認と承認、ツールが止まったときの対処 |
 
@@ -47,11 +47,11 @@ make install-mergepr
 
 `$(go env GOPATH)/bin` に `PATH` が通っていることを確認する。ツール自体を変更した PR がマージされたら、`main` を更新してから再インストールする。
 
-**プロトコル番号の照合.** `mergepr` は、すべてのサブコマンドで `--protocol` を必須とし、自分のプロトコル番号（`internal/mergepr` の `Protocol`。現在の番号は `3`）と文字列として照合する。`/mergepr`・`/runpr` の定義は、`mergepr` を呼ぶたびに `--protocol 3` を渡す。番号が違うか渡されないとき、`mergepr` は何も読まず、何も書かずに止まる（7 章）。
+**プロトコル番号の照合.** `mergepr` は、すべてのサブコマンドで `--protocol` を必須とし、自分のプロトコル番号（`internal/mergepr` の `Protocol`。現在の番号は `4`）と文字列として照合する。`/mergepr`・`/runpr` の定義は、`mergepr` を呼ぶたびに `--protocol 4` を渡す。番号が違うか渡されないとき、`mergepr` は何も読まず、何も書かずに止まる（7 章）。
 
 **番号を上げる PR での入れ直し.** `mergepr` の `Protocol` を上げる PR では、その PR の `/runpr` が最初に `mergepr` を呼ぶ前に、利用者がその PR のブランチで再インストールし、マージの直後に `main` から再インストールする。その間、`main` を取り込んでいないほかの worktree の `/mergepr`・`/runpr` は番号の不一致で止まる。途中でほかの PR をマージする必要が生じたら、`main` から再インストールすれば、ほかの worktree は元どおり進める。
 
-**入れ替える前の確かめ.** どの worktree にも準備したままの作業ディレクトリ（`mergepr-*`）と終わっていない `cleanup` がないことを確かめる。新しい `mergepr` は、古い定義が書いた `--protocol` のない `discard`・`cleanup` を拒むので、残っていたら新しい `mergepr` で `mergepr discard --protocol 3 --state <state-file>`（片付けなら `mergepr cleanup --protocol 3 --state <state-file>`）を手で実行する。
+**入れ替える前の確かめ.** どの worktree にも準備したままの作業ディレクトリ（`mergepr-*`）と終わっていない `cleanup` がないことを確かめる。新しい `mergepr` は、古い定義が書いた `--protocol` のない `discard`・`cleanup` を拒むので、残っていたら新しい `mergepr` で `mergepr discard --protocol 4 --state <state-file>`（片付けなら `mergepr cleanup --protocol 4 --state <state-file>`）を手で実行する。
 
 **導入する PR そのもの.** `mergepr` を導入する PR そのものは、まだ `main` にツールが無いため `/mergepr` ではマージできない。`gh pr merge --squash` など、別の手段でマージする。
 
@@ -120,21 +120,21 @@ PR のコミットに受け付けない文字を含む訂正の行（6.5 節）�
 
 ### 5.2 手動で使う
 
-各サブコマンドは単独でも実行できる。どのサブコマンドも `--protocol 3` を位置引数より前に必要とする（3 章）。`paragraph`、`check-body`、`merge`、`cleanup`、`discard` は `state.json` を入力に取るため、位置引数を渡すと usage エラーで止まる。
+各サブコマンドは単独でも実行できる。どのサブコマンドも `--protocol 4` を位置引数より前に必要とする（3 章）。`paragraph`、`check-body`、`merge`、`cleanup`、`discard` は `state.json` を入力に取るため、位置引数を渡すと usage エラーで止まる。
 
 ```sh
-mergepr prepare --protocol 3 [PR]
-mergepr paragraph --protocol 3 --state FILE
-mergepr check-body --protocol 3 --state FILE --subject-file FILE --body-file FILE
-mergepr merge --protocol 3 --state FILE --subject-file FILE --body-file FILE
-mergepr cleanup --protocol 3 --state FILE
-mergepr discard --protocol 3 --state FILE
+mergepr prepare --protocol 4 [PR]
+mergepr paragraph --protocol 4 --state FILE
+mergepr check-body --protocol 4 --state FILE --subject-file FILE --body-file FILE
+mergepr merge --protocol 4 --state FILE --subject-file FILE --body-file FILE
+mergepr cleanup --protocol 4 --state FILE
+mergepr discard --protocol 4 --state FILE
 ```
 
 `paragraph`、`check-body`、`merge` は、落とす指定（6.5 節）を受け取る。受け付けた行を落とす `--drop <番号>:disputed` と `--drop <番号>:reverted`、拒否した行を落とす `--drop-rejected <コミット ID>:<行番号>` を、それぞれ何度でも渡せる。たとえば次のとおりである。
 
 ```sh
-mergepr merge --protocol 3 --state FILE --subject-file FILE --body-file FILE --drop <drop> --drop-rejected <rejected-drop>
+mergepr merge --protocol 4 --state FILE --subject-file FILE --body-file FILE --drop <drop> --drop-rejected <rejected-drop>
 ```
 
 `<drop>` は `1:disputed` のような値、`<rejected-drop>` は 40 桁の小文字の 16 進数のコミット ID と行番号を `:` でつないだ値である。番号は 1 以上の 10 進数で、符号と先頭の `0` を付けない。形の違う値と、同じ行を 2 回指す指定（同じ番号を別の場合で指すものを含む）は、何も読まずに usage エラーで止まる。`prepare`、`cleanup`、`discard` は落とす指定を受け取らない。
@@ -168,7 +168,7 @@ PR #42: feat(writer): add column heading
 url:   https://github.com/isseis/yt2column/pull/42
 head:  feature/foo at 2222222222222222222222222222222222222222
 base:  main
-protocol: passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 6, fixprguard 7, mergepr 3; changed: none
+protocol: passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 7, fixprguard 8, mergepr 4; changed: none
 CI:    all checks passed
 corrections: 2 accepted, 1 rejected
 correction rejected: 5555555555555555555555555555555555555555 line 4: invisible,at: "Editorial correction: aU+200Bb me@example.com"
@@ -228,7 +228,7 @@ paragraph: 3 line(s) in /repo/.git/mergepr-123456/paragraph.txt
 結果の出力例:
 
 ```text
-protocol:             passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 6, fixprguard 7, mergepr 3; changed: none
+protocol:             passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 7, fixprguard 8, mergepr 4; changed: none
 merge commit:         3333333333333333333333333333333333333333
 base branch updated:  true
 local branch deleted: true
@@ -256,6 +256,52 @@ note: main is checked out in another worktree; update it there and remove this w
 
 `/runplan` の次の PR に進むときは、更新した `main` から新しいブランチを作る。マージ済みのブランチから分岐してはならない。squash merge 後のブランチのコミットは `main` の祖先にならないため、分岐すると前の PR のコミットが次の PR に混入する。
 
+### 5.4 取り込みの道具（`mergemain-*`）
+
+`/mergemain` は、PR のブランチに `origin/main` を merge で取り込む判定を、次の 4 つのサブコマンドで行う。PR の番号は位置引数で渡す。`--head-branch`・`--base-head`・`--main` は `mergemain-begin` の出力をそのまま渡し、道具は推し量らない。
+
+```sh
+mergepr mergemain-begin --protocol 4 <PR>
+mergepr mergemain-merge --protocol 4 --head-branch <head-branch> --base-head <base-head> --main <main-head> <PR>
+mergepr mergemain-restore --protocol 4 --head-branch <head-branch> --base-head <base-head> --main <main-head> <PR>
+mergepr mergemain-push --protocol 4 --base-head <base-head> --main <main-head> <PR>
+```
+
+PR の番号は 10 進の数字だけ 9 桁までで、先頭に `0` を付けない。形の違う番号は、何も読まずに `premise` の停止として出力する。
+
+**出力.** どのサブコマンドも、標準出力に 1 行 1 項目の `key: value` を書く。1 行目は `status: ok` か `status: stop` である。`status: stop` のときは続けて `reason:` と `restore:` を書き、`detail:` に合わなかったことを書く。
+
+| 項目 | 内容 |
+|---|---|
+| `reason` | `premise`・`nothing_to_take_in`・`out_of_scope`・`push_rejected`・`push_unknown`・`other_changes`・`unknown` のどれか。`/mergemain` はこれを [02_architecture.md](../../tasks/0115_chief_conflict_resolution/02_architecture.md) の 4.1 節の表で理由の種類に写す |
+| `restore` | `needed`・`not_needed`・`unknown` のどれか。`needed` のときだけ `/mergemain` は `mergemain-restore` を呼ぶ。`unknown` は戻さない |
+| `base_head` | `mergemain-begin` では取り込みの基準の head。`mergemain-restore` では戻した後の HEAD（基準の head） |
+| `head_branch` | PR の head ブランチ |
+| `main_head` | 取り込む `main` のコミット。`mergemain-begin` は同じ値を `refs/mergemain/<PR>/main` に記録する |
+| `conflict` | `<分類> <パス>`。1 パス 1 行。分類は `markdown`（エージェントが両側の変更を保って解消する）・`protocol_only`（道具が番号を変えて解消済み）・`out_of_scope`（止まる）。停止したときも、分かっているパスを書く |
+| `protocol_tool` | `<道具> <新しい番号>`。1 道具 1 行。番号を変えた道具と、その値 |
+| `readme_changed` | `README.md` か `README.en.md` を、取り込みが変えたか衝突したか（`true`・`false`） |
+| `adr_main_changed` | `docs/dev/adr/` が merge base の後に `main` で変わったか（`true`・`false`） |
+| `adr_conflict_number` | ブランチが加えた ADR の番号のうち、`main` の ADR と重なる番号。1 番号 1 行 |
+| `ext_check_hint` | 取り込みで `extension/` か `README.md`・`README.en.md`・`docs/dev/guides/development.md` が変わったか（`true`・`false`）。`make ext-check` の要否の見込みで、規則を当てた後は merge コミットと基準の head の差で決め直す |
+| `new_head` | `mergemain-push` が push した merge コミット。PR の新しい head |
+| `detail` | 停止したときの、合わなかった値と確かめ |
+
+パス・`head_branch`・`detail` などの値に含まれる、行を終わらせたり並べ替えたりしうる文字は、1 行で書く。改行・復帰・タブ・バックスラッシュは `\n`・`\r`・`\t`・`\\`、それ以外の制御文字（C0・DEL・C1）・行区切りと段落区切り（U+2028・U+2029）・書式文字（双方向の制御などを含む）は `\xNN`・`\uNNNN`・`\U00NNNNNN`、無効な UTF-8 のバイトは `\xNN` の形にする。値が `status:` などの項目の行を偽装することはない。
+
+**終了コードと使い方の誤り.** `status: ok` のときは 0、`status: stop` のときは 1 で終わる。コマンド行の形の誤り（位置引数の数、知らないフラグ、`--protocol` の欠けや不一致）は、`status:` の行を書かずに使い方の誤りとして 1 で止まる。値の形の誤りは停止として出力する。位置引数の PR の番号はどのサブコマンドでも最初に読み、10 進の数字だけ 9 桁までで先頭に `0` を付けない形に合わなければ `premise` の停止にする。`-` で始まる位置引数はフラグとして読まれるため、使い方の誤りになる。`--base-head` と `--main`（40 桁の小文字の 16 進数のコミット）と `--head-branch`（ブランチ名）が形に合わないときは、`mergemain-merge` と `mergemain-push` では `premise`、`mergemain-restore` では `other_changes` の停止になる。`status:` の行がない出力は、道具の版か呼び出しの誤りとして扱う。
+
+**保証すること.** 各サブコマンドは、次を確かめてから先へ進む。確かめが合わなければ、その理由と戻すべきかを出力して止まる。
+
+| サブコマンド | 確かめること |
+|---|---|
+| `mergemain-begin` | PR が開いていて、base が `main` で、head がこのリポジトリのブランチであること。`gh` が PR を読む先が `origin` だけであること（`GH_REPO` がなく、`gh repo set-default` の記録が `origin` 以外を指さない）。作業ツリーに、追跡していないファイルを含めて変更がないこと。今のブランチが PR の head ブランチで、HEAD と、取得した `refs/remotes/origin/<ブランチ>` と、GitHub の PR の head が同じコミットであること。取り込む `main` が HEAD の祖先でないこと。head ブランチの名前に `=` がないこと（`mergemain-merge` が `branch.<ブランチ>.mergeOptions` を空にする鍵に使うため）。head ブランチの名前が有効な UTF-8 で、C1 の制御文字・書式文字・行区切り・段落区切りを含まないこと（出力でエスケープされると、`mergemain-begin` の値をそのまま渡せないため）。ブランチ・インデックス・作業ツリーのファイルは変えず、書くのは取得した 2 つの ref（`refs/mergemain/<PR>/main` と `refs/remotes/origin/<ブランチ>`）と、その取得が git に書かせる `FETCH_HEAD`・オブジェクトだけである |
+| `mergemain-merge` | 引数が `refs/mergemain/<PR>/main` と一致し、HEAD が基準の head のままであること。取り込む `main` が、無視されるファイルを上書きしないこと。`$GIT_DIR/info/attributes` がなく `merge.default` が設定されておらず、両側が変えたパスと名前の変更の元と先の `merge` 属性がテキストの合わせ（指定なしか `set`）であること。`branch.<ブランチ>.mergeOptions` は空にして取り込む（中身は確かめない）。`--no-ff --no-commit` で取り込み、衝突を分類し、プロトコル番号を `main` の値 + 1 にする。ネットワークを使わない |
+| `mergemain-restore` | 戻してよい 2 つの状態（取り込みの途中か、push していない merge コミット）のどれかであること。ほかの変更、無視されたファイルがふさぐパス、追跡していないファイルがあれば戻さない。`git reset --hard` だけを使い、`git clean` も `git merge --abort` も使わない。ネットワークを使わない |
+| `mergemain-push` | PR を読み直して、開いていて base が `main` で head ブランチが今のブランチで、その名前に `=` がないこと。HEAD が、基準の head と取り込む `main` を親とする merge コミットで、取り込む `main` が `refs/mergemain/<PR>/main` と一致し、`origin` から取り直した `main` の祖先であること。2 つの親を自動で合わせたときの衝突がすべて対象内で、merge コミットとの違いが `.md` と、番号を変えた道具の宣言の行だけであり、その値が `main` の値 + 1 であること。追跡しているファイルに変更がないこと。`origin` のブランチが基準の head のままであること。push の URL が取得の URL と同じであること。通れば force なしで push し、失敗したときは `origin` のブランチを読み直して、通った・拒まれた・結果が分からないのどれかを決める |
+
+取り込みの道具も、`--protocol` が合わなければ何も読まずに止まる（3 章）。読み取りの範囲と、番号を変える規則は、[02_architecture.md](../../tasks/0115_chief_conflict_resolution/02_architecture.md) の 3.8 節が定める。
+
 ## 6. ツールが保証すること・しないこと
 
 ### 6.1 保証すること
@@ -275,11 +321,11 @@ note: main is checked out in another worktree; update it there and remove this w
 
 ### 6.2 保証しないこと
 
-前提条件（2 章）を満たさない環境での動作は保証しない。特に次の点に注意する。
+前提条件（2 章）を満たさない環境での動作は保証しない。特に次の点に注意する。5.4 節の取り込みの道具はこれとは別で、次のうち作業ツリーと git の設定についての項目は、`/mergepr` のマージ（`prepare`・`merge`・`cleanup`）に当たる。
 
-- 特殊な git 設定（hooks、`push.*` 設定など）や、`origin` 以外を向いた gh の設定には対応しない。
+- 特殊な git 設定（hooks、`push.*` 設定など）や、`origin` 以外を向いた gh の設定には対応しない。取り込みの道具は、`$GIT_DIR/info/attributes`・`merge.default`・テキストの合わせ以外のマージの属性・`branch.<ブランチ>.mergeOptions` があれば止まるか空にして取り込む（5.4 節）。
 - リモートの head ブランチは削除しない。GitHub の自動削除設定に任せる。
-- PR の作業ツリーの未コミット変更は確認しない。`git switch` が衝突すれば、git 自身のエラーで止まる。
+- PR の作業ツリーの未コミット変更は確認しない。`git switch` が衝突すれば、git 自身のエラーで止まる。取り込みの道具は、取り込みを始めるときに追跡していないファイルを含めて、push の前に追跡しているファイルの変更がないことを確かめる（5.4 節）。
 - 大きすぎる PR の材料も切り詰めずにそのまま書き出す。
 - プロトコル番号について、次の 4 つは受け入れた危険である（CLAUDE.md の「Protocol numbers」）。(1) マージの前は、同じ道具の番号を上げる並行するブランチが同じ番号を共有する。(2) `merge` の確かめ直しと GitHub のマージの間の数秒に、ほかの PR が同じ番号でマージされうる。(3) 番号を上げたブランチを、同じ番号の入った `main` の上へ rebase するか、その上で履歴をまとめ直すと、確かめが衝突を見落としうる。(4) 一度消した道具を同じ名前で足し直すと、番号が `1` に戻る。
 - 確かめを変える PR は、その PR のブランチから入れた `mergepr` で確かめられる。確かめの実装を変える PR は、変えた後の実装で確かめることになる。
@@ -370,9 +416,9 @@ Dropped editorial corrections: <a> disputed by a reviewer, <b> reverted on the b
 | `PR is not open` | `prepare` | PR がクローズまたはマージ済み | 対象の PR を確認する |
 | `CI checks failed` | `prepare` | 失敗したチェックがある、またはチェックが無い | CI を直して push し、`prepare` からやり直す |
 | `squash subject is not a non-empty single line` | `merge` | 件名ファイルが空、または複数行 | 件名ファイルを直して `merge` を再実行する |
-| `PR is not open: state is MERGED` | `merge` | 前回の実行で既にマージされている | 表示された `mergepr cleanup --protocol 3 --state ...` を実行する |
-| `PR base changed after prepare` | `merge` | PR の base が変更された | 表示された `mergepr prepare --protocol 3 <PR>` で、`prepare` からやり直す |
-| `merge PR: ...` | `merge` | head が `prepare` 後に動いた、ブランチ保護に引っかかった、など | head が動いたなら、使えなくなった準備を `mergepr discard --protocol 3 --state ...` で破棄してから `prepare` からやり直す。PR がマージ済みなら表示された `cleanup` を実行する |
+| `PR is not open: state is MERGED` | `merge` | 前回の実行で既にマージされている | 表示された `mergepr cleanup --protocol 4 --state ...` を実行する |
+| `PR base changed after prepare` | `merge` | PR の base が変更された | 表示された `mergepr prepare --protocol 4 <PR>` で、`prepare` からやり直す |
+| `merge PR: ...` | `merge` | head が `prepare` 後に動いた、ブランチ保護に引っかかった、など | head が動いたなら、使えなくなった準備を `mergepr discard --protocol 4 --state ...` で破棄してから `prepare` からやり直す。PR がマージ済みなら表示された `cleanup` を実行する |
 | `PR is not merged` | `cleanup` | まだマージされていない | マージを確認してから再実行する |
 | `switch to <base>: ...` | `cleanup` | 未コミット変更が衝突した、など | 作業ツリーを整理して `cleanup` を再実行する |
 | `fast-forward <base>: ...` | `cleanup` | ローカルの base に `origin` に無いコミットがある | base のコミットを整理して `cleanup` を再実行する |
@@ -385,7 +431,7 @@ Dropped editorial corrections: <a> disputed by a reviewer, <b> reverted on the b
 
 **マージの後の照合で食い違ったとき.** PR はマージ済みなので、準備を捨てず、マージをやり直さない。誤りの前の `mergepr: post-merge check:` の行が、渡した本文にあってマージコミットにない行（`missing:`）と、その逆（`extra:`）を示す。マージは取り消せないので、`git cat-file commit <マージコミット>` で実際の行を確かめ、`main` の履歴を書き換えない直し方（後の PR の本文に記録するなど）を選ぶ。マージコミットを読めなかったとき（`could not read the merged commit`）は、片付けが終わっていれば作業ディレクトリはもうないので、`cleanup` では照合をやり直せない。`origin` に届くようになってから、`git fetch origin <base>` の後に `git cat-file commit <マージコミット>` で、`Editorial correction: ` と `Dropped editorial corrections: ` で始まる行を、承認した本文の同じ行と手で比べる。片付けも止まっていて照合で食い違ったときは、片付けを `cleanup --body-file` でやり直すと照合も繰り返されて同じ誤りで終わる。表示された誤りが `post-merge check:` だけなら片付けは終わっていて、作業ディレクトリはもうないので、`cleanup` をさらにやり直さない。
 
-`merge` の確かめ直しで止まったときは、マージしていない。`origin/main` の取得に失敗したとき（`could not fetch origin/main`）は、準備はそのまま使えるので、`origin` に届くようになってから同じ `merge` を実行し直す。それ以外で止まったときは、表示された `mergepr discard --protocol 3 --state ...` で準備を捨ててから直す。
+`merge` の確かめ直しで止まったときは、マージしていない。`origin/main` の取得に失敗したとき（`could not fetch origin/main`）は、準備はそのまま使えるので、`origin` に届くようになってから同じ `merge` を実行し直す。それ以外で止まったときは、表示された `mergepr discard --protocol 4 --state ...` で準備を捨ててから直す。
 
 **番号が食い違ったとき.** 誤りの文は、食い違った道具ごとに、`origin/main` の値、head の値、期待する値と、番号を変えたコミットを示す。そのコミットがこの PR 自身のものか、ほかのブランチから来たものかを見て、直し方を選ぶ。
 
@@ -400,7 +446,7 @@ head の値が `origin/main` の値と同じ道具があるとき（上げた番
 
 **番号を読めないとき.** 表示された理由に応じて直す。shallow なリポジトリなら `git fetch --unshallow` を実行する。`main` の取得に失敗したなら、ネットワークと `origin` を確かめてから、止まったサブコマンド（`prepare` か `merge`）を同じ引数で実行し直す。読めない宣言の行なら、表示されたファイルの行を `const Protocol = <整数>` の形に直す。PR の base が `main` でないなら、番号を変えるコミットは `main` を base にした PR でマージする。
 
-**番号の確かめで止まったとき.** `merge` で止まったときは、マージしていない。確かめに要るものを読めず、止める理由が `network-or-github` のときは、準備はそのまま使えるので、`origin` に届くようになってから同じ `merge` を実行し直す。それ以外は、準備を `mergepr discard --protocol 3 --state ...` で捨ててから、見つけたものの種類ごとに直す。
+**番号の確かめで止まったとき.** `merge` で止まったときは、マージしていない。確かめに要るものを読めず、止める理由が `network-or-github` のときは、準備はそのまま使えるので、`origin` に届くようになってから同じ `merge` を実行し直す。それ以外は、準備を `mergepr discard --protocol 4 --state ...` で捨ててから、見つけたものの種類ごとに直す。
 
 - **ADR 番号（`unreserved`・`in-use-on-main`・`on-other-branch`）.** PR のブランチの作業ツリーで `numreserve adr` を実行して新しい番号を決め、[adr.md](../conventions/adr.md) の「Taking in `main`」の手順 2 と同じ形で付け替える。commit して push し、マージをやり直す。
 - **タスク番号（`unreserved`・`in-use-on-main`・`on-other-branch`）.** 番号はブランチ名にも入り、`chief` はブランチ名とディレクトリ名が一致することを求める。開いている PR の head ブランチの名前は変えられないので、`numreserve task` で新しい番号を決め、新しいブランチと PR で作り直す。止まった PR は閉じる。`/runpr` がマージの直前に積んだ記録の commit（文書の `approved` など）は、マージされない PR に残り、作り直した PR には引き継がれない。作り直した PR で `/runpr` を実行し、承認を記録し直す。

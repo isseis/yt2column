@@ -101,13 +101,14 @@ const (
 )
 
 // instructionDocs returns the documents that tell an agent what to do, from
-// the repository root: CLAUDE.md, AGENTS.md, the command definitions, and the
+// the repository root: CLAUDE.md, AGENTS.md, the command definitions, the
+// Antigravity skill entries under .agents/skills, and the
 // documents under docs/dev/ other than readmeGuides. Past task documents are
 // records of the work when it was done, so they are not targets.
 func instructionDocs(t *testing.T) []string {
 	t.Helper()
 	docs := []string{"CLAUDE.md", "AGENTS.md"}
-	for _, root := range []string{".claude/commands", "docs/dev"} {
+	for _, root := range []string{".claude/commands", ".agents/skills", "docs/dev"} {
 		err := filepath.WalkDir(filepath.Join(repositoryRoot, root), func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
@@ -129,6 +130,20 @@ func instructionDocs(t *testing.T) []string {
 		}
 	}
 	return docs
+}
+
+// TestInstructionDocsIncludeSkills: the Antigravity skill entries are
+// instruction documents, so TestInstructionDocPaths checks their links.
+func TestInstructionDocsIncludeSkills(t *testing.T) {
+	var skills int
+	for _, rel := range instructionDocs(t) {
+		if strings.HasPrefix(rel, ".agents/skills/") {
+			skills++
+		}
+	}
+	if want := len(skillCommands(t)); skills != want {
+		t.Errorf("instructionDocs lists %d files under .agents/skills, want %d", skills, want)
+	}
 }
 
 // TestInstructionDocPaths: every path an instruction document writes resolves.
