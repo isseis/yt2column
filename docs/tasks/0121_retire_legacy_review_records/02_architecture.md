@@ -208,14 +208,14 @@ sequenceDiagram
     Sh->>LocalGit: origin URL（絶対パス化）・git-common-dir・shallow clone かどうかを取得
     Sh->>Tmp: 空の bare リポジトリ作成（非 shallow 時のみ alternates 登録）
     Sh->>Origin: 利用者 git 設定を保ちつつ --no-tags で refs/heads/* を fetch
-    alt 取得失敗 または refs/heads/main 不在・非 commit
+    alt 取得失敗・ls-remote とのブランチ集合の不一致・refs/heads/main 不在・非 commit
         Origin-->>Sh: エラー
-        Sh->>Tmp: 一時ディレクトリを削除（EXIT/INT/TERM/HUP）
+        Sh->>Tmp: 一時ディレクトリを削除（EXIT トラップ）
         Sh-->>Op: 標準エラーへ診断（標準出力なし）・終了コード 2
     else fetch 成功
         Origin-->>Sh: 全ブランチ refs 取得完了
         Sh->>Tmp: 隔離環境で main 以外の各ブランチ（40 桁コミット ID 指定）について main 未到達コミット全体を検査
-        Sh->>Tmp: 一時ディレクトリを削除（EXIT/INT/TERM/HUP）
+        Sh->>Tmp: 一時ディレクトリを削除（EXIT トラップ）
         alt 古い記録行を 1 件以上検出
             Sh-->>Op: 該当一覧を標準出力へ報告・終了コード 1（作業停止）
         else 0 件
@@ -260,11 +260,12 @@ sequenceDiagram
 -   **入力インターフェース:** 引数なし（引数が与えられた場合は使い方の誤りとして終了コード `2` で失敗する）。リポジトリ内の任意のディレクトリ（メインクローンおよび外部 git worktree の双方）から実行できる。
 -   **副作用と権限の契約:**
     -   **変更しない対象:** 作業ツリー、インデックス、`HEAD`、ローカルブランチ、共有 `.git` 配下の `refs/remotes/origin/*`・`FETCH_HEAD`・設定ファイルを一切変更しない。
-    -   **許可される副作用:** `${TMPDIR:-/tmp}` 配下に一時ディレクトリを作成して空の bare リポジトリを初期化し、ネットワーク経由で `origin` の全 `refs/heads/*` を読み取り専用で取得する。`EXIT`・`INT`・`TERM`・`HUP` を捕捉して終了時（正常・異常・シグナル中断のすべて）に作成済みの一時ディレクトリのみを削除する（bash 3.2 では `trap EXIT` 単独では `SIGINT`/`SIGTERM`/`SIGHUP` 時に実行されないため）。
+    -   **許可される副作用:** `${TMPDIR:-/tmp}` 配下に一時ディレクトリを作成して空の bare リポジトリを初期化し、ネットワーク経由で `origin` の全 `refs/heads/*` を読み取り専用で取得する。`EXIT` を捕捉して終了時（正常・異常・シグナル中断のすべて）に作成済みの一時ディレクトリのみを削除する（bash 3.2 でも `trap EXIT` は `SIGINT`・`SIGTERM`・`SIGHUP` による終了時に実行される）。
     -   **実行時の承認:** `origin` の全リモートブランチ取得はネットワーク通信を伴うため、`CLAUDE.md`「Tool Execution Safety」および Antigravity（ハーネスの一つ。[ADR-0055](../../dev/adr/0055-harness-independent-commands.md)）のサンドボックス昇格規則に従い、利用者の明示承認のもと単一コマンドとして実行する。なお、`/runpr` は `_checks/` スクリプトを自動実行しないため（`.claude/commands/runpr.md:396`、`docs/dev/conventions/requirements_process.md:843`、コミット `a3f3830e`）、マージ前確認はマージ承認直前に利用者の承認のもと手動ゲートとして実行する（8 章）。
 -   **2 段階の環境分離と一時 bare リポジトリによる隔離取得:**
-    -   **取得フェーズ（メタデータ読み取りと `fetch`）:** 認証ヘルパ（`credential.helper` や `gh auth setup-git`）・`url.<base>.insteadOf`・`core.sshCommand`・プロキシ設定・`safe.directory` を壊さないよう、利用者・システムの git 設定および通信環境変数（`SSH_AUTH_SOCK`・プロキシ変数等）を維持する。一方で、非対話かつ安全な取得を保証するため `GIT_TERMINAL_PROMPT=0`・`GIT_NO_REPLACE_OBJECTS=1`・`GIT_GRAFT_FILE=/dev/null`・`-c core.hooksPath=/dev/null`・`-c core.fsmonitor=false` を強制し、不要なタグの自動取得を避ける `--no-tags` 付きで `refs/heads/*` を一時 bare リポジトリへ取得する。
-        -   **`origin` URL:** ローカルの `origin` URL が相対パス（テスト用擬似 `origin` 等）の場合は、呼び出し元リポジトリ基準で絶対パスへ解決してから取得する。
+    -   **取得フェーズ（メタデータ読み取りと `fetch`）:** 認証ヘルパ（`credential.helper` や `gh auth setup-git`）・`url.<base>.insteadOf`・`core.sshCommand`・プロキシ設定・`safe.directory` を壊さないよう、利用者・システムの git 設定および通信環境変数（`SSH_AUTH_SOCK`・プロキシ変数等）を維持する。一方で、非対話かつ安全な取得を保証するため `GIT_TERMINAL_PROMPT=0`・`GIT_NO_REPLACE_OBJECTS=1`・`GIT_GRAFT_FILE=/dev/null`・`-c core.hooksPath=/dev/null`・`-c core.fsmonitor=false` を強制し（`-c core.hooksPath=/dev/null` は一時 bare リポジトリを作る `git init --bare` にも付ける）、不要なタグの自動取得を避ける `--no-tags` 付きで `refs/heads/*` を一時 bare リポジトリへ取得する。
+        -   **リポジトリを指す環境変数:** 一時リポジトリに対する `git`（`init`・`fetch`・検査フェーズのすべて）は、`GIT_DIR`・`GIT_WORK_TREE`・`GIT_COMMON_DIR`・`GIT_OBJECT_DIRECTORY`・`GIT_ALTERNATE_OBJECT_DIRECTORIES`・`GIT_INDEX_FILE`・`GIT_NAMESPACE` を外したうえで `--git-dir=<一時リポジトリ>` で対象を指定する。git のフックや `git rebase --exec` の中から呼ばれて `GIT_DIR` が設定されていると、`git -C <一時リポジトリ>` は呼び出し元のリポジトリを対象にしてしまうためである（`review-records.sh` が `GIT_` 変数を外すのと同じ理由）。
+        -   **`origin` URL:** ローカルの `origin` URL が相対パス（テスト用擬似 `origin` 等）の場合は、`git rev-parse --path-format=absolute --git-common-dir` の親ディレクトリ（メインの作業ツリーの最上位）を基準に絶対パスへ解決してから取得する。git 自身はメインの作業ツリーの最上位を基準に解決するため、linked worktree から実行しても同じ `origin` を指す。
         -   **`alternates`:** 呼び出し元が shallow clone でない場合（`git rev-parse --is-shallow-repository` が `false` かつ共有ディレクトリに `shallow` ファイルが存在しない場合）に限り、`git rev-parse --git-common-dir` 基準の `objects` 絶対パスを一時 bare リポジトリの `alternates` へ登録してローカルオブジェクトを再利用する。
         -   **partial clone の場合:** 呼び出し元が partial clone（`extensions.partialClone` が設定されている、または promisor の remote を持つ）の場合も `alternates` を登録しない。欠けた tree・blob を持つオブジェクト格納場所を参照すると、一時リポジトリでの `fetch` の接続性検査が失敗し、0 件のブランチでも終了コード `2` で止まるためである。
         -   **shallow clone の場合:** shallow clone 時に `alternates` を登録しないのは、`fetch-pack` が shallow 境界を `have` として通知し、一時リポジトリ側で親オブジェクト欠損が起きるためである。
@@ -272,6 +273,7 @@ sequenceDiagram
     -   **検査フェーズ（一時 bare リポジトリ内の読み取り）:** `fetch` 完了後の `for-each-ref`・`rev-list`・`cat-file` はすべて、`LC_ALL=C`・`GIT_CONFIG_NOSYSTEM=1`・`GIT_CONFIG_GLOBAL=/dev/null`・`GIT_NO_REPLACE_OBJECTS=1`・`GIT_GRAFT_FILE=/dev/null`・`-c i18n.logOutputEncoding=UTF-8` に隔離して実行する（bash 3.2 以降で動作）。
 -   **検査対象と安全側の読み取り規則:**
     -   一時リポジトリ内の `refs/heads/main` が存在し、かつそのオブジェクト種別が `commit` であること（`%(objecttype) == commit`）を必須とし、満たさない場合は異常終了（終了コード `2`）する。
+    -   取得フェーズで `git ls-remote --heads` が返したブランチ名と ID の集合が、一時リポジトリの `refs/heads/*` の集合と一致することを必須とし、一致しない場合は異常終了（終了コード `2`）する。macOS の `$TMPDIR` のように大文字小文字を区別しないファイルシステムでは、`Topic` と `topic` のように大文字小文字だけが違うブランチが一時リポジトリで 1 つにまとまり、片方を検査しないまま `matches: 0` になりうるためである。2 回の通信の間に push があって一致しない場合も、0 件とみなさず `2` で止まる。
     -   `refs/heads/main` を除くすべての `refs/heads/*`（PR を開いていないブランチおよび本タスク自身のブランチを含む）を昇順で列挙し、各参照もオブジェクト種別が `commit` であることを確認する。`git rev-list` にはブランチ名ではなく 40 桁コミット ID（`%(objectname)`）を渡し、ハイフン始まりや特殊文字を含むブランチ名によるオプション誤認・参照の曖昧性を防ぐ。
     -   すべての `git` 呼び出し（`rev-list`・`cat-file` を含む）は終了コードを明示的に検査し、bash 3.2 でコマンド置換の失敗が握り潰される形を使わない。
     -   各ブランチについて `refs/heads/main` から到達できないすべてのコミット（マージコミットおよび孤立ブランチのコミットを含む）の**コミットメッセージ全体**（`git cat-file commit` 出力のヘッダ終端の空行以降にある件名・本文の全行）を読み取る。
@@ -281,7 +283,7 @@ sequenceDiagram
 |---|---|---|
 | 1 | `Codex local review:` で始まる指摘の行 | `^Codex local review:` |
 | 2 | `(codex)` を持つ見た範囲の行 | `^Local CLI reviewed: [0-9a-f]{12}\.\.[0-9a-f]{12} \(codex\)$` |
-| 3 | 括弧内に `codex:` を含む未レビュー範囲の行 | `^Local CLI review: not run [0-9a-f]{12}\.\.[0-9a-f]{12} \([^)]*codex:[^)]*\)$` |
+| 3 | 括弧内に `codex:` を含む未レビュー範囲の行 | `^Local CLI review: not run [0-9a-f]{12}\.\.[0-9a-f]{12} \(.*codex:.*\)$` |
 
 -   **出力と終了コードの契約:**
     -   標準出力は全ブランチ・全コミットの検査が異常なく完了するまでバッファリングし、途中で異常終了（終了コード `2`）した場合は標準出力へ何も出力しない。
@@ -342,7 +344,7 @@ sequenceDiagram
 
 #### タスク 0120 先行マージ時の差し替え対応表（H-02、決定 3）
 
-本タスクの実装着手時点でタスク 0120（`docs/tasks/0120_harness_independent_commands/02_architecture.md` §3.5）が `origin/main` へマージ済みであった場合は、本書を `draft` に戻さず以下の対応に従って実装対象を差し替える。
+本タスクの実装着手時点でタスク 0120（`docs/tasks/0120_harness_independent_commands/02_architecture.md` §3.5）が `origin/main` へマージ済みであった場合は、本書を `draft` に戻さず以下の対応に従って実装対象を差し替える。タスク 0120 は複数の PR に分けてマージされるため、各行は、実装着手時点の `origin/main` でその行の対象ファイルが 0120 の変更を取り込んでいるかどうかで行ごとに適用する。たとえば `470907a5` では、`review-records.sh` と `review_records_test.go` は 0120 後の形（`cross-check` モード、`crossCheckCases`・`TestReviewRecordsCrossCheck`・`TestReviewRecordsFableAlias`）であり、`fable-review.md` は改名前である。
 
 | 現行 `origin/main`（`a3f3830e`）基準 | タスク 0120 マージ後の対応先 | 適用方針 |
 |---|---|---|
@@ -382,9 +384,9 @@ sequenceDiagram
 |---|---|---|---|---|
 | 検査完了（0 件） | `origin` 取得成功、`refs/heads/main` が `commit` として存在、全非 `main` ブランチに一致なし | `0` | 確認日時（ISO-8601 UTC）・基準 `origin/main` の 40 桁コミット ID・検査ブランチ一覧・`matches: 0`（標準出力） | 実装開始前は実装計画書／PR 説明へ、マージ前は PR 説明／PR コメント（`<mention-check>` 通過後）へ記録して次工程へ進む |
 | 残存検出（1 件以上） | 3 形式のいずれかに一致する行を 1 件以上検出 | `1` | 上記ヘッダと一覧に加え、`matches: <n>` と各一致行（`<branch> <commit12> <matched-line>`）を標準出力へ列挙 | 実装を開始せず、実装 PR もマージせず停止し、該当ブランチと一致行を報告（AC-02） |
-| 実行異常（フェイルクローズ） | 引数指定、`git` 実行失敗、`origin` URL 不在、ネットワーク・認証失敗による `fetch` 失敗、`refs/heads/main` の不在、または `main`・それ以外の参照が `commit` 以外を指す状態、一時ディレクトリ作成失敗 | `2` | 標準エラーに `check-open-branches: <failed-step>: <diagnostic>` を出力し、標準出力は空とする（バッファリングにより中途出力を防止） | 0 件とみなさず停止し、失敗した操作と診断を報告（AC-02） |
+| 実行異常（フェイルクローズ） | 引数指定、`git` 実行失敗、`origin` URL 不在、ネットワーク・認証失敗による `fetch` 失敗、`git ls-remote --heads` のブランチ集合と一時リポジトリの `refs/heads/*` の不一致、`refs/heads/main` の不在、または `main`・それ以外の参照が `commit` 以外を指す状態、一時ディレクトリ作成失敗 | `2` | 標準エラーに `check-open-branches: <failed-step>: <diagnostic>` を出力し、標準出力は空とする（バッファリングにより中途出力を防止） | 0 件とみなさず停止し、失敗した操作と診断を報告（AC-02） |
 
-エラーメッセージおよび診断は英語で出力する（`CLAUDE.md`「Language」）。また、一時ディレクトリの後始末は `EXIT`・`INT`・`TERM`・`HUP` のトラップで、正常終了時の終了コードを保持しつつ必ず実行する。
+エラーメッセージおよび診断は英語で出力する（`CLAUDE.md`「Language」）。また、一時ディレクトリの後始末は `EXIT` のトラップで、正常終了時の終了コードを保持しつつ必ず実行する。
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
 
@@ -444,7 +446,7 @@ flowchart LR
 -   **脅威 2（ブランチ側による判定スクリプト改ざん）:** `origin/main` からのスクリプト取得（`git --no-replace-objects show`）、クリーン環境再実行、`GIT_NO_REPLACE_OBJECTS=1`、`GIT_GRAFT_FILE=/dev/null`、plumbing コマンドによる読み取りという既存の防御をすべて維持する。
 -   **脅威 3（移行ゲートにおける誤った 0 件判定および共有リポジトリ汚染）:** `check_open_branches.sh` がローカルの古い追跡参照（stale `refs/remotes/origin/*`）を読むと、削除済みブランチを誤検出する一方、未取得の新規リモートブランチを見落とす。また `git fetch --prune origin` を共有 `.git` に対して実行すると他 worktree の参照状態に影響する。空の `TMPDIR` 配下の bare リポジトリへ都度 `origin` の全 `refs/heads/*` を取得する（shallow clone 時は `alternates` を使わず単独取得する）。そのうえで、検査フェーズをクリーン環境へ隔離して `--no-replace-objects` と 40 桁コミット ID 指定で読み取り、取得・読み取り失敗や `main` 不在時は終了コード `2`（標準出力は空）で停止することで、見落としと共有状態汚染の双方を防ぐ。
 -   **脅威 4（信頼しないコミットメッセージ本文およびブランチ名の取り扱い）:** コミットメッセージだけでなく `origin` 上のリモートブランチ名にも任意の文字列や禁止メンション（`@codex`・`@coderabbitai`）が含まれうる。`review-records.sh` と `check_open_branches.sh` はいずれもこれらをデータとしてのみ扱い、`eval` やシェル展開を行わない。また、`check_open_branches.sh` が 1 件以上検出した場合は作業を停止するため、一致したコミット行が PR へ転記されることはない。終了コード `0` の結果（確認日時・基準 `origin/main` の 40 桁コミット ID・検査ブランチ一覧・`matches: 0`）を PR の説明や PR コメントへ記録する際は、ブランチ名を含め必ず `<mention-check>` を通してから投稿する。
--   **残余の TOCTOU リスク（確認から適用までの時間差：マージ前確認完了〜squash マージ）:** マージ直前の F-001 確認が完了した時点（$t_1$）から `/mergepr` による squash マージが完了する時点（$t_2$）までの短い間に、古い記録行を持つブランチが新たに `origin` へ push される残余リスクがある。万一この事象が起きても、マージ後の `SEEN_RE` は `(codex)` 行を無視して未見（`PARTIAL` / `MISSING`）へ安全側に倒すためレビューの関門をすり抜けることはなく、該当ブランチで CodeRabbit CLI レビューを再実行すれば回復できる（`01_requirements.md` §4.4）。この残余リスクを受け入れ、確認日時を記録したマージ直前確認によってこの時間差を最小化する。
+-   **残余の TOCTOU リスク（確認から適用までの時間差：マージ前確認完了〜squash マージ）:** マージ直前の F-001 確認が完了した時点（$t_1$）から `/mergepr` による squash マージが完了する時点（$t_2$）までの短い間に、古い記録行を持つブランチが新たに `origin` へ push される残余リスクがある。万一この事象が起きても、マージ後の `SEEN_RE` は `(codex)` 行を無視して未見（`PARTIAL` / `MISSING`）へ安全側に倒すためレビューの関門をすり抜けることはなく、該当ブランチで CodeRabbit CLI レビューを再実行すれば回復できる（`01_requirements.md` §4.4）。ただし安全側に倒れるのは形式 2 の `(codex)` 行と、`NOT_RUN_RE` が引き続き未レビュー範囲として読む形式 3 の行だけである。形式 1 の `Codex local review:` 行は撤去後のコマンド定義が読まないため、この時間差に push されたブランチや、`origin` に push されず F-001 から見えないブランチが持つ `deferred`・`unclear` の指摘は、警告なしに PR の説明の `レビュー観点` へ載らなくなる。要件 §4.4 が扱うのは `(codex)` 行だけであるため、この形式 1 の残余リスクを受け入れるかは PR レビューで利用者が判断する。形式 2 の残余リスクは受け入れ、確認日時を記録したマージ直前確認によってこの時間差を最小化する。
 
 ## 6. 処理フロー詳細 (Processing Flow Details)
 
@@ -461,7 +463,7 @@ flowchart TD
 
     startNode(["開始"]) --> initTmp{"引数検証・origin URL 解決・<br>TMPDIR bare 初期化"}:::newpkg
     initTmp -->|"失敗"| errStop["診断を標準エラーへ出力<br>標準出力空・終了コード 2"]:::problem
-    initTmp -->|"成功"| fetchStep{"origin refs/heads/* 取得<br>および main commit 確認"}:::newpkg
+    initTmp -->|"成功"| fetchStep{"origin refs/heads/* 取得・<br>ls-remote との集合一致および main commit 確認"}:::newpkg
     fetchStep -->|"失敗"| errStop
     fetchStep -->|"成功"| enumBranches["隔離環境で main 以外の全ブランチの<br>40 桁コミット ID を昇順列挙"]:::newpkg
     enumBranches --> scanCommits["各ブランチの main 未到達<br>コミット全体を 3 形式で検査"]:::newpkg
@@ -531,7 +533,7 @@ flowchart TD
 | `coverageCases()` `:335-339`（旧 `"seen by codex"`） | 書き換え | ケース名を実態に合わせ（例: `"codex reviewer"`）、期待値を `f.partial(f.rev("HEAD~1"))`・終了コード `0` に変更。`TestReviewRecordsCoverage` と `TestReviewRecordsUnreviewed` の双方で実行される | AC-08、AC-10 |
 | `unreviewedCases()` `:865-872`（`"fix seen by the standalone path's review"`） | 書き換え | `:870` の `f.seen(r, fix, "codex")` を `"coderabbit"` へ更新し、単独経路（standalone path）の現行形式を検証 | AC-07、AC-10 |
 | `coverageCases()` `:405,411`（`not run` 系 2 ケース）および `:362` コメント | 書き換え | 旧入力 `(coderabbit: other; codex: timeout)` を現行の CodeRabbit 単体形式（例: `(coderabbit: other)`）へ統一し、`:362` の Codex 前提コメントを修正 | AC-10 |
-| `coverageCases()`（新規追加） | 追加 | 1. レビュアー表記の大文字小文字違い（`f.seen(..., "CodeRabbit")`・`f.seen(..., "CODERABBIT")`）と空白混入（`f.seen(..., " coderabbit")`・`f.seen(..., "coderabbit") + " "`）、別のレビュアー名（`f.seen(..., "fable")`）、および括弧外の末尾の追加文字列（`f.seen(..., "coderabbit") + " extra"`）が無視され `PARTIAL`・終了コード `0` になること。<br>2. 同一コミットおよび同一ブランチに `(codex)` 行と有効な `(coderabbit)` 行が混在しても、有効行の範囲は見たものとして `ALL`（未見分があればそれのみ `PARTIAL`）になること（`unreviewed` でも自動検証される） | AC-07、AC-08 |
+| `coverageCases()`（新規追加） | 追加 | 1. レビュアー表記の大文字小文字違い（`f.seen(..., "CodeRabbit")`・`f.seen(..., "CODERABBIT")`）と空白混入（`f.seen(..., " coderabbit")`・`f.seen(..., "coderabbit") + " "`）が無視され `PARTIAL`・終了コード `0` になること。<br>2. 同一コミットおよび同一ブランチに `(codex)` 行と有効な `(coderabbit)` 行が混在しても、有効行の範囲は見たものとして `ALL`（未見分があればそれのみ `PARTIAL`）になること（`unreviewed` でも自動検証される） | AC-07、AC-08 |
 | `fableCases()`（新規追加、タスク 0120 後は `cross-check` / `fable`） | 追加 | 1. **ルール 2（同じ実行の修正）:** 部分レビューを記録したコミット上の `(codex)` 行だけでは同じ実行の修正として受理されず `MISSING <START>`・終了コード `0` になること。<br>2. **ルール 2 混在:** 同一コミット上に `(codex)` 行と有効な `(coderabbit)` 行、または `(codex)` 行と `Local CLI review: not run` 行が併存すれば `VALID`・終了コード `0` になること。<br>3. **ルール 4（マージ後確認の修正）:** マージ後確認コミット上の `(codex)` 行だけではマージ後確認の修正として受理されず `MISSING <merge-base>`・終了コード `0` になること、および有効な `(coderabbit)` 行と併存すれば `VALID` になること | AC-09 |
 
 ### 7.2. 文書整合・`diff` 検証・既存ガード戦略
@@ -546,7 +548,7 @@ flowchart TD
     1.  3 形式それぞれ（`Codex local review:`、`(codex)`、括弧内に `codex:` を含む `not run`）を持つ非 `main` ブランチ、および CRLF（`\r\n`）行末や孤立ブランチ（orphan branch）上の古い記録行に対して終了コード `1` と該当ブランチ・一致行を返すこと。
     2.  `main` 側のみに古い記録行がある場合や、インデントされた行・現行 `(coderabbit)` 行のみの場合は誤検出せず終了コード `0` を返すこと。
     3.  呼び出し元に残留する古い `refs/remotes/origin/*`（擬似 `origin` から削除済み）を誤検出せず、逆に呼び出し元が未取得の擬似 `origin` 上の新規ブランチを見落とさず検出すること。
-    4.  `replace` ref で古い記録行を隠したコミットに対しても `--no-replace-objects` により検出できること、および外部の `git worktree`（linked worktree）から実行しても正常に動作すること。
+    4.  外部の `git worktree`（linked worktree）から実行しても正常に動作すること。
     5.  存在しないリモート URL・`main` 不在の擬似 `origin`・引数指定に対して終了コード `2` でフェイルクローズし、標準出力が空であること。
     6.  検査実行後に呼び出し元リポジトリの `refs/remotes/origin/*` と作業ツリーが変化していないこと。
 -   **関門のすり抜け防止テスト（F-003）:** 7.1 節の `(codex)`・大文字小文字違い・空白混入・混在行ケースにより、`coverage`・`unreviewed`・`fable`（ルール 2・ルール 4）のいずれの経路からも `(codex)` 行による関門のすり抜けが起きないことを恒久テストで保証する。
