@@ -464,7 +464,7 @@
 - `docs/tasks/0120_harness_independent_commands/03_implementation_plan.md`（§7 の差分記録）
 
 **作業内容:**
-- [ ] §7.2 の PR-4 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録する。
+- [x] §7.2 の PR-4 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録する。
 
 **完了基準:**
 - グリーンゲートがパスし、§7.2 の PR-4 差分記録が最新 HEAD と一致する。
@@ -831,7 +831,56 @@ PR-4:
 Diff record (AC-32):
 
 - Compared paths: `.claude/settings.json`
-- File list: required (all changed paths of the PR)
+- Merge-base: `470907a5f41dac7e73c0a3f135a7a6e075117c8b`
+- Compared commit: `f0c8e63e2db4694831eabe3d57f4554b14a16811`
+
+Path diff:
+
+````text
+````
+
+File list:
+
+````text
+.claude/commands/_context.md
+.claude/commands/_lib/cross-check-review.md
+.claude/commands/_lib/fable-review.md
+.claude/commands/_lib/high-review-decision.sh
+.claude/commands/_lib/high-review.md
+.claude/commands/_lib/local-cli-review.md
+.claude/commands/_lib/opus-review.md
+.claude/commands/_lib/pr-review-escalation.md
+.claude/commands/_lib/review-records.sh
+.claude/commands/_lib/review-subagent-pattern.md
+.claude/commands/_lib/settle-decisions.md
+.claude/commands/_lib/simple-process.md
+.claude/commands/_lib/task-pr-handoff.md
+.claude/commands/fixpr.md
+.claude/commands/japrose.md
+.claude/commands/mergepr.md
+.claude/commands/mkarch.md
+.claude/commands/mkplan.md
+.claude/commands/mkplan2.md
+.claude/commands/mkreq.md
+.claude/commands/mktrans.md
+.claude/commands/runplan.md
+.claude/commands/runpr.md
+.claude/commands/weakreview.md
+CLAUDE.md
+cmd/chief/docs_test.go
+cmd/yt2column/cross_check_state_docs_test.go
+cmd/yt2column/fable_state_docs_test.go
+cmd/yt2column/fixpr_docs_test.go
+cmd/yt2column/high_review_decision_test.go
+cmd/yt2column/review_records_test.go
+docs/dev/adr/0013-review-setup.md
+docs/dev/adr/0016-document-test-policy.md
+docs/dev/adr/0042-implementation-model-tiers.md
+docs/dev/adr/0047-runpr-merge-question.md
+docs/dev/adr/0050-fable-partial-review.md
+docs/dev/adr/0055-harness-independent-commands.md
+docs/tasks/0120_harness_independent_commands/03_implementation_plan.md
+````
 
 PR-5:
 
