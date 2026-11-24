@@ -612,6 +612,33 @@ its security rules in `docs/dev/security.md` §8.
   not one paragraph of their own, or change the trailers git reads stops the
   merge; and the rest of a correction line has no required form: only its
   characters are classified.
+  Exception: the take-in subcommands of `mergepr` (`mergemain-begin`,
+  `mergemain-merge`, `mergemain-restore`, and `mergemain-push`, in
+  `internal/mergepr/mergemain.go`, `mergemain_restore.go`, and
+  `mergemain_push.go`) choose behavior by inspecting the content of git's
+  output and of the files being merged. Scope: whether a path ends in `.md`
+  and whether it is a file directly inside `internal/<name>/` that is not a
+  `_test.go` file; the stage entries of a conflicted path (stage number,
+  mode, and object) as `git ls-files -u` and `git merge-tree` print them, and
+  the entries `git ls-files -s`, `git ls-tree`, and `git diff-tree` print;
+  the rename sources and destinations `git diff-tree -M` reports; the `merge`
+  attribute `git check-attr` reports; whether a blob holds a NUL byte in its
+  first 8000 bytes, git's own test for a binary file; the protocol
+  declaration lines of a Go file ("Protocol numbers" below), read to classify
+  a conflict, to compare a merge commit or a merge in progress with the merge
+  git computes, and to set a number; and the values of `MERGE_HEAD`, a
+  commit's parents, a ref, the `git ls-remote` line of the head branch, the
+  list of remotes, and origin's fetch and push URLs. This is the only place
+  their content selects behavior: the agent that runs `/mergemain` receives
+  only the resulting kinds (the stop reason, the restore need, and each
+  conflict's class) and values. Reason: these are values written by git and
+  by the two sides of the merge, external values the tool cannot express in
+  a type, and the scope of the take-in is defined in their terms (a `.md`
+  file, a protocol declaration line, a rename, a binary file). Boundary: a
+  path, an entry, or a line of a form the tool does not accept is a conflict
+  out of scope or a stop, never read more widely; a version whose
+  declaration line is not the accepted form, or that has two, is out of
+  scope; and a reading that fails stops the subcommand instead of passing.
   Exception: `internal/ciskip` chooses behavior by inspecting the content of
   external inputs from GitHub Actions, `git`, `extension/scripts/wasm-dep-dirs.sh`,
   `extension/scripts/has-extension-changes.sh`, and `gh api -i`. Scope: GitHub
