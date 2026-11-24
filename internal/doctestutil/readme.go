@@ -2,13 +2,10 @@
 
 package doctestutil
 
-import (
-	"path/filepath"
-	"testing"
-)
+import "path/filepath"
 
 // Lang is the language of one version of a bilingual document. The zero
-// value is not a language: a Locator asked for it fails the test.
+// value is not a language.
 type Lang int
 
 // The languages of the README's two versions.
@@ -42,51 +39,3 @@ func ReadmeVersions() []ReadmeVersion {
 func (v ReadmeVersion) From(root string) string {
 	return filepath.Join(root, filepath.FromSlash(v.Path))
 }
-
-// Locator is a README heading line, table column name, or item label that a
-// guard test looks for, spelled once per language. Each spelling must equal
-// the text of that version of the README.
-type Locator struct {
-	JA string
-	EN string
-}
-
-// In returns the spelling for lang. It fails t for a language that is not
-// LangJA or LangEN and for an empty spelling, so a missing translation fails
-// instead of matching nothing silently; after reporting it returns "".
-func (l Locator) In(t testing.TB, lang Lang) string {
-	t.Helper()
-	var spelling string
-	switch lang {
-	case LangJA:
-		spelling = l.JA
-	case LangEN:
-		spelling = l.EN
-	default:
-		// The empty-spelling check below would also reject it; failing here
-		// names the cause and keeps the switch failing secure on its own.
-		t.Fatalf("locator %+v: no spelling for language %d", l, int(lang))
-		return ""
-	}
-	if spelling == "" {
-		t.Fatalf("locator %+v: empty spelling for language %d", l, int(lang))
-		return ""
-	}
-	return spelling
-}
-
-// The README locators. A guard test finds a section, a table, or a labelled
-// line of either version by these.
-var (
-	ReadmeRecommendedConfigHeading = Locator{JA: "### 推奨構成", EN: "### Recommended configuration"}
-
-	// ReadmeVariableColumn and ReadmeUnsetColumn head the configuration
-	// table's first and third columns.
-	ReadmeVariableColumn = Locator{JA: "変数", EN: "Variable"}
-	ReadmeUnsetColumn    = Locator{JA: "未設定のとき", EN: "When unset"}
-	// ReadmeEffortProviderColumn and ReadmeEffortValuesColumn head the first
-	// two columns of the configuration section's table of accepted effort
-	// values. The values column finds the table: no other table has it.
-	ReadmeEffortProviderColumn = Locator{JA: "プロバイダ", EN: "Provider"}
-	ReadmeEffortValuesColumn   = Locator{JA: "受理する effort", EN: "Accepted efforts"}
-)
