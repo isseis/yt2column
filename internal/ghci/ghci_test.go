@@ -210,8 +210,8 @@ func TestResolveRepo(t *testing.T) {
 		if !ok || repoErr.Reason != UnreadableLimit {
 			t.Fatalf("got err=%v, want *RepoError(UnreadableLimit)", err)
 		}
-		if !strings.Contains(repoErr.Error(), "limit") {
-			t.Fatalf("unexpected limit error message: %q", repoErr.Error())
+		if repoErr.Error() == "" || strings.Contains(repoErr.Error(), testMarker) {
+			t.Fatalf("unexpected RepoError message: %q", repoErr.Error())
 		}
 	})
 
@@ -325,6 +325,33 @@ func TestReadPR(t *testing.T) {
 			req:  Request{Owner: testOwner, Repo: testRepo, PRNumber: testPR},
 			out:  buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{passingCISuite()}),
 			want: Result{State: StatePassed, Head: testHead, Suites: 1, Checks: 2, Failing: []FailingCheck{}},
+		},
+		{
+			name: "multiple_distinct_workflows_not_deduplicated",
+			req:  req,
+			out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
+				passingCISuite(),
+				{
+					appSlug:        "github-actions",
+					status:         "COMPLETED",
+					conclusion:     new("FAILURE"),
+					createdAt:      "2026-11-24T10:05:00Z",
+					hasWorkflowRun: true,
+					workflowName:   "Docs",
+					runs: []testRunSpec{
+						{name: "Check docs", status: "COMPLETED", conclusion: new("FAILURE"), url: testRunURL2},
+					},
+				},
+			}),
+			want: Result{
+				State:  StateFailed,
+				Head:   testHead,
+				Suites: 2,
+				Checks: 3,
+				Failing: []FailingCheck{
+					{Name: "Check docs", Conclusion: "FAILURE", URL: testRunURL2},
+				},
+			},
 		},
 		{
 			name: "external_apps_ignored_including_failure_queued_and_over_cap_hasNextPage",
@@ -798,11 +825,16 @@ func TestReadPRStrictJSONRejections(t *testing.T) {
 		{name: "duplicate_headRefOid", out: strings.Replace(validJSON, `"headRefOid":"`+testHead+`"`, `"headRefOid":"`+testHead+`","headRefOid":"`+testHead+`"`, 1)},
 		{name: "graphql_errors_non_empty", out: `{"data":null,"errors":[{"message":"` + testMarker + `"}]}`},
 		{name: "graphql_errors_not_array", out: `{"data":{},"errors":"boom"}`},
+		{name: "null_pull_request", out: `{"data":{"repository":{"pullRequest":null}}}`},
+		{name: "missing_suite_app_member", out: `{"data":{"repository":{"pullRequest":{"headRefOid":"` + testHead + `","commits":{"nodes":[{"commit":{"oid":"` + testHead + `","checkSuites":{"pageInfo":{"hasNextPage":false},"nodes":[{"status":"COMPLETED","conclusion":"SUCCESS","createdAt":"2026-11-24T10:00:00Z","workflowRun":null,"checkRuns":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]}}}]}}}}}`},
 		{name: "empty_commits_nodes", out: `{"data":{"repository":{"pullRequest":{"headRefOid":"` + testHead + `","commits":{"nodes":[]}}}}}`},
 		{name: "two_commits_nodes", out: `{"data":{"repository":{"pullRequest":{"headRefOid":"` + testHead + `","commits":{"nodes":[{"commit":{"oid":"` + testHead + `"}},{"commit":{"oid":"` + testHead + `"}}]}}}}}`},
 		{name: "uppercase_headRefOid", out: strings.ReplaceAll(validJSON, testHead, strings.ToUpper(testHead))},
 		{name: "completed_suite_null_conclusion", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
 			{appSlug: "github-actions", status: "COMPLETED", conclusion: nil, hasWorkflowRun: true, workflowName: "CI"},
+		})},
+		{name: "completed_suite_empty_conclusion", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
+			{appSlug: "github-actions", status: "COMPLETED", conclusion: new(""), hasWorkflowRun: true, workflowName: "CI"},
 		})},
 		{name: "completed_run_null_conclusion", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
 			{
@@ -810,8 +842,20 @@ func TestReadPRStrictJSONRejections(t *testing.T) {
 				runs: []testRunSpec{{name: "Test", status: "COMPLETED", conclusion: nil, url: testRunURL1}},
 			},
 		})},
+		{name: "completed_run_empty_conclusion", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
+			{
+				appSlug: "github-actions", status: "COMPLETED", conclusion: new("SUCCESS"), hasWorkflowRun: true, workflowName: "CI",
+				runs: []testRunSpec{{name: "Test", status: "COMPLETED", conclusion: new(""), url: testRunURL1}},
+			},
+		})},
 		{name: "invalid_createdAt", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
 			{appSlug: "github-actions", status: "COMPLETED", conclusion: new("SUCCESS"), createdAt: "not-a-date", hasWorkflowRun: true, workflowName: "CI"},
+		})},
+		{name: "createdAt_comma_fraction", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
+			{appSlug: "github-actions", status: "COMPLETED", conclusion: new("SUCCESS"), createdAt: "2026-11-24T10:00:00,5Z", hasWorkflowRun: true, workflowName: "CI"},
+		})},
+		{name: "createdAt_out_of_range_offset", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
+			{appSlug: "github-actions", status: "COMPLETED", conclusion: new("SUCCESS"), createdAt: "2026-11-24T10:00:00+99:00", hasWorkflowRun: true, workflowName: "CI"},
 		})},
 		{name: "non_github_url", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
 			{
@@ -829,6 +873,30 @@ func TestReadPRStrictJSONRejections(t *testing.T) {
 			{
 				appSlug: "github-actions", status: "COMPLETED", conclusion: new("SUCCESS"), hasWorkflowRun: true, workflowName: "CI",
 				runs: []testRunSpec{{name: "Test", status: "COMPLETED", conclusion: new("SUCCESS"), url: "https://github.com/"}},
+			},
+		})},
+		{name: "github_url_query_only_path", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
+			{
+				appSlug: "github-actions", status: "COMPLETED", conclusion: new("SUCCESS"), hasWorkflowRun: true, workflowName: "CI",
+				runs: []testRunSpec{{name: "Test", status: "COMPLETED", conclusion: new("SUCCESS"), url: "https://github.com/?x=1"}},
+			},
+		})},
+		{name: "github_url_fragment_only_path", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
+			{
+				appSlug: "github-actions", status: "COMPLETED", conclusion: new("SUCCESS"), hasWorkflowRun: true, workflowName: "CI",
+				runs: []testRunSpec{{name: "Test", status: "COMPLETED", conclusion: new("SUCCESS"), url: "https://github.com/#frag"}},
+			},
+		})},
+		{name: "github_url_bad_percent_escape", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
+			{
+				appSlug: "github-actions", status: "COMPLETED", conclusion: new("SUCCESS"), hasWorkflowRun: true, workflowName: "CI",
+				runs: []testRunSpec{{name: "Test", status: "COMPLETED", conclusion: new("SUCCESS"), url: "https://github.com/%zz"}},
+			},
+		})},
+		{name: "github_url_with_newline", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
+			{
+				appSlug: "github-actions", status: "COMPLETED", conclusion: new("SUCCESS"), hasWorkflowRun: true, workflowName: "CI",
+				runs: []testRunSpec{{name: "Test", status: "COMPLETED", conclusion: new("SUCCESS"), url: "https://github.com/octo/repo/runs/1\ninjected"}},
 			},
 		})},
 		{name: "github_url_with_space", out: buildGraphQLResponse(t, testHead, testHead, false, []testSuiteSpec{
@@ -1151,6 +1219,166 @@ func TestWaitPR(t *testing.T) {
 			t.Fatalf("got %+v, want StatePassed", got)
 		}
 	})
+
+	t.Run("suites_appearing_clears_no_check_grace", func(t *testing.T) {
+		var sleeps []time.Duration
+		fake := cmdrunnertestutil.New(t,
+			cmdrunnertestutil.Step{Name: "gh", Args: args, Out: emptyPending},
+			cmdrunnertestutil.Step{Name: "gh", Args: args, Out: runningPending},
+			cmdrunnertestutil.Step{Name: "gh", Args: args, Out: runningPending},
+			cmdrunnertestutil.Step{Name: "gh", Args: args, Out: passedOut},
+		)
+		got, err := WaitPR(context.Background(), fake, req, WaitOptions{
+			PollInterval:   30 * time.Second,
+			Timeout:        5 * time.Minute,
+			PerCallTimeout: time.Minute,
+			NoCheckGrace:   30 * time.Second,
+			Sleep:          instantSleep(&sleeps),
+		})
+		if err != nil {
+			t.Fatalf("WaitPR unexpected error: %v", err)
+		}
+		if got.State != StatePassed {
+			t.Fatalf("got %+v, want StatePassed", got)
+		}
+		if len(sleeps) != 3 {
+			t.Fatalf("got %d sleeps (%v), want 3", len(sleeps), sleeps)
+		}
+	})
+
+	t.Run("transient_call_failure_after_zero_suites_respects_no_check_grace", func(t *testing.T) {
+		var sleeps []time.Duration
+		fake := cmdrunnertestutil.New(t,
+			cmdrunnertestutil.Step{Name: "gh", Args: args, Out: emptyPending},
+			cmdrunnertestutil.Step{Name: "gh", Args: args, Err: errors.New("transient 503")},
+		)
+		got, err := WaitPR(context.Background(), fake, req, WaitOptions{
+			PollInterval:   30 * time.Second,
+			Timeout:        10 * time.Minute,
+			PerCallTimeout: time.Minute,
+			NoCheckGrace:   30 * time.Second,
+			Sleep:          instantSleep(&sleeps),
+		})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("got err=%v, want context.DeadlineExceeded", err)
+		}
+		if got.State != StateUnreadable || got.Reason != UnreadableCall {
+			t.Fatalf("got %+v, want unreadable/call-failed", got)
+		}
+		if len(sleeps) != 1 {
+			t.Fatalf("got %d sleeps (%v), want 1", len(sleeps), sleeps)
+		}
+	})
+
+	t.Run("persistent_call_failure_exhausts_timeout", func(t *testing.T) {
+		var sleeps []time.Duration
+		fake := cmdrunnertestutil.New(t,
+			cmdrunnertestutil.Step{Name: "gh", Args: args, Err: errors.New("transient 502")},
+			cmdrunnertestutil.Step{Name: "gh", Args: args, Err: errors.New("transient 502")},
+			cmdrunnertestutil.Step{Name: "gh", Args: args, Err: errors.New("transient 502")},
+		)
+		got, err := WaitPR(context.Background(), fake, req, WaitOptions{
+			PollInterval:   30 * time.Second,
+			Timeout:        time.Minute,
+			PerCallTimeout: time.Minute,
+			NoCheckGrace:   30 * time.Second,
+			Sleep:          instantSleep(&sleeps),
+		})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("got err=%v, want context.DeadlineExceeded", err)
+		}
+		if got.State != StateUnreadable || got.Reason != UnreadableCall {
+			t.Fatalf("got %+v, want unreadable/call-failed", got)
+		}
+		if len(sleeps) != 2 {
+			t.Fatalf("got %d sleeps (%v), want 2", len(sleeps), sleeps)
+		}
+	})
+
+	t.Run("per_call_timeout_bounds_runner_context_and_retries", func(t *testing.T) {
+		var sleeps []time.Duration
+		calls := 0
+		perCall := 2 * time.Second
+		runner := runnerFunc(func(ctx context.Context, _ string, _ ...string) ([]byte, error) {
+			calls++
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				t.Fatal("expected per-call deadline on runner context")
+			}
+			if rem := time.Until(deadline); rem <= 0 || rem > perCall+500*time.Millisecond {
+				t.Fatalf("unexpected per-call deadline remaining: %v (want <= %v)", rem, perCall)
+			}
+			if calls == 1 {
+				return nil, context.DeadlineExceeded
+			}
+			return []byte(passedOut), nil
+		})
+		got, err := WaitPR(context.Background(), runner, req, WaitOptions{
+			PollInterval:   30 * time.Second,
+			Timeout:        10 * time.Minute,
+			PerCallTimeout: perCall,
+			NoCheckGrace:   time.Minute,
+			Sleep:          instantSleep(&sleeps),
+		})
+		if err != nil {
+			t.Fatalf("WaitPR unexpected error: %v", err)
+		}
+		if got.State != StatePassed || calls != 2 || len(sleeps) != 1 {
+			t.Fatalf("got %+v calls=%d sleeps=%d, want StatePassed calls=2 sleeps=1", got, calls, len(sleeps))
+		}
+	})
+
+	t.Run("canceled_context_during_read_stops_immediately", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		var sleeps []time.Duration
+		runner := runnerFunc(func(_ context.Context, _ string, _ ...string) ([]byte, error) {
+			cancel()
+			return nil, context.Canceled
+		})
+		got, err := WaitPR(ctx, runner, req, WaitOptions{
+			PollInterval:   30 * time.Second,
+			Timeout:        10 * time.Minute,
+			PerCallTimeout: time.Minute,
+			NoCheckGrace:   time.Minute,
+			Sleep:          instantSleep(&sleeps),
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("got err=%v, want context.Canceled", err)
+		}
+		if got.State != StateUnreadable || got.Reason != UnreadableCall || len(sleeps) != 0 {
+			t.Fatalf("got %+v sleeps=%d, want unreadable/call-failed with 0 sleeps", got, len(sleeps))
+		}
+	})
+
+	t.Run("canceled_context_during_default_sleep_stops_promptly", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		runner := runnerFunc(func(_ context.Context, _ string, _ ...string) ([]byte, error) {
+			go func() {
+				time.Sleep(5 * time.Millisecond)
+				cancel()
+			}()
+			return []byte(runningPending), nil
+		})
+		got, err := WaitPR(ctx, runner, req, WaitOptions{
+			PollInterval:   time.Minute,
+			Timeout:        5 * time.Minute,
+			PerCallTimeout: time.Second,
+			NoCheckGrace:   time.Second,
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("got err=%v, want context.Canceled", err)
+		}
+		if got.State != StatePending {
+			t.Fatalf("got %+v, want StatePending", got)
+		}
+	})
+}
+
+type runnerFunc func(ctx context.Context, name string, args ...string) ([]byte, error)
+
+func (f runnerFunc) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return f(ctx, name, args...)
 }
 
 func TestEnumSafetyAndZeroResult(t *testing.T) {

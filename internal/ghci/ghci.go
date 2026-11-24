@@ -306,8 +306,11 @@ func ReadPR(ctx context.Context, run cmdrunner.Runner, req Request) (Result, err
 //
 // Contract: only transient UnreadableCall and StatePending are retried;
 // StatePassed, StateFailed, and permanent unreadable reasons (head-changed,
-// rejected, limit) return immediately. Each ReadPR call is bounded by
-// PerCallTimeout, and its child context is always canceled before the next step.
+// rejected, limit) return immediately. Once StatePending with Suites == 0 is
+// observed, NoCheckGrace continues counting across transient UnreadableCall
+// responses until a non-zero suite appears so flaky calls cannot extend the
+// grace window indefinitely. Each ReadPR call is bounded by PerCallTimeout,
+// and its child context is always canceled before the next step.
 func WaitPR(ctx context.Context, run cmdrunner.Runner, req Request, opts WaitOptions) (Result, error) {
 	if err := validateWaitArgs(run, req, opts); err != nil {
 		return Result{}, err
@@ -319,11 +322,10 @@ func WaitPR(ctx context.Context, run cmdrunner.Runner, req Request, opts WaitOpt
 	waitCtx, waitCancel := context.WithTimeout(ctx, opts.Timeout)
 	defer waitCancel()
 
-	start := time.Now()
-	var slept time.Duration
+	lastWall := time.Now()
+	var elapsed time.Duration
 	inNoCheck := false
-	var noCheckWallStart time.Time
-	var noCheckSleptStart time.Duration
+	var noCheckStart time.Duration
 	lastRes := unreadableResult(UnreadableCall, "")
 
 	for {
@@ -333,6 +335,10 @@ func WaitPR(ctx context.Context, run cmdrunner.Runner, req Request, opts WaitOpt
 		res, err := readPRWithTimeout(waitCtx, opts.PerCallTimeout, run, req)
 		if err != nil {
 			return Result{}, err
+		}
+		now := time.Now()
+		if d := now.Sub(lastWall); d > 0 {
+			elapsed += d
 		}
 		lastRes = res
 
@@ -350,11 +356,9 @@ func WaitPR(ctx context.Context, run cmdrunner.Runner, req Request, opts WaitOpt
 			if res.Suites == 0 {
 				if !inNoCheck {
 					inNoCheck = true
-					noCheckWallStart = time.Now()
-					noCheckSleptStart = slept
+					noCheckStart = elapsed
 				}
-				noCheckElapsed := max(time.Since(noCheckWallStart), slept-noCheckSleptStart)
-				if noCheckElapsed >= opts.NoCheckGrace {
+				if elapsed-noCheckStart >= opts.NoCheckGrace {
 					return res, context.DeadlineExceeded
 				}
 			} else {
@@ -364,22 +368,25 @@ func WaitPR(ctx context.Context, run cmdrunner.Runner, req Request, opts WaitOpt
 			return unreadableResult(UnreadableRejected, res.Head), nil
 		}
 
-		remaining := opts.Timeout - max(time.Since(start), slept)
+		remaining := opts.Timeout - elapsed
 		if remaining <= 0 {
 			return lastRes, context.DeadlineExceeded
 		}
 		delay := min(opts.PollInterval, remaining)
 		if inNoCheck {
-			graceRemaining := opts.NoCheckGrace - max(time.Since(noCheckWallStart), slept-noCheckSleptStart)
+			graceRemaining := opts.NoCheckGrace - (elapsed - noCheckStart)
 			if graceRemaining <= 0 {
 				return lastRes, context.DeadlineExceeded
 			}
 			delay = min(delay, graceRemaining)
 		}
+		sleepStart := time.Now()
 		if err := sleep(waitCtx, delay); err != nil {
 			return lastRes, err
 		}
-		slept += delay
+		afterSleep := time.Now()
+		elapsed += max(afterSleep.Sub(sleepStart), delay)
+		lastWall = afterSleep
 	}
 }
 
@@ -630,8 +637,8 @@ func parseCheckSuite(node strictjson.Value) (parsedCheckSuite, bool, error) {
 	if err != nil {
 		return parsedCheckSuite{}, false, errRejected
 	}
-	createdAt, err := time.Parse(time.RFC3339, createdAtStr)
-	if err != nil {
+	createdAt, ok := parseRFC3339(createdAtStr)
+	if !ok {
 		return parsedCheckSuite{}, false, errRejected
 	}
 	hasWorkflowRun, workflowName, err := parseWorkflowRun(members)
@@ -1047,6 +1054,23 @@ func validGitHubURL(s string) bool {
 		return false
 	}
 	return u.Scheme == "https" && u.Host == "github.com" && u.User == nil && u.Path != "" && u.Path != "/"
+}
+
+// parseRFC3339 reads an RFC 3339 timestamp, rejecting comma fractional
+// separators and out-of-range numeric offsets that time.Parse accepts.
+func parseRFC3339(s string) (time.Time, bool) {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil || strings.Contains(s, ",") {
+		return time.Time{}, false
+	}
+	if strings.HasSuffix(s, "Z") {
+		return t, true
+	}
+	if len(s) < len("+hh:mm") {
+		return time.Time{}, false
+	}
+	offset := s[len(s)-len("+hh:mm"):]
+	return t, offset[1:3] <= "23" && offset[4:6] <= "59"
 }
 
 func isASCIIAlnum(c byte) bool {
