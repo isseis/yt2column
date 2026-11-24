@@ -51,6 +51,8 @@ PR を開いたときの PR レビューはなく、PR レビューは利用者�
     -   **理由:** 記録の用語を役割名に揃えつつ、進行中ブランチや過去のコミットの記録を壊さないためである（0120 要件定義書の F-004）。
 -   **直しの commit のローカルの CLI レビュー:** 上位モデルのレビューの直しの commit は、PR を開く前の、まだ見ていない commit をまとめてかけるローカルの CLI レビュー（[ADR-0013](0013-review-setup.md)）に含める。このローカルの CLI レビューは、上位モデルのレビューの後、PR を開く直前（`_lib/task-pr-handoff.md` Part B の CHECKS の後）に 1 回だけ置く。このレビューの直しの commit は CodeRabbit CLI の 2 回目の試行が見て、上位モデルのレビューは見ない。CodeRabbit CLI が失敗したときは `not run` として記録し、PR の説明に示す。
     -   **理由:** PR を開いたときの自動の PR レビューがなくなり、かけないと直しを別系統の CLI レビューが一度も見ないためである。上位モデルのレビューの前に置くと直しの commit のためにもう 1 回かけることになる（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) の F-007、[0118 設計書](../../tasks/0118_codex_removal/02_architecture.md) の 1.3）。
+    -   **例外:** push の直前の判定（`_lib/task-pr-handoff.md` Part B の `step 2.6`）が救済を走らせた後に、`AFTER_REMEDY` が上位モデルのレビューをやり直してできた直しの commit は、このローカルの CLI レビューにかけ直さず、PR の説明の未レビュー一覧に挙げる。[ADR-0013](0013-review-setup.md) の「例外（push の直前の判定の再チェック）」と同じ扱いである。
+    -   **理由:** このローカルの CLI レビューを 1 回だけ置く形を保つためと、`origin/main` の merge の後に走らせ直すと、merge の前の commit まで再レビューの範囲に入るためである（[0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md) の 1.2.2）。
 
 ## 採らなかった案
 
@@ -77,6 +79,7 @@ PR を開いたときの PR レビューはなく、PR レビューは利用者�
 -   **正しさのレビューで組み込みの `/code-review` スキルを呼ぶ案:** cleanup を除けず出力形式も固定できなくなり、リポジトリの外で中身が変わりうる（[0081 設計書](../../tasks/0081_implementation_model_choice/02_architecture.md)「設計の際に決めたこと（2026-11-10）」）。
 -   **`/runplan` が `/weakreview` を呼ぶ案、またはチェックリストを `weakreview.md` に残す案:** 引数・範囲・作業ツリーの確かめが重なるか、定義が 2 つのファイルに分かれる（同上）。
 -   **上位モデルのレビューの直しの commit を PR を開く前にローカルの CLI レビューへかけ直さない案:** 0081 で採った形だが、Codex の自動 PR レビューを外したことで成り立たなくなった（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）。
+-   **push の直前の判定の救済の後に、PR を開く前のローカルの CLI レビューを走らせ直し、`AFTER_REMEDY` の上位モデルのレビューの直しも見る案:** このレビューを 1 回だけ置く形と合わず、`origin/main` の merge の後は merge の前の commit まで再レビューすることになる（[0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md) の 1.2.2）。
 -   **手で実行した `/weakreview` も完了記録を書く案:** 範囲を自由に指定でき PR の範囲と一致する保証がない（0081 設計書「設計の際に決めたこと（2026-11-10）」）。
 -   **単一フェーズの計画書の値をフェーズ見出しの直後や §3 の専用節に書く案:** PR マーカーのある計画書と値を探す場所がそろわない（同上）。
 -   **実装の記録をステップ ID で書く案:** 記録の後の commit と phase group の外の commit を見落とす（同上）。
@@ -100,3 +103,4 @@ PR を開いたときの PR レビューはなく、PR レビューは利用者�
 - 2026-11-20 Opus のレビューの直しの commit を、PR を開く前にローカルの CLI レビューにかけることにした。最初の Codex の PR レビューが直しを見るという、かけ直さない理由が、Codex の PR レビューを外すことで成り立たなくなったためである（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）
 - 2026-11-20 PR を開く前の、まだ見ていない commit のローカルの CLI レビューを、Opus のレビューの後、PR を開く直前に 1 回だけ置き、このレビューの直しの commit は Opus のレビューが見ないことにした（[0118 設計書](../../tasks/0118_codex_removal/02_architecture.md)「設計の際に決めたこと（2026-11-20）」）
 - 2026-11-21 実装モデル要件の値を役割名 `high`・`standard+high-review`・`low` に改め、旧値（`opus`・`sonnet+opus-review`・`sonnet` を含む）とハーネス別のモデル対応表を `_context.md` に置いて判定スクリプトが参照することにした。自身のモデルの ID を検証できない Antigravity では `Implementation model:` を書かず、`high` でも `swarm` のモデル固定と返却 JSON 検証で上位モデルのレビューを走らせる。記録行の接頭辞も役割名に改め、新旧両方を読むことにした（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「issue #1072 で決めたこと」「要件定義の際に決めたこと（2026-11-21）」）
+- 2026-11-24 push の直前の判定（`step 2.6`）の救済の後に、`AFTER_REMEDY` が上位モデルのレビューをやり直してできた直しの commit は、PR を開く前のローカルの CLI レビューにかけ直さない例外を足した（[0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md)「実装の際に決めたこと（2026-11-24）」、[ADR-0013](0013-review-setup.md)）

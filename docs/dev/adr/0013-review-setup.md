@@ -43,9 +43,9 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
     -   内容: 上位モデルのレビューの直し（[ADR-0042](0042-implementation-model-tiers.md)）、テスト通過の関門（`green gate`）・終わりの確かめ・`CHECKS` の直し、クロスチェックの部分レビュー（[ADR-0050](0050-fable-partial-review.md)）の記録の後のコミットを含む。
     -   理由: これらは、最初の Codex の PR レビューが見ることを理由にかけ直していなかったが、その PR レビューがなくなり、かけないと別系統の CLI レビューが一度も見ないためである。
     -   正本: [0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) の F-007。
--   **例外（push の直前の判定の再チェック）:** `step 2.6` が救済を走らせた後の再チェックでできるコミット（`AFTER_REMEDY` と `CHECKS` の直し）は、かけ直さない。このコミットは、PR を開いた後の PR レビュー（Sourcery AI の自動と、依頼したときの CodeRabbit）と、PR の説明の未レビュー一覧で扱う。
-    -   理由: 救済のたびに、ブランチの全体を push の直前に再レビューすることになり、利用上限で失敗しやすいためである（タスク 0114 の実地の確かめ）。
-    -   正本: [0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md) の 1.2.2（実装の際に決めたこと）、[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md) の step 2.6。
+-   **例外（push の直前の判定の再チェック）:** `_lib/task-pr-handoff.md` Part B の `step 2.5` の後にできるコミットは、かけ直さない。`step 2.6` が救済を走らせた後の再チェックでできるコミット（`AFTER_REMEDY` の直し（上位モデルのレビューの直しを含む）、README の同期の `README.en.md`、`CHECKS` の直し）と、`step 3` で HEAD が判定した commit と違ったときの `CHECKS` の直しである。これらのコミットは、PR の説明の未レビュー一覧に挙げる。
+    -   理由: `step 2.5` を PR を開く直前に 1 回だけ置く形（[ADR-0042](0042-implementation-model-tiers.md)）を保つためと、`origin/main` の merge の後に `step 2.5` を走らせ直すと、merge の前のコミットまで再レビューの範囲に入るためである。
+    -   正本: [0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md) の 1.2.1 と 1.2.2（実装の際に決めたこと）、[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md) の step 2.6 と step 3。
 
 ### PR レビューを勧める判定
 
@@ -130,6 +130,8 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
     -   理由: ブランチの削除を見逃すと、push していない commit の消失に気づけない（[0079 要件定義書](../../tasks/0079_codexreview_state_scope/01_requirements.md) の「issue #778 で決めたこと」）。
 -   ほかの worktree の ref の変化なら、自動でやり直す。
     -   理由: Codex の割り当てを余分に使う（[0079 要件定義書](../../tasks/0079_codexreview_state_scope/01_requirements.md) の「issue #778 で決めたこと」）。
+-   `step 2.6` の救済の後に `step 2.5` を走らせ直し、例外を置かない。
+    -   理由: `step 2.5` を 1 回だけ置く形（ADR-0042）と合わず、`origin/main` の merge の後は merge の前のコミットまで再レビューすることになる（[0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md) の 1.2.1 と 1.2.2）。
 -   比べなくなったものを結果から外し（`changed_refs` を削り）、`--protocol` を 2 に上げる。
     -   理由: 入れ直しの前後で番号の合わない組み合わせの間は、Codex CLI のフォールバックが働かなくなる（[0079 要件定義書](../../tasks/0079_codexreview_state_scope/01_requirements.md) の「要件定義の際に決めたこと（2026-11-10）」）。
 
@@ -231,6 +233,7 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
     -   #1057 の集計では、Codex の PR レビューの本物の指摘 3 件のうち 2 件が、この種類の PR だった。
     -   補う仕組みは、[#1057](https://github.com/isseis/yt2column/issues/1057) の並走の結果を見てから、別のタスクで決める（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）。
 -   CodeRabbit CLI が失敗した範囲は、実装したハーネスのモデルとは別系統の CLI レビューを一度も受けずにマージされうる。その範囲は PR の説明とマージの質問に示し、利用者は手動の PR レビューを選べる（同上）。
+-   `step 2.5` の後にできるコミット（決定の「例外（push の直前の判定の再チェック）」）は、CLI の失敗がなくても、別系統の CLI レビューを受けずにマージされうる。そのコミットは PR の説明の未レビュー一覧に示し、利用者は手動の PR レビューを選べる（[0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md) の 1.2.2）。
 -   見たかどうかは、ローカルの CLI レビューがその範囲をレビューしたかどうかだけで決める。次の 2 つの危険は、どちらも受け入れる（[0098 設計書](../../tasks/0098_fable_partial_review/02_architecture.md) 1.2 の決定 14、5.2）。
     -   `unclear`（要確認）や `deferred`（先送り）の指摘が残っていても、ほかの基準にだけ当たる変更では PR レビューを推奨しないことがある。
     -   見た範囲の記録の行はレビューを受ける側のセッションが書くので、レビューしていない範囲を形の正しい行で書けば、推奨されずに済んでしまう。
@@ -250,4 +253,4 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
 - 2026-11-21 エスカレーションの判定を Opus 固定からハーネスの `high` 役割ワーカー固定（呼べないハーネスでは安全側の推奨）へ改め、上位モデルのレビューとクロスチェックの部分レビューの名称変更に追随した（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「要件定義の際に決めたこと（2026-11-21）」）
 - 2026-11-23 PR レビューに Sourcery AI（自動・手動）を加え、CodeRabbit（手動）と併用することにした。Sourcery AI の自動の PR レビューは有効のまま維持し、進行中のレビューの完了を待って完了判定（`LAST_REVIEWED` は両社の和集合）に含める。自動の PR レビューのスキップ・失敗・時間切れでは止めず、手動の依頼の失敗時だけ止める（[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md)「要件定義の際に決めたこと（2026-11-23）」）
 - 2026-11-24 リポジトリの CI チェック（`app.slug == "github-actions"`）のみの成否を判定する共有パッケージ `internal/ghci` を設け、`/runpr` step 3（`fixprguard ci-checks`）だけでなく `mergepr prepare`（`/mergepr`・`/runpr` step 4）の CI 待機も外部レビュアーの CheckRun から分離することにした（[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md)「設計の際に決めたこと（2026-11-24）」）
-- 2026-11-24 push の直前の判定（`step 2.6`）が救済を走らせた後の再チェックでできる commit は、ローカルの CLI レビューにかけ直さない例外を足した（[0114 要件定義書](../../tasks/0114_fable_record_after_merge/01_requirements.md)）
+- 2026-11-24 `_lib/task-pr-handoff.md` Part B の `step 2.5` の後にできる commit（push の直前の判定（`step 2.6`）の救済の後の再チェックと、`step 3` の `CHECKS` の直し）は、ローカルの CLI レビューにかけ直さない例外を足した（[0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md)「実装の際に決めたこと（2026-11-24）」）
