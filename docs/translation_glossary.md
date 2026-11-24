@@ -189,8 +189,7 @@
 | 出力の書式 | Output format | `generation.md` と `cli.md` の見出し |
 | 設定 | Configuration | `generation.md` と `cli.md` の見出し。CLI の環境変数による設定 |
 | 以前の版からの移行 | Migrating from the earlier version | README の見出し。localhost サーバと Native Messaging のホストを使う版から、拡張だけの版へ移る手順 |
-| API キーの設定 | Setting the API key | README の見出し |
-| ブラウザ拡張 | Browser extension | README の見出し。本文では "browser extension"、文脈が明らかなら "extension" |
+| ブラウザ拡張 | Browser extension | 本文では "browser extension"、文脈が明らかなら "extension" |
 | 記事生成モジュール | article generation module | `cmd/yt2column-wasm`（Go の `main` パッケージ）を WebAssembly にビルドした `.wasm` ファイル。拡張の Worker が読み込み、記事を作る関数を JavaScript に公開する。Go で書かれ WASM にコンパイルされたことを強調するときは「WASM にコンパイルされた記事生成モジュール」と修飾する（0090 設計書） |
 | オプションページ | options page | 拡張の設定の画面（`options.html`）。Anthropic の API キーとワークスペース ID を保存し、削除する。タブで開く。英語の画面では、ポップアップからの操作を "Settings" と呼ぶ |
 | 開発用のビルド | development build | `make ext-build-dev` が `extension/dist-dev/` に作る拡張。fake の LLM を使う開発用の記事生成モジュールを持ち、API を呼ばない。拡張の ID と名前が公開用のビルドと違う。公開用のビルド（`make ext-build` の `extension/dist/`）と区別する |
