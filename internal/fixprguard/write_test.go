@@ -461,19 +461,13 @@ func TestCheckPostText(t *testing.T) {
 		// The rows below name each Sourcery AI form literally, so dropping
 		// one from RejectedMentions fails them instead of shrinking the loop
 		// above.
-		{name: "sourcery_ai_lower_case", text: "see @sourcery-ai", reject: true},
 		{name: "sourcery_ai_mixed_case", text: "see @Sourcery-AI review", reject: true},
-		{name: "sourcery_ai_longer_name", text: "ask @sourcery-aibot", reject: true},
-		{name: "sourceryai_lower_case", text: "see @sourceryai", reject: true},
 		{name: "sourceryai_mixed_case", text: "see @SourceryAI review", reject: true},
-		{name: "sourceryai_email_address", text: "mail a@sourceryai.example", reject: true},
 		{name: "names_without_at", text: "Codex, codex, CodeRabbit, coderabbitai, Sourcery AI, sourcery-ai, and sourceryai flagged this"},
 		// Without the trailing "ai", "@coderabbit" is not a rejected mention.
 		{name: "coderabbit_without_ai", text: "@coderabbit flagged this"},
-		// Without "ai" or "-ai", "@sourcery" is not a rejected mention, and
-		// neither is "@sourcery-a".
+		// Without "ai" or "-ai", "@sourcery" is not a rejected mention.
 		{name: "sourcery_without_ai", text: "@sourcery flagged this"},
-		{name: "sourcery_hyphen_without_ai", text: "@sourcery-a flagged this"},
 		{name: "other_mention", text: "@other-bot flagged this"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

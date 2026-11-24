@@ -15,9 +15,10 @@ import (
 	"github.com/isseis/yt2column/internal/cmdrunner/testutil"
 )
 
-// sourceryReviewer is Sourcery AI's login, and realReviewers the automated
-// reviewer list the command documents pass, so the rows that use them check
-// the names the list holds rather than a stand-in.
+// sourceryReviewer is Sourcery AI's login, and realReviewers the names the
+// command documents pass today. The judgment holds no names of its own, so
+// the rows that use them repeat name-agnostic rows with the production
+// spelling: they trace the Sourcery AI cases the task's requirements list.
 const sourceryReviewer = "sourcery-ai"
 
 var realReviewers = []string{testReviewer, sourceryReviewer}
@@ -59,9 +60,9 @@ func TestAssessAuthors(t *testing.T) {
 			},
 		},
 		{
-			// Both real reviewers and a user with write access share one
+			// Two reviewer bots and a user with write access share one
 			// thread; every author is trusted, so the thread is.
-			name: "coderabbitai_sourcery_and_writer", reviewers: realReviewers,
+			name: "two_bots_and_writer", reviewers: realReviewers,
 			comments: []testComment{reviewerComment(1), botComment(2, sourceryReviewer), userComment(3, "alice")},
 			lookups:  []cmdrunnertestutil.Step{roleStep("alice", "write")}, trusted: true,
 		},
