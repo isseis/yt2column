@@ -12,7 +12,7 @@
 
 ## 1. 設計の全体像 (Design Overview)
 
-本書は、タスク 0118（Codex の PR レビューと Codex CLI の撤去）で移行期の後方互換として残した古い記録行の 3 形式（`Codex local review:`・`(codex)`・`(coderabbit: <kind>; codex: <kind>)`）の読み方規則を、`origin` に該当ブランチがないことを確認したうえで安全に撤去するためのアーキテクチャを定義する。要件は [01_requirements.md](01_requirements.md)（F-001〜F-004、AC-01〜AC-12）に基づき、設計への申し送り事項（[design_handoff.md](design_handoff.md) の H-01〜H-03）をすべて確定する。現行コードおよび文書の参照は `origin/main` のコミット `a3f3830e` に基づく。なお、本タスクは Go の製品コードや外部サービス連携を追加・変更しない（新たな外部 API 機能の利用やターゲット環境検証は N/A）。
+本書は、タスク 0118（Codex の PR レビューと Codex CLI の撤去）で移行期の後方互換として残した古い記録行の 3 形式（`Codex local review:`・`(codex)`・`(coderabbit: <kind>; codex: <kind>)`）の読み方規則を、`origin` に該当ブランチがないことを確認したうえで安全に撤去するためのアーキテクチャを定義する。要件は [01_requirements.md](01_requirements.md)（F-001〜F-004、AC-01〜AC-12）に基づき、設計への申し送り事項（[design_handoff.md](design_handoff.md) の H-01〜H-03）をすべて確定する。現行コードおよび文書の参照は、設計開始時点の `origin/main` のコミット `a3f3830e` に基づく。その後 `origin/main` は `bd72ac9e` まで進んだ。PR #1094（タスク 0120 の判定スクリプト改名）と PR #1097（タスク 0114 の push 直前の Fable 記録の再確認とマージ確認）は、F-002 の対象 3 ファイルの行位置を動かしている（例: `bd72ac9e` では `task-pr-handoff.md` の Codex 記述が Part B step 3 の `:323-330`、`fable-review.md` の `Settled issues` が `:516-518`、`local-cli-review.md` の互換記述が `:307-308,322-325`）。`review-records.sh` の `SEEN_RE` とその参照箇所、および `review_records_test.go` の `(codex)` 関連行は `bd72ac9e` でも同じ位置にある。実装計画書は、作成時点の `origin/main` で行位置を引き直す。なお、本タスクは Go の製品コードや外部サービス連携を追加・変更しない（新たな外部 API 機能の利用やターゲット環境検証は N/A）。
 
 ### 1.1. 設計原則
 
@@ -26,11 +26,11 @@
 
 ### 1.2. 既存の仕組みを維持せず撤去・厳格化する理由
 
-タスク 0118 が残した既存の `SEEN_RE`（`^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \((coderabbit|codex)\)$`、`.claude/commands/_lib/review-records.sh:250`、コミット `a3f3830e`）およびコマンド定義の互換読み取り規則は、記録行がいつ書かれたかを区別しない。そのため、Codex CLI 撤去後に誤って、あるいは不適切に書かれた `(codex)` の行も見た範囲として受理してしまう。AC-08 および AC-09 は、`(coderabbit)` に完全一致しないレビュアー表記（`(codex)` を含む）を補正も読み替えもせずに無視することを求めており、既存の互換正規表現と互換記述のままでは満たせない。よって、F-001 により対象ブランチの残存がないことを確認したうえで撤去・厳格化する。
+タスク 0118 が残した既存の `SEEN_RE`（`^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \((coderabbit|codex)\)$`、`.claude/commands/_lib/review-records.sh:250`、コミット `a3f3830e`）およびコマンド定義の互換読み取り規則は、記録行がいつ書かれたかを区別しない。そのため、Codex CLI 撤去後に誤って書かれた `(codex)` の行も見た範囲として受理してしまう。AC-08 および AC-09 は、`(coderabbit)` に完全一致しないレビュアー表記（`(codex)` を含む）を補正も読み替えもせずに無視することを求めており、既存の互換正規表現と互換記述のままでは満たせない。よって、F-001 により対象ブランチの残存がないことを確認したうえで撤去・厳格化する。
 
 ### 1.3. 設計の際に決めたこと（2026-11-23）
 
-以下は、設計時に利用者と合意した 3 つの決定事項、その理由、および ADR の判断である。いずれの決定も有効な ADR（[ADR-0013](../../dev/adr/0013-review-setup.md)・[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md)・[ADR-0015](../../dev/adr/0015-untrusted-review-threads.md)・[ADR-0016](../../dev/adr/0016-document-test-policy.md)・[ADR-0037](../../dev/adr/0037-test-deletion-coverage.md)・[ADR-0050](../../dev/adr/0050-fable-partial-review.md)・[ADR-0055](../../dev/adr/0055-harness-independent-commands.md)）の決定を変えず、新たな ADR の作成・更新は行わない。
+以下は、設計時に利用者と合意した 3 つの決定事項、その理由、および ADR の判断である。これらの決定はいずれも、有効な ADR（[ADR-0013](../../dev/adr/0013-review-setup.md)・[ADR-0014](../../dev/adr/0014-deterministic-checks-in-go.md)・[ADR-0015](../../dev/adr/0015-untrusted-review-threads.md)・[ADR-0016](../../dev/adr/0016-document-test-policy.md)・[ADR-0037](../../dev/adr/0037-test-deletion-coverage.md)・[ADR-0050](../../dev/adr/0050-fable-partial-review.md)・[ADR-0055](../../dev/adr/0055-harness-independent-commands.md)）の決定を変えないため、新たな ADR の作成・更新は行わない。
 
 -   **`review_records_test.go` の既存 `(codex)` テストケースの扱い（決定 1、H-01）:** `cmd/yt2column/review_records_test.go:335-339`（コミット `a3f3830e`）の `"seen by codex"` を削除するのではなく、期待値を `PARTIAL`（`f.partial(f.rev("HEAD~1"))`）へ変更して `(codex)` 拒否の回帰テストへ書き換える。あわせて、PR #1066 で追加された `unreviewedCases()` 内の `"fix seen by the standalone path's review"`（`cmd/yt2column/review_records_test.go:865-872`、コミット `a3f3830e`）の `:870` を `"coderabbit"` へ更新し、不正表記・混在行および `fable` モード（ルール 2・ルール 4。後述の 3.3 節）の拒否ケースを追加する。
     -   **理由:** テストの削除が発生しないため、[ADR-0037](../../dev/adr/0037-test-deletion-coverage.md) に基づく削除専用コミットと `make coverage-compare` を挟む必要がなく、シェルスクリプト変更と同一コミットで一貫して検証できる。削除して直後にほぼ同構造の拒否テストを書き直す二重手間も避けられる。
@@ -57,7 +57,7 @@
 本タスクは先行タスク 0118 が設けた移行期方針を意図的に退役させる。対象となる元の規定・退役理由・更新が必要な既存テストの 3 点を以下に示す。
 
 1.  **元の規定と所在:** タスク 0118 の要件定義書 `docs/tasks/0118_codex_removal/01_requirements.md:194`（AC-28）および設計書 `docs/tasks/0118_codex_removal/02_architecture.md:610-616`（§3.6）が定めた「移行期の後方互換として、`Codex local review:`・`(codex)`・`(coderabbit: <kind>; codex: <kind>)` の 3 形式を読み続け、`review-records.sh` の `SEEN_RE` を `(coderabbit|codex)` のまま残す」方針。
-2.  **意図的な退役の理由:** 0118 の設計書（`docs/tasks/0118_codex_removal/02_architecture.md:615-616`）自身が、新しく書かれた `(codex)` 行も見た範囲として受理してしまう危険を一時的に受け入れたうえで「古い形の行を持つ開いたブランチがなくなったときに外す」とあらかじめ定めた移行完了手順である。本タスクは F-001 で対象ブランチが 0 件であることを確認してから退役を実施する。なお、`docs/tasks/0118_codex_removal/` 配下の過去文書自体は変更しない（`01_requirements.md` §2.3）。
+2.  **意図的な退役の理由:** 0118 の設計書（`docs/tasks/0118_codex_removal/02_architecture.md:615-616`）は、新しく書かれた `(codex)` 行も見た範囲として受理してしまう危険を一時的に受け入れ、そのうえで「古い形の行を持つ開いたブランチがなくなったときに外す」とあらかじめ定めていた。本タスクの退役は、この定めに従う移行の完了手順である。本タスクは F-001 で対象ブランチが 0 件であることを確認してから退役を実施する。なお、`docs/tasks/0118_codex_removal/` 配下の過去文書自体は変更しない（`01_requirements.md` §2.3）。
 3.  **更新が必要な既存テスト:** コミット `a3f3830e` 時点で旧振る舞いを前提とするテストは `cmd/yt2column/review_records_test.go` の次の 4 か所である。
     -   `:335-339`（`coverageCases()` の `"seen by codex"`、`TestReviewRecordsCoverage` と `TestReviewRecordsUnreviewed` の双方で実行）: `(codex)` 受理を `want: rrAll` で検証している。
     -   `:865-872`（`unreviewedCases()` の `"fix seen by the standalone path's review"`、PR #1066 で追加）: `:870` で `f.seen(r, fix, "codex")` を与えて `want: rrAll` を検証している。
@@ -219,7 +219,7 @@ sequenceDiagram
         alt 古い記録行を 1 件以上検出
             Sh-->>Op: 該当一覧を標準出力へ報告・終了コード 1（作業停止）
         else 0 件
-            Sh-->>Op: UTC タイムスタンプ・main のコミット ID・ブランチ一覧・matches: 0（終了コード 0）
+            Sh-->>Op: 確認日時（UTC）・main のコミット ID・ブランチ一覧・matches: 0（終了コード 0）
         end
     end
 ```
@@ -261,9 +261,14 @@ sequenceDiagram
 -   **副作用と権限の契約:**
     -   **変更しない対象:** 作業ツリー、インデックス、`HEAD`、ローカルブランチ、共有 `.git` 配下の `refs/remotes/origin/*`・`FETCH_HEAD`・設定ファイルを一切変更しない。
     -   **許可される副作用:** `${TMPDIR:-/tmp}` 配下に一時ディレクトリを作成して空の bare リポジトリを初期化し、ネットワーク経由で `origin` の全 `refs/heads/*` を読み取り専用で取得する。`EXIT`・`INT`・`TERM`・`HUP` を捕捉して終了時（正常・異常・シグナル中断のすべて）に作成済みの一時ディレクトリのみを削除する（bash 3.2 では `trap EXIT` 単独では `SIGINT`/`SIGTERM`/`SIGHUP` 時に実行されないため）。
-    -   **実行時の承認:** `origin` の全リモートブランチ取得はネットワーク通信を伴うため、`CLAUDE.md`「Tool Execution Safety」および Antigravity のサンドボックス昇格規則に従い、利用者の明示承認のもと単一コマンドとして実行する。なお、`/runpr` は `_checks/` スクリプトを自動実行しないため（`.claude/commands/runpr.md:396`、`docs/dev/conventions/requirements_process.md:843`、コミット `a3f3830e`）、マージ前確認はマージ承認直前に利用者の承認のもと手動ゲートとして実行する（8 章）。
+    -   **実行時の承認:** `origin` の全リモートブランチ取得はネットワーク通信を伴うため、`CLAUDE.md`「Tool Execution Safety」および Antigravity（ハーネスの一つ。[ADR-0055](../../dev/adr/0055-harness-independent-commands.md)）のサンドボックス昇格規則に従い、利用者の明示承認のもと単一コマンドとして実行する。なお、`/runpr` は `_checks/` スクリプトを自動実行しないため（`.claude/commands/runpr.md:396`、`docs/dev/conventions/requirements_process.md:843`、コミット `a3f3830e`）、マージ前確認はマージ承認直前に利用者の承認のもと手動ゲートとして実行する（8 章）。
 -   **2 段階の環境分離と一時 bare リポジトリによる隔離取得:**
-    -   **取得フェーズ（メタデータ読み取りと `fetch`）:** 認証ヘルパ（`credential.helper` や `gh auth setup-git`）・`url.<base>.insteadOf`・`core.sshCommand`・プロキシ設定・`safe.directory` を壊さないよう、利用者・システムの git 設定および通信環境変数（`SSH_AUTH_SOCK`・プロキシ変数等）を維持する。一方で、非対話かつ安全な取得を保証するため `GIT_TERMINAL_PROMPT=0`・`GIT_NO_REPLACE_OBJECTS=1`・`GIT_GRAFT_FILE=/dev/null`・`-c core.hooksPath=/dev/null`・`-c core.fsmonitor=false` を強制し、不要なタグの自動取得を避ける `--no-tags` 付きで `refs/heads/*` を一時 bare リポジトリへ取得する。ローカルの `origin` URL が相対パス（テスト用擬似 `origin` 等）の場合は呼び出し元リポジトリ基準で絶対パスへ解決してから取得する。また、呼び出し元が shallow clone でない場合（`git rev-parse --is-shallow-repository` が `false` かつ共有ディレクトリに `shallow` ファイルが存在しない場合）に限り、`git rev-parse --git-common-dir` 基準の `objects` 絶対パスを一時 bare リポジトリの `alternates` へ登録してローカルオブジェクトを再利用する。shallow clone 時に `alternates` を登録しないのは、`fetch-pack` が shallow 境界を `have` として通知し、一時リポジトリ側で親オブジェクト欠損が起きるためである。一時リポジトリは毎回空の状態から作るため、削除済みリモートブランチの追跡参照（stale `refs/remotes/origin/*`）が混入しない。
+    -   **取得フェーズ（メタデータ読み取りと `fetch`）:** 認証ヘルパ（`credential.helper` や `gh auth setup-git`）・`url.<base>.insteadOf`・`core.sshCommand`・プロキシ設定・`safe.directory` を壊さないよう、利用者・システムの git 設定および通信環境変数（`SSH_AUTH_SOCK`・プロキシ変数等）を維持する。一方で、非対話かつ安全な取得を保証するため `GIT_TERMINAL_PROMPT=0`・`GIT_NO_REPLACE_OBJECTS=1`・`GIT_GRAFT_FILE=/dev/null`・`-c core.hooksPath=/dev/null`・`-c core.fsmonitor=false` を強制し、不要なタグの自動取得を避ける `--no-tags` 付きで `refs/heads/*` を一時 bare リポジトリへ取得する。
+        -   **`origin` URL:** ローカルの `origin` URL が相対パス（テスト用擬似 `origin` 等）の場合は、呼び出し元リポジトリ基準で絶対パスへ解決してから取得する。
+        -   **`alternates`:** 呼び出し元が shallow clone でない場合（`git rev-parse --is-shallow-repository` が `false` かつ共有ディレクトリに `shallow` ファイルが存在しない場合）に限り、`git rev-parse --git-common-dir` 基準の `objects` 絶対パスを一時 bare リポジトリの `alternates` へ登録してローカルオブジェクトを再利用する。
+        -   **partial clone の場合:** 呼び出し元が partial clone（`extensions.partialClone` が設定されている、または promisor の remote を持つ）の場合も `alternates` を登録しない。欠けた tree・blob を持つオブジェクト格納場所を参照すると、一時リポジトリでの `fetch` の接続性検査が失敗し、0 件のブランチでも終了コード `2` で止まるためである。
+        -   **shallow clone の場合:** shallow clone 時に `alternates` を登録しないのは、`fetch-pack` が shallow 境界を `have` として通知し、一時リポジトリ側で親オブジェクト欠損が起きるためである。
+        -   **stale な追跡参照:** 一時リポジトリは毎回空の状態から作るため、削除済みリモートブランチの追跡参照（stale `refs/remotes/origin/*`）が混入しない。
     -   **検査フェーズ（一時 bare リポジトリ内の読み取り）:** `fetch` 完了後の `for-each-ref`・`rev-list`・`cat-file` はすべて、`LC_ALL=C`・`GIT_CONFIG_NOSYSTEM=1`・`GIT_CONFIG_GLOBAL=/dev/null`・`GIT_NO_REPLACE_OBJECTS=1`・`GIT_GRAFT_FILE=/dev/null`・`-c i18n.logOutputEncoding=UTF-8` に隔離して実行する（bash 3.2 以降で動作）。
 -   **検査対象と安全側の読み取り規則:**
     -   一時リポジトリ内の `refs/heads/main` が存在し、かつそのオブジェクト種別が `commit` であること（`%(objecttype) == commit`）を必須とし、満たさない場合は異常終了（終了コード `2`）する。
@@ -306,7 +311,7 @@ sequenceDiagram
     -   変更後: `SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(coderabbit\)$'`
     -   キャプチャグループ 1（`START12`）と 2（`END12`）の位置は変わらず、3 つ目のグループを参照する箇所は存在しない（`:575,658,706`、コミット `a3f3830e`）。POSIX ERE として bash 3.2 以降で同一に動作する。
 -   **全モード・全参照箇所の網羅（コミット `a3f3830e`）:**
-    1.  `judge_seen`（`:574`）: `coverage` モード（`:545`）と `unreviewed` モード（`:559`）の双方から呼ばれる。`SEEN_RE` に一致しない行は `continue` で読み飛ばされ、同じコミットや別コミットの有効な `(coderabbit)` 行は通常どおり `seen` 集合へ追加される（AC-07・AC-08）。
+    1.  `judge_seen`（定義 `:566`、`SEEN_RE` の照合 `:574`）: `coverage` モード（`:545`）と `unreviewed` モード（`:559`）の双方から呼ばれる。`SEEN_RE` に一致しない行は `continue` で読み飛ばされ、同じコミットや別コミットの有効な `(coderabbit)` 行は通常どおり `seen` 集合へ追加される（AC-07・AC-08）。
     2.  `fable` モード・ルール 2「同じ実行の修正」（`:657`）: `[[ $line =~ $SEEN_RE ]] || [[ $line =~ $NOT_RUN_RE ]] || continue` により評価される。`(codex)` 行は `SEEN_RE` にも `NOT_RUN_RE` にも一致せず無視されるが、同一コミット上の有効な `(coderabbit)` 行や `NOT_RUN_RE` に一致する `Local CLI review: not run` 行は引き続き `fixes` 集合へ計上される（AC-09）。
     3.  `fable` モード・ルール 4「マージ後確認の修正」（`:705`、PR #1066 で追加）: `[[ $line =~ $SEEN_RE ]] || continue` により評価される。マージ後確認コミット上の `(codex)` 行は無視され、有効な `(coderabbit)` 行のみが `merge_fixes` 集合へ計上される（AC-09）。
 -   **変更しない箇所:** `NOT_RUN_RE`（`:252`、`Local CLI review: not run` の行に一致する正規表現）、`checked_range` の `START`/`END` 検証（`:485-504`）、クリーン環境再実行と git plumbing 読み取り（`:207-236`）、異常終了時の `fail` 契約（`:240-247`）は変更しない。
@@ -321,7 +326,7 @@ sequenceDiagram
 | テストファイル / テスト名 | 読んでいる対象・箇所 | 本タスクでの要否と理由 |
 |---|---|---|
 | `cmd/yt2column/review_records_test.go`（`TestReviewRecordsCoverage` `:790-826`・`TestReviewRecordsUnreviewed` `:912-972`・`TestReviewRecordsFable` `:1774-1814`） | `review-records.sh` の全 3 モード、`coverageCases()`・`unreviewedCases()`・`fableCases()` | **更新必須:** `:335-339`（`"seen by codex"`）の拒否ケース化、`:870`（`"fix seen by the standalone path's review"`）の `"coderabbit"` 化、`:405,411` の `not run` 入力更新、`:362` コメント修正、および新規拒否・混在ケースの追加 |
-| `cmd/yt2column/review_records_test.go`（`seenRangeForm` `:83-86`・`readFableForms` `:997-1014`・`TestReviewRecordsCallSite` `:1847-1878`・`TestRecordLinePrefixesDistinct` `:1934-1985`・`TestRecordCommitsCheckMention` `:2000-2024`） | `local-cli-review.md` step 7 表、`fable-review.md` `## Record lines`・`## The validity decision`・`## The standalone path`、`task-pr-handoff.md` Part B step 2.5 | **更新不要:** F-002 は `local-cli-review.md` の `## Reading the record lines`、`task-pr-handoff.md` の Part B step 3、`fable-review.md` の `## The prompt` のみを編集するため、いずれの読み取りの目印となる見出し・箇所も変わらない |
+| `cmd/yt2column/review_records_test.go`（`seenRangeForm` `:83-86`・`readFableForms` `:997-1014`・`TestReviewRecordsCallSite` `:1847-1878`・`TestRecordLinePrefixesDistinct` `:1934-1985`・`TestRecordCommitsCheckMention` `:2000-2024`） | `local-cli-review.md` step 7 表、`fable-review.md` `## Record lines`・`## The validity decision`・`## The standalone path`、`task-pr-handoff.md` Part B step 2.5（`bd72ac9e` では、PR #1097 により `TestReviewRecordsCallSite` が Part B step 3 の `unreviewed` 呼び出しのコードブロックも読む） | **更新不要:** F-002 は `local-cli-review.md` の `## Reading the record lines`、`task-pr-handoff.md` の Part B step 3、`fable-review.md` の `## The prompt` のみを編集する。Part B step 3 は `TestReviewRecordsCallSite` が読む節に含まれるが、同テストが確かめるのは `review-records` を含むコードの 3 行の並びだけであり、F-002 が外す `Codex local review:` の記述はそれに当たらない。ほかの読み取りの目印となる見出し・箇所も変わらない |
 | `cmd/yt2column/fixpr_docs_test.go`（`TestContextAndCommandsAgree` `:1121-1149`・`TestLocalReviewGuard` `:1296-1318`） | `task-pr-handoff.md` のレビュアー名非記載、`local-cli-review.md` の `## Inputs` と `## Procedure` steps 1/5/6/7 | **更新不要:** 読み取り対象の見出し・ステップ・値は不変 |
 | `cmd/yt2column/review_mention_docs_test.go`（`TestMentionsOnlyInAllowedRows` `:93-137`・`TestPostingPathsCheckMention` `:146-169`・`TestPostingCommandsInventory` `:238-308`） | 全コマンド文書の禁止メンション、`task-pr-handoff.md` Part B step 3 の `**Mention check.**` と投稿コマンド（`task-pr-handoff.md:223,310` の箇条書きを目印に切り出し） | **更新不要:** Part B step 3 の `**Mention check.**` および `task-pr-handoff.md:223,310` の箇条書きの目印は変更しない |
 | `cmd/yt2column/fable_state_docs_test.go`（`TestFableStateCheckBlock` `:41-105`） | `fable-review.md` `## The state check` | **更新不要:** 対象外セクション |
@@ -329,7 +334,7 @@ sequenceDiagram
 
 #### `rrFixture.seen` ヘルパの整理方針（H-01）
 
-`cmd/yt2column/review_records_test.go:173-175`（コミット `a3f3830e`）の `func (f *rrFixture) seen(start, end, cli string) string` は、既存のシグネチャを維持する（既存呼び出し箇所の不要な書き換えを避けつつ、正本 `local-cli-review.md` step 7 から `seenRangeForm` が読む `(coderabbit)` 形式を基準に保てる）。括弧内のレビュアー表記を変える負例（`"codex"`・`"CodeRabbit"`・`"CODERABBIT"`・`" coderabbit"`・`"fable"` 等）は `f.seen` で構築し、括弧外の末尾空白等の負例は `f.seen(start, end, "coderabbit") + " "` で構築する。
+`cmd/yt2column/review_records_test.go:173-175`（コミット `a3f3830e`）の `func (f *rrFixture) seen(start, end, cli string) string` は、既存のシグネチャを維持する。これにより、既存の呼び出し箇所を書き換えずに済み、正本 `local-cli-review.md` step 7 から `seenRangeForm` が読む `(coderabbit)` 形式を基準に保てる。括弧内のレビュアー表記を変える負例（`"codex"`・`"CodeRabbit"`・`"CODERABBIT"`・`" coderabbit"`・`"fable"` 等）は `f.seen` で構築し、括弧外の末尾空白等の負例は `f.seen(start, end, "coderabbit") + " "` で構築する。
 
 #### 関連文書（AC-11）
 
@@ -352,7 +357,7 @@ sequenceDiagram
 
 | 種別 | ファイルパス | 責務・変更内容 | 対応要件・AC |
 |---|---|---|---|
-| 新設（タスク専用） | `docs/tasks/0121_retire_legacy_review_records/_checks/check_open_branches.sh` | 一時 bare リポジトリ経由で `origin` の `main` 以外の全ブランチから古い記録行 3 形式を検査し、UTC タイムスタンプ・基準 `origin/main` の 40 桁コミット ID・ブランチ一覧・件数を出力。1 件以上または異常時は非ゼロ停止 | F-001、AC-01、AC-02 |
+| 新設（タスク専用） | `docs/tasks/0121_retire_legacy_review_records/_checks/check_open_branches.sh` | 一時 bare リポジトリ経由で `origin` の `main` 以外の全ブランチから古い記録行 3 形式を検査し、確認日時（UTC）・基準 `origin/main` の 40 桁コミット ID・ブランチ一覧・件数を出力。1 件以上または異常時は非ゼロ停止 | F-001、AC-01、AC-02 |
 | 変更 | `.claude/commands/_lib/local-cli-review.md` | `## Reading the record lines` から `Codex local review:`・`(codex)`・`(coderabbit: <kind>; codex: <kind>)` と退役条件段落を撤去し、見た範囲を `(coderabbit)` に固定 | F-002、AC-03、AC-06 |
 | 変更 | `.claude/commands/_lib/task-pr-handoff.md` | Part B step 3 から `Codex local review:` と Codex CLI 指摘の記述を撤去（Fable / クロスチェック指摘の規則と範囲なし `CodeRabbit local review: not run` は維持） | F-002、AC-04、AC-06 |
 | 変更 | `.claude/commands/_lib/fable-review.md`（0120 後: `_lib/cross-check-review.md`） | `## The prompt` の `Settled issues` から `Codex local review:` の記述を撤去 | F-002、AC-05、AC-06 |
@@ -439,7 +444,7 @@ flowchart LR
 -   **脅威 2（ブランチ側による判定スクリプト改ざん）:** `origin/main` からのスクリプト取得（`git --no-replace-objects show`）、クリーン環境再実行、`GIT_NO_REPLACE_OBJECTS=1`、`GIT_GRAFT_FILE=/dev/null`、plumbing コマンドによる読み取りという既存の防御をすべて維持する。
 -   **脅威 3（移行ゲートにおける誤った 0 件判定および共有リポジトリ汚染）:** `check_open_branches.sh` がローカルの古い追跡参照（stale `refs/remotes/origin/*`）を読むと、削除済みブランチを誤検出する一方、未取得の新規リモートブランチを見落とす。また `git fetch --prune origin` を共有 `.git` に対して実行すると他 worktree の参照状態に影響する。空の `TMPDIR` 配下の bare リポジトリへ都度 `origin` の全 `refs/heads/*` を取得する（shallow clone 時は `alternates` を使わず単独取得する）。そのうえで、検査フェーズをクリーン環境へ隔離して `--no-replace-objects` と 40 桁コミット ID 指定で読み取り、取得・読み取り失敗や `main` 不在時は終了コード `2`（標準出力は空）で停止することで、見落としと共有状態汚染の双方を防ぐ。
 -   **脅威 4（信頼しないコミットメッセージ本文およびブランチ名の取り扱い）:** コミットメッセージだけでなく `origin` 上のリモートブランチ名にも任意の文字列や禁止メンション（`@codex`・`@coderabbitai`）が含まれうる。`review-records.sh` と `check_open_branches.sh` はいずれもこれらをデータとしてのみ扱い、`eval` やシェル展開を行わない。また、`check_open_branches.sh` が 1 件以上検出した場合は作業を停止するため、一致したコミット行が PR へ転記されることはない。終了コード `0` の結果（確認日時・基準 `origin/main` の 40 桁コミット ID・検査ブランチ一覧・`matches: 0`）を PR の説明や PR コメントへ記録する際は、ブランチ名を含め必ず `<mention-check>` を通してから投稿する。
--   **残余の TOCTOU リスク（確認から適用までの時間差：マージ前確認完了〜squash マージ）:** マージ直前の F-001 確認が完了した時点（$t_1$）から `/mergepr` による squash マージが完了する時点（$t_2$）までの短い間に、古い記録行を持つブランチが新たに `origin` へ push される残余リスクがある。万一この事象が起きても、マージ後の `SEEN_RE` は `(codex)` 行を無視して未見（`PARTIAL` / `MISSING`）へ安全側に倒すためレビューの関門をすり抜けることはなく、該当ブランチで CodeRabbit CLI レビューを再実行すれば回復できる（`01_requirements.md` §4.4）。この残余リスクを受け入れ、タイムスタンプ付きのマージ直前確認によってこの時間差を最小化する。
+-   **残余の TOCTOU リスク（確認から適用までの時間差：マージ前確認完了〜squash マージ）:** マージ直前の F-001 確認が完了した時点（$t_1$）から `/mergepr` による squash マージが完了する時点（$t_2$）までの短い間に、古い記録行を持つブランチが新たに `origin` へ push される残余リスクがある。万一この事象が起きても、マージ後の `SEEN_RE` は `(codex)` 行を無視して未見（`PARTIAL` / `MISSING`）へ安全側に倒すためレビューの関門をすり抜けることはなく、該当ブランチで CodeRabbit CLI レビューを再実行すれば回復できる（`01_requirements.md` §4.4）。この残余リスクを受け入れ、確認日時を記録したマージ直前確認によってこの時間差を最小化する。
 
 ## 6. 処理フロー詳細 (Processing Flow Details)
 
@@ -464,7 +469,7 @@ flowchart TD
     readCheck -->|"はい"| errStop
     readCheck -->|"いいえ"| hitCheck{"一致件数 == 0?"}:::newpkg
     hitCheck -->|"いいえ（1 件以上）"| hitStop["該当ブランチ・一致行を出力<br>終了コード 1"]:::problem
-    hitCheck -->|"はい（0 件）"| okOut["UTC タイムスタンプ・ブランチ一覧・<br>matches: 0 を出力（終了コード 0）"]:::enhanced
+    hitCheck -->|"はい（0 件）"| okOut["確認日時（UTC）・ブランチ一覧・<br>matches: 0 を出力（終了コード 0）"]:::enhanced
     errStop --> cleanupFail(["一時ディレクトリ削除・<br>停止（非ゼロ終了）"])
     hitStop --> cleanupFail
     okOut --> cleanupOk(["一時ディレクトリ削除・<br>正常終了（終了コード 0）"])
@@ -526,7 +531,7 @@ flowchart TD
 | `coverageCases()` `:335-339`（旧 `"seen by codex"`） | 書き換え | ケース名を実態に合わせ（例: `"codex reviewer"`）、期待値を `f.partial(f.rev("HEAD~1"))`・終了コード `0` に変更。`TestReviewRecordsCoverage` と `TestReviewRecordsUnreviewed` の双方で実行される | AC-08、AC-10 |
 | `unreviewedCases()` `:865-872`（`"fix seen by the standalone path's review"`） | 書き換え | `:870` の `f.seen(r, fix, "codex")` を `"coderabbit"` へ更新し、単独経路（standalone path）の現行形式を検証 | AC-07、AC-10 |
 | `coverageCases()` `:405,411`（`not run` 系 2 ケース）および `:362` コメント | 書き換え | 旧入力 `(coderabbit: other; codex: timeout)` を現行の CodeRabbit 単体形式（例: `(coderabbit: other)`）へ統一し、`:362` の Codex 前提コメントを修正 | AC-10 |
-| `coverageCases()`（新規追加） | 追加 | 1. レビュアー表記の大文字小文字違い（`f.seen(..., "CodeRabbit")`・`f.seen(..., "CODERABBIT")`）と空白混入（`f.seen(..., " coderabbit")`・`f.seen(..., "coderabbit") + " "`）が無視され `PARTIAL`・終了コード `0` になること。<br>2. 同一コミットおよび同一ブランチに `(codex)` 行と有効な `(coderabbit)` 行が混在しても、有効行の範囲は見たものとして `ALL`（未見分があればそれのみ `PARTIAL`）になること（`unreviewed` でも自動検証される） | AC-07、AC-08 |
+| `coverageCases()`（新規追加） | 追加 | 1. レビュアー表記の大文字小文字違い（`f.seen(..., "CodeRabbit")`・`f.seen(..., "CODERABBIT")`）と空白混入（`f.seen(..., " coderabbit")`・`f.seen(..., "coderabbit") + " "`）、別のレビュアー名（`f.seen(..., "fable")`）、および括弧外の末尾の追加文字列（`f.seen(..., "coderabbit") + " extra"`）が無視され `PARTIAL`・終了コード `0` になること。<br>2. 同一コミットおよび同一ブランチに `(codex)` 行と有効な `(coderabbit)` 行が混在しても、有効行の範囲は見たものとして `ALL`（未見分があればそれのみ `PARTIAL`）になること（`unreviewed` でも自動検証される） | AC-07、AC-08 |
 | `fableCases()`（新規追加、タスク 0120 後は `cross-check` / `fable`） | 追加 | 1. **ルール 2（同じ実行の修正）:** 部分レビューを記録したコミット上の `(codex)` 行だけでは同じ実行の修正として受理されず `MISSING <START>`・終了コード `0` になること。<br>2. **ルール 2 混在:** 同一コミット上に `(codex)` 行と有効な `(coderabbit)` 行、または `(codex)` 行と `Local CLI review: not run` 行が併存すれば `VALID`・終了コード `0` になること。<br>3. **ルール 4（マージ後確認の修正）:** マージ後確認コミット上の `(codex)` 行だけではマージ後確認の修正として受理されず `MISSING <merge-base>`・終了コード `0` になること、および有効な `(coderabbit)` 行と併存すれば `VALID` になること | AC-09 |
 
 ### 7.2. 文書整合・`diff` 検証・既存ガード戦略
