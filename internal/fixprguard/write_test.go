@@ -463,6 +463,8 @@ func TestCheckPostText(t *testing.T) {
 		// above.
 		{name: "sourcery_ai_mixed_case", text: "see @Sourcery-AI review", reject: true},
 		{name: "sourceryai_mixed_case", text: "see @SourceryAI review", reject: true},
+		{name: "sourcery_ai_longer_name", text: "ask @sourcery-aibot", reject: true},
+		{name: "sourceryai_email_address", text: "mail a@sourceryai.example", reject: true},
 		{name: "names_without_at", text: "Codex, codex, CodeRabbit, coderabbitai, Sourcery AI, sourcery-ai, and sourceryai flagged this"},
 		// Without the trailing "ai", "@coderabbit" is not a rejected mention.
 		{name: "coderabbit_without_ai", text: "@coderabbit flagged this"},
