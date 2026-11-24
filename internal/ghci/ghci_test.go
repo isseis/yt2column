@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
@@ -1163,31 +1164,35 @@ func TestWaitPR(t *testing.T) {
 	})
 
 	t.Run("canceled_context_during_default_sleep_stops_promptly", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		runner := runnerFunc(func(_ context.Context, _ string, _ ...string) ([]byte, error) {
-			go func() {
-				time.Sleep(5 * time.Millisecond)
-				cancel()
-			}()
-			return []byte(runningPending), nil
+		synctest.Test(t, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			calls := 0
+			runner := runnerFunc(func(_ context.Context, _ string, _ ...string) ([]byte, error) {
+				calls++
+				go func() {
+					time.Sleep(5 * time.Millisecond)
+					cancel()
+				}()
+				return []byte(runningPending), nil
+			})
+			start := time.Now()
+			got, err := WaitPR(ctx, runner, req, WaitOptions{
+				PollInterval:   time.Minute,
+				Timeout:        5 * time.Minute,
+				PerCallTimeout: time.Second,
+				NoCheckGrace:   time.Second,
+			})
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("got err=%v, want context.Canceled", err)
+			}
+			if elapsed := time.Since(start); elapsed >= time.Minute {
+				t.Fatalf("default sleep did not stop before poll interval: elapsed %v", elapsed)
+			}
+			if got.State != StatePending || calls != 1 {
+				t.Fatalf("got %+v calls=%d, want StatePending calls=1", got, calls)
+			}
 		})
-		start := time.Now()
-		got, err := WaitPR(ctx, runner, req, WaitOptions{
-			PollInterval:   500 * time.Millisecond,
-			Timeout:        5 * time.Minute,
-			PerCallTimeout: time.Second,
-			NoCheckGrace:   time.Second,
-		})
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("got err=%v, want context.Canceled", err)
-		}
-		if elapsed := time.Since(start); elapsed >= 250*time.Millisecond {
-			t.Fatalf("default sleep did not stop promptly on cancel: elapsed %v", elapsed)
-		}
-		if got.State != StatePending {
-			t.Fatalf("got %+v, want StatePending", got)
-		}
 	})
 }
 
