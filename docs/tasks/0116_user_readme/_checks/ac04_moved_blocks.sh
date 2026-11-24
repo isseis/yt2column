@@ -28,8 +28,10 @@
 # or is still in the README. It exits 0 on success, 1 on a failed check, and
 # 2 on a usage or git error.
 set -euo pipefail
-# Count characters, not bytes, whatever the caller's locale.
-export LC_ALL=en_US.UTF-8
+# Count characters, not bytes, whatever the caller's locale. C.UTF-8, not
+# en_US.UTF-8, whose collation on macOS treats distinct Japanese strings
+# as equal.
+export LC_ALL=C.UTF-8
 
 worktree=false
 if [ "${1-}" = --worktree ]; then
@@ -164,6 +166,7 @@ for k in "${!names[@]}"; do
   cut_block "$work/source.norm" "$first" "$last" >"$work/src.blk"
   cp "$work/src.blk" "$work/src-$count.blk"
   cut_block "$work/target.norm" "$first" "$last" >"$work/dst.blk"
+  cat "$work/dst.blk" >>"$work/in-blocks-$(printf '%s' "$target" | tr '/' '_')"
   if [ ! -s "$work/src.blk" ]; then
     echo "FAIL: the merge-base README has no block from \"$first\" to \"$last\""
     failed=1
@@ -203,12 +206,40 @@ for k in "${!names[@]}"; do
   echo
 done
 
+# Text a target holds outside the moved blocks is new text, not moved text,
+# so the diff above never shows it. List it for the reader: every unit of a
+# target that did not exist at the merge-base, and, in a target that did,
+# every unit under the headings the blocks went to.
+for target in $(printf '%s\n' "${targets[@]}" | awk '!seen[$0]++'); do
+  key=$(printf '%s' "$target" | tr '/' '_')
+  compared "$target" 2>/dev/null | normalize >"$work/target.norm" || continue
+  if git cat-file -e "$base:$target" 2>/dev/null; then
+    scope="under the headings the blocks went to"
+    headings_of=$(for k in "${!names[@]}"; do
+      if [ "${targets[k]}" = "$target" ]; then printf '%s\n' "${headings[k]}"; fi
+    done)
+  else
+    scope="the whole document, which is new"
+    headings_of=
+  fi
+  echo "=== units outside the moved blocks in $target ($scope):"
+  HEADINGS=$headings_of awk -F '\t' '
+    NR == FNR { inblock[$0] = 1; next }
+    FNR == 1 { n = split(ENVIRON["HEADINGS"], h, "\n"); for (i = 1; i <= n; i++) if (h[i] != "") want[h[i]] = 1 }
+    (ENVIRON["HEADINGS"] == "" || ($1 in want)) && !($0 in inblock) { print "  [" $1 "] " $2; found = 1 }
+    END { if (!found) print "  (none)" }
+  ' "$work/in-blocks-$key" "$work/target.norm" | sed -E 's/\]\([^)[:space:]]+\)/](<link>)/g'
+  echo
+done
+
 echo "=== completeness on the compared side"
 # Every unit of every source block must be gone from README.md, not only
 # its first and last sentence. Code fence lines and units shorter than 10
 # characters (such as a closing fence or a short table row) are skipped:
 # the README keeps such lines elsewhere.
-cut -f2- "$work/readme-now.norm" >"$work/readme-now.units"
+# Link targets are compared as placeholders, so a sentence left behind with
+# its link rewritten still fails.
+text <"$work/readme-now.norm" >"$work/readme-now.units"
 for k in "${!names[@]}"; do
   [ -f "$work/src-$((k + 1)).blk" ] || continue
   while IFS= read -r unit; do
@@ -218,7 +249,7 @@ for k in "${!names[@]}"; do
       echo "FAIL: ${names[k]}: README.md still holds \"$unit\""
       failed=1
     fi
-  done < <(cut -f2- "$work/src-$((k + 1)).blk")
+  done < <(text <"$work/src-$((k + 1)).blk")
 done
 echo "blocks compared: $count"
 
