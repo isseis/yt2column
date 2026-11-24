@@ -18,7 +18,10 @@ look for it here, and follow these four steps in order:
    Run every abstract operation the procedure names through that adapter.
 3. Read [`.claude/commands/japrose.md`](../../../.claude/commands/japrose.md) and carry
    it out as written, including its argument specification, its
-   authorization section, and its stop conditions.
+   authorization section, and its stop conditions. Antigravity does not
+   substitute `$ARGUMENTS` (or `$1`): wherever the definition uses one,
+   read it as the arguments the user gave when invoking this skill, and
+   as empty only when the user gave none.
 4. Obey the prohibitions in [`AGENTS.md`](../../../AGENTS.md) and
    [`CLAUDE.md`](../../../CLAUDE.md) ("Tool Execution Safety"): never install
    or build an installed developer tool, never run a mutating `herdr`

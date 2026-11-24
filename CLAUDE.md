@@ -209,8 +209,9 @@ change, retire, and withdraw an ADR is in the convention,
 ### Agent Commands (`.claude/commands/`)
 Project-specific values these commands depend on are defined once in
 [_context.md](.claude/commands/_context.md). The command definitions under
-`.claude/commands/` are the single source of each procedure and are written
-independently of the harness (Claude Code or Antigravity CLI): they name
+`.claude/commands/` are the single source of each procedure and, except `chief.md`
+(which stays on Claude Code), are written independently of the harness
+(Claude Code or Antigravity CLI): they name
 abstract operations, and the adapter that
 [_lib/harness.md](.claude/commands/_lib/harness.md) selects for the session
 (`_lib/harness-claude.md` or `_lib/harness-antigravity.md`) maps them to the
