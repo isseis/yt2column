@@ -224,9 +224,8 @@ fi
 
 # 3. Exit 1 detection: all 3 legacy formats, CRLF line endings, non-tip commits,
 #    subject-line match, final line without trailing LF, orphan branch, merged
-#    side-branch commit + merge commit message, hyphen-leading branch name, and
-#    caller replace ref ignored.
-CURRENT_CASE="exit1_three_formats_crlf_nontip_subject_orphan_merge_hyphen_replace"
+#    side-branch commit + merge commit message, and hyphen-leading branch name.
+CURRENT_CASE="exit1_three_formats_crlf_nontip_subject_orphan_merge_hyphen"
 next_case_dir
 setup_pair "$CASE_DIR"
 
@@ -291,10 +290,6 @@ git -C "$CLONE_DIR" merge -q --no-ff side -F "$CASE_DIR/merge.msg"
 merge_oid=$(git -C "$CLONE_DIR" rev-parse HEAD)
 git -C "$CLONE_DIR" push -q origin merge-branch
 
-# Add a replace ref in caller repo for f1_oid; confirms caller replace refs do
-# not hide legacy commits fetched from origin.
-clean_f1=$(git -C "$CLONE_DIR" commit-tree "$(git -C "$CLONE_DIR" rev-parse "$f1_oid^{tree}")" -p "$(git -C "$CLONE_DIR" rev-parse main)" -m "clean replacement")
-git -C "$CLONE_DIR" replace "$f1_oid" "$clean_f1"
 git -C "$CLONE_DIR" checkout -q main
 
 run_check "$CLONE_DIR"
@@ -555,9 +550,9 @@ if assert_exit 0 && assert_tmp_clean; then
 	[ "$ok" -eq 1 ] && pass_case
 fi
 
-# 8. GIT_DIR / GIT_WORK_TREE / CDPATH / GOOS / GOARCH / GIT_REPLACE_REF_BASE /
-#    GIT_GRAFT_FILE override resilience (simulating invocation from a hook or
-#    cross-compilation shell via a relative script path).
+# 8. GIT_DIR / GIT_WORK_TREE / CDPATH / GOOS / GOARCH override resilience
+#    (simulating invocation from a hook or cross-compilation shell via a
+#    relative script path).
 CURRENT_CASE="git_dir_and_env_override_resilience"
 next_case_dir
 setup_pair "$CASE_DIR"
@@ -578,7 +573,6 @@ RUN_CODE=0
 	cd "$SCRIPT_DIR/.." || exit 99
 	CDPATH=. GOOS=js GOARCH=wasm \
 		GIT_DIR="$CLONE_DIR/.git" GIT_WORK_TREE="$CLONE_DIR" \
-		GIT_REPLACE_REF_BASE="refs/fake-replace/" GIT_GRAFT_FILE="$CASE_DIR/nonexistent-grafts" \
 		TMPDIR="$case_tmp" "$TEST_BASH" "$script_dir_base/check_open_branches.sh"
 ) >"$run_dir/stdout.txt" 2>"$run_dir/stderr.txt" || RUN_CODE=$?
 RUN_OUT_FILE="$run_dir/stdout.txt"
@@ -663,6 +657,87 @@ else
 		[ "$ok" -eq 1 ] && pass_case
 	fi
 fi
+
+# 11. Replace-ref and graft-file isolation: both GIT_REPLACE_REF_BASE pointing
+#     at a real clean replacement commit fetched under refs/heads/<legacy_oid>
+#     and a real GIT_GRAFT_FILE making <legacy_oid> appear reachable from main
+#     must not hide the legacy commit (and must not emit deprecation warnings).
+CURRENT_CASE="replace_ref_and_graft_file_isolation"
+next_case_dir
+setup_pair "$CASE_DIR"
+main_oid=$(git -C "$CLONE_DIR" rev-parse main)
+git -C "$CLONE_DIR" checkout -q -b legacy-isolated main
+printf 'legacy\n\nCodex local review: hidden if replace or graft applies\n' >"$CASE_DIR/iso.msg"
+commit_raw_msg "$CLONE_DIR" "$CASE_DIR/iso.msg"
+legacy_oid=$(git -C "$CLONE_DIR" rev-parse HEAD)
+git -C "$CLONE_DIR" push -q origin legacy-isolated
+
+# Push a clean replacement commit to refs/heads/<legacy_oid> on origin so it is
+# fetched into the temporary bare repo and would mask legacy_oid if
+# GIT_REPLACE_REF_BASE="refs/heads/" were not isolated.
+clean_rep=$(git -C "$CLONE_DIR" commit-tree "$(git -C "$CLONE_DIR" rev-parse "$legacy_oid^{tree}")" -p "$main_oid" -m "clean replacement")
+git -C "$CLONE_DIR" push -q origin "$clean_rep:refs/heads/$legacy_oid"
+git -C "$CLONE_DIR" checkout -q main
+
+# Write a real graft file declaring legacy_oid as a parent of main_oid so
+# rev-list would treat legacy_oid as reachable from main if GIT_GRAFT_FILE were
+# not isolated.
+graft_file="$CASE_DIR/grafts"
+printf '%s %s\n' "$main_oid" "$legacy_oid" >"$graft_file"
+
+ok=1
+# Sub-check A: GIT_REPLACE_REF_BASE="refs/heads/"
+run_dir=$(mktemp -d "$WORK/run.XXXXXX")
+case_tmp="$run_dir/tmp"
+mkdir -p "$case_tmp"
+RUN_CODE=0
+(
+	cd "$CLONE_DIR" || exit 99
+	GIT_REPLACE_REF_BASE="refs/heads/" TMPDIR="$case_tmp" "$TEST_BASH" "$CHECK_SCRIPT"
+) >"$run_dir/stdout.txt" 2>"$run_dir/stderr.txt" || RUN_CODE=$?
+RUN_OUT_FILE="$run_dir/stdout.txt"
+RUN_ERR_FILE="$run_dir/stderr.txt"
+RUN_OUT=$(cat "$RUN_OUT_FILE")
+RUN_ERR=$(cat "$RUN_ERR_FILE")
+RUN_TMP_LEFTOVERS=$(ls -A "$case_tmp")
+if assert_exit 1 && assert_tmp_clean; then
+	assert_contains "$RUN_OUT_FILE" "matches: 1" "stdout(replace)" || ok=0
+	assert_contains "$RUN_OUT_FILE" "legacy-isolated ${legacy_oid:0:12} Codex local review: hidden if replace or graft applies" "stdout(replace)" || ok=0
+	if [ -s "$RUN_ERR_FILE" ]; then
+		fail_case "unexpected stderr on replace-ref check: $RUN_ERR"
+		ok=0
+	fi
+else
+	ok=0
+fi
+
+# Sub-check B: real GIT_GRAFT_FILE
+if [ "$ok" -eq 1 ]; then
+	run_dir=$(mktemp -d "$WORK/run.XXXXXX")
+	case_tmp="$run_dir/tmp"
+	mkdir -p "$case_tmp"
+	RUN_CODE=0
+	(
+		cd "$CLONE_DIR" || exit 99
+		GIT_GRAFT_FILE="$graft_file" TMPDIR="$case_tmp" "$TEST_BASH" "$CHECK_SCRIPT"
+	) >"$run_dir/stdout.txt" 2>"$run_dir/stderr.txt" || RUN_CODE=$?
+	RUN_OUT_FILE="$run_dir/stdout.txt"
+	RUN_ERR_FILE="$run_dir/stderr.txt"
+	RUN_OUT=$(cat "$RUN_OUT_FILE")
+	RUN_ERR=$(cat "$RUN_ERR_FILE")
+	RUN_TMP_LEFTOVERS=$(ls -A "$case_tmp")
+	if assert_exit 1 && assert_tmp_clean; then
+		assert_contains "$RUN_OUT_FILE" "matches: 1" "stdout(graft)" || ok=0
+		assert_contains "$RUN_OUT_FILE" "legacy-isolated ${legacy_oid:0:12} Codex local review: hidden if replace or graft applies" "stdout(graft)" || ok=0
+		if [ -s "$RUN_ERR_FILE" ]; then
+			fail_case "unexpected stderr on graft-file check: $RUN_ERR"
+			ok=0
+		fi
+	else
+		ok=0
+	fi
+fi
+[ "$ok" -eq 1 ] && pass_case
 
 printf 'test_check_open_branches (%s): %d passed, %d failed\n' "$TEST_BASH" "$PASS_COUNT" "$FAIL_COUNT"
 if [ "$FAIL_COUNT" -ne 0 ]; then
