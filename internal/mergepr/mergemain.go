@@ -264,6 +264,15 @@ func newMergemain(git, gh Runner, lookupEnv func(string) (string, bool)) *Mergem
 	return &Mergemain{git: gitReader{run: git}, gh: gh, lookupEnv: lookupEnv}
 }
 
+// NewMergemain returns the take-in tool for this process: git runs with the
+// GIT_* variables of the environment removed, so no GIT_DIR or GIT_CONFIG_*
+// set by the caller can point a check at another repository, gh runs through
+// the shared OS runner, and lookupEnv reads this process's environment
+// (os.LookupEnv in the command).
+func NewMergemain(lookupEnv func(string) (string, bool)) *Mergemain {
+	return newMergemain(newGitRunner(""), NewOSRunner(), lookupEnv)
+}
+
 // mergemainPR is the part of a PR the take-in tool reads.
 type mergemainPR struct {
 	headBranch string

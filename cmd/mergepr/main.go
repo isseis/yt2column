@@ -17,6 +17,13 @@
 // N:reverted, and --drop-rejected COMMIT:LINE, each any number of times; a
 // value of another form, or a line named twice, stops the tool before it
 // reads anything.
+//
+// The take-in subcommands mergemain-begin, mergemain-merge, mergemain-restore,
+// and mergemain-push print one field per line, key: value, starting with
+// status: ok or status: stop; a stop names its reason and whether the caller
+// must restore. They exit with status 0 for a finished run and 1 for a stop. A
+// value that could span lines is escaped, so it can never start a field line
+// of its own.
 package main
 
 import (
@@ -38,8 +45,17 @@ var errUsage = errors.New("usage: mergepr prepare --protocol N [PR] | " +
 	"mergepr paragraph --protocol N --state FILE [DROPS] | " +
 	"mergepr check-body --protocol N --state FILE --subject-file FILE --body-file FILE [DROPS] | " +
 	"mergepr merge --protocol N --state FILE --subject-file FILE --body-file FILE [DROPS] | " +
-	"mergepr cleanup --protocol N --state FILE [--body-file FILE] | mergepr discard --protocol N --state FILE; " +
+	"mergepr cleanup --protocol N --state FILE [--body-file FILE] | mergepr discard --protocol N --state FILE | " +
+	"mergepr mergemain-begin --protocol N PR | " +
+	"mergepr mergemain-merge --protocol N --head-branch BRANCH --base-head COMMIT --main COMMIT PR | " +
+	"mergepr mergemain-restore --protocol N --head-branch BRANCH --base-head COMMIT --main COMMIT PR | " +
+	"mergepr mergemain-push --protocol N --base-head COMMIT --main COMMIT PR; " +
 	"DROPS is any number of --drop N:disputed, --drop N:reverted, and --drop-rejected COMMIT:LINE")
+
+// errStopped reports a take-in subcommand's declared stop: its status block
+// already holds the reason and whether the caller must restore, so main exits
+// with status 1 without printing an error line of its own.
+var errStopped = errors.New("mergemain stopped")
 
 // protocolRemedy tells the operator how to bring the binary and the command
 // documents to the same --protocol: the tool cannot know which side is older.
@@ -48,7 +64,9 @@ const protocolRemedy = "if this mergepr is older than the command documents, rei
 
 func main() {
 	if err := run(os.Args[1:], numreserve.New(os.Environ())); err != nil {
-		printError(os.Stderr, err)
+		if !errors.Is(err, errStopped) {
+			printError(os.Stderr, err)
+		}
 		os.Exit(1)
 	}
 }
@@ -111,6 +129,9 @@ type invocation struct {
 	statePath   string
 	subjectPath string
 	bodyPath    string
+	headBranch  string
+	baseHead    string
+	main        string
 	drops       mergepr.Drops
 }
 
@@ -160,6 +181,9 @@ func parse(args []string) (invocation, error) {
 	flags.StringVar(&inv.statePath, "state", "", "state file written by prepare")
 	flags.StringVar(&inv.subjectPath, "subject-file", "", "file holding the squash subject")
 	flags.StringVar(&inv.bodyPath, "body-file", "", "file holding the squash body")
+	flags.StringVar(&inv.headBranch, "head-branch", "", "the PR's head branch, from mergemain-begin")
+	flags.StringVar(&inv.baseHead, "base-head", "", "the PR head take-in started from, from mergemain-begin")
+	flags.StringVar(&inv.main, "main", "", "the main being taken in, from mergemain-begin")
 	flags.Var(dropFlag{&inv.drops}, "drop", "N:disputed or N:reverted, an accepted correction line to drop")
 	flags.Var(dropRejectedFlag{&inv.drops}, "drop-rejected", "COMMIT:LINE, a rejected correction line to drop")
 	if err := flags.Parse(args[1:]); err != nil {
@@ -200,31 +224,49 @@ func (p presence) fits(given bool) bool {
 	}
 }
 
-// shape is what a subcommand takes: at most maxArgs positional arguments,
-// and each flag by its presence.
+// shape is what a subcommand takes: how many positional arguments, and each
+// flag by its presence.
 type shape struct {
+	minArgs                     int
 	maxArgs                     int
 	state, subject, body, drops presence
+	headBranch, baseHead, main  presence
 }
 
 // shapes are the subcommands and what each takes.
 var shapes = map[string]shape{
-	"prepare":    {maxArgs: 1},
-	"paragraph":  {state: required, drops: allowed},
-	"check-body": {state: required, subject: required, body: required, drops: allowed},
-	"merge":      {state: required, subject: required, body: required, drops: allowed},
-	"cleanup":    {state: required, body: allowed},
-	"discard":    {state: required},
+	"prepare":           {maxArgs: 1},
+	"paragraph":         {state: required, drops: allowed},
+	"check-body":        {state: required, subject: required, body: required, drops: allowed},
+	"merge":             {state: required, subject: required, body: required, drops: allowed},
+	"cleanup":           {state: required, body: allowed},
+	"discard":           {state: required},
+	"mergemain-begin":   {minArgs: 1, maxArgs: 1},
+	"mergemain-merge":   {minArgs: 1, maxArgs: 1, headBranch: required, baseHead: required, main: required},
+	"mergemain-restore": {minArgs: 1, maxArgs: 1, headBranch: required, baseHead: required, main: required},
+	"mergemain-push":    {minArgs: 1, maxArgs: 1, baseHead: required, main: required},
 }
 
 // shapeFits reports whether the subcommand takes the positional arguments
-// (nargs of them), the files, and the drops the command line gives; an
-// unknown subcommand fits nothing.
+// (nargs of them), the files, the commits, and the drops the command line
+// gives; an unknown subcommand fits nothing.
 func shapeFits(inv invocation, nargs int, hasDrops bool) bool {
 	s, ok := shapes[inv.subcommand]
-	return ok && nargs <= s.maxArgs &&
+	return ok && nargs >= s.minArgs && nargs <= s.maxArgs &&
 		s.state.fits(inv.statePath != "") && s.subject.fits(inv.subjectPath != "") &&
-		s.body.fits(inv.bodyPath != "") && s.drops.fits(hasDrops)
+		s.body.fits(inv.bodyPath != "") && s.drops.fits(hasDrops) &&
+		s.headBranch.fits(inv.headBranch != "") && s.baseHead.fits(inv.baseHead != "") &&
+		s.main.fits(inv.main != "")
+}
+
+// takeIn is the part of the take-in tool the command drives. *mergepr.Mergemain
+// is the production implementation; the tests substitute a fake, so no test
+// reaches git or gh.
+type takeIn interface {
+	MergemainBegin(ctx context.Context, pr mergepr.MergemainPR) (mergepr.MergemainBeginResult, error)
+	MergemainMerge(ctx context.Context, pr mergepr.MergemainPR, headBranch, baseHead, main string) (mergepr.MergemainMergeResult, error)
+	MergemainRestore(ctx context.Context, pr mergepr.MergemainPR, headBranch, baseHead, main string) (mergepr.MergemainRestoreResult, error)
+	MergemainPush(ctx context.Context, pr mergepr.MergemainPR, baseHead, main string) (mergepr.MergemainPushResult, error)
 }
 
 // run parses args and runs them, checking the numbers a PR adds with
@@ -234,11 +276,11 @@ func run(args []string, numbers mergepr.NumberChecker) error {
 	if err != nil {
 		return err
 	}
-	return execute(context.Background(), os.Stdout, mergepr.New(mergepr.NewOSRunner(), numbers), inv)
+	return execute(context.Background(), os.Stdout, mergepr.New(mergepr.NewOSRunner(), numbers), mergepr.NewMergemain(os.LookupEnv), inv)
 }
 
 // execute runs a parsed invocation, writing its output to w.
-func execute(ctx context.Context, w io.Writer, tool *mergepr.Tool, inv invocation) error {
+func execute(ctx context.Context, w io.Writer, tool *mergepr.Tool, take takeIn, inv invocation) error {
 	switch inv.subcommand {
 	case "prepare":
 		prepared, err := tool.Prepare(ctx, inv.pr)
@@ -276,8 +318,169 @@ func execute(ctx context.Context, w io.Writer, tool *mergepr.Tool, inv invocatio
 		_, _ = fmt.Fprintln(w, "discarded the prepared work directory")
 		return nil
 	default:
+		return executeTakeIn(ctx, w, take, inv)
+	}
+}
+
+// executeTakeIn runs one take-in subcommand and writes its status block.
+func executeTakeIn(ctx context.Context, w io.Writer, take takeIn, inv invocation) error {
+	switch inv.subcommand {
+	case "mergemain-begin":
+		pr, err := takeInPR(w, inv.pr)
+		if err != nil {
+			return err
+		}
+		result, err := take.MergemainBegin(ctx, pr)
+		if err != nil {
+			return printMergemainStop(w, err)
+		}
+		printMergemainBegin(w, result)
+		return nil
+	case "mergemain-merge":
+		pr, err := takeInPR(w, inv.pr)
+		if err != nil {
+			return err
+		}
+		result, err := take.MergemainMerge(ctx, pr, inv.headBranch, inv.baseHead, inv.main)
+		if err != nil {
+			return printMergemainStop(w, err)
+		}
+		printMergemainMerge(w, result)
+		return nil
+	case "mergemain-restore":
+		pr, err := takeInPR(w, inv.pr)
+		if err != nil {
+			return err
+		}
+		result, err := take.MergemainRestore(ctx, pr, inv.headBranch, inv.baseHead, inv.main)
+		if err != nil {
+			return printMergemainStop(w, err)
+		}
+		printMergemainRestore(w, result)
+		return nil
+	case "mergemain-push":
+		pr, err := takeInPR(w, inv.pr)
+		if err != nil {
+			return err
+		}
+		result, err := take.MergemainPush(ctx, pr, inv.baseHead, inv.main)
+		if err != nil {
+			return printMergemainStop(w, err)
+		}
+		printMergemainPush(w, result)
+		return nil
+	default:
 		return errUsage
 	}
+}
+
+// takeInPR parses the PR number of a take-in subcommand. A number of another
+// form is a stop the tool declares, so it is printed like every other stop.
+func takeInPR(w io.Writer, arg string) (mergepr.MergemainPR, error) {
+	pr, err := mergepr.ParseMergemainPR(arg)
+	if err != nil {
+		return mergepr.MergemainPR{}, printMergemainStop(w, err)
+	}
+	return pr, nil
+}
+
+// fieldLine writes one field of a take-in subcommand's output: the key, a
+// colon and a space, and the value with every byte that could break the line
+// protocol escaped. The escape is what keeps a value that holds a newline from
+// writing a field line of its own.
+func fieldLine(w io.Writer, key, value string) {
+	_, _ = fmt.Fprintf(w, "%s: %s\n", key, escapedField(value))
+}
+
+// escapedField returns s with each backslash and each control byte replaced by
+// a backslash escape (\\, \n, \r, \t, or \xNN for any other), and every other
+// byte kept as it is. The backslash goes first, so a value that holds the two
+// bytes \ and n is shown differently from one that holds a newline.
+func escapedField(s string) string {
+	var b strings.Builder
+	for i := range len(s) {
+		switch c := s[i]; c {
+		case '\\':
+			b.WriteString(`\\`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			if c < 0x20 || c == 0x7f {
+				_, _ = fmt.Fprintf(&b, `\x%02x`, c)
+				continue
+			}
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+// printMergemainStop writes a take-in stop's block and returns the error that
+// makes the tool exit with status 1. A stop of no declared kind is reported as
+// one, with the zero values of the reason and of the restore need, so the
+// caller never guesses a restore from a detail line.
+func printMergemainStop(w io.Writer, err error) error {
+	fieldLine(w, "status", "stop")
+	if stopped, ok := errors.AsType[*mergepr.MergemainStopError](err); ok {
+		fieldLine(w, "reason", stopped.Stop.String())
+		fieldLine(w, "restore", stopped.Restore.String())
+		printConflicts(w, stopped.Conflicts)
+		fieldLine(w, "detail", stopped.Detail)
+	} else {
+		fieldLine(w, "reason", mergepr.MergemainStopUnknown.String())
+		fieldLine(w, "restore", mergepr.RestoreUnknown.String())
+		fieldLine(w, "detail", err.Error())
+	}
+	return errStopped
+}
+
+// printConflicts writes one conflict line per conflicted path, with its class.
+func printConflicts(w io.Writer, conflicts []mergepr.PathConflict) {
+	for _, c := range conflicts {
+		fieldLine(w, "conflict", c.Class.String()+" "+c.Path)
+	}
+}
+
+// printMergemainBegin writes what mergemain-begin passes on: the three values
+// the later subcommands take, and the report needs.
+func printMergemainBegin(w io.Writer, result mergepr.MergemainBeginResult) {
+	fieldLine(w, "status", "ok")
+	fieldLine(w, "base_head", result.BaseHead)
+	fieldLine(w, "head_branch", result.HeadBranch)
+	fieldLine(w, "main_head", result.Main)
+}
+
+// printMergemainMerge writes a merge that left only resolvable conflicts: the
+// conflicts and the facts the README, ADR, protocol-number, and ext-check
+// rules need.
+func printMergemainMerge(w io.Writer, result mergepr.MergemainMergeResult) {
+	fieldLine(w, "status", "ok")
+	printConflicts(w, result.Conflicts)
+	for _, bump := range result.Protocol {
+		fieldLine(w, "protocol_tool", bump.Tool+" "+strconv.Itoa(bump.Value))
+	}
+	fieldLine(w, "readme_changed", strconv.FormatBool(result.ReadmeChanged))
+	fieldLine(w, "adr_main_changed", strconv.FormatBool(result.ADRMainChanged))
+	for _, number := range result.ADRConflictNumbers {
+		fieldLine(w, "adr_conflict_number", number)
+	}
+	fieldLine(w, "ext_check_hint", strconv.FormatBool(result.ExtCheckHint))
+}
+
+// printMergemainRestore writes the head the reset left, which is the base head.
+func printMergemainRestore(w io.Writer, result mergepr.MergemainRestoreResult) {
+	fieldLine(w, "status", "ok")
+	fieldLine(w, "base_head", result.Head)
+}
+
+// printMergemainPush writes the pushed merge commit, the PR's new head.
+func printMergemainPush(w io.Writer, result mergepr.MergemainPushResult) {
+	fieldLine(w, "status", "ok")
+	fieldLine(w, "new_head", result.NewHead)
 }
 
 // printPrepared writes what prepare found: the PR, the checks that passed,

@@ -139,10 +139,10 @@
 
 **対象ファイル:** `cmd/mergepr/main.go`, `cmd/mergepr/main_test.go`, `cmd/mergepr/docs_test.go`, `internal/mergepr/mergepr.go`, `.claude/commands/mergepr.md`, `.claude/commands/runpr.md`, `docs/dev/guides/mergepr_guide.md`, `docs/dev/conventions/package_reference.md`
 
-- [ ] `cmd/mergepr/main.go` の `shapes` とディスパッチに `mergemain-begin`・`mergemain-merge`・`mergemain-restore`・`mergemain-push` を追加し、§1 で確定した `key: value` 形式の出力（`conflict` のパスや `detail` 等の可変値に含まれる改行・制御文字の 1 行エスケープを含む）と終了コードを実装する。`cmd/mergepr/main_test.go` にフラグ検証・出力形式テスト（改行・制御文字を含むパスや詳細でも `status:`・`reason:`・`restore:` 等の行が偽装されないことの確認を含む）を追加する。
-- [ ] `internal/mergepr/mergepr.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/mergepr.md`・`.claude/commands/runpr.md`・`docs/dev/guides/mergepr_guide.md` の `--protocol` を合わせる。
-- [ ] `docs/dev/guides/mergepr_guide.md` に取り込みの道具 4 サブコマンドの使い方・出力形式・保証事項を追記し、`docs/dev/conventions/package_reference.md` の `internal/mergepr`・`cmd/mergepr` 行を更新する。
-- [ ] `cmd/mergepr/docs_test.go` の `placeholderValues` を新フラグのプレースホルダに対応させ、`TestDocumentedProtocolMatches`・`TestDocumentedInvocationsParse`・`TestProtocolToolsAgree` を通す。
+- [x] `cmd/mergepr/main.go` の `shapes` とディスパッチに `mergemain-begin`・`mergemain-merge`・`mergemain-restore`・`mergemain-push` を追加し、§1 で確定した `key: value` 形式の出力（`conflict` のパスや `detail` 等の可変値に含まれる改行・制御文字の 1 行エスケープを含む）と終了コードを実装する。`cmd/mergepr/main_test.go` にフラグ検証・出力形式テスト（改行・制御文字を含むパスや詳細でも `status:`・`reason:`・`restore:` 等の行が偽装されないことの確認を含む）を追加する。
+- [x] `internal/mergepr/mergepr.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/mergepr.md`・`.claude/commands/runpr.md`・`docs/dev/guides/mergepr_guide.md` の `--protocol` を合わせる。
+- [x] `docs/dev/guides/mergepr_guide.md` に取り込みの道具 4 サブコマンドの使い方・出力形式・保証事項を追記し、`docs/dev/conventions/package_reference.md` の `internal/mergepr`・`cmd/mergepr` 行を更新する。
+- [x] `cmd/mergepr/docs_test.go` の `placeholderValues` を新フラグのプレースホルダに対応させ、`TestDocumentedProtocolMatches`・`TestDocumentedInvocationsParse`・`TestProtocolToolsAgree` を通す。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスし、`cmd/mergepr/docs_test.go` の全ガードが通ること。
 
