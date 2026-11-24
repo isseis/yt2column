@@ -118,7 +118,7 @@ TMP_REPO="$TMP_WORK/origin.git"
 git_caller() {
 	(
 		export GIT_TERMINAL_PROMPT=0 GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null
-		exec command git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c advice.graftFileDeprecated=false "$@"
+		exec git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c advice.graftFileDeprecated=false "$@"
 	)
 }
 
@@ -129,7 +129,7 @@ git_tmp_fetch() {
 	(
 		unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_INDEX_FILE GIT_NAMESPACE
 		export GIT_TERMINAL_PROMPT=0 GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null
-		exec command git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c advice.graftFileDeprecated=false "$@"
+		exec git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c advice.graftFileDeprecated=false "$@"
 	)
 }
 
@@ -144,7 +144,7 @@ git_tmp_inspect() {
 		export LC_ALL=C
 		export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ATTR_NOSYSTEM=1
 		export GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null
-		exec command git \
+		exec git \
 			-c core.attributesFile=/dev/null \
 			-c core.hooksPath=/dev/null \
 			-c core.fsmonitor=false \

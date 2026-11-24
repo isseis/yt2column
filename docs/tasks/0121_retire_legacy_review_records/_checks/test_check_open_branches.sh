@@ -31,8 +31,10 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 
-# Isolate git identity/config for local fixture repositories while keeping
-# GOCACHE so escape_untrusted.go builds quickly across subtests.
+# Strip any caller repository-pointing GIT_* variables so fixture git commands
+# never touch the caller's repository or index, while keeping GOCACHE so
+# escape_untrusted.go builds quickly across subtests.
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_INDEX_FILE GIT_NAMESPACE
 export GIT_AUTHOR_NAME="Test Author"
 export GIT_AUTHOR_EMAIL="test@example.com"
 export GIT_COMMITTER_NAME="Test Committer"
@@ -566,8 +568,6 @@ printf 'env test\n' >"$CASE_DIR/env.msg"
 commit_raw_msg "$CLONE_DIR" "$CASE_DIR/env.msg"
 git -C "$CLONE_DIR" push -q origin env-branch
 git -C "$CLONE_DIR" checkout -q main
-outside="$CASE_DIR/outside"
-mkdir -p "$outside"
 refs_before=$(git -C "$CLONE_DIR" for-each-ref)
 run_dir=$(mktemp -d "$WORK/run.XXXXXX")
 case_tmp="$run_dir/tmp"
@@ -646,8 +646,8 @@ git -C "$CLONE_DIR" add second.txt
 git -C "$CLONE_DIR" commit -q -m "add second blob"
 git -C "$CLONE_DIR" push -q origin main
 
-if ! git -C "$partial_ext" rev-list --all --objects --missing=print | grep -q '^?' ||
-	! git -C "$partial_prom" rev-list --all --objects --missing=print | grep -q '^?'; then
+if ! git -C "$partial_ext" rev-list --all --objects --missing=print | grep '^?' >/dev/null ||
+	! git -C "$partial_prom" rev-list --all --objects --missing=print | grep '^?' >/dev/null; then
 	fail_case "fixture setup error: partial clones unexpectedly have no missing objects"
 else
 	run_check "$partial_ext"
