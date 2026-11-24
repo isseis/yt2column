@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
 	"github.com/isseis/yt2column/internal/strictjson"
@@ -266,11 +268,13 @@ func newMergemain(git, gh Runner, lookupEnv func(string) (string, bool)) *Mergem
 
 // NewMergemain returns the take-in tool for this process: git runs with the
 // GIT_* variables of the environment removed, so no GIT_DIR or GIT_CONFIG_*
-// set by the caller can point a check at another repository, gh runs through
-// the shared OS runner, and lookupEnv reads this process's environment
-// (os.LookupEnv in the command).
+// set by the caller can point a check at another repository; gh runs with the
+// same environment, because it picks the PR's repository from the git remotes
+// it finds through GIT_DIR, and the checks that only origin can be read run
+// in the work tree's repository; and lookupEnv reads this process's
+// environment (os.LookupEnv in the command).
 func NewMergemain(lookupEnv func(string) (string, bool)) *Mergemain {
-	return newMergemain(newGitRunner(""), NewOSRunner(), lookupEnv)
+	return newMergemain(newGitRunner(""), newGitRunner(""), lookupEnv)
 }
 
 // mergemainPR is the part of a PR the take-in tool reads.
@@ -389,14 +393,23 @@ var errBranchName = errors.New("the head branch is not a branch the take-in tool
 // (a control character, a space, ~ ^ : ? * [ \), and holds no "=": git ends a
 // config key at its first "=", so for a branch named a=b the key the merge
 // clears the branch's mergeOptions with would name branch.a instead, leaving
-// branch.a=b.mergeOptions in force. The full ref grammar is checked again by
-// git when the name is used.
+// branch.a=b.mergeOptions in force. It also accepts only valid UTF-8 without
+// a C1 control, a format character, or a line or paragraph separator: the
+// command prints the name escaped where it holds one of those, and the caller
+// passes the printed value back, so such a name could never round-trip. The
+// full ref grammar is checked again by git when the name is used.
 func checkBranchName(branch string) error {
-	if branch == "" || branch == mainBranch || strings.EqualFold(branch, "HEAD") || strings.HasPrefix(branch, "-") {
+	if branch == "" || branch == mainBranch || strings.EqualFold(branch, "HEAD") || strings.HasPrefix(branch, "-") ||
+		!utf8.ValidString(branch) {
 		return fmt.Errorf("%w: %q", errBranchName, branch)
 	}
 	for i := range len(branch) {
 		if c := branch[i]; c < 0x21 || c == 0x7f || strings.IndexByte("~^:?*[\\=", c) >= 0 {
+			return fmt.Errorf("%w: %q", errBranchName, branch)
+		}
+	}
+	for _, r := range branch {
+		if unicode.In(r, unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp) {
 			return fmt.Errorf("%w: %q", errBranchName, branch)
 		}
 	}
