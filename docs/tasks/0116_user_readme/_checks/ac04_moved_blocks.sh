@@ -28,6 +28,8 @@
 # or is still in the README. It exits 0 on success, 1 on a failed check, and
 # 2 on a usage or git error.
 set -euo pipefail
+# Count characters, not bytes, whatever the caller's locale.
+export LC_ALL=en_US.UTF-8
 
 worktree=false
 if [ "${1-}" = --worktree ]; then
@@ -58,7 +60,10 @@ compared README.md >"$work/readme-now.md"
 # The moved blocks: name, target document, expected heading in the target
 # (without its "#" marks), first sentence, last sentence. A sentence is
 # matched as a substring of one normalized unit, so it may be a fragment
-# that only that unit holds.
+# that only that unit holds; a block is cut from the first unit holding its
+# first sentence, so each marker must be one no earlier unit of either side
+# holds. Only the block's first unit is checked against the expected
+# heading; a heading inside a block leaves no diff.
 names=() targets=() headings=() firsts=() lasts=()
 block() {
   names+=("$1") targets+=("$2") headings+=("$3") firsts+=("$4") lasts+=("$5")
@@ -203,7 +208,7 @@ echo "=== completeness on the compared side"
 # its first and last sentence. Code fence lines and units shorter than 10
 # characters (such as a closing fence or a short table row) are skipped:
 # the README keeps such lines elsewhere.
-cut -f2- "$work/readme-now.norm" | sort -u >"$work/readme-now.units"
+cut -f2- "$work/readme-now.norm" >"$work/readme-now.units"
 for k in "${!names[@]}"; do
   [ -f "$work/src-$((k + 1)).blk" ] || continue
   while IFS= read -r unit; do

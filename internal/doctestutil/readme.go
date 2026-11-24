@@ -24,8 +24,8 @@ type ReadmeVersion struct {
 
 // ReadmeVersions returns README.md (LangJA), the primary version, and
 // README.en.md (LangEN), its English version, in that order. The README
-// structure, sync, and link tests read both versions, naming the version's
-// path in a failure.
+// structure and link tests read both versions through it, naming the
+// version's path in a failure.
 func ReadmeVersions() []ReadmeVersion {
 	return []ReadmeVersion{
 		{Path: "README.md", Lang: LangJA},
