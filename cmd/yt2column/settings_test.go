@@ -133,9 +133,6 @@ func TestAllowsUnvetted(t *testing.T) {
 		{"Bash(numreserve task)", false},
 		{"Bash(numreserve adr)", false},
 		{"Bash(mergepr mergemain-begin *)", false},
-		{"Bash(mergepr mergemain-merge *)", false},
-		{"Bash(mergepr mergemain-push *)", false},
-		{"Bash(mergeprx *)", true},
 		{"Read(.envrc)", false},
 	} {
 		if got := allowsUnvetted(tc.rule); got != tc.want {

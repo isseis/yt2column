@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"maps"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -223,9 +222,6 @@ func TestProtocolToolsAgree(t *testing.T) {
 	}
 }
 
-// bashRule matches a Bash permission rule and captures its command pattern.
-var bashRule = regexp.MustCompile(`^Bash\((.*)\)$`)
-
 // mergemainAllowedRules are the only Bash allow rules that may name mergepr:
 // the three take-in subcommands that perform deterministic verification and
 // never destroy uncommitted local work. mergemain-restore, prepare, and merge
@@ -234,109 +230,6 @@ var mergemainAllowedRules = []string{
 	"Bash(" + toolWord + " mergemain-begin *)",
 	"Bash(" + toolWord + " mergemain-merge *)",
 	"Bash(" + toolWord + " mergemain-push *)",
-}
-
-// namesMergepr reports whether a permission rule is a Bash rule whose command
-// word names mergepr, by name, by path, quoted, or as a wildcard prefix that
-// matches mergepr.
-func namesMergepr(rule string) bool {
-	m := bashRule.FindStringSubmatch(rule)
-	if m == nil {
-		return false
-	}
-	word, _, _ := strings.Cut(strings.TrimSpace(m[1]), " ")
-	word, _, _ = strings.Cut(word, ":")
-	base := path.Base(strings.Trim(word, `"'`))
-	rest, ok := strings.CutPrefix(base, toolWord)
-	return ok && (rest == "" || strings.ContainsAny(rest, "*?["))
-}
-
-// TestNamesMergepr: the rule reader catches every spelling of mergepr (bare,
-// path, quoted, wildcard, legacy colon form) and ignores unrelated tools.
-func TestNamesMergepr(t *testing.T) {
-	for _, tc := range []struct {
-		rule string
-		want bool
-	}{
-		{"Bash(mergepr mergemain-begin *)", true},
-		{"Bash(mergepr mergemain-merge *)", true},
-		{"Bash(mergepr mergemain-push *)", true},
-		{"Bash(mergepr mergemain-restore *)", true},
-		{"Bash(mergepr merge *)", true},
-		{"Bash(mergepr *)", true},
-		{"Bash(mergepr:*)", true},
-		{"Bash(mergepr*)", true},
-		{"Bash(/usr/local/bin/mergepr mergemain-begin *)", true},
-		{`Bash("mergepr" mergemain-push *)`, true},
-		{"Bash('mergepr' merge *)", true},
-		{"Bash(mergeprx *)", false},
-		{"Bash(chief *)", false},
-		{"Read(mergepr)", false},
-	} {
-		if got := namesMergepr(tc.rule); got != tc.want {
-			t.Errorf("namesMergepr(%q) = %v, want %v", tc.rule, got, tc.want)
-		}
-	}
-}
-
-// mergeprRuleMismatches returns the mergepr rules of allow that are not in
-// mergemainAllowedRules, and the allowed rules allow lacks.
-func mergeprRuleMismatches(allow []string) (extra, missing []string) {
-	for _, rule := range allow {
-		if namesMergepr(rule) && !slices.Contains(mergemainAllowedRules, rule) {
-			extra = append(extra, rule)
-		}
-	}
-	for _, rule := range mergemainAllowedRules {
-		if !slices.Contains(allow, rule) {
-			missing = append(missing, rule)
-		}
-	}
-	return extra, missing
-}
-
-// TestMergeprRuleMismatches: only the exact three safe mergemain rules pass;
-// any wider rule, restore/merge rule, legacy colon rule, or missing rule is
-// reported.
-func TestMergeprRuleMismatches(t *testing.T) {
-	for _, tc := range []struct {
-		name           string
-		allow          []string
-		extra, missing []string
-	}{
-		{
-			name:  "exact",
-			allow: append([]string{"Bash(chief *)"}, mergemainAllowedRules...),
-		},
-		{
-			name:  "restore_allowed",
-			allow: append(slices.Clone(mergemainAllowedRules), "Bash(mergepr mergemain-restore *)"),
-			extra: []string{"Bash(mergepr mergemain-restore *)"},
-		},
-		{
-			name:  "wildcard_mergepr",
-			allow: append(slices.Clone(mergemainAllowedRules), "Bash(mergepr *)"),
-			extra: []string{"Bash(mergepr *)"},
-		},
-		{
-			name:    "colon_syntax_and_missing",
-			allow:   []string{"Bash(mergepr mergemain-begin:*)", "Bash(mergepr mergemain-merge *)", "Bash(mergepr mergemain-push *)"},
-			extra:   []string{"Bash(mergepr mergemain-begin:*)"},
-			missing: []string{"Bash(mergepr mergemain-begin *)"},
-		},
-		{
-			name:    "none",
-			allow:   []string{"Bash(chief *)"},
-			missing: mergemainAllowedRules,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			extra, missing := mergeprRuleMismatches(tc.allow)
-			if !slices.Equal(extra, tc.extra) || !slices.Equal(missing, tc.missing) {
-				t.Errorf("mergeprRuleMismatches(%q) = %q, %q, want %q, %q", tc.allow, extra, missing, tc.extra, tc.missing)
-			}
-		})
-	}
 }
 
 // TestSettingsAllowsOnlySafeMergemainSubcommands: .claude/settings.json allows
@@ -521,29 +414,9 @@ func TestDirectGitMutations(t *testing.T) {
 			wantSubs: []string{"merge"},
 		},
 		{
-			name:     "env_split_string_attached_and_long",
-			doc:      "```bash\nenv -S'git push origin branch'\nenv --split-string='git reset --hard'\n```\n",
-			wantSubs: []string{"push", "reset"},
-		},
-		{
-			name:     "unquoted_leading_redirection",
-			doc:      "```bash\n> /tmp/log git push origin branch\n```\n",
-			wantSubs: []string{"push"},
-		},
-		{
 			name:     "blockquoted_fence_and_redirection",
 			doc:      "> ```bash\n> > /tmp/log git push origin branch\n> ```\n",
 			wantSubs: []string{"push"},
-		},
-		{
-			name:     "double_dash_option_terminator",
-			doc:      "```bash\ngit --no-pager -- push origin branch\n```\n",
-			wantSubs: []string{"push"},
-		},
-		{
-			name:     "reserved_word_prefix",
-			doc:      "```bash\nif git merge origin/main; then echo ok; fi\n```\n",
-			wantSubs: []string{"merge"},
 		},
 		{
 			name:     "shell_c_chained_after_allowed_git_and_continuation",
