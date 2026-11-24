@@ -78,8 +78,8 @@
   - `docs/tasks/0121_retire_legacy_review_records/_checks/check_open_branches.sh`（新規）
   - `docs/tasks/0121_retire_legacy_review_records/_checks/escape_untrusted.go`（新規）
 - **作業内容:**
-  - [ ] 設計書 §3.1・§4.2・§5.2・§6.1 に従い、`_checks/check_open_branches.sh` を作成する。引数なし検証、一時 bare リポジトリ作成と `EXIT` トラップでの後始末、非 shallow・非 partial clone 時のみの `alternates` 登録、および相対 `origin` URL のメイン作業ツリー基準での絶対パス解決を実装する。あわせて、`ls-remote --heads` とのブランチ集合一致と `refs/heads/main`・各ブランチの `commit` 種別確認、隔離環境での 40 桁コミット ID 指定による `main` 未到達コミット全体の 3 形式照合、CRLF 行末の `\r` 除去、バッファリング出力と終了コード `0`/`1`/`2` の契約を満たす。コメント・識別子・診断メッセージは英語で書く（`CLAUDE.md`「Language」）。この時点ではコミットを確定しない（ステップ 1-3 の通過後に確定する）。
-  - [ ] `_checks/escape_untrusted.go` を Go 標準ライブラリのみで作成し、設計書 §3.1「信頼しない文字列の出力時エスケープ」の規則（`\t` を含む `unicode.Cc`・`Cf`・`Zl`・`Zp`・非文字・不正 UTF-8 バイト列の `\xHH` 化、および `\` の `\\` 化；通常の印字可能文字と有効な `U+FFFD` はそのまま通す）を英語コメント・識別子で実装する。`check_open_branches.sh` からは、スクリプト自身のディレクトリ基準で `escape_untrusted.go` のパスを解決し、`GO111MODULE=off GOTOOLCHAIN=local GOENV=off GOFLAGS= GOPROXY=off GOWORK=off`（`Makefile:144` 準拠）で一時ディレクトリへ 1 回 `go build` したバイナリを呼び出す。ビルド失敗時は未ビルドのバイナリを呼ばず、標準出力を空・終了コード `2`・安全な固定診断（標準エラー）でフェイルクローズする。
+  - [x] 設計書 §3.1・§4.2・§5.2・§6.1 に従い、`_checks/check_open_branches.sh` を作成する。引数なし検証、一時 bare リポジトリ作成と `EXIT` トラップでの後始末、非 shallow・非 partial clone 時のみの `alternates` 登録、および相対 `origin` URL のメイン作業ツリー基準での絶対パス解決を実装する。あわせて、`ls-remote --heads` とのブランチ集合一致と `refs/heads/main`・各ブランチの `commit` 種別確認、隔離環境での 40 桁コミット ID 指定による `main` 未到達コミット全体の 3 形式照合、CRLF 行末の `\r` 除去、バッファリング出力と終了コード `0`/`1`/`2` の契約を満たす。コメント・識別子・診断メッセージは英語で書く（`CLAUDE.md`「Language」）。この時点ではコミットを確定しない（ステップ 1-3 の通過後に確定する）。
+  - [x] `_checks/escape_untrusted.go` を Go 標準ライブラリのみで作成し、設計書 §3.1「信頼しない文字列の出力時エスケープ」の規則（`\t` を含む `unicode.Cc`・`Cf`・`Zl`・`Zp`・非文字・不正 UTF-8 バイト列の `\xHH` 化、および `\` の `\\` 化；通常の印字可能文字と有効な `U+FFFD` はそのまま通す）を英語コメント・識別子で実装する。`check_open_branches.sh` からは、スクリプト自身のディレクトリ基準で `escape_untrusted.go` のパスを解決し、`GO111MODULE=off GOTOOLCHAIN=local GOENV=off GOFLAGS= GOPROXY=off GOWORK=off`（`Makefile:144` 準拠）で一時ディレクトリへ 1 回 `go build` したバイナリを呼び出す。ビルド失敗時は未ビルドのバイナリを呼ばず、標準出力を空・終了コード `2`・安全な固定診断（標準エラー）でフェイルクローズする。
 - **完了条件:**
   - `/bin/bash -n`（bash 3.2）および `bash -n` で `check_open_branches.sh` に構文エラーがなく、上記隔離環境変数付きでの `escape_untrusted.go` の `go vet`・単一ファイル `go build`・`gofumpt` がすべて通ること。
 
@@ -88,11 +88,11 @@
 - **変更対象ファイル:**
   - `docs/tasks/0121_retire_legacy_review_records/_checks/test_check_open_branches.sh`（新規）
 - **作業内容:**
-  - [ ] ネットワークなしのローカル一時リポジトリで `check_open_branches.sh` を自動検証する `_checks/test_check_open_branches.sh` を英語コメント・識別子で作成する。テスト自身が一時作業領域を `mktemp -d`＋`EXIT` トラップで確実に後始末し、検証対象の起動には実行中と同一のシェル `"$BASH"`（`GOCACHE` は維持）を用いる。以下を網羅する。
+  - [x] ネットワークなしのローカル一時リポジトリで `check_open_branches.sh` を自動検証する `_checks/test_check_open_branches.sh` を英語コメント・識別子で作成する。テスト自身が一時作業領域を `mktemp -d`＋`EXIT` トラップで確実に後始末し、検証対象の起動には実行中と同一のシェル `"$BASH"`（`GOCACHE` は維持）を用いる。以下を網羅する。
     - 設計書 §7.3 の全 7 シナリオ: 3 形式・CRLF・孤立ブランチの終了コード `1` 検出、`main` のみ・インデント・`(coderabbit)` の非検出、残留する古い `refs/remotes/origin/*` と未取得の新規ブランチの扱い、外部の `git worktree`（linked worktree）からの実行、存在しない URL・`main` 不在・引数指定の終了コード `2`（標準出力は空）、および呼び出し元リポジトリが変更されないこと。エスケープ検証では、一致行の `\t`・ESC・DEL・C1 制御文字・`Cf`（双方向・ゼロ幅・タグ）・`Zl`/`Zp`・非文字・不正 UTF-8・`\` と、ブランチ名の C1 制御文字・双方向・ゼロ幅（APFS 制約で不正 UTF-8 ブランチ名は除く）、さらに標準エラーの診断エスケープおよび通常の UTF-8・有効な `U+FFFD` が変換されずに通ることを確認する。
     - 終了コード `0` の出力契約（UTC 時刻・40 桁 `origin/main` ID・昇順 12 桁ブランチ一覧・非 `main` 0 本時の `(none)`・`matches: 0`）、終了コード `0`/`1`/`2` いずれでもケース専用 `TMPDIR` が空に戻ること、および設計書 §3.1・§4.2 の安全境界（非 `commit` 参照・`go build` 失敗の終了コード `2`［標準出力は空］、`GIT_DIR`/`GIT_WORK_TREE` 上書き耐性、shallow clone 呼び出し元、ハイフン始まりブランチ名、マージコミット、`replace` 参照無視）。
-  - [ ] `/bin/bash`（bash 3.2）と `PATH` 上の `bash` の双方で `test_check_open_branches.sh` を実行し、全シナリオが成功することを確認する。
-  - [ ] 壊し確認の義務: `check_open_branches.sh` および `escape_untrusted.go` に意図的な壊し（3 形式のいずれかの照合を外す、`\t` や制御文字のエスケープを外す、`ls-remote` 集合一致や異常系フェイルクローズを外す等）を入れた際に `test_check_open_branches.sh` が失敗することを確認し、壊しを元に戻す（確認内容はステップ 1-3 通過後のコミットメッセージに記録し、この時点ではコミットしない）。
+  - [x] `/bin/bash`（bash 3.2）と `PATH` 上の `bash` の双方で `test_check_open_branches.sh` を実行し、全シナリオが成功することを確認する。
+  - [x] 壊し確認の義務: `check_open_branches.sh` および `escape_untrusted.go` に意図的な壊し（3 形式のいずれかの照合を外す、`\t` や制御文字のエスケープを外す、`ls-remote` 集合一致や異常系フェイルクローズを外す等）を入れた際に `test_check_open_branches.sh` が失敗することを確認し、壊しを元に戻す（確認内容はステップ 1-3 通過後のコミットメッセージに記録し、この時点ではコミットしない）。
 - **完了条件:**
   - `/bin/bash` および `bash` の双方で `test_check_open_branches.sh` が終了コード `0` で完了すること。
 
@@ -102,10 +102,10 @@
   - ステップ 1-1・1-2 の `_checks/` 一式（通過時のみコミット）
   - `docs/tasks/0121_retire_legacy_review_records/03_implementation_plan.md`（§7 に実装開始前の確認結果を記録）
 - **作業内容:**
-  - [ ] 実装着手時点の `origin/main` を確認し、`3fff7f51` 以降にコマンド定義・`review-records.sh`・`review_records_test.go`・関連文書（`docs/dev/guides/`・`docs/dev/conventions/`・`CLAUDE.md`）へ新たな変更や旧 3 形式の記述が入っていないか確かめる（AC-11）。
-  - [ ] 利用者の明示承認を得て、実 `origin` に対して `bash docs/tasks/0121_retire_legacy_review_records/_checks/check_open_branches.sh` を単一コマンドとして実行する（設計書 §3.1・§8）。
-  - [ ] 終了コードが `0` 以外（`1`: 古い記録行を 1 件以上検出、`2`: 取得・読み取り異常）の場合は、該当ブランチ・一致行または診断を報告して作業を停止し、フェーズ 2 以降へ進まない（未コミットの `_checks/` 作業は破棄または保留とし、実装コミット・PR を作成しない。AC-02）。
-  - [ ] 終了コードが `0`（`matches: 0`）の場合は、出力に対して禁止メンション検査（`<mention-check>`）を実行し、終了コード `1`（問題なし）を確認する。そのうえで、確認日時（UTC）・基準 `origin/main` の 40 桁コミット ID・検査ブランチ一覧・`matches: 0` をコードブロック形式で本計画書 §7 の「実装開始前の確認記録（AC-01）」へ記録し、`_checks/` 一式と本計画書をステップ 1-2 の壊し確認記録とともにコミットする（AC-01、設計書 §5.2・§8）。
+  - [x] 実装着手時点の `origin/main` を確認し、`3fff7f51` 以降にコマンド定義・`review-records.sh`・`review_records_test.go`・関連文書（`docs/dev/guides/`・`docs/dev/conventions/`・`CLAUDE.md`）へ新たな変更や旧 3 形式の記述が入っていないか確かめる（AC-11）。
+  - [x] 利用者の明示承認を得て、実 `origin` に対して `bash docs/tasks/0121_retire_legacy_review_records/_checks/check_open_branches.sh` を単一コマンドとして実行する（設計書 §3.1・§8）。
+  - [x] 終了コードが `0` 以外（`1`: 古い記録行を 1 件以上検出、`2`: 取得・読み取り異常）の場合は、該当ブランチ・一致行または診断を報告して作業を停止し、フェーズ 2 以降へ進まない（未コミットの `_checks/` 作業は破棄または保留とし、実装コミット・PR を作成しない。AC-02）。
+  - [x] 終了コードが `0`（`matches: 0`）の場合は、出力に対して禁止メンション検査（`<mention-check>`）を実行し、終了コード `1`（問題なし）を確認する。そのうえで、確認日時（UTC）・基準 `origin/main` の 40 桁コミット ID・検査ブランチ一覧・`matches: 0` をコードブロック形式で本計画書 §7 の「実装開始前の確認記録（AC-01）」へ記録し、`_checks/` 一式と本計画書をステップ 1-2 の壊し確認記録とともにコミットする（AC-01、設計書 §5.2・§8）。
 - **完了条件:**
   - 実 `origin` に対する `check_open_branches.sh` が終了コード `0`（`matches: 0`）で完了し、`<mention-check>` を通過した記録が本計画書 §7 に追記され、`_checks/` 一式とともにコミットされていること。
 
@@ -266,7 +266,24 @@ Diff record (AC-06):
 
 実装開始前の確認記録（AC-01）:
 
-- ステップ 1-3 で実 `origin` に対して `_checks/check_open_branches.sh` を実行し、終了コード `0`（`matches: 0`）かつ `<mention-check>` 通過を確認した結果をコードブロックでここに記録する（`PR-1 作成ポイント` で PR の説明にも転記する）。
+- ステップ 1-3 で実 `origin` に対して `_checks/check_open_branches.sh` を実行し、終了コード `0`（`matches: 0`）かつ `<mention-check>` 通過（終了コード `1`）を確認した。
+
+```text
+checked_at: 2026-11-24T10:57:46Z
+origin/main: 036fd7c83a885a7cd7ffbc164b10c6efeac0cd5c
+branches:
+  claude/festive-bardeen-cw14ci 4da5da2194a0
+  isseis/0092-chief-task-workspace-07 b56048d497e4
+  isseis/0115-chief-conflict-resolution-05 a3fde9ac36c2
+  isseis/0116-user-readme-05 3bb5b316ff23
+  isseis/0120-harness-independent-commands-08 bd4fe1a90375
+  isseis/0121-retire-legacy-review-records-04 036fd7c83a88
+  isseis/0122-sourcery-trusted-reviewer-04 ae7f242967f9
+  isseis/0123-rereview-substituted-reviews-01 525a0834b411
+  poc/0084-wasm-pipeline 83ef12bd019b
+  poc/0090-extension-only-checks da994ad38130
+matches: 0
+```
 
 ## 8. 完了基準 (Success Criteria)
 
