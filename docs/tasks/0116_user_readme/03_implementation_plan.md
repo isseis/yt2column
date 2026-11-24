@@ -422,7 +422,7 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
   - 今の README の `:72-73`（CLI に必要なもの）のうち、`cli.md` の「必要なもの」へのリンク。`cli.md` 自身の節なので除いた。もう 1 つの文「CLI では、選んだプロバイダの API キーが必要である」は `cli.md` になかったので、`cli.md` の「必要なもの」に移し、変数の置き場所として `generation.md`「設定」へリンクした（設計書 2.3 節の表）。
 - **リンクの組:** どの組も、移った先から見た同じ節を指す。`docs/dev/...` は `generation.md` と `development.md` から見た相対のパスに、`#api-キーの設定` は README の同じ節に変わった。`docs/dev/guides/development.md -> (none)` は、上の除いた文のリンクである。
 
-```text
+````text
 commit:      4044eddff8fd0724798a98815f2bbf9b55eba6a7
 merge-base:  bd72ac9e8e202a2982d5a270ac626187d35a0e62
 README blob: 23ab53e32d65cb67eafd09634d6d034a6f6da665
@@ -531,7 +531,7 @@ headings: README "推奨構成" -> docs/dev/guides/generation.md "推奨構成"
 === completeness on the compared side
 blocks compared: 11
 ac04: PASS
-```
+````
 
 ### AC-05 の記録
 
