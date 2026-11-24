@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 70d94887e35db725cf76e1db1d05c39d290f80a4 -->
+<!-- translated-from: README.md abe3ff1a3ea2bfcd8cea5345eee4ffea2617b250 -->
 [日本語](README.md)
 
 # yt2column
@@ -9,7 +9,7 @@ yt2column turns a YouTube video into a magazine-column-style article with AI. Wh
 
 ## How it works
 
-Article generation completes only inside the browser. The extension collects the selected captions and the video's information, and uses your API key to have Anthropic's AI write the article. The result appears in the viewer tab.
+The extension collects the selected captions and the video's information, and uses your API key to have Anthropic's AI write the article. The result appears in the viewer tab.
 
 The API key and the material for the article go only to Anthropic (the company that provides Claude).
 
