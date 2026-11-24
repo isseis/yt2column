@@ -8,7 +8,7 @@ These prohibitions apply to every harness that works in this repository, Antigra
 
 - Never install or build an installed developer tool (`make install-<name>`, `go install`, `go build ./cmd/<name>`, `go run ./cmd/<name>`), except under the development exception of dev_tools.md Rule 5. When a step needs one, or a command fails because a tool is missing or its protocol number does not match, stop, ask the user, and show the command to run.
 - Never run a mutating `herdr` subcommand, and never add, remove, or move a `git worktree`.
-- Never create, change, or delete a record tag (a ref under `refs/tags/task-number/` or `refs/tags/adr-number/`), or change or disable the record ruleset that protects them, except through the `numreserve` calls CLAUDE.md allows, and never run without the user's explicit approval a command that touches the network (other than the operations CLAUDE.md allows without approval), merges a pull request, or calls a real service (an LLM API).
+- Never create, change, or delete a record tag (a ref under `refs/tags/task-number/` or `refs/tags/adr-number/`), or change or disable the record ruleset that protects them, without the user's explicit approval (except through the `numreserve` calls CLAUDE.md allows without approval), and never run without the user's explicit approval a command that touches the network (other than the operations CLAUDE.md allows without approval), merges a pull request, or calls a real service (an LLM API).
 
 ## Code Review Rules
 

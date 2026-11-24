@@ -167,10 +167,11 @@ func TestCommandDocs(t *testing.T) {
 		name  string
 		files []string
 		dir   string
+		want  string
 	}{
-		{name: "skills directory missing", files: []string{".claude/commands/a.md"}, dir: ".agents/skills"},
-		{name: "skills directory without a document", files: []string{".claude/commands/a.md", ".agents/skills/a/notes.txt"}, dir: ".agents/skills"},
-		{name: "commands directory missing", files: []string{".agents/skills/a/SKILL.md"}, dir: ".claude/commands"},
+		{name: "skills directory missing", files: []string{".claude/commands/a.md"}, dir: ".agents/skills", want: "walk command documents"},
+		{name: "skills directory without a document", files: []string{".claude/commands/a.md", ".agents/skills/a/notes.txt"}, dir: ".agents/skills", want: "no command documents"},
+		{name: "commands directory missing", files: []string{".agents/skills/a/SKILL.md"}, dir: ".claude/commands", want: "walk command documents"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -183,8 +184,8 @@ func TestCommandDocs(t *testing.T) {
 			// is the one under test.
 			fake := &recordingTB{TB: t}
 			CommandDocs(fake, root)
-			if !strings.Contains(fake.failure, tc.dir) {
-				t.Errorf("CommandDocs failed with %q, want %s named", fake.failure, tc.dir)
+			if !strings.Contains(fake.failure, tc.dir) || !strings.Contains(fake.failure, tc.want) {
+				t.Errorf("CommandDocs failed with %q, want %q naming %s", fake.failure, tc.want, tc.dir)
 			}
 		})
 	}

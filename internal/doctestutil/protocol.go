@@ -124,8 +124,7 @@ func CommandDocs(t testing.TB, root string) []string {
 		})
 		if err != nil {
 			t.Fatalf("walk command documents under %s: %v", filepath.ToSlash(dir), err)
-		}
-		if len(docs) == before {
+		} else if len(docs) == before {
 			t.Fatalf("no command documents found under %s", filepath.ToSlash(dir))
 		}
 	}

@@ -3,9 +3,12 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -16,6 +19,8 @@ const (
 	commandsDir = ".claude/commands"
 	skillsDir   = ".agents/skills"
 )
+
+var errInvalidSkillFrontMatter = errors.New("invalid skill front matter")
 
 // skillCommands returns the names of the developer commands that have an
 // Antigravity skill: every top-level command definition except the files
@@ -38,48 +43,160 @@ func skillCommands(t *testing.T) []string {
 	return names
 }
 
-// skillFrontMatter returns the name and description of a skill's YAML front
-// matter, failing t when the document does not open with a block of exactly
-// those two keys.
-func skillFrontMatter(t *testing.T, rel, doc string) (name, description string) {
-	t.Helper()
+// parseSkillFrontMatter parses the YAML front matter of a skill document,
+// requiring an opening and closing "---" fence with exactly the unique keys
+// "name" and "description", each with a non-empty bare scalar or valid
+// double-quoted string value.
+func parseSkillFrontMatter(doc string) (name, description string, err error) {
 	rest, ok := strings.CutPrefix(doc, "---\n")
 	if !ok {
-		t.Fatalf("%s does not start with YAML front matter", rel)
+		return "", "", fmt.Errorf("%w: does not start with YAML front matter", errInvalidSkillFrontMatter)
 	}
 	block, _, ok := strings.Cut(rest, "\n---\n")
 	if !ok {
-		t.Fatalf("%s: front matter is not closed", rel)
+		return "", "", fmt.Errorf("%w: front matter is not closed", errInvalidSkillFrontMatter)
 	}
 	fields := map[string]string{}
 	for line := range strings.SplitSeq(block, "\n") {
 		key, value, ok := strings.Cut(line, ": ")
 		if !ok {
-			t.Fatalf("%s: front matter line %q is not a key and a value", rel, line)
+			return "", "", fmt.Errorf("%w: line %q is not a key and a value", errInvalidSkillFrontMatter, line)
 		}
-		// A value is either bare or wrapped in one pair of double quotes;
-		// anything else (an unbalanced quote) is invalid YAML and is rejected.
+		if key != "name" && key != "description" {
+			return "", "", fmt.Errorf("%w: unexpected key %q", errInvalidSkillFrontMatter, key)
+		}
+		if _, dup := fields[key]; dup {
+			return "", "", fmt.Errorf("%w: duplicate key %q", errInvalidSkillFrontMatter, key)
+		}
 		if strings.HasPrefix(value, `"`) || strings.HasSuffix(value, `"`) {
-			unquoted, ok := strings.CutPrefix(value, `"`)
-			if ok {
-				unquoted, ok = strings.CutSuffix(unquoted, `"`)
-			}
-			if !ok || len(value) < 2 {
-				t.Fatalf("%s: front matter value %q has an unbalanced quote", rel, value)
+			// strconv.Unquote rejects unbalanced quotes, unescaped inner quotes,
+			// and invalid escape sequences in double-quoted YAML scalars.
+			unquoted, unquoteErr := strconv.Unquote(value)
+			if unquoteErr != nil {
+				return "", "", fmt.Errorf("%w: invalid quoted value %q: %v", errInvalidSkillFrontMatter, value, unquoteErr)
 			}
 			value = unquoted
+		} else if strings.HasPrefix(value, "'") || strings.HasSuffix(value, "'") {
+			return "", "", fmt.Errorf("%w: single-quoted value %q is not accepted", errInvalidSkillFrontMatter, value)
+		}
+		if strings.TrimSpace(value) == "" {
+			return "", "", fmt.Errorf("%w: %s is empty", errInvalidSkillFrontMatter, key)
 		}
 		fields[key] = value
 	}
 	if len(fields) != 2 {
-		t.Fatalf("%s: front matter keys = %v, want exactly name and description", rel, fields)
+		return "", "", fmt.Errorf("%w: keys = %v, want exactly name and description", errInvalidSkillFrontMatter, fields)
 	}
-	return fields["name"], fields["description"]
+	return fields["name"], fields["description"], nil
+}
+
+// TestSkillFrontMatter pins the YAML front-matter grammar of SKILL.md files:
+// valid bare and double-quoted strings pass, while unescaped inner quotes,
+// unbalanced quotes, duplicate or unknown keys, and missing fences fail.
+func TestSkillFrontMatter(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		doc      string
+		wantName string
+		wantDesc string
+		wantErr  bool
+	}{
+		{
+			name:     "bare name and double-quoted description",
+			doc:      "---\nname: fixpr\ndescription: \"Resolve unresolved PR review threads\"\n---\n",
+			wantName: "fixpr",
+			wantDesc: "Resolve unresolved PR review threads",
+		},
+		{
+			name:     "escaped inner quotes in double-quoted description",
+			doc:      "---\nname: fixpr\ndescription: \"Run \\\"fixpr\\\" safely\"\n---\n",
+			wantName: "fixpr",
+			wantDesc: `Run "fixpr" safely`,
+		},
+		{
+			name:     "bare description",
+			doc:      "---\nname: fixpr\ndescription: Resolve unresolved PR review threads\n---\n",
+			wantName: "fixpr",
+			wantDesc: "Resolve unresolved PR review threads",
+		},
+		{
+			name:    "unescaped inner quotes",
+			doc:     "---\nname: fixpr\ndescription: \"Run \"fixpr\" safely\"\n---\n",
+			wantErr: true,
+		},
+		{
+			name:    "unbalanced opening quote",
+			doc:     "---\nname: fixpr\ndescription: \"unclosed\n---\n",
+			wantErr: true,
+		},
+		{
+			name:    "unbalanced closing quote",
+			doc:     "---\nname: fixpr\ndescription: unclosed\"\n---\n",
+			wantErr: true,
+		},
+		{
+			name:    "single quote character only",
+			doc:     "---\nname: fixpr\ndescription: \"\n---\n",
+			wantErr: true,
+		},
+		{
+			name:    "single-quoted value",
+			doc:     "---\nname: fixpr\ndescription: 'Resolve threads'\n---\n",
+			wantErr: true,
+		},
+		{
+			name:    "duplicate key",
+			doc:     "---\nname: fixpr\nname: other\ndescription: \"Resolve threads\"\n---\n",
+			wantErr: true,
+		},
+		{
+			name:    "unknown key",
+			doc:     "---\nname: fixpr\ndescription: \"Resolve threads\"\nextra: value\n---\n",
+			wantErr: true,
+		},
+		{
+			name:    "missing key",
+			doc:     "---\nname: fixpr\n---\n",
+			wantErr: true,
+		},
+		{
+			name:    "empty quoted description",
+			doc:     "---\nname: fixpr\ndescription: \"\"\n---\n",
+			wantErr: true,
+		},
+		{
+			name:    "missing opening fence",
+			doc:     "name: fixpr\ndescription: \"Resolve threads\"\n---\n",
+			wantErr: true,
+		},
+		{
+			name:    "missing closing fence",
+			doc:     "---\nname: fixpr\ndescription: \"Resolve threads\"\n",
+			wantErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gotName, gotDesc, err := parseSkillFrontMatter(tc.doc)
+			if tc.wantErr {
+				if !errors.Is(err, errInvalidSkillFrontMatter) {
+					t.Fatalf("parseSkillFrontMatter error = %v, want %v", err, errInvalidSkillFrontMatter)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseSkillFrontMatter unexpected error: %v", err)
+			}
+			if gotName != tc.wantName || gotDesc != tc.wantDesc {
+				t.Errorf("parseSkillFrontMatter = (%q, %q), want (%q, %q)", gotName, gotDesc, tc.wantName, tc.wantDesc)
+			}
+		})
+	}
 }
 
 // TestSkillsMatchCommands: .agents/skills holds one thin entry per developer
 // command and nothing else, and each entry points at its command definition,
-// the shared context, and the harness entry.
+// the shared context, the harness entry and Antigravity adapter, and the
+// prohibition documents.
 func TestSkillsMatchCommands(t *testing.T) {
 	want := skillCommands(t)
 	entries, err := os.ReadDir(filepath.Join(repositoryRoot, skillsDir))
@@ -112,17 +229,18 @@ func TestSkillsMatchCommands(t *testing.T) {
 			}
 			rel := skillsDir + "/" + cmd + "/SKILL.md"
 			doc := doctestutil.ReadDoc(t, filepath.Join(repositoryRoot, filepath.FromSlash(rel)))
-			name, description := skillFrontMatter(t, rel, doc)
+			name, _, err := parseSkillFrontMatter(doc)
+			if err != nil {
+				t.Fatalf("%s: %v", rel, err)
+			}
 			if name != cmd {
 				t.Errorf("%s: name = %q, want %q", rel, name, cmd)
-			}
-			if strings.TrimSpace(description) == "" {
-				t.Errorf("%s: description is empty", rel)
 			}
 			links := markdownLinkTargets(doc)
 			for _, target := range []string{
 				commandsDir + "/_context.md",
 				commandsDir + "/_lib/harness.md",
+				commandsDir + "/_lib/harness-antigravity.md",
 				commandsDir + "/" + cmd + ".md",
 				"AGENTS.md",
 				"CLAUDE.md",

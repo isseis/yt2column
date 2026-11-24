@@ -26,4 +26,6 @@ look for it here, and follow these four steps in order:
    [`CLAUDE.md`](../../../CLAUDE.md) ("Tool Execution Safety"): never install
    or build an installed developer tool, never run a mutating `herdr`
    subcommand or a `git worktree` add, remove, or move, and never touch a
-   record tag, merge, or call a real service without approval.
+   record tag (except through the `numreserve task` and `numreserve adr`
+   calls `CLAUDE.md` allows without approval), merge, or call a real service
+   without approval.
