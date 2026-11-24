@@ -164,7 +164,10 @@ func TestValidateDepDirsFile(t *testing.T) {
 		}
 	})
 
-	t.Run("valid_exact_64KiB", func(t *testing.T) {
+	// exactList is a valid dependency list of exactly defaultScriptMaxOutput
+	// bytes, made only of "/"-terminated directory lines.
+	exactList := func(t *testing.T) []byte {
+		t.Helper()
 		line := "internal/pkg/\n"
 		repeat := defaultScriptMaxOutput / len(line)
 		rem := defaultScriptMaxOutput % len(line)
@@ -180,18 +183,21 @@ func TestValidateDepDirsFile(t *testing.T) {
 		if buf.Len() != defaultScriptMaxOutput {
 			t.Fatalf("built %d bytes, want %d", buf.Len(), defaultScriptMaxOutput)
 		}
-		p := writeTempFile(t, "deps-exact", buf.Bytes())
+		return buf.Bytes()
+	}
+
+	t.Run("valid_exact_64KiB", func(t *testing.T) {
+		p := writeTempFile(t, "deps-exact", exactList(t))
 		if reason, ok := validateDepDirsFile(p, defaultScriptMaxOutput); !ok || reason != ReasonUnspecified {
 			t.Errorf("exact 64 KiB: got (%q, %v), want (%q, true)", reason, ok, ReasonUnspecified)
 		}
 	})
 
-	// Build a strictly defaultScriptMaxOutput + 1 byte file whose single line ends in "/".
-	oversize := make([]byte, defaultScriptMaxOutput+1)
-	for i := range oversize {
-		oversize[i] = 'a'
-	}
-	oversize[len(oversize)-1] = '/'
+	// Build a defaultScriptMaxOutput + 1 byte file that is a valid list as a
+	// whole and whose first defaultScriptMaxOutput bytes are a valid list too,
+	// so only the size bound can reject it: a read cut at the bound would be
+	// accepted by every line check.
+	oversize := append(exactList(t), '\n')
 
 	invalidCases := []struct {
 		name    string
