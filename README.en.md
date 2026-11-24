@@ -1,17 +1,17 @@
-<!-- translated-from: README.md 5915f7d227e76b0e6f411156104d6c4ca791a3fa -->
+<!-- translated-from: README.md 70d94887e35db725cf76e1db1d05c39d290f80a4 -->
 [日本語](README.md)
 
 # yt2column
 
-yt2column turns a YouTube video into a magazine-column-style article with an LLM. When you open the video's transcript panel in a browser with the extension, select the caption lines, and start generation from the popup, the article appears in the viewer tab. You can save the article as a `.md` file or copy its Markdown to the clipboard.
+yt2column turns a YouTube video into a magazine-column-style article with AI. When you open the video's transcript panel in a browser with the extension, select the caption lines, and start generation from the popup, the article appears in the viewer tab. You can save the article as a `.md` file or copy its Markdown to the clipboard.
 
 > **Status:** early development; no release yet.
 
 ## How it works
 
-Article generation completes only inside the browser. The extension collects the selected captions and the video's information, and calls the LLM API in the viewer tab to create the article.
+Article generation completes only inside the browser. The extension collects the selected captions and the video's information, and uses your API key to have Anthropic's AI write the article. The result appears in the viewer tab.
 
-The API key and the material for the article go only to `https://api.anthropic.com`.
+The API key and the material for the article go only to Anthropic (the company that provides Claude).
 
 ## Requirements
 
@@ -26,7 +26,7 @@ The steps from getting the extension to saving a first article are in [INSTALL.m
 
 ## Privacy
 
-**What is sent:** to generate an article, the extension sends the selected captions, the video URL, and the video's title, channel name, and description only to `https://api.anthropic.com`.
+**What is sent:** to create an article, the extension sends the selected captions, the video URL, and the video's title, channel name, and description only to Anthropic.
 
 **API key and workspace ID:** they are saved only in `chrome.storage.local` of this browser profile and are not synced to other devices. The popup and the service worker never read the API key's value. However, processes that run as the same OS user can read the saved values.
 
