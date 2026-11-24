@@ -60,3 +60,4 @@
 | [ADR-0053](0053-draft-issue-label.md) | 下書きの issue をラベル draft で宣言し、/mkreq と chief はそこからタスクを始めない | `有効` |
 | [ADR-0054](0054-ci-skip-doc-only-commit.md) | 直前コミットで CI 通過済みかつ非コード・非ブラウザ拡張のみの変更時は check-changes で重いジョブをスキップする | `有効` |
 | [ADR-0055](0055-harness-independent-commands.md) | 開発コマンドの手順の正本を .claude/commands/ に保ち、ハーネス固有の操作・入口・権限境界をアダプタと薄いスキルに分離する | `有効` |
+| [ADR-0056](0056-checks-script-proportion.md) | タスクの _checks/ に置く一時スクリプトとそのテストは、本体の変更の規模・実行回数・想定運用環境に見合う作りにする | `有効` |
