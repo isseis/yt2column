@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 878cb12544403ffecfea640bbb6078c07b7c5bce -->
+<!-- translated-from: README.md 5915f7d227e76b0e6f411156104d6c4ca791a3fa -->
 [日本語](README.md)
 
 # yt2column
@@ -9,13 +9,13 @@ yt2column turns a YouTube video into a magazine-column-style article with an LLM
 
 ## How it works
 
-Article generation completes only inside the browser. The extension collects the selected captions and the video's information, and the article generation module built into the extension (Go code compiled to WebAssembly) calls the LLM API in the viewer tab to create the article. Neither a server nor a native messaging host is needed for article generation, and nothing besides the browser needs to be installed.
+Article generation completes only inside the browser. The extension collects the selected captions and the video's information, and calls the LLM API in the viewer tab to create the article.
 
-The API key and the material for the article go only to `https://api.anthropic.com`. Nothing is sent to the developers.
+The API key and the material for the article go only to `https://api.anthropic.com`.
 
 ## Requirements
 
-- Chrome 142 or later, or Brave on Chromium 142 or later
+- Chrome 142 or later, or Brave 1.84 or later
 - An Anthropic API key
 
 How to prepare an API key and the estimated cost per article are in [INSTALL.md](INSTALL.md).
@@ -26,17 +26,15 @@ The steps from getting the extension to saving a first article are in [INSTALL.m
 
 ## Privacy
 
-**What is sent:** to generate an article, the extension sends the selected captions, the video URL, and the video's title, channel name, and description only to `https://api.anthropic.com`. Nothing is sent to the developers. The developers do not provide a server that relays the API.
+**What is sent:** to generate an article, the extension sends the selected captions, the video URL, and the video's title, channel name, and description only to `https://api.anthropic.com`.
 
 **API key and workspace ID:** they are saved only in `chrome.storage.local` of this browser profile and are not synced to other devices. The popup and the service worker never read the API key's value. However, processes that run as the same OS user can read the saved values.
 
-**The article generation record:** the state, the steps, and the finished article are kept in the browser's memory and disappear when the browser exits. They are not written to disk.
+**The article generation record:** the state, the steps, and the finished article are kept in the browser's memory and disappear when the browser exits. They are not saved to disk.
 
 **Browser history:** the viewer URL holds the video URL and the page title and stays in the browser's history. The history may be passed to other devices through browser sync, and other extensions with the `tabs` or `history` permission can read that history.
 
-**A crafted viewer URL:** a viewer whose URL values were crafted can show a misleading heading and title, so the heading does not guarantee the article's content.
-
-**Article files:** the extension writes an article file only when the user chooses to save it.
+**Article files:** an article file is saved only when the user asks for it.
 
 ## Developer documents
 
