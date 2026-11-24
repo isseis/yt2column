@@ -22,7 +22,8 @@ while IFS= read -r f; do
   # call (Name( ), which is how a procedure names a tool it invokes.
   hits=$(grep -nE "\`($tools)\`|\b($tools)\(" "$f" |
     grep -vE '^[0-9]+:\| *Row *\| *Command *\| *Agent *\|' |
-    grep -vE '`(agent|swarm|none)`' |
+    grep -vE '^[0-9]+:\| *`(Claude Code|Antigravity|OpenCode)` *\|' |
+    grep -vE '^[0-9]+:- \*\*Launch\*\*: ' |
     grep -vE '^[0-9]+: *```bash') || true
   if [ -n "$hits" ]; then
     echo "FAIL (1): harness tool name in $f:"
