@@ -695,8 +695,9 @@ func TestProductionProfileDocsContract(t *testing.T) {
 	checkConfigBlockMatchesDefaults(t, "generation.md", heading, genValues)
 }
 
-// TestReadmeLinks checks the links of both README versions and of the
-// developer guides split out of them (readmeGuides): every relative link
+// TestReadmeLinks checks the links of both README versions, of the install
+// guide (INSTALL.md), and of the developer guides split out of the README
+// (readmeGuides): every relative link
 // points at an existing path, and every link to a heading, in the same
 // document or in another one, resolves to an anchor the helper produces from
 // the target document's headings. GitHub resolves those, so they are the
@@ -721,6 +722,7 @@ func TestReadmeLinks(t *testing.T) {
 	for _, v := range doctestutil.ReadmeVersions() {
 		docs = append(docs, struct{ name, path string }{v.Path, v.From(repositoryRoot)})
 	}
+	docs = append(docs, struct{ name, path string }{"INSTALL.md", filepath.Join(repositoryRoot, "INSTALL.md")})
 	for _, doc := range docs {
 		t.Run(doc.name, func(t *testing.T) {
 			text := doctestutil.ReadDoc(t, doc.path)

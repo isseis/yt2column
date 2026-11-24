@@ -189,10 +189,14 @@
 | 出力の書式 | Output format | `generation.md` と `cli.md` の見出し |
 | 設定 | Configuration | `generation.md` と `cli.md` の見出し。CLI の環境変数による設定 |
 | 以前の版からの移行 | Migrating from the earlier version | README の見出し。localhost サーバと Native Messaging のホストを使う版から、拡張だけの版へ移る手順 |
-| API キーの設定 | Setting the API key | README の見出し |
-| ブラウザ拡張 | Browser extension | README の見出し。本文では "browser extension"、文脈が明らかなら "extension" |
+| ブラウザ拡張 | Browser extension | 本文では "browser extension"、文脈が明らかなら "extension" |
 | 記事生成モジュール | article generation module | `cmd/yt2column-wasm`（Go の `main` パッケージ）を WebAssembly にビルドした `.wasm` ファイル。拡張の Worker が読み込み、記事を作る関数を JavaScript に公開する。Go で書かれ WASM にコンパイルされたことを強調するときは「WASM にコンパイルされた記事生成モジュール」と修飾する（0090 設計書） |
 | オプションページ | options page | 拡張の設定の画面（`options.html`）。Anthropic の API キーとワークスペース ID を保存し、削除する。タブで開く。英語の画面では、ポップアップからの操作を "Settings" と呼ぶ |
 | 開発用のビルド | development build | `make ext-build-dev` が `extension/dist-dev/` に作る拡張。fake の LLM を使う開発用の記事生成モジュールを持ち、API を呼ばない。拡張の ID と名前が公開用のビルドと違う。公開用のビルド（`make ext-build` の `extension/dist/`）と区別する |
 | ジョブ ID | job ID | Service Worker が予約のときに作る、記事の生成を指す不透明な値（128 ビットの乱数の 32 文字の小文字の 16 進）。入力から計算せず、記事の中身を表さない |
 | 実行するビューア | running viewer | 記事の生成を実際に行うビューアのページ。Service Worker が開いたビューアで、Worker で記事生成モジュールを動かす。ジョブの記録を表示するだけのビューア（表示するビューア）と区別する |
+| ハーネス | harness | 開発コマンドを実行するエージェント実行環境。本リポジトリでは Claude Code、Antigravity CLI（`agy`）、OpenCode を指す（0120 要件定義書 3.1） |
+| ハーネスのアダプタ | harness adapter | ハーネスごとの組み込みツール、モデルの固定と検証、スクラッチパッドの場所、シェル実行、サンドボックスと権限の規則の差分を定義する手順文書（`.claude/commands/_lib/harness-claude.md`・`harness-antigravity.md`）。入口は `_lib/harness.md` |
+| 上位モデルのレビュー | high-model review | ハーネスの `high` 役割のモデルで行う、正しさのレビューと弱いモデルの失敗のレビューの組（`_lib/high-review.md`）。旧称: Opus のレビュー |
+| クロスチェックの部分レビュー | cross-check partial review | タスクの PR を開く前に、4 つの基準に当たる箇所に絞って、ハーネスのクロスチェック役割のモデルで行う部分レビュー（`_lib/cross-check-review.md`）。旧称: Fable の部分レビュー |
+| スクラッチパッド | scratchpad | 作業ツリーの外にある、セッション専用の一時ファイル置き場。追跡もコミットもしない |

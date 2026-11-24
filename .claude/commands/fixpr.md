@@ -1093,8 +1093,8 @@ Agent prompt:
 When the reply is `{"stale": true, ...}`, write its `title` and `body` to two
 files outside the work tree with the `file-io` operation of
 `_lib/harness.md` (the title file holds the title
-alone, with no trailing newline, which the tool rejects as a control
-character). Before sending the rewrite, check that it keeps the
+alone, with no trailing newline, which `fixprguard edit-pr` rejects as a
+control character). Before sending the rewrite, check that it keeps the
 editorial-correction paragraphs. Get only their count in the current
 description; the filter prints a number, never the body, so the description
 does not enter this session:
