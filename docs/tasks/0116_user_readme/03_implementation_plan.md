@@ -242,10 +242,10 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `README.md`・`README.en.md`、`docs/translation_glossary.md`
 
-- [ ] 設計書 2.4 節の構成で README を作り直す。冒頭の「開発者向けの文書」の行（今の `:3`）と、フェーズ 2 の一時的なリンクを除き、「インストールと使い方」「プライバシー」「開発者向けの文書」の節を置く（AC-01・AC-07・AC-36）。フェーズ 2 で残した API キーの保存の範囲と記録・履歴・細工した URL の文は、「プライバシー」の節に書き直して置く。必要なブラウザの記述（「Chrome 142 以降、または Chromium 142 以降の Brave」）を「必要なもの」に残す（`manifest.test.ts` が照合する。AC-01）
-- [ ] 「以前の版からの移行」の節と、フェーズ 2 で残したクイックスタートの移行の案内（今の `:61`）を削除する（AC-05）
-- [ ] 用語集の移行の手順の行を直す（1.3 節の決定 5）：「ホスト」（`:61`）と「設定ファイル」（`:171`）の備考から移行の手順を除き、「以前の版からの移行」（`:182`）を除く
-- [ ] `/mktrans README.md` で同期する（AC-37）
+- [x] 設計書 2.4 節の構成で README を作り直す。冒頭の「開発者向けの文書」の行（今の `:3`）と、フェーズ 2 の一時的なリンクを除き、「インストールと使い方」「プライバシー」「開発者向けの文書」の節を置く（AC-01・AC-07・AC-36）。フェーズ 2 で残した API キーの保存の範囲と記録・履歴・細工した URL の文は、「プライバシー」の節に書き直して置く。必要なブラウザの記述（「Chrome 142 以降、または Chromium 142 以降の Brave」）を「必要なもの」に残す（`manifest.test.ts` が照合する。AC-01）
+- [x] 「以前の版からの移行」の節と、フェーズ 2 で残したクイックスタートの移行の案内（今の `:61`）を削除する（AC-05）
+- [x] 用語集の移行の手順の行を直す（1.3 節の決定 5）：「ホスト」（`:61`）と「設定ファイル」（`:171`）の備考から移行の手順を除き、「以前の版からの移行」（`:182`）を除く
+- [x] `/mktrans README.md` で同期する（AC-37）
 
 **完了の条件:** `make test`・`make lint`・`make ext-check`・`make deadcode` が通る。
 
@@ -253,8 +253,8 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `docs/tasks/0116_user_readme/_checks/`（シェルのスクリプト 1 つを足す）
 
-- [ ] 設計書 7.3 節の AC-05 の行の (a)〜(c) を確かめるスクリプトを書く。(a) は見出しの行だけを照らし、`docs/tasks/` を除く（設計書の表のセルが見出しの文字列を持つため）。各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、コミットのメッセージに書く
-- [ ] PR のブランチで走らせ、出力とマージベースと比べたコミットを 7 章の AC-05 の記録に書く
+- [x] 設計書 7.3 節の AC-05 の行の (a)〜(c) を確かめるスクリプトを書く。(a) は見出しの行だけを照らし、`docs/tasks/` を除く（設計書の表のセルが見出しの文字列を持つため）。各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、コミットのメッセージに書く
+- [x] PR のブランチで走らせ、出力とマージベースと比べたコミットを 7 章の AC-05 の記録に書く
 
 **完了の条件:** スクリプトが通り、7 章に AC-05 の記録がある。
 
@@ -535,7 +535,38 @@ ac04: PASS
 
 ### AC-05 の記録
 
-（PR-3 のステップ 3-2 で、スクリプトの出力とマージベースと比べたコミットを書く。）
+`_checks/ac05_migration_removed.sh 12d0801a74db6949c6da05924a82b503a59430ed` を PR-3 のブランチで走らせた（2026-11-25）。比べたコミットは `12d0801a74db6949c6da05924a82b503a59430ed`、マージベースは `f7cc6eecdf77836daadf681ef13bd5a5246806e2`（その `README.md` のブロブは `be42dd3fba84b2e98430aadb7e59e13134361827`）で、結果は `ac05: PASS` である。
+
+- **確かめたこと:** (a) `docs/tasks/` を除くどの `.md` にも、移行の節の見出し（`## 以前の版からの移行` と `## Migrating from the earlier version`）がない。(b) 移行の節とクイックスタートの移行の案内の行（空白をまとめ、20 文字以上でコードフェンスでない行）は、どれも `docs/tasks/` を除く `.md` に残っていない。(c) 移行に固有の語（`yt2column-nmhost`・`NativeMessagingHosts`・`config.env`・`sharedToken`）の (ファイル, 語) の組は、`README.md`・`README.en.md`・用語集・`docs/tasks/` を除いて、マージベースから増えていない。用語集の組は、用語を定義する 2 つの組（`config.env` と `yt2column-nmhost`）だけである。
+- **残った組:** 出力の 7 つの組は、移行の手順ではなく、過去の ADR・規約・テストデータが名指しする値である。用語集の 2 つの組は、「ホスト」と「設定ファイル」の項目の定義に残る。
+- **壊して確かめたこと（スクリプトを入れるコミット）:** 見出しを手引きに足す (a)、外した行を 1 つ手引きに足す (b)、`NativeMessagingHosts` を手引きに足す (c の組の増加)、用語集の「ホスト」の項目から `yt2column-nmhost` を落とす (c の用語集の組) のそれぞれで、スクリプトは `ac05: FAIL` を出して終了コード 1 になった。
+
+````text
+commit:      12d0801a74db6949c6da05924a82b503a59430ed
+merge-base:  f7cc6eecdf77836daadf681ef13bd5a5246806e2
+README blob: be42dd3fba84b2e98430aadb7e59e13134361827
+
+=== (a) no migration heading outside docs/tasks/
+  (none)
+
+=== (b) no old migration line in another document
+  (none)
+
+=== (c) migration-only words
+  compared pairs (unchanged from the merge-base):
+    .claude/commands/_lib/cross-check-review.md: config.env
+    docs/dev/adr/0010-extension-stores-nothing.md: sharedToken
+    docs/dev/adr/0018-server-config-file.md: config.env
+    docs/dev/adr/0048-extension-only-generation.md: yt2column-nmhost
+    docs/dev/security.md: sharedToken
+    internal/chief/testdata/plans/real-0069-pr-open.md: yt2column-nmhost
+    internal/chief/testdata/plans/real-0069.md: yt2column-nmhost
+  glossary pairs (as expected):
+    docs/translation_glossary.md: config.env
+    docs/translation_glossary.md: yt2column-nmhost
+
+ac05: PASS
+````
 
 ### AC-24 の対応表
 
