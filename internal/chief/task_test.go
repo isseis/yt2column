@@ -20,7 +20,13 @@ import (
 
 // testContext is a _context.md holding only an old-value table, the part of
 // it that TestTasksRead's plan reading uses.
-const testContext = "### PR marker conventions\n\n| `standard` | `sonnet` |\n"
+const testContext = "### PR marker conventions\n\n" +
+	"| `opus` | `high` |\n" +
+	"| `sonnet+opus-review` | `standard+high-review` |\n" +
+	"| `sonnet` | `low` |\n" +
+	"| `frontier-required` | `high` |\n" +
+	"| `frontier-recommended` | `standard+high-review` |\n" +
+	"| `standard` | `low` |\n"
 
 // repoContext returns the repository's current _context.md.
 func repoContext(t *testing.T) []byte {
@@ -33,39 +39,74 @@ func repoContext(t *testing.T) []byte {
 }
 
 // TestParseOldValues reads an old-value table as the script does: rows of
-// the section only, an old value with two rows or a blank dropped.
+// the section only, an old value with two rows or a blank dropped, and the
+// repository's real _context.md yields all six old values unaffected by
+// Harness model mapping.
 func TestParseOldValues(t *testing.T) {
-	doubled := []byte("### PR marker conventions\n\n| `a` | `opus` |\n| `a` | `sonnet` |\n| `b` | `sonnet` |\n| `d e` | `opus` |\n\n### Next\n\n| `c` | `opus` |\n")
-	if got := ParseOldValues(doubled); len(got) != 1 || got["b"] != RequirementSonnet {
-		t.Errorf("ParseOldValues(doubled) = %v, want only b (a twice, d e with a blank, c outside)", got)
+	doubled := []byte("### PR marker conventions\n\n| `a` | `high` |\n| `a` | `low` |\n| `b` | `low` |\n| `d e` | `high` |\n\n```markdown\n| `fenced-low` | `low` |\n```\n\n### Next\n\n| `c` | `high` |\n")
+	if got := ParseOldValues(doubled); len(got) != 1 || got["b"] != RequirementLow {
+		t.Errorf("ParseOldValues(doubled) = %v, want only b (a twice, d e with a blank, fenced-low in fence, c outside)", got)
 	}
+	t.Run("CRLF line endings", func(t *testing.T) {
+		crlf := strings.ReplaceAll(testContext, "\n", "\r\n")
+		if got := ParseOldValues([]byte(crlf)); !maps.Equal(got, testOldValues) {
+			t.Errorf("ParseOldValues(CRLF) = %v, want %v", got, testOldValues)
+		}
+	})
+	t.Run("unclosed fence fails closed", func(t *testing.T) {
+		unclosed := testContext + "\n```markdown\n| `extra` | `low` |\n"
+		if got := ParseOldValues([]byte(unclosed)); len(got) != 0 {
+			t.Errorf("ParseOldValues(unclosed) = %v, want empty", got)
+		}
+	})
+	t.Run("repository _context.md", func(t *testing.T) {
+		doc := repoContext(t)
+		got := ParseOldValues(doc)
+		if !maps.Equal(got, testOldValues) {
+			t.Errorf("ParseOldValues(repoContext) = %v, want %v", got, testOldValues)
+		}
+		// Editing the Harness model mapping section must not affect ParseOldValues.
+		edited := strings.Replace(string(doc), "### Harness model mapping\n", "### Harness model mapping\n\n| `extra-old` | `high` |\n", 1)
+		if edited == string(doc) {
+			t.Fatal("_context.md has no Harness model mapping heading")
+		}
+		if gotEdited := ParseOldValues([]byte(edited)); !maps.Equal(gotEdited, testOldValues) {
+			t.Errorf("ParseOldValues after editing Harness model mapping = %v, want %v", gotEdited, testOldValues)
+		}
+	})
 }
 
 // TestReadModelRequirement reads the requirement of each plan sample's next
-// PR (PR-2, or the plan itself without markers), so opus and
-// sonnet+opus-review are told apart here, which the parity test cannot do.
+// PR (PR-2, or the plan itself without markers), so high and
+// standard+high-review are told apart here, which the parity test cannot do.
 func TestReadModelRequirement(t *testing.T) {
 	old := testOldValues
 	cases := map[string]struct {
 		target string
 		want   RequirementReading
 	}{
-		"marker-opus.md":                  {"2", RequirementReading{RequirementOpus, "opus"}},
-		"marker-sonnet-review.md":         {"2", RequirementReading{RequirementSonnetReview, "sonnet+opus-review"}},
-		"marker-sonnet.md":                {"2", RequirementReading{RequirementSonnet, "sonnet"}},
-		"marker-old-frontier-required.md": {"2", RequirementReading{RequirementOpus, "frontier-required"}},
-		"marker-old-standard.md":          {"2", RequirementReading{RequirementSonnet, "standard"}},
-		"marker-unreadable.md":            {"2", RequirementReading{RequirementUnreadable, "Opus"}},
-		"marker-absent.md":                {"2", RequirementReading{Value: RequirementAbsent}},
-		"marker-two-values.md":            {"2", RequirementReading{Value: RequirementUnreadable}},
-		"marker-fenced-value.md":          {"2", RequirementReading{Value: RequirementUnreadable}},
-		"marker-tilde-fence.md":           {"2", RequirementReading{Value: RequirementUnreadable}},
-		"marker-sonnet.md crlf":           {"2", RequirementReading{RequirementSonnet, "sonnet"}},
-		"marker-duplicate.md":             {"2", RequirementReading{Value: RequirementUnreadable}},
-		"single-sonnet.md":                {singleTarget, RequirementReading{RequirementSonnet, "sonnet"}},
-		"single-no-section.md":            {singleTarget, RequirementReading{Value: RequirementAbsent}},
-		"single-outside-chapter3.md":      {singleTarget, RequirementReading{Value: RequirementAbsent}},
-		"marker-opus.md as single":        {singleTarget, RequirementReading{Value: RequirementUnreadable}},
+		"marker-high.md":                     {"2", RequirementReading{RequirementHigh, "high"}},
+		"marker-standard-review.md":          {"2", RequirementReading{RequirementStandardReview, "standard+high-review"}},
+		"marker-low.md":                      {"2", RequirementReading{RequirementLow, "low"}},
+		"marker-low.md crlf":                 {"2", RequirementReading{RequirementLow, "low"}},
+		"marker-opus.md":                     {"2", RequirementReading{RequirementHigh, "opus"}},
+		"marker-sonnet-review.md":            {"2", RequirementReading{RequirementStandardReview, "sonnet+opus-review"}},
+		"marker-sonnet.md":                   {"2", RequirementReading{RequirementLow, "sonnet"}},
+		"marker-old-frontier-required.md":    {"2", RequirementReading{RequirementHigh, "frontier-required"}},
+		"marker-old-frontier-recommended.md": {"2", RequirementReading{RequirementStandardReview, "frontier-recommended"}},
+		"marker-old-standard.md":             {"2", RequirementReading{RequirementLow, "standard"}},
+		"marker-unreadable.md":               {"2", RequirementReading{RequirementUnreadable, "Opus"}},
+		"marker-absent.md":                   {"2", RequirementReading{Value: RequirementAbsent}},
+		"marker-two-values.md":               {"2", RequirementReading{Value: RequirementUnreadable}},
+		"marker-fenced-value.md":             {"2", RequirementReading{Value: RequirementUnreadable}},
+		"marker-tilde-fence.md":              {"2", RequirementReading{Value: RequirementUnreadable}},
+		"marker-sonnet.md crlf":              {"2", RequirementReading{RequirementLow, "sonnet"}},
+		"marker-duplicate.md":                {"2", RequirementReading{Value: RequirementUnreadable}},
+		"single-low.md":                      {singleTarget, RequirementReading{RequirementLow, "low"}},
+		"single-sonnet.md":                   {singleTarget, RequirementReading{RequirementLow, "sonnet"}},
+		"single-no-section.md":               {singleTarget, RequirementReading{Value: RequirementAbsent}},
+		"single-outside-chapter3.md":         {singleTarget, RequirementReading{Value: RequirementAbsent}},
+		"marker-opus.md as single":           {singleTarget, RequirementReading{Value: RequirementUnreadable}},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -146,7 +187,7 @@ func TestParsePlanProgress(t *testing.T) {
 			t.Fatalf("read %d PRs, want 3", len(plan.PRs))
 		}
 		third := plan.PRs[2]
-		if third.Requirement != (RequirementReading{RequirementSonnet, "standard"}) || third.AutoSend != AutoSendHold || third.Created {
+		if third.Requirement != (RequirementReading{RequirementLow, "standard"}) || third.AutoSend != AutoSendHold || third.Created {
 			t.Errorf("PR-3 = %+v", third)
 		}
 	})
@@ -309,7 +350,7 @@ func TestTasksRead(t *testing.T) {
 			t.Fatalf("docs = %+v", docs)
 		}
 		next, _ := docs.Plan.NextPR()
-		if next.Requirement.Value != RequirementSonnet {
+		if next.Requirement.Value != RequirementLow {
 			t.Errorf("the old value was not read through origin/main's table: %+v", next.Requirement)
 		}
 		for _, c := range rec.recorded() {

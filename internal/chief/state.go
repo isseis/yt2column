@@ -270,12 +270,12 @@ type takeoverFacts struct {
 // A reading with no route (absent or unreadable) gives RouteUnknown.
 func routeKeyOf(r Requirement) paneinput.RouteKey {
 	switch r {
-	case RequirementOpus:
-		return paneinput.RouteRunplanOpus
-	case RequirementSonnetReview:
-		return paneinput.RouteRunplanSonnetReview
-	case RequirementSonnet:
-		return paneinput.RouteRunplanSonnet
+	case RequirementHigh:
+		return paneinput.RouteRunplanHigh
+	case RequirementStandardReview:
+		return paneinput.RouteRunplanStandardReview
+	case RequirementLow:
+		return paneinput.RouteRunplanLow
 	default:
 		return paneinput.RouteUnknown
 	}
@@ -468,7 +468,7 @@ func needsTakeoverCheck(f workspaceFacts, next *Next) bool {
 		return false
 	}
 	key := next.Command.Route()
-	if key != paneinput.RouteRunplanOpus && key != paneinput.RouteRunplanSonnetReview {
+	if key != paneinput.RouteRunplanHigh && key != paneinput.RouteRunplanStandardReview {
 		return false
 	}
 	return takeoverTargetReady(f.Agents)
@@ -578,7 +578,7 @@ func idleNeedsCheck(f workspaceFacts) bool {
 
 // takeoverProposal returns the proposal to hand a stopped /runplan to Claude
 // Code, or nil when a condition of it does not hold. Every condition must
-// hold: the next command's route (OpenCode for opus or sonnet+opus-review),
+// hold: the next command's route (OpenCode for high or standard+high-review),
 // commits beyond origin/main, no open PR, agents that accept input, and the
 // branch's plan with every step of the PR done.
 func takeoverProposal(f workspaceFacts, next *Next) *Next {

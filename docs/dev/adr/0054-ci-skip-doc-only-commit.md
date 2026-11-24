@@ -31,13 +31,12 @@
 
 ### 実装構造と API 検証方式
 
--   **`main` 不変性の検証方式:** 通常分類でコードまたはブラウザ拡張の変更が検出されて `ciskip` が起動するたびに、`pull_request` イベントでチェックアウトされる合成マージコミットの第 1 親（`HEAD^1`、その実行が実際に検証した `main` コミット）を固定形式の `::notice` アノテーション（`title=ci-base-sha`）として記録する。次回のスキップ判定時には、親コミットの `check-changes`（表示名 `Check changed files`）ジョブのチェック実行アノテーション（Checks API）から読み戻して今回の `HEAD^1` および `origin/main` と照合する。
+-   **`main` 不変性の検証方式:** 通常分類でコードまたはブラウザ拡張の変更が検出されて `ciskip` が起動し、かつ同一リポジトリの `main` 向け PR で入力が有効であり、チェックアウトされた合成マージコミットの第 2 親が検証済みの PR head SHA と一致したときに、その合成マージコミットの第 1 親（`HEAD^1`、その実行が実際に検証した `main` コミット）を固定形式の `::notice` アノテーション（`title=ci-base-sha`）として記録する。フォーク PR・非 `main` ベース・不正な入力・合成マージコミットの不一致では記録しない。次回のスキップ判定時には、親コミットの `check-changes`（表示名 `Check changed files`）ジョブのチェック実行アノテーション（Checks API）から読み戻して今回の `HEAD^1` および `origin/main` と照合する。
     -   理由：GitHub Actions REST API は過去の合成マージコミットの `HEAD^1` を返さず、`pull_requests[].base.sha` も古くなりうるため、明示的に記録した SHA を照合することで偽陽性を防ぎつつ、PR ブランチが `main` を取り込んでいない一般的なケースでもスキップを有効にするため（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
 -   **判定ロジックの配置先:** [ADR-0014](0014-deterministic-checks-in-go.md) の方針に従い、Go 製の CI 専用ツール `cmd/ciskip` + `internal/ciskip` として実装し、`.github/workflows/ci.yml` の `check-changes` ジョブから `go run ./cmd/ciskip` で呼び出す。コンパイル済みバイナリの事前ビルド・配布は行わない。インストール型ツールではなく CI 専用のため、`make install-*` やプロトコル番号の対象外とする。既存の通常分類ステップはそのまま残し、後段の最終出力ステップでスキップ判定を適用する。
     -   理由：`check-changes` は `wasm-dep-dirs.sh` のためにすでに Go をセットアップ済みであり、`internal/strictjson` と `internal/cmdrunner` を再利用して厳密な検証と包括的なユニットテストを書けるため。また、`go.mod` は外部依存がなく `cmd/ciskip` の依存パッケージも少ないため、`GOCACHE` が空の状態から `go run` で都度ビルドしても数秒程度（4 vCPU 換算で約 4〜6 秒）で終わり、スキップ適用時は常時実行の `doc-guard`（約 1 分）と並列に走るため PR 全体の待ち時間を増やさない（文書のみ PR で通常分類が両方 `false` のときは `ciskip` 自体を起動しない）（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
 -   **GitHub API の呼び出し方式:** 既存の Go 製開発ツールと同じく `internal/cmdrunner` 経由で `gh api --hostname github.com -i` を呼び出す（`GH_HOST`・`GH_REPO` 等を環境から除外し、`git`・`bash` へは `GH_TOKEN`・`GITHUB_TOKEN` を渡さない）。HTTP リダイレクト（3xx）を拒否できない点と HTTP 層で応答サイズ上限を指定できない点は `gh` の制限として受け入れ、呼び出し側で出力読み込み上限（`cmdrunner.Options.MaxOutput`）とタイムアウト・プロセスグループ終了を課すことでメモリ枯渇とハングを防ぐ。
     -   理由：GitHub API の認証を `gh` の認証機構へ委譲でき、`ciskip` 自身が `GITHUB_TOKEN`／`GH_TOKEN` を直接読み込んで保持・ヘッダ付与・ログやエラー出力からの秘匿を自前管理せずに済むため（[ADR-0024](0024-env-access-in-config.md) の方針変更も不要になる）。あわせて既存の `cmdrunner`・`gh` パターンを再利用して実装の複雑さを抑えられるため（[0119 設計書](../../tasks/0119_ci_skip_doc_only_commit/02_architecture.md) §1.2）。
--   **食い違い:** この決定はまだ [.github/workflows/ci.yml](../../../.github/workflows/ci.yml) に実装されておらず、`cmd/ciskip` および `internal/ciskip` も未作成である。`check-changes` ジョブは現在も `origin/main...HEAD` のみで分類しており、直前コミットの CI 結果に基づくスキップは行わない。この食い違いは https://github.com/isseis/yt2column/issues/1073 の実装で解消する。
 
 ## 採らなかった案
 
@@ -59,9 +58,9 @@
 
 -   `mergepr` と `/runpr` の仕様・プロトコル番号を変えずに、`PRE_MERGE` コミットや文書のみの追加 push 後の CI 待ち時間と実行コストを削減できる。
 -   `doc-guard`（文書の値・構造・同期ガード）と `secret-scan`（追跡対象ファイル内の PEM 秘密鍵の検査）はスキップ時も毎回実行される。
--   `check-changes` ジョブに `actions: read` と `checks: read` の読み取り権限が加わり、通常分類でコードまたはブラウザ拡張の変更がある実行の Summary の Annotations 欄に `ci-base-sha` の notice が 1 件表示される。
+-   `check-changes` ジョブに `actions: read` と `checks: read` の読み取り権限が加わり、同一リポジトリの `main` 向け PR でコードまたはブラウザ拡張の変更があり、合成マージコミットの第 2 親が検証済みの PR head SHA と一致した実行では、Summary の Annotations 欄に `ci-base-sha` の notice が 1 件表示される（フォーク PR・非 `main` ベース・不正な入力・合成マージコミットの不一致では表示されない）。
 -   `gh` コマンドの仕様上、HTTP 3xx リダイレクトの拒否と HTTP 層での応答サイズ上限の指定は行えないという制限がある（呼び出し側の `cmdrunner.Options.MaxOutput` とタイムアウトでメモリ枯渇とハングを防ぐ）。
--   `::notice` アノテーションを `GITHUB_TOKEN` + `checks: read` で Checks API から読み戻せるかは実装 PR の実機確認（F-006）で確かめる（読み戻せない場合は安全側で通常実行に倒れる）。
+-   `::notice` アノテーションは `GITHUB_TOKEN` + `checks: read` で Checks API から読み戻せることを、PR #1091 の GitHub Actions 実機確認（2026-11-23）で確かめた（読み戻せない場合は安全側で通常実行に倒れる）。
 -   将来 `.github/workflows/ci.yml` に `check-changes` の出力で制御される新しい重いジョブを追加する場合は、同じ PR 内で、親コミットの通過確認対象となるジョブの一覧（`internal/ciskip`）も更新する必要がある。
 -   1 回の push で複数コミットをまとめて積んだ場合や、`README.md`・`README.en.md`・`docs/dev/guides/development.md` を含む文書修正を積んだ場合、および `main` が進んだ場合は、重いジョブはスキップされず、通常どおり実行される。
 

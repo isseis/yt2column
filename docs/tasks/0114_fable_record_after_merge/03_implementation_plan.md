@@ -59,6 +59,15 @@
 5.  **merge の後の確認の指摘の場所の規則を、Fable の規則に範囲の一覧のパスを加えたものにする（設計書の決定 13、要件書 4.2）。** merge-base から HEAD までに変わったファイル（Fable の規則）か、範囲の一覧にあるパスなら、有効な場所とする。計画のレビューで、Fable の規則のままでは、衝突を `main` 側に寄せて解いたファイルへの指摘が INVALID になると分かった。最初は「範囲の一覧のパスか、merge commit が親のどちらかに対して変えたパス」としたが、Fable の部分レビューで、親に対する差分は PR が触れていないファイルまで加え、Fable の規則も置き換えてしまうと分かったので、狭めた。要件書 4.2 の「受け入れる形は Fable と揃える」を変えるので、要件書と設計書を `draft` に戻した。人の答え：規則を変える（推奨）、続けて、狭めて要件も draft に戻す（推奨）。
     -   ADR：なし（設計書の決定 13 の判断のとおり）。
 
+### 1.3.1. 実装の際に決めたこと（2026-11-23）
+
+本計画承認後にタスク 0118（`#1077`）が `_lib/task-pr-handoff.md` Part B にローカル CLI 未レビュー分の補完（`step 2.5`）を追加したため、フェーズ 2 の実装前に人と確認して次の 2 点を決めた（セッション中の再承認。詳細は設計書 1.2.1）。
+
+1.  **Part B の順序とステップ番号:** 既存のタスク 0118 の手順を `step 2.5` のまま残し、本タスクの push の直前の判定（Entry 4）を **`step 2.6`** として `step 2.5` の直後・`step 3` の直前に置く。これに合わせて、`TestReviewRecordsCallSite` の `handoff step 2.5` の終端を `"\n2.6. "` に直し、`handoff step 3` に `unreviewed` の 3 行の並びを足す。人の答え：既存を `step 2.5` のまま残し Entry 4 を `step 2.6` とする（推奨）。
+    -   ADR：なし（設計書 1.2.1 の判断のとおり）。
+2.  **`step 2.6` の救済後の再チェックで `step 2.5` を走らせ直さない:** `step 2.6` の再チェックは `AFTER_REMEDY` → README の同期 → CHECKS → 最終段のみとし、`step 2.5` は走らせ直さない。人の答え：走らせ直さない（推奨）。
+    -   ADR：なし（設計書 1.2.1 の判断のとおり）。
+
 ### 1.4. 既存コード調査結果
 
 **判定のスクリプト（`.claude/commands/_lib/review-records.sh`）。**
@@ -129,7 +138,7 @@
 
 **変更するファイル:** `.claude/commands/_lib/review-records.sh`、`cmd/yt2column/review_records_test.go`、`.claude/commands/_lib/fable-review.md`（「The validity decision」の規則の箇条と「Record lines」の表だけ）、`docs/dev/adr/0050-fable-partial-review.md`（食い違いの文だけ）、本計画
 
--   [ ] **ステップ 1-1**: `fable` のモードを変える（設計書 3.1）。
+-   [x] **ステップ 1-1**: `fable` のモードを変える（設計書 3.1）。
     -   範囲の確かめで、START の条件を広げる（3.1.4）。Fable の記録、同じ実行の直しの範囲の行、規則 4 の見た範囲の行に当てる。`coverage` の確かめは変えない。
     -   merge の後の確認の記録を読む（3.1.3）。`Merge check: run` と `Merge check: not run` の形の正規表現を足す。名指しした ID の 4 つの条件を確かめる。ID が何のオブジェクトも指さないときと、commit でないオブジェクトを指すときは、その行を数えずに読み進め、失敗にしない。
     -   確認できる merge commit を見分ける（用語、決定 12）。
@@ -137,42 +146,42 @@
     -   結果を `MISSING`・`MERGE <n>`・`VALID` の順で決める（3.1.2、3.1.1）。
     -   START を決め直す（3.1.5）。
     -   ヘッダーの使い方、`ENTRY` の説明（決定 5）、`fable` の契約、「Where the rules are defined」の段落（`Merge check:` の行の形の定義が `fable-review.md` にあること）を合わせる。
--   [ ] **ステップ 1-2**: `unreviewed` のモードを足す（設計書 3.2、§1.3 の決定 4）。引数は `<HEAD> [<PLAN>]` とする。`coverage` と判定の関数を共有し、3.2 の 2 点（範囲の確かめと merge commit の扱い）だけを引数で選ぶ。ヘッダーは `unreviewed` を「`coverage none` に 2 点を当てたもの」と定義し、規則を 2 度書かない。「Where the rules are defined」の段落に、`unreviewed` の 2 点の根拠が本タスクの設計書 3.2 にあることを足す。失敗のときは `PARTIAL` だけを出して、終了コード 1 で終わる。
--   [ ] **ステップ 1-3**: `_lib/fable-review.md` を変える（§1.3 の決定 2）。
+-   [x] **ステップ 1-2**: `unreviewed` のモードを足す（設計書 3.2、§1.3 の決定 4）。引数は `<HEAD> [<PLAN>]` とする。`coverage` と判定の関数を共有し、3.2 の 2 点（範囲の確かめと merge commit の扱い）だけを引数で選ぶ。ヘッダーは `unreviewed` を「`coverage none` に 2 点を当てたもの」と定義し、規則を 2 度書かない。「Where the rules are defined」の段落に、`unreviewed` の 2 点の根拠が本タスクの設計書 3.2 にあることを足す。失敗のときは `PARTIAL` だけを出して、終了コード 1 で終わる。
+-   [x] **ステップ 1-3**: `_lib/fable-review.md` を変える（§1.3 の決定 2）。
     -   「The validity decision」の規則の箇条に、規則 4、確認できる merge commit と確認済みの merge commit の扱い、広げた範囲の確かめ、START の決め方を足す（設計書 3.1.2〜3.1.5）。「A merge commit is never covered」（`:134-135`）を、それに合わせて直す。出力の読み方（`:94-106`）は PR-2 で変える。
     -   「Record lines」の表に、`Merge check:` の 4 行を足す。値（`<reason>`・`<criterion>`）の説明も足す（設計書 3.3.6）。
--   [ ] **ステップ 1-4**: スクリプトのテストの fixture を足す。
+-   [x] **ステップ 1-4**: スクリプトのテストの fixture を足す。
     -   `readFableForms` が `Merge check: run` と `Merge check: not run` の形を表から読む。
     -   確認の記録の行を作る関数を足す。
     -   確認できる merge の fixture を足す。merge commit の親がちょうど 2 つで、第 1 親がブランチの commit か merge-base、第 2 親が `origin/main` から届くことを確かめ、違えば `t.Fatal`（「so the case checks nothing」の形）で止める。
     -   確認できない merge commit の 3 つの形を作る関数を足す（§1.4）。
--   [ ] **ステップ 1-5**: `fableCases` に、設計書 7.1 の `fable` のモードの表の件を足す。足し方には、次の 6 つの決まりがある。
+-   [x] **ステップ 1-5**: `fableCases` に、設計書 7.1 の `fable` のモードの表の件を足す。足し方には、次の 6 つの決まりがある。
     -   確認できる merge commit を使う件は、確認できる merge の fixture で作る。
     -   受け付けない側の件（名指しを数えない、範囲の行を読まない、規則 4 に当てない）は、数えれば出力が変わる配置で作り、期待する出力を 1 行として書く。可能なら、正しい形の行で同じ配置を作ると出力が変わることを先に確かめ、変わらなければ `t.Fatal` で止める。たとえば、merge commit でない commit N の名指しは、記録 → 中身のない commit N（空の commit）→ 中身のある commit X → N を名指しする確認の記録（見た範囲が X を含む）の配置で、`MISSING` を期待する。名指しを除いた同じ配置が `MISSING` を返し、名指しを数えれば X が規則 4 で除かれる配置であることを、先に確かめる。
     -   名指しの件に、何のオブジェクトも指さない 40 桁の ID と、tree の ID を名指しする件を足す。確認できる merge commit の横に置き、名指しを数えない出力（`MERGE 1`）と終了コード 0 を期待する。
     -   AC-14 は、merge の前の記録の START が古い merge-base の件と、ブランチの commit の件の 2 つを置く。どちらも、記録 → 中身のある commit X → 確認できる merge commit の順にし、`MISSING <新しい merge-base>` を期待する。それぞれ、X を除いた同じ配置が `MERGE 1` を返すこと（記録が読まれていること）を先に確かめ、違えば `t.Fatal` で止める。
     -   設計書 7.1 の件が既存の件と同じ配置と出力になるとき（「README.en.md after the record」、ステップ 1-6 で直す「record from a merge-base origin/main moved past」）は、新しい件を足さず、既存の件をその行の確かめとして使う。
     -   決定 12 の「第 2 親が `origin/main` にない merge commit」の件は、ステップ 1-6 で直す「merge after the record」と同じ形になる。違いが確認の記録の有無だけなら 1 つにまとめ、確認の記録を持つ形を残す（確認できない merge commit を名指しする記録を数えないことを確かめるため）。残す件が何を確かめるかをコメントに書く。
--   [ ] **ステップ 1-6**: 期待する出力が変わる既存の件を、それぞれ直す（設計書 3.7）。
-    -   [ ] 「record from a merge-base origin/main moved past」: `MERGE 1` と、その merge commit（設計書 3.1.2 の M）の ID にする。
-    -   [ ] 「merge after the record」: `MISSING <merge-base>` にする。件の前のコメントも、`MISSING` の理由が確認できない merge commit であること（決定 12）と、START が merge-base になる理由（3.1.5）を述べる形に直す。
-    -   [ ] 「range of the record's commit beyond it」: `MISSING <merge-base>` にする。コメントに、START が merge-base になる理由が 3.1.5 であることを書く。
-    -   [ ] merge を作るほかの件を走らせ、期待する出力が変わらないことを確かめる。出力が変わらない件ごとに、新しい規則のどれがその出力を作るかをコメントに書く。「parent of the first missing commit behind the merge-base」（`:930-946`）は、START を merge-base に戻す分岐（`review-records.sh:574-577`）ではなく決定 12 か 3.1.5 の規則で merge-base になる。その分岐に届く件を残せるならそれを足し、届かなくなったなら、その分岐が守りのためだけに残ることをスクリプトのコメントと commit のメッセージに書く。
--   [ ] **ステップ 1-7**: `unreviewed` のテスト `TestReviewRecordsUnreviewed` を足す。
+-   [x] **ステップ 1-6**: 期待する出力が変わる既存の件を、それぞれ直す（設計書 3.7）。
+    -   [x] 「record from a merge-base origin/main moved past」: `MERGE 1` と、その merge commit（設計書 3.1.2 の M）の ID にする。
+    -   [x] 「merge after the record」: `MISSING <merge-base>` にする。件の前のコメントも、`MISSING` の理由が確認できない merge commit であること（決定 12）と、START が merge-base になる理由（3.1.5）を述べる形に直す。
+    -   [x] 「range of the record's commit beyond it」: `MISSING <merge-base>` にする。コメントに、START が merge-base になる理由が 3.1.5 であることを書く。
+    -   [x] merge を作るほかの件を走らせ、期待する出力が変わらないことを確かめる。出力が変わらない件ごとに、新しい規則のどれがその出力を作るかをコメントに書く。「parent of the first missing commit behind the merge-base」（`:930-946`）は、START を merge-base に戻す分岐（`review-records.sh:574-577`）ではなく決定 12 か 3.1.5 の規則で merge-base になる。その分岐に届く件を残せるならそれを足し、届かなくなったなら、その分岐が守りのためだけに残ることをスクリプトのコメントと commit のメッセージに書く。
+-   [x] **ステップ 1-7**: `unreviewed` のテスト `TestReviewRecordsUnreviewed` を足す。
     -   `coverageCases` を再利用する。setup が返す引数の先頭が `none` の件だけを取り、`none` を除いて `unreviewed` の引数にする関数を通す。先頭が `none` でない件（LAST_REVIEWED に固有の件と、LAST_REVIEWED の形の失敗の件）は、対象にしない。
     -   3.2 の 2 点で期待する出力が変わる件は、走らせる前に設計書 3.2 から期待する出力を決めて上書きする。上書きした件と、それを変えた 3.2 の点を、commit のメッセージに書く（たとえば「merge commit inside a seen range」は `ALL` になる）。
     -   設計書 7.1 の `unreviewed` の表の件を足す。merge を使う件は、確認できる merge の fixture で作る。「見た範囲の行の範囲に入る merge commit」は、上書きした「merge commit inside a seen range」で兼ねる。
-    -   `unreviewed` に固有の引数の失敗の件を足す（引数がない、引数が多すぎる、HEAD の形が違う、PLAN の形が違う）。
+    -   `unreviewed` の引数の失敗の件（引数がない、引数が多すぎる、HEAD の形が違う、PLAN の形が違う）は、再利用した `coverage` の件から `none` を除いた形（「too few arguments」「too many arguments」「HEAD of another form」「PLAN of another form」など）で確かめ、同じ件を別に足さない。
     -   `coverage` と同じく、各 bash と、環境を変えた走らせ方で確かめる。
--   [ ] **ステップ 1-8**: `coverage` が広げた範囲の確かめを使わないことを固定する件を、`coverageCases` に足す（要件書 2.3）。START が古い merge-base の見た範囲の行の後に、確認できる merge commit を置く（#987 の形）。範囲の commit を `PARTIAL` に挙げることを期待する。
--   [ ] **ステップ 1-9**: git の設定と、置き換えの ref の件を、新しい読み方にも当てる。
+-   [x] **ステップ 1-8**: `coverage` が広げた範囲の確かめを使わないことを固定する件を、`coverageCases` に足す（要件書 2.3）。START が古い merge-base の見た範囲の行の後に、確認できる merge commit を置く（#987 の形）。範囲の commit を `PARTIAL` に挙げることを期待する。
+-   [x] **ステップ 1-9**: git の設定と、置き換えの ref の件を、新しい読み方にも当てる。
     -   確認できる merge commit と確認の記録を持つ分岐の上で、`rrConfigScenarios` を走らせる。基準の出力は `MERGE 1` か、確認の記録のある `VALID` とする。
     -   置き換えの ref（`refs/replace/`）で、確認できない merge commit を確認できるように見せる件を足し、名指しを数えないことを確かめる（`coverage` の「replace ref」の件と同じ扱い）。
--   [ ] **ステップ 1-10**: guard のテストを直す（設計書 3.7）。
+-   [x] **ステップ 1-10**: guard のテストを直す（設計書 3.7）。
     -   `TestReviewRecordsMode` のモードの一覧に `Unreviewed` を足し、コメントを 3 つのモードに合わせる。
     -   `TestRecordLinePrefixesDistinct` が、`Fable ...` の接頭辞と `Merge check ...` の接頭辞も互いに比べるようにする。同じ族の中の同じ接頭辞（`Fable review:` が 3 行にある）は比べない。読んだ接頭辞の数の下限を、足した行に合わせて上げる。
--   [ ] **ステップ 1-11**: ステップ 1-5〜1-10 の各件について、スクリプトの該当する規則か、文書の行の形を壊すと失敗することを確かめ、commit のメッセージに書く。§1.2 のとおり、ほかの確かめが裏打ちする条件は、その旨と裏打ちする確かめを書く。たとえば、広げた範囲の確かめの「START が `origin/main` から届く」は、今の「START が END の祖先」と「END がブランチの commit」が裏打ちしうる。規則 4 の「確認の記録の commit（設計書 3.1.2 の Q）の祖先」は、`checked_range` の「END が Q の真の祖先」が裏打ちしうる。
--   [ ] **ステップ 1-12**: ADR-0050 の食い違いの文（`:84`）を、残る食い違いだけを述べる形に書き直す。
+-   [x] **ステップ 1-11**: ステップ 1-5〜1-10 の各件について、スクリプトの該当する規則か、文書の行の形を壊すと失敗することを確かめ、commit のメッセージに書く。§1.2 のとおり、ほかの確かめが裏打ちする条件は、その旨と裏打ちする確かめを書く。たとえば、広げた範囲の確かめの「START が `origin/main` から届く」は、今の「START が END の祖先」と「END がブランチの commit」が裏打ちしうる。規則 4 の「確認の記録の commit（設計書 3.1.2 の Q）の祖先」は、`checked_range` の「END が Q の真の祖先」が裏打ちしうる。
+-   [x] **ステップ 1-12**: ADR-0050 の食い違いの文（`:84`）を、残る食い違いだけを述べる形に書き直す。
     -   PR を作る前に、`git grep -nE 'issues/988([^0-9]|$)' origin/main -- docs/dev/adr/` で、`origin/main` の文を探す（`docs/dev/conventions/adr.md`「Discrepancy statements」）。
     -   判定のスクリプトの読み方（merge の後の確認の記録、広げた範囲の確かめ、START の決め方）は PR-1 で解消する。残るのは手順の部分で、次の 3 つを述べる。
         -   タスク文書の PR はまだ印を残さないので、CHECKS の直しが記録を無効にすること。
@@ -180,7 +189,7 @@
         -   今の手順が `MERGE` を `MISSING <merge-base>` と読み、Fable が PR の全体を見ること。
     -   書き直した文も、#988 へのリンクを保つ（ステップ 2-8 がそのリンクで文を探す）。
     -   編集上の訂正の 2 つ目の種類（`docs/dev/conventions/adr.md`「Editorial corrections」）として、commit のメッセージに訂正の行を書く。
--   [ ] **ステップ 1-13**: AC-23 の差分の記録を書く（§7 の「差分の記録」の PR-1 の欄）。
+-   [x] **ステップ 1-13**: AC-23 の差分の記録を書く（§7 の「差分の記録」の PR-1 の欄）。
 
 **完了の条件:**
 
@@ -205,54 +214,54 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1066
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 手順の変更（設計書 8 章の 2）
 
 **変更するファイル:** `.claude/commands/_lib/fable-review.md`、`.claude/commands/_lib/task-pr-handoff.md`、`.claude/commands/runplan.md`、`.claude/commands/_lib/local-cli-review.md`、`cmd/yt2column/review_records_test.go`、`docs/dev/adr/0050-fable-partial-review.md`、本計画
 
--   [ ] **ステップ 2-1**: `_lib/fable-review.md` の入口を変える（設計書 3.3.1〜3.3.4）。
+-   [x] **ステップ 2-1**: `_lib/fable-review.md` の入口を変える（設計書 3.3.1〜3.3.4）。
     -   冒頭の入口の数と入口の表を 4 つにする（「three entry points」を直す）。「Two task PRs pass FABLE」の段落と、FABLE の段落（`:45-47`）を合わせる。
     -   起動しないのは有効な記録を見つけたときだけ、と述べる 2 か所（`:62-64`、`:167-168`）に、`MERGE` も足す。
     -   「The validity decision」の読み方に `MERGE` と、その形の確かめを足す（3.1.1）。判定を走らせる入口の文（`:81`）と `<ENTRY>` の説明（`:96-98`）を、決定 5 に合わせる。
     -   Entry 1 の `MERGE`（3.3.2）、Entry 3 の変更（3.3.3。印の後に作る commit の一覧を含む）、Entry 4（3.3.4）を書く。
     -   単独の経路の呼ぶ側の文（`:210`）を、Entry 3・Entry 4 に加えて、範囲を求められないときの「The merge check」も呼ぶ形に直す。RANGE の出どころの文（`:213-214`）を、呼ぶ側が渡す RANGE に直す（有効かの判定の `<START>..HEAD`、または merge-base..HEAD）。
     -   「Reading the record lines」の読む範囲（`:529-530`）を、Part B step 3 では `origin/main..<D>` に合わせる。
--   [ ] **ステップ 2-2**: `_lib/fable-review.md` に節「The merge check」を足す（設計書 3.3.5、決定 3・7・8・9・12・13）。
+-   [x] **ステップ 2-2**: `_lib/fable-review.md` に節「The merge check」を足す（設計書 3.3.5、決定 3・7・8・9・12・13）。
     -   範囲の一覧、範囲を求められないときの扱い、指示、出力の確かめ、記録の commit を書く。出力の確かめでは、指摘の場所の規則を決定 13 のものにする。記録の行の `<location>` も、その規則で確かめる（3.3.6）。
     -   待つ時間と呼び直しは、Entry 1・Entry 2 の該当する step を、引数を替えて参照する。状態の確かめは「The state check」を参照する。どちらも文を写さない。
     -   「Authorization and constraints」（`:66-77`）を、確認のサブエージェントにも当てる形に直す（AC-29）。
     -   記録の commit の前に、`_lib/local-cli-review.md` step 7 の「Mention check」を走らせることを書く。
     -   「Reading the record lines」に、merge の後の確認の行の読み方を足す（3.3.6）。
--   [ ] **ステップ 2-3**: `_lib/local-cli-review.md` を変える（設計書 2.1）。
-    -   呼び出し元の一覧（`:10-23`）に「The merge check」を足し、「Seven callers」の数を直す。
+-   [x] **ステップ 2-3**: `_lib/local-cli-review.md` を変える（設計書 2.1）。
+    -   呼び出し元の一覧（`:10-23`）に「The merge check」を足す（見出し文はタスク 0118 で数を含まない形に更新済み）。
     -   RECORD の表（`:70-79`）に、「The merge check」（RECORD `return`）を足す。
--   [ ] **ステップ 2-4**: `_lib/task-pr-handoff.md` を変える（設計書 3.4）。
+-   [x] **ステップ 2-4**: `_lib/task-pr-handoff.md` を変える（設計書 3.4、§1.3.1）。
     -   「Inputs」に FABLE・CHECKPOINT・AFTER_REMEDY を足す（3.4.1）。step 1 は、FABLE を受け取って渡す形にする。step 1 の「stop before step 2」（`:196`・`:205`）を、step 1.5 より前で止まることが分かる形に直す。
-    -   step 1.5（3.4.2）と step 2.5（3.4.3）を足す。
+    -   step 1.5（3.4.2）と step 2.6（3.4.3、既存のタスク 0118 の step 2.5 の直後）を足す。
     -   step 3 を変える（3.4.4）。本文を読む範囲を `origin/main..<D>` にする。「どちらの CLI もレビューしなかった commit」の文を、`unreviewed` のモードの 3 行のコードブロックに置き換える。merge の後の確認の節と、push の直前の判定の行を足す。push は D を名指しし、上流を設定し直す。HEAD が D と違うときの扱いと、D が決まっていない呼び出しの扱いを書く。step 3 と step 4 の書き出しの文は変えない。
     -   AFTER_CREATE の前に、HEAD が D であることを確かめる（決定 10）。
     -   Authorization の段落に、D を名指しした push と `git branch --set-upstream-to` を足す。
--   [ ] **ステップ 2-5**: `runplan.md` を変える（設計書 3.5）。
+-   [x] **ステップ 2-5**: `runplan.md` を変える（設計書 3.5）。
     -   step 5a（`:98`）と step 8（`:263`）のチェックポイントの段落に、Entry 3 の `MERGE` と FABLE を足す（3.5.1）。
     -   step 5a の Part B の呼び出しに、FABLE・CHECKPOINT `done`・AFTER_REMEDY を足す（3.5.2）。
     -   step 8 の、計画書に PR マーカーがないときの Part B の呼び出し（`:263`）が受け継ぐ入力にも、FABLE・CHECKPOINT・AFTER_REMEDY を入れる。
     -   B1 の文（`:279-280`）と、step 5a の LOCAL_REVIEW の文（`:120-123`）を直す（3.5.3）。
--   [ ] **ステップ 2-6**: guard のテストを直す（設計書 3.7、7.2）。
-    -   `TestReviewRecordsCallSite` について、2 つを変える。許す呼び出しの行に `bash <records-script> unreviewed <HEAD> <PLAN>` を足す。走らせる節に、`task-pr-handoff.md` Part B step 3 の 3 行の並びを足す。Part B step 3 は番号付きの項目なので、節は `postingSections` と同じ `itemSection` で探す。
+-   [x] **ステップ 2-6**: guard のテストを直す（設計書 3.7、7.2、§1.3.1）。
+    -   `TestReviewRecordsCallSite` について、許す呼び出しの行に `bash <records-script> unreviewed <HEAD> <PLAN>` を足し、既存の `handoff step 2.5` の終端を `"\n2.6. "` に合わせたうえで、走らせる節に `task-pr-handoff.md` Part B step 3 の 3 行の並びを足す。Part B step 3 は番号付きの項目なので、節は `postingSections` と同じ `itemSection` で探す。
     -   `TestRecordCommitsCheckMention` の確かめる節に、「The merge check」を足す。
     -   どちらも、足した確かめを壊すと失敗することを確かめ、commit のメッセージに書く。壊し方は 2 つある。Part B step 3 から実行の行を消すこと、「The merge check」からメンションの確かめを消すことである。
--   [ ] **ステップ 2-7**: 手順の変更の後、次の箇所を読み、新しい手順と食い違う文がないことを確かめる。食い違えば直し、PR の説明に書く。
+-   [x] **ステップ 2-7**: 手順の変更の後、次の箇所を読み、新しい手順と食い違う文がないことを確かめる。食い違えば直し、PR の説明に書く。
     -   `CLAUDE.md:224-235`、`_lib/simple-process.md:232`。
     -   `runpr.md` のうち、`task-pr-handoff.md` Part B step 3 を指す箇所（`:164`・`:177`・`:1555`）。
-    -   `local-cli-review.md:337`・`:351-353`（何も起動しなかったときの SUMMARY。`MERGE` でも起動しない）・`:357`（「Triage rules」で扱う指摘の出どころ。merge の後の確認の指摘も入る）・`:411`・`:424-426`（ローカルの CLI レビューのものでない記録の行の一覧）。
--   [ ] **ステップ 2-8**: ADR-0050 の食い違いの文を消す。
+    -   `local-cli-review.md` の該当箇所（何も起動しなかったときの SUMMARY に `MERGE` を含める、「Triage rules」に merge の後の確認を足す、ローカルの CLI レビューのものでない記録の行の一覧に `Merge check:` 系を足す）。
+-   [x] **ステップ 2-8**: ADR-0050 の食い違いの文を消す。
     -   PR を作る前に、`git grep -nE 'issues/988([^0-9]|$)' origin/main -- docs/dev/adr/` で、`origin/main` の文を探す。
     -   決定の節にあり、この食い違いを述べる文だけを消す。commit のメッセージに訂正の行を書く（`docs/dev/conventions/adr.md`「Discrepancy statements」）。
--   [ ] **ステップ 2-9**: AC-23 の差分の記録を書く（§7 の「差分の記録」の PR-2 の欄）。
+-   [x] **ステップ 2-9**: AC-23 の差分の記録を書く（§7 の「差分の記録」の PR-2 の欄）。
 
 **完了の条件:**
 
@@ -274,10 +283,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1097
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 3: 実地の確かめ（設計書 8 章の 3）
 
@@ -287,7 +296,7 @@
     -   確かめは、PR-2 のマージの後に、人がほかのタスクのタスク文書の PR で行う。
     -   人は `/runplan` を送るときに、次の値を渡す。セッションは、渡されなかった値を人に尋ねる。
         -   その PR の URL。
-        -   その実行の判定の出力の 1 行目：step 1.5 の 2 回と step 2.5 の最初の段の 1 回。
+        -   その実行の判定の出力の 1 行目：step 1.5 の 2 回と step 2.6 の最初の段の 1 回。
         -   step 3 で走った push の命令と、上流を設定したか。
         -   merge の後の確認を起動した Agent ツールの呼び出しの `model` の値。
     -   セッションが自分で読む値もある。記録の commit、merge commit、merge の後の確認の記録の commit の ID と、`Merge check:` の行（`run` なら、確かめたモデル ID を持つ）である。サブエージェントの出力の `Model:` の行は commit に残らないので、読まない。セッションはこれらを、その PR のブランチの commit から読む。ブランチを取ってくる `git fetch` はネットワークの操作なので、人に許可を求める。
@@ -295,7 +304,7 @@
         -   上の値。
         -   `Merge check:` の行が `run` か `not run` か。`run` なら、その行のモデル ID が `claude-opus-` で始まること（AC-25）。`not run` なら AC-25 は確かめられていないので、そう書き、次の機会に確かめ直すかを人と決める。
         -   新しい `Fable review:` の記録が足されていないこと（AC-24）。
-        -   push したのが step 2.5 の判定した commit であること（AC-05）。
+        -   push したのが step 2.6 の判定した commit であること（AC-05）。
     -   設計書と違う振る舞いがあれば、その内容を書き、決定の変更として人と決める。
 -   [ ] **ステップ 3-2**: AC-23 の差分の記録を書く（§7 の「差分の記録」の PR-3 の欄）。
 
@@ -327,7 +336,7 @@
 | マイルストーン | 成果物 | 前提 |
 |---|---|---|
 | M1（PR-1） | 判定のスクリプトの `fable` のモードの変更と `unreviewed` のモード、そのテスト、`fable-review.md` の規則の箇条と記録の行の表 | 本計画の承認 |
-| M2（PR-2） | `fable-review.md` の入口と「The merge check」、`task-pr-handoff.md` の step 1.5・2.5・3、`runplan.md`、`local-cli-review.md`、guard のテスト、ADR-0050 の食い違いの文の削除 | PR-1 のマージ（手順が読む `MERGE` と `unreviewed` が、`origin/main` のスクリプトにある） |
+| M2（PR-2） | `fable-review.md` の入口と「The merge check」、`task-pr-handoff.md` の step 1.5・2.6・3、`runplan.md`、`local-cli-review.md`、guard のテスト、ADR-0050 の食い違いの文の削除 | PR-1 のマージ（手順が読む `MERGE` と `unreviewed` が、`origin/main` のスクリプトにある） |
 | M3（PR-3） | 実地の確かめの記録 | PR-2 のマージと、人が行うほかのタスクのタスク文書の PR での確かめ |
 
 PR-1 のマージから PR-2 のマージまでの間は、今の手順が `MERGE` を形の違う 1 行目と読み、Fable が PR の全体を見る（設計書 8 章）。#987 で起きた形と同じ、安全な側の動きである。
@@ -348,7 +357,7 @@ PR-1 のマージから PR-2 のマージまでの間は、今の手順が `MERG
 -   **後方互換:** `coverage` のモードは変えない。`TestReviewRecordsCoverage` の既存の件が期待する出力を変えずに通ることと、ステップ 1-8 の件で確かめる（要件書 2.3、4.4）。既存の記録の行の形は変えない（要件書 4.4）。
 -   **読んで確かめる:** 入口の順序、救済、push の形、確認のモデルと範囲の求め方などの手順の文は、PR のレビューで読む（設計書 7.2）。
 -   **差分の記録:** AC-23 は、各 PR で `docs/tasks/0098_fable_partial_review/` の差分が空であることを記録する（§7）。
--   **実地の確かめ:** Opus のサブエージェントの起動とモデル ID の確かめは、手順の文だけでは確かめられないので、PR-2 のマージの後に実地で確かめる（設計書 7.3）。実地で通るのは、タスク文書の PR の step 1.5（Entry 3）と、記録の後の commit がないときの step 2.5 と push である。Entry 4 の救済と、HEAD が D と違うときの扱いは、読んで確かめるだけになる（設計書 7.3 が受け入れた範囲）。
+-   **実地の確かめ:** Opus のサブエージェントの起動とモデル ID の確かめは、手順の文だけでは確かめられないので、PR-2 のマージの後に実地で確かめる（設計書 7.3）。実地で通るのは、タスク文書の PR の step 1.5（Entry 3）と、記録の後の commit がないときの step 2.6 と push である。Entry 4 の救済と、HEAD が D と違うときの扱いは、読んで確かめるだけになる（設計書 7.3 が受け入れた範囲）。
 
 ## 5. リスク管理 (Risk Management)
 
@@ -363,8 +372,8 @@ PR-1 のマージから PR-2 のマージまでの間は、今の手順が `MERG
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 / 1-9 / 1-10 / 1-11 / 1-12 / 1-13）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 / 2-7 / 2-8 / 2-9）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -378,12 +387,12 @@ PR-1 のマージから PR-2 のマージまでの間は、今の手順が `MERG
 
 | AC | 確かめ | 種類 | 実装 | PR |
 |---|---|---|---|---|
-| AC-01 | 取り出し方と走らせ方を共有することは、既存の `rr_test::TestReviewRecordsCallSite`（「The validity decision」の 3 行の並び）が確かめる。push の直前に判定を走らせることは、`task-pr-handoff.md` step 2.5 と `fable-review.md` Entry 4 を読む | static、manual | ステップ 2-1・2-4 | PR-2 |
+| AC-01 | 取り出し方と走らせ方を共有することは、既存の `rr_test::TestReviewRecordsCallSite`（「The validity decision」の 3 行の並び）が確かめる。push の直前に判定を走らせることは、`task-pr-handoff.md` step 2.6 と `fable-review.md` Entry 4 を読む | static、manual | ステップ 2-1・2-4 | PR-2 |
 | AC-02 | `rr_test::TestReviewRecordsFable`（印の後に CHECKS の直しだけがあるときの `VALID`）。Entry 4 の最初の段が commit を作らないことを読む | test、manual | ステップ 1-1・1-5・2-1 | PR-1、PR-2 |
 | AC-03 | `rr_test::TestReviewRecordsFable`（`MISSING <START>` の件と失敗の件）。Entry 4 の救済と、FABLE の渡し方を読む | test、manual | ステップ 1-1・1-5・2-1・2-4・2-5 | PR-1、PR-2 |
-| AC-04 | `task-pr-handoff.md` step 2.5 の再チェックの順序を読む | manual | ステップ 2-4 | PR-2 |
-| AC-05 | `task-pr-handoff.md` step 2.5・step 3（D の名指しの push、HEAD の確かめ、判定のやり直し）と AFTER_CREATE の前の確かめを読む。実地の確かめ（ステップ 3-1、push したのが判定した commit であること） | manual | ステップ 2-4・3-1 | PR-2、PR-3 |
-| AC-06 | Entry 4 の最後の段と `task-pr-handoff.md` step 2.5 の止まり方と報告の内容を読む | manual | ステップ 2-1・2-4 | PR-2 |
+| AC-04 | `task-pr-handoff.md` step 2.6 の再チェックの順序を読む | manual | ステップ 2-4 | PR-2 |
+| AC-05 | `task-pr-handoff.md` step 2.6・step 3（D の名指しの push、HEAD の確かめ、判定のやり直し）と AFTER_CREATE の前の確かめを読む。実地の確かめ（ステップ 3-1、push したのが判定した commit であること） | manual | ステップ 2-4・3-1 | PR-2、PR-3 |
+| AC-06 | Entry 4 の最後の段と `task-pr-handoff.md` step 2.6 の止まり方と報告の内容を読む | manual | ステップ 2-1・2-4 | PR-2 |
 | AC-07 | Entry 4 と単独の経路の `not run` の扱いを読む | manual | ステップ 2-1 | PR-2 |
 | AC-08 | Entry 4 の、救済の途中で止まったときの扱いを読む | manual | ステップ 2-1 | PR-2 |
 | AC-09 | `runplan.md` の AFTER_REMEDY を、PR マーカーのある経路とない経路の両方で読む | manual | ステップ 2-5 | PR-2 |
@@ -420,10 +429,24 @@ Diff record (AC-23):
 PR-1:
 
 - Compared paths: `docs/tasks/0098_fable_partial_review/`
+- Merge-base: `ca11254c451d01ddb3abf8995024f239304d5d8a`
+- Compared commit: `bf5308f227f1d980c09e762038b5d616188424e6`
+
+Path diff:
+
+```text
+```
 
 PR-2:
 
 - Compared paths: `docs/tasks/0098_fable_partial_review/`
+- Merge-base: `d74acaeb62c0aeebc1a85a2593324aac97aa3029`
+- Compared commit: `5c71c0881c91953b42099dd7594b304329e6dda5`
+
+Path diff:
+
+```text
+```
 
 PR-3:
 
@@ -448,3 +471,4 @@ PR-3:
 ## 変更履歴
 
 - 2026-11-20 承認（isseis、#1060）
+- 2026-11-23 セッション中の再承認：タスク 0118 の Part B step 2.5 を残して本タスクの push 直前判定を step 2.6 とし、step 2.6 の再チェックでは step 2.5 を走らせ直さない（isseis、#1097）

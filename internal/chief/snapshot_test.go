@@ -287,7 +287,7 @@ func TestRunplanRouting(t *testing.T) {
 func takeoverSetup(t *testing.T) (*world, string) {
 	t.Helper()
 	w := newWorld(t)
-	context := strings.Replace(string(repoContext(t)), "| `runplan-opus` | `/runplan` for the requirement `opus` | Claude Code | `opus` |", "| `runplan-opus` | `/runplan` for the requirement `opus` | OpenCode | `DeepSeek V4.1 Flash 1017 OpenCode Go` |", 1)
+	context := strings.Replace(string(repoContext(t)), "| `runplan-high` | `/runplan` for the requirement `high` | Claude Code | `opus` |", "| `runplan-high` | `/runplan` for the requirement `high` | OpenCode | `DeepSeek V4.1 Flash 1017 OpenCode Go` |", 1)
 	if context == string(repoContext(t)) {
 		t.Fatal("the routing row to change was not found in _context.md")
 	}
@@ -454,11 +454,11 @@ func TestTakeSnapshotOrder(t *testing.T) {
 // are reached only here.
 func TestTakeoverRefusals(t *testing.T) {
 	task := taskID(t, "0001")
-	cmd, err := paneinput.NewRunplan(task, paneinput.RouteRunplanOpus)
+	cmd, err := paneinput.NewRunplan(task, paneinput.RouteRunplanHigh)
 	if err != nil {
 		t.Fatal(err)
 	}
-	routing, err := ParseRouting([]byte(strings.Replace(string(repoContext(t)), "| `runplan-opus` | `/runplan` for the requirement `opus` | Claude Code | `opus` |", "| `runplan-opus` | `/runplan` for the requirement `opus` | OpenCode | `DeepSeek V4.1 Flash 1017 OpenCode Go` |", 1)))
+	routing, err := ParseRouting([]byte(strings.Replace(string(repoContext(t)), "| `runplan-high` | `/runplan` for the requirement `high` | Claude Code | `opus` |", "| `runplan-high` | `/runplan` for the requirement `high` | OpenCode | `DeepSeek V4.1 Flash 1017 OpenCode Go` |", 1)))
 	if err != nil {
 		t.Fatal(err)
 	}

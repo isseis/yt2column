@@ -20,7 +20,7 @@ import (
 // docs/dev/conventions/requirements_process.md) and the PR markers
 // (_context.md, "PR marker conventions", parts 2 to 4). The Japanese literals
 // below must equal the headings, labels, and line prefixes of the Japanese
-// plans. The marker reading is the one opus-review-decision.sh executes; the
+// plans. The marker reading is the one high-review-decision.sh executes; the
 // parity test runs both on the same plans.
 
 // errTaskDocument reports a task document the tool cannot read by that
@@ -181,7 +181,7 @@ type docLine struct {
 }
 
 // docLines splits doc into lines and marks the fenced ones by the fence rule
-// of opus-review-decision.sh: a fence marker is a run of three or more ` or ~
+// of high-review-decision.sh: a fence marker is a run of three or more ` or ~
 // indented by at most three spaces; a fence closes only on a run of the same
 // character at least as long, with nothing but blanks after it; a fence-like
 // line inside a fence is content. unclosed is true when a fence never closes.
@@ -239,19 +239,19 @@ const (
 	RequirementUnreadable Requirement = iota
 	// RequirementAbsent is no value.
 	RequirementAbsent
-	// RequirementOpus is opus.
-	RequirementOpus
-	// RequirementSonnetReview is sonnet+opus-review.
-	RequirementSonnetReview
-	// RequirementSonnet is sonnet.
-	RequirementSonnet
+	// RequirementHigh is high.
+	RequirementHigh
+	// RequirementStandardReview is standard+high-review.
+	RequirementStandardReview
+	// RequirementLow is low.
+	RequirementLow
 )
 
 // requirementValues maps the three values.
 var requirementValues = map[string]Requirement{
-	"opus":               RequirementOpus,
-	"sonnet+opus-review": RequirementSonnetReview,
-	"sonnet":             RequirementSonnet,
+	"high":                 RequirementHigh,
+	"standard+high-review": RequirementStandardReview,
+	"low":                  RequirementLow,
 }
 
 // RequirementReading is a requirement with the text as written: for an old
@@ -270,30 +270,37 @@ type OldValues map[string]Requirement
 const contextMarkerSection = "### PR marker conventions"
 
 // oldValueRow is a two-cell row whose second cell is one of the three values,
-// the form opus-review-decision.sh reads as an old-value row.
-var oldValueRow = regexp.MustCompile("^[ \t]*\\| `([^`]+)` \\| `(opus|sonnet\\+opus-review|sonnet)` \\|[ \t]*$")
+// the form high-review-decision.sh reads as an old-value row.
+var oldValueRow = regexp.MustCompile("^[ \t]*\\| `([^`]+)` \\| `(high|standard\\+high-review|low)` \\|[ \t]*$")
 
 // anyHeading matches a Markdown heading of any level.
 var anyHeading = regexp.MustCompile(`^#+[ \t]`)
 
 // ParseOldValues reads the old-value table from _context.md as
-// opus-review-decision.sh does: every matching row inside the "PR marker
-// conventions" section, with an old value that has two rows dropped so it
-// reads as unreadable.
+// high-review-decision.sh does: every unfenced matching row inside the
+// "PR marker conventions" section (with trailing CR stripped), with an old
+// value that has two rows dropped so it reads as unreadable, and an empty map
+// when _context.md leaves a code fence unclosed.
 func ParseOldValues(contextDoc []byte) OldValues {
+	lines, unclosed := fencedLines(contextDoc)
+	if unclosed {
+		return OldValues{}
+	}
 	counts := map[string]int{}
 	values := OldValues{}
 	inSection := false
-	for raw := range bytes.SplitSeq(contextDoc, []byte("\n")) {
-		line := string(raw)
-		if anyHeading.MatchString(line) {
-			inSection = strings.TrimRight(line, " \t") == contextMarkerSection
+	for _, l := range lines {
+		if l.fenced {
+			continue
+		}
+		if anyHeading.MatchString(l.text) {
+			inSection = strings.TrimRight(l.text, " \t") == contextMarkerSection
 			continue
 		}
 		if !inSection {
 			continue
 		}
-		if m := oldValueRow.FindStringSubmatch(line); m != nil {
+		if m := oldValueRow.FindStringSubmatch(l.text); m != nil {
 			if strings.ContainsAny(m[1], " \t") {
 				// The script splits an old value on blanks, so it never
 				// matches one that holds a blank; neither does the tool.
@@ -322,7 +329,7 @@ const (
 
 var (
 	// markerHeadingLoose matches any PR marker heading, the form
-	// opus-review-decision.sh counts to tell a plan with markers.
+	// high-review-decision.sh counts to tell a plan with markers.
 	markerHeadingLoose = regexp.MustCompile(`^### PR-[0-9]+ 作成ポイント`)
 	// markerHeading matches a PR marker heading with a target number the
 	// script accepts, followed by ":" or nothing.
@@ -353,7 +360,7 @@ const (
 const singleTarget = "single"
 
 // locateField finds the field line of target ("N" of a marker, or
-// singleTarget) by the rules of opus-review-decision.sh's locate_value, which
+// singleTarget) by the rules of high-review-decision.sh's locate_value, which
 // _context.md, "PR marker conventions", parts 2 and 3, define.
 func locateField(doc []byte, target, field string) (fieldPlace, string) {
 	lines, unclosed := fencedLines(doc)

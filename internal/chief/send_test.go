@@ -45,7 +45,7 @@ func openCodeRoute(t *testing.T, name string) paneinput.Route {
 
 func runplanCmd(t *testing.T) paneinput.Command {
 	t.Helper()
-	c, err := paneinput.NewRunplan(taskID(t, "0001"), paneinput.RouteRunplanOpus)
+	c, err := paneinput.NewRunplan(taskID(t, "0001"), paneinput.RouteRunplanHigh)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -850,7 +850,7 @@ func TestSendTakeover(t *testing.T) {
 func takeoverWorld(t *testing.T) (*sendWorld, string, Deps) {
 	t.Helper()
 	sw := newSendWorld(t)
-	routed := strings.Replace(string(repoContext(t)), "| `runplan-opus` | `/runplan` for the requirement `opus` | Claude Code | `opus` |", "| `runplan-opus` | `/runplan` for the requirement `opus` | OpenCode | `"+openCodeModel+"` |", 1)
+	routed := strings.Replace(string(repoContext(t)), "| `runplan-high` | `/runplan` for the requirement `high` | Claude Code | `opus` |", "| `runplan-high` | `/runplan` for the requirement `high` | OpenCode | `"+openCodeModel+"` |", 1)
 	if routed == string(repoContext(t)) {
 		t.Fatal("the routing row to change was not found in _context.md")
 	}

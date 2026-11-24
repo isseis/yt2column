@@ -41,7 +41,7 @@ column, in one of the forms below. A line that is indented, or that mentions
 a form inside a sentence, is not a record line. Never start a line of a
 commit message's prose with one of these prefixes. Only a line in the full
 form is read; a line that starts with a prefix but does not match its form is
-read as no record. `_lib/opus-review-decision.sh` is the executable form that
+read as no record. `_lib/high-review-decision.sh` is the executable form that
 reads the implementation and done records ("Entry 1"); when it and this
 section disagree, this section is right and the script is fixed.
 
@@ -161,8 +161,8 @@ and the session only reads its output.
 | Output | Meaning |
 |---|---|
 | `RUN` | Run the review (entry 2) |
-| `NONE <reason>` | Do not run it. `<reason>` is `value-sonnet` (the value is `sonnet`), `value-absent` (there is no value), or `all-opus` (every commit other than an excludable one is covered by Opus implementation records) |
-| `SKIP <done-line>` | Skip it: a done record still covers the branch. The lines after it list the commits after the record's END, each as `<12-hex-id> <subject>`, oldest first |
+| `NONE <reason>` | Do not run it. `<reason>` is `value-low` (the value is `low`), `value-absent` (there is no value), or `all-high` (every commit other than an excludable one is covered by self-verifying `high`-role implementation records) |
+| `SKIP <done-line>` | Skip it: a done record (`High review: done` or legacy `Opus review: done`) still covers the branch. The lines after it list the commits after the record's END, each as `<12-hex-id> <subject>`, oldest first |
 
 ### Running the decision
 
@@ -173,15 +173,17 @@ scratchpad (`<decision-script>`), outside the work tree:
 
 ```bash
 git rev-parse --verify 'refs/remotes/origin/main^{commit}'
-git show <origin-main-commit>:.claude/commands/_lib/opus-review-decision.sh > <decision-script>
+git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/high-review-decision.sh > <decision-script>
 bash <decision-script> <PLAN> <TARGET> <BASE>
 ```
 
-`<origin-main-commit>` is the commit ID the first line printed. Read the
-output's first line. The output is `RUN` whenever the first or second line
-fails, the third exits with a status other than `0`, or the first line is not
-exactly `RUN`, `NONE value-sonnet`, `NONE value-absent`, `NONE all-opus`, or
-`SKIP ` followed by a done record. Before the script exists on `origin/main`,
+`<origin-main-commit>` is the commit ID the first line printed;
+`--no-replace-objects` keeps a replace ref from substituting another script.
+Read the output's first line. The output is `RUN` whenever the first or second
+line fails, the third exits with a status other than `0`, or the first line is
+not exactly `RUN`, `NONE value-low`, `NONE value-absent`, `NONE all-high`, or
+`SKIP ` followed by a done record (`High review: done ...` or legacy
+`Opus review: done ...`). Before the script exists on `origin/main`,
 the second line fails, so the output is `RUN`. When the output is `RUN`, also
 show what the script wrote to standard error: a failure (for example a `bash`
 older than 4, which the script requires) reads as `RUN` too, and its reason
@@ -191,25 +193,29 @@ is only there.
 
 The script carries out these rules; this list is their definition.
 
-1. **The value.** Read PLAN from both `origin/main` and `HEAD`, by the
-   location and the reading of `_context.md`, "PR marker conventions" (the
-   old-value table taken from `origin/main`'s `_context.md`). When either
-   copy reads as `opus`, `sonnet+opus-review`, or an unreadable value, go on.
-   Otherwise return `NONE value-sonnet` when either copy reads as `sonnet`,
-   and `NONE value-absent` when neither does. A copy that does not exist on
-   `origin/main`, or that lacks the target marker or section there, does not
-   count; `HEAD` lacking the target marker is a failure.
-2. **A done record.** Take the last done record in the messages of
-   `BASE..HEAD` (the newest commit that has one, and its last such line).
-   Return `SKIP` when its START is BASE or an ancestor of it, its END is an
-   ancestor of `HEAD`, and every commit after END is excludable.
-3. **Coverage.** Return `NONE all-opus` when every commit of `BASE..HEAD`
+1. **The value.** Validate `origin/main`'s `_context.md` and its entire
+   `### Harness model mapping` table first, then read PLAN from both
+   `origin/main` and `HEAD`, by the location and the reading of `_context.md`,
+   "PR marker conventions" (the old-value table taken from `origin/main`'s
+   `_context.md`). When either copy reads as `high`, `standard+high-review`,
+   or an unreadable value, go on. Otherwise return `NONE value-low` when
+   either copy reads as `low`, and `NONE value-absent` when neither does. A
+   copy that does not exist on `origin/main`, or that lacks the target marker
+   or section there, does not count; `HEAD` lacking the target marker is a
+   failure.
+2. **A done record.** Take the last done record (`High review: done` or legacy
+   `Opus review: done`) in the messages of `BASE..HEAD` (the newest commit
+   that has one, and its last such line). Return `SKIP` when its START is BASE
+   or an ancestor of it, its END is an ancestor of `HEAD`, and every commit
+   after END is excludable.
+3. **Coverage.** Return `NONE all-high` when every commit of `BASE..HEAD`
    other than an excludable one is inside at least one implementation
    record's range, and every implementation record whose range holds it
-   names only Opus model IDs. Otherwise (a phase group with no record, a
-   record naming a model that is not Opus, a commit made outside a phase
-   group, a merge commit, a commit rewritten out of its record's range)
-   return `RUN`.
+   names only model IDs matching a `Role == high` and `Launch == agent`
+   verification pattern from `origin/main`'s `_context.md`. Otherwise (a phase
+   group with no record, a record naming a model that does not match such a
+   pattern, a commit made outside a phase group, a merge commit, a commit
+   rewritten out of its record's range) return `RUN`.
 
 Any failure returns `RUN`: a git error, an unreadable plan, a BASE that is not
 the merge-base of `origin/main` and `HEAD`, a TARGET of `single` for a plan

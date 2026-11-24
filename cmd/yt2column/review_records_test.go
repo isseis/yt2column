@@ -92,7 +92,37 @@ type rrFixture struct {
 	*gitFixture
 	form   string
 	forms  fableForms
+	bash   scriptBash
 	m0, mb string
+}
+
+// sibling returns a new fixture with f's forms and bash, for a setup that
+// checks first that another layout changes the output.
+func (f *rrFixture) sibling() *rrFixture {
+	f.t.Helper()
+	s := newRRFixture(f.t, f.form)
+	s.forms, s.bash = f.forms, f.bash
+	return s
+}
+
+// probe builds a branch with build on a sibling and returns the first line
+// the fable mode prints for it at launch.
+func (f *rrFixture) probe(build func(s *rrFixture)) string {
+	f.t.Helper()
+	s := f.sibling()
+	build(s)
+	run := s.runScript(s.bash, reviewRecordsPath, append([]string{"fable"}, rrFable(s, "launch")...), scriptRunOptions{})
+	first, _, _ := strings.Cut(run.stdout, "\n")
+	return first
+}
+
+// requireProbe fails the case unless probe prints want, so a case whose
+// layout does not change the output by the rule it checks checks nothing.
+func (f *rrFixture) requireProbe(want string, build func(s *rrFixture)) {
+	f.t.Helper()
+	if got := f.probe(build); got != want {
+		f.t.Fatalf("the probe layout printed %q, not %q, so the case checks nothing", got, want)
+	}
 }
 
 func newRRFixture(t *testing.T, form string) *rrFixture {
@@ -169,6 +199,59 @@ func (f *rrFixture) side(name, base string) string {
 	commit := f.head()
 	f.git("switch", "-q", "feature")
 	return commit
+}
+
+// mainMerge moves origin/main on by a commit adding docs/<name>.md, merges it
+// into feature, and returns the merge commit after checking that it is a
+// confirmable merge commit: exactly two parents, the first the branch's head
+// before the merge (a branch commit or the merge-base), the second the new
+// origin/main.
+func (f *rrFixture) mainMerge(name string) string {
+	f.t.Helper()
+	first := f.head()
+	f.git("switch", "-q", "--detach", "refs/remotes/origin/main")
+	f.write("docs/"+name+".md", name+"\n")
+	f.commit(name)
+	next := f.head()
+	f.git("switch", "-q", "feature")
+	f.git("update-ref", "refs/remotes/origin/main", next)
+	merge := f.merge(next)
+	parents := strings.Fields(f.git("rev-list", "--parents", "-n", "1", merge))
+	branch := strings.Fields(f.git("rev-list", merge, "^refs/remotes/origin/main"))
+	base := strings.TrimSpace(f.git("merge-base", merge, "refs/remotes/origin/main"))
+	if len(parents) != 3 || parents[1] != first || parents[2] != next ||
+		(!slices.Contains(branch, first) && first != base) {
+		f.t.Fatalf("the merge of origin/main %v is not a confirmable merge commit, so the case checks nothing", parents)
+	}
+	return merge
+}
+
+// unconfirmableMerge commits onto feature a merge commit of a shape the
+// merge check cannot take the range of, and returns it: "octopus" has three
+// parents (the branch, origin/main moved on, and the old origin/main, so
+// only the count of parents tells it from a confirmable one); "main-first"
+// has origin/main moved on as its first parent and the branch as its
+// second. The third shape, a second parent origin/main does not reach, is
+// what merge and side make.
+func (f *rrFixture) unconfirmableMerge(shape string) string {
+	f.t.Helper()
+	head := f.head()
+	old := f.rev("refs/remotes/origin/main")
+	next := strings.TrimSpace(f.git("commit-tree", f.rev(old+"^{tree}"), "-p", old, "-m", "main moves on"))
+	f.git("update-ref", "refs/remotes/origin/main", next)
+	var parents []string
+	switch shape {
+	case "octopus":
+		parents = []string{"-p", head, "-p", next, "-p", old}
+	case "main-first":
+		parents = []string{"-p", next, "-p", head}
+	default:
+		f.t.Fatalf("unknown merge shape %q", shape)
+	}
+	args := append([]string{"commit-tree", f.rev(head + "^{tree}")}, parents...)
+	merge := strings.TrimSpace(f.git(append(args, "-m", "merge "+shape)...))
+	f.git("reset", "-q", "--hard", merge)
+	return merge
 }
 
 // partial is the output for the unseen commits ids: PARTIAL with their
@@ -385,6 +468,15 @@ func coverageCases() []rrCase {
 			f.git("update-ref", "refs/remotes/origin/main", onMain)
 			return rrNone(f, "")
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD")) }},
+		// The shape of PR #987: a merge of origin/main moves the merge-base
+		// past the line's START. coverage keeps its START check, so the line
+		// is not read and c1 is unseen, as is the merge commit.
+		{name: "seen range from the old merge-base before a merge", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.seen(f.mb, c1, "coderabbit"))
+			f.mainMerge("m2")
+			return rrNone(f, "")
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~2"), f.rev("HEAD")) }},
 		// The plan checkbox commits.
 		{name: "green gate confirmed in a marker section", setup: func(f *rrFixture) []string {
 			f.plan(rrMarkersPlan, "markers-greengate.md")
@@ -637,6 +729,44 @@ func rrConfigBranch(f *rrFixture) []string {
 	return rrNone(f, rrMarkersPlan)
 }
 
+// checkConfigScenarios runs mode on the branch build makes, in a fixture
+// newFixture returns, without and with each git configuration scenario in
+// each scope, and checks that the setting changes plain git's output but not
+// the script's. base is the start of the output without the setting; a
+// branch on which the script prints another output fails the scenario, so a
+// branch that no longer exercises the reading does not pass with nothing
+// compared.
+func checkConfigScenarios(t *testing.T, name string, bash scriptBash, newFixture func(*testing.T) *rrFixture,
+	mode string, build func(*rrFixture) []string, base func(*rrFixture) string,
+) {
+	t.Helper()
+	for _, scope := range []string{"repository", "global"} {
+		for _, s := range rrConfigScenarios() {
+			t.Run(name+"/"+scope+"/"+s.name, func(t *testing.T) {
+				t.Parallel()
+				f := newFixture(t)
+				args := append([]string{mode}, build(f)...)
+				want := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{})
+				if prefix := base(f); want.code != 0 || !strings.HasPrefix(want.stdout, prefix) {
+					t.Fatalf("without %s the script did not print %q, so the scenario checks nothing: %v", s.name, prefix, want)
+				}
+				before := f.git(s.plain...)
+				file := filepath.Join(f.repo, ".git", "config")
+				if scope == "global" {
+					file = filepath.Join(f.home, ".gitconfig")
+				}
+				f.git("config", "--file", file, s.config[0], s.config[1])
+				if after := f.git(s.plain...); after == before {
+					t.Fatalf("%s does not change plain git's output %q, so the scenario checks nothing", s.name, before)
+				}
+				if got := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{}); got != want {
+					t.Errorf("with %s set the script printed %v, without it %v", s.name, got, want)
+				}
+			})
+		}
+	}
+}
+
 // TestReviewRecordsCoverage runs the coverage mode of the review records
 // script on fixture repositories: the commits judged, the checks of a
 // seen-range line, the plan checkbox commits, the failures, and that the
@@ -689,40 +819,164 @@ func TestReviewRecordsCoverage(t *testing.T) {
 					}
 				})
 			}
-			for _, scope := range []string{"repository", "global"} {
-				for _, s := range rrConfigScenarios() {
-					t.Run("git config/"+scope+"/"+s.name, func(t *testing.T) {
-						t.Parallel()
-						f := newRRFixture(t, form)
-						args := append([]string{"coverage"}, rrConfigBranch(f)...)
-						want := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{})
-						if want.code != 0 || !strings.HasPrefix(want.stdout, "PARTIAL 1\n") {
-							t.Fatalf("without %s the script did not print PARTIAL 1, so the scenario checks nothing: %v", s.name, want)
-						}
-						before := f.git(s.plain...)
-						file := filepath.Join(f.repo, ".git", "config")
-						if scope == "global" {
-							file = filepath.Join(f.home, ".gitconfig")
-						}
-						f.git("config", "--file", file, s.config[0], s.config[1])
-						if after := f.git(s.plain...); after == before {
-							t.Fatalf("%s does not change plain git's output %q, so the scenario checks nothing", s.name, before)
-						}
-						if got := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{}); got != want {
-							t.Errorf("with %s set the script printed %v, without it %v", s.name, got, want)
-						}
-					})
-				}
-			}
+			checkConfigScenarios(t, "git config", bash, func(t *testing.T) *rrFixture { return newRRFixture(t, form) },
+				"coverage", rrConfigBranch, func(*rrFixture) string { return "PARTIAL 1\n" })
 		})
 	}
 }
 
-// TestReviewRecordsMode checks that a mode other than coverage and fable
-// fails with no output, so a caller reads it as the failure of its mode.
+// unreviewedOverrides are the outputs of the coverage cases that the two
+// differences of unreviewed change.
+var unreviewedOverrides = map[string]func(*rrFixture) []string{
+	// A merge commit inside a seen range is seen.
+	"merge commit inside a seen range": rrAll,
+	// The widened START check reads the line, so only the merge is unseen
+	// (the shape of PR #987).
+	"seen range from the old merge-base before a merge": func(f *rrFixture) []string {
+		return f.partial(f.rev("HEAD"))
+	},
+}
+
+// unreviewedCases are the cases of the unreviewed mode beyond the coverage
+// cases it reuses. Their setups return the arguments of unreviewed.
+func unreviewedCases() []rrCase {
+	head := func(f *rrFixture) []string { return []string{f.head()} }
+	return []rrCase{
+		// A line from the old merge-base whose END is after the merge holds
+		// main's commits, so it is not read.
+		{name: "seen range from the old merge-base ending after a merge", setup: func(f *rrFixture) []string {
+			f.work("c1")
+			merge := f.mainMerge("m2")
+			f.record("record", f.seen(f.mb, merge, "coderabbit"))
+			return head(f)
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1^1"), f.rev("HEAD~1")) }},
+		// The checkpoint mark, which makes the fable mode cover what follows
+		// it, does not make unreviewed count the merge and the fix after it
+		// as seen; the mark itself is an empty commit.
+		{name: "merge after the checkpoint mark", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.seen(f.mb, c1, "coderabbit"))
+			f.record("mark", f.forms.checkpoint)
+			f.mainMerge("m2")
+			f.work("checks fix")
+			return head(f)
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1"), f.rev("HEAD")) }},
+		// The standalone path's fix, which its local CLI review saw.
+		{name: "fix seen by the standalone path's review", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.seen(f.mb, c1, "coderabbit"))
+			r := f.head()
+			fix := f.work("fable fix")
+			f.record("record", f.seen(r, fix, "codex"))
+			return head(f)
+		}, want: rrAll},
+		// A commit that changes README.en.md alone and a CHECKS fix are
+		// listed when no CLI saw them.
+		{name: "README.en.md and a CHECKS fix after the record", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.seen(f.mb, c1, "coderabbit"))
+			f.readme("one\n")
+			f.work("checks fix")
+			return []string{f.head(), rrMarkersPlan}
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1"), f.rev("HEAD")) }},
+	}
+}
+
+// rrUnreviewedConfigBranch builds a branch on which the unreviewed mode
+// lists two commits only through the widened START check: a seen commit
+// and a plan checkbox commit, a merge of origin/main, a seen-range line from
+// the old merge-base over the first two, and a last commit whose file name
+// and subject are not ASCII. HEAD~4..HEAD~3 is the checkbox commit and
+// HEAD~1..HEAD the last commit, so the configuration scenarios' plain git
+// commands change their output.
+func rrUnreviewedConfigBranch(f *rrFixture) []string {
+	f.write(".gitattributes", "*.md diff=upper\n")
+	f.commit("attributes")
+	f.plan(rrMarkersPlan, "markers-created.md")
+	checkbox := f.head()
+	f.mainMerge("m2")
+	f.record("record", f.seen(f.mb, checkbox, "coderabbit"))
+	f.write("caf\u00e9.txt", "x\n")
+	f.commit("unseen caf\u00e9")
+	return []string{f.head(), rrMarkersPlan}
+}
+
+// TestReviewRecordsUnreviewed runs the unreviewed mode of the review records
+// script. It reuses the coverage cases that judge origin/main..HEAD
+// (LAST_REVIEWED none), with that argument dropped, so the rules and
+// failures the two modes share are checked on the same branches; the cases
+// of LAST_REVIEWED..HEAD do not apply. unreviewedOverrides gives the outputs
+// the two differences change, and unreviewedCases adds the cases of those
+// differences. Each case runs with each bash scriptBashes returns, and the
+// configuration scenarios run on rrUnreviewedConfigBranch.
+func TestReviewRecordsUnreviewed(t *testing.T) {
+	form := seenRangeForm(t)
+	forms := readFableForms(t)
+	var cases []rrCase
+	used := map[string]struct{}{}
+	for _, c := range coverageCases() {
+		if want, ok := unreviewedOverrides[c.name]; ok {
+			c.want = want
+			used[c.name] = struct{}{}
+		}
+		setup := c.setup
+		c.setup = func(f *rrFixture) []string {
+			args := setup(f)
+			if len(args) == 0 || args[0] != "none" {
+				f.t.Skip("the case judges LAST_REVIEWED..HEAD, which unreviewed does not take")
+			}
+			return args[1:]
+		}
+		cases = append(cases, c)
+	}
+	for name := range unreviewedOverrides {
+		if _, ok := used[name]; !ok {
+			t.Fatalf("unreviewedOverrides names %q, which is no coverage case", name)
+		}
+	}
+	cases = append(cases, unreviewedCases()...)
+	fixture := func(t *testing.T) *rrFixture {
+		f := newRRFixture(t, form)
+		f.forms = forms
+		return f
+	}
+	for _, bash := range scriptBashes(t) {
+		t.Run(bash.name, func(t *testing.T) {
+			t.Parallel()
+			for _, c := range cases {
+				t.Run(c.name, func(t *testing.T) {
+					t.Parallel()
+					f := fixture(t)
+					args := append([]string{"unreviewed"}, c.setup(f)...)
+					var opts scriptRunOptions
+					if c.env != nil {
+						opts.extraEnv = c.env(f)
+					}
+					run := f.runScript(bash, reviewRecordsPath, args, opts)
+					if c.want == nil {
+						if run.code != 1 || run.stdout != "PARTIAL\n" || run.stderr == "" {
+							t.Errorf("got %v, want exit 1, output PARTIAL alone, and a diagnostic", run)
+						}
+						return
+					}
+					want := strings.Join(c.want(f), "\n") + "\n"
+					if run.code != 0 || run.stdout != want {
+						t.Errorf("got %v, want output %q and exit 0", run, want)
+					}
+				})
+			}
+			checkConfigScenarios(t, "git config", bash, fixture, "unreviewed", rrUnreviewedConfigBranch,
+				func(*rrFixture) string { return "PARTIAL 2\n" })
+		})
+	}
+}
+
+// TestReviewRecordsMode checks that a mode other than coverage, unreviewed,
+// and fable fails with no output, so a caller reads it as the failure of its
+// mode.
 func TestReviewRecordsMode(t *testing.T) {
 	for _, bash := range scriptBashes(t) {
-		for _, mode := range [][]string{nil, {"Coverage"}, {"Fable"}} {
+		for _, mode := range [][]string{nil, {"Coverage"}, {"Unreviewed"}, {"Fable"}} {
 			f := newRRFixture(t, "")
 			run := f.runScript(bash, reviewRecordsPath, mode, scriptRunOptions{})
 			if run.code != 1 || run.stdout != "" || run.stderr == "" {
@@ -733,11 +987,11 @@ func TestReviewRecordsMode(t *testing.T) {
 }
 
 // fableForms are the record line forms the fable mode reads, from the
-// documents that define them: the Fable records and the checkpoint mark of
-// fable-review.md's "Record lines", and the not-run line of
-// local-cli-review.md step 7.
+// documents that define them: the Fable records, the checkpoint mark, and
+// the merge check records of fable-review.md's "Record lines", and the
+// not-run line of local-cli-review.md step 7.
 type fableForms struct {
-	run, notRun, checkpoint, localNotRun string
+	run, notRun, checkpoint, localNotRun, mergeRun, mergeNotRun string
 }
 
 func readFableForms(t *testing.T) fableForms {
@@ -752,7 +1006,25 @@ func readFableForms(t *testing.T) fableForms {
 		checkpoint: recordTableForm(t, where, records, "Fable review: checkpoint"),
 		localNotRun: recordTableForm(t, "local-cli-review.md step 7", localReviewStep7(t), "Local CLI review: not run",
 			"<START12>", "<END12>"),
+		mergeRun: recordTableForm(t, where, records, "Merge check: run",
+			"<MERGE>", "<model-id>", "<seconds>", "<tokens>"),
+		mergeNotRun: recordTableForm(t, where, records, "Merge check: not run",
+			"<MERGE>", "<reason>", "[; <seconds>s, tokens <tokens>]"),
 	}
+}
+
+// mergeRun is a merge check run record naming the commit merge, every count
+// and the cost filled in.
+func (f *rrFixture) mergeRun(merge string) string {
+	return strings.NewReplacer("<MERGE>", merge, "<model-id>", "claude-opus-example", "<n>", "0", "<seconds>", "90", "<tokens>", "1234").
+		Replace(f.forms.mergeRun)
+}
+
+// mergeNotRun is a merge check not-run record naming the commit merge with
+// reason, without the cost.
+func (f *rrFixture) mergeNotRun(merge, reason string) string {
+	return strings.NewReplacer("<MERGE>", merge, "<reason>", reason, "[; <seconds>s, tokens <tokens>]", "").
+		Replace(f.forms.mergeNotRun)
 }
 
 // rrRange replaces the range placeholders of form with start and end.
@@ -858,7 +1130,9 @@ func fableCases() []rrCase {
 			f.record("mark", f.forms.checkpoint)
 			return rrFable(f, "checkpoint")
 		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
-		// A record whose range fails the checks is ignored.
+		// A record whose range fails the checks is ignored. START m0 is a
+		// commit origin/main reaches, but the range holds mb, which
+		// origin/main reaches too, so the widened START check fails as well.
 		{name: "record with START outside the branch", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			f.record("record", f.fableRun(f.m0, c1))
@@ -920,21 +1194,27 @@ func fableCases() []rrCase {
 			f.record("record", f.seen(f.mb, fix, "coderabbit"))
 			return launch(f)
 		}, want: rrMissing("HEAD~3")},
-		// The side commit is inside the record's line by its IDs, but the
-		// line fails the checks: its END is not an ancestor of the record's
-		// commit.
+		// The side commit is inside the record's line by its IDs, and the
+		// merge of the side branch is unconfirmable, so the record is not
+		// valid whether or not the line counts; the case pins START, the
+		// merge-base because a merge commit follows END. The check that a
+		// line's END is an ancestor of its commit is held by "record naming
+		// its own commit's descendant" and coverage's "END not an ancestor of
+		// the line's commit".
 		{name: "range of the record's commit beyond it", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			s1 := f.side("side", c1)
 			f.record("record", f.fableRun(f.mb, c1), f.seen(c1, s1, "coderabbit"))
 			f.merge("side")
 			return launch(f)
-		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.rev("HEAD~2")} }},
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
 		// The record starts inside the branch, so it stays valid after
 		// origin/main moves to m3. x, the first commit it misses, has the
-		// parent m2, which origin/main reaches behind the merge-base m3: a
-		// record from m2 would fail the checks, so START falls back to the
-		// merge-base.
+		// parent m2, which origin/main reaches behind the merge-base m3.
+		// START is the merge-base because merge commits follow END; the
+		// fallback for a parent outside the branch is no longer reached,
+		// since without a merge commit after END that parent is END or a
+		// commit after it.
 		{name: "parent of the first missing commit behind the merge-base", setup: func(f *rrFixture) []string {
 			c0 := f.work("c0")
 			c1 := f.work("c1")
@@ -952,16 +1232,16 @@ func fableCases() []rrCase {
 			return launch(f)
 		}, want: rrMissing("refs/remotes/origin/main")},
 		// A merge of origin/main moves the merge-base past a record that
-		// starts at the old one, which then fails the checks.
+		// starts at the old one (the shape of PR #987). The record passes the
+		// widened START check, so it is read, and the merge waits for the
+		// merge check.
 		{name: "record from a merge-base origin/main moved past", setup: func(f *rrFixture) []string {
 			recorded(f)
-			tree := f.rev(f.mb + "^{tree}")
-			m2 := strings.TrimSpace(f.git("commit-tree", tree, "-p", f.mb, "-m", "m2"))
-			f.git("update-ref", "refs/remotes/origin/main", m2)
-			f.git("merge", "-q", "--no-ff", "--no-edit", m2)
+			f.mainMerge("m2")
 			return launch(f)
-		}, want: rrMissing("refs/remotes/origin/main")},
-		// The commits without content.
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.head()} }},
+		// The commits without content. These stay covered at the pre-push
+		// entry too.
 		{name: "README.en.md after the record", setup: func(f *rrFixture) []string {
 			f.readme("one\n")
 			recorded(f)
@@ -1011,15 +1291,19 @@ func fableCases() []rrCase {
 			return []string{"launch", f.head(), "docs/tasks/0009_missing/03_implementation_plan.md"}
 		}, want: rrValid},
 		// The merge brings in an empty commit, so it changes nothing against
-		// its first parent: only the merge rule keeps it from counting.
+		// its first parent. Its second parent is a side branch origin/main
+		// does not reach, so it is an unconfirmable merge commit: it
+		// invalidates the record even though a merge check record names it,
+		// and START is the merge-base because a merge commit follows END.
 		{name: "merge after the record", setup: func(f *rrFixture) []string {
 			recorded(f)
 			f.git("switch", "-q", "-c", "side")
 			f.record("empty side")
 			f.git("switch", "-q", "feature")
-			f.merge("side")
+			merge := f.merge("side")
+			f.record("check", f.mergeRun(merge))
 			return launch(f)
-		}, want: rrMissing("HEAD^1")},
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
 		{name: "attributes of the branch", setup: func(f *rrFixture) []string {
 			f.write(".gitattributes", "*.md binary\n")
 			f.commit("attributes")
@@ -1051,6 +1335,7 @@ func fableCases() []rrCase {
 			f.work("later fix")
 			return rrFable(f, "checkpoint")
 		}, want: rrMissing("HEAD~3")},
+		// The shape of a task-document PR's CHECKS fix after its mark.
 		{name: "work after the mark at the checkpoint", setup: func(f *rrFixture) []string {
 			recorded(f)
 			f.record("mark", f.forms.checkpoint)
@@ -1082,6 +1367,305 @@ func fableCases() []rrCase {
 			f.commit("mark\n\n" + f.forms.checkpoint)
 			return rrFable(f, "checkpoint")
 		}, want: rrMissing("HEAD~1")},
+		// A commit with content before the mark invalidates the record even
+		// when the CHECKS fix after the mark does not.
+		{name: "work before the mark and a fix after it", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.work("manual work")
+			f.record("mark", f.forms.checkpoint)
+			f.work("checks fix")
+			return rrFable(f, "checkpoint")
+		}, want: rrMissing("HEAD~3")},
+		{name: "merge after the mark", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.record("mark", f.forms.checkpoint)
+			f.mainMerge("m2")
+			return rrFable(f, "checkpoint")
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.head()} }},
+		// The fix of the merge check after the mark is covered by the mark,
+		// whatever its seen ranges say.
+		{name: "merge after the mark and an unseen fix", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.record("mark", f.forms.checkpoint)
+			merge := f.mainMerge("m2")
+			f.work("merge fix")
+			f.record("check", f.mergeRun(merge))
+			return rrFable(f, "checkpoint")
+		}, want: rrValid},
+		// The merge commits after the record.
+		{name: "merge after a record from a branch commit", setup: func(f *rrFixture) []string {
+			c0 := f.work("c0")
+			c1 := f.work("c1")
+			f.record("record", f.fableRun(c0, c1))
+			f.mainMerge("m2")
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.head()} }},
+		{name: "two merges after the record", setup: func(f *rrFixture) []string {
+			recorded(f)
+			f.mainMerge("m2")
+			f.mainMerge("m3")
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 2", f.rev("HEAD^1"), f.head()} }},
+		// The merge came after Fable was launched and before its record was
+		// committed: it is after END, before the record's commit.
+		{name: "merge between the launch and the record", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.mainMerge("m2")
+			f.record("record", f.fableRun(f.mb, c1))
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.rev("HEAD^1")} }},
+		{name: "merge check after the merge", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			f.record("check", f.mergeRun(merge))
+			return launch(f)
+		}, want: rrValid},
+		{name: "not run merge check after the merge", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			f.record("check", f.mergeNotRun(merge, "agent-cannot-call"))
+			return launch(f)
+		}, want: rrValid},
+		// The merge check record names a merge commit before its own commit,
+		// so it can share that commit with the Fable record.
+		{name: "Fable record and merge check in one commit", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			merge := f.mainMerge("m2")
+			f.record("record", f.fableRun(f.mb, c1), f.mergeRun(merge))
+			return launch(f)
+		}, want: rrValid},
+		// A fix of the same run made before the merge: the record's own
+		// seen range starts at the old merge-base, which the widened START
+		// check accepts.
+		{name: "fix of the same run before a merge", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			fix := f.work("fix")
+			f.record("record", f.fableRun(f.mb, c1), f.seen(f.mb, fix, "coderabbit"))
+			f.mainMerge("m2")
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.head()} }},
+		// Rule 4: a fix after the merge inside a seen range of the merge
+		// check's commit.
+		{name: "fix of the merge check seen by a CLI", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			fix := f.work("merge fix")
+			f.record("check", f.mergeRun(merge), f.seen(merge, fix, "coderabbit"))
+			return launch(f)
+		}, want: rrValid},
+		{name: "fix of the merge check under a not-run line", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			fix := f.work("merge fix")
+			f.record("check", f.mergeRun(merge), f.localNotRun(merge, fix))
+			return launch(f)
+		}, want: rrMissing("refs/remotes/origin/main")},
+		// X is inside the seen range of the merge check's commit but before
+		// the merge, so rule 4 does not cover it, and START is the new
+		// merge-base because a merge commit follows END.
+		{name: "seen range of the merge check holding a commit before the merge", setup: func(f *rrFixture) []string {
+			recorded(f)
+			r := f.head()
+			f.work("x")
+			merge := f.mainMerge("m2")
+			f.record("check", f.mergeRun(merge), f.seen(r, merge, "coderabbit"))
+			return launch(f)
+		}, want: rrMissing("refs/remotes/origin/main")},
+		// A commit with content before the merge invalidates the record, and
+		// Fable then sees the whole PR from the new merge-base, whether the
+		// record started at the old merge-base or at a branch commit. Without
+		// x the same layout waits for the merge check, so the record is read.
+		{name: "work then merge after a record from the merge-base", setup: func(f *rrFixture) []string {
+			f.requireProbe("MERGE 1", func(s *rrFixture) {
+				recorded(s)
+				s.mainMerge("m2")
+			})
+			recorded(f)
+			f.work("x")
+			f.mainMerge("m2")
+			return launch(f)
+		}, want: rrMissing("refs/remotes/origin/main")},
+		{name: "work then merge after a record from a branch commit", setup: func(f *rrFixture) []string {
+			build := func(s *rrFixture, x bool) {
+				c0 := s.work("c0")
+				c1 := s.work("c1")
+				s.record("record", s.fableRun(c0, c1))
+				if x {
+					s.work("x")
+				}
+				s.mainMerge("m2")
+			}
+			f.requireProbe("MERGE 1", func(s *rrFixture) { build(s, false) })
+			build(f, true)
+			return launch(f)
+		}, want: rrMissing("refs/remotes/origin/main")},
+		// A record from the old merge-base whose END is after the merge
+		// holds main's commits, so it is not read; the same record from the
+		// new merge-base is.
+		{name: "record from the old merge-base ending after the merge", setup: func(f *rrFixture) []string {
+			f.requireProbe("VALID", func(s *rrFixture) {
+				s.work("c1")
+				merge := s.mainMerge("m2")
+				s.record("record", s.fableRun(s.rev("refs/remotes/origin/main"), merge))
+			})
+			f.work("c1")
+			merge := f.mainMerge("m2")
+			f.record("record", f.fableRun(f.mb, merge))
+			return launch(f)
+		}, want: rrMissing("refs/remotes/origin/main")},
+		// The names of a merge check record. N is not a merge commit: were
+		// the name counted, rule 4 would cover x, as it does when N is a
+		// confirmable merge commit.
+		{name: "merge check naming a commit that is not a merge", setup: func(f *rrFixture) []string {
+			build := func(s *rrFixture, n func() string) {
+				recorded(s)
+				named := n()
+				x := s.work("x")
+				s.record("check", s.mergeRun(named), s.seen(named, x, "coderabbit"))
+			}
+			f.requireProbe("VALID", func(s *rrFixture) {
+				build(s, func() string { return s.mainMerge("m2") })
+			})
+			build(f, func() string {
+				f.record("n")
+				return f.head()
+			})
+			return launch(f)
+		}, want: rrMissing("HEAD~2")},
+		// A merge check record confirms only the merge of its ID: the record
+		// naming the first merge leaves the second waiting.
+		{name: "merge check naming another merge", setup: func(f *rrFixture) []string {
+			recorded(f)
+			first := f.mainMerge("m2")
+			f.record("check", f.mergeRun(first))
+			f.mainMerge("m3")
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.head()} }},
+		// mm is a merge commit of origin/main, outside the branch, named with
+		// a seen range over x after the branch's merge: counting the name
+		// would cover x by rule 4, as naming the branch's merge does. mm's
+		// first parent is not the merge-base either, so the case holds the
+		// branch condition and the first-parent condition together.
+		{name: "merge check naming a merge outside the branch", setup: func(f *rrFixture) []string {
+			build := func(s *rrFixture, outside bool) {
+				tree := s.rev(s.mb + "^{tree}")
+				m2 := strings.TrimSpace(s.git("commit-tree", tree, "-p", s.mb, "-m", "m2"))
+				mm := strings.TrimSpace(s.git("commit-tree", tree, "-p", s.mb, "-p", m2, "-m", "main merge"))
+				s.git("update-ref", "refs/remotes/origin/main", mm)
+				recorded(s)
+				merge := s.mainMerge("m3")
+				s.record("check", s.mergeRun(merge))
+				x := s.work("x")
+				named := merge
+				if outside {
+					named = mm
+				}
+				s.record("check", s.mergeRun(named), s.seen(merge, x, "coderabbit"))
+			}
+			f.requireProbe("VALID", func(s *rrFixture) { build(s, false) })
+			build(f, true)
+			return launch(f)
+		}, want: rrMissing("refs/remotes/origin/main")},
+		// C merges origin/main's B into the fork point A: its second parent
+		// is origin/main, but its first is behind the merge-base B. Named
+		// with a seen range over x, it would cover x by rule 4, as a merge
+		// whose first parent is a branch commit does.
+		{name: "merge check naming a merge whose first parent is behind the merge-base", setup: func(f *rrFixture) []string {
+			build := func(s *rrFixture, branchFirst bool) {
+				tree := s.rev(s.mb + "^{tree}")
+				b := strings.TrimSpace(s.git("commit-tree", tree, "-p", s.mb, "-m", "B"))
+				s.git("update-ref", "refs/remotes/origin/main", b)
+				first := s.mb
+				if branchFirst {
+					first = s.work("c0")
+				}
+				c := strings.TrimSpace(s.git("commit-tree", tree, "-p", first, "-p", b, "-m", "merge B"))
+				s.git("reset", "-q", "--hard", c)
+				c1 := s.work("c1")
+				s.record("record", s.fableRun(b, c1))
+				x := s.work("x")
+				s.record("check", s.mergeRun(c), s.seen(c1, x, "coderabbit"))
+			}
+			f.requireProbe("VALID", func(s *rrFixture) { build(s, true) })
+			build(f, false)
+			return launch(f)
+		}, want: rrMissing("HEAD~2")},
+		// The seen range of y starts at the merge's second parent, the
+		// merge-base until the second merge moves it; the widened START check
+		// keeps the line, so y stays covered by rule 4.
+		{name: "fix of a merge check kept after a second merge", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			y := f.work("merge fix")
+			f.record("check", f.mergeRun(merge), f.seen(f.rev(merge+"^2"), y, "coderabbit"))
+			f.mainMerge("m3")
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.head()} }},
+		{name: "merge check lines of another form", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			f.record("check",
+				strings.Replace(f.mergeRun(merge), merge, merge[:12], 1),
+				"  "+f.mergeRun(merge),
+				"see "+f.mergeRun(merge),
+				strings.Replace(f.mergeRun(merge), "claude-opus-example", "claude-sonnet-example", 1),
+				f.mergeNotRun(merge, "no-target"))
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.rev("HEAD^1")} }},
+		// A name of no object, and a name of a tree, are read past without
+		// failing.
+		{name: "merge check naming no object and a tree", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			f.record("check", f.mergeRun(strings.Repeat("0", 40)), f.mergeRun(f.rev(merge+"^{tree}")))
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.rev("HEAD^1")} }},
+		// The unconfirmable merge commits invalidate the record even when a
+		// merge check record names them; "merge after the record" is the
+		// third shape.
+		{name: "octopus merge after the record", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.unconfirmableMerge("octopus")
+			f.record("check", f.mergeRun(merge))
+			return launch(f)
+		}, want: rrMissing("refs/remotes/origin/main")},
+		{name: "merge with main's side first after the record", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.unconfirmableMerge("main-first")
+			f.record("check", f.mergeRun(merge))
+			return launch(f)
+		}, want: rrMissing("refs/remotes/origin/main")},
+		// A replace ref makes the side merge's second parent origin/main to
+		// plain git, which would make it confirmable.
+		{name: "replace ref making a merge look confirmable", setup: func(f *rrFixture) []string {
+			recorded(f)
+			r := f.head()
+			f.git("switch", "-q", "-c", "side")
+			f.record("empty side")
+			f.git("switch", "-q", "feature")
+			merge := f.merge("side")
+			f.record("check", f.mergeRun(merge))
+			f.git("replace", "--graft", merge, r, f.mb)
+			if f.rev(merge+"^2") != f.mb {
+				f.t.Fatal("the replace ref does not change the merge's second parent for plain git, so the case checks nothing")
+			}
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		// A grafts file does the same for plain git as the replace ref.
+		{name: "grafts file making a merge look confirmable", setup: func(f *rrFixture) []string {
+			recorded(f)
+			r := f.head()
+			f.git("switch", "-q", "-c", "side")
+			f.record("empty side")
+			f.git("switch", "-q", "feature")
+			merge := f.merge("side")
+			f.record("check", f.mergeRun(merge))
+			f.write(".git/info/grafts", merge+" "+r+" "+f.mb+"\n")
+			if f.rev(merge+"^2") != f.mb {
+				f.t.Fatal("the grafts file does not change the merge's second parent for plain git, so the case checks nothing")
+			}
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
 		// The inputs and the failures.
 		{name: "ENTRY of another form", setup: func(f *rrFixture) []string { return rrFable(f, "Launch") }},
 		{name: "HEAD of another form", setup: func(*rrFixture) []string {
@@ -1139,11 +1723,47 @@ func rrFableConfigBranch(f *rrFixture) []string {
 	return rrFable(f, "launch")
 }
 
+// rrFableMergeConfigBranch builds a branch on which the fable mode prints
+// VALID at the checkpoint entry only through the merge rules: a record from
+// the old merge-base, a plan checkbox commit, a merge of origin/main that
+// adds a Markdown file under docs, the merge check record naming it, the
+// checkpoint mark, and a last commit whose file name and subject are not
+// ASCII. HEAD~4..HEAD~3 is the merge's change from its first parent and
+// HEAD~1..HEAD the last commit, so the configuration scenarios' plain git
+// commands change their output.
+func rrFableMergeConfigBranch(f *rrFixture) []string {
+	f.write(".gitattributes", "*.md diff=upper\n")
+	f.commit("attributes")
+	f.record("record", f.fableRun(f.mb, f.head()))
+	f.plan(rrMarkersPlan, "markers-created.md")
+	merge := f.mainMerge("m2")
+	f.record("check", f.mergeRun(merge))
+	f.record("mark", f.forms.checkpoint)
+	f.write("caf\u00e9.txt", "x\n")
+	f.commit("unseen caf\u00e9")
+	return rrFable(f, "checkpoint")
+}
+
 // TestReviewRecordsFable runs the fable mode of the review records script on
 // fixture repositories: the last record, the fixes of the same run, the
-// commits without content, the checkpoint mark, the failures, and that the
-// caller's environment and git configuration change nothing. Each case runs
-// with each bash scriptBashes returns.
+// commits without content, the checkpoint mark, the merge commits and the
+// merge check records, the failures, and that the caller's environment and
+// git configuration change nothing. Each case runs with each bash
+// scriptBashes returns.
+//
+// Some conditions are backed by others, so breaking one alone fails no case:
+// that a widened START is a commit origin/main reaches (START must be an
+// ancestor of END, a branch commit, and the range must hold no commit
+// origin/main reaches); that a merge check record's name is a branch commit
+// (a confirmable merge commit origin/main reaches would have the merge-base
+// as its first parent and be a common ancestor descending from it, which
+// cannot be); that the name is not the record's own commit (a message cannot
+// name its own commit); that the name is a proper ancestor of the record's
+// commit (rule 4 needs it to be an ancestor of the record's
+// commit, and a merge after END that is not one reaches the branch only
+// through a merge that is unconfirmable); and that a rule 4 commit is an
+// ancestor of the merge check's commit (a seen range's END is a proper
+// ancestor of it).
 //
 // The environment cases and the failures of the shared branch loading repeat
 // TestReviewRecordsCoverage's on purpose: they show the fable mode keeps the
@@ -1161,7 +1781,7 @@ func TestReviewRecordsFable(t *testing.T) {
 				t.Run(c.name, func(t *testing.T) {
 					t.Parallel()
 					f := newRRFixture(t, form)
-					f.forms = forms
+					f.forms, f.bash = forms, bash
 					args := append([]string{"fable"}, c.setup(f)...)
 					var opts scriptRunOptions
 					if c.env != nil {
@@ -1180,32 +1800,15 @@ func TestReviewRecordsFable(t *testing.T) {
 					}
 				})
 			}
-			for _, scope := range []string{"repository", "global"} {
-				for _, s := range rrConfigScenarios() {
-					t.Run("git config/"+scope+"/"+s.name, func(t *testing.T) {
-						t.Parallel()
-						f := newRRFixture(t, form)
-						f.forms = forms
-						args := append([]string{"fable"}, rrFableConfigBranch(f)...)
-						want := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{})
-						if want.code != 0 || want.stdout != "MISSING "+f.rev("HEAD~1")+"\n" {
-							t.Fatalf("without %s the script did not print MISSING from the commit before the last, so the scenario checks nothing: %v", s.name, want)
-						}
-						before := f.git(s.plain...)
-						file := filepath.Join(f.repo, ".git", "config")
-						if scope == "global" {
-							file = filepath.Join(f.home, ".gitconfig")
-						}
-						f.git("config", "--file", file, s.config[0], s.config[1])
-						if after := f.git(s.plain...); after == before {
-							t.Fatalf("%s does not change plain git's output %q, so the scenario checks nothing", s.name, before)
-						}
-						if got := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{}); got != want {
-							t.Errorf("with %s set the script printed %v, without it %v", s.name, got, want)
-						}
-					})
-				}
+			fixture := func(t *testing.T) *rrFixture {
+				f := newRRFixture(t, form)
+				f.forms = forms
+				return f
 			}
+			checkConfigScenarios(t, "git config", bash, fixture, "fable", rrFableConfigBranch,
+				func(f *rrFixture) string { return "MISSING " + f.rev("HEAD~1") + "\n" })
+			checkConfigScenarios(t, "git config with a merge", bash, fixture, "fable", rrFableMergeConfigBranch,
+				func(*rrFixture) string { return "VALID\n" })
 		})
 	}
 }
@@ -1216,11 +1819,12 @@ func TestReviewRecordsFable(t *testing.T) {
 // commit's copy to <records-script>, by the commit ID the reading printed;
 // and the run of that copy.
 const (
-	reviewRecordsRef          = "git rev-parse --verify 'refs/remotes/origin/main^{commit}'"
-	reviewRecordsShow         = "git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>"
-	reviewRecordsRunCoverage  = "bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]"
-	reviewRecordsRunRemaining = "bash <records-script> coverage none <HEAD> [<PLAN>]"
-	reviewRecordsRunFable     = "bash <records-script> fable <ENTRY> <HEAD> <PLAN>"
+	reviewRecordsRef           = "git rev-parse --verify 'refs/remotes/origin/main^{commit}'"
+	reviewRecordsShow          = "git --no-replace-objects show <origin-main-commit>:.claude/commands/_lib/review-records.sh > <records-script>"
+	reviewRecordsRunCoverage   = "bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]"
+	reviewRecordsRunRemaining  = "bash <records-script> coverage none <HEAD> [<PLAN>]"
+	reviewRecordsRunUnreviewed = "bash <records-script> unreviewed <HEAD> <PLAN>"
+	reviewRecordsRunFable      = "bash <records-script> fable <ENTRY> <HEAD> <PLAN>"
 )
 
 // reviewRecordsNames are the code spans that only name the review records
@@ -1235,10 +1839,10 @@ var reviewRecordsNames = []string{
 // and every code span that names them is the name alone. Running the work
 // tree's copy would let the branch under review change the decision that
 // lets it skip a PR review or a Fable partial review. task-pr-handoff.md's
-// Part B step 2.5, runpr.md's step 3, and fable-review.md's validity decision,
-// which the launch and the checkpoint entries run, have the reading of the
-// reference, the write-out, and the run on consecutive lines, so a renamed form
-// does not pass by matching nothing.
+// Part B step 2.5 and step 3, runpr.md's step 3, and fable-review.md's
+// validity decision, which the launch, checkpoint, and pre-push entries run,
+// have the reading of the reference, the write-out, and the run on
+// consecutive lines, so a renamed form does not pass by matching nothing.
 // A line that names neither the script nor its placeholder, or a block
 // fenced otherwise, is out of its reach.
 func TestReviewRecordsCallSite(t *testing.T) {
@@ -1250,7 +1854,7 @@ func TestReviewRecordsCallSite(t *testing.T) {
 			}
 			inBlock := i < len(blockLines)
 			switch {
-			case inBlock && (code == reviewRecordsShow || code == reviewRecordsRunCoverage || code == reviewRecordsRunRemaining || code == reviewRecordsRunFable):
+			case inBlock && (code == reviewRecordsShow || code == reviewRecordsRunCoverage || code == reviewRecordsRunRemaining || code == reviewRecordsRunUnreviewed || code == reviewRecordsRunFable):
 			case !inBlock && slices.Contains(reviewRecordsNames, code):
 			default:
 				t.Errorf("%s has %q, which neither names the review records script nor writes out or runs origin/main's copy", rel, code)
@@ -1261,7 +1865,8 @@ func TestReviewRecordsCallSite(t *testing.T) {
 		name, path, run string
 		section         func(*testing.T, string) string
 	}{
-		{"handoff step 2.5", handoffPath, reviewRecordsRunRemaining, itemSection("\n2.5. ", "\n3. ")},
+		{"handoff step 2.5", handoffPath, reviewRecordsRunRemaining, itemSection("\n2.5. ", "\n2.6. ")},
+		{"handoff step 3", handoffPath, reviewRecordsRunUnreviewed, itemSection("3. Push and create the PR for the current branch.", "\n4. Run AFTER_CREATE")},
 		{"runpr.md's step 3", runprPath, reviewRecordsRunCoverage, headingSection(runprStep3)},
 		{"fable-review.md's validity decision", fableReviewPath, reviewRecordsRunFable, headingSection("## The validity decision")},
 	} {
@@ -1320,11 +1925,12 @@ func tableLinePrefixes(t *testing.T, where, section string) []string {
 }
 
 // TestRecordLinePrefixesDistinct checks that the record lines the Fable
-// partial review and the seen-range line add cannot be read as an existing
-// record line: no new prefix equals an existing one, and neither starts
-// with the other. The existing prefixes are those of local-cli-review.md
-// step 7's table (the seen-range line aside) and of the code blocks of
-// opus-review.md's "Record lines", which _lib/opus-review-decision.sh and
+// partial review, the merge check, and the seen-range line add cannot be
+// read as an existing record line or as one another: no new prefix equals
+// an existing one or another new one, and neither starts with the other.
+// The existing prefixes are those of local-cli-review.md step 7's table
+// (the seen-range line aside) and of the code blocks of
+// opus-review.md's "Record lines", which _lib/high-review-decision.sh and
 // the local CLI review's readers read; the new ones are those of
 // fable-review.md's "Record lines" table and the seen-range line.
 func TestRecordLinePrefixesDistinct(t *testing.T) {
@@ -1345,35 +1951,54 @@ func TestRecordLinePrefixesDistinct(t *testing.T) {
 		existing[recordPrefix(t, "opus-review.md \"Record lines\"", line)] = struct{}{}
 	}
 	fable := requireSection(t, "fable-review.md", doctestutil.ReadDoc(t, fableReviewPath), "## Record lines")
-	fablePrefixes := map[string]struct{}{}
+	// The table's rows are of two families, the Fable lines and the merge
+	// check lines. The rows of one family may share a prefix (three rows are
+	// "Fable review:"), so each distinct prefix is compared once; the
+	// families give the lower bounds, so a merge check row moved into the
+	// Fable family's prefixes fails them.
+	families := map[bool]map[string]struct{}{false: {}, true: {}}
 	for _, prefix := range tableLinePrefixes(t, "fable-review.md \"Record lines\"", fable) {
-		fablePrefixes[prefix] = struct{}{}
-		added = append(added, prefix)
+		families[strings.HasPrefix(prefix, mergeCheckFamily)][prefix] = struct{}{}
+	}
+	for _, family := range families {
+		for prefix := range family {
+			added = append(added, prefix)
+		}
 	}
 	// The lower bounds keep a table the reading misses from passing with
 	// nothing compared.
-	if localCount < 3 || len(existing)-localCount < 2 || len(fablePrefixes) < 3 || !slices.Contains(added, seenPrefix) {
-		t.Fatalf("read %d prefixes from local-cli-review.md step 7, %d more from opus-review.md, %d from fable-review.md, and the seen-range line %v; want at least 3, 2, 3, and true",
-			localCount, len(existing)-localCount, len(fablePrefixes), slices.Contains(added, seenPrefix))
+	if localCount < 3 || len(existing)-localCount < 2 || len(families[false]) < 3 || len(families[true]) < 3 ||
+		!slices.Contains(added, seenPrefix) {
+		t.Fatalf("read %d prefixes from local-cli-review.md step 7, %d more from opus-review.md, %d Fable and %d merge check prefixes from fable-review.md, and the seen-range line %v; want at least 3, 2, 3, 3, and true",
+			localCount, len(existing)-localCount, len(families[false]), len(families[true]), slices.Contains(added, seenPrefix))
 	}
-	for _, n := range added {
+	for i, n := range added {
 		for e := range existing {
 			if strings.HasPrefix(n, e) || strings.HasPrefix(e, n) {
 				t.Errorf("the new record line prefix %q overlaps the existing prefix %q", n, e)
 			}
 		}
+		for _, o := range added[i+1:] {
+			if strings.HasPrefix(n, o) || strings.HasPrefix(o, n) {
+				t.Errorf("the new record line prefixes %q and %q overlap", n, o)
+			}
+		}
 	}
 }
+
+// mergeCheckFamily starts the prefix of every merge check line in
+// fable-review.md's "Record lines".
+const mergeCheckFamily = "Merge check"
 
 // mentionCheckReference is how a section names the mention check that runs
 // before a commit of record lines.
 const mentionCheckReference = "`_lib/local-cli-review.md` step 7, \"Mention check\""
 
 // TestRecordCommitsCheckMention checks that each section that makes a commit
-// holding a Fable line runs the mention check first: it holds the check's
-// command or names local-cli-review.md step 7's "Mention check". A Fable line
-// carries the session's summaries of Fable's findings, which may hold the
-// mention.
+// holding a Fable or merge check line runs the mention check first: it holds
+// the check's command or names local-cli-review.md step 7's "Mention check".
+// A Fable or merge check line carries the session's summaries of findings,
+// which may hold the mention.
 func TestRecordCommitsCheckMention(t *testing.T) {
 	runplan := doctestutil.ReadDoc(t, runplanPath)
 	var step78 string
@@ -1388,6 +2013,7 @@ func TestRecordCommitsCheckMention(t *testing.T) {
 		{"runplan.md step 7.8", step78},
 		{"fable-review.md \"Record lines\"", requireSection(t, "fable-review.md", fable, "## Record lines")},
 		{"fable-review.md \"The standalone path\"", requireSection(t, "fable-review.md", fable, "## The standalone path")},
+		{"fable-review.md \"The merge check\"", requireSection(t, "fable-review.md", fable, "## The merge check")},
 	} {
 		text := flat(site.text)
 		if text == "" {
