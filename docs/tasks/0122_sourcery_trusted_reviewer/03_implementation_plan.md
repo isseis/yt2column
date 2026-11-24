@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-24 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-24 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
@@ -529,3 +529,7 @@
 1. 本計画書（`03_implementation_plan.md`）の PR レビューを受け、`/runpr` で承認（`approved`）とマージを行う。
 2. マージ後、`/runplan 0122` で PR-1（ステップ 1-1）から PR-6 まで順に実装・検証を進める。
 3. 各開発ツールの更新 PR マージ後に、利用者が手順どおり `make install-fixprguard`（PR-1 マージ後および PR-5 の `/runpr` 前・マージ直後）および `make install-mergepr`（PR-3 マージ後）を実行する（これらの直後となる PR-2・PR-4・PR-6 は `自動送信: hold`）。
+
+## 変更履歴
+
+- 2026-11-24 承認（isseis、#1117）
