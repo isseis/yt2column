@@ -6,6 +6,9 @@ set -euo pipefail
 OUT=${1:?OUTDIR}; REPO=${2:?repository path}; HERE=$(cd "$(dirname "$0")" && pwd)
 jq -r 'sort_by(.mergedAt)[] | "\(.number)\t\(.mergeCommit.oid)\t\(.mergedAt[0:10])\t\(.title)"' "$OUT/prs.json" |
 while IFS=$'\t' read -r n squash date title; do
+  for f in "$OUT/pr-$n.commits" "$OUT/pr-$n.body"; do
+    [ -f "$f" ] || { echo "classify.sh: missing $f; rerun fetch.sh" >&2; exit 1; }
+  done
   sig=$( { awk -f "$HERE/classify.awk" "$OUT/pr-$n.commits"
            { echo "@@@COMMIT squash-body-"; git -C "$REPO" -c log.showSignature=false log -1 --format=%B "$squash" 2>/dev/null || true; } | awk -f "$HERE/classify.awk"
            { echo "@@@COMMIT pr-body----"; cat "$OUT/pr-$n.body"; } | awk -f "$HERE/classify.awk" | grep '^FREETEXT' || true
