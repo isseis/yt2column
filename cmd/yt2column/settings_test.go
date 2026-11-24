@@ -46,7 +46,8 @@ var promptingModes = map[string]struct{}{
 // prompt, the word written as is (a wildcard or a path is another word).
 // Only the first word is read: Claude Code matches each command of a
 // compound command against the rules on its own, so a rule's later words
-// cannot allow a second command.
+// cannot allow a second command. A trailing ":*", the legacy prefix form,
+// is the only colon read past; any other colon makes the word another one.
 func allowsUnvetted(rule string) bool {
 	if rule != "Bash" && !strings.HasPrefix(rule, "Bash(") {
 		return false
@@ -56,7 +57,7 @@ func allowsUnvetted(rule string) bool {
 		return true
 	}
 	word, _, _ := strings.Cut(strings.TrimSpace(m[1]), " ")
-	word, _, _ = strings.Cut(word, ":")
+	word = strings.TrimSuffix(word, ":*")
 	_, ok := unpromptedWords[word]
 	return !ok
 }
@@ -64,13 +65,19 @@ func allowsUnvetted(rule string) bool {
 // TestSettingsAllowsOnlyVettedCommands: .claude/settings.json allows no Bash
 // rule outside the vetted command words, and sets no permission mode that
 // skips the prompt, so a command an agent runs through a wrapper, a shell,
-// gh, or git push still reaches the approval prompt.
+// gh, or git push still reaches the approval prompt. An enabled sandbox
+// must turn off its automatic approval of Bash commands explicitly, since
+// that approval would skip the prompt for every command run in it.
 func TestSettingsAllowsOnlyVettedCommands(t *testing.T) {
 	var settings struct {
 		Permissions struct {
 			Allow       []string `json:"allow"`
 			DefaultMode string   `json:"defaultMode"`
 		} `json:"permissions"`
+		Sandbox struct {
+			Enabled                  bool  `json:"enabled"`
+			AutoAllowBashIfSandboxed *bool `json:"autoAllowBashIfSandboxed"`
+		} `json:"sandbox"`
 	}
 	doc := doctestutil.ReadDoc(t, filepath.Join(repositoryRoot, filepath.FromSlash(settingsPath)))
 	if err := json.Unmarshal([]byte(doc), &settings); err != nil {
@@ -83,6 +90,9 @@ func TestSettingsAllowsOnlyVettedCommands(t *testing.T) {
 	}
 	if _, ok := promptingModes[settings.Permissions.DefaultMode]; !ok {
 		t.Errorf("permissions.defaultMode is %q, which skips the prompt", settings.Permissions.DefaultMode)
+	}
+	if sb := settings.Sandbox; sb.Enabled && (sb.AutoAllowBashIfSandboxed == nil || *sb.AutoAllowBashIfSandboxed) {
+		t.Errorf("sandbox is enabled without autoAllowBashIfSandboxed set to false, which may skip the prompt")
 	}
 }
 
@@ -110,6 +120,9 @@ func TestAllowsUnvetted(t *testing.T) {
 		{"Bash(chiefx *)", true},
 		{"Bash(coderabbit review *)", false},
 		{"Bash(chief *)", false},
+		{"Bash(chief:*)", false},
+		// Only a trailing ":*" is the legacy prefix form.
+		{"Bash(chief:helper *)", true},
 		{"Bash(numreserve task)", false},
 		{"Bash(numreserve adr)", false},
 		{"Read(.envrc)", false},
