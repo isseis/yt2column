@@ -103,6 +103,15 @@ func TestAssessAuthors(t *testing.T) {
 			},
 		},
 		{
+			// A user named like Sourcery AI is judged by permission, not
+			// trusted as the reviewer.
+			name: "user_named_like_sourcery", reviewers: realReviewers,
+			comments: []testComment{userComment(1, sourceryReviewer)}, lookups: []cmdrunnertestutil.Step{roleStep(sourceryReviewer, "")},
+			findings: func(t *testing.T) []Finding {
+				return []Finding{{Reason: ReasonNoWritePermission, Account: mustLogin(t, sourceryReviewer)}}
+			},
+		},
+		{
 			name: "user_named_like_second_reviewer", reviewers: bothReviewers,
 			comments: []testComment{userComment(1, testSecondReviewer)}, lookups: []cmdrunnertestutil.Step{roleStep(testSecondReviewer, "")},
 			findings: func(t *testing.T) []Finding {

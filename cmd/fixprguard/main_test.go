@@ -819,20 +819,21 @@ func TestInspectExitCode(t *testing.T) {
 
 // TestInspectTrustsEveryReviewer: inspect judges a thread with every
 // --reviewer it is given. A Sourcery AI thread on a Go file is trusted when
-// its login is passed, so a change to a Go file beside it is in scope; with
-// the first reviewer alone the thread is named, and the .go rule puts the
-// same change out of scope.
+// its login is passed, so the .go rule brings a change to a Go file beside it
+// into scope; with the first reviewer alone the thread is only named, the
+// .go rule does not apply, and that change is the one listed out of scope.
 func TestInspectTrustsEveryReviewer(t *testing.T) {
 	const sourcery = "sourcery-ai"
 	th := botThread(1, sourcery)
 	th.path = "docs/notes/a.go"
 	for _, tc := range []struct {
-		name      string
-		reviewers []string
-		want      int
+		name       string
+		reviewers  []string
+		want       int
+		outOfScope []string
 	}{
 		{name: "both_reviewers", reviewers: []string{testReviewer, sourcery}, want: exitContinue},
-		{name: "first_reviewer_alone", reviewers: []string{testReviewer}, want: exitAsk},
+		{name: "first_reviewer_alone", reviewers: []string{testReviewer}, want: exitAsk, outOfScope: []string{"docs/notes/b.go"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := newTestRepo(t)
@@ -843,6 +844,15 @@ func TestInspectTrustsEveryReviewer(t *testing.T) {
 			line := append(reviewerFlags(tc.reviewers...), "--baseline", base.String(), "--thread", thread, testPR)
 			if code := r.Run(t, args(cmdInspect, line...)...); code != tc.want {
 				t.Fatalf("exit %d, want %d (%s)", code, tc.want, r.Stderr)
+			}
+			var out inspectJSON
+			r.Decode(t, &out)
+			var got []string
+			for _, o := range out.OutOfScope {
+				got = append(got, o.Path)
+			}
+			if out.Changes != 1 || !slices.Equal(got, tc.outOfScope) {
+				t.Errorf("changes = %d, out of scope = %q; want 1 and %q", out.Changes, got, tc.outOfScope)
 			}
 		})
 	}

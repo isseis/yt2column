@@ -98,7 +98,7 @@ fixprguard head --protocol 8 42
 未解決のスレッドを全ページ取得し（最大 2000 件。超えると `thread-cap` で止まる）、スレッドごとの信頼の判定と理由、指紋を出力する。本文は取得も出力もしない。最初に `head` と同じ確認をする。
 
 ```sh
-fixprguard list --protocol 8 --reviewer coderabbitai 42
+fixprguard list --protocol 8 --reviewer coderabbitai --reviewer sourcery-ai 42
 ```
 
 出力: `threads`（各要素は `threadId`・`url`・`trusted`・`fingerprint`・`findings`）と `permissionLookups`（権限の照会の使用回数 `used` と残り `remaining`）。`findings` の `reason` は次のいずれかである。
@@ -119,7 +119,7 @@ fixprguard list --protocol 8 --reviewer coderabbitai 42
 処理するスレッドは、信頼する著者のスレッドと、`--accept` で名指しされて指紋が現在と一致するスレッドである。`--accept` には、利用者に示した報告の出力にあるスレッド ID と指紋を渡す。
 
 ```sh
-fixprguard begin --protocol 8 --reviewer coderabbitai 42
+fixprguard begin --protocol 8 --reviewer coderabbitai --reviewer sourcery-ai 42
 ```
 
 出力の項目:
@@ -152,7 +152,7 @@ fixprguard fence --protocol 8 /path/to/triage.json
 修正のフェーズの後に実行する。まず config・info・hooks と対象のファイルを基準値と比べ、違えば `gh` を起動せずに `git-state-changed` で止まる。比べる順序は次のとおりである。(1) git のディレクトリの場所、config のファイルの種類、info を、git を起動せずにファイルだけで比べる。(2) `git config --list` で git が読む設定の値の一覧を読み、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いて比べる。(3) hooks を比べる。(4) 対象のファイル（7.1）の状態を比べる。列挙の git が config を読むので、config と hooks が一致した後に比べる。違えば `parts` は `ignored` だけである。設定の値の一覧を変えない編集（コメント・空行・字下げだけの編集）は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。次に、`--thread` のスレッドを GitHub から取り直して `path` を求め（指紋が違えば `thread-changed`）、作業ツリーの変更を数え上げて、範囲（6 章）と照らす。
 
 ```sh
-fixprguard inspect --protocol 8 --reviewer coderabbitai --baseline 'v3....' --thread 'PRRT_...=<指紋>' 42
+fixprguard inspect --protocol 8 --reviewer coderabbitai --reviewer sourcery-ai --baseline 'v3....' --thread 'PRRT_...=<指紋>' 42
 ```
 
 出力: `judgedSet`（判定した集合の識別子。`finish` に渡す）、`changes`（変更のあったパスの数）、`outOfScope`（範囲外の変更。各要素は `position`・`path`・`kind`（`add`・`modify`・`delete`・`other`）・`added`・`deleted`・`binary`）。`outOfScope` が空でなければ終了コード `3` で、利用者に一覧を示して続けるかを確かめる。パスの検査（6 章）に通らないパスは `path` を出さず、`position` だけで示す。
@@ -216,10 +216,10 @@ fixprguard push-review --protocol 8 --baseline 'v3....' --commit '<SHA>'
 
 スレッドを現在の状態で判定し直し、信頼する著者のスレッド（または、`--accept` で名指しされて指紋が一致するスレッド）で、`--fingerprint` が現在の指紋と一致し、`--comment-id` がそのスレッドの最初のコメントのときだけ、返信を投稿する。本文は JSON として標準入力で `gh api` に渡すので、シェルを通らない。返信の後、スレッドを取り直して返信のほかに変化がないことを確かめてから、スレッドを解決する。
 
-本文のファイルは、通常のファイル（最後の要素がシンボリックリンクでない）で、64 KiB 以下、空白だけでなく、NUL を含まない有効な UTF-8 でなければならない。また、拒否するメンション（`@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai`）を含んではならない。Sourcery AI はハイフンのある形とない形のどちらのメンションにも応じるので、両方を拒否する。比べ方は ASCII の範囲で大文字と小文字を区別しない部分文字列の一致で、語の境界を求めない（`@codexbot`・`a@codex.example`・`@coderabbitai-bot`・`@Sourcery-AI` も拒否する）。メンションの検査はファイルの検査の後、スレッドを読む前に行い、含むときは終了コード `2` で拒否する。利用者のアカウントの投稿が自動レビュアーを動かさないためである。
+本文のファイルは、通常のファイル（最後の要素がシンボリックリンクでない）で、64 KiB 以下、空白だけでなく、NUL を含まない有効な UTF-8 でなければならない。また、拒否するメンション（`@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai`）を含んではならない。Sourcery AI はハイフンのある形とない形のどちらのメンションにも応じるので、両方を拒否する。比べ方は ASCII の範囲で大文字と小文字を区別しない（`@Sourcery-AI` も拒否する）部分文字列の一致で、語の境界を求めない（`@codexbot`・`a@codex.example`・`@coderabbitai-bot`・`@sourcery-aibot` も拒否する）。メンションの検査はファイルの検査の後、スレッドを読む前に行い、含むときは終了コード `2` で拒否する。利用者のアカウントの投稿が、メンションで自動レビュアーを動かさないためである。
 
 ```sh
-fixprguard reply --protocol 8 --reviewer coderabbitai --thread-id 'PRRT_...' --comment-id 123 --fingerprint '<指紋>' --body-file /path/to/reply.md 42
+fixprguard reply --protocol 8 --reviewer coderabbitai --reviewer sourcery-ai --thread-id 'PRRT_...' --comment-id 123 --fingerprint '<指紋>' --body-file /path/to/reply.md 42
 ```
 
 出力: `{"protocol":8,"written":true}`。`reply-not-resolved` で止まったときは、返信が投稿された可能性があるので、同じ返信を再び投稿しない。
@@ -439,7 +439,7 @@ fixprguard review-state --protocol 8 --reviewer coderabbitai --request 'please r
 | 範囲外の変更を、利用者の確認なしに commit しない | `inspect` が範囲外を一覧にして終了コード `3` を返し、`finish` は判定した集合と一致する変更だけを commit する。`/fixpr` の Phase 4.5 の commit には当てはまらない（範囲の検査を受けない。7.2.3） |
 | 判定の後に現れた変更を commit しない | `finish` が、判定した集合との厳密な一致を build checks の前と後で確かめ、判定したパスだけを stage する |
 | 書き換えられた hooks・config で git を起動しない | `inspect`・`finish`・`push`・`check`・`push-review` が、まず git のディレクトリの場所と config のファイルの種類を、git を起動せずにファイルだけで比べる。次に、コマンドを起動しない `git config --list` だけを起動し、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いた設定の値の一覧を基準値と比べる。config を比べる前に起動する git は `git config --list` だけで、違えば、ほかの git・`gh`・make を起動しない。hooks は、設定の値の一覧が一致した後に `git rev-parse --git-path hooks` で場所を求めて比べる。hook を実行しうるコマンドより前である。設定の値の一覧を変えない編集は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2） |
-| メンションを含む文面を GitHub に送らない | `reply` の本文、`edit-pr` のタイトル・本文、`finish` の本文のファイル、`append-pr` のファイルと足した後の PR の本文が `@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai` のどれかを（ASCII の範囲で大文字と小文字を区別せず、語の一部でも）含めば、GitHub に書き込む前に（`finish` は commit の前に）拒否する（`append-pr` で今の PR 本文が既に含むときは終了コード `1` の `current-body-mention`、それ以外は終了コード `2`）。`finish` の本文のファイルは `@` を、`append-pr` のファイルは `@` と `<` を含むだけで拒否する。利用者のアカウントの投稿が自動レビュアーを動かすのを防ぐ。コマンドの文書が投稿の前に行う確認に重ねる裏の守りである |
+| メンションを含む文面を GitHub に送らない | `reply` の本文、`edit-pr` のタイトル・本文、`finish` の本文のファイル、`append-pr` のファイルと足した後の PR の本文が `@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai` のどれかを（ASCII の範囲で大文字と小文字を区別せず、語の一部でも）含めば、GitHub に書き込む前に（`finish` は commit の前に）拒否する（`append-pr` で今の PR 本文が既に含むときは終了コード `1` の `current-body-mention`、それ以外は終了コード `2`）。`finish` の本文のファイルは `@` を、`append-pr` のファイルは `@` と `<` を含むだけで拒否する。利用者のアカウントの投稿が、メンションで自動レビュアーを動かすのを防ぐ。コマンドの文書が投稿の前に行う確認に重ねる裏の守りである |
 | 返信と PR の説明がシェルのコマンドにならない | `reply`・`edit-pr`・`append-pr` はシェルを介さず、本文を標準入力で渡す。`finish` は本文をシェルを介さずに 1 つの引数として `git commit` に渡す |
 | `finish` の commit の本文に訂正の行のほかの行を入れない | `finish` の本文のファイルは、どの行も `Editorial correction: ` で始まらなければ拒否する。commit の後に、記録されたメッセージが検査した本文から組み立てたものと一致することを確かめる |
 | fork の PR の head を扱わない | `head`・`list`・`begin` が最初に確かめる |
@@ -465,6 +465,7 @@ fixprguard review-state --protocol 8 --reviewer coderabbitai --request 'please r
 - `--reviewer` で渡した名前の集合が、`.claude/commands/_context.md` の `Automated reviewer list` の名前と同じであること。ツールは `_context.md` を読まない。名前を渡し忘れても、その Bot のスレッドは `other-bot` で信頼されないだけである。
 - 同じ秒の内の再編集。指紋の時刻は秒の単位である。
 - 返信と PR の説明の本文の内容のうち、メンションのほかのもの。ツールが検査するのは、ファイルの種類・大きさ・文字コードと、`@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai` のメンションだけである。全角の `＠codex`・`＠coderabbitai`・`＠sourcery-ai`・`＠sourceryai`、`@` と名前の間に幅のない文字を挟んだ形は、GitHub のメンションにならないので検査しない。また、セッションは Bash で `gh` を直接実行できるので、メンションの検査は抜け道のない境界ではない。`finish` の本文のファイルは、これに加えて `@`・制御文字などの文字と行の形を、`append-pr` のファイルは `@` と `<` を検査するが（5 章）、訂正の説明が正しいかは検査しない。`<` の拒否が防ぐのは HTML のコメントで文を隠すことだけで、Markdown のリンク参照の定義（`[//]: # (...)` など）で隠す形は検査しない。
+- メンションのない返信への自動レビュアーの応答。Sourcery AI は、自身が始めたスレッドへのメンションのない返信にも、チャットとして応答しうる（公式文書。タスク 0122 の要件定義書 4.2 と観測の記録 2.9）。メンションの拒否が防ぐのはメンションによるコマンドの起動だけで、`reply` の本文がこの応答を引き出すことは防がない。
 - `append-pr` が PR の本文を取得してから書き込むまでの間の、ほかの人の編集。その編集は上書きされる。`gh pr edit` には、取得したときの本文と一致する場合だけ書き込む条件付きの更新がないためである。`edit-pr` の書き込みにも同じ余地がある。
 
 #### 7.2.2 区切りのブロックとコマンドの文書
