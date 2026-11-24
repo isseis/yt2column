@@ -540,9 +540,8 @@ part is a summary:
 - **Settled issues.** Each as a location, a handling, and a summary in your
   own words, never a copied line. The worker may raise one again only with a
   concrete scenario:
-  - the rejected findings of `CodeRabbit local review:`, `Codex local
-    review:` (legacy lines from older branches), `Cross-check finding:`, and
-    legacy `Fable finding:` lines in `git log origin/main..HEAD`;
+  - the rejected findings of `CodeRabbit local review:`, `Cross-check finding:`,
+    and legacy `Fable finding:` lines in `git log origin/main..HEAD`;
   - the `High review: kept` and legacy `Opus review: kept` lines of the same
     log;
   - SELF_REJECTED;

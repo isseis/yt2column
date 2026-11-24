@@ -76,7 +76,7 @@
 #   - It uses no network, writes no file, and uses no bash feature newer
 #     than 3.2.
 #
-# Mode unreviewed: the commits of a PR neither local CLI reviewed, for the PR
+# Mode unreviewed: the commits of a PR the local CLI review did not review, for the PR
 # description (.claude/commands/_lib/task-pr-handoff.md, Part B step 3).
 #
 #   HEAD   the commit to be pushed, 40 hexadecimal characters
@@ -266,7 +266,7 @@ fail() {
 }
 
 HEX40='^[0-9a-f]{40}$'
-SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \((coderabbit|codex)\)$'
+SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(coderabbit\)$'
 PLAN_RE='^docs/tasks/[^/]+/03_implementation_plan\.md$'
 NOT_RUN_RE='^Local CLI review: not run ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(.*\)$'
 CROSS_CHECK_RUN_RE='^(Cross-check|Fable) review: run ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(model ([^;]+); fixed [0-9]+, rejected [0-9]+, deferred [0-9]+, unclear [0-9]+, invalid [0-9]+; [0-9]+s, tokens ([0-9]+|unknown)\)$'

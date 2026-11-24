@@ -78,8 +78,8 @@
   - `docs/tasks/0121_retire_legacy_review_records/_checks/check_open_branches.sh`（新規）
   - `docs/tasks/0121_retire_legacy_review_records/_checks/escape_untrusted.go`（新規）
 - **作業内容:**
-  - [ ] 設計書 §3.1・§4.2・§5.2・§6.1 に従い、`_checks/check_open_branches.sh` を作成する。引数なし検証、一時 bare リポジトリ作成と `EXIT` トラップでの後始末、非 shallow・非 partial clone 時のみの `alternates` 登録、および相対 `origin` URL のメイン作業ツリー基準での絶対パス解決を実装する。あわせて、`ls-remote --heads` とのブランチ集合一致と `refs/heads/main`・各ブランチの `commit` 種別確認、隔離環境での 40 桁コミット ID 指定による `main` 未到達コミット全体の 3 形式照合、CRLF 行末の `\r` 除去、バッファリング出力と終了コード `0`/`1`/`2` の契約を満たす。コメント・識別子・診断メッセージは英語で書く（`CLAUDE.md`「Language」）。この時点ではコミットを確定しない（ステップ 1-3 の通過後に確定する）。
-  - [ ] `_checks/escape_untrusted.go` を Go 標準ライブラリのみで作成し、設計書 §3.1「信頼しない文字列の出力時エスケープ」の規則（`\t` を含む `unicode.Cc`・`Cf`・`Zl`・`Zp`・非文字・不正 UTF-8 バイト列の `\xHH` 化、および `\` の `\\` 化；通常の印字可能文字と有効な `U+FFFD` はそのまま通す）を英語コメント・識別子で実装する。`check_open_branches.sh` からは、スクリプト自身のディレクトリ基準で `escape_untrusted.go` のパスを解決し、`GO111MODULE=off GOTOOLCHAIN=local GOENV=off GOFLAGS= GOPROXY=off GOWORK=off`（`Makefile:144` 準拠）で一時ディレクトリへ 1 回 `go build` したバイナリを呼び出す。ビルド失敗時は未ビルドのバイナリを呼ばず、標準出力を空・終了コード `2`・安全な固定診断（標準エラー）でフェイルクローズする。
+  - [x] 設計書 §3.1・§4.2・§5.2・§6.1 に従い、`_checks/check_open_branches.sh` を作成する。引数なし検証、一時 bare リポジトリ作成と `EXIT` トラップでの後始末、非 shallow・非 partial clone 時のみの `alternates` 登録、および相対 `origin` URL のメイン作業ツリー基準での絶対パス解決を実装する。あわせて、`ls-remote --heads` とのブランチ集合一致と `refs/heads/main`・各ブランチの `commit` 種別確認、隔離環境での 40 桁コミット ID 指定による `main` 未到達コミット全体の 3 形式照合、CRLF 行末の `\r` 除去、バッファリング出力と終了コード `0`/`1`/`2` の契約を満たす。コメント・識別子・診断メッセージは英語で書く（`CLAUDE.md`「Language」）。この時点ではコミットを確定しない（ステップ 1-3 の通過後に確定する）。
+  - [x] `_checks/escape_untrusted.go` を Go 標準ライブラリのみで作成し、設計書 §3.1「信頼しない文字列の出力時エスケープ」の規則（`\t` を含む `unicode.Cc`・`Cf`・`Zl`・`Zp`・非文字・不正 UTF-8 バイト列の `\xHH` 化、および `\` の `\\` 化；通常の印字可能文字と有効な `U+FFFD` はそのまま通す）を英語コメント・識別子で実装する。`check_open_branches.sh` からは、スクリプト自身のディレクトリ基準で `escape_untrusted.go` のパスを解決し、`GO111MODULE=off GOTOOLCHAIN=local GOENV=off GOFLAGS= GOPROXY=off GOWORK=off`（`Makefile:144` 準拠）で一時ディレクトリへ 1 回 `go build` したバイナリを呼び出す。ビルド失敗時は未ビルドのバイナリを呼ばず、標準出力を空・終了コード `2`・安全な固定診断（標準エラー）でフェイルクローズする。
 - **完了条件:**
   - `/bin/bash -n`（bash 3.2）および `bash -n` で `check_open_branches.sh` に構文エラーがなく、上記隔離環境変数付きでの `escape_untrusted.go` の `go vet`・単一ファイル `go build`・`gofumpt` がすべて通ること。
 
@@ -88,11 +88,11 @@
 - **変更対象ファイル:**
   - `docs/tasks/0121_retire_legacy_review_records/_checks/test_check_open_branches.sh`（新規）
 - **作業内容:**
-  - [ ] ネットワークなしのローカル一時リポジトリで `check_open_branches.sh` を自動検証する `_checks/test_check_open_branches.sh` を英語コメント・識別子で作成する。テスト自身が一時作業領域を `mktemp -d`＋`EXIT` トラップで確実に後始末し、検証対象の起動には実行中と同一のシェル `"$BASH"`（`GOCACHE` は維持）を用いる。以下を網羅する。
+  - [x] ネットワークなしのローカル一時リポジトリで `check_open_branches.sh` を自動検証する `_checks/test_check_open_branches.sh` を英語コメント・識別子で作成する。テスト自身が一時作業領域を `mktemp -d`＋`EXIT` トラップで確実に後始末し、検証対象の起動には実行中と同一のシェル `"$BASH"`（`GOCACHE` は維持）を用いる。以下を網羅する。
     - 設計書 §7.3 の全 7 シナリオ: 3 形式・CRLF・孤立ブランチの終了コード `1` 検出、`main` のみ・インデント・`(coderabbit)` の非検出、残留する古い `refs/remotes/origin/*` と未取得の新規ブランチの扱い、外部の `git worktree`（linked worktree）からの実行、存在しない URL・`main` 不在・引数指定の終了コード `2`（標準出力は空）、および呼び出し元リポジトリが変更されないこと。エスケープ検証では、一致行の `\t`・ESC・DEL・C1 制御文字・`Cf`（双方向・ゼロ幅・タグ）・`Zl`/`Zp`・非文字・不正 UTF-8・`\` と、ブランチ名の C1 制御文字・双方向・ゼロ幅（APFS 制約で不正 UTF-8 ブランチ名は除く）、さらに標準エラーの診断エスケープおよび通常の UTF-8・有効な `U+FFFD` が変換されずに通ることを確認する。
     - 終了コード `0` の出力契約（UTC 時刻・40 桁 `origin/main` ID・昇順 12 桁ブランチ一覧・非 `main` 0 本時の `(none)`・`matches: 0`）、終了コード `0`/`1`/`2` いずれでもケース専用 `TMPDIR` が空に戻ること、および設計書 §3.1・§4.2 の安全境界（非 `commit` 参照・`go build` 失敗の終了コード `2`［標準出力は空］、`GIT_DIR`/`GIT_WORK_TREE` 上書き耐性、shallow clone 呼び出し元、ハイフン始まりブランチ名、マージコミット、`replace` 参照無視）。
-  - [ ] `/bin/bash`（bash 3.2）と `PATH` 上の `bash` の双方で `test_check_open_branches.sh` を実行し、全シナリオが成功することを確認する。
-  - [ ] 壊し確認の義務: `check_open_branches.sh` および `escape_untrusted.go` に意図的な壊し（3 形式のいずれかの照合を外す、`\t` や制御文字のエスケープを外す、`ls-remote` 集合一致や異常系フェイルクローズを外す等）を入れた際に `test_check_open_branches.sh` が失敗することを確認し、壊しを元に戻す（確認内容はステップ 1-3 通過後のコミットメッセージに記録し、この時点ではコミットしない）。
+  - [x] `/bin/bash`（bash 3.2）と `PATH` 上の `bash` の双方で `test_check_open_branches.sh` を実行し、全シナリオが成功することを確認する。
+  - [x] 壊し確認の義務: `check_open_branches.sh` および `escape_untrusted.go` に意図的な壊し（3 形式のいずれかの照合を外す、`\t` や制御文字のエスケープを外す、`ls-remote` 集合一致や異常系フェイルクローズを外す等）を入れた際に `test_check_open_branches.sh` が失敗することを確認し、壊しを元に戻す（確認内容はステップ 1-3 通過後のコミットメッセージに記録し、この時点ではコミットしない）。
 - **完了条件:**
   - `/bin/bash` および `bash` の双方で `test_check_open_branches.sh` が終了コード `0` で完了すること。
 
@@ -102,10 +102,10 @@
   - ステップ 1-1・1-2 の `_checks/` 一式（通過時のみコミット）
   - `docs/tasks/0121_retire_legacy_review_records/03_implementation_plan.md`（§7 に実装開始前の確認結果を記録）
 - **作業内容:**
-  - [ ] 実装着手時点の `origin/main` を確認し、`3fff7f51` 以降にコマンド定義・`review-records.sh`・`review_records_test.go`・関連文書（`docs/dev/guides/`・`docs/dev/conventions/`・`CLAUDE.md`）へ新たな変更や旧 3 形式の記述が入っていないか確かめる（AC-11）。
-  - [ ] 利用者の明示承認を得て、実 `origin` に対して `bash docs/tasks/0121_retire_legacy_review_records/_checks/check_open_branches.sh` を単一コマンドとして実行する（設計書 §3.1・§8）。
-  - [ ] 終了コードが `0` 以外（`1`: 古い記録行を 1 件以上検出、`2`: 取得・読み取り異常）の場合は、該当ブランチ・一致行または診断を報告して作業を停止し、フェーズ 2 以降へ進まない（未コミットの `_checks/` 作業は破棄または保留とし、実装コミット・PR を作成しない。AC-02）。
-  - [ ] 終了コードが `0`（`matches: 0`）の場合は、出力に対して禁止メンション検査（`<mention-check>`）を実行し、終了コード `1`（問題なし）を確認する。そのうえで、確認日時（UTC）・基準 `origin/main` の 40 桁コミット ID・検査ブランチ一覧・`matches: 0` をコードブロック形式で本計画書 §7 の「実装開始前の確認記録（AC-01）」へ記録し、`_checks/` 一式と本計画書をステップ 1-2 の壊し確認記録とともにコミットする（AC-01、設計書 §5.2・§8）。
+  - [x] 実装着手時点の `origin/main` を確認し、`3fff7f51` 以降にコマンド定義・`review-records.sh`・`review_records_test.go`・関連文書（`docs/dev/guides/`・`docs/dev/conventions/`・`CLAUDE.md`）へ新たな変更や旧 3 形式の記述が入っていないか確かめる（AC-11）。
+  - [x] 利用者の明示承認を得て、実 `origin` に対して `bash docs/tasks/0121_retire_legacy_review_records/_checks/check_open_branches.sh` を単一コマンドとして実行する（設計書 §3.1・§8）。
+  - [x] 終了コードが `0` 以外（`1`: 古い記録行を 1 件以上検出、`2`: 取得・読み取り異常）の場合は、該当ブランチ・一致行または診断を報告して作業を停止し、フェーズ 2 以降へ進まない（未コミットの `_checks/` 作業は破棄または保留とし、実装コミット・PR を作成しない。AC-02）。
+  - [x] 終了コードが `0`（`matches: 0`）の場合は、出力に対して禁止メンション検査（`<mention-check>`）を実行し、終了コード `1`（問題なし）を確認する。そのうえで、確認日時（UTC）・基準 `origin/main` の 40 桁コミット ID・検査ブランチ一覧・`matches: 0` をコードブロック形式で本計画書 §7 の「実装開始前の確認記録（AC-01）」へ記録し、`_checks/` 一式と本計画書をステップ 1-2 の壊し確認記録とともにコミットする（AC-01、設計書 §5.2・§8）。
 - **完了条件:**
   - 実 `origin` に対する `check_open_branches.sh` が終了コード `0`（`matches: 0`）で完了し、`<mention-check>` を通過した記録が本計画書 §7 に追記され、`_checks/` 一式とともにコミットされていること。
 
@@ -118,14 +118,14 @@
   - `.claude/commands/_lib/task-pr-handoff.md`
   - `.claude/commands/_lib/cross-check-review.md`
 - **作業内容:**
-  - [ ] `.claude/commands/_lib/local-cli-review.md` の `## Reading the record lines`（`3fff7f51` 時点 `:293-326`）を設計書 §3.2 に従って更新する（AC-03・AC-06）。
+  - [x] `.claude/commands/_lib/local-cli-review.md` の `## Reading the record lines`（`3fff7f51` 時点 `:293-326`）を設計書 §3.2 に従って更新する（AC-03・AC-06）。
     - `:307` を `- Every other \`CodeRabbit local review:\` and \`Codex local review:\` line is a` から `- Every other \`CodeRabbit local review:\` line is a` へ変更する（`:308` は変更しない）。
     - `:314` を `- A \`Local CLI reviewed: <START12>..<END12> (<cli>)\` line names a seen range.` から `- A \`Local CLI reviewed: <START12>..<END12> (coderabbit)\` line names a seen range.` へ変更する。
     - `:323-326` の段落（`Read earlier \`(codex)\` seen ranges and \`(coderabbit: <kind>; codex: <kind>)\` ...` から `contains an old record.` まで）を削除する。範囲なし `CodeRabbit local review: not run`（`:304-306`）等は維持する。
-  - [ ] `.claude/commands/_lib/task-pr-handoff.md` の `Part B step 3`（`3fff7f51` 時点 `:320-331`）を設計書 §3.2・§3.4 に従って更新する（AC-04・AC-06）。
+  - [x] `.claude/commands/_lib/task-pr-handoff.md` の `Part B step 3`（`3fff7f51` 時点 `:320-331`）を設計書 §3.2・§3.4 に従って更新する（AC-04・AC-06）。
     - `:324-325` を `` (`git log origin/main..<D>`; the `CodeRabbit local review:` and `Codex local review:` lines, read as `_lib/local-cli-review.md`, `` から `` (`git log origin/main..<D>`; the `CodeRabbit local review:` lines, read as `_lib/local-cli-review.md`, `` へ変更する。
     - `:329-331` を `Describe a Codex CLI or a cross-check finding only by its location and your own summary, as the record line does, never with Codex's or the cross-check worker's text;` から `Describe a cross-check finding only by its location and your own summary, as the record line does, never with the cross-check worker's text;` へ変更する。`Cross-check finding:`・`Fable finding:` の読み取り、本文転記禁止、`**Mention check.**`、`review-records.sh` 呼び出しブロックは維持する。
-  - [ ] `.claude/commands/_lib/cross-check-review.md` の `## The prompt` — `Settled issues`（`3fff7f51` 時点 `:543-545`）を設計書 §3.2・§3.4 に従って更新する（AC-05・AC-06）。
+  - [x] `.claude/commands/_lib/cross-check-review.md` の `## The prompt` — `Settled issues`（`3fff7f51` 時点 `:543-545`）を設計書 §3.2・§3.4 に従って更新する（AC-05・AC-06）。
     - `:543-545` を `` - the rejected findings of `CodeRabbit local review:`, `Codex local review:` (legacy lines from older branches), `Cross-check finding:`, and legacy `Fable finding:` lines in `git log origin/main..HEAD`; `` から `` - the rejected findings of `CodeRabbit local review:`, `Cross-check finding:`, and legacy `Fable finding:` lines in `git log origin/main..HEAD`; `` へ変更する。
 - **完了条件:**
   - 3 ファイルの変更差分が上記の撤去と文言調整のみに収まっていること。
@@ -135,9 +135,9 @@
 - **変更対象ファイル:**
   - `.claude/commands/_lib/review-records.sh`
 - **作業内容:**
-  - [ ] `:269` の `SEEN_RE` を `SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \((coderabbit|codex)\)$'` から `SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(coderabbit\)$'` へ変更する（設計書 §3.3、AC-07〜AC-09）。
-  - [ ] `:79` のヘッダコメントを `# Mode unreviewed: the commits of a PR neither local CLI reviewed, for the PR` から `# Mode unreviewed: the commits of a PR the local CLI review did not review, for the PR` へ変更する（設計書 §3.3）。
-  - [ ] `NOT_RUN_RE`（`:271`）、`checked_range`、クリーン環境再実行、git plumbing 読み取り、`fail` 契約に変更がないことを確認する。
+  - [x] `:269` の `SEEN_RE` を `SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \((coderabbit|codex)\)$'` から `SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(coderabbit\)$'` へ変更する（設計書 §3.3、AC-07〜AC-09）。
+  - [x] `:79` のヘッダコメントを `# Mode unreviewed: the commits of a PR neither local CLI reviewed, for the PR` から `# Mode unreviewed: the commits of a PR the local CLI review did not review, for the PR` へ変更する（設計書 §3.3）。
+  - [x] `NOT_RUN_RE`（`:271`）、`checked_range`、クリーン環境再実行、git plumbing 読み取り、`fail` 契約に変更がないことを確認する。
 - **完了条件:**
   - `/bin/bash -n .claude/commands/_lib/review-records.sh` および `bash -n .claude/commands/_lib/review-records.sh` が成功し、`SEEN_RE` のみが `(coderabbit)` に厳格化されていること（`make test` は密結合するステップ 3-1 と合わせて通す）。
 
@@ -148,16 +148,16 @@
 - **変更対象ファイル:**
   - `cmd/yt2column/review_records_test.go`
 - **作業内容:**
-  - [ ] 既存の 4 か所を設計書 §1.3 決定 1・§3.4・§7.1 に従って書き換える（テストの削除は行わない。Go コード・コメント・文字列リテラルはすべて英語で書く。AC-10）。
+  - [x] 既存の 4 か所を設計書 §1.3 決定 1・§3.4・§7.1 に従って書き換える（テストの削除は行わない。Go コード・コメント・文字列リテラルはすべて英語で書く。AC-10）。
     - `coverageCases()` の `"seen by codex"`（`:355-359`）のケース名を実態に合わせ（例: `"codex reviewer"`）、期待値を `f.partial(f.rev("HEAD~1"))`・終了コード `0` へ変更する（`TestReviewRecordsCoverage`・`TestReviewRecordsUnreviewed` の双方で実行）。
     - `unreviewedCases()` の `"fix seen by the standalone path's review"`（`:904`）の `f.seen(r, fix, "codex")` を `f.seen(r, fix, "coderabbit")` へ更新する。
     - `coverageCases()` の `not run` 系 2 ケース（`:425,431`）の旧入力 `"(coderabbit: other; codex: timeout)"` を現行の CodeRabbit 単体形式 `"(coderabbit: other)"` へ統一する。
     - `"HEAD behind LAST_REVIEWED"` のコメント（`:381-382`）を `// HEAD went back behind LAST_REVIEWED: LAST_REVIEWED..HEAD is empty,` / `// yet what Codex reviewed is not what is merged.` から `// HEAD went back behind LAST_REVIEWED: LAST_REVIEWED..HEAD is empty,` / `// yet what the PR review saw is not what is merged.` へ変更する。
-  - [ ] `rrFixture.seen`（`:184-186`）のシグネチャを維持したまま、設計書 §7.1 の新規ケースを追加する（AC-07〜AC-09）。
+  - [x] `rrFixture.seen`（`:184-186`）のシグネチャを維持したまま、設計書 §7.1 の新規ケースを追加する（AC-07〜AC-09）。
     - `coverageCases()`（`TestReviewRecordsUnreviewed` でも自動実行）に、大文字小文字違い・括弧内の空白混入や行末の余分な空白の拒否ケース、同一コミット・同一ブランチ上の `(codex)` と有効な `(coderabbit)` の混在（`ALL`）、および部分重複の混在ケース（有効な `(coderabbit)` の範囲に一部コミットが入り、別のコミットが `(codex)` の範囲にしか入らないときに、後者のコミットが `PARTIAL 1` で列挙されること）を追加する。
     - `crossCheckCases()`（`TestReviewRecordsCrossCheck`）に、ルール 2 の `(codex)` 単独拒否（`MISSING`）、ルール 2 の `(codex)` と有効な `(coderabbit)` の混在（`VALID`）、ルール 2 の `(codex)` と `Local CLI review: not run` の混在（`VALID`）の**双方**、ルール 4 の `(codex)` 単独拒否（`MISSING`）、およびルール 4 の `(codex)` と有効な `(coderabbit)` の混在（`VALID`）を追加する。
     - `TestReviewRecordsFableAlias`（`:2047`）に、`fable` 互換別名でルール 2 またはルール 4 の `(codex)` 単独が `MISSING` として拒否される代表ケースを追加する（設計書 §3.4）。
-  - [ ] 壊し確認の義務: `review-records.sh` の `SEEN_RE` を一時的に `(coderabbit|codex)` へ戻した状態で `go test -tags test ./cmd/yt2column -run 'TestReviewRecords(Coverage|Unreviewed|CrossCheck|FableAlias)'` を実行し、書き換え・追加した `(codex)` 拒否ケース（`PARTIAL`・`MISSING` 期待）がいずれも失敗することを確認してコミットメッセージに記録する（確認後に元に戻す）。
+  - [x] 壊し確認の義務: `review-records.sh` の `SEEN_RE` を一時的に `(coderabbit|codex)` へ戻した状態で `go test -tags test ./cmd/yt2column -run 'TestReviewRecords(Coverage|Unreviewed|CrossCheck|FableAlias)'` を実行し、書き換え・追加した `(codex)` 拒否ケース（`PARTIAL`・`MISSING` 期待）がいずれも失敗することを確認してコミットメッセージに記録する（確認後に元に戻す）。
 - **完了条件:**
   - `go test -tags test -v ./cmd/yt2column -run TestReviewRecords` が全 bash 環境（bash 3.2・bash 4+）で成功すること。
 
@@ -167,10 +167,10 @@
   - `docs/dev/guides/`・`docs/dev/conventions/`・`CLAUDE.md`（新たな該当箇所が見つかった場合のみ変更）
   - `docs/tasks/0121_retire_legacy_review_records/03_implementation_plan.md`（AC-06 の diff 記録）
 - **作業内容:**
-  - [ ] `docs/dev/guides/`・`docs/dev/conventions/`・`CLAUDE.md` を再度確認し、撤去対象の 3 形式を現行の読み方規則として記述した箇所が追加されていれば更新する（AC-11）。
-  - [ ] `docs/dev/conventions/requirements_process.md` §4 の固定コマンドを用いて、本計画書 §7 の `Diff record (AC-06)` に `.claude/commands/_lib/local-cli-review.md`・`.claude/commands/_lib/task-pr-handoff.md`・`.claude/commands/_lib/cross-check-review.md` の差分を記録する（本計画書は比較対象に含めない）。
-  - [ ] 本計画書 §7 にステップ 1-3 の実装開始前確認記録（`<mention-check>` 通過後のコードブロック）がコミット済みであることを確認し、`PR-1 作成ポイント` で開く PR の説明へそのまま転記できる状態にする。
-  - [ ] `make fmt`・`make test`・`make lint`・`make deadcode` および CI の `doc-guard` と同一のコマンド（`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`）を実行し、すべて成功することを確認する（AC-12）。テスト削除が発生していないため `make coverage-compare` は非該当とする（万一削除が生じた場合のみ [ADR-0037](../../dev/adr/0037-test-deletion-coverage.md) に従い削除専用コミットを分けて実行・記録する）。
+  - [x] `docs/dev/guides/`・`docs/dev/conventions/`・`CLAUDE.md` を再度確認し、撤去対象の 3 形式を現行の読み方規則として記述した箇所が追加されていれば更新する（AC-11）。
+  - [x] `docs/dev/conventions/requirements_process.md` §4 の固定コマンドを用いて、本計画書 §7 の `Diff record (AC-06)` に `.claude/commands/_lib/local-cli-review.md`・`.claude/commands/_lib/task-pr-handoff.md`・`.claude/commands/_lib/cross-check-review.md` の差分を記録する（本計画書は比較対象に含めない）。
+  - [x] 本計画書 §7 にステップ 1-3 の実装開始前確認記録（`<mention-check>` 通過後のコードブロック）がコミット済みであることを確認し、`PR-1 作成ポイント` で開く PR の説明へそのまま転記できる状態にする。
+  - [x] `make fmt`・`make test`・`make lint`・`make deadcode` および CI の `doc-guard` と同一のコマンド（`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`）を実行し、すべて成功することを確認する（AC-12）。テスト削除が発生していないため `make coverage-compare` は非該当とする（万一削除が生じた場合のみ [ADR-0037](../../dev/adr/0037-test-deletion-coverage.md) に従い削除専用コミットを分けて実行・記録する）。
 - **完了条件:**
   - 品質関門の全コマンド、`Diff record (AC-06)` の記録、およびステップ 1-3 の実装開始前確認記録のコミットが完了しており、`PR-1 作成ポイント` へ進める状態であること。
 
@@ -188,10 +188,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1130
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -240,8 +240,8 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] マージ前ゲート完了（PR-1 のレビュー・CI 通過後、マージ承認直前に実 `origin` へ `_checks/check_open_branches.sh` を再実行し、最新の `matches: 0` 結果を `<mention-check>` 通過後に PR-1 の説明へ記録）
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 2-1 / 2-2 / 3-1 / 3-2）
+- [x] マージ前ゲート完了（PR-1 のレビュー・CI 通過後、マージ承認直前に実 `origin` へ `_checks/check_open_branches.sh` を再実行し、最新の `matches: 0` 結果を `<mention-check>` 通過後に PR-1 の説明へ記録）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 2-1 / 2-2 / 3-1 / 3-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -263,10 +263,102 @@
 Diff record (AC-06):
 
 - Compared paths: `.claude/commands/_lib/local-cli-review.md`, `.claude/commands/_lib/task-pr-handoff.md`, `.claude/commands/_lib/cross-check-review.md`
+- Merge-base: `036fd7c83a885a7cd7ffbc164b10c6efeac0cd5c`
+- Compared commit: `b0a5f35917df0efb9887af3878eeabf294e76984`
+
+Path diff:
+
+````text
+diff --git a/.claude/commands/_lib/cross-check-review.md b/.claude/commands/_lib/cross-check-review.md
+index d42ec3adcb0db1601831f9ec022ca8aaf72db594..ed574bf19a69ca8e8193a170049e3894320dca81 100644
+--- a/.claude/commands/_lib/cross-check-review.md
++++ b/.claude/commands/_lib/cross-check-review.md
+@@ -540,9 +540,8 @@ part is a summary:
+ - **Settled issues.** Each as a location, a handling, and a summary in your
+   own words, never a copied line. The worker may raise one again only with a
+   concrete scenario:
+-  - the rejected findings of `CodeRabbit local review:`, `Codex local
+-    review:` (legacy lines from older branches), `Cross-check finding:`, and
+-    legacy `Fable finding:` lines in `git log origin/main..HEAD`;
++  - the rejected findings of `CodeRabbit local review:`, `Cross-check finding:`,
++    and legacy `Fable finding:` lines in `git log origin/main..HEAD`;
+   - the `High review: kept` and legacy `Opus review: kept` lines of the same
+     log;
+   - SELF_REJECTED;
+diff --git a/.claude/commands/_lib/local-cli-review.md b/.claude/commands/_lib/local-cli-review.md
+index 4355966c2fb786b2e23d82f735f7e8bf80d709e4..723dd519fc4d88c1ddec838f60f198e3f12de6ac 100644
+--- a/.claude/commands/_lib/local-cli-review.md
++++ b/.claude/commands/_lib/local-cli-review.md
+@@ -304,14 +304,14 @@ of these prefixes.
+ - A line that is exactly `CodeRabbit local review: not run`, which an earlier
+   session wrote when the CodeRabbit CLI failed and has no range, also means an unreviewed
+   range; take its range as the whole branch. It is not a finding line.
+-- Every other `CodeRabbit local review:` and `Codex local review:` line is a
++- Every other `CodeRabbit local review:` line is a
+   finding line; its handling (rejected, `deferred`, `unclear`) is in the line.
+ - A `Cross-check review:`, `Cross-check scope:`, `Cross-check finding:`
+   (or a legacy `Fable review:`, `Fable scope:`, or `Fable finding:`),
+   `Merge check:`, `Merge check scope:`, or `Merge check finding:` line is not a
+   local CLI review line; `_lib/cross-check-review.md`, "Reading the record lines",
+   reads it.
+-- A `Local CLI reviewed: <START12>..<END12> (<cli>)` line names a seen range.
++- A `Local CLI reviewed: <START12>..<END12> (coderabbit)` line names a seen range.
+   It is neither a finding line nor an unreviewed range, and it does not
+   cancel a `not run` line. `runpr.md` step 3 reads it through
+   `.claude/commands/_lib/review-records.sh`, which decides whether the local
+@@ -319,8 +319,3 @@ of these prefixes.
+   the branch before a PR opens); that script is
+   the executable form of this line's reading, and when they disagree, this
+   file is right and the script is fixed.
+-
+-Read earlier `(codex)` seen ranges and `(coderabbit: <kind>; codex: <kind>)`
+-failures with the same range semantics. These forms and the
+-`Codex local review:` finding prefix may be retired once no open branch
+-contains an old record.
+diff --git a/.claude/commands/_lib/task-pr-handoff.md b/.claude/commands/_lib/task-pr-handoff.md
+index c895be9b52541bc0e6502f4e93cc07a922e35735..55017d77a49baf9aba777dcbf68166f193fc9298 100644
+--- a/.claude/commands/_lib/task-pr-handoff.md
++++ b/.claude/commands/_lib/task-pr-handoff.md
+@@ -321,13 +321,13 @@ Run this after the calling command's last commit, with a clean working tree.
+      `レビュー観点`), including every `unclear` or `deferred` finding of the
+      local CLI reviews, including earlier records: this run's SUMMARY, and the finding
+      lines earlier sessions recorded in commit messages on the branch
+-     (`git log origin/main..<D>`; the `CodeRabbit local review:` and
+-     `Codex local review:` lines, read as `_lib/local-cli-review.md`,
++     (`git log origin/main..<D>`; the `CodeRabbit local review:` lines, read as
++     `_lib/local-cli-review.md`,
+      "Reading the record lines", says; a `not run` line is not a finding),
+      and every `unclear` or `deferred` cross-check finding (its
+      `Cross-check finding:` line, or a legacy `Fable finding:` line, read as `_lib/cross-check-review.md`, "Reading the record lines", says).
+-     Describe a Codex CLI or a cross-check finding only by its location and
+-     your own summary, as the record line does, never with Codex's or the
++     Describe a cross-check finding only by its location and
++     your own summary, as the record line does, never with the
+      cross-check worker's text;
+    - names the commits of this PR that the local CLI did not review, if any,
+      by running `origin/main`'s review records script in `unreviewed` mode
+````
 
 実装開始前の確認記録（AC-01）:
 
-- ステップ 1-3 で実 `origin` に対して `_checks/check_open_branches.sh` を実行し、終了コード `0`（`matches: 0`）かつ `<mention-check>` 通過を確認した結果をコードブロックでここに記録する（`PR-1 作成ポイント` で PR の説明にも転記する）。
+- ステップ 1-3 で実 `origin` に対して `_checks/check_open_branches.sh` を実行し、終了コード `0`（`matches: 0`）かつ `<mention-check>` 通過（終了コード `1`）を確認した。
+
+```text
+checked_at: 2026-11-24T10:57:46Z
+origin/main: 036fd7c83a885a7cd7ffbc164b10c6efeac0cd5c
+branches:
+  claude/festive-bardeen-cw14ci 4da5da2194a0
+  isseis/0092-chief-task-workspace-07 b56048d497e4
+  isseis/0115-chief-conflict-resolution-05 a3fde9ac36c2
+  isseis/0116-user-readme-05 3bb5b316ff23
+  isseis/0120-harness-independent-commands-08 bd4fe1a90375
+  isseis/0121-retire-legacy-review-records-04 036fd7c83a88
+  isseis/0122-sourcery-trusted-reviewer-04 ae7f242967f9
+  isseis/0123-rereview-substituted-reviews-01 525a0834b411
+  poc/0084-wasm-pipeline 83ef12bd019b
+  poc/0090-extension-only-checks da994ad38130
+matches: 0
+```
 
 ## 8. 完了基準 (Success Criteria)
 
