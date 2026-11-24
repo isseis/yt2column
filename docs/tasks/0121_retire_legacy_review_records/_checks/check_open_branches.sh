@@ -260,7 +260,7 @@ TAB=$(command printf '\t')
 CR=$(command printf '\r')
 HEX40='^[0-9a-f]{40}$'
 LS_REMOTE_NORM="$TMP_WORK/ls-remote.norm"
-: >"$LS_REMOTE_NORM"
+: >"$LS_REMOTE_NORM" || die_safe "io" "failed to initialize ls-remote temp file"
 while IFS= read -r ls_line || [ -n "$ls_line" ]; do
 	[ -n "$ls_line" ] || continue
 	case $ls_line in
@@ -281,7 +281,7 @@ while IFS= read -r ls_line || [ -n "$ls_line" ]; do
 		die_escaped_msg "ls-remote" "unexpected ref in ls-remote --heads: $ls_ref"
 		;;
 	esac
-	command printf '%s\t%s\n' "$ls_ref" "$ls_oid" >>"$LS_REMOTE_NORM"
+	command printf '%s\t%s\n' "$ls_ref" "$ls_oid" >>"$LS_REMOTE_NORM" || die_safe "io" "failed to write ls-remote ref list"
 done <"$LS_REMOTE_RAW"
 
 LS_REMOTE_SORTED="$TMP_WORK/ls-remote.sorted"
@@ -294,8 +294,8 @@ fi
 
 FETCHED_NORM="$TMP_WORK/fetched.norm"
 BRANCHES_FILE="$TMP_WORK/branches.tsv"
-: >"$FETCHED_NORM"
-: >"$BRANCHES_FILE"
+: >"$FETCHED_NORM" || die_safe "io" "failed to initialize fetched ref temp file"
+: >"$BRANCHES_FILE" || die_safe "io" "failed to initialize branch list temp file"
 MAIN_OID=""
 
 while IFS= read -r f_line || [ -n "$f_line" ]; do
@@ -316,11 +316,11 @@ while IFS= read -r f_line || [ -n "$f_line" ]; do
 	if [ "$f_type" != "commit" ]; then
 		die_escaped_msg "ref-type" "ref $f_ref has non-commit type $f_type"
 	fi
-	command printf '%s\t%s\n' "$f_ref" "$f_oid" >>"$FETCHED_NORM"
+	command printf '%s\t%s\n' "$f_ref" "$f_oid" >>"$FETCHED_NORM" || die_safe "io" "failed to write fetched ref list"
 	if [ "$f_ref" = "refs/heads/main" ]; then
 		MAIN_OID=$f_oid
 	else
-		command printf '%s\t%s\n' "${f_ref#refs/heads/}" "$f_oid" >>"$BRANCHES_FILE"
+		command printf '%s\t%s\n' "${f_ref#refs/heads/}" "$f_oid" >>"$BRANCHES_FILE" || die_safe "io" "failed to write branch list"
 	fi
 done <"$FETCHED_RAW"
 
@@ -348,8 +348,8 @@ BRANCH_LINES="$TMP_WORK/out-branches.txt"
 MATCH_LINES="$TMP_WORK/out-matches.txt"
 COMMITS_FILE="$TMP_WORK/commits.txt"
 COMMIT_OBJ="$TMP_WORK/commit.obj"
-: >"$BRANCH_LINES"
-: >"$MATCH_LINES"
+: >"$BRANCH_LINES" || die_safe "io" "failed to initialize branch output temp file"
+: >"$MATCH_LINES" || die_safe "io" "failed to initialize match output temp file"
 
 BRANCH_COUNT=0
 MATCH_COUNT=0
@@ -362,7 +362,7 @@ while IFS= read -r b_line || [ -n "$b_line" ]; do
 
 	escape_str "$b_name"
 	b_esc=$ESCAPED
-	command printf '  %s %s\n' "$b_esc" "${b_oid:0:12}" >>"$BRANCH_LINES"
+	command printf '  %s %s\n' "$b_esc" "${b_oid:0:12}" >>"$BRANCH_LINES" || die_safe "io" "failed to write branch output line"
 
 	if ! git_tmp_inspect rev-list --reverse "$b_oid" "^$MAIN_OID" >"$COMMITS_FILE" 2>"$ERR_FILE"; then
 		die_escaped_file "rev-list" "$ERR_FILE"
@@ -390,7 +390,7 @@ while IFS= read -r b_line || [ -n "$b_line" ]; do
 			if [[ $msg_line =~ $PAT_CODEX_REVIEW ]] || [[ $msg_line =~ $PAT_SEEN_CODEX ]] || [[ $msg_line =~ $PAT_NOT_RUN_CODEX ]]; then
 				MATCH_COUNT=$((MATCH_COUNT + 1))
 				escape_str "$msg_line"
-				command printf '%s %s %s\n' "$b_esc" "${c_oid:0:12}" "$ESCAPED" >>"$MATCH_LINES"
+				command printf '%s %s %s\n' "$b_esc" "${c_oid:0:12}" "$ESCAPED" >>"$MATCH_LINES" || die_safe "io" "failed to write match output line"
 			fi
 		done <"$COMMIT_OBJ"
 	done <"$COMMITS_FILE"
@@ -400,18 +400,18 @@ CHECKED_AT=$(command date -u '+%Y-%m-%dT%H:%M:%SZ') || die_safe "date" "cannot f
 
 OUT_FILE="$TMP_WORK/stdout.txt"
 {
-	command printf 'checked_at: %s\n' "$CHECKED_AT"
-	command printf 'origin/main: %s\n' "$MAIN_OID"
-	command printf 'branches:\n'
-	if [ "$BRANCH_COUNT" -eq 0 ]; then
-		command printf '  (none)\n'
-	else
-		command cat "$BRANCH_LINES"
-	fi
-	command printf 'matches: %d\n' "$MATCH_COUNT"
-	if [ "$MATCH_COUNT" -gt 0 ]; then
-		command cat "$MATCH_LINES"
-	fi
+	command printf 'checked_at: %s\n' "$CHECKED_AT" &&
+		command printf 'origin/main: %s\n' "$MAIN_OID" &&
+		command printf 'branches:\n' &&
+		if [ "$BRANCH_COUNT" -eq 0 ]; then
+			command printf '  (none)\n'
+		else
+			command cat "$BRANCH_LINES"
+		fi &&
+		command printf 'matches: %d\n' "$MATCH_COUNT" &&
+		if [ "$MATCH_COUNT" -gt 0 ]; then
+			command cat "$MATCH_LINES"
+		fi
 } >"$OUT_FILE" || die_safe "output" "failed to buffer output"
 
 command cat "$OUT_FILE" || exit 2

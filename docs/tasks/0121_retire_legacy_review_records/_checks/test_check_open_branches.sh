@@ -34,7 +34,7 @@ trap 'exit 129' HUP
 # Strip any caller repository-pointing GIT_* variables so fixture git commands
 # never touch the caller's repository or index, while keeping GOCACHE so
 # escape_untrusted.go builds quickly across subtests.
-unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_INDEX_FILE GIT_NAMESPACE
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_INDEX_FILE GIT_NAMESPACE GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT
 export GIT_AUTHOR_NAME="Test Author"
 export GIT_AUTHOR_EMAIL="test@example.com"
 export GIT_COMMITTER_NAME="Test Committer"
