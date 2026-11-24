@@ -58,7 +58,7 @@
 | 構成要素パッケージ | component package | パイプラインの構成要素（`TranscriptSource`・`ArticleWriter`・`Publisher` の 3 つのステージと、`ArticleWriter` が使う `LLMClient` の 4 つ）の interface とデータ型を持つパッケージ（`internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher`）。リーフとは限らない。ステージはパイプラインが順に呼ぶ 3 つ、構成要素はそれに `LLMClient` を加えた 4 つ、工程は `ArticleWriter` の中の生成・字数の調整・検証・推敲を指す。パイプラインの流れ（順序、どこで失敗したか、`StageError`）を述べるときはステージ、部品の分け方・置き場所（パッケージ、interface、fake）を述べるときは構成要素、記事の生成の中の処理を述べるときは工程を使う。`LLMClient` を含むかどうかが、構成要素とステージの区別の決め手である。一般の語としての「構成要素」（`README.md` の「構成要素の組み立て」など）は、この定義の外である |
 | リーフパッケージ | leaf package | 依存先を持たないパッケージ（例: `internal/llm`）。旧称: 葉パッケージ |
 | 秘密情報 | secret | API キーなど。`Secret` 型で保持する |
-| ホスト | host | 以前の版の Native Messaging のホスト。ブラウザが拡張の送信のたびに起動し、1 つのリクエストを localhost サーバへ中継した実行ファイル（`yt2column-nmhost`）。撤去した。README の移行の手順で使う。文脈が曖昧なときは "native messaging host" とする |
+| ホスト | host | 以前の版の Native Messaging のホスト。ブラウザが拡張の送信のたびに起動し、1 つのリクエストを localhost サーバへ中継した実行ファイル（`yt2column-nmhost`）。撤去した。文脈が曖昧なときは "native messaging host" とする |
 | 結果不明 | result unknown | 生成の開始から 60 秒たっても予約の結果が届かず、記事の生成が始まったかどうか分からないこと。拡張は生成の開始を自動では送り直さない。同じ選択範囲でもう一度押しても、その記事が処理中か完成していれば二重に生成されないことを示す |
 | 拒否の理由 | reject reason | 応答の本文の `reason` に載せる固定の値（`rejectReason`） |
 | 動画メタデータ | video metadata | 拡張が動画ページの DOM から読む動画タイトル・チャンネル名・概要欄の総称。API の任意フィールド `title`・`channelName`・`description` |
@@ -177,7 +177,7 @@
 | manifest | manifest | ブラウザがホストを見つけるための JSON のファイル（ホストの manifest）、または拡張の `manifest.json`。日本語の文でも英語のまま書く |
 | 終了コード | exit code | プロセスが終了するときに返す数値 |
 | 設定エラー | configuration error | 設定を拒否したときのエラー。CLI では環境変数の値の拒否で、実行が始まる前に終了コード `2` で終わる |
-| 設定ファイル | configuration file | 以前の版の localhost サーバが設定を読んだファイル（`$HOME/.config/yt2column/config.env`）。README の移行の手順で、消すファイルとして使う |
+| 設定ファイル | configuration file | 以前の版の localhost サーバが設定を読んだファイル（`$HOME/.config/yt2column/config.env`） |
 | 元のエラーを含めて返す | wrap an error | Go の `%w` などで、元のエラーを `errors.Is`・`errors.AsType` で取り出せる形のまま、新しいエラーに含めて返すこと。エラーについては「包む」と書かない |
 | フロントマター | front matter | `--out` のファイルの先頭の YAML の部分 |
 | ポップアップ | popup | 拡張のツールバーのアイコンから開く画面 |
@@ -188,7 +188,6 @@
 | 必要なもの | Requirements | README と `cli.md` の見出し |
 | 出力の書式 | Output format | `generation.md` と `cli.md` の見出し |
 | 設定 | Configuration | `generation.md` と `cli.md` の見出し。CLI の環境変数による設定 |
-| 以前の版からの移行 | Migrating from the earlier version | README の見出し。localhost サーバと Native Messaging のホストを使う版から、拡張だけの版へ移る手順 |
 | ブラウザ拡張 | Browser extension | 本文では "browser extension"、文脈が明らかなら "extension" |
 | 記事生成モジュール | article generation module | `cmd/yt2column-wasm`（Go の `main` パッケージ）を WebAssembly にビルドした `.wasm` ファイル。拡張の Worker が読み込み、記事を作る関数を JavaScript に公開する。Go で書かれ WASM にコンパイルされたことを強調するときは「WASM にコンパイルされた記事生成モジュール」と修飾する（0090 設計書） |
 | オプションページ | options page | 拡張の設定の画面（`options.html`）。Anthropic の API キーとワークスペース ID を保存し、削除する。タブで開く。英語の画面では、ポップアップからの操作を "Settings" と呼ぶ |
