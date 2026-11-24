@@ -106,24 +106,27 @@ func lastTool(text string, names []string) string {
 }
 
 // CommandDocs returns the paths, relative to root and with forward slashes,
-// of every Markdown file under root's .claude/commands, failing t when there
-// is none.
+// of every Markdown file under root's .claude/commands and .agents/skills,
+// failing t when either directory holds none: the skills are thin entries to
+// the command definitions, and both are documents an agent follows.
 func CommandDocs(t testing.TB, root string) []string {
 	t.Helper()
 	var docs []string
-	err := filepath.WalkDir(filepath.Join(root, ".claude", "commands"), func(p string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".md") {
-			rel, relErr := filepath.Rel(root, p)
-			docs = append(docs, filepath.ToSlash(rel))
-			return relErr
+	for _, dir := range []string{filepath.Join(".claude", "commands"), filepath.Join(".agents", "skills")} {
+		before := len(docs)
+		err := filepath.WalkDir(filepath.Join(root, dir), func(p string, d fs.DirEntry, err error) error {
+			if err == nil && !d.IsDir() && strings.HasSuffix(p, ".md") {
+				rel, relErr := filepath.Rel(root, p)
+				docs = append(docs, filepath.ToSlash(rel))
+				return relErr
+			}
+			return err
+		})
+		if err != nil {
+			t.Fatalf("walk command documents under %s: %v", filepath.ToSlash(dir), err)
+		} else if len(docs) == before {
+			t.Fatalf("no command documents found under %s", filepath.ToSlash(dir))
 		}
-		return err
-	})
-	if err != nil {
-		t.Fatalf("walk command documents: %v", err)
-	}
-	if len(docs) == 0 {
-		t.Fatal("no command documents found")
 	}
 	return docs
 }
