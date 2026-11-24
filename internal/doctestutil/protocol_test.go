@@ -177,6 +177,10 @@ func TestCommandDocs(t *testing.T) {
 			for _, f := range tc.files {
 				write(t, root, f)
 			}
+			// CommandDocs returns no error, so the message that names the broken
+			// directory is the only observable. A recorded Fatalf does not end the
+			// walk, but each case breaks one directory, so the one failure recorded
+			// is the one under test.
 			fake := &recordingTB{TB: t}
 			CommandDocs(fake, root)
 			if !strings.Contains(fake.failure, tc.dir) {
