@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-23 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-24 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
@@ -596,3 +596,7 @@ flowchart TD
 -   **タスク 0120 の `cross-check` モードとの共存:** `review-records.sh` の見た範囲判定は `SEEN_RE` の 1 定義に集約されているため、タスク 0120 が `cross-check` モード（および `fable` 別名）を追加した前後いずれの順序でも、同一の `(coderabbit)` 規則が全モードへ一貫して適用される。
 -   **別のローカル CLI レビュアーを将来導入する場合:** 将来、CodeRabbit CLI 以外のローカル CLI レビュアーを追加するときは、正本 `.claude/commands/_lib/local-cli-review.md` step 7 および `Reading the record lines` に新しいトークンを明示追加し、`review-records.sh` の `SEEN_RE` を許可リスト（明示列挙）として更新する。自由文字列（例: `[a-z]+`）へ緩める設計は採らない。
 -   **残存する他の旧形式の見直し:** 本タスクのスコープ外として残した範囲なし `CodeRabbit local review: not run`（タスク 0049 以前の旧形式）および `NOT_RUN_RE` の `\(.*\)` は、必要になった時点で別タスクとして同様の移行ゲート（残存ブランチ確認）を経て整理できる。
+
+## 変更履歴
+
+- 2026-11-24 承認（isseis、#1100）
