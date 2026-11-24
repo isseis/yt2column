@@ -304,6 +304,35 @@ func isSetMember(m map[string]struct{}, key string) bool { _, ok := m[key]; retu
 // its command pattern.
 var bashPermissionRule = regexp.MustCompile(`^Bash\((.*)\)$`)
 
+// firstRuleWord returns the first command word of a Bash permission pattern,
+// keeping spaces inside quotes or escaped with a backslash as part of the word.
+func firstRuleWord(pattern string) string {
+	s := strings.TrimSpace(pattern)
+	var b strings.Builder
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+				continue
+			}
+			b.WriteByte(c)
+		case c == '\'' || c == '"':
+			quote = c
+		case c == '\\' && i+1 < len(s):
+			i++
+			b.WriteByte(s[i])
+		case c == ' ' || c == '\t':
+			return b.String()
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
 // namesToolInBashRule reports whether rule is a Bash permission rule whose
 // command word is tool, by name, by path, or quoted, or a glob pattern that
 // starts with tool's name and holds a wildcard.
@@ -312,9 +341,8 @@ func namesToolInBashRule(rule, tool string) bool {
 	if m == nil {
 		return false
 	}
-	word, _, _ := strings.Cut(strings.TrimSpace(m[1]), " ")
-	word, _, _ = strings.Cut(word, ":")
-	base := path.Base(strings.Trim(word, `"'`))
+	word, _, _ := strings.Cut(firstRuleWord(m[1]), ":")
+	base := path.Base(word)
 	rest, ok := strings.CutPrefix(base, tool)
 	return ok && (rest == "" || strings.ContainsAny(rest, "*?["))
 }

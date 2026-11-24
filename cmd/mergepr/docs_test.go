@@ -297,21 +297,22 @@ func stripWordDecorations(w string) string {
 }
 
 // joinContinuations joins lines ending in a backslash into single logical
-// command lines and drops comment lines.
+// command lines (removing the backslash and newline without inserting a space,
+// matching POSIX shell line continuation) and drops comment lines.
 func joinContinuations(lines []string) []string {
 	var logical []string
 	var cur strings.Builder
 	for _, raw := range lines {
-		line := strings.TrimSpace(raw)
-		if cur.Len() == 0 && (line == "" || strings.HasPrefix(line, "#")) {
+		raw = strings.TrimSuffix(raw, "\r")
+		trimmed := strings.TrimSpace(raw)
+		if cur.Len() == 0 && (trimmed == "" || strings.HasPrefix(trimmed, "#")) {
 			continue
 		}
-		if cont, ok := strings.CutSuffix(line, `\`); ok {
+		if cont, ok := strings.CutSuffix(raw, `\`); ok {
 			cur.WriteString(cont)
-			cur.WriteByte(' ')
 			continue
 		}
-		cur.WriteString(line)
+		cur.WriteString(raw)
 		logical = append(logical, cur.String())
 		cur.Reset()
 	}
@@ -421,8 +422,8 @@ func TestDirectGitMutations(t *testing.T) {
 		},
 		{
 			name:     "shell_c_chained_after_allowed_git_and_continuation",
-			doc:      "```bash\nbash -c \"git commit --no-edit && git \\\n  -C /repo \\\n  push origin branch\"\n```\n",
-			wantSubs: []string{"push"},
+			doc:      "```bash\nbash -c \"git commit --no-edit && git \\\n  -C /repo \\\n  push origin branch\"\ngit pu\\\nsh origin branch\n```\n",
+			wantSubs: []string{"push", "push"},
 		},
 		{
 			name:     "decorated_subcommand",
