@@ -102,30 +102,33 @@ func markerForm(t *testing.T) string {
 // the auto-send values, such as "**X**: " of "**X**: auto | hold".
 func fieldLabel(t *testing.T, form string) string {
 	t.Helper()
-	return labelOfValues(t, form, []string{"auto", "hold"})
+	label, _ := labelOfValues(t, form, []string{"auto", "hold"})
+	return label
 }
 
 // labelOfValues returns the label of the form's one field line whose
-// alternatives, separated by " | ", are values in any order.
-func labelOfValues(t *testing.T, form string, values []string) string {
+// alternatives, separated by " | ", are values in any order, and that line.
+func labelOfValues(t *testing.T, form string, values []string) (label, line string) {
 	t.Helper()
 	want := slices.Sorted(slices.Values(values))
-	var found []string
-	for line := range strings.Lines(form) {
-		label, alts, ok := strings.Cut(strings.TrimSuffix(line, "\n"), ": ")
-		if !ok || !strings.HasPrefix(label, "**") {
+	var labels, lines []string
+	for l := range strings.Lines(form) {
+		l = strings.TrimSuffix(l, "\n")
+		lab, alts, ok := strings.Cut(l, ": ")
+		if !ok || !strings.HasPrefix(lab, "**") {
 			continue
 		}
 		alternatives := strings.Split(alts, " | ")
 		slices.Sort(alternatives)
 		if slices.Equal(alternatives, want) {
-			found = append(found, label+": ")
+			labels = append(labels, lab+": ")
+			lines = append(lines, l)
 		}
 	}
-	if len(found) != 1 {
-		t.Fatalf("the marker form has %d lines of the values %v, want one:\n%s", len(found), want, form)
+	if len(labels) != 1 {
+		t.Fatalf("the marker form has %d lines of the values %v, want one:\n%s", len(labels), want, form)
 	}
-	return found[0]
+	return labels[0], lines[0]
 }
 
 // requirementValues are the implementation model requirement values the
@@ -153,25 +156,16 @@ func requirementOf(t *testing.T, plan string) chief.Requirement {
 
 // TestMarkerFormsCarryModelRequirement checks that the forms the commands
 // make a plan write offer exactly the three implementation model requirement
-// values and hold each in a form the tool reads as that value, with no
-// old-value table: the PR marker of mkplan2.md step 6, and the PR structure
+// values, with no old value among the alternatives, and hold each in a form
+// the tool reads as that value: the PR marker of mkplan2.md step 6, and the PR structure
 // subsection of mkplan.md step 8.5 (which _lib/simple-process.md writes
 // through).
 func TestMarkerFormsCarryModelRequirement(t *testing.T) {
 	marker := markerForm(t)
 	values := slices.Sorted(maps.Keys(requirementValues))
-	label := labelOfValues(t, marker, values)
-	line := label + strings.Join(values, " | ")
-	for l := range strings.Lines(marker) {
-		if strings.HasPrefix(l, label) {
-			line = strings.TrimSuffix(l, "\n")
-		}
-	}
+	label, line := labelOfValues(t, marker, values)
 	for value, want := range requirementValues {
 		filled := strings.Replace(marker, line+"\n", label+value+"\n", 1)
-		if filled == marker {
-			t.Fatalf("the marker form has no line %q", line)
-		}
 		if got := requirementOf(t, filled); got != want {
 			t.Errorf("mkplan2.md step 6 with %s: the tool reads %d, want %d", value, got, want)
 		}

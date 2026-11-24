@@ -105,6 +105,7 @@ func TestCrossCheckStateCheckBlock(t *testing.T) {
 	// never lists on any platform, so only the block's nested .git scan can
 	// see it.
 	f.write(".git/info/exclude", ".agents/\n.claude/\nAGENTS.md\nAGENT.md\nGEMINI.md\nAGENTS.override.md\n")
+	f.git("config", "core.ignorecase", "true")
 	prev := crossCheckStateParts(t, f, script)
 	status := f.git("status", "--porcelain", "--untracked-files=all")
 	for _, path := range []string{
@@ -118,11 +119,25 @@ func TestCrossCheckStateCheckBlock(t *testing.T) {
 		".agents/lower/.git/HEAD",
 	} {
 		f.write(path, "x\n")
+		// Only the block's nested .git scan may see a nested .git entry:
+		// when git lists the path, the path rule changes watched by itself.
+		checkWatched := true
+		if strings.Contains(path, ".git/") || strings.Contains(path, ".GIT/") {
+			if listed := f.git("ls-files", "--others", "--ignored", "--exclude-standard"); strings.Contains(listed, path) {
+				if !strings.Contains(path, ".GIT/") {
+					t.Fatalf("git lists %s, so the case does not check the nested .git scan alone", path)
+				}
+				// A git that does not fold the case of .GIT lists it, so the
+				// scan's case folding cannot be checked alone here.
+				t.Logf("git lists %s; the scan's case folding is not checked on this platform", path)
+				checkWatched = false
+			}
+		}
 		if got := f.git("status", "--porcelain", "--untracked-files=all"); got != status {
 			t.Fatalf("git status shows %s (%q), so the case checks nothing", path, got)
 		}
 		after := crossCheckStateParts(t, f, script)
-		if after["watched"] == prev["watched"] {
+		if checkWatched && after["watched"] == prev["watched"] {
 			t.Errorf("the watched part did not change with the ignored %s", path)
 		}
 		prev = after

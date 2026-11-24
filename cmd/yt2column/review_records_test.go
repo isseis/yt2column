@@ -1092,11 +1092,6 @@ func (f *rrFixture) crossCheckNotRun(start, end, reason string, withCost bool) s
 	return line
 }
 
-// crossCheckCheckpoint is the new Cross-check checkpoint mark line.
-func (f *rrFixture) crossCheckCheckpoint() string {
-	return f.forms.checkpoint
-}
-
 // fableCheckpoint is the legacy Fable checkpoint mark line.
 func (f *rrFixture) fableCheckpoint() string {
 	return legacyFable(f.forms.checkpoint)
@@ -1412,7 +1407,7 @@ func crossCheckCases() []rrCase {
 		{name: "work after the Cross-check mark at the checkpoint", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			f.record("record", f.crossCheckRun(f.mb, c1, "claude-opus-5-5-medium"))
-			f.record("mark", f.crossCheckCheckpoint())
+			f.record("mark", f.forms.checkpoint)
 			f.work("gate fix")
 			return rrFable(f, "checkpoint")
 		}, want: rrValid},
@@ -2258,7 +2253,10 @@ func TestRecordLinePrefixesDistinct(t *testing.T) {
 // legacyRecordPrefixes are the prefixes of the legacy record lines older
 // branches wrote, which the readers still accept with the meaning of the new
 // line (high-review.md's and cross-check-review.md's "Record lines"). A new
-// prefix that overlaps one of them would be read as the legacy line.
+// prefix that overlaps one of them would be read as the legacy line. The
+// list is kept by hand: it follows the legacy forms the "Record lines"
+// sections name and _lib/review-records.sh and _lib/high-review-decision.sh
+// accept, and changes with them.
 var legacyRecordPrefixes = []string{"Opus review:", "Fable review:", "Fable scope:", "Fable finding:"}
 
 // mergeCheckFamily starts the prefix of every merge check line in
