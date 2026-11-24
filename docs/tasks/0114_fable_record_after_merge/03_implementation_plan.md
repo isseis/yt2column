@@ -351,7 +351,7 @@ PR-1 のマージから PR-2 のマージまでの間は、今の手順が `MERG
 
 ## 4. テスト戦略 (Test Strategy)
 
--   **スクリプトのテスト:** 判定のスクリプトの規則は、`TestReviewRecordsFable` と `TestReviewRecordsUnreviewed` が、一時的なリポジトリの上で、設計書 7.1 の件ごとに確かめる。どちらも、PATH の bash と `/bin/bash` 3.2 で走らせる。git の設定を変えても出力が変わらないことは、merge と確認の記録を持つ分岐でも確かめる（ステップ 1-9）。fixture の記録の行は、手順の文書の表から読んだ形で作る（`readFableForms`）。
+-   **スクリプトのテスト:** 判定のスクリプトの規則は、`TestReviewRecordsCrossCheck` と `TestReviewRecordsUnreviewed` が、一時的なリポジトリの上で、設計書 7.1 の件ごとに確かめる。どちらも、PATH の bash と `/bin/bash` 3.2 で走らせる。git の設定を変えても出力が変わらないことは、merge と確認の記録を持つ分岐でも確かめる（ステップ 1-9）。fixture の記録の行は、手順の文書の表から読んだ形で作る（`readFableForms`）。
 -   **境界と失敗:** 確認の記録の名指しの条件、規則 4 の条件、広げた範囲の確かめの条件、確認できない merge commit の 3 つの形には、数えれば出力が変わる配置で、受け付けない側の件を置く（ステップ 1-5）。ほかの確かめが裏打ちする条件は、その旨を書く（§1.2）。名指しした ID が何も指さないときや commit でないときは、失敗ではなく、数えない（ステップ 1-1）。`unreviewed` の失敗は、`coverage` の失敗の件のうち LAST_REVIEWED に固有でないものと、`unreviewed` に固有の引数の件で確かめる。
 -   **guard のテスト:** スクリプトの呼び方（`TestReviewRecordsCallSite`）、記録の行の接頭辞（`TestRecordLinePrefixesDistinct`）、記録の commit の前のメンションの確かめ（`TestRecordCommitsCheckMention`）、モードの名前（`TestReviewRecordsMode`）。状態の確かめのコードブロックは、今の `TestFableStateCheckBlock` が確かめる。
 -   **後方互換:** `coverage` のモードは変えない。`TestReviewRecordsCoverage` の既存の件が期待する出力を変えずに通ることと、ステップ 1-8 の件で確かめる（要件書 2.3、4.4）。既存の記録の行の形は変えない（要件書 4.4）。
@@ -388,20 +388,20 @@ PR-1 のマージから PR-2 のマージまでの間は、今の手順が `MERG
 | AC | 確かめ | 種類 | 実装 | PR |
 |---|---|---|---|---|
 | AC-01 | 取り出し方と走らせ方を共有することは、既存の `rr_test::TestReviewRecordsCallSite`（「The validity decision」の 3 行の並び）が確かめる。push の直前に判定を走らせることは、`task-pr-handoff.md` step 2.6 と `fable-review.md` Entry 4 を読む | static、manual | ステップ 2-1・2-4 | PR-2 |
-| AC-02 | `rr_test::TestReviewRecordsFable`（印の後に CHECKS の直しだけがあるときの `VALID`）。Entry 4 の最初の段が commit を作らないことを読む | test、manual | ステップ 1-1・1-5・2-1 | PR-1、PR-2 |
-| AC-03 | `rr_test::TestReviewRecordsFable`（`MISSING <START>` の件と失敗の件）。Entry 4 の救済と、FABLE の渡し方を読む | test、manual | ステップ 1-1・1-5・2-1・2-4・2-5 | PR-1、PR-2 |
+| AC-02 | `rr_test::TestReviewRecordsCrossCheck`（印の後に CHECKS の直しだけがあるときの `VALID`）。Entry 4 の最初の段が commit を作らないことを読む | test、manual | ステップ 1-1・1-5・2-1 | PR-1、PR-2 |
+| AC-03 | `rr_test::TestReviewRecordsCrossCheck`（`MISSING <START>` の件と失敗の件）。Entry 4 の救済と、FABLE の渡し方を読む | test、manual | ステップ 1-1・1-5・2-1・2-4・2-5 | PR-1、PR-2 |
 | AC-04 | `task-pr-handoff.md` step 2.6 の再チェックの順序を読む | manual | ステップ 2-4 | PR-2 |
 | AC-05 | `task-pr-handoff.md` step 2.6・step 3（D の名指しの push、HEAD の確かめ、判定のやり直し）と AFTER_CREATE の前の確かめを読む。実地の確かめ（ステップ 3-1、push したのが判定した commit であること） | manual | ステップ 2-4・3-1 | PR-2、PR-3 |
 | AC-06 | Entry 4 の最後の段と `task-pr-handoff.md` step 2.6 の止まり方と報告の内容を読む | manual | ステップ 2-1・2-4 | PR-2 |
 | AC-07 | Entry 4 と単独の経路の `not run` の扱いを読む | manual | ステップ 2-1 | PR-2 |
 | AC-08 | Entry 4 の、救済の途中で止まったときの扱いを読む | manual | ステップ 2-1 | PR-2 |
 | AC-09 | `runplan.md` の AFTER_REMEDY を、PR マーカーのある経路とない経路の両方で読む | manual | ステップ 2-5 | PR-2 |
-| AC-10 | `rr_test::TestReviewRecordsFable`（「README.en.md after the record」） | test | ステップ 1-1・1-5 | PR-1 |
-| AC-11 | `rr_test::TestReviewRecordsFable`（記録 → 印 → CHECKS の直し、`checkpoint`）。`task-pr-handoff.md` step 1.5 を読む | test、manual | ステップ 1-5・2-4 | PR-1、PR-2 |
-| AC-12 | `rr_test::TestReviewRecordsFable`（記録 → 中身のある commit → 印 → CHECKS の直し） | test | ステップ 1-5 | PR-1 |
-| AC-13 | `rr_test::TestReviewRecordsFable`（記録 → 確認できる merge commit、記録 → 印 → 確認できる merge commit、確認できない merge commit の 3 つの形）。Entry 3 の `MERGE` を読む | test、manual | ステップ 1-1・1-5・2-1 | PR-1、PR-2 |
-| AC-14 | `rr_test::TestReviewRecordsFable`（記録の START が古い merge-base の件と、ブランチの commit の件。どちらも中身のある commit X の後に確認できる merge commit） | test | ステップ 1-1・1-5 | PR-1 |
-| AC-15 | `rr_test::TestReviewRecordsFable`（起動の後、記録の commit の前の merge commit）。Entry 4 の最後の段で止まることを読む | test、manual | ステップ 1-5・2-1 | PR-1、PR-2 |
+| AC-10 | `rr_test::TestReviewRecordsCrossCheck`（「README.en.md after the record」） | test | ステップ 1-1・1-5 | PR-1 |
+| AC-11 | `rr_test::TestReviewRecordsCrossCheck`（記録 → 印 → CHECKS の直し、`checkpoint`）。`task-pr-handoff.md` step 1.5 を読む | test、manual | ステップ 1-5・2-4 | PR-1、PR-2 |
+| AC-12 | `rr_test::TestReviewRecordsCrossCheck`（記録 → 中身のある commit → 印 → CHECKS の直し） | test | ステップ 1-5 | PR-1 |
+| AC-13 | `rr_test::TestReviewRecordsCrossCheck`（記録 → 確認できる merge commit、記録 → 印 → 確認できる merge commit、確認できない merge commit の 3 つの形）。Entry 3 の `MERGE` を読む | test、manual | ステップ 1-1・1-5・2-1 | PR-1、PR-2 |
+| AC-14 | `rr_test::TestReviewRecordsCrossCheck`（記録の START が古い merge-base の件と、ブランチの commit の件。どちらも中身のある commit X の後に確認できる merge commit） | test | ステップ 1-1・1-5 | PR-1 |
+| AC-15 | `rr_test::TestReviewRecordsCrossCheck`（起動の後、記録の commit の前の merge commit）。Entry 4 の最後の段で止まることを読む | test、manual | ステップ 1-5・2-1 | PR-1、PR-2 |
 | AC-16 | `rr_test::TestReviewRecordsUnreviewed`（`README.en.md` だけの commit・CHECKS の直しを挙げる件と、上書きした「merge commit inside a seen range」）、`rr_test::TestReviewRecordsCallSite`（Part B step 3 の 3 行の並び） | test、static | ステップ 1-2・1-7・2-4・2-6 | PR-1、PR-2 |
 | AC-17 | `rr_test::TestReviewRecordsUnreviewed`（#987 の形、START が古い merge-base で END が merge commit の後の見た範囲の行） | test | ステップ 1-2・1-7 | PR-1 |
 | AC-18 | `rr_test::TestReviewRecordsUnreviewed`（チェックポイントの印 → 確認できる merge commit） | test | ステップ 1-2・1-7 | PR-1 |
@@ -410,15 +410,15 @@ PR-1 のマージから PR-2 のマージまでの間は、今の手順が `MERG
 | AC-21 | ADR-0050 の「決定」を読み、食い違いの文が残っていないことを確かめる。形は `cmd/yt2column/adr_test.go::TestADRRecords` が確かめる | manual | ステップ 1-12・2-8 | PR-1、PR-2 |
 | AC-22 | ADR-0050 の「採らなかった案」と「経緯」は、設計の PR（#1049）が更新し、そのレビューで読んで確かめた。PR-2 のレビューでは、食い違いの文を消した後も変わっていないことを読む | manual | なし（#1049 で済み） | PR-2 |
 | AC-23 | 差分の記録（AC-23）。比べるパス: `docs/tasks/0098_fable_partial_review/`。各 PR で記録する | diff | ステップ 1-13・2-9・3-2 | PR-1、PR-2、PR-3 |
-| AC-24 | `rr_test::TestReviewRecordsFable`（`MERGE <n>` の件）。Entry 3・Entry 4 の救済と、「The merge check」の範囲を求められないときの扱いを読む。実地の確かめ（ステップ 3-1） | test、manual | ステップ 1-1・1-5・2-1・2-2・3-1 | PR-1、PR-2、PR-3 |
+| AC-24 | `rr_test::TestReviewRecordsCrossCheck`（`MERGE <n>` の件）。Entry 3・Entry 4 の救済と、「The merge check」の範囲を求められないときの扱いを読む。実地の確かめ（ステップ 3-1） | test、manual | ステップ 1-1・1-5・2-1・2-2・3-1 | PR-1、PR-2、PR-3 |
 | AC-25 | 「The merge check」のモデルとモデルの確かめを読む。実地の確かめ（ステップ 3-1） | manual | ステップ 2-2・3-1 | PR-2、PR-3 |
 | AC-26 | 「The merge check」の範囲の一覧を読む | manual | ステップ 2-2 | PR-2 |
-| AC-27 | `rr_test::TestReviewRecordsFable`（名指しの条件、何も指さない ID と tree の ID、形の違う行、12 桁の名指し。行は `readFableForms` が表から読んだ形で作る）。「The merge check」が merge commit を名指しした行を記録の commit に残すことを読む | test、manual | ステップ 1-1・1-3・1-4・1-5・2-2 | PR-1、PR-2 |
-| AC-28 | `rr_test::TestReviewRecordsFable`（`not run` の確認の記録で `VALID`）。「The merge check」の `not run` の扱いを読む | test、manual | ステップ 1-5・2-2 | PR-1、PR-2 |
+| AC-27 | `rr_test::TestReviewRecordsCrossCheck`（名指しの条件、何も指さない ID と tree の ID、形の違う行、12 桁の名指し。行は `readFableForms` が表から読んだ形で作る）。「The merge check」が merge commit を名指しした行を記録の commit に残すことを読む | test、manual | ステップ 1-1・1-3・1-4・1-5・2-2 | PR-1、PR-2 |
+| AC-28 | `rr_test::TestReviewRecordsCrossCheck`（`not run` の確認の記録で `VALID`）。「The merge check」の `not run` の扱いを読む | test、manual | ステップ 1-5・2-2 | PR-1、PR-2 |
 | AC-29 | 「The merge check」の制約と状態の確かめを読む（状態の確かめのコードブロックは `cmd/yt2column/fable_state_docs_test.go::TestFableStateCheckBlock` が確かめる） | manual | ステップ 2-2 | PR-2 |
-| AC-30 | `rr_test::TestReviewRecordsFable`（規則 4 の件。M より前の commit、`not run` の範囲だけの直し）。「The merge check」のトリアージと直しの確かめを読む | test、manual | ステップ 1-1・1-5・2-2 | PR-1、PR-2 |
+| AC-30 | `rr_test::TestReviewRecordsCrossCheck`（規則 4 の件。M より前の commit、`not run` の範囲だけの直し）。「The merge check」のトリアージと直しの確かめを読む | test、manual | ステップ 1-1・1-5・2-2 | PR-1、PR-2 |
 | AC-31 | `task-pr-handoff.md` step 3 の merge の後の確認の節を読む。出力の文を写さないための記録の commit の前のメンションの確かめは、`rr_test::TestRecordCommitsCheckMention`（「The merge check」）が確かめる（要件書 4.2） | static、manual | ステップ 2-2・2-4・2-6 | PR-2 |
-| AC-32 | `rr_test::TestReviewRecordsFable`（START が古い merge-base の記録の後の確認できる merge commit、範囲が `main` 側の commit を含む記録を読まない件） | test | ステップ 1-1・1-5・1-6 | PR-1 |
+| AC-32 | `rr_test::TestReviewRecordsCrossCheck`（START が古い merge-base の記録の後の確認できる merge commit、範囲が `main` 側の commit を含む記録を読まない件） | test | ステップ 1-1・1-5・1-6 | PR-1 |
 
 ### 差分の記録
 
