@@ -69,6 +69,13 @@ func TestParseRequiresProtocol(t *testing.T) {
 		}
 	}
 	extend := func(name string, extra ...string) []string { return append(slices.Clone(bases[name]), extra...) }
+	// flagged inserts extra before the take-in command line's positional PR
+	// number: the flag parser stops at the first positional argument, so a flag
+	// written after it would be read as two more positional arguments and be
+	// refused by the argument count instead of by the flag's presence.
+	flagged := func(args []string, extra ...string) []string {
+		return slices.Insert(slices.Clone(args), len(args)-1, extra...)
+	}
 	shapes := [][]string{
 		// A drop of the wrong form, a line named twice, or a drop on a
 		// subcommand that takes none.
@@ -100,20 +107,24 @@ func TestParseRequiresProtocol(t *testing.T) {
 		// values the subcommand takes, and none takes a state file or a drop.
 		slices.Clone(bases["mergemain-begin"][:3]),
 		extend("mergemain-begin", "43"),
-		extend("mergemain-begin", "--state", "s"),
-		extend("mergemain-begin", "--head-branch", "feature/foo"),
-		extend("mergemain-begin", "--drop", "1:disputed"),
+		flagged(bases["mergemain-begin"], "--state", "s"),
+		flagged(bases["mergemain-begin"], "--head-branch", "feature/foo"),
+		flagged(bases["mergemain-begin"], "--drop", "1:disputed"),
 		slices.Clone(bases["mergemain-merge"][:len(bases["mergemain-merge"])-1]),
 		{"mergemain-merge", "--protocol", p, "--head-branch", "feature/foo", "--base-head", commit, "42"},
 		{"mergemain-merge", "--protocol", p, "--head-branch", "feature/foo", "--main", other, "42"},
 		{"mergemain-merge", "--protocol", p, "--base-head", commit, "--main", other, "42"},
 		append(slices.Clone(bases["mergemain-merge"]), "43"),
-		extend("mergemain-merge", "--subject-file", "j"),
-		extend("mergemain-restore", "--body-file", "b"),
+		flagged(bases["mergemain-merge"], "--subject-file", "j"),
+		flagged(bases["mergemain-restore"], "--body-file", "b"),
 		{"mergemain-restore", "--protocol", p, "--head-branch", "feature/foo", "--base-head", commit, "--main", other},
+		{"mergemain-restore", "--protocol", p, "--head-branch", "feature/foo", "--base-head", commit, "42"},
+		{"mergemain-restore", "--protocol", p, "--head-branch", "feature/foo", "--main", other, "42"},
+		{"mergemain-restore", "--protocol", p, "--base-head", commit, "--main", other, "42"},
+		append(slices.Clone(bases["mergemain-restore"]), "43"),
 		{"mergemain-push", "--protocol", p, "--main", other, "42"},
 		{"mergemain-push", "--protocol", p, "--base-head", commit, "42"},
-		extend("mergemain-push", "--head-branch", "feature/foo"),
+		flagged(bases["mergemain-push"], "--head-branch", "feature/foo"),
 		slices.Clone(bases["mergemain-push"][:len(bases["mergemain-push"])-1]),
 		slices.Clone(bases["merge"][:len(bases["merge"])-2]),
 		slices.Clone(bases["paragraph"][:3]),
@@ -355,10 +366,9 @@ func TestMergemainArgValidation(t *testing.T) {
 			t.Errorf("mergemain-begin %q called the tool %v, want no call", pr, take.calls)
 		}
 	}
+	// A signed number is read as a flag, so the flag parsing refuses it; the
+	// other shapes of every subcommand are TestParseRequiresProtocol's.
 	for _, args := range [][]string{
-		{"mergemain-begin", "--protocol", p},
-		{"mergemain-begin", "--protocol", p, "42", "43"},
-		// A signed number is read as a flag, so the flag parsing refuses it.
 		{"mergemain-begin", "--protocol", p, "-1"},
 	} {
 		if _, err := runTakeIn(t, &fakeTake{}, args...); !errors.Is(err, errUsage) {
@@ -456,14 +466,6 @@ func TestMergemainOutput(t *testing.T) {
 	}
 }
 
-// takeInFieldKeys are the keys a take-in block may write, one field per line.
-var takeInFieldKeys = map[string]bool{
-	"status": true, "reason": true, "restore": true, "detail": true,
-	"base_head": true, "head_branch": true, "main_head": true, "new_head": true,
-	"conflict": true, "protocol_tool": true, "readme_changed": true,
-	"adr_main_changed": true, "adr_conflict_number": true, "ext_check_hint": true,
-}
-
 // TestMergemainStopReasonsAndOutput verifies the block a stopped take-in
 // subcommand writes: status: stop, each declared reason with its restore need,
 // the conflicted paths with their classes, and the detail; that a stop of no
@@ -559,12 +561,6 @@ func TestMergemainStopReasonsAndOutput(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("wrote\n%s\nwant\n%s", got, tt.want)
-			}
-			for line := range strings.Lines(got) {
-				key, _, ok := strings.Cut(strings.TrimSuffix(line, "\n"), ": ")
-				if !ok || !takeInFieldKeys[key] {
-					t.Errorf("line %q is not a field line of the take-in output", strings.TrimSuffix(line, "\n"))
-				}
 			}
 		})
 	}
