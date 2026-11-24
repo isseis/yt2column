@@ -409,7 +409,7 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
 
 ### AC-04 の記録
 
-`_checks/ac04_moved_blocks.sh 99328454` を PR-1 のブランチで走らせた（2026-11-24）。比べたコミットは `99328454d93ade61041280883c08e9435ade46bc`、マージベースは `bd72ac9e8e202a2982d5a270ac626187d35a0e62`（その `README.md` のブロブは `23ab53e32d65cb67eafd09634d6d034a6f6da665`）で、結果は `ac04: PASS` である。
+`_checks/ac04_moved_blocks.sh 566342b1` を PR-1 のブランチで走らせた（2026-11-24）。比べたコミットは `566342b1b695ee2bffd07474d2d522c8329fb82e`、マージベースは `bd72ac9e8e202a2982d5a270ac626187d35a0e62`（その `README.md` のブロブは `23ab53e32d65cb67eafd09634d6d034a6f6da665`）で、結果は `ac04: PASS` である。
 
 - **残った差分:** 11 のブロックのうち、残った差分があるのは `extension-build` の 1 行だけである。除いた文は「開発のためのターゲットは `development.md` にある」という案内で、移した先が `development.md` そのものなので、重ねて書かないために除いた（AC-04 の「重複の削除」）。
 - **ブロックの外の変更:** 次のものはブロックの外にあるので、出力には現れない。
@@ -420,7 +420,7 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
 - **リンクの組:** どの組も、移った先から見た同じ節を指す。`docs/dev/...` は `generation.md` と `development.md` から見た相対のパスに、`#api-キーの設定` は README の同じ節に変わった。`docs/dev/guides/development.md -> (none)` は、上の除いた文のリンクである。
 
 ```text
-commit:      99328454d93ade61041280883c08e9435ade46bc
+commit:      566342b1b695ee2bffd07474d2d522c8329fb82e
 merge-base:  bd72ac9e8e202a2982d5a270ac626187d35a0e62
 README blob: 23ab53e32d65cb67eafd09634d6d034a6f6da665
 
