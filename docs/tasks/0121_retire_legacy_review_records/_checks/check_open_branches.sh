@@ -22,6 +22,7 @@
 #       2: any usage, fetch, verification, build, or read error (empty stdout)
 
 set -u -o pipefail
+unset CDPATH
 
 # Preserve bash 3.2 compatibility: do not use associative arrays or mapfile.
 unset -f git awk sed sort cmp rm cat printf mktemp date go 2>/dev/null || true
@@ -48,7 +49,7 @@ die_safe() {
 	exit 2
 }
 
-# die_escaped escapes diagnostic text from stdin through ESC_BIN and exits 2.
+# die_escaped_file escapes diagnostic text from err_file through ESC_BIN and exits 2.
 die_escaped_file() {
 	local step=$1 err_file=$2 escaped=""
 	if [ -n "$ESC_BIN" ] && [ -x "$ESC_BIN" ]; then
@@ -99,7 +100,7 @@ fi
 TMP_WORK=$(command mktemp -d "${TMP_BASE}/check-open-branches.XXXXXX" 2>/dev/null) || die_safe "mktemp" "cannot create temporary directory"
 
 ESC_BIN="$TMP_WORK/escape-untrusted"
-if ! GO111MODULE=off GOTOOLCHAIN=local GOENV=off GOFLAGS= GOPROXY=off GOWORK=off \
+if ! GOOS= GOARCH= GO111MODULE=off GOTOOLCHAIN=local GOENV=off GOFLAGS= GOPROXY=off GOWORK=off \
 	command go build -o "$ESC_BIN" "$ESC_SRC" >/dev/null 2>&1; then
 	ESC_BIN=""
 	die_safe "go-build" "failed to build escape helper"
@@ -117,7 +118,7 @@ TMP_REPO="$TMP_WORK/origin.git"
 git_caller() {
 	(
 		export GIT_TERMINAL_PROMPT=0 GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null
-		exec command git -c core.hooksPath=/dev/null -c core.fsmonitor=false "$@"
+		exec command git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c advice.graftFileDeprecated=false "$@"
 	)
 }
 
@@ -128,7 +129,7 @@ git_tmp_fetch() {
 	(
 		unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_INDEX_FILE GIT_NAMESPACE
 		export GIT_TERMINAL_PROMPT=0 GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null
-		exec command git -c core.hooksPath=/dev/null -c core.fsmonitor=false "$@"
+		exec command git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c advice.graftFileDeprecated=false "$@"
 	)
 }
 
@@ -169,7 +170,7 @@ fi
 is_relative_local_url() {
 	local u=$1 first_seg
 	case $u in
-	/* | *://*) return 1 ;;
+	/* | ~* | *://*) return 1 ;;
 	./* | ../*) return 0 ;;
 	esac
 	first_seg=${u%%/*}
