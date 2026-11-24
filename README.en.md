@@ -1,4 +1,4 @@
-<!-- translated-from: README.md fca39b9796494793db59ba0c93a37f388a61844d -->
+<!-- translated-from: README.md be42dd3fba84b2e98430aadb7e59e13134361827 -->
 [日本語](README.md)
 
 Developer documents: [Article generation details](docs/dev/guides/generation.md) · [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
