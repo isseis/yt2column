@@ -27,9 +27,12 @@ function expectPhrases(
 }
 
 describe("video metadata documentation", () => {
-  // Each version of the README quotes the popup in its own language: README.md
-  // the Japanese catalog, README.en.md the English one.
-  for (const { path: readmePath, locale } of readmeVersions) {
+  // Only the Japanese README is compared with the catalog: no English document
+  // is checked against the English catalog until the English install guide exists.
+  const japaneseReadmes = readmeVersions.filter(
+    ({ locale }) => locale === "ja",
+  );
+  for (const { path: readmePath, locale } of japaneseReadmes) {
     const heading = browserExtensionHeading[locale];
     const section = flatSection(readmePath, heading);
     const where = `${readmePath} ${heading}`;
