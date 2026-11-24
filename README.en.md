@@ -1,4 +1,4 @@
-<!-- translated-from: README.md d46890dedddde397dff792e6007af5d98ea01840 -->
+<!-- translated-from: README.md 878cb12544403ffecfea640bbb6078c07b7c5bce -->
 [日本語](README.md)
 
 # yt2column
@@ -28,7 +28,7 @@ The steps from getting the extension to saving a first article are in [INSTALL.m
 
 **What is sent:** to generate an article, the extension sends the selected captions, the video URL, and the video's title, channel name, and description only to `https://api.anthropic.com`. Nothing is sent to the developers. The developers do not provide a server that relays the API.
 
-**API key and workspace ID:** they are saved only in `chrome.storage.local` of this browser profile and are not synced to other devices. However, processes that run as the same OS user can read the saved values.
+**API key and workspace ID:** they are saved only in `chrome.storage.local` of this browser profile and are not synced to other devices. The popup and the service worker never read the API key's value. However, processes that run as the same OS user can read the saved values.
 
 **The article generation record:** the state, the steps, and the finished article are kept in the browser's memory and disappear when the browser exits. They are not written to disk.
 

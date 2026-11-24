@@ -184,7 +184,6 @@
 | 文字起こしパネル | transcript panel | YouTube の動画ページで、字幕の行を時刻とともに一覧にするパネル |
 | モデルの ID | model ID | プロバイダの API に送るモデルの名前。`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の最初の `/` より後の部分。そこに `+` があれば `+` より前の部分 |
 | effort の部分 | effort part | `YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の値の、最初の `/` より後ろの `+` より後の部分。工程の effort を指定する |
-| クイックスタート | Quick start | README の見出し |
 | 必要なもの | Requirements | README と `cli.md` の見出し |
 | 出力の書式 | Output format | `generation.md` と `cli.md` の見出し |
 | 設定 | Configuration | `generation.md` と `cli.md` の見出し。CLI の環境変数による設定 |
