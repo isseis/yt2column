@@ -91,7 +91,7 @@ flowchart LR
 
 -   **レビュープロファイル（`ReviewProfile`）:** `review-state` と `mentions` が適用するレビュアー固有の規則集合を宣言する型。`coderabbit`（手動のみ）と `sourcery`（自動＋手動）の 2 つを持ち、ゼロ値は不正（`ProfileUnknown`）とする。
 -   **手動依頼コメント:** 著者の種類が `User` で認証済み利用者と login が完全一致し、前後空白を除いた本文が該当プロファイルの受理依頼文面（`coderabbit`: `@coderabbitai review`、`sourcery`: `@sourcery-ai review` または `@sourceryai review`）のいずれかと完全一致する会話コメント。
--   **自動の PR レビュー（`AutoReview`）:** `sourcery` プロファイルで `head` コミット上に存在し、手動依頼コメントの応答として割り当てられていない `Sourcery review` CheckRun のうち最新のもの。祖先コミットの CheckRun や CheckRun が 0 件の空 `QUEUED` CheckSuite は含めない。
+-   **自動の PR レビュー（`AutoReview`）:** `sourcery` プロファイルで `head` コミット上に存在し、手動依頼コメントの応答として割り当てられていない `Sourcery review` CheckRun のうち、3.2.2 の 4 段階の優先順位で選んだ 1 件。祖先コミットの CheckRun や CheckRun が 0 件の空 `QUEUED` CheckSuite は含めない。
 -   **完了の印（`ReviewMarker`）:** `coderabbit` では未編集の手動依頼に対する `finished`（`COMPLETED`・`SUCCESS`・`"Finished"`）応答、`sourcery` では PR コミット上の `finished`（`COMPLETED`・`SUCCESS`・`"✅ Completed successfully"`）の CheckRun（自動実行・手動依頼応答の両方）。
 -   **`LAST_REVIEWED`:** CodeRabbit と Sourcery AI の `markers` の和集合（`unreadable (limit)` のレビュアーは除外）から、他のすべての完了コミットを祖先とする最新のコミット。和集合が空、または唯一の最新コミットが決まらない場合（履歴分岐等）は `none`。
 
@@ -113,7 +113,7 @@ flowchart LR
     -   **ADR の判断:** ADR なし（`review-state` の引数・出力の形と競合判定の細部は [ADR-0013](../../dev/adr/0013-review-setup.md) の「判定を `fixprguard review-state` に置く」決定の範囲内に閉じるため）。
 -   **CI 待機と外部レビュー CheckRun の分離対象（H-06・AC-19）:**
     -   **決定:** `.claude/commands/runpr.md` step 3（新サブコマンド `fixprguard ci-checks`）と `internal/mergepr/mergepr.go:275`（`mergepr prepare`。`/mergepr` 単独実行を含む）の**両方**で、リポジトリの CI チェック（`app.slug == "github-actions"` の CheckSuite・CheckRun）のみを待機・成否判定の対象とし、外部レビュー Bot の CheckRun（`Sourcery review`・`CodeRabbit`）を除外する。共通の読み取りロジックは新パッケージ `internal/ghci` に置く。
-    -   **理由:** `mergepr prepare` が `gh pr checks <number> --watch --fail-fast` のままだと、`Sourcery review` が失敗・時間切れ・未完了のままマージへ進んだときに step 4 の `mergepr prepare` が `CI checks failed` で停止し AC-19 を満たせない。`main` の ruleset（`24096227`）に必須チェック設定がないため `--required` は使えない。より単純な `gh pr checks --json name,state,bucket,workflow`（`internal/chief/detail.go:215-244` が表示用に使う方式）も `app.slug` を返さず、`headRefOid` との一致確認、`needs:` 待機でジョブ未生成の `CheckSuite` 状態取得、および重複 JSON キーの拒否（`strictjson`）を満たせないため、GraphQL を厳格に読む `internal/ghci` を新設する。
+    -   **理由:** `mergepr prepare` が `gh pr checks <number> --watch --fail-fast` のままだと、`Sourcery review` が失敗のままマージへ進んだときに step 4 の `mergepr prepare` が `CI checks failed` で停止し、時間切れ・未完了のまま進んだときは `--watch` がその CheckRun の完了を待ち続けるため、AC-19 を満たせない。`main` の ruleset（`24096227`）に必須チェック設定がないため `--required` は使えない。より単純な `gh pr checks --json name,state,bucket,workflow`（`internal/chief/detail.go:215-244` が表示用に使う方式）も `app.slug` を返さず、`headRefOid` との一致確認、`needs:` 待機でジョブ未生成の `CheckSuite` 状態取得、および重複 JSON キーの拒否（`strictjson`）を満たせないため、GraphQL を厳格に読む `internal/ghci` を新設する。
     -   **ADR の判断:** [ADR-0013](../../dev/adr/0013-review-setup.md) を更新する（CI 待機と外部レビュアー CheckRun の分離を `/runpr` だけでなく `mergepr prepare`（`/mergepr` を含む）へ広げ、2 ツール共通の契約として定めるため）。
 -   **`_context.md` の複数 PR レビュアー定義形式（H-01・H-04）:**
     -   **決定:** `.claude/commands/_context.md` の Domain-specific 節に専用の `### PR reviewers` 表（列: `Reviewer`・`Profile`・`Mode`・`Post request`・`Accepted requests`）を新設し、単一行の `Awaited PR reviewer`・`PR review request` を置き換える。`TestMentionsOnlyInAllowedRows` はこの表の `Post request`・`Accepted requests` 列と `Rejected mentions` 行のみ拒否するメンションの記載を許可する。
@@ -849,8 +849,10 @@ flowchart TD
 -   **スレッドへのメンションなし返信の応答（観測の記録 2.9）:** 30 件すべて `THUMBS_UP` のみだったが、公式文書上は質問形式の返信等にチャットコメントを返しうる。`/fixpr` の返信は解決とセットの対応報告にとどめ、返信に 4 メンションを含めない。
 -   **push の制限の前提（観測の記録 2.8）:** `rulesets/26400325` の `bypass_actors` が変更されると Sourcery GitHub App（`code: read & write` 権限）がブランチを更新しうるため、`fixprguard_guide.md` 10 章の運用確認事項として引き続き管理する。
 -   **未観測の同一コミット手動再依頼挙動（観測の記録 2.1）:** Sourcery AI が既存 CheckRun を上書きし `startedAt` を更新しない場合、手動再依頼が `timed-out` になりうる（誤完了は起きない安全側）。予算回復後に実測し、必要なら別タスクで調整する。
--   **手動依頼後 15 分以内の別コミット push 競合:** `ProfileSourcery` では、期限切れ依頼が将来の自動 CheckRun を奪わないよう応答候補を `startedAt - req.created <= 15 分` に制限し、さらに後続コミットの自動 CheckRun が先に開始して古いコミットの手動 CheckRun が重なった場合は `commitIndex(run.commit) <= commitIndex(earliest.commit)` により `competing-runs` で安全に停止する。残るのは、古いコミットの手動 CheckRun 自体が一切起動せず後続コミットの自動 CheckRun だけが 15 分以内に開始した場合に限られるが、後続コミットは古いコミットの子孫であり、完了時はその差分全体を含むため誤って未レビューを完了とする危険はない。
--   **`/mergepr` 単独実行での `github-actions` 限定監視:** `mergepr prepare` が `app.slug == "github-actions"` のみを監視対象とするため、将来 GitHub Actions 以外の外部必須 CI サービスを導入する場合は `internal/ghci` の対象 App を見直す必要がある（`mergepr_guide.md` 6.2 節に前提として明記する）。
+-   **手動依頼後 15 分以内の別コミット push 競合:** `ProfileSourcery` では、期限切れ依頼が将来の自動 CheckRun を奪わないよう応答候補を `startedAt - req.created <= 15 分` に制限し、さらに後続コミットの自動 CheckRun が先に開始して古いコミットの手動 CheckRun が重なった場合は `commitIndex(run.commit) <= commitIndex(earliest.commit)` により `competing-runs` で安全に停止する。残るのは、古いコミットの手動 CheckRun 自体が一切起動せず後続コミットの自動 CheckRun だけが 15 分以内に開始した場合に限られる。後続コミットは古いコミットの子孫であるが、その自動 CheckRun が PR の差分全体を見たかどうかは次の項目の未確認の前提に依存する。
+-   **再レビューが見る範囲（未確認の前提）:** `ProfileSourcery` の完了の印は、示すコミットとその祖先をレビュー済みとする（`LAST_REVIEWED`）。しかし公式文書では自動再レビューの予算消費が通常の 1/10 とされ、観測の記録 2.3 の備考（#1097・#1098）では、初回コミットが予算超過で `SKIPPED` になった後の後続コミットが `SUCCESS` で完了している。再レビューが前回からの差分だけを見る場合、`SKIPPED` だったコミットの変更はどのレビューも見ていないのに、後続コミットの完了の印でレビュー済みと数えられる。実装計画の前に、予算回復後の実測（`SKIPPED` 後の後続コミットのレビューが PR 全体を対象にしたか）で確かめる。差分だけを見ると分かった場合は、同じ PR の祖先コミットに `RunSkipped` などの完了でない終わり方の CheckRun があるときに、それより後の自動完了を完了の印に数えない規則を設計に加える。
+-   **Sourcery AI の PR 説明追記と `current-body-mention`:** Sourcery AI は完了後に PR の説明末尾へ概要を追記する（観測の記録 2.1）。観測した 7 PR の追記にメンションはなかったが、`@sourcery-ai` の拒否を加える本タスク自身の PR のように変更の内容がメンションを扱う PR では、概要が `@sourcery-ai` などを引用しうる。そのとき `append-pr`・`finish` は `current-body-mention` で止まる（誤投稿ではなく停止に倒れる安全側）。止まったときは、利用者が PR の説明から該当箇所を除いてから再実行する。
+-   **`/mergepr` 単独実行での `github-actions` 限定監視:** `mergepr prepare` が `app.slug == "github-actions"` のみを監視対象とするため、将来 GitHub Actions 以外の外部必須 CI サービスを導入する場合は `internal/ghci` の対象 App を見直す必要がある（`mergepr_guide.md` 6.2 節に前提として明記する）。逆に、`github-actions` の CheckSuite であっても CI でないものは区別しない。リポジトリには GitHub Actions で動くレビューのワークフロー `.github/workflows/deepseek-review.yml`（`name: Code Review`、自動の起動は無効で手動実行のみ）があり、PR のブランチで手動実行すると `head` コミットに `github-actions` の CheckSuite ができ、その失敗は CI の失敗として待機を止める。このワークフローを PR のブランチで動かす運用を戻す場合は、`internal/ghci` の対象をワークフロー名などで絞るかを見直す。
 
 ## 6. 処理フロー詳細 (Processing Flow Details)
 
@@ -1026,7 +1028,7 @@ flowchart TD
 1.  **フェーズ 1（先行：`fixprguard` の `Protocol` 据え置き）— F-002・F-003 基礎:**
     -   ステップ 1-1: `internal/fixprguard/errors.go` の `RejectedMentions()` を 4 つへ拡張し、関連単体テストを更新。
     -   ステップ 1-2: `.claude/commands/_context.md` の `Automated reviewer list` に `sourcery-ai`、`Rejected mentions` に `@sourcery-ai`・`@sourceryai` を追加し、`cmd/yt2column/fixpr_docs_test.go`・`docs/dev/guides/fixprguard_guide.md`（該当箇所）を更新。
-    -   **移行期の挙動と再インストール（明示）:** フェーズ 1 マージ後、利用者は `main` から `make install-fixprguard` を実行する（`fixprguard append-pr` の `current-body-mention` 検査などバイナリ側の 4 メンション拒否を即時有効にするため）。フェーズ 1 マージ後・フェーズ 3 マージ前の間は、`/runpr` は旧 `--jq` 経路で 4 メンションを検査するため、`sourcery-ai[bot]` のレビューガイド・予算超過コメントに対して 1 回だけ `by_bot` 確認が出る（安全側）。`sourcery-ai` のレビュースレッド自動処理はフェーズ 1 マージ直後から有効になる。
+    -   **移行期の挙動と再インストール（明示）:** フェーズ 1 マージ後、利用者は `main` から `make install-fixprguard` を実行する（`fixprguard append-pr` の `current-body-mention` 検査などバイナリ側の 4 メンション拒否を即時有効にするため）。フェーズ 1 マージ後・フェーズ 3 マージ前の間は、`/runpr` は旧 `--jq` 経路で 4 メンションを検査するため、`sourcery-ai[bot]` のレビューガイド・予算超過コメントに対して `by_bot` 確認が出る（安全側）。確認済みの URL は 1 回の `/runpr` 実行の中でだけ覚えるため、この確認は PR ごと、`/runpr` の実行ごとに出る。`sourcery-ai` のレビュースレッド自動処理はフェーズ 1 マージ直後から有効になる。
 2.  **フェーズ 2（基盤＋`mergepr` CI 分離）— `internal/ghci`・`internal/mergepr`:**
     -   ステップ 2-1: `internal/ghci`（`ResolveRepo`・`ReadPR`・`WaitPR`）を新設し、単体テストと `docs/dev/conventions/package_reference.md`（`internal/ghci` 追加＋`internal/strictjson` 参照元更新）を更新。
     -   ステップ 2-2: `internal/mergepr/mergepr.go`・`runner.go` の `Prepare` を `internal/ghci.ResolveRepo`＋`WaitPR` へ切り替え、`internal/mergepr/mergepr_test.go`・`.claude/commands/mergepr.md:47`・`docs/dev/guides/mergepr_guide.md`・`cmd/mergepr/docs_test.go` を更新（`mergepr.Protocol` は `3` 据え置き）。
@@ -1041,7 +1043,7 @@ flowchart TD
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
--   **第 3 の自動レビュアー追加:** `ReviewProfile` enum に新しいプロファイルを追加し、`_context.md` の `Automated reviewer list`・`### PR reviewers` 表・`Rejected mentions` と、各プロファイルの観測済み CheckRun 分類表・定型コメント除外規則を追加するだけで拡張できる。`runpr.md` や `fixpr.md` にレビュアー名を直書きしない構造のため、コマンド文書の構造変更を最小限に抑えられる。
+-   **第 3 の自動レビュアー追加:** `ReviewProfile` enum に新しいプロファイルを追加し、`_context.md` の `Automated reviewer list`・`### PR reviewers` 表・`Rejected mentions` と、各プロファイルの観測済み CheckRun 分類表・定型コメント除外規則を追加すれば判定は拡張できる。`runpr.md` や `fixpr.md` にレビュアーの login を直書きしない構造のため、コマンド文書の構造変更を最小限に抑えられる。ただし、`runpr.md` は AC-23・AC-24 が定める表示名（`CodeRabbit`・`Sourcery AI`）の要約行（kind 15・16）と依頼先選択の選択肢、および自動の PR レビューを持つ `sourcery` の `autoReview` の扱いをレビュアーごとに書くため、第 3 のレビュアーではこれらの行と選択肢も足す必要がある（依頼先選択の選択肢が増えるため、単一選択の選択肢数の上限も確かめる）。
 -   **未観測 Sourcery 挙動の事後反映:** 予算回復後に「同一コミット手動再依頼時の CheckRun 挙動」や「ブロッキング指摘（`FAILURE`）時の正確な `output.title`」を観測できた場合、`observations.md` へ追記し、`review_state.go` の `ProfileSourcery` 分類表へ安全に組み込める。
 -   **CI ワークフロー追加への追随:** `internal/ghci` は特定のジョブ名をハードコードせず `app.slug == "github-actions"` で判定するため、`.github/workflows/` に新しい CI ジョブやワークフローが追加されても、コード変更なしで自動的に監視対象に含まれる。
 
