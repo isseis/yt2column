@@ -74,7 +74,7 @@ bash $R/classify.sh $DATA/data . | tee $DATA/candidates.txt
 | 3 | #1074 | `6a266e990548` | docs(0118) 計画書 | 不要 | 要 | Fable を `gemini-4-argon-medium`（1 回目は Argon 以外）で代替 | | |
 | 3 | #1075 | `b004f8c01ba2` | docs(0119) 要件・ADR-0054 | 不要 | 要 | Fable を `gemini-4-argon-medium` で代替 | | |
 | 3 | #1076 | `d45909cf9d36` | docs(0119) 設計書 | 不要 | 要 | Fable を `gemini-4-argon-medium` で代替、残りは `not run` | | |
-| 1 | #1077 | `21400a98ad5b` | refactor(0118) codexreview 撤去 | 不要（`claude-opus-5-5-high` で実行） | 要 | Fable を `gemini-4-argon-medium` で代替（記録は `not-fable`） | | |
+| 1 | #1077 | `21400a98ad5b` | refactor(0118) codexreview 撤去 | 不要（`claude-opus-5-5-high` で実行） | 要 | Fable を `gemini-4-argon-medium` で代替（記録は `not-fable`） | Fable（`claude-fable-5-2`、2026-11-24）: Major 1・Minor 2。Major は有効で `origin/main` でも残る（`settings.json` の allow 規則と `defaultMode` を見るガードが、`cmd/codexreview` の削除で失われた）。Minor 2 件のうち、1 件（計画書の editorial correction の扱い）は記録上の問題でコードに害はなく、もう 1 件（ADR-0013 の食い違いの記述）は後の PR で解消済み | 未作成 |
 | 3 | #1078 | `3fa62267b0c8` | docs(0119) 計画書 | 不要 | 要 | Fable を `gemini-4-argon-high` で代替（記録は `not run`） | | |
 | 3 | #1079 | `8fbbfc4b8b77` | docs(0120) 要件 | 不要 | 要 | Fable を `gemini-4-argon-medium` で代替、残りは `not run` | | |
 | 1 | #1080 | `4e8fd02e21e0` | feat(0118) fixprguard review-state | 要 | 要 | Opus を `gemini-4-neon-high`、Fable を `gemini-4-argon-high` で代替 | | |
@@ -92,9 +92,9 @@ bash $R/classify.sh $DATA/data . | tee $DATA/candidates.txt
 
 **同時期の未マージ PR:** 0115 の計画、0121 の設計書、0120 PR-3 の各ブランチにも、同じ記録が残っています。これらは事後の再レビューではなく、マージ前に正規のレビューを通してください（手順 5）。
 
-#### B. OpenCode での実装による構造上の `not run`（判断待ち）
+#### B. OpenCode での実装による構造上の `not run`（対象外）
 
-実装モデル要件が `sonnet` で OpenCode が実装した PR です。OpenCode は Fable を呼べないので `not run agent-cannot-call` になります。これは設計どおりの動作で、クオータ枯渇による代替ではありません。この手順書の対象に含めるかどうかは人が決めます。
+実装モデル要件が `sonnet` で OpenCode が実装した PR です。OpenCode は Fable を呼べないので `not run agent-cannot-call` になります。これは設計どおりの動作で、クオータ枯渇による代替ではありません。2026-11-24 に人が決めたとおり、この手順書の対象は A だけで、B は再レビューしません。
 
 | PR | squash | 種別 | 記録 |
 |---|---|---|---|
