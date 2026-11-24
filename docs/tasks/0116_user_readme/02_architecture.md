@@ -241,7 +241,7 @@ flowchart LR
     O5 --> NI
     O5 -->|"保存の範囲<br>(プライバシー)"| NR
     O6 --> NI
-    O6 -->|"履歴・細工した URL<br>(プライバシー)"| NR
+    O6 -->|"履歴<br>(プライバシー)"| NR
     O7 --> ND
     O8 --> DEL
     O9 --> NG
@@ -280,7 +280,7 @@ flowchart LR
 | `:157-158` | 表示の言語 | `INSTALL.md`「使い方」の「画面の言語」（AC-27、ADR-0029） | 書き直す |
 | `:160-178` | API キーの設定 | `INSTALL.md`「初期設定」（AC-20〜AC-22） | 書き直す |
 | `:180` | API キーの保存の範囲、ワークスペースの勧め | 保存の範囲は README「プライバシー」（AC-36）、ワークスペースの勧めは `INSTALL.md`（AC-11） | 書き直す |
-| `:182-264` | ポップアップ・ビューア | `INSTALL.md`「使い方」と「参考」（AC-24）。`:256-260` の記録・履歴・細工した URL は README「プライバシー」にも（AC-36） | 書き直す |
+| `:182-264` | ポップアップ・ビューア | `INSTALL.md`「使い方」と「参考」（AC-24）。`:256-260` の記録・履歴は README「プライバシー」にも（AC-36） | 書き直す |
 | `:266-268` | ログを見る方法 | `development.md`「拡張のログ」 | 移す |
 | `:270-290` | 以前の版からの移行 | どこにも移さない（AC-05） | 削除 |
 | `:292-366` | 設定 | `generation.md`「設定」 | 移す |
@@ -304,7 +304,7 @@ flowchart LR
 ## 仕組み            ブラウザの中だけで動く、サーバもホストも要らない、送り先は https://api.anthropic.com だけ
 ## 必要なもの        ブラウザ（AC-08 と同じ値）と Anthropic の API キー。詳しくは INSTALL.md
 ## インストールと使い方   INSTALL.md へのリンク。INSTALL.md が今は日本語だけであること（AC-07）
-## プライバシー      要件定義の F-009 の 6 項目
+## プライバシー      要件定義の F-009 の 5 項目
 ## 開発者向けの文書  開発者向けの CLI があることを 1 文で述べ、3 つの手引きへリンクする
 ```
 
@@ -527,7 +527,7 @@ Go のロケータ（`internal/doctestutil/guides.go`）は、`generation.md` �
 | `docs/dev/project_overview.md:161` | README「設定」 | `generation.md`「設定」 |
 | `docs/dev/guides/claude_output_limit.md:60` | README「設定」 | `generation.md`「設定」 |
 | `docs/dev/guides/openai_output_limit.md:59` | README「設定」（`/mktrans` で英語版もそろえる） | `generation.md`「設定」（日本語だけなので `/mktrans` の手順を除く） |
-| `docs/dev/security.md:131` | README（細工した URL の注意） | 変えない。README「プライバシー」が述べる（AC-36） |
+| `docs/dev/security.md:131` | README（細工した URL の注意） | 「README に書く」の指示を除く。一般の利用者向けの README には置かない |
 | `docs/dev/security.md:142` | README（ワークスペースの勧め） | `INSTALL.md`（AC-11） |
 | `docs/translation_glossary.md:55` | 「推奨構成」の定義が README の小節を指す | `generation.md` の小節を指す |
 | `docs/translation_glossary.md:61`、`:168`、`:179` | 移行の手順で使う語、移行の節の見出し | 移行の節がなくなるので、`:179` を除き、`:61`・`:168` の備考から移行の手順を除く |
@@ -577,7 +577,6 @@ flowchart LR
     LIM["利用の上限を設けた<br>専用のワークスペース"]
     REV["Claude Console での<br>API キーの無効化"]
     SRC["Releases のページからだけ入手"]
-    PRIV[("README.md<br>(プライバシー)")]
     INST[("INSTALL.md")]
 
     T1 --> KEY
@@ -588,7 +587,6 @@ flowchart LR
     INST -.-> LIM
     INST -.-> REV
     INST -.-> SRC
-    PRIV -.->|"見出しは記事の内容を保証しない"| VIEW
     LIM -->|"漏れたときの損失を限る"| KEY
     REV -->|"漏れたキーを使えなくする"| KEY
     SRC -->|"改ざんされた zip を避ける"| T2
@@ -596,7 +594,6 @@ flowchart LR
     class T1,T2,T3 problem
     class KEY,DIR,VIEW data
     class LIM,REV,SRC enhanced
-    class PRIV enhanced
     class INST newpkg
 
     subgraph Legend["Legend"]
@@ -615,7 +612,7 @@ flowchart LR
 - **API キーの漏れ:** `INSTALL.md` は、月ごとの利用の上限を設けた専用のワークスペースで API キーを作ることを勧める（AC-11）。漏れたと思ったときと、アンインストールして使わなくなったときは、Claude Console で API キーを無効にするよう示す。拡張を削除しても、Anthropic の側ではキーが有効なままだからである。security.md §8 の残余のリスク（`docs/dev/security.md:142`）の参照先を `INSTALL.md` に直す（4.2 節）。
 - **改ざんされた zip:** 拡張の ID は manifest の公開鍵で決まるので、拡張のフォルダに置いたどのコードも同じ ID の拡張として動き、保存した API キーを読める（security.md §8 の「秘密鍵をリポジトリに含めない」の項）。更新のたびに zip を置き換えるので、入手のときも更新のときも、zip はこのリポジトリの Releases のページからだけ入手するよう示す。来歴の検証の手順は #1039 で、入手と更新の両方に足す（4.3 節）。このタスクの時点では zip を配っていない。
 - **拡張のフォルダの書き換え:** 展開したフォルダは、同じ OS ユーザーとして動くプロセスが書き換えうる。書き換えたコードは拡張として動き、API キーを読める。security.md §8 が `chrome.storage.local` について受け入れている、同じ OS ユーザーのプロセスという危険と同じ種類であり、新しい規則は設けない（要件 §4.2）。フォルダはプロファイルのディレクトリの外にあるので、ほかの OS ユーザーから守られるかは、利用者がフォルダを置く場所による。security.md §8 と ADR-0006 はこの場合を扱っていない。これを記録するか、`INSTALL.md` で置き場所を案内するかは、このタスクでは決めず、PR のレビューに委ねる。
-- **細工したビューアの URL:** README の「プライバシー」は、見出しが記事の内容を保証しないことを述べる（AC-36）。`docs/dev/security.md:131` の「README に書く」は、そのまま正しい。
+- **細工したビューアの URL:** 一般の利用者向けの README には置かない。`docs/dev/security.md:131` の「README に書く」の指示は除く。
 - **ブラウザの警告:** 想定どおりとするのは、実装のときに確かめた警告に限る（2.4 節）。警告を一般に読み飛ばしてよいと読まれないようにするためである。
 - **文書の例:** 実際の API キーを含めない。API キーの欄の例は、値の形を示さずに欄の名前で示す。
 - **信頼できない入力:** N/A。文書とテストだけの変更で、新しく受け取る信頼できない入力はないため。
