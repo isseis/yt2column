@@ -107,7 +107,7 @@ conversation:
 ```bash
 GIT_OPTIONAL_LOCKS=0 git --no-replace-objects -c core.fsmonitor=false diff --no-ext-diff --no-textconv <RANGE> > "<scratchpad>/<run-id>-diff.patch"
 GIT_OPTIONAL_LOCKS=0 git --no-replace-objects -c core.fsmonitor=false diff --no-ext-diff --no-textconv --name-only <RANGE> > "<scratchpad>/<run-id>-files.txt"
-GIT_OPTIONAL_LOCKS=0 git --no-replace-objects log --stat <RANGE> > "<scratchpad>/<run-id>-log.txt"
+GIT_OPTIONAL_LOCKS=0 git --no-replace-objects -c core.fsmonitor=false log --no-ext-diff --no-textconv --stat <RANGE> > "<scratchpad>/<run-id>-log.txt"
 ```
 
 Instruct the subagent to read every exported file completely via `read_file`

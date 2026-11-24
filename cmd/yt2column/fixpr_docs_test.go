@@ -1326,8 +1326,8 @@ var (
 	ghBodyCommandRE = regexp.MustCompile(`(?:^|[\s(;&|])gh\b.*--json(?:=|\s+)\S*\bbody\b`)
 	// ghBodySafeRedirectRE matches a single gh --json ... body command that
 	// writes stdout directly to a scratchpad file with no pipe, command
-	// chaining, or stdout tee.
-	ghBodySafeRedirectRE = regexp.MustCompile(`^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*gh\s+[^|;&\n]+--json(?:=|\s+)\S*\bbody\b[^|;&\n]*\s+1?>\s*(?:"<scratchpad>/[^"\s]+"|<scratchpad>/[^\s"']+)\s*$`)
+	// chaining, or stdout tee; group 1 holds its VAR=val assignment prefix.
+	ghBodySafeRedirectRE = regexp.MustCompile(`^\s*((?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*)gh\s+[^|;&\n]+--json(?:=|\s+)\S*\bbody\b[^|;&\n]*\s+1?>\s*(?:"<scratchpad>/[^"\s]+"|<scratchpad>/[^\s"']+)\s*$`)
 )
 
 // stripShellComment returns s up to the first unquoted shell comment (# at the
@@ -1442,17 +1442,45 @@ func extractGHBodyCalls(doc string) []string {
 // checkHarnessAntigravityPhase6Redirect verifies that doc contains at least
 // one gh ... --json ... body invocation and that every such invocation writes
 // directly to a scratchpad file with a single output redirection (ignoring
-// angle-bracket placeholders like <number>) and without leaking stdout.
+// angle-bracket placeholders like <number>), without leaking stdout, and
+// with GH_DEBUG set to off so gh debug output cannot write the body to stderr.
 func checkHarnessAntigravityPhase6Redirect(doc string) (int, []string) {
 	calls := extractGHBodyCalls(doc)
 	var unsafe []string
 	for _, call := range calls {
 		stripped := leftPlaceholder.ReplaceAllString(call, "")
-		if !ghBodySafeRedirectRE.MatchString(call) || strings.Count(stripped, ">") != 1 {
+		m := ghBodySafeRedirectRE.FindStringSubmatch(call)
+		if m == nil || strings.Count(stripped, ">") != 1 || !ghDebugDisabled(m[1]) {
 			unsafe = append(unsafe, call)
 		}
 	}
 	return len(calls), unsafe
+}
+
+// ghDebugDisabled reports whether the VAR=val assignment prefix of a gh call
+// sets GH_DEBUG to a value gh reads as off, and sets DEBUG, when it sets it,
+// to such a value too. gh's debug output writes the HTTP response, and with it
+// the PR body, to standard error, which the redirection of standard output
+// does not catch; GH_DEBUG takes precedence over DEBUG, so setting it to off
+// also shields the call from an inherited DEBUG.
+func ghDebugDisabled(assignments string) bool {
+	off := func(v string) bool { return v == "0" || v == "false" || v == "no" }
+	ghDebugOff := false
+	for a := range strings.FieldsSeq(assignments) {
+		name, value, _ := strings.Cut(a, "=")
+		switch name {
+		case "GH_DEBUG":
+			ghDebugOff = off(value)
+			if !ghDebugOff {
+				return false
+			}
+		case "DEBUG":
+			if !off(value) {
+				return false
+			}
+		}
+	}
+	return ghDebugOff
 }
 
 // TestHarnessAntigravityPhase6Redirect checks that harness-antigravity.md
@@ -1466,7 +1494,7 @@ func TestHarnessAntigravityPhase6Redirect(t *testing.T) {
 		t.Fatal("harness-antigravity.md contains no gh --json ... body invocation; want at least 1")
 	}
 	for _, call := range unsafe {
-		t.Errorf("harness-antigravity.md has non-redirected gh body read: %q", call)
+		t.Errorf("harness-antigravity.md has an unsafe gh body read (not redirected to the scratchpad alone, or without GH_DEBUG off): %q", call)
 	}
 
 	// Verify the checker distinguishes safe direct redirects from zero-match
@@ -1480,26 +1508,30 @@ func TestHarnessAntigravityPhase6Redirect(t *testing.T) {
 		wantUnsafe int
 	}{
 		{"zero_matches", "```bash\ngit status\n```\n", 0, 0},
-		{"direct_redirect", "```bash\ngh pr view <number> --json title,body > \"<scratchpad>/<run-id>-pr.json\"\n```\n", 1, 0},
-		{"equals_json_with_redirect", "```bash\ngh pr view <number> --json=title,body > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
-		{"env_prefix_with_redirect", "```bash\nGH_HOST=github.com gh pr view <number> --json title,body > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
-		{"multiline_with_redirect", "```bash\ngh pr view <number> \\\n  --json title,body \\\n  > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
-		{"missing_redirect", "```bash\ngh pr view <number> --json title,body\n```\n", 1, 1},
-		{"equals_json_missing_redirect", "```bash\ngh pr view <number> --json=title,body\n```\n", 1, 1},
-		{"env_prefix_missing_redirect", "```bash\nGH_HOST=github.com gh pr view <number> --json title,body\n```\n", 1, 1},
-		{"command_sub_missing_redirect", "```bash\nout=$(gh pr view <number> --json title,body)\n```\n", 1, 1},
-		{"command_wrapper_missing_redirect", "```bash\ncommand gh pr view <number> --json title,body\n```\n", 1, 1},
-		{"chained_cat_leaks_body", "```bash\ngh pr view <number> --json title,body > \"<scratchpad>/pr.json\" && cat \"<scratchpad>/pr.json\"\n```\n", 1, 1},
-		{"unspaced_semicolon_gh", "```bash\necho ok;gh pr view <number> --json title,body\n```\n", 1, 1},
-		{"multiline_missing_redirect", "```bash\ngh pr view <number> \\\n  --json title,body\n```\n", 1, 1},
-		{"inline_code_missing_redirect", "Run `gh pr view <number> --json title,body` first.\n", 1, 1},
-		{"wrapped_inline_code_missing_redirect", "Run `gh pr view <number>\n--json title,body` first.\n", 1, 1},
-		{"pipe_to_tee_leaks_stdout", "```bash\ngh pr view <number> --json title,body | tee \"<scratchpad>/pr.json\"\n```\n", 1, 1},
-		{"double_redirect_rejected", "```bash\ngh pr view <number> --json title,body > /dev/stdout > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
-		{"unspaced_double_redirect_rejected", "```bash\ngh pr view <number> --json title,body>/dev/stdout > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
-		{"commented_out_redirect_rejected", "```bash\ngh pr view <number> --json title,body # > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
-		{"trailing_comment_after_redirect", "```bash\ngh pr view <number> --json title,body > \"<scratchpad>/pr.json\" # save metadata\n```\n", 1, 0},
-		{"redirect_outside_scratchpad", "```bash\ngh pr view <number> --json title,body > /tmp/pr.json\n```\n", 1, 1},
+		{"direct_redirect", "```bash\nGH_DEBUG=0 gh pr view <number> --json title,body > \"<scratchpad>/<run-id>-pr.json\"\n```\n", 1, 0},
+		{"equals_json_with_redirect", "```bash\nGH_DEBUG=0 gh pr view <number> --json=title,body > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
+		{"env_prefix_with_redirect", "```bash\nGH_HOST=github.com GH_DEBUG=0 gh pr view <number> --json title,body > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
+		{"multiline_with_redirect", "```bash\nGH_DEBUG=0 gh pr view <number> \\\n  --json title,body \\\n  > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
+		{"missing_redirect", "```bash\nGH_DEBUG=0 gh pr view <number> --json title,body\n```\n", 1, 1},
+		{"equals_json_missing_redirect", "```bash\nGH_DEBUG=0 gh pr view <number> --json=title,body\n```\n", 1, 1},
+		{"env_prefix_missing_redirect", "```bash\nGH_HOST=github.com GH_DEBUG=0 gh pr view <number> --json title,body\n```\n", 1, 1},
+		{"command_sub_missing_redirect", "```bash\nout=$(GH_DEBUG=0 gh pr view <number> --json title,body)\n```\n", 1, 1},
+		{"command_wrapper_missing_redirect", "```bash\nGH_DEBUG=0 command gh pr view <number> --json title,body\n```\n", 1, 1},
+		{"chained_cat_leaks_body", "```bash\nGH_DEBUG=0 gh pr view <number> --json title,body > \"<scratchpad>/pr.json\" && cat \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"unspaced_semicolon_gh", "```bash\necho ok;GH_DEBUG=0 gh pr view <number> --json title,body\n```\n", 1, 1},
+		{"multiline_missing_redirect", "```bash\nGH_DEBUG=0 gh pr view <number> \\\n  --json title,body\n```\n", 1, 1},
+		{"inline_code_missing_redirect", "Run `GH_DEBUG=0 gh pr view <number> --json title,body` first.\n", 1, 1},
+		{"wrapped_inline_code_missing_redirect", "Run `GH_DEBUG=0 gh pr view <number>\n--json title,body` first.\n", 1, 1},
+		{"pipe_to_tee_leaks_stdout", "```bash\nGH_DEBUG=0 gh pr view <number> --json title,body | tee \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"double_redirect_rejected", "```bash\nGH_DEBUG=0 gh pr view <number> --json title,body > /dev/stdout > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"unspaced_double_redirect_rejected", "```bash\nGH_DEBUG=0 gh pr view <number> --json title,body>/dev/stdout > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"commented_out_redirect_rejected", "```bash\nGH_DEBUG=0 gh pr view <number> --json title,body # > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"trailing_comment_after_redirect", "```bash\nGH_DEBUG=0 gh pr view <number> --json title,body > \"<scratchpad>/pr.json\" # save metadata\n```\n", 1, 0},
+		{"redirect_outside_scratchpad", "```bash\nGH_DEBUG=0 gh pr view <number> --json title,body > /tmp/pr.json\n```\n", 1, 1},
+		{"gh_debug_unset_rejected", "```bash\ngh pr view <number> --json title,body > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"gh_debug_api_rejected", "```bash\nGH_DEBUG=api gh pr view <number> --json title,body > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"debug_truthy_rejected", "```bash\nGH_DEBUG=0 DEBUG=1 gh pr view <number> --json title,body > \"<scratchpad>/pr.json\"\n```\n", 1, 1},
+		{"debug_off_with_gh_debug_off", "```bash\nGH_DEBUG=0 DEBUG=0 gh pr view <number> --json title,body > \"<scratchpad>/pr.json\"\n```\n", 1, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
