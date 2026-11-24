@@ -118,14 +118,14 @@
   - `.claude/commands/_lib/task-pr-handoff.md`
   - `.claude/commands/_lib/cross-check-review.md`
 - **作業内容:**
-  - [ ] `.claude/commands/_lib/local-cli-review.md` の `## Reading the record lines`（`3fff7f51` 時点 `:293-326`）を設計書 §3.2 に従って更新する（AC-03・AC-06）。
+  - [x] `.claude/commands/_lib/local-cli-review.md` の `## Reading the record lines`（`3fff7f51` 時点 `:293-326`）を設計書 §3.2 に従って更新する（AC-03・AC-06）。
     - `:307` を `- Every other \`CodeRabbit local review:\` and \`Codex local review:\` line is a` から `- Every other \`CodeRabbit local review:\` line is a` へ変更する（`:308` は変更しない）。
     - `:314` を `- A \`Local CLI reviewed: <START12>..<END12> (<cli>)\` line names a seen range.` から `- A \`Local CLI reviewed: <START12>..<END12> (coderabbit)\` line names a seen range.` へ変更する。
     - `:323-326` の段落（`Read earlier \`(codex)\` seen ranges and \`(coderabbit: <kind>; codex: <kind>)\` ...` から `contains an old record.` まで）を削除する。範囲なし `CodeRabbit local review: not run`（`:304-306`）等は維持する。
-  - [ ] `.claude/commands/_lib/task-pr-handoff.md` の `Part B step 3`（`3fff7f51` 時点 `:320-331`）を設計書 §3.2・§3.4 に従って更新する（AC-04・AC-06）。
+  - [x] `.claude/commands/_lib/task-pr-handoff.md` の `Part B step 3`（`3fff7f51` 時点 `:320-331`）を設計書 §3.2・§3.4 に従って更新する（AC-04・AC-06）。
     - `:324-325` を `` (`git log origin/main..<D>`; the `CodeRabbit local review:` and `Codex local review:` lines, read as `_lib/local-cli-review.md`, `` から `` (`git log origin/main..<D>`; the `CodeRabbit local review:` lines, read as `_lib/local-cli-review.md`, `` へ変更する。
     - `:329-331` を `Describe a Codex CLI or a cross-check finding only by its location and your own summary, as the record line does, never with Codex's or the cross-check worker's text;` から `Describe a cross-check finding only by its location and your own summary, as the record line does, never with the cross-check worker's text;` へ変更する。`Cross-check finding:`・`Fable finding:` の読み取り、本文転記禁止、`**Mention check.**`、`review-records.sh` 呼び出しブロックは維持する。
-  - [ ] `.claude/commands/_lib/cross-check-review.md` の `## The prompt` — `Settled issues`（`3fff7f51` 時点 `:543-545`）を設計書 §3.2・§3.4 に従って更新する（AC-05・AC-06）。
+  - [x] `.claude/commands/_lib/cross-check-review.md` の `## The prompt` — `Settled issues`（`3fff7f51` 時点 `:543-545`）を設計書 §3.2・§3.4 に従って更新する（AC-05・AC-06）。
     - `:543-545` を `` - the rejected findings of `CodeRabbit local review:`, `Codex local review:` (legacy lines from older branches), `Cross-check finding:`, and legacy `Fable finding:` lines in `git log origin/main..HEAD`; `` から `` - the rejected findings of `CodeRabbit local review:`, `Cross-check finding:`, and legacy `Fable finding:` lines in `git log origin/main..HEAD`; `` へ変更する。
 - **完了条件:**
   - 3 ファイルの変更差分が上記の撤去と文言調整のみに収まっていること。
@@ -135,9 +135,9 @@
 - **変更対象ファイル:**
   - `.claude/commands/_lib/review-records.sh`
 - **作業内容:**
-  - [ ] `:269` の `SEEN_RE` を `SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \((coderabbit|codex)\)$'` から `SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(coderabbit\)$'` へ変更する（設計書 §3.3、AC-07〜AC-09）。
-  - [ ] `:79` のヘッダコメントを `# Mode unreviewed: the commits of a PR neither local CLI reviewed, for the PR` から `# Mode unreviewed: the commits of a PR the local CLI review did not review, for the PR` へ変更する（設計書 §3.3）。
-  - [ ] `NOT_RUN_RE`（`:271`）、`checked_range`、クリーン環境再実行、git plumbing 読み取り、`fail` 契約に変更がないことを確認する。
+  - [x] `:269` の `SEEN_RE` を `SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \((coderabbit|codex)\)$'` から `SEEN_RE='^Local CLI reviewed: ([0-9a-f]{12})\.\.([0-9a-f]{12}) \(coderabbit\)$'` へ変更する（設計書 §3.3、AC-07〜AC-09）。
+  - [x] `:79` のヘッダコメントを `# Mode unreviewed: the commits of a PR neither local CLI reviewed, for the PR` から `# Mode unreviewed: the commits of a PR the local CLI review did not review, for the PR` へ変更する（設計書 §3.3）。
+  - [x] `NOT_RUN_RE`（`:271`）、`checked_range`、クリーン環境再実行、git plumbing 読み取り、`fail` 契約に変更がないことを確認する。
 - **完了条件:**
   - `/bin/bash -n .claude/commands/_lib/review-records.sh` および `bash -n .claude/commands/_lib/review-records.sh` が成功し、`SEEN_RE` のみが `(coderabbit)` に厳格化されていること（`make test` は密結合するステップ 3-1 と合わせて通す）。
 
@@ -148,16 +148,16 @@
 - **変更対象ファイル:**
   - `cmd/yt2column/review_records_test.go`
 - **作業内容:**
-  - [ ] 既存の 4 か所を設計書 §1.3 決定 1・§3.4・§7.1 に従って書き換える（テストの削除は行わない。Go コード・コメント・文字列リテラルはすべて英語で書く。AC-10）。
+  - [x] 既存の 4 か所を設計書 §1.3 決定 1・§3.4・§7.1 に従って書き換える（テストの削除は行わない。Go コード・コメント・文字列リテラルはすべて英語で書く。AC-10）。
     - `coverageCases()` の `"seen by codex"`（`:355-359`）のケース名を実態に合わせ（例: `"codex reviewer"`）、期待値を `f.partial(f.rev("HEAD~1"))`・終了コード `0` へ変更する（`TestReviewRecordsCoverage`・`TestReviewRecordsUnreviewed` の双方で実行）。
     - `unreviewedCases()` の `"fix seen by the standalone path's review"`（`:904`）の `f.seen(r, fix, "codex")` を `f.seen(r, fix, "coderabbit")` へ更新する。
     - `coverageCases()` の `not run` 系 2 ケース（`:425,431`）の旧入力 `"(coderabbit: other; codex: timeout)"` を現行の CodeRabbit 単体形式 `"(coderabbit: other)"` へ統一する。
     - `"HEAD behind LAST_REVIEWED"` のコメント（`:381-382`）を `// HEAD went back behind LAST_REVIEWED: LAST_REVIEWED..HEAD is empty,` / `// yet what Codex reviewed is not what is merged.` から `// HEAD went back behind LAST_REVIEWED: LAST_REVIEWED..HEAD is empty,` / `// yet what the PR review saw is not what is merged.` へ変更する。
-  - [ ] `rrFixture.seen`（`:184-186`）のシグネチャを維持したまま、設計書 §7.1 の新規ケースを追加する（AC-07〜AC-09）。
+  - [x] `rrFixture.seen`（`:184-186`）のシグネチャを維持したまま、設計書 §7.1 の新規ケースを追加する（AC-07〜AC-09）。
     - `coverageCases()`（`TestReviewRecordsUnreviewed` でも自動実行）に、大文字小文字違い・括弧内の空白混入や行末の余分な空白の拒否ケース、同一コミット・同一ブランチ上の `(codex)` と有効な `(coderabbit)` の混在（`ALL`）、および部分重複の混在ケース（有効な `(coderabbit)` の範囲に一部コミットが入り、別のコミットが `(codex)` の範囲にしか入らないときに、後者のコミットが `PARTIAL 1` で列挙されること）を追加する。
     - `crossCheckCases()`（`TestReviewRecordsCrossCheck`）に、ルール 2 の `(codex)` 単独拒否（`MISSING`）、ルール 2 の `(codex)` と有効な `(coderabbit)` の混在（`VALID`）、ルール 2 の `(codex)` と `Local CLI review: not run` の混在（`VALID`）の**双方**、ルール 4 の `(codex)` 単独拒否（`MISSING`）、およびルール 4 の `(codex)` と有効な `(coderabbit)` の混在（`VALID`）を追加する。
     - `TestReviewRecordsFableAlias`（`:2047`）に、`fable` 互換別名でルール 2 またはルール 4 の `(codex)` 単独が `MISSING` として拒否される代表ケースを追加する（設計書 §3.4）。
-  - [ ] 壊し確認の義務: `review-records.sh` の `SEEN_RE` を一時的に `(coderabbit|codex)` へ戻した状態で `go test -tags test ./cmd/yt2column -run 'TestReviewRecords(Coverage|Unreviewed|CrossCheck|FableAlias)'` を実行し、書き換え・追加した `(codex)` 拒否ケース（`PARTIAL`・`MISSING` 期待）がいずれも失敗することを確認してコミットメッセージに記録する（確認後に元に戻す）。
+  - [x] 壊し確認の義務: `review-records.sh` の `SEEN_RE` を一時的に `(coderabbit|codex)` へ戻した状態で `go test -tags test ./cmd/yt2column -run 'TestReviewRecords(Coverage|Unreviewed|CrossCheck|FableAlias)'` を実行し、書き換え・追加した `(codex)` 拒否ケース（`PARTIAL`・`MISSING` 期待）がいずれも失敗することを確認してコミットメッセージに記録する（確認後に元に戻す）。
 - **完了条件:**
   - `go test -tags test -v ./cmd/yt2column -run TestReviewRecords` が全 bash 環境（bash 3.2・bash 4+）で成功すること。
 

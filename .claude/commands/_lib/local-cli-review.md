@@ -304,14 +304,14 @@ of these prefixes.
 - A line that is exactly `CodeRabbit local review: not run`, which an earlier
   session wrote when the CodeRabbit CLI failed and has no range, also means an unreviewed
   range; take its range as the whole branch. It is not a finding line.
-- Every other `CodeRabbit local review:` and `Codex local review:` line is a
+- Every other `CodeRabbit local review:` line is a
   finding line; its handling (rejected, `deferred`, `unclear`) is in the line.
 - A `Cross-check review:`, `Cross-check scope:`, `Cross-check finding:`
   (or a legacy `Fable review:`, `Fable scope:`, or `Fable finding:`),
   `Merge check:`, `Merge check scope:`, or `Merge check finding:` line is not a
   local CLI review line; `_lib/cross-check-review.md`, "Reading the record lines",
   reads it.
-- A `Local CLI reviewed: <START12>..<END12> (<cli>)` line names a seen range.
+- A `Local CLI reviewed: <START12>..<END12> (coderabbit)` line names a seen range.
   It is neither a finding line nor an unreviewed range, and it does not
   cancel a `not run` line. `runpr.md` step 3 reads it through
   `.claude/commands/_lib/review-records.sh`, which decides whether the local
@@ -319,8 +319,3 @@ of these prefixes.
   the branch before a PR opens); that script is
   the executable form of this line's reading, and when they disagree, this
   file is right and the script is fixed.
-
-Read earlier `(codex)` seen ranges and `(coderabbit: <kind>; codex: <kind>)`
-failures with the same range semantics. These forms and the
-`Codex local review:` finding prefix may be retired once no open branch
-contains an old record.

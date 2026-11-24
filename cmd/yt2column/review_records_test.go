@@ -352,11 +352,55 @@ func coverageCases() []rrCase {
 			f.record("record", f.seen(f.mb, c1, "coderabbit"))
 			return rrNone(f, "")
 		}, want: rrAll},
-		{name: "seen by codex", setup: func(f *rrFixture) []string {
+		{name: "codex reviewer", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			f.record("record", f.seen(f.mb, c1, "codex"))
 			return rrNone(f, "")
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1")) }},
+		{name: "reviewer case mismatch", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record",
+				f.seen(f.mb, c1, "CodeRabbit"),
+				f.seen(f.mb, c1, "CODERABBIT"))
+			return rrNone(f, "")
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1")) }},
+		{name: "reviewer with extra whitespace", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			trailing := f.seen(f.mb, c1, "coderabbit") + " "
+			msg := "record\n\n" + strings.Join([]string{
+				f.seen(f.mb, c1, " coderabbit"),
+				f.seen(f.mb, c1, "coderabbit "),
+				trailing,
+			}, "\n") + "\n"
+			// Use --cleanup=verbatim so git does not strip the trailing space
+			// from the commit object before review-records.sh reads it.
+			f.git("commit", "-q", "--allow-empty", "--cleanup=verbatim", "-m", msg)
+			if !strings.Contains(f.git("cat-file", "commit", f.head()), trailing+"\n") {
+				f.t.Fatal("trailing space was stripped from commit object, so the case checks nothing")
+			}
+			return rrNone(f, "")
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1")) }},
+		{name: "codex line alongside valid coderabbit line in same commit", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record",
+				f.seen(f.mb, c1, "codex"),
+				f.seen(f.mb, c1, "coderabbit"))
+			return rrNone(f, "")
 		}, want: rrAll},
+		{name: "codex line alongside valid coderabbit line on same branch", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("codex record", f.seen(f.mb, c1, "codex"))
+			f.record("coderabbit record", f.seen(f.mb, c1, "coderabbit"))
+			return rrNone(f, "")
+		}, want: rrAll},
+		{name: "partial overlap between coderabbit and codex ranges", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			c2 := f.work("c2")
+			f.record("record",
+				f.seen(f.mb, c1, "coderabbit"),
+				f.seen(c1, c2, "codex"))
+			return rrNone(f, "")
+		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1")) }},
 		{name: "commit after the seen range", setup: unseenAfterSeen, want: func(f *rrFixture) []string {
 			return f.partial(f.rev("HEAD"))
 		}},
@@ -379,7 +423,7 @@ func coverageCases() []rrCase {
 			return []string{other, f.head()}
 		}},
 		// HEAD went back behind LAST_REVIEWED: LAST_REVIEWED..HEAD is empty,
-		// yet what Codex reviewed is not what is merged.
+		// yet what the PR review saw is not what is merged.
 		{name: "HEAD behind LAST_REVIEWED", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			f.record("record", f.seen(f.mb, c1, "coderabbit"))
@@ -422,13 +466,13 @@ func coverageCases() []rrCase {
 		{name: "not run lines do not cancel a seen range", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			f.record("record",
-				"Local CLI review: not run "+f.mb[:12]+".."+c1[:12]+" (coderabbit: other; codex: timeout)",
+				"Local CLI review: not run "+f.mb[:12]+".."+c1[:12]+" (coderabbit: other)",
 				f.seen(f.mb, c1, "coderabbit"))
 			return rrNone(f, "")
 		}, want: rrAll},
 		{name: "not run line alone", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
-			f.record("record", "Local CLI review: not run "+f.mb[:12]+".."+c1[:12]+" (coderabbit: other; codex: timeout)")
+			f.record("record", "Local CLI review: not run "+f.mb[:12]+".."+c1[:12]+" (coderabbit: other)")
 			return rrNone(f, "")
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1")) }},
 		// The checks of a seen-range line.
@@ -901,7 +945,7 @@ func unreviewedCases() []rrCase {
 			f.record("record", f.seen(f.mb, c1, "coderabbit"))
 			r := f.head()
 			fix := f.work("fable fix")
-			f.record("record", f.seen(r, fix, "codex"))
+			f.record("record", f.seen(r, fix, "coderabbit"))
 			return head(f)
 		}, want: rrAll},
 		// A commit that changes README.en.md alone and a CHECKS fix are
@@ -1243,6 +1287,24 @@ func crossCheckCases() []rrCase {
 			f.record("record", f.fableRun(f.mb, c1), f.localNotRun(c1, fix))
 			return launch(f)
 		}, want: rrValid},
+		{name: "fix inside a codex seen range of the record's commit", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			fix := f.work("fix")
+			f.record("record", f.fableRun(f.mb, c1), f.seen(f.mb, fix, "codex"))
+			return launch(f)
+		}, want: rrMissing("HEAD~2")},
+		{name: "fix with codex and coderabbit seen ranges on the record's commit", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			fix := f.work("fix")
+			f.record("record", f.fableRun(f.mb, c1), f.seen(f.mb, fix, "codex"), f.seen(f.mb, fix, "coderabbit"))
+			return launch(f)
+		}, want: rrValid},
+		{name: "fix with codex seen range and not-run line on the record's commit", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			fix := f.work("fix")
+			f.record("record", f.fableRun(f.mb, c1), f.seen(f.mb, fix, "codex"), f.localNotRun(c1, fix))
+			return launch(f)
+		}, want: rrValid},
 		{name: "fix outside every range of the record's commit", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			f.work("fix")
@@ -1549,6 +1611,20 @@ func crossCheckCases() []rrCase {
 			f.record("check", f.mergeRun(merge), f.localNotRun(merge, fix))
 			return launch(f)
 		}, want: rrMissing("refs/remotes/origin/main")},
+		{name: "fix of the merge check under a codex seen range", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			fix := f.work("merge fix")
+			f.record("check", f.mergeRun(merge), f.seen(merge, fix, "codex"))
+			return launch(f)
+		}, want: rrMissing("refs/remotes/origin/main")},
+		{name: "fix of the merge check with codex and coderabbit seen ranges", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			fix := f.work("merge fix")
+			f.record("check", f.mergeRun(merge), f.seen(merge, fix, "codex"), f.seen(merge, fix, "coderabbit"))
+			return launch(f)
+		}, want: rrValid},
 		// X is inside the seen range of the merge check's commit but before
 		// the merge, so rule 4 does not cover it, and START is the new
 		// merge-base because a merge commit follows END.
@@ -2057,6 +2133,12 @@ func TestReviewRecordsFableAlias(t *testing.T) {
 			f.work("c1")
 			return rrFable(f, "launch")
 		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		{name: "MISSING when rule 2 fix uses codex seen range", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			fix := f.work("fix")
+			f.record("record", f.fableRun(f.mb, c1), f.seen(f.mb, fix, "codex"))
+			return rrFable(f, "launch")
+		}, want: rrMissing("HEAD~2")},
 		{name: "fail-closed on missing _context.md", context: func(*testing.T) string { return "" }, setup: func(f *rrFixture) []string {
 			f.work("c1")
 			return rrFable(f, "launch")

@@ -321,13 +321,13 @@ Run this after the calling command's last commit, with a clean working tree.
      `レビュー観点`), including every `unclear` or `deferred` finding of the
      local CLI reviews, including earlier records: this run's SUMMARY, and the finding
      lines earlier sessions recorded in commit messages on the branch
-     (`git log origin/main..<D>`; the `CodeRabbit local review:` and
-     `Codex local review:` lines, read as `_lib/local-cli-review.md`,
+     (`git log origin/main..<D>`; the `CodeRabbit local review:` lines, read as
+     `_lib/local-cli-review.md`,
      "Reading the record lines", says; a `not run` line is not a finding),
      and every `unclear` or `deferred` cross-check finding (its
      `Cross-check finding:` line, or a legacy `Fable finding:` line, read as `_lib/cross-check-review.md`, "Reading the record lines", says).
-     Describe a Codex CLI or a cross-check finding only by its location and
-     your own summary, as the record line does, never with Codex's or the
+     Describe a cross-check finding only by its location and
+     your own summary, as the record line does, never with the
      cross-check worker's text;
    - names the commits of this PR that the local CLI did not review, if any,
      by running `origin/main`'s review records script in `unreviewed` mode
