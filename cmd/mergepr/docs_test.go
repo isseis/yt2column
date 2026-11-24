@@ -351,7 +351,7 @@ func TestSettingsAllowsOnlySafeMergemainSubcommands(t *testing.T) {
 	if err := json.Unmarshal([]byte(readRepoFile(t, settingsPath)), &settings); err != nil {
 		t.Fatalf("parse %s: %v", settingsPath, err)
 	}
-	extra, missing := mergeprRuleMismatches(settings.Permissions.Allow)
+	extra, missing := doctestutil.BashToolRuleMismatches(settings.Permissions.Allow, toolWord, mergemainAllowedRules)
 	for _, rule := range extra {
 		t.Errorf("%s permissions.allow has %q; only %q may name %s", settingsPath, rule, mergemainAllowedRules, toolWord)
 	}
@@ -432,12 +432,6 @@ func joinContinuations(lines []string) []string {
 func gitSubcommandAfterOptions(args []string) string {
 	for i := 0; i < len(args); i++ {
 		arg := strings.Trim(args[i], `"'`)
-		if arg == "--" {
-			if i+1 < len(args) {
-				return stripWordDecorations(args[i+1])
-			}
-			return ""
-		}
 		if hasKey(gitValuedGlobalOpts, arg) {
 			i++
 			continue
@@ -557,6 +551,11 @@ func TestDirectGitMutations(t *testing.T) {
 			wantSubs: []string{"push"},
 		},
 		{
+			name:     "decorated_subcommand",
+			doc:      "```bash\ngit \\reset --hard\n(git \"push\" origin branch)\n```\n",
+			wantSubs: []string{"reset", "push"},
+		},
+		{
 			name:     "unclosed_fence_fails_closed",
 			doc:      "```bash\ngit commit --no-edit\n",
 			wantSubs: []string{"unclosed fenced code block"},
@@ -568,8 +567,14 @@ func TestDirectGitMutations(t *testing.T) {
 				t.Fatalf("directGitMutations = %q (%d hits), want %d (%q)", got, len(got), len(tc.wantSubs), tc.wantSubs)
 			}
 			for i, want := range tc.wantSubs {
-				if !strings.HasPrefix(got[i], want) {
-					t.Errorf("hit[%d] = %q, want prefix %q", i, got[i], want)
+				if want == "unclosed fenced code block" {
+					if got[i] != want {
+						t.Errorf("hit[%d] = %q, want %q", i, got[i], want)
+					}
+					continue
+				}
+				if !strings.HasPrefix(got[i], want+": ") {
+					t.Errorf("hit[%d] = %q, want prefix %q", i, got[i], want+": ")
 				}
 			}
 		})

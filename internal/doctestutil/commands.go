@@ -153,7 +153,13 @@ func commandArgs(words []string, name string) [][]string {
 				if split, ok := envSplitString(base, words[i+1]); ok {
 					// The split string is env's own arguments, so read it
 					// and the words after it as one env command.
-					rest := slices.Concat([]string{envWrapper}, strings.Fields(strings.Trim(split, `"'`)), words[i+2:])
+					var parts []string
+					if split != "" {
+						parts = append(parts, split)
+					}
+					parts = append(parts, words[i+2:]...)
+					splitText := strings.Trim(strings.Join(parts, " "), `"'`)
+					rest := slices.Concat([]string{envWrapper}, strings.Fields(splitText))
 					return commandArgs(rest, name)
 				}
 				if isSetMember(valued, words[i+1]) {
@@ -293,3 +299,39 @@ func stripQuotes(line string, depth int) string {
 }
 
 func isSetMember(m map[string]struct{}, key string) bool { _, ok := m[key]; return ok }
+
+// bashPermissionRule matches a Claude Code Bash permission rule and captures
+// its command pattern.
+var bashPermissionRule = regexp.MustCompile(`^Bash\((.*)\)$`)
+
+// namesToolInBashRule reports whether rule is a Bash permission rule whose
+// command word is tool, by name, by path, or quoted, or a glob pattern that
+// starts with tool's name and holds a wildcard.
+func namesToolInBashRule(rule, tool string) bool {
+	m := bashPermissionRule.FindStringSubmatch(rule)
+	if m == nil {
+		return false
+	}
+	word, _, _ := strings.Cut(strings.TrimSpace(m[1]), " ")
+	word, _, _ = strings.Cut(word, ":")
+	base := path.Base(strings.Trim(word, `"'`))
+	rest, ok := strings.CutPrefix(base, tool)
+	return ok && (rest == "" || strings.ContainsAny(rest, "*?["))
+}
+
+// BashToolRuleMismatches returns the Bash permission rules in allow that name
+// tool but are not listed in allowed, and the entries of allowed that allow
+// lacks.
+func BashToolRuleMismatches(allow []string, tool string, allowed []string) (extra, missing []string) {
+	for _, rule := range allow {
+		if namesToolInBashRule(rule, tool) && !slices.Contains(allowed, rule) {
+			extra = append(extra, rule)
+		}
+	}
+	for _, rule := range allowed {
+		if !slices.Contains(allow, rule) {
+			missing = append(missing, rule)
+		}
+	}
+	return extra, missing
+}

@@ -124,18 +124,41 @@ func TestRunsCommandForms(t *testing.T) {
 }
 
 // TestCommandArgsReturnsEachInvocation: CommandArgs extracts the trailing
-// arguments for every command-position invocation, including through env -S
-// and shell -c scripts.
+// arguments for every command-position invocation (including multiple commands
+// inside shell -c and env -S without leaking outer quotes) and ignores
+// non-command-position mentions.
 func TestCommandArgsReturnsEachInvocation(t *testing.T) {
-	got := CommandArgs(`bash -c 'widget one' && env -S"widget -x two"`, "widget")
-	want := [][]string{{"one"}, {"-x", `two"`}}
-	if len(got) != len(want) {
-		t.Fatalf("CommandArgs = %q, want %q", got, want)
-	}
-	for i := range want {
-		if !slices.Equal(got[i], want[i]) {
-			t.Errorf("CommandArgs[%d] = %q, want %q", i, got[i], want[i])
-		}
+	for _, tc := range []struct {
+		name string
+		text string
+		want [][]string
+	}{
+		{
+			name: "chained_invocations",
+			text: `widget one && widget two`,
+			want: [][]string{{"one"}, {"two"}},
+		},
+		{
+			name: "shell_c_and_env_split_string",
+			text: `bash -c 'widget one' && env -S"widget -x two"`,
+			want: [][]string{{"one"}, {"-x", "two"}},
+		},
+		{
+			name: "not_in_command_position",
+			text: `echo widget one`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := CommandArgs(tc.text, "widget")
+			if len(got) != len(tc.want) {
+				t.Fatalf("CommandArgs(%q) = %q, want %q", tc.text, got, tc.want)
+			}
+			for i := range tc.want {
+				if !slices.Equal(got[i], tc.want[i]) {
+					t.Errorf("CommandArgs(%q)[%d] = %q, want %q", tc.text, i, got[i], tc.want[i])
+				}
+			}
+		})
 	}
 }
 
@@ -144,17 +167,75 @@ func TestCommandArgsReturnsEachInvocation(t *testing.T) {
 // and marks unclosed fences with Closed=false.
 func TestFencedCommandBlocksPreservesUnquotedRedirection(t *testing.T) {
 	doc := "```bash\n> /tmp/log cmd\n```\n\n> ```sh\n> > /tmp/log cmd2\n> ```\n\n```bash\nunclosed\n"
-	blocks := FencedCommandBlocks(doc)
-	if len(blocks) != 3 {
-		t.Fatalf("FencedCommandBlocks returned %d blocks, want 3: %+v", len(blocks), blocks)
+	want := []FencedBlock{
+		{Info: "bash", Lines: []string{"> /tmp/log cmd"}, Closed: true},
+		{Info: "sh", Lines: []string{"> /tmp/log cmd2"}, Closed: true},
+		{Info: "bash", Lines: []string{"unclosed"}, Closed: false},
 	}
-	if blocks[0].Info != "bash" || !blocks[0].Closed || !slices.Equal(blocks[0].Lines, []string{"> /tmp/log cmd"}) {
-		t.Errorf("block[0] = %+v", blocks[0])
+	got := FencedCommandBlocks(doc)
+	if len(got) != len(want) {
+		t.Fatalf("FencedCommandBlocks returned %d blocks, want %d: %+v", len(got), len(want), got)
 	}
-	if blocks[1].Info != "sh" || !blocks[1].Closed || !slices.Equal(blocks[1].Lines, []string{"> /tmp/log cmd2"}) {
-		t.Errorf("block[1] = %+v", blocks[1])
+	for i := range want {
+		if got[i].Info != want[i].Info || got[i].Closed != want[i].Closed || !slices.Equal(got[i].Lines, want[i].Lines) {
+			t.Errorf("block[%d] = %+v, want %+v", i, got[i], want[i])
+		}
 	}
-	if blocks[2].Info != "bash" || blocks[2].Closed || !slices.Equal(blocks[2].Lines, []string{"unclosed"}) {
-		t.Errorf("block[2] = %+v", blocks[2])
+}
+
+// TestBashToolRuleMismatches: BashToolRuleMismatches flags every extra Bash
+// rule naming the tool (by bare name, path, quotes, legacy colon, or wildcard
+// prefix), reports missing allowed rules, and ignores unrelated tools, prefix
+// collisions, and non-Bash rules.
+func TestBashToolRuleMismatches(t *testing.T) {
+	allowed := []string{"Bash(widget alpha *)", "Bash(widget beta *)"}
+	for _, tc := range []struct {
+		name           string
+		allow          []string
+		extra, missing []string
+	}{
+		{
+			name: "exact_with_unrelated_rules",
+			allow: []string{
+				"Bash(other *)",
+				"Bash(widgetx alpha *)",
+				"Read(widget)",
+				"Bash(widget alpha *)",
+				"Bash(widget beta *)",
+			},
+		},
+		{
+			name: "extra_spellings_and_subcommands",
+			allow: []string{
+				"Bash(widget alpha *)",
+				"Bash(widget beta *)",
+				"Bash(widget gamma *)",
+				"Bash(widget *)",
+				"Bash(widget:*)",
+				"Bash(/usr/local/bin/widget alpha *)",
+				`Bash("widget" alpha *)`,
+				"Bash(widget*)",
+			},
+			extra: []string{
+				"Bash(widget gamma *)",
+				"Bash(widget *)",
+				"Bash(widget:*)",
+				"Bash(/usr/local/bin/widget alpha *)",
+				`Bash("widget" alpha *)`,
+				"Bash(widget*)",
+			},
+		},
+		{
+			name:    "missing_allowed_rule",
+			allow:   []string{"Bash(widget alpha *)"},
+			missing: []string{"Bash(widget beta *)"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			extra, missing := BashToolRuleMismatches(tc.allow, "widget", allowed)
+			if !slices.Equal(extra, tc.extra) || !slices.Equal(missing, tc.missing) {
+				t.Errorf("BashToolRuleMismatches = extra %q, missing %q; want %q, %q", extra, missing, tc.extra, tc.missing)
+			}
+		})
 	}
 }
