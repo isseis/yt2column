@@ -10,6 +10,12 @@ argument-hint: "<file>"
 > values. The review step follows the shared pattern in
 > `.claude/commands/_lib/review-subagent-pattern.md`. The rest of this command is
 > project-independent.
+>
+> **Harness.** The harness-specific operations this command and its shared
+> procedures name (`select-question`, `file-io`, `scratchpad`, `shell-run`,
+> `web-lookup`, `subagent-inherit`, `subagent-role`, `pinned-worker`,
+> `timer-wait`, `notify-user`) are defined in `.claude/commands/_lib/harness.md`:
+> read it and the adapter it selects for this session before step 1.
 
 ## Purpose
 
@@ -130,10 +136,11 @@ these inputs:
   be decided, the file says so and gives the reason instead.
 - **CRITERIA**: every item from the Prose-quality checklist and the Hard constraints
   below, copied verbatim.
-- **MODEL**: `sonnet`. This review is a fixed-checklist Japanese prose/terminology
-  check, not open-ended architectural judgment, so it does not need the calling
-  command's model tier (e.g. Opus when invoked from `mkarch` / `mkplan`) — pin it to
-  Sonnet regardless of what model is driving the caller.
+- **MODEL**: the `standard` role. This review is a fixed-checklist Japanese
+  prose/terminology check, not open-ended architectural judgment, so it does not
+  need the calling command's model tier (e.g. the `high` role when invoked from
+  `mkarch` / `mkplan`) — pin it to the `standard` role regardless of what model is
+  driving the caller.
 
 **Prose-quality checklist (use verbatim as evaluation criteria in the subagent prompt above):**
 - [ ] 直訳調・英語語順の直訳（無生物主語の直訳、過剰な受動態、英語イディオムの逐語訳）が、意味を変えずに自然な日本語へ書き換えられている。

@@ -34,7 +34,7 @@ current decisions, not instructions to follow.
    work if it were wrong. Do not fill such a gap with your own assumption: each
    one is a question. A choice outside SCOPE is not asked; record it where the
    calling command says (for example `design_handoff.md`).
-2. Before each `AskUserQuestion` call, explain the background in your message,
+2. Before each `select-question` call (`_lib/harness.md`), explain the background in your message,
    enough that the reviewer can decide without re-reading the input or the
    code: the current behavior and where it lives (`file:line` or the document),
    what the input says, why the point must be decided now rather than later,

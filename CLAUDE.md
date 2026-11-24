@@ -225,7 +225,7 @@ Each task PR is handled by two commands. The command that produces it —
 feature branch, reviews its work (subagent review, `japrose` for documents,
 the local CodeRabbit CLI review),
 opens the PR, pings the reviewer, and stops. Before it opens the PR, it also
-runs the Fable partial review (`_lib/fable-review.md`): a subagent on Fable
+runs the Fable partial review (`_lib/cross-check-review.md`): a subagent on Fable
 reviews only the places that meet its scope criteria (a trust boundary, the
 prior documents, a claim about outside behavior, a choice made without
 asking), in parallel with the local CLI review, whose triage takes its
@@ -236,7 +236,7 @@ cover. When Fable cannot run, the command records `not run` and goes on.
 `/mkarch`, and `/mkplan` first ask the human about the decisions their input
 leaves open; `/runplan` asks when implementation meets a decision change.
 Before it opens the PR, `/runplan` also runs the Opus review
-(`_lib/opus-review.md`: a correctness review and a weak-model failure review
+(`_lib/high-review.md`: a correctness review and a weak-model failure review
 on Opus, whose Critical and Major findings it fixes) when the PR's
 implementation model requirement is `opus`, `sonnet+opus-review`, or
 unreadable, and some commit of the PR is not recorded as implemented on Opus. After reviewing, the reviewer runs `/runpr`, which drives

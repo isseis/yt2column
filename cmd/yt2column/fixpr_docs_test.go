@@ -40,7 +40,7 @@ const (
 	fixprPhase4      = "## Phase 4 — Build + commit + push (this session)"
 	fixprPhase45     = "## Phase 4.5 — Local CLI review of the fix (model: default)"
 	fixprPhase5      = "## Phase 5 — Reply + resolve (this session)"
-	fixprPhase6      = "## Phase 6 — Wrap: PR description (model: haiku)"
+	fixprPhase6      = "## Phase 6 — Wrap: PR description (role: low)"
 	runprStep1       = "## 1. Resolve the PR, and create it for a standalone change"
 	runprStep3       = "## 3. Wait for CI and the review threads, running fixpr as comments appear"
 	runprStep4       = "## 4. Confirm, record, and merge"

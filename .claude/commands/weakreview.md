@@ -1,5 +1,5 @@
 ---
-description: "Opus review of a commit range: a correctness review and a weak-model failure review in one pass, fixing by default"
+description: "High-model review of a commit range: a correctness review and a weak-model failure review in one pass, fixing by default"
 argument-hint: "[range | PR] [--no-fix | --fix]"
 ---
 
@@ -9,7 +9,14 @@ argument-hint: "[range | PR] [--no-fix | --fix]"
 > the green gate, source layout, and test-helper placement. Where this command
 > names such a path or command, treat the entry in `_context.md` as canonical.
 > The review itself is the shared procedure in
-> `.claude/commands/_lib/opus-review.md`.
+> `.claude/commands/_lib/high-review.md`, and the harness-specific operations it
+> names are defined in `.claude/commands/_lib/harness.md`.
+>
+> **Harness.** The harness-specific operations this command and its shared
+> procedures name (`select-question`, `file-io`, `scratchpad`, `shell-run`,
+> `web-lookup`, `subagent-inherit`, `subagent-role`, `pinned-worker`,
+> `timer-wait`, `notify-user`) are defined in `.claude/commands/_lib/harness.md`:
+> read it and the adapter it selects for this session before step 1.
 
 ## Purpose
 
@@ -21,8 +28,9 @@ instruction actually depends on: noticing an implicit invariant, keeping
 several documents in sync, resisting a shortcut, or applying an exception
 correctly.
 
-This command runs the Opus review of `_lib/opus-review.md` over a commit
-range, in one pass and on Opus whatever model runs the session: a correctness
+This command runs the high-model review of `_lib/high-review.md` over a
+commit range, in one pass and on the harness's `high` role model whatever
+model runs the session: a correctness
 review (bugs, and divergence from the requirements, the architecture, and the
 plan) and a weak-model failure review (the failure patterns above), merged
 into one report. It needs no other review to run alongside it, and it does not
@@ -61,7 +69,7 @@ to GitHub and never pushes.
 
 1. **Parse the arguments** as "Arguments" says.
 
-2. **Resolve RANGE** to the form `_lib/opus-review.md` takes, `<base>..<head>`
+2. **Resolve RANGE** to the form `_lib/high-review.md` takes, `<base>..<head>`
    with both ends as full commit IDs. A three-dot range given to `git log`
    would be the symmetric difference, which includes commits of both sides,
    so it is never passed on.
@@ -96,7 +104,8 @@ to GitHub and never pushes.
      branch;
    - the task of a file open in the IDE (its rule 2), when RANGE changes no
      task directory or the file's task is one of those it changes;
-   - otherwise ask with AskUserQuestion, offering the task directories RANGE
+   - otherwise ask with the `select-question` operation of
+     `_lib/harness.md`, offering the task directories RANGE
      changes as the options when they fit in its options, and otherwise
      asking for the task's number. Do not stop as its rule 3 says: this command takes no task
      argument.
@@ -119,7 +128,7 @@ to GitHub and never pushes.
      range.
    - The working tree is clean (`git status --short` prints nothing).
 
-5. **Run the review**: follow `_lib/opus-review.md`, entry 2, with RANGE,
+5. **Run the review**: follow `_lib/high-review.md`, entry 2, with RANGE,
    TASK_DIR, FIX, and **DECISION_CHANGE** = do not fix the finding; report it
    in KEPT with the decision it needs, and leave it to the human. Do not push.
    This command writes no record that the review finished: its range is
@@ -144,10 +153,11 @@ to GitHub and never pushes.
    all the same, introduced as applying if a PR is open for the branch.
 
 7. **Report** in Japanese: RANGE and TASK_DIR, the outputs of
-   `_lib/opus-review.md` (OUTCOME, FINDINGS grouped by severity, KEPT,
+   `_lib/high-review.md` (OUTCOME, FINDINGS grouped by severity, KEPT,
    COMMITS, CATEGORIES, READ), and the note of step 6. On
-   `stopped-unavailable`, report that the review could not run on Opus and
-   that the user can run this command again once Opus is available. On
+   `stopped-unavailable`, report that the review could not run on the `high` role
+   model and that the user can run this command again once that model is
+   available. On
    `stopped-limit`, report the remaining findings for the user to decide on.
    On `stopped-error`, report its reason and what the run left (commits, and
    an uncommitted fix in the working tree, if any).

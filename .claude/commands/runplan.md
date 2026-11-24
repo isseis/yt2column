@@ -18,12 +18,21 @@ argument-hint: "<task>"
 > the field of the `PR 構成` section of the plan's §3. `_context.md`, "PR
 > marker conventions", says where the value is, how it is read (an old value
 > through its table), and which row of `_context.md`, "Command routing", each
-> reading names: start the session with that row's agent and model. The value also decides whether the Opus review
-> (`_lib/opus-review.md`) runs before the PR opens (step 5a, step 8): for
-> `opus`, `sonnet+opus-review`, or an unreadable value it runs when some
-> commit of the PR is not covered by a record of an Opus implementation
-> (entry 1 of `_lib/opus-review.md` decides); for `sonnet` or no value it
-> never runs. Step 4.2 shows the value and the forecast; this command does
+> reading names: start the session with that row's agent and model (an
+> Antigravity session, which has no row there, takes the model of the
+> reading's `Antigravity` row of "Harness model mapping", as part 5 of "PR
+> marker conventions" says). The value also decides whether the high-model
+> review (`_lib/high-review.md`) runs before the PR opens (step 5a, step 8):
+> for `high`, `standard+high-review`, or an unreadable value (or an old value
+> read as one of them) it runs when some commit of the PR is not covered by a
+> record of a self-verifying `high`-role implementation (entry 1 of
+> `_lib/high-review.md` decides); for `low` or no value it never runs.
+>
+> **Harness.** The harness-specific operations this command and its shared
+> procedures name (`select-question`, `file-io`, `scratchpad`, `shell-run`,
+> `subagent-inherit`, `subagent-role`, `pinned-worker`, `timer-wait`,
+> `notify-user`) are defined in `.claude/commands/_lib/harness.md`: read it
+> and the adapter it selects for this session before step 1. Step 4.2 shows the value and the forecast; this command does
 > not stop when the session's model and the value disagree.
 
 Your goal is to implement one task under `docs/tasks/` by following its `03_implementation_plan.md`.
@@ -53,15 +62,15 @@ Work in order.
   - If its `PR を作成した` box is already checked, the PR exists (its URL is on that line). Check its state with `gh pr view <url> --json state`. If it is open, stop and tell the user to review it and run `/runpr`. If it is merged, `/runpr` has not done its bookkeeping on this branch: stop and report rather than open a second PR. If it is `CLOSED` (not merged), stop and report the cause to the user; do not create a PR, because a second PR from the same branch would leave the closed PR's URL in the plan.
   - Otherwise go to step 5a instead of step 5.
 - Otherwise, select the next implementation group: use one phase by default unless it cannot pass `make test` alone (e.g. stub-only or tightly coupled); then extend the group until it can pass. Stop the group at the next `### PR-N 作成ポイント` boundary — do not include the PR checkpoint checkboxes in the implementation group. Briefly note the reason for any grouping before starting work.
-- **The last phase group before the PR.** When the first unchecked item after the selected group is a checkbox of a `### PR-N 作成ポイント` section (in a plan without PR markers, when the selected group holds every remaining phase), the group is the last phase group before its PR: step 7.7 runs the Fable partial review with it. Say in the step 8 summary that you judged it so. A wrong judgment falls on the safe side: the checkpoint entry (step 5a, step 8) finds the commits a record does not cover, and the standalone path of `_lib/fable-review.md` reviews them.
+- **The last phase group before the PR.** When the first unchecked item after the selected group is a checkbox of a `### PR-N 作成ポイント` section (in a plan without PR markers, when the selected group holds every remaining phase), the group is the last phase group before its PR: step 7.7 runs the cross-check partial review with it. Say in the step 8 summary that you judged it so. A wrong judgment falls on the safe side: the checkpoint entry (step 5a, step 8) finds the commits a record does not cover, and the standalone path of `_lib/cross-check-review.md` reviews them.
 
 4.2. Show the implementation model guidance when step 4 selected a phase group or a PR checkpoint. The PR is the one whose `### PR-N 作成ポイント` marker covers the selected unit (TARGET = `N`), or, in a plan without PR markers, the plan itself (TARGET = `single`). Show, without stopping whatever they say:
    - the PR's value, read as `_context.md`, "PR marker conventions", says: for an old value, the old value and the value it is read as; for an unreadable value, its text and that it is unreadable; or that there is no value;
-   - the agent and model to start the session with: the row of `_context.md`, "Command routing", that the same section's table names for the reading, or that it names none;
-   - this session's model ID, the one Claude Code gives in its system prompt, or that it is unknown;
-   - the forecast of the Opus review: run entry 1 of `.claude/commands/_lib/opus-review.md` now (PLAN = the plan, TARGET, BASE = `$(git merge-base origin/main HEAD)`; step 3 fetched `origin/main`) and show its output. Before this phase group is implemented, its commits are not recorded yet, so the decision before the PR can differ: when the output is `NONE all-high` or `SKIP`, say that the review runs anyway unless every phase group of the PR, this one included, is recorded as implemented on Opus; when it is `RUN`, say that it may not run if this session is Opus and every other phase group of the PR is recorded as Opus. Step 5a or step 8 decides again before the PR opens.
+   - the agent and model to start the session with: the row of `_context.md`, "Command routing", that the same section's table names for the reading, or that it names none; in an Antigravity session, also the model of the reading's `Antigravity` row of `_context.md`, "Harness model mapping" (part 5), and that an Antigravity session writes no implementation record, so for `high`, `standard+high-review`, or an unreadable value the high-model review runs unless a valid done record covers the branch;
+   - this session's model ID, the one the harness gives in its system prompt, or that it is unknown (always unknown on a harness that cannot verify its own model ID: `_lib/harness.md`, "Self-Verification of Implementation Model");
+   - the forecast of the high-model review: run entry 1 of `.claude/commands/_lib/high-review.md` now (PLAN = the plan, TARGET, BASE = `$(git merge-base origin/main HEAD)`; step 3 fetched `origin/main`) and show its output. Before this phase group is implemented, its commits are not recorded yet, so the decision before the PR can differ: when the output is `NONE all-high` or `SKIP`, say that the review runs anyway unless every phase group of the PR, this one included, is recorded as implemented on a self-verifying `high` role model; when it is `RUN`, say that it may not run if this session runs on such a model and every other phase group of the PR is recorded as one. Step 5a or step 8 decides again before the PR opens.
 
-4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7, 7.5, and 7.7 are done, and pass `${PHASE_START}..HEAD` as their commit range (step 7.7 passes `${PHASE_START}` as BASE, which the local CLI review takes as the start of the range), so the range covers exactly this phase group's commits and not the previous group's. Also note this session's model ID (the one Claude Code gives in its system prompt) now, and again at each commit of the phase group (steps 5, 6, 7, 7.5, and 7.7), keeping every ID seen, for the implementation record of step 7.8. When the session does not know its model ID at one of these points, it writes no implementation record.
+4.5. Record the starting commit of the phase group: `PHASE_START=$(git rev-parse HEAD)`. Keep it until the reviews in steps 7, 7.5, and 7.7 are done, and pass `${PHASE_START}..HEAD` as their commit range (step 7.7 passes `${PHASE_START}` as BASE, which the local CLI review takes as the start of the range), so the range covers exactly this phase group's commits and not the previous group's. Also note this session's model ID (the one the harness gives in its system prompt) now, and again at each commit of the phase group (steps 5, 6, 7, 7.5, and 7.7), keeping every ID seen, for the implementation record of step 7.8. When the session does not know its model ID at one of these points, or runs on a harness that cannot verify its own model ID (`_lib/harness.md`, "Self-Verification of Implementation Model": Antigravity and OpenCode), it writes no implementation record.
 
 5. Implement the selected phase group.
 - Follow the design in `02_architecture.md`.
@@ -95,12 +104,12 @@ Work in order.
 
 5a. **PR checkpoint** (reached when step 4 directed you here instead of step 5).
 - Confirm the current branch is the PR group in progress (`_lib/task-pr-handoff.md`, Part A step 3, second bullet: a convention branch for this task with `/runplan` commits beyond `origin/main` and no PR). Otherwise stop and report; do not push or open a PR from another branch.
-- **Fable checkpoint entry.** Before the green gate, run the checkpoint entry (`Entry 3`) of `.claude/commands/_lib/fable-review.md` with **FABLE** = KIND `implementation`, TASK_DIR = the target task directory, and SELF_REJECTED = the findings steps 7 and 7.5 rejected in this session (empty when this session runs only the checkpoint): it decides whether the PR has a valid Fable record, runs the remedy when it has none (the standalone path on `MISSING`, or the merge check once per listed merge commit on `MERGE`, so any merge-check fixes enter "Before the PR"'s Opus review range), checks validity again, and leaves the checkpoint mark on `VALID`. When it stops, stop: do not open the PR and push nothing. Do not go on without a valid record. The single-parent commits this checkpoint makes after the mark do not invalidate the record (a merge commit after the mark still waits for the merge check). On OpenCode, a record the last phase group left as `not run agent-cannot-call` is valid, so the standalone path does not run when Claude Code takes the checkpoint over.
+- **Cross-check checkpoint entry.** Before the green gate, run the checkpoint entry (`Entry 3`) of `.claude/commands/_lib/cross-check-review.md` with **CROSS_CHECK** = KIND `implementation`, TASK_DIR = the target task directory, and SELF_REJECTED = the findings steps 7 and 7.5 rejected in this session (empty when this session runs only the checkpoint): it decides whether the PR has a valid cross-check record, runs the remedy when it has none (the standalone path on `MISSING`, or the merge check once per listed merge commit on `MERGE`, so any merge-check fixes enter "Before the PR"'s high-model review range), checks validity again, and leaves the checkpoint mark on `VALID`. When it stops, stop: do not open the PR and push nothing. Do not go on without a valid record. The single-parent commits this checkpoint makes after the mark do not invalidate the record (a merge commit after the mark still waits for the merge check). On OpenCode, a record the last phase group left as `not run agent-cannot-call` is valid, so the standalone path does not run when Claude Code takes the checkpoint over.
 - Verify the green gate (defined in `_context.md`) passes. Fix any failures before continuing.
 - If no later `### PR-N 作成ポイント` marker remains (the task's final PR), first do the end-of-task check of step 8 ("If all phases are complete"): every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test`, `static`, or `diff` verification, or a `manual` reading where the AC specifies only the natural-language content of a document, as labeled in the plan; each `diff` script was run on this branch and its output and both commit IDs are recorded in the plan, and each recorded diff reading has its diff record. Fix any gap before opening the PR, and report what you checked.
 - At every checkpoint, recheck each diff record of the ACs this PR verifies, as §4 of `docs/dev/conventions/requirements_process.md`, "Rechecking a record", says: a later phase group can make a record of an earlier one stale. Re-record each stale one (output and both commit IDs) and commit the plan; stop and report when the recheck stops.
 - Verify again that the green gate passes when the steps above made commits, then run "Before the PR" (below step 8) with TARGET = `N` of this checkpoint's `### PR-N 作成ポイント` marker.
-- Mark the first PR checkpoint checkbox (the green gate confirmation line) as `[x]` and commit. When "Before the PR" ran the Opus review, put its done record in this commit's message; when the box is already `[x]` (an earlier session marked it and stopped), put the done record in an empty commit (`git commit --allow-empty -F <file>`) instead. Write no done record when the review did not run.
+- Mark the first PR checkpoint checkbox (the green gate confirmation line) as `[x]` and commit. When "Before the PR" ran the high-model review, put its done record in this commit's message; when the box is already `[x]` (an earlier session marked it and stopped), put the done record in an empty commit (`git commit --allow-empty -F <file>`) instead. Write no done record when the review did not run.
 - Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
   Part B, with **TASK_DIR** and **REPORT** as in step 1.5, and:
   - **CHECKS** = the green gate, which "Before the PR" left passing (the
@@ -108,31 +117,31 @@ Work in order.
     they need no rerun). When the README sync of Part B step 1 commits
     `README.en.md`, run the green gate again on that commit. When Part B
     step 2 makes a commit to make the green gate pass (any commit that is not
-    excludable, `_lib/opus-review.md`, "Record lines"), redo the decision
+    excludable, `_lib/high-review.md`, "Record lines"), redo the decision
     before the push: run entry 1 again for the new `HEAD` ("Before the PR",
-    B2). On `RUN`, run the Opus review again (B3, and B4 when it
+    B2). On `RUN`, run the high-model review again (B3, and B4 when it
     made fix commits, with the green gate, the final PR's AC check, and the
     diff-record recheck run again), write the new done record in an empty
-    commit, and bring the Opus review result of PR_TEXT up to date with it,
+    commit, and bring the high-model review result of PR_TEXT up to date with it,
     the new kept findings included. A commit made after `NONE all-high` is
     not covered by an implementation record, so the decision becomes `RUN`
-    unless the value is `sonnet` or absent. Part B step 2.5 fixes and subsequent
-    CHECKS fixes do not reopen the Opus decision in this run;
+    unless the value is `low` or absent. Part B step 2.5 fixes and subsequent
+    CHECKS fixes do not reopen the high-model review decision in this run;
   - **LOCAL_REVIEW** = `done`: step 7.7 reviewed each phase group of this PR,
     and "Before the PR", B1, reviewed the whole branch when a phase group
     was left unreviewed; Part B step 3 determines the unreviewed commits
     from the branch's review records with the `unreviewed` mode of
     `_lib/review-records.sh`;
-  - **FABLE** = KIND `implementation`, TASK_DIR = the target task directory,
+  - **CROSS_CHECK** = KIND `implementation`, TASK_DIR = the target task directory,
     and SELF_REJECTED = the findings steps 7 and 7.5 rejected in this
     session (empty when this session runs only the checkpoint);
   - **CHECKPOINT** = `done` (step 5a already ran Entry 3);
   - **AFTER_REMEDY** = when Part B step 2.6's first stage ran a remedy, run
     `git fetch origin main` and "Before the PR", B2 (entry 1 of
-    `_lib/opus-review.md`) for the new `HEAD`; on `RUN`, run B3 (and B4 when
+    `_lib/high-review.md`) for the new `HEAD`; on `RUN`, run B3 (and B4 when
     it made fix commits, with the green gate, the final PR's AC check, and
     the diff-record recheck), write the new done record in an empty commit,
-    and update the Opus review result of PR_TEXT (the new kept findings
+    and update the high-model review result of PR_TEXT (the new kept findings
     included). When B3 stops (`stopped-unavailable`, `stopped-limit`, or
     `stopped-error`), stop without pushing or opening the PR;
   - **PR_TEXT** = a plan PR title (`_context.md`, "PR title and squash
@@ -153,7 +162,7 @@ Work in order.
       summary itself. Do not rewrite the plan: an older plan's value stays as
       written.
 
-    PR_TEXT also carries the Opus review result for the body, written from
+    PR_TEXT also carries the high-model review result for the body, written from
     entry 1's output and the record lines, never from a subagent's text
     ("Before the PR", B5).
   - **AFTER_CREATE** = mark the second checkbox (`PR を作成した`) as `[x]` and
@@ -267,14 +276,14 @@ Test-review checklist (use verbatim as evaluation criteria in the step 7.5 promp
 - [ ] Each test asserts observable behavior rather than restating an
       implementation detail.
 
-7.7. Local CLI review and triage. Run it after step 7.5, so the local CLI review (CodeRabbit CLI) sees the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/local-cli-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary, **RECORD** = `return`. When it stops, stop this command and report as it says. Put the record lines it returns in SUMMARY, including every `Local CLI reviewed:` and `Local CLI review: not run` line, into the message of the first commit made on the branch after step 7.7 returns, which is the commit of step 7.8. For the last phase group before the PR (step 4), also pass **FABLE** = KIND `implementation`, TASK_DIR = the target task directory, and SELF_REJECTED = the findings steps 7 and 7.5 rejected in this session, each as its location and your own summary: the Fable partial review then runs in parallel with the first attempt over every commit of the PR (from the merge-base, or from the commits a valid record does not cover), and its findings join the triage. Pass no FABLE for any other phase group. The returned record lines then include the Fable lines (`_lib/fable-review.md`, "Record lines"). On OpenCode, which cannot call Fable, the launch entry records `not run agent-cannot-call`. Before a commit that carries a Fable line, run the mention check of `_lib/local-cli-review.md` step 7. Step 5a and step 8 read these lines from `git log`.
+7.7. Local CLI review and triage. Run it after step 7.5, so the local CLI review (CodeRabbit CLI) sees the code and tests as they stand after the subagent-review fixes. Follow `.claude/commands/_lib/local-cli-review.md` with **BASE** = `${PHASE_START}`, **SCOPE** = phase group, **SUMMARY** = the step 8 summary, **RECORD** = `return`. When it stops, stop this command and report as it says. Put the record lines it returns in SUMMARY, including every `Local CLI reviewed:` and `Local CLI review: not run` line, into the message of the first commit made on the branch after step 7.7 returns, which is the commit of step 7.8. For the last phase group before the PR (step 4), also pass **CROSS_CHECK** = KIND `implementation`, TASK_DIR = the target task directory, and SELF_REJECTED = the findings steps 7 and 7.5 rejected in this session, each as its location and your own summary: the cross-check partial review then runs in parallel with the first attempt over every commit of the PR (from the merge-base, or from the commits a valid record does not cover), and its findings join the triage. Pass no CROSS_CHECK for any other phase group. The returned record lines then include the cross-check lines (`_lib/cross-check-review.md`, "Record lines"). On a harness that cannot run the cross-check worker (OpenCode), the launch entry records `not run agent-cannot-call`. Before a commit that carries a cross-check line, run the mention check of `_lib/local-cli-review.md` step 7. Step 5a and step 8 read these lines from `git log`.
 
-7.8. Implementation record. Make an empty commit (`git commit --allow-empty -F <file>`) whose message holds the implementation record of this phase group (`_lib/opus-review.md`, "Record lines": `Implementation model: <START12>..<END12> <model-id>[, ...]`, with START = `PHASE_START`, END = `HEAD` just before this commit, and every model ID step 4.5 kept) and the record lines step 7.7 returned, the Fable lines included. Leave the implementation record out when the session did not know its model ID at one of the points of step 4.5; the phase group then stays uncovered and the Opus review runs for it. Every attempt of step 7.7 leaves a `Local CLI reviewed:` or a `Local CLI review: not run` line, so this commit is always made after step 7.7 returns. Run the check of `_lib/local-cli-review.md` step 7, "Mention check", when the message carries a Fable line, and, when step 7.7 launched Fable, the post-exit comparison of `_lib/fable-review.md`, "The state check", right before the commit. Entry 1 of `_lib/opus-review.md` reads the implementation records from `git log` to decide whether the Opus review runs.
+7.8. Implementation record. Make an empty commit (`git commit --allow-empty -F <file>`) whose message holds the implementation record of this phase group (`_lib/high-review.md`, "Record lines": `Implementation model: <START12>..<END12> <model-id>[, ...]`, with START = `PHASE_START`, END = `HEAD` just before this commit, and every model ID step 4.5 kept) and the record lines step 7.7 returned, the cross-check lines included. Leave the implementation record out when the session did not know its model ID at one of the points of step 4.5, or runs on a harness that cannot verify its own model ID; the phase group then stays uncovered and the high-model review runs for it. Every attempt of step 7.7 leaves a `Local CLI reviewed:` or a `Local CLI review: not run` line, so this commit is always made after step 7.7 returns. Run the check of `_lib/local-cli-review.md` step 7, "Mention check", when the message carries a cross-check line, and, when step 7.7 launched the cross-check worker, the post-exit comparison of `_lib/cross-check-review.md`, "The state check", right before the commit. Entry 1 of `_lib/high-review.md` reads the implementation records from `git log` to decide whether the high-model review runs.
 
 8. Decide whether to continue or finish.
-- If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, the implementation model guidance of step 4.2, the implementation record of step 7.8 (or why none was written), whether the group was judged the last before its PR (step 4) and the Fable partial review's result (its STATUS, RANGE, the counts by handling, and OUTPUT_FILE, or that a valid record covered the PR), and, when "Before the PR" (step 5a) ran, its decision and the Opus review result of its B5, plus the local CLI review result: each attempt's result and failure kind if any, each unreviewed range, and the counts of fixed, rejected, deferred, and unclear findings with the reasons for rejections and open questions.
+- If implementation ran this iteration: summarize implementation, verified ACs, assumptions, and deferred items, the implementation model guidance of step 4.2, the implementation record of step 7.8 (or why none was written), whether the group was judged the last before its PR (step 4) and the cross-check partial review's result (its STATUS, RANGE, the counts by handling, and OUTPUT_FILE, or that a valid record covered the PR), and, when "Before the PR" (step 5a) ran, its decision and the high-model review result of its B5, plus the local CLI review result: each attempt's result and failure kind if any, each unreviewed range, and the counts of fixed, rejected, deferred, and unclear findings with the reasons for rejections and open questions.
 - If phases remain: return to step 4 without asking. The next unit is either another phase group of the same PR, or its PR checkpoint (step 5a), where this command opens the PR and stops; the reviewer's checkpoint is the PR review, not a question between phase groups.
-- If all phases are complete: for a plan without PR markers, first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits; then run the checkpoint entry (`Entry 3`) of `_lib/fable-review.md` with **FABLE** as step 5a does (including `MERGE` handling), before the checks of this bullet, so their single-parent commits come after the checkpoint mark. Then verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test`, `static`, or `diff` verification, or a `manual` reading where the AC specifies only the natural-language content of a document, as labeled in the plan's Acceptance Criteria Verification section; each `diff` script was run on this branch and its output and both commit IDs are recorded in the plan, and each diff record was rechecked as step 5a says (re-recorded and committed when stale). Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does (with its CHECKS, LOCAL_REVIEW, FABLE, CHECKPOINT, AFTER_REMEDY, and Opus review result of PR_TEXT), with these differences: the checks of `gh pr view` and `git rev-list --count origin/main..HEAD` above stop it if the branch already has a PR or has no commits; after the checkpoint entry above, verify the green gate and run "Before the PR" with TARGET = `single`, and after `RUN` write its done record in an empty commit (`git commit --allow-empty -F <file>`), but none after `NONE` or `SKIP`; the title is a plan PR title (`_context.md`, "PR title and squash subject"): with no `推奨タイトル`, the prefix is `<type>(<task-id>): ` with a `<type>` from the prefix table that fits the change, and the summary is in Japanese; the body names the plan's main review points; **AFTER_CREATE** = append to the plan's checklist section (§6) the single-PR record `- [x] PR を作成した: <PR URL>` and `- [ ] PR がマージされた`, commit, and `git push`. `/runpr` reads that record: the PR is the task's final plan PR, so NEXT is none and the merge closes the issue.
+- If all phases are complete: for a plan without PR markers, first check `gh pr view` and `git rev-list --count origin/main..HEAD`, and stop if the branch already has a PR or has no commits; then run the checkpoint entry (`Entry 3`) of `_lib/cross-check-review.md` with **CROSS_CHECK** as step 5a does (including `MERGE` handling), before the checks of this bullet, so their single-parent commits come after the checkpoint mark. Then verify every AC in `01_requirements.md` is satisfied by the implementation and has at least one `test`, `static`, or `diff` verification, or a `manual` reading where the AC specifies only the natural-language content of a document, as labeled in the plan's Acceptance Criteria Verification section; each `diff` script was run on this branch and its output and both commit IDs are recorded in the plan, and each diff record was rechecked as step 5a says (re-recorded and committed when stale). Report the final status and any gaps. If the plan has no PR markers (a single-phase plan), open the PR with `_lib/task-pr-handoff.md` Part B as step 5a does (with its CHECKS, LOCAL_REVIEW, CROSS_CHECK, CHECKPOINT, AFTER_REMEDY, and high-model review result of PR_TEXT), with these differences: the checks of `gh pr view` and `git rev-list --count origin/main..HEAD` above stop it if the branch already has a PR or has no commits; after the checkpoint entry above, verify the green gate and run "Before the PR" with TARGET = `single`, and after `RUN` write its done record in an empty commit (`git commit --allow-empty -F <file>`), but none after `NONE` or `SKIP`; the title is a plan PR title (`_context.md`, "PR title and squash subject"): with no `推奨タイトル`, the prefix is `<type>(<task-id>): ` with a `<type>` from the prefix table that fits the change, and the summary is in Japanese; the body names the plan's main review points; **AFTER_CREATE** = append to the plan's checklist section (§6) the single-PR record `- [x] PR を作成した: <PR URL>` and `- [ ] PR がマージされた`, commit, and `git push`. `/runpr` reads that record: the PR is the task's final plan PR, so NEXT is none and the merge closes the issue.
 
 ## Before the PR
 
@@ -285,7 +294,7 @@ Part B step 2.5 checks CLI coverage of the resulting branch (ADR-0042). These it
 go back to the step that ran them.
 
 B1. **Branch review.** Skip this item when `git log origin/main..HEAD` holds a
-   done record (`_lib/opus-review.md`, "Record lines", in its full form)
+   done record (`_lib/high-review.md`, "Record lines", in its full form)
    whose START is the first 12 characters of
    `$(git merge-base origin/main HEAD)`: an earlier run got past the review,
    and so past this item, and a fix commit made now would only reopen the
@@ -303,12 +312,12 @@ B1. **Branch review.** Skip this item when `git log origin/main..HEAD` holds a
    review into a commit of your own: the procedure's fix commits and its
    record commit carry them. When it made fix commits, run the green gate and
    the diff-record recheck again. This review
-   comes before B2 so that its fix commits are inside the Opus review's
+   comes before B2 so that its fix commits are inside the high-model review's
    range.
 B2. **Decision.** `git fetch origin main`, then run entry 1 of
-   `.claude/commands/_lib/opus-review.md` with PLAN = the plan, TARGET, and
+   `.claude/commands/_lib/high-review.md` with PLAN = the plan, TARGET, and
    BASE = `$(git merge-base origin/main HEAD)`.
-B3. **Review.** On `RUN`, run entry 2 of `_lib/opus-review.md` with RANGE =
+B3. **Review.** On `RUN`, run entry 2 of `_lib/high-review.md` with RANGE =
    `<BASE>..<HEAD>` (both resolved to full commit IDs), TASK_DIR = the target
    task directory, FIX = `fix`, and DECISION_CHANGE = the divergence rules of
    step 5's self-check (an editorial correction is corrected in place; an
@@ -317,7 +326,7 @@ B3. **Review.** On `RUN`, run entry 2 of `_lib/opus-review.md` with RANGE =
    not approve it, entry 2 records the finding as kept). When OUTCOME is
    `stopped-unavailable`, `stopped-limit`, or `stopped-error`, stop: do not
    open the PR and push nothing. Report the stop and what the user can do: run
-   `/runplan` again once Opus is available (`stopped-unavailable`); look at
+   `/runplan` again once the `high` role model is available (`stopped-unavailable`); look at
    the remaining findings and decide (`stopped-limit`); or, for
    `stopped-error`, its reason, and whether to keep or discard the
    uncommitted fix left in the working tree. Running `/runplan` again comes
@@ -331,22 +340,23 @@ B4. **After fixes.** When the review made fix commits, run the green gate again
    (a commit that only makes it pass is inside the done record's range), and,
    for the task's final PR, the end-of-task check of step 8, and the
    diff-record recheck. When the end-of-task check or the recheck makes a
-   commit that is neither excludable (`_lib/opus-review.md`, "Record lines")
+   commit that is neither excludable (`_lib/high-review.md`, "Record lines")
    nor a fix to make the green gate pass, go back to B2.
-B5. **Result for the PR body.** Write the Opus review result into PR_TEXT, for
+B5. **Result for the PR body.** Write the high-model review result into PR_TEXT, for
    `_lib/task-pr-handoff.md` Part B step 3, in Japanese:
    - after `RUN`: the range `<BASE>..<HEAD>` as it stands now and the count
      for each severity, from FINDINGS (the done record, written next, repeats
      them); each kept finding's location, gist, and reason, from the
-     `Opus review: kept` lines of `git log origin/main..HEAD`; the gist of each
+     `High review: kept` lines (legacy `Opus review: kept` lines included) of
+     `git log origin/main..HEAD`; the gist of each
      Minor finding; CATEGORIES and READ;
    - after `SKIP`: the same from the done record and the kept lines, and the
      commits after the done record (entry 1's list), noting that the Minor
      findings and READ belong to the earlier session that ran the review;
    - after `NONE`: that the review did not run and which condition did not
      hold: the value is `low` (`value-low`), there is no value
-     (`value-absent`), or every commit is covered by Opus implementation
-     records (`all-high`).
+     (`value-absent`), or every commit is covered by self-verifying
+     `high`-role implementation records (`all-high`).
 
    Describe a finding only by its location and your own summary, never with a
    subagent's text.

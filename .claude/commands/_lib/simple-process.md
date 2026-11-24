@@ -227,9 +227,9 @@ markers), with the same reading of the items.
 Then run `japrose` on the three documents and on each ADR of the ADR changes,
 after the Critical and Major issues of the review are resolved; as a sub-step
 it does not commit. Commit the fixes of both passes once. The local CLI review
-runs later, in `_lib/task-pr-handoff.md` Part B step 1, and the Fable partial
-review runs with it, once for the three documents together
-(`_lib/fable-review.md`).
+runs later, in `_lib/task-pr-handoff.md` Part B step 1, and the cross-check
+partial review runs with it, once for the three documents together
+(`_lib/cross-check-review.md`).
 
 ## Resuming a stopped run
 

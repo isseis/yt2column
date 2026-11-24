@@ -10,6 +10,12 @@ current branch) with a generated commit message, then clean up the branch.
 > `.claude/commands/_context.md` ("Process convention", "PR merge method") and
 > `CLAUDE.md`. This repository squash-merges every PR, so the squash commit is the
 > only commit of the PR that reaches `main`.
+>
+> **Harness.** The harness-specific operations this command and its shared
+> procedures name (`select-question`, `file-io`, `scratchpad`, `shell-run`,
+> `web-lookup`, `subagent-inherit`, `subagent-role`, `pinned-worker`,
+> `timer-wait`, `notify-user`) are defined in `.claude/commands/_lib/harness.md`:
+> read it and the adapter it selects for this session before step 1.
 
 Invoking this command authorizes the network operations `mergepr` performs
 (`git fetch`, `gh` queries) but **not the merge itself**: step 3 asks the user to
@@ -179,9 +185,10 @@ around it with your own shell commands. Work in order; do not skip a step.
      count (an empty block is an empty file).
    - End with the `Co-Authored-By:` trailer(s) that appear in the PR's commits,
      deduplicated.
-   Write the subject to a file in the prepared directory with the Write tool;
+   Write the subject to a file in the prepared directory with the `file-io`
+   operation of `_lib/harness.md`;
    never through `echo`, a heredoc, or an inline argument. Write the body in
-   two files there with the Write tool: the summary (the lead, the bullets,
+   two files there with `file-io`: the summary (the lead, the bullets,
    and the records above), ending with an empty line, and the tail (a
    `Closes #N` line when there is one, then the trailers). Then build the
    body file by joining the three parts in this order with

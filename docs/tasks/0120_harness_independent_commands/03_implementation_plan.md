@@ -396,12 +396,14 @@
 - `.claude/commands/_lib/settle-decisions.md`
 - `.claude/commands/_lib/simple-process.md`
 - `.claude/commands/_lib/task-pr-handoff.md`
+- `.claude/commands/_lib/high-review-decision.sh`・`.claude/commands/_lib/review-records.sh`（コメント中の改名前の手順パスのみ）
+- `CLAUDE.md`（「Commands」節が名指しする改名前の手順パス 2 か所のみ。節の書き換えはステップ 4-7）
 
 **作業内容:**
-- [ ] `.claude/commands/_context.md` の `:5`（見出しの Claude 限定表現の一般化）、`:52`（`PushNotification` → `notify-user`）、`:73,98,120`（`_lib/opus-review.md` → `_lib/high-review.md`）、`:210`（`Write tool` → `file-io`/`scratchpad`、`_lib/harness.md` 参照）を更新する。
-- [ ] `_lib/opus-review.md` を `_lib/high-review.md` へ改名し、1.3 のリネーム一覧どおり `High review: done` / `kept`（旧行も両読み）へ更新する。あわせて、`pinned-worker`（役割 `high`）への委譲、共通状態チェックの参照、フェーズ 2 で入れた `--no-replace-objects` の維持、および失敗時の Fail-Closed 停止を反映する（設計書 3.4・4.1・6.2）。
-- [ ] `_lib/fable-review.md` を `_lib/cross-check-review.md` へ改名し、1.3 のリネーム一覧どおり `CROSS_CHECK`・`cross-check` モード呼び出し・`Cross-check ...:` 記録行・`wrong-model`（旧行と `not-fable` も両読み）へ更新する。あわせて、`.agents/skills/` を `command`・その他の `.agents/` を `agent-config` とする分類、`pinned-worker`（役割 `cross-check`）への委譲、および `## The state check` の `watched` 拡張（`.agents/`・4 指示ファイル・`.claude` / `.agents` 配下の `.git` 検出・一時ファイル名 `cross-check-index.XXXXXX`）を反映する（設計書 3.5・5.2）。タスク 0114（`#988`）がマージ済みなら、マージ後確認の `high` 役割への一般化も反映する（AC-28）。
-- [ ] `_lib/local-cli-review.md`・`_lib/pr-review-escalation.md`・`_lib/review-subagent-pattern.md`・`_lib/settle-decisions.md`・`_lib/simple-process.md`・`_lib/task-pr-handoff.md` の 6 ファイルからハーネス固有ツール名とモデル固有名を除去し、抽象操作へ置き換える。あわせて、`_lib/pr-review-escalation.md`（`high` 固定 `pinned-worker`・状態チェック・起動や割り当てやモデルや JSON やタイムアウトの失敗時は Fail-Safe の `ask`、状態チェック差分または不正ヘルパー検出時は Fail-Closed 停止）、`_lib/review-subagent-pattern.md`（段階指定と確認パスの役割指定化）、`_lib/task-pr-handoff.md`（`CROSS_CHECK`・新 PR 説明見出し・新旧記録行および `High review: kept` / `scope:` / `finding:` の両読み）を更新する。
+- [x] `.claude/commands/_context.md` の `:5`（見出しの Claude 限定表現の一般化）、`:52`（`PushNotification` → `notify-user`）、`:73,98,120`（`_lib/opus-review.md` → `_lib/high-review.md`）、`:210`（`Write tool` → `file-io`/`scratchpad`、`_lib/harness.md` 参照）を更新する。
+- [x] `_lib/opus-review.md` を `_lib/high-review.md` へ改名し、1.3 のリネーム一覧どおり `High review: done` / `kept`（旧行も両読み）へ更新する。あわせて、`pinned-worker`（役割 `high`）への委譲、共通状態チェックの参照、フェーズ 2 で入れた `--no-replace-objects` の維持、および失敗時の Fail-Closed 停止を反映する（設計書 3.4・4.1・6.2）。
+- [x] `_lib/fable-review.md` を `_lib/cross-check-review.md` へ改名し、1.3 のリネーム一覧どおり `CROSS_CHECK`・`cross-check` モード呼び出し・`Cross-check ...:` 記録行・`wrong-model`（旧行と `not-fable` も両読み）へ更新する。あわせて、`.agents/skills/` を `command`・その他の `.agents/` を `agent-config` とする分類、`pinned-worker`（役割 `cross-check`）への委譲、および `## The state check` の `watched` 拡張（`.agents/`・4 指示ファイル・`.claude` / `.agents` 配下の `.git` 検出・一時ファイル名 `cross-check-index.XXXXXX`）を反映する（設計書 3.5・5.2）。タスク 0114（`#988`）がマージ済みなら、マージ後確認の `high` 役割への一般化も反映する（AC-28）。
+- [x] `_lib/local-cli-review.md`・`_lib/pr-review-escalation.md`・`_lib/review-subagent-pattern.md`・`_lib/settle-decisions.md`・`_lib/simple-process.md`・`_lib/task-pr-handoff.md` の 6 ファイルからハーネス固有ツール名とモデル固有名を除去し、抽象操作へ置き換える。あわせて、`_lib/pr-review-escalation.md`（`high` 固定 `pinned-worker`・状態チェック・起動や割り当てやモデルや JSON やタイムアウトの失敗時は Fail-Safe の `ask`、状態チェック差分または不正ヘルパー検出時は Fail-Closed 停止）、`_lib/review-subagent-pattern.md`（段階指定と確認パスの役割指定化）、`_lib/task-pr-handoff.md`（`CROSS_CHECK`・新 PR 説明見出し・新旧記録行および `High review: kept` / `scope:` / `finding:` の両読み）を更新する。
 
 **完了基準:**
 - 上記 9 ファイルの相互参照が新ファイル名・新パラメータ名で一致し、設計書 3.1・3.4・3.5・4.1 の契約を満たす。
@@ -423,10 +425,10 @@
 - （実装時点で `main` に `chief.md` 以外の利用者起動コマンドが追加されていれば同様に対象へ含める）
 
 **作業内容:**
-- [ ] 全 11 コマンドのハーネス固有ツール名・モデル固有名を `_lib/harness.md` の抽象操作と役割名（`high`・`standard`・`low`・`cross-check`）へ置換し、`_lib/high-review.md`・`_lib/cross-check-review.md`・`CROSS_CHECK` を参照するよう更新する。
-- [ ] `mkplan2.md`・`mkplan.md`・`mkreq.md` の `**実装モデル要件**` の値を `high`・`standard+high-review`・`low` に、`判定理由` の規則を AC-13 に更新する。
-- [ ] `runplan.md` と `runpr.md` に AC-17（新旧値表示・`_context.md` に基づくハーネス別推奨モデルと上位モデルのレビュー見込み案内）、AC-19/AC-20（Antigravity では `Implementation model:` 行を書かない規則）、新旧記録行（`Cross-check ...:`・`Fable ...:`・`High review:`・`Opus review:`）とクロスチェック要約の両読みを反映する。
-- [ ] `fixpr.md` Phase 6 の見出しを役割 `low` 表記へ改め（`TestFixprPhase6CountFilter` の件数取得コマンド契約は維持）、`japrose.md` の `MODEL` 指定を `standard` 役割へ改め、`weakreview.md` の引数仕様・作業ツリー検査・`done` 非記録（AC-24）を維持して `_lib/high-review.md` へ接続する。
+- [x] 全 11 コマンドのハーネス固有ツール名・モデル固有名を `_lib/harness.md` の抽象操作と役割名（`high`・`standard`・`low`・`cross-check`）へ置換し、`_lib/high-review.md`・`_lib/cross-check-review.md`・`CROSS_CHECK` を参照するよう更新する。
+- [x] `mkplan2.md`・`mkplan.md`・`mkreq.md` の `**実装モデル要件**` の値を `high`・`standard+high-review`・`low` に、`判定理由` の規則を AC-13 に更新する。
+- [x] `runplan.md` と `runpr.md` に AC-17（新旧値表示・`_context.md` に基づくハーネス別推奨モデルと上位モデルのレビュー見込み案内）、AC-19/AC-20（Antigravity では `Implementation model:` 行を書かない規則）、新旧記録行（`Cross-check ...:`・`Fable ...:`・`High review:`・`Opus review:`）とクロスチェック要約の両読みを反映する。
+- [x] `fixpr.md` Phase 6 の見出しを役割 `low` 表記へ改め（`TestFixprPhase6CountFilter` の件数取得コマンド契約は維持）、`japrose.md` の `MODEL` 指定を `standard` 役割へ改め、`weakreview.md` の引数仕様・作業ツリー検査・`done` 非記録（AC-24）を維持して `_lib/high-review.md` へ接続する。
 
 **完了基準:**
 - 全 11 コマンドが抽象操作・新役割名・新パスで整合している。
@@ -447,11 +449,11 @@
 - `docs/dev/adr/0055-harness-independent-commands.md`
 
 **作業内容:**
-- [ ] `cmd/yt2column/fable_state_docs_test.go` を `cmd/yt2column/cross_check_state_docs_test.go` へ改名する独立コミットを作る。そのうえで `_lib/cross-check-review.md` の `## The state check` を対象に `TestCrossCheckStateCheckBlock` へ更新し、git 無視された `.agents/skills/evil/SKILL.md` と全 4 指示ファイル（`AGENTS.md`・`AGENT.md`・`GEMINI.md`・`AGENTS.override.md`）で `status` 不変のまま `watched` ハッシュが変わること、および `.claude/` と `.agents/` 双方の配下の `.git` エントリ検出（`watched` 変化または非ゼロ終了）を検証する。
-- [ ] `cmd/yt2column/review_records_test.go` の参照パスを `_lib/cross-check-review.md`・`_lib/high-review.md` へ更新し、`readCrossCheckForms` が新表から新形式を読み取る形へ一本化する。あわせて、`TestReviewRecordsCallSite`（`cross-check` モードのみ許可）、`TestRecordLinePrefixesDistinct`（文書から抽出した全接頭辞と旧互換接頭辞 `Opus review:`・`Fable review:`・`Fable scope:`・`Fable finding:` の全組で相互非衝突を検証）、および `TestRecordCommitsCheckMention`（`high-review.md` を含むメンション確認）を更新する。
-- [ ] `cmd/yt2column/fixpr_docs_test.go` の `fixprPhase6` 定数を新しい見出しに合わせ、`TestFixprPhase6CountFilter`・`TestFixprguardCallSites`・`TestRemovedCommandLiterals` がすべて通ることを確認する。
-- [ ] `cmd/yt2column/high_review_decision_test.go` の `TestHighReviewDecisionCallSite` が全 `CommandDocs` 走査を維持したまま許可呼び出し元を `_lib/opus-review.md` から `_lib/high-review.md` へ切り替える。また、`cmd/chief/docs_test.go` に `TestMarkerFormsCarryModelRequirement` を追加し、`mkplan2.md` step 6 から抽出した 3 値（`high`・`standard+high-review`・`low`）が `mkplan2.md` step 6 と `mkplan.md` step 8.5（`<value>` 置換）の双方で `chief.ParsePlan` により対応する `Requirement` として読み取られることを検証する。実装時に各新規ガードを壊して失敗することを確認する。
-- [ ] `ADR-0016:25` の `_lib/opus-review.md` リンクを `_lib/high-review.md` へ訂正する。あわせて、`ADR-0013`・`ADR-0047` の食い違い記述、`ADR-0042`（`:21,23,46`）・`ADR-0050`（`:33,35,76`）の旧パス・食い違い記述・設計前の暫定記述を解消し、`ADR-0055`（`:25`）の食い違い記述から PR-4 で解消したコマンド・共有手順・状態チェック分を取り除いて PR-5 の残余のみへ書き換える（編集上の訂正はコミットメッセージに `Editorial correction:` 行を残す）。
+- [x] `cmd/yt2column/fable_state_docs_test.go` を `cmd/yt2column/cross_check_state_docs_test.go` へ改名する独立コミットを作る。そのうえで `_lib/cross-check-review.md` の `## The state check` を対象に `TestCrossCheckStateCheckBlock` へ更新し、git 無視された `.agents/skills/evil/SKILL.md` と全 4 指示ファイル（`AGENTS.md`・`AGENT.md`・`GEMINI.md`・`AGENTS.override.md`）で `status` 不変のまま `watched` ハッシュが変わること、および `.claude/` と `.agents/` 双方の配下の `.git` エントリ検出（`watched` 変化または非ゼロ終了）を検証する。
+- [x] `cmd/yt2column/review_records_test.go` の参照パスを `_lib/cross-check-review.md`・`_lib/high-review.md` へ更新し、`readCrossCheckForms` が新表から新形式を読み取る形へ一本化する。あわせて、`TestReviewRecordsCallSite`（`cross-check` モードのみ許可）、`TestRecordLinePrefixesDistinct`（文書から抽出した全接頭辞と旧互換接頭辞 `Opus review:`・`Fable review:`・`Fable scope:`・`Fable finding:` の全組で相互非衝突を検証）、および `TestRecordCommitsCheckMention`（`high-review.md` を含むメンション確認）を更新する。
+- [x] `cmd/yt2column/fixpr_docs_test.go` の `fixprPhase6` 定数を新しい見出しに合わせ、`TestFixprPhase6CountFilter`・`TestFixprguardCallSites`・`TestRemovedCommandLiterals` がすべて通ることを確認する。
+- [x] `cmd/yt2column/high_review_decision_test.go` の `TestHighReviewDecisionCallSite` が全 `CommandDocs` 走査を維持したまま許可呼び出し元を `_lib/opus-review.md` から `_lib/high-review.md` へ切り替える。また、`cmd/chief/docs_test.go` に `TestMarkerFormsCarryModelRequirement` を追加し、`mkplan2.md` step 6 から抽出した 3 値（`high`・`standard+high-review`・`low`）が `mkplan2.md` step 6 と `mkplan.md` step 8.5（`<value>` 置換）の双方で `chief.ParsePlan` により対応する `Requirement` として読み取られることを検証する。実装時に各新規ガードを壊して失敗することを確認する。
+- [x] `ADR-0016:25` の `_lib/opus-review.md` リンクを `_lib/high-review.md` へ訂正する。あわせて、`ADR-0013`・`ADR-0047` の食い違い記述、`ADR-0042`（`:21,23,46`）・`ADR-0050`（`:33,35,76`）の旧パス・食い違い記述・設計前の暫定記述を解消し、`ADR-0055`（`:25`）の食い違い記述から PR-4 で解消したコマンド・共有手順・状態チェック分を取り除いて PR-5 の残余のみへ書き換える（編集上の訂正はコミットメッセージに `Editorial correction:` 行を残す）。
 
 **完了基準:**
 - `make test && make lint && make deadcode` および `doc-guard` の全対象パッケージが通る。

@@ -41,7 +41,7 @@ next command after the merge and never runs it (`runpr.md` steps 2, 4, and 5).
 - **PR_TEXT** — the PR title and what the body must name: for a task-document
   command, the "Task-document PR title" of `_context.md`, "PR title and squash
   subject"; for `runplan.md`, the title its step 5a writes from the PR marker's
-  `推奨タイトル`, the marker's `レビュー観点`, and the Opus review result
+  `推奨タイトル`, the marker's `レビュー観点`, and the high-model review result
   (`runplan.md` step 5a, "Before the PR", item 5).
 - **ISSUE** (`mkreq.md` only) — the task's issue number. Every other
   caller leaves it out, and Part A reads it from the `対応 issue` line of
@@ -51,22 +51,22 @@ next command after the merge and never runs it (`runpr.md` steps 2, 4, and 5).
 - **AFTER_CREATE** (optional) — what the calling command does once the PR
   exists (`runplan.md`: mark `PR を作成した` with the
   PR URL, commit, and push).
-- **FABLE** — the `KIND`, `TASK_DIR`, and `SELF_REJECTED` passed to
-  `_lib/fable-review.md` (Part B steps 1, 1.5, and 2.6): for a task-document
+- **CROSS_CHECK** — the `KIND`, `TASK_DIR`, and `SELF_REJECTED` passed to
+  `_lib/cross-check-review.md` (Part B steps 1, 1.5, and 2.6): for a task-document
   command, KIND = `documents`, TASK_DIR, and SELF_REJECTED = the findings the
   calling command's self-review (and, in the simple process, its review of
   the three documents) rejected in this session, each as its location and
-  your own summary (`_lib/fable-review.md`, "Inputs and outputs"); for
+  your own summary (`_lib/cross-check-review.md`, "Inputs and outputs"); for
   `runplan.md`, KIND = `implementation`, TASK_DIR, and SELF_REJECTED = the
   findings steps 7 and 7.5 rejected in this session (empty when the session
   runs the checkpoint alone).
 - **CHECKPOINT** — `run` for a task-document command (Part B step 1.5 runs
-  Entry 3 of `_lib/fable-review.md` to leave the checkpoint mark before
+  Entry 3 of `_lib/cross-check-review.md` to leave the checkpoint mark before
   CHECKS); `done` for `runplan.md`, which already ran Entry 3 in its step 5a
   or step 8.
 - **AFTER_REMEDY** (optional) — what the calling command runs after a remedy
   in Part B step 2.6, before README sync and CHECKS (`runplan.md`: redo the
-  Opus review decision; omitted by task-document commands).
+  high-model review decision; omitted by task-document commands).
 
 ## Authorization
 
@@ -192,15 +192,15 @@ Run this after the calling command's last commit, with a clean working tree.
 
 1. When LOCAL_REVIEW is `run`, review the branch with the local CLI review
    (CodeRabbit CLI), with the
-   Fable partial review in parallel: follow
+   cross-check partial review in parallel: follow
    `.claude/commands/_lib/local-cli-review.md` with
    **BASE** = `$(git merge-base origin/main HEAD)`, **SCOPE** = branch,
    **SUMMARY** = REPORT, **RECORD** = `commit`, so its record lines are in a
-   commit of their own before the push, and **FABLE** = the calling
-   command's **FABLE**. This runs after
+   commit of their own before the push, and **CROSS_CHECK** = the calling
+   command's **CROSS_CHECK**. This runs after
    the calling command committed the fixes of its self-review and of
    `japrose`. When it stops, stop before step 1.5: nothing is pushed, and the
-   Fable partial review leaves no record, so a run again reviews again.
+   cross-check partial review leaves no record, so a run again reviews again.
 
    **README sync.** Run this paragraph even when the sentence above does not
    apply (LOCAL_REVIEW is `done`). Run the README sync check as
@@ -211,7 +211,7 @@ Run this after the calling command's last commit, with a clean working tree.
    For `stopped`, stop before step 1.5: nothing is pushed.
 
 1.5. When CHECKPOINT is `run`, run the checkpoint entry (`Entry 3`) of
-   `.claude/commands/_lib/fable-review.md` with **FABLE** so the checkpoint
+   `.claude/commands/_lib/cross-check-review.md` with **CROSS_CHECK** so the checkpoint
    mark is in place before CHECKS. When it stops, push nothing and stop.
    When it returned `REMEDY` = `done`, run the README sync check of step 1
    again before step 2 (the remedy's fixes may have changed `README.md`; for
@@ -237,13 +237,13 @@ Run this after the calling command's last commit, with a clean working tree.
    command fails or its result is unreadable, use the merge-base.
    Run `_lib/local-cli-review.md` once with this BASE, SCOPE = commits
    awaiting review before the PR, SUMMARY = REPORT and RECORD = commit.
-   Pass no FABLE. Its two-attempt cap applies. When `_lib/local-cli-review.md`
+   Pass no CROSS_CHECK. Its two-attempt cap applies. When `_lib/local-cli-review.md`
    stops, stop before step 2.6: nothing is pushed. A CLI failure records the
    unreviewed range and continues. After fix commits, rerun CHECKS until they
    pass. Proceed to step 2.6 without repeating this review.
 
-2.6. Re-check the Fable record right before pushing: run the pre-push entry
-   (`Entry 4`) of `.claude/commands/_lib/fable-review.md` with **FABLE**.
+2.6. Re-check the cross-check record right before pushing: run the pre-push entry
+   (`Entry 4`) of `.claude/commands/_lib/cross-check-review.md` with **CROSS_CHECK**.
    1. Run Entry 4's first stage. On `VALID`, keep the returned `D` (the
       exact commit ID passed as `<HEAD>`) and the `origin/main` commit ID
       from which the script was extracted, and continue to step 3. When it
@@ -251,12 +251,12 @@ Run this after the calling command's last commit, with a clean working tree.
       not open the PR.
    2. When the first stage ran a remedy (`REMEDY` = `done`), run the
       re-checks in this order (do not re-run step 2.5):
-      1. AFTER_REMEDY, if supplied (`runplan.md` redoes the Opus review
-         decision); when it stops, push nothing and stop.
+      1. AFTER_REMEDY, if supplied (`runplan.md` redoes the high-model
+         review decision); when it stops, push nothing and stop.
       2. The README sync check of step 1 (for `stopped`, push nothing and
          stop).
       3. Step 2's CHECKS (fix, commit, and rerun until they pass; these
-         commits follow the checkpoint mark and do not invalidate the Fable
+         commits follow the checkpoint mark and do not invalidate the cross-check
          record).
    3. Run Entry 4's final stage. On `VALID`, keep the returned `D` and the
       `origin/main` commit ID, and continue to step 3. When it stops, write
@@ -281,7 +281,7 @@ Run this after the calling command's last commit, with a clean working tree.
 
    Right before pushing, confirm `git rev-parse HEAD` equals `<D>`:
    - When `HEAD` differs from `<D>`, do not push. Run step 2's CHECKS, then
-     run "The validity decision" of `_lib/fable-review.md` once
+     run "The validity decision" of `_lib/cross-check-review.md` once
      (`<ENTRY>` = `checkpoint`, `<HEAD>` = `git rev-parse HEAD`, no remedy).
      When it prints `VALID`, set `<D>` to that `<HEAD>` (and keep the new
      `origin/main` commit ID), rewrite the title and body files from the new
@@ -298,8 +298,9 @@ Run this after the calling command's last commit, with a clean working tree.
      `git branch --set-upstream-to` fails, report the PR URL and `<D>` and
      stop without running AFTER_CREATE.
 
-   Write the title and the body to files in the scratchpad with the Write tool
-   (`_context.md`, "Passing a title to `gh`"). `--assignee @me` assigns the PR
+   Write the title and the body to files in the scratchpad with the `file-io`
+   and `scratchpad` operations of `_lib/harness.md` (`_context.md`, "Passing a
+   title to `gh`"). `--assignee @me` assigns the PR
    to the GitHub user `gh` is authenticated as, the user who runs the command.
    `<label-flags>` carries over the labels of the task's issue (ISSUE, or the
    `対応 issue` Part A read; not LINK_ISSUE, a link sub-issue): read them with
@@ -323,11 +324,11 @@ Run this after the calling command's last commit, with a clean working tree.
      (`git log origin/main..<D>`; the `CodeRabbit local review:` and
      `Codex local review:` lines, read as `_lib/local-cli-review.md`,
      "Reading the record lines", says; a `not run` line is not a finding),
-     and every `unclear` or `deferred` Fable finding (its `Fable finding:`
-     line, read as `_lib/fable-review.md`, "Reading the record lines", says).
-     Describe a Codex CLI or a Fable finding only by its location and your
-     own summary, as the record line does, never with Codex's or Fable's
-     text;
+     and every `unclear` or `deferred` cross-check finding (its
+     `Cross-check finding:` line, or a legacy `Fable finding:` line, read as `_lib/cross-check-review.md`, "Reading the record lines", says).
+     Describe a Codex CLI or a cross-check finding only by its location and
+     your own summary, as the record line does, never with Codex's or the
+     cross-check worker's text;
    - names the commits of this PR that the local CLI did not review, if any,
      by running `origin/main`'s review records script in `unreviewed` mode
      with `<HEAD>` = `<D>` and `<PLAN>` = `TASK_DIR`'s
@@ -349,45 +350,47 @@ Run this after the calling command's last commit, with a clean working tree.
      count, or a line of another form), list every commit of
      `origin/main..<D>` and state that the unreviewed list could not be
      determined;
-   - for `runplan.md`, gives PR_TEXT's Opus review result: whether the Opus
-     review ran, and with what result, or which condition kept it from
+   - for `runplan.md`, gives PR_TEXT's high-model review result: whether the
+     high-model review ran, and with what result, or which condition kept it from
      running;
-   - carries the Fable partial review section, written from the Fable lines
+   - carries the cross-check partial review section, written from the
+     cross-check lines (the `Cross-check` lines and the legacy `Fable` lines)
      of `git --no-replace-objects log --reverse origin/main..<D>`, read as
-     `_lib/fable-review.md`, "Reading the record lines", says (the
+     `_lib/cross-check-review.md`, "Reading the record lines", says (the
      seen-range lines do not go into the body):
-     - the heading `## Fable の部分レビュー`, and under it, first one line for
+     - the heading `## クロスチェックの部分レビュー`, and under it, first one line for
        the pre-push validity check:
        `push の直前の判定: VALID（判定のスクリプト: origin/main <12-hex>、D: <12-hex>）`
        (using the `origin/main` commit ID from which step 2.6 extracted the
        script and `<D>`, each cut to 12 hex characters), or
        `push の直前の判定: なし` when step 2.6 did not run (such as `runpr.md`
        step 4's return);
-     - then, for each Fable record, whether it ran (`run`, or `not run` with
+     - then, for each cross-check record, whether it ran (`run`, or `not run` with
        its reason) and its range; the places put in scope with their criteria
        and the places left out with their reasons; the number of fixed
        findings; each rejected finding with its reason; and the `deferred`
        and `unclear` findings, each by its location and your own summary;
-     - after it, `<details><summary>Fable の行</summary>`, holding a `text`
-       code block with every Fable line, oldest commit first, exactly as
+     - after it, `<details><summary>クロスチェックの行</summary>`, holding a
+       `text` code block with every cross-check line (legacy lines included), oldest commit first, exactly as
        written in the commit messages, and `</details>`. A later script
        reads this block from the merged PR's body;
      - when the body would exceed GitHub's limit (65,536 characters),
-       leave the `Fable scope:` lines out of the code block and say so, and
+       leave the `Cross-check scope:` and legacy `Fable scope:` lines out of
+       the code block and say so, and
        that they are in the branch's commits; when it would exceed the
        limit still, leave the code block out and say so;
-     - with no Fable record on the branch, write `記録なし` under the
+     - with no cross-check record on the branch, write `記録なし` under the
        pre-push validity check line;
    - carries the merge check section when
      `git --no-replace-objects log --reverse origin/main..<D>` holds any
      merge check record (`Merge check: run` or `Merge check: not run`, read
-     as `_lib/fable-review.md`, "Reading the record lines", says): the
+     as `_lib/cross-check-review.md`, "Reading the record lines", says): the
      heading `## merge の後の確認`, and under it, for each record, whether it
      ran (`run`, or `not run` with its reason), the named merge commit (cut
      to 12 hex characters), the range entries with their criteria
      (`Merge check scope:`), the count of fixed findings, and each rejected,
      `deferred`, and `unclear` finding by its location and your own summary
-     (never copying the subagent's text). Omit this section when there is no
+     (never copying the worker's text). Omit this section when there is no
      merge check record, and add no `<details>` block of raw lines;
    - lists the terms the README sync (step 1) reported as
      missing from the translation glossary, if any;

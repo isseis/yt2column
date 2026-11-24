@@ -816,7 +816,7 @@ var highReviewDecisionNames = []string{
 }
 
 var highReviewDecisionCallers = []string{
-	".claude/commands/_lib/opus-review.md",
+	".claude/commands/_lib/high-review.md",
 }
 
 // TestHighReviewDecisionCallSite checks that every command document runs
@@ -842,11 +842,11 @@ func TestHighReviewDecisionCallSite(t *testing.T) {
 		}
 	}
 
-	section := headingSection("### Running the decision")(t, doctestutil.ReadDoc(t, opusReviewPath))
+	section := headingSection("### Running the decision")(t, doctestutil.ReadDoc(t, highReviewPath))
 	blockLines, _ := codeTexts(section)
 	if i := slices.Index(blockLines, highReviewDecisionShow); i < 1 || i+1 >= len(blockLines) ||
 		blockLines[i-1] != reviewRecordsRef || blockLines[i+1] != highReviewDecisionRun {
-		t.Errorf("opus-review.md's Running the decision has no code block lines %q, %q, %q in this order",
+		t.Errorf("high-review.md's Running the decision has no code block lines %q, %q, %q in this order",
 			reviewRecordsRef, highReviewDecisionShow, highReviewDecisionRun)
 	}
 }

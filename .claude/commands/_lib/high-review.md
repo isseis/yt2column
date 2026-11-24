@@ -1,12 +1,13 @@
 ---
-description: "Internal: shared Opus review, a correctness review and a weak-model failure review run on Opus (not a command)"
+description: "Internal: shared high-model review, a correctness review and a weak-model failure review run on the harness's high role model (not a command)"
 ---
 
-# Shared procedure: the Opus review
+# Shared procedure: the high-model review
 
-The Opus review runs two reviews of a commit range on Opus, merges their
+The high-model review runs two reviews of a commit range on the harness's
+`high` role model (`_context.md`, "Harness model mapping"), merges their
 findings, fixes the Critical and Major ones, and confirms the fixes with a
-verification review that also runs on Opus:
+verification review that also runs on the `high` role model:
 
 - the **correctness review**, which looks for correctness defects (bugs, and
   divergence from the requirements, the architecture, and the plan), with the
@@ -25,14 +26,21 @@ whether a caller needs the review, and entry 2 is the review itself.
 only.
 
 Project-specific values (the build checks, `<mention-check>` from "Rejected
-mentions") are in `.claude/commands/_context.md`. The prompt
+mentions", the "Harness model mapping" table) are in
+`.claude/commands/_context.md`. The harness-specific operations this file
+names (`pinned-worker`, `select-question`, `scratchpad`, `shell-run`,
+`timer-wait`) are defined in `.claude/commands/_lib/harness.md` and carried
+out by the adapter it selects; this file never names a harness's own tools.
+The worktree state check is the block of `_lib/cross-check-review.md`, "The
+state check", which this file shares. The prompt
 assembly, panel mode, and convergence rules are in
 `.claude/commands/_lib/review-subagent-pattern.md`; this file says below which
 of its rules it uses, which it adds to, and which it replaces.
 
 This file and the prompts it builds never name a concrete model ID (one that
-carries a model version). A subagent that is not Opus could copy such an ID
-from its prompt when it reports its own model ("Running on Opus").
+carries a model version). A worker that does not run on the `high` model
+could copy such an ID from its prompt when it reports its own model
+("Running on the high role model").
 
 ## Record lines
 
@@ -50,9 +58,15 @@ In the forms below, `<START12>..<END12>` is a commit range given by the first
 in `git rev-list <START12>..<END12>`. A `<model-id>` is printable ASCII with
 no space and no comma.
 
-**Opus.** A model ID is Opus when it starts with `claude-opus-`, and only
-then. This is the only rule that decides whether a model is Opus; "Running on
-Opus" below and entry 1 use it.
+**The high role model.** A model ID is the `high` role model of a harness
+when the `Verification pattern` of that harness's `Role` = `high` row of
+`_context.md`, "Harness model mapping", matches it (a literal pattern by
+equality, a trailing-`*` pattern by its literal prefix followed by 1 to 48
+characters of `[a-z0-9.-]`, never as a regular expression or a glob). This is
+the only rule that decides whether a model is the `high` model; "Running on
+the high role model" below uses it, and entry 1 uses it for the rows with
+`Launch` = `agent` only (the harnesses whose session can verify its own
+model ID).
 
 **Implementation record.** One line, written by `runplan.md` at the end of
 each phase group, saying which models implemented it:
@@ -65,13 +79,18 @@ Implementation model: <START12>..<END12> <model-id>[, <model-id> ...]
   `runplan.md` makes after its step 7.7 returns.
 - `<START12>`: the phase group's `PHASE_START` (`runplan.md` step 4.5).
   `<END12>`: `HEAD` just before the empty commit.
-- `<model-id>`: the model ID the session knows as its own (the one Claude Code
-  gives in its system prompt). The session checks it at step 4.5 and at each
-  commit of the phase group, and lists every ID it saw, in the order it saw
-  them, without repeats.
+- `<model-id>`: the model ID the session knows as its own (the one the
+  harness gives in its system prompt). The session checks it at step 4.5 and
+  at each commit of the phase group, and lists every ID it saw, in the order
+  it saw them, without repeats.
 - When the session did not know its model ID at one of those points, it
   writes no implementation record: the range stays uncovered, and entry 1
   then runs the review.
+- A session on a harness that cannot verify its own model ID (`_lib/harness.md`,
+  "Self-Verification of Implementation Model": Antigravity and OpenCode)
+  never writes an implementation record, whatever model it believes it runs
+  on: its ranges stay uncovered, and entry 1 runs the review for a `high`,
+  `standard+high-review`, or unreadable value.
 
 Example (fictional IDs; a real record carries the session's real ID):
 
@@ -82,8 +101,12 @@ Implementation model: 0123456789ab..cdef01234567 claude-opus-example, claude-son
 **Done record.** One line, written by `runplan.md` when the review is over:
 
 ```text
-Opus review: done <START12>..<END12> (critical <n>, major <n>, minor <n>)
+High review: done <START12>..<END12> (critical <n>, major <n>, minor <n>)
 ```
+
+A legacy line written by older branches, `Opus review: done` in place of
+`High review: done` with the same form, is read with the same meaning by
+entry 1 and by every reader of this file's lines. Never write a legacy line.
 
 - `<START12>`: the merge-base the review started from (BASE of entry 1).
   `<END12>`: `HEAD` just before the commit that holds the line, which may
@@ -96,7 +119,7 @@ Opus review: done <START12>..<END12> (critical <n>, major <n>, minor <n>)
 Example:
 
 ```text
-Opus review: done 0123456789ab..cdef01234567 (critical 0, major 2, minor 5)
+High review: done 0123456789ab..cdef01234567 (critical 0, major 2, minor 5)
 ```
 
 **Excludable commit.** A commit with one parent that is either empty or
@@ -109,8 +132,11 @@ excludable commit to be covered by an implementation record.
 past without fixing:
 
 ```text
-Opus review: kept <path>:<line> (<severity>; <reason>)[ <summary>]
+High review: kept <path>:<line> (<severity>; <reason>)[ <summary>]
 ```
+
+A legacy `Opus review: kept` line of the same form is read with the same
+meaning, as the kept line it stands for; never write one.
 
 - `<path>:<line>`: the finding's location, a repository-relative path and a
   line number in the commit the finding was raised on. A finding that names a
@@ -129,7 +155,7 @@ Opus review: kept <path>:<line> (<severity>; <reason>)[ <summary>]
 Example:
 
 ```text
-Opus review: kept internal/example/example.go:42 (major; rejected by human) the retry count is bounded by the caller
+High review: kept internal/example/example.go:42 (major; rejected by human) the retry count is bounded by the caller
 ```
 
 **Mention check.** Before every commit this procedure makes (a fix commit or a
@@ -239,7 +265,7 @@ commit of `BASE..HEAD`.
 
 | Output | Meaning |
 |---|---|
-| OUTCOME | `completed` (no Critical or Major finding is left unhandled), `reported` (FIX is `report`), `stopped-unavailable` (a review could not run on Opus), `stopped-limit` (the pass limit stopped the loop), or `stopped-error` with its reason (any other stop this file names) |
+| OUTCOME | `completed` (no Critical or Major finding is left unhandled), `reported` (FIX is `report`), `stopped-unavailable` (a review could not run on the `high` role model), `stopped-limit` (the pass limit stopped the loop), or `stopped-error` with its reason (any other stop this file names, a worktree state difference included) |
 | FINDINGS | The merged findings, each with its severity, location, and gist in your own words, and the count for each severity |
 | KEPT | The Critical and Major findings moved past without a fix, each with its reason: the kept lines, and the findings DECISION_CHANGE left unfixed |
 | COMMITS | The fix commits and the commits of record lines this procedure made |
@@ -258,7 +284,9 @@ commit of `BASE..HEAD`.
 
 3. **Run the two reviews** in panel mode of
    `_lib/review-subagent-pattern.md` ("Panel mode", steps 1 and 2), as two
-   Agent tool calls in one message, with "The review prompts" below:
+   `pinned-worker` calls with the role `high`, launched in parallel, with
+   "The review prompts" below and the rules of "Running on the high role
+   model":
    - **Reviewer A, the correctness review.** PERSONA: a senior engineer who
      finds correctness defects. Mandate: bugs (logic, error paths, boundary
      values, resource release) and divergence from the ACs of
@@ -280,8 +308,8 @@ commit of `BASE..HEAD`.
      checklist, copied verbatim, and reports an issue outside its mandate only
      as a one-line OUT-OF-LANE FLAG, when it spots one.
 
-4. **Check that both reviews ran on Opus** ("Running on Opus"). When either
-   did not, return `stopped-unavailable`.
+4. **Check that both reviews ran on the `high` role model** ("Running on the
+   high role model"). When either did not, return `stopped-unavailable`.
 
 5. **Merge the findings** as panel mode's "Synthesize before fixing" says
    (step 3): drop duplicates, take the higher of two severities, rebuild the
@@ -370,17 +398,23 @@ Build each prompt as `_lib/review-subagent-pattern.md`, "Procedure", says
 output format), and add these to every prompt, of the discovery reviews and of
 the verification review alike:
 
-- The first line of the output is `Model: <model-id>`, where `<model-id>` is
-  copied from the subagent's own system prompt, which states the model it runs
-  on. Name no model ID in the prompt.
+- The first-line model declaration the adapter's `pinned-worker` section
+  asks for, when it asks for one: on Claude Code, the first line of the
+  output is `Model: <model-id>`, where `<model-id>` is copied from the
+  worker's own system prompt, which states the model it runs on; on
+  Antigravity, no such line (the findings start on the first line). Name no
+  model ID in the prompt.
 - Report no cleanup finding (reuse, simplification, efficiency). The
   weak-model checklist's item on reimplemented logic is not cleanup: it looks
   for a weak model rebuilding an existing function under a new name, and stays
   in reviewer B's scope.
 - The pre-check FLAGs, to verify in context rather than re-derive.
-- RANGE, with the instruction to run `git diff <RANGE>` and `git log <RANGE>`
-  itself.
-- The kept lines, when there are any: the `Opus review: kept` lines in
+- RANGE, with the instruction to read its diff and log: to run
+  `git diff <RANGE>` and `git log <RANGE>` itself, or, when the adapter's
+  `pinned-worker` exports them to the scratchpad (Antigravity), to read the
+  exported files in full instead.
+- The kept lines, when there are any: the `High review: kept` and legacy
+  `Opus review: kept` lines in
   `git log <base>..HEAD` when FIX is `fix` (this run's kept lines included),
   and in `git log <RANGE>` when FIX is `report`, which commits nothing and may
   run on a branch other than the range's: a finding with the same gist near the
@@ -394,25 +428,51 @@ FILES: the documents of step 1 and every file RANGE changes and does not
 delete (`git diff --name-only --diff-filter=d <RANGE>`), all as resolved
 absolute paths.
 
-### Running on Opus
+### Running on the high role model
 
 - Run every review of this procedure (both discovery reviews and every
-  verification review) with the Agent tool's `model` set to `opus`. Do not
-  use the `fork` subagent type: a fork ignores `model`. Panel mode's and
-  "Model tiering"'s permission to run a verification review on a cheaper
-  model does not apply.
-- Check each review's output: write its first line, alone, to a file in the
-  scratchpad, and run `grep -Eqx 'Model: claude-opus-[!-~]+' <file>`. The
-  review ran on Opus only when the check exits `0`; any other exit code (a
-  line of another form, another model, a failed check) means it did not.
-- When an Agent tool call fails, run it once more. When the second call fails
-  too, the review did not run on Opus.
-- When a review did not run on Opus, never run it on the session's model
-  instead: return `stopped-unavailable`. The fix commits and the kept lines
-  made before the stop stay on the branch.
-- This check keeps the review's quality; it is not a security boundary. A
-  model that is not Opus can still copy an Opus ID it finds in its context,
-  which is why no concrete model ID is written in this file or in a prompt.
+  verification review) as a `pinned-worker` with the role `high`, following
+  every rule of the adapter's `pinned-worker` section (its launcher, its model
+  check before the launch, its 30-minute `timer-wait`, and its cleanup on
+  every exit). Panel mode's and "Model tiering"'s permission to run a
+  verification review on a cheaper model does not apply.
+- Check each review's model as the adapter says, against this harness's
+  `high` row of `_context.md`, "Harness model mapping": on Claude Code, write
+  the output's first line, alone, to a file in the scratchpad and check that
+  it is `Model: ` followed by an ID the row's `Verification pattern` matches
+  ("Record lines", "The high role model"); on Antigravity, the launched
+  worker's model in the harness's response must equal the row's `Model` byte
+  for byte. The review ran on the `high` model only when that check passes;
+  anything else (a line of another form, another model, a failed check)
+  means it did not.
+- When a launch fails with a transient error or a usage limit, run it once
+  more. When the second launch fails too, or the 30-minute timer ends first,
+  the review did not run on the `high` model.
+- When the harness cannot run `pinned-worker` at all (`_lib/harness.md`,
+  "OpenCode Fallback Rules"), or the model is missing or out of quota, the
+  review did not run on the `high` model either.
+- When a review did not run on the `high` model, never run it on the
+  session's model or any other model instead: stop every worker and timer of
+  this run, as the adapter says, and return `stopped-unavailable`. The fix
+  commits and the kept lines made before the stop stay on the branch.
+- **The state check.** Take the state of `_lib/cross-check-review.md`, "The
+  state check", before each launch (both discovery reviews share one
+  baseline; each verification review takes a new one), keeping the block's
+  text and the hashes in this session's context, and compare every part at
+  every exit of the run (the results, a stop, a timeout, an error, and before
+  a second launch). Keep the hashes of `replace`, `ops`, `flags`, `config`,
+  `info`, `hooks`, and `watched` from the exit comparison as the new baseline
+  and compare those parts right before each fix commit and each commit of
+  record lines this procedure makes, as that section's "Post-exit
+  comparison" says. On any difference, or when the kept text or a hash is no
+  longer in this session's context word for word, stop every worker, use no
+  result, commit nothing, and return `stopped-error` with the names of the
+  parts that differ.
+- On Claude Code this model check keeps the review's quality but is not a
+  security boundary: a model that is not the `high` model can still copy its
+  ID from its context, which is why no concrete model ID is written in this
+  file or in a prompt. On Antigravity the check reads the harness's own
+  response, not the worker's text.
 
 ### Fixing and verifying
 
@@ -425,7 +485,7 @@ limit applies as it is.
    (same gist, near the same place in the same file) was already decided by
    the human: do not ask about it again and do not fix it. List it in KEPT.
 2. When you think a Critical or Major finding is wrong, do not reject it on
-   your own judgment. Before fixing, ask the human with AskUserQuestion,
+   your own judgment. Before fixing, ask the human with `select-question`,
    giving its location, its gist, and your view. Fix it unless the human
    rejects it. For each finding the human rejects, commit a kept line with
    the reason `rejected by human` at once ("Record lines").
@@ -442,7 +502,8 @@ limit applies as it is.
    issue, as "Convergence" would; this procedure writes nothing to GitHub.
 6. When nothing was fixed (the human rejected every finding, or every finding
    was kept), run no verification review.
-7. Otherwise run one verification review on Opus ("Running on Opus") over
+7. Otherwise run one verification review on the `high` role model ("Running
+   on the high role model") over
    `<base>..HEAD`, which now holds the fix commits. Give it the persona of
    the reviewer, or of both reviewers, whose findings you fixed, the list of
    those findings, and the checklist or checklists they came from, with "The

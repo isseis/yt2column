@@ -10,6 +10,12 @@ argument-hint: "README.md"
 > `_context.md` describes the project's language-pair convention for reference
 > only. The review step follows the shared pattern in
 > `.claude/commands/_lib/review-subagent-pattern.md`.
+>
+> **Harness.** The harness-specific operations this command and its shared
+> procedures name (`select-question`, `file-io`, `scratchpad`, `shell-run`,
+> `web-lookup`, `subagent-inherit`, `subagent-role`, `pinned-worker`,
+> `timer-wait`, `notify-user`) are defined in `.claude/commands/_lib/harness.md`:
+> read it and the adapter it selects for this session before step 1.
 
 ## Preparation
 
