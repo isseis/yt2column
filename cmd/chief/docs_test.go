@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -101,22 +102,77 @@ func markerForm(t *testing.T) string {
 // the auto-send values, such as "**X**: " of "**X**: auto | hold".
 func fieldLabel(t *testing.T, form string) string {
 	t.Helper()
-	var found []string
-	for line := range strings.Lines(form) {
-		label, values, ok := strings.Cut(strings.TrimSuffix(line, "\n"), ": ")
-		if !ok || !strings.HasPrefix(label, "**") {
+	label, _ := labelOfValues(t, form, []string{"auto", "hold"})
+	return label
+}
+
+// labelOfValues returns the label of the form's one field line whose
+// alternatives, separated by " | ", are values in any order, and that line.
+func labelOfValues(t *testing.T, form string, values []string) (label, line string) {
+	t.Helper()
+	want := slices.Sorted(slices.Values(values))
+	var labels, lines []string
+	for l := range strings.Lines(form) {
+		l = strings.TrimSuffix(l, "\n")
+		lab, alts, ok := strings.Cut(l, ": ")
+		if !ok || !strings.HasPrefix(lab, "**") {
 			continue
 		}
-		alternatives := strings.Split(values, " | ")
+		alternatives := strings.Split(alts, " | ")
 		slices.Sort(alternatives)
-		if slices.Equal(alternatives, []string{"auto", "hold"}) {
-			found = append(found, label+": ")
+		if slices.Equal(alternatives, want) {
+			labels = append(labels, lab+": ")
+			lines = append(lines, l)
 		}
 	}
-	if len(found) != 1 {
-		t.Fatalf("the marker form has %d lines of the values auto | hold, want one:\n%s", len(found), form)
+	if len(labels) != 1 {
+		t.Fatalf("the marker form has %d lines of the values %v, want one:\n%s", len(labels), want, form)
 	}
-	return found[0]
+	return labels[0], lines[0]
+}
+
+// requirementValues are the implementation model requirement values the
+// plan-writing commands write and what the tool must read them as.
+var requirementValues = map[string]chief.Requirement{
+	"high":                 chief.RequirementHigh,
+	"standard+high-review": chief.RequirementStandardReview,
+	"low":                  chief.RequirementLow,
+}
+
+// requirementOf reads the implementation model requirement of a plan's
+// first PR with the tool's plan reader.
+func requirementOf(t *testing.T, plan string) chief.Requirement {
+	t.Helper()
+	p, err := chief.ParsePlan([]byte(statusTable+plan), nil)
+	if err != nil {
+		t.Fatalf("the tool cannot read the plan: %v\n%s", err, plan)
+	}
+	pr, ok := p.NextPR()
+	if !ok {
+		t.Fatalf("the plan has no PR to create:\n%s", plan)
+	}
+	return pr.Requirement.Value
+}
+
+// TestMarkerFormsCarryModelRequirement checks that the forms the commands
+// make a plan write offer exactly the three implementation model requirement
+// values, with no old value among the alternatives, and hold each in a form
+// the tool reads as that value: the PR marker of mkplan2.md step 6, and the PR structure
+// subsection of mkplan.md step 8.5 (which _lib/simple-process.md writes
+// through).
+func TestMarkerFormsCarryModelRequirement(t *testing.T) {
+	marker := markerForm(t)
+	values := slices.Sorted(maps.Keys(requirementValues))
+	label, line := labelOfValues(t, marker, values)
+	for value, want := range requirementValues {
+		filled := strings.Replace(marker, line+"\n", label+value+"\n", 1)
+		if got := requirementOf(t, filled); got != want {
+			t.Errorf("mkplan2.md step 6 with %s: the tool reads %d, want %d", value, got, want)
+		}
+		if got := requirementOf(t, singleForm(t, label, value)); got != want {
+			t.Errorf("mkplan.md step 8.5 with %s: the tool reads %d, want %d", value, got, want)
+		}
+	}
 }
 
 // fillAutoSend returns form with its auto-send line given value.

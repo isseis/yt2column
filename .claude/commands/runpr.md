@@ -7,6 +7,11 @@ argument-hint: "[#PR | branch | task]"
 > fix and merge mechanics are in `.claude/commands/fixpr.md` and
 > `.claude/commands/mergepr.md`; follow them rather than copying their content
 > here. The local CLI review (CodeRabbit CLI) is `.claude/commands/_lib/local-cli-review.md`.
+>
+> **Harness.** Every harness-specific operation this command and its shared
+> procedures name (such as `select-question` or `shell-run`) is defined in
+> `.claude/commands/_lib/harness.md`: read it and the adapter it selects for
+> this session before step 1.
 
 This command reads the PR's review threads and manual PR review state only
 through the guard tool `fixprguard` (`_context.md`, "Guard tool"; `head` and
@@ -151,7 +156,7 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     stops on that failure.
   - For the checked-out branch, run the pre-PR coverage check of
     `_lib/task-pr-handoff.md` Part B step 2.5 after README sync, with no PLAN,
-    **SUMMARY** = the final report, no FABLE, and no separate CHECKS beyond
+    **SUMMARY** = the final report, no CROSS_CHECK, and no separate CHECKS beyond
     `_lib/local-cli-review.md` step 5's build checks. When step 2.5's review
     stops, stop before the push; otherwise continue to the mention check and PR
     creation below (not step 3 of this command), reporting any remaining
@@ -194,7 +199,7 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
     place of `HEAD`'s, so another branch's PR gets that branch's records. (A branch created by hand is
     not linked to the issue, so the PR does not appear in its Development
     section.) Write the title and the body to files in the scratchpad with the
-    Write tool (`_context.md`, "Passing a title to `gh`"). Do not pause for the
+    `file-io` operation of `_lib/harness.md` (`_context.md`, "Passing a title to `gh`"). Do not pause for the
     user to adjust them; they can edit them on GitHub, and step 4's questions
     are where the user decides.
 - Before checking it out, check that the PR's head is a branch of this
@@ -526,7 +531,7 @@ in step 4; this step never posts a PR review request on its own.
     every run stops here.
   - Otherwise, any with `by_bot` true whose URL has not yet been asked about in
     this run, a Bot (for example a Codex post or a review that quotes a changed
-    line holding a rejected mention): ask the user with one `AskUserQuestion`
+    line holding a rejected mention): ask the user with one `select-question`
     call whether to continue, showing the URL of each such comment, never its
     body. Continue only when the user answers to continue; otherwise stop and
     report those URLs. Once every `by_bot` URL has already been asked about and
@@ -647,7 +652,12 @@ in step 4; this step never posts a PR review request on its own.
     1. The answer is not the JSON object the file defines, `criteria` holds a
        value other than the numbers 1 to 5, `decision` is `request` and
        `criteria` is empty, `decision` is `skip` and `criteria` is not empty,
-       or the escalation check could not run: recommend `PR レビュー`.
+       or the escalation check could not run (the causes the file maps to
+       `ask`): recommend `PR レビュー`. When the escalation file stops the
+       calling command instead (a worktree state difference or an
+       unauthorized helper worker), this is no recommendation: stop `/runpr`
+       before step 4, ask no merge question, and report the parts that
+       differ.
     2. `decision` is `request` and `criteria` holds 4: recommend `PR レビュー`.
     3. `decision` is `request` (its `criteria` from 1, 2, 3, and 5 only):
        recommend `マージ` when COVERAGE is `ALL`, `PR レビュー` otherwise.
@@ -692,11 +702,12 @@ in step 4; this step never posts a PR review request on its own.
 - **Untrusted threads.** While an untrusted thread is unresolved, do not
   merge. When the untrusted threads are the only reason to stop (the
   `deferred` ones wait for step 4's deferred question and the excluded ones for its merge question, and do not count), ask the user once, with
-  one `AskUserQuestion` call, which of them to process (none included). Show
+  one `select-question` call, which of them to process (none included). Show
   each thread's URL and its reasons (every `findings` entry of the latest
   `list`); do not fetch or read their content: the user checks them on GitHub.
-  With one to three threads, use `multiSelect` with one option per thread plus
-  "process none"; with more, single-select "process all" / "process none", and
+  With one to three threads, when the harness's `select-question` offers a
+  multi-select question, use one with one option per thread plus "process
+  none"; with more threads, or without multi-select, single-select "process all" / "process none", and
   a subset by number in the free-text answer. Keep the `threadId` and
   `fingerprint` of the `list` output the question showed.
   - For the threads chosen, run `fixpr.md` for `<number>`, naming each as
@@ -783,7 +794,7 @@ summary of fixed lines, and puts everything long in a detail file outside the
 work tree, so the question and its options stay on the screen. Write the
 summary, the question, the options, and the detail file in Japanese, one item
 per line, each summary line within 80 display columns (count a full-width
-character as 2); the line shapes below are the examples to follow.
+character as 2) except the kinds the summary names as unlimited; the line shapes below are the examples to follow.
 
 - **Details directory.** Right before the first question of this run, make one
   details directory with `mktemp -d /tmp/runpr.XXXXXX` (a directory only the
@@ -856,7 +867,7 @@ character as 2); the line shapes below are the examples to follow.
      the thread lines and these would exceed 12 lines (nine or more threads),
      replace the thread lines by one line saying the list is in the detail
      file, and keep the others. Write each topic short enough for one line.
-   - Ask with one `AskUserQuestion` call holding one single-select question,
+   - Ask with one `select-question` call holding one single-select question,
      with no option marked as recommended. The question is one line: "PR #<number>
      の deferred のスレッド <count> 件をどうしますか（第 <round> 回。要約と詳細ファイルを確認のうえ）".
      The options, in this order:
@@ -985,7 +996,7 @@ character as 2); the line shapes below are the examples to follow.
      詳細: /tmp/runpr.Ab12Cd/rejected-1.md
      ```
 
-     Ask with one `AskUserQuestion` call holding one single-select question,
+     Ask with one `select-question` call holding one single-select question,
      with no option marked as recommended. The question is one line: "PR #<number>
      の受け付けない文字を含む訂正の行 <count> 件をどうしますか（第 <round> 回。詳細ファイルを確認のうえ）".
      The options, in this order:
@@ -1077,7 +1088,16 @@ character as 2); the line shapes below are the examples to follow.
      model is recommended; when there is no value, that and, as far as known,
      why (the marker has no `実装モデル要件` field, or the plan without PR
      markers has no `PR 構成` section or no value line in it), and that no
-     model is recommended. The value and the agent and model let the user
+     model is recommended. Show also the high-model review's forecast for
+     that PR: for `high`, `standard+high-review`, or an unreadable value, that
+     the review runs before the PR opens unless every commit of the PR is
+     covered by a self-verifying `high`-role implementation record or a valid
+     done record (`_lib/high-review.md`, entry 1); for `low` or no value, that
+     it does not run. In an Antigravity session, which has no row in "Command
+     routing", show also the model of the reading's `Antigravity` row of
+     `_context.md`, "Harness model mapping" (part 5 of "PR marker
+     conventions"), and that an Antigravity session writes no implementation
+     record, so the review runs for those values. The value and the agent and model let the user
      decide whether this session's agent and model fit and, since step 5
      suggests `/clear` before NEXT, which agent and model to start the new
      session with. Step 5 reuses the value and the agent and model (or their
@@ -1095,21 +1115,22 @@ character as 2); the line shapes below are the examples to follow.
      PRE_MERGE: 承認 1 件・PR 番号の記入 2 行（2 ファイル）       (always; or "PRE_MERGE: なし")
      未レビューの変更: あり（推奨: PR レビュー）                  (always; or "未レビューの変更: あり（推奨: マージ）" or "未レビューの変更: なし")
      除外スレッド: 2 件（番号で判定を覆せる）                      (a three-document PR with unresolved excluded threads)
-     NEXT: /runplan 0083（要件 sonnet+opus-review → Claude Code・sonnet） (always; the forms below)
+     NEXT: /runplan 0083（要件 standard+high-review → Claude Code・sonnet） (always; the forms below)
      要確認: diff 記録の再記録 1 件（詳細ファイル）                (when PRE_MERGE re-records a diff record)
      要確認: PR の説明に追記できなかった訂正 2 件（詳細ファイル）  (when there are such corrections)
      要確認: #未記入 の行 1 件（詳細ファイル）                    (when there are such lines)
      要確認: 操作制限の期限が近い（2026-11-20、詳細ファイル）      (when there is a LIMITS_NOTE)
      自由記述: メッセージの修正 ／ 除外スレッドの判定を半角の番号で覆す (always; the second half only with the excluded-threads line)
      詳細: /tmp/runpr.Ab12Cd/merge-3.md                          (always)
-     未レビュー分: ローカル CLI 済 ／ Fable（PR 前）: run          (when unreviewed changes exist)
+     未レビュー分: ローカル CLI 済 ／ クロスチェック（PR 前）: run  (when unreviewed changes exist)
      訂正の行: 5 行（落とす 1、詳細ファイル）                      (when the range has correction lines)
      手動 PR レビュー: 完了 0123456789ab（https://...、本文に指摘やレビューしなかったファイルの知らせがありうる） (when review-state has a request or unreadable/limit)
      ```
 
      - Line 2 shows the subject in full and has no width limit, and so do kind
        6 (whose model is the routing table's text in full) and kind 15 (which
-       carries URLs); the other lines hold only fixed text and short values
+       carries URLs), and so does kind 13 in its longest form (91 columns,
+       below); the other lines hold only fixed text and short values
        (numbers, branch, counts, dates, task ID, the requirement value, the
        agent and model, the path), so each stays within 80 columns. Write the
        subject line from the checked subject file; the merge uses the file,
@@ -1130,19 +1151,20 @@ character as 2); the line shapes below are the examples to follow.
        `ローカル CLI 済` for `ALL`, `ローカル CLI 未 <n> 件` for
        `PARTIAL <n>`, and `ローカル CLI 不明` for `PARTIAL` with no count
        (the script failed, or the PR's head is not the local one). Its second
-       half is the record of the Fable partial review made before the PR
-       opened (`PR 前`: it did not see the changes after the PR opened), from
-       the Fable records of `git log --reverse origin/main..HEAD`, read as
-       `_lib/fable-review.md`, "Reading the record lines", says: `run` when
+       half is the record of the cross-check partial review made before the
+       PR opened (`PR 前`: it did not see the changes after the PR opened),
+       from the cross-check records (`Cross-check review:` lines and legacy
+       `Fable review:` lines) of `git log --reverse origin/main..HEAD`, read as
+       `_lib/cross-check-review.md`, "Reading the record lines", says: `run` when
        every record is `run`; when one is `not run`, `未実施・<word>` for the
        first such record, where `<word>` is `対象なし` for `no-target`,
        `利用不可` for `unavailable`, `時間切れ` for `timeout`, `別モデル` for
-       `not-fable`, `形式不正` for `unreadable`, and `呼べない` for
+       `wrong-model` (and the legacy `not-fable`), `形式不正` for `unreadable`, and `呼べない` for
        `agent-cannot-call`; and `なし` when the branch has no record. With
        two or more records, append `（他 <n> 件）`, `<n>` being the number of
        records not shown. Even in its longest form
-       (`未レビュー分: ローカル CLI 未 12 件 ／ Fable（PR 前）: 未実施・時間切れ（他 1 件）`,
-       82 columns), it stays compact on a single line.
+       (`未レビュー分: ローカル CLI 未 12 件 ／ クロスチェック（PR 前）: 未実施・時間切れ（他 1 件）`,
+       91 columns), it stays compact on a single line.
      - Kinds 7 to 10 appear only for what exists. Kinds 7 to 9 give a kind and
        a count; kind 10 gives the state and the expiry date, not a count.
      - Kind 14 appears only when `prepare` reported an accepted or a rejected
@@ -1166,10 +1188,10 @@ character as 2); the line shapes below are the examples to follow.
          `手動 PR レビュー: 読めない（上限）`.
      - Kind 6 is `NEXT: なし` when there is none; `NEXT: /mkarch 0089` for
        `/mkarch` or `/mkplan`; for `/runplan`,
-       `NEXT: /runplan 0083（要件 sonnet+opus-review → Claude Code・sonnet）`
+       `NEXT: /runplan 0083（要件 standard+high-review → Claude Code・sonnet）`
        for a value that is one of the three (the agent and the model of its
        "Command routing" row, joined by `・`),
-       `NEXT: /runplan 0083（要件 frontier-required＝opus → Claude Code・opus）`
+       `NEXT: /runplan 0083（要件 opus＝high → Claude Code・opus）`
        for an old value (the old value, `＝`, the value it is read as),
        `NEXT: /runplan 0083（要件の値を読めない、推奨モデルなし）` for an
        unreadable value, and `NEXT: /runplan 0083（要件の値がない、推奨モデルなし）`
@@ -1177,7 +1199,7 @@ character as 2); the line shapes below are the examples to follow.
        value are in the detail file.
      - Never show in the conversation the body, the record of the prefix rule,
        or the version without the approval line: they are in the detail file.
-   - **Question.** Ask with one `AskUserQuestion` call holding one single-select
+   - **Question.** Ask with one `select-question` call holding one single-select
      question: "PR #<number> をどうしますか（第 <round> 回。要約と詳細ファイルを確認のうえ）",
      in one line, with none of the summary or the detail file in it. Offer the
      options that apply, in this order; "recommended" means the label carries
@@ -1344,7 +1366,7 @@ character as 2); the line shapes below are the examples to follow.
       is the answer's free text as written, or `理由の記載なし` when it gives
       none; never infer one. Work out ADR_SPLIT from the ADR judgments of the
       three documents; when one ADR change cannot be split that way, ask the
-      user with one `AskUserQuestion` call, and without an answer change
+      user with one `select-question` call, and without an answer change
       nothing and stop. THREADS come from the latest `fixpr` Final report
       (`_lib/simple-process.md`, "Returning to the full process", "Inputs"),
       limited to the threads the latest `fixprguard list` still shows
@@ -1582,7 +1604,9 @@ Once `mergepr.md` reports the merge:
      create another branch with Part A step 4 and leave this one unused;
   4. when NEXT is `/runplan`, the `実装モデル要件` and the agent and model to
      start the new session with, shown in step 4, or that there is none and why, as
-     step 4 showed them.
+     step 4 showed them, with the high-model review's forecast and, in an
+     Antigravity session, the `Antigravity` row's model and its note, as step 4
+     showed them.
 
 **Stopping before the next branch is ready.** When NEXT is set and this step
 stops before the next branch is ready (the cleanup cannot finish,

@@ -91,8 +91,8 @@
 #     checks is known to be seen.
 #
 # Mode cross-check (alias: fable): whether the branch's last cross-check
-# partial review record still covers the branch (.claude/commands/_lib/fable-review.md,
-# "The validity decision"; renamed to _lib/cross-check-review.md in phase 4).
+# partial review record still covers the branch (.claude/commands/_lib/cross-check-review.md,
+# "The validity decision").
 #
 #   ENTRY  launch (the launch entry) or checkpoint (the checkpoint and the
 #          pre-push entries); it chooses only whether the rule of the
@@ -199,9 +199,9 @@
 # Where the rules are defined. The command documents define the record
 # lines and what is done with the result, and those definitions win over
 # this file: the seen-range and not-run lines' forms in
-# .claude/commands/_lib/local-cli-review.md, step 7, the Fable records',
+# .claude/commands/_lib/local-cli-review.md, step 7, the cross-check records',
 # the checkpoint mark's, and the merge check records' forms and the
-# validity rules in .claude/commands/_lib/fable-review.md ("Record lines"
+# validity rules in .claude/commands/_lib/cross-check-review.md ("Record lines"
 # and "The validity decision"), the form of the "PR created" line in
 # .claude/commands/runplan.md, step 5a (AFTER_CREATE), and the rules that
 # turn the coverage result into a decision in .claude/commands/runpr.md,

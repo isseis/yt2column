@@ -30,9 +30,7 @@
 
 PR を開く前に、ハーネスごとに `_context.md` が定めるクロスチェック役割のモデルによる部分レビューを、4 つの基準に当たる箇所に絞って 1 回行う。起動・モデル検証・タイムアウト・終了処理はハーネスのアダプタ（[ADR-0055](0055-harness-independent-commands.md)）に委譲し、指摘はローカルの CLI レビューの指摘とまとめてトリアージし、却下には根拠を確かめる。走らないときは、止めずに `not run` と記録する。見た後に足された commit は、記録を無効にするものとしないものを判定のスクリプトが分け、push の直前に確かめ直す。
 
-仕様は [0098 要件定義書](../../tasks/0098_fable_partial_review/01_requirements.md) の機能要件と [0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md) の F-005・F-008 が持つ。記録の後、push の前にできた commit の扱いは、[0114 要件定義書](../../tasks/0114_fable_record_after_merge/01_requirements.md) の F-001・F-002・F-005 が持つ。手順は `.claude/commands/_lib/` のクロスチェック部分レビューの共有手順（現在は `.claude/commands/_lib/fable-review.md`）とハーネスのアダプタにあり、ハーネス別のモデル対応表は [_context.md](../../../.claude/commands/_context.md) にある。
-
-**食い違い：** 共有手順のファイル名と本文（`.claude/commands/_lib/fable-review.md`）および呼び出し元の入力名は、まだ `Fable` の固有名・Claude Code の `Agent` ツール・`claude-fable-...` のモデル ID・`Fable review:` の記録行だけを前提としている。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装で解消する。
+仕様は [0098 要件定義書](../../tasks/0098_fable_partial_review/01_requirements.md) の機能要件と [0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md) の F-005・F-008 が持つ。記録の後、push の前にできた commit の扱いは、[0114 要件定義書](../../tasks/0114_fable_record_after_merge/01_requirements.md) の F-001・F-002・F-005 が持つ。手順は `.claude/commands/_lib/` のクロスチェック部分レビューの共有手順（[_lib/cross-check-review.md](../../../.claude/commands/_lib/cross-check-review.md)）とハーネスのアダプタにあり、ハーネス別のモデル対応表は [_context.md](../../../.claude/commands/_context.md) にある。
 
 ### 1. PR を開く前に、1 つの PR につき 1 回行う
 
@@ -72,7 +70,7 @@ PR を開く前に、ハーネスごとに `_context.md` が定めるクロス�
 部分レビューが見た範囲の後にも、直し・チェックポイントの commit・`main` の取り込みなどの commit が足される。すべてを見直すと費用が繰り返しかかり、何も見直さないと誰も見ていない変更のまま PR が開く。そこで、記録を無効にしない commit を決め、それ以外の commit があれば見直す。
 
 -   **記録を無効にしない commit：** 中身のない commit（空の commit、`README.en.md` だけを変える commit、計画書の PR の進み具合のチェックボックスの行だけを変える commit）、同じ実行の直しの commit、チェックポイントの印の後の commit（green gate の直し、上位モデルのレビューの直しなど、PR のチェックポイントの実行が PR を作るまでに作った commit）である。直しの commit を含めるのは、部分レビューと上位モデルのレビューが互いの直しのたびに繰り返されないようにするためである（0098 要件定義書の F-001、0114 要件定義書の F-002）。
--   **計画書のほかの行を変える commit は、中身のある commit とする：** `_lib/opus-review.md` の除外できる commit は使わない。計画書は、タスク文書の PR ではレビューされる中身であり、実装の PR でも実装モデル要件や自動送信の値は中身であるためである（[0098 設計書](../../tasks/0098_fable_partial_review/02_architecture.md) 1.2 の決定 11）。
+-   **計画書のほかの行を変える commit は、中身のある commit とする：** `_lib/high-review.md` の除外できる commit は使わない。計画書は、タスク文書の PR ではレビューされる中身であり、実装の PR でも実装モデル要件や自動送信の値は中身であるためである（[0098 設計書](../../tasks/0098_fable_partial_review/02_architecture.md) 1.2 の決定 11）。
 -   **チェックポイントの印：** チェックポイントの入口で記録が有効なら、空の commit に印を残し、印より後の commit を記録を無効にしない commit とする。
     -   **理由：** チェックポイントの commit は別々の手順が作るので、commit ごとに見分ける行を書かせると、それらの手順のすべてに手が入るためである（0098 設計書 1.2 の決定 3）。タスク文書の PR の CHECKS の直しも、`/runplan` の green gate の直しと同じく印で扱う。commit のデータだけでは CHECKS の直しをほかの commit と見分けられないためである（0114 要件定義書の F-002）。
     -   **使う入口：** `/runplan` のチェックポイントの入口（green gate より前）に加え、タスク文書の PR でも、同じ入口を Part B step 2（CHECKS）の前に走らせて印を残す。入口は、記録が有効でなければ見直してから印を残すので、印を残せないまま CHECKS の直しが記録を無効にすることがない（[0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md) 1.2 の決定 4）。

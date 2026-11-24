@@ -9,6 +9,11 @@ argument-hint: "<task>"
 > `cmd/`/`internal/` inspection (step 6) is one of the parts that needs editing.
 > The review step follows `.claude/commands/_lib/review-subagent-pattern.md`.
 > The branch setup and the PR handoff follow `.claude/commands/_lib/task-pr-handoff.md`.
+>
+> **Harness.** Every harness-specific operation this command and its shared
+> procedures name (such as `select-question` or `shell-run`) is defined in
+> `.claude/commands/_lib/harness.md`: read it and the adapter it selects for
+> this session before step 1.
 
 Your goal is to create `02_architecture.md` for one task under `docs/tasks/`.
 

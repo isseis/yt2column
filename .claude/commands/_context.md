@@ -2,7 +2,7 @@
 description: "Internal: project-specific values the commands depend on (not a command)"
 ---
 
-# Project Context for Claude Commands
+# Project Context for the Development Commands
 
 This file is the single source of truth for project-specific configuration values
 the commands in this directory depend on. Commands reference the **names** defined
@@ -49,7 +49,7 @@ what changes under which condition:
 | Task process record | The `Process` row of the requirements document's status table, which records whether the task takes the full process or the simple process. Its values, the states of the record, and who writes it are defined only in the requirements process guide, "Document Status Format" ("Process record"); the rules of the simple process are in its "Simple Process" section |
 | Draft issue label | `draft` — a label marks a draft issue only when its name is exactly `draft` in bytes. An open issue with that label is a draft issue: do not start a task from it. `/mkreq` stops in step 1, and the `chief` tool creates no workspace for it (`internal/chief/issue.go`). A closed issue is a closed issue whatever its labels. Removing the label makes the issue a regular issue |
 | Feature branch name | `<GitHub user name>/<slug>-<NN>`, where `<slug>` is the task directory name with each `_` replaced by `-`, and `-<NN>` is appended once: a two-digit sequence number starting at `01` (e.g. `isseis/0027-remove-context-menu-01`). `_lib/task-pr-handoff.md` Part A chooses `NN` for the commands that open a task PR, and `runpr.md` step 5 names the next branch after a merge |
-| Reviewer ping | After a task-document command (`mkreq.md`, `mkarch.md`, `mkplan.md`, `mkplan2.md`) or `runplan.md` opens its PR (`_lib/task-pr-handoff.md` Part B), notify the human reviewer with the `PushNotification` tool (the PR author cannot be requested as a GitHub reviewer of their own PR) and repeat the PR URL and the next action in the final report, which is the only channel when the tool is unavailable or the notification is not sent |
+| Reviewer ping | After a task-document command (`mkreq.md`, `mkarch.md`, `mkplan.md`, `mkplan2.md`) or `runplan.md` opens its PR (`_lib/task-pr-handoff.md` Part B), notify the human reviewer with the `notify-user` operation of `_lib/harness.md` (the PR author cannot be requested as a GitHub reviewer of their own PR) and repeat the PR URL and the next action in the final report, which is the only channel when the harness has no notification tool or the notification is not sent |
 | PR merge method | Squash merge, run with `/mergepr`. The squash commit is the only commit of a PR that reaches `main`, so its message carries what CLAUDE.md requires commit messages to record, and every editorial correction line of the PR's commits, as `mergepr.md` says |
 | Document language | Japanese — the language of the task documents and the guides (`CLAUDE.md`, "Document language", principle (a)); instruction files and conventions are English |
 | Translation glossary | `docs/translation_glossary.md` — also the authority for the Japanese terms of a PR title and a PR description: read it before writing either, use its terms, and never use a term it marks as deprecated (旧称) or a rendering it says not to use. A term the text needs but the glossary lacks is not invented silently: name it in the final report, for the user to add to the glossary |
@@ -70,7 +70,7 @@ PR boundary markers embedded in the implementation plan use these labels:
      "Writing the three documents", reaches it through `mkplan.md`); the meaning of
      each value, when it applies, and how its `**判定理由**` is written are
      defined there only, not here. They are read by `runplan.md` (its
-     guidance before a phase group), by `_lib/opus-review.md` (entry 1, which
+     guidance before a phase group), by `_lib/high-review.md` (entry 1, which
      decides whether the high-model review runs), by `runpr.md` (the merge
      question of step 4 and the `/clear` guidance of step 5), and by the
      `chief` tool (`internal/chief/task.go`, which chooses the `/runplan` row
@@ -95,7 +95,7 @@ PR boundary markers embedded in the implementation plan use these labels:
        `PR 構成` section), there is **no value**.
 
      `_lib/high-review-decision.sh` is the executable form of parts 2 to 4
-     for entry 1 of `_lib/opus-review.md`; it reads part 4 and
+     for entry 1 of `_lib/high-review.md`; it reads part 4 and
      "Harness model mapping" from `origin/main`'s copy of this file. The
      `chief` tool reads parts 2 to 4 in Go (`internal/chief/task.go`), also
      with part 4 from `origin/main`, and a test runs both readings on the same
@@ -132,7 +132,7 @@ PR boundary markers embedded in the implementation plan use these labels:
      `high`, `standard+high-review`, and unreadable values, the high-model
      review runs unless a valid done record already covers the branch). The
      high-model review column is decided in detail by entry 1 of
-     `_lib/opus-review.md`.
+     `_lib/high-review.md`.
 
      | Reading | Command routing row | High-model review |
      |---|---|---|
@@ -271,8 +271,9 @@ To add a `<type>`, change the `<type>` row above and the expression in
 #### Passing a title to `gh`
 
 `gh pr create` and `gh pr edit` have no flag that reads a title from a file.
-Write the title with the Write tool to a file in the scratchpad (outside the
-tracked tree), and pass it by command substitution:
+Write the title to a file in the scratchpad (outside the tracked tree) with the
+`file-io` and `scratchpad` operations of `_lib/harness.md`, and pass it by
+command substitution:
 `--title "$(cat "<title-file>")"`. The substituted text is not expanded again
 inside the double quotes, so a `$`, a backquote, a `"`, or a `\` in the title
 reaches GitHub as written instead of being expanded by the shell (which could

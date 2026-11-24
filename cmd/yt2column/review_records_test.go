@@ -38,9 +38,9 @@ func rrPlanSample(t *testing.T, name string) string {
 	return string(data)
 }
 
-// fableReviewPath is the Fable partial review's procedure, whose "Record
-// lines" define the Fable records the fable mode reads.
-const fableReviewPath = "../../.claude/commands/_lib/fable-review.md"
+// crossCheckReviewPath is the cross-check partial review's procedure, whose
+// "Record lines" define the cross-check records the cross-check mode reads.
+const crossCheckReviewPath = "../../.claude/commands/_lib/cross-check-review.md"
 
 // recordTableForm returns the form of the record line named line in a
 // record-line table of section: the first code span of the second cell of
@@ -91,7 +91,7 @@ func seenRangeForm(t *testing.T) string {
 type rrFixture struct {
 	*gitFixture
 	form       string
-	forms      fableForms
+	forms      crossCheckForms
 	bash       scriptBash
 	contextDoc string
 	m0, mb     string
@@ -790,7 +790,7 @@ func checkConfigScenarios(t *testing.T, name string, bash scriptBash, newFixture
 // runRRCases executes every case in cases under mode and bash, checking
 // fail-closed output failOut (exit 1 with diagnostic) when want is nil and
 // exact stdout (exit 0) otherwise.
-func runRRCases(t *testing.T, bash scriptBash, mode, failOut, form string, forms fableForms, cases []rrCase) {
+func runRRCases(t *testing.T, bash scriptBash, mode, failOut, form string, forms crossCheckForms, cases []rrCase) {
 	t.Helper()
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -852,7 +852,7 @@ func TestReviewRecordsCoverage(t *testing.T) {
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
-			runRRCases(t, bash, "coverage", "PARTIAL\n", form, fableForms{}, coverageCases())
+			runRRCases(t, bash, "coverage", "PARTIAL\n", form, crossCheckForms{}, coverageCases())
 			checkConfigScenarios(t, "git config", bash, func(t *testing.T) *rrFixture { return newRRFixture(t, form) },
 				"coverage", rrConfigBranch, func(*rrFixture) string { return "PARTIAL 1\n" })
 		})
@@ -945,7 +945,7 @@ func rrUnreviewedConfigBranch(f *rrFixture) []string {
 // configuration scenarios run on rrUnreviewedConfigBranch.
 func TestReviewRecordsUnreviewed(t *testing.T) {
 	form := seenRangeForm(t)
-	forms := readFableForms(t)
+	forms := readCrossCheckForms(t)
 	var cases []rrCase
 	used := map[string]struct{}{}
 	for _, c := range coverageCases() {
@@ -999,24 +999,25 @@ func TestReviewRecordsMode(t *testing.T) {
 	}
 }
 
-// fableForms are the record line forms the fable mode reads, from the
-// documents that define them: the Fable records, the checkpoint mark, and
-// the merge check records of fable-review.md's "Record lines", and the
-// not-run line of local-cli-review.md step 7.
-type fableForms struct {
+// crossCheckForms are the record line forms the cross-check mode reads, from
+// the documents that define them: the cross-check records, the checkpoint
+// mark, and the merge check records of cross-check-review.md's "Record
+// lines", and the not-run line of local-cli-review.md step 7. The legacy
+// Fable lines older branches wrote are made from them by legacyFable.
+type crossCheckForms struct {
 	run, notRun, checkpoint, localNotRun, mergeRun, mergeNotRun string
 }
 
-func readFableForms(t *testing.T) fableForms {
+func readCrossCheckForms(t *testing.T) crossCheckForms {
 	t.Helper()
-	records := requireSection(t, "fable-review.md", doctestutil.ReadDoc(t, fableReviewPath), "## Record lines")
-	where := "fable-review.md \"Record lines\""
-	return fableForms{
-		run: recordTableForm(t, where, records, "Fable review: run",
+	records := requireSection(t, "cross-check-review.md", doctestutil.ReadDoc(t, crossCheckReviewPath), "## Record lines")
+	where := "cross-check-review.md \"Record lines\""
+	return crossCheckForms{
+		run: recordTableForm(t, where, records, "Cross-check review: run",
 			"<START12>", "<END12>", "<model-id>", "<seconds>", "<tokens>"),
-		notRun: recordTableForm(t, where, records, "Fable review: not run",
+		notRun: recordTableForm(t, where, records, "Cross-check review: not run",
 			"<START12>", "<END12>", "<reason>", "[; <seconds>s, tokens <tokens>]"),
-		checkpoint: recordTableForm(t, where, records, "Fable review: checkpoint"),
+		checkpoint: recordTableForm(t, where, records, "Cross-check review: checkpoint"),
 		localNotRun: recordTableForm(t, "local-cli-review.md step 7", localReviewStep7(t), "Local CLI review: not run",
 			"<START12>", "<END12>"),
 		mergeRun: recordTableForm(t, where, records, "Merge check: run",
@@ -1050,6 +1051,12 @@ func rrRange(form, start, end string) string {
 	return strings.NewReplacer("<START12>", start[:12], "<END12>", end[:12]).Replace(form)
 }
 
+// legacyFable turns a cross-check record line into the legacy Fable line of
+// the same meaning older branches wrote.
+func legacyFable(line string) string {
+	return strings.Replace(line, "Cross-check review:", "Fable review:", 1)
+}
+
 // fableRun is a legacy Fable run record for start..end, every count and the
 // cost filled in.
 func (f *rrFixture) fableRun(start, end string) string {
@@ -1058,18 +1065,24 @@ func (f *rrFixture) fableRun(start, end string) string {
 
 // fableRunModel is a legacy Fable run record for start..end with model.
 func (f *rrFixture) fableRunModel(start, end, model string) string {
-	return strings.NewReplacer("<model-id>", model, "<n>", "1", "<seconds>", "120", "<tokens>", "4567").
-		Replace(rrRange(f.forms.run, start, end))
+	return legacyFable(f.crossCheckRun(start, end, model))
 }
 
 // crossCheckRun is a new Cross-check run record for start..end with model.
 func (f *rrFixture) crossCheckRun(start, end, model string) string {
-	return strings.Replace(f.fableRunModel(start, end, model), "Fable review:", "Cross-check review:", 1)
+	return strings.NewReplacer("<model-id>", model, "<n>", "1", "<seconds>", "120", "<tokens>", "4567").
+		Replace(rrRange(f.forms.run, start, end))
 }
 
 // fableNotRun is a legacy Fable not-run record for start..end with reason,
 // with the cost when withCost is true and without it otherwise.
 func (f *rrFixture) fableNotRun(start, end, reason string, withCost bool) string {
+	return legacyFable(f.crossCheckNotRun(start, end, reason, withCost))
+}
+
+// crossCheckNotRun is a new Cross-check not-run record for start..end with
+// reason, with the cost when withCost is true and without it otherwise.
+func (f *rrFixture) crossCheckNotRun(start, end, reason string, withCost bool) string {
 	line := strings.Replace(rrRange(f.forms.notRun, start, end), "<reason>", reason, 1)
 	if withCost {
 		line = strings.NewReplacer("[", "", "]", "", "<seconds>", "75", "<tokens>", "unknown").Replace(line)
@@ -1079,14 +1092,9 @@ func (f *rrFixture) fableNotRun(start, end, reason string, withCost bool) string
 	return line
 }
 
-// crossCheckNotRun is a new Cross-check not-run record for start..end.
-func (f *rrFixture) crossCheckNotRun(start, end, reason string, withCost bool) string {
-	return strings.Replace(f.fableNotRun(start, end, reason, withCost), "Fable review:", "Cross-check review:", 1)
-}
-
-// crossCheckCheckpoint is the new Cross-check checkpoint mark line.
-func (f *rrFixture) crossCheckCheckpoint() string {
-	return strings.Replace(f.forms.checkpoint, "Fable review:", "Cross-check review:", 1)
+// fableCheckpoint is the legacy Fable checkpoint mark line.
+func (f *rrFixture) fableCheckpoint() string {
+	return legacyFable(f.forms.checkpoint)
 }
 
 // localNotRun is a local CLI review not-run line for start..end.
@@ -1392,14 +1400,14 @@ func crossCheckCases() []rrCase {
 		// The shape of a task-document PR's CHECKS fix after its mark.
 		{name: "work after the legacy mark at the checkpoint", setup: func(f *rrFixture) []string {
 			recorded(f)
-			f.record("mark", f.forms.checkpoint)
+			f.record("mark", f.fableCheckpoint())
 			f.work("gate fix")
 			return rrFable(f, "checkpoint")
 		}, want: rrValid},
 		{name: "work after the Cross-check mark at the checkpoint", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			f.record("record", f.crossCheckRun(f.mb, c1, "claude-opus-5-5-medium"))
-			f.record("mark", f.crossCheckCheckpoint())
+			f.record("mark", f.forms.checkpoint)
 			f.work("gate fix")
 			return rrFable(f, "checkpoint")
 		}, want: rrValid},
@@ -1856,7 +1864,7 @@ func rrFableMergeConfigBranch(f *rrFixture) []string {
 // reading through a porcelain command.
 func TestReviewRecordsCrossCheck(t *testing.T) {
 	form := seenRangeForm(t)
-	forms := readFableForms(t)
+	forms := readCrossCheckForms(t)
 	realContext := doctestutil.ReadDoc(t, contextPath)
 
 	const (
@@ -2038,7 +2046,7 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 // fail-closed cases).
 func TestReviewRecordsFableAlias(t *testing.T) {
 	form := seenRangeForm(t)
-	forms := readFableForms(t)
+	forms := readCrossCheckForms(t)
 	cases := []rrCase{
 		{name: "VALID with Cross-check record", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
@@ -2073,7 +2081,7 @@ const (
 	reviewRecordsRunCoverage   = "bash <records-script> coverage <LAST_REVIEWED> <HEAD> [<PLAN>]"
 	reviewRecordsRunRemaining  = "bash <records-script> coverage none <HEAD> [<PLAN>]"
 	reviewRecordsRunUnreviewed = "bash <records-script> unreviewed <HEAD> <PLAN>"
-	reviewRecordsRunFable      = "bash <records-script> fable <ENTRY> <HEAD> <PLAN>"
+	reviewRecordsRunCrossCheck = "bash <records-script> cross-check <ENTRY> <HEAD> <PLAN>"
 )
 
 // reviewRecordsNames are the code spans that only name the review records
@@ -2087,8 +2095,10 @@ var reviewRecordsNames = []string{
 // block that names the script or its placeholder is the write-out or a run,
 // and every code span that names them is the name alone. Running the work
 // tree's copy would let the branch under review change the decision that
-// lets it skip a PR review or a Fable partial review. task-pr-handoff.md's
-// Part B step 2.5 and step 3, runpr.md's step 3, and fable-review.md's
+// lets it skip a PR review or a cross-check partial review. The cross-check
+// mode is run only by its own name, never by its compatibility alias fable.
+// task-pr-handoff.md's Part B step 2.5 and step 3, runpr.md's step 3, and
+// cross-check-review.md's
 // validity decision, which the launch, checkpoint, and pre-push entries run,
 // have the reading of the reference, the write-out, and the run on
 // consecutive lines, so a renamed form does not pass by matching nothing.
@@ -2103,7 +2113,7 @@ func TestReviewRecordsCallSite(t *testing.T) {
 			}
 			inBlock := i < len(blockLines)
 			switch {
-			case inBlock && (code == reviewRecordsShow || code == reviewRecordsRunCoverage || code == reviewRecordsRunRemaining || code == reviewRecordsRunUnreviewed || code == reviewRecordsRunFable):
+			case inBlock && (code == reviewRecordsShow || code == reviewRecordsRunCoverage || code == reviewRecordsRunRemaining || code == reviewRecordsRunUnreviewed || code == reviewRecordsRunCrossCheck):
 			case !inBlock && slices.Contains(reviewRecordsNames, code):
 			default:
 				t.Errorf("%s has %q, which neither names the review records script nor writes out or runs origin/main's copy", rel, code)
@@ -2117,7 +2127,7 @@ func TestReviewRecordsCallSite(t *testing.T) {
 		{"handoff step 2.5", handoffPath, reviewRecordsRunRemaining, itemSection("\n2.5. ", "\n2.6. ")},
 		{"handoff step 3", handoffPath, reviewRecordsRunUnreviewed, itemSection("3. Push and create the PR for the current branch.", "\n4. Run AFTER_CREATE")},
 		{"runpr.md's step 3", runprPath, reviewRecordsRunCoverage, headingSection(runprStep3)},
-		{"fable-review.md's validity decision", fableReviewPath, reviewRecordsRunFable, headingSection("## The validity decision")},
+		{"cross-check-review.md's validity decision", crossCheckReviewPath, reviewRecordsRunCrossCheck, headingSection("## The validity decision")},
 	} {
 		blockLines, _ := codeTexts(site.section(t, doctestutil.ReadDoc(t, site.path)))
 		if i := slices.Index(blockLines, reviewRecordsShow); i < 1 || i+1 >= len(blockLines) ||
@@ -2130,7 +2140,7 @@ func TestReviewRecordsCallSite(t *testing.T) {
 
 // Paths of the other documents that define or write record lines.
 const (
-	opusReviewPath = "../../.claude/commands/_lib/opus-review.md"
+	highReviewPath = "../../.claude/commands/_lib/high-review.md"
 	runplanPath    = "../../.claude/commands/runplan.md"
 )
 
@@ -2173,15 +2183,16 @@ func tableLinePrefixes(t *testing.T, where, section string) []string {
 	return prefixes
 }
 
-// TestRecordLinePrefixesDistinct checks that the record lines the Fable
-// partial review, the merge check, and the seen-range line add cannot be
-// read as an existing record line or as one another: no new prefix equals
-// an existing one or another new one, and neither starts with the other.
-// The existing prefixes are those of local-cli-review.md step 7's table
-// (the seen-range line aside) and of the code blocks of
-// opus-review.md's "Record lines", which _lib/high-review-decision.sh and
-// the local CLI review's readers read; the new ones are those of
-// fable-review.md's "Record lines" table and the seen-range line.
+// TestRecordLinePrefixesDistinct checks that the record lines the
+// cross-check partial review, the merge check, and the seen-range line add
+// cannot be read as an existing record line or as one another: no new prefix
+// equals an existing one or another new one, and neither starts with the
+// other. The existing prefixes are those of local-cli-review.md step 7's
+// table (the seen-range line aside), of the code blocks of high-review.md's
+// "Record lines", which _lib/high-review-decision.sh and the local CLI
+// review's readers read, and the legacy prefixes the readers still accept
+// (legacyRecordPrefixes); the new ones are those of cross-check-review.md's
+// "Record lines" table and the seen-range line.
 func TestRecordLinePrefixesDistinct(t *testing.T) {
 	const seenPrefix = "Local CLI reviewed:"
 	existing := map[string]struct{}{}
@@ -2194,19 +2205,23 @@ func TestRecordLinePrefixesDistinct(t *testing.T) {
 		existing[prefix] = struct{}{}
 	}
 	localCount := len(existing)
-	opus := requireSection(t, "opus-review.md", doctestutil.ReadDoc(t, opusReviewPath), "## Record lines")
-	blockLines, _ := codeTexts(opus)
+	high := requireSection(t, "high-review.md", doctestutil.ReadDoc(t, highReviewPath), "## Record lines")
+	blockLines, _ := codeTexts(high)
 	for _, line := range blockLines {
-		existing[recordPrefix(t, "opus-review.md \"Record lines\"", line)] = struct{}{}
+		existing[recordPrefix(t, "high-review.md \"Record lines\"", line)] = struct{}{}
 	}
-	fable := requireSection(t, "fable-review.md", doctestutil.ReadDoc(t, fableReviewPath), "## Record lines")
-	// The table's rows are of two families, the Fable lines and the merge
-	// check lines. The rows of one family may share a prefix (three rows are
-	// "Fable review:"), so each distinct prefix is compared once; the
-	// families give the lower bounds, so a merge check row moved into the
-	// Fable family's prefixes fails them.
+	highCount := len(existing) - localCount
+	for _, prefix := range legacyRecordPrefixes {
+		existing[prefix] = struct{}{}
+	}
+	crossCheck := requireSection(t, "cross-check-review.md", doctestutil.ReadDoc(t, crossCheckReviewPath), "## Record lines")
+	// The table's rows are of two families, the cross-check lines and the
+	// merge check lines. The rows of one family may share a prefix (three
+	// rows are "Cross-check review:"), so each distinct prefix is compared
+	// once; the families give the lower bounds, so a merge check row moved
+	// into the cross-check family's prefixes fails them.
 	families := map[bool]map[string]struct{}{false: {}, true: {}}
-	for _, prefix := range tableLinePrefixes(t, "fable-review.md \"Record lines\"", fable) {
+	for _, prefix := range tableLinePrefixes(t, "cross-check-review.md \"Record lines\"", crossCheck) {
 		families[strings.HasPrefix(prefix, mergeCheckFamily)][prefix] = struct{}{}
 	}
 	for _, family := range families {
@@ -2216,10 +2231,10 @@ func TestRecordLinePrefixesDistinct(t *testing.T) {
 	}
 	// The lower bounds keep a table the reading misses from passing with
 	// nothing compared.
-	if localCount < 3 || len(existing)-localCount < 2 || len(families[false]) < 3 || len(families[true]) < 3 ||
+	if localCount < 3 || highCount < 2 || len(families[false]) < 3 || len(families[true]) < 3 ||
 		!slices.Contains(added, seenPrefix) {
-		t.Fatalf("read %d prefixes from local-cli-review.md step 7, %d more from opus-review.md, %d Fable and %d merge check prefixes from fable-review.md, and the seen-range line %v; want at least 3, 2, 3, 3, and true",
-			localCount, len(existing)-localCount, len(families[false]), len(families[true]), slices.Contains(added, seenPrefix))
+		t.Fatalf("read %d prefixes from local-cli-review.md step 7, %d more from high-review.md, %d cross-check and %d merge check prefixes from cross-check-review.md, and the seen-range line %v; want at least 3, 2, 3, 3, and true",
+			localCount, highCount, len(families[false]), len(families[true]), slices.Contains(added, seenPrefix))
 	}
 	for i, n := range added {
 		for e := range existing {
@@ -2235,8 +2250,17 @@ func TestRecordLinePrefixesDistinct(t *testing.T) {
 	}
 }
 
+// legacyRecordPrefixes are the prefixes of the legacy record lines older
+// branches wrote, which the readers still accept with the meaning of the new
+// line (high-review.md's and cross-check-review.md's "Record lines"). A new
+// prefix that overlaps one of them would be read as the legacy line. The
+// list is kept by hand: it follows the legacy forms the "Record lines"
+// sections name and _lib/review-records.sh and _lib/high-review-decision.sh
+// accept, and changes with them.
+var legacyRecordPrefixes = []string{"Opus review:", "Fable review:", "Fable scope:", "Fable finding:"}
+
 // mergeCheckFamily starts the prefix of every merge check line in
-// fable-review.md's "Record lines".
+// cross-check-review.md's "Record lines".
 const mergeCheckFamily = "Merge check"
 
 // mentionCheckReference is how a section names the mention check that runs
@@ -2244,10 +2268,10 @@ const mergeCheckFamily = "Merge check"
 const mentionCheckReference = "`_lib/local-cli-review.md` step 7, \"Mention check\""
 
 // TestRecordCommitsCheckMention checks that each section that makes a commit
-// holding a Fable or merge check line runs the mention check first: it holds
-// the check's command or names local-cli-review.md step 7's "Mention check".
-// A Fable or merge check line carries the session's summaries of findings,
-// which may hold the mention.
+// holding a cross-check, merge check, or high-model review line runs the
+// mention check first: it holds the check's command or names
+// local-cli-review.md step 7's "Mention check". Such a line carries the
+// session's summaries of findings, which may hold the mention.
 func TestRecordCommitsCheckMention(t *testing.T) {
 	runplan := doctestutil.ReadDoc(t, runplanPath)
 	var step78 string
@@ -2256,13 +2280,14 @@ func TestRecordCommitsCheckMention(t *testing.T) {
 			step78 = line
 		}
 	}
-	fable := doctestutil.ReadDoc(t, fableReviewPath)
+	crossCheck := doctestutil.ReadDoc(t, crossCheckReviewPath)
 	for _, site := range []struct{ name, text string }{
 		{"local-cli-review.md step 7", localReviewStep7(t)},
 		{"runplan.md step 7.8", step78},
-		{"fable-review.md \"Record lines\"", requireSection(t, "fable-review.md", fable, "## Record lines")},
-		{"fable-review.md \"The standalone path\"", requireSection(t, "fable-review.md", fable, "## The standalone path")},
-		{"fable-review.md \"The merge check\"", requireSection(t, "fable-review.md", fable, "## The merge check")},
+		{"cross-check-review.md \"Record lines\"", requireSection(t, "cross-check-review.md", crossCheck, "## Record lines")},
+		{"cross-check-review.md \"The standalone path\"", requireSection(t, "cross-check-review.md", crossCheck, "## The standalone path")},
+		{"cross-check-review.md \"The merge check\"", requireSection(t, "cross-check-review.md", crossCheck, "## The merge check")},
+		{"high-review.md \"Record lines\"", requireSection(t, "high-review.md", doctestutil.ReadDoc(t, highReviewPath), "## Record lines")},
 	} {
 		text := flat(site.text)
 		if text == "" {

@@ -11,6 +11,11 @@ argument-hint: "<issue> [task]"
 > the full process and the simple process, and the simple process's procedures,
 > follow `docs/dev/conventions/requirements_process.md` ("Process record" and
 > "Simple Process") and `.claude/commands/_lib/simple-process.md`.
+>
+> **Harness.** Every harness-specific operation this command and its shared
+> procedures name (such as `select-question` or `shell-run`) is defined in
+> `.claude/commands/_lib/harness.md`: read it and the adapter it selects for
+> this session before step 1.
 
 Your goal is to turn one GitHub issue into the first version of a task's
 `01_requirements.md`, review it, open its PR, and hand the PR to the human
@@ -55,7 +60,7 @@ Work in the following order.
      convention", "Draft issue label"). Write the label names to a file in the
      scratchpad, outside the tracked tree, as one name per line:
      `gh issue view <N> --json labels --jq '.labels[].name' > <file>`.
-     Run each of the two commands in a Bash call of its own — one command per
+     Run each of the two commands in a `shell-run` call of its own (`_lib/harness.md`) — one command per
      call — and read the exit code the tool reports for that call. Never run
      them in one call, joined with `&&`, `;`, a newline, or a pipe: an ordinary
      `gh` failure exits `1`, the same code `grep` uses for no matching line

@@ -14,10 +14,10 @@ import (
 	"github.com/isseis/yt2column/internal/doctestutil"
 )
 
-// fableStateParts runs the state check block of fable-review.md, written to
+// crossCheckStateParts runs the state check block of cross-check-review.md, written to
 // a file outside the fixture, in f and returns its output as part name to
 // hash.
-func fableStateParts(t *testing.T, f *gitFixture, block string) map[string]string {
+func crossCheckStateParts(t *testing.T, f *gitFixture, block string) map[string]string {
 	t.Helper()
 	run := f.runScript(scriptBash{name: "path-bash", path: "bash"}, block, nil, scriptRunOptions{})
 	if run.code != 0 || run.stderr != "" {
@@ -38,16 +38,18 @@ func fableStateParts(t *testing.T, f *gitFixture, block string) map[string]strin
 	return parts
 }
 
-// TestFableStateCheckBlock runs the state check block of fable-review.md,
-// which is a command example the procedure runs, and checks that it sees the
-// changes git status does not show: a change to the content of a
-// skip-worktree file, a new file in the hooks directory, a replace ref, and
-// a merge in progress.
-func TestFableStateCheckBlock(t *testing.T) {
+// TestCrossCheckStateCheckBlock runs the state check block of
+// cross-check-review.md, which is a command example the procedure runs, and
+// checks that it sees the changes git status does not show: a change to the
+// content of a skip-worktree file, a new file in the hooks directory, a
+// replace ref, a merge in progress, an ignored file below .agents/, an ignored
+// instruction file another harness reads, and a nested .git entry below
+// .claude/ or .agents/.
+func TestCrossCheckStateCheckBlock(t *testing.T) {
 	if _, err := exec.LookPath("shasum"); err != nil {
 		t.Fatalf("shasum is not on PATH: %v", err)
 	}
-	section := requireSection(t, "fable-review.md", doctestutil.ReadDoc(t, fableReviewPath), "## The state check")
+	section := requireSection(t, "cross-check-review.md", doctestutil.ReadDoc(t, crossCheckReviewPath), "## The state check")
 	blockLines, _ := codeTexts(section)
 	script := filepath.Join(t.TempDir(), "state.sh")
 	if err := os.WriteFile(script, []byte(strings.Join(blockLines, "\n")+"\n"), 0o600); err != nil {
@@ -58,42 +60,87 @@ func TestFableStateCheckBlock(t *testing.T) {
 	f.write("flagged.txt", "one\n")
 	f.commit("add flagged.txt")
 	f.git("update-index", "--skip-worktree", "flagged.txt")
-	before := fableStateParts(t, f, script)
+	before := crossCheckStateParts(t, f, script)
 
 	f.write("flagged.txt", "two\n")
 	if f.git("status", "--porcelain") != "" {
 		t.Fatal("git status shows the skip-worktree change, so the case checks nothing")
 	}
-	afterFlag := fableStateParts(t, f, script)
+	afterFlag := crossCheckStateParts(t, f, script)
 	if afterFlag["flags"] == before["flags"] {
 		t.Error("the flags part did not change with the content of a skip-worktree file")
 	}
 
 	f.write(".git/hooks/not-a-hook", "x\n")
-	afterHook := fableStateParts(t, f, script)
+	afterHook := crossCheckStateParts(t, f, script)
 	if afterHook["hooks"] == afterFlag["hooks"] {
 		t.Error("the hooks part did not change with a new file in the hooks directory")
 	}
 	// A replace ref and a merge in progress change neither git status nor
 	// any file the other parts read.
 	f.git("replace", f.rev("HEAD"), strings.TrimSpace(f.git("commit-tree", f.rev("HEAD^{tree}"), "-m", "other")))
-	afterReplace := fableStateParts(t, f, script)
+	afterReplace := crossCheckStateParts(t, f, script)
 	if afterReplace["replace"] == afterHook["replace"] {
 		t.Error("the replace part did not change with a new replace ref")
 	}
 	f.write(".git/MERGE_HEAD", f.rev("HEAD")+"\n")
-	afterMerge := fableStateParts(t, f, script)
+	afterMerge := crossCheckStateParts(t, f, script)
 	if afterMerge["ops"] == afterReplace["ops"] {
 		t.Error("the ops part did not change with a merge in progress")
 	}
 	f.write(".git/MERGE_HEAD", f.rev("HEAD~0^{tree}")+"\n")
-	if fableStateParts(t, f, script)["ops"] == afterMerge["ops"] {
+	if crossCheckStateParts(t, f, script)["ops"] == afterMerge["ops"] {
 		t.Error("the ops part did not change with the content of MERGE_HEAD")
 	}
 	for _, name := range []string{"status", "head", "config", "info", "watched", "settings", "index"} {
 		if afterMerge[name] != before[name] {
 			t.Errorf("the %s part changed although nothing it covers changed", name)
 		}
+	}
+
+	// Ignored files git status does not show: a skill below .agents/, each
+	// instruction file another harness reads, and a nested .git entry below
+	// .claude/ and .agents/. Each must change the watched part while git
+	// status stays the same. The lowercase .git below .agents/ is one git
+	// never lists on any platform, so only the block's nested .git scan can
+	// see it.
+	f.write(".git/info/exclude", ".agents/\n.claude/\nAGENTS.md\nAGENT.md\nGEMINI.md\nAGENTS.override.md\n")
+	f.git("config", "core.ignorecase", "true")
+	prev := crossCheckStateParts(t, f, script)
+	status := f.git("status", "--porcelain", "--untracked-files=all")
+	for _, path := range []string{
+		".agents/skills/evil/SKILL.md",
+		"AGENTS.md",
+		"AGENT.md",
+		"GEMINI.md",
+		"sub/AGENTS.override.md",
+		".claude/nested/.git/HEAD",
+		".agents/nested/.GIT/HEAD",
+		".agents/lower/.git/HEAD",
+	} {
+		f.write(path, "x\n")
+		// Only the block's nested .git scan may see a nested .git entry:
+		// when git lists the path, the path rule changes watched by itself.
+		checkWatched := true
+		if strings.Contains(path, ".git/") || strings.Contains(path, ".GIT/") {
+			if listed := f.git("ls-files", "--others", "--ignored", "--exclude-standard"); strings.Contains(listed, path) {
+				if !strings.Contains(path, ".GIT/") {
+					t.Fatalf("git lists %s, so the case does not check the nested .git scan alone", path)
+				}
+				// A git that does not fold the case of .GIT lists it, so the
+				// scan's case folding cannot be checked alone here.
+				t.Logf("git lists %s; the scan's case folding is not checked on this platform", path)
+				checkWatched = false
+			}
+		}
+		if got := f.git("status", "--porcelain", "--untracked-files=all"); got != status {
+			t.Fatalf("git status shows %s (%q), so the case checks nothing", path, got)
+		}
+		after := crossCheckStateParts(t, f, script)
+		if checkWatched && after["watched"] == prev["watched"] {
+			t.Errorf("the watched part did not change with the ignored %s", path)
+		}
+		prev = after
 	}
 
 	// A corrupt index makes git status and git ls-files fail: the block must

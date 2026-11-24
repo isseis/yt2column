@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # high-review-decision.sh decides whether /runplan runs the high-model review
-# before it opens a PR (entry 1 of .claude/commands/_lib/opus-review.md;
-# renamed to _lib/high-review.md in phase 4).
+# before it opens a PR (entry 1 of .claude/commands/_lib/high-review.md).
 #
 # Usage: bash high-review-decision.sh <PLAN> <TARGET> <BASE>
 #
@@ -35,7 +34,7 @@
 #     conventions" and "Harness model mapping" (both read from origin/main's
 #     copy of that file, never held here);
 #   - the record-line forms, the excludable commits, and the decision steps:
-#     .claude/commands/_lib/opus-review.md, "Record lines" and "Entry 1".
+#     .claude/commands/_lib/high-review.md, "Record lines" and "Entry 1".
 #
 # Japanese literals: the heading and value-line texts below must equal the
 # text of the Japanese plans this script reads (CLAUDE.md, "Go Idioms").

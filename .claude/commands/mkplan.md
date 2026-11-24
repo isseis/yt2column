@@ -12,6 +12,11 @@ argument-hint: "<task>"
 > `//go:build test`). The review step follows
 > `.claude/commands/_lib/review-subagent-pattern.md`.
 > The branch setup and the PR handoff follow `.claude/commands/_lib/task-pr-handoff.md`.
+>
+> **Harness.** Every harness-specific operation this command and its shared
+> procedures name (such as `select-question` or `shell-run`) is defined in
+> `.claude/commands/_lib/harness.md`: read it and the adapter it selects for
+> this session before step 1.
 
 Your goal is to create `03_implementation_plan.md` for one task under `docs/tasks/`.
 
@@ -172,7 +177,7 @@ Work in the following order.
 - [ ] The plan contains no counterfactual claims about unwritten code ("this row fails if the implementation is reverted to X", "this is the only thing that guarantees Y"). Such obligations appear as implementer tasks instead.
 - [ ] Statements about existing behavior (reachability, uniqueness, equivalence of two constructions) cite `file:line` and the commit they were verified against.
 - [ ] Every decision in the document that is major by the criterion in `CLAUDE.md`, "Design decisions (ADR)", has its ADR judgement recorded and is in this PR's ADR changes, and the `## 決定` section of each such ADR matches the document's current decision.
-- [ ] A plan with one `### フェーズ` header (this item applies only once step 8.5 has written the subsection: at step 8, before it exists, mark it N/A — N/A is not a finding; step 8.5 and `_lib/simple-process.md`, "Reviewing the three documents", apply it to the written plan) has exactly one `PR 構成` subsection under §3, ending with the three lines `**実装モデル要件**: <value>`, `**判定理由**: <one line>`, and `**自動送信**: <value>`, where the first value is one of `opus`, `sonnet+opus-review`, or `sonnet` and the `判定理由` is written as `mkplan2.md` step 4, "Model requirement", says, and the last value is `auto` or `hold`, decided as its "Auto-send" says. A plan with two or more phases is checked by `mkplan2.md` step 9's checklist instead.
+- [ ] A plan with one `### フェーズ` header (this item applies only once step 8.5 has written the subsection: at step 8, before it exists, mark it N/A — N/A is not a finding; step 8.5 and `_lib/simple-process.md`, "Reviewing the three documents", apply it to the written plan) has exactly one `PR 構成` subsection under §3, ending with the three lines `**実装モデル要件**: <value>`, `**判定理由**: <one line>`, and `**自動送信**: <value>`, where the first value is one of `high`, `standard+high-review`, or `low` and the `判定理由` is written as `mkplan2.md` step 4, "Model requirement", says, and the last value is `auto` or `hold`, decided as its "Auto-send" says. A plan with two or more phases is checked by `mkplan2.md` step 9's checklist instead.
 
 **Conditional checks (apply each only when its trigger matches; mark N/A otherwise — N/A is not a finding):**
 - [ ] Integration tests touch external/long-lived state (containers, DBs, mailboxes, queues, files outside `t.TempDir`) → rerun isolation is planned: identifiers unique per run (not just per test name), and tests locate their own artifacts by a stable marker instead of assuming result length/ordering. When a unique identifier is length-limited (e.g. a 32-char mailbox name), the stable prefix is truncated first and the uniqueness suffix appended afterward, so truncation never drops the suffix.

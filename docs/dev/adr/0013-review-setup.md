@@ -52,7 +52,7 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
     -   「見た」とは、ローカルの CLI レビューがそのコミットを見たことが、ブランチの記録から分かることである。
     -   理由: CodeRabbit の PR レビューを手動に限る決定に合わせつつ、未レビューの変更に信頼の境界を変える変更などが含まれるときに利用者の目を引くためである。基準を信頼の境界・セキュリティ・耐久性とそれ以外に分けるのは、次の実績があるためである。PR を作成した後に手作業で頼んだ Fable のレビューの指摘を直し、その後に PR 再レビューを頼んだ 7 件のうち、新しい指摘が 0 件だったのは 6 件で、残る 1 件は信頼の境界のロジックを書き換えた PR だった。実績と違う種類の変更にこの分け方を当てはめることは、受け入れる危険とする。
     -   正本: [0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) の F-005、[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md) の F-001、[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md) の F-004、基準は [pr-review-escalation.md](../../../.claude/commands/_lib/pr-review-escalation.md)。
-    -   **食い違い:** `pr-review-escalation.md` は、まだ Claude Code の `Agent` ツールと `model: "opus"` を直接指定している（https://github.com/isseis/yt2column/issues/1072 の実装で解消する）。また、`runpr.md` の `LAST_REVIEWED` はまだ CodeRabbit の手動の PR レビューのみを起点としている（https://github.com/isseis/yt2column/issues/1095 の実装で解消する）。
+    -   **食い違い:** `runpr.md` の `LAST_REVIEWED` はまだ CodeRabbit の手動の PR レビューのみを起点としている（https://github.com/isseis/yt2column/issues/1095 の実装で解消する）。
 -   ローカルの CLI レビューの試行がレビューした範囲を、`Local CLI reviewed:` の記録の行としてブランチに残す。
     -   呼び出し元が指定したときは、ローカルの CLI レビューの手順が、記録の行だけを持つ空のコミットを作る。
     -   範囲のすべてのコミットをレビューしたかどうかは、`origin/main` から取り出す判定のスクリプト `.claude/commands/_lib/review-records.sh` が決める。結果は `ALL` か `PARTIAL` で、スクリプトが失敗したときは `PARTIAL` とする。

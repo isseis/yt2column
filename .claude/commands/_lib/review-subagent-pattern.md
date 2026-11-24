@@ -10,7 +10,8 @@ calling command supplies. This file defines the procedure once; commands invoke
 it by saying "follow `_lib/review-subagent-pattern.md`" and providing the four
 inputs.
 
-This is project-independent. It depends on nothing in `_context.md`.
+This is project-independent. Of `_context.md` it uses only the "Harness model
+mapping" table, through the `subagent-role` operation of `_lib/harness.md`.
 
 ## Inputs the calling command must supply
 
@@ -27,8 +28,10 @@ This is project-independent. It depends on nothing in `_context.md`.
   absolute path strings so the subagent does not rely on the caller's context.
 - **CRITERIA** — the checklist(s) the caller defines, to be copied verbatim into
   the subagent prompt.
-- **MODEL** (optional) — pins the discovery-pass model (the Agent tool's `model`
-  parameter) instead of inheriting the session's default model. Use this when the
+- **MODEL** (optional) — pins the discovery-pass model to a role tier,
+  `standard` or `low` (run with the `subagent-role` operation of
+  `_lib/harness.md`, which takes the model from `_context.md`, "Harness model
+  mapping"), instead of inheriting the session's default model. Use this when the
   reviewed task is known to be within a lighter model's competence regardless of
   which model is driving the calling command (e.g. a fixed checklist-style prose or
   style review, as opposed to open-ended architectural judgment). Omit MODEL to keep
@@ -36,7 +39,9 @@ This is project-independent. It depends on nothing in `_context.md`.
 
 ## Procedure
 
-Spawn a review subagent using the Agent tool to critically evaluate ARTIFACT.
+Spawn a review subagent to critically evaluate ARTIFACT, with the
+`subagent-inherit` operation of `_lib/harness.md` (or `subagent-role` when
+MODEL is given).
 Construct a self-contained prompt that includes all of the following:
 
 - **Persona**: act as PERSONA whose job is to find real problems — not to
@@ -101,13 +106,16 @@ model:
   Critical/Major fixes was applied correctly and introduced no regression. This is
   a narrower check and **may run on a cheaper model than the discovery pass**. When
   spawning the verification subagent, pass the explicit list of fixes to confirm and
-  request a cheaper model (the Agent tool's `model` parameter, e.g. a faster/cheaper
-  tier); if the cheaper pass reports anything ambiguous or a new Critical/Major
+  request a cheaper tier (the `subagent-role` operation with the role
+  `standard`) only when the session runs on the `high` role model by a model ID
+  it can verify (`_lib/harness.md`, "Self-Verification of Implementation
+  Model"); otherwise run the verification pass on the default model; if the cheaper pass reports anything ambiguous or a new Critical/Major
   issue, re-run that pass once on the default model before trusting it. If the
   calling command supplied MODEL for the discovery pass, that MODEL is already the
   minimum competence the task requires — use the same MODEL for verification too,
-  rather than downgrading further (e.g. to haiku); a task pinned to Sonnet because it
-  needs Sonnet-level judgment needs that same judgment to verify a fix, not less.
+  rather than downgrading further (e.g. to `low`); a task pinned to `standard`
+  because it needs that tier's judgment needs the same judgment to verify a fix,
+  not less.
 
 This keeps recall where it matters (discovery) while cutting cost on the repeated
 confirmation passes. It composes with panel mode below: the discovery panel runs
@@ -132,8 +140,8 @@ A calling command opts into panel mode by supplying a PERSONA that is a panel
    than two), which it must NOT report except as one-line "OUT-OF-LANE FLAGS" at the
    end. Route the CRITERIA items to the reviewer whose
    mandate covers them (an item may be shared only when both lenses genuinely apply).
-2. **Spawn all panel reviewers in parallel** — in a single message with multiple
-   Agent tool calls — so wall-clock does not increase. Each prompt is self-contained
+2. **Spawn all panel reviewers in parallel** — launching every reviewer before
+   waiting for any (`subagent-inherit`, or the caller's operation) — so wall-clock does not increase. Each prompt is self-contained
    (embed FILES as absolute paths; copy that reviewer's CRITERIA verbatim;
    state mandate + out-of-scope; require the same Severity/Location/Problem/Suggestion
    output format). Two ways to give CRITERIA — the calling command picks one and is
