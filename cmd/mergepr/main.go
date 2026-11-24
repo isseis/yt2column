@@ -36,6 +36,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/mergepr"
 	"github.com/isseis/yt2column/internal/numreserve"
@@ -63,12 +65,21 @@ const protocolRemedy = "if this mergepr is older than the command documents, rei
 	"if the documents are older, merge origin/main into the branch"
 
 func main() {
-	if err := run(os.Args[1:], numreserve.New(os.Environ())); err != nil {
-		if !errors.Is(err, errStopped) {
-			printError(os.Stderr, err)
-		}
-		os.Exit(1)
+	os.Exit(exitStatus(os.Stderr, run(os.Args[1:], numreserve.New(os.Environ()))))
+}
+
+// exitStatus writes the error line for err, unless a take-in subcommand
+// already wrote its status block, and returns the process's exit status: 0
+// when err is nil, and 1 otherwise, whether the run finished with a declared
+// stop or with an error.
+func exitStatus(w io.Writer, err error) int {
+	if err == nil {
+		return 0
 	}
+	if !errors.Is(err, errStopped) {
+		printError(w, err)
+	}
+	return 1
 }
 
 // printError writes err to w, preceded by one line per finding when the
@@ -392,31 +403,68 @@ func fieldLine(w io.Writer, key, value string) {
 	_, _ = fmt.Fprintf(w, "%s: %s\n", key, escapedField(value))
 }
 
-// escapedField returns s with each backslash and each control byte replaced by
-// a backslash escape (\\, \n, \r, \t, or \xNN for any other), and every other
-// byte kept as it is. The backslash goes first, so a value that holds the two
-// bytes \ and n is shown differently from one that holds a newline.
+// escapedField returns s with every character that could end, break, or
+// reorder the field line replaced by a backslash escape, and every other
+// character kept as it is: a backslash, a newline, a carriage return, and a
+// tab get their short forms; an invalid UTF-8 byte, a control character (C0,
+// DEL, C1), a line or paragraph separator, and a format character (the
+// bidirectional overrides among them) get \xNN, \uNNNN, or \U00NNNNNN. The
+// set is what a reader that decodes the output as UTF-8 may read as a line
+// break or use to reorder the line. The backslash goes first, so a value that
+// holds the two bytes \ and n is shown differently from one that holds a
+// newline.
 func escapedField(s string) string {
 	var b strings.Builder
-	for i := range len(s) {
-		switch c := s[i]; c {
-		case '\\':
-			b.WriteString(`\\`)
-		case '\n':
-			b.WriteString(`\n`)
-		case '\r':
-			b.WriteString(`\r`)
-		case '\t':
-			b.WriteString(`\t`)
-		default:
-			if c < 0x20 || c == 0x7f {
-				_, _ = fmt.Fprintf(&b, `\x%02x`, c)
-				continue
-			}
-			b.WriteByte(c)
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r == utf8.RuneError && size == 1 {
+			_, _ = fmt.Fprintf(&b, `\x%02x`, s[i])
+			i++
+			continue
 		}
+		switch {
+		case r == '\\':
+			b.WriteString(`\\`)
+		case r == '\n':
+			b.WriteString(`\n`)
+		case r == '\r':
+			b.WriteString(`\r`)
+		case r == '\t':
+			b.WriteString(`\t`)
+		case fieldHidden(r):
+			b.WriteString(fieldEscape(r))
+		default:
+			b.WriteString(s[i : i+size])
+		}
+		i += size
 	}
 	return b.String()
+}
+
+// fieldHidden reports whether r would end the line for a reader that decodes
+// the output as UTF-8, or reorder what is shown of it.
+func fieldHidden(r rune) bool {
+	return unicode.Is(unicode.Cc, r) || unicode.Is(unicode.Cf, r) ||
+		unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r)
+}
+
+// The first code point each escape form cannot hold: \xNN holds one byte,
+// \uNNNN holds the Basic Multilingual Plane, and \U00NNNNNN holds the rest.
+const (
+	escapeByteLimit    = 0x80
+	escapeUnicodeLimit = 0x10000
+)
+
+// fieldEscape returns r in the shortest escape form that holds it.
+func fieldEscape(r rune) string {
+	switch {
+	case r < escapeByteLimit:
+		return fmt.Sprintf(`\x%02x`, r)
+	case r < escapeUnicodeLimit:
+		return fmt.Sprintf(`\u%04x`, r)
+	default:
+		return fmt.Sprintf(`\U%08x`, r)
+	}
 }
 
 // printMergemainStop writes a take-in stop's block and returns the error that

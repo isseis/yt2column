@@ -386,14 +386,16 @@ var errBranchName = errors.New("the head branch is not a branch the take-in tool
 
 // checkBranchName accepts a branch name that is not main or HEAD in any case,
 // does not start with "-", and holds no byte git check-ref-format rejects in
-// a ref (a control character, a space, ~ ^ : ? * [ \). The full ref grammar is
-// checked again by git when the name is used.
+// a ref (a control character, a space, ~ ^ : ? * [ \) and no "=" or quote,
+// either of which would end the git config key the merge clears the branch's
+// mergeOptions with. The full ref grammar is checked again by git when the
+// name is used.
 func checkBranchName(branch string) error {
 	if branch == "" || branch == mainBranch || strings.EqualFold(branch, "HEAD") || strings.HasPrefix(branch, "-") {
 		return fmt.Errorf("%w: %q", errBranchName, branch)
 	}
 	for i := range len(branch) {
-		if c := branch[i]; c < 0x21 || c == 0x7f || strings.IndexByte(`~^:?*[\`, c) >= 0 {
+		if c := branch[i]; c < 0x21 || c == 0x7f || strings.IndexByte("~^:?*[\\=\"", c) >= 0 {
 			return fmt.Errorf("%w: %q", errBranchName, branch)
 		}
 	}

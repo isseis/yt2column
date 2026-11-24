@@ -464,11 +464,12 @@ var takeInFieldKeys = map[string]bool{
 }
 
 // TestMergemainStopReasonsAndOutput verifies the block a stopped take-in
-// subcommand writes: status: stop, its reason and restore need, the conflicted
-// paths with their classes, and the detail; that a stop of no declared kind
-// reads as reason: unknown with restore: unknown; and that a value holding a
-// newline, a tab, a carriage return, a backslash, or another control byte
-// cannot write a field line of its own.
+// subcommand writes: status: stop, each declared reason with its restore need,
+// the conflicted paths with their classes, and the detail; that a stop of no
+// declared kind reads as reason: unknown with restore: unknown; and that a
+// value holding a newline, a tab, a carriage return, a backslash, a control
+// byte, or a Unicode line separator cannot write a field line of its own.
+// TestEscapedField covers the rest of the escaped character set.
 func TestMergemainStopReasonsAndOutput(t *testing.T) {
 	p := strconv.Itoa(mergepr.Protocol)
 	const baseHead = "2222222222222222222222222222222222222222"
@@ -514,6 +515,20 @@ func TestMergemainStopReasonsAndOutput(t *testing.T) {
 			want: "status: stop\nreason: push_unknown\nrestore: unknown\ndetail: origin's branch could not be read again\n",
 		},
 		{
+			name: "push rejected, restored",
+			args: []string{"mergemain-push", "--protocol", p, "--base-head", baseHead, "--main", mainHead, "42"},
+			err:  &mergepr.MergemainStopError{Stop: mergepr.MergemainStopPushRejected, Restore: mergepr.RestoreNeeded, Detail: "origin's branch is still the base head"},
+			want: "status: stop\nreason: push_rejected\nrestore: needed\ndetail: origin's branch is still the base head\n",
+		},
+		{
+			name: "other changes, not restored",
+			args: []string{
+				"mergemain-restore", "--protocol", p, "--head-branch", branch, "--base-head", baseHead, "--main", mainHead, "42",
+			},
+			err:  &mergepr.MergemainStopError{Stop: mergepr.MergemainStopOtherChanges, Restore: mergepr.RestoreNotNeeded, Detail: "an untracked file is in the work tree"},
+			want: "status: stop\nreason: other_changes\nrestore: not_needed\ndetail: an untracked file is in the work tree\n",
+		},
+		{
 			name: "stop of no declared kind",
 			args: mergeArgs,
 			err:  errors.New("git failed\nwith two lines"),
@@ -523,13 +538,15 @@ func TestMergemainStopReasonsAndOutput(t *testing.T) {
 			name: "values cannot write a field line",
 			args: mergeArgs,
 			err: &mergepr.MergemainStopError{
-				Stop:      mergepr.MergemainStopOutOfScope,
-				Restore:   mergepr.RestoreNeeded,
+				Stop:    mergepr.MergemainStopOutOfScope,
+				Restore: mergepr.RestoreNeeded,
+				// A carriage return, DEL, and a Unicode line separator are
+				// escaped like a newline and a control byte.
 				Detail:    "x\nreason: nothing_to_take_in",
-				Conflicts: []mergepr.PathConflict{{Path: "a\nstatus: ok\tb\\n\x01", Class: mergepr.PathConflictOutOfScope}},
+				Conflicts: []mergepr.PathConflict{{Path: "a\rstatus: ok\tb\\n\x01\x7f\u2028", Class: mergepr.PathConflictOutOfScope}},
 			},
 			want: "status: stop\nreason: out_of_scope\nrestore: needed\n" +
-				"conflict: out_of_scope a\\nstatus: ok\\tb\\\\n\\x01\ndetail: x\\nreason: nothing_to_take_in\n",
+				"conflict: out_of_scope a\\rstatus: ok\\tb\\\\n\\x01\\x7f\\u2028\ndetail: x\\nreason: nothing_to_take_in\n",
 		},
 	}
 	for _, tt := range tests {
@@ -547,6 +564,71 @@ func TestMergemainStopReasonsAndOutput(t *testing.T) {
 				if !ok || !takeInFieldKeys[key] {
 					t.Errorf("line %q is not a field line of the take-in output", strings.TrimSuffix(line, "\n"))
 				}
+			}
+		})
+	}
+}
+
+// TestEscapedField verifies the character set a field value is escaped with:
+// the short escapes for a backslash, a newline, a carriage return, and a tab;
+// a visible escape for an invalid UTF-8 byte and for every control, line
+// separator, and format character; and no change to any other character. A
+// reader that decodes the output as UTF-8 therefore sees no line break and no
+// reordering character inside a value.
+func TestEscapedField(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"plain", "a b", "a b"},
+		{"backslash", `a\b`, `a\\b`},
+		{"newline", "a\nb", `a\nb`},
+		{"carriage return", "a\rb", `a\rb`},
+		{"tab", "a\tb", `a\tb`},
+		{"null and other C0", "a\x00\x01b", `a\x00\x01b`},
+		{"DEL", "a\x7fb", `a\x7fb`},
+		{"C1 control", "a\u0085b", `a\u0085b`},
+		{"line separator", "a\u2028b", `a\u2028b`},
+		{"paragraph separator", "a\u2029b", `a\u2029b`},
+		{"bidirectional override", "a\u202eb", `a\u202eb`},
+		{"zero width space", "a\u200bb", `a\u200bb`},
+		{"tag character", "a\U000e0041b", `a\U000e0041b`},
+		{"invalid UTF-8", "a\xffb", `a\xffb`},
+		{"non-ASCII kept", "a\u3042\u0301b", "a\u3042\u0301b"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := escapedField(tt.in); got != tt.want {
+				t.Errorf("escapedField(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestExitStatus verifies the process's exit status and what it writes on
+// standard error: a finished run exits 0 and writes nothing, a declared
+// take-in stop exits 1 and writes nothing more because its status block is
+// already on standard output, and any other error exits 1 with its line.
+func TestExitStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantCode   int
+		wantStderr string
+	}{
+		{"finished", nil, 0, ""},
+		{"declared stop", fmt.Errorf("%w: out_of_scope", errStopped), 1, ""},
+		{"usage error", errUsage, 1, "mergepr: " + errUsage.Error() + "\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b strings.Builder
+			if got := exitStatus(&b, tt.err); got != tt.wantCode {
+				t.Errorf("exitStatus = %d, want %d", got, tt.wantCode)
+			}
+			if got := b.String(); got != tt.wantStderr {
+				t.Errorf("standard error = %q, want %q", got, tt.wantStderr)
 			}
 		})
 	}
