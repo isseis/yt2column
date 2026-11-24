@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-24 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-24 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装概要 (Implementation Overview)
@@ -280,3 +280,7 @@ Diff record (AC-06):
 1. 本実装計画書（`draft`）の PR レビューを受け、`/runpr` のマージの質問で承認（`approved`）およびマージする。
 2. 承認後、`/runplan 0121` でフェーズ 1〜3 を実施し、実装 PR を作成する（フェーズ 1 の実 `origin` 確認で非ゼロ終了となった場合は実装へ進まず停止する）。
 3. 実装 PR のレビューと CI が通過したら、`/runpr` のマージの質問を承認する**直前**にマージ前ゲート（`_checks/check_open_branches.sh`）を実 `origin` に対して再実行する。非ゼロ終了となった場合はマージせず停止して該当ブランチ・一致行または診断を報告し、終了コード `0`（`matches: 0`）であれば結果を `<mention-check>` 通過後に PR の説明へ記録したうえでマージする（設計書 §8「マージ前ゲート」）。
+
+## 変更履歴
+
+- 2026-11-24 承認（isseis、#1120）
