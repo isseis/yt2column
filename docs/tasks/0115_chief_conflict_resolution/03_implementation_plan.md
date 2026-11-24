@@ -26,7 +26,7 @@
 - 設計書の順と境界を守る。 フェーズの順は設計書 8 章の実装の優先順位 1〜4 に一致させる。決定的な判定と確かめは `internal/mergepr` に置き、送る入力の組み立ては `internal/chief/paneinput` の型に閉じる。
 - 既存の部品とテスト基盤を再利用する。 `internal/mergepr/protocolcheck.go` のプロトコル番号読み取り（`acceptedLine`・`commitChange`）と `gitReader`、既存テストヘルパー（`internal/mergepr/test_helpers.go`・`internal/mergepr/test_helpers_git.go`）、`internal/chief` の送信・記録・確かめ直し（`sendCommand`・`autoSender` の共通処理・`quietness`・`readReport`・`ReadRouting`）と既存のテスト基盤（`world_test.go`・`test_helpers.go`・`send_test.go`・`screen_test.go`）を再利用する。
 - プロトコル番号は常に `main` の値 + 1 にする。 `mergepr` と `chief` の契約を変える PR では、`Protocol` 定数と対応するコマンド定義・ガイドの `--protocol` を同じ PR で `main` の値 + 1 に揃える。エージェントはインストール型ツールをインストールもビルドもしない（`CLAUDE.md`・ADR-0014）。
-- **計画書で確定する細部。** 設計書が計画書へ委ねた 3 つの細部を次のとおり確定する。
+- **計画書で確定する細部。** 設計書が計画書へ委ねた細部のうち、次の 3 つをここで確定する（共通パッケージの要否・`commitID` の移行範囲・拡張の検査の準備の形・PR の境界は「計画の際に決めたこと」と §3.2 で確定する）。
   - **取り込みの道具の行出力（設計書 4.1）。** 既存の `cmd/mergepr/main.go:285-328`（`printPrepared` 等、コミット `d74acaeb` で確認）と `docs/dev/guides/mergepr_guide.md:166-177` の `key: value` 形式に合わせ、1 行目を `status: ok` または `status: stop`、停止時は続けて `reason: <reason>`・`restore: <needed|not_needed|unknown>` を出力し、以降に `base_head`・`head_branch`・`main_head`・`conflict`（`<class> <path>`）・`protocol_tool`（`<tool> <new_protocol>`）・`readme_changed`・`adr_main_changed`・`adr_conflict_number`・`ext_check_hint`・`new_head`・`detail` の各行を `key: value` 形式で出力する。`conflict` の `<path>`・`detail`・`head_branch` などの可変値に含まれる改行や制御文字は 1 行にエスケープして出力し、行プロトコルの `status:`・`reason:`・`restore:` 等のフィールド偽装を防ぐ（`/mergemain` 側も可変値をフィールド名として解釈しない）。
   - **解消の自動送信の理由の種類（設計書 3.4.3）。** 設計書 3.4.3 の表の英語名に加え、作成排他を取れないときの `creation_locked` と、同ラウンドのマージ後自動送信が同じ workspace へ送ったときの `autosent_same_round` を定義する。
   - **報告の控えの引き継ぎ上限（設計書 3.7）。** `CollectDetail` が第 1 の親をたどる回数上限を `maxDetailMergeHops = 10` とする。
@@ -40,7 +40,7 @@
   - ADR：なし。パッケージ内部の実装構成で本タスク内に閉じる。
 - `make ext-check` の準備確認（AC-26）は `Makefile` に `ext-preflight` ターゲットを追加して行う。 既存の `define ext_preflight`（`Makefile:407-413`）をそのまま呼ぶ `ext-preflight` ターゲットを `.PHONY` に加え、`CLAUDE.md` の `### Extension Commands` にも追記する（`cmd/yt2column/extension_docs_test.go:71-80` の `TestExtensionDocumentation` と整合させる）。`/mergemain` は `make ext-check` の前に `make ext-preflight` を実行し、失敗を「検査の準備がない」として「検査の失敗」と区別する。人の答え：`Makefile` に `ext-preflight` ターゲットを追加する。
   - ADR：なし。既存マクロを 1 ターゲットとして露出するだけで本タスク内に閉じる。
-- `CommitID` 型は新規箇所（`OpenPR.Head` とコンフリクト解消関連）だけに適用する。 既存の `commitID` 正規表現を使う 3 か所（`internal/chief/detail.go:129`、`internal/chief/workspace.go:134`、`internal/chief/create.go:483`）のシグネチャは変えない。`CommitID` の構築は `internal/chief/construction_test.go` の `guardedTypes` で `ParseCommitID` に限定する。人の答え：新規箇所だけに適用する。
+- `CommitID` 型は新規箇所（`OpenPR.Head` とコンフリクト解消関連）だけに適用する。 既存の `commitID` 正規表現を使う箇所（設計書 3.1 が挙げる `internal/chief/detail.go:129`、`internal/chief/workspace.go:134`、`internal/chief/create.go:483` に加え、`internal/chief/workspace.go:318,338,357`）のシグネチャは変えない。`CommitID` の構築は `internal/chief/construction_test.go` の `guardedTypes` で `ParseCommitID` に限定する。人の答え：新規箇所だけに適用する。
   - ADR：なし。型適用の範囲の選択で本タスク内に閉じる。
 
 ### 既存コード調査結果
@@ -100,11 +100,12 @@
 
 #### ステップ 1-2: `internal/mergepr` の戻し検証と push 検証・実行
 
-**対象ファイル:** `internal/mergepr/mergemain.go`, `internal/mergepr/mergemain_push.go`（新規）, `internal/mergepr/mergemain_restore.go`（新規）, `internal/mergepr/mergemain_test.go`
+**対象ファイル:** `internal/mergepr/mergemain.go`, `internal/mergepr/mergemain_push.go`（新規）, `internal/mergepr/mergemain_restore.go`（新規）, `internal/mergepr/mergemain_test.go`, `CLAUDE.md`
 
 - [ ] `MergemainRestore` を実装する（設計書 3.8.4）：戻してよい 2 状態（取り込み途中は `HEAD` が `base_head` かつ `MERGE_HEAD` が取り込む `main` と一致すること、未 push の merge コミットは `HEAD` の親が `(base_head, 取り込む main)` の順かつ手元の remote-tracking ref `refs/remotes/origin/<branch>` が `base_head` と一致すること）と戻さない 6 条件（ブランチ不一致、HEAD 不一致、コミット後変更、取り込み途中の対象外変更、基準 head 追跡パスを塞ぐ無視ファイル、未追跡ファイル存在）を検証し、安全なときのみ `git reset --hard <base_head>` で戻して戻し後の状態を検証する（`git clean`・`git merge --abort` は使わない、AC-28）。
 - [ ] `MergemainPush` を実装する（設計書 3.8.3）：PR 再読み取り（`main` 禁止・別リポジトリでないこと・ブランチ一致）、merge コミットの 2 親検証（第 1 の親が `base_head` と再読み取りした PR の head の両方に一致すること、および第 2 の親が取り込む `main` かつ `refs/mergemain/<PR>/main` と一致し同呼び出し内で再取得した `FETCH_HEAD` の祖先であること）、`git merge-tree --write-tree` による衝突分類と木の差分検証（許可パス・プロトコル番号 `main` の値 + 1 の全道具検証）、作業ツリー確認、`git ls-remote` での `origin` ブランチ確認、push URL と fetch URL の一致確認を行う。すべて通ったうえで、force なし・`--no-follow-tags --recurse-submodules=no` で push し、失敗時は `git ls-remote` で 3 結果（通った・拒まれた・結果不明）を判定する（AC-27・AC-30）。
 - [ ] `internal/mergepr/mergemain_test.go` に戻し・push の単体テスト（戻し時の `MERGE_HEAD` 不一致・親順序不一致・`refs/remotes/origin/<branch>` 不一致の拒否、および push 時の第 1 の親と `base_head` または再読み取りした PR の head の不一致拒否を含む）、セキュリティテスト（設計書 7.1・7.3 の全拒否ケース）、および `begin`→`merge`→`push` と `begin`→`merge`→`restore` の結合テストを追加し、各検証を外したときのテスト失敗を確認する。
+- [ ] 出力の内容で振る舞いを選ぶ読み取り（衝突のステージ種別・`git merge-tree` の出力・`acceptedLine` による行の判定）を入れるこの PR で、`CLAUDE.md` の「Declare, don't infer」に設計書 3.8.5 の取り込みの道具の読み取り例外（範囲と境界）を追記する。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスし、設計書 7.1・7.2・7.3 の取り込みの道具に関する全ケースと壊して失敗の確認が揃っていること。
 
@@ -114,7 +115,7 @@
 
 **推奨タイトル**: `feat(0115): internal/mergepr に main 取り込みの判定・戻し・push 検証を追加`
 
-**レビュー観点**: 衝突分類の網羅性と名前変更・バイナリの拒否 / mergemain-push の親・木の差分・プロトコル番号・URL 検証 / mergemain-restore の戻し条件と未追跡・無視ファイル保護 / ゼロ値の安全側動作と一時 git リポジトリ結合テスト
+**レビュー観点**: 衝突分類の網羅性と名前変更・バイナリの拒否 / mergemain-push の親・木の差分・プロトコル番号・URL 検証 / mergemain-restore の戻し条件と未追跡・無視ファイル保護 / ゼロ値の安全側動作と一時 git リポジトリ結合テスト / CLAUDE.md の Declare, don't infer 例外
 
 **実装モデル要件**: opus
 
@@ -129,11 +130,11 @@
 
 #### ステップ 1-3: `cmd/mergepr` CLI 口、プロトコル番号更新、ガイド・関連文書更新
 
-**対象ファイル:** `cmd/mergepr/main.go`, `cmd/mergepr/main_test.go`, `cmd/mergepr/docs_test.go`, `internal/mergepr/mergepr.go`, `.claude/commands/mergepr.md`, `.claude/commands/runpr.md`, `docs/dev/guides/mergepr_guide.md`, `CLAUDE.md`, `docs/dev/conventions/package_reference.md`
+**対象ファイル:** `cmd/mergepr/main.go`, `cmd/mergepr/main_test.go`, `cmd/mergepr/docs_test.go`, `internal/mergepr/mergepr.go`, `.claude/commands/mergepr.md`, `.claude/commands/runpr.md`, `docs/dev/guides/mergepr_guide.md`, `docs/dev/conventions/package_reference.md`
 
 - [ ] `cmd/mergepr/main.go` の `shapes` とディスパッチに `mergemain-begin`・`mergemain-merge`・`mergemain-restore`・`mergemain-push` を追加し、§1 で確定した `key: value` 形式の出力（`conflict` のパスや `detail` 等の可変値に含まれる改行・制御文字の 1 行エスケープを含む）と終了コードを実装する。`cmd/mergepr/main_test.go` にフラグ検証・出力形式テスト（改行・制御文字を含むパスや詳細でも `status:`・`reason:`・`restore:` 等の行が偽装されないことの確認を含む）を追加する。
 - [ ] `internal/mergepr/mergepr.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/mergepr.md`・`.claude/commands/runpr.md`・`docs/dev/guides/mergepr_guide.md` の `--protocol` を合わせる。
-- [ ] `docs/dev/guides/mergepr_guide.md` に取り込みの道具 4 サブコマンドの使い方・出力形式・保証事項を追記し、`CLAUDE.md` の「Declare, don't infer」に設計書 3.8.5 の取り込みの道具の読み取り例外（範囲と境界）を追記し、`docs/dev/conventions/package_reference.md` の `internal/mergepr`・`cmd/mergepr` 行を更新する。
+- [ ] `docs/dev/guides/mergepr_guide.md` に取り込みの道具 4 サブコマンドの使い方・出力形式・保証事項を追記し、`docs/dev/conventions/package_reference.md` の `internal/mergepr`・`cmd/mergepr` 行を更新する。
 - [ ] `cmd/mergepr/docs_test.go` の `placeholderValues` を新フラグのプレースホルダに対応させ、`TestDocumentedProtocolMatches`・`TestDocumentedInvocationsParse`・`TestProtocolToolsAgree` を通す。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスし、`cmd/mergepr/docs_test.go` の全ガードが通ること。
@@ -144,7 +145,7 @@
 
 **推奨タイトル**: `feat(0115): cmd/mergepr に mergemain サブコマンドの CLI と利用ガイドを追加`
 
-**レビュー観点**: 4 サブコマンドのフラグ定義と key: value 出力契約 / mergepr プロトコル番号更新と mergepr.md・runpr.md・ガイドの同期 / CLAUDE.md の Declare, don't infer 例外と package_reference.md の整合
+**レビュー観点**: 4 サブコマンドのフラグ定義と key: value 出力契約 / mergepr プロトコル番号更新と mergepr.md・runpr.md・ガイドの同期 / package_reference.md の整合
 
 **実装モデル要件**: sonnet
 
@@ -195,7 +196,7 @@
 
 **判定理由**: ステップ 2-1・2-2 が自動送信コマンドの承認境界（AC-30・AC-31）と、取り消せない merge と同一バイナリに対する settings.json の allow 規則および信頼境界ガード（allow 逸脱検出・git サブコマンド解析）を扱い mkplan.md ステップ 8 のセキュリティゲート条件に該当するため。Sonnet では承認範囲の過剰拡大、直接 git 呼び出しの迂回経路の残存、allow 規則のワイルドカード・引用符付き表記の検証漏れが生じうる。
 
-**自動送信**: auto
+**自動送信**: hold
 
 - [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
@@ -235,7 +236,7 @@
 **対象ファイル:** `internal/chief/records.go`, `.claude/commands/chief.md`, `docs/dev/guides/chief_guide.md`, `docs/dev/chief_architecture.md`, `docs/dev/conventions/package_reference.md`, `cmd/chief/docs_test.go`, `internal/chief/testdata/gh/`（新 8 メンバー実物採取サンプル追加）, `internal/chief/testdata/README.md`, `internal/chief/testdata/gh/exits.txt`, `internal/chief/workspace_test.go`, `docs/tasks/0115_chief_conflict_resolution/03_implementation_plan.md`（実測結果の追記）
 
 - [ ] `internal/chief/records.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` のプロトコル番号を合わせる。
-- [ ] `docs/dev/guides/chief_guide.md` に表の状態の文字列（「コンフリクト」「解消できず」「解消中」）と、送り先の表 7 行化に伴う「`make install-chief` で入れ直すまで古い chief は表を拒み自動送信が止まる」旨を追記する（設計書 3.10・8 章）。`docs/dev/chief_architecture.md` と `docs/dev/conventions/package_reference.md` の関連節を更新する。
+- [ ] `docs/dev/guides/chief_guide.md` に表の状態の文字列（「コンフリクト」「解消できず」「解消中」）と、送り先の表 7 行化に伴う「`make install-chief` で入れ直すまで古い chief は表を拒み自動送信が止まる」旨と、PR-6 がマージされるまではコンフリクトの行に待っている項目が出ないため人が `/mergemain <PR>` を直接打つ旨を追記する（設計書 3.10・8 章）。`docs/dev/chief_architecture.md` と `docs/dev/conventions/package_reference.md` の関連節を更新する。
 - [ ] 設計書 1.2・8 章の要求に従い、開いている実物 PR とコンフリクト中の実物 PR で `gh pr list --state open --json headRefName,number,title,url,mergeable,headRefOid,baseRefName,isCrossRepository` と `gh pr view` の `mergeable` 値を比較して結果と日時を本計画書（§5）に記録する（`UNKNOWN` が継続する場合は利用者に報告して判断を仰ぐ）。併せて採取した 8 メンバー実物応答を `internal/chief/testdata/README.md` の匿名化規約（`TestSamplesFollowReplacementRules`）に従って `internal/chief/testdata/gh/` へ追加し、`workspace_test.go` で `parsePRList` 受理を検証する。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスし、`cmd/chief/docs_test.go`（プロトコル番号・`chief_architecture.md` 整合）と `TestSamplesFollowReplacementRules` がすべて通ること。
@@ -326,6 +327,7 @@
 - [ ] `internal/chief/records.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` の `--protocol` を合わせる。
 - [ ] `.claude/commands/chief.md` にコンフリクト項目の示し方（理由・会話消失の印）と `chief send --command mergemain --item <項目 ID>` の呼び出しを追記し（AC-36）、`cmd/chief/docs_test.go` の `TestDocumentedInvocationsParse` が新呼び出しを受理することを確認する。
 - [ ] `docs/dev/guides/chief_guide.md` に AC-35 の 4 点（状態の文字列・急ぎの度合い・状態の詳細、自動送信の条件、送り直しの規則、人が選んで送る選択肢）を完成させ、`CLAUDE.md` の「Claude Commands」の `/chief` 説明にコンフリクト解消を追記し（AC-36）、`docs/dev/chief_architecture.md` と `docs/dev/conventions/package_reference.md` を最終仕様へ同期する。
+- [ ] `CLAUDE.md` の「Tool Execution Safety」の `/chief` 段落にある、`/chief` の起動が承認する読み取り操作の一覧に、ステップ 4-3 の PR の head ブランチの取得（`git fetch --no-tags --no-prune origin +refs/heads/<ブランチ>:refs/remotes/origin/<ブランチ>`）を加える。設計書 3.7 はこの取得を既存の承認の範囲内と読んでいるが、一覧の文言どおりに読むと範囲外になるため、一覧に明記して読み違いの余地をなくす。書き込み操作を承認しないという段落の記述は変えない。`.claude/commands/chief.md` に承認する操作の記述があれば、同じ取得を足す。
 - [ ] `docs/dev/adr/0046-chief-of-staff.md` が要件定義書および実装結果と矛盾していないことを確認する（AC-37）。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスすること。
@@ -342,7 +344,7 @@
 
 **判定理由**: ステップ 4-3 が独立した高リスク・複雑な処理（PendingConflict 項目 ID 拘束と AC-18 の origin/main 取得・OpenCode 拒否の再確認、および CollectDetail の複数ホップ親たどり・限定 git fetch で他処理・他 ref に副作用を出さない分離）を含むため mkplan2.md ステップ 4 の sonnet+opus-review 条件に該当する。Sonnet では request.go での origin/main 取得や keepPaneReport 呼び出しの抜け、親控えの d.record への混入や fetch の --no-tags --no-prune 欠落が生じうるため Opus レビューで補強する。
 
-**自動送信**: auto
+**自動送信**: hold
 
 - [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [ ] PR を作成した
@@ -355,28 +357,29 @@
 
 | マイルストーン | 対象フェーズ | 主な成果物 | 完了条件 |
 |---|---|---|---|
-| M1: 取り込みの道具 | フェーズ 1（ステップ 1-1〜1-3 / PR-1・PR-2） | `internal/mergepr` 4 サブコマンド、`cmd/mergepr`、`mergepr` プロトコル番号更新、`mergepr_guide.md`、`CLAUDE.md` 例外 | 道具の単体・結合・セキュリティ・文書ガードテストがすべて通る（PR-2 マージ後に利用者が手で `make install-mergepr` を実行） |
+| M1: 取り込みの道具 | フェーズ 1（ステップ 1-1〜1-3 / PR-1・PR-2） | `internal/mergepr` 4 サブコマンドと `CLAUDE.md` 例外（PR-1）、`cmd/mergepr`、`mergepr` プロトコル番号更新、`mergepr_guide.md`（PR-2） | 道具の単体・結合・セキュリティ・文書ガードテストがすべて通る（PR-2 マージ後に利用者が手で `make install-mergepr` を実行） |
 | M2: `/mergemain` 定義 | フェーズ 2（ステップ 2-1〜2-2 / PR-3） | `.claude/commands/mergemain.md`、`Makefile` `ext-preflight`、`.claude/settings.json` allow とガード、`CLAUDE.md` 承認・一覧、未追跡ファイルと `review-records.sh` 実測記録 | 人が直接 `/mergemain <PR>` を実行できる状態になり、文書・許可ガードが通る |
 | M3: chief 検出・表示 | フェーズ 3（ステップ 3-1〜3-3 / PR-4） | `OpenPR` 4 メンバー、`CommitID` ガード、`StateConflict`・`ConflictPhase`・表・出力、`_context.md` 7 行化、`paneinput`・`LaterInput`、`chief` プロトコル番号更新、実物 PR `mergeable` 記録と実物採取サンプル | コンフリクト PR が chief の表と JSON に示され、全既存・新規テストと文書ガードが通る（PR-4 マージ後に利用者が手で `make install-chief` と `/chief` 再起動を実行） |
 | M4: chief 自動・手動送信 | フェーズ 4（ステップ 4-1〜4-4 / PR-5・PR-6） | 送信記録の PR/head/到達点と保持、`conflictPhaseOf`、`keepPaneReport`、`conflictSender`、`PendingConflict`、`chief send --command mergemain --item`、`CollectDetail` 親たどり引き継ぎ、`chief.md`・`chief_guide.md`・`CLAUDE.md` 仕上げ | 全 37 件の受け入れ基準を満たし、グリーンゲートが通る（PR-5・PR-6 の各マージ後に利用者が手で `make install-chief` と `/chief` 再起動を実行） |
 
 依存順序は M1（PR-1 → PR-2）→ M2（PR-3）→ M3（PR-4）→ M4（PR-5 → PR-6）である。PR-3 は PR-2 の `mergepr` 契約とプロトコル番号を前提とし、PR-5 は PR-4 の `OpenPR`・`ConflictPhase`・`paneinput`・`LaterInput` と PR-3 の `.claude/commands/mergemain.md` を前提とする。エージェントはインストール型ツールを入れ直さない（`CLAUDE.md`・ADR-0014）ため、ツールを変更する各 PR のマージ後に利用者が手動で入れ直しと再起動を行う前提とする。
 
-- **PR-2 マージ後（M2 開始前・`/mergepr` や `/runpr` の実行前）:** 利用者が手で `make install-mergepr` を実行し、新サブコマンドと更新後プロトコル番号を持つ `mergepr` を入れ直す。
+- **PR-2 のマージ前:** PR-2 は `mergepr.md`・`runpr.md` の `--protocol` を上げるため、PR-2 自身の `/runpr` が呼ぶ `mergepr` は古い番号で断る。利用者が PR-2 のブランチから `make install-mergepr` で入れ直してからマージする（`CLAUDE.md`「Protocol numbers」）。
+- **PR-2 マージ後（M2 開始前・`/mergepr` や `/runpr` の実行前）:** 利用者が手で `main` から `make install-mergepr` を実行し、新サブコマンドと更新後プロトコル番号を持つ `mergepr` を入れ直す（そのため PR-3 は `**自動送信**: hold` とする）。
 - **PR-4 マージ後（PR-5 着手前）:** `_context.md` が 7 行になり `chief` のプロトコル番号も上がるため、利用者が手で `make install-chief` を実行して `/chief` を再起動し、ステップ 3-3 で記録した実物 PR の `mergeable` の確認結果を点検してから進む（そのため PR-5 は `**自動送信**: hold` とする）。
-- **PR-5 マージ後（更新後 `/chief` の実行前・PR-6 着手前）:** `chief` のプロトコル番号と `TickOutput` 契約が変わるため、利用者が手で `make install-chief` を実行して `/chief` を再起動する。
+- **PR-5 マージ後（更新後 `/chief` の実行前・PR-6 着手前）:** `chief` のプロトコル番号と `TickOutput` 契約が変わるため、利用者が手で `make install-chief` を実行して `/chief` を再起動する（そのため PR-6 は `**自動送信**: hold` とする）。
 - **PR-6 マージ後:** `chief` のプロトコル番号と `chief send --command mergemain` 契約が変わるため、利用者が手で `make install-chief` を実行して `/chief` を再起動する。
 
 ### 3.2 PR 構成
 
 | PR | 対象ステップ | 主な変更内容 | 実装モデル要件 | 自動送信 |
 |---|---|---|---|---|
-| PR-1 | 1-1 / 1-2 | `internal/mergepr` の 4 サブコマンド判定・戻し・push 検証と単体・結合・セキュリティテスト | opus | auto |
-| PR-2 | 1-3 | `cmd/mergepr` CLI 口、`mergepr` プロトコル番号更新、ガイド・`CLAUDE.md` 例外・`package_reference.md` | sonnet | auto |
-| PR-3 | 2-1 / 2-2 | `Makefile` の `ext-preflight`、`.claude/commands/mergemain.md`、`CLAUDE.md` 承認・一覧、`.claude/settings.json` allow と信頼境界ガード、未追跡ファイル・`review-records.sh` 実測記録 | opus | auto |
+| PR-1 | 1-1 / 1-2 | `internal/mergepr` の 4 サブコマンド判定・戻し・push 検証と単体・結合・セキュリティテスト、`CLAUDE.md` の読み取り例外 | opus | auto |
+| PR-2 | 1-3 | `cmd/mergepr` CLI 口、`mergepr` プロトコル番号更新、ガイド・`package_reference.md` | sonnet | auto |
+| PR-3 | 2-1 / 2-2 | `Makefile` の `ext-preflight`、`.claude/commands/mergemain.md`、`CLAUDE.md` 承認・一覧、`.claude/settings.json` allow と信頼境界ガード、未追跡ファイル・`review-records.sh` 実測記録 | opus | hold |
 | PR-4 | 3-1 / 3-2 / 3-3 | `chief` の PR 値読み取り、`CommitID` ガード、`StateConflict`・`ConflictPhase`・表・出力、`_context.md` 7 行化、`paneinput`・`LaterInput`、`chief` プロトコル番号更新、実物 PR `mergeable` 記録と採取サンプル | opus | auto |
 | PR-5 | 4-1 / 4-2 | 解消の送信の記録保持と `conflictPhaseOf`、`keepPaneReport`、`conflictSender`・`tick` 組み込み、`chief` プロトコル番号更新 | opus | hold |
-| PR-6 | 4-3 / 4-4 | `PendingConflict`、`chief send --command mergemain --item`、`CollectDetail` 親たどり引き継ぎ、`chief` プロトコル番号更新と文書仕上げ | sonnet+opus-review | auto |
+| PR-6 | 4-3 / 4-4 | `PendingConflict`、`chief send --command mergemain --item`、`CollectDetail` 親たどり引き継ぎ、`chief` プロトコル番号更新と文書仕上げ | sonnet+opus-review | hold |
 
 ## 4. テスト戦略
 
@@ -415,6 +418,7 @@
 | フェーズ 3 マージ後に古い `chief` が 7 行の `_context.md` を拒み、自動送信が止まる（設計書 3.10） | 入れ直しまでマージ後の自動送信も止まる | 高（仕様どおり） | ステップ 3-3 で `chief_guide.md` に明記し、PR-5 を `**自動送信**: hold` として、PR-4 マージ後に利用者が `make install-chief` と `/chief` 再起動および実物 PR 確認結果の点検を行ってから PR-5 へ進む |
 | 並行ブランチとのプロトコル番号衝突（`mergepr`・`chief`） | マージ時に `mergepr prepare`/`merge` が停止する | 中 | 本計画では上げた番号を書かず常に `main` の値 + 1 とし、実装・マージ時点の `origin/main` に合わせる |
 | `git merge-tree --write-tree` の挙動差や特殊衝突ケース（名前変更と内容変更、バイナリ、シンボリックリンク）の取りこぼし | 対象外の衝突を誤って解消・push する | 低 | ステップ 1-1・1-2 で設計書 7.1・7.3 の全特殊衝突ケースを一時 git リポジトリで網羅テストし、`mergemain-merge` と `mergemain-push` の両方で同一分類ロジックを使う |
+| PR-4 で `StateConflict` が `StateAwaitingReview` より先に決まる一方、`PendingConflict` は PR-6 で入るため、PR-4〜PR-6 の間はコンフリクト中の PR に待っている項目（`/runpr` の選択肢も `/mergemain` の選択肢も）が出ない | 間の期間、コンフリクトの PR を人が表で見つけて手で `/mergemain` か対処をする必要がある | 中（仕様どおり） | 間の期間は表の「コンフリクト」を人が見て `/mergemain <PR>` を直接打つ。`chief_guide.md`（ステップ 3-3）にこの期間の扱いを書く |
 | 実物のコンフリクト PR がすぐ用意できない、または PR-4 マージ後の手動入れ直し・実測確認（PR-5 の `hold`）で待ちが発生する（スケジュールリスク） | ステップ 3-3 の実測完了や PR-5 着手が遅れる | 中 | ステップ 3-3 で既存の開いているコンフリクト PR がない場合は、作業用の一時ドラフト PR を作って確認し即座に閉じることで外部の PR 待ちを避ける。PR-5 の `hold` 解除待ちの間は、本タスクとは独立した他タスクの作業を並行して進める |
 
 ## 6. 実装チェックリスト
