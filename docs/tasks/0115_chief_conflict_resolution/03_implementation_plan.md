@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-23 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-24 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装概要
@@ -486,3 +486,7 @@
 1. 本実装計画書（ステータス: `draft`）の PR レビューを受け、指摘があれば修正する。
 2. レビュー承認後、`/runpr <PR>` で本計画書を `approved` に更新してマージする。
 3. マージ後、`/runplan 0115` を実行し、PR-1 から順に実装を進める。
+
+## 変更履歴
+
+- 2026-11-24 承認（isseis、#1096）
