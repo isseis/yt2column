@@ -60,7 +60,7 @@ const (
 // Protocol is the version of the tool's command-line contract. The command
 // documents pass it back with --protocol, so an installed binary that predates
 // the documents stops instead of merging without the checks they expect.
-const Protocol = 3
+const Protocol = 4
 
 // mainRefspec fetches main into its remote-tracking ref whatever the
 // repository's remote.origin.fetch says, so the protocol-number check always

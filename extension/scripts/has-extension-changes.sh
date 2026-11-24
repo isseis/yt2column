@@ -8,10 +8,11 @@
 # runs for the extension itself, the Makefile that drives it, any workflow,
 # go.mod (whose ignore directive keeps extension/node_modules out of ./..., and
 # whose go line chooses the toolchain the extension build uses) and go.sum, and
-# the files the extension tests read: README.md and README.en.md (their
-# browser extension sections, and the minimum Chrome version anywhere in
-# them), and docs/dev/guides/development.md (its job record value tables and
-# the minimum Chrome version it states).
+# the files the extension tests read: README.md and README.en.md (the minimum
+# Chrome version anywhere in them), INSTALL.md (the whole document: the
+# minimum Chrome version, and the screen names, step names, and messages it
+# quotes from the Japanese catalog), and docs/dev/guides/development.md (its
+# job record value tables and the minimum Chrome version it states).
 #
 # It also runs for any file under a directory listed in the dependency
 # directory file, one directory per line ending in "/", as
@@ -43,7 +44,7 @@ done <"$1"
 matched=false
 while IFS= read -r -d '' path; do
   case "$path" in
-    extension/* | Makefile | .github/workflows/* | go.mod | go.sum | README.md | README.en.md | docs/dev/guides/development.md)
+    extension/* | Makefile | .github/workflows/* | go.mod | go.sum | README.md | README.en.md | INSTALL.md | docs/dev/guides/development.md)
       matched=true
       ;;
     *)

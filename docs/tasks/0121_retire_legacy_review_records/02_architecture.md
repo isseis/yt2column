@@ -289,7 +289,9 @@ sequenceDiagram
 |---|---|---|
 | 1 | `Codex local review:` で始まる指摘の行 | `^Codex local review:` |
 | 2 | `(codex)` を持つ見た範囲の行 | `^Local CLI reviewed: [0-9a-f]{12}\.\.[0-9a-f]{12} \(codex\)$` |
-| 3 | 括弧内に `codex:` を含む未レビュー範囲の行 | `^Local CLI review: not run [0-9a-f]{12}\.\.[0-9a-f]{12} \(.*codex:.*\)$` |
+| 3 | 括弧内に `codex:` を含む、または括弧内が `after the second attempt, reviewed by codex` である未レビュー範囲の行 | `^Local CLI review: not run [0-9a-f]{12}\.\.[0-9a-f]{12} \((.*codex:.*\|after the second attempt, reviewed by codex)\)$` |
+
+形式 3 の後者は、0118 より前の `local-cli-review.md` が HEAD2..HEAD3 の範囲について定めていた `(after the second attempt, reviewed by <coderabbit or codex>)` の codex 側である。この行は括弧内にコロンを含まないため、要件定義書 F-001 の形式 3（括弧内に `codex:` を含む行）には当たらないが、Codex CLI の古い記録行であることは同じなので検査対象に加える。検査対象が要件の 3 形式を包含するため、`matches: 0` は引き続き AC-01 の 0 件を意味する。
 
 -   **出力と終了コードの契約:**
     -   標準出力は全ブランチ・全コミットの検査が異常なく完了するまでバッファリングし、途中で異常終了（終了コード `2`）した場合は標準出力へ何も出力しない。
@@ -552,7 +554,7 @@ flowchart TD
 ### 7.3. 移行ゲート・セキュリティテスト戦略
 
 -   **`_checks/check_open_branches.sh` の壊し確認（F-001）:** 本スクリプトはタスク専用の一時検査スクリプト（`make test` や CI には含めない）だが、実装時にローカルの一時リポジトリを擬似 `origin` として以下を必ず実測確認する。
-    1.  3 形式それぞれ（`Codex local review:`、`(codex)`、括弧内に `codex:` を含む `not run`）を持つ非 `main` ブランチ、および CRLF（`\r\n`）行末や孤立ブランチ（orphan branch）上の古い記録行に対して終了コード `1` と該当ブランチ・一致行を返すこと。
+    1.  3 形式それぞれ（`Codex local review:`、`(codex)`、括弧内に `codex:` を含む `not run` と `(after the second attempt, reviewed by codex)` の `not run`）を持つ非 `main` ブランチ、および CRLF（`\r\n`）行末や孤立ブランチ（orphan branch）上の古い記録行に対して終了コード `1` と該当ブランチ・一致行を返すこと。
     2.  `main` 側のみに古い記録行がある場合や、インデントされた行・現行 `(coderabbit)` 行のみの場合は誤検出せず終了コード `0` を返すこと。
     3.  呼び出し元に残留する古い `refs/remotes/origin/*`（擬似 `origin` から削除済み）を誤検出せず、逆に呼び出し元が未取得の擬似 `origin` 上の新規ブランチを見落とさず検出すること。
     4.  外部の `git worktree`（linked worktree）から実行しても正常に動作すること。

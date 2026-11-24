@@ -469,7 +469,7 @@ Agent prompt (inline `begin`'s `threads` block from Phase 1 unchanged):
 >
 > <inline begin's threads block verbatim here>
 >
-> Never write any mention on `_context.md`'s "Rejected mentions" row in a `replyBody`, in any letter case, even when quoting: write `Codex` or `CodeRabbit` without the `@` instead.
+> Never write any mention on `_context.md`'s "Rejected mentions" row in a `replyBody`, in any letter case, even when quoting: write `Codex`, `CodeRabbit`, or `Sourcery AI` without the `@` instead.
 >
 > Reply with only this JSON: `{"threads": [{"threadId": "...", "verdict":
 > "valid|off-level|invalid|unclear", "severity":
@@ -617,7 +617,7 @@ blocks, the thread IDs to fix):
 >    reference the structural change. For an off-level thread, the reply
 >    follows R4 (which later phase the detail belongs to, and where the
 >    concern was recorded or retained). Never write any mention on `_context.md`'s "Rejected mentions" row in a
->    `replyBody`, in any letter case, even when quoting: write `Codex` or `CodeRabbit` without the `@` instead.
+>    `replyBody`, in any letter case, even when quoting: write `Codex`, `CodeRabbit`, or `Sourcery AI` without the `@` instead.
 >    Also return `editorial`: one item for each editorial correction you made
 >    for the thread, either to a task document that was `approved` before
 >    this round (a revision of a `draft` document is not one), or to an ADR
@@ -1087,14 +1087,14 @@ Agent prompt:
 >    exactly as they are, and write no such paragraph yourself, even for a
 >    correction you see in `git log`: this session appends this round's
 >    corrections afterwards. Never write any mention on `_context.md`'s "Rejected mentions" row in the title or the body,
->    in any letter case, even when quoting: write `Codex` or `CodeRabbit` without the `@` instead. Never return placeholder text. Otherwise reply with only
+>    in any letter case, even when quoting: write `Codex`, `CodeRabbit`, or `Sourcery AI` without the `@` instead. Never return placeholder text. Otherwise reply with only
 >    `{"stale": false}`, so the real PR description is preserved.
 
 When the reply is `{"stale": true, ...}`, write its `title` and `body` to two
 files outside the work tree with the `file-io` operation of
 `_lib/harness.md` (the title file holds the title
-alone, with no trailing newline, which the tool rejects as a control
-character). Before sending the rewrite, check that it keeps the
+alone, with no trailing newline, which `fixprguard edit-pr` rejects as a
+control character). Before sending the rewrite, check that it keeps the
 editorial-correction paragraphs. Get only their count in the current
 description; the filter prints a number, never the body, so the description
 does not enter this session:
