@@ -342,7 +342,10 @@ command sort "$BRANCHES_FILE" >"$BRANCHES_SORTED" || die_safe "sort" "failed to 
 # at most one trailing CR from CRLF lines).
 PAT_CODEX_REVIEW='^Codex local review:'
 PAT_SEEN_CODEX='^Local CLI reviewed: [0-9a-f]{12}\.\.[0-9a-f]{12} \(codex\)$'
-PAT_NOT_RUN_CODEX='^Local CLI review: not run [0-9a-f]{12}\.\.[0-9a-f]{12} \(.*codex:.*\)$'
+# Format 3 covers both pre-0118 not-run forms: the failure-kind form with
+# "codex:" inside the parentheses, and the HEAD2..HEAD3 form whose second
+# attempt was reviewed by codex.
+PAT_NOT_RUN_CODEX='^Local CLI review: not run [0-9a-f]{12}\.\.[0-9a-f]{12} \((.*codex:.*|after the second attempt, reviewed by codex)\)$'
 
 BRANCH_LINES="$TMP_WORK/out-branches.txt"
 MATCH_LINES="$TMP_WORK/out-matches.txt"

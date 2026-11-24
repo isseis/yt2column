@@ -185,7 +185,7 @@ commit_raw_msg "$CLONE_DIR" "$CASE_DIR/m1.msg"
 git -C "$CLONE_DIR" push -q origin main
 
 git -C "$CLONE_DIR" checkout -q -b z-branch main
-printf 'clean commit\n\n  Codex local review: indented\n  Local CLI reviewed: 0123456789ab..cdef01234567 (codex)\nsee Local CLI review: not run 0123456789ab..cdef01234567 (coderabbit: other; codex: timeout)\ncodex local review: wrong case\nLocal CLI reviewed: 0123456789ab..cdef01234567 (CODEX)\nLocal CLI reviewed: 0123456789ab..cdef01234567 (codex) \nLocal CLI reviewed: 0123456789ab..cdef01234567 (coderabbit)\nLocal CLI review: not run 0123456789ab..cdef01234567 (coderabbit: other)\n' >"$CASE_DIR/z.msg"
+printf 'clean commit\n\n  Codex local review: indented\n  Local CLI reviewed: 0123456789ab..cdef01234567 (codex)\nsee Local CLI review: not run 0123456789ab..cdef01234567 (coderabbit: other; codex: timeout)\ncodex local review: wrong case\nLocal CLI reviewed: 0123456789ab..cdef01234567 (CODEX)\nLocal CLI reviewed: 0123456789ab..cdef01234567 (codex) \nLocal CLI reviewed: 0123456789ab..cdef01234567 (coderabbit)\nLocal CLI review: not run 0123456789ab..cdef01234567 (coderabbit: other)\nLocal CLI review: not run 0123456789ab..cdef01234567 (after the second attempt, reviewed by coderabbit)\n' >"$CASE_DIR/z.msg"
 commit_raw_msg "$CLONE_DIR" "$CASE_DIR/z.msg"
 z_oid=$(git -C "$CLONE_DIR" rev-parse HEAD)
 git -C "$CLONE_DIR" push -q origin z-branch
@@ -251,6 +251,9 @@ git -C "$CLONE_DIR" checkout -q -b f3 main
 printf 'f3 subject\r\n\r\nLocal CLI review: not run 0123456789ab..cdef01234567 (coderabbit: other; codex: timeout)\r\n' >"$CASE_DIR/f3.msg"
 commit_raw_msg "$CLONE_DIR" "$CASE_DIR/f3.msg"
 f3_oid=$(git -C "$CLONE_DIR" rev-parse HEAD)
+printf 'f3 second attempt\n\nLocal CLI review: not run 0123456789ab..cdef01234567 (after the second attempt, reviewed by codex)\n' >"$CASE_DIR/f3-second.msg"
+commit_raw_msg "$CLONE_DIR" "$CASE_DIR/f3-second.msg"
+f3_second_oid=$(git -C "$CLONE_DIR" rev-parse HEAD)
 printf 'Codex local review: on subject line\n' >"$CASE_DIR/f3-subj.msg"
 commit_raw_msg "$CLONE_DIR" "$CASE_DIR/f3-subj.msg"
 f3_subj_oid=$(git -C "$CLONE_DIR" rev-parse HEAD)
@@ -295,10 +298,11 @@ git -C "$CLONE_DIR" checkout -q main
 run_check "$CLONE_DIR"
 if assert_exit 1 && assert_tmp_clean; then
 	ok=1
-	assert_contains "$RUN_OUT_FILE" "matches: 8" "stdout" || ok=0
+	assert_contains "$RUN_OUT_FILE" "matches: 9" "stdout" || ok=0
 	assert_contains "$RUN_OUT_FILE" "f1 ${f1_oid:0:12} Codex local review: rejected finding" "stdout" || ok=0
 	assert_contains "$RUN_OUT_FILE" "-f2 ${f2_oid:0:12} Local CLI reviewed: 0123456789ab..cdef01234567 (codex)" "stdout" || ok=0
 	assert_contains "$RUN_OUT_FILE" "f3 ${f3_oid:0:12} Local CLI review: not run 0123456789ab..cdef01234567 (coderabbit: other; codex: timeout)" "stdout" || ok=0
+	assert_contains "$RUN_OUT_FILE" "f3 ${f3_second_oid:0:12} Local CLI review: not run 0123456789ab..cdef01234567 (after the second attempt, reviewed by codex)" "stdout" || ok=0
 	assert_contains "$RUN_OUT_FILE" "f3 ${f3_subj_oid:0:12} Codex local review: on subject line" "stdout" || ok=0
 	assert_contains "$RUN_OUT_FILE" "f3 ${f3_nolf_oid:0:12} Local CLI reviewed: aaaaaaaaaaaa..bbbbbbbbbbbb (codex)" "stdout" || ok=0
 	assert_contains "$RUN_OUT_FILE" "orphan-legacy ${orphan_oid:0:12} Codex local review: orphan finding" "stdout" || ok=0
