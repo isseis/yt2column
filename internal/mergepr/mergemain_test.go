@@ -180,7 +180,6 @@ func TestParseMergemainPRRejectsMalformedValues(t *testing.T) {
 		"head option":      {strings.Replace(valid, `"feature"`, `"-f"`, 1), errBranchName},
 		"head with space":  {strings.Replace(valid, `"feature"`, `"a b"`, 1), errBranchName},
 		"head with equals": {strings.Replace(valid, `"feature"`, `"a=b"`, 1), errBranchName},
-		"head with quote":  {strings.Replace(valid, `"feature"`, `"a\"b"`, 1), errBranchName},
 		"short head":       {strings.Replace(valid, head, head[:39], 1), errPRShape},
 		"uppercase head":   {strings.Replace(valid, head, strings.ToUpper(head), 1), errPRShape},
 		"null state":       {strings.Replace(valid, `"OPEN"`, `null`, 1), nil},

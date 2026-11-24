@@ -396,9 +396,9 @@ func takeInPR(w io.Writer, arg string) (mergepr.MergemainPR, error) {
 }
 
 // fieldLine writes one field of a take-in subcommand's output: the key, a
-// colon and a space, and the value with every byte that could break the line
-// protocol escaped. The escape is what keeps a value that holds a newline from
-// writing a field line of its own.
+// colon and a space, and the value with every character that could break the
+// line protocol escaped. The escape is what keeps a value that holds a newline
+// from writing a field line of its own.
 func fieldLine(w io.Writer, key, value string) {
 	_, _ = fmt.Fprintf(w, "%s: %s\n", key, escapedField(value))
 }
