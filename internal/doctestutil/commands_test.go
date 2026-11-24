@@ -124,8 +124,8 @@ func TestRunsCommandForms(t *testing.T) {
 }
 
 // TestCommandArgsReturnsEachInvocation: CommandArgs extracts the trailing
-// arguments for every command-position invocation (including multiple commands
-// inside shell -c and env -S without leaking outer quotes) and ignores
+// arguments for every command-position invocation (including chained commands,
+// shell -c, and env -S without leaking outer quotes) and ignores
 // non-command-position mentions.
 func TestCommandArgsReturnsEachInvocation(t *testing.T) {
 	for _, tc := range []struct {

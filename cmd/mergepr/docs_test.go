@@ -288,11 +288,12 @@ var gitValuedGlobalOpts = map[string]struct{}{
 	"--attr-source":  {},
 }
 
-// stripWordDecorations removes shell quotes, grouping punctuation, and
-// backslash escapes from a command word.
+// stripWordDecorations removes grouping punctuation, backslash escapes, and
+// enclosing shell quotes from a command word.
 func stripWordDecorations(w string) string {
-	w = strings.TrimLeft(strings.Trim(w, `"'`), `({\`)
-	return strings.TrimRight(strings.Trim(w, `"'`), `)};`)
+	w = strings.TrimLeft(w, `({\`)
+	w = strings.TrimRight(w, `)};`)
+	return strings.Trim(w, `"'`)
 }
 
 // joinContinuations joins lines ending in a backslash into single logical
@@ -367,9 +368,9 @@ func directGitMutations(doc string) []string {
 }
 
 // TestDirectGitMutations: the guard detects direct forbidden git mutations in
-// executable code blocks (including with global options, --, wrappers, env -S,
-// redirections, blockquoted fences, paths, reserved words, continuations, and
-// shell -c) and does not false-positive on git commit, git diff, prose code
+// executable code blocks (including with global options, wrappers, blockquoted
+// fences, paths, continuations, shell -c, decorated subcommands, and unclosed
+// fences) and does not false-positive on git commit, git diff, prose code
 // spans, or non-command text blocks.
 func TestDirectGitMutations(t *testing.T) {
 	for _, tc := range []struct {
@@ -425,8 +426,8 @@ func TestDirectGitMutations(t *testing.T) {
 		},
 		{
 			name:     "decorated_subcommand",
-			doc:      "```bash\ngit \\reset --hard\n(git \"push\" origin branch)\n```\n",
-			wantSubs: []string{"reset", "push"},
+			doc:      "```bash\ngit \\reset --hard\n(git \"push\")\ngit \"-C\" /repo merge origin/main\n```\n",
+			wantSubs: []string{"reset", "push", "merge"},
 		},
 		{
 			name:     "unclosed_fence_fails_closed",
