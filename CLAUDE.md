@@ -830,10 +830,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   before committing such a change.
 - `yt-dlp` must be on `PATH` (or set `YT2COLUMN_YTDLP_PATH`) to run the CLI; it is
   not needed for `make test`.
-- `make test` needs `jq` on `PATH`: `TestRunprDocContract`,
-  `TestHandoffListingPrintsNoBody`, and `TestFixprPhase6CountFilter` run the
-  `--jq` filters of `runpr.md` step 3, `_lib/task-pr-handoff.md` Part B step
-  5, and `fixpr.md` Phase 6 with it, and fail instead of skipping when it is
+- `make test` needs `jq` on `PATH`: `TestRunprDocContract` and
+  `TestFixprPhase6CountFilter` run the `--jq` filters of `runpr.md` step 3
+  and `fixpr.md` Phase 6 with it, and fail instead of skipping when it is
   missing. The `doc-guard` CI job runs these tests too.
 - `make test` needs bash 4 or later as the first `bash` on `PATH` (macOS's
   `/bin/bash` is 3.2): `TestMarkerReadingMatchesDecisionScript` in
