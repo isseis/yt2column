@@ -167,10 +167,10 @@
   - `docs/dev/guides/`・`docs/dev/conventions/`・`CLAUDE.md`（新たな該当箇所が見つかった場合のみ変更）
   - `docs/tasks/0121_retire_legacy_review_records/03_implementation_plan.md`（AC-06 の diff 記録）
 - **作業内容:**
-  - [ ] `docs/dev/guides/`・`docs/dev/conventions/`・`CLAUDE.md` を再度確認し、撤去対象の 3 形式を現行の読み方規則として記述した箇所が追加されていれば更新する（AC-11）。
-  - [ ] `docs/dev/conventions/requirements_process.md` §4 の固定コマンドを用いて、本計画書 §7 の `Diff record (AC-06)` に `.claude/commands/_lib/local-cli-review.md`・`.claude/commands/_lib/task-pr-handoff.md`・`.claude/commands/_lib/cross-check-review.md` の差分を記録する（本計画書は比較対象に含めない）。
-  - [ ] 本計画書 §7 にステップ 1-3 の実装開始前確認記録（`<mention-check>` 通過後のコードブロック）がコミット済みであることを確認し、`PR-1 作成ポイント` で開く PR の説明へそのまま転記できる状態にする。
-  - [ ] `make fmt`・`make test`・`make lint`・`make deadcode` および CI の `doc-guard` と同一のコマンド（`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`）を実行し、すべて成功することを確認する（AC-12）。テスト削除が発生していないため `make coverage-compare` は非該当とする（万一削除が生じた場合のみ [ADR-0037](../../dev/adr/0037-test-deletion-coverage.md) に従い削除専用コミットを分けて実行・記録する）。
+  - [x] `docs/dev/guides/`・`docs/dev/conventions/`・`CLAUDE.md` を再度確認し、撤去対象の 3 形式を現行の読み方規則として記述した箇所が追加されていれば更新する（AC-11）。
+  - [x] `docs/dev/conventions/requirements_process.md` §4 の固定コマンドを用いて、本計画書 §7 の `Diff record (AC-06)` に `.claude/commands/_lib/local-cli-review.md`・`.claude/commands/_lib/task-pr-handoff.md`・`.claude/commands/_lib/cross-check-review.md` の差分を記録する（本計画書は比較対象に含めない）。
+  - [x] 本計画書 §7 にステップ 1-3 の実装開始前確認記録（`<mention-check>` 通過後のコードブロック）がコミット済みであることを確認し、`PR-1 作成ポイント` で開く PR の説明へそのまま転記できる状態にする。
+  - [x] `make fmt`・`make test`・`make lint`・`make deadcode` および CI の `doc-guard` と同一のコマンド（`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`）を実行し、すべて成功することを確認する（AC-12）。テスト削除が発生していないため `make coverage-compare` は非該当とする（万一削除が生じた場合のみ [ADR-0037](../../dev/adr/0037-test-deletion-coverage.md) に従い削除専用コミットを分けて実行・記録する）。
 - **完了条件:**
   - 品質関門の全コマンド、`Diff record (AC-06)` の記録、およびステップ 1-3 の実装開始前確認記録のコミットが完了しており、`PR-1 作成ポイント` へ進める状態であること。
 
@@ -263,6 +263,81 @@
 Diff record (AC-06):
 
 - Compared paths: `.claude/commands/_lib/local-cli-review.md`, `.claude/commands/_lib/task-pr-handoff.md`, `.claude/commands/_lib/cross-check-review.md`
+- Merge-base: `036fd7c83a885a7cd7ffbc164b10c6efeac0cd5c`
+- Compared commit: `b0a5f35917df0efb9887af3878eeabf294e76984`
+
+Path diff:
+
+````text
+diff --git a/.claude/commands/_lib/cross-check-review.md b/.claude/commands/_lib/cross-check-review.md
+index d42ec3adcb0db1601831f9ec022ca8aaf72db594..ed574bf19a69ca8e8193a170049e3894320dca81 100644
+--- a/.claude/commands/_lib/cross-check-review.md
++++ b/.claude/commands/_lib/cross-check-review.md
+@@ -540,9 +540,8 @@ part is a summary:
+ - **Settled issues.** Each as a location, a handling, and a summary in your
+   own words, never a copied line. The worker may raise one again only with a
+   concrete scenario:
+-  - the rejected findings of `CodeRabbit local review:`, `Codex local
+-    review:` (legacy lines from older branches), `Cross-check finding:`, and
+-    legacy `Fable finding:` lines in `git log origin/main..HEAD`;
++  - the rejected findings of `CodeRabbit local review:`, `Cross-check finding:`,
++    and legacy `Fable finding:` lines in `git log origin/main..HEAD`;
+   - the `High review: kept` and legacy `Opus review: kept` lines of the same
+     log;
+   - SELF_REJECTED;
+diff --git a/.claude/commands/_lib/local-cli-review.md b/.claude/commands/_lib/local-cli-review.md
+index 4355966c2fb786b2e23d82f735f7e8bf80d709e4..723dd519fc4d88c1ddec838f60f198e3f12de6ac 100644
+--- a/.claude/commands/_lib/local-cli-review.md
++++ b/.claude/commands/_lib/local-cli-review.md
+@@ -304,14 +304,14 @@ of these prefixes.
+ - A line that is exactly `CodeRabbit local review: not run`, which an earlier
+   session wrote when the CodeRabbit CLI failed and has no range, also means an unreviewed
+   range; take its range as the whole branch. It is not a finding line.
+-- Every other `CodeRabbit local review:` and `Codex local review:` line is a
++- Every other `CodeRabbit local review:` line is a
+   finding line; its handling (rejected, `deferred`, `unclear`) is in the line.
+ - A `Cross-check review:`, `Cross-check scope:`, `Cross-check finding:`
+   (or a legacy `Fable review:`, `Fable scope:`, or `Fable finding:`),
+   `Merge check:`, `Merge check scope:`, or `Merge check finding:` line is not a
+   local CLI review line; `_lib/cross-check-review.md`, "Reading the record lines",
+   reads it.
+-- A `Local CLI reviewed: <START12>..<END12> (<cli>)` line names a seen range.
++- A `Local CLI reviewed: <START12>..<END12> (coderabbit)` line names a seen range.
+   It is neither a finding line nor an unreviewed range, and it does not
+   cancel a `not run` line. `runpr.md` step 3 reads it through
+   `.claude/commands/_lib/review-records.sh`, which decides whether the local
+@@ -319,8 +319,3 @@ of these prefixes.
+   the branch before a PR opens); that script is
+   the executable form of this line's reading, and when they disagree, this
+   file is right and the script is fixed.
+-
+-Read earlier `(codex)` seen ranges and `(coderabbit: <kind>; codex: <kind>)`
+-failures with the same range semantics. These forms and the
+-`Codex local review:` finding prefix may be retired once no open branch
+-contains an old record.
+diff --git a/.claude/commands/_lib/task-pr-handoff.md b/.claude/commands/_lib/task-pr-handoff.md
+index c895be9b52541bc0e6502f4e93cc07a922e35735..55017d77a49baf9aba777dcbf68166f193fc9298 100644
+--- a/.claude/commands/_lib/task-pr-handoff.md
++++ b/.claude/commands/_lib/task-pr-handoff.md
+@@ -321,13 +321,13 @@ Run this after the calling command's last commit, with a clean working tree.
+      `レビュー観点`), including every `unclear` or `deferred` finding of the
+      local CLI reviews, including earlier records: this run's SUMMARY, and the finding
+      lines earlier sessions recorded in commit messages on the branch
+-     (`git log origin/main..<D>`; the `CodeRabbit local review:` and
+-     `Codex local review:` lines, read as `_lib/local-cli-review.md`,
++     (`git log origin/main..<D>`; the `CodeRabbit local review:` lines, read as
++     `_lib/local-cli-review.md`,
+      "Reading the record lines", says; a `not run` line is not a finding),
+      and every `unclear` or `deferred` cross-check finding (its
+      `Cross-check finding:` line, or a legacy `Fable finding:` line, read as `_lib/cross-check-review.md`, "Reading the record lines", says).
+-     Describe a Codex CLI or a cross-check finding only by its location and
+-     your own summary, as the record line does, never with Codex's or the
++     Describe a cross-check finding only by its location and
++     your own summary, as the record line does, never with the
+      cross-check worker's text;
+    - names the commits of this PR that the local CLI did not review, if any,
+      by running `origin/main`'s review records script in `unreviewed` mode
+````
 
 実装開始前の確認記録（AC-01）:
 
