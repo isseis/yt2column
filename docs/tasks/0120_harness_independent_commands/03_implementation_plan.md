@@ -711,10 +711,10 @@
 
 ステップ 4-8 で `check_harness_tools.sh` を PR ブランチ上で実行した結果を記録する。
 
--   対象コミット: `007622c9bb743990965c43a754047448ac612392`
+-   対象コミット: `4cf7b507e993c7c032242b61abacb9309c98b9de`（スクリプトの最終版。この PR に基準コミットはなく、現在の木だけを検査する `static` 検証である）
 -   終了コード: `0`
 -   出力: `OK: no harness tool call outside the adapters; scripts = ./_lib/adr-correction-candidates.sh ./_lib/high-review-decision.sh ./_lib/review-records.sh`
--   違反での失敗確認: 検査 (1) は `japrose.md` へのコードスパンの `Bash`、`_lib/settle-decisions.md` への `Agent(` の挿入で、検査 (2) は `_lib/stray.sh` の追加で、それぞれ終了コード 1 で失敗することを確認し、挿入物は取り除いた。
+-   違反での失敗確認: 検査 (1) は、コードスパンの `Bash`、`Agent(` の呼び出し、`AskUserQuestion` の語、行をまたぐ `Write` と `tool`、`_context.md` 以外の表の行と `Launch` の行の挿入で、検査 (2) は `_lib/stray.sh` の追加で、それぞれ失敗することを確認し、挿入物は取り除いた。実在した違反（`runpr.md` の `Write` ツールの記述）は上位モデルのレビューが見つけ、スクリプトが同じ違反を検出することを確認したうえで `file-io` の操作へ直した。
 
 ### 7.2 差分の記録（AC-32・AC-14）
 
@@ -893,7 +893,7 @@ Diff record (AC-32):
 
 - Compared paths: `.claude/settings.json`
 - Merge-base: `3fff7f51b6bf51721f1bbbe09e87ec2e4ea9d67d`
-- Compared commit: `80e7e526c81df1c06d762730e3ede12a284e227c`
+- Compared commit: `4cf7b507e993c7c032242b61abacb9309c98b9de`
 
 Path diff:
 
@@ -914,6 +914,8 @@ File list:
 .agents/skills/runplan/SKILL.md
 .agents/skills/runpr/SKILL.md
 .agents/skills/weakreview/SKILL.md
+.claude/commands/fixpr.md
+.claude/commands/runpr.md
 AGENTS.md
 CLAUDE.md
 cmd/yt2column/docpaths_test.go
