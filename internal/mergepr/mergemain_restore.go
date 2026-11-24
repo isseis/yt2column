@@ -35,11 +35,13 @@ type MergemainRestoreResult struct {
 // network. Every stop is other_changes, with nothing reset.
 func (m *Mergemain) MergemainRestore(ctx context.Context, pr MergemainPR, headBranch, baseHead, main string) (MergemainRestoreResult, error) {
 	a := mergeArgs{pr: pr, branch: headBranch, baseHead: baseHead, main: main}
-	if err := m.checkMergeArgs(ctx, a, MergemainStopPremise); err != nil {
-		return MergemainRestoreResult{}, err
+	// Restore has one reason to stop, other_changes: a merge may be in
+	// progress, so a stop never reads as one that changed nothing.
+	if err := m.checkMergeArgs(ctx, a, MergemainStopOtherChanges); err != nil {
+		return MergemainRestoreResult{}, asOtherChanges(err)
 	}
 	if err := m.checkTop(ctx, RestoreNotNeeded); err != nil {
-		return MergemainRestoreResult{}, err
+		return MergemainRestoreResult{}, asOtherChanges(err)
 	}
 	if err := m.checkOnBranch(ctx, headBranch, MergemainStopOtherChanges, RestoreNotNeeded); err != nil {
 		return MergemainRestoreResult{}, err
@@ -61,6 +63,14 @@ func (m *Mergemain) MergemainRestore(ctx context.Context, pr MergemainPR, headBr
 		return MergemainRestoreResult{}, otherChanges("after the reset, a tracked file still has changes")
 	}
 	return MergemainRestoreResult{Head: head}, nil
+}
+
+// asOtherChanges turns a stop of a shared check into restore's stop.
+func asOtherChanges(err error) error {
+	if stop, ok := errors.AsType[*MergemainStopError](err); ok {
+		return otherChanges("%s", stop.Detail)
+	}
+	return otherChanges("%v", err)
 }
 
 // otherChanges is a restore's stop: nothing was reset.
@@ -156,8 +166,8 @@ type mergeTreeResult struct {
 // mergeTree runs git merge-tree on ours and theirs with the take-in
 // configuration. ours and theirs are passed as given, so they are also the
 // labels of the conflict markers.
-func (m *Mergemain) mergeTree(ctx context.Context, ours, theirs string) (mergeTreeResult, error) {
-	args := slices.Concat(mergeConfig, []string{"merge-tree", "--write-tree", "-z", "--no-messages", ours, theirs})
+func (m *Mergemain) mergeTree(ctx context.Context, ours, theirs, attrTree string) (mergeTreeResult, error) {
+	args := slices.Concat(mergeConfig(attrTree), []string{"merge-tree", "--write-tree", "-z", "--no-messages", ours, theirs})
 	out, err := m.git.git(ctx, args...)
 	if err != nil {
 		exitErr, ok := errors.AsType[*cmdrunner.ExitError](err)
@@ -276,7 +286,7 @@ func (m *Mergemain) checkMergeUntouched(ctx context.Context, a mergeArgs) error 
 	if err != nil {
 		return otherChanges("could not find one merge base: %v", err)
 	}
-	computed, err := m.mergeTree(ctx, "HEAD", a.main)
+	computed, err := m.mergeTree(ctx, "HEAD", a.main, a.baseHead)
 	if err != nil {
 		return otherChanges("could not compute the merge: %v", err)
 	}

@@ -144,7 +144,7 @@ func TestMergemainZeroPRStopsBeforeAnything(t *testing.T) {
 	_, err = m.MergemainMerge(t.Context(), pr, takeInBranch, testHeadOID, testOtherOID)
 	wantStop(t, err, MergemainStopPremise, RestoreNotNeeded)
 	_, err = m.MergemainRestore(t.Context(), pr, takeInBranch, testHeadOID, testOtherOID)
-	wantStop(t, err, MergemainStopPremise, RestoreNotNeeded)
+	wantStop(t, err, MergemainStopOtherChanges, RestoreNotNeeded)
 	_, err = m.MergemainPush(t.Context(), pr, testHeadOID, testOtherOID)
 	wantStop(t, err, MergemainStopPremise, RestoreNeeded)
 	fail.done()
@@ -231,6 +231,9 @@ func TestMergemainBeginPremisesAndNothingToTakeIn(t *testing.T) {
 			k.PR.OnView = func() {
 				k.OriginGit("update-ref", headsPrefix+takeInBranch, k.OriginGit("rev-parse", headsPrefix+mainBranch))
 			}
+		}, MergemainStopPremise},
+		"gh default repository elsewhere": {func(_ *testing.T, k *takeIn) {
+			k.Git("config", "remote.origin.gh-resolved", "other/repo")
 		}, MergemainStopPremise},
 		"shallow repository": {func(_ *testing.T, k *takeIn) {
 			k.Git("fetch", "-q", "--depth=1", "origin", mainBranch)
@@ -1074,6 +1077,9 @@ func TestMergemainBeginRefusesSubdirectory(t *testing.T) {
 	if len(k.GHCalls) != 0 {
 		t.Fatalf("gh ran from a subdirectory: %q", k.GHCalls)
 	}
+	// Restore stops with its one reason, other_changes.
+	_, err = sub.MergemainRestore(t.Context(), mustPR(t), takeInBranch, k.Git("rev-parse", "HEAD"), k.Git("rev-parse", "origin/main"))
+	wantStop(t, err, MergemainStopOtherChanges, RestoreNotNeeded)
 }
 
 func TestMergemainRefusesOtherMergeDrivers(t *testing.T) {
@@ -1157,4 +1163,83 @@ func TestMergemainRefusesOtherMergeDrivers(t *testing.T) {
 		_, err := push(t, k, b)
 		wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
 	})
+}
+
+func TestMergemainBeginAcceptsGHDefaultOfOrigin(t *testing.T) {
+	t.Parallel()
+	k := newTakeIn(t)
+	k.Setup(baseFiles(), map[string]string{"b.md": "b\n"}, map[string]string{"m.md": "m\n"})
+	k.Git("config", "remote.origin.gh-resolved", "base")
+	begin(t, k)
+}
+
+func TestMergemainBlockingPathIgnoresLetterCase(t *testing.T) {
+	t.Parallel()
+	tracked := map[string]struct{}{"Local/notes.txt": {}}
+	for _, ignored := range []string{"local/notes.txt", "LOCAL/", "local/notes.txt/x"} {
+		if _, ok := blockingPath([]string{ignored}, tracked); !ok {
+			t.Errorf("blockingPath(%q) = false, want the case variant to block", ignored)
+		}
+	}
+	if _, ok := blockingPath([]string{"other/notes.txt"}, tracked); ok {
+		t.Error("blockingPath blocked an unrelated path")
+	}
+}
+
+func TestMergemainReadsNoAttributesOutsideTheBaseHead(t *testing.T) {
+	t.Parallel()
+	conflicting := func(k *takeIn) {
+		k.Setup(baseFiles(), map[string]string{"main.go": "package main\n\nfunc main() { b() }\n"}, map[string]string{"main.go": "package main\n\nfunc main() { m() }\n"})
+	}
+	t.Run("ignored .gitattributes at merge", func(t *testing.T) {
+		t.Parallel()
+		k := newTakeIn(t)
+		conflicting(k)
+		writeWork(t, k, ".git/info/exclude", ".gitattributes\n")
+		writeWork(t, k, ".gitattributes", "main.go merge=union\n")
+		_, _, err := merge(t, k)
+		stop := wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
+		if got := classes(stop.Conflicts); !maps.Equal(got, map[string]PathConflictClass{"main.go": PathConflictOutOfScope}) {
+			t.Fatalf("conflicts = %v", got)
+		}
+	})
+	t.Run("untracked .gitattributes at push", func(t *testing.T) {
+		t.Parallel()
+		k := newTakeIn(t)
+		conflicting(k)
+		b, _, err := merge(t, k)
+		wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
+		writeWork(t, k, "main.go", "package main\n\nfunc main() { b() }\nfunc main() { m() }\n")
+		k.Git("add", "main.go")
+		k.Git("commit", "-q", "--no-edit", "--no-verify")
+		writeWork(t, k, ".gitattributes", "main.go merge=union\n")
+		_, err = push(t, k, b)
+		wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
+	})
+}
+
+func TestMergemainMergeIgnoresConfiguredMergeOptions(t *testing.T) {
+	t.Parallel()
+	k := newTakeIn(t)
+	conflictSetup(k)
+	k.Git("config", "branch."+takeInBranch+".mergeOptions", "-Xours")
+	_, r, err := merge(t, k)
+	if err != nil {
+		t.Fatalf("MergemainMerge: %v", err)
+	}
+	if got := classes(r.Conflicts); !maps.Equal(got, map[string]PathConflictClass{"doc.md": PathConflictMarkdown}) {
+		t.Fatalf("conflicts = %v, want the doc.md conflict -Xours would hide", got)
+	}
+}
+
+func TestMergemainPushAfterItLandedAsksNoRestore(t *testing.T) {
+	t.Parallel()
+	k := newTakeIn(t)
+	b := pushFlow(t, k)
+	// An earlier push landed but its result was not read: origin and the
+	// PR head are the merge commit, and the remote-tracking ref is not.
+	k.Git("push", "-q", "origin", "HEAD:refs/heads/landed")
+	k.OriginGit("update-ref", headsPrefix+takeInBranch, k.Git("rev-parse", "HEAD"))
+	_, err := push(t, k, b)
+	wantStop(t, err, MergemainStopPremise, RestoreNotNeeded)
 }

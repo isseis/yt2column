@@ -166,6 +166,14 @@
 
 -   `mergemain-push` の push の送り先の確かめのうち「GitHub で確かめた PR のリポジトリを指す」は、push の URL と取得の URL が同じことに加えて、git の remote が `origin` だけであることと、環境変数 `GH_REPO` がないことで確かめる（3.8.3）。`mergemain-begin` も、PR を読む前に同じことを確かめる。 PR から読むのは AC-30 の 5 つの値だけで、PR のリポジトリの URL は読めない。`gh` は、PR を読むリポジトリを git の remote と `GH_REPO` から選ぶ。そのため、remote が `origin` だけで `GH_REPO` がなければ、`gh` が読んだ PR は `origin` のリポジトリのものである。URL が同じことだけを確かめ、PR のリポジトリとの対応を残る危険とする案は採らなかった。 人の答え：URL が同じことに、remote が `origin` だけであることと `GH_REPO` がないことを足す。
     -   ADR：なし。`mergemain-push` の確かめの細部で、このタスクの中で閉じる。
+-   取り込みの道具は、git がテキストの合わせ以外で衝突を解消する設定を、止まる条件にする（3.8.1・3.8.2・3.8.3・4.1）。 マージドライバ（`.gitattributes` の `merge=union` などや設定したドライバ）、`branch.<ブランチ>.mergeOptions` の `-Xours` などは、Go の衝突でも git に黙って解消させ、`mergemain-push` の確かめも通してしまう（本書の実装の際の Fable の部分レビューの実験）。そこで次のようにする。
+    -   取り込みと `merge-tree` と属性の読み取りは、属性を基準の head の木からだけ読む（`attr.tree`）。作業ツリーの、追跡していないか無視された `.gitattributes` と、利用者の属性のファイルは読まない。`branch.<ブランチ>.mergeOptions` は空にして取り込む。
+    -   両側が変えたパスと、名前の変更の元と先の `merge` 属性が、基準の head と `main` のどちらでもテキストの合わせ（指定なしか `set`）でなければ、止まる（対象外の衝突）。`$GIT_DIR/info/attributes` があるときと、`merge.default` が設定されているときも止まる（前提が合わない）。
+    -   `mergemain-merge` が取り込みの前にこの確かめで止まったときは、何も変えていないので、戻すかどうかを「戻さない」と出力する。4.1 の表の「対象外の衝突」は、これに合わせて道具の出力に従う形にする。
+    -   `gh` が PR を読むリポジトリの確かめ（上の項）に、`gh repo set-default` の記録（`remote.<名前>.gh-resolved`）が `origin` 自身（`base`）以外を指していないことを足す。
+    -   そのほか、`git merge` は `--no-overwrite-ignore` を付けても無視されたファイルを上書きするので、上書きしないことは取り込みの前の確かめだけで守り、その比べは大文字と小文字を区別しない。push の前に PR の head がすでに HEAD（push した merge コミット）なら、戻さずに止まる。`mergemain-restore` の止まる理由は、引数の形が合わないときも「ほかの変更があり戻さなかった」にする。
+    -   人の答え：決定として記録する。マージの前に止まるときは対象外の衝突・戻さないとし、4.1 の表を道具の出力に従う形に直す。
+    -   ADR：なし。取り込みの道具の確かめの細部で、このタスクの中で閉じる。
 
 ## 2. システム構成
 
@@ -615,7 +623,7 @@ const (
 
 #### 3.8.2. 衝突の分類（AC-23）
 
-`mergemain-merge` は、取り込みの後に残った衝突を、パスごとに次のどれか 1 つに分類する。分類は、git のインデックスのステージの項目、パスの名前、衝突した Go のファイルの中身だけから決める。エージェントは分類を変えられない。
+`mergemain-merge` は、取り込みの後に残った衝突を、パスごとに次のどれか 1 つに分類する。分類は、git のインデックスのステージの項目、パスの名前、衝突した Go のファイルの中身、`merge` 属性、名前の変更の判定だけから決める。エージェントは分類を変えられない。取り込みの前に、テキストの合わせ以外で衝突を解消する設定がないことも確かめる（1.3）。
 
 ```go
 // PathConflictClass is the class of one conflicted path. The zero value is
@@ -713,10 +721,11 @@ push は、確かめた merge コミットの ID を `<ID>:refs/heads/<ブラン
 -   git のインデックスのステージの項目（ステージの番号、モード、オブジェクト）。
 -   Go のファイルのプロトコル番号の行（衝突の分類と、merge コミットが変えた範囲の確かめ）。
 -   `MERGE_HEAD`、親の一覧、`origin` の ref の値。
+-   `merge` 属性、名前の変更の元と先、ブロブの先頭の NUL、`info/attributes` と `merge.default` の有無、remote の一覧と URL、`gh-resolved` の値（1.3）。
 
 これらは git と、CLAUDE.md の「Protocol numbers」が定める宣言の形である。CLAUDE.md の「Declare, don't infer」の `mergepr` の例外は、今はコミットのメッセージの読み取りだけを範囲にしている。そのため、取り込みの道具の読み取りを、範囲と境界を決めた例外として書き足す。
 
--   **範囲。** 上の 4 つの読み取りだけ。
+-   **範囲。** 上の読み取りだけ。範囲の一覧は CLAUDE.md の例外が持つ。
 -   **境界。** 受け付ける形に合わない項目は、対象外の衝突か止まる理由として扱い、広く解釈しない。
 
 ### 3.9. コマンドの定義 `mergemain.md`（F-005）
@@ -841,7 +850,7 @@ const (
 | `MergemainStopPremise`（`mergemain-begin`） | 前提が合わない | 戻さない（何も変えていない） |
 | `MergemainStopPremise`（`mergemain-merge`・`mergemain-push`） | 前提が合わない | 道具の出力の `RestoreNeed` に従う |
 | `MergemainStopNothingToTakeIn` | 取り込むものがない | 戻さない（何も変えていない） |
-| `MergemainStopOutOfScope` | 対象外の衝突 | 戻す |
+| `MergemainStopOutOfScope` | 対象外の衝突 | 道具の出力の `RestoreNeed` に従う（取り込みの後は戻す。マージの前に止まったときは戻さない、1.3） |
 | `MergemainStopPushRejected` | push の失敗 | 戻す |
 | `MergemainStopPushUnknown` | push の結果が分からない | 戻さない |
 | `MergemainStopOtherChanges` | ほかの変更があり戻さなかった | 戻さない |
@@ -1166,3 +1175,4 @@ flowchart TD
 
 - 2026-11-23 承認（isseis、#1051）
 - 2026-11-24 セッション中の再承認：`mergemain-push` の push の送り先の確かめに、remote が `origin` だけであることと `GH_REPO` がないことを足した（isseis、#未記入）
+- 2026-11-24 セッション中の再承認：テキストの合わせ以外で衝突を解消する設定（マージドライバ・`mergeOptions`・属性の置き場所）を止まる条件にし、4.1 の表の対象外の衝突を道具の出力に従う形にした（isseis、#未記入）

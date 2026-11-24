@@ -89,7 +89,13 @@ func (m *Mergemain) checkPushTarget(ctx context.Context, pr MergemainPR, baseHea
 		return "", err
 	}
 	if v.headOID != baseHead {
-		return "", stopError(MergemainStopPremise, RestoreNeeded, "the PR head %s is not the base head %s", v.headOID, baseHead)
+		// When the PR head is already HEAD, an earlier push landed, so the
+		// merge commit must not be restored away.
+		restore := RestoreNeeded
+		if head, err := m.git.resolveCommit(ctx, "HEAD"); err != nil || head == v.headOID {
+			restore = RestoreNotNeeded
+		}
+		return "", stopError(MergemainStopPremise, restore, "the PR head %s is not the base head %s", v.headOID, baseHead)
 	}
 	return v.headBranch, nil
 }
@@ -146,7 +152,7 @@ func (m *Mergemain) checkMergeScope(ctx context.Context, head, baseHead, main st
 	if err := m.checkMergeDrivers(ctx, base, baseHead, main, RestoreNeeded); err != nil {
 		return err
 	}
-	computed, err := m.mergeTree(ctx, baseHead, main)
+	computed, err := m.mergeTree(ctx, baseHead, main, baseHead)
 	if err != nil {
 		return stopError(MergemainStopPremise, RestoreNeeded, "could not compute the merge of the parents: %v", err)
 	}

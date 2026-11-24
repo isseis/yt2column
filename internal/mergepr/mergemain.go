@@ -82,22 +82,30 @@ var readmePaths = []string{"README.md", "README.en.md"}
 // ext-check: the node tests read them.
 var extCheckPaths = []string{"README.md", "README.en.md", "docs/dev/guides/development.md"}
 
-// mergeConfig is the configuration every merge of the take-in tool runs with,
-// the merge in the work tree and the merges merge-tree computes alike, so the
-// conflicts the tool classifies are the ones the merge left. Directory rename
-// detection is off, so a merge never moves a file the two sides did not move;
-// rerere is off, so no recorded resolution is applied without the tool seeing
-// the conflict; the user's attributes file is not read, so only the
-// repository's .gitattributes choose a merge driver (checkMergeDrivers checks
-// those, and that no other attributes or default driver are set); and the
-// rename limits of the merge and of the tool's own rename detection are the
-// same, so both find the same renames.
-var mergeConfig = []string{
-	"-c", "merge.directoryRenames=false",
-	"-c", "rerere.enabled=false",
-	"-c", "core.attributesFile=/dev/null",
+// renameConfig makes the rename limits of a merge and of the tool's own
+// rename detection the same, so both find the same renames.
+var renameConfig = []string{
 	"-c", "merge.renameLimit=" + renameLimit,
 	"-c", "diff.renameLimit=" + renameLimit,
+}
+
+// mergeConfig is the configuration every merge of the take-in tool runs with,
+// the merge in the work tree and the merges merge-tree computes alike, and the
+// attribute reading that checks them, so the conflicts the tool classifies
+// are the ones the merge left. Directory rename detection is off, so a merge
+// never moves a file the two sides did not move; rerere is off, so no
+// recorded resolution is applied without the tool seeing the conflict; the
+// attributes come from attrTree, the base head, and never from the work tree
+// (an untracked or ignored .gitattributes) or the user's attributes file, so
+// checkMergeDrivers reads the attributes the merge uses; and the rename
+// limits are renameConfig's.
+func mergeConfig(attrTree string) []string {
+	return slices.Concat([]string{
+		"-c", "merge.directoryRenames=false",
+		"-c", "rerere.enabled=false",
+		"-c", "core.attributesFile=/dev/null",
+		"-c", "attr.tree=" + attrTree,
+	}, renameConfig)
 }
 
 // renameLimit is the rename detection limit of every merge and diff of the
@@ -280,6 +288,17 @@ func (m *Mergemain) readPR(ctx context.Context, pr MergemainPR, restore RestoreN
 	}
 	if string(out) != originRemote+"\n" {
 		return mergemainPR{}, stopError(MergemainStopPremise, restore, "the remotes are not origin alone, so gh could read the PR from another repository")
+	}
+	// gh repo set-default records the repository gh reads in
+	// remote.<name>.gh-resolved: "base" names the remote's own repository,
+	// any other value another one.
+	out, err = m.git.git(ctx, "config", "--get-regexp", `^remote\..*\.gh-resolved$`)
+	if err == nil {
+		if string(out) != "remote."+originRemote+".gh-resolved base\n" {
+			return mergemainPR{}, stopError(MergemainStopPremise, restore, "gh repo set-default names a repository other than origin's")
+		}
+	} else if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); !ok || exitErr.Code != 1 {
+		return mergemainPR{}, stopError(MergemainStopPremise, restore, "could not read gh's default repository: %v", err)
 	}
 	out, err = m.gh.Run(ctx, ghCommand, "pr", "view", pr.String(), "--json", mergemainPRFields)
 	if err != nil {
@@ -643,7 +662,7 @@ func (m *Mergemain) MergemainMerge(ctx context.Context, pr MergemainPR, headBran
 	}
 
 	// The merge starts here; from now on a stop asks for a restore.
-	mergeErr := m.runMerge(ctx, main)
+	mergeErr := m.runMerge(ctx, headBranch, baseHead, main)
 	if err := m.checkMergeStarted(ctx, a, mergeErr); err != nil {
 		return MergemainMergeResult{}, err
 	}
@@ -733,14 +752,18 @@ func (m *Mergemain) checkMergeStarted(ctx context.Context, a mergeArgs, mergeErr
 	return stopError(MergemainStopPremise, restore, "the merge did not leave MERGE_HEAD at main: %v", errors.Join(mergeErr, err))
 }
 
-// runMerge merges main into HEAD in the work tree: never a fast-forward, never
-// a commit, never overwriting an ignored file, with the ort strategy and the
-// take-in configuration. The labels of its conflict markers are HEAD and the
-// commit ID, the labels restore computes the expected merge with.
-func (m *Mergemain) runMerge(ctx context.Context, main string) error {
-	// --no-overwrite-ignore backs up checkIgnoredNotOverwritten, which stops
-	// such a merge before it starts.
-	args := slices.Concat(mergeConfig, []string{mergeSubcommand, "-q", "--no-ff", "--no-commit", "--no-squash", "--no-edit", "--no-autostash", "--no-overwrite-ignore", "--strategy=ort", main})
+// runMerge merges main into HEAD, the base head, in the work tree: never a
+// fast-forward, never a commit, with the ort strategy, the take-in
+// configuration, and the branch's mergeOptions emptied, so no configured -X
+// option resolves a conflict. The labels of its conflict markers are HEAD and
+// the commit ID, the labels restore computes the expected merge with. git
+// overwrites an ignored file even with --no-overwrite-ignore on a true merge,
+// so checkIgnoredNotOverwritten is what keeps it from doing so.
+func (m *Mergemain) runMerge(ctx context.Context, branch, baseHead, main string) error {
+	args := slices.Concat(mergeConfig(baseHead), []string{
+		"-c", "branch." + branch + ".mergeOptions=",
+		mergeSubcommand, "-q", "--no-ff", "--no-commit", "--no-squash", "--no-edit", "--no-autostash", "--strategy=ort", main,
+	})
 	_, err := m.git.git(ctx, args...)
 	return err
 }
@@ -821,7 +844,7 @@ func (m *Mergemain) classifyConflicts(ctx context.Context, base, ours, theirs st
 		return nil, nil, err
 	}
 	paths := slices.Sorted(maps.Keys(entries))
-	attrs, err := m.mergeAttributes(ctx, "", paths)
+	attrs, err := m.mergeAttributes(ctx, ours, "", paths)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -926,12 +949,11 @@ func (m *Mergemain) checkMergeDrivers(ctx context.Context, base, ours, theirs st
 	if len(both) == 0 {
 		return nil
 	}
-	// Which .gitattributes a merge reads differs between git merge and git
-	// merge-tree, so the attribute must be the text merge in all of them:
-	// ours, theirs, and the index.
+	// The merge reads ours' attributes (mergeConfig); theirs' are checked
+	// too, so a rule main adds is refused as well.
 	var conflicts []PathConflict
-	for _, source := range []string{ours, theirs, ""} {
-		attrs, err := m.mergeAttributes(ctx, source, both)
+	for _, source := range []string{"", theirs} {
+		attrs, err := m.mergeAttributes(ctx, ours, source, both)
 		if err != nil {
 			return stopError(MergemainStopPremise, restore, "could not read the merge attributes: %v", err)
 		}
@@ -1023,15 +1045,16 @@ func (m *Mergemain) blob(ctx context.Context, oid string) ([]byte, error) {
 	return m.git.git(ctx, "cat-file", "blob", oid)
 }
 
-// mergeAttributes returns the merge attribute of each path as the
-// .gitattributes of the commit source give it, or of the index when source
-// is empty: "unspecified", "set", "unset", or a driver name.
-func (m *Mergemain) mergeAttributes(ctx context.Context, source string, paths []string) (map[string]string, error) {
-	from := "--cached"
+// mergeAttributes returns the merge attribute of each path as a merge with
+// attrTree's attributes reads it, or, when source is not empty, as the
+// .gitattributes of the commit source give it: "unspecified", "set", "unset",
+// or a driver name.
+func (m *Mergemain) mergeAttributes(ctx context.Context, attrTree, source string, paths []string) (map[string]string, error) {
+	args := []string{"check-attr", "-z"}
 	if source != "" {
-		from = "--source=" + source
+		args = append(args, "--source="+source)
 	}
-	out, err := m.git.git(ctx, slices.Concat(mergeConfig, []string{"check-attr", "-z", from, mergeAttribute, "--"}, paths)...)
+	out, err := m.git.git(ctx, slices.Concat(mergeConfig(attrTree), args, []string{mergeAttribute, "--"}, paths)...)
 	if err != nil {
 		return nil, err
 	}
@@ -1063,7 +1086,7 @@ func (m *Mergemain) mergeAttributes(ctx context.Context, source string, paths []
 func (m *Mergemain) renamedPaths(ctx context.Context, base string, sides ...string) (map[string]struct{}, error) {
 	renamed := make(map[string]struct{})
 	for _, side := range sides {
-		out, err := m.git.git(ctx, slices.Concat(mergeConfig, []string{"diff-tree", "-r", "-z", "-M", "-l" + renameLimit, "--name-status", "--no-ext-diff", "--no-textconv", base, side})...)
+		out, err := m.git.git(ctx, slices.Concat(renameConfig, []string{"diff-tree", "-r", "-z", "-M", "-l" + renameLimit, "--name-status", "--no-ext-diff", "--no-textconv", base, side})...)
 		if err != nil {
 			return nil, err
 		}
@@ -1269,9 +1292,16 @@ func (m *Mergemain) treePaths(ctx context.Context, commit string) (map[string]st
 // blockingPath returns an ignored path that is one of the tracked paths, a
 // parent directory of one, or a path inside one (a tracked file where an
 // ignored directory is).
-func blockingPath(ignored []string, tracked map[string]struct{}) (string, bool) {
+//
+// Paths are compared without letter case, so a file system that ignores case
+// cannot make two names that differ only in case reach one file unseen.
+func blockingPath(ignored []string, trackedPaths map[string]struct{}) (string, bool) {
+	tracked := make(map[string]struct{}, len(trackedPaths))
+	for t := range trackedPaths {
+		tracked[strings.ToLower(t)] = struct{}{}
+	}
 	for _, ig := range ignored {
-		name := strings.TrimSuffix(ig, "/")
+		name := strings.ToLower(strings.TrimSuffix(ig, "/"))
 		if _, ok := tracked[name]; ok {
 			return ig, true
 		}
@@ -1288,7 +1318,7 @@ func blockingPath(ignored []string, tracked map[string]struct{}) (string, bool) 
 		}
 	}
 	for _, ig := range ignored {
-		if _, ok := parents[strings.TrimSuffix(ig, "/")]; ok {
+		if _, ok := parents[strings.ToLower(strings.TrimSuffix(ig, "/"))]; ok {
 			return ig, true
 		}
 	}
