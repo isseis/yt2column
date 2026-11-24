@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-24 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-24 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
@@ -1080,3 +1080,7 @@ flowchart TD
 | AC-29 | 3.2.2・3.2.3・3.4・8（`CLAUDE.md` PR レビュー体制および `Declare, don't infer` 例外更新） |
 | AC-30 | 3.4・8（`docs/translation_glossary.md` 更新） |
 | AC-31 | 7.1・7.2・8（`make test`・`make lint`・`doc-guard` 通過） |
+
+## 変更履歴
+
+- 2026-11-24 承認（isseis、#1102）
