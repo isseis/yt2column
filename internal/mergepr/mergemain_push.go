@@ -143,6 +143,9 @@ func (m *Mergemain) checkMergeScope(ctx context.Context, head, baseHead, main st
 	if err != nil {
 		return stopError(MergemainStopOutOfScope, RestoreNeeded, "could not read the protocol numbers: %v", err)
 	}
+	if err := m.checkMergeDrivers(ctx, base, baseHead, main, RestoreNeeded); err != nil {
+		return err
+	}
 	computed, err := m.mergeTree(ctx, baseHead, main)
 	if err != nil {
 		return stopError(MergemainStopPremise, RestoreNeeded, "could not compute the merge of the parents: %v", err)
@@ -179,7 +182,7 @@ func (m *Mergemain) checkMergeDiff(ctx context.Context, head, base, baseHead, ma
 	if err != nil {
 		return stopError(MergemainStopPremise, RestoreNeeded, "could not list the merge commit's files: %v", err)
 	}
-	for _, p := range slices.Sorted(maps.Keys(unionEntryKeys(computed.entries, headEntries))) {
+	for _, p := range slices.Sorted(maps.Keys(unionKeys(computed.entries, headEntries))) {
 		got, inHead := headEntries[p]
 		want, inMerge := computed.entries[p]
 		if inHead && inMerge && got == want {
@@ -208,18 +211,6 @@ func (m *Mergemain) checkMergeDiff(ctx context.Context, head, base, baseHead, ma
 		}
 	}
 	return nil
-}
-
-// unionEntryKeys returns a set of the keys of both maps.
-func unionEntryKeys(a, b map[string]stageEntry) map[string]struct{} {
-	keys := make(map[string]struct{}, len(a)+len(b))
-	for k := range a {
-		keys[k] = struct{}{}
-	}
-	for k := range b {
-		keys[k] = struct{}{}
-	}
-	return keys
 }
 
 // checkPushURL stops unless origin has one fetch URL and one push URL, as git

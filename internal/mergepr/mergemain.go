@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path"
@@ -84,10 +85,24 @@ var extCheckPaths = []string{"README.md", "README.en.md", "docs/dev/guides/devel
 // mergeConfig is the configuration every merge of the take-in tool runs with,
 // the merge in the work tree and the merges merge-tree computes alike, so the
 // conflicts the tool classifies are the ones the merge left. Directory rename
-// detection is off, so a merge never moves a file the two sides did not move,
-// and rerere is off, so no recorded resolution is applied without the tool
-// seeing the conflict.
-var mergeConfig = []string{"-c", "merge.directoryRenames=false", "-c", "rerere.enabled=false"}
+// detection is off, so a merge never moves a file the two sides did not move;
+// rerere is off, so no recorded resolution is applied without the tool seeing
+// the conflict; the user's attributes file is not read, so only the
+// repository's .gitattributes choose a merge driver (checkMergeDrivers checks
+// those, and that no other attributes or default driver are set); and the
+// rename limits of the merge and of the tool's own rename detection are the
+// same, so both find the same renames.
+var mergeConfig = []string{
+	"-c", "merge.directoryRenames=false",
+	"-c", "rerere.enabled=false",
+	"-c", "core.attributesFile=/dev/null",
+	"-c", "merge.renameLimit=" + renameLimit,
+	"-c", "diff.renameLimit=" + renameLimit,
+}
+
+// renameLimit is the rename detection limit of every merge and diff of the
+// take-in, git's default for a merge.
+const renameLimit = "7000"
 
 // PathConflictClass is the class of one conflicted path. The zero value is
 // PathConflictOutOfScope, the class that stops the run.
@@ -691,6 +706,9 @@ func (m *Mergemain) checkBeforeMerge(ctx context.Context, a mergeArgs) (string, 
 	if err != nil {
 		return "", nil, stopError(MergemainStopPremise, RestoreNotNeeded, "could not read the protocol numbers: %v", err)
 	}
+	if err := m.checkMergeDrivers(ctx, base, a.baseHead, a.main, RestoreNotNeeded); err != nil {
+		return "", nil, err
+	}
 	if err := m.checkIgnoredNotOverwritten(ctx, a.main, a.baseHead); err != nil {
 		return "", nil, err
 	}
@@ -720,6 +738,8 @@ func (m *Mergemain) checkMergeStarted(ctx context.Context, a mergeArgs, mergeErr
 // take-in configuration. The labels of its conflict markers are HEAD and the
 // commit ID, the labels restore computes the expected merge with.
 func (m *Mergemain) runMerge(ctx context.Context, main string) error {
+	// --no-overwrite-ignore backs up checkIgnoredNotOverwritten, which stops
+	// such a merge before it starts.
 	args := slices.Concat(mergeConfig, []string{mergeSubcommand, "-q", "--no-ff", "--no-commit", "--no-squash", "--no-edit", "--no-autostash", "--no-overwrite-ignore", "--strategy=ort", main})
 	_, err := m.git.git(ctx, args...)
 	return err
@@ -876,6 +896,89 @@ func (m *Mergemain) classifyPath(ctx context.Context, p string, stages []stageEn
 	return PathConflictProtocolOnly, merged, nil
 }
 
+// checkMergeDrivers stops unless git merges every path both sides changed
+// with its default text merge, which reports every conflict: no
+// $GIT_DIR/info/attributes and no merge.default driver may be set, and the
+// merge attribute of each such path, read from the index's .gitattributes,
+// must be unset or "set". A driver such as union, or a configured one, would
+// otherwise resolve a conflict of any file without the tool seeing it.
+func (m *Mergemain) checkMergeDrivers(ctx context.Context, base, ours, theirs string, restore RestoreNeed) error {
+	out, err := m.git.git(ctx, "rev-parse", "--git-path", "info/attributes")
+	if err != nil {
+		return stopError(MergemainStopPremise, restore, "could not find info/attributes: %v", err)
+	}
+	attrsPath := strings.TrimSuffix(string(out), "\n")
+	if !filepath.IsAbs(attrsPath) {
+		top, err := m.top(ctx)
+		if err != nil {
+			return stopError(MergemainStopPremise, restore, "could not find the top of the work tree: %v", err)
+		}
+		attrsPath = filepath.Join(top, attrsPath)
+	}
+	if info, err := os.Stat(attrsPath); err == nil && info.Size() > 0 {
+		return stopError(MergemainStopPremise, restore, "$GIT_DIR/info/attributes is set and could choose a merge driver")
+	} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return stopError(MergemainStopPremise, restore, "could not read info/attributes: %v", err)
+	}
+	if _, err := m.git.git(ctx, "config", "--get", "merge.default"); err == nil {
+		return stopError(MergemainStopPremise, restore, "merge.default is set and would merge files with another driver")
+	} else if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); !ok || exitErr.Code != 1 {
+		return stopError(MergemainStopPremise, restore, "could not read merge.default: %v", err)
+	}
+	both, err := m.changedOnBothSides(ctx, base, ours, theirs)
+	if err != nil {
+		return stopError(MergemainStopPremise, restore, "could not list the paths both sides changed: %v", err)
+	}
+	if len(both) == 0 {
+		return nil
+	}
+	attrs, err := m.mergeAttributes(ctx, both)
+	if err != nil {
+		return stopError(MergemainStopPremise, restore, "could not read the merge attributes: %v", err)
+	}
+	var conflicts []PathConflict
+	for _, p := range both {
+		if a := attrs[p]; a != "unspecified" && a != "set" {
+			conflicts = append(conflicts, PathConflict{Path: p, Class: PathConflictOutOfScope})
+		}
+	}
+	if len(conflicts) > 0 {
+		stop := stopError(MergemainStopOutOfScope, restore, "a path both sides changed has a merge driver other than the text merge")
+		stop.Conflicts = conflicts
+		return stop
+	}
+	return nil
+}
+
+// changedOnBothSides returns the paths that both ours and theirs changed
+// since base, sorted.
+func (m *Mergemain) changedOnBothSides(ctx context.Context, base, ours, theirs string) ([]string, error) {
+	var sets []map[string]struct{}
+	for _, side := range []string{ours, theirs} {
+		out, err := m.git.git(ctx, "diff-tree", "-r", "-z", "--name-only", "--no-renames", base, side)
+		if err != nil {
+			return nil, err
+		}
+		records, err := splitNUL(out)
+		if err != nil {
+			return nil, err
+		}
+		set := make(map[string]struct{}, len(records))
+		for _, r := range records {
+			set[string(r)] = struct{}{}
+		}
+		sets = append(sets, set)
+	}
+	var both []string
+	for p := range sets[0] {
+		if _, ok := sets[1][p]; ok {
+			both = append(both, p)
+		}
+	}
+	slices.Sort(both)
+	return both, nil
+}
+
 // binaryProbe is how many leading bytes git looks at to tell a binary file:
 // one with a NUL among them.
 const binaryProbe = 8000
@@ -896,7 +999,7 @@ func (m *Mergemain) blob(ctx context.Context, oid string) ([]byte, error) {
 // mergeAttributes returns the merge attribute of each path as the index's
 // .gitattributes give it: "unspecified", "set", "unset", or a driver name.
 func (m *Mergemain) mergeAttributes(ctx context.Context, paths []string) (map[string]string, error) {
-	out, err := m.git.git(ctx, slices.Concat([]string{"check-attr", "-z", "--cached", mergeAttribute, "--"}, paths)...)
+	out, err := m.git.git(ctx, slices.Concat(mergeConfig, []string{"check-attr", "-z", "--cached", mergeAttribute, "--"}, paths)...)
 	if err != nil {
 		return nil, err
 	}
@@ -928,7 +1031,7 @@ func (m *Mergemain) mergeAttributes(ctx context.Context, paths []string) (map[st
 func (m *Mergemain) renamedPaths(ctx context.Context, base string, sides ...string) (map[string]struct{}, error) {
 	renamed := make(map[string]struct{})
 	for _, side := range sides {
-		out, err := m.git.git(ctx, "diff-tree", "-r", "-z", "-M", "--name-status", "--no-ext-diff", "--no-textconv", base, side)
+		out, err := m.git.git(ctx, slices.Concat(mergeConfig, []string{"diff-tree", "-r", "-z", "-M", "-l" + renameLimit, "--name-status", "--no-ext-diff", "--no-textconv", base, side})...)
 		if err != nil {
 			return nil, err
 		}
@@ -1175,8 +1278,7 @@ func (m *Mergemain) setProtocolNumbers(ctx context.Context, expected map[string]
 	}
 	for _, p := range slices.Sorted(maps.Keys(resolved)) {
 		r := resolved[p]
-		content := strings.Replace(string(r.merged), protocolPlaceholder, declaration(expected[r.tool]), 1)
-		if err := m.writeStaged(ctx, top, p, []byte(content)); err != nil {
+		if err := m.writeStaged(ctx, top, p, setPlaceholder(r.merged, expected[r.tool])); err != nil {
 			return nil, err
 		}
 	}
@@ -1188,6 +1290,20 @@ func (m *Mergemain) setProtocolNumbers(ctx context.Context, expected map[string]
 		bumps = append(bumps, ProtocolBump{Tool: pkg, Value: expected[pkg]})
 	}
 	return bumps, nil
+}
+
+// setPlaceholder replaces the line that is exactly protocolPlaceholder (the
+// one stripProtocol wrote) with the declaration of n, leaving any other text
+// that merely contains the placeholder alone.
+func setPlaceholder(content []byte, n int) []byte {
+	lines := strings.SplitAfter(string(content), "\n")
+	for i, line := range lines {
+		if strings.TrimSuffix(line, "\n") == protocolPlaceholder {
+			lines[i] = declaration(n) + line[len(protocolPlaceholder):]
+			break
+		}
+	}
+	return []byte(strings.Join(lines, ""))
 }
 
 // declaration is the accepted declaration line of n.
@@ -1245,11 +1361,11 @@ func (m *Mergemain) setIndexProtocol(ctx context.Context, top, pkg string, value
 		return fmt.Errorf("%w: tool %s has no accepted declaration line after the merge", errTakeInFile, pkg)
 	}
 	stripped, _, _ := stripProtocol(foundContent)
-	updated := strings.Replace(string(stripped), protocolPlaceholder, declaration(value), 1)
-	if updated == string(foundContent) {
+	updated := setPlaceholder(stripped, value)
+	if bytes.Equal(updated, foundContent) {
 		return nil
 	}
-	return m.writeStaged(ctx, top, found, []byte(updated))
+	return m.writeStaged(ctx, top, found, updated)
 }
 
 // writeStaged writes content to the work tree file p and stages it. It

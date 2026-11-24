@@ -215,8 +215,9 @@ type takeInPR struct {
 	Branch  string
 	HeadOID string
 	Cross   bool
-	// Raw, when set, is returned as the whole response.
-	Raw string
+	// OnView, when set, runs inside each gh pr view call, before the
+	// response is built.
+	OnView func()
 }
 
 // takeIn is a work tree cloned from a bare origin, for the take-in tool.
@@ -397,8 +398,8 @@ func (g takeInGH) Run(_ context.Context, name string, args ...string) ([]byte, e
 	if name != ghCommand {
 		k.t.Fatalf("fake gh called as %s", name)
 	}
-	if k.PR.Raw != "" {
-		return []byte(k.PR.Raw), nil
+	if k.PR.OnView != nil {
+		k.PR.OnView()
 	}
 	head := k.PR.HeadOID
 	if head == "" {

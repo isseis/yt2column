@@ -401,7 +401,7 @@ func (m *Mergemain) sameAsBlob(ctx context.Context, p, oid string) (bool, error)
 }
 
 // unionKeys returns a set of the keys of both maps.
-func unionKeys(a, b map[string][]stageEntry) map[string]struct{} {
+func unionKeys[V any](a, b map[string]V) map[string]struct{} {
 	keys := make(map[string]struct{}, len(a)+len(b))
 	for k := range a {
 		keys[k] = struct{}{}
