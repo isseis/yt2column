@@ -37,6 +37,11 @@ Japanese writing tends to introduce:
 7. **太字の使いすぎ** — a whole sentence, or a span longer than a sentence, set in
    bold where only a label or a word the reader must not miss should be.
 
+**Sentence endings are not a finding.** Keep a document's existing register. The
+end-user documents (`README.md` and `INSTALL.md`) use the polite form (です・ます);
+every other Japanese document uses the plain form (である). Never rewrite one into
+the other, and check that a rewrite you make keeps the document's register.
+
 ## Preparation
 
 Get the target file path from the argument. If no argument is provided and a task
