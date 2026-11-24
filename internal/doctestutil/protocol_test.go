@@ -3,7 +3,10 @@
 package doctestutil
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -126,6 +129,58 @@ func TestProtocolCallers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := ProtocolCallers(tc.doc, names); !slices.Equal(got, tc.want) {
 				t.Errorf("ProtocolCallers = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestCommandDocs: the command documents are the Markdown files under both
+// .claude/commands and .agents/skills, and a missing or empty directory fails
+// the caller instead of passing a guard over fewer documents.
+func TestCommandDocs(t *testing.T) {
+	write := func(t *testing.T, root, rel string) {
+		t.Helper()
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatalf("create %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte("text\n"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
+
+	t.Run("both directories", func(t *testing.T) {
+		root := t.TempDir()
+		write(t, root, ".claude/commands/a.md")
+		write(t, root, ".claude/commands/_lib/b.md")
+		write(t, root, ".claude/commands/c.sh")
+		write(t, root, ".agents/skills/a/SKILL.md")
+		got := CommandDocs(t, root)
+		slices.Sort(got)
+		want := []string{".agents/skills/a/SKILL.md", ".claude/commands/_lib/b.md", ".claude/commands/a.md"}
+		if !slices.Equal(got, want) {
+			t.Errorf("CommandDocs = %v, want %v", got, want)
+		}
+	})
+
+	for _, tc := range []struct {
+		name  string
+		files []string
+		dir   string
+	}{
+		{name: "skills directory missing", files: []string{".claude/commands/a.md"}, dir: ".agents/skills"},
+		{name: "skills directory without a document", files: []string{".claude/commands/a.md", ".agents/skills/a/notes.txt"}, dir: ".agents/skills"},
+		{name: "commands directory missing", files: []string{".agents/skills/a/SKILL.md"}, dir: ".claude/commands"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, f := range tc.files {
+				write(t, root, f)
+			}
+			fake := &recordingTB{TB: t}
+			CommandDocs(fake, root)
+			if !strings.Contains(fake.failure, tc.dir) {
+				t.Errorf("CommandDocs failed with %q, want %s named", fake.failure, tc.dir)
 			}
 		})
 	}
