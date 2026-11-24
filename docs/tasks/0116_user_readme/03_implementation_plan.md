@@ -409,18 +409,21 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
 
 ### AC-04 の記録
 
-`_checks/ac04_moved_blocks.sh 566342b1` を PR-1 のブランチで走らせた（2026-11-24）。比べたコミットは `566342b1b695ee2bffd07474d2d522c8329fb82e`、マージベースは `bd72ac9e8e202a2982d5a270ac626187d35a0e62`（その `README.md` のブロブは `23ab53e32d65cb67eafd09634d6d034a6f6da665`）で、結果は `ac04: PASS` である。
+`_checks/ac04_moved_blocks.sh 4044eddf` を PR-1 のブランチで走らせた（2026-11-24）。比べたコミットは `4044eddff8fd0724798a98815f2bbf9b55eba6a7`、マージベースは `bd72ac9e8e202a2982d5a270ac626187d35a0e62`（その `README.md` のブロブは `23ab53e32d65cb67eafd09634d6d034a6f6da665`）で、結果は `ac04: PASS` である。
 
 - **残った差分:** 11 のブロックのうち、残った差分があるのは `extension-build` の 1 行だけである。除いた文は「開発のためのターゲットは `development.md` にある」という案内で、移した先が `development.md` そのものなので、重ねて書かないために除いた（AC-04 の「重複の削除」）。
-- **ブロックの外の変更:** 次のものはブロックの外にあるので、出力には現れない。
-  - `development.md` の「拡張のビルドと読み込み」の頭の「**拡張のビルドに必要なもの:**」。今の README の「主経路（ブラウザ拡張）に必要なもの」のうち Go と Node.js の 2 行だけを移したので、項目の頭のラベルを付け直した（書式の規約による組み直し）。
-  - `generation.md` の「構成」の頭の「主経路はブラウザ拡張で、README が説明する。」。移したブロックは CLI の経路から始まるので、README に残る主経路を指す文を足した。
-  - 冒頭の段落のうち `cli.md:3-4` と同じ 2 文（CLI で開発し確かめること、`--out` のファイルに書くこと）。重ねないので移さずに除いた（重複の削除）。
-  - 今の README の `:72-73`（CLI に必要なもの）。`cli.md` の「必要なもの」へのリンクは `cli.md` 自身にあるので除いた。もう 1 つの文「CLI では、選んだプロバイダの API キーが必要である」は `cli.md` になかったので、`cli.md` の「必要なもの」に移し、変数の置き場所として `generation.md`「設定」へリンクした。
+- **移したブロックの外の新しい文:** 出力の「units outside the moved blocks」に出るものは、移した文ではなく、手引きに新しく書いた文である。AC-04 の 4 種類の差分には当たらないので、レビューで、移した文の述べる挙動を変えていないことを読む。
+  - `generation.md` の冒頭の段落（本書の範囲と、ほかの文書への案内）。設計書 2.4 節の「本書の範囲」の行で、`INSTALL.md` は PR-2 で置くので、それまでは README を案内する（ステップ 2-3 で付け替える）。
+  - `generation.md` の「構成」の頭の「主経路はブラウザ拡張で、README が説明する。」。移したブロックが CLI の経路から始まるので、README に残る主経路を指す文を足した。
+  - 「構成」の図の閉じのフェンス。図のブロックは `class L2 process` の行までとしたので、外に出る。
+  - `development.md` の「拡張のビルドと読み込み」の頭のラベル「**拡張のビルドに必要なもの:**」。今の README の「主経路（ブラウザ拡張）に必要なもの」のうち Go と Node.js の 2 行だけを移したので、新しいラベルを置いた。
+- **README から除いて、どこにも移さなかった文:** 出力には現れない。
+  - 冒頭の段落のうち `cli.md:3-4` と同じ 2 文（CLI で開発し確かめること、`--out` のファイルに書くこと）。重ねないので除いた（重複の削除）。
+  - 今の README の `:72-73`（CLI に必要なもの）のうち、`cli.md` の「必要なもの」へのリンク。`cli.md` 自身の節なので除いた。もう 1 つの文「CLI では、選んだプロバイダの API キーが必要である」は `cli.md` になかったので、`cli.md` の「必要なもの」に移し、変数の置き場所として `generation.md`「設定」へリンクした（設計書 2.3 節の表）。
 - **リンクの組:** どの組も、移った先から見た同じ節を指す。`docs/dev/...` は `generation.md` と `development.md` から見た相対のパスに、`#api-キーの設定` は README の同じ節に変わった。`docs/dev/guides/development.md -> (none)` は、上の除いた文のリンクである。
 
 ```text
-commit:      566342b1b695ee2bffd07474d2d522c8329fb82e
+commit:      4044eddff8fd0724798a98815f2bbf9b55eba6a7
 merge-base:  bd72ac9e8e202a2982d5a270ac626187d35a0e62
 README blob: 23ab53e32d65cb67eafd09634d6d034a6f6da665
 
@@ -513,6 +516,17 @@ headings: README "推奨構成" -> docs/dev/guides/generation.md "推奨構成"
   https://github.com/isseis/yt2column/issues/490 -> https://github.com/isseis/yt2column/issues/490
   https://github.com/isseis/yt2column/issues/171 -> https://github.com/isseis/yt2column/issues/171
   docs/dev/production_profile.md -> ../production_profile.md
+
+=== units outside the moved blocks in docs/dev/guides/generation.md (the whole document, which is new):
+  [記事の生成の詳細] 本書は yt2column の開発者のための文書である。
+  [記事の生成の詳細] 記事の生成の仕組みと LLM の構成を説明する。
+  [記事の生成の詳細] どの入口（CLI か拡張か）にもよらない内容を持つ。
+  [記事の生成の詳細] 拡張の使い方は [README](<link>) に、CLI の実行の仕方は [cli.md](<link>) にある。
+  [構成] 主経路はブラウザ拡張で、[README](<link>) が説明する。
+  [構成] ```
+
+=== units outside the moved blocks in docs/dev/guides/development.md (under the headings the blocks went to):
+  [拡張のビルドと読み込み] **拡張のビルドに必要なもの:**
 
 === completeness on the compared side
 blocks compared: 11
