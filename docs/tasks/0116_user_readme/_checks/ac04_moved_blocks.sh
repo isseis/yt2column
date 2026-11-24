@@ -179,7 +179,9 @@ for k in "${!names[@]}"; do
     echo "(none)"
   fi
   echo "--- link pairs (README -> $target):"
-  paste -d ' ' <(links <"$work/src.blk" | sed 's/$/ ->/') <(links <"$work/dst.blk") | sed 's/^/  /'
+  # A side with fewer links shows "(none)" for the missing ones.
+  paste <(links <"$work/src.blk") <(links <"$work/dst.blk") |
+    awk -F '\t' '{ printf "  %s -> %s\n", ($1 == "" ? "(none)" : $1), ($2 == "" ? "(none)" : $2) }'
   echo
 done
 
