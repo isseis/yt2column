@@ -1,7 +1,7 @@
-<!-- translated-from: README.md 23ab53e32d65cb67eafd09634d6d034a6f6da665 -->
+<!-- translated-from: README.md 385191d4e576dfee41870036d9140df0b1ab7bfb -->
 [日本語](README.md)
 
-Developer documents: [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
+Developer documents: [Article generation details](docs/dev/guides/generation.md) · [Using the CLI](docs/dev/guides/cli.md) · [Development procedures](docs/dev/guides/development.md)
 
 # yt2column
 
@@ -13,49 +13,8 @@ calls the Anthropic API inside the viewer tab to generate the article. The API
 key is set on the extension's options page and saved only in that browser. The
 article is shown in the extension's viewer tab, and saving it as a `.md` file
 and copying its Markdown to the clipboard are the user's choices in the
-viewer. A CLI is also included as a development path. The CLI takes a video
-URL and fetches the transcript with
-[yt-dlp](https://github.com/yt-dlp/yt-dlp). LLM calls and article generation
-are developed and verified with the CLI. The CLI writes the article to the
-`--out` file.
+viewer.
 
-```mermaid
-flowchart LR
-    classDef data fill:#e6f7ff,stroke:#1f77b4,stroke-width:1px,color:#0b3d91;
-    classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
-
-    COPIED[("Copied transcript<br>(browser extension; the viewer runs the article generation module)")]
-    YTDLP[("URL<br>(the CLI fetches the transcript with yt-dlp)")]
-    SRC["TranscriptSource"]
-    TR[("Transcript")]
-    WRITER["ArticleWriter"]
-    ART[("Article")]
-    PUB["Publisher"]
-
-    COPIED -->|"primary path"| SRC
-    YTDLP -->|"development path (CLI)"| SRC
-    SRC --> TR --> WRITER --> ART --> PUB
-
-    class COPIED,YTDLP,TR,ART data
-    class SRC,WRITER,PUB process
-
-    subgraph Legend["Legend"]
-        L1[("Inputs and the data passed between stages")]
-        L2["Stage (interface)"]
-    end
-    class L1 data
-    class L2 process
-```
-
-- The primary path uses the transcript copied from the transcript panel; only
-  the CLI uses yt-dlp.
-- The extension generates articles with the production profile only:
-  generation, shortening, and review all use `claude` with `claude-opus-5-5`
-  at effort `high`. The extension has no setting to choose a profile. See
-  [Recommended configuration](#recommended-configuration) and
-  [production_profile.md](docs/dev/production_profile.md) (Japanese).
-  With the CLI, DeepSeek and OpenAI are also available; providers are
-  pluggable.
 - The extension needs nothing installed besides the browser: no server and no
   host for generating articles.
 
@@ -69,7 +28,7 @@ the section that explains it in detail.
 
 1. Run `make ext-install` once, then run `make ext-build`, and load
    `extension/dist` with **Load unpacked** on the extensions page. See
-   [Browser extension](#browser-extension).
+   [Building and loading the extension](docs/dev/guides/development.md#拡張のビルドと読み込み).
 2. Open the extension's options page and save your Anthropic API key. The
    options page opens from **Settings** in the popup. See
    [Setting the API key](#setting-the-api-key).
@@ -89,154 +48,12 @@ before you update the extension.
 
 **For the primary path (browser extension):**
 
-- Go (see `go.mod`), which the extension's build uses to build the article
-  generation module in the extension
-- Node.js, with the version pinned in `extension/.node-version` (used to build
-  the extension)
 - Chrome 142 or later, or Brave on Chromium 142 or later
 - An Anthropic API key. An API key of an organization that has enabled zero
   data retention (ZDR) or the Compliance API cannot be used: such an
   organization does not accept API calls from a browser.
 
-The CLI's requirements are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#必要なもの). The CLI needs
-an API key for the selected provider.
-
-## Post-generation steps
-
-After the article is generated, two steps run.
-
-1. **Shorten.** If the body is longer than 4,000 characters, the generation
-   model shortens the body toward a target of 3,600 characters. If it is still
-   over 4,000 characters after shortening or after the review step, the
-   generation fails with a length error and no article is made.
-2. **Review.** The review model compares the article with the video title,
-   channel name, description, and transcript, and returns a list of
-   corrections. The corrections target claims with no basis in the material,
-   meaning-changing paraphrases, wrong speaker attributions, speech-recognition
-   errors carried over into the article, and sentences whose meaning cannot be made out.
-   The process that writes the article (the writer) applies the list to the
-   article. With the CLI, a provider and a model of its own can be set for the
-   review step in `YT2COLUMN_REVIEW_LLM`. By default it uses the generation
-   provider and model.
-
-Both steps call the LLM (the shorten step only when the body is over the
-limit), so the LLM is called up to two more times than with generation alone,
-and the cost grows accordingly.
-
-The CLI's flags that skip a step, record the review's changes, or save and
-resume the steps' output are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#生成の後の工程). The
-extension skips no step.
-
-## Output format
-
-Each output arranges the article's information differently. In a file, the
-reader's part (title, channel name, body, source
-link) comes first, and the development part (models, estimated cost) goes into
-the front matter. The viewer's display and the copied text are the part other than the front matter (the title heading, the channel name line, and the body).
-
-The file the CLI writes is in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#--out-のファイル). The
-content of the file the viewer's **Save as .md** saves has the same format as
-the CLI's `--out` file.
-
-## Estimated cost
-
-The article's cost is in the CLI's `--out` file, in the front matter, with four decimals or `unknown`. The extension's viewer shows the estimated cost of a finished article.
-
-```text
-Estimated cost: 0.0023 USD
-Estimated cost: unknown
-```
-
-The estimate is an estimate, not the billed amount. It can differ from the
-provider's invoice.
-
-- For a run that made no article (the API rejected the API key, the generation
-  failed, or it stopped with the viewer tab), the extension shows the cost as
-  unknown across the board and shows no amount. For a run that ended without
-  ever calling the API (no API key, or the saved settings cannot be used), it
-  does not mention the cost.
-- DeepSeek's peak window is a weekly rule in UTC: the alternate rate applies on
-  Monday through Friday during 01:00-04:00 and 06:00-10:00 UTC. The CLI
-  judges the window from its own clock in UTC and does not know Chinese public
-  holidays, so a call on a holiday is billed at the off-peak rate but estimated
-  as peak: the estimate leans high.
-- A call that crosses a window boundary can be judged at a different minute than
-  the provider billed it, because the CLI's time is when the response was
-  read and validated, and the provider's billing time is not documented.
-- A CLI on a machine whose clock is wrong judges the window wrongly.
-- OpenAI costs are estimated at the rates of the Standard processing tier and a
-  30-minute prompt cache. When the response does not show these, the cost is
-  `unknown` even when the token counts are known. A call whose input (cache
-  reads and writes included) totals more than 272,000 tokens is estimated at
-  the long-input rates.
-- The rate table can be stale, for example when the provider changes a rate or
-  when the `deepseek-flash` alias starts to point at a model with different
-  rates. Each entry records its source and checked date, and the update
-  procedure is in a developer document.
-
-Check the actual charge in the provider's console.
-
-The CLI's cost lines on standard error, which give the reason, are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#推定の料金).
-
 ## Browser extension
-
-A Chrome/Brave extension (Manifest V3) lives in `extension/`; it is written in
-TypeScript and built with Node.js. It is not published to a store: you build it
-and load the build as an unpacked extension. It runs on Chrome 142 or later.
-The extension collects a
-selection, the tab URL, and the tab title, and reads the video metadata (the
-video title, the channel name, and the description) from the video page. From
-the selection, the URL, and the video metadata, the article generation module
-in the extension generates the article and shows it in a tab of the extension's
-page (the viewer). The tab title is shown for checking (and must not be
-empty); it is not used to generate the article.
-
-Node.js 24 is required, and every `ext-*` target refuses to run when
-`node --version` does not match `extension/.node-version`. The version file sits
-inside `extension/`, so a Node.js version manager that reads the current
-directory (such as [fnm](https://github.com/Schniz/fnm)) must be activated
-inside `extension/`. Run the targets from the repository root with that version
-still active.
-
-The build also runs Go: it builds the article generation module that goes
-into the extension with the Go version on `go.mod`'s `go` line. When the local
-Go is another version, the first build downloads that version of Go (which uses
-the network).
-
-```sh
-cd extension && fnm use && cd ..
-make ext-install   # install the pinned dev dependencies (npm ci; needs network)
-make ext-build     # build extension/dist/
-```
-
-The development targets, such as the checks CI runs and the development build
-that calls no LLM API, are in
-[docs/dev/guides/development.md](docs/dev/guides/development.md).
-
-Load the build in Chrome or Brave:
-
-1. Open `chrome://extensions/` (Brave: `brave://extensions/`).
-2. Turn on **Developer mode**.
-3. Click **Load unpacked** and select the `extension/dist` directory.
-
-To update from an earlier build, first run `make ext-build` to rebuild
-`extension/dist/`, then click the extension's reload button on
-`chrome://extensions/` (Brave: `brave://extensions/`). `extension/dist/` is
-build output that pulling new source does not update, so reloading without
-rebuilding keeps running the earlier build. Reloading the extension closes the
-extension's open pages (the viewers included), and both the articles being
-generated and the finished articles are lost.
-
-The extension ID is fixed to `clfmbbcdpnjcefbdihdoahomaifbabkk` and is the
-same on every machine and from every directory. The saved API key is kept per
-extension ID, so it survives a rebuild and a reload as long as the ID does not
-change.
-
-The extension cannot be enabled in incognito mode.
 
 The popup, the viewer, and the options page show their text in Japanese when
 the browser's UI language is Japanese, and in English otherwise. The extension
@@ -530,15 +347,6 @@ as a tab on any line, and a line that holds a run of ASCII digit, colon, digit
 (such as a malformed timestamp) before the first timestamp or where a timestamp
 line is expected.
 
-To see what was collected and the results, open the popup's console from the
-moment the popup opens: right-click the toolbar icon and choose **Inspect
-popup** (shown when Developer mode is on; when the icon is inside the
-extensions menu, pin the extension first). The viewer's log is in the viewer
-tab's DevTools, and the log of the coordination of the article generation is in
-the console opened from the extension's **Service Worker** link on
-`chrome://extensions/` (Brave: `brave://extensions/`). The logs never hold the
-transcript, the article, the video metadata values, the API key, or the job ID.
-
 ## Migrating from the earlier version
 
 The earlier version generated articles with the localhost server
@@ -550,7 +358,8 @@ these steps.
 2. With the earlier version's host binary, remove the host's manifest from each
    browser you used (the commands below). When you cannot run it, for example
    because the binary is gone, remove the manifest files below by hand.
-3. Rebuild and reload the extension (see [Browser extension](#browser-extension)),
+3. Rebuild and reload the extension (see
+   [Building and loading the extension](docs/dev/guides/development.md#拡張のビルドと読み込み)),
    and save the API key on the options page (see
    [Setting the API key](#setting-the-api-key)).
 4. Once you have made one article with the extension alone, delete the server's
@@ -578,149 +387,3 @@ deletes them. To delete them, remove the extension once on
 `chrome://extensions/` (Brave: `brave://extensions/`), then load
 `extension/dist` again. Removing the extension also deletes the saved API key,
 so save it again.
-
-## Configuration
-
-| Variable | Description | When unset |
-|---|---|---|
-| `YT2COLUMN_LLM` | Provider, model, and effort of generation and shortening, written as `<provider>/<model ID>`, optionally followed by `+<effort>`; the provider is `deepseek`, `claude`, or `openai` (e.g. `deepseek/deepseek-flash`, `claude/claude-sonnet-5-5+low`, `openai/gpt-6-astra+medium`) | `claude/claude-opus-5-5` |
-| `YT2COLUMN_REVIEW_LLM` | Provider, model, and effort of the review step, in the same form as `YT2COLUMN_LLM` | The same as generation (`YT2COLUMN_LLM`, or its default, including the effort) |
-| `DEEPSEEK_API_KEY` | DeepSeek API key | Required when the generation or review provider is `deepseek` (an error) |
-| `ANTHROPIC_API_KEY` | Anthropic API key | Required when the generation or review provider is `claude` (an error) |
-| `OPENAI_API_KEY` | OpenAI API key (the API is billed separately from a ChatGPT subscription) | Required when the generation or review provider is `openai` (an error) |
-| `ANTHROPIC_WORKSPACE_ID` | Anthropic workspace ID, for an API key not bound to a workspace | No workspace ID is sent |
-
-The CLI reads these variables from environment variables. The extension does
-not read them. The extension's settings are only the Anthropic API key and the
-workspace ID saved on the options page, and it always generates articles with
-the production profile of
-[Recommended configuration](#recommended-configuration) (see
-[Setting the API key](#setting-the-api-key)).
-
-The variables only the CLI reads, and how the CLI reads the ones above, are in
-[docs/dev/guides/cli.md](docs/dev/guides/cli.md#設定).
-
-A value is never trimmed or otherwise corrected; an empty value is treated as
-set and rejected, not as unset.
-
-`YT2COLUMN_LLM` and `YT2COLUMN_REVIEW_LLM` are split at the first `/`. The part
-before it is the provider, which must be exactly `deepseek`, `claude`, or `openai`.
-Everything after it is the model ID, sent to the provider's API as it is,
-including any further `/` (`claude/vendor/model-x` sends the model
-`vendor/model-x`). The model ID must not be empty, so `claude` and `claude/`
-are rejected; so are `/claude-opus-5-5`, `Claude/claude-opus-5-5`, and
-` claude/claude-opus-5-5`. A model ID with surrounding whitespace is accepted
-here, but rejected, before any request is sent, when a run that includes the
-step builds that step's client.
-
-When there is a `+` after the first `/`, the part before the `+` is the model
-ID and the part after it is the effort. The `+` is looked for only after the
-first `/`, and at most one `+` may be written there
-(`claude/claude-opus-5-5+high+low` is rejected). The effort must exactly match
-one of the provider's values in the table below. An empty effort
-(`claude/claude-opus-5-5+`), an effort with uppercase letters or surrounding
-whitespace (`claude/claude-opus-5-5+High`), and a value the provider does not
-accept (`deepseek/deepseek-flash+medium`) are rejected, and never treated as
-part of the model ID and sent to the provider. A value whose model ID before the `+` is
-empty (`claude/+high`) is rejected too. The model ID is the part before the
-`+`, so the model ID of `claude/claude-opus-5-5 +high` contains a trailing
-space and is rejected when the client is built, as above.
-
-| Provider | Accepted efforts | Without an effort |
-|---|---|---|
-| `claude` | `low`, `medium`, `high`, `xhigh`, `max` | Sends `high` |
-| `openai` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | Sends `medium` |
-| `deepseek` | `none`, `low`, `high`, `max` | Sends nothing (thinking stays at the API's default) |
-
-With `claude`, the effort is sent as the request's effort. With `openai`, it is
-sent as the request's `reasoning.effort`, and `none` turns reasoning off. With
-`deepseek`, it is sent as the request's `reasoning_effort`. `none` turns thinking
-off, and the other values turn it on.
-
-**Using OpenAI.** `openai` calls OpenAI's Responses API. It needs API billing;
-a ChatGPT subscription cannot be used. Set the API key in `OPENAI_API_KEY`. For
-example, to run generation and shortening on `gpt-6-astra` at effort `medium`
-and review on `gpt-6.1-sol` at its default effort, set these environment
-variables:
-
-```sh
-export YT2COLUMN_LLM=openai/gpt-6-astra+medium
-export YT2COLUMN_REVIEW_LLM=openai/gpt-6.1-sol
-export OPENAI_API_KEY=<OpenAI API key>
-```
-
-All seven effort values in the table above are accepted; they are not narrowed
-by a per-model list. An effort or parameter combination a model does not support is
-returned by OpenAI's API as an error (an HTTP status), and the step fails with
-no article generated. The request is never switched to another model or effort
-automatically. Costs can be estimated only for `gpt-6-astra` and
-`gpt-6.1-sol`; the cost of any other model is `unknown` (see
-[Estimated cost](#estimated-cost)).
-
-The request is fixed to the Standard processing tier (`service_tier` set to
-`default`), a minimum prompt cache retention of 30 minutes, and
-`store: false`, and no setting changes them. The data sent and what OpenAI
-retains (what `store: false` covers, the monitoring logs, and the prompt
-cache) are in
-[docs/dev/security.md](docs/dev/security.md#4-llm-プロバイダへ送るデータ) (Japanese).
-
-When the request does not specify an output limit, the OpenAI adapter sends a
-limit of 6,080 tokens for reasoning and the answer together. All three steps
-use this value. The basis of the value and how to re-measure it are in
-[docs/dev/guides/openai_output_limit.md](docs/dev/guides/openai_output_limit.md)
-(Japanese).
-
-With `YT2COLUMN_LLM` unset, generation and shortening use
-`claude/claude-opus-5-5` at effort `high`. With `YT2COLUMN_REVIEW_LLM` unset,
-the review step uses the same provider, model, and effort as generation, the
-default included. When `YT2COLUMN_REVIEW_LLM` is set without an effort, the
-generation effort is not inherited, and the "Without an effort" column of the
-table above applies. An empty
-value of either variable is rejected and never replaced by the default or by
-the generation setting.
-
-Only the variables of the selected providers are read and checked: a provider's
-variables are read when the generation or the review provider is that provider.
-The other provider's variables are ignored whatever their value, so exporting
-`ANTHROPIC_API_KEY=` for another tool does not stop a run that uses only
-`deepseek`. When the provider part of `YT2COLUMN_LLM` is rejected (an empty
-value, no `/`, or a provider that is not accepted) and `YT2COLUMN_REVIEW_LLM`
-is unset, no provider-specific variable is checked, but errors for common
-variables are still reported. A value whose provider is accepted but whose
-model ID is empty, such as `claude/`, and a value whose effort part is
-rejected, such as `claude/claude-opus-5-5+ultra`, still have that provider's
-variables checked.
-
-With `claude`, the effort `max` is accepted, but in this use case the model is expected to
-spend the whole default output limit on reasoning alone and return no article
-text, so the run fails as truncated. Use `low` through `xhigh` for column
-generation.
-
-The default effort `high` was chosen for `claude-opus-5-5`. With another model,
-such as `claude-sonnet-5-5`, even `high` can reach the output limit, and the run
-fails as truncated. In that case, append a lower effort to the value of
-`YT2COLUMN_LLM` (for example, `claude/claude-sonnet-5-5+medium`).
-
-### Recommended configuration
-
-The value of the CLI's environment variable:
-
-```text
-YT2COLUMN_LLM=claude/claude-opus-5-5+high
-```
-
-This value is the production profile: generation, shortening, and review all
-use `claude` with `claude-opus-5-5` at effort `high`. The extension always
-generates articles with this profile. It is also the CLI's default (see
-[#490](https://github.com/isseis/yt2column/issues/490)
-and [#171](https://github.com/isseis/yt2column/issues/171)), so it need not be
-set: with `ANTHROPIC_API_KEY` as the only LLM setting, generation,
-shortening, and review all use this profile. Setting it pins the profile even
-if a default changes later.
-
-For the CLI, `ANTHROPIC_API_KEY` is required. To review with the generation
-profile, leave `YT2COLUMN_REVIEW_LLM` unset. To use another profile, set the
-values in environment variables instead of relying on the defaults.
-
-The quality target, the results, and the product limitations of this profile
-are in [production_profile.md](docs/dev/production_profile.md) (Japanese).

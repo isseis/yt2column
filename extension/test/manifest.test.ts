@@ -7,8 +7,8 @@ import { describe, it } from "node:test";
 import { extensionIdFromManifestKey } from "./helpers/extensionId.ts";
 import { extensionDir } from "./helpers/paths.ts";
 import {
+  minimumChromeDocs,
   minimumChromePhrase,
-  readmeVersions,
 } from "./helpers/readmeVersions.ts";
 import { readRepoFile } from "./helpers/repoFile.ts";
 
@@ -138,14 +138,14 @@ describe("fixed fields", () => {
     assert.equal(manifest["minimum_chrome_version"], "142");
   });
 
-  for (const { path: readmePath, locale } of readmeVersions) {
-    it(`${readmePath} states the minimum Chrome version the manifest sets`, () => {
+  for (const { path: docPath, locale } of minimumChromeDocs) {
+    it(`${docPath} states the minimum Chrome version the manifest sets`, () => {
       const stated = [
-        ...readRepoFile(readmePath).matchAll(minimumChromePhrase[locale]),
+        ...readRepoFile(docPath).matchAll(minimumChromePhrase[locale]),
       ].map((match) => match[1]);
-      assert.notEqual(stated.length, 0, `${readmePath} states no version`);
+      assert.notEqual(stated.length, 0, `${docPath} states no version`);
       for (const version of stated) {
-        assert.equal(version, manifest["minimum_chrome_version"], readmePath);
+        assert.equal(version, manifest["minimum_chrome_version"], docPath);
       }
     });
   }

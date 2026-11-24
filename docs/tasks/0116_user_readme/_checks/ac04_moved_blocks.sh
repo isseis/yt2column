@@ -1,0 +1,260 @@
+#!/usr/bin/env bash
+# Usage: ac04_moved_blocks.sh [--worktree] <commit>
+#
+# Compares the README blocks that task 0116 moves into the developer guides
+# with where they landed at <commit>. The source is README.md at the
+# merge-base of origin/main and <commit>, so a later fix to a block on main is
+# never silently reverted by comparing against an older copy.
+#
+# For each block of the fixed list below, the script:
+#   - cuts the block out of the source README and out of its target guide at
+#     <commit>, both by the block's first and last sentence;
+#   - checks that the target block sits under the expected heading;
+#   - normalizes both sides (heading marks dropped, paragraph lines joined,
+#     whitespace collapsed, one sentence per line, link targets replaced by a
+#     placeholder) and prints their remaining diff;
+#   - prints the pairs of the source and target link targets, in order.
+# Then it checks that the moving is complete: no unit of any block is still
+# in README.md at <commit> (each block's presence in its target is checked
+# above).
+#
+# With --worktree, README.md and the target guides are read from the work
+# tree instead of <commit>; the source is still the merge-base README. It
+# lets each check be broken by editing a file, without a commit. A recorded
+# run passes the commit alone.
+#
+# The remaining diff and the link pairs are for the reviewer to read; the
+# script fails only when a block cannot be found, is under another heading,
+# or is still in the README. It exits 0 on success, 1 on a failed check, and
+# 2 on a usage or git error.
+set -euo pipefail
+# Count characters, not bytes, whatever the caller's locale. C.UTF-8, not
+# en_US.UTF-8, whose collation on macOS treats distinct Japanese strings
+# as equal.
+export LC_ALL=C.UTF-8
+
+worktree=false
+if [ "${1-}" = --worktree ]; then
+  worktree=true
+  shift
+fi
+if [ "$#" -ne 1 ]; then
+  echo "usage: ac04_moved_blocks.sh [--worktree] <commit>" >&2
+  exit 2
+fi
+commit=$(git rev-parse --verify "$1^{commit}") || exit 2
+base=$(git merge-base origin/main "$commit") || exit 2
+readme_blob=$(git rev-parse "$base:README.md") || exit 2
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+git show "$base:README.md" >"$work/source.md" || exit 2
+# compared prints the compared side's copy of the repository file $1.
+compared() {
+  if [ "$worktree" = true ]; then
+    cat -- "$(git rev-parse --show-toplevel)/$1"
+  else
+    git show "$commit:$1"
+  fi
+}
+compared README.md >"$work/readme-now.md"
+
+# The moved blocks: name, target document, expected heading in the target
+# (without its "#" marks), first sentence, last sentence. A sentence is
+# matched as a substring of one normalized unit, so it may be a fragment
+# that only that unit holds; a block is cut from the first unit holding its
+# first sentence, so each marker must be one no earlier unit of either side
+# holds. Only the block's first unit is checked against the expected
+# heading; a heading inside a block leaves no diff.
+names=() targets=() headings=() firsts=() lasts=()
+block() {
+  names+=("$1") targets+=("$2") headings+=("$3") firsts+=("$4") lasts+=("$5")
+}
+gen=docs/dev/guides/generation.md
+dev=docs/dev/guides/development.md
+block intro-cli "$gen" 構成 '補助の経路として CLI も含む。' 'で文字起こしを取得する。'
+block diagram "$gen" 構成 '```mermaid' 'class L2 process'
+block paths-and-providers "$gen" 構成 '主経路は、文字起こしパネルからコピーした字幕を使う。' 'プロバイダは差し替えられる。'
+block build-requirements "$dev" 拡張のビルドと読み込み '- Go（`go.mod` を参照）。' '（拡張のビルドに使う）'
+block post-generation-steps "$gen" 生成の後の工程 '記事を生成した後、2 つの工程が走る。' '拡張は、どの工程も飛ばさない。'
+block output-format "$gen" 出力の書式 '記事の情報の並べ方は、出力ごとに異なる。' 'CLI の `--out` のファイルと同じ書式である。'
+block estimated-cost "$gen" 推定の料金 '記事の料金は、CLI の `--out` のファイルでは' 'CLI が標準エラーに書く料金の行は'
+block extension-build "$dev" 拡張のビルドと読み込み 'Chrome/Brave の拡張（Manifest V3）は `extension/` にある。' '拡張はシークレットモードでは有効にできない。'
+block extension-logs "$dev" 拡張のログ '集めたものと結果を見るには' 'API キー・ジョブ ID を書かない。'
+block configuration "$gen" 設定 '| 変数 | 説明 | 未設定のとき |' '`YT2COLUMN_LLM` の値に低い effort を付ける'
+block recommended-configuration "$gen" 推奨構成 'CLI の環境変数の値:' 'この構成の品質の目標、結果、製品の制約は'
+
+# normalize prints the document on standard input as "<heading>\t<unit>"
+# lines: <unit> is one sentence of prose (paragraph lines joined, whitespace
+# collapsed, split after each "。"), one table row, one list item's
+# sentences, or one line of a fenced code block, verbatim; <heading> is the
+# text of the nearest heading above, without its "#" marks. Headings
+# themselves are not units, so a changed heading level leaves no diff.
+normalize() {
+  awk '
+    function flush(   s, n, i, parts) {
+      if (para == "") return
+      s = para; para = ""
+      gsub(/[ \t]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s)
+      n = split(s, parts, "。")
+      for (i = 1; i <= n; i++) {
+        unit = parts[i]
+        sub(/^ /, "", unit)
+        if (i < n) unit = unit "。"
+        if (unit != "") print heading "\t" unit
+      }
+    }
+    /^```/ { flush(); fence = !fence; print heading "\t" $0; next }
+    fence { print heading "\t" $0; next }
+    /^#+ / { flush(); heading = $0; sub(/^#+ /, "", heading); next }
+    /^[ \t]*$/ { flush(); next }
+    /^\|/ { flush(); print heading "\t" $0; next }
+    /^(- |[0-9]+\. )/ { flush(); para = $0; next }
+    { para = (para == "" ? $0 : para " " $0) }
+    END { flush() }
+  '
+}
+
+# cut prints the units from the first one holding $2 through the first one
+# after it holding $3, from the normalized file $1. It prints nothing when
+# either sentence is missing.
+cut_block() {
+  FIRST=$2 LAST=$3 awk -F '\t' '
+    !started && index($2, ENVIRON["FIRST"]) { started = 1 }
+    started { lines[++n] = $0 }
+    started && index($2, ENVIRON["LAST"]) { done = 1; exit }
+    END { if (done) for (i = 1; i <= n; i++) print lines[i] }
+  ' "$1"
+}
+
+# links prints the target of every inline link in the units on standard
+# input, one per line, in order.
+links() {
+  grep -oE '\]\([^)[:space:]]+\)' | sed -E 's/^\]\((.*)\)$/\1/' || true
+}
+
+# text drops the heading column and replaces each link target with a
+# placeholder, so the diff shows only the text.
+text() {
+  cut -f2- | sed -E 's/\]\([^)[:space:]]+\)/](<link>)/g'
+}
+
+normalize <"$work/source.md" >"$work/source.norm"
+normalize <"$work/readme-now.md" >"$work/readme-now.norm"
+
+if [ "$worktree" = true ]; then
+  echo "compared:    the work tree (merge-base taken with $commit)"
+else
+  echo "commit:      $commit"
+fi
+echo "merge-base:  $base"
+echo "README blob: $readme_blob"
+echo
+
+failed=0
+count=0
+for k in "${!names[@]}"; do
+  name=${names[k]} target=${targets[k]} heading=${headings[k]}
+  first=${firsts[k]} last=${lasts[k]}
+  count=$((count + 1))
+  echo "=== block $count: $name -> $target ($heading)"
+  if ! compared "$target" 2>/dev/null | normalize >"$work/target.norm"; then
+    echo "FAIL: $target does not exist on the compared side"
+    failed=1
+    continue
+  fi
+  cut_block "$work/source.norm" "$first" "$last" >"$work/src.blk"
+  cp "$work/src.blk" "$work/src-$count.blk"
+  cut_block "$work/target.norm" "$first" "$last" >"$work/dst.blk"
+  cat "$work/dst.blk" >>"$work/in-blocks-$(printf '%s' "$target" | tr '/' '_')"
+  if [ ! -s "$work/src.blk" ]; then
+    echo "FAIL: the merge-base README has no block from \"$first\" to \"$last\""
+    failed=1
+    continue
+  fi
+  if [ ! -s "$work/dst.blk" ]; then
+    echo "FAIL: $target has no block from \"$first\" to \"$last\""
+    failed=1
+    continue
+  fi
+  got_heading=$(head -n 1 "$work/dst.blk" | cut -f1)
+  src_heading=$(head -n 1 "$work/src.blk" | cut -f1)
+  echo "headings: README \"$src_heading\" -> $target \"$got_heading\""
+  if [ "$got_heading" != "$heading" ]; then
+    echo "FAIL: the block is under \"$got_heading\" in $target, want \"$heading\""
+    failed=1
+  fi
+  echo "--- remaining diff (README -> $target):"
+  text <"$work/src.blk" >"$work/src.txt"
+  text <"$work/dst.blk" >"$work/dst.txt"
+  status=0
+  diff -u "$work/src.txt" "$work/dst.txt" >"$work/diff.out" || status=$?
+  case "$status" in
+    0) echo "(none)" ;;
+    1) tail -n +3 "$work/diff.out" ;;
+    *)
+      echo "FAIL: diff exited $status"
+      failed=1
+      ;;
+  esac
+  echo "--- link pairs (README -> $target):"
+  # Links are paired by position; a side with fewer links shows "(none)"
+  # for the missing ones, so a link dropped in the middle shifts the later
+  # pairs, which the reader has to allow for.
+  paste <(links <"$work/src.blk") <(links <"$work/dst.blk") |
+    awk -F '\t' '{ printf "  %s -> %s\n", ($1 == "" ? "(none)" : $1), ($2 == "" ? "(none)" : $2) }'
+  echo
+done
+
+# Text a target holds outside the moved blocks is new text, not moved text,
+# so the diff above never shows it. List it for the reader: every unit of a
+# target that did not exist at the merge-base, and, in a target that did,
+# every unit under the headings the blocks went to.
+for target in $(printf '%s\n' "${targets[@]}" | awk '!seen[$0]++'); do
+  key=$(printf '%s' "$target" | tr '/' '_')
+  compared "$target" 2>/dev/null | normalize >"$work/target.norm" || continue
+  if git cat-file -e "$base:$target" 2>/dev/null; then
+    scope="under the headings the blocks went to"
+    headings_of=$(for k in "${!names[@]}"; do
+      if [ "${targets[k]}" = "$target" ]; then printf '%s\n' "${headings[k]}"; fi
+    done)
+  else
+    scope="the whole document, which is new"
+    headings_of=
+  fi
+  echo "=== units outside the moved blocks in $target ($scope):"
+  HEADINGS=$headings_of awk -F '\t' '
+    NR == FNR { inblock[$0] = 1; next }
+    FNR == 1 { n = split(ENVIRON["HEADINGS"], h, "\n"); for (i = 1; i <= n; i++) if (h[i] != "") want[h[i]] = 1 }
+    (ENVIRON["HEADINGS"] == "" || ($1 in want)) && !($0 in inblock) { print "  [" $1 "] " $2; found = 1 }
+    END { if (!found) print "  (none)" }
+  ' "$work/in-blocks-$key" "$work/target.norm" | sed -E 's/\]\([^)[:space:]]+\)/](<link>)/g'
+  echo
+done
+
+echo "=== completeness on the compared side"
+# Every unit of every source block must be gone from README.md, not only
+# its first and last sentence. Code fence lines and units shorter than 10
+# characters (such as a closing fence or a short table row) are skipped:
+# the README keeps such lines elsewhere.
+# Link targets are compared as placeholders, so a sentence left behind with
+# its link rewritten still fails.
+text <"$work/readme-now.norm" >"$work/readme-now.units"
+for k in "${!names[@]}"; do
+  [ -f "$work/src-$((k + 1)).blk" ] || continue
+  while IFS= read -r unit; do
+    case "$unit" in '```'*) continue ;; esac
+    [ "${#unit}" -ge 10 ] || continue
+    if grep -qxF -- "$unit" "$work/readme-now.units"; then
+      echo "FAIL: ${names[k]}: README.md still holds \"$unit\""
+      failed=1
+    fi
+  done < <(text <"$work/src-$((k + 1)).blk")
+done
+echo "blocks compared: $count"
+
+if [ "$failed" -ne 0 ]; then
+  echo "ac04: FAIL"
+  exit 1
+fi
+echo "ac04: PASS"

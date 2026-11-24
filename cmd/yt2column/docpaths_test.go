@@ -91,10 +91,11 @@ func inCodeSpan(spans [][]int, offset int) bool {
 // readmeGuides are the developer guides split out of the README. TestReadmeLinks
 // checks their links, anchors included, and their code-span paths, so
 // instructionDocs leaves them out.
-var readmeGuides = []string{cliGuide, developmentGuide}
+var readmeGuides = []string{generationGuide, cliGuide, developmentGuide}
 
 // The developer guides' paths from the repository root.
 const (
+	generationGuide  = "docs/dev/guides/generation.md"
 	cliGuide         = "docs/dev/guides/cli.md"
 	developmentGuide = "docs/dev/guides/development.md"
 )

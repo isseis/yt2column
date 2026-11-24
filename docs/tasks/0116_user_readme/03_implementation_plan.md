@@ -90,8 +90,8 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `cmd/yt2column/docs_test.go`
 
-- [ ] `TestOpenAIDocsContract`・`TestLLMDefaultsDocsContract`・`TestEffortValuesDocsContract`・`TestProductionProfileDocsContract` と拡張の ID の部分テストが、`README.md` だけを読むようにする（設計書 3.3 節「外す検査」の 2 行目）。そのために、`readmeVersionsUnder` と、`ReadmeVersions()` を直接回す 2 つのテストのループを、`README.md` の版だけを回すように変える。`readmeVersionsUnder` と `Locator` には呼び出し元が残るので、`make deadcode` は通る
-- [ ] このコミットだけで `make coverage-compare BASE=<親のコミット>` を走らせ、1.2 節の原則のとおり記録する。外した値（`README.en.md` の設定・上限・ID）を、このコミットでは `README.md` の部分テストが、ステップ 1-2・1-3 の後は `development.md` と `generation.md` の検査が確かめることを書く
+- [x] `TestOpenAIDocsContract`・`TestLLMDefaultsDocsContract`・`TestEffortValuesDocsContract`・`TestProductionProfileDocsContract` と拡張の ID の部分テストが、`README.md` だけを読むようにする（設計書 3.3 節「外す検査」の 2 行目）。そのために、`readmeVersionsUnder` と、`ReadmeVersions()` を直接回す 2 つのテストのループを、`README.md` の版だけを回すように変える。`readmeVersionsUnder` と `Locator` には呼び出し元が残るので、`make deadcode` は通る
+- [x] このコミットだけで `make coverage-compare BASE=<親のコミット>` を走らせ、1.2 節の原則のとおり記録する。外した値（`README.en.md` の設定・上限・ID）を、このコミットでは `README.md` の部分テストが、ステップ 1-2・1-3 の後は `development.md` と `generation.md` の検査が確かめることを書く
 
 **完了の条件:** 外すだけのコミットがあり、比較が `coverage-compare: PASS` で、記録がコミットのメッセージにある。
 
@@ -101,12 +101,12 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `README.md`・`README.en.md`、`docs/dev/guides/development.md`・`cli.md`、`cmd/yt2column/extension_docs_test.go`、`extension/test/helpers/readmeVersions.ts`・`manifest.test.ts`、`extension/scripts/has-extension-changes.sh`、CLAUDE.md、ADR-0030
 
-- [ ] **`development.md` に足す:** 設計書 2.4 節の「拡張のビルドと読み込み」（今の README の Go と Node.js の行と `:120-155`）と「拡張のログ」（`:266-268`）を移す
-- [ ] **README から除く:** 移したブロックを README から除く。`## ブラウザ拡張` の見出しと、その下の利用者向けの節（表示の言語・API キーの設定・ポップアップ・ビューア）は、`metadataDocs.test.ts` が読むので残す（設計書 8 章）。README の中の、除いた節へのリンクを `development.md` へ付け替える。`/mktrans README.md` で同期する
-- [ ] **検査:** 拡張の ID の読む先を `development.md` に変え、部分テストの名前を直す。`readmeVersions.ts` に `minimumChromeDocs`（この時点では 2 つの README と `development.md`）を足し、`manifest.test.ts` がそれを回すようにする（設計書 3.3 節の表、3.5 節）
-- [ ] **参照と説明:** `development.md:99`（設計書 4.2 節）と、`cli.md:15-16` のうち Go の部分（`development.md` へ。API キーの部分はフェーズ 2）を付け替える。CLAUDE.md の「Development Notes」の `make ext-test` の説明と `has-extension-changes.sh` の冒頭の説明に、`development.md` の最低の Chrome の版を加える（設計書 8 章「説明は、説明する変更と同じ PR で直す」）
-- [ ] **ADR:** ADR-0030 のずれを示す一文を、`INSTALL.md` の分だけが残ることを示す文に書き直す（設計書 4.2 節）。編集上の訂正の行（`Editorial correction: `）をコミットのメッセージに書き、PR の説明にも載せる（`docs/dev/conventions/adr.md`「Editorial corrections」）
-- [ ] **壊して確かめる:** `development.md` の拡張の ID と版を、それぞれすべての出現で壊し、`TestExtensionDocumentation` と `manifest.test.ts` が失敗することを確かめ、コミットのメッセージに書く（設計書 3.3 節）
+- [x] **`development.md` に足す:** 設計書 2.4 節の「拡張のビルドと読み込み」（今の README の Go と Node.js の行と `:120-155`）と「拡張のログ」（`:266-268`）を移す
+- [x] **README から除く:** 移したブロックを README から除く。`## ブラウザ拡張` の見出しと、その下の利用者向けの節（表示の言語・API キーの設定・ポップアップ・ビューア）は、`metadataDocs.test.ts` が読むので残す（設計書 8 章）。README の中の、除いた節へのリンクを `development.md` へ付け替える。`/mktrans README.md` で同期する
+- [x] **検査:** 拡張の ID の読む先を `development.md` に変え、部分テストの名前を直す。`readmeVersions.ts` に `minimumChromeDocs`（この時点では 2 つの README と `development.md`）を足し、`manifest.test.ts` がそれを回すようにする（設計書 3.3 節の表、3.5 節）
+- [x] **参照と説明:** `development.md:99`（設計書 4.2 節）と、`cli.md:15-16` のうち Go の部分（`development.md` へ。API キーの部分はステップ 1-3）を付け替える。CLAUDE.md の「Development Notes」の `make ext-test` の説明と `has-extension-changes.sh` の冒頭の説明に、`development.md` の最低の Chrome の版を加える（設計書 8 章「説明は、説明する変更と同じ PR で直す」）
+- [x] **ADR:** ADR-0030 のずれを示す一文を、`INSTALL.md` の分だけが残ることを示す文に書き直す（設計書 4.2 節）。編集上の訂正の行（`Editorial correction: `）をコミットのメッセージに書き、PR の説明にも載せる（`docs/dev/conventions/adr.md`「Editorial corrections」）
+- [x] **壊して確かめる:** `development.md` の拡張の ID と版を、それぞれすべての出現で壊し、`TestExtensionDocumentation` と `manifest.test.ts` が失敗することを確かめ、コミットのメッセージに書く（設計書 3.3 節）
 
 **完了の条件:** `make test`・`make lint`・`make ext-check`・`make deadcode` が通る。
 
@@ -116,13 +116,13 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `README.md`・`README.en.md`、`docs/dev/guides/generation.md`（新規）・`cli.md`、`cmd/yt2column/docs_test.go`・`docpaths_test.go`、`internal/doctestutil/guides.go`、参照を持つ文書（下の一覧）、CLAUDE.md、ADR-0004・0025
 
-- [ ] **手引きを置く:** 設計書 2.4 節の構成で `generation.md` を置き、移すブロック（設計書 2.3 節の表の「移す」の行のうち `generation.md` 行き）を移す。設定の表を、文書の中で列名「変数」を持つ最初の表にする（設計書 3.3 節）
-- [ ] **README から除く:** 移したブロックを README から除く（1.3 節の決定 1。冒頭の CLI と構成の文と図を含む）。設計書 2.3 節で「削除（重複）」の `:72-73`（CLI に必要なもの）も除く。README の中の、除いた節へのリンクを `generation.md` へ付け替え、移したブロックの中の、README に残る節へのリンク（設定の節の `#api-キーの設定` など）を `README.md` の節へ付け替える。`/mktrans README.md` で同期する
-- [ ] **Go のガード:** 設計書 3.3 節の表のとおり、4 つの設定・上限のテストの読む先を `generation.md` に変える。`guides.go` に `generation.md` のロケータを足し、冒頭の説明を 3 つの手引きに直す。`readmeGuides` に `generation.md` を足し、`TestReadmeLinks` が手引きを `readmeGuides` から読むようにする。呼び出し元がなくなる `readmeVersionsUnder` を除く。`Locator` の型と README のロケータは、`TestLocatorIn` が使うのでステップ 1-4 で除く。読む先を変えたテストの説明のコメント（README を名指しするもの）を直す（設計書 3.1 節の該当の行）
-- [ ] **参照の付け替え:** 設計書 4.2 節の表のうち、ステップ 1-2 で付け替えていないフェーズ 1 の行を付け替える。`cli.md` の範囲の文（`:3-7`）と「設定」の書き出し（`:233-234`）を書き直す。`cli.md` の `:7`・`:58`・`:189`・`:234` のリンク、`package_reference.md:103`、`production_profile.md:5`（推奨構成の行き先）、`pricing_update.md:38`・`:40`、`project_overview.md:89`・`:161`、`claude_output_limit.md:60`、`openai_output_limit.md:59`、用語集の「推奨構成」（`:55`）と、見出しが `generation.md` に移る「出力の書式」「設定」（`:180`・`:181`）の備考を、それぞれ移った先に付け替える
-- [ ] **説明:** CLAUDE.md の「Development Notes」の Go のガードの一覧（「the configuration block of both READMEs」「the values `cli.md` and `development.md` hold」）を `generation.md` に直す
-- [ ] **ADR:** ADR-0025 のずれを示す一文を除き、ADR-0004 のずれを示す一文を、`INSTALL.md` の分だけが残ることを示す文に書き直す。編集上の訂正の行をコミットのメッセージに書き、PR の説明にも載せる
-- [ ] **壊して確かめる:** 4 つの設定・上限のテストと、`TestReadmeLinks` の `generation.md` を、それぞれ `generation.md` で壊して失敗することを確かめ、コミットのメッセージに書く。出力の上限は、文書にある値のすべての出現を壊す（設計書 3.3 節）
+- [x] **手引きを置く:** 設計書 2.4 節の構成で `generation.md` を置き、移すブロック（設計書 2.3 節の表の「移す」の行のうち `generation.md` 行き）を移す。設定の表を、文書の中で列名「変数」を持つ最初の表にする（設計書 3.3 節）
+- [x] **README から除く:** 移したブロックを README から除く（1.3 節の決定 1。冒頭の CLI と構成の文と図を含む）。設計書 2.3 節で「削除（重複）」の `:72-73`（CLI に必要なもの）も除く。README の中の、除いた節へのリンクを `generation.md` へ付け替え、移したブロックの中の、README に残る節へのリンク（設定の節の `#api-キーの設定` など）を `README.md` の節へ付け替える。`/mktrans README.md` で同期する
+- [x] **Go のガード:** 設計書 3.3 節の表のとおり、4 つの設定・上限のテストの読む先を `generation.md` に変える。`guides.go` に `generation.md` のロケータを足し、冒頭の説明を 3 つの手引きに直す。`readmeGuides` に `generation.md` を足し、`TestReadmeLinks` が手引きを `readmeGuides` から読むようにする。呼び出し元がなくなる `readmeVersionsUnder` を除く。`Locator` の型と README のロケータは、`TestLocatorIn` が使うのでステップ 1-4 で除く。読む先を変えたテストの説明のコメント（README を名指しするもの）を直す（設計書 3.1 節の該当の行）
+- [x] **参照の付け替え:** 設計書 4.2 節の表のうち、ステップ 1-2 で付け替えていないフェーズ 1 の行を付け替える。`cli.md` の範囲の文（`:3-7`）と「設定」の書き出し（`:233-234`）を書き直す。`cli.md` の `:7`・`:58`・`:189`・`:234` のリンクと `:16` の API キーの部分（README の `:72-73` を除くので、「CLI では、選んだプロバイダの API キーが必要である」の文を `cli.md` の「必要なもの」に移し、変数の置き場所として `generation.md`「設定」へリンクする）、`package_reference.md:103`、`production_profile.md:5`（推奨構成の行き先）、`pricing_update.md:38`・`:40`、`project_overview.md:89`・`:161`、`claude_output_limit.md:60`、`openai_output_limit.md:59`、用語集の「推奨構成」（`:55`）と、見出しが `generation.md` に移る「出力の書式」「設定」（`:180`・`:181`）の備考を、それぞれ移った先に付け替える
+- [x] **説明:** CLAUDE.md の「Development Notes」の Go のガードの一覧（「the configuration block of both READMEs」「the values `cli.md` and `development.md` hold」）を `generation.md` に直す
+- [x] **ADR:** ADR-0025 のずれを示す一文を除き、ADR-0004 のずれを示す一文を、`INSTALL.md` の分だけが残ることを示す文に書き直す。編集上の訂正の行をコミットのメッセージに書き、PR の説明にも載せる
+- [x] **壊して確かめる:** 4 つの設定・上限のテストと、`TestReadmeLinks` の `generation.md` を、それぞれ `generation.md` で壊して失敗することを確かめ、コミットのメッセージに書く。出力の上限は、文書にある値のすべての出現を壊す（設計書 3.3 節）
 
 **完了の条件:** `make test`・`make lint`・`make ext-check`・`make deadcode` が通る。`git grep -n 'README' -- ':!docs/tasks'` の出力を PR の説明に貼り、移した節を指す箇所が残っていないことをレビュアーが読めるようにする。
 
@@ -130,8 +130,8 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `internal/doctestutil/readme.go`、`internal/doctestutil/readme_test.go`（削除）
 
-- [ ] ステップ 1-3 で呼び出し元がなくなった `Locator` の型と README のロケータ（`readme.go`）と、`TestLocatorIn` を持つ `readme_test.go` を、1 つのコミットで除く（設計書 3.3 節「外す検査」の 3 行目）。`Lang` の説明を直す。`ReadmeVersion`・`ReadmeVersions`・`Lang` は残す
-- [ ] このコミットだけで `make coverage-compare BASE=<親のコミット>` を走らせ、記録する。`internal/doctestutil` は `//go:build test` のパッケージで、比較は製品のコードとして数えない（`internal/coveragecompare/product.go`）ので、期待する結果は製品のコードが変わらないことを示す `PASS` である。記録には、外した行が製品のコードでないことと、外した単体テストが確かめていたコードを同じコミットで除いたことを書く
+- [x] ステップ 1-3 で呼び出し元がなくなった `Locator` の型と README のロケータ（`readme.go`）と、`TestLocatorIn` を持つ `readme_test.go` を、1 つのコミットで除く（設計書 3.3 節「外す検査」の 3 行目）。`Lang` の説明を直す。`ReadmeVersion`・`ReadmeVersions`・`Lang` は残す
+- [x] このコミットだけで `make coverage-compare BASE=<親のコミット>` を走らせ、記録する。`internal/doctestutil` は `//go:build test` のパッケージで、比較は製品のコードとして数えない（`internal/coveragecompare/product.go`）ので、期待する結果は製品のコードが変わらないことを示す `PASS` である。記録には、外した行が製品のコードでないことと、外した単体テストが確かめていたコードを同じコミットで除いたことを書く
 
 **完了の条件:** 外すだけのコミットがあり、記録がある。比較が `PASS` でないときは、その種類と理由を記録し、先へ進まずに人に尋ねる。
 
@@ -139,9 +139,9 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `docs/tasks/0116_user_readme/_checks/`（新規。シェルのスクリプト 1 つ）、本計画の 7 章
 
-- [ ] 設計書 7.3 節の AC-04 の行のとおりのスクリプトを書く。移すブロックはすべて PR-1 で移すので（1.3 節の決定 1）、ブロックを引数で選ばず、移すブロックの全体の一覧（設計書 2.3 節の「移す」の行。見出しのないブロックも最初と最後の文で決める）をいつも比べ、完全性の確かめも毎回行う。設計書 7.3 節の「その PR で移すブロックを引数で渡す」は、移す作業が複数の PR に分かれる場合のためのもので、本計画では使わない
-- [ ] ステップ 1-3 の後の状態で、各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、スクリプトを入れるコミットのメッセージに書く
-- [ ] PR のブランチで走らせ、出力とマージベースと比べたコミットを 7 章の AC-04 の記録に書く。残った差分の各行が重複の削除か書式の規約による組み直しであること、リンクの組が正しい節を指すことを、記録に添えてレビュアーに示す
+- [x] 設計書 7.3 節の AC-04 の行のとおりのスクリプトを書く。移すブロックはすべて PR-1 で移すので（1.3 節の決定 1）、ブロックを引数で選ばず、移すブロックの全体の一覧（設計書 2.3 節の「移す」の行。見出しのないブロックも最初と最後の文で決める）をいつも比べ、完全性の確かめも毎回行う。設計書 7.3 節の「その PR で移すブロックを引数で渡す」は、移す作業が複数の PR に分かれる場合のためのもので、本計画では使わない
+- [x] ステップ 1-3 の後の状態で、各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、スクリプトを入れるコミットのメッセージに書く
+- [x] PR のブランチで走らせ、出力とマージベースと比べたコミットを 7 章の AC-04 の記録に書く。残った差分の各行が重複の削除か書式の規約による組み直しであること、リンクの組が正しい節を指すことを、記録に添えてレビュアーに示す
 
 **完了の条件:** スクリプトがあり、壊したときに失敗することを確かめてあり、7 章に AC-04 の記録がある。
 
@@ -159,10 +159,10 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1111
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: INSTALL.md を置く（設計書 8 章のフェーズ 2、AC-03・AC-08〜AC-35・AC-39・AC-42）
 
@@ -198,7 +198,7 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 - [ ] **拡張のテスト:** 設計書 3.5 節のとおり `installGuide.ts` を置き、`minimumChromeDocs` に `INSTALL.md` を加え、`browserExtensionHeading` を除き、`readmeVersions` の説明から「その版が引用するカタログ」を除く。`metadataDocs.test.ts` が `INSTALL.md` 全体を日本語のカタログと照合するようにし、AC-33 の 6 つのメッセージを照合する `it` を足す（設計書 3.3 節の表）。選んだ項目が文字列でないことは、カタログの型（`Message`）で `make ext-typecheck` が防ぐ
 - [ ] **Go のガード:** `TestReadmeLinks` が `INSTALL.md` も読むようにする（設計書 3.3 節の表）
 - [ ] **CI の判定:** `has-extension-changes.sh` の判定と冒頭の説明に `INSTALL.md` を加え、README の説明を今の検査に合わせる。`ciChanges.test.ts` に、`INSTALL.md` が走らせる行と、`docs/INSTALL.md`・`INSTALL.md.bak` が走らせない行を足す（AC-42）
-- [ ] **参照の付け替え:** 設計書 4.2 節の表のうちフェーズ 2 の行（`cli.md:4`、`cli.md:16` の API キーの部分、`development.md:3`、`security.md:142`）を付け替え、`production_profile.md:5` と `pricing_update.md` に `INSTALL.md` の費用の目安を加える（AC-41）。PR-1 で `generation.md` と `development.md` に移したブロックの中の、このステップで README から除く節へのリンクを付け替える。用語集の、このステップで README の見出しでなくなる語（「クイックスタート」「API キーの設定」「ブラウザ拡張」。`:178`・`:183`・`:184`）の備考を直すか項目を除く
+- [ ] **参照の付け替え:** 設計書 4.2 節の表のうちフェーズ 2 の行（`cli.md:4`、`development.md:3`、`security.md:142`）と、PR-1 で置いた `generation.md:3` の README への案内（`INSTALL.md` と README へ）を付け替え、`production_profile.md:5` と `pricing_update.md` に `INSTALL.md` の費用の目安を加える（AC-41）。PR-1 で `generation.md` と `development.md` に移したブロックの中の、このステップで README から除く節へのリンクを付け替える。用語集の、このステップで README の見出しでなくなる語（「クイックスタート」「API キーの設定」「ブラウザ拡張」。`:178`・`:183`・`:184`）の備考を直すか項目を除く
 - [ ] **説明:** CLAUDE.md の「Development Notes」の `make ext-test` が要る文書の一覧と読む内容、「A change that touches only documents」の文書の一覧に `INSTALL.md` を加える（設計書 3.4 節の表、AC-40・AC-42）
 - [ ] **ADR:** ADR-0004・ADR-0029・ADR-0030 のずれを示す一文を除く。編集上の訂正の行をコミットのメッセージに書き、PR の説明にも載せる
 - [ ] **壊して確かめる:** 次のそれぞれで、対応する検査が失敗することを確かめ、コミットのメッセージに書く。`metadataDocs.test.ts` は文書全体から語句を探すので、壊すのはその語句の `INSTALL.md` にあるすべての出現である
@@ -370,7 +370,7 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 5-1）
@@ -409,7 +409,129 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
 
 ### AC-04 の記録
 
-（PR-1 のステップ 1-5 で、スクリプトの出力とマージベースと比べたコミットを書く。）
+`_checks/ac04_moved_blocks.sh 4044eddf` を PR-1 のブランチで走らせた（2026-11-24）。比べたコミットは `4044eddff8fd0724798a98815f2bbf9b55eba6a7`、マージベースは `bd72ac9e8e202a2982d5a270ac626187d35a0e62`（その `README.md` のブロブは `23ab53e32d65cb67eafd09634d6d034a6f6da665`）で、結果は `ac04: PASS` である。
+
+- **残った差分:** 11 のブロックのうち、残った差分があるのは `extension-build` の 1 行だけである。除いた文は「開発のためのターゲットは `development.md` にある」という案内で、移した先が `development.md` そのものなので、重ねて書かないために除いた（AC-04 の「重複の削除」）。
+- **移したブロックの外の新しい文:** 出力の「units outside the moved blocks」に出るものは、移した文ではなく、手引きに新しく書いた文である。AC-04 の 4 種類の差分には当たらないので、レビューで、移した文の述べる挙動を変えていないことを読む。
+  - `generation.md` の冒頭の段落（本書の範囲と、ほかの文書への案内）。設計書 2.4 節の「本書の範囲」の行で、`INSTALL.md` は PR-2 で置くので、それまでは README を案内する（ステップ 2-3 で付け替える）。
+  - `generation.md` の「構成」の頭の「主経路はブラウザ拡張で、README が説明する。」。移したブロックが CLI の経路から始まるので、README に残る主経路を指す文を足した。
+  - 「構成」の図の閉じのフェンス。図のブロックは `class L2 process` の行までとしたので、外に出る。
+  - `development.md` の「拡張のビルドと読み込み」の頭のラベル「**拡張のビルドに必要なもの:**」。今の README の「主経路（ブラウザ拡張）に必要なもの」のうち Go と Node.js の 2 行だけを移したので、新しいラベルを置いた。
+- **README から除いて、どこにも移さなかった文:** 出力には現れない。
+  - 冒頭の段落のうち `cli.md:3-4` と同じ 2 文（CLI で開発し確かめること、`--out` のファイルに書くこと）。重ねないので除いた（重複の削除）。
+  - 今の README の `:72-73`（CLI に必要なもの）のうち、`cli.md` の「必要なもの」へのリンク。`cli.md` 自身の節なので除いた。もう 1 つの文「CLI では、選んだプロバイダの API キーが必要である」は `cli.md` になかったので、`cli.md` の「必要なもの」に移し、変数の置き場所として `generation.md`「設定」へリンクした（設計書 2.3 節の表）。
+- **リンクの組:** どの組も、移った先から見た同じ節を指す。`docs/dev/...` は `generation.md` と `development.md` から見た相対のパスに、`#api-キーの設定` は README の同じ節に変わった。`docs/dev/guides/development.md -> (none)` は、上の除いた文のリンクである。
+
+```text
+commit:      4044eddff8fd0724798a98815f2bbf9b55eba6a7
+merge-base:  bd72ac9e8e202a2982d5a270ac626187d35a0e62
+README blob: 23ab53e32d65cb67eafd09634d6d034a6f6da665
+
+=== block 1: intro-cli -> docs/dev/guides/generation.md (構成)
+headings: README "yt2column" -> docs/dev/guides/generation.md "構成"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  https://github.com/yt-dlp/yt-dlp -> https://github.com/yt-dlp/yt-dlp
+
+=== block 2: diagram -> docs/dev/guides/generation.md (構成)
+headings: README "yt2column" -> docs/dev/guides/generation.md "構成"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+
+=== block 3: paths-and-providers -> docs/dev/guides/generation.md (構成)
+headings: README "yt2column" -> docs/dev/guides/generation.md "構成"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  #推奨構成 -> #推奨構成
+  docs/dev/production_profile.md -> ../production_profile.md
+
+=== block 4: build-requirements -> docs/dev/guides/development.md (拡張のビルドと読み込み)
+headings: README "必要なもの" -> docs/dev/guides/development.md "拡張のビルドと読み込み"
+--- remaining diff (README -> docs/dev/guides/development.md):
+(none)
+--- link pairs (README -> docs/dev/guides/development.md):
+
+=== block 5: post-generation-steps -> docs/dev/guides/generation.md (生成の後の工程)
+headings: README "生成の後の工程" -> docs/dev/guides/generation.md "生成の後の工程"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  docs/dev/guides/cli.md#生成の後の工程 -> cli.md#生成の後の工程
+
+=== block 6: output-format -> docs/dev/guides/generation.md (出力の書式)
+headings: README "出力の書式" -> docs/dev/guides/generation.md "出力の書式"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  docs/dev/guides/cli.md#--out-のファイル -> cli.md#--out-のファイル
+
+=== block 7: estimated-cost -> docs/dev/guides/generation.md (推定の料金)
+headings: README "推定の料金" -> docs/dev/guides/generation.md "推定の料金"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  docs/dev/guides/cli.md#推定の料金 -> cli.md#推定の料金
+
+=== block 8: extension-build -> docs/dev/guides/development.md (拡張のビルドと読み込み)
+headings: README "ブラウザ拡張" -> docs/dev/guides/development.md "拡張のビルドと読み込み"
+--- remaining diff (README -> docs/dev/guides/development.md):
+@@ -15,7 +15,6 @@
+ make ext-install   # install the pinned dev dependencies (npm ci; needs network)
+ make ext-build     # build extension/dist/
+ ```
+-CI が実行する検査や、LLM の API を呼ばない開発用のビルドなど、開発のためのターゲットは [docs/dev/guides/development.md](<link>)にある。
+ ビルドしたものを Chrome か Brave で読み込む。
+ 1. `chrome://extensions/`（Brave: `brave://extensions/`）を開く。
+ 2. **デベロッパー モード**（**Developer mode**）をオンにする。
+--- link pairs (README -> docs/dev/guides/development.md):
+  https://github.com/Schniz/fnm -> https://github.com/Schniz/fnm
+  docs/dev/guides/development.md -> (none)
+
+=== block 9: extension-logs -> docs/dev/guides/development.md (拡張のログ)
+headings: README "ビューア" -> docs/dev/guides/development.md "拡張のログ"
+--- remaining diff (README -> docs/dev/guides/development.md):
+(none)
+--- link pairs (README -> docs/dev/guides/development.md):
+
+=== block 10: configuration -> docs/dev/guides/generation.md (設定)
+headings: README "設定" -> docs/dev/guides/generation.md "設定"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  #推奨構成 -> #推奨構成
+  #api-キーの設定 -> ../../../README.md#api-キーの設定
+  docs/dev/guides/cli.md#設定 -> cli.md#設定
+  #推定の料金 -> #推定の料金
+  docs/dev/security.md#4-llm-プロバイダへ送るデータ -> ../security.md#4-llm-プロバイダへ送るデータ
+  docs/dev/guides/openai_output_limit.md -> openai_output_limit.md
+
+=== block 11: recommended-configuration -> docs/dev/guides/generation.md (推奨構成)
+headings: README "推奨構成" -> docs/dev/guides/generation.md "推奨構成"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  https://github.com/isseis/yt2column/issues/490 -> https://github.com/isseis/yt2column/issues/490
+  https://github.com/isseis/yt2column/issues/171 -> https://github.com/isseis/yt2column/issues/171
+  docs/dev/production_profile.md -> ../production_profile.md
+
+=== units outside the moved blocks in docs/dev/guides/generation.md (the whole document, which is new):
+  [記事の生成の詳細] 本書は yt2column の開発者のための文書である。
+  [記事の生成の詳細] 記事の生成の仕組みと LLM の構成を説明する。
+  [記事の生成の詳細] どの入口（CLI か拡張か）にもよらない内容を持つ。
+  [記事の生成の詳細] 拡張の使い方は [README](<link>) に、CLI の実行の仕方は [cli.md](<link>) にある。
+  [構成] 主経路はブラウザ拡張で、[README](<link>) が説明する。
+  [構成] ```
+
+=== units outside the moved blocks in docs/dev/guides/development.md (under the headings the blocks went to):
+  [拡張のビルドと読み込み] **拡張のビルドに必要なもの:**
+
+=== completeness on the compared side
+blocks compared: 11
+ac04: PASS
+```
 
 ### AC-05 の記録
 

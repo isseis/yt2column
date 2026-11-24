@@ -2,11 +2,26 @@
 
 package doctestutil
 
-// Headings and table column names of the two developer guides split out of the
-// README, docs/dev/guides/cli.md and docs/dev/guides/development.md, that the
-// guard tests find a section or a table by. The guides are Japanese only, so
+// Headings and table column names of the three developer guides split out of
+// the README, docs/dev/guides/generation.md, docs/dev/guides/cli.md, and
+// docs/dev/guides/development.md, that the guard tests find a section or a
+// table by. The guides are Japanese only, so
 // each is one Japanese string, and it must equal the guide's text.
 const (
+	// GenRecommendedConfigHeading is generation.md's section with the
+	// recommended configuration block.
+	GenRecommendedConfigHeading = "### 推奨構成"
+	// GenVariableColumn and GenUnsetColumn head the first and third columns
+	// of generation.md's configuration table, the document's first table with
+	// a GenVariableColumn column.
+	GenVariableColumn = "変数"
+	GenUnsetColumn    = "未設定のとき"
+	// GenEffortProviderColumn and GenEffortValuesColumn head the first two
+	// columns of generation.md's table of accepted effort values. The values
+	// column finds the table: no other table has it.
+	GenEffortProviderColumn = "プロバイダ"
+	GenEffortValuesColumn   = "受理する effort"
+
 	// CLIFlagColumn heads the first column of cli.md's flag table.
 	CLIFlagColumn = "フラグ"
 	// CLIUsageHeading is cli.md's section on the token usage lines.

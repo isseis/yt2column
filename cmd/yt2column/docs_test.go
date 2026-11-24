@@ -32,6 +32,7 @@ const (
 	readmePath            = "../../README.md"
 	cliDocPath            = "../../" + cliGuide
 	developmentDocPath    = "../../" + developmentGuide
+	generationDocPath     = "../../" + generationGuide
 	projectOverviewPath   = "../../docs/dev/project_overview.md"
 	securityPath          = "../../docs/dev/security.md"
 	productionProfilePath = "../../docs/dev/production_profile.md"
@@ -44,17 +45,6 @@ const productionProfileSection = "## 本番の構成"
 // profileTableColumn is the name of a column of the production profile
 // table, by which checkProfileTable finds the table.
 const profileTableColumn = "工程"
-
-// readmeVersionsUnder runs check once per README version, as a subtest named
-// by the version's path, with the version's text read from the repository.
-func readmeVersionsUnder(t *testing.T, check func(t *testing.T, v doctestutil.ReadmeVersion, readme string)) {
-	t.Helper()
-	for _, v := range doctestutil.ReadmeVersions() {
-		t.Run(v.Path, func(t *testing.T) {
-			check(t, v, doctestutil.ReadDoc(t, v.From(repositoryRoot)))
-		})
-	}
-}
 
 // markdownLinkRE matches an inline Markdown link and captures its text and
 // target. These documents use no reference links, and a link text or target
@@ -194,7 +184,7 @@ func TestClaudeDocsContract(t *testing.T) {
 // opt-in that arms it, the model and effort variables with the make target's
 // defaults, and the make target; the development guide's OpenAI section names
 // them all and security.md names the key, the opt-in, and the target. For the
-// adapter: the default output limit, which both README versions and
+// adapter: the default output limit, which generation.md and
 // project_overview.md state. The values come from the openai packages'
 // exported constants and the make target constant, not from the documents.
 func TestOpenAIDocsContract(t *testing.T) {
@@ -205,11 +195,9 @@ func TestOpenAIDocsContract(t *testing.T) {
 	if !statesLimit(doctestutil.ReadDoc(t, projectOverviewPath)) {
 		t.Errorf("project_overview.md does not state the default output limit %s", limit)
 	}
-	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
-		if !statesLimit(readme) {
-			t.Errorf("%s does not state the default output limit %s", v.Path, limit)
-		}
-	})
+	if !statesLimit(doctestutil.ReadDoc(t, generationDocPath)) {
+		t.Errorf("generation.md does not state the default output limit %s", limit)
+	}
 
 	development := doctestutil.SectionOutsideBlocks(
 		doctestutil.ReadDoc(t, developmentDocPath), doctestutil.DevOpenAIIntegrationHeading)
@@ -268,7 +256,7 @@ func TestDeepSeekDocsContract(t *testing.T) {
 }
 
 // TestLLMDefaultsDocsContract checks that the configuration tables of
-// README.md and project_overview.md state the code's LLM default: each table
+// generation.md and project_overview.md state the code's LLM default: each table
 // has exactly one row for each LLM variable, and the first code span of the
 // "when unset" cell of the YT2COLUMN_LLM row is the value the config package
 // applies. The YT2COLUMN_REVIEW_LLM row inherits the generation selection,
@@ -284,11 +272,7 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 		name, path, nameHeader, unsetHeader string
 	}{
 		{"project_overview.md", projectOverviewPath, "変数", "未設定のとき"},
-	}
-	for _, v := range doctestutil.ReadmeVersions() {
-		docs = append(docs, struct{ name, path, nameHeader, unsetHeader string }{
-			v.Path, v.From(repositoryRoot), doctestutil.ReadmeVariableColumn.In(t, v.Lang), doctestutil.ReadmeUnsetColumn.In(t, v.Lang),
-		})
+		{"generation.md", generationDocPath, doctestutil.GenVariableColumn, doctestutil.GenUnsetColumn},
 	}
 	for _, doc := range docs {
 		t.Run(doc.name, func(t *testing.T) {
@@ -322,7 +306,7 @@ func TestLLMDefaultsDocsContract(t *testing.T) {
 }
 
 // TestEffortValuesDocsContract checks the tables of accepted effort values in
-// both README versions and project_overview.md: each provider the
+// generation.md and project_overview.md: each provider the
 // configuration accepts has exactly one row, no other provider has one, and
 // the code spans of the row's accepted-values cell are exactly the values the
 // configuration accepts for that provider. The next cell of a row whose
@@ -333,12 +317,7 @@ func TestEffortValuesDocsContract(t *testing.T) {
 		name, path, providerHeader, valuesHeader string
 	}{
 		{"project_overview.md", projectOverviewPath, "プロバイダ", "受理する effort"},
-	}
-	for _, v := range doctestutil.ReadmeVersions() {
-		docs = append(docs, struct{ name, path, providerHeader, valuesHeader string }{
-			v.Path, v.From(repositoryRoot),
-			doctestutil.ReadmeEffortProviderColumn.In(t, v.Lang), doctestutil.ReadmeEffortValuesColumn.In(t, v.Lang),
-		})
+		{"generation.md", generationDocPath, doctestutil.GenEffortProviderColumn, doctestutil.GenEffortValuesColumn},
 	}
 	want := config.EffortValuesByProviderForTest()
 	// codeDefaults maps a provider part to the effort its omitted effort has
@@ -690,7 +669,7 @@ func checkProfileTable(t *testing.T, section string, defaults config.LLMConfig) 
 }
 
 // TestProductionProfileDocsContract checks the shared production-profile
-// document's profile section and the README's recommended configuration
+// document's profile section and generation.md's recommended configuration
 // section: each configuration block is NAME=VALUE settings, holds exactly the
 // variables of the production profile, and loads through the CLI's Load to
 // the code's default profile, and the shared
@@ -707,19 +686,17 @@ func TestProductionProfileDocsContract(t *testing.T) {
 	defaults := checkConfigBlockMatchesDefaults(t, "production_profile.md", productionProfileSection, values)
 	checkProfileTable(t, section, defaults)
 
-	readmeVersionsUnder(t, func(t *testing.T, v doctestutil.ReadmeVersion, readme string) {
-		heading := doctestutil.ReadmeRecommendedConfigHeading.In(t, v.Lang)
-		recommended := doctestutil.SectionOutsideBlocks(readme, heading)
-		if recommended == "" {
-			t.Fatalf("%s has no %q section", v.Path, heading)
-		}
-		readmeValues := checkConfigBlock(t, v.Path, heading, recommended, want)
-		checkConfigBlockMatchesDefaults(t, v.Path, heading, readmeValues)
-	})
+	heading := doctestutil.GenRecommendedConfigHeading
+	recommended := doctestutil.SectionOutsideBlocks(doctestutil.ReadDoc(t, generationDocPath), heading)
+	if recommended == "" {
+		t.Fatalf("generation.md has no %q section", heading)
+	}
+	genValues := checkConfigBlock(t, "generation.md", heading, recommended, want)
+	checkConfigBlockMatchesDefaults(t, "generation.md", heading, genValues)
 }
 
-// TestReadmeLinks checks the links of both README versions and of the two
-// developer guides split out of them (cli.md and development.md): every relative link
+// TestReadmeLinks checks the links of both README versions and of the
+// developer guides split out of them (readmeGuides): every relative link
 // points at an existing path, and every link to a heading, in the same
 // document or in another one, resolves to an anchor the helper produces from
 // the target document's headings. GitHub resolves those, so they are the
@@ -737,9 +714,9 @@ func TestReadmeLinks(t *testing.T) {
 		targetAnchors[path] = anchors
 		return anchors
 	}
-	docs := []struct{ name, path string }{
-		{"cli.md", cliDocPath},
-		{"development.md", developmentDocPath},
+	var docs []struct{ name, path string }
+	for _, guide := range readmeGuides {
+		docs = append(docs, struct{ name, path string }{filepath.Base(guide), filepath.Join(repositoryRoot, filepath.FromSlash(guide))})
 	}
 	for _, v := range doctestutil.ReadmeVersions() {
 		docs = append(docs, struct{ name, path string }{v.Path, v.From(repositoryRoot)})

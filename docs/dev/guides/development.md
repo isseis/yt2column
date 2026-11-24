@@ -1,6 +1,6 @@
 # 開発の手順
 
-本書は yt2column の開発者のための文書である。`make` のターゲット、開発用のコマンド、開発用の拡張のビルド、拡張の開発のための検査、ジョブの記録の値、統合テストを説明する。ブラウザ拡張の使い方は [README](../../../README.md) に、CLI は [cli.md](cli.md) にある。
+本書は yt2column の開発者のための文書である。`make` のターゲット、開発用のコマンド、拡張のビルドと読み込み、開発用の拡張のビルド、拡張の開発のための検査、拡張のログ、ジョブの記録の値、統合テストを説明する。ブラウザ拡張の使い方は [README](../../../README.md) に、CLI は [cli.md](cli.md) にある。
 
 ## make のターゲット
 
@@ -55,6 +55,45 @@ go build -o /tmp/yt2column-extjob ./cmd/yt2column-extjob
 
 ブラウザに固有の部分（`fetch` を通した送信、Worker、`syscall/js` の受け渡し）は、このコマンドでは再現できない。
 
+## 拡張のビルドと読み込み
+
+**拡張のビルドに必要なもの:**
+
+- Go（`go.mod` を参照）。拡張のビルドが、拡張に入れる記事生成モジュールをビルドするのに使う
+- Node.js。版は `extension/.node-version` で固定している（拡張のビルドに使う）
+
+Chrome/Brave の拡張（Manifest V3）は `extension/` にある。TypeScript で書き、Node.js
+でビルドする。ストアでは公開しておらず、自分でビルドし、ビルドしたものをパッケージ化されていない拡張機能として読み込む。Chrome 142 以降で動く。拡張は、選択範囲、タブの
+URL、タブのタイトルを集め、動画メタデータ（動画タイトル、チャンネル名、概要欄）を動画ページから読む。選択範囲、URL、動画メタデータから、拡張に入れた記事生成モジュールが記事を生成し、拡張のページ（ビューア）のタブに表示する。タブのタイトルは確認のために表示する（空であってはならない）が、記事の生成には使わない。
+
+Node.js 24 が必要で、`node --version` が `extension/.node-version`
+と一致しないときは、どの `ext-*` のターゲットも実行を断る。版のファイルは `extension/`
+の中にあるので、カレントディレクトリを読む Node.js の版の管理ツール（[fnm](https://github.com/Schniz/fnm)
+など）は、`extension/` の中で有効にしなければならない。その版を有効にしたまま、リポジトリのルートからターゲットを実行する。
+
+ビルドは Go も呼び、拡張に入れる記事生成モジュールを、`go.mod` の `go` の行の版の Go でビルドする。手元の Go がその版でないときは、初めのビルドがその版の Go をダウンロードする（ネットワークを使う）。
+
+```sh
+cd extension && fnm use && cd ..
+make ext-install   # install the pinned dev dependencies (npm ci; needs network)
+make ext-build     # build extension/dist/
+```
+
+ビルドしたものを Chrome か Brave で読み込む。
+
+1. `chrome://extensions/`（Brave: `brave://extensions/`）を開く。
+2. **デベロッパー モード**（**Developer mode**）をオンにする。
+3. **パッケージ化されていない拡張機能を読み込む**（**Load unpacked**）をクリックし、`extension/dist` のディレクトリを選ぶ。
+
+以前のビルドから更新するには、まず `make ext-build` を実行して
+`extension/dist/` をビルドし直し、それから
+`chrome://extensions/`（Brave: `brave://extensions/`）で拡張の再読み込みのボタンをクリックする。`extension/dist/`
+はビルドの出力で、新しいソースを取り込んでも更新されない。そのため、ビルドし直さずに再読み込みすると以前のビルドが動き続ける。拡張を再読み込みすると、開いている拡張のページ（ビューアを含む）は閉じられ、生成中の記事も完成した記事も失われる。
+
+拡張の ID は `clfmbbcdpnjcefbdihdoahomaifbabkk` に固定してあり、どのマシンでも、どのディレクトリからでも同じである。保存した API キーは拡張の ID ごとに分かれるので、ID が変わらない限り、ビルドし直しても再読み込みしても残る。
+
+拡張はシークレットモードでは有効にできない。
+
 ## 開発用の拡張のビルド
 
 `make ext-build-dev` は、公開用の `extension/dist/` とは別に、fake の LLM（`internal/llm/devfake`）で記事を作る開発用の拡張を `extension/dist-dev/` に作る。拡張に入れる記事生成モジュールは開発用の `cmd/yt2column-wasm-dev` で、Anthropic の API を呼ばない。シナリオはビルドのときに決まり、次の 5 つの変数で選ぶ。変数は `make` の引数で与え、与えない変数は既定の値になる。環境変数では選べない（`make -e` で走らせたときを除く）。
@@ -95,12 +134,18 @@ make ext-build-dev FAKE_ARTICLE=long FAKE_FAILURE=timeout FAKE_FAIL_AT=shorten
 
 ## 拡張の検査
 
-拡張のビルドと読み込みは、README の
-[ブラウザ拡張](../../../README.md#ブラウザ拡張)にある。同じ Node.js の版を有効にしたまま、もう 1 つのターゲットで CI と同じ検査を走らせる。
+拡張のビルドと読み込みは、上の
+[拡張のビルドと読み込み](#拡張のビルドと読み込み)にある。同じ Node.js の版を有効にしたまま、もう 1 つのターゲットで CI と同じ検査を走らせる。
 
 ```sh
 make ext-check     # typecheck, lint, format check, tests, then the release and development builds
 ```
+
+## 拡張のログ
+
+集めたものと結果を見るには、ポップアップが開いた時点から、ポップアップのコンソールを開く。ツールバーのアイコンを右クリックし、
+**ポップアップを検証**（**Inspect popup**）を選ぶ（デベロッパー モードがオンのときに表示される。アイコンが拡張機能のメニューの中にあるときは、先に拡張を固定する）。ビューアのログはビューアのタブの DevTools に、記事の生成の調停のログは
+`chrome://extensions/`（Brave: `brave://extensions/`）の拡張の **Service Worker** のリンクから開くコンソールに出る。ログには、字幕・記事・動画メタデータの値・API キー・ジョブ ID を書かない。
 
 ## ジョブの記録
 

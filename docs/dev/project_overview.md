@@ -86,7 +86,7 @@ flowchart LR
 - DeepSeek の現行モデルは thinking（推論）モードがデフォルトで有効で、レイテンシとコストに影響する。推論過程は `reasoning_content` として本文（`content`）とは別に返るので、記事には `content` だけを使う。thinking モードでは `temperature` が無視される。`YT2COLUMN_LLM`・`YT2COLUMN_REVIEW_LLM` の値に effort（`+none`・`+low`・`+high`・`+max`）を付けると、その値をリクエストの `reasoning_effort` として送る。`none` は thinking を無効にし、ほかの値は有効にする。effort を省けば `reasoning_effort` を送らず、API のデフォルト（thinking 有効）のままにする。`thinking` パラメータは送らない。
 - DeepSeek は平日のピーク時間帯（UTC 01:00–04:00 と 06:00–10:00、日本時間では 10–13 時と 15–19 時）の料金が2倍になる。
 - DeepSeek の API への入力は中国で処理・保存され、プライバシーポリシー上はデフォルトでモデルの学習に使われる（オプトアウトあり）。送るのは公開動画の字幕・メタ情報とプロンプトであり、機密情報を送らないこと（[security.md](security.md) を参照）。
-- モデル名は頻繁に更新される。コードにハードコードせず設定で与える。ただし、既定のモデル名 `claude-opus-5-5`（`internal/config` の `defaultClaudeModel`）はこの方針の例外としてコードに持つ。範囲は、`YT2COLUMN_LLM` が未設定のとき（`YT2COLUMN_REVIEW_LLM` が受け継ぐ場合を含む）の既定値 `claude/claude-opus-5-5` に限り、設定したモデル名はそのまま使う。何も設定しなければ本番の構成で動くようにするためで、値はタスク 0008 の評価で本番の構成として決めたモデルである。本番の構成を見直したときは、この値と README・本書の表を変える。再現性のため、`-latest` 系のエイリアスより具体的なモデル名を推奨。ただし DeepSeek の `deepseek-flash`（2026-09 時点で DeepSeek-V4.1-Flash を指す）は提供元が指し示すモデルを切り替えるエイリアスで、バージョンを固定した ID は提供されていない。どのモデルで生成したかを追えるよう、応答に含まれる `model` の値と、モデルの版の識別子（`ModelVersion`。DeepSeek では `system_fingerprint`）を記録すること。ただし `internal/pricing` の単価の表はこの方針の対象外である。単価の表は、応答が報告したモデル名に対する単価を引くためのコード内の参照表であり、使うモデルを選ぶ設定ではない。表にないモデルを選んでも生成と公開は変わらず、料金が不明になるだけである。
+- モデル名は頻繁に更新される。コードにハードコードせず設定で与える。ただし、既定のモデル名 `claude-opus-5-5`（`internal/config` の `defaultClaudeModel`）はこの方針の例外としてコードに持つ。範囲は、`YT2COLUMN_LLM` が未設定のとき（`YT2COLUMN_REVIEW_LLM` が受け継ぐ場合を含む）の既定値 `claude/claude-opus-5-5` に限り、設定したモデル名はそのまま使う。何も設定しなければ本番の構成で動くようにするためで、値はタスク 0008 の評価で本番の構成として決めたモデルである。本番の構成を見直したときは、この値と [generation.md](guides/generation.md)・本書の表を変える。再現性のため、`-latest` 系のエイリアスより具体的なモデル名を推奨。ただし DeepSeek の `deepseek-flash`（2026-09 時点で DeepSeek-V4.1-Flash を指す）は提供元が指し示すモデルを切り替えるエイリアスで、バージョンを固定した ID は提供されていない。どのモデルで生成したかを追えるよう、応答に含まれる `model` の値と、モデルの版の識別子（`ModelVersion`。DeepSeek では `system_fingerprint`）を記録すること。ただし `internal/pricing` の単価の表はこの方針の対象外である。単価の表は、応答が報告したモデル名に対する単価を引くためのコード内の参照表であり、使うモデルを選ぶ設定ではない。表にないモデルを選んでも生成と公開は変わらず、料金が不明になるだけである。
 
 ## 未確定事項
 
@@ -158,7 +158,7 @@ CLI は、表の変数を環境変数から読む。ブラウザ拡張は、表�
 | `openai` | `none`・`minimal`・`low`・`medium`・`high`・`xhigh`・`max` | `medium` を送る |
 | `deepseek` | `none`・`low`・`high`・`max` | 何も送らない（thinking は API のデフォルト） |
 
-OpenAI の指定例は、CLI の環境変数では `YT2COLUMN_LLM=openai/gpt-6-astra+medium` と `OPENAI_API_KEY` である（README の「設定」）。OpenAI の利用には ChatGPT の契約とは別に API の課金が必要である。effort は 7 つの値をすべて受理し、モデルが対応しない組み合わせは API のエラー（HTTP の状態）としてその工程を失敗させ、別のモデルや effort に切り替えない。料金表にあるのは `gpt-6-astra` と `gpt-6.1-sol` だけである。出力の上限を要求が指定しないときの既定値 6,080 トークンの根拠と測り直し方は [openai_output_limit.md](guides/openai_output_limit.md) にある。
+OpenAI の指定例は、CLI の環境変数では `YT2COLUMN_LLM=openai/gpt-6-astra+medium` と `OPENAI_API_KEY` である（[generation.md](guides/generation.md) の「設定」）。OpenAI の利用には ChatGPT の契約とは別に API の課金が必要である。effort は 7 つの値をすべて受理し、モデルが対応しない組み合わせは API のエラー（HTTP の状態）としてその工程を失敗させ、別のモデルや effort に切り替えない。料金表にあるのは `gpt-6-astra` と `gpt-6.1-sol` だけである。出力の上限を要求が指定しないときの既定値 6,080 トークンの根拠と測り直し方は [openai_output_limit.md](guides/openai_output_limit.md) にある。
 
 `YT2COLUMN_LLM` が未設定なら、生成と字数の調整は `claude/claude-opus-5-5` を effort `high` で使う。`YT2COLUMN_REVIEW_LLM` が未設定なら、検証・推敲は生成と同じプロバイダ・モデル・effort（既定値を含む）を使う。`YT2COLUMN_REVIEW_LLM` を設定して effort を省けば、生成の effort は受け継がず、上の表の「effort を省いたとき」に従う。どちらも、空の値は既定値や生成の組で補わずに設定エラーにする。
 

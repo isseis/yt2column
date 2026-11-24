@@ -17,7 +17,7 @@ Claude のアダプタは、非ストリーミングで 1 回の応答として�
 -   **打ち切りは `ErrTruncated` として報告し、記事を公開しない。** 打ち切られた生成を公開しないためである（`CLAUDE.md`「Empty is an error」）。メッセージに示す内容は [0009 設計書](../../tasks/0009_claude_llm_client/02_architecture.md) の「4.2. エラーメッセージ設計パターン」にある。
 -   **上限の値はコードの 1 つの定数に置き、README、記事の生成の手引き `docs/dev/guides/` の `generation.md`、上限のガイドには数値を書かない。値の根拠と測り直しの手順は上限のガイドに置き、値が満たす条件はテストで固定する。** 数値を写すと、値の一致を確かめるテストが要り、写した値がコードと食い違いうるためである。本番の構成の文書は、本番の上限として 40,000 を記す。手順と更新するものは [claude_output_limit.md](../guides/claude_output_limit.md) の「測り方」「判定の仕方」「更新するもの」に、本番の上限は [production_profile.md](../production_profile.md) の「品質の目標と結果」にある。
 -   **非ストリーミングの長い無通信で接続が切れるリスクは受け入れる。** HTTP/2 の PING などの仕組みは、無通信による切断が実際に観測されるまで足さない。無通信で接続が切れたという観測がなく、`CLAUDE.md`「Performance」の「Do not close a review finding by adding a mechanism until the finding's premise is verified」に従うためである。決定は [0041 設計書](../../tasks/0041_claude_effort_max_tokens/02_architecture.md) の「1.2. 設計の際に決めたこと（2026-10-25）」にある。
--   **既定の値でも、`max` の effort では推論だけで上限に達しうる。その場合は打ち切りとして報告し、記事を公開しない。記事の生成の手引き `docs/dev/guides/` の `generation.md` で案内する。** 64,000 トークンでも、`max` は推論だけで上限に達したためである。案内は `generation.md` の「設定」にある。値の文法と effort の既定は [ADR-0003](0003-llm-config-contract.md) が定める。案内は今は README の「設定」にあり、`generation.md` は 0116 の実装で置く。このずれは https://github.com/isseis/yt2column/issues/1042 で扱う。
+-   **既定の値でも、`max` の effort では推論だけで上限に達しうる。その場合は打ち切りとして報告し、記事を公開しない。記事の生成の手引き `docs/dev/guides/` の `generation.md` で案内する。** 64,000 トークンでも、`max` は推論だけで上限に達したためである。案内は `generation.md` の「設定」にある。値の文法と effort の既定は [ADR-0003](0003-llm-config-contract.md) が定める。
 
 ## 採らなかった案
 

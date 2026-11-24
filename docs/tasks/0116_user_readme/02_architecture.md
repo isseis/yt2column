@@ -272,7 +272,7 @@ flowchart LR
 | `:47` | 状態の注記 | README の冒頭の注記（決定 7） | 書き直す |
 | `:49-61` | クイックスタート | `INSTALL.md`「使い方」の流れ（AC-23）。`:61` の移行の案内は削除（AC-05） | 書き直す |
 | `:63-70` | 必要なもの（Go・Node.js・ブラウザ・API キー・ZDR） | ブラウザは README と `INSTALL.md`。Go と Node.js は `development.md`「拡張のビルドと読み込み」。ZDR は `INSTALL.md`（AC-13） | ブラウザと ZDR は書き直す。Go と Node.js は移す |
-| `:72-73` | CLI に必要なもの | `cli.md:9-16` に同じ内容があるので重ねない | 削除（重複） |
+| `:72-73` | CLI に必要なもの | `cli.md` の「必要なもの」へのリンクは、`cli.md` 自身の節なので重ねない。選んだプロバイダの API キーが要るという文は `cli.md:9-16` になく README に任せていたので、`cli.md` の「必要なもの」に移す | リンクは削除（重複）。文は移す |
 | `:75-86` | 生成の後の工程 | `generation.md`「生成の後の工程」。利用者に見える 2 点は `INSTALL.md`（AC-26） | 移す（`INSTALL.md` は書き直す） |
 | `:88-93` | 出力の書式 | `generation.md`「出力の書式」 | 移す |
 | `:95-118` | 推定の料金 | `generation.md`「推定の料金」。失敗した生成の料金は `INSTALL.md`（AC-35） | 移す（`INSTALL.md` は書き直す） |
@@ -713,7 +713,7 @@ PR の区切りは実装計画で決める。どの区切りでも、次の制�
 | フェーズ | 内容 | 主な AC |
 |---|---|---|
 | 1 | `generation.md` を置き、今の README から構成の図・工程・書式・料金の規則・設定・推奨構成を移す。ビルド・読み込み・更新・ID・ログを `development.md` に移す。Go のテストと `manifest.test.ts`（`development.md`）の読む先を変える。README からその内容を除き、`README.en.md` を同期する。移した節を指す参照（`cli.md` の範囲の文と `:7`・`:58`・`:189`・`:234`、`development.md:99`、`package_reference.md`、`production_profile.md`、`pricing_update.md`、`project_overview.md`、上限の 2 つの手引き、ADR-0025、用語集の該当の行）と、CLAUDE.md の「Development Notes」の Go のガードの記述を付け替える。ADR-0004 と ADR-0030 のずれを示す一文を、残るずれだけを示す文に書き直し、ADR-0025 のずれを示す一文を除く | AC-04、AC-39 |
-| 2 | `INSTALL.md` を置く。拡張のテスト（`manifest.test.ts`、`metadataDocs.test.ts`）と CI の判定を変える。README から手順を除き、`README.en.md` を同期する。手順を指す参照（`cli.md:4`・`:16`、`development.md:3`、`security.md:142`）を付け替え、`production_profile.md:5` と `pricing_update.md` に `INSTALL.md` の費用の目安を加える。あわせて、CLAUDE.md の「Development Notes」の `make ext-test` の記述を付け替える。ADR-0004・ADR-0029・ADR-0030 のずれを示す一文を除く | AC-03、AC-08〜AC-35、AC-39、AC-42 |
+| 2 | `INSTALL.md` を置く。拡張のテスト（`manifest.test.ts`、`metadataDocs.test.ts`）と CI の判定を変える。README から手順を除き、`README.en.md` を同期する。手順を指す参照（`cli.md:4`、`development.md:3`、`security.md:142`）を付け替え、`production_profile.md:5` と `pricing_update.md` に `INSTALL.md` の費用の目安を加える。あわせて、CLAUDE.md の「Development Notes」の `make ext-test` の記述を付け替える。ADR-0004・ADR-0029・ADR-0030 のずれを示す一文を除く | AC-03、AC-08〜AC-35、AC-39、AC-42 |
 | 3 | README を利用者向けの概要と案内に作り直し、移行の節を削除する。`README.en.md` を同期する | AC-01、AC-02、AC-05、AC-07、AC-36、AC-37 |
 | 4 | フェーズ 1〜3 で付け替えなかった参照（4.2 節）、CLAUDE.md の「Documents」「Document language」「Architecture Overview」と規約とコマンド（3.4 節）、用語集の残りと新しい語。ADR-0035 のずれを示す一文を除く | AC-06、AC-38、AC-40、AC-41、AC-43 |
 | 5 | `_checks/` のスクリプトの結果を記録する（スクリプトは、移す内容を含むフェーズで置いてよい） | AC-04、AC-05、AC-24 |

@@ -803,8 +803,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   and `docs/dev/guides/development.md`: the extension's node tests read the
   expand prompt, the popup and viewer names, and the step names in each
   README's browser extension section (`metadataDocs.test.ts`), the minimum
-  Chrome version each README states (`manifest.test.ts`), and the job record
-  value tables of `development.md` (`jobCodes.test.ts`), so a change to them
+  Chrome version each README and `development.md` state
+  (`manifest.test.ts`), and the job record value tables of `development.md`
+  (`jobCodes.test.ts`), so a change to them
   needs `make ext-test`. The
   other text-sync guards that read documents (the
   extension ID, the `ext-` targets in this file, the two coverage-compare
@@ -812,8 +813,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   manifest permissions, the
   `project_overview.md` notes (the environment variable names and
   `costPrefix`), the production profile's configuration block and step table in
-  `docs/dev/production_profile.md`, the configuration block of both READMEs,
-  the values `cli.md` and `development.md` hold, the
+  `docs/dev/production_profile.md`, the configuration block of
+  `generation.md`, the values `generation.md`, `cli.md`, and `development.md`
+  hold, the
   `/fixpr` and `/runpr` command documents, `cmd/mergepr`'s checks of the
   `mergepr` calls and of the tools with a protocol number, `cmd/numreserve`'s
   checks of its permission rules, its calls, and its guide's values, the ADR guard
