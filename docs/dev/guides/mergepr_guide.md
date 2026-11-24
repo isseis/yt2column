@@ -14,7 +14,7 @@
 
 | 担当 | 内容 |
 |---|---|
-| `mergepr` バイナリ（`cmd/mergepr`、`internal/mergepr`） | PR 情報と材料の取得、プロトコル番号の確かめ（6.3 節）、CI 待ち、マージ、マージ後の片付け |
+| `mergepr` バイナリ（`cmd/mergepr`、`internal/mergepr`） | PR 情報と材料の取得、プロトコル番号の確かめ（6.3 節）、CI 待ち、マージ、マージ後の片付け。`/mergemain` のための `origin/main` の取り込みの判定（`mergemain-*`、5.4 節） |
 | `/mergepr` コマンド（`.claude/commands/mergepr.md`） | 上記の呼び出し順の制御、コミットメッセージの下書き、ユーザーへの承認依頼 |
 | 開発者 | メッセージの確認と承認、ツールが止まったときの対処 |
 
@@ -168,7 +168,7 @@ PR #42: feat(writer): add column heading
 url:   https://github.com/isseis/yt2column/pull/42
 head:  feature/foo at 2222222222222222222222222222222222222222
 base:  main
-protocol: passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 6, fixprguard 7, mergepr 4; changed: none
+protocol: passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 7, fixprguard 8, mergepr 4; changed: none
 CI:    all checks passed
 corrections: 2 accepted, 1 rejected
 correction rejected: 5555555555555555555555555555555555555555 line 4: invisible,at: "Editorial correction: aU+200Bb me@example.com"
@@ -228,7 +228,7 @@ paragraph: 3 line(s) in /repo/.git/mergepr-123456/paragraph.txt
 結果の出力例:
 
 ```text
-protocol:             passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 6, fixprguard 7, mergepr 4; changed: none
+protocol:             passed; origin/main 4444444444444444444444444444444444444444, head 2222222222222222222222222222222222222222; origin/main tools: chief 7, fixprguard 8, mergepr 4; changed: none
 merge commit:         3333333333333333333333333333333333333333
 base branch updated:  true
 local branch deleted: true
@@ -287,16 +287,16 @@ PR の番号は 10 進の数字だけ 9 桁までで、先頭に `0` を付け�
 | `new_head` | `mergemain-push` が push した merge コミット。PR の新しい head |
 | `detail` | 停止したときの、合わなかった値と確かめ |
 
-パス・`head_branch`・`detail` などの値に含まれる改行と制御文字は、`\n`・`\r`・`\t`・`\xNN` と `\\` の形にエスケープして 1 行で書く。値が `status:` などの項目の行を偽装することはない。
+パス・`head_branch`・`detail` などの値に含まれる、行を終わらせたり並べ替えたりしうる文字は、1 行で書く。改行・復帰・タブ・バックスラッシュは `\n`・`\r`・`\t`・`\\`、それ以外の制御文字（C0・DEL・C1）・行区切りと段落区切り（U+2028・U+2029）・書式文字（双方向の制御などを含む）は `\xNN`・`\uNNNN`・`\U00NNNNNN`、無効な UTF-8 のバイトは `\xNN` の形にする。値が `status:` などの項目の行を偽装することはない。
 
-**終了コード.** `status: ok` のときは 0、`status: stop` のときは 1 で終わる。引数の形と `--protocol` の誤りは、`status:` の行を書かずに使い方の誤りとして 1 で止まる。そのため、`status:` の行がない出力は、道具の版か呼び出しの誤りとして扱う。
+**終了コードと使い方の誤り.** `status: ok` のときは 0、`status: stop` のときは 1 で終わる。コマンド行の形の誤り（位置引数の数、知らないフラグ、`--protocol` の欠けや不一致）は、`status:` の行を書かずに使い方の誤りとして 1 で止まる。値の形の誤りは停止として出力する。PR の番号（10 進の数字だけ 9 桁までで先頭に `0` を付けない）と、`--head-branch`・`--base-head`・`--main` の形（40 桁の小文字の 16 進数）の誤りは、`mergemain-merge` と `mergemain-push` では `premise`、`mergemain-restore` では `other_changes`、`mergemain-begin` では `premise` の停止になる。ただし `-` で始まる引数はフラグとして読まれるため、使い方の誤りになる。`status:` の行がない出力は、道具の版か呼び出しの誤りとして扱う。
 
 **保証すること.** 各サブコマンドは、次を確かめてから先へ進む。確かめが合わなければ、その理由と戻すべきかを出力して止まる。
 
 | サブコマンド | 確かめること |
 |---|---|
-| `mergemain-begin` | PR が開いていて、base が `main` で、head がこのリポジトリのブランチであること。`gh` が PR を読む先が `origin` だけであること（`GH_REPO` がなく、`gh repo set-default` の記録が `origin` 以外を指さない）。作業ツリーに、追跡していないファイルを含めて変更がないこと。今のブランチが PR の head ブランチで、HEAD と、取得した `refs/remotes/origin/<ブランチ>` と、GitHub の PR の head が同じコミットであること。取り込む `main` が HEAD の祖先でないこと。ここまでで何も変えない |
-| `mergemain-merge` | 引数が `refs/mergemain/<PR>/main` と一致し、HEAD が基準の head のままであること。取り込む `main` が、無視されるファイルを上書きしないこと。`$GIT_DIR/info/attributes` がなく `merge.default` が設定されておらず、両側が変えたパスと名前の変更の元と先の `merge` 属性がテキストの合わせ（指定なしが `set`）で、`branch.<ブランチ>.mergeOptions` が `-X` の類を持たないこと。`--no-ff --no-commit` で取り込み、衝突を分類し、プロトコル番号を `main` の値 + 1 にする。ネットワークを使わない |
+| `mergemain-begin` | PR が開いていて、base が `main` で、head がこのリポジトリのブランチであること。`gh` が PR を読む先が `origin` だけであること（`GH_REPO` がなく、`gh repo set-default` の記録が `origin` 以外を指さない）。作業ツリーに、追跡していないファイルを含めて変更がないこと。今のブランチが PR の head ブランチで、HEAD と、取得した `refs/remotes/origin/<ブランチ>` と、GitHub の PR の head が同じコミットであること。取り込む `main` が HEAD の祖先でないこと。ブランチ・インデックス・作業ツリーのファイルは変えず、書くのは取得した 2 つの ref（`refs/mergemain/<PR>/main` と `refs/remotes/origin/<ブランチ>`）だけである |
+| `mergemain-merge` | 引数が `refs/mergemain/<PR>/main` と一致し、HEAD が基準の head のままであること。取り込む `main` が、無視されるファイルを上書きしないこと。`$GIT_DIR/info/attributes` がなく `merge.default` が設定されておらず、両側が変えたパスと名前の変更の元と先の `merge` 属性がテキストの合わせ（指定なしか `set`）であること。`branch.<ブランチ>.mergeOptions` は空にして取り込む（中身は確かめない）。`--no-ff --no-commit` で取り込み、衝突を分類し、プロトコル番号を `main` の値 + 1 にする。ネットワークを使わない |
 | `mergemain-restore` | 戻してよい 2 つの状態（取り込みの途中か、push していない merge コミット）のどれかであること。ほかの変更、無視されたファイルがふさぐパス、追跡していないファイルがあれば戻さない。`git reset --hard` だけを使い、`git clean` も `git merge --abort` も使わない。ネットワークを使わない |
 | `mergemain-push` | PR を読み直して、開いていて base が `main` で head ブランチが今のブランチであること。HEAD が、基準の head と取り込む `main` を親とする merge コミットで、取り込む `main` が `refs/mergemain/<PR>/main` と一致し、`origin` から取り直した `main` の祖先であること。2 つの親を自動で合わせたときの衝突がすべて対象内で、merge コミットとの違いが `.md` と、番号を変えた道具の宣言の行だけであり、その値が `main` の値 + 1 であること。追跡しているファイルに変更がないこと。`origin` のブランチが基準の head のままであること。push の URL が取得の URL と同じであること。通れば force なしで push し、失敗したときは `origin` のブランチを読み直して、通った・拒まれた・結果が分からないのどれかを決める |
 
@@ -321,11 +321,11 @@ PR の番号は 10 進の数字だけ 9 桁までで、先頭に `0` を付け�
 
 ### 6.2 保証しないこと
 
-前提条件（2 章）を満たさない環境での動作は保証しない。特に次の点に注意する。
+前提条件（2 章）を満たさない環境での動作は保証しない。特に次の点に注意する。5.4 節の取り込みの道具はこれとは別で、次のうち作業ツリーと git の設定についての項目は、`/mergepr` のマージ（`prepare`・`merge`・`cleanup`）に当たる。
 
-- 特殊な git 設定（hooks、`push.*` 設定など）や、`origin` 以外を向いた gh の設定には対応しない。
+- 特殊な git 設定（hooks、`push.*` 設定など）や、`origin` 以外を向いた gh の設定には対応しない。取り込みの道具は、`$GIT_DIR/info/attributes`・`merge.default`・テキストの合わせ以外のマージの属性・`branch.<ブランチ>.mergeOptions` があれば止まるか空にして取り込む（5.4 節）。
 - リモートの head ブランチは削除しない。GitHub の自動削除設定に任せる。
-- PR の作業ツリーの未コミット変更は確認しない。`git switch` が衝突すれば、git 自身のエラーで止まる。
+- PR の作業ツリーの未コミット変更は確認しない。`git switch` が衝突すれば、git 自身のエラーで止まる。取り込みの道具は、追跡していないファイルを含めて変更がないことを確かめる（5.4 節）。
 - 大きすぎる PR の材料も切り詰めずにそのまま書き出す。
 - プロトコル番号について、次の 4 つは受け入れた危険である（CLAUDE.md の「Protocol numbers」）。(1) マージの前は、同じ道具の番号を上げる並行するブランチが同じ番号を共有する。(2) `merge` の確かめ直しと GitHub のマージの間の数秒に、ほかの PR が同じ番号でマージされうる。(3) 番号を上げたブランチを、同じ番号の入った `main` の上へ rebase するか、その上で履歴をまとめ直すと、確かめが衝突を見落としうる。(4) 一度消した道具を同じ名前で足し直すと、番号が `1` に戻る。
 - 確かめを変える PR は、その PR のブランチから入れた `mergepr` で確かめられる。確かめの実装を変える PR は、変えた後の実装で確かめることになる。

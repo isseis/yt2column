@@ -96,7 +96,7 @@ var placeholderValues = map[string]string{
 	"$ARGUMENTS":      "42",
 	"FILE":            "/repo/.git/mergepr-1/state.json",
 	"[PR]":            "42",
-	// The take-in subcommands take the three values begin printed.
+	// The take-in subcommands take the three values mergemain-begin prints.
 	"<head-branch>": "feature/foo",
 	"<base-head>":   "2222222222222222222222222222222222222222",
 	"<main-head>":   "4444444444444444444444444444444444444444",

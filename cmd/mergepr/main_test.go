@@ -326,9 +326,10 @@ func runTakeIn(t *testing.T, take *fakeTake, args ...string) (string, error) {
 
 // TestMergemainArgValidation verifies what the command accepts as a take-in
 // PR number: decimal digits without a sign or a leading zero, one to nine of
-// them. A number of another form, and a missing one, stops the tool with a
-// status: stop block that asks for no restore, before it calls the tool or
-// reads anything from git.
+// them. A number of another form stops the tool with a status: stop block that
+// asks for no restore, before it calls the tool or reads anything from git; a
+// missing number, a second positional argument, or a signed one is a usage
+// error instead, because the command line's shape is wrong.
 func TestMergemainArgValidation(t *testing.T) {
 	p := strconv.Itoa(mergepr.Protocol)
 	for _, pr := range []string{"1", "42", "123456789"} {
