@@ -57,7 +57,19 @@ func skillFrontMatter(t *testing.T, rel, doc string) (name, description string) 
 		if !ok {
 			t.Fatalf("%s: front matter line %q is not a key and a value", rel, line)
 		}
-		fields[key] = strings.Trim(value, `"`)
+		// A value is either bare or wrapped in one pair of double quotes;
+		// anything else (an unbalanced quote) is invalid YAML and is rejected.
+		if strings.HasPrefix(value, `"`) || strings.HasSuffix(value, `"`) {
+			unquoted, ok := strings.CutPrefix(value, `"`)
+			if ok {
+				unquoted, ok = strings.CutSuffix(unquoted, `"`)
+			}
+			if !ok || len(value) < 2 {
+				t.Fatalf("%s: front matter value %q has an unbalanced quote", rel, value)
+			}
+			value = unquoted
+		}
+		fields[key] = value
 	}
 	if len(fields) != 2 {
 		t.Fatalf("%s: front matter keys = %v, want exactly name and description", rel, fields)

@@ -206,7 +206,7 @@ change, retire, and withdraw an ADR is in the convention,
 - `make deadcode` - Report unreachable functions across the whole module and its
   tests (`test` and `integration` tags); any output or non-zero exit status fails
 
-### Agent Commands (`.claude/commands/`)
+### Claude Commands (`.claude/commands/`)
 Project-specific values these commands depend on are defined once in
 [_context.md](.claude/commands/_context.md). The command definitions under
 `.claude/commands/` are the single source of each procedure and, except `chief.md`
@@ -251,7 +251,7 @@ Before it opens the PR, `/runplan` also runs the high-model review
 (`_lib/high-review.md`: a correctness review and a weak-model failure review
 on the high-role model, whose Critical and Major findings it fixes) when the PR's
 implementation model requirement is `high`, `standard+high-review`, or
-unreadable (the old values `opus` and `sonnet+opus-review` read as the first two),
+unreadable (an old value reads as a new one through the table of `_context.md`, "PR marker conventions"),
 and some commit of the PR is not recorded as implemented on a high-role model. After reviewing, the reviewer runs `/runpr`, which drives
 it: it waits for CI and resolves the threads with `/fixpr`. It
 then asks, after a deferred question when deferred review threads are left, the

@@ -189,3 +189,36 @@ func TestCommandDocs(t *testing.T) {
 		})
 	}
 }
+
+// TestCommandDocsWalkError: a directory the walk cannot read fails the caller
+// even when the same tree holds documents, so the walk-error branch is told
+// apart from the empty-directory branch.
+func TestCommandDocsWalkError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("permissions are not enforced for root")
+	}
+	root := t.TempDir()
+	for _, rel := range []string{".claude/commands/a.md", ".agents/skills/a/SKILL.md"} {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatalf("create %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte("text\n"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
+	locked := filepath.Join(root, ".agents", "skills", "locked")
+	if err := os.Mkdir(locked, 0o700); err != nil {
+		t.Fatalf("create %s: %v", locked, err)
+	}
+	if err := os.Chmod(locked, 0); err != nil {
+		t.Fatalf("chmod %s: %v", locked, err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+
+	fake := &recordingTB{TB: t}
+	CommandDocs(fake, root)
+	if !strings.Contains(fake.failure, "walk command documents") {
+		t.Errorf("CommandDocs failed with %q, want the walk failure", fake.failure)
+	}
+}
