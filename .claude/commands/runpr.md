@@ -8,11 +8,10 @@ argument-hint: "[#PR | branch | task]"
 > `.claude/commands/mergepr.md`; follow them rather than copying their content
 > here. The local CLI review (CodeRabbit CLI) is `.claude/commands/_lib/local-cli-review.md`.
 >
-> **Harness.** The harness-specific operations this command and its shared
-> procedures name (`select-question`, `file-io`, `scratchpad`, `shell-run`,
-> `web-lookup`, `subagent-inherit`, `subagent-role`, `pinned-worker`,
-> `timer-wait`, `notify-user`) are defined in `.claude/commands/_lib/harness.md`:
-> read it and the adapter it selects for this session before step 1.
+> **Harness.** Every harness-specific operation this command and its shared
+> procedures name (such as `select-question` or `shell-run`) is defined in
+> `.claude/commands/_lib/harness.md`: read it and the adapter it selects for
+> this session before step 1.
 
 This command reads the PR's review threads and manual PR review state only
 through the guard tool `fixprguard` (`_context.md`, "Guard tool"; `head` and
@@ -795,7 +794,7 @@ summary of fixed lines, and puts everything long in a detail file outside the
 work tree, so the question and its options stay on the screen. Write the
 summary, the question, the options, and the detail file in Japanese, one item
 per line, each summary line within 80 display columns (count a full-width
-character as 2); the line shapes below are the examples to follow.
+character as 2) except the kinds the summary names as unlimited; the line shapes below are the examples to follow.
 
 - **Details directory.** Right before the first question of this run, make one
   details directory with `mktemp -d /tmp/runpr.XXXXXX` (a directory only the
@@ -1130,7 +1129,8 @@ character as 2); the line shapes below are the examples to follow.
 
      - Line 2 shows the subject in full and has no width limit, and so do kind
        6 (whose model is the routing table's text in full) and kind 15 (which
-       carries URLs); the other lines hold only fixed text and short values
+       carries URLs), and so does kind 13 in its longest form (91 columns,
+       below); the other lines hold only fixed text and short values
        (numbers, branch, counts, dates, task ID, the requirement value, the
        agent and model, the path), so each stays within 80 columns. Write the
        subject line from the checked subject file; the merge uses the file,
@@ -1604,7 +1604,9 @@ Once `mergepr.md` reports the merge:
      create another branch with Part A step 4 and leave this one unused;
   4. when NEXT is `/runplan`, the `実装モデル要件` and the agent and model to
      start the new session with, shown in step 4, or that there is none and why, as
-     step 4 showed them.
+     step 4 showed them, with the high-model review's forecast and, in an
+     Antigravity session, the `Antigravity` row's model and its note, as step 4
+     showed them.
 
 **Stopping before the next branch is ready.** When NEXT is set and this step
 stops before the next branch is ready (the cleanup cannot finish,

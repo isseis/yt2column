@@ -107,7 +107,9 @@ model:
   a narrower check and **may run on a cheaper model than the discovery pass**. When
   spawning the verification subagent, pass the explicit list of fixes to confirm and
   request a cheaper tier (the `subagent-role` operation with the role
-  `standard`); if the cheaper pass reports anything ambiguous or a new Critical/Major
+  `standard`) only when the session runs on the `high` role model by a model ID
+  it can verify (`_lib/harness.md`, "Self-Verification of Implementation
+  Model"); otherwise run the verification pass on the default model; if the cheaper pass reports anything ambiguous or a new Critical/Major
   issue, re-run that pass once on the default model before trusting it. If the
   calling command supplied MODEL for the discovery pass, that MODEL is already the
   minimum competence the task requires — use the same MODEL for verification too,

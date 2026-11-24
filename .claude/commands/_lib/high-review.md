@@ -445,6 +445,13 @@ absolute paths.
   for byte. The review ran on the `high` model only when that check passes;
   anything else (a line of another form, another model, a failed check)
   means it did not.
+- **The form.** After the model declaration (or from the first line when the
+  adapter asks for none), a review's output is its findings in the form of
+  "The review prompts" (each with Severity, Location, Problem, and
+  Suggestion, or an explicit statement that there are none) and one line for
+  each category of its checklist. Output of any other form (truncated,
+  free-form, missing the category lines) is not read as a review that found
+  nothing: stop every worker, use no result, and return `stopped-error`.
 - When a launch fails with a transient error or a usage limit, run it once
   more. When the second launch fails too, or the 30-minute timer ends first,
   the review did not run on the `high` model.
@@ -463,8 +470,10 @@ absolute paths.
   a second launch). Keep the hashes of `replace`, `ops`, `flags`, `config`,
   `info`, `hooks`, and `watched` from the exit comparison as the new baseline
   and compare those parts right before each fix commit and each commit of
-  record lines this procedure makes, as that section's "Post-exit
-  comparison" says. On any difference, or when the kept text or a hash is no
+  record lines this procedure makes, and right before the commit of the done
+  record (`runplan.md` step 5a and step 8), as that section's "Post-exit
+  comparison" says. Before taking a verification review's new baseline,
+  compare those parts once more against the kept one. On any difference, or when the kept text or a hash is no
   longer in this session's context word for word, stop every worker, use no
   result, commit nothing, and return `stopped-error` with the names of the
   parts that differ. An unauthorized helper worker the adapter finds is

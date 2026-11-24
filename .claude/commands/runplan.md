@@ -30,11 +30,10 @@ argument-hint: "<task>"
 > Step 4.2 shows the value and the forecast; this command does not stop when
 > the session's model and the value disagree.
 >
-> **Harness.** The harness-specific operations this command and its shared
-> procedures name (`select-question`, `file-io`, `scratchpad`, `shell-run`,
-> `subagent-inherit`, `subagent-role`, `pinned-worker`, `timer-wait`,
-> `notify-user`) are defined in `.claude/commands/_lib/harness.md`: read it
-> and the adapter it selects for this session before step 1.
+> **Harness.** Every harness-specific operation this command and its shared
+> procedures name (such as `select-question` or `pinned-worker`) is defined in
+> `.claude/commands/_lib/harness.md`: read it and the adapter it selects for
+> this session before step 1.
 
 Your goal is to implement one task under `docs/tasks/` by following its `03_implementation_plan.md`.
 
@@ -64,6 +63,7 @@ Work in order.
   - Otherwise go to step 5a instead of step 5.
 - Otherwise, select the next implementation group: use one phase by default unless it cannot pass `make test` alone (e.g. stub-only or tightly coupled); then extend the group until it can pass. Stop the group at the next `### PR-N 作成ポイント` boundary — do not include the PR checkpoint checkboxes in the implementation group. Briefly note the reason for any grouping before starting work.
 - **The last phase group before the PR.** When the first unchecked item after the selected group is a checkbox of a `### PR-N 作成ポイント` section (in a plan without PR markers, when the selected group holds every remaining phase), the group is the last phase group before its PR: step 7.7 runs the cross-check partial review with it. Say in the step 8 summary that you judged it so. A wrong judgment falls on the safe side: the checkpoint entry (step 5a, step 8) finds the commits a record does not cover, and the standalone path of `_lib/cross-check-review.md` reviews them.
+- **No implementation record after a checkpoint mark.** On a harness that writes no implementation record (step 4.5), the "safe side" above does not hold once the branch holds a checkpoint mark (a `Cross-check review: checkpoint` or legacy `Fable review: checkpoint` line in `git log origin/main..HEAD`): only an implementation record after the mark keeps the checkpoint entry from covering a later phase group by the mark. On such a harness, treat every phase group selected after a checkpoint mark as the last phase group before its PR, so step 7.7 runs the cross-check partial review with it.
 
 4.2. Show the implementation model guidance when step 4 selected a phase group or a PR checkpoint. The PR is the one whose `### PR-N 作成ポイント` marker covers the selected unit (TARGET = `N`), or, in a plan without PR markers, the plan itself (TARGET = `single`). Show, without stopping whatever they say:
    - the PR's value, read as `_context.md`, "PR marker conventions", says: for an old value, the old value and the value it is read as; for an unreadable value, its text and that it is unreadable; or that there is no value;

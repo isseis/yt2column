@@ -22,7 +22,7 @@
 
 仕様は [0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md) の F-001・F-002・F-006〜F-008 が持ち、プロジェクト固有の値とハーネス別のモデル対応表は [_context.md](../../../.claude/commands/_context.md) が持つ。
 
-**食い違い:** `.agents/skills/` の薄い入口はまだ作成されておらず、`CLAUDE.md` と `AGENTS.md` もまだハーネス非依存化された構成と Antigravity に適用される禁止規則を説明していない。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装で解消する。
+**食い違い:** `.agents/skills/` の薄い入口はまだ作成されていない。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装で解消する。
 
 ### 1. 手順の正本とハーネスのアダプタ
 

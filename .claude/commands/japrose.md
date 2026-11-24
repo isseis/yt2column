@@ -11,11 +11,10 @@ argument-hint: "<file>"
 > `.claude/commands/_lib/review-subagent-pattern.md`. The rest of this command is
 > project-independent.
 >
-> **Harness.** The harness-specific operations this command and its shared
-> procedures name (`select-question`, `file-io`, `scratchpad`, `shell-run`,
-> `web-lookup`, `subagent-inherit`, `subagent-role`, `pinned-worker`,
-> `timer-wait`, `notify-user`) are defined in `.claude/commands/_lib/harness.md`:
-> read it and the adapter it selects for this session before step 1.
+> **Harness.** Every harness-specific operation this command and its shared
+> procedures name (such as `select-question` or `shell-run`) is defined in
+> `.claude/commands/_lib/harness.md`: read it and the adapter it selects for
+> this session before step 1.
 
 ## Purpose
 

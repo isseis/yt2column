@@ -602,9 +602,10 @@ location and your own words.
    pattern is the only rule that decides whether a model is the
    `cross-check` model. MODEL is the model ID that passed the check.
 2. **The form.** The rest (the output after the model declaration, or the
-   whole output when there is none) is `No findings.` alone, or blocks of the four
-   lines of "The prompt", in that order, separated by blank lines or not.
-   Anything else makes STATUS `not run unreadable`.
+   whole output when there is none) is `No findings.` alone, or at most 30
+   blocks of the four lines of "The prompt", in that order, separated by
+   blank lines or not. Anything else, more than 30 blocks included, makes
+   STATUS `not run unreadable`.
 3. **Each finding.** A finding whose location is not in a file changed
    between the merge-base and HEAD, or whose location or severity cannot be
    read, goes to INVALID with that reason. When you confirm such a finding

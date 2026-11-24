@@ -12,11 +12,10 @@ argument-hint: "<issue> [task]"
 > follow `docs/dev/conventions/requirements_process.md` ("Process record" and
 > "Simple Process") and `.claude/commands/_lib/simple-process.md`.
 >
-> **Harness.** The harness-specific operations this command and its shared
-> procedures name (`select-question`, `file-io`, `scratchpad`, `shell-run`,
-> `web-lookup`, `subagent-inherit`, `subagent-role`, `pinned-worker`,
-> `timer-wait`, `notify-user`) are defined in `.claude/commands/_lib/harness.md`:
-> read it and the adapter it selects for this session before step 1.
+> **Harness.** Every harness-specific operation this command and its shared
+> procedures name (such as `select-question` or `shell-run`) is defined in
+> `.claude/commands/_lib/harness.md`: read it and the adapter it selects for
+> this session before step 1.
 
 Your goal is to turn one GitHub issue into the first version of a task's
 `01_requirements.md`, review it, open its PR, and hand the PR to the human
