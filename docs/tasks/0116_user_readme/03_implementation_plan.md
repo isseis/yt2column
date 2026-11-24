@@ -535,14 +535,14 @@ ac04: PASS
 
 ### AC-05 の記録
 
-`_checks/ac05_migration_removed.sh ae26c4e43234fdeb5ba3608d415c1d73d17dd830` を PR-3 のブランチで走らせた（2026-11-25）。比べたコミットは `ae26c4e43234fdeb5ba3608d415c1d73d17dd830`、マージベースは `f7cc6eecdf77836daadf681ef13bd5a5246806e2`（その `README.md` のブロブは `be42dd3fba84b2e98430aadb7e59e13134361827`）で、結果は `ac05: PASS` である。
+`_checks/ac05_migration_removed.sh c0cab95344c7f49285ad1161e1029cf073e9128c` を PR-3 のブランチで走らせた（2026-11-25）。比べたコミットは `c0cab95344c7f49285ad1161e1029cf073e9128c`、マージベースは `f7cc6eecdf77836daadf681ef13bd5a5246806e2`（その `README.md` のブロブは `be42dd3fba84b2e98430aadb7e59e13134361827`）で、結果は `ac05: PASS` である。
 
-- **確かめたこと:** (a) `docs/tasks/` を除くどの `.md` にも、移行の節の見出し（`## 以前の版からの移行` と `## Migrating from the earlier version`）がない。(b) マージベースの `README.md` と `README.en.md` の移行の節と、クイックスタートの移行の案内の行（空白をまとめ、20 文字以上でコードフェンスでない行）は、どれも `docs/tasks/` を除く `.md` に残っていない。(c) 移行に固有の語（`yt2column-nmhost`・`NativeMessagingHosts`・`config.env`・`sharedToken`）の (ファイル, 語) の組は、`README.md`・`README.en.md`・用語集・`docs/tasks/` を除いて、マージベースから増えていない。用語集の組は、用語を定義する 2 つの組（`config.env` と `yt2column-nmhost`）だけである。
+- **確かめたこと:** (a) `docs/tasks/` を除くどの `.md` にも、移行の節の見出し（`## 以前の版からの移行` と `## Migrating from the earlier version`）がない。(b) マージベースの `README.md` と `README.en.md` の移行の節と、クイックスタートの移行の案内の段落の行（空白をまとめ、20 文字以上でコードフェンスでない行）は、どれも `docs/tasks/` を除く `.md` に残っていない。(c) 移行に固有の語（`yt2column-nmhost`・`NativeMessagingHosts`・`config.env`・`sharedToken`）の (ファイル, 語) の組は、`README.md`・`README.en.md`・用語集・`docs/tasks/` を除いて、マージベースから増えていない。用語集の組は、用語を定義する 2 つの組（`config.env` と `yt2column-nmhost`）だけである。
 - **残った組:** 出力の 7 つの組は、移行の手順ではなく、過去の ADR・規約・テストデータが名指しする値である。用語集の 2 つの組は、「ホスト」と「設定ファイル」の項目の定義に残る。
-- **壊して確かめたこと（スクリプトを入れるコミット）:** 見出しを手引きに足す (a)、外した行を 1 つ手引きに足す (b)、`NativeMessagingHosts` を手引きに足す (c の組の増加)、用語集の「ホスト」の項目から `yt2column-nmhost` を落とす (c の用語集の組) のそれぞれで、スクリプトは `ac05: FAIL` を出して終了コード 1 になった。あわせて一時的なリポジトリで、マージベースの README にクイックスタートの案内がない場合と移行の節がない場合に (b) が `ac05: FAIL` で終了コード 1 になり、`README.en.md` がない場合に終了コード 2 になることを確かめた。
+- **壊して確かめたこと（スクリプトを入れるコミット）:** 見出しを手引きに足す (a)、外した行を 1 つ手引きに足す (b)、英語の案内の続きの行（`before you update the extension.`）を手引きに足す (b)、`NativeMessagingHosts` を手引きに足す (c の組の増加)、用語集の「ホスト」の項目から `yt2column-nmhost` を落とす (c の用語集の組) のそれぞれで、スクリプトは `ac05: FAIL` を出して終了コード 1 になった。あわせて一時的なリポジトリで、マージベースの README にクイックスタートの案内がない場合と移行の節がない場合に (b) が `ac05: FAIL` で終了コード 1 になり、`README.en.md` がない場合に終了コード 2 になることを確かめた。
 
 ````text
-commit:      ae26c4e43234fdeb5ba3608d415c1d73d17dd830
+commit:      c0cab95344c7f49285ad1161e1029cf073e9128c
 merge-base:  f7cc6eecdf77836daadf681ef13bd5a5246806e2
 
 === (a) no migration heading outside docs/tasks/
