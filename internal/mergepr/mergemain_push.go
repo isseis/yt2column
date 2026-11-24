@@ -54,6 +54,10 @@ func (m *Mergemain) MergemainPush(ctx context.Context, pr MergemainPR, baseHead,
 		return MergemainPushResult{}, err
 	}
 	remote, err := m.remoteBranch(ctx, branch)
+	if err == nil && remote == head {
+		// An earlier push landed; the merge commit must not be restored away.
+		return MergemainPushResult{}, stopError(MergemainStopPremise, RestoreNotNeeded, "origin's %s is already the merge commit %s", branch, head)
+	}
 	if err != nil || remote != baseHead {
 		return MergemainPushResult{}, stopError(MergemainStopPremise, RestoreNeeded, "origin's %s is not the base head %s", branch, baseHead)
 	}
@@ -201,8 +205,8 @@ func (m *Mergemain) checkMergeDiff(ctx context.Context, head, base, baseHead, ma
 			continue
 		}
 		pkg, isTool := toolPackage(p)
-		if _, changed := expected[pkg]; !isTool || !changed {
-			return stopError(MergemainStopOutOfScope, RestoreNeeded, "the merge commit changes %s, which is not a .md file or a file of a tool the branch changed", p)
+		if _, changed := expected[pkg]; !isTool || !changed || !inMerge || got.mode != want.mode {
+			return stopError(MergemainStopOutOfScope, RestoreNeeded, "the merge commit changes %s, which is not a .md file or, with its mode kept, a file of a tool the branch changed", p)
 		}
 		content, err := m.blob(ctx, got.oid)
 		if err != nil {

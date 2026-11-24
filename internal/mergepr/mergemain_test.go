@@ -993,8 +993,16 @@ func TestMergemainPushChecksProtocolValues(t *testing.T) {
 		commitValue  int // 0 keeps what the merge set
 		// commitBody, when set, replaces the tool's file in the merge commit.
 		commitBody string
-		ok         bool
+		// chmod makes the tool's file executable in the merge commit, so
+		// only its mode differs from the merge of the parents.
+		chmod bool
+		ok    bool
 	}{
+		"mode of a changed tool's file changed": {
+			branch: map[string]string{takeInToolPath: toolFile(4, "base")},
+			main:   map[string]string{takeInToolPath: toolFile(5, "base")},
+			chmod:  true,
+		},
 		"body of a changed tool edited": {
 			branch:     map[string]string{takeInToolPath: toolFile(4, "base")},
 			main:       map[string]string{takeInToolPath: toolFile(5, "base")},
@@ -1032,6 +1040,11 @@ func TestMergemainPushChecksProtocolValues(t *testing.T) {
 			}
 			if tc.commitBody != "" {
 				k.Apply(map[string]string{takeInToolPath: tc.commitBody})
+			}
+			if tc.chmod {
+				if err := os.Chmod(filepath.Join(k.Work, takeInToolPath), 0o700); err != nil { //nolint:gosec // the test needs an executable file
+					t.Fatal(err)
+				}
 			}
 			commitMerge(t, k, nil)
 			_, err = push(t, k, b)
@@ -1230,6 +1243,19 @@ func TestMergemainMergeIgnoresConfiguredMergeOptions(t *testing.T) {
 	if got := classes(r.Conflicts); !maps.Equal(got, map[string]PathConflictClass{"doc.md": PathConflictMarkdown}) {
 		t.Fatalf("conflicts = %v, want the doc.md conflict -Xours would hide", got)
 	}
+}
+
+func TestMergemainPushAfterOriginHasItAsksNoRestore(t *testing.T) {
+	t.Parallel()
+	k := newTakeIn(t)
+	b := pushFlow(t, k)
+	// origin has the merge commit, but GitHub still names the base head as
+	// the PR head.
+	k.PR.HeadOID = b.BaseHead
+	k.Git("push", "-q", "origin", "HEAD:refs/heads/landed")
+	k.OriginGit("update-ref", headsPrefix+takeInBranch, k.Git("rev-parse", "HEAD"))
+	_, err := push(t, k, b)
+	wantStop(t, err, MergemainStopPremise, RestoreNotNeeded)
 }
 
 func TestMergemainPushAfterItLandedAsksNoRestore(t *testing.T) {
