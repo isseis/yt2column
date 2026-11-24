@@ -86,32 +86,33 @@ func seenRangeForm(t *testing.T) string {
 }
 
 // rrFixture is one fixture repository: main has two commits (m0, then mb,
-// which adds the plans), refs/remotes/origin/main points at mb, and the
-// branch feature forks from it.
+// which adds the plans and _context.md when provided), refs/remotes/origin/main
+// points at mb, and the branch feature forks from it.
 type rrFixture struct {
 	*gitFixture
-	form   string
-	forms  fableForms
-	bash   scriptBash
-	m0, mb string
+	form       string
+	forms      fableForms
+	bash       scriptBash
+	contextDoc string
+	m0, mb     string
 }
 
-// sibling returns a new fixture with f's forms and bash, for a setup that
-// checks first that another layout changes the output.
+// sibling returns a new fixture with f's forms, bash, and contextDoc, for a
+// setup that checks first that another layout changes the output.
 func (f *rrFixture) sibling() *rrFixture {
 	f.t.Helper()
-	s := newRRFixture(f.t, f.form)
+	s := newRRFixtureWithContext(f.t, f.form, f.contextDoc)
 	s.forms, s.bash = f.forms, f.bash
 	return s
 }
 
 // probe builds a branch with build on a sibling and returns the first line
-// the fable mode prints for it at launch.
+// the cross-check mode prints for it at launch.
 func (f *rrFixture) probe(build func(s *rrFixture)) string {
 	f.t.Helper()
 	s := f.sibling()
 	build(s)
-	run := s.runScript(s.bash, reviewRecordsPath, append([]string{"fable"}, rrFable(s, "launch")...), scriptRunOptions{})
+	run := s.runScript(s.bash, reviewRecordsPath, append([]string{"cross-check"}, rrFable(s, "launch")...), scriptRunOptions{})
 	first, _, _ := strings.Cut(run.stdout, "\n")
 	return first
 }
@@ -127,12 +128,22 @@ func (f *rrFixture) requireProbe(want string, build func(s *rrFixture)) {
 
 func newRRFixture(t *testing.T, form string) *rrFixture {
 	t.Helper()
-	f := &rrFixture{gitFixture: newGitFixture(t), form: form}
+	return newRRFixtureWithContext(t, form, doctestutil.ReadDoc(t, contextPath))
+}
+
+// newRRFixtureWithContext builds a fixture repository whose origin/main holds
+// contextDoc at .claude/commands/_context.md (omitted when contextDoc is "").
+func newRRFixtureWithContext(t *testing.T, form, contextDoc string) *rrFixture {
+	t.Helper()
+	f := &rrFixture{gitFixture: newGitFixture(t), form: form, contextDoc: contextDoc}
 	f.write(rrSource, "m0\n")
 	f.commit("m0")
 	f.m0 = f.rev("HEAD")
 	f.write(rrMarkersPlan, rrPlanSample(t, "markers.md"))
 	f.write(rrSinglePlan, rrPlanSample(t, "single.md"))
+	if contextDoc != "" {
+		f.write(contextDocRepoPath, contextDoc)
+	}
 	f.commit("add the plans")
 	f.mb = f.rev("HEAD")
 	f.git("update-ref", "refs/remotes/origin/main", f.mb)
@@ -272,14 +283,17 @@ func (f *rrFixture) partial(ids ...string) []string {
 	return out
 }
 
-// rrCase is one coverage case: setup builds the branch and returns the
-// arguments after the mode; want is the expected output, nil when the run
-// must fail with "PARTIAL" alone and exit 1.
+// rrCase is one coverage or cross-check case: setup builds the branch and
+// returns the arguments after the mode; context, when non-nil, supplies the
+// _context.md placed on origin/main (empty string omits it); want is the
+// expected output, nil when the run must fail with the mode's fail-closed
+// output alone and exit 1.
 type rrCase struct {
-	name  string
-	setup func(f *rrFixture) []string
-	env   func(f *rrFixture) []string
-	want  func(f *rrFixture) []string
+	name    string
+	context func(t *testing.T) string
+	setup   func(f *rrFixture) []string
+	env     func(f *rrFixture) []string
+	want    func(f *rrFixture) []string
 }
 
 var rrAll = func(*rrFixture) []string { return []string{"ALL"} }
@@ -323,6 +337,12 @@ func coverageCases() []rrCase {
 	return []rrCase{
 		// The commits judged.
 		{name: "no commits", setup: func(f *rrFixture) []string { return rrNone(f, "") }, want: rrAll},
+		// coverage (and unreviewed) must not depend on origin/main:_context.md.
+		{name: "without _context.md", context: func(*testing.T) string { return "" }, setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.seen(f.mb, c1, "coderabbit"))
+			return rrNone(f, "")
+		}, want: rrAll},
 		{name: "unseen commit", setup: func(f *rrFixture) []string {
 			f.work("c1")
 			return rrNone(f, "")
@@ -767,6 +787,41 @@ func checkConfigScenarios(t *testing.T, name string, bash scriptBash, newFixture
 	}
 }
 
+// runRRCases executes every case in cases under mode and bash, checking
+// fail-closed output failOut (exit 1 with diagnostic) when want is nil and
+// exact stdout (exit 0) otherwise.
+func runRRCases(t *testing.T, bash scriptBash, mode, failOut, form string, forms fableForms, cases []rrCase) {
+	t.Helper()
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			var f *rrFixture
+			if c.context != nil {
+				f = newRRFixtureWithContext(t, form, c.context(t))
+			} else {
+				f = newRRFixture(t, form)
+			}
+			f.forms, f.bash = forms, bash
+			args := append([]string{mode}, c.setup(f)...)
+			var opts scriptRunOptions
+			if c.env != nil {
+				opts.extraEnv = c.env(f)
+			}
+			run := f.runScript(bash, reviewRecordsPath, args, opts)
+			if c.want == nil {
+				if run.code != 1 || run.stdout != failOut || run.stderr == "" {
+					t.Errorf("got %v, want exit 1, output %q alone, and a diagnostic", run, failOut)
+				}
+				return
+			}
+			want := strings.Join(c.want(f), "\n") + "\n"
+			if run.code != 0 || run.stdout != want {
+				t.Errorf("got %v, want output %q and exit 0", run, want)
+			}
+		})
+	}
+}
+
 // TestReviewRecordsCoverage runs the coverage mode of the review records
 // script on fixture repositories: the commits judged, the checks of a
 // seen-range line, the plan checkbox commits, the failures, and that the
@@ -797,28 +852,7 @@ func TestReviewRecordsCoverage(t *testing.T) {
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
-			for _, c := range coverageCases() {
-				t.Run(c.name, func(t *testing.T) {
-					t.Parallel()
-					f := newRRFixture(t, form)
-					args := append([]string{"coverage"}, c.setup(f)...)
-					var opts scriptRunOptions
-					if c.env != nil {
-						opts.extraEnv = c.env(f)
-					}
-					run := f.runScript(bash, reviewRecordsPath, args, opts)
-					if c.want == nil {
-						if run.code != 1 || run.stdout != "PARTIAL\n" || run.stderr == "" {
-							t.Errorf("got %v, want exit 1, output PARTIAL alone, and a diagnostic", run)
-						}
-						return
-					}
-					want := strings.Join(c.want(f), "\n") + "\n"
-					if run.code != 0 || run.stdout != want {
-						t.Errorf("got %v, want output %q and exit 0", run, want)
-					}
-				})
-			}
+			runRRCases(t, bash, "coverage", "PARTIAL\n", form, fableForms{}, coverageCases())
 			checkConfigScenarios(t, "git config", bash, func(t *testing.T) *rrFixture { return newRRFixture(t, form) },
 				"coverage", rrConfigBranch, func(*rrFixture) string { return "PARTIAL 1\n" })
 		})
@@ -943,28 +977,7 @@ func TestReviewRecordsUnreviewed(t *testing.T) {
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
-			for _, c := range cases {
-				t.Run(c.name, func(t *testing.T) {
-					t.Parallel()
-					f := fixture(t)
-					args := append([]string{"unreviewed"}, c.setup(f)...)
-					var opts scriptRunOptions
-					if c.env != nil {
-						opts.extraEnv = c.env(f)
-					}
-					run := f.runScript(bash, reviewRecordsPath, args, opts)
-					if c.want == nil {
-						if run.code != 1 || run.stdout != "PARTIAL\n" || run.stderr == "" {
-							t.Errorf("got %v, want exit 1, output PARTIAL alone, and a diagnostic", run)
-						}
-						return
-					}
-					want := strings.Join(c.want(f), "\n") + "\n"
-					if run.code != 0 || run.stdout != want {
-						t.Errorf("got %v, want output %q and exit 0", run, want)
-					}
-				})
-			}
+			runRRCases(t, bash, "unreviewed", "PARTIAL\n", form, forms, cases)
 			checkConfigScenarios(t, "git config", bash, fixture, "unreviewed", rrUnreviewedConfigBranch,
 				func(*rrFixture) string { return "PARTIAL 2\n" })
 		})
@@ -972,11 +985,11 @@ func TestReviewRecordsUnreviewed(t *testing.T) {
 }
 
 // TestReviewRecordsMode checks that a mode other than coverage, unreviewed,
-// and fable fails with no output, so a caller reads it as the failure of its
-// mode.
+// cross-check, and its compatibility alias fable fails with no output, so a
+// caller reads it as the failure of its mode.
 func TestReviewRecordsMode(t *testing.T) {
 	for _, bash := range scriptBashes(t) {
-		for _, mode := range [][]string{nil, {"Coverage"}, {"Unreviewed"}, {"Fable"}} {
+		for _, mode := range [][]string{nil, {"Coverage"}, {"Unreviewed"}, {"Cross-check"}, {"Fable"}} {
 			f := newRRFixture(t, "")
 			run := f.runScript(bash, reviewRecordsPath, mode, scriptRunOptions{})
 			if run.code != 1 || run.stdout != "" || run.stderr == "" {
@@ -1013,10 +1026,15 @@ func readFableForms(t *testing.T) fableForms {
 	}
 }
 
-// mergeRun is a merge check run record naming the commit merge, every count
-// and the cost filled in.
+// mergeRun is a merge check run record naming the commit merge with the
+// default Claude Code high model, every count and the cost filled in.
 func (f *rrFixture) mergeRun(merge string) string {
-	return strings.NewReplacer("<MERGE>", merge, "<model-id>", "claude-opus-example", "<n>", "0", "<seconds>", "90", "<tokens>", "1234").
+	return f.mergeRunModel(merge, "claude-opus-example")
+}
+
+// mergeRunModel is a merge check run record naming merge with model.
+func (f *rrFixture) mergeRunModel(merge, model string) string {
+	return strings.NewReplacer("<MERGE>", merge, "<model-id>", model, "<n>", "0", "<seconds>", "90", "<tokens>", "1234").
 		Replace(f.forms.mergeRun)
 }
 
@@ -1032,15 +1050,25 @@ func rrRange(form, start, end string) string {
 	return strings.NewReplacer("<START12>", start[:12], "<END12>", end[:12]).Replace(form)
 }
 
-// fableRun is a run record for start..end, every count and the cost filled
-// in.
+// fableRun is a legacy Fable run record for start..end, every count and the
+// cost filled in.
 func (f *rrFixture) fableRun(start, end string) string {
-	return strings.NewReplacer("<model-id>", "claude-fable-example", "<n>", "1", "<seconds>", "120", "<tokens>", "4567").
+	return f.fableRunModel(start, end, "claude-fable-example")
+}
+
+// fableRunModel is a legacy Fable run record for start..end with model.
+func (f *rrFixture) fableRunModel(start, end, model string) string {
+	return strings.NewReplacer("<model-id>", model, "<n>", "1", "<seconds>", "120", "<tokens>", "4567").
 		Replace(rrRange(f.forms.run, start, end))
 }
 
-// fableNotRun is a not-run record for start..end with reason, with the cost
-// when withCost is true and without it otherwise.
+// crossCheckRun is a new Cross-check run record for start..end with model.
+func (f *rrFixture) crossCheckRun(start, end, model string) string {
+	return strings.Replace(f.fableRunModel(start, end, model), "Fable review:", "Cross-check review:", 1)
+}
+
+// fableNotRun is a legacy Fable not-run record for start..end with reason,
+// with the cost when withCost is true and without it otherwise.
 func (f *rrFixture) fableNotRun(start, end, reason string, withCost bool) string {
 	line := strings.Replace(rrRange(f.forms.notRun, start, end), "<reason>", reason, 1)
 	if withCost {
@@ -1049,6 +1077,16 @@ func (f *rrFixture) fableNotRun(start, end, reason string, withCost bool) string
 		line = strings.Replace(line, "[; <seconds>s, tokens <tokens>]", "", 1)
 	}
 	return line
+}
+
+// crossCheckNotRun is a new Cross-check not-run record for start..end.
+func (f *rrFixture) crossCheckNotRun(start, end, reason string, withCost bool) string {
+	return strings.Replace(f.fableNotRun(start, end, reason, withCost), "Fable review:", "Cross-check review:", 1)
+}
+
+// crossCheckCheckpoint is the new Cross-check checkpoint mark line.
+func (f *rrFixture) crossCheckCheckpoint() string {
+	return strings.Replace(f.forms.checkpoint, "Fable review:", "Cross-check review:", 1)
 }
 
 // localNotRun is a local CLI review not-run line for start..end.
@@ -1077,9 +1115,9 @@ func rrMissing(name string) func(f *rrFixture) []string {
 	return func(f *rrFixture) []string { return []string{"MISSING " + f.rev(name)} }
 }
 
-// fableCases are the fable mode's cases; a case whose setup does not pass
-// an entry runs at launch.
-func fableCases() []rrCase {
+// crossCheckCases are the cross-check mode's cases; a case whose setup does
+// not pass an entry runs at launch.
+func crossCheckCases() []rrCase {
 	launch := func(f *rrFixture) []string { return rrFable(f, "launch") }
 	// recorded adds one work commit c1 and a run record of merge-base..c1
 	// in the empty commit after it.
@@ -1094,14 +1132,20 @@ func fableCases() []rrCase {
 		return launch(f)
 	}
 	return []rrCase{
-		// The record.
+		// The record (both new Cross-check and legacy Fable prefixes, and
+		// both Claude Code and Antigravity cross-check model IDs).
 		{name: "no commits", setup: launch, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
 		{name: "no record", setup: func(f *rrFixture) []string {
 			f.work("c1")
 			return launch(f)
 		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
-		{name: "run record", setup: func(f *rrFixture) []string {
+		{name: "legacy Fable run record", setup: func(f *rrFixture) []string {
 			recorded(f)
+			return launch(f)
+		}, want: rrValid},
+		{name: "new Cross-check run record with Antigravity model", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.crossCheckRun(f.mb, c1, "claude-opus-5-5-medium"))
 			return launch(f)
 		}, want: rrValid},
 		{name: "not run record with its cost", setup: func(f *rrFixture) []string {
@@ -1112,6 +1156,16 @@ func fableCases() []rrCase {
 		{name: "not run record without a cost", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			f.record("record", f.fableNotRun(f.mb, c1, "agent-cannot-call", false))
+			return launch(f)
+		}, want: rrValid},
+		{name: "new Cross-check not run with wrong-model", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.crossCheckNotRun(f.mb, c1, "wrong-model", true))
+			return launch(f)
+		}, want: rrValid},
+		{name: "new Cross-check not run with legacy not-fable", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.crossCheckNotRun(f.mb, c1, "not-fable", false))
 			return launch(f)
 		}, want: rrValid},
 		{name: "not run record of another reason", setup: func(f *rrFixture) []string {
@@ -1336,9 +1390,16 @@ func fableCases() []rrCase {
 			return rrFable(f, "checkpoint")
 		}, want: rrMissing("HEAD~3")},
 		// The shape of a task-document PR's CHECKS fix after its mark.
-		{name: "work after the mark at the checkpoint", setup: func(f *rrFixture) []string {
+		{name: "work after the legacy mark at the checkpoint", setup: func(f *rrFixture) []string {
 			recorded(f)
 			f.record("mark", f.forms.checkpoint)
+			f.work("gate fix")
+			return rrFable(f, "checkpoint")
+		}, want: rrValid},
+		{name: "work after the Cross-check mark at the checkpoint", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.crossCheckRun(f.mb, c1, "claude-opus-5-5-medium"))
+			f.record("mark", f.crossCheckCheckpoint())
 			f.work("gate fix")
 			return rrFable(f, "checkpoint")
 		}, want: rrValid},
@@ -1420,10 +1481,30 @@ func fableCases() []rrCase {
 			f.record("check", f.mergeRun(merge))
 			return launch(f)
 		}, want: rrValid},
+		{name: "merge check after the merge with Antigravity high model", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			f.record("check", f.mergeRunModel(merge, "gemini-4-neon-high"))
+			return launch(f)
+		}, want: rrValid},
+		{name: "merge check after the merge with non-high model ignored", setup: func(f *rrFixture) []string {
+			recorded(f)
+			merge := f.mainMerge("m2")
+			f.record("check", f.mergeRunModel(merge, "claude-fable-example"))
+			return launch(f)
+		}, want: func(f *rrFixture) []string { return []string{"MERGE 1", f.rev("HEAD^1")} }},
 		{name: "not run merge check after the merge", setup: func(f *rrFixture) []string {
 			recorded(f)
 			merge := f.mainMerge("m2")
 			f.record("check", f.mergeNotRun(merge, "agent-cannot-call"))
+			return launch(f)
+		}, want: rrValid},
+		{name: "not run merge check with wrong-model and legacy not-opus", setup: func(f *rrFixture) []string {
+			recorded(f)
+			m1 := f.mainMerge("m2")
+			f.record("check 1", f.mergeNotRun(m1, "wrong-model"))
+			m2 := f.mainMerge("m3")
+			f.record("check 2", f.mergeNotRun(m2, "not-opus"))
 			return launch(f)
 		}, want: rrValid},
 		// The merge check record names a merge commit before its own commit,
@@ -1744,12 +1825,14 @@ func rrFableMergeConfigBranch(f *rrFixture) []string {
 	return rrFable(f, "checkpoint")
 }
 
-// TestReviewRecordsFable runs the fable mode of the review records script on
-// fixture repositories: the last record, the fixes of the same run, the
-// commits without content, the checkpoint mark, the merge commits and the
-// merge check records, the failures, and that the caller's environment and
-// git configuration change nothing. Each case runs with each bash
-// scriptBashes returns.
+// TestReviewRecordsCrossCheck runs the cross-check mode of the review records
+// script on fixture repositories: the last record (both Cross-check and legacy
+// Fable prefixes), the fixes of the same run, the commits without content, the
+// checkpoint mark, the merge commits and the merge check records, model
+// pattern matching boundaries, fail-closed _context.md validation, the
+// failures, and that the caller's environment and git configuration change
+// nothing. Each case runs with each bash scriptBashes returns (bash 3.2 and
+// bash 4+).
 //
 // Some conditions are backed by others, so breaking one alone fails no case:
 // that a widened START is a commit origin/main reaches (START must be an
@@ -1766,49 +1849,215 @@ func rrFableMergeConfigBranch(f *rrFixture) []string {
 // ancestor of it).
 //
 // The environment cases and the failures of the shared branch loading repeat
-// TestReviewRecordsCoverage's on purpose: they show the fable mode keeps the
-// same guarantees and fails with its own output. The configuration
+// TestReviewRecordsCoverage's on purpose: they show the cross-check mode keeps
+// the same guarantees and fails with its own output. The configuration
 // scenarios guard the reading through plumbing commands, which no such
-// setting reaches today: they fail only when the fable mode starts reading
-// through a porcelain command.
-func TestReviewRecordsFable(t *testing.T) {
+// setting reaches today: they fail only when the cross-check mode starts
+// reading through a porcelain command.
+func TestReviewRecordsCrossCheck(t *testing.T) {
 	form := seenRangeForm(t)
 	forms := readFableForms(t)
+	realContext := doctestutil.ReadDoc(t, contextPath)
+
+	const (
+		claudeCrossCheckRow = "| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |"
+		validMappingTable   = "### Harness model mapping\n\n" +
+			"| Harness | Role | Launch | Model | Verification pattern |\n" +
+			"|---|---|---|---|---|\n" +
+			"| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n" +
+			"| `Claude Code` | `standard` | `agent` | `sonnet` | `claude-sonnet-*` |\n" +
+			"| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n" +
+			"| `Antigravity` | `cross-check` | `swarm` | `claude-opus-5-5-medium` | `claude-opus-5-5-medium` |\n" +
+			"| `OpenCode` | `low` | `none` | `DeepSeek` | `-` |\n\n"
+	)
+
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
-			for _, c := range fableCases() {
-				t.Run(c.name, func(t *testing.T) {
-					t.Parallel()
-					f := newRRFixture(t, form)
-					f.forms, f.bash = forms, bash
-					args := append([]string{"fable"}, c.setup(f)...)
-					var opts scriptRunOptions
-					if c.env != nil {
-						opts.extraEnv = c.env(f)
-					}
-					run := f.runScript(bash, reviewRecordsPath, args, opts)
-					if c.want == nil {
-						if run.code != 1 || run.stdout != "MISSING\n" || run.stderr == "" {
-							t.Errorf("got %v, want exit 1, output MISSING alone, and a diagnostic", run)
+			runRRCases(t, bash, "cross-check", "MISSING\n", form, forms, crossCheckCases())
+
+			t.Run("pattern matching", func(t *testing.T) {
+				t.Parallel()
+				dotPrefixContext := replaceContextRow(t, realContext, claudeCrossCheckRow,
+					"| `Claude Code` | `cross-check` | `agent` | `fable` | `v1.0-*` |")
+				exactDotContext := replaceContextRow(t, realContext, claudeCrossCheckRow,
+					"| `Claude Code` | `cross-check` | `agent` | `fable` | `v1.0` |")
+				maxLiteral := strings.Repeat("a", 64)
+				maxLiteralContext := replaceContextRow(t, realContext, claudeCrossCheckRow,
+					"| `Claude Code` | `cross-check` | `agent` | `fable` | `"+maxLiteral+"` |")
+				maxPrefix := strings.Repeat("b", 63)
+				maxPrefixContext := replaceContextRow(t, realContext, claudeCrossCheckRow,
+					"| `Claude Code` | `cross-check` | `agent` | `fable` | `"+maxPrefix+"*` |")
+				fencedHeadingContext := realContext + "\n```markdown\n### Harness model mapping\n```\n"
+
+				cases := []struct {
+					name  string
+					ctx   string
+					model string
+					valid bool
+				}{
+					{"48-char suffix accepted", realContext, "claude-fable-" + strings.Repeat("a", 48), true},
+					{"49-char suffix rejected", realContext, "claude-fable-" + strings.Repeat("a", 49), false},
+					{"empty suffix rejected", realContext, "claude-fable-", false},
+					{"uppercase suffix rejected", realContext, "claude-fable-V4", false},
+					{"space in model id rejected", realContext, "claude-fable-4 7", false},
+					{"unregistered model rejected", realContext, "gemini-4-argon-high", false},
+					{"prefix dot literal matches", dotPrefixContext, "v1.0-a", true},
+					{"prefix dot is not regex wildcard", dotPrefixContext, "v1X0-a", false},
+					{"exact dot literal matches", exactDotContext, "v1.0", true},
+					{"exact dot is not regex wildcard", exactDotContext, "v1X0", false},
+					{"64-char literal pattern accepted", maxLiteralContext, maxLiteral, true},
+					{"63-char prefix plus star accepted", maxPrefixContext, maxPrefix + "x", true},
+					{"fenced Harness model mapping heading ignored", fencedHeadingContext, "claude-opus-5-5-medium", true},
+				}
+				for _, tc := range cases {
+					t.Run(tc.name, func(t *testing.T) {
+						t.Parallel()
+						f := newRRFixtureWithContext(t, form, tc.ctx)
+						f.forms = forms
+						c1 := f.work("c1")
+						f.record("record", f.crossCheckRun(f.mb, c1, tc.model))
+						run := f.runScript(bash, reviewRecordsPath, append([]string{"cross-check"}, rrFable(f, "launch")...), scriptRunOptions{})
+						want := "MISSING " + f.mb + "\n"
+						if tc.valid {
+							want = "VALID\n"
 						}
-						return
-					}
-					want := strings.Join(c.want(f), "\n") + "\n"
-					if run.code != 0 || run.stdout != want {
-						t.Errorf("got %v, want output %q and exit 0", run, want)
+						if run.code != 0 || run.stdout != want {
+							t.Errorf("got %v, want output %q and exit 0", run, want)
+						}
+					})
+				}
+			})
+
+			t.Run("fail-closed context validation", func(t *testing.T) {
+				t.Parallel()
+				// Positive control: validMappingTable itself passes so each
+				// mutation below proves its single change caused the failure.
+				t.Run("valid mapping table control", func(t *testing.T) {
+					t.Parallel()
+					f := newRRFixtureWithContext(t, form, replaceMappingSection(t, realContext, validMappingTable))
+					f.forms = forms
+					c1 := f.work("c1")
+					f.record("record", f.crossCheckRun(f.mb, c1, "claude-opus-5-5-medium"))
+					run := f.runScript(bash, reviewRecordsPath, append([]string{"cross-check"}, rrFable(f, "launch")...), scriptRunOptions{})
+					if run.code != 0 || run.stdout != "VALID\n" || run.stderr != "" {
+						t.Errorf("got %v, want exit 0, stdout VALID, empty stderr", run)
 					}
 				})
-			}
+
+				cases := []struct {
+					name       string
+					ctx        string
+					wantStderr string
+				}{
+					{"missing _context.md", "", "cannot read origin/main:.claude/commands/_context.md"},
+					{"missing mapping section", replaceMappingSection(t, realContext, ""), "missing Harness model mapping section"},
+					{"duplicate mapping section", replaceMappingSection(t, realContext, validMappingTable+validMappingTable), "duplicate Harness model mapping section"},
+					{"unclosed fence in _context.md", realContext + "\n```text\nunclosed\n", "unclosed code fence in _context.md"},
+					{"empty table with zero data rows", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n\n"), "missing or empty Harness model mapping table"},
+					{"wrong header", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Pattern |\n|---|---|---|---|---|\n| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n\n"), "invalid Harness model mapping header"},
+					{"wrong separator", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|\n| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n\n"), "invalid Harness model mapping separator"},
+					{"wrong column count", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "| `OpenCode` | `low` | `none` | `DeepSeek` | `-` |", "| `OpenCode` | `low` | `none` | `DeepSeek` |")), "must have 5 columns"},
+					{"indented table row", replaceMappingSection(t, realContext, "### Harness model mapping\n\n | Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n\n"), "indented table row"},
+					{"unquoted cell", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`fable`", "fable")), "single code span"},
+					{"multiple tables", replaceMappingSection(t, realContext, validMappingTable+"prose\n\n| Harness | Role | Launch | Model | Verification pattern |\n\n"), "multiple tables"},
+					{"unknown Harness", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`OpenCode`", "`OtherHarness`")), "unknown Harness"},
+					{"unknown Role", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`low`", "`ultra`")), "unknown Role"},
+					{"unknown Launch", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`none`", "`cli`")), "unknown Launch"},
+					{"whitespace-only Model", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`DeepSeek`", "`   `")), "invalid Model"},
+					{"duplicate Harness Role", replaceMappingSection(t, realContext, strings.TrimSuffix(validMappingTable, "\n")+"| `Claude Code` | `cross-check` | `agent` | `fable2` | `claude-fable-2-*` |\n\n"), "duplicate (Harness, Role)"},
+					{"none launch with non-dash pattern", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "| `-` |", "| `deepseek` |")), "Launch none row must have Verification pattern -"},
+					{"agent launch with dash pattern", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`-`")), "cannot have Verification pattern -"},
+					{"swarm launch with dash pattern", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "| `Antigravity` | `cross-check` | `swarm` | `claude-opus-5-5-medium` | `claude-opus-5-5-medium` |", "| `Antigravity` | `cross-check` | `swarm` | `claude-opus-5-5-medium` | `-` |")), "cannot have Verification pattern -"},
+					{"65-char literal pattern", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`"+strings.Repeat("a", 65)+"`")), "invalid literal Verification pattern"},
+					{"64-char prefix plus star", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`"+strings.Repeat("a", 64)+"*`")), "invalid prefix Verification pattern"},
+					{"regex dot-star metacharacter", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`.*`")), "invalid prefix Verification pattern"},
+					{"regex char class metacharacter", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`claude-[a-z]+`")), "invalid literal Verification pattern"},
+					{"regex alternation pipe forbidden", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`claude-(a|b)`")), "forbidden character"},
+					{"regex anchors metacharacter", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`^claude-fable$`")), "invalid literal Verification pattern"},
+					{"whitespace in pattern", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`claude fable`")), "invalid literal Verification pattern"},
+					{"mid-wildcard", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`claude*fable`")), "invalid literal Verification pattern"},
+					{"broken uncollected role row fails whole table", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-sonnet-*`", "`claude-[0-9]+`")), "invalid literal Verification pattern"},
+					{"zero cross-check patterns", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n\n"), "no cross-check verification pattern"},
+					{"zero high patterns", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n\n"), "no high-role verification pattern"},
+				}
+				// Every fail-closed rejection exits 1 with "MISSING\n" on
+				// stdout, so matching the stderr diagnostic substring is the
+				// only way to verify that each malformed fixture triggered the
+				// specific validation rule under test rather than an earlier one.
+				for _, tc := range cases {
+					t.Run(tc.name, func(t *testing.T) {
+						t.Parallel()
+						f := newRRFixtureWithContext(t, form, tc.ctx)
+						f.forms = forms
+						c1 := f.work("c1")
+						f.record("record", f.crossCheckRun(f.mb, c1, "claude-opus-5-5-medium"))
+						run := f.runScript(bash, reviewRecordsPath, append([]string{"cross-check"}, rrFable(f, "launch")...), scriptRunOptions{})
+						if run.code != 1 || run.stdout != "MISSING\n" || !strings.Contains(run.stderr, tc.wantStderr) {
+							t.Errorf("got %v, want exit 1, stdout MISSING, stderr containing %q", run, tc.wantStderr)
+						}
+					})
+				}
+
+				t.Run("symlinked _context.md on origin/main", func(t *testing.T) {
+					t.Parallel()
+					f := newRRFixtureWithContext(t, form, "")
+					linkPath := filepath.Join(f.repo, filepath.FromSlash(contextDocRepoPath))
+					if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink("target.md", linkPath); err != nil {
+						t.Fatal(err)
+					}
+					f.commit("add symlinked context")
+					f.mb = f.head()
+					f.git("update-ref", "refs/remotes/origin/main", f.mb)
+					run := f.runScript(bash, reviewRecordsPath, append([]string{"cross-check"}, rrFable(f, "launch")...), scriptRunOptions{})
+					if run.code != 1 || run.stdout != "MISSING\n" || !strings.Contains(run.stderr, "not a regular file") {
+						t.Errorf("got %v, want exit 1, stdout MISSING, stderr containing %q", run, "not a regular file")
+					}
+				})
+			})
+
 			fixture := func(t *testing.T) *rrFixture {
 				f := newRRFixture(t, form)
 				f.forms = forms
 				return f
 			}
-			checkConfigScenarios(t, "git config", bash, fixture, "fable", rrFableConfigBranch,
+			checkConfigScenarios(t, "git config", bash, fixture, "cross-check", rrFableConfigBranch,
 				func(f *rrFixture) string { return "MISSING " + f.rev("HEAD~1") + "\n" })
-			checkConfigScenarios(t, "git config with a merge", bash, fixture, "fable", rrFableMergeConfigBranch,
+			checkConfigScenarios(t, "git config with a merge", bash, fixture, "cross-check", rrFableMergeConfigBranch,
 				func(*rrFixture) string { return "VALID\n" })
+		})
+	}
+}
+
+// TestReviewRecordsFableAlias checks that the migration compatibility alias
+// mode "fable" dispatches to the same cross-check logic and fail-closed output
+// across both bash 3.2 and bash 4+ (representative VALID, MISSING, and
+// fail-closed cases).
+func TestReviewRecordsFableAlias(t *testing.T) {
+	form := seenRangeForm(t)
+	forms := readFableForms(t)
+	cases := []rrCase{
+		{name: "VALID with Cross-check record", setup: func(f *rrFixture) []string {
+			c1 := f.work("c1")
+			f.record("record", f.crossCheckRun(f.mb, c1, "claude-opus-5-5-medium"))
+			return rrFable(f, "launch")
+		}, want: rrValid},
+		{name: "MISSING without record", setup: func(f *rrFixture) []string {
+			f.work("c1")
+			return rrFable(f, "launch")
+		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
+		{name: "fail-closed on missing _context.md", context: func(*testing.T) string { return "" }, setup: func(f *rrFixture) []string {
+			f.work("c1")
+			return rrFable(f, "launch")
+		}},
+	}
+	for _, bash := range scriptBashes(t) {
+		t.Run(bash.name, func(t *testing.T) {
+			t.Parallel()
+			runRRCases(t, bash, "fable", "MISSING\n", form, forms, cases)
 		})
 	}
 }

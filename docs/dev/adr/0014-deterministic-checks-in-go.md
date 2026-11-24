@@ -53,7 +53,7 @@
 **選んだもの:** 道具は利用者が入れ、エージェントは入れることもビルドすることもしない。開発のための例外だけを残す。入れることだけを禁じても、エージェントは `go run` や `go build` でブランチの判定を走らせられるためである。
 
 -   **エージェントがインストールもビルドもしないこと:** エージェントは、インストール型ツールをどれもインストールもビルドもしない。エージェントが PR のブランチから `fixprguard` や `mergepr` を入れるか走らせると、そのブランチが変えた判定で `/fixpr`・`/runpr`・`/mergepr` が動くことになり、`main` の判定を迂回できるためである。利用者が PR のブランチで入れ直したあと、そのツールがブランチの判定で動くことは受け入れる。利用者がその PR の変更を見たうえで入れ直すためである。Claude Code では `.claude/settings.json` に拒否の規則を置き（auto モードで確認なしに入れることを防ぐ層。[ADR-0046](0046-chief-of-staff.md) と同じ理由）、Antigravity では `AGENTS.md`・`CLAUDE.md`・ハーネスのアダプタ（[ADR-0055](0055-harness-independent-commands.md)）の指示とサンドボックス外での実行（`BypassSandbox: true`）時の利用者承認で守る。規則と開発のための例外は [dev_tools.md](../conventions/dev_tools.md) の「Rule 5: Install tools from main; agents never install or build them」に、拒否の規則の形は同じ節の「The permission layer」にある。
-    -   **食い違い:** Antigravity 用のハーネスのアダプタと `AGENTS.md` への禁止規則の明記は未実施である。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装で解消する。
+    -   **食い違い:** `AGENTS.md` への禁止規則の明記は未実施である。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装で解消する。
 
 ## 採らなかった案
 

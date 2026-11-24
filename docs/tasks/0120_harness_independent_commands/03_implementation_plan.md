@@ -314,10 +314,10 @@
 - `.claude/commands/_lib/review-records.sh`
 
 **作業内容:**
-- [ ] bash 3.2 互換を保ったまま、新モード `cross-check <ENTRY> <HEAD> <PLAN>` を追加し、移行互換の別名として `fable` を同一処理へ振り分ける（設計書 3.5・6.3）。`coverage` モードは `_context.md` を読まず、既存動作と失敗出力（`PARTIAL`・終了コード `1`）を変更しない。
-- [ ] `cross-check` / `fable` モードで `origin/main:.claude/commands/_context.md` の `### Harness model mapping` 表全体を設計書 3.3 の厳密文法で検証し、`Role == cross-check` の有効パターンを収集する。表の欠落・形式不正・有効パターン 0 件のときは、標準出力に `MISSING`、標準エラーに診断を出力し、終了コード `1` で終了する。
-- [ ] 実施記録・未実施記録・チェックポイント行について、1.3 のリネーム一覧どおり新旧両方の接頭辞および `wrong-model` / `not-fable` を同義として受理し、`<model-id>` を非正規表現照合（完全一致またはリテラル前方一致＋接尾辞 1〜48 文字）で検証する。
-- [ ] タスク 0114（`#988`）が実装時点で既に `main` にマージされている場合は、設計書 3.5 の条件付き整合（マージ後確認記録の `Role == high` パターン検証等）をあわせて反映する。
+- [x] bash 3.2 互換を保ったまま、新モード `cross-check <ENTRY> <HEAD> <PLAN>` を追加し、移行互換の別名として `fable` を同一処理へ振り分ける（設計書 3.5・6.3）。`coverage` モードは `_context.md` を読まず、既存動作と失敗出力（`PARTIAL`・終了コード `1`）を変更しない。
+- [x] `cross-check` / `fable` モードで `origin/main:.claude/commands/_context.md` の `### Harness model mapping` 表全体を設計書 3.3 の厳密文法で検証し、`Role == cross-check` の有効パターンを収集する。表の欠落・形式不正・有効パターン 0 件のときは、標準出力に `MISSING`、標準エラーに診断を出力し、終了コード `1` で終了する。
+- [x] 実施記録・未実施記録・チェックポイント行について、1.3 のリネーム一覧どおり新旧両方の接頭辞および `wrong-model` / `not-fable` を同義として受理し、`<model-id>` を非正規表現照合（完全一致またはリテラル前方一致＋接尾辞 1〜48 文字）で検証する。
+- [x] タスク 0114（`#988`）が実装時点で既に `main` にマージされている場合は、設計書 3.5 の条件付き整合（マージ後確認記録の `Role == high` パターン検証等）をあわせて反映する。
 
 **完了基準:**
 - `bash -n .claude/commands/_lib/review-records.sh` および `/bin/bash`（3.2）での構文検査が通る。
@@ -328,10 +328,10 @@
 - `cmd/yt2column/review_records_test.go`
 
 **作業内容:**
-- [ ] `newRRFixture` に実リポジトリの `.claude/commands/_context.md` を配置し、`coverage` モードについては `_context.md` 不在でも動作するテストケースを追加する。
-- [ ] 既存の `fable` テストを `TestReviewRecordsCrossCheck`（`cross-check` モードの全パターンを bash 3.2・bash 4+ の双方で実行）と、最小限の互換別名テスト `TestReviewRecordsFableAlias`（`fable` モードの代表ケース: `VALID`・`MISSING <base>`・失敗時の `MISSING` と終了コード `1` を両 bash で実行）へ整理する。新旧記録行・チェックポイント行・`wrong-model` / `not-fable`・`agent-cannot-call`、および Claude Code（`claude-fable-*`）と Antigravity（`claude-opus-5-5-medium`）のモデルの ID が受理されることを検証する（`_lib/fable-review.md` の表読み取りはフェーズ 4 で `_lib/cross-check-review.md` へ一本化する）。
-- [ ] 設計書 7.5 のセキュリティ・境界テストを追加し、48 文字の接尾辞を受理する一方、49 文字の接尾辞や次の不正入力では `MISSING`（終了コード `1`）で拒否することを検証する: パターン長超過（リテラル 65 文字・前方一致 65 文字（接頭辞 64 文字＋`*`））、`Launch != none` での `-`、未知の `Harness`・`Role`・`Launch`、メタ文字、途中ワイルドカード、`.` の非リテラル扱い、空接尾辞、空白を含むモデルの ID、未登録モデル、重複する `(Harness, Role)`、別役割行の破損、表の欠落。実装時に各検証を壊して失敗することを確認する。
-- [ ] `TestReviewRecordsMode` に未知モードの拒否（`Cross-check` 等）を含めて更新する。
+- [x] `newRRFixture` に実リポジトリの `.claude/commands/_context.md` を配置し、`coverage` モードについては `_context.md` 不在でも動作するテストケースを追加する。
+- [x] 既存の `fable` テストを `TestReviewRecordsCrossCheck`（`cross-check` モードの全パターンを bash 3.2・bash 4+ の双方で実行）と、最小限の互換別名テスト `TestReviewRecordsFableAlias`（`fable` モードの代表ケース: `VALID`・`MISSING <base>`・失敗時の `MISSING` と終了コード `1` を両 bash で実行）へ整理する。新旧記録行・チェックポイント行・`wrong-model` / `not-fable`・`agent-cannot-call`、および Claude Code（`claude-fable-*`）と Antigravity（`claude-opus-5-5-medium`）のモデルの ID が受理されることを検証する（`_lib/fable-review.md` の表読み取りはフェーズ 4 で `_lib/cross-check-review.md` へ一本化する）。
+- [x] 設計書 7.5 のセキュリティ・境界テストを追加し、48 文字の接尾辞を受理する一方、49 文字の接尾辞や次の不正入力では `MISSING`（終了コード `1`）で拒否することを検証する: パターン長超過（リテラル 65 文字・前方一致 65 文字（接頭辞 64 文字＋`*`））、`Launch != none` での `-`、未知の `Harness`・`Role`・`Launch`、メタ文字、途中ワイルドカード、`.` の非リテラル扱い、空接尾辞、空白を含むモデルの ID、未登録モデル、重複する `(Harness, Role)`、別役割行の破損、表の欠落。実装時に各検証を壊して失敗することを確認する。
+- [x] `TestReviewRecordsMode` に未知モードの拒否（`Cross-check` 等）を含めて更新する。
 
 **完了基準:**
 - `go test -tags test -v -run 'TestReviewRecords' ./cmd/yt2column` で bash 3.2・bash 4+ の全サブテストが通る。
@@ -349,12 +349,12 @@
 - `docs/tasks/0120_harness_independent_commands/03_implementation_plan.md`（§7 の差分記録）
 
 **作業内容:**
-- [ ] `.claude/commands/_lib/harness.md` を英語で新設し、設計書 3.1 の決定的ハーネス判別表（Antigravity は `ask_question`・`run_command` の 2 条件、Claude Code は `AskUserQuestion`・`Bash`・`Agent` の 3 条件）、10 種の抽象操作カタログ、および OpenCode フォールバック規則を記述する。
-- [ ] `.claude/commands/_lib/harness-claude.md` を英語で新設し、10 種の抽象操作の Claude Code 実装（`AskUserQuestion`・`Agent`＋出力 1 行目 `Model:` 検証・30 分タイマー＋`TaskStop`・`PushNotification` 等）を記述する。
-- [ ] `.claude/commands/_lib/harness-antigravity.md` を英語で新設し、10 種の抽象操作の Antigravity 実装を設計書 3.1・4.1・4.2・5.2・6.1 に従って記述する。`CommandDocs` の既存信頼境界ガード（`TestNoDirectHerdrInvocation`・`cmd/numreserve` `TestDocumentedInvocations`・`TestPostingCommandsInventory`）に抵触しないよう、禁止コマンド一覧と PR タイトルの安全な渡し方は生の `herdr <subcmd>` コードスパン・未許可形 `numreserve ...`・`gh pr create/edit --title ...` を書かず、`docs/dev/guides/chief_guide.md` 6 章・`CLAUDE.md`「Tool Execution Safety」・`_context.md`「Passing a title to `gh`」への参照で記述する。
-- [ ] `cmd/yt2column/fixpr_docs_test.go` に `TestHarnessAntigravityPhase6Redirect` を追加し、`harness-antigravity.md` 内のすべてのコードフェンスおよびインラインコード（環境変数前置や複数行折り返しを含む）から `gh ... --json ... body` の呼び出しを抽出し、1 件以上検出されること、およびその全件がスクラッチパッドへの直接リダイレクト形であり標準出力へ本文を漏らさないことを検証する（実装時にリダイレクトを外して失敗すること、および 0 件一致で失敗することを確認する）。
-- [ ] `ADR-0014`（`:56`）・`ADR-0050`（`:35`）・`ADR-0055`（`:25`）の `#1072` 食い違い記述から、本 PR で解消した `review-records.sh` 一般化およびハーネスのアダプタ新設分を取り除き、残余の食い違いのみを示す形へ書き換える（コミットメッセージに `Editorial correction:` 行を残す）。
-- [ ] §7.2 の PR-3 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録する。
+- [x] `.claude/commands/_lib/harness.md` を英語で新設し、設計書 3.1 の決定的ハーネス判別表（Antigravity は `ask_question`・`run_command` の 2 条件、Claude Code は `AskUserQuestion`・`Bash`・`Agent` の 3 条件）、10 種の抽象操作カタログ、および OpenCode フォールバック規則を記述する。
+- [x] `.claude/commands/_lib/harness-claude.md` を英語で新設し、10 種の抽象操作の Claude Code 実装（`AskUserQuestion`・`Agent`＋出力 1 行目 `Model:` 検証・30 分タイマー＋`TaskStop`・`PushNotification` 等）を記述する。
+- [x] `.claude/commands/_lib/harness-antigravity.md` を英語で新設し、10 種の抽象操作の Antigravity 実装を設計書 3.1・4.1・4.2・5.2・6.1 に従って記述する。`CommandDocs` の既存信頼境界ガード（`TestNoDirectHerdrInvocation`・`cmd/numreserve` `TestDocumentedInvocations`・`TestPostingCommandsInventory`）に抵触しないよう、禁止コマンド一覧と PR タイトルの安全な渡し方は生の `herdr <subcmd>` コードスパン・未許可形 `numreserve ...`・`gh pr create/edit --title ...` を書かず、`docs/dev/guides/chief_guide.md` 6 章・`CLAUDE.md`「Tool Execution Safety」・`_context.md`「Passing a title to `gh`」への参照で記述する。
+- [x] `cmd/yt2column/fixpr_docs_test.go` に `TestHarnessAntigravityPhase6Redirect` を追加し、`harness-antigravity.md` 内のすべてのコードフェンスおよびインラインコード（環境変数前置や複数行折り返しを含む）から `gh ... --json ... body` の呼び出しを抽出し、1 件以上検出されること、およびその全件がスクラッチパッドへの直接リダイレクト形であり標準出力へ本文を漏らさないことを検証する（実装時にリダイレクトを外して失敗すること、および 0 件一致で失敗することを確認する）。
+- [x] `ADR-0014`（`:56`）・`ADR-0050`（`:35`）・`ADR-0055`（`:25`）の `#1072` 食い違い記述から、本 PR で解消した `review-records.sh` 一般化およびハーネスのアダプタ新設分を取り除き、残余の食い違いのみを示す形へ書き換える（コミットメッセージに `Editorial correction:` 行を残す）。
+- [x] §7.2 の PR-3 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録する。
 
 **完了基準:**
 - `make test && make lint && make deadcode`・`doc-guard`（`TestHighReviewDecisionCallSite` を含む `CommandDocs` 経由の全 8 呼び出しテスト・`TestInstructionDocPaths`・`TestHarnessAntigravityPhase6Redirect` を含む）が通り、§7.2 の PR-3 差分記録が最新 HEAD と一致する。
@@ -373,10 +373,10 @@
 
 **自動送信**: hold
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1101
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ---
 
@@ -648,7 +648,7 @@
 
 -   [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
 -   [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
--   [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
+-   [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 -   [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4）
 -   [ ] PR-5 マージ済み（対象ステップ: 4-5 / 4-6 / 4-7 / 4-8）
 
@@ -800,7 +800,29 @@ PR-3:
 Diff record (AC-32):
 
 - Compared paths: `.claude/settings.json`
-- File list: required (all changed paths of the PR)
+- Merge-base: `4aee4aa65011cb421b630e489dbb3779372ee900`
+- Compared commit: `ed7dac285c4fdcb3a4e693e8d970584e3394baf3`
+
+Path diff:
+
+````text
+````
+
+File list:
+
+````text
+.claude/commands/_context.md
+.claude/commands/_lib/harness-antigravity.md
+.claude/commands/_lib/harness-claude.md
+.claude/commands/_lib/harness.md
+.claude/commands/_lib/review-records.sh
+cmd/yt2column/fixpr_docs_test.go
+cmd/yt2column/review_records_test.go
+docs/dev/adr/0014-deterministic-checks-in-go.md
+docs/dev/adr/0050-fable-partial-review.md
+docs/dev/adr/0055-harness-independent-commands.md
+docs/tasks/0120_harness_independent_commands/03_implementation_plan.md
+````
 
 PR-4:
 

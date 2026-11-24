@@ -232,7 +232,10 @@ Strict grammar (validated fail-closed across the whole table by the decision scr
   return and matches `Implementation model:` records only against rows with
   `Role` = `high` and `Launch` = `agent` (self-verifying harnesses).
   `_lib/review-records.sh` validates the whole table in its partial-review
-  mode and collects rows with `Role` = `cross-check` (excluding `-`).
+  mode (`cross-check` and its compatibility alias `fable`), collects non-`-`
+  rows for both `Role` = `cross-check` (for partial-review run records) and
+  `Role` = `high` (for merge check run records), and fails closed if either
+  set is empty.
 
 ### PR title and squash subject
 

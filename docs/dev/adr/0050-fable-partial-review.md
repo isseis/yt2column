@@ -32,7 +32,7 @@ PR を開く前に、ハーネスごとに `_context.md` が定めるクロス�
 
 仕様は [0098 要件定義書](../../tasks/0098_fable_partial_review/01_requirements.md) の機能要件と [0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md) の F-005・F-008 が持つ。記録の後、push の前にできた commit の扱いは、[0114 要件定義書](../../tasks/0114_fable_record_after_merge/01_requirements.md) の F-001・F-002・F-005 が持つ。手順は `.claude/commands/_lib/` のクロスチェック部分レビューの共有手順（現在は `.claude/commands/_lib/fable-review.md`）とハーネスのアダプタにあり、ハーネス別のモデル対応表は [_context.md](../../../.claude/commands/_context.md) にある。
 
-**食い違い：** 共有手順のファイル名と本文（`.claude/commands/_lib/fable-review.md`）、呼び出し元の入力名、`.claude/commands/_lib/review-records.sh` のモード名とモデル判定は、まだ `Fable` の固有名・Claude Code の `Agent` ツール・`claude-fable-...` のモデル ID・`Fable review:` の記録行だけを前提としている。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装で解消する。
+**食い違い：** 共有手順のファイル名と本文（`.claude/commands/_lib/fable-review.md`）および呼び出し元の入力名は、まだ `Fable` の固有名・Claude Code の `Agent` ツール・`claude-fable-...` のモデル ID・`Fable review:` の記録行だけを前提としている。この食い違いは https://github.com/isseis/yt2column/issues/1072 の実装で解消する。
 
 ### 1. PR を開く前に、1 つの PR につき 1 回行う
 
