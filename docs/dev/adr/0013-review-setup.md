@@ -43,6 +43,9 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
     -   内容: 上位モデルのレビューの直し（[ADR-0042](0042-implementation-model-tiers.md)）、テスト通過の関門（`green gate`）・終わりの確かめ・`CHECKS` の直し、クロスチェックの部分レビュー（[ADR-0050](0050-fable-partial-review.md)）の記録の後のコミットを含む。
     -   理由: これらは、最初の Codex の PR レビューが見ることを理由にかけ直していなかったが、その PR レビューがなくなり、かけないと別系統の CLI レビューが一度も見ないためである。
     -   正本: [0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) の F-007。
+-   **例外（push の直前の判定の再チェック）:** `step 2.6` が救済を走らせた後の再チェックでできるコミット（`AFTER_REMEDY` と `CHECKS` の直し）は、かけ直さない。このコミットは、PR を開いた後の PR レビュー（Sourcery AI の自動と、依頼したときの CodeRabbit）と、PR の説明の未レビュー一覧で扱う。
+    -   理由: 救済のたびに、ブランチの全体を push の直前に再レビューすることになり、利用上限で失敗しやすいためである（タスク 0114 の実地の確かめ）。
+    -   正本: [0114 設計書](../../tasks/0114_fable_record_after_merge/02_architecture.md) の 1.2.2（実装の際に決めたこと）、[task-pr-handoff.md](../../../.claude/commands/_lib/task-pr-handoff.md) の step 2.6。
 
 ### PR レビューを勧める判定
 
@@ -247,3 +250,4 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
 - 2026-11-21 エスカレーションの判定を Opus 固定からハーネスの `high` 役割ワーカー固定（呼べないハーネスでは安全側の推奨）へ改め、上位モデルのレビューとクロスチェックの部分レビューの名称変更に追随した（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「要件定義の際に決めたこと（2026-11-21）」）
 - 2026-11-23 PR レビューに Sourcery AI（自動・手動）を加え、CodeRabbit（手動）と併用することにした。Sourcery AI の自動の PR レビューは有効のまま維持し、進行中のレビューの完了を待って完了判定（`LAST_REVIEWED` は両社の和集合）に含める。自動の PR レビューのスキップ・失敗・時間切れでは止めず、手動の依頼の失敗時だけ止める（[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md)「要件定義の際に決めたこと（2026-11-23）」）
 - 2026-11-24 リポジトリの CI チェック（`app.slug == "github-actions"`）のみの成否を判定する共有パッケージ `internal/ghci` を設け、`/runpr` step 3（`fixprguard ci-checks`）だけでなく `mergepr prepare`（`/mergepr`・`/runpr` step 4）の CI 待機も外部レビュアーの CheckRun から分離することにした（[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md)「設計の際に決めたこと（2026-11-24）」）
+- 2026-11-24 push の直前の判定（`step 2.6`）が救済を走らせた後の再チェックでできる commit は、ローカルの CLI レビューにかけ直さない例外を足した（[0114 要件定義書](../../tasks/0114_fable_record_after_merge/01_requirements.md)）

@@ -66,7 +66,11 @@
 1.  **Part B の順序とステップ番号:** 既存のタスク 0118 の手順を `step 2.5` のまま残し、本タスクの push の直前の判定（Entry 4）を **`step 2.6`** として `step 2.5` の直後・`step 3` の直前に置く。これに合わせて、`TestReviewRecordsCallSite` の `handoff step 2.5` の終端を `"\n2.6. "` に直し、`handoff step 3` に `unreviewed` の 3 行の並びを足す。人の答え：既存を `step 2.5` のまま残し Entry 4 を `step 2.6` とする（推奨）。
     -   ADR：なし（設計書 1.2.1 の判断のとおり）。
 2.  **`step 2.6` の救済後の再チェックで `step 2.5` を走らせ直さない:** `step 2.6` の再チェックは `AFTER_REMEDY` → README の同期 → CHECKS → 最終段のみとし、`step 2.5` は走らせ直さない。人の答え：走らせ直さない（推奨）。
-    -   ADR：なし（設計書 1.2.1 の判断のとおり）。
+    -   ADR：ADR-0013 の決定に例外を書き足し、経緯に 1 行足す（設計書 1.2.2。本 PR で行う）。
+
+### 1.3.2. 実装の際に決めたこと（2026-11-24）
+
+フェーズ 3 の実地の確かめで、merge の後の確認が、ADR-0013 の決定と step 2.6 の振る舞いの食い違いを見つけた。これを受けて、ADR-0013 の決定に、step 2.6 の救済の後の再チェックでできる commit をローカルの CLI レビューにかけ直さない例外を書き足す必要があると決めた（セッション中の再承認。詳細は設計書 1.2.2）。ADR-0013 の決定と経緯は、本 PR で訂正する。最初はフォローアップの issue にすると答えたが、レビューで、決定を変える PR は同じ PR で ADR を更新するという `adr.md`「Approval and the PR」の規則が分かったため、本 PR で訂正する。人の答え：PR-3 で訂正する（推奨）。
 
 ### 1.4. 既存コード調査結果
 
@@ -468,14 +472,14 @@ Path diff:
 -   **新しい Fable の記録:** step 1.5 の間には足されていない。step 1.5 の間に `Fable review: run` と `Fable review: not run` の行は増えず、印の `Fable review: checkpoint` だけができた。Fable は走らなかった（AC-24 を満たす）。なお、マージの前に、記録を作り直す単独の経路が `9171922a` を作っている（下の「実地の確かめの進め方の、計画との差分」）。
 -   **push:** 観測できなかった。人が実地の確かめを step 2.6 の最初の段の後で終え、Part B step 3 の push（D を名指しする push と上流の設定）を走らせていない。その後の `/runpr 1102` が、D と承認の commit `131723e5` を push してマージした（squash `6e13dd74`）。したがって、push したのが D であること（AC-05）は、この実地の確かめでは確かめられていない。AC-05 は §7 の表のとおり `manual`（手順の読み）で確かめる。
 -   **commit:** Fable の記録 `9171922a`、merge commit `c7239121`、merge の後の確認の記録 `c6d2f6dc`、チェックポイントの印 `6888a50e`、D `fda2fcc5`。
--   **判定に使ったスクリプト:** step 1.5 の 1 回目は `origin/main` の `3597d4fb` のもの。実行の途中で `origin/main` が `2cfeec03`（タスク 0120 の `review-records.sh` の一般化）に進んだので、step 1.5 の 2 回目と step 2.5・2.6 の判定は、その時点の `origin/main` の `2cfeec03` のもの（正本は判定の前に `origin/main` を取り直す）。merge の後の確認はスクリプトを使わない。したがって、2 回目の `VALID` と step 2.6 の `VALID` は、0114 のスクリプトではなく後継のスクリプトで得た結果である。
+-   **判定に使ったスクリプト:** step 1.5 の 1 回目は `origin/main` の `3597d4fb` のもの（開始時の `origin/main`。マージは 10:10、`2cfeec03` が `origin/main` に届いたのは 10:11。1 回目がその後に走ったなら 1 回目も `2cfeec03` である）。実行の途中で `origin/main` が `2cfeec03`（タスク 0120 の `review-records.sh` の一般化）に進んだので、step 1.5 の 2 回目と step 2.5・2.6 の判定は、その時点の `origin/main` の `2cfeec03` のもの（正本は判定の前に `origin/main` を取り直す）。merge の後の確認はスクリプトを使わない。したがって、2 回目の `VALID` と step 2.6 の `VALID` は、0114 のスクリプトではなく後継のスクリプトで得た結果である。
 -   **設計書と違う振る舞い:** Entry 3 の手順についてはない。step 1.5 が `MERGE` で merge の後の確認を 1 回走らせ、Fable が走らないことは、設計書 7.3 のとおりである。ただし、次の 2 つは確かめていない。(1) `_lib/task-pr-handoff.md` Part B step 1.5 が `CHECKPOINT` = `run` で Entry 3 を呼ぶこと（実地の確かめは、既に開いた PR のブランチで Part B を手で続行した）。(2) push（AC-05）。
 -   **実地の確かめの進め方の、計画との差分:**
     -   タスク文書のコマンドの実行中ではなく、既に開いた PR のブランチで、Part B を step 1.5 から手で続行した。
     -   記録の後に中断した修正の commit が残り、Fable の記録が無効だったため、マージの前に単独の経路で Fable の記録を作り直した（Entry 3 の救済と同じ手順を、チェックポイントの印を残さずに走らせた）。
     -   本文の更新と push は Part B step 3 ではなく `/runpr` が行った（上の「push」）。
     -   step 2.5 では、`origin/main` のスクリプトの `coverage none` が `PARTIAL 5` を返し、ローカルの CLI レビューが利用上限（`rate_limit`）で失敗したので、正本のとおり再試行せず、`Local CLI review: not run 3597d4fb5ba6..6888a50ed80e (coderabbit: rate_limit)` と記録した。
--   **ADR-0013 の食い違い:** merge の後の確認が、ADR-0013 の「PR を開く前に、どのローカルの CLI レビューも見ていない中身のある commit を、まとめてもう 1 回ローカルの CLI レビューにかける」（`docs/dev/adr/0013-review-setup.md` の 42〜43 行）と、step 2.6 が救済の後の CHECKS の直しをかけ直さないことの食い違いを、`deferred` の指摘として挙げた。0114 の設計 1.2.1 が人と決めた振る舞いで実装は設計どおりだが、ADR の文と実装が合っておらず、設計 1.2.1 の「ADR の決定を変えない」という判断も正しくない。`docs/dev/conventions/adr.md`「Discrepancy statements」は、決定を変えない PR が食い違いを見つけたら、その ADR を名指しした issue を開くと定める。本タスクは ADR-0013 の決定を変えないので、ADR-0013 を名指ししたフォローアップの issue を開く必要がある（`/runplan` は issue を作らないので、人が作成する）。この記録を書いた時点ではまだ開いていない。issue の URL は §9 に記録する。PR #1102 の説明には `deferred` として残した。
+-   **ADR-0013 の食い違い:** merge の後の確認が、ADR-0013 の「PR を開く前に、どのローカルの CLI レビューも見ていない中身のある commit を、まとめてもう 1 回ローカルの CLI レビューにかける」（`docs/dev/adr/0013-review-setup.md` の 42〜43 行）と、step 2.6 が救済の後の CHECKS の直しをかけ直さないことの食い違いを、`deferred` の指摘として挙げた。0114 の設計 1.2.1 が人と決めた振る舞いで実装は設計どおりだが、ADR の文と実装が合っておらず、設計 1.2.1 の item 2 の「ADR の決定を変えない」という判断も正しくない。本タスクは ADR-0013 の決定を変えるので、`docs/dev/conventions/adr.md`「Approval and the PR」に従い、本 PR で ADR-0013 の決定に例外を書き足し、経緯に 1 行足した（設計書 1.2.2、計画書 1.3.2）。PR #1102 の説明には `deferred` として残した。
 
 ## 8. 成功の基準 (Success Criteria)
 
@@ -486,7 +490,6 @@ Path diff:
 
 ## 9. 次のステップ (Next Steps)
 
--   ADR-0013 の食い違い（step 2.6 が救済の後の CHECKS の直しをローカルの CLI レビューにかけ直さないこと）は、ADR-0013 を名指ししたフォローアップの issue で扱う。`docs/dev/conventions/adr.md`「Discrepancy statements」に従い、決定を変えない PR が開く issue で、人が作成する。作成したら、その URL をこの項目に記録する（本計画を書いた時点では未作成）。この issue を開くまで、本タスクの ADR の記録は完了しない。
 -   PR-3 のマージの後、issue #988 を閉じる（`/runpr` が、タスクの最後の計画の PR のマージの後に扱う）。
 -   止まった後の再開の手段と、PR を開いた後の merge の扱いは、範囲外として残る（設計書 9 章）。必要になったら、別の issue で扱う。
 
@@ -494,3 +497,4 @@ Path diff:
 
 - 2026-11-20 承認（isseis、#1060）
 - 2026-11-23 セッション中の再承認：タスク 0118 の Part B step 2.5 を残して本タスクの push 直前判定を step 2.6 とし、step 2.6 の再チェックでは step 2.5 を走らせ直さない（isseis、#1097）
+- 2026-11-24 セッション中の再承認：ADR-0013 の決定に、step 2.6 の救済の後の再チェックの commit をローカルの CLI レビューにかけ直さない例外を書き足し、ADR-0013 を本 PR で訂正する（isseis、#未記入）
