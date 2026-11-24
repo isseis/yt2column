@@ -190,8 +190,8 @@
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/1130
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン (Implementation Order and Milestones)
 
@@ -240,8 +240,8 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] マージ前ゲート完了（PR-1 のレビュー・CI 通過後、マージ承認直前に実 `origin` へ `_checks/check_open_branches.sh` を再実行し、最新の `matches: 0` 結果を `<mention-check>` 通過後に PR-1 の説明へ記録）
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 2-1 / 2-2 / 3-1 / 3-2）
+- [x] マージ前ゲート完了（PR-1 のレビュー・CI 通過後、マージ承認直前に実 `origin` へ `_checks/check_open_branches.sh` を再実行し、最新の `matches: 0` 結果を `<mention-check>` 通過後に PR-1 の説明へ記録）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 2-1 / 2-2 / 3-1 / 3-2）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
