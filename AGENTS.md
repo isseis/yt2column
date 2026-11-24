@@ -2,6 +2,14 @@
 
 Guidance for automated agents, including code reviewers, working on this repository. The project's conventions, design principles and testing rules are in [CLAUDE.md](CLAUDE.md); follow them. The review-relevant guides are [requirements_process.md](docs/dev/conventions/requirements_process.md) (approval gates, AC traceability), [test_organization.md](docs/dev/conventions/test_organization.md), and [security.md](docs/dev/security.md).
 
+## Tool Execution Safety
+
+These prohibitions apply to every harness that works in this repository, Antigravity CLI and OpenCode as well as Claude Code. They repeat the rules of [CLAUDE.md](CLAUDE.md), "Tool Execution Safety", and [dev_tools.md](docs/dev/conventions/dev_tools.md) Rule 5, which are the authority. The Antigravity adapter, [harness-antigravity.md](.claude/commands/_lib/harness-antigravity.md), names the harness-specific rules (its sandbox and its prohibited commands) that apply on top of them.
+
+- Never install or build an installed developer tool (`make install-<name>`, `go install`, `go build ./cmd/<name>`, `go run ./cmd/<name>`). When a step needs one, or a command fails because a tool is missing or its protocol number does not match, stop, ask the user, and show the command to run.
+- Never run a mutating `herdr` subcommand, and never add, remove, or move a `git worktree`.
+- Never create, change, or delete a record tag (a ref under `refs/tags/task-number/` or `refs/tags/adr-number/`) except through the `numreserve` calls CLAUDE.md allows, and never run without the user's explicit approval a command that touches the network, merges a pull request, or calls a real service (an LLM API).
+
 ## Code Review Rules
 
 Besides the rules below, follow the conventions, design principles, and testing rules in [CLAUDE.md](CLAUDE.md); they are not repeated here.
