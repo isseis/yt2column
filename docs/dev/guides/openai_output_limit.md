@@ -56,7 +56,7 @@ OpenAI を使う構成の 3 つの工程のいずれかで、次のどれかが�
 2. `internal/llm/provider/provider_test.go` の、`TestOpenAIDefaultMaxTokensFitsBudget` が値と照らし合わせる測定値（`openAILargestObservedOutputTokens`・`openAISlowestRateTokens`・`openAISlowestRateDuration`・`openAIModelMaxOutputTokens`）と、その出どころを書いたコメント。
 3. 根拠の記録: この変更を行うタスクのアーキテクチャ設計書（`02_architecture.md`）。
 4. 下の「現在の記録」が、その記録を指すように直す。
-5. 値を述べる文書: README の「設定」（日本語版を直してから `/mktrans README.md` で英語版をそろえる）と `docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md` の `internal/llm/openai` の行。
+5. 値を述べる文書: [generation.md の「設定」](generation.md#設定)と `docs/dev/project_overview.md`、`docs/dev/conventions/package_reference.md` の `internal/llm/openai` の行。
 
 ## 現在の記録
 

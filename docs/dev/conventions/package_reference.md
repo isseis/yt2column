@@ -101,7 +101,7 @@ add a kind here or to widen one of these definitions.
 |---|---|
 | `internal/cachelock` | Serializes the processes that share one directory with an exclusive `flock`: `Acquire`, `File`, `Close`; `*LockedError`, `ErrLocked`. |
 | `internal/cmdrunner` | The shared execution boundary for external commands: `Runner`, `InputRunner`, `NewOS`, `GitEnv`, `GitHardening`; `MaxOutput`, `ErrOutputTooLarge`, `ErrUnexpectedStderr`, `*ExitError`. The `yt-dlp` boundary: [security.md](../security.md). |
-| `internal/config` | Reads and validates the process configuration: `Load`, `LoadFor`, `LoadExtension`, `ExtensionLookup`, `ReadExtensionSettings`, `LLMConfig`, `Need`, `ExtensionSettings`; `*VarError`, `ErrMissing`, `ErrInvalid`. Reference: [README](../../../README.md#設定). |
+| `internal/config` | Reads and validates the process configuration: `Load`, `LoadFor`, `LoadExtension`, `ExtensionLookup`, `ReadExtensionSettings`, `LLMConfig`, `Need`, `ExtensionSettings`; `*VarError`, `ErrMissing`, `ErrInvalid`. Reference: [generation.md](../guides/generation.md#設定). |
 | `internal/nilcheck` | Reports whether a value is nil, including a typed nil held in an interface (`IsNil`). |
 | `internal/privatefile` | Reads and creates files only their owner may read (`internal/chief` uses it): `Read`, `Create`, `Remove`, `MkdirBelow`; `*UnsafeError`, `ErrUnsafe`, `ErrNotExist`, `ErrExist`, `ErrTooLarge`, `ErrBaseMissing`. Rules: [security.md §8.2](../security.md). |
 | `internal/redact` | Keeps secret values out of output: `Line`, `SecretStrings`. |

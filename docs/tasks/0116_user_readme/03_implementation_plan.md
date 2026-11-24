@@ -116,13 +116,13 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `README.md`・`README.en.md`、`docs/dev/guides/generation.md`（新規）・`cli.md`、`cmd/yt2column/docs_test.go`・`docpaths_test.go`、`internal/doctestutil/guides.go`、参照を持つ文書（下の一覧）、CLAUDE.md、ADR-0004・0025
 
-- [ ] **手引きを置く:** 設計書 2.4 節の構成で `generation.md` を置き、移すブロック（設計書 2.3 節の表の「移す」の行のうち `generation.md` 行き）を移す。設定の表を、文書の中で列名「変数」を持つ最初の表にする（設計書 3.3 節）
-- [ ] **README から除く:** 移したブロックを README から除く（1.3 節の決定 1。冒頭の CLI と構成の文と図を含む）。設計書 2.3 節で「削除（重複）」の `:72-73`（CLI に必要なもの）も除く。README の中の、除いた節へのリンクを `generation.md` へ付け替え、移したブロックの中の、README に残る節へのリンク（設定の節の `#api-キーの設定` など）を `README.md` の節へ付け替える。`/mktrans README.md` で同期する
-- [ ] **Go のガード:** 設計書 3.3 節の表のとおり、4 つの設定・上限のテストの読む先を `generation.md` に変える。`guides.go` に `generation.md` のロケータを足し、冒頭の説明を 3 つの手引きに直す。`readmeGuides` に `generation.md` を足し、`TestReadmeLinks` が手引きを `readmeGuides` から読むようにする。呼び出し元がなくなる `readmeVersionsUnder` を除く。`Locator` の型と README のロケータは、`TestLocatorIn` が使うのでステップ 1-4 で除く。読む先を変えたテストの説明のコメント（README を名指しするもの）を直す（設計書 3.1 節の該当の行）
-- [ ] **参照の付け替え:** 設計書 4.2 節の表のうち、ステップ 1-2 で付け替えていないフェーズ 1 の行を付け替える。`cli.md` の範囲の文（`:3-7`）と「設定」の書き出し（`:233-234`）を書き直す。`cli.md` の `:7`・`:58`・`:189`・`:234` のリンク、`package_reference.md:103`、`production_profile.md:5`（推奨構成の行き先）、`pricing_update.md:38`・`:40`、`project_overview.md:89`・`:161`、`claude_output_limit.md:60`、`openai_output_limit.md:59`、用語集の「推奨構成」（`:55`）と、見出しが `generation.md` に移る「出力の書式」「設定」（`:180`・`:181`）の備考を、それぞれ移った先に付け替える
-- [ ] **説明:** CLAUDE.md の「Development Notes」の Go のガードの一覧（「the configuration block of both READMEs」「the values `cli.md` and `development.md` hold」）を `generation.md` に直す
-- [ ] **ADR:** ADR-0025 のずれを示す一文を除き、ADR-0004 のずれを示す一文を、`INSTALL.md` の分だけが残ることを示す文に書き直す。編集上の訂正の行をコミットのメッセージに書き、PR の説明にも載せる
-- [ ] **壊して確かめる:** 4 つの設定・上限のテストと、`TestReadmeLinks` の `generation.md` を、それぞれ `generation.md` で壊して失敗することを確かめ、コミットのメッセージに書く。出力の上限は、文書にある値のすべての出現を壊す（設計書 3.3 節）
+- [x] **手引きを置く:** 設計書 2.4 節の構成で `generation.md` を置き、移すブロック（設計書 2.3 節の表の「移す」の行のうち `generation.md` 行き）を移す。設定の表を、文書の中で列名「変数」を持つ最初の表にする（設計書 3.3 節）
+- [x] **README から除く:** 移したブロックを README から除く（1.3 節の決定 1。冒頭の CLI と構成の文と図を含む）。設計書 2.3 節で「削除（重複）」の `:72-73`（CLI に必要なもの）も除く。README の中の、除いた節へのリンクを `generation.md` へ付け替え、移したブロックの中の、README に残る節へのリンク（設定の節の `#api-キーの設定` など）を `README.md` の節へ付け替える。`/mktrans README.md` で同期する
+- [x] **Go のガード:** 設計書 3.3 節の表のとおり、4 つの設定・上限のテストの読む先を `generation.md` に変える。`guides.go` に `generation.md` のロケータを足し、冒頭の説明を 3 つの手引きに直す。`readmeGuides` に `generation.md` を足し、`TestReadmeLinks` が手引きを `readmeGuides` から読むようにする。呼び出し元がなくなる `readmeVersionsUnder` を除く。`Locator` の型と README のロケータは、`TestLocatorIn` が使うのでステップ 1-4 で除く。読む先を変えたテストの説明のコメント（README を名指しするもの）を直す（設計書 3.1 節の該当の行）
+- [x] **参照の付け替え:** 設計書 4.2 節の表のうち、ステップ 1-2 で付け替えていないフェーズ 1 の行を付け替える。`cli.md` の範囲の文（`:3-7`）と「設定」の書き出し（`:233-234`）を書き直す。`cli.md` の `:7`・`:58`・`:189`・`:234` のリンク、`package_reference.md:103`、`production_profile.md:5`（推奨構成の行き先）、`pricing_update.md:38`・`:40`、`project_overview.md:89`・`:161`、`claude_output_limit.md:60`、`openai_output_limit.md:59`、用語集の「推奨構成」（`:55`）と、見出しが `generation.md` に移る「出力の書式」「設定」（`:180`・`:181`）の備考を、それぞれ移った先に付け替える
+- [x] **説明:** CLAUDE.md の「Development Notes」の Go のガードの一覧（「the configuration block of both READMEs」「the values `cli.md` and `development.md` hold」）を `generation.md` に直す
+- [x] **ADR:** ADR-0025 のずれを示す一文を除き、ADR-0004 のずれを示す一文を、`INSTALL.md` の分だけが残ることを示す文に書き直す。編集上の訂正の行をコミットのメッセージに書き、PR の説明にも載せる
+- [x] **壊して確かめる:** 4 つの設定・上限のテストと、`TestReadmeLinks` の `generation.md` を、それぞれ `generation.md` で壊して失敗することを確かめ、コミットのメッセージに書く。出力の上限は、文書にある値のすべての出現を壊す（設計書 3.3 節）
 
 **完了の条件:** `make test`・`make lint`・`make ext-check`・`make deadcode` が通る。`git grep -n 'README' -- ':!docs/tasks'` の出力を PR の説明に貼り、移した節を指す箇所が残っていないことをレビュアーが読めるようにする。
 

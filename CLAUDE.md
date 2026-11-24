@@ -813,8 +813,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   manifest permissions, the
   `project_overview.md` notes (the environment variable names and
   `costPrefix`), the production profile's configuration block and step table in
-  `docs/dev/production_profile.md`, the configuration block of both READMEs,
-  the values `cli.md` and `development.md` hold, the
+  `docs/dev/production_profile.md`, the configuration block of
+  `generation.md`, the values `generation.md`, `cli.md`, and `development.md`
+  hold, the
   `/fixpr` and `/runpr` command documents, `cmd/mergepr`'s checks of the
   `mergepr` calls and of the tools with a protocol number, `cmd/numreserve`'s
   checks of its permission rules, its calls, and its guide's values, the ADR guard
