@@ -118,8 +118,11 @@ func classes(conflicts []PathConflict) map[string]PathConflictClass {
 func TestMergemainBeginRejectsInvalidPRArg(t *testing.T) {
 	t.Parallel()
 	for _, arg := range []string{"", "0", "07", "-7", "+7", "7 ", " 7", "7a", "\uff11", "1234567890"} {
-		_, err := ParseMergemainPR(arg)
-		wantStop(t, err, MergemainStopPremise, RestoreNotNeeded)
+		t.Run(strconv.Quote(arg), func(t *testing.T) {
+			t.Parallel()
+			_, err := ParseMergemainPR(arg)
+			wantStop(t, err, MergemainStopPremise, RestoreNotNeeded)
+		})
 	}
 	for _, arg := range []string{"7", "1096", "123456789"} {
 		pr, err := ParseMergemainPR(arg)
@@ -165,23 +168,27 @@ func TestParseMergemainPRRejectsMalformedValues(t *testing.T) {
 	if v, err := parseMergemainPR([]byte(valid)); err != nil || v.headBranch != "feature" || v.headOID != head {
 		t.Fatalf("valid PR = %+v, %v", v, err)
 	}
-	for name, raw := range map[string]string{
-		"closed":           strings.Replace(valid, `"OPEN"`, `"CLOSED"`, 1),
-		"lowercase state":  strings.Replace(valid, `"OPEN"`, `"open"`, 1),
-		"other base":       strings.Replace(valid, `"baseRefName":"main"`, `"baseRefName":"dev"`, 1),
-		"cross repository": strings.Replace(valid, `false}`, `true}`, 1),
-		"head is main":     strings.Replace(valid, `"feature"`, `"main"`, 1),
-		"head option":      strings.Replace(valid, `"feature"`, `"-f"`, 1),
-		"head with space":  strings.Replace(valid, `"feature"`, `"a b"`, 1),
-		"short head":       strings.Replace(valid, head, head[:39], 1),
-		"uppercase head":   strings.Replace(valid, head, strings.ToUpper(head), 1),
-		"null state":       strings.Replace(valid, `"OPEN"`, `null`, 1),
-		"string bool":      strings.Replace(valid, `false}`, `"false"}`, 1),
-		"missing member":   strings.Replace(valid, `,"isCrossRepository":false`, ``, 1),
-		"duplicate member": strings.Replace(valid, `{"state":"OPEN",`, `{"state":"OPEN","state":"OPEN",`, 1),
+	for name, tc := range map[string]struct {
+		raw  string
+		want error // nil for a rejection by the strict JSON reading
+	}{
+		"closed":           {strings.Replace(valid, `"OPEN"`, `"CLOSED"`, 1), errPRShape},
+		"lowercase state":  {strings.Replace(valid, `"OPEN"`, `"open"`, 1), errPRShape},
+		"other base":       {strings.Replace(valid, `"baseRefName":"main"`, `"baseRefName":"dev"`, 1), errPRShape},
+		"cross repository": {strings.Replace(valid, `false}`, `true}`, 1), errPRShape},
+		"head is main":     {strings.Replace(valid, `"feature"`, `"main"`, 1), errBranchName},
+		"head option":      {strings.Replace(valid, `"feature"`, `"-f"`, 1), errBranchName},
+		"head with space":  {strings.Replace(valid, `"feature"`, `"a b"`, 1), errBranchName},
+		"short head":       {strings.Replace(valid, head, head[:39], 1), errPRShape},
+		"uppercase head":   {strings.Replace(valid, head, strings.ToUpper(head), 1), errPRShape},
+		"null state":       {strings.Replace(valid, `"OPEN"`, `null`, 1), nil},
+		"string bool":      {strings.Replace(valid, `false}`, `"false"}`, 1), nil},
+		"missing member":   {strings.Replace(valid, `,"isCrossRepository":false`, ``, 1), nil},
+		"duplicate member": {strings.Replace(valid, `{"state":"OPEN",`, `{"state":"OPEN","state":"OPEN",`, 1), nil},
 	} {
-		if _, err := parseMergemainPR([]byte(raw)); err == nil {
-			t.Errorf("%s: parseMergemainPR accepted %s", name, raw)
+		_, err := parseMergemainPR([]byte(tc.raw))
+		if err == nil || (tc.want != nil && !errors.Is(err, tc.want)) {
+			t.Errorf("%s: parseMergemainPR(%s) = %v, want %v", name, tc.raw, err, tc.want)
 		}
 	}
 }
@@ -209,16 +216,14 @@ func TestMergemainBeginPremisesAndNothingToTakeIn(t *testing.T) {
 		change func(t *testing.T, k *takeIn)
 		stop   MergemainStop
 	}{
-		"closed PR":        {func(_ *testing.T, k *takeIn) { k.PR.State = "CLOSED" }, MergemainStopPremise},
-		"base not main":    {func(_ *testing.T, k *takeIn) { k.PR.Base = "dev" }, MergemainStopPremise},
-		"cross repository": {func(_ *testing.T, k *takeIn) { k.PR.Cross = true }, MergemainStopPremise},
-		"GH_REPO set":      {func(_ *testing.T, k *takeIn) { k.Env[ghRepoVariable] = "" }, MergemainStopPremise},
-		"second remote":    {func(_ *testing.T, k *takeIn) { k.Git("remote", "add", "upstream", k.Origin) }, MergemainStopPremise},
-		"other branch":     {func(_ *testing.T, k *takeIn) { k.Git("switch", "-q", mainBranch) }, MergemainStopPremise},
-		"tracked change":   {func(t *testing.T, k *takeIn) { writeWork(t, k, "doc.md", "changed\n") }, MergemainStopPremise},
-		"untracked file":   {func(t *testing.T, k *takeIn) { writeWork(t, k, "new.txt", "n\n") }, MergemainStopPremise},
-		"head behind PR":   {func(_ *testing.T, k *takeIn) { k.PR.HeadOID = k.Git("rev-parse", "HEAD~1") }, MergemainStopPremise},
-		"local commit":     {func(_ *testing.T, k *takeIn) { k.Commit("local", map[string]string{"l.md": "l\n"}) }, MergemainStopPremise},
+		"closed PR":      {func(_ *testing.T, k *takeIn) { k.PR.State = "CLOSED" }, MergemainStopPremise},
+		"GH_REPO set":    {func(_ *testing.T, k *takeIn) { k.Env[ghRepoVariable] = "" }, MergemainStopPremise},
+		"second remote":  {func(_ *testing.T, k *takeIn) { k.Git("remote", "add", "upstream", k.Origin) }, MergemainStopPremise},
+		"other branch":   {func(_ *testing.T, k *takeIn) { k.Git("switch", "-q", mainBranch) }, MergemainStopPremise},
+		"tracked change": {func(t *testing.T, k *takeIn) { writeWork(t, k, "doc.md", "changed\n") }, MergemainStopPremise},
+		"untracked file": {func(t *testing.T, k *takeIn) { writeWork(t, k, "new.txt", "n\n") }, MergemainStopPremise},
+		"head behind PR": {func(_ *testing.T, k *takeIn) { k.PR.HeadOID = k.Git("rev-parse", "HEAD~1") }, MergemainStopPremise},
+		"local commit":   {func(_ *testing.T, k *takeIn) { k.Commit("local", map[string]string{"l.md": "l\n"}) }, MergemainStopPremise},
 		"origin's branch is not the PR head": {func(_ *testing.T, k *takeIn) {
 			// The PR head names HEAD, but origin's branch moves while gh is
 			// read, so only the remote-tracking ref differs.
@@ -327,7 +332,9 @@ func TestMergemainMergeChecksArguments(t *testing.T) {
 		"short commit":    {b.HeadBranch, b.BaseHead[:12], b.Main},
 	} {
 		_, err := k.Tool().MergemainMerge(t.Context(), mustPR(t), args[0], args[1], args[2])
-		wantStop(t, err, MergemainStopPremise, RestoreNotNeeded)
+		if stop, ok := errors.AsType[*MergemainStopError](err); !ok || stop.Stop != MergemainStopPremise || stop.Restore != RestoreNotNeeded {
+			t.Errorf("%s: err = %v, want a premise stop without restore", name, err)
+		}
 		if _, inMerge, _ := k.Tool().mergeHead(t.Context()); inMerge {
 			t.Fatalf("%s: a merge started", name)
 		}
@@ -433,7 +440,7 @@ func TestMergemainConflictClassification(t *testing.T) {
 			maps.Copy(base, tc.base)
 			k.Setup(base, tc.branch, tc.main)
 			_, r, err := merge(t, k)
-			outOfScope := slices.Contains(slicesValues(tc.want), PathConflictOutOfScope)
+			outOfScope := slices.Contains(slices.Collect(maps.Values(tc.want)), PathConflictOutOfScope)
 			if outOfScope {
 				restore := RestoreNeeded
 				if tc.beforeMerge {
@@ -444,11 +451,10 @@ func TestMergemainConflictClassification(t *testing.T) {
 			} else if err != nil {
 				t.Fatalf("MergemainMerge: %v", err)
 			}
-			got := classes(r.Conflicts)
-			for p, want := range tc.want {
-				if got[p] != want {
-					t.Errorf("class of %s = %v, want %v (all %v)", p, got[p], want, got)
-				}
+			// The whole list is compared: the zero class is out of scope, so a
+			// lookup of a path the stop left out would pass.
+			if got := classes(r.Conflicts); !maps.Equal(got, tc.want) {
+				t.Errorf("conflicts = %v, want %v", got, tc.want)
 			}
 		})
 	}
@@ -463,14 +469,6 @@ func thirdFile(n int) string {
 		b.WriteString("// line " + strconv.Itoa(i) + "\n")
 	}
 	return b.String()
-}
-
-func slicesValues(m map[string]PathConflictClass) []PathConflictClass {
-	v := make([]PathConflictClass, 0, len(m))
-	for _, c := range m {
-		v = append(v, c)
-	}
-	return v
 }
 
 func TestMergemainProtocolUpdateAndRuleFacts(t *testing.T) {
@@ -522,8 +520,8 @@ func TestMergemainProtocolUpdateAndRuleFacts(t *testing.T) {
 		if err != nil {
 			t.Fatalf("MergemainMerge: %v", err)
 		}
-		if !slices.Equal(r.Protocol, []ProtocolBump{{Tool: "tool", Value: 4}}) || readWork(t, k, takeInToolPath) != toolFile(4, "base") {
-			t.Fatalf("protocol = %+v", r.Protocol)
+		if got := readWork(t, k, takeInToolPath); !slices.Equal(r.Protocol, []ProtocolBump{{Tool: "tool", Value: 4}}) || got != toolFile(4, "base") {
+			t.Fatalf("protocol = %+v, tool.go = %q", r.Protocol, got)
 		}
 	})
 	t.Run("unchanged tool not set", func(t *testing.T) {
@@ -828,6 +826,9 @@ func TestMergemainPushSuccessRejectedAndUnknown(t *testing.T) {
 
 func TestMergemainPushRejectsNonHeadOrForce(t *testing.T) {
 	t.Parallel()
+	// The push's arguments are the observable contract here: the checks
+	// before it stop every input on which a force push would behave
+	// differently, so only the command shows that none is used.
 	t.Run("push command", func(t *testing.T) {
 		t.Parallel()
 		k := newTakeIn(t)
@@ -853,8 +854,6 @@ func TestMergemainPushRejectsNonHeadOrForce(t *testing.T) {
 		"current branch is not the PR's": func(k *takeIn) {
 			k.Git("switch", "-q", "-c", "elsewhere")
 		},
-		"cross repository": func(k *takeIn) { k.PR.Cross = true },
-		"closed PR":        func(k *takeIn) { k.PR.State = "CLOSED" },
 		"GH_REPO set":      func(k *takeIn) { k.Env[ghRepoVariable] = "other/repo" },
 		"second remote":    func(k *takeIn) { k.Git("remote", "add", "upstream", k.Origin) },
 		"push URL differs": func(k *takeIn) { k.Git("config", "remote.origin.pushurl", k.Origin+"-elsewhere") },
@@ -891,7 +890,7 @@ func TestMergemainPushChecksParentsAndMain(t *testing.T) {
 		"PR head is not the base head": {func(_ *testing.T, k *takeIn, b *MergemainBeginResult) {
 			k.PR.HeadOID = b.Main
 		}, MergemainStopPremise},
-		"main argument is not the recorded main": {func(_ *testing.T, k *takeIn, b *MergemainBeginResult) {
+		"recorded main is an older main": {func(_ *testing.T, k *takeIn, b *MergemainBeginResult) {
 			// The ref names an older main of origin's history, so the merge
 			// commit's parents and the ancestry still match.
 			k.Git("update-ref", "refs/mergemain/"+testTakeInPR+"/main", b.Main+"~1")
@@ -922,10 +921,11 @@ func TestMergemainPushChecksParentsAndMain(t *testing.T) {
 			if tc.stop == MergemainStopOtherChanges {
 				restore = RestoreNotNeeded
 			}
+			before := k.OriginGit("rev-parse", headsPrefix+takeInBranch)
 			_, err := push(t, k, b)
 			wantStop(t, err, tc.stop, restore)
-			if got := k.OriginGit("rev-parse", headsPrefix+takeInBranch); got != b.BaseHead && got != k.Git("rev-parse", "HEAD^1") {
-				t.Fatalf("origin moved to %s", got)
+			if got := k.OriginGit("rev-parse", headsPrefix+takeInBranch); got != before {
+				t.Fatalf("origin moved from %s to %s", before, got)
 			}
 		})
 	}
@@ -977,8 +977,8 @@ func TestMergemainPushRejectsOutOfScope(t *testing.T) {
 		k.Git("commit", "-q", "--no-edit", "--no-verify")
 		_, err = push(t, k, b)
 		stop := wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
-		if classes(stop.Conflicts)["main.go"] != PathConflictOutOfScope {
-			t.Fatalf("conflicts = %+v", stop.Conflicts)
+		if got := classes(stop.Conflicts); !maps.Equal(got, map[string]PathConflictClass{"main.go": PathConflictOutOfScope}) {
+			t.Fatalf("conflicts = %v", got)
 		}
 	})
 }
@@ -1054,7 +1054,7 @@ func TestMergemainBeginMergeRestoreFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MergemainMerge: %v", err)
 	}
-	commitMerge(t, k, map[string]string{"doc.md": "one\nbranch\nthree\n"})
+	// The agent gives up on the conflict without resolving it.
 	if _, err := k.Tool().MergemainRestore(t.Context(), mustPR(t), b.HeadBranch, b.BaseHead, b.Main); err != nil {
 		t.Fatalf("MergemainRestore: %v", err)
 	}
@@ -1089,8 +1089,8 @@ func TestMergemainRefusesOtherMergeDrivers(t *testing.T) {
 		conflicting(k, base)
 		_, _, err := merge(t, k)
 		stop := wantStop(t, err, MergemainStopOutOfScope, RestoreNotNeeded)
-		if classes(stop.Conflicts)["main.go"] != PathConflictOutOfScope {
-			t.Fatalf("conflicts = %+v", stop.Conflicts)
+		if got := classes(stop.Conflicts); !maps.Equal(got, map[string]PathConflictClass{"main.go": PathConflictOutOfScope}) {
+			t.Fatalf("conflicts = %v", got)
 		}
 		if _, inMerge, _ := k.Tool().mergeHead(t.Context()); inMerge {
 			t.Fatal("a merge started")
@@ -1114,6 +1114,36 @@ func TestMergemainRefusesOtherMergeDrivers(t *testing.T) {
 			wantStop(t, err, MergemainStopPremise, RestoreNotNeeded)
 		})
 	}
+	t.Run("push of a union merge after main drops the rule", func(t *testing.T) {
+		t.Parallel()
+		k := newTakeIn(t)
+		base := baseFiles()
+		base[".gitattributes"] = "main.go merge=union\n"
+		// The merge commit no longer has the rule, but the merge of the
+		// parents takes the base head's attributes, which still have it.
+		k.Setup(base, map[string]string{"main.go": "package main\n\nfunc main() { b() }\n"},
+			map[string]string{"main.go": "package main\n\nfunc main() { m() }\n", ".gitattributes": "*.log -diff\n"})
+		b := begin(t, k)
+		k.Git("merge", "-q", "--no-ff", "--no-edit", b.Main)
+		_, err := push(t, k, b)
+		wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
+	})
+	t.Run("push of a union merge main's rule allows", func(t *testing.T) {
+		t.Parallel()
+		k := newTakeIn(t)
+		// Main adds the rule, so the base head's attributes do not have it
+		// and the merge commit's do.
+		k.Setup(baseFiles(), map[string]string{"main.go": "package main\n\nfunc main() { b() }\n"},
+			map[string]string{"main.go": "package main\n\nfunc main() { m() }\n", ".gitattributes": "*.log\nmain.go merge=union\n"})
+		b := begin(t, k)
+		k.Git("merge", "-q", "--no-ff", "--no-commit", "-s", "ours", b.Main)
+		k.Git("checkout", b.Main, "--", ".gitattributes")
+		writeWork(t, k, "main.go", "package main\n\nfunc main() { b() }\nfunc main() { m() }\n")
+		k.Git("add", "main.go")
+		k.Git("commit", "-q", "--no-edit", "--no-verify")
+		_, err := push(t, k, b)
+		wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
+	})
 	t.Run("push of a union merge", func(t *testing.T) {
 		t.Parallel()
 		k := newTakeIn(t)

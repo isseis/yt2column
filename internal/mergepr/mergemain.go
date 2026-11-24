@@ -821,7 +821,7 @@ func (m *Mergemain) classifyConflicts(ctx context.Context, base, ours, theirs st
 		return nil, nil, err
 	}
 	paths := slices.Sorted(maps.Keys(entries))
-	attrs, err := m.mergeAttributes(ctx, paths)
+	attrs, err := m.mergeAttributes(ctx, "", paths)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -899,10 +899,59 @@ func (m *Mergemain) classifyPath(ctx context.Context, p string, stages []stageEn
 // checkMergeDrivers stops unless git merges every path both sides changed
 // with its default text merge, which reports every conflict: no
 // $GIT_DIR/info/attributes and no merge.default driver may be set, and the
-// merge attribute of each such path, read from the index's .gitattributes,
-// must be unset or "set". A driver such as union, or a configured one, would
+// merge attribute of each such path and of each rename, read from the
+// .gitattributes of ours, of theirs, and of the index, must be unspecified or
+// "set". A driver such as union, or a configured one, would
 // otherwise resolve a conflict of any file without the tool seeing it.
 func (m *Mergemain) checkMergeDrivers(ctx context.Context, base, ours, theirs string, restore RestoreNeed) error {
+	if err := m.checkDriverConfig(ctx, restore); err != nil {
+		return err
+	}
+	both, err := m.changedOnBothSides(ctx, base, ours, theirs)
+	if err != nil {
+		return stopError(MergemainStopPremise, restore, "could not list the paths both sides changed: %v", err)
+	}
+	// A renamed file is merged under its new path, whose attribute chooses
+	// the driver, so every rename source and destination is checked too.
+	renamed, err := m.renamedPaths(ctx, base, ours, theirs)
+	if err != nil {
+		return stopError(MergemainStopPremise, restore, "could not list the renames: %v", err)
+	}
+	for p := range renamed {
+		if !slices.Contains(both, p) {
+			both = append(both, p)
+		}
+	}
+	slices.Sort(both)
+	if len(both) == 0 {
+		return nil
+	}
+	// Which .gitattributes a merge reads differs between git merge and git
+	// merge-tree, so the attribute must be the text merge in all of them:
+	// ours, theirs, and the index.
+	var conflicts []PathConflict
+	for _, source := range []string{ours, theirs, ""} {
+		attrs, err := m.mergeAttributes(ctx, source, both)
+		if err != nil {
+			return stopError(MergemainStopPremise, restore, "could not read the merge attributes: %v", err)
+		}
+		for _, p := range both {
+			if a := attrs[p]; a != "unspecified" && a != "set" && !slices.ContainsFunc(conflicts, func(c PathConflict) bool { return c.Path == p }) {
+				conflicts = append(conflicts, PathConflict{Path: p, Class: PathConflictOutOfScope})
+			}
+		}
+	}
+	if len(conflicts) > 0 {
+		stop := stopError(MergemainStopOutOfScope, restore, "a path both sides changed has a merge driver other than the text merge")
+		stop.Conflicts = conflicts
+		return stop
+	}
+	return nil
+}
+
+// checkDriverConfig stops when $GIT_DIR/info/attributes is not empty or
+// merge.default is set: either could choose another merge driver for any path.
+func (m *Mergemain) checkDriverConfig(ctx context.Context, restore RestoreNeed) error {
 	out, err := m.git.git(ctx, "rev-parse", "--git-path", "info/attributes")
 	if err != nil {
 		return stopError(MergemainStopPremise, restore, "could not find info/attributes: %v", err)
@@ -924,28 +973,6 @@ func (m *Mergemain) checkMergeDrivers(ctx context.Context, base, ours, theirs st
 		return stopError(MergemainStopPremise, restore, "merge.default is set and would merge files with another driver")
 	} else if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); !ok || exitErr.Code != 1 {
 		return stopError(MergemainStopPremise, restore, "could not read merge.default: %v", err)
-	}
-	both, err := m.changedOnBothSides(ctx, base, ours, theirs)
-	if err != nil {
-		return stopError(MergemainStopPremise, restore, "could not list the paths both sides changed: %v", err)
-	}
-	if len(both) == 0 {
-		return nil
-	}
-	attrs, err := m.mergeAttributes(ctx, both)
-	if err != nil {
-		return stopError(MergemainStopPremise, restore, "could not read the merge attributes: %v", err)
-	}
-	var conflicts []PathConflict
-	for _, p := range both {
-		if a := attrs[p]; a != "unspecified" && a != "set" {
-			conflicts = append(conflicts, PathConflict{Path: p, Class: PathConflictOutOfScope})
-		}
-	}
-	if len(conflicts) > 0 {
-		stop := stopError(MergemainStopOutOfScope, restore, "a path both sides changed has a merge driver other than the text merge")
-		stop.Conflicts = conflicts
-		return stop
 	}
 	return nil
 }
@@ -996,10 +1023,15 @@ func (m *Mergemain) blob(ctx context.Context, oid string) ([]byte, error) {
 	return m.git.git(ctx, "cat-file", "blob", oid)
 }
 
-// mergeAttributes returns the merge attribute of each path as the index's
-// .gitattributes give it: "unspecified", "set", "unset", or a driver name.
-func (m *Mergemain) mergeAttributes(ctx context.Context, paths []string) (map[string]string, error) {
-	out, err := m.git.git(ctx, slices.Concat(mergeConfig, []string{"check-attr", "-z", "--cached", mergeAttribute, "--"}, paths)...)
+// mergeAttributes returns the merge attribute of each path as the
+// .gitattributes of the commit source give it, or of the index when source
+// is empty: "unspecified", "set", "unset", or a driver name.
+func (m *Mergemain) mergeAttributes(ctx context.Context, source string, paths []string) (map[string]string, error) {
+	from := "--cached"
+	if source != "" {
+		from = "--source=" + source
+	}
+	out, err := m.git.git(ctx, slices.Concat(mergeConfig, []string{"check-attr", "-z", from, mergeAttribute, "--"}, paths)...)
 	if err != nil {
 		return nil, err
 	}

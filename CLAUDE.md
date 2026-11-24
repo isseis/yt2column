@@ -622,7 +622,9 @@ its security rules in `docs/dev/security.md` §8.
   mode, and object) as `git ls-files -u` and `git merge-tree` print them, and
   the entries `git ls-files -s`, `git ls-tree`, and `git diff-tree` print;
   the rename sources and destinations `git diff-tree -M` reports; the `merge`
-  attribute `git check-attr` reports; whether a blob holds a NUL byte in its
+  attribute `git check-attr` reports from the base head, main, and the index,
+  and whether `info/attributes` or `merge.default` is set; whether a blob
+  holds a NUL byte in its
   first 8000 bytes, git's own test for a binary file; the protocol
   declaration lines of a Go file ("Protocol numbers" below), read to classify
   a conflict, to compare a merge commit or a merge in progress with the merge
