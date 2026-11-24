@@ -25,8 +25,8 @@
 
 - **Sourcery AI の再レビューが見る範囲（`02_architecture.md` 5.4 の未確認の前提）:**
   - **決定:** 現行設計（AC-17・AC-18・`02_architecture.md` 3.2.2）および [ADR-0013](../../dev/adr/0013-review-setup.md) を変更せず、そのまま実装計画を作成する。PR #1097・#1098 の確認結果を本節と [observations.md](observations.md) に記録する。
-  - **理由:** 計画前に PR #1097 と PR #1098 を読み取り専用 `gh api` で確認した。初回コミットが 7 日間予算超過で `SKIPPED` になった後の後続コミット（#1097 `516b7e5b` は `03_implementation_plan.md` の +1/-1 行のみ、#1098 `3de3c7bd` は `01_requirements.md` の +7/-3 行のみ）で `SUCCESS` で完了したレビューは、いずれも直近コミットで触れていない先行コミットの変更箇所に指摘を付けていた（#1097 `#discussion_r4665768633` の `docs/dev/adr/0050-fable-partial-review.md` 90 行目、#1098 `#discussion_r4666409559` ほか 3 件の ADR-0013・0015・0047）。初回 `SKIPPED` 後の `SUCCESS` 完了は先行コミットを含めてレビューしており、`LAST_REVIEWED` で祖先コミットをレビュー済みと数える前提が実測で裏付けられた。
-  - **ADR の判断:** ADR なし（現行 [ADR-0013](../../dev/adr/0013-review-setup.md) の前提が裏付けられ、決定の変更がないため）。
+  - **理由:** 計画前に PR #1097 と PR #1098 を読み取り専用 `gh api` で確認した。初回コミットが 7 日間予算超過で `SKIPPED` になった後の後続コミット（#1097 `516b7e5b` は `03_implementation_plan.md` の +1/-1 行のみ、#1098 `3de3c7bd` は `01_requirements.md` の +7/-3 行のみ）で `SUCCESS` で完了したレビューは、いずれも直近コミットで触れていない先行コミットの変更箇所に指摘を付けていた（#1097 `#discussion_r4665768633` の `docs/dev/adr/0050-fable-partial-review.md` 90 行目、#1098 `#discussion_r4666409559` ほか 3 件の ADR-0013・0015・0047）。この実測は、初回 `SKIPPED` 後の `SUCCESS` 完了が直近コミット単体の増分差分ではなく先行コミットの変更箇所も対象にしていることを示す。一方で、2 件の実測だけでは先行コミットの全ファイルが必ず網羅される公式仕様の保証までは得られないが、[02_architecture.md](02_architecture.md) 5.4 が定めた確認手順の結果を踏まえ、`LAST_REVIEWED` で祖先コミットをレビュー済みと数える現行設計を運用上の前提として維持する判断を利用者と合意した。
+  - **ADR の判断:** ADR なし（現行 [ADR-0013](../../dev/adr/0013-review-setup.md) の前提を運用判断として維持し、決定の変更がないため）。
 - **フェーズ 2・フェーズ 3 の PR 分割（6 PR 構成）:**
   - **決定:** [02_architecture.md](02_architecture.md) 8 章の 4 フェーズの順序を保ったまま、フェーズ 2 を 2 PR（`internal/ghci` 新設と `internal/mergepr` 切り替え）、フェーズ 3 を 2 PR（`internal/fixprguard` の非破壊内部追加と、旧 `--jq` テスト単独削除・`review-state` 拡張・`cmd/fixprguard`・`Protocol` 引き上げ・コマンド文書・ガイド 3〜5 章・ガード一括更新）に分け、全体 6 PR とする。`docs/dev/guides/fixprguard_guide.md` のうち `cmd/fixprguard/docs_test.go` と結合しない章（1 章・7.2.4・7.2.6・10 章の残余リスク記述）は PR-6（ステップ 4-1）へ寄せて PR-5 の変更量を抑える。
   - **理由:** 新規共有パッケージ `internal/ghci` と `fixprguard` の新規ロジック（`mentions`・`ci-checks`）を独立 PR で深くレビューでき、`Protocol` 引き上げと `runpr.md` 大幅改定を伴う PR-5 の変更量とレビュー負荷を抑えられるためである。なお `review_state.go` の拡張（`ReviewStateRequest` 変更と `RunSkipped`/`RequestSkipped` 追加）は `cmd/fixprguard`・`TestGuideListsReviewStateValues`・`TestDocumentedInvocationsParse` および単一 `Protocol` 引き上げ制約（[02_architecture.md](02_architecture.md) 1.3・8 章）と結合しており、スタブなしでは PR-4 へ切り出せないため PR-5 へまとめる。`Makefile:364`（`d29bb3d7`）の `deadcode` は `-test` 付きで実行されるため、単体テストを伴う内部追加 PR（PR-2・PR-4）も単独でグリーンゲート（`_context.md` の "Green gate" 参照）を通過できる。
@@ -312,7 +312,7 @@
   - [ ] `.claude/commands/fixpr.md` の全 `fixprguard` 呼び出しと説明の `--protocol`（12 箇所）を `main` の値 + 1 へ更新する。
   - [ ] `.claude/commands/_lib/pr-review-escalation.md`（`2,7-9,21-22,55-62` 行目）を CodeRabbit 手動＋Sourcery AI 自動・手動併用、`LAST_REVIEWED` の両社和集合、および `fixprguard mentions`・`ci-checks` へ更新する（AC-18・AC-22）。
   - [ ] `docs/dev/guides/fixprguard_guide.md` のガード結合章（3 章のプロトコル番号記載、4 章の新 `--protocol`・`--profile`・`--observed-bot`・`--request` 複数回・`--head`・`mentions`/`ci-checks` の終了コード `0`、5 章の `review-state` 拡張と `mentions`・`ci-checks` 節新設、および文書内すべての `--protocol`・`"protocol"` 例）を更新する。なお、`guideTable` 互換のため `**応答の分類。**` 直下は 1 表にまとめる（非結合章の 1 章・7.2.4・7.2.6・10 章はステップ 4-1 で更新。AC-26）。
-  - [ ] `CLAUDE.md` の `Declare, don't infer` の `fixprguard` 例外（`490-502` 行目）へ `review_state.go` の CheckRun `name` 照合とプロファイル別分類表を反映する（AC-29）。
+  - [ ] `CLAUDE.md` の `178-179` 行目（廃止する `PR review request` 行参照を `_context.md` の `PR reviewers` 表へ更新）および `Declare, don't infer` の `fixprguard` 例外（`490-502` 行目：`review_state.go` の CheckRun `name` 照合とプロファイル別分類表）を更新する（AC-29）。
   - [ ] `cmd/fixprguard/docs_test.go` を更新する。`TestDocumentedInvocationsParse` の `runpr.md` 期待サブコマンドへ `cmdMentions`・`cmdCIChecks` を追加し、`checkDocumentedReviewer`（`228-247` 行目：`flagReviewer` 非保持でも `cmdMentions` を検査するよう早期リターン条件を改め、`flagRequest` 参照を `inv.values` から `inv.multi` へ切り替え）と `TestCheckDocumentedReviewer` を新プレースホルダー（`<pr-profile>`・`<pr-reviewer>`・`<accepted-request>`・`<observed-bot>`）へ対応させる。さらに `TestGuideListsReviewStateValues` へ `ReviewProfile`・`AutoReviewState`・`RunSkipped`・`RequestSkipped` を追加し、`mentions`・`ci-checks` のガイド値表検査（`TestGuideListsMentionsValues`・`TestGuideListsCIChecksValues`）を新設する（AC-08・AC-15・AC-26）。
   - [ ] `cmd/yt2column/fixpr_docs_test.go` と `cmd/yt2column/review_mention_docs_test.go` を更新する。`fixpr_docs_test.go` では `checkContextReviewers`・`TestContextReviewerRowsMalformed` の `### PR reviewers` 5 列表と旧行 0 件検査、`TestContextAndCommandsAgree` の全 `Reviewer` 直書き禁止、`TestFixprguardCallSites` への `mentions`・`ci-checks` 追加、`TestRunprDocContract/no_unchecked_gh_api` の `step3ReadCalls` 空化による `runpr.md` step 3 への `gh api` 呼び出し全面禁止と `gh pr checks --watch` 不在検査を反映する。`review_mention_docs_test.go` では `TestMentionsOnlyInAllowedRows` の `### PR reviewers` 許可化（期待行数と `Post request`・`Accepted requests` 列限定を固定）、`TestPostingPathsCheckMention` からの `<rejected-mentions>` 要求削除、`TestPostingCommandsInventory` の `<post-request>` 更新を行う（AC-08・AC-09・AC-12・AC-15・AC-25）。
 - **完了条件:**
@@ -349,7 +349,7 @@
   - `docs/translation_glossary.md`
   - `docs/dev/guides/fixprguard_guide.md`
 - **作業内容:**
-  - [ ] `CLAUDE.md` の `178-179` 行目（`PR review request` 行参照を `_context.md` の `PR reviewers` 表へ更新）、`215,249-261` 行目（`/runpr` と PR レビュー体制を CodeRabbit 手動＋Sourcery AI 自動・手動の併用へ更新）、`833-837` 行目（`jq` が必要なテスト記述から `TestRunprDocContract`・`TestHandoffListingPrintsNoBody` を除き `TestFixprPhase6CountFilter` に合わせる）を更新する（AC-29）。
+  - [ ] `CLAUDE.md` の `215,249-261` 行目（`/runpr` と PR レビュー体制を CodeRabbit 手動＋Sourcery AI 自動・手動の併用へ更新）、`833-837` 行目（`jq` が必要なテスト記述から `TestRunprDocContract`・`TestHandoffListingPrintsNoBody` を除き `TestFixprPhase6CountFilter` に合わせる）を更新する（AC-29）。
   - [ ] `docs/translation_glossary.md` の `完了を待つ PR レビュアー`・`手動の PR レビュー`・`完了の印` の定義を CodeRabbit＋Sourcery AI 併用と `### PR reviewers` 表に合わせて更新し、`自動の PR レビュー`（`automatic PR review`）を追加する（AC-30）。
   - [ ] `docs/dev/guides/fixprguard_guide.md` のうち PR-5 のガード非結合章（1 章の位置付け・7.2.4 `513` 行目の基準値なし一覧への `review-state`/`mentions`/`ci-checks` 追記・7.2.6・10 章の残余リスク〔`02_architecture.md` 5.4：予算超過 1 行目除外・Sourcery PR 本文更新と `current-body-mention`/上書き競合・ruleset `26400325` 監視〕）を更新する（AC-26）。
 - **完了条件:**
@@ -510,7 +510,7 @@
 
 ### 7.1. 横断検索チェックリスト（`make lint`・`make test` で検出できない文書整合）
 
-- [ ] ステップ 3-5・4-1・4-2 の完了時点で、仕様文書（`docs/dev/`・`CLAUDE.md`・`.claude/commands/`・`docs/translation_glossary.md`。過去の `docs/tasks/` と `internal/chief/testdata/` を除く）に廃止済みの `Awaited PR reviewer`・`PR review request`・`<awaited-reviewer>`・`<review-request>`・`<rejected-mentions>`・`cr_observed`・`gh pr checks --watch`（`mergepr`・`runpr` の CI 待機記述）の古い記述が残っていないことを PR レビューで目視確認する（`manual`）。
+- [ ] ステップ 3-5 完了時点でその時点の更新対象（`.claude/commands/`・`docs/dev/guides/fixprguard_guide.md` 3〜5 章・`CLAUDE.md:178-179`）に、さらにステップ 4-1・4-2 完了時点で仕様文書全体（`docs/dev/`・`CLAUDE.md`・`.claude/commands/`・`docs/translation_glossary.md`。過去の `docs/tasks/` と `internal/chief/testdata/` を除く）に、廃止済みの `Awaited PR reviewer`・`PR review request`・`<awaited-reviewer>`・`<review-request>`・`<rejected-mentions>`・`cr_observed`・`gh pr checks --watch`（`mergepr`・`runpr` の CI 待機記述）の古い記述が残っていないことを PR レビューで目視確認する（`manual`）。
 - [ ] ステップ 4-2 の完了時点で、ADR-0013・ADR-0015・ADR-0047 に `#1095` の未実装食い違い記述が残っていないこと、かつ別タスク（`#1072`）の食い違い記述を誤って消していないことを PR レビューで目視確認する（`manual`）。
 
 ---
