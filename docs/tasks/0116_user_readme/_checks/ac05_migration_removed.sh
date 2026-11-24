@@ -2,18 +2,18 @@
 # Usage: ac05_migration_removed.sh [--only-a] <commit>
 #
 # Checks that the earlier-version migration is gone, as the task's AC-05 asks.
-# The source README is README.md at the merge-base of origin/main and <commit>,
-# so the check reads the migration where it still exists; the compared side is
-# <commit>.
+# The source is README.md and README.en.md at the merge-base of origin/main and
+# <commit>, so the check reads the migration where it still exists; the compared
+# side is <commit>.
 #
 # The checks are:
 #   (a) neither the Japanese nor the English migration heading is a heading
 #       in any tracked .md file other than docs/tasks/;
-#   (b) no line of the README's migration section, and no line of the
-#       quick-start note that pointed at it, survives in any tracked .md file
-#       other than docs/tasks/ (lines are compared with their whitespace
-#       collapsed; blank lines, code-fence lines, and lines shorter than 20
-#       characters are skipped);
+#   (b) no line of either README's migration section, and no line of either
+#       README's quick-start note that pointed at it, survives in any tracked
+#       .md file other than docs/tasks/ (lines are compared with their
+#       whitespace collapsed; blank lines, code-fence lines, and lines shorter
+#       than 20 characters are skipped);
 #   (c) the (file, word) pairs of the words only the migration used
 #       (yt2column-nmhost, NativeMessagingHosts, config.env, sharedToken) do
 #       not grow from the merge-base when README.md, README.en.md, the
@@ -24,9 +24,10 @@
 # --only-a runs check (a) alone. Phase 5 runs it after the migration is gone
 # from the merge-base too, which would make (b) and (c) vacuous.
 #
-# The script fails when the merge-base README has no migration section or no
-# quick-start note, so a vacuous run cannot pass. It exits 0 on success, 1 on a
-# failed check, and 2 on a usage or git error.
+# Check (b) fails when either merge-base README has no migration section or no
+# quick-start note, so a vacuous run cannot pass. A git failure aborts with
+# exit 2 instead of reading as a clean run. The script exits 0 on success, 1 on
+# a failed check, and 2 on a usage or git error.
 set -euo pipefail
 # Count characters, not bytes, whatever the caller's locale. C.UTF-8, not
 # en_US.UTF-8, whose collation on macOS treats distinct Japanese strings as
@@ -48,13 +49,12 @@ base=$(git merge-base origin/main "$commit") || exit 2
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-git show "$base:README.md" >"$work/source.md" || exit 2
-readme_blob=$(git rev-parse "$base:README.md") || exit 2
-
 # docs_at prints the tracked .md files at revision $1, other than docs/tasks/,
 # which holds past task records that quote the migration on purpose.
 docs_at() {
-  git ls-tree -r --name-only "$1" | grep -E '\.md$' | grep -v '^docs/tasks/' || true
+  local rev=$1 tree
+  tree=$(git ls-tree -r --name-only "$rev") || return 1
+  printf '%s\n' "$tree" | grep -E '\.md$' | grep -v '^docs/tasks/' || true
 }
 
 # collapse prints standard input with runs of whitespace turned into one
@@ -63,26 +63,52 @@ collapse() {
   sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
 }
 
+# old_lines prints, with an S or N marker, the lines of the migration section
+# and of the quick-start note that points at it, from the README file $1. $2 is
+# the migration heading and $3 the phrase the note uses.
+old_lines() {
+  awk -v mig="$2" -v note="$3" '
+    /^##[[:space:]]/ {
+      if ($0 ~ mig) {
+        insec = 1
+        next
+      }
+      insec = 0
+      inquick = ($0 ~ /^## (クイックスタート|Quick start)[[:space:]]*$/)
+      next
+    }
+    insec { print "S\t" $0 }
+    inquick && $0 ~ note { print "N\t" $0 }
+  ' "$1"
+}
+
 echo "commit:      $commit"
 echo "merge-base:  $base"
-echo "README blob: $readme_blob"
 echo
 
 failed=0
 
 # (a) A migration heading in any document other than docs/tasks/.
+DOCS_NOW=$(docs_at "$commit") || {
+  echo "FAIL: git ls-tree failed for $commit" >&2
+  exit 2
+}
 echo "=== (a) no migration heading outside docs/tasks/"
 heading_re='^#+[[:space:]]+(以前の版からの移行|Migrating from the earlier version)[[:space:]]*$'
 a_found=0
 while IFS= read -r doc; do
   [ -n "$doc" ] || continue
-  if git show "$commit:$doc" | grep -nE -- "$heading_re" >"$work/heading.hits"; then
+  content=$(git show "$commit:$doc") || {
+    echo "FAIL: cannot read $doc at $commit" >&2
+    exit 2
+  }
+  if printf '%s\n' "$content" | grep -nE -- "$heading_re" >"$work/heading.hits"; then
     while IFS= read -r hit; do
       echo "  $doc:$hit"
     done <"$work/heading.hits"
     a_found=1
   fi
-done < <(docs_at "$commit")
+done <<<"$DOCS_NOW"
 if [ "$a_found" -eq 0 ]; then
   echo "  (none)"
 else
@@ -99,40 +125,69 @@ if [ "$only_a" = true ]; then
   exit 0
 fi
 
+git show "$base:README.md" >"$work/source-ja.md" || {
+  echo "FAIL: cannot read the merge-base README.md" >&2
+  exit 2
+}
+git show "$base:README.en.md" >"$work/source-en.md" || {
+  echo "FAIL: cannot read the merge-base README.en.md" >&2
+  exit 2
+}
+readme_blob=$(git rev-parse "$base:README.md") || exit 2
+echo "README blob: $readme_blob"
+echo
+
+DOCS_BASE=$(docs_at "$base") || {
+  echo "FAIL: git ls-tree failed for $base" >&2
+  exit 2
+}
+
 # (b) A line of the removed migration, or of the quick-start note, left
 # behind in another document.
 echo "=== (b) no old migration line in another document"
-awk '
-  /^##[[:space:]]/ {
-    if ($0 ~ /^## 以前の版からの移行[[:space:]]*$/) {
-      inmigration = 1
-      next
-    }
-    inmigration = 0
-    inquick = ($0 ~ /^## クイックスタート[[:space:]]*$/)
-    next
-  }
-  inmigration { print }
-  inquick && /以前の版からの移行/ { print }
-' "$work/source.md" >"$work/old-lines"
-while IFS= read -r line; do
-  normalized=$(printf '%s\n' "$line" | collapse)
-  [ -n "$normalized" ] || continue
-  case $normalized in
-  '```'* | '~~~'*) continue ;;
-  esac
-  [ "${#normalized}" -ge 20 ] || continue
-  printf '%s\n' "$normalized"
-done <"$work/old-lines" | sort -u >"$work/old-normalized"
-if [ ! -s "$work/old-normalized" ]; then
-  echo "  FAIL: the merge-base README has no migration lines to compare"
+old_lines "$work/source-ja.md" '^## 以前の版からの移行[[:space:]]*$' '以前の版からの移行' >"$work/old-ja"
+old_lines "$work/source-en.md" '^## Migrating from the earlier version[[:space:]]*$' 'earlier version' >"$work/old-en"
+b_source_ok=true
+if ! grep -q $'^S\t' "$work/old-ja"; then
+  echo "  FAIL: the merge-base README.md has no migration section"
+  b_source_ok=false
+fi
+if ! grep -q $'^N\t' "$work/old-ja"; then
+  echo "  FAIL: the merge-base README.md has no quick-start note"
+  b_source_ok=false
+fi
+if ! grep -q $'^S\t' "$work/old-en"; then
+  echo "  FAIL: the merge-base README.en.md has no migration section"
+  b_source_ok=false
+fi
+if ! grep -q $'^N\t' "$work/old-en"; then
+  echo "  FAIL: the merge-base README.en.md has no quick-start note"
+  b_source_ok=false
+fi
+if [ "$b_source_ok" = false ]; then
   failed=1
 else
+  {
+    cut -f2- "$work/old-ja"
+    cut -f2- "$work/old-en"
+  } | while IFS= read -r line; do
+    normalized=$(printf '%s\n' "$line" | collapse)
+    [ -n "$normalized" ] || continue
+    case $normalized in
+    '```'* | '~~~'*) continue ;;
+    esac
+    [ "${#normalized}" -ge 20 ] || continue
+    printf '%s\n' "$normalized"
+  done | sort -u >"$work/old-normalized"
   : >"$work/all-lines"
   while IFS= read -r doc; do
     [ -n "$doc" ] || continue
-    git show "$commit:$doc" | collapse | awk -v d="$doc" '{ print d "\t" $0 }' >>"$work/all-lines"
-  done < <(docs_at "$commit")
+    content=$(git show "$commit:$doc") || {
+      echo "FAIL: cannot read $doc at $commit" >&2
+      exit 2
+    }
+    printf '%s\n' "$content" | collapse | awk -v d="$doc" '{ print d "\t" $0 }' >>"$work/all-lines"
+  done <<<"$DOCS_NOW"
   b_found=0
   while IFS= read -r want; do
     while IFS= read -r hit; do
@@ -154,28 +209,33 @@ echo
 echo "=== (c) migration-only words"
 words=(yt2column-nmhost NativeMessagingHosts config.env sharedToken)
 
-# pairs_at prints "<file>\t<word>" for every tracked .md file at revision $1
-# that holds $2, other than README.md, README.en.md, the translation glossary,
-# and docs/tasks/.
+# pairs_at prints "<file>\t<word>" for every document of $2 at revision $1
+# that holds $3, other than README.md, README.en.md, and the glossary.
 pairs_at() {
-  local rev=$1 word=$2 doc content
+  local rev=$1 docs=$2 word=$3 doc content
   while IFS= read -r doc; do
     [ -n "$doc" ] || continue
     case $doc in
     README.md | README.en.md | docs/translation_glossary.md) continue ;;
     esac
-    content=$(git show "$rev:$doc")
+    content=$(git show "$rev:$doc") || return 1
     if grep -qF -- "$word" <<<"$content"; then
       printf '%s\t%s\n' "$doc" "$word"
     fi
-  done < <(docs_at "$rev")
+  done <<<"$docs"
 }
 
 : >"$work/pairs-base"
 : >"$work/pairs-now"
 for word in "${words[@]}"; do
-  pairs_at "$base" "$word" >>"$work/pairs-base"
-  pairs_at "$commit" "$word" >>"$work/pairs-now"
+  pairs_at "$base" "$DOCS_BASE" "$word" >>"$work/pairs-base" || {
+    echo "FAIL: cannot read a document at $base" >&2
+    exit 2
+  }
+  pairs_at "$commit" "$DOCS_NOW" "$word" >>"$work/pairs-now" || {
+    echo "FAIL: cannot read a document at $commit" >&2
+    exit 2
+  }
 done
 sort -u "$work/pairs-base" -o "$work/pairs-base"
 sort -u "$work/pairs-now" -o "$work/pairs-now"
@@ -191,9 +251,13 @@ fi
 # The glossary keeps the definitions of the retired terms, so exactly these
 # two words may remain there.
 expected_glossary=$(printf '%s\n' config.env yt2column-nmhost | sort)
+glossary=$(git show "$commit:docs/translation_glossary.md") || {
+  echo "FAIL: cannot read the glossary at $commit" >&2
+  exit 2
+}
 actual_glossary=$(
   for word in "${words[@]}"; do
-    if git show "$commit:docs/translation_glossary.md" | grep -qF -- "$word"; then
+    if grep -qF -- "$word" <<<"$glossary"; then
       printf '%s\n' "$word"
     fi
   done | sort
