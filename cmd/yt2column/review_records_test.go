@@ -389,16 +389,18 @@ func coverageCases() []rrCase {
 		}, want: rrAll},
 		{name: "codex line alongside valid coderabbit line on same branch", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
-			f.record("codex record", f.seen(f.mb, c1, "codex"))
+			// Commit coderabbit first and codex second so newest-first branch
+			// iteration visits the codex commit before the valid coderabbit commit.
 			f.record("coderabbit record", f.seen(f.mb, c1, "coderabbit"))
+			f.record("codex record", f.seen(f.mb, c1, "codex"))
 			return rrNone(f, "")
 		}, want: rrAll},
 		{name: "partial overlap between coderabbit and codex ranges", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			c2 := f.work("c2")
 			f.record("record",
-				f.seen(f.mb, c1, "coderabbit"),
-				f.seen(c1, c2, "codex"))
+				f.seen(f.mb, c2, "codex"),
+				f.seen(f.mb, c1, "coderabbit"))
 			return rrNone(f, "")
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1")) }},
 		{name: "commit after the seen range", setup: unseenAfterSeen, want: func(f *rrFixture) []string {
