@@ -292,7 +292,7 @@
 
 **変更するファイル:** 本計画
 
--   [ ] **ステップ 3-1**: 実地の確かめの結果を、§7 の「実地の確かめの記録」に書く（設計書 7.3、§1.3 の決定 3）。
+-   [x] **ステップ 3-1**: 実地の確かめの結果を、§7 の「実地の確かめの記録」に書く（設計書 7.3、§1.3 の決定 3）。
     -   確かめは、PR-2 のマージの後に、人がほかのタスクのタスク文書の PR で行う。
     -   人は `/runplan` を送るときに、次の値を渡す。セッションは、渡されなかった値を人に尋ねる。
         -   その PR の URL。
@@ -454,7 +454,21 @@ PR-3:
 
 ### 実地の確かめの記録
 
-（PR-3 で書く）
+2026-11-24 に、タスク 0122 のタスク文書の PR（[#1102](https://github.com/isseis/yt2column/pull/1102)）で行った。Part B step 1 の記録の commit の後に `origin/main` を merge し、step 1.5（Entry 3）を走らせた。
+
+-   **判定の出力の 1 行目:** step 1.5 の 1 回目は `MERGE 1`（2 行目は merge commit `c7239121`）、2 回目は `VALID`、step 2.6 の最初の段は `VALID`。判定した commit（D）は `fda2fcc5`。
+-   **merge の後の確認:** 1 回走った（`Merge check: run c7239121… (model claude-opus-5-5; fixed 0, rejected 0, deferred 1, unclear 0, invalid 0; 59s, tokens 104784)`）。モデル ID が `claude-opus-` で始まるので、AC-25 を満たす。起動した Agent ツールの `model` は `opus`。範囲の箇所は `resolution` 0 件、`main-reference` 8 件で、指摘は 1 件（`deferred`）。
+-   **新しい Fable の記録:** 足されていない。step 1.5 の間に `Fable review: run` と `Fable review: not run` の行は増えず、印の `Fable review: checkpoint` だけができた。Fable は走らなかった（AC-24 を満たす）。
+-   **push:** 観測できなかった。この実行は step 2.6 の最初の段で止め、Part B step 3 の push（D を名指しする push と上流の設定）を走らせていない。その後の `/runpr 1102` が、D と承認の commit `131723e5` を push してマージした（squash `6e13dd74`）。したがって、push したのが D であること（AC-05）は、この実地の確かめでは確かめられていない。AC-05 は §7 の表のとおり `manual`（手順の読み）で確かめる。
+-   **commit:** Fable の記録 `9171922a`、merge commit `c7239121`、merge の後の確認の記録 `c6d2f6dc`、チェックポイントの印 `6888a50e`、D `fda2fcc5`。
+-   **判定に使ったスクリプト:** step 1.5 の 2 回と merge の後の確認は `origin/main` の `3597d4fb` のもの、step 2.5 と 2.6 は `origin/main` の `2cfeec03` のもの。実行の途中で `origin/main` が進んだ。
+-   **設計書と違う振る舞い:** ない。step 1.5 が `MERGE` で merge の後の確認を 1 回走らせ、Fable が走らないことは、設計書 7.3 のとおりである。
+-   **実地の確かめの進め方の、計画との差分:**
+    -   タスク文書のコマンドの実行中ではなく、既に開いた PR のブランチで、Part B を step 1.5 から手で続行した。
+    -   記録の後に中断した修正の commit が残り、Fable の記録が無効だったため、マージの前に単独の経路で Fable の記録を作り直した（Entry 3 の救済と同じ手順を、チェックポイントの印を残さずに走らせた）。
+    -   本文の更新と push は Part B step 3 ではなく `/runpr` が行った（上の「push」）。
+    -   step 2.5 では、`origin/main` のスクリプトの `coverage none` が `PARTIAL 5` を返し、ローカルの CLI レビューが利用上限（`rate_limit`）で失敗したので、正本のとおり再試行せず、`Local CLI review: not run 3597d4fb5ba6..6888a50ed80e (coderabbit: rate_limit)` と記録した。
+-   **ADR-0013 の食い違い:** merge の後の確認が、ADR-0013 の「PR を開く前に、どのローカルの CLI レビューも見ていない中身のある commit を、まとめてもう 1 回ローカルの CLI レビューにかける」（`docs/dev/adr/0013-review-setup.md` の 42〜43 行）と、step 2.6 が救済の後の CHECKS の直しをかけ直さないことの食い違いを、`deferred` の指摘として挙げた。0114 の設計 1.2.1 が人と決めた振る舞いなので設計書との差ではないが、ADR の文が実装と合っていない。ADR の決定を変えない PR は食い違いの文を足さずに issue を開く（`docs/dev/conventions/adr.md`「Discrepancy statements」）ので、本タスクでは直さず、別の issue で扱う（issue は人が作成する）。PR #1102 の説明には `deferred` として残した。
 
 ## 8. 成功の基準 (Success Criteria)
 
