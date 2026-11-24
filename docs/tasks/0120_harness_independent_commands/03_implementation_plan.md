@@ -505,7 +505,7 @@
 - （実装時点で `main` に `chief.md` 以外の利用者起動コマンドが増えていれば同様に作成する。`chief` は作成しない）
 
 **作業内容:**
-- [ ] 設計書 3.2 に従い、英語の YAML フロントマター（`name: <cmd>`・空でない `description`）と 4 点の参照指示（`_context.md`・`_lib/harness.md` 経由のアダプタ・対応する `.claude/commands/<cmd>.md` 正本・`AGENTS.md`/`CLAUDE.md` 禁止規則）のみを持つ薄い入口を全 11 ファイル作成する（手順本文は一切複製しない）。
+- [x] 設計書 3.2 に従い、英語の YAML フロントマター（`name: <cmd>`・空でない `description`）と 4 点の参照指示（`_context.md`・`_lib/harness.md` 経由のアダプタ・対応する `.claude/commands/<cmd>.md` 正本・`AGENTS.md`/`CLAUDE.md` 禁止規則）のみを持つ薄い入口を全 11 ファイル作成する（手順本文は一切複製しない）。
 
 **完了基準:**
 - `chief` を除くすべての開発コマンドに対応する `.agents/skills/<cmd>/SKILL.md` が存在し、`.agents/skills/chief/` が存在しない。
@@ -519,10 +519,10 @@
 - `cmd/yt2column/skills_docs_test.go`（新規）
 
 **作業内容:**
-- [ ] `internal/doctestutil/protocol.go` の `CommandDocs` の走査対象に `.agents/skills` を追加し、`internal/doctestutil/protocol_test.go` に `TestCommandDocs` を追加して、`t.TempDir()` 上の `.claude/commands/*.md` と `.agents/skills/<cmd>/SKILL.md` の双方が返ること（`.agents/skills` 欠落・空時の失敗を含む）を検証する。
-- [ ] `cmd/yt2column/docpaths_test.go` の `instructionDocs` に `.agents/skills` を追加し、返却一覧に `.agents/skills/` 配下のファイルが含まれることを明示的に検証する。あわせて、`TestInstructionDocPaths` が全スキルファイルの相対リンクと `docs/dev/` 参照の実在を検査することを確認する。
-- [ ] `cmd/yt2column/skills_docs_test.go` を新設し、`TestSkillsMatchCommands` を実装する。同テストでは、`.claude/commands/*.md`（`_` 始まりと `chief.md` を除く）の集合と `.agents/skills/<cmd>/SKILL.md` の集合の完全一致、`.agents/skills/` 配下に余分なファイル・ディレクトリや `chief/` が存在しないこと、および各 `SKILL.md` の YAML フロントマター（`name == <cmd>`・空でない `description`）と対応する正本・`_context.md`・`_lib/harness.md` への参照構造を検証する。
-- [ ] 実装時に、スキル 1 件削除・`chief` 追加・リンク破壊・禁止メンション混入のそれぞれで該当テスト（`TestSkillsMatchCommands`・`TestInstructionDocPaths`・`CommandDocs` 呼び出しテスト）が失敗することを確認する。
+- [x] `internal/doctestutil/protocol.go` の `CommandDocs` の走査対象に `.agents/skills` を追加し、`internal/doctestutil/protocol_test.go` に `TestCommandDocs` を追加して、`t.TempDir()` 上の `.claude/commands/*.md` と `.agents/skills/<cmd>/SKILL.md` の双方が返ること（`.agents/skills` 欠落・空時の失敗を含む）を検証する。
+- [x] `cmd/yt2column/docpaths_test.go` の `instructionDocs` に `.agents/skills` を追加し、返却一覧に `.agents/skills/` 配下のファイルが含まれることを明示的に検証する。あわせて、`TestInstructionDocPaths` が全スキルファイルの相対リンクと `docs/dev/` 参照の実在を検査することを確認する。
+- [x] `cmd/yt2column/skills_docs_test.go` を新設し、`TestSkillsMatchCommands` を実装する。同テストでは、`.claude/commands/*.md`（`_` 始まりと `chief.md` を除く）の集合と `.agents/skills/<cmd>/SKILL.md` の集合の完全一致、`.agents/skills/` 配下に余分なファイル・ディレクトリや `chief/` が存在しないこと、および各 `SKILL.md` の YAML フロントマター（`name == <cmd>`・空でない `description`）と対応する正本・`_context.md`・`_lib/harness.md` への参照構造を検証する。
+- [x] 実装時に、スキル 1 件削除・`chief` 追加・リンク破壊・禁止メンション混入のそれぞれで該当テスト（`TestSkillsMatchCommands`・`TestInstructionDocPaths`・`CommandDocs` 呼び出しテスト）が失敗することを確認する。
 
 **完了基準:**
 - `go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/doctestutil` がすべて通る。
@@ -538,10 +538,10 @@
 - `docs/dev/adr/0055-harness-independent-commands.md`
 
 **作業内容:**
-- [ ] `CLAUDE.md` の 4 項目（AC-41）を更新する: 「Document language」原則 (b) への `.agents/skills/` 追加、「Language」対話言語規則のハーネス非依存化、「Commands」節の一般化名称（上位モデルのレビュー・クロスチェックの部分レビュー等）と `.agents/skills/` 説明、および「Tool Execution Safety」の禁止規則が Antigravity にも適用される旨の明記（AC-34）。
-- [ ] `AGENTS.md` に AC-34 の禁止規則 3 点（インストール型ツールのインストール・ビルド禁止、`herdr` 変更系と `git worktree` 追加・削除・移動禁止、記録タグ直接操作と未承認ネットワーク・マージ・実 API 呼び出し禁止）と `_lib/harness-antigravity.md` 参照を明記する（英語）。
-- [ ] `docs/translation_glossary.md` に本タスクの一般化用語（ハーネス、ハーネスのアダプタ、上位モデルのレビュー、クロスチェックの部分レビュー、スクラッチパッド）を追加し、定義・英語表記を要件定義書 3.1・6 章と照合する。
-- [ ] `ADR-0014`（`:56`）・`ADR-0035`（`:24`）・`ADR-0055`（`:25`）から残っている `#1072` の食い違い記述を除去する（編集上の訂正はコミットメッセージに `Editorial correction:` 行を残す）。
+- [x] `CLAUDE.md` の 4 項目（AC-41）を更新する: 「Document language」原則 (b) への `.agents/skills/` 追加、「Language」対話言語規則のハーネス非依存化、「Commands」節の一般化名称（上位モデルのレビュー・クロスチェックの部分レビュー等）と `.agents/skills/` 説明、および「Tool Execution Safety」の禁止規則が Antigravity にも適用される旨の明記（AC-34）。
+- [x] `AGENTS.md` に AC-34 の禁止規則 3 点（インストール型ツールのインストール・ビルド禁止、`herdr` 変更系と `git worktree` 追加・削除・移動禁止、記録タグ直接操作と未承認ネットワーク・マージ・実 API 呼び出し禁止）と `_lib/harness-antigravity.md` 参照を明記する（英語）。
+- [x] `docs/translation_glossary.md` に本タスクの一般化用語（ハーネス、ハーネスのアダプタ、上位モデルのレビュー、クロスチェックの部分レビュー、スクラッチパッド）を追加し、定義・英語表記を要件定義書 3.1・6 章と照合する。
+- [x] `ADR-0014`（`:56`）・`ADR-0035`（`:24`）・`ADR-0055`（`:25`）から残っている `#1072` の食い違い記述を除去する（編集上の訂正はコミットメッセージに `Editorial correction:` 行を残す）。
 
 **完了基準:**
 - `docs/dev/adr/` に `issues/1072` の食い違い記述が残らず、`TestADRRecords`・`TestInstructionDocPaths`・`TestReadmeSyncMarker` がすべて通る。
@@ -553,11 +553,11 @@
 - `docs/tasks/0120_harness_independent_commands/03_implementation_plan.md`（§7 の静的検証結果・差分記録）
 
 **作業内容:**
-- [ ] `docs/tasks/0120_harness_independent_commands/_checks/check_harness_tools.sh` を作成し、次の 2 点を検査する。実装時は各検査について違反（ツール呼び出し 1 件の一時挿入、仮の `.sh` ファイル 1 件の一時追加）で失敗することを確認し、実行結果と対象コミット ID を §7.1 に記録する。
+- [x] `docs/tasks/0120_harness_independent_commands/_checks/check_harness_tools.sh` を作成し、次の 2 点を検査する。実装時は各検査について違反（ツール呼び出し 1 件の一時挿入、仮の `.sh` ファイル 1 件の一時追加）で失敗することを確認し、実行結果と対象コミット ID を §7.1 に記録する。
     - (1) `.claude/commands/` 配下の非アダプタ・非 `chief` のコマンド定義（`_lib/harness*.md` と `chief.md` を除く）に AC-02 のハーネス固有ツール呼び出しが残っていないこと（`_context.md` の `### Command routing` の `Agent` 列ヘッダ、`### Harness model mapping` の `Launch` 列の `agent` / `swarm` 値、通常の英語動詞、` ```bash ` コードフェンス開始行による誤検知は除外する）。
     - (2) `.claude/commands/` 配下全体の `*.sh` を再帰走査し、ファイル集合が `_lib/adr-correction-candidates.sh`・`_lib/high-review-decision.sh`・`_lib/review-records.sh` の 3 本のみであること（AC-41 (4)）。
-- [ ] §7.2 の PR-5 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録する。
-- [ ] `make test && make lint && make deadcode && make readme-sync-check` および CI `doc-guard` コマンド（`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`）をすべて実行して成功を確認する。
+- [x] §7.2 の PR-5 差分記録（`Diff record (AC-32)`）に `.claude/settings.json` の Path diff（空）と全変更ファイル一覧（`File list`）を記録する。
+- [x] `make test && make lint && make deadcode && make readme-sync-check` および CI `doc-guard` コマンド（`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`）をすべて実行して成功を確認する。
 
 **完了基準:**
 - `_checks/check_harness_tools.sh` が終了コード `0` で通り、全テスト・静的検査・差分記録が完了する。
@@ -709,7 +709,12 @@
 
 ### 7.1 静的検証結果（`_checks/check_harness_tools.sh`）
 
-実装時（ステップ 4-8）にスクリプトの実行結果と対象コミット ID をここへ記録する。
+ステップ 4-8 で `check_harness_tools.sh` を PR ブランチ上で実行した結果を記録する。
+
+-   対象コミット: `007622c9bb743990965c43a754047448ac612392`
+-   終了コード: `0`
+-   出力: `OK: no harness tool call outside the adapters; scripts = ./_lib/adr-correction-candidates.sh ./_lib/high-review-decision.sh ./_lib/review-records.sh`
+-   違反での失敗確認: 検査 (1) は `japrose.md` へのコードスパンの `Bash`、`_lib/settle-decisions.md` への `Agent(` の挿入で、検査 (2) は `_lib/stray.sh` の追加で、それぞれ終了コード 1 で失敗することを確認し、挿入物は取り除いた。
 
 ### 7.2 差分の記録（AC-32・AC-14）
 
