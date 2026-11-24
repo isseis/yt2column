@@ -68,12 +68,12 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
 
 -   PR レビューの「レビュー済み」（`LAST_REVIEWED`）は、CodeRabbit（手動）と Sourcery AI（自動・手動）それぞれの完了の印の和集合と CI で判定する。
     -   **CodeRabbit の完了の印:** CodeRabbit の GitHub App（slug が `coderabbitai`）が作る CheckRun `CodeRabbit` のうち、依頼のコメントの後に始まり、`completed`・`success`・`output.title` が `Finished` のもの。示すコミットはその CheckRun の `head_sha` である。`neutral` で `Review rate limited` のものを割り当ての知らせとし、push のときの知らせ（`skipped` で `Review skipped: automatic reviews are disabled`）は数えず、それ以外の終わり方はエラーの知らせとする。
-    -   **Sourcery AI の完了の印と自動の PR レビューの扱い:** Sourcery AI の GitHub App（slug が `sourcery-ai`）が作る CheckRun `Sourcery review` のうち、観測で確定した成功完了の形（PR #1094 時点では `completed`・`success`・`output.title` が `✅ Completed successfully`）に一致するものを完了の印とし、自動実行の完了と手動の依頼への応答の完了の両方を数える。`head` コミット上で自動の PR レビューが進行中のときは、完了するか上限時間（15 分）に達するまで待機する。自動の PR レビューがスキップ・割り当て切れ・失敗・未認識・時間切れになっても `/runpr` は止めず、完了の印に数えないまま要約に状態と URL を示してマージの質問へ進む。`/runpr` の CI 待機はリポジトリの CI チェックのみを成否判定の対象とし、`Sourcery review` CheckRun の失敗や未完了を CI 失敗とみなして止めない。停止するのは、手動の依頼が割り当て切れ・スキップ・失敗・時間切れになったときだけである（`/runpr` の再実行時点で既に終わっていた依頼であれば、要約に示して進む）。
+    -   **Sourcery AI の完了の印と自動の PR レビューの扱い:** Sourcery AI の GitHub App（slug が `sourcery-ai`）が作る CheckRun `Sourcery review` のうち、観測で確定した成功完了の形（`COMPLETED`・`SUCCESS`・`title` が `✅ Completed successfully`）に一致するものを完了の印とし、自動実行の完了と手動の依頼への応答の完了の両方を数える。`head` コミット上で自動の PR レビューが進行中のときは、完了するか上限時間（15 分）に達するまで待機する。自動の PR レビューがスキップ・割り当て切れ・失敗・未認識・時間切れになっても `/runpr` は止めず、完了の印に数えないまま要約に状態と URL を示してマージの質問へ進む。`/runpr`（`fixprguard ci-checks`）および `/mergepr`・`/runpr` step 4（`mergepr prepare`）の CI 待機では、共有パッケージ `internal/ghci` を使い、リポジトリの CI チェック（`app.slug == "github-actions"`）のみを成否判定の対象とする。`Sourcery review` や `CodeRabbit` など外部レビュアーの CheckRun が失敗・未完了でも、CI 失敗とみなして処理は止めない。停止するのは、手動の依頼が割り当て切れ・スキップ・失敗・時間切れになったときだけである（`/runpr` の再実行時点で既に終わっていた依頼であれば、要約に示して進む）。
     -   **判定の場所:** `fixprguard` のサブコマンド `review-state` が、GitHub の応答を厳密な JSON として検査し、状態・SHA・URL・時刻だけを出す。
     -   **本文だけの指摘と、レビューしなかったファイル:** 本文を読まずに分からないものは分からないものとして扱い、完了した PR レビューの要約ではレビューの URL と、本文に指摘やレビューしなかったファイルの知らせがありうることを示す。
-    -   理由: 観測では完了・割り当て切れ・レビューしたコミットを本文なしに示すのは CheckRun だけで、CheckRun を作れるのはその GitHub App だけである。判定を Go に置くのは `gh api --jq` の重複後勝ちを避けテストで検証するためである（[ADR-0014](0014-deterministic-checks-in-go.md) の 1、[ADR-0015](0015-untrusted-review-threads.md)）。どちらか 1 社の完了で `LAST_REVIEWED` とし、自動の PR レビューのスキップで止めないのは、自動の PR レビューを活かしつつ上限切れでマージを塞がないためである。
-    -   正本: [0118 設計書](../../tasks/0118_codex_removal/02_architecture.md) の 1.3・3.3、[0118 の観測の記録](../../tasks/0118_codex_removal/observations.md)、[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md) の F-001・F-004。
-    -   **食い違い:** `fixprguard review-state` と `runpr.md` はまだ CodeRabbit 単体（手動のみ）を判定しており、`runpr.md` の CI 待機（`gh pr checks`）も `Sourcery review` CheckRun をリポジトリの CI チェックと分離していない。この食い違いは https://github.com/isseis/yt2column/issues/1095 の実装で解消する。
+    -   理由: 観測では完了・割り当て切れ・レビューしたコミットを本文なしに示すのは CheckRun だけで、CheckRun を作れるのはその GitHub App だけである。判定を Go に置くのは `gh api --jq` の重複後勝ちを避けテストで検証するためである（[ADR-0014](0014-deterministic-checks-in-go.md) の 1、[ADR-0015](0015-untrusted-review-threads.md)）。どちらか 1 社の完了で `LAST_REVIEWED` とし、自動の PR レビューのスキップで止めないのは、自動の PR レビューを活かしつつ割り当て切れや上限到達でマージを塞がないためである。`mergepr prepare` 側も `internal/ghci` で CI 待機を外部レビュアーの CheckRun から分離するのは、`/runpr` step 4 で `mergepr prepare` を呼ぶ際に `gh pr checks --watch --fail-fast` が `Sourcery review` の失敗で停止し、未完了では完了まで待ち続けてしまうためである（[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md)「設計の際に決めたこと（2026-11-24）」）。
+    -   正本: [0118 設計書](../../tasks/0118_codex_removal/02_architecture.md) の 1.3・3.3、[0118 の観測の記録](../../tasks/0118_codex_removal/observations.md)、[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md) の F-001・F-004、[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md) の 1.3・3.2.4。
+    -   **食い違い:** `fixprguard review-state` と `runpr.md` はまだ CodeRabbit 単体（手動のみ）を判定している。また、`runpr.md` の CI 待機および `mergepr prepare`（`internal/mergepr/mergepr.go`・`.claude/commands/mergepr.md`）もまだ `gh pr checks` を使っており、外部レビュアーの CheckRun をリポジトリの CI チェックから分離していない。この食い違いは https://github.com/isseis/yt2column/issues/1095 の実装で解消する。
 -   自動レビュアーの投稿は信頼しない入力として読む。
     -   内容: 完了の印は、GitHub App の slug が対象レビュアー（`coderabbitai`・`sourcery-ai`）の CheckRun だけを数え、それが示すコミットとその祖先だけをレビュー済みにする。手動の依頼のコメントは著者の種類が `User` で著者名が利用者のものだけを数える。観測した形に合わないときは完了としない。CheckRun は PR のコミット一覧にあるコミットのものだけを読み、読み取りの途中で head が変わったときは一覧を捨てて読み直すので、示すコミットはかならず出力する head かその祖先である。
     -   理由: 形を直したり読み替えたりして完了とすると、レビューされていない変更をレビュー済みとしうるためである。
@@ -191,7 +191,7 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
 
 ### Sourcery AI の併用（0122）
 
-以下の出典は、どれも [0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md) の「要件定義の際に決めたこと（2026-11-23）」である。
+以下の出典は、個別に明記したものを除き、[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md) の「要件定義の際に決めたこと（2026-11-23）」である。
 
 -   Sourcery AI を信頼する自動レビュアーの一覧にだけ加え、`/runpr` の手動の PR レビュー依頼・完了待機の対象には含めない。
     -   理由: 利用者が `/runpr` からも Sourcery AI の完了待機と手動の依頼を行えるようにすることを選んだためである。
@@ -203,6 +203,8 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
     -   理由: 自動の PR レビューのない CodeRabbit が未実行の間は常に未レビュー扱いになり、日常の PR 運用が重くなるためである。
 -   自動の PR レビューがスキップ・失敗・時間切れになったときも `/runpr` を止める。
     -   理由: 自動の PR レビューの週間枠や再レビュー上限でマージが塞がれるのを防ぐためである。
+-   CI 待機と外部レビュアーの CheckRun の分離を `runpr.md` step 3 だけにとどめて `mergepr prepare` は `gh pr checks --watch --fail-fast` のままにする、または CI 待機を `gh pr checks --json` や `--required` で済ませる。
+    -   理由: `mergepr prepare` で `gh pr checks` を使い続けると、`Sourcery review` が失敗のままマージへ進んだときに step 4 で止まり、未完了のままでは step 4 で待ち続ける。また、`main` の ruleset には必須チェック設定がないため `--required` は使えず、`gh pr checks --json` は `app.slug` を返さず、`headRefOid` の一致確認、ジョブ生成前の `CheckSuite` 状態の取得、重複 JSON キーの拒否も満たせない（[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md)「設計の際に決めたこと（2026-11-24）」）。
 
 ## 結果
 
@@ -244,3 +246,4 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
 - 2026-11-20 手動の PR レビューの完了の印を、CodeRabbit の GitHub App が作る CheckRun `CodeRabbit` の `completed`・`success`・`Finished` とし、判定を `fixprguard review-state` に置いた。本文だけの指摘とレビューしなかったファイルは分からないものとして扱い、マージの質問でありうることを示すことにした（[0118 設計書](../../tasks/0118_codex_removal/02_architecture.md)「設計の際に決めたこと（2026-11-20）」）
 - 2026-11-21 エスカレーションの判定を Opus 固定からハーネスの `high` 役割ワーカー固定（呼べないハーネスでは安全側の推奨）へ改め、上位モデルのレビューとクロスチェックの部分レビューの名称変更に追随した（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「要件定義の際に決めたこと（2026-11-21）」）
 - 2026-11-23 PR レビューに Sourcery AI（自動・手動）を加え、CodeRabbit（手動）と併用することにした。Sourcery AI の自動の PR レビューは有効のまま維持し、進行中のレビューの完了を待って完了判定（`LAST_REVIEWED` は両社の和集合）に含める。自動の PR レビューのスキップ・失敗・時間切れでは止めず、手動の依頼の失敗時だけ止める（[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md)「要件定義の際に決めたこと（2026-11-23）」）
+- 2026-11-24 リポジトリの CI チェック（`app.slug == "github-actions"`）のみの成否を判定する共有パッケージ `internal/ghci` を設け、`/runpr` step 3（`fixprguard ci-checks`）だけでなく `mergepr prepare`（`/mergepr`・`/runpr` step 4）の CI 待機も外部レビュアーの CheckRun から分離することにした（[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md)「設計の際に決めたこと（2026-11-24）」）

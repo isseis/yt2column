@@ -50,10 +50,10 @@ GitHub App として入っている自動レビュアー（CodeRabbit・Sourcery
 
 ### GitHub の制限と他アカウントのメンション検査
 
--   **`interaction limits` とメンション検査:** 4 つの設定（アカウント全体の `interaction limits`、PR 作成の制限、issue 作成の制限、ブランチへの push の制限）を利用者が設定する。`/runpr` は `fixprguard interaction-limits` で制限の状態を読み、PR の作成時刻と比べ、利用者以外の `@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai` のメンションがないことを確かめる（CodeRabbit の観測済み定型コメント 2 種と、`sourcery-ai[bot]` の観測済みレビューガイドコメントは除外する）。確かめられない・制限がない・制限が弱い・PR が制限設定より前に作られたときは、レビューを待たずに止まる。
-    -   理由: 書き込み権限のない人が自動レビュアーに指示する入口を塞ぎ、期限で自動解除される `interaction limits` が外れていた間に作られたスレッドを見逃さないためである。自動レビュアー自身の観測済み定型コメントを除外するのは、通常の PR ごとに誤検知で止まらないようにするためである（[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md) の F-003）。
-    -   正本: [fixprguard_guide.md](../guides/fixprguard_guide.md) の 10 章「GitHub の設定」、[.claude/commands/runpr.md](../../../.claude/commands/runpr.md) の step 1・step 3。
-    -   **食い違い:** `runpr.md` step 3 のメンション検査はまだ `@codex` と `@coderabbitai` の 2 つを対象とし、除外は CodeRabbit の定型 2 種のみである。この食い違いは https://github.com/isseis/yt2column/issues/1095 の実装で解消する。
+-   **`interaction limits` とメンション検査:** 4 つの設定（アカウント全体の `interaction limits`、PR 作成の制限、issue 作成の制限、ブランチへの push の制限）を利用者が設定する。`/runpr` は `fixprguard interaction-limits` で制限の状態を読み、PR の作成時刻と比べる。あわせて、`fixprguard mentions`（厳格な JSON 検査を行う Go のサブコマンド）で利用者以外の `@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai` のメンションがないことを確かめる（CodeRabbit の観測済み定型コメント 2 種と、`sourcery-ai[bot]` の会話コメントのうち観測済みのレビューガイドコメントおよび 7 日間予算超過通知コメントは除外する）。確かめられない・制限がない・制限が弱い・PR が制限設定より前に作られたときは、レビューを待たずに止まる。
+    -   理由: 書き込み権限のない人が自動レビュアーに指示する入口を塞ぎ、期限で自動解除される `interaction limits` が外れていた間に作られたスレッドを見逃さないためである。自動レビュアー自身の観測済み定型コメント（7 日間予算超過通知コメントを含む）を除外するのは、通常の PR ごとに誤検知で止まらないようにするためである（[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md) の F-003、[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md)「設計の際に決めたこと（2026-11-24）」）。また、メンション検査を `gh api --paginate --jq` から `fixprguard mentions` へ移すのは、`jq` が重複キーを黙って後勝ちにする点（[ADR-0014](0014-deterministic-checks-in-go.md) の原則に対する例外）を解消し、手動の PR レビューの依頼コメントの分類を PR レビュー状態を判定する `review-state` サブコマンドと共有して Go のテストで検証できるようにするためである（[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md)）。
+    -   正本: [fixprguard_guide.md](../guides/fixprguard_guide.md) の 5 章 `mentions`・10 章「GitHub の設定」、[.claude/commands/runpr.md](../../../.claude/commands/runpr.md) の step 1・step 3。
+    -   **食い違い:** `fixprguard mentions` は未実装であり、`runpr.md` step 3 のメンション検査はまだ `gh api --paginate --jq` で `@codex` と `@coderabbitai` の 2 つを対象とし、除外は CodeRabbit の定型 2 種のみである。この食い違いは https://github.com/isseis/yt2column/issues/1095 の実装で解消する。
 -   **制限状態の厳密判定:** 制限状態の判定は、GitHub の応答を厳密に検査する Go のサブコマンドで行い、「今」は同じ応答の `Date` ヘッダ（GitHub の時刻）から取る。応答の検査は 1 つの番兵エラーにまとめ、部分的な結果を使わない。
     -   理由: `gh api --jq` は重複した項目を黙って後勝ちにするため厳密に検査できず、ローカルの時計では時計のずれがそのまま判定のずれになるためである。
     -   正本: [fixprguard_guide.md](../guides/fixprguard_guide.md) の 5 章 `interaction-limits`・10 章「GitHub の設定」、[0057 設計書](../../tasks/0057_reviewer_relay_guard/02_architecture.md) §1.2。
@@ -89,6 +89,8 @@ GitHub App として入っている自動レビュアー（CodeRabbit・Sourcery
 -   疑わしいコメントを一律に削除する。正当なレビューも消え、取り消せない（[0057 要件定義書](../../tasks/0057_reviewer_relay_guard/01_requirements.md) §1）。
 -   信頼する自動レビュアーの一覧から CodeRabbit を外す。Web から CodeRabbit のレビューを頼む使い方を残したいうえ、書き込み権限のない人は制限が有効な間はどちらの Bot にも指示できないため、一覧から外しても減る危険は小さい（[0057 要件定義書](../../tasks/0057_reviewer_relay_guard/01_requirements.md) §1「実装の際に決めたこと（2026-11-04）」）。
 -   拒否するメンションに `@sourcery-ai` だけを加えて `@sourceryai` を入れない、またはどちらも加えない。公式文書と PR #1094 の観測から Sourcery AI は `@sourceryai`（ハイフンなし）でも起動するため、どちらか一方でも拒否・検出対象から外すと誤投稿の抑止や外部メンションの検出に穴が残る（[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md)「要件定義の際に決めたこと（2026-11-23）」）。
+-   `sourcery-ai[bot]` の 7 日間予算超過通知コメントをメンション検査から除外せず、予算超過のたびに `/runpr` を止める。実際の PR の観測（#1097・#1098・#1100・#1101）では 7 日間予算を超過するたびに `sourcery-ai[bot]` が定型コメントに `` `@sourcery-ai review` `` を含めて投稿するため、除外しないと予算超過状態の PR ごとに誤検知で止まる。1 行目を固定文面と厳密に照合して除外すれば、想定外のコメントを通してしまう危険を抑えつつ誤検知を防げる（[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md)「設計の際に決めたこと（2026-11-24）」）。
+-   `/runpr` のメンション検査を `gh api --paginate --jq` のまま残し、Sourcery AI の除外条件を `jq` に書き足す。`jq` は JSON の重複キーを黙って後勝ちにするため [ADR-0014](0014-deterministic-checks-in-go.md) の原則に対する例外が残り、除外条件と依頼コメントの分類も `fixprguard` の Go コードと二重管理になる（同上）。
 
 ## 結果
 
@@ -97,7 +99,7 @@ GitHub App として入っている自動レビュアー（CodeRabbit・Sourcery
 -   **想定外の著者のスレッドの遮断:** 想定外の著者が開いたスレッドは、利用者が内容を確かめて名指しするまで処理されず、本文は `/fixpr` にも `/runpr` のセッションにも渡らない。
 -   **多層防御:** 信頼する著者のスレッドでも、本文を読んだエージェントが指示に従うことは保証できないため、範囲の確認とガードツール経由の書き込みを別の守りとして重ねる。修正フェーズの範囲外の変更は、コードを実行する build checks の前に利用者の確認に回る。
 -   **`interaction limits` の運用:** アカウント全体に効き、ほかの公開リポジトリにも及ぶ。期限は最長 6 か月で切れる前に利用者が更新する。`/runpr` は 4 つの設定のうち `interaction limits` だけを読み、制限がない・弱い・確かめられない・PR が設定より前に作られたときはマージしない。PR・issue 作成の制限とブランチへの push の制限は利用者が設定画面で確かめる。
--   **自動レビュアーの一覧とメンション拒否:** 信頼する自動レビュアーの一覧は CodeRabbit と Sourcery AI の 2 つになり、両者のスレッドを `/fixpr` と `/runpr` が自動処理できる。4 つの拒否するメンション（`@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai`）はコマンド文書と `CLAUDE.md` で許可された行以外に書けず、`/runpr` は両社の観測済み定型コメントだけをメンション検査から除外する。
+-   **自動レビュアーの一覧とメンション拒否:** 信頼する自動レビュアーの一覧は CodeRabbit と Sourcery AI の 2 つになり、両者のスレッドを `/fixpr` と `/runpr` が自動処理できる。拒否するメンション 4 つ（`@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai`）は、コマンド文書と `CLAUDE.md` で許可された行以外には書けない。また、`/runpr` は `fixprguard mentions` による厳格な JSON 検査で、両者の観測済み定型コメント（CodeRabbit の定型コメント 2 種と、`sourcery-ai[bot]` のレビューガイドコメント・7 日間予算超過通知コメント）だけをメンション検査から除外する。
 -   **Phase 4.5 の残余リスク:** ローカルの CLI レビューの修正は範囲外のファイルを変えても利用者の確認に回らず、比較が検出するのは git の状態（hooks・config・info・対象のファイル・ブランチ・HEAD の系列）の書き換えだけである。
 
 ## 経緯
@@ -113,3 +115,4 @@ GitHub App として入っている自動レビュアー（CodeRabbit・Sourcery
 - 2026-11-10 修正の範囲の決定を、規則 1（スレッドの `path` そのもの）に許可リストを当てず、実行関連ファイルでなければ名前や拡張子を問わず範囲に入れる形に直した。タスク 0036 の決定と道具の実装に合わせたもので、本 ADR を作ったときの要約が、`path` そのものにも許可リストが当たる書き方になっていたためである（[0082 要件定義書](../../tasks/0082_adr0015_fix_scope_path/01_requirements.md)）
 - 2026-11-20 利用者のアカウントからの投稿で拒否するメンションと、`/runpr` が確かめる利用者以外のメンションを、`@codex` と `@coderabbitai` の 2 つにした。手動の PR レビューの依頼 `@coderabbitai review` だけがメンションを含む。信頼する自動レビュアーの一覧から `chatgpt-codex-connector` を外した（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）
 - 2026-11-23 信頼する自動レビュアーの一覧に `sourcery-ai` を加え、拒否するメンションと `/runpr` が確かめるメンションに `@sourcery-ai` と `@sourceryai` を加えて 4 つにし、`/runpr` のメンション検査から `sourcery-ai[bot]` の観測済みレビューガイドコメントを除外することにした（[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md)「要件定義の際に決めたこと（2026-11-23）」）
+- 2026-11-24 `/runpr` のメンション検査を `gh api --paginate --jq` から厳格な JSON 検査を行う Go のサブコマンド `fixprguard mentions` へ移し、実際の PR の観測で新たに確認された `sourcery-ai[bot]` の 7 日間予算超過通知コメントも、1 行目の厳密な一致を条件に除外対象に加えることにした（[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md)「設計の際に決めたこと（2026-11-24）」）
