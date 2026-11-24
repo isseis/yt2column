@@ -45,7 +45,7 @@ assumes:
 If the tool stops, report its error and the action it suggests; do not work
 around it with your own shell commands. Work in order; do not skip a step.
 
-1. **Prepare.** Run `mergepr prepare --protocol 3 $ARGUMENTS` (no argument uses the current
+1. **Prepare.** Run `mergepr prepare --protocol 4 $ARGUMENTS` (no argument uses the current
    branch's PR). It requires the PR to be open, fetches `origin`, fetches
    `main` into `origin/main` again and runs the protocol number check on the
    PR's head and base, waits for CI
@@ -91,7 +91,7 @@ around it with your own shell commands. Work in order; do not skip a step.
      `merge` call of this run.
    - **Fix the branch:** the user rewrites the commit messages on the branch
      and runs `/mergepr` again. Run
-     `mergepr discard --protocol 3 --state <state-file>` and stop.
+     `mergepr discard --protocol 4 --state <state-file>` and stop.
 
    Do not go on to step 2 before the user chooses. The rejected lines are
    never copied into the body, in their form or in a changed one.
@@ -124,7 +124,7 @@ around it with your own shell commands. Work in order; do not skip a step.
         made on `headRefOid` (`git rev-parse HEAD` in that checkout equals it);
         otherwise judge again on `headRefOid`. For a plan PR, `<scope>` is its
         task ID. If the judgment stops, run
-        `mergepr discard --protocol 3 --state <state-file>`, report, and stop.
+        `mergepr discard --protocol 4 --state <state-file>`, report, and stop.
      2. **Title prefix.** Read the PR title from `title` in `state.json`, not
         from the first line `prepare` prints, where a control character can
         hide. When it starts with an accepted prefix (the prefix table of
@@ -178,7 +178,7 @@ around it with your own shell commands. Work in order; do not skip a step.
      summary, and never put a line that starts with `Editorial correction: `
      or `Dropped editorial corrections: ` anywhere else in the subject or
      the body. Run
-     `mergepr paragraph --protocol 3 --state <state-file>`, adding the drops
+     `mergepr paragraph --protocol 4 --state <state-file>`, adding the drops
      of this run (step 1, and step 3 below); it writes the block to
      `paragraph.txt` in the prepared directory and prints its path and line
      count (an empty block is an empty file).
@@ -199,7 +199,7 @@ around it with your own shell commands. Work in order; do not skip a step.
    approval alone is not the check. If it fails, rewrite the subject and check
    it again; never go on to step 3 with a subject that fails.
    Then run
-   `mergepr check-body --protocol 3 --state <state-file> --subject-file <subject-file> --body-file <body-file>`,
+   `mergepr check-body --protocol 4 --state <state-file> --subject-file <subject-file> --body-file <body-file>`,
    with the same drops as `paragraph`. It checks that the subject holds no
    correction line and that the body's correction lines are exactly the block,
    in order and as a paragraph of their own that leaves the trailers git reads
@@ -243,9 +243,9 @@ around it with your own shell commands. Work in order; do not skip a step.
    tree; the question does not ask whether to run the next command. `runpr.md`
    also says how to re-prepare after the bookkeeping commit.
 4. **Merge.** Run
-   `mergepr merge --protocol 3 --state <state-file> --subject-file <subject-file> --body-file <body-file>`,
+   `mergepr merge --protocol 4 --state <state-file> --subject-file <subject-file> --body-file <body-file>`,
    with the drops of the approved body (for example
-   `mergepr merge --protocol 3 --state <state-file> --subject-file <subject-file> --body-file <body-file> --drop <drop> --drop-rejected <rejected-drop>`).
+   `mergepr merge --protocol 4 --state <state-file> --subject-file <subject-file> --body-file <body-file> --drop <drop> --drop-rejected <rejected-drop>`).
    It requires the PR to be still open on the prepared base, fetches `main`
    into `origin/main` again and repeats the protocol number check on the
    prepared head (`origin/main` may have moved since step 1), then runs the
@@ -254,13 +254,13 @@ around it with your own shell commands. Work in order; do not skip a step.
    its own, with
    `--match-head-commit <headRefOid>`, so GitHub refuses the merge if the head
    moved after `prepare`. In that case the preparation can no longer be used:
-   discard it with `mergepr discard --protocol 3 --state <state-file>` so its material does
+   discard it with `mergepr discard --protocol 4 --state <state-file>` so its material does
    not linger inside the checkout, then re-run from step 1. When the repeated
    protocol number check stops it (its error starts with `protocol check: `),
    nothing is merged. When the error is `could not fetch origin/main`, the
    preparation still holds: run the same `merge` command once more, and when it
    fails again, discard the preparation with
-   `mergepr discard --protocol 3 --state <state-file>` and report the error.
+   `mergepr discard --protocol 4 --state <state-file>` and report the error.
    Otherwise discard the preparation with the `discard` command the error
    shows, and report as step 1 says. When the correction check stops it (its
    error starts with `correction check: `), nothing is merged. When the error
@@ -277,7 +277,7 @@ around it with your own shell commands. Work in order; do not skip a step.
    could not read origin (reason `network-or-github`), the preparation still
    holds: run the same `merge` command once more, and when it fails again,
    discard the preparation. Otherwise discard the preparation with
-   `mergepr discard --protocol 3 --state <state-file>`. Either way, report as
+   `mergepr discard --protocol 4 --state <state-file>`. Either way, report as
    step 1 says for the number check, and stop. Then it cleans up:
    it fast-forwards the local base branch from `origin/<baseRefName>` and deletes
    the local head branch only while it still points at `headRefOid` (and stops
@@ -286,7 +286,7 @@ around it with your own shell commands. Work in order; do not skip a step.
    branches alone and prints a note instead. A successful cleanup removes the
    prepared work directory. If the merge or cleanup stops after the PR was
    merged, fix the reported cause and run
-   `mergepr cleanup --protocol 3 --state <state-file> --body-file <body-file>`,
+   `mergepr cleanup --protocol 4 --state <state-file> --body-file <body-file>`,
    with the same state file and body file the merge was given, so the
    cleanup also checks the merge commit as below.
    After the cleanup, `mergepr` compares the correction lines of the merge
