@@ -122,3 +122,39 @@ func TestRunsCommandForms(t *testing.T) {
 		})
 	}
 }
+
+// TestCommandArgsReturnsEachInvocation: CommandArgs extracts the trailing
+// arguments for every command-position invocation, including through env -S
+// and shell -c scripts.
+func TestCommandArgsReturnsEachInvocation(t *testing.T) {
+	got := CommandArgs(`bash -c 'widget one' && env -S"widget -x two"`, "widget")
+	want := [][]string{{"one"}, {"-x", `two"`}}
+	if len(got) != len(want) {
+		t.Fatalf("CommandArgs = %q, want %q", got, want)
+	}
+	for i := range want {
+		if !slices.Equal(got[i], want[i]) {
+			t.Errorf("CommandArgs[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+// TestFencedCommandBlocksPreservesUnquotedRedirection: FencedCommandBlocks
+// strips only the opening fence's blockquote depth, preserves info strings,
+// and marks unclosed fences with Closed=false.
+func TestFencedCommandBlocksPreservesUnquotedRedirection(t *testing.T) {
+	doc := "```bash\n> /tmp/log cmd\n```\n\n> ```sh\n> > /tmp/log cmd2\n> ```\n\n```bash\nunclosed\n"
+	blocks := FencedCommandBlocks(doc)
+	if len(blocks) != 3 {
+		t.Fatalf("FencedCommandBlocks returned %d blocks, want 3: %+v", len(blocks), blocks)
+	}
+	if blocks[0].Info != "bash" || !blocks[0].Closed || !slices.Equal(blocks[0].Lines, []string{"> /tmp/log cmd"}) {
+		t.Errorf("block[0] = %+v", blocks[0])
+	}
+	if blocks[1].Info != "sh" || !blocks[1].Closed || !slices.Equal(blocks[1].Lines, []string{"> /tmp/log cmd2"}) {
+		t.Errorf("block[1] = %+v", blocks[1])
+	}
+	if blocks[2].Info != "bash" || blocks[2].Closed || !slices.Equal(blocks[2].Lines, []string{"unclosed"}) {
+		t.Errorf("block[2] = %+v", blocks[2])
+	}
+}

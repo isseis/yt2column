@@ -186,10 +186,12 @@ applied to each, and a short summary of the resolution for step 10.
 
    - **Protocol-number document sync:** For each
      `protocol_tool: <tool> <new-number>` line from step 3, update every
-     `--protocol` value for `<tool>` in the command definitions under
-     `.claude/commands/` and the guides under `docs/dev/guides/` to
-     `<new-number>` (`CLAUDE.md`, "Protocol numbers"). Remember the updated
-     tools so step 10 reminds the user to reinstall them from this branch.
+     documented protocol number for `<tool>` under `.claude/commands/` and
+     `docs/dev/guides/` to `<new-number>` (`CLAUDE.md`, "Protocol numbers") —
+     including `--protocol` flags, JSON output examples (`"protocol": <N>`), and
+     guide prose or value tables (such as `現在の番号は` and `プロトコル番号`).
+     Remember the updated tools so step 10 reminds the user to reinstall them
+     from this branch.
 
    - **README sync:** When `readme_changed` is `true` (or when `README.md` or
      `README.en.md` was modified or conflicted):
@@ -208,18 +210,18 @@ applied to each, and a short summary of the resolution for step 10.
        `not applicable` after a failed `make readme-sync-check`, run step 9 and
        go to step 10 with reason `README の同期の失敗`.
 
-5. **Resolve remaining `.md` conflicts.**
-   For every remaining `conflict: markdown <path>` line from step 3:
-   - Read the conflict markers and resolve them so that both sides' changes are
-     preserved without contradicting either side's intent.
-   - If the two sides' changes contradict each other and cannot both be
-     preserved, stop resolving, run step 9, and go to step 10 with reason
-     `保てない文書の衝突`.
+5. **Resolve remaining `.md` conflicts and stage changes.**
+   - For every remaining `conflict: markdown <path>` line from step 3:
+     - Read the conflict markers and resolve them so that both sides' changes
+       are preserved without contradicting either side's intent.
+     - If the two sides' changes contradict each other and cannot both be
+       preserved, stop resolving, run step 9, and go to step 10 with reason
+       `保てない文書の衝突`.
    - Never modify any file outside `.md` files (the protocol-number Go files
      were already updated by `mergemain-merge`).
-   - Stage all resolved and rule-updated `.md` files with `git add`, and verify
-     no unmerged paths, conflict markers, or untracked files remain in the work
-     tree.
+   - Stage all resolved and rule-updated `.md` files with `git add` (even when
+     no remaining `conflict: markdown` line existed), and verify no unmerged
+     paths, conflict markers, or untracked files remain in the work tree.
 
 6. **Create the merge commit.**
    Commit with git's default merge commit message (do not edit or override it):
@@ -302,7 +304,8 @@ applied to each, and a short summary of the resolution for step 10.
         - `push の結果が分からない`
         - `ほかの変更があり戻さなかった`
       - **衝突したファイル**: list every conflicted file path (from
-        `mergemain-merge`'s `conflict:` lines), or `なし` if none.
+        `mergemain-merge` or `mergemain-push` `conflict:` lines), or `なし` if
+        none.
       - **詳細**: brief summary of what failed, whether the branch and work tree
         were restored to `<base-head>`, and (when `--protocol` mismatched) the
         reinstall instruction (`make install-mergepr` from `main`).
@@ -310,7 +313,7 @@ applied to each, and a short summary of the resolution for step 10.
       - **変更したファイルと適用した規則**: for each file `/mergemain` modified
         (every conflicted file and every file modified by a take-in rule), state
         the rule applied (`README`・`ADR`・`プロトコル番号`・`両側の変更を保つ`)
-        and a concise summary of how it was resolved.
+        and a concise summary of how it was resolved, or `なし` if none.
       - **新しい head**: the pushed `new_head` commit ID.
       - **道具の入れ直し案内** (when any `protocol_tool:` line was reported):
         list each tool whose protocol number changed and state that the user

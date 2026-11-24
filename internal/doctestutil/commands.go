@@ -121,16 +121,23 @@ func isShell(name string) bool   { _, ok := shells[name]; return ok }
 // list of wrappers and of options with a value is not complete; the
 // permission prompt stops a form it misses.
 func RunsCommand(text, name string) bool {
-	for _, command := range CommandBoundary.Split(text, -1) {
-		if commandRuns(strings.Fields(command), name) {
-			return true
-		}
-	}
-	return false
+	return len(CommandArgs(text, name)) > 0
 }
 
-// commandRuns reports whether the command made of words runs name.
-func commandRuns(words []string, name string) bool {
+// CommandArgs returns the whitespace-split argument slices passed to each
+// command-position invocation of name in text, using the same command-position
+// rules as RunsCommand. Returned words may still carry surrounding shell
+// quotes or grouping punctuation.
+func CommandArgs(text, name string) [][]string {
+	var all [][]string
+	for _, command := range CommandBoundary.Split(text, -1) {
+		all = append(all, commandArgs(strings.Fields(command), name)...)
+	}
+	return all
+}
+
+// commandArgs returns the argument slices for each invocation of name in words.
+func commandArgs(words []string, name string) [][]string {
 	for i := 0; i < len(words); i++ {
 		word := strings.TrimLeft(strings.Trim(words[i], `"'`), `({\`)
 		word = strings.TrimRight(strings.Trim(word, `"'`), `)};`)
@@ -147,7 +154,7 @@ func commandRuns(words []string, name string) bool {
 					// The split string is env's own arguments, so read it
 					// and the words after it as one env command.
 					rest := slices.Concat([]string{envWrapper}, strings.Fields(strings.Trim(split, `"'`)), words[i+2:])
-					return commandRuns(rest, name)
+					return commandArgs(rest, name)
 				}
 				if isSetMember(valued, words[i+1]) {
 					i++
@@ -157,15 +164,18 @@ func commandRuns(words []string, name string) bool {
 		case isShell(base):
 			j := slices.IndexFunc(words[i+1:], shellScriptFlag.MatchString)
 			if j < 0 {
-				return false
+				return nil
 			}
 			script := strings.Join(words[i+2+j:], " ")
-			return RunsCommand(strings.Trim(script, `"'`), name)
+			return CommandArgs(strings.Trim(script, `"'`), name)
 		default:
-			return base == name
+			if base == name {
+				return [][]string{words[i+1:]}
+			}
+			return nil
 		}
 	}
-	return false
+	return nil
 }
 
 // envSplitString reports whether opt is env's -S (alone, in an option
@@ -190,6 +200,40 @@ func envSplitString(wrapper, opt string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// FencedCommandBlocks returns the fenced code blocks of doc, including blocks
+// inside Markdown blockquotes (such as an agent prompt). Each block's lines
+// have only the opening fence's blockquote depth removed, so a leading '>' in
+// an unquoted block stays a shell redirection. A block with no closing fence
+// runs to the end of doc and is returned with Closed false.
+func FencedCommandBlocks(doc string) []FencedBlock {
+	var raw, lines []string
+	for line := range strings.Lines(doc) {
+		raw = append(raw, strings.TrimSuffix(line, "\n"))
+		lines = append(lines, quoteMarker.ReplaceAllString(line, ""))
+	}
+	var blocks []FencedBlock
+	var current *FencedBlock
+	depth := 0
+	for i, line := range ScanDocLines(lines) {
+		switch {
+		case line.Fence && current == nil:
+			depth = quoteDepth(raw[i])
+			current = &FencedBlock{Info: strings.TrimLeft(strings.TrimSpace(line.Text), "`")}
+		case line.Fence:
+			current.Closed = true
+			blocks = append(blocks, *current)
+			current = nil
+			depth = 0
+		case current != nil:
+			current.Lines = append(current.Lines, stripQuotes(raw[i], depth))
+		}
+	}
+	if current != nil {
+		blocks = append(blocks, *current)
+	}
+	return blocks
 }
 
 // CommandTexts returns the texts of doc that are written as commands: each

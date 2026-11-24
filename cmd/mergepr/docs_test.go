@@ -371,12 +371,15 @@ var nonCommandInfo = map[string]struct{}{
 }
 
 // forbiddenGitMutations are the git subcommands mergemain.md must never invoke
-// directly in an executable command block: taking in, restoring, and pushing
-// must go through mergepr's take-in subcommands.
+// directly in an executable command block: taking in, restoring, cleaning,
+// rebasing, and pushing must go through mergepr's take-in subcommands or stay
+// prohibited.
 var forbiddenGitMutations = map[string]struct{}{
-	"merge": {},
-	"reset": {},
-	"push":  {},
+	"merge":  {},
+	"reset":  {},
+	"push":   {},
+	"clean":  {},
+	"rebase": {},
 }
 
 // gitValuedGlobalOpts are git global options that take the next word as their
@@ -390,54 +393,6 @@ var gitValuedGlobalOpts = map[string]struct{}{
 	"--config-env":   {},
 	"--super-prefix": {},
 	"--attr-source":  {},
-}
-
-// shellAssignment matches a leading VAR=value assignment before a command word.
-var shellAssignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
-
-// shellRedirection matches a redirection word with its target attached.
-var shellRedirection = regexp.MustCompile(`^[0-9]*[<>]`)
-
-// shellBareRedirection matches a standalone redirection operator whose target
-// is the next word.
-var shellBareRedirection = regexp.MustCompile(`^[0-9]*(?:<|>|>>|>\||<>|<<|<<-|<<<)$`)
-
-// shellCFlag matches a shell option cluster containing -c (such as -c or -lc).
-var shellCFlag = regexp.MustCompile(`^-[A-Za-z]*c[A-Za-z]*$`)
-
-// shellOptionValue matches a numeric/duration option value before a wrapped
-// command (e.g. timeout 30).
-var shellOptionValue = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?[smhd]?$`)
-
-// shellQuotePrefix matches blockquote markers at the start of a line.
-var shellQuotePrefix = regexp.MustCompile(`^\s*(>\s?)+`)
-
-// shellReservedWords may precede a command word.
-var shellReservedWords = map[string]struct{}{
-	"if": {}, "then": {}, "else": {}, "elif": {}, "while": {}, "until": {}, "do": {}, "!": {},
-}
-
-// shellWrappers run the first non-option argument as a command, with valued
-// options listed per wrapper.
-var shellWrappers = map[string]map[string]struct{}{
-	"env":        {"-u": {}, "-C": {}, "-P": {}},
-	"xargs":      {"-I": {}, "-n": {}, "-P": {}, "-L": {}, "-s": {}, "-E": {}, "-d": {}},
-	"timeout":    {"-k": {}, "-s": {}},
-	"gtimeout":   {"-k": {}, "-s": {}},
-	"nice":       {"-n": {}},
-	"sudo":       {"-u": {}, "-g": {}, "-C": {}, "-h": {}, "-p": {}},
-	"exec":       {"-a": {}},
-	"command":    nil,
-	"builtin":    nil,
-	"time":       nil,
-	"nohup":      nil,
-	"stdbuf":     nil,
-	"caffeinate": nil,
-}
-
-// shellInterpreters run the script passed after -c.
-var shellInterpreters = map[string]struct{}{
-	"sh": {}, "bash": {}, "zsh": {}, "dash": {},
 }
 
 // stripWordDecorations removes shell quotes, grouping punctuation, and
@@ -472,47 +427,6 @@ func joinContinuations(lines []string) []string {
 	return logical
 }
 
-// gitSubcommandInWords returns the git subcommand if words invoke git (after
-// skipping assignments, redirections, wrappers, shell -c scripts, and git's
-// global options), or "" when words do not invoke git.
-func gitSubcommandInWords(words []string) string {
-	for i := 0; i < len(words); i++ {
-		word := stripWordDecorations(words[i])
-		base := path.Base(word)
-		switch {
-		case shellBareRedirection.MatchString(word):
-			i++
-		case word == "", shellAssignment.MatchString(word), shellRedirection.MatchString(word):
-		case hasKey(shellReservedWords, word):
-		case hasMap(shellWrappers, base):
-			valued := shellWrappers[base]
-			for i+1 < len(words) && (strings.HasPrefix(words[i+1], "-") || shellOptionValue.MatchString(words[i+1])) {
-				if hasKey(valued, words[i+1]) {
-					i++
-				}
-				i++
-			}
-		case hasKey(shellInterpreters, base):
-			j := slices.IndexFunc(words[i+1:], shellCFlag.MatchString)
-			if j < 0 {
-				return ""
-			}
-			script := strings.Trim(strings.Join(words[i+2+j:], " "), `"'`)
-			for _, sub := range doctestutil.CommandBoundary.Split(script, -1) {
-				if cmd := gitSubcommandInWords(strings.Fields(sub)); cmd != "" {
-					return cmd
-				}
-			}
-			return ""
-		case base == "git":
-			return gitSubcommandAfterOptions(words[i+1:])
-		default:
-			return ""
-		}
-	}
-	return ""
-}
-
 // gitSubcommandAfterOptions skips git global options and returns the first
 // non-option word (the git subcommand), or "".
 func gitSubcommandAfterOptions(args []string) string {
@@ -537,23 +451,15 @@ func gitSubcommandAfterOptions(args []string) string {
 }
 
 func hasKey(m map[string]struct{}, k string) bool { _, ok := m[k]; return ok }
-func hasMap(m map[string]map[string]struct{}, k string) bool {
-	_, ok := m[k]
-	return ok
-}
 
 // directGitMutations scans every executable fenced code block of doc and
-// returns each line that directly runs git merge, git reset, or git push
-// (skipping git global options and unwrapping wrappers / shell -c). An
-// unclosed fenced code block is reported as a violation so the check fails
-// closed.
+// returns each line that directly runs a forbidden git mutation (skipping git
+// global options and unwrapping wrappers, env -S, redirections, and shell -c
+// via doctestutil). An unclosed fenced code block is reported as a violation so
+// the check fails closed.
 func directGitMutations(doc string) []string {
-	var unquoted strings.Builder
-	for line := range strings.Lines(doc) {
-		unquoted.WriteString(shellQuotePrefix.ReplaceAllString(line, ""))
-	}
 	var hits []string
-	for _, block := range doctestutil.FencedBlocks(unquoted.String()) {
+	for _, block := range doctestutil.FencedCommandBlocks(doc) {
 		if !block.Closed {
 			hits = append(hits, "unclosed fenced code block")
 			continue
@@ -563,8 +469,8 @@ func directGitMutations(doc string) []string {
 			continue
 		}
 		for _, line := range joinContinuations(block.Lines) {
-			for _, segment := range doctestutil.CommandBoundary.Split(line, -1) {
-				if sub := gitSubcommandInWords(strings.Fields(segment)); hasKey(forbiddenGitMutations, sub) {
+			for _, args := range doctestutil.CommandArgs(line, "git") {
+				if sub := gitSubcommandAfterOptions(args); hasKey(forbiddenGitMutations, sub) {
 					hits = append(hits, sub+": "+line)
 				}
 			}
@@ -573,19 +479,20 @@ func directGitMutations(doc string) []string {
 	return hits
 }
 
-// TestDirectGitMutations: the guard detects direct git merge/reset/push in
-// executable code blocks (including with global options, wrappers, paths,
-// continuations, and shell -c) and does not false-positive on git commit,
-// git diff, prose code spans, or non-command text blocks.
+// TestDirectGitMutations: the guard detects direct forbidden git mutations in
+// executable code blocks (including with global options, --, wrappers, env -S,
+// redirections, blockquoted fences, paths, reserved words, continuations, and
+// shell -c) and does not false-positive on git commit, git diff, prose code
+// spans, or non-command text blocks.
 func TestDirectGitMutations(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		doc      string
-		wantHits int
+		wantSubs []string
 	}{
 		{
 			name: "allowed_commands_and_prose",
-			doc: "Never run `git merge`, `git reset`, or `git push` directly.\n\n" +
+			doc: "Never run `git merge`, `git reset`, `git clean`, `git rebase`, or `git push` directly.\n\n" +
 				"```bash\n" +
 				"mergepr mergemain-merge --protocol 4 --head-branch b --base-head a --main m 1\n" +
 				"git commit --no-edit\n" +
@@ -593,51 +500,86 @@ func TestDirectGitMutations(t *testing.T) {
 				"git add README.md\n" +
 				"```\n\n" +
 				"```text\ngit push origin branch\n```\n",
-			wantHits: 0,
 		},
 		{
 			name:     "direct_merge",
 			doc:      "```bash\ngit merge origin/main\n```\n",
-			wantHits: 1,
+			wantSubs: []string{"merge"},
 		},
 		{
 			name:     "direct_reset_with_global_opts",
 			doc:      "```sh\ngit -C /repo -c core.fsmonitor=false --git-dir /repo/.git --no-pager reset --hard HEAD\n```\n",
-			wantHits: 1,
+			wantSubs: []string{"reset"},
 		},
 		{
 			name:     "direct_push_attached_opts_and_path",
 			doc:      "```\nFOO=1 /usr/bin/git -C/repo --work-tree=/w push origin branch\n```\n",
-			wantHits: 1,
+			wantSubs: []string{"push"},
+		},
+		{
+			name:     "direct_clean_and_rebase",
+			doc:      "```bash\ngit clean -fd\ngit rebase origin/main\n```\n",
+			wantSubs: []string{"clean", "rebase"},
 		},
 		{
 			name:     "wrapped_and_chained",
 			doc:      "```bash\necho ok && env -u GIT_DIR git --attr-source HEAD merge origin/main\n```\n",
-			wantHits: 1,
+			wantSubs: []string{"merge"},
 		},
 		{
-			name:     "shell_c_and_continuation",
-			doc:      "```bash\nbash -c \"git \\\n  -C /repo \\\n  push origin branch\"\n```\n",
-			wantHits: 1,
+			name:     "env_split_string_attached_and_long",
+			doc:      "```bash\nenv -S'git push origin branch'\nenv --split-string='git reset --hard'\n```\n",
+			wantSubs: []string{"push", "reset"},
+		},
+		{
+			name:     "unquoted_leading_redirection",
+			doc:      "```bash\n> /tmp/log git push origin branch\n```\n",
+			wantSubs: []string{"push"},
+		},
+		{
+			name:     "blockquoted_fence_and_redirection",
+			doc:      "> ```bash\n> > /tmp/log git push origin branch\n> ```\n",
+			wantSubs: []string{"push"},
+		},
+		{
+			name:     "double_dash_option_terminator",
+			doc:      "```bash\ngit --no-pager -- push origin branch\n```\n",
+			wantSubs: []string{"push"},
+		},
+		{
+			name:     "reserved_word_prefix",
+			doc:      "```bash\nif git merge origin/main; then echo ok; fi\n```\n",
+			wantSubs: []string{"merge"},
+		},
+		{
+			name:     "shell_c_chained_after_allowed_git_and_continuation",
+			doc:      "```bash\nbash -c \"git commit --no-edit && git \\\n  -C /repo \\\n  push origin branch\"\n```\n",
+			wantSubs: []string{"push"},
 		},
 		{
 			name:     "unclosed_fence_fails_closed",
 			doc:      "```bash\ngit commit --no-edit\n",
-			wantHits: 1,
+			wantSubs: []string{"unclosed fenced code block"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := directGitMutations(tc.doc)
-			if len(got) != tc.wantHits {
-				t.Errorf("directGitMutations = %q (%d hits), want %d", got, len(got), tc.wantHits)
+			if len(got) != len(tc.wantSubs) {
+				t.Fatalf("directGitMutations = %q (%d hits), want %d (%q)", got, len(got), len(tc.wantSubs), tc.wantSubs)
+			}
+			for i, want := range tc.wantSubs {
+				if !strings.HasPrefix(got[i], want) {
+					t.Errorf("hit[%d] = %q, want prefix %q", i, got[i], want)
+				}
 			}
 		})
 	}
 }
 
 // TestMergemainNoDirectGitMutation: .claude/commands/mergemain.md never invokes
-// git merge, git reset, or git push directly in any executable command block;
-// all take-in, restore, and push operations go through mergepr.
+// git merge, git reset, git clean, git rebase, or git push directly in any
+// executable command block; all take-in, restore, and push operations go
+// through mergepr.
 func TestMergemainNoDirectGitMutation(t *testing.T) {
 	doc := readRepoFile(t, mergemainDocPath)
 	for _, hit := range directGitMutations(doc) {
