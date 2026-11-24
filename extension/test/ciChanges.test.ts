@@ -53,6 +53,7 @@ describe("has-extension-changes", () => {
     ["go.sum"],
     ["README.md"],
     ["README.en.md"],
+    ["INSTALL.md"],
     ["docs/dev/guides/development.md"],
     // Files under a dependency directory: a Go file, an embedded template,
     // an embedded fake article (a .md file, which the Go jobs'
@@ -110,6 +111,8 @@ describe("has-extension-changes", () => {
     ["README.md.bak"],
     ["docs/README.en.md"],
     ["README.en.md.bak"],
+    ["docs/INSTALL.md"],
+    ["INSTALL.md.bak"],
     ["x/docs/dev/guides/development.md"],
     ["docs/dev/guides/development.md.orig"],
     // Documents under docs/dev that no extension test reads.

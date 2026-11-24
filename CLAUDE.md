@@ -799,11 +799,12 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
 - After editing files, make sure to run `make test` and `make lint` and fix errors.
 - After changing the browser extension under `extension/`, run `make ext-check`.
 - A change that touches only documents (`README.md`, `README.en.md`,
-  `CLAUDE.md`, `docs/`) does not need `make ext-test`, except the two READMEs
-  and `docs/dev/guides/development.md`: the extension's node tests read the
-  expand prompt, the popup and viewer names, and the step names in each
-  README's browser extension section (`metadataDocs.test.ts`), the minimum
-  Chrome version each README and `development.md` state
+  `CLAUDE.md`, `INSTALL.md`, `docs/`) does not need `make ext-test`, except
+  the two READMEs, `INSTALL.md`, and `docs/dev/guides/development.md`: the
+  extension's node tests read the expand prompt, the popup and viewer names,
+  the step names, and the troubleshooting messages that `INSTALL.md` quotes
+  (`metadataDocs.test.ts`), the minimum
+  Chrome version each README, `INSTALL.md`, and `development.md` state
   (`manifest.test.ts`), and the job record value tables of `development.md`
   (`jobCodes.test.ts`), so a change to them
   needs `make ext-test`. The

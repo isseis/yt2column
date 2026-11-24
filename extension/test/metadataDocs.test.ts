@@ -3,18 +3,15 @@ import { describe, it } from "node:test";
 
 import { catalogs } from "../src/core/i18n/catalog.ts";
 import { expandPromptMessage } from "../src/core/messages.ts";
-import {
-  browserExtensionHeading,
-  readmeVersions,
-} from "./helpers/readmeVersions.ts";
-import { markdownSection, readRepoFile } from "./helpers/repoFile.ts";
+import { installGuide } from "./helpers/installGuide.ts";
+import { readRepoFile } from "./helpers/repoFile.ts";
 
-/** The section's text with every whitespace run, line breaks included, as one space. */
-function flatSection(file: string, heading: string): string {
-  return markdownSection(readRepoFile(file), heading).replace(/\s+/gu, " ");
+/** The document's text with every whitespace run, line breaks included, as one space. */
+function flatDoc(file: string): string {
+  return readRepoFile(file).replace(/\s+/gu, " ");
 }
 
-/** Asserts the section holds each phrase, naming the first missing one. */
+/** Asserts the document holds each phrase, naming the first missing one. */
 function expectPhrases(
   text: string,
   where: string,
@@ -26,44 +23,54 @@ function expectPhrases(
   }
 }
 
-describe("video metadata documentation", () => {
-  // Only the Japanese README is compared with the catalog: no English document
-  // is checked against the English catalog until the English install guide exists.
-  const japaneseReadmes = readmeVersions.filter(
-    ({ locale }) => locale === "ja",
-  );
-  for (const { path: readmePath, locale } of japaneseReadmes) {
-    const heading = browserExtensionHeading[locale];
-    const section = flatSection(readmePath, heading);
-    const where = `${readmePath} ${heading}`;
-    const catalog = catalogs[locale];
+describe("install guide quotes the extension's Japanese catalog", () => {
+  // The install guide is Japanese only, so it is compared with the Japanese
+  // catalog. No English document is compared with the English catalog until
+  // the English install guide exists. The whole document is read, not one
+  // section, because the names and messages appear in several sections.
+  const { path: guidePath, locale } = installGuide;
+  const document = flatDoc(guidePath);
+  const catalog = catalogs[locale];
 
-    it(`${readmePath} gives the expand prompt word for word`, () => {
-      // The README quotes the popup's prompt so a user can match what they
-      // see; the wording is the contract, so it is compared as text.
-      expectPhrases(section, where, [
-        expandPromptMessage(locale).text,
-        ...expandPromptMessage(locale).steps,
-      ]);
-    });
+  it("gives the expand prompt word for word", () => {
+    // The guide quotes the popup's prompt so a user can match what they see;
+    // the wording is the contract, so it is compared as text.
+    expectPhrases(document, guidePath, [
+      expandPromptMessage(locale).text,
+      ...expandPromptMessage(locale).steps,
+    ]);
+  });
 
-    it(`${readmePath} names the generation steps as the extension shows them`, () => {
-      expectPhrases(section, where, Object.values(catalog.stepNames));
-    });
+  it("names the generation steps as the extension shows them", () => {
+    expectPhrases(document, guidePath, Object.values(catalog.stepNames));
+  });
 
-    it(`${readmePath} quotes the popup names the catalog defines`, () => {
-      // The README shows each name the screen displays in bold; compare those
-      // quoted names with the catalog. The explanatory prose is checked by
-      // reading it in the PR review, not by matching words here.
-      expectPhrases(section, where, [
-        ...Object.values(catalog.popup.primary).map((name) => `**${name}**`),
-        `**${catalog.popup.secondary}**`,
-        `**${catalog.viewer.save}**`,
-        `**${catalog.viewer.copy}**`,
-        `**${catalog.checkNames.selection}**`,
-        `**${catalog.checkNames.description}**`,
-        `**${catalog.details.summary}**`,
-      ]);
-    });
-  }
+  it("quotes the popup and viewer names the catalog defines", () => {
+    // The guide shows each name the screen displays in bold; compare those
+    // quoted names with the catalog. The explanatory prose is checked by
+    // reading it in the PR review, not by matching words here.
+    expectPhrases(document, guidePath, [
+      ...Object.values(catalog.popup.primary).map((name) => `**${name}**`),
+      `**${catalog.popup.secondary}**`,
+      `**${catalog.viewer.save}**`,
+      `**${catalog.viewer.copy}**`,
+      `**${catalog.checkNames.selection}**`,
+      `**${catalog.checkNames.description}**`,
+      `**${catalog.details.summary}**`,
+    ]);
+  });
+
+  it("quotes the troubleshooting messages the catalog defines", () => {
+    // Only catalog entries that are fixed strings are chosen; the type of
+    // Message makes a chosen entry that is not a string fail to compile.
+    // The collapsed-description message is checked by the expand prompt test.
+    expectPhrases(document, guidePath, [
+      catalog.keyRejected.text,
+      catalog.failure.llm_failed.text,
+      catalog.setup.api_key_missing.text,
+      catalog.rejection["empty-selection"].text,
+      catalog.startRejected.invalid_body.text,
+      catalog.stopped.text,
+    ]);
+  });
 });

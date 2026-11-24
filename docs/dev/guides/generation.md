@@ -1,6 +1,6 @@
 # 記事の生成の詳細
 
-本書は yt2column の開発者のための文書である。記事の生成の仕組みと LLM の構成を説明する。どの入口（CLI か拡張か）にもよらない内容を持つ。拡張の使い方は [README](../../../README.md) に、CLI の実行の仕方は [cli.md](cli.md) にある。
+本書は yt2column の開発者のための文書である。記事の生成の仕組みと LLM の構成を説明する。どの入口（CLI か拡張か）にもよらない内容を持つ。拡張の使い方は [INSTALL.md](../../../INSTALL.md) と [README](../../../README.md) に、CLI の実行の仕方は [cli.md](cli.md) にある。
 
 ## 構成
 
@@ -100,7 +100,7 @@ Estimated cost: unknown
 | `OPENAI_API_KEY` | OpenAI API の API キー（ChatGPT の契約とは別に、API の課金が必要） | 生成か検証・推敲のプロバイダが `openai` のときは必須（エラー） |
 | `ANTHROPIC_WORKSPACE_ID` | Anthropic のワークスペースの ID。ワークスペースに結び付いていない API キーのためのもの | ワークスペースの ID を送らない |
 
-これらの変数は CLI が環境変数から読む。拡張はこれらを読まない。拡張の設定は、オプションページで保存する Anthropic の API キーとワークスペース ID だけで、記事の生成はいつも[推奨構成](#推奨構成)の本番の構成を使う（[API キーの設定](../../../README.md#api-キーの設定)を参照）。
+これらの変数は CLI が環境変数から読む。拡張はこれらを読まない。拡張の設定は、オプションページで保存する Anthropic の API キーとワークスペース ID だけで、記事の生成はいつも[推奨構成](#推奨構成)の本番の構成を使う（[API キーとワークスペース ID](../../../INSTALL.md#api-キーとワークスペース-id)を参照）。
 
 CLI だけが読む変数と、CLI が上の変数をどう読むかは
 [docs/dev/guides/cli.md](cli.md#設定)にある。
