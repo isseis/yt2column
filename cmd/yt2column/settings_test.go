@@ -46,8 +46,10 @@ var promptingModes = map[string]struct{}{
 // prompt, the word written as is (a wildcard or a path is another word).
 // Only the first word is read: Claude Code matches each command of a
 // compound command against the rules on its own, so a rule's later words
-// cannot allow a second command. A trailing ":*", the legacy prefix form,
-// is the only colon read past; any other colon makes the word another one.
+// cannot allow a second command. A ":*" that ends the whole pattern, the
+// legacy prefix form, is removed before the first word is cut, and is the
+// only colon read past; any other colon, a ":*" before a later word
+// included, makes the word another one.
 func allowsUnvetted(rule string) bool {
 	if rule != "Bash" && !strings.HasPrefix(rule, "Bash(") {
 		return false
@@ -56,8 +58,8 @@ func allowsUnvetted(rule string) bool {
 	if m == nil {
 		return true
 	}
-	word, _, _ := strings.Cut(strings.TrimSpace(m[1]), " ")
-	word = strings.TrimSuffix(word, ":*")
+	pattern := strings.TrimSuffix(strings.TrimSpace(m[1]), ":*")
+	word, _, _ := strings.Cut(pattern, " ")
 	_, ok := unpromptedWords[word]
 	return !ok
 }
@@ -123,6 +125,8 @@ func TestAllowsUnvetted(t *testing.T) {
 		{"Bash(chief:*)", false},
 		// Only a trailing ":*" is the legacy prefix form.
 		{"Bash(chief:helper *)", true},
+		{"Bash(chief:* helper)", true},
+		{"Bash(chief run:*)", false},
 		{"Bash(numreserve task)", false},
 		{"Bash(numreserve adr)", false},
 		{"Read(.envrc)", false},
