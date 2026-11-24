@@ -1408,7 +1408,8 @@ character as 2) except the kinds the summary names as unlimited; the line shapes
       paragraph the description has, so never read the current description.
       Write the title and the body to files in the scratchpad with the
       `file-io` operation of `_lib/harness.md` (the title file holds the title
-      alone, with no trailing newline), and run the mention
+      alone, with no trailing newline, which `fixprguard edit-pr` rejects as a
+      control character), and run the mention
       check on both, and on each reply file of
       return step 6 before it is posted:
       **Mention check.** Before posting, run `<mention-check> <file>`
