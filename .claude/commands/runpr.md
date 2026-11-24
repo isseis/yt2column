@@ -125,7 +125,7 @@ Every `fixpr.md` and `mergepr.md` run below is given the resolved PR number
 - By the PR's `state`:
   - `OPEN`: use its number in the steps below.
   - `MERGED`: do not open another PR for the same commits. If `mergepr`
-    cleanup is pending, run `mergepr cleanup --protocol 3 --state <state-file>`
+    cleanup is pending, run `mergepr cleanup --protocol 4 --state <state-file>`
     (without `--body-file`: this run does not know the body the merge used,
     so the cleanup reports `corrections carried: not verified`). The head
     branch is gone, so read the bookkeeping from `origin/main`: report any step
@@ -754,16 +754,16 @@ fixprguard review-state --protocol 8 --reviewer <awaited-reviewer> --request "<r
 
 - When `state` is `unreadable` with `reason` `call-failed`, retry about every
   thirty seconds; if it stays `call-failed` for about fifteen minutes, discard
-  the preparation when it exists (`mergepr discard --protocol 3 --state <state-file>`)
+  the preparation when it exists (`mergepr discard --protocol 4 --state <state-file>`)
   and stop with "Manual PR review stops" below.
 - When `state`, `request.id`, or `markers` changed from what step 3 saw, handle
   the change before comparing `head`:
   - `waiting`: discard any preparation when it exists
-    (`mergepr discard --protocol 3 --state <state-file>`) and return to step 3
+    (`mergepr discard --protocol 4 --state <state-file>`) and return to step 3
     to wait and handle threads.
   - `indeterminate`, or `unreadable` with `reason` `rejected`: discard any
     preparation when it exists
-    (`mergepr discard --protocol 3 --state <state-file>`) and stop with "Manual
+    (`mergepr discard --protocol 4 --state <state-file>`) and stop with "Manual
     PR review stops" below.
   - `rate-limited`, `unrecognized`, `timed-out`, or `unreadable` with `reason`
     `limit` when `markers` is unchanged: update the state shown in this round's
@@ -771,14 +771,14 @@ fixprguard review-state --protocol 8 --reviewer <awaited-reviewer> --request "<r
     `LAST_REVIEWED` as `none`), then continue to the `head` check below.
   - `completed`, or any other case where `markers` changed: discard any
     preparation when it exists
-    (`mergepr discard --protocol 3 --state <state-file>`) and return to step 3
+    (`mergepr discard --protocol 4 --state <state-file>`) and return to step 3
     starting from "LAST_REVIEWED" (recompute `LAST_REVIEWED`, run step 3's
     thread listing and `fixpr` if any thread opened, re-run
     Escalation/COVERAGE, and check CI), then step 2, and back to step 4 item 1.
 - Confirm that `review-state`'s `head`, the prepared `headRefOid` (when
   `prepare` has run), and `git rev-parse HEAD` are all equal. When any pair
   differs: discard the preparation when it exists
-  (`mergepr discard --protocol 3 --state <state-file>`); if `review-state`'s
+  (`mergepr discard --protocol 4 --state <state-file>`); if `review-state`'s
   `head` differs from `git rev-parse HEAD`, bring the checked-out branch up to
   date with `git pull --ff-only`, and stop and report (do not loop) if
   `git pull --ff-only` fails or `git rev-parse HEAD` still does not equal
@@ -822,7 +822,7 @@ character as 2) except the kinds the summary names as unlimited; the line shapes
   detail file cannot be written, or a file of that name exists, stop without
   asking, and report what failed and the path. For the rejected-line question
   and the merge question, run
-  `mergepr discard --protocol 3 --state <state-file>` before stopping. Never ask a
+  `mergepr discard --protocol 4 --state <state-file>` before stopping. Never ask a
   question of this step that has no detail file.
 - **Reports.** Every report of a stop in this run after the details directory
   was made (a stop in step 2 or step 3 after a fix or a return included), and
@@ -1009,7 +1009,7 @@ character as 2) except the kinds the summary names as unlimited; the line shapes
      "すべて落としてマージへ進む" passes one `--drop-rejected <commit>:<line>`
      per rejected line to every `paragraph`, `check-body`, and `merge` of
      this run, and goes on to draft the message. "ブランチで直す" runs
-     `mergepr discard --protocol 3 --state <state-file>`, makes no PRE_MERGE
+     `mergepr discard --protocol 4 --state <state-file>`, makes no PRE_MERGE
      commit and no push, stops, and reports that the user rewrites the commit
      messages on the branch and runs this command again. An answer that is
      neither option changes nothing: ask this question again as a new round.
@@ -1017,11 +1017,11 @@ character as 2) except the kinds the summary names as unlimited; the line shapes
      step 2) on each version of the body, the one with the approval line and,
      when there is one, the one without it, each with the subject file and
      the drops of this run, for example
-     `mergepr check-body --protocol 3 --state <state-file> --subject-file <subject-file> --body-file <body-file> --drop <drop>`.
+     `mergepr check-body --protocol 4 --state <state-file> --subject-file <subject-file> --body-file <body-file> --drop <drop>`.
      When it stops with a mismatch, rebuild that body and check it again;
      make no PRE_MERGE commit and no push before every version passes. When it
      stops with `correction check: cannot read`, do not rebuild: run
-     `mergepr discard --protocol 3 --state <state-file>`, make no PRE_MERGE
+     `mergepr discard --protocol 4 --state <state-file>`, make no PRE_MERGE
      commit and no push, stop, and report the error.
    - **Drops of this run.** The drops (`mergepr.md` step 1, "Drops") are kept
      from the rejected-line question, or the first merge question, until this
@@ -1244,7 +1244,7 @@ character as 2) except the kinds the summary names as unlimited; the line shapes
        Final report the detail file showed (`fixpr.md`, "Overriding an
        exclusion"): the user's answer is what overrides the judgment, so
        `fixpr` fixes it without judging it again and records the override.
-       Run `mergepr discard --protocol 3 --state <state-file>`, run `fixpr.md` for
+       Run `mergepr discard --protocol 4 --state <state-file>`, run `fixpr.md` for
        `<number>` with them, and return to step 2.
      - An answer made only of digits and separators that is not a number answer
        (a number out of range or repeated, or any number when there are no
@@ -1259,12 +1259,12 @@ character as 2) except the kinds the summary names as unlimited; the line shapes
        (`mergepr.md` step 1, "Drops"). Add `--drop <n>:<case>` for each to the
        drops of this run, run `paragraph` again with every drop of this run
        (for example
-       `mergepr paragraph --protocol 3 --state <state-file> --drop <drop>`),
+       `mergepr paragraph --protocol 4 --state <state-file> --drop <drop>`),
        rebuild both versions of the body as `mergepr.md` step 2 does, run `check-body` on each, and ask this
        question again as a new round. A drop for a line already dropped
        replaces the earlier one, so no line is passed two drops. When
        `paragraph` stops, it wrote nothing: run
-       `mergepr discard --protocol 3 --state <state-file>`, stop, and report
+       `mergepr discard --protocol 4 --state <state-file>`, stop, and report
        what it printed.
      - Any other free text revises the message, including text that names a
        `C` number in another form (a request to remove a line, a drop mixed
@@ -1294,10 +1294,10 @@ character as 2) except the kinds the summary names as unlimited; the line shapes
    message files of the round that asked (the version without the approval
    line for the merge without the approvals), never with the detail file.
    When the answer otherwise does not merge, run
-   `mergepr discard --protocol 3 --state <state-file>`, stop, and report.
+   `mergepr discard --protocol 4 --state <state-file>`, stop, and report.
 
    When the answer requests a PR review first, do not merge:
-   1. Run `mergepr discard --protocol 3 --state <state-file>`.
+   1. Run `mergepr discard --protocol 4 --state <state-file>`.
    2. Read `fixprguard review-state --protocol 8 --reviewer <awaited-reviewer> --request "<review-request>" <number>`:
       - `waiting`: do not post a second request; go to sub-step 3 below to wait
         on the existing request.
@@ -1358,7 +1358,7 @@ character as 2) except the kinds the summary names as unlimited; the line shapes
    return in progress"):
 
    1. **Ask first.** When entering from this item, first run
-      `mergepr discard --protocol 3 --state <state-file>`; when entering from item 1 there
+      `mergepr discard --protocol 4 --state <state-file>`; when entering from item 1 there
       is no preparation, so discard nothing. Before touching any file, settle
       everything the return needs. An answer that
       chooses the return together with anything else (threads to fix, a PR
@@ -1406,9 +1406,10 @@ character as 2) except the kinds the summary names as unlimited; the line shapes
       wrote it, as `docs/dev/conventions/requirements_process.md`,
       "Recording in the PR description", says: it replaces every correction
       paragraph the description has, so never read the current description.
-      Write the title and the body to files in the scratchpad with the Write
-      tool (the title file holds the title alone, with no trailing newline,
-      which the tool rejects as a control character), and run the mention
+      Write the title and the body to files in the scratchpad with the
+      `file-io` operation of `_lib/harness.md` (the title file holds the title
+      alone, with no trailing newline, which `fixprguard edit-pr` rejects as a
+      control character), and run the mention
       check on both, and on each reply file of
       return step 6 before it is posted:
       **Mention check.** Before posting, run `<mention-check> <file>`
@@ -1464,21 +1465,21 @@ character as 2) except the kinds the summary names as unlimited; the line shapes
 4. When the answer records PRE_MERGE (including the merge without the
    approvals, when its PR number fill-in is not none):
    - Note the prepared `headRefOid`, and copy (checking first that no file of
-     that name exists, and stopping, after `mergepr discard --protocol 3 --state <state-file>`, when the copy
+     that name exists, and stopping, after `mergepr discard --protocol 4 --state <state-file>`, when the copy
      fails or one exists) the approval message files of the round that decided (the subject file and the body file; for the merge
      without the approvals, the subject file and the body file without the
      approval line) to the details directory as `approved-<round>.subject` and
      `approved-<round>.body` (`mergepr.md` keeps them in the prepared
      directory, which `discard` deletes; the details directory is not the
      scratchpad, which a session without one cannot write). Then run
-     `mergepr discard --protocol 3 --state <state-file>`.
+     `mergepr discard --protocol 4 --state <state-file>`.
    - Make the PRE_MERGE commit and push it. If the push is rejected (someone
      pushed meanwhile), `git pull --rebase` the bookkeeping commit onto the new
      head and return to step 2: the new commits need review, and step 4 asks
      again.
    - Wait until `gh pr view <number> --json headRefOid` reports the pushed
      commit (`git rev-parse HEAD`), so `prepare` does not read the old head.
-   - Run `mergepr prepare --protocol 3 <number>` again. If it fails (a check
+   - Run `mergepr prepare --protocol 4 <number>` again. If it fails (a check
      fails on the new head, or the protocol number check stops it because
      `origin/main` moved), report what `mergepr` showed and stop. The report
      also says that the PRE_MERGE commit stays on the branch, pushed, and that
@@ -1527,7 +1528,7 @@ Once `mergepr.md` reports the merge:
 
 - Confirm its cleanup finished. `mergepr.md` can stop after the merge with
   cleanup pending, in which case run
-  `mergepr cleanup --protocol 3 --state <state-file> --body-file <body-file>`,
+  `mergepr cleanup --protocol 4 --state <state-file> --body-file <body-file>`,
   with the body file the merge used (`approved-<round>.body`, or the body
   file of the approval message files when PRE_MERGE was none), and
   only then continue. When the merge's post-merge comparison already found
@@ -1630,7 +1631,7 @@ no `/clear` guidance. Instead it gives:
    switch did not happen, and that this is expected and needs no fix;
 4. how to resume. First remove the cause; for pending `mergepr` cleanup, give
    the action its error names, which for a cleanup that can be retried is
-   `mergepr cleanup --protocol 3 --state <state-file> --body-file <body-file>`
+   `mergepr cleanup --protocol 4 --state <state-file> --body-file <body-file>`
    with the actual paths of the state file and of the body file the merge
    used (in a linked worktree, the working directory it leaves in the work
    tree would stop NEXT at Part A step 1). Then, by the next branch's state,

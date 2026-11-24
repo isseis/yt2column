@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
 	"github.com/isseis/yt2column/internal/strictjson"
@@ -264,6 +266,17 @@ func newMergemain(git, gh Runner, lookupEnv func(string) (string, bool)) *Mergem
 	return &Mergemain{git: gitReader{run: git}, gh: gh, lookupEnv: lookupEnv}
 }
 
+// NewMergemain returns the take-in tool for this process: git runs with the
+// GIT_* variables of the environment removed, so no GIT_DIR or GIT_CONFIG_*
+// set by the caller can point a check at another repository; gh runs with the
+// same environment, because it picks the PR's repository from the git remotes
+// it finds through GIT_DIR, and the checks that only origin can be read run
+// in the work tree's repository; and lookupEnv reads this process's
+// environment (os.LookupEnv in the command).
+func NewMergemain(lookupEnv func(string) (string, bool)) *Mergemain {
+	return newMergemain(newGitRunner(""), newGitRunner(""), lookupEnv)
+}
+
 // mergemainPR is the part of a PR the take-in tool reads.
 type mergemainPR struct {
 	headBranch string
@@ -376,15 +389,27 @@ var errTakeInFile = errors.New("a file of the merge is not in the form the take-
 var errBranchName = errors.New("the head branch is not a branch the take-in tool works on")
 
 // checkBranchName accepts a branch name that is not main or HEAD in any case,
-// does not start with "-", and holds no byte git check-ref-format rejects in
-// a ref (a control character, a space, ~ ^ : ? * [ \). The full ref grammar is
-// checked again by git when the name is used.
+// does not start with "-", holds no byte git check-ref-format rejects in a ref
+// (a control character, a space, ~ ^ : ? * [ \), and holds no "=": git ends a
+// config key at its first "=", so for a branch named a=b the key the merge
+// clears the branch's mergeOptions with would name branch.a instead, leaving
+// branch.a=b.mergeOptions in force. It also accepts only valid UTF-8 without
+// a C1 control, a format character, or a line or paragraph separator: the
+// command prints the name escaped where it holds one of those, and the caller
+// passes the printed value back, so such a name could never round-trip. The
+// full ref grammar is checked again by git when the name is used.
 func checkBranchName(branch string) error {
-	if branch == "" || branch == mainBranch || strings.EqualFold(branch, "HEAD") || strings.HasPrefix(branch, "-") {
+	if branch == "" || branch == mainBranch || strings.EqualFold(branch, "HEAD") || strings.HasPrefix(branch, "-") ||
+		!utf8.ValidString(branch) {
 		return fmt.Errorf("%w: %q", errBranchName, branch)
 	}
 	for i := range len(branch) {
-		if c := branch[i]; c < 0x21 || c == 0x7f || strings.IndexByte(`~^:?*[\`, c) >= 0 {
+		if c := branch[i]; c < 0x21 || c == 0x7f || strings.IndexByte("~^:?*[\\=", c) >= 0 {
+			return fmt.Errorf("%w: %q", errBranchName, branch)
+		}
+	}
+	for _, r := range branch {
+		if unicode.In(r, unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp) {
 			return fmt.Errorf("%w: %q", errBranchName, branch)
 		}
 	}
@@ -413,10 +438,11 @@ type MergemainBeginResult struct {
 
 // MergemainBegin checks the premise of a take-in and fetches what it needs.
 //
-// Contract: it changes no branch, no index, and no file of the work tree; the
-// only writes are the two refs its fetch names: main into
+// Contract: it changes no branch, no index, and no file of the work tree; what
+// it writes are the two refs its fetch names (main into
 // refs/mergemain/<PR>/main and the head branch into
-// refs/remotes/origin/<branch>. Every stop is a premise stop (or nothing to
+// refs/remotes/origin/<branch>) and what that fetch makes git write besides
+// them (FETCH_HEAD and objects). Every stop is a premise stop (or nothing to
 // take in) that asks for no restore.
 func (m *Mergemain) MergemainBegin(ctx context.Context, pr MergemainPR) (MergemainBeginResult, error) {
 	if pr.number == "" {

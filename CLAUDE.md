@@ -58,7 +58,7 @@ where it lives. Three principles decide it:
   `docs/research/`, and `prompts/README.md` and `testdata/README.md`.
 - **(b) English: instructions that control an agent's run, and the code in the
   repository.** `CLAUDE.md`, `AGENTS.md`, the command definitions under
-  `.claude/commands/`, the conventions under `docs/dev/conventions/` that agents
+  `.claude/commands/`, the Antigravity skill entries under `.agents/skills/`, the conventions under `docs/dev/conventions/` that agents
   follow, and source code with its comments, identifiers, and string literals
   ("Language" below, and "Go Idioms" for the literal exceptions). The
   principle governs the language of the instruction text itself: an
@@ -164,7 +164,8 @@ change, retire, and withdraw an ADR is in the convention,
 
 ## Language
 
-- **Conversation in a Claude Code session: Japanese.** This includes the
+- **Conversation in an interactive agent session (Claude Code, Antigravity CLI, and
+  any other harness): Japanese.** This includes the
   explanation of test results, tool output, and review findings.
 - **Code and commit messages in the git repository: English** — source code,
   comments, identifiers, string literals (with the literal exceptions in "Go
@@ -173,8 +174,9 @@ change, retire, and withdraw an ADR is in the convention,
   (`.claude/commands/mergepr.md` step 2), not by copying the PR title.
   Documents in the repository (under `docs/`, the README, and the instruction
   files) follow "Document language" above.
-- **Prompts to AI: English** — subagent prompts, review prompts, and the
-  command definitions under `.claude/commands/`.
+- **Prompts to AI: English** — subagent prompts, review prompts, the
+  command definitions under `.claude/commands/`, and the skill entries under
+  `.agents/skills/`.
 - **What lives on GitHub: Japanese** — PR titles, PR descriptions, issues,
   review replies, and PR comments. A PR title keeps its conventional-commit
   prefix in ASCII and writes the summary after it in Japanese; the forms are in
@@ -210,14 +212,24 @@ change, retire, and withdraw an ADR is in the convention,
 
 ### Claude Commands (`.claude/commands/`)
 Project-specific values these commands depend on are defined once in
-[_context.md](.claude/commands/_context.md).
+[_context.md](.claude/commands/_context.md). The command definitions under
+`.claude/commands/` are the single source of each procedure and, except `chief.md`
+(which stays on Claude Code), are written independently of the harness
+(Claude Code or Antigravity CLI): they name
+abstract operations, and the adapter that
+[_lib/harness.md](.claude/commands/_lib/harness.md) selects for the session
+(`_lib/harness-claude.md` or `_lib/harness-antigravity.md`) maps them to the
+harness's tools and models. `.agents/skills/<command>/SKILL.md` is the thin
+entry through which Antigravity CLI finds each command except `/chief`; it only
+points at the command definition, `_context.md`, the adapter, and the
+prohibitions of this file and `AGENTS.md`, and copies no procedure.
 - `/mkreq <issue> [task]` - Create `01_requirements.md` from a GitHub issue and open its PR, after asking whether the task takes the full process or the simple process; in the simple process it also writes `02_architecture.md` and `03_implementation_plan.md` and opens one PR for the three documents
 - `/mkarch <task>` - Create `02_architecture.md` (requires approved requirements) and open its PR; it stops without writing for a task that takes the simple process, whose documents `/mkreq` writes
 - `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR; it stops without writing for a task that takes the simple process, whose documents `/mkreq` writes
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
 - `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
 - `/runpr [PR | branch | task]` - Drive a PR through CI and its review threads, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and show the next command, which it does not run; it requests a CodeRabbit PR review only when the user chooses it in the merge question; for a standalone change it also creates the PR
-- `/weakreview [range | PR] [--no-fix | --fix]` - Opus review of a commit range: a correctness review and a weak-model failure review run on Opus in one pass; by default it fixes the Critical and Major findings and commits the fixes on the current branch without pushing, and `--no-fix` only reports
+- `/weakreview [range | PR] [--no-fix | --fix]` - High-model review of a commit range: a correctness review and a weak-model failure review run on the harness's high-role model in one pass; by default it fixes the Critical and Major findings and commits the fixes on the current branch without pushing, and `--no-fix` only reports
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/japrose <file>` - Japanese prose-quality pass
@@ -229,21 +241,22 @@ Each task PR is handled by two commands. The command that produces it —
 feature branch, reviews its work (subagent review, `japrose` for documents,
 the local CodeRabbit CLI review),
 opens the PR, pings the reviewer, and stops. Before it opens the PR, it also
-runs the Fable partial review (`_lib/cross-check-review.md`): a subagent on Fable
-reviews only the places that meet its scope criteria (a trust boundary, the
+runs the cross-check partial review (`_lib/cross-check-review.md`): a worker on
+the harness's cross-check-role model (Fable on Claude Code) reviews only the places that meet its scope criteria (a trust boundary, the
 prior documents, a claim about outside behavior, a choice made without
 asking), in parallel with the local CLI review, whose triage takes its
 findings; `/runplan` runs it once per PR, with the last phase group before
 the PR, and its checkpoint reviews the commits a valid record does not
-cover. When Fable cannot run, the command records `not run` and goes on.
+cover. When that model cannot run, the command records `not run` and goes on.
 `/mkreq`,
 `/mkarch`, and `/mkplan` first ask the human about the decisions their input
 leaves open; `/runplan` asks when implementation meets a decision change.
-Before it opens the PR, `/runplan` also runs the Opus review
+Before it opens the PR, `/runplan` also runs the high-model review
 (`_lib/high-review.md`: a correctness review and a weak-model failure review
-on Opus, whose Critical and Major findings it fixes) when the PR's
-implementation model requirement is `opus`, `sonnet+opus-review`, or
-unreadable, and some commit of the PR is not recorded as implemented on Opus. After reviewing, the reviewer runs `/runpr`, which drives
+on the high-role model, whose Critical and Major findings it fixes) when the PR's
+implementation model requirement is `high`, `standard+high-review`, or
+unreadable (an old value reads as a new one through the table of `_context.md`, "PR marker conventions"),
+and some commit of the PR is not recorded as implemented on a high-role model. After reviewing, the reviewer runs `/runpr`, which drives
 it: it waits for CI and resolves the threads with `/fixpr`. It
 then asks, after a deferred question when deferred review threads are left, the
 merge question that decides the bookkeeping (for a document, its
@@ -1124,6 +1137,11 @@ section of the Requirements Process Guide.
 ## Tool Execution Safety
 
 **CRITICAL**
+
+These prohibitions apply to every harness that works in this repository,
+Antigravity CLI and OpenCode as well as Claude Code. `AGENTS.md` repeats them
+for the agents that read it, and the Antigravity skill entries point here.
+
 - Don't run following commands without user's explicit approval
   - commands interacting with network, e.g. git pull
   - merging pull requests on GitHub
