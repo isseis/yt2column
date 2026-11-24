@@ -1,4 +1,4 @@
-<!-- translated-from: README.md 7df3f99b9e73a5009bcd927bd9b629c55f88d279 -->
+<!-- translated-from: README.md d46890dedddde397dff792e6007af5d98ea01840 -->
 [日本語](README.md)
 
 # yt2column
@@ -34,7 +34,7 @@ The steps from getting the extension to saving a first article are in [INSTALL.m
 
 **Browser history:** the viewer URL holds the video URL and the page title and stays in the browser's history. The history may be passed to other devices through browser sync, and other extensions with the `tabs` or `history` permission can read that history.
 
-**A crafted viewer URL:** a viewer whose URL values were crafted can show any heading and title. The heading does not guarantee the article's content.
+**A crafted viewer URL:** a viewer whose URL values were crafted can show a misleading heading and title, so the heading does not guarantee the article's content.
 
 **Article files:** the extension writes an article file only when the user chooses to save it.
 
