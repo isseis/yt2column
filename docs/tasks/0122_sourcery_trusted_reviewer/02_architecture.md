@@ -108,8 +108,8 @@ flowchart LR
     -   **理由:** 予算超過中の全 PR（#1097・#1098・#1100・#1101）で毎回投稿され `` `@sourcery-ai review` `` を含むため、除外しないと予算超過中のすべての PR で毎回 Bot メンション確認が割り込む。対象を `issues/<number>/comments` の `Bot`・`sourcery-ai[bot]` かつ認証済み利用者の `<user-login>` を含む厳密な 1 行目書式に絞ることで誤除外を防ぐ（AC-13 項目 3「F-001 で他に定型ヘッダーが観測された場合は設計で加える」の適用）。
     -   **ADR の判断:** [ADR-0015](../../dev/adr/0015-untrusted-review-threads.md) を更新する（`/runpr` のメンション検査の除外対象を広げる決定であるため）。
 -   **`fixprguard review-state` の呼び出し構造と競合判定（H-02）:**
-    -   **決定:** 1 回の呼び出しで 1 レビュアーを判定する構造を維持し、`--profile <coderabbit|sourcery>`（列挙型）と繰り返し可能な `--request` を導入する。出力 JSON に自動の PR レビュー状態（`autoReview`）を追加し、`sourcery` の `markers` には自動完了の印も含める。`competing-runs` の判定は、`sourcery` では同一コミット上の CheckRun の重なりのみに限定し、別コミットの push による自動 CheckRun とは競合させない（`coderabbit` は既存どおり）。
-    -   **理由:** 1 社ごとの再確認（step 4 の投稿前確認や片方だけのポーリング）が簡潔になり、出力 JSON の肥大化を避けられる。また PR #1094 で手動依頼実行中に別コミットが push されて CheckRun 時刻が重なる実例を観測しており、別コミットを競合させると正当な push で `indeterminate` になってしまうためである。
+    -   **決定:** 1 回の呼び出しで 1 レビュアーを判定する構造を維持し、`--profile <coderabbit|sourcery>`（列挙型）と繰り返し可能な `--request` を導入する。出力 JSON に自動の PR レビュー状態（`autoReview`）を追加し、`sourcery` の `markers` には自動完了の印も含める。`competing-runs` の判定は、`sourcery` では同一コミットまたはより古いコミット（`commitIndex(run.commit) <= commitIndex(earliest.commit)`）に属する CheckRun の重なりを競合とし、後続コミットの push による自動 CheckRun とは競合させない（`coderabbit` は既存どおり）。
+    -   **理由:** 1 社ごとの再確認（step 4 の投稿前確認や片方だけのポーリング）が簡潔になり、出力 JSON の肥大化を避けられる。また PR #1094 で手動依頼実行中に後続コミットが push されて CheckRun 時刻が重なる実例を観測しており、後続コミットを競合させると正当な push で `indeterminate` になってしまう一方、より古いコミットの CheckRun が後から重なった場合は帰属が曖昧なため競合として安全側に止めるためである。
     -   **ADR の判断:** ADR なし（`review-state` の引数・出力の形と競合判定の細部は [ADR-0013](../../dev/adr/0013-review-setup.md) の「判定を `fixprguard review-state` に置く」決定の範囲内に閉じるため）。
 -   **CI 待機と外部レビュー CheckRun の分離対象（H-06・AC-19）:**
     -   **決定:** `.claude/commands/runpr.md` step 3（新サブコマンド `fixprguard ci-checks`）と `internal/mergepr/mergepr.go:275`（`mergepr prepare`。`/mergepr` 単独実行を含む）の**両方**で、リポジトリの CI チェック（`app.slug == "github-actions"` の CheckSuite・CheckRun）のみを待機・成否判定の対象とし、外部レビュー Bot の CheckRun（`Sourcery review`・`CodeRabbit`）を除外する。共通の読み取りロジックは新パッケージ `internal/ghci` に置く。
@@ -459,10 +459,14 @@ func (g *GitHub) PRReviewState(ctx context.Context, req ReviewStateRequest) (PRR
     -   **読み取り省略の条件:** `ProfileCodeRabbit` では依頼コメントが 0 件なら CheckRun と PR レビューを読まずに `RequestNone` を返す（既存 `review_state.go:417-421` と同じ）。`ProfileSourcery` では依頼コメントが 0 件でも常に CheckRun と PR レビューを読み取り、`AutoReview` と自動完了の印（`Markers`）を構築する。
     -   **手動依頼の応答判定:** 判定対象とする CheckRun（`RunSkipNotice` 以外かつ `startedAt != nil`）のうち、依頼コメントの作成時刻より厳密に後に開始した（`startedAt > req.created`）最早のものを選ぶ。
         -   `ProfileCodeRabbit`: 既存の競合判定を維持する（最早の CheckRun と同じ秒に開始した別の CheckRun、または最早の CheckRun が完了する前に開始した別の CheckRun があれば `competing-runs`）。
-        -   `ProfileSourcery`: 期限切れの手動依頼が後続コミットの自動 CheckRun を奪わないよう、応答候補は **`startedAt > req.created` かつ `startedAt - req.created <= 15 分`（`reviewWaitLimit`）** の CheckRun に限る。競合判定は **最早の CheckRun と同じコミット（`run.commit == earliest.commit`）** に属する CheckRun の間だけで行う（PR #1094 で観測した別コミットの自動の PR レビューとの時刻重複を `competing-runs` にしない）。なお、未応答の手動依頼から 15 分以内に別コミットが push され、別コミットの自動 CheckRun が手動依頼の CheckRun より先に開始する狭い競合窓については 5.4 に残余リスクとして記録する。
+        -   `ProfileSourcery`: 期限切れの手動依頼が後続コミットの自動 CheckRun を奪わないよう、応答候補は **`startedAt > req.created` かつ `startedAt - req.created <= 15 分`（`reviewWaitLimit`）** の CheckRun に限る。競合判定は、PR のコミット列順で **最早の CheckRun と同一またはより古いコミット（`commitIndex(run.commit) <= commitIndex(earliest.commit)`）** に属する CheckRun が重なった場合に `competing-runs` とする。これにより、PR #1094 のように手動依頼の実行中に後続コミット（`commitIndex` が大）が push されて自動 CheckRun が重なっても競合にしない一方、後続コミットの自動 CheckRun が先に開始して古いコミットの手動 CheckRun が後から重なった場合は帰属が曖昧なため `competing-runs` で安全に停止する（5.4 に残余リスクを記録）。
         -   完了済み CheckRun がある同一コミットへ手動依頼したときに Sourcery が既存 CheckRun を上書きし `startedAt` を変えない挙動であった場合、この規則は応答を拾わず 15 分後に `timed-out` となる（誤って完了としない安全側の挙動。観測の記録 2.1 の未観測リスク）。
-    -   **自動の PR レビュー（`AutoReview`、`ProfileSourcery` のみ）:** PR の `head` コミット上の CheckRun のうち、いずれの手動依頼の応答にも割り当てられていない CheckRun（祖先コミットは除外）を対象とする。ただし、手動依頼が `RequestWaiting` かつ `Response == nil` の間は、`startedAt == nil`（未開始）の CheckRun はその手動依頼が起動した直後の CheckRun でありうるため、`AutoReview` へ仮割り当てしない（手動依頼の応答判定へ委ねる）。最新 1 件の選定は `startedAt == nil`（未開始）を最優先とし、次に `startedAt` が最新、同値なら `url` の辞書順最大のものとする（万一 `QUEUED` のまま停滞した CheckRun と `COMPLETED` の CheckRun が同一 `head` に併存しても、停滞した `QUEUED` は 15 分で `TIMED_OUT_AUTO`（後述の 3.3 で定義するセッション内の時間切れ集合）に入って進行を妨げず、`COMPLETED` は `Markers` に正しく残る）。
-        -   `RunRunning`: `startedAt != nil` かつ `now - startedAt > 15 分` なら `AutoTimedOut`、それ以外は `AutoRunning`（`startedAt == nil` のとき `StartedAt: ""` とし、15 分上限の起点は `/runpr` が待機を始めた時刻とする。AC-16）。
+    -   **自動の PR レビュー（`AutoReview`、`ProfileSourcery` のみ）:** PR の `head` コミット上の CheckRun のうち、いずれの手動依頼の応答にも割り当てられていない CheckRun（祖先コミットは除外）を対象とする。ただし、手動依頼が `RequestWaiting` かつ `Response == nil` の間は、`startedAt == nil`（未開始）の CheckRun はその手動依頼が起動した直後の CheckRun でありうるため、`AutoReview` へ仮割り当てしない（手動依頼の応答判定へ委ねる）。対象 CheckRun が複数ある場合の 1 件選定は、停滞・時間切れの CheckRun が後続の新しい実行を隠さないよう、次の 4 段階の優先順位で行う（同順位は `startedAt` 最新、それも同値または未開始同士なら `url` の文字数・辞書順最大）：
+        1.  実行中かつ時間内（`RunRunning`・`startedAt != nil`・`now - startedAt <= 15 分`）
+        2.  未開始の待機中（`RunRunning`・`startedAt == nil`）
+        3.  開始済みで時間切れ（`RunRunning`・`startedAt != nil`・`now - startedAt > 15 分`）
+        4.  終了済み（`RunFinished`・`RunSkipped`・`RunUnknown`）
+        -   `RunRunning`: `startedAt != nil` かつ `now - startedAt > 15 分` なら `AutoTimedOut`、それ以外は `AutoRunning`（`startedAt == nil` のとき `StartedAt: ""` とし、15 分上限の起点は `/runpr` が待機を始めた時刻とする。AC-16）。なお、同一 `head` に停滞した `QUEUED`（未開始）と `COMPLETED` が併存しても、停滞した `QUEUED` は 15 分で `TIMED_OUT_AUTO`（後述の 3.3 で定義するセッション内の時間切れ集合）に入って進行を妨げず、`COMPLETED` は `Markers` に正しく残る。また、同じ `head` で新しい実行中 CheckRun が開始すれば順位 1 が順位 2・3 より優先されるため、古い未開始・時間切れの CheckRun に隠されない。
         -   `RunFinished` → `AutoCompleted`、`RunSkipped` → `AutoSkipped`、`RunUnknown` → `AutoUnrecognized`。
     -   **完了の印（`Markers`）:** `ProfileCodeRabbit` は既存どおり未編集手動依頼の `RunFinished` 応答のみ。`ProfileSourcery` は PR コミット上のすべての `RunFinished` CheckRun（手動応答に結び付くものは `RequestID`・`RequestURL` を付与、それ以外の自動完了は `RequestID: 0`・`RequestURL: ""`）を `CompletedAt`・`CheckRunURL` 昇順で含める。各完了の印の `ReviewURL` は、同じコミットに対するレビュアーの PR レビューのうち、`RequestID > 0` なら依頼時刻より後の最初のもの、自動完了で `startedAt != nil` なら `startedAt` 以降の最初のもの、自動完了で `startedAt == nil` なら当該コミット最新のものの URL とする。
     -   **出力の非公開性:** `title`・`details_url`・`output.summary`・コメント本文はどのフィールドにも出さない。フェーズ 3 の同一 PR で `CLAUDE.md:490-502` の `Declare, don't infer` 例外へ `review_state.go` の `name` 照合と `mentions.go` の 1 行目・メンション検査を追加する（AC-29）。
@@ -607,6 +611,7 @@ type Result struct {
 	State   State            `json:"state"`
 	Reason  UnreadableReason `json:"reason"`
 	Head    string           `json:"head"`    // 40 lowercase hex, or "" on unreadable before head read
+	Suites  int              `json:"suites"`  // count of evaluated github-actions check suites
 	Checks  int              `json:"checks"`  // count of evaluated github-actions LATEST check runs
 	Failing []FailingCheck   `json:"failing"` // empty list, never null; element order is unspecified (callers must not depend on order)
 }
@@ -615,7 +620,7 @@ type WaitOptions struct {
 	PollInterval   time.Duration
 	Timeout        time.Duration
 	PerCallTimeout time.Duration // bounds each ReadPR call (e.g., 2m)
-	NoCheckGrace   time.Duration // fail closed if 0 evaluated github-actions suites/runs persist past grace
+	NoCheckGrace   time.Duration // fail closed if Suites == 0 (no evaluated github-actions suite) persists past grace
 	Sleep          func(context.Context, time.Duration) error // optional override for tests
 }
 
@@ -640,6 +645,7 @@ type CIChecksResult struct {
 	State    ghci.State            `json:"state"`
 	Reason   ghci.UnreadableReason `json:"reason"`
 	Head     string                `json:"head"`
+	Suites   int                   `json:"suites"`
 	Checks   int                   `json:"checks"`
 	Failing  []ghci.FailingCheck   `json:"failing"` // empty list, never null
 }
@@ -649,16 +655,16 @@ func (g *GitHub) CIChecks(ctx context.Context, req CIChecksRequest) (CIChecksRes
 
 -   **引数検証（`ErrInvalidRequest`）:** `ReadPR`・`WaitPR` は `run == nil`、`Owner`/`Repo` が空または GitHub 識別子として不正、`PRNumber <= 0`、`ExpectedHead` が非空かつ 40 桁小文字 16 進でない場合に `ErrInvalidRequest` を返す。`WaitPR` はさらに `PollInterval <= 0`・`Timeout <= 0`・`PerCallTimeout <= 0`・`NoCheckGrace < 0` でも `ErrInvalidRequest` を返す。
 -   **GraphQL クエリと判定規則:**
-    -   `pullRequest(number: $number)` の `headRefOid` と `commits(last: 1)` の `commit { oid checkSuites(first: 50) { pageInfo { hasNextPage } nodes { app { slug } status conclusion workflowRun { workflow { name } } checkRuns(first: 100, filterBy: {checkType: LATEST}) { pageInfo { hasNextPage } nodes { name status conclusion url } } } } }` を `gh api graphql -f owner=... -f name=... -F number=... -f query=...`（文字列変数は型変換・`@file` 展開を避けるため `-f`、整数 `number` のみ `-F`）で取得し、16 MiB 上限・`strictjson`・`internal/ghci` 内の厳格 GitHub URL 検証で検査する。
+    -   `pullRequest(number: $number)` の `headRefOid` と `commits(last: 1)` の `commit { oid checkSuites(first: 50) { pageInfo { hasNextPage } nodes { app { slug } status conclusion createdAt workflowRun { workflow { name } } checkRuns(first: 100, filterBy: {checkType: LATEST}) { pageInfo { hasNextPage } nodes { name status conclusion url } } } } }` を `gh api graphql -f owner=... -f name=... -F number=... -f query=...`（文字列変数は型変換・`@file` 展開を避けるため `-f`、整数 `number` のみ `-F`）で取得し、16 MiB 上限・`strictjson`・`internal/ghci` 内の厳格 GitHub URL 検証で検査する。
     -   `commits.nodes` が 1 件でない、または `commit.oid != headRefOid` のときは `StateUnreadable`（`UnreadableRejected`）を返す。`ExpectedHead != ""` かつ `headRefOid != ExpectedHead` のときは永続状態 `StateUnreadable`（`UnreadableHeadChanged`）を返す（`WaitPR` は再試行せず即時終了する）。`checkSuites.pageInfo.hasNextPage == true` は `UnreadableLimit` とする。
     -   `checkSuite.app.slug != "github-actions"`（外部レビュアー `sourcery-ai`・`coderabbitai` や `app == null` を含む）の CheckSuite は、`checkRuns.pageInfo.hasNextPage` を検査する前に読み飛ばす（他 App の CheckRun 上限超過による誤停止を防ぐ）。`github-actions` CheckSuite 側で `checkRuns.pageInfo.hasNextPage == true` なら `UnreadableLimit` とする。
-    -   `github-actions` の CheckSuite 群のうち、CheckRun が 0 件かつ `workflowRun == null` かつ `status != "COMPLETED"` の**ワークフロー未発火の空 CheckSuite のみ**を除外し、残りの CheckSuite をすべて評価対象とする（これにより、`STARTUP_FAILURE` 等で 0 CheckRun のまま `COMPLETED`・失敗になった CheckSuite や、`workflowRun != null` でジョブ生成待ちの `QUEUED` CheckSuite を絶対に読み落とさない）：
+    -   `github-actions` の CheckSuite 群のうち、CheckRun が 0 件かつ `workflowRun == null` かつ `status != "COMPLETED"` の**ワークフロー未発火の空 CheckSuite のみ**を除外する。残りの CheckSuite のうち、`workflowRun != null` かつ `workflowRun.workflow.name != ""` のものは同一ワークフロー名ごとに `createdAt` が最新の 1 件だけを残し（同一 `head` でワークフローが別 CheckSuite として再実行・再起動された場合に、旧 CheckSuite の失敗・キャンセルが新しい成功を塞がないようにするため）、`workflowRun == null` の完了済み CheckSuite（`STARTUP_FAILURE` 等）はそのまま評価対象とする。評価対象の CheckSuite 数を `Suites` に記録し、次の順で判定する：
         1.  **即座に失敗（fail-fast）:** 評価対象の CheckRun のいずれかが `status == "COMPLETED"` かつ `conclusion` が `"SUCCESS"`・`"SKIPPED"` 以外（例: `FAILURE`・`TIMED_OUT`・`CANCELLED`・`ACTION_REQUIRED`・`STARTUP_FAILURE`・`NEUTRAL`・未知値）なら、`Failing` に該当 CheckRun の `name`・`conclusion`・`url` を集めて `StateFailed` を返す。また、評価対象の CheckSuite のいずれかが `status == "COMPLETED"` かつ `conclusion` が `"SUCCESS"`・`"SKIPPED"` 以外（例: 0 CheckRun の `STARTUP_FAILURE`、または CheckRun に失敗が出ない CheckSuite `FAILURE`）である場合も、その CheckSuite に対応する失敗 CheckRun が `Failing` に含まれていなければ CheckSuite 単位の項目（`Name`: `workflowRun.workflow.name` または `"github-actions-check-suite"`、`Conclusion`: CheckSuite の `conclusion`、`URL`: `""`）を加えて即時 `StateFailed` を返す。
-        2.  **待機中:** 評価対象の CheckSuite が 0 件（push 直後で未作成）、またはいずれかの評価対象 CheckSuite の `status != "COMPLETED"`（`workflowRun != null` でジョブ生成待ち、`needs: check-changes` の後続ジョブ待ちを含む）、またはいずれかの CheckRun の `status != "COMPLETED"` なら `StatePending` を返す。
+        2.  **待機中:** 評価対象の CheckSuite が 0 件（`Suites == 0`、push 直後で未作成）、またはいずれかの評価対象 CheckSuite の `status != "COMPLETED"`（`workflowRun != null` でジョブ生成待ち、`needs: check-changes` の後続ジョブ待ちを含む）、またはいずれかの CheckRun の `status != "COMPLETED"` なら `StatePending` を返す。
         3.  **成功:** 評価対象の CheckSuite が 1 件以上あり、すべて `status == "COMPLETED"` かつ `conclusion` が `"SUCCESS"` または `"SKIPPED"` であり、かつ配下のすべての CheckRun が `status == "COMPLETED"` かつ `conclusion` が `"SUCCESS"` または `"SKIPPED"` なら `StatePassed` を返す。それ以外は安全側で `StateFailed` とする。
     -   `Failing` の要素順は呼び出し元が依存しない非公開契約（表示の安定のため `Name`・`URL` 昇順で整列するが契約上は不定）とする。
 -   **呼び出し側の設計:**
-    -   **`fixprguard ci-checks --protocol <N> [--head <40-hex>] <PR>`（`internal/fixprguard/ci_checks.go`）:** `ghci.ResolveRepo` ののち `ghci.ReadPR` を 1 回呼び、`Protocol` を付与した `CIChecksResult` を終了コード `0` で出力する。`/runpr` step 3 は直前の `review-state` が返した `head` を `--head` に渡して呼び、`pending` の間約 30 秒間隔でポーリングする（`checks == 0` の `pending` は 5 分上限、CI 全体の待機は 60 分上限、`unreadable (call-failed)` は約 30 秒間隔で最大 15 分再試行）。`passed` で step 4 へ進み、`unreadable (head-changed)` なら step 3 の先頭へ戻り、`failed`・`rejected`・`limit`・上限超過では失敗ジョブ名と URL（または理由）を報告して停止する。
+    -   **`fixprguard ci-checks --protocol <N> [--head <40-hex>] <PR>`（`internal/fixprguard/ci_checks.go`）:** `ghci.ResolveRepo` ののち `ghci.ReadPR` を 1 回呼び、`Protocol` を付与した `CIChecksResult` を終了コード `0` で出力する。`/runpr` step 3 は直前の `review-state` が返した `head` を `--head` に渡して呼び、`pending` の間約 30 秒間隔でポーリングする（`suites == 0` の `pending` は 5 分上限、`suites > 0` のジョブ生成待ち・実行待ちは CI 全体の 60 分上限、`unreadable (call-failed)` は約 30 秒間隔で最大 15 分再試行）。`passed` で step 4 へ進み、`unreadable (head-changed)` なら step 3 の先頭へ戻り、`failed`・`rejected`・`limit`・上限超過では失敗ジョブ名と URL（または理由）を報告して停止する。
     -   **`mergepr prepare`（`internal/mergepr/mergepr.go:275`）:** `gh pr checks <number> --watch --fail-fast` を `ghci.ResolveRepo`＋`ghci.WaitPR`（`ExpectedHead: state.HeadRefOID`、`PollInterval: 30s`、`NoCheckGrace: 5m`、`Timeout: 60m`、`PerCallTimeout: 2m`）へ置き換える。`WaitPR` 内では一時的な `UnreadableCall` のみを `Timeout` まで再試行し、`UnreadableHeadChanged`・`UnreadableRejected`・`UnreadableLimit` は即時終了とする。`ghci` 用の `gh` 呼び出しには出力上限 32 MiB・`WaitDelay: 5s` を設定した専用 `cmdrunner.Runner`（`internal/mergepr/runner.go`）を渡す。`StatePassed` 以外は既存の `errChecksFailed`（`internal/mergepr/errors.go:16`）を返す。CLI の引数・出力・終了コードは不変のため `mergepr` の `Protocol`（`3`）は上げない（フェーズ 2 マージ後の `make install-mergepr` の手順と古いバイナリ判別法を 8 章および `mergepr_guide.md` に明記する）。
 
 ### 3.3. `/runpr`（`.claude/commands/runpr.md`）の設計（F-003・F-004・H-04・H-05・H-06）
@@ -678,7 +684,7 @@ func (g *GitHub) CIChecks(ctx context.Context, req CIChecksRequest) (CIChecksRes
         -   `sourcery` の `autoReview` が `skipped`・`unrecognized`・`timed-out` → 停止せず、完了の印に数えないまま要約へ状態と URL を示して進む。
     5.  **`LAST_REVIEWED`（AC-18）:** CodeRabbit と Sourcery AI の `markers`（`unreadable (limit)` のレビュアーは空集合扱い）の和集合から、git の祖先関係で他のすべての完了コミットを祖先とする唯一の最新コミットを `LAST_REVIEWED` とする（和集合が空、または唯一の最新コミットがない場合は `none`）。
     6.  **スレッド処理と push 後の再確認（AC-16・H-06）:** `/fixpr` が新しいコミットを push した後は、step 3 のループ先頭へ戻り、新しい `head` 上で進行中の Sourcery の自動の PR レビューがあれば完了（上限 15 分）まで待機し、新たに開かれたスレッドを処理してから CI 待機へ進む。
-    7.  **CI 待機（AC-19・H-06）:** `gh pr checks <number> --watch --fail-fast` を廃止し、`fixprguard ci-checks --protocol <N> --head <head> <number>` をポーリングして `passed` を待つ（`checks == 0` 猶予 5 分・全体 60 分上限、`call-failed` は最大 15 分再試行、`head-changed` は step 3 先頭へ戻る、`failed`・`rejected`・`limit`・上限超過は失敗ジョブ名と URL または理由を示して停止）。
+    7.  **CI 待機（AC-19・H-06）:** `gh pr checks <number> --watch --fail-fast` を廃止し、`fixprguard ci-checks --protocol <N> --head <head> <number>` をポーリングして `passed` を待つ（`suites == 0` 猶予 5 分・`suites > 0` の全体 60 分上限、`call-failed` は最大 15 分再試行、`head-changed` は step 3 先頭へ戻る、`failed`・`rejected`・`limit`・上限超過は失敗ジョブ名と URL または理由を示して停止）。
 -   **step 4 の再読込・マージの質問・依頼先選択（AC-21〜AC-24・H-05）:**
     1.  **質問前の再読込:** 各質問の前に `fixprguard mentions` と両プロファイルの `fixprguard review-state` を再実行する（`coderabbit.head != sourcery.head` または `state.json` の `head` と異なる場合は `mergepr discard` して step 2 へ戻る）。`sourcery` の `autoReview.state == "running"` で `(head, autoReview.url)` がすでに `TIMED_OUT_AUTO` にある場合、または `autoReview.state == "timed-out"` の場合は待機へ戻らない（AC-16）。それ以外の新しい `waiting`・`running`・`markers` 変化は `mergepr discard` して step 3 へ戻る。
     2.  **要約行（最大 16 行）:** kind 1〜14 は現行を維持し、kind 15 を `PR レビュー (CodeRabbit): ...`、kind 16 を `PR レビュー (Sourcery AI): ...` とする。完了の印の URL は `reviewUrl` → `requestUrl` → `checkRunUrl` の順で空でない最初のものを使う（指摘なしの自動完了では `checkRunUrl` が選ばれる）。kind 16 の表示条件は `request != null || autoReview != null || len(markers) > 0 || (state == "unreadable" && reason == "limit")` とし、同一 `head` に対する状態の優先順位と表示書式は次のとおりとする（AC-24）：
@@ -835,7 +841,7 @@ flowchart TD
 | 2. PR レビュー状態（`review-state`） | 既存 `strictjson` 維持 | 既存維持（非推奨 `databaseId` は読まない） | `name` 必須文字列＋プロファイル期待名と完全一致。`status`/`conclusion`/`title`/`url` 厳密照合。他メンバーは拡張可能として無視 | 応答 16 MiB、コメント 3000・レビュー 3000・コミット 1000・CheckSuite 50・CheckRun 100・待機 15 分。失敗は `unreadable`、部分結果なし |
 | 3. 書き込み・`append-pr`（`write.go`・`worktree.go`） | `utf8.Valid`・NUL 禁止・通常ファイル（`O_NOFOLLOW`） | `append-pr` 既存本文取得は単一 JSON オブジェクト | `body` 文字列ちょうど 1 つ。4 メンション ASCII 大文字小文字無視・部分文字列拒否 | 入力および追記後 64 KiB、GitHub 応答 16 MiB。拒否時は一切書き込まない |
 | 4. PR メンション検査（`mentions`・新規） | `strictjson`（不正 UTF-8・単独サロゲート拒否） | 単一配列・要素オブジェクト・`id` 正の `int64` | `user.login`/`user.type`（`user: null` は停止）・3 経路すべてで `body`（`null` 許容）・`html_url`（`validCommentURL`）・時刻（`created_at`/`updated_at`、`reviews` は `submitted_at` `null`/欠落許容）。他メンバーは拡張可能として無視 | 応答 16 MiB、各エンドポイント 3000 件。失敗は `unreadable`（`stage` 付き）、部分結果なし・本文非出力（要件定義書 3.2 項目 4 の `jq` 例外を解消） |
-| 5. CI チェック読み取り（`internal/ghci`・新規） | `strictjson` | 単一 GraphQL `data` オブジェクト・`errors` 非空拒否 | `headRefOid`（40 桁小文字 hex、`ExpectedHead` 不一致は `head-changed`）・`commit.oid`（一致確認）・`checkSuites`・`app.slug`・`status`・`conclusion`・`workflowRun.workflow.name`（任意）・`checkRuns`・`name`・`url`（`internal/ghci` の厳格 GitHub URL 検証）。他メンバーは拡張可能として無視 | 応答 16 MiB（`mergepr` runner は 32 MiB 上限）、CheckSuite 50・`github-actions` CheckRun 100（非 `github-actions` は `hasNextPage` 検査前にスキップ）。失敗は `unreadable`、部分結果なし |
+| 5. CI チェック読み取り（`internal/ghci`・新規） | `strictjson` | 単一 GraphQL `data` オブジェクト・`errors` 非空拒否 | `headRefOid`（40 桁小文字 hex、`ExpectedHead` 不一致は `head-changed`）・`commit.oid`（一致確認）・`checkSuites`・`app.slug`・`status`・`conclusion`・`createdAt`・`workflowRun.workflow.name`（任意）・`checkRuns`・`name`・`url`（`internal/ghci` の厳格 GitHub URL 検証）。他メンバーは拡張可能として無視 | 応答 16 MiB（`mergepr` runner は 32 MiB 上限）、CheckSuite 50・`github-actions` CheckRun 100（非 `github-actions` は `hasNextPage` 検査前にスキップ）。失敗は `unreadable`、部分結果なし |
 
 ### 5.4. 残余リスクと緩和策
 
@@ -843,7 +849,7 @@ flowchart TD
 -   **スレッドへのメンションなし返信の応答（観測の記録 2.9）:** 30 件すべて `THUMBS_UP` のみだったが、公式文書上は質問形式の返信等にチャットコメントを返しうる。`/fixpr` の返信は解決とセットの対応報告にとどめ、返信に 4 メンションを含めない。
 -   **push の制限の前提（観測の記録 2.8）:** `rulesets/26400325` の `bypass_actors` が変更されると Sourcery GitHub App（`code: read & write` 権限）がブランチを更新しうるため、`fixprguard_guide.md` 10 章の運用確認事項として引き続き管理する。
 -   **未観測の同一コミット手動再依頼挙動（観測の記録 2.1）:** Sourcery AI が既存 CheckRun を上書きし `startedAt` を更新しない場合、手動再依頼が `timed-out` になりうる（誤完了は起きない安全側）。予算回復後に実測し、必要なら別タスクで調整する。
--   **手動依頼後 15 分以内の別コミット push 競合:** `ProfileSourcery` では、期限切れ依頼が将来の自動 CheckRun を奪わないよう応答候補を `startedAt - req.created <= 15 分` に制限している。ただし、未応答の手動依頼から 15 分以内に別コミットが push され、その別コミットの自動 CheckRun が手動依頼の CheckRun より先に開始した場合は、別コミットの自動 CheckRun が手動依頼の応答として結び付きうる。その場合でも、`head` が `running` なら step 3 は待機し、手動依頼の応答が `skipped` になれば安全側で停止する。
+-   **手動依頼後 15 分以内の別コミット push 競合:** `ProfileSourcery` では、期限切れ依頼が将来の自動 CheckRun を奪わないよう応答候補を `startedAt - req.created <= 15 分` に制限し、さらに後続コミットの自動 CheckRun が先に開始して古いコミットの手動 CheckRun が重なった場合は `commitIndex(run.commit) <= commitIndex(earliest.commit)` により `competing-runs` で安全に停止する。残るのは、古いコミットの手動 CheckRun 自体が一切起動せず後続コミットの自動 CheckRun だけが 15 分以内に開始した場合に限られるが、後続コミットは古いコミットの子孫であり、完了時はその差分全体を含むため誤って未レビューを完了とする危険はない。
 -   **`/mergepr` 単独実行での `github-actions` 限定監視:** `mergepr prepare` が `app.slug == "github-actions"` のみを監視対象とするため、将来 GitHub Actions 以外の外部必須 CI サービスを導入する場合は `internal/ghci` の対象 App を見直す必要がある（`mergepr_guide.md` 6.2 節に前提として明記する）。
 
 ## 6. 処理フロー詳細 (Processing Flow Details)
@@ -871,7 +877,7 @@ flowchart TD
     ESC["エスカレーション判定"]
     CI["fixprguard ci-checks --head<br>(github-actions のみ監視)"]
     CI_OK{"CI 状態?"}
-    CI_SLEEP["約 30 秒待機<br>(0 件 5 分・全体 60 分・call-failed 15 分)"]
+    CI_SLEEP["約 30 秒待機<br>(suite 0 件 5 分・全体 60 分・call-failed 15 分)"]
     STEP4(["step 4 へ進む"])
 
     START --> MN
@@ -987,11 +993,11 @@ flowchart TD
 -   **`internal/fixprguard`:**
     -   `trust_test.go`・`threads_test.go`: `--reviewer coderabbitai --reviewer sourcery-ai` で `Bot`/`sourcery-ai` が権限照会なしで信頼され、混在スレッドも信頼される一方、`Sourcery-AI`・`sourcery-ai[bot]`・`User`/`sourcery-ai` が自動レビュアー扱いにならないことを検証する（AC-07）。
     -   `write_test.go`・`worktree_flow_test.go`: `@sourcery-ai`・`@sourceryai`（大文字小文字混在・部分文字列含む）が `reply`・`edit-pr`・`append-pr`（新規ファイルおよび既存 PR 本文の `current-body-mention`）・`finish` ですべて拒否されることを検証する（AC-11）。
-    -   `review_state_test.go`: `ProfileCodeRabbit` の既存ケース全件を維持したうえで、`ProfileSourcery` の全状態（依頼なし自動実行の `running`・`completed`・`skipped`・`unknown`・`timed-out`、未開始 `startedAt: null`、手動 `waiting` かつ `Response == nil` 時の未開始 CheckRun 非誤認、祖先コミット未完了の非待機）を網羅する。また、手動依頼の認識（`@sourcery-ai review`・`@sourceryai review`、`RequestSkipped`）、期限切れ手動依頼が 15 分超の後続コミット自動 CheckRun を奪わないこと、同一コミット競合の `competing-runs` と別コミット自動の PR レビュー重複の非競合を検証する。あわせて、空 `QUEUED` CheckSuite の無視、`name` 不一致の `rejected`、`PRReviewState.Profile` の常時設定、および本文・`title`・`details_url` の非出力を検証する（AC-16〜AC-20）。
+    -   `review_state_test.go`: `ProfileCodeRabbit` の既存ケース全件を維持したうえで、`ProfileSourcery` の全状態（依頼なし自動実行の `running`・`completed`・`skipped`・`unknown`・`timed-out`、未開始 `startedAt: null`、手動 `waiting` かつ `Response == nil` 時の未開始 CheckRun 非誤認、4 段階優先順位で時間切れ・未開始の CheckRun が新しい実行中 CheckRun を隠さないこと、祖先コミット未完了の非待機）を網羅する。また、手動依頼の認識（`@sourcery-ai review`・`@sourceryai review`、`RequestSkipped`）、期限切れ手動依頼が 15 分超の後続コミット自動 CheckRun を奪わないこと、同一・古いコミット競合の `competing-runs` と後続コミット自動の PR レビュー重複の非競合を検証する。あわせて、空 `QUEUED` CheckSuite の無視、`name` 不一致の `rejected`、`PRReviewState.Profile` の常時設定、および本文・`title`・`details_url` の非出力を検証する（AC-16〜AC-20）。
     -   `mentions_test.go`（新規）: 4 メンション（大文字小文字混在）× 3 エンドポイント（`body: null`・`submitted_at: null` 含む）× 著者種別（利用者本人・他 `User`・`Bot`）の組み合わせを検証する。除外規則として、CodeRabbit 定型 2 種（LF/CRLF）、Sourcery レビューガイド（LF/CRLF、`issues/<n>/comments` のみ）、Sourcery 予算超過コメント（認証済み利用者名の一致のみ除外し、他の利用者名・行コメント・レビュー本文は除外しない）、および手動依頼 3 種（`review-state` と同一入力で一致確認）を検証する。さらに、`User` なりすまし（`sourcery-ai[bot]` の `User`・`user: null` は停止）、重複キーや不正 JSON の `unreadable (rejected)`・`stage` 設定、上限超過の `limit`、本文非出力を検証する（AC-13）。
-    -   `ci_checks_test.go`（新規）: `fixprguard ci-checks` の出力 JSON・`--head` 引き渡し・プロトコル番号・`unreadable` 伝播を検証する。
+    -   `ci_checks_test.go`（新規）: `fixprguard ci-checks` の出力 JSON（`suites`・`checks`）・`--head` 引き渡し・プロトコル番号・`unreadable` 伝播を検証する。
 -   **`internal/ghci`（新規 `ghci_test.go`）:**
-    -   `ResolveRepo` の正常解析・不正 JSON 拒否と、`ReadPR` の各種状態判定を検証する。具体的には、`github-actions` の `SUCCESS`・`SKIPPED` 混在での `StatePassed`、`FAILURE`・`TIMED_OUT`・`CANCELLED`・0 CheckRun の `STARTUP_FAILURE`・CheckSuite 単位 `FAILURE` での即時 `StateFailed`（`Failing` にジョブ名／ワークフロー名と URL）、および `QUEUED`/`IN_PROGRESS`・`workflowRun != null` の 0 CheckRun `QUEUED`・0 件時の `StatePending` を確認する。あわせて、外部アプリ（`sourcery-ai` の `FAILURE`・`QUEUED` や 100 件超 `hasNextPage: true` CheckSuite、`coderabbitai` の `SKIPPED`）の完全無視、`ExpectedHead` 不一致の `UnreadableHeadChanged`、`headRefOid != commit.oid`・`github-actions` 側 `hasNextPage: true`・重複キー不正 JSON での `StateUnreadable` を検証する。最後に、`ErrInvalidRequest` の境界、および `WaitPR` の一時エラー再試行・`UnreadableHeadChanged` 即時終了・時間切れを検証する（AC-19）。
+    -   `ResolveRepo` の正常解析・不正 JSON 拒否と、`ReadPR` の各種状態判定を検証する。具体的には、`github-actions` の `SUCCESS`・`SKIPPED` 混在での `StatePassed`、同一ワークフロー名で旧失敗 CheckSuite と新成功 CheckSuite が併存するときに最新 `createdAt` のみ採用して `StatePassed` となること、`FAILURE`・`TIMED_OUT`・`CANCELLED`・0 CheckRun の `STARTUP_FAILURE`・CheckSuite 単位 `FAILURE` での即時 `StateFailed`（`Failing` にジョブ名／ワークフロー名と URL）、および `QUEUED`/`IN_PROGRESS`・`workflowRun != null` の 0 CheckRun `QUEUED`（`Suites > 0`）・0 件時（`Suites == 0`）の `StatePending` を確認する。あわせて、外部アプリ（`sourcery-ai` の `FAILURE`・`QUEUED` や 100 件超 `hasNextPage: true` CheckSuite、`coderabbitai` の `SKIPPED`）の完全無視、`ExpectedHead` 不一致の `UnreadableHeadChanged`、`headRefOid != commit.oid`・`github-actions` 側 `hasNextPage: true`・重複キー不正 JSON での `StateUnreadable` を検証する。最後に、`ErrInvalidRequest` の境界、および `WaitPR` の一時エラー再試行・`Suites == 0` の `NoCheckGrace` 適用と `Suites > 0` の全体 `Timeout` 適用・`UnreadableHeadChanged` 即時終了・時間切れを検証する（AC-19）。
 -   **`internal/mergepr`（`mergepr_test.go`）:**
     -   `Prepare` が `ghci.ResolveRepo`＋`WaitPR` を呼び、`Sourcery review` が `FAILURE` でも `github-actions` が成功なら通過し、`github-actions` 失敗時は `errChecksFailed` で止まることを検証する。
 -   **`cmd/fixprguard`（`main_test.go`・`docs_test.go`）:**
