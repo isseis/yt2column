@@ -141,7 +141,7 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 - [x] 設計書 7.3 節の AC-04 の行のとおりのスクリプトを書く。移すブロックはすべて PR-1 で移すので（1.3 節の決定 1）、ブロックを引数で選ばず、移すブロックの全体の一覧（設計書 2.3 節の「移す」の行。見出しのないブロックも最初と最後の文で決める）をいつも比べ、完全性の確かめも毎回行う。設計書 7.3 節の「その PR で移すブロックを引数で渡す」は、移す作業が複数の PR に分かれる場合のためのもので、本計画では使わない
 - [x] ステップ 1-3 の後の状態で、各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、スクリプトを入れるコミットのメッセージに書く
-- [ ] PR のブランチで走らせ、出力とマージベースと比べたコミットを 7 章の AC-04 の記録に書く。残った差分の各行が重複の削除か書式の規約による組み直しであること、リンクの組が正しい節を指すことを、記録に添えてレビュアーに示す
+- [x] PR のブランチで走らせ、出力とマージベースと比べたコミットを 7 章の AC-04 の記録に書く。残った差分の各行が重複の削除か書式の規約による組み直しであること、リンクの組が正しい節を指すことを、記録に添えてレビュアーに示す
 
 **完了の条件:** スクリプトがあり、壊したときに失敗することを確かめてあり、7 章に AC-04 の記録がある。
 
@@ -409,7 +409,113 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
 
 ### AC-04 の記録
 
-（PR-1 のステップ 1-5 で、スクリプトの出力とマージベースと比べたコミットを書く。）
+`_checks/ac04_moved_blocks.sh a0457a7d` を PR-1 のブランチで走らせた（2026-11-24）。比べたコミットは `a0457a7da1e7ca0b2e615513087d3e5573653eae`、マージベースは `bd72ac9e8e202a2982d5a270ac626187d35a0e62`（その `README.md` のブロブは `23ab53e32d65cb67eafd09634d6d034a6f6da665`）で、結果は `ac04: PASS` である。
+
+- **残った差分:** 11 のブロックのうち、残った差分があるのは `extension-build` の 1 行だけである。除いた文は「開発のためのターゲットは `development.md` にある」という案内で、移した先が `development.md` そのものなので、重ねて書かないために除いた（AC-04 の「重複の削除」）。
+- **ブロックの外の変更:** 次のものはブロックの外にあるので、出力には現れない。
+  - `development.md` の「拡張のビルドと読み込み」の頭の「**拡張のビルドに必要なもの:**」。今の README の「主経路（ブラウザ拡張）に必要なもの」のうち Go と Node.js の 2 行だけを移したので、項目の頭のラベルを付け直した（書式の規約による組み直し）。
+  - 冒頭の段落のうち `cli.md:3-4` と同じ 2 文（CLI で開発し確かめること、`--out` のファイルに書くこと）。重ねないので移さずに除いた（重複の削除）。
+- **リンクの組:** どの組も、移った先から見た同じ節を指す。`docs/dev/...` は `generation.md` と `development.md` から見た相対のパスに、`#api-キーの設定` は README の同じ節に変わった。`docs/dev/guides/development.md -> (none)` は、上の除いた文のリンクである。
+
+```text
+commit:      a0457a7da1e7ca0b2e615513087d3e5573653eae
+merge-base:  bd72ac9e8e202a2982d5a270ac626187d35a0e62
+README blob: 23ab53e32d65cb67eafd09634d6d034a6f6da665
+
+=== block 1: intro-cli -> docs/dev/guides/generation.md (構成)
+headings: README "yt2column" -> docs/dev/guides/generation.md "構成"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  https://github.com/yt-dlp/yt-dlp -> https://github.com/yt-dlp/yt-dlp
+
+=== block 2: diagram -> docs/dev/guides/generation.md (構成)
+headings: README "yt2column" -> docs/dev/guides/generation.md "構成"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+
+=== block 3: paths-and-providers -> docs/dev/guides/generation.md (構成)
+headings: README "yt2column" -> docs/dev/guides/generation.md "構成"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  #推奨構成 -> #推奨構成
+  docs/dev/production_profile.md -> ../production_profile.md
+
+=== block 4: build-requirements -> docs/dev/guides/development.md (拡張のビルドと読み込み)
+headings: README "必要なもの" -> docs/dev/guides/development.md "拡張のビルドと読み込み"
+--- remaining diff (README -> docs/dev/guides/development.md):
+(none)
+--- link pairs (README -> docs/dev/guides/development.md):
+
+=== block 5: post-generation-steps -> docs/dev/guides/generation.md (生成の後の工程)
+headings: README "生成の後の工程" -> docs/dev/guides/generation.md "生成の後の工程"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  docs/dev/guides/cli.md#生成の後の工程 -> cli.md#生成の後の工程
+
+=== block 6: output-format -> docs/dev/guides/generation.md (出力の書式)
+headings: README "出力の書式" -> docs/dev/guides/generation.md "出力の書式"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  docs/dev/guides/cli.md#--out-のファイル -> cli.md#--out-のファイル
+
+=== block 7: estimated-cost -> docs/dev/guides/generation.md (推定の料金)
+headings: README "推定の料金" -> docs/dev/guides/generation.md "推定の料金"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  docs/dev/guides/cli.md#推定の料金 -> cli.md#推定の料金
+
+=== block 8: extension-build -> docs/dev/guides/development.md (拡張のビルドと読み込み)
+headings: README "ブラウザ拡張" -> docs/dev/guides/development.md "拡張のビルドと読み込み"
+--- remaining diff (README -> docs/dev/guides/development.md):
+@@ -15,7 +15,6 @@
+ make ext-install   # install the pinned dev dependencies (npm ci; needs network)
+ make ext-build     # build extension/dist/
+ ```
+-CI が実行する検査や、LLM の API を呼ばない開発用のビルドなど、開発のためのターゲットは [docs/dev/guides/development.md](<link>)にある。
+ ビルドしたものを Chrome か Brave で読み込む。
+ 1. `chrome://extensions/`（Brave: `brave://extensions/`）を開く。
+ 2. **デベロッパー モード**（**Developer mode**）をオンにする。
+--- link pairs (README -> docs/dev/guides/development.md):
+  https://github.com/Schniz/fnm -> https://github.com/Schniz/fnm
+  docs/dev/guides/development.md -> (none)
+
+=== block 9: extension-logs -> docs/dev/guides/development.md (拡張のログ)
+headings: README "ビューア" -> docs/dev/guides/development.md "拡張のログ"
+--- remaining diff (README -> docs/dev/guides/development.md):
+(none)
+--- link pairs (README -> docs/dev/guides/development.md):
+
+=== block 10: configuration -> docs/dev/guides/generation.md (設定)
+headings: README "設定" -> docs/dev/guides/generation.md "設定"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  #推奨構成 -> #推奨構成
+  #api-キーの設定 -> ../../../README.md#api-キーの設定
+  docs/dev/guides/cli.md#設定 -> cli.md#設定
+  #推定の料金 -> #推定の料金
+  docs/dev/security.md#4-llm-プロバイダへ送るデータ -> ../security.md#4-llm-プロバイダへ送るデータ
+  docs/dev/guides/openai_output_limit.md -> openai_output_limit.md
+
+=== block 11: recommended-configuration -> docs/dev/guides/generation.md (推奨構成)
+headings: README "推奨構成" -> docs/dev/guides/generation.md "推奨構成"
+--- remaining diff (README -> docs/dev/guides/generation.md):
+(none)
+--- link pairs (README -> docs/dev/guides/generation.md):
+  https://github.com/isseis/yt2column/issues/490 -> https://github.com/isseis/yt2column/issues/490
+  https://github.com/isseis/yt2column/issues/171 -> https://github.com/isseis/yt2column/issues/171
+  docs/dev/production_profile.md -> ../production_profile.md
+
+=== completeness on the compared side
+blocks compared: 11
+ac04: PASS
+```
 
 ### AC-05 の記録
 
