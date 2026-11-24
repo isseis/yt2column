@@ -3,6 +3,7 @@
 package fixprguard
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,8 +11,10 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
 	cmdrunnertestutil "github.com/isseis/yt2column/internal/cmdrunner/testutil"
@@ -523,6 +526,102 @@ func TestReviewStateLimits(t *testing.T) {
 	for _, tc := range rows {
 		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })
 	}
+}
+
+// TestReviewStateReadBounds: the bounds on what one response or one read may
+// hold, which the count limits of TestReviewStateLimits do not reach, and the
+// expired deadline. Each row scripts only the calls up to the bound, so a read
+// that went past it would make an unscripted call.
+func TestReviewStateReadBounds(t *testing.T) {
+	// upTo is the calls of a read with a request comment, up to and including
+	// the comments.
+	upTo := func(t *testing.T) []cmdrunnertestutil.Step {
+		return rsInput{comments: defaultComments(), stop: rsStageComments}.steps(t)
+	}
+	commitsPage := func(t *testing.T, commits []rsCommit, more bool, cursor string) cmdrunnertestutil.Step {
+		nodes := make([]any, 0, len(commits))
+		for _, c := range commits {
+			nodes = append(nodes, c.json())
+		}
+		return graphqlStep(rsCommitsResponse(t, rsHead, nodes, more, cursor))
+	}
+	suites := func(n int) []rsSuite {
+		out := make([]rsSuite, n)
+		for i := range out {
+			out[i] = rsSuite{app: testReviewer}
+		}
+		return out
+	}
+	runs := func(n int) []rsRun {
+		out := make([]rsRun, n)
+		for i := range out {
+			out[i] = rsQueued(int64(i + 1))
+		}
+		return out
+	}
+	rows := []struct {
+		name  string
+		steps func(t *testing.T) []cmdrunnertestutil.Step
+		want  PRReviewState
+	}{
+		{"graphql_pages_never_end", func(t *testing.T) []cmdrunnertestutil.Step {
+			steps := upTo(t)
+			for i := range maxPRCommitPages {
+				steps = append(steps, commitsPage(t, nil, true, "cursor"+strconv.Itoa(i)))
+			}
+			return steps
+		}, rsUnreadable(UnreadableLimit, rsHead)},
+		{"graphql_page_over_its_size", func(t *testing.T) []cmdrunnertestutil.Step {
+			commits := make([]rsCommit, commitsPerPage+1)
+			for i := range commits {
+				commits[i] = rsCommitOf(rsHead)
+			}
+			return append(upTo(t), commitsPage(t, commits, false, ""))
+		}, rsUnreadable(UnreadableRejected, rsHead)},
+		{"suites_over_the_limit", func(t *testing.T) []cmdrunnertestutil.Step {
+			return append(upTo(t), commitsPage(t, []rsCommit{{oid: rsHead, suites: suites(maxCheckSuites + 1)}}, false, ""))
+		}, rsUnreadable(UnreadableLimit, rsHead)},
+		{"runs_over_the_limit", func(t *testing.T) []cmdrunnertestutil.Step {
+			commit := rsCommit{oid: rsHead, suites: []rsSuite{{app: testReviewer, runs: runs(maxCheckRuns + 1)}}}
+			return append(upTo(t), commitsPage(t, []rsCommit{commit}, false, ""))
+		}, rsUnreadable(UnreadableLimit, rsHead)},
+		{"rest_page_over_its_size", func(t *testing.T) []cmdrunnertestutil.Step {
+			comments := make([]any, 0, restPerPage+1)
+			comments = append(comments, rsRequestComment(1, rsCreated).json())
+			for i := range restPerPage {
+				comments = append(comments, rsComment{id: int64(i + 2), login: "alice", kind: typenameUser, body: "x", created: rsCreated}.json())
+			}
+			in := rsInput{comments: defaultComments(), stop: rsStageComments}
+			in.edit = map[string]func(string) string{rsStageComments: func(string) string { return mustJSON(t, comments) }}
+			return in.steps(t)
+		}, rsUnreadable(UnreadableRejected, rsHead)},
+		{"user_response_over_max_bytes", func(t *testing.T) []cmdrunnertestutil.Step {
+			in := rsInput{stop: rsStageUser}
+			in.edit = map[string]func(string) string{rsStageUser: func(string) string { return strings.Repeat(" ", maxResponseBytes+1) }}
+			return in.steps(t)
+		}, rsUnreadable(UnreadableLimit, rsHead)},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := runReviewStateSteps(t.Context(), t, tc.steps(t)); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, tc.want))
+			}
+		})
+	}
+
+	// A read that fails after the deadline passed is a failed call, whatever
+	// the response it failed on: here a head outside the grammar, which is
+	// rejected while the deadline holds.
+	t.Run("deadline_passed", func(t *testing.T) {
+		in := rsInput{stop: rsStagePull}
+		in.edit = map[string]func(string) string{rsStagePull: func(s string) string { return strings.Replace(s, rsHead, "x", 1) }}
+		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+		t.Cleanup(cancel)
+		want := rsUnreadable(UnreadableCall, "")
+		if got := runReviewStateSteps(ctx, t, in.steps(t)); !reflect.DeepEqual(got, want) {
+			t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, want))
+		}
+	})
 }
 
 // TestReviewStateReads: the commit query asks for every check run named after

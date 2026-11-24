@@ -3,6 +3,7 @@
 package fixprguard
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -388,11 +389,18 @@ func rsUnreadable(reason UnreadableReason, head string) PRReviewState {
 // reviewer and the request text.
 func runReviewState(t *testing.T, in rsInput) PRReviewState {
 	t.Helper()
-	g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, in.steps(t)...))
+	return runReviewStateSteps(t.Context(), t, in.steps(t))
+}
+
+// runReviewStateSteps runs PRReviewState under ctx over steps, for a test
+// whose calls rsInput cannot script.
+func runReviewStateSteps(ctx context.Context, t *testing.T, steps []cmdrunnertestutil.Step) PRReviewState {
+	t.Helper()
+	g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, steps...))
 	if err != nil {
 		t.Fatalf("NewGitHubWithoutReviewer: %v", err)
 	}
-	state, err := g.PRReviewState(t.Context(), ReviewStateRequest{PR: mustPR(t), Reviewer: mustLogin(t, testReviewer), Request: rsRequestText})
+	state, err := g.PRReviewState(ctx, ReviewStateRequest{PR: mustPR(t), Reviewer: mustLogin(t, testReviewer), Request: rsRequestText})
 	if err != nil {
 		t.Fatalf("PRReviewState: %v", err)
 	}
