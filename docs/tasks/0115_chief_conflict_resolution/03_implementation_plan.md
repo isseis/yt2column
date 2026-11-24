@@ -173,21 +173,21 @@
 
 #### ステップ 2-1: `Makefile` の `ext-preflight`、`.claude/commands/mergemain.md`、`CLAUDE.md` 更新
 
-**対象ファイル:** `Makefile`, `.claude/commands/mergemain.md`（新規）, `CLAUDE.md`
+**対象ファイル:** `Makefile`, `.claude/commands/mergemain.md`（新規）, `.agents/skills/mergemain/SKILL.md`（新規）, `CLAUDE.md`
 
-- [ ] `Makefile` に `.PHONY` 付きの `ext-preflight` ターゲット（`$(call ext_preflight)` の呼び出し）を追加し、`CLAUDE.md` の `### Extension Commands` に `make ext-preflight` の説明を追記する（AC-26）。
-- [ ] `.claude/commands/mergemain.md` を英語で新規作成する（設計書 3.9）。引数検証（AC-20）、`mergepr mergemain-begin`/`mergemain-merge` 呼び出し（`--protocol` は `mergepr` の現行値、allow 対象の 3 サブコマンドは前置や連結のない単独のコマンド呼び出しで記載し、行出力の可変値をフィールド名として解釈しない扱いも明記）、README 同期（`mktrans.md` 参照、`stopped` で停止、AC-24）、ADR 確認（番号・主題重複と食い違い記述で停止し `numreserve` を使わない、AC-25）、文書 `--protocol` 更新と `.md` 衝突解消（両側を保てなければ停止、AC-22）を記載する。続けて、`git commit --no-edit`、`make test`・`make lint`・条件付き `make ext-preflight`→`make ext-check`（AC-26）、`mergepr mergemain-push`（AC-27）、条件に応じた `mergepr mergemain-restore` と一時ファイルの作業ツリー外配置（AC-28）を定める。あわせて、日本語報告の必須項目（停止時の 11 種の理由と衝突ファイル一覧、解消成功時の変更ファイルごとの適用規則・解消内容の要約・新しい head・プロトコル番号変更時の入れ直し案内、AC-29）、AC-30 の 8 つの禁止事項と直接 `git merge`/`git reset`/`git push` 禁止、AC-31 の承認段落をすべて明記する。
-- [ ] `CLAUDE.md` の「Claude Commands」に `/mergemain` を追加し（AC-36 の `/mergemain` 部分）、「Tool Execution Safety」に AC-31 の 4 操作（`gh pr view`・`git fetch origin`・PR head ブランチの `git ls-remote`・PR head ブランチへの `git push`）の承認段落を追加する（AC-31）。
+- [x] `Makefile` に `.PHONY` 付きの `ext-preflight` ターゲット（`$(call ext_preflight)` の呼び出し）を追加し、`CLAUDE.md` の `### Extension Commands` に `make ext-preflight` の説明を追記する（AC-26）。
+- [x] `.claude/commands/mergemain.md` を英語で新規作成し、Antigravity CLI 向けの薄い入口 `.agents/skills/mergemain/SKILL.md`（本計画承認後に `main` へ入った `TestSkillsMatchCommands` と整合）を併せて作成する（設計書 3.9）。引数検証（AC-20）、`mergepr mergemain-begin`/`mergemain-merge` 呼び出し（`--protocol` は `mergepr` の現行値、allow 対象の 3 サブコマンドは前置や連結のない単独のコマンド呼び出しで記載し、行出力の可変値をフィールド名として解釈しない扱いも明記）、README 同期（`mktrans.md` 参照、`stopped` で停止、AC-24）、ADR 確認（番号・主題重複と食い違い記述で停止し `numreserve` を使わない、AC-25）、文書 `--protocol` 更新と `.md` 衝突解消（両側を保てなければ停止、AC-22）を記載する。続けて、`git commit --no-edit`、`make test`・`make lint`・条件付き `make ext-preflight`→`make ext-check`（AC-26）、`mergepr mergemain-push`（AC-27）、条件に応じた `mergepr mergemain-restore` と一時ファイルの作業ツリー外配置（AC-28）を定める。あわせて、日本語報告の必須項目（停止時の 11 種の理由と衝突ファイル一覧、解消成功時の変更ファイルごとの適用規則・解消内容の要約・新しい head・プロトコル番号変更時の入れ直し案内、AC-29）、AC-30 の 8 つの禁止事項と直接 `git merge`/`git reset`/`git push` 禁止、AC-31 の承認段落をすべて明記する。
+- [x] `CLAUDE.md` の「Claude Commands」に `/mergemain` を追加し（AC-36 の `/mergemain` 部分）、「Tool Execution Safety」に AC-31 の 4 操作（`gh pr view`・`git fetch origin`・PR head ブランチの `git ls-remote`・PR head ブランチへの `git push`）の承認段落を追加する（AC-31）。
 
 **完了基準:** `cmd/yt2column` の `TestExtensionDocumentation` を含む既存文書テストがすべて通ること。
 
 #### ステップ 2-2: `.claude/settings.json` allow 規則、信頼境界ガード、未追跡ファイル・`review-records.sh` 実測確認
 
-**対象ファイル:** `.claude/settings.json`, `cmd/mergepr/docs_test.go`, `docs/tasks/0115_chief_conflict_resolution/03_implementation_plan.md`（実測結果の追記）
+**対象ファイル:** `.claude/settings.json`, `cmd/yt2column/settings_test.go`, `cmd/mergepr/docs_test.go`, `docs/tasks/0115_chief_conflict_resolution/03_implementation_plan.md`（実測結果の追記）
 
-- [ ] `.claude/settings.json` の `permissions.allow` に `Bash(mergepr mergemain-begin *)`・`Bash(mergepr mergemain-merge *)`・`Bash(mergepr mergemain-push *)` の 3 つだけを追加する（`mergemain-restore` や `prepare`・`merge` は追加しない、設計書 3.10）。
-- [ ] `cmd/mergepr/docs_test.go` を拡張する：`definitionCalls` に `.claude/commands/mergemain.md`（4 サブコマンドすべて）を追加し、`TestDocumentedInvocationsParse` で `mergemain.md` の allow 対象 3 サブコマンド呼び出しが `doctestutil.PromptFree(call, toolWord)` を満たすことを検証する。さらに、`cmd/numreserve/docs_test.go:42-146` と同様にワイルドカード・引用符付き表記・パス表記を含む逸脱規則を検出する `TestSettingsAllowsOnlySafeMergemainSubcommands`（および規則照合ヘルパーの単体テスト）と、`mergemain.md` の実行コマンドブロックを対象に git グローバルオプションを読み飛ばして直接 `git merge`・`git reset`・`git push` 呼び出しを禁止する `TestMergemainNoDirectGitMutation` を追加する（設計書 7.4）。各ガードは設定や定義を一時的に壊して失敗することを確認する。
-- [ ] 設計書 3.8.4・8 章の要求に従い、`make test`・`make lint`・`make ext-check`（準備がある場合）および `.pre-commit-config.yaml` の全フックを実行して作業ツリーに未追跡ファイルを残さないことを確かめ、また設計書付録 B・8 章の要求に従い、一時リポジトリまたはブランチの merge コミットに対して `.claude/commands/_lib/review-records.sh coverage` を実行して実測結果と対象コミットを本計画書（§5）に記録する。
+- [x] `.claude/settings.json` の `permissions.allow` に `Bash(mergepr mergemain-begin *)`・`Bash(mergepr mergemain-merge *)`・`Bash(mergepr mergemain-push *)` の 3 つだけを追加する（`mergemain-restore` や `prepare`・`merge` は追加しない、設計書 3.10）。併せて、本計画承認後に `main` へ入った `cmd/yt2column/settings_test.go`（`TestSettingsAllowsOnlyVettedCommands`）の `unpromptedWords` に `mergepr` を登録する（許可するサブコマンドの限定は `cmd/mergepr/docs_test.go` の `TestSettingsAllowsOnlySafeMergemainSubcommands` が担う）。
+- [x] `cmd/mergepr/docs_test.go` を拡張する：`definitionCalls` に `.claude/commands/mergemain.md`（4 サブコマンドすべて）を追加し、`TestDocumentedInvocationsParse` で `mergemain.md` の allow 対象 3 サブコマンド呼び出しが `doctestutil.PromptFree(call, toolWord)` を満たすことを検証する。さらに、`cmd/numreserve/docs_test.go:42-146` と同様にワイルドカード・引用符付き表記・パス表記を含む逸脱規則を検出する `TestSettingsAllowsOnlySafeMergemainSubcommands`（および規則照合ヘルパーの単体テスト）と、`mergemain.md` の実行コマンドブロックを対象に git グローバルオプションを読み飛ばして直接 `git merge`・`git reset`・`git push` 呼び出しを禁止する `TestMergemainNoDirectGitMutation` を追加する（設計書 7.4）。各ガードは設定や定義を一時的に壊して失敗することを確認する。
+- [x] 設計書 3.8.4・8 章の要求に従い、`make test`・`make lint`・`make ext-check`（準備がある場合）および `.pre-commit-config.yaml` の全フックを実行して作業ツリーに未追跡ファイルを残さないことを確かめ、また設計書付録 B・8 章の要求に従い、一時リポジトリまたはブランチの merge コミットに対して `.claude/commands/_lib/review-records.sh coverage` を実行して実測結果と対象コミットを本計画書（§5）に記録する。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスし、追加したガードの壊して失敗確認と、未追跡ファイル・`review-records.sh` の実測記録が完了していること。
 
@@ -427,6 +427,18 @@
 | `git merge-tree --write-tree` の挙動差や特殊衝突ケース（名前変更と内容変更、バイナリ、シンボリックリンク）の取りこぼし | 対象外の衝突を誤って解消・push する | 低 | ステップ 1-1・1-2 で設計書 7.1・7.3 の全特殊衝突ケースを一時 git リポジトリで網羅テストし、`mergemain-merge` と `mergemain-push` の両方で同一分類ロジックを使う |
 | PR-4 で `StateConflict` が `StateAwaitingReview` より先に決まる一方、`PendingConflict` は PR-6 で入るため、PR-4〜PR-6 の間はコンフリクト中の PR に待っている項目（`/runpr` の選択肢も `/mergemain` の選択肢も）が出ない | 間の期間、コンフリクトの PR を人が表で見つけて手で `/mergemain` か対処をする必要がある | 中（仕様どおり） | 間の期間は表の「コンフリクト」を人が見て `/mergemain <PR>` を直接打つ。`chief_guide.md`（ステップ 3-3）にこの期間の扱いを書く |
 | 実物のコンフリクト PR がすぐ用意できない、または PR-4 マージ後の手動入れ直し・実測確認（PR-5 の `hold`）で待ちが発生する（スケジュールリスク） | ステップ 3-3 の実測完了や PR-5 着手が遅れる | 中 | ステップ 3-3 で既存の開いているコンフリクト PR がない場合は、作業用の一時ドラフト PR を作って確認し即座に閉じることで外部の PR 待ちを避ける。PR-5 の `hold` 解除待ちの間は、本タスクとは独立した他タスクの作業を並行して進める |
+
+### 実測記録（ステップ 2-2、2026-11-24）
+
+- **`review-records.sh coverage` の実測（設計書付録 B・H-05）:**
+  - 対象スクリプト: `origin/main` コミット `d224e1826a1a8a949405479d2ff25a4231077f88` の `.claude/commands/_lib/review-records.sh`。
+  - 再現手順: 一時リポジトリで `origin/main` の初期コミット `M0`（`b74b0c5f30d4`）から分岐した `feature` ブランチに、`C1`（`1e0c4b213121`、`Local CLI reviewed: M0..C1`）と `C2`（`a2550ce74a44`、`Local CLI reviewed: C1..C2`）を積んだ（merge 前は `coverage none` が `ALL`）。`origin/main` を `M1`（`3f5af424f702`）へ進めた後、`git merge --no-ff --no-edit` で既定メッセージの merge コミット `MG`（`a622859febad`、`Merge commit '3f5af424f7027043f305aedf7a751f5f15960053' into feature`）を作成して実行した。
+  - 実測結果: `coverage none <MG>` は `PARTIAL 2`（`C1` と `MG` が未見。古い merge base `M0` を始点とする見済み記録は merge base 移動後に数えられなくなり、`C1` を始点とする `C2` の見済み記録は有効のまま、`M1` は `origin/main` 到達のため除外）。`coverage <C2> <MG>` は `PARTIAL 1`（`MG` のみ未見）。
+  - 判定: 設計書付録 B のコード読解による推論と一致することを確認した。
+- **検査・pre-commit フック実行後の未追跡ファイル確認（設計書 3.8.4）:**
+  - 対象基盤: `d224e1826a1a8a949405479d2ff25a4231077f88` にフェーズ 2 の変更を加えた作業ツリー。
+  - 実行項目: `make test`・`make lint`・`make deadcode`・`make readme-sync-check`・`make ext-preflight`（本 worktree には `extension/node_modules` が未導入のため `make ext-preflight` が終了コード 1 で停止し、`make ext-check` は準備なしとして未実行、`make ext-install` は非実行）、および `pre-commit run --all-files`（`.pre-commit-config.yaml` の全 13 フックすべて通過）。
+  - 結果: 実行後の `git status --porcelain --untracked-files=all` に意図しない未追跡ファイルは 0 件であり、`mergemain-restore` を阻害する未追跡ファイルが残らないことを確認した。
 
 ## 6. 実装チェックリスト
 

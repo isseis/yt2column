@@ -50,7 +50,7 @@ define format_files_from_list
 	fi
 endef
 
-.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-chief install-numreserve ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-build-dev ext-check coverage-compare ext-coverage-compare
+.PHONY: all build clean test test-ci test-parse-norace readme-sync-check test-integration test-integration-deepseek test-integration-claude test-integration-openai test-integration-cli lint wasm-check fmt fmt-all deadcode tidy install-mergepr install-fixprguard install-chief install-numreserve ext-preflight ext-install ext-typecheck ext-lint ext-fmt-check ext-fmt ext-test ext-build ext-build-dev ext-check coverage-compare ext-coverage-compare
 
 all: build
 
@@ -411,6 +411,11 @@ define ext_preflight
 		exit 1; \
 	fi
 endef
+
+# Check pinned Node.js/npm versions and installed dependencies without touching
+# the network.
+ext-preflight:
+	$(call ext_preflight)
 
 # Installs exactly the lockfile. npm ci fails when package.json and the
 # lockfile disagree, and --ignore-scripts keeps dependency install scripts

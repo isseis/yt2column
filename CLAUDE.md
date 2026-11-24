@@ -232,6 +232,7 @@ prohibitions of this file and `AGENTS.md`, and copies no procedure.
 - `/weakreview [range | PR] [--no-fix | --fix]` - High-model review of a commit range: a correctness review and a weak-model failure review run on the harness's high-role model in one pass; by default it fixes the Critical and Major findings and commits the fixes on the current branch without pushing, and `--no-fix` only reports
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
+- `/mergemain <PR>` - Merge `origin/main` into a PR's branch through `mergepr`, resolve allowed conflicts (`.md` files and protocol-number declarations), apply take-in rules, run checks, and push to the PR's head branch (or restore and report on stop)
 - `/japrose <file>` - Japanese prose-quality pass
 - `/mktrans README.md` - Carry `README.md` changes into `README.en.md` (the only translation pair)
 - `/chief [once]` - Show the task workspaces in Herdr, ask the human about what waits on them, and keep watching, sending the next command after a merge by itself; `once` shows and asks once without watching. It also starts a new task from an issue the human names, making its worktree and workspace and sending `/mkreq`, and removes a finished task's workspace that it made, after the human confirms. Run it in a Claude Code pane of its own Herdr workspace ([chief_guide.md](docs/dev/guides/chief_guide.md))
@@ -282,6 +283,7 @@ since the last completed review (`_lib/review-records.sh`, run from
 The Chrome/Brave extension lives in `extension/` (TypeScript). Its Node.js
 version is pinned in `extension/.node-version`; every `ext-*` target below
 refuses to run when `node --version` does not match.
+- `make ext-preflight` - Check that the pinned Node.js and npm versions and `extension/node_modules` are present (never installs dependencies)
 - `make ext-install` - Install the pinned dev dependencies with `npm ci` (needs the network)
 - `make ext-typecheck` - Type-check with `tsc`
 - `make ext-lint` - Lint with ESLint
@@ -1178,6 +1180,7 @@ for the agents that read it, and the Antigravity skill entries point here.
   `git push` may be executed without approval. Changing, disabling, or
   deleting the record ruleset that protects these tags also requires the
   user's explicit approval
+- Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
 - Invoking `/chief` approves, for that session, the read-only network operations
   the `chief` tool runs while it shows the status, watches, makes a task's
   workspace, or removes one: `git fetch origin
