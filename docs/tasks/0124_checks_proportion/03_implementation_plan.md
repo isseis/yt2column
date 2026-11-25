@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-25 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-25 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番である。本タスクに `implementation_handoff.md` はない。用語は設計書の冒頭の用語（一時スクリプトの小節・一時スクリプトの項目・一時スクリプトの記録・新しい記録の規則・実装の PR）と要件書 6 章の用語（必須の性質・壊し確認・移行ゲートなど）を、同じ意味で使う。「規約」は `docs/dev/conventions/requirements_process.md` を指す。
@@ -257,3 +257,7 @@ Diff record (AC-19):
 
 -   本計画の PR のレビューと承認の後、`/runplan 0124` で実装の PR を作る。
 -   実装の PR のマージの後、`/runpr` が issue #1132 を閉じる。
+
+## 変更履歴
+
+- 2026-11-25 承認（isseis、#1154）
