@@ -456,7 +456,7 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
   - `cmd/yt2column/fixpr_docs_test.go`・`review_mention_docs_test.go`・`adr_test.go`、`cmd/fixprguard/docs_test.go`、`cmd/mergepr/docs_test.go`、`internal/pipeline/pipeline_test.go` を各フェーズのグリーンゲートで実行する。
 - **セキュリティテスト:**
   - コメント本文・CheckRun `title`・`details_url`・`output.summary` に固有マーカーを埋め込み、標準出力・標準エラーへの非出力を機械的に検証する。
-  - なりすまし `User`・`user: null`・大文字小文字違い・重複 JSON キー・不正 UTF-8・単独サロゲート・後続ゴミデータ・サイズ上限超過の拒否を検証する。
+  - なりすまし `User`・メンションを含む `user: null` の停止（非除外）と、大文字小文字違い・重複 JSON キー・不正 UTF-8・単独サロゲート・後続ゴミデータ・サイズ上限超過の拒否を検証する。
   - `fixprguard_guide.md` 7.1 の保証と `mergepr_guide.md` 6.1 の保証を変える箇所は、実装を一時的に壊してテストが失敗することを確認し、コミットメッセージに記録する（`CLAUDE.md`「Testing Strategy」）。
 - **テスト削除の検証:**
   - ステップ 3-2 で削除する旧 `--jq` サブテスト 2 件と専用ヘルパーは、`ReviewStateRequest` 変更と `runpr.md` 改定前のグリーンな `BASE` の上で単独コミットに分離し、`make coverage-compare BASE=<親コミット>` の `PASS` 出力をコミットメッセージと PR 説明に残す。
