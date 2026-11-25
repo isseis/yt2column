@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-23 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：Sourcery AI の自動の PR レビューの完了を `LAST_REVIEWED` に数えない（issue #1140） |
+| Review date | 2026-11-25 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -281,4 +281,5 @@ CodeRabbit（手動）と Sourcery AI（自動・手動）を併用し、`/runpr
 ## 変更履歴
 
 - 2026-11-23 承認（isseis、#1098）
-- 2026-11-25 draft への戻し：Sourcery AI の自動の PR レビューの完了を `LAST_REVIEWED` に数えない（#未記入）
+- 2026-11-25 draft への戻し：Sourcery AI の自動の PR レビューの完了を `LAST_REVIEWED` に数えない（#1158）
+- 2026-11-25 承認（isseis、#1158）

@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-24 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：自動の PR レビューの完了を完了の印に含めない実装と、ADR の食い違いの記述を解消する PR で取り除く配置 |
+| Review date | 2026-11-25 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -555,4 +555,5 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
 - 2026-11-24 承認（isseis、#1117）
 - 2026-11-25 draft への戻し：02_architecture.md の決定の変更に伴う（#1143）
 - 2026-11-25 承認（isseis、#1143）
-- 2026-11-25 draft への戻し：自動の PR レビューの完了を完了の印に含めない実装と、ADR の食い違いの記述を解消する PR で取り除く配置（#未記入）
+- 2026-11-25 draft への戻し：自動の PR レビューの完了を完了の印に含めない実装と、ADR の食い違いの記述を解消する PR で取り除く配置（#1158）
+- 2026-11-25 承認（isseis、#1158）

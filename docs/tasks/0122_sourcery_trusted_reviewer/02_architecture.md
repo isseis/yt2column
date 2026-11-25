@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-24 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：Sourcery AI の自動の PR レビューの完了を完了の印に含めない<br>決定の変更で draft に戻した：ADR の食い違いの記述を、それを解消する PR で取り除く |
+| Review date | 2026-11-25 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -1111,4 +1111,5 @@ flowchart TD
 - 2026-11-24 承認（isseis、#1102）
 - 2026-11-25 draft への戻し：単一ワークフローのガードで `workflow_dispatch` を宣言済みの `deepseek-review.yml` に限り、PR ブランチへの手動実行の残余リスクを 3.2.4・5.4 に記録（#1143）
 - 2026-11-25 承認（isseis、#1143）
-- 2026-11-25 draft への戻し：Sourcery AI の自動の PR レビューの完了を完了の印に含めない；ADR の食い違いの記述を、それを解消する PR で取り除く（#未記入）
+- 2026-11-25 draft への戻し：Sourcery AI の自動の PR レビューの完了を完了の印に含めない；ADR の食い違いの記述を、それを解消する PR で取り除く（#1158）
+- 2026-11-25 承認（isseis、#1158）
