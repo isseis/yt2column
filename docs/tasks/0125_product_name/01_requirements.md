@@ -92,7 +92,7 @@ issue #1148 の本文およびコメント（2026-11-25）で、次の事項が�
 
 ### 2.3. スコープ外 (Out of Scope)
 
-- **開発側の名称の変更:** リポジトリ名、Go モジュール名、CLI バイナリ名（`yt2column`）、環境変数（`YT2COLUMN_*`）、拡張内部の識別子・ログ（`yt2column.wasm`、`wasmNamespace`、`viewerChannelName`、コンソールログのラベル、`extension/package.json` の `name`）、`development.md:119` を除く `docs/` 配下の開発者向け文書は変更しない。
+- **開発側の名称の変更:** リポジトリ名、Go モジュール名、CLI バイナリ名（`yt2column`）、環境変数（`YT2COLUMN_*`）、拡張内部の識別子・ログ（`yt2column.wasm`、`wasmNamespace`、`viewerChannelName`、コンソールログのラベル、`extension/package.json` の `name`）、`docs/` 配下の開発者向け文書（本タスクで更新する `development.md:119`・[ADR-0035](../../dev/adr/0035-language-policy.md)・`docs/translation_glossary.md` を除く）は変更しない。
 - **`popup.html` に対するスクリプトからの動的タイトル書き換えの追加:** 決定 7 による。静的 `<title>` の更新のみとする。
 - **Chrome ウェブストアへの実際の申請作業・アイコンやプロモーション画像の作成・プライバシーポリシーの作成:** ストア申請用の別 issue で扱う。
 - **`INSTALL.md` の英語版追加と `/mktrans` の一般化:** [#1044](https://github.com/isseis/yt2column/issues/1044) で扱う。

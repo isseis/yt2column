@@ -124,7 +124,7 @@ UI カタログ（`extension/src/core/i18n/ja.ts`・`en.ts`）は既存の `Cata
   - 既存の節（`## 仕組み`・`## 必要なもの`・`## インストールと使い方`・`## プライバシー`・`## 開発者向けの文書`）と `Chrome 142 以降` の表記（`extension/test/manifest.test.ts:141-151` が検査）を保ち、`README.md:32` 等の製品名呼称を `ヨムドウガ` に改める。ファイル末尾では `## 開発者向けの文書` 節の本文と紛れないよう、空行と水平線（`---`）で区切った後ろに非公式である旨と `YouTube is a trademark of Google LLC.` の帰属表示を置く（`internal/doctestutil/structure.go:119-125` は空行後の `---` を Setext 見出しではなく水平線として受理する）。
   - `README.en.md` は `/mktrans README.md` で同期し、`TestReadmeSyncMarker`（`cmd/yt2column/readme_sync_test.go`）および `TestReadmeVersionsShareStructure`（`cmd/yt2column/readme_structure_test.go`）を通す。
 - **`INSTALL.md`:**
-  - `INSTALL.md:3` を「ヨムドウガ（Chrome ウェブストア表示名: ヨムドウガ for YouTube™）のブラウザ拡張」に、`INSTALL.md:80` と `:241` をブラウザの拡張機能メニュー・`chrome://extensions/` 上の実際の表示名である `ヨムドウガ for YouTube™` に、`INSTALL.md:201` を `<動画のタイトル> - ヨムドウガ` に更新する。
+  - `INSTALL.md:3` を「ヨムドウガ（拡張機能の一覧での名前: ヨムドウガ for YouTube™）のブラウザ拡張」に、`INSTALL.md:80` と `:241` をブラウザの拡張機能メニュー・`chrome://extensions/` 上の実際の表示名である `ヨムドウガ for YouTube™` に、`INSTALL.md:201` を `<動画のタイトル> - ヨムドウガ` に更新する。
   - `INSTALL.md:62` の Releases URL（`https://github.com/isseis/yt2column/releases`）および `metadataDocs.test.ts`・`manifest.test.ts` が照合する文言・Chrome 最低版は維持する。
 - **`docs/dev/guides/development.md`:**
   - 119 行目の開発用のビルド表示名の引用のみを `ヨムドウガ（開発用のビルド）` および `YomuDoga (development build)` へ更新し、他行は変更しない。
