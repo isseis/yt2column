@@ -693,13 +693,21 @@ type SendRecord struct {
 	// The running command is read from them, never from Command's text.
 	Kind string `json:"kind"`
 	Arg  string `json:"arg"`
+	// PR and Head are the pull request number and head commit a /mergemain
+	// send targets. Only a /mergemain send writes them; they are omitted on
+	// every other send.
+	PR   int      `json:"pr,omitempty"`
+	Head CommitID `json:"head,omitzero"`
 }
 
-// sendEnd is the end of one send.
+// sendEnd is the end of one send. Step is the last input step reached
+// (recordStepName), nil when written without knowing how far the send got
+// (Release, or a record written before Step existed).
 type sendEnd struct {
 	ID      string    `json:"id"`
 	Outcome string    `json:"outcome"`
 	Reason  string    `json:"reason"`
+	Step    *string   `json:"step,omitempty"`
 	Ended   time.Time `json:"ended"`
 }
 
@@ -733,10 +741,52 @@ func newSendID(now time.Time) (string, error) {
 	return fmt.Sprintf("%020d-%s", now.UnixNano(), hex.EncodeToString(b[:])), nil
 }
 
+// recordStepName names a SentStep for a send end record. StepUnknown has its
+// own name ("none") so "nothing was typed" is written and stays distinct from
+// an absent step member (Release).
+func recordStepName(s SentStep) (string, bool) {
+	switch s {
+	case StepUnknown:
+		return nameNone, true
+	case StepClear, StepModel, StepNew, StepCommand, StepKey:
+		return s.String(), true
+	default:
+		return "", false
+	}
+}
+
+// parseRecordStep reads a step name from a send end record.
+func parseRecordStep(name string) (SentStep, bool) {
+	switch name {
+	case nameNone:
+		return StepUnknown, true
+	case StepClear.String():
+		return StepClear, true
+	case StepModel.String():
+		return StepModel, true
+	case StepNew.String():
+		return StepNew, true
+	case StepCommand.String():
+		return StepCommand, true
+	case StepKey.String():
+		return StepKey, true
+	default:
+		return StepUnknown, false
+	}
+}
+
 // BeginSend writes the start of a send before its first input and returns
 // its ID. Contract: nothing may be typed when it fails, since a send with no
-// start record could not be found if the tool stopped halfway.
+// start record could not be found if the tool stopped halfway; a /mergemain
+// send must carry PR and Head, and no other send may carry them.
 func (h *HeldWorkspace) BeginSend(rec SendRecord, now time.Time) (string, error) {
+	if rec.Kind == paneinput.CommandMergemain.Name() {
+		if rec.PR <= 0 || rec.Head.IsZero() {
+			return "", fmt.Errorf("%w: mergemain send requires PR and head", errRecord)
+		}
+	} else if rec.PR != 0 || !rec.Head.IsZero() {
+		return "", fmt.Errorf("%w: PR and head are only for mergemain sends", errRecord)
+	}
 	id, err := newSendID(now)
 	if err != nil {
 		return "", err
@@ -749,9 +799,14 @@ func (h *HeldWorkspace) BeginSend(rec SendRecord, now time.Time) (string, error)
 	return id, nil
 }
 
-// EndSend writes the end of the send id with its outcome.
-func (h *HeldWorkspace) EndSend(id, outcome, reason string, now time.Time) error {
-	return h.store().create(sendPrefix+id+endSuffix, sendEnd{ID: id, Outcome: outcome, Reason: reason, Ended: now.UTC()})
+// EndSend writes the end of the send id with its outcome and the last input
+// step reached.
+func (h *HeldWorkspace) EndSend(id, outcome, reason string, step SentStep, now time.Time) error {
+	name, ok := recordStepName(step)
+	if !ok {
+		return fmt.Errorf("%w: send step %d", errRecord, step)
+	}
+	return h.store().create(sendPrefix+id+endSuffix, sendEnd{ID: id, Outcome: outcome, Reason: reason, Step: &name, Ended: now.UTC()})
 }
 
 // Stop writes the workspace's stop. A stop that exists already is kept as it
@@ -836,7 +891,9 @@ func (h *HeldWorkspace) Release(now time.Time) (bool, error) {
 		if _, ok := ends[id]; ok {
 			continue
 		}
-		if err := h.EndSend(id, outcomeUnknown, "released by the human", now); err != nil && !errors.Is(err, privatefile.ErrExist) {
+		// Release writes no step member: how far the unfinished send got is
+		// unknown, and omitting step keeps it distinct from StepUnknown.
+		if err := h.store().create(sendPrefix+id+endSuffix, sendEnd{ID: id, Outcome: outcomeUnknown, Reason: "released by the human", Ended: now.UTC()}); err != nil && !errors.Is(err, privatefile.ErrExist) {
 			return false, err
 		}
 	}
@@ -850,6 +907,31 @@ func (h *HeldWorkspace) Release(now time.Time) (bool, error) {
 	return true, nil
 }
 
+// readSendStart reads the start record of send id and verifies it names id
+// and carries PR and Head when and only when its kind is mergemain.
+func (r WorkspaceRecords) readSendStart(id string) (SendRecord, error) {
+	if !sendIDForm.MatchString(id) {
+		return SendRecord{}, fmt.Errorf("%w: send ID %q", errRecord, id)
+	}
+	var rec SendRecord
+	if err := r.store().read(sendPrefix+id+startSuffix, &rec); err != nil {
+		return SendRecord{}, err
+	}
+	if rec.ID != id {
+		// The send's end is found by the record's own ID, so a record
+		// naming another send could borrow that send's end.
+		return SendRecord{}, fmt.Errorf("%w: the start record of send %s names send %q", errRecord, id, rec.ID)
+	}
+	if rec.Kind == paneinput.CommandMergemain.Name() {
+		if rec.PR <= 0 || rec.Head.IsZero() {
+			return SendRecord{}, fmt.Errorf("%w: mergemain send %s lacks PR or head", errRecord, id)
+		}
+	} else if rec.PR != 0 || !rec.Head.IsZero() {
+		return SendRecord{}, fmt.Errorf("%w: non-mergemain send %s carries PR or head", errRecord, id)
+	}
+	return rec, nil
+}
+
 // LastSend returns the newest send record to pane that is not a relay, or
 // nil when there is none. It is used only to show what is running; it never
 // decides a send. A relay is skipped: the key answers a question of the run
@@ -860,14 +942,9 @@ func (r WorkspaceRecords) LastSend(pane string) (*SendRecord, error) {
 		return nil, err
 	}
 	for _, id := range slices.Backward(starts) {
-		var rec SendRecord
-		if err := r.store().read(sendPrefix+id+startSuffix, &rec); err != nil {
+		rec, err := r.readSendStart(id)
+		if err != nil {
 			return nil, err
-		}
-		if rec.ID != id {
-			// The send's end is found by the record's own ID, so a record
-			// naming another send could borrow that send's end.
-			return nil, fmt.Errorf("%w: the start record of send %s names send %q", errRecord, id, rec.ID)
 		}
 		if rec.Pane == pane && rec.Input != InputRelay.String() {
 			return &rec, nil
@@ -943,7 +1020,9 @@ const sendKeepAge = observeWindow + carryWindow
 
 // cleanup removes the sends whose start and end are both written and that
 // started more than sendKeepAge before now, and the PR details and report
-// records older than detailMaxAge. A start without an end is never removed.
+// records older than detailMaxAge. A start without an end, a /mergemain send,
+// and an unreadable start record (which may be a /mergemain send) are never
+// removed.
 func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 	starts, ends, err := h.sendFiles()
 	if err != nil {
@@ -961,6 +1040,14 @@ func (h *HeldWorkspace) cleanup(now time.Time) (int, error) {
 	keepFrom := fmt.Sprintf("%020d", now.Add(-sendKeepAge).UnixNano())
 	for _, id := range starts {
 		if _, ok := ends[id]; !ok || id >= keepFrom {
+			continue
+		}
+		rec, err := h.readSendStart(id)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if rec.Kind == paneinput.CommandMergemain.Name() {
 			continue
 		}
 		// The start goes first: an end left alone is harmless, while a
@@ -1446,28 +1533,66 @@ func isRecordFile(name string) bool {
 		skipFileName.MatchString(name) || strings.HasPrefix(name, tracePrefix)
 }
 
-// ClearRecords removes every record of the worktree's directory (its sends,
+// ClearRecords removes the worktree's records (its non-/mergemain sends,
 // its stop, its PR details and report records, its skip records, its
-// history records, and its created record) and
-// leaves the exclusion's file. Contract: it needs the exclusion; the
-// created record goes last, so a clear that stops halfway still names the
-// worktree; a record already gone is not an error, any other failure is
-// returned after the rest were tried.
+// history records, and its created record) and leaves the exclusion's file,
+// every /mergemain send record pair, and any unreadable send start record
+// (with its end record) so a recreated worktree at the same path keeps its
+// resolution history. Contract: it needs the exclusion; the created record
+// goes last, so a clear that stops halfway still names the worktree; a
+// record already gone is not an error, any other failure is returned after
+// the rest were tried.
 func (h *HeldWorkspace) ClearRecords() error {
 	entries, err := os.ReadDir(h.dir)
 	if err != nil {
 		return err
 	}
-	var errs []error
-	remove := func(name string) {
-		if err := privatefile.Remove(filepath.Join(h.dir, name)); err != nil && !errors.Is(err, privatefile.ErrNotExist) {
-			errs = append(errs, err)
+	keepSend := map[string]struct{}{}
+	starts, ends, err := h.sendFiles()
+	if err != nil {
+		return err
+	}
+	for _, id := range starts {
+		rec, rerr := h.readSendStart(id)
+		if rerr != nil || rec.Kind == paneinput.CommandMergemain.Name() {
+			keepSend[id] = struct{}{}
 		}
 	}
-	for _, e := range entries {
-		if isRecordFile(e.Name()) && e.Name() != createdFile {
-			remove(e.Name())
+	var errs []error
+	remove := func(name string) bool {
+		if err := privatefile.Remove(filepath.Join(h.dir, name)); err != nil && !errors.Is(err, privatefile.ErrNotExist) {
+			errs = append(errs, err)
+			return false
 		}
+		return true
+	}
+	for _, id := range starts {
+		if _, keep := keepSend[id]; keep {
+			continue
+		}
+		// Remove the start before its end so a failure never leaves an
+		// unfinished start behind.
+		if remove(sendPrefix + id + startSuffix) {
+			if _, hasEnd := ends[id]; hasEnd {
+				remove(sendPrefix + id + endSuffix)
+			}
+		}
+	}
+	for id := range ends {
+		if _, keep := keepSend[id]; keep {
+			continue
+		}
+		if slices.Contains(starts, id) {
+			continue
+		}
+		remove(sendPrefix + id + endSuffix)
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if !isRecordFile(name) || name == createdFile || sendFileName.MatchString(name) {
+			continue
+		}
+		remove(name)
 	}
 	if len(errs) > 0 {
 		return errors.Join(errs...)

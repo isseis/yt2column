@@ -68,6 +68,28 @@ func (c CommitID) IsZero() bool { return c.hex == "" }
 // String returns the 40 digits, or "" for the zero value.
 func (c CommitID) String() string { return c.hex }
 
+// MarshalText encodes c as its 40 hexadecimal digits, or empty for the zero
+// value.
+func (c CommitID) MarshalText() ([]byte, error) {
+	return []byte(c.hex), nil
+}
+
+// UnmarshalText decodes a full commit ID through ParseCommitID, or clears c
+// when text is empty so an optional record member may omit it.
+func (c *CommitID) UnmarshalText(text []byte) error {
+	if len(text) == 0 {
+		var zero CommitID
+		*c = zero
+		return nil
+	}
+	parsed, err := ParseCommitID(string(text))
+	if err != nil {
+		return err
+	}
+	*c = parsed
+	return nil
+}
+
 // OpenPR is an open pull request of a worktree's branch.
 type OpenPR struct {
 	Number    int

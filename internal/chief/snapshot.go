@@ -285,9 +285,10 @@ func finishSnapshot(deps Deps, owner Owner, view roundView, src tableSources, ex
 // problem; the running command is read for display only, and a send record
 // that cannot be read makes it undecided (RunningUnknownUnreadable) without
 // being returned, so it never adds a problem; a conflict row whose records
-// directory cannot be read keeps ConflictRecordsUnreadable, the phase that
-// never sends, and any other conflict row is ConflictUnsent (a stop record
-// that cannot be read is shown by StopUnreadable, not by the phase).
+// directory or send records cannot be read keeps ConflictRecordsUnreadable,
+// the phase that never sends, and any other conflict row takes its phase from
+// conflictPhaseOf (a stop record that cannot be read is shown by
+// StopUnreadable, not by the phase).
 func addRecords(ctx context.Context, deps Deps, git GitReader, w TaskWorkspace, row *Row) error {
 	var stopErr error
 	sends := func(string) (lastCommand, error) { return lastCommand{}, nil }
@@ -323,7 +324,11 @@ func addRecords(ctx context.Context, deps Deps, git GitReader, w TaskWorkspace, 
 		row.Running, row.RunningUnknown = runningOf(ctx, deps, w.Agents, sends)
 	}
 	if row.State == StateConflict && dirErr == nil {
-		row.Conflict = ConflictUnsent
+		if !ok {
+			row.Conflict = ConflictUnsent
+		} else if row.PR != nil {
+			row.Conflict = conflictPhaseOf(records, *row.PR)
+		}
 	}
 	return stopErr
 }

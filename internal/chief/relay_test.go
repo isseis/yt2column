@@ -448,7 +448,7 @@ func TestRelayTakesTheSnapshotsValue(t *testing.T) {
 			}
 			id, err := held.BeginSend(SendRecord{Pane: "w1:p2", Input: InputCommand.String(), Command: "/runpr 42", Agent: agent, Model: "m", Kind: "runpr", Arg: "42"}, sw.now)
 			if err == nil {
-				err = held.EndSend(id, OutcomeSent.String(), "", sw.now)
+				err = held.EndSend(id, OutcomeSent.String(), "", StepCommand, sw.now)
 			}
 			if err != nil {
 				t.Fatal(err)

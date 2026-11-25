@@ -282,10 +282,10 @@
 
 **対象ファイル:** `internal/chief/records.go`, `internal/chief/send.go`, `internal/chief/conflict.go`, `internal/chief/snapshot.go`, `internal/chief/records_test.go`, `internal/chief/send_test.go`, `internal/chief/conflict_test.go`（新規）
 
-- [ ] `internal/chief/records.go` の `SendRecord` に `/mergemain` 専用の PR 番号と PR head（`CommitID`、§1 の `construction_test.go` 制約に沿った JSON 変換を実装）を追加し、`SendRecord.Kind` コメントを更新する。`sendEnd` に送信の到達点（`SentStep`、メンバー欠落を `StepUnknown` と区別できるポインタまたは省略可能型）を追加し、`Release` は到達点メンバーを書かずに記録する（設計書 3.3.1）。
-- [ ] `internal/chief/send.go` の送信終了時に到達点（`SentStep`）を `EndSend` へ渡すようにする。`internal/chief/records.go` の `cleanup` と `ClearRecords` を更新し、`/mergemain` の始まり・終わりの組および読めない始まりの記録を期間でも worktree ライフサイクルでも消さず保持する（他コマンドの記録は既存の 25 分・`ClearRecords` で消す挙動を保つ）。
-- [ ] `internal/chief/conflict.go` に `conflictPhaseOf` を実装し、`snapshot.go` の `addRecords` から接続して設計書 3.3.2 の全組み合わせと worktree 再作成後の段階・停止優先を完成させる（AC-08・AC-09・AC-14・AC-15）。
-- [ ] `records_test.go`・`send_test.go`・`conflict_test.go` に、`/mergemain` 記録の保持（消去しないこと）と他コマンド記録の消去、到達点の記録・欠落判別、記録が読めないときの安全側動作、`release` 後の段階遷移のテストを追加する。
+- [x] `internal/chief/records.go` の `SendRecord` に `/mergemain` 専用の PR 番号と PR head（`CommitID`、§1 の `construction_test.go` 制約に沿った JSON 変換を実装）を追加し、`SendRecord.Kind` コメントを更新する。`sendEnd` に送信の到達点（`SentStep`、メンバー欠落を `StepUnknown` と区別できるポインタまたは省略可能型）を追加し、`Release` は到達点メンバーを書かずに記録する（設計書 3.3.1）。
+- [x] `internal/chief/send.go` の送信終了時に到達点（`SentStep`）を `EndSend` へ渡すようにする。`internal/chief/records.go` の `cleanup` と `ClearRecords` を更新し、`/mergemain` の始まり・終わりの組および読めない始まりの記録を期間でも worktree ライフサイクルでも消さず保持する（他コマンドの記録は既存の 25 分・`ClearRecords` で消す挙動を保つ）。
+- [x] `internal/chief/conflict.go` に `conflictPhaseOf` を実装し、`snapshot.go` の `addRecords` から接続して設計書 3.3.2 の全組み合わせと worktree 再作成後の段階・停止優先を完成させる（AC-08・AC-09・AC-14・AC-15）。
+- [x] `records_test.go`・`send_test.go`・`conflict_test.go` に、`/mergemain` 記録の保持（消去しないこと）と他コマンド記録の消去、到達点の記録・欠落判別、記録が読めないときの安全側動作、`release` 後の段階遷移のテストを追加する。
 
 **完了基準:** 設計書 3.3.2 の全表行と記録保持・読めない記録のテストがすべて通り、壊して失敗を確認済みであること。
 
