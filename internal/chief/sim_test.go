@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -301,4 +302,61 @@ func (sw *sendWorld) finish() Deps {
 	}
 	deps.Sleep = func(context.Context, time.Duration) error { return nil }
 	return deps
+}
+
+// TestSimConflictAutoSend simulates multiple tick rounds for a conflicting
+// PR: round 1 keeps the pane report and sends strictly /clear, /model opus,
+// and /mergemain 50; round 2 after the pane becomes idle at the same head
+// does not resend and shows ConflictUnresolved; round 3 after the PR head
+// changes resends for the new head.
+func TestSimConflictAutoSend(t *testing.T) {
+	cw := newConflictWorld(t)
+	cw.appendTranscript(cw.firstPane(), prURLRecordLine(50, "https://github.com/o/r/pull/50"), answerLine("m1", "PR 50 summary"))
+
+	// Round 1: automatic /mergemain send on headA.
+	r1 := cw.tick()
+	want1 := []string{"w1:p1 /clear", "w1:p1 /model opus", "w1:p1 /mergemain 50"}
+	if got := cw.rec.prompts(); !slices.Equal(got, want1) {
+		t.Fatalf("round 1 prompts = %q, want %q", got, want1)
+	}
+	if len(r1.ConflictSends) != 1 || r1.ConflictSends[0].Action == nil || r1.ConflictSends[0].Action.Outcome != OutcomeSent {
+		t.Fatalf("round 1 ConflictSends = %+v, want sent", r1.ConflictSends)
+	}
+	if row := rowOf(t, r1.Snapshot, "ws"); row.State != StateRunning || row.Position.Progress != ProgressResolving {
+		t.Errorf("round 1 row = %+v, want StateRunning/ProgressResolving", row)
+	}
+
+	// Pane finishes running /mergemain 50, PR still conflicting at headA.
+	cw.firstPane().Status = "idle"
+	cw.firstPane().screen = readScreenSample(t, "claude-idle.ansi")
+
+	// Round 2: same head -> no resend, row becomes ConflictUnresolved.
+	r2 := cw.tick()
+	if got := cw.rec.prompts(); !slices.Equal(got, want1) {
+		t.Fatalf("round 2 prompts = %q, want unchanged %q", got, want1)
+	}
+	if len(r2.ConflictSends) != 0 {
+		t.Errorf("round 2 ConflictSends = %+v, want empty", r2.ConflictSends)
+	}
+	if row := rowOf(t, r2.Snapshot, "ws"); row.State != StateConflict || row.Conflict != ConflictUnresolved || row.Position.Progress != ProgressConflictUnresolved {
+		t.Errorf("round 2 row = %+v, want StateConflict/ConflictUnresolved/ProgressConflictUnresolved", row)
+	}
+
+	// PR head and local HEAD advance to headB, still conflicting.
+	cw.git(cw.tree, "rev-parse HEAD", conflictTestHeadB+"\n")
+	cw.rec.replyIn(cw.tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields,
+		[]byte(prListEntryJSON(taskBranch, 50, "Conflict PR", conflictTestHeadB, "CONFLICTING", mainBranch, false)))
+
+	// Round 3: new head -> resends /clear, /model opus, /mergemain 50.
+	r3 := cw.tick()
+	want3 := append(slices.Clone(want1), want1...)
+	if got := cw.rec.prompts(); !slices.Equal(got, want3) {
+		t.Fatalf("round 3 prompts = %q, want %q", got, want3)
+	}
+	if len(r3.ConflictSends) != 1 || r3.ConflictSends[0].Head.String() != conflictTestHeadB || r3.ConflictSends[0].Action == nil || r3.ConflictSends[0].Action.Outcome != OutcomeSent {
+		t.Fatalf("round 3 ConflictSends = %+v, want sent for %s", r3.ConflictSends, conflictTestHeadB)
+	}
+	if row := rowOf(t, r3.Snapshot, "ws"); row.State != StateRunning || row.Position.Progress != ProgressResolving {
+		t.Errorf("round 3 row = %+v, want StateRunning/ProgressResolving", row)
+	}
 }

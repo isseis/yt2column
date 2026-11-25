@@ -118,10 +118,15 @@ type PROutput struct {
 	Head string `json:"head"`
 }
 
-// ConflictOutput is how far the resolution of a conflict row has gone.
+// ConflictOutput is how far the resolution of a conflict row has gone, and
+// the automatic conflict-resolution conditions that did not hold in this
+// round.
 type ConflictOutput struct {
 	// Phase is the phase's name (conflictPhaseName).
 	Phase string `json:"phase"`
+	// Reasons are the condition names that did not hold when a tick
+	// considered an automatic /mergemain send for this row, empty otherwise.
+	Reasons []string `json:"reasons"`
 }
 
 // PendingOutput is one item waiting on the human.
@@ -311,7 +316,7 @@ func (s Snapshot) Output() SnapshotOutput {
 			ProposesRemoval: r.RemovalRow,
 		}
 		if r.State == StateConflict {
-			row.Conflict = &ConflictOutput{Phase: conflictPhaseName(r.Conflict)}
+			row.Conflict = &ConflictOutput{Phase: conflictPhaseName(r.Conflict), Reasons: sanitizeAll(r.ConflictReasons)}
 		}
 		if r.Stopped != nil {
 			row.Stopped = &StopOutput{Reason: Sanitize(r.Stopped.Reason), Screen: Sanitize(r.Stopped.Screen), At: r.Stopped.At}
@@ -712,11 +717,25 @@ func (o ReleaseOutcome) Output() ReleaseOutput {
 	return ReleaseOutput{Protocol: Protocol, Released: o.Released, Problem: Sanitize(o.Problem)}
 }
 
-// TickOutput is the output of `chief tick`: the snapshot's members and the
-// merged PRs an automatic send was considered for.
+// TickOutput is the output of `chief tick`: the snapshot's members, the
+// merged PRs an automatic send was considered for, and the conflict rows an
+// automatic /mergemain send was considered for.
 type TickOutput struct {
 	SnapshotOutput
-	AutoSends []AutoSendOutput `json:"auto_sends"`
+	AutoSends     []AutoSendOutput     `json:"auto_sends"`
+	ConflictSends []ConflictSendOutput `json:"conflict_sends"`
+}
+
+// ConflictSendOutput is one conflict row an automatic /mergemain send was
+// considered for: workspace, label, PR, head, the conditions that did not
+// hold, and the send action when one was attempted.
+type ConflictSendOutput struct {
+	Workspace string        `json:"workspace"`
+	Label     string        `json:"label"`
+	PR        int           `json:"pr"`
+	Head      string        `json:"head"`
+	Reasons   []string      `json:"reasons"`
+	Action    *ActionOutput `json:"action"`
 }
 
 // AutoSendOutput is one merged PR an automatic send was considered for. An
@@ -745,7 +764,7 @@ type ReportCheckOutput struct {
 
 // Output converts a tick into the JSON types. Lists are never nil.
 func (o TickOutcome) Output() TickOutput {
-	out := TickOutput{SnapshotOutput: o.Snapshot.Output(), AutoSends: []AutoSendOutput{}}
+	out := TickOutput{SnapshotOutput: o.Snapshot.Output(), AutoSends: []AutoSendOutput{}, ConflictSends: []ConflictSendOutput{}}
 	for _, r := range o.AutoSends {
 		a := AutoSendOutput{Workspace: Sanitize(r.Workspace), Label: Sanitize(r.Label), PR: r.PR, Task: Sanitize(r.Task), Proposal: nextOutput(r.Proposal), Reasons: sanitizeAll(r.Reasons), Actions: []ActionOutput{}, ReportChecks: []ReportCheckOutput{}}
 		for _, act := range r.Actions {
@@ -755,6 +774,14 @@ func (o TickOutcome) Output() TickOutput {
 			a.ReportChecks = append(a.ReportChecks, ReportCheckOutput{Pane: Sanitize(c.Pane), Result: c.Kind.String(), Detail: Sanitize(c.Detail)})
 		}
 		out.AutoSends = append(out.AutoSends, a)
+	}
+	for _, r := range o.ConflictSends {
+		c := ConflictSendOutput{Workspace: Sanitize(r.Workspace), Label: Sanitize(r.Label), PR: r.PR, Head: r.Head.String(), Reasons: sanitizeAll(r.Reasons)}
+		if r.Action != nil {
+			act := actionOutput(*r.Action)
+			c.Action = &act
+		}
+		out.ConflictSends = append(out.ConflictSends, c)
 	}
 	return out
 }

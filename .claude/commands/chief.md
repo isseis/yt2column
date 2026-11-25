@@ -119,7 +119,7 @@ The refusals (`reason`):
 
 ## 1. Start
 
-Run `chief start --protocol 8`. On exit `3`, handle the refusal as above and
+Run `chief start --protocol 9`. On exit `3`, handle the refusal as above and
 stop. On `0`, note `state_dir` for the guide's questions; when
 `stopped_sends` is above 0, say that many workspaces were stopped because a
 send there did not finish (they are listed in the table); and when
@@ -128,14 +128,14 @@ send there did not finish (they are listed in the table); and when
 ## 2. One round
 
 A round reads the status and shows it. With the argument `once`, read it with
-`chief snapshot --protocol 8`; otherwise with `chief tick --protocol 8`,
+`chief snapshot --protocol 9`; otherwise with `chief tick --protocol 9`,
 which also sends the command after a merge when every condition holds. Run
 one round at a time: never start a `snapshot` or `tick` while another is
 running, since the tool numbers the new items of a round on the premise that
 no other round numbers at once. Then show, in this order:
 
 1. **The results of the sends** (requirements F-011): every action of the
-   `auto_sends` of the `tick` subcommand, and of each `send`, `relay`, and
+   `auto_sends` and `conflict_sends` of the `tick` subcommand, and of each `send`, `relay`, and
    `reset` call that finished since the last round. For each, give the workspace's label,
    the pane, what was typed (`input` and `command`), the agent, the model,
    and the outcome: `sent`; `not_sent` (nothing was typed); `sent_then_failed`
@@ -152,6 +152,10 @@ no other round numbers at once. Then show, in this order:
    which holds the transcript's path), or no line of it names NEXT
    (`no_next`).
    Say that a pane with `no_report` or `no_next` was not compared at all.
+   For each `conflict_sends` entry, show its workspace's label, PR number,
+   and head: when `action` is set, show its outcome as above; when `reasons`
+   is non-empty, say that `/mergemain` was not sent automatically and list
+   the `reasons`.
 2. **The table**: the tool's `table`, pasted in a code block. Open a code
    block fenced with three backquotes, put each element of `table` on a
    line of its own in the tool's order, and close the block. Paste each
@@ -322,24 +326,24 @@ answer as "Sending again after a model switch" says.
     three, the rest named in the question text with their numbers) and
     答えない. A free-text answer is an option only when it is one of the
     question's option numbers. When the human chooses an option, run
-    `chief relay --workspace <workspace> --check <check> --answer 1=<number> --protocol 8`,
+    `chief relay --workspace <workspace> --check <check> --answer 1=<number> --protocol 9`,
     with `<number>` the option's number. Show its results as step 2 does.
     The tool sends nothing when the question changed since it was shown
     (`check_mismatch`); say so.
-- **A review** (`review`): run `chief detail --workspace <workspace> --protocol 8`
+- **A review** (`review`): run `chief detail --workspace <workspace> --protocol 9`
   and show the detail (below). Then ask with `AskUserQuestion`:
   `/runpr` を送る (with `runpr`'s agent and model; offered only when the
   detail's `runpr` is `sendable`, otherwise show its `problem`), 送らない,
   and ほかの PR を見る (requirements AC-22).
   - `/runpr` を送る: run
-    `chief send --workspace <workspace> --command runpr --pr <pr> --protocol 8`
+    `chief send --workspace <workspace> --command runpr --pr <pr> --protocol 9`
     with `<pr>` the detail's PR number, in the background (`run_in_background`),
     and go on without waiting for it (requirements AC-24). When it ends,
     show its results as step 2 does.
   - ほかの PR を見る: offer the remaining items again (step 3).
 - **A reset item** (`reset`): ask nothing more; choosing it is the human's
   decision (requirements AC-08). Run
-  `chief reset --workspace <workspace> --check <check> --protocol 8` at
+  `chief reset --workspace <workspace> --check <check> --protocol 9` at
   once, with `<check>` the item's `reset.check`, and show its results as
   step 2 does. The tool checks the pane again and types nothing when the
   item is no longer offered as it was shown (`check_mismatch`).
@@ -355,16 +359,16 @@ answer as "Sending again after a model switch" says.
   remaining items again as step 3 says, in step 3's form for the mode; with
   `once`, when no item is left to offer, it is the same as 何もしない, so
   say so and stop. When the free-text answer is only digits, run
-  `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 8`.
+  `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 9`.
   When it is not `mkreq`, run
-  `chief send --workspace <workspace> --command <request> --item <id> --protocol 8`,
+  `chief send --workspace <workspace> --command <request> --item <id> --protocol 9`,
   with `<id>` the chosen item's `id`. The tool sends only when the row it
   reads again still offers that item, and otherwise answers `not_offered`
   (the row's task or proposal changed since it was shown).
   Show the results as step 2 does.
 - **`停止を解く: <label>`**: show the row's `stopped` (reason, screen, time)
   and ask whether to release it. On yes, run
-  `chief release --workspace <workspace> --protocol 8` and show `released`
+  `chief release --workspace <workspace> --protocol 9` and show `released`
   and `problem`.
 - **新しいタスクを始める** (0092 requirements AC-02 to AC-04): while
   watching, the issue number came with the answer (`N <issue>`, step 3).
@@ -372,7 +376,7 @@ answer as "Sending again after a model switch" says.
   are 何もしない and ほかの項目を見る, the human writing the number in its
   free-text answer; 何もしない sends nothing, and ほかの項目を見る offers the
   remaining items again, as for an `/mkreq` proposal. Then run
-  `chief targets --issue '<issue>' --protocol 8`, with `<issue>` as the
+  `chief targets --issue '<issue>' --protocol 9`, with `<issue>` as the
   human wrote it, inside single quotes so the shell passes it as one
   argument (an unquoted `#` would start a comment): the tool checks its
   form, so never correct, reformat, or take a number out of it yourself.
@@ -401,11 +405,11 @@ answer as "Sending again after a model switch" says.
   - 新しい workspace を作る: first wait until every `send` you started in
     the background has ended, so nothing is typed into any pane while the
     workspace is made (0092 requirements AC-13). Then run
-    `chief create --issue <issue> --protocol 8` as "Calling the tool" says
+    `chief create --issue <issue> --protocol 9` as "Calling the tool" says
     (foreground, `timeout` `600000`), and show its result as "The creation
     result" below says.
   - A workspace: run
-    `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 8`
+    `chief send --workspace <workspace> --command mkreq --issue <issue> --protocol 9`
     with `<workspace>` that entry's `workspace` from the `targets` output,
     and show the results as step 2 does. The issue was checked by
     `targets`; it is not checked again.
@@ -414,7 +418,7 @@ answer as "Sending again after a model switch" says.
   closes every pane of the workspace (`removal.panes` of them), with the
   agents and anything running in its shells, and removes the worktree.
   Then ask with `AskUserQuestion`: 消す, 消さない. On 消さない, send nothing.
-  On 消す, run `chief remove --workspace <workspace> --protocol 8`, with
+  On 消す, run `chief remove --workspace <workspace> --protocol 9`, with
   `<workspace>` the item's `removal.workspace`, as "Calling the tool" says
   (foreground, `timeout` `600000`, and Claude Code's permission prompt), and
   show its result as "The removal result" below says.
@@ -580,7 +584,7 @@ names the row's state, say that state and show the row in the next round.
 ## 5. Watching
 
 Without `once`, keep one wait running in the background: after each round,
-run `chief wait --since <baseline> --protocol 8` with `run_in_background`,
+run `chief wait --since <baseline> --protocol 9` with `run_in_background`,
 `<baseline>` being the round's `baseline`. Never run two waits at once.
 
 - When it ends with exit `0` (`outcome` `changed`), or with `outcome`
