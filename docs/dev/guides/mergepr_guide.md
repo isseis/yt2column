@@ -149,7 +149,7 @@ PR を引数なし（現在のブランチ）、番号、URL のいずれかで�
 4. head の GitHub Actions のチェックの完了を待つ。`gh repo view` でリポジトリを読み、`gh api graphql` で head コミットの `github-actions` のチェックスイートと最新のチェック実行を 30 秒おきに読む（出力は 32 MiB まで、1 回の読み取りは 2 分まで、全体で 60 分まで）。次の場合は、`CI checks failed` で止まる。
    - 失敗したチェックがある（失敗したジョブの名前と URL を示す）。
    - 読んでいる間に head が動いた（`head-changed`）。`prepare` が読んだ head の OID を固定して読むので、動いた後の head は判定しない。
-   - 応答が読めない・上限を超えた（`rejected`・`limit`）。再試行せず、すぐに止まる。
+   - 応答が読めない・上限を超えた（`rejected`・`limit`）、またはリポジトリを `gh repo view` で読めない。再試行せず、すぐに止まる。
    - `github-actions` のチェックが 5 分たっても現れない、または全体の 60 分を超える。
 
    一時的な呼び出しの失敗（`call-failed`）だけは、全体の 60 分まで再試行する。`github-actions` 以外の App（CodeRabbit・Sourcery AI など）のチェックは、失敗していても、いつまでも終わらなくても、読み飛ばす。これは、head コミットにチェックスイートを付けるワークフローが `ci.yml`（`pull_request` で起動）だけであることを前提にしている（6.2 節）。
@@ -421,7 +421,7 @@ Dropped editorial corrections: <a> disputed by a reviewer, <b> reverted on the b
 | `could not remove the body file`（`note:` の行） | `merge` | `merge` が作った一時ファイルを消せなかった。マージの成否には関わらない | 示されたファイルを自分で消す |
 | `invalid drop` | すべて | `--drop` か `--drop-rejected` の値の形が違う、同じ行を 2 回指している | 5.2 節の形で指定し直す |
 | `PR is not open` | `prepare` | PR がクローズまたはマージ済み | 対象の PR を確認する |
-| `CI checks failed` | `prepare` | `github-actions` のチェックが失敗した、head が動いた（`head-changed`）、応答が読めない（`rejected`・`limit`）、チェックが現れない・60 分以内に終わらない（`deadline exceeded`）。失敗したジョブの名前と URL または理由コードが続く | CI を直して push し、`prepare` からやり直す。`github-actions` 以外のチェックの失敗は、この停止の原因ではない |
+| `CI checks failed` | `prepare` | `github-actions` のチェックが失敗した、head が動いた（`head-changed`）、応答が読めない（`rejected`・`limit`）、リポジトリを読めない、チェックが現れない・60 分以内に終わらない（`deadline exceeded`）。失敗したジョブの名前と URL または理由コードが続く | CI を直して push し、`prepare` からやり直す。`github-actions` 以外のチェックの失敗は、この停止の原因ではない |
 | `CI checks failed`（CodeRabbit・Sourcery AI など外部レビュアーのチェックの失敗が原因に見える） | `prepare` | 入れ直していない古い `mergepr` は、`gh pr checks` で外部レビュアーのチェックも待つ | 下の「古い `mergepr` を見分けるとき」 |
 | `squash subject is not a non-empty single line` | `merge` | 件名ファイルが空、または複数行 | 件名ファイルを直して `merge` を再実行する |
 | `PR is not open: state is MERGED` | `merge` | 前回の実行で既にマージされている | 表示された `mergepr cleanup --protocol 4 --state ...` を実行する |
@@ -443,7 +443,7 @@ git log -1 --format=%H -S'func (t *Tool) waitChecks' -- internal/mergepr/ci.go
 git merge-base --is-ancestor <2 つ目に出たコミット> <1 つ目の vcs.revision の値> && echo up-to-date
 ```
 
-`up-to-date` が出なければ古いので、`main` を最新にしてから `make install-mergepr` で入れ直す。1 つ目で `vcs.revision` が出ないとき（git の情報なしでビルドしたとき）も、入れ直す。この確かめは `Protocol` の照合とは別である。この変更は CLI の引数・出力・終了コードを変えないので `Protocol` は上げておらず、古い `mergepr` でも `--protocol` は通る。
+`up-to-date` が出ないときは、必ず入れ直す（古い場合のほか、ローカルの clone にそのコミットがない場合、PR のブランチから入れた場合、`vcs.modified=true` の場合も、同じ扱いにする）。つまり、`main` を最新にしてから `make install-mergepr` で入れ直す。1 つ目で `vcs.revision` が出ないとき（git の情報なしでビルドしたとき）も、入れ直す。この確かめは `Protocol` の照合とは別である。この変更は CLI の引数・出力・終了コードを変えないので `Protocol` は上げておらず、古い `mergepr` でも `--protocol` は通る。
 
 **訂正の確かめで止まったとき.** マージしていない。`cannot read` のときは、理由を取り除いてから実行し直す（shallow なリポジトリなら `git fetch --unshallow`）。`prepare` で止まったときは何も作っていないので、`prepare` をやり直す。`paragraph`・`check-body` で止まったときは準備がそのまま使えるので、原因を取り除いてから同じサブコマンドを実行し直す。`merge` で止まったときは、もう一度だけ同じ `merge` を実行し、また止まれば準備を捨てて報告する。食い違いのときは、`mergepr: correction check:` の各行が直す所を示す。`check-body` で止まったなら、本文を `paragraph.txt` から作り直して `check-body` をやり直す。`merge` で止まったなら、表示された `discard` で準備を捨て、本文か落とす指定を直して、承認を聞き直す。拒否した行の宣言がないときは、その行を `--drop-rejected` で落とすか、ブランチでコミットのメッセージを書き直して `prepare` からやり直す。`/runpr` の PRE_MERGE の commit と push の後に `merge` で止まったときは、その commit はブランチに残る。
 

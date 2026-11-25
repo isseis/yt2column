@@ -262,6 +262,8 @@ func TestPrepareRejectsClosedPR(t *testing.T) {
 	runner.done()
 }
 
+var errCIRepo = errors.New("gh repo view failed")
+
 // ciStops scripts the CI outcomes that must stop Prepare with errChecksFailed.
 // wantCalls is the exact gh call sequence of the CI check, so a row that must
 // not be retried (a permanent reason) fails if the wait polls again.
@@ -294,8 +296,10 @@ var ciStops = []struct {
 	},
 	{
 		name:      "repository not resolved",
-		repoErr:   errors.New("exit status 1"),
+		repoErr:   errCIRepo,
 		wantCalls: []string{"repo"},
+		// ghci reports a fixed message and never carries gh's own text.
+		wantInMessage: "resolve repository",
 	},
 	{
 		name:          "no github-actions suite appears",
@@ -851,6 +855,7 @@ func TestPrepareRunsProtocolCheck(t *testing.T) {
 		tool, runner, checker := newCheckedTool(t, nil, append(slices.Clone(lead), tail...)...)
 		// The CI wait pins the head gh reported, which is the other head here.
 		tool.ci = newFakeCI(t, ciReply{out: ciResponse(otherHead, ciSuite("github-actions", "COMPLETED", "SUCCESS", ciRun("test", "SUCCESS")))})
+		checker.ci = tool.ci.(*fakeCI)
 		prepared, err := tool.Prepare(t.Context(), "42")
 		if err != nil {
 			t.Fatalf("Prepare returned error: %v", err)
