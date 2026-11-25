@@ -46,7 +46,8 @@
 | 変更 | `extension/test/buildVariant.test.ts` | `extNameDev` の先頭一致検査をロケール別コア製品名へ更新 |
 | 変更 | `extension/test/viewerTitle.test.ts` | ビューアタイトルの期待値と `messages.json` との照合契約をコア製品名基準へ更新 |
 | 変更 | `extension/test/viewerApp.test.ts` | ビューアタイトルのアサーションを `YomuDoga` へ更新 |
-| 変更 | `extension/test/catalog.test.ts` | 日英カタログ全体で旧名 `yt2column` が含まれないこと、および `optionsPage.title`・`rejection` 手順が各ロケールのコア製品名（`viewerTitle.name.release`）を含むことの性質検証を追加 |
+| 変更 | `extension/test/catalog.test.ts` | `optionsPage.title`・`rejection` 手順が各ロケールのコア製品名（`viewerTitle.name.release`）を含むことの性質検証を追加 |
+| 新規 | `docs/tasks/0125_product_name/_checks/old_name_absent.sh` | 日英カタログ・`messages.json`・静的 HTML に旧名 `yt2column` が残っていないことを一度だけ確かめる移行確認のスクリプト（恒久テストにしない） |
 | 変更 | `extension/test/popupHtml.test.ts` | `popup.html`・`viewer.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
 | 変更 | `extension/test/optionsHtml.test.ts` | `options.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
 | 新規 | `docs/store/chrome_web_store.md` | Chrome ウェブストアの表示名・短い説明文・商標運用条件・日英詳細説明文を収録 |
@@ -163,9 +164,10 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
   - `viewerTitle.test.ts`: 日英の公開用・開発用タイトルおよび `messages.json` との整合
   - `viewerApp.test.ts`: `doc.title` の統合確認
   - `optionsApp.test.ts`: `optionsPage.title` の反映
-  - `catalog.test.ts`: 日英カタログの全項目非空・禁止語検査・旧名 `yt2column` が含まれないこと・`optionsPage.title` と `rejection` 手順が各ロケールのコア製品名（`viewerTitle.name.release`）を含むこと
+  - `catalog.test.ts`: 日英カタログの全項目非空・禁止語検査・`optionsPage.title` と `rejection` 手順が各ロケールのコア製品名（`viewerTitle.name.release`）を含むこと
   - `popupHtml.test.ts`・`optionsHtml.test.ts`: 静的 `<title>` が `YomuDoga` であること
   - `metadataDocs.test.ts`: `INSTALL.md` の引用文言整合
+- **一度だけの移行確認（`_checks/`）:** 旧名 `yt2column` が UI の文言から消えたことは改名の移行確認であり、新しい仕様の規則ではない。恒久テストにすると、改名が定着した後も文字列を永久に禁じることになるため、`docs/tasks/0125_product_name/_checks/old_name_absent.sh` で PR-1 の実装時に一度だけ確かめ、出力を実装計画書の検証の行に記録する。
 - **Go ガードテスト（`make test`）:** 次のテストを実行する。
   - `TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`・`TestReadmeLinks`: `README.md` / `README.en.md` / `INSTALL.md` の同期・構造一致・相対リンクとアンカー
   - `TestADRRecords`: ADR-0035 の形式と索引整合

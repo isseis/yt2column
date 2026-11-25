@@ -32,7 +32,7 @@
   - `extension/test/buildVariant.test.ts:73-77` が `extNameDev.startsWith("yt2column")` を検証している。
   - `extension/test/viewerTitle.test.ts:19-106` が `yt2column` と `extName` 完全一致を検証している。
   - `extension/test/viewerApp.test.ts:281,337,356,371,400,619,824,835` が英語ロケールで `... - yt2column` を検証している。
-  - `extension/test/catalog.test.ts`・`popupHtml.test.ts`・`optionsHtml.test.ts` は現在 `yt2column` の不在や静的 `<title>` の具体値を検証していないため、AC-05・AC-06・AC-07 を直接確かめるテストを追加する。
+  - `extension/test/catalog.test.ts`・`popupHtml.test.ts`・`optionsHtml.test.ts` は現在静的 `<title>` の具体値やコア製品名を検証していないため、AC-05・AC-06・AC-07 を直接確かめるテストを追加する。旧名 `yt2column` が残っていないことは移行確認なので、恒久テストにせず `_checks/` のスクリプトで一度だけ確かめる。
   - `extension/test/metadataDocs.test.ts` が `INSTALL.md` と照合する項目には `yt2column` を含む文言がないため、PR-1 と PR-2 は独立して `make ext-check` を通過できる。
   - 拡張内のコンソールログラベル（`launch.ts:122-128`、`background.ts:43`、`viewerApp.ts:109-111`）、`chromeDeps.ts:570`、`workerCalls.ts:12,15`、`package.json:2` は開発側識別子であり変更しない。
 - **文書と Go ガードテスト:**
@@ -74,14 +74,15 @@
 
 #### ステップ 1-3: 拡張テストの更新・追加と検証
 
-**変更するファイル:** `extension/test/manifest.test.ts`、`extension/test/buildVariant.test.ts`、`extension/test/viewerTitle.test.ts`、`extension/test/viewerApp.test.ts`、`extension/test/catalog.test.ts`、`extension/test/popupHtml.test.ts`、`extension/test/optionsHtml.test.ts`
+**変更するファイル:** `extension/test/manifest.test.ts`、`extension/test/buildVariant.test.ts`、`extension/test/viewerTitle.test.ts`、`extension/test/viewerApp.test.ts`、`extension/test/catalog.test.ts`、`extension/test/popupHtml.test.ts`、`extension/test/optionsHtml.test.ts`、`docs/tasks/0125_product_name/_checks/old_name_absent.sh`（新規）
 
 - [ ] `extension/test/manifest.test.ts` を更新し、日英それぞれの `extName`・`extNameDev`・`extDescription` の確定値と既存制約（132 文字以内・`$` 禁止・言語判定・`manifest.json` キー・権限・拡張 ID）を検証する
 - [ ] `extension/test/buildVariant.test.ts` の `extNameDev` 先頭一致検査をロケール別コア製品名（`YomuDoga` / `ヨムドウガ`）へ更新する
 - [ ] `extension/test/viewerTitle.test.ts` を設計書 3.2 節の例外契約に合わせて更新する（公開用のビルドはコア製品名、開発用のビルドは `extNameDev` と完全一致、かつ公開用のビルドのコア製品名（`viewerTitle.name.release`）に ` for YouTube™` を添えた値が `extName` と一致すること）
 - [ ] `extension/test/viewerApp.test.ts` の `doc.title` アサーション全 8 箇所を `YomuDoga` へ更新する
-- [ ] `extension/test/catalog.test.ts` に、日英カタログ全体（`messages`・`labels`・`counts`）で旧名 `yt2column` を含まないこと、および `optionsPage.title` と `rejection["not-watch-page"].steps`・`rejection["empty-selection"].steps` が各ロケールのコア製品名（`catalogs[locale].viewerTitle.name.release`）を含むことを確かめる性質テストを追加する（定数リテラルとの完全一致アサーションは書かない）
+- [ ] `extension/test/catalog.test.ts` に、`optionsPage.title` と `rejection["not-watch-page"].steps`・`rejection["empty-selection"].steps` が各ロケールのコア製品名（`catalogs[locale].viewerTitle.name.release`）を含むことを確かめる性質テストを追加する（定数リテラルとの完全一致アサーションは書かない）
 - [ ] `extension/test/popupHtml.test.ts`（`popup.html`・`viewer.html`）と `extension/test/optionsHtml.test.ts`（`options.html`）に、静的 `<title>` が `YomuDoga` であることの検証を追加する
+- [ ] `docs/tasks/0125_product_name/_checks/old_name_absent.sh`（シェル）を追加する。`extension/src/core/i18n/ja.ts`・`en.ts`、`extension/static/_locales/{ja,en}/messages.json`、`extension/static/{popup,viewer,options}.html` に `yt2column` が 1 か所もないことを `grep` で確かめ、見つかれば該当行を出力して非 0 で終わる。旧値を 1 か所戻すと失敗することを確かめたうえで PR-1 のブランチで実行し、出力と両コミット ID を §7 の AC-05・AC-06 の行に記録する
 - [ ] 更新・追加した各テストについて、対象文字列を一時的に旧値へ戻す壊し確認を行い失敗を確かめたうえ、元に戻して `make ext-check` と `make test && make lint` がすべて通過することを確認する
 
 **完了基準:** 壊し確認が記録され、`make ext-check`・`make test`・`make lint` がすべて成功すること。
@@ -92,7 +93,7 @@
 
 **推奨タイトル**: `feat(0125): ブラウザ拡張の表示名・説明文・UI 文言をヨムドウガ / YomuDoga へ更新`
 
-**レビュー観点**: `messages.json`（ja/en）の確定値と文字数・言語制約 / `viewerTitle.test.ts` のコア製品名と `extName` の分離契約 / 静的 HTML と `catalog.test.ts` の新製品名検証と旧名不在検査 / 拡張 ID・権限および開発側識別子が不変であること
+**レビュー観点**: `messages.json`（ja/en）の確定値と文字数・言語制約 / `viewerTitle.test.ts` のコア製品名と `extName` の分離契約 / 静的 HTML と `catalog.test.ts` の新製品名検証 / `_checks/old_name_absent.sh` の旧名不在の記録 / 拡張 ID・権限および開発側識別子が不変であること
 
 **実装モデル要件**: low
 
@@ -201,8 +202,8 @@
 | AC-02 | `test` | `extension/test/manifest.test.ts`（`en` の `extName`・`extNameDev`・`extDescription` 確定値）・`extension/test/buildVariant.test.ts`（`extNameDev`） | 1-1 / 1-3 |
 | AC-03 | `test` | `extension/test/manifest.test.ts`（132 文字以内・`$` 禁止・言語判定・`manifest.json` キー・権限・拡張 ID）・`cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation` | 1-1 / 1-3 |
 | AC-04 | `test` | `extension/test/viewerTitle.test.ts`（日英の公開用・開発用タイトルおよび `messages.json` との照合）・`extension/test/viewerApp.test.ts`（`doc.title`） | 1-2 / 1-3 |
-| AC-05 | `test` | `extension/test/catalog.test.ts`（`optionsPage.title` が各ロケールのコア製品名 `viewerTitle.name.release` を含み旧名 `yt2column` を含まないこと）・`extension/test/optionsApp.test.ts`（`doc.title` 反映） | 1-2 / 1-3 |
-| AC-06 | `test` | `extension/test/catalog.test.ts`（`rejection["not-watch-page"]`・`rejection["empty-selection"]` の手順が各ロケールのコア製品名 `viewerTitle.name.release` を含み旧名 `yt2column` を含まないこと） | 1-2 / 1-3 |
+| AC-05 | `test` / `diff` | `extension/test/catalog.test.ts`（`optionsPage.title` が各ロケールのコア製品名 `viewerTitle.name.release` を含むこと）・`extension/test/optionsApp.test.ts`（`doc.title` 反映）。旧名 `yt2column` が残っていないことは `docs/tasks/0125_product_name/_checks/old_name_absent.sh` の一度だけの実行で確かめ、出力を記録する | 1-2 / 1-3 |
+| AC-06 | `test` / `diff` | `extension/test/catalog.test.ts`（`rejection["not-watch-page"]`・`rejection["empty-selection"]` の手順が各ロケールのコア製品名 `viewerTitle.name.release` を含むこと）。旧名の不在は AC-05 の行と同じ `_checks/old_name_absent.sh` の記録で確かめる | 1-2 / 1-3 |
 | AC-07 | `test` | `extension/test/popupHtml.test.ts`（`popup.html`・`viewer.html` の静的 `<title>` が `YomuDoga`）・`extension/test/optionsHtml.test.ts`（`options.html` の静的 `<title>` が `YomuDoga`） | 1-1 / 1-3 |
 | AC-08 | `manual` | PR-2 レビューで `docs/store/chrome_web_store.md` を issue #1148 コメント 1・4・5 と照合して確認 | 2-1 |
 | AC-09 | `test` / `manual` | `cmd/yt2column/adr_test.go::TestADRRecords`・`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths` で形式とリンクを検証し、PR-2 レビューで `CLAUDE.md`「Document language」と ADR-0035 の記述・ずれ除去を目視確認 | 2-3 |
