@@ -284,6 +284,11 @@ IMPLEMENTATION_PREFIX='Implementation model: '
 # of _context.md fail-closed and emits CC<TAB><pat> for Role == cross-check
 # (excluding "-") and HI<TAB><pat> for Role == high (excluding "-"), or
 # ERR<TAB><msg> on any violation.
+#
+# This parser and matches_pattern below are copies of the ones in
+# _lib/high-review-decision.sh, kept as copies because each script is run
+# alone from origin/main. Change both copies together; the shared cases in
+# cmd/yt2column/harness_mapping_cases_test.go run against both scripts.
 parse_harness_mapping() {
 	awk '
 		function fail(msg) {

@@ -112,6 +112,10 @@ MB=$(g merge-base "$OM" "$HEAD_ID") || run_on_failure "origin/main and HEAD have
 CONTEXT_DOC=$(g cat-file blob "$OM:.claude/commands/_context.md" 2>/dev/null) ||
 	run_on_failure "cannot read origin/main:.claude/commands/_context.md"
 
+# This parser and matches_pattern below are copies of the ones in
+# _lib/review-records.sh, kept as copies because each script is run alone
+# from origin/main. Change both copies together; the shared cases in
+# cmd/yt2column/harness_mapping_cases_test.go run against both scripts.
 parse_harness_mapping() {
 	awk '
 		function fail(msg) {
