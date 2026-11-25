@@ -201,6 +201,10 @@
 | 上位モデルのレビュー | high-model review | ハーネスの `high` 役割のモデルで行う、正しさのレビューと弱いモデルの失敗のレビューの組（`_lib/high-review.md`）。旧称: Opus のレビュー |
 | クロスチェックの部分レビュー | cross-check partial review | タスクの PR を開く前に、4 つの基準に当たる箇所に絞って、ハーネスのクロスチェック役割のモデルで行う部分レビュー（`_lib/cross-check-review.md`）。旧称: Fable の部分レビュー |
 | スクラッチパッド | scratchpad | 作業ツリーの外にある、セッション専用の一時ファイル置き場。追跡もコミットもしない |
+| 一時スクリプト | temporary script | タスクの `docs/tasks/NNNN_<name>/_checks/` に置くスクリプトと、その補助のファイル（データのファイル、テストの入力など）。用途（`diff` の確かめ、移行ゲート、前提の確認など）を問わない。`make test` も CI も実行しない（タスク 0124） |
+| 必須の性質 | required properties | 一時スクリプトが必ず満たす 4 つの性質。目的のものを検出する、正常なときに検出しない、異常なときにフェイルクローズする、呼び出し元を汚さない（タスク 0124）。旧称: 核 |
+| 壊し確認 | breakage check | 確かめの対象を壊して、確かめが失敗することを確かめる手順（`CLAUDE.md`「Testing Strategy」） |
+| 移行ゲート | migration gate | 移行の前提が成り立つかを、実装の開始やマージの前に確かめる一時スクリプト（例: タスク 0121 の `check_open_branches.sh`） |
 | API のクレジット | API credits | Claude Console の組織の残高。Claude API の利用に使う。Max・Ultra・Team の契約に付く毎月の分と、購入した分がある（`INSTALL.md`） |
 | 利用の上限 | spend limit | Claude Console のワークスペースごとに設ける月ごとの利用額の上限（`INSTALL.md`） |
 | ワークスペース | workspace | Claude Console で API キーと利用の上限をまとめる単位（`INSTALL.md`） |
