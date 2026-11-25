@@ -1945,17 +1945,7 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 	forms := readCrossCheckForms(t)
 	realContext := doctestutil.ReadDoc(t, contextPath)
 
-	const (
-		claudeCrossCheckRow = "| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |"
-		validMappingTable   = "### Harness model mapping\n\n" +
-			"| Harness | Role | Launch | Model | Verification pattern |\n" +
-			"|---|---|---|---|---|\n" +
-			"| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n" +
-			"| `Claude Code` | `standard` | `agent` | `sonnet` | `claude-sonnet-*` |\n" +
-			"| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n" +
-			"| `Antigravity` | `cross-check` | `swarm` | `claude-opus-5-5-medium` | `claude-opus-5-5-medium` |\n" +
-			"| `OpenCode` | `low` | `none` | `DeepSeek` | `-` |\n\n"
-	)
+	const claudeCrossCheckRow = "| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |"
 
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
@@ -1964,37 +1954,22 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 
 			t.Run("pattern matching", func(t *testing.T) {
 				t.Parallel()
-				dotPrefixContext := replaceContextRow(t, realContext, claudeCrossCheckRow,
-					"| `Claude Code` | `cross-check` | `agent` | `fable` | `v1.0-*` |")
-				exactDotContext := replaceContextRow(t, realContext, claudeCrossCheckRow,
-					"| `Claude Code` | `cross-check` | `agent` | `fable` | `v1.0` |")
-				maxLiteral := strings.Repeat("a", 64)
-				maxLiteralContext := replaceContextRow(t, realContext, claudeCrossCheckRow,
-					"| `Claude Code` | `cross-check` | `agent` | `fable` | `"+maxLiteral+"` |")
-				maxPrefix := strings.Repeat("b", 63)
-				maxPrefixContext := replaceContextRow(t, realContext, claudeCrossCheckRow,
-					"| `Claude Code` | `cross-check` | `agent` | `fable` | `"+maxPrefix+"*` |")
 				fencedHeadingContext := realContext + "\n```markdown\n### Harness model mapping\n```\n"
 
-				cases := []struct {
+				type matchCase struct {
 					name  string
 					ctx   string
 					model string
 					valid bool
-				}{
-					{"48-char suffix accepted", realContext, "claude-fable-" + strings.Repeat("a", 48), true},
-					{"49-char suffix rejected", realContext, "claude-fable-" + strings.Repeat("a", 49), false},
-					{"empty suffix rejected", realContext, "claude-fable-", false},
-					{"uppercase suffix rejected", realContext, "claude-fable-V4", false},
-					{"space in model id rejected", realContext, "claude-fable-4 7", false},
-					{"unregistered model rejected", realContext, "gemini-4-argon-high", false},
-					{"prefix dot literal matches", dotPrefixContext, "v1.0-a", true},
-					{"prefix dot is not regex wildcard", dotPrefixContext, "v1X0-a", false},
-					{"exact dot literal matches", exactDotContext, "v1.0", true},
-					{"exact dot is not regex wildcard", exactDotContext, "v1X0", false},
-					{"64-char literal pattern accepted", maxLiteralContext, maxLiteral, true},
-					{"63-char prefix plus star accepted", maxPrefixContext, maxPrefix + "x", true},
+				}
+				cases := []matchCase{
 					{"fenced Harness model mapping heading ignored", fencedHeadingContext, "claude-opus-5-5-medium", true},
+				}
+				// The pattern cases are shared with TestHighReviewDecision.
+				for _, mc := range mappingMatchCases() {
+					ctx := replaceContextRow(t, realContext, claudeCrossCheckRow,
+						"| `Claude Code` | `cross-check` | `agent` | `fable` | `"+mc.pattern+"` |")
+					cases = append(cases, matchCase{mc.name, ctx, mc.model, mc.match})
 				}
 				for _, tc := range cases {
 					t.Run(tc.name, func(t *testing.T) {
@@ -2017,11 +1992,11 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 
 			t.Run("fail-closed context validation", func(t *testing.T) {
 				t.Parallel()
-				// Positive control: validMappingTable itself passes so each
+				// Positive control: mappingValidTable itself passes so each
 				// mutation below proves its single change caused the failure.
 				t.Run("valid mapping table control", func(t *testing.T) {
 					t.Parallel()
-					f := newRRFixtureWithContext(t, form, replaceMappingSection(t, realContext, validMappingTable))
+					f := newRRFixtureWithContext(t, form, replaceMappingSection(t, realContext, mappingValidTable))
 					f.forms = forms
 					c1 := f.work("c1")
 					f.record("record", f.crossCheckRun(f.mb, c1, "claude-opus-5-5-medium"))
@@ -2031,42 +2006,12 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 					}
 				})
 
-				cases := []struct {
-					name       string
-					ctx        string
-					wantStderr string
-				}{
-					{"missing _context.md", "", "cannot read origin/main:.claude/commands/_context.md"},
-					{"missing mapping section", replaceMappingSection(t, realContext, ""), "missing Harness model mapping section"},
-					{"duplicate mapping section", replaceMappingSection(t, realContext, validMappingTable+validMappingTable), "duplicate Harness model mapping section"},
-					{"unclosed fence in _context.md", realContext + "\n```text\nunclosed\n", "unclosed code fence in _context.md"},
-					{"empty table with zero data rows", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n\n"), "missing or empty Harness model mapping table"},
-					{"wrong header", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Pattern |\n|---|---|---|---|---|\n| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n\n"), "invalid Harness model mapping header"},
-					{"wrong separator", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|\n| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n\n"), "invalid Harness model mapping separator"},
-					{"wrong column count", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "| `OpenCode` | `low` | `none` | `DeepSeek` | `-` |", "| `OpenCode` | `low` | `none` | `DeepSeek` |")), "must have 5 columns"},
-					{"indented table row", replaceMappingSection(t, realContext, "### Harness model mapping\n\n | Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n\n"), "indented table row"},
-					{"unquoted cell", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`fable`", "fable")), "single code span"},
-					{"multiple tables", replaceMappingSection(t, realContext, validMappingTable+"prose\n\n| Harness | Role | Launch | Model | Verification pattern |\n\n"), "multiple tables"},
-					{"unknown Harness", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`OpenCode`", "`OtherHarness`")), "unknown Harness"},
-					{"unknown Role", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`low`", "`ultra`")), "unknown Role"},
-					{"unknown Launch", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`none`", "`cli`")), "unknown Launch"},
-					{"whitespace-only Model", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`DeepSeek`", "`   `")), "invalid Model"},
-					{"duplicate Harness Role", replaceMappingSection(t, realContext, strings.TrimSuffix(validMappingTable, "\n")+"| `Claude Code` | `cross-check` | `agent` | `fable2` | `claude-fable-2-*` |\n\n"), "duplicate (Harness, Role)"},
-					{"none launch with non-dash pattern", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "| `-` |", "| `deepseek` |")), "Launch none row must have Verification pattern -"},
-					{"agent launch with dash pattern", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`-`")), "cannot have Verification pattern -"},
-					{"swarm launch with dash pattern", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "| `Antigravity` | `cross-check` | `swarm` | `claude-opus-5-5-medium` | `claude-opus-5-5-medium` |", "| `Antigravity` | `cross-check` | `swarm` | `claude-opus-5-5-medium` | `-` |")), "cannot have Verification pattern -"},
-					{"65-char literal pattern", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`"+strings.Repeat("a", 65)+"`")), "invalid literal Verification pattern"},
-					{"64-char prefix plus star", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`"+strings.Repeat("a", 64)+"*`")), "invalid prefix Verification pattern"},
-					{"regex dot-star metacharacter", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`.*`")), "invalid prefix Verification pattern"},
-					{"regex char class metacharacter", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`claude-[a-z]+`")), "invalid literal Verification pattern"},
-					{"regex alternation pipe forbidden", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`claude-(a|b)`")), "forbidden character"},
-					{"regex anchors metacharacter", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`^claude-fable$`")), "invalid literal Verification pattern"},
-					{"whitespace in pattern", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`claude fable`")), "invalid literal Verification pattern"},
-					{"mid-wildcard", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-fable-*`", "`claude*fable`")), "invalid literal Verification pattern"},
-					{"broken uncollected role row fails whole table", replaceMappingSection(t, realContext, replaceContextRow(t, validMappingTable, "`claude-sonnet-*`", "`claude-[0-9]+`")), "invalid literal Verification pattern"},
-					{"zero cross-check patterns", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n\n"), "no cross-check verification pattern"},
-					{"zero high patterns", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n\n"), "no high-role verification pattern"},
-				}
+				// The grammar cases are shared with TestHighReviewDecision; the
+				// two below hold only for this script, which needs both sets.
+				cases := append(mappingGrammarCases(t, realContext),
+					mappingGrammarCase{"zero cross-check patterns", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n\n"), "no cross-check verification pattern"},
+					mappingGrammarCase{"zero high patterns", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n\n"), "no high-role verification pattern"},
+				)
 				// Every fail-closed rejection exits 1 with "MISSING\n" on
 				// stdout, so matching the stderr diagnostic substring is the
 				// only way to verify that each malformed fixture triggered the
