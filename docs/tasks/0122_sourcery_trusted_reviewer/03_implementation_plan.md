@@ -245,13 +245,13 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
   - `internal/fixprguard/ci_checks_test.go`（新規）
   - `CLAUDE.md`
 - **作業内容:**
-  - [ ] `internal/fixprguard/github.go` の `resolveRepository` を `internal/ghci.ResolveRepo` へ委譲する形に整理し、`githubTimeout` と既存エラー変換（`ErrResponseRejected`、`types_test.go` の既存テスト互換、および `review_state.go:399-402` の既存挙動）を維持する。あわせて未使用になる `validRepoName`・`maxRepoNameLength` を削除し、`NewGitHubWithoutReviewer` の doc コメントへ `PRReviewState`・`PRMentions`・`CIChecks` を反映する。
-  - [ ] `internal/fixprguard/review_state.go` へ `ReviewProfile` 型（`ProfileUnknown`・`ProfileCodeRabbit`・`ProfileSourcery`、`ParseReviewProfile`・`MarshalText`・`ReviewProfiles`）と共通の依頼コメント判定ヘルパー `isRequestComment` を追加し、`internal/fixprguard/review_state_test.go` にこれらの単体テスト（`ProfileUnknown(0)`・範囲外値 `99` の `MarshalText` 拒否、`ReviewProfiles()` 到達性を含む）を追加する（既存の `ReviewStateRequest`・`PRReviewState` 契約と `Protocol` はこのステップでは変更しない）。
-  - [ ] `internal/fixprguard/mentions.go` を新規作成し、`ObservedBot`・`ParseObservedBot`・`MentionScanRequest`・`MentionScanState`・`MentionSource`・`MentionScanStage`・`MentionFinding`・`MentionScanResult`・`MentionScanStates`・`MentionSources`・`MentionScanStages`・`(*GitHub).PRMentions` を実装する（[02_architecture.md](02_architecture.md) 3.2.3・5.3 の 3 エンドポイント厳格 JSON・`ghci.ResolveRepo` の `*ghci.RepoError` 分類・`body: null` / `submitted_at: null` 許容・4 メンション検査・CodeRabbit 定型 2 種と Sourcery レビューガイド／7 日間予算超過コメント除外・`isRequestComment` 共有・本文非出力）。
-  - [ ] `internal/fixprguard/ci_checks.go` を新規作成し、`CIChecksRequest`・`CIChecksResult`・`(*GitHub).CIChecks`（`ghci.ResolveRepo` の `*ghci.RepoError` 分類＋`ghci.ReadPR` の薄いラッパー、`githubTimeout` 適用）を実装する（[02_architecture.md](02_architecture.md) 3.2.4）。
-  - [ ] `internal/fixprguard/mentions_test.go` と `internal/fixprguard/ci_checks_test.go` を作成し、[02_architecture.md](02_architecture.md) 7.1・7.3 の全観点を検証する。`mentions_test.go` では 4 メンション×3 エンドポイント×著者種別、観測済み定型除外と非定型・`User` なりすまし・他利用者名の予算超過コメントの非除外、手動依頼 3 種一致、厳格 JSON 拒否と `stage`、上限超過、禁止テキスト非出力マーカー、列挙型 `MarshalText` の範囲外・不正ゼロ値拒否、ゼロ値 `MentionScanResult{}` の `"state":"unreadable"`、直接構築したゼロ値・不正値・重複 `ObservedBot` の `ErrInvalidInput` 拒否を確かめる。`ci_checks_test.go` では `ResolveRepo` 失敗分類・状態伝播・`--head` 不一致を確かめ、`MentionScanStates`・`MentionSources`・`MentionScanStages` を含む新規公開関数すべてがテストから到達可能であることを確認する（AC-05・AC-13・AC-19）。
-  - [ ] 壊して確かめる検証: `mentions.go` の `user.type == "Bot"` 照合と定型 1 行目照合をそれぞれ一時的に緩め、`TestPRMentionsObservedExclusions` が失敗することを確かめ、コミットメッセージに記録する。
-  - [ ] `CLAUDE.md` の `Declare, don't infer` の `fixprguard` 例外（`490-502` 行目）に `internal/fixprguard/mentions.go` の検査範囲と境界（1 行目の観測済み定型照合・依頼文面一致・4 メンション部分一致のみ、本文非出力）を追記する（AC-29 先行分）。
+  - [x] `internal/fixprguard/github.go` の `resolveRepository` を `internal/ghci.ResolveRepo` へ委譲する形に整理し、`githubTimeout` と既存エラー変換（`ErrResponseRejected`、`types_test.go` の既存テスト互換、および `review_state.go:399-402` の既存挙動）を維持する。あわせて未使用になる `validRepoName`・`maxRepoNameLength` を削除し、`NewGitHubWithoutReviewer` の doc コメントへ `PRReviewState`・`PRMentions`・`CIChecks` を反映する。
+  - [x] `internal/fixprguard/review_state.go` へ `ReviewProfile` 型（`ProfileUnknown`・`ProfileCodeRabbit`・`ProfileSourcery`、`ParseReviewProfile`・`MarshalText`・`ReviewProfiles`）と共通の依頼コメント判定ヘルパー `isRequestComment` を追加し、`internal/fixprguard/review_state_test.go` にこれらの単体テスト（`ProfileUnknown(0)`・範囲外値 `99` の `MarshalText` 拒否、`ReviewProfiles()` 到達性を含む）を追加する（既存の `ReviewStateRequest`・`PRReviewState` 契約と `Protocol` はこのステップでは変更しない）。
+  - [x] `internal/fixprguard/mentions.go` を新規作成し、`ObservedBot`・`ParseObservedBot`・`MentionScanRequest`・`MentionScanState`・`MentionSource`・`MentionScanStage`・`MentionFinding`・`MentionScanResult`・`MentionScanStates`・`MentionSources`・`MentionScanStages`・`(*GitHub).PRMentions` を実装する（[02_architecture.md](02_architecture.md) 3.2.3・5.3 の 3 エンドポイント厳格 JSON・`ghci.ResolveRepo` の `*ghci.RepoError` 分類・`body: null` / `submitted_at: null` 許容・4 メンション検査・CodeRabbit 定型 2 種と Sourcery レビューガイド／7 日間予算超過コメント除外・`isRequestComment` 共有・本文非出力）。
+  - [x] `internal/fixprguard/ci_checks.go` を新規作成し、`CIChecksRequest`・`CIChecksResult`・`(*GitHub).CIChecks`（`ghci.ResolveRepo` の `*ghci.RepoError` 分類＋`ghci.ReadPR` の薄いラッパー、`githubTimeout` 適用）を実装する（[02_architecture.md](02_architecture.md) 3.2.4）。
+  - [x] `internal/fixprguard/mentions_test.go` と `internal/fixprguard/ci_checks_test.go` を作成し、[02_architecture.md](02_architecture.md) 7.1・7.3 の全観点を検証する。`mentions_test.go` では 4 メンション×3 エンドポイント×著者種別、観測済み定型除外と非定型・`User` なりすまし・他利用者名の予算超過コメントの非除外、手動依頼 3 種一致、厳格 JSON 拒否と `stage`、上限超過、禁止テキスト非出力マーカー、列挙型 `MarshalText` の範囲外・不正ゼロ値拒否、ゼロ値 `MentionScanResult{}` の `"state":"unreadable"`、直接構築したゼロ値・不正値・重複 `ObservedBot` の `ErrInvalidInput` 拒否を確かめる。`ci_checks_test.go` では `ResolveRepo` 失敗分類・状態伝播・`--head` 不一致を確かめ、`MentionScanStates`・`MentionSources`・`MentionScanStages` を含む新規公開関数すべてがテストから到達可能であることを確認する（AC-05・AC-13・AC-19）。
+  - [x] 壊して確かめる検証: `mentions.go` の `user.type == "Bot"` 照合と定型 1 行目照合をそれぞれ一時的に緩め、`TestPRMentionsObservedExclusions` が失敗することを確かめ、コミットメッセージに記録する。
+  - [x] `CLAUDE.md` の `Declare, don't infer` の `fixprguard` 例外（`490-502` 行目）に `internal/fixprguard/mentions.go` の検査範囲と境界（1 行目の観測済み定型照合・依頼文面一致・4 メンション部分一致のみ、本文非出力）を追記する（AC-29 先行分）。
 - **完了条件:**
   - `make fmt && make test && make lint && make deadcode` がすべて通ること（`Protocol` 未変更のため既存 CLI と文書ガードがすべて通る）。
 
@@ -269,10 +269,10 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
 
 **自動送信**: hold
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1162
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 #### ステップ 3-2: 旧 `--jq` サブテストの単独削除と `make coverage-compare` 検証
 
@@ -456,7 +456,7 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
   - `cmd/yt2column/fixpr_docs_test.go`・`review_mention_docs_test.go`・`adr_test.go`、`cmd/fixprguard/docs_test.go`、`cmd/mergepr/docs_test.go`、`internal/pipeline/pipeline_test.go` を各フェーズのグリーンゲートで実行する。
 - **セキュリティテスト:**
   - コメント本文・CheckRun `title`・`details_url`・`output.summary` に固有マーカーを埋め込み、標準出力・標準エラーへの非出力を機械的に検証する。
-  - なりすまし `User`・`user: null`・大文字小文字違い・重複 JSON キー・不正 UTF-8・単独サロゲート・後続ゴミデータ・サイズ上限超過の拒否を検証する。
+  - なりすまし `User`・メンションを含む `user: null` の停止（非除外）と、大文字小文字違い・重複 JSON キー・不正 UTF-8・単独サロゲート・後続ゴミデータ・サイズ上限超過の拒否を検証する。
   - `fixprguard_guide.md` 7.1 の保証と `mergepr_guide.md` 6.1 の保証を変える箇所は、実装を一時的に壊してテストが失敗することを確認し、コミットメッセージに記録する（`CLAUDE.md`「Testing Strategy」）。
 - **テスト削除の検証:**
   - ステップ 3-2 で削除する旧 `--jq` サブテスト 2 件と専用ヘルパーは、`ReviewStateRequest` 変更と `runpr.md` 改定前のグリーンな `BASE` の上で単独コミットに分離し、`make coverage-compare BASE=<親コミット>` の `PASS` 出力をコミットメッセージと PR 説明に残す。
@@ -484,7 +484,7 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2）
 - [x] PR-2 マージ済み（対象ステップ: 2-1）
 - [x] PR-3 マージ済み（対象ステップ: 2-2）
-- [ ] PR-4 マージ済み（対象ステップ: 3-1）
+- [x] PR-4 マージ済み（対象ステップ: 3-1）
 - [ ] PR-5 マージ済み（対象ステップ: 3-2 / 3-3 / 3-4 / 3-5）
 - [ ] PR-6 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）
 

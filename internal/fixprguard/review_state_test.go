@@ -724,6 +724,8 @@ func TestReviewStateEnumsRejectOutsideValues(t *testing.T) {
 		"unreadable_reason":    UnreadableReason(99).MarshalText,
 		"indeterminate_reason": IndeterminateReason(99).MarshalText,
 		"run_kind":             RunKind(99).MarshalText,
+		"review_profile_zero":  ProfileUnknown.MarshalText,
+		"review_profile_high":  ReviewProfile(99).MarshalText,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := marshal(); !errors.Is(err, errUnknownEnum) {
@@ -740,6 +742,73 @@ func TestReviewStateEnumsRejectOutsideValues(t *testing.T) {
 	zeroResp := mustJSON(t, ReviewResponse{})
 	if !strings.Contains(zeroResp, `"kind":"unknown"`) {
 		t.Errorf("zero ReviewResponse JSON = %s, want kind unknown", zeroResp)
+	}
+}
+
+func TestParseReviewProfile(t *testing.T) {
+	wantProfiles := []ReviewProfile{ProfileCodeRabbit, ProfileSourcery}
+	wantNames := map[ReviewProfile]string{
+		ProfileCodeRabbit: "coderabbit",
+		ProfileSourcery:   "sourcery",
+	}
+	profiles := ReviewProfiles()
+	if !slices.Equal(profiles, wantProfiles) {
+		t.Fatalf("ReviewProfiles() = %v, want %v", profiles, wantProfiles)
+	}
+	for _, p := range profiles {
+		raw, err := p.MarshalText()
+		if err != nil {
+			t.Fatalf("MarshalText(%v) = %v", p, err)
+		}
+		want := wantNames[p]
+		if string(raw) != want {
+			t.Errorf("MarshalText(%v) = %q, want %q", p, raw, want)
+		}
+		got, err := ParseReviewProfile(want)
+		if err != nil || got != p {
+			t.Errorf("ParseReviewProfile(%q) = %v, %v, want %v", want, got, err, p)
+		}
+	}
+	for _, bad := range []string{"", "CodeRabbit", "SOURCERY", "coderabbitai", "sourcery-ai", " coderabbit", "unknown"} {
+		t.Run("invalid/"+bad, func(t *testing.T) {
+			got, err := ParseReviewProfile(bad)
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("ParseReviewProfile(%q) = %v, want ErrInvalidInput", bad, err)
+			}
+			if got != ProfileUnknown {
+				t.Errorf("ParseReviewProfile(%q) profile = %v, want ProfileUnknown", bad, got)
+			}
+			// The error text is the contract here: it must not echo untrusted input.
+			if bad != "" && strings.Contains(err.Error(), bad) {
+				t.Errorf("error %q echoes input %q", err, bad)
+			}
+		})
+	}
+}
+
+func TestIsRequestComment(t *testing.T) {
+	requests := []string{"@coderabbitai review", "@sourcery-ai review", "@sourceryai review"}
+	for _, tc := range []struct {
+		name  string
+		kind  string
+		login string
+		body  string
+		want  bool
+	}{
+		{"exact_first", typenameUser, rsUser, "@coderabbitai review", true},
+		{"exact_second", typenameUser, rsUser, "@sourcery-ai review", true},
+		{"exact_third_trimmed", typenameUser, rsUser, " \r\n@sourceryai review\r\n ", true},
+		{"other_user", typenameUser, "alice", "@coderabbitai review", false},
+		{"bot_same_name", typenameBot, rsUser, "@coderabbitai review", false},
+		{"empty_kind", "", rsUser, "@coderabbitai review", false},
+		{"extra_words", typenameUser, rsUser, "@coderabbitai review please", false},
+		{"wrong_case", typenameUser, rsUser, "@CodeRabbitAI review", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isRequestComment(tc.kind, tc.login, rsUser, tc.body, requests); got != tc.want {
+				t.Errorf("isRequestComment = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

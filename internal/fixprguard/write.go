@@ -73,6 +73,25 @@ func isFormatOrNoncharacter(r rune) bool {
 	return unicode.Is(unicode.Cf, r) || (r >= 0xFDD0 && r <= 0xFDEF) || r&0xFFFE == 0xFFFE
 }
 
+// containsRejectedMention reports whether text contains any value of
+// RejectedMentions anywhere, compared case-insensitively in ASCII with no word
+// boundary required. Non-ASCII look-alikes are not GitHub mentions and are not
+// normalized.
+func containsRejectedMention(text string) bool {
+	folded := strings.Map(func(r rune) rune {
+		if 'A' <= r && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		return r
+	}, text)
+	for _, mention := range RejectedMentions() {
+		if strings.Contains(folded, mention) {
+			return true
+		}
+	}
+	return false
+}
+
 // checkPostText rejects text that would make an automated reviewer act when
 // posted from the user's account. Contract: text containing any value of
 // RejectedMentions anywhere, with ASCII letters compared case-insensitively
@@ -82,16 +101,8 @@ func isFormatOrNoncharacter(r rune) bool {
 // GitHub mentions and are not normalized. It checks content only, so it runs
 // after readTextFile and before any call to GitHub.
 func checkPostText(text string) error {
-	folded := strings.Map(func(r rune) rune {
-		if 'A' <= r && r <= 'Z' {
-			return r + ('a' - 'A')
-		}
-		return r
-	}, text)
-	for _, mention := range RejectedMentions() {
-		if strings.Contains(folded, mention) {
-			return errMention
-		}
+	if containsRejectedMention(text) {
+		return errMention
 	}
 	return nil
 }
