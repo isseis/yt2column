@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
+	"github.com/isseis/yt2column/internal/ghci"
 	"github.com/isseis/yt2column/internal/numreserve"
 )
 
@@ -79,8 +80,12 @@ type Tool struct {
 	// same environment as the check's own git (no GIT_* variable), so the
 	// fetch updates the repository the check reads.
 	mainFetch Runner
-	protocol  protocolChecker
-	numbers   NumberChecker
+	// ci runs the gh calls that read the GitHub Actions checks, with an output
+	// cap; ciWait bounds how long Prepare waits for them.
+	ci       Runner
+	ciWait   ghci.WaitOptions
+	protocol protocolChecker
+	numbers  NumberChecker
 	// corrections reads the correction lines of the PR's commits and of the
 	// merge commit, and the trailers git reads from a message.
 	corrections correctionSource
@@ -107,7 +112,7 @@ type protocolChecker interface {
 // removed from the environment.
 func New(runner Runner, numbers NumberChecker) *Tool {
 	git := newGitRunner("")
-	return &Tool{run: runner, mainFetch: git, protocol: newProtocolCheck(git), numbers: numbers, corrections: newGitCorrectionSource("")}
+	return &Tool{run: runner, mainFetch: git, ci: newCIRunner(), ciWait: defaultCIWait(), protocol: newProtocolCheck(git), numbers: numbers, corrections: newGitCorrectionSource("")}
 }
 
 // checkNumbers runs the number check on the prepared head.
@@ -272,8 +277,8 @@ func (t *Tool) Prepare(ctx context.Context, prArg string) (prepared Prepared, er
 	if err != nil {
 		return Prepared{}, err
 	}
-	if _, err := t.gh(ctx, "pr", "checks", state.number(), "--watch", "--fail-fast"); err != nil {
-		return Prepared{}, fmt.Errorf("%w: %w", errChecksFailed, err)
+	if err := t.waitChecks(ctx, state); err != nil {
+		return Prepared{}, err
 	}
 	// The number check runs after CI, which can take minutes, so it sees the
 	// newest origin it can before the merge question, and before the work

@@ -9,7 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
 	"github.com/isseis/yt2column/internal/numreserve"
@@ -107,6 +109,9 @@ func (f *fakeRunner) done() {
 type checkCall struct {
 	head, base string
 	index      int
+	// ciCalls is how many gh calls the CI check had made before the protocol
+	// check ran, so a test can tell that the check ran before the CI wait.
+	ciCalls int
 }
 
 // fakeChecker stands in for the protocol-number check. It returns the result
@@ -114,13 +119,14 @@ type checkCall struct {
 // test can tell which commands ran before the check.
 type fakeChecker struct {
 	runner  *fakeRunner
+	ci      *fakeCI
 	summary protocolSummary
 	err     error
 	calls   []checkCall
 }
 
 func (f *fakeChecker) check(_ context.Context, headOID, baseRefName string) (protocolSummary, error) {
-	f.calls = append(f.calls, checkCall{head: headOID, base: baseRefName, index: f.runner.index})
+	f.calls = append(f.calls, checkCall{head: headOID, base: baseRefName, index: f.runner.index, ciCalls: len(f.ci.calls)})
 	return f.summary, f.err
 }
 
@@ -136,6 +142,9 @@ var testSummary = protocolSummary{
 type numberCall struct {
 	head, branch string
 	index        int
+	// ciCalls is how many gh calls the CI check had made before the number
+	// check ran, so a test can tell that the check ran after the CI wait.
+	ciCalls int
 }
 
 // fakeNumbers stands in for the number check. It returns the findings and
@@ -143,14 +152,87 @@ type numberCall struct {
 // so a test can tell which commands ran before the check.
 type fakeNumbers struct {
 	runner *fakeRunner
+	ci     *fakeCI
 	issues []numreserve.AddedNumberIssue
 	err    error
 	calls  []numberCall
 }
 
 func (f *fakeNumbers) CheckAdded(_ context.Context, head, headBranch string) ([]numreserve.AddedNumberIssue, error) {
-	f.calls = append(f.calls, numberCall{head: head, branch: headBranch, index: f.runner.index})
+	f.calls = append(f.calls, numberCall{head: head, branch: headBranch, index: f.runner.index, ciCalls: len(f.ci.calls)})
 	return f.issues, f.err
+}
+
+// ciRepoOutput is what the fake gh prints for "gh repo view".
+const ciRepoOutput = `{"nameWithOwner":"isseis/yt2column"}`
+
+// ciReply is one scripted answer of the fake gh to a GraphQL check query.
+type ciReply struct {
+	out string
+	err error
+}
+
+// fakeCI stands in for the gh calls that read GitHub Actions checks. It
+// answers "gh repo view" with repoOut (or repoErr) and each GraphQL query with
+// the next reply, repeating the last one when the replies run out, and records
+// every call so a test can count them.
+type fakeCI struct {
+	t       testing.TB
+	repoErr error
+	replies []ciReply
+	queries int      // GraphQL queries answered so far
+	calls   []string // "repo" or "graphql", in order
+}
+
+func newFakeCI(t testing.TB, replies ...ciReply) *fakeCI {
+	t.Helper()
+	return &fakeCI{t: t, replies: replies}
+}
+
+// Run implements Runner.
+func (f *fakeCI) Run(_ context.Context, name string, args ...string) ([]byte, error) {
+	f.t.Helper()
+	if name != ghCommand {
+		f.t.Fatalf("CI call ran %s %q, want gh", name, args)
+	}
+	switch {
+	case slices.Equal(args, []string{"repo", "view", "--json", "nameWithOwner"}):
+		f.calls = append(f.calls, "repo")
+		return []byte(ciRepoOutput), f.repoErr
+	case len(args) >= 2 && args[0] == "api" && args[1] == "graphql":
+		for _, want := range []string{"owner=isseis", "name=yt2column", "number=42"} {
+			if !slices.Contains(args, want) {
+				f.t.Fatalf("GraphQL call %q lacks %q", args, want)
+			}
+		}
+		f.calls = append(f.calls, "graphql")
+		reply := f.replies[min(f.queries, len(f.replies)-1)]
+		f.queries++
+		return []byte(reply.out), reply.err
+	default:
+		f.t.Fatalf("unexpected CI call gh %q", args)
+		return nil, nil
+	}
+}
+
+// ciRun returns the JSON of one LATEST check run that is completed with
+// conclusion.
+func ciRun(name, conclusion string) string {
+	return `{"name":"` + name + `","status":"COMPLETED","conclusion":"` + conclusion + `","url":"https://github.com/isseis/yt2column/actions/runs/1/job/1"}`
+}
+
+// ciSuite returns the JSON of one check suite of app with the given runs.
+func ciSuite(app, status, conclusion string, runs ...string) string {
+	return `{"app":{"slug":"` + app + `"},"status":"` + status + `","conclusion":"` + conclusion +
+		`","createdAt":"2026-11-25T00:00:00Z","workflowRun":null,"checkRuns":{"pageInfo":{"hasNextPage":false},"nodes":[` +
+		strings.Join(runs, ",") + `]}}`
+}
+
+// ciResponse returns the GraphQL response for a pull request whose head is
+// head and whose head commit carries suites.
+func ciResponse(head string, suites ...string) string {
+	return `{"data":{"repository":{"pullRequest":{"headRefOid":"` + head + `","commits":{"nodes":[{"commit":{"oid":"` + head +
+		`","checkSuites":{"pageInfo":{"hasNextPage":false},"nodes":[` + strings.Join(suites, ",") + `]}}}]}}}}}`
 }
 
 // newTool returns a Tool on a scripted runner whose protocol-number check
@@ -166,12 +248,16 @@ func newTool(t testing.TB, steps ...commandStep) (*Tool, *fakeRunner) {
 func newCheckedTool(t testing.TB, checkErr error, steps ...commandStep) (*Tool, *fakeRunner, *fakeChecker) {
 	t.Helper()
 	runner := &fakeRunner{t: t, steps: steps}
-	checker := &fakeChecker{runner: runner, summary: testSummary, err: checkErr}
+	ci := newFakeCI(t, ciReply{out: ciResponse(testHeadOID, ciSuite("github-actions", "COMPLETED", "SUCCESS", ciRun("test", "SUCCESS")))})
+	checker := &fakeChecker{runner: runner, ci: ci, summary: testSummary, err: checkErr}
 	if checkErr != nil {
 		checker.summary = protocolSummary{}
 	}
-	tool := New(runner, &fakeNumbers{runner: runner})
+	tool := New(runner, &fakeNumbers{runner: runner, ci: ci})
 	tool.mainFetch = runner
+	tool.ci = ci
+	tool.ciWait = defaultCIWait()
+	tool.ciWait.Sleep = func(context.Context, time.Duration) error { return nil }
 	tool.protocol = checker
 	source := newFakeSource(t)
 	source.runner = runner
@@ -184,7 +270,7 @@ func newCheckedTool(t testing.TB, checkErr error, steps ...commandStep) (*Tool, 
 func newNumberedTool(t testing.TB, issues []numreserve.AddedNumberIssue, err error, steps ...commandStep) (*Tool, *fakeRunner, *fakeNumbers) {
 	t.Helper()
 	tool, runner, _ := newCheckedTool(t, nil, steps...)
-	numbers := &fakeNumbers{runner: runner, issues: issues, err: err}
+	numbers := &fakeNumbers{runner: runner, ci: tool.ci.(*fakeCI), issues: issues, err: err}
 	tool.numbers = numbers
 	return tool, runner, numbers
 }
