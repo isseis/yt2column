@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-11-24 |
-| Review date | 2026-11-24 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 決定の変更で draft に戻した：単一ワークフローのガードで `workflow_dispatch` を宣言済みの `deepseek-review.yml` に限ることと、PR ブランチへの手動実行の残余リスクを 3.2.4 に記録 |
 
 ## 1. 設計の全体像 (Design Overview)
 
@@ -668,7 +668,7 @@ func (g *GitHub) CIChecks(ctx context.Context, req CIChecksRequest) (CIChecksRes
 
         それ以外は一時的な `UnreadableCall` のまま再試行する。具体的には、`RATE_LIMITED`、`type` のない GitHub 側のタイムアウト、未知の `type`、`type` が `null`、上記以外の `extensions.code`（5xx 応答の内部エラーなど）、`data` メンバーを持つ応答の `extensions.code`、要素の一部だけが恒久的な場合、JSON でない出力、ほかの終了コードである。標準エラーと `message` は読まない。理由: 存在しない PR や権限不足、スキーマ変更のような恒久的なエラーで、`mergepr prepare` が最大 60 分、`/runpr` が最大 15 分待ってから停止するのを避けるためである。それでいて、レート制限やタイムアウトのような一時的なエラーで即時停止させないよう、恒久的と宣言された種類だけを許可リストで選ぶ（PR #1143 のレビューで人が決定）。
     -   `checkSuite.app.slug != "github-actions"`（外部レビュアー `sourcery-ai`・`coderabbitai` や `app == null` を含む）の CheckSuite は、`checkRuns.pageInfo.hasNextPage` を検査する前に読み飛ばす（他 App の CheckRun 上限超過による誤停止を防ぐ）。`github-actions` CheckSuite 側で `checkRuns.pageInfo.hasNextPage == true` なら `UnreadableLimit` とする。
-    -   **単一ワークフローの前提とそのガード:** 下記の判定は「head コミットに付いた `github-actions` の CheckSuite がすべて成功」を CI 通過とみなす。これが成り立つのは、PR の head コミットに CheckSuite を付けるワークフローが `ci.yml` だけの間である。2 つ目のワークフローがあると、遅れて現れる CheckSuite を待たずに `passed` を返しうるうえ、CI でないワークフロー（Actions 上のレビューボットなど）の失敗がマージを止める。そこで `internal/ghci/workflows_test.go` は、`.github/workflows/` の各ワークフローのトップレベル `on` を読み、`ci.yml` のトリガーがちょうど `pull_request` であること、ほかのワークフローのトリガーが `workflow_dispatch`・`schedule` に限られることを検査する。読めない形は失敗とする。ワークフローを増やすときはこのテストが落ちるので、評価の方式（必須ワークフローの宣言など）を見直す（PR #1143 のレビューで人が決定）。
+    -   **単一ワークフローの前提とそのガード:** 下記の判定は「head コミットに付いた `github-actions` の CheckSuite がすべて成功」を CI 通過とみなす。これが成り立つのは、PR の head コミットに CheckSuite を付けるワークフローが `ci.yml` だけの間である。2 つ目のワークフローがあると、遅れて現れる CheckSuite を待たずに `passed` を返しうるうえ、CI でないワークフロー（Actions 上のレビューボットなど）の失敗がマージを止める。そこで `internal/ghci/workflows_test.go` は、`.github/workflows/` の各ワークフローのトップレベル `on` を読み、`ci.yml` のトリガーがちょうど `pull_request` であること、ほかのワークフローのトリガーが `schedule`（既定ブランチでのみ発火する）と、宣言した手動実行のワークフロー（`deepseek-review.yml`）に限って許す `workflow_dispatch` だけであることを検査する。`workflow_dispatch` は人が選んだ ref で実行されるため、PR のブランチを選ぶと head コミットに `github-actions` の CheckSuite が付きうる。この残余リスクは 5.4 に記録し、レビューのワークフローだけを宣言して残すのは人が決めた許可である。読めない形は失敗とする。ワークフローを増やすときや新たに `workflow_dispatch` を使うときはこのテストが落ちるので、評価の方式（必須ワークフローの宣言など）を見直す（PR #1143 のレビューで人が決定）。
     -   `github-actions` の CheckSuite 群のうち、CheckRun が 0 件かつ `workflowRun == null` かつ `status != "COMPLETED"` の**ワークフロー未発火の空 CheckSuite のみ**を除外する。残りの CheckSuite のうち、`workflowRun != null` かつ `workflowRun.workflow.name != ""` のものは同一ワークフロー名ごとに `createdAt` が最新の 1 件だけを残し（同一 `head` でワークフローが別 CheckSuite として再実行・再起動された場合に、旧 CheckSuite の失敗・キャンセルが新しい成功を塞がないようにするため）、`workflowRun == null` の完了済み CheckSuite（`STARTUP_FAILURE` 等）はそのまま評価対象とする。評価対象の CheckSuite 数を `Suites` に記録し、次の順で判定する：
         1.  **即座に失敗（fail-fast）:** 評価対象の CheckRun のいずれかが `status == "COMPLETED"` かつ `conclusion` が `"SUCCESS"`・`"SKIPPED"` 以外（例: `FAILURE`・`TIMED_OUT`・`CANCELLED`・`ACTION_REQUIRED`・`STARTUP_FAILURE`・`NEUTRAL`・未知値）なら、`Failing` に該当 CheckRun の `name`・`conclusion`・`url` を集めて `StateFailed` を返す。また、評価対象の CheckSuite のいずれかが `status == "COMPLETED"` かつ `conclusion` が `"SUCCESS"`・`"SKIPPED"` 以外（例: 0 CheckRun の `STARTUP_FAILURE`、または CheckRun に失敗が出ない CheckSuite `FAILURE`）である場合も、その CheckSuite に対応する失敗 CheckRun が `Failing` に含まれていなければ CheckSuite 単位の項目（`Name`: `workflowRun.workflow.name` または `"github-actions-check-suite"`、`Conclusion`: CheckSuite の `conclusion`、`URL`: `""`）を加えて即時 `StateFailed` を返す。
         2.  **待機中:** 評価対象の CheckSuite が 0 件（`Suites == 0`、push 直後で未作成）、またはいずれかの評価対象 CheckSuite の `status != "COMPLETED"`（`workflowRun != null` でジョブ生成待ち、`needs: check-changes` の後続ジョブ待ちを含む）、またはいずれかの CheckRun の `status != "COMPLETED"` なら `StatePending` を返す。
@@ -863,7 +863,7 @@ flowchart TD
 -   **手動依頼後 15 分以内の別コミット push 競合:** `ProfileSourcery` では、期限切れ依頼が将来の自動 CheckRun を奪わないよう応答候補を `startedAt - req.created <= 15 分` に制限し、さらに後続コミットの自動 CheckRun が先に開始して古いコミットの手動 CheckRun が重なった場合は `commitIndex(run.commit) <= commitIndex(earliest.commit)` により `competing-runs` で安全に停止する。残るのは、古いコミットの手動 CheckRun 自体が一切起動せず後続コミットの自動 CheckRun だけが 15 分以内に開始した場合に限られる。後続コミットは古いコミットの子孫であるが、その自動 CheckRun が PR の差分全体を見たかどうかは次の項目の未確認の前提に依存する。
 -   **再レビューが見る範囲（未確認の前提）:** `ProfileSourcery` の完了の印は、示すコミットとその祖先をレビュー済みとする（AC-17・AC-18 の `LAST_REVIEWED`）。しかし公式文書では自動再レビューの予算消費が通常の 1/10 とされ、観測の記録 2.3 の備考（#1097・#1098）では、初回コミットが予算超過で `SKIPPED` になった後の後続コミットが `SUCCESS` で完了している。再レビューが前回からの差分だけを見る場合、どのレビューも見ていない変更が、自動・手動応答を問わず後続コミットの完了の印でレビュー済みと数えられ、マージの質問は「未レビューの変更: なし」を示しうる。この前提は 1.3 の未観測の 2 点と違い、安全側に設計していない。確かめ方（#1097・#1098 のレビューコメントが指すコミットと行を読む、または予算回復後に実測する）と、差分だけを見ると分かったときに完了の印の規則を変えるかは、AC-17・AC-18・AC-22 と ADR-0013 の決定を変えるため、実装計画の前に利用者と決める。
 -   **Sourcery AI の PR 説明追記と `current-body-mention`:** Sourcery AI は完了後に PR の説明末尾へ概要を追記し、レビューのたびに更新する（観測の記録 2.1）。観測した 7 PR の追記にメンションはなかったが、`@sourcery-ai` の拒否を加える本タスク自身の PR のように変更の内容がメンションを扱う PR では、概要が `@sourcery-ai` などを引用しうる。そのとき `append-pr` は `current-body-mention` で止まる（誤投稿ではなく停止に倒れる安全側）。止まったときは `fixprguard_guide.md` の `current-body-mention` の対処のとおり `append-pr` を繰り返さず、利用者が PR の説明を GitHub 上で確かめ、必要なら訂正の段落を手で追記する。概要はレビューのたびに更新されるため、この停止は `/fixpr` のラウンドごとに繰り返しうる。また、`append-pr` は PR の説明全体を書き込むため、Sourcery AI の更新と重なると一方の書き込みが失われうる（未観測）。
--   **`/mergepr` 単独実行での `github-actions` 限定監視:** `mergepr prepare` が `app.slug == "github-actions"` のみを監視対象とするため、将来 GitHub Actions 以外の外部必須 CI サービスを導入する場合は `internal/ghci` の対象 App を見直す必要がある（`mergepr_guide.md` 6.2 節に前提として明記する）。逆に、`github-actions` の CheckSuite であっても CI でないものは区別しない。リポジトリには GitHub Actions で動くレビューのワークフロー `.github/workflows/deepseek-review.yml`（`name: Code Review`、自動の起動は無効で手動実行のみ）があり、PR のブランチで手動実行すると `head` コミットに `github-actions` の CheckSuite ができ、その失敗は CI の失敗として待機を止める。このワークフローを PR のブランチで動かす運用を戻す場合は、`internal/ghci` の対象をワークフロー名などで絞るかを見直す。
+-   **`/mergepr` 単独実行での `github-actions` 限定監視:** `mergepr prepare` が `app.slug == "github-actions"` のみを監視対象とするため、将来 GitHub Actions 以外の外部必須 CI サービスを導入する場合は `internal/ghci` の対象 App を見直す必要がある（`mergepr_guide.md` 6.2 節に前提として明記する）。逆に、`github-actions` の CheckSuite であっても CI でないものは区別しない。リポジトリには GitHub Actions で動くレビューのワークフロー `.github/workflows/deepseek-review.yml`（`name: Code Review`、自動の起動は無効で手動実行のみ）があり、PR のブランチで手動実行すると `head` コミットに `github-actions` の CheckSuite ができ、その失敗は CI の失敗として待機を止める。3.2.4 のガードは `workflow_dispatch` を使えるワークフローをこのファイルだけに宣言しており、別のワークフローが `workflow_dispatch` を使うと失敗するが、このファイルを PR のブランチで手動実行する残余リスクは残る。このワークフローを PR のブランチで動かす運用を戻す場合は、`internal/ghci` の対象をワークフロー名などで絞るかを見直す。
 
 ## 6. 処理フロー詳細 (Processing Flow Details)
 
@@ -1094,3 +1094,4 @@ flowchart TD
 ## 変更履歴
 
 - 2026-11-24 承認（isseis、#1102）
+- 2026-11-25 draft への戻し：単一ワークフローのガードで `workflow_dispatch` を宣言済みの `deepseek-review.yml` に限り、PR ブランチへの手動実行の残余リスクを 3.2.4・5.4 に記録（#1143）

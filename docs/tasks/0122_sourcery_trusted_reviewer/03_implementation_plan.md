@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `approved` |
+| Status | `draft` |
 | Created | 2026-11-24 |
-| Review date | 2026-11-24 |
-| Reviewer | isseis |
-| Comments | - |
+| Review date | - |
+| Reviewer | - |
+| Comments | 02_architecture.md の決定の変更に伴って draft に戻した |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -535,3 +535,4 @@
 ## 変更履歴
 
 - 2026-11-24 承認（isseis、#1117）
+- 2026-11-25 draft への戻し：02_architecture.md の決定の変更に伴う（#1143）

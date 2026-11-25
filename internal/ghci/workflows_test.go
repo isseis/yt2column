@@ -11,15 +11,18 @@ import (
 )
 
 // The evaluation in this package treats "every GitHub Actions check suite on
-// the head commit has passed" as "CI passed". That holds only while a single
-// workflow puts check suites on a pull request's head commit: with a second
-// one, ReadPR can report passed before the later suite appears, and a failure
-// of a workflow that is not CI (such as a review bot run in Actions) blocks the
-// merge. The guard below keeps the repository's workflows in that shape: the CI
-// workflow runs on pull_request alone, and every other workflow runs only on
-// triggers that never attach a check suite to a pull request's head commit.
-// A trigger outside these lists fails the test, so adding one means revisiting
-// the evaluation (for example by declaring the required workflows).
+// the head commit has passed" as "CI passed". That holds only while ci.yml is
+// the only workflow that attaches a check suite to a pull request's head
+// commit automatically: with a second one, ReadPR can report passed before the
+// later suite appears, and a failure of a workflow that is not CI (such as a
+// review bot run in Actions) blocks the merge. The guard below keeps the
+// repository's workflows in that shape: ci.yml runs on pull_request alone,
+// another workflow may run on schedule (which fires only on the default
+// branch), and workflow_dispatch (which runs on the ref a person selects, so a
+// pull request's branch included) is allowed only in manualWorkflowFiles, the
+// review workflow kept on a person's decision. Any other trigger, and
+// workflow_dispatch in another file, fails the test, so adding one means
+// revisiting the evaluation (for example by declaring the required workflows).
 const (
 	workflowsDir   = "../../.github/workflows"
 	ciWorkflowFile = "ci.yml"
@@ -27,8 +30,13 @@ const (
 
 var (
 	ciWorkflowTriggers = []string{"pull_request"}
-	// Triggers that never run against a pull request's head commit.
-	detachedWorkflowTriggers = []string{"workflow_dispatch", "schedule"}
+	// Triggers that never attach a check suite to a pull request's head
+	// commit: schedule fires only on the default branch.
+	scheduledWorkflowTriggers = []string{"schedule"}
+	// workflow_dispatch runs on the ref a person selects, so it can target a
+	// pull request's branch. Only these files may use it.
+	manualWorkflowTrigger = "workflow_dispatch"
+	manualWorkflowFiles   = []string{"deepseek-review.yml"}
 )
 
 var errWorkflowTriggers = errors.New("unreadable workflow triggers")
@@ -48,19 +56,30 @@ func TestCheckWorkflowTriggers(t *testing.T) {
 	}{
 		{name: "ci_only", files: map[string]string{"ci.yml": ci}},
 		{
-			name: "other_workflow_manual_and_scheduled_with_commented_triggers",
+			name: "declared_manual_workflow_with_scheduled_and_commented_triggers",
 			files: map[string]string{
 				"ci.yml": ci,
-				"bot.yml": "name: bot\non:\n  # pull_request:\n  #   types: [opened]\n  workflow_dispatch:\n" +
+				"deepseek-review.yml": "name: bot\non:\n  # pull_request:\n  #   types: [opened]\n  workflow_dispatch:\n" +
 					"    inputs:\n      push:\n        type: string\n  schedule:\n    - cron: '0 0 * * *'\njobs: {}\n",
 			},
 		},
+		{
+			name: "undeclared_manual_workflow",
+			files: map[string]string{
+				"ci.yml":  ci,
+				"bot.yml": "name: bot\non:\n  workflow_dispatch:\n    inputs:\n      push:\n        type: string\njobs: {}\n",
+			},
+			wantErr: true,
+		},
+		{name: "declared_manual_workflow_with_pull_request", files: map[string]string{"ci.yml": ci, "deepseek-review.yml": "on:\n  workflow_dispatch:\n  pull_request:\n"}, wantErr: true},
 		{name: "other_workflow_on_pull_request", files: map[string]string{"ci.yml": ci, "bot.yml": "on:\n  pull_request:\njobs: {}\n"}, wantErr: true},
 		{name: "other_workflow_on_push", files: map[string]string{"ci.yml": ci, "bot.yaml": "on:\n  push:\n    branches: ['**']\n"}, wantErr: true},
 		{name: "other_workflow_on_workflow_run", files: map[string]string{"ci.yml": ci, "bot.yml": "on:\n  workflow_run:\n    workflows: [CI]\n"}, wantErr: true},
 		{name: "other_workflow_inline_list", files: map[string]string{"ci.yml": ci, "bot.yml": "on: [workflow_dispatch, pull_request]\n"}, wantErr: true},
 		{name: "other_workflow_inline_scalar", files: map[string]string{"ci.yml": ci, "bot.yml": "on: pull_request_target\n"}, wantErr: true},
-		{name: "other_workflow_inline_detached", files: map[string]string{"ci.yml": ci, "bot.yml": "on: [workflow_dispatch, schedule] # manual\n"}},
+		{name: "other_workflow_schedule_only", files: map[string]string{"ci.yml": ci, "bot.yml": "on:\n  schedule:\n    - cron: '0 0 * * *'\n"}},
+		{name: "undeclared_workflow_inline_manual", files: map[string]string{"ci.yml": ci, "bot.yml": "on: [workflow_dispatch, schedule] # manual\n"}, wantErr: true},
+		{name: "declared_workflow_inline_manual_and_scheduled", files: map[string]string{"ci.yml": ci, "deepseek-review.yml": "on: [workflow_dispatch, schedule] # manual\n"}},
 		{name: "ci_with_extra_trigger", files: map[string]string{"ci.yml": "on:\n  pull_request:\n  push:\n"}, wantErr: true},
 		{name: "ci_missing", files: map[string]string{"bot.yml": "on:\n  workflow_dispatch:\n"}, wantErr: true},
 		{name: "quoted_on_key_is_unreadable", files: map[string]string{"ci.yml": ci, "bot.yml": "\"on\":\n  pull_request:\n"}, wantErr: true},
@@ -89,8 +108,8 @@ func TestCheckWorkflowTriggers(t *testing.T) {
 }
 
 // checkWorkflowTriggers reads the top-level "on" key of every workflow in dir
-// and checks the triggers against ciWorkflowTriggers and
-// detachedWorkflowTriggers.
+// and checks the triggers against ciWorkflowTriggers, scheduledWorkflowTriggers,
+// and manualWorkflowFiles.
 func checkWorkflowTriggers(dir string) error {
 	var paths []string
 	for _, pattern := range []string{"*.yml", "*.yaml"} {
@@ -118,11 +137,15 @@ func checkWorkflowTriggers(dir string) error {
 			continue
 		}
 		for _, trigger := range triggers {
-			if !slices.Contains(detachedWorkflowTriggers, trigger) {
-				return fmt.Errorf("%s: trigger %q can attach a check suite to a pull request head; "+
-					"internal/ghci assumes only %s does (allowed here: %v)",
-					filepath.Base(path), trigger, ciWorkflowFile, detachedWorkflowTriggers)
+			if slices.Contains(scheduledWorkflowTriggers, trigger) {
+				continue
 			}
+			if trigger == manualWorkflowTrigger && slices.Contains(manualWorkflowFiles, filepath.Base(path)) {
+				continue
+			}
+			return fmt.Errorf("%s: trigger %q can attach a check suite to a pull request head; "+
+				"internal/ghci assumes only %s does automatically (allowed here: %v, and %q only in %v)",
+				filepath.Base(path), trigger, ciWorkflowFile, scheduledWorkflowTriggers, manualWorkflowTrigger, manualWorkflowFiles)
 		}
 	}
 	if !sawCI {
