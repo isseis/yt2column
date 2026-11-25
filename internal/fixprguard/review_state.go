@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -59,13 +60,64 @@ const (
 	reviewWaitLimit = 15 * time.Minute
 
 	// Fixed limits; going over one is the unreadable state with reason limit.
-	maxReviewComments = 3000
-	maxReviewReviews  = 3000
+	maxRESTItems      = 3000
+	maxReviewComments = maxRESTItems
+	maxReviewReviews  = maxRESTItems
 	maxPRCommits      = 1000
 	maxCheckSuites    = 50
 	maxCheckRuns      = 100
 	maxPRCommitPages  = maxPRCommits/commitsPerPage + 1
 )
+
+// ReviewProfile declares which reviewer's CheckRun naming, classification,
+// automatic-review, observed status-comment, and competing-run rules apply.
+// Contract: the zero value ProfileUnknown fails closed (MarshalText returns
+// errUnknownEnum, usable returns false, and callers reject it with
+// ErrInvalidInput).
+type ReviewProfile int
+
+// Declared reviewer profiles.
+const (
+	ProfileUnknown    ReviewProfile = iota // invalid zero value
+	ProfileCodeRabbit                      // "coderabbit": CheckRun "CodeRabbit", manual only
+	ProfileSourcery                        // "sourcery": CheckRun "Sourcery review", auto + manual
+)
+
+// ParseReviewProfile parses s into a declared ReviewProfile without repairing
+// it; any unknown value returns ErrInvalidInput without echoing s.
+func ParseReviewProfile(s string) (ReviewProfile, error) {
+	switch s {
+	case "coderabbit":
+		return ProfileCodeRabbit, nil
+	case "sourcery":
+		return ProfileSourcery, nil
+	default:
+		return ProfileUnknown, fmt.Errorf("%w: review profile", ErrInvalidInput)
+	}
+}
+
+func (p ReviewProfile) usable() bool {
+	return p == ProfileCodeRabbit || p == ProfileSourcery
+}
+
+// MarshalText names the profile. ProfileUnknown and any value outside the
+// declared set return errUnknownEnum.
+func (p ReviewProfile) MarshalText() ([]byte, error) {
+	switch p {
+	case ProfileCodeRabbit:
+		return []byte("coderabbit"), nil
+	case ProfileSourcery:
+		return []byte("sourcery"), nil
+	default:
+		return nil, fmt.Errorf("%w: review profile", errUnknownEnum)
+	}
+}
+
+// ReviewProfiles lists every valid ReviewProfile, for the guide's document
+// guard.
+func ReviewProfiles() []ReviewProfile {
+	return []ReviewProfile{ProfileCodeRabbit, ProfileSourcery}
+}
 
 // RunKind classifies one reviewer check run. The zero value is RunUnknown, the
 // interpretation that assumes least: a run left unclassified is never read as
@@ -518,10 +570,10 @@ func (r *reviewReader) readHead(ctx context.Context) (string, *reviewError) {
 	return sha, nil
 }
 
-// restPages reads every page of a REST list, at most limit items in all, and
-// hands each item to each. A page with fewer than restPerPage items is the
-// last.
-func (r *reviewReader) restPages(ctx context.Context, path string, limit int, each func(strictjson.Value) error) *reviewError {
+// restPages reads every page of a REST list, at most maxRESTItems items in
+// all, and hands each item to each. A page with fewer than restPerPage items
+// is the last.
+func (r *reviewReader) restPages(ctx context.Context, path string, each func(strictjson.Value) error) *reviewError {
 	count := 0
 	for page := 1; ; page++ {
 		body, failure := r.restGet(ctx, fmt.Sprintf("%s?per_page=%d&page=%d", path, restPerPage, page))
@@ -533,7 +585,7 @@ func (r *reviewReader) restPages(ctx context.Context, path string, limit int, ea
 			return failReview(UnreadableRejected)
 		}
 		count += len(items)
-		if count > limit {
+		if count > maxRESTItems {
 			return failReview(UnreadableLimit)
 		}
 		for _, item := range items {
@@ -553,7 +605,7 @@ func (r *reviewReader) restPages(ctx context.Context, path string, limit int, ea
 // Bot, or another user with the same body, is not.
 func (r *reviewReader) readRequests(ctx context.Context, user, request string) ([]requestComment, *reviewError) {
 	var requests []requestComment
-	failure := r.restPages(ctx, "issues/"+r.pr.String()+"/comments", maxReviewComments, func(item strictjson.Value) error {
+	failure := r.restPages(ctx, "issues/"+r.pr.String()+"/comments", func(item strictjson.Value) error {
 		obj, err := item.AsObject()
 		if err != nil {
 			return rejected("comment")
@@ -586,12 +638,23 @@ func (r *reviewReader) readRequests(ctx context.Context, user, request string) (
 		if err != nil || !validCommentURL(url) {
 			return rejected("comment html_url")
 		}
-		if kind == typenameUser && login == user && strings.TrimSpace(body) == request {
+		if isRequestComment(kind, login, user, body, []string{request}) {
 			requests = append(requests, requestComment{id: id, url: url, created: created, updated: updated})
 		}
 		return nil
 	})
 	return requests, failure
+}
+
+// isRequestComment reports whether a PR conversation comment is a manual
+// review request from the authenticated user. Contract: only a User whose
+// login matches user byte for byte and whose body after strings.TrimSpace
+// equals one of requests is a request comment; a Bot or another user never is.
+func isRequestComment(kind, login, user, body string, requests []string) bool {
+	if kind != typenameUser || login != user {
+		return false
+	}
+	return slices.Contains(requests, strings.TrimSpace(body))
 }
 
 // positiveInt64Member reads a required member that is a positive integer.
@@ -1012,7 +1075,7 @@ func optionalTimeMember(members map[string]strictjson.Value, key string) (*time.
 func (r *reviewReader) readReviews(ctx context.Context, reviewer Login) ([]prReview, *reviewError) {
 	var reviews []prReview
 	wantLogin := reviewer.String() + botLoginSuffix
-	failure := r.restPages(ctx, "pulls/"+r.pr.String()+"/reviews", maxReviewReviews, func(item strictjson.Value) error {
+	failure := r.restPages(ctx, "pulls/"+r.pr.String()+"/reviews", func(item strictjson.Value) error {
 		obj, err := item.AsObject()
 		if err != nil {
 			return rejected("review")

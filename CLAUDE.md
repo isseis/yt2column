@@ -522,17 +522,32 @@ its security rules in `docs/dev/security.md` §8.
   changes no other character.
   Exception: `fixprguard review-state` (`internal/fixprguard/review_state.go`)
   chooses behavior by inspecting the content of a reviewer check run's
-  `status`, `conclusion`, and `title`. Scope: it compares that triple with the
-  fixed table of the classification (`checkRun.kind`) and nothing else about
-  the check run's text; this is the only place a check run's title selects
-  behavior, and the tool prints only the resulting kind, never the title.
-  Reason: the title is written by the reviewer service, an external value the
-  tool cannot express in a type, and it is needed to tell a finished review
-  from a rate limit or an error, which can end with the same conclusion.
-  Boundary: a `COMPLETED` triple that is not in the table is `RunUnknown` and
-  is never read as a finished review; the titles are compared in full and not
-  repaired; a status other than `COMPLETED` is a run in progress whatever its
-  title.
+  `status`, `conclusion`, and `title`, and `fixprguard mentions`
+  (`internal/fixprguard/mentions.go`) chooses behavior by inspecting PR comment
+  and review bodies. Scope: `review_state.go` compares the check run's triple
+  with the fixed table of the classification (`checkRun.kind`) and nothing else
+  about the check run's text, and prints only the resulting kind, never the
+  title; `mentions.go` inspects a comment or review body only for (1) exact
+  first-line matches (after stripping a single trailing CR) against the
+  observed status-comment headers declared for each `ReviewProfile` (`Bot`
+  accounts with the matching `[bot]` login only, and for `ProfileSourcery`
+  conversation comments only), (2) exact full-body matches (after
+  `strings.TrimSpace`) against the caller-supplied manual request texts via
+  `isRequestComment` (conversation comments by the authenticated `User` only),
+  and (3) ASCII case-insensitive substring matches against `RejectedMentions()`,
+  and never prints a body. Reason: the check run title and comment or review
+  bodies are written by reviewer services and GitHub accounts, external values
+  the tool cannot express in a type, and classifying check runs, excluding
+  observed bot status comments and the user's own manual requests, and
+  detecting rejected mentions are the purposes of these checks. Boundary: in
+  `review_state.go`, a `COMPLETED` triple that is not in the table is
+  `RunUnknown` and is never read as a finished review, titles are compared in
+  full and not repaired, and a status other than `COMPLETED` is a run in
+  progress whatever its title; in `mentions.go`, any item whose author kind,
+  login, or first line does not match an observed status-comment rule exactly
+  is not excluded (a `User` with a matching login or a non-matching header is
+  never excluded), bodies are compared without repair, and the output carries
+  only source, URL, timestamps, and author booleans, never body text.
   Exception: the chief tool's screen readers (the files of `internal/chief`
   whose names start with `screen`) choose behavior by inspecting the content
   of an agent's pane screen and of Claude Code's transcript. Scope: they read

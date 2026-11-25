@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
+	"github.com/isseis/yt2column/internal/ghci"
 	"github.com/isseis/yt2column/internal/strictjson"
 )
 
@@ -20,9 +21,6 @@ const (
 
 	// githubTimeout bounds every gh call.
 	githubTimeout = 2 * time.Minute
-
-	// maxRepoNameLength is GitHub's limit on a repository name.
-	maxRepoNameLength = 100
 
 	headFields = "isCrossRepository,headRepository,headRepositoryOwner"
 )
@@ -48,10 +46,10 @@ func NewGitHub(run cmdrunner.InputRunner, reviewers Reviewers) (*GitHub, error) 
 }
 
 // NewGitHubWithoutReviewer returns a GitHub for the calls that judge no
-// thread: Head, CurrentPR, EditPR, AppendPR and InteractionLimits. Its reviewers are the zero
-// Reviewers, and the calls that judge threads (List, Begin, ThreadPaths,
-// Reply) refuse to run on it, so a subcommand that takes no --reviewer cannot
-// judge with none.
+// thread: Head, CurrentPR, EditPR, AppendPR, InteractionLimits, PRReviewState,
+// PRMentions and CIChecks. Its reviewers are the zero Reviewers, and the calls
+// that judge threads (List, Begin, ThreadPaths, Reply) refuse to run on it, so
+// a subcommand that takes no --reviewer cannot judge with none.
 func NewGitHubWithoutReviewer(run cmdrunner.InputRunner) (*GitHub, error) {
 	if run == nil {
 		return nil, fmt.Errorf("%w: no runner", ErrInvalidInput)
@@ -93,48 +91,31 @@ type repository struct {
 	name  string
 }
 
-// resolveRepository asks gh for the local repository. The owner and name are
-// never taken from the caller, and both are checked before they are put into a
-// request path.
+// resolveRepository asks gh for the local repository via ghci.ResolveRepo
+// under githubTimeout. Contract: the owner and name are never taken from the
+// caller, both pass strict parsing and validation, and any failure maps to
+// ErrResponseRejected without echoing untrusted output or command arguments.
 func (g *GitHub) resolveRepository(ctx context.Context) (repository, error) {
-	out, err := g.runGH(ctx, nil, "repo", "view", "--json", "nameWithOwner")
+	ctx, cancel := context.WithTimeout(ctx, githubTimeout)
+	defer cancel()
+	owner, name, err := ghci.ResolveRepo(ctx, g.run)
 	if err != nil {
-		return repository{}, ghFailure("repo view", err)
-	}
-	if len(out) > maxResponseBytes {
-		return repository{}, rejected("response size")
-	}
-	obj, err := strictjson.ParseObject(out)
-	if err != nil {
+		if repoErr, ok := errors.AsType[*ghci.RepoError](err); ok {
+			switch repoErr.Reason {
+			case ghci.UnreadableCall:
+				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+					return repository{}, fmt.Errorf("%w: repo view timed out", ErrResponseRejected)
+				}
+				return repository{}, fmt.Errorf("%w: repo view failed", ErrResponseRejected)
+			case ghci.UnreadableLimit:
+				return repository{}, rejected("response size")
+			default:
+				return repository{}, rejected("repository name")
+			}
+		}
 		return repository{}, rejected("repo view")
-	}
-	members, err := obj.Collect("nameWithOwner")
-	if err != nil {
-		return repository{}, rejected("repo view")
-	}
-	full, err := strictjson.RequiredString(members, "nameWithOwner")
-	if err != nil {
-		return repository{}, rejected("repo view")
-	}
-	owner, name, ok := strings.Cut(full, "/")
-	if !ok || !validLogin(owner) || !validRepoName(name) {
-		return repository{}, rejected("repository name")
 	}
 	return repository{owner: owner, name: name}, nil
-}
-
-// validRepoName accepts ASCII letters, digits, '.', '-' and '_', but not "."
-// or "..".
-func validRepoName(s string) bool {
-	if s == "" || s == "." || s == ".." || len(s) > maxRepoNameLength {
-		return false
-	}
-	for i := range len(s) {
-		if !isASCIIAlnum(s[i]) && s[i] != '.' && s[i] != '-' && s[i] != '_' {
-			return false
-		}
-	}
-	return true
 }
 
 // HeadInfo is the output of head.
