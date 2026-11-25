@@ -708,8 +708,8 @@ var conflictPRJSON = strings.Replace(openPRJSON, `"MERGEABLE"`, `"CONFLICTING"`,
 // TestSnapshotConflictRow reads a workspace whose open PR GitHub lists as
 // CONFLICTING: the row is a conflict row of the phase with no send yet,
 // later and the human's, showing the PR and its head; with its records
-// directory or its stop record unreadable, its phase is the one that never
-// sends.
+// directory unreadable, its phase is the one that never sends; an unreadable
+// stop record is shown as such and leaves the phase to the send records.
 func TestSnapshotConflictRow(t *testing.T) {
 	if conflictPRJSON == openPRJSON {
 		t.Fatal("openPRJSON no longer holds MERGEABLE")
@@ -719,8 +719,10 @@ func TestSnapshotConflictRow(t *testing.T) {
 		tree := w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: conflictPRJSON})
 		want := ConflictUnsent
 		unreadable := broken != ""
-		if unreadable {
+		if broken == "directory" {
 			want = ConflictRecordsUnreadable
+		}
+		if unreadable {
 			dir, err := w.store.WorkspaceDir(Worktree{path: tree})
 			if err != nil {
 				t.Fatal(err)
