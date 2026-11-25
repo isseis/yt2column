@@ -47,6 +47,12 @@
    - **理由:** `metadataDocs.test.ts` の照合対象に製品名が含まれないことから 2 本の PR が独立してグリーンゲートを通過でき、コード変更と日本語・英語文書のレビュー観点を分離できるためである。
    - **ADR:** なし（本タスク内の実装分割であり、主要決定ではないため）。
 
+### 1.3. 実装の際に決めたこと（2026-11-26）
+
+1. **§7 に一時スクリプトの記録の枠を足す:** ステップ 1-3 で作る `docs/tasks/0125_product_name/_checks/old_name_absent.sh` について、`docs/dev/conventions/requirements_process.md`「Temporary scripts (`_checks/`)」が求める一時スクリプトの記録の枠を、§7 の受け入れ基準の検証に足す。
+   - **理由:** 本計画は同節の規則が `main` に入った後に承認されており、`_checks/` のスクリプトごとに §7 の記録を求める規則が当てはまる。計画が既に決めているスクリプト・チェック・予定する実行を記録の形に写すだけで、新しいチェックや実行は足さない。壊し確認の記録と実行の記録は実装時に埋める。
+   - **ADR:** なし（承認済みの計画に既存の規則の記録を当てはめるもので、主要決定ではないため）。
+
 ## 2. 実装ステップ
 
 ### フェーズ 1: ブラウザ拡張の製品名・UI 文言・テスト更新
@@ -216,6 +222,16 @@
 | AC-15 | `diff` | recorded diff reading（対象パス: `docs/dev/guides/development.md`）。PR-2 実装時に下の `Diff record (AC-15)` へ記録し、PR レビューで確認 | 2-3 |
 | AC-16 | `diff` / `manual` | 下の `Diff record (AC-16)`（対象パス: `docs/translation_glossary.md`）で追加した 2 行の差分を確かめ、PR-2 レビューで用語集の記述を目視確認 | 2-1 / 2-3 |
 
+### 一時スクリプトの記録（`_checks/old_name_absent.sh`）
+
+- **スクリプト:** `docs/tasks/0125_product_name/_checks/old_name_absent.sh`。移行の確認として、利用者に見える拡張の文言から旧名 `yt2column` が消えたことを一度だけ確かめる。確かめる AC は AC-05・AC-06。
+- **チェック:**
+  - `old_name_absent`: `extension/src/core/i18n/ja.ts`・`extension/src/core/i18n/en.ts`・`extension/static/_locales/ja/messages.json`・`extension/static/_locales/en/messages.json`・`extension/static/popup.html`・`extension/static/options.html`・`extension/static/viewer.html` に `yt2column` が 1 か所もないこと。見つかった行を出力して非 0 で終わる。読み取れないファイルがあるときは、合格を報告せず非 0 で終わる。各チェックは少なくとも 1 つの壊し方で失敗する。
+- **予定する実行:** PR-1 を作る前に、実装者が PR-1 のブランチで 1 回実行する。出力と 2 つのコミット ID は下の「AC-05・AC-06 の記録」に書く。
+- **テスト:** コミットしない（旧名の不在は移行の確認であり、改名が定着した後も旧名を禁じ続ける恒久テストにはしない）。
+- **壊し確認の記録:** 実装時に書く。
+- **実行の記録:** 実装時に書く。
+
 Diff record (AC-10・AC-11・AC-12):
 
 - Compared paths: `README.md`
@@ -255,3 +271,4 @@ Diff record (AC-16):
 ## 変更履歴
 
 - 2026-11-26 承認（isseis、#1164）
+- 2026-11-26 セッション中の再承認：§7 に一時スクリプトの記録の枠を足した（isseis、#未記入）
