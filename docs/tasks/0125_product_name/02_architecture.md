@@ -12,11 +12,11 @@
 
 ## 1. 設計の全体像
 
-本書は、[01_requirements.md](01_requirements.md)（以下、要件書）が定める利用者向け製品名（コア製品名 `ヨムドウガ` / `YomuDoga`、Chrome ウェブストア表示名 `ヨムドウガ for YouTube™` / `YomuDoga for YouTube™`、開発用のビルド表示名 `ヨムドウガ（開発用のビルド）` / `YomuDoga (development build)`）および説明文を、拡張機能と文書へ一貫して適用するための構成と既存テスト契約の変更を定義する。実行時のアーキテクチャやデータフローを変更しないため、簡易な進め方（`requirements_process.md`「Simple Process」）に従い Mermaid 図は省略する。既存コードの行番号はコミット `1a5b6cab`（`origin/main`）で確認した。
+本書は、[01_requirements.md](01_requirements.md)（以下、要件書）が定める利用者向け製品名および説明文を、ブラウザ拡張と文書へ一貫して適用するための構成と既存テスト契約の変更を定義する。適用する製品名は、コア製品名 `ヨムドウガ` / `YomuDoga`、Chrome ウェブストア表示名 `ヨムドウガ for YouTube™` / `YomuDoga for YouTube™`、開発用のビルド表示名 `ヨムドウガ（開発用のビルド）` / `YomuDoga (development build)` である。実行時のアーキテクチャやデータフローを変更しないため、簡易な進め方（`requirements_process.md`「Simple Process」）に従い Mermaid 図は省略する。既存コードの行番号はコミット `1a5b6cab`（`origin/main`）で確認した。
 
 ### 1.1. 設計原則
 
-- **既存の仕組みの再利用（DRY / YAGNI）:** 拡張機能のローカライズ（`extension/static/_locales/{ja,en}/messages.json` および `extension/src/core/i18n/{ja,en}.ts`）、ビルド種別の切り替え（`extension/scripts/build-variant.ts`）、README の 2 言語同期（`/mktrans README.md` と `TestReadmeSyncMarker`）をそのまま使い、新しい実行機構やスクリプトを追加しない。
+- **既存の仕組みの再利用（DRY / YAGNI）:** ブラウザ拡張のローカライズ（`extension/static/_locales/{ja,en}/messages.json` および `extension/src/core/i18n/{ja,en}.ts`）、ビルド種別の切り替え（`extension/scripts/build-variant.ts`）、README の 2 言語同期（`/mktrans README.md` と `TestReadmeSyncMarker`）をそのまま使い、新しい実行機構やスクリプトを追加しない。
 - **利用者向け名称と開発側名称の明確な分離:** 利用者に見える表示名・説明文・利用者向け文書のみを新製品名へ更新し、開発側の識別子（リポジトリ名、Go モジュール、CLI、環境変数、拡張内部ログ、WASM ファイル名、パッケージ名）は `yt2column` のまま保つ。
 - **既存ガードテストとの整合:** 拡張 ID・権限・Chrome 最低版・引用 UI 文言・README 同期・ADR 形式の各ガードテストが引き続き機能する形で、旧製品名前提のテスト期待値のみを更新する。
 
@@ -29,7 +29,7 @@
 
 ## 2. システム構成
 
-変更は拡張機能の静的アセット・UI カタログ・テストと、利用者向け文書および関連ドキュメントの 2 領域に分かれる。Go の製品コード（`cmd/`・`internal/`）およびビルドスクリプト（`extension/scripts/`）のロジックは変更しない。
+変更はブラウザ拡張の静的アセット・UI カタログ・テストと、利用者向け文書および関連文書の 2 領域に分かれる。Go の製品コード（`cmd/`・`internal/`）およびビルドスクリプト（`extension/scripts/`）のロジックは変更しない。
 
 ### 2.1. コンポーネント配置と変更ファイル一覧
 
@@ -46,13 +46,13 @@
 | 変更 | `extension/test/buildVariant.test.ts` | `extNameDev` の先頭一致検査をロケール別コア製品名へ更新 |
 | 変更 | `extension/test/viewerTitle.test.ts` | ビューアタイトルの期待値と `messages.json` との照合契約をコア製品名基準へ更新 |
 | 変更 | `extension/test/viewerApp.test.ts` | ビューアタイトルのアサーションを `YomuDoga` へ更新 |
-| 変更 | `extension/test/catalog.test.ts` | 製品名を含む UI カタログ項目（`optionsPage.title`・`rejection` 手順）の検証と旧名 `yt2column` 不在検査を追加 |
+| 変更 | `extension/test/catalog.test.ts` | 製品名を含む UI カタログ項目（`optionsPage.title`・`rejection` 手順）の検証と旧名 `yt2column` が含まれないことの検証を追加 |
 | 変更 | `extension/test/popupHtml.test.ts` | `popup.html`・`viewer.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
 | 変更 | `extension/test/optionsHtml.test.ts` | `options.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
 | 新規 | `docs/store/chrome_web_store.md` | Chrome ウェブストアの表示名・短い説明文・商標運用条件・日英詳細説明文を収録 |
-| 変更 | `README.md` | H1・冒頭概要文・`## 特徴` 新設・製品名更新・非公式と帰属表示を追加 |
+| 変更 | `README.md` | H1・冒頭概要文・製品名を更新し、`## 特徴` 節および非公式表記と帰属表示を追加 |
 | 変更 | `README.en.md` | `/mktrans README.md` により `README.md` と同期 |
-| 変更 | `INSTALL.md` | 製品名の 4 箇所（冒頭・ピン固定・ビューアタイトル・アンインストール）を更新 |
+| 変更 | `INSTALL.md` | 製品名の 4 箇所（冒頭・ツールバー固定・ビューアタイトル・アンインストール）を更新 |
 | 変更 | `docs/dev/guides/development.md` | 119 行目の開発用のビルド表示名の引用のみを更新 |
 | 変更 | `docs/translation_glossary.md` | コア製品名と Chrome ウェブストア表示名の 2 行を追加 |
 | 変更 | `CLAUDE.md` | 「Document language」に `docs/store/chrome_web_store.md` の位置づけを追記 |
@@ -60,9 +60,9 @@
 
 ## 3. コンポーネント設計
 
-### 3.1. 拡張機能マニフェストとロケールカタログ（F-001）
+### 3.1. ブラウザ拡張の manifest とロケールカタログ（F-001）
 
-`extension/static/manifest.json` は `"name": "__MSG_extName__"`・`"description": "__MSG_extDescription__"`（`:3-4`）および公開鍵 `"key"`（`:7`）・`"permissions"`（`:16`）をそのまま維持し、変更しない。開発用のビルドは `extension/scripts/build-variant.ts:23-26` が `"__MSG_extName__"` を `"__MSG_extNameDev__"` に置き換える既存の仕組みをそのまま使う。
+`extension/static/manifest.json` は `"name": "__MSG_extName__"`・`"description": "__MSG_extDescription__"`（`:3-4`）および公開鍵 `"key"`（`:7`）・`"permissions"`（`:16`）をそのまま維持し、変更しない。開発用のビルドは `extension/scripts/build-variant.ts:23-26,79-94` の `devManifest` が `"__MSG_extName__"` を `"__MSG_extNameDev__"` に置き換える既存の仕組みをそのまま使う。
 
 ロケールカタログの各項目は次の確定値へ更新する。
 
@@ -70,19 +70,21 @@
 |---|---|---|
 | `extName` | `ヨムドウガ for YouTube™` | `YomuDoga for YouTube™` |
 | `extNameDev` | `ヨムドウガ（開発用のビルド）` | `YomuDoga (development build)` |
-| `extDescription` | `YouTube™ 動画を、さっと読める新聞・雑誌風の日本語コラム記事に。選んだ文字起こしから、AI が読みやすく編集します。`（61 文字） | `Turns YouTube™ videos into readable Japanese magazine-style column articles from your selected transcript with AI.`（115 文字） |
+| `extDescription` | `YouTube™ 動画を、さっと読める新聞・雑誌風の日本語コラム記事に。選んだ文字起こしから、AI が読みやすく編集します。`（62 文字） | `Turns YouTube™ videos into readable Japanese magazine-style column articles from your selected transcript with AI.`（114 文字） |
 
 いずれの `extDescription` も Chrome の上限 132 文字以内であり、プレースホルダ文字 `$` を含まない。
 
 **既存設計方針への例外（`extName` の日英分離）:**
 
 - **元の方針と場所:** `docs/tasks/0043_extension_i18n/02_architecture.md:507,571` は、`extName` を英語・日本語とも同一の `yt2column` とする方針を定めていた。
-- **例外とする理由:** issue #1148 で日本語話者向けのカタカナ製品名（`ヨムドウガ`）と英語表記（`YomuDoga`）を定め、それぞれに互換性表記 `for YouTube™` を添える決定になったためである。
-- **更新が必要な既存テスト:** `extension/test/manifest.test.ts:255-273`（`extName` が両ロケールとも `"yt2column"` であることを検証している箇所を、ロケール別の確定値へ更新）、`extension/test/buildVariant.test.ts:73-77`（`extNameDev` が `"yt2column"` で始まることを検証している箇所を、ロケール別のコア製品名 `"YomuDoga"` / `"ヨムドウガ"` で始まることの検証へ更新）。
+- **例外とする理由:** issue #1148 で日本語話者向けのカタカナ製品名（`ヨムドウガ`）と英語表記（`YomuDoga`）を定め、それぞれに互換性表記 `for YouTube™` を添えると決定したためである。
+- **更新が必要な既存テスト:**
+  - `extension/test/manifest.test.ts:255-273`: `extName` が両ロケールとも `"yt2column"` であることを検証している箇所を、ロケール別の確定値へ更新する。
+  - `extension/test/buildVariant.test.ts:73-77`: `extNameDev` が `"yt2column"` で始まることを検証している箇所を、ロケール別のコア製品名（`"YomuDoga"` / `"ヨムドウガ"`）で始まることの検証へ更新する。
 
-### 3.2. 拡張機能 UI カタログと静的 HTML（F-002）
+### 3.2. ブラウザ拡張の UI カタログと静的 HTML（F-002）
 
-UI カタログ（`extension/src/core/i18n/ja.ts`・`en.ts`）は既存の `Catalog` 型（`extension/src/core/i18n/catalog.ts`）を変更せず、製品名を含む 4 箇所の文字列値のみを更新する。
+UI カタログ（`extension/src/core/i18n/ja.ts`・`en.ts`）は既存の `Catalog` 型（`extension/src/core/i18n/catalog.ts`）を変更せず、製品名を含む 5 項目（4 行）の文字列値のみを更新する。
 
 | カタログ項目 | `ja.ts`（変更前 → 変更後） | `en.ts`（変更前 → 変更後） |
 |---|---|---|
@@ -98,7 +100,10 @@ UI カタログ（`extension/src/core/i18n/ja.ts`・`en.ts`）は既存の `Cata
 
 - **元の方針と場所:** `docs/tasks/0091_extension_only_migration/02_architecture.md:487`・§3.8.2 および `extension/test/viewerTitle.test.ts:65-91` は、公開用のビルドのビューアタイトル末尾が `messages.json` の `extName` と完全一致することを前提としていた（当時は `extName` とコア製品名がともに `yt2column` であった）。
 - **例外とする理由:** `extName` に `for YouTube™` が付く一方で、ビューアのタブ名とブラウザ履歴では冗長を避け、開発用のビルド（`ヨムドウガ（開発用のビルド）`）やオプションページと揃えるため、公開用のビルドのビューアタイトルにはコア製品名（`ヨムドウガ` / `YomuDoga`）を使う（要件書「要件定義の際に決めたこと（2026-11-25）」決定 3）。
-- **更新が必要な既存テスト:** `extension/test/viewerTitle.test.ts:19-106`（公開用のビルドのタイトル期待値を `YomuDoga` / `ヨムドウガ` に改め、`:65-91` の `messages.json` 照合テストは `dev` が `extNameDev` と完全一致すること、および `release` の製品名に ` for YouTube™` を添えた文字列が `extName` と一致することを検証する形へ更新）、`extension/test/viewerApp.test.ts:281,337,356,371,400,619,824,835`（英語ロケールでの `doc.title` 期待値を `YomuDoga` へ更新）。なお `extension/test/optionsApp.test.ts:110` は `catalogs[locale].optionsPage.title` を直接参照しており、カタログ更新に自動追従する。
+- **更新が必要な既存テスト:**
+  - `extension/test/viewerTitle.test.ts:19-106`: 公開用のビルドのタイトル期待値を `YomuDoga` / `ヨムドウガ` に改める。`:65-91` の `messages.json` 照合テストは、`dev` が `extNameDev` と完全一致すること、および `release` の製品名に ` for YouTube™` を添えた文字列が `extName` と一致することを検証するよう更新する。
+  - `extension/test/viewerApp.test.ts:281,337,356,371,400,619,824,835`: 英語ロケールでの `doc.title` 期待値を `YomuDoga` へ更新する。
+  - なお `extension/test/optionsApp.test.ts:110` は `catalogs[locale].optionsPage.title` を直接参照しており、カタログ更新に自動追従する。
 
 ### 3.3. Chrome ウェブストア詳細説明文と文書言語方針（F-003）
 
@@ -109,14 +114,14 @@ UI カタログ（`extension/src/core/i18n/ja.ts`・`en.ts`）は既存の `Cata
 3. **詳細説明文（日本語版）:** issue #1148 コメント 5 の日本語確定案を `text` コードブロックで収録。
 4. **詳細説明文（英語版）:** issue #1148 コメント 5 の英語確定案を `text` コードブロックで収録。
 
-[ADR-0035](../../dev/adr/0035-language-policy.md) には本 3 文書 PR で `docs/store/chrome_web_store.md` が `/mktrans`・`TestReadmeSyncMarker` の同期対象外である決定を記録し、実装 PR で `CLAUDE.md`「Document language」の例外に追記したうえで、ADR-0035 のずれを示す一文を除去する。
+[ADR-0035](../../dev/adr/0035-language-policy.md) には本 3 文書 PR で `docs/store/chrome_web_store.md` が `/mktrans`・`TestReadmeSyncMarker` の同期対象外である決定を記録し、実装 PR で `CLAUDE.md`「Document language」の例外に追記したうえで、ADR-0035 の `CLAUDE.md` 未反映のずれを示す一文を除去する。
 
 ### 3.4. 利用者向け文書と開発手順・用語集（F-004・F-005）
 
 - **`README.md` と `README.en.md`:**
   - `README.md` の H1 を `# ヨムドウガ for YouTube™` にし、冒頭の概要文でコア製品名 `ヨムドウガ` を用いて、話し言葉の脱線や重複を整理し編集・校正まで行って新聞・雑誌風の日本語コラム記事に仕立てることを伝える（未リリースの注記は維持する）。
   - `## 特徴` 節を新設し、issue #1148 コメント 6 の 4 項目（結論が先・重要度順、4 形式への編集と文字起こし突き合わせチェック、非自動操作による画面変更への強さ、押下時のみの読み取り・中継サーバなし・オープンソース）を箇条書きでまとめる。ストア向けの「こんな方に向いています」や既存節と重複する「使い方（3 ステップ）」「注意点」は置かない。
-  - 既存の節（`## 仕組み`・`## 必要なもの`・`## インストールと使い方`・`## プライバシー`・`## 開発者向けの文書`）と `Chrome 142 以降` の表記（`extension/test/manifest.test.ts:141-151` が検査）を保ち、`README.md:32` 等の製品名呼称を `ヨムドウガ` に改める。末尾に非公式である旨と `YouTube is a trademark of Google LLC.` の帰属表示を置く。
+  - 既存の節（`## 仕組み`・`## 必要なもの`・`## インストールと使い方`・`## プライバシー`・`## 開発者向けの文書`）と `Chrome 142 以降` の表記（`extension/test/manifest.test.ts:141-151` が検査）を保ち、`README.md:32` 等の製品名呼称を `ヨムドウガ` に改める。ファイル末尾では `## 開発者向けの文書` 節の本文と紛れないよう、空行と水平線（`---`）で区切った後ろに非公式である旨と `YouTube is a trademark of Google LLC.` の帰属表示を置く（`internal/doctestutil/structure.go:119-125` は空行後の `---` を Setext 見出しではなく水平線として受理する）。
   - `README.en.md` は `/mktrans README.md` で同期し、`TestReadmeSyncMarker`（`cmd/yt2column/readme_sync_test.go`）および `TestReadmeVersionsShareStructure`（`cmd/yt2column/readme_structure_test.go`）を通す。
 - **`INSTALL.md`:**
   - `INSTALL.md:3` を「ヨムドウガ（Chrome ウェブストア表示名: ヨムドウガ for YouTube™）のブラウザ拡張」に、`INSTALL.md:80` と `:241` をブラウザの拡張機能メニュー・`chrome://extensions/` 上の実際の表示名である `ヨムドウガ for YouTube™` に、`INSTALL.md:201` を `<動画のタイトル> - ヨムドウガ` に更新する。
@@ -152,8 +157,20 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
 
 ### 7.1. ユニットテスト・ガードテスト
 
-- **拡張機能（`make ext-check`）:** `manifest.test.ts`（`extName`・`extNameDev`・`extDescription`・文字数上限・言語・`$` 禁止・Chrome 最低版・`manifest.json` キーと拡張 ID）、`buildVariant.test.ts`（`extNameDev` と `extName` の区別・先頭一致）、`viewerTitle.test.ts`（日英の公開用・開発用タイトルおよび `messages.json` との整合）、`viewerApp.test.ts`（`doc.title` の統合確認）、`optionsApp.test.ts`（`optionsPage.title` の反映）、`catalog.test.ts`（日英カタログの全項目非空・禁止語検査・`optionsPage.title` と `rejection` 手順の確定文言・旧名 `yt2column` の不在）、`popupHtml.test.ts`・`optionsHtml.test.ts`（静的 `<title>` が `YomuDoga` であること）、`metadataDocs.test.ts`（`INSTALL.md` の引用文言整合）を実行する。
-- **Go ガードテスト（`make test`）:** `TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`（`README.md` / `README.en.md` の同期と構造一致）、`TestADRRecords`（ADR-0035 の形式と索引整合）、`TestInstructionDocPaths`（`CLAUDE.md`・ADR の相対リンク解決）、`TestExtensionDocumentation`（拡張 ID・権限の整合）を実行する。
+- **ブラウザ拡張（`make ext-check`）:** 次のテストを実行する。
+  - `manifest.test.ts`: `extName`・`extNameDev`・`extDescription`・文字数上限・言語・`$` 禁止・Chrome 最低版・`manifest.json` キーと拡張 ID
+  - `buildVariant.test.ts`: `extNameDev` と `extName` の区別・先頭一致
+  - `viewerTitle.test.ts`: 日英の公開用・開発用タイトルおよび `messages.json` との整合
+  - `viewerApp.test.ts`: `doc.title` の統合確認
+  - `optionsApp.test.ts`: `optionsPage.title` の反映
+  - `catalog.test.ts`: 日英カタログの全項目非空・禁止語検査・`optionsPage.title` と `rejection` 手順の確定文言・旧名 `yt2column` が含まれないこと
+  - `popupHtml.test.ts`・`optionsHtml.test.ts`: 静的 `<title>` が `YomuDoga` であること
+  - `metadataDocs.test.ts`: `INSTALL.md` の引用文言整合
+- **Go ガードテスト（`make test`）:** 次のテストを実行する。
+  - `TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`・`TestReadmeLinks`: `README.md` / `README.en.md` / `INSTALL.md` の同期・構造一致・相対リンクとアンカー
+  - `TestADRRecords`: ADR-0035 の形式と索引整合
+  - `TestInstructionDocPaths`: `CLAUDE.md`・ADR の相対リンク解決
+  - `TestExtensionDocumentation`: 拡張 ID・権限の整合
 
 ### 7.2. 統合テスト・セキュリティテスト
 
@@ -167,10 +184,10 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
 
 ## 8. 実装の優先順位
 
-1. **フェーズ 1（拡張機能の製品名・UI 文言・テスト更新）:** `messages.json`（ja/en）、静的 HTML の `<title>`、`ja.ts` / `en.ts`、拡張テスト（`manifest.test.ts`・`buildVariant.test.ts`・`viewerTitle.test.ts`・`viewerApp.test.ts`）を更新し、`make ext-check` および `make test && make lint` を通す。
-2. **フェーズ 2（ストア掲載文・利用者向け文書・関連文書の更新）:** `docs/store/chrome_web_store.md` を作成し、`docs/translation_glossary.md`、`README.md`・`README.en.md`（`/mktrans README.md`）、`INSTALL.md`、`docs/dev/guides/development.md`、`CLAUDE.md` を更新し、ADR-0035 のずれを示す一文を除去する。`make test && make lint` および `make ext-check` を通し、AC-15 の差分記録を残す。
+1. **フェーズ 1（ブラウザ拡張の製品名・UI 文言・テスト更新）:** `messages.json`（ja/en）、静的 HTML の `<title>`、`ja.ts` / `en.ts`、2.1 節に挙げた拡張テスト 7 ファイル（`manifest.test.ts`・`buildVariant.test.ts`・`viewerTitle.test.ts`・`viewerApp.test.ts`・`catalog.test.ts`・`popupHtml.test.ts`・`optionsHtml.test.ts`）を更新し、`make ext-check` および `make test && make lint` を通す。
+2. **フェーズ 2（ストア掲載文・利用者向け文書・関連文書の更新）:** `docs/store/chrome_web_store.md` を作成し、`docs/translation_glossary.md`、`README.md`・`README.en.md`（`/mktrans README.md`）、`INSTALL.md`、`docs/dev/guides/development.md`、`CLAUDE.md` を更新し、ADR-0035 の `CLAUDE.md` 未反映のずれを示す一文を除去する。`make test && make lint` および `make ext-check` を通し、AC-15 の差分記録を残す。
 
 ## 9. 将来の拡張性
 
-- **Chrome ウェブストア審査での `for YouTube™` 削除要求への対応:** コア製品名とストア表示名を分離しているため、万一審査で `for YouTube™` の削除を求められた場合は、`messages.json` の `extName`、`docs/store/chrome_web_store.md`、`README.md` / `README.en.md` の H1、`INSTALL.md` の該当箇所、および `manifest.test.ts`・`viewerTitle.test.ts` のストア表示名参照のみを改めればよく、ビューアタイトルや拡張 ID には影響しない。
+- **Chrome ウェブストア審査での `for YouTube™` 削除要求への対応:** コア製品名と Chrome ウェブストア表示名を分離しているため、万一審査で `for YouTube™` の削除を求められた場合は、`messages.json` の `extName`、`docs/store/chrome_web_store.md`、`README.md` / `README.en.md` の H1、`INSTALL.md` の該当箇所、および `manifest.test.ts`・`viewerTitle.test.ts` の Chrome ウェブストア表示名参照のみを改めればよい。ビューアタイトルや拡張 ID には影響しない。
 - **`INSTALL.md` の英語版追加（#1044）:** 本タスクで `docs/translation_glossary.md` に日英の製品名を登録しておくことで、将来の英語版作成時にも表記ゆれを防げる。
