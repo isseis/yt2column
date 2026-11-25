@@ -121,6 +121,11 @@ func TestConflictUrgency(t *testing.T) {
 			t.Errorf("phase %d, stopped: urgencyOf = %d/%d, want now", p, u, turn)
 		}
 	}
+	// The idle mark comes before the phase, so even a send in progress on an
+	// idle row waits on no one.
+	if u, turn := urgencyOf(Row{State: StateConflict, Conflict: ConflictSending, Idle: true}); u != UrgencyWait || turn != TurnNone {
+		t.Errorf("idle sending: urgencyOf = %d/%d, want wait and no one's turn", u, turn)
+	}
 }
 
 // TestUrgencyIgnoresWhyARowNeedsCheck checks that a row that needs a check
@@ -319,6 +324,8 @@ func TestClassifyConflict(t *testing.T) {
 		{"conflicting with a question", workspaceFacts{Head: headBranch, Branch: "b", Agents: question, PR: pr(MergeableConflicting)}, StateQuestion},
 		{"conflicting with something unread", workspaceFacts{Head: headBranch, Branch: "b", Agents: prompt(AgentIdle), PR: pr(MergeableConflicting), Unreadable: []string{"x"}}, StateNeedsCheck},
 	}
+	// classify reads no records, so it leaves the phase at the zero value
+	// for addRecords to set (TestSnapshotConflictRow).
 	for _, c := range cases {
 		if got := classify(c.facts); got.State != c.want || got.Conflict != ConflictRecordsUnreadable {
 			t.Errorf("%s: state = %v, conflict %d; want %v and the zero phase", c.name, got.State, got.Conflict, c.want)

@@ -81,7 +81,8 @@ func TestParsePRList(t *testing.T) {
 		"zero number":      `[{"headRefName":"b","number":0,"title":"t","url":"u",` + valid + `}]`,
 		"missing url":      `[{"headRefName":"b","number":1,"title":"t",` + valid + `}]`,
 		"object not array": `{"headRefName":"b"}`,
-		// The list of the members chief asked for before, as gh gave it.
+		// Real gh output in the shape chief asked for before: kept as the
+		// old shape's rejection, beside the generated missing-member rows.
 		"a list without the conflict members": string(readTestdata(t, "gh/pr-list-open-867.json")),
 	}
 	for _, m := range members {

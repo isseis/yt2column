@@ -193,8 +193,9 @@ func TestReadRoutingFromOriginMain(t *testing.T) {
 	}
 }
 
-// TestRoutingMergemainRow reads the repository's mergemain row as Claude Code
-// with opus, and a copy whose mergemain row names OpenCode as a table that is
+// TestRoutingMergemainRow reads the repository's mergemain row as Claude
+// Code, the only agent the row may name (its model is the table's to
+// change), and a copy whose mergemain row names OpenCode as a table that is
 // still read, with that agent: the restriction to Claude Code is the
 // sender's, not the table reader's.
 func TestRoutingMergemainRow(t *testing.T) {
@@ -207,8 +208,8 @@ func TestRoutingMergemainRow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if model, _ := route.ModelText(); route.Agent() != paneinput.AgentClaudeCode || model != "opus" {
-		t.Errorf("mergemain route = %d %q, want Claude Code opus", route.Agent(), model)
+	if route.Agent() != paneinput.AgentClaudeCode {
+		t.Errorf("mergemain route agent = %d, want Claude Code", route.Agent())
 	}
 	row := repositoryRow(t, "mergemain")
 	edited := strings.Replace(doc, row, rowWithCell(t, rowWithCell(t, row, 2, "OpenCode"), 3, "`DeepSeek V4.1 Flash 1017 OpenCode Go`"), 1)
