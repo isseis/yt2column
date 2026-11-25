@@ -246,6 +246,7 @@ Work in the following order.
    - [ ] Any exception to a policy in the project overview, `CLAUDE.md`, or an earlier task is stated with the policy, its location, and the reason.
    - [ ] The security section applies the conditional guide when the trigger applies, and says `N/A` otherwise.
    - [ ] The same concept always uses the same Japanese term, consistent with the translation glossary.
+   - [ ] What the requirements ask of a temporary script (a migration gate, a premise check) is in proportion to the change, how often the script runs, and where it runs, judged by `docs/dev/conventions/requirements_process.md`, "Temporary scripts (`_checks/`)": look for a defense beyond the required properties with no stated need, an exhaustive escape, tolerance for an environment the script is not meant for, and tests beyond a representative case. Apply it as that section's "Scope" says; it does not apply when the requirements ask for no temporary script and no `diff` verification.
    - [ ] Every decision in the document that is major by the criterion in `CLAUDE.md`, "Design decisions (ADR)", has its ADR judgement recorded and is in this PR's ADR changes, and the `## 決定` section of each such ADR matches the document's current decision.
 
 8. Open the PR and hand it over: follow `.claude/commands/_lib/task-pr-handoff.md`,
