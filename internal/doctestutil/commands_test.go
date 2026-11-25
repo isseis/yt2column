@@ -122,3 +122,124 @@ func TestRunsCommandForms(t *testing.T) {
 		})
 	}
 }
+
+// TestCommandArgsReturnsEachInvocation: CommandArgs extracts the trailing
+// arguments for every command-position invocation (including chained commands,
+// shell -c, and env -S without leaking outer quotes) and ignores
+// non-command-position mentions.
+func TestCommandArgsReturnsEachInvocation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		text string
+		want [][]string
+	}{
+		{
+			name: "chained_invocations",
+			text: `widget one && widget two`,
+			want: [][]string{{"one"}, {"two"}},
+		},
+		{
+			name: "shell_c_and_env_split_string",
+			text: `bash -c 'widget one' && env -S"widget -x two"`,
+			want: [][]string{{"one"}, {"-x", "two"}},
+		},
+		{
+			name: "not_in_command_position",
+			text: `echo widget one`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := CommandArgs(tc.text, "widget")
+			if len(got) != len(tc.want) {
+				t.Fatalf("CommandArgs(%q) = %q, want %q", tc.text, got, tc.want)
+			}
+			for i := range tc.want {
+				if !slices.Equal(got[i], tc.want[i]) {
+					t.Errorf("CommandArgs(%q)[%d] = %q, want %q", tc.text, i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
+// TestFencedCommandBlocksPreservesUnquotedRedirection: FencedCommandBlocks
+// strips only the opening fence's blockquote depth, preserves info strings,
+// and marks unclosed fences with Closed=false.
+func TestFencedCommandBlocksPreservesUnquotedRedirection(t *testing.T) {
+	doc := "```bash\n> /tmp/log cmd\n```\n\n> ```sh\n> > /tmp/log cmd2\n> ```\n\n```bash\nunclosed\n"
+	want := []FencedBlock{
+		{Info: "bash", Lines: []string{"> /tmp/log cmd"}, Closed: true},
+		{Info: "sh", Lines: []string{"> /tmp/log cmd2"}, Closed: true},
+		{Info: "bash", Lines: []string{"unclosed"}, Closed: false},
+	}
+	got := FencedCommandBlocks(doc)
+	if len(got) != len(want) {
+		t.Fatalf("FencedCommandBlocks returned %d blocks, want %d: %+v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i].Info != want[i].Info || got[i].Closed != want[i].Closed || !slices.Equal(got[i].Lines, want[i].Lines) {
+			t.Errorf("block[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+// TestBashToolRuleMismatches: BashToolRuleMismatches flags every extra Bash
+// rule naming the tool (by bare name, path, quotes, legacy colon, or wildcard
+// prefix), reports missing allowed rules, and ignores unrelated tools, prefix
+// collisions, and non-Bash rules.
+func TestBashToolRuleMismatches(t *testing.T) {
+	allowed := []string{"Bash(widget alpha *)", "Bash(widget beta *)"}
+	for _, tc := range []struct {
+		name           string
+		allow          []string
+		extra, missing []string
+	}{
+		{
+			name: "exact_with_unrelated_rules",
+			allow: []string{
+				"Bash(other *)",
+				"Bash(widgetx alpha *)",
+				"Read(widget)",
+				"Bash(widget alpha *)",
+				"Bash(widget beta *)",
+			},
+		},
+		{
+			name: "extra_spellings_and_subcommands",
+			allow: []string{
+				"Bash(widget alpha *)",
+				"Bash(widget beta *)",
+				"Bash(widget gamma *)",
+				"Bash(widget *)",
+				"Bash(widget:*)",
+				"Bash(/usr/local/bin/widget alpha *)",
+				`Bash("/opt/My Tools/widget" gamma *)`,
+				`Bash(/opt/My\ Tools/widget gamma *)`,
+				`Bash("widget" alpha *)`,
+				"Bash(widget*)",
+			},
+			extra: []string{
+				"Bash(widget gamma *)",
+				"Bash(widget *)",
+				"Bash(widget:*)",
+				"Bash(/usr/local/bin/widget alpha *)",
+				`Bash("/opt/My Tools/widget" gamma *)`,
+				`Bash(/opt/My\ Tools/widget gamma *)`,
+				`Bash("widget" alpha *)`,
+				"Bash(widget*)",
+			},
+		},
+		{
+			name:    "missing_allowed_rule",
+			allow:   []string{"Bash(widget alpha *)"},
+			missing: []string{"Bash(widget beta *)"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			extra, missing := BashToolRuleMismatches(tc.allow, "widget", allowed)
+			if !slices.Equal(extra, tc.extra) || !slices.Equal(missing, tc.missing) {
+				t.Errorf("BashToolRuleMismatches = extra %q, missing %q; want %q, %q", extra, missing, tc.extra, tc.missing)
+			}
+		})
+	}
+}

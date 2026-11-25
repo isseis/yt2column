@@ -4,10 +4,14 @@
       "Bash(coderabbit review *)",
       "Bash(chief *)",
       "Bash(numreserve task)",
-      "Bash(numreserve adr)"
+      "Bash(numreserve adr)",
+      "Bash(mergepr mergemain-begin *)",
+      "Bash(mergepr mergemain-merge *)",
+      "Bash(mergepr mergemain-push *)"
     ],
     "ask": [
-      "Bash(chief remove *)"
+      "Bash(chief remove *)",
+      "Bash(mergepr mergemain-restore *)"
     ],
     "deny": [
       "Bash(herdr agent prompt *)",

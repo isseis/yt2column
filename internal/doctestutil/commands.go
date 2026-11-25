@@ -121,16 +121,23 @@ func isShell(name string) bool   { _, ok := shells[name]; return ok }
 // list of wrappers and of options with a value is not complete; the
 // permission prompt stops a form it misses.
 func RunsCommand(text, name string) bool {
-	for _, command := range CommandBoundary.Split(text, -1) {
-		if commandRuns(strings.Fields(command), name) {
-			return true
-		}
-	}
-	return false
+	return len(CommandArgs(text, name)) > 0
 }
 
-// commandRuns reports whether the command made of words runs name.
-func commandRuns(words []string, name string) bool {
+// CommandArgs returns the whitespace-split argument slices passed to each
+// command-position invocation of name in text, using the same command-position
+// rules as RunsCommand. Returned words may still carry surrounding shell
+// quotes or grouping punctuation.
+func CommandArgs(text, name string) [][]string {
+	var all [][]string
+	for _, command := range CommandBoundary.Split(text, -1) {
+		all = append(all, commandArgs(strings.Fields(command), name)...)
+	}
+	return all
+}
+
+// commandArgs returns the argument slices for each invocation of name in words.
+func commandArgs(words []string, name string) [][]string {
 	for i := 0; i < len(words); i++ {
 		word := strings.TrimLeft(strings.Trim(words[i], `"'`), `({\`)
 		word = strings.TrimRight(strings.Trim(word, `"'`), `)};`)
@@ -146,8 +153,14 @@ func commandRuns(words []string, name string) bool {
 				if split, ok := envSplitString(base, words[i+1]); ok {
 					// The split string is env's own arguments, so read it
 					// and the words after it as one env command.
-					rest := slices.Concat([]string{envWrapper}, strings.Fields(strings.Trim(split, `"'`)), words[i+2:])
-					return commandRuns(rest, name)
+					var parts []string
+					if split != "" {
+						parts = append(parts, split)
+					}
+					parts = append(parts, words[i+2:]...)
+					splitText := strings.Trim(strings.Join(parts, " "), `"'`)
+					rest := slices.Concat([]string{envWrapper}, strings.Fields(splitText))
+					return commandArgs(rest, name)
 				}
 				if isSetMember(valued, words[i+1]) {
 					i++
@@ -157,15 +170,18 @@ func commandRuns(words []string, name string) bool {
 		case isShell(base):
 			j := slices.IndexFunc(words[i+1:], shellScriptFlag.MatchString)
 			if j < 0 {
-				return false
+				return nil
 			}
 			script := strings.Join(words[i+2+j:], " ")
-			return RunsCommand(strings.Trim(script, `"'`), name)
+			return CommandArgs(strings.Trim(script, `"'`), name)
 		default:
-			return base == name
+			if base == name {
+				return [][]string{words[i+1:]}
+			}
+			return nil
 		}
 	}
-	return false
+	return nil
 }
 
 // envSplitString reports whether opt is env's -S (alone, in an option
@@ -190,6 +206,40 @@ func envSplitString(wrapper, opt string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// FencedCommandBlocks returns the fenced code blocks of doc, including blocks
+// inside Markdown blockquotes (such as an agent prompt). Each block's lines
+// have only the opening fence's blockquote depth removed, so a leading '>' in
+// an unquoted block stays a shell redirection. A block with no closing fence
+// runs to the end of doc and is returned with Closed false.
+func FencedCommandBlocks(doc string) []FencedBlock {
+	var raw, lines []string
+	for line := range strings.Lines(doc) {
+		raw = append(raw, strings.TrimSuffix(line, "\n"))
+		lines = append(lines, quoteMarker.ReplaceAllString(line, ""))
+	}
+	var blocks []FencedBlock
+	var current *FencedBlock
+	depth := 0
+	for i, line := range ScanDocLines(lines) {
+		switch {
+		case line.Fence && current == nil:
+			depth = quoteDepth(raw[i])
+			current = &FencedBlock{Info: strings.TrimLeft(strings.TrimSpace(line.Text), "`")}
+		case line.Fence:
+			current.Closed = true
+			blocks = append(blocks, *current)
+			current = nil
+			depth = 0
+		case current != nil:
+			current.Lines = append(current.Lines, stripQuotes(raw[i], depth))
+		}
+	}
+	if current != nil {
+		blocks = append(blocks, *current)
+	}
+	return blocks
 }
 
 // CommandTexts returns the texts of doc that are written as commands: each
@@ -249,3 +299,67 @@ func stripQuotes(line string, depth int) string {
 }
 
 func isSetMember(m map[string]struct{}, key string) bool { _, ok := m[key]; return ok }
+
+// bashPermissionRule matches a Claude Code Bash permission rule and captures
+// its command pattern.
+var bashPermissionRule = regexp.MustCompile(`^Bash\((.*)\)$`)
+
+// firstRuleWord returns the first command word of a Bash permission pattern,
+// keeping spaces inside quotes or escaped with a backslash as part of the word.
+func firstRuleWord(pattern string) string {
+	s := strings.TrimSpace(pattern)
+	var b strings.Builder
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+				continue
+			}
+			b.WriteByte(c)
+		case c == '\'' || c == '"':
+			quote = c
+		case c == '\\' && i+1 < len(s):
+			i++
+			b.WriteByte(s[i])
+		case c == ' ' || c == '\t':
+			return b.String()
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+// namesToolInBashRule reports whether rule is a Bash permission rule whose
+// command word is tool, by name, by path, or quoted, or a glob pattern that
+// starts with tool's name and holds a wildcard.
+func namesToolInBashRule(rule, tool string) bool {
+	m := bashPermissionRule.FindStringSubmatch(rule)
+	if m == nil {
+		return false
+	}
+	word, _, _ := strings.Cut(firstRuleWord(m[1]), ":")
+	base := path.Base(word)
+	rest, ok := strings.CutPrefix(base, tool)
+	return ok && (rest == "" || strings.ContainsAny(rest, "*?["))
+}
+
+// BashToolRuleMismatches returns the Bash permission rules in allow that name
+// tool but are not listed in allowed, and the entries of allowed that allow
+// lacks.
+func BashToolRuleMismatches(allow []string, tool string, allowed []string) (extra, missing []string) {
+	for _, rule := range allow {
+		if namesToolInBashRule(rule, tool) && !slices.Contains(allowed, rule) {
+			extra = append(extra, rule)
+		}
+	}
+	for _, rule := range allowed {
+		if !slices.Contains(allow, rule) {
+			missing = append(missing, rule)
+		}
+	}
+	return extra, missing
+}

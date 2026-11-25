@@ -21,15 +21,18 @@ var bashRule = regexp.MustCompile(`^Bash\((.*)\)$`)
 // unpromptedWords are the only command words a Bash allow rule of the
 // settings may name. Each was checked to run no command it is given:
 // coderabbit runs a review, chief runs only herdr, git, and gh with
-// arguments it builds, and numreserve runs only git and gh with arguments it
-// builds. A rule for any other word may run an arbitrary command without the
-// approval prompt (a wrapper such as env, a shell, an interpreter, git
+// arguments it builds, numreserve runs only git and gh with arguments it
+// builds, and mergepr runs only git and gh with arguments it builds (and
+// cmd/mergepr/docs_test.go restricts its rules to the three safe mergemain
+// subcommands). A rule for any other word may run an arbitrary command without
+// the approval prompt (a wrapper such as env, a shell, an interpreter, git
 // through an alias, gh writing to GitHub, or a wildcard that matches one of
 // them), so adding one means checking the command and naming it here.
 var unpromptedWords = map[string]struct{}{
 	"coderabbit": {},
 	"chief":      {},
 	"numreserve": {},
+	"mergepr":    {},
 }
 
 // promptingModes are the permission modes that keep the prompt for a Bash
@@ -129,6 +132,7 @@ func TestAllowsUnvetted(t *testing.T) {
 		{"Bash(chief run:*)", false},
 		{"Bash(numreserve task)", false},
 		{"Bash(numreserve adr)", false},
+		{"Bash(mergepr mergemain-begin *)", false},
 		{"Read(.envrc)", false},
 	} {
 		if got := allowsUnvetted(tc.rule); got != tc.want {
