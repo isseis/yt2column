@@ -193,3 +193,6 @@
 | 開発用のビルド | development build | `make ext-build-dev` が `extension/dist-dev/` に作る拡張。fake の LLM を使う開発用の記事生成モジュールを持ち、API を呼ばない。拡張の ID と名前が公開用のビルドと違う。公開用のビルド（`make ext-build` の `extension/dist/`）と区別する |
 | ジョブ ID | job ID | Service Worker が予約のときに作る、記事の生成を指す不透明な値（128 ビットの乱数の 32 文字の小文字の 16 進）。入力から計算せず、記事の中身を表さない |
 | 実行するビューア | running viewer | 記事の生成を実際に行うビューアのページ。Service Worker が開いたビューアで、Worker で記事生成モジュールを動かす。ジョブの記録を表示するだけのビューア（表示するビューア）と区別する |
+| API キー | API key | Anthropic 社の AI を使うための、利用者専用の鍵。README では一般の利用者向けに、鍵として説明する |
+| ワークスペース ID | workspace ID | API キーの作り方によっては必要になる、Anthropic 社のサイトの「ワークスペース」の ID |
+| 専用のタブ | dedicated tab | 一般の利用者向けの README で、ビューアのタブを指す言い方。「ビューア」の用語は README に出さない |
