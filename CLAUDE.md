@@ -697,6 +697,27 @@ its security rules in `docs/dev/security.md` §8.
   every input is validated strictly without trimming or normalization, and any
   unmatched, malformed, missing, duplicate, or oversized value maps to a non-skip
   `Reason` (`Decision.Skip() == false`, falling back safely to a normal CI run).
+  Exception: `internal/ghci` chooses behavior by inspecting the content of
+  `gh`'s output for a pull request's CI checks (`internal/ghci/ghci.go`).
+  Scope: a check suite's `app.slug` (only `github-actions` is evaluated); the
+  `status` and `conclusion` of a check suite and a check run, compared with
+  `COMPLETED`, `SUCCESS`, and `SKIPPED`; the workflow name, which groups a
+  workflow's check suites so that only the newest by `createdAt` is
+  evaluated; the form of `createdAt` (`parseRFC3339`); the prefix and host of
+  a check run's `url`; and, when `gh api graphql` exits with status 1, the
+  `type` and `extensions.code` of each GraphQL error on standard output,
+  compared with fixed allowlists. This is the only place their content
+  selects behavior: callers receive only the resulting `State`,
+  `UnreadableReason`, counts, and failing checks. Reason: these values are
+  written by GitHub and `gh`, external values the package cannot express in
+  a type, and telling GitHub Actions CI from the external reviewer apps and a
+  finished run from one in progress is the purpose of the package. Boundary:
+  a value is compared in full with a fixed table and never repaired; a
+  malformed value is `rejected`; a conclusion other than `SUCCESS` or
+  `SKIPPED` is a failure; a check suite of another app is skipped after only
+  its `app` is read; a GraphQL failure is permanent only when every error
+  matches the allowlists, and any other stays `call-failed`; standard error
+  and an error's `message` are never read.
 - **Enforce invariants with the type, not with convention**: if a value must pass
   validation before use (e.g. a video ID), make the compiler the thing that
   guarantees it — unexported fields plus a mandatory constructor — rather than
