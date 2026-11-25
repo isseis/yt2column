@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-24 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 02_architecture.md の決定の変更に伴って draft に戻した |
+| Review date | 2026-11-25 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -171,8 +171,8 @@
 
 - [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/1143
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 #### ステップ 2-2: `internal/mergepr` の CI 待機分離と `mergepr.md`・ガイド・テスト更新
 
@@ -464,7 +464,7 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1）
+- [x] PR-2 マージ済み（対象ステップ: 2-1）
 - [ ] PR-3 マージ済み（対象ステップ: 2-2）
 - [ ] PR-4 マージ済み（対象ステップ: 3-1）
 - [ ] PR-5 マージ済み（対象ステップ: 3-2 / 3-3 / 3-4 / 3-5）
@@ -536,3 +536,4 @@
 
 - 2026-11-24 承認（isseis、#1117）
 - 2026-11-25 draft への戻し：02_architecture.md の決定の変更に伴う（#1143）
+- 2026-11-25 承認（isseis、#1143）
