@@ -56,8 +56,8 @@ func (g *GitHub) CIChecks(ctx context.Context, req CIChecksRequest) (CIChecksRes
 	if err != nil {
 		return CIChecksResult{}, fmt.Errorf("%w: CI checks request", ErrInvalidInput)
 	}
-	if res.State == ghci.StateUnreadable && errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		res.Reason = ghci.UnreadableCall
+	if res.State == ghci.StateUnreadable && res.Reason != ghci.UnreadableHeadChanged && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return unreadableCIChecks(ghci.UnreadableCall), nil
 	}
 	failing := res.Failing
 	if failing == nil {

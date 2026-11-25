@@ -529,9 +529,11 @@ its security rules in `docs/dev/security.md` §8.
   about the check run's text, and prints only the resulting kind, never the
   title; `mentions.go` inspects a comment or review body only for (1) exact
   first-line matches (after stripping a single trailing CR) against the
-  observed status-comment headers declared for each `ReviewProfile` (`Bot`
-  accounts with the matching `[bot]` login only, and for `ProfileSourcery`
-  conversation comments only), (2) exact full-body matches (after
+  observed fixed status-comment headers declared for each `ReviewProfile` and
+  Sourcery's fixed-format 7-day budget notice first line matching the
+  authenticated user's login and an ASCII digit/comma count (`Bot` accounts
+  with the matching `[bot]` login only, and for `ProfileSourcery` conversation
+  comments only), (2) exact full-body matches (after
   `strings.TrimSpace`) against the caller-supplied manual request texts via
   `isRequestComment` (conversation comments by the authenticated `User` only),
   and (3) ASCII case-insensitive substring matches against `RejectedMentions()`,

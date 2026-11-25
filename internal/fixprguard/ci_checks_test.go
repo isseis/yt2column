@@ -281,7 +281,7 @@ func TestCIChecks(t *testing.T) {
 		})
 	}
 
-	t.Run("deadline_passed", func(t *testing.T) {
+	t.Run("deadline_passed_at_repo", func(t *testing.T) {
 		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 		t.Cleanup(cancel)
 		got, _, err := runWith(t, ctx, CIChecksRequest{PR: mustPR(t)}, []struct {
@@ -294,6 +294,44 @@ func TestCIChecks(t *testing.T) {
 			t.Fatalf("CIChecks = %v", err)
 		}
 		want := CIChecksResult{Protocol: Protocol, State: ghci.StateUnreadable, Reason: ghci.UnreadableCall, Failing: []ghci.FailingCheck{}}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, want))
+		}
+	})
+
+	t.Run("deadline_passed_at_read_pr_clears_head", func(t *testing.T) {
+		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+		t.Cleanup(cancel)
+		got, _, err := runWith(t, ctx, CIChecksRequest{PR: mustPR(t)}, []struct {
+			out string
+			err error
+		}{
+			{out: repositoryView},
+			{out: `{not json`},
+		})
+		if err != nil {
+			t.Fatalf("CIChecks = %v", err)
+		}
+		want := CIChecksResult{Protocol: Protocol, State: ghci.StateUnreadable, Reason: ghci.UnreadableCall, Failing: []ghci.FailingCheck{}}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, want))
+		}
+	})
+
+	t.Run("deadline_passed_preserves_head_changed", func(t *testing.T) {
+		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+		t.Cleanup(cancel)
+		got, _, err := runWith(t, ctx, CIChecksRequest{PR: mustPR(t), ExpectedHead: rsHead}, []struct {
+			out string
+			err error
+		}{
+			{out: repositoryView},
+			{out: ciGraphQLResponse(rsSecond, "COMPLETED", "SUCCESS", "COMPLETED", "SUCCESS")},
+		})
+		if err != nil {
+			t.Fatalf("CIChecks = %v", err)
+		}
+		want := CIChecksResult{Protocol: Protocol, State: ghci.StateUnreadable, Reason: ghci.UnreadableHeadChanged, Head: rsSecond, Failing: []ghci.FailingCheck{}}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, want))
 		}
