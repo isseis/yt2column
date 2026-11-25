@@ -181,11 +181,11 @@ This section stays outside "PR marker conventions", whose two-cell rows
 
 - **Row** is the name the other tables and `chief` use for the row; `chief`
   reads every row, so each of the seven rows above must stay, once.
-- **The `mergemain` row's agent is Claude Code only.** `chief` checks the
-  human's input after the last task command and keeps the pane's report
-  before it sends `/mergemain`, and both read Claude Code's transcript. This
+- **The `mergemain` row's agent is Claude Code only.** Before `chief` sends
+  `/mergemain`, it is to check the human's input after the last task command
+  and keep the pane's report, both read from Claude Code's transcript. This
   row is the one exception to "edit its row here; nothing else changes":
-  with OpenCode in it, the table is still read, and `chief` sends no
+  with OpenCode in it, the table is still read, and `chief` is to send no
   `/mergemain`.
 - **Agent** is `Claude Code` or `OpenCode`.
 - **Model** is, for Claude Code, the argument of `/model` (`opus` or

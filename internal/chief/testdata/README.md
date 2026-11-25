@@ -211,7 +211,7 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 
 タスク 0115 の PR-4（実装計画書のステップ 3-3）で、2026-11-25 に採った。版は gh 2.96.0 である。
 
--   **採り方。** このリポジトリで、`gh pr list --state open --json headRefName,number,title,url,mergeable,headRefOid,baseRefName,isCrossRepository` を 1 回走らせた。chief は `--head <ブランチ>` を付けて 1 つのブランチの PR だけを読むが、利用者の承認を得た読み取りは `--head` なしの 1 回だけだったので、開いていた 2 つの PR の配列から、#1144 の要素のバイト列を変えずに切り出し、`[` と `]` と改行で囲んだ。`--head` を付けたときに返る形と同じである。
+-   **採り方。** このリポジトリで、`gh pr list --state open --json headRefName,number,title,url,mergeable,headRefOid,baseRefName,isCrossRepository` を 1 回走らせた。chief は `--head <ブランチ>` を付けて 1 つのブランチの PR だけを読むが、利用者の承認を得た読み取りは `--head` なしの 1 回だけだったので、開いていた 2 つの PR の配列から、#1144 の要素のバイト列を切り出し、`[` と `]` と改行で囲んだ。切り出した要素は、下のログイン名の置き換えのほかは変えていない。`--head` を付けたときに返る形と同じである。
 -   **置き換え。** 上の「置き換えたもの」の表のとおり、ログイン名を `owner` に置き換えた。PR の題名と head のコミットは、このリポジトリの公開の PR のものなので、そのままにした。
 
 | ファイル | 中身 |

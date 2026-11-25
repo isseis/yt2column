@@ -192,3 +192,31 @@ func TestReadRoutingFromOriginMain(t *testing.T) {
 		t.Errorf("calls = %+v", calls)
 	}
 }
+
+// TestRoutingMergemainRow reads the repository's mergemain row as Claude Code
+// with opus, and a copy whose mergemain row names OpenCode as a table that is
+// still read, with that agent: the restriction to Claude Code is the
+// sender's, not the table reader's.
+func TestRoutingMergemainRow(t *testing.T) {
+	doc := string(repoContext(t))
+	routing, err := ParseRouting([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, err := routing.Route(paneinput.RouteMergemain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model, _ := route.ModelText(); route.Agent() != paneinput.AgentClaudeCode || model != "opus" {
+		t.Errorf("mergemain route = %d %q, want Claude Code opus", route.Agent(), model)
+	}
+	row := repositoryRow(t, "mergemain")
+	edited := strings.Replace(doc, row, rowWithCell(t, rowWithCell(t, row, 2, "OpenCode"), 3, "`DeepSeek V4.1 Flash 1017 OpenCode Go`"), 1)
+	openCode, err := ParseRouting([]byte(edited))
+	if err != nil {
+		t.Fatalf("a mergemain row naming OpenCode: %v", err)
+	}
+	if route, err := openCode.Route(paneinput.RouteMergemain); err != nil || route.Agent() != paneinput.AgentOpenCode {
+		t.Errorf("mergemain route = %+v, %v; want OpenCode", route, err)
+	}
+}

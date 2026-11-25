@@ -285,18 +285,18 @@ func finishSnapshot(deps Deps, owner Owner, view roundView, src tableSources, ex
 // problem; the running command is read for display only, and a send record
 // that cannot be read makes it undecided (RunningUnknownUnreadable) without
 // being returned, so it never adds a problem; a conflict row whose records
-// directory cannot be read keeps ConflictRecordsUnreadable, the phase that
-// never sends, and any other conflict row is ConflictUnsent.
+// directory or stop record cannot be read keeps ConflictRecordsUnreadable,
+// the phase that never sends, and any other conflict row is ConflictUnsent.
 func addRecords(ctx context.Context, deps Deps, git GitReader, w TaskWorkspace, row *Row) error {
 	var stopErr error
 	sends := func(string) (lastCommand, error) { return lastCommand{}, nil }
-	records, ok, err := deps.Store.existingRecords(w.Tree)
+	records, ok, dirErr := deps.Store.existingRecords(w.Tree)
 	switch {
-	case err != nil:
+	case dirErr != nil:
 		// Whether the workspace is stopped cannot be told, so it is not idle
 		// and calls the human like a stopped one.
-		row.Idle, row.StopUnreadable, stopErr = false, true, err
-		sends = func(string) (lastCommand, error) { return lastCommand{}, err }
+		row.Idle, row.StopUnreadable, stopErr = false, true, dirErr
+		sends = func(string) (lastCommand, error) { return lastCommand{}, dirErr }
 	case ok:
 		sends = records.lastSentCommand
 		stop, err := records.Stopped()
@@ -321,7 +321,7 @@ func addRecords(ctx context.Context, deps Deps, git GitReader, w TaskWorkspace, 
 	if row.State == StateRunning {
 		row.Running, row.RunningUnknown = runningOf(ctx, deps, w.Agents, sends)
 	}
-	if row.State == StateConflict && err == nil {
+	if row.State == StateConflict && !row.StopUnreadable {
 		row.Conflict = ConflictUnsent
 	}
 	return stopErr

@@ -19,7 +19,8 @@ const (
 	StateQuestion
 	// StateRunning is a workspace with a working agent.
 	StateRunning
-	// StateAwaitingReview is a workspace whose branch has an open PR.
+	// StateAwaitingReview is a workspace whose branch has an open PR that
+	// GitHub does not read as CONFLICTING.
 	StateAwaitingReview
 	// StateProposeNext is a workspace with a next command to offer.
 	StateProposeNext

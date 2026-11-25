@@ -708,36 +708,42 @@ var conflictPRJSON = strings.Replace(openPRJSON, `"MERGEABLE"`, `"CONFLICTING"`,
 // TestSnapshotConflictRow reads a workspace whose open PR GitHub lists as
 // CONFLICTING: the row is a conflict row of the phase with no send yet,
 // later and the human's, showing the PR and its head; with its records
-// directory unreadable, its phase is the one that never sends.
+// directory or its stop record unreadable, its phase is the one that never
+// sends.
 func TestSnapshotConflictRow(t *testing.T) {
 	if conflictPRJSON == openPRJSON {
 		t.Fatal("openPRJSON no longer holds MERGEABLE")
 	}
-	for _, unreadable := range []bool{false, true} {
+	for _, broken := range []string{"", "directory", "stop record"} {
 		w := newWorld(t)
 		tree := w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: conflictPRJSON})
 		want := ConflictUnsent
+		unreadable := broken != ""
 		if unreadable {
 			want = ConflictRecordsUnreadable
 			dir, err := w.store.WorkspaceDir(Worktree{path: tree})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := os.Remove(dir); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(dir, []byte("x"), 0o600); err != nil {
+			if broken == "directory" {
+				if err := os.Remove(dir); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(dir, []byte("x"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			} else if _, err := privatefile.Create(filepath.Join(dir, stopFile), []byte("not json")); err != nil {
 				t.Fatal(err)
 			}
 		}
 		snap := take(t, w)
 		row := rowOf(t, snap, "ws")
 		if row.State != StateConflict || row.Conflict != want || row.PR == nil || row.PR.Head.String() != prHead || row.Position.Progress != ProgressConflict {
-			t.Errorf("unreadable %v: row = %+v; want a conflict row of phase %d", unreadable, row, want)
+			t.Errorf("%q unreadable: row = %+v; want a conflict row of phase %d", broken, row, want)
 		}
 		out := snap.Output().Rows[0]
 		if out.Conflict == nil || out.Conflict.Phase != conflictPhaseName(want) || out.PR == nil || out.PR.Head != prHead || out.State != "conflict" {
-			t.Errorf("unreadable %v: output = %+v, conflict %+v, pr %+v", unreadable, out, out.Conflict, out.PR)
+			t.Errorf("%q unreadable: output = %+v, conflict %+v, pr %+v", broken, out, out.Conflict, out.PR)
 		}
 		if !unreadable && (row.Urgency != UrgencyLater || row.Turn != TurnHuman) {
 			t.Errorf("urgency = %d/%d, want later and the human's", row.Urgency, row.Turn)

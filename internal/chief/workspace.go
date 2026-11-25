@@ -113,7 +113,7 @@ func parsePRList(out []byte, branch string) ([]OpenPR, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: element %d: %w", errPRList, i, err)
 		}
-		fields, err := object.Collect("headRefName", "number", "title", "url", "mergeable", "headRefOid", "baseRefName", "isCrossRepository")
+		fields, err := object.Collect(strings.Split(prListFields, ",")...)
 		if err != nil {
 			return nil, fmt.Errorf("%w: element %d: %w", errPRList, i, err)
 		}
