@@ -80,7 +80,7 @@
 - [ ] `extension/test/buildVariant.test.ts` の `extNameDev` 先頭一致検査をロケール別コア製品名（`YomuDoga` / `ヨムドウガ`）へ更新する
 - [ ] `extension/test/viewerTitle.test.ts` を設計書 3.2 節の例外契約に合わせて更新する（公開用のビルドはコア製品名、開発用のビルドは `extNameDev` と完全一致、かつ公開用のビルドのコア製品名（`viewerTitle.name.release`）に ` for YouTube™` を添えた値が `extName` と一致すること）
 - [ ] `extension/test/viewerApp.test.ts` の `doc.title` アサーション全 8 箇所を `YomuDoga` へ更新する
-- [ ] `extension/test/catalog.test.ts` に、日英カタログ全体で旧名 `yt2column` を含まないこと、および `optionsPage.title` と `rejection` 再起動手順の確定文言を検証するテストを追加する
+- [ ] `extension/test/catalog.test.ts` に、日英カタログ全体（`messages`・`labels`・`counts`）で旧名 `yt2column` を含まないこと、および `optionsPage.title` と `rejection["not-watch-page"].steps`・`rejection["empty-selection"].steps` が各ロケールのコア製品名（`catalogs[locale].viewerTitle.name.release`）を含むことを確かめる性質テストを追加する（定数リテラルとの完全一致アサーションは書かない）
 - [ ] `extension/test/popupHtml.test.ts`（`popup.html`・`viewer.html`）と `extension/test/optionsHtml.test.ts`（`options.html`）に、静的 `<title>` が `YomuDoga` であることの検証を追加する
 - [ ] 更新・追加した各テストについて、対象文字列を一時的に旧値へ戻す壊し確認を行い失敗を確かめたうえ、元に戻して `make ext-check` と `make test && make lint` がすべて通過することを確認する
 
@@ -132,14 +132,14 @@
 
 #### ステップ 2-3: 開発手順の事実整合・`CLAUDE.md` 更新・ADR-0035 のずれ除去と検証
 
-**変更するファイル:** `docs/dev/guides/development.md`、`CLAUDE.md`、`docs/dev/adr/0035-language-policy.md`、本実装計画書（§7 の AC-15 差分記録）
+**変更するファイル:** `docs/dev/guides/development.md`、`CLAUDE.md`、`docs/dev/adr/0035-language-policy.md`、本実装計画書（§7 の AC-10〜AC-12・AC-14・AC-15・AC-16 の差分記録）
 
 - [ ] `docs/dev/guides/development.md:119` のみを `ヨムドウガ（開発用のビルド）` および `YomuDoga (development build)` へ書き換える（他行は変更しない）
 - [ ] `CLAUDE.md` の「Document language」例外に `docs/store/chrome_web_store.md`（日英の Chrome ウェブストア詳細説明文を 1 ファイルで保管し `/mktrans` 同期対象外とする扱い）を追記する
 - [ ] `docs/dev/adr/0035-language-policy.md` の `## 決定` から `CLAUDE.md` 未反映のずれを示す一文を除去し、コミットメッセージに `Editorial correction:` 行を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」第 2 種）
-- [ ] `make test && make lint` と `make ext-check` がすべて通過することを確認し、AC-15 の差分を `requirements_process.md` §4 の固定コマンドで取得して本実装計画書 §7 の `Diff record (AC-15)` に記録する
+- [ ] `make test && make lint` と `make ext-check` がすべて通過することを確認し、AC-10〜AC-12（`README.md`）・AC-14（`INSTALL.md`）・AC-15（`docs/dev/guides/development.md`）・AC-16（`docs/translation_glossary.md`）の差分を `requirements_process.md` §4 の固定コマンドで取得して本実装計画書 §7 の各 `Diff record` に記録する
 
-**完了基準:** すべてのテスト・lint・拡張検査が通過し、`Diff record (AC-15)` が最新コミットに対して記録されていること。
+**完了基準:** すべてのテスト・lint・拡張検査が通過し、§7 の全 `Diff record` が最新コミットに対して記録されていること。
 
 ### PR-2 作成ポイント: store listing, user docs, and language policy sync
 
@@ -177,7 +177,7 @@
 ## 4. テスト戦略
 
 - **PR-1（ブラウザ拡張）:** `make ext-check`（`ext-typecheck`・`ext-lint`・`ext-fmt-check`・`ext-test`・`ext-build`・`ext-build-dev`）および `make test && make lint` を実行する。新規のテストヘルパーは追加せず、既存の `extension/test/` スイートを更新・拡張する。更新・追加したテストはいずれも旧値に戻す壊し確認を実施する。
-- **PR-2（文書）:** `make test && make lint`（`TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`・`TestReadmeLinks`・`TestADRRecords`・`TestInstructionDocPaths`・`TestExtensionDocumentation` を含む）および `make ext-check`（`manifest.test.ts` の Chrome 最低版検査、`metadataDocs.test.ts` の `INSTALL.md` 引用文言検査を含む）を実行する。AC-15 は recorded diff reading（`requirements_process.md` §4 の `diff` 検証）で検証し、自然言語文書の内容は PR レビューの目視確認（`manual`）で検証する。
+- **PR-2（文書）:** `make test && make lint`（`TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`・`TestReadmeLinks`・`TestADRRecords`・`TestInstructionDocPaths`・`TestExtensionDocumentation` を含む）および `make ext-check`（`manifest.test.ts` の Chrome 最低版検査、`metadataDocs.test.ts` の `INSTALL.md` 引用文言検査を含む）を実行する。AC-10〜AC-12・AC-14・AC-15・AC-16 は recorded diff reading（`requirements_process.md` §4 の `diff` 検証）で検証し、自然言語文書の内容は PR レビューの目視確認（`manual`）で検証する。
 
 ## 5. リスク管理
 
@@ -201,22 +201,40 @@
 | AC-02 | `test` | `extension/test/manifest.test.ts`（`en` の `extName`・`extNameDev`・`extDescription` 確定値）・`extension/test/buildVariant.test.ts`（`extNameDev`） | 1-1 / 1-3 |
 | AC-03 | `test` | `extension/test/manifest.test.ts`（132 文字以内・`$` 禁止・言語判定・`manifest.json` キー・権限・拡張 ID）・`cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation` | 1-1 / 1-3 |
 | AC-04 | `test` | `extension/test/viewerTitle.test.ts`（日英の公開用・開発用タイトルおよび `messages.json` との照合）・`extension/test/viewerApp.test.ts`（`doc.title`） | 1-2 / 1-3 |
-| AC-05 | `test` | `extension/test/catalog.test.ts`（`optionsPage.title` の日英確定値と旧名不在）・`extension/test/optionsApp.test.ts`（`doc.title` 反映） | 1-2 / 1-3 |
-| AC-06 | `test` | `extension/test/catalog.test.ts`（`rejection["not-watch-page"]`・`rejection["empty-selection"]` 再起動手順の日英確定値と旧名不在） | 1-2 / 1-3 |
+| AC-05 | `test` | `extension/test/catalog.test.ts`（`optionsPage.title` が各ロケールのコア製品名 `viewerTitle.name.release` を含み旧名 `yt2column` を含まないこと）・`extension/test/optionsApp.test.ts`（`doc.title` 反映） | 1-2 / 1-3 |
+| AC-06 | `test` | `extension/test/catalog.test.ts`（`rejection["not-watch-page"]`・`rejection["empty-selection"]` の手順が各ロケールのコア製品名 `viewerTitle.name.release` を含み旧名 `yt2column` を含まないこと） | 1-2 / 1-3 |
 | AC-07 | `test` | `extension/test/popupHtml.test.ts`（`popup.html`・`viewer.html` の静的 `<title>` が `YomuDoga`）・`extension/test/optionsHtml.test.ts`（`options.html` の静的 `<title>` が `YomuDoga`） | 1-1 / 1-3 |
 | AC-08 | `manual` | PR-2 レビューで `docs/store/chrome_web_store.md` を issue #1148 コメント 1・4・5 と照合して確認 | 2-1 |
 | AC-09 | `test` / `manual` | `cmd/yt2column/adr_test.go::TestADRRecords`・`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths` で形式とリンクを検証し、PR-2 レビューで `CLAUDE.md`「Document language」と ADR-0035 の記述・ずれ除去を目視確認 | 2-3 |
-| AC-10 | `manual` | PR-2 レビューで `README.md` の H1 見出しと冒頭概要文を issue #1148 コメント 6 と照合して確認 | 2-2 |
-| AC-11 | `manual` | PR-2 レビューで `README.md` の `## 特徴` が 4 要点を含み、不要項目を含まないことを確認 | 2-2 |
-| AC-12 | `test` / `manual` | `extension/test/manifest.test.ts`（Chrome 142 表記）・`cmd/yt2column/docs_test.go::TestReadmeLinks`（相対リンクとアンカー）で検証し、PR-2 レビューで既存節構成・製品名更新・非公式表記と帰属表示を目視確認 | 2-2 |
+| AC-10 | `diff` / `manual` | 下の `Diff record (AC-10・AC-11・AC-12)`（対象パス: `README.md`）で H1 見出し `# ヨムドウガ for YouTube™` の変更を確認し、PR-2 レビューで冒頭概要文を issue #1148 コメント 6 と照合して確認 | 2-2 / 2-3 |
+| AC-11 | `test` / `diff` / `manual` | `cmd/yt2column/readme_structure_test.go::TestReadmeVersionsShareStructure` および下の `Diff record (AC-10・AC-11・AC-12)`（対象パス: `README.md`）で `## 特徴` 見出しと 4 項目の構成を確認し、PR-2 レビューで 4 要点の内容と不要項目を含まないことを確認 | 2-2 / 2-3 |
+| AC-12 | `test` / `diff` / `manual` | `extension/test/manifest.test.ts`（Chrome 142 表記）・`cmd/yt2column/docs_test.go::TestReadmeLinks`（相対リンクとアンカー）で検証し、下の `Diff record (AC-10・AC-11・AC-12)`（対象パス: `README.md`）で許可された変更以外の差分がないことを確かめ、PR-2 レビューで非公式表記と帰属表示を目視確認 | 2-2 / 2-3 |
 | AC-13 | `test` / `manual` | `cmd/yt2column/readme_sync_test.go::TestReadmeSyncMarker`・`cmd/yt2column/readme_structure_test.go::TestReadmeVersionsShareStructure`・`cmd/yt2column/docs_test.go::TestReadmeLinks`・`extension/test/manifest.test.ts` で同期・構造・リンク・Chrome 最低版を検証し、PR-2 レビューで訳文と帰属表示を目視確認 | 2-2 |
-| AC-14 | `test` / `manual` | `extension/test/metadataDocs.test.ts`・`extension/test/manifest.test.ts`・`cmd/yt2column/docs_test.go::TestReadmeLinks` で引用文言・Chrome 最低版・リンクを検証し、PR-2 レビューで `INSTALL.md` の 4 箇所更新と Releases URL 維持を目視確認 | 2-2 |
+| AC-14 | `test` / `diff` / `manual` | `extension/test/metadataDocs.test.ts`・`extension/test/manifest.test.ts`・`cmd/yt2column/docs_test.go::TestReadmeLinks` で引用文言・Chrome 最低版・リンクを検証し、下の `Diff record (AC-14)`（対象パス: `INSTALL.md`）で指定 4 箇所以外に差分がないことを確かめ、PR-2 レビューで内容を目視確認 | 2-2 / 2-3 |
 | AC-15 | `diff` | recorded diff reading（対象パス: `docs/dev/guides/development.md`）。PR-2 実装時に下の `Diff record (AC-15)` へ記録し、PR レビューで確認 | 2-3 |
-| AC-16 | `manual` | PR-2 レビューで `docs/translation_glossary.md` に追加した 2 行を目視確認 | 2-1 |
+| AC-16 | `diff` / `manual` | 下の `Diff record (AC-16)`（対象パス: `docs/translation_glossary.md`）で追加した 2 行の差分を確かめ、PR-2 レビューで用語集の記述を目視確認 | 2-1 / 2-3 |
+
+Diff record (AC-10・AC-11・AC-12):
+
+- Compared paths: `README.md`
+- Merge-base: `<PR-2 実装時に記録>`
+- Compared commit: `<PR-2 実装時に記録>`
+
+Diff record (AC-14):
+
+- Compared paths: `INSTALL.md`
+- Merge-base: `<PR-2 実装時に記録>`
+- Compared commit: `<PR-2 実装時に記録>`
 
 Diff record (AC-15):
 
 - Compared paths: `docs/dev/guides/development.md`
+- Merge-base: `<PR-2 実装時に記録>`
+- Compared commit: `<PR-2 実装時に記録>`
+
+Diff record (AC-16):
+
+- Compared paths: `docs/translation_glossary.md`
 - Merge-base: `<PR-2 実装時に記録>`
 - Compared commit: `<PR-2 実装時に記録>`
 

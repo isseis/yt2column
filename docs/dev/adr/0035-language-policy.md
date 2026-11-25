@@ -32,7 +32,7 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 
 ### 2. 利用者向け文書の分割と同期
 
-- **README の 2 言語同期:** 日英の 2 ファイル対で機械同期する文書は README だけである（Chrome ウェブストア掲載文の扱いは下の項目）。`README.md` を先に変え、[mktrans.md](../../../.claude/commands/mktrans.md) の `/mktrans` で `README.en.md` に反映し、両方を 1 つのコミットに入れる。`README.en.md` の 1 行目の同期の印は、翻訳の元にした `README.md` の版を指し、`/mktrans` はその版からの差分を翻訳する。
+- **README の 2 言語同期:** 日英の 2 ファイル対で機械同期する文書は README だけである（Chrome Web Store 掲載文の扱いは下の項目）。`README.md` を先に変え、[mktrans.md](../../../.claude/commands/mktrans.md) の `/mktrans` で `README.en.md` に反映し、両方を 1 つのコミットに入れる。`README.en.md` の 1 行目の同期の印は、翻訳の元にした `README.md` の版を指し、`/mktrans` はその版からの差分を翻訳する。
   - **理由:** 2 つの言語で持つ文書は、片方を変えたときにもう片方が古くなりやすく、同期をエージェントの判断に任せると、手作業の変更や手順を通らない変更で同期が抜けるためである。
   - **規則:** 印の形と翻訳の手順は [mktrans.md](../../../.claude/commands/mktrans.md) に、同期の規則は [CLAUDE.md](../../../CLAUDE.md) の「Translation Guidelines (Japanese to English)」に従う。
 - **同期の印の決定的な検査:** 同期の印は、エージェントの判断ではなく Go のテスト `TestReadmeSyncMarker` で確かめる。テストは、印が今の `README.md` を指すことを確かめ、`make test`・CI の `doc-guard` のジョブ・pre-commit のフックで走る。同期の手順を持つコマンドは、この検査が失敗したときに `/mktrans` を実行する。
@@ -41,10 +41,10 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 - **利用者向け文書の分割:** README を概要と案内に、ルートの `INSTALL.md` をインストールと利用の手順に分け、開発者向けの内容は `docs/dev/guides/` の手引きに置く。
   - **理由:** README を、初めて使う利用者が読める文書にするためである。開発者向けの手引きは日本語だけの文書なので、英語版に訳す量も減る。
   - **規則:** [0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md) の F-001 にある。
-- **`INSTALL.md` の配置と期限付きの例外:** `INSTALL.md` は、README と同じくリポジトリのルートに置き、Chrome ウェブストアに申請するまで日本語だけで持つ。英語版を足す作業と、`/mktrans` と同期の検査の一般化は [#1044](https://github.com/isseis/yt2column/issues/1044) で扱う。
-  - **理由:** ルートに置くのは、利用者が README の隣で見つけられ、Releases や zip からも指せるためである。日本語だけで持つことは原則 (c) の期限付きの例外であり、zip で配る初期の利用者は日本語の話者に限られる一方、Chrome ウェブストアに載せると日本語を読めない利用者が来るためである。
+- **`INSTALL.md` の配置と期限付きの例外:** `INSTALL.md` は、README と同じくリポジトリのルートに置き、Chrome Web Store に申請するまで日本語だけで持つ。英語版を足す作業と、`/mktrans` と同期の検査の一般化は [#1044](https://github.com/isseis/yt2column/issues/1044) で扱う。
+  - **理由:** ルートに置くのは、利用者が README の隣で見つけられ、Releases や zip からも指せるためである。日本語だけで持つことは原則 (c) の期限付きの例外であり、zip で配る初期の利用者は日本語の話者に限られる一方、Web Store に載せると日本語を読めない利用者が来るためである。
   - **規則:** [0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md) の「要件定義の際に決めたこと（2026-11-19）」にある。
-- **Chrome ウェブストア掲載文の保管と同期対象外の扱い:** Chrome ウェブストア詳細説明文（日本語・英語）は `docs/store/chrome_web_store.md` の 1 ファイルに保管し、`/mktrans` と `TestReadmeSyncMarker` による 2 言語同期の対象外とする。現在 `CLAUDE.md` の「Document language」にはこの位置づけが未反映であり、[#1148](https://github.com/isseis/yt2column/issues/1148) の実装 PR で追記する。
+- **Chrome Web Store 掲載文の保管と同期対象外の扱い:** Chrome Web Store 詳細説明文（日本語・英語）は `docs/store/chrome_web_store.md` の 1 ファイルに保管し、`/mktrans` と `TestReadmeSyncMarker` による 2 言語同期の対象外とする。現在 `CLAUDE.md` の「Document language」にはこの位置づけが未反映であり、[#1148](https://github.com/isseis/yt2column/issues/1148) の実装 PR で追記する。
   - **理由:** ストア掲載文は日本語版・英語版の確定稿をストアへ貼り付ける用途であり、`README.md` のような継続的な差分翻訳の仕組みを広げる必要がないためである。
   - **規則:** [0125 要件定義書](../../tasks/0125_product_name/01_requirements.md) の「要件定義の際に決めたこと（2026-11-25）」と [0125 設計書](../../tasks/0125_product_name/02_architecture.md) の「1.2. 設計の際に決めたこと（2026-11-25）」にある。
 
@@ -76,8 +76,8 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 - **上位モデルのレビュー判定スクリプトに例外を広げず引数で日本語の見出し・欄名を渡す案:** 写し誤りがあると値を見つけられず、値がないものとして上位モデルのレビューを行わない側に倒れる（[0081 実装計画書](../../tasks/0081_implementation_model_choice/03_implementation_plan.md)「1.3. 計画の際に決めたこと（2026-11-11）」）。
 - **`INSTALL.md` と `INSTALL.en.md` を対で置き `/mktrans` と同期検査を一般化する案:** 初期の利用者は日本語の話者に限られ、一般化の費用を今は払わないためである。英語版を足すときまで一般化を先送りした（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）。
 - **インストールの手順を README と分けず README の中で構成を整える案:** 画面の手順を含む長い説明で README の概要が埋もれ、Releases や zip から手順だけを指せないためである（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）。
-- **Chrome ウェブストア詳細説明文をリポジトリに置かず issue コメントにのみ残す案:** 申請時に参照する確定稿が issue コメントに散逸し、版管理できないためである（[0125 要件定義書](../../tasks/0125_product_name/01_requirements.md)「要件定義の際に決めたこと（2026-11-25）」）。
-- **Chrome ウェブストア詳細説明文を `docs/store/description_ja.txt` と `description_en.txt` の 2 ファイルに分ける案:** コピーはしやすいが、表示名や商標条件の注記を別ファイルで管理する必要がある（[0125 設計書](../../tasks/0125_product_name/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-25）」）。
+- **Chrome Web Store 詳細説明文をリポジトリに置かず issue コメントにのみ残す案:** 申請時に参照する確定稿が issue コメントに散逸し、版管理できないためである（[0125 要件定義書](../../tasks/0125_product_name/01_requirements.md)「要件定義の際に決めたこと（2026-11-25）」）。
+- **Chrome Web Store 詳細説明文を `docs/store/description_ja.txt` と `description_en.txt` の 2 ファイルに分ける案:** コピーはしやすいが、表示名や商標条件の注記を別ファイルで管理する必要がある（[0125 設計書](../../tasks/0125_product_name/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-25）」）。
 
 ## 結果
 
@@ -91,7 +91,7 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 - **squash 件名と旧プランの互換:** squash の件名は PR の材料から書くので、PR のタイトルと違う文になりうる。件名は `/mergepr` の承認の質問で利用者が確かめる（[0032 要件定義書](../../tasks/0032_japanese_pr_title/01_requirements.md) §4.4 と「要件定義の際に決めたこと（2026-10-21）」）。0032 より前のプランに残る英語の `推奨タイトル` は書き換えない。`/runplan` は、英語の `推奨タイトル` からも日本語の PR のタイトルを書く（同）。
 - **ソース内の日本語リテラル例外:** ソースに日本語のリテラルが要るときは、「Go Idioms」の例外に当たるかを確かめる。当たらない場合の先例として、0061 では範囲を狭く限った例外を `CLAUDE.md` の「Go Idioms」に足した（[0061 設計書](../../tasks/0061_lightweight_process/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-04）」）。この例外は、0075 で軽量プロセスとともに除くことにした（[0075 要件定義書](../../tasks/0075_remove_lightweight_process/01_requirements.md)）。
 - **README の利用者向け限定と `INSTALL.md` の英語版不在:** README に開発者向けの内容を足さない。CLI の設定や料金の推定の規則などは、`docs/dev/guides/` の手引きに書く（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）。`INSTALL.md` に英語版がない間は、英語を読む利用者はインストールの手順を英語で読めない。`README.en.md` は、手順が日本語でしか書かれていないことを示して `INSTALL.md` へリンクする（同）。
-- **Chrome ウェブストア掲載文の手動整合:** `docs/store/chrome_web_store.md` の日英両テキストは `/mktrans` と `TestReadmeSyncMarker` で機械同期しない。内容を改めるときは日本語版と英語版をあわせて更新し、PR のレビューで確認する。
+- **Chrome Web Store 掲載文の手動整合:** `docs/store/chrome_web_store.md` の日英両テキストは `/mktrans` と `TestReadmeSyncMarker` で機械同期しない。内容を改めるときは日本語版と英語版をあわせて更新し、PR のレビューで確認する。
 
 ## 経緯
 
@@ -111,6 +111,6 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 - 2026-11-11 PR のタイトルと説明の日本語を、用語集の語で書くことにした。規則は `_context.md` の「Translation glossary」に置き、PR の説明を書く手順からそこを指す（[PR #825](https://github.com/isseis/yt2column/pull/825)）
 - 2026-11-17 guard のテストの日本語のリテラルの例外を、ローカルの CLI レビューが見たかと Fable の記録が有効かを決める判定のスクリプト `.claude/commands/_lib/review-records.sh` にも広げることにした。範囲は、実装計画書の PR の進み具合のチェックボックスの行と PR マーカーの見出しと一致しなければならないリテラルに限る。`CLAUDE.md` の例外の文は、スクリプトを入れる実装の PR で変える（[0098 設計書](../../tasks/0098_fable_partial_review/02_architecture.md) 1.2 の決定 22）
 - 2026-11-18 chief の道具が、状況の表の決まった語（見出し・凡例・状態の文字列・文書の段など）を日本語で出力してよい例外を、CLAUDE.md の「Go Idioms」に足すことにした。これまでの例外は日本語の文書の文字列と一致しなければならないリテラルだったが、この例外は道具が人に示す語そのものである。範囲は表の決まった語に限り、道具の出力のほかの値、エラーのメッセージ、ほかのサブコマンドの出力は英語のままにする（[0102 要件定義書](../../tasks/0102_chief_text_table/01_requirements.md)「要件定義の際に決めたこと（2026-11-18）」）
-- 2026-11-19 利用者向けの文書を、概要と案内の README と、インストールと利用の手順の `INSTALL.md` に分け、開発者向けの内容を `docs/dev/guides/` の手引きに移すことにした。`INSTALL.md` は Chrome ウェブストアに申請するまで日本語だけで持ち、原則 (c) の期限付きの例外とした。`CLAUDE.md` の「Document language」と「Documents」の文は、実装の PR で変える（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）
+- 2026-11-19 利用者向けの文書を、概要と案内の README と、インストールと利用の手順の `INSTALL.md` に分け、開発者向けの内容を `docs/dev/guides/` の手引きに移すことにした。`INSTALL.md` は Chrome Web Store に申請するまで日本語だけで持ち、原則 (c) の期限付きの例外とした。`CLAUDE.md` の「Document language」と「Documents」の文は、実装の PR で変える（[0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md)「要件定義の際に決めたこと（2026-11-19）」）
 - 2026-11-21 エージェントの実行を制御する英語の指示（原則 (b)）の対象に `.agents/skills/` を加え、セッションの会話の言語規則（日本語）を Claude Code 限定からハーネス非依存の記述へ改めた。あわせて、シェルスクリプトの日本語リテラルの例外で対象とするスクリプト名も一般化後の名前に追随させることにした（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「要件定義の際に決めたこと（2026-11-21）」、[ADR-0055](0055-harness-independent-commands.md)）
-- 2026-11-25 Chrome ウェブストア詳細説明文（日英）を `docs/store/chrome_web_store.md` に保管し、`/mktrans` による 2 言語同期の対象外と位置づけた。`CLAUDE.md` の「Document language」の記述は実装の PR で追記する（[0125 要件定義書](../../tasks/0125_product_name/01_requirements.md)「要件定義の際に決めたこと（2026-11-25）」、[0125 設計書](../../tasks/0125_product_name/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-25）」）
+- 2026-11-25 Chrome Web Store 詳細説明文（日英）を `docs/store/chrome_web_store.md` に保管し、`/mktrans` による 2 言語同期の対象外と位置づけた。`CLAUDE.md` の「Document language」の記述は実装の PR で追記する（[0125 要件定義書](../../tasks/0125_product_name/01_requirements.md)「要件定義の際に決めたこと（2026-11-25）」、[0125 設計書](../../tasks/0125_product_name/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-25）」）

@@ -18,7 +18,7 @@
 対応 issue: [#1148](https://github.com/isseis/yt2column/issues/1148)（関連: [#1042](https://github.com/isseis/yt2column/issues/1042) リリースに向けた利用者向け README・INSTALL 文書）
 
 **背景:**
-現在、利用者に見える製品名が GitHub のプロジェクト名 `yt2column` のままになっており、何をするツールかが伝わりにくく覚えにくい。対象箇所は `extension/static/_locales/ja/messages.json:2-8`、`extension/static/_locales/en/messages.json:2-8`、`extension/src/core/i18n/ja.ts:27,35,279,289`、`extension/src/core/i18n/en.ts:29,37,268,278`、`extension/static/{popup,options,viewer}.html:5`、`README.md:3,5,32`、`README.en.md:4,6,33`、`INSTALL.md:3,80,201,241` である（コミット `1a5b6cab` で確認）。リリースおよび将来の Chrome ウェブストア掲載に備え、issue #1148 で決定した製品名・短い説明文・詳細説明文・README 反映方針を利用者に見える箇所へ一貫して反映する必要がある。
+現在、利用者に見える製品名が GitHub のプロジェクト名 `yt2column` のままになっており、何をするツールかが伝わりにくく覚えにくい。対象箇所は `extension/static/_locales/ja/messages.json:2-11`、`extension/static/_locales/en/messages.json:2-11`、`extension/src/core/i18n/ja.ts:27,35,279,289`、`extension/src/core/i18n/en.ts:29,37,268,278`、`extension/static/{popup,options,viewer}.html:5`、`README.md:3,5,32`、`README.en.md:4,6,33`、`INSTALL.md:3,80,201,241` である（コミット `1a5b6cab` で確認）。リリースおよび将来の Chrome ウェブストア掲載に備え、issue #1148 で決定した製品名・短い説明文・詳細説明文・README 反映方針を利用者に見える箇所へ一貫して反映する必要がある。
 
 **本書が決めることと、設計に委ねること:**
 
@@ -140,9 +140,9 @@ Chrome ウェブストアに掲載する日本語版・英語版の詳細説明�
 
 - **AC-10**: `README.md` の H1 見出しは `# ヨムドウガ for YouTube™` であり、冒頭の概要文はコア製品名 `ヨムドウガ` を用いて、話し言葉の脱線や重複を整理し編集・校正まで行って新聞・雑誌風の日本語コラム記事に仕立てることを伝える。
 - **AC-11**: `README.md` に `## 特徴` 節を新設し、issue #1148 コメント 6 の 4 要点（結論が先・重要度順の構成、動画に合った 4 形式への編集と文字起こし突き合わせチェック、非自動操作による画面変更への強さ、押下時のみの読み取り・中継サーバなし・オープンソース）を簡潔にまとめる。ストア向けの「こんな方に向いています」や、既存節と重複する「使い方（3 ステップ）」「注意点」は追加しない。
-- **AC-12**: `README.md` の既存の節（`## 仕組み`・`## 必要なもの`・`## インストールと使い方`・`## プライバシー`・`## 開発者向けの文書`）の構成と必要なブラウザの表記（Chrome 142 以降）を維持し、利用者向けの製品名呼称（ツールバーのアイコン表記等）を `ヨムドウガ` に更新する。また、Google LLC / YouTube 非公式である旨と `YouTube is a trademark of Google LLC.` の帰属表示を記載する。
+- **AC-12**: `README.md` の差分は、AC-10 の H1 見出しと冒頭概要文の更新、AC-11 の `## 特徴` 節の新設、既存節内の利用者向け製品名呼称（ツールバーのアイコン表記等）の `ヨムドウガ` への更新、およびファイル末尾（空行と水平線 `---` の後ろ）への Google LLC / YouTube 非公式表記と `YouTube is a trademark of Google LLC.` の帰属表示の追加に限る。
 - **AC-13**: `README.en.md` は `/mktrans README.md` で `README.md` と同期されており（`TestReadmeSyncMarker` と見出し・コードブロック構造の一致を満たす）、H1 見出しが `# YomuDoga for YouTube™`、本文のコア製品名が `YomuDoga` であり、非公式・商標帰属表示と Chrome 142 以降の表記を持つ。
-- **AC-14**: `INSTALL.md` は、冒頭（`INSTALL.md:3`）に `ヨムドウガ`（および Chrome ウェブストア表示名 `ヨムドウガ for YouTube™`）、ツールバー固定およびアンインストール手順（`INSTALL.md:80`・`:241`）に拡張機能一覧での表示名 `ヨムドウガ for YouTube™`、ビューアタイトルの説明（`INSTALL.md:201`）に `<動画のタイトル> - ヨムドウガ` を記している。また、Releases の URL（`https://github.com/isseis/yt2column/releases`）、Chrome 142 以降の表記、および日本語カタログと一致する画面の引用文言を維持している。
+- **AC-14**: `INSTALL.md` の差分は、冒頭（`INSTALL.md:3`）への `ヨムドウガ`（および Chrome ウェブストア表示名 `ヨムドウガ for YouTube™`）の反映、ツールバー固定およびアンインストール手順（`INSTALL.md:80`・`:241`）での拡張機能一覧表示名 `ヨムドウガ for YouTube™` への更新、およびビューアタイトルの説明（`INSTALL.md:201`）の `<動画のタイトル> - ヨムドウガ` への更新に限る。
 
 #### F-005: 開発手順の事実整合と用語集の更新
 
@@ -191,7 +191,7 @@ N/A（実行ロジックやエラー処理の制御フローを変更しない�
 
 - `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」および `CLAUDE.md` の「Document language」「Language」「Go Idioms」「Accessibility」に従う。
 - `CLAUDE.md`「Document language」原則 (c) に従い、`README.md`・`README.en.md`・`INSTALL.md` は一般の利用者向けにです・ます調の平易な表現で記述する。
-- ブラウザ拡張のソースコード内のコメント・識別子・ログ文字列は英語を維持し、日本語リテラルは `extension/src/core/i18n/ja.ts`、`extension/static/_locales/ja/messages.json`、および `CLAUDE.md`「Go Idioms」が認めるガードテストの例外範囲に限る。
+- ブラウザ拡張のソースコード内のコメント・識別子・ログ文字列は英語を維持し、日本語リテラルは `extension/src/core/i18n/ja.ts`、`extension/static/_locales/ja/messages.json`、カタログのメッセージの性質を確かめるテスト内の文字列リテラル、および `CLAUDE.md`「Go Idioms」が認めるガードテストの例外範囲に限る。
 
 ## 6. 用語集 (Glossary)
 

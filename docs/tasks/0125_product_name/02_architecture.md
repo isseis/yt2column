@@ -46,7 +46,7 @@
 | 変更 | `extension/test/buildVariant.test.ts` | `extNameDev` の先頭一致検査をロケール別コア製品名へ更新 |
 | 変更 | `extension/test/viewerTitle.test.ts` | ビューアタイトルの期待値と `messages.json` との照合契約をコア製品名基準へ更新 |
 | 変更 | `extension/test/viewerApp.test.ts` | ビューアタイトルのアサーションを `YomuDoga` へ更新 |
-| 変更 | `extension/test/catalog.test.ts` | 製品名を含む UI カタログ項目（`optionsPage.title`・`rejection` 手順）の検証と旧名 `yt2column` が含まれないことの検証を追加 |
+| 変更 | `extension/test/catalog.test.ts` | 日英カタログ全体で旧名 `yt2column` が含まれないこと、および `optionsPage.title`・`rejection` 手順が各ロケールのコア製品名（`viewerTitle.name.release`）を含むことの性質検証を追加 |
 | 変更 | `extension/test/popupHtml.test.ts` | `popup.html`・`viewer.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
 | 変更 | `extension/test/optionsHtml.test.ts` | `options.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
 | 新規 | `docs/store/chrome_web_store.md` | Chrome ウェブストアの表示名・短い説明文・商標運用条件・日英詳細説明文を収録 |
@@ -163,7 +163,7 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
   - `viewerTitle.test.ts`: 日英の公開用・開発用タイトルおよび `messages.json` との整合
   - `viewerApp.test.ts`: `doc.title` の統合確認
   - `optionsApp.test.ts`: `optionsPage.title` の反映
-  - `catalog.test.ts`: 日英カタログの全項目非空・禁止語検査・`optionsPage.title` と `rejection` 手順の確定文言・旧名 `yt2column` が含まれないこと
+  - `catalog.test.ts`: 日英カタログの全項目非空・禁止語検査・旧名 `yt2column` が含まれないこと・`optionsPage.title` と `rejection` 手順が各ロケールのコア製品名（`viewerTitle.name.release`）を含むこと
   - `popupHtml.test.ts`・`optionsHtml.test.ts`: 静的 `<title>` が `YomuDoga` であること
   - `metadataDocs.test.ts`: `INSTALL.md` の引用文言整合
 - **Go ガードテスト（`make test`）:** 次のテストを実行する。
@@ -179,13 +179,13 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
 
 ### 7.3. 差分検証と目視確認
 
-- `docs/dev/guides/development.md` の変更が 119 行目の開発用のビルド表示名の引用に限られること（AC-15）は、差分が 1 行のみと小さいため、実装計画の recorded diff reading（`diff` 検証）で確かめる。
-- 自然言語の記述内容のみを定める受け入れ基準（AC-08・AC-10・AC-11・AC-12 および AC-09・AC-14・AC-16 の文章部分）は、`CLAUDE.md`「Document tests check values, structure, and executable examples, never prose」に従い PR レビューでの目視確認（`manual`）とし、値・構造部分は上記のテストと組み合わせる。
+- 変更前後の保持条件および小規模な文書値・構造の変更（AC-10・AC-11・AC-12 の `README.md`、AC-14 の `INSTALL.md`、AC-15 の `docs/dev/guides/development.md`、AC-16 の `docs/translation_glossary.md`）はいずれも差分が小さいため、実装計画の recorded diff reading（`diff` 検証）で確かめる。
+- 自然言語の記述内容の部分（AC-08 および AC-09〜AC-14・AC-16 の文章部分）は、`CLAUDE.md`「Document tests check values, structure, and executable examples, never prose」に従い PR レビューでの目視確認（`manual`）とし、値・構造・差分部分は上記のテストおよび `diff` 検証と組み合わせる。
 
 ## 8. 実装の優先順位
 
 1. **フェーズ 1（ブラウザ拡張の製品名・UI 文言・テスト更新）:** `messages.json`（ja/en）、静的 HTML の `<title>`、`ja.ts` / `en.ts`、2.1 節に挙げた拡張テスト 7 ファイル（`manifest.test.ts`・`buildVariant.test.ts`・`viewerTitle.test.ts`・`viewerApp.test.ts`・`catalog.test.ts`・`popupHtml.test.ts`・`optionsHtml.test.ts`）を更新し、`make ext-check` および `make test && make lint` を通す。
-2. **フェーズ 2（ストア掲載文・利用者向け文書・関連文書の更新）:** `docs/store/chrome_web_store.md` を作成し、`docs/translation_glossary.md`、`README.md`・`README.en.md`（`/mktrans README.md`）、`INSTALL.md`、`docs/dev/guides/development.md`、`CLAUDE.md` を更新し、ADR-0035 の `CLAUDE.md` 未反映のずれを示す一文を除去する。`make test && make lint` および `make ext-check` を通し、AC-15 の差分記録を残す。
+2. **フェーズ 2（ストア掲載文・利用者向け文書・関連文書の更新）:** `docs/store/chrome_web_store.md` を作成し、`docs/translation_glossary.md`、`README.md`・`README.en.md`（`/mktrans README.md`）、`INSTALL.md`、`docs/dev/guides/development.md`、`CLAUDE.md` を更新し、ADR-0035 の `CLAUDE.md` 未反映のずれを示す一文を除去する。`make test && make lint` および `make ext-check` を通し、AC-10〜AC-12・AC-14・AC-15・AC-16 の差分記録を残す。
 
 ## 9. 将来の拡張性
 
