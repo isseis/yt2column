@@ -515,14 +515,29 @@ func TestSettingsDeniesWorktreeChanges(t *testing.T) {
 	}
 }
 
-// TestSettingsAsksBeforeRemove: the only ask rule of .claude/settings.json
-// is askRemove, so Claude Code asks the human to confirm every removal
-// outside the session too (an ask rule wins over the allow rule
-// Bash(chief *)), and no other call of the tool, however its arguments are
-// written, stops watching at a prompt.
+// otherToolAskRule is an ask rule for a command word other than the tool's:
+// a plain word, with no wildcard or glob character, followed by its
+// arguments' pattern.
+var otherToolAskRule = regexp.MustCompile(`^Bash\(([A-Za-z0-9_-]+) [^()]*\)$`)
+
+// TestSettingsAsksBeforeRemove: askRemove is the only ask rule of
+// .claude/settings.json that can match a call of the tool, so Claude Code asks
+// the human to confirm every removal outside the session too (an ask rule
+// wins over the allow rule Bash(chief *)), and no other call of the tool,
+// however its arguments are written, stops watching at a prompt. Every other
+// ask rule names another tool by a plain command word.
 func TestSettingsAsksBeforeRemove(t *testing.T) {
-	if ask := readSettings(t).Permissions.Ask; !slices.Equal(ask, []string{askRemove}) {
-		t.Errorf("permissions.ask %q, want only %q", ask, askRemove)
+	ask := readSettings(t).Permissions.Ask
+	if !slices.Contains(ask, askRemove) {
+		t.Errorf("permissions.ask %q lacks %q", ask, askRemove)
+	}
+	for _, rule := range ask {
+		if rule == askRemove {
+			continue
+		}
+		if m := otherToolAskRule.FindStringSubmatch(rule); m == nil || m[1] == toolWord {
+			t.Errorf("permissions.ask has %q; besides %q only rules naming another tool by a plain word are allowed", rule, askRemove)
+		}
 	}
 }
 

@@ -42,13 +42,16 @@ var definitionCalls = map[string][]string{
 	mergemainDocPath:              {"mergemain-begin", "mergemain-merge", "mergemain-restore", "mergemain-push"},
 }
 
-// mergemainPromptFreeSubcommands are the take-in subcommands allow-listed in
-// .claude/settings.json: every documented call in mergemain.md must be a bare,
-// standalone command so Claude Code runs it without a permission prompt.
-var mergemainPromptFreeSubcommands = map[string]struct{}{
-	"mergemain-begin": {},
-	"mergemain-merge": {},
-	"mergemain-push":  {},
+// mergemainBareSubcommands are the take-in subcommands that a permission
+// rule of .claude/settings.json names: every documented call in mergemain.md
+// must be a bare, standalone command, so the allow rules run begin, merge, and
+// push without a permission prompt and the ask rule always prompts for
+// restore.
+var mergemainBareSubcommands = map[string]struct{}{
+	"mergemain-begin":   {},
+	"mergemain-merge":   {},
+	"mergemain-push":    {},
+	"mergemain-restore": {},
 }
 
 // nonCommandBlock is a fenced block that holds no command to run: a Mermaid
@@ -157,8 +160,8 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 				continue
 			}
 			if rel == mergemainDocPath {
-				if _, mustBePromptFree := mergemainPromptFreeSubcommands[inv.subcommand]; mustBePromptFree && !doctestutil.PromptFree(call, toolWord) {
-					t.Errorf("%s: %s %s call %q %s %q is not a bare standalone command allowed without prompt",
+				if _, mustBeBare := mergemainBareSubcommands[inv.subcommand]; mustBeBare && !doctestutil.PromptFree(call, toolWord) {
+					t.Errorf("%s: %s %s call %q %s %q is not a bare standalone command its permission rule matches",
 						rel, toolWord, inv.subcommand, call.Lead, call.Word, call.Args)
 				}
 			}
@@ -225,7 +228,7 @@ func TestProtocolToolsAgree(t *testing.T) {
 // mergemainAllowedRules are the only Bash allow rules that may name mergepr:
 // the three take-in subcommands that perform deterministic verification and
 // never destroy uncommitted local work. mergemain-restore, prepare, and merge
-// must stay outside allow so they prompt for approval.
+// must stay outside allow.
 var mergemainAllowedRules = []string{
 	"Bash(" + toolWord + " mergemain-begin *)",
 	"Bash(" + toolWord + " mergemain-merge *)",
@@ -236,21 +239,53 @@ var mergemainAllowedRules = []string{
 // mergepr in exactly the three safe mergemain-* forms, so mergemain-restore,
 // prepare, merge, and wider wildcards still prompt for human approval.
 func TestSettingsAllowsOnlySafeMergemainSubcommands(t *testing.T) {
-	var settings struct {
-		Permissions struct {
-			Allow []string `json:"allow"`
-		} `json:"permissions"`
-	}
-	if err := json.Unmarshal([]byte(readRepoFile(t, settingsPath)), &settings); err != nil {
-		t.Fatalf("parse %s: %v", settingsPath, err)
-	}
-	extra, missing := doctestutil.BashToolRuleMismatches(settings.Permissions.Allow, toolWord, mergemainAllowedRules)
+	settings := readSettingsPermissions(t)
+	extra, missing := doctestutil.BashToolRuleMismatches(settings.Allow, toolWord, mergemainAllowedRules)
 	for _, rule := range extra {
 		t.Errorf("%s permissions.allow has %q; only %q may name %s", settingsPath, rule, mergemainAllowedRules, toolWord)
 	}
 	for _, rule := range missing {
 		t.Errorf("%s permissions.allow lacks %q", settingsPath, rule)
 	}
+}
+
+// mergemainAskRules are the only Bash ask rules that may name mergepr. A
+// command that is only absent from allow still runs without a prompt in
+// Claude Code's auto mode, where a classifier decides; an ask rule overrides
+// auto mode, so the human confirms every reset mergemain-restore makes.
+var mergemainAskRules = []string{
+	"Bash(" + toolWord + " mergemain-restore *)",
+}
+
+// TestSettingsAsksBeforeMergemainRestore: .claude/settings.json asks before
+// mergemain-restore in exactly one rule, so the human confirms every restore
+// even in auto mode.
+func TestSettingsAsksBeforeMergemainRestore(t *testing.T) {
+	settings := readSettingsPermissions(t)
+	extra, missing := doctestutil.BashToolRuleMismatches(settings.Ask, toolWord, mergemainAskRules)
+	for _, rule := range extra {
+		t.Errorf("%s permissions.ask has %q; only %q may name %s", settingsPath, rule, mergemainAskRules, toolWord)
+	}
+	for _, rule := range missing {
+		t.Errorf("%s permissions.ask lacks %q", settingsPath, rule)
+	}
+}
+
+// settingsPermissions is the permissions object of .claude/settings.json.
+type settingsPermissions struct {
+	Allow []string `json:"allow"`
+	Ask   []string `json:"ask"`
+}
+
+func readSettingsPermissions(t *testing.T) settingsPermissions {
+	t.Helper()
+	var settings struct {
+		Permissions settingsPermissions `json:"permissions"`
+	}
+	if err := json.Unmarshal([]byte(readRepoFile(t, settingsPath)), &settings); err != nil {
+		t.Fatalf("parse %s: %v", settingsPath, err)
+	}
+	return settings.Permissions
 }
 
 // nonCommandInfo lists fenced-block info strings that hold diagrams, examples,
@@ -263,17 +298,15 @@ var nonCommandInfo = map[string]struct{}{
 	"md":       {},
 }
 
-// forbiddenGitMutations are the git subcommands mergemain.md must never invoke
-// directly in an executable command block: taking in (pull runs a merge),
-// restoring, cleaning, rebasing, and pushing must go through mergepr's take-in
-// subcommands or stay prohibited.
-var forbiddenGitMutations = map[string]struct{}{
-	"merge":  {},
-	"pull":   {},
-	"reset":  {},
-	"push":   {},
-	"clean":  {},
-	"rebase": {},
+// allowedGitSubcommands are the only git subcommands mergemain.md may invoke
+// directly in an executable command block: the merge commit and the diff that
+// decides whether the extension checks run. Taking in, restoring, cleaning,
+// rebasing, pushing, and every other git mutation must go through mergepr's
+// take-in subcommands or stay prohibited, so any other subcommand, and a word
+// the guard cannot read as one, is a hit (the list fails secure).
+var allowedGitSubcommands = map[string]struct{}{
+	"commit": {},
+	"diff":   {},
 }
 
 // gitValuedGlobalOpts are git global options that take the next word as their
@@ -362,7 +395,8 @@ func skipQuotedWord(args []string, i int) int {
 func hasKey(m map[string]struct{}, k string) bool { _, ok := m[k]; return ok }
 
 // directGitMutations scans every executable fenced code block of doc and
-// returns each line that directly runs a forbidden git mutation (skipping git
+// returns each line that directly runs a git subcommand outside
+// allowedGitSubcommands (skipping git
 // global options and unwrapping wrappers, env -S, redirections, and shell -c
 // via doctestutil). An unclosed fenced code block is reported as a violation so
 // the check fails closed.
@@ -379,7 +413,7 @@ func directGitMutations(doc string) []string {
 		}
 		for _, line := range joinContinuations(block.Lines) {
 			for _, args := range doctestutil.CommandArgs(line, "git") {
-				if sub := gitSubcommandAfterOptions(args); hasKey(forbiddenGitMutations, sub) {
+				if sub := gitSubcommandAfterOptions(args); !hasKey(allowedGitSubcommands, sub) {
 					hits = append(hits, sub+": "+line)
 				}
 			}
@@ -388,8 +422,8 @@ func directGitMutations(doc string) []string {
 	return hits
 }
 
-// TestDirectGitMutations: the guard detects direct forbidden git mutations in
-// executable code blocks (including with global options, wrappers, blockquoted
+// TestDirectGitMutations: the guard detects direct git subcommands other than
+// commit and diff in executable code blocks (including with global options, wrappers, blockquoted
 // fences, paths, continuations, shell -c, decorated subcommands, and unclosed
 // fences) and does not false-positive on git commit, git diff, prose code
 // spans, or non-command text blocks.
@@ -406,7 +440,6 @@ func TestDirectGitMutations(t *testing.T) {
 				"mergepr mergemain-merge --protocol 4 --head-branch b --base-head a --main m 1\n" +
 				"git commit --no-edit\n" +
 				"git diff --name-only a HEAD\n" +
-				"git add README.md\n" +
 				"```\n\n" +
 				"```text\ngit push origin branch\n```\n",
 		},
@@ -456,6 +489,16 @@ func TestDirectGitMutations(t *testing.T) {
 			wantSubs: []string{"reset", "push", "merge"},
 		},
 		{
+			name:     "other_mutations_fail_secure",
+			doc:      "```bash\ngit restore --source HEAD~1 -SW .\ngit checkout -f HEAD~1\ngit stash -u\ngit commit --amend --no-edit\n```\n",
+			wantSubs: []string{"restore", "checkout", "stash"},
+		},
+		{
+			name:     "alias_and_mid_word_quote_fail_secure",
+			doc:      "```bash\ngit -c alias.up=push up origin HEAD\ngit -c user.name=\"A B\" push origin HEAD\n```\n",
+			wantSubs: []string{"up", "B"},
+		},
+		{
 			name:     "unclosed_fence_fails_closed",
 			doc:      "```bash\ngit commit --no-edit\n",
 			wantSubs: []string{"unclosed fenced code block"},
@@ -481,10 +524,9 @@ func TestDirectGitMutations(t *testing.T) {
 	}
 }
 
-// TestMergemainNoDirectGitMutation: .claude/commands/mergemain.md never invokes
-// git merge, git pull, git reset, git clean, git rebase, or git push directly in any
-// executable command block; all take-in, restore, and push operations go
-// through mergepr.
+// TestMergemainNoDirectGitMutation: .claude/commands/mergemain.md invokes no
+// git subcommand other than commit and diff directly in any executable command
+// block; all take-in, restore, and push operations go through mergepr.
 func TestMergemainNoDirectGitMutation(t *testing.T) {
 	doc := readRepoFile(t, mergemainDocPath)
 	for _, hit := range directGitMutations(doc) {

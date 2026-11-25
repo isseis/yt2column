@@ -54,8 +54,9 @@ The three safe take-in subcommands (`mergemain-begin`, `mergemain-merge`,
 `mergemain-push`) are allow-listed in `.claude/settings.json` only when called
 as bare, standalone commands. Always invoke each as its own command with nothing
 before `mergepr` and no chaining (`&&`, `;`, `|`, `$(...)`). `mergemain-restore`
-is intentionally not allow-listed and prompts the human before resetting the
-work tree.
+is not allow-listed; an ask rule in `.claude/settings.json` makes Claude Code
+ask the human before every call, auto mode included, so invoke it the same bare
+way and wait for the human's answer before it resets the work tree.
 
 ## Prohibited actions
 
@@ -137,7 +138,12 @@ applied to each, and a short summary of the resolution for step 10.
      index, or work-tree file). Map `reason:` via "Stop-reason mapping" and go
      to step 10.
    - If `status: ok`: record the exact values of `base_head`, `head_branch`, and
-     `main_head` for the remaining steps.
+     `main_head` for the remaining steps. Steps 3 and 9 write `head_branch`
+     into a command line, so it must consist only of ASCII letters, digits,
+     `.`, `_`, `/`, and `-`. If it holds any other character, do not restore
+     (no branch, index, or work-tree file has changed yet); go to step 10 with
+     `止まった` and reason `前提が合わない`, saying the head branch name has a
+     character this command does not pass to a shell.
 
 3. **Merge (`mergemain-merge`).**
    Run as a standalone command, passing the exact values printed by step 2:
@@ -222,9 +228,14 @@ applied to each, and a short summary of the resolution for step 10.
        `保てない文書の衝突`.
    - Never modify any file outside `.md` files (the protocol-number Go files
      were already updated by `mergemain-merge`).
-   - Stage all resolved and rule-updated `.md` files with `git add` (even when
-     no remaining `conflict: markdown` line existed), and verify no unmerged
-     paths, conflict markers, or untracked files remain in the work tree.
+   - Stage each resolved and rule-updated `.md` file by naming its path
+     (`git add -- <path>`; never `git add -A`, `git add .`, or a directory),
+     even when no remaining `conflict: markdown` line existed. Then verify no
+     unmerged paths, conflict markers, or untracked files remain in the work
+     tree. If an untracked file is present, never stage, move, or delete it:
+     it may be the human's. Run step 9 (whose checks refuse to reset over
+     untracked files and report it) and go to step 10 with reason
+     `検査の失敗`.
 
 6. **Create the merge commit.**
    Commit with git's default merge commit message (do not edit or override it):
@@ -277,7 +288,8 @@ applied to each, and a short summary of the resolution for step 10.
    or `mergemain-push`, or an agent-decided stop after step 3 started the
    merge). Never run after a `mergemain-begin` stop, after `push_unknown`, or
    when `restore:` is `not_needed` or `unknown`. Run as a standalone command
-   (this prompts the human for approval):
+   (the ask rule of `.claude/settings.json` prompts the human for approval,
+   auto mode included):
 
    ```bash
    mergepr mergemain-restore --protocol 4 --head-branch <head-branch> --base-head <base-head> --main <main-head> <PR>

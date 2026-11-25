@@ -10,7 +10,8 @@
       "Bash(mergepr mergemain-push *)"
     ],
     "ask": [
-      "Bash(chief remove *)"
+      "Bash(chief remove *)",
+      "Bash(mergepr mergemain-restore *)"
     ],
     "deny": [
       "Bash(herdr agent prompt *)",
