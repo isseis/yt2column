@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,11 @@ import (
 	cmdrunnertestutil "github.com/isseis/yt2column/internal/cmdrunner/testutil"
 	"github.com/isseis/yt2column/internal/ghci"
 )
+
+type ciResponse struct {
+	out string
+	err error
+}
 
 func ciGraphQLResponse(head, suiteStatus, suiteConclusion, runStatus, runConclusion string) string {
 	suiteConc := "null"
@@ -33,25 +39,30 @@ func ciGraphQLResponse(head, suiteStatus, suiteConclusion, runStatus, runConclus
 func TestCIChecks(t *testing.T) {
 	boom := errors.New("boom")
 
-	// Verify both repo view and GraphQL calls through a local runner because
-	// ghci's GraphQL query string is unexported.
-	type callRecord struct {
-		name string
-		args []string
-	}
-	runWith := func(t *testing.T, ctx context.Context, req CIChecksRequest, responses []struct {
-		out string
-		err error
-	},
-	) (CIChecksResult, []callRecord, error) {
+	// Validate both gh calls through a local runner because ghci's GraphQL
+	// query string is unexported.
+	runWith := func(t *testing.T, ctx context.Context, req CIChecksRequest, responses []ciResponse) (CIChecksResult, error) {
 		t.Helper()
-		var calls []callRecord
 		idx := 0
 		r := &ciFakeRunner{
 			run: func(_ context.Context, name string, args ...string) ([]byte, error) {
-				calls = append(calls, callRecord{name: name, args: append([]string(nil), args...)})
 				if idx >= len(responses) {
 					t.Fatalf("unexpected call %d: %s %v", idx, name, args)
+				}
+				if name != ghCommand {
+					t.Fatalf("call %d command = %q, want %q", idx, name, ghCommand)
+				}
+				switch idx {
+				case 0:
+					if !slices.Equal(args, []string{"repo", "view", "--json", "nameWithOwner"}) {
+						t.Errorf("repo view args = %v", args)
+					}
+				case 1:
+					for _, wantArg := range []string{"owner=" + testOwner, "name=" + testRepoName, "number=" + testPR} {
+						if !slices.Contains(args, wantArg) {
+							t.Errorf("graphql args %v lack %q", args, wantArg)
+						}
+					}
 				}
 				resp := responses[idx]
 				idx++
@@ -66,25 +77,25 @@ func TestCIChecks(t *testing.T) {
 		if idx != len(responses) {
 			t.Errorf("ran %d calls, want %d", idx, len(responses))
 		}
-		return res, calls, err
+		return res, err
 	}
+
+	// Parse headRefOid successfully, then trigger a post-head limit error so
+	// ReadPR returns StateUnreadable with Head == rsHead; CIChecks must
+	// rewrite Reason to UnreadableCall and clear Head to "".
+	postHeadLimit := `{"data":{"repository":{"pullRequest":{"headRefOid":"` + rsHead + `","commits":{"nodes":[{"commit":{"oid":"` + rsHead + `","checkSuites":{"pageInfo":{"hasNextPage":true},"nodes":[]}}}]}}}}}`
 
 	for _, tc := range []struct {
 		name      string
 		req       CIChecksRequest
-		responses []struct {
-			out string
-			err error
-		}
-		want CIChecksResult
+		responses []ciResponse
+		expired   bool
+		want      CIChecksResult
 	}{
 		{
 			name: "passed_ignoring_external_app",
 			req:  CIChecksRequest{PR: mustPR(t), ExpectedHead: rsHead},
-			responses: []struct {
-				out string
-				err error
-			}{
+			responses: []ciResponse{
 				{out: repositoryView},
 				{out: ciGraphQLResponse(rsHead, "COMPLETED", "SUCCESS", "COMPLETED", "SUCCESS")},
 			},
@@ -101,10 +112,7 @@ func TestCIChecks(t *testing.T) {
 		{
 			name: "pending",
 			req:  CIChecksRequest{PR: mustPR(t)},
-			responses: []struct {
-				out string
-				err error
-			}{
+			responses: []ciResponse{
 				{out: repositoryView},
 				{out: ciGraphQLResponse(rsHead, "IN_PROGRESS", "", "IN_PROGRESS", "")},
 			},
@@ -121,10 +129,7 @@ func TestCIChecks(t *testing.T) {
 		{
 			name: "failed_carries_failing_check",
 			req:  CIChecksRequest{PR: mustPR(t), ExpectedHead: rsHead},
-			responses: []struct {
-				out string
-				err error
-			}{
+			responses: []ciResponse{
 				{out: repositoryView},
 				{out: ciGraphQLResponse(rsHead, "COMPLETED", "FAILURE", "COMPLETED", "FAILURE")},
 			},
@@ -143,10 +148,7 @@ func TestCIChecks(t *testing.T) {
 		{
 			name: "head_changed",
 			req:  CIChecksRequest{PR: mustPR(t), ExpectedHead: rsHead},
-			responses: []struct {
-				out string
-				err error
-			}{
+			responses: []ciResponse{
 				{out: repositoryView},
 				{out: ciGraphQLResponse(rsSecond, "COMPLETED", "SUCCESS", "COMPLETED", "SUCCESS")},
 			},
@@ -159,14 +161,9 @@ func TestCIChecks(t *testing.T) {
 			},
 		},
 		{
-			name: "repo_call_failed",
-			req:  CIChecksRequest{PR: mustPR(t)},
-			responses: []struct {
-				out string
-				err error
-			}{
-				{err: boom},
-			},
+			name:      "repo_call_failed",
+			req:       CIChecksRequest{PR: mustPR(t)},
+			responses: []ciResponse{{err: boom}},
 			want: CIChecksResult{
 				Protocol: Protocol,
 				State:    ghci.StateUnreadable,
@@ -175,14 +172,9 @@ func TestCIChecks(t *testing.T) {
 			},
 		},
 		{
-			name: "repo_rejected",
-			req:  CIChecksRequest{PR: mustPR(t)},
-			responses: []struct {
-				out string
-				err error
-			}{
-				{out: `{"nameWithOwner":"invalid"}`},
-			},
+			name:      "repo_rejected",
+			req:       CIChecksRequest{PR: mustPR(t)},
+			responses: []ciResponse{{out: `{"nameWithOwner":"invalid"}`}},
 			want: CIChecksResult{
 				Protocol: Protocol,
 				State:    ghci.StateUnreadable,
@@ -191,14 +183,9 @@ func TestCIChecks(t *testing.T) {
 			},
 		},
 		{
-			name: "repo_limit",
-			req:  CIChecksRequest{PR: mustPR(t)},
-			responses: []struct {
-				out string
-				err error
-			}{
-				{err: cmdrunner.ErrOutputTooLarge},
-			},
+			name:      "repo_limit",
+			req:       CIChecksRequest{PR: mustPR(t)},
+			responses: []ciResponse{{err: cmdrunner.ErrOutputTooLarge}},
 			want: CIChecksResult{
 				Protocol: Protocol,
 				State:    ghci.StateUnreadable,
@@ -207,15 +194,9 @@ func TestCIChecks(t *testing.T) {
 			},
 		},
 		{
-			name: "read_pr_call_failed",
-			req:  CIChecksRequest{PR: mustPR(t)},
-			responses: []struct {
-				out string
-				err error
-			}{
-				{out: repositoryView},
-				{err: boom},
-			},
+			name:      "read_pr_call_failed",
+			req:       CIChecksRequest{PR: mustPR(t)},
+			responses: []ciResponse{{out: repositoryView}, {err: boom}},
 			want: CIChecksResult{
 				Protocol: Protocol,
 				State:    ghci.StateUnreadable,
@@ -224,15 +205,9 @@ func TestCIChecks(t *testing.T) {
 			},
 		},
 		{
-			name: "read_pr_rejected",
-			req:  CIChecksRequest{PR: mustPR(t)},
-			responses: []struct {
-				out string
-				err error
-			}{
-				{out: repositoryView},
-				{out: `{not json`},
-			},
+			name:      "read_pr_rejected",
+			req:       CIChecksRequest{PR: mustPR(t)},
+			responses: []ciResponse{{out: repositoryView}, {out: `{not json`}},
 			want: CIChecksResult{
 				Protocol: Protocol,
 				State:    ghci.StateUnreadable,
@@ -241,105 +216,76 @@ func TestCIChecks(t *testing.T) {
 			},
 		},
 		{
-			name: "read_pr_limit",
-			req:  CIChecksRequest{PR: mustPR(t)},
-			responses: []struct {
-				out string
-				err error
-			}{
-				{out: repositoryView},
-				{err: cmdrunner.ErrOutputTooLarge},
-			},
+			name:      "read_pr_limit",
+			req:       CIChecksRequest{PR: mustPR(t)},
+			responses: []ciResponse{{out: repositoryView}, {err: cmdrunner.ErrOutputTooLarge}},
 			want: CIChecksResult{
 				Protocol: Protocol,
 				State:    ghci.StateUnreadable,
 				Reason:   ghci.UnreadableLimit,
+				Failing:  []ghci.FailingCheck{},
+			},
+		},
+		{
+			name:      "deadline_passed_at_repo",
+			req:       CIChecksRequest{PR: mustPR(t)},
+			responses: []ciResponse{{out: `{"nameWithOwner":"invalid"}`}},
+			expired:   true,
+			want: CIChecksResult{
+				Protocol: Protocol,
+				State:    ghci.StateUnreadable,
+				Reason:   ghci.UnreadableCall,
+				Failing:  []ghci.FailingCheck{},
+			},
+		},
+		{
+			name:      "deadline_passed_at_read_pr_clears_head",
+			req:       CIChecksRequest{PR: mustPR(t)},
+			responses: []ciResponse{{out: repositoryView}, {out: postHeadLimit}},
+			expired:   true,
+			want: CIChecksResult{
+				Protocol: Protocol,
+				State:    ghci.StateUnreadable,
+				Reason:   ghci.UnreadableCall,
+				Failing:  []ghci.FailingCheck{},
+			},
+		},
+		{
+			name: "deadline_passed_preserves_head_changed",
+			req:  CIChecksRequest{PR: mustPR(t), ExpectedHead: rsHead},
+			responses: []ciResponse{
+				{out: repositoryView},
+				{out: ciGraphQLResponse(rsSecond, "COMPLETED", "SUCCESS", "COMPLETED", "SUCCESS")},
+			},
+			expired: true,
+			want: CIChecksResult{
+				Protocol: Protocol,
+				State:    ghci.StateUnreadable,
+				Reason:   ghci.UnreadableHeadChanged,
+				Head:     rsSecond,
 				Failing:  []ghci.FailingCheck{},
 			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, calls, err := runWith(t, t.Context(), tc.req, tc.responses)
+			ctx := t.Context()
+			if tc.expired {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithDeadline(ctx, time.Now().Add(-time.Second))
+				t.Cleanup(cancel)
+			}
+			got, err := runWith(t, ctx, tc.req, tc.responses)
 			if err != nil {
 				t.Fatalf("CIChecks = %v", err)
 			}
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, tc.want))
 			}
-			if tc.name == "passed_ignoring_external_app" {
-				if len(calls) != 2 || calls[0].name != "gh" || !reflect.DeepEqual(calls[0].args, []string{"repo", "view", "--json", "nameWithOwner"}) {
-					t.Errorf("unexpected repo call: %+v", calls)
-				}
-				wantPrefix := []string{"api", "graphql", "-f", "owner=" + testOwner, "-f", "name=" + testRepoName, "-F", "number=" + testPR}
-				if len(calls) != 2 || calls[1].name != "gh" || len(calls[1].args) < len(wantPrefix) || !reflect.DeepEqual(calls[1].args[:len(wantPrefix)], wantPrefix) {
-					t.Errorf("unexpected graphql call: %+v", calls)
-				}
-				if !strings.Contains(mustJSON(t, got), `"failing":[]`) {
-					t.Errorf("JSON lacks empty failing slice: %s", mustJSON(t, got))
-				}
+			if len(tc.want.Failing) == 0 && !strings.Contains(mustJSON(t, got), `"failing":[]`) {
+				t.Errorf("JSON lacks empty failing slice: %s", mustJSON(t, got))
 			}
 		})
 	}
-
-	t.Run("deadline_passed_at_repo", func(t *testing.T) {
-		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
-		t.Cleanup(cancel)
-		got, _, err := runWith(t, ctx, CIChecksRequest{PR: mustPR(t)}, []struct {
-			out string
-			err error
-		}{
-			{out: `{"nameWithOwner":"invalid"}`},
-		})
-		if err != nil {
-			t.Fatalf("CIChecks = %v", err)
-		}
-		want := CIChecksResult{Protocol: Protocol, State: ghci.StateUnreadable, Reason: ghci.UnreadableCall, Failing: []ghci.FailingCheck{}}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, want))
-		}
-	})
-
-	t.Run("deadline_passed_at_read_pr_clears_head", func(t *testing.T) {
-		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
-		t.Cleanup(cancel)
-		// Parse headRefOid successfully, then trigger a post-head limit error so
-		// ReadPR returns StateUnreadable with Head == rsHead; CIChecks must
-		// rewrite Reason to UnreadableCall and clear Head to "".
-		postHeadLimit := `{"data":{"repository":{"pullRequest":{"headRefOid":"` + rsHead + `","commits":{"nodes":[{"commit":{"oid":"` + rsHead + `","checkSuites":{"pageInfo":{"hasNextPage":true},"nodes":[]}}}]}}}}}`
-		got, _, err := runWith(t, ctx, CIChecksRequest{PR: mustPR(t)}, []struct {
-			out string
-			err error
-		}{
-			{out: repositoryView},
-			{out: postHeadLimit},
-		})
-		if err != nil {
-			t.Fatalf("CIChecks = %v", err)
-		}
-		want := CIChecksResult{Protocol: Protocol, State: ghci.StateUnreadable, Reason: ghci.UnreadableCall, Failing: []ghci.FailingCheck{}}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, want))
-		}
-	})
-
-	t.Run("deadline_passed_preserves_head_changed", func(t *testing.T) {
-		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
-		t.Cleanup(cancel)
-		got, _, err := runWith(t, ctx, CIChecksRequest{PR: mustPR(t), ExpectedHead: rsHead}, []struct {
-			out string
-			err error
-		}{
-			{out: repositoryView},
-			{out: ciGraphQLResponse(rsSecond, "COMPLETED", "SUCCESS", "COMPLETED", "SUCCESS")},
-		})
-		if err != nil {
-			t.Fatalf("CIChecks = %v", err)
-		}
-		want := CIChecksResult{Protocol: Protocol, State: ghci.StateUnreadable, Reason: ghci.UnreadableHeadChanged, Head: rsSecond, Failing: []ghci.FailingCheck{}}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, want))
-		}
-	})
 
 	for name, req := range map[string]CIChecksRequest{
 		"zero_pr":        {},

@@ -746,13 +746,14 @@ func TestReviewStateEnumsRejectOutsideValues(t *testing.T) {
 }
 
 func TestParseReviewProfile(t *testing.T) {
+	wantProfiles := []ReviewProfile{ProfileCodeRabbit, ProfileSourcery}
 	wantNames := map[ReviewProfile]string{
 		ProfileCodeRabbit: "coderabbit",
 		ProfileSourcery:   "sourcery",
 	}
 	profiles := ReviewProfiles()
-	if len(profiles) != len(wantNames) {
-		t.Fatalf("ReviewProfiles() len = %d, want %d", len(profiles), len(wantNames))
+	if !slices.Equal(profiles, wantProfiles) {
+		t.Fatalf("ReviewProfiles() = %v, want %v", profiles, wantProfiles)
 	}
 	for _, p := range profiles {
 		raw, err := p.MarshalText()
@@ -772,11 +773,12 @@ func TestParseReviewProfile(t *testing.T) {
 		t.Run("invalid/"+bad, func(t *testing.T) {
 			got, err := ParseReviewProfile(bad)
 			if !errors.Is(err, ErrInvalidInput) {
-				t.Errorf("ParseReviewProfile(%q) = %v, want ErrInvalidInput", bad, err)
+				t.Fatalf("ParseReviewProfile(%q) = %v, want ErrInvalidInput", bad, err)
 			}
 			if got != ProfileUnknown {
 				t.Errorf("ParseReviewProfile(%q) profile = %v, want ProfileUnknown", bad, got)
 			}
+			// The error text is the contract here: it must not echo untrusted input.
 			if bad != "" && strings.Contains(err.Error(), bad) {
 				t.Errorf("error %q echoes input %q", err, bad)
 			}

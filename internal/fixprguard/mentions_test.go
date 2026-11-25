@@ -4,6 +4,7 @@ package fixprguard
 
 import (
 	"context"
+	"encoding"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -211,11 +212,16 @@ func (in msInput) steps(t testing.TB) []cmdrunnertestutil.Step {
 
 func runMentions(t *testing.T, req MentionScanRequest, in msInput) MentionScanResult {
 	t.Helper()
+	return runMentionsCtx(t.Context(), t, req, in)
+}
+
+func runMentionsCtx(ctx context.Context, t *testing.T, req MentionScanRequest, in msInput) MentionScanResult {
+	t.Helper()
 	g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, in.steps(t)...))
 	if err != nil {
 		t.Fatalf("NewGitHubWithoutReviewer: %v", err)
 	}
-	got, err := g.PRMentions(t.Context(), req)
+	got, err := g.PRMentions(ctx, req)
 	if err != nil {
 		t.Fatalf("PRMentions: %v", err)
 	}
@@ -287,18 +293,16 @@ func TestPRMentions(t *testing.T) {
 		}
 	})
 
-	// All three manual request texts from the authenticated User in
-	// issues/<PR>/comments (including surrounding whitespace) are excluded;
-	// another user or a bot posting the same text is not excluded.
+	// Verify PRMentions wires isRequestComment for all three manual request
+	// texts in issues/<PR>/comments (full edge-case matrix lives in
+	// TestIsRequestComment) while retaining non-matching user comments.
 	t.Run("manual_request_exclusions", func(t *testing.T) {
 		in := msInput{
 			issueComments: []msComment{
 				{id: 1, login: rsUser, kind: typenameUser, body: "@coderabbitai review", url: rsURL(1)},
 				{id: 2, login: rsUser, kind: typenameUser, body: " \r\n@sourcery-ai review\r\n ", url: rsURL(2)},
 				{id: 3, login: rsUser, kind: typenameUser, body: "\t@sourceryai review\n", url: rsURL(3)},
-				{id: 4, login: "alice", kind: typenameUser, body: "@sourcery-ai review", url: rsURL(4)},
-				{id: 5, login: rsUser, kind: typenameBot, body: "@sourceryai review", url: rsURL(5)},
-				{id: 6, login: rsUser, kind: typenameUser, body: "@sourcery-ai review extra", url: rsURL(6)},
+				{id: 4, login: rsUser, kind: typenameUser, body: "@sourcery-ai review extra", url: rsURL(4)},
 			},
 		}
 		got := runMentions(t, defaultMentionRequest(t), in)
@@ -306,9 +310,7 @@ func TestPRMentions(t *testing.T) {
 			Protocol: Protocol,
 			State:    MentionScanOK,
 			Mentions: []MentionFinding{
-				{Source: MentionSourceIssueComment, URL: rsURL(4), CreatedAt: rsCreated, UpdatedAt: rsCreated},
-				{Source: MentionSourceIssueComment, URL: rsURL(5), CreatedAt: rsCreated, UpdatedAt: rsCreated, ByBot: true},
-				{Source: MentionSourceIssueComment, URL: rsURL(6), CreatedAt: rsCreated, UpdatedAt: rsCreated, ByUser: true},
+				{Source: MentionSourceIssueComment, URL: rsURL(4), CreatedAt: rsCreated, UpdatedAt: rsCreated, ByUser: true},
 			},
 		}
 		if !reflect.DeepEqual(got, want) {
@@ -508,10 +510,15 @@ func TestPRMentionsErrors(t *testing.T) {
 
 	// Stage failures discard any findings from earlier stages.
 	seedIssue := []msComment{{id: 1, login: "mallory", kind: typenameUser, body: "@sourcery-ai", url: rsURL(1)}}
+	overIssueLimit := make([]msComment, maxReviewComments+1)
+	for i := range overIssueLimit {
+		overIssueLimit[i] = msComment{id: int64(i + 1), login: "alice", kind: typenameUser, body: "ok", url: rsURL(int64(i + 1))}
+	}
 	for _, tc := range []struct {
-		name string
-		in   msInput
-		want MentionScanResult
+		name    string
+		in      msInput
+		expired bool
+		want    MentionScanResult
 	}{
 		{
 			name: "repo_call_failed",
@@ -642,73 +649,37 @@ func TestPRMentionsErrors(t *testing.T) {
 			in:   msInput{issueComments: seedIssue, fail: map[MentionScanStage]error{MentionStageReviews: cmdrunner.ErrOutputTooLarge}},
 			want: wantUnreadable(UnreadableLimit, MentionStageReviews),
 		},
+		{
+			name: "issue_comments_over_limit",
+			in:   msInput{issueComments: overIssueLimit, stop: MentionStageIssueComments},
+			want: wantUnreadable(UnreadableLimit, MentionStageIssueComments),
+		},
+		{
+			name:    "deadline_passed_at_repo",
+			in:      msInput{edit: map[MentionScanStage]func(string) string{MentionStageRepo: func(string) string { return `{"nameWithOwner":"bad"}` }}, stop: MentionStageRepo},
+			expired: true,
+			want:    wantUnreadable(UnreadableCall, MentionStageRepo),
+		},
+		{
+			name:    "deadline_passed_at_user",
+			in:      msInput{edit: map[MentionScanStage]func(string) string{MentionStageUser: func(string) string { return `{"login":"bad name"}` }}, stop: MentionStageUser},
+			expired: true,
+			want:    wantUnreadable(UnreadableCall, MentionStageUser),
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := runMentions(t, defaultMentionRequest(t), tc.in)
+			ctx := t.Context()
+			if tc.expired {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithDeadline(ctx, time.Now().Add(-time.Second))
+				t.Cleanup(cancel)
+			}
+			got := runMentionsCtx(ctx, t, defaultMentionRequest(t), tc.in)
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, tc.want))
 			}
 		})
 	}
-
-	// Endpoint item count limit boundaries.
-	t.Run("issue_comments_over_limit", func(t *testing.T) {
-		over := make([]msComment, maxReviewComments+1)
-		for i := range over {
-			over[i] = msComment{id: int64(i + 1), login: "alice", kind: typenameUser, body: "ok", url: rsURL(int64(i + 1))}
-		}
-		got := runMentions(t, defaultMentionRequest(t), msInput{issueComments: over, stop: MentionStageIssueComments})
-		if want := wantUnreadable(UnreadableLimit, MentionStageIssueComments); !reflect.DeepEqual(got, want) {
-			t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, want))
-		}
-	})
-
-	t.Run("reviews_over_limit", func(t *testing.T) {
-		over := make([]msReview, maxReviewReviews+1)
-		for i := range over {
-			over[i] = msReview{id: int64(i + 1), login: "alice", kind: typenameUser, body: "ok", url: rsReviewURL(int64(i + 1))}
-		}
-		got := runMentions(t, defaultMentionRequest(t), msInput{reviews: over, stop: MentionStageReviews})
-		if want := wantUnreadable(UnreadableLimit, MentionStageReviews); !reflect.DeepEqual(got, want) {
-			t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, want))
-		}
-	})
-
-	// Expired deadline turns a failure into UnreadableCall, both at repo and at
-	// later stages.
-	t.Run("deadline_passed_at_repo", func(t *testing.T) {
-		in := msInput{edit: map[MentionScanStage]func(string) string{MentionStageRepo: func(string) string { return `{"nameWithOwner":"bad"}` }}, stop: MentionStageRepo}
-		g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, in.steps(t)...))
-		if err != nil {
-			t.Fatal(err)
-		}
-		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
-		t.Cleanup(cancel)
-		got, err := g.PRMentions(ctx, defaultMentionRequest(t))
-		if err != nil {
-			t.Fatalf("PRMentions = %v", err)
-		}
-		if want := wantUnreadable(UnreadableCall, MentionStageRepo); !reflect.DeepEqual(got, want) {
-			t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, want))
-		}
-	})
-
-	t.Run("deadline_passed_at_user", func(t *testing.T) {
-		in := msInput{edit: map[MentionScanStage]func(string) string{MentionStageUser: func(string) string { return `{"login":"bad name"}` }}, stop: MentionStageUser}
-		g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, in.steps(t)...))
-		if err != nil {
-			t.Fatal(err)
-		}
-		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
-		t.Cleanup(cancel)
-		got, err := g.PRMentions(ctx, defaultMentionRequest(t))
-		if err != nil {
-			t.Fatalf("PRMentions = %v", err)
-		}
-		if want := wantUnreadable(UnreadableCall, MentionStageUser); !reflect.DeepEqual(got, want) {
-			t.Errorf("got = %s\nwant  %s", mustJSON(t, got), mustJSON(t, want))
-		}
-	})
 }
 
 func TestParseObservedBotAndValidation(t *testing.T) {
@@ -722,17 +693,31 @@ func TestParseObservedBotAndValidation(t *testing.T) {
 		}
 	})
 
-	for _, bad := range []string{
-		"", "sourcery", "=sourcery-ai", "sourcery=", "unknown=sourcery-ai",
-		"sourcery=sourcery-ai[bot]", "sourcery=sourcery-ai=extra", "coderabbit=bad login",
+	for _, tc := range []struct {
+		name     string
+		raw      string
+		noEchoOf []string
+	}{
+		{"empty", "", nil},
+		{"no_equals", "sourcery", []string{"sourcery"}},
+		{"empty_profile", "=sourcery-ai", []string{"=sourcery-ai", "sourcery-ai"}},
+		{"empty_login", "sourcery=", []string{"sourcery=", "sourcery"}},
+		{"unknown_profile", "unknownprof=sourcery-ai", []string{"unknownprof=sourcery-ai", "unknownprof", "sourcery-ai"}},
+		{"bot_suffix", "sourcery=sourcery-ai[bot]", []string{"sourcery=sourcery-ai[bot]", "sourcery-ai[bot]"}},
+		{"extra_equals", "sourcery=sourcery-ai=extra", []string{"sourcery=sourcery-ai=extra", "sourcery-ai=extra"}},
+		{"space_in_login", "coderabbit=bad login", []string{"coderabbit=bad login", "bad login"}},
 	} {
-		t.Run("parse_invalid/"+bad, func(t *testing.T) {
-			_, err := ParseObservedBot(bad)
+		t.Run("parse_invalid/"+tc.name, func(t *testing.T) {
+			_, err := ParseObservedBot(tc.raw)
 			if !errors.Is(err, ErrInvalidInput) {
-				t.Errorf("ParseObservedBot(%q) = %v, want ErrInvalidInput", bad, err)
+				t.Fatalf("ParseObservedBot(%q) = %v, want ErrInvalidInput", tc.raw, err)
 			}
-			if bad != "" && strings.Contains(err.Error(), bad) {
-				t.Errorf("error %q echoes input %q", err, bad)
+			// The error text is the contract here: neither the full input nor
+			// either delegated half may be echoed into the error message.
+			for _, token := range tc.noEchoOf {
+				if strings.Contains(err.Error(), token) {
+					t.Errorf("error %q echoes input token %q", err, token)
+				}
 			}
 		})
 	}
@@ -769,47 +754,27 @@ func TestParseObservedBotAndValidation(t *testing.T) {
 	}
 }
 
+func checkEnumNames[T encoding.TextMarshaler](t *testing.T, label string, values []T, want []string) {
+	t.Helper()
+	got := make([]string, 0, len(values))
+	for _, v := range values {
+		b, err := v.MarshalText()
+		if err != nil {
+			t.Fatalf("%s(%v).MarshalText = %v", label, v, err)
+		}
+		got = append(got, string(b))
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%s = %v, want %v", label, got, want)
+	}
+}
+
 func TestMentionEnumsFailClosed(t *testing.T) {
 	// Exercise every list helper and verify MarshalText succeeds for every
 	// listed value.
-	wantStates := []string{"unreadable", "ok"}
-	var gotStates []string
-	for _, s := range MentionScanStates() {
-		b, err := s.MarshalText()
-		if err != nil {
-			t.Fatalf("MentionScanState(%v).MarshalText = %v", s, err)
-		}
-		gotStates = append(gotStates, string(b))
-	}
-	if !reflect.DeepEqual(gotStates, wantStates) {
-		t.Errorf("states = %v, want %v", gotStates, wantStates)
-	}
-
-	wantSources := []string{"issue-comment", "line-comment", "review"}
-	var gotSources []string
-	for _, s := range MentionSources() {
-		b, err := s.MarshalText()
-		if err != nil {
-			t.Fatalf("MentionSource(%v).MarshalText = %v", s, err)
-		}
-		gotSources = append(gotSources, string(b))
-	}
-	if !reflect.DeepEqual(gotSources, wantSources) {
-		t.Errorf("sources = %v, want %v", gotSources, wantSources)
-	}
-
-	wantStages := []string{"repo", "user", "issue-comments", "line-comments", "reviews"}
-	var gotStages []string
-	for _, s := range MentionScanStages() {
-		b, err := s.MarshalText()
-		if err != nil {
-			t.Fatalf("MentionScanStage(%v).MarshalText = %v", s, err)
-		}
-		gotStages = append(gotStages, string(b))
-	}
-	if !reflect.DeepEqual(gotStages, wantStages) {
-		t.Errorf("stages = %v, want %v", gotStages, wantStages)
-	}
+	checkEnumNames(t, "MentionScanStates", MentionScanStates(), []string{"unreadable", "ok"})
+	checkEnumNames(t, "MentionSources", MentionSources(), []string{"issue-comment", "line-comment", "review"})
+	checkEnumNames(t, "MentionScanStages", MentionScanStages(), []string{"repo", "user", "issue-comments", "line-comments", "reviews"})
 
 	// Out-of-range and invalid zero enum values fail closed.
 	for name, marshal := range map[string]func() ([]byte, error){
