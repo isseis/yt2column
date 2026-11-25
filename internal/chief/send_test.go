@@ -1433,4 +1433,35 @@ func TestSendMergemainUncertainStopsWorkspace(t *testing.T) {
 			t.Errorf("typed %v, want nothing", got)
 		}
 	})
+
+	t.Run("writer refusal on command after model records StepModel", func(t *testing.T) {
+		sw, deps, sc, held := setup(t)
+		badWriter, err := NewPaneWriter(deps.Cmds, sc.ws.Agents[0].Pane, sc.ws.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sc.writer = badWriter
+		typeCmd, err := paneinput.TypeCommand(mmCmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, err := held.BeginSend(SendRecord{
+			Pane: sc.ws.Agents[0].Pane.String(), Input: InputCommand.String(), Command: "/mergemain 77",
+			Agent: claudeCodeLabel, Model: "opus", Kind: paneinput.CommandMergemain.Name(), Arg: "77",
+			PR: pr.Number, Head: pr.Head,
+		}, sw.now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, ok := sc.prompt(context.Background(), ActionResult{Workspace: sc.ws.Worktree, Pane: sc.ws.Agents[0].Pane.String(), Input: InputCommand, Command: "/mergemain 77"}, id, sc.ws.Agents[0], step{kind: StepCommand, prompt: typeCmd}, StepModel)
+		if ok || res.Outcome != OutcomeSentThenFailed || res.Step != StepModel {
+			t.Fatalf("prompt = %+v, %v; want OutcomeSentThenFailed at StepModel", res, ok)
+		}
+		if stop, err := held.Stopped(); err != nil || stop == nil {
+			t.Fatalf("Stopped = %+v, %v; want stopped", stop, err)
+		}
+		if phase := conflictPhaseOf(held.WorkspaceRecords, pr); phase != ConflictEndedBeforeCommand {
+			t.Errorf("conflictPhaseOf = %v, want ConflictEndedBeforeCommand", phase)
+		}
+	})
 }

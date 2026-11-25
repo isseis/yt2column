@@ -752,5 +752,9 @@ func TestKeepPaneReport(t *testing.T) {
 		if err != nil || !ok || rec.Source != ReportFromPane.String() || rec.Text != makerReport {
 			t.Errorf("keptPaneReport = %+v, %v, %v; want pane report over description", rec, ok, err)
 		}
+		descRec, ok, err := records.readDetail(42, prHead)
+		if err != nil || !ok || descRec.Source != ReportFromDescription.String() || descRec.Text != "desc" {
+			t.Errorf("readDetail = %+v, %v, %v; want description detail preserved", descRec, ok, err)
+		}
 	})
 }

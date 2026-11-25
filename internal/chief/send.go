@@ -545,14 +545,19 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 // as typed. After the first input, the pane's skipped resets are removed.
 func (s sendContext) prompt(ctx context.Context, res ActionResult, id string, agent Agent, st step, last SentStep) (ActionResult, bool) {
 	if err := s.writer.Prompt(ctx, agent, st.prompt); err != nil {
-		if errors.Is(err, errWriteRefused) && last == StepUnknown {
-			// The writer refused before running herdr: nothing reached
-			// the pane.
-			res = notSent(res, NotSentUnreadable, err.Error())
-			if eerr := s.held.EndSend(id, res.Outcome.String(), err.Error(), StepUnknown, s.deps.Now()); eerr != nil {
-				res.Detail += "; the end record cannot be written, so the workspace will stop: " + eerr.Error()
+		if errors.Is(err, errWriteRefused) {
+			if last == StepUnknown {
+				// The writer refused before running herdr: nothing reached
+				// the pane.
+				res = notSent(res, NotSentUnreadable, err.Error())
+				if eerr := s.held.EndSend(id, res.Outcome.String(), err.Error(), StepUnknown, s.deps.Now()); eerr != nil {
+					res.Detail += "; the end record cannot be written, so the workspace will stop: " + eerr.Error()
+				}
+				return res, false
 			}
-			return res, false
+			// The writer refused before running herdr for st, so only the
+			// previously completed step last was typed.
+			return s.fail(res, id, last, &checkFailure{reason: NotSentUnreadable, detail: err.Error(), agent: agent}), false
 		}
 		// Herdr may have typed the input before it failed, so a failed
 		// write counts as typed.
