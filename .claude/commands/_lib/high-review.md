@@ -644,14 +644,21 @@ and the thing it builds is rarely load-bearing)
       `make coverage-compare BASE=<that commit's parent>` and/or
       `make ext-coverage-compare BASE=<that commit's parent>` — both when both
       kinds of test were deleted.
-- [ ] No `diff` verification added in this range (a `_checks/` script, or a
-      diff record in the plan) is oversized for what it checks: weigh what
-      the reviewer will read (the script, or the recorded output) against the
-      size of the diff it verifies, and a script in a language other than
-      shell has the plan's reason why shell is not enough, and a script is not
-      copied from or modeled on an earlier task's `_checks/`. This item does
-      not apply to a plan approved before this item reached `main`, nor to its
-      `_checks/`.
+- [ ] What this range adds for a temporary script (`_checks/`) and its record
+      in the plan is in proportion to the change, how often the script runs,
+      and where it runs, judged by `docs/dev/conventions/requirements_process.md`,
+      "Temporary scripts (`_checks/`)": look for a defense beyond the required
+      properties with no stated need in the approved design or plan, an
+      exhaustive escape, tolerance for an environment the script is not meant
+      for, a committed test with no stated reason or beyond a representative
+      case, a script copied from or modeled on an earlier task's `_checks/`,
+      a script with no temporary script record or a breakage record that states no real breakage (when the plan is one the rules apply to), and a `diff`
+      verification (a script, or a diff record in the plan) oversized for what
+      it checks (weigh what the reviewer will read against the size of the
+      diff it verifies; a script in a language other than shell has the plan's
+      reason why shell is not enough). Apply it as that section's "Scope"
+      says; it does not apply when the range touches no `_checks/` file and no
+      diff record.
 
 **Cross-document synchronization**
 - [ ] If this diff's implementation diverges from `02_architecture.md` or
@@ -661,8 +668,10 @@ and the thing it builds is rarely load-bearing)
       the architecture section were updated in the same commit range. A
       `[x]` with stale prose describing the old approach is a finding.
 - [ ] `03_implementation_plan.md`'s Acceptance Criteria Verification section
-      still names real test locations (`path::TestName`) or real static
-      commands for every AC this range claims to close — not a placeholder
+      still names real test locations (`path::TestName`), real static
+      commands, or, for an AC that states the behavior of a temporary script,
+      a `_checks/` script together with its temporary script record in the
+      plan, for every AC this range claims to close — not a placeholder
       or a description of a test that does not exist under that name. An AC
       that specifies only the natural-language content of a document may name
       a `manual` reading in the PR review instead; a mixed AC still needs the
