@@ -347,10 +347,13 @@ B3. **Review.** On `RUN`, run entry 2 of `_lib/high-review.md` with RANGE =
    kept lines rather than asked again. On `NONE` or `SKIP`, run no review.
 B4. **After fixes.** When the review made fix commits, run the green gate again
    (a commit that only makes it pass is inside the done record's range), and,
-   for the task's final PR, the end-of-task check of step 8, and the
-   diff-record recheck and the temporary script records check of step 5a. When the end-of-task check or the recheck makes a
-   commit that is neither excludable (`_lib/high-review.md`, "Record lines")
-   nor a fix to make the green gate pass, go back to B2.
+   the temporary script records check of step 5a (at every checkpoint, so a
+   review fix to a `_checks/` script gets its breakage check and its planned
+   runs repeated and recorded), and, for the task's final PR, the
+   end-of-task check of step 8 and the diff-record recheck of step 5a. When
+   the temporary script records check, the end-of-task check, or the recheck
+   makes a commit that is neither excludable (`_lib/high-review.md`, "Record
+   lines") nor a fix to make the green gate pass, go back to B2.
 B5. **Result for the PR body.** Write the high-model review result into PR_TEXT, for
    `_lib/task-pr-handoff.md` Part B step 3, in Japanese:
    - after `RUN`: the range `<BASE>..<HEAD>` as it stands now and the count
