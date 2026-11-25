@@ -1,0 +1,233 @@
+# 実装計画書：利用者向け製品名（ヨムドウガ / YomuDoga）の適用
+
+## Document Status
+
+| Item | Value |
+|---|---|
+| Status | `draft` |
+| Created | 2026-11-25 |
+| Review date | - |
+| Reviewer | - |
+| Comments | - |
+
+## 1. 実装概要
+
+**目的:** [01_requirements.md](01_requirements.md)（以下、要件書）と [02_architecture.md](02_architecture.md)（以下、設計書）に基づき、ブラウザ拡張機能の表示名・説明文・UI 文言・テスト、Chrome ウェブストア詳細説明文、利用者向け文書、および関連ドキュメントを新製品名（`ヨムドウガ` / `YomuDoga`、`ヨムドウガ for YouTube™` / `YomuDoga for YouTube™`）へ更新する。
+
+**実装原則:**
+
+- 拡張側の更新（フェーズ 1 / PR-1）と文書側の更新（フェーズ 2 / PR-2）を独立してグリーンゲートを通過する 2 本の PR に分ける。
+- 開発側の名称（リポジトリ名、Go モジュール、CLI、環境変数、拡張内部ログ、WASM ファイル名、パッケージ名、`development.md:119` を除く開発者向け文書）は変更しない。
+- 各テスト更新後は壊し確認（対象を旧値に戻してテストが失敗することの確認）を行い、コミットメッセージに記録する（`CLAUDE.md`「Testing Strategy」）。
+
+### 1.1. 既存コード調査結果
+
+コミット `1a5b6cab`（`origin/main`）で全変更対象および影響を受けるテストを確認した。既存の実装・ビルド機構（`extension/scripts/build-variant.ts`）・ガードテストを再利用し、新規のテストヘルパーファイル（`testutil/` や `test_helpers.go`）は追加しない。
+
+- **ロケールカタログ:** `extension/static/_locales/ja/messages.json:2-11` と `extension/static/_locales/en/messages.json:2-11` に `extName`・`extNameDev`・`extDescription` がある。`extension/static/manifest.json:3-4,7,16` はプレースホルダと公開鍵・権限を定義しており変更不要である。
+- **静的 HTML:** `extension/static/popup.html:5`・`options.html:5`・`viewer.html:5` がいずれも `<title>yt2column</title>` を持つ。
+- **UI カタログ:** `extension/src/core/i18n/ja.ts:27,35,279,289` と `extension/src/core/i18n/en.ts:29,37,268,278` に `yt2column` を含む 4 箇所がある。`extension/src/core/viewerTitle.ts`・`optionsApp.ts`・`launch.ts` はカタログを参照しておりロジック変更は不要である。
+- **拡張テスト:**
+  - `extension/test/manifest.test.ts:255-273` が両ロケールの `extName === "yt2column"` を検証している。
+  - `extension/test/buildVariant.test.ts:73-77` が `extNameDev.startsWith("yt2column")` を検証している。
+  - `extension/test/viewerTitle.test.ts:19-106` が `yt2column` と `extName` 完全一致を検証している。
+  - `extension/test/viewerApp.test.ts:281,337,356,371,400,619,824,835` が英語ロケールで `... - yt2column` を検証している。
+  - `extension/test/catalog.test.ts`・`popupHtml.test.ts`・`optionsHtml.test.ts` は現在 `yt2column` の不在や静的 `<title>` の具体値を検証していないため、AC-05・AC-06・AC-07 を直接検証する確認を追加する。
+  - `extension/test/metadataDocs.test.ts` が `INSTALL.md` と照合する項目には `yt2column` を含む文言がないため、PR-1 と PR-2 は独立して `make ext-check` を通過できる。
+  - 拡張内のコンソールログラベル（`launch.ts:122-128`、`background.ts:43`、`viewerApp.ts:109-111`）、`chromeDeps.ts:570`、`workerCalls.ts:12,15`、`package.json:2` は開発側識別子であり変更しない。
+- **文書と Go ガードテスト:**
+  - `README.md:3,5,32`・`README.en.md:4,6,33`・`INSTALL.md:3,80,201,241` に利用者向け製品名としての `yt2column` がある（`INSTALL.md:62` は Releases URL のため維持）。
+  - `docs/dev/guides/development.md:119` に開発用のビルド表示名の引用がある。
+  - `cmd/yt2column/docpaths_test.go:111` は `docs/dev/` のみを走査するため、`docs/store/chrome_web_store.md` は指示文書チェック対象外である。
+  - `cmd/yt2column/readme_sync_test.go::TestReadmeSyncMarker`・`readme_structure_test.go::TestReadmeVersionsShareStructure`・`adr_test.go::TestADRRecords`・`extension_docs_test.go::TestExtensionDocumentation` が既存ガードとして動作する。
+
+### 1.2. 計画の際に決めたこと（2026-11-25）
+
+1. **実装 PR の分割:** フェーズ 1（拡張機能とテスト）を PR-1、フェーズ 2（ストア掲載文・利用者向け文書・関連文書）を PR-2 の 2 本の PR に分ける。
+   - **理由:** `metadataDocs.test.ts` の照合対象に製品名を含まないため 2 本の PR が独立してグリーンゲートを通過でき、コード変更と日本語・英語文書のレビュー観点を分離できるためである。
+   - **ADR:** なし（本タスク内の実装分割であり、主要決定ではないため）。
+
+## 2. 実装ステップ
+
+### フェーズ 1: 拡張機能の製品名・UI 文言・テスト更新
+
+設計書 3.1 節・3.2 節および 8 章のフェーズ 1 に対応する。
+
+#### ステップ 1-1: ロケールカタログと静的 HTML の更新
+
+**変更するファイル:** `extension/static/_locales/ja/messages.json`、`extension/static/_locales/en/messages.json`、`extension/static/popup.html`、`extension/static/options.html`、`extension/static/viewer.html`
+
+- [ ] `extension/static/_locales/ja/messages.json` の 3 項目を設計書 3.1 節の確定値へ変更する（`extName`: `"yt2column"` → `"ヨムドウガ for YouTube™"`、`extNameDev`: `"yt2column（開発用のビルド）"` → `"ヨムドウガ（開発用のビルド）"`、`extDescription`: `"選択した YouTube の文字起こしを、ブラウザの中で、自分の Anthropic API キーを使ってコラム記事にします。"` → `"YouTube™ 動画を、さっと読める新聞・雑誌風の日本語コラム記事に。選んだ文字起こしから、AI が読みやすく編集します。"`）
+- [ ] `extension/static/_locales/en/messages.json` の 3 項目を設計書 3.1 節の確定値へ変更する（`extName`: `"yt2column"` → `"YomuDoga for YouTube™"`、`extNameDev`: `"yt2column (development build)"` → `"YomuDoga (development build)"`、`extDescription`: `"Turns the selected YouTube transcript into a magazine-style column article with your Anthropic API key, in the browser."` → `"Turns YouTube™ videos into readable Japanese magazine-style column articles from your selected transcript with AI."`）
+- [ ] `extension/static/popup.html`・`options.html`・`viewer.html` の `<title>yt2column</title>` を `<title>YomuDoga</title>` へ変更する（`extension/static/manifest.json` は変更しない）
+
+**完了基準:** 全 5 ファイルが設計書 3.1 節・3.2 節の確定値と一致し、`manifest.json` に差分がないこと。
+
+#### ステップ 1-2: UI カタログの更新
+
+**変更するファイル:** `extension/src/core/i18n/ja.ts`、`extension/src/core/i18n/en.ts`
+
+- [ ] `extension/src/core/i18n/ja.ts` の 4 箇所を設計書 3.2 節の確定値へ変更する（`rejection["not-watch-page"].steps[2]` と `rejection["empty-selection"].steps[2]`: `"もう一度 yt2column を起動してください。"` → `"もう一度ヨムドウガを起動してください。"`、`viewerTitle.name`: `{ release: "yt2column", dev: "yt2column（開発用のビルド）" }` → `{ release: "ヨムドウガ", dev: "ヨムドウガ（開発用のビルド）" }`、`optionsPage.title`: `"yt2column の設定"` → `"ヨムドウガの設定"`）
+- [ ] `extension/src/core/i18n/en.ts` の 4 箇所を設計書 3.2 節の確定値へ変更する（`rejection["not-watch-page"].steps[2]` と `rejection["empty-selection"].steps[2]`: `"Launch yt2column again."` → `"Launch YomuDoga again."`、`viewerTitle.name`: `{ release: "yt2column", dev: "yt2column (development build)" }` → `{ release: "YomuDoga", dev: "YomuDoga (development build)" }`、`optionsPage.title`: `"yt2column settings"` → `"YomuDoga settings"`）
+
+**完了基準:** 設計書 3.2 節の表どおりに両カタログが更新され、`extension/src/` の他のファイルに変更がないこと。
+
+#### ステップ 1-3: 拡張テストの更新・追加と検証
+
+**変更するファイル:** `extension/test/manifest.test.ts`、`extension/test/buildVariant.test.ts`、`extension/test/viewerTitle.test.ts`、`extension/test/viewerApp.test.ts`、`extension/test/catalog.test.ts`、`extension/test/popupHtml.test.ts`、`extension/test/optionsHtml.test.ts`
+
+- [ ] `extension/test/manifest.test.ts` を更新し、日英それぞれの `extName`・`extNameDev`・`extDescription` の確定値と既存制約（132 文字以内・`$` 禁止・言語判定・`manifest.json` キー・権限・拡張 ID）を検証する
+- [ ] `extension/test/buildVariant.test.ts` の `extNameDev` 先頭一致検査をロケール別コア製品名（`YomuDoga` / `ヨムドウガ`）へ更新する
+- [ ] `extension/test/viewerTitle.test.ts` を設計書 3.2 節の例外契約に合わせて更新する（公開用のビルドはコア製品名、開発用のビルドは `extNameDev` と完全一致、かつ公開用のビルド名に ` for YouTube™` を添えた値が `extName` と一致すること）
+- [ ] `extension/test/viewerApp.test.ts` の `doc.title` アサーション全 8 箇所を `YomuDoga` へ更新する
+- [ ] `extension/test/catalog.test.ts` に、日英カタログ全体で旧名 `yt2column` を含まないこと、および `optionsPage.title` と `rejection` 再起動手順の確定文言を検証するテストを追加する
+- [ ] `extension/test/popupHtml.test.ts`（`popup.html`・`viewer.html`）と `extension/test/optionsHtml.test.ts`（`options.html`）に、静的 `<title>` が `YomuDoga` であることの検証を追加する
+- [ ] 更新・追加した各テストについて、対象文字列を一時的に旧値へ戻す壊し確認を行い失敗を確かめたうえ、元に戻して `make ext-check` と `make test && make lint` がすべて通過することを確認する
+
+**完了基準:** 壊し確認が記録され、`make ext-check`・`make test`・`make lint` がすべて成功すること。
+
+### PR-1 作成ポイント: extension product name and UI wording
+
+**対象ステップ**: 1-1 / 1-2 / 1-3
+
+**推奨タイトル**: `feat(0125): 拡張機能の表示名・説明文・UI 文言をヨムドウガ / YomuDoga へ更新`
+
+**レビュー観点**: `messages.json`（ja/en）の確定値と文字数・言語制約 / `viewerTitle.test.ts` のコア製品名と `extName` の分離契約 / 静的 HTML と `catalog.test.ts` の新製品名検証と旧名不在検査 / 拡張 ID・権限および開発側識別子が不変であること
+
+**実装モデル要件**: low
+
+**判定理由**: 高リスク・未確定アプローチ・Conditional check 複該当のトリガにいずれも該当せず、確定済みの文字列とテスト期待値の更新のみであるため。
+
+**自動送信**: auto
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+---
+
+### フェーズ 2: ストア掲載文・利用者向け文書・関連文書の更新
+
+設計書 3.3 節・3.4 節および 8 章のフェーズ 2 に対応する。
+
+#### ステップ 2-1: ストア掲載文の作成と用語集の更新
+
+**変更するファイル:** `docs/store/chrome_web_store.md`（新規）、`docs/translation_glossary.md`
+
+- [ ] `docs/store/chrome_web_store.md` を設計書 3.3 節の構成で作成し、issue #1148 コメント 1・4・5 の表示名・短い説明文・商標運用条件・日本語版および英語版の詳細説明文（`text` コードブロック）を正確に収録する
+- [ ] `docs/translation_glossary.md` にコア製品名（`ヨムドウガ` / `YomuDoga`）および Chrome ウェブストア表示名（`ヨムドウガ for YouTube™` / `YomuDoga for YouTube™`）の 2 行を追加する
+
+**完了基準:** `docs/store/chrome_web_store.md` が issue #1148 コメント 1・4・5 の内容と過不足なく一致し、`docs/translation_glossary.md` に新製品名 2 行が追加されていること。
+
+#### ステップ 2-2: 利用者向け文書（`README.md`・`README.en.md`・`INSTALL.md`）の更新
+
+**変更するファイル:** `README.md`、`README.en.md`、`INSTALL.md`
+
+- [ ] `README.md` を設計書 3.4 節のとおり更新する（H1 を `# ヨムドウガ for YouTube™`、冒頭概要文の刷新、`## 特徴` の 4 項目新設、既存節の維持と製品名更新、末尾への非公式表記と `YouTube is a trademark of Google LLC.` 帰属表示の追加、Chrome 142 表記と未リリース注記の維持）
+- [ ] `/mktrans README.md` を実行して `README.en.md` を同期し、`README.md` と `README.en.md` を同一コミットに含める
+- [ ] `INSTALL.md` の 4 箇所（冒頭 `:3`、ツールバー固定 `:80`、ビューアのページタイトル `:201`、アンインストール `:241`）を設計書 3.4 節のとおり更新する（`:62` の Releases URL と既存引用文言・Chrome 142 表記は維持）
+
+**完了基準:** `README.md`・`README.en.md`・`INSTALL.md` が要件書 F-004 を満たし、`TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`・`metadataDocs.test.ts`・`manifest.test.ts` が通過すること。
+
+#### ステップ 2-3: 開発手順の事実整合・`CLAUDE.md` 更新・ADR-0035 のずれ除去と検証
+
+**変更するファイル:** `docs/dev/guides/development.md`、`CLAUDE.md`、`docs/dev/adr/0035-language-policy.md`、本実装計画書（§7 の AC-15 差分記録）
+
+- [ ] `docs/dev/guides/development.md:119` のみを `ヨムドウガ（開発用のビルド）` および `YomuDoga (development build)` へ書き換える（他行は変更しない）
+- [ ] `CLAUDE.md` の「Document language」例外に `docs/store/chrome_web_store.md`（日英の Chrome ウェブストア詳細説明文を 1 ファイルで保管し `/mktrans` 同期対象外とする扱い）を追記する
+- [ ] `docs/dev/adr/0035-language-policy.md` の `## 決定` から `CLAUDE.md` 未反映のずれを示す一文を除去し、コミットメッセージに `Editorial correction:` 行を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」第 2 種）
+- [ ] `make test && make lint` と `make ext-check` がすべて通過することを確認し、AC-15 の差分を `requirements_process.md` §4 の固定コマンドで取得して本計画書 §7 の `Diff record (AC-15)` に記録する
+
+**完了基準:** すべてのテスト・lint・拡張検査が通過し、`Diff record (AC-15)` が最新コミットに対して記録されていること。
+
+### PR-2 作成ポイント: store listing, user docs, and language policy sync
+
+**対象ステップ**: 2-1 / 2-2 / 2-3
+
+**推奨タイトル**: `docs(0125): ストア掲載文の追加と利用者向け文書・関連文書の製品名更新`
+
+**レビュー観点**: `docs/store/chrome_web_store.md` の日英詳細説明文と商標条件の正確性 / `README.md`・`README.en.md` の H1・`## 特徴`・帰属表示と `/mktrans` 同期 / `INSTALL.md` の 4 箇所更新と既存ガード通過 / `development.md` の 1 行限定差分（AC-15）および `CLAUDE.md`・ADR-0035 の整合
+
+**実装モデル要件**: low
+
+**判定理由**: 高リスク・未確定アプローチ・Conditional check 複該当のトリガにいずれも該当せず、確定案に基づく文書更新・README 同期・差分記録の適用であるため。
+
+**自動送信**: auto
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+## 3. 実装順序とマイルストーン
+
+### 3.1. マイルストーン
+
+1. **マイルストーン 1（PR-1 マージ）:** 拡張機能のマニフェスト表示名・説明文・UI 文言・静的 HTML・拡張テストがすべて新製品名へ移行し、`make ext-check` と `make test && make lint` が通過している状態。
+2. **マイルストーン 2（PR-2 マージ）:** Chrome ウェブストア詳細説明文がリポジトリに保管され、`README.md`・`README.en.md`・`INSTALL.md`・`development.md`・`translation_glossary.md`・`CLAUDE.md`・ADR-0035 がすべて整合した状態。
+
+### 3.2 PR 構成
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 | 自動送信 |
+|---|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 | 拡張機能の `messages.json`・静的 HTML・UI カタログ・拡張テストの更新 | low | auto |
+| PR-2 | 2-1 / 2-2 / 2-3 | ストア掲載文の新設、`README.md` / `README.en.md`・`INSTALL.md`・`development.md`・用語集・`CLAUDE.md`・ADR-0035 の更新 | low | auto |
+
+## 4. テスト戦略
+
+- **PR-1（拡張機能）:** `make ext-check`（`ext-typecheck`・`ext-lint`・`ext-fmt-check`・`ext-test`・`ext-build`・`ext-build-dev`）および `make test && make lint` を実行する。新規のテストヘルパーは追加せず、既存の `extension/test/` スイートを更新・拡張する。更新・追加したテストはいずれも旧値に戻す壊し確認を実施する。
+- **PR-2（文書）:** `make test && make lint`（`TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`・`TestADRRecords`・`TestInstructionDocPaths`・`TestExtensionDocumentation` を含む）および `make ext-check`（`manifest.test.ts` の Chrome 最低版検査、`metadataDocs.test.ts` の `INSTALL.md` 引用文言検査を含む）を実行する。AC-15 は recorded diff reading（`diff`）で検証し、自然言語文書の内容は PR レビューの目視確認（`manual`）で検証する。
+
+## 5. リスク管理
+
+| リスク | 影響 | 対策 |
+|---|---|---|
+| `README.md` の更新後に `README.en.md` の同期漏れ、または見出し構造の不一致が起きる | `TestReadmeSyncMarker` または `TestReadmeVersionsShareStructure` が失敗する | ステップ 2-2 で `/mktrans README.md` を実行し、両ファイルを同一コミットに含めて `make test` で確認する |
+| `README.md`・`README.en.md`・`INSTALL.md` の編集で `Chrome 142 以降` や引用文言を意図せず変えてしまう | `manifest.test.ts` または `metadataDocs.test.ts` が失敗する | ステップ 2-2・2-3 の完了前に `make ext-check` を実行して検出する |
+| `docs/dev/guides/development.md` で 119 行目以外の箇所を誤って編集する | AC-15 違反になる | ステップ 2-3 で AC-15 の固定差分コマンドを実行して 1 行のみの変更であることを確認し、`Diff record (AC-15)` に記録する |
+| `docs/dev/adr/0035-language-policy.md` のずれ除去で修正行（`Editorial correction:`）を書き忘れる | ADR 編集規約に反する | ステップ 2-3 のチェックリストに明記し、コミットメッセージへ記録する |
+
+## 6. 実装チェックリスト
+
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
+- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
+
+## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
+
+| AC | 種別 | 検証先・方法 | 対応ステップ |
+|---|---|---|---|
+| AC-01 | `test` | `extension/test/manifest.test.ts`（`ja` の `extName`・`extNameDev`・`extDescription` 確定値）・`extension/test/buildVariant.test.ts`（`extNameDev`） | 1-1 / 1-3 |
+| AC-02 | `test` | `extension/test/manifest.test.ts`（`en` の `extName`・`extNameDev`・`extDescription` 確定値）・`extension/test/buildVariant.test.ts`（`extNameDev`） | 1-1 / 1-3 |
+| AC-03 | `test` | `extension/test/manifest.test.ts`（132 文字以内・`$` 禁止・言語判定・`manifest.json` キー・権限・拡張 ID）・`cmd/yt2column/extension_docs_test.go::TestExtensionDocumentation` | 1-1 / 1-3 |
+| AC-04 | `test` | `extension/test/viewerTitle.test.ts`（日英の公開用・開発用タイトルおよび `messages.json` との照合）・`extension/test/viewerApp.test.ts`（`doc.title`） | 1-2 / 1-3 |
+| AC-05 | `test` | `extension/test/catalog.test.ts`（`optionsPage.title` の日英確定値と旧名不在）・`extension/test/optionsApp.test.ts`（`doc.title` 反映） | 1-2 / 1-3 |
+| AC-06 | `test` | `extension/test/catalog.test.ts`（`rejection["not-watch-page"]`・`rejection["empty-selection"]` 再起動手順の日英確定値と旧名不在） | 1-2 / 1-3 |
+| AC-07 | `test` | `extension/test/popupHtml.test.ts`（`popup.html`・`viewer.html` の静的 `<title>` が `YomuDoga`）・`extension/test/optionsHtml.test.ts`（`options.html` の静的 `<title>` が `YomuDoga`） | 1-1 / 1-3 |
+| AC-08 | `manual` | PR-2 レビューで `docs/store/chrome_web_store.md` を issue #1148 コメント 1・4・5 と照合して確認 | 2-1 |
+| AC-09 | `test` / `manual` | `cmd/yt2column/adr_test.go::TestADRRecords`・`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths` で形式とリンクを検証し、PR-2 レビューで `CLAUDE.md`「Document language」と ADR-0035 の記述・ずれ除去を目視確認 | 2-3 |
+| AC-10 | `manual` | PR-2 レビューで `README.md` の H1 見出しと冒頭概要文を issue #1148 コメント 6 と照合して確認 | 2-2 |
+| AC-11 | `manual` | PR-2 レビューで `README.md` の `## 特徴` 4 要点および不要項目を含まないことを確認 | 2-2 |
+| AC-12 | `test` / `manual` | `extension/test/manifest.test.ts` で Chrome 142 表記を検証し、PR-2 レビューで既存節構成・製品名更新・非公式と帰属表示を目視確認 | 2-2 |
+| AC-13 | `test` / `manual` | `cmd/yt2column/readme_sync_test.go::TestReadmeSyncMarker`・`cmd/yt2column/readme_structure_test.go::TestReadmeVersionsShareStructure`・`extension/test/manifest.test.ts` で同期・構造・Chrome 最低版を検証し、PR-2 レビューで訳文と帰属表示を目視確認 | 2-2 |
+| AC-14 | `test` / `manual` | `extension/test/metadataDocs.test.ts`・`extension/test/manifest.test.ts` で引用文言と Chrome 最低版を検証し、PR-2 レビューで `INSTALL.md` の 4 箇所更新と Releases URL 維持を目視確認 | 2-2 |
+| AC-15 | `diff` | recorded diff reading（対象パス: `docs/dev/guides/development.md`）。PR-2 実装時に下の `Diff record (AC-15)` へ記録し、PR レビューで確認 | 2-3 |
+| AC-16 | `manual` | PR-2 レビューで `docs/translation_glossary.md` に追加した 2 行を目視確認 | 2-1 |
+
+Diff record (AC-15):
+
+- Compared paths: `docs/dev/guides/development.md`
+- Merge-base: `<PR-2 実装時に記録>`
+- Compared commit: `<PR-2 実装時に記録>`
+
+## 8. 成功基準
+
+- **機能完全性:** 要件書の AC-01 〜 AC-16 がすべて満たされ、§7 の検証結果が揃っていること。
+- **品質基準:** PR-1・PR-2 のそれぞれで `make test && make lint` および `make ext-check` がエラーなく通過すること。
+- **セキュリティ確認:** N/A（セキュリティ要件の変更なし）。
+- **文書完全性:** `README.md` / `README.en.md` が同期済みであり、`docs/store/chrome_web_store.md`・`INSTALL.md`・`development.md`・`translation_glossary.md`・`CLAUDE.md`・ADR-0035 に矛盾がないこと。
+
+## 9. 次のステップ
+
+1. 本 3 文書 PR のレビューを受け、`/runpr` で 3 文書の承認とマージを行う。
+2. マージ後、`/runplan 0125` で PR-1（フェーズ 1）を実装・マージし、続けて `/runplan 0125` で PR-2（フェーズ 2）を実装・マージする。
