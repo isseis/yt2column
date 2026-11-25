@@ -728,6 +728,31 @@ func TestReadPR(t *testing.T) {
 			want: Result{State: StateUnreadable, Reason: UnreadableRejected, Head: "", Failing: []FailingCheck{}},
 		},
 		{
+			name: "graphql_insufficient_scopes_exit_is_rejected",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"errors":[{"type":"INSUFFICIENT_SCOPES","message":"`+testMarker+`"}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableRejected, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_every_validation_code_exit_is_rejected",
+			req:  req,
+			err: ghGraphQLExit(1, `{"errors":[{"extensions":{"code":"undefinedField"}},{"extensions":{"code":"argumentNotAccepted"}},`+
+				`{"extensions":{"code":"missingRequiredArguments"}},{"extensions":{"code":"argumentLiteralsIncompatible"}}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableRejected, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_unknown_code_without_data_exit_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"errors":[{"message":"`+testMarker+`","extensions":{"code":"INTERNAL"}}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_validation_code_with_data_member_exit_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"data":null,"errors":[{"extensions":{"code":"undefinedField"}}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
 			name: "graphql_rate_limited_exit_is_call_failed",
 			req:  req,
 			err:  ghGraphQLExit(1, `{"errors":[{"type":"RATE_LIMITED","message":"`+testMarker+`"}]}`),
@@ -748,7 +773,7 @@ func TestReadPR(t *testing.T) {
 		{
 			name: "graphql_type_takes_precedence_over_extensions_code",
 			req:  req,
-			err:  ghGraphQLExit(1, `{"errors":[{"type":"RATE_LIMITED","extensions":{"code":"x"},"message":"a"}]}`),
+			err:  ghGraphQLExit(1, `{"errors":[{"type":"RATE_LIMITED","extensions":{"code":"undefinedField"},"message":"a"}]}`),
 			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
 		},
 		{

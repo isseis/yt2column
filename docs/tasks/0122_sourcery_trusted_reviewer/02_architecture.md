@@ -587,7 +587,7 @@ type UnreadableReason int
 const (
 	UnreadableNone        UnreadableReason = iota // ""
 	UnreadableCall                                // "call-failed" (transient; retried in WaitPR)
-	UnreadableRejected                            // "rejected" (permanent; strict JSON / schema violation)
+	UnreadableRejected                            // "rejected" (permanent; strict JSON / schema violation, or a GraphQL error declared permanent)
 	UnreadableLimit                               // "limit" (permanent; pagination cap exceeded)
 	UnreadableHeadChanged                         // "head-changed" (permanent; headRefOid != ExpectedHead)
 )
@@ -658,13 +658,15 @@ func (g *GitHub) CIChecks(ctx context.Context, req CIChecksRequest) (CIChecksRes
 -   **GraphQL クエリと判定規則:**
     -   `pullRequest(number: $number)` の `headRefOid` と `commits(last: 1)` の `commit { oid checkSuites(first: 50) { pageInfo { hasNextPage } nodes { app { slug } status conclusion createdAt workflowRun { workflow { name } } checkRuns(first: 100, filterBy: {checkType: LATEST}) { pageInfo { hasNextPage } nodes { name status conclusion url } } } } }` を `gh api graphql -f owner=... -f name=... -F number=... -f query=...`（文字列変数は型変換・`@file` 展開を避けるため `-f`、整数 `number` のみ `-F`）で取得し、16 MiB 上限・`strictjson`・`internal/ghci` 内の厳格 GitHub URL 検証で検査する。
     -   `commits.nodes` が 1 件でない、または `commit.oid != headRefOid` のときは `StateUnreadable`（`UnreadableRejected`）を返す。`ExpectedHead != ""` かつ `headRefOid != ExpectedHead` のときは永続状態 `StateUnreadable`（`UnreadableHeadChanged`）を返す（`WaitPR` は再試行せず即時終了する）。`checkSuites.pageInfo.hasNextPage == true` は `UnreadableLimit` とする。
-    -   **GraphQL エラーの分類（`gh` の終了コード 1）:** `gh api graphql` は、応答の `errors` が空でないと HTTP 200 でも終了コード 1 で終わり、応答本文を標準出力へ書く（`gh` 2.96.0 で、解決できない PR 番号と存在しないフィールドの問い合わせについて確認した。どちらも標準エラーに `gh: <message>` を出す）。そのため、`errors` が空でないものを拒否する `strictjson` 側の規則には、実際の呼び出しではほぼ到達しない。`ReadPR` は呼び出し失敗のうち、次の条件をすべて満たすものだけを恒久的な `UnreadableRejected` とする。
+    -   **GraphQL エラーの分類（`gh` の終了コード 1）:** `gh api graphql` は、応答の `errors` が空でないと HTTP の状態（200・5xx を問わない）にかかわらず終了コード 1 で終わり、応答本文を標準出力へ書く（`gh` 2.96.0 で、解決できない PR 番号と存在しないフィールドの問い合わせについて実機で確認した。どちらも標準エラーに `gh: <message>` を出す。5xx・403 の場合も同じであることを、ローカルの偽サーバーで確認した）。そのため、終了コードから HTTP の状態は区別できない。そのため、`errors` が空でないものを拒否する `strictjson` 側の規則には、実際の呼び出しではほぼ到達しない。`ReadPR` は呼び出し失敗のうち、次の条件をすべて満たすものだけを恒久的な `UnreadableRejected` とする。
         -   `ctx` が終了していない。
         -   `*cmdrunner.ExitError` の終了コードが 1 である。
         -   標準出力が 16 MiB 以内で、厳格 JSON の GraphQL 応答として `errors` が空でない配列である。
-        -   その全要素が恒久的と宣言されている。恒久的とするのは、`type` が `NOT_FOUND` または `FORBIDDEN` のもの、または `type` がなく空でない文字列の `extensions.code` を持つもの（クエリ検証エラー）である。
+        -   その全要素が恒久的と宣言されている。恒久的とするのは次の 2 種類である。
+            -   `type` が `NOT_FOUND`・`FORBIDDEN`・`INSUFFICIENT_SCOPES`（トークンのスコープ不足）のもの。
+            -   応答に `data` メンバーがない場合（GraphQL 仕様では、実行前に起きたエラーの応答は `data` を持たない）に、`type` がなく、`extensions.code` が静的検証の失敗を示すもの。対象は、スキーマの変更で `prChecksQuery` が当たりうる `undefinedField`・`argumentNotAccepted`・`missingRequiredArguments`・`argumentLiteralsIncompatible` に限る。
 
-        それ以外は一時的な `UnreadableCall` のまま再試行する。具体的には、`RATE_LIMITED`、`type` のない GitHub 側のタイムアウト、未知の `type`、`type` が `null`、要素の一部だけが恒久的な場合、JSON でない出力、ほかの終了コードである。標準エラーと `message` は読まない。理由: 存在しない PR や権限不足、スキーマ変更のような恒久的なエラーで、`mergepr prepare` が最大 60 分、`/runpr` が最大 15 分待ってから停止するのを避けるためである。それでいて、レート制限やタイムアウトのような一時的なエラーで即時停止させないよう、恒久的と宣言された種類だけを許可リストで選ぶ（PR #1143 のレビューで人が決定）。
+        それ以外は一時的な `UnreadableCall` のまま再試行する。具体的には、`RATE_LIMITED`、`type` のない GitHub 側のタイムアウト、未知の `type`、`type` が `null`、上記以外の `extensions.code`（5xx 応答の内部エラーなど）、`data` メンバーを持つ応答の `extensions.code`、要素の一部だけが恒久的な場合、JSON でない出力、ほかの終了コードである。標準エラーと `message` は読まない。理由: 存在しない PR や権限不足、スキーマ変更のような恒久的なエラーで、`mergepr prepare` が最大 60 分、`/runpr` が最大 15 分待ってから停止するのを避けるためである。それでいて、レート制限やタイムアウトのような一時的なエラーで即時停止させないよう、恒久的と宣言された種類だけを許可リストで選ぶ（PR #1143 のレビューで人が決定）。
     -   `checkSuite.app.slug != "github-actions"`（外部レビュアー `sourcery-ai`・`coderabbitai` や `app == null` を含む）の CheckSuite は、`checkRuns.pageInfo.hasNextPage` を検査する前に読み飛ばす（他 App の CheckRun 上限超過による誤停止を防ぐ）。`github-actions` CheckSuite 側で `checkRuns.pageInfo.hasNextPage == true` なら `UnreadableLimit` とする。
     -   `github-actions` の CheckSuite 群のうち、CheckRun が 0 件かつ `workflowRun == null` かつ `status != "COMPLETED"` の**ワークフロー未発火の空 CheckSuite のみ**を除外する。残りの CheckSuite のうち、`workflowRun != null` かつ `workflowRun.workflow.name != ""` のものは同一ワークフロー名ごとに `createdAt` が最新の 1 件だけを残し（同一 `head` でワークフローが別 CheckSuite として再実行・再起動された場合に、旧 CheckSuite の失敗・キャンセルが新しい成功を塞がないようにするため）、`workflowRun == null` の完了済み CheckSuite（`STARTUP_FAILURE` 等）はそのまま評価対象とする。評価対象の CheckSuite 数を `Suites` に記録し、次の順で判定する：
         1.  **即座に失敗（fail-fast）:** 評価対象の CheckRun のいずれかが `status == "COMPLETED"` かつ `conclusion` が `"SUCCESS"`・`"SKIPPED"` 以外（例: `FAILURE`・`TIMED_OUT`・`CANCELLED`・`ACTION_REQUIRED`・`STARTUP_FAILURE`・`NEUTRAL`・未知値）なら、`Failing` に該当 CheckRun の `name`・`conclusion`・`url` を集めて `StateFailed` を返す。また、評価対象の CheckSuite のいずれかが `status == "COMPLETED"` かつ `conclusion` が `"SUCCESS"`・`"SKIPPED"` 以外（例: 0 CheckRun の `STARTUP_FAILURE`、または CheckRun に失敗が出ない CheckSuite `FAILURE`）である場合も、その CheckSuite に対応する失敗 CheckRun が `Failing` に含まれていなければ CheckSuite 単位の項目（`Name`: `workflowRun.workflow.name` または `"github-actions-check-suite"`、`Conclusion`: CheckSuite の `conclusion`、`URL`: `""`）を加えて即時 `StateFailed` を返す。
@@ -779,7 +781,7 @@ var (
 -   **再試行と停止の境界:**
     -   `unreadable` (`call-failed`): `/runpr` step 3、step 4 の投稿前 `review-state`、および step 4 の手動依頼完了待機ループ内の `review-state`・`mentions` は約 30 秒間隔で最大 15 分再試行し、回復しなければ停止する。step 4 の質問前再確認における `mentions` の読み取り失敗は即停止する（`runpr.md:776-779` の現行契約を維持）。
     -   `unreadable` (`head-changed`): `fixprguard ci-checks` が返した場合は step 3 の先頭へ戻る（`mergepr prepare` の `WaitPR` では即時に `errChecksFailed` で停止する）。
-    -   `unreadable` (`rejected`): 厳格 JSON 違反や API 構造変化の兆候であるため、再試行せず即停止する。
+    -   `unreadable` (`rejected`): 厳格 JSON 違反や API 構造変化の兆候、または GraphQL が恒久的と宣言したエラー（`ci-checks` の場合。存在しない PR・権限やスコープの不足・クエリの静的検証失敗。3.2.4 参照）であるため、再試行せず即停止する。
     -   `unreadable` (`limit`): `review-state` は手動依頼を待機していた場合のみ停止し、それ以外は他方レビュアーの完了の印のみで `LAST_REVIEWED` を算出して要約に `読めない（上限）` を表示する（AC-18・AC-20）。`mentions` と `ci-checks` の `limit` は安全側で即停止する。
     -   **API 呼び出し量と `githubTimeout`（2 分）:** step 3 のポーリング 1 回あたり `mentions`・`review-state`（2 社）の 3 プロセスが直列に `gh` を呼ぶ。大規模 PR（コメント・レビューが上限 3000 件付近）では `mentions` が 2 分の `githubTimeout`（`internal/fixprguard/github.go:22`、`7d86a397`）に先に到達して `call-failed` を返しうるが、その場合は `stage` フィールドで詰まったエンドポイントを特定でき、15 分上限で安全に停止する。
 
@@ -849,7 +851,7 @@ flowchart TD
 | 2. PR レビュー状態（`review-state`） | 既存 `strictjson` 維持 | 既存維持（非推奨 `databaseId` は読まない） | `name` 必須文字列＋プロファイル期待名と完全一致。`status`/`conclusion`/`title`/`url` 厳密照合。他メンバーは拡張可能として無視 | 応答 16 MiB、コメント 3000・レビュー 3000・コミット 1000・CheckSuite 50・CheckRun 100・待機 15 分。失敗は `unreadable`、部分結果なし |
 | 3. 書き込み・`append-pr`（`write.go`・`worktree.go`） | `utf8.Valid`・NUL 禁止・通常ファイル（`O_NOFOLLOW`） | `append-pr` 既存本文取得は単一 JSON オブジェクト | `body` 文字列ちょうど 1 つ。4 メンション ASCII 大文字小文字無視・部分文字列拒否 | 入力および追記後 64 KiB、GitHub 応答 16 MiB。拒否時は一切書き込まない |
 | 4. PR メンション検査（`mentions`・新規） | `strictjson`（不正 UTF-8・単独サロゲート拒否） | 単一配列・要素オブジェクト・`id` 正の `int64` | `user.login`/`user.type`（`user: null` は停止）・3 経路すべてで `body`（`null` 許容）・`html_url`（`validCommentURL`）・時刻（`created_at`/`updated_at`、`reviews` は `submitted_at` `null`/欠落許容）。他メンバーは拡張可能として無視 | 応答 16 MiB、各エンドポイント 3000 件。失敗は `unreadable`（`stage` 付き）、部分結果なし・本文非出力（要件定義書 3.2 項目 4 の `jq` 例外を解消） |
-| 5. CI チェック読み取り（`internal/ghci`・新規） | `strictjson` | 単一 GraphQL `data` オブジェクト・`errors` 非空拒否（`gh` 終了コード 1 時は標準出力の `errors` の `type`（`NOT_FOUND`・`FORBIDDEN`）または `extensions.code` で恒久的と宣言されたもののみ `rejected`、ほかは `call-failed`。3.2.4 参照） | `headRefOid`（40 桁小文字 hex、`ExpectedHead` 不一致は `head-changed`）・`commit.oid`（一致確認）・`checkSuites`・`app.slug`・`status`・`conclusion`・`createdAt`・`workflowRun.workflow.name`（任意）・`checkRuns`・`name`・`url`（`internal/ghci` の厳格 GitHub URL 検証）。他メンバーは拡張可能として無視 | 応答 16 MiB（`mergepr` runner は 32 MiB 上限）、CheckSuite 50・`github-actions` CheckRun 100（非 `github-actions` は `hasNextPage` 検査前にスキップ）。失敗は `unreadable`、部分結果なし |
+| 5. CI チェック読み取り（`internal/ghci`・新規） | `strictjson` | 単一 GraphQL `data` オブジェクト・`errors` 非空拒否（`gh` 終了コード 1 時は標準出力の `errors` の `type`（`NOT_FOUND`・`FORBIDDEN`・`INSUFFICIENT_SCOPES`）または `data` のない応答の静的検証 `extensions.code` で恒久的と宣言されたもののみ `rejected`、ほかは `call-failed`。3.2.4 参照） | `headRefOid`（40 桁小文字 hex、`ExpectedHead` 不一致は `head-changed`）・`commit.oid`（一致確認）・`checkSuites`・`app.slug`・`status`・`conclusion`・`createdAt`・`workflowRun.workflow.name`（任意）・`checkRuns`・`name`・`url`（`internal/ghci` の厳格 GitHub URL 検証）。他メンバーは拡張可能として無視 | 応答 16 MiB（`mergepr` runner は 32 MiB 上限）、CheckSuite 50・`github-actions` CheckRun 100（非 `github-actions` は `hasNextPage` 検査前にスキップ）。失敗は `unreadable`、部分結果なし |
 
 ### 5.4. 残余リスクと緩和策
 

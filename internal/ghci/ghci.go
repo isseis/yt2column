@@ -29,10 +29,17 @@ const (
 	fallbackSuiteName = "github-actions-check-suite"
 
 	// gh api graphql exits with this status when the response carries
-	// GraphQL errors; the GraphQL error types that retrying cannot clear.
-	ghGraphQLErrorExit   = 1
-	graphQLTypeNotFound  = "NOT_FOUND"
-	graphQLTypeForbidden = "FORBIDDEN"
+	// GraphQL errors; the GraphQL error types that retrying cannot clear; and
+	// the static validation codes prChecksQuery can hit when the schema drops
+	// a field, an argument, or an enum value, or adds a required argument.
+	ghGraphQLErrorExit                      = 1
+	graphQLTypeNotFound                     = "NOT_FOUND"
+	graphQLTypeForbidden                    = "FORBIDDEN"
+	graphQLTypeInsufficientScopes           = "INSUFFICIENT_SCOPES"
+	graphQLCodeUndefinedField               = "undefinedField"
+	graphQLCodeArgumentNotAccepted          = "argumentNotAccepted"
+	graphQLCodeMissingRequiredArguments     = "missingRequiredArguments"
+	graphQLCodeArgumentLiteralsIncompatible = "argumentLiteralsIncompatible"
 
 	statusCompleted   = "COMPLETED"
 	conclusionSuccess = "SUCCESS"
@@ -404,12 +411,16 @@ func WaitPR(ctx context.Context, run cmdrunner.Runner, req Request, opts WaitOpt
 
 // isPermanentGraphQLFailure reports whether a failed "gh api graphql" call
 // carries GraphQL errors that retrying cannot clear. gh exits with status 1
-// when the response body holds a non-empty "errors" array, even on HTTP 200,
-// and still writes the body to standard output. The call is permanent only
-// when every error declares itself so: a "type" of NOT_FOUND or FORBIDDEN, or,
-// with no "type", an "extensions.code" (a query validation error). Any other
-// error (RATE_LIMITED, a timeout with no type, an unknown type) and any body
-// that is not a strict GraphQL error response stay transient.
+// when the response body holds a non-empty "errors" array, whatever the HTTP
+// status (a 5xx included), and still writes the body to standard output, so
+// the status cannot be told from the exit. The call is permanent only when
+// every error declares itself so: a "type" of NOT_FOUND, FORBIDDEN, or
+// INSUFFICIENT_SCOPES; or, in a response with no "data" member (an error
+// raised before execution, by the GraphQL specification), no "type" and an
+// "extensions.code" naming a static validation failure the query can hit when
+// the schema changes. Any other error (RATE_LIMITED, a timeout with no type,
+// an unknown type or code) and any body that is not a strict GraphQL error
+// response stay transient.
 func isPermanentGraphQLFailure(err error) bool {
 	exitErr, ok := errors.AsType[*cmdrunner.ExitError](err)
 	if !ok || exitErr.Code != ghGraphQLErrorExit || len(exitErr.Stdout) > maxResponseBytes {
@@ -419,10 +430,11 @@ func isPermanentGraphQLFailure(err error) bool {
 	if err != nil {
 		return false
 	}
-	members, err := root.Collect(keyErrors)
+	members, err := root.Collect(keyData, keyErrors)
 	if err != nil {
 		return false
 	}
+	_, hasData := members[keyData]
 	errsVal, ok := members[keyErrors]
 	if !ok {
 		return false
@@ -432,14 +444,14 @@ func isPermanentGraphQLFailure(err error) bool {
 		return false
 	}
 	for _, e := range errs {
-		if !isPermanentGraphQLError(e) {
+		if !isPermanentGraphQLError(e, hasData) {
 			return false
 		}
 	}
 	return true
 }
 
-func isPermanentGraphQLError(v strictjson.Value) bool {
+func isPermanentGraphQLError(v strictjson.Value, hasData bool) bool {
 	obj, err := v.AsObject()
 	if err != nil {
 		return false
@@ -454,14 +466,14 @@ func isPermanentGraphQLError(v strictjson.Value) bool {
 			return false
 		}
 		switch typ {
-		case graphQLTypeNotFound, graphQLTypeForbidden:
+		case graphQLTypeNotFound, graphQLTypeForbidden, graphQLTypeInsufficientScopes:
 			return true
 		default:
 			return false
 		}
 	}
 	extVal, ok := members[keyExtensions]
-	if !ok {
+	if !ok || hasData {
 		return false
 	}
 	ext, err := extVal.AsObject()
@@ -472,8 +484,17 @@ func isPermanentGraphQLError(v strictjson.Value) bool {
 	if err != nil {
 		return false
 	}
-	_, present, err := strictjson.OptionalString(extMembers, keyCode)
-	return err == nil && present
+	code, present, err := strictjson.OptionalString(extMembers, keyCode)
+	if err != nil || !present {
+		return false
+	}
+	switch code {
+	case graphQLCodeUndefinedField, graphQLCodeArgumentNotAccepted,
+		graphQLCodeMissingRequiredArguments, graphQLCodeArgumentLiteralsIncompatible:
+		return true
+	default:
+		return false
+	}
 }
 
 func readPRWithTimeout(ctx context.Context, timeout time.Duration, run cmdrunner.Runner, req Request) (Result, error) {
