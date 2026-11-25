@@ -325,6 +325,13 @@ func TestSimConflictAutoSend(t *testing.T) {
 	if row := rowOf(t, r1.Snapshot, "ws"); row.State != StateRunning || row.Position.Progress != ProgressResolving {
 		t.Errorf("round 1 row = %+v, want StateRunning/ProgressResolving", row)
 	}
+	records, err := cw.store.Records(Worktree{path: cw.tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec, ok, err := records.keptPaneReport(50, conflictTestHeadA); err != nil || !ok || rec.Text != "PR 50 summary" {
+		t.Errorf("round 1 keptPaneReport = %+v, %v, %v; want kept report", rec, ok, err)
+	}
 
 	// Pane finishes running /mergemain 50, PR still conflicting at headA.
 	cw.firstPane().Status = "idle"

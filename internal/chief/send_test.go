@@ -1361,4 +1361,76 @@ func TestSendMergemainUncertainStopsWorkspace(t *testing.T) {
 			t.Errorf("typed %v, want nothing", got)
 		}
 	})
+
+	t.Run("mismatched mergemainPR refuses without typing", func(t *testing.T) {
+		sw, _, sc, _ := setup(t)
+		sc.mergemainPR = 99
+		res := sc.sendCommand(context.Background(), mmCmd, route)
+		if res.Outcome != OutcomeNotSent || res.Reason != NotSentUnreadable {
+			t.Fatalf("res = %+v, want OutcomeNotSent/NotSentUnreadable", res)
+		}
+		if got := sw.rec.prompts(); len(got) != 0 {
+			t.Errorf("typed %v, want nothing", got)
+		}
+	})
+
+	t.Run("fails after /model before /mergemain", func(t *testing.T) {
+		sw, _, sc, held := setup(t)
+		sw.react = func(p *simPane, text string) error {
+			if strings.HasPrefix(text, "/model ") {
+				// Simulate /model typed without writing a switch line.
+				return nil
+			}
+			return sw.realReact(p, text)
+		}
+		res := sc.sendCommand(context.Background(), mmCmd, route)
+		if res.Outcome != OutcomeSentThenFailed || res.Step != StepModel {
+			t.Fatalf("res = %+v, want OutcomeSentThenFailed at StepModel", res)
+		}
+		if phase := conflictPhaseOf(held.WorkspaceRecords, pr); phase != ConflictEndedBeforeCommand {
+			t.Errorf("conflictPhaseOf = %v, want ConflictEndedBeforeCommand", phase)
+		}
+	})
+
+	t.Run("OpenCode route refused by sendCommand", func(t *testing.T) {
+		sw := newSendWorld(t)
+		tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "opencode")
+		deps := sw.finish()
+		records, err := deps.Store.Records(Worktree{path: tree})
+		if err != nil {
+			t.Fatal(err)
+		}
+		held, err := records.Lock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = held.Close() })
+		loc, err := locate(context.Background(), deps, tree)
+		if err != nil || !loc.found {
+			t.Fatalf("locate = %+v, %v", loc, err)
+		}
+		writer, err := NewPaneWriter(deps.Cmds, loc.chiefPane, loc.chief.Workspace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ocModel, err := paneinput.ParseOpenCodeModel(openCodeModel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ocRoute, err := paneinput.NewOpenCodeRoute(ocModel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sc := sendContext{
+			deps: deps, herdr: NewHerdr(deps.Cmds), writer: writer, held: held, ws: loc.ws,
+			mergemainPR: pr.Number, mergemainHead: pr.Head,
+		}
+		res := sc.sendCommand(context.Background(), mmCmd, ocRoute)
+		if res.Outcome != OutcomeNotSent || res.Reason != NotSentUnreadable {
+			t.Fatalf("res = %+v, want OutcomeNotSent/NotSentUnreadable", res)
+		}
+		if got := sw.rec.prompts(); len(got) != 0 {
+			t.Errorf("typed %v, want nothing", got)
+		}
+	})
 }

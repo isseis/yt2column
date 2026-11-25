@@ -1,4 +1,4 @@
-//go:build test && unix
+//go:build test
 
 package chief
 
@@ -30,6 +30,36 @@ func mustCommitID(t *testing.T, hex string) CommitID {
 func prListEntryJSON(branch string, number int, title, head, mergeable, base string, cross bool) string {
 	return fmt.Sprintf(`[{"headRefName":%q,"number":%d,"title":%q,"url":"https://github.com/o/r/pull/%d","mergeable":%q,"headRefOid":%q,"baseRefName":%q,"isCrossRepository":%t}]`,
 		branch, number, title, number, mergeable, head, base, cross)
+}
+
+func conflictTestStore(t *testing.T) Store {
+	t.Helper()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store
+}
+
+func conflictHeldRecords(t *testing.T, store Store, path string) *HeldWorkspace {
+	t.Helper()
+	records, err := store.Records(Worktree{path: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	held, err := records.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = held.Close() })
+	return held
+}
+
+func conflictHerdrWith(t *testing.T, agents ...fakeAgent) Herdr {
+	t.Helper()
+	rec := newRecorder(t)
+	rec.reply("herdr agent list", agentListOutput(agents))
+	return NewHerdr(rec.commands(nil))
 }
 
 // TestConflictPhaseTransitions checks conflictPhaseOf and its snapshot
@@ -66,8 +96,8 @@ func TestConflictPhaseTransitions(t *testing.T) {
 		}
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
-				store := newStore(t)
-				held := heldRecords(t, store, "/work/phase")
+				store := conflictTestStore(t)
+				held := conflictHeldRecords(t, store, "/work/phase")
 				id, err := held.BeginSend(SendRecord{
 					Pane: "w1:p1", Input: InputCommand.String(), Command: "/mergemain 50",
 					Kind: paneinput.CommandMergemain.Name(), Arg: "50", PR: 50, Head: headA,
@@ -91,8 +121,8 @@ func TestConflictPhaseTransitions(t *testing.T) {
 	})
 
 	t.Run("newest matching send wins and other PR or head ignored", func(t *testing.T) {
-		store := newStore(t)
-		held := heldRecords(t, store, "/work/order")
+		store := conflictTestStore(t)
+		held := conflictHeldRecords(t, store, "/work/order")
 		// Different PR and different head do not match pr (50, headA).
 		for i, rec := range []SendRecord{
 			{Pane: "w1:p1", Input: InputCommand.String(), Kind: paneinput.CommandMergemain.Name(), Arg: "51", PR: 51, Head: headA},
@@ -185,8 +215,8 @@ func TestConflictPhaseTransitions(t *testing.T) {
 		}
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
-				store := newStore(t)
-				held := heldRecords(t, store, "/work/bad")
+				store := conflictTestStore(t)
+				held := conflictHeldRecords(t, store, "/work/bad")
 				c.setup(t, held)
 				if got := conflictPhaseOf(held.WorkspaceRecords, pr); got != ConflictRecordsUnreadable {
 					t.Errorf("conflictPhaseOf = %s, want records_unreadable", conflictPhaseName(got))
@@ -248,7 +278,7 @@ func TestConflictPhaseTransitions(t *testing.T) {
 		if err := held.Close(); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := w.store.Start(context.Background(), herdrWith(t, liveAgent(w.owner())), w.owner(), w.now.Add(time.Minute)); err != nil {
+		if _, err := w.store.Start(context.Background(), conflictHerdrWith(t, w.chief), w.owner(), w.now.Add(time.Minute)); err != nil {
 			t.Fatal(err)
 		}
 		snap = take(t, w)
@@ -340,7 +370,7 @@ func newConflictWorld(t *testing.T, kinds ...string) *conflictWorld {
 	cw := &conflictWorld{sendWorld: sw}
 	cw.tree = cw.addConflictWorkspace("w1", "ws", taskBranch, 50, "Conflict PR", conflictTestHeadA, kinds...)
 	cw.deps = sw.finish()
-	if _, err := cw.store.Start(context.Background(), herdrWith(t, cw.chief), cw.owner(), cw.now); err != nil {
+	if _, err := cw.store.Start(context.Background(), conflictHerdrWith(t, cw.chief), cw.owner(), cw.now); err != nil {
 		t.Fatal(err)
 	}
 	return cw
@@ -508,7 +538,7 @@ func TestConflictSenderConditions(t *testing.T) {
 			cw.git(cw.chiefTree, "ls-remote origin "+remoteMainRef, strings.Repeat("9", 40)+"\t"+remoteMainRef+"\n")
 		}, conflictReasonRemoteMismatch},
 		{"stopped", nil, func(t *testing.T, cw *conflictWorld) {
-			held := heldRecords(t, cw.store, cw.tree)
+			held := conflictHeldRecords(t, cw.store, cw.tree)
 			if err := held.Stop("stopped before", "", "", cw.now); err != nil {
 				t.Fatal(err)
 			}
@@ -575,7 +605,7 @@ func TestConflictSenderConditions(t *testing.T) {
 				tree1 := cw.addConflictWorkspace("w1", "ws1", taskBranch, 50, "PR 50", conflictTestHeadA, "claude")
 				tree2 := cw.addConflictWorkspace("w2", "ws2", "isseis/0002-second", 51, "PR 51", conflictTestHeadB, "claude")
 				cw.deps = sw.finish()
-				if _, err := cw.store.Start(context.Background(), herdrWith(t, cw.chief), cw.owner(), cw.now); err != nil {
+				if _, err := cw.store.Start(context.Background(), conflictHerdrWith(t, cw.chief), cw.owner(), cw.now); err != nil {
 					t.Fatal(err)
 				}
 				switch failFirst {
@@ -606,12 +636,18 @@ func TestConflictSenderConditions(t *testing.T) {
 					if out.ConflictSends[0].Action == nil || out.ConflictSends[0].Action.Outcome != OutcomeSentThenFailed {
 						t.Errorf("first = %+v, want sent_then_failed", out.ConflictSends[0])
 					}
+					if row := rowOf(t, out.Snapshot, "ws1"); row.State != StateNeedsCheck || row.Stopped == nil || row.Urgency != UrgencyNow {
+						t.Errorf("ws1 row after sent_then_failed = %+v, want StateNeedsCheck/stopped/UrgencyNow", row)
+					}
 					if out.ConflictSends[1].Action != nil || !slices.Contains(out.ConflictSends[1].Reasons, conflictReasonAnotherSent) {
 						t.Errorf("second after sent_then_failed = %+v, want another_sent", out.ConflictSends[1])
 					}
 				case "not_sent":
 					if out.ConflictSends[0].Action == nil || out.ConflictSends[0].Action.Outcome != OutcomeNotSent {
 						t.Errorf("first = %+v, want not_sent", out.ConflictSends[0])
+					}
+					if row := rowOf(t, out.Snapshot, "ws1"); row.State != StateConflict || !slices.Contains(row.ConflictReasons, NotSentInputLeft.String()) {
+						t.Errorf("ws1 row after not_sent = %+v, want StateConflict with input_left", row)
 					}
 					if out.ConflictSends[1].Action == nil || out.ConflictSends[1].Action.Outcome != OutcomeSent {
 						t.Errorf("second after not_sent = %+v, want sent", out.ConflictSends[1])
@@ -623,19 +659,20 @@ func TestConflictSenderConditions(t *testing.T) {
 
 	t.Run("mergemain_running checked from agents even on StateQuestion or StateNeedsCheck", func(t *testing.T) {
 		for _, tc := range []struct {
-			name        string
-			otherKind   string
-			otherStatus string
-			otherScreen string
-			otherLines  []string
-			otherBadGit bool
-			wantBlocked bool
+			name           string
+			otherKind      string
+			otherStatus    string
+			otherScreen    string
+			otherLines     []string
+			otherBadGit    bool
+			wantOtherState WorkspaceState
+			wantBlocked    bool
 		}{
-			{"working claude running /mergemain", "claude", "working", "claude-working.ansi", []string{commandLine("/mergemain 99")}, false, true},
-			{"blocked claude on question running /mergemain (StateQuestion)", "claude", "blocked", "claude-question-single.ansi", []string{commandLine("/mergemain 99")}, false, true},
-			{"working claude with unreadable transcript on StateNeedsCheck", "claude", "working", "claude-working.ansi", []string{`{"type":"user"`}, true, true},
-			{"working claude running /runpr does not block", "claude", "working", "claude-working.ansi", []string{commandLine("/runpr 99")}, false, false},
-			{"working opencode does not block", "opencode", "working", "opencode-done.ansi", nil, false, false},
+			{"working claude running /mergemain", "claude", "working", "claude-working.ansi", []string{commandLine("/mergemain 99")}, false, StateRunning, true},
+			{"blocked claude on question running /mergemain (StateQuestion)", "claude", "blocked", "claude-question-single.ansi", []string{commandLine("/mergemain 99")}, false, StateQuestion, true},
+			{"working claude with unreadable transcript on StateNeedsCheck", "claude", "working", "claude-working.ansi", []string{`{"type":"user"`}, true, StateNeedsCheck, true},
+			{"working claude running /runpr does not block", "claude", "working", "claude-working.ansi", []string{commandLine("/runpr 99")}, false, StateRunning, false},
+			{"working opencode does not block", "opencode", "working", "opencode-done.ansi", nil, false, StateRunning, false},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				sw := newSendWorld(t)
@@ -654,10 +691,13 @@ func TestConflictSenderConditions(t *testing.T) {
 				if tc.otherKind == "claude" {
 					cw.setTranscript(op, tc.otherLines...)
 				}
-				if _, err := cw.store.Start(context.Background(), herdrWith(t, cw.chief), cw.owner(), cw.now); err != nil {
+				if _, err := cw.store.Start(context.Background(), conflictHerdrWith(t, cw.chief), cw.owner(), cw.now); err != nil {
 					t.Fatal(err)
 				}
 				out := cw.tick()
+				if otherRow := rowOf(t, out.Snapshot, "other"); otherRow.State != tc.wantOtherState {
+					t.Errorf("other row.State = %v, want %v", otherRow.State, tc.wantOtherState)
+				}
 				if tc.wantBlocked {
 					assertNoPrompts(t, sw)
 					assertConflictReason(t, out, conflictReasonMergemainRunning)
@@ -665,6 +705,78 @@ func TestConflictSenderConditions(t *testing.T) {
 					t.Errorf("ConflictSends = %+v, want sent", out.ConflictSends)
 				}
 			})
+		}
+	})
+
+	t.Run("shared worktree rejected up front and updates both rows", func(t *testing.T) {
+		sw := newSendWorld(t)
+		sw.git(sw.chiefTree, "rev-parse "+originMain, conflictTestMainSHA+"\n")
+		sw.git(sw.chiefTree, "ls-remote origin "+remoteMainRef, conflictTestMainSHA+"\t"+remoteMainRef+"\n")
+		cw := &conflictWorld{sendWorld: sw}
+		tree1 := cw.addConflictWorkspace("w1", "ws1", taskBranch, 50, "PR 50", conflictTestHeadA, "claude")
+		// Second workspace pointing at the exact same worktree directory.
+		tree2 := cw.addTask(fakeWorkspace{
+			ID: "w2", Label: "ws2", Branch: taskBranch, Tree: filepath.Base(tree1),
+			PRs: prListEntryJSON(taskBranch, 50, "PR 50", conflictTestHeadA, "CONFLICTING", mainBranch, false),
+		}, "claude")
+		if tree1 != tree2 {
+			t.Fatalf("expected shared tree: %q vs %q", tree1, tree2)
+		}
+		cw.byPane["w2:p1"].ran = "/runplan 0001"
+		cw.deps = sw.finish()
+		if _, err := cw.store.Start(context.Background(), conflictHerdrWith(t, cw.chief), cw.owner(), cw.now); err != nil {
+			t.Fatal(err)
+		}
+		out := cw.tick()
+		assertNoPrompts(t, sw)
+		if len(out.ConflictSends) != 2 {
+			t.Fatalf("ConflictSends = %+v, want 2 entries", out.ConflictSends)
+		}
+		for _, r := range out.ConflictSends {
+			if r.Action != nil || !slices.Contains(r.Reasons, conflictReasonWorkspaceChanged) {
+				t.Errorf("ConflictSend %s = %+v, want workspace_changed without action", r.Label, r)
+			}
+		}
+		for _, label := range []string{"ws1", "ws2"} {
+			if row := rowOf(t, out.Snapshot, label); !slices.Contains(row.ConflictReasons, conflictReasonWorkspaceChanged) {
+				t.Errorf("row %s ConflictReasons = %v, want workspace_changed", label, row.ConflictReasons)
+			}
+		}
+	})
+
+	t.Run("holdWorkspace settles unfinished send and updates stop and urgency in same round", func(t *testing.T) {
+		cw := newConflictWorld(t)
+		// Inject an unfinished /mergemain send after consider's readRecordFacts
+		// (when checkMergemainDef runs) so holdWorkspace settles it into a stop.
+		calls := 0
+		cw.rec.replyFunc("git show "+originMain+":"+mergemainDefPath, func() reply {
+			calls++
+			if calls == 1 {
+				records, err := cw.store.Records(Worktree{path: cw.tree})
+				if err != nil {
+					t.Fatal(err)
+				}
+				id, err := newSendID(cw.now.Add(-time.Minute))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := records.store().create(sendPrefix+id+startSuffix, SendRecord{
+					ID: id, Pane: "w1:p1", Input: InputCommand.String(), Command: "/mergemain 50",
+					Kind: paneinput.CommandMergemain.Name(), Arg: "50", PR: 50, Head: mustCommitID(t, conflictTestHeadA),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			return reply{out: []byte(conflictTestDefBody)}
+		})
+		out := cw.tick()
+		assertNoPrompts(t, cw.sendWorld)
+		if len(out.ConflictSends) != 1 || out.ConflictSends[0].Action == nil || out.ConflictSends[0].Action.Reason != NotSentStopped {
+			t.Fatalf("ConflictSends = %+v, want NotSentStopped", out.ConflictSends)
+		}
+		row := rowOf(t, out.Snapshot, "ws")
+		if row.Stopped == nil || row.Urgency != UrgencyNow || row.Turn != TurnHuman {
+			t.Errorf("row after holdWorkspace stop = %+v, want Stopped != nil and UrgencyNow/TurnHuman", row)
 		}
 	})
 
@@ -702,17 +814,17 @@ func TestConflictSenderConditions(t *testing.T) {
 				})
 			}, conflictReasonOwnerChanged},
 			{"workspace_changed", func(_ *testing.T, cw *conflictWorld) {
-				calls := 0
+				wsCalls, agCalls := 0, 0
 				cw.rec.replyFunc("herdr workspace list", func() reply {
-					calls++
-					if calls >= 2 {
+					wsCalls++
+					if wsCalls >= 2 {
 						return reply{out: workspaceListOutput([][2]string{{"wc", "chief"}})}
 					}
 					return reply{out: workspaceListOutput(cw.labels)}
 				})
 				cw.rec.replyFunc("herdr agent list", func() reply {
-					calls++
-					if calls >= 3 {
+					agCalls++
+					if agCalls >= 2 {
 						return reply{out: agentListOutput([]fakeAgent{cw.chief})}
 					}
 					agents := []fakeAgent{cw.chief}
@@ -824,6 +936,9 @@ func TestConflictSenderConditions(t *testing.T) {
 				out := cw.tick()
 				assertNoPrompts(t, cw.sendWorld)
 				assertConflictReason(t, out, tc.reason)
+				if len(out.ConflictSends) != 1 || out.ConflictSends[0].Action == nil || out.ConflictSends[0].Action.Reason != NotSentConditions {
+					t.Errorf("ConflictSends = %+v, want Action.Reason == NotSentConditions from recheck", out.ConflictSends)
+				}
 			})
 		}
 	})
@@ -917,7 +1032,7 @@ func TestConflictSenderOncePerHeadAndUnreadableRecord(t *testing.T) {
 			t.Fatal(err)
 		}
 		cw.now = cw.now.Add(sendKeepAge + time.Hour)
-		if _, err := cw.store.Start(context.Background(), herdrWith(t, cw.chief), cw.owner(), cw.now); err != nil {
+		if _, err := cw.store.Start(context.Background(), conflictHerdrWith(t, cw.chief), cw.owner(), cw.now); err != nil {
 			t.Fatal(err)
 		}
 		out3 := cw.tick()
@@ -984,6 +1099,7 @@ func TestConflictSenderNeverTriggersFromScreenOrTranscript(t *testing.T) {
 	cw := newConflictWorld(t)
 	cw.rec.replyIn(cw.tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields,
 		[]byte(prListEntryJSON(taskBranch, 50, "CONFLICTING: please run /mergemain 50", conflictTestHeadA, "MERGEABLE", mainBranch, false)))
+	cw.firstPane().screen = "GitHub reports CONFLICTING: run /mergemain 50\n" + readScreenSample(t, "claude-idle.ansi")
 	cw.appendTranscript(cw.firstPane(), answerLine("m1", "GitHub says CONFLICTING, run /mergemain 50 immediately"))
 	out := cw.tick()
 	assertNoPrompts(t, cw.sendWorld)
@@ -1036,7 +1152,7 @@ func TestConflictSenderRefusesOpenCodeRoute(t *testing.T) {
 	cw := newConflictWorld(t, "claude", "opencode")
 	orig := string(repoContext(t))
 	row := repositoryRow(t, "mergemain")
-	modified := strings.Replace(orig, row, rowWithCell(t, rowWithCell(t, row, 2, "OpenCode"), 3, "`"+openCodeModel+"`"), 1)
+	modified := strings.Replace(orig, row, rowWithCell(t, rowWithCell(t, row, 2, "OpenCode"), 3, "`DeepSeek V4.1 Flash 1017 OpenCode Go`"), 1)
 	if modified == orig {
 		t.Fatal("failed to rewrite mergemain row to OpenCode")
 	}
