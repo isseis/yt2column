@@ -243,7 +243,7 @@ Diff record (AC-18):
 
 - Compared paths: `docs/tasks/0124_checks_proportion/01_requirements.md`
 - Merge-base: `83961297b483deeb50af50e063c22073019a1041`
-- Compared commit: `d0e95b8128ad51126b8a096e3fa34f31262ea410`
+- Compared commit: `f607e50fdfdfecd3aa61ed3a6e9cfe1196bd5136`
 
 Path diff:
 
