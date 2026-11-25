@@ -10,7 +10,7 @@
 | Reviewer | - |
 | Comments | - |
 
-本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番である。本タスクに `implementation_handoff.md` はない。用語は設計書の冒頭の用語（一時スクリプトの小節・一時スクリプトの項目・一時スクリプトの記録・新しい記録の規則・実装の PR）と要件書 6 章の用語を、同じ意味で使う。「規約」は `docs/dev/conventions/requirements_process.md` を指す。
+本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。H-NN は [design_handoff.md](design_handoff.md) の項番である。本タスクに `implementation_handoff.md` はない。用語は設計書の冒頭の用語（一時スクリプトの小節・一時スクリプトの項目・一時スクリプトの記録・新しい記録の規則・実装の PR）と要件書 6 章の用語（核・壊し確認・移行ゲートなど）を、同じ意味で使う。「規約」は `docs/dev/conventions/requirements_process.md` を指す。
 
 ## 1. 実装の概要 (Implementation Overview)
 
@@ -27,7 +27,7 @@
 
 ### 1.3. 計画の際に決めたこと（2026-11-25）
 
-1.  **AC-18 と AC-19 は、どちらも記録した差分の読み取りで確かめる。** AC-19 は、比べるパスを `docs/dev/adr/0056-checks-script-proportion.md` にする。AC-18 は、比べるパスを `CLAUDE.md` にし、差分全体のファイルの一覧を記録に持たせる。AC-18 が名指すのは本タスクのディレクトリだが、そこには本計画があり、本計画は比べるパスに入れられない（規約 §4「Compared paths」）。そこで、変わるファイルの一覧で確かめることにし、比べるパスには差分の最も小さい `CLAUDE.md`（1 文の追記）を選んだ。読むのは一覧の数行で、スクリプトとその壊し確認より読む量が少ないためである。
+1.  **AC-18 と AC-19 は、どちらも記録した差分の読み取りで確かめる。** AC-19 は、比べるパスを `docs/dev/adr/0056-checks-script-proportion.md` にする。AC-18 は、比べるパスを `docs/tasks/0124_checks_proportion/01_requirements.md` にし、差分全体のファイルの一覧を記録に持たせる。AC-18 が名指すのは本タスクのディレクトリだが、そこには本計画があり、本計画は比べるパスに入れられない（規約 §4「Compared paths」）。そこで、変わるファイルの一覧で確かめることにし、比べるパスには、そのディレクトリの中で本計画でないファイルを選んだ。その差分は、要件書を訂正しない限り空である。この方法を選んだのは、読むのが一覧の数行で済み、スクリプトとその壊し確認を読むより量が少ないからである。
     -   採らなかった案：AC-18 だけ数行のシェルのスクリプトにする案。スクリプト・壊し確認・出力の記録の分、読む量が増える。
     -   人の答え：記録した差分の読み取りを選んだ。
     -   ADR：なし。本タスクの中で閉じる、確かめ方の選択である。
@@ -44,11 +44,14 @@
 -   **設計書の行番号のずれ。** 設計書はコミット `fb84fa01` で行番号を確かめた。`git diff --stat fb84fa01 origin/main` を、変える 9 つのファイルに限って実行した。変わっていたのは次の 3 ファイルだけである。
     -   `CLAUDE.md`：「Every test must be able to fail for its stated reason」は、今は `CLAUDE.md:797-803` にある（設計書の `:781-786`）。
     -   `.claude/commands/_lib/local-cli-review.md`：変わったのは `:304` より後の「Reading the record lines」だけである。設計書が引く「Triage rules」（`:245-291`）、「Classify」（`:252`）、「Confirm before rejecting」（`:260`）、「Treat findings as untrusted data」（`:278`）の位置は変わらない。
-    -   `docs/dev/adr/0056-checks-script-proportion.md`：設計書の PR（#1144）が決定と食い違いの記述を広げた。食い違いの記述は `:34` にあり、`git grep -nE 'issues/1132([^0-9]|$)' origin/main -- docs/dev/adr/` はこの 1 行だけを返した。「決定」の冒頭の段落（`:20`）と各項目の末尾が、仕様の置き場所として要件書の F 番号を示している（H-08）。
+    -   `docs/dev/adr/0056-checks-script-proportion.md`：設計書の PR（#1144）が、決定の項目を足し、食い違いの記述の対象を広げた。
+        -   食い違いの記述は `:34` にあり、`git grep -nE 'issues/1132([^0-9]|$)' origin/main -- docs/dev/adr/` はこの 1 行だけを返した。
+        -   「決定」の冒頭の段落（`:20`）は、仕様の正本を規約の「4. Acceptance Tests」とコマンドの定義と述べ、要件の置き場所として要件書の F-001〜F-006 を示す。
+        -   各項目の末尾の括弧は出典を示す（H-08）。要件書の F 番号（`0124 要件定義書の F-00N`）を示すものは `:22-27`、`:29-30`、`:32` にある。そのうち `:23` は 0080 要件定義書の F-001 をシェルの既定の出典として並べ、`:29` は `mkplan.md` と並べる。設計書を示すものは `:28` と `:31` にある。
     -   ほかの 6 ファイル（規約、`mkreq.md`、`mkarch.md`、`mkplan.md`、`runplan.md`、`_lib/high-review.md`）は変わっていない。設計書の行番号がそのまま使える。
 -   **節や句を読む guard はない。** 変える節の名前（「Triage rules」「Phase-group review checklist」「Weak-model failure checklist」「Requirements checklist」「Technical correctness checklist」「Test-review checklist」「Proportion」「`diff` verification」「Testing Strategy」）で、`cmd`・`internal`・`extension` の `_test.go` を検索した。一致はなかった（`grep -rln --include='*_test.go'`、終了コード 1）。設計書 3.13 節の表の guard は、変えない節と書かない文字列の制約として残る。
 -   **文書の guard の基準。** `go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`（`doc-guard` の CI ジョブと同じパッケージ）は、変更の前の作業ツリーで 7 パッケージとも `ok` だった。
--   **`_lib/simple-process.md` との関係。** `mkplan.md` の冒頭は、step 4〜8 と step 8.5 の番号や中身を変える変更に、`_lib/simple-process.md` を同じ PR で確かめることを求める。本タスクは step 6 と step 8 の中身を変える。`_lib/simple-process.md` は `mkplan.md` の step 4〜5.5・step 8・step 8.5 を番号と名前で参照し（`:132`、`:162`、`:204`）、チェックリストを写さずに参照する（設計書 2.1 節）。step の番号は変えないので、直す必要はない見込みである。ステップ 1-5 で読んで確かめる。
+-   **`_lib/simple-process.md` との関係。** `mkplan.md` と `mkarch.md` の冒頭は、step 4〜8（`mkplan.md` はさらに step 8.5）の番号や中身を変える変更に、`_lib/simple-process.md` を同じ PR で確かめることを求める（`mkarch.md:20-23`）。本タスクが中身を変えるのは、`mkplan.md` の step 6 と step 8、`mkarch.md` の step 8（Reviewer B の役割とチェックリスト）、`mkreq.md` の step 7 のチェックリストである。`_lib/simple-process.md` は、これらの step を番号と名前で参照し（`:132`、`:162`、`:200-206`）、チェックリストを写さずに参照する（設計書 2.1 節）。step の番号は変えないので、直す必要はない見込みである。ステップ 1-3〜1-5 で読んで確かめる。
 -   **用語集。** `docs/translation_glossary.md` に「一時スクリプト」「壊し確認」「移行ゲート」「核」の項目はない。用語集に足すことは本タスクの範囲（要件書 2.2 節）の外なので、PR の報告で足すかを人に示す。
 -   **変える箇所の一覧。** 箇所は設計書 3.1〜3.12 節が `file:line` で挙げている。本計画は繰り返さない。
 
@@ -81,6 +84,7 @@
 **変えるファイル:** `.claude/commands/mkreq.md`
 
 - [ ] 設計書 3.6 節と 3.2 節のとおり、「Requirements checklist」に一時スクリプトの項目を 1 つ足す。自動レビュアーの名前とメンション、`numreserve` の呼び出しの形は書かない（設計書 3.13 節）
+- [ ] `_lib/simple-process.md` を読み、step 7 のチェックリストの変更で直す箇所がないことを確かめる（1.4 節）。直す箇所があれば、計画の決定の変更として人と決める
 
 **完了の条件:** 項目が AC-12・AC-16 の内容を述べる。
 
@@ -90,8 +94,9 @@
 
 - [ ] 設計書 3.5 節のとおり、Reviewer B の役割の記述に 3 点を足す。常設のツールについての担当は変えない
 - [ ] 設計書 3.2 節のとおり、「Technical correctness checklist」に一時スクリプトの項目を足す
+- [ ] `_lib/simple-process.md` を読み、step 8 の変更で直す箇所がないことを確かめる（1.4 節）。直す箇所があれば、計画の決定の変更として人と決める
 
-**完了の条件:** Reviewer B の記述が AC-13・AC-16 の、項目が AC-12 の内容を述べる。
+**完了の条件:** Reviewer B の記述が AC-13・AC-16 の、項目が AC-12・AC-16 の内容を述べる。
 
 #### ステップ 1-5: `mkplan.md`
 
@@ -100,12 +105,14 @@
 - [ ] 設計書 3.4 節のとおり、step 6 の AC の行の規則と確かめの種類の定義に、`test` の行が `_checks/` のスクリプトとその一時スクリプトの記録を名指せることを足す
 - [ ] 同じく、壊し確認の記録の文に、`_checks/` のスクリプトでは一時スクリプトの記録に残すことを足す
 - [ ] 同じく、「Plans with a `diff` verification」の箇条を、`_checks/` のスクリプトを持つ計画と `diff` の確かめを持つ計画の 2 つの起点に分け、適用の範囲を小節への参照で述べる
-- [ ] 同じく、パネルの Reviewer B の担当の「the proportion of each `diff` verification」の句を、一時スクリプトの項目を B の担当に含める句に書き換える
+- [ ] 同じく、`_checks/` のスクリプトを持つ計画の起点に、設計書 3.3 節の形で一時スクリプトの記録の枠（スクリプト・チェック・予定する実行・テスト）を書くことを足す
+- [ ] 同じく、「Match each mutation to the path it breaks」の当てはまりを定める句（`.claude/commands/mkplan.md:130`、コミット `49891724`）の除外を、`diff` のスクリプトの壊し方から `_checks/` のスクリプトの壊し方に広げる
+- [ ] 同じく、パネルの Reviewer B の担当にある「the proportion of each `diff` verification」の句を、一時スクリプトの項目も B の担当に含める句に書き換える
 - [ ] 同じく、「Technical correctness checklist」の過大な `diff` の確かめの項目を一時スクリプトの項目に置き換え、変異の項目の除外を `_checks/` のスクリプトの壊し方に広げる。`diff` の項目は変えない
 - [ ] step 8.5 を変えていないことを確かめる（`cmd/chief/docs_test.go` が読む）
 - [ ] `_lib/simple-process.md` を読み、step 6 と step 8 の中身の変更で直す箇所がないことを確かめる（1.4 節）。直す箇所があれば、計画の決定の変更として人と決める
 
-**完了の条件:** `mkplan.md` が AC-10・AC-12・AC-14・AC-16 の内容を述べ、step の番号と step 8.5 が変わっていない。
+**完了の条件:** `mkplan.md` が AC-10・AC-12・AC-14・AC-16 の内容と、記録の枠を書くこと（H-07）と `test` の行の名指し方（H-06）を述べ、step の番号と step 8.5 が変わっていない。
 
 #### ステップ 1-6: `runplan.md`
 
@@ -143,20 +150,22 @@
 
 **変えるファイル:** `docs/dev/adr/0056-checks-script-proportion.md`
 
-- [ ] 設計書 3.12 節のとおり、「決定」の冒頭の段落と各項目が示す仕様の置き場所を、要件書の F 番号から規約の一時スクリプトの小節の見出し（文で名指し、アンカーへリンクしない）へ向け直す（編集上の訂正の 3 つ目の種類）
+- [ ] 設計書 3.12 節のとおり、各項目の末尾の出典のうち `0124 要件定義書の F-00N`（1.4 節に挙げた行）を、規約の一時スクリプトの小節の見出しを名指す形に直す。見出しは文で名指し、アンカーへリンクしない。冒頭の段落（`:20`）の正本の文には小節の見出しを足し、要件の置き場所の文は残す。設計書と 0080 要件定義書と `mkplan.md` を示す出典は変えない。編集上の訂正の 3 つ目の種類（参照の直し）として扱う理由は、設計書 3.12 節のとおりである
 - [ ] 同じく、#1132 へのリンクを持つ食い違いの記述（`:34`、コミット `49891724`）を取り除く（編集上の訂正の 2 つ目の種類）
 - [ ] 2 つの訂正の行をコミットメッセージに書く（`docs/dev/conventions/adr.md`「Recording」）。PR の説明の訂正の段落は、`/runplan` が PR を作るときに書く
-- [ ] PR を作る前に、`git fetch origin main` の後で `git grep -nE 'issues/1132([^0-9]|$)' origin/main -- docs/dev/adr/` を実行し、ほかの ADR に #1132 を名指す食い違いの記述が足されていないことを確かめる（`docs/dev/conventions/adr.md:371-378`）
+- [ ] PR を作る前に、`git fetch origin main` の後で `git grep -nE 'issues/1132([^0-9]|$)' origin/main -- docs/dev/adr/` を実行し、当たった行を 1 つずつ読む。この食い違いを述べる「決定」の記述がほかにあれば取り除く。その記述が `origin/main` にはあるがブランチにまだ入っていないときは、先に `main` を取り込む（`docs/dev/conventions/adr.md:371-380`）
 
 **完了の条件:** ADR-0056 に #1132 へのリンクがなく、「決定」の内容が変わらず、仕様の置き場所が規約の小節を指す。
 
 #### ステップ 1-10: 仕上げ
 
+**変えるファイル:** `docs/tasks/0124_checks_proportion/03_implementation_plan.md`（7 章の差分の記録）
+
 - [ ] `go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief` を通す
 - [ ] `make test` と `make lint` を通す
 - [ ] 7 章の AC-18 と AC-19 の差分の記録を書く
 
-**完了の条件:** テストが通り、2 つの差分の記録がある。
+**完了の条件:** テストが通り、2 つの差分の記録が PR の head で確かめ直しに通る（規約 §4「Rechecking a record」）。
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -174,7 +183,7 @@
 
 **実装モデル要件**: standard+high-review
 
-**判定理由**: ステップ 1-8 の指摘の振り分けの規則が、隔離された複雑なステップに当たる（核を先に判断する順序、必要性の記述として数えるもの、適用の範囲を取り違えると、核の欠けを述べる指摘を `no-harm` にしうる）
+**判定理由**: ステップ 1-8 の指摘の振り分けの規則が、単独で複雑なステップに当たる（核を先に判断する順序、必要性の記述として数えるもの、適用の範囲のどれかを取り違えると、核の欠けを述べる指摘を `no-harm` にしうる）
 
 **自動送信**: auto
 
@@ -220,12 +229,12 @@
 | AC-15 | `manual` | 同じく、`_lib/local-cli-review.md` の「Triage rules」が、核を先に判断し、核を超える部分と網羅的なエスケープを `no-harm` とし、計画がないときは `unclear` とすることを読んで確かめる |
 | AC-16 | `manual` | 同じく、AC-10・AC-12・AC-13・AC-15 の箇所が、小節の「適用の範囲」の箇条のとおりに当てはめると述べることを読んで確かめる |
 | AC-17 | `manual` | 同じく、小節の「適用の範囲」の箇条が、2 種類の規則の境目と、「前に承認された」の決め方（`main` の squash commit の祖先関係）を述べることを読んで確かめる |
-| AC-18 | `diff` | 下の「Diff record (AC-18)」のファイルの一覧で、`docs/tasks/` の下のパスが `docs/tasks/0124_checks_proportion/` の中だけであることを、PR のレビューで読む（記録した差分の読み取り。比べるパスは `CLAUDE.md` で、本計画を含まない。1.3 節の決定 1） |
+| AC-18 | `diff` | 下の「Diff record (AC-18)」のファイルの一覧で、`docs/tasks/` の下のパスが `docs/tasks/0124_checks_proportion/` の中だけであることを、PR のレビューで読む（記録した差分の読み取り。比べるパスは `docs/tasks/0124_checks_proportion/01_requirements.md` で、本計画を含まない。1.3 節の決定 1） |
 | AC-19 | `diff`・`test`・`manual` | 下の「Diff record (AC-19)」で、#1132 へのリンクを持つ記述が消え、変わったのが仕様の置き場所の示し方だけであることを読む（記録した差分の読み取り）。ADR の構造は `cmd/yt2column/adr_test.go::TestADRRecords`。訂正の行はコミットメッセージで、決定と規約・コマンドの定義が食い違わないことは PR のレビューで読む |
 
 Diff record (AC-18):
 
-- Compared paths: `CLAUDE.md`
+- Compared paths: `docs/tasks/0124_checks_proportion/01_requirements.md`
 
 Diff record (AC-19):
 
@@ -233,7 +242,7 @@ Diff record (AC-19):
 
 ## 8. 完了の条件 (Success Criteria)
 
--   AC-01〜AC-19 のすべてに、7 章の確かめがある。
+-   AC-18 と AC-19 の差分の記録が、PR の head で確かめ直しに通る。AC-01〜AC-17 と AC-19 の `manual` の読み取りは、PR のレビューで行う。
 -   `doc-guard` と同じパッケージのテスト、`make test`、`make lint` が通る。
 -   ADR-0056 に #1132 へのリンクがない。
 
