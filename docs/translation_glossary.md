@@ -196,3 +196,8 @@
 | API キー | API key | Anthropic 社の AI を使うための、利用者専用の鍵。README では一般の利用者向けに、鍵として説明する |
 | ワークスペース ID | workspace ID | API キーの作り方によっては必要になる、Anthropic 社のサイトの「ワークスペース」の ID |
 | 専用のタブ | dedicated tab | 一般の利用者向けの README で、ビューアのタブを指す言い方。「ビューア」の用語は README に出さない |
+| ハーネス | harness | 開発コマンドを実行するエージェント実行環境。本リポジトリでは Claude Code、Antigravity CLI（`agy`）、OpenCode を指す（0120 要件定義書 3.1） |
+| ハーネスのアダプタ | harness adapter | ハーネスごとの組み込みツール、モデルの固定と検証、スクラッチパッドの場所、シェル実行、サンドボックスと権限の規則の差分を定義する手順文書（`.claude/commands/_lib/harness-claude.md`・`harness-antigravity.md`）。入口は `_lib/harness.md` |
+| 上位モデルのレビュー | high-model review | ハーネスの `high` 役割のモデルで行う、正しさのレビューと弱いモデルの失敗のレビューの組（`_lib/high-review.md`）。旧称: Opus のレビュー |
+| クロスチェックの部分レビュー | cross-check partial review | タスクの PR を開く前に、4 つの基準に当たる箇所に絞って、ハーネスのクロスチェック役割のモデルで行う部分レビュー（`_lib/cross-check-review.md`）。旧称: Fable の部分レビュー |
+| スクラッチパッド | scratchpad | 作業ツリーの外にある、セッション専用の一時ファイル置き場。追跡もコミットもしない |

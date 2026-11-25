@@ -179,6 +179,9 @@ func TestParseMergemainPRRejectsMalformedValues(t *testing.T) {
 		"head is main":     {strings.Replace(valid, `"feature"`, `"main"`, 1), errBranchName},
 		"head option":      {strings.Replace(valid, `"feature"`, `"-f"`, 1), errBranchName},
 		"head with space":  {strings.Replace(valid, `"feature"`, `"a b"`, 1), errBranchName},
+		"head with equals": {strings.Replace(valid, `"feature"`, `"a=b"`, 1), errBranchName},
+		"head with format": {strings.Replace(valid, `"feature"`, `"a\u200bb"`, 1), errBranchName},
+		"head with C1":     {strings.Replace(valid, `"feature"`, `"a\u0085b"`, 1), errBranchName},
 		"short head":       {strings.Replace(valid, head, head[:39], 1), errPRShape},
 		"uppercase head":   {strings.Replace(valid, head, strings.ToUpper(head), 1), errPRShape},
 		"null state":       {strings.Replace(valid, `"OPEN"`, `null`, 1), nil},
@@ -1268,4 +1271,28 @@ func TestMergemainPushAfterItLandedAsksNoRestore(t *testing.T) {
 	k.OriginGit("update-ref", headsPrefix+takeInBranch, k.Git("rev-parse", "HEAD"))
 	_, err := push(t, k, b)
 	wantStop(t, err, MergemainStopPremise, RestoreNotNeeded)
+}
+
+// TestNewMergemainIgnoresTheCallersGitEnvironment verifies that the tool the
+// command builds reads the repository of the work tree even when the caller's
+// environment names another one. Every git call drops the GIT_* variables, so
+// a GIT_DIR, GIT_WORK_TREE, or GIT_CONFIG_GLOBAL set by the caller cannot
+// point a take-in check at another repository.
+func TestNewMergemainIgnoresTheCallersGitEnvironment(t *testing.T) {
+	r := newGitRepo(t)
+	head := r.Commit("initial", map[string]string{"a.md": "a\n"})
+	r.Git("update-ref", "refs/heads/"+mainBranch, head)
+	t.Chdir(r.Dir)
+	elsewhere := t.TempDir()
+	t.Setenv("GIT_DIR", filepath.Join(elsewhere, "git"))
+	t.Setenv("GIT_WORK_TREE", elsewhere)
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(elsewhere, "config"))
+	tool := NewMergemain(os.LookupEnv)
+	got, err := tool.git.resolveCommit(t.Context(), "HEAD")
+	if err != nil {
+		t.Fatalf("resolveCommit with the caller's GIT_* set: %v", err)
+	}
+	if got != head {
+		t.Errorf("resolveCommit = %s, want %s", got, head)
+	}
 }

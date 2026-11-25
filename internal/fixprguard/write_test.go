@@ -458,9 +458,18 @@ func TestCheckPostText(t *testing.T) {
 	}{
 		{name: "codex_title_case", text: "see @Codex", reject: true},
 		{name: "coderabbitai_mixed_case", text: "see @CodeRabbitAI", reject: true},
-		{name: "names_without_at", text: "Codex, codex, CodeRabbit, and coderabbitai flagged this"},
+		// The rows below name each Sourcery AI form literally, so dropping
+		// one from RejectedMentions fails them instead of shrinking the loop
+		// above.
+		{name: "sourcery_ai_mixed_case", text: "see @Sourcery-AI review", reject: true},
+		{name: "sourceryai_mixed_case", text: "see @SourceryAI review", reject: true},
+		{name: "sourcery_ai_longer_name", text: "ask @sourcery-aibot", reject: true},
+		{name: "sourceryai_email_address", text: "mail a@sourceryai.example", reject: true},
+		{name: "names_without_at", text: "Codex, codex, CodeRabbit, coderabbitai, Sourcery AI, sourcery-ai, and sourceryai flagged this"},
 		// Without the trailing "ai", "@coderabbit" is not a rejected mention.
 		{name: "coderabbit_without_ai", text: "@coderabbit flagged this"},
+		// Without "ai" or "-ai", "@sourcery" is not a rejected mention.
+		{name: "sourcery_without_ai", text: "@sourcery flagged this"},
 		{name: "other_mention", text: "@other-bot flagged this"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -479,6 +488,8 @@ func TestCheckPostText(t *testing.T) {
 var mentionTexts = map[string]string{
 	"codex":        "Thanks; @Codex flagged this too.",
 	"coderabbitai": "Thanks; @CodeRabbitAI flagged this too.",
+	"sourcery-ai":  "Thanks; @Sourcery-AI flagged this too.",
+	"sourceryai":   "Thanks; @SourceryAI flagged this too.",
 }
 
 func TestReplyRejectsMention(t *testing.T) {
@@ -746,6 +757,8 @@ func TestAppendPRRejects(t *testing.T) {
 		"over_size_cap":                {overCap, ErrInvalidInput, "", false},
 		"current_mention_codex":        {"## Summary\n" + marker + " @codex review\n", ErrCurrentBodyMention, StopCurrentBodyMention, true},
 		"current_mention_coderabbitai": {"## Summary\n" + marker + " @coderabbitai review\n", ErrCurrentBodyMention, StopCurrentBodyMention, true},
+		"current_mention_sourcery_ai":  {"## Summary\n" + marker + " @Sourcery-AI summary\n", ErrCurrentBodyMention, StopCurrentBodyMention, true},
+		"current_mention_sourceryai":   {"## Summary\n" + marker + " @SourceryAI summary\n", ErrCurrentBodyMention, StopCurrentBodyMention, true},
 	} {
 		t.Run("result/"+name, func(t *testing.T) {
 			g, _ := newTestGitHub(t, viewBodyStep(bodyResponse(t, row.current)))

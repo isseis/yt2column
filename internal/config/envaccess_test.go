@@ -93,8 +93,10 @@ var allowedEnvRefs = map[string]map[string]int{
 	// repository, color, prompt, debug, pager, GIT_*, and CISKIP_* variables.
 	"cmd/ciskip/main.go": {"call:os.Environ": 1},
 	// The mergepr developer tool passes its environment to numreserve.New for
-	// the pre-merge number check, which narrows it as for cmd/numreserve.
-	"cmd/mergepr/main.go": {"call:os.Environ": 1},
+	// the pre-merge number check, which narrows it as for cmd/numreserve, and
+	// passes os.LookupEnv to the take-in tool, which looks up GH_REPO only to
+	// refuse a PR read through it.
+	"cmd/mergepr/main.go": {"call:os.Environ": 1, "value:os.LookupEnv": 1},
 	// The mergepr developer tool's protocol-number check and correction-line
 	// reading run git with the environment of the process minus GIT_*,
 	// captured when a runner is built (gitEnviron); the trailer reading

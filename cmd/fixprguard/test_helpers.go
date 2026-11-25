@@ -313,10 +313,12 @@ type ghComment struct {
 	body  string
 }
 
-// ghThread scripts one unresolved review thread on testFile.
+// ghThread scripts one unresolved review thread on path, or on testFile when
+// path is empty.
 type ghThread struct {
 	id       string
 	comments []ghComment
+	path     string
 }
 
 // reviewerThread is thread 1, opened by the reviewer bot with body.
@@ -347,12 +349,16 @@ func userThread(login string) ghThread {
 const testThreadID = "PRRT_t1"
 
 func (th ghThread) json(withBody bool) map[string]any {
+	path := th.path
+	if path == "" {
+		path = testFile
+	}
 	nodes := make([]any, 0, len(th.comments))
 	for _, c := range th.comments {
 		node := map[string]any{
 			"databaseId":   c.id,
 			"url":          "https://github.com/isseis/yt2column/pull/42#discussion_r" + strconv.FormatInt(c.id, 10),
-			"path":         testFile,
+			"path":         path,
 			"line":         1,
 			"author":       map[string]any{"__typename": c.kind, "login": c.login},
 			"createdAt":    testTime,

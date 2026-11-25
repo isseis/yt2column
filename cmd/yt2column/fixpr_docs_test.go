@@ -61,7 +61,7 @@ const (
 // order, since the list's names are sorted before they are compared with it.
 // Adding or removing a reviewer changes _context.md and this value in the same
 // commit.
-var wantReviewers = []string{"coderabbitai"}
+var wantReviewers = []string{"coderabbitai", "sourcery-ai"}
 
 // flat joins s's whitespace runs into single spaces and drops the blockquote
 // marker of each line, so a phrase matches however the document wraps it,
@@ -1174,7 +1174,7 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 		{"real", listLine, listLine, nil},
 		{
 			"description_with_code_and_separator", listLine,
-			listRow("`coderabbitai` — named in `[bot]`-less form — see `fixpr.md`"), nil,
+			listRow("`coderabbitai`, `sourcery-ai` — named in `[bot]`-less form — see `fixpr.md`"), nil,
 		},
 		{"list_row_missing", listLine + "\n", "", []reviewerRowProblem{problemRowCount}},
 		{"awaited_row_missing", awaitedLine + "\n", "", []reviewerRowProblem{problemRowCount}},
@@ -1185,15 +1185,17 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 		{"old_row_left", awaitedLine, awaitedLine + "\n| " + oldReviewerRow + " | `coderabbitai` — the reviewer |", []reviewerRowProblem{problemRowCount}},
 		{"list_no_value_cell", listLine, "| " + reviewerListRow + " |", []reviewerRowProblem{problemListShape}},
 		{"list_value_only_description", listLine, listRow(desc), []reviewerRowProblem{problemListShape}},
-		{"no_separator", listLine, listRow("`coderabbitai`"), []reviewerRowProblem{problemListShape}},
-		{"no_backquotes", listLine, listRow("coderabbitai" + desc), []reviewerRowProblem{problemListShape}},
-		{"no_space_after_comma", listLine, listRow("`coderabbitai`,`other-bot`" + desc), []reviewerRowProblem{problemListShape}},
-		{"two_spaces_after_comma", listLine, listRow("`coderabbitai`,  `other-bot`" + desc), []reviewerRowProblem{problemListShape}},
-		{"trailing_separator", listLine, listRow("`coderabbitai`," + desc), []reviewerRowProblem{problemListShape}},
-		{"name_outside_grammar", listLine, listRow("`coderabbitai[bot]`" + desc), []reviewerRowProblem{problemListParse}},
-		{"name_twice", listLine, listRow("`coderabbitai`, `coderabbitai`" + desc), []reviewerRowProblem{problemListParse}},
-		{"second_name", listLine, listRow("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
-		{"name_replaced", listLine, listRow("`other-bot`" + desc), []reviewerRowProblem{problemListNames}},
+		{"no_separator", listLine, listRow("`coderabbitai`, `sourcery-ai`"), []reviewerRowProblem{problemListShape}},
+		{"no_backquotes", listLine, listRow("coderabbitai, sourcery-ai" + desc), []reviewerRowProblem{problemListShape}},
+		{"no_space_after_comma", listLine, listRow("`coderabbitai`,`sourcery-ai`" + desc), []reviewerRowProblem{problemListShape}},
+		{"two_spaces_after_comma", listLine, listRow("`coderabbitai`,  `sourcery-ai`" + desc), []reviewerRowProblem{problemListShape}},
+		{"trailing_separator", listLine, listRow("`coderabbitai`, `sourcery-ai`," + desc), []reviewerRowProblem{problemListShape}},
+		{"name_outside_grammar", listLine, listRow("`coderabbitai`, `sourcery-ai[bot]`" + desc), []reviewerRowProblem{problemListParse}},
+		{"name_twice", listLine, listRow("`coderabbitai`, `sourcery-ai`, `sourcery-ai`" + desc), []reviewerRowProblem{problemListParse}},
+		{"third_name", listLine, listRow("`coderabbitai`, `sourcery-ai`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
+		{"name_missing", listLine, listRow("`coderabbitai`" + desc), []reviewerRowProblem{problemListNames}},
+		{"name_replaced", listLine, listRow("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
+		{"name_case_differs", listLine, listRow("`coderabbitai`, `Sourcery-AI`" + desc), []reviewerRowProblem{problemListNames}},
 		{"awaited_two_names", awaitedLine, awaitedRowLine("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemAwaitedShape}},
 		{"awaited_no_value_cell", awaitedLine, "| " + awaitedRow + " |", []reviewerRowProblem{problemAwaitedShape}},
 		{"awaited_value_only_description", awaitedLine, awaitedRowLine(desc), []reviewerRowProblem{problemAwaitedShape}},
@@ -1208,10 +1210,10 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 		{"request_longer_mention", requestLine, requestRowLine("`@coderabbitai-bot review`" + desc), []reviewerRowProblem{problemRequestMention}},
 		{"request_mention_not_first", requestLine, requestRowLine("`review @coderabbitai`" + desc), []reviewerRowProblem{problemRequestMention}},
 		{"rejected_no_value_cell", rejectedLine, "| " + rejectedMentionsRow + " |", []reviewerRowProblem{problemRejectedShape}},
-		{"rejected_no_separator", rejectedLine, rejectedRowLine("`@codex`, `@coderabbitai`"), []reviewerRowProblem{problemRejectedShape}},
-		{"rejected_no_backquotes", rejectedLine, rejectedRowLine("@codex, @coderabbitai" + desc), []reviewerRowProblem{problemRejectedShape}},
-		{"rejected_missing_one", rejectedLine, rejectedRowLine("`@codex`" + desc), []reviewerRowProblem{problemRejectedNames}},
-		{"rejected_extra_one", rejectedLine, rejectedRowLine("`@codex`, `@coderabbitai`, `@other`" + desc), []reviewerRowProblem{problemRejectedNames}},
+		{"rejected_no_separator", rejectedLine, rejectedRowLine("`@codex`, `@coderabbitai`, `@sourcery-ai`, `@sourceryai`"), []reviewerRowProblem{problemRejectedShape}},
+		{"rejected_no_backquotes", rejectedLine, rejectedRowLine("@codex, @coderabbitai, @sourcery-ai, @sourceryai" + desc), []reviewerRowProblem{problemRejectedShape}},
+		{"rejected_missing_one", rejectedLine, rejectedRowLine("`@codex`, `@coderabbitai`, `@sourcery-ai`" + desc), []reviewerRowProblem{problemRejectedNames}},
+		{"rejected_extra_one", rejectedLine, rejectedRowLine("`@codex`, `@coderabbitai`, `@sourcery-ai`, `@sourceryai`, `@other`" + desc), []reviewerRowProblem{problemRejectedNames}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if strings.Count(doc, tc.old) != 1 {
