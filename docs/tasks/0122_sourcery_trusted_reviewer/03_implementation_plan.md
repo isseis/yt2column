@@ -145,9 +145,11 @@
   - `internal/ghci/ghci.go`（新規）
   - `internal/ghci/ghci_test.go`（新規）
   - `docs/dev/conventions/package_reference.md`
+  - `CLAUDE.md`
 - **作業内容:**
   - [x] `internal/ghci/ghci.go` を作成し、`ResolveRepo`・`ReadPR`・`WaitPR`、状態・理由・失敗項目・オプション型（`State`・`UnreadableReason`・`FailingCheck`・`Request`・`Result`・`WaitOptions`）、`States()`・`UnreadableReasons()`（`UnreadableNone` を除く）、番兵 `ErrInvalidRequest`、および型付きエラー `RepoError` を実装する。`RepoError` は `ResolveRepo` の失敗種別（`Reason UnreadableReason`: `UnreadableCall`・`UnreadableRejected`・`UnreadableLimit`）を呼び出し元が `errors.AsType[*RepoError]` で安全に分類できるようにし、`Error()` は外部出力を含まない固定文言のみとする。依存は `internal/cmdrunner`・`internal/strictjson`・標準ライブラリのみとし、厳格 JSON・16 MiB 上限・`app.slug == "github-actions"` 限定・同一ワークフロー最新 `createdAt` 採用・空 `QUEUED` CheckSuite 除外・即時失敗・`ExpectedHead` 一致・厳格 GitHub URL 検証の仕様は [02_architecture.md](02_architecture.md) 3.2.4・5.3 に従う。
   - [x] `internal/ghci/ghci_test.go` を作成し、`internal/cmdrunner/testutil` を用いて `ResolveRepo`（正常・`run == nil` の `ErrInvalidRequest`・`RepoError` の `call-failed`/`rejected`/`limit`）・`ReadPR`・`WaitPR` の全状態遷移と境界値を網羅検証する。検証対象には、外部 App 無視（`sourcery-ai` の `FAILURE`/`QUEUED`/100 件超 `hasNextPage`、`coderabbitai` の `SKIPPED`）、同一ワークフロー再実行、0 CheckRun `STARTUP_FAILURE`、`ExpectedHead` 不一致、`NoCheckGrace` と `Timeout`、厳格 JSON 拒否、`ErrInvalidRequest`、禁止テキスト非出力マーカー、列挙型安全側（`States()`・`UnreadableReasons()`・範囲外値 `99` の `MarshalText` 拒否・ゼロ値 `Result{}` の `"state":"unreadable"`）を含め、新規公開関数すべてがテストから到達可能であることを確認する（[02_architecture.md](02_architecture.md) 7.1・7.3、AC-19）。
+  - [x] `CLAUDE.md` の `Declare, don't infer` に `internal/ghci` の例外（`app.slug`・`status`・`conclusion`・ワークフロー名・`createdAt`・`url`、GraphQL エラーの `type`・`extensions.code` の照合範囲と、その理由・境界）を追記する（PR #1143 のレビューで人が決定。`fixprguard review-state` と `internal/ciskip` の例外と同じ扱いにする）。
   - [x] 壊して確かめる検証: `app.slug == "github-actions"` フィルタと `ExpectedHead` 一致検証をそれぞれ一時的に無効化し、`TestReadPR`（`Sourcery review` 失敗無視ケース・`head-changed` ケース）と `TestWaitPR`（`head-changed` 即時終了ケース）が失敗することを確かめ、コミットメッセージに記録する。
   - [x] `docs/dev/conventions/package_reference.md` の `Shared Parts` へ `internal/ghci` 行を追加し、`internal/strictjson` 行（`110` 行目）の参照元へ `internal/ghci` を追記する（`TestPackageReferenceListsPackages` 通過）。
 - **完了条件:**
