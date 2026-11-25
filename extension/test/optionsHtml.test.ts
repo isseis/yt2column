@@ -23,10 +23,10 @@ describe("options.html skeleton", () => {
     );
   });
 
-  it("starts in English with a page title until startOptions sets them", () => {
+  it("starts in English with the static page title YomuDoga until startOptions sets them", () => {
     const doc = optionsDocument();
     assert.equal(doc.documentElement.lang, "en");
-    assert.notEqual(doc.title.trim(), "");
+    assert.equal(doc.title, "YomuDoga");
   });
 
   it("puts the two fields, then save and delete, in display order without tabindex", () => {

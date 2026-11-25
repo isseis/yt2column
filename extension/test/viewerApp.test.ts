@@ -278,7 +278,7 @@ describe("startViewer: links", () => {
     it(`shows an invalid link with its fixed title and reads and sends nothing for ${name}`, async () => {
       const viewer = await open({ query });
       assert.equal(stateText(viewer), drawnState({ kind: "invalid-link" }));
-      assert.equal(viewer.doc.title, "Invalid link - yt2column");
+      assert.equal(viewer.doc.title, "Invalid link - YomuDoga");
       assert.deepEqual(viewer.requests, []);
       assert.deepEqual(viewer.session.calls, []);
       assert.equal(viewer.workers.created.length, 0);
@@ -334,7 +334,7 @@ describe("startViewer: a job URL", () => {
       query: queryOf(),
       items: [[jobItemName(jobId), runningRecord(99)]],
     });
-    assert.equal(viewer.doc.title, "A video title - yt2column");
+    assert.equal(viewer.doc.title, "A video title - YomuDoga");
     assert.equal(viewer.elements.heading.textContent, "A video title");
     assert.equal(viewer.elements.channel.textContent, "A channel");
     assert.equal(viewer.elements.videoLink.getAttribute("href"), watchUrl);
@@ -353,7 +353,7 @@ describe("startViewer: a job URL", () => {
     });
     assert.equal(viewer.elements.heading.textContent, "A URL title");
     assert.equal(viewer.elements.channel.hidden, true);
-    assert.equal(viewer.doc.title, "A URL title - yt2column");
+    assert.equal(viewer.doc.title, "A URL title - YomuDoga");
   });
 
   it("follows the record's change events to the done article, with saving and copying", async () => {
@@ -368,7 +368,7 @@ describe("startViewer: a job URL", () => {
     });
     assert.equal(viewer.elements.article.hidden, false);
     assert.equal(viewer.elements.heading.textContent, neutralTitle);
-    assert.equal(viewer.doc.title, `${neutralTitle} - yt2column`);
+    assert.equal(viewer.doc.title, `${neutralTitle} - YomuDoga`);
     assert.equal(viewer.clock.pending(), 0);
     viewer.elements.save.click();
     // The copy's notice replaces the save's, so the save's is read first.
@@ -397,7 +397,7 @@ describe("startViewer: a job URL", () => {
       stateText(viewer),
       drawnState({ kind: "job", job: { kind: "lost" } }),
     );
-    assert.equal(viewer.doc.title, "A URL title - yt2column");
+    assert.equal(viewer.doc.title, "A URL title - YomuDoga");
     assert.equal(viewer.elements.heading.textContent, "A URL title");
     assert.equal(viewer.elements.videoLink.getAttribute("href"), watchUrl);
     assert.equal(viewer.elements.actions.hidden, true);
@@ -616,7 +616,7 @@ describe("startViewer: a start URL", () => {
       items: [[startItemName(startId), startContext(ownTab.tabId, 9_000)]],
     });
     assert.equal(stateText(viewer), drawnState({ kind: "preparing" }));
-    assert.equal(viewer.doc.title, "A video title - yt2column");
+    assert.equal(viewer.doc.title, "A video title - YomuDoga");
     assert.equal(viewer.elements.heading.textContent, "A video title");
     assert.deepEqual(types(viewer), ["claimInput"]);
     await prepared(viewer);
@@ -821,7 +821,7 @@ describe("startViewer: a start URL", () => {
       }
       await viewer.done;
       assert.equal(stateText(viewer), drawnState(state));
-      assert.equal(viewer.doc.title, "A video title - yt2column");
+      assert.equal(viewer.doc.title, "A video title - YomuDoga");
       assert.deepEqual(viewer.replaced, []);
     });
   }
@@ -832,7 +832,7 @@ describe("startViewer: a start URL", () => {
       replies: { claimInput: () => ok({ status: "gone" }) },
     });
     await viewer.done;
-    assert.equal(viewer.doc.title, "A URL title - yt2column");
+    assert.equal(viewer.doc.title, "A URL title - YomuDoga");
     assert.equal(viewer.workers.created.length, 0);
     assert.equal(
       stateText(viewer),

@@ -1,12 +1,12 @@
 {
   "extName": {
-    "message": "yt2column"
+    "message": "YomuDoga for YouTube™"
   },
   "extNameDev": {
-    "message": "yt2column (development build)",
+    "message": "YomuDoga (development build)",
     "description": "The extension's name in the development build's manifest."
   },
   "extDescription": {
-    "message": "Turns the selected YouTube transcript into a magazine-style column article with your Anthropic API key, in the browser."
+    "message": "Turns YouTube™ videos into readable Japanese magazine-style column articles from your selected transcript with AI."
   }
 }

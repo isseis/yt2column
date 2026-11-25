@@ -26,7 +26,7 @@ export const en: Catalog = {
       steps: [
         "Open a video page such as https://www.youtube.com/watch?v=...",
         "Open the transcript panel and select caption lines.",
-        "Launch yt2column again.",
+        "Launch YomuDoga again.",
       ],
     },
     "empty-selection": {
@@ -34,7 +34,7 @@ export const en: Catalog = {
       steps: [
         'Open the transcript panel with "Show transcript".',
         "Select the caption lines.",
-        "Launch yt2column again.",
+        "Launch YomuDoga again.",
       ],
     },
     "empty-title": { text: "The tab has no title.", steps: [] },
@@ -265,7 +265,7 @@ export const en: Catalog = {
     },
   },
   viewerTitle: {
-    name: { release: "yt2column", dev: "yt2column (development build)" },
+    name: { release: "YomuDoga", dev: "YomuDoga (development build)" },
     invalidLink: "Invalid link",
     untitled: "Untitled video",
   },
@@ -275,7 +275,7 @@ export const en: Catalog = {
   },
   buildMark: "Development build",
   optionsPage: {
-    title: "yt2column settings",
+    title: "YomuDoga settings",
     heading: "Settings",
     apiKey: "Anthropic API key",
     apiKeyHint:

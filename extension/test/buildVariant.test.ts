@@ -71,9 +71,13 @@ describe("devManifest", () => {
         ),
       ) as Record<string, { message: string }>;
       const name = catalog["extNameDev"]?.message ?? "";
-      // The development name is told apart from the release name.
+      // The development name is told apart from the release name and starts
+      // with the core product name of its own language.
       assert.notEqual(name, catalog["extName"]?.message, locale);
-      assert.ok(name.startsWith("yt2column"), locale);
+      assert.ok(
+        name.startsWith(locale === "ja" ? "ヨムドウガ" : "YomuDoga"),
+        locale,
+      );
     }
   });
 

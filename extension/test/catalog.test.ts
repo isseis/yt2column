@@ -160,6 +160,34 @@ describe("catalogs", () => {
     });
   }
 
+  // The product name the catalog itself uses for the release viewer title.
+  for (const locale of localeList) {
+    it(`names the core product in the ${locale} options page title`, () => {
+      const catalog = catalogs[locale];
+      const coreName = catalog.viewerTitle.name.release;
+      // Precondition: the core name is a product name, not an empty string.
+      assert.notEqual(coreName.trim(), "");
+      assert.ok(
+        catalog.optionsPage.title.includes(coreName),
+        catalog.optionsPage.title,
+      );
+    });
+
+    it(`names the core product in the ${locale} rejection steps`, () => {
+      const catalog = catalogs[locale];
+      const coreName = catalog.viewerTitle.name.release;
+      // Precondition: the core name is a product name, not an empty string.
+      assert.notEqual(coreName.trim(), "");
+      for (const reason of ["not-watch-page", "empty-selection"] as const) {
+        const steps = catalog.rejection[reason].steps;
+        assert.ok(
+          steps.some((step) => step.includes(coreName)),
+          reason,
+        );
+      }
+    });
+  }
+
   it("gives a Japanese message steps only where the English one has them", () => {
     const en = entries(catalogs.en).messages;
     const ja = entries(catalogs.ja).messages;
