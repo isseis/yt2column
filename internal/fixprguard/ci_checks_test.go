@@ -302,12 +302,16 @@ func TestCIChecks(t *testing.T) {
 	t.Run("deadline_passed_at_read_pr_clears_head", func(t *testing.T) {
 		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 		t.Cleanup(cancel)
+		// Parse headRefOid successfully, then trigger a post-head limit error so
+		// ReadPR returns StateUnreadable with Head == rsHead; CIChecks must
+		// rewrite Reason to UnreadableCall and clear Head to "".
+		postHeadLimit := `{"data":{"repository":{"pullRequest":{"headRefOid":"` + rsHead + `","commits":{"nodes":[{"commit":{"oid":"` + rsHead + `","checkSuites":{"pageInfo":{"hasNextPage":true},"nodes":[]}}}]}}}}}`
 		got, _, err := runWith(t, ctx, CIChecksRequest{PR: mustPR(t)}, []struct {
 			out string
 			err error
 		}{
 			{out: repositoryView},
-			{out: `{not json`},
+			{out: postHeadLimit},
 		})
 		if err != nil {
 			t.Fatalf("CIChecks = %v", err)
