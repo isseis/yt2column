@@ -242,10 +242,10 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `README.md`・`README.en.md`、`docs/translation_glossary.md`
 
-- [ ] 設計書 2.4 節の構成で README を作り直す。冒頭の「開発者向けの文書」の行（今の `:3`）と、フェーズ 2 の一時的なリンクを除き、「インストールと使い方」「プライバシー」「開発者向けの文書」の節を置く（AC-01・AC-07・AC-36）。フェーズ 2 で残した API キーの保存の範囲と記録・履歴・細工した URL の文は、「プライバシー」の節に書き直して置く。必要なブラウザの記述（「Chrome 142 以降、または Chromium 142 以降の Brave」）を「必要なもの」に残す（`manifest.test.ts` が照合する。AC-01）
-- [ ] 「以前の版からの移行」の節と、フェーズ 2 で残したクイックスタートの移行の案内（今の `:61`）を削除する（AC-05）
-- [ ] 用語集の移行の手順の行を直す（1.3 節の決定 5）：「ホスト」（`:61`）と「設定ファイル」（`:171`）の備考から移行の手順を除き、「以前の版からの移行」（`:182`）を除く
-- [ ] `/mktrans README.md` で同期する（AC-37）
+- [x] 設計書 2.4 節の構成で README を作り直す。冒頭の「開発者向けの文書」の行（今の `:3`）と、フェーズ 2 の一時的なリンクを除き、「インストールと使い方」「プライバシー」「開発者向けの文書」の節を置く（AC-01・AC-07・AC-36）。フェーズ 2 で残した API キーの保存の範囲と記録・履歴・細工した URL の文は、「プライバシー」の節に書き直して置く。必要なブラウザの記述（「Chrome 142 以降、または Chromium 142 以降の Brave」）を「必要なもの」に残す（`manifest.test.ts` が照合する。AC-01）
+- [x] 「以前の版からの移行」の節と、フェーズ 2 で残したクイックスタートの移行の案内（今の `:61`）を削除する（AC-05）
+- [x] 用語集の移行の手順の行を直す（1.3 節の決定 5）：「ホスト」（`:61`）と「設定ファイル」（`:171`）の備考から移行の手順を除き、「以前の版からの移行」（`:182`）を除く
+- [x] `/mktrans README.md` で同期する（AC-37）
 
 **完了の条件:** `make test`・`make lint`・`make ext-check`・`make deadcode` が通る。
 
@@ -253,8 +253,8 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `docs/tasks/0116_user_readme/_checks/`（シェルのスクリプト 1 つを足す）
 
-- [ ] 設計書 7.3 節の AC-05 の行の (a)〜(c) を確かめるスクリプトを書く。(a) は見出しの行だけを照らし、`docs/tasks/` を除く（設計書の表のセルが見出しの文字列を持つため）。各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、コミットのメッセージに書く
-- [ ] PR のブランチで走らせ、出力とマージベースと比べたコミットを 7 章の AC-05 の記録に書く
+- [x] 設計書 7.3 節の AC-05 の行の (a)〜(c) を確かめるスクリプトを書く。(a) は見出しの行だけを照らし、`docs/tasks/` を除く（設計書の表のセルが見出しの文字列を持つため）。各確かめが少なくとも 1 つの壊し方で失敗することを確かめ、コミットのメッセージに書く
+- [x] PR のブランチで走らせ、出力とマージベースと比べたコミットを 7 章の AC-05 の記録に書く
 
 **完了の条件:** スクリプトが通り、7 章に AC-05 の記録がある。
 
@@ -264,7 +264,7 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **推奨タイトル**: `docs(0116): README を利用者向けの概要と案内に作り直す`
 
-**レビュー観点**: README が AC-01 の内容だけを持ち、AC-02 の内容を持たないか / プライバシーの節が AC-36 の 6 項目を正しく述べるか / 2 つの版が同じ内容を述べるか（AC-07） / 移行の節がどこにも残らないか（AC-05 の記録）
+**レビュー観点**: README が AC-01 の内容だけを持ち、AC-02 の内容を持たないか / プライバシーの節が AC-36 の 5 項目を正しく述べるか / 2 つの版が同じ内容を述べるか（AC-07） / 移行の節がどこにも残らないか（AC-05 の記録）
 
 **実装モデル要件**: sonnet
 
@@ -272,10 +272,10 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1136
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 4: 残りの参照と規約（設計書 8 章のフェーズ 4、AC-06・AC-38・AC-43）
 
@@ -293,7 +293,7 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 **変えるファイル:** `docs/translation_glossary.md`、`git grep` で見つかる文書
 
 - [ ] `git grep -n 'README' -- ':!docs/tasks'` で探し直し、今の README の節を指す箇所が残っていれば付け替える（AC-06。`security.md:131` は変えない）
-- [ ] 用語集の README の見出しの行（`:178-184`）のうち、フェーズ 1〜3 で直していないものがあれば直し、`:58` の例を直す（1.4 節）
+- [ ] 用語集の README の見出しの行（`クイックスタート`・`必要なもの` など）のうち、フェーズ 1〜3 で直していないものがあれば直し、`:58` の例を直す（1.4 節）。`クイックスタート` の行は、フェーズ 3 で README からその見出しがなくなったので、除くか新しい置き場所に直す
 - [ ] 利用者向けの文書が新しく使う語（API のクレジット、利用の上限、ワークスペースなど、`INSTALL.md` と README の新しい見出しの語）を用語集に足す（AC-43）
 
 **完了の条件:** `make test`・`make lint`・`make ext-check`・`make deadcode` が通り、`git grep -n 'README' -- ':!docs/tasks'` の出力を PR の説明に貼る。
@@ -372,7 +372,7 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
-- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2）
+- [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2）
 - [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 5-1）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
@@ -422,7 +422,7 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
   - 今の README の `:72-73`（CLI に必要なもの）のうち、`cli.md` の「必要なもの」へのリンク。`cli.md` 自身の節なので除いた。もう 1 つの文「CLI では、選んだプロバイダの API キーが必要である」は `cli.md` になかったので、`cli.md` の「必要なもの」に移し、変数の置き場所として `generation.md`「設定」へリンクした（設計書 2.3 節の表）。
 - **リンクの組:** どの組も、移った先から見た同じ節を指す。`docs/dev/...` は `generation.md` と `development.md` から見た相対のパスに、`#api-キーの設定` は README の同じ節に変わった。`docs/dev/guides/development.md -> (none)` は、上の除いた文のリンクである。
 
-```text
+````text
 commit:      4044eddff8fd0724798a98815f2bbf9b55eba6a7
 merge-base:  bd72ac9e8e202a2982d5a270ac626187d35a0e62
 README blob: 23ab53e32d65cb67eafd09634d6d034a6f6da665
@@ -531,11 +531,43 @@ headings: README "推奨構成" -> docs/dev/guides/generation.md "推奨構成"
 === completeness on the compared side
 blocks compared: 11
 ac04: PASS
-```
+````
 
 ### AC-05 の記録
 
-（PR-3 のステップ 3-2 で、スクリプトの出力とマージベースと比べたコミットを書く。）
+`_checks/ac05_migration_removed.sh c0cab95344c7f49285ad1161e1029cf073e9128c` を PR-3 のブランチで走らせた（2026-11-25）。比べたコミットは `c0cab95344c7f49285ad1161e1029cf073e9128c`、マージベースは `f7cc6eecdf77836daadf681ef13bd5a5246806e2`（その `README.md` のブロブは `be42dd3fba84b2e98430aadb7e59e13134361827`）で、結果は `ac05: PASS` である。
+
+- **確かめたこと:** (a) `docs/tasks/` を除くどの `.md` にも、移行の節の見出し（`## 以前の版からの移行` と `## Migrating from the earlier version`）がない。(b) マージベースの `README.md` と `README.en.md` の移行の節と、クイックスタートの移行の案内の段落の行（空白をまとめ、20 文字以上でコードフェンスでない行）は、どれも `docs/tasks/` を除く `.md` に残っていない。(c) 移行に固有の語（`yt2column-nmhost`・`NativeMessagingHosts`・`config.env`・`sharedToken`）の (ファイル, 語) の組は、`README.md`・`README.en.md`・用語集・`docs/tasks/` を除いて、マージベースから増えていない。用語集の組は、用語を定義する 2 つの組（`config.env` と `yt2column-nmhost`）だけである。
+- **残った組:** 出力の 7 つの組は、移行の手順ではなく、過去の ADR・規約・テストデータが名指しする値である。用語集の 2 つの組は、「ホスト」と「設定ファイル」の項目の定義に残る。
+- **壊して確かめたこと（スクリプトを入れるコミット）:** 見出しを手引きに足す (a)、外した行を 1 つ手引きに足す (b)、英語の案内の続きの行（`before you update the extension.`）を手引きに足す (b)、`NativeMessagingHosts` を手引きに足す (c の組の増加)、用語集の「ホスト」の項目から `yt2column-nmhost` を落とす (c の用語集の組) のそれぞれで、スクリプトは `ac05: FAIL` を出して終了コード 1 になった。あわせて一時的なリポジトリで、マージベースの README にクイックスタートの案内がない場合と移行の節がない場合に (b) が `ac05: FAIL` で終了コード 1 になり、`README.en.md` がない場合に終了コード 2 になることを確かめた。
+
+````text
+commit:      c0cab95344c7f49285ad1161e1029cf073e9128c
+merge-base:  f7cc6eecdf77836daadf681ef13bd5a5246806e2
+
+=== (a) no migration heading outside docs/tasks/
+  (none)
+
+README blob: be42dd3fba84b2e98430aadb7e59e13134361827
+
+=== (b) no old migration line in another document
+  (none)
+
+=== (c) migration-only words
+  compared pairs (unchanged from the merge-base):
+    .claude/commands/_lib/cross-check-review.md: config.env
+    docs/dev/adr/0010-extension-stores-nothing.md: sharedToken
+    docs/dev/adr/0018-server-config-file.md: config.env
+    docs/dev/adr/0048-extension-only-generation.md: yt2column-nmhost
+    docs/dev/security.md: sharedToken
+    internal/chief/testdata/plans/real-0069-pr-open.md: yt2column-nmhost
+    internal/chief/testdata/plans/real-0069.md: yt2column-nmhost
+  glossary pairs (as expected):
+    docs/translation_glossary.md: config.env
+    docs/translation_glossary.md: yt2column-nmhost
+
+ac05: PASS
+````
 
 ### AC-24 の対応表
 
@@ -561,7 +593,7 @@ ac04: PASS
 | `:254` | 既存の記事のビューア、同じ記事のビューアが重ならない | 使い方「ビューア」 |
 | `:256`（記事の生成はビューアのタブの中） | タブを閉じる・読み込み直すと止まる、確認、50 分の期限 | 使い方「記事の生成と記録」 |
 | `:258`（記録） | 記録の置き場所、消える時、件数と大きさの上限、256 KiB | 使い方「記事の生成と記録」、参考「記録の上限」 |
-| `:260`（ビューアの URL） | URL が持つ値、履歴に残る、ジョブ ID は不透明 | 参考「ビューアの URL」。URL の値を細工したビューアの見出しの注意は、README の「プライバシー」に置く（AC-36） |
+| `:260`（ビューアの URL） | URL が持つ値、履歴に残る、ジョブ ID は不透明 | 参考「ビューアの URL」。URL の値を細工したビューアの見出しの注意は、一般の利用者向けの README には置かない |
 | `:262-264`（選択範囲） | コピーしたとおりに使う、飛ばす行と拒否する行 | 使い方「ポップアップ」の「選択範囲」、参考「選択範囲の行の扱い」 |
 
 意図して書かないもの: 保存した `.md` の中身が CLI の `--out` と同じこと（CLI は開発者向け）、`chrome.storage.session` の名前（利用者に要らない）、自動リンクの「条件を満たす」の細かな条件（`https` のリンクだけを開けると述べるにとどめた）。行番号は、`git show 417d2ddf:README.md` の行である。`:182` はポップアップの見出し、`:238` はビューアの見出しで、表はその間の段落を順に挙げた。

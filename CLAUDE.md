@@ -71,7 +71,13 @@ where it lives. Three principles decide it:
   document, written in Japanese only for now. The Japanese text of both is
   addressed to the reader and uses the polite form (です・ます); quoted
   messages from the extension's catalog stay as they are. Other Japanese
-  documents keep the plain form (である).
+  documents keep the plain form (である). The readers of the end-user
+  documents are general users who are somewhat comfortable with IT but are
+  not engineers. Write them in plain words: do not assume knowledge of
+  programming, of the browser's internals (storage areas, permissions,
+  service workers), or of an API's terms, and explain a necessary term where
+  it first appears or link to where it is explained. Technical detail belongs
+  in the developer documents.
 
 Applied to directories: `docs/dev/conventions/` is English, and
 `docs/dev/guides/` and `docs/research/` are Japanese. A new document takes the language its reader and
