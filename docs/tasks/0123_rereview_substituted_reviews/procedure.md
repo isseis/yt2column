@@ -40,11 +40,11 @@ bash $R/classify.sh $DATA/data . | tee $DATA/candidates.txt
 
 | 兆候 | 意味 | 対応 |
 |---|---|---|
-| `OPUS-DONE-NONCLAUDE` | `High review: done` か `Opus review: done` を書いたコミットに、`Co-Authored-By: Claude Opus` がない（Antigravity などのセッションが書いた） | Opus 再レビュー |
+| `OPUS-DONE-NONCLAUDE` | `High review: done` か `Opus review: done` を書いたコミットに、`Co-Authored-By: Claude`（Opus でも Sonnet でもよい）がない（Antigravity などのセッションが書いた） | Opus 再レビュー |
 | `IMPL-NONOPUS` | `Implementation model:` に `claude-opus-` 以外のモデルがある | 情報として見る（Opus レビューが要るかどうかの判断材料） |
 | `FREETEXT` | コミット・squash 本文・PR 本文に「Neon」「Argon」「Hydrogen」や「Opus was unavailable」がある | 内容を読んで、どちらの代替かを決める |
-| `FABLE-SUBST` | `Fable review: run` のモデルが `claude-fable-*` ではない | Fable 再レビュー |
-| `FABLE-NOTRUN` | `Fable review: not run`（理由は問わない） | Fable 再レビュー |
+| `FABLE-SUBST` | `Fable review: run` か `Cross-check review: run`（#1115 からの名前）のモデルが `claude-fable-*` ではない | Fable 再レビュー |
+| `FABLE-NOTRUN` | `Fable review: not run` か `Cross-check review: not run`（理由は問わない） | Fable 再レビュー |
 | `MERGECHECK-SUBST`, `MERGECHECK-NOTRUN` | merge check が Opus 以外で行われた、または行われなかった | Fable 再レビュー（merge check はその一部） |
 | `NO-FABLE-RECORD` | タスク PR なのに Fable の行がない | 確認のうえ Fable 再レビュー |
 | `NO-HIGH-REVIEW-RECORD` | 実装 PR なのに done 記録がない | 計画書の実装モデル要件を見る。`low` か、すべて Opus で実装されていれば不要。それ以外は Opus 再レビュー |
@@ -53,7 +53,7 @@ bash $R/classify.sh $DATA/data . | tee $DATA/candidates.txt
 
 **判定の限界:**
 
-- `OPUS-DONE-NONCLAUDE` は推定です。OpenCode の `/runpr` が作るコミットにも `Co-Authored-By` は付きません。
+- `OPUS-DONE-NONCLAUDE` は推定です。OpenCode の `/runpr` が作るコミットにも `Co-Authored-By` は付きません。Claude Code の Sonnet のセッションは上位モデルのレビューを Opus のサブエージェントで走らせるので、`Co-Authored-By: Claude Sonnet` の記録は正規として扱います。
 - done 記録の行にはモデル名が入らないので、記録だけではモデルを確定できません。
 - `fetch.sh` が取る PR は 300 本まで（`gh pr list --limit 300`）、PR ごとのコミットは 250 個まで（GitHub の API の上限）です。300 本に達したときは `fetch.sh` が止まるので、期間を分けて取り直してください。250 個を超える PR は、251 個目以降の記録を読めません。
 - 結果は最後に人が読んで確定してください。
@@ -61,6 +61,8 @@ bash $R/classify.sh $DATA/data . | tee $DATA/candidates.txt
 ### 確定した一覧
 
 2026-11-24 に `fetch.sh 2026-11-20` を実行して作りました。対象は 2026-11-20 以降に `main` へマージされた 34 本で、`classify.sh` が候補とした 25 本を人の目で読んで分けています。
+
+2026-11-25 に `fetch.sh 2026-11-24` を実行し、最初の一覧の後にマージされた 23 本を足しました。そのとき `classify.awk` を、#1115 で変わった記録行の名前 `Cross-check review:` と、Claude Code の Sonnet のセッションの記録にも合うように直しています。足した行は A の #1101 以降、B の #1096・#1123、C の 2 つ目の項目です。
 
 - **最初の代替:** #1070（2026-11-20 マージ）。それより前の 2026-11-20 の文書 PR（#1049・#1050・#1056・#1058・#1060・#1062・#1063・#1065）は、Fable が `claude-fable-5-2` で実行されています。
 - **行の順:** マージの順。**優先度:** 1 は信頼境界・セキュリティ・レビューゲート・CI ゲートを変えた PR、2 はそれ以外の実装 PR、3 はタスク文書 PR。
@@ -90,8 +92,13 @@ bash $R/classify.sh $DATA/data . | tee $DATA/candidates.txt
 | 1 | #1094 | `4aee4aa65011` | feat(0120) 役割名への移行・判定スクリプト改名 | 要 | 要 | Opus を `gemini-4-neon-high` で代替、Fable は `not run` | Opus（`claude-opus-5-5`、2026-11-24）: 0/1/5。Major は、`_lib/opus-review.md`「Record lines」の **Opus.** 段落が「`claude-opus-` で始まる ID が Opus で、entry 1 もこの規則を使う」と書いたままで、この PR で `Role` = `high`・`Launch` = `agent` の照合（接尾辞は `[a-z0-9.-]` の 1〜48 文字）に変えた entry 1 の規則 3 と判定スクリプトと食い違っていたこと（`[1m]` などの接尾辞の ID は `RUN` になる。安全側）。同じ節が「食い違ったらこの節が正しく、スクリプトを直す」と定めている。`origin/main` では `_lib/high-review.md` の「The high role model」の規則に置き換わり、解消済み。Minor は、`runplan.md` の `NONE all-high` の近くに `sonnet` と「Opus implementation records」が残ったこと（`origin/main` では解消済み）、protocol 6 の chief が残した `/runplan` のスキップ記録が旧行キーのため読めなくなることが、入れ直しの手順と手引きにないこと、`_context.md` の「Harness model mapping」が、まだない読み手（`review-records.sh` の検証、アダプタ、`runplan.md`・`runpr.md` の Antigravity 行の読み取り）を現行の仕様として書いたこと、判定スクリプトの冒頭のコメントが BASH_ENV と export された関数を防げると書くが実際は防げず（`review-records.sh` にある受け入れたリスクの注記が落ちた。`origin/main` でも残る）、`${!GIT_@}` の unset が `env -i` の後で効かないこと、計画書のステップ 2-2 の `TestParsePlanRejects` の拡張が行われていないのに `[x]` になっていること。Fable（`claude-fable-5-2`、2026-11-24）: Major 0・Minor 4。Antigravity の `cross-check` の ID `claude-opus-5-5-medium` が Claude Code の `high` の照合 `claude-opus-*` に合うので、その ID の実装記録で `NONE all-high` になり、「Antigravity の記録は `all-high` を満たせない」という設計書 3.4 と part 5 の記述が成り立たないこと（作業用リポジトリで再現）、`excludable` の `git diff-tree` に `--ignore-submodules=none` がなく `GIT_GRAFT_FILE` も固定しないので、作業ツリーの `.gitmodules` の `ignore = all` で gitlink だけのコミットが除外可能になり判定が変わること（再現。このリポジトリに submodule はない）、新しい役割名 `standard` と旧値の行 `standard` → `low` が衝突し、`standard` と書いた計画書ではレビューが走らず OpenCode に送られうること、ADR-0014:33 に「タスク 0120 で判断の規則全体の常設テストを足した」と書いた行が、規約の 4 種類のどれにも当たらないのに編集上の訂正として記録されたこと。4 件とも `origin/main` でも残る | なし（有効な Critical・Major で `origin/main` に残るものはない） |
 | 3 | #1098 | `7d86a397b237` | docs(0122) 要件・ADR | 不要 | 要 | Fable は `not run`（Antigravity のセッション） | Fable（`claude-fable-5-2`、2026-11-25）: Major 2・Minor 13。Major の 1 件目は、AC-18・AC-22 が `LAST_REVIEWED` を CodeRabbit と Sourcery AI の完了の印の和集合から決めるので、push のたびに走る Sourcery AI の自動レビューの完了で `LAST_REVIEWED` が head になり、レビューの関門を書き換える PR でもエスカレーションが飛ばされ、推奨が「マージ」になり、ローカルの CLI レビューの `not run` の範囲とクロスチェックの記録を示す要約の行も出なくなること（人の答えの記録がない）。2 件目は、ADR-0013 の書き換えで、CodeRabbit の応答の選び方（次の依頼より前の最初の CheckRun、同じ秒や重なった実行で止まる）の決定が経緯なしに消え、AC-20・AC-27 と食い違うこと（実装は変わっていない）。どちらも `origin/main` でも残る（0122 は PR-1 だけがマージ済みで、PR-5 の前に決める必要がある）。Minor は、Sourcery AI の完了の印が PR に結び付かず、閉じた PR の完了が作り直した PR に効くこと、PR にリンクした issue の外部の文が信頼するスレッドとして返りうること、範囲の決まりが Sourcery AI の読む指示ファイルによること、AC-19 の CI の集合が定まらず `gh pr checks` の出力にアプリの識別子がないこと、AC-07 の `sourcery-ai[bot]` が `other-bot` ではなく `no-author-name` になること、`_context.md` の行番号が古いこと、F-005 が前提の崩れるコマンドの定義と ADR-0050・ADR-0042 を挙げないこと、ADR-0013 の採らなかった案が新しい決定と矛盾し、出典にない理由を書き、受け入れた危険を直していないこと、ADR-0047・ADR-0015 の編集上の訂正の行の漏れと内容の削除、人の答えのない決定（15 分の上限、和集合、依頼の案内のコメントの除外、外部の人への応答）、Sourcery AI の観測をオフラインで確かめられないこと | なし。Major 2 件は 0122 の PR-5 の前に決める決定なので #1140 で扱う |
 | 1 | #1097 | `bd72ac9e8e20` | feat(0114) push 前の Fable 記録の再確認 | 要 | 要 | Opus を Neon High で代替、Fable は `not run` | Opus（`claude-opus-5-5`、2026-11-24）: 0/1/5。Major は、merge の後の確認が作った直しをローカルの CLI レビューにかけたとき、2 回目の試行の後の直し（HEAD2..HEAD3）と CodeRabbit CLI が失敗したときの範囲が `Local CLI review: not run` の行にしかならないこと。規則 4 はこの行の範囲を数えないので、チェックポイントの入口（印より前）では 2 回目の判定が `MISSING` になって止まり、走らせ直すと Fable が PR の全体を見直す。設計書の決定 11 はこの止まり方を「どちらの CLI もレビューできなかったとき」の稀な場合として受け入れたが、2 回目の試行で直したときは CLI がレビューに成功していても止まる。さらに 0118 で Codex CLI がなくなったので、レビューできないのは CodeRabbit CLI の失敗（レート制限）だけで起き、稀でもない。`origin/main`（`_lib/cross-check-review.md` の規則 4 と「The merge check」の step 4・5）でも残る（決定 11・AC-30 の変更なので人の判断が要る）。Minor は、`set-upstream-to` が fetch の refspec がブランチを含まない clone で失敗し、PR ができた後に AFTER_CREATE が飛ぶこと（Fable の実験では通常の clone で成功）、merge の後の確認のモデルの確認が、1 行目だけをファイルに書くと明示していないこと（2 つのレビューが重ねて指摘）、AFTER_REMEDY が PR_TEXT の Opus の結果を `RUN` のときしか更新しないこと、計画書 §1.4（123 行目）が Part B に step 2.5 がないと書いたままであること、言及の確認の後退で `<reason>` を消すと `Merge check: not run` の行の固定の語も消えて M が確認済みにならないこと。Fable（`claude-fable-5-2`、2026-11-24）: Major 1・Minor 2。Major は、設計書 1.2.1 の 2 つ目の決定（step 2.6 の救済の後に step 2.5 を走らせ直さない）の理由「ADR-0042 の『1 回だけ』と一致し ADR を変えない」が成り立たないこと。`/runplan` で step 2.6 が救済を走らせると AFTER_REMEDY の Opus レビューが直しを作るが、B4 にローカルの CLI レビューがなく step 2.5 も走らないので、その直しは CLI が一度も見ずに push される（ADR-0042・ADR-0013 は上位モデルのレビューの直しを PR 前の CLI レビューにかけると定める）。ただし `/runplan` では step 5a の入口 3 が印を残し、その後の 1 親の commit は規則 3 に当たるので、step 2.6 で救済が走るのは step 5a の後に merge commit ができたときだけで、1 回の実行の中で起きる道は見つからなかった。実際の害は小さいので Minor 相当と判断した。`origin/main` でも残る（決定の理由の誤りなので人の判断が要る）。Minor は、merge の後の確認の範囲のコマンドが replace ref と grafts を固定しないので、別のコミットの差分から範囲を作りうること（Fable が実験で再現）、rename/rename の衝突の見出しのパスが M にも M^1 にもなく、型の違う衝突の見出しのパスが空白を含むので、手順どおりに読めないこと（実験で確認） | なし（Opus の Major は決定 11・AC-30 の変更、Fable の Major は決定の理由の誤りなので、どちらも修正 PR にしない）。Opus の Major は #1125 で扱い、Fable の指摘は #1125 の参考に載せた |
+| 1 | #1101 | `2cfeec031bc0` | feat(0120) review-records.sh の一般化・ハーネスのアダプタ | 要 | 要 | PR 本文に、利用者の指示で Opus を `gemini-4-neon-high`（Antigravity の `swarm`）で代替したとある。Fable は `not run (agent-cannot-call)` | 未 | |
+| 3 | #1102 | `6e13dd7472de` | docs(0122) 設計書 | 不要 | 要確認 | 最初の範囲 `7d86a397b237..fb89efe1689e` が `not run (agent-cannot-call)`。後の `claude-fable-5-2` の実行は `100178f29062..99f3b69d71bc` で、基点が `not run` を書いた commit なので、設計書の本体を覆っていない可能性がある | 未 | |
+| 3 | #1117 | `ae7f242967f9` | docs(0122) 計画書 | 不要 | 要 | Fable は `not run (unavailable)`。PR 本文に、Antigravity の `cross-check` のモデルの残量が 0% だったとある | 未 | |
+| 3 | #1120 | `036fd7c83a88` | docs(0121) 計画書 | 不要 | 要 | `Cross-check review: not run (unavailable)`。理由は #1117 と同じ（Antigravity のセッション） | 未 | |
+| 1 | #1130 | `a961dcb19bb2` | refactor(0121) 古い記録行の規則の撤去・移行ゲート | 要 | 要 | `High review: done` を書いた commit に `Co-Authored-By` がなく、PR 本文の書き方（発見のレビュー 2 本と確認のレビュー 1 本）が #1101 と同じで、Antigravity の `high` の `gemini-4-neon-high` と見られる。Cross-check は `not run (unavailable、残量 0%)` | 未 | |
 
-**同時期の未マージ PR:** 0115 の計画、0121 の設計書、0120 PR-3 の各ブランチにも、同じ記録が残っています。これらは事後の再レビューではなく、マージ前に正規のレビューを通してください（手順 5）。
+**同時期の未マージ PR:** 最初の一覧の時点では、0115 の計画、0121 の設計書、0120 PR-3 の各ブランチにも同じ記録が残っていました。3 本とも 2026-11-24 にマージされ、2026-11-25 の取り直しで分けています。0115 の計画（#1096）は B、0121 の設計書（#1100）は C、0120 PR-3（#1101）は A です。
 
 #### B. OpenCode での実装による構造上の `not run`（対象外）
 
@@ -103,10 +110,15 @@ bash $R/classify.sh $DATA/data . | tee $DATA/candidates.txt
 | #1088 | `d7467569603e` | docs(0118) Codex 記述の更新 | Fable `not run`（OpenCode） |
 | #1089 | `812f94a0dc3e` | feat(0119) cmd/ciskip | Fable `not run`（OpenCode）。Opus は `NONE value-sonnet` |
 | #1093 | `063dd6d55e10` | docs(0119) 実機確認の記録・ADR | Fable `not run`（OpenCode） |
+| #1096 | `3597d4fb5ba6` | docs(0115) 計画書 | Fable `not run agent-cannot-call`（OpenCode） |
+| #1123 | `d224e1826a1a` | feat(0115) mergemain の CLI | Cross-check `not run agent-cannot-call`（OpenCode）。要件が `sonnet` なので旧値の読み替えで `low` になり、上位モデルのレビューは `NONE value-low` |
 
 #### C. 候補になったが対象外
 
 - **#1066:** `NO-HIGH-REVIEW-RECORD` が出ました。ただし、すべてのコミットが `claude-opus-5-5` の実装記録の範囲に入っていて Opus レビューは不要（`NONE all-opus`）であり、Fable も `claude-fable-5-2` で実行されています。
+- **2026-11-25 に足した 23 本のうち、A・B に入れなかったもの:**
+  - **正規のレビューを通った:** #1100・#1111・#1114・#1115・#1118・#1119・#1122・#1128・#1134。#1100 は `not run` の後で、同じ基点からの `claude-fable-5-2` の実行がある。#1114 と #1115 は Opus の実装の記録の範囲に入っている（`NONE all-high`）。#1119 と #1122 は、Claude Code の Sonnet のセッションが上位モデルのレビューを走らせている。
+  - **再レビューの修正の PR と、このタスク自身の PR:** #1103・#1110・#1113・#1116・#1126・#1129・#1142。
 
 **どちらの再レビューが要るか（判断の基準）:**
 
