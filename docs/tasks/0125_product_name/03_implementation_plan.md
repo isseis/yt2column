@@ -114,12 +114,13 @@
 
 #### ステップ 2-1: ストア掲載文の作成と用語集の更新
 
-**変更するファイル:** `docs/store/chrome_web_store.md`（新規）、`docs/translation_glossary.md`
+**変更するファイル:** `docs/store/chrome_web_store.md`（新規）、`cmd/yt2column/store_listing_test.go`（新規）、`docs/translation_glossary.md`
 
-- [ ] `docs/store/chrome_web_store.md` を設計書 3.3 節の構成で作成し、issue #1148 コメント 1・4・5 の表示名・短い説明文・商標運用条件・日本語版および英語版の詳細説明文（`text` コードブロック）を正確に収録する
+- [ ] `docs/store/chrome_web_store.md` を設計書 3.3 節の構成で作成し、issue #1148 コメント 1・4・5 の表示名・短い説明文・商標運用条件・日本語版および英語版の詳細説明文（`text` コードブロック）を正確に収録する。`extName`・`extNameDev`・`extDescription` は設計書 3.3 節の掲載項目の表（列 `キー`・`日本語`・`英語`）に置く
+- [ ] `cmd/yt2column/store_listing_test.go::TestStoreListingMatchesMessages` を追加する。`internal/doctestutil` の表の読み取りで掲載項目の表を見つけ、3 行がちょうど 1 回ずつあり各値が `extension/static/_locales/{ja,en}/messages.json` の `message` と完全に一致することを確かめる。値のセルの形が違う・行の欠け・重複・知らないキーは失敗とする。表の値を 1 つ変える、行を 1 つ消す、行を重ねる、それぞれで失敗することを確かめ、コミットメッセージに記す
 - [ ] `docs/translation_glossary.md` にコア製品名（`ヨムドウガ` / `YomuDoga`）および Chrome ウェブストア表示名（`ヨムドウガ for YouTube™` / `YomuDoga for YouTube™`）の 2 行を追加する
 
-**完了基準:** `docs/store/chrome_web_store.md` が issue #1148 コメント 1・4・5 の内容と過不足なく一致し、`docs/translation_glossary.md` に新製品名 2 行が追加されていること。
+**完了基準:** `docs/store/chrome_web_store.md` が issue #1148 コメント 1・4・5 の内容と過不足なく一致し、`TestStoreListingMatchesMessages` が通り、`docs/translation_glossary.md` に新製品名 2 行が追加されていること。
 
 #### ステップ 2-2: 利用者向け文書（`README.md`・`README.en.md`・`INSTALL.md`）の更新
 
@@ -136,7 +137,7 @@
 **変更するファイル:** `docs/dev/guides/development.md`、`CLAUDE.md`、`docs/dev/adr/0035-language-policy.md`、本実装計画書（§7 の AC-10〜AC-12・AC-14・AC-15・AC-16 の差分記録）
 
 - [ ] `docs/dev/guides/development.md:119` のみを `ヨムドウガ（開発用のビルド）` および `YomuDoga (development build)` へ書き換える（他行は変更しない）
-- [ ] `CLAUDE.md` の「Document language」例外に `docs/store/chrome_web_store.md`（日英の Chrome ウェブストア詳細説明文を 1 ファイルで保管し `/mktrans` 同期対象外とする扱い）を追記する
+- [ ] `CLAUDE.md` の「Document language」例外に `docs/store/chrome_web_store.md`（日英の Chrome ウェブストア詳細説明文を 1 ファイルで保管し `/mktrans` 同期対象外とする扱い）を追記し、「Development Notes」の Go のガードテストの一覧に掲載項目の表と `messages.json` の照合を足す
 - [ ] `docs/dev/adr/0035-language-policy.md` の `## 決定` から `docs/store/chrome_web_store.md` と `CLAUDE.md` の未反映のずれを示す一文を除去し、コミットメッセージに `Editorial correction:` 行を、PR の説明に修正の段落を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」第 2 種）
 - [ ] `make test && make lint` と `make ext-check` がすべて通過することを確認し、AC-10〜AC-12（`README.md`）・AC-14（`INSTALL.md`）・AC-15（`docs/dev/guides/development.md`）・AC-16（`docs/translation_glossary.md`）の差分を `requirements_process.md` §4 の固定コマンドで取得して本実装計画書 §7 の各 `Diff record` に記録する
 
@@ -178,7 +179,7 @@
 ## 4. テスト戦略
 
 - **PR-1（ブラウザ拡張）:** `make ext-check`（`ext-typecheck`・`ext-lint`・`ext-fmt-check`・`ext-test`・`ext-build`・`ext-build-dev`）および `make test && make lint` を実行する。新規のテストヘルパーは追加せず、既存の `extension/test/` スイートを更新・拡張する。更新・追加したテストはいずれも旧値に戻す壊し確認を実施する。
-- **PR-2（文書）:** `make test && make lint`（`TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`・`TestReadmeLinks`・`TestADRRecords`・`TestInstructionDocPaths`・`TestExtensionDocumentation` を含む）および `make ext-check`（`manifest.test.ts` の Chrome 最低版検査、`metadataDocs.test.ts` の `INSTALL.md` 引用文言検査を含む）を実行する。AC-10〜AC-12・AC-14・AC-15・AC-16 は recorded diff reading（`requirements_process.md` §4 の `diff` 検証）で検証し、自然言語文書の内容は PR レビューの目視確認（`manual`）で検証する。
+- **PR-2（文書）:** `make test && make lint`（`TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`・`TestReadmeLinks`・`TestADRRecords`・`TestInstructionDocPaths`・`TestExtensionDocumentation`・`TestStoreListingMatchesMessages` を含む）および `make ext-check`（`manifest.test.ts` の Chrome 最低版検査、`metadataDocs.test.ts` の `INSTALL.md` 引用文言検査を含む）を実行する。AC-10〜AC-12・AC-14・AC-15・AC-16 は recorded diff reading（`requirements_process.md` §4 の `diff` 検証）で検証し、自然言語文書の内容は PR レビューの目視確認（`manual`）で検証する。
 
 ## 5. リスク管理
 
@@ -205,7 +206,7 @@
 | AC-05 | `test` / `diff` | `extension/test/catalog.test.ts`（`optionsPage.title` が各ロケールのコア製品名 `viewerTitle.name.release` を含むこと）・`extension/test/optionsApp.test.ts`（`doc.title` 反映）。旧名 `yt2column` が残っていないことは `docs/tasks/0125_product_name/_checks/old_name_absent.sh` の一度だけの実行で確かめ、出力を記録する | 1-2 / 1-3 |
 | AC-06 | `test` / `diff` | `extension/test/catalog.test.ts`（`rejection["not-watch-page"]`・`rejection["empty-selection"]` の手順が各ロケールのコア製品名 `viewerTitle.name.release` を含むこと）。旧名の不在は AC-05 の行と同じ `_checks/old_name_absent.sh` の記録で確かめる | 1-2 / 1-3 |
 | AC-07 | `test` | `extension/test/popupHtml.test.ts`（`popup.html`・`viewer.html` の静的 `<title>` が `YomuDoga`）・`extension/test/optionsHtml.test.ts`（`options.html` の静的 `<title>` が `YomuDoga`） | 1-1 / 1-3 |
-| AC-08 | `manual` | PR-2 レビューで `docs/store/chrome_web_store.md` を issue #1148 コメント 1・4・5 と照合して確認 | 2-1 |
+| AC-08 | `test` / `manual` | `cmd/yt2column/store_listing_test.go::TestStoreListingMatchesMessages` で掲載項目の表の表示名・短い説明文が `messages.json`（日英）と一致することを検証し、PR-2 レビューで詳細説明文と商標運用条件を issue #1148 コメント 1・4・5 と照合して確認 | 2-1 |
 | AC-09 | `test` / `manual` | `cmd/yt2column/adr_test.go::TestADRRecords`・`cmd/yt2column/docpaths_test.go::TestInstructionDocPaths` で形式とリンクを検証し、PR-2 レビューで `CLAUDE.md`「Document language」と ADR-0035 の記述・ずれ除去を目視確認 | 2-3 |
 | AC-10 | `diff` / `manual` | 下の `Diff record (AC-10・AC-11・AC-12)`（対象パス: `README.md`）で H1 見出し `# ヨムドウガ for YouTube™` の変更を確認し、PR-2 レビューで冒頭概要文を issue #1148 コメント 6 と照合して確認 | 2-2 / 2-3 |
 | AC-11 | `test` / `diff` / `manual` | `cmd/yt2column/readme_structure_test.go::TestReadmeVersionsShareStructure` および下の `Diff record (AC-10・AC-11・AC-12)`（対象パス: `README.md`）で `## 特徴` 見出しと 4 項目の構成を確認し、PR-2 レビューで 4 要点の内容と不要項目を含まないことを確認 | 2-2 / 2-3 |

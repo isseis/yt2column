@@ -51,12 +51,13 @@
 | 変更 | `extension/test/popupHtml.test.ts` | `popup.html`・`viewer.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
 | 変更 | `extension/test/optionsHtml.test.ts` | `options.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
 | 新規 | `docs/store/chrome_web_store.md` | Chrome ウェブストアの表示名・短い説明文・商標運用条件・日英詳細説明文を収録 |
+| 新規 | `cmd/yt2column/store_listing_test.go` | `docs/store/chrome_web_store.md` の掲載項目の表の値が `messages.json`（日英）の `extName`・`extNameDev`・`extDescription` と一致することを検証するガードテスト |
 | 変更 | `README.md` | H1・冒頭概要文・製品名を更新し、`## 特徴` 節および非公式表記と帰属表示を追加 |
 | 変更 | `README.en.md` | `/mktrans README.md` により `README.md` と同期 |
 | 変更 | `INSTALL.md` | 製品名の 4 箇所（冒頭・ツールバー固定・ビューアタイトル・アンインストール）を更新 |
 | 変更 | `docs/dev/guides/development.md` | 119 行目の開発用のビルド表示名の引用のみを更新 |
 | 変更 | `docs/translation_glossary.md` | コア製品名と Chrome ウェブストア表示名の 2 行を追加 |
-| 変更 | `CLAUDE.md` | 「Document language」に `docs/store/chrome_web_store.md` の位置づけを追記 |
+| 変更 | `CLAUDE.md` | 「Document language」に `docs/store/chrome_web_store.md` の位置づけを追記し、「Development Notes」の Go のガードテストの一覧に掲載項目の表と `messages.json` の照合を足す |
 | 変更 | `docs/dev/adr/0035-language-policy.md` | 実装 PR で `CLAUDE.md` を更新した際に、未反映のずれを示す一文を除去 |
 
 ## 3. コンポーネント設計
@@ -111,6 +112,8 @@ UI カタログ（`extension/src/core/i18n/ja.ts`・`en.ts`）は既存の `Cata
 `docs/store/chrome_web_store.md` を新設し、次の構成でストア掲載情報をまとめる。
 
 1. **概要・掲載項目一覧:** 製品名（コア製品名・Chrome ウェブストア表示名・開発用のビルド表示名）および短い説明文（`extDescription`）の日英対照と、`messages.json` が正本であることの明記。
+   - **掲載項目の表:** `messages.json` の値は、列が `キー`・`日本語`・`英語` の表に、`extName`・`extNameDev`・`extDescription` の 3 行で置く。値のセルは 1 つのコードスパン（`` `...` ``）だけからなる。
+   - **写しの整合:** 表の値は `messages.json` の写しなので、片方だけが変わるとずれる。`cmd/yt2column/store_listing_test.go::TestStoreListingMatchesMessages` が、表の 3 行がちょうど 1 回ずつあり、各値が `extension/static/_locales/{ja,en}/messages.json` の `message` と完全に一致することを確かめる。値のセルがコードスパン 1 つでない、行が欠ける・重複する、知らないキーの行があるときは失敗する（補わない）。テストは `cmd/yt2column` に置くので、CI の `doc-guard` ジョブで文書だけの変更にも走る。詳細説明文の本文は照合する元がなく、この文書が正本なので対象外とする。
 2. **商標・審査上の運用条件:** issue #1148 コメント 1 の条件（非公式表記・`YouTube is a trademark of Google LLC.` の帰属表示、アイコン・プロモーション画像での YouTube ロゴおよび紛らわしい再生ボタン意匠の不使用、審査で `for YouTube™` の削除を求められた場合はコア製品名を変えず末尾のみ外す方針）。
 3. **詳細説明文（日本語版）:** issue #1148 コメント 5 の日本語確定案を `text` コードブロックで収録。
 4. **詳細説明文（英語版）:** issue #1148 コメント 5 の英語確定案を `text` コードブロックで収録。
@@ -173,6 +176,7 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
   - `TestADRRecords`: ADR-0035 の形式と索引整合
   - `TestInstructionDocPaths`: `CLAUDE.md`・ADR の相対リンク解決
   - `TestExtensionDocumentation`: 拡張 ID・権限の整合
+  - `TestStoreListingMatchesMessages`: `docs/store/chrome_web_store.md` の掲載項目の表と `messages.json`（日英）の値の一致
 
 ### 7.2. 統合テスト・セキュリティテスト
 
@@ -182,7 +186,7 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
 ### 7.3. 差分検証と目視確認
 
 - 変更前後の保持条件および小規模な文書値・構造の変更（AC-10・AC-11・AC-12 の `README.md`、AC-14 の `INSTALL.md`、AC-15 の `docs/dev/guides/development.md`、AC-16 の `docs/translation_glossary.md`）はいずれも差分が小さいため、実装計画の recorded diff reading（`diff` 検証）で確かめる。
-- 自然言語の記述内容の部分（AC-08 および AC-09〜AC-14・AC-16 の文章部分）は、`CLAUDE.md`「Document tests check values, structure, and executable examples, never prose」に従い PR レビューでの目視確認（`manual`）とし、値・構造・差分部分は上記のテストおよび `diff` 検証と組み合わせる。
+- 自然言語の記述内容の部分（AC-08 の詳細説明文と商標運用条件、および AC-09〜AC-14・AC-16 の文章部分）は、`CLAUDE.md`「Document tests check values, structure, and executable examples, never prose」に従い PR レビューでの目視確認（`manual`）とし、値・構造・差分部分は上記のテストおよび `diff` 検証と組み合わせる。
 
 ## 8. 実装の優先順位
 
