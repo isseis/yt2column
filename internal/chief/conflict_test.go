@@ -801,8 +801,9 @@ func TestConflictSenderConditions(t *testing.T) {
 			name   string
 			hook   func(t *testing.T, cw *conflictWorld)
 			reason string
+			check  func(t *testing.T, cw *conflictWorld, out TickOutcome)
 		}{
-			{"owner_changed", func(_ *testing.T, cw *conflictWorld) {
+			{"owner_changed", func(t *testing.T, cw *conflictWorld) {
 				calls := 0
 				cw.rec.replyFunc("herdr agent get "+worldChiefPane, func() reply {
 					calls++
@@ -812,7 +813,52 @@ func TestConflictSenderConditions(t *testing.T) {
 					}
 					return reply{out: agentGetOutput(a)}
 				})
-			}, conflictReasonOwnerChanged},
+				prCalls := 0
+				cw.rec.replyFunc("gh pr list --head "+taskBranch+" --state open --json "+prListFields, func() reply {
+					prCalls++
+					if prCalls >= 2 {
+						t.Errorf("gh pr list ran %d times; checkOwner in recheck should abort before gather", prCalls)
+					}
+					return reply{out: []byte(prListEntryJSON(taskBranch, 50, "Conflict PR", conflictTestHeadA, "CONFLICTING", mainBranch, false))}
+				})
+			}, conflictReasonOwnerChanged, func(t *testing.T, cw *conflictWorld, out TickOutcome) {
+				if out.ConflictSends[0].Action.Pane != "" {
+					t.Errorf("Action.Pane = %q, want empty when recheck checkOwner aborts before sendCommand", out.ConflictSends[0].Action.Pane)
+				}
+				records, err := cw.store.Records(Worktree{path: cw.tree})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, ok, err := records.keptPaneReport(50, conflictTestHeadA); err != nil || ok {
+					t.Errorf("keptPaneReport = (ok=%v, err=%v), want no kept report when recheck aborts", ok, err)
+				}
+			}},
+			{"owner_changed before BeginSend", func(_ *testing.T, cw *conflictWorld) {
+				calls := 0
+				cw.rec.replyFunc("herdr agent get "+worldChiefPane, func() reply {
+					calls++
+					a := cw.chief
+					if calls >= 2 {
+						a.Session = "00000000-0000-4000-8000-999999999999"
+					}
+					return reply{out: agentGetOutput(a)}
+				})
+			}, conflictReasonOwnerChanged, func(t *testing.T, cw *conflictWorld, out TickOutcome) {
+				if out.ConflictSends[0].Action.Pane != "w1:p1" {
+					t.Errorf("Action.Pane = %q, want %q when beforeBegin aborts inside sendCommand", out.ConflictSends[0].Action.Pane, "w1:p1")
+				}
+				records, err := cw.store.Records(Worktree{path: cw.tree})
+				if err != nil {
+					t.Fatal(err)
+				}
+				starts, ends, err := records.sendFiles()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(starts) != 0 || len(ends) != 0 {
+					t.Errorf("sendFiles = (%v, %v), want empty when beforeBegin aborts before BeginSend", starts, ends)
+				}
+			}},
 			{"workspace_changed", func(_ *testing.T, cw *conflictWorld) {
 				wsCalls, agCalls := 0, 0
 				cw.rec.replyFunc("herdr workspace list", func() reply {
@@ -833,7 +879,7 @@ func TestConflictSenderConditions(t *testing.T) {
 					}
 					return reply{out: agentListOutput(agents)}
 				})
-			}, conflictReasonWorkspaceChanged},
+			}, conflictReasonWorkspaceChanged, nil},
 			{"sent_since", func(t *testing.T, cw *conflictWorld) {
 				// Inject a manual send when recheck reads git status the second time.
 				calls := 0
@@ -854,7 +900,7 @@ func TestConflictSenderConditions(t *testing.T) {
 					}
 					return reply{out: nil}
 				})
-			}, conflictReasonSentSince},
+			}, conflictReasonSentSince, nil},
 			{"pr_changed to MERGEABLE", func(_ *testing.T, cw *conflictWorld) {
 				calls := 0
 				cw.rec.replyFunc("gh pr list --head "+taskBranch+" --state open --json "+prListFields, func() reply {
@@ -864,7 +910,7 @@ func TestConflictSenderConditions(t *testing.T) {
 					}
 					return reply{out: []byte(prListEntryJSON(taskBranch, 50, "Conflict PR", conflictTestHeadA, "CONFLICTING", mainBranch, false))}
 				})
-			}, conflictReasonPRChanged},
+			}, conflictReasonPRChanged, nil},
 			{"later_input added before recheck", func(_ *testing.T, cw *conflictWorld) {
 				calls := 0
 				cw.rec.replyFunc("git status --porcelain --untracked-files=all", func() reply {
@@ -874,7 +920,7 @@ func TestConflictSenderConditions(t *testing.T) {
 					}
 					return reply{out: nil}
 				})
-			}, conflictReasonLaterInput},
+			}, conflictReasonLaterInput, nil},
 			{"agents_not_waiting before recheck", func(_ *testing.T, cw *conflictWorld) {
 				calls := 0
 				cw.rec.replyFunc("git status --porcelain --untracked-files=all", func() reply {
@@ -884,7 +930,7 @@ func TestConflictSenderConditions(t *testing.T) {
 					}
 					return reply{out: nil}
 				})
-			}, conflictReasonAgentsNotWaiting},
+			}, conflictReasonAgentsNotWaiting, nil},
 			{"already_sent before recheck", func(t *testing.T, cw *conflictWorld) {
 				calls := 0
 				cw.rec.replyFunc("git status --porcelain --untracked-files=all", func() reply {
@@ -907,7 +953,7 @@ func TestConflictSenderConditions(t *testing.T) {
 					}
 					return reply{out: nil}
 				})
-			}, conflictReasonAlreadySent},
+			}, conflictReasonAlreadySent, nil},
 			{"record_unreadable before recheck", func(t *testing.T, cw *conflictWorld) {
 				calls := 0
 				cw.rec.replyFunc("git status --porcelain --untracked-files=all", func() reply {
@@ -927,7 +973,7 @@ func TestConflictSenderConditions(t *testing.T) {
 					}
 					return reply{out: nil}
 				})
-			}, conflictReasonRecordUnreadable},
+			}, conflictReasonRecordUnreadable, nil},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -938,6 +984,9 @@ func TestConflictSenderConditions(t *testing.T) {
 				assertConflictReason(t, out, tc.reason)
 				if len(out.ConflictSends) != 1 || out.ConflictSends[0].Action == nil || out.ConflictSends[0].Action.Reason != NotSentConditions {
 					t.Errorf("ConflictSends = %+v, want Action.Reason == NotSentConditions from recheck", out.ConflictSends)
+				}
+				if tc.check != nil {
+					tc.check(t, cw, out)
 				}
 			})
 		}
