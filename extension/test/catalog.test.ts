@@ -160,29 +160,36 @@ describe("catalogs", () => {
     });
   }
 
-  // The product name the catalog itself uses for the release viewer title.
+  // The options title and the restart step are the decided wording of the
+  // requirements, not a sentence derived from another catalog value.
+  const decidedWording: Record<
+    Locale,
+    { optionsTitle: string; restartStep: string }
+  > = {
+    en: {
+      optionsTitle: "YomuDoga settings",
+      restartStep: "Launch YomuDoga again.",
+    },
+    ja: {
+      optionsTitle: "ヨムドウガの設定",
+      restartStep: "もう一度ヨムドウガを起動してください。",
+    },
+  };
   for (const locale of localeList) {
-    it(`names the core product in the ${locale} options page title`, () => {
-      const catalog = catalogs[locale];
-      const coreName = catalog.viewerTitle.name.release;
-      // Precondition: the core name is a product name, not an empty string.
-      assert.notEqual(coreName.trim(), "");
-      assert.ok(
-        catalog.optionsPage.title.includes(coreName),
-        catalog.optionsPage.title,
+    it(`gives the ${locale} options page title its decided wording`, () => {
+      assert.equal(
+        catalogs[locale].optionsPage.title,
+        decidedWording[locale].optionsTitle,
+        locale,
       );
     });
 
-    it(`names the core product in the ${locale} rejection steps`, () => {
-      const catalog = catalogs[locale];
-      const coreName = catalog.viewerTitle.name.release;
-      // Precondition: the core name is a product name, not an empty string.
-      assert.notEqual(coreName.trim(), "");
+    it(`gives the ${locale} rejection steps the decided restart wording`, () => {
       for (const reason of ["not-watch-page", "empty-selection"] as const) {
-        const steps = catalog.rejection[reason].steps;
+        const steps = catalogs[locale].rejection[reason].steps;
         assert.ok(
-          steps.some((step) => step.includes(coreName)),
-          reason,
+          steps.includes(decidedWording[locale].restartStep),
+          `${locale} ${reason}`,
         );
       }
     });
