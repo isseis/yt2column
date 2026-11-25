@@ -215,7 +215,7 @@
 
 - [x] フェーズ 1（ステップ 1-1〜1-10）
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/1159
-- [ ] PR がマージされた
+- [x] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -245,7 +245,7 @@ Diff record (AC-18):
 
 - Compared paths: `docs/tasks/0124_checks_proportion/01_requirements.md`
 - Merge-base: `83961297b483deeb50af50e063c22073019a1041`
-- Compared commit: `f607e50fdfdfecd3aa61ed3a6e9cfe1196bd5136`
+- Compared commit: `806d0354bae6dd1575b1bf3fb0821aa04000c332`
 
 Path diff:
 
@@ -264,6 +264,7 @@ File list:
 CLAUDE.md
 docs/dev/adr/0056-checks-script-proportion.md
 docs/dev/conventions/requirements_process.md
+docs/tasks/0124_checks_proportion/02_architecture.md
 docs/tasks/0124_checks_proportion/03_implementation_plan.md
 ````
 
