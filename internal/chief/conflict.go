@@ -421,7 +421,8 @@ func (c *conflictSender) consider(ctx context.Context, rowIndex int, ws TaskWork
 		res.Reasons = reasons
 		return res, false
 	}
-	return res, c.send(ctx, ws, pr, wsFacts.Branch, &res)
+	attemptedInput := c.send(ctx, ws, pr, wsFacts.Branch, &res)
+	return res, attemptedInput
 }
 
 // gather reads the conditions for sending /mergemain to ws for pr. When
