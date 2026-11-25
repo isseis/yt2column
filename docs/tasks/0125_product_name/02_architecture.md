@@ -42,10 +42,13 @@
 | 変更 | `extension/static/viewer.html` | 静的 `<title>` を `YomuDoga` に更新 |
 | 変更 | `extension/src/core/i18n/ja.ts` | 拒否手順の再起動案内・`viewerTitle.name`・`optionsPage.title` を新製品名に更新 |
 | 変更 | `extension/src/core/i18n/en.ts` | 拒否手順の再起動案内・`viewerTitle.name`・`optionsPage.title` を新製品名に更新 |
-| 変更 | `extension/test/manifest.test.ts` | `extName` の検証を日英それぞれの Chrome ウェブストア表示名へ更新 |
+| 変更 | `extension/test/manifest.test.ts` | `extName`・`extNameDev`・`extDescription` の検証を日英の確定値へ更新 |
 | 変更 | `extension/test/buildVariant.test.ts` | `extNameDev` の先頭一致検査をロケール別コア製品名へ更新 |
 | 変更 | `extension/test/viewerTitle.test.ts` | ビューアタイトルの期待値と `messages.json` との照合契約をコア製品名基準へ更新 |
 | 変更 | `extension/test/viewerApp.test.ts` | ビューアタイトルのアサーションを `YomuDoga` へ更新 |
+| 変更 | `extension/test/catalog.test.ts` | 製品名を含む UI カタログ項目（`optionsPage.title`・`rejection` 手順）の検証と旧名 `yt2column` 不在検査を追加 |
+| 変更 | `extension/test/popupHtml.test.ts` | `popup.html`・`viewer.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
+| 変更 | `extension/test/optionsHtml.test.ts` | `options.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
 | 新規 | `docs/store/chrome_web_store.md` | Chrome ウェブストアの表示名・短い説明文・商標運用条件・日英詳細説明文を収録 |
 | 変更 | `README.md` | H1・冒頭概要文・`## 特徴` 新設・製品名更新・非公式と帰属表示を追加 |
 | 変更 | `README.en.md` | `/mktrans README.md` により `README.md` と同期 |
@@ -149,7 +152,7 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
 
 ### 7.1. ユニットテスト・ガードテスト
 
-- **拡張機能（`make ext-check`）:** `manifest.test.ts`（`extName`・`extDescription`・文字数上限・言語・`$ `禁止・Chrome 最低版・`manifest.json` キーと拡張 ID）、`buildVariant.test.ts`（`extNameDev` と `extName` の区別・先頭一致）、`viewerTitle.test.ts`（日英の公開用・開発用タイトルおよび `messages.json` との整合）、`viewerApp.test.ts`（`doc.title` の統合確認）、`optionsApp.test.ts`（`optionsPage.title`）、`catalog.test.ts`（日英カタログの全項目非空・禁止語検査）、`popupHtml.test.ts`・`optionsHtml.test.ts`（静的 `<title>` 非空）、`metadataDocs.test.ts`（`INSTALL.md` の引用文言整合）を実行する。
+- **拡張機能（`make ext-check`）:** `manifest.test.ts`（`extName`・`extNameDev`・`extDescription`・文字数上限・言語・`$` 禁止・Chrome 最低版・`manifest.json` キーと拡張 ID）、`buildVariant.test.ts`（`extNameDev` と `extName` の区別・先頭一致）、`viewerTitle.test.ts`（日英の公開用・開発用タイトルおよび `messages.json` との整合）、`viewerApp.test.ts`（`doc.title` の統合確認）、`optionsApp.test.ts`（`optionsPage.title` の反映）、`catalog.test.ts`（日英カタログの全項目非空・禁止語検査・`optionsPage.title` と `rejection` 手順の確定文言・旧名 `yt2column` の不在）、`popupHtml.test.ts`・`optionsHtml.test.ts`（静的 `<title>` が `YomuDoga` であること）、`metadataDocs.test.ts`（`INSTALL.md` の引用文言整合）を実行する。
 - **Go ガードテスト（`make test`）:** `TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`（`README.md` / `README.en.md` の同期と構造一致）、`TestADRRecords`（ADR-0035 の形式と索引整合）、`TestInstructionDocPaths`（`CLAUDE.md`・ADR の相対リンク解決）、`TestExtensionDocumentation`（拡張 ID・権限の整合）を実行する。
 
 ### 7.2. 統合テスト・セキュリティテスト
