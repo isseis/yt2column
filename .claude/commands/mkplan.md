@@ -127,11 +127,11 @@ Work in the following order.
      - For each script write its temporary script record frame, in the form of that section: the script (path, purpose, the ACs it verifies), its checks (names only), its planned runs (when, and who runs them), and, only when a test is committed, the test's path and the concrete reason. `/runplan` fills in the breakage record and the run records; the plan does not.
      - Do not tell the implementer to copy or model a script on an earlier task's `_checks/`.
      - For a script, write only that each check must fail under at least one breakage; do not enumerate the breakages.
+     - "Match each mutation to the path it breaks" (above) and the checklist's mutation item apply to `test` and `static` verifications, not to the breakages of a `_checks/` script.
      - Apply these rules as that section's "Scope" says.
    - Plans with a `diff` verification (`requirements_process.md` §4, "`diff` verification"):
      - Build each `diff` verification in proportion to the diff it checks. A script's default language is shell; use another language only when the plan states why shell is not enough.
      - For a document change whose diff is small, the plan may choose a recorded diff reading instead of a script: state that the AC uses it and name the compared paths, never including this plan, which holds the record. `/runplan` records the diff; the plan does not. A plan that uses only recorded diff readings is covered by this bullet too.
-     - "Match each mutation to the path it breaks" (above) and the checklist's mutation item apply to `test` and `static` verifications; the breakages of a `_checks/` script follow the rules of the previous bullet instead.
    - Change sites spread across many locations: describe them by grep pattern (e.g. "all `_ = notifyXxx(...)` call sites"), not line numbers, which go stale. Use line numbers only when the pattern alone cannot locate the spot.
 
 7. Apply test helper planning rules from `docs/dev/conventions/test_organization.md`.

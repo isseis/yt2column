@@ -824,7 +824,7 @@ info.json parsers with real samples under `testdata/`.
   and no reviewer can check. For a task's `_checks/` script under a plan the rules
   of [requirements_process.md](docs/dev/conventions/requirements_process.md),
   "Temporary scripts (`_checks/`)", cover, the breakage check is kept in the plan's
-  temporary script record instead of the commit message.
+  temporary script record instead of the commit message (a test the plan commits keeps its statement in the commit message as well).
 - **A layered path needs inputs only one layer can handle.** Where two mechanisms
   can produce the same output, an input both layers match proves nothing about
   either. Construct the input so only the layer under test can act, and assert

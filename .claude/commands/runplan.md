@@ -318,8 +318,9 @@ B1. **Branch review.** Skip this item when `git log origin/main..HEAD` holds a
    **SUMMARY** = REPORT, **RECORD** = `commit`. When the
    branch review stops, stop: nothing is pushed. Copy no record line of this
    review into a commit of your own: the procedure's fix commits and its
-   record commit carry them. When it made fix commits, run the green gate and
-   the diff-record recheck again. This review
+   record commit carry them. When it made fix commits, run the green gate,
+   the diff-record recheck, and the temporary script records check of step 5a
+   again. This review
    comes before B2 so that its fix commits are inside the high-model review's
    range.
 B2. **Decision.** `git fetch origin main`, then run entry 1 of
@@ -347,7 +348,7 @@ B3. **Review.** On `RUN`, run entry 2 of `_lib/high-review.md` with RANGE =
 B4. **After fixes.** When the review made fix commits, run the green gate again
    (a commit that only makes it pass is inside the done record's range), and,
    for the task's final PR, the end-of-task check of step 8, and the
-   diff-record recheck. When the end-of-task check or the recheck makes a
+   diff-record recheck and the temporary script records check of step 5a. When the end-of-task check or the recheck makes a
    commit that is neither excludable (`_lib/high-review.md`, "Record lines")
    nor a fix to make the green gate pass, go back to B2.
 B5. **Result for the PR body.** Write the high-model review result into PR_TEXT, for
