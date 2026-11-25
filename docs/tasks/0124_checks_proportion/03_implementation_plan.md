@@ -214,6 +214,8 @@
 ## 6. 実装チェックリスト (Implementation Checklist)
 
 - [x] フェーズ 1（ステップ 1-1〜1-10）
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1159
+- [ ] PR がマージされた
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
