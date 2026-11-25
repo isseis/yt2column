@@ -215,7 +215,7 @@ func (rw *runWorld) send(rec SendRecord, outcome string) {
 		rw.t.Fatal(err)
 	}
 	if outcome != "" {
-		if err := rw.held.EndSend(id, outcome, "", at); err != nil {
+		if err := rw.held.EndSend(id, outcome, "", StepCommand, at); err != nil {
 			rw.t.Fatal(err)
 		}
 	}

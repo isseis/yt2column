@@ -264,7 +264,7 @@ func (s sendContext) relay(ctx context.Context, res ActionResult, req RelayReque
 			// The writer refused before running herdr: nothing reached the
 			// pane.
 			res = notSent(res, NotSentUnreadable, err.Error())
-			if eerr := s.held.EndSend(id, res.Outcome.String(), err.Error(), s.deps.Now()); eerr != nil {
+			if eerr := s.held.EndSend(id, res.Outcome.String(), err.Error(), StepUnknown, s.deps.Now()); eerr != nil {
 				res.Detail += "; the end record cannot be written, so the workspace will stop: " + eerr.Error()
 			}
 			return res
@@ -282,7 +282,7 @@ func (s sendContext) relay(ctx context.Context, res ActionResult, req RelayReque
 	// is gone, not whose answer took it: an answer the human gave in the pane
 	// at the same moment looks the same, so the result says no more.
 	res.Outcome, res.Detail = OutcomeSent, relaySentDetail
-	if err := s.held.EndSend(id, res.Outcome.String(), relaySentDetail, s.deps.Now()); err != nil {
+	if err := s.held.EndSend(id, res.Outcome.String(), relaySentDetail, StepKey, s.deps.Now()); err != nil {
 		res.Detail = relaySentDetail + "; the end record cannot be written, so the workspace is stopped: " + err.Error()
 		_ = s.held.Stop(res.Detail, "", id, s.deps.Now())
 	}

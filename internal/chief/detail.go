@@ -564,6 +564,38 @@ func keptReport(deps Deps, ws TaskWorkspace, pr OpenPR, view *prView, skippable 
 	return keepRecord(records, detailName(pr.Number, head), rec, reading)
 }
 
+// keepPaneReport keeps a report record (report-<PR>-<head>.json) from the
+// workspace's Claude Code panes before /mergemain clears the pane. Contract:
+// it never calls gh pr view and never writes a PR description record; it
+// writes a report record only when exactly one Claude Code pane's last report
+// names pr by number and URL, leaves any existing pane report untouched, and
+// returns nil without creating a file when no single pane report can be read.
+func keepPaneReport(deps Deps, ws TaskWorkspace, pr OpenPR) error {
+	if pr.Number <= 0 || pr.Head.IsZero() {
+		return nil
+	}
+	rec, _ := readReport(deps.Env, ws, pr, nil, deps.Now())
+	if rec.Source != ReportFromPane.String() {
+		return nil
+	}
+	records, err := deps.Store.Records(ws.Tree)
+	if err != nil {
+		return err
+	}
+	head := pr.Head.String()
+	if kept, ok, err := records.keptPaneReport(pr.Number, head); err != nil {
+		return err
+	} else if ok && kept.Source == ReportFromPane.String() {
+		return nil
+	}
+	rec.Head = head
+	err = records.store().create(reportName(pr.Number, head), rec)
+	if errors.Is(err, privatefile.ErrExist) {
+		return nil
+	}
+	return err
+}
+
 // keepRecord writes rec under name, which must not exist. When another
 // process wrote it first, the record kept for the head commit is returned
 // instead, so a kept record is never replaced.

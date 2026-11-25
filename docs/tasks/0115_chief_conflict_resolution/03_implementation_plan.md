@@ -282,10 +282,10 @@
 
 **対象ファイル:** `internal/chief/records.go`, `internal/chief/send.go`, `internal/chief/conflict.go`, `internal/chief/snapshot.go`, `internal/chief/records_test.go`, `internal/chief/send_test.go`, `internal/chief/conflict_test.go`（新規）
 
-- [ ] `internal/chief/records.go` の `SendRecord` に `/mergemain` 専用の PR 番号と PR head（`CommitID`、§1 の `construction_test.go` 制約に沿った JSON 変換を実装）を追加し、`SendRecord.Kind` コメントを更新する。`sendEnd` に送信の到達点（`SentStep`、メンバー欠落を `StepUnknown` と区別できるポインタまたは省略可能型）を追加し、`Release` は到達点メンバーを書かずに記録する（設計書 3.3.1）。
-- [ ] `internal/chief/send.go` の送信終了時に到達点（`SentStep`）を `EndSend` へ渡すようにする。`internal/chief/records.go` の `cleanup` と `ClearRecords` を更新し、`/mergemain` の始まり・終わりの組および読めない始まりの記録を期間でも worktree ライフサイクルでも消さず保持する（他コマンドの記録は既存の 25 分・`ClearRecords` で消す挙動を保つ）。
-- [ ] `internal/chief/conflict.go` に `conflictPhaseOf` を実装し、`snapshot.go` の `addRecords` から接続して設計書 3.3.2 の全組み合わせと worktree 再作成後の段階・停止優先を完成させる（AC-08・AC-09・AC-14・AC-15）。
-- [ ] `records_test.go`・`send_test.go`・`conflict_test.go` に、`/mergemain` 記録の保持（消去しないこと）と他コマンド記録の消去、到達点の記録・欠落判別、記録が読めないときの安全側動作、`release` 後の段階遷移のテストを追加する。
+- [x] `internal/chief/records.go` の `SendRecord` に `/mergemain` 専用の PR 番号と PR head（`CommitID`、§1 の `construction_test.go` 制約に沿った JSON 変換を実装）を追加し、`SendRecord.Kind` コメントを更新する。`sendEnd` に送信の到達点（`SentStep`、メンバー欠落を `StepUnknown` と区別できるポインタまたは省略可能型）を追加し、`Release` は到達点メンバーを書かずに記録する（設計書 3.3.1）。
+- [x] `internal/chief/send.go` の送信終了時に到達点（`SentStep`）を `EndSend` へ渡すようにする。`internal/chief/records.go` の `cleanup` と `ClearRecords` を更新し、`/mergemain` の始まり・終わりの組および読めない始まりの記録を期間でも worktree ライフサイクルでも消さず保持する（他コマンドの記録は既存の 25 分・`ClearRecords` で消す挙動を保つ）。
+- [x] `internal/chief/conflict.go` に `conflictPhaseOf` を実装し、`snapshot.go` の `addRecords` から接続して設計書 3.3.2 の全組み合わせと worktree 再作成後の段階・停止優先を完成させる（AC-08・AC-09・AC-14・AC-15）。
+- [x] `records_test.go`・`send_test.go`・`conflict_test.go` に、`/mergemain` 記録の保持（消去しないこと）と他コマンド記録の消去、到達点の記録・欠落判別、記録が読めないときの安全側動作、`release` 後の段階遷移のテストを追加する。
 
 **完了基準:** 設計書 3.3.2 の全表行と記録保持・読めない記録のテストがすべて通り、壊して失敗を確認済みであること。
 
@@ -293,11 +293,11 @@
 
 **対象ファイル:** `internal/chief/detail.go`, `internal/chief/detail_test.go`, `internal/chief/autosend.go`, `internal/chief/conflict.go`, `internal/chief/tick.go`, `internal/chief/output.go`, `internal/chief/records.go`, `.claude/commands/chief.md`, `docs/dev/guides/chief_guide.md`, `internal/chief/conflict_test.go`, `internal/chief/sim_test.go`
 
-- [ ] `internal/chief/detail.go` に `keepPaneReport` を追加し（`gh pr view` を呼ばず pane 報告の控えだけを作り、読めなければ控えを作らない、AC-12）、`detail_test.go` に単体テストを追加する。
-- [ ] `internal/chief/autosend.go` の共通部品（`checkRemote`・`quietness`・`ownerStill`・`checkOwner`・`locate`・`recheck` の枠組み）を `conflictSender` から再利用できるよう整理する（マージ後自動送信の挙動は変えない）。
-- [ ] `internal/chief/conflict.go` に `conflictSender` を実装する（設計書 3.4）：AC-05 の (1)〜(10) と再確認（持ち主・workspace 一意・`SentSince`）、`git show HEAD:` と `git show origin/main:` の `.claude/commands/mergemain.md` バイト比較、送り先の OpenCode 拒否（AC-34）、1 ラウンド 1 件制限（入力を打ったかもしれない送信で打ち切り）を実装する。あわせて、全 workspace のエージェント状態に基づく `/mergemain` 実行中・`RunningUnknown` 検出、同ラウンドのマージ後自動送信済み workspace 除外、送る前の `keepPaneReport` 呼び出し、および §1 確定の理由名出力を実装する（AC-05・AC-06・AC-07・AC-08・AC-10・AC-11・AC-12・AC-13・AC-34）。
-- [ ] `internal/chief/tick.go` で `LockCreation` 保持中の `autoSender.run` 直後に `conflictSender` を走らせ、結果を行と項目へ反映する `applyConflictSends` を追加し、`internal/chief/output.go` の `TickOutput` に `conflict_sends` を追加する（`snapshot` では送らない、AC-06）。`TickOutput` の契約変更に合わせて `internal/chief/records.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` の `--protocol` を合わせる。
-- [ ] `conflict_test.go` に AC-05 の (1)〜(10) と再確認項目を 1 つずつ外す単体・セキュリティテストに加え、設計書 7.1 の境界ケース（同ラウンドのマージ後自動送信済み workspace 除外、`sent_then_failed` 後の 1 件打ち切り、行状態が `StateQuestion`/`StateNeedsCheck` でもエージェント状態から実行中 `/mergemain`・`RunningUnknown` を検出すること、ラウンド読み取り後に (6) が変わったら `recheck` で止まること）を追加し、`sim_test.go` に `tick` 結合テスト（`/clear`・`/model opus`・`/mergemain <PR>` のみの送信、次ラウンド非再送、head 変更後の再送）を追加する。
+- [x] `internal/chief/detail.go` に `keepPaneReport` を追加し（`gh pr view` を呼ばず pane 報告の控えだけを作り、読めなければ控えを作らない、AC-12）、`detail_test.go` に単体テストを追加する。
+- [x] `internal/chief/autosend.go` の共通部品（`checkRemote`・`quietness`・`ownerStill`・`checkOwner`・`locate`・`recheck` の枠組み）を `conflictSender` から再利用できるよう整理する（マージ後自動送信の挙動は変えない）。
+- [x] `internal/chief/conflict.go` に `conflictSender` を実装する（設計書 3.4）：AC-05 の (1)〜(10) と再確認（持ち主・workspace 一意・`SentSince`）、`git show HEAD:` と `git show origin/main:` の `.claude/commands/mergemain.md` バイト比較、送り先の OpenCode 拒否（AC-34）、1 ラウンド 1 件制限（入力を打ったかもしれない送信で打ち切り）を実装する。あわせて、全 workspace のエージェント状態に基づく `/mergemain` 実行中・`RunningUnknown` 検出、同ラウンドのマージ後自動送信済み workspace 除外、送る前の `keepPaneReport` 呼び出し、および §1 確定の理由名出力を実装する（AC-05・AC-06・AC-07・AC-08・AC-10・AC-11・AC-12・AC-13・AC-34）。
+- [x] `internal/chief/tick.go` で `LockCreation` 保持中の `autoSender.run` 直後に `conflictSender` を走らせ、結果を行と項目へ反映する `applyConflictSends` を追加し、`internal/chief/output.go` の `TickOutput` に `conflict_sends` を追加する（`snapshot` では送らない、AC-06）。`TickOutput` の契約変更に合わせて `internal/chief/records.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` の `--protocol` を合わせる。
+- [x] `conflict_test.go` に AC-05 の (1)〜(10) と再確認項目を 1 つずつ外す単体・セキュリティテストに加え、設計書 7.1 の境界ケース（同ラウンドのマージ後自動送信済み workspace 除外、`sent_then_failed` 後の 1 件打ち切り、行状態が `StateQuestion`/`StateNeedsCheck` でもエージェント状態から実行中 `/mergemain`・`RunningUnknown` を検出すること、ラウンド読み取り後に (6) が変わったら `recheck` で止まること）を追加し、`sim_test.go` に `tick` 結合テスト（`/clear`・`/model opus`・`/mergemain <PR>` のみの送信、次ラウンド非再送、head 変更後の再送）を追加する。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスし、AC-05〜AC-11・AC-13・AC-15・AC-34 の検証と壊して失敗の確認が完了していること。
 
@@ -315,10 +315,10 @@
 
 **自動送信**: hold
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1163
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 #### ステップ 4-3: 人が選ぶ送信（`PendingConflict`・`chief send`）と `CollectDetail` の親たどり引き継ぎ
 
@@ -459,7 +459,7 @@
 - [x] PR-2 マージ済み（対象ステップ: 1-3）
 - [x] PR-3 マージ済み（対象ステップ: 2-1 / 2-2）
 - [x] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
-- [ ] PR-5 マージ済み（対象ステップ: 4-1 / 4-2）
+- [x] PR-5 マージ済み（対象ステップ: 4-1 / 4-2）
 - [ ] PR-6 マージ済み（対象ステップ: 4-3 / 4-4）
 
 ## 7. 受け入れ基準の検証

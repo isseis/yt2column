@@ -641,3 +641,120 @@ func TestReviewItemShowsKeptSkippable(t *testing.T) {
 		})
 	}
 }
+
+// TestKeepPaneReport checks that keepPaneReport writes report-<PR>-<head>.json
+// when exactly one Claude Code pane's transcript names the PR without calling
+// gh, creates no file when no single pane report can be read, leaves an
+// existing pane report untouched, and adds report- alongside a kept
+// description detail.
+func TestKeepPaneReport(t *testing.T) {
+	head, err := ParseCommitID(prHead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr := OpenPR{Number: 42, URL: prURL, Head: head}
+
+	t.Run("keeps single pane report without calling gh", func(t *testing.T) {
+		sw, tree := detailWorld(t)
+		deps := sw.finish()
+		sw.endWithReport(sw.firstPane(), makerReport)
+		ws := TaskWorkspace{
+			ID: "w1", Label: "ws", Worktree: tree, Tree: Worktree{path: tree},
+			Agents: []Agent{{Pane: PaneID{id: "w1:p1"}, Workspace: "w1", Kind: paneinput.AgentClaudeCode, Status: AgentIdle, Session: sw.firstPane().Session, Dir: tree, StateChangeSeq: 10}},
+		}
+		if err := keepPaneReport(deps, ws, pr); err != nil {
+			t.Fatalf("keepPaneReport: %v", err)
+		}
+		for _, c := range sw.rec.recorded() {
+			if c.name == ghProgram {
+				t.Errorf("keepPaneReport called gh: %s", c.line())
+			}
+		}
+		records, err := deps.Store.Records(ws.Tree)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec, ok, err := records.keptPaneReport(42, prHead)
+		if err != nil || !ok || rec.Source != ReportFromPane.String() || rec.Text != makerReport || rec.Pane != "w1:p1" {
+			t.Errorf("keptPaneReport = %+v, %v, %v; want pane report %q", rec, ok, err, makerReport)
+		}
+		// Calling again leaves the existing report untouched.
+		sw.setTranscript(sw.firstPane(), openPRLink, answerLine("msg_later", "replacement text"))
+		if err := keepPaneReport(deps, ws, pr); err != nil {
+			t.Fatalf("second keepPaneReport: %v", err)
+		}
+		rec2, ok, err := records.keptPaneReport(42, prHead)
+		if err != nil || !ok || rec2.Text != makerReport {
+			t.Errorf("second keptPaneReport = %+v, %v, %v; want original %q", rec2, ok, err, makerReport)
+		}
+	})
+
+	t.Run("creates no file when pane report cannot be read or is ambiguous", func(t *testing.T) {
+		for _, tc := range []struct {
+			name  string
+			extra bool
+			setup func(sw *sendWorld, ps []*simPane)
+		}{
+			{"no report", false, func(*sendWorld, []*simPane) {}},
+			{"unreadable transcript", false, func(sw *sendWorld, ps []*simPane) { sw.breakTranscript(ps[0]) }},
+			{"not named", false, func(sw *sendWorld, ps []*simPane) {
+				sw.appendTranscript(ps[0], answerLine("msg_report", makerReport))
+			}},
+			{"several candidates", true, func(sw *sendWorld, ps []*simPane) {
+				sw.endWithReport(ps[0], makerReport)
+				sw.endWithReport(ps[1], makerReport)
+			}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				sw, tree := detailWorld(t)
+				var extraPane *simPane
+				if tc.extra {
+					extraPane = sw.addClaudePane(tree, 3)
+				}
+				deps := sw.finish()
+				ps := []*simPane{sw.firstPane()}
+				agents := []Agent{{Pane: PaneID{id: "w1:p1"}, Workspace: "w1", Kind: paneinput.AgentClaudeCode, Status: AgentIdle, Session: sw.firstPane().Session, Dir: tree, StateChangeSeq: 10}}
+				if extraPane != nil {
+					ps = append(ps, extraPane)
+					agents = append(agents, Agent{Pane: PaneID{id: extraPane.Pane}, Workspace: "w1", Kind: paneinput.AgentClaudeCode, Status: AgentIdle, Session: extraPane.Session, Dir: tree, StateChangeSeq: 10})
+				}
+				tc.setup(sw, ps)
+				ws := TaskWorkspace{ID: "w1", Label: "ws", Worktree: tree, Tree: Worktree{path: tree}, Agents: agents}
+				if err := keepPaneReport(deps, ws, pr); err != nil {
+					t.Fatalf("keepPaneReport: %v", err)
+				}
+				if _, ok, err := deps.Store.existingRecords(ws.Tree); err != nil || ok {
+					t.Errorf("existingRecords = %v, %v; want no records created", ok, err)
+				}
+			})
+		}
+	})
+
+	t.Run("writes report record alongside kept description detail", func(t *testing.T) {
+		sw, tree := detailWorld(t)
+		deps := sw.finish()
+		records, err := deps.Store.Records(Worktree{path: tree})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := records.store().create(detailName(42, prHead), detailRecord{PR: 42, Head: prHead, Saved: sw.now, Source: ReportFromDescription.String(), Text: "desc"}); err != nil {
+			t.Fatal(err)
+		}
+		sw.endWithReport(sw.firstPane(), makerReport)
+		ws := TaskWorkspace{
+			ID: "w1", Label: "ws", Worktree: tree, Tree: Worktree{path: tree},
+			Agents: []Agent{{Pane: PaneID{id: "w1:p1"}, Workspace: "w1", Kind: paneinput.AgentClaudeCode, Status: AgentIdle, Session: sw.firstPane().Session, Dir: tree, StateChangeSeq: 10}},
+		}
+		if err := keepPaneReport(deps, ws, pr); err != nil {
+			t.Fatalf("keepPaneReport: %v", err)
+		}
+		rec, ok, err := records.keptPaneReport(42, prHead)
+		if err != nil || !ok || rec.Source != ReportFromPane.String() || rec.Text != makerReport {
+			t.Errorf("keptPaneReport = %+v, %v, %v; want pane report over description", rec, ok, err)
+		}
+		descRec, ok, err := records.readDetail(42, prHead)
+		if err != nil || !ok || descRec.Source != ReportFromDescription.String() || descRec.Text != "desc" {
+			t.Errorf("readDetail = %+v, %v, %v; want description detail preserved", descRec, ok, err)
+		}
+	})
+}

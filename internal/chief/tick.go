@@ -6,13 +6,17 @@ import (
 	"slices"
 	"strconv"
 	"time"
+
+	"github.com/isseis/yt2column/internal/chief/paneinput"
 )
 
 // TickOutcome is what `chief tick` did: the snapshot of the round, read
-// before any send, and the merged PRs an automatic send was considered for.
+// before any send, the merged PRs an automatic send was considered for, and
+// the conflict rows an automatic /mergemain send was considered for.
 type TickOutcome struct {
-	Snapshot  Snapshot
-	AutoSends []AutoSendResult
+	Snapshot      Snapshot
+	AutoSends     []AutoSendResult
+	ConflictSends []ConflictSendResult
 }
 
 // Tick is one round of chief's wait (the design, 3.1.1 and 3.7): it records
@@ -79,13 +83,22 @@ func Tick(ctx context.Context, deps Deps, owner Owner) (TickOutcome, error) {
 	}
 	a := &autoSender{deps: deps, view: &view, owner: owner, round: start.Cur, prevAt: prevAt, herdr: NewHerdr(deps.Cmds), git: NewGitReader(deps.Cmds), tasks: NewTasks(deps.Cmds), noSend: lockErr}
 	results := a.run(ctx, prev, open)
+	autoSent := map[string]struct{}{}
+	for _, r := range results {
+		if slices.ContainsFunc(r.Actions, typedInput) {
+			autoSent[r.Workspace] = struct{}{}
+		}
+	}
+	cs := &conflictSender{a: a, autoSent: autoSent}
+	conflictResults := cs.run(ctx)
 	if creation != nil {
 		if err := creation.Close(); err != nil {
 			view.problems = append(view.problems, "the creation exclusion cannot be released: "+err.Error())
 		}
 	}
 	extra := applyAutoSends(&view, deps.Store, results)
-	return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, src, extra), AutoSends: results}, nil
+	applyConflictSends(&view, deps.Store, conflictResults)
+	return TickOutcome{Snapshot: finishSnapshot(deps, owner, view, src, extra), AutoSends: results, ConflictSends: conflictResults}, nil
 }
 
 // recordObservations records an observation of every open PR of a feature
@@ -156,6 +169,60 @@ func applyAutoSends(view *roundView, store Store, results []AutoSendResult) []Pe
 		}
 	}
 	return extra
+}
+
+// applyConflictSends updates the rows of the workspaces an automatic
+// /mergemain send considered: a sent row becomes running /mergemain with the
+// sent model, a row whose send failed after an input needs a check and
+// rereads its stop, and a row not sent records the unmet condition reasons.
+func applyConflictSends(view *roundView, store Store, results []ConflictSendResult) {
+	for _, r := range results {
+		i := r.rowIndex
+		if i < 0 || i >= len(view.rows) || view.rows[i].Workspace != r.Workspace {
+			i = slices.IndexFunc(view.rows, func(row Row) bool { return row.Workspace == r.Workspace })
+		}
+		if i < 0 {
+			continue
+		}
+		row := &view.rows[i]
+		switch {
+		case r.Action != nil && r.Action.Outcome == OutcomeSent:
+			row.Idle = false
+			row.State, row.Conflict, row.ConflictReasons, row.Next, row.Takeover, row.Unreadable = StateRunning, ConflictRecordsUnreadable, nil, nil, nil, nil
+			row.Resets = slices.DeleteFunc(row.Resets, func(it ResetItem) bool {
+				return it.Pane.String() == r.Action.Pane
+			})
+			row.Running, row.RunningUnknown = sentMergemainRunning(r.PR, r.Action.Model)
+		case r.Action != nil && r.Action.Outcome == OutcomeSentThenFailed:
+			row.Idle = false
+			row.State, row.ConflictReasons, row.Next, row.Takeover = StateNeedsCheck, nil, nil, nil
+			row.Unreadable = []string{"the conflict resolution send failed after an input, so the workspace is stopped until release"}
+		default:
+			row.ConflictReasons = slices.Clone(r.Reasons)
+			if r.Action != nil && r.Action.Outcome == OutcomeNotSent && row.PR != nil && i < len(view.found) {
+				if records, ok, err := store.existingRecords(view.found[i].Tree); err != nil {
+					row.Conflict = ConflictRecordsUnreadable
+				} else if ok {
+					row.Conflict = conflictPhaseOf(records, *row.PR)
+				}
+			}
+		}
+		if r.Action != nil {
+			if err := rereadStop(view, i, store); err != nil {
+				view.problems = append(view.problems, "the stop of "+r.Workspace+" cannot be read again after the conflict send: "+err.Error())
+			}
+		}
+	}
+}
+
+// sentMergemainRunning is the running command of a row an automatic
+// /mergemain send started, with the model sent.
+func sentMergemainRunning(pr int, model string) (*RunningShown, RunningUnknown) {
+	cmd, dropped, err := newRunningCommand(paneinput.CommandMergemain, strconv.Itoa(pr))
+	if err != nil || dropped {
+		return nil, RunningUnknownNoSentCommand
+	}
+	return &RunningShown{Command: cmd, Model: model}, RunningUnknownNone
 }
 
 // sentRunning is the running command of a row an automatic send sent the

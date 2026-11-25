@@ -642,7 +642,7 @@ func TestRunningRowShowsTheLastSend(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := held.EndSend(id, OutcomeSent.String(), "", sw.now); err != nil {
+		if err := held.EndSend(id, OutcomeSent.String(), "", StepCommand, sw.now); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1068,7 +1068,7 @@ func TestRunningOutputHasNoRawText(t *testing.T) {
 	}
 	id, err := held.BeginSend(SendRecord{Pane: "w1:p1", Input: InputCommand.String(), Command: "/runpr 42", Agent: openCodeLabel, Model: "m", Kind: "runpr", Arg: forgedArg}, sw.now)
 	if err == nil {
-		err = held.EndSend(id, OutcomeSent.String(), "", sw.now)
+		err = held.EndSend(id, OutcomeSent.String(), "", StepCommand, sw.now)
 	}
 	if err != nil {
 		t.Fatal(err)

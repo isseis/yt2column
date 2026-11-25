@@ -1167,7 +1167,7 @@ func TestAutoSendRechecksUnderTheExclusion(t *testing.T) {
 			if err != nil {
 				mw.t.Fatal(err)
 			}
-			if err := held.EndSend(id, OutcomeSent.String(), "", mw.now); err != nil {
+			if err := held.EndSend(id, OutcomeSent.String(), "", StepCommand, mw.now); err != nil {
 				mw.t.Fatal(err)
 			}
 		}},
@@ -1393,7 +1393,7 @@ func (mw *mergeWorld) sendByHand(pane, command string, at time.Time) {
 	}
 	id, err := held.BeginSend(SendRecord{Pane: pane, Input: InputCommand.String(), Command: command}, at)
 	if err == nil {
-		err = held.EndSend(id, OutcomeSent.String(), "", at)
+		err = held.EndSend(id, OutcomeSent.String(), "", StepCommand, at)
 	}
 	if cerr := held.Close(); err == nil {
 		err = cerr

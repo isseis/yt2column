@@ -142,6 +142,9 @@ type Row struct {
 	// PR's head, read only when State is StateConflict; its zero value,
 	// ConflictRecordsUnreadable, is the phase that never sends by itself.
 	Conflict ConflictPhase
+	// ConflictReasons are the automatic conflict-resolution conditions that
+	// did not hold for this row in the current tick, empty in snapshot.
+	ConflictReasons []string
 	// Running is the command a running row's working agents run, nil when
 	// none is decided (RunningUnknown says why); it is shown only, never
 	// read to decide a state or a send.

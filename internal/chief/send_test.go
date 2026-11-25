@@ -1203,3 +1203,265 @@ func TestSendMkreqToMainRefused(t *testing.T) {
 		}
 	}
 }
+
+// TestSendMergemainUncertainStopsWorkspace checks that a /mergemain send
+// whose outcome is uncertain stops the workspace and records the reached step
+// so conflictPhaseOf never treats it as unsent: failing after /mergemain,
+// failing after /clear or /model, failing to write the end record, writer
+// refusal before the first input, and refusing when PR or head is missing.
+func TestSendMergemainUncertainStopsWorkspace(t *testing.T) {
+	head, err := ParseCommitID(strings.Repeat("b", 40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	prNum, err := fixprguard.ParsePRNumber("77")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mmCmd, err := paneinput.NewMergemain(prNum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr := OpenPR{Number: 77, Mergeable: MergeableConflicting, Head: head, BaseIsMain: true}
+	route := claudeRoute(t, paneinput.ClaudeModelOpus)
+
+	setup := func(t *testing.T) (*sendWorld, Deps, sendContext, *HeldWorkspace) {
+		t.Helper()
+		sw := newSendWorld(t)
+		tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
+		deps := sw.finish()
+		records, err := deps.Store.Records(Worktree{path: tree})
+		if err != nil {
+			t.Fatal(err)
+		}
+		held, err := records.Lock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = held.Close() })
+		loc, err := locate(context.Background(), deps, tree)
+		if err != nil || !loc.found {
+			t.Fatalf("locate = %+v, %v", loc, err)
+		}
+		writer, err := NewPaneWriter(deps.Cmds, loc.chiefPane, loc.chief.Workspace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sc := sendContext{
+			deps: deps, herdr: NewHerdr(deps.Cmds), writer: writer, held: held, ws: loc.ws,
+			mergemainPR: pr.Number, mergemainHead: pr.Head,
+		}
+		return sw, deps, sc, held
+	}
+
+	t.Run("command fails to start after typing", func(t *testing.T) {
+		sw, _, sc, held := setup(t)
+		sw.react = func(p *simPane, text string) error {
+			if strings.HasPrefix(text, "/mergemain") {
+				// Simulate /mergemain typed without the agent becoming working.
+				return nil
+			}
+			return sw.realReact(p, text)
+		}
+		res := sc.sendCommand(context.Background(), mmCmd, route)
+		if res.Outcome != OutcomeSentThenFailed || res.Step != StepCommand {
+			t.Fatalf("res = %+v, want OutcomeSentThenFailed at StepCommand", res)
+		}
+		if stop, err := held.Stopped(); err != nil || stop == nil {
+			t.Fatalf("Stopped = %+v, %v; want stopped", stop, err)
+		}
+		if phase := conflictPhaseOf(held.WorkspaceRecords, pr); phase != ConflictOutcomeUnknown {
+			t.Errorf("conflictPhaseOf = %v, want ConflictOutcomeUnknown", phase)
+		}
+	})
+
+	t.Run("fails after /clear before /mergemain", func(t *testing.T) {
+		sw, _, sc, held := setup(t)
+		sw.react = func(p *simPane, text string) error {
+			if text == "/clear" {
+				// Session does not change after /clear.
+				return nil
+			}
+			return sw.realReact(p, text)
+		}
+		res := sc.sendCommand(context.Background(), mmCmd, route)
+		if res.Outcome != OutcomeSentThenFailed || res.Step != StepClear {
+			t.Fatalf("res = %+v, want OutcomeSentThenFailed at StepClear", res)
+		}
+		if stop, err := held.Stopped(); err != nil || stop == nil {
+			t.Fatalf("Stopped = %+v, %v; want stopped", stop, err)
+		}
+		if phase := conflictPhaseOf(held.WorkspaceRecords, pr); phase != ConflictEndedBeforeCommand {
+			t.Errorf("conflictPhaseOf = %v, want ConflictEndedBeforeCommand", phase)
+		}
+		if _, err := held.Release(sw.now.Add(time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+		if phase := conflictPhaseOf(held.WorkspaceRecords, pr); phase != ConflictEndedBeforeCommand {
+			t.Errorf("conflictPhaseOf after release = %v, want ConflictEndedBeforeCommand", phase)
+		}
+	})
+
+	t.Run("end record write fails after send", func(t *testing.T) {
+		sw, _, sc, held := setup(t)
+		held.beforeCreate = func(name string) error {
+			if strings.HasSuffix(name, endSuffix) {
+				return errors.New("disk full")
+			}
+			return nil
+		}
+		res := sc.sendCommand(context.Background(), mmCmd, route)
+		if res.Outcome != OutcomeSent {
+			t.Fatalf("res = %+v, want OutcomeSent", res)
+		}
+		if stop, err := held.Stopped(); err != nil || stop == nil {
+			t.Fatalf("Stopped = %+v, %v; want stopped", stop, err)
+		}
+		if phase := conflictPhaseOf(held.WorkspaceRecords, pr); phase != ConflictSending {
+			t.Errorf("conflictPhaseOf before release = %v, want ConflictSending", phase)
+		}
+		held.beforeCreate = nil
+		if _, err := held.Release(sw.now.Add(time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+		if phase := conflictPhaseOf(held.WorkspaceRecords, pr); phase != ConflictOutcomeUnknown {
+			t.Errorf("conflictPhaseOf after release = %v, want ConflictOutcomeUnknown", phase)
+		}
+	})
+
+	t.Run("writer refuses before first input", func(t *testing.T) {
+		_, deps, sc, held := setup(t)
+		// Point the writer's own workspace at the target workspace so the
+		// writer refuses before invoking herdr.
+		badWriter, err := NewPaneWriter(deps.Cmds, sc.ws.Agents[0].Pane, sc.ws.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sc.writer = badWriter
+		res := sc.sendCommand(context.Background(), mmCmd, route)
+		if res.Outcome != OutcomeNotSent {
+			t.Fatalf("res = %+v, want OutcomeNotSent", res)
+		}
+		if stop, err := held.Stopped(); err != nil || stop != nil {
+			t.Fatalf("Stopped = %+v, %v; want not stopped", stop, err)
+		}
+		if phase := conflictPhaseOf(held.WorkspaceRecords, pr); phase != ConflictEndedBeforeCommand {
+			t.Errorf("conflictPhaseOf = %v, want ConflictEndedBeforeCommand", phase)
+		}
+	})
+
+	t.Run("missing PR or head refuses without typing", func(t *testing.T) {
+		sw, _, sc, _ := setup(t)
+		sc.mergemainHead = CommitID{}
+		res := sc.sendCommand(context.Background(), mmCmd, route)
+		if res.Outcome != OutcomeNotSent || res.Reason != NotSentUnreadable {
+			t.Fatalf("res = %+v, want OutcomeNotSent/NotSentUnreadable", res)
+		}
+		if got := sw.rec.prompts(); len(got) != 0 {
+			t.Errorf("typed %v, want nothing", got)
+		}
+	})
+
+	t.Run("mismatched mergemainPR refuses without typing", func(t *testing.T) {
+		sw, _, sc, _ := setup(t)
+		sc.mergemainPR = 99
+		res := sc.sendCommand(context.Background(), mmCmd, route)
+		if res.Outcome != OutcomeNotSent || res.Reason != NotSentUnreadable {
+			t.Fatalf("res = %+v, want OutcomeNotSent/NotSentUnreadable", res)
+		}
+		if got := sw.rec.prompts(); len(got) != 0 {
+			t.Errorf("typed %v, want nothing", got)
+		}
+	})
+
+	t.Run("fails after /model before /mergemain", func(t *testing.T) {
+		sw, _, sc, held := setup(t)
+		sw.react = func(p *simPane, text string) error {
+			if strings.HasPrefix(text, "/model ") {
+				// Simulate /model typed without writing a switch line.
+				return nil
+			}
+			return sw.realReact(p, text)
+		}
+		res := sc.sendCommand(context.Background(), mmCmd, route)
+		if res.Outcome != OutcomeSentThenFailed || res.Step != StepModel {
+			t.Fatalf("res = %+v, want OutcomeSentThenFailed at StepModel", res)
+		}
+		if phase := conflictPhaseOf(held.WorkspaceRecords, pr); phase != ConflictEndedBeforeCommand {
+			t.Errorf("conflictPhaseOf = %v, want ConflictEndedBeforeCommand", phase)
+		}
+	})
+
+	t.Run("OpenCode route refused by sendCommand", func(t *testing.T) {
+		sw := newSendWorld(t)
+		tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "opencode")
+		deps := sw.finish()
+		records, err := deps.Store.Records(Worktree{path: tree})
+		if err != nil {
+			t.Fatal(err)
+		}
+		held, err := records.Lock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = held.Close() })
+		loc, err := locate(context.Background(), deps, tree)
+		if err != nil || !loc.found {
+			t.Fatalf("locate = %+v, %v", loc, err)
+		}
+		writer, err := NewPaneWriter(deps.Cmds, loc.chiefPane, loc.chief.Workspace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ocModel, err := paneinput.ParseOpenCodeModel(openCodeModel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ocRoute, err := paneinput.NewOpenCodeRoute(ocModel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sc := sendContext{
+			deps: deps, herdr: NewHerdr(deps.Cmds), writer: writer, held: held, ws: loc.ws,
+			mergemainPR: pr.Number, mergemainHead: pr.Head,
+		}
+		res := sc.sendCommand(context.Background(), mmCmd, ocRoute)
+		if res.Outcome != OutcomeNotSent || res.Reason != NotSentUnreadable {
+			t.Fatalf("res = %+v, want OutcomeNotSent/NotSentUnreadable", res)
+		}
+		if got := sw.rec.prompts(); len(got) != 0 {
+			t.Errorf("typed %v, want nothing", got)
+		}
+	})
+
+	t.Run("writer refusal on command after model records StepModel", func(t *testing.T) {
+		sw, deps, sc, held := setup(t)
+		badWriter, err := NewPaneWriter(deps.Cmds, sc.ws.Agents[0].Pane, sc.ws.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sc.writer = badWriter
+		typeCmd, err := paneinput.TypeCommand(mmCmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, err := held.BeginSend(SendRecord{
+			Pane: sc.ws.Agents[0].Pane.String(), Input: InputCommand.String(), Command: "/mergemain 77",
+			Agent: claudeCodeLabel, Model: "opus", Kind: paneinput.CommandMergemain.Name(), Arg: "77",
+			PR: pr.Number, Head: pr.Head,
+		}, sw.now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, ok := sc.prompt(context.Background(), ActionResult{Workspace: sc.ws.Worktree, Pane: sc.ws.Agents[0].Pane.String(), Input: InputCommand, Command: "/mergemain 77"}, id, sc.ws.Agents[0], step{kind: StepCommand, prompt: typeCmd}, StepModel)
+		if ok || res.Outcome != OutcomeSentThenFailed || res.Step != StepModel {
+			t.Fatalf("prompt = %+v, %v; want OutcomeSentThenFailed at StepModel", res, ok)
+		}
+		if stop, err := held.Stopped(); err != nil || stop == nil {
+			t.Fatalf("Stopped = %+v, %v; want stopped", stop, err)
+		}
+		if phase := conflictPhaseOf(held.WorkspaceRecords, pr); phase != ConflictEndedBeforeCommand {
+			t.Errorf("conflictPhaseOf = %v, want ConflictEndedBeforeCommand", phase)
+		}
+	})
+}

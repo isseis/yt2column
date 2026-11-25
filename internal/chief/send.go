@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
@@ -267,6 +268,11 @@ type sendContext struct {
 	writer PaneWriter
 	held   *HeldWorkspace
 	ws     TaskWorkspace
+	// mergemainPR and mergemainHead are the PR and head commit for a
+	// /mergemain send; both must be set when sending CommandMergemain and
+	// zero for every other send.
+	mergemainPR   int
+	mergemainHead CommitID
 	// beforeBegin, when set, runs once the check before the first input
 	// passed and before the send record is written; an error sends nothing
 	// and is reported with the reason returned. The automatic send checks
@@ -415,6 +421,9 @@ func (s sendContext) sendCommand(ctx context.Context, cmd paneinput.Command, rou
 	if err != nil {
 		return notSent(res, NotSentUnreadable, "the command cannot be typed: "+err.Error())
 	}
+	if cmd.Route() == paneinput.RouteMergemain && route.Agent() != paneinput.AgentClaudeCode {
+		return notSent(res, NotSentUnreadable, "/mergemain can only be sent to Claude Code")
+	}
 	var steps []step
 	first := paneCheck{}
 	switch route.Agent() {
@@ -432,6 +441,35 @@ func (s sendContext) sendCommand(ctx context.Context, cmd paneinput.Command, rou
 		return notSent(res, NotSentUnreadable, "the route has no agent")
 	}
 	return s.run(ctx, res, target, steps, first, route, &cmd)
+}
+
+// buildSendRecord assembles the start record for a command or reset send,
+// attaching PR and Head when sending /mergemain.
+func (s sendContext) buildSendRecord(res ActionResult, steps []step, cmd *paneinput.Command) (SendRecord, error) {
+	var prompts []string
+	for _, st := range steps {
+		line, err := st.prompt.Text()
+		if err != nil {
+			return SendRecord{}, fmt.Errorf("an input cannot be typed: %w", err)
+		}
+		prompts = append(prompts, line)
+	}
+	rec := SendRecord{Pane: res.Pane, Input: res.Input.String(), Command: res.Command, Agent: agentLabel(res.Agent), Model: res.Model, Prompts: prompts}
+	if cmd == nil {
+		return rec, nil
+	}
+	kind, arg, err := cmd.Parts()
+	if err != nil {
+		return SendRecord{}, fmt.Errorf("the command cannot be typed: %w", err)
+	}
+	rec.Kind, rec.Arg = kind.Name(), arg
+	if kind == paneinput.CommandMergemain {
+		if s.mergemainPR <= 0 || s.mergemainHead.IsZero() || strconv.Itoa(s.mergemainPR) != arg {
+			return SendRecord{}, fmt.Errorf("%w: the /mergemain send lacks the PR number or head commit", errRecord)
+		}
+		rec.PR, rec.Head = s.mergemainPR, s.mergemainHead
+	}
+	return rec, nil
 }
 
 // notSent fills a result for nothing typed.
@@ -456,21 +494,9 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 			return notSent(res, reason, err.Error())
 		}
 	}
-	var prompts []string
-	for _, st := range steps {
-		line, err := st.prompt.Text()
-		if err != nil {
-			return notSent(res, NotSentUnreadable, "an input cannot be typed: "+err.Error())
-		}
-		prompts = append(prompts, line)
-	}
-	rec := SendRecord{Pane: res.Pane, Input: res.Input.String(), Command: res.Command, Agent: agentLabel(res.Agent), Model: res.Model, Prompts: prompts}
-	if cmd != nil {
-		kind, arg, err := cmd.Parts()
-		if err != nil {
-			return notSent(res, NotSentUnreadable, "the command cannot be typed: "+err.Error())
-		}
-		rec.Kind, rec.Arg = kind.Name(), arg
+	rec, err := s.buildSendRecord(res, steps, cmd)
+	if err != nil {
+		return notSent(res, NotSentUnreadable, err.Error())
 	}
 	id, err := s.held.BeginSend(rec, s.deps.Now())
 	if err != nil {
@@ -504,7 +530,7 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 		last = st.kind
 	}
 	res.Outcome = OutcomeSent
-	if err := s.held.EndSend(id, res.Outcome.String(), "", s.deps.Now()); err != nil {
+	if err := s.held.EndSend(id, res.Outcome.String(), "", last, s.deps.Now()); err != nil {
 		// The start without an end would stop the workspace at the next
 		// settle; stop it now so the record and the result agree.
 		res.Detail = "sent, but the end record cannot be written, so the workspace is stopped: " + err.Error()
@@ -519,14 +545,19 @@ func (s sendContext) run(ctx context.Context, res ActionResult, target Agent, st
 // as typed. After the first input, the pane's skipped resets are removed.
 func (s sendContext) prompt(ctx context.Context, res ActionResult, id string, agent Agent, st step, last SentStep) (ActionResult, bool) {
 	if err := s.writer.Prompt(ctx, agent, st.prompt); err != nil {
-		if errors.Is(err, errWriteRefused) && last == StepUnknown {
-			// The writer refused before running herdr: nothing reached
-			// the pane.
-			res = notSent(res, NotSentUnreadable, err.Error())
-			if eerr := s.held.EndSend(id, res.Outcome.String(), err.Error(), s.deps.Now()); eerr != nil {
-				res.Detail += "; the end record cannot be written, so the workspace will stop: " + eerr.Error()
+		if errors.Is(err, errWriteRefused) {
+			if last == StepUnknown {
+				// The writer refused before running herdr: nothing reached
+				// the pane.
+				res = notSent(res, NotSentUnreadable, err.Error())
+				if eerr := s.held.EndSend(id, res.Outcome.String(), err.Error(), StepUnknown, s.deps.Now()); eerr != nil {
+					res.Detail += "; the end record cannot be written, so the workspace will stop: " + eerr.Error()
+				}
+				return res, false
 			}
-			return res, false
+			// The writer refused before running herdr for st, so only the
+			// previously completed step last was typed.
+			return s.fail(res, id, last, &checkFailure{reason: NotSentUnreadable, detail: err.Error(), agent: agent}), false
 		}
 		// Herdr may have typed the input before it failed, so a failed
 		// write counts as typed.
@@ -553,7 +584,7 @@ func (s sendContext) fail(res ActionResult, id string, last SentStep, f *checkFa
 		res.Detail += "; the stop record cannot be written: " + err.Error()
 		return res
 	}
-	if err := s.held.EndSend(id, res.Outcome.String(), reason, s.deps.Now()); err != nil {
+	if err := s.held.EndSend(id, res.Outcome.String(), reason, last, s.deps.Now()); err != nil {
 		res.Detail += "; the end record cannot be written: " + err.Error()
 	}
 	return res

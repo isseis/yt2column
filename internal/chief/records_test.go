@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -648,7 +649,7 @@ func TestStartCleansSendsAndDetails(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := held.EndSend(done, OutcomeSent.String(), "", at); err != nil {
+		if err := held.EndSend(done, OutcomeSent.String(), "", StepCommand, at); err != nil {
 			t.Fatal(err)
 		}
 		recent = done
@@ -831,7 +832,7 @@ func TestSendEnded(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := held.EndSend(id, outcome.String(), "", now); err != nil {
+		if err := held.EndSend(id, outcome.String(), "", StepCommand, now); err != nil {
 			t.Fatal(err)
 		}
 		if end, err := held.sendEnded(id); err != nil || end == nil || end.Outcome != outcome.String() {
@@ -1130,5 +1131,246 @@ func TestRecordsAreClearedOnlyUnderTheExclusion(t *testing.T) {
 		if _, ok := held.MethodByName(name); !ok {
 			t.Errorf("*HeldWorkspace has no %s", name)
 		}
+	}
+}
+
+// TestMergemainRecordsPersistAcrossCleanupAndClear checks that /mergemain
+// send record pairs and unreadable send start records survive both Start's
+// cleanup after sendKeepAge and ClearRecords, while other commands' records
+// are removed as before. It also checks BeginSend's PR/Head invariants,
+// SendRecord JSON encoding, and the distinction between EndSend(...,
+// StepUnknown, ...) and Release's omitted step member.
+func TestMergemainRecordsPersistAcrossCleanupAndClear(t *testing.T) {
+	head, err := ParseCommitID(strings.Repeat("a", 40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 11, 25, 10, 0, 0, 0, time.UTC)
+	old := now.Add(-sendKeepAge - time.Hour)
+	recent := now.Add(-time.Minute)
+
+	store, home := newStore(t), spaceHome(t)
+	space, held := createdSpace(t, store, home)
+	tree, err := space.Worktree()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// BeginSend enforces PR and Head presence for mergemain and absence for
+	// every other command.
+	for name, rec := range map[string]SendRecord{
+		"mergemain without PR":   {Pane: "w1:p1", Input: InputCommand.String(), Kind: paneinput.CommandMergemain.Name(), Head: head},
+		"mergemain without head": {Pane: "w1:p1", Input: InputCommand.String(), Kind: paneinput.CommandMergemain.Name(), PR: 42},
+		"runplan with PR":        {Pane: "w1:p1", Input: InputCommand.String(), Kind: paneinput.CommandRunplan.Name(), PR: 42},
+		"runplan with head":      {Pane: "w1:p1", Input: InputCommand.String(), Kind: paneinput.CommandRunplan.Name(), Head: head},
+	} {
+		if _, err := held.BeginSend(rec, now); !errors.Is(err, errRecord) {
+			t.Errorf("BeginSend(%s) = %v, want errRecord", name, err)
+		}
+	}
+
+	// CommitID text round-trip rejects invalid commit IDs.
+	var bad CommitID
+	if err := json.Unmarshal([]byte(`"not-a-commit"`), &bad); err == nil {
+		t.Error("CommitID accepted invalid JSON text")
+	}
+
+	// 1. Old finished /mergemain send: must survive both cleanup and ClearRecords.
+	mmID, err := held.BeginSend(SendRecord{
+		Pane: "w1:p1", Input: InputCommand.String(), Command: "/mergemain 42",
+		Agent: claudeCodeLabel, Model: "opus", Kind: paneinput.CommandMergemain.Name(), Arg: "42",
+		PR: 42, Head: head,
+	}, old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := held.EndSend(mmID, OutcomeSent.String(), "", StepCommand, old.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check JSON shape: /mergemain carries pr and head; another command omits both.
+	mmRaw, err := os.ReadFile(filepath.Join(held.dir, sendPrefix+mmID+startSuffix))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mmJSON map[string]any
+	if err := json.Unmarshal(mmRaw, &mmJSON); err != nil {
+		t.Fatal(err)
+	}
+	if mmJSON["pr"] != float64(42) || mmJSON["head"] != head.String() {
+		t.Errorf("mergemain start JSON = %s, want pr=42 and head=%s", mmRaw, head)
+	}
+
+	// 2. Old finished non-/mergemain send: must be removed by cleanup.
+	oldOtherID, err := held.BeginSend(SendRecord{
+		Pane: "w1:p1", Input: InputCommand.String(), Command: "/runplan 0001",
+		Agent: claudeCodeLabel, Model: "opus", Kind: paneinput.CommandRunplan.Name(), Arg: "0001",
+	}, old.Add(2*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := held.EndSend(oldOtherID, OutcomeNotSent.String(), "refused", StepUnknown, old.Add(3*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	otherRaw, err := os.ReadFile(filepath.Join(held.dir, sendPrefix+oldOtherID+startSuffix))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var otherJSON map[string]any
+	if err := json.Unmarshal(otherRaw, &otherJSON); err != nil {
+		t.Fatal(err)
+	}
+	if _, hasPR := otherJSON["pr"]; hasPR {
+		t.Errorf("non-mergemain start JSON has pr: %s", otherRaw)
+	}
+	if _, hasHead := otherJSON["head"]; hasHead {
+		t.Errorf("non-mergemain start JSON has head: %s", otherRaw)
+	}
+	// EndSend with StepUnknown writes an explicit "none" step member.
+	otherEndRaw, err := os.ReadFile(filepath.Join(held.dir, sendPrefix+oldOtherID+endSuffix))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var otherEndJSON map[string]any
+	if err := json.Unmarshal(otherEndRaw, &otherEndJSON); err != nil {
+		t.Fatal(err)
+	}
+	if otherEndJSON["step"] != nameNone {
+		t.Errorf("StepUnknown end JSON = %s, want step=%q", otherEndRaw, nameNone)
+	}
+
+	// 3. Old unreadable start record with its end: must survive both cleanup and ClearRecords.
+	badID := fmt.Sprintf("%020d-0123456789abcdef", old.Add(4*time.Second).UnixNano())
+	if _, err := privatefile.Create(filepath.Join(held.dir, sendPrefix+badID+startSuffix), []byte("{corrupt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := held.EndSend(badID, OutcomeSent.String(), "", StepCommand, old.Add(5*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	// 4. Recent finished non-/mergemain send: survives cleanup, removed by ClearRecords.
+	recentOtherID, err := held.BeginSend(SendRecord{
+		Pane: "w1:p1", Input: InputCommand.String(), Command: "/mkplan 0001",
+		Agent: claudeCodeLabel, Model: "opus", Kind: paneinput.CommandMkplan.Name(), Arg: "0001",
+	}, recent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := held.EndSend(recentOtherID, OutcomeSent.String(), "", StepCommand, recent.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	// 5. Unfinished /mergemain send: settled by Start, released with no step member.
+	openMMID, err := held.BeginSend(SendRecord{
+		Pane: "w1:p1", Input: InputCommand.String(), Command: "/mergemain 43",
+		Agent: claudeCodeLabel, Model: "opus", Kind: paneinput.CommandMergemain.Name(), Arg: "43",
+		PR: 43, Head: head,
+	}, recent.Add(2*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := held.KeepCreated(space, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := held.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run Start (settle + cleanup).
+	res, err := store.Start(context.Background(), herdrWith(t, liveAgent(ownerA())), ownerA(), now)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if res.CleanupError == nil {
+		t.Error("Start.CleanupError = nil, want error for the unreadable start record")
+	}
+	if res.RemovedSends != 2 || res.Stopped != 1 {
+		t.Errorf("Start = %+v, want RemovedSends=2 and Stopped=1", res)
+	}
+
+	records, err := store.Records(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	starts, ends, err := records.sendFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	slices.Sort(starts)
+	wantAfterCleanup := []string{mmID, badID, recentOtherID, openMMID}
+	slices.Sort(wantAfterCleanup)
+	if !slices.Equal(starts, wantAfterCleanup) {
+		t.Errorf("starts after cleanup = %v, want %v", starts, wantAfterCleanup)
+	}
+	if _, ok := ends[oldOtherID]; ok {
+		t.Errorf("old non-mergemain end %s was not removed by cleanup", oldOtherID)
+	}
+	for _, id := range []string{mmID, badID, recentOtherID} {
+		if _, ok := ends[id]; !ok {
+			t.Errorf("end %s missing after cleanup", id)
+		}
+	}
+
+	// Release writes an end record for openMMID WITHOUT a "step" JSON member.
+	held, err = records.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = held.Close() }()
+	released, err := held.Release(now.Add(time.Minute))
+	if err != nil || !released {
+		t.Fatalf("Release = %v, %v; want true, nil", released, err)
+	}
+	relEndRaw, err := os.ReadFile(filepath.Join(held.dir, sendPrefix+openMMID+endSuffix))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var relEndJSON map[string]any
+	if err := json.Unmarshal(relEndRaw, &relEndJSON); err != nil {
+		t.Fatal(err)
+	}
+	if _, hasStep := relEndJSON["step"]; hasStep {
+		t.Errorf("Release end JSON has step member: %s", relEndRaw)
+	}
+	if relEnd, err := held.sendEnded(openMMID); err != nil || relEnd == nil || relEnd.Outcome != outcomeUnknown || relEnd.Step != nil {
+		t.Errorf("sendEnded after Release = %+v, %v; want outcome=%q, Step=nil", relEnd, err, outcomeUnknown)
+	}
+
+	// Add an orphan end record and a detail record, then ClearRecords.
+	orphanID := fmt.Sprintf("%020d-fedcba9876543210", recent.Add(3*time.Second).UnixNano())
+	if err := held.EndSend(orphanID, OutcomeSent.String(), "", StepCommand, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := privatefile.Create(filepath.Join(held.dir, detailName(42, head.String())), []byte("{}")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := held.ClearRecords(); err != nil {
+		t.Fatalf("ClearRecords: %v", err)
+	}
+	starts, ends, err = held.sendFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	slices.Sort(starts)
+	wantAfterClear := []string{mmID, badID, openMMID}
+	slices.Sort(wantAfterClear)
+	if !slices.Equal(starts, wantAfterClear) {
+		t.Errorf("starts after ClearRecords = %v, want %v", starts, wantAfterClear)
+	}
+	if len(ends) != len(wantAfterClear) {
+		t.Errorf("ends after ClearRecords = %v, want only %v", ends, wantAfterClear)
+	}
+	for _, id := range wantAfterClear {
+		if _, ok := ends[id]; !ok {
+			t.Errorf("end %s missing after ClearRecords", id)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(held.dir, createdFile)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("created.json after ClearRecords: %v, want not exist", err)
+	}
+	if _, err := os.Stat(filepath.Join(held.dir, detailName(42, head.String()))); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("detail record after ClearRecords: %v, want not exist", err)
 	}
 }
