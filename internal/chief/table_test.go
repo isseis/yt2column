@@ -113,6 +113,7 @@ func TestTableFixedWords(t *testing.T) {
 		"needs_check": "要確認", "awaiting_creation": "次を提案", "creating": "作業中",
 		"runpr_running": "作業中", "running": "作業中", "merge_confirmation": "マージ確認",
 		"question": "質問で停止", "awaiting_review": "レビュー待ち", "task_done": "タスク完了",
+		"conflict": "コンフリクト", "conflict_unresolved": "解消できず", "resolving": "解消中",
 	}
 	names = namesUpToUnknown(progressName)
 	for i, name := range names {
@@ -169,6 +170,9 @@ func TestTableContent(t *testing.T) {
 	}{
 		{"review with a PR", Row{Position: Position{Progress: ProgressAwaitingReview}, PR: &OpenPR{Number: 9, Title: "feat: x"}}, "feat: x"},
 		{"review without a PR", Row{Position: Position{Progress: ProgressAwaitingReview}}, ""},
+		{"conflict with a PR", Row{Position: Position{Progress: ProgressConflict}, PR: &OpenPR{Number: 9, Title: "feat: x"}}, "feat: x"},
+		{"conflict unresolved with a PR", Row{Position: Position{Progress: ProgressConflictUnresolved}, PR: &OpenPR{Number: 9, Title: "feat: x"}}, "feat: x"},
+		{"resolving", Row{Position: Position{Progress: ProgressResolving}, Running: &RunningShown{Command: runningCommand(t, paneinput.CommandMergemain, "9")}}, "/mergemain 9"},
 		{"sendable proposal with its model", Row{Position: Position{Progress: ProgressAwaitingCreation}, Next: &Next{Command: &paneinput.Command{}, Text: "/runplan 0102", Model: "opus"}}, "/runplan 0102 (opus)"},
 		{"sendable proposal with no model", Row{Position: Position{Progress: ProgressAwaitingCreation}, Next: &Next{Command: &paneinput.Command{}, Text: "/runplan 0102"}}, "/runplan 0102"},
 		{"proposal that cannot be sent", Row{Position: Position{Progress: ProgressAwaitingCreation}, Next: &Next{Text: "/runplan 0102", Model: "opus", Problem: "route unreadable"}}, "route unreadable"},

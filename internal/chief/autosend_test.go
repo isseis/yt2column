@@ -189,7 +189,7 @@ func (mw *mergeWorld) merge(branch, next string) {
 	mw.t.Helper()
 	mw.git(mw.tree, "rev-parse --abbrev-ref HEAD", branch+"\n")
 	if branch != detachedHead {
-		mw.rec.replyIn(mw.tree, "gh pr list --head "+branch+" --state open --json headRefName,number,title,url", []byte("[]"))
+		mw.rec.replyIn(mw.tree, "gh pr list --head "+branch+" --state open --json "+prListFields, []byte("[]"))
 	}
 	mw.rec.replyIn(mw.tree, prStateLine, []byte(prMergedJSON))
 	mw.mu.Lock()
@@ -606,7 +606,7 @@ func TestAutoSendUnobservedMerge(t *testing.T) {
 func TestAutoSendOlderObservation(t *testing.T) {
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
-	mw.rec.failIn(mw.tree, "gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", errors.New("gh failed"))
+	mw.rec.failIn(mw.tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields, errors.New("gh failed"))
 	if out := mw.tick(time.Minute); len(out.AutoSends) != 0 {
 		t.Fatalf("the round of the still open PR considered %+v", out.AutoSends)
 	}
@@ -1455,7 +1455,7 @@ func TestTickRecordsTheRoundBeforeItReads(t *testing.T) {
 	// The second round reads the PR open; while it reads the rest, the PR
 	// merges and the human sends the next command by hand.
 	reads := 0
-	mw.rec.replyFunc("gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", func() reply {
+	mw.rec.replyFunc("gh pr list --head "+taskBranch+" --state open --json "+prListFields, func() reply {
 		reads++
 		if reads > 1 {
 			return reply{out: []byte(openPRJSON)}

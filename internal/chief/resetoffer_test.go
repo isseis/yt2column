@@ -155,7 +155,7 @@ func TestResetItemConditions(t *testing.T) {
 		change func(t *testing.T, mw *mergeWorld)
 	}{
 		{name: "the row needs a check", change: func(_ *testing.T, mw *mergeWorld) {
-			mw.rec.failIn(mw.tree, "gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", errNoReply)
+			mw.rec.failIn(mw.tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields, errNoReply)
 		}},
 		{name: "the workspace is stopped", change: func(t *testing.T, mw *mergeWorld) {
 			held := heldRecords(t, mw.store, mw.tree)
@@ -357,7 +357,7 @@ func TestSendOfferedResetRefusals(t *testing.T) {
 	}{
 		{name: "the pane changed state", change: func(mw *mergeWorld) { mw.byPane["w1:p2"].Seq++ }, reason: NotSentCheckMismatch},
 		{name: "the row needs a check", change: func(mw *mergeWorld) {
-			mw.rec.failIn(mw.tree, "gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", errNoReply)
+			mw.rec.failIn(mw.tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields, errNoReply)
 		}, reason: NotSentCheckMismatch},
 		{name: "the pane is another", change: func(mw *mergeWorld) { mw.renamePane("w1:p3", false) }, reason: NotSentCheckMismatch},
 		{name: "the session changed", claude: true, change: func(mw *mergeWorld) { mw.byPane["w1:p1"].Session = mw.newSession() }, reason: NotSentCheckMismatch},

@@ -230,7 +230,7 @@ func TestRemovalRowFallsBack(t *testing.T) {
 	}{
 		{"HEAD on a branch", func(sw *sendWorld, rs *removalSetup) {
 			sw.git(rs.tree, "rev-parse --abbrev-ref HEAD", "scratch\n")
-			sw.rec.replyIn(rs.tree, "gh pr list --head scratch --state open --json headRefName,number,title,url", []byte("[]"))
+			sw.rec.replyIn(rs.tree, "gh pr list --head scratch --state open --json "+prListFields, []byte("[]"))
 		}, StateProposeNext, RemovalCheckDetached},
 		{"an agent working", func(sw *sendWorld, _ *removalSetup) {
 			p := sw.byPane[removalWS+":p1"]
@@ -688,7 +688,7 @@ func TestRemovalRowSortsLater(t *testing.T) {
 func TestCreatedWorkspaceRows(t *testing.T) {
 	sw, rs := newRemovalWorld(t)
 	sw.git(rs.tree, "rev-parse --abbrev-ref HEAD", taskBranch+"\n")
-	sw.rec.replyIn(rs.tree, "gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", []byte("[]"))
+	sw.rec.replyIn(rs.tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields, []byte("[]"))
 	sw.docs(rs.tree, fakeDocs{Dir: taskDir, Req: reqApproved})
 	rs.issueLines(issueLineOf(taskDir, removalIssue))
 	sw.docs(sw.chiefTree, fakeDocs{Dir: taskDir, Req: reqApproved})

@@ -71,7 +71,7 @@ func mergedOn(t *testing.T, pr int, branch string) []traceEvent {
 // onMain moves the workspace at tree to main, with no open PR on it.
 func (w *world) onMain(tree string) {
 	w.git(tree, "rev-parse --abbrev-ref HEAD", mainBranch+"\n")
-	w.rec.replyIn(tree, "gh pr list --head "+mainBranch+" --state open --json headRefName,number,title,url", []byte("[]"))
+	w.rec.replyIn(tree, "gh pr list --head "+mainBranch+" --state open --json "+prListFields, []byte("[]"))
 }
 
 // TestMainRowFollowsTaskRules checks that a worktree on main whose history

@@ -76,6 +76,14 @@ const (
 	ProgressAwaitingReview
 	// ProgressTaskDone is a completed task.
 	ProgressTaskDone
+	// ProgressConflict is an open PR in a merge conflict that /mergemain
+	// has not been found unable to resolve at its head.
+	ProgressConflict
+	// ProgressConflictUnresolved is an open PR still in a merge conflict
+	// after /mergemain ran at its head.
+	ProgressConflictUnresolved
+	// ProgressResolving is /mergemain running.
+	ProgressResolving
 )
 
 // Position is a task's position: the document and the progress.
@@ -202,8 +210,10 @@ func firstUnmergedPR(plan Plan) int {
 // urgencyOf maps a row to its urgency and turn. Contract: the first matching
 // row of the table in the design (3.2) wins, with a removal row (marked by
 // Row.RemovalRow) after the questions and before the idle rows; it reads
-// only the row's declared values, never Unreadable's text; a state of none
-// of the six matches no row and gets the zero values, which call the human.
+// only the row's declared values, never Unreadable's text; a conflict row
+// is later and the human's in every phase but ConflictSending (the 0115
+// design's 3.2.2); a state of none of the seven matches no row and gets the
+// zero values, which call the human.
 func urgencyOf(r Row) (Urgency, Turn) {
 	switch {
 	case r.Stopped != nil || r.StopUnreadable:
@@ -214,7 +224,11 @@ func urgencyOf(r Row) (Urgency, Turn) {
 		return UrgencyLater, TurnHuman
 	case r.Idle:
 		return UrgencyWait, TurnNone
-	case r.State == StateAwaitingReview || r.State == StateProposeNext || r.State == StateNeedsCheck:
+	case r.State == StateConflict && r.Conflict == ConflictSending:
+		// A resolution send in progress is the AI's turn: it shows only
+		// while the send holds its lock.
+		return UrgencyWait, TurnAI
+	case r.State == StateAwaitingReview || r.State == StateProposeNext || r.State == StateNeedsCheck || r.State == StateConflict:
 		return UrgencyLater, TurnHuman
 	case r.State == StateRunning:
 		return UrgencyWait, TurnAI
@@ -287,6 +301,8 @@ func progressOf(r Row, running *RunningCommand) Progress {
 			return ProgressRunning
 		case running.Kind() == paneinput.CommandRunpr:
 			return ProgressRunprRunning
+		case running.Kind() == paneinput.CommandMergemain:
+			return ProgressResolving
 		case running.Kind() == paneinput.CommandUnknown:
 			return ProgressRunning
 		default:
@@ -299,6 +315,11 @@ func progressOf(r Row, running *RunningCommand) Progress {
 		return ProgressQuestion
 	case StateAwaitingReview:
 		return ProgressAwaitingReview
+	case StateConflict:
+		if r.Conflict == ConflictUnresolved {
+			return ProgressConflictUnresolved
+		}
+		return ProgressConflict
 	case StateTaskDone:
 		return ProgressTaskDone
 	default:

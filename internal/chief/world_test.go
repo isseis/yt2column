@@ -226,7 +226,7 @@ func (w *world) addTree(ws fakeWorkspace) string {
 		if prs == "" {
 			prs = "[]"
 		}
-		w.rec.replyIn(tree, "gh pr list --head "+ws.Branch+" --state open --json headRefName,number,title,url", []byte(prs))
+		w.rec.replyIn(tree, "gh pr list --head "+ws.Branch+" --state open --json "+prListFields, []byte(prs))
 	}
 	if ws.Docs != nil {
 		w.docs(tree, *ws.Docs)

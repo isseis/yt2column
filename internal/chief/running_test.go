@@ -15,7 +15,7 @@ import (
 	"github.com/isseis/yt2column/internal/fixprguard"
 )
 
-// TestNewRunningCommand checks, for each of the five kinds, an argument of
+// TestNewRunningCommand checks, for each of the six kinds, an argument of
 // the accepted form, no argument, and arguments that must be dropped, and
 // that a command the constructor makes shows as the text typed into a pane.
 func TestNewRunningCommand(t *testing.T) {
@@ -31,6 +31,8 @@ func TestNewRunningCommand(t *testing.T) {
 		{"mkplan with a task", paneinput.CommandMkplan, "0093", "/mkplan 0093", false},
 		{"runplan with a task", paneinput.CommandRunplan, "0093", "/runplan 0093", false},
 		{"runpr with a PR", paneinput.CommandRunpr, "926", "/runpr 926", false},
+		{"mergemain with a PR", paneinput.CommandMergemain, "1019", "/mergemain 1019", false},
+		{"a task number given to /mergemain", paneinput.CommandMergemain, "0093", "/mergemain", true},
 		{"no argument", paneinput.CommandRunplan, "", "/runplan", false},
 		{"a second argument", paneinput.CommandMkreq, "890 0093", "/mkreq", true},
 		{"a control character", paneinput.CommandRunplan, "00\x1b93", "/runplan", true},
@@ -94,6 +96,7 @@ func TestRunningCommandTextMatchesThePaneInput(t *testing.T) {
 	mkplan := must(paneinput.NewMkplan(task))
 	runplan := must(paneinput.NewRunplan(task, paneinput.RouteRunplanHigh))
 	runpr := must(paneinput.NewRunpr(pr))
+	mergemain := must(paneinput.NewMergemain(pr))
 	cases := []struct {
 		kind paneinput.CommandKind
 		arg  string
@@ -104,6 +107,7 @@ func TestRunningCommandTextMatchesThePaneInput(t *testing.T) {
 		{paneinput.CommandMkplan, "0093", mkplan},
 		{paneinput.CommandRunplan, "0093", runplan},
 		{paneinput.CommandRunpr, "926", runpr},
+		{paneinput.CommandMergemain, "926", mergemain},
 	}
 	for _, c := range cases {
 		sent, err := c.sent.Text()
@@ -554,6 +558,48 @@ func TestRunningLater(t *testing.T) {
 			}
 			if shown.Command.Text() != "/runplan 0093" || shown.Later != c.later {
 				t.Errorf("running = %q, later %t; want /runplan 0093, later %t", shown.Command.Text(), shown.Later, c.later)
+			}
+		})
+	}
+}
+
+// TestRunningOfPaneLaterInput checks what a Claude Code pane's reading says
+// of the human's input after its last task command, for each way the
+// transcript reads: no file yet is told apart from one that cannot be read,
+// and a session with no task command from one with no input at all.
+func TestRunningOfPaneLaterInput(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(rw *runWorld) Agent
+		want  LaterInput
+	}{
+		{"no transcript yet", func(rw *runWorld) Agent {
+			a := rw.claude("w1:p1")
+			if err := os.Remove(rw.transcript(a)); err != nil {
+				t.Fatal(err)
+			}
+			return a
+		}, LaterInputNoTranscript},
+		{"a line that is not JSON", func(rw *runWorld) Agent {
+			return rw.claude("w1:p1", commandLine("/mergemain 926"), `{"type":`)
+		}, LaterInputUnreadable},
+		{"the task command is the last input", func(rw *runWorld) Agent {
+			return rw.claude("w1:p1", commandLine("/mergemain 926"))
+		}, LaterInputNone},
+		{"free text after the task command", func(rw *runWorld) Agent {
+			return rw.claude("w1:p1", commandLine("/mergemain 926"), typedLine("go on"))
+		}, LaterInputAfter},
+		{"no human input", func(rw *runWorld) Agent { return rw.claude("w1:p1") }, LaterInputNoTaskEmpty},
+		{"free text and no task command", func(rw *runWorld) Agent {
+			return rw.claude("w1:p1", typedLine("go on"))
+		}, LaterInputNoTaskInput},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rw := newRunWorld(t)
+			p := runningOfPane(context.Background(), rw.deps, c.setup(rw), rw.held.lastSentCommand)
+			if p.input != c.want {
+				t.Errorf("input = %d, want %d", p.input, c.want)
 			}
 		})
 	}

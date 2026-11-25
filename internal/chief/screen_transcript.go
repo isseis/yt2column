@@ -296,22 +296,49 @@ func humanInputOf(object strictjson.Object) (in HumanInput, human, ok bool) {
 	return HumanInput{Kind: HumanInputCommand, Name: m[2], Args: m[3]}, true, true
 }
 
+// LaterInput is whether the human typed anything after the last task
+// command of a Claude Code session. The zero value is LaterInputUnreadable.
+type LaterInput int
+
+const (
+	// LaterInputUnreadable is a transcript that cannot be read, or that ends
+	// inside a line.
+	LaterInputUnreadable LaterInput = iota
+	// LaterInputNoTranscript is a session whose transcript file does not
+	// exist yet.
+	LaterInputNoTranscript
+	// LaterInputNone is no human input after the last task command.
+	LaterInputNone
+	// LaterInputAfter is a human input after the last task command.
+	LaterInputAfter
+	// LaterInputNoTaskEmpty is a session with no task command and no human
+	// input at all.
+	LaterInputNoTaskEmpty
+	// LaterInputNoTaskInput is a session with no task command but some human
+	// input.
+	LaterInputNoTaskInput
+)
+
 // readRunningCommand reads the task command the human last typed into a
-// session, for display. Contract: a transcript that does not end at a line's
-// end is RunningUnknownPartialLine, never read without its last line; the
-// human inputs are the ones readLastHumanInput reads, so a transcript it
-// cannot read is RunningUnknownUnreadable; only a command whose name is one
-// of the five task commands' is a running command, and the last such
-// command is the one read; later is true when the human typed anything after
-// it, whose text is never read; a session with no such command is
-// RunningUnknownNotTaskCommand; the argument is kept only when it validates
-// for the kind, and dropped reports one that did not.
-func readRunningCommand(transcript []byte) (cmd RunningCommand, dropped, later bool, why RunningUnknown) {
+// session, for display, and whether the human typed anything after it.
+// Contract: a transcript that does not end at a line's end is
+// RunningUnknownPartialLine and LaterInputUnreadable, never read without its
+// last line; the human inputs are the ones readLastHumanInput reads, in one
+// scan, so a transcript it cannot read is RunningUnknownUnreadable and
+// LaterInputUnreadable; only a command whose name is one of the six task
+// commands' is a running command, and the last such command is the one read;
+// input says whether the human typed anything after it, whose text is never
+// read; a session with no such command is RunningUnknownNotTaskCommand, with
+// input telling a session with no human input at all from one with some;
+// the argument is kept only when it validates for the kind, and dropped
+// reports one that did not.
+func readRunningCommand(transcript []byte) (cmd RunningCommand, dropped bool, input LaterInput, why RunningUnknown) {
 	if len(transcript) > 0 && transcript[len(transcript)-1] != '\n' {
-		return RunningCommand{}, false, false, RunningUnknownPartialLine
+		return RunningCommand{}, false, LaterInputUnreadable, RunningUnknownPartialLine
 	}
-	found := false
+	found, later, seen := false, false, false
 	readable := scanHumanInputs(transcript, func(in HumanInput) {
+		seen = true
 		if c, d, ok := taskCommandOf(in); ok {
 			cmd, dropped, later, found = c, d, false, true
 			return
@@ -320,15 +347,19 @@ func readRunningCommand(transcript []byte) (cmd RunningCommand, dropped, later b
 	})
 	switch {
 	case !readable:
-		return RunningCommand{}, false, false, RunningUnknownUnreadable
+		return RunningCommand{}, false, LaterInputUnreadable, RunningUnknownUnreadable
+	case !found && seen:
+		return RunningCommand{}, false, LaterInputNoTaskInput, RunningUnknownNotTaskCommand
 	case !found:
-		return RunningCommand{}, false, false, RunningUnknownNotTaskCommand
+		return RunningCommand{}, false, LaterInputNoTaskEmpty, RunningUnknownNotTaskCommand
+	case later:
+		return cmd, dropped, LaterInputAfter, RunningUnknownNone
 	}
-	return cmd, dropped, later, RunningUnknownNone
+	return cmd, dropped, LaterInputNone, RunningUnknownNone
 }
 
 // taskCommandOf returns the running command of a human input that is one of
-// the five task commands; ok is false for any other input.
+// the six task commands; ok is false for any other input.
 func taskCommandOf(in HumanInput) (cmd RunningCommand, dropped, ok bool) {
 	if in.Kind != HumanInputCommand {
 		return RunningCommand{}, false, false

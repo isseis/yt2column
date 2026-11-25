@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/fixprguard"
 )
 
-// RunningCommand is a command a running row's agents run: one of the five
+// RunningCommand is a command a running row's agents run: one of the six
 // task commands, with its argument only when the argument is a number of the
 // form chief accepts for the kind. Contract: a value shown is one the
-// constructor made, or one Text and Kind re-validate; a kind outside the five
+// constructor made, or one Text and Kind re-validate; a kind outside the six
 // shows nothing and an argument that does not validate is dropped, so a
 // literal built inside the package with unvalidated members never reaches
 // the output as typed.
@@ -21,7 +22,7 @@ type RunningCommand struct {
 	arg  string
 }
 
-// errRunningCommand reports a kind outside the five task commands.
+// errRunningCommand reports a kind outside the six task commands.
 var errRunningCommand = fmt.Errorf("%w: not a task command kind", paneinput.ErrInvalid)
 
 // newRunningCommand returns the command of kind with arg, the argument as the
@@ -29,7 +30,7 @@ var errRunningCommand = fmt.Errorf("%w: not a task command kind", paneinput.ErrI
 // not of the form the kind accepts (a control character, a text that is not a
 // number, a second argument) is dropped and reported by dropped, so a caller
 // that compares commands can tell a command with no argument from one whose
-// argument could not be shown. A kind outside the five is an error.
+// argument could not be shown. A kind outside the six is an error.
 func newRunningCommand(kind paneinput.CommandKind, arg string) (cmd RunningCommand, dropped bool, err error) {
 	if kind.Name() == "" {
 		return RunningCommand{}, false, fmt.Errorf("%w: kind %d", errRunningCommand, int(kind))
@@ -46,7 +47,7 @@ func newRunningCommand(kind paneinput.CommandKind, arg string) (cmd RunningComma
 
 // validRunningArg returns arg in its canonical form when it is a number of
 // the form the kind accepts: an issue number for /mkreq, a task number for
-// /mkarch, /mkplan, and /runplan, and a PR number for /runpr.
+// /mkarch, /mkplan, and /runplan, and a PR number for /runpr and /mergemain.
 func validRunningArg(kind paneinput.CommandKind, arg string) (string, bool) {
 	switch kind {
 	case paneinput.CommandMkreq:
@@ -55,7 +56,7 @@ func validRunningArg(kind paneinput.CommandKind, arg string) (string, bool) {
 	case paneinput.CommandMkarch, paneinput.CommandMkplan, paneinput.CommandRunplan:
 		id, err := paneinput.ParseTaskID(arg)
 		return id.String(), err == nil
-	case paneinput.CommandRunpr:
+	case paneinput.CommandRunpr, paneinput.CommandMergemain:
 		pr, err := fixprguard.ParsePRNumber(arg)
 		return pr.String(), err == nil
 	default:
@@ -64,7 +65,7 @@ func validRunningArg(kind paneinput.CommandKind, arg string) (string, bool) {
 }
 
 // Kind returns the command's kind, CommandUnknown for a value of a kind
-// outside the five.
+// outside the six.
 func (c RunningCommand) Kind() paneinput.CommandKind {
 	if c.kind.Name() == "" {
 		return paneinput.CommandUnknown
@@ -74,7 +75,7 @@ func (c RunningCommand) Kind() paneinput.CommandKind {
 
 // Text returns the command line, such as "/runplan 0093", or the name alone,
 // such as "/runpr", for a command with no argument or one that does not
-// validate again. It returns "" for a kind outside the five, which shows no
+// validate again. It returns "" for a kind outside the six, which shows no
 // command.
 func (c RunningCommand) Text() string {
 	name := c.kind.Name()
@@ -110,7 +111,7 @@ const (
 	// after its re-reads.
 	RunningUnknownPartialLine
 	// RunningUnknownNotTaskCommand is a session in which the human typed
-	// none of the five task commands.
+	// none of the six task commands.
 	RunningUnknownNotTaskCommand
 	// RunningUnknownNoSentCommand is an OpenCode pane whose last send from
 	// chief is not a command recorded as sent.
@@ -145,7 +146,7 @@ type lastCommand struct {
 // lastSentCommand reads chief's last send to pane for the running command.
 // Contract: the command is read only from the record's declared kind and
 // argument, never from its command text; a send that is not a command (a
-// reset), a record without a kind of the five (one written before the kind
+// reset), a record without a kind of the six (one written before the kind
 // was declared), and a send whose end is missing or not sent is no command;
 // a record that cannot be read is an error.
 func (r WorkspaceRecords) lastSentCommand(pane string) (lastCommand, error) {
@@ -173,11 +174,15 @@ func (r WorkspaceRecords) lastSentCommand(pane string) (lastCommand, error) {
 type paneRunning struct {
 	cmd     RunningCommand
 	dropped bool
-	// later is true when the human typed something after cmd.
-	later bool
+	// input says whether the human typed something after cmd, on a Claude
+	// Code pane; its zero value, LaterInputUnreadable, on any other.
+	input LaterInput
 	why   RunningUnknown
 	sent  lastCommand
 }
+
+// later reports whether the human typed something after the pane's command.
+func (p paneRunning) later() bool { return p.input == LaterInputAfter }
 
 // runningOfPane decides the running command of one working pane, by its
 // agent: a Claude Code pane by its session's last human input, an OpenCode
@@ -210,6 +215,10 @@ func runningOfPane(ctx context.Context, deps Deps, a Agent, sends func(pane stri
 		}
 		data, err := readCompleteTranscript(ctx, deps.Sleep, path, sessionTranscriptLimit)
 		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			// A session /clear has just started has written no file yet:
+			// it shows no command, and says so apart from one unreadable.
+			return paneRunning{why: RunningUnknownUnreadable, input: LaterInputNoTranscript}
 		case errors.Is(err, errOverCap):
 			return paneRunning{why: RunningUnknownOverCap}
 		case errors.Is(err, errPartialLine):
@@ -217,8 +226,8 @@ func runningOfPane(ctx context.Context, deps Deps, a Agent, sends func(pane stri
 		case err != nil:
 			return paneRunning{why: RunningUnknownUnreadable}
 		}
-		cmd, dropped, later, why := readRunningCommand(data)
-		return paneRunning{cmd: cmd, dropped: dropped, later: later, why: why, sent: sent}
+		cmd, dropped, input, why := readRunningCommand(data)
+		return paneRunning{cmd: cmd, dropped: dropped, input: input, why: why, sent: sent}
 	case paneinput.AgentOpenCode:
 		switch {
 		case sentErr != nil:
@@ -270,9 +279,9 @@ func runningOf(ctx context.Context, deps Deps, agents []Agent, sends func(pane s
 	}
 	shown := &RunningShown{Command: first.cmd}
 	for _, p := range panes {
-		shown.Later = shown.Later || p.later
+		shown.Later = shown.Later || p.later()
 	}
-	if len(panes) == 1 && !first.later && first.sent.ok && !first.dropped && !first.sent.dropped && first.sent.cmd == first.cmd {
+	if len(panes) == 1 && !first.later() && first.sent.ok && !first.dropped && !first.sent.dropped && first.sent.cmd == first.cmd {
 		shown.Model = first.sent.model
 	}
 	return shown, RunningUnknownNone

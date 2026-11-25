@@ -119,7 +119,13 @@ func TestParseSkipRecord(t *testing.T) {
 		"/runpr of no PR number": func(m map[string]any) {
 			m["scene"], m["command"], m["argument"], m["route"] = "after_autosend", "runpr", "0x1", "runpr"
 		},
-		"/runpr after /runpr":                func(m map[string]any) { m["command"], m["argument"], m["route"] = "runpr", "42", "runpr" },
+		"/runpr after /runpr": func(m map[string]any) { m["command"], m["argument"], m["route"] = "runpr", "42", "runpr" },
+		// /mergemain creates no PR, so no reset is skipped after it, in
+		// either scene.
+		"/mergemain after /runpr": func(m map[string]any) { m["command"], m["argument"], m["route"] = "mergemain", "42", "mergemain" },
+		"/mergemain after an automatic send": func(m map[string]any) {
+			m["scene"], m["command"], m["argument"], m["route"] = "after_autosend", "mergemain", "42", "mergemain"
+		},
 		"/mkarch after an automatic send":    set("scene", "after_autosend"),
 		"a Claude Code pane without session": set("session", ""),
 		"an OpenCode pane with a session": func(m map[string]any) {

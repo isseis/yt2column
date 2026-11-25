@@ -77,6 +77,7 @@ func TestRoutingRowsMapToTheirKeys(t *testing.T) {
 		paneinput.RouteRunplanLow:            "runplan-low",
 		paneinput.RouteRunplanTakeover:       "runplan-takeover",
 		paneinput.RouteRunpr:                 "runpr",
+		paneinput.RouteMergemain:             "mergemain",
 	}
 	doc := "### Command routing\n\n| Row | Command | Agent | Model |\n|---|---|---|---|\n"
 	for _, name := range rows {

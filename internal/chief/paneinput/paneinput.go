@@ -104,10 +104,13 @@ const (
 	CommandRunplan
 	// CommandRunpr is /runpr <PR>.
 	CommandRunpr
+	// CommandMergemain is /mergemain <PR>.
+	CommandMergemain
 )
 
 // Name returns the command's name without its slash ("mkreq", "mkarch",
-// "mkplan", "runplan", "runpr"), or "" for a kind outside the five.
+// "mkplan", "runplan", "runpr", "mergemain"), or "" for a kind outside the
+// six.
 func (k CommandKind) Name() string {
 	switch k {
 	case CommandMkreq:
@@ -120,16 +123,18 @@ func (k CommandKind) Name() string {
 		return "runplan"
 	case CommandRunpr:
 		return "runpr"
+	case CommandMergemain:
+		return "mergemain"
 	default:
 		return ""
 	}
 }
 
-// commandKinds are the five task command kinds, the only ones with a name.
-var commandKinds = []CommandKind{CommandMkreq, CommandMkarch, CommandMkplan, CommandRunplan, CommandRunpr}
+// commandKinds are the six task command kinds, the only ones with a name.
+var commandKinds = []CommandKind{CommandMkreq, CommandMkarch, CommandMkplan, CommandRunplan, CommandRunpr, CommandMergemain}
 
 // ParseCommandKind returns the kind whose Name is name. Contract: only the
-// five names Name returns are accepted, compared whole; any other text, ""
+// six names Name returns are accepted, compared whole; any other text, ""
 // included, is ErrInvalid, never a guessed kind.
 func ParseCommandKind(name string) (CommandKind, error) {
 	for _, k := range commandKinds {
@@ -161,6 +166,8 @@ const (
 	RouteRunplanTakeover
 	// RouteRunpr is /runpr.
 	RouteRunpr
+	// RouteMergemain is /mergemain.
+	RouteMergemain
 )
 
 // RouteKeys lists every route key with a row, in the order of the routing
@@ -173,6 +180,7 @@ func RouteKeys() []RouteKey {
 		RouteRunplanLow,
 		RouteRunplanTakeover,
 		RouteRunpr,
+		RouteMergemain,
 	}
 }
 
@@ -364,6 +372,14 @@ func NewRunpr(pr fixprguard.PRNumber) (Command, error) {
 	return Command{kind: CommandRunpr, pr: pr, route: RouteRunpr}, nil
 }
 
+// NewMergemain returns /mergemain <pr>.
+func NewMergemain(pr fixprguard.PRNumber) (Command, error) {
+	if pr == (fixprguard.PRNumber{}) {
+		return Command{}, fmt.Errorf("%w: /mergemain without a PR number", ErrInvalid)
+	}
+	return Command{kind: CommandMergemain, pr: pr, route: RouteMergemain}, nil
+}
+
 func newTaskCommand(kind CommandKind, task TaskID, route RouteKey) (Command, error) {
 	if task.IsZero() {
 		return Command{}, fmt.Errorf("%w: command %d without a task", ErrInvalid, int(kind))
@@ -396,6 +412,11 @@ func (c Command) Text() (string, error) {
 			break
 		}
 		return "/runpr " + c.pr.String(), nil
+	case CommandMergemain:
+		if c.pr == (fixprguard.PRNumber{}) {
+			break
+		}
+		return "/mergemain " + c.pr.String(), nil
 	}
 	return "", fmt.Errorf("%w: command %d", ErrInvalid, int(c.kind))
 }
@@ -413,7 +434,7 @@ func (c Command) Parts() (CommandKind, string, error) {
 		return c.kind, c.issue.String(), nil
 	case CommandMkarch, CommandMkplan, CommandRunplan:
 		return c.kind, c.task.String(), nil
-	case CommandRunpr:
+	case CommandRunpr, CommandMergemain:
 		return c.kind, c.pr.String(), nil
 	default:
 		return CommandUnknown, "", fmt.Errorf("%w: command %d", ErrInvalid, int(c.kind))

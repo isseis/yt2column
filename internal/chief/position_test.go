@@ -73,6 +73,8 @@ func TestUrgencyTable(t *testing.T) {
 		{StateRunning, true}:         waitNone,
 		{StateTaskDone, false}:       waitNone,
 		{StateTaskDone, true}:        waitNone,
+		{StateConflict, false}:       later,
+		{StateConflict, true}:        waitNone,
 		{WorkspaceState(99), false}:  now,
 		{WorkspaceState(99), true}:   waitNone,
 	}
@@ -99,6 +101,24 @@ func TestUrgencyTable(t *testing.T) {
 					t.Errorf("urgencyOf = %d/%d, want %d/%d", urgency, turn, expected.urgency, expected.turn)
 				}
 			})
+		}
+	}
+}
+
+// TestConflictUrgency gives urgencyOf a conflict row of every phase, and
+// one of a phase outside the range: only a send in progress waits on the AI,
+// and every other phase is later and the human's; a stop comes first.
+func TestConflictUrgency(t *testing.T) {
+	for p := ConflictRecordsUnreadable; p <= ConflictUnresolved+1; p++ {
+		wantUrgency, wantTurn := UrgencyLater, TurnHuman
+		if p == ConflictSending {
+			wantUrgency, wantTurn = UrgencyWait, TurnAI
+		}
+		if u, turn := urgencyOf(Row{State: StateConflict, Conflict: p}); u != wantUrgency || turn != wantTurn {
+			t.Errorf("phase %d: urgencyOf = %d/%d, want %d/%d", p, u, turn, wantUrgency, wantTurn)
+		}
+		if u, turn := urgencyOf(Row{State: StateConflict, Conflict: p, Stopped: &StopRecord{}}); u != UrgencyNow || turn != TurnHuman {
+			t.Errorf("phase %d, stopped: urgencyOf = %d/%d, want now", p, u, turn)
 		}
 	}
 }
@@ -278,8 +298,36 @@ func TestClassifyKeepsPositionFacts(t *testing.T) {
 	}
 }
 
+// TestClassifyConflict classifies a workspace whose open PR has each
+// mergeable value: only CONFLICTING makes a conflict row, and a row with
+// anything unread, a question, or a working agent keeps its state as before.
+func TestClassifyConflict(t *testing.T) {
+	prompt := func(status AgentStatus) []agentFacts {
+		return []agentFacts{{Agent: Agent{Kind: paneinput.AgentClaudeCode, Status: status}, ScreenRead: true, Screen: Screen{Kind: ScreenPrompt}}}
+	}
+	question := []agentFacts{{Agent: Agent{Kind: paneinput.AgentClaudeCode, Status: AgentBlocked}, ScreenRead: true, Screen: Screen{Kind: ScreenQuestion, Question: &Question{Text: "Q?", Options: []Option{{}}}}}}
+	pr := func(m Mergeable) *OpenPR { return &OpenPR{Number: 7, Mergeable: m} }
+	cases := []struct {
+		name  string
+		facts workspaceFacts
+		want  WorkspaceState
+	}{
+		{"conflicting", workspaceFacts{Head: headBranch, Branch: "b", Agents: prompt(AgentIdle), PR: pr(MergeableConflicting)}, StateConflict},
+		{"mergeable", workspaceFacts{Head: headBranch, Branch: "b", Agents: prompt(AgentIdle), PR: pr(MergeableNoConflict)}, StateAwaitingReview},
+		{"not computed", workspaceFacts{Head: headBranch, Branch: "b", Agents: prompt(AgentIdle), PR: pr(MergeableUnknown)}, StateAwaitingReview},
+		{"conflicting with a working agent", workspaceFacts{Head: headBranch, Branch: "b", Agents: prompt(AgentWorking), PR: pr(MergeableConflicting)}, StateRunning},
+		{"conflicting with a question", workspaceFacts{Head: headBranch, Branch: "b", Agents: question, PR: pr(MergeableConflicting)}, StateQuestion},
+		{"conflicting with something unread", workspaceFacts{Head: headBranch, Branch: "b", Agents: prompt(AgentIdle), PR: pr(MergeableConflicting), Unreadable: []string{"x"}}, StateNeedsCheck},
+	}
+	for _, c := range cases {
+		if got := classify(c.facts); got.State != c.want || got.Conflict != ConflictRecordsUnreadable {
+			t.Errorf("%s: state = %v, conflict %d; want %v and the zero phase", c.name, got.State, got.Conflict, c.want)
+		}
+	}
+}
+
 // TestProgress checks each row of the progress table, a "question" row that
-// holds no question, and a running command of a kind outside the five.
+// holds no question, and a running command of a kind outside the six.
 func TestProgress(t *testing.T) {
 	merge := QuestionItem{Question: Question{Merge: true}}
 	plain := QuestionItem{Question: Question{}}
@@ -295,8 +343,13 @@ func TestProgress(t *testing.T) {
 		{"running /mkplan", Row{State: StateRunning}, mustRunning(t, paneinput.CommandMkplan, "0001"), ProgressCreating},
 		{"running /runplan", Row{State: StateRunning}, mustRunning(t, paneinput.CommandRunplan, "0001"), ProgressCreating},
 		{"running /runpr", Row{State: StateRunning}, mustRunning(t, paneinput.CommandRunpr, "12"), ProgressRunprRunning},
+		{"running /mergemain", Row{State: StateRunning}, mustRunning(t, paneinput.CommandMergemain, "12"), ProgressResolving},
+		{"a conflict with no send", Row{State: StateConflict, Conflict: ConflictUnsent}, nil, ProgressConflict},
+		{"a conflict whose records cannot be read", Row{State: StateConflict}, nil, ProgressConflict},
+		{"a conflict whose send is in progress", Row{State: StateConflict, Conflict: ConflictSending}, nil, ProgressConflict},
+		{"a conflict /mergemain could not resolve", Row{State: StateConflict, Conflict: ConflictUnresolved}, nil, ProgressConflictUnresolved},
 		{"running with no command decided", Row{State: StateRunning}, nil, ProgressRunning},
-		{"running a command of a kind outside the five", Row{State: StateRunning}, &RunningCommand{}, ProgressRunning},
+		{"running a command of a kind outside the six", Row{State: StateRunning}, &RunningCommand{}, ProgressRunning},
 		{"only the merge question", Row{State: StateQuestion, Questions: []QuestionItem{merge}}, nil, ProgressMergeConfirmation},
 		{"two merge questions", Row{State: StateQuestion, Questions: []QuestionItem{merge, merge}}, nil, ProgressMergeConfirmation},
 		{"the merge question and another", Row{State: StateQuestion, Questions: []QuestionItem{merge, plain}}, nil, ProgressQuestion},
@@ -305,7 +358,7 @@ func TestProgress(t *testing.T) {
 		{"awaiting review", Row{State: StateAwaitingReview}, nil, ProgressAwaitingReview},
 		{"task done", Row{State: StateTaskDone}, nil, ProgressTaskDone},
 		{"needs check", Row{State: StateNeedsCheck}, nil, ProgressNeedsCheck},
-		{"a state outside the six", Row{State: WorkspaceState(99)}, nil, ProgressNeedsCheck},
+		{"a state outside the seven", Row{State: WorkspaceState(99)}, nil, ProgressNeedsCheck},
 		{"merge questions on a row that needs a check", Row{State: StateNeedsCheck, Questions: []QuestionItem{merge}}, nil, ProgressNeedsCheck},
 	}
 	for _, c := range cases {

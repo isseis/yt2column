@@ -13,23 +13,115 @@ import (
 	"testing"
 )
 
+// TestParsePRList reads a PR list whose elements carry every member chief
+// asks for, and rejects the whole list for an element of any other shape:
+// the four members that decide a merge conflict are untrusted values taken
+// only in their exact forms, so one element read in part never makes a row.
 func TestParsePRList(t *testing.T) {
-	prs, err := parsePRList(readTestdata(t, "gh/pr-list-open-867.json"), "owner/0087-openai-combination-eval-05")
-	if err != nil || len(prs) != 1 || prs[0].Number != 867 || prs[0].URL != "https://github.com/owner/yt2column/pull/867" {
+	const head = "0123456789abcdef0123456789abcdef01234567"
+	element := func(members string) string {
+		return `{"headRefName":"b","number":1,"title":"t","url":"u",` + members + `}`
+	}
+	// members are the four conflict members in a valid form, in order.
+	members := [][2]string{{"mergeable", `"CONFLICTING"`}, {"headRefOid", `"` + head + `"`}, {"baseRefName", `"main"`}, {"isCrossRepository", "false"}}
+	// without joins the members, leaving out the one named skip.
+	without := func(skip string) string {
+		var parts []string
+		for _, m := range members {
+			if m[0] != skip {
+				parts = append(parts, `"`+m[0]+`":`+m[1])
+			}
+		}
+		return strings.Join(parts, ",")
+	}
+	valid := without("")
+	prs, err := parsePRList([]byte("["+element(valid)+"]"), "b")
+	if err != nil || len(prs) != 1 {
 		t.Fatalf("parsePRList = %+v, %v", prs, err)
+	}
+	if got := prs[0]; got.Number != 1 || got.Mergeable != MergeableConflicting || got.Head.String() != head || !got.BaseIsMain || got.CrossRepository {
+		t.Errorf("parsePRList = %+v", got)
+	}
+	accepted := []struct {
+		name      string
+		members   string
+		mergeable Mergeable
+		baseMain  bool
+		cross     bool
+	}{
+		{"mergeable", strings.Replace(valid, "CONFLICTING", "MERGEABLE", 1), MergeableNoConflict, true, false},
+		{"not computed", strings.Replace(valid, "CONFLICTING", "UNKNOWN", 1), MergeableUnknown, true, false},
+		{"another base", strings.Replace(valid, `"main"`, `"release"`, 1), MergeableConflicting, false, false},
+		// A base is any non-empty string; only main, compared as bytes, is
+		// main.
+		{"a base with a space around main", strings.Replace(valid, `"main"`, `" main"`, 1), MergeableConflicting, false, false},
+		{"another repository", strings.Replace(valid, "false", "true", 1), MergeableConflicting, true, true},
+	}
+	for _, c := range accepted {
+		prs, err := parsePRList([]byte("["+element(c.members)+"]"), "b")
+		if err != nil || len(prs) != 1 {
+			t.Errorf("%s: parsePRList = %+v, %v", c.name, prs, err)
+			continue
+		}
+		if got := prs[0]; got.Mergeable != c.mergeable || got.BaseIsMain != c.baseMain || got.CrossRepository != c.cross || got.Head.String() != head {
+			t.Errorf("%s: parsePRList = %+v", c.name, got)
+		}
 	}
 	if prs, err := parsePRList(readTestdata(t, "gh/pr-list-none.json"), "any"); err != nil || len(prs) != 0 {
 		t.Errorf("an empty list = %+v, %v", prs, err)
 	}
 	rejected := map[string]string{
-		"another branch":   `[{"headRefName":"other","number":1,"title":"t","url":"u"}]`,
-		"zero number":      `[{"headRefName":"b","number":0,"title":"t","url":"u"}]`,
-		"missing url":      `[{"headRefName":"b","number":1,"title":"t"}]`,
+		"another branch":   `[{"headRefName":"other","number":1,"title":"t","url":"u",` + valid + `}]`,
+		"zero number":      `[{"headRefName":"b","number":0,"title":"t","url":"u",` + valid + `}]`,
+		"missing url":      `[{"headRefName":"b","number":1,"title":"t",` + valid + `}]`,
 		"object not array": `{"headRefName":"b"}`,
+		// The list of the members chief asked for before, as gh gave it.
+		"a list without the conflict members": string(readTestdata(t, "gh/pr-list-open-867.json")),
 	}
+	for _, m := range members {
+		rejected["no "+m[0]] = "[" + element(without(m[0])) + "]"
+		rejected["a null "+m[0]] = "[" + element(without(m[0])+`,"`+m[0]+`":null`) + "]"
+		rejected["a repeated "+m[0]] = "[" + element(valid+`,"`+m[0]+`":`+m[1]) + "]"
+	}
+	for name, members := range map[string]string{
+		"a mergeable of another case":    strings.Replace(valid, "CONFLICTING", "Conflicting", 1),
+		"a mergeable with a space":       strings.Replace(valid, `"CONFLICTING"`, `"CONFLICTING "`, 1),
+		"a mergeable of another value":   strings.Replace(valid, "CONFLICTING", "DIRTY", 1),
+		"a mergeable that is a boolean":  strings.Replace(valid, `"CONFLICTING"`, "true", 1),
+		"an empty mergeable":             strings.Replace(valid, `"CONFLICTING"`, `""`, 1),
+		"a head of 39 digits":            strings.Replace(valid, head, head[1:], 1),
+		"a head of 41 digits":            strings.Replace(valid, head, head+"0", 1),
+		"a head with an uppercase digit": strings.Replace(valid, head, "A"+head[1:], 1),
+		"a head with a space":            strings.Replace(valid, head, " "+head[1:], 1),
+		"a head that is a number":        strings.Replace(valid, `"`+head+`"`, "1", 1),
+		"an empty base":                  strings.Replace(valid, `"main"`, `""`, 1),
+		"a base that is a number":        strings.Replace(valid, `"main"`, "1", 1),
+		"a cross-repository string":      strings.Replace(valid, "false", `"false"`, 1),
+		"a cross-repository number":      strings.Replace(valid, "false", "0", 1),
+	} {
+		rejected[name] = "[" + element(members) + "]"
+	}
+	// One element of another shape rejects the whole list, the valid
+	// element before it included.
+	rejected["a valid element and a rejected one"] = "[" + element(valid) + "," + element(strings.Replace(valid, "CONFLICTING", "conflicting", 1)) + "]"
 	for name, doc := range rejected {
-		if _, err := parsePRList([]byte(doc), "b"); !errors.Is(err, errPRList) {
-			t.Errorf("%s: error = %v, want errPRList", name, err)
+		if prs, err := parsePRList([]byte(doc), "b"); !errors.Is(err, errPRList) || prs != nil {
+			t.Errorf("%s: parsePRList = %+v, %v; want errPRList", name, prs, err)
+		}
+	}
+}
+
+// TestParseCommitID accepts only a full commit ID and gives the zero value
+// for anything else.
+func TestParseCommitID(t *testing.T) {
+	const id = "0123456789abcdef0123456789abcdef01234567"
+	got, err := ParseCommitID(id)
+	if err != nil || got.String() != id || got.IsZero() {
+		t.Fatalf("ParseCommitID(%q) = %q, %v", id, got, err)
+	}
+	for _, s := range []string{"", id[1:], id + "0", strings.ToUpper(id), id + "\n", "HEAD"} {
+		if got, err := ParseCommitID(s); !errors.Is(err, errCommitID) || !got.IsZero() {
+			t.Errorf("ParseCommitID(%q) = %q, %v; want errCommitID and the zero value", s, got, err)
 		}
 	}
 }

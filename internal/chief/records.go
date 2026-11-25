@@ -687,10 +687,10 @@ type SendRecord struct {
 	Prompts []string  `json:"prompts"`
 	Started time.Time `json:"started"`
 	// Kind is the paneinput.CommandKind name of the command a command send
-	// typed ("mkreq", "mkarch", "mkplan", "runplan", "runpr"), and Arg its
-	// argument as typed. Only a command send writes them; they are "" on a
-	// reset, a relay, and a record written before they existed. The running
-	// command is read from them, never from Command's text.
+	// typed ("mkreq", "mkarch", "mkplan", "runplan", "runpr", "mergemain"),
+	// and Arg its argument as typed. Only a command send writes them; they
+	// are "" on a reset, a relay, and a record written before they existed.
+	// The running command is read from them, never from Command's text.
 	Kind string `json:"kind"`
 	Arg  string `json:"arg"`
 }

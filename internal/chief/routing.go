@@ -31,6 +31,7 @@ var routingRows = map[string]paneinput.RouteKey{
 	"runplan-low":                  paneinput.RouteRunplanLow,
 	"runplan-takeover":             paneinput.RouteRunplanTakeover,
 	"runpr":                        paneinput.RouteRunpr,
+	"mergemain":                    paneinput.RouteMergemain,
 }
 
 // Routing is the parsed routing table: one route for each route key.

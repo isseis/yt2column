@@ -755,32 +755,35 @@ func TestReadLastHumanInputOfRunningSessions(t *testing.T) {
 	}
 }
 
-// TestReadRunningCommand reads the running command of every transcript
-// sample and of transcripts built from the sampled line forms: the last
-// human input that is one of the five task commands is the command, with its
-// argument kept only when it validates, and later says the human typed
-// something after it; a transcript that ends inside a line is never read
-// without that line, and one readLastHumanInput cannot read decides nothing.
+// TestReadRunningCommand reads every transcript sample and edited sessions:
+// the last human input that is one of the six task commands is the command,
+// with its argument kept only when it validates, and the later input says
+// whether the human typed something after it, or, in a session with no task
+// command, whether the human typed anything at all; a transcript that ends
+// inside a line is never read without that line, and one readLastHumanInput
+// cannot read decides nothing.
 func TestReadRunningCommand(t *testing.T) {
 	type result struct {
 		text    string
 		dropped bool
-		later   bool
+		input   LaterInput
 		why     RunningUnknown
 	}
-	notTask := result{why: RunningUnknownNotTaskCommand}
+	noTaskEmpty := result{input: LaterInputNoTaskEmpty, why: RunningUnknownNotTaskCommand}
+	noTaskInput := result{input: LaterInputNoTaskInput, why: RunningUnknownNotTaskCommand}
+	unreadable := result{input: LaterInputUnreadable, why: RunningUnknownUnreadable}
 	samples := map[string]result{
-		"claude-auto-continuation.jsonl":    notTask,
-		"claude-clear-model.jsonl":          notTask,
-		"claude-command-report.jsonl":       {text: "/mkplan 0095", later: true},
-		"claude-compact.jsonl":              notTask,
-		"claude-human-input.jsonl":          {text: "/runplan 0088", later: true},
-		"claude-queued-input.jsonl":         notTask,
-		"claude-recap-notification.jsonl":   notTask,
-		"claude-running-after-answer.jsonl": {text: "/runplan 0093"},
-		"claude-running-command.jsonl":      {text: "/runplan 0060"},
-		"claude-runpr-report.jsonl":         {text: "/runpr 940"},
-		"claude-synthetic.jsonl":            notTask,
+		"claude-auto-continuation.jsonl":    noTaskEmpty,
+		"claude-clear-model.jsonl":          noTaskEmpty,
+		"claude-command-report.jsonl":       {text: "/mkplan 0095", input: LaterInputAfter},
+		"claude-compact.jsonl":              noTaskEmpty,
+		"claude-human-input.jsonl":          {text: "/runplan 0088", input: LaterInputAfter},
+		"claude-queued-input.jsonl":         noTaskInput,
+		"claude-recap-notification.jsonl":   noTaskEmpty,
+		"claude-running-after-answer.jsonl": {text: "/runplan 0093", input: LaterInputNone},
+		"claude-running-command.jsonl":      {text: "/runplan 0060", input: LaterInputNone},
+		"claude-runpr-report.jsonl":         {text: "/runpr 940", input: LaterInputNone},
+		"claude-synthetic.jsonl":            noTaskInput,
 	}
 	files, err := filepath.Glob(filepath.Join("testdata", "transcript", "*.jsonl"))
 	if err != nil || len(files) != len(samples) {
@@ -792,44 +795,50 @@ func TestReadRunningCommand(t *testing.T) {
 			t.Errorf("%s: no expected result", f)
 			continue
 		}
-		cmd, dropped, later, why := readRunningCommand(readTestdata(t, "transcript/"+filepath.Base(f)))
-		if got := (result{cmd.Text(), dropped, later, why}); got != want {
+		cmd, dropped, input, why := readRunningCommand(readTestdata(t, "transcript/"+filepath.Base(f)))
+		if got := (result{cmd.Text(), dropped, input, why}); got != want {
 			t.Errorf("%s: readRunningCommand = %+v, want %+v", filepath.Base(f), got, want)
 		}
 	}
 	head := modeLine("00000000-0000-4000-8000-000000000001")
 	lines := func(ls ...string) string { return strings.Join(append([]string{head}, ls...), "\n") + "\n" }
 	running := string(readTestdata(t, "transcript/claude-running-command.jsonl"))
+	none := func(text string) result { return result{text: text, input: LaterInputNone} }
+	after := func(text string) result { return result{text: text, input: LaterInputAfter} }
 	cases := []struct {
 		name string
 		text string
 		want result
 	}{
-		{"/mkreq", lines(commandLine("/mkreq 890")), result{text: "/mkreq 890"}},
-		{"/mkarch", lines(commandLine("/mkarch 0093")), result{text: "/mkarch 0093"}},
-		{"/mkplan", lines(commandLine("/mkplan 0093")), result{text: "/mkplan 0093"}},
-		{"/runplan", lines(commandLine("/runplan 0093")), result{text: "/runplan 0093"}},
-		{"/runpr", lines(commandLine("/runpr 926")), result{text: "/runpr 926"}},
-		{"a command of another name", lines(commandLine("/fixpr 926")), notTask},
-		{"a command named after a routing row", lines(commandLine("/runplan-takeover 0093")), notTask},
-		{"free text after a command", lines(commandLine("/runplan 0093"), typedLine("/runpr 926")), result{text: "/runplan 0093", later: true}},
-		{"another command after a command", lines(commandLine("/runplan 0093"), commandLine("/fixpr 926")), result{text: "/runplan 0093", later: true}},
-		{"a command after an earlier command and free text", lines(commandLine("/mkplan 0093"), typedLine("hello"), commandLine("/runplan 0093")), result{text: "/runplan 0093"}},
-		{"free text only", lines(typedLine("/runpr 926")), notTask},
-		{"no human input", lines(), notTask},
-		{"an empty transcript", "", notTask},
-		{"a line that is not JSON", lines(commandLine("/runplan 0093"), `{"type":`), result{why: RunningUnknownUnreadable}},
-		{"a command whose last line is still being written", strings.TrimSuffix(running, "\n"), result{why: RunningUnknownPartialLine}},
-		{"a second argument", lines(commandLine("/runplan 0093 0094")), result{text: "/runplan", dropped: true}},
-		{"a second argument with free text after it", lines(commandLine("/runplan 0093 0094"), typedLine("go on")), result{text: "/runplan", dropped: true, later: true}},
-		{"an empty argument element", lines(commandLine("/runpr")), result{text: "/runpr"}},
+		{"/mkreq", lines(commandLine("/mkreq 890")), none("/mkreq 890")},
+		{"/mkarch", lines(commandLine("/mkarch 0093")), none("/mkarch 0093")},
+		{"/mkplan", lines(commandLine("/mkplan 0093")), none("/mkplan 0093")},
+		{"/runplan", lines(commandLine("/runplan 0093")), none("/runplan 0093")},
+		{"/runpr", lines(commandLine("/runpr 926")), none("/runpr 926")},
+		{"/mergemain", lines(commandLine("/mergemain 926")), none("/mergemain 926")},
+		{"free text after /mergemain", lines(commandLine("/mergemain 926"), typedLine("why?")), after("/mergemain 926")},
+		{"/mergemain after another task command", lines(commandLine("/runpr 926"), commandLine("/mergemain 926")), none("/mergemain 926")},
+		{"a command of another name", lines(commandLine("/fixpr 926")), noTaskInput},
+		{"a command named after a routing row", lines(commandLine("/runplan-takeover 0093")), noTaskInput},
+		{"free text after a command", lines(commandLine("/runplan 0093"), typedLine("/runpr 926")), after("/runplan 0093")},
+		{"another command after a command", lines(commandLine("/runplan 0093"), commandLine("/fixpr 926")), after("/runplan 0093")},
+		{"a command after an earlier command and free text", lines(commandLine("/mkplan 0093"), typedLine("hello"), commandLine("/runplan 0093")), none("/runplan 0093")},
+		{"free text only", lines(typedLine("/runpr 926")), noTaskInput},
+		{"no human input", lines(), noTaskEmpty},
+		{"an empty transcript", "", noTaskEmpty},
+		{"a line that is not JSON", lines(commandLine("/runplan 0093"), `{"type":`), unreadable},
+		{"a command whose last line is still being written", strings.TrimSuffix(running, "\n"), result{input: LaterInputUnreadable, why: RunningUnknownPartialLine}},
+		{"a second argument", lines(commandLine("/runplan 0093 0094")), result{text: "/runplan", dropped: true, input: LaterInputNone}},
+		{"a second argument with free text after it", lines(commandLine("/runplan 0093 0094"), typedLine("go on")), result{text: "/runplan", dropped: true, input: LaterInputAfter}},
+		{"a /mergemain argument that is not a PR number", lines(commandLine("/mergemain main")), result{text: "/mergemain", dropped: true, input: LaterInputNone}},
+		{"an empty argument element", lines(commandLine("/runpr")), none("/runpr")},
 		// Claude Code writes a command typed without an argument with no
 		// argument element, which is read as other input: a known limit.
-		{"a command typed without an argument", lines(strings.Replace(commandLine("/runpr"), `\n<command-args></command-args>`, "", 1)), notTask},
+		{"a command typed without an argument", lines(strings.Replace(commandLine("/runpr"), `\n<command-args></command-args>`, "", 1)), noTaskInput},
 	}
 	for _, c := range cases {
-		cmd, dropped, later, why := readRunningCommand([]byte(c.text))
-		if got := (result{cmd.Text(), dropped, later, why}); got != c.want {
+		cmd, dropped, input, why := readRunningCommand([]byte(c.text))
+		if got := (result{cmd.Text(), dropped, input, why}); got != c.want {
 			t.Errorf("%s: readRunningCommand = %+v, want %+v", c.name, got, c.want)
 		}
 	}
