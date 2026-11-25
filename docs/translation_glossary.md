@@ -206,6 +206,6 @@
 | ワークスペース | workspace | Claude Console で API キーと利用の上限をまとめる単位（`INSTALL.md`） |
 | 費用の目安 | estimated cost per article | 記事 1 本あたりの費用の目安（`INSTALL.md` の見出し）。実際の請求額とは別 |
 | 拡張のフォルダ | extension folder | 配布された zip の中身を `manifest.json` が直下に来るように置く、この拡張のためだけのフォルダ（`INSTALL.md`） |
-| インストールと使い方 | Installation and usage | `README.md` の節の見出しと `INSTALL.md` のタイトル |
+| インストールと使い方 | Installing and using | `README.md` の節の見出しと `INSTALL.md` のタイトル |
 | プライバシー | Privacy | `README.md` の節の見出し |
-| 開発者向けの文書 | Developer documentation | `README.md` の節の見出し |
+| 開発者向けの文書 | Developer documents | `README.md` の節の見出し |
