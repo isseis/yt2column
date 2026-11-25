@@ -63,9 +63,9 @@
 
 **変更するファイル:** `extension/static/_locales/ja/messages.json`、`extension/static/_locales/en/messages.json`、`extension/static/popup.html`、`extension/static/options.html`、`extension/static/viewer.html`
 
-- [ ] `extension/static/_locales/ja/messages.json` の `extName`・`extNameDev`・`extDescription` を設計書 3.1 節の表の確定値へ更新する
-- [ ] `extension/static/_locales/en/messages.json` の `extName`・`extNameDev`・`extDescription` を設計書 3.1 節の表の確定値へ更新する
-- [ ] `extension/static/popup.html`・`options.html`・`viewer.html` の `<title>yt2column</title>` を `<title>YomuDoga</title>` へ変更する（`extension/static/manifest.json` は変更しない）
+- [x] `extension/static/_locales/ja/messages.json` の `extName`・`extNameDev`・`extDescription` を設計書 3.1 節の表の確定値へ更新する
+- [x] `extension/static/_locales/en/messages.json` の `extName`・`extNameDev`・`extDescription` を設計書 3.1 節の表の確定値へ更新する
+- [x] `extension/static/popup.html`・`options.html`・`viewer.html` の `<title>yt2column</title>` を `<title>YomuDoga</title>` へ変更する（`extension/static/manifest.json` は変更しない）
 
 **完了基準:** 全 5 ファイルが設計書 3.1 節・3.2 節の確定値と一致し、`manifest.json` に差分がないこと。
 
@@ -73,8 +73,8 @@
 
 **変更するファイル:** `extension/src/core/i18n/ja.ts`、`extension/src/core/i18n/en.ts`
 
-- [ ] `extension/src/core/i18n/ja.ts` の 5 項目（`rejection["not-watch-page"].steps[2]`・`rejection["empty-selection"].steps[2]`・`viewerTitle.name.release`・`viewerTitle.name.dev`・`optionsPage.title`）を設計書 3.2 節の表の確定値へ更新する
-- [ ] `extension/src/core/i18n/en.ts` の同じ 5 項目を設計書 3.2 節の表の確定値へ更新する
+- [x] `extension/src/core/i18n/ja.ts` の 5 項目（`rejection["not-watch-page"].steps[2]`・`rejection["empty-selection"].steps[2]`・`viewerTitle.name.release`・`viewerTitle.name.dev`・`optionsPage.title`）を設計書 3.2 節の表の確定値へ更新する
+- [x] `extension/src/core/i18n/en.ts` の同じ 5 項目を設計書 3.2 節の表の確定値へ更新する
 
 **完了基準:** 設計書 3.2 節の表どおりに両カタログが更新され、`extension/src/` の他のファイルに変更がないこと。
 
@@ -82,14 +82,14 @@
 
 **変更するファイル:** `extension/test/manifest.test.ts`、`extension/test/buildVariant.test.ts`、`extension/test/viewerTitle.test.ts`、`extension/test/viewerApp.test.ts`、`extension/test/catalog.test.ts`、`extension/test/popupHtml.test.ts`、`extension/test/optionsHtml.test.ts`、`docs/tasks/0125_product_name/_checks/old_name_absent.sh`（新規）
 
-- [ ] `extension/test/manifest.test.ts` を更新し、日英それぞれの `extName`・`extNameDev`・`extDescription` の確定値と既存制約（132 文字以内・`$` 禁止・言語判定・`manifest.json` キー・権限・拡張 ID）を検証する
-- [ ] `extension/test/buildVariant.test.ts` の `extNameDev` 先頭一致検査をロケール別コア製品名（`YomuDoga` / `ヨムドウガ`）へ更新する
-- [ ] `extension/test/viewerTitle.test.ts` を設計書 3.2 節の例外契約に合わせて更新する（公開用のビルドはコア製品名、開発用のビルドは `extNameDev` と完全一致、かつ公開用のビルドのコア製品名（`viewerTitle.name.release`）に ` for YouTube™` を添えた値が `extName` と一致すること）
-- [ ] `extension/test/viewerApp.test.ts` の `doc.title` アサーション全 8 箇所を `YomuDoga` へ更新する
-- [ ] `extension/test/catalog.test.ts` に、`optionsPage.title` と `rejection["not-watch-page"].steps`・`rejection["empty-selection"].steps` が各ロケールのコア製品名（`catalogs[locale].viewerTitle.name.release`）を含むことを確かめる性質テストを追加する（定数リテラルとの完全一致アサーションは書かない）
-- [ ] `extension/test/popupHtml.test.ts`（`popup.html`・`viewer.html`）と `extension/test/optionsHtml.test.ts`（`options.html`）に、静的 `<title>` が `YomuDoga` であることの検証を追加する
-- [ ] `docs/tasks/0125_product_name/_checks/old_name_absent.sh`（シェル）を追加する。`extension/src/core/i18n/ja.ts`・`en.ts`、`extension/static/_locales/{ja,en}/messages.json`、`extension/static/{popup,viewer,options}.html` に `yt2column` が 1 か所もないことを `grep` で確かめ、見つかれば該当行を出力して非 0 で終わる。旧値を 1 か所戻すと失敗することを確かめたうえで PR-1 のブランチで実行し、出力と両コミット ID を §7 の AC-05・AC-06 の行に記録する
-- [ ] 更新・追加した各テストについて、対象文字列を一時的に旧値へ戻す壊し確認を行い失敗を確かめたうえ、元に戻して `make ext-check` と `make test && make lint` がすべて通過することを確認する
+- [x] `extension/test/manifest.test.ts` を更新し、日英それぞれの `extName`・`extNameDev`・`extDescription` の確定値と既存制約（132 文字以内・`$` 禁止・言語判定・`manifest.json` キー・権限・拡張 ID）を検証する
+- [x] `extension/test/buildVariant.test.ts` の `extNameDev` 先頭一致検査をロケール別コア製品名（`YomuDoga` / `ヨムドウガ`）へ更新する
+- [x] `extension/test/viewerTitle.test.ts` を設計書 3.2 節の例外契約に合わせて更新する（公開用のビルドはコア製品名、開発用のビルドは `extNameDev` と完全一致、かつ公開用のビルドのコア製品名（`viewerTitle.name.release`）に ` for YouTube™` を添えた値が `extName` と一致すること）
+- [x] `extension/test/viewerApp.test.ts` の `doc.title` アサーション全 8 箇所を `YomuDoga` へ更新する
+- [x] `extension/test/catalog.test.ts` に、`optionsPage.title` と `rejection["not-watch-page"].steps`・`rejection["empty-selection"].steps` が各ロケールのコア製品名（`catalogs[locale].viewerTitle.name.release`）を含むことを確かめる性質テストを追加する（定数リテラルとの完全一致アサーションは書かない）
+- [x] `extension/test/popupHtml.test.ts`（`popup.html`・`viewer.html`）と `extension/test/optionsHtml.test.ts`（`options.html`）に、静的 `<title>` が `YomuDoga` であることの検証を追加する
+- [x] `docs/tasks/0125_product_name/_checks/old_name_absent.sh`（シェル）を追加する。`extension/src/core/i18n/ja.ts`・`en.ts`、`extension/static/_locales/{ja,en}/messages.json`、`extension/static/{popup,viewer,options}.html` に `yt2column` が 1 か所もないことを `grep` で確かめ、見つかれば該当行を出力して非 0 で終わる。旧値を 1 か所戻すと失敗することを確かめたうえで PR-1 のブランチで実行し、出力と両コミット ID を §7 の AC-05・AC-06 の行に記録する
+- [x] 更新・追加した各テストについて、対象文字列を一時的に旧値へ戻す壊し確認を行い失敗を確かめたうえ、元に戻して `make ext-check` と `make test && make lint` がすべて通過することを確認する
 
 **完了基準:** 壊し確認が記録され、`make ext-check`・`make test`・`make lint` がすべて成功すること。
 
@@ -229,8 +229,16 @@
   - `old_name_absent`: `extension/src/core/i18n/ja.ts`・`extension/src/core/i18n/en.ts`・`extension/static/_locales/ja/messages.json`・`extension/static/_locales/en/messages.json`・`extension/static/popup.html`・`extension/static/options.html`・`extension/static/viewer.html` に `yt2column` が 1 か所もないこと。見つかった行を出力して非 0 で終わる。読み取れないファイルがあるときは、合格を報告せず非 0 で終わる。各チェックは少なくとも 1 つの壊し方で失敗する。
 - **予定する実行:** PR-1 を作る前に、実装者が PR-1 のブランチで 1 回実行する。出力と 2 つのコミット ID は下の「AC-05・AC-06 の記録」に書く。
 - **テスト:** コミットしない（旧名の不在は移行の確認であり、改名が定着した後も旧名を禁じ続ける恒久テストにはしない）。
-- **壊し確認の記録:** 実装時に書く。
-- **実行の記録:** 実装時に書く。
+- **壊し確認の記録:** スクリプトを入れたコミット `15113b6f38214db45f269e9755cc22977c323912` の内容で確かめた。`extension/static/_locales/ja/messages.json` の `extName` を旧値 `yt2column` に戻すと、スクリプトは該当行を出力し、`old_name_absent: FAIL` を出して終了コード 1 になった。
+- **実行の記録:** 同じコミット `15113b6f38214db45f269e9755cc22977c323912` の内容で、PR-1 のブランチで 1 回実行し、`old_name_absent: PASS` と終了コード 0 になった（結果の全文と 2 つのコミット ID は下の「AC-05・AC-06 の記録」）。
+
+### AC-05・AC-06 の記録
+
+`_checks/old_name_absent.sh` を PR-1 のブランチで 1 回実行した（2026-11-26）。比べたコミットは `15113b6f38214db45f269e9755cc22977c323912`、マージベースは `1524ae18b46248384fc187d59fb096c7d5d5d07e` で、結果は `old_name_absent: PASS`（終了コード 0）である。壊し確認は一時スクリプトの記録のとおりで、旧値を 1 か所戻すと終了コード 1 になった。
+
+```text
+old_name_absent: PASS
+```
 
 Diff record (AC-10・AC-11・AC-12):
 
