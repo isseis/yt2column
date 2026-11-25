@@ -28,8 +28,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Documents
 
-- Documents should be placed under docs. Exception: `README.md` and its
-  English version `README.en.md` sit at the repository root (see "Document
+- Documents should be placed under docs. Exception: `README.md`, its
+  English version `README.en.md`, and `INSTALL.md` sit at the repository root
+  (`INSTALL.md` sits there so users can find it next to the README and
+  GitHub Releases and zip packages can point to it directly; see "Document
   language" below).
 - A document's language follows "Document language" below.
 - Default format is markdown
@@ -89,6 +91,11 @@ Exceptions:
   languages (`README.md` and `README.en.md`). Change `README.md` first, then
   carry the change to `README.en.md` with `/mktrans` ("Translation Guidelines"
   below).
+- **`INSTALL.md` in Japanese only (time-bounded).** `INSTALL.md` is an
+  end-user document (principle (c)), but it is kept in Japanese only until the
+  extension is submitted to the Chrome Web Store, because initial zip users are
+  Japanese speakers. Adding its English version and generalizing `/mktrans` and
+  the sync checks are tracked in `#1044`.
 - **Where `README.en.md` lives.** It sits at the repository root next to
   `README.md`, not under `docs/`. Reason: an English reader moves from the link
   at the top of `README.md` to the English version at the same level, and
@@ -394,8 +401,9 @@ handles signals for the CLI.
 
 See [Project Overview](docs/dev/project_overview.md) for the decided policies and
 constraints, and [Package Reference](docs/dev/conventions/package_reference.md)
-for the packages that exist today. The extension is documented in the
-[README](README.md) (and its English version, `README.en.md`), its job records
+for the packages that exist today. The extension's overview is documented in the
+[README](README.md) (and its English version, `README.en.md`), its installation
+and usage procedures in [INSTALL.md](INSTALL.md), its build, loading, job records,
 and development build in [development.md](docs/dev/guides/development.md), and
 its security rules in `docs/dev/security.md` §8.
 
