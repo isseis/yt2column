@@ -533,3 +533,110 @@ func TestMergemainNoDirectGitMutation(t *testing.T) {
 		t.Errorf("%s directly invokes forbidden git mutation: %s", mergemainDocPath, hit)
 	}
 }
+
+// mergemainLinePrefixes are the only starts an executable command line of
+// mergemain.md may have: the take-in subcommands, the merge commit, and the
+// diff that decides whether the extension checks run. A line of any other
+// shape (eval, a console prompt, find -exec, a wrapper, a git global option)
+// is a hit, so a form the command readers of doctestutil cannot follow fails
+// the guard instead of slipping past it.
+var mergemainLinePrefixes = []string{
+	toolWord + " mergemain-",
+	"git commit ",
+	"git diff ",
+}
+
+// docPlaceholder is a placeholder of a documented command, such as <PR> or
+// <base-head>, which the agent replaces with a value step 2 printed.
+var docPlaceholder = regexp.MustCompile(`<[A-Za-z][A-Za-z-]*>`)
+
+// tildeFence is a fence line opened with tildes, which FencedCommandBlocks
+// does not read as a fence.
+var tildeFence = regexp.MustCompile(`(?m)^[> \t]*~~~`)
+
+// unlistedCommandLines returns each executable command line of doc that does
+// not start with one of mergemainLinePrefixes or that holds a shell
+// metacharacter outside its placeholders (chaining, substitution, a
+// redirection, a variable), each tilde fence, and each unclosed fence.
+func unlistedCommandLines(doc string) []string {
+	var hits []string
+	for _, fence := range tildeFence.FindAllString(doc, -1) {
+		hits = append(hits, "tilde fence: "+strings.TrimSpace(fence))
+	}
+	for _, block := range doctestutil.FencedCommandBlocks(doc) {
+		if !block.Closed {
+			hits = append(hits, "unclosed fenced code block")
+			continue
+		}
+		info, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(block.Info)), " ")
+		if hasKey(nonCommandInfo, info) {
+			continue
+		}
+		for _, line := range joinContinuations(block.Lines) {
+			text := strings.TrimSpace(line)
+			listed := slices.ContainsFunc(mergemainLinePrefixes, func(p string) bool { return strings.HasPrefix(text, p) })
+			if !listed || strings.ContainsAny(docPlaceholder.ReplaceAllString(text, ""), ";&|$`()<>\\\"'*?[]{}~#!") {
+				hits = append(hits, text)
+			}
+		}
+	}
+	return hits
+}
+
+// TestUnlistedCommandLines: the line guard accepts the shapes mergemain.md
+// writes and reports every other executable line, including the forms the
+// shared command readers cannot follow.
+func TestUnlistedCommandLines(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		doc  string
+		want int
+	}{
+		{
+			name: "listed_lines_and_non_command_blocks",
+			doc: "```bash\n" +
+				"mergepr mergemain-merge --protocol 4 --head-branch <head-branch> --base-head <base-head> --main <main-head> <PR>\n" +
+				"git commit --no-edit\n" +
+				"git diff --name-only <base-head> HEAD\n" +
+				"```\n\n" +
+				"> ```bash\n> mergepr mergemain-begin --protocol 4 <PR>\n> ```\n\n" +
+				"```text\ngit push origin branch\n```\n",
+		},
+		{
+			name: "readers_cannot_follow",
+			doc:  "```bash\neval git push origin HEAD\n$ git push origin HEAD\nfind . -exec git push origin HEAD \\;\n```\n",
+			want: 3,
+		},
+		{
+			name: "listed_start_with_metacharacters",
+			doc: "```bash\n" +
+				"git commit --no-edit && git push origin HEAD\n" +
+				"mergepr mergemain-begin --protocol 4 $(git push) <PR>\n" +
+				"git diff --name-only a HEAD > /tmp/x\n" +
+				"mergepr mergemain-push --protocol 4 --base-head a --main m 1; git reset --hard\n" +
+				"```\n",
+			want: 4,
+		},
+		{
+			name: "tilde_fence_and_unclosed_fence",
+			doc:  "~~~bash\ngit push origin HEAD\n~~~\n\n```bash\ngit commit --no-edit\n",
+			want: 3,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := unlistedCommandLines(tc.doc); len(got) != tc.want {
+				t.Errorf("unlistedCommandLines = %q (%d hits), want %d", got, len(got), tc.want)
+			}
+		})
+	}
+}
+
+// TestMergemainCommandLinesAreListed: every executable command line of
+// .claude/commands/mergemain.md is a take-in subcommand call, the merge
+// commit, or the extension-check diff, with no shell metacharacter outside
+// its placeholders, and the definition has no tilde fence.
+func TestMergemainCommandLinesAreListed(t *testing.T) {
+	for _, hit := range unlistedCommandLines(readRepoFile(t, mergemainDocPath)) {
+		t.Errorf("%s has an executable line outside the listed shapes: %s", mergemainDocPath, hit)
+	}
+}
