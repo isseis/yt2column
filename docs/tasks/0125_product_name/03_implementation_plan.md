@@ -139,7 +139,7 @@
 - [ ] `docs/dev/adr/0035-language-policy.md` の `## 決定` から `CLAUDE.md` 未反映のずれを示す一文を除去し、コミットメッセージに `Editorial correction:` 行を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」第 2 種）
 - [ ] `make test && make lint` と `make ext-check` がすべて通過することを確認し、AC-10〜AC-12（`README.md`）・AC-14（`INSTALL.md`）・AC-15（`docs/dev/guides/development.md`）・AC-16（`docs/translation_glossary.md`）の差分を `requirements_process.md` §4 の固定コマンドで取得して本実装計画書 §7 の各 `Diff record` に記録する
 
-**完了基準:** すべてのテスト・lint・拡張検査が通過し、§7 の全 `Diff record` が最新コミットに対して記録されていること。
+**完了基準:** すべてのテスト・lint・拡張検査が通過し、§7 の全 `Diff record` が実装コミットに対して記録され、記録後のコミットで比較対象パスが変更されていないこと。
 
 ### PR-2 作成ポイント: store listing, user docs, and language policy sync
 
