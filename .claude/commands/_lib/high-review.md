@@ -652,7 +652,7 @@ and the thing it builds is rarely load-bearing)
       exhaustive escape, tolerance for an environment the script is not meant
       for, a committed test with no stated reason or beyond a representative
       case, a script copied from or modeled on an earlier task's `_checks/`,
-      a breakage record that states no real breakage, and a `diff`
+      a script with no temporary script record or a breakage record that states no real breakage (when the plan is one the rules apply to), and a `diff`
       verification (a script, or a diff record in the plan) oversized for what
       it checks (weigh what the reviewer will read against the size of the
       diff it verifies; a script in a language other than shell has the plan's

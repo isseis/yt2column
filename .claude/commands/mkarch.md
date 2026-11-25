@@ -145,6 +145,7 @@ Work in the following order.
 - [ ] Every claim about existing behavior (a path is unreachable, a value is the only one, two constructions are equivalent) cites `file:line` and the commit verified against, or is phrased as a requirement rather than a fact.
 - [ ] Every value the design exposes to a caller (an identifier, a key, an ordering) is either specified as part of the API or kept opaque, and nothing in the design lets a caller depend on an unpublished internal (CLAUDE.md, "Keep internals unobservable").
 - [ ] Every decision in the document that is major by the criterion in `CLAUDE.md`, "Design decisions (ADR)", has its ADR judgement recorded and is in this PR's ADR changes, and the `## 決定` section of each such ADR matches the document's current decision.
+- [ ] What the design asks of a temporary script (a migration gate, a premise check) is in proportion to the change, how often the script runs, and where it runs, judged by `docs/dev/conventions/requirements_process.md`, "Temporary scripts (`_checks/`)": look for a defense beyond the required properties with no stated need, an exhaustive escape, tolerance for an environment the script is not meant for, and tests beyond a representative case. Apply it as that section's "Scope" says; it does not apply when the design asks for no temporary script and no `diff` verification.
 
 **Readability and consistency checklist (use verbatim as evaluation criteria in the subagent prompt above):**
 - [ ] The arrow semantics used in each diagram are stated explicitly in a caption or note (e.g., "矢印 A → B は…を表す"), and are applied consistently within that diagram.
@@ -155,7 +156,6 @@ Work in the following order.
 - [ ] Ambiguous or overly terse expressions are rewritten in direct, plain Japanese. Readers should not need context from prior review discussions to understand the text.
 - [ ] Architectural decisions that depend on constraints not obvious from the requirements are explained inline.
 - [ ] The body describes the current system; rationale for removed or superseded designs and cross-task history is confined to a bounded appendix or blockquote, not interleaved with current-state description.
-- [ ] What the design asks of a temporary script (a migration gate, a premise check) is in proportion to the change, how often the script runs, and where it runs, judged by `docs/dev/conventions/requirements_process.md`, "Temporary scripts (`_checks/`)": look for a defense beyond the required properties with no stated need, an exhaustive escape, tolerance for an environment the script is not meant for, and tests beyond a representative case. Apply it as that section's "Scope" says; it does not apply when the design asks for no temporary script and no `diff` verification.
 
 9. Run the Japanese prose-quality pass by invoking the `japrose` command
    (`.claude/commands/japrose.md`) on the created architecture document (path in
