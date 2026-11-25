@@ -7,7 +7,7 @@
 | Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-23 |
-| Review date | 2026-11-23 |
+| Review date | 2026-11-25 |
 | Reviewer | isseis |
 | Comments | - |
 
@@ -64,15 +64,29 @@
 -   **`/runpr` の手動の PR レビュー対象での併用:** `Awaited PR reviewer` を `coderabbitai` のままスコープ外とせず、CodeRabbit と Sourcery AI の両方を `/runpr` の PR レビュー依頼・完了待機の対象として併用する（F-004）。
     -   理由: 利用者が、自動レビュアーの一覧への追加と合わせて `/runpr` からも Sourcery AI の完了待機と手動依頼を行えるようにすることを選んだためである。
     -   ADR の判断: [ADR-0013](../../dev/adr/0013-review-setup.md) を更新する（PR レビューの体制を変える主要決定）。
--   **Sourcery AI の自動の PR レビューの扱いと CI 待機の分離:** Sourcery AI の自動の PR レビューは有効のまま設定を変えない。`head` コミット上で自動実行された `Sourcery review` CheckRun が進行中なら、`/runpr` は完了まで待機し（待機上限は CodeRabbit の `reviewWaitLimit` と同じ 15 分とする。`internal/fixprguard/review_state.go:59`）、成功完了すれば最新のレビュー済みコミット（`LAST_REVIEWED`、定義は後述の AC-18）の算出対象に含める。自動の PR レビューがスキップ・割り当て切れ・失敗・未認識・時間切れになっても `/runpr` は停止せず、完了の印に数えないまま要約に状態と URL を示してマージの質問へ進む。`/runpr` の CI 待機はリポジトリの CI チェックのみを成否判定の対象とし、`Sourcery review` の失敗・未完了を CI 失敗として止めない。手動で依頼した PR レビューの失敗・スキップ・割り当て切れ・時間切れ時だけ停止する（F-004）。
-    -   理由: すでに動いている Sourcery AI の自動の PR レビューの結果を活かして二重依頼を避けつつ、自動の PR レビューの割り当て切れ・再レビュー上限・一時失敗でマージが塞がれるのを防ぐためである。CI 待機に `Sourcery review` の成否を含めると自動の PR レビュー失敗時に停止して矛盾するため、CI チェックと分離する。
+-   **Sourcery AI の自動の PR レビューの扱いと CI 待機の分離:** Sourcery AI の自動の PR レビューは有効のまま設定を変えない。`head` コミット上で自動実行された `Sourcery review` CheckRun が進行中なら、`/runpr` は完了まで待機し（待機上限は CodeRabbit の `reviewWaitLimit` と同じ 15 分とする。`internal/fixprguard/review_state.go:59`）、開かれたスレッドを処理してからマージの質問へ進む。自動の PR レビューの完了は、成功しても最新のレビュー済みコミット（`LAST_REVIEWED`、定義は後述の AC-18）の算出対象に含めない（2026-11-25 に改めた。後述の「issue #1140 で決めたこと（2026-11-25）」）。自動の PR レビューがスキップ・割り当て切れ・失敗・未認識・時間切れになっても `/runpr` は停止せず、完了の印に数えないまま要約に状態と URL を示してマージの質問へ進む。`/runpr` の CI 待機はリポジトリの CI チェックのみを成否判定の対象とし、`Sourcery review` の失敗・未完了を CI 失敗として止めない。手動で依頼した PR レビューの失敗・スキップ・割り当て切れ・時間切れ時だけ停止する（F-004）。
+    -   理由: すでに動いている Sourcery AI の自動の PR レビューの指摘を活かしつつ、自動の PR レビューの割り当て切れ・再レビュー上限・一時失敗でマージが塞がれるのを防ぐためである。CI 待機に `Sourcery review` の成否を含めると自動の PR レビュー失敗時に停止して矛盾するため、CI チェックと分離する。
     -   ADR の判断: [ADR-0013](../../dev/adr/0013-review-setup.md) を更新する（自動の PR レビューの完了判定・待機上限・停止条件と CI 待機との分離を定める主要決定）。
--   **複数レビュアー併用時のマージの質問と `LAST_REVIEWED`:** どちらか 1 社でも完了していればそのコミットをレビュー済みとして `LAST_REVIEWED` を算出する。マージの質問は 4 択上限（[ADR-0047](../../dev/adr/0047-runpr-merge-question.md)）を保つため「先に PR レビューを依頼」を 1 択のまま維持し、`head` を未レビューのレビュアーが 1 社以上残っていれば（`LAST_REVIEWED == head` でも）表示する。エスカレーションの推奨は `LAST_REVIEWED` に基づくため、`LAST_REVIEWED == head` なら推奨は「マージ」とする。「先に PR レビューを依頼」を選んだ直後に、単一選択の 1 問（「CodeRabbit」「Sourcery AI」「マージの質問に戻る」の 3 択、各社の `head` レビュー済み／未レビューを併記）で依頼先を選ぶ（F-004）。
-    -   理由: 4 択上限と `chief` の単一選択中継（[ADR-0046](../../dev/adr/0046-chief-of-staff.md)）を保ちつつ、Sourcery AI の自動の PR レビュー完了後に信頼の境界の変更などで CodeRabbit のレビューを追加依頼できる手段を残すためである。
+-   **複数レビュアー併用時のマージの質問と `LAST_REVIEWED`:** どちらか 1 社でも利用者の依頼に応じた PR レビューが完了していれば、そのコミットをレビュー済みとして `LAST_REVIEWED` を算出する（自動の PR レビューの完了は数えない。後述の「issue #1140 で決めたこと（2026-11-25）」）。マージの質問は 4 択上限（[ADR-0047](../../dev/adr/0047-runpr-merge-question.md)）を保つため「先に PR レビューを依頼」を 1 択のまま維持し、`head` を未レビューのレビュアーが 1 社以上残っていれば（`LAST_REVIEWED == head` でも）表示する。エスカレーションの推奨は `LAST_REVIEWED` に基づくため、`LAST_REVIEWED == head` なら推奨は「マージ」とする。「先に PR レビューを依頼」を選んだ直後に、単一選択の 1 問（「CodeRabbit」「Sourcery AI」「マージの質問に戻る」の 3 択、各社の `head` レビュー済み／未レビューを併記）で依頼先を選ぶ（F-004）。
+    -   理由: 4 択上限と `chief` の単一選択中継（[ADR-0046](../../dev/adr/0046-chief-of-staff.md)）を保ちつつ、Sourcery AI の手動の PR レビュー完了後に信頼の境界の変更などで CodeRabbit のレビューを追加依頼できる手段を残すためである。
     -   ADR の判断: [ADR-0013](../../dev/adr/0013-review-setup.md) と [ADR-0047](../../dev/adr/0047-runpr-merge-question.md) を更新する（完了判定とマージの質問の遷移を変える主要決定）。
 -   **Sourcery AI の手動依頼コメント文面:** `/runpr` が投稿する文面は公式正規形の `@sourcery-ai review` のみとし、利用者が手で書いた依頼コメントの認識には `@sourcery-ai review` と `@sourceryai review` の両方を含める（F-004）。
     -   理由: コマンドが投稿する文面は正規形に統一しつつ、利用者が GitHub 上でハイフンなしの `@sourceryai review` を手入力した場合（PR #1094 の実例あり）も応答待ちの手動依頼として正しく拾うためである。
     -   ADR の判断: ADR なし（依頼文字列の認識詳細は [ADR-0013](../../dev/adr/0013-review-setup.md) の手動依頼の決定の範囲内に閉じるため）。
+
+**issue #1140 で決めたこと（2026-11-25）:**
+
+本節は、#1098 のクロスチェックの部分レビューの再レビュー（タスク 0123）で挙がった issue [#1140](https://github.com/isseis/yt2column/issues/1140) について、利用者と決めたことを記録する。
+
+-   **Sourcery AI の自動の PR レビューの完了を `LAST_REVIEWED` に数えない:** `LAST_REVIEWED` は、利用者の依頼に応じた PR レビュー（CodeRabbit と Sourcery AI の手動の PR レビュー）の完了の印だけから決める。Sourcery AI の自動の PR レビューは、これまでどおり進行中なら待ち、開かれたスレッドを `/fixpr` で処理し、状態と URL をマージの質問の要約に示すが、成功して完了しても完了の印に数えない。したがって、自動の PR レビューが `head` を完了していても、依頼に応じた完了の印が `head` になければ、エスカレーションの判定と要約の「未レビュー分」の行（ローカルの CLI レビューの範囲とクロスチェックの記録）は 0118 までと同じく働く（AC-17・AC-18・AC-21・AC-22・AC-24）。
+    -   理由: 自動の PR レビューの完了を数えると、Sourcery AI が push のたびに自動でレビューするので、自動の PR レビューが成功した PR（観測の記録の 7 件の PR では 4 件）では `LAST_REVIEWED == head` となり、エスカレーションの判定が飛ばされる。レビューの関門そのもの（`_lib/pr-review-escalation.md` の基準 4）を書き換える PR でも推奨が「マージ」になり、`high` 役割のワーカーが一度も判定しない。また、自動の PR レビューは 7 日間の予算を使い切るとスキップされ（観測の記録の 7 件の PR のうち 4 件）、関門が働くかどうかが変更の中身ではなく予算の残りで決まる。利用者が依頼しておらず、品質も測っていないレビューを、エスカレーションの代わりにしないためである。
+    -   採らなかった案: (1) 自動の PR レビューの完了も数え、要件定義の際の決定（2026-11-23）のままにする。上の理由で、自動の PR レビューが成功した PR では関門が働かなくなる。(2) 自動の PR レビューの完了を数えないが、`head` を完了していれば、ローカルの CLI レビューがすべてを見たとき（`COVERAGE` が `ALL`）と同じに扱い、基準 1・2・3・5 だけに当たる変更を「マージ」推奨にする。`COVERAGE` はふだん `ALL` なので、この案と採った案とで結果が変わる場面はほとんどなく、規則だけが増える。
+    -   受け入れる危険: Sourcery AI を `head` についてレビュー済みにするには手動の依頼が要るが、自動の PR レビューの CheckRun がすでにある `head` へ手動で依頼したときに、Sourcery AI が新しい CheckRun を作るか既存のものを更新するかは観測していない（観測の記録 2.1。過去の PR に該当する依頼がない）。既存のものを `startedAt` を変えずに更新するなら、その依頼は応答のないまま 15 分で時間切れになり、`/runpr` は止まる。また予算を使い切っているときの手動の依頼は CheckRun を作らずコメントだけを付けるので（観測の記録 2.1、PR #1143）、同じく時間切れで止まる。どちらも誤って完了とはせずに止まる側であり、そのときは CodeRabbit に依頼できる。予算が戻った後に初めて Sourcery AI に依頼するときに観測し、記録する（利用者が、PR-5 の前に実測せずに記録して進むことを選んだ）。
+    -   採らなかった案の理由の改め: ADR-0013 の採らなかった案「CodeRabbit と Sourcery AI の両方が完了したコミットだけを `LAST_REVIEWED` とする」の理由は、自動の PR レビューが Sourcery AI を完了させることを前提にしていたので、「利用者が両方のレビュアーに依頼しないとレビュー済みにならない」に改める。「Sourcery AI の自動の PR レビューを無効化する」の理由からは、二重依頼を避けることを除く（自動の完了を数えないので、レビュー済みにするには手動の依頼を重ねる）。
+    -   ADR の判断: [ADR-0013](../../dev/adr/0013-review-setup.md) を更新する（「レビュー済みの判定」の決定を変える主要決定）。[ADR-0047](../../dev/adr/0047-runpr-merge-question.md) と [ADR-0050](../../dev/adr/0050-fable-partial-review.md) の決定は変わらない（`LAST_REVIEWED` の求め方に依らず成り立つ）。ADR-0047 の採らなかった案の理由のうち、自動の PR レビューの完了を前提にしたものだけを改め、経緯に記録する。
+-   **ADR-0013 の CodeRabbit の応答の選び方の規則を戻す:** #1098 で ADR-0013 の「レビュー済みの判定」を書き換えたとき、CodeRabbit の依頼の応答の選び方（依頼の後、次の依頼より前に始まった最初の CheckRun だけを数える）と、選べないとき（同じ秒に始まった、実行が重なった）に完了とせずに止まる規則、およびその理由（`output.title` を読む理由、「between」の行を使わない理由、止まる理由、本文の文言で分岐しない理由）が、経緯の行なしに消えた。これを決定の変更として ADR-0013 に戻し、経緯に記録する。
+    -   理由: 4.4 は CodeRabbit の振る舞いを保つと定め、`internal/fixprguard/review_state.go` もその規則を実装したままであり、消えていたのは ADR の記述だけだったためである。編集上の訂正か迷う変更は決定の変更として扱う（`docs/dev/conventions/adr.md`「Editorial corrections」）。
+    -   ADR の判断: [ADR-0013](../../dev/adr/0013-review-setup.md) を更新する（規則を決定に戻し、経緯に記録する）。
 
 ## 2. 目的とスコープ (Goals and Scope)
 
@@ -80,7 +94,7 @@
 
 -   Sourcery AI（`sourcery-ai`）が開いたレビュースレッドを、`/fixpr`・`/runpr` で名指しなしに信頼する著者のスレッドとして処理できるようにする。
 -   利用者のアカウントからの誤投稿による Sourcery AI の意図しない起動、および書き込み権限のない第三者による `@sourcery-ai`・`@sourceryai` メンション経由の誘導を抑止する。
--   `/runpr` が Sourcery AI の自動・手動の PR レビューの完了待機と完了判定を行え、マージの質問から CodeRabbit と Sourcery AI のどちらかを選んで手動の PR レビューを依頼できるようにする。
+-   `/runpr` が Sourcery AI の自動・手動の PR レビューの完了待機と、手動の PR レビューの完了判定を行え、マージの質問から CodeRabbit と Sourcery AI のどちらかを選んで手動の PR レビューを依頼できるようにする。
 
 ### 2.2. スコープ (In Scope)
 
@@ -160,18 +174,18 @@ CodeRabbit（手動）と Sourcery AI（自動・手動）を併用し、`/runpr
 - **AC-16**: Sourcery AI の自動の PR レビューが有効な状態で、`/runpr` が step 3 に入った時点（および `/fixpr` が新しいコミットを push した後の再確認時）に、依頼コメントがなくても PR の `head` コミット上で `sourcery-ai` の `Sourcery review` CheckRun が進行中（未完了）であれば、`/runpr` は完了または待機上限の 15 分まで待機してからスレッド処理とエスカレーションへ進む。待機上限の起点は CheckRun の開始時刻とし、開始時刻がない未開始状態では `/runpr` が待機を始めた時刻とする。祖先コミットの未完了 CheckRun では待機しない。また、15 分の上限に達して終了扱いとした同一 `head`・CheckRun については、step 4 の再読込で待機へ戻らない。
 - **AC-17**: 完了の印の判定は、信頼しない入力として厳密に行う。
     - **CodeRabbit:** 利用者本人（`User`）の `@coderabbitai review` 依頼コメント後に始まった `app.slug == "coderabbitai"` の CheckRun `CodeRabbit` のうち、観測済みの完了形（`COMPLETED`・`SUCCESS`・`Finished`、`internal/fixprguard/review_state.go:44-48`）に一致するものだけを完了の印とする。
-    - **Sourcery AI:** `app.slug == "sourcery-ai"` の CheckRun `Sourcery review` のうち、F-001 の観測記録に合う成功完了の形（PR #1094 時点では `COMPLETED`・`SUCCESS`・`"✅ Completed successfully"`）に一致するものを完了の印とする。自動実行された完了と、利用者本人（`User`）が投稿した `@sourcery-ai review` または `@sourceryai review`（前後の空白を除いて完全一致）に応答した完了のどちらも完了の印に数える。
+    - **Sourcery AI:** `app.slug == "sourcery-ai"` の CheckRun `Sourcery review` のうち、F-001 の観測記録に合う成功完了の形（PR #1094 時点では `COMPLETED`・`SUCCESS`・`"✅ Completed successfully"`）に一致するものを完了の印とする。利用者本人（`User`）が投稿した `@sourcery-ai review` または `@sourceryai review`（前後の空白を除いて完全一致）に応答した完了だけを完了の印に数え、依頼に応答しない自動実行の完了は数えない（自動の PR レビューの扱いは AC-16・AC-19・AC-24）。
     - どちらのレビュアーについても、同じ名前の `User` による投稿、観測した形に合わない CheckRun、PR の `head` にもその祖先にも当たらないコミットの CheckRun は完了の印に数えない。本文はセッションに出さない。
-- **AC-18**: `LAST_REVIEWED` は、CodeRabbit と Sourcery AI の完了の印の和集合から、他のすべての完了コミットを祖先とする最新のコミット（`head` に完了の印があれば `head`）とする。いずれか 1 社でも `head` を完了していれば `LAST_REVIEWED == head` となる。和集合が空、または他のすべてを祖先とする唯一のコミットが存在しない場合（履歴分岐・force push 等）は `none` とする。片方のレビュアーが `unreadable (limit)` の場合はもう片方の有効な完了の印から算出し、両方とも `unreadable (limit)` なら `none` とする。
-- **AC-19**: Sourcery AI の自動の PR レビュー（手動依頼コメントなし）が、スキップ・割り当て切れ・失敗・未認識の形・待機上限（15 分）の時間切れで終わったとき、`/runpr` は停止せず、その実行を完了の印に数えないままマージの質問へ進み、要約にその状態と URL（本文は出さない）を示す。また、`/runpr` の CI 待機はリポジトリの CI チェックのみを成否判定の対象とし、`Sourcery review` CheckRun の失敗・時間切れ・未完了を CI 失敗として `/runpr` を止めない。
+- **AC-18**: `LAST_REVIEWED` は、CodeRabbit と Sourcery AI の完了の印（AC-17。どちらも利用者の依頼に応じた PR レビューの完了だけ）の和集合から、他のすべての完了コミットを祖先とする最新のコミット（`head` に完了の印があれば `head`）とする。いずれか 1 社でも依頼に応じた PR レビューで `head` を完了していれば `LAST_REVIEWED == head` となる。Sourcery AI の自動の PR レビューが `head` を完了していても、それだけでは `LAST_REVIEWED == head` とならない。和集合が空、または他のすべてを祖先とする唯一のコミットが存在しない場合（履歴分岐・force push 等）は `none` とする。片方のレビュアーが `unreadable (limit)` の場合はもう片方の有効な完了の印から算出し、両方とも `unreadable (limit)` なら `none` とする。
+- **AC-19**: Sourcery AI の自動の PR レビュー（手動依頼コメントなし）が、スキップ・割り当て切れ・失敗・未認識の形・待機上限（15 分）の時間切れで終わったとき、`/runpr` は停止せず、その実行を完了の印に数えないままマージの質問へ進み、要約にその状態と URL（本文は出さない）を示す。成功して完了した自動の PR レビューも、完了の印には数えない（AC-17）。また、`/runpr` の CI 待機はリポジトリの CI チェックのみを成否判定の対象とし、`Sourcery review` CheckRun の失敗・時間切れ・未完了を CI 失敗として `/runpr` を止めない。
 - **AC-20**: 手動の PR レビューおよび複数レビュアーの異常系は、次のとおり扱う（いずれも本文はセッションに出さない）。
     - 利用者が手動で依頼した PR レビュー（CodeRabbit への `@coderabbitai review`、または Sourcery AI への `@sourcery-ai review`・手動投稿の `@sourceryai review`）が割り当て切れ・スキップ・失敗・未認識の形・待機上限（15 分）の時間切れで終わったとき、この `/runpr` の実行がその依頼を待機していた場合はレビュー済みとせずに停止し、状態・依頼コメントの URL・次の行動を示す。すでに前回の実行以前に終わっていた場合は停止せず、マージの質問の要約にその状態と依頼コメントの URL を示して進む。
     - いずれかのレビュアーについて `fixprguard review-state` が `indeterminate`（判定不能）または `unreadable (rejected)`（§3.2 項目 2）を返した場合は、もう一方の状態にかかわらず停止して報告する。`unreadable (call-failed)` は約 30 秒間隔で最大 15 分再試行し、回復しなければ停止する。`unreadable (limit)` はそのレビュアーの手動依頼を待機していた場合のみ停止し、それ以外は要約に `読めない（上限）` を示して続ける。
     - 複数のレビュー（例: CodeRabbit の手動依頼と Sourcery AI の自動の PR レビュー）が同時に進行中の場合は、すべてが完了または終了条件に達するまで待機する。応答待ちの手動依頼がある状態で `/runpr` を再実行したときは、新しい依頼を投稿せず待機から再開する。
-- **AC-21**: マージの質問は、引き続き最大 4 択の単一選択（[ADR-0047](../../dev/adr/0047-runpr-merge-question.md)）を保つ。「先に PR レビューを依頼」は、`head` を未レビューのレビュアー（CodeRabbit または Sourcery AI）が 1 社以上残っているときに 1 つの選択肢として表示し、両社とも `head` を完了済みのときは表示しない。
-- **AC-22**: マージの質問の推奨（エスカレーション）は `LAST_REVIEWED` に基づく。`LAST_REVIEWED == head` のときは「未レビューの変更: なし」とし、「先に PR レビューを依頼」が表示されていても推奨は「マージ」とする。`LAST_REVIEWED` が `head` より古いコミット（`head` に達していない）または `none` のときは既存の基準（[0118 要件定義書](../0118_codex_removal/01_requirements.md) の F-005）に従い、推奨が `PR レビュー` なら「先に PR レビューを依頼」を先頭・推奨に、推奨が `マージ` なら「マージ」を先頭・推奨にする。
-- **AC-23**: マージの質問で利用者が「先に PR レビューを依頼」を選んだとき、`/runpr` は直後に単一選択の 1 問で依頼先レビュアーを選ばせる。選択肢は「CodeRabbit」「Sourcery AI」「マージの質問に戻る」の 3 択とし、各レビュアーが `head` レビュー済みか未レビューかを併記する。`マージの質問に戻る` を選べば何も投稿せずマージの質問に戻る。レビュアーを選んだときは、投稿前にそのレビュアーの最新状態を確かめ、`indeterminate`・`unreadable` なら停止して報告する。すでに AC-16 の待機上限（15 分）の時間切れとして終了扱いとした同一 `head`・CheckRun がまだ進行中であれば、再待機や重複投稿をせず時間切れの状態と URL を報告してマージの質問に戻る。それ以外ですでに手動依頼が `waiting` であるか、`head` 上で自動の PR レビューが進行中であれば重複投稿せずに待機に入る。いずれにも当たらなければ、`CodeRabbit` には `@coderabbitai review`、`Sourcery AI` には `@sourcery-ai review` を 1 件だけ投稿し、完了を待ってからスレッド処理・マージの質問へ戻る。
-- **AC-24**: マージの質問の要約は、CodeRabbit と Sourcery AI それぞれの PR レビュー状態（完了コミット・URL・本文に指摘や未レビューファイルがありうる旨、または割り当て切れ・スキップ・失敗・未認識・時間切れ・読めない（上限）の状態）を、本文をセッションに出さずに示す。
+- **AC-21**: マージの質問は、引き続き最大 4 択の単一選択（[ADR-0047](../../dev/adr/0047-runpr-merge-question.md)）を保つ。「先に PR レビューを依頼」は、`head` を未レビューのレビュアー（CodeRabbit または Sourcery AI のうち、`head` に完了の印（AC-17）がないもの）が 1 社以上残っているときに 1 つの選択肢として表示し、両社とも `head` を完了済みのときは表示しない。
+- **AC-22**: マージの質問の推奨（エスカレーション）は `LAST_REVIEWED` に基づく。`LAST_REVIEWED == head` のときは「未レビューの変更: なし」とし、「先に PR レビューを依頼」が表示されていても推奨は「マージ」とする。`LAST_REVIEWED` が `head` より古いコミット（`head` に達していない）または `none` のときは、Sourcery AI の自動の PR レビューが `head` を完了していても「未レビューの変更: あり」とし、要約の「未レビュー分」の行（ローカルの CLI レビューの範囲とクロスチェックの記録）を示したうえで、既存の基準（[0118 要件定義書](../0118_codex_removal/01_requirements.md) の F-005）に従い、推奨が `PR レビュー` なら「先に PR レビューを依頼」を先頭・推奨に、推奨が `マージ` なら「マージ」を先頭・推奨にする。
+- **AC-23**: マージの質問で利用者が「先に PR レビューを依頼」を選んだとき、`/runpr` は直後に単一選択の 1 問で依頼先レビュアーを選ばせる。選択肢は「CodeRabbit」「Sourcery AI」「マージの質問に戻る」の 3 択とし、各レビュアーが `head` レビュー済みか未レビューかを併記する。`マージの質問に戻る` を選べば何も投稿せずマージの質問に戻る。レビュアーを選んだときは、投稿前にそのレビュアーの最新状態を確かめ、`indeterminate`・`unreadable` なら停止して報告する。すでに AC-16 の待機上限（15 分）の時間切れとして終了扱いとした同一 `head`・CheckRun がまだ進行中であれば、再待機や重複投稿をせず時間切れの状態と URL を報告してマージの質問に戻る。それ以外ですでに手動依頼が `waiting` であるか、`head` 上で自動の PR レビューが進行中であれば重複投稿せずに待機に入る。自動の PR レビューの完了は完了の印に数えないので（AC-17）、その待機の後のマージの質問でも Sourcery AI は `head` 未レビューのままであり、利用者がもう一度 Sourcery AI を選べば依頼を投稿する。いずれにも当たらなければ、`CodeRabbit` には `@coderabbitai review`、`Sourcery AI` には `@sourcery-ai review` を 1 件だけ投稿し、完了を待ってからスレッド処理・マージの質問へ戻る。
+- **AC-24**: マージの質問の要約は、CodeRabbit と Sourcery AI それぞれの PR レビュー状態（完了コミット・URL・本文に指摘や未レビューファイルがありうる旨、または割り当て切れ・スキップ・失敗・未認識・時間切れ・読めない（上限）の状態）を、本文をセッションに出さずに示す。Sourcery AI の自動の PR レビューが成功して完了し、`head` に Sourcery AI の手動の PR レビューの完了の印がないときは、その完了コミットと URL に加えて、レビュー済みには数えないことを示す。
 - **AC-25**: PR を開くコマンド（`/mkreq`・`/mkarch`・`/mkplan`・`/mkplan2`・`/runplan`、単独変更の `/runpr`）は、PR を作ってから報告するまでの間、どの自動レビュアーにも PR レビューの依頼コメントを投稿しない。
 
 #### F-005: 現在の仕様を書く文書・ADR・`chief` 互換性の更新
@@ -259,7 +273,7 @@ CodeRabbit（手動）と Sourcery AI（自動・手動）を併用し、`/runpr
 -   **信頼する著者:** リポジトリへの書き込み権限（write・maintain・admin）を持つ Bot でないアカウントと、自動レビュアーの一覧のどれかの名前の Bot。英語では trusted author。
 -   **想定外の著者のスレッド:** コメントの 1 件以上が信頼する著者のものでない、または著者を確かめられないレビュースレッド。英語では untrusted thread。
 -   **拒否するメンション:** 利用者のアカウントからの投稿とコミット本文に含めてはならず、`/runpr` が他アカウントからの投稿も検査する GitHub のメンション（`_context.md` の `Rejected mentions`）。本タスクで `@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai` の 4 つとする。用語集の「メンション」（Mattermost の通知）とは別のものである。
--   **完了の印:** PR レビューがあるコミットまで完了したことを示す、対象 GitHub App の CheckRun の値。CodeRabbit は手動依頼後の完了、Sourcery AI は自動実行または手動依頼後の完了を対象とする。
+-   **完了の印:** PR レビューがあるコミットまで完了したことを示す、対象 GitHub App の CheckRun の値。CodeRabbit と Sourcery AI のどちらも、利用者の手動依頼に応じた完了だけを対象とする（Sourcery AI の自動の PR レビューの完了は含めない）。
 -   **手動の PR レビュー:** 利用者本人の依頼コメント（`@coderabbitai review`・`@sourcery-ai review`、または手動投稿の `@sourceryai review`）で始まる PR レビュー。
 -   **自動の PR レビュー:** 依頼コメントなしで、PR 作成や push に応じて Sourcery AI の GitHub App が自動で実行する PR レビュー。
 -   **割り当て:** 自動レビュアーが一定時間に受け付けるレビューの回数の上限。英語では quota。
@@ -267,3 +281,5 @@ CodeRabbit（手動）と Sourcery AI（自動・手動）を併用し、`/runpr
 ## 変更履歴
 
 - 2026-11-23 承認（isseis、#1098）
+- 2026-11-25 draft への戻し：Sourcery AI の自動の PR レビューの完了を `LAST_REVIEWED` に数えない（#1158）
+- 2026-11-25 承認（isseis、#1158）

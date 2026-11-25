@@ -36,7 +36,7 @@
 -   エスカレーションの判定が `ask` のときも、「マージ」を推奨にする。`ask` は、ローカルの CLI レビューでは代わりにならない変更かもしれないという判定である。推奨はそのまま選ばれやすいので、「マージ」を推奨にすると、その変更が PR レビューを経ずにマージされることを既定の答えにしてしまう。また、レビューを推奨にして不要だったときの損は PR レビュー 1 回分の割り当てで済むが、マージを推奨にしてレビューが要ったときは、レビューされていない変更が `main` に入る（[pr-review-escalation.md](../../../.claude/commands/_lib/pr-review-escalation.md)）。今の PR レビューの問いも、`ask` のときは「先に PR レビューを依頼」を推奨にしている（同上）。
 -   受け付けない文字を含む訂正の行を、行ごとに別の問いで聞く。ブランチで直すときは行によらず `/mergepr` をやり直すので、選べる組み合わせは増えず、問いの数だけが増える（[0106 設計書](../../tasks/0106_squash_editorial_corrections/02_architecture.md)「1.2. 設計の際に決めたこと（2026-11-19）」）。
 -   マージの質問に CodeRabbit と Sourcery AI の依頼選択肢を 2 つ並べる、または「先に PR レビューを依頼」を CodeRabbit に固定する。2 つ並べると最大 4 択の制約を超える。CodeRabbit に固定すると `/runpr` から Sourcery AI へ手動再依頼できない（[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md)「要件定義の際に決めたこと（2026-11-23）」）。
--   `LAST_REVIEWED == head` のときは「先に PR レビューを依頼」を表示しない。Sourcery AI の自動の PR レビューが完了した `head` に対して、信頼の境界の変更などで CodeRabbit の追加レビューを `/runpr` から頼めなくなる（同上）。
+-   `LAST_REVIEWED == head` のときは「先に PR レビューを依頼」を表示しない。一方のレビュアーの依頼に応じた PR レビューが完了した `head` に対して、信頼の境界の変更などでもう一方の追加レビューを `/runpr` から頼めなくなる（同上。理由は 2026-11-25 に [0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md)「issue #1140 で決めたこと（2026-11-25）」に合わせて改めた）。
 
 ## 結果
 
@@ -58,3 +58,4 @@
 - 2026-11-20 エスカレーションの判定が信頼の境界・セキュリティ・耐久性の基準に当たるときも、PR レビューを自動で頼まず、マージの質問で「先に PR レビューを依頼」を推奨にすることにした（[0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md)「要件定義の際に決めたこと（2026-11-20）」）
 - 2026-11-21 マージの質問と事前の単一選択の問いを、Claude Code 固有の `AskUserQuestion` の直接指定からハーネス非依存の質問操作（Antigravity では `ask_question`）へ一般化した（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「issue #1072 で決めたこと」「要件定義の際に決めたこと（2026-11-21）」、[ADR-0055](0055-harness-independent-commands.md)）
 - 2026-11-23 CodeRabbit と Sourcery AI の併用に合わせて、マージの質問の 4 択制約を保ったまま `head` 未レビューのレビュアーが残っていれば「先に PR レビューを依頼」を表示し、選択後に依頼先を選ぶ単一選択の 1 問を出すことにした（[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md)「要件定義の際に決めたこと（2026-11-23）」）
+- 2026-11-25 Sourcery AI の自動の PR レビューの完了を `LAST_REVIEWED` に数えないことにしたのに合わせて、`LAST_REVIEWED == head` のときも「先に PR レビューを依頼」を隠さない理由を、一方のレビュアーの依頼に応じた PR レビューが完了した後にもう一方へ頼めるようにするため、と改めた。決定は変わらない（[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md)「issue #1140 で決めたこと（2026-11-25）」）

@@ -27,6 +27,7 @@
   - **決定:** 現行設計（AC-17・AC-18・`02_architecture.md` 3.2.2）および [ADR-0013](../../dev/adr/0013-review-setup.md) を変更せず、そのまま実装計画を作成する。PR #1097・#1098 の確認結果を本節と [observations.md](observations.md) に記録する。
   - **理由:** 計画前に PR #1097 と PR #1098 を読み取り専用 `gh api` で確認した。初回コミットが 7 日間予算超過で `SKIPPED` になった後の後続コミット（#1097 `516b7e5b` は `03_implementation_plan.md` の +1/-1 行のみ、#1098 `3de3c7bd` は `01_requirements.md` の +7/-3 行のみ）で `SUCCESS` で完了したレビューは、いずれも直近コミットで触れていない先行コミットの変更箇所に指摘を付けていた（#1097 `#discussion_r4665768633` の `docs/dev/adr/0050-fable-partial-review.md` 90 行目、#1098 `#discussion_r4666409559` ほか 3 件の ADR-0013・0015・0047）。この実測は、初回 `SKIPPED` 後の `SUCCESS` 完了が直近コミット単体の増分差分ではなく先行コミットの変更箇所も対象にしていることを示す。一方で、2 件の実測だけでは先行コミットの全ファイルが必ず網羅される公式仕様の保証までは得られないが、[02_architecture.md](02_architecture.md) 5.4 が定めた確認手順の結果を踏まえ、`LAST_REVIEWED` で祖先コミットをレビュー済みと数える現行設計を運用上の前提として維持する判断を利用者と合意した。
   - **ADR の判断:** ADR なし（現行 [ADR-0013](../../dev/adr/0013-review-setup.md) の前提を運用判断として維持し、決定の変更がないため）。
+  - **その後の変更:** 2026-11-25 に、Sourcery AI の自動の PR レビューの完了は完了の印に数えないことにした（1.5）。この前提が効くのは、手動依頼への応答として数える完了だけになった。
 - **フェーズ 2・フェーズ 3 の PR 分割（6 PR 構成）:**
   - **決定:** [02_architecture.md](02_architecture.md) 8 章の 4 フェーズの順序を保ったまま、フェーズ 2 を 2 PR（`internal/ghci` 新設と `internal/mergepr` 切り替え）、フェーズ 3 を 2 PR（`internal/fixprguard` の非破壊内部追加と、旧 `--jq` テスト単独削除・`review-state` 拡張・`cmd/fixprguard`・`Protocol` 引き上げ・コマンド文書・ガイド 3〜5 章・ガード一括更新）に分け、全体 6 PR とする。`docs/dev/guides/fixprguard_guide.md` のうち `cmd/fixprguard/docs_test.go` と結合しない章（1 章・7.2.4・7.2.6・10 章の残余リスク記述）は PR-6（ステップ 4-1）へ寄せて PR-5 の変更量を抑える。
   - **理由:** 新規共有パッケージ `internal/ghci` と `fixprguard` の新規ロジック（`mentions`・`ci-checks`）を独立 PR で深くレビューでき、`Protocol` 引き上げと `runpr.md` 大幅改定を伴う PR-5 の変更量とレビュー負荷を抑えられるためである。なお `review_state.go` の拡張（`ReviewStateRequest` 変更と `RunSkipped`/`RequestSkipped` 追加）は `cmd/fixprguard`・`TestGuideListsReviewStateValues`・`TestDocumentedInvocationsParse` および単一 `Protocol` 引き上げ制約（[02_architecture.md](02_architecture.md) 1.3・8 章）と結合しており、スタブなしでは PR-4 へ切り出せないため PR-5 へまとめる。`Makefile:364`（`d29bb3d7`）の `deadcode` は `-test` 付きで実行されるため、単体テストを伴う内部追加 PR（PR-2・PR-4）も単独でグリーンゲート（`_context.md` の "Green gate" 参照）を通過できる。
@@ -79,6 +80,19 @@
 | `TestRunprDocContract/listings_print_no_body`・`TestRunprDocContract/request_comment_agrees_with_review_state` | `TestRunprDocContract/no_unchecked_gh_api`・`mentions`/`ci-checks` 呼び出し・旧経路不在検査、および `internal/fixprguard/mentions_test.go` | ステップ 3-1 / 3-2 / 3-5 |
 
 ---
+
+### 1.5. 計画の変更の際に決めたこと（2026-11-25）
+
+issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本書）のクロスチェックの部分レビューの再レビュー（タスク 0123）の指摘について、利用者と決めたことを記録する。
+
+- **Sourcery AI の自動の PR レビューの完了を完了の印に含めない（[01_requirements.md](01_requirements.md)「issue #1140 で決めたこと（2026-11-25）」、[02_architecture.md](02_architecture.md) 1.4）:**
+  - **決定:** ステップ 3-3 の `review_state.go` は、`ProfileSourcery` の `Markers` を手動依頼に応答した完了だけにし、依頼に応答しない自動の完了は `AutoReview` の `completed` に示すだけにする。ステップ 3-5 の `runpr.md` と `_lib/pr-review-escalation.md` は、`LAST_REVIEWED` を両社の手動の完了の印の和集合から求め、要約の kind 16 で自動の完了を「レビュー済みに数えない」と添えて示す。自動の完了は `markers` を変えないので、step 4 の質問前の再読込は `head` 上の `autoReview` の変化でも step 3 へ戻り、その自動の PR レビューのスレッドを処理する。PR の数と分け方は変えない。
+  - **理由:** 要件定義書の同節のとおり、自動の PR レビューの完了を数えると、エスカレーションの判定と要約の「未レビュー分」の行が、自動の PR レビューが成功した PR で飛ばされるためである。変更はどちらも PR-5 の範囲に収まり、PR-3 と PR-4 には影響しない。
+  - **ADR の判断:** [ADR-0013](../../dev/adr/0013-review-setup.md) を更新する（要件定義書の同節の決定。本書を draft に戻した文書の PR で更新する）。
+- **ADR の食い違いの記述は、それを解消する PR で取り除く（[02_architecture.md](02_architecture.md) 1.4）:**
+  - **決定:** `#1095` への食い違いの記述は、ステップ 4-2 でまとめて取り除かず、それを解消する PR で取り除くか、残る部分だけに書き換える。PR-1 で解消した ADR-0015 の分（自動レビュアーの一覧の記述を削除し、拒否するメンションと `/runpr` のメンション検査の記述を残る部分だけに書き換える）は、本書を draft に戻した文書の PR で行う。ADR-0013「レビュー済みの判定」の CI 待機の記述から `mergepr prepare` の部分を外すのはステップ 2-2（PR-3）、残りの記述をすべて取り除くのはステップ 3-5（PR-5）とする。ステップ 4-2 は、記述が残っていないことを確かめるだけにする。あわせて、ADR-0013 と ADR-0047 の `#1072` の食い違いの記述を残すという指示を除く。
+  - **理由:** 要件定義書の AC-27 と `docs/dev/conventions/adr.md`「Editorial corrections」の「Discrepancy statements」は、食い違いを解消した PR が同じ PR で記述を取り除くか、残る部分に書き換えると定めており、これまでの配置（PR-6 でまとめて削除）はこれと食い違っていた。`#1072` の記述は #1115 がすでに取り除いており、残す指示は何も指していなかった。
+  - **ADR の判断:** ADR なし（タスク内の作業の配置を、既存の規約に合わせる変更であるため）。
 
 ## 2. 実装ステップ (Implementation Steps)
 
@@ -183,12 +197,14 @@
   - `internal/mergepr/mergepr_test.go`
   - `.claude/commands/mergepr.md`
   - `docs/dev/guides/mergepr_guide.md`
+  - `docs/dev/adr/0013-review-setup.md`
 - **作業内容:**
   - [ ] `internal/mergepr/runner.go` に `ghci` 用の `cmdrunner.Runner`（`MaxOutput: 32 MiB`・`WaitDelay: 5s`・`Env: gitEnviron()`）を追加する。
   - [ ] `internal/mergepr/mergepr.go` の `Tool` へ `ghci` 用 runner と `WaitOptions`（既定: `PollInterval: 30s`・`Timeout: 60m`・`PerCallTimeout: 2m`・`NoCheckGrace: 5m`）を保持し、`Prepare`（`275` 行目）の `gh pr checks <N> --watch --fail-fast` を `ghci.ResolveRepo`＋`ghci.WaitPR`（`ExpectedHead: state.HeadRefOID`）へ置き換える。`StatePassed` 以外は `errChecksFailed`（失敗ジョブ名・URL または理由コードのみ）を返す（`Protocol = 3` は据え置く。[02_architecture.md](02_architecture.md) 3.2.4・4.2）。
   - [ ] `internal/mergepr/test_helpers.go`（`newCheckedTool` でテスト用 runner・即時 `Sleep` 注入）と `internal/mergepr/mergepr_test.go` の `gh pr checks` モック（5 箇所）および `921` 行目の古いコメントを更新し、`Sourcery review` が `FAILURE` でも `github-actions` が成功なら通過すること、`github-actions` 失敗・`head-changed`・`unreadable` で `errChecksFailed` を返すことを検証する（AC-19）。
   - [ ] 壊して確かめる検証: `Prepare` の `ExpectedHead` 引き渡しと `StatePassed` 判定をそれぞれ一時的に壊し、`TestPrepare`・`TestPrepareRejectsFailedChecks` が失敗することを確かめ、コミットメッセージに記録する。
   - [ ] `.claude/commands/mergepr.md:47` の CI 待機記述（`gh pr checks --watch --fail-fast`）を `github-actions` チェック監視へ更新し、`docs/dev/guides/mergepr_guide.md`（2 章 `30` 行目の前提・4 章・5.2 節 `prepare`・6.1・6.2 節の `github-actions` 限定監視と `.github/workflows/deepseek-review.yml` の前提・7 章の古いバイナリ判別法と `make install-mergepr` 対処）を更新する（[02_architecture.md](02_architecture.md) 5.4・8 章）。
+  - [ ] [ADR-0013](../../dev/adr/0013-review-setup.md)「レビュー済みの判定」の `#1095` への食い違いの記述から、このステップで解消する `mergepr prepare`（`internal/mergepr/mergepr.go`・`.claude/commands/mergepr.md`）の部分を外し、残る部分（`fixprguard review-state` と `runpr.md` の判定、`runpr.md` の CI 待機）だけに書き換える。編集上の訂正として、コミットメッセージに `Editorial correction:` 行を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」、AC-27、1.5）。
   - [ ] 文書の事実照合: 既存インストール済みバイナリ（ビルド・再インストールは行わない）に対する `go version -m` の実出力（`build vcs.revision` 行）と、`.github/workflows/deepseek-review.yml` の実際のワークフロー名（`Code Review`）・トリガー（`workflow_dispatch` のみ有効、`pull_request`/`issue_comment` はコメントアウト）を照合し、`mergepr_guide.md` の記載と一致させる。
 - **完了条件:**
   - `make fmt && make test && make lint && make deadcode`（`cmd/mergepr/docs_test.go` を含む）がすべて通ること。
@@ -200,7 +216,7 @@
 
 **推奨タイトル**: `feat(0122): mergepr prepare の CI 待機を GitHub Actions 限定へ分離`
 
-**レビュー観点**: `Prepare` の `ghci.ResolveRepo`＋`WaitPR`（`ExpectedHead: state.HeadRefOID`）切り替えと `errChecksFailed` 変換 / 出力上限 32 MiB の `ghci` 用 runner と `Protocol = 3` 据え置き / `mergepr.md`・`mergepr_guide.md` の `go version -m` と `deepseek-review.yml` 事実照合
+**レビュー観点**: `Prepare` の `ghci.ResolveRepo`＋`WaitPR`（`ExpectedHead: state.HeadRefOID`）切り替えと `errChecksFailed` 変換 / 出力上限 32 MiB の `ghci` 用 runner と `Protocol = 3` 据え置き / `mergepr.md`・`mergepr_guide.md` の `go version -m` と `deepseek-review.yml` 事実照合 / ADR-0013 の `#1095` の食い違いの記述から `mergepr prepare` の部分だけを外す書き換え（`Editorial correction:` 記録）
 
 **実装モデル要件**: standard+high-review
 
@@ -279,9 +295,9 @@
   - `internal/fixprguard/review_state_test.go`
 - **作業内容:**
   - [ ] `internal/fixprguard/types.go` の `Protocol` を `origin/main` の値 + 1 へ引き上げる（`CLAUDE.md`「Protocol numbers」）。
-  - [ ] `internal/fixprguard/review_state.go` を [02_architecture.md](02_architecture.md) 3.2.2 の仕様どおり拡張する（`RunSkipped`・`RequestSkipped`・`AutoReviewState`・`AutoReview`・`ReviewStateRequest` の `Profile` と複数 `Requests`・`PRReviewState` の `Profile` 常時設定と `AutoReview`・GraphQL `$checkName` と `name` 完全一致照合・プロファイル別分類表・`ProfileSourcery` の依頼 0 件時読み取り・15 分応答上限・同一／より古いコミット競合判定・4 段階優先順位 `AutoReview`・自動完了の印と `ReviewURL` 解決）。
-  - [ ] `internal/fixprguard/test_helpers_review.go`（`//go:build test`）と `review_state_test.go` を拡張し、`ProfileCodeRabbit` 既存ケース維持＋`ProfileSourcery` の全状態・優先順位・未開始 `startedAt: null`・手動 `waiting` かつ `Response == nil` 時の未開始 CheckRun 非誤認・15 分応答上限・同一コミット競合と後続コミット非競合・空 `QUEUED` CheckSuite 無視・`name` 不一致 `rejected`・`Profile` 常時設定を検証する。あわせて `TestReviewStateEnumsRejectOutsideValues`（`ReviewProfile`・`AutoReviewState(99)`・ゼロ値 `PRReviewState{}` の `json.Marshal` 失敗・`PRReviewState{Profile: ProfileCodeRabbit}` の `"state":"indeterminate"`・ゼロ値 `AutoReview{}` の `"state":"none"`/`"kind":"unknown"`）、`TestReviewStateObserved`（`observations.md` の Sourcery 観測値フィクスチャ追加）、`TestReviewStateNonPRCommitIgnored`（`ProfileSourcery` ケース追加）、`TestReviewStateOutputHasNoText`（`ProfileSourcery` `AutoReview` の禁止テキスト非出力ケース追加）を更新する（AC-05・AC-16〜AC-20・AC-24）。
-  - [ ] 壊して確かめる検証: `review_state.go` の `name` 照合と `ProfileSourcery` の `commitIndex` 競合判定をそれぞれ一時的に壊し、`TestReviewStateSourceryAuto`・`TestReviewStateSourceryManual` が失敗することを確かめ、コミットメッセージに記録する。
+  - [ ] `internal/fixprguard/review_state.go` を [02_architecture.md](02_architecture.md) 3.2.2 の仕様どおり拡張する（`RunSkipped`・`RequestSkipped`・`AutoReviewState`・`AutoReview`・`ReviewStateRequest` の `Profile` と複数 `Requests`・`PRReviewState` の `Profile` 常時設定と `AutoReview`・GraphQL `$checkName` と `name` 完全一致照合・プロファイル別分類表・`ProfileSourcery` の依頼 0 件時読み取り・15 分応答上限・同一／より古いコミット競合判定・4 段階優先順位 `AutoReview`・手動依頼に応答した完了だけを `Markers` に入れる規則と `ReviewURL` 解決。自動の完了は `AutoReview` の `completed` だけに示す。1.5）。
+  - [ ] `internal/fixprguard/test_helpers_review.go`（`//go:build test`）と `review_state_test.go` を拡張し、`ProfileCodeRabbit` 既存ケース維持＋`ProfileSourcery` の全状態・優先順位・未開始 `startedAt: null`・手動 `waiting` かつ `Response == nil` 時の未開始 CheckRun 非誤認・15 分応答上限・同一コミット競合と後続コミット非競合・空 `QUEUED` CheckSuite 無視・`name` 不一致 `rejected`・`Profile` 常時設定・自動の完了が `Markers` に入らず `AutoReview` の `completed` になること（1.5）を検証する。あわせて `TestReviewStateEnumsRejectOutsideValues`（`ReviewProfile`・`AutoReviewState(99)`・ゼロ値 `PRReviewState{}` の `json.Marshal` 失敗・`PRReviewState{Profile: ProfileCodeRabbit}` の `"state":"indeterminate"`・ゼロ値 `AutoReview{}` の `"state":"none"`/`"kind":"unknown"`）、`TestReviewStateObserved`（`observations.md` の Sourcery 観測値フィクスチャ追加）、`TestReviewStateNonPRCommitIgnored`（`ProfileSourcery` ケース追加）、`TestReviewStateOutputHasNoText`（`ProfileSourcery` `AutoReview` の禁止テキスト非出力ケース追加）を更新する（AC-05・AC-16〜AC-20・AC-24）。
+  - [ ] 壊して確かめる検証: `review_state.go` の `name` 照合、`ProfileSourcery` の `commitIndex` 競合判定、および自動の完了を `Markers` から外す条件をそれぞれ一時的に壊し、`TestReviewStateSourceryAuto`・`TestReviewStateSourceryManual` が失敗することを確かめ、コミットメッセージに記録する。
 - **完了条件:**
   - `go test -tags test ./internal/fixprguard` がすべて通ること。
 
@@ -308,14 +324,18 @@
   - `cmd/fixprguard/docs_test.go`
   - `cmd/yt2column/fixpr_docs_test.go`
   - `cmd/yt2column/review_mention_docs_test.go`
+  - `docs/dev/adr/0013-review-setup.md`
+  - `docs/dev/adr/0015-untrusted-review-threads.md`
+  - `docs/dev/adr/0047-runpr-merge-question.md`
 - **作業内容:**
   - [ ] `.claude/commands/_context.md` の Domain-specific 節から `Awaited PR reviewer` 行・`PR review request` 行および `Rejected mentions` 行の `<rejected-mentions>` 定義を削除し、`Rejected mentions` 行（`365` 行目）の例外参照を `### PR reviewers` 表の `Post request` へ、`Guard tool` 行（`366` 行目）を `mentions`・`ci-checks`・自動の PR レビューを含む記述へ更新し、`### PR reviewers` 表（5 列・`coderabbitai` と `sourcery-ai` の 2 行）を新設する（[02_architecture.md](02_architecture.md) 3.1、AC-12・AC-15）。
-  - [ ] `.claude/commands/runpr.md` を [02_architecture.md](02_architecture.md) 3.3・4.2・6.1・6.2 の仕様どおり更新する。冒頭では frontmatter・説明（`2,11-20,53-54` 行目の旧 `--jq` 例外と CodeRabbit 専用表現）・プレースホルダー・認可リストを更新し、全 `fixprguard` 呼び出しの `--protocol` を `main` の値 + 1 へ揃える。step 3 では旧 `<stderr-dir>`/`mktemp -d`・`gh api user --jq .login`（step 2 `350` 行目は維持）を削除し、`fixprguard mentions`・両社 `fixprguard review-state`・`TIMED_OUT_AUTO`／`FIRST_SEEN_AUTO`・`LAST_REVIEWED` 和集合・`fixprguard ci-checks --head` を組み込む。step 4 では質問前再読込と `mentions` 再確認（`732-735,776-779` 行目）・要約最大 16 行・マージの質問表示条件と推奨・依頼先 3 択と `mergepr discard` 前の投稿前確認・`Manual PR review stops` 表への `skipped` 追加を反映し、レビュアー名と 4 メンションは直書きしない（AC-08・AC-13〜AC-25）。
+  - [ ] `.claude/commands/runpr.md` を [02_architecture.md](02_architecture.md) 3.3・4.2・6.1・6.2 の仕様どおり更新する。冒頭では frontmatter・説明（`2,11-20,53-54` 行目の旧 `--jq` 例外と CodeRabbit 専用表現）・プレースホルダー・認可リストを更新し、全 `fixprguard` 呼び出しの `--protocol` を `main` の値 + 1 へ揃える。step 3 では旧 `<stderr-dir>`/`mktemp -d`・`gh api user --jq .login`（step 2 `350` 行目は維持）を削除し、`fixprguard mentions`・両社 `fixprguard review-state`・`TIMED_OUT_AUTO`／`FIRST_SEEN_AUTO`・両社の手動の完了の印の和集合による `LAST_REVIEWED`（自動の完了は数えない。1.5）・`fixprguard ci-checks --head` を組み込む。step 4 では質問前再読込と `mentions` 再確認（`732-735,776-779` 行目。`head` 上の `autoReview` の変化でも step 3 へ戻る。1.5）・要約最大 16 行（kind 16 の自動の完了には「レビュー済みに数えない」と添える）・マージの質問表示条件と推奨・依頼先 3 択と `mergepr discard` 前の投稿前確認・`Manual PR review stops` 表への `skipped` 追加を反映し、レビュアー名と 4 メンションは直書きしない（AC-08・AC-13〜AC-25）。
   - [ ] `.claude/commands/fixpr.md` の全 `fixprguard` 呼び出しと説明の `--protocol`（12 箇所）を `main` の値 + 1 へ更新する。
-  - [ ] `.claude/commands/_lib/pr-review-escalation.md`（`2,7-9,21-22,55-62` 行目）を CodeRabbit 手動＋Sourcery AI 自動・手動併用、`LAST_REVIEWED` の両社和集合、および `fixprguard mentions`・`ci-checks` へ更新する（AC-18・AC-22）。
+  - [ ] `.claude/commands/_lib/pr-review-escalation.md`（`2,7-9,21-22,55-62` 行目）を CodeRabbit（手動）と Sourcery AI（自動・手動）の併用、両社の手動の PR レビューの完了の印の和集合による `LAST_REVIEWED`（Sourcery AI の自動の PR レビューの完了は数えない。1.5）、および `fixprguard mentions`・`ci-checks` へ更新する（AC-18・AC-22）。
   - [ ] `docs/dev/guides/fixprguard_guide.md` のガード結合章（3 章のプロトコル番号記載、4 章の新 `--protocol`・`--profile`・`--observed-bot`・`--request` 複数回・`--head`・`mentions`/`ci-checks` の終了コード `0`、5 章の `review-state` 拡張と `mentions`・`ci-checks` 節新設、および文書内すべての `--protocol`・`"protocol"` 例）を更新する。なお、`guideTable` 互換のため `**応答の分類。**` 直下は 1 表にまとめる（非結合章の 1 章・7.2.4・7.2.6・10 章はステップ 4-1 で更新。AC-26）。
   - [ ] `CLAUDE.md` の `178-179` 行目（廃止する `PR review request` 行参照を `_context.md` の `PR reviewers` 表へ更新）および `Declare, don't infer` の `fixprguard` 例外（`490-502` 行目：`review_state.go` の CheckRun `name` 照合とプロファイル別分類表）を更新する（AC-29）。
   - [ ] `cmd/fixprguard/docs_test.go` を更新する。`TestDocumentedInvocationsParse` の `runpr.md` 期待サブコマンドへ `cmdMentions`・`cmdCIChecks` を追加し、`checkDocumentedReviewer`（`228-247` 行目：`flagReviewer` 非保持でも `cmdMentions` を検査するよう早期リターン条件を改め、`flagRequest` 参照を `inv.values` から `inv.multi` へ切り替え）と `TestCheckDocumentedReviewer` を新プレースホルダー（`<pr-profile>`・`<pr-reviewer>`・`<accepted-request>`・`<observed-bot>`）へ対応させる。さらに `TestGuideListsReviewStateValues` へ `ReviewProfile`・`AutoReviewState`・`RunSkipped`・`RequestSkipped` を追加し、`mentions`・`ci-checks` のガイド値表検査（`TestGuideListsMentionsValues`・`TestGuideListsCIChecksValues`）を新設する（AC-08・AC-15・AC-26）。
+  - [ ] このステップで解消する `#1095` への食い違いの記述を、ADR から取り除く。対象は、[ADR-0013](../../dev/adr/0013-review-setup.md) の「PR レビューの依頼」「PR レビューを勧める判定」「レビュー済みの判定」（ステップ 2-2 で書き換えた残り）「信頼する自動レビュアーの一覧と、PR レビューの待機・依頼の対象」、[ADR-0015](../../dev/adr/0015-untrusted-review-threads.md) の「ガードツール経由の書き込みとメンション拒否」「`interaction limits` とメンション検査」、[ADR-0047](../../dev/adr/0047-runpr-merge-question.md) の「マージの質問の形式と選択肢」の記述である。取り除く前に `git grep -nE 'issues/1095([^0-9]|$)' origin/main -- docs/dev/adr/` で記述を探し、このステップが解消しない記述が残っていればそれだけを残す。編集上の訂正として、ADR ごとにコミットメッセージへ `Editorial correction:` 行を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」、AC-27、1.5）。
   - [ ] `cmd/yt2column/fixpr_docs_test.go` と `cmd/yt2column/review_mention_docs_test.go` を更新する。`fixpr_docs_test.go` では `checkContextReviewers`・`TestContextReviewerRowsMalformed` の `### PR reviewers` 5 列表と旧行 0 件検査、`TestContextAndCommandsAgree` の全 `Reviewer` 直書き禁止、`TestFixprguardCallSites` への `mentions`・`ci-checks` 追加、`TestRunprDocContract/no_unchecked_gh_api` の `step3ReadCalls` 空化による `runpr.md` step 3 への `gh api` 呼び出し全面禁止と `gh pr checks --watch` 不在検査を反映する。`review_mention_docs_test.go` では `TestMentionsOnlyInAllowedRows` の `### PR reviewers` 許可化（期待行数と `Post request`・`Accepted requests` 列限定を固定）、`TestPostingPathsCheckMention` からの `<rejected-mentions>` 要求削除、`TestPostingCommandsInventory` の `<post-request>` 更新を行う（AC-08・AC-09・AC-12・AC-15・AC-25）。
 - **完了条件:**
   - `make fmt && make test && make lint && make deadcode` がすべて通ること。
@@ -327,7 +347,7 @@
 
 **推奨タイトル**: `feat(0122): fixprguard のプロトコル更新と runpr の複数レビュアー・自動の PR レビュー対応を実装`
 
-**レビュー観点**: 先行単独テスト削除コミットの `make coverage-compare PASS` と `no_unchecked_gh_api` 引き継ぎ / `review-state` の複数プロファイル・自動レビュー状態機械・`name` 照合・同一コミット競合判定 / `Protocol` 引き上げと `_context.md`・`runpr.md`・`fixpr.md`・`_lib/pr-review-escalation.md`・ガイド 3〜5 章・全ガードの一括整合
+**レビュー観点**: 先行単独テスト削除コミットの `make coverage-compare PASS` と `no_unchecked_gh_api` 引き継ぎ / `review-state` の複数プロファイル・自動レビュー状態機械・`name` 照合・同一コミット競合判定 / `Protocol` 引き上げと `_context.md`・`runpr.md`・`fixpr.md`・`_lib/pr-review-escalation.md`・ガイド 3〜5 章・全ガードの一括整合 / 自動の完了を完了の印に数えない `LAST_REVIEWED` / ADR-0013・0015・0047 の `#1095` の食い違いの記述の削除（`Editorial correction:` 記録）
 
 **実装モデル要件**: high
 
@@ -357,17 +377,15 @@
 - **完了条件:**
   - 変更した記述が実装後の `_context.md`・`runpr.md`・`fixprguard` と一致し、`cmd/fixprguard/docs_test.go` が通ること。
 
-#### ステップ 4-2: ADR-0013・ADR-0015・ADR-0047 の `#1095` 食い違い記述の削除
+#### ステップ 4-2: ADR-0013・ADR-0015・ADR-0047 に `#1095` の食い違いの記述が残っていないことの確認
 
 - **対象ファイル:**
   - `docs/dev/adr/0013-review-setup.md`
   - `docs/dev/adr/0015-untrusted-review-threads.md`
   - `docs/dev/adr/0047-runpr-merge-question.md`
 - **作業内容:**
-  - [ ] `docs/dev/adr/0013-review-setup.md`（`27,55,76,89` 行目の `#1095` 食い違い記述を削除。`55` 行目の `#1072` 食い違いは別タスクのため残す）を更新する（AC-27）。
-  - [ ] `docs/dev/adr/0015-untrusted-review-threads.md`（`30,43,56` 行目の `#1095` 食い違い記述を削除）を更新する（AC-27）。
-  - [ ] `docs/dev/adr/0047-runpr-merge-question.md`（`21` 行目の `#1095` 食い違い記述を削除。`#1072` 食い違いは別タスクのため残す）を更新する（AC-27）。
-  - [ ] 上記 ADR 3 件の編集は実装完了に伴う食い違い記述の削除（決定の変更なし）のため、`docs/dev/conventions/adr.md`「Editorial corrections」に従いコミットメッセージへ `Editorial correction:` 行を記録する（[02_architecture.md](02_architecture.md) 8 章のフェーズ配置に従い、全フェーズ完了の仕上げとして本ステップでまとめて削除する）。
+  - [ ] `git grep -nE 'issues/1095([^0-9]|$)' origin/main -- docs/dev/adr/` で、3 つの ADR の `## 決定` に本タスクの `#1095` の食い違いの記述が残っていないことを確かめる。記述は、それを解消した PR（PR-3・PR-5、PR-1 の分は本書を draft に戻した文書の PR）が取り除く（1.5）。
+  - [ ] 残っている記述があれば（取り除き忘れ）、このステップで取り除き、ADR ごとにコミットメッセージへ `Editorial correction:` 行を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」、AC-27）。
 - **完了条件:**
   - `go test -tags test ./cmd/yt2column -run TestADRRecords` が通り、3 ADR に `#1095` への食い違い記述が残っていないこと。
 
@@ -387,11 +405,11 @@
 
 **推奨タイトル**: `docs(0122): CLAUDE.md・用語集・ADR 整合更新と chief 中継テストを追加`
 
-**レビュー観点**: `CLAUDE.md`・`docs/translation_glossary.md`・`fixprguard_guide.md` 非結合章と実装後の最終仕様の一致 / ADR-0013・0015・0047 の `#1095` 食い違い削除（`#1072` 維持と `Editorial correction:` 記録） / `TestPickerQuestionRelayable` の両パーサ検証と全体 `doc-guard` 通過
+**レビュー観点**: `CLAUDE.md`・`docs/translation_glossary.md`・`fixprguard_guide.md` 非結合章と実装後の最終仕様の一致 / ADR-0013・0015・0047 に `#1095` の食い違いの記述が残っていないことの確認 / `TestPickerQuestionRelayable` の両パーサ検証と全体 `doc-guard` 通過
 
 **実装モデル要件**: low
 
-**判定理由**: いずれのトリガーにも該当しない（仕様文書・用語集・ガイド非結合章の更新、ADR の食い違い記述削除、既存サンプル派生による `internal/chief` 単体テスト 1 件の追加に留まるため）。
+**判定理由**: いずれのトリガーにも該当しない（仕様文書・用語集・ガイド非結合章の更新、ADR の食い違いの記述が残っていないことの確認、既存サンプル派生による `internal/chief` 単体テスト 1 件の追加に留まるため）。
 
 **自動送信**: hold
 
@@ -417,10 +435,10 @@
 |---|---|---|---|---|
 | PR-1 | 1-1 / 1-2 | `fixprguard` の 4 メンション拒否・自動レビュアーの一覧・`fixpr.md` 案内・ガイド・文書ガード（`Protocol` 据え置き） | high | auto |
 | PR-2 | 2-1 | 共有パッケージ `internal/ghci` 新設と `package_reference.md` 更新（PR-1 マージ後の `make install-fixprguard` のため `hold`） | high | hold |
-| PR-3 | 2-2 | `internal/mergepr` の CI 待機分離と `mergepr.md`・`mergepr_guide.md`・テスト更新（`Protocol = 3` 据え置き） | standard+high-review | auto |
+| PR-3 | 2-2 | `internal/mergepr` の CI 待機分離と `mergepr.md`・`mergepr_guide.md`・テスト更新（`Protocol = 3` 据え置き）、ADR-0013 の食い違いの記述から `mergepr prepare` の部分を外す | standard+high-review | auto |
 | PR-4 | 3-1 | `internal/fixprguard` への `ReviewProfile`・`mentions`・`ci-checks`・`ResolveRepo` 委譲の非破壊追加と `CLAUDE.md` 例外（PR-3 マージ後の `make install-mergepr` のため `hold`） | high | hold |
-| PR-5 | 3-2 / 3-3 / 3-4 / 3-5 | 旧 `--jq` テスト単独削除・`review-state` 拡張・`cmd/fixprguard`・`Protocol` 引き上げ・`_context.md`・`runpr.md`・`fixpr.md`・`_lib/pr-review-escalation.md`・ガイド 3〜5 章・全ガード一括更新 | high | auto |
-| PR-6 | 4-1 / 4-2 / 4-3 | `CLAUDE.md`・用語集・ガイド非結合章更新、ADR 3 件の `#1095` 食い違い削除、`internal/chief` 単一選択中継テスト追加と全体検証（PR-5 マージ後の `make install-fixprguard` のため `hold`） | low | hold |
+| PR-5 | 3-2 / 3-3 / 3-4 / 3-5 | 旧 `--jq` テスト単独削除・`review-state` 拡張・`cmd/fixprguard`・`Protocol` 引き上げ・`_context.md`・`runpr.md`・`fixpr.md`・`_lib/pr-review-escalation.md`・ガイド 3〜5 章・全ガード一括更新、ADR 3 件の `#1095` の食い違いの記述の削除 | high | auto |
+| PR-6 | 4-1 / 4-2 / 4-3 | `CLAUDE.md`・用語集・ガイド非結合章更新、ADR 3 件に `#1095` の食い違いの記述が残っていないことの確認、`internal/chief` 単一選択中継テスト追加と全体検証（PR-5 マージ後の `make install-fixprguard` のため `hold`） | low | hold |
 
 ---
 
@@ -457,7 +475,7 @@
 | PR-5（ステップ 3-3）の `fixprguard` `Protocol` 引き上げ時に並行ブランチが同じ番号を使う | マージ前の `Protocol` 衝突またはツール不一致 | `CLAUDE.md`「Protocol numbers」に従い、PR 作成時に `origin/main` の値 + 1 を設定し、マージ時は `mergepr` の自動検査で確認する |
 | PR-5 先頭（ステップ 3-2）の旧 `--jq` サブテスト削除時に、意図せずプロダクションコードのカバレッジが下がる | `make coverage-compare` が `FAIL` になる | 先行 PR（PR-4 / ステップ 3-1）で `mentions_test.go` をマージ済みとした上で、`ReviewStateRequest`・`runpr.md` 変更前のグリーンな `BASE` に対して削除コミットを単独作成し、`make coverage-compare` を実行する |
 | 本タスク自身の PR で Sourcery AI が PR 説明末尾に `@sourcery-ai` を引用して追記し、`append-pr` が `current-body-mention` で止まる | `/fixpr` Phase 6 の追記が自動完了しない | 安全側の停止として `fixprguard_guide.md` 8 章どおり `append-pr` を繰り返さず、利用者が PR 説明を GitHub 上で確認して対処する（[02_architecture.md](02_architecture.md) 5.4） |
-| 途中 PR（PR-1〜PR-5）で ADR-0013・0015・0047 の `#1095` 食い違い記述が一時的に残る | 途中 PR のレビュー時に未削除と誤解されうる | [02_architecture.md](02_architecture.md) 8 章のフェーズ配置に従い最終 PR（PR-6 / ステップ 4-2）で一括削除する方針を本書に明記する |
+| 食い違いを解消した PR が、ADR の `#1095` の食い違いの記述を取り除き忘れる | 解消済みの食い違いが ADR に残り、AC-27 と `docs/dev/conventions/adr.md` の規則に反する | 取り除く作業を解消するステップ（ステップ 2-2・3-5）に置き、各 PR のレビュー観点に挙げる。ステップ 4-2 で残っていないことを確かめる（1.5） |
 
 ---
 
@@ -494,17 +512,17 @@
 | AC-14 | 3-5（既存維持） | `static`, `test` | `cmd/yt2column/fixpr_docs_test.go::TestRunprDocContract`（`head_before_checkout`）, `TestFixprguardCallSites`, `cmd/fixprguard/main_test.go::TestInteractionLimitsRun` | `runpr.md` step 1 で `head` → `interaction-limits` → `gh pr checkout` の順序と停止判定が維持されることを検証 |
 | AC-15 | 3-5 | `test`, `static` | `cmd/yt2column/fixpr_docs_test.go::TestContextAndCommandsAgree`, `TestContextReviewerRowsMalformed`, `cmd/yt2column/review_mention_docs_test.go::TestMentionsOnlyInAllowedRows`, `cmd/fixprguard/docs_test.go::TestDocumentedInvocationsParse`, `TestCheckDocumentedReviewer` | `_context.md` の `### PR reviewers` 表の 5 列・2 行・依頼文面定義とコマンド文書の直書き禁止を検証 |
 | AC-16 | 3-3 / 3-4 / 3-5 | `test`, `manual` | `internal/fixprguard/review_state_test.go::TestReviewStateSourceryAuto`, `cmd/fixprguard/main_test.go::TestReviewStateRun`（`runpr.md` の `TIMED_OUT_AUTO`/`FIRST_SEEN_AUTO` 手順は `manual`） | `head` 上の進行中自動 CheckRun の `AutoRunning`・未開始 `startedAt: ""`・15 分超過 `AutoTimedOut`・祖先未完了非待機を検証し、step 4 非再待機手順をレビューで確認 |
-| AC-17 | 3-3 | `test` | `internal/fixprguard/review_state_test.go::TestReviewState`, `TestReviewStateSourceryAuto`, `TestReviewStateSourceryManual`, `TestReviewStateObserved`, `TestReviewStateNonPRCommitIgnored`, `TestReviewStateOutputHasNoText` | CodeRabbit（手動）と Sourcery AI（自動・手動、`@sourcery-ai review`/`@sourceryai review`）の完了の印判定、`name`/`app.slug`/非 PR コミット・本文非出力を検証 |
+| AC-17 | 3-3 | `test` | `internal/fixprguard/review_state_test.go::TestReviewState`, `TestReviewStateSourceryAuto`, `TestReviewStateSourceryManual`, `TestReviewStateObserved`, `TestReviewStateNonPRCommitIgnored`, `TestReviewStateOutputHasNoText` | CodeRabbit（手動）と Sourcery AI（手動、`@sourcery-ai review`/`@sourceryai review`。自動の完了は完了の印に含めず `AutoReview` の `completed` に示す）の完了の印判定、`name`/`app.slug`/非 PR コミット・本文非出力を検証 |
 | AC-18 | 3-3 / 3-5 | `test`, `manual` | `internal/fixprguard/review_state_test.go::TestReviewStateSourceryAuto`, `TestReviewStateSourceryManual`, `TestReviewStateLimits`（`runpr.md` の両社和集合・祖先算出手順・`_lib/pr-review-escalation.md` は `manual`） | 両社の `markers` 出力と `unreadable (limit)` 時の動作を検証し、`runpr.md`・`_lib/pr-review-escalation.md` の `LAST_REVIEWED` 和集合規則をレビューで確認 |
 | AC-19 | 2-1 / 2-2 / 3-1 / 3-3 / 3-4 / 3-5 | `test`, `static`, `manual` | `internal/ghci/ghci_test.go::TestReadPR`, `TestWaitPR`, `internal/fixprguard/ci_checks_test.go::TestCIChecks`, `cmd/fixprguard/main_test.go::TestCIChecksRun`, `internal/mergepr/mergepr_test.go::TestPrepare`, `TestPrepareRejectsFailedChecks`, `cmd/mergepr/docs_test.go`, `internal/fixprguard/review_state_test.go::TestReviewStateSourceryAuto`, `cmd/yt2column/fixpr_docs_test.go::TestRunprDocContract`（`mergepr.md`・`mergepr_guide.md` は `manual`） | 自動レビュー異常時の `AutoSkipped`/`AutoUnrecognized`/`AutoTimedOut`、`internal/ghci`・`ci-checks`・`mergepr prepare` の `github-actions` 限定監視、`runpr.md` からの `gh pr checks --watch` 廃止、`mergepr` 文書整合を検証 |
 | AC-20 | 3-1 / 3-3 / 3-4 / 3-5 | `test`, `manual` | `internal/fixprguard/review_state_test.go::TestReviewStateSourceryManual`, `TestReviewStateUnreadable`, `TestReviewStateLimits`, `internal/fixprguard/mentions_test.go::TestPRMentionsErrors`, `cmd/fixprguard/main_test.go::TestReviewStateRun` | 手動依頼の `skipped`/`rate-limited`/`unrecognized`/`timed-out`・`indeterminate`・`unreadable` 各理由を検証し、`runpr.md` の停止・再試行・同時待機手順をレビューで確認 |
 | AC-21 | 3-5 | `manual` | `.claude/commands/runpr.md` step 4（PR レビュー確認） | マージの質問の最大 4 択・単一選択維持と、`head` 未レビュー残存時の「先に PR レビューを依頼」表示条件を確認（手順文書の自然言語仕様） |
-| AC-22 | 3-5 | `manual` | `.claude/commands/runpr.md` step 4・`.claude/commands/_lib/pr-review-escalation.md` | `LAST_REVIEWED == head` 時の「未レビューの変更: なし」・推奨「マージ」および未レビュー時のエスカレーション推奨規則を確認（手順文書の自然言語仕様） |
+| AC-22 | 3-5 | `manual` | `.claude/commands/runpr.md` step 4・`.claude/commands/_lib/pr-review-escalation.md` | `LAST_REVIEWED == head` 時の「未レビューの変更: なし」・推奨「マージ」、未レビュー時のエスカレーション推奨規則、および自動の PR レビューが `head` を完了していても `LAST_REVIEWED != head` ならエスカレーションと要約の「未レビュー分」の行が働くことを確認（手順文書の自然言語仕様） |
 | AC-23 | 3-5 / 4-3 | `static`, `test`, `manual` | `cmd/yt2column/review_mention_docs_test.go::TestPostingCommandsInventory`, `internal/chief/screen_test.go::TestPickerQuestionRelayable` | `gh pr comment <number> --body "<post-request>"` が `runpr.md` step 4 に 1 か所のみであること・3 択質問の中継可能性を検証し、投稿前確認・重複投稿抑止手順をレビューで確認 |
-| AC-24 | 3-3 / 3-5 | `test`, `manual` | `internal/fixprguard/review_state_test.go::TestReviewStateOutputHasNoText`（`runpr.md` 要約 16 行・表示優先順位は `manual`） | 本文・`title`・`details_url` 非出力を検証し、`runpr.md` の CodeRabbit・Sourcery AI 各 1 行要約と URL 優先順位をレビューで確認 |
+| AC-24 | 3-3 / 3-5 | `test`, `manual` | `internal/fixprguard/review_state_test.go::TestReviewStateOutputHasNoText`（`runpr.md` 要約 16 行・表示優先順位は `manual`） | 本文・`title`・`details_url` 非出力を検証し、`runpr.md` の CodeRabbit・Sourcery AI 各 1 行要約（自動の完了の「レビュー済みに数えない」表示を含む）と URL 優先順位をレビューで確認 |
 | AC-25 | 3-5 | `static` | `cmd/yt2column/review_mention_docs_test.go::TestPostingCommandsInventory` | PR 作成コマンド群に自動レビュアーへの依頼コメント投稿コマンドが存在しないことを検証 |
 | AC-26 | 1-2 / 3-5 / 4-1 | `test`, `manual` | `cmd/fixprguard/docs_test.go::TestGuideCoversStopKindsAndScope`, `TestGuideDescribesMentionCheck`, `TestGuideDescribesReviewerList`, `TestGuideListsReviewStateValues`, `TestGuideListsMentionsValues`, `TestGuideListsCIChecksValues`, `TestDocumentedProtocolMatches` | `docs/dev/guides/fixprguard_guide.md` の値表・コマンド文法・4 メンション・`--protocol` 一致を検証し、文章記述をレビューで確認 |
-| AC-27 | 4-2 | `test`, `manual` | `cmd/yt2column/adr_test.go::TestADRRecords` | ADR 構造・索引整合を検証し、ADR-0013・0015・0047 の `## 決定` 一致と `#1095` 食い違い削除をレビューで確認 |
+| AC-27 | 2-2 / 3-5 / 4-2 | `test`, `manual` | `cmd/yt2column/adr_test.go::TestADRRecords` | ADR 構造・索引整合を検証し、ADR-0013・0015・0047 の `## 決定` 一致と、`#1095` の食い違いの記述を解消した PR（PR-3・PR-5、PR-1 の分は本書を draft に戻した文書の PR）で取り除いたことをレビューで確認する。ステップ 4-2 で残っていないことを確かめる |
 | AC-28 | 4-3 | `test` | `internal/chief/screen_test.go::TestPickerQuestionRelayable`, `go test -tags test ./internal/chief` | 依頼先選択 3 択の中継判定および既存 `internal/chief` 全テスト通過を検証 |
 | AC-29 | 3-1 / 3-5 / 4-1 | `manual` | `CLAUDE.md`（PR レビュー体制・`Declare, don't infer` 例外・`jq` 記述） | `CLAUDE.md` の該当箇所が実装と一致していることを PR レビューで確認（自然言語仕様） |
 | AC-30 | 4-1 | `manual` | `docs/translation_glossary.md` | 用語集の該当定義が複数レビュアー併用と自動の PR レビューへ更新されていることを PR レビューで確認（自然言語用語集） |
@@ -513,7 +531,7 @@
 ### 7.1. 横断検索チェックリスト（`make lint`・`make test` で検出できない文書整合）
 
 - [ ] ステップ 3-5 完了時点でその時点の更新対象（`.claude/commands/`・`docs/dev/guides/fixprguard_guide.md` 3〜5 章・`CLAUDE.md:178-179`）に、さらにステップ 4-1・4-2 完了時点で仕様文書全体（`docs/dev/`・`CLAUDE.md`・`.claude/commands/`・`docs/translation_glossary.md`。過去の `docs/tasks/` と `internal/chief/testdata/` を除く）に、廃止済みの `Awaited PR reviewer`・`PR review request`・`<awaited-reviewer>`・`<review-request>`・`<rejected-mentions>`・`cr_observed`・`gh pr checks --watch`（`mergepr`・`runpr` の CI 待機記述）の古い記述が残っていないことを PR レビューで目視確認する（`manual`）。
-- [ ] ステップ 4-2 の完了時点で、ADR-0013・ADR-0015・ADR-0047 に `#1095` の未実装食い違い記述が残っていないこと、かつ別タスク（`#1072`）の食い違い記述を誤って消していないことを PR レビューで目視確認する（`manual`）。
+- [ ] ステップ 2-2・3-5 の各 PR で、その PR が解消した `#1095` の食い違いの記述が取り除かれている（一部だけ解消したときは残る部分だけに書き換えられている）こと、およびステップ 4-2 の完了時点で ADR-0013・ADR-0015・ADR-0047 に `#1095` の食い違いの記述が残っていないことを PR レビューで目視確認する（`manual`）。
 
 ---
 
@@ -537,3 +555,5 @@
 - 2026-11-24 承認（isseis、#1117）
 - 2026-11-25 draft への戻し：02_architecture.md の決定の変更に伴う（#1143）
 - 2026-11-25 承認（isseis、#1143）
+- 2026-11-25 draft への戻し：自動の PR レビューの完了を完了の印に含めない実装と、ADR の食い違いの記述を解消する PR で取り除く配置（#1158）
+- 2026-11-25 承認（isseis、#1158）
