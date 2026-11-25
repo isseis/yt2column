@@ -14,11 +14,74 @@ import (
 	"github.com/isseis/yt2column/internal/strictjson"
 )
 
+// Mergeable is GitHub's mergeable value of an open PR. The zero value is
+// MergeableUnknown, the value that sends nothing.
+type Mergeable int
+
+const (
+	// MergeableUnknown is a value GitHub has not computed yet (UNKNOWN).
+	MergeableUnknown Mergeable = iota
+	// MergeableNoConflict is a PR that merges without conflicts (MERGEABLE).
+	MergeableNoConflict
+	// MergeableConflicting is a PR in a merge conflict (CONFLICTING).
+	MergeableConflicting
+)
+
+// parseMergeable reads GitHub's mergeable value. Contract: only the three
+// values GitHub documents are accepted, compared as bytes; any other text,
+// a value in another case or with spaces around it included, is an error,
+// never a guessed value.
+func parseMergeable(s string) (Mergeable, error) {
+	switch s {
+	case "MERGEABLE":
+		return MergeableNoConflict, nil
+	case "CONFLICTING":
+		return MergeableConflicting, nil
+	case "UNKNOWN":
+		return MergeableUnknown, nil
+	default:
+		return MergeableUnknown, fmt.Errorf("%w: mergeable %q", errPRList, s)
+	}
+}
+
+// CommitID is a full commit ID: 40 lowercase hexadecimal digits. Only its
+// constructor makes one; the zero value names no commit and is never read
+// from a parsed PR.
+type CommitID struct{ hex string }
+
+// errCommitID reports a text that is not a full commit ID.
+var errCommitID = errors.New("not a full commit ID")
+
+// ParseCommitID accepts a full commit ID: exactly 40 lowercase hexadecimal
+// digits, nothing around them.
+func ParseCommitID(s string) (CommitID, error) {
+	if !commitID.MatchString(s) {
+		return CommitID{}, fmt.Errorf("%w: %q", errCommitID, s)
+	}
+	return CommitID{hex: s}, nil
+}
+
+// IsZero reports whether c names no commit: the zero value, which no
+// constructor returns, so it is never used to send or to key a record.
+func (c CommitID) IsZero() bool { return c.hex == "" }
+
+// String returns the 40 digits, or "" for the zero value.
+func (c CommitID) String() string { return c.hex }
+
 // OpenPR is an open pull request of a worktree's branch.
 type OpenPR struct {
-	Number int
-	Title  string
-	URL    string
+	Number    int
+	Title     string
+	URL       string
+	Mergeable Mergeable
+	// Head is the PR's head commit, as GitHub reports it.
+	Head CommitID
+	// BaseIsMain is true when the PR's base branch is main, decided once
+	// where the list is read, so nothing after it compares the name.
+	BaseIsMain bool
+	// CrossRepository is true when the PR's head branch is in another
+	// repository.
+	CrossRepository bool
 }
 
 // errGitOutput reports a git output chief cannot read.
@@ -27,11 +90,18 @@ var errGitOutput = errors.New("unreadable git output")
 // errPRList reports a `gh pr list` output chief cannot read.
 var errPRList = errors.New("unreadable gh pr list output")
 
-// parsePRList reads the output of `gh pr list --json
-// headRefName,number,title,url`. Contract: every element is read in full or
-// the whole output is rejected, and an element whose head branch is not the
-// branch asked for is rejected, so a PR of another branch is never shown as
-// this workspace's.
+// prListFields are the members `gh pr list --json` is asked for, each of
+// which parsePRList requires.
+const prListFields = "headRefName,number,title,url,mergeable,headRefOid,baseRefName,isCrossRepository"
+
+// parsePRList reads the output of `gh pr list --json` with prListFields.
+// Contract: every element is read in full or the whole output is rejected,
+// so one element of another shape makes the workspace's PRs unreadable; an
+// element whose head branch is not the branch asked for is rejected, so a PR
+// of another branch is never shown as this workspace's; the PR's values are
+// untrusted input accepted only in the forms parseMergeable, ParseCommitID,
+// a non-empty base, and a JSON boolean give, a member that is missing, null,
+// of another kind, or repeated being rejected.
 func parsePRList(out []byte, branch string) ([]OpenPR, error) {
 	items, err := strictjson.ParseArray(out)
 	if err != nil {
@@ -43,7 +113,7 @@ func parsePRList(out []byte, branch string) ([]OpenPR, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: element %d: %w", errPRList, i, err)
 		}
-		fields, err := object.Collect("headRefName", "number", "title", "url")
+		fields, err := object.Collect(strings.Split(prListFields, ",")...)
 		if err != nil {
 			return nil, fmt.Errorf("%w: element %d: %w", errPRList, i, err)
 		}
@@ -67,9 +137,45 @@ func parsePRList(out []byte, branch string) ([]OpenPR, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: element %d: %w", errPRList, i, err)
 		}
-		prs = append(prs, OpenPR{Number: int(number), Title: title, URL: url})
+		pr := OpenPR{Number: int(number), Title: title, URL: url}
+		if err := prConflictValues(fields, &pr); err != nil {
+			return nil, fmt.Errorf("%w: element %d: %w", errPRList, i, err)
+		}
+		prs = append(prs, pr)
 	}
 	return prs, nil
+}
+
+// prConflictValues reads into pr the four members of a PR element that
+// decide a merge conflict, in the forms parsePRList states.
+func prConflictValues(fields map[string]strictjson.Value, pr *OpenPR) error {
+	text, err := strictjson.RequiredString(fields, "mergeable")
+	if err != nil {
+		return err
+	}
+	if pr.Mergeable, err = parseMergeable(text); err != nil {
+		return err
+	}
+	if text, err = strictjson.RequiredString(fields, "headRefOid"); err != nil {
+		return err
+	}
+	if pr.Head, err = ParseCommitID(text); err != nil {
+		return err
+	}
+	base, err := strictjson.RequiredString(fields, "baseRefName")
+	if err != nil {
+		return err
+	}
+	// The one comparison of a PR's base with main, as bytes.
+	pr.BaseIsMain = base == mainBranch
+	crossValue, err := strictjson.Required(fields, "isCrossRepository")
+	if err != nil {
+		return err
+	}
+	if pr.CrossRepository, err = crossValue.AsBool(); err != nil {
+		return fmt.Errorf("isCrossRepository: %w", err)
+	}
+	return nil
 }
 
 // GitReader reads git and GitHub state of worktrees.
@@ -140,7 +246,7 @@ func (g GitReader) Head(ctx context.Context, worktree string) (string, error) {
 // OpenPRs returns the open pull requests whose head is branch, read by gh in
 // worktree so the repository is the worktree's own remote.
 func (g GitReader) OpenPRs(ctx context.Context, worktree, branch string) ([]OpenPR, error) {
-	out, err := g.cmds.gh(ctx, worktree, "pr", "list", "--head", branch, "--state", "open", "--json", "headRefName,number,title,url")
+	out, err := g.cmds.gh(ctx, worktree, "pr", "list", "--head", branch, "--state", "open", "--json", prListFields)
 	if err != nil {
 		return nil, err
 	}

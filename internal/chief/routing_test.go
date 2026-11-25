@@ -77,6 +77,7 @@ func TestRoutingRowsMapToTheirKeys(t *testing.T) {
 		paneinput.RouteRunplanLow:            "runplan-low",
 		paneinput.RouteRunplanTakeover:       "runplan-takeover",
 		paneinput.RouteRunpr:                 "runpr",
+		paneinput.RouteMergemain:             "mergemain",
 	}
 	doc := "### Command routing\n\n| Row | Command | Agent | Model |\n|---|---|---|---|\n"
 	for _, name := range rows {
@@ -189,5 +190,34 @@ func TestReadRoutingFromOriginMain(t *testing.T) {
 	}
 	if calls := rec.recorded(); len(calls) != 1 || calls[0].dir != "/work/tree" {
 		t.Errorf("calls = %+v", calls)
+	}
+}
+
+// TestRoutingMergemainRow reads the repository's mergemain row as Claude
+// Code, the only agent the row may name (its model is the table's to
+// change), and a copy whose mergemain row names OpenCode as a table that is
+// still read, with that agent: the restriction to Claude Code is the
+// sender's, not the table reader's.
+func TestRoutingMergemainRow(t *testing.T) {
+	doc := string(repoContext(t))
+	routing, err := ParseRouting([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, err := routing.Route(paneinput.RouteMergemain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route.Agent() != paneinput.AgentClaudeCode {
+		t.Errorf("mergemain route agent = %d, want Claude Code", route.Agent())
+	}
+	row := repositoryRow(t, "mergemain")
+	edited := strings.Replace(doc, row, rowWithCell(t, rowWithCell(t, row, 2, "OpenCode"), 3, "`DeepSeek V4.1 Flash 1017 OpenCode Go`"), 1)
+	openCode, err := ParseRouting([]byte(edited))
+	if err != nil {
+		t.Fatalf("a mergemain row naming OpenCode: %v", err)
+	}
+	if route, err := openCode.Route(paneinput.RouteMergemain); err != nil || route.Agent() != paneinput.AgentOpenCode {
+		t.Errorf("mergemain route = %+v, %v; want OpenCode", route, err)
 	}
 }

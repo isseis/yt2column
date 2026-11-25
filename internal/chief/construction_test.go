@@ -29,6 +29,9 @@ var guardedTypes = map[string][]string{
 	// A main row is classified by the identification's declared kind, so only
 	// the identification may make one.
 	"mainTaskResult": {"identifyMainTask"},
+	// A PR's head decides whether and where /mergemain is sent, so only the
+	// parser of a full commit ID may make one.
+	"CommitID": {"ParseCommitID"},
 }
 
 // emptyImporter gives every import an empty package, so type checking of
@@ -222,5 +225,46 @@ func forgedLabel(l tabLabel) tabLabel { l.hasLabel = true; return l }
 	got := constructionViolations(t, fset, []*ast.File{file})
 	if len(got) != 2 || !strings.HasPrefix(got[0], "displayUnit built in forged at") || !strings.HasPrefix(got[1], "tabLabel built in forgedLabel at") {
 		t.Errorf("want only forged and forgedLabel reported, got %v", got)
+	}
+}
+
+// TestConstructionGuardCoversCommitID runs the guard on source that makes a
+// CommitID by every path but its parser: a literal, an elided element, a
+// pointer literal, a field assignment, a method, and a closure in another
+// function; only the parser's is not reported.
+func TestConstructionGuardCoversCommitID(t *testing.T) {
+	const src = `package chief
+
+type CommitID struct{ hex string }
+
+func ParseCommitID(s string) (CommitID, error) { return CommitID{hex: s}, nil }
+
+func viaLiteral() CommitID { return CommitID{hex: "x"} }
+
+func viaElided() []CommitID { return []CommitID{{hex: "x"}} }
+
+func viaPointer() *CommitID { return &CommitID{hex: "x"} }
+
+func viaField(c *CommitID) { c.hex = "x" }
+
+func viaClosure() func() CommitID { return func() CommitID { return CommitID{} } }
+
+type holder struct{}
+
+func (holder) viaMethod() CommitID { return CommitID{hex: "x"} }
+`
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "commit.go", src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := constructionViolations(t, fset, []*ast.File{file})
+	for _, fn := range []string{"viaLiteral", "viaElided", "viaPointer", "viaField", "viaClosure", "viaMethod"} {
+		if !slices.ContainsFunc(got, func(v string) bool { return strings.HasPrefix(v, "CommitID built in "+fn+" at") }) {
+			t.Errorf("no violation found in %s: %v", fn, got)
+		}
+	}
+	if slices.ContainsFunc(got, func(v string) bool { return strings.Contains(v, "built in ParseCommitID at") }) {
+		t.Errorf("the parser itself is reported: %v", got)
 	}
 }

@@ -19,12 +19,16 @@ const (
 	StateQuestion
 	// StateRunning is a workspace with a working agent.
 	StateRunning
-	// StateAwaitingReview is a workspace whose branch has an open PR.
+	// StateAwaitingReview is a workspace whose branch has an open PR that
+	// GitHub does not read as CONFLICTING.
 	StateAwaitingReview
 	// StateProposeNext is a workspace with a next command to offer.
 	StateProposeNext
 	// StateTaskDone is a workspace whose task is complete.
 	StateTaskDone
+	// StateConflict is a workspace whose branch has an open PR GitHub reads
+	// as CONFLICTING; Row.Conflict says how far its resolution has gone.
+	StateConflict
 )
 
 // String returns the name the output uses for the state.
@@ -40,6 +44,8 @@ func (s WorkspaceState) String() string {
 		return "propose_next"
 	case StateTaskDone:
 		return "task_done"
+	case StateConflict:
+		return "conflict"
 	case StateNeedsCheck:
 		return nameNeedsCheck
 	default:
@@ -58,7 +64,7 @@ func (s WorkspaceState) rank() int {
 }
 
 // stateOrder is the order rows are listed in.
-var stateOrder = []WorkspaceState{StateQuestion, StateAwaitingReview, StateProposeNext, StateNeedsCheck, StateRunning, StateTaskDone}
+var stateOrder = []WorkspaceState{StateQuestion, StateConflict, StateAwaitingReview, StateProposeNext, StateNeedsCheck, StateRunning, StateTaskDone}
 
 // TaskNextKind is the kind of the next command of a task.
 type TaskNextKind int
@@ -132,6 +138,10 @@ type Row struct {
 	Unreadable []string
 	Questions  []QuestionItem
 	PR         *OpenPR
+	// Conflict is how far the resolution of a conflict row has gone for the
+	// PR's head, read only when State is StateConflict; its zero value,
+	// ConflictRecordsUnreadable, is the phase that never sends by itself.
+	Conflict ConflictPhase
 	// Running is the command a running row's working agents run, nil when
 	// none is decided (RunningUnknown says why); it is shown only, never
 	// read to decide a state or a send.
@@ -252,7 +262,8 @@ const (
 	headMain
 )
 
-// mainBranch is the name readWorkspace reads as headMain, compared as bytes.
+// mainBranch is the name readWorkspace reads as headMain, and the base
+// prConflictValues reads as BaseIsMain, compared as bytes.
 const mainBranch = "main"
 
 // takeoverFacts are the reads behind the takeover proposal.
@@ -528,6 +539,12 @@ func classify(f workspaceFacts) Row {
 		return row
 	case slices.ContainsFunc(f.Agents, func(a agentFacts) bool { return a.Agent.Status == AgentWorking }):
 		row.State = StateRunning
+		return row
+	case f.PR != nil && f.PR.Mergeable == MergeableConflicting:
+		// Only GitHub's CONFLICTING makes a conflict row: MERGEABLE and
+		// UNKNOWN await review, so a value GitHub has not computed is never
+		// read as a conflict.
+		row.State = StateConflict
 		return row
 	case f.PR != nil:
 		row.State = StateAwaitingReview

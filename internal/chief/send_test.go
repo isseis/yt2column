@@ -1128,7 +1128,7 @@ func TestSendChecksTheChosenItem(t *testing.T) {
 		deps := sw.finish()
 		req := chosenReq(t, deps, sw.owner(), tree, "mkplan")
 		sw.git(tree, "rev-parse --abbrev-ref HEAD", otherTaskBranch+"\n")
-		sw.rec.replyIn(tree, "gh pr list --head "+otherTaskBranch+" --state open --json headRefName,number,title,url", []byte("[]"))
+		sw.rec.replyIn(tree, "gh pr list --head "+otherTaskBranch+" --state open --json "+prListFields, []byte("[]"))
 		sw.docs(tree, fakeDocs{Dir: otherTaskDir, Req: reqApproved, Arch: archApproved})
 		assertOtherItem(t, sw, deps, req, "/mkplan 0002")
 	})

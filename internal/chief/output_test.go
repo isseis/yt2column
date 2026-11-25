@@ -31,9 +31,10 @@ func TestOutputValueNames(t *testing.T) {
 	}{
 		{"urgency", 0, int(UrgencyWait) + 1, func(i int) string { return urgencyName(Urgency(i)) }},
 		{"position.document", 0, int(PositionDocNone) + 1, func(i int) string { return positionDocumentName(PositionDocument(i)) }},
-		{"position.progress", 0, int(ProgressTaskDone) + 1, func(i int) string { return progressName(Progress(i)) }},
+		{"position.progress", 0, int(ProgressResolving) + 1, func(i int) string { return progressName(Progress(i)) }},
+		{"conflict.phase", 0, int(ConflictUnresolved) + 1, func(i int) string { return conflictPhaseName(ConflictPhase(i)) }},
 		{"running_unknown", 1, int(RunningUnknownPanesDisagree), func(i int) string { return runningUnknownName(RunningUnknown(i)) }},
-		{"state", 0, int(StateTaskDone) + 1, func(i int) string { return WorkspaceState(i).String() }},
+		{"state", 0, int(StateConflict) + 1, func(i int) string { return WorkspaceState(i).String() }},
 		{"turn", 0, int(TurnNone) + 1, func(i int) string { return turnName(Turn(i)) }},
 	} {
 		t.Run(c.key, func(t *testing.T) {

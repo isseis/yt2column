@@ -50,6 +50,11 @@
 - 取り込みの道具は、git がテキストの合わせ以外で衝突を解消する設定（マージドライバ、`info/attributes`、`merge.default`、作業ツリーの `.gitattributes`、`branch.<ブランチ>.mergeOptions`）を止まる条件にするか、読まないようにする（設計書 1.3）。 これらは Go の衝突を git に黙って解消させ、`mergemain-push` の確かめも通してしまうためである。マージの前に止まるときは「対象外の衝突・戻さない」とし、設計書 4.1 の表を道具の出力に従う形に直す。人の答え：決定として記録する。
   - ADR：なし。取り込みの道具の確かめの細部で、このタスクの中で閉じる。
 
+### 実装の際に決めたこと（2026-11-25）
+
+- 実物の PR での `mergeable` の確かめ（ステップ 3-3、設計書 1.2・H-01）は、開いている PR だけで行い、コンフリクト中の PR での確かめは PR-5 の `hold` の点検に回す。 確かめた時点で開いていた PR（#1143・#1144）はどちらも `MERGEABLE` で、コンフリクト中の PR がなかった。§5 のリスクの行は一時的な draft PR を作って確かめるとしていたが、それには GitHub への書き込み（ブランチの push、PR の作成と close、ブランチの削除）が要る。`CONFLICTING` を一覧で読めなくても、`UNKNOWN` と同じく送らない側に倒れ、影響は気づくのが遅れることだけである（設計書 1.2）。人の答え：今回は確かめない。
+  - ADR：なし。このタスクの確かめの段取りで、このタスクの中で閉じる。
+
 ### 既存コード調査結果
 
 以下はコミット `d74acaeb`（`origin/main`）で確かめた事実である。
@@ -220,10 +225,10 @@
 
 **対象ファイル:** `internal/chief/workspace.go`, `internal/chief/state.go`, `internal/chief/position.go`, `internal/chief/conflict.go`（新規）, `internal/chief/snapshot.go`, `internal/chief/table.go`, `internal/chief/output.go`, `internal/chief/construction_test.go`, `internal/chief/workspace_test.go`, `internal/chief/position_test.go`, `internal/chief/table_test.go`, `internal/chief/output_test.go`, `internal/chief/test_helpers.go`, 既存 `gh pr list` モックを含む `internal/chief/*_test.go`（7 ファイル：`world_test.go`・`snapshot_test.go`・`maintask_test.go`・`autosend_test.go`・`resetoffer_test.go`・`removal_test.go`・`send_test.go`）, `cmd/chief/main_test.go`
 
-- [ ] `internal/chief/workspace.go` に `Mergeable`（ゼロ値 `MergeableUnknown`）・`CommitID`（`ParseCommitID` のみで構築、`IsZero`/`String` を持つ）を追加し、`OpenPR`・`OpenPRs`・`parsePRList` に `mergeable`・`headRefOid`・`baseRefName`（`BaseIsMain` へ変換）・`isCrossRepository` の厳格検証を実装する（AC-01・AC-04）。`internal/chief/construction_test.go` の `guardedTypes` に `"CommitID": {"ParseCommitID"}` と各構築・代入経路のミューテーションテストを追加する。
-- [ ] `internal/chief/state.go` に `StateConflict`（`stateOrder` で `StateQuestion` の直後・`StateAwaitingReview` の直前に配置）と `classify` 分岐（実行中判定の後・レビュー待ちの前、`MergeableConflicting` のみ `StateConflict`、AC-02・AC-03・AC-16）を追加し、`internal/chief/conflict.go` に `ConflictPhase` 型（6 値、ゼロ値 `ConflictRecordsUnreadable`）と段階名変換を定義する。`snapshot.go` の `addRecords` では、記録ディレクトリを読めないとき `ConflictRecordsUnreadable`、それ以外は `ConflictUnsent` を付与する（フェーズ 3 時点では `/mergemain` 送信が存在しないため仮の記録解析は置かず、`conflictPhaseOf` はステップ 4-1 で `SendRecord` 拡張と一括導入する）。
-- [ ] `internal/chief/position.go`（`ProgressConflict`・`ProgressConflictUnresolved`、`urgencyOf`・`progressOf`）、`internal/chief/table.go`（`progressWord` の「コンフリクト」「解消できず」、`contentOf`）、`internal/chief/output.go`（`RowOutput.Conflict`、`PROutput.Head`、`progressName`）を更新する。
-- [ ] 既存の `gh pr list` モック（`internal/chief/` 8 ファイルと `cmd/chief/main_test.go:634`、および `test_helpers.go`）を新 4 メンバー付きに更新する（`testdata/gh/pr-list-open-867.json` は手編集せず旧形式拒否ケースとして残す）。`workspace_test.go`（AC-04 全拒否形と一覧全体拒否）、`position_test.go`（`TestUrgencyTable` 拡張含む）、`table_test.go`（`TestTableFixedWords` 拡張含む）、`output_test.go`（`TestOutputValueNames` 更新含む）を追加・更新する。
+- [x] `internal/chief/workspace.go` に `Mergeable`（ゼロ値 `MergeableUnknown`）・`CommitID`（`ParseCommitID` のみで構築、`IsZero`/`String` を持つ）を追加し、`OpenPR`・`OpenPRs`・`parsePRList` に `mergeable`・`headRefOid`・`baseRefName`（`BaseIsMain` へ変換）・`isCrossRepository` の厳格検証を実装する（AC-01・AC-04）。`internal/chief/construction_test.go` の `guardedTypes` に `"CommitID": {"ParseCommitID"}` と各構築・代入経路のミューテーションテストを追加する。
+- [x] `internal/chief/state.go` に `StateConflict`（`stateOrder` で `StateQuestion` の直後・`StateAwaitingReview` の直前に配置）と `classify` 分岐（実行中判定の後・レビュー待ちの前、`MergeableConflicting` のみ `StateConflict`、AC-02・AC-03・AC-16）を追加し、`internal/chief/conflict.go` に `ConflictPhase` 型（6 値、ゼロ値 `ConflictRecordsUnreadable`）と段階名変換を定義する。`snapshot.go` の `addRecords` では、記録ディレクトリを読めないとき `ConflictRecordsUnreadable`、それ以外は `ConflictUnsent` を付与する（フェーズ 3 時点では `/mergemain` 送信が存在しないため仮の記録解析は置かず、`conflictPhaseOf` はステップ 4-1 で `SendRecord` 拡張と一括導入する）。
+- [x] `internal/chief/position.go`（`ProgressConflict`・`ProgressConflictUnresolved`、`urgencyOf`・`progressOf`）、`internal/chief/table.go`（`progressWord` の「コンフリクト」「解消できず」、`contentOf`）、`internal/chief/output.go`（`RowOutput.Conflict`、`PROutput.Head`、`progressName`）を更新する。
+- [x] 既存の `gh pr list` モック（`internal/chief/` 8 ファイルと `cmd/chief/main_test.go:634`、および `test_helpers.go`）を新 4 メンバー付きに更新する（`testdata/gh/pr-list-open-867.json` は手編集せず旧形式拒否ケースとして残す）。`workspace_test.go`（AC-04 全拒否形と一覧全体拒否）、`position_test.go`（`TestUrgencyTable` 拡張含む）、`table_test.go`（`TestTableFixedWords` 拡張含む）、`output_test.go`（`TestOutputValueNames` 更新含む）を追加・更新する。
 
 **完了基準:** `go test -tags test ./internal/chief/... ./cmd/chief/...` がすべて通り、`CommitID` 構築ガードと AC-01〜AC-04 の全テストが壊して失敗を確認済みであること。
 
@@ -231,10 +236,10 @@
 
 **対象ファイル:** `internal/chief/paneinput/paneinput.go`, `internal/chief/paneinput/paneinput_test.go`, `internal/chief/routing.go`, `internal/chief/routing_test.go`, `internal/chief/running.go`, `internal/chief/running_test.go`, `internal/chief/screen_transcript.go`, `internal/chief/screen_test.go`, `internal/chief/position.go`, `internal/chief/position_test.go`, `internal/chief/table.go`, `internal/chief/table_test.go`, `internal/chief/output.go`, `internal/chief/output_test.go`, `internal/chief/skiprecord_test.go`, `.claude/commands/_context.md`
 
-- [ ] `internal/chief/paneinput/paneinput.go` に `CommandMergemain`（`"mergemain"`）・`RouteMergemain`・`NewMergemain(fixprguard.PRNumber)` を追加し、`Name`・`ParseCommandKind`・`RouteKeys`・`Command.Text`・`Command.Parts` を更新する（AC-33）。既存の `paneinput_test.go` のテーブル駆動テスト（`TestCommandText`・`TestParseCommandKind`・`TestConstructorsRejectInvalid` 等）へ `/mergemain` の正常・異常ケースを追加する（`Makefile:364` の `make deadcode` は `-test` 付きで実行されるためテスト経由で到達する）。
-- [ ] `.claude/commands/_context.md` の Command routing 表に `mergemain` 行（`/mergemain`, `Claude Code`, `opus`）を追加して 7 行にし、行数記述と Claude Code 限定の例外を追記する。同時に `internal/chief/routing.go` の `routingRows` へ `"mergemain": paneinput.RouteMergemain` を追加し、`routing_test.go` を 7 行構成に合わせて更新する（`markers_parity_test.go` は変更せず回帰実行で確認、AC-32）。
-- [ ] `internal/chief/screen_transcript.go` の走査を `scanHumanInputs` に統合して実行中コマンドと `LaterInput`（6 値、ゼロ値 `LaterInputUnreadable`）を同時に返すようにし、`internal/chief/running.go` の `validRunningArg` に `CommandMergemain` の PR 番号形式を追加する。併せて `position.go`（`ProgressResolving` と `progressOf` の `CommandMergemain` 分岐）・`table.go`（`progressWord` の「解消中」）・`output.go`（`progressName`）を更新する。
-- [ ] `skiprecord_test.go` に `/mergemain` がリセット見送り記録の種類として拒否されるテストを追加する。`running_test.go`（`TestRunningCommandTextMatchesThePaneInput` 拡張含む）と `screen_test.go` で `RunningCommand`（`/mergemain <PR>`）と `LaterInput` 全 6 値をテストし、`position_test.go` で `ProgressResolving`、`table_test.go`（`TestTableFixedWords` 等）で日本語文字列「解消中」、`output_test.go`（`TestOutputValueNames`）で出力名をテストする（設計書 3.6、`CLAUDE.md`「Go Idioms」の日本語リテラル範囲を守る）。
+- [x] `internal/chief/paneinput/paneinput.go` に `CommandMergemain`（`"mergemain"`）・`RouteMergemain`・`NewMergemain(fixprguard.PRNumber)` を追加し、`Name`・`ParseCommandKind`・`RouteKeys`・`Command.Text`・`Command.Parts` を更新する（AC-33）。既存の `paneinput_test.go` のテーブル駆動テスト（`TestCommandText`・`TestParseCommandKind`・`TestConstructorsRejectInvalid` 等）へ `/mergemain` の正常・異常ケースを追加する（`Makefile:364` の `make deadcode` は `-test` 付きで実行されるためテスト経由で到達する）。
+- [x] `.claude/commands/_context.md` の Command routing 表に `mergemain` 行（`/mergemain`, `Claude Code`, `opus`）を追加して 7 行にし、行数記述と Claude Code 限定の例外を追記する。同時に `internal/chief/routing.go` の `routingRows` へ `"mergemain": paneinput.RouteMergemain` を追加し、`routing_test.go` を 7 行構成に合わせて更新する（`markers_parity_test.go` は変更せず回帰実行で確認、AC-32）。
+- [x] `internal/chief/screen_transcript.go` の走査を `scanHumanInputs` に統合して実行中コマンドと `LaterInput`（6 値、ゼロ値 `LaterInputUnreadable`）を同時に返すようにし、`internal/chief/running.go` の `validRunningArg` に `CommandMergemain` の PR 番号形式を追加する。併せて `position.go`（`ProgressResolving` と `progressOf` の `CommandMergemain` 分岐）・`table.go`（`progressWord` の「解消中」）・`output.go`（`progressName`）を更新する。
+- [x] `skiprecord_test.go` に `/mergemain` がリセット見送り記録の種類として拒否されるテストを追加する。`running_test.go`（`TestRunningCommandTextMatchesThePaneInput` 拡張含む）と `screen_test.go` で `RunningCommand`（`/mergemain <PR>`）と `LaterInput` 全 6 値をテストし、`position_test.go` で `ProgressResolving`、`table_test.go`（`TestTableFixedWords` 等）で日本語文字列「解消中」、`output_test.go`（`TestOutputValueNames`）で出力名をテストする（設計書 3.6、`CLAUDE.md`「Go Idioms」の日本語リテラル範囲を守る）。
 
 **完了基準:** `go test -tags test ./internal/chief/...` がすべて通り、7 行の送り先の表・`paneinput`・`LaterInput` 全 6 値・`ProgressResolving`・`skiprecord` 拒否がテストで検証されていること。
 
@@ -242,9 +247,9 @@
 
 **対象ファイル:** `internal/chief/records.go`, `.claude/commands/chief.md`, `docs/dev/guides/chief_guide.md`, `docs/dev/chief_architecture.md`, `docs/dev/conventions/package_reference.md`, `cmd/chief/docs_test.go`, `internal/chief/testdata/gh/`（新 8 メンバー実物採取サンプル追加）, `internal/chief/testdata/README.md`, `internal/chief/testdata/gh/exits.txt`, `internal/chief/workspace_test.go`, `docs/tasks/0115_chief_conflict_resolution/03_implementation_plan.md`（実測結果の追記）
 
-- [ ] `internal/chief/records.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` のプロトコル番号を合わせる。
-- [ ] `docs/dev/guides/chief_guide.md` に表の状態の文字列（「コンフリクト」「解消できず」「解消中」）と、送り先の表 7 行化に伴う「`make install-chief` で入れ直すまで古い chief は表を拒み自動送信が止まる」旨と、PR-6 がマージされるまではコンフリクトの行に待っている項目が出ないため人が `/mergemain <PR>` を直接打つ旨を追記する（設計書 3.10・8 章）。`docs/dev/chief_architecture.md` と `docs/dev/conventions/package_reference.md` の関連節を更新する。
-- [ ] 設計書 1.2・8 章の要求に従い、開いている実物 PR とコンフリクト中の実物 PR で `gh pr list --state open --json headRefName,number,title,url,mergeable,headRefOid,baseRefName,isCrossRepository` と `gh pr view` の `mergeable` 値を比較して結果と日時を本計画書（§5）に記録する（`UNKNOWN` が継続する場合は利用者に報告して判断を仰ぐ）。併せて採取した 8 メンバー実物応答を `internal/chief/testdata/README.md` の匿名化規約（`TestSamplesFollowReplacementRules`）に従って `internal/chief/testdata/gh/` へ追加し、`workspace_test.go` で `parsePRList` 受理を検証する。
+- [x] `internal/chief/records.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` のプロトコル番号を合わせる。
+- [x] `docs/dev/guides/chief_guide.md` に表の状態の文字列（「コンフリクト」「解消できず」「解消中」）と、送り先の表 7 行化に伴う「`make install-chief` で入れ直すまで古い chief は表を拒み自動送信が止まる」旨と、PR-6 がマージされるまではコンフリクトの行に待っている項目が出ないため人が `/mergemain <PR>` を直接打つ旨を追記する（設計書 3.10・8 章）。`docs/dev/chief_architecture.md` と `docs/dev/conventions/package_reference.md` の関連節を更新する。
+- [x] 設計書 1.2・8 章の要求に従い、開いている実物 PR で（コンフリクト中の実物 PR での確かめは PR-5 の `hold` の点検に回す。§1「実装の際に決めたこと（2026-11-25）」） `gh pr list --state open --json headRefName,number,title,url,mergeable,headRefOid,baseRefName,isCrossRepository` と `gh pr view` の `mergeable` 値を比較して結果と日時を本計画書（§5）に記録する（`UNKNOWN` が継続する場合は利用者に報告して判断を仰ぐ）。併せて採取した 8 メンバー実物応答を `internal/chief/testdata/README.md` の匿名化規約（`TestSamplesFollowReplacementRules`）に従って `internal/chief/testdata/gh/` へ追加し、`workspace_test.go` で `parsePRList` 受理を検証する。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスし、`cmd/chief/docs_test.go`（プロトコル番号・`chief_architecture.md` 整合）と `TestSamplesFollowReplacementRules` がすべて通ること。
 
@@ -262,10 +267,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1155
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ---
 
@@ -440,12 +445,20 @@
   - 実行項目: `make test`・`make lint`・`make deadcode`・`make readme-sync-check`・`make ext-preflight`（本 worktree には `extension/node_modules` が未導入のため `make ext-preflight` が終了コード 1 で停止し、`make ext-check` は準備なしとして未実行、`make ext-install` は非実行）、および `pre-commit run --all-files`（`.pre-commit-config.yaml` の全 13 フックすべて通過）。
   - 結果: 実行後の `git status --porcelain --untracked-files=all` に意図しない未追跡ファイルは 0 件であり、`mergemain-restore` を阻害する未追跡ファイルが残らないことを確認した。
 
+### 実測記録（ステップ 3-3、2026-11-25）
+
+- **一覧の呼び出しの `mergeable` の実測（設計書 1.2・H-01）:**
+  - 実行: 2026-11-25T05:39:07Z（UTC）に `gh pr list --state open --json headRefName,number,title,url,mergeable,headRefOid,baseRefName,isCrossRepository` を 1 回、2026-11-25T05:39:12Z までに開いている各 PR について `gh pr view <番号> --json number,mergeable,headRefOid` を実行した（gh 2.96.0）。
+  - 結果: 開いていた PR は #1143（head `68e550907dec`）と #1144（head `cf1b86c57cb8`）の 2 件で、どちらも一覧と `gh pr view` が同じ head と `MERGEABLE` を返した。base はどちらも `main`、`isCrossRepository` はどちらも `false` だった。`UNKNOWN` は返らなかった。
+  - 確かめなかったこと: コンフリクト中の PR がなかったので、一覧が `CONFLICTING` を返すかは確かめていない。§1「実装の際に決めたこと（2026-11-25）」のとおり、PR-4 のマージの後、PR-5 の `hold` の点検で、実際にコンフリクトした PR を chief の表で確かめる。
+  - 採取したサンプル: #1144 の一覧の要素を、匿名化して `internal/chief/testdata/gh/pr-list-open-1144.json` に置いた（`internal/chief/testdata/README.md` の「タスク 0115 の実物の PR の確かめ」）。
+
 ## 6. 実装チェックリスト
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2）
 - [x] PR-2 マージ済み（対象ステップ: 1-3）
 - [x] PR-3 マージ済み（対象ステップ: 2-1 / 2-2）
-- [ ] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
+- [x] PR-4 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3）
 - [ ] PR-5 マージ済み（対象ステップ: 4-1 / 4-2）
 - [ ] PR-6 マージ済み（対象ステップ: 4-3 / 4-4）
 
@@ -455,10 +468,10 @@
 
 | AC | 対象ステップ | 種別 | 検証箇所・内容 |
 |---|---|---|---|
-| AC-01 | 3-1, 3-3 | `test` | `internal/chief/workspace_test.go::TestOpenPRsReadsConflictFields`（`tick`・`snapshot` 共通の `OpenPRs` が 4 メンバーを読むことと、新 8 メンバー実物採取サンプルの受理を検証） |
-| AC-02 | 3-1 | `test` | `internal/chief/position_test.go::TestUrgencyTable`・`TestClassifyConflict`・`internal/chief/table_test.go::TestTableFixedWords`・`TestTableConflictRow`（`CONFLICTING` 時の状態・急ぎの度合い、実行中/質問優先、`ConflictSending` の待つ 🟢 を検証） |
-| AC-03 | 3-1, 4-2, 4-3 | `test` | `internal/chief/position_test.go::TestClassifyNonConflict`・`internal/chief/conflict_test.go::TestConflictSenderSkipsNonConflicting`・`internal/chief/pending_test.go::TestPendingNoConflictForMergeableOrUnknown` |
-| AC-04 | 3-1 | `test` | `internal/chief/workspace_test.go::TestParsePRListRejectsInvalidConflictFields`（欠落・`null`・型違い・大小文字・空白・head 形式・重複・旧 4 メンバーサンプル・1 要素拒否で一覧全体拒否、`StateNeedsCheck` を検証） |
+| AC-01 | 3-1, 3-3 | `test` | `internal/chief/workspace_test.go::TestParsePRList`（`tick`・`snapshot` 共通の `OpenPRs` が読む 4 メンバーの受理と、新 8 メンバー実物採取サンプルの受理を検証）・`internal/chief/snapshot_test.go::TestSnapshotConflictRow`（行と出力の `pr.head`） |
+| AC-02 | 3-1 | `test` | `internal/chief/position_test.go::TestUrgencyTable`・`TestConflictUrgency`・`TestClassifyConflict`・`TestProgress`・`internal/chief/snapshot_test.go::TestSnapshotConflictRow`・`internal/chief/table_test.go::TestTableFixedWords`・`TestTableContent`（`CONFLICTING` 時の状態・急ぎの度合い、実行中/質問優先、`ConflictSending` の待つ 🟢 を検証） |
+| AC-03 | 3-1, 4-2, 4-3 | `test` | `internal/chief/position_test.go::TestClassifyConflict`（`MERGEABLE`・`UNKNOWN` はレビュー待ち）・`internal/chief/conflict_test.go::TestConflictSenderSkipsNonConflicting`・`internal/chief/pending_test.go::TestPendingNoConflictForMergeableOrUnknown` |
+| AC-04 | 3-1 | `test` | `internal/chief/workspace_test.go::TestParsePRList`・`TestParseCommitID`（欠落・`null`・型違い・大小文字・空白・head 形式・重複・旧 4 メンバーサンプル・1 要素拒否で一覧全体拒否を検証）・`internal/chief/snapshot_test.go::TestTakeSnapshotUnreadable`（拒んだ一覧で行が `StateNeedsCheck` になることを検証） |
 | AC-05 | 4-2 | `test` | `internal/chief/conflict_test.go::TestConflictSenderConditions`（(1)〜(10) と再確認の各条件を 1 つずつ外して非送信・理由名を検証、境界ケースと全充足での送信を検証） |
 | AC-06 | 4-2, 4-3 | `test` | `internal/chief/conflict_test.go::TestSnapshotDoesNotAutoSendConflict`・`internal/chief/pending_test.go::TestPendingConflictInSnapshot` |
 | AC-07 | 4-2 | `test` | `internal/chief/conflict_test.go::TestConflictSenderPreexistingConflict`（前ラウンド未観測でも `tick` で送信することを検証） |
@@ -470,7 +483,7 @@
 | AC-13 | 4-2 | `test` | `internal/chief/sim_test.go::TestSimConflictAutoSend`（送信入力が `/clear`・`/model <モデル>`・`/mergemain <PR>` の順のみであることを検証） |
 | AC-14 | 4-1, 4-3 | `test` | `internal/chief/conflict_test.go::TestConflictPhaseTransitions`・`internal/chief/pending_test.go::TestPendingConflictNotificationBudget`（`ConflictUnresolved`・`ConflictSending`・`ConflictEndedBeforeCommand` の段階・急ぎの度合い・詳細区別・head ごと最大 2 回通知を検証） |
 | AC-15 | 4-1, 4-2 | `test` | `internal/chief/conflict_test.go::TestConflictSenderResendsAfterHeadChanges`・`internal/chief/sim_test.go::TestSimConflictAutoSend` |
-| AC-16 | 3-1 | `test` | `internal/chief/position_test.go::TestClassifyReturnsToReviewAfterResolution` |
+| AC-16 | 3-1 | `test` | `internal/chief/position_test.go::TestClassifyConflict`（`MERGEABLE`・`UNKNOWN` の PR はレビュー待ちに戻る） |
 | AC-17 | 4-3 | `test` | `internal/chief/pending_test.go::TestPendingConflictOfferAndLaterInputNote`（AC-18 充足時のみ選択肢提示、非充足時は理由表示、後の入力ありで会話消失印、`ConflictSending` は選択肢なし、`/runpr` 非提示を検証） |
 | AC-18 | 4-3 | `test` | `internal/chief/send_test.go::TestSendMergemainByItem`・`cmd/chief/main_test.go::TestParseSendMergemain`（項目 ID 一致・`origin/main` 確認を含む AC-18 全条件再確認、AC-05 (6)(7)(10) 非要求、`--pr`/`--issue` 拒否を検証） |
 | AC-19 | 4-1, 4-3 | `test` | `internal/chief/send_test.go::TestSendMergemainRecordsAndBlocksAutoSend`（手動送信も記録を作り同一 head の自動送信を抑止し、最後の送信で AC-14 を判定することを検証） |
@@ -486,7 +499,7 @@
 | AC-29 | 1-3, 2-1 | `test` / `manual` | `test`: `cmd/mergepr/main_test.go::TestMergemainStopReasonsAndOutput`（道具が出す理由種別と戻すかの全種・衝突ファイル一覧・`detail` の出力と、改行・制御文字・Unicode の行区切りの 1 行エスケープを検証）・`TestMergemainOutput`（解消したときの `new_head`・`protocol_tool`・`readme_changed`・`adr_main_changed`・`adr_conflict_number`・`ext_check_hint` の出力を検証）・`TestEscapedField`（制御文字・行区切りと段落区切り・書式文字・無効な UTF-8 のエスケープを検証）。`manual`: `.claude/commands/mergemain.md` の日本語報告形式（停止時の 11 種の理由と衝突ファイル一覧、解消成功時の変更ファイルごとの適用規則・解消内容の要約・新しい head・プロトコル番号変更時の入れ直し案内）を PR レビューで確認 |
 | AC-30 | 1-1, 1-2, 2-1, 2-2 | `test` / `static` / `manual` | `test`: `internal/mergepr/mergemain_test.go::TestMergemainPRViewReadsNarrowFields`・`TestMergemainPushRejectsNonHeadOrForce`（狭い PR 読み取り・PR head 以外への push 拒否を検証）。`static`: `cmd/mergepr/docs_test.go::TestMergemainNoDirectGitMutation`（`mergemain.md` の実行コマンドブロックで直接呼べる git のサブコマンドを `commit`・`diff` に限り、`git merge`/`git reset`/`git push`/`git clean`/`git rebase` などそれ以外を禁止することを検証）・`TestMergemainCommandLinesAreListed`（実行コマンドブロックの各行を `mergepr mergemain-*`・`git commit`・`git diff` の形に限り、プレースホルダー外のシェル記号と `~~~` のフェンスを禁止することを検証）。`manual`: `.claude/commands/mergemain.md` の 8 つの禁止事項を PR レビューで確認 |
 | AC-31 | 2-1 | `manual` | `CLAUDE.md` の「Tool Execution Safety」と `.claude/commands/mergemain.md` の承認段落に 4 操作（`gh pr view`・`git fetch origin`・PR head ブランチの `git ls-remote`・PR head ブランチへの `git push`）が揃っていることを PR レビューで確認（自然言語承認文のみの要件） |
-| AC-32 | 3-2 | `test` / `manual` | `test`: `internal/chief/routing_test.go::TestRoutingReadsRepositoryContext`・`TestRoutingRowsMapToTheirKeys`・`TestRoutingRejects`・`TestReadRoutingFromOriginMain`（7 行読み取り・欠落/不明行拒否・`mergemain` 行の `Claude Code`/`opus` 読み取りを検証；併せて `markers_parity_test.go::TestMarkerReadingMatchesDecisionScript` の回帰通過を確認）。`manual`: `.claude/commands/_context.md` の「7 行」記述と Claude Code 限定の例外文を PR レビューで確認 |
+| AC-32 | 3-2 | `test` / `manual` | `test`: `internal/chief/routing_test.go::TestRoutingReadsRepositoryContext`・`TestRoutingRowsMapToTheirKeys`・`TestRoutingRejects`・`TestReadRoutingFromOriginMain`・`TestRoutingMergemainRow`（7 行読み取り・欠落/不明行拒否・`mergemain` 行の `Claude Code` 読み取りと、OpenCode の `mergemain` 行も表として読むことを検証；併せて `markers_parity_test.go::TestMarkerReadingMatchesDecisionScript` の回帰通過を確認）。`manual`: `.claude/commands/_context.md` の「7 行」記述と Claude Code 限定の例外文を PR レビューで確認 |
 | AC-33 | 3-2, 4-2 | `test` | `internal/chief/paneinput/paneinput_test.go::TestCommandText`・`TestParseCommandKind`・`TestConstructorsRejectInvalid`・`internal/chief/conflict_test.go::TestConflictSendInputUsesTypedCommandOnly`（型から組み立てた `/mergemain <PR>` のみ送信し、PR 題名・transcript・自由文・禁止コマンドを含まないことと chief 自身への非送信を検証） |
 | AC-34 | 3-2, 4-2, 4-3 | `test` | `internal/chief/conflict_test.go::TestConflictSenderRefusesOpenCodeRoute`・`internal/chief/pending_test.go::TestPendingConflictRefusesOpenCodeRoute`・`internal/chief/send_test.go::TestSendMergemainRefusesOpenCodeRoute`（`mergemain` 行が OpenCode のとき自動送信でも手動送信でも送らず `route_not_claude` を示すことを検証） |
 | AC-35 | 3-3, 4-4 | `static` / `manual` | `static`: `cmd/chief/docs_test.go::TestGuideProtocolMatchesTool`（`chief_guide.md` のプロトコル番号一致を検証）。`manual`: `docs/dev/guides/chief_guide.md` の 4 項目（状態/急ぎ/詳細、自動送信条件、送り直し規則、人が選ぶ選択肢）を PR レビューで確認 |
@@ -511,3 +524,4 @@
 - 2026-11-24 承認（isseis、#1096）
 - 2026-11-24 セッション中の再承認：`mergemain-push` と `mergemain-begin` の確かめに、remote が `origin` だけであることと `GH_REPO` がないことを足した（isseis、#1114）
 - 2026-11-24 セッション中の再承認：テキストの合わせ以外で衝突を解消する設定を取り込みの道具の止まる条件にした（isseis、#1114）
+- 2026-11-25 セッション中の再承認：実物の PR での `mergeable` の確かめを開いている PR だけで行い、コンフリクト中の PR での確かめを PR-5 の `hold` の点検に回した（isseis、#1155）

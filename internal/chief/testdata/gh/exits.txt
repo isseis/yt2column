@@ -14,3 +14,4 @@ issue-open-839 exit=0
 issue-pr-897 exit=0
 issue-missing exit=1
 issue-draft-932 exit=0
+pr-list-open-1144 exit=0

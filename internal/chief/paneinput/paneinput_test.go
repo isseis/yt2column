@@ -97,12 +97,13 @@ func TestCommandText(t *testing.T) {
 		kind  paneinput.CommandKind
 		arg   string
 	}{
-		"mkreq":    {func() (paneinput.Command, error) { return paneinput.NewMkreq(issue) }, "/mkreq 836", paneinput.RouteTaskDocuments, paneinput.CommandMkreq, "836"},
-		"mkarch":   {func() (paneinput.Command, error) { return paneinput.NewMkarch(task) }, "/mkarch 0088", paneinput.RouteTaskDocuments, paneinput.CommandMkarch, "0088"},
-		"mkplan":   {func() (paneinput.Command, error) { return paneinput.NewMkplan(task) }, "/mkplan 0088", paneinput.RouteTaskDocuments, paneinput.CommandMkplan, "0088"},
-		"runplan":  {func() (paneinput.Command, error) { return paneinput.NewRunplan(task, paneinput.RouteRunplanLow) }, "/runplan 0088", paneinput.RouteRunplanLow, paneinput.CommandRunplan, "0088"},
-		"takeover": {func() (paneinput.Command, error) { return paneinput.NewRunplan(task, paneinput.RouteRunplanTakeover) }, "/runplan 0088", paneinput.RouteRunplanTakeover, paneinput.CommandRunplan, "0088"},
-		"runpr":    {func() (paneinput.Command, error) { return paneinput.NewRunpr(mustPR(t, "870")) }, "/runpr 870", paneinput.RouteRunpr, paneinput.CommandRunpr, "870"},
+		"mkreq":     {func() (paneinput.Command, error) { return paneinput.NewMkreq(issue) }, "/mkreq 836", paneinput.RouteTaskDocuments, paneinput.CommandMkreq, "836"},
+		"mkarch":    {func() (paneinput.Command, error) { return paneinput.NewMkarch(task) }, "/mkarch 0088", paneinput.RouteTaskDocuments, paneinput.CommandMkarch, "0088"},
+		"mkplan":    {func() (paneinput.Command, error) { return paneinput.NewMkplan(task) }, "/mkplan 0088", paneinput.RouteTaskDocuments, paneinput.CommandMkplan, "0088"},
+		"runplan":   {func() (paneinput.Command, error) { return paneinput.NewRunplan(task, paneinput.RouteRunplanLow) }, "/runplan 0088", paneinput.RouteRunplanLow, paneinput.CommandRunplan, "0088"},
+		"takeover":  {func() (paneinput.Command, error) { return paneinput.NewRunplan(task, paneinput.RouteRunplanTakeover) }, "/runplan 0088", paneinput.RouteRunplanTakeover, paneinput.CommandRunplan, "0088"},
+		"runpr":     {func() (paneinput.Command, error) { return paneinput.NewRunpr(mustPR(t, "870")) }, "/runpr 870", paneinput.RouteRunpr, paneinput.CommandRunpr, "870"},
+		"mergemain": {func() (paneinput.Command, error) { return paneinput.NewMergemain(mustPR(t, "1019")) }, "/mergemain 1019", paneinput.RouteMergemain, paneinput.CommandMergemain, "1019"},
 	}
 	for name, tc := range build {
 		t.Run(name, func(t *testing.T) {
@@ -128,13 +129,13 @@ func TestCommandText(t *testing.T) {
 // TestParseCommandKind checks that each kind's name reads back as the kind
 // and that no other text, a near miss included, reads as one.
 func TestParseCommandKind(t *testing.T) {
-	for _, kind := range []paneinput.CommandKind{paneinput.CommandMkreq, paneinput.CommandMkarch, paneinput.CommandMkplan, paneinput.CommandRunplan, paneinput.CommandRunpr} {
+	for _, kind := range []paneinput.CommandKind{paneinput.CommandMkreq, paneinput.CommandMkarch, paneinput.CommandMkplan, paneinput.CommandRunplan, paneinput.CommandRunpr, paneinput.CommandMergemain} {
 		got, err := paneinput.ParseCommandKind(kind.Name())
 		if err != nil || got != kind {
 			t.Errorf("ParseCommandKind(%q) = %d, %v; want %d", kind.Name(), got, err, kind)
 		}
 	}
-	for _, name := range []string{"", "runplan-takeover", "Runplan", "/runplan", "runplan ", "fixpr", "clear"} {
+	for _, name := range []string{"", "runplan-takeover", "Runplan", "/runplan", "runplan ", "fixpr", "clear", "Mergemain", "/mergemain", "mergemain ", "mergepr"} {
 		if got, err := paneinput.ParseCommandKind(name); !errors.Is(err, paneinput.ErrInvalid) || got != paneinput.CommandUnknown {
 			t.Errorf("ParseCommandKind(%q) = %d, %v; want CommandUnknown and ErrInvalid", name, got, err)
 		}
@@ -158,6 +159,7 @@ func TestConstructorsRejectInvalid(t *testing.T) {
 		"runplan on zero route":   func() error { _, err := paneinput.NewRunplan(task, paneinput.RouteUnknown); return err },
 		"runplan on out of range": func() error { _, err := paneinput.NewRunplan(task, paneinput.RouteKey(99)); return err },
 		"runpr without PR":        func() error { _, err := paneinput.NewRunpr(fixprguard.PRNumber{}); return err },
+		"mergemain without PR":    func() error { _, err := paneinput.NewMergemain(fixprguard.PRNumber{}); return err },
 		"Claude route zero model": func() error { _, err := paneinput.NewClaudeRoute(paneinput.ClaudeModelUnknown); return err },
 		"Claude route out of range": func() error {
 			_, err := paneinput.NewClaudeRoute(paneinput.ClaudeModel(7))

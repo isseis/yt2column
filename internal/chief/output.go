@@ -48,6 +48,8 @@ type RowOutput struct {
 	Unreadable []string         `json:"unreadable"`
 	Questions  []QuestionOutput `json:"questions"`
 	PR         *PROutput        `json:"pr"`
+	// Conflict is the resolution of a conflict row, null on any other row.
+	Conflict *ConflictOutput `json:"conflict"`
 	// Running is null when no command is decided.
 	Running *RunningOutput `json:"running"`
 	// RunningUnknown is why a running row shows no command, "" otherwise.
@@ -112,6 +114,14 @@ type PROutput struct {
 	Number int    `json:"number"`
 	Title  string `json:"title"`
 	URL    string `json:"url"`
+	// Head is the PR's head commit, "" when none was read.
+	Head string `json:"head"`
+}
+
+// ConflictOutput is how far the resolution of a conflict row has gone.
+type ConflictOutput struct {
+	// Phase is the phase's name (conflictPhaseName).
+	Phase string `json:"phase"`
 }
 
 // PendingOutput is one item waiting on the human.
@@ -262,7 +272,7 @@ func prOutput(p *OpenPR) *PROutput {
 	if p == nil {
 		return nil
 	}
-	return &PROutput{Number: p.Number, Title: Sanitize(p.Title), URL: Sanitize(p.URL)}
+	return &PROutput{Number: p.Number, Title: Sanitize(p.Title), URL: Sanitize(p.URL), Head: p.Head.String()}
 }
 
 // Output converts a snapshot into the JSON types. Lists are never nil, so
@@ -299,6 +309,9 @@ func (s Snapshot) Output() SnapshotOutput {
 			RunningUnknown:  runningUnknownName(r.RunningUnknown),
 			Idle:            r.Idle,
 			ProposesRemoval: r.RemovalRow,
+		}
+		if r.State == StateConflict {
+			row.Conflict = &ConflictOutput{Phase: conflictPhaseName(r.Conflict)}
 		}
 		if r.Stopped != nil {
 			row.Stopped = &StopOutput{Reason: Sanitize(r.Stopped.Reason), Screen: Sanitize(r.Stopped.Screen), At: r.Stopped.At}
@@ -463,6 +476,12 @@ func progressName(p Progress) string {
 		return "awaiting_review"
 	case ProgressTaskDone:
 		return "task_done"
+	case ProgressConflict:
+		return "conflict"
+	case ProgressConflictUnresolved:
+		return "conflict_unresolved"
+	case ProgressResolving:
+		return "resolving"
 	default:
 		return unknownName
 	}

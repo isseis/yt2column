@@ -631,7 +631,7 @@ func (r mainRunner) Run(ctx context.Context, name string, args ...string) ([]byt
 		return []byte(m.branch + "\n"), nil
 	case name == "gh" && has("pr", "list"):
 		if m.prState == "OPEN" && has(m.branch) {
-			return []byte(`[{"headRefName":"` + m.branch + `","number":42,"title":"x","url":"https://github.com/owner/repo/pull/42"}]`), nil
+			return []byte(`[{"headRefName":"` + m.branch + `","number":42,"title":"x","url":"https://github.com/owner/repo/pull/42","mergeable":"MERGEABLE","headRefOid":"1111111111111111111111111111111111111111","baseRefName":"main","isCrossRepository":false}]`), nil
 		}
 		return []byte("[]"), nil
 	case name == "gh" && has("pr", "view", "42"):

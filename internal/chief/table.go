@@ -209,6 +209,8 @@ func progressWord(p Progress) string {
 		return "次を提案"
 	case ProgressCreating, ProgressRunprRunning, ProgressRunning:
 		return "作業中"
+	case ProgressResolving:
+		return "解消中"
 	case ProgressMergeConfirmation:
 		return "マージ確認"
 	case ProgressQuestion:
@@ -217,6 +219,10 @@ func progressWord(p Progress) string {
 		return "レビュー待ち"
 	case ProgressTaskDone:
 		return "タスク完了"
+	case ProgressConflict:
+		return "コンフリクト"
+	case ProgressConflictUnresolved:
+		return "解消できず"
 	default:
 		return wordUnknown
 	}
@@ -309,7 +315,7 @@ func contentOf(row Row, src tableSources, notes *[]string) []cellUnit {
 	switch row.Position.Progress {
 	case ProgressMergeConfirmation, ProgressQuestion:
 		return questionContent(row, src, notes)
-	case ProgressAwaitingReview:
+	case ProgressAwaitingReview, ProgressConflict, ProgressConflictUnresolved:
 		if row.PR != nil {
 			return cellOf(row.PR.Title)
 		}
@@ -321,7 +327,7 @@ func contentOf(row Row, src tableSources, notes *[]string) []cellUnit {
 			return joinCells(cellOf(row.Next.Text), modelCell(row.Next.Model))
 		}
 		return cellOf(row.Next.Problem)
-	case ProgressCreating, ProgressRunprRunning, ProgressRunning:
+	case ProgressCreating, ProgressRunprRunning, ProgressRunning, ProgressResolving:
 		if row.Running == nil {
 			return cellOf(runningUnknownWord(row.RunningUnknown))
 		}

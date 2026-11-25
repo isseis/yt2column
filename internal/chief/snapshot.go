@@ -275,25 +275,29 @@ func finishSnapshot(deps Deps, owner Owner, view roundView, src tableSources, ex
 }
 
 // addRecords shows a workspace's stop, on a running row the command its
-// working agents run, and on a row awaiting review the review-skippable
-// judgment of the PR detail kept for the worktree's HEAD. It reads records
+// working agents run, on a row awaiting review the review-skippable
+// judgment of the PR detail kept for the worktree's HEAD, and on a conflict
+// row the phase of its resolution. It reads records
 // only; a workspace never sent to has no records and nothing is created for
 // it. Contract: the judgment is shown only from a detail of the same PR at
 // the same HEAD, never from an older one; a stop that cannot be read marks
 // the row StopUnreadable and is returned, so the round names it as a
 // problem; the running command is read for display only, and a send record
 // that cannot be read makes it undecided (RunningUnknownUnreadable) without
-// being returned, so it never adds a problem.
+// being returned, so it never adds a problem; a conflict row whose records
+// directory cannot be read keeps ConflictRecordsUnreadable, the phase that
+// never sends, and any other conflict row is ConflictUnsent (a stop record
+// that cannot be read is shown by StopUnreadable, not by the phase).
 func addRecords(ctx context.Context, deps Deps, git GitReader, w TaskWorkspace, row *Row) error {
 	var stopErr error
 	sends := func(string) (lastCommand, error) { return lastCommand{}, nil }
-	records, ok, err := deps.Store.existingRecords(w.Tree)
+	records, ok, dirErr := deps.Store.existingRecords(w.Tree)
 	switch {
-	case err != nil:
+	case dirErr != nil:
 		// Whether the workspace is stopped cannot be told, so it is not idle
 		// and calls the human like a stopped one.
-		row.Idle, row.StopUnreadable, stopErr = false, true, err
-		sends = func(string) (lastCommand, error) { return lastCommand{}, err }
+		row.Idle, row.StopUnreadable, stopErr = false, true, dirErr
+		sends = func(string) (lastCommand, error) { return lastCommand{}, dirErr }
 	case ok:
 		sends = records.lastSentCommand
 		stop, err := records.Stopped()
@@ -317,6 +321,9 @@ func addRecords(ctx context.Context, deps Deps, git GitReader, w TaskWorkspace, 
 	}
 	if row.State == StateRunning {
 		row.Running, row.RunningUnknown = runningOf(ctx, deps, w.Agents, sends)
+	}
+	if row.State == StateConflict && dirErr == nil {
+		row.Conflict = ConflictUnsent
 	}
 	return stopErr
 }

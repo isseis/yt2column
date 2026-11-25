@@ -24,7 +24,7 @@ import (
 const (
 	taskBranch = "user/0001-test-task-02"
 	taskDir    = "0001_test_task"
-	openPRJSON = `[{"headRefName":"user/0001-test-task-02","number":42,"title":"feat(0001): x","url":"https://github.com/owner/repo/pull/42"}]`
+	openPRJSON = `[{"headRefName":"user/0001-test-task-02","number":42,"title":"feat(0001): x","url":"https://github.com/owner/repo/pull/42","mergeable":"MERGEABLE","headRefOid":"` + prHead + `","baseRefName":"main","isCrossRepository":false}]`
 )
 
 var (
@@ -135,13 +135,13 @@ func TestTakeSnapshotUnreadable(t *testing.T) {
 	boom := errors.New("boom")
 	cases := map[string]func(w *world, tree string){
 		"gh fails": func(w *world, tree string) {
-			w.rec.failIn(tree, "gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", boom)
+			w.rec.failIn(tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields, boom)
 		},
 		"gh output unreadable": func(w *world, tree string) {
-			w.rec.replyIn(tree, "gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", []byte(`{"not":"an array"}`))
+			w.rec.replyIn(tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields, []byte(`{"not":"an array"}`))
 		},
 		"two open PRs": func(w *world, tree string) {
-			w.rec.replyIn(tree, "gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", []byte(strings.Replace(openPRJSON, "]", ","+openPRJSON[1:], 1)))
+			w.rec.replyIn(tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields, []byte(strings.Replace(openPRJSON, "]", ","+openPRJSON[1:], 1)))
 		},
 		"branch fails": func(w *world, tree string) { w.rec.failIn(tree, "git rev-parse --abbrev-ref HEAD", boom) },
 		"documents fail": func(w *world, tree string) {
@@ -313,7 +313,7 @@ func TestTakeoverProposal(t *testing.T) {
 			w.rec.replyIn(tree, "git rev-list --count refs/remotes/origin/main..HEAD", []byte("0\n"))
 		},
 		"an open PR": func(w *world, tree string) {
-			w.rec.replyIn(tree, "gh pr list --head "+taskBranch+" --state open --json headRefName,number,title,url", []byte(openPRJSON))
+			w.rec.replyIn(tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields, []byte(openPRJSON))
 		},
 		"an agent that does not accept input": func(w *world, _ string) {
 			for i := range w.agents {
@@ -699,6 +699,63 @@ func TestRecordsDirectoryUnreadable(t *testing.T) {
 	}
 	if len(snap.Problems) != 1 {
 		t.Errorf("problems = %v; want the records that cannot be read", snap.Problems)
+	}
+}
+
+// conflictPRJSON is openPRJSON with the PR in a merge conflict.
+var conflictPRJSON = strings.Replace(openPRJSON, `"MERGEABLE"`, `"CONFLICTING"`, 1)
+
+// TestSnapshotConflictRow reads a workspace whose open PR GitHub lists as
+// CONFLICTING: the row is a conflict row of the phase with no send yet,
+// later and the human's, showing the PR and its head; with its records
+// directory unreadable, its phase is the one that never sends; an unreadable
+// stop record is shown as such and leaves the phase to the send records.
+func TestSnapshotConflictRow(t *testing.T) {
+	if conflictPRJSON == openPRJSON {
+		t.Fatal("openPRJSON no longer holds MERGEABLE")
+	}
+	for _, broken := range []string{"", "directory", "stop record"} {
+		w := newWorld(t)
+		tree := w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: conflictPRJSON})
+		want := ConflictUnsent
+		unreadable := broken != ""
+		if broken == "directory" {
+			want = ConflictRecordsUnreadable
+		}
+		if unreadable {
+			dir, err := w.store.WorkspaceDir(Worktree{path: tree})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if broken == "directory" {
+				if err := os.Remove(dir); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(dir, []byte("x"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			} else if _, err := privatefile.Create(filepath.Join(dir, stopFile), []byte("not json")); err != nil {
+				t.Fatal(err)
+			}
+		}
+		snap := take(t, w)
+		row := rowOf(t, snap, "ws")
+		if row.State != StateConflict || row.Conflict != want || row.PR == nil || row.PR.Head.String() != prHead || row.Position.Progress != ProgressConflict {
+			t.Errorf("%q unreadable: row = %+v; want a conflict row of phase %d", broken, row, want)
+		}
+		out := snap.Output().Rows[0]
+		if out.Conflict == nil || out.Conflict.Phase != conflictPhaseName(want) || out.PR == nil || out.PR.Head != prHead || out.State != "conflict" {
+			t.Errorf("%q unreadable: output = %+v, conflict %+v, pr %+v", broken, out, out.Conflict, out.PR)
+		}
+		if !unreadable && (row.Urgency != UrgencyLater || row.Turn != TurnHuman) {
+			t.Errorf("urgency = %d/%d, want later and the human's", row.Urgency, row.Turn)
+		}
+	}
+	// A row that is not a conflict row has no conflict in the output.
+	w := newWorld(t)
+	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON})
+	if out := take(t, w).Output().Rows[0]; out.State != "awaiting_review" || out.Conflict != nil {
+		t.Errorf("awaiting review output = %+v, conflict %+v", out, out.Conflict)
 	}
 }
 

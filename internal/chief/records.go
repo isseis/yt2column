@@ -26,7 +26,7 @@ import (
 // Protocol is the number of the command-line and output contract. The skill
 // that drives the tool passes the same number with --protocol, so an old
 // install is refused instead of misread.
-const Protocol = 7
+const Protocol = 8
 
 // errRecord reports a record that is not in the accepted form.
 var errRecord = errors.New("unreadable record")
@@ -687,10 +687,10 @@ type SendRecord struct {
 	Prompts []string  `json:"prompts"`
 	Started time.Time `json:"started"`
 	// Kind is the paneinput.CommandKind name of the command a command send
-	// typed ("mkreq", "mkarch", "mkplan", "runplan", "runpr"), and Arg its
-	// argument as typed. Only a command send writes them; they are "" on a
-	// reset, a relay, and a record written before they existed. The running
-	// command is read from them, never from Command's text.
+	// typed ("mkreq", "mkarch", "mkplan", "runplan", "runpr", "mergemain"),
+	// and Arg its argument as typed. Only a command send writes them; they
+	// are "" on a reset, a relay, and a record written before they existed.
+	// The running command is read from them, never from Command's text.
 	Kind string `json:"kind"`
 	Arg  string `json:"arg"`
 }
