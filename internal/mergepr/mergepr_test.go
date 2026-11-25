@@ -28,7 +28,6 @@ func prepareTailSteps(workRoot, gitDir string) []commandStep {
 	return []commandStep{
 		gitStep("", "fetch", "origin"),
 		fetchMainStep(),
-		ghStep("", "pr", "checks", "42", "--watch", "--fail-fast"),
 		gitStep("abc subject\n\nbody\n", "log", "--format=%h %s%n%n%b", "origin/main.."+testHeadOID),
 		gitStep(" a.txt | 1 +\n", "diff", "--stat", "origin/main..."+testHeadOID),
 		gitStep(gitDir+"\n", "rev-parse", "--absolute-git-dir"),
@@ -263,20 +262,126 @@ func TestPrepareRejectsClosedPR(t *testing.T) {
 	runner.done()
 }
 
-func TestPrepareRejectsFailedChecks(t *testing.T) {
-	failed := ghStep("", "pr", "checks", "42", "--watch", "--fail-fast")
-	failed.err = errors.New("exit status 1")
-	tool, runner := newTool(t,
-		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
-		gitStep("", "fetch", "origin"),
-		fetchMainStep(),
-		failed,
-	)
+var errCIRepo = errors.New("gh repo view failed")
 
-	if _, err := tool.Prepare(t.Context(), "42"); !errors.Is(err, errChecksFailed) {
-		t.Fatalf("Prepare error = %v, want errChecksFailed", err)
+// ciStops scripts the CI outcomes that must stop Prepare with errChecksFailed.
+// wantCalls is the exact gh call sequence of the CI check, so a row that must
+// not be retried (a permanent reason) fails if the wait polls again.
+var ciStops = []struct {
+	name      string
+	repoErr   error
+	replies   []ciReply
+	wantCalls []string
+	// wantInMessage is text the report must carry so the operator can find the
+	// failing job; the wording is the observable contract here.
+	wantInMessage string
+}{
+	{
+		name:          "github-actions check failed",
+		replies:       []ciReply{{out: ciResponse(testHeadOID, ciSuite("github-actions", "COMPLETED", "FAILURE", ciRun("test", "FAILURE")))}},
+		wantCalls:     []string{"repo", "graphql"},
+		wantInMessage: `"test" "FAILURE" https://github.com/isseis/yt2column/actions/runs/1/job/1`,
+	},
+	{
+		name:          "head moved after prepare",
+		replies:       []ciReply{{out: ciResponse(testOtherOID, ciSuite("github-actions", "COMPLETED", "SUCCESS", ciRun("test", "SUCCESS")))}},
+		wantCalls:     []string{"repo", "graphql"},
+		wantInMessage: "head-changed",
+	},
+	{
+		name:          "response rejected",
+		replies:       []ciReply{{out: "not json"}},
+		wantCalls:     []string{"repo", "graphql"},
+		wantInMessage: "rejected",
+	},
+	{
+		name:      "repository not resolved",
+		repoErr:   errCIRepo,
+		wantCalls: []string{"repo"},
+		// ghci reports a fixed message and never carries gh's own text.
+		wantInMessage: "resolve repository",
+	},
+	{
+		name:          "no github-actions suite appears",
+		replies:       []ciReply{{out: ciResponse(testHeadOID)}},
+		wantCalls:     nil, // the number of polls before the grace expires is not the contract
+		wantInMessage: "deadline exceeded",
+	},
+}
+
+func TestPrepareRejectsFailedChecks(t *testing.T) {
+	for _, stop := range ciStops {
+		t.Run(stop.name, func(t *testing.T) {
+			tool, runner := newTool(t,
+				ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+				gitStep("", "fetch", "origin"),
+				fetchMainStep(),
+			)
+			ci := newFakeCI(t, stop.replies...)
+			ci.repoErr = stop.repoErr
+			tool.ci = ci
+
+			_, err := tool.Prepare(t.Context(), "42")
+			if !errors.Is(err, errChecksFailed) {
+				t.Fatalf("Prepare error = %v, want errChecksFailed", err)
+			}
+			if !strings.Contains(err.Error(), stop.wantInMessage) {
+				t.Errorf("Prepare error = %q, want it to contain %q", err, stop.wantInMessage)
+			}
+			if stop.wantCalls != nil && !slices.Equal(ci.calls, stop.wantCalls) {
+				t.Errorf("CI calls = %v, want %v", ci.calls, stop.wantCalls)
+			}
+			runner.done()
+		})
 	}
+}
+
+// TestWaitChecksRefusesEmptyHead verifies that the head pin cannot be switched
+// off by an empty head: no gh call is made.
+func TestWaitChecksRefusesEmptyHead(t *testing.T) {
+	tool, _ := newTool(t)
+	ci := newFakeCI(t)
+	tool.ci = ci
+	state := testState
+	state.HeadRefOID = ""
+	if err := tool.waitChecks(t.Context(), state); !errors.Is(err, errChecksFailed) {
+		t.Fatalf("waitChecks error = %v, want errChecksFailed", err)
+	}
+	if len(ci.calls) != 0 {
+		t.Errorf("CI calls = %v, want none", ci.calls)
+	}
+}
+
+// TestPrepareIgnoresReviewerChecks verifies that a failing check of a reviewer
+// app (Sourcery's own failing check suite) does not stop Prepare while the
+// GitHub Actions checks pass, and that a pending check is waited for.
+func TestPrepareIgnoresReviewerChecks(t *testing.T) {
+	workRoot := t.TempDir()
+	gitDir := filepath.Join(workRoot, ".git")
+	if err := os.Mkdir(gitDir, 0o700); err != nil {
+		t.Fatalf("create git dir: %v", err)
+	}
+	reviewer := ciSuite("sourcery-ai", "COMPLETED", "FAILURE", ciRun("Sourcery review", "FAILURE"))
+	pending := ciSuite("github-actions", "IN_PROGRESS", "", ciRun("test", "SUCCESS"))
+	passed := ciSuite("github-actions", "COMPLETED", "SUCCESS", ciRun("test", "SUCCESS"))
+	tool, runner := newTool(t, append([]commandStep{
+		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
+	}, prepareTailSteps(workRoot, gitDir)...)...)
+	ci := newFakeCI(t,
+		ciReply{out: ciResponse(testHeadOID, reviewer, pending)},
+		ciReply{out: ciResponse(testHeadOID, reviewer, passed)},
+	)
+	tool.ci = ci
+
+	prepared, err := tool.Prepare(t.Context(), "42")
+	if err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(prepared.Dir) })
 	runner.done()
+	if want := []string{"repo", "graphql", "graphql"}; !slices.Equal(ci.calls, want) {
+		t.Errorf("CI calls = %v, want %v", ci.calls, want)
+	}
 }
 
 func writeStateFile(t *testing.T, dir string) string {
@@ -758,13 +863,15 @@ func TestPrepareRunsProtocolCheck(t *testing.T) {
 			t.Fatalf("create git dir: %v", err)
 		}
 		tail := []commandStep{
-			ghStep("", "pr", "checks", "42", "--watch", "--fail-fast"),
 			gitStep("", "log", "--format=%h %s%n%n%b", "origin/release.."+otherHead),
 			gitStep("", "diff", "--stat", "origin/release..."+otherHead),
 			gitStep(gitDir+"\n", "rev-parse", "--absolute-git-dir"),
 			gitStep(workRoot+"\n", "rev-parse", "--show-toplevel"),
 		}
 		tool, runner, checker := newCheckedTool(t, nil, append(slices.Clone(lead), tail...)...)
+		// The CI wait pins the head gh reported, which is the other head here.
+		tool.ci = newFakeCI(t, ciReply{out: ciResponse(otherHead, ciSuite("github-actions", "COMPLETED", "SUCCESS", ciRun("test", "SUCCESS")))})
+		checker.ci = tool.ci.(*fakeCI)
 		prepared, err := tool.Prepare(t.Context(), "42")
 		if err != nil {
 			t.Fatalf("Prepare returned error: %v", err)
@@ -780,6 +887,9 @@ func TestPrepareRunsProtocolCheck(t *testing.T) {
 			tool, runner, checker := newCheckedTool(t, stop.err, lead...)
 			if _, err := tool.Prepare(t.Context(), "42"); !errors.Is(err, stop.err) {
 				t.Fatalf("Prepare error = %v, want %v", err, stop.err)
+			}
+			if ci := tool.ci.(*fakeCI); len(ci.calls) != 0 {
+				t.Errorf("CI calls after a protocol stop = %v, want none", ci.calls)
 			}
 			runner.done()
 			if !slices.Equal(checker.calls, wantCall) {
@@ -918,7 +1028,7 @@ func assertNumberStop(t *testing.T, err error, issues []numreserve.AddedNumberIs
 }
 
 // TestPrepareNumberCheck verifies that Prepare runs the number check after
-// gh pr checks, on the head and head branch gh reported, and that a stop
+// the CI wait, on the head and head branch gh reported, and that a stop
 // happens before the work directory is located: the scripted runner fails
 // the test on any later command. A PR into another base is not checked.
 func TestPrepareNumberCheck(t *testing.T) {
@@ -926,9 +1036,10 @@ func TestPrepareNumberCheck(t *testing.T) {
 		ghStep(testPRJSON, "pr", "view", "42", "--json", prViewFields),
 		gitStep("", "fetch", "origin"),
 		fetchMainStep(),
-		ghStep("", "pr", "checks", "42", "--watch", "--fail-fast"),
 	}
-	wantCall := []numberCall{{head: testHeadOID, branch: "feature/foo", index: len(lead)}}
+	// The CI check made its two gh calls (repo view and one query) before the
+	// number check ran.
+	wantCall := []numberCall{{head: testHeadOID, branch: "feature/foo", index: len(lead), ciCalls: 2}}
 	t.Run("pass", func(t *testing.T) {
 		workRoot := t.TempDir()
 		gitDir := filepath.Join(workRoot, ".git")
@@ -972,7 +1083,6 @@ func TestPrepareNumberCheck(t *testing.T) {
 			ghStep(pr, "pr", "view", "42", "--json", prViewFields),
 			gitStep("", "fetch", "origin"),
 			fetchMainStep(),
-			ghStep("", "pr", "checks", "42", "--watch", "--fail-fast"),
 			gitStep("", "log", "--format=%h %s%n%n%b", "origin/release.."+testHeadOID),
 			gitStep("", "diff", "--stat", "origin/release..."+testHeadOID),
 			gitStep(gitDir+"\n", "rev-parse", "--absolute-git-dir"),
@@ -1099,8 +1209,9 @@ func TestPrepareWritesCorrections(t *testing.T) {
 		}
 		return workRoot, gitDir
 	}
-	// The reading runs after the PR view and the first five tail steps.
-	const readAt = 6
+	// The reading runs after the PR view and the first four tail steps (the CI
+	// wait is not a step of this runner).
+	const readAt = 5
 	t.Run("lines", func(t *testing.T) {
 		workRoot, gitDir := newGitDir(t)
 		tool, runner := newTool(t, append([]commandStep{

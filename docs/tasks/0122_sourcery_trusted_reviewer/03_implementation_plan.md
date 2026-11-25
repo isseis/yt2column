@@ -199,13 +199,13 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
   - `docs/dev/guides/mergepr_guide.md`
   - `docs/dev/adr/0013-review-setup.md`
 - **作業内容:**
-  - [ ] `internal/mergepr/runner.go` に `ghci` 用の `cmdrunner.Runner`（`MaxOutput: 32 MiB`・`WaitDelay: 5s`・`Env: gitEnviron()`）を追加する。
-  - [ ] `internal/mergepr/mergepr.go` の `Tool` へ `ghci` 用 runner と `WaitOptions`（既定: `PollInterval: 30s`・`Timeout: 60m`・`PerCallTimeout: 2m`・`NoCheckGrace: 5m`）を保持し、`Prepare`（`275` 行目）の `gh pr checks <N> --watch --fail-fast` を `ghci.ResolveRepo`＋`ghci.WaitPR`（`ExpectedHead: state.HeadRefOID`）へ置き換える。`StatePassed` 以外は `errChecksFailed`（失敗ジョブ名・URL または理由コードのみ）を返す（`Protocol = 3` は据え置く。[02_architecture.md](02_architecture.md) 3.2.4・4.2）。
-  - [ ] `internal/mergepr/test_helpers.go`（`newCheckedTool` でテスト用 runner・即時 `Sleep` 注入）と `internal/mergepr/mergepr_test.go` の `gh pr checks` モック（5 箇所）および `921` 行目の古いコメントを更新し、`Sourcery review` が `FAILURE` でも `github-actions` が成功なら通過すること、`github-actions` 失敗・`head-changed`・`unreadable` で `errChecksFailed` を返すことを検証する（AC-19）。
-  - [ ] 壊して確かめる検証: `Prepare` の `ExpectedHead` 引き渡しと `StatePassed` 判定をそれぞれ一時的に壊し、`TestPrepare`・`TestPrepareRejectsFailedChecks` が失敗することを確かめ、コミットメッセージに記録する。
-  - [ ] `.claude/commands/mergepr.md:47` の CI 待機記述（`gh pr checks --watch --fail-fast`）を `github-actions` チェック監視へ更新し、`docs/dev/guides/mergepr_guide.md`（2 章 `30` 行目の前提・4 章・5.2 節 `prepare`・6.1・6.2 節の `github-actions` 限定監視と `.github/workflows/deepseek-review.yml` の前提・7 章の古いバイナリ判別法と `make install-mergepr` 対処）を更新する（[02_architecture.md](02_architecture.md) 5.4・8 章）。
-  - [ ] [ADR-0013](../../dev/adr/0013-review-setup.md)「レビュー済みの判定」の `#1095` への食い違いの記述から、このステップで解消する `mergepr prepare`（`internal/mergepr/mergepr.go`・`.claude/commands/mergepr.md`）の部分を外し、残る部分（`fixprguard review-state` と `runpr.md` の判定、`runpr.md` の CI 待機）だけに書き換える。編集上の訂正として、コミットメッセージに `Editorial correction:` 行を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」、AC-27、1.5）。
-  - [ ] 文書の事実照合: 既存インストール済みバイナリ（ビルド・再インストールは行わない）に対する `go version -m` の実出力（`build vcs.revision` 行）と、`.github/workflows/deepseek-review.yml` の実際のワークフロー名（`Code Review`）・トリガー（`workflow_dispatch` のみ有効、`pull_request`/`issue_comment` はコメントアウト）を照合し、`mergepr_guide.md` の記載と一致させる。
+  - [x] `internal/mergepr/runner.go` に `ghci` 用の `cmdrunner.Runner`（`MaxOutput: 32 MiB`・`WaitDelay: 5s`・`Env: gitEnviron()`）を追加する。
+  - [x] `internal/mergepr/mergepr.go` の `Tool` へ `ghci` 用 runner と `WaitOptions`（既定: `PollInterval: 30s`・`Timeout: 60m`・`PerCallTimeout: 2m`・`NoCheckGrace: 5m`）を保持し、`Prepare`（`275` 行目）の `gh pr checks <N> --watch --fail-fast` を `ghci.ResolveRepo`＋`ghci.WaitPR`（`ExpectedHead: state.HeadRefOID`）へ置き換える。`StatePassed` 以外は `errChecksFailed`（失敗ジョブ名・URL または理由コードのみ）を返す（`Protocol = 3` は据え置く。[02_architecture.md](02_architecture.md) 3.2.4・4.2）。
+  - [x] `internal/mergepr/test_helpers.go`（`newCheckedTool` でテスト用 runner・即時 `Sleep` 注入）と `internal/mergepr/mergepr_test.go` の `gh pr checks` モック（5 箇所）および `921` 行目の古いコメントを更新し、`Sourcery review` が `FAILURE` でも `github-actions` が成功なら通過すること、`github-actions` 失敗・`head-changed`・`unreadable` で `errChecksFailed` を返すことを検証する（AC-19）。
+  - [x] 壊して確かめる検証: `Prepare` の `ExpectedHead` 引き渡しと `StatePassed` 判定をそれぞれ一時的に壊し、`TestPrepare`・`TestPrepareRejectsFailedChecks` が失敗することを確かめ、コミットメッセージに記録する。
+  - [x] `.claude/commands/mergepr.md:47` の CI 待機記述（`gh pr checks --watch --fail-fast`）を `github-actions` チェック監視へ更新し、`docs/dev/guides/mergepr_guide.md`（2 章 `30` 行目の前提・4 章・5.2 節 `prepare`・6.1・6.2 節の `github-actions` 限定監視と `.github/workflows/deepseek-review.yml` の前提・7 章の古いバイナリ判別法と `make install-mergepr` 対処）を更新する（[02_architecture.md](02_architecture.md) 5.4・8 章）。
+  - [x] [ADR-0013](../../dev/adr/0013-review-setup.md)「レビュー済みの判定」の `#1095` への食い違いの記述から、このステップで解消する `mergepr prepare`（`internal/mergepr/mergepr.go`・`.claude/commands/mergepr.md`）の部分を外し、残る部分（`fixprguard review-state` と `runpr.md` の判定、`runpr.md` の CI 待機）だけに書き換える。編集上の訂正として、コミットメッセージに `Editorial correction:` 行を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」、AC-27、1.5）。
+  - [x] 文書の事実照合: 既存インストール済みバイナリ（ビルド・再インストールは行わない）に対する `go version -m` の実出力（`build vcs.revision` 行）と、`.github/workflows/deepseek-review.yml` の実際のワークフロー名（`Code Review`）・トリガー（`workflow_dispatch` のみ有効、`pull_request`/`issue_comment` はコメントアウト）を照合し、`mergepr_guide.md` の記載と一致させる。
 - **完了条件:**
   - `make fmt && make test && make lint && make deadcode`（`cmd/mergepr/docs_test.go` を含む）がすべて通ること。
   - **マージ後の手動作業:** 利用者が `main` から `make install-mergepr` を実行する（`02_architecture.md` 8 章）。
@@ -224,10 +224,10 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1160
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ---
 
@@ -483,7 +483,7 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2）
 - [x] PR-2 マージ済み（対象ステップ: 2-1）
-- [ ] PR-3 マージ済み（対象ステップ: 2-2）
+- [x] PR-3 マージ済み（対象ステップ: 2-2）
 - [ ] PR-4 マージ済み（対象ステップ: 3-1）
 - [ ] PR-5 マージ済み（対象ステップ: 3-2 / 3-3 / 3-4 / 3-5）
 - [ ] PR-6 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3）

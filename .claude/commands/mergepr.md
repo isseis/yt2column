@@ -48,8 +48,9 @@ around it with your own shell commands. Work in order; do not skip a step.
 1. **Prepare.** Run `mergepr prepare --protocol 4 $ARGUMENTS` (no argument uses the current
    branch's PR). It requires the PR to be open, fetches `origin`, fetches
    `main` into `origin/main` again and runs the protocol number check on the
-   PR's head and base, waits for CI
-   (`gh pr checks --watch --fail-fast`), reads the editorial correction lines
+   PR's head and base, waits for the GitHub Actions checks of the prepared
+   head (not the checks of the automated reviewers, such as CodeRabbit and
+   Sourcery AI, which it ignores), reads the editorial correction lines
    of the PR's commits, and writes `state.json`, `log.txt`
    (every commit message in full), `stat.txt`, `body.txt` (the PR
    description), and `corrections.txt` (the accepted correction lines, line

@@ -27,7 +27,7 @@
 | gh のデフォルトリポジトリ | `gh` がプロンプトなしで `origin` を選ぶこと。リモートが複数あるときは `gh repo set-default` で設定する |
 | リモートブランチの自動削除 | GitHub のリポジトリ設定「Automatically delete head branches」が有効であること。`mergepr` はリモートの head ブランチを削除しない |
 | merge queue | 使用しないこと |
-| CI | PR に CI のチェックが 1 つ以上あること。チェックが無い PR では `gh pr checks` が失敗するため、`prepare` が止まる |
+| CI | PR の head コミットに GitHub Actions（`github-actions`）のチェックが現れること（`ci.yml` は base が `main` の PR でだけ起動するので、base が `main` 以外の PR では現れない。そのとき `prepare` は 5 分後に止まるが、手動の `Code Review` の実行が先に head に付いていれば、そのスイートだけで判定して通る。6.2 節）。`prepare` は CodeRabbit・Sourcery AI などの外部レビュアーのチェックを待たず、判定にも使わない。GitHub Actions のチェックが 5 分たっても現れない PR では、`prepare` が止まる |
 
 リモートブランチの自動削除が有効かどうかは、次のコマンドで確認できる（`true` なら有効）。
 
@@ -63,7 +63,7 @@ flowchart TD
     classDef process fill:#fff1e6,stroke:#ff7f0e,stroke-width:1px,color:#8a3e00;
     classDef enhanced fill:#e8f5e8,stroke:#2e8b57,stroke-width:2px,color:#006400;
 
-    Start(["/mergepr [PR]"]) --> Prepare["mergepr prepare<br>PR が OPEN か確認<br>git fetch origin<br>main を取得し番号を確かめる<br>CI 完了を待つ<br>PR が加える番号を確かめる<br>訂正の行を読む"]
+    Start(["/mergepr [PR]"]) --> Prepare["mergepr prepare<br>PR が OPEN か確認<br>git fetch origin<br>main を取得し番号を確かめる<br>GitHub Actions の CI 完了を待つ<br>PR が加える番号を確かめる<br>訂正の行を読む"]
     Prepare --> Files[("作業ディレクトリ<br>state.json / log.txt<br>stat.txt / body.txt<br>corrections.txt")]
     Files --> Rejected{"拒否した行が<br>あるか"}
     Rejected -->|"ブランチで直す"| Discard["mergepr discard<br>（止まる）"]
@@ -94,7 +94,7 @@ flowchart TD
 
 | 段階 | 実行者 | ネットワーク操作 | 取り消し |
 |---|---|---|---|
-| `prepare` | ツール | `gh pr view`、`git fetch origin`、`main` の取得（`git fetch origin +refs/heads/main:refs/remotes/origin/main`）、`gh pr checks`、PR が加える番号の確かめ（`git ls-remote origin` と、SHA を指定した `git fetch --no-tags --no-write-fetch-head origin <SHA>...`） | 不要（読み取りのみ） |
+| `prepare` | ツール | `gh pr view`、`git fetch origin`、`main` の取得（`git fetch origin +refs/heads/main:refs/remotes/origin/main`）、`gh repo view`、`gh api graphql`（head の GitHub Actions のチェックの読み取り）、PR が加える番号の確かめ（`git ls-remote origin` と、SHA を指定した `git fetch --no-tags --no-write-fetch-head origin <SHA>...`） | 不要（読み取りのみ） |
 | `paragraph`・`check-body` | ツール | なし（`prepare` が取得した `origin/<base>` を読む） | 不要（`paragraph` は作業ディレクトリに書くだけ） |
 | 下書き・承認 | Claude と開発者 | なし | 何度でもやり直せる |
 | `merge` | ツール | `gh pr view`、`main` の取得（`prepare` と同じ）、PR が加える番号の確かめ（`prepare` と同じ）、`gh pr merge`、マージの後の照合のための base の取得（`git fetch origin +refs/heads/<base>:refs/remotes/origin/<base>`） | **不可** |
@@ -146,7 +146,13 @@ PR を引数なし（現在のブランチ）、番号、URL のいずれかで�
 1. PR が OPEN であることを確認する。
 2. `git fetch origin` を実行する。
 3. `main` を、`refs/remotes/origin/main` へ取り込む refspec を明示して取得し、PR の head と base でプロトコル番号を確かめる（6.3 節）。止まれば作業ディレクトリを作らない。CI を待つ前に確かめるのは、番号の食い違いを早く示すためである。
-4. `gh pr checks --watch --fail-fast` で CI の完了を待つ。失敗したチェックがあれば止まる。
+4. head の GitHub Actions のチェックの完了を待つ。`gh repo view` でリポジトリを読み、`gh api graphql` で head コミットの `github-actions` のチェックスイートと最新のチェック実行を 30 秒おきに読む（出力は 32 MiB まで、1 回の読み取りは 2 分まで、全体で 60 分まで）。次の場合は、`CI checks failed` で止まる。
+   - 失敗したチェックがある（失敗したジョブの名前と URL を示す）。
+   - 読んでいる間に head が動いた（`head-changed`）。`prepare` が読んだ head の OID を固定して読むので、動いた後の head は判定しない。
+   - 応答が読めない・上限を超えた（`rejected`・`limit`）、またはリポジトリを `gh repo view` で読めない。再試行せず、すぐに止まる。
+   - `github-actions` のチェックが 5 分たっても現れない、または全体の 60 分を超える。
+
+   一時的な呼び出しの失敗（`call-failed`）だけは、全体の 60 分まで再試行する。`github-actions` 以外の App（CodeRabbit・Sourcery AI など）のチェックは、失敗していても、いつまでも終わらなくても、読み飛ばす。これは、head コミットにチェックスイートを付けるワークフローが `ci.yml`（`pull_request` で起動）だけであることを前提にしている（6.2 節）。
 5. PR の base が `main` なら、PR が加えるタスク番号と ADR 番号を確かめる（6.4 節）。見つけたものがあるか、確かめに要るものを読めなければ止まり、作業ディレクトリを作らない。CI を待った後に確かめるのは、CI を待つ数分の間に `main` に入った番号も見るためである。
 6. 範囲の訂正の行を読み（6.5 節）、受け付けた行と拒否した行に分ける。読めなければ止まり、作業ディレクトリを作らない。拒否した行があっても止まらない。落とすことを選べるように、準備を残すためである。
 7. 作業中のチェックアウト内に新しい作業ディレクトリを作成し、次のファイルを書き出す。本体のチェックアウトではリポジトリの git ディレクトリ配下（`.git/mergepr-*`）に、git ディレクトリが本体側にある worktree では worktree のルートに `mergepr-*` ディレクトリを作る。材料をチェックアウト内に保つことで、作業ツリーの外に触れずに済む。作業ディレクトリを作る場所のパスに改行（LF または CR）が含まれる場合、`dir:` と `state:` の行出力で曖昧さなく表せないため、`prepare` はディレクトリを作らずにエラーで止まる。
@@ -308,7 +314,7 @@ PR の番号は 10 進の数字だけ 9 桁までで、先頭に `0` を付け�
 
 | 保証 | 仕組み |
 |---|---|
-| CI が通った head だけをマージする | `prepare` で CI を待ち、`merge` は `--match-head-commit` でその head の OID を指定する。`prepare` の後に head へ push があると、GitHub がマージを拒否する |
+| `github-actions` のチェックが通った head だけをマージする（`ci.yml` が走ったことまでは保証しない。6.2 節） | `prepare` で、`prepare` が読んだ head の GitHub Actions のチェックを待ち（head の OID を固定する。外部レビュアーのチェックは対象外）、`merge` は `--match-head-commit` でその head の OID を指定する。`prepare` の後に head へ push があると、GitHub がマージを拒否する |
 | 承認したメッセージでマージする | 件名と本文はファイルから読み、そのまま `gh pr merge` に渡す |
 | 準備した base にマージする | マージ直前に、base が `state.json` と同じことを確認する |
 | ローカルの未マージコミットを消さない | ローカル head ブランチは、`headOID` を指しているときだけ削除する。マージされた head が `headOID` と異なるときは、ローカルのブランチに触れない |
@@ -330,6 +336,7 @@ PR の番号は 10 進の数字だけ 9 桁までで、先頭に `0` を付け�
 - プロトコル番号について、次の 4 つは受け入れた危険である（CLAUDE.md の「Protocol numbers」）。(1) マージの前は、同じ道具の番号を上げる並行するブランチが同じ番号を共有する。(2) `merge` の確かめ直しと GitHub のマージの間の数秒に、ほかの PR が同じ番号でマージされうる。(3) 番号を上げたブランチを、同じ番号の入った `main` の上へ rebase するか、その上で履歴をまとめ直すと、確かめが衝突を見落としうる。(4) 一度消した道具を同じ名前で足し直すと、番号が `1` に戻る。
 - 確かめを変える PR は、その PR のブランチから入れた `mergepr` で確かめられる。確かめの実装を変える PR は、変えた後の実装で確かめることになる。
 - 入れ直していない古い `mergepr` と、`main` を取り込んでいない古い定義の組み合わせ（どちらも `--protocol` を知らない）は、確かめずにマージする。
+- CI の判定は、head コミットにチェックスイートを付ける `github-actions` のワークフローが `ci.yml`（トリガーは `pull_request`）だけであることを前提にする。`.github/workflows/deepseek-review.yml`（ワークフロー名は `Code Review`）は、`pull_request` と `issue_comment` のトリガーをコメントアウトしてあり、`workflow_dispatch`（手動実行）だけが有効なので、PR の CI には加わらない。ただし、人が PR のブランチを選んで手動で実行すると、その head に `github-actions` のチェックスイートが付き、失敗すれば `prepare` が止まる。逆に、`ci.yml` が起動しなかった head（base が `main` 以外の PR、base と衝突している PR）では、その手動実行のスイートだけが判定の対象になり、成功すれば CI が走っていなくても `prepare` は通る。ワークフローの増減とトリガーの変更は `internal/ghci/workflows_test.go` が検出する。
 - タスク番号と ADR 番号について、次の 4 つは受け入れた危険である。(1) `merge` の確かめ直しと GitHub のマージの間の数秒に、ほかの PR が同じ番号でマージされうる。(2) `/mergepr` を通らないマージと、入れ直していない古い `mergepr` は、番号を確かめない。`docs/tasks/` の形は CI の文書のガード（`TestTaskDirectoryForms`）でも確かめるが、記録・重複・ほかのブランチの確かめは CI にない。(3) `origin` が `isseis/yt2column` 以外を向いていると、確かめは別のリポジトリを読む。(4) しきい値以下の番号は、記録の tag がなくても通す（6.4 節）。
 - 訂正の行について、次のことは確かめない。(1) `--drop <番号>:disputed` と `--drop <番号>:reverted` の場合に当たるか（人が示したとおりとする）。(2) 受け付けない文字に入らない見えにくい文字（U+3164 などの埋め草の文字、異体字セレクタ、私用領域の文字、似た形の文字）。(3) 訂正の行の `#N` や `fixes #N` などの、issue を閉じるキーワード。既定のブランチに入ったコミットのメッセージのキーワードで issue が閉じるかは確かめていない。(4) `/mergepr` を通らないマージと、入れ直していない古い `mergepr` は、訂正の行を引き継がない。
 - マージの後の照合で食い違いが見つかっても、マージは取り消せない。直し方（後の PR の本文に記録するなど、`main` の履歴を書き換えない方法）は利用者が選ぶ。
@@ -414,7 +421,8 @@ Dropped editorial corrections: <a> disputed by a reviewer, <b> reverted on the b
 | `could not remove the body file`（`note:` の行） | `merge` | `merge` が作った一時ファイルを消せなかった。マージの成否には関わらない | 示されたファイルを自分で消す |
 | `invalid drop` | すべて | `--drop` か `--drop-rejected` の値の形が違う、同じ行を 2 回指している | 5.2 節の形で指定し直す |
 | `PR is not open` | `prepare` | PR がクローズまたはマージ済み | 対象の PR を確認する |
-| `CI checks failed` | `prepare` | 失敗したチェックがある、またはチェックが無い | CI を直して push し、`prepare` からやり直す |
+| `CI checks failed` | `prepare` | `github-actions` のチェックが失敗した、head が動いた（`head-changed`）、応答が読めない（`rejected`・`limit`）、リポジトリを読めない、チェックが現れない・60 分以内に終わらない（`deadline exceeded`）。失敗したジョブの名前と URL または理由コードが続く | 失敗したジョブなら、CI を直して push し、`prepare` からやり直す。`head-changed` なら、そのまま `prepare` からやり直す。`rejected`・`limit`・リポジトリを読めない場合は、`gh auth status` と `gh repo view` を確かめてからやり直す（CI を直しても解消しない）。チェックが現れない・期限超過なら、`ci.yml` が起動したか（base が `main` か、衝突していないか）を確かめる。`github-actions` 以外のチェックの失敗は、この停止の原因ではない |
+| `CI checks failed`（CodeRabbit・Sourcery AI など外部レビュアーのチェックの失敗が原因に見える） | `prepare` | 入れ直していない古い `mergepr` は、`gh pr checks` で外部レビュアーのチェックも待つ | 下の「古い `mergepr` を見分けるとき」 |
 | `squash subject is not a non-empty single line` | `merge` | 件名ファイルが空、または複数行 | 件名ファイルを直して `merge` を再実行する |
 | `PR is not open: state is MERGED` | `merge` | 前回の実行で既にマージされている | 表示された `mergepr cleanup --protocol 4 --state ...` を実行する |
 | `PR base changed after prepare` | `merge` | PR の base が変更された | 表示された `mergepr prepare --protocol 4 <PR>` で、`prepare` からやり直す |
@@ -426,6 +434,16 @@ Dropped editorial corrections: <a> disputed by a reviewer, <b> reverted on the b
 | `PR merged a different head than prepared` | `cleanup` | `prepare` 後に head が force-push され、その head がマージされた | ローカル head ブランチに PR に含まれなかったコミットが無いか確認し、base の更新とブランチの削除を手動で行う |
 | `invalid state` | `merge`、`cleanup`、`discard` | `--state` に `prepare` が書いたファイル以外を指定した | `prepare` が表示したパスを指定する |
 | `state file does not name a generated work directory it lives in` | `discard` | `--state` が、`prepare` が作ったディレクトリの外へ移動・コピーされた state ファイルを指している、またはそのディレクトリ名が `mergepr-` 接頭辞を持たない | `prepare` が表示したパスを指定する。安全と分かっているなら準備したディレクトリを自分で削除する |
+
+**古い `mergepr` を見分けるとき.** 入れ直していない `mergepr` は、`prepare` の CI の待機が `gh pr checks --watch --fail-fast` のままで、外部レビュアーのチェックの失敗でも止まる。インストールした `mergepr` が、CI の待機を `github-actions` に限る変更を含むかは、次の 2 つで確かめる。`mergepr` のビルドは git の情報を埋め込んでいる。
+
+```sh
+go version -m "$(command -v mergepr)" | grep -E 'vcs\.(revision|modified)'
+git log -1 --no-show-signature --format=%H -S'func (t *Tool) waitChecks' -- internal/mergepr/ci.go
+git merge-base --is-ancestor <2 つ目に出たコミット> <1 つ目の vcs.revision の値> && echo up-to-date
+```
+
+`up-to-date` が出ないとき、または 1 つ目が `vcs.modified=true` を示したとき（コミットしていない変更を含んだビルド）は、必ず入れ直す（古い場合のほか、ローカルの clone にそのコミットがない場合、PR のブランチから入れた場合も、同じ扱いにする）。つまり、`main` を最新にしてから `make install-mergepr` で入れ直す。1 つ目で `vcs.revision` が出ないとき（git の情報なしでビルドしたとき）も、入れ直す。この確かめは `Protocol` の照合とは別である。この変更は CLI の引数・出力・終了コードを変えないので `Protocol` は上げておらず、古い `mergepr` でも `--protocol` は通る。
 
 **訂正の確かめで止まったとき.** マージしていない。`cannot read` のときは、理由を取り除いてから実行し直す（shallow なリポジトリなら `git fetch --unshallow`）。`prepare` で止まったときは何も作っていないので、`prepare` をやり直す。`paragraph`・`check-body` で止まったときは準備がそのまま使えるので、原因を取り除いてから同じサブコマンドを実行し直す。`merge` で止まったときは、もう一度だけ同じ `merge` を実行し、また止まれば準備を捨てて報告する。食い違いのときは、`mergepr: correction check:` の各行が直す所を示す。`check-body` で止まったなら、本文を `paragraph.txt` から作り直して `check-body` をやり直す。`merge` で止まったなら、表示された `discard` で準備を捨て、本文か落とす指定を直して、承認を聞き直す。拒否した行の宣言がないときは、その行を `--drop-rejected` で落とすか、ブランチでコミットのメッセージを書き直して `prepare` からやり直す。`/runpr` の PRE_MERGE の commit と push の後に `merge` で止まったときは、その commit はブランチに残る。
 
@@ -460,7 +478,7 @@ head の値が `origin/main` の値と同じ道具があるとき（上げた番
 
 ## 8. ツールを変更する場合
 
-- 実装は `internal/mergepr`、CLI は `cmd/mergepr` にある。外部コマンドは `Runner` インターフェース（定義は `internal/cmdrunner`。`mergepr.Runner` はその別名）越しに呼び出す。テストでは、期待するコマンド列を順に再生する `fakeRunner`（`internal/mergepr/test_helpers.go`）を使い、`git` や `gh` を実行しない。`Prepare`・`Merge` のテストは、プロトコル番号の確かめとタスク番号・ADR 番号の確かめ（`mergepr.NumberChecker`）と訂正の行の読み取り（`correctionSource`）を差し替えて、呼ぶ位置と渡す値を確かめる。訂正の行の読み取りとトレーラーの読み取りは、一時ディレクトリの実際の git のリポジトリで試す（`internal/mergepr/corrections_test.go`）。`cmd/mergepr` は、`main` だけが本番の確かめ（`numreserve.New`）を渡す。
+- 実装は `internal/mergepr`、CLI は `cmd/mergepr` にある。外部コマンドは `Runner` インターフェース（定義は `internal/cmdrunner`。`mergepr.Runner` はその別名）越しに呼び出す。テストでは、期待するコマンド列を順に再生する `fakeRunner`（`internal/mergepr/test_helpers.go`）を使い、`git` や `gh` を実行しない。`Prepare` の CI の待機は専用の `ci` の `Runner` と `ghci.WaitOptions` を持ち、テストは `gh repo view` と GraphQL の応答を返す `fakeCI`（同じ `test_helpers.go`）と、待ち時間を省く `Sleep` を差し込む。`Prepare`・`Merge` のテストは、プロトコル番号の確かめとタスク番号・ADR 番号の確かめ（`mergepr.NumberChecker`）と訂正の行の読み取り（`correctionSource`）を差し替えて、呼ぶ位置と渡す値を確かめる。訂正の行の読み取りとトレーラーの読み取りは、一時ディレクトリの実際の git のリポジトリで試す（`internal/mergepr/corrections_test.go`）。`cmd/mergepr` は、`main` だけが本番の確かめ（`numreserve.New`）を渡す。
 - プロトコル番号の確かめ（6.3 節）は、一時ディレクトリに実際の git のリポジトリを作り、履歴を組んで試す（`internal/mergepr/protocolcheck_test.go`）。宣言の行を持つ Go のソースは `_test.go` の中だけで組み立てる。`internal/mergepr` の `_test.go` 以外のファイル（`test_helpers.go` など）に `const Protocol = …` の行をもう 1 つ書くと、確かめは `mergepr` の番号を読めない値として止まる。
 - 引数・出力・終了コードの契約を変えたら、`internal/mergepr` の `Protocol` を上げ、コマンドの定義と本書の `--protocol` も合わせて更新する。番号の決め方は CLAUDE.md の「Protocol numbers」に従う。
 - 6.1 節の保証を変更する場合は、対応する実装を壊してテストが失敗することを確認し、そのことをコミットメッセージに書く（CLAUDE.md の「Testing Strategy」）。
