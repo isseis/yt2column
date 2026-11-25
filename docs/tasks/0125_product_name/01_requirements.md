@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-25 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -200,3 +200,7 @@ N/A（実行ロジックやエラー処理の制御フローを変更しない�
 - **コア製品名:** `YouTube` を含めない独自名。日本語 `ヨムドウガ`、英語 `YomuDoga`。拡張 UI・ビューアタイトル・README 本文での呼称に使う。
 - **Chrome ウェブストア表示名:** `manifest.json` の `name`（`extName`）および Chrome ウェブストア・`chrome://extensions/`・README の H1 見出しで使う表示名。日本語 `ヨムドウガ for YouTube™`、英語 `YomuDoga for YouTube™`。
 - **開発用のビルド表示名:** `make ext-build-dev` が生成する開発用のビルドの `extNameDev`。日本語 `ヨムドウガ（開発用のビルド）`、英語 `YomuDoga (development build)`。
+
+## 変更履歴
+
+- 2026-11-26 承認（isseis、#1164）

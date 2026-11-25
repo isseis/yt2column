@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-25 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 設計の全体像
@@ -197,3 +197,7 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
 
 - **Chrome ウェブストア審査での `for YouTube™` 削除要求への対応:** コア製品名と Chrome ウェブストア表示名を分離しているため、万一審査で `for YouTube™` の削除を求められた場合は、`messages.json` の `extName`、`docs/store/chrome_web_store.md`、`README.md` / `README.en.md` の H1、`INSTALL.md` の該当箇所、および `manifest.test.ts`・`viewerTitle.test.ts` の Chrome ウェブストア表示名参照のみを改めればよい。ビューアタイトルや拡張 ID には影響しない。
 - **`INSTALL.md` の英語版追加（#1044）:** 本タスクで `docs/translation_glossary.md` に日英の製品名を登録しておくことで、将来の英語版作成時にも表記ゆれを防げる。
+
+## 変更履歴
+
+- 2026-11-26 承認（isseis、#1164）

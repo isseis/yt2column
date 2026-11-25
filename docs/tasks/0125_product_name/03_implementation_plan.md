@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-25 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装概要
@@ -251,3 +251,7 @@ Diff record (AC-16):
 
 1. 本 3 文書 PR のレビューを受け、`/runpr` で 3 文書の承認とマージを行う。
 2. マージ後、`/runplan 0125` で PR-1（フェーズ 1）を実装・マージし、続けて `/runplan 0125` で PR-2（フェーズ 2）を実装・マージする。
+
+## 変更履歴
+
+- 2026-11-26 承認（isseis、#1164）
