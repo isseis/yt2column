@@ -27,7 +27,7 @@
 | gh のデフォルトリポジトリ | `gh` がプロンプトなしで `origin` を選ぶこと。リモートが複数あるときは `gh repo set-default` で設定する |
 | リモートブランチの自動削除 | GitHub のリポジトリ設定「Automatically delete head branches」が有効であること。`mergepr` はリモートの head ブランチを削除しない |
 | merge queue | 使用しないこと |
-| CI | PR の head コミットに GitHub Actions（`github-actions`）のチェックが現れること。`prepare` は CodeRabbit・Sourcery AI などの外部レビュアーのチェックを待たず、判定にも使わない。GitHub Actions のチェックが 5 分たっても現れない PR では、`prepare` が止まる |
+| CI | PR の head コミットに GitHub Actions（`github-actions`）のチェックが現れること（`ci.yml` は base が `main` の PR でだけ起動するので、base が `main` 以外の PR では現れず、`prepare` は 5 分後に止まる）。`prepare` は CodeRabbit・Sourcery AI などの外部レビュアーのチェックを待たず、判定にも使わない。GitHub Actions のチェックが 5 分たっても現れない PR では、`prepare` が止まる |
 
 リモートブランチの自動削除が有効かどうかは、次のコマンドで確認できる（`true` なら有効）。
 
@@ -336,7 +336,7 @@ PR の番号は 10 進の数字だけ 9 桁までで、先頭に `0` を付け�
 - プロトコル番号について、次の 4 つは受け入れた危険である（CLAUDE.md の「Protocol numbers」）。(1) マージの前は、同じ道具の番号を上げる並行するブランチが同じ番号を共有する。(2) `merge` の確かめ直しと GitHub のマージの間の数秒に、ほかの PR が同じ番号でマージされうる。(3) 番号を上げたブランチを、同じ番号の入った `main` の上へ rebase するか、その上で履歴をまとめ直すと、確かめが衝突を見落としうる。(4) 一度消した道具を同じ名前で足し直すと、番号が `1` に戻る。
 - 確かめを変える PR は、その PR のブランチから入れた `mergepr` で確かめられる。確かめの実装を変える PR は、変えた後の実装で確かめることになる。
 - 入れ直していない古い `mergepr` と、`main` を取り込んでいない古い定義の組み合わせ（どちらも `--protocol` を知らない）は、確かめずにマージする。
-- CI の判定は、head コミットにチェックスイートを付ける `github-actions` のワークフローが `ci.yml`（トリガーは `pull_request`）だけであることを前提にする。`.github/workflows/deepseek-review.yml`（ワークフロー名は `Code Review`）は、`pull_request` と `issue_comment` のトリガーをコメントアウトしてあり、`workflow_dispatch`（手動実行）だけが有効なので、PR の CI には加わらない。ただし、人が PR のブランチを選んで手動で実行すると、その head に `github-actions` のチェックスイートが付き、失敗すれば `prepare` が止まる。ワークフローの増減とトリガーの変更は `internal/ghci/workflows_test.go` が検出する。
+- CI の判定は、head コミットにチェックスイートを付ける `github-actions` のワークフローが `ci.yml`（トリガーは `pull_request`）だけであることを前提にする。`.github/workflows/deepseek-review.yml`（ワークフロー名は `Code Review`）は、`pull_request` と `issue_comment` のトリガーをコメントアウトしてあり、`workflow_dispatch`（手動実行）だけが有効なので、PR の CI には加わらない。ただし、人が PR のブランチを選んで手動で実行すると、その head に `github-actions` のチェックスイートが付き、失敗すれば `prepare` が止まる。逆に、`ci.yml` が起動しなかった head（base が `main` 以外の PR、base と衝突している PR）では、その手動実行のスイートだけが判定の対象になり、成功すれば CI が走っていなくても `prepare` は通る。ワークフローの増減とトリガーの変更は `internal/ghci/workflows_test.go` が検出する。
 - タスク番号と ADR 番号について、次の 4 つは受け入れた危険である。(1) `merge` の確かめ直しと GitHub のマージの間の数秒に、ほかの PR が同じ番号でマージされうる。(2) `/mergepr` を通らないマージと、入れ直していない古い `mergepr` は、番号を確かめない。`docs/tasks/` の形は CI の文書のガード（`TestTaskDirectoryForms`）でも確かめるが、記録・重複・ほかのブランチの確かめは CI にない。(3) `origin` が `isseis/yt2column` 以外を向いていると、確かめは別のリポジトリを読む。(4) しきい値以下の番号は、記録の tag がなくても通す（6.4 節）。
 - 訂正の行について、次のことは確かめない。(1) `--drop <番号>:disputed` と `--drop <番号>:reverted` の場合に当たるか（人が示したとおりとする）。(2) 受け付けない文字に入らない見えにくい文字（U+3164 などの埋め草の文字、異体字セレクタ、私用領域の文字、似た形の文字）。(3) 訂正の行の `#N` や `fixes #N` などの、issue を閉じるキーワード。既定のブランチに入ったコミットのメッセージのキーワードで issue が閉じるかは確かめていない。(4) `/mergepr` を通らないマージと、入れ直していない古い `mergepr` は、訂正の行を引き継がない。
 - マージの後の照合で食い違いが見つかっても、マージは取り消せない。直し方（後の PR の本文に記録するなど、`main` の履歴を書き換えない方法）は利用者が選ぶ。
@@ -438,12 +438,12 @@ Dropped editorial corrections: <a> disputed by a reviewer, <b> reverted on the b
 **古い `mergepr` を見分けるとき.** 入れ直していない `mergepr` は、`prepare` の CI の待機が `gh pr checks --watch --fail-fast` のままで、外部レビュアーのチェックの失敗でも止まる。インストールした `mergepr` が、CI の待機を `github-actions` に限る変更を含むかは、次の 2 つで確かめる。`mergepr` のビルドは git の情報を埋め込んでいる。
 
 ```sh
-go version -m "$(command -v mergepr)" | grep vcs.revision
-git log -1 --format=%H -S'func (t *Tool) waitChecks' -- internal/mergepr/ci.go
+go version -m "$(command -v mergepr)" | grep -E 'vcs\.(revision|modified)'
+git log -1 --no-show-signature --format=%H -S'func (t *Tool) waitChecks' -- internal/mergepr/ci.go
 git merge-base --is-ancestor <2 つ目に出たコミット> <1 つ目の vcs.revision の値> && echo up-to-date
 ```
 
-`up-to-date` が出ないときは、必ず入れ直す（古い場合のほか、ローカルの clone にそのコミットがない場合、PR のブランチから入れた場合、`vcs.modified=true` の場合も、同じ扱いにする）。つまり、`main` を最新にしてから `make install-mergepr` で入れ直す。1 つ目で `vcs.revision` が出ないとき（git の情報なしでビルドしたとき）も、入れ直す。この確かめは `Protocol` の照合とは別である。この変更は CLI の引数・出力・終了コードを変えないので `Protocol` は上げておらず、古い `mergepr` でも `--protocol` は通る。
+`up-to-date` が出ないとき、または 1 つ目が `vcs.modified=true` を示したとき（コミットしていない変更を含んだビルド）は、必ず入れ直す（古い場合のほか、ローカルの clone にそのコミットがない場合、PR のブランチから入れた場合も、同じ扱いにする）。つまり、`main` を最新にしてから `make install-mergepr` で入れ直す。1 つ目で `vcs.revision` が出ないとき（git の情報なしでビルドしたとき）も、入れ直す。この確かめは `Protocol` の照合とは別である。この変更は CLI の引数・出力・終了コードを変えないので `Protocol` は上げておらず、古い `mergepr` でも `--protocol` は通る。
 
 **訂正の確かめで止まったとき.** マージしていない。`cannot read` のときは、理由を取り除いてから実行し直す（shallow なリポジトリなら `git fetch --unshallow`）。`prepare` で止まったときは何も作っていないので、`prepare` をやり直す。`paragraph`・`check-body` で止まったときは準備がそのまま使えるので、原因を取り除いてから同じサブコマンドを実行し直す。`merge` で止まったときは、もう一度だけ同じ `merge` を実行し、また止まれば準備を捨てて報告する。食い違いのときは、`mergepr: correction check:` の各行が直す所を示す。`check-body` で止まったなら、本文を `paragraph.txt` から作り直して `check-body` をやり直す。`merge` で止まったなら、表示された `discard` で準備を捨て、本文か落とす指定を直して、承認を聞き直す。拒否した行の宣言がないときは、その行を `--drop-rejected` で落とすか、ブランチでコミットのメッセージを書き直して `prepare` からやり直す。`/runpr` の PRE_MERGE の commit と push の後に `merge` で止まったときは、その commit はブランチに残る。
 

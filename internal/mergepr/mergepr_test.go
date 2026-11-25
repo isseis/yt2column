@@ -280,7 +280,7 @@ var ciStops = []struct {
 		name:          "github-actions check failed",
 		replies:       []ciReply{{out: ciResponse(testHeadOID, ciSuite("github-actions", "COMPLETED", "FAILURE", ciRun("test", "FAILURE")))}},
 		wantCalls:     []string{"repo", "graphql"},
-		wantInMessage: `"test" FAILURE https://github.com/isseis/yt2column/actions/runs/1/job/1`,
+		wantInMessage: `"test" "FAILURE" https://github.com/isseis/yt2column/actions/runs/1/job/1`,
 	},
 	{
 		name:          "head moved after prepare",
@@ -333,6 +333,22 @@ func TestPrepareRejectsFailedChecks(t *testing.T) {
 			}
 			runner.done()
 		})
+	}
+}
+
+// TestWaitChecksRefusesEmptyHead verifies that the head pin cannot be switched
+// off by an empty head: no gh call is made.
+func TestWaitChecksRefusesEmptyHead(t *testing.T) {
+	tool, _ := newTool(t)
+	ci := newFakeCI(t)
+	tool.ci = ci
+	state := testState
+	state.HeadRefOID = ""
+	if err := tool.waitChecks(t.Context(), state); !errors.Is(err, errChecksFailed) {
+		t.Fatalf("waitChecks error = %v, want errChecksFailed", err)
+	}
+	if len(ci.calls) != 0 {
+		t.Errorf("CI calls = %v, want none", ci.calls)
 	}
 }
 

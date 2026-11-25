@@ -54,6 +54,11 @@ func defaultCIWait() ghci.WaitOptions {
 // errChecksFailed. The error names only failing check names and URLs or a
 // fixed reason code, never any other text gh returned.
 func (t *Tool) waitChecks(ctx context.Context, state State) error {
+	// An empty ExpectedHead would switch the head pin off in ghci, so refuse it
+	// here instead of relying on an earlier check to have stopped it.
+	if state.HeadRefOID == "" {
+		return fmt.Errorf("%w: the PR's head commit is unknown", errChecksFailed)
+	}
 	owner, repo, err := ghci.ResolveRepo(ctx, t.ci)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errChecksFailed, err)
@@ -96,7 +101,7 @@ func describeCIResult(res ghci.Result) string {
 			parts = append(parts, fmt.Sprintf("and %d more", len(res.Failing)-maxReportedFailing))
 			break
 		}
-		part := fmt.Sprintf("%q %s", f.Name, f.Conclusion)
+		part := fmt.Sprintf("%q %q", f.Name, f.Conclusion)
 		if f.URL != "" {
 			part += " " + f.URL
 		}
