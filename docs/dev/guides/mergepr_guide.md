@@ -27,7 +27,7 @@
 | gh のデフォルトリポジトリ | `gh` がプロンプトなしで `origin` を選ぶこと。リモートが複数あるときは `gh repo set-default` で設定する |
 | リモートブランチの自動削除 | GitHub のリポジトリ設定「Automatically delete head branches」が有効であること。`mergepr` はリモートの head ブランチを削除しない |
 | merge queue | 使用しないこと |
-| CI | PR の head コミットに GitHub Actions（`github-actions`）のチェックが現れること（`ci.yml` は base が `main` の PR でだけ起動するので、base が `main` 以外の PR では現れず、`prepare` は 5 分後に止まる）。`prepare` は CodeRabbit・Sourcery AI などの外部レビュアーのチェックを待たず、判定にも使わない。GitHub Actions のチェックが 5 分たっても現れない PR では、`prepare` が止まる |
+| CI | PR の head コミットに GitHub Actions（`github-actions`）のチェックが現れること（`ci.yml` は base が `main` の PR でだけ起動するので、base が `main` 以外の PR では現れない。そのとき `prepare` は 5 分後に止まるが、手動の `Code Review` の実行が先に head に付いていれば、そのスイートだけで判定して通る。6.2 節）。`prepare` は CodeRabbit・Sourcery AI などの外部レビュアーのチェックを待たず、判定にも使わない。GitHub Actions のチェックが 5 分たっても現れない PR では、`prepare` が止まる |
 
 リモートブランチの自動削除が有効かどうかは、次のコマンドで確認できる（`true` なら有効）。
 
@@ -314,7 +314,7 @@ PR の番号は 10 進の数字だけ 9 桁までで、先頭に `0` を付け�
 
 | 保証 | 仕組み |
 |---|---|
-| CI が通った head だけをマージする | `prepare` で、`prepare` が読んだ head の GitHub Actions のチェックを待ち（head の OID を固定する。外部レビュアーのチェックは対象外）、`merge` は `--match-head-commit` でその head の OID を指定する。`prepare` の後に head へ push があると、GitHub がマージを拒否する |
+| `github-actions` のチェックが通った head だけをマージする（`ci.yml` が走ったことまでは保証しない。6.2 節） | `prepare` で、`prepare` が読んだ head の GitHub Actions のチェックを待ち（head の OID を固定する。外部レビュアーのチェックは対象外）、`merge` は `--match-head-commit` でその head の OID を指定する。`prepare` の後に head へ push があると、GitHub がマージを拒否する |
 | 承認したメッセージでマージする | 件名と本文はファイルから読み、そのまま `gh pr merge` に渡す |
 | 準備した base にマージする | マージ直前に、base が `state.json` と同じことを確認する |
 | ローカルの未マージコミットを消さない | ローカル head ブランチは、`headOID` を指しているときだけ削除する。マージされた head が `headOID` と異なるときは、ローカルのブランチに触れない |
@@ -421,7 +421,7 @@ Dropped editorial corrections: <a> disputed by a reviewer, <b> reverted on the b
 | `could not remove the body file`（`note:` の行） | `merge` | `merge` が作った一時ファイルを消せなかった。マージの成否には関わらない | 示されたファイルを自分で消す |
 | `invalid drop` | すべて | `--drop` か `--drop-rejected` の値の形が違う、同じ行を 2 回指している | 5.2 節の形で指定し直す |
 | `PR is not open` | `prepare` | PR がクローズまたはマージ済み | 対象の PR を確認する |
-| `CI checks failed` | `prepare` | `github-actions` のチェックが失敗した、head が動いた（`head-changed`）、応答が読めない（`rejected`・`limit`）、リポジトリを読めない、チェックが現れない・60 分以内に終わらない（`deadline exceeded`）。失敗したジョブの名前と URL または理由コードが続く | CI を直して push し、`prepare` からやり直す。`github-actions` 以外のチェックの失敗は、この停止の原因ではない |
+| `CI checks failed` | `prepare` | `github-actions` のチェックが失敗した、head が動いた（`head-changed`）、応答が読めない（`rejected`・`limit`）、リポジトリを読めない、チェックが現れない・60 分以内に終わらない（`deadline exceeded`）。失敗したジョブの名前と URL または理由コードが続く | 失敗したジョブなら、CI を直して push し、`prepare` からやり直す。`head-changed` なら、そのまま `prepare` からやり直す。`rejected`・`limit`・リポジトリを読めない場合は、`gh auth status` と `gh repo view` を確かめてからやり直す（CI を直しても解消しない）。チェックが現れない・期限超過なら、`ci.yml` が起動したか（base が `main` か、衝突していないか）を確かめる。`github-actions` 以外のチェックの失敗は、この停止の原因ではない |
 | `CI checks failed`（CodeRabbit・Sourcery AI など外部レビュアーのチェックの失敗が原因に見える） | `prepare` | 入れ直していない古い `mergepr` は、`gh pr checks` で外部レビュアーのチェックも待つ | 下の「古い `mergepr` を見分けるとき」 |
 | `squash subject is not a non-empty single line` | `merge` | 件名ファイルが空、または複数行 | 件名ファイルを直して `merge` を再実行する |
 | `PR is not open: state is MERGED` | `merge` | 前回の実行で既にマージされている | 表示された `mergepr cleanup --protocol 4 --state ...` を実行する |
