@@ -281,10 +281,10 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 #### ステップ 4-1: CLAUDE.md・規約・コマンド
 
-**変えるファイル:** `CLAUDE.md`、`docs/dev/conventions/document_formatting.md`、`.claude/commands/japrose.md`、`.claude/commands/_lib/fable-review.md`、ADR-0035
+**変えるファイル:** `CLAUDE.md`、`docs/dev/conventions/document_formatting.md`、`.claude/commands/japrose.md`、`.claude/commands/_lib/cross-check-review.md`、ADR-0035
 
-- [ ] 設計書 3.4 節の表のうち、まだ直していない行を直す。対象は CLAUDE.md の「Documents」と「Document language」（どちらも AC-38）、「Architecture Overview」、`document_formatting.md:18-19` と `japrose.md:147`（設計書 1.3 節の決定 4）、`fable-review.md:483` である
-- [ ] ADR-0035 のずれを示す一文を除く。編集上の訂正の行をコミットのメッセージに書き、PR の説明にも載せる
+- [x] 設計書 3.4 節の表のうち、まだ直していない行を直す。対象は CLAUDE.md の「Documents」と「Document language」（どちらも AC-38）、「Architecture Overview」、`document_formatting.md:18-19` と `japrose.md:158`（設計書 1.3 節の決定 4）、`cross-check-review.md:763`（旧 `fable-review.md:483`）である
+- [x] ADR-0035 のずれを示す一文を除く。編集上の訂正の行をコミットのメッセージに書き、PR の説明にも載せる
 
 **完了の条件:** 設計書 3.4 節の表の「変更」の行がすべて反映され、`make test`・`make lint`・`make ext-check`・`make deadcode` が通る。
 
@@ -292,9 +292,9 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **変えるファイル:** `docs/translation_glossary.md`、`git grep` で見つかる文書
 
-- [ ] `git grep -n 'README' -- ':!docs/tasks'` で探し直し、今の README の節を指す箇所が残っていれば付け替える（AC-06。`security.md:131` は変えない）
-- [ ] 用語集の README の見出しの行（`クイックスタート`・`必要なもの` など）のうち、フェーズ 1〜3 で直していないものがあれば直し、`:58` の例を直す（1.4 節）。`クイックスタート` の行は、フェーズ 3 で README からその見出しがなくなったので、除くか新しい置き場所に直す
-- [ ] 利用者向けの文書が新しく使う語（API のクレジット、利用の上限、ワークスペースなど、`INSTALL.md` と README の新しい見出しの語）を用語集に足す（AC-43）
+- [x] `git grep -n 'README' -- ':!docs/tasks'` で探し直し、今の README の節を指す箇所が残っていれば付け替える（AC-06。`security.md:131` は変えない）
+- [x] 用語集の README の見出しの行（`クイックスタート`・`必要なもの` など）のうち、フェーズ 1〜3 で直していないものがあれば直し、`:58` の例を直す（1.4 節）。`クイックスタート` の行は、フェーズ 3 で README からその見出しがなくなったので、除くか新しい置き場所に直す
+- [x] 利用者向けの文書が新しく使う語（API のクレジット、利用の上限、ワークスペースなど、`INSTALL.md` と README の新しい見出しの語）を用語集に足す（AC-43）
 
 **完了の条件:** `make test`・`make lint`・`make ext-check`・`make deadcode` が通り、`git grep -n 'README' -- ':!docs/tasks'` の出力を PR の説明に貼る。
 
@@ -302,8 +302,8 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 #### ステップ 5-1: 記録がそろっていることの確かめ
 
-- [ ] 7 章の AC-04（PR-1）、AC-24（PR-2）、AC-05（PR-3）の記録がそろっていることを確かめる
-- [ ] フェーズ 4 の変更の後で、ステップ 3-2 のスクリプトの (a) が通ることを確かめる（(b)・(c) は移行の節がマージベースにある PR-3 でだけ走らせる）
+- [x] 7 章の AC-04（PR-1）、AC-24（PR-2）、AC-05（PR-3）の記録がそろっていることを確かめる
+- [x] フェーズ 4 の変更の後で、ステップ 3-2 のスクリプトの (a) が通ることを確かめる（(b)・(c) は移行の節がマージベースにある PR-3 でだけ走らせる）
 
 **完了の条件:** 3 つの記録があり、(a) が通る。
 
@@ -321,10 +321,10 @@ README を利用者向けの概要と案内に作り直し、利用者の手順�
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1151
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
@@ -373,7 +373,7 @@ PR-2 の自動送信が `hold` なのは、ステップ 2-1 で人がブラウ�
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4）
 - [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2）
-- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 5-1）
+- [x] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 5-1）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 

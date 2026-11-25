@@ -760,7 +760,7 @@ The values of the cross-check lines:
   | `extension-test` | under `extension/test/` |
   | `extension` | under `extension/` |
   | `script` | ends in `.sh` |
-  | `doc` | under `docs/`, or `README.md`, `README.en.md`, `CLAUDE.md`, `AGENTS.md` |
+  | `doc` | under `docs/`, or `README.md`, `README.en.md`, `INSTALL.md`, `CLAUDE.md`, `AGENTS.md` |
   | `other` | none of the above |
 
 - `<severity>`: `critical`, `major`, `minor`, or `unreadable`.

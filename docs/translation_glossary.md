@@ -55,7 +55,7 @@
 | 推奨構成 | recommended configuration | `generation.md` の推奨構成の小節が、本番の構成を環境変数で示したもの |
 | 品質の目標 | quality target | 0008 F-006 |
 | 製品の制約 | product limitations | 本番の構成で起こりうる記事の誤りや欠け。0008 評価記録 §6.3 |
-| 構成要素パッケージ | component package | パイプラインの構成要素（`TranscriptSource`・`ArticleWriter`・`Publisher` の 3 つのステージと、`ArticleWriter` が使う `LLMClient` の 4 つ）の interface とデータ型を持つパッケージ（`internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher`）。リーフとは限らない。ステージはパイプラインが順に呼ぶ 3 つ、構成要素はそれに `LLMClient` を加えた 4 つ、工程は `ArticleWriter` の中の生成・字数の調整・検証・推敲を指す。パイプラインの流れ（順序、どこで失敗したか、`StageError`）を述べるときはステージ、部品の分け方・置き場所（パッケージ、interface、fake）を述べるときは構成要素、記事の生成の中の処理を述べるときは工程を使う。`LLMClient` を含むかどうかが、構成要素とステージの区別の決め手である。一般の語としての「構成要素」（`README.md` の「構成要素の組み立て」など）は、この定義の外である |
+| 構成要素パッケージ | component package | パイプラインの構成要素（`TranscriptSource`・`ArticleWriter`・`Publisher` の 3 つのステージと、`ArticleWriter` が使う `LLMClient` の 4 つ）の interface とデータ型を持つパッケージ（`internal/transcript`・`internal/llm`・`internal/writer`・`internal/publisher`）。リーフとは限らない。ステージはパイプラインが順に呼ぶ 3 つ、構成要素はそれに `LLMClient` を加えた 4 つ、工程は `ArticleWriter` の中の生成・字数の調整・検証・推敲を指す。パイプラインの流れ（順序、どこで失敗したか、`StageError`）を述べるときはステージ、部品の分け方・置き場所（パッケージ、interface、fake）を述べるときは構成要素、記事の生成の中の処理を述べるときは工程を使う。`LLMClient` を含むかどうかが、構成要素とステージの区別の決め手である。一般の語としての「構成要素」は、この定義の外である |
 | リーフパッケージ | leaf package | 依存先を持たないパッケージ（例: `internal/llm`）。旧称: 葉パッケージ |
 | 秘密情報 | secret | API キーなど。`Secret` 型で保持する |
 | ホスト | host | 以前の版の Native Messaging のホスト。ブラウザが拡張の送信のたびに起動し、1 つのリクエストを localhost サーバへ中継した実行ファイル（`yt2column-nmhost`）。撤去した。文脈が曖昧なときは "native messaging host" とする |
@@ -201,3 +201,11 @@
 | 上位モデルのレビュー | high-model review | ハーネスの `high` 役割のモデルで行う、正しさのレビューと弱いモデルの失敗のレビューの組（`_lib/high-review.md`）。旧称: Opus のレビュー |
 | クロスチェックの部分レビュー | cross-check partial review | タスクの PR を開く前に、4 つの基準に当たる箇所に絞って、ハーネスのクロスチェック役割のモデルで行う部分レビュー（`_lib/cross-check-review.md`）。旧称: Fable の部分レビュー |
 | スクラッチパッド | scratchpad | 作業ツリーの外にある、セッション専用の一時ファイル置き場。追跡もコミットもしない |
+| API のクレジット | API credits | Claude Console の組織の残高。Claude API の利用に使う。Max・Ultra・Team の契約に付く毎月の分と、購入した分がある（`INSTALL.md`） |
+| 利用の上限 | spend limit | Claude Console のワークスペースごとに設ける月ごとの利用額の上限（`INSTALL.md`） |
+| ワークスペース | workspace | Claude Console で API キーと利用の上限をまとめる単位（`INSTALL.md`） |
+| 費用の目安 | estimated cost per article | 記事 1 本あたりの費用の目安（`INSTALL.md` の見出し）。実際の請求額とは別 |
+| 拡張のフォルダ | extension folder | 配布された zip の中身を `manifest.json` が直下に来るように置く、この拡張のためだけのフォルダ（`INSTALL.md`） |
+| インストールと使い方 | Installing and using | `README.md` の節の見出しと `INSTALL.md` のタイトル |
+| プライバシー | Privacy | `README.md` の節の見出し |
+| 開発者向けの文書 | Developer documents | `README.md` の節の見出し |

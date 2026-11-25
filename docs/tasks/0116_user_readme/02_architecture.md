@@ -401,7 +401,7 @@ flowchart LR
 | `docs/tasks/0116_user_readme/_checks/` | 新規 | 7.3 節のスクリプト |
 | `CLAUDE.md` | 変更 | 3.4 節の表。AC-38、AC-40、AC-42 |
 | `docs/dev/conventions/document_formatting.md`、`.claude/commands/japrose.md` | 変更 | `INSTALL.md` を対象から外す（決定 4） |
-| `.claude/commands/_lib/fable-review.md` | 変更 | 文書の種類 `doc` の一覧（`:483`）に `INSTALL.md` を加える（3.4 節） |
+| `.claude/commands/_lib/cross-check-review.md` | 変更 | 文書の種類 `doc` の一覧（`:763`、旧 `fable-review.md:483`）に `INSTALL.md` を加える（3.4 節） |
 | ADR（0004・0025・0029・0030・0035） | 変更 | 実装の PR で、ずれを示す一文を除き、README の節の名指しを付け替える（4.2 節） |
 
 ### 3.2. 先のタスクの方針との関係
@@ -472,7 +472,7 @@ AC-33 のメッセージに選ぶのは、カタログの中の固定の文字�
 | `CLAUDE.md:98-110`「Translation Guidelines」、`:219`（`/mktrans`） | 翻訳の対は README だけ | 変えない。`INSTALL.md` は翻訳の対にしない（#1044 まで） |
 | `.claude/commands/mktrans.md:140-145` | README が引用するポップアップの文言は英語のカタログから写す | 変えない。README が画面の文言を引用するときの規則としてそのまま正しく、#1044 で `INSTALL.md` の英語版を足すときにも使う |
 | `docs/dev/conventions/document_formatting.md:18-19`、`.claude/commands/japrose.md:147` | 書式の規約と太字の確認の対象から README を外す | `INSTALL.md` も外す（決定 4） |
-| `.claude/commands/_lib/fable-review.md:483` | 文書の種類 `doc` は `docs/` の下と、README・CLAUDE.md・AGENTS.md | `INSTALL.md` を加える。加えないと、`INSTALL.md` の変更が文書でない種類として扱われる |
+| `.claude/commands/_lib/cross-check-review.md:763`（旧 `fable-review.md:483`） | 文書の種類 `doc` は `docs/` の下と、README・CLAUDE.md・AGENTS.md | `INSTALL.md` を加える。加えないと、`INSTALL.md` の変更が文書でない種類として扱われる |
 
 ADR-0035 の決定は、文書の言語の原則と例外の正本として CLAUDE.md の「Document language」と「Documents」を指し、CLAUDE.md がまだ `INSTALL.md` を挙げていないずれを一文で示している（`docs/dev/adr/0035-language-policy.md:24`）。上の表の変更で、ADR-0035 の決定と CLAUDE.md が一致し、その一文を除ける（4.2 節）。
 

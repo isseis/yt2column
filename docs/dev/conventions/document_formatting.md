@@ -15,8 +15,9 @@ research records under `docs/research/`, and `prompts/README.md` and
 
 The English documents of principle (b) are not target: `CLAUDE.md`, `AGENTS.md`,
 the command definitions under `.claude/commands/`, and the conventions under
-`docs/dev/conventions/`, including this one. The README of principle (c) is not
-target either: `README.md` and its English version `README.en.md`.
+`docs/dev/conventions/`, including this one. The end-user documents of
+principle (c) are not target either: `README.md`, its English version
+`README.en.md`, and `INSTALL.md`.
 
 ## Where the rules apply
 
