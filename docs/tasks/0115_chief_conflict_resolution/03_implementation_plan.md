@@ -50,6 +50,11 @@
 - 取り込みの道具は、git がテキストの合わせ以外で衝突を解消する設定（マージドライバ、`info/attributes`、`merge.default`、作業ツリーの `.gitattributes`、`branch.<ブランチ>.mergeOptions`）を止まる条件にするか、読まないようにする（設計書 1.3）。 これらは Go の衝突を git に黙って解消させ、`mergemain-push` の確かめも通してしまうためである。マージの前に止まるときは「対象外の衝突・戻さない」とし、設計書 4.1 の表を道具の出力に従う形に直す。人の答え：決定として記録する。
   - ADR：なし。取り込みの道具の確かめの細部で、このタスクの中で閉じる。
 
+### 実装の際に決めたこと（2026-11-25）
+
+- 実物の PR での `mergeable` の確かめ（ステップ 3-3、設計書 1.2・H-01）は、開いている PR だけで行い、コンフリクト中の PR での確かめは PR-5 の `hold` の点検に回す。 確かめた時点で開いていた PR（#1143・#1144）はどちらも `MERGEABLE` で、コンフリクト中の PR がなかった。§5 のリスクの行は一時的な draft PR を作って確かめるとしていたが、それには GitHub への書き込み（ブランチの push、PR の作成と close、ブランチの削除）が要る。`CONFLICTING` を一覧で読めなくても、`UNKNOWN` と同じく送らない側に倒れ、影響は気づくのが遅れることだけである（設計書 1.2）。人の答え：今回は確かめない。
+  - ADR：なし。このタスクの確かめの段取りで、このタスクの中で閉じる。
+
 ### 既存コード調査結果
 
 以下はコミット `d74acaeb`（`origin/main`）で確かめた事実である。
@@ -244,7 +249,7 @@
 
 - [ ] `internal/chief/records.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` のプロトコル番号を合わせる。
 - [ ] `docs/dev/guides/chief_guide.md` に表の状態の文字列（「コンフリクト」「解消できず」「解消中」）と、送り先の表 7 行化に伴う「`make install-chief` で入れ直すまで古い chief は表を拒み自動送信が止まる」旨と、PR-6 がマージされるまではコンフリクトの行に待っている項目が出ないため人が `/mergemain <PR>` を直接打つ旨を追記する（設計書 3.10・8 章）。`docs/dev/chief_architecture.md` と `docs/dev/conventions/package_reference.md` の関連節を更新する。
-- [ ] 設計書 1.2・8 章の要求に従い、開いている実物 PR とコンフリクト中の実物 PR で `gh pr list --state open --json headRefName,number,title,url,mergeable,headRefOid,baseRefName,isCrossRepository` と `gh pr view` の `mergeable` 値を比較して結果と日時を本計画書（§5）に記録する（`UNKNOWN` が継続する場合は利用者に報告して判断を仰ぐ）。併せて採取した 8 メンバー実物応答を `internal/chief/testdata/README.md` の匿名化規約（`TestSamplesFollowReplacementRules`）に従って `internal/chief/testdata/gh/` へ追加し、`workspace_test.go` で `parsePRList` 受理を検証する。
+- [ ] 設計書 1.2・8 章の要求に従い、開いている実物 PR で（コンフリクト中の実物 PR での確かめは PR-5 の `hold` の点検に回す。§1「実装の際に決めたこと（2026-11-25）」） `gh pr list --state open --json headRefName,number,title,url,mergeable,headRefOid,baseRefName,isCrossRepository` と `gh pr view` の `mergeable` 値を比較して結果と日時を本計画書（§5）に記録する（`UNKNOWN` が継続する場合は利用者に報告して判断を仰ぐ）。併せて採取した 8 メンバー実物応答を `internal/chief/testdata/README.md` の匿名化規約（`TestSamplesFollowReplacementRules`）に従って `internal/chief/testdata/gh/` へ追加し、`workspace_test.go` で `parsePRList` 受理を検証する。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスし、`cmd/chief/docs_test.go`（プロトコル番号・`chief_architecture.md` 整合）と `TestSamplesFollowReplacementRules` がすべて通ること。
 
@@ -440,6 +445,14 @@
   - 実行項目: `make test`・`make lint`・`make deadcode`・`make readme-sync-check`・`make ext-preflight`（本 worktree には `extension/node_modules` が未導入のため `make ext-preflight` が終了コード 1 で停止し、`make ext-check` は準備なしとして未実行、`make ext-install` は非実行）、および `pre-commit run --all-files`（`.pre-commit-config.yaml` の全 13 フックすべて通過）。
   - 結果: 実行後の `git status --porcelain --untracked-files=all` に意図しない未追跡ファイルは 0 件であり、`mergemain-restore` を阻害する未追跡ファイルが残らないことを確認した。
 
+### 実測記録（ステップ 3-3、2026-11-25）
+
+- **一覧の呼び出しの `mergeable` の実測（設計書 1.2・H-01）:**
+  - 実行: 2026-11-25T05:39:07Z（UTC）に `gh pr list --state open --json headRefName,number,title,url,mergeable,headRefOid,baseRefName,isCrossRepository` を 1 回、2026-11-25T05:39:12Z までに開いている各 PR について `gh pr view <番号> --json number,mergeable,headRefOid` を実行した（gh 2.96.0）。
+  - 結果: 開いていた PR は #1143（head `68e550907dec`）と #1144（head `cf1b86c57cb8`）の 2 件で、どちらも一覧と `gh pr view` が同じ head と `MERGEABLE` を返した。base はどちらも `main`、`isCrossRepository` はどちらも `false` だった。`UNKNOWN` は返らなかった。
+  - 確かめなかったこと: コンフリクト中の PR がなかったので、一覧が `CONFLICTING` を返すかは確かめていない。§1「実装の際に決めたこと（2026-11-25）」のとおり、PR-4 のマージの後、PR-5 の `hold` の点検で、実際にコンフリクトした PR を chief の表で確かめる。
+  - 採取したサンプル: #1144 の一覧の要素を、匿名化して `internal/chief/testdata/gh/pr-list-open-1144.json` に置いた（`internal/chief/testdata/README.md` の「タスク 0115 の実物の PR の確かめ」）。
+
 ## 6. 実装チェックリスト
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2）
@@ -511,3 +524,4 @@
 - 2026-11-24 承認（isseis、#1096）
 - 2026-11-24 セッション中の再承認：`mergemain-push` と `mergemain-begin` の確かめに、remote が `origin` だけであることと `GH_REPO` がないことを足した（isseis、#1114）
 - 2026-11-24 セッション中の再承認：テキストの合わせ以外で衝突を解消する設定を取り込みの道具の止まる条件にした（isseis、#1114）
+- 2026-11-25 セッション中の再承認：実物の PR での `mergeable` の確かめを開いている PR だけで行い、コンフリクト中の PR での確かめを PR-5 の `hold` の点検に回した（isseis、#未記入）

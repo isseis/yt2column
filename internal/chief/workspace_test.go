@@ -67,6 +67,12 @@ func TestParsePRList(t *testing.T) {
 			t.Errorf("%s: parsePRList = %+v", c.name, got)
 		}
 	}
+	// The sample of the list with every member chief asks for, as gh gave
+	// it.
+	sample, err := parsePRList(readTestdata(t, "gh/pr-list-open-1144.json"), "owner/0124-checks-proportion-02")
+	if err != nil || len(sample) != 1 || sample[0].Number != 1144 || sample[0].Mergeable != MergeableNoConflict || sample[0].Head.String() != "cf1b86c57cb876daf040247915145edefbd0eefc" || !sample[0].BaseIsMain || sample[0].CrossRepository {
+		t.Errorf("the sampled list = %+v, %v", sample, err)
+	}
 	if prs, err := parsePRList(readTestdata(t, "gh/pr-list-none.json"), "any"); err != nil || len(prs) != 0 {
 		t.Errorf("an empty list = %+v, %v", prs, err)
 	}

@@ -250,6 +250,7 @@ Herdr の `herdr agent read` は pane の高さの分の行しか返さないた
 | 判定 | 読むもの | 副作用の条件 | 人に見える振る舞い | 細部と理由 |
 |---|---|---|---|---|
 | 状況の表の組み方（行の状態、急ぎの度合い、並び、行の中身、幅と折り返し） | Herdr の workspace・タブ・pane・エージェント、git と `origin/main` のタスクの文書、GitHub の PR、transcript、状態のディレクトリの記録 | あたらない | [chief_guide.md](guides/chief_guide.md) の 3.1 | [0093 設計書](../tasks/0093_chief_status_sheet/02_architecture.md) の 3 章、[0102 設計書](../tasks/0102_chief_text_table/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「状況の表」 |
+| コンフリクトの行と段階 | GitHub の PR の一覧の `mergeable`・`headRefOid`・`baseRefName`・`isCrossRepository`、エージェントの状態、状態のディレクトリの記録 | あたらない | [chief_guide.md](guides/chief_guide.md) の 3.1 | [0115 設計書](../tasks/0115_chief_conflict_resolution/02_architecture.md) の 3.1・3.2 章、[ADR-0046](adr/0046-chief-of-staff.md) の「マージコンフリクトの解消の自動送信」 |
 | 状態の変化の待ち受け（`wait`） | Herdr のエージェントの状態と、前のラウンドの基準 | あたらない | [chief_guide.md](guides/chief_guide.md) の 3 章 | [0088 設計書](../tasks/0088_chief_of_staff/02_architecture.md) の 3 章 |
 | タスクと作業項目の特定 | `origin/main` のタスクの文書、ブランチ、履歴の記録 | あたらない | [chief_guide.md](guides/chief_guide.md) の 3.1 | [0105 設計書](../tasks/0105_chief_post_merge_next_command/02_architecture.md) の 3 章、[0113 設計書](../tasks/0113_plan_step_reading/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「ブランチ `main` をチェックアウトした worktree のタスク」 |
 | 次のコマンドの提案 | `origin/main` の計画書のステップ、送り先の表 | あたらない（人が選べば、送信の条件に当たる） | [chief_guide.md](guides/chief_guide.md) の 3.1 と 3.2 | [0105 設計書](../tasks/0105_chief_post_merge_next_command/02_architecture.md) の 3 章、[0113 設計書](../tasks/0113_plan_step_reading/02_architecture.md) の 3 章、[ADR-0046](adr/0046-chief-of-staff.md) の「マージの後の自動送信」 |
@@ -522,7 +523,7 @@ flowchart TD
 | `workspace` | 文字列 | worktree のパス | 渡す |
 | `label` | 文字列 | workspace の名前。無害化してある | 示す |
 | `task` | 文字列 | タスクの番号。タスクがなければ `-` | 示す |
-| `state` | 文字列 | 行の状態。`question`・`running`・`awaiting_review`・`propose_next`・`task_done`・`needs_check` のどれか | 示す |
+| `state` | 文字列 | 行の状態。`question`・`running`・`conflict`・`awaiting_review`・`propose_next`・`task_done`・`needs_check` のどれか | 示す |
 | `urgency` | 文字列 | 急ぎの度合い。`now`・`later`・`wait` のどれか | 示す |
 | `turn` | 文字列 | 次に動くのが人か AI か。`human`・`ai`・`none` のどれか | 読まない |
 | `position` | `PositionOutput` | タスクの作業項目と進み具合 | 示す |
@@ -531,6 +532,7 @@ flowchart TD
 | `unreadable` | 文字列の配列 | 読めなかったもの。行が `needs_check` のときの理由 | 示す |
 | `questions` | `QuestionOutput` の配列 | この workspace のエージェントが止まっている質問 | 示す |
 | `pr` | `PROutput`（null あり） | ブランチで開いている PR | 示す |
+| `conflict` | `ConflictOutput`（null あり） | コンフリクトの行の解消の進み具合。`state` が `conflict` でない行は null | 示す |
 | `running` | `RunningOutput`（null あり） | 実行中のコマンド。決まらなければ null | 示す |
 | `running_unknown` | 文字列 | 実行中のコマンドが決まらない理由。決まっていれば空文字列 | 示す |
 | `idle` | 真偽 | 使っていないか残った worktree の行 | 読まない |
@@ -545,7 +547,7 @@ flowchart TD
 |---|---|---|---|
 | `document` | 文字列 | 今の作業項目の種類。`needs_check`・`no_task`・`requirements`・`architecture`・`plan`・`plan_pr`・`none` のどれか | 示す |
 | `plan_pr` | 数 | `document` が `plan_pr` のときの PR の番号。それ以外は 0 | 示す |
-| `progress` | 文字列 | 進み具合。`needs_check`・`awaiting_creation`・`creating`・`runpr_running`・`running`・`merge_confirmation`・`question`・`awaiting_review`・`task_done` のどれか | 示す |
+| `progress` | 文字列 | 進み具合。`needs_check`・`awaiting_creation`・`creating`・`runpr_running`・`resolving`・`running`・`merge_confirmation`・`question`・`conflict`・`conflict_unresolved`・`awaiting_review`・`task_done` のどれか | 示す |
 
 #### 5.4.6. `NextOutput`
 
@@ -591,6 +593,7 @@ flowchart TD
 | `number` | 数 | PR の番号 | 渡す |
 | `title` | 文字列 | PR の題名。外から来た文字列で、無害化してある | 示す |
 | `url` | 文字列 | PR の URL | 示す |
+| `head` | 文字列 | PR の head のコミット（40 文字の小文字の 16 進数）。読んでいなければ空文字列 | 渡す |
 
 #### 5.4.10. `PendingOutput`
 
@@ -960,6 +963,12 @@ PR の CI のジョブ 1 つである。
 | `remove_records` | chief の記録を消す |
 | `deadline` | 削除の制限時間を過ぎた |
 
+
+#### 5.4.34. `ConflictOutput`
+
+| 項目 | 型 | 意味 | 定義の使い方 |
+|---|---|---|---|
+| `phase` | 文字列 | PR の今の head についての解消の段階。`records_unreadable`・`unsent`・`sending`・`ended_before_command`・`outcome_unknown`・`unresolved` のどれか | 示す |
 
 ## 6. 状態ディレクトリ・記録・書き出し先リファレンス
 

@@ -95,7 +95,7 @@
 | `transcript/claude-synthetic.jsonl` | 終わった応答、人の入力、PR の記録、合成の応答（`message.model` が `<synthetic>`）、人の入力の順の行 |
 | `transcript/claude-compact.jsonl` | 終わった応答、recap、PR の記録、compact の境目と要約（`isCompactSummary` が true の `user` の行）、その後の `attachment` の行 |
 | `transcript/claude-auto-continuation.jsonl` | 思考と本文の 2 行に分かれた終わった応答の後の、origin の種類が `auto-continuation` の行と、続く応答 |
-| `gh/pr-list-*.json` | `gh pr list --head <ブランチ> --json number,state,headRefName,title,url` |
+| `gh/pr-list-*.json` | `gh pr list --head <ブランチ> --json number,state,headRefName,title,url`（`pr-list-open-1144.json` は下の「タスク 0115 の実物の PR の確かめ」） |
 | `gh/pr-view-*.json` | `gh pr view <番号> --json state,number,title,url,headRefName,headRefOid,additions,deletions,changedFiles,commits,files,body,reviews` |
 | `gh/pr-checks-*.json` | `gh pr checks <番号> --json name,state,bucket,workflow` |
 | `gh/exits.txt`・`gh/pr-view-missing.stderr` | 各コマンドの終了コードと、ない PR を読んだときの標準エラー |
@@ -206,3 +206,14 @@ CI のジョブのない PR は、採った時点のこのリポジトリにな�
 -   **置き換えた本文。** 終わった応答の本文、recap の本文、人が打ったコマンドと `continue` は、採ったまま（上の「置き換えたもの」の規則の置き換えの後）である。それ以外の応答の本文と、コマンドを展開した `isMeta` の `user` の行の本文は `Working on it.` に、task-notification・compact の要約・利用の上限の知らせなどの本文は同じ形の短い文に置き換えた。合成の応答の本文は採ったままだが、上限が戻る時刻の後の時間帯の名前を削った。`claude-synthetic.jsonl` の人の入力のうち、貼り付けた文の 1 行は `Short text.` に置き換えた。`claude-command-report.jsonl` の報告の、PR レビューを頼むコメントの本文は、`the review request` に置き換えた。
 -   **置き換えた値。** 上の「置き換えたもの」の表のとおりである。PR の記録の `prUrl`・`prRepository` と本文の URL・ブランチ名の GitHub のログイン名は `owner` に、合成の応答の `message.id`（UUID）は同じ表の規則で置き換えた。そのほかの応答の `message.id` は、ファイルごとに `msg_` と 24 桁の通し番号に置き換えた。同じ値は同じ値に置き換えたので、1 つの応答の行のまとまりは変わらない。task-notification の origin の `runId` は削った。`/runpr` の報告の一時ディレクトリの名前（`/tmp/runpr.` に続く乱数の部分）は `XXXXXX` に置き換えた。
 -   **テストでの使い方。** `claude-synthetic.jsonl` は、終わった報告と合成の応答の間に人の入力があるので、そのままでは、合成の応答を読み飛ばすかどうかで結果が変わらない。合成の応答を読み飛ばすことは、テストでこの人の入力の行を除くか、報告の前の応答を終わっていないものにして確かめる。
+
+### タスク 0115 の実物の PR の確かめ
+
+タスク 0115 の PR-4（実装計画書のステップ 3-3）で、2026-11-25 に採った。版は gh 2.96.0 である。
+
+-   **採り方。** このリポジトリで、`gh pr list --state open --json headRefName,number,title,url,mergeable,headRefOid,baseRefName,isCrossRepository` を 1 回走らせた。chief は `--head <ブランチ>` を付けて 1 つのブランチの PR だけを読むが、利用者の承認を得た読み取りは `--head` なしの 1 回だけだったので、開いていた 2 つの PR の配列から、#1144 の要素のバイト列を変えずに切り出し、`[` と `]` と改行で囲んだ。`--head` を付けたときに返る形と同じである。
+-   **置き換え。** 上の「置き換えたもの」の表のとおり、ログイン名を `owner` に置き換えた。PR の題名と head のコミットは、このリポジトリの公開の PR のものなので、そのままにした。
+
+| ファイル | 中身 |
+|---|---|
+| `gh/pr-list-open-1144.json` | 開いている PR #1144 の一覧の要素。`mergeable` は `MERGEABLE` |
