@@ -129,7 +129,8 @@ send there did not finish (they are listed in the table); and when
 
 A round reads the status and shows it. With the argument `once`, read it with
 `chief snapshot --protocol 9`; otherwise with `chief tick --protocol 9`,
-which also sends the command after a merge when every condition holds. Run
+which also sends the command after a merge and `/mergemain` for an unsent
+conflict when every condition holds. Run
 one round at a time: never start a `snapshot` or `tick` while another is
 running, since the tool numbers the new items of a round on the premise that
 no other round numbers at once. Then show, in this order:

@@ -421,6 +421,9 @@ func (s sendContext) sendCommand(ctx context.Context, cmd paneinput.Command, rou
 	if err != nil {
 		return notSent(res, NotSentUnreadable, "the command cannot be typed: "+err.Error())
 	}
+	if cmd.Route() == paneinput.RouteMergemain && route.Agent() != paneinput.AgentClaudeCode {
+		return notSent(res, NotSentUnreadable, "/mergemain can only be sent to Claude Code")
+	}
 	var steps []step
 	first := paneCheck{}
 	switch route.Agent() {

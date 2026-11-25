@@ -177,7 +177,10 @@ func applyAutoSends(view *roundView, store Store, results []AutoSendResult) []Pe
 // rereads its stop, and a row not sent records the unmet condition reasons.
 func applyConflictSends(view *roundView, store Store, results []ConflictSendResult) {
 	for _, r := range results {
-		i := slices.IndexFunc(view.rows, func(row Row) bool { return row.Workspace == r.Workspace })
+		i := r.rowIndex
+		if i < 0 || i >= len(view.rows) || view.rows[i].Workspace != r.Workspace {
+			i = slices.IndexFunc(view.rows, func(row Row) bool { return row.Workspace == r.Workspace })
+		}
 		if i < 0 {
 			continue
 		}
@@ -204,7 +207,7 @@ func applyConflictSends(view *roundView, store Store, results []ConflictSendResu
 				}
 			}
 		}
-		if r.Action != nil && typedInput(*r.Action) {
+		if r.Action != nil {
 			if err := rereadStop(view, i, store); err != nil {
 				view.problems = append(view.problems, "the stop of "+r.Workspace+" cannot be read again after the conflict send: "+err.Error())
 			}

@@ -212,6 +212,7 @@ type conflictFacts struct {
 	mergemainRunning  bool
 	creationLocked    bool
 	autosentSameRound bool
+	workspaceChanged  bool
 	sentSince         bool
 }
 
@@ -326,6 +327,9 @@ func conflictDefAndRouteConditions(f conflictFacts) []string {
 	if f.autosentSameRound {
 		why = append(why, conflictReasonAutosentSameRound)
 	}
+	if f.workspaceChanged {
+		why = append(why, conflictReasonWorkspaceChanged)
+	}
 	return why
 }
 
@@ -338,6 +342,9 @@ type ConflictSendResult struct {
 	Head      CommitID
 	Reasons   []string
 	Action    *ActionResult
+	// rowIndex is the index in roundView.rows this result belongs to, so
+	// two workspaces sharing a worktree update their own rows.
+	rowIndex int
 }
 
 // conflictSender decides and sends automatic /mergemain runs during a tick
@@ -366,7 +373,7 @@ func (c *conflictSender) run(ctx context.Context) []ConflictSendResult {
 		}
 		ws := c.a.view.found[i]
 		wsFacts := c.a.view.facts[i]
-		res, attemptedInput := c.consider(ctx, ws, wsFacts, *row.PR, running, sentThisRound)
+		res, attemptedInput := c.consider(ctx, i, ws, wsFacts, *row.PR, running, sentThisRound)
 		results = append(results, res)
 		if attemptedInput {
 			sentThisRound = true
@@ -401,13 +408,15 @@ func (c *conflictSender) anyMergemainRunning(ctx context.Context) bool {
 // consider evaluates one unsent conflict row and sends /mergemain when every
 // condition holds. It returns the result and whether the attempt may have
 // typed an input into the pane.
-func (c *conflictSender) consider(ctx context.Context, ws TaskWorkspace, wsFacts workspaceFacts, pr OpenPR, running, anotherSent bool) (ConflictSendResult, bool) {
-	res := ConflictSendResult{Workspace: ws.Worktree, Label: ws.Label, PR: pr.Number, Head: pr.Head}
+func (c *conflictSender) consider(ctx context.Context, rowIndex int, ws TaskWorkspace, wsFacts workspaceFacts, pr OpenPR, running, anotherSent bool) (ConflictSendResult, bool) {
+	res := ConflictSendResult{Workspace: ws.Worktree, Label: ws.Label, PR: pr.Number, Head: pr.Head, rowIndex: rowIndex}
 	facts := c.gather(ctx, ws, wsFacts, pr, wsFacts.Branch, false, nil)
 	facts.mergemainRunning = running
 	facts.anotherSent = anotherSent
 	facts.creationLocked = c.a.noSend != nil
 	_, facts.autosentSameRound = c.autoSent[ws.Worktree]
+	_, n := c.a.workspaceAt(ws.Worktree)
+	facts.workspaceChanged = n != 1
 	if reasons := conflictConditions(facts); len(reasons) > 0 {
 		res.Reasons = reasons
 		return res, false
@@ -431,7 +440,7 @@ func (c *conflictSender) gather(ctx context.Context, ws TaskWorkspace, wsFacts w
 		f.remoteMatches = remote.err == nil && remote.matches
 	}
 	branch, bErr := c.a.git.Branch(ctx, ws.Worktree)
-	f.branchMatches = bErr == nil && origBranch != "" && origBranch != mainBranch && wsFacts.Head == headBranch && branch == origBranch
+	f.branchMatches = bErr == nil && origBranch != "" && origBranch != mainBranch && wsFacts.Head == headBranch && wsFacts.Branch == origBranch && branch == origBranch
 	if recheck && f.branchMatches {
 		f.prChanged = wsFacts.PR == nil ||
 			wsFacts.PR.Number != pr.Number ||
