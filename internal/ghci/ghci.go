@@ -28,6 +28,12 @@ const (
 	githubURLPrefix   = "https://github.com/"
 	fallbackSuiteName = "github-actions-check-suite"
 
+	// gh api graphql exits with this status when the response carries
+	// GraphQL errors; the GraphQL error types that retrying cannot clear.
+	ghGraphQLErrorExit   = 1
+	graphQLTypeNotFound  = "NOT_FOUND"
+	graphQLTypeForbidden = "FORBIDDEN"
+
 	statusCompleted   = "COMPLETED"
 	conclusionSuccess = "SUCCESS"
 	conclusionSkipped = "SKIPPED"
@@ -48,9 +54,11 @@ const (
 	keyCommit      = "commit"
 	keyCommits     = "commits"
 	keyConclusion  = "conclusion"
+	keyCode        = "code"
 	keyCreatedAt   = "createdAt"
 	keyData        = "data"
 	keyErrors      = "errors"
+	keyExtensions  = "extensions"
 	keyHasNextPage = "hasNextPage"
 	keyHeadRefOid  = "headRefOid"
 	keyName        = "name"
@@ -61,6 +69,7 @@ const (
 	keyRepository  = "repository"
 	keySlug        = "slug"
 	keyStatus      = "status"
+	keyType        = "type"
 	keyURL         = "url"
 	keyWorkflow    = "workflow"
 	keyWorkflowRun = "workflowRun"
@@ -293,6 +302,9 @@ func ReadPR(ctx context.Context, run cmdrunner.Runner, req Request) (Result, err
 		if errors.Is(err, cmdrunner.ErrOutputTooLarge) {
 			return unreadableResult(UnreadableLimit, ""), nil
 		}
+		if ctx.Err() == nil && isPermanentGraphQLFailure(err) {
+			return unreadableResult(UnreadableRejected, ""), nil
+		}
 		return unreadableResult(UnreadableCall, ""), nil
 	}
 	if len(out) > maxResponseBytes {
@@ -388,6 +400,80 @@ func WaitPR(ctx context.Context, run cmdrunner.Runner, req Request, opts WaitOpt
 		elapsed += max(afterSleep.Sub(sleepStart), delay)
 		lastWall = afterSleep
 	}
+}
+
+// isPermanentGraphQLFailure reports whether a failed "gh api graphql" call
+// carries GraphQL errors that retrying cannot clear. gh exits with status 1
+// when the response body holds a non-empty "errors" array, even on HTTP 200,
+// and still writes the body to standard output. The call is permanent only
+// when every error declares itself so: a "type" of NOT_FOUND or FORBIDDEN, or,
+// with no "type", an "extensions.code" (a query validation error). Any other
+// error (RATE_LIMITED, a timeout with no type, an unknown type) and any body
+// that is not a strict GraphQL error response stay transient.
+func isPermanentGraphQLFailure(err error) bool {
+	exitErr, ok := errors.AsType[*cmdrunner.ExitError](err)
+	if !ok || exitErr.Code != ghGraphQLErrorExit || len(exitErr.Stdout) > maxResponseBytes {
+		return false
+	}
+	root, err := strictjson.ParseObject(exitErr.Stdout)
+	if err != nil {
+		return false
+	}
+	members, err := root.Collect(keyErrors)
+	if err != nil {
+		return false
+	}
+	errsVal, ok := members[keyErrors]
+	if !ok {
+		return false
+	}
+	errs, err := errsVal.AsArray()
+	if err != nil || len(errs) == 0 {
+		return false
+	}
+	for _, e := range errs {
+		if !isPermanentGraphQLError(e) {
+			return false
+		}
+	}
+	return true
+}
+
+func isPermanentGraphQLError(v strictjson.Value) bool {
+	obj, err := v.AsObject()
+	if err != nil {
+		return false
+	}
+	members, err := obj.Collect(keyType, keyExtensions)
+	if err != nil {
+		return false
+	}
+	if typeVal, ok := members[keyType]; ok {
+		typ, err := typeVal.AsString()
+		if err != nil {
+			return false
+		}
+		switch typ {
+		case graphQLTypeNotFound, graphQLTypeForbidden:
+			return true
+		default:
+			return false
+		}
+	}
+	extVal, ok := members[keyExtensions]
+	if !ok {
+		return false
+	}
+	ext, err := extVal.AsObject()
+	if err != nil {
+		return false
+	}
+	extMembers, err := ext.Collect(keyCode)
+	if err != nil {
+		return false
+	}
+	_, present, err := strictjson.OptionalString(extMembers, keyCode)
+	return err == nil && present
 }
 
 func readPRWithTimeout(ctx context.Context, timeout time.Duration, run cmdrunner.Runner, req Request) (Result, error) {

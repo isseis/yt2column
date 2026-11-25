@@ -71,6 +71,20 @@ func testGraphQLArgs(req Request) []string {
 	}
 }
 
+// The response bodies gh 2.96.0 printed to standard output, exiting with
+// status 1, for a pull request number that does not resolve and for a query
+// that names a field the schema lacks.
+const (
+	graphQLNotFoundBody       = `{"data":{"repository":{"pullRequest":null}},"errors":[{"type":"NOT_FOUND","path":["repository","pullRequest"],"locations":[{"line":1,"column":86}],"message":"Could not resolve to a PullRequest with the number of 999999."}]}`
+	graphQLUndefinedFieldBody = `{"errors":[{"path":["query","viewer","noSuchField"],"extensions":{"code":"undefinedField","typeName":"User","fieldName":"noSuchField"},"locations":[{"line":1,"column":14}],"message":"Field 'noSuchField' doesn't exist on type 'User'"}]}`
+)
+
+// ghGraphQLExit is the failure cmdrunner returns when gh exits with code and
+// has written stdout.
+func ghGraphQLExit(code int, stdout string) error {
+	return &cmdrunner.ExitError{Code: code, Stdout: []byte(stdout), Stderr: []byte("gh: " + testMarker)}
+}
+
 func buildCommitNode(commitOID string, suitesNextPage bool, suites []testSuiteSpec) map[string]any {
 	suiteNodes := make([]map[string]any, 0, len(suites))
 	for _, s := range suites {
@@ -696,6 +710,90 @@ func TestReadPR(t *testing.T) {
 			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
 		},
 		{
+			name: "graphql_not_found_exit_is_rejected",
+			req:  req,
+			err:  ghGraphQLExit(1, graphQLNotFoundBody),
+			want: Result{State: StateUnreadable, Reason: UnreadableRejected, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_forbidden_exit_is_rejected",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"data":null,"errors":[{"type":"FORBIDDEN","message":"`+testMarker+`"}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableRejected, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_query_validation_exit_is_rejected",
+			req:  req,
+			err:  ghGraphQLExit(1, graphQLUndefinedFieldBody),
+			want: Result{State: StateUnreadable, Reason: UnreadableRejected, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_rate_limited_exit_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"errors":[{"type":"RATE_LIMITED","message":"`+testMarker+`"}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_untyped_timeout_exit_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"data":null,"errors":[{"message":"`+testMarker+`"}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_mixed_permanent_and_transient_exit_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"errors":[{"type":"NOT_FOUND","message":"a"},{"type":"RATE_LIMITED","message":"b"}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_type_takes_precedence_over_extensions_code",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"errors":[{"type":"RATE_LIMITED","extensions":{"code":"x"},"message":"a"}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_null_type_exit_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"errors":[{"type":null,"extensions":{"code":"undefinedField"}}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_empty_extensions_code_exit_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"errors":[{"extensions":{"code":""}}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "graphql_empty_errors_exit_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"data":null,"errors":[]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "non_json_stdout_exit_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(1, "<html>"+testMarker+"</html>"),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "duplicate_errors_member_exit_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(1, `{"errors":[{"type":"NOT_FOUND"}],"errors":[{"type":"NOT_FOUND"}]}`),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "not_found_body_with_other_exit_code_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(2, graphQLNotFoundBody),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
+			name: "oversized_not_found_stdout_is_call_failed",
+			req:  req,
+			err:  ghGraphQLExit(1, graphQLNotFoundBody+strings.Repeat(" ", maxResponseBytes)),
+			want: Result{State: StateUnreadable, Reason: UnreadableCall, Head: "", Failing: []FailingCheck{}},
+		},
+		{
 			name: "output_too_large_error_returns_unreadable_limit",
 			req:  req,
 			err:  fmt.Errorf("wrapped %s: %w", testMarker, cmdrunner.ErrOutputTooLarge),
@@ -1208,6 +1306,49 @@ func TestWaitPR(t *testing.T) {
 			}
 		})
 	})
+}
+
+func TestReadPRGraphQLErrorExitAfterCancelIsCallFailed(t *testing.T) {
+	req := testReq()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	fake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
+		Name: "gh",
+		Args: testGraphQLArgs(req),
+		Err:  errors.Join(context.Canceled, ghGraphQLExit(1, graphQLNotFoundBody)),
+	})
+	got, err := ReadPR(ctx, fake, req)
+	if err != nil {
+		t.Fatalf("ReadPR unexpected error: %v", err)
+	}
+	if got.State != StateUnreadable || got.Reason != UnreadableCall {
+		t.Fatalf("got %+v, want unreadable/call-failed", got)
+	}
+}
+
+func TestWaitPRStopsImmediatelyOnPermanentGraphQLError(t *testing.T) {
+	req := testReq()
+	fake := cmdrunnertestutil.New(t, cmdrunnertestutil.Step{
+		Name: "gh",
+		Args: testGraphQLArgs(req),
+		Err:  ghGraphQLExit(1, graphQLNotFoundBody),
+	})
+	got, err := WaitPR(context.Background(), fake, req, WaitOptions{
+		PollInterval:   30 * time.Second,
+		Timeout:        10 * time.Minute,
+		PerCallTimeout: time.Minute,
+		NoCheckGrace:   2 * time.Minute,
+		Sleep: func(context.Context, time.Duration) error {
+			t.Fatal("Sleep must not be called on a permanent GraphQL error")
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("WaitPR unexpected error: %v", err)
+	}
+	if got.State != StateUnreadable || got.Reason != UnreadableRejected {
+		t.Fatalf("got %+v, want unreadable/rejected", got)
+	}
 }
 
 type runnerFunc func(ctx context.Context, name string, args ...string) ([]byte, error)
