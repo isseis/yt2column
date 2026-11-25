@@ -45,7 +45,7 @@ func mappingGrammarCases(t *testing.T, realContext string) []mappingGrammarCase 
 	const header = "| Harness | Role | Launch | Model | Verification pattern |\n"
 	const separator = "|---|---|---|---|---|\n"
 	const crossCheckPattern = "`claude-fable-*`"
-	return []mappingGrammarCase{
+	cases := []mappingGrammarCase{
 		{"missing _context.md", "", "cannot read origin/main:.claude/commands/_context.md"},
 		{"missing mapping section", section(""), "missing Harness model mapping section"},
 		{"duplicate mapping section", section(mappingValidTable + mappingValidTable), "duplicate Harness model mapping section"},
@@ -76,6 +76,24 @@ func mappingGrammarCases(t *testing.T, realContext string) []mappingGrammarCase 
 		{"mid-wildcard", table(crossCheckPattern, "`claude*fable`"), "invalid literal Verification pattern"},
 		{"broken uncollected role row fails whole table", table("`claude-sonnet-*`", "`claude-[0-9]+`"), "invalid literal Verification pattern"},
 	}
+	// Run each pattern case on the high row too, so the row each script
+	// reads for its own decision is broken in both scripts' tests.
+	const highPattern = "`claude-opus-*`"
+	for _, pc := range []struct{ name, pattern, wantStderr string }{
+		{"agent launch with dash pattern", "`-`", "cannot have Verification pattern -"},
+		{"65-char literal pattern", "`" + strings.Repeat("a", 65) + "`", "invalid literal Verification pattern"},
+		{"64-char prefix plus star", "`" + strings.Repeat("a", 64) + "*`", "invalid prefix Verification pattern"},
+		{"regex dot-star metacharacter", "`.*`", "invalid prefix Verification pattern"},
+		{"regex char class metacharacter", "`claude-[a-z]+`", "invalid literal Verification pattern"},
+		{"regex alternation pipe forbidden", "`claude-(a|b)`", "forbidden character"},
+		{"regex anchors metacharacter", "`^claude-opus$`", "invalid literal Verification pattern"},
+		{"regex grouping metacharacter", "`claude-(ab)`", "invalid literal Verification pattern"},
+		{"whitespace in pattern", "`claude opus`", "invalid literal Verification pattern"},
+		{"mid-wildcard", "`claude*opus`", "invalid literal Verification pattern"},
+	} {
+		cases = append(cases, mappingGrammarCase{pc.name + " in high row", table(highPattern, pc.pattern), pc.wantStderr})
+	}
+	return cases
 }
 
 // mappingMatchCase is a Verification pattern and a model ID; each script's
