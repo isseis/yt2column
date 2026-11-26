@@ -27,6 +27,7 @@ var sanitizeCases = map[string]struct {
 }
 
 func TestSanitize(t *testing.T) {
+	t.Parallel()
 	for name, c := range sanitizeCases {
 		t.Run(name, func(t *testing.T) {
 			if got := Sanitize(c.in); got != c.want {
@@ -41,6 +42,7 @@ func TestSanitize(t *testing.T) {
 // Sanitize share, so the units are checked on their own. The joined subtests
 // compare the units' texts with Sanitize's fixed expectations.
 func TestSanitizeUnits(t *testing.T) {
+	t.Parallel()
 	text := func(s string) displayUnit { return displayUnit{text: s, kind: unitText} }
 	cases := map[string]struct {
 		in   string
@@ -84,6 +86,7 @@ func TestSanitizeUnits(t *testing.T) {
 }
 
 func TestCapHead(t *testing.T) {
+	t.Parallel()
 	const capBytes = 8
 	cases := map[string]struct {
 		in, want  string

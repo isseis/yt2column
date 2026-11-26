@@ -79,6 +79,7 @@ func (w *world) onMain(tree string) {
 // command of approved documents, the reason of a draft one, a question
 // first; none of them idle; and no takeover on main.
 func TestMainRowFollowsTaskRules(t *testing.T) {
+	t.Parallel()
 	archDraft := statusDoc("| Status | `draft` |\n")
 	cases := []struct {
 		name     string
@@ -151,6 +152,7 @@ func TestMainRowFollowsTaskRules(t *testing.T) {
 // 0001 whose documents cannot be read, or whose task has no directory on
 // origin/main: the row needs a check as a feature branch's would.
 func TestMainRowDocumentsOfTheTask(t *testing.T) {
+	t.Parallel()
 	listing := "git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/"
 	cases := []struct {
 		name     string
@@ -179,6 +181,7 @@ func TestMainRowDocumentsOfTheTask(t *testing.T) {
 // task chief made the workspace for shows the task done with the removal
 // proposed, stopped by the check that HEAD is detached.
 func TestMainRowTaskDone(t *testing.T) {
+	t.Parallel()
 	sw, rs := newRemovalWorld(t)
 	sw.onMain(rs.tree)
 	sw.docs(rs.tree, fakeDocs{Dir: removalTaskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-all-merged.md")})
@@ -206,6 +209,7 @@ func TestMainRowTaskDone(t *testing.T) {
 // is idle only for no merge or a PR still open, after reads that all
 // succeeded.
 func TestMainRowNotIdentified(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		history func(t *testing.T) []traceEvent
@@ -297,6 +301,7 @@ func assertMainNeedsCheck(t *testing.T, r Row, why string, idle bool) {
 // feature branch's row is as it was. A main row whose agent asks needs the
 // check too.
 func TestMainRowUnreadableHistory(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		// spoil breaks the history, given the second main worktree and the
@@ -359,6 +364,7 @@ func TestMainRowUnreadableHistory(t *testing.T) {
 // TestMainRowZeroResult checks that a row on main to which no history was
 // applied needs a check and offers nothing, /mkreq included.
 func TestMainRowZeroResult(t *testing.T) {
+	t.Parallel()
 	f := workspaceFacts{Head: headMain, Branch: mainBranch, Agents: []agentFacts{{Agent: Agent{Kind: paneinput.AgentClaudeCode, Status: AgentIdle}, ScreenRead: true, Screen: Screen{Kind: ScreenPrompt}}}}
 	r := classify(f)
 	if r.State != StateNeedsCheck || r.Next != nil || r.Task != "" || r.Idle || !slices.Equal(r.Unreadable, []string{reasonUnread}) {
@@ -372,6 +378,7 @@ func TestMainRowZeroResult(t *testing.T) {
 // without it. Each case first checks that the same history identifies 0002
 // once the worktree is on main, so the history is one a main row reads.
 func TestOtherHeadsIgnoreHistory(t *testing.T) {
+	t.Parallel()
 	otherDocs := fakeDocs{Dir: otherTaskDir, Req: reqApproved, Arch: archApproved}
 	cases := []struct {
 		name  string
@@ -464,6 +471,7 @@ func hasProblem(snap Snapshot, prefix string) bool {
 // round cannot be recorded) nothing is written and the round says why; a
 // held creation exclusion does not stop the write.
 func TestTickWritesHistory(t *testing.T) {
+	t.Parallel()
 	// branchReads answers the branch reads of the merge world, whose one
 	// worktree is the only one read: the round's reading is the first and
 	// the reading under the history's exclusion the second.
@@ -651,6 +659,7 @@ func removeOpenRecord(t *testing.T, store Store, tree string) {
 // worktree on main, which identifies task 0001, is not sent automatically
 // and is proposed for the reason that main is no feature branch of 0001.
 func TestMainRowNoAutoSend(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(mainBranch, "`/mkarch 0001`")
@@ -668,6 +677,7 @@ func TestMainRowNoAutoSend(t *testing.T) {
 // facts: the place each HEAD is, the open PR, and a branch's task, which a
 // pr_open names only when the round read that task's documents.
 func TestTraceReadingOf(t *testing.T) {
+	t.Parallel()
 	task := taskID(t, "0001")
 	docs := &TaskDocs{Dir: taskDir}
 	cases := []struct {
@@ -696,6 +706,7 @@ func TestTraceReadingOf(t *testing.T) {
 // open in the history and the worktree on main, none of them makes a
 // history record or reads the PR's state.
 func TestReadOnlySubcommandsWriteNoHistory(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for _, c := range []struct {
 		name string
@@ -736,6 +747,7 @@ func TestReadOnlySubcommandsWriteNoHistory(t *testing.T) {
 // choice of that item sends it; and a new chief session no longer
 // identifies the task, its start having removed the old session's history.
 func TestMainAfterMergeFlow(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(mainBranch, "")

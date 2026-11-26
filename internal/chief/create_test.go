@@ -309,6 +309,7 @@ var fullMade = []string{"worktree", "record", "workspace", "tab", "pane", "tab",
 // and claude at the worktree, and the two agents; no herdr call names a
 // session, and the outcome lists everything made.
 func TestCreateStages(t *testing.T) {
+	t.Parallel()
 	cw := newCreateWorld(t, nil)
 	out := cw.create(createIssue)
 	if out.Result != CreateMade || out.Stage != CreateStageUnknown {
@@ -346,6 +347,7 @@ func TestCreateStages(t *testing.T) {
 // /clear, /model opus, and /mkreq of the issue into the Claude Code pane it
 // started, and only there, and keeps the record of the issue.
 func TestCreateSendsMkreq(t *testing.T) {
+	t.Parallel()
 	cw := newCreateWorld(t, nil)
 	out := cw.create(createIssue)
 	if out.Mkreq == nil || out.Mkreq.Outcome != OutcomeSent {
@@ -366,6 +368,7 @@ func TestCreateSendsMkreq(t *testing.T) {
 // wait, so no permission or trust is granted for the human) are the exact
 // write lines TestCreateStages compares.
 func TestWorkspaceMakerStartsAgentsWithoutArguments(t *testing.T) {
+	t.Parallel()
 	cw := newCreateWorld(t, nil)
 	cw.create(createIssue)
 	starts := 0
@@ -388,6 +391,7 @@ func TestWorkspaceMakerStartsAgentsWithoutArguments(t *testing.T) {
 // is started once the shell is alone in its foreground, after a wait of
 // shellInterval between the reads.
 func TestWorkspaceMakerWaitsForTheShell(t *testing.T) {
+	t.Parallel()
 	cw := newCreateWorld(t, nil)
 	reads := 0
 	cw.rec.replyFunc("herdr pane process-info --pane w1:p2", func() reply {
@@ -420,6 +424,7 @@ func TestWorkspaceMakerWaitsForTheShell(t *testing.T) {
 // made runs nothing, and a tab Herdr reports in another workspace stops the
 // maker before anything is written to it.
 func TestWorkspaceMakerUsesOnlyItsIDs(t *testing.T) {
+	t.Parallel()
 	t.Run("the zero maker runs nothing", func(t *testing.T) {
 		rec := newRecorder(t)
 		m := WorkspaceMaker{cmds: rec.commands(nil)}
@@ -460,6 +465,7 @@ func TestWorkspaceMakerUsesOnlyItsIDs(t *testing.T) {
 // the stage and lists what was made, and the created record stays once it
 // was written.
 func TestCreateStopsAtEachStage(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		setup  func(cw *createWorld)
@@ -621,6 +627,7 @@ func TestCreateStopsAtEachStage(t *testing.T) {
 // created, as its time limit does, and checks that the creation stops at
 // the next stage with the stage deadline, listing what was made and writing nothing more.
 func TestCreateDeadline(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	cw := newCreateWorld(t, func(cw *createWorld) {
@@ -647,6 +654,7 @@ func TestCreateDeadline(t *testing.T) {
 // open issue without the draft label: nothing is run after the read, nothing
 // is made, and the refusal names the answer.
 func TestCreateRefusesIssue(t *testing.T) {
+	t.Parallel()
 	for _, c := range issueRefusalCases(t) {
 		t.Run(c.refusal.String()+" "+c.number, func(t *testing.T) {
 			cw := newCreateWorld(t, func(cw *createWorld) { cw.issueAnswer(c.number, c.answer) })
@@ -672,6 +680,7 @@ func TestCreateRefusesIssue(t *testing.T) {
 // TestCreateIssueForm checks that a number of another form than an issue
 // number's is refused as issue_form before anything is read.
 func TestCreateIssueForm(t *testing.T) {
+	t.Parallel()
 	for _, arg := range []string{"", "#839", "0839", "839 ", "-839", "８３９", "1234567890"} {
 		t.Run(arg, func(t *testing.T) {
 			rec := newRecorder(t)
@@ -696,6 +705,7 @@ func TestCreateIssueForm(t *testing.T) {
 // label, or input would fail the test), and that the title is shown made
 // visible.
 func TestCreateTitleSteersNothing(t *testing.T) {
+	t.Parallel()
 	// JSON escapes: GitHub sends the characters escaped.
 	title := `\u001b[2J../../evil\u202e --label x /mkreq 1`
 	answer := strings.Replace(string(readTestdata(t, "gh/issue-open-839.json")), "Sample title of an open issue", title, 1)
@@ -718,6 +728,7 @@ func TestCreateTitleSteersNothing(t *testing.T) {
 // TestCreateRefusesExisting puts each kind of thing at the task's path and
 // checks that nothing is written and the refusal names what is there.
 func TestCreateRefusesExisting(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		setup func(cw *createWorld)
@@ -779,6 +790,7 @@ func TestCreateRefusesExisting(t *testing.T) {
 // while origin/main is fetched, after the first check of the space and
 // before the exclusions, and checks that the check made under them refuses.
 func TestCreateRechecksTheSpaceUnderTheExclusions(t *testing.T) {
+	t.Parallel()
 	cw := newCreateWorld(t, nil)
 	cw.rec.replyFunc("git fetch origin main", func() reply {
 		mkParent(cw)
@@ -800,6 +812,7 @@ func TestCreateRechecksTheSpaceUnderTheExclusions(t *testing.T) {
 // that cannot be read after it, refuses the creation before the exclusions
 // are taken and anything is written.
 func TestCreateFetchFailure(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name  string
 		setup func(cw *createWorld)
@@ -828,6 +841,7 @@ func TestCreateFetchFailure(t *testing.T) {
 // and checks that the creation removes them, sends /mkreq, and keeps the
 // record of the new issue.
 func TestCreateReplacesOldRecords(t *testing.T) {
+	t.Parallel()
 	cw := newCreateWorld(t, nil)
 	held := holdFor(t, cw.deps, cw.tree)
 	if err := held.store().create(createdFile, createdJSON{Worktree: cw.tree, Issue: "12", Created: cw.now.Add(-time.Hour)}); err != nil {
@@ -856,6 +870,7 @@ func TestCreateReplacesOldRecords(t *testing.T) {
 // while the agent is in its pane, and checks that the creation is made but
 // /mkreq is not sent, with the status read from the pane.
 func TestCreateAgentNotReady(t *testing.T) {
+	t.Parallel()
 	for _, status := range []string{"idle", "blocked"} {
 		t.Run(status, func(t *testing.T) {
 			cw := newCreateWorld(t, func(cw *createWorld) {
@@ -884,6 +899,7 @@ func TestCreateAgentNotReady(t *testing.T) {
 // exclusion for its automatic send and checks that the creation is refused
 // busy before anything is written; after the tick, the exclusion is free.
 func TestCreateBusyDuringTick(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -922,6 +938,7 @@ func TestCreateBusyDuringTick(t *testing.T) {
 // the second is ErrCreationBusy alone, without cachelock's error, whose
 // advice is about yt-dlp's cache.
 func TestLockCreationBusy(t *testing.T) {
+	t.Parallel()
 	cw := newCreateWorld(t, nil)
 	lock, err := cw.deps.Store.LockCreation()
 	if err != nil {
@@ -938,6 +955,7 @@ func TestLockCreationBusy(t *testing.T) {
 // worktree, as a send or a removal does, and checks that the creation is
 // refused busy before anything is written.
 func TestCreateBusyWhileThePathIsHeld(t *testing.T) {
+	t.Parallel()
 	cw := newCreateWorld(t, nil)
 	holdFor(t, cw.deps, cw.tree)
 	out := cw.create(createIssue)
@@ -955,6 +973,7 @@ func TestCreateBusyWhileThePathIsHeld(t *testing.T) {
 // with nothing run after the read; otherwise the issue's title is given and
 // the workspaces whose row offers /mkreq are listed. No record is written.
 func TestTargets(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	t.Run("issue_form", func(t *testing.T) {
 		rec := newRecorder(t)

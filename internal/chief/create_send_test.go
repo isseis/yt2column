@@ -38,6 +38,7 @@ func holdFor(t *testing.T, deps Deps, tree string) *HeldWorkspace {
 }
 
 func TestSendAfterCreate(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	t.Run("sends /clear, /model, and /mkreq to a freshly started Claude Code", func(t *testing.T) {
 		sw, tree, deps := createdWorld(t)

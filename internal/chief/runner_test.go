@@ -14,6 +14,7 @@ import (
 // each kind of command runs with: gh without GH_REPO and GH_HOST, git and gh
 // without inherited GIT_* variables, herdr with the environment unchanged.
 func TestCommandsEnvironment(t *testing.T) {
+	t.Parallel()
 	environ := []string{"GH_REPO=other/repo", "GH_HOST=example.com", "GIT_DIR=/elsewhere", "HERDR_PANE_ID=w1:p1", "KEEP=1"}
 	rec := newRecorder(t)
 	rec.reply("gh pr list", []byte("gh out"))
@@ -76,6 +77,7 @@ func TestCommandsEnvironment(t *testing.T) {
 // TestHerdrEnvironmentNeverInherited checks that herdr gets the environment
 // passed in even when it is empty: a nil one would inherit the process's.
 func TestHerdrEnvironmentNeverInherited(t *testing.T) {
+	t.Parallel()
 	rec := newRecorder(t)
 	rec.reply("herdr agent list", nil)
 	if _, err := rec.commands(nil).herdr(context.Background(), "agent", "list"); err != nil {
@@ -89,6 +91,7 @@ func TestHerdrEnvironmentNeverInherited(t *testing.T) {
 // TestCommandsRejectRelativeDir checks that git and gh never run in a
 // directory given relative to chief's own.
 func TestCommandsRejectRelativeDir(t *testing.T) {
+	t.Parallel()
 	rec := newRecorder(t)
 	cmds := rec.commands(nil)
 	if _, err := cmds.git(context.Background(), "work/tree", "rev-parse", "HEAD"); !errors.Is(err, errRelativeDir) {

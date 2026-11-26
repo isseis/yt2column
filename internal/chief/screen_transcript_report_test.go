@@ -70,6 +70,7 @@ func joined(lines ...[]string) string {
 // absent once the human typed after it, while it has not finished, or when
 // it has no text.
 func TestReadSessionReport(t *testing.T) {
+	t.Parallel()
 	runpr := transcriptSample(t, "claude-runpr-report.jsonl")
 	mkplan := transcriptSample(t, "claude-command-report.jsonl")
 	recap := transcriptSample(t, "claude-recap-notification.jsonl")
@@ -181,6 +182,7 @@ func TestReadSessionReport(t *testing.T) {
 // form alone, a line that cannot be told makes the transcript unreadable,
 // and an auto-continuation is not the human's and is not refused.
 func TestReadSessionReportLastHuman(t *testing.T) {
+	t.Parallel()
 	sample := strings.Split(strings.TrimSpace(string(readTestdata(t, "transcript/claude-human-input.jsonl"))), "\n")
 	// The sample's response line was cut to the members the human input
 	// reader reads; it gets the members a response line must have.
@@ -227,6 +229,7 @@ func TestReadSessionReportLastHuman(t *testing.T) {
 // accepted shape is unreadable with nothing but its kind set, while an
 // unknown line type, member, content part, or stop reason is read past.
 func TestReadSessionReportRejects(t *testing.T) {
+	t.Parallel()
 	base := joined(transcriptSample(t, "claude-runpr-report.jsonl"))
 	if got := readSessionReport([]byte(base)); got.Kind != SessionReportFound {
 		t.Fatalf("the /runpr sample reads as %v; want a report", got.Kind)
@@ -315,6 +318,7 @@ func TestReadSessionReportRejects(t *testing.T) {
 // TestSessionReportNames checks that a PR record names a PR only when both
 // its number and its URL equal the PR's, each taken whole.
 func TestSessionReportNames(t *testing.T) {
+	t.Parallel()
 	const url42 = "https://github.com/o/r/pull/42"
 	report := readSessionReport([]byte(`{"type":"pr-link","prNumber":42,"prUrl":"` + url42 + `","prRepository":"o/r"}`))
 	if report.Kind != SessionReportAbsent {
@@ -344,6 +348,7 @@ func TestSessionReportNames(t *testing.T) {
 // line that only mentions it is no NEXT, and lines that disagree do not
 // match; PR numbers are read line by line, never across a line break.
 func TestReadReportNext(t *testing.T) {
+	t.Parallel()
 	task, err := paneinput.ParseTaskID("0015")
 	if err != nil {
 		t.Fatal(err)

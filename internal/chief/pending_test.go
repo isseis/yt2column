@@ -13,6 +13,7 @@ import (
 // last within their kind (but for removals, which follow the wait alone),
 // then the longest wait.
 func TestSortPending(t *testing.T) {
+	t.Parallel()
 	t0 := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	items := []PendingItem{
 		{ID: "rm", Kind: PendingRemoval, FirstSeen: t0.Add(-2 * time.Hour)},
@@ -40,6 +41,7 @@ func TestSortPending(t *testing.T) {
 // time across snapshots, so the wait grows, and that two sessions each
 // announce it once.
 func TestPendingWaitsFromTheFirstSighting(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON})
 	first := take(t, w)
@@ -66,6 +68,7 @@ func TestPendingWaitsFromTheFirstSighting(t *testing.T) {
 // TestPendingQuestionIdentity checks that the same question text is the same
 // item and a different option text is another.
 func TestPendingQuestionIdentity(t *testing.T) {
+	t.Parallel()
 	q := Question{Text: "Which?", Options: []Option{{Number: 1, Label: "A"}, {Number: 2, Label: "B"}}}
 	same := q
 	other := Question{Text: "Which?", Options: []Option{{Number: 1, Label: "A"}, {Number: 2, Label: "C"}}}
@@ -80,6 +83,7 @@ func TestPendingQuestionIdentity(t *testing.T) {
 // TestNeedsCheckRowIsNotPending checks that a row that needs a check is
 // listed in the table but is no item waiting on a human decision.
 func TestNeedsCheckRowIsNotPending(t *testing.T) {
+	t.Parallel()
 	if items := buildPending([]Row{{State: StateNeedsCheck, Unreadable: []string{"x"}}, {State: StateRunning}, {State: StateTaskDone}}); len(items) != 0 {
 		t.Errorf("items = %+v", items)
 	}
@@ -88,6 +92,7 @@ func TestNeedsCheckRowIsNotPending(t *testing.T) {
 // TestProposalIdentityFollowsTheNextPR checks that the same command line for
 // the next plan PR is a new item, so it is announced again.
 func TestProposalIdentityFollowsTheNextPR(t *testing.T) {
+	t.Parallel()
 	row := func(key string) Row {
 		return Row{Workspace: "/w", State: StateProposeNext, Next: &Next{Kind: TaskNextRunplan, Text: "/runplan 0001", Key: key}}
 	}

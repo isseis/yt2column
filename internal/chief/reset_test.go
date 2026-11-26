@@ -70,6 +70,7 @@ func keepOldDetail(t *testing.T, deps Deps, tree string, seq int) {
 // line the human typed; otherwise it is left as it is, with the reason. The
 // pane's screen is never read for the report.
 func TestResetAfterRunpr(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		// tree is the worktree directory's name, empty for the default.
@@ -307,6 +308,7 @@ func checkOffered(t *testing.T, store Store, tree string, reset ActionResult, no
 // input: a pane that does not accept input, or that holds unsent text, is
 // left as it is, with the text.
 func TestResetChecks(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		set    func(sw *sendWorld, p *simPane)
@@ -348,6 +350,7 @@ func TestResetChecks(t *testing.T) {
 // TestDetailSavedBeforeReset checks that the PR's detail is kept before
 // /runpr's first input, so the report survives the reset of its pane.
 func TestDetailSavedBeforeReset(t *testing.T) {
+	t.Parallel()
 	sw, tree := detailWorld(t)
 	deps := sw.finish()
 	sw.endWithReport(sw.firstPane(), makerReport)
@@ -377,6 +380,7 @@ func TestDetailSavedBeforeReset(t *testing.T) {
 // the output says the reset input was sent and then failed after clear, and
 // the workspace is stopped.
 func TestResetFailureAfterClear(t *testing.T) {
+	t.Parallel()
 	sw, tree := detailWorld(t)
 	deps := sw.finish()
 	sw.endWithReport(sw.firstPane(), makerReport)
@@ -406,6 +410,7 @@ func TestResetFailureAfterClear(t *testing.T) {
 // end record cannot be written, which stops the workspace, no pane of it is
 // reset.
 func TestNoResetAfterAnUnrecordedRunpr(t *testing.T) {
+	t.Parallel()
 	sw, tree := detailWorld(t)
 	deps := sw.finish()
 	sw.endWithReport(sw.firstPane(), makerReport)
@@ -435,6 +440,7 @@ func TestNoResetAfterAnUnrecordedRunpr(t *testing.T) {
 // record cannot be written, are not. Every one keeps the reset's outcome,
 // reason, and inputs.
 func TestResetAfterRunprSkipOffer(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		setup   func(t *testing.T, sw *sendWorld, tree string, deps *Deps)
@@ -565,6 +571,7 @@ func TestResetAfterRunprSkipOffer(t *testing.T) {
 // entry, which takes no sleep, while the read for display finds it still
 // ends inside a line.
 func TestResetCheckDoesNotWaitForALine(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
 	sw.firstPane().ran = "/mkarch 0001"

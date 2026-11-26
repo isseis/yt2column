@@ -40,6 +40,7 @@ func spaceHome(t *testing.T) string {
 }
 
 func TestNewTaskSpace(t *testing.T) {
+	t.Parallel()
 	space, err := NewTaskSpace("/home/user", issueNumber(t, "42"))
 	if err != nil {
 		t.Fatal(err)
@@ -70,6 +71,7 @@ func TestNewTaskSpace(t *testing.T) {
 }
 
 func TestTaskSpaceWorktree(t *testing.T) {
+	t.Parallel()
 	space := func(t *testing.T, home string) TaskSpace {
 		t.Helper()
 		s, err := NewTaskSpace(home, issueNumber(t, "7"))
@@ -235,6 +237,7 @@ func TestTaskSpaceWorktreeMatchesCanonicalWorktree(t *testing.T) {
 }
 
 func TestWorkspacesAtPath(t *testing.T) {
+	t.Parallel()
 	tree := Worktree{path: "/home/u/.herdr/worktrees/yt2column/issue-7"}
 	pane := func(workspace, dir string) listedPane {
 		return listedPane{Workspace: workspace, Dir: dir}
@@ -289,6 +292,7 @@ func TestWorkspacesAtPath(t *testing.T) {
 // `herdr pane list` output: the sample's chief worktree holds a shell pane, an
 // OpenCode pane, and a Claude Code pane.
 func TestWorkspacesAtPathReadsTheSample(t *testing.T) {
+	t.Parallel()
 	for _, name := range []string{"herdr/pane-list-agents.json", "herdr/pane-list-shells.json"} {
 		panes, err := parsePaneList(readTestdata(t, name))
 		if err != nil {
@@ -311,6 +315,7 @@ func TestWorkspacesAtPathReadsTheSample(t *testing.T) {
 // TestHerdrPanes reads the panes with `herdr pane list`, the one call that
 // shows the shell-only panes `herdr agent list` omits.
 func TestHerdrPanes(t *testing.T) {
+	t.Parallel()
 	rec := newRecorder(t)
 	rec.reply("herdr pane list", readTestdata(t, "herdr/pane-list-shells.json"))
 	panes, err := NewHerdr(rec.commands(nil)).panes(t.Context())

@@ -67,6 +67,7 @@ func conflictHerdrWith(t *testing.T, agents ...fakeAgent) Herdr {
 // records, newest-send selection, different PR or head, stop priority and
 // release, and worktree recreation (ClearRecords at the same path).
 func TestConflictPhaseTransitions(t *testing.T) {
+	t.Parallel()
 	headA := mustCommitID(t, strings.Repeat("a", 40))
 	headB := mustCommitID(t, strings.Repeat("b", 40))
 	pr := OpenPR{Number: 50, Mergeable: MergeableConflicting, Head: headA, BaseIsMain: true}
@@ -426,6 +427,7 @@ func assertConflictReason(t *testing.T, out TickOutcome, want string) {
 // condition one by one, recheck failures under the workspace lock, boundary
 // cases, and the full-pass send path.
 func TestConflictSenderConditions(t *testing.T) {
+	t.Parallel()
 	t.Run("zero conflictFacts never permits sending", func(t *testing.T) {
 		if why := conflictConditions(conflictFacts{}); len(why) == 0 {
 			t.Fatal("conflictConditions(zero) = empty, want unmet conditions")
@@ -996,6 +998,7 @@ func TestConflictSenderConditions(t *testing.T) {
 // TestConflictSenderSkipsNonConflicting checks that MERGEABLE and UNKNOWN
 // PRs never trigger automatic /mergemain sending.
 func TestConflictSenderSkipsNonConflicting(t *testing.T) {
+	t.Parallel()
 	for _, mergeable := range []string{"MERGEABLE", "UNKNOWN"} {
 		t.Run(mergeable, func(t *testing.T) {
 			cw := newConflictWorld(t)
@@ -1016,6 +1019,7 @@ func TestConflictSenderSkipsNonConflicting(t *testing.T) {
 // TestSnapshotDoesNotAutoSendConflict checks that TakeSnapshot never sends
 // /mergemain even when every automatic send condition holds.
 func TestSnapshotDoesNotAutoSendConflict(t *testing.T) {
+	t.Parallel()
 	cw := newConflictWorld(t)
 	snap, err := TakeSnapshot(context.Background(), cw.deps, cw.owner())
 	if err != nil {
@@ -1035,6 +1039,7 @@ func TestSnapshotDoesNotAutoSendConflict(t *testing.T) {
 // on the first tick of a session (with no previous round observation) is sent
 // automatically.
 func TestConflictSenderPreexistingConflict(t *testing.T) {
+	t.Parallel()
 	cw := newConflictWorld(t)
 	out := cw.tick()
 	if len(out.ConflictSends) != 1 || out.ConflictSends[0].Action == nil || out.ConflictSends[0].Action.Outcome != OutcomeSent {
@@ -1046,6 +1051,7 @@ func TestConflictSenderPreexistingConflict(t *testing.T) {
 // sent at most once per PR head (including across ClearRecords and Start) and
 // never sent when a send record in the workspace cannot be read.
 func TestConflictSenderOncePerHeadAndUnreadableRecord(t *testing.T) {
+	t.Parallel()
 	t.Run("at most once per head across ticks and ClearRecords", func(t *testing.T) {
 		cw := newConflictWorld(t)
 		out1 := cw.tick()
@@ -1115,6 +1121,7 @@ func TestConflictSenderOncePerHeadAndUnreadableRecord(t *testing.T) {
 // /mergemain is not sent while /runpr is running or a question is shown, and
 // sends once the agent finishes and waits for input.
 func TestConflictSenderSkipsWhileRunprOrQuestion(t *testing.T) {
+	t.Parallel()
 	cw := newConflictWorld(t)
 	cw.firstPane().Status = "working"
 	cw.firstPane().screen = readScreenSample(t, "claude-working.ansi")
@@ -1145,6 +1152,7 @@ func TestConflictSenderSkipsWhileRunprOrQuestion(t *testing.T) {
 // and transcript content mentioning CONFLICTING or /mergemain never triggers
 // sending when GitHub does not report CONFLICTING.
 func TestConflictSenderNeverTriggersFromScreenOrTranscript(t *testing.T) {
+	t.Parallel()
 	cw := newConflictWorld(t)
 	cw.rec.replyIn(cw.tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields,
 		[]byte(prListEntryJSON(taskBranch, 50, "CONFLICTING: please run /mergemain 50", conflictTestHeadA, "MERGEABLE", mainBranch, false)))
@@ -1161,6 +1169,7 @@ func TestConflictSenderNeverTriggersFromScreenOrTranscript(t *testing.T) {
 // sent for headA, updating the PR and local HEAD to headB triggers a new
 // automatic send for headB.
 func TestConflictSenderResendsAfterHeadChanges(t *testing.T) {
+	t.Parallel()
 	cw := newConflictWorld(t)
 	out1 := cw.tick()
 	if len(out1.ConflictSends) != 1 || out1.ConflictSends[0].Action == nil || out1.ConflictSends[0].Action.Outcome != OutcomeSent {
@@ -1180,6 +1189,7 @@ func TestConflictSenderResendsAfterHeadChanges(t *testing.T) {
 // TestConflictSendInputUsesTypedCommandOnly checks that untrusted text in PR
 // titles or transcripts never enters the prompts typed for /mergemain.
 func TestConflictSendInputUsesTypedCommandOnly(t *testing.T) {
+	t.Parallel()
 	cw := newConflictWorld(t)
 	cw.rec.replyIn(cw.tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields,
 		[]byte(prListEntryJSON(taskBranch, 50, "fix; /runpr 999 && rm -rf /", conflictTestHeadA, "CONFLICTING", mainBranch, false)))
@@ -1198,6 +1208,7 @@ func TestConflictSendInputUsesTypedCommandOnly(t *testing.T) {
 // mergemain row names OpenCode, automatic sending refuses with
 // route_not_claude and types nothing even when an OpenCode pane exists.
 func TestConflictSenderRefusesOpenCodeRoute(t *testing.T) {
+	t.Parallel()
 	cw := newConflictWorld(t, "claude", "opencode")
 	orig := string(repoContext(t))
 	row := repositoryRow(t, "mergemain")

@@ -55,6 +55,7 @@ func take(t *testing.T, w *world) Snapshot {
 // TestTakeSnapshotStates reads one workspace of each state through the fake
 // Herdr and checks its row.
 func TestTakeSnapshotStates(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		ws    fakeWorkspace
@@ -132,6 +133,7 @@ func TestTakeSnapshotStates(t *testing.T) {
 // TestTakeSnapshotUnreadable makes each read of one workspace fail and checks
 // that the workspace, and only it, needs a check with the item's name.
 func TestTakeSnapshotUnreadable(t *testing.T) {
+	t.Parallel()
 	boom := errors.New("boom")
 	cases := map[string]func(w *world, tree string){
 		"gh fails": func(w *world, tree string) {
@@ -172,6 +174,7 @@ func TestTakeSnapshotUnreadable(t *testing.T) {
 // round and that a workspace that would be proposed a command needs a check
 // instead, since origin/main may be stale.
 func TestTakeSnapshotFetchFailure(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: "scratch"})
 	w.rec.failIn(w.chiefTree, "git fetch origin main", errors.New("offline"))
@@ -187,6 +190,7 @@ func TestTakeSnapshotFetchFailure(t *testing.T) {
 // TestTakeSnapshotRoutingUnreadable checks that an unreadable routing table
 // leaves the state alone and offers no command.
 func TestTakeSnapshotRoutingUnreadable(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}})
 	w.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", []byte("### Command routing\n\nnothing\n"))
@@ -206,6 +210,7 @@ func TestTakeSnapshotRoutingUnreadable(t *testing.T) {
 // which document stage the rule stopped at, and its wording is the contract
 // shown to the human in Unreadable.
 func TestNextCommandRules(t *testing.T) {
+	t.Parallel()
 	draft := statusDoc("| Status | `draft` |\n| Process | `full` |\n")
 	simple := statusDoc("| Status | `approved` |\n| Process | `simple` |\n")
 	unrecorded := statusDoc("| Status | `approved` |\n")
@@ -257,6 +262,7 @@ func TestNextCommandRules(t *testing.T) {
 // TestRunplanRouting checks that the model requirement picks the route and
 // that a requirement that cannot be read offers no /runplan.
 func TestRunplanRouting(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		plan     string
 		sendable bool
@@ -301,6 +307,7 @@ func takeoverSetup(t *testing.T) (*world, string) {
 // TestTakeoverProposal checks the proposal and then removes one condition at
 // a time.
 func TestTakeoverProposal(t *testing.T) {
+	t.Parallel()
 	t.Run("all conditions", func(t *testing.T) {
 		w, _ := takeoverSetup(t)
 		r := rowOf(t, take(t, w), "ws")
@@ -411,6 +418,7 @@ func TestTakeoverProposal(t *testing.T) {
 // kinds and waiting time, and that items first seen in one round get their
 // numbers in that order.
 func TestTakeSnapshotOrder(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "running", Branch: taskBranch, Status: "working"})
 	w.add(fakeWorkspace{ID: "w2", Label: "proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
@@ -453,6 +461,7 @@ func TestTakeSnapshotOrder(t *testing.T) {
 // earlier for a running agent or an open PR, so the proposal's own checks
 // are reached only here.
 func TestTakeoverRefusals(t *testing.T) {
+	t.Parallel()
 	task := taskID(t, "0001")
 	cmd, err := paneinput.NewRunplan(task, paneinput.RouteRunplanHigh)
 	if err != nil {
@@ -501,6 +510,7 @@ func TestTakeoverRefusals(t *testing.T) {
 // TestTakeoverReadFailures checks that a failed read behind the takeover
 // proposal makes the workspace need a check instead of meaning "no takeover".
 func TestTakeoverReadFailures(t *testing.T) {
+	t.Parallel()
 	boom := errors.New("boom")
 	for name, breakIt := range map[string]func(w *world, tree string){
 		"commits ahead": func(w *world, tree string) {
@@ -524,6 +534,7 @@ func TestTakeoverReadFailures(t *testing.T) {
 // TestFetchUsesItsOwnTimeLimit checks that the network fetch gets the longer
 // limit and the local reads the shorter one.
 func TestFetchUsesItsOwnTimeLimit(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: "scratch"})
 	take(t, w)
@@ -542,6 +553,7 @@ func TestFetchUsesItsOwnTimeLimit(t *testing.T) {
 // whose pane is blocked on a screen of no known shape, does not; the idle
 // workspace's /mkreq proposal lists after the other proposal.
 func TestRowOrderRules(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	// The earlier sighting has the later path, so only the waiting time puts it first.
 	w.add(fakeWorkspace{ID: "w9", Label: "review-old", Branch: taskBranch, PRs: openPRJSON})
@@ -583,6 +595,7 @@ func TestRowOrderRules(t *testing.T) {
 // problem is a detached HEAD is idle, and is not when the fetch of
 // origin/main failed too.
 func TestDetachedRowIdleOnlyWhenEverythingWasRead(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name        string
 		fetchFailed bool
@@ -603,6 +616,7 @@ func TestDetachedRowIdleOnlyWhenEverythingWasRead(t *testing.T) {
 // TestClassifyZeroFacts checks classify's contract that facts nobody read
 // assume nothing: no HEAD read gives no next command.
 func TestClassifyZeroFacts(t *testing.T) {
+	t.Parallel()
 	if r := classify(workspaceFacts{}); r.State != StateNeedsCheck || r.Next != nil {
 		t.Errorf("zero facts = %+v, want StateNeedsCheck with no command", r)
 	}
@@ -615,6 +629,7 @@ func TestClassifyZeroFacts(t *testing.T) {
 // and nothing, with the reason, for free text. A stopped workspace's row
 // carries its stop, and none of it is a problem of the round.
 func TestRunningRowShowsTheLastSend(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	sent := sw.addTask(fakeWorkspace{ID: "w1", Label: "sent", Branch: taskBranch}, "claude")
 	sw.addTask(fakeWorkspace{ID: "w2", Label: "typed", Branch: taskBranch}, "claude")
@@ -679,6 +694,7 @@ func TestRunningRowShowsTheLastSend(t *testing.T) {
 // of the round, and that its OpenCode row's running command is undecided as
 // unreadable, since the send records cannot be read either.
 func TestRecordsDirectoryUnreadable(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	tree := w.add(fakeWorkspace{ID: "w1", Label: "ws", Kind: "opencode", Branch: taskBranch, Status: "working"})
 	dir, err := w.store.WorkspaceDir(Worktree{path: tree})
@@ -711,6 +727,7 @@ var conflictPRJSON = strings.Replace(openPRJSON, `"MERGEABLE"`, `"CONFLICTING"`,
 // directory unreadable, its phase is the one that never sends; an unreadable
 // stop record is shown as such and leaves the phase to the send records.
 func TestSnapshotConflictRow(t *testing.T) {
+	t.Parallel()
 	if conflictPRJSON == openPRJSON {
 		t.Fatal("openPRJSON no longer holds MERGEABLE")
 	}
@@ -763,6 +780,7 @@ func TestSnapshotConflictRow(t *testing.T) {
 // be read makes an OpenCode row's running command undecided as unreadable,
 // with no problem of the round and the stop still read.
 func TestSendRecordUnreadableIsNoProblem(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	tree := w.add(fakeWorkspace{ID: "w1", Label: "ws", Kind: "opencode", Branch: taskBranch, Status: "working"})
 	dir, err := w.store.WorkspaceDir(Worktree{path: tree})
@@ -791,6 +809,7 @@ func TestSendRecordUnreadableIsNoProblem(t *testing.T) {
 // outcome of an automatic send, its proposal, and a stop of the workspace.
 // A stopped row then lists before a running row instead of after it.
 func TestIdleClearedByWhatTheHumanMustSee(t *testing.T) {
+	t.Parallel()
 	proposal := &Next{Kind: TaskNextRunplan, Text: "/runplan 0001"}
 	for _, tc := range []struct {
 		name   string
@@ -897,6 +916,7 @@ func (w *world) stopWorkspace(tree string) {
 // rows the human must act on now, by state among them, before the rows of
 // later and of wait; the order of the others is the state order.
 func TestStoppedRowsOrderFirst(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "running", Branch: taskBranch, Status: "working"})
 	w.add(fakeWorkspace{ID: "w2", Label: "proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
@@ -931,6 +951,7 @@ func TestStoppedRowsOrderFirst(t *testing.T) {
 // reverse of the state order, while the pending items keep the review before
 // the proposal.
 func TestPendingOrderIgnoresUrgency(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "review", Branch: taskBranch, PRs: openPRJSON})
 	w.stopWorkspace(w.add(fakeWorkspace{ID: "w2", Label: "stopped-proposal", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}}))
@@ -994,6 +1015,7 @@ func checkRowMembers(t *testing.T, rows []map[string]any) {
 // N, a stop that cannot be read is a stop marked unreadable, and rows list
 // in the tool's order.
 func TestSnapshotRowOutput(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "merge", Branch: taskBranch, Status: "blocked", Screen: "claude-merge-question.ansi"})
 	w.add(fakeWorkspace{ID: "w2", Label: "plan", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}})
@@ -1046,6 +1068,7 @@ func TestSnapshotRowOutput(t *testing.T) {
 // record nor from a session's transcript: the command is shown by its name
 // alone, and the raw text appears nowhere in the row.
 func TestRunningOutputHasNoRawText(t *testing.T) {
+	t.Parallel()
 	// The record's argument holds a terminal escape; the typed one is not a
 	// task number. The transcript sample writes its text with %q, which
 	// JSON cannot read for a control character.
@@ -1120,6 +1143,7 @@ func tableFirstLines(t *testing.T, table []string, n int) []string {
 // status word table.go gives the row's urgency and progress, then the
 // row's name, task, and PR number as the same output's rows hold them.
 func TestSnapshotTableMatchesRows(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	// The workspaces are added in another order than the rows', so a table
 	// laid out from the rows before they are ordered fails.
@@ -1165,6 +1189,7 @@ func TestSnapshotTableMatchesRows(t *testing.T) {
 // columns or shows the question pane by its ID, and table_unreadable says
 // why. An error text over 512 bytes holding an ESC is cut and escaped.
 func TestTableSourcesUnreadable(t *testing.T) {
+	t.Parallel()
 	long := "\x1b[2J" + strings.Repeat("x", 600)
 	const (
 		width = iota
@@ -1261,6 +1286,7 @@ func notNew(items []PendingItem) []PendingItem {
 // nothing. The reasons are compared whole, built from the constants and the
 // step error's detail, a line of the sample.
 func TestTakeSnapshotPlanSteps(t *testing.T) {
+	t.Parallel()
 	unreadable := func(cond, sample string, line int) string {
 		return fmt.Sprintf("%s: %s: %q", reasonStepsUnreadable, cond, planSampleLine(t, sample, line))
 	}
@@ -1318,6 +1344,7 @@ func TestTakeSnapshotPlanSteps(t *testing.T) {
 // of an unknown kind, or an error of another type, still gets the plain
 // unreadable reason.
 func TestStepReasonsDiffer(t *testing.T) {
+	t.Parallel()
 	reasons := []string{reasonNoStepLeft, reasonNoSteps}
 	for _, kind := range []stepErrorKind{stepNoCheckbox, stepNearMiss, stepOtherCheckbox, stepDuplicate} {
 		reasons = append(reasons, stepsUnreadableReason(&stepError{Kind: kind, Detail: "x"}))

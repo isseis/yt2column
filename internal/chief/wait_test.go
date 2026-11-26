@@ -79,6 +79,7 @@ func (ww *waitWorld) withAgent(edit func(*fakeAgent)) []fakeAgent {
 // the wait (a status or a state_change_seq), and otherwise waits until its
 // time limit, which is an error.
 func TestWaitReturnsOnChange(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		// edit changes the task agent from the given read on; nil keeps it.
@@ -133,6 +134,7 @@ func (ww *waitWorld) openTaskWorkspace(ws fakeWorkspace) []fakeAgent {
 // agent alone, with every earlier task workspace unchanged, ends the wait
 // instead of letting it time out.
 func TestWaitWatchesAWorkspaceOpenedDuringTheWait(t *testing.T) {
+	t.Parallel()
 	ww := newWaitWorld(t, fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON})
 	since := ww.baseline()
 	before := slices.Clone(ww.agents)
@@ -159,6 +161,7 @@ func TestWaitWatchesAWorkspaceOpenedDuringTheWait(t *testing.T) {
 // that stays blocked does not end the wait, and that it ends once the agent
 // moves on.
 func TestWaitKeepsWaitingOnBlocked(t *testing.T) {
+	t.Parallel()
 	ww := newWaitWorld(t, fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Status: "blocked", Screen: "claude-question-single.ansi"})
 	since := ww.baseline()
 	ww.changeAgents(func(int) []fakeAgent { return ww.agents })
@@ -180,6 +183,7 @@ func TestWaitKeepsWaitingOnBlocked(t *testing.T) {
 // TestWaitIgnoresChiefWorkspace checks that a change of chief's own agent,
 // or of an agent of a workspace of another repository, does not end the wait.
 func TestWaitIgnoresChiefWorkspace(t *testing.T) {
+	t.Parallel()
 	ww := newWaitWorld(t, fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON})
 	other := fakeAgent{Pane: "wx:p1", Workspace: "wx", Kind: "claude", Status: "idle", Session: "00000000-0000-4000-8000-0000000000e1", Dir: "/elsewhere", Seq: 3}
 	ww.rec.replyIn("/elsewhere", "git rev-parse --path-format=absolute --git-common-dir", []byte("/elsewhere/.git"))
@@ -202,6 +206,7 @@ func TestWaitIgnoresChiefWorkspace(t *testing.T) {
 // TestWaitFailure checks that a Herdr failure during the wait ends it with
 // that error, not with the time limit or a change.
 func TestWaitFailure(t *testing.T) {
+	t.Parallel()
 	ww := newWaitWorld(t, fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON})
 	since := ww.baseline()
 	errHerdr := errors.New("herdr is gone")
@@ -223,6 +228,7 @@ func TestWaitFailure(t *testing.T) {
 // session took the lock over with start (the pane's session unchanged in the
 // wait's reads).
 func TestWaitStopsForANewOwner(t *testing.T) {
+	t.Parallel()
 	for _, takeOver := range []bool{false, true} {
 		t.Run(map[bool]string{false: "the pane's session changes", true: "the lock is taken over"}[takeOver], func(t *testing.T) {
 			ww := newWaitWorld(t, fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: openPRJSON})
@@ -260,6 +266,7 @@ func TestWaitStopsForANewOwner(t *testing.T) {
 // TestParseWaitRequest checks the accepted baseline and time limits; the
 // command-line test of cmd/chief checks the rejected ones.
 func TestParseWaitRequest(t *testing.T) {
+	t.Parallel()
 	since := string(baselineOf(nil, nil))
 	for timeout, want := range map[string]time.Duration{"": waitDefaultTimeout, "1": time.Second, "3600": time.Hour} {
 		req, err := ParseWaitRequest(since, timeout)

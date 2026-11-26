@@ -17,6 +17,7 @@ func call(name, dir string, args ...string) recordedCall {
 // place does not: another ID or path, an extra option, or another working
 // directory. The recorder fails a test on a write that does not pass.
 func TestRecorderAllowsOnlyTheExactWrite(t *testing.T) {
+	t.Parallel()
 	const chiefTree = "/work/chief"
 	cases := []struct {
 		name  string
@@ -116,6 +117,7 @@ func TestRecorderAllowsOnlyTheExactWrite(t *testing.T) {
 // TestRecorderAnswersAnAllowedWrite runs an allowed write through the
 // commands the code under test uses, so the answer reaches it.
 func TestRecorderAnswersAnAllowedWrite(t *testing.T) {
+	t.Parallel()
 	r := newRecorder(t)
 	r.allowWorkspaceClose("w1", []byte("closed"))
 	out, err := r.commands(nil).herdr(context.Background(), herdrWorkspace, "close", "w1")

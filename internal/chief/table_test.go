@@ -98,6 +98,7 @@ func runningCommand(t *testing.T, kind paneinput.CommandKind, arg string) Runnin
 // first unknown, so a value added to a type and its output name without a
 // table word fails here.
 func TestTableFixedWords(t *testing.T) {
+	t.Parallel()
 	marks := map[string]string{"now": "\U0001F6D1", "later": "\U0001F536", "wait": "\U0001F7E2"}
 	names := namesUpToUnknown(urgencyName)
 	for i, name := range names {
@@ -162,6 +163,7 @@ func TestTableFixedWords(t *testing.T) {
 // than the question ones (TestTableQuestions): its parts, in order, and no
 // part or separator for a missing value.
 func TestTableContent(t *testing.T) {
+	t.Parallel()
 	runpr := runningCommand(t, paneinput.CommandRunpr, "981")
 	tests := []struct {
 		name string
@@ -203,6 +205,7 @@ func TestTableContent(t *testing.T) {
 // TestTableQuestions checks which question a row shows and the words put
 // before it.
 func TestTableQuestions(t *testing.T) {
+	t.Parallel()
 	src := labelledSources(map[string]string{"w1:p1": "claude", "w1:p2": "opencode"})
 	tests := []struct {
 		name      string
@@ -233,6 +236,7 @@ func TestTableQuestions(t *testing.T) {
 // TestTableTabDisplay checks the tab display and the five cases that show
 // the pane ID instead, each with a note after the sources' own notes.
 func TestTableTabDisplay(t *testing.T) {
+	t.Parallel()
 	tab := tabID{id: "w1:t1"}
 	labelled := map[tabID]tabLabel{tab: {text: "claude", hasLabel: true}}
 	onTab := map[string]tabID{"w1:p1": tab}
@@ -284,6 +288,7 @@ func TestTableTabDisplay(t *testing.T) {
 // TestTableNewlinesAndTabs checks that a newline and a tab show as a space
 // in the table only, and that a unit of no kind shows as "?".
 func TestTableNewlinesAndTabs(t *testing.T) {
+	t.Parallel()
 	row := Row{
 		Label:     "ws\tone",
 		Position:  Position{Progress: ProgressQuestion},
@@ -318,6 +323,7 @@ func TestTableNewlinesAndTabs(t *testing.T) {
 // at the same display column on the header and every row, the values of
 // both lines of a row, and that no line ends with a space.
 func TestTableShape(t *testing.T) {
+	t.Parallel()
 	t.Run("no rows", func(t *testing.T) {
 		lines, _ := layoutChecked(t, nil, tableSources{})
 		want := []string{"\U0001F6D1 すぐ  \U0001F536 あとで  \U0001F7E2 待つ", ""}
@@ -387,6 +393,7 @@ func TestTableShape(t *testing.T) {
 // TestTableNameColumn checks the name column's width and the cut at 20
 // columns.
 func TestTableNameColumn(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		label string
@@ -418,6 +425,7 @@ func TestTableNameColumn(t *testing.T) {
 // a split pane, 80 less 2 when the width was not read, and the content
 // column kept at 20 columns when the pane is narrower.
 func TestTableWidth(t *testing.T) {
+	t.Parallel()
 	// Status 9 (the mark, a space, and the three-character needs-check word),
 	// name 4, task 6, PR 2, and four gaps of 2: 29 columns before the content
 	// column.
@@ -463,6 +471,7 @@ func TestTableWidth(t *testing.T) {
 // TestTableWrap checks where the content breaks into two lines and where
 // the second line is cut (architecture 3.6), at a content width of 20.
 func TestTableWrap(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		text          string
@@ -497,6 +506,7 @@ func TestTableWrap(t *testing.T) {
 // invalid byte into each value from outside the table shows, and checks
 // that each shows as its escape.
 func TestTableEscapes(t *testing.T) {
+	t.Parallel()
 	const value = "\x1b\u0085\u200b\xff"
 	const escaped = `\x1b\u0085\u200b\xff`
 	src := labelledSources(map[string]string{"w1:p1": "x", "w1:p2": value})
@@ -535,6 +545,7 @@ func TestTableEscapes(t *testing.T) {
 // lines and a 20-column name, and a cap at 16 KiB that never splits a
 // UTF-8 sequence.
 func TestTableLargeValues(t *testing.T) {
+	t.Parallel()
 	rows := []Row{
 		{Label: strings.Repeat("n", 64<<10), Position: Position{Progress: ProgressAwaitingReview}, PR: &OpenPR{Number: 1, Title: strings.Repeat("title ", 64<<10/6)}},
 		{Label: "q", Position: Position{Progress: ProgressQuestion}, Questions: []QuestionItem{question("w1:p1", "a"+strings.Repeat("\u0301", 10000), false)}},
@@ -566,6 +577,7 @@ func TestTableLargeValues(t *testing.T) {
 // TestTableGolden compares a whole table with lines written out by hand,
 // without the display width function.
 func TestTableGolden(t *testing.T) {
+	t.Parallel()
 	runpr := runningCommand(t, paneinput.CommandRunpr, "981")
 	rows := []Row{
 		{
@@ -619,6 +631,7 @@ var fenceValues = []string{"```", "~~~", "   ```", " leading", "#title", "|pipe"
 // value from outside are the seeds of FuzzTableKeepsCodeBlockOpen, which
 // `make test` runs.
 func TestTableKeepsCodeBlockOpen(t *testing.T) {
+	t.Parallel()
 	t.Run("unknown values", func(t *testing.T) {
 		layoutChecked(t, []Row{{Label: "```", Urgency: Urgency(99), Position: Position{Document: PositionDocument(99), Progress: Progress(99)}}}, tableSources{})
 	})
@@ -664,6 +677,7 @@ func FuzzTableKeepsCodeBlockOpen(f *testing.F) {
 // TestCodeBlockCheckRejects checks that the code block check rejects each
 // kind of line that could leave the block.
 func TestCodeBlockCheckRejects(t *testing.T) {
+	t.Parallel()
 	for _, line := range []string{"```", "   ```x", "~~~", " ~~~", "value", "#title", "  value", "   value", "\U0001F6D1 a\rb", "    a\nb"} {
 		if err := codeBlockCheck([]string{"", line}); !errors.Is(err, errCodeBlock) {
 			t.Errorf("codeBlockCheck(%q) = %v, want errCodeBlock", line, err)

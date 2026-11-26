@@ -19,6 +19,7 @@ import (
 // the accepted form, no argument, and arguments that must be dropped, and
 // that a command the constructor makes shows as the text typed into a pane.
 func TestNewRunningCommand(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name        string
 		kind        paneinput.CommandKind
@@ -60,6 +61,7 @@ func TestNewRunningCommand(t *testing.T) {
 // TestNewRunningCommandRejectsOtherKinds checks that a kind outside the five
 // task commands makes no command.
 func TestNewRunningCommandRejectsOtherKinds(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []paneinput.CommandKind{paneinput.CommandUnknown, paneinput.CommandKind(-1), paneinput.CommandKind(99)} {
 		cmd, dropped, err := newRunningCommand(kind, "0093")
 		if !errors.Is(err, paneinput.ErrInvalid) || dropped || cmd != (RunningCommand{}) {
@@ -72,6 +74,7 @@ func TestNewRunningCommandRejectsOtherKinds(t *testing.T) {
 // kind is the line chief types for the same command, so the name table and
 // the typed text agree.
 func TestRunningCommandTextMatchesThePaneInput(t *testing.T) {
+	t.Parallel()
 	task, err := paneinput.ParseTaskID("0093")
 	if err != nil {
 		t.Fatal(err)
@@ -130,6 +133,7 @@ func TestRunningCommandTextMatchesThePaneInput(t *testing.T) {
 // constructor is the only way to a command with an unvalidated argument
 // outside the package, and the text method guards the rest.
 func TestRunningCommandRevalidates(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		cmd  RunningCommand
@@ -247,6 +251,7 @@ func (rw *runWorld) run(agents ...Agent) (string, string, RunningUnknown) {
 // chief's last command sent to it and recorded as sent, and each reason a
 // pane decides none; a pane that is not working is not read.
 func TestRunningCommandPerPane(t *testing.T) {
+	t.Parallel()
 	sent := OutcomeSent.String()
 	cases := []struct {
 		name  string
@@ -415,6 +420,7 @@ func TestRunningCommandPerPane(t *testing.T) {
 // when both decide the same one with no argument dropped; otherwise the
 // first undecided pane's reason, or the panes' disagreement, is given.
 func TestRunningCommandPanes(t *testing.T) {
+	t.Parallel()
 	sent := OutcomeSent.String()
 	cases := []struct {
 		name  string
@@ -464,6 +470,7 @@ func TestRunningCommandPanes(t *testing.T) {
 // only for one working pane whose last command sent, recorded as sent, is
 // the running command with its argument whole.
 func TestRunningModel(t *testing.T) {
+	t.Parallel()
 	sent := OutcomeSent.String()
 	cases := []struct {
 		name  string
@@ -531,6 +538,7 @@ func TestRunningModel(t *testing.T) {
 // TestRunningLater checks Later: it is set when the human typed something
 // after the running command on any working pane, and not otherwise.
 func TestRunningLater(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		setup func(rw *runWorld) []Agent
@@ -568,6 +576,7 @@ func TestRunningLater(t *testing.T) {
 // transcript reads: no file yet is told apart from one that cannot be read,
 // and a session with no task command from one with no input at all.
 func TestRunningOfPaneLaterInput(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		setup func(rw *runWorld) Agent

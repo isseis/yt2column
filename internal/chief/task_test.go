@@ -43,6 +43,7 @@ func repoContext(t *testing.T) []byte {
 // repository's real _context.md yields all six old values unaffected by
 // Harness model mapping.
 func TestParseOldValues(t *testing.T) {
+	t.Parallel()
 	doubled := []byte("### PR marker conventions\n\n| `a` | `high` |\n| `a` | `low` |\n| `b` | `low` |\n| `d e` | `high` |\n\n```markdown\n| `fenced-low` | `low` |\n```\n\n### Next\n\n| `c` | `high` |\n")
 	if got := ParseOldValues(doubled); len(got) != 1 || got["b"] != RequirementLow {
 		t.Errorf("ParseOldValues(doubled) = %v, want only b (a twice, d e with a blank, fenced-low in fence, c outside)", got)
@@ -80,6 +81,7 @@ func TestParseOldValues(t *testing.T) {
 // PR (PR-2, or the plan itself without markers), so high and
 // standard+high-review are told apart here, which the parity test cannot do.
 func TestReadModelRequirement(t *testing.T) {
+	t.Parallel()
 	old := testOldValues
 	cases := map[string]struct {
 		target string
@@ -121,6 +123,7 @@ func TestReadModelRequirement(t *testing.T) {
 // TestReadAutoSendField checks the auto-send field: absent reads as auto, and
 // two fields or a value other than the two are unreadable.
 func TestReadAutoSendField(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		target string
 		want   AutoSend
@@ -145,6 +148,7 @@ func TestReadAutoSendField(t *testing.T) {
 
 // TestParsePlanProgress checks the next plan PR and task completion.
 func TestParsePlanProgress(t *testing.T) {
+	t.Parallel()
 	old := testOldValues
 	cases := map[string]struct {
 		next string // "" when there is none
@@ -203,6 +207,7 @@ func TestParsePlanProgress(t *testing.T) {
 // TestParsePlanRejects checks that a plan whose PRs cannot be told apart is
 // rejected rather than read in part.
 func TestParsePlanRejects(t *testing.T) {
+	t.Parallel()
 	base := string(planSample(t, "marker-opus.md"))
 	cases := map[string]string{
 		"duplicate marker":     string(planSample(t, "marker-duplicate.md")),
@@ -230,6 +235,7 @@ func TestParsePlanRejects(t *testing.T) {
 // TestBranchPlanStepsDone checks the takeover condition that every target step
 // of the PR is done or skipped.
 func TestBranchPlanStepsDone(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		file, target string
 		want         bool
@@ -275,6 +281,7 @@ func TestBranchPlanStepsDone(t *testing.T) {
 
 // TestReadDocInfo reads the status table by the Cell text rule.
 func TestReadDocInfo(t *testing.T) {
+	t.Parallel()
 	table := func(rows string) []byte {
 		return []byte("# T\n\n## Document Status\n\n| Item | Value |\n|---|---|\n" + rows + "\nText after.\n")
 	}
@@ -317,6 +324,7 @@ func TestReadDocInfo(t *testing.T) {
 
 // TestBranchTask reads the task of a feature branch name.
 func TestBranchTask(t *testing.T) {
+	t.Parallel()
 	task, slug, ok := branchTask("isseis/0088-chief-of-staff-06")
 	if !ok || task != taskID(t, "0088") || slug != "0088-chief-of-staff" {
 		t.Errorf("branchTask = %v %q %v", task, slug, ok)
@@ -331,6 +339,7 @@ func TestBranchTask(t *testing.T) {
 // TestTasksRead reads a task's documents from origin/main through git, with
 // the recorder standing in for git.
 func TestTasksRead(t *testing.T) {
+	t.Parallel()
 	const wt = "/work/tree"
 	lsTasks := "git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/"
 	lsDir := "git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/0001_test_task/"
@@ -410,6 +419,7 @@ func TestTasksRead(t *testing.T) {
 // form check can catch. It is separate from the reader's other rejection
 // cases because that test stays as it is.
 func TestTasksReadRejectsWrongDirectoryForm(t *testing.T) {
+	t.Parallel()
 	const wt = "/work/tree"
 	rec := newRecorder(t)
 	rec.reply("git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/", []byte("docs/tasks/0001_test-task\x00"))
@@ -541,6 +551,7 @@ func issueOneTasks(t *testing.T, tasks Tasks, wt string) ([]string, error) {
 
 // TestIssueTasksFailures checks the readings that are not "no line".
 func TestIssueTasksFailures(t *testing.T) {
+	t.Parallel()
 	const wt = "/work/tree"
 	search := "git " + strings.Join(issueLineSearch, " ")
 	good := "refs/remotes/origin/main:docs/tasks/0001_a/01_requirements.md:5:" + issueLinePrefix + "#1\n"
@@ -595,6 +606,7 @@ func TestIssueTasksFailures(t *testing.T) {
 }
 
 func TestIssueNumbersOf(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		line string
 		want []string
@@ -626,6 +638,7 @@ func TestIssueNumbersOf(t *testing.T) {
 // TestTasksReadDir reads a task by its directory name, with the same
 // documents and rules as Read.
 func TestTasksReadDir(t *testing.T) {
+	t.Parallel()
 	const wt = "/work/tree"
 	lsTasks := "git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/"
 	lsDir := "git ls-tree -z --name-only refs/remotes/origin/main -- docs/tasks/0001_test_task/"
@@ -680,6 +693,7 @@ func TestTasksReadDir(t *testing.T) {
 // unreadable ones, and checks StepsLeft, the step-reading error, and that PR
 // progress and completion do not depend on the steps.
 func TestParsePlanSteps(t *testing.T) {
+	t.Parallel()
 	// A plan has either steps (left says whether some is not done), no step
 	// (errNoSteps), or an unreadable step: its kind and its detail, the step
 	// ID or the number of the offending line of the sample.
@@ -801,6 +815,7 @@ const grammarSkeleton = "# Plan\n\n## Document Status\n\n| Item | Value |\n|---|
 // "{SP}" in a case stands for a space, which an editor hook would strip from
 // the end of a line.
 func TestStepGrammar(t *testing.T) {
+	t.Parallel()
 	kinds := map[string]stepErrorKind{
 		"no-checkbox": stepNoCheckbox, "near-miss": stepNearMiss,
 		"other-checkbox": stepOtherCheckbox, "duplicate": stepDuplicate,

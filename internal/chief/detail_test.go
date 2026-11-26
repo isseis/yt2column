@@ -121,6 +121,7 @@ func detailOf(t *testing.T, deps Deps, tree string) PRDetail {
 // TestDetailItems checks the items of a PR's detail: the PR, its size, its
 // reviews, its jobs, and /runpr with the routing table's agent and model.
 func TestDetailItems(t *testing.T) {
+	t.Parallel()
 	sw, tree := detailWorld(t)
 	sw.rec.replyIn(tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-852-reviews.json", nil))
 	d := detailOf(t, sw.finish(), tree)
@@ -147,6 +148,7 @@ func TestDetailItems(t *testing.T) {
 // exits 8 (pending) or 1 (failed) with its result on standard output; an
 // exit without a readable result is a failed read.
 func TestDetailKeepsCheckBuckets(t *testing.T) {
+	t.Parallel()
 	checks := readTestdata(t, "gh/pr-checks-200-fail.json")
 	cases := []struct {
 		name  string
@@ -192,6 +194,7 @@ func TestDetailKeepsCheckBuckets(t *testing.T) {
 // TestDetailOmitsReviewBody checks that no review body reaches the output,
 // while each review's author and state do.
 func TestDetailOmitsReviewBody(t *testing.T) {
+	t.Parallel()
 	sw, tree := detailWorld(t)
 	view := viewOf(t, "pr-view-852-reviews.json", func(v map[string]any) {
 		for _, r := range v["reviews"].([]any) {
@@ -222,6 +225,7 @@ func TestDetailOmitsReviewBody(t *testing.T) {
 // makes a pane a candidate, a screen is never read, and a pane whose
 // transcript cannot be read counts as one with no report.
 func TestDetailReportSource(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		// kinds are the panes of the workspace, nil for detailWorld's.
@@ -346,6 +350,7 @@ func reasonPanes(r *DescriptionReasonOutput) []DescriptionPaneOutput {
 // shown from its head, cut at the cap and marked so, still as the pane's
 // report.
 func TestDetailCapsALongReport(t *testing.T) {
+	t.Parallel()
 	sw, tree := detailWorld(t)
 	deps := sw.finish()
 	long := makerReport + "\n\n" + strings.Repeat("x", headMaxBytes)
@@ -361,6 +366,7 @@ func TestDetailCapsALongReport(t *testing.T) {
 // read, not as a later read of the pane gives it, so a later reset of the
 // pane stops as one that changed.
 func TestDetailKeepsTheListedState(t *testing.T) {
+	t.Parallel()
 	sw, tree := detailWorld(t)
 	deps := sw.finish()
 	p := sw.firstPane()
@@ -381,6 +387,7 @@ func TestDetailKeepsTheListedState(t *testing.T) {
 // TestDetailPartialFailure checks that an item that cannot be read is
 // marked so and the others are still given.
 func TestDetailPartialFailure(t *testing.T) {
+	t.Parallel()
 	t.Run("view", func(t *testing.T) {
 		sw, tree := detailWorld(t)
 		sw.rec.failIn(tree, "gh pr view 42 --json "+prViewFields, errNoReply)
@@ -416,6 +423,7 @@ func TestDetailPartialFailure(t *testing.T) {
 // TestReviewSkippable checks the rule of "review skippable": every changed
 // file is the task's plan or implementation handoff, and the list is whole.
 func TestReviewSkippable(t *testing.T) {
+	t.Parallel()
 	dir := "docs/tasks/" + taskDir
 	plan, handoff := dir+"/"+planFile, dir+"/"+implementationHandoffFile
 	cases := []struct {
@@ -444,6 +452,7 @@ func TestReviewSkippable(t *testing.T) {
 // by a later detail for the same head after the pane was emptied, with its
 // source still the pane's report.
 func TestDetailAfterReset(t *testing.T) {
+	t.Parallel()
 	sw, tree := detailWorld(t)
 	deps := sw.finish()
 	p := sw.firstPane()
@@ -467,6 +476,7 @@ func TestDetailAfterReset(t *testing.T) {
 // detail never replaces; a reading that finds no single report keeps none;
 // and the detail gathered just before /runpr never keeps one.
 func TestDetailReportRecord(t *testing.T) {
+	t.Parallel()
 	setup := func(t *testing.T) (*sendWorld, string, Deps, WorkspaceRecords) {
 		t.Helper()
 		sw, tree := detailWorld(t)
@@ -545,6 +555,7 @@ func TestDetailReportRecord(t *testing.T) {
 // is at the read cap and made of characters JSON escapes is kept and read
 // back, so a later detail and the reset still find it.
 func TestDetailKeepsALargeDescription(t *testing.T) {
+	t.Parallel()
 	sw, tree := detailWorld(t)
 	big := strings.Repeat("<", headMaxBytes+10)
 	sw.rec.replyIn(tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", func(v map[string]any) { v["body"] = big }))
@@ -561,6 +572,7 @@ func TestDetailKeepsALargeDescription(t *testing.T) {
 // of commits is shown as having that many or more, with where the total is,
 // and one below the cap is not.
 func TestDetailMarksCappedCommits(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		commits int
 		capped  bool
@@ -590,6 +602,7 @@ func TestDetailMarksCappedCommits(t *testing.T) {
 // judged it so: not before a detail is gathered, not from a detail that
 // judged it not skippable, and not after HEAD moves on.
 func TestReviewItemShowsKeptSkippable(t *testing.T) {
+	t.Parallel()
 	plan := "docs/tasks/" + taskDir + "/" + planFile
 	file := func(path string) any {
 		return map[string]any{"path": path, "additions": 1, "deletions": 0, "changeType": "MODIFIED"}
@@ -648,6 +661,7 @@ func TestReviewItemShowsKeptSkippable(t *testing.T) {
 // existing pane report untouched, and adds report- alongside a kept
 // description detail.
 func TestKeepPaneReport(t *testing.T) {
+	t.Parallel()
 	head, err := ParseCommitID(prHead)
 	if err != nil {
 		t.Fatal(err)

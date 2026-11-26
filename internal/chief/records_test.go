@@ -45,6 +45,7 @@ func newStore(t *testing.T) Store {
 }
 
 func TestStateBase(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		env     Env
 		want    string
@@ -64,6 +65,7 @@ func TestStateBase(t *testing.T) {
 }
 
 func TestOpenStoreRefusesMissingBase(t *testing.T) {
+	t.Parallel()
 	_, err := OpenStore(filepath.Join(t.TempDir(), "absent"))
 	if !errors.Is(err, ErrNoStateBase) {
 		t.Fatalf("OpenStore = %v, want ErrNoStateBase", err)
@@ -71,6 +73,7 @@ func TestOpenStoreRefusesMissingBase(t *testing.T) {
 }
 
 func TestStartTakesAndRefusesTheLock(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	t.Run("a free lock is taken and then the owner may start again", func(t *testing.T) {
@@ -149,6 +152,7 @@ func TestStartTakesAndRefusesTheLock(t *testing.T) {
 // TestRequireBeforeStart checks that no subcommand but start works without
 // the lock.
 func TestRequireBeforeStart(t *testing.T) {
+	t.Parallel()
 	if err := newStore(t).Require(ownerA()); !errors.Is(err, ErrNotStarted) {
 		t.Fatalf("Require = %v, want ErrNotStarted", err)
 	}
@@ -160,6 +164,7 @@ func TestRequireBeforeStart(t *testing.T) {
 // exclusion is held by the test meanwhile, so the takeover cannot proceed
 // until the lock was replaced.
 func TestTakeoverRechecksUnderTheExclusion(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	store := newStore(t)
@@ -197,6 +202,7 @@ func TestTakeoverRechecksUnderTheExclusion(t *testing.T) {
 // round, and observation records of other sessions and keeps the current
 // session's, the automatic-send records, and every file of no record form.
 func TestStartCleansFinishedSessionNotices(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	store := newStore(t)
@@ -249,6 +255,7 @@ func TestStartCleansFinishedSessionNotices(t *testing.T) {
 // before that one, and refuses a previous round it cannot read and a clock
 // that did not move on.
 func TestBeginRound(t *testing.T) {
+	t.Parallel()
 	store := newStore(t)
 	t0 := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	session := ownerA().Session
@@ -294,6 +301,7 @@ func TestBeginRound(t *testing.T) {
 // cannot be read, or whose content names another PR than its file name, is
 // reported and never returned.
 func TestObservationsSkipUnreadable(t *testing.T) {
+	t.Parallel()
 	store := newStore(t)
 	good := Observation{Session: "s", Round: "00000000000000000001-0000000000000000", PR: 42, Worktree: "/w", Task: "0001", Branch: taskBranch}
 	if err := store.RecordObservation(good); err != nil {
@@ -317,6 +325,7 @@ func TestObservationsSkipUnreadable(t *testing.T) {
 // a written record is sent and cannot be written again, and a record that
 // cannot be read counts as sent with its error.
 func TestAutoSentRecord(t *testing.T) {
+	t.Parallel()
 	store := newStore(t)
 	if sent, err := store.AutoSent(42); sent || err != nil {
 		t.Fatalf("AutoSent before the record = %v, %v", sent, err)
@@ -342,6 +351,7 @@ func TestAutoSentRecord(t *testing.T) {
 // TestObserve checks that a record is created once and its time is kept, and
 // that a record that cannot be created gives the time of the observation.
 func TestObserve(t *testing.T) {
+	t.Parallel()
 	store := newStore(t)
 	t1 := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	t2 := t1.Add(time.Hour)
@@ -369,6 +379,7 @@ func TestObserve(t *testing.T) {
 // when first seen and keeps it, that a number is not given again after its
 // item stopped being seen, and that each session counts from 1.
 func TestNoticeNumbers(t *testing.T) {
+	t.Parallel()
 	store := newStore(t)
 	now := time.Date(2026, 11, 15, 9, 0, 0, 0, time.UTC)
 	number := func(session string, item ItemID) int {
@@ -404,6 +415,7 @@ func TestNoticeNumbers(t *testing.T) {
 // TestCanonicalWorktreeResolvesLinks checks that the same worktree reached
 // through a symbolic link has one records directory.
 func TestCanonicalWorktreeResolvesLinks(t *testing.T) {
+	t.Parallel()
 	target, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -433,6 +445,7 @@ func TestCanonicalWorktreeResolvesLinks(t *testing.T) {
 // whole takeover while the lock is stale: the takeover must refuse and leave
 // the lock as it was.
 func TestTakeoverNeedsTheExclusion(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	store := newStore(t)
@@ -455,6 +468,7 @@ func TestTakeoverNeedsTheExclusion(t *testing.T) {
 // TestObserveUnreadableRecord checks that a notice record that exists but
 // cannot be read is not announced again on every snapshot.
 func TestObserveUnreadableRecord(t *testing.T) {
+	t.Parallel()
 	store := newStore(t)
 	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	if _, err := privatefile.Create(filepath.Join(store.Dir(), noticeName("s", "item")), []byte("not json")); err != nil {
@@ -470,6 +484,7 @@ func TestObserveUnreadableRecord(t *testing.T) {
 // unreadable) is still recorded as new, unnumbered, and the failure is
 // returned so the round reports it.
 func TestObserveReportsANumberThatCannotBeGiven(t *testing.T) {
+	t.Parallel()
 	store := newStore(t)
 	now := time.Date(2026, 11, 16, 9, 0, 0, 0, time.UTC)
 	if _, err := privatefile.Create(filepath.Join(store.Dir(), noticeName("s", "broken")), []byte("not json")); err != nil {
@@ -503,6 +518,7 @@ func heldRecords(t *testing.T, store Store, path string) *HeldWorkspace {
 // next holder's settle and start both turn it into a stop, and the start
 // record is kept.
 func TestUnfinishedSendBecomesStop(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	write := func(t *testing.T, store Store) {
 		t.Helper()
@@ -548,6 +564,7 @@ func TestUnfinishedSendBecomesStop(t *testing.T) {
 // TestStopSurvivesRestart checks that a stop is read again by a store opened
 // anew on the same directory.
 func TestStopSurvivesRestart(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	store, err := OpenStore(dir)
 	if err != nil {
@@ -578,6 +595,7 @@ func TestStopSurvivesRestart(t *testing.T) {
 // every unfinished send an end, so the same start does not stop the
 // workspace again.
 func TestReleaseClearsStop(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	store := newStore(t)
 	held := heldRecords(t, store, "/work/a")
@@ -610,6 +628,7 @@ func TestReleaseClearsStop(t *testing.T) {
 // read nothing of the workspace's row first: the row is read only under the
 // exclusion, so no send acts on a row read before another sent.
 func TestWorkspaceBusy(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
 	deps := sw.finish()
@@ -640,6 +659,7 @@ func TestWorkspaceBusy(t *testing.T) {
 // automatic send still reads), an unfinished send's start, a recent detail,
 // and a stop stay.
 func TestStartCleansSendsAndDetails(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	store := newStore(t)
 	held := heldRecords(t, store, "/work/a")
@@ -710,6 +730,7 @@ func TestStartCleansSendsAndDetails(t *testing.T) {
 // directory below the worktree is accepted; a pane whose worktree cannot be
 // read is a failure, not a mismatch.
 func TestResolveOwnerChecksTheWorktree(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "other", Branch: taskBranch})
 	deps := w.finish()
@@ -751,6 +772,7 @@ func TestResolveOwnerChecksTheWorktree(t *testing.T) {
 // and a report record naming another PR or head, or not from a pane, being a
 // record error rather than read past.
 func TestKeptPaneReport(t *testing.T) {
+	t.Parallel()
 	head := strings.Repeat("b", 40)
 	other := strings.Repeat("c", 40)
 	saved := time.Date(2026, 11, 17, 9, 0, 0, 0, time.UTC)
@@ -800,6 +822,7 @@ func TestKeptPaneReport(t *testing.T) {
 // chief wrote, before the command's kind and argument were declared, is
 // still read, with both empty.
 func TestSendRecordWithoutCommandFields(t *testing.T) {
+	t.Parallel()
 	store := newStore(t)
 	held := heldRecords(t, store, "/work/a")
 	const id = "01794646800000000000-0123456789abcdef"
@@ -817,6 +840,7 @@ func TestSendRecordWithoutCommandFields(t *testing.T) {
 // end is read with its outcome, and an ID not of the send form or an end
 // that names another send is an error, never read as no end.
 func TestSendEnded(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	store := newStore(t)
 	held := heldRecords(t, store, "/work/a")
@@ -866,6 +890,7 @@ func createdSpace(t *testing.T, store Store, home string) (TaskSpace, *HeldWorks
 }
 
 func TestCreatedRecordRoundTrip(t *testing.T) {
+	t.Parallel()
 	store, home := newStore(t), spaceHome(t)
 	space, held := createdSpace(t, store, home)
 	if rec, err := held.Created(home); rec != nil || err != nil {
@@ -893,6 +918,7 @@ func TestCreatedRecordRoundTrip(t *testing.T) {
 }
 
 func TestKeepCreatedWritesOnlyIntoItsOwnWorktreeDirectory(t *testing.T) {
+	t.Parallel()
 	store, home := newStore(t), spaceHome(t)
 	_, held := createdSpace(t, store, home)
 	other, err := NewTaskSpace(home, issueNumber(t, "43"))
@@ -910,6 +936,7 @@ func TestKeepCreatedWritesOnlyIntoItsOwnWorktreeDirectory(t *testing.T) {
 // TestCreatedRecordUnreadableForms keeps a valid record, then breaks it in
 // one way at a time: each must read as an error, never as a record.
 func TestCreatedRecordUnreadableForms(t *testing.T) {
+	t.Parallel()
 	home := spaceHome(t)
 	valid := func(tree Worktree) createdJSON {
 		return createdJSON{Worktree: tree.String(), Issue: "42", Created: time.Date(2026, 11, 17, 9, 0, 0, 0, time.UTC)}
@@ -988,6 +1015,7 @@ func TestCreatedRecordUnreadableForms(t *testing.T) {
 }
 
 func TestClearRecordsKeepsOnlyTheExclusion(t *testing.T) {
+	t.Parallel()
 	store, home := newStore(t), spaceHome(t)
 	space, held := createdSpace(t, store, home)
 	now := time.Now()
@@ -1037,6 +1065,7 @@ func TestClearRecordsKeepsOnlyTheExclusion(t *testing.T) {
 // over the lock of another session, never by a start that creates the lock,
 // holds it already, or takes over the same session's lock from another pane.
 func TestStartRemovesOtherSessionTraces(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	now := time.Date(2026, 11, 19, 9, 0, 0, 0, time.UTC)
 	sameSessionElsewhere := Owner{Pane: "we:p3", Session: ownerA().Session}
@@ -1094,6 +1123,7 @@ func TestStartRemovesOtherSessionTraces(t *testing.T) {
 // order: a clear that stops on a record it cannot remove still names the
 // worktree by its created record.
 func TestClearRecordsKeepsTheCreatedRecordWhenAnotherRemovalFails(t *testing.T) {
+	fixUmask(t)
 	store, home := newStore(t), spaceHome(t)
 	space, held := createdSpace(t, store, home)
 	if err := held.KeepCreated(space, time.Now()); err != nil {
@@ -1122,6 +1152,7 @@ func TestClearRecordsKeepsTheCreatedRecordWhenAnotherRemovalFails(t *testing.T) 
 // created record and the clear are methods of the held workspace only: the
 // records a send path reads without the exclusion cannot make or remove them.
 func TestRecordsAreClearedOnlyUnderTheExclusion(t *testing.T) {
+	t.Parallel()
 	plain := reflect.TypeFor[WorkspaceRecords]()
 	held := reflect.TypeFor[*HeldWorkspace]()
 	for _, name := range []string{"KeepCreated", "ClearRecords"} {
@@ -1141,6 +1172,7 @@ func TestRecordsAreClearedOnlyUnderTheExclusion(t *testing.T) {
 // SendRecord JSON encoding, and the distinction between EndSend(...,
 // StepUnknown, ...) and Release's omitted step member.
 func TestMergemainRecordsPersistAcrossCleanupAndClear(t *testing.T) {
+	t.Parallel()
 	head, err := ParseCommitID(strings.Repeat("a", 40))
 	if err != nil {
 		t.Fatal(err)
