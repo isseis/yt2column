@@ -23,6 +23,10 @@ import (
 type gitFixture struct {
 	t               *testing.T
 	repo, home, tmp string
+	// noScripts is set on a fixture that builds a state shared between
+	// bashes: a script run there would run in whichever bash happened to
+	// build it, so runScript fails the test instead.
+	noScripts bool
 }
 
 // snapshotStore holds the fixture states that tests build once per test
@@ -158,6 +162,9 @@ func (r scriptRun) String() string {
 // TMPDIR empty.
 func (f *gitFixture) runScript(bash scriptBash, script string, args []string, opts scriptRunOptions) scriptRun {
 	f.t.Helper()
+	if f.noScripts {
+		f.t.Fatalf("a script was run while building a state shared between bashes, so the state would depend on which bash built it")
+	}
 	abs, err := filepath.Abs(script)
 	if err != nil {
 		f.t.Fatalf("resolve the script path: %v", err)

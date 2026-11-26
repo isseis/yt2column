@@ -138,6 +138,27 @@ func TestFixtureSnapshotsMatchRebuilt(t *testing.T) {
 			},
 		},
 		{
+			name: "rr_shared_case",
+			copied: func(t *testing.T) (*gitFixture, string) {
+				form := seenRangeForm(t)
+				sn := loadRRCase(t, []string{"TestFixtureSnapshotsMatchRebuilt", "coverage", representativeCase(t).name, realContext}, representativeCase(t), form, crossCheckForms{}, realContext)
+				f := rrFixtureOverGroup(t, sn, form, crossCheckForms{}, realContext)
+				requireRRCommits(t, f)
+				return f.gitFixture, f.mb
+			},
+			rebuilt: func(t *testing.T) *gitFixture {
+				form := seenRangeForm(t)
+				return rebuiltFixture(t, func(bt *testing.T, dir string) {
+					b := buildRRBase(bt, dir, realContext)
+					f := &rrFixture{
+						gitFixture: &gitFixture{t: bt, home: filepath.Join(dir, "home"), tmp: filepath.Join(dir, "tmp"), repo: filepath.Join(dir, "repo")},
+						form:       form, contextDoc: realContext, m0: b.m0, mb: b.mb,
+					}
+					representativeCase(bt).setup(f)
+				})
+			},
+		},
+		{
 			name: "hrd_fixture",
 			copied: func(t *testing.T) (*gitFixture, string) {
 				f := newHRDFixture(t, scriptBash{}, realContext, markers, single)
@@ -170,4 +191,18 @@ func requireRRCommits(t *testing.T, f *rrFixture) {
 	if got := f.rev("refs/remotes/origin/main~1"); got != f.m0 {
 		t.Errorf("the fixture's m0 %s is not the parent of origin/main (%s)", f.m0, got)
 	}
+}
+
+// representativeCase is a coverage case whose setup merges origin/main into
+// the branch, so its copy holds a merge commit and a moved origin/main.
+func representativeCase(t *testing.T) rrCase {
+	t.Helper()
+	const name = "merge commit inside a seen range"
+	for _, c := range coverageCases() {
+		if c.name == name {
+			return c
+		}
+	}
+	t.Fatalf("no coverage case is named %q", name)
+	return rrCase{}
 }
