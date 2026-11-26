@@ -114,10 +114,11 @@
 | 信頼する著者 | trusted author | リポジトリへの書き込み権限（write・maintain・admin）を持つ、Bot でないアカウントと、自動レビュアーの一覧のどれかの名前の Bot のアカウント |
 | 自動レビュアー | automated reviewer | PR にレビューのスレッドを投稿する Bot |
 | 自動レビュアーの一覧 | automated reviewer list | `.claude/commands/_context.md` の「Automated reviewer list」に定める、スレッドを信頼する自動レビュアーの名前（GraphQL の `author.login` の形）の一覧。`fixprguard` には `--reviewer` で 1 つずつ渡す |
-| 完了を待つ PR レビュアー | awaited PR reviewer | `/runpr` がレビュー済みの判定に使う Bot。承認を待つのではなく、レビューがそのコミットまで完了したことを待つ。`.claude/commands/_context.md` の「Awaited PR reviewer」に、自動レビュアーの一覧とは別に定める |
+| 完了を待つ PR レビュアー | awaited PR reviewer | `/runpr` がレビュー済みの判定に使う、手動の PR レビューの依頼先。承認を待つのではなく、レビューがそのコミットまで完了したことを待つ。`.claude/commands/_context.md` の「PR reviewers」表の各行がこれにあたる |
 | 割り当て | quota | 自動レビュアーが一定時間に受け付けるレビューの回数の上限 |
-| 手動の PR レビュー | manual PR review | 依頼のコメントで始まる CodeRabbit の PR レビュー。依頼のコメントは、利用者のアカウントが書いた、前後の空白を除く本文が `_context.md` の「PR review request」の値と等しいコメント（0118 要件定義書 3.1） |
-| 完了の印 | completion marker | 手動の PR レビューが、あるコミットまでのレビューを終えたことを示す、CodeRabbit の CheckRun の値。`fixprguard review-state` が読む（0118 設計書 3.3） |
+| 手動の PR レビュー | manual PR review | 依頼のコメントで始まる CodeRabbit または Sourcery AI の PR レビュー。依頼のコメントは、利用者のアカウントが書いた、前後の空白を除く本文が `_context.md` の「PR reviewers」表の `Accepted requests` の値のどれかと等しいコメント。Sourcery AI は push でも自動でレビューするが、それは自動の PR レビューであり、これとは区別する（0118 要件定義書 3.1、0122 要件定義書 F-004） |
+| 完了の印 | completion marker | 手動の PR レビューが、あるコミットまでのレビューを終えたことを示す、CodeRabbit または Sourcery AI の CheckRun の値。`fixprguard review-state` が読む。自動の PR レビューの完了は含めない（0118 設計書 3.3、0122 設計書 1.4） |
+| 自動の PR レビュー | automatic PR review | Sourcery AI が push を契機に、依頼のコメントなしで行う PR レビュー。`/runpr` は `head` 上で進行中なら完了または待機上限まで待ち、開かれたスレッドを処理するが、完了は完了の印に数えない（0122 要件定義書「issue #1140 で決めたこと（2026-11-25）」） |
 | 試行 | attempt | ローカルの CLI レビューを 1 回試みること。CodeRabbit CLI の実行 1 回から成る。範囲ごとに最大 2 回（タスク 0049） |
 | 指摘 | finding | レビューが挙げる個々の問題。スレッドとして投稿されるものと、レビューの本文にだけ書かれるものがある |
 | （行為の動詞で書く） | cover | レビュー・テスト・検査が、コミットやコードに及ぶこと。「覆う」とは訳さず、その行為の動詞で書く（例: the CLI did not review the commit →「CLI がレビューしなかったコミット」、a test covers the branch →「テストがその分岐を確かめる」）。名詞の coverage は「カバレッジ」 |
