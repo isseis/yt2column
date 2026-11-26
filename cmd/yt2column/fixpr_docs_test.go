@@ -6,15 +6,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os/exec"
 	"regexp"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
-	cmdrunnertestutil "github.com/isseis/yt2column/internal/cmdrunner/testutil"
 	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/fixprguard"
 )
@@ -154,9 +151,8 @@ func TestFixprDocContract(t *testing.T) {
 
 // TestRunprDocContract checks what runpr.md must hold for its trust boundary:
 // step 1 runs fixprguard head, then fixprguard interaction-limits, before gh
-// pr checkout, the document never
-// queries review threads itself, step 3 names the stops fixpr reports, and
-// step 3's listings print no comment body (see checkListings).
+// pr checkout, the document never queries review threads itself, step 3 names
+// the stops fixpr reports, and step 3 runs no unchecked gh api call.
 func TestRunprDocContract(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, runprPath)
 	step3 := requireSection(t, "runpr.md", doc, runprStep3)
@@ -187,418 +183,26 @@ func TestRunprDocContract(t *testing.T) {
 		}
 	})
 
-	t.Run("listings_print_no_body", func(t *testing.T) {
-		checkListings(t, "runpr.md step 3", step3, runprListingFixtures(), step3ReadCalls, true)
-	})
-
-	t.Run("request_comment_agrees_with_review_state", func(t *testing.T) {
-		checkRequestAgreementWithReviewState(t, step3)
+	t.Run("no_unchecked_gh_api", func(t *testing.T) {
+		checkGhAPICalls(t, "runpr.md step 3", step3, step3ReadCalls)
+		if strings.Contains(step3, "gh pr checks") {
+			t.Error("runpr.md step 3 still calls gh pr checks")
+		}
 	})
 }
-
-// The values the listing filters' placeholders are replaced with before the
-// filters run. They hold no character a jq string literal would need to
-// escape.
-const (
-	fakeAwaited = "coderabbit-bot"
-	fakeUser    = "octo-user"
-	fakeRequest = "@coderabbitai review"
-)
-
-// Observed first lines of CodeRabbit's status comments that runpr.md step 3's
-// mention listings exclude as non-mentions.
-const (
-	crObservedHeader1 = "<!-- coderabbit-ai-generated:v1 -->"
-	crObservedHeader2 = "<!-- This is an auto-generated comment: coding agent status by CodeRabbit -->"
-)
 
 // bodyMarker is put wherever a fake body can hold it. A filter that prints a
 // body, or a part of one, prints it; the filters print no other text that
 // could hold it.
 const bodyMarker = "zq7mark"
 
-var (
-	// paginatedListing is a gh api --paginate listing: the endpoint under
-	// repos/<owner>/<repo>/, the --jq filter, which holds no single quote,
-	// and the rest of the line the filter ends on.
-	paginatedListing = regexp.MustCompile(`gh api --paginate repos/<owner>/<repo>/(\S+) --jq '([^']*)'(.*)`)
-	// stderrToFile is the rest of a listing's line when it writes its
-	// standard error to a file in the directory the run made for it, and
-	// nothing else, so an error message quoting a body never reaches the
-	// session. The file's name is the submatch.
-	stderrToFile = regexp.MustCompile(`^ 2>"<stderr-dir>/([a-z-]+)"$`)
-	// leftPlaceholder is a placeholder the replacement did not cover.
-	leftPlaceholder = regexp.MustCompile(`<[a-z][a-z-]*>`)
-)
+// leftPlaceholder matches angle-bracket placeholders like <number>.
+var leftPlaceholder = regexp.MustCompile(`<[a-z][a-z-]*>`)
 
-// runprListingKeys are the keys each kind of object runpr.md step 3's
-// listings print may hold. None of them carries a body: by_user and by_bot
-// are computed from the author.
-var runprListingKeys = map[string][]string{
-	"request": {"kind", "url", "created_at"},
-	"mention": {"kind", "url", "created_at", "updated_at", "by_user", "by_bot"},
-}
-
-// mentionAuthorKeys are the keys a mention must hold: runpr.md decides
-// whether to stop by them, so a filter that leaves one out fails.
-var mentionAuthorKeys = []string{"by_user", "by_bot"}
-
-// runprRequiredKeys are the keys each kind of object runpr.md step 3's
-// listings must hold.
-var runprRequiredKeys = map[string][]string{
-	"mention": mentionAuthorKeys,
-}
-
-// mentionWriter is who wrote a mention, which by_user and by_bot must report:
-// notMention for an item that is no mention.
-type mentionWriter int
-
-const (
-	notMention mentionWriter = iota
-	byTheUser                // a User named <user-login>: by_user true
-	byABot                   // any Bot: by_bot true
-	byAPerson                // any other User: both false
-)
-
-// listingItem is one item of a fake GitHub response and what the filter must
-// print for it: kind is "" when it must print nothing, and wrote is a
-// mention's expected author.
-type listingItem struct {
-	userType, login string
-	body            any
-	kind            string
-	wrote           mentionWriter
-}
-
-// listingFixture is the fake response for one listing: its items, the field
-// of an item each output key other than kind must equal, and the keys each
-// kind of output object may hold. required lists the keys each kind of object
-// must hold, when a command decides by them.
-type listingFixture struct {
-	items    []listingItem
-	source   map[string]string
-	keys     map[string][]string
-	required map[string][]string
-}
-
-// marked wraps line in bodyMarker at its start and end.
-func marked(line string) string { return bodyMarker + " " + line + " " + bodyMarker }
-
-// runprListingFixtures are the fake responses, by endpoint. The items cover
-// both rejected mentions (in mixed case), CodeRabbit's two observed status
-// headers (with and without trailing CR), unobserved CodeRabbit posts, other
-// Bots (including Codex), a request and the near-requests that are mentions,
-// the author checks, and bodies with and without a mention, null included.
-func runprListingFixtures() map[string]listingFixture {
-	mentions := fixprguard.RejectedMentions()
-	m0, m1 := mentions[0], mentions[len(mentions)-1]
-	bot, user := "Bot", "User"
-	awaited := fakeAwaited + "[bot]"
-	comments := map[string]string{"url": "html_url", "created_at": "created_at", "updated_at": "updated_at"}
-	return map[string]listingFixture{
-		"issues/<number>/comments": {source: comments, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
-			// CodeRabbit's two observed headers (LF and CRLF) are excluded even
-			// when their bodies carry a rejected mention.
-			{bot, awaited, crObservedHeader1 + "\n" + marked(m1+" summary"), "", notMention},
-			{bot, awaited, crObservedHeader1 + "\r\n" + marked(m0+" summary"), "", notMention},
-			{bot, awaited, crObservedHeader2 + "\n" + marked(m1+" status"), "", notMention},
-			{bot, awaited, crObservedHeader2 + "\r\n" + marked(m0+" status"), "", notMention},
-			// Any other CodeRabbit comment with a rejected mention counts as by_bot;
-			// empty and null bodies print nothing and must not crash gojq's rtrimstr.
-			{bot, awaited, marked("Unobserved header.") + "\n" + marked(m1+" note"), "mention", byABot},
-			{bot, awaited, "", "", notMention},
-			{bot, awaited, nil, "", notMention},
-			// A User with the awaited login and an observed header is still a person.
-			{user, awaited, crObservedHeader1 + "\n" + marked(m1+" spoof"), "mention", byAPerson},
-			// The user's exact request comment, and the near-requests that are mentions.
-			{user, fakeUser, "  " + fakeRequest + "\n", "request", notMention},
-			{user, fakeUser, "\t" + fakeRequest + "\r\n", "request", notMention},
-			{user, fakeUser, marked(fakeRequest), "mention", byTheUser},
-			{user, "other-user", fakeRequest, "mention", byAPerson},
-			{bot, fakeUser, fakeRequest, "mention", byABot},
-			// Both rejected mentions across author kinds and cases.
-			{user, "other-user", marked(strings.ToUpper(m0)+" please look") + "\n" + marked("Thanks."), "mention", byAPerson},
-			{user, "other-user", marked(strings.ToUpper(m1) + " please look"), "mention", byAPerson},
-			{user, "other-user", marked("No mention here."), "", notMention},
-			{bot, "chatgpt-codex-connector[bot]", marked(m0 + " summary from Codex"), "mention", byABot},
-			{bot, "other-bot[bot]", marked(m1 + " from another Bot"), "mention", byABot},
-			{user, "other-user", nil, "", notMention},
-		}},
-		"pulls/<number>/comments": {source: comments, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
-			{user, fakeUser, marked(m0 + " from the user"), "mention", byTheUser},
-			{user, fakeUser, marked(m1 + " from the user"), "mention", byTheUser},
-			{bot, fakeUser, marked(m1 + " from a Bot named like the user"), "mention", byABot},
-			{bot, awaited, crObservedHeader1 + "\r\n" + marked(m1+" observed"), "", notMention},
-			{bot, awaited, crObservedHeader2 + "\n" + marked(m0+" observed"), "", notMention},
-			{bot, awaited, marked(m1 + " from unobserved CodeRabbit"), "mention", byABot},
-			{bot, awaited, "", "", notMention},
-			{bot, awaited, nil, "", notMention},
-			{user, "other-user", marked("No mention here."), "", notMention},
-			{user, "other-user", marked("Ask "+strings.ToUpper(m0)) + "\n" + marked("again"), "mention", byAPerson},
-			{user, awaited, crObservedHeader1 + "\n" + marked(m1+" from a User"), "mention", byAPerson},
-			{bot, "other-bot[bot]", marked(m0 + " from another Bot"), "mention", byABot},
-			{user, "other-user", nil, "", notMention},
-		}},
-		"pulls/<number>/reviews": {source: map[string]string{"url": "html_url", "created_at": "submitted_at"}, keys: runprListingKeys, required: runprRequiredKeys, items: []listingItem{
-			{user, fakeUser, marked(m0 + " from the user"), "mention", byTheUser},
-			{user, fakeUser, marked(m1 + " from the user"), "mention", byTheUser},
-			{bot, fakeUser, marked(m0 + " from a Bot named like the user"), "mention", byABot},
-			{user, awaited, crObservedHeader2 + "\n" + marked(m1+" from a User"), "mention", byAPerson},
-			{bot, awaited, crObservedHeader1 + "\n" + marked(m1+" observed"), "", notMention},
-			{bot, awaited, crObservedHeader2 + "\r\n" + marked(m0+" observed"), "", notMention},
-			{bot, awaited, marked(m1 + " from unobserved CodeRabbit"), "mention", byABot},
-			{bot, awaited, "", "", notMention},
-			{bot, awaited, nil, "", notMention},
-			{user, "other-user", "", "", notMention},
-			{user, "other-user", marked("Ask "+strings.ToUpper(m1)) + "\n" + marked("again"), "mention", byAPerson},
-			{bot, "other-bot[bot]", marked(m0 + " from another Bot"), "mention", byABot},
-			{user, "other-user", nil, "", notMention},
-		}},
-	}
-}
-
-// timeFieldSeconds gives each time field its own second, so a value copied
-// from the wrong field differs from the right one.
-var timeFieldSeconds = map[string]int{"created_at": 10, "updated_at": 20, "submitted_at": 30}
-
-// fakeTimeBase is the time the fake items' times count from, a minute apart.
-var fakeTimeBase = time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
-
-// fakeIDBase is the id of the first fake item. The ids count up from it, so
-// no id equals an item's index.
-const fakeIDBase = 7000
-
-// response is the fake GitHub response for fixture, one object per item, with
-// a distinct id, URL, and times for each. The id is a float64, the type JSON
-// numbers decode to, so it compares equal with the id a filter prints.
-func (f listingFixture) response() []map[string]any {
-	var out []map[string]any
-	for i, it := range f.items {
-		obj := map[string]any{
-			"user":     map[string]any{"type": it.userType, "login": it.login},
-			"body":     it.body,
-			"id":       float64(fakeIDBase + i),
-			"html_url": fmt.Sprintf("https://github.test/item/%d", i),
-		}
-		for _, field := range f.source {
-			if second, ok := timeFieldSeconds[field]; ok {
-				at := fakeTimeBase.Add(time.Duration(i)*time.Minute + time.Duration(second)*time.Second)
-				obj[field] = at.Format(time.RFC3339)
-			}
-		}
-		out = append(out, obj)
-	}
-	return out
-}
-
-// listingReplacer returns the placeholder replacer for runpr.md step 3's
-// listing filters. extra holds further placeholder and value pairs beyond the
-// four standard ones.
-func listingReplacer(t *testing.T, extra ...string) *strings.Replacer {
-	t.Helper()
-	rejectedJSON, err := json.Marshal(fixprguard.RejectedMentions())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return strings.NewReplacer(append([]string{
-		"<awaited-reviewer>", fakeAwaited,
-		"<user-login>", fakeUser,
-		"<review-request>", fakeRequest,
-		"<rejected-mentions>", string(rejectedJSON),
-	}, extra...)...)
-}
-
-// checkListings runs each gh api --paginate listing of section, which where
-// names, with jq on its fake response from fixtures, and checks that it prints
-// no body: every object the filter builds holds only its kind's keys, no
-// output holds bodyMarker, and every printed value is the item's own non-body
-// field (or by_user / by_bot computed from the author). Every other gh api
-// call of section must be one of readCalls. When stderrFile is set, each
-// listing must write its standard error to a file of its own (stderrToFile),
-// so one listing's error is never overwritten by another's before its size is
-// read. extra holds further placeholder and value pairs for the filters,
-// beyond the four every listing may use. jq must be installed: a missing jq
-// fails the test instead of skipping it, so the check never passes unrun.
-func checkListings(t *testing.T, where, section string, fixtures map[string]listingFixture, readCalls []string, stderrFile bool, extra ...string) {
-	t.Helper()
-	jq, err := exec.LookPath("jq")
-	if err != nil {
-		t.Fatal("unsupported test environment: jq is not installed")
-	}
-	checkGhAPICalls(t, where, section, readCalls)
-	matches := paginatedListing.FindAllStringSubmatch(section, -1)
-	if n := strings.Count(section, "gh api --paginate"); n != len(matches) || n != len(fixtures) {
-		t.Fatalf("%s has %d gh api --paginate listings, %d of them in the expected form; want %d",
-			where, n, len(matches), len(fixtures))
-	}
-	replacer := listingReplacer(t, extra...)
-	seen := map[string]struct{}{}
-	stderrFiles := map[string]string{}
-	for _, m := range matches {
-		endpoint, filter := m[1], replacer.Replace(m[2])
-		if stderrFile {
-			if file := stderrToFile.FindStringSubmatch(m[3]); file == nil {
-				t.Errorf("%s lists %s without writing its standard error to a file alone: the line ends %q", where, endpoint, m[3])
-			} else if other, dup := stderrFiles[file[1]]; dup {
-				t.Errorf("%s lists %s and %s with the same standard error file %q", where, other, endpoint, file[1])
-			} else {
-				stderrFiles[file[1]] = endpoint
-			}
-		}
-		fixture, ok := fixtures[endpoint]
-		if !ok {
-			t.Errorf("%s lists %s, which has no fake response", where, endpoint)
-			continue
-		}
-		if _, dup := seen[endpoint]; dup {
-			t.Errorf("%s lists %s twice", where, endpoint)
-		}
-		seen[endpoint] = struct{}{}
-		if left := leftPlaceholder.FindString(filter); left != "" {
-			t.Errorf("the %s filter holds the placeholder %s, which the test does not replace", endpoint, left)
-			continue
-		}
-		t.Run(endpoint, func(t *testing.T) {
-			checkListingConstructors(t, filter, fixture)
-			response := fixture.response()
-			checkListingOutput(t, fixture, response, runJQ(t, jq, filter, response))
-		})
-	}
-}
-
-// step3ReadCalls are the gh api calls of runpr.md step 3: the three mention
-// listings and reading the user's login.
-var step3ReadCalls = []string{
-	"gh api --paginate ",
-	"gh api user --jq .login",
-}
-
-// checkRequestAgreementWithReviewState checks that runpr.md step 3's
-// conversation-comment jq filter and fixprguard.PRReviewState classify the
-// exact same comments as request comments, so a comment the jq filter skips
-// as a request is also a request to review-state and vice versa.
-func checkRequestAgreementWithReviewState(t *testing.T, step3 string) {
-	t.Helper()
-	jq, err := exec.LookPath("jq")
-	if err != nil {
-		t.Fatal("unsupported test environment: jq is not installed")
-	}
-	var rawFilter string
-	for _, m := range paginatedListing.FindAllStringSubmatch(step3, -1) {
-		if m[1] == "issues/<number>/comments" {
-			rawFilter = m[2]
-			break
-		}
-	}
-	if rawFilter == "" {
-		t.Fatal("runpr.md step 3 has no issues/<number>/comments listing")
-	}
-	filter := listingReplacer(t).Replace(rawFilter)
-
-	pr, err := fixprguard.ParsePRNumber("42")
-	if err != nil {
-		t.Fatal(err)
-	}
-	reviewer, err := fixprguard.ParseLogin(fakeAwaited)
-	if err != nil {
-		t.Fatal(err)
-	}
-	headSHA := strings.Repeat("a1", 20)
-	const (
-		dateHeader = "HTTP/2.0 200 OK\r\nDate: Fri, 23 Oct 2026 09:05:00 GMT\r\n\r\n"
-		createdAt  = "2026-10-23T09:00:00Z"
-		commentURL = "https://github.com/isseis/yt2column/pull/42#issuecomment-7001"
-	)
-
-	for _, tc := range []struct {
-		name        string
-		userType    string
-		login       string
-		body        string
-		wantRequest bool
-	}{
-		{"exact", "User", fakeUser, fakeRequest, true},
-		{"spaces_and_lf", "User", fakeUser, "  " + fakeRequest + "\n", true},
-		{"tabs_and_crlf", "User", fakeUser, "\t " + fakeRequest + " \r\n", true},
-		{"extra_prefix", "User", fakeUser, "please " + fakeRequest, false},
-		{"extra_suffix", "User", fakeUser, fakeRequest + " please", false},
-		{"wrong_case", "User", fakeUser, strings.ToUpper(fakeRequest), false},
-		{"empty_body", "User", fakeUser, "", false},
-		{"other_user", "User", "other-user", fakeRequest, false},
-		{"bot_same_login", "Bot", fakeUser, fakeRequest, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			item := map[string]any{
-				"id":         float64(7001),
-				"user":       map[string]any{"type": tc.userType, "login": tc.login},
-				"body":       tc.body,
-				"created_at": createdAt,
-				"updated_at": createdAt,
-				"html_url":   commentURL,
-			}
-			// 1) Run the documented jq filter.
-			out := runJQ(t, jq, filter, []map[string]any{item})
-			jqRequest := false
-			dec := json.NewDecoder(strings.NewReader(out))
-			for {
-				var obj map[string]any
-				if err := dec.Decode(&obj); err == io.EOF {
-					break
-				} else if err != nil {
-					t.Fatalf("decode jq output %q: %v", out, err)
-				}
-				if obj["kind"] == "request" {
-					jqRequest = true
-				}
-			}
-			// 2) Run fixprguard.PRReviewState on the same comment.
-			commentsJSON, err := json.Marshal([]map[string]any{item})
-			if err != nil {
-				t.Fatal(err)
-			}
-			steps := []cmdrunnertestutil.Step{
-				{Name: "gh", Args: []string{"repo", "view", "--json", "nameWithOwner"}, Out: `{"nameWithOwner":"isseis/yt2column"}`},
-				{Name: "gh", Args: []string{"api", "--include", "repos/isseis/yt2column/pulls/42"}, Out: dateHeader + `{"head":{"sha":"` + headSHA + `"}}`},
-				{Name: "gh", Args: []string{"api", "user"}, Out: `{"login":"` + fakeUser + `"}`},
-				{Name: "gh", Args: []string{"api", "--include", "repos/isseis/yt2column/issues/42/comments?per_page=100&page=1"}, Out: dateHeader + string(commentsJSON)},
-			}
-			if tc.wantRequest {
-				steps = append(steps,
-					cmdrunnertestutil.Step{
-						Name: "gh",
-						Args: []string{"api", "graphql", "--input", "-"},
-						Out:  `{"data":{"repository":{"pullRequest":{"headRefOid":"` + headSHA + `","commits":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}}`,
-					},
-					cmdrunnertestutil.Step{
-						Name: "gh",
-						Args: []string{"api", "--include", "repos/isseis/yt2column/pulls/42/reviews?per_page=100&page=1"},
-						Out:  dateHeader + `[]`,
-					},
-				)
-			}
-			fake := cmdrunnertestutil.New(t, steps...)
-			gh, err := fixprguard.NewGitHubWithoutReviewer(fake)
-			if err != nil {
-				t.Fatalf("NewGitHubWithoutReviewer: %v", err)
-			}
-			got, err := gh.PRReviewState(t.Context(), fixprguard.ReviewStateRequest{
-				PR:       pr,
-				Reviewer: reviewer,
-				Request:  fakeRequest,
-			})
-			if err != nil {
-				t.Fatalf("PRReviewState: %v", err)
-			}
-			if got.State == fixprguard.RequestUnreadable {
-				t.Fatalf("PRReviewState returned unreadable (reason=%v)", got.Reason)
-			}
-			guardRequest := got.Request != nil
-			if jqRequest != tc.wantRequest || guardRequest != tc.wantRequest {
-				t.Errorf("jq request=%v, review-state request=%v, want %v", jqRequest, guardRequest, tc.wantRequest)
-			}
-		})
-	}
-}
+// step3ReadCalls is empty: runpr.md step 3 reads PR mentions, review state,
+// review threads, and CI checks exclusively through fixprguard, with no direct
+// gh api call.
+var step3ReadCalls []string
 
 // checkGhAPICalls fails t for a gh api call in section that does not start
 // with one of allowed, so a read that prints whole responses cannot be added
@@ -618,97 +222,6 @@ func checkGhAPICalls(t *testing.T, where, section string, allowed []string) {
 		}
 		rest = call[len("gh api "):]
 	}
-}
-
-// checkListingConstructors checks the keys of every object a filter builds,
-// whether or not a fake item reaches it: each starts with a kind of
-// fixture.keys and holds only keys that kind may hold. It does not read the
-// values, nor a branch whose result is not an object: those are checked only
-// by running the filter on the items that reach them. A "{" followed by a
-// digit is a regex quantifier, not an object.
-func checkListingConstructors(t *testing.T, filter string, fixture listingFixture) {
-	t.Helper()
-	for i := 0; i+1 < len(filter); i++ {
-		if filter[i] != '{' || '0' <= filter[i+1] && filter[i+1] <= '9' {
-			continue
-		}
-		body, ok := jqObjectBody(filter[i+1:])
-		if !ok {
-			t.Errorf("the filter has an unclosed object at %q", filter[i:])
-			return
-		}
-		entries := splitTopLevel(body)
-		kind, isKind := strings.CutPrefix(strings.TrimSpace(entries[0]), "kind: ")
-		kind = strings.Trim(kind, `"`)
-		allowed, known := fixture.keys[kind]
-		if !isKind || kind == "" || !known {
-			t.Errorf("the filter builds {%s}, which does not start with a known kind", body)
-			continue
-		}
-		for _, entry := range entries {
-			key, _, _ := strings.Cut(entry, ":")
-			if !slices.Contains(allowed, strings.TrimSpace(key)) {
-				t.Errorf("the filter builds {%s}, whose entry %q its kind may not hold", body, strings.TrimSpace(entry))
-			}
-		}
-	}
-}
-
-// jqObjectBody returns the text of s up to the brace that closes the object
-// opened just before s, skipping nested brackets and string literals.
-func jqObjectBody(s string) (string, bool) {
-	depth := 0
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '"':
-			i = skipJQString(s, i)
-		case '(', '[', '{':
-			depth++
-		case ')', ']':
-			depth--
-		case '}':
-			if depth == 0 {
-				return s[:i], true
-			}
-			depth--
-		}
-	}
-	return "", false
-}
-
-// splitTopLevel splits an object body at its top-level commas.
-func splitTopLevel(body string) []string {
-	var out []string
-	depth, start := 0, 0
-	for i := 0; i < len(body); i++ {
-		switch body[i] {
-		case '"':
-			i = skipJQString(body, i)
-		case '(', '[', '{':
-			depth++
-		case ')', ']', '}':
-			depth--
-		case ',':
-			if depth == 0 {
-				out = append(out, body[start:i])
-				start = i + 1
-			}
-		}
-	}
-	return append(out, body[start:])
-}
-
-// skipJQString returns the index of the quote that closes the string literal
-// opening at s[open].
-func skipJQString(s string, open int) int {
-	i := open + 1
-	for i < len(s) && s[i] != '"' {
-		if s[i] == '\\' {
-			i++
-		}
-		i++
-	}
-	return i
 }
 
 // gojqStrictPrelude reproduces gojq's strict string-type check on rtrimstr
@@ -737,75 +250,6 @@ func runJQ(t *testing.T, jq, filter string, input any) string {
 	return stdout.String()
 }
 
-// checkListingOutput checks what a listing printed for fixture.
-func checkListingOutput(t *testing.T, fixture listingFixture, response []map[string]any, out string) {
-	t.Helper()
-	if strings.Contains(strings.ToLower(out), bodyMarker) {
-		t.Errorf("the filter printed a body or a part of one:\n%s", out)
-	}
-	for i, item := range fixture.items {
-		if (item.kind == "mention") != (item.wrote != notMention) {
-			t.Fatalf("item %d: kind %q with writer %d; a mention needs its writer, and only a mention has one", i, item.kind, item.wrote)
-		}
-	}
-	byURL := map[string]int{}
-	for i, obj := range response {
-		byURL[obj["html_url"].(string)] = i
-	}
-	printed := map[int]int{}
-	dec := json.NewDecoder(strings.NewReader(out))
-	for {
-		var obj map[string]any
-		if err := dec.Decode(&obj); err == io.EOF {
-			break
-		} else if err != nil {
-			t.Fatalf("the filter printed %q, not a sequence of JSON objects: %v", out, err)
-		}
-		url, _ := obj["url"].(string)
-		i, ok := byURL[url]
-		if !ok {
-			t.Errorf("printed %v, whose url is no item's", obj)
-			continue
-		}
-		printed[i]++
-		item := fixture.items[i]
-		if kind := obj["kind"]; kind != item.kind {
-			t.Errorf("item %d: printed kind %v, want %q", i, kind, item.kind)
-		}
-		for _, key := range fixture.required[item.kind] {
-			if _, ok := obj[key]; !ok {
-				t.Errorf("item %d: printed no %s", i, key)
-			}
-		}
-		for key, value := range obj {
-			switch {
-			case !slices.Contains(fixture.keys[item.kind], key):
-				t.Errorf("item %d: printed the key %q, which a %q may not hold", i, key, item.kind)
-			case key == "kind":
-			case key == "by_user":
-				if value != (item.wrote == byTheUser) {
-					t.Errorf("item %d: printed by_user %v, want %t", i, value, item.wrote == byTheUser)
-				}
-			case key == "by_bot":
-				if value != (item.wrote == byABot) {
-					t.Errorf("item %d: printed by_bot %v, want %t", i, value, item.wrote == byABot)
-				}
-			case value != response[i][fixture.source[key]]:
-				t.Errorf("item %d: printed %s = %v, want its %s %v", i, key, value, fixture.source[key], response[i][fixture.source[key]])
-			}
-		}
-	}
-	for i, item := range fixture.items {
-		want := 0
-		if item.kind != "" {
-			want = 1
-		}
-		if printed[i] != want {
-			t.Errorf("item %d (%s %s, want kind %q) printed %d times, want %d", i, item.userType, item.login, item.kind, printed[i], want)
-		}
-	}
-}
-
 // TestFixprguardCallSites checks that each fixprguard subcommand is called in
 // the part of the command documents that the design assigns it to.
 func TestFixprguardCallSites(t *testing.T) {
@@ -826,8 +270,11 @@ func TestFixprguardCallSites(t *testing.T) {
 		{"fixpr.md", fixpr, fixprPhase6, "fixprguard append-pr "},
 		{"runpr.md", runpr, runprStep1, "fixprguard head "},
 		{"runpr.md", runpr, runprStep1, "fixprguard interaction-limits "},
+		{"runpr.md", runpr, runprStep3, "fixprguard mentions "},
 		{"runpr.md", runpr, runprStep3, "fixprguard review-state "},
 		{"runpr.md", runpr, runprStep3, "fixprguard list "},
+		{"runpr.md", runpr, runprStep3, "fixprguard ci-checks "},
+		{"runpr.md", runpr, runprStep4, "fixprguard mentions "},
 		{"runpr.md", runpr, runprStep4, "fixprguard review-state "},
 		{"runpr.md", runpr, runprStep4, "fixprguard reply "},
 		{"runpr.md", runpr, runprStep4, "fixprguard edit-pr "},
@@ -943,8 +390,8 @@ func TestFixprBuildChecksMatchTool(t *testing.T) {
 type reviewerRowProblem string
 
 const (
-	// problemRowCount: a reviewer row is missing or repeated, or the old
-	// single-reviewer row is still there.
+	// problemRowCount: a required reviewer row is missing or repeated, or a
+	// retired single-reviewer row is still present.
 	problemRowCount reviewerRowProblem = "row count"
 	// problemListShape: the list value before the first " — " is not
 	// backquoted names separated by ", ".
@@ -953,17 +400,26 @@ const (
 	problemListParse reviewerRowProblem = "list parse"
 	// problemListNames: the list is not exactly wantReviewers.
 	problemListNames reviewerRowProblem = "list names"
-	// problemAwaitedShape: the awaited value before the first " — " is not
-	// exactly one backquoted name.
-	problemAwaitedShape reviewerRowProblem = "awaited shape"
-	// problemAwaitedParse: fixprguard.ParseLogin rejects the awaited name.
-	problemAwaitedParse reviewerRowProblem = "awaited parse"
-	// problemRequestShape: the request value before the first " — " is not
-	// exactly one backquoted text.
-	problemRequestShape reviewerRowProblem = "request shape"
-	// problemRequestMention: the request's first word is not one of the
-	// mentions fixprguard rejects (fixprguard.RejectedMentions).
-	problemRequestMention reviewerRowProblem = "request mention"
+	// problemPRReviewersTable: the ### PR reviewers 5-column table is missing,
+	// repeated, has the wrong columns, or holds an unexpected number of rows.
+	problemPRReviewersTable reviewerRowProblem = "pr reviewers table"
+	// problemPRReviewerLogin: a PR reviewers row's Reviewer cell is not a
+	// single backquoted valid login, or repeats a login.
+	problemPRReviewerLogin reviewerRowProblem = "pr reviewer login"
+	// problemPRReviewerProfile: a PR reviewers row's Profile cell is not a
+	// single backquoted valid ReviewProfile, or repeats a profile.
+	problemPRReviewerProfile reviewerRowProblem = "pr reviewer profile"
+	// problemPRReviewerMode: a PR reviewers row's Mode cell is not a single
+	// backquoted declared mode ("manual" or "auto+manual").
+	problemPRReviewerMode reviewerRowProblem = "pr reviewer mode"
+	// problemPRReviewerRequest: a PR reviewers row's Post request or Accepted
+	// requests cell is malformed, contains a mention outside
+	// fixprguard.RejectedMentions(), repeats an accepted request, or omits
+	// Post request from Accepted requests.
+	problemPRReviewerRequest reviewerRowProblem = "pr reviewer request"
+	// problemPRReviewersValues: the parsed PR reviewers rows do not match
+	// wantPRReviewers.
+	problemPRReviewersValues reviewerRowProblem = "pr reviewers values"
 	// problemRejectedShape: the rejected-mentions value before the first " — "
 	// is not backquoted mentions separated by ", ".
 	problemRejectedShape reviewerRowProblem = "rejected shape"
@@ -972,35 +428,62 @@ const (
 	problemRejectedNames reviewerRowProblem = "rejected names"
 )
 
+// prReviewerSpec is one row of _context.md's ### PR reviewers table.
+type prReviewerSpec struct {
+	reviewer string
+	profile  string
+	mode     string
+	post     string
+	accepted []string
+}
+
+var (
+	prReviewersHeading = "### PR reviewers"
+	prReviewersHeader  = []string{"Reviewer", "Profile", "Mode", "Post request", "Accepted requests"}
+	wantPRReviewers    = []prReviewerSpec{
+		{
+			reviewer: "coderabbitai",
+			profile:  "coderabbit",
+			mode:     "manual",
+			post:     "@coderabbitai review",
+			accepted: []string{"@coderabbitai review"},
+		},
+		{
+			reviewer: "sourcery-ai",
+			profile:  "sourcery",
+			mode:     "auto+manual",
+			post:     "@sourcery-ai review",
+			accepted: []string{"@sourcery-ai review", "@sourceryai review"},
+		},
+	}
+)
+
 // valueSeparator ends the names part of a reviewer row's value; the
 // description follows it.
 const valueSeparator = " — "
 
 var (
-	// reviewerListShape is the strict form of the list's names part: backquoted
-	// names joined by a comma and exactly one space.
+	// reviewerListShape is the strict form of a comma-space separated list of
+	// backquoted values.
 	reviewerListShape = regexp.MustCompile("^`[^`]+`(, `[^`]+`)*$")
-	// awaitedShape is the strict form of the awaited reviewer's names part.
-	awaitedShape = regexp.MustCompile("^`([^`]+)`$")
-	backquoted   = regexp.MustCompile("`([^`]+)`")
+	// singleBackquoted is the strict form of a single backquoted value.
+	singleBackquoted = regexp.MustCompile("^`([^`]+)`$")
+	backquoted       = regexp.MustCompile("`([^`]+)`")
 )
 
 // contextReviewers is what checkContextReviewers reads from _context.md: the
-// list's names, the awaited reviewer's name, and the PR review request. A
-// field is empty when its check failed before reaching it.
+// automated reviewer list and the PR reviewers table.
 type contextReviewers struct {
-	names    []string
-	awaited  string
-	request  string
-	problems []reviewerRowProblem
+	names       []string
+	prReviewers []prReviewerSpec
+	problems    []reviewerRowProblem
 }
 
-// checkContextReviewers reads the reviewer rows of the _context.md text doc
-// and reports every defect it finds. Only the part of a value before the
-// first " — " is read as names, so code in the description such as `[bot]`
-// is never taken for a name. The list goes through fixprguard.ParseReviewers,
-// the function the tool itself parses --reviewer with, so the guard and the
-// tool accept the same names.
+// checkContextReviewers reads the reviewer rows and ### PR reviewers table of
+// _context.md and reports every defect it finds. Only the part of a Name/Value
+// row before the first " — " is read as values. The retired single-reviewer
+// rows (Awaited PR reviewer, PR review request, Automated reviewer) must be
+// absent.
 func checkContextReviewers(doc string) contextReviewers {
 	var got contextReviewers
 	count := map[string][][]string{}
@@ -1012,8 +495,8 @@ func checkContextReviewers(doc string) contextReviewers {
 			count[name] = append(count[name], tableRowsWithFirstCell(table, name)...)
 		}
 	}
-	if len(count[reviewerListRow]) != 1 || len(count[awaitedRow]) != 1 || len(count[requestRow]) != 1 ||
-		len(count[rejectedMentionsRow]) != 1 || len(count[oldReviewerRow]) != 0 {
+	if len(count[reviewerListRow]) != 1 || len(count[rejectedMentionsRow]) != 1 ||
+		len(count[awaitedRow]) != 0 || len(count[requestRow]) != 0 || len(count[oldReviewerRow]) != 0 {
 		got.problems = append(got.problems, problemRowCount)
 	}
 
@@ -1022,15 +505,10 @@ func checkContextReviewers(doc string) contextReviewers {
 	if rows := count[reviewerListRow]; len(rows) == 1 {
 		got.checkList(valueCell(rows[0]))
 	}
-	if rows := count[awaitedRow]; len(rows) == 1 {
-		got.checkAwaited(valueCell(rows[0]))
-	}
-	if rows := count[requestRow]; len(rows) == 1 {
-		got.checkRequest(valueCell(rows[0]))
-	}
 	if rows := count[rejectedMentionsRow]; len(rows) == 1 {
 		got.checkRejected(valueCell(rows[0]))
 	}
+	got.checkPRReviewers(doc)
 	return got
 }
 
@@ -1063,37 +541,132 @@ func (c *contextReviewers) checkList(value string) {
 	c.names = list
 }
 
-// checkAwaited checks the awaited reviewer row's value and records its name.
-func (c *contextReviewers) checkAwaited(value string) {
-	name, _, found := strings.Cut(value, valueSeparator)
-	m := awaitedShape.FindStringSubmatch(name)
-	if !found || m == nil {
-		c.problems = append(c.problems, problemAwaitedShape)
+// checkPRReviewers checks the ### PR reviewers 5-column table.
+func (c *contextReviewers) checkPRReviewers(doc string) {
+	section := doctestutil.SectionByHeading(doc, prReviewersHeading)
+	if strings.TrimSpace(section) == "" {
+		c.problems = append(c.problems, problemPRReviewersTable)
 		return
 	}
-	if _, err := fixprguard.ParseLogin(m[1]); err != nil {
-		c.problems = append(c.problems, problemAwaitedParse)
+	tables := doctestutil.MarkdownTables(section)
+	if len(tables) != 1 {
+		c.problems = append(c.problems, problemPRReviewersTable)
 		return
 	}
-	c.awaited = m[1]
-}
+	table := tables[0]
+	if len(table) < 2 || !slices.Equal(table[0], prReviewersHeader) {
+		c.problems = append(c.problems, problemPRReviewersTable)
+		return
+	}
+	rows := table[1:]
+	if len(rows) != len(wantPRReviewers) {
+		c.problems = append(c.problems, problemPRReviewersTable)
+	}
+	seenLogin := map[string]struct{}{}
+	seenProfile := map[string]struct{}{}
+	rejected := fixprguard.RejectedMentions()
+	var parsed []prReviewerSpec
+	rowProblem := false
+	for _, row := range rows {
+		if len(row) != len(prReviewersHeader) {
+			c.problems = append(c.problems, problemPRReviewersTable)
+			return
+		}
+		mLogin := singleBackquoted.FindStringSubmatch(row[0])
+		if mLogin == nil {
+			c.problems = append(c.problems, problemPRReviewerLogin)
+			rowProblem = true
+			continue
+		}
+		if _, err := fixprguard.ParseLogin(mLogin[1]); err != nil {
+			c.problems = append(c.problems, problemPRReviewerLogin)
+			rowProblem = true
+			continue
+		}
+		if _, dup := seenLogin[mLogin[1]]; dup {
+			c.problems = append(c.problems, problemPRReviewerLogin)
+			rowProblem = true
+			continue
+		}
+		seenLogin[mLogin[1]] = struct{}{}
 
-// checkRequest checks the PR review request row's value and records the
-// request. The request's first word must be one of the mentions the guard tool
-// rejects in replies and PR descriptions, so the tool and the command
-// documents keep out the same mentions.
-func (c *contextReviewers) checkRequest(value string) {
-	request, _, found := strings.Cut(value, valueSeparator)
-	m := awaitedShape.FindStringSubmatch(request)
-	if !found || m == nil {
-		c.problems = append(c.problems, problemRequestShape)
-		return
+		mProfile := singleBackquoted.FindStringSubmatch(row[1])
+		if mProfile == nil {
+			c.problems = append(c.problems, problemPRReviewerProfile)
+			rowProblem = true
+			continue
+		}
+		if _, err := fixprguard.ParseReviewProfile(mProfile[1]); err != nil {
+			c.problems = append(c.problems, problemPRReviewerProfile)
+			rowProblem = true
+			continue
+		}
+		if _, dup := seenProfile[mProfile[1]]; dup {
+			c.problems = append(c.problems, problemPRReviewerProfile)
+			rowProblem = true
+			continue
+		}
+		seenProfile[mProfile[1]] = struct{}{}
+
+		mMode := singleBackquoted.FindStringSubmatch(row[2])
+		if mMode == nil || (mMode[1] != "manual" && mMode[1] != "auto+manual") {
+			c.problems = append(c.problems, problemPRReviewerMode)
+			rowProblem = true
+			continue
+		}
+
+		mPost := singleBackquoted.FindStringSubmatch(row[3])
+		if mPost == nil || !reviewerListShape.MatchString(row[4]) {
+			c.problems = append(c.problems, problemPRReviewerRequest)
+			rowProblem = true
+			continue
+		}
+		var accepted []string
+		seenReq := map[string]struct{}{}
+		badReq := false
+		for _, m := range backquoted.FindAllStringSubmatch(row[4], -1) {
+			words := strings.Fields(m[1])
+			if len(words) == 0 || !slices.Contains(rejected, words[0]) {
+				badReq = true
+				break
+			}
+			if _, dup := seenReq[m[1]]; dup {
+				badReq = true
+				break
+			}
+			seenReq[m[1]] = struct{}{}
+			accepted = append(accepted, m[1])
+		}
+		if words := strings.Fields(mPost[1]); len(words) == 0 || !slices.Contains(rejected, words[0]) || !slices.Contains(accepted, mPost[1]) {
+			badReq = true
+		}
+		if badReq {
+			c.problems = append(c.problems, problemPRReviewerRequest)
+			rowProblem = true
+			continue
+		}
+		parsed = append(parsed, prReviewerSpec{
+			reviewer: mLogin[1],
+			profile:  mProfile[1],
+			mode:     mMode[1],
+			post:     mPost[1],
+			accepted: accepted,
+		})
 	}
-	if words := strings.Fields(m[1]); len(words) == 0 || !slices.Contains(fixprguard.RejectedMentions(), words[0]) {
-		c.problems = append(c.problems, problemRequestMention)
-		return
+	c.prReviewers = parsed
+	if !rowProblem && len(parsed) == len(wantPRReviewers) {
+		same := true
+		for i := range wantPRReviewers {
+			a, b := parsed[i], wantPRReviewers[i]
+			if a.reviewer != b.reviewer || a.profile != b.profile || a.mode != b.mode || a.post != b.post || !slices.Equal(a.accepted, b.accepted) {
+				same = false
+				break
+			}
+		}
+		if !same {
+			c.problems = append(c.problems, problemPRReviewersValues)
+		}
 	}
-	c.request = m[1]
 }
 
 // checkRejected checks the Rejected mentions row's value against
@@ -1115,20 +688,20 @@ func (c *contextReviewers) checkRejected(value string) {
 }
 
 // TestContextAndCommandsAgree checks that _context.md is the one place the
-// automated reviewer's name is written: its reviewer rows parse and hold the
-// expected names, its request and rejected mentions match fixprguard, and
-// fixpr.md, runpr.md, mkreq.md, and _lib/task-pr-handoff.md never write a
-// reviewer's name.
+// automated reviewer names are written: its reviewer rows and ### PR reviewers
+// table parse and hold the expected values, its rejected mentions match
+// fixprguard, and fixpr.md, runpr.md, mkreq.md, and _lib/task-pr-handoff.md
+// never write any reviewer's login.
 func TestContextAndCommandsAgree(t *testing.T) {
 	got := checkContextReviewers(doctestutil.ReadDoc(t, contextPath))
 	if len(got.problems) > 0 {
 		t.Fatalf("_context.md reviewer rows have problems %v", got.problems)
 	}
-	if got.awaited != "coderabbitai" {
-		t.Errorf("_context.md %s = %q, want coderabbitai", awaitedRow, got.awaited)
-	}
-	if got.request != "@coderabbitai review" {
-		t.Errorf("_context.md %s = %q, want %q", requestRow, got.request, "@coderabbitai review")
+	allNames := slices.Clone(got.names)
+	for _, pr := range got.prReviewers {
+		if !slices.Contains(allNames, pr.reviewer) {
+			allNames = append(allNames, pr.reviewer)
+		}
 	}
 
 	// The documents write every reviewer value through a placeholder, so a
@@ -1141,7 +714,7 @@ func TestContextAndCommandsAgree(t *testing.T) {
 		{"_lib/task-pr-handoff.md", handoffPath},
 	} {
 		doc := doctestutil.ReadDoc(t, tc.path)
-		for _, name := range append(slices.Clone(got.names), got.awaited) {
+		for _, name := range allNames {
 			if strings.Contains(doc, name) {
 				t.Errorf("%s writes the reviewer name %q", tc.name, name)
 			}
@@ -1150,18 +723,16 @@ func TestContextAndCommandsAgree(t *testing.T) {
 }
 
 // TestContextReviewerRowsMalformed checks that checkContextReviewers reports
-// each kind of broken reviewer row, on copies of the real _context.md with one
-// row edited, and that it reads the expected names from a description holding
-// backquoted code and a second separator.
+// each kind of broken reviewer row or ### PR reviewers row, on copies of the
+// real _context.md with one line edited, and that it reads the expected names
+// from a description holding backquoted code and a second separator.
 func TestContextReviewerRowsMalformed(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, contextPath)
 	listLine := contextLine(t, doc, reviewerListRow)
-	awaitedLine := contextLine(t, doc, awaitedRow)
-	requestLine := contextLine(t, doc, requestRow)
 	rejectedLine := contextLine(t, doc, rejectedMentionsRow)
+	crRow := "| `coderabbitai` | `coderabbit` | `manual` | `@coderabbitai review` | `@coderabbitai review` |"
+	sourceryRow := "| `sourcery-ai` | `sourcery` | `auto+manual` | `@sourcery-ai review` | `@sourcery-ai review`, `@sourceryai review` |"
 	listRow := func(value string) string { return "| " + reviewerListRow + " | " + value + " |" }
-	awaitedRowLine := func(value string) string { return "| " + awaitedRow + " | " + value + " |" }
-	requestRowLine := func(value string) string { return "| " + requestRow + " | " + value + " |" }
 	rejectedRowLine := func(value string) string { return "| " + rejectedMentionsRow + " | " + value + " |" }
 	const desc = " — the automated reviewers"
 
@@ -1177,12 +748,12 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 			listRow("`coderabbitai`, `sourcery-ai` — named in `[bot]`-less form — see `fixpr.md`"), nil,
 		},
 		{"list_row_missing", listLine + "\n", "", []reviewerRowProblem{problemRowCount}},
-		{"awaited_row_missing", awaitedLine + "\n", "", []reviewerRowProblem{problemRowCount}},
 		{"rejected_row_missing", rejectedLine + "\n", "", []reviewerRowProblem{problemRowCount}},
 		{"list_row_twice", listLine, listLine + "\n" + listLine, []reviewerRowProblem{problemRowCount}},
-		{"awaited_row_twice", awaitedLine, awaitedLine + "\n" + awaitedLine, []reviewerRowProblem{problemRowCount}},
 		{"rejected_row_twice", rejectedLine, rejectedLine + "\n" + rejectedLine, []reviewerRowProblem{problemRowCount}},
-		{"old_row_left", awaitedLine, awaitedLine + "\n| " + oldReviewerRow + " | `coderabbitai` — the reviewer |", []reviewerRowProblem{problemRowCount}},
+		{"retired_awaited_row_present", rejectedLine, rejectedLine + "\n| " + awaitedRow + " | `coderabbitai` — retired |", []reviewerRowProblem{problemRowCount}},
+		{"retired_request_row_present", rejectedLine, rejectedLine + "\n| " + requestRow + " | `@coderabbitai review` — retired |", []reviewerRowProblem{problemRowCount}},
+		{"old_row_left", rejectedLine, rejectedLine + "\n| " + oldReviewerRow + " | `coderabbitai` — the reviewer |", []reviewerRowProblem{problemRowCount}},
 		{"list_no_value_cell", listLine, "| " + reviewerListRow + " |", []reviewerRowProblem{problemListShape}},
 		{"list_value_only_description", listLine, listRow(desc), []reviewerRowProblem{problemListShape}},
 		{"no_separator", listLine, listRow("`coderabbitai`, `sourcery-ai`"), []reviewerRowProblem{problemListShape}},
@@ -1196,19 +767,17 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 		{"name_missing", listLine, listRow("`coderabbitai`" + desc), []reviewerRowProblem{problemListNames}},
 		{"name_replaced", listLine, listRow("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
 		{"name_case_differs", listLine, listRow("`coderabbitai`, `Sourcery-AI`" + desc), []reviewerRowProblem{problemListNames}},
-		{"awaited_two_names", awaitedLine, awaitedRowLine("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemAwaitedShape}},
-		{"awaited_no_value_cell", awaitedLine, "| " + awaitedRow + " |", []reviewerRowProblem{problemAwaitedShape}},
-		{"awaited_value_only_description", awaitedLine, awaitedRowLine(desc), []reviewerRowProblem{problemAwaitedShape}},
-		{"awaited_no_separator", awaitedLine, awaitedRowLine("`coderabbitai`"), []reviewerRowProblem{problemAwaitedShape}},
-		{"awaited_outside_grammar", awaitedLine, awaitedRowLine("`coderabbitai[bot]`" + desc), []reviewerRowProblem{problemAwaitedParse}},
-		{"request_row_missing", requestLine + "\n", "", []reviewerRowProblem{problemRowCount}},
-		{"request_row_twice", requestLine, requestLine + "\n" + requestLine, []reviewerRowProblem{problemRowCount}},
-		{"request_two_values", requestLine, requestRowLine("`@coderabbitai review`, `@coderabbitai`" + desc), []reviewerRowProblem{problemRequestShape}},
-		{"request_no_backquotes", requestLine, requestRowLine("@coderabbitai review" + desc), []reviewerRowProblem{problemRequestShape}},
-		{"request_no_separator", requestLine, requestRowLine("`@coderabbitai review`"), []reviewerRowProblem{problemRequestShape}},
-		{"request_other_mention", requestLine, requestRowLine("`@other-bot review`" + desc), []reviewerRowProblem{problemRequestMention}},
-		{"request_longer_mention", requestLine, requestRowLine("`@coderabbitai-bot review`" + desc), []reviewerRowProblem{problemRequestMention}},
-		{"request_mention_not_first", requestLine, requestRowLine("`review @coderabbitai`" + desc), []reviewerRowProblem{problemRequestMention}},
+		{"pr_reviewers_heading_missing", "\n" + prReviewersHeading + "\n", "\n### Other table\n", []reviewerRowProblem{problemPRReviewersTable}},
+		{"pr_reviewers_row_missing", sourceryRow + "\n", "", []reviewerRowProblem{problemPRReviewersTable}},
+		{"pr_reviewers_bad_login", crRow, "| `coderabbitai[bot]` | `coderabbit` | `manual` | `@coderabbitai review` | `@coderabbitai review` |", []reviewerRowProblem{problemPRReviewerLogin}},
+		{"pr_reviewers_dup_login", sourceryRow, "| `coderabbitai` | `sourcery` | `auto+manual` | `@sourcery-ai review` | `@sourcery-ai review`, `@sourceryai review` |", []reviewerRowProblem{problemPRReviewerLogin}},
+		{"pr_reviewers_bad_profile", crRow, "| `coderabbitai` | `unknown` | `manual` | `@coderabbitai review` | `@coderabbitai review` |", []reviewerRowProblem{problemPRReviewerProfile}},
+		{"pr_reviewers_dup_profile", sourceryRow, "| `sourcery-ai` | `coderabbit` | `auto+manual` | `@sourcery-ai review` | `@sourcery-ai review`, `@sourceryai review` |", []reviewerRowProblem{problemPRReviewerProfile}},
+		{"pr_reviewers_bad_mode", crRow, "| `coderabbitai` | `coderabbit` | `auto` | `@coderabbitai review` | `@coderabbitai review` |", []reviewerRowProblem{problemPRReviewerMode}},
+		{"pr_reviewers_post_not_in_accepted", sourceryRow, "| `sourcery-ai` | `sourcery` | `auto+manual` | `@sourcery-ai review` | `@sourceryai review` |", []reviewerRowProblem{problemPRReviewerRequest}},
+		{"pr_reviewers_unknown_mention", crRow, "| `coderabbitai` | `coderabbit` | `manual` | `@other-bot review` | `@other-bot review` |", []reviewerRowProblem{problemPRReviewerRequest}},
+		{"pr_reviewers_mention_not_first", crRow, "| `coderabbitai` | `coderabbit` | `manual` | `review @coderabbitai` | `review @coderabbitai` |", []reviewerRowProblem{problemPRReviewerRequest}},
+		{"pr_reviewers_values_changed", crRow, "| `other-bot` | `coderabbit` | `manual` | `@coderabbitai review` | `@coderabbitai review` |", []reviewerRowProblem{problemPRReviewersValues}},
 		{"rejected_no_value_cell", rejectedLine, "| " + rejectedMentionsRow + " |", []reviewerRowProblem{problemRejectedShape}},
 		{"rejected_no_separator", rejectedLine, rejectedRowLine("`@codex`, `@coderabbitai`, `@sourcery-ai`, `@sourceryai`"), []reviewerRowProblem{problemRejectedShape}},
 		{"rejected_no_backquotes", rejectedLine, rejectedRowLine("@codex, @coderabbitai, @sourcery-ai, @sourceryai" + desc), []reviewerRowProblem{problemRejectedShape}},
@@ -1223,8 +792,8 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 			if !slices.Equal(got.problems, tc.want) {
 				t.Errorf("problems = %v, want %v", got.problems, tc.want)
 			}
-			if tc.want == nil && len(got.names) != len(wantReviewers) {
-				t.Errorf("names = %q, want %d names", got.names, len(wantReviewers))
+			if tc.want == nil && (len(got.names) != len(wantReviewers) || len(got.prReviewers) != len(wantPRReviewers)) {
+				t.Errorf("names = %q, prReviewers = %+v; want %d and %d", got.names, got.prReviewers, len(wantReviewers), len(wantPRReviewers))
 			}
 		})
 	}

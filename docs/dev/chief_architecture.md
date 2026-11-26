@@ -422,7 +422,7 @@ flowchart TD
 | `snapshot` | 状況を読み、状況の表、人の判断を待つもの、新しい通知を返す。何も送らない | `--protocol` | なし | `SnapshotOutput`（[5.4.3](#543-snapshotoutput)） |
 | `tick` | `snapshot` に加えて、ラウンドの記録と PR が開いているのを見た記録、worktree ごとの履歴の記録を書き、自動送信の条件を満たすコマンドを送る | `--protocol` | なし | `TickOutput`（[5.4.25](#5425-tickoutput)） |
 | `wait` | 前のラウンドの基準から、タスクの workspace のエージェントの状態が変わるまで待つ | `--protocol`、`--since` | `--timeout` | `WaitOutput`（[5.4.28](#5428-waitoutput)。時間切れは `result`） |
-| `send` | 人の選んだコマンドを送る。タスクのコマンドは、送る直前に作り直した行が同じ項目を提案しているときだけ送る | `--protocol`、`--workspace`、`--command`（`mkreq`・`mkarch`・`mkplan`・`runplan`・`runplan-takeover`・`runpr`）、コマンドに応じて `--issue`・`--pr`・`--item` のいずれか 1 つ | なし | `SendOutput`（[5.4.17](#5417-sendoutput)） |
+| `send` | 人の選んだコマンドを送る。タスクのコマンドは、送る直前に作り直した行が同じ項目を提案しているときだけ送る | `--protocol`、`--workspace`、`--command`（`mkreq`・`mkarch`・`mkplan`・`runplan`・`runplan-takeover`・`runpr`・`mergemain`）、コマンドに応じて `--issue`・`--pr`・`--item` のいずれか 1 つ | なし | `SendOutput`（[5.4.17](#5417-sendoutput)） |
 | `relay` | 人の選んだ答えを、質問で止まっているエージェントへ中継する | `--protocol`、`--workspace`、`--check`、`--answer`（`1=<選択肢の番号>`） | なし | `SendOutput`（[5.4.17](#5417-sendoutput)） |
 | `reset` | 人の選んだ、見送ったリセットを、確かめ直してから送る | `--protocol`、`--workspace`、`--check` | なし | `SendOutput`（[5.4.17](#5417-sendoutput)） |
 | `detail` | workspace の開いている PR の詳細を集め、控える | `--protocol`、`--workspace` | なし | `DetailOutput`（[5.4.20](#5420-detailoutput)） |
@@ -433,7 +433,7 @@ flowchart TD
 
 フラグの受け付ける値の形は次のとおりである。`--workspace` は worktree の絶対パスである。`--issue` は 10 進の数字だけで、`#`・符号・先頭の 0 を付けない。`--pr` は PR の番号である。`--item` は `chief` コマンドが出力した項目の `id` である。`--check` は `chief` コマンドが出力した照合値である。`--answer` の番号は 1 から 9 までの 1 桁である。`--since` は `chief` コマンドが出力した `baseline` である。`--timeout` は 1 秒から 3600 秒までの整数で、省略すると 600 秒である。`--command` と `--answer` が受け付ける値の集合は、サブコマンドの表の「必須のフラグ」の列にある。
 
-`send` では、`--issue` は `mkreq` で必須（ほかでは指定不可）、`--pr` は `runpr` で必須（ほかでは指定不可）、`--item` はタスクのコマンド（`mkarch`・`mkplan`・`runplan`・`runplan-takeover`）で必須（ほかでは指定不可）である。ほかの組み合わせや欠けは使い方の誤りである。タスクは引数で受け取らず、`chief` コマンドが workspace から読む。
+`send` では、`--issue` は `mkreq` で必須（ほかでは指定不可）、`--pr` は `runpr` で必須（ほかでは指定不可）、`--item` はタスクのコマンド（`mkarch`・`mkplan`・`runplan`・`runplan-takeover`）と `mergemain` で必須（ほかでは指定不可）である。`mergemain` の `--item` はコンフリクトの項目の `id` で、`--pr` と `--issue` は受け付けない。ほかの組み合わせや欠けは使い方の誤りである。タスクは引数で受け取らず、`chief` コマンドが workspace から読む。
 
 ### 5.2. 終了コード
 
@@ -602,12 +602,13 @@ flowchart TD
 | 項目 | 型 | 意味 | 定義の使い方 |
 |---|---|---|---|
 | `id` | 文字列 | セッションの中で項目を見分ける ID。中身を約束しない | 渡す |
-| `kind` | 文字列 | 種類。`question`・`merge_confirmation`・`review`・`proposal`・`removal`・`reset` のどれか | 分岐 |
+| `kind` | 文字列 | 種類。`question`・`merge_confirmation`・`conflict`・`review`・`proposal`・`removal`・`reset` のどれか | 分岐 |
 | `workspace` | 文字列 | その項目の workspace の worktree のパス | 渡す |
 | `label` | 文字列 | workspace の名前 | 示す |
 | `question` | `QuestionOutput`（null あり） | `question` と `merge_confirmation` の質問 | 示す |
 | `pr` | `PROutput`（null あり） | `review` の PR | 示す |
 | `proposal` | `NextOutput`（null あり） | `proposal` の次のコマンド | 示す |
+| `conflict` | `ConflictItemOutput`（null あり） | `conflict` の解消の提案（下の 5.4.10.1） | 示す |
 | `reset` | `ResetOutput`（null あり） | `reset` の見送ったリセット | 示す |
 | `removal` | `RemovalOutput`（null あり） | `removal` の削除の提案 | 示す |
 | `reasons` | 文字列の配列 | 自動送信の条件のうち成り立たなかったもの | 示す |
@@ -615,6 +616,17 @@ flowchart TD
 | `first_seen` | 時刻 | このセッションで最初にこの項目を見た時刻 | 読まない |
 | `new` | 真偽 | このセッションで初めて見た項目 | 読まない |
 | `number` | 数 | このセッションの一覧での番号。0 は番号なし | 分岐 |
+
+##### 5.4.10.1. `ConflictItemOutput`
+
+コンフリクトの項目の提案である。解消の送信の途中の行には項目を作らない。
+
+| 項目 | 型 | 意味 | 定義の使い方 |
+|---|---|---|---|
+| `phase` | 文字列 | 解消の進み具合。行の `conflict.phase` と同じ値 | 示す |
+| `can_send` | 真偽 | 人が選んで `/mergemain` を今送れる。送る直前に条件をすべて読み直すので、これは示すためだけの値である | 分岐 |
+| `reasons` | 文字列の配列 | 送れない条件の英語の名前。`can_send` が真なら空。`phase` が `records_unreadable` でも空になりうる（送信の記録は人が選んで送る条件ではない）。そのラウンドで自動送信を試みた行では、選択肢を試みの理由に置き換えて `can_send` を偽にし、次のラウンドで読み直す | 示す |
+| `conversation_lost` | 真偽 | 送ると最初の `/clear` で、人が pane で続けたかもしれない会話が消える。人が最後のタスクのコマンドの後に入力した、またはタスクのコマンドがなく入力だけがあるときに真である | 示す |
 
 #### 5.4.11. `ResetOutput`
 
@@ -768,6 +780,7 @@ PR の CI のジョブ 1 つである。
 | `report_source` | 文字列 | 要約の出どころ。`report`（PR を作ったコマンドの報告）・`description`（PR の説明）・`none` | 分岐 |
 | `report` | 文字列 | 要約。外から来た文字列で、上限で切ってある | 示す |
 | `report_truncated` | 真偽 | 要約を上限で切った | 分岐 |
+| `report_inherited_from` | 文字列 | 要約が、前の head の pane の報告の控えの引き継ぎであるとき、その head（40 桁）。PR の今の head の要約なら空 | 示す |
 | `description_reason` | `DescriptionReasonOutput`（null あり） | pane の報告を示さない理由 | 分岐 |
 | `record_error` | 文字列 | 控えを読めなかった理由 | 示す |
 | `review_skippable` | 真偽 | レビューを省略してよいと判定した | 分岐 |
@@ -1068,5 +1081,6 @@ worktree を作り直す前と、workspace を消し終えた後には、履歴�
 - Herdr の workspace・タブ・pane の作成と、エージェントの起動。`create` が作って起動し、`remove` が workspace を閉じる。閉じると、その pane のシェルの背景のジョブと止めたジョブ、Claude Code の背景の実行も終わる（[chief_guide.md](guides/chief_guide.md) の 5.2）。
 - pane への入力。人が選んだコマンド、中継のキー入力、リセットの `/clear` か `/new` を打つ。打った入力は、エージェントの側の記録に残る。chief はこれを消さない。
 - `git fetch origin main` による `refs/remotes/origin/main` の更新。この参照はすべての worktree が共有する。取り消さない。
+- `chief detail` の、手元にない PR の head のブランチ 1 つの取得による `refs/remotes/origin/<ブランチ>` の更新。`--no-tags --no-prune --no-write-fetch-head --refmap=` でほかの参照を書き換えない。取り消さない。
 
 **終了コード `1` の `message`。** `message` は、子のプロセス（herdr・git・gh）の標準エラーを無害化して含みうる。定義の規則 2 は、従わずに示すだけとする項目として `message` を名指していないが、定義は `message` を示す。今の定義では、`message` は示すだけで、定義はその中身で振る舞いを選ばない。この食い違いは今の振る舞いとして記録する。

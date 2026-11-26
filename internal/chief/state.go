@@ -45,7 +45,7 @@ func (s WorkspaceState) String() string {
 	case StateTaskDone:
 		return "task_done"
 	case StateConflict:
-		return "conflict"
+		return nameConflict
 	case StateNeedsCheck:
 		return nameNeedsCheck
 	default:
@@ -62,6 +62,10 @@ func (s WorkspaceState) rank() int {
 	}
 	return i
 }
+
+// nameConflict names the conflict state and the conflict item kind in the
+// output.
+const nameConflict = "conflict"
 
 // stateOrder is the order rows are listed in.
 var stateOrder = []WorkspaceState{StateQuestion, StateConflict, StateAwaitingReview, StateProposeNext, StateNeedsCheck, StateRunning, StateTaskDone}
@@ -145,6 +149,9 @@ type Row struct {
 	// ConflictReasons are the automatic conflict-resolution conditions that
 	// did not hold for this row in the current tick, empty in snapshot.
 	ConflictReasons []string
+	// Offer is what a conflict row in a phase with an item offers the human
+	// nil on any other row.
+	Offer *ConflictOffer
 	// Running is the command a running row's working agents run, nil when
 	// none is decided (RunningUnknown says why); it is shown only, never
 	// read to decide a state or a send.

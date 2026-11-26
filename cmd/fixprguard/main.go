@@ -73,6 +73,8 @@ const (
 
 	cmdInteractionLimits = "interaction-limits"
 	cmdReviewState       = "review-state"
+	cmdMentions          = "mentions"
+	cmdCIChecks          = "ci-checks"
 )
 
 // The flags.
@@ -89,7 +91,10 @@ const (
 	flagFingerprint = "fingerprint"
 	flagBodyFile    = "body-file"
 	flagTitleFile   = "title-file"
+	flagProfile     = "profile"
 	flagRequest     = "request"
+	flagObservedBot = "observed-bot"
+	flagHead        = "head"
 )
 
 // positional says what positional argument a subcommand takes.
@@ -134,10 +139,29 @@ var specs = map[string]spec{
 	// interaction-limits reads only; it judges no thread, so it takes no
 	// --reviewer, and /runpr always names the PR.
 	cmdInteractionLimits: {arg: argRequiredPR, usesGH: true},
-	// review-state reads the state of the latest review request comment of
-	// the PR. It judges no thread, but it takes exactly one --reviewer: the
-	// App whose check runs and PR reviews count.
-	cmdReviewState: {flags: []string{flagReviewer, flagRequest}, required: []string{flagReviewer, flagRequest}, arg: argRequiredPR, usesGH: true},
+	// review-state reads the state of the latest review request comment (and
+	// for sourcery, any automatic check run on head). It judges no thread,
+	// takes one --profile and one --reviewer, and one or more --request values.
+	cmdReviewState: {
+		flags:    []string{flagProfile, flagReviewer, flagRequest},
+		required: []string{flagProfile, flagReviewer, flagRequest},
+		arg:      argRequiredPR,
+		usesGH:   true,
+	},
+	// mentions scans conversation comments, line comments, and PR reviews for
+	// rejected mentions outside observed status posts and manual requests.
+	cmdMentions: {
+		flags:    []string{flagObservedBot, flagRequest},
+		required: []string{flagObservedBot, flagRequest},
+		arg:      argRequiredPR,
+		usesGH:   true,
+	},
+	// ci-checks reads GitHub Actions check suites on the PR head commit.
+	cmdCIChecks: {
+		flags:  []string{flagHead},
+		arg:    argRequiredPR,
+		usesGH: true,
+	},
 }
 
 // ghTargetVariables point gh at another repository or host than the work
@@ -202,7 +226,13 @@ type invocation struct {
 // every value in order. --reviewer is one of them: a name given twice is
 // refused by fixprguard.ParseReviewers, not here, so the one check of the
 // list covers both the command line and the documents' guard.
-var multiFlags = map[string]struct{}{flagAccept: {}, flagThread: {}, flagReviewer: {}}
+var multiFlags = map[string]struct{}{
+	flagAccept:      {},
+	flagThread:      {},
+	flagReviewer:    {},
+	flagRequest:     {},
+	flagObservedBot: {},
+}
 
 // flagValue stores one flag of an invocation. A multi flag (multiFlags)
 // collects every value; any other flag given twice is an error, so a later
@@ -405,6 +435,10 @@ func execute(ctx context.Context, inv invocation, e env) (any, int, error) {
 		return interactionLimits(ctx, inv, e)
 	case cmdReviewState:
 		return reviewState(ctx, inv, e)
+	case cmdMentions:
+		return mentions(ctx, inv, e)
+	case cmdCIChecks:
+		return ciChecks(ctx, inv, e)
 	default:
 		return nil, 0, errUsage
 	}
@@ -487,15 +521,18 @@ func interactionLimits(ctx context.Context, inv invocation, e env) (any, int, er
 	return info, exitContinue, nil
 }
 
-// reviewState prints the state of the latest review request comment with exit
-// code 0 whatever the state, unreadable included: the caller decides from the
-// state what to do. Only an argument outside its grammar is an error. The
-// reviewer is the one --reviewer value; the request is the exact text of a
-// request comment.
+// reviewState prints the state of the latest review request comment (and for
+// sourcery, any automatic check run on head) with exit code 0 whatever the
+// state, unreadable included: the caller decides from the state what to do.
+// Only an argument outside its grammar is an error.
 func reviewState(ctx context.Context, inv invocation, e env) (any, int, error) {
 	pr, err := fixprguard.ParsePRNumber(inv.arg)
 	if err != nil {
 		return nil, 0, err
+	}
+	profile, err := fixprguard.ParseReviewProfile(inv.values[flagProfile])
+	if err != nil {
+		return nil, 0, fmt.Errorf("--%s: %w", flagProfile, err)
 	}
 	names := inv.multi[flagReviewer]
 	if len(names) != 1 {
@@ -509,12 +546,77 @@ func reviewState(ctx context.Context, inv invocation, e env) (any, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	state, err := g.PRReviewState(ctx, fixprguard.ReviewStateRequest{PR: pr, Reviewer: reviewer, Request: inv.values[flagRequest]})
+	state, err := g.PRReviewState(ctx, fixprguard.ReviewStateRequest{
+		PR:       pr,
+		Profile:  profile,
+		Reviewer: reviewer,
+		Requests: inv.multi[flagRequest],
+	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("--%s: %w", flagRequest, err)
 	}
 	state.Protocol = fixprguard.Protocol
 	return state, exitContinue, nil
+}
+
+// mentions scans conversation comments, line comments, and PR reviews for
+// rejected mentions and prints the result with exit code 0 for both ok and
+// unreadable states. Only an argument outside its grammar is an error.
+func mentions(ctx context.Context, inv invocation, e env) (any, int, error) {
+	pr, err := fixprguard.ParsePRNumber(inv.arg)
+	if err != nil {
+		return nil, 0, err
+	}
+	rawBots := inv.multi[flagObservedBot]
+	bots := make([]fixprguard.ObservedBot, 0, len(rawBots))
+	for _, raw := range rawBots {
+		bot, err := fixprguard.ParseObservedBot(raw)
+		if err != nil {
+			return nil, 0, fmt.Errorf("--%s: %w", flagObservedBot, err)
+		}
+		bots = append(bots, bot)
+	}
+	g, err := fixprguard.NewGitHubWithoutReviewer(e.gh)
+	if err != nil {
+		return nil, 0, err
+	}
+	res, err := g.PRMentions(ctx, fixprguard.MentionScanRequest{
+		PR:           pr,
+		ObservedBots: bots,
+		Requests:     inv.multi[flagRequest],
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	res.Protocol = fixprguard.Protocol
+	return res, exitContinue, nil
+}
+
+// ciChecks reads GitHub Actions check suites on the PR head commit and prints
+// the result with exit code 0 whatever the state, unreadable included. Only an
+// argument outside its grammar is an error.
+func ciChecks(ctx context.Context, inv invocation, e env) (any, int, error) {
+	pr, err := fixprguard.ParsePRNumber(inv.arg)
+	if err != nil {
+		return nil, 0, err
+	}
+	expectedHead, hasHead := inv.values[flagHead]
+	if hasHead && expectedHead == "" {
+		return nil, 0, fmt.Errorf("--%s: %w: empty head", flagHead, fixprguard.ErrInvalidInput)
+	}
+	g, err := fixprguard.NewGitHubWithoutReviewer(e.gh)
+	if err != nil {
+		return nil, 0, err
+	}
+	res, err := g.CIChecks(ctx, fixprguard.CIChecksRequest{
+		PR:           pr,
+		ExpectedHead: expectedHead,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("--%s: %w", flagHead, err)
+	}
+	res.Protocol = fixprguard.Protocol
+	return res, exitContinue, nil
 }
 
 func list(ctx context.Context, inv invocation, e env) (any, int, error) {
