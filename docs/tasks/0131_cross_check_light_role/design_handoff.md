@@ -6,7 +6,7 @@
 
 -   **懸念:** Antigravity の軽い側のモデル `claude-opus-5-5-high` は、利用者の環境に残っていた 2026-11-21 の `swarm(action: "models", all: true)` の出力で `models` にあり、`quota_remaining` もあった。しかし、実際に走らせてはいない。タスク 0120 で実測したのは `claude-opus-5-5-medium` だけである（`docs/tasks/0120_harness_independent_commands/02_architecture.md` 1.4）。1 PR あたりの割り当ての消費（数 %）も、`claude-opus-5-5-medium` で測った値である。
 -   **重要な理由:** 一覧から消えていれば、Antigravity の軽い側の部分レビューはいつも `not run unavailable` になる。`high` で時間切れになる、出力の形が違う、割り当てを大きく使う、といった場合も、本タスクの目的（軽い側の部分レビューを走らせる）が Antigravity で果たせない。
--   **候補案:** `/mkarch` の段階で、Antigravity の `swarm(action: "models", all: true)` で `models` に `claude-opus-5-5-high` があることと `quota_remaining` を確かめ、結果を設計書に記録する。なければ、要件の決定の変更として `01_requirements.md` に戻す（要件定義の際に決めたこと）。あわせて、実 PR で 1 回走らせて、時間と指摘の形を確かめるかも決める。
+-   **候補案:** `/mkarch` の段階で、Antigravity の `swarm(action: "models", all: true)` で `models` に `claude-opus-5-5-high` があることと `quota_remaining` を確かめる。そのうえで、`claude-opus-5-5-high` を実際に走らせて、時間・出力の形・割り当ての消費を確かめる。どちらの結果も設計書に記録する。使えなければ、要件の決定の変更として `01_requirements.md` に戻す（要件定義の際に決めたこと）。
 -   **関連 F-/AC-:** F-001、AC-04
 
 ## H-02: 役割の名前と「Harness model mapping」の表の形
