@@ -626,7 +626,7 @@ flowchart TD
 | `phase` | 文字列 | 解消の進み具合。行の `conflict.phase` と同じ値 | 示す |
 | `can_send` | 真偽 | 人が選んで `/mergemain` を今送れる。送る直前に条件をすべて読み直すので、これは示すためだけの値である | 分岐 |
 | `reasons` | 文字列の配列 | 送れない条件の英語の名前。`can_send` が真なら空 | 示す |
-| `conversation_lost` | 真偽 | 送ると最初の `/clear` で、人が pane で続けたかもしれない会話が消える。人の入力がないことを transcript で確かめられないとき（transcript がないとき、読めないとき、Claude Code の pane がないとき）も真である | 示す |
+| `conversation_lost` | 真偽 | 送ると最初の `/clear` で、人が pane で続けたかもしれない会話が消える。人が最後のタスクのコマンドの後に入力した、またはタスクのコマンドがなく入力だけがあるときに真である | 示す |
 
 #### 5.4.11. `ResetOutput`
 

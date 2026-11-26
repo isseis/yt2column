@@ -340,10 +340,9 @@ type ConflictOffer struct {
 	CanSend bool
 	// Reasons are the conditions that did not hold, empty when CanSend.
 	Reasons []string
-	// ConversationLost is true unless the transcript shows that the human
-	// typed nothing after the pane's last task command: typed input, a
-	// transcript that is missing or unreadable, and no pane to read all warn
-	// that the /clear before /mergemain may clear a conversation.
+	// ConversationLost is true when the human typed into the Claude Code
+	// pane after its last task command (or typed with no task command), so
+	// the /clear before /mergemain clears that conversation.
 	ConversationLost bool
 }
 
@@ -396,7 +395,7 @@ func offerOf(f conflictFacts) *ConflictOffer {
 	return &ConflictOffer{
 		CanSend:          len(reasons) == 0,
 		Reasons:          reasons,
-		ConversationLost: f.laterInput != LaterInputNone && f.laterInput != LaterInputNoTaskEmpty,
+		ConversationLost: f.laterInput == LaterInputAfter || f.laterInput == LaterInputNoTaskInput,
 	}
 }
 

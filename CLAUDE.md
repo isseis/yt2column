@@ -1238,7 +1238,7 @@ for the agents that read it, and the Antigravity skill entries point here.
 - Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
 - Invoking `/chief` approves, for that session, the read-only network operations
   the `chief` tool runs while it shows the status, watches, makes a task's
-  workspace, or removes one: `git fetch origin
+  workspace, removes one, or sends a command the human chose: `git fetch origin
   main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`; the
   fetch of one PR head branch into its own remote-tracking ref for the
   display of `chief detail` (`git fetch --no-tags --no-prune --refmap= origin

@@ -400,7 +400,7 @@ func TestGitParentsAndHasCommit(t *testing.T) {
 func TestFetchBranchRefusesBeforeRunningGit(t *testing.T) {
 	rec := newRecorder(t)
 	git := NewGitReader(rec.commands(nil))
-	for _, bad := range []string{"main", "HEAD", "", "-x", "--force", "a b", "a..b", "a//b", "a/", "a.", "a.lock", "a:b", "+a", "a\nb", "a~1", "a^", "a*", "a?", "a[", "a@{1}", "a\\b"} {
+	for _, bad := range []string{"main", "Main", "HEAD", "head", "", "-x", "--force", "a b", "a..b", "a//b", "a/", "a.", "a.lock", "a:b", "+a", "a\nb", "a~1", "a^", "a*", "a?", "a[", "a@{1}", "a\\b"} {
 		if err := git.FetchBranch(t.Context(), "/work/tree", bad); !errors.Is(err, errGitOutput) {
 			t.Errorf("FetchBranch(%q) = %v, want errGitOutput", bad, err)
 		}

@@ -368,8 +368,11 @@ func (m mergemainSend) send(ctx context.Context) ActionResult {
 	}
 	base.Agent = route.Agent()
 	base.Model, _ = route.ModelText()
+	// The agents and the git state are read after the fetch, which can take
+	// long, so a pane that started working meanwhile is seen.
+	fresh := readWorkspace(ctx, m.herdr, m.git, m.tasks, m.loc.ws)
 	cs := &conflictSender{a: &autoSender{deps: m.deps, view: view, herdr: m.herdr, git: m.git, tasks: m.tasks}}
-	facts := cs.gather(ctx, m.loc.ws, m.facts, pr, m.facts.Branch, false, nil)
+	facts := cs.gather(ctx, m.loc.ws, fresh, pr, fresh.Branch, false, nil)
 	if reasons := manualConflictConditions(facts); len(reasons) > 0 {
 		return notSent(base, NotSentConditions, "a condition of the chosen /mergemain does not hold: "+strings.Join(reasons, ", "))
 	}
