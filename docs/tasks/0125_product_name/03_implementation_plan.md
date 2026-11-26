@@ -136,9 +136,9 @@
 
 **変更するファイル:** `README.md`、`README.en.md`、`INSTALL.md`
 
-- [ ] `README.md` を設計書 3.4 節のとおり更新する（H1 の `# ヨムドウガ for YouTube™` への変更、冒頭概要文の刷新、`## 特徴` の 4 項目新設、既存節の維持と製品名更新、ファイル末尾（空行と水平線 `---` の後ろ）への非公式表記と帰属表示（`YouTube is a trademark of Google LLC.`）の追加、Chrome 142 表記と未リリース注記の維持）
-- [ ] `/mktrans README.md` を実行して `README.en.md` を同期し、`README.md` と `README.en.md` を同一コミットに含める
-- [ ] `INSTALL.md` の 4 箇所（冒頭 `:3`、ツールバー固定 `:80`、ビューアタイトル `:201`、アンインストール `:241`）を設計書 3.4 節のとおり更新する（`:62` の Releases URL と既存引用文言・Chrome 142 表記は維持）
+- [x] `README.md` を設計書 3.4 節のとおり更新する（H1 の `# ヨムドウガ for YouTube™` への変更、冒頭概要文の刷新、`## 特徴` の 4 項目新設、既存節の維持と製品名更新、ファイル末尾（空行と水平線 `---` の後ろ）への非公式表記と帰属表示（`YouTube is a trademark of Google LLC.`）の追加、Chrome 142 表記と未リリース注記の維持）
+- [x] `/mktrans README.md` を実行して `README.en.md` を同期し、`README.md` と `README.en.md` を同一コミットに含める
+- [x] `INSTALL.md` の 4 箇所（冒頭 `:3`、ツールバー固定 `:80`、ビューアタイトル `:201`、アンインストール `:241`）を設計書 3.4 節のとおり更新する（`:62` の Releases URL と既存引用文言・Chrome 142 表記は維持）
 
 **完了基準:** `README.md`・`README.en.md`・`INSTALL.md` が要件書 F-004 を満たし、`TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`・`TestReadmeLinks`・`metadataDocs.test.ts`・`manifest.test.ts` が通過すること。
 
