@@ -64,9 +64,16 @@ func newGitFixtureIn(t *testing.T, dir string) *gitFixture {
 // git commands a case's setup runs refresh the index themselves.
 func newGitFixtureFromSnapshot[V any](t *testing.T, sn snapshottest.Snapshot[V]) *gitFixture {
 	t.Helper()
+	return newGitFixtureFromSnapshotAt(t, sn, "repo")
+}
+
+// newGitFixtureFromSnapshotAt is newGitFixtureFromSnapshot for a snapshot
+// whose repository is at repoRel (slash-separated) under its directory.
+func newGitFixtureFromSnapshotAt[V any](t *testing.T, sn snapshottest.Snapshot[V], repoRel string) *gitFixture {
+	t.Helper()
 	copyDir := filepath.Join(t.TempDir(), "snapshot")
 	sn.CopyTo(t, copyDir)
-	return &gitFixture{t: t, home: t.TempDir(), tmp: t.TempDir(), repo: filepath.Join(copyDir, "repo")}
+	return &gitFixture{t: t, home: t.TempDir(), tmp: t.TempDir(), repo: filepath.Join(copyDir, filepath.FromSlash(repoRel))}
 }
 
 // env is the allowlisted environment of every git and script run, so no

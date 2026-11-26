@@ -146,14 +146,20 @@ var rrFixtureKind = snapshottest.NewKind[rrBase]("rrFixture", nil)
 // contextDoc at .claude/commands/_context.md (omitted when contextDoc is "").
 func newRRFixtureWithContext(t *testing.T, form, contextDoc string) *rrFixture {
 	t.Helper()
-	sn := snapshottest.Load(t, snapshotStore, rrFixtureKind, []string{contextDoc}, func(bt *testing.T, dir string) rrBase {
-		return buildRRBase(bt, dir, contextDoc)
-	})
+	sn := loadRRBase(t, contextDoc)
 	base := sn.Value()
 	return &rrFixture{
 		gitFixture: newGitFixtureFromSnapshot(t, sn),
 		form:       form, contextDoc: contextDoc, m0: base.m0, mb: base.mb,
 	}
+}
+
+// loadRRBase returns the shared state of an rrFixture with contextDoc.
+func loadRRBase(t *testing.T, contextDoc string) snapshottest.Snapshot[rrBase] {
+	t.Helper()
+	return snapshottest.Load(t, snapshotStore, rrFixtureKind, []string{contextDoc}, func(bt *testing.T, dir string) rrBase {
+		return buildRRBase(bt, dir, contextDoc)
+	})
 }
 
 // buildRRBase builds the repository of an rrFixture under dir: main has two
@@ -821,41 +827,132 @@ func rrConfigBranch(f *rrFixture) []string {
 	return rrNone(f, rrMarkersPlan)
 }
 
+// rrConfigGroup is the shared state of one group of configuration scenarios:
+// the branch the build made, the arguments it returned, and the commits of
+// the fixture it started from. The repository is under "state/repo" of the
+// snapshot's directory.
+type rrConfigGroup struct {
+	args   []string
+	m0, mb string
+}
+
+// rrConfigGroupKind is the kind of the group branches. A group's branch does
+// not depend on the bash, so both bashes of a test share it. The scripts are
+// not run while it is built (the build only makes commits).
+var rrConfigGroupKind = snapshottest.NewKind("rrConfigBranch", func(g rrConfigGroup) rrConfigGroup {
+	g.args = slices.Clone(g.args)
+	return g
+})
+
+// rrBeforeRun is the shared result of the script run without any setting, in
+// one bash: which bash ran it, and what it printed and returned.
+type rrBeforeRun struct {
+	bashPath string
+	run      scriptRun
+}
+
+// rrBeforeRunKind is the kind of the runs without a setting. Its key holds
+// the bash's name, so each bash runs the script itself once per group.
+var rrBeforeRunKind = snapshottest.NewKind[rrBeforeRun]("rrConfigBeforeRun", nil)
+
+// loadRRConfigGroup returns the shared branch of the group groupKey names,
+// built by build over a copy of the rrFixture state with contextDoc.
+func loadRRConfigGroup(t *testing.T, groupKey []string, form string, forms crossCheckForms, contextDoc string,
+	build func(*rrFixture) []string,
+) snapshottest.Snapshot[rrConfigGroup] {
+	t.Helper()
+	return snapshottest.Load(t, snapshotStore, rrConfigGroupKind, groupKey, func(bt *testing.T, dir string) rrConfigGroup {
+		bs := loadRRBase(bt, contextDoc)
+		stateDir := filepath.Join(dir, "state")
+		bs.CopyTo(bt, stateDir)
+		b := bs.Value()
+		f := &rrFixture{
+			gitFixture: &gitFixture{t: bt, home: bt.TempDir(), tmp: bt.TempDir(), repo: filepath.Join(stateDir, "repo")},
+			form:       form, forms: forms, contextDoc: contextDoc, m0: b.m0, mb: b.mb,
+		}
+		args := build(f)
+		return rrConfigGroup{args: args, m0: b.m0, mb: b.mb}
+	})
+}
+
+// rrFixtureOverGroup returns a fixture of t over a copy of the group branch.
+func rrFixtureOverGroup(t *testing.T, sn snapshottest.Snapshot[rrConfigGroup], form string, forms crossCheckForms, contextDoc string) *rrFixture {
+	t.Helper()
+	g := sn.Value()
+	return &rrFixture{
+		gitFixture: newGitFixtureFromSnapshotAt(t, sn, "state/repo"),
+		form:       form, forms: forms, contextDoc: contextDoc, m0: g.m0, mb: g.mb,
+	}
+}
+
 // checkConfigScenarios runs mode on the branch build makes, in a fixture
-// newFixture returns, without and with each git configuration scenario in
-// each scope, and checks that the setting changes plain git's output but not
-// the script's. base is the start of the output without the setting; a
-// branch on which the script prints another output fails the scenario, so a
-// branch that no longer exercises the reading does not pass with nothing
-// compared.
-func checkConfigScenarios(t *testing.T, name string, bash scriptBash, newFixture func(*testing.T) *rrFixture,
+// started from the real _context.md, without and with each git configuration
+// scenario in each scope, and checks that the setting changes plain git's
+// output but not the script's. base is the start of the output without the
+// setting; a branch on which the script prints another output fails the
+// scenario, so a branch that no longer exercises the reading does not pass
+// with nothing compared.
+//
+// The branch is built once per group and copied into each scenario. The run
+// without a setting is made once per group and bash, in that bash, on a copy
+// of the branch; each scenario compares its own run in its own bash with it.
+func checkConfigScenarios(t *testing.T, name string, bash scriptBash, form string, forms crossCheckForms,
 	mode string, build func(*rrFixture) []string, base func(*rrFixture) string,
 ) {
 	t.Helper()
+	contextDoc := doctestutil.ReadDoc(t, contextPath)
+	top, _, _ := strings.Cut(t.Name(), "/")
+	groupKey := []string{top, name, mode}
+	// The branch is requested here, before the scenarios start, so a scenario
+	// never holds a parallel slot while it waits for it.
+	group := loadRRConfigGroup(t, groupKey, form, forms, contextDoc, build)
 	for _, scope := range []string{"repository", "global"} {
 		for _, s := range rrConfigScenarios() {
 			t.Run(name+"/"+scope+"/"+s.name, func(t *testing.T) {
 				t.Parallel()
-				f := newFixture(t)
-				args := append([]string{mode}, build(f)...)
-				want := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{})
-				if prefix := base(f); want.code != 0 || !strings.HasPrefix(want.stdout, prefix) {
-					t.Fatalf("without %s the script did not print %q, so the scenario checks nothing: %v", s.name, prefix, want)
+				before := snapshottest.Load(t, snapshotStore, rrBeforeRunKind, append(slices.Clone(groupKey), bash.name),
+					func(bt *testing.T, dir string) rrBeforeRun {
+						f := rrFixtureOverGroupAt(bt, group, dir, form, forms, contextDoc)
+						args := append([]string{mode}, group.Value().args...)
+						want := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{})
+						if prefix := base(f); want.code != 0 || !strings.HasPrefix(want.stdout, prefix) {
+							bt.Fatalf("without a setting the script did not print %q, so the scenarios of %s checks nothing: %v", prefix, name, want)
+						}
+						return rrBeforeRun{bashPath: bash.path, run: want}
+					}).Value()
+				if before.bashPath != bash.path {
+					t.Fatalf("the run without a setting used %s, not this scenario's %s", before.bashPath, bash.path)
 				}
-				before := f.git(s.plain...)
+				f := rrFixtureOverGroup(t, group, form, forms, contextDoc)
+				args := append([]string{mode}, group.Value().args...)
+				want := before.run
+				plainBefore := f.git(s.plain...)
 				file := filepath.Join(f.repo, ".git", "config")
 				if scope == "global" {
 					file = filepath.Join(f.home, ".gitconfig")
 				}
 				f.git("config", "--file", file, s.config[0], s.config[1])
-				if after := f.git(s.plain...); after == before {
-					t.Fatalf("%s does not change plain git's output %q, so the scenario checks nothing", s.name, before)
+				if after := f.git(s.plain...); after == plainBefore {
+					t.Fatalf("%s does not change plain git's output %q, so the scenario checks nothing", s.name, plainBefore)
 				}
 				if got := f.runScript(bash, reviewRecordsPath, args, scriptRunOptions{}); got != want {
 					t.Errorf("with %s set the script printed %v, without it %v", s.name, got, want)
 				}
 			})
 		}
+	}
+}
+
+// rrFixtureOverGroupAt is rrFixtureOverGroup for a build: the copy is made
+// under dir, which the snapshot being built keeps, and runs git as bt.
+func rrFixtureOverGroupAt(bt *testing.T, sn snapshottest.Snapshot[rrConfigGroup], dir, form string, forms crossCheckForms, contextDoc string) *rrFixture {
+	bt.Helper()
+	copyDir := filepath.Join(dir, "state")
+	sn.CopyTo(bt, copyDir)
+	g := sn.Value()
+	return &rrFixture{
+		gitFixture: &gitFixture{t: bt, home: bt.TempDir(), tmp: bt.TempDir(), repo: filepath.Join(copyDir, "state", "repo")},
+		form:       form, forms: forms, contextDoc: contextDoc, m0: g.m0, mb: g.mb,
 	}
 }
 
@@ -925,7 +1022,7 @@ func TestReviewRecordsCoverage(t *testing.T) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
 			runRRCases(t, bash, "coverage", "PARTIAL\n", form, crossCheckForms{}, coverageCases())
-			checkConfigScenarios(t, "git config", bash, func(t *testing.T) *rrFixture { return newRRFixture(t, form) },
+			checkConfigScenarios(t, "git config", bash, form, crossCheckForms{},
 				"coverage", rrConfigBranch, func(*rrFixture) string { return "PARTIAL 1\n" })
 		})
 	}
@@ -1041,16 +1138,11 @@ func TestReviewRecordsUnreviewed(t *testing.T) {
 		}
 	}
 	cases = append(cases, unreviewedCases()...)
-	fixture := func(t *testing.T) *rrFixture {
-		f := newRRFixture(t, form)
-		f.forms = forms
-		return f
-	}
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
 			runRRCases(t, bash, "unreviewed", "PARTIAL\n", form, forms, cases)
-			checkConfigScenarios(t, "git config", bash, fixture, "unreviewed", rrUnreviewedConfigBranch,
+			checkConfigScenarios(t, "git config", bash, form, forms, "unreviewed", rrUnreviewedConfigBranch,
 				func(*rrFixture) string { return "PARTIAL 2\n" })
 		})
 	}
@@ -2076,14 +2168,9 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 				})
 			})
 
-			fixture := func(t *testing.T) *rrFixture {
-				f := newRRFixture(t, form)
-				f.forms = forms
-				return f
-			}
-			checkConfigScenarios(t, "git config", bash, fixture, "cross-check", rrFableConfigBranch,
+			checkConfigScenarios(t, "git config", bash, form, forms, "cross-check", rrFableConfigBranch,
 				func(f *rrFixture) string { return "MISSING " + f.rev("HEAD~1") + "\n" })
-			checkConfigScenarios(t, "git config with a merge", bash, fixture, "cross-check", rrFableMergeConfigBranch,
+			checkConfigScenarios(t, "git config with a merge", bash, form, forms, "cross-check", rrFableMergeConfigBranch,
 				func(*rrFixture) string { return "VALID\n" })
 		})
 	}

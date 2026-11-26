@@ -117,6 +117,27 @@ func TestFixtureSnapshotsMatchRebuilt(t *testing.T) {
 			},
 		},
 		{
+			name: "rr_config_branch",
+			copied: func(t *testing.T) (*gitFixture, string) {
+				form := seenRangeForm(t)
+				sn := loadRRConfigGroup(t, []string{"TestFixtureSnapshotsMatchRebuilt", "git config", "coverage"}, form, crossCheckForms{}, realContext, rrConfigBranch)
+				f := rrFixtureOverGroup(t, sn, form, crossCheckForms{}, realContext)
+				requireRRCommits(t, f)
+				return f.gitFixture, f.mb
+			},
+			rebuilt: func(t *testing.T) *gitFixture {
+				form := seenRangeForm(t)
+				return rebuiltFixture(t, func(bt *testing.T, dir string) {
+					b := buildRRBase(bt, dir, realContext)
+					f := &rrFixture{
+						gitFixture: &gitFixture{t: bt, home: filepath.Join(dir, "home"), tmp: filepath.Join(dir, "tmp"), repo: filepath.Join(dir, "repo")},
+						form:       form, contextDoc: realContext, m0: b.m0, mb: b.mb,
+					}
+					rrConfigBranch(f)
+				})
+			},
+		},
+		{
 			name: "hrd_fixture",
 			copied: func(t *testing.T) (*gitFixture, string) {
 				f := newHRDFixture(t, scriptBash{}, realContext, markers, single)
