@@ -878,16 +878,28 @@ func TestWorktreeIgnoresProcessDir(t *testing.T) {
 	repoA.CommitAll("ignore")
 	repoA.Git("push", "-q", testRemote, "HEAD:"+headsPrefix+testBranch)
 	repoA.Write("build/a.go", "package a\n")
+	repoA.Write("build/target.go", "package target\n")
 	repoA.gitIn(repoA.Dir, "init", "-q", "--template=", "build/nested")
 	repoA.Write("build/nested/n.go", "package n\n")
+	if err := os.Symlink("target.go", filepath.Join(repoA.Dir, "build/link.go")); err != nil {
+		t.Fatalf("symlink in A: %v", err)
+	}
 	repoA.Write(".claude/settings.local.json", `{"permissions":{}}`)
 
 	repoB := newTestRepo(t)
-	// Leave an untracked file and a .claude/sub/.git trap in B so any Worktree
-	// operation or checkTopDirGitNames walk leaking to the process working
-	// directory fails immediately.
+	// Leave traps in B at the same relative paths A watches so any leak to the
+	// process working directory fails immediately: an untracked file for
+	// CheckClean, .claude/sub/.git for checkTopDirGitNames, a symlink to "."
+	// at build/link.go for linkTarget, and no build/a.go in B so targetEntry
+	// and readTarget fail against A's build/a.go.
 	repoB.Write("docs/notes/b_untracked.md", "dirty in B\n")
 	repoB.Write(".claude/sub/.git", "trap\n")
+	if err := os.MkdirAll(filepath.Join(repoB.Dir, "build"), testDirMode); err != nil {
+		t.Fatalf("mkdir build in B: %v", err)
+	}
+	if err := os.Symlink(".", filepath.Join(repoB.Dir, "build/link.go")); err != nil {
+		t.Fatalf("symlink trap build/link.go in B: %v", err)
+	}
 	t.Chdir(repoB.Dir)
 
 	bHeadBefore := repoB.Head()
@@ -903,8 +915,10 @@ func TestWorktreeIgnoresProcessDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin record missing in A: %v", err)
 	}
-	if !strings.Contains(string(recordData), `"build/nested/n.go"`) {
-		t.Errorf("begin record in A missing nested ignored file: %q", recordData)
+	for _, want := range []string{`"build/nested/n.go"`, `"build/link.go"`} {
+		if !strings.Contains(string(recordData), want) {
+			t.Errorf("begin record in A missing %s: %q", want, recordData)
+		}
 	}
 
 	// Mutate B's hooks directory after Begin(A) so a hooksState leak reading
@@ -950,6 +964,30 @@ func TestWorktreeIgnoresProcessDir(t *testing.T) {
 	if got := repoA.RemoteHead(); got != reviewHead {
 		t.Errorf("A remote after PushReviewed = %s, want %s", got, reviewHead)
 	}
+
+	// Verify checkReviewInput inspects w.dir rather than the process working
+	// directory (which has B's .git): a Worktree targeting a subdirectory of A
+	// must fail with ErrInvalidInput before invoking git.
+	subW, subRouter := newTestWorktree(t, filepath.Join(repoA.Dir, "docs"))
+	if _, err := subW.CheckReviewState(t.Context(), base, fin.Commit); !errors.Is(err, ErrInvalidInput) {
+		t.Errorf("CheckReviewState(A/docs) = %v, want ErrInvalidInput", err)
+	}
+	if _, err := subW.PushReviewed(t.Context(), base, fin.Commit); !errors.Is(err, ErrInvalidInput) {
+		t.Errorf("PushReviewed(A/docs) = %v, want ErrInvalidInput", err)
+	}
+	if len(subRouter.Calls) != 0 {
+		t.Errorf("subW invoked git before checkReviewInput failed: %v", subRouter.Calls)
+	}
+
+	// Verify a watched target change in A is detected against A's content
+	// (distinct from build/link.go's target, so a targetEntry leak seeing
+	// build/a.go as absent in B fails to detect the change).
+	base2, err := w.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("second Begin(A) = %v", err)
+	}
+	repoA.Write("build/a.go", "package a\n// changed\n")
+	wantStateParts(t, w.CheckState(t.Context(), base2), PartIgnored)
 
 	// Verify B and its remote were never touched.
 	if got := repoB.Head(); got != bHeadBefore {

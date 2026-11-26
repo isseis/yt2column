@@ -1812,13 +1812,6 @@ func TestFinishBodyFileRun(t *testing.T) {
 		}
 		return name
 	}
-	buildChecks := func() []cmdrunnertestutil.Step {
-		var steps []cmdrunnertestutil.Step
-		for _, stage := range fixprguard.BuildCheckTargets() {
-			steps = append(steps, cmdrunnertestutil.Step{Name: "make", Args: []string{stage}})
-		}
-		return steps
-	}
 	finishLine := func(t *testing.T, repo *testRepo) []string {
 		base := repo.Baseline()
 		repo.Write(testFile, "changed\n")
@@ -1827,7 +1820,7 @@ func TestFinishBodyFileRun(t *testing.T) {
 	}
 	t.Run("commit_holds_body", func(t *testing.T) {
 		repo := newTestRepo(t)
-		r := newTestRun(t, repo.Dir, nil, buildChecks()...)
+		r := newTestRun(t, repo.Dir, nil, buildCheckSteps()...)
 		if code := r.Run(t, finishLine(t, repo)...); code != exitContinue {
 			t.Fatalf("exit %d (%s)", code, r.Stderr)
 		}
@@ -1845,7 +1838,7 @@ func TestFinishBodyFileRun(t *testing.T) {
 		if err := os.WriteFile(hook, []byte("#!/bin/sh\nprintf 'Signed-off-by: hook\\n' >> \"$1\"\n"), 0o700); err != nil { //nolint:gosec // a hook of the test's temporary repository
 			t.Fatal(err)
 		}
-		r := newTestRun(t, repo.Dir, nil, buildChecks()...)
+		r := newTestRun(t, repo.Dir, nil, buildCheckSteps()...)
 		code := r.Run(t, finishLine(t, repo)...)
 		var out stopJSON
 		r.Decode(t, &out)
@@ -2046,13 +2039,6 @@ func newOSProcessRun(t *testing.T, gh []cmdrunnertestutil.Step, makeSteps ...cmd
 // sets the process working directory via t.Chdir(workDir) before calling it.
 func runProcessDirRounds(t *testing.T, repo *testRepo, workDir, remoteDir, branch, beginRecordPath string) {
 	t.Helper()
-	buildChecks := func() []cmdrunnertestutil.Step {
-		var steps []cmdrunnertestutil.Step
-		for _, stage := range fixprguard.BuildCheckTargets() {
-			steps = append(steps, cmdrunnertestutil.Step{Name: "make", Args: []string{stage}})
-		}
-		return steps
-	}
 
 	baseHead := strings.TrimSpace(repo.gitIn(workDir, "rev-parse", "HEAD"))
 	th := reviewerThread("please fix")
@@ -2139,7 +2125,7 @@ func runProcessDirRounds(t *testing.T, repo *testRepo, workDir, remoteDir, branc
 	}
 
 	// 3. finish
-	finishRun := newOSProcessRun(t, nil, buildChecks()...)
+	finishRun := newOSProcessRun(t, nil, buildCheckSteps()...)
 	if code := finishRun.Run(t, args(cmdFinish, "--baseline", baselineStr, "--judged-set", judgedStr, testPR)...); code != exitContinue {
 		t.Fatalf("finish: exit %d (%s)", code, finishRun.Stderr)
 	}

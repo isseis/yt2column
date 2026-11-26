@@ -269,6 +269,15 @@ func args(subcommand string, rest ...string) []string {
 	return append([]string{subcommand, "--" + flagProtocol, strconv.Itoa(fixprguard.Protocol)}, rest...)
 }
 
+// buildCheckSteps scripts the make targets finish runs, all succeeding.
+func buildCheckSteps() []cmdrunnertestutil.Step {
+	var steps []cmdrunnertestutil.Step
+	for _, stage := range fixprguard.BuildCheckTargets() {
+		steps = append(steps, cmdrunnertestutil.Step{Name: "make", Args: []string{stage}})
+	}
+	return steps
+}
+
 func ghStep(out string, err error, args ...string) cmdrunnertestutil.Step {
 	return cmdrunnertestutil.Step{Name: "gh", Args: args, Out: out, Err: err}
 }

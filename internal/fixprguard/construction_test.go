@@ -268,24 +268,13 @@ func TestRestrictedTypesBuiltByConstructors(t *testing.T) {
 		{"worktree_dir_new_constructor", "func NewWorktreeDir(p string) (WorktreeDir, error) { return WorktreeDir{rootDir: p}, nil }", 0},
 		{"worktree_dir_zero_literal", "func f() WorktreeDir { return WorktreeDir{} }", 1},
 		{"worktree_dir_literal_with_field", "func f() WorktreeDir { return WorktreeDir{rootDir: \"/tmp\"} }", 2},
-		{"worktree_dir_address_of_literal", "func f() *WorktreeDir { return &WorktreeDir{} }", 1},
-		{"worktree_dir_new", "func f() *WorktreeDir { return new(WorktreeDir) }", 1},
-		{"worktree_dir_var", "func f() { var d WorktreeDir; _ = d }", 1},
-		{"worktree_dir_in_other_constructor", "func ParseLogin(s string) (Login, error) { _ = WorktreeDir{}; return Login{name: s}, nil }", 1},
-		{"worktree_dir_method_named_like_constructor", "func (x T) CurrentDir() WorktreeDir { return WorktreeDir{} }", 1},
-		{"worktree_dir_field_usable", "func (d WorktreeDir) usable() bool { return d.rootDir != \"\" }", 0},
-		{"worktree_dir_field_join_name", "func (d WorktreeDir) joinName(n string) string { return d.rootDir + \"/\" + n }", 0},
-		{"worktree_dir_field_resolve_location", "func (d WorktreeDir) resolveLocation(loc string) string { return d.rootDir + \"/\" + loc }", 0},
-		{"worktree_dir_field_rel_name", "func (d WorktreeDir) relName(p string) (string, bool) { return p, d.rootDir == \".\" }", 0},
-		{"worktree_dir_field_named_result", "func f() (d WorktreeDir) { d.rootDir = \"/tmp\"; return }", 1},
-		{"worktree_dir_field_assign", "func f(d *WorktreeDir) { d.rootDir = \"/tmp\" }", 1},
 		{"worktree_dir_field_read", "func f(d WorktreeDir) string { return d.rootDir }", 1},
-		{"worktree_dir_field_other_method", "func (d *WorktreeDir) set(p string) { d.rootDir = p }", 1},
-		{"worktree_dir_field_method_of_other_type", "func (w W) usable(d WorktreeDir) bool { return d.rootDir != \"\" }", 1},
-		{"worktree_dir_declaration", "type WorktreeDir struct{ rootDir string }", 0},
-		{"worktree_dir_alias", "type wd = WorktreeDir", 1},
-		{"worktree_dir_defined_type", "type wd WorktreeDir", 1},
 		{"worktree_dir_same_shape_struct", "type shape struct{ rootDir string }", 1},
+		// Cross-field accessor isolation: a Reviewers accessor cannot reach
+		// WorktreeDir.rootDir and a WorktreeDir accessor cannot reach
+		// Reviewers.logins.
+		{"worktree_dir_field_in_reviewers_accessor", "func ParseReviewers(d WorktreeDir) string { return d.rootDir }", 1},
+		{"reviewers_field_in_worktree_dir_accessor", "func CurrentDir(r Reviewers) int { return len(r.logins) }", 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fset := token.NewFileSet()

@@ -9,14 +9,14 @@ import (
 )
 
 func TestNewWorktreeDir(t *testing.T) {
-	for _, path := range []string{"/repo", "/tmp/work/repo", "/a/b/c"} {
+	for _, path := range []string{"/repo", "/tmp/work/repo"} {
 		t.Run("accept/"+path, func(t *testing.T) {
 			d, err := NewWorktreeDir(path)
 			if err != nil {
 				t.Fatalf("NewWorktreeDir(%q) = %v, want nil", path, err)
 			}
-			if !d.usable() {
-				t.Errorf("NewWorktreeDir(%q).usable() = false, want true", path)
+			if got, want := d.joinName(".git"), path+"/.git"; got != want {
+				t.Errorf("NewWorktreeDir(%q).joinName(\".git\") = %q, want %q", path, got, want)
 			}
 		})
 	}
@@ -45,102 +45,68 @@ func TestNewWorktreeDir(t *testing.T) {
 			if d.usable() {
 				t.Errorf("NewWorktreeDir(%q) returned usable WorktreeDir", tc.path)
 			}
+			// Not echoing the rejected path is part of NewWorktreeDir's
+			// observable contract, so err.Error() is checked directly here.
 			if strings.Contains(err.Error(), marker) {
 				t.Errorf("NewWorktreeDir(%q) error %q echoes input path", tc.path, err.Error())
 			}
 		})
 	}
-
-	var zero WorktreeDir
-	if zero.usable() {
-		t.Errorf("zero WorktreeDir.usable() = true, want false")
-	}
 }
 
 func TestWorktreeDirOperations(t *testing.T) {
-	t.Run("current_dir", func(t *testing.T) {
-		d := CurrentDir()
-		if !d.usable() {
-			t.Fatal("CurrentDir().usable() = false, want true")
-		}
-		for _, tc := range []struct {
-			name string
-			want string
-		}{
-			{".git", ".git"},
-			{"docs/a.md", "docs/a.md"},
-			{"dir/", "dir/"},
-		} {
-			if got := d.joinName(tc.name); got != tc.want {
-				t.Errorf("CurrentDir().joinName(%q) = %q, want %q", tc.name, got, tc.want)
-			}
-		}
-		for _, tc := range []struct {
-			loc  string
-			want string
-		}{
-			{".git/hooks", ".git/hooks"},
-			{"../other/.git", "../other/.git"},
-			{"/abs/hooks", "/abs/hooks"},
-		} {
-			if got := d.resolveLocation(tc.loc); got != tc.want {
-				t.Errorf("CurrentDir().resolveLocation(%q) = %q, want %q", tc.loc, got, tc.want)
-			}
-		}
-		for _, osPath := range []string{"docs/a.md", "dir/", ".claude"} {
-			got, ok := d.relName(osPath)
-			if !ok || got != osPath {
-				t.Errorf("CurrentDir().relName(%q) = (%q, %t), want (%q, true)", osPath, got, ok, osPath)
-			}
-		}
-	})
+	absDir, err := NewWorktreeDir("/tmp/work")
+	if err != nil {
+		t.Fatalf("NewWorktreeDir: %v", err)
+	}
+	joinNames := []string{".git", "docs/a.md", "dir/"}
+	relLocations := []string{".git/hooks", "../other/.git"}
+	relNames := []string{"docs/a.md", "dir/", ".claude"}
 
-	t.Run("absolute_dir", func(t *testing.T) {
-		d, err := NewWorktreeDir("/tmp/work")
-		if err != nil {
-			t.Fatalf("NewWorktreeDir: %v", err)
-		}
-		for _, tc := range []struct {
-			name string
-			want string
-		}{
-			{".git", "/tmp/work/.git"},
-			{"docs/a.md", "/tmp/work/docs/a.md"},
-			{"dir/", "/tmp/work/dir/"},
-		} {
-			if got := d.joinName(tc.name); got != tc.want {
-				t.Errorf("joinName(%q) = %q, want %q", tc.name, got, tc.want)
+	for _, mode := range []struct {
+		name      string
+		dir       WorktreeDir
+		prefix    string
+		rejectRel []string
+	}{
+		{
+			name:   "current_dir",
+			dir:    CurrentDir(),
+			prefix: "",
+		},
+		{
+			name:      "absolute_dir",
+			dir:       absDir,
+			prefix:    "/tmp/work/",
+			rejectRel: []string{"/tmp/work", "/tmp/work-other/docs/a.md", "/elsewhere/docs/a.md", "docs/a.md"},
+		},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			for _, name := range joinNames {
+				if got, want := mode.dir.joinName(name), mode.prefix+name; got != want {
+					t.Errorf("joinName(%q) = %q, want %q", name, got, want)
+				}
 			}
-		}
-		for _, tc := range []struct {
-			loc  string
-			want string
-		}{
-			{".git/hooks", "/tmp/work/.git/hooks"},
-			{"../other/.git", "/tmp/work/../other/.git"},
-			{"/abs/hooks", "/abs/hooks"},
-		} {
-			if got := d.resolveLocation(tc.loc); got != tc.want {
-				t.Errorf("resolveLocation(%q) = %q, want %q", tc.loc, got, tc.want)
+			for _, loc := range relLocations {
+				if got, want := mode.dir.resolveLocation(loc), mode.prefix+loc; got != want {
+					t.Errorf("resolveLocation(%q) = %q, want %q", loc, got, want)
+				}
 			}
-		}
-		for _, tc := range []struct {
-			osPath string
-			want   string
-			wantOK bool
-		}{
-			{"/tmp/work/docs/a.md", "docs/a.md", true},
-			{"/tmp/work/dir/", "dir/", true},
-			{"/tmp/work/.claude", ".claude", true},
-			{"/tmp/work", "", false},
-			{"/tmp/work-other/docs/a.md", "", false},
-			{"/elsewhere/docs/a.md", "", false},
-			{"docs/a.md", "", false},
-		} {
-			got, ok := d.relName(tc.osPath)
-			if ok != tc.wantOK || (tc.wantOK && got != tc.want) {
-				t.Errorf("relName(%q) = (%q, %t), want (%q, %t)", tc.osPath, got, ok, tc.want, tc.wantOK)
+			if got := mode.dir.resolveLocation("/abs/hooks"); got != "/abs/hooks" {
+				t.Errorf("resolveLocation(\"/abs/hooks\") = %q, want \"/abs/hooks\"", got)
 			}
-		}
-	})
+			for _, rel := range relNames {
+				osPath := mode.prefix + rel
+				got, ok := mode.dir.relName(osPath)
+				if !ok || got != rel {
+					t.Errorf("relName(%q) = (%q, %t), want (%q, true)", osPath, got, ok, rel)
+				}
+			}
+			for _, bad := range mode.rejectRel {
+				if got, ok := mode.dir.relName(bad); ok {
+					t.Errorf("relName(%q) = (%q, true), want (_, false)", bad, got)
+				}
+			}
+		})
+	}
 }

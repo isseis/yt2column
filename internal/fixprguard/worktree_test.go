@@ -17,6 +17,8 @@ func TestNewWorktreePanicsOnZeroWorktreeDir(t *testing.T) {
 		if r == nil {
 			t.Fatal("NewWorktree with zero WorktreeDir did not panic")
 		}
+		// Match the panic message to distinguish the usable() guard panic from
+		// an accidental runtime panic on the nil runners.
 		if !strings.Contains(fmt.Sprint(r), "WorktreeDir") {
 			t.Errorf("panic = %v, want message naming WorktreeDir", r)
 		}
