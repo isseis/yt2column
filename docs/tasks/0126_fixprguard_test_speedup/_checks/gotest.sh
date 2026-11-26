@@ -28,11 +28,14 @@ die() {
   exit 1
 }
 
+# make_tmp_dir creates a temporary directory in the current shell, registers it
+# for EXIT cleanup, and stores its path in the variable named by $1.
 make_tmp_dir() {
+  local varname="$1"
   local d
-  d=$(mktemp -d)
+  d=$(mktemp -d) || die "mktemp -d failed"
   TMP_DIRS+=("$d")
-  printf '%s\n' "$d"
+  printf -v "$varname" '%s' "$d"
 }
 
 resolve_commit() {
@@ -40,12 +43,24 @@ resolve_commit() {
   git rev-parse --verify "${ref}^{commit}" 2>/dev/null || die "cannot resolve commit: $ref"
 }
 
+head_label() {
+  local head_commit="$1"
+  if [[ -n "$(git status --porcelain)" ]]; then
+    printf '%s+dirty\n' "$head_commit"
+  else
+    printf '%s\n' "$head_commit"
+  fi
+}
+
+# extract_tree extracts <commit> into a newly created temp dir registered in
+# TMP_DIRS and stores the directory path in the variable named by $2.
 extract_tree() {
   local commit="$1"
+  local varname="$2"
   local dir
-  dir=$(make_tmp_dir)
-  git archive "$commit" | tar -x -C "$dir"
-  printf '%s\n' "$dir"
+  make_tmp_dir dir
+  git archive "$commit" | tar -x -C "$dir" || die "failed to extract archive for $commit"
+  printf -v "$varname" '%s' "$dir"
 }
 
 detect_cores() {
@@ -93,8 +108,7 @@ run_json_test() {
   local outfile="$2"
   shift 2
   (
-    cd "$workdir"
-    go test "$@"
+    cd "$workdir" && go test "$@"
   ) >"$outfile" || die "go test failed in $workdir with args: $*"
 }
 
@@ -105,7 +119,7 @@ estimate_pkg() {
   local serial_json="$4"
   local procs="$5"
   local worktmp
-  worktmp=$(make_tmp_dir)
+  make_tmp_dir worktmp
   local json_file="$worktmp/out.json"
 
   run_json_test "$tree" "$json_file" -tags test -race -count=1 -timeout 0 -json "$rel_pkg"
@@ -162,7 +176,7 @@ cmd_estimate() {
   local commit procs tree status=0
   commit=$(resolve_commit "origin/main")
   procs=$(detect_gomaxprocs)
-  tree=$(extract_tree "$commit")
+  extract_tree "$commit" tree
 
   echo "mode=estimate"
   echo "commit=$commit"
@@ -181,8 +195,8 @@ cmd_estimate() {
 cmd_race() {
   [[ $# -eq 0 ]] || die "race takes no arguments"
   local head worktmp j1 j2
-  head=$(resolve_commit "HEAD")
-  worktmp=$(make_tmp_dir)
+  head=$(head_label "$(resolve_commit "HEAD")")
+  make_tmp_dir worktmp
   j1="$worktmp/count3.json"
   j2="$worktmp/cpu14.json"
 
@@ -202,11 +216,12 @@ cmd_race() {
 
 cmd_names() {
   [[ $# -eq 1 ]] || die "usage: gotest.sh names <base>"
-  local base_commit head_commit base_tree worktmp base_json head_json
+  local base_commit head_commit head_out base_tree worktmp base_json head_json
   base_commit=$(resolve_commit "$1")
   head_commit=$(resolve_commit "HEAD")
-  base_tree=$(extract_tree "$base_commit")
-  worktmp=$(make_tmp_dir)
+  head_out=$(head_label "$head_commit")
+  extract_tree "$base_commit" base_tree
+  make_tmp_dir worktmp
   base_json="$worktmp/base.json"
   head_json="$worktmp/head.json"
 
@@ -244,7 +259,7 @@ cmd_names() {
 
   echo "mode=names"
   echo "base=$base_commit"
-  echo "head=$head_commit"
+  echo "head=$head_out"
   echo "base_pass=$base_count"
   echo "head_pass=$head_count"
   echo "missing=$missing_count"
@@ -272,7 +287,7 @@ measure_pkg() {
   local rel_pkg="$2"
   local full_pkg="$3"
   local worktmp
-  worktmp=$(make_tmp_dir)
+  make_tmp_dir worktmp
   local before_vals=()
   local after_vals=()
   local i jf elapsed
@@ -324,14 +339,15 @@ measure_pkg() {
 
 cmd_measure() {
   [[ $# -eq 1 ]] || die "usage: gotest.sh measure <before>"
-  local before_commit head_commit before_tree status=0
+  local before_commit head_commit head_out before_tree status=0
   before_commit=$(resolve_commit "$1")
   head_commit=$(resolve_commit "HEAD")
-  before_tree=$(extract_tree "$before_commit")
+  head_out=$(head_label "$head_commit")
+  extract_tree "$before_commit" before_tree
 
   echo "mode=measure"
   echo "before=$before_commit"
-  echo "head=$head_commit"
+  echo "head=$head_out"
   echo "os=$(uname -srm)"
   echo "cores=$(detect_cores) gomaxprocs=$(detect_gomaxprocs)"
   echo "go=$(go version)"
@@ -354,35 +370,39 @@ extract_protocol_line() {
 
 cmd_unchanged() {
   [[ $# -eq 1 ]] || die "usage: gotest.sh unchanged <base>"
-  local base_commit head_commit
+  local base_commit head_commit head_out
   base_commit=$(resolve_commit "$1")
   head_commit=$(resolve_commit "HEAD")
+  head_out=$(head_label "$head_commit")
 
   git cat-file -e "${base_commit}:${GUIDE_PATH}" 2>/dev/null || die "missing $GUIDE_PATH at $base_commit"
+  git cat-file -e "${head_commit}:${GUIDE_PATH}" 2>/dev/null || die "missing $GUIDE_PATH at $head_commit"
   [[ -f "$GUIDE_PATH" ]] || die "missing $GUIDE_PATH in working tree"
   git cat-file -e "${base_commit}:${TYPES_PATH}" 2>/dev/null || die "missing $TYPES_PATH at $base_commit"
+  git cat-file -e "${head_commit}:${TYPES_PATH}" 2>/dev/null || die "missing $TYPES_PATH at $head_commit"
   [[ -f "$TYPES_PATH" ]] || die "missing $TYPES_PATH in working tree"
 
   local status=0
   local guide_status="PASS"
-  if ! git diff --quiet "$base_commit" -- "$GUIDE_PATH"; then
+  if ! git diff --quiet "$base_commit" "$head_commit" -- "$GUIDE_PATH" || ! git diff --quiet "$base_commit" -- "$GUIDE_PATH"; then
     guide_status="FAIL"
     status=1
   fi
 
-  local base_proto head_proto proto_status="PASS"
+  local base_proto head_proto wt_proto proto_status="PASS"
   base_proto=$(extract_protocol_line "$(git show "${base_commit}:${TYPES_PATH}")")
-  head_proto=$(extract_protocol_line "$(cat "$TYPES_PATH")")
-  if [[ "$base_proto" != "$head_proto" ]]; then
+  head_proto=$(extract_protocol_line "$(git show "${head_commit}:${TYPES_PATH}")")
+  wt_proto=$(extract_protocol_line "$(cat "$TYPES_PATH")")
+  if [[ "$base_proto" != "$head_proto" || "$base_proto" != "$wt_proto" ]]; then
     proto_status="FAIL"
     status=1
   fi
 
   echo "mode=unchanged"
   echo "base=$base_commit"
-  echo "head=$head_commit"
+  echo "head=$head_out"
   echo "guide=$guide_status ($GUIDE_PATH)"
-  echo "protocol=$proto_status (base: $base_proto | head: $head_proto)"
+  echo "protocol=$proto_status (base: $base_proto | head: $head_proto | worktree: $wt_proto)"
   if [[ "$status" -ne 0 ]]; then
     echo "status=FAIL"
     return 1

@@ -1,8 +1,9 @@
 //go:build test
 
 // Command testshape is a temporary AST verification script for task 0126.
-// It checks AC-01, AC-03, AC-04, AC-05, AC-10, and AC-11 across
-// internal/fixprguard and cmd/fixprguard.
+// It checks test parallelism, process-state isolation, environment-variable
+// sourcing, and git fixture sequences across internal/fixprguard and
+// cmd/fixprguard.
 package main
 
 import (
@@ -119,21 +120,22 @@ func isTestFunc(fn *ast.FuncDecl) (tParam string, ok bool) {
 		return "", false
 	}
 	field := fn.Type.Params.List[0]
-	if len(field.Names) != 1 {
+	if len(field.Names) > 1 {
 		return "", false
 	}
-	star, ok := field.Type.(*ast.StarExpr)
-	if !ok {
+	if !isTestingTType(field.Type) {
 		return "", false
 	}
-	sel, ok := star.X.(*ast.SelectorExpr)
-	if !ok || sel.Sel.Name != "T" {
-		return "", false
+	if len(field.Names) == 0 || field.Names[0].Name == "_" {
+		return "", true
 	}
 	return field.Names[0].Name, true
 }
 
 func blockCallsParallel(body *ast.BlockStmt, tName string) bool {
+	if tName == "" {
+		return false
+	}
 	for _, stmt := range body.List {
 		exprStmt, ok := stmt.(*ast.ExprStmt)
 		if !ok {
@@ -161,7 +163,9 @@ func checkParallel() error {
 	var errs []string
 
 	for _, pkg := range []string{pkgInternal, pkgCmd} {
-		files, err := listGoFiles(pkg, func(name string) bool { return strings.HasSuffix(name, "_test.go") })
+		files, err := listGoFiles(pkg, func(name string) bool {
+			return strings.HasSuffix(name, "_test.go") || strings.HasPrefix(name, "test_helpers")
+		})
 		if err != nil {
 			return err
 		}
@@ -174,9 +178,16 @@ func checkParallel() error {
 			if err != nil {
 				return err
 			}
+			isTestFile := strings.HasSuffix(path, "_test.go")
 			for _, decl := range file.Decls {
 				fn, ok := decl.(*ast.FuncDecl)
 				if !ok {
+					continue
+				}
+				if !isTestFile {
+					if fn.Body != nil {
+						checkHelperSubtests(fset, pkg, fn, &errs)
+					}
 					continue
 				}
 				tName, ok := isTestFunc(fn)
@@ -196,9 +207,13 @@ func checkParallel() error {
 						errs = append(errs, fmt.Sprintf("%s: serial-listed test %s calls %s.Parallel()", fset.Position(fn.Pos()), fn.Name.Name, tName))
 					}
 				} else if !hasParallel {
-					errs = append(errs, fmt.Sprintf("%s: test %s.%s missing %s.Parallel()", fset.Position(fn.Pos()), pkg, fn.Name.Name, tName))
+					errs = append(errs, fmt.Sprintf("%s: test %s.%s missing t.Parallel()", fset.Position(fn.Pos()), pkg, fn.Name.Name))
 				}
-				checkSubtests(fset, pkg, fn.Name.Name, fn.Body, map[string]struct{}{tName: {}}, isSerial, &errs)
+				tNames := make(map[string]struct{})
+				if tName != "" {
+					tNames[tName] = struct{}{}
+				}
+				checkSubtests(fset, pkg, fn.Name.Name, fn.Body, tNames, isSerial, &errs)
 			}
 		}
 		if testCount == 0 {
@@ -319,20 +334,30 @@ func checkSubtests(fset *token.FileSet, pkg, topName string, body *ast.BlockStmt
 			*errs = append(*errs, fmt.Sprintf("%s: %s.%s t.Run callback is not a function literal", fset.Position(call.Pos()), pkg, topName))
 			return false
 		}
-		if lit.Type.Params == nil || len(lit.Type.Params.List) != 1 || len(lit.Type.Params.List[0].Names) != 1 {
+		if lit.Type.Params == nil || len(lit.Type.Params.List) != 1 || len(lit.Type.Params.List[0].Names) > 1 {
 			*errs = append(*errs, fmt.Sprintf("%s: %s.%s t.Run callback has unexpected params", fset.Position(lit.Pos()), pkg, topName))
 			return false
 		}
-		subT := lit.Type.Params.List[0].Names[0].Name
+		subT := ""
+		if len(lit.Type.Params.List[0].Names) == 1 && lit.Type.Params.List[0].Names[0].Name != "_" {
+			subT = lit.Type.Params.List[0].Names[0].Name
+		}
 		hasParallel := blockCallsParallel(lit.Body, subT)
 		if isSerial {
 			if hasParallel {
 				*errs = append(*errs, fmt.Sprintf("%s: subtest under serial test %s.%s calls %s.Parallel()", fset.Position(lit.Pos()), pkg, topName, subT))
 			}
 		} else if !hasParallel {
-			*errs = append(*errs, fmt.Sprintf("%s: subtest under %s.%s missing %s.Parallel()", fset.Position(lit.Pos()), pkg, topName, subT))
+			*errs = append(*errs, fmt.Sprintf("%s: subtest under %s.%s missing t.Parallel()", fset.Position(lit.Pos()), pkg, topName))
 		}
-		checkSubtests(fset, pkg, topName, lit.Body, map[string]struct{}{subT: {}}, isSerial, errs)
+		next := make(map[string]struct{}, len(tNames)+1)
+		for k := range tNames {
+			next[k] = struct{}{}
+		}
+		if subT != "" {
+			next[subT] = struct{}{}
+		}
+		checkSubtests(fset, pkg, topName, lit.Body, next, isSerial, errs)
 		return false
 	})
 }
@@ -481,6 +506,29 @@ func checkEnvSource() error {
 			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil {
 				fnName = fn.Name.Name
 			}
+			// Track os.Environ() nodes that appear specifically on the RHS of a
+			// cmd.Env assignment inside TestGuideIgnoredCommands (the shell block).
+			allowedCmdEnvNodes := make(map[ast.Node]bool)
+			if pf.pkg == pkgCmd && filepath.Base(pf.path) == "docs_test.go" && fnName == "TestGuideIgnoredCommands" {
+				ast.Inspect(decl, func(n ast.Node) bool {
+					assign, ok := n.(*ast.AssignStmt)
+					if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+						return true
+					}
+					if exprText(assign.Lhs[0]) != "cmd.Env" {
+						return true
+					}
+					ast.Inspect(assign.Rhs[0], func(rn ast.Node) bool {
+						if sel, ok := rn.(*ast.SelectorExpr); ok && sel.Sel.Name == "Environ" {
+							if id, ok := sel.X.(*ast.Ident); ok && id.Name == osName {
+								allowedCmdEnvNodes[sel] = true
+							}
+						}
+						return true
+					})
+					return true
+				})
+			}
 			ast.Inspect(decl, func(node ast.Node) bool {
 				sel, ok := node.(*ast.SelectorExpr)
 				if !ok || sel.Sel.Name != "Environ" {
@@ -493,7 +541,7 @@ func checkEnvSource() error {
 				if pf.pkg == pkgTestHelp && fnName == "Env" {
 					return true
 				}
-				if pf.pkg == pkgCmd && filepath.Base(pf.path) == "docs_test.go" && fnName == "TestGuideIgnoredCommands" {
+				if allowedCmdEnvNodes[sel] {
 					return true
 				}
 				if isSerialAllowedFunc(pf.pkg, fnName) {
@@ -558,9 +606,13 @@ func checkFixtureGit(beforeRef string) error {
 		if err != nil {
 			return fmt.Errorf("%s before newTestRepo: %w", target.pkg, err)
 		}
-		buildCalls, err := extractGitSeq(target.path+"@after", afterSrc, "buildTestRepo")
+		buildEntry, err := resolveBuildEntry(target.path+"@after", afterSrc)
 		if err != nil {
-			return fmt.Errorf("%s after buildTestRepo: %w", target.pkg, err)
+			return fmt.Errorf("%s after: %w", target.pkg, err)
+		}
+		buildCalls, err := extractGitSeq(target.path+"@after", afterSrc, buildEntry)
+		if err != nil {
+			return fmt.Errorf("%s after %s: %w", target.pkg, buildEntry, err)
 		}
 		afterNewCalls, err := extractGitSeq(target.path+"@after", afterSrc, "newTestRepo")
 		if err != nil {
@@ -568,15 +620,15 @@ func checkFixtureGit(beforeRef string) error {
 		}
 
 		if !equalGitSeqs(beforeCalls, buildCalls) {
-			return fmt.Errorf("%s: buildTestRepo git sequence differs from before newTestRepo\n  before (%d): %v\n  build  (%d): %v",
-				target.pkg, len(beforeCalls), beforeCalls, len(buildCalls), buildCalls)
+			return fmt.Errorf("%s: %s git sequence differs from before newTestRepo\n  before (%d): %v\n  build  (%d): %v",
+				target.pkg, buildEntry, len(beforeCalls), beforeCalls, len(buildCalls), buildCalls)
 		}
 		if len(afterNewCalls) >= len(beforeCalls) {
 			return fmt.Errorf("%s: after newTestRepo git count (%d) is not fewer than before (%d)",
 				target.pkg, len(afterNewCalls), len(beforeCalls))
 		}
-		fmt.Printf("package=%s before_newTestRepo=%d buildTestRepo=%d after_newTestRepo=%d\n",
-			target.pkg, len(beforeCalls), len(buildCalls), len(afterNewCalls))
+		fmt.Printf("package=%s before_newTestRepo=%d %s=%d after_newTestRepo=%d\n",
+			target.pkg, len(beforeCalls), buildEntry, len(buildCalls), len(afterNewCalls))
 	}
 	return nil
 }
@@ -608,6 +660,28 @@ type fixtureExtractor struct {
 	fset   *token.FileSet
 	consts map[string]string
 	funcs  map[string]*ast.FuncDecl
+}
+
+func resolveBuildEntry(filename string, src []byte) (string, error) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filename, src, 0)
+	if err != nil {
+		return "", err
+	}
+	var found []string
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil {
+			continue
+		}
+		if fn.Name.Name == "build" || fn.Name.Name == "buildTestRepo" {
+			found = append(found, fn.Name.Name)
+		}
+	}
+	if len(found) != 1 {
+		return "", fmt.Errorf("expected exactly one of build or buildTestRepo, found %v", found)
+	}
+	return found[0], nil
 }
 
 func extractGitSeq(filename string, src []byte, entryFunc string) ([][]string, error) {
@@ -823,7 +897,7 @@ func (ex *fixtureExtractor) handleExprCall(expr ast.Expr, env map[string]string,
 	case "t.Helper", "r.t.Helper", "t.Setenv", "t.Chdir", "t.TempDir",
 		"os.MkdirAll", "os.WriteFile", "r.Write", "writeFile",
 		"fixtureTemplate.Copy", "tpl.Copy", "template.Copy":
-		return nil
+		return ex.checkArgCalls(call.Args, env, calls, depth)
 	case "r.Git", "gitCmd", "gitWork":
 		args, err := ex.evalArgs(call.Args, env)
 		if err != nil {
@@ -850,6 +924,20 @@ func (ex *fixtureExtractor) handleExprCall(expr ast.Expr, env map[string]string,
 		if idx := strings.LastIndex(baseName, "."); idx >= 0 {
 			baseName = baseName[idx+1:]
 		}
+		// For free function pinIgnoreConfig(..., gitCmd, ...), verify the
+		// callback argument runs in the work tree (r.Git or gitWork).
+		if name == "pinIgnoreConfig" {
+			matched := false
+			for _, arg := range call.Args {
+				if t := exprText(arg); t == "r.Git" || t == "gitWork" {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				return fmt.Errorf("%s: pinIgnoreConfig git callback is not r.Git or gitWork", ex.fset.Position(call.Pos()))
+			}
+		}
 		fn, ok := ex.funcs[baseName]
 		if !ok || fn.Body == nil {
 			return fmt.Errorf("%s: helper %s not found", ex.fset.Position(call.Pos()), baseName)
@@ -869,10 +957,39 @@ func (ex *fixtureExtractor) handleExprCall(expr ast.Expr, env map[string]string,
 		return ex.walkBlock(fn.Body, subEnv, calls, depth+1)
 	default:
 		if strings.HasSuffix(name, ".Copy") {
-			return nil
+			return ex.checkArgCalls(call.Args, env, calls, depth)
 		}
 		return fmt.Errorf("%s: unrecognized call %s in fixture", ex.fset.Position(call.Pos()), name)
 	}
+}
+
+// checkArgCalls inspects call arguments for nested calls so a git invocation
+// hidden inside an ignored file/helper call cannot be silently dropped.
+func (ex *fixtureExtractor) checkArgCalls(args []ast.Expr, env map[string]string, calls *[][]string, depth int) error {
+	for _, arg := range args {
+		var nestedErr error
+		ast.Inspect(arg, func(n ast.Node) bool {
+			if nestedErr != nil {
+				return false
+			}
+			c, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			cn := callName(c.Fun)
+			switch cn {
+			case "filepath.Join", "filepath.Dir", "string", "[]byte", "t.TempDir":
+				return true
+			default:
+				nestedErr = ex.handleExprCall(c, env, calls, depth)
+				return false
+			}
+		})
+		if nestedErr != nil {
+			return nestedErr
+		}
+	}
+	return nil
 }
 
 func callName(fun ast.Expr) string {
