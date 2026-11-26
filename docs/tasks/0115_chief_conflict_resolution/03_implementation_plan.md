@@ -470,10 +470,10 @@
 |---|---|---|---|
 | AC-01 | 3-1, 3-3 | `test` | `internal/chief/workspace_test.go::TestParsePRList`（`tick`・`snapshot` 共通の `OpenPRs` が読む 4 メンバーの受理と、新 8 メンバー実物採取サンプルの受理を検証）・`internal/chief/snapshot_test.go::TestSnapshotConflictRow`（行と出力の `pr.head`） |
 | AC-02 | 3-1 | `test` | `internal/chief/position_test.go::TestUrgencyTable`・`TestConflictUrgency`・`TestClassifyConflict`・`TestProgress`・`internal/chief/snapshot_test.go::TestSnapshotConflictRow`・`internal/chief/table_test.go::TestTableFixedWords`・`TestTableContent`（`CONFLICTING` 時の状態・急ぎの度合い、実行中/質問優先、`ConflictSending` の待つ 🟢 を検証） |
-| AC-03 | 3-1, 4-2, 4-3 | `test` | `internal/chief/position_test.go::TestClassifyConflict`（`MERGEABLE`・`UNKNOWN` はレビュー待ち）・`internal/chief/conflict_test.go::TestConflictSenderSkipsNonConflicting`・`internal/chief/pending_test.go::TestPendingNoConflictForMergeableOrUnknown` |
+| AC-03 | 3-1, 4-2, 4-3 | `test` | `internal/chief/position_test.go::TestClassifyConflict`（`MERGEABLE`・`UNKNOWN` はレビュー待ち）・`internal/chief/conflict_test.go::TestConflictSenderSkipsNonConflicting` |
 | AC-04 | 3-1 | `test` | `internal/chief/workspace_test.go::TestParsePRList`・`TestParseCommitID`（欠落・`null`・型違い・大小文字・空白・head 形式・重複・旧 4 メンバーサンプル・1 要素拒否で一覧全体拒否を検証）・`internal/chief/snapshot_test.go::TestTakeSnapshotUnreadable`（拒んだ一覧で行が `StateNeedsCheck` になることを検証） |
 | AC-05 | 4-2 | `test` | `internal/chief/conflict_test.go::TestConflictSenderConditions`（(1)〜(10) と再確認の各条件を 1 つずつ外して非送信・理由名を検証、境界ケースと全充足での送信を検証） |
-| AC-06 | 4-2, 4-3 | `test` | `internal/chief/conflict_test.go::TestSnapshotDoesNotAutoSendConflict`・`internal/chief/pending_test.go::TestPendingConflictInSnapshot` |
+| AC-06 | 4-2, 4-3 | `test` | `internal/chief/conflict_test.go::TestSnapshotDoesNotAutoSendConflict`・`internal/chief/conflict_manual_test.go::TestConflictItemOffer`（`once` の `TakeSnapshot` でも項目と選択肢が出る） |
 | AC-07 | 4-2 | `test` | `internal/chief/conflict_test.go::TestConflictSenderPreexistingConflict`（前ラウンド未観測でも `tick` で送信することを検証） |
 | AC-08 | 4-1, 4-2 | `test` | `internal/chief/records_test.go::TestMergemainRecordsPersistAcrossCleanupAndClear`・`internal/chief/conflict_test.go::TestConflictSenderOncePerHeadAndUnreadableRecord`・`internal/chief/sim_test.go::TestSimConflictAutoSend` |
 | AC-09 | 4-1 | `test` | `internal/chief/send_test.go::TestSendMergemainUncertainStopsWorkspace`（結果不明時の非再送と停止を検証） |
