@@ -265,6 +265,13 @@ func conflictGitConditions(f conflictFacts) []string {
 }
 
 func conflictAgentAndRecordConditions(f conflictFacts) []string {
+	return append(conflictPaneConditions(f), conflictRecordConditions(f)...)
+}
+
+// conflictPaneConditions returns the reasons the workspace's panes or its
+// stop do not allow a send: the conditions a human's choice shares with the
+// automatic send.
+func conflictPaneConditions(f conflictFacts) []string {
 	var why []string
 	if !f.singleClaudePane {
 		why = append(why, conflictReasonNoSingleClaudePane)
@@ -275,6 +282,14 @@ func conflictAgentAndRecordConditions(f conflictFacts) []string {
 	if f.stopped {
 		why = append(why, conflictReasonStopped)
 	}
+	return why
+}
+
+// conflictRecordConditions returns the reasons the human's input and the send
+// records do not allow an automatic send: the conditions a human's choice
+// does not take.
+func conflictRecordConditions(f conflictFacts) []string {
+	var why []string
 	if f.singleClaudePane {
 		switch f.laterInput {
 		case LaterInputNone, LaterInputNoTaskEmpty:
@@ -297,6 +312,92 @@ func conflictAgentAndRecordConditions(f conflictFacts) []string {
 		why = append(why, conflictReasonSentSince)
 	}
 	return why
+}
+
+// manualConflictConditions returns the English reason names of the
+// conditions of a /mergemain the human chose that do not hold for f:
+// the PR's base and repository, the git state, the panes and the stop, the
+// definition, and the route. It leaves out the human's input after the task
+// command, the send records, and the other sends of the round. Contract: an empty slice is the only result that allows
+// sending, and it needs f's flags that only an automatic send sets
+// (anotherSent, mergemainRunning, creationLocked, autosentSameRound,
+// workspaceChanged) to stay false; the zero value of conflictFacts never
+// returns empty.
+func manualConflictConditions(f conflictFacts) []string {
+	var why []string
+	why = append(why, conflictPRConditions(f)...)
+	why = append(why, conflictGitConditions(f)...)
+	why = append(why, conflictPaneConditions(f)...)
+	why = append(why, conflictDefAndRouteConditions(f)...)
+	return why
+}
+
+// ConflictOffer is what a conflict row offers the human: whether a
+// /mergemain can be sent by the human's choice, why not, and whether sending
+// would clear a conversation the human had. Its zero value offers nothing.
+type ConflictOffer struct {
+	// CanSend is true only when every condition of the human's choice held when the row
+	// was read; the send checks them again.
+	CanSend bool
+	// Reasons are the conditions that did not hold, empty when CanSend.
+	Reasons []string
+	// ConversationLost is true when the human typed into the Claude Code
+	// pane after its last task command (or typed with no task command), so
+	// the /clear before /mergemain clears that conversation.
+	ConversationLost bool
+}
+
+// conflictOfferPhase reports whether a conflict row in phase gets an item for
+// the human. ConflictSending has none: the send holds the workspace's
+// exclusion and no send can start under it.
+func conflictOfferPhase(p ConflictPhase) bool {
+	switch p {
+	case ConflictRecordsUnreadable, ConflictUnsent, ConflictEndedBeforeCommand, ConflictOutcomeUnknown, ConflictUnresolved:
+		return true
+	default:
+		return false
+	}
+}
+
+// conflictItemKindName is the part of a conflict item's identity that says
+// which of the two kinds it is: a conflict that still has to be sent, or one
+// whose resolution did not succeed (the design, 1.2).
+func conflictItemKindName(p ConflictPhase) string {
+	if p == ConflictUnresolved {
+		return "unresolved"
+	}
+	return "needed"
+}
+
+// conflictItemID is the identity of the item of a conflict row for pr: the
+// workspace, the PR, its head, and the kind. A new head or an unresolved
+// resolution is a new item, so it is announced again; a phase that moves
+// within "needed" is not.
+func conflictItemID(workspace string, pr OpenPR, p ConflictPhase) ItemID {
+	return itemID(nameConflict, workspace, strconv.Itoa(pr.Number), pr.Head.String(), conflictItemKindName(p))
+}
+
+// addConflictOffer puts on a conflict row what the human may choose: it reads
+// the conditions of the human's choice and the human's input after the last task command.
+// Contract: it reads only, and a row that is not a conflict row in an offered
+// phase, or has no PR, gets none; the zero ConflictOffer it leaves on a read
+// that fails never allows sending.
+func addConflictOffer(ctx context.Context, cs *conflictSender, w TaskWorkspace, f workspaceFacts, row *Row) {
+	if row.State != StateConflict || row.PR == nil || !conflictOfferPhase(row.Conflict) {
+		return
+	}
+	facts := cs.gather(ctx, w, f, *row.PR, f.Branch, false, nil)
+	row.Offer = offerOf(facts)
+}
+
+// offerOf makes the offer of the conditions f holds.
+func offerOf(f conflictFacts) *ConflictOffer {
+	reasons := manualConflictConditions(f)
+	return &ConflictOffer{
+		CanSend:          len(reasons) == 0,
+		Reasons:          reasons,
+		ConversationLost: f.laterInput == LaterInputAfter || f.laterInput == LaterInputNoTaskInput,
+	}
 }
 
 func conflictDefAndRouteConditions(f conflictFacts) []string {

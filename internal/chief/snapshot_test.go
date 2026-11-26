@@ -717,6 +717,7 @@ func TestSnapshotConflictRow(t *testing.T) {
 	for _, broken := range []string{"", "directory", "stop record"} {
 		w := newWorld(t)
 		tree := w.add(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, PRs: conflictPRJSON})
+		w.readConflictConditions(tree, prHead)
 		want := ConflictUnsent
 		unreadable := broken != ""
 		if broken == "directory" {
@@ -1337,4 +1338,18 @@ func TestStepReasonsDiffer(t *testing.T) {
 			t.Errorf("%s: reason = %q, want %q", name, got, reasonStepsUnreadable)
 		}
 	}
+}
+
+// readConflictConditions answers the git reads the offer of a conflict row
+// makes in the worktree at tree (the conditions of the human's choice), so a
+// test of the row alone need not know them.
+func (w *world) readConflictConditions(tree, head string) {
+	w.t.Helper()
+	w.git(tree, "rev-parse "+originMain, conflictTestMainSHA+"\n")
+	w.git(w.chiefTree, "rev-parse "+originMain, conflictTestMainSHA+"\n")
+	w.git(w.chiefTree, "ls-remote origin "+remoteMainRef, conflictTestMainSHA+"\t"+remoteMainRef+"\n")
+	w.git(tree, "rev-parse HEAD", head+"\n")
+	w.git(tree, "status --porcelain --untracked-files=all", "")
+	w.git(tree, "show HEAD:"+mergemainDefPath, conflictTestDefBody)
+	w.git(tree, "show "+originMain+":"+mergemainDefPath, conflictTestDefBody)
 }

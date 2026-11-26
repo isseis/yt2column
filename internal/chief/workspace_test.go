@@ -355,3 +355,57 @@ func TestGitCleanCountsStagedAndNestedFiles(t *testing.T) {
 		t.Error("a staged change to a tracked file reads as clean")
 	}
 }
+
+// TestGitParentsAndHasCommit runs Parents and HasCommit against the real
+// git: a merge commit has its two parents in order, a root commit none, and
+// a commit the repository lacks is no, not an error; a name that is not a
+// full commit ID is refused.
+func TestGitParentsAndHasCommit(t *testing.T) {
+	repo := newTestRepo(t)
+	first := strings.TrimSpace(repo.Git("rev-parse", "HEAD"))
+	repo.Git("switch", "-q", "-c", "side", first)
+	repo.Write("side.txt", "x\n")
+	side := repo.CommitAll("side")
+	repo.Git("switch", "-q", "-")
+	repo.Write("main.txt", "x\n")
+	main := repo.CommitAll("main")
+	repo.Git("merge", "--no-ff", "-q", "-m", "merge", "side")
+	merge := strings.TrimSpace(repo.Git("rev-parse", "HEAD"))
+	git := NewGitReader(repo.RealCommands())
+	ctx := t.Context()
+	if got, err := git.Parents(ctx, repo.Dir, merge); err != nil || !slices.Equal(got, []string{main, side}) {
+		t.Errorf("Parents(merge) = %v, %v; want [%s %s]", got, err, main, side)
+	}
+	if got, err := git.Parents(ctx, repo.Dir, first); err != nil || len(got) != 0 {
+		t.Errorf("Parents(first) = %v, %v; want none: a root commit", got, err)
+	}
+	for _, bad := range []string{"HEAD", "--all", strings.Repeat("0", 39)} {
+		if _, err := git.Parents(ctx, repo.Dir, bad); !errors.Is(err, errGitOutput) {
+			t.Errorf("Parents(%q) = %v, want errGitOutput", bad, err)
+		}
+		if _, err := git.HasCommit(ctx, repo.Dir, bad); !errors.Is(err, errGitOutput) {
+			t.Errorf("HasCommit(%q) = %v, want errGitOutput", bad, err)
+		}
+	}
+	if has, err := git.HasCommit(ctx, repo.Dir, merge); err != nil || !has {
+		t.Errorf("HasCommit(merge) = %v, %v", has, err)
+	}
+	if has, err := git.HasCommit(ctx, repo.Dir, strings.Repeat("0", 40)); err != nil || has {
+		t.Errorf("HasCommit(absent) = %v, %v; want false without an error", has, err)
+	}
+}
+
+// TestFetchBranchRefusesBeforeRunningGit checks that a branch name that
+// could be read as an option or a refspec never reaches git.
+func TestFetchBranchRefusesBeforeRunningGit(t *testing.T) {
+	rec := newRecorder(t)
+	git := NewGitReader(rec.commands(nil))
+	for _, bad := range []string{"", "-x", "--force", "a b", "a..b", "a//b", "a/", "a.", "a.lock", "a:b", "+a", "a\nb", "a~1", "a^", "a*", "a?", "a[", "a@{1}", "a\\b"} {
+		if err := git.FetchBranch(t.Context(), "/work/tree", bad); !errors.Is(err, errGitOutput) {
+			t.Errorf("FetchBranch(%q) = %v, want errGitOutput", bad, err)
+		}
+	}
+	if calls := rec.recorded(); len(calls) != 0 {
+		t.Errorf("git ran: %v", calls)
+	}
+}

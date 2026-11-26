@@ -231,6 +231,7 @@ func TestConflictPhaseTransitions(t *testing.T) {
 			ID: "w1", Label: "ws", Branch: taskBranch, Status: "idle", Screen: "claude-idle.ansi",
 			PRs: prListEntryJSON(taskBranch, 50, "Conflict PR", headA.String(), "CONFLICTING", mainBranch, false),
 		})
+		w.readConflictConditions(tree, headA.String())
 
 		// Initially no records directory -> ConflictUnsent.
 		snap := take(t, w)
@@ -333,6 +334,7 @@ func TestConflictPhaseTransitions(t *testing.T) {
 			ID: "w2", Label: "bad", Branch: taskBranch, Status: "idle", Screen: "claude-idle.ansi",
 			PRs: prListEntryJSON(taskBranch, 50, "Conflict PR", headA.String(), "CONFLICTING", mainBranch, false),
 		})
+		w2.readConflictConditions(tree2, headA.String())
 		if err := os.WriteFile(filepath.Join(w2.store.Dir(), workspaceDirOf(Worktree{path: tree2})), []byte("x"), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -751,7 +753,7 @@ func TestConflictSenderConditions(t *testing.T) {
 		calls := 0
 		cw.rec.replyFunc("git show "+originMain+":"+mergemainDefPath, func() reply {
 			calls++
-			if calls == 1 {
+			if calls == 2 {
 				records, err := cw.store.Records(Worktree{path: cw.tree})
 				if err != nil {
 					t.Fatal(err)
@@ -885,7 +887,7 @@ func TestConflictSenderConditions(t *testing.T) {
 				calls := 0
 				cw.rec.replyFunc("git status --porcelain --untracked-files=all", func() reply {
 					calls++
-					if calls == 2 {
+					if calls == 3 {
 						records, err := cw.store.Records(Worktree{path: cw.tree})
 						if err != nil {
 							t.Fatal(err)
@@ -915,7 +917,7 @@ func TestConflictSenderConditions(t *testing.T) {
 				calls := 0
 				cw.rec.replyFunc("git status --porcelain --untracked-files=all", func() reply {
 					calls++
-					if calls == 2 {
+					if calls == 3 {
 						cw.appendTranscript(cw.firstPane(), typedLine("wait a second"))
 					}
 					return reply{out: nil}
@@ -935,7 +937,7 @@ func TestConflictSenderConditions(t *testing.T) {
 				calls := 0
 				cw.rec.replyFunc("git status --porcelain --untracked-files=all", func() reply {
 					calls++
-					if calls == 2 {
+					if calls == 3 {
 						records, err := cw.store.Records(Worktree{path: cw.tree})
 						if err != nil {
 							t.Fatal(err)
@@ -958,7 +960,7 @@ func TestConflictSenderConditions(t *testing.T) {
 				calls := 0
 				cw.rec.replyFunc("git status --porcelain --untracked-files=all", func() reply {
 					calls++
-					if calls == 2 {
+					if calls == 3 {
 						records, err := cw.store.Records(Worktree{path: cw.tree})
 						if err != nil {
 							t.Fatal(err)

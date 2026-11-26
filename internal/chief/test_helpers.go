@@ -211,12 +211,15 @@ type reply struct {
 // errNoReply reports a command the test gave no reply for.
 var errNoReply = errors.New("no reply recorded for the command")
 
+// remoteOrigin is the one remote chief fetches from and reads.
+const remoteOrigin = "origin"
+
 // readOnlyCommands lists the commands the tool may run, by name and the words
 // that select the operation. Every one reads: none pushes, merges, comments,
 // or types into a pane. The recorder fails a test that runs anything else.
 var readOnlyCommands = map[string][][]string{
 	herdrProgram: {{herdrAgent, "list"}, {herdrAgent, "get"}, {herdrAgent, "read"}, {"workspace", "list"}, {"pane", "list"}, {"pane", "process-info"}, {"pane", "layout"}, {"tab", "list"}}, //nolint:goconst // each pair names one herdr operation
-	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}, {"rev-list", "--count"}, {"fetch", "origin", "main"}, {"ls-remote", "origin", "refs/heads/main"}, {"status", "--porcelain"}, {gitWorktree, "list"}, {"merge-base", "--is-ancestor"}},
+	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}, {"rev-list", "--count"}, {"fetch", remoteOrigin, "main"}, {"ls-remote", remoteOrigin, "refs/heads/main"}, {"status", "--porcelain"}, {gitWorktree, "list"}, {"merge-base", "--is-ancestor"}, {"rev-list", "--parents"}, {"fetch", "--no-tags", "--no-prune", remoteOrigin}},
 	ghProgram:    {{"pr", "list"}, {"pr", "view"}, {"pr", "checks"}},
 }
 
