@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -181,3 +181,7 @@
 -   **確保量:** テストが `runtime.MemStats.TotalAlloc` の差で測る、解析が確保したメモリのバイト数。
 -   **実時間:** 処理に実際にかかった時間（`docs/translation_glossary.md`）。
 -   **境界のテスト:** 本番の上限の値そのものの大きさの入力で、上限で受理し、上限を 1 つ超えると拒否することを確かめるテスト。
+
+## 変更履歴
+
+- 2026-11-26 承認（isseis、#1170）
