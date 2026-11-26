@@ -101,36 +101,36 @@
 
 -   **ファイル:** `docs/tasks/0126_fixprguard_test_speedup/_checks/gotest.sh`、`docs/tasks/0126_fixprguard_test_speedup/_checks/testshape/main.go`
 -   **作業:**
-    -   [ ] `_checks/gotest.sh` を書く。5.1 節の記録の枠の 5 つのモードを持つ。
-    -   [ ] `_checks/testshape/main.go`（`//go:build test`）を書く。5.1 節の記録の枠の 4 つの検査を持つ。直列に残すテストの一覧（設計書 4 章の 6 項目）と、それらが使う補助の名前はプログラムの中に持つ。
-    -   [ ] 2 つのスクリプトをコミットし、この時点で成功しうる検査（`estimate`・`names`・`unchanged`・`race`）の破壊の確かめをして、記録を書く。ほかの検査の破壊の確かめは、その検査が初めて成功しうる木で行う（5.1 節の「破壊の確かめの時期」）。
-    -   [ ] `gotest.sh estimate` を `origin/main` の木で実行し、設計書 8.2 節の見込みを出す。見込みが変更の前の実行時間の 50% を超えたら、止めて人に尋ねる。結果は 5.1 節の実行の記録に書く。
+    -   [x] `_checks/gotest.sh` を書く。5.1 節の記録の枠の 5 つのモードを持つ。
+    -   [x] `_checks/testshape/main.go`（`//go:build test`）を書く。5.1 節の記録の枠の 4 つの検査を持つ。直列に残すテストの一覧（設計書 4 章の 6 項目）と、それらが使う補助の名前はプログラムの中に持つ。
+    -   [x] 2 つのスクリプトをコミットし、この時点で成功しうる検査（`estimate`・`names`・`unchanged`・`race`）の破壊の確かめをして、記録を書く。ほかの検査の破壊の確かめは、その検査が初めて成功しうる木で行う（5.1 節の「破壊の確かめの時期」）。
+    -   [x] `gotest.sh estimate` を `origin/main` の木で実行し、設計書 8.2 節の見込みを出す。見込みが変更の前の実行時間の 50% を超えたら、止めて人に尋ねる。結果は 5.1 節の実行の記録に書く。
 -   **完了の条件:** 2 つのスクリプトがコミットされ、破壊の記録と見込みの実行の記録がある。
 
 #### ステップ 1-2: `WorktreeDir` を足す
 
 -   **ファイル:** `internal/fixprguard/workdir.go`（追加）
 -   **作業:**
-    -   [ ] 設計書 3.2 節の `WorktreeDir`・`CurrentDir`・`NewWorktreeDir` と、名前を結ぶ操作・場所を解く操作・逆の操作の 3 つの非公開のメソッドを書く。フィールドの名前と、ゼロ値を確かめるメソッドは 1.3 節のとおりにする。
-    -   [ ] `NewWorktreeDir` は、設計書 5 章のとおり `ErrInvalidInput` で拒む。メッセージにパスを含めない。
+    -   [x] 設計書 3.2 節の `WorktreeDir`・`CurrentDir`・`NewWorktreeDir` と、名前を結ぶ操作・場所を解く操作・逆の操作の 3 つの非公開のメソッドを書く。フィールドの名前と、ゼロ値を確かめるメソッドは 1.3 節のとおりにする。
+    -   [x] `NewWorktreeDir` は、設計書 5 章のとおり `ErrInvalidInput` で拒む。メッセージにパスを含めない。
 -   **完了の条件:** `go build ./internal/fixprguard` が通る。
 
 #### ステップ 1-3: 製品の関数が `WorktreeDir` を受け取るようにする
 
 -   **ファイル:** `internal/fixprguard/worktree.go`、`gitstate.go`、`ignored.go`、`changes.go`
 -   **作業:**
-    -   [ ] `Worktree` に `WorktreeDir` を持たせ、`NewWorktree(dir, gitRun, listRun, makeRun)` にする。ゼロ値の `dir` で panic する（設計書 3.2 節、5 章）。
-    -   [ ] 設計書 3.2 節の「`WorktreeDir` を受け取る非公開の関数」の表の関数を、表のとおりに変える。
-    -   [ ] 1.4 節の `grep` のパターンを製品のファイルでもう一度実行する。当たった 26 か所のそれぞれについて、呼び出し元をさかのぼって、作業ツリーの中の名前か git が返す場所が届くかを読む。`openRegular` は 1.4 節の呼び出し元のそれぞれを読む。届く箇所は、結ぶ操作か解く操作を通す。届かない箇所（`OpenRegularFile` と `write.go:29`）は変えない。読んだ結果は PR の説明に表で書く。
-    -   [ ] `Worktree` のメソッドから上の関数に、`Worktree` が持つ `WorktreeDir` を渡す。
+    -   [x] `Worktree` に `WorktreeDir` を持たせ、`NewWorktree(dir, gitRun, listRun, makeRun)` にする。ゼロ値の `dir` で panic する（設計書 3.2 節、5 章）。
+    -   [x] 設計書 3.2 節の「`WorktreeDir` を受け取る非公開の関数」の表の関数を、表のとおりに変える。
+    -   [x] 1.4 節の `grep` のパターンを製品のファイルでもう一度実行する。当たった 26 か所のそれぞれについて、呼び出し元をさかのぼって、作業ツリーの中の名前か git が返す場所が届くかを読む。`openRegular` は 1.4 節の呼び出し元のそれぞれを読む。届く箇所は、結ぶ操作か解く操作を通す。届かない箇所（`OpenRegularFile` と `write.go:29`）は変えない。読んだ結果は PR の説明に表で書く。
+    -   [x] `Worktree` のメソッドから上の関数に、`Worktree` が持つ `WorktreeDir` を渡す。
 -   **完了の条件:** `go build ./internal/fixprguard` が通る（`cmd/fixprguard` はステップ 1-4 で合わせる）。
 
 #### ステップ 1-4: CLI に `env.dir` を足す
 
 -   **ファイル:** `cmd/fixprguard/main.go`
 -   **作業:**
-    -   [ ] `env` に `dir fixprguard.WorktreeDir` を足し、`osEnv` で `fixprguard.CurrentDir()` を設定する。runner の `Options` は変えない（設計書 3.3 節）。
-    -   [ ] `execute` の `NewWorktree` の呼び出し（`main.go:408`）を `NewWorktree(e.dir, e.git, e.gitList, e.make)` にする。
+    -   [x] `env` に `dir fixprguard.WorktreeDir` を足し、`osEnv` で `fixprguard.CurrentDir()` を設定する。runner の `Options` は変えない（設計書 3.3 節）。
+    -   [x] `execute` の `NewWorktree` の呼び出し（`main.go:408`）を `NewWorktree(e.dir, e.git, e.gitList, e.make)` にする。
 -   **完了の条件:** `go build ./...` が通る。
 
 #### ステップ 1-5: テストの呼び出しの引数と補助の準備を合わせる
@@ -139,44 +139,44 @@
 
 -   **ファイル:** `internal/fixprguard/test_helpers_git.go`、`cmd/fixprguard/test_helpers.go`、2 つのパッケージの `*_test.go`
 -   **作業:**
-    -   [ ] `newTestWorktree`（`internal/fixprguard`）と、`newTestRun`・`realGit`・`realGitList` と `Baseline`・`Begin`・`JudgedSet`（`cmd/fixprguard`）が、対象のディレクトリを必須の引数として受け取り、そこから `WorktreeDir` と runner の `Options.Dir` を作るようにする（設計書 3.3 節）。この時点では、補助はまだ `t.Chdir`・`t.Setenv` を呼び、`os.Environ()` から環境を作る（設計書 9 章の 2）。
-    -   [ ] これらを呼ぶ途中の補助（`internal/fixprguard` の `mustBaseline`・`mustInspect`・`mustInspectPaths`・`collect`・`prepared.finishBody` など、`cmd/fixprguard` の `testRun` を作る補助）にも、同じディレクトリの引数を足す。
-    -   [ ] 呼び出し元のテストが渡すディレクトリは、次のとおりにする。
+    -   [x] `newTestWorktree`（`internal/fixprguard`）と、`newTestRun`・`realGit`・`realGitList` と `Baseline`・`Begin`・`JudgedSet`（`cmd/fixprguard`）が、対象のディレクトリを必須の引数として受け取り、そこから `WorktreeDir` と runner の `Options.Dir` を作るようにする（設計書 3.3 節）。この時点では、補助はまだ `t.Chdir`・`t.Setenv` を呼び、`os.Environ()` から環境を作る（設計書 9 章の 2）。
+    -   [x] これらを呼ぶ途中の補助（`internal/fixprguard` の `mustBaseline`・`mustInspect`・`mustInspectPaths`・`collect`・`prepared.finishBody` など、`cmd/fixprguard` の `testRun` を作る補助）にも、同じディレクトリの引数を足す。
+    -   [x] 呼び出し元のテストが渡すディレクトリは、次のとおりにする。
         -   リポジトリを作るテストは `r.Dir`。
         -   `t.Chdir` で別の場所に移っているテストは、その場所。
         -   リポジトリを使わないテスト（`head`・`fence`・`ci-checks`・`mentions`・`review-state`・`interaction-limits` のテストなど）は、新しい `t.TempDir()`。パッケージのディレクトリ（`os.Getwd()`）は渡さない。
-    -   [ ] `ignored_test.go:330` の runner と、`ignored_test.go:760-770` の fake の比べる名前を、設計書 3.2 節のとおりに変える。fake の判定（`errReadIgnoredFile` を期待すること）は変えない。
-    -   [ ] 期待値を変えていないことを、このコミットの差分を読んで確かめる（AC-16）。
+    -   [x] `ignored_test.go:330` の runner と、`ignored_test.go:760-770` の fake の比べる名前を、設計書 3.2 節のとおりに変える。fake の判定（`errReadIgnoredFile` を期待すること）は変えない。
+    -   [x] 期待値を変えていないことを、このコミットの差分を読んで確かめる（AC-16）。
 -   **完了の条件:** `make test` と `make lint` が通る。2 つのパッケージのテストは直列のままである。
 
 #### ステップ 1-6: `WorktreeDir` のテストと構築の規則（テストだけを変えるコミット）
 
 -   **ファイル:** `internal/fixprguard/workdir_test.go`（追加）、`internal/fixprguard/construction_test.go`、`internal/fixprguard/worktree_test.go`
 -   **作業:**
-    -   [ ] 設計書 8.3 節の `WorktreeDir` の単体テストを書く（受け入れと拒否、3 つの操作の `CurrentDir()` と絶対パスの両方、`./` を足さないこと、末尾の `/` を保つこと、接頭辞で始まらない名前を拒むこと）。
-    -   [ ] ゼロ値の `WorktreeDir` で `NewWorktree` が panic するテストを書く。
-    -   [ ] `restrictedConstructors` の値を関数の名前の集合にし、`WorktreeDir` に `CurrentDir` と `NewWorktreeDir` を許す。今の 4 つの型の判定は変えない。
-    -   [ ] `WorktreeDir` のフィールドへの参照の規則を、1.3 節のとおりに足す。
-    -   [ ] `CurrentDir`・`NewWorktreeDir` の外で `WorktreeDir` を作るか書き換える形（合成リテラル、`new`、`var` の宣言、別名の型、フィールドへの代入、同じ形の構造体からの変換）を製品のファイルに一時的に入れ、それぞれで `TestRestrictedTypesBuiltByConstructors` が失敗することを確かめる。
-    -   [ ] 新しいテストのそれぞれについて、確かめる対象を壊して失敗することを確かめ、コミットメッセージに書く。
+    -   [x] 設計書 8.3 節の `WorktreeDir` の単体テストを書く（受け入れと拒否、3 つの操作の `CurrentDir()` と絶対パスの両方、`./` を足さないこと、末尾の `/` を保つこと、接頭辞で始まらない名前を拒むこと）。
+    -   [x] ゼロ値の `WorktreeDir` で `NewWorktree` が panic するテストを書く。
+    -   [x] `restrictedConstructors` の値を関数の名前の集合にし、`WorktreeDir` に `CurrentDir` と `NewWorktreeDir` を許す。今の 4 つの型の判定は変えない。
+    -   [x] `WorktreeDir` のフィールドへの参照の規則を、1.3 節のとおりに足す。
+    -   [x] `CurrentDir`・`NewWorktreeDir` の外で `WorktreeDir` を作るか書き換える形（合成リテラル、`new`、`var` の宣言、別名の型、フィールドへの代入、同じ形の構造体からの変換）を製品のファイルに一時的に入れ、それぞれで `TestRestrictedTypesBuiltByConstructors` が失敗することを確かめる。
+    -   [x] 新しいテストのそれぞれについて、確かめる対象を壊して失敗することを確かめ、コミットメッセージに書く。
 -   **完了の条件:** `make test` と `make lint` が通る。
 
 #### ステップ 1-7: 直列に残す新しいテスト（テストだけを変えるコミット）
 
 -   **ファイル:** `internal/fixprguard/worktree_flow_test.go`、`cmd/fixprguard/main_test.go`
 -   **作業:**
-    -   [ ] `TestWorktreeIgnoresProcessDir` を書く（設計書 8.1 節の AC-06 の行）。
-    -   [ ] `TestRunInProcessDir` と 6 つのサブテストを書く（設計書 8.1 節の AC-08 の行）。`run` のすべての呼び出しで、開発者の環境の `GH_REPO`・`GH_HOST` が届かないようにする（`execute` は、空の値でも設定されていれば拒む。`main.go:403`）。`t.Setenv` は空の値を設定するだけで、拒まれるので使わない。`osEnv()` が返す `env` の `lookupEnv` を、`GH_REPO`・`GH_HOST` を未設定と答える関数に差し替える。
-    -   [ ] それぞれについて、確かめる対象を壊して失敗することを確かめ、コミットメッセージに書く。`TestRunInProcessDir` では、少なくとも、`osEnv` の `dir` を `CurrentDir()` 以外にしたときと、`GitEnv` で `GIT_DIR` を除かなくしたときに失敗することを確かめる。
+    -   [x] `TestWorktreeIgnoresProcessDir` を書く（設計書 8.1 節の AC-06 の行）。
+    -   [x] `TestRunInProcessDir` と 6 つのサブテストを書く（設計書 8.1 節の AC-08 の行）。`run` のすべての呼び出しで、開発者の環境の `GH_REPO`・`GH_HOST` が届かないようにする（`execute` は、空の値でも設定されていれば拒む。`main.go:403`）。`t.Setenv` は空の値を設定するだけで、拒まれるので使わない。`osEnv()` が返す `env` の `lookupEnv` を、`GH_REPO`・`GH_HOST` を未設定と答える関数に差し替える。
+    -   [x] それぞれについて、確かめる対象を壊して失敗することを確かめ、コミットメッセージに書く。`TestRunInProcessDir` では、少なくとも、`osEnv` の `dir` を `CurrentDir()` 以外にしたときと、`GitEnv` で `GIT_DIR` を除かなくしたときに失敗することを確かめる。
 -   **完了の条件:** `make test` と `make lint` が通る。
 
 #### ステップ 1-8: PR-1 の確かめと記録
 
 -   **作業:**
-    -   [ ] `make coverage-compare BASE=<PR-1 で製品を最後に変えたコミット>` を実行する（AC-14）。`FAIL` のときは、設計書 8.2 節の「coverage-compare の揺れ」のとおり、きれいな作業ツリーで比べ直す。すべての回の出力を、最後の行まで PR の説明に書く。
-    -   [ ] `gotest.sh names <マージベース>` と `gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-1 の欄に記録する（AC-15、AC-09）。新しく現れた組と、その理由を PR の説明に書く。
-    -   [ ] 期待値を変えたテスト（ない見込み）と、準備の変更（`ignored_test.go` の fake）を、PR の説明に書く（AC-16）。
-    -   [ ] PR-1 のマージベースのコミット ID を、AC-12 の「前」のコミットとして 5.2 節の PR-1 の欄と PR の説明に書く（1.3 節）。
+    -   [x] `make coverage-compare BASE=<PR-1 で製品を最後に変えたコミット>` を実行する（AC-14）。`FAIL` のときは、設計書 8.2 節の「coverage-compare の揺れ」のとおり、きれいな作業ツリーで比べ直す。すべての回の出力を、最後の行まで PR の説明に書く。
+    -   [x] `gotest.sh names <マージベース>` と `gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-1 の欄に記録する（AC-15、AC-09）。新しく現れた組と、その理由を PR の説明に書く。
+    -   [x] 期待値を変えたテスト（ない見込み）と、準備の変更（`ignored_test.go` の fake）を、PR の説明に書く（AC-16）。
+    -   [x] PR-1 のマージベースのコミット ID を、AC-12 の「前」のコミットとして 5.2 節の PR-1 の欄と PR の説明に書く（1.3 節）。
 -   **完了の条件:** 上の結果が PR の説明と 5.2 節にある。
 
 ### PR-1 作成ポイント: worktree directory API in fixprguard
@@ -193,10 +193,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1191
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ### フェーズ 2: 作業ディレクトリの隔離とテストの環境
 
@@ -424,8 +424,44 @@ PR-3 は製品を変えない。
     -   `measure`: PR-3 を作る前（ステップ 3-5）。`/runplan` の実行者が行う。
 -   **破壊の確かめの時期:** `estimate`・`names`・`unchanged`・`race` はステップ 1-1、`measure` はステップ 3-5（前の木と後の木が違うとき）。
 -   **テスト:** コミットしない。
--   **破壊の記録:** （`/runplan` が書く）
--   **実行の記録:** （実行した者が書く。`names`・`unchanged`・`measure` は 5.2 節を指す）
+-   **破壊の記録:** 対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`（初回 `e2a5e8494c0b84e0fee6c38851cb5e70cc9b5c78` の後、レビュー修正に合わせて再確認）
+    -   `unchanged`: `internal/fixprguard/types.go` の `const Protocol = 9` を `10` に書き換えて実行し、終了コード 1（`protocol=FAIL`）で失敗することを確認した。同様に `docs/dev/guides/fixprguard_guide.md` に変更を加えて実行し、終了コード 1（`guide=FAIL`）で失敗することを確認した。
+    -   `race`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `panic` を入れて実行し、終了コード 1（`go test failed`）で失敗することを確認した。
+    -   `names`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `t.Skip` を入れて実行し、終了コード 1（`missing=1`, `became_skip=1`, `status=FAIL`）で失敗することを確認した。
+    -   `estimate`: `GOMAXPROCS=1` を指定して並列度を 1 に下げた前提の破壊で実行し、両パッケージとも下限が 50% を超えて終了コード 1（`status=FAIL`）で失敗することを確認した。
+    -   `measure`: PR-3 で実施予定。
+-   **実行の記録:**
+    -   `estimate`（対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`、判定対象 `origin/main` = `fb71447bb8bd1baa47e113573db52939b41146cd`、両パッケージとも 50% 以下で `PASS`）:
+
+        ```text
+        mode=estimate
+        commit=fb71447bb8bd1baa47e113573db52939b41146cd
+        os=Darwin 25.6.0 arm64
+        cores=12 gomaxprocs=12
+        go=go version go1.27.1 darwin/arm64
+        package=github.com/isseis/yt2column/internal/fixprguard
+          pkg_elapsed=238.156s
+          target_50pct=119.078s
+          longest_parallel=TestCheckReviewStateLine (30.11s)
+          serial_sum=0.56s
+          bound_serial=30.669999999999998s
+          tests_sum=236.5999999999999s
+          bound_cpu=19.716666666666658s (GOMAXPROCS=12)
+          lower_bound=30.669999999999998s
+          status=PASS
+        package=github.com/isseis/yt2column/cmd/fixprguard
+          pkg_elapsed=53.983s
+          target_50pct=26.9915s
+          longest_parallel=TestFinishBodyFileRun (7.07s)
+          serial_sum=0.5s
+          bound_serial=7.57s
+          tests_sum=52.36s
+          bound_cpu=4.363333333333333s (GOMAXPROCS=12)
+          lower_bound=7.57s
+          status=PASS
+        ```
+
+    -   `names`・`unchanged`・`measure`: 5.2 節を参照。
 
 #### `_checks/testshape/main.go`
 
@@ -449,13 +485,75 @@ PR-3 は製品を変えない。
 
 `diff` の確かめ（AC-09、AC-12、AC-15）の出力と、比べた 2 つのコミット ID を、PR ごとに書く。`/runplan` が書く。
 
--   **PR-1:** AC-09（未記入）、AC-15（未記入）、AC-12 の前のコミット（未記入）
+-   **PR-1:**
+    -   AC-12 の前のコミット（PR-1 マージベース）: `54b8299393190b3ed19c41031a12868209133c80`
+    -   AC-09（比較: `54b8299393190b3ed19c41031a12868209133c80` → `8d60e0e006bb569ca58cbc16db567109c048cf0a`）:
+
+        ```text
+        mode=unchanged
+        base=54b8299393190b3ed19c41031a12868209133c80
+        head=8d60e0e006bb569ca58cbc16db567109c048cf0a
+        guide=PASS (docs/dev/guides/fixprguard_guide.md)
+        protocol=PASS (base: const Protocol = 9 | head: const Protocol = 9 | worktree: const Protocol = 9)
+        status=PASS
+        ```
+
+    -   AC-15（比較: `54b8299393190b3ed19c41031a12868209133c80` → `8d60e0e006bb569ca58cbc16db567109c048cf0a`）:
+
+        ```text
+        mode=names
+        base=54b8299393190b3ed19c41031a12868209133c80
+        head=8d60e0e006bb569ca58cbc16db567109c048cf0a
+        base_pass=1807
+        head_pass=1844
+        missing=0
+        became_skip=0
+        added=37
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/below_top
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/detached_head
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/ignores_inherited_git_dir
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/ignores_inherited_git_dir/linked_worktree
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/ignores_inherited_git_dir/main_worktree
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/malformed_git_file
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/no_git
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/top_of_work_tree
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/top_of_work_tree/linked_worktree
+          ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/top_of_work_tree/main_worktree
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/accept//repo
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/accept//tmp/work/repo
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/dot
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/dot_elem
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/dot_relative
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/double_slash
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/empty
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/leading_double_slash
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/parent_elem
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/relative
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/root
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/trailing_slash
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreePanicsOnZeroWorktreeDir
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/reviewers_field_in_worktree_dir_accessor
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_current_dir
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_in_reviewers_accessor
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_read
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_literal_with_field
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_new_constructor
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_same_shape_struct
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_zero_literal
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestWorktreeDirOperations
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestWorktreeDirOperations/absolute_dir
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestWorktreeDirOperations/current_dir
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestWorktreeIgnoresProcessDir
+        status=PASS
+        ```
 -   **PR-2:** AC-09（未記入）、AC-15（未記入）
 -   **PR-3:** AC-09（未記入）、AC-12（未記入）、AC-15（未記入）
 
 ## 6. 実装チェックリスト
 
-- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8）
+- [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8）
 - [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
 - [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
 

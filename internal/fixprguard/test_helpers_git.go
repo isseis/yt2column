@@ -252,17 +252,28 @@ func (r *testRepo) RemoteHead() string {
 	return strings.TrimSpace(r.gitIn(r.Remote, "rev-parse", headsPrefix+testBranch))
 }
 
-// newTestWorktree returns a Worktree whose git runs for real with
-// cmdrunner.GitEnv and whose other commands run through a fake expecting
-// exactly steps.
-func newTestWorktree(t *testing.T, steps ...cmdrunnertestutil.Step) (*Worktree, *gitRouter) {
+// mustWorktreeDir builds a WorktreeDir for dir or fails the test.
+func mustWorktreeDir(t *testing.T, dir string) WorktreeDir {
 	t.Helper()
+	wd, err := NewWorktreeDir(dir)
+	if err != nil {
+		t.Fatalf("NewWorktreeDir(%q): %v", dir, err)
+	}
+	return wd
+}
+
+// newTestWorktree returns a Worktree targeting dir whose git runs for real
+// with cmdrunner.GitEnv and Options.Dir set to dir, and whose other commands
+// run through a fake expecting exactly steps.
+func newTestWorktree(t *testing.T, dir string, steps ...cmdrunnertestutil.Step) (*Worktree, *gitRouter) {
+	t.Helper()
+	wd := mustWorktreeDir(t, dir)
 	router := &gitRouter{
-		real: cmdrunner.NewOS(cmdrunner.Options{Env: cmdrunner.GitEnv(os.Environ())}),
-		List: cmdrunner.NewOS(cmdrunner.Options{Env: cmdrunner.GitEnv(os.Environ()), StderrIsFailure: true}),
+		real: cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: cmdrunner.GitEnv(os.Environ())}),
+		List: cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: cmdrunner.GitEnv(os.Environ()), StderrIsFailure: true}),
 		fake: cmdrunnertestutil.New(t, steps...),
 	}
-	return NewWorktree(router, router.ListRunner(), router), router
+	return NewWorktree(wd, router, router.ListRunner(), router), router
 }
 
 // requireNonRoot fails the test when it runs as root, where permission
@@ -304,10 +315,10 @@ func buildCheckSteps() []cmdrunnertestutil.Step {
 	return []cmdrunnertestutil.Step{makeStep(StageFmt, nil), makeStep(StageTest, nil), makeStep(StageLint, nil)}
 }
 
-// mustBaseline takes a baseline with a Worktree that runs no other command.
-func mustBaseline(t *testing.T) Baseline {
+// mustBaseline takes a baseline of dir with a Worktree that runs no other command.
+func mustBaseline(t *testing.T, dir string) Baseline {
 	t.Helper()
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, dir)
 	base, err := w.Begin(t.Context())
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
@@ -320,10 +331,10 @@ func threadAt(path string) []ThreadPath {
 	return []ThreadPath{{ThreadID: testThreadID(1), Path: path}}
 }
 
-// mustInspect inspects with threads on testFile and returns the judged set.
-func mustInspect(t *testing.T, base Baseline) Inspection {
+// mustInspect inspects dir with threads on testFile and returns the judged set.
+func mustInspect(t *testing.T, dir string, base Baseline) Inspection {
 	t.Helper()
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, dir)
 	inspection, err := w.Inspect(t.Context(), base, threadAt(testFile))
 	if err != nil {
 		t.Fatalf("Inspect: %v", err)

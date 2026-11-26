@@ -88,11 +88,12 @@ func TestBaselineDetectsChange(t *testing.T) {
 	hook := func(r *testRepo) string { return filepath.Join(r.Dir, ".git", "hooks", "pre-commit") }
 	repoConfig := func(r *testRepo) string { return filepath.Join(r.Dir, ".git", "config") }
 	for _, tc := range []struct {
-		name  string
-		setup func(t *testing.T, r *testRepo) // before the baseline
-		edit  func(t *testing.T, r *testRepo) // after it
-		parts []string
-		layer stopLayer
+		name      string
+		setup     func(t *testing.T, r *testRepo) // before the baseline
+		targetDir func(r *testRepo) string        // r.Dir when nil
+		edit      func(t *testing.T, r *testRepo) // after it
+		parts     []string
+		layer     stopLayer
 	}{
 		{name: "new_commit", edit: func(_ *testing.T, r *testRepo) {
 			r.Write(testFile, "changed\n")
@@ -247,7 +248,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 			linked := filepath.Join(r.Home, "linked")
 			r.Git("worktree", "add", "-q", "-b", "linked-branch", linked)
 			t.Chdir(linked)
-		}, edit: func(t *testing.T, r *testRepo) {
+		}, targetDir: func(r *testRepo) string { return filepath.Join(r.Home, "linked") }, edit: func(t *testing.T, r *testRepo) {
 			// The shared config lives in the main repository's git directory.
 			appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
 		}, parts: []string{PartConfig}, layer: layerList},
@@ -269,13 +270,17 @@ func TestBaselineDetectsChange(t *testing.T) {
 			if tc.setup != nil {
 				tc.setup(t, r)
 			}
-			base := mustBaseline(t)
-			w, _ := newTestWorktree(t)
+			dir := r.Dir
+			if tc.targetDir != nil {
+				dir = tc.targetDir(r)
+			}
+			base := mustBaseline(t, dir)
+			w, _ := newTestWorktree(t, dir)
 			if _, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote); err != nil {
 				t.Fatalf("compareState before the edit = %v", err)
 			}
 			tc.edit(t, r)
-			w, router := newTestWorktree(t)
+			w, router := newTestWorktree(t, dir)
 			_, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote)
 			wantStateParts(t, err, tc.parts...)
 			wantLayer(t, tc.layer, router.Calls)
@@ -285,9 +290,9 @@ func TestBaselineDetectsChange(t *testing.T) {
 	t.Run("unknown_head_rule", func(t *testing.T) {
 		// A kind outside the list (no declared kind is negative) fails secure:
 		// an error, and the push target is never read.
-		newTestRepo(t)
-		base := mustBaseline(t)
-		w, router := newTestWorktree(t)
+		r := newTestRepo(t)
+		base := mustBaseline(t, r.Dir)
+		w, router := newTestWorktree(t, r.Dir)
 		_, err := w.compareState(t.Context(), base, headRule{kind: headRuleKind(-1), commit: base.head}, checkWithRemote)
 		if !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("compareState = %v, want ErrInvalidInput", err)
@@ -300,7 +305,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 	t.Run("baseline_refuses_flagged_entry", func(t *testing.T) {
 		r := newTestRepo(t)
 		r.Git("update-index", "--skip-worktree", testFile)
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir)
 		_, err := w.Baseline(t.Context())
 		wantStateParts(t, err, PartInfo)
 	})
@@ -308,7 +313,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 	t.Run("baseline_refuses_detached_head", func(t *testing.T) {
 		r := newTestRepo(t)
 		r.Git("switch", "-q", "--detach")
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir)
 		if _, err := w.Baseline(t.Context()); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("Baseline = %v, want ErrInvalidInput", err)
 		}
@@ -317,7 +322,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 
 func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir)
 	r.Git("fetch", "-q", testRemote)
 	if _, err := os.Stat(filepath.Join(r.Dir, ".git", "FETCH_HEAD")); err != nil {
 		t.Fatalf("fetch wrote no FETCH_HEAD: %v", err)
@@ -336,15 +341,15 @@ func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
 	if after, _ := os.ReadFile(index); bytes.Equal(after, before) {
 		t.Fatal("the index did not change")
 	}
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, r.Dir)
 	if _, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote); err != nil {
 		t.Errorf("compareState = %v, want nil", err)
 	}
 }
 
 func TestBaselineMalformedRejected(t *testing.T) {
-	newTestRepo(t)
-	token := mustBaseline(t).String()
+	r := newTestRepo(t)
+	token := mustBaseline(t, r.Dir).String()
 	parsed, err := ParseBaseline(token)
 	if err != nil || parsed.String() != token {
 		t.Fatalf("ParseBaseline(round trip) = %q, %v", parsed.String(), err)
@@ -381,7 +386,7 @@ func TestBaselineMalformedRejected(t *testing.T) {
 		})
 	}
 	t.Run("zero_baseline", func(t *testing.T) {
-		w, router := newTestWorktree(t)
+		w, router := newTestWorktree(t, t.TempDir())
 		if err := w.CheckState(t.Context(), Baseline{}); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("CheckState(zero) = %v, want ErrInvalidInput", err)
 		}
@@ -394,9 +399,9 @@ func TestBaselineMalformedRejected(t *testing.T) {
 func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 	t.Run("inspect", func(t *testing.T) {
 		r := newTestRepo(t)
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir)
 		appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
-		w, router := newTestWorktree(t)
+		w, router := newTestWorktree(t, r.Dir)
 		_, err := w.Inspect(t.Context(), base, threadAt(testFile))
 		wantStateParts(t, err, PartConfig)
 		if !slices.Equal(router.Calls, []string{gitConfigList}) {
@@ -405,14 +410,14 @@ func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 	})
 	t.Run("finish_after_make_test", func(t *testing.T) {
 		r := newTestRepo(t)
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir)
 		r.Write(testFile, "fixed\n")
-		judged := mustInspect(t, base).JudgedSet
+		judged := mustInspect(t, r.Dir, base).JudgedSet
 		rewrite := func() error {
 			appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
 			return nil
 		}
-		w, router := newTestWorktree(t, makeStep(StageFmt, nil), makeStep(StageTest, rewrite))
+		w, router := newTestWorktree(t, r.Dir, makeStep(StageFmt, nil), makeStep(StageTest, rewrite))
 		_, err := w.Finish(t.Context(), base, judged, FinishRequest{PR: mustPR(t)})
 		wantStateParts(t, err, PartConfig)
 		// After make test changed the config, only git config --list runs:
@@ -431,7 +436,7 @@ func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 // check fails on the call count instead of waiting on the FIFO.
 func TestConfigFileTypeCheckedBeforeGit(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir)
 	config := filepath.Join(r.Dir, ".git", "config")
 	if err := os.Remove(config); err != nil {
 		t.Fatal(err)
@@ -439,7 +444,7 @@ func TestConfigFileTypeCheckedBeforeGit(t *testing.T) {
 	if err := syscall.Mkfifo(config, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	w, router := newTestWorktree(t)
+	w, router := newTestWorktree(t, r.Dir)
 	router.ConfigList = &configListResult{Err: &cmdrunner.ExitError{Code: 128}}
 	_, err := w.Inspect(t.Context(), base, threadAt(testFile))
 	wantStateParts(t, err, PartConfig)
@@ -455,7 +460,7 @@ func TestConfigFileTypeCheckedBeforeGit(t *testing.T) {
 func TestGitEnvKeepsGitOnTheWorktree(t *testing.T) {
 	r := newTestRepo(t)
 	t.Setenv("GIT_DIR", filepath.Join(r.Home, "nowhere"))
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, r.Dir)
 	if _, err := w.Baseline(t.Context()); err != nil {
 		t.Errorf("Baseline with GIT_DIR inherited = %v", err)
 	}
@@ -524,7 +529,7 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 			if tc.setup != nil {
 				tc.setup(t, r)
 			}
-			base := mustBaseline(t)
+			base := mustBaseline(t, r.Dir)
 			listBefore := r.ConfigList()
 			fileBefore, err := os.ReadFile(repoConfig(r))
 			if err != nil {
@@ -544,7 +549,7 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 			} else if r.ConfigList() == listBefore {
 				t.Fatal("the edit does not change the listing")
 			}
-			w, _ := newTestWorktree(t)
+			w, _ := newTestWorktree(t, r.Dir)
 			if tc.checkOnly {
 				if err := w.CheckState(t.Context(), base); err != nil {
 					t.Errorf("CheckState = %v, want nil", err)
@@ -562,9 +567,9 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 // list now is a config change, seen before git rev-parse runs.
 func TestConfigListUnreadable(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir)
 	appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core\n")
-	w, router := newTestWorktree(t)
+	w, router := newTestWorktree(t, r.Dir)
 	wantStateParts(t, w.CheckState(t.Context(), base), PartConfig)
 	if !slices.Equal(router.Calls, []string{gitConfigList}) {
 		t.Errorf("calls = %v, want git config --list only", router.Calls)
@@ -592,9 +597,9 @@ func TestConfigListFailureKinds(t *testing.T) {
 		{name: "malformed_listing", result: configListResult{Out: []byte("no delimiters")}, changed: true},
 	} {
 		t.Run("check_state/"+tc.name, func(t *testing.T) {
-			newTestRepo(t)
-			base := mustBaseline(t)
-			w, router := newTestWorktree(t)
+			r := newTestRepo(t)
+			base := mustBaseline(t, r.Dir)
+			w, router := newTestWorktree(t, r.Dir)
 			router.ConfigList = &tc.result
 			err := w.CheckState(t.Context(), base)
 			if tc.changed {
@@ -607,8 +612,8 @@ func TestConfigListFailureKinds(t *testing.T) {
 			}
 		})
 		t.Run("begin/"+tc.name, func(t *testing.T) {
-			newTestRepo(t)
-			w, router := newTestWorktree(t)
+			r := newTestRepo(t)
+			w, router := newTestWorktree(t, r.Dir)
 			router.ConfigList = &tc.result
 			base, err := w.Baseline(t.Context())
 			if _, isState := errors.AsType[*GitStateError](err); isState || !errors.Is(err, ErrGitFailed) {
@@ -640,7 +645,7 @@ func TestCommitObjectMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 	oid := strings.TrimSpace(r.Git("hash-object", "-t", "commit", "-w", file))
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, r.Dir)
 	gotTree, parents, got, err := w.commitObject(t.Context(), oid)
 	if err != nil {
 		t.Fatalf("commitObject = %v", err)

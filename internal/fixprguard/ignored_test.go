@@ -209,10 +209,10 @@ func (r *testRepo) ignore(lines ...string) {
 	r.Write(".gitignore", strings.Join(lines, "\n")+"\n")
 }
 
-// collect runs one pass with the test Worktree's runners.
-func collect(t *testing.T, lim targetLimits) (targetState, error) {
+// collect runs one pass on dir with the test Worktree's runners.
+func collect(t *testing.T, dir string, lim targetLimits) (targetState, error) {
 	t.Helper()
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, dir)
 	return w.collectTargets(t.Context(), lim)
 }
 
@@ -303,7 +303,7 @@ func TestCollectTargetsGitFailures(t *testing.T) {
 				r.ignore("build/", ".claude/")
 				r.Write(dir+"/x.go", "package x\n")
 				chmodForTest(t, filepath.Join(r.Dir, dir), 0o311)
-				if _, err := collect(t, wideLimits()); !errors.Is(err, errListIgnoredFailed) {
+				if _, err := collect(t, r.Dir, wideLimits()); !errors.Is(err, errListIgnoredFailed) {
 					t.Errorf("error = %v, want %v", err, errListIgnoredFailed)
 				}
 			})
@@ -314,8 +314,8 @@ func TestCollectTargetsGitFailures(t *testing.T) {
 	startStep.Err = exec.ErrNotFound
 	for name, step := range map[string]cmdrunnertestutil.Step{"nonzero_exit": exitStep, "not_started": startStep} {
 		t.Run(name, func(t *testing.T) {
-			newTestRepo(t)
-			w, router := newTestWorktree(t)
+			r := newTestRepo(t)
+			w, router := newTestWorktree(t, r.Dir)
 			router.List = cmdrunnertestutil.New(t, step)
 			if _, err := w.collectTargets(t.Context(), wideLimits()); !errors.Is(err, errListIgnoredFailed) {
 				t.Errorf("error = %v, want %v", err, errListIgnoredFailed)
@@ -326,8 +326,8 @@ func TestCollectTargetsGitFailures(t *testing.T) {
 		r := newTestRepo(t)
 		r.ignore("build/")
 		r.Write("build/0123456789.txt", "x")
-		w, router := newTestWorktree(t)
-		router.List = cmdrunner.NewOS(cmdrunner.Options{Env: cmdrunner.GitEnv(os.Environ()), StderrIsFailure: true, MaxOutput: 8})
+		w, router := newTestWorktree(t, r.Dir)
+		router.List = cmdrunner.NewOS(cmdrunner.Options{Dir: r.Dir, Env: cmdrunner.GitEnv(os.Environ()), StderrIsFailure: true, MaxOutput: 8})
 		if _, err := w.collectTargets(t.Context(), wideLimits()); !errors.Is(err, errListIgnoredCap) {
 			t.Errorf("error = %v, want %v", err, errListIgnoredCap)
 		}
@@ -350,8 +350,8 @@ func TestCollectTargetsWalk(t *testing.T) {
 		return r
 	}
 	t.Run("nested_repository", func(t *testing.T) {
-		setup(t)
-		state, err := collect(t, wideLimits())
+		r := setup(t)
+		state, err := collect(t, r.Dir, wideLimits())
 		if err != nil {
 			t.Fatalf("collectTargets: %v", err)
 		}
@@ -367,7 +367,7 @@ func TestCollectTargetsWalk(t *testing.T) {
 		r := newTestRepo(t)
 		r.ignore(".claude/")
 		r.Write(settingsLocalPath, "{}\n")
-		state, err := collect(t, wideLimits())
+		state, err := collect(t, r.Dir, wideLimits())
 		if err != nil {
 			t.Fatalf("collectTargets: %v", err)
 		}
@@ -376,13 +376,14 @@ func TestCollectTargetsWalk(t *testing.T) {
 		}
 	})
 	t.Run("directory_item_replaced", func(t *testing.T) {
-		t.Chdir(t.TempDir())
+		dir := t.TempDir()
+		t.Chdir(dir)
 		writeFile(t, "file", "x")
 		mkdir(t, "dir")
 		symlink(t, "dir", "link")
 		walked := 0
 		for _, item := range []string{"file", "link"} {
-			err := walkIgnoredDir(t.Context(), item, &walked, wideLimits(), func(string) error { return nil })
+			err := walkIgnoredDir(t.Context(), mustWorktreeDir(t, dir), item, &walked, wideLimits(), func(string) error { return nil })
 			if !errors.Is(err, errReadIgnoredDir) {
 				t.Errorf("%s: error = %v, want %v", item, err, errReadIgnoredDir)
 			}
@@ -393,7 +394,7 @@ func TestCollectTargetsWalk(t *testing.T) {
 		r := setup(t)
 		mkdir(t, filepath.Join(r.Dir, "build/nested/locked"))
 		chmodForTest(t, filepath.Join(r.Dir, "build/nested/locked"), 0)
-		if _, err := collect(t, wideLimits()); !errors.Is(err, errReadIgnoredDir) {
+		if _, err := collect(t, r.Dir, wideLimits()); !errors.Is(err, errReadIgnoredDir) {
 			t.Errorf("error = %v, want %v", err, errReadIgnoredDir)
 		}
 	})
@@ -427,7 +428,7 @@ func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 					r := newTestRepo(t)
 					r.ignore(w.dir + "/")
 					r.Write(tt.file, "x\n")
-					if _, err := collect(t, wideLimits()); !errors.Is(err, tt.wantErr) {
+					if _, err := collect(t, r.Dir, wideLimits()); !errors.Is(err, tt.wantErr) {
 						t.Errorf("error = %v, want %v", err, tt.wantErr)
 					}
 				})
@@ -458,7 +459,7 @@ func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 					r := newTestRepo(t)
 					r.ignore(w.dir + "/")
 					tc.setup(r)
-					if _, err := collect(t, wideLimits()); err != nil {
+					if _, err := collect(t, r.Dir, wideLimits()); err != nil {
 						t.Errorf("collectTargets: %v, want %s", err, tc.desc)
 					}
 				})
@@ -467,10 +468,11 @@ func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 			// and only checkTopDirGitNames walks w.dir/locked.
 			t.Run("unreadable_subdir", func(t *testing.T) {
 				requireNonRoot(t)
-				t.Chdir(t.TempDir())
+				dir := t.TempDir()
+				t.Chdir(dir)
 				mkdir(t, filepath.Join(w.dir, "locked"))
 				chmodForTest(t, filepath.Join(w.dir, "locked"), 0)
-				if _, err := selectTargets(t.Context(), nil, nil, wideLimits()); !errors.Is(err, errReadIgnoredDir) {
+				if _, err := selectTargets(t.Context(), mustWorktreeDir(t, dir), nil, nil, wideLimits()); !errors.Is(err, errReadIgnoredDir) {
 					t.Errorf("error = %v, want %v", err, errReadIgnoredDir)
 				}
 			})
@@ -547,20 +549,20 @@ func TestCollectTargetsLimits(t *testing.T) {
 			tt.setup(r)
 			lim := wideLimits()
 			*tt.limit(&lim) = tt.held(t)
-			if _, err := collect(t, lim); err != nil {
+			if _, err := collect(t, r.Dir, lim); err != nil {
 				t.Fatalf("at the cap: %v, want no error", err)
 			}
 			*tt.limit(&lim)--
-			if _, err := collect(t, lim); !errors.Is(err, tt.wantErr) {
+			if _, err := collect(t, r.Dir, lim); !errors.Is(err, tt.wantErr) {
 				t.Errorf("one below the cap: %v, want %v", err, tt.wantErr)
 			}
 		})
 	}
 	t.Run("timeout", func(t *testing.T) {
-		newTestRepo(t)
+		r := newTestRepo(t)
 		release := make(chan struct{})
 		t.Cleanup(func() { close(release) })
-		w, router := newTestWorktree(t)
+		w, router := newTestWorktree(t, r.Dir)
 		router.List = blockingRunner{release: release}
 		lim := wideLimits()
 		lim.timeout = 100 * time.Millisecond
@@ -585,23 +587,24 @@ func walkedEntries(t *testing.T, dir string) int {
 	return n
 }
 
-// stateOf builds the state of paths in the current directory.
-func stateOf(t *testing.T, lim targetLimits, paths ...string) (targetState, error) {
+// stateOf builds the state of paths under dir.
+func stateOf(t *testing.T, dir string, lim targetLimits, paths ...string) (targetState, error) {
 	t.Helper()
-	return targetStateOf(t.Context(), paths, lim, os.Lstat)
+	return targetStateOf(t.Context(), mustWorktreeDir(t, dir), paths, lim, os.Lstat)
 }
 
 // stateWithin is stateOf, failing the test instead of hanging if the pass
 // blocks on a special file.
-func stateWithin(t *testing.T, paths ...string) (targetState, error) {
+func stateWithin(t *testing.T, dir string, paths ...string) (targetState, error) {
 	t.Helper()
+	wd := mustWorktreeDir(t, dir)
 	type result struct {
 		state targetState
 		err   error
 	}
 	done := make(chan result, 1)
 	go func() {
-		state, err := targetStateOf(t.Context(), paths, wideLimits(), os.Lstat)
+		state, err := targetStateOf(t.Context(), wd, paths, wideLimits(), os.Lstat)
 		done <- result{state, err}
 	}()
 	select {
@@ -649,9 +652,10 @@ func TestTargetEntries(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				t.Chdir(t.TempDir())
+				dir := t.TempDir()
+				t.Chdir(dir)
 				tt.setup(t)
-				if _, err := stateOf(t, wideLimits(), "x.go"); !errors.Is(err, tt.wantErr) {
+				if _, err := stateOf(t, dir, wideLimits(), "x.go"); !errors.Is(err, tt.wantErr) {
 					t.Errorf("error = %v, want %v", err, tt.wantErr)
 				}
 			})
@@ -659,20 +663,21 @@ func TestTargetEntries(t *testing.T) {
 	})
 
 	t.Run("unresolved_links_recorded", func(t *testing.T) {
-		t.Chdir(t.TempDir())
+		dir := t.TempDir()
+		t.Chdir(dir)
 		writeFile(t, "regular", "x")
 		symlink(t, "missing", "enoent.go")
 		symlink(t, "loop_b.go", "loop_a.go")
 		symlink(t, "loop_a.go", "loop_b.go")
 		symlink(t, "regular/x", "enotdir.go")
 		links := []string{"enoent.go", "enotdir.go", "loop_a.go"}
-		before, err := stateOf(t, wideLimits(), links...)
+		before, err := stateOf(t, dir, wideLimits(), links...)
 		if err != nil {
 			t.Fatalf("error = %v, want the links recorded as unresolved", err)
 		}
 		// Once the link resolves, its record line changes.
 		writeFile(t, "missing", "x")
-		after, err := stateOf(t, wideLimits(), links...)
+		after, err := stateOf(t, dir, wideLimits(), links...)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -694,9 +699,10 @@ func TestTargetEntries(t *testing.T) {
 	}
 	for _, tt := range special {
 		t.Run("recorded/"+tt.name, func(t *testing.T) {
-			t.Chdir(t.TempDir())
+			dir := t.TempDir()
+			t.Chdir(dir)
 			tt.setup(t)
-			if _, err := stateWithin(t, "x.go", settingsLocalPath); err != nil {
+			if _, err := stateWithin(t, dir, "x.go", settingsLocalPath); err != nil {
 				t.Errorf("error = %v, want the file recorded", err)
 			}
 		})
@@ -726,7 +732,8 @@ func TestTargetEntries(t *testing.T) {
 	}
 	for _, tt := range sizeTests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Chdir(t.TempDir())
+			dir := t.TempDir()
+			t.Chdir(dir)
 			if err := os.WriteFile("sparse", nil, 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -741,11 +748,11 @@ func TestTargetEntries(t *testing.T) {
 			}
 			lim := wideLimits()
 			tt.atCap(&lim)
-			if _, err := stateOf(t, lim, links...); err != nil {
+			if _, err := stateOf(t, dir, lim, links...); err != nil {
 				t.Fatalf("at the cap: %v, want no error", err)
 			}
 			tt.belowCap(&lim)
-			if _, err := stateOf(t, lim, links...); !errors.Is(err, tt.wantErr) {
+			if _, err := stateOf(t, dir, lim, links...); !errors.Is(err, tt.wantErr) {
 				t.Errorf("one below the cap: %v, want %v", err, tt.wantErr)
 			}
 		})
@@ -757,9 +764,10 @@ func TestTargetEntries(t *testing.T) {
 		r := newTestRepo(t)
 		r.ignore(".envrc")
 		r.Write(".envrc", "export A=1\n")
+		wantPath := filepath.Join(r.Dir, ".envrc")
 		swap := func(name string) (fs.FileInfo, error) {
 			info, err := os.Lstat(name)
-			if name == ".envrc" {
+			if name == wantPath {
 				// This runs on the pass's goroutine, so it reports with
 				// Errorf, never Fatalf.
 				if err := os.Remove(name); err != nil {
@@ -773,11 +781,11 @@ func TestTargetEntries(t *testing.T) {
 		}
 		// If the open blocked, opening the write side releases it.
 		t.Cleanup(func() {
-			if f, err := os.OpenFile(filepath.Join(r.Dir, ".envrc"), os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
+			if f, err := os.OpenFile(wantPath, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
 				_ = f.Close()
 			}
 		})
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir)
 		lim := wideLimits()
 		lim.timeout = 2 * time.Second
 		if _, err := w.collectTargetsWith(t.Context(), lim, swap); !errors.Is(err, errReadIgnoredFile) {
@@ -821,9 +829,10 @@ func TestHashCapped(t *testing.T) {
 // cannot pass for an entry boundary. The one path below, unquoted, would
 // write the same bytes as the absent entries of m and n.
 func TestTargetStateDigest(t *testing.T) {
-	t.Chdir(t.TempDir())
+	dir := t.TempDir()
+	t.Chdir(dir)
 	writeFile(t, "a.go", "package a\n")
-	first, err := stateOf(t, wideLimits(), "a.go")
+	first, err := stateOf(t, dir, wideLimits(), "a.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -835,18 +844,18 @@ func TestTargetStateDigest(t *testing.T) {
 	if err := os.Chmod("a.go", 0o644); err != nil { //nolint:gosec // a file in the test's temporary directory
 		t.Fatal(err)
 	}
-	again, err := stateOf(t, wideLimits(), "a.go")
+	again, err := stateOf(t, dir, wideLimits(), "a.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first.digest != again.digest {
 		t.Errorf("a change of time or read and write bits changed the digest")
 	}
-	two, err := stateOf(t, wideLimits(), "m", "n")
+	two, err := stateOf(t, dir, wideLimits(), "m", "n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	one, err := stateOf(t, wideLimits(), "m\nabsent\n1\nn")
+	one, err := stateOf(t, dir, wideLimits(), "m\nabsent\n1\nn")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -856,12 +865,13 @@ func TestTargetStateDigest(t *testing.T) {
 	// Without the kind markers, a dangling link a -> b would write the
 	// values of the absent entries of a, b, and unresolved.
 	symlink(t, "b", "a")
-	link, err := stateOf(t, wideLimits(), "a")
+	link, err := stateOf(t, dir, wideLimits(), "a")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Chdir(t.TempDir())
-	absent, err := stateOf(t, wideLimits(), "a", "b", "unresolved")
+	dir2 := t.TempDir()
+	t.Chdir(dir2)
+	absent, err := stateOf(t, dir2, wideLimits(), "a", "b", "unresolved")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -874,7 +884,8 @@ func TestTargetStateDigest(t *testing.T) {
 // the path quoted in printable ASCII; a change to one file changes its line
 // only.
 func TestTargetRecordLines(t *testing.T) {
-	t.Chdir(t.TempDir())
+	dir := t.TempDir()
+	t.Chdir(dir)
 	// A name that is not valid UTF-8 cannot be created on APFS, so the last
 	// two are recorded as absent; the others exist. The fourth is valid
 	// UTF-8 that is not ASCII.
@@ -882,7 +893,7 @@ func TestTargetRecordLines(t *testing.T) {
 	for _, p := range paths[:3] {
 		writeFile(t, p, p)
 	}
-	state, err := stateOf(t, wideLimits(), paths...)
+	state, err := stateOf(t, dir, wideLimits(), paths...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -906,7 +917,7 @@ func TestTargetRecordLines(t *testing.T) {
 		}
 	}
 	writeFile(t, "b.go", "changed")
-	changed, err := stateOf(t, wideLimits(), paths...)
+	changed, err := stateOf(t, dir, wideLimits(), paths...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -926,12 +937,13 @@ func TestTargetRecordLines(t *testing.T) {
 // the digest and the record independent of map order; enough paths are given
 // that an unsorted map iteration would almost never come out in order.
 func TestSelectTargetsSorted(t *testing.T) {
-	t.Chdir(t.TempDir())
+	dir := t.TempDir()
+	t.Chdir(dir)
 	var files []string
 	for i := 29; i >= 0; i-- {
 		files = append(files, fmt.Sprintf("build/f%02d.go", i))
 	}
-	got, err := selectTargets(t.Context(), files, nil, wideLimits())
+	got, err := selectTargets(t.Context(), mustWorktreeDir(t, dir), files, nil, wideLimits())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -967,7 +979,7 @@ func TestDefaultLimitsAcceptDependencyTree(t *testing.T) {
 		r.Write("node_modules/native"+strconv.Itoa(i)+"/include/x.h", "#define X 1\n")
 		r.Write("node_modules/native"+strconv.Itoa(i)+"/Makefile", "all:\n")
 	}
-	state, err := collect(t, defaultTargetLimits)
+	state, err := collect(t, r.Dir, defaultTargetLimits)
 	if err != nil {
 		t.Fatalf("collectTargets: %v", err)
 	}
@@ -1144,9 +1156,9 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 			if tc.before != nil {
 				tc.before(t, r)
 			}
-			base := mustBaseline(t)
+			base := mustBaseline(t, r.Dir)
 			tc.after(t, r)
-			w, _ := newTestWorktree(t)
+			w, _ := newTestWorktree(t, r.Dir)
 			err := w.CheckState(t.Context(), base)
 			if !tc.stops {
 				if err != nil {
@@ -1160,10 +1172,10 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 	// A part compared earlier wins: the target files are not even listed.
 	t.Run("hooks_and_target_changed", func(t *testing.T) {
 		r := ignoringRepo(t, ignored...)
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir)
 		r.WriteHook("pre-commit", "exit 0\n")
 		r.Write(settingsLocalPath, "{}")
-		w, router := newTestWorktree(t)
+		w, router := newTestWorktree(t, r.Dir)
 		wantStateParts(t, w.CheckState(t.Context(), base), PartHooks)
 		if slices.Contains(router.Calls, gitCommand+" ls-files") {
 			t.Errorf("calls = %v, want no listing of ignored files", router.Calls)
@@ -1196,7 +1208,7 @@ func TestBaselineIgnoredFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := ignoringRepo(t, "build/")
 			tc.setup(t, r)
-			w, _ := newTestWorktree(t)
+			w, _ := newTestWorktree(t, r.Dir)
 			if base, err := w.Baseline(t.Context()); !errors.Is(err, tc.want) || base.usable() {
 				t.Errorf("Baseline = %q, %v; want no baseline and %v", base.String(), err, tc.want)
 			}
@@ -1214,7 +1226,7 @@ func TestBeginWithTargets(t *testing.T) {
 	mkfifo(t, filepath.Join(r.Dir, "build/pipe.go"))
 	r.gitIn(r.Dir, "init", "-q", "--template=", "build/nested")
 	mkfifo(t, filepath.Join(r.Dir, "build/nested/pipe.go"))
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, r.Dir)
 	base, err := w.Begin(t.Context())
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
@@ -1251,7 +1263,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 	t.Run("begin_record_matches_baseline", func(t *testing.T) {
 		r := ignoringRepo(t, "build/")
 		r.Write("build/x.go", "package x\n")
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir)
 		record, err := os.ReadFile(gitDir(r, ignoredBeginRecord))
 		if err != nil {
 			t.Fatalf("read begin record: %v", err)
@@ -1265,7 +1277,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 	})
 	t.Run("target_changed_after_baseline", func(t *testing.T) {
 		r := ignoringRepo(t, "build/")
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir)
 		base, err := w.Baseline(t.Context())
 		if err != nil {
 			t.Fatalf("Baseline: %v", err)
@@ -1283,9 +1295,9 @@ func TestIgnoredRecordFiles(t *testing.T) {
 	})
 	t.Run("stop_record", func(t *testing.T) {
 		r := ignoringRepo(t, "build/")
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir)
 		r.Write("build/x.go", "package x\n")
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir)
 		wantStateParts(t, w.CheckState(t.Context(), base), PartIgnored)
 		begin, err := os.ReadFile(gitDir(r, ignoredBeginRecord))
 		if err != nil {
@@ -1307,7 +1319,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 	t.Run("begin_removes_earlier_stop_record", func(t *testing.T) {
 		r := ignoringRepo(t, "build/")
 		writeFile(t, gitDir(r, ignoredStopRecord), "earlier round\n")
-		mustBaseline(t)
+		mustBaseline(t, r.Dir)
 		if _, err := os.Lstat(gitDir(r, ignoredStopRecord)); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("stop record after begin: %v, want removed", err)
 		}
@@ -1317,7 +1329,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 	t.Run("begin_record_not_writable", func(t *testing.T) {
 		requireNonRoot(t)
 		r := ignoringRepo(t, "build/")
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir)
 		base, err := w.Baseline(t.Context())
 		if err != nil {
 			t.Fatalf("Baseline: %v", err)
@@ -1332,7 +1344,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 	})
 	t.Run("record_name_blocked", func(t *testing.T) {
 		r := ignoringRepo(t, "build/")
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir)
 		base, err := w.Baseline(t.Context())
 		if err != nil {
 			t.Fatalf("Baseline: %v", err)
@@ -1371,7 +1383,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		outside := filepath.Join(t.TempDir(), "outside")
 		writeFile(t, outside, "untouched")
 		symlink(t, outside, gitDir(r, ignoredBeginRecord))
-		mustBaseline(t)
+		mustBaseline(t, r.Dir)
 		if got, err := os.ReadFile(outside); err != nil || string(got) != "untouched" {
 			t.Errorf("link target = %q, %v; want it untouched", got, err)
 		}
@@ -1384,7 +1396,7 @@ func TestIgnoredRecordFiles(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "linked")
 		r.AddWorktree(dir, "linked-branch")
 		t.Chdir(dir)
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, dir)
 		if _, err := w.Begin(t.Context()); err != nil {
 			t.Fatalf("Begin in the linked worktree: %v", err)
 		}

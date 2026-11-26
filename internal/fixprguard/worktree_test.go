@@ -4,10 +4,27 @@ package fixprguard
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestNewWorktreePanicsOnZeroWorktreeDir(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("NewWorktree with zero WorktreeDir did not panic")
+		}
+		// Match the panic message to distinguish the usable() guard panic from
+		// an accidental runtime panic on the nil runners.
+		if !strings.Contains(fmt.Sprint(r), "WorktreeDir") {
+			t.Errorf("panic = %v, want message naming WorktreeDir", r)
+		}
+	}()
+	NewWorktree(WorktreeDir{}, nil, nil, nil)
+}
 
 func TestBeginRejectsDirtyWorkTree(t *testing.T) {
 	for _, tc := range []struct {
@@ -29,7 +46,7 @@ func TestBeginRejectsDirtyWorkTree(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newTestRepo(t)
 			tc.edit(t, r)
-			w, _ := newTestWorktree(t)
+			w, _ := newTestWorktree(t, r.Dir)
 			if _, err := w.Begin(t.Context()); !errors.Is(err, ErrDirtyWorkTree) {
 				t.Errorf("Begin = %v, want ErrDirtyWorkTree", err)
 			}
@@ -39,10 +56,10 @@ func TestBeginRejectsDirtyWorkTree(t *testing.T) {
 
 func TestInspectInScope(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir)
 	r.Write(testFile, "fixed\n")
 	r.Write("docs/notes/c.md", "beside the thread's file\n")
-	inspection := mustInspect(t, base)
+	inspection := mustInspect(t, r.Dir, base)
 	if inspection.Changes != 2 || len(inspection.OutOfScope) != 0 {
 		t.Errorf("Inspect = %+v, want 2 changes all in scope", inspection)
 	}
@@ -50,7 +67,7 @@ func TestInspectInScope(t *testing.T) {
 
 func TestInspectListsOutOfScope(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir)
 	r.Write(testFile, "fixed\n")
 	r.Write("internal/x/x.go", "package x\n\nfunc F() {}\n")
 	r.Write("docs/other/data.bin", "\x00\x01")
@@ -59,7 +76,7 @@ func TestInspectListsOutOfScope(t *testing.T) {
 	// the allow list.
 	r.Write("docs/notes/CLAUDE.md", "x\n")
 	r.Write("docs/notes/b.ts", "x\n")
-	inspection := mustInspect(t, base)
+	inspection := mustInspect(t, r.Dir, base)
 	want := []ScopedChange{
 		{Position: 1, Path: "docs/notes/CLAUDE.md", Kind: ChangeAdd, Added: 1},
 		{Position: 3, Path: "docs/notes/b.ts", Kind: ChangeAdd, Added: 1},

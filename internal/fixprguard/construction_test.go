@@ -14,11 +14,12 @@ import (
 
 // restrictedConstructors names, for each type whose zero value must not be
 // usable, the only functions allowed to build a value of it.
-var restrictedConstructors = map[string]string{
-	"Login":     "ParseLogin",
-	"PRNumber":  "ParsePRNumber",
-	"Baseline":  "newBaseline",
-	"Reviewers": "ParseReviewers",
+var restrictedConstructors = map[string]map[string]struct{}{
+	"Login":       {"ParseLogin": {}},
+	"PRNumber":    {"ParsePRNumber": {}},
+	"Baseline":    {"newBaseline": {}},
+	"Reviewers":   {"ParseReviewers": {}},
+	"WorktreeDir": {"CurrentDir": {}, "NewWorktreeDir": {}},
 }
 
 // zeroLiteralAllowed names the restricted types whose empty literal T{} may
@@ -26,28 +27,66 @@ var restrictedConstructors = map[string]string{
 // so only a literal that sets fields could build a usable value.
 var zeroLiteralAllowed = map[string]struct{}{"Baseline": {}}
 
-// reviewersFieldName is the map field of Reviewers. A declared Reviewers is
-// only its zero value, but code that can reach the field could fill or widen
-// the set after the declaration (assign a map, add or delete an element, or
-// take an alias and change that), so every reference to it is restricted.
-const reviewersFieldName = "logins"
+// restrictedField describes a struct field whose references are restricted to
+// a closed set of functions and methods (constructors and designated methods).
+// Code outside those accessors cannot fill, widen, or mutate the field, and no
+// other struct may declare a field of the same name (which would convert to
+// the restricted type).
+type restrictedField struct {
+	typeName  string
+	accessors map[string]struct{}
+}
 
-// reviewersFieldAccessors names the only functions and methods that may refer
-// to the field: the constructor, and the two methods that read the set.
-var reviewersFieldAccessors = map[string]struct{}{
-	"ParseReviewers":     {},
-	"Reviewers.contains": {},
-	"Reviewers.usable":   {},
+// restrictedFields maps each restricted field name to its owning type and
+// allowed accessors.
+var restrictedFields = map[string]restrictedField{
+	"logins": {
+		typeName: "Reviewers",
+		accessors: map[string]struct{}{
+			"ParseReviewers":     {},
+			"Reviewers.contains": {},
+			"Reviewers.usable":   {},
+		},
+	},
+	"rootDir": {
+		typeName: "WorktreeDir",
+		accessors: map[string]struct{}{
+			"CurrentDir":                  {},
+			"NewWorktreeDir":              {},
+			"WorktreeDir.usable":          {},
+			"WorktreeDir.joinName":        {},
+			"WorktreeDir.resolveLocation": {},
+			"WorktreeDir.relName":         {},
+		},
+	},
+}
+
+// restrictedFieldOwners names the types whose declarations own a field in
+// restrictedFields.
+var restrictedFieldOwners = map[string]struct{}{
+	"Reviewers":   {},
+	"WorktreeDir": {},
+}
+
+func constructorAllowed(typeName, owner string) bool {
+	_, ok := restrictedConstructors[typeName][owner]
+	return ok
+}
+
+func fieldAllowed(rf restrictedField, accessor string) bool {
+	_, ok := rf.accessors[accessor]
+	return ok
 }
 
 // findRestrictedConstructions reports every composite literal (T{}, &T{}),
-// new(T), and var declaration of a restricted type outside its constructor,
-// every reference to the Reviewers field outside its accessors, every alias
+// new(T), and var declaration of a restricted type outside its constructors,
+// every reference to a restricted field outside its accessors, every alias
 // or type defined from a restricted type, and every other field named like
-// the Reviewers field (a same-shape struct converts to Reviewers). A struct
-// field, a slice element, or a named result of the type is not reported:
-// those zero values are made unusable instead (NewGitHub rejects a zero
-// Reviewers, and every use checks usable()).
+// a restricted field (a same-shape struct converts to the restricted type).
+// A struct field, a slice element, or a named result of the type is not
+// reported: those zero values are made unusable instead (NewGitHub rejects a
+// zero Reviewers, NewWorktree panics on a zero WorktreeDir, and every use
+// checks usable()).
 func findRestrictedConstructions(fset *token.FileSet, file *ast.File) []string {
 	var found []string
 	report := func(node ast.Node, typeName string) {
@@ -57,38 +96,40 @@ func findRestrictedConstructions(fset *token.FileSet, file *ast.File) []string {
 	// never counts as a constructor; accessor is the function's name or
 	// "Recv.method" for a method.
 	check := func(scope ast.Node, owner, accessor string) {
-		_, fieldOK := reviewersFieldAccessors[accessor]
 		ast.Inspect(scope, func(node ast.Node) bool {
 			switch n := node.(type) {
 			case *ast.SelectorExpr:
-				if n.Sel.Name == reviewersFieldName && !fieldOK {
-					report(n, "Reviewers."+reviewersFieldName)
+				if rf, ok := restrictedFields[n.Sel.Name]; ok && !fieldAllowed(rf, accessor) {
+					report(n, rf.typeName+"."+n.Sel.Name)
 				}
 			case *ast.KeyValueExpr:
-				if key, ok := n.Key.(*ast.Ident); ok && key.Name == reviewersFieldName && !fieldOK {
-					report(n, "Reviewers."+reviewersFieldName)
+				if key, ok := n.Key.(*ast.Ident); ok {
+					if rf, restricted := restrictedFields[key.Name]; restricted && !fieldAllowed(rf, accessor) {
+						report(n, rf.typeName+"."+key.Name)
+					}
 				}
 			case *ast.CompositeLit:
 				name := restrictedName(n.Type)
 				if _, zeroOK := zeroLiteralAllowed[name]; zeroOK && len(n.Elts) == 0 {
 					return true
 				}
-				if name != "" && restrictedConstructors[name] != owner {
+				if name != "" && !constructorAllowed(name, owner) {
 					report(n, name)
 				}
 			case *ast.CallExpr:
 				if fn, ok := n.Fun.(*ast.Ident); ok && fn.Name == "new" && len(n.Args) == 1 {
-					if name := restrictedName(n.Args[0]); name != "" && restrictedConstructors[name] != owner {
+					if name := restrictedName(n.Args[0]); name != "" && !constructorAllowed(name, owner) {
 						report(n, name)
 					}
 				}
 			case *ast.ValueSpec:
-				if name := restrictedName(n.Type); name != "" && restrictedConstructors[name] != owner {
+				if name := restrictedName(n.Type); name != "" && !constructorAllowed(name, owner) {
 					report(n, name)
 				}
 			case *ast.TypeSpec:
-				// The declaration of Reviewers is where its field lives.
-				if n.Name.Name == "Reviewers" {
+				// The declaration of a type owning a restricted field is where
+				// its field lives.
+				if _, ok := restrictedFieldOwners[n.Name.Name]; ok {
 					return false
 				}
 				// An alias or a type defined from a restricted type would
@@ -97,11 +138,11 @@ func findRestrictedConstructions(fset *token.FileSet, file *ast.File) []string {
 					report(n, name)
 				}
 			case *ast.Field:
-				// A struct of the same shape converts to Reviewers, so no
-				// other declaration may have a field of the same name.
+				// A struct of the same shape converts to the restricted type,
+				// so no other declaration may have a field of the same name.
 				for _, ident := range n.Names {
-					if ident.Name == reviewersFieldName && !fieldOK {
-						report(n, "Reviewers."+reviewersFieldName)
+					if rf, ok := restrictedFields[ident.Name]; ok && !fieldAllowed(rf, accessor) {
+						report(n, rf.typeName+"."+ident.Name)
 					}
 				}
 			}
@@ -223,6 +264,17 @@ func TestRestrictedTypesBuiltByConstructors(t *testing.T) {
 		{"reviewers_defined_type", "type rv Reviewers", 1},
 		{"login_alias", "type name = Login", 1},
 		{"same_shape_struct", "type shape struct{ logins map[Login]struct{} }", 1},
+		{"worktree_dir_current_dir", "func CurrentDir() WorktreeDir { return WorktreeDir{rootDir: \".\"} }", 0},
+		{"worktree_dir_new_constructor", "func NewWorktreeDir(p string) (WorktreeDir, error) { return WorktreeDir{rootDir: p}, nil }", 0},
+		{"worktree_dir_zero_literal", "func f() WorktreeDir { return WorktreeDir{} }", 1},
+		{"worktree_dir_literal_with_field", "func f() WorktreeDir { return WorktreeDir{rootDir: \"/tmp\"} }", 2},
+		{"worktree_dir_field_read", "func f(d WorktreeDir) string { return d.rootDir }", 1},
+		{"worktree_dir_same_shape_struct", "type shape struct{ rootDir string }", 1},
+		// Cross-field accessor isolation: a Reviewers accessor cannot reach
+		// WorktreeDir.rootDir and a WorktreeDir accessor cannot reach
+		// Reviewers.logins.
+		{"worktree_dir_field_in_reviewers_accessor", "func ParseReviewers(d WorktreeDir) string { return d.rootDir }", 1},
+		{"reviewers_field_in_worktree_dir_accessor", "func CurrentDir(r Reviewers) int { return len(r.logins) }", 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fset := token.NewFileSet()
