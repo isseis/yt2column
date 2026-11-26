@@ -458,38 +458,42 @@ func (g GitReader) IsAncestor(ctx context.Context, dir, ancestor, descendant str
 }
 
 // Parents returns the parents of commit, in order, read with
-// `git rev-list --parents -n 1`. Contract: commit must be a full commit ID;
-// the first field git prints must be commit itself and every other field a
-// full commit ID, so any other output is an error, never a shorter list.
-func (g GitReader) Parents(ctx context.Context, dir, commit string) ([]string, error) {
-	if !commitID.MatchString(commit) {
-		return nil, fmt.Errorf("%w: not a full commit ID", errGitOutput)
+// `git rev-list --parents -n 1`. Contract: commit is a CommitID, so it
+// cannot be read as an option or a ref name; the first field git prints must
+// be commit itself and every other field a full commit ID, so any other
+// output is an error, never a shorter list.
+func (g GitReader) Parents(ctx context.Context, dir string, commit CommitID) ([]CommitID, error) {
+	if commit.IsZero() {
+		return nil, fmt.Errorf("%w: no commit", errGitOutput)
 	}
-	out, err := g.cmds.git(ctx, dir, "rev-list", "--parents", "-n", "1", commit)
+	out, err := g.cmds.git(ctx, dir, "rev-list", "--parents", "-n", "1", commit.String())
 	if err != nil {
 		return nil, err
 	}
 	fields := strings.Fields(string(out))
-	if len(fields) == 0 || fields[0] != commit {
+	if len(fields) == 0 || fields[0] != commit.String() {
 		return nil, fmt.Errorf("%w: rev-list --parents of %s", errGitOutput, commit)
 	}
-	for _, p := range fields[1:] {
-		if !commitID.MatchString(p) {
-			return nil, fmt.Errorf("%w: parent %q of %s", errGitOutput, p, commit)
+	parents := make([]CommitID, 0, len(fields)-1)
+	for _, f := range fields[1:] {
+		p, err := ParseCommitID(f)
+		if err != nil {
+			return nil, fmt.Errorf("%w: parent %q of %s", errGitOutput, f, commit)
 		}
+		parents = append(parents, p)
 	}
-	return fields[1:], nil
+	return parents, nil
 }
 
 // HasCommit reports whether commit is a commit this repository holds, read
 // with `git rev-parse --verify --quiet`. Contract: exit status 0 is yes and
-// 1 is no; every other outcome is an error, never a no. commit must be a full
-// commit ID.
-func (g GitReader) HasCommit(ctx context.Context, dir, commit string) (bool, error) {
-	if !commitID.MatchString(commit) {
-		return false, fmt.Errorf("%w: not a full commit ID", errGitOutput)
+// 1 is no; every other outcome is an error, never a no. commit is a
+// CommitID, so it cannot be read as an option or a ref name.
+func (g GitReader) HasCommit(ctx context.Context, dir string, commit CommitID) (bool, error) {
+	if commit.IsZero() {
+		return false, fmt.Errorf("%w: no commit", errGitOutput)
 	}
-	_, err := g.cmds.git(ctx, dir, "rev-parse", "--verify", "--quiet", commit+"^{commit}")
+	_, err := g.cmds.git(ctx, dir, "rev-parse", "--verify", "--quiet", commit.String()+"^{commit}")
 	if err == nil {
 		return true, nil
 	}

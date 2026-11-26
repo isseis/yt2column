@@ -329,6 +329,10 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
     -   理由：前者は同じ PR の通知を重ね、後者は自動の解消が失敗したことが人に届かない（0115 設計の引き継ぎ H-12）。
 -   `chief detail` の控えの引き継ぎで、PR の head のブランチを取らずに、手元にある範囲でたどる。または、引き継いだ控えをリセットの確かめにも使う。
     -   理由：前者は `/mergemain` が push した新しい head が手元にないと引き継げない。後者は、前の head の報告が、今の head の PR の報告として、人に尋ねずに送る判断に使われる。
+-   自動送信を試みた round の行の選択肢を、読み直さずに、試みの理由に置き換えて 1 round 選べなくする。または、試みの後に選択肢を読み直す。
+    -   理由：試みは記録や停止を作ったかもしれず、読み直すには tick の最後で条件の読みを重ねる費用がかかる。置き換えは次の round で戻るだけで、選んだ後の再確認は常に走るので、安全側に倒した単純な方を採った（0115 の PR-6 のクロスチェックの指摘に対して、人が選んだ）。
+-   人が選んで送る `/mergemain` の選択肢に、入力欄の送っていない文字を条件に入れる。
+    -   理由：読んだ後に人が打てば同じ食い違いが起きるうえ、行ごとの画面読みが増える。選んだ後の `input_left` の断りが、人の入力を守る（同上）。
 -   解消の自動送信の数を制限しない。
     -   理由：同時に走る検査でテストが落ち、作成の排他も長く持つことになる（[0115 要件定義書](../../tasks/0115_chief_conflict_resolution/01_requirements.md)「設計の際に見直したこと（2026-11-20）」）。
 
@@ -576,4 +580,4 @@ chief は人の代わりに判断せず、人が選んだ答えと決まった�
 - 2026-11-21 実装モデル要件の値名の変更（[ADR-0042](0042-implementation-model-tiers.md)）に合わせ、`chief` が計画書から読む `/runplan` の区分を `high`・`standard+high-review`・`low`（旧値は読み替え）へ、`_context.md` の送り先の表（`Command routing` 表）の行キーを `runplan-high`・`runplan-standard+high-review`・`runplan-low` へそれぞれ改め、`chief` のプロトコル番号を上げることとした。`chief` 自身の Antigravity 操作対応は別タスクに切り出し、送り先は現行の Claude Code と OpenCode のままとする（[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md)「要件定義の際に決めたこと（2026-11-21）」、[ADR-0055](0055-harness-independent-commands.md)）
 - 2026-11-23 `/mergemain` の push の確かめで、merge コミットが git の自動の合わせと違ってよいのを、ブランチが merge base から番号を変えた道具のプロトコル番号の行だけに限り、番号を変えたすべての道具の値が取り込む `main` の値 + 1 であることを確かめることにした。取り込む `main` を記録した ref はエージェントが書き換えられるので、push のときに `origin` から `main` を取り直し、記録した値がその祖先であることも確かめる。書き換えた ref やファイルを道具が防げないことは残る危険とする（[0115 設計書](../../tasks/0115_chief_conflict_resolution/02_architecture.md)「設計の際に決めたこと（2026-11-19）」3.8.1・3.8.3・5.2・5.3）
 - 2026-11-24 chief_architecture.md が持つ話題の一覧に「テストのしかた」を加えた。同じ PR でその文書を直す PR の範囲が、標本の足し方やガードテストの照合先を変える PR にも広がる（[0117 設計書](../../tasks/0117_chief_architecture_doc/02_architecture.md)「実装の後に決めたこと（2026-11-24）」）
-- 2026-11-26 コンフリクトの項目を人が選んで送る `/mergemain` を、項目の ID（PR の番号、head、段階）で縛り、取得の後に条件を読み直して送ることにした。この項目の通知は head ごとに 2 回までとし、0088 の AC-58 の例外とした。`chief detail` が、`/mergemain` の merge コミットで変わった head の控えの引き継ぎのために、PR の head のブランチ 1 つだけを `refs/remotes/origin/<ブランチ>` へ取ることを、chief の読み取りの承認に含め、表示だけに使うことにした（[0115 実装計画書](../../tasks/0115_chief_conflict_resolution/03_implementation_plan.md) のステップ 4-3）
+- 2026-11-26 コンフリクトの項目を人が選んで送る `/mergemain` を、項目の ID（PR の番号、head、段階）で縛り、取得の後に条件を読み直して送ることにした。この項目の通知は head ごとに 2 回までとし、0088 の AC-58 の例外とした。`chief detail` が、`/mergemain` の merge コミットで変わった head の控えの引き継ぎのために、PR の head のブランチ 1 つだけを `refs/remotes/origin/<ブランチ>` へ取ることを、chief の読み取りの承認に含め、表示だけに使うことにした。引き継いだ報告は、引き継ぎ元の head を添えて示す（`chief detail` の出力の `report_inherited_from`）。人が選んだ送信の選択肢は、試みのあった round に限り選べなくし、入力欄の文字は選んだ後の断りで守る（[0115 実装計画書](../../tasks/0115_chief_conflict_resolution/03_implementation_plan.md) のステップ 4-3）

@@ -358,8 +358,8 @@ func TestGitCleanCountsStagedAndNestedFiles(t *testing.T) {
 
 // TestGitParentsAndHasCommit runs Parents and HasCommit against the real
 // git: a merge commit has its two parents in order, a root commit none, and
-// a commit the repository lacks is no, not an error; a name that is not a
-// full commit ID is refused.
+// a commit the repository lacks is no, not an error; the zero CommitID is
+// refused.
 func TestGitParentsAndHasCommit(t *testing.T) {
 	repo := newTestRepo(t)
 	first := strings.TrimSpace(repo.Git("rev-parse", "HEAD"))
@@ -373,24 +373,29 @@ func TestGitParentsAndHasCommit(t *testing.T) {
 	merge := strings.TrimSpace(repo.Git("rev-parse", "HEAD"))
 	git := NewGitReader(repo.RealCommands())
 	ctx := t.Context()
-	if got, err := git.Parents(ctx, repo.Dir, merge); err != nil || !slices.Equal(got, []string{main, side}) {
+	id := func(hex string) CommitID {
+		c, err := ParseCommitID(hex)
+		if err != nil {
+			t.Fatalf("ParseCommitID(%q): %v", hex, err)
+		}
+		return c
+	}
+	if got, err := git.Parents(ctx, repo.Dir, id(merge)); err != nil || !slices.Equal(got, []CommitID{id(main), id(side)}) {
 		t.Errorf("Parents(merge) = %v, %v; want [%s %s]", got, err, main, side)
 	}
-	if got, err := git.Parents(ctx, repo.Dir, first); err != nil || len(got) != 0 {
+	if got, err := git.Parents(ctx, repo.Dir, id(first)); err != nil || len(got) != 0 {
 		t.Errorf("Parents(first) = %v, %v; want none: a root commit", got, err)
 	}
-	for _, bad := range []string{"HEAD", "--all", strings.Repeat("0", 39)} {
-		if _, err := git.Parents(ctx, repo.Dir, bad); !errors.Is(err, errGitOutput) {
-			t.Errorf("Parents(%q) = %v, want errGitOutput", bad, err)
-		}
-		if _, err := git.HasCommit(ctx, repo.Dir, bad); !errors.Is(err, errGitOutput) {
-			t.Errorf("HasCommit(%q) = %v, want errGitOutput", bad, err)
-		}
+	if _, err := git.Parents(ctx, repo.Dir, CommitID{}); !errors.Is(err, errGitOutput) {
+		t.Errorf("Parents(zero) = %v, want errGitOutput", err)
 	}
-	if has, err := git.HasCommit(ctx, repo.Dir, merge); err != nil || !has {
+	if _, err := git.HasCommit(ctx, repo.Dir, CommitID{}); !errors.Is(err, errGitOutput) {
+		t.Errorf("HasCommit(zero) = %v, want errGitOutput", err)
+	}
+	if has, err := git.HasCommit(ctx, repo.Dir, id(merge)); err != nil || !has {
 		t.Errorf("HasCommit(merge) = %v, %v", has, err)
 	}
-	if has, err := git.HasCommit(ctx, repo.Dir, strings.Repeat("0", 40)); err != nil || has {
+	if has, err := git.HasCommit(ctx, repo.Dir, id(strings.Repeat("0", 40))); err != nil || has {
 		t.Errorf("HasCommit(absent) = %v, %v; want false without an error", has, err)
 	}
 }

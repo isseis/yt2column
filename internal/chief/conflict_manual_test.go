@@ -338,6 +338,12 @@ func TestDetailInheritsThePaneReport(t *testing.T) {
 		if d.Report != ReportFromPane || d.ReportText != makerReport || d.DescriptionReason != DescriptionReasonNone {
 			t.Errorf("detail = %v %q %v, want the parent's pane report", d.Report, d.ReportText, d.DescriptionReason)
 		}
+		if d.ReportInheritedFrom.String() != parent {
+			t.Errorf("ReportInheritedFrom = %q, want %q", d.ReportInheritedFrom, parent)
+		}
+		if got := (DetailOutcome{Detail: &d}).Output().ReportInheritedFrom; got != parent {
+			t.Errorf("report_inherited_from = %q, want %q", got, parent)
+		}
 		if d.record == nil || d.record.Source == ReportFromPane.String() || d.record.Head != prHead {
 			t.Errorf("record = %+v, want the description record of the head, not the inherited report", d.record)
 		}
@@ -374,8 +380,12 @@ func TestDetailInheritsThePaneReport(t *testing.T) {
 				deps := sw.finish()
 				keepParentReport(t, deps, tree)
 				tc.setup(sw, tree)
-				if d := detailOf(t, deps, tree); d.Report == ReportFromPane {
+				d := detailOf(t, deps, tree)
+				if d.Report == ReportFromPane {
 					t.Errorf("detail shows the pane report %q", d.ReportText)
+				}
+				if !d.ReportInheritedFrom.IsZero() {
+					t.Errorf("ReportInheritedFrom = %q without an inherited report", d.ReportInheritedFrom)
 				}
 			})
 		}

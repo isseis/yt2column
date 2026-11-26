@@ -426,6 +426,10 @@ type PRDetail struct {
 	// ReportText is the report or the description, capped.
 	ReportText      string
 	ReportTruncated bool
+	// ReportInheritedFrom is the earlier head whose pane report ReportText
+	// is, when the PR's own head has none and inheritReport found one; the
+	// zero value is a report of this head. Display only.
+	ReportInheritedFrom CommitID
 	// DescriptionReason is why no pane's report is shown, with what was
 	// found on each Claude Code pane in ReportPanes; both are unset when a
 	// pane's report is shown, and when a kept detail is used without the
@@ -506,8 +510,9 @@ func CollectDetail(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, 
 // d.record keeps the record of this head, so nothing that reads the kept
 // record (the reset, the review-skippable mark) sees the inherited report.
 func (d *PRDetail) inheritReport(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR) {
-	if inherited, ok := inheritedPaneReport(ctx, deps, ws, pr, d.View); ok {
+	if inherited, from, ok := inheritedPaneReport(ctx, deps, ws, pr, d.View); ok {
 		d.Report, d.ReportText, d.ReportTruncated = ReportFromPane, inherited.Text, inherited.Truncated
+		d.ReportInheritedFrom = from
 		d.DescriptionReason, d.ReportPanes = DescriptionReasonNone, nil
 	}
 }
@@ -527,49 +532,51 @@ const maxDetailMergeHops = 10
 // no inheritance. A head the worktree lacks is fetched first with
 // FetchBranch, which writes only refs/remotes/origin/<branch>, so origin/main
 // is the value the round read.
-func inheritedPaneReport(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, view *prView) (detailRecord, bool) {
+func inheritedPaneReport(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, view *prView) (detailRecord, CommitID, bool) {
+	var noCommit CommitID
+	none := func() (detailRecord, CommitID, bool) { return detailRecord{}, noCommit, false }
 	git := NewGitReader(deps.Cmds)
-	head := view.HeadOID
-	if pr.CrossRepository || !commitID.MatchString(head) {
-		return detailRecord{}, false
+	head, err := ParseCommitID(view.HeadOID)
+	if pr.CrossRepository || err != nil {
+		return none()
 	}
 	if has, err := git.HasCommit(ctx, ws.Worktree, head); err != nil {
-		return detailRecord{}, false
+		return none()
 	} else if !has {
 		if err := git.FetchBranch(ctx, ws.Worktree, view.HeadRef); err != nil {
-			return detailRecord{}, false
+			return none()
 		}
 		if has, err := git.HasCommit(ctx, ws.Worktree, head); err != nil || !has {
-			return detailRecord{}, false
+			return none()
 		}
 	}
 	main, err := git.OriginMain(ctx, ws.Worktree)
 	if err != nil {
-		return detailRecord{}, false
+		return none()
 	}
 	records, err := deps.Store.Records(ws.Tree)
 	if err != nil {
-		return detailRecord{}, false
+		return none()
 	}
 	cur := head
 	for range maxDetailMergeHops {
 		parents, err := git.Parents(ctx, ws.Worktree, cur)
 		if err != nil || len(parents) != 2 {
-			return detailRecord{}, false
+			return none()
 		}
-		if merged, err := git.IsAncestor(ctx, ws.Worktree, parents[1], main); err != nil || !merged {
-			return detailRecord{}, false
+		if merged, err := git.IsAncestor(ctx, ws.Worktree, parents[1].String(), main); err != nil || !merged {
+			return none()
 		}
 		cur = parents[0]
-		kept, ok, err := records.keptPaneReport(pr.Number, cur)
+		kept, ok, err := records.keptPaneReport(pr.Number, cur.String())
 		if err != nil {
-			return detailRecord{}, false
+			return none()
 		}
 		if ok && kept.Source == ReportFromPane.String() {
-			return kept, true
+			return kept, cur, true
 		}
 	}
-	return detailRecord{}, false
+	return none()
 }
 
 // readChecks reads the PR's CI jobs. A non-zero exit of the codes gh uses for

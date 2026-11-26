@@ -598,6 +598,10 @@ type DetailOutput struct {
 	ReportSource string         `json:"report_source"`
 	Report       string         `json:"report"`
 	ReportCut    bool           `json:"report_truncated"`
+	// ReportInheritedFrom is the earlier head (40 digits) whose pane report
+	// Report is, when a /mergemain merge commit took the head from it, and
+	// empty when Report is of the PR's own head.
+	ReportInheritedFrom string `json:"report_inherited_from"`
 	// DescriptionReason is why no pane's report is shown, null when one is
 	// or when a kept detail was used without the panes being read again.
 	DescriptionReason *DescriptionReasonOutput `json:"description_reason"`
@@ -724,6 +728,7 @@ func (o DetailOutcome) Output() DetailOutput {
 		out.Reviews = nil
 	}
 	out.ReportSource, out.Report, out.ReportCut = d.Report.String(), Sanitize(d.ReportText), d.ReportTruncated
+	out.ReportInheritedFrom = d.ReportInheritedFrom.String()
 	if d.DescriptionReason != DescriptionReasonNone {
 		reason := &DescriptionReasonOutput{Reason: d.DescriptionReason.String(), Panes: []DescriptionPaneOutput{}}
 		for _, p := range d.ReportPanes {

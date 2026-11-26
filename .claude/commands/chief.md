@@ -207,6 +207,14 @@ Offer the `pending` items as the human's choices, in the tool's order, with
   conversation the human may have had there after the task's last command. When
   `conflict.can_send` is false, say that it cannot be sent now and list
   `conflict.reasons` in Japanese (an OpenCode route is `route_not_claude`).
+  The offer is read when the row is read: a send the human chooses can still be
+  refused afterwards (for example `input_left`, when the human typed into the
+  pane since), and the result's reason says why. For a round in which an
+  automatic send was attempted for the row, `conflict.reasons` are that
+  attempt's reasons, and the row offers no send until the next round. When
+  `conflict.phase` is `records_unreadable`, say that the send records of the
+  workspace cannot be read, so chief cannot tell whether a `/mergemain` was
+  already sent; the human may still choose the send after checking the pane.
   Never offer `/runpr` for a conflict row.
 - `proposal`: the label, the command, its agent and model, and the
   `reasons` when set (the conditions of the automatic send that did not
@@ -469,7 +477,9 @@ Show, in Japanese (requirements AC-17 to AC-21, AC-23):
   reviewer should check. Say whether it was made from the report of the
   command that created the PR (`report_source` `report`) or from the PR's
   description (`description`), and that it was cut when `report_truncated`
-  is true;
+  is true; when `report_inherited_from` is not empty, say that the report is
+  the one of that earlier head (show its first 7 digits), which a `/mergemain`
+  merge commit replaced as the PR's head, not of the PR's current head;
 - when `description_reason` is not null, why no pane's report is shown, by
   its `reason`: the workspace has no Claude Code pane (`no_claude_pane`), no Claude Code
   pane's last report comes from a session with a PR record naming this PR

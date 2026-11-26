@@ -625,7 +625,7 @@ flowchart TD
 |---|---|---|---|
 | `phase` | 文字列 | 解消の進み具合。行の `conflict.phase` と同じ値 | 示す |
 | `can_send` | 真偽 | 人が選んで `/mergemain` を今送れる。送る直前に条件をすべて読み直すので、これは示すためだけの値である | 分岐 |
-| `reasons` | 文字列の配列 | 送れない条件の英語の名前。`can_send` が真なら空 | 示す |
+| `reasons` | 文字列の配列 | 送れない条件の英語の名前。`can_send` が真なら空。`phase` が `records_unreadable` でも空になりうる（送信の記録は人が選んで送る条件ではない）。そのラウンドで自動送信を試みた行では、選択肢を試みの理由に置き換えて `can_send` を偽にし、次のラウンドで読み直す | 示す |
 | `conversation_lost` | 真偽 | 送ると最初の `/clear` で、人が pane で続けたかもしれない会話が消える。人が最後のタスクのコマンドの後に入力した、またはタスクのコマンドがなく入力だけがあるときに真である | 示す |
 
 #### 5.4.11. `ResetOutput`
@@ -780,6 +780,7 @@ PR の CI のジョブ 1 つである。
 | `report_source` | 文字列 | 要約の出どころ。`report`（PR を作ったコマンドの報告）・`description`（PR の説明）・`none` | 分岐 |
 | `report` | 文字列 | 要約。外から来た文字列で、上限で切ってある | 示す |
 | `report_truncated` | 真偽 | 要約を上限で切った | 分岐 |
+| `report_inherited_from` | 文字列 | 要約が、前の head の pane の報告の控えの引き継ぎであるとき、その head（40 桁）。PR の今の head の要約なら空 | 示す |
 | `description_reason` | `DescriptionReasonOutput`（null あり） | pane の報告を示さない理由 | 分岐 |
 | `record_error` | 文字列 | 控えを読めなかった理由 | 示す |
 | `review_skippable` | 真偽 | レビューを省略してよいと判定した | 分岐 |
