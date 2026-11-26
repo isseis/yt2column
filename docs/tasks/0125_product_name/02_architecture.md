@@ -34,6 +34,11 @@
    - **CLAUDE.md の規則との関係:** CLAUDE.md「Testing Strategy」の「Do not assert that a constant equals its own literal」は、定義をそのまま写した値と比べて何も確かめないテストを禁じる規則である。このテストの期待値は要件定義書の AC-05・AC-06 が定める文言で、カタログの値とは出どころが違う。カタログを AC から外れた文言に変えると失敗するので、この規則には当たらないと判断した。承認済みの計画で `manifest.test.ts` が `extName`・`extNameDev`・`extDescription` の確定値を日英のリテラルで固定しているのと同じ扱いであり、日本語のリテラルもこれと同じく、日本語カタログのメッセージを確かめるテストのリテラルとして置く。
    - **ADR:** なし（テストの確かめ方の変更であり、主要決定ではないため）。
 
+2. **README だけを 2 言語で持つという記述を直す:** `CLAUDE.md`「Document language」の「The bilingual README」と `.claude/commands/mktrans.md` にある、2 言語で持つ文書は README だけという記述を、訳文の対で持つ文書は README だけ、に直す。2.1 節の変更ファイル一覧の `CLAUDE.md` の行にこの直しを足し、`.claude/commands/mktrans.md` の行を加えた。
+   - **理由:** `docs/store/chrome_web_store.md` が日英両方の本文を 1 ファイルに持つため、元の記述のままでは同じ節に足すストア掲載文の例外と矛盾する。直すのは記述の範囲だけで、`/mktrans` の振る舞いと同期の対象（`README.md` と `README.en.md` の対）は変えない。
+   - **要件との関係:** `.claude/commands/mktrans.md` は要件定義書 2.2 節の変更範囲に名前がないが、AC-09 が求める位置づけの記録と矛盾しない記述にするための付随の変更であり、要件を広げない。
+   - **ADR:** なし（ADR-0035 の決定どおりの記述への整合であり、主要決定ではないため）。
+
 ## 2. システム構成
 
 変更はブラウザ拡張の静的アセット・UI カタログ・テストと、利用者向け文書および関連文書の 2 領域に分かれる。Go の製品コード（`cmd/`・`internal/`）およびビルドスクリプト（`extension/scripts/`）のロジックは変更しない。
@@ -64,7 +69,8 @@
 | 変更 | `INSTALL.md` | 製品名の 4 箇所（冒頭・ツールバー固定・ビューアタイトル・アンインストール）を更新 |
 | 変更 | `docs/dev/guides/development.md` | 119 行目の開発用のビルド表示名の引用のみを更新 |
 | 変更 | `docs/translation_glossary.md` | コア製品名と Chrome ウェブストア表示名の 2 行を追加 |
-| 変更 | `CLAUDE.md` | 「Document language」に `docs/store/chrome_web_store.md` の位置づけを追記し、「Development Notes」の Go のガードテストの一覧に掲載項目の表と `messages.json` の照合を足す |
+| 変更 | `CLAUDE.md` | 「Document language」に `docs/store/chrome_web_store.md` の位置づけを追記し、「Development Notes」の Go のガードテストの一覧に掲載項目の表と `messages.json` の照合を足す。README だけを 2 言語で持つという記述を、訳文の対で持つ文書は README だけ、に直す |
+| 変更 | `.claude/commands/mktrans.md` | 2 言語で持つ文書は README だけという記述を、訳文の対で持つ文書は README だけ、に直す |
 | 変更 | `docs/dev/adr/0035-language-policy.md` | 実装 PR で `CLAUDE.md` を更新した際に、未反映のずれを示す一文を除去 |
 
 ## 3. コンポーネント設計
@@ -209,3 +215,4 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
 
 - 2026-11-26 承認（isseis、#1164）
 - 2026-11-26 セッション中の再承認：`catalog.test.ts` の検証を確定値の完全一致に変えた（isseis、#1165）
+- 2026-11-26 セッション中の再承認：CLAUDE.md と mktrans.md の記述を、訳文の対で持つ文書は README だけ、に直す決定を 1.3 節に記録した（isseis、#1177）

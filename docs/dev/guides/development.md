@@ -116,7 +116,7 @@ make ext-build-dev FAKE_ARTICLE=long FAKE_FAILURE=timeout FAKE_FAIL_AT=shorten
 開発用のビルドは、次の点で公開用のビルドと見分けられる。
 
 -   manifest が `key` を持たないので、拡張の ID が公開用のビルドと違う。`chrome.storage.local` も別になり、開発用のビルドで保存した値が公開用のビルドの値を上書きしない。
--   拡張機能のページでの名前が `yt2column（開発用のビルド）`（英語の画面では `yt2column (development build)`）である。
+-   拡張機能のページでの名前が `ヨムドウガ（開発用のビルド）`（英語の画面では `YomuDoga (development build)`）である。
 -   ビルドの種類を宣言するモジュール（`buildKind.js`）が `dev` を宣言する。
 
 どちらのビルドも、最後に成果物を検査する。成果物が `tsc` の出力、`static/` の写し、記事生成モジュール、`wasm_exec.js` だけであること、記事生成モジュールを Node.js で読み込んで呼んだ `buildInfo` の main のパッケージと Go の版と LLM の実装（開発用のビルドでは、ビルドに与えたシナリオ）が期待どおりであることを確かめ、合わなければビルドを失敗させる。

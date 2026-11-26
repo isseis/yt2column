@@ -16,7 +16,7 @@
 
 | 担当 | 内容 |
 |---|---|
-| `fixprguard` バイナリ（`cmd/fixprguard`、`internal/fixprguard`） | 判定、取得、比較、commit・push、GitHub への書き込み。これに加えて、3 つの守りの層の外の役目として、リポジトリの interaction limits の状態を読んで 6 つの状態に分類する（`/runpr` がステップ 1 で 1 回だけ使う。5 章・10 章） |
+| `fixprguard` バイナリ（`cmd/fixprguard`、`internal/fixprguard`） | 判定、取得、比較、commit・push、GitHub への書き込み。これに加えて、3 つの守りの層の外の役目として、リポジトリの interaction limits の状態を読んで 6 つの状態に分類し（`/runpr` がステップ 1 で 1 回だけ使う。5 章・10 章）、PR レビューの状態（`review-state`）・他のアカウントのメンション（`mentions`）・リポジトリの CI のチェック（`ci-checks`）を判定する（`/runpr` がステップ 3 で `mentions`・`review-state`・`ci-checks` を、ステップ 4 で `mentions`・`review-state` を使う。5 章） |
 | `/fixpr`・`/runpr` コマンド（`.claude/commands/`） | サブコマンドを呼ぶ順序、利用者への確認、エージェントの起動 |
 | 開発者 | 範囲外の変更や想定外の著者のスレッドについての判断、ツールが止まったときの対処 |
 
@@ -63,14 +63,18 @@ go version -m "$(command -v fixprguard)"
 
 | 項目 | 内容 |
 |---|---|
-| `--protocol N` | すべてのサブコマンドに必須。`N` がバイナリの番号と一致しなければ、終了コード `2` で止まる（古いバイナリが新しい文書の想定で判定するのを防ぐ）。現在の番号は `8` |
+| `--protocol N` | すべてのサブコマンドに必須。`N` がバイナリの番号と一致しなければ、終了コード `2` で止まる（古いバイナリが新しい文書の想定で判定するのを防ぐ）。現在の番号は `9` |
 | `--reviewer LOGIN` | `list`・`begin`・`inspect`・`reply` に 1 回以上必須、`review-state` に 1 回だけ必須で、ほかのサブコマンドには渡せない。信頼する自動レビュアーの GraphQL の `author.login`（例: `coderabbitai`・`sourcery-ai`）を、名前ごとに 1 回ずつ繰り返して渡す（例: `--reviewer <login-1> --reviewer <login-2>`）。`/fixpr`・`/runpr` が渡す名前は、`.claude/commands/_context.md` の `Automated reviewer list` のすべての名前である。渡す順序は判定に関係しない。1 つもないとき、同じ名前を 2 回以上渡したとき、名前の文法に合わないときは、使い方の誤り（終了コード `2`）になる。既定値はない |
-| `[PR]` | 10 進数の PR 番号だけを受け付ける。URL やブランチ名は拒否する。省略すると、現在のブランチの PR を `gh pr view` で求める。GitHub を読まない `finish` と、`interaction-limits`・`review-state` は省略できない |
-| フラグの位置 | フラグは位置引数（`PR`・`FILE`）の前に書く。同じフラグを 2 回渡すと拒否する（`--accept`・`--thread`・`--reviewer` は複数回渡せる。ただし、`review-state` は `--reviewer` を 1 回しか受け付けず、ほかのサブコマンドでも `--reviewer` に同じ名前を 2 回以上渡すと拒否する） |
+| `--profile PROFILE` | `review-state` に 1 回だけ必須。プロファイル名（`coderabbit` または `sourcery`）を指定する |
+| `--observed-bot PROFILE=LOGIN` | `mentions` に 1 回以上必須（プロファイルごとに繰り返せる）。観測済み定型コメント除外に使うプロファイルと GraphQL の `author.login` の組（例: `coderabbit=coderabbitai`、`sourcery=sourcery-ai`）。同じプロファイルまたは同じ login の重複は拒否する |
+| `--request TEXT` | `review-state` と `mentions` に 1 回以上必須（依頼文面ごとに繰り返せる）。各値は空でなく前後空白なしで 1024 バイト以下、重複不可 |
+| `--head SHA` | `ci-checks` で任意。40 桁の小文字 16 進数の期待する head コミット。空文字列や不正な形式は終了コード `2` |
+| `[PR]` | 10 進数の PR 番号だけを受け付ける。URL やブランチ名は拒否する。省略すると、現在のブランチの PR を `gh pr view` で求める。GitHub を読まない `finish` と、`interaction-limits`・`review-state`・`mentions`・`ci-checks` は省略できない |
+| フラグの位置 | フラグは位置引数（`PR`・`FILE`）の前に書く。同じフラグを 2 回渡すと拒否する（`--accept`・`--thread`・`--reviewer`・`--request`・`--observed-bot` は複数回渡せる。ただし、`review-state` は `--reviewer` を 1 回しか受け付けず、ほかのサブコマンドでも `--reviewer` に同じ名前を 2 回以上渡すと拒否する） |
 | 標準出力 | 1 行の JSON（`fence` だけは区切りのブロックそのもの）。すべての JSON に `protocol` が入る |
 | 標準エラー | 1 行の診断。拒否した規則の名前だけを示し、GitHub から来た値や外部コマンドの引数・標準エラーは含めない |
 
-終了コードは次のとおり。呼び出し側は、これ以外の終了コード、信号による終了、JSON として読めない出力を、すべて「止める」として扱う。ただし、`interaction-limits` と `review-state` は、確かめられない結果や読めない結果も状態の 1 つとして終了コード `0` で出力する。止めるかどうかは、呼び出し側が出力の `state` で決める（5 章）。
+終了コードは次のとおり。呼び出し側は、これ以外の終了コード、信号による終了、JSON として読めない出力を、すべて「止める」として扱う。ただし、`interaction-limits`・`review-state`・`mentions`・`ci-checks` は、確かめられない結果や読めない結果も状態の 1 つとして終了コード `0` で出力する。止めるかどうかは、呼び出し側が出力の `state` で決める（5 章）。
 
 | 終了コード | 意味 | 標準出力 |
 |---|---|---|
@@ -88,17 +92,17 @@ go version -m "$(command -v fixprguard)"
 PR の head がこのリポジトリのブランチであることを確かめる（`isCrossRepository` が真偽値の `false` で、`headRepository` があるときだけ）。fork の PR は `cross-repository` で止まる。`/runpr` は、`gh pr checkout` の前にこれを実行する。
 
 ```sh
-fixprguard head --protocol 8 42
+fixprguard head --protocol 9 42
 ```
 
-出力: `{"protocol":8,"sameRepository":true}`。副作用: GitHub の読み取りだけ。
+出力: `{"protocol":9,"sameRepository":true}`。副作用: GitHub の読み取りだけ。
 
 ### `list --reviewer LOGIN ... [PR]`
 
 未解決のスレッドを全ページ取得し（最大 2000 件。超えると `thread-cap` で止まる）、スレッドごとの信頼の判定と理由、指紋を出力する。本文は取得も出力もしない。最初に `head` と同じ確認をする。
 
 ```sh
-fixprguard list --protocol 8 --reviewer coderabbitai --reviewer sourcery-ai 42
+fixprguard list --protocol 9 --reviewer coderabbitai --reviewer sourcery-ai 42
 ```
 
 出力: `threads`（各要素は `threadId`・`url`・`trusted`・`fingerprint`・`findings`）と `permissionLookups`（権限の照会の使用回数 `used` と残り `remaining`）。`findings` の `reason` は次のいずれかである。
@@ -119,7 +123,7 @@ fixprguard list --protocol 8 --reviewer coderabbitai --reviewer sourcery-ai 42
 処理するスレッドは、信頼する著者のスレッドと、`--accept` で名指しされて指紋が現在と一致するスレッドである。`--accept` には、利用者に示した報告の出力にあるスレッド ID と指紋を渡す。
 
 ```sh
-fixprguard begin --protocol 8 --reviewer coderabbitai --reviewer sourcery-ai 42
+fixprguard begin --protocol 9 --reviewer coderabbitai --reviewer sourcery-ai 42
 ```
 
 出力の項目:
@@ -142,7 +146,7 @@ fixprguard begin --protocol 8 --reviewer coderabbitai --reviewer sourcery-ai 42
 ファイルの内容を区切りのブロックで囲んで、そのまま標準出力に書く（JSON ではない）。nonce は、ファイルに含まれない値を選び直す。通常のファイル（シンボリックリンク、FIFO、デバイスでない）で 16 MiB 以下のものだけを読む。`/fixpr` は、トリアージのエージェントの出力をファイルに書き、これで囲んでから修正のエージェントに渡す。
 
 ```sh
-fixprguard fence --protocol 8 /path/to/triage.json
+fixprguard fence --protocol 9 /path/to/triage.json
 ```
 
 副作用: なし。
@@ -152,7 +156,7 @@ fixprguard fence --protocol 8 /path/to/triage.json
 修正のフェーズの後に実行する。まず config・info・hooks と対象のファイルを基準値と比べ、違えば `gh` を起動せずに `git-state-changed` で止まる。比べる順序は次のとおりである。(1) git のディレクトリの場所、config のファイルの種類、info を、git を起動せずにファイルだけで比べる。(2) `git config --list` で git が読む設定の値の一覧を読み、今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定を除いて比べる。(3) hooks を比べる。(4) 対象のファイル（7.1）の状態を比べる。列挙の git が config を読むので、config と hooks が一致した後に比べる。違えば `parts` は `ignored` だけである。設定の値の一覧を変えない編集（コメント・空行・字下げだけの編集）は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。次に、`--thread` のスレッドを GitHub から取り直して `path` を求め（指紋が違えば `thread-changed`）、作業ツリーの変更を数え上げて、範囲（6 章）と照らす。
 
 ```sh
-fixprguard inspect --protocol 8 --reviewer coderabbitai --reviewer sourcery-ai --baseline 'v3....' --thread 'PRRT_...=<指紋>' 42
+fixprguard inspect --protocol 9 --reviewer coderabbitai --reviewer sourcery-ai --baseline 'v3....' --thread 'PRRT_...=<指紋>' 42
 ```
 
 出力: `judgedSet`（判定した集合の識別子。`finish` に渡す）、`changes`（変更のあったパスの数）、`outOfScope`（範囲外の変更。各要素は `position`・`path`・`kind`（`add`・`modify`・`delete`・`other`）・`added`・`deleted`・`binary`）。`outOfScope` が空でなければ終了コード `3` で、利用者に一覧を示して続けるかを確かめる。パスの検査（6 章）に通らないパスは `path` を出さず、`position` だけで示す。
@@ -170,8 +174,8 @@ fixprguard inspect --protocol 8 --reviewer coderabbitai --reviewer sourcery-ai -
 本文のファイルは作業ツリーの外（スクラッチパッドなど）に置く。作業ツリーの中に置くと、(1) の照合が、そのファイルを判定の後に現れた変更とみなして `judged-set-changed` で止まる。空の値（`--body-file ''`）は、本文なしとは扱わず、終了コード `2` で拒否する。
 
 ```sh
-fixprguard finish --protocol 8 --baseline 'v3....' --judged-set '<judgedSet>' 42
-fixprguard finish --protocol 8 --baseline 'v3....' --judged-set '<judgedSet>' --body-file /path/to/correction.txt 42
+fixprguard finish --protocol 9 --baseline 'v3....' --judged-set '<judgedSet>' 42
+fixprguard finish --protocol 9 --baseline 'v3....' --judged-set '<judgedSet>' --body-file /path/to/correction.txt 42
 ```
 
 出力: `committed`（判定した集合が空なら `false` で、何もしない）と `commit`（作った commit の SHA。`push` に渡す）。
@@ -183,10 +187,10 @@ fixprguard finish --protocol 8 --baseline 'v3....' --judged-set '<judgedSet>' --
 `finish` が返した SHA を push する。直前に、hooks・config・info と対象のファイルが基準値と同じこと、HEAD がその SHA でその親が基準値の commit だけであること、push 先（現在のブランチについて git が解決するリモートの、同じ名前のブランチ）の OID が基準値と同じことを確かめる。明示した refspec で、タグとサブモジュールを伴わずに push する。config の比べ方は `inspect` と同じである。今のブランチと `main` を除く、ほかのブランチの `branch.<name>.*` の設定は比べず、設定の値の一覧を変えない編集は検出しない。ほかのブランチの設定の書き換えは、残余のリスクである（7.2）。
 
 ```sh
-fixprguard push --protocol 8 --baseline 'v3....' --commit '<SHA>'
+fixprguard push --protocol 9 --baseline 'v3....' --commit '<SHA>'
 ```
 
-出力: `{"protocol":8,"pushed":true,"commit":"<SHA>"}`。`ignored` で止まったときは、止まった時点の記録のファイルを書く。
+出力: `{"protocol":9,"pushed":true,"commit":"<SHA>"}`。`ignored` で止まったときは、止まった時点の記録のファイルを書く。
 
 ### `check --baseline TOKEN --commit SHA`
 
@@ -197,20 +201,20 @@ fixprguard push --protocol 8 --baseline 'v3....' --commit '<SHA>'
 比べる順序は `inspect`・`push` と同じである。(1) config・info・hooks・対象のファイル（`inspect` と同じ比べ方）、(2) index のフラグ、(3) HEAD がいるブランチ（違えば `branch` で、HEAD は比べない）、(4) HEAD。(4) では、HEAD から親をたどり、たどる各 commit の親がちょうど 1 つで、親が基準値の commit である commit（Phase 4 の commit）に着き、それが `--commit` であることを確かめる。Phase 4 の commit より後の commit は 32 個まで受け付ける。commit は replace refs を無効にした `git cat-file` で読む。通らなければ `head` で止まり、標準エラーの 1 行の診断が、当たった規則の名前（8 章）を示す。
 
 ```sh
-fixprguard check --protocol 8 --baseline 'v3....' --commit '<SHA>'
+fixprguard check --protocol 9 --baseline 'v3....' --commit '<SHA>'
 ```
 
-出力: `{"protocol":8,"base":"<SHA>","head":"<SHA>","commits":1}`。`base` は基準値の commit、`head` は比べた HEAD、`commits` は Phase 4 の commit より後の commit の数（Phase 4.5 の commit の数）である。`commits` が `0` のとき、HEAD は Phase 4 の commit である。
+出力: `{"protocol":9,"base":"<SHA>","head":"<SHA>","commits":1}`。`base` は基準値の commit、`head` は比べた HEAD、`commits` は Phase 4 の commit より後の commit の数（Phase 4.5 の commit の数）である。`commits` が `0` のとき、HEAD は Phase 4 の commit である。
 
 ### `push-review --baseline TOKEN --commit SHA`
 
 `/fixpr` の Phase 4.5 の commit を push する。`--commit` は `check` と同じく Phase 4 の commit である。`check` と同じことを比べ、さらに push 先（`push` と同じく、現在のブランチについて git が解決するリモートの、同じ名前のブランチ）の OID が `--commit` であることを確かめる（Phase 4 の push が届き、その後に誰もブランチを進めていないこと）。すべてに通ったときだけ、比べた HEAD の OID（記号の `HEAD` ではない）を、明示した refspec で、タグとサブモジュールを伴わずに push する。push 先を読んでいる間に HEAD が動いても、確かめていない commit は送らない。Phase 4 の commit より後の commit がなければ、比べた後に、push せずに終了コード `2` で止まる。`gh` は起動しない。
 
 ```sh
-fixprguard push-review --protocol 8 --baseline 'v3....' --commit '<SHA>'
+fixprguard push-review --protocol 9 --baseline 'v3....' --commit '<SHA>'
 ```
 
-出力: `{"protocol":8,"pushed":true,"commit":"<SHA>"}`。`commit` は push した HEAD の OID である。push の後にもう一度呼ぶと、push 先の OID がもう `--commit` でないので、`remote` で止まる（8 章）。
+出力: `{"protocol":9,"pushed":true,"commit":"<SHA>"}`。`commit` は push した HEAD の OID である。push の後にもう一度呼ぶと、push 先の OID がもう `--commit` でないので、`remote` で止まる（8 章）。
 
 ### `reply --reviewer LOGIN ... --thread-id ID --comment-id N --fingerprint FP --body-file FILE [--accept ID=FINGERPRINT ...] [PR]`
 
@@ -219,20 +223,20 @@ fixprguard push-review --protocol 8 --baseline 'v3....' --commit '<SHA>'
 本文のファイルは、通常のファイル（最後の要素がシンボリックリンクでない）で、64 KiB 以下、空白だけでなく、NUL を含まない有効な UTF-8 でなければならない。また、拒否するメンション（`@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai`）を含んではならない。Sourcery AI はハイフンのある形とない形のどちらのメンションにも応じるので、両方を拒否する。比べ方は ASCII の範囲で大文字と小文字を区別しない（`@Sourcery-AI` も拒否する）部分文字列の一致で、語の境界を求めない（`@codexbot`・`a@codex.example`・`@coderabbitai-bot`・`@sourcery-aibot` も拒否する）。メンションの検査はファイルの検査の後、スレッドを読む前に行い、含むときは終了コード `2` で拒否する。利用者のアカウントの投稿が、メンションで自動レビュアーを動かさないためである。
 
 ```sh
-fixprguard reply --protocol 8 --reviewer coderabbitai --reviewer sourcery-ai --thread-id 'PRRT_...' --comment-id 123 --fingerprint '<指紋>' --body-file /path/to/reply.md 42
+fixprguard reply --protocol 9 --reviewer coderabbitai --reviewer sourcery-ai --thread-id 'PRRT_...' --comment-id 123 --fingerprint '<指紋>' --body-file /path/to/reply.md 42
 ```
 
-出力: `{"protocol":8,"written":true}`。`reply-not-resolved` で止まったときは、返信が投稿された可能性があるので、同じ返信を再び投稿しない。
+出力: `{"protocol":9,"written":true}`。`reply-not-resolved` で止まったときは、返信が投稿された可能性があるので、同じ返信を再び投稿しない。
 
 ### `edit-pr --title-file FILE --body-file FILE [PR]`
 
 PR のタイトルと本文を更新する。`/fixpr` は Phase 6 で古くなった説明を書き直すときに、`/runpr` はステップ 4 で 3 文書の PR を通常の進め方へ戻すとき（タスク 0072）に、これを使う。どちらも、送る前にタイトルと本文のファイルにメンションの確かめを行う。タイトルは `--title=<値>` の形で、本文は検査した内容を標準入力から渡す（`gh` にファイルを読み直させない）。タイトルのファイルは、本文のファイルと同じ検査に加えて、制御文字と行区切りを含まない 1 行であること。タイトルと本文のどちらかが拒否するメンション（`@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai`）のどれかを含むときは、`reply` の本文と同じ規則で、`gh pr edit` を起動する前に終了コード `2` で拒否する。
 
 ```sh
-fixprguard edit-pr --protocol 8 --title-file /path/to/title.txt --body-file /path/to/body.md 42
+fixprguard edit-pr --protocol 9 --title-file /path/to/title.txt --body-file /path/to/body.md 42
 ```
 
-出力: `{"protocol":8,"written":true}`。
+出力: `{"protocol":9,"written":true}`。
 
 ### `append-pr --body-file FILE [PR]`
 
@@ -243,20 +247,20 @@ PR の今の本文の末尾に、空行を挟んでファイルの内容を足�
 本文を取得してから書き込むまでの間に、ほかの人が PR の本文を編集すると、その編集は上書きされる（7.2）。
 
 ```sh
-fixprguard append-pr --protocol 8 --body-file /path/to/corrections.md 42
+fixprguard append-pr --protocol 9 --body-file /path/to/corrections.md 42
 ```
 
-出力: `{"protocol":8,"written":true}`。副作用: PR の本文の読み取りと書き込み。
+出力: `{"protocol":9,"written":true}`。副作用: PR の本文の読み取りと書き込み。
 
 ### `interaction-limits PR`
 
 リポジトリの interaction limits（10 章）と PR の作成の時刻を読み、同じ応答の `Date` ヘッダが示す GitHub の時刻と比べて、6 つの状態のどれかに分類する。`/runpr` は、ステップ 1 で `head` が通った直後、`gh pr checkout` の前に、1 回だけこれを実行する。スレッドを判定しないので、`--reviewer` は渡せない。PR 番号は省略できない。
 
 ```sh
-fixprguard interaction-limits --protocol 8 42
+fixprguard interaction-limits --protocol 9 42
 ```
 
-出力: `{"protocol":8,"state":"active","expiresOn":"2027-05-02","reason":"","httpStatus":0}`。どの状態でも終了コード `0` で出力し、標準エラーには何も書かない。確かめられなかった理由は `reason` にある。
+出力: `{"protocol":9,"state":"active","expiresOn":"2027-05-02","reason":"","httpStatus":0}`。どの状態でも終了コード `0` で出力し、標準エラーには何も書かない。確かめられなかった理由は `reason` にある。
 
 | 項目 | 内容 |
 |---|---|
@@ -304,34 +308,46 @@ fixprguard interaction-limits --protocol 8 42
 
 副作用: GitHub の読み取りだけ（`gh repo view`、`gh pr view`、`gh api --include repos/<owner>/<repo>/interaction-limits` の `GET`）。ファイル、git、GitHub への書き込みはなく、記録のファイル（8.1）も書かない。
 
-### `review-state --reviewer LOGIN --request TEXT PR`
+### `review-state --profile PROFILE --reviewer LOGIN --request TEXT ... PR`
 
-手動の PR レビューの状態を読む。`/runpr` が依頼のコメント（`--request` の本文だけのコメント）を投稿した後、そのレビューが終わったかを、レビュアーの CheckRun から求める。コメントの本文からは何も読まない。スレッドを判定しないが、`--reviewer` は 1 回だけ渡す（完了を待つレビュアーの GraphQL の `author.login`。複数渡すと使い方の誤りになる）。`--request` は依頼のコメントの本文そのもので、空にできず、1024 バイトを超えられない。PR 番号は省略できない。
+手動の PR レビュー（および `sourcery` プロファイルでは `head` 上の自動の PR レビュー）の状態を読む。`/runpr` が依頼のコメント（`--request` の本文だけのコメント）を投稿した後、そのレビューが終わったかを、レビュアーの CheckRun から求める。コメントの本文からは何も読まない。スレッドを判定しないが、`--profile` と `--reviewer` は 1 回だけ渡す（対象レビュアーのプロファイルと GraphQL の `author.login`）。`--request` は受理する依頼のコメントの本文で、1 回以上繰り返し渡せる（各値は空にできず前後空白なし、1024 バイト以下、重複不可）。PR 番号は省略できない。
 
 ```sh
-fixprguard review-state --protocol 8 --reviewer coderabbitai --request 'please review' 42
+fixprguard review-state --protocol 9 --profile coderabbit --reviewer coderabbitai --request 'please review' 42
 ```
 
-読む順は、リポジトリの名前（`gh repo view`）、PR の head（`pulls/<n>` の `head.sha`）、利用者の login（`gh api user`）、会話のコメント（`issues/<n>/comments`、100 件ずつ全ページ）、PR の commit の一覧と CheckRun（GraphQL）、レビュアーの PR レビュー（`pulls/<n>/reviews`、100 件ずつ全ページ）である。REST は `gh api --include` で読み、最後に読んだ REST の応答の `Date` ヘッダを GitHub の時刻とする。依頼のコメントがなければ、`none` を返して、その後の読み取りをしない。
+読む順は、リポジトリの名前（`gh repo view`）、PR の head（`pulls/<n>` の `head.sha`）、利用者の login（`gh api user`）、会話のコメント（`issues/<n>/comments`、100 件ずつ全ページ）、PR の commit の一覧と CheckRun（GraphQL）、レビュアーの PR レビュー（`pulls/<n>/reviews`、100 件ずつ全ページ）である。REST は `gh api --include` で読み、最後に読んだ REST の応答の `Date` ヘッダを GitHub の時刻とする。`coderabbit` では依頼のコメントがなければ `none` を返して、その後の読み取りをしない。`sourcery` では依頼のコメントが 0 件でも CheckRun を読み取って `autoReview` を構築する（依頼が 0 件なら `markers` は空であり、`pulls/<n>/reviews` は読まない）。
 
-**依頼のコメント。** 著者の種類が `User` で、login が利用者のものと等しく、本文の前後の空白を除いたものが `--request` と完全に等しいコメントだけを数える。同じ名前の `Bot`、ほかの利用者、本文が少しでも違うコメント（前後の空白以外）は数えない。最新の依頼は、`updated_at` の順で最後のものである。同じ秒の中に編集されたもの（`updated_at` が `created_at` と等しくない）があれば、編集されたものが最新とする。
+**プロファイル。**
 
-**応答の分類。** CheckSuite の `app.slug` が `--reviewer` と等しく、名前が `CodeRabbit` の CheckRun だけを読み、`status`・`conclusion`・`title` の組を次の表と完全一致で照合する。表にない `COMPLETED` の組は `unknown` で、レビュー済みとしない。
+| `profile` | 対象 CheckRun の `name` | 特徴 |
+|---|---|---|
+| `coderabbit` | `CodeRabbit` | 手動のみ。`autoReview` は常に `null` |
+| `sourcery` | `Sourcery review` | 自動＋手動。`head` 上の手動以外の CheckRun を `autoReview` に示す。手動依頼の応答上限は 15 分、後続コミットの CheckRun は競合にしない |
 
-| `status` | `conclusion` | `title` | 応答の種類 | 応答として |
-|---|---|---|---|---|
-| `COMPLETED` 以外のすべて | 問わない | 問わない | `running` | 数える |
-| `COMPLETED` | `SUCCESS` | `Finished` | `finished` | 数える |
-| `COMPLETED` | `NEUTRAL` | `Review rate limited` | `rate-limited` | 数える |
-| `COMPLETED` | `SKIPPED` | `Review skipped: automatic reviews are disabled` | `skip-notice` | 数えない |
-| `COMPLETED` で、上のどれでもない組 | | | `unknown` | 数える |
+**依頼のコメント。** 著者の種類が `User` で、login が利用者のものと等しく、本文の前後の空白を除いたものが `--request` のいずれかと完全に等しいコメントだけを数える。同じ名前の `Bot`、ほかの利用者、本文が少しでも違うコメント（前後の空白以外）は数えない。最新の依頼は、`updated_at` の順で最後のものである。同じ秒の中に編集されたもの（`updated_at` が `created_at` と等しくない）があれば、編集されたものが最新とする。
 
-応答は、依頼の時刻より厳密に後に始まった（同じ秒は数えない）数える CheckRun のうち、最も早く始まったものである。まだ始まっていない CheckRun（`startedAt` が `null`）は数えない。応答が終わった後に始まった CheckRun は、応答でも完了の印でもない。
+**応答の分類。** CheckSuite の `app.slug` が `--reviewer` と等しく、`name` がプロファイル固有の名前と完全一致する CheckRun だけを読み（一致しない `name` が混入していれば `unreadable` の `rejected` で拒否する）、`status`・`conclusion`・`title` の組を次の表と完全一致で照合する。表にない `COMPLETED` の組は `unknown` で、レビュー済みとしない。
 
-出力: `protocol`、`state`、`reason`、`indeterminateReason`、`head`、`now`、`request`、`response`、`indeterminateUrls`、`markers`。どの状態でも終了コード `0` で、引数の形が違うときだけ終了コード `2` になる。標準エラーには何も書かない。コメントの本文、CheckRun の `title`、CheckRun の `details_url` はどの項目にも入れない（`details_url` は共有用の値を含むので読まない）。
+| `profile` | `name` | `status` | `conclusion` | `title` | 応答の種類 | 応答として |
+|---|---|---|---|---|---|---|
+| `coderabbit` | `CodeRabbit` | `COMPLETED` 以外のすべて | 問わない | 問わない | `running` | 数える |
+| `coderabbit` | `CodeRabbit` | `COMPLETED` | `SUCCESS` | `Finished` | `finished` | 数える |
+| `coderabbit` | `CodeRabbit` | `COMPLETED` | `NEUTRAL` | `Review rate limited` | `rate-limited` | 数える |
+| `coderabbit` | `CodeRabbit` | `COMPLETED` | `SKIPPED` | `Review skipped: automatic reviews are disabled` | `skip-notice` | 数えない |
+| `coderabbit` | `CodeRabbit` | `COMPLETED` で、上のどれでもない組 | | | `unknown` | 数える |
+| `sourcery` | `Sourcery review` | `COMPLETED` 以外のすべて | 問わない | 問わない | `running` | 数える |
+| `sourcery` | `Sourcery review` | `COMPLETED` | `SUCCESS` | `✅ Completed successfully` | `finished` | 数える |
+| `sourcery` | `Sourcery review` | `COMPLETED` | `SKIPPED` | `⏭️ Skipped` | `skipped` | 数える |
+| `sourcery` | `Sourcery review` | `COMPLETED` で、上のどれでもない組 | | | `unknown` | 数える |
+
+応答は、依頼の時刻より厳密に後に始まった（同じ秒は数えない、`sourcery` ではさらに依頼の時刻から 15 分以内に始まった）数える CheckRun のうち、最も早く始まったものである。まだ始まっていない CheckRun（`startedAt` が `null`）は数えない。応答が終わった後に始まった CheckRun は、応答でも完了の印でもない。
+
+出力: `protocol`、`profile`、`state`、`reason`、`indeterminateReason`、`head`、`now`、`request`、`response`、`autoReview`、`indeterminateUrls`、`markers`。どの状態でも終了コード `0` で、引数の形が違うときだけ終了コード `2` になる。標準エラーには何も書かない。コメントの本文、CheckRun の `title`、CheckRun の `details_url` はどの項目にも入れない（`details_url` は共有用の値を含むので読まない）。
 
 | 項目 | 内容 |
 |---|---|
+| `profile` | 呼び出し時に渡したプロファイル（`coderabbit` または `sourcery`）。`unreadable`・`none` を含むすべての結果に常に入る |
 | `state` | 最新の依頼の状態。下の表の値 |
 | `reason` | `state` が `unreadable` のとき、読めなかった理由。ほかは `""` |
 | `indeterminateReason` | `state` が `indeterminate` のとき、決まらない理由。ほかは `""` |
@@ -339,8 +355,9 @@ fixprguard review-state --protocol 8 --reviewer coderabbitai --request 'please r
 | `now` | GitHub の時刻（RFC 3339、UTC）。`unreadable` のときは `""` |
 | `request` | 最新の依頼（`id`・`url`・`createdAt`）。`none` と `unreadable` のときだけ `null` |
 | `response` | その応答（`kind`・`status`・`conclusion`・`commit`・`url`・`startedAt`）。応答がなければ `null` |
+| `autoReview` | `sourcery` で `head` 上にある手動依頼以外の CheckRun（`state`・`kind`・`status`・`conclusion`・`commit`・`url`・`startedAt`）。`coderabbit`、該当なし、または `unreadable` では `null` |
 | `indeterminateUrls` | `competing-runs` のとき、競合した CheckRun の URL。ほかは空の配列 |
-| `markers` | 完了の印（`commit`・`requestId`・`requestUrl`・`checkRunUrl`・`reviewUrl`・`completedAt`）を、古い依頼のものから順に。なければ空の配列 |
+| `markers` | 手動依頼に応答した完了の印（`commit`・`requestId`・`requestUrl`・`checkRunUrl`・`reviewUrl`・`completedAt`）を、`completedAt`・`checkRunUrl` の昇順で。自動の PR レビューの完了は含めない。なければ空の配列 |
 
 **状態。** 上から順に調べ、最初に当たるものになる。
 
@@ -351,28 +368,117 @@ fixprguard review-state --protocol 8 --reviewer coderabbitai --request 'please r
 | `indeterminate` | 最新の依頼の応答が決まらない（`indeterminateReason` が理由） |
 | `completed` | 応答が `finished` |
 | `rate-limited` | 応答が `rate-limited` |
+| `skipped` | 応答が `skipped` |
 | `unrecognized` | 応答が `unknown` |
 | `timed-out` | 依頼の時刻から 15 分を過ぎた（応答が `running` でも延ばさない） |
 | `waiting` | 上のどれでもない |
+
+**自動の PR レビューの状態。** `sourcery` で `head` 上に手動依頼へ割り当てられていない CheckRun（編集された依頼の応答は割り当て済みとして扱う）があるとき、次の 4 段階の優先順位で 1 件を選び（同順位は `startedAt` 最新、次いで `url` の文字数・辞書順最大）、`autoReview.state` に分類する。ただし、最新の手動依頼が `waiting` かつ `response == null` の間は、未開始（`startedAt == null`）の CheckRun を `autoReview` に仮割り当てしない。
+
+| `autoReview.state` | 条件 |
+|---|---|
+| `none` | `autoReview` 型のゼロ値（該当なし時は JSON 上 `autoReview: null` になる） |
+| `running` | 優先順位 1（`running`・`startedAt != null`・15 分以内）または優先順位 2（`running`・`startedAt == null`、`startedAt: ""`） |
+| `timed-out` | 優先順位 3（`running`・`startedAt != null`・`now - startedAt > 15 分`） |
+| `completed` | 優先順位 4 の終了済みで `kind` が `finished`（`markers` には入れない） |
+| `skipped` | 優先順位 4 の終了済みで `kind` が `skipped` |
+| `unrecognized` | 優先順位 4 の終了済みで `kind` が `unknown` |
 
 **読めない理由。**
 
 | `reason` | 意味 |
 |---|---|
 | `call-failed` | `gh` の呼び出しが失敗した、HTTP の状態が `200` でない、または読んでいる間に PR の head が変わった（GraphQL の `headRefOid` が最初に読んだ `head.sha` と違う） |
-| `rejected` | 応答が厳密な検査に通らない（重複した項目、型の違い、16 進でない SHA、読めない時刻、`Date` ヘッダの誤りなど） |
+| `rejected` | 応答が厳密な検査に通らない（重複した項目、型の違い、プロファイルと異なる CheckRun `name`、16 進でない SHA、読めない時刻、`Date` ヘッダの誤りなど） |
 | `limit` | 上限を超えた（会話のコメントと PR レビューは各 3000 件、PR の commit は 1000 件、1 つの commit の CheckSuite は 50、1 つの CheckSuite の CheckRun は 100、または出力が大きさの上限を超えた） |
 
 **決まらない理由。**
 
 | `indeterminateReason` | 意味 |
 |---|---|
-| `competing-runs` | 数える CheckRun のうち最も早く始まったものが同じ秒に 2 つ以上ある、または最も早いものが終わる前に別の数える CheckRun が始まった |
+| `competing-runs` | 数える CheckRun のうち最も早く始まったものが同じ秒に 2 つ以上ある、または最も早いものが終わる前に別の数える CheckRun が始まった（`sourcery` では、最も早いものより後の秒に始まった後続コミットの CheckRun は競合にしない） |
 | `edited-request` | 最新の依頼のコメントが編集されている。元の時刻を依頼の時刻として使えないので、完了としない |
 
-**応答の種類。** `response.kind` の値は、上の分類の表の `running`・`finished`・`rate-limited`・`unknown` である（`skip-notice` は応答にならないので出力に現れない）。
+**応答の種類。** `response.kind` の値は、上の分類の表の `running`・`finished`・`rate-limited`・`skipped`・`unknown` である（`skip-notice` は応答にならないので出力に現れない）。
 
-**完了の印。** 最新の依頼が `completed` のときはその応答、前の依頼については、依頼が編集されておらず、応答が決まり、その応答が `finished` のものを `markers` に入れる。前の依頼の応答は、次の依頼の `updated_at` より前に始まったものに限る。`reviewUrl` は、同じ commit に対するレビュアーの PR レビューのうち、依頼より後に提出された最初のものの URL で、なければ `""` である。示す commit は PR の commit の一覧にあるものだけである。
+**完了の印。** 最新の依頼が `completed` のときはその応答、前の依頼については、依頼が編集されておらず、応答が決まり、その応答が `finished` のものを `markers` に `completedAt`・`checkRunUrl` の昇順で入れる。前の依頼の応答は、次の依頼の `updated_at` より前に始まったものに限る。依頼に応答しない自動の PR レビューの完了は `markers` に入れない。`reviewUrl` は、同じ commit に対するレビュアーの PR レビューのうち、依頼より後に提出された最初のものの URL で、なければ `""` である。示す commit は PR の commit の一覧にあるものだけである。
+
+副作用: GitHub の読み取りだけ。書き込みも git も記録のファイルもない。
+
+### `mentions --observed-bot PROFILE=LOGIN ... --request TEXT ... PR`
+
+PR の会話コメント（`issues/<n>/comments`）、行コメント（`pulls/<n>/comments`）、PR レビュー（`pulls/<n>/reviews`）を厳格な JSON として全ページ読み取り（各上限 3000 件）、拒否するメンション（`@codex`・`@coderabbitai`・`@sourcery-ai`・`@sourceryai`、ASCII 大文字小文字無視・部分文字列一致）を含む項目だけを報告する。本文は一切出力しない。PR 番号は省略できない。
+
+```sh
+fixprguard mentions --protocol 9 --observed-bot coderabbit=coderabbitai --observed-bot sourcery=sourcery-ai --request '@coderabbitai review' --request '@sourcery-ai review' --request '@sourceryai review' 42
+```
+
+次の項目はメンション報告から除外する。(1) 観測済み定型コメント: `coderabbit`（`Bot`・`<login>[bot]`、3 経路すべて）で 1 行目（末尾 `\r` 除去後）が `<!-- coderabbit-ai-generated:v1 -->` または `<!-- This is an auto-generated comment: coding agent status by CodeRabbit -->` と完全一致するもの、および `sourcery`（`Bot`・`<login>[bot]`、会話コメントのみ）で 1 行目が `<!-- Generated by <login>[bot]: start review_guide -->` または認証済み利用者の login に一致する 7 日間予算超過通知 `Sorry @<user-login>, you've used your own review budget of <数字とカンマ> diff characters for the last 7 days.` と完全一致するもの。(2) 手動依頼コメント（会話コメントのみ）: 認証済み利用者の `User` が投稿し、前後空白除去後の本文が `--request` のいずれかと完全一致するもの。
+
+出力: `protocol`、`state`、`reason`、`stage`、`mentions`（要素は `source`・`url`・`createdAt`・`updatedAt`〔`review` は省略〕・`byUser`・`byBot`、順序は `issue-comment` → `line-comment` → `review` の API 返却順）。`ok`・`unreadable` のどちらも終了コード `0` で、引数の誤りだけ終了コード `2` になる。
+
+**状態。**
+
+| `state` | 意味 |
+|---|---|
+| `ok` | 全 3 エンドポイントを読み終えた（`mentions` が結果） |
+| `unreadable` | 読み取りが失敗した（部分結果は返さず `mentions` は空配列） |
+
+**読めない理由。**
+
+| `reason` | 意味 |
+|---|---|
+| `call-failed` | `gh` の呼び出しが失敗した、または HTTP の状態が `200` でない |
+| `rejected` | 応答が厳格な JSON 検査に通らない |
+| `limit` | 件数上限（各 3000 件）または応答サイズ上限を超えた |
+
+**段。** `state` が `unreadable` のときに失敗した段を示す（`ok` では `""`）。
+
+| `stage` | 失敗した段 |
+|---|---|
+| `repo` | リポジトリ名の解決（`gh repo view`） |
+| `user` | 認証済み利用者の取得（`gh api user`） |
+| `issue-comments` | 会話コメント（`issues/<n>/comments`） |
+| `line-comments` | 行コメント（`pulls/<n>/comments`） |
+| `reviews` | PR レビュー（`pulls/<n>/reviews`） |
+
+**発生元。** `mentions` 各要素の `source` の値。
+
+| `source` | 発生元 |
+|---|---|
+| `issue-comment` | 会話コメント（`issues/<n>/comments`） |
+| `line-comment` | 行コメント（`pulls/<n>/comments`） |
+| `review` | PR レビュー（`pulls/<n>/reviews`） |
+
+副作用: GitHub の読み取りだけ。書き込みも git も記録のファイルもない。
+
+### `ci-checks [--head SHA] PR`
+
+PR の `head` コミットに対する GitHub Actions（`checkSuite.app.slug == "github-actions"`）の CheckSuite・LATEST CheckRun だけを GraphQL で厳格に読み取り、CI の成否を返す。外部レビュアー（CodeRabbit・Sourcery AI 等）の CheckRun は無視する。`--head` に 40 桁の小文字 16 進 SHA を渡すと、`headRefOid` と一致しないときに `unreadable`（`reason: "head-changed"`）を返す。PR 番号は省略できない。
+
+```sh
+fixprguard ci-checks --protocol 9 --head 0123456789abcdef0123456789abcdef01234567 42
+```
+
+出力: `protocol`、`state`、`reason`、`head`、`suites`、`checks`、`failing`（失敗した CheckRun または CheckSuite の `name`・`conclusion`・`url`）。どの状態でも終了コード `0` で、引数の誤りだけ終了コード `2` になる。
+
+**状態。**
+
+| `state` | 意味 |
+|---|---|
+| `unreadable` | 読み取り失敗・厳格 JSON 違反・上限超過・`--head` 不一致（`reason` が理由） |
+| `pending` | 評価対象の CheckSuite が 0 件、または未完了の CheckSuite・CheckRun がある |
+| `passed` | 評価対象の CheckSuite が 1 件以上あり、すべての CheckSuite と配下の CheckRun が `COMPLETED` かつ `SUCCESS` または `SKIPPED` |
+| `failed` | 失敗した CheckRun または CheckSuite がある（`failing` に一覧） |
+
+**読めない理由。**
+
+| `reason` | 意味 |
+|---|---|
+| `call-failed` | `gh` の呼び出しが失敗した（一時的なエラーを含む） |
+| `rejected` | 応答が厳格な JSON 検査に通らない、または恒久的な GraphQL エラー |
+| `limit` | CheckSuite（50）・CheckRun（100）のページ上限または応答サイズ上限を超えた |
+| `head-changed` | `--head` で指定した SHA と PR の `headRefOid` が一致しない |
 
 副作用: GitHub の読み取りだけ。書き込みも git も記録のファイルもない。
 
@@ -511,7 +617,7 @@ fixprguard review-state --protocol 8 --reviewer coderabbitai --request 'please r
 - `/fixpr` の Phase 4.5 で、手順が定めない git の起動。`check` を呼ぶのは手順が定める時点だけで、セッションがそれ以外に git を起動すれば、その前には比べない。比較を呼ぶこと自体もコマンドの文書に依存する（7.2.2）。
 - Phase 4 の commit から 1 本につながる commit の出所。`check` は、Phase 4.5 の commit を誰が作ったかを区別しない。修正のフェーズや build checks が残したプロセスが、1 本につながる commit を足しても、`check` は通る。`/fixpr` は、手順が戻った後と `push-review` の直前の `check` で、`commits` とセッションが数えた commit の数を照合し、違えば止まる。最後の照合から `push-review` までの間に足されたものは数えない。
 - HEAD とブランチの 2 回の読み取り。HEAD の OID と、HEAD がいるブランチは、2 回の git の起動で読む。その間にブランチを切り替えられると、切り替え先の OID と、基準値のブランチの名前の組を読みうる。
-- 基準値を持たない `head`・`list`・`reply`・`edit-pr` が `gh` を起動する前の比較。`/fixpr` はこれらを `finish`・`push`（Phase 4.5 の commit があれば `push-review`）の後に呼ぶので、それまでの比較が書き換えを検出するが、最後の push の後の書き換えは検出しない。`/runpr` は `begin` を呼ばずに `head`・`list`・`reply` を使い、3 文書の PR を通常の進め方へ戻すときは `edit-pr` も使うので、その前に基準値との比較はない。`interaction-limits` も基準値を持たず、`/runpr` がステップ 1 で `begin` より前に 1 回だけ呼ぶので、それ以前の比較はない。
+- 基準値を持たない `head`・`list`・`reply`・`edit-pr`・`append-pr`・`review-state`・`mentions`・`ci-checks` が `gh` を起動する前の比較。`/fixpr` はこのうち `reply`・`edit-pr`・`append-pr` を `finish`・`push`（Phase 4.5 の commit があれば `push-review`）の後に呼ぶので、それまでの比較が書き換えを検出するが、最後の push の後の書き換えは検出しない。`/runpr` は `begin` を呼ばずに `head`・`list`・`reply`・`review-state`・`mentions`・`ci-checks` を使い、3 文書の PR を通常の進め方へ戻すときは `edit-pr` も使うので、その前に基準値との比較はない。`interaction-limits` も基準値を持たず、`/runpr` がステップ 1 で `begin` より前に 1 回だけ呼ぶので、それ以前の比較はない。
 - hooks のディレクトリの外にあり、hook が実行するファイル（pre-commit のフレームワークのキャッシュなど）。
 
 #### 7.2.5 git が無視するファイル
@@ -542,6 +648,8 @@ fixprguard review-state --protocol 8 --reviewer coderabbitai --request 'please r
 
 - 制限が外れている間の自動レビュアーの経路。interaction limits の期限が切れてから利用者が更新するまでの間は、書き込み権限のない人が CodeRabbit や Sourcery AI に指示しうる（Sourcery AI は、外部の人の `@sourcery-ai`・`@sourceryai` のメンションにも応じうるものとして扱う。タスク 0122 の要件定義書 4.2）。指示を受けた Bot が作るスレッドは信頼する著者のスレッドになり、その本文が修正のフェーズのエージェントに届く。`/runpr` は、状態が `none`・`weak`・`predates`・`unverifiable` のとき、および利用者以外の人が書いたメンションがあるときに止まる（5 章・10.4）が、`/fixpr` を単独で実行したときは止まらず、警告も出ない。CodeRabbit は個人のリポジトリでは応答する相手を設定で限れない（タスク 0057 の要件定義書 1 章）。
 - 新しい自動レビュアー。自動レビュアーの一覧に Bot を加えるときは、その Bot が外部の人の指示に応じるかを評価する（#405）。一覧の Bot のスレッドは、どれも信頼する著者のスレッドになる。Sourcery AI（`sourcery-ai`）は、この評価を経て一覧に加えた（タスク 0122）。
+- 予算超過コメントの 1 行目の除外。`mentions` は、`sourcery-ai[bot]` の会話コメントのうち、認証済み利用者の login を含む 7 日間の予算超過の 1 行目に完全一致するものを、観測済み定型コメントとして除外する（5 章）。Sourcery AI が同じ 1 行目の書式で別の内容を送るようになると除外されうるが、`sourcery-ai[bot]` は信頼済みの自動レビュアーであり、外部の `User` が同じ 1 行目を書いても `user.type == "User"` のため停止する（タスク 0122 の設計書 5.4）。
+- Sourcery AI の PR の説明の追記。Sourcery AI はレビューの完了後に PR の説明の末尾へ概要を追記し、レビューのたびに更新する（タスク 0122 の観測の記録 2.1）。追記に拒否するメンションが含まれると、`append-pr` は `current-body-mention` で止まる（停止に倒れる安全側。8 章）。また、`append-pr` は PR の説明全体を書き込むため、Sourcery AI の更新と重なると一方の書き込みが失われうる（未観測。タスク 0122 の設計書 5.4）。
 - 状態を読んだ後の変化。`/runpr` は実行の初めに 1 回だけ状態を読む。実行の途中で期限が来ても止まらず、利用者が制限を外した場合も、次の `/runpr` まで気づかない。14 日の猶予は 1 回の実行より十分に長いので、期限の前に「期限が近い」の警告が出る。
 - 設定の時刻の見積もりと、期限の前の更新。設定の時刻は `expires_at` から UTC の暦で 6 か月を引き、月末は遅い側に寄せて見積もる（5 章）。期間を 6 か月にしてある限り、制限のない期間を経た PR を見逃さないが、この見積もりは GitHub が UTC の暦で 6 か月を足すという 1 回の観測に基づく。6 か月より短い期間で設定すると、見積もりが実際より早くなり、制限のない期間を経た PR を「制限より前の PR」と判定し損なう。また、利用者が期限の前に更新したときも、そのとき開いていた PR は「制限より前の PR」になり、作り直しが要る（10.3）。
 - メンションを消された場合。外部の人が自分のメンションのコメントを消すか、編集でメンションを外すと、利用者以外のメンションの検出では見つけられない。制限が外れていた間のことなら、設定の時刻と PR の作成の時刻の比較が止める。制限が有効な間は、外部の人はコメントを書けない。
@@ -696,6 +804,8 @@ find . -path ./.git -prune -o -type l -print | LC_ALL=C sed 's/\^/^^/g' | LC_ALL
 
 interaction limits の期限が切れてから更新するまでの間は、書き込み権限のない人が再び自動レビュアーに指示しうる。`/runpr` がこの状態を確かめて止まるのは、そのためである（10.4）。
 
+push の制限（ruleset `26400325`）の `bypass_actors` は Repository Admin だけであり、GitHub App は含まれない（タスク 0122 の観測の記録 2.8）。Sourcery AI は `code: read & write` の権限を持つため、この ruleset の bypass に GitHub App が加えられると、Bot が PR のブランチを更新しうる。設定を変えるときは、この前提を確かめ直す（タスク 0122 の設計書 5.4）。
+
 ### 10.2 設定する手順
 
 - **interaction limits:** アカウントの設定画面（Settings → Moderation → Interaction limits）で、collaborators に限る制限（`collaborators_only`）を選び、期間を 6 か月にする。アカウント全体の設定なので、アカウントのほかの公開リポジトリにも効く。リポジトリの interaction limits の取得の応答は、この制限を `origin` が `user` の制限として返す。
@@ -737,7 +847,7 @@ Bot が書いたメンションだけのときは、`/runpr` は URL を示し�
 | `output-form`・`date` | `gh` の版の変更による出力の形の変化、`GH_FORCE_TTY` や色を強制する環境変数（`CLICOLOR_FORCE` など） |
 | `body`・`limit`・`expires-at` | GitHub の応答の形の変化 |
 
-同じ結果は `fixprguard interaction-limits --protocol 8 <PR>` を単独で実行して確かめられる。応答そのものを見るときは、次の読むだけの呼び出しを使う（`<owner>/<repo>` は `gh repo view --json nameWithOwner` の値）。
+同じ結果は `fixprguard interaction-limits --protocol 9 <PR>` を単独で実行して確かめられる。応答そのものを見るときは、次の読むだけの呼び出しを使う（`<owner>/<repo>` は `gh repo view --json nameWithOwner` の値）。
 
 ```sh
 gh api --include repos/<owner>/<repo>/interaction-limits

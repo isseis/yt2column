@@ -87,10 +87,17 @@ approver give it under these principles.
 
 Exceptions:
 
-- **The bilingual README.** The README is the only document kept in two
-  languages (`README.md` and `README.en.md`). Change `README.md` first, then
+- **The bilingual README.** The README is the only document kept as a
+  translated pair of two files (`README.md` and `README.en.md`). Change
+  `README.md` first, then
   carry the change to `README.en.md` with `/mktrans` ("Translation Guidelines"
   below).
+- **The Chrome Web Store listing in one bilingual file.**
+  `docs/store/chrome_web_store.md` holds both the Japanese and the English
+  detailed description, and it stays outside the two-language sync of
+  `/mktrans` and `TestReadmeSyncMarker` ([ADR-0035](docs/dev/adr/0035-language-policy.md)).
+  Change both languages together in that one file. Reason: the listing is a
+  final text pasted into the store, not a document translated change by change.
 - **`INSTALL.md` in Japanese only (time-bounded).** `INSTALL.md` is an
   end-user document (principle (c)), but it is kept in Japanese only until the
   extension is submitted to the Chrome Web Store, because initial zip users are
@@ -194,8 +201,7 @@ change, retire, and withdraw an ADR is in the convention,
   review replies, and PR comments. A PR title keeps its conventional-commit
   prefix in ASCII and writes the summary after it in Japanese; the forms are in
   `.claude/commands/_context.md`, "PR title and squash subject". The exception
-  is a bot command, such as the PR review request (`_context.md`, "PR review
-  request").
+  is a bot command, such as a PR review request (`_context.md`, "PR reviewers").
 
 ## Commands
 
@@ -241,14 +247,14 @@ prohibitions of this file and `AGENTS.md`, and copies no procedure.
 - `/mkplan <task>` - Create `03_implementation_plan.md` with its PR boundaries (requires approved architecture) and open its PR; it stops without writing for a task that takes the simple process, whose documents `/mkreq` writes
 - `/mkplan2 <task>` - Embed PR boundaries into an approved plan that lacks them (plans written before `/mkplan` did it) and open its PR
 - `/runplan <task>` - Implement the phase groups of an approved plan up to the next PR checkpoint, then open the PR
-- `/runpr [PR | branch | task]` - Drive a PR through CI and its review threads, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and show the next command, which it does not run; it requests a CodeRabbit PR review only when the user chooses it in the merge question; for a standalone change it also creates the PR
+- `/runpr [PR | branch | task]` - Drive a PR through CI and its review threads, record its bookkeeping (a document's approval, a plan checkpoint), merge it, and show the next command, which it does not run; it requests a PR review (CodeRabbit or Sourcery AI) only when the user chooses it in the merge question; for a standalone change it also creates the PR
 - `/weakreview [range | PR] [--no-fix | --fix]` - High-model review of a commit range: a correctness review and a weak-model failure review run on the harness's high-role model in one pass; by default it fixes the Critical and Major findings and commits the fixes on the current branch without pushing, and `--no-fix` only reports
 - `/fixpr [PR]` - Resolve unresolved PR review threads
 - `/mergepr [PR]` - Squash-merge a PR with a generated commit message and clean up its branch
 - `/mergemain <PR>` - Merge `origin/main` into a PR's branch through `mergepr`, resolve allowed conflicts (`.md` files and protocol-number declarations), apply take-in rules, run checks, and push to the PR's head branch (or restore and report on stop)
 - `/japrose <file>` - Japanese prose-quality pass
 - `/mktrans README.md` - Carry `README.md` changes into `README.en.md` (the only translation pair)
-- `/chief [once]` - Show the task workspaces in Herdr, ask the human about what waits on them, and keep watching, sending the next command after a merge by itself; `once` shows and asks once without watching. It also starts a new task from an issue the human names, making its worktree and workspace and sending `/mkreq`, and removes a finished task's workspace that it made, after the human confirms. Run it in a Claude Code pane of its own Herdr workspace ([chief_guide.md](docs/dev/guides/chief_guide.md))
+- `/chief [once]` - Show the task workspaces in Herdr, ask the human about what waits on them, and keep watching, sending the next command after a merge by itself; `once` shows and asks once without watching. It also starts a new task from an issue the human names, making its worktree and workspace and sending `/mkreq`, and removes a finished task's workspace that it made, after the human confirms. It also finds an open PR in a merge conflict and sends `/mergemain` to its workspace by itself when every condition holds, or when the human chooses it; the human decides the merge afterwards. Run it in a Claude Code pane of its own Herdr workspace ([chief_guide.md](docs/dev/guides/chief_guide.md))
 
 Each task PR is handled by two commands. The command that produces it —
 `/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
@@ -277,14 +283,22 @@ merge question that decides the bookkeeping (for a document, its
 `approved` status) and the merge with `/mergepr`, and shows the next command
 when there is one; the user runs it, which opens the next PR and stops again.
 
-CodeRabbit does not review a PR automatically (`.coderabbit.yaml` turns its
-automatic review off). `/runpr` waits while a request comment is outstanding,
-whether the user chose it in the merge question or wrote it by hand. Its
+CodeRabbit reviews a PR only when it is asked (`.coderabbit.yaml` turns its
+automatic review off), while Sourcery AI reviews a PR automatically on push as
+well as when it is asked. Both reviewers are in the `PR reviewers` table of
+`_context.md`, which holds each one's profile, request comment, and accepted
+request texts. `/runpr` waits while a manual request comment is outstanding,
+whether the user chose it in the merge question or wrote it by hand. It also
+waits up to fifteen minutes for an automatic Sourcery AI review running on
+`head`, handles the threads it opens, and shows its state and URL in the merge
+question's summary, but does not count its completion as reviewed. CodeRabbit's
 allowance is shared across the user's PR reviews. Later changes are reviewed
 with the CodeRabbit CLI, whose allowance is separate from the PR review's.
 `/runpr` never requests a PR review by itself: it turns the escalation's
 answer into a recommendation in the merge question (its "先に PR レビューを依頼"
-option) and requests one only when the user chooses it
+option) and, when the user chooses it, asks which reviewer to request
+(CodeRabbit, Sourcery AI, or back to the merge question) and posts only that
+reviewer's request comment
 ([pr-review-escalation.md](.claude/commands/_lib/pr-review-escalation.md)).
 For a change that falls only under the escalation's other criteria, the
 local review stands in when the branch's records show it saw every commit
@@ -521,13 +535,16 @@ its security rules in `docs/dev/security.md` §8.
   condition are left as they are; and the neutralization inserts U+200B and
   changes no other character.
   Exception: `fixprguard review-state` (`internal/fixprguard/review_state.go`)
-  chooses behavior by inspecting the content of a reviewer check run's
+  chooses behavior by inspecting the content of a reviewer check run's `name`,
   `status`, `conclusion`, and `title`, and `fixprguard mentions`
   (`internal/fixprguard/mentions.go`) chooses behavior by inspecting PR comment
-  and review bodies. Scope: `review_state.go` compares the check run's triple
-  with the fixed table of the classification (`checkRun.kind`) and nothing else
-  about the check run's text, and prints only the resulting kind, never the
-  title; `mentions.go` inspects a comment or review body only for (1) exact
+  and review bodies. Scope: `review_state.go` requires `name` to match the
+  declared check-run name of the caller's `ReviewProfile` (`CodeRabbit` for
+  `coderabbit`, `Sourcery review` for `sourcery`) exactly, compares the check
+  run's `(status, conclusion, title)` triple against that profile's fixed
+  classification table (`checkRun.kind`) and nothing else about the check run's
+  text, and prints only the resulting kind, never the title; `mentions.go`
+  inspects a comment or review body only for (1) exact
   first-line matches (after stripping a single trailing CR) against the
   observed fixed status-comment headers declared for each `ReviewProfile` and
   Sourcery's fixed-format 7-day budget notice first line matching the
@@ -537,15 +554,18 @@ its security rules in `docs/dev/security.md` §8.
   `strings.TrimSpace`) against the caller-supplied manual request texts via
   `isRequestComment` (conversation comments by the authenticated `User` only),
   and (3) ASCII case-insensitive substring matches against `RejectedMentions()`,
-  and never prints a body. Reason: the check run title and comment or review
+  and never prints a body. Reason: the check run name and title and comment or review
   bodies are written by reviewer services and GitHub accounts, external values
-  the tool cannot express in a type, and classifying check runs, excluding
+  the tool cannot express in a type, and verifying the check run name,
+  classifying check runs per profile, excluding
   observed bot status comments and the user's own manual requests, and
   detecting rejected mentions are the purposes of these checks. Boundary: in
-  `review_state.go`, a `COMPLETED` triple that is not in the table is
-  `RunUnknown` and is never read as a finished review, titles are compared in
-  full and not repaired, and a status other than `COMPLETED` is a run in
-  progress whatever its title; in `mentions.go`, any item whose author kind,
+  `review_state.go`, a check run whose `name` does not match the profile's
+  declared name is rejected (`UnreadableRejected`), a `COMPLETED` triple that
+  is not in the profile's table is
+  `RunUnknown` and is never read as a finished review, names and titles are
+  compared in full and not repaired, and a status other than `COMPLETED` is a
+  run in progress whatever its title; in `mentions.go`, any item whose author kind,
   login, or first line does not match an observed status-comment rule exactly
   is not excluded (a `User` with a matching login or a non-matching header is
   never excluded), bodies are compared without repair, and the output carries
@@ -925,7 +945,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   manifest permissions, the
   `project_overview.md` notes (the environment variable names and
   `costPrefix`), the production profile's configuration block and step table in
-  `docs/dev/production_profile.md`, the configuration block of
+  `docs/dev/production_profile.md`, the store listing's table of display names
+  and short descriptions against `messages.json` (`TestStoreListingMatchesMessages`),
+  the configuration block of
   `generation.md`, the values `generation.md`, `cli.md`, and `development.md`
   hold, the
   `/fixpr` and `/runpr` command documents, `cmd/mergepr`'s checks of the
@@ -942,10 +964,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   before committing such a change.
 - `yt-dlp` must be on `PATH` (or set `YT2COLUMN_YTDLP_PATH`) to run the CLI; it is
   not needed for `make test`.
-- `make test` needs `jq` on `PATH`: `TestRunprDocContract` and
-  `TestFixprPhase6CountFilter` run the `--jq` filters of `runpr.md` step 3
-  and `fixpr.md` Phase 6 with it, and fail instead of skipping when it is
-  missing. The `doc-guard` CI job runs these tests too.
+- `make test` needs `jq` on `PATH`: `TestFixprPhase6CountFilter` runs the
+  `--jq` filter of `fixpr.md` Phase 6 with it, and fails instead of skipping
+  when it is missing. The `doc-guard` CI job runs this test too.
 - `make test` needs bash 4 or later as the first `bash` on `PATH` (macOS's
   `/bin/bash` is 3.2): `TestMarkerReadingMatchesDecisionScript` in
   `internal/chief` runs `.claude/commands/_lib/high-review-decision.sh`, which
@@ -1238,8 +1259,11 @@ for the agents that read it, and the Antigravity skill entries point here.
 - Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
 - Invoking `/chief` approves, for that session, the read-only network operations
   the `chief` tool runs while it shows the status, watches, makes a task's
-  workspace, or removes one: `git fetch origin
-  main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`; and,
+  workspace, removes one, or sends a command the human chose: `git fetch origin
+  main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`; the
+  fetch of one PR head branch into its own remote-tracking ref for the
+  display of `chief detail` (`git fetch --no-tags --no-prune --no-write-fetch-head --refmap= origin
+  +refs/heads/<branch>:refs/remotes/origin/<branch>`); and,
   when the human starts a new task from an issue, the read of that issue
   with the tool's one `gh api graphql` query of `issueOrPullRequest` (its
   number, state, title, and labels). It approves no write (push, merge,

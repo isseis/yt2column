@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -454,6 +455,75 @@ func (g GitReader) IsAncestor(ctx context.Context, dir, ancestor, descendant str
 		return false, nil
 	}
 	return false, err
+}
+
+// Parents returns the parents of commit, in order, read with
+// `git rev-list --parents -n 1`. Contract: commit is a CommitID, so it
+// cannot be read as an option or a ref name; the first field git prints must
+// be commit itself and every other field a full commit ID, so any other
+// output is an error, never a shorter list.
+func (g GitReader) Parents(ctx context.Context, dir string, commit CommitID) ([]CommitID, error) {
+	if commit.IsZero() {
+		return nil, fmt.Errorf("%w: no commit", errGitOutput)
+	}
+	out, err := g.cmds.git(ctx, dir, "rev-list", "--parents", "-n", "1", commit.String())
+	if err != nil {
+		return nil, err
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) == 0 || fields[0] != commit.String() {
+		return nil, fmt.Errorf("%w: rev-list --parents of %s", errGitOutput, commit)
+	}
+	parents := make([]CommitID, 0, len(fields)-1)
+	for _, f := range fields[1:] {
+		p, err := ParseCommitID(f)
+		if err != nil {
+			return nil, fmt.Errorf("%w: parent %q of %s", errGitOutput, f, commit)
+		}
+		parents = append(parents, p)
+	}
+	return parents, nil
+}
+
+// HasCommit reports whether commit is a commit this repository holds, read
+// with `git rev-parse --verify --quiet`. Contract: exit status 0 is yes and
+// 1 is no; every other outcome is an error, never a no. commit is a
+// CommitID, so it cannot be read as an option or a ref name.
+func (g GitReader) HasCommit(ctx context.Context, dir string, commit CommitID) (bool, error) {
+	if commit.IsZero() {
+		return false, fmt.Errorf("%w: no commit", errGitOutput)
+	}
+	_, err := g.cmds.git(ctx, dir, "rev-parse", "--verify", "--quiet", commit.String()+"^{commit}")
+	if err == nil {
+		return true, nil
+	}
+	if exitErr, ok := errors.AsType[*cmdrunner.ExitError](err); ok && exitErr.Code == 1 {
+		return false, nil
+	}
+	return false, err
+}
+
+// branchForRefspec is the form of a branch name FetchBranch accepts: no
+// option or refspec syntax can be read out of it.
+var branchForRefspec = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._/-]{0,199}$`)
+
+// FetchBranch fetches the one branch of origin into refs/remotes/origin/<branch>
+// for a display that needs a commit the worktree lacks. Contract: the refspec
+// names exactly that branch and that remote-tracking ref, and --no-tags and
+// --no-prune and an empty --refmap (which drops the remote.origin.fetch
+// mappings) keep the fetch from writing any other ref (origin/main
+// included); main and HEAD in any letter case (a case-insensitive file system makes
+// refs/remotes/origin/Main the same file as origin/main), whose tracking refs
+// other readers use, a branch name outside branchForRefspec, or with "..", "//", a
+// trailing "/" or ".", or a ".lock" suffix, is refused without running git.
+func (g GitReader) FetchBranch(ctx context.Context, dir, branch string) error {
+	if strings.EqualFold(branch, mainBranch) || strings.EqualFold(branch, "HEAD") || !branchForRefspec.MatchString(branch) || strings.Contains(branch, "..") || strings.Contains(branch, "//") ||
+		strings.HasSuffix(branch, "/") || strings.HasSuffix(branch, ".") || strings.HasSuffix(branch, ".lock") {
+		return fmt.Errorf("%w: branch name %q", errGitOutput, branch)
+	}
+	refspec := "+refs/heads/" + branch + ":refs/remotes/origin/" + branch
+	_, err := g.cmds.gitLimit(ctx, gitFetchTimeout, dir, "fetch", "--no-tags", "--no-prune", "--no-write-fetch-head", "--refmap=", "origin", refspec)
+	return err
 }
 
 // OriginMain returns the commit origin/main points at, as worktree sees it.

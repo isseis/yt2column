@@ -114,10 +114,11 @@
 | 信頼する著者 | trusted author | リポジトリへの書き込み権限（write・maintain・admin）を持つ、Bot でないアカウントと、自動レビュアーの一覧のどれかの名前の Bot のアカウント |
 | 自動レビュアー | automated reviewer | PR にレビューのスレッドを投稿する Bot |
 | 自動レビュアーの一覧 | automated reviewer list | `.claude/commands/_context.md` の「Automated reviewer list」に定める、スレッドを信頼する自動レビュアーの名前（GraphQL の `author.login` の形）の一覧。`fixprguard` には `--reviewer` で 1 つずつ渡す |
-| 完了を待つ PR レビュアー | awaited PR reviewer | `/runpr` がレビュー済みの判定に使う Bot。承認を待つのではなく、レビューがそのコミットまで完了したことを待つ。`.claude/commands/_context.md` の「Awaited PR reviewer」に、自動レビュアーの一覧とは別に定める |
+| 完了を待つ PR レビュアー | awaited PR reviewer | `/runpr` がレビュー済みの判定に使う、手動の PR レビューの依頼先。承認を待つのではなく、レビューがそのコミットまで完了したことを待つ。`.claude/commands/_context.md` の「PR reviewers」表の各行がこれにあたる |
 | 割り当て | quota | 自動レビュアーが一定時間に受け付けるレビューの回数の上限 |
-| 手動の PR レビュー | manual PR review | 依頼のコメントで始まる CodeRabbit の PR レビュー。依頼のコメントは、利用者のアカウントが書いた、前後の空白を除く本文が `_context.md` の「PR review request」の値と等しいコメント（0118 要件定義書 3.1） |
-| 完了の印 | completion marker | 手動の PR レビューが、あるコミットまでのレビューを終えたことを示す、CodeRabbit の CheckRun の値。`fixprguard review-state` が読む（0118 設計書 3.3） |
+| 手動の PR レビュー | manual PR review | 依頼のコメントで始まる CodeRabbit または Sourcery AI の PR レビュー。依頼のコメントは、利用者のアカウントが書いた、前後の空白を除く本文が `_context.md` の「PR reviewers」表の `Accepted requests` の値のどれかと等しいコメント。Sourcery AI は push でも自動でレビューするが、それは自動の PR レビューであり、これとは区別する（0118 要件定義書 3.1、0122 要件定義書 F-004） |
+| 完了の印 | completion marker | 手動の PR レビューが、あるコミットまでのレビューを終えたことを示す、CodeRabbit または Sourcery AI の CheckRun の値。`fixprguard review-state` が読む。自動の PR レビューの完了は含めない（0118 設計書 3.3、0122 設計書 1.4） |
+| 自動の PR レビュー | automatic PR review | Sourcery AI が push を契機に、依頼のコメントなしで行う PR レビュー。`/runpr` は `head` 上で進行中なら完了または待機上限まで待ち、開かれたスレッドを処理するが、完了は完了の印に数えない（0122 要件定義書「issue #1140 で決めたこと（2026-11-25）」） |
 | 試行 | attempt | ローカルの CLI レビューを 1 回試みること。CodeRabbit CLI の実行 1 回から成る。範囲ごとに最大 2 回（タスク 0049） |
 | 指摘 | finding | レビューが挙げる個々の問題。スレッドとして投稿されるものと、レビューの本文にだけ書かれるものがある |
 | （行為の動詞で書く） | cover | レビュー・テスト・検査が、コミットやコードに及ぶこと。「覆う」とは訳さず、その行為の動詞で書く（例: the CLI did not review the commit →「CLI がレビューしなかったコミット」、a test covers the branch →「テストがその分岐を確かめる」）。名詞の coverage は「カバレッジ」 |
@@ -166,6 +167,7 @@
 | ピークの時間帯 | peak window | 時刻で料金が変わるモデルで、高い料金が適用される曜日と時刻の範囲（`pricing_update.md`） |
 | 出力の上限 | output limit | LLM への 1 回のリクエストで受け付ける出力のトークン数の上限。Claude のアダプタの既定値は `defaultMaxOutputTokens`（`claude_output_limit.md`） |
 | 実時間 | wall-clock time | 処理に実際にかかった時間。出力の速さを求める測定に使う（`claude_output_limit.md`） |
+| 下限 | floor | 最適化しても実時間がそれより短くならない値。最適化の対象にしない部分の時間など。「床」とは訳さない。基準の値（base）は「基準」と書き、下限と混同しない |
 | 打ち切り | truncate | LLM の応答が出力の上限に達して途中で終わること。打ち切られた実行の出力は、上限以上であることしか分からない |
 | 生成の後の工程 | post-generation steps | 生成の後に既定で走る、字数の調整と検証・推敲の 2 つの工程（`cli.md`） |
 | 推定の料金 | estimated cost | 料金表から求めた記事の料金の推定。CLI は標準エラーの `cost:` の行に、`--out` のファイルは `estimated_cost_usd` に書く。請求額とは別 |
@@ -213,3 +215,5 @@
 | インストールと使い方 | Installing and using | `README.md` の節の見出しと `INSTALL.md` のタイトル |
 | プライバシー | Privacy | `README.md` の節の見出し |
 | 開発者向けの文書 | Developer documents | `README.md` の節の見出し |
+| コア製品名 | core product name | `YouTube` を含めない独自名。日本語 `ヨムドウガ`、英語 `YomuDoga`。UI・ビューアタイトル・README 本文での呼称に使う |
+| Chrome ウェブストア表示名 | Chrome Web Store display name | `manifest.json` の `name`（`extName`）および Chrome ウェブストア・`chrome://extensions/`・README の H1 見出しで使う表示名。日本語 `ヨムドウガ for YouTube™`、英語 `YomuDoga for YouTube™` |

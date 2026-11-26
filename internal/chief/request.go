@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/isseis/yt2column/internal/chief/paneinput"
 	"github.com/isseis/yt2column/internal/fixprguard"
@@ -37,6 +38,9 @@ const (
 	RequestRunplanTakeover
 	// RequestRunpr is /runpr of the workspace's open PR.
 	RequestRunpr
+	// RequestMergemain is /mergemain of the workspace's open PR in a merge
+	// conflict, for the conflict item the human chose.
+	RequestMergemain
 )
 
 // The names of the task commands, without their slash: the --command
@@ -49,6 +53,7 @@ const (
 	// The --command values that are no command name of their own.
 	nameRunplanTakeover = "runplan-takeover"
 	nameRunpr           = "runpr"
+	nameMergemain       = "mergemain"
 )
 
 // requestKinds are the --command values.
@@ -59,6 +64,7 @@ var requestKinds = map[string]RequestKind{
 	nameRunplan:         RequestRunplan,
 	nameRunplanTakeover: RequestRunplanTakeover,
 	nameRunpr:           RequestRunpr,
+	nameMergemain:       RequestMergemain,
 }
 
 // requestNames are the --command values that send each kind of offer, so the
@@ -100,8 +106,8 @@ var itemKinds = map[RequestKind]struct{}{
 // ParseSendRequest validates the arguments of `chief send`; an empty issue,
 // pr, or item means the flag was not given. Contract: --issue is taken by
 // mkreq alone and required by it, --pr by runpr alone and required by it,
-// --item by the task commands alone and required by them, and each value
-// passes its form; anything else is ErrBadRequest. The task is never an
+// --item by the task commands and mergemain alone and required by them, and
+// each value passes its form; anything else is ErrBadRequest. The task is never an
 // argument: the tool reads it from the workspace.
 func ParseSendRequest(workspace, command, issue, pr, item string) (SendRequest, error) {
 	kind, ok := requestKinds[command]
@@ -118,8 +124,8 @@ func ParseSendRequest(workspace, command, issue, pr, item string) (SendRequest, 
 	if (kind == RequestRunpr) != (pr != "") {
 		return SendRequest{}, fmt.Errorf("%w: --pr goes with runpr and only with it", ErrBadRequest)
 	}
-	if _, task := itemKinds[kind]; task != (item != "") {
-		return SendRequest{}, fmt.Errorf("%w: --item goes with mkarch, mkplan, runplan, and runplan-takeover and only with them", ErrBadRequest)
+	if _, task := itemKinds[kind]; (task || kind == RequestMergemain) != (item != "") {
+		return SendRequest{}, fmt.Errorf("%w: --item goes with mkarch, mkplan, runplan, runplan-takeover, and mergemain and only with them", ErrBadRequest)
 	}
 	var err error
 	if item != "" {
@@ -207,8 +213,9 @@ type SendOutcome struct {
 // Send sends the command the human chose for a workspace (the design, 6.3).
 // Contract: the command is sent only when the tool itself offers it for the
 // workspace now (the next command of its row, the takeover the row proposes,
-// /mkreq to a workspace without a task, or /runpr of the branch's open PR of
-// that number); the route comes from origin/main's routing table; the send
+// /mkreq to a workspace without a task, /runpr of the branch's open PR of
+// that number, or /mergemain of its PR in a merge conflict when every
+// condition of the human's choice holds, mergemainSend); the route comes from origin/main's routing table; the send
 // holds the workspace's exclusion, settles unfinished sends first, and sends
 // nothing to a stopped workspace; the workspace's row is read and the
 // command checked only once the exclusion is held, so two sends cannot both
@@ -254,6 +261,10 @@ func Send(ctx context.Context, deps Deps, owner Owner, req SendRequest) (SendOut
 	// worktree can only make the row need a check.
 	f = withHistory(ctx, deps.Store, tasks, f, owner.Session, loc.ws.Tree)
 	row := classifyWorkspace(ctx, git, tasks, f, old, oldErr)
+	if req.kind == RequestMergemain {
+		mm := mergemainSend{deps: deps, loc: loc, herdr: herdr, git: git, tasks: tasks, held: held, facts: f, row: row, item: req.item, base: base}
+		return one(mm.send(ctx)), nil
+	}
 	cmd, proposal, why := offered(row, req)
 	if why != "" {
 		return one(notSent(base, NotSentNotOffered, why)), nil
@@ -289,6 +300,104 @@ func Send(ctx context.Context, deps Deps, owner Owner, req SendRequest) (SendOut
 		out.Actions = append(out.Actions, sc.resetMaker(ctx, f, res.Pane, *row.PR, rec, routing))
 	}
 	return out, nil
+}
+
+// mergemainSend is the send of /mergemain the human chose for a conflict
+// item: the workspace as Send read it under the exclusion.
+type mergemainSend struct {
+	deps  Deps
+	loc   located
+	herdr Herdr
+	git   GitReader
+	tasks Tasks
+	held  *HeldWorkspace
+	facts workspaceFacts
+	row   Row
+	item  ItemID
+	base  ActionResult
+}
+
+// send sends /mergemain <PR> when the row read under the exclusion is the
+// conflict item the human chose and every condition of the human's choice holds.
+// Contract: the PR is the row's open PR in a merge conflict, in a phase that
+// offers an item, and the item ID of the row read now is the chosen one, so a
+// new head or a resolution that has since failed sends nothing; main is
+// fetched here and compared with the remote, and the other conditions are
+// read under the exclusion (manualConflictConditions), never from the round
+// that showed the item; the human's input after the task command, the
+// earlier sends, and the other sends of a round are not conditions; the
+// pane's report is kept before the first input, and a failure to keep it
+// does not stop the send.
+func (m mergemainSend) send(ctx context.Context) ActionResult {
+	row := m.row
+	if row.State != StateConflict || row.PR == nil {
+		return notSent(m.base, NotSentNotOffered, "the workspace's PR is not in a merge conflict")
+	}
+	pr := *row.PR
+	phase := conflictPhaseOf(m.held.WorkspaceRecords, pr)
+	if !conflictOfferPhase(phase) {
+		return notSent(m.base, NotSentNotOffered, "the conflict resolution is not in a phase that offers a send")
+	}
+	if conflictItemID(row.Workspace, pr, phase) != m.item {
+		return notSent(m.base, NotSentNotOffered, "the workspace no longer offers the chosen item")
+	}
+	prNumber, err := fixprguard.ParsePRNumber(strconv.Itoa(pr.Number))
+	if err != nil {
+		return notSent(m.base, NotSentNotOffered, err.Error())
+	}
+	cmd, err := paneinput.NewMergemain(prNumber)
+	if err != nil {
+		return notSent(m.base, NotSentNotOffered, err.Error())
+	}
+	base := m.base
+	base.Command, _ = cmd.Text()
+	view := &roundView{chiefPane: m.loc.chiefPane, chief: m.loc.chief, chiefTree: m.loc.chiefTree}
+	if err := m.git.Fetch(ctx, m.loc.chiefTree.String()); err != nil {
+		view.fetchFailed = true
+	}
+	// The route is read after the fetch, so a routing table the fetch
+	// brought in is the one sent by, never the one read before it.
+	routing, err := ReadRouting(ctx, m.deps.Cmds, m.loc.chiefTree.String())
+	if err != nil {
+		return notSent(base, NotSentUnreadable, "the routing table cannot be read: "+err.Error())
+	}
+	view.routing = routing
+	route, err := routing.Route(cmd.Route())
+	if err != nil {
+		return notSent(base, NotSentUnreadable, "the routing table has no route for the command")
+	}
+	base.Agent = route.Agent()
+	base.Model, _ = route.ModelText()
+	// The agents and the git state are read after the fetch, which can take
+	// long, so a pane that started working meanwhile is seen.
+	ws := m.loc.ws
+	agents, err := m.herdr.Agents(ctx)
+	if err != nil {
+		return notSent(base, NotSentUnreadable, "herdr agent list failed: "+err.Error())
+	}
+	ws.Agents = slices.DeleteFunc(agents, func(a Agent) bool { return a.Workspace != ws.ID })
+	fresh := readWorkspace(ctx, m.herdr, m.git, m.tasks, ws)
+	cs := &conflictSender{a: &autoSender{deps: m.deps, view: view, herdr: m.herdr, git: m.git, tasks: m.tasks}}
+	// The branch is the one the row (and so the chosen item) was read on: a
+	// worktree switched to another branch during the fetch does not match.
+	// The PR is read again with the workspace: one that was merged, closed,
+	// resolved, or pushed to during the fetch is not the one the human chose.
+	if fresh.PR == nil || fresh.PR.Number != pr.Number || fresh.PR.Mergeable != MergeableConflicting || fresh.PR.Head != pr.Head {
+		return notSent(base, NotSentConditions, "a condition of the chosen /mergemain does not hold: "+conflictReasonPRChanged)
+	}
+	facts := cs.gather(ctx, ws, fresh, *fresh.PR, m.facts.Branch, false, nil)
+	if reasons := manualConflictConditions(facts); len(reasons) > 0 {
+		return notSent(base, NotSentConditions, "a condition of the chosen /mergemain does not hold: "+strings.Join(reasons, ", "))
+	}
+	// The report is kept before the first input; a report that cannot be
+	// kept is a lost nicety, not a reason to leave the conflict unresolved.
+	_ = keepPaneReport(m.deps, ws, pr)
+	writer, err := NewPaneWriter(m.deps.Cmds, m.loc.chiefPane, m.loc.chief.Workspace)
+	if err != nil {
+		return notSent(base, NotSentUnreadable, err.Error())
+	}
+	sc := sendContext{deps: m.deps, herdr: m.herdr, writer: writer, held: m.held, ws: ws, mergemainPR: pr.Number, mergemainHead: pr.Head}
+	return sc.sendCommand(ctx, cmd, route)
 }
 
 // holdWorkspace takes the exclusion of the located workspace for a send or a

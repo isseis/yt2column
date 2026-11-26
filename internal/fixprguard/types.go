@@ -18,7 +18,7 @@ import (
 // scope rules inspect applies. The command documents pass it back with
 // --protocol, so an installed binary that predates the documents stops instead
 // of judging by older rules.
-const Protocol = 8
+const Protocol = 9
 
 const (
 	// maxLoginLength is GitHub's limit on an account name.
