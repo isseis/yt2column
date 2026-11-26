@@ -326,7 +326,7 @@
 
 - [x] `internal/chief/pending.go` と `internal/chief/output.go` に `PendingConflict`（`kindOrder` で `PendingMergeConfirmation` の直後・`PendingReview` の直前に配置）を追加する：項目 ID は（種類・workspace・PR 番号・head・「送る必要がある」か「解消できず」か）から生成し（head ごとに最大 2 回通知の 0088 AC-58 例外、設計書 1.2・3.5）、`ConflictSending` は項目を作らない。AC-18 の条件充足時のみ選択肢を示し、非充足時（`mergemain` 行が OpenCode の場合を含む、AC-34）は理由を項目へ載せ、`LaterInputAfter`/`LaterInputNoTaskInput` 時は会話消失の印を添える（AC-17）。コンフリクト行に `/runpr` 選択肢を出さない（設計書 3.5）。
 - [x] `internal/chief/request.go` と `cmd/chief/main.go` に `chief send --command mergemain --item <id>`（`--item` 必須、`--pr`/`--issue` 拒否）を追加する：workspace 排他下で行を再構築し、`origin/main` の取得確認（AC-05 (3)）を含む AC-18 全条件と項目 ID 一致を確かめ、通れば送信前に `keepPaneReport` を呼んでから（AC-12）送信・記録する（AC-18・AC-19・AC-34）。
-- [x] `internal/chief/workspace.go` の `GitReader` にコミット親取得（`git rev-list --parents -n 1 <commit>`）と PR head ブランチ限定取得（`git fetch --no-tags --no-prune --refmap= origin +refs/heads/<branch>:refs/remotes/origin/<branch>`）を追加し、`internal/chief/test_helpers.go` の `readOnlyCommands` にその形を許可追加する。
+- [x] `internal/chief/workspace.go` の `GitReader` にコミット親取得（`git rev-list --parents -n 1 <commit>`）と PR head ブランチ限定取得（`git fetch --no-tags --no-prune --no-write-fetch-head --refmap= origin +refs/heads/<branch>:refs/remotes/origin/<branch>`）を追加し、`internal/chief/test_helpers.go` の `readOnlyCommands` にその形を許可追加する。
 - [x] `internal/chief/detail.go` の `CollectDetail` に、`ReportRecordAllowed` 時限定の親たどり引き継ぎ（2 親 merge コミット・第 2 の親が `origin/main` の祖先・手元にない head は取得してから再読・上限 `maxDetailMergeHops = 10`・`d.record` やリセット判定や `snapshot` の `ReviewSkippable` には影響させない）を実装する（AC-12）。
 - [x] 新規の `conflict_manual_test.go`（既存 `conflictWorld` と `sendWorld` を再利用）と `workspace_test.go` に各機能の単体テスト（通知回数、項目 ID 不一致拒否、OpenCode 送り先拒否、`/runpr` 非提示、手動送信前の `keepPaneReport` 実行、引き継ぎ・非引き継ぎ・取得成功/失敗・上限・リセット非使用（親の読み取りと手元にあるかの確かめは一時 git リポジトリの実物の git で、たどり方は記録した返答で））を追加する。
 
@@ -339,7 +339,7 @@
 - [x] `internal/chief/records.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` の `--protocol` を合わせる。
 - [x] `.claude/commands/chief.md` にコンフリクト項目の示し方（理由・会話消失の印）と `chief send --command mergemain --item <項目 ID>` の呼び出しを追記し（AC-36）、`cmd/chief/docs_test.go` の `TestDocumentedInvocationsParse` が新呼び出しを受理することを確認する。
 - [x] `docs/dev/guides/chief_guide.md` に AC-35 の 4 点（状態の文字列・急ぎの度合い・状態の詳細、自動送信の条件、送り直しの規則、人が選んで送る選択肢）を完成させ、`CLAUDE.md` の「Claude Commands」の `/chief` 説明にコンフリクト解消を追記し（AC-36）、`docs/dev/chief_architecture.md` と `docs/dev/conventions/package_reference.md` を最終仕様へ同期する。
-- [x] `CLAUDE.md` の「Tool Execution Safety」の `/chief` 段落にある、`/chief` の起動が承認する読み取り操作の一覧に、ステップ 4-3 の PR の head ブランチの取得（`git fetch --no-tags --no-prune --refmap= origin +refs/heads/<ブランチ>:refs/remotes/origin/<ブランチ>`）を加える。設計書 3.7 はこの取得を既存の承認の範囲内と読んでいるが、一覧の文言どおりに読むと範囲外になるため、一覧に明記して読み違いの余地をなくす。書き込み操作を承認しないという段落の記述は変えない。`.claude/commands/chief.md` に承認する操作の記述があれば、同じ取得を足す。
+- [x] `CLAUDE.md` の「Tool Execution Safety」の `/chief` 段落にある、`/chief` の起動が承認する読み取り操作の一覧に、ステップ 4-3 の PR の head ブランチの取得（`git fetch --no-tags --no-prune --no-write-fetch-head --refmap= origin +refs/heads/<ブランチ>:refs/remotes/origin/<ブランチ>`）を加える。設計書 3.7 はこの取得を既存の承認の範囲内と読んでいるが、一覧の文言どおりに読むと範囲外になるため、一覧に明記して読み違いの余地をなくす。書き込み操作を承認しないという段落の記述は変えない。`.claude/commands/chief.md` に承認する操作の記述があれば、同じ取得を足す。
 - [x] `docs/dev/adr/0046-chief-of-staff.md` が要件定義書および実装結果と矛盾していないことを確認する（AC-37）。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスすること。
