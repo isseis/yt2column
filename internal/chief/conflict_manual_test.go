@@ -399,7 +399,7 @@ func TestDetailInheritsThePaneReport(t *testing.T) {
 			}
 			return reply{out: []byte(prHead + "\n")}
 		})
-		fetch := "git fetch --no-tags --no-prune --refmap= origin +refs/heads/" + taskBranch + ":refs/remotes/origin/" + taskBranch
+		fetch := "git fetch --no-tags --no-prune --no-write-fetch-head --refmap= origin +refs/heads/" + taskBranch + ":refs/remotes/origin/" + taskBranch
 		sw.rec.replyFunc(fetch, func() reply { has = true; return reply{} })
 		deps := sw.finish()
 		keepParentReport(t, deps, tree)
@@ -413,7 +413,7 @@ func TestDetailInheritsThePaneReport(t *testing.T) {
 	t.Run("a failed fetch inherits nothing", func(t *testing.T) {
 		sw, tree := setup(t)
 		sw.rec.failIn(tree, "git rev-parse --verify --quiet "+prHead+"^{commit}", &cmdrunner.ExitError{Code: 1})
-		sw.rec.failIn(tree, "git fetch --no-tags --no-prune --refmap= origin +refs/heads/"+taskBranch+":refs/remotes/origin/"+taskBranch, errors.New("offline"))
+		sw.rec.failIn(tree, "git fetch --no-tags --no-prune --no-write-fetch-head --refmap= origin +refs/heads/"+taskBranch+":refs/remotes/origin/"+taskBranch, errors.New("offline"))
 		deps := sw.finish()
 		keepParentReport(t, deps, tree)
 		if d := detailOf(t, deps, tree); d.Report == ReportFromPane {
@@ -561,6 +561,7 @@ func TestManualConflictConditions(t *testing.T) {
 		"two Claude panes":  {func(f *conflictFacts) { f.singleClaudePane = false }, conflictReasonNoSingleClaudePane},
 		"agent not waiting": {func(f *conflictFacts) { f.agentsWaiting = false }, conflictReasonAgentsNotWaiting},
 		"fetch failed":      {func(f *conflictFacts) { f.fetchFailed = true }, conflictReasonFetchFailed},
+		"shared worktree":   {func(f *conflictFacts) { f.workspaceChanged = true }, conflictReasonWorkspaceChanged},
 	} {
 		f := ok
 		c.edit(&f)
@@ -605,5 +606,24 @@ func TestStaleOffer(t *testing.T) {
 	staleOffer(&row, nil)
 	if row.Offer != nil {
 		t.Error("an offer was made from none")
+	}
+}
+
+// TestDetailOutputHeadIsTheViewsHead checks that the head `chief detail`
+// prints is the one of the PR view, which the inherited report was chosen
+// for, not the one of the earlier list.
+func TestDetailOutputHeadIsTheViewsHead(t *testing.T) {
+	listed, err := ParseCommitID(strings.Repeat("a", 40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	viewed := strings.Repeat("b", 40)
+	d := &PRDetail{PR: OpenPR{Number: 42, Head: listed}, View: &prView{HeadOID: viewed}}
+	if got := (DetailOutcome{Detail: d}).Output().PR.Head; got != viewed {
+		t.Errorf("pr.head = %q, want the view's head %q", got, viewed)
+	}
+	d.View = nil
+	if got := (DetailOutcome{Detail: d}).Output().PR.Head; got != listed.String() {
+		t.Errorf("pr.head = %q without a view, want the listed head %q", got, listed)
 	}
 }

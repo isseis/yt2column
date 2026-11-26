@@ -400,6 +400,16 @@ func TestGitParentsAndHasCommit(t *testing.T) {
 	}
 }
 
+// TestFetchBranchAcceptsAnUnderscoreBranch checks that a branch whose name
+// starts with an underscore is fetched, without writing FETCH_HEAD.
+func TestFetchBranchAcceptsAnUnderscoreBranch(t *testing.T) {
+	rec := newRecorder(t)
+	rec.reply("git fetch --no-tags --no-prune --no-write-fetch-head --refmap= origin +refs/heads/_maint/0115:refs/remotes/origin/_maint/0115", nil)
+	if err := NewGitReader(rec.commands(nil)).FetchBranch(t.Context(), "/work/tree", "_maint/0115"); err != nil {
+		t.Errorf("FetchBranch(_maint/0115) = %v, want nil", err)
+	}
+}
+
 // TestFetchBranchRefusesBeforeRunningGit checks that a branch name that
 // could be read as an option or a refspec never reaches git.
 func TestFetchBranchRefusesBeforeRunningGit(t *testing.T) {

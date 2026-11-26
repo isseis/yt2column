@@ -1081,6 +1081,6 @@ worktree を作り直す前と、workspace を消し終えた後には、履歴�
 - Herdr の workspace・タブ・pane の作成と、エージェントの起動。`create` が作って起動し、`remove` が workspace を閉じる。閉じると、その pane のシェルの背景のジョブと止めたジョブ、Claude Code の背景の実行も終わる（[chief_guide.md](guides/chief_guide.md) の 5.2）。
 - pane への入力。人が選んだコマンド、中継のキー入力、リセットの `/clear` か `/new` を打つ。打った入力は、エージェントの側の記録に残る。chief はこれを消さない。
 - `git fetch origin main` による `refs/remotes/origin/main` の更新。この参照はすべての worktree が共有する。取り消さない。
-- `chief detail` の、手元にない PR の head のブランチ 1 つの取得による `refs/remotes/origin/<ブランチ>` の更新。`--no-tags --no-prune --refmap=` でほかの参照を書き換えない。取り消さない。
+- `chief detail` の、手元にない PR の head のブランチ 1 つの取得による `refs/remotes/origin/<ブランチ>` の更新。`--no-tags --no-prune --no-write-fetch-head --refmap=` でほかの参照を書き換えない。取り消さない。
 
 **終了コード `1` の `message`。** `message` は、子のプロセス（herdr・git・gh）の標準エラーを無害化して含みうる。定義の規則 2 は、従わずに示すだけとする項目として `message` を名指していないが、定義は `message` を示す。今の定義では、`message` は示すだけで、定義はその中身で振る舞いを選ばない。この食い違いは今の振る舞いとして記録する。

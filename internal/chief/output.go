@@ -707,6 +707,11 @@ func (o DetailOutcome) Output() DetailOutput {
 	}
 	out.Workspace, out.Label, out.Task = Sanitize(d.Workspace), Sanitize(d.Label), d.Task
 	out.PR = prOutput(&d.PR)
+	if d.View != nil && out.PR != nil {
+		// The view was read after the list, so a push in between makes its
+		// head the PR's current one, the head the report was read for.
+		out.PR.Head = d.View.HeadOID
+	}
 	out.ViewError, out.ChecksError, out.RecordError = Sanitize(d.ViewErr), Sanitize(d.ChecksErr), Sanitize(d.RecordErr)
 	if d.View != nil {
 		out.Size = &SizeOutput{ChangedFiles: d.View.ChangedFiles, Additions: d.View.Additions, Deletions: d.View.Deletions, Commits: d.View.Commits}

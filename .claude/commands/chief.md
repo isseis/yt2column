@@ -201,10 +201,11 @@ Offer the `pending` items as the human's choices, in the tool's order, with
   when `conflict.phase` is `unresolved` (an earlier `/mergemain` did not
   resolve it). When `conflict.can_send` is true, say that choosing it sends
   `/mergemain` to the workspace's Claude Code pane (the send's result shows the
-  agent and the model); when
-  `conflict.conversation_lost` is also true, add a plain line that starts with
-  `注意: ` saying that sending first runs `/clear` in the pane, which erases a
-  conversation the human may have had there after the task's last command. When
+  agent and the model), and always add a plain line that starts with `注意: `
+  saying that sending first runs `/clear` in the pane, which erases a
+  conversation the human may have there by the time of the send; when
+  `conflict.conversation_lost` is also true, say that the human already typed
+  into the pane after the task's last command. When
   `conflict.can_send` is false, say that it cannot be sent now and list
   `conflict.reasons` in Japanese (an OpenCode route is `route_not_claude`).
   The offer is read when the row is read: a send the human chooses can still be

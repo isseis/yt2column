@@ -318,7 +318,8 @@ func conflictRecordConditions(f conflictFacts) []string {
 // manualConflictConditions returns the English reason names of the
 // conditions of a /mergemain the human chose that do not hold for f:
 // the PR's base and repository, the git state, the panes and the stop, the
-// definition, and the route. It leaves out the human's input after the task
+// definition, the route, and the workspace's identity (one Herdr workspace
+// alone holding the worktree). It leaves out the human's input after the task
 // command, the send records, and the other sends of the round. Contract: an
 // empty slice is the only result that allows sending; the zero value of
 // conflictFacts never returns empty.
@@ -328,6 +329,9 @@ func manualConflictConditions(f conflictFacts) []string {
 	why = append(why, conflictGitConditions(f)...)
 	why = append(why, conflictPaneConditions(f)...)
 	why = append(why, conflictDefAndRouteConditions(f)...)
+	if f.workspaceChanged {
+		why = append(why, conflictReasonWorkspaceChanged)
+	}
 	return why
 }
 
@@ -386,6 +390,10 @@ func addConflictOffer(ctx context.Context, cs *conflictSender, w TaskWorkspace, 
 		return
 	}
 	facts := cs.gather(ctx, w, f, *row.PR, f.Branch, false, nil)
+	// A worktree two Herdr workspaces share has no one workspace to send to:
+	// the send would refuse it, so the offer says so.
+	_, n := cs.a.workspaceAt(w.Worktree)
+	facts.workspaceChanged = n != 1
 	row.Offer = offerOf(facts)
 }
 

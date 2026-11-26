@@ -505,7 +505,7 @@ func (g GitReader) HasCommit(ctx context.Context, dir string, commit CommitID) (
 
 // branchForRefspec is the form of a branch name FetchBranch accepts: no
 // option or refspec syntax can be read out of it.
-var branchForRefspec = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$`)
+var branchForRefspec = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._/-]{0,199}$`)
 
 // FetchBranch fetches the one branch of origin into refs/remotes/origin/<branch>
 // for a display that needs a commit the worktree lacks. Contract: the refspec
@@ -522,7 +522,7 @@ func (g GitReader) FetchBranch(ctx context.Context, dir, branch string) error {
 		return fmt.Errorf("%w: branch name %q", errGitOutput, branch)
 	}
 	refspec := "+refs/heads/" + branch + ":refs/remotes/origin/" + branch
-	_, err := g.cmds.gitLimit(ctx, gitFetchTimeout, dir, "fetch", "--no-tags", "--no-prune", "--refmap=", "origin", refspec)
+	_, err := g.cmds.gitLimit(ctx, gitFetchTimeout, dir, "fetch", "--no-tags", "--no-prune", "--no-write-fetch-head", "--refmap=", "origin", refspec)
 	return err
 }
 

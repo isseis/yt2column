@@ -1241,7 +1241,7 @@ for the agents that read it, and the Antigravity skill entries point here.
   workspace, removes one, or sends a command the human chose: `git fetch origin
   main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`; the
   fetch of one PR head branch into its own remote-tracking ref for the
-  display of `chief detail` (`git fetch --no-tags --no-prune --refmap= origin
+  display of `chief detail` (`git fetch --no-tags --no-prune --no-write-fetch-head --refmap= origin
   +refs/heads/<branch>:refs/remotes/origin/<branch>`); and,
   when the human starts a new task from an issue, the read of that issue
   with the tool's one `gh api graphql` query of `issueOrPullRequest` (its
