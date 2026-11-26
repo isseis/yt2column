@@ -262,7 +262,7 @@ func Send(ctx context.Context, deps Deps, owner Owner, req SendRequest) (SendOut
 	f = withHistory(ctx, deps.Store, tasks, f, owner.Session, loc.ws.Tree)
 	row := classifyWorkspace(ctx, git, tasks, f, old, oldErr)
 	if req.kind == RequestMergemain {
-		mm := mergemainSend{deps: deps, loc: loc, routing: routing, herdr: herdr, git: git, tasks: tasks, held: held, facts: f, row: row, item: req.item, base: base}
+		mm := mergemainSend{deps: deps, loc: loc, herdr: herdr, git: git, tasks: tasks, held: held, facts: f, row: row, item: req.item, base: base}
 		return one(mm.send(ctx)), nil
 	}
 	cmd, proposal, why := offered(row, req)
@@ -305,17 +305,16 @@ func Send(ctx context.Context, deps Deps, owner Owner, req SendRequest) (SendOut
 // mergemainSend is the send of /mergemain the human chose for a conflict
 // item: the workspace as Send read it under the exclusion.
 type mergemainSend struct {
-	deps    Deps
-	loc     located
-	routing Routing
-	herdr   Herdr
-	git     GitReader
-	tasks   Tasks
-	held    *HeldWorkspace
-	facts   workspaceFacts
-	row     Row
-	item    ItemID
-	base    ActionResult
+	deps  Deps
+	loc   located
+	herdr Herdr
+	git   GitReader
+	tasks Tasks
+	held  *HeldWorkspace
+	facts workspaceFacts
+	row   Row
+	item  ItemID
+	base  ActionResult
 }
 
 // send sends /mergemain <PR> when the row read under the exclusion is the
@@ -352,16 +351,23 @@ func (m mergemainSend) send(ctx context.Context) ActionResult {
 	}
 	base := m.base
 	base.Command, _ = cmd.Text()
-	route, err := m.routing.Route(cmd.Route())
+	view := &roundView{chiefPane: m.loc.chiefPane, chief: m.loc.chief, chiefTree: m.loc.chiefTree}
+	if err := m.git.Fetch(ctx, m.loc.chiefTree.String()); err != nil {
+		view.fetchFailed = true
+	}
+	// The route is read after the fetch, so a routing table the fetch
+	// brought in is the one sent by, never the one read before it.
+	routing, err := ReadRouting(ctx, m.deps.Cmds, m.loc.chiefTree.String())
+	if err != nil {
+		return notSent(base, NotSentUnreadable, "the routing table cannot be read: "+err.Error())
+	}
+	view.routing = routing
+	route, err := routing.Route(cmd.Route())
 	if err != nil {
 		return notSent(base, NotSentUnreadable, "the routing table has no route for the command")
 	}
 	base.Agent = route.Agent()
 	base.Model, _ = route.ModelText()
-	view := &roundView{chiefPane: m.loc.chiefPane, chief: m.loc.chief, chiefTree: m.loc.chiefTree, routing: m.routing}
-	if err := m.git.Fetch(ctx, m.loc.chiefTree.String()); err != nil {
-		view.fetchFailed = true
-	}
 	cs := &conflictSender{a: &autoSender{deps: m.deps, view: view, herdr: m.herdr, git: m.git, tasks: m.tasks}}
 	facts := cs.gather(ctx, m.loc.ws, m.facts, pr, m.facts.Branch, false, nil)
 	if reasons := manualConflictConditions(facts); len(reasons) > 0 {

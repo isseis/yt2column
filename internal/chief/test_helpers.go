@@ -219,7 +219,7 @@ const remoteOrigin = "origin"
 // or types into a pane. The recorder fails a test that runs anything else.
 var readOnlyCommands = map[string][][]string{
 	herdrProgram: {{herdrAgent, "list"}, {herdrAgent, "get"}, {herdrAgent, "read"}, {"workspace", "list"}, {"pane", "list"}, {"pane", "process-info"}, {"pane", "layout"}, {"tab", "list"}}, //nolint:goconst // each pair names one herdr operation
-	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}, {"rev-list", "--count"}, {"fetch", remoteOrigin, "main"}, {"ls-remote", remoteOrigin, "refs/heads/main"}, {"status", "--porcelain"}, {gitWorktree, "list"}, {"merge-base", "--is-ancestor"}, {"rev-list", "--parents"}, {"fetch", "--no-tags", "--no-prune", remoteOrigin}},
+	gitProgram:   {{"show"}, {"ls-tree"}, {"rev-parse"}, {"rev-list", "--count"}, {"fetch", remoteOrigin, "main"}, {"ls-remote", remoteOrigin, "refs/heads/main"}, {"status", "--porcelain"}, {gitWorktree, "list"}, {"merge-base", "--is-ancestor"}, {"rev-list", "--parents"}, {"fetch", "--no-tags", "--no-prune", "--refmap=", remoteOrigin}},
 	ghProgram:    {{"pr", "list"}, {"pr", "view"}, {"pr", "checks"}},
 }
 

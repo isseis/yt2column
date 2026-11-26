@@ -506,7 +506,8 @@ var branchForRefspec = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$`)
 // FetchBranch fetches the one branch of origin into refs/remotes/origin/<branch>
 // for a display that needs a commit the worktree lacks. Contract: the refspec
 // names exactly that branch and that remote-tracking ref, and --no-tags and
-// --no-prune keep the fetch from writing any other ref (origin/main
+// --no-prune and an empty --refmap (which drops the remote.origin.fetch
+// mappings) keep the fetch from writing any other ref (origin/main
 // included); main and HEAD, whose tracking refs other readers use, a branch name outside branchForRefspec, or with "..", "//", a
 // trailing "/" or ".", or a ".lock" suffix, is refused without running git.
 func (g GitReader) FetchBranch(ctx context.Context, dir, branch string) error {
@@ -515,7 +516,7 @@ func (g GitReader) FetchBranch(ctx context.Context, dir, branch string) error {
 		return fmt.Errorf("%w: branch name %q", errGitOutput, branch)
 	}
 	refspec := "+refs/heads/" + branch + ":refs/remotes/origin/" + branch
-	_, err := g.cmds.gitLimit(ctx, gitFetchTimeout, dir, "fetch", "--no-tags", "--no-prune", "origin", refspec)
+	_, err := g.cmds.gitLimit(ctx, gitFetchTimeout, dir, "fetch", "--no-tags", "--no-prune", "--refmap=", "origin", refspec)
 	return err
 }
 

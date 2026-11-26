@@ -227,6 +227,16 @@ func TestSendMergemain(t *testing.T) {
 		cw.git(cw.tree, "show HEAD:"+mergemainDefPath, "# another\n")
 		return item
 	})
+	notSent(t, "a routing table the fetch brought in", NotSentConditions, func(cw *conflictWorld, item ItemID) ItemID {
+		orig := string(repoContext(t))
+		row := repositoryRow(t, "mergemain")
+		modified := strings.Replace(orig, row, rowWithCell(t, rowWithCell(t, row, 2, "OpenCode"), 3, "`DeepSeek V4.1 Flash 1017 OpenCode Go`"), 1)
+		cw.rec.replyFunc("git fetch origin main", func() reply {
+			cw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", []byte(modified))
+			return reply{}
+		})
+		return item
+	})
 	notSent(t, "OpenCode route", NotSentConditions, func(cw *conflictWorld, item ItemID) ItemID {
 		orig := string(repoContext(t))
 		row := repositoryRow(t, "mergemain")
@@ -342,7 +352,7 @@ func TestDetailInheritsThePaneReport(t *testing.T) {
 			}
 			return reply{out: []byte(prHead + "\n")}
 		})
-		fetch := "git fetch --no-tags --no-prune origin +refs/heads/" + taskBranch + ":refs/remotes/origin/" + taskBranch
+		fetch := "git fetch --no-tags --no-prune --refmap= origin +refs/heads/" + taskBranch + ":refs/remotes/origin/" + taskBranch
 		sw.rec.replyFunc(fetch, func() reply { has = true; return reply{} })
 		deps := sw.finish()
 		keepParentReport(t, deps, tree)
@@ -356,7 +366,7 @@ func TestDetailInheritsThePaneReport(t *testing.T) {
 	t.Run("a failed fetch inherits nothing", func(t *testing.T) {
 		sw, tree := setup(t)
 		sw.rec.failIn(tree, "git rev-parse --verify --quiet "+prHead+"^{commit}", &cmdrunner.ExitError{Code: 1})
-		sw.rec.failIn(tree, "git fetch --no-tags --no-prune origin +refs/heads/"+taskBranch+":refs/remotes/origin/"+taskBranch, errors.New("offline"))
+		sw.rec.failIn(tree, "git fetch --no-tags --no-prune --refmap= origin +refs/heads/"+taskBranch+":refs/remotes/origin/"+taskBranch, errors.New("offline"))
 		deps := sw.finish()
 		keepParentReport(t, deps, tree)
 		if d := detailOf(t, deps, tree); d.Report == ReportFromPane {
@@ -483,7 +493,7 @@ func TestConflictItemNotificationBudget(t *testing.T) {
 }
 
 // TestManualConflictConditions checks which conditions the human's choice
-// takes: every one of AC-18 and none of the automatic send's own.
+// takes: every one of the human's choice and none of the automatic send's own.
 func TestManualConflictConditions(t *testing.T) {
 	ok := conflictFacts{
 		baseIsMain: true, singleClaudePane: true, branchMatches: true, headMatches: true, clean: true, remoteMatches: true,
