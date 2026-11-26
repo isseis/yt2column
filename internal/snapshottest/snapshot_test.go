@@ -183,6 +183,16 @@ func TestChildScenario(t *testing.T) {
 			if err := os.Symlink("/etc/hosts", filepath.Join(dir, "link")); err != nil {
 				t.Fatal(err)
 			}
+		case "link-inner-dotdot":
+			if err := os.Mkdir(filepath.Join(dir, "sub"), 0o750); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("..", filepath.Join(dir, "sub", "up")); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("sub/up/../outside", filepath.Join(dir, "link")); err != nil {
+				t.Fatal(err)
+			}
 		case "link-outside":
 			if err := os.Symlink("../elsewhere", filepath.Join(dir, "link")); err != nil {
 				t.Fatal(err)
@@ -228,6 +238,7 @@ func TestLoadPropagatesFailureAndSkip(t *testing.T) {
 		{"goexit", "PASS", "FAIL", true, "failed to build in"},
 		{"link-absolute", "FAIL", "FAIL", true, "holds a link outside itself"},
 		{"link-outside", "FAIL", "FAIL", true, "holds a link outside itself"},
+		{"link-inner-dotdot", "FAIL", "FAIL", true, "holds a link outside itself"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode, func(t *testing.T) {

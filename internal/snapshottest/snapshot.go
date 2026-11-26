@@ -232,7 +232,7 @@ func findOutsideLink(dir string) (string, error) {
 		if err != nil {
 			return err
 		}
-		if filepath.IsAbs(target) {
+		if filepath.IsAbs(target) || hasInnerParentRef(target) {
 			found = rel
 			return fs.SkipAll
 		}
@@ -247,6 +247,26 @@ func findOutsideLink(dir string) (string, error) {
 		return nil
 	})
 	return found, err
+}
+
+// hasInnerParentRef reports whether target has a ".." element after a
+// non-".." element. Joining such a path lexically can disagree with how the
+// file system resolves it when an earlier element is itself a link
+// ("sub/up/../x" with sub/up -> ..), so it is rejected rather than judged.
+func hasInnerParentRef(target string) bool {
+	seenName := false
+	for el := range strings.SplitSeq(filepath.ToSlash(target), "/") {
+		switch el {
+		case "", ".":
+		case "..":
+			if seenName {
+				return true
+			}
+		default:
+			seenName = true
+		}
+	}
+	return false
 }
 
 // copyDir copies dir to dst, which must not exist.
