@@ -34,6 +34,11 @@
    - **CLAUDE.md の規則との関係:** CLAUDE.md「Testing Strategy」の「Do not assert that a constant equals its own literal」は、定義をそのまま写した値と比べて何も確かめないテストを禁じる規則である。このテストの期待値は要件定義書の AC-05・AC-06 が定める文言で、カタログの値とは出どころが違う。カタログを AC から外れた文言に変えると失敗するので、この規則には当たらないと判断した。承認済みの計画で `manifest.test.ts` が `extName`・`extNameDev`・`extDescription` の確定値を日英のリテラルで固定しているのと同じ扱いであり、日本語のリテラルもこれと同じく、日本語カタログのメッセージを確かめるテストのリテラルとして置く。
    - **ADR:** なし（テストの確かめ方の変更であり、主要決定ではないため）。
 
+2. **README だけを 2 言語で持つという記述を直す:** `CLAUDE.md`「Document language」の「The bilingual README」と `.claude/commands/mktrans.md` にある、2 言語で持つ文書は README だけという記述を、訳文の対で持つ文書は README だけ、に直す。2.1 節の変更ファイル一覧の `CLAUDE.md` の行にこの直しを足し、`.claude/commands/mktrans.md` の行を加えた。
+   - **理由:** `docs/store/chrome_web_store.md` が日英両方の本文を 1 ファイルに持つため、元の記述のままでは同じ節に足すストア掲載文の例外と矛盾する。直すのは記述の範囲だけで、`/mktrans` の振る舞いと同期の対象（`README.md` と `README.en.md` の対）は変えない。
+   - **要件との関係:** `.claude/commands/mktrans.md` は要件定義書 2.2 節の変更範囲に名前がないが、AC-09 が求める位置づけの記録と矛盾しない記述にするための付随の変更であり、要件を広げない。
+   - **ADR:** なし（ADR-0035 の決定どおりの記述への整合であり、主要決定ではないため）。
+
 ## 2. システム構成
 
 変更はブラウザ拡張の静的アセット・UI カタログ・テストと、利用者向け文書および関連文書の 2 領域に分かれる。Go の製品コード（`cmd/`・`internal/`）およびビルドスクリプト（`extension/scripts/`）のロジックは変更しない。
