@@ -157,6 +157,35 @@ func blockCallsParallel(body *ast.BlockStmt, tName string) bool {
 	return false
 }
 
+// anyCallToParallel reports whether body contains any call to tName.Parallel()
+// anywhere inside it (including inside branches), excluding nested t.Run
+// callbacks whose own *testing.T is checked by checkSubtests.
+func anyCallToParallel(body *ast.BlockStmt, tName string) bool {
+	if tName == "" {
+		return false
+	}
+	found := false
+	ast.Inspect(body, func(node ast.Node) bool {
+		if found {
+			return false
+		}
+		call, ok := node.(*ast.CallExpr)
+		if !ok || len(call.Args) != 0 {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Parallel" {
+			return true
+		}
+		if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == tName {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
 func checkParallel() error {
 	fset := token.NewFileSet()
 	seenSerial := make(map[funcKey]bool)
@@ -203,7 +232,7 @@ func checkParallel() error {
 				hasParallel := blockCallsParallel(fn.Body, tName)
 				if isSerial {
 					seenSerial[key] = true
-					if hasParallel {
+					if anyCallToParallel(fn.Body, tName) {
 						errs = append(errs, fmt.Sprintf("%s: serial-listed test %s calls %s.Parallel()", fset.Position(fn.Pos()), fn.Name.Name, tName))
 					}
 				} else if !hasParallel {
@@ -867,13 +896,24 @@ func (ex *fixtureExtractor) handleAssign(s *ast.AssignStmt, env map[string]strin
 				env[ident.Name] = val
 				return nil
 			}
+			if val, err := ex.evalString(s.Rhs[0], env); err == nil {
+				env[ident.Name] = val
+				return nil
+			}
+			delete(env, ident.Name)
 			if call, ok := s.Rhs[0].(*ast.CallExpr); ok {
 				return ex.handleExprCall(call, env, calls, depth)
 			}
 		}
+	} else {
+		for _, lhs := range s.Lhs {
+			if ident, ok := lhs.(*ast.Ident); ok {
+				delete(env, ident.Name)
+			}
+		}
 	}
 	// Ignore struct literal setup like r := &testRepo{...} and t.TempDir() etc.,
-	// unless RHS contains a git/helper call or an unsupported func literal.
+	// unless RHS contains a git/helper call, nested call, or func literal.
 	for _, rhs := range s.Rhs {
 		switch r := rhs.(type) {
 		case *ast.CallExpr:
@@ -882,6 +922,10 @@ func (ex *fixtureExtractor) handleAssign(s *ast.AssignStmt, env map[string]strin
 			}
 		case *ast.FuncLit:
 			return fmt.Errorf("%s: unsupported func literal assignment in fixture", ex.fset.Position(r.Pos()))
+		default:
+			if err := ex.checkArgCalls([]ast.Expr{rhs}, env, calls, depth); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -998,6 +1042,13 @@ func callName(fun ast.Expr) string {
 		return f.Name
 	case *ast.SelectorExpr:
 		return exprText(f.X) + "." + f.Sel.Name
+	case *ast.ArrayType:
+		if f.Len == nil {
+			if elem, ok := f.Elt.(*ast.Ident); ok && elem.Name == "byte" {
+				return "[]byte"
+			}
+		}
+		return "<unknown>"
 	default:
 		return "<unknown>"
 	}
