@@ -878,12 +878,16 @@ func TestWorktreeIgnoresProcessDir(t *testing.T) {
 	repoA.CommitAll("ignore")
 	repoA.Git("push", "-q", testRemote, "HEAD:"+headsPrefix+testBranch)
 	repoA.Write("build/a.go", "package a\n")
+	repoA.gitIn(repoA.Dir, "init", "-q", "--template=", "build/nested")
+	repoA.Write("build/nested/n.go", "package n\n")
 	repoA.Write(".claude/settings.local.json", `{"permissions":{}}`)
 
 	repoB := newTestRepo(t)
-	// Leave an untracked file in B so any Worktree operation leaking to the
-	// process working directory fails immediately.
+	// Leave an untracked file and a .claude/sub/.git trap in B so any Worktree
+	// operation or checkTopDirGitNames walk leaking to the process working
+	// directory fails immediately.
 	repoB.Write("docs/notes/b_untracked.md", "dirty in B\n")
+	repoB.Write(".claude/sub/.git", "trap\n")
 	t.Chdir(repoB.Dir)
 
 	bHeadBefore := repoB.Head()
@@ -895,9 +899,17 @@ func TestWorktreeIgnoresProcessDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Begin(A) = %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(repoA.Dir, ".git", ignoredBeginRecord)); err != nil {
-		t.Errorf("begin record missing in A: %v", err)
+	recordData, err := os.ReadFile(filepath.Join(repoA.Dir, ".git", ignoredBeginRecord))
+	if err != nil {
+		t.Fatalf("begin record missing in A: %v", err)
 	}
+	if !strings.Contains(string(recordData), `"build/nested/n.go"`) {
+		t.Errorf("begin record in A missing nested ignored file: %q", recordData)
+	}
+
+	// Mutate B's hooks directory after Begin(A) so a hooksState leak reading
+	// relative ".git/hooks" from the process directory triggers PartHooks.
+	repoB.WriteHook("pre-commit", "exit 0\n")
 
 	repoA.Write(testFile, "fixed in A\n")
 	inspection, err := w.Inspect(t.Context(), base, threadAt(testFile))

@@ -181,6 +181,9 @@ func checkParallel() error {
 				}
 				tName, ok := isTestFunc(fn)
 				if !ok {
+					if fn.Body != nil {
+						checkHelperSubtests(fset, pkg, fn, &errs)
+					}
 					continue
 				}
 				testCount++
@@ -195,7 +198,7 @@ func checkParallel() error {
 				} else if !hasParallel {
 					errs = append(errs, fmt.Sprintf("%s: test %s.%s missing %s.Parallel()", fset.Position(fn.Pos()), pkg, fn.Name.Name, tName))
 				}
-				checkSubtests(fset, pkg, fn.Name.Name, fn.Body, tName, isSerial, &errs)
+				checkSubtests(fset, pkg, fn.Name.Name, fn.Body, map[string]struct{}{tName: {}}, isSerial, &errs)
 			}
 		}
 		if testCount == 0 {
@@ -215,11 +218,81 @@ func checkParallel() error {
 	return nil
 }
 
-func checkSubtests(fset *token.FileSet, pkg, topName string, body *ast.BlockStmt, tName string, isSerial bool, errs *[]string) {
+func testingTParamNames(params *ast.FieldList) []string {
+	if params == nil {
+		return nil
+	}
+	var names []string
+	for _, field := range params.List {
+		if isTestingTType(field.Type) {
+			for _, ident := range field.Names {
+				if ident.Name != "_" {
+					names = append(names, ident.Name)
+				}
+			}
+		}
+	}
+	return names
+}
+
+func isTestingTType(expr ast.Expr) bool {
+	star, ok := expr.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := star.X.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "T" {
+		return false
+	}
+	ident, ok := sel.X.(*ast.Ident)
+	return ok && ident.Name == "testing"
+}
+
+func checkHelperSubtests(fset *token.FileSet, pkg string, fn *ast.FuncDecl, errs *[]string) {
+	tNames := make(map[string]struct{})
+	for _, n := range testingTParamNames(fn.Type.Params) {
+		tNames[n] = struct{}{}
+	}
+	if len(tNames) == 0 {
+		return
+	}
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Run" {
+			return true
+		}
+		ident, ok := sel.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if _, isT := tNames[ident.Name]; isT {
+			*errs = append(*errs, fmt.Sprintf("%s: helper %s.%s calls %s.Run (subtests in helpers are unsupported)", fset.Position(call.Pos()), pkg, fn.Name.Name, ident.Name))
+			return false
+		}
+		return true
+	})
+}
+
+func checkSubtests(fset *token.FileSet, pkg, topName string, body *ast.BlockStmt, tNames map[string]struct{}, isSerial bool, errs *[]string) {
 	ast.Inspect(body, func(node ast.Node) bool {
 		if lit, ok := node.(*ast.FuncLit); ok && lit.Body != body {
-			// Nested closures are traversed when encountered as t.Run callbacks below.
-			// Still inspect other closures for t.Run calls using the outer tName.
+			// Track any *testing.T parameter names introduced by helper closures.
+			extra := testingTParamNames(lit.Type.Params)
+			if len(extra) > 0 {
+				next := make(map[string]struct{}, len(tNames)+len(extra))
+				for k := range tNames {
+					next[k] = struct{}{}
+				}
+				for _, n := range extra {
+					next[n] = struct{}{}
+				}
+				checkSubtests(fset, pkg, topName, lit.Body, next, isSerial, errs)
+				return false
+			}
 			return true
 		}
 		call, ok := node.(*ast.CallExpr)
@@ -231,7 +304,10 @@ func checkSubtests(fset *token.FileSet, pkg, topName string, body *ast.BlockStmt
 			return true
 		}
 		ident, ok := sel.X.(*ast.Ident)
-		if !ok || ident.Name != tName {
+		if !ok {
+			return true
+		}
+		if _, isT := tNames[ident.Name]; !isT {
 			return true
 		}
 		if len(call.Args) != 2 {
@@ -256,7 +332,7 @@ func checkSubtests(fset *token.FileSet, pkg, topName string, body *ast.BlockStmt
 		} else if !hasParallel {
 			*errs = append(*errs, fmt.Sprintf("%s: subtest under %s.%s missing %s.Parallel()", fset.Position(lit.Pos()), pkg, topName, subT))
 		}
-		checkSubtests(fset, pkg, topName, lit.Body, subT, isSerial, errs)
+		checkSubtests(fset, pkg, topName, lit.Body, map[string]struct{}{subT: {}}, isSerial, errs)
 		return false
 	})
 }
@@ -626,12 +702,48 @@ func (ex *fixtureExtractor) walkBlock(body *ast.BlockStmt, env map[string]string
 				}
 			}
 		case *ast.ReturnStmt:
-			// End of straight-line function.
+			for _, res := range s.Results {
+				if err := ex.handleReturnExpr(res, env, calls, depth); err != nil {
+					return err
+				}
+			}
 		default:
-			return fmt.Errorf("%s: unsupported statement %T in fixture", ex.fset.Position(s.Pos()), stmt)
+			return fmt.Errorf("%s: unsupported statement %T in fixture", ex.fset.Position(stmt.Pos()), stmt)
 		}
 	}
 	return nil
+}
+
+func (ex *fixtureExtractor) handleReturnExpr(expr ast.Expr, env map[string]string, calls *[][]string, depth int) error {
+	switch e := expr.(type) {
+	case *ast.Ident, *ast.BasicLit:
+		return nil
+	case *ast.CallExpr:
+		if isPureErrorCall(e) {
+			return nil
+		}
+		return ex.handleExprCall(e, env, calls, depth)
+	default:
+		return fmt.Errorf("%s: unsupported return expression %T in fixture", ex.fset.Position(expr.Pos()), expr)
+	}
+}
+
+func isPureErrorCall(call *ast.CallExpr) bool {
+	name := callName(call.Fun)
+	if name != "fmt.Errorf" && name != "errors.New" {
+		return false
+	}
+	hasNestedCall := false
+	for _, arg := range call.Args {
+		ast.Inspect(arg, func(n ast.Node) bool {
+			if _, ok := n.(*ast.CallExpr); ok {
+				hasNestedCall = true
+				return false
+			}
+			return true
+		})
+	}
+	return !hasNestedCall
 }
 
 func isErrNotNilCheck(cond ast.Expr) bool {
@@ -650,6 +762,17 @@ func bodyOnlyFailsOrReturns(body *ast.BlockStmt) bool {
 	}
 	switch s := body.List[0].(type) {
 	case *ast.ReturnStmt:
+		for _, res := range s.Results {
+			switch e := res.(type) {
+			case *ast.Ident, *ast.BasicLit:
+			case *ast.CallExpr:
+				if !isPureErrorCall(e) {
+					return false
+				}
+			default:
+				return false
+			}
+		}
 		return true
 	case *ast.ExprStmt:
 		call, ok := s.X.(*ast.CallExpr)
@@ -676,12 +799,15 @@ func (ex *fixtureExtractor) handleAssign(s *ast.AssignStmt, env map[string]strin
 		}
 	}
 	// Ignore struct literal setup like r := &testRepo{...} and t.TempDir() etc.,
-	// unless RHS contains a git/helper call.
+	// unless RHS contains a git/helper call or an unsupported func literal.
 	for _, rhs := range s.Rhs {
-		if call, ok := rhs.(*ast.CallExpr); ok {
-			if err := ex.handleExprCall(call, env, calls, depth); err != nil {
+		switch r := rhs.(type) {
+		case *ast.CallExpr:
+			if err := ex.handleExprCall(r, env, calls, depth); err != nil {
 				return err
 			}
+		case *ast.FuncLit:
+			return fmt.Errorf("%s: unsupported func literal assignment in fixture", ex.fset.Position(r.Pos()))
 		}
 	}
 	return nil
@@ -703,17 +829,21 @@ func (ex *fixtureExtractor) handleExprCall(expr ast.Expr, env map[string]string,
 		if err != nil {
 			return fmt.Errorf("%s: %s: %w", ex.fset.Position(call.Pos()), name, err)
 		}
-		*calls = append(*calls, args)
+		*calls = append(*calls, append([]string{"<work>"}, args...))
 		return nil
 	case "r.gitIn", "gitIn":
 		if len(call.Args) < 2 {
 			return fmt.Errorf("%s: %s has fewer than 2 args", ex.fset.Position(call.Pos()), name)
 		}
+		dir, err := ex.evalString(call.Args[0], env)
+		if err != nil {
+			return fmt.Errorf("%s: %s dir: %w", ex.fset.Position(call.Pos()), name, err)
+		}
 		args, err := ex.evalArgs(call.Args[1:], env)
 		if err != nil {
 			return fmt.Errorf("%s: %s: %w", ex.fset.Position(call.Pos()), name, err)
 		}
-		*calls = append(*calls, args)
+		*calls = append(*calls, append([]string{dir}, args...))
 		return nil
 	case "r.pinIgnoreConfig", "pinIgnoreConfig", "r.CommitAll", "commitAll":
 		baseName := name

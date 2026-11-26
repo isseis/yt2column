@@ -2040,9 +2040,10 @@ func newOSProcessRun(t *testing.T, gh []cmdrunnertestutil.Step, makeSteps ...cmd
 }
 
 // runProcessDirRounds runs begin/inspect/finish/push and check/push-review
-// through osEnv() in workDir (main checkout or linked worktree) with an
-// ignored nested repository, .claude/settings.local.json, and a symlinked
-// hooks directory.
+// through osEnv() against the caller's process working directory workDir
+// (main checkout or linked worktree) with an ignored nested repository,
+// .claude/settings.local.json, and a symlinked hooks directory. The caller
+// sets the process working directory via t.Chdir(workDir) before calling it.
 func runProcessDirRounds(t *testing.T, repo *testRepo, workDir, remoteDir, branch, beginRecordPath string) {
 	t.Helper()
 	buildChecks := func() []cmdrunnertestutil.Step {
@@ -2053,7 +2054,6 @@ func runProcessDirRounds(t *testing.T, repo *testRepo, workDir, remoteDir, branc
 		return steps
 	}
 
-	t.Chdir(workDir)
 	baseHead := strings.TrimSpace(repo.gitIn(workDir, "rev-parse", "HEAD"))
 	th := reviewerThread("please fix")
 	thread := accept(t, th)
@@ -2217,9 +2217,8 @@ func runProcessDirRounds(t *testing.T, repo *testRepo, workDir, remoteDir, branc
 	}
 }
 
-// setupProcessDirTargets prepares the ignored nested repository,
-// .claude/settings.local.json, and symlinked hooks directory in a testRepo,
-// and returns the remote bare repository path and symlinked worktree details.
+// setupProcessDirTargets creates the ignored nested repository and
+// .claude/settings.local.json inside workDir.
 func setupProcessDirTargets(t *testing.T, repo *testRepo, workDir string) {
 	t.Helper()
 	repo.gitIn(workDir, "init", "-q", "--template=", "build/nested")
@@ -2370,6 +2369,7 @@ func TestRunInProcessDir(t *testing.T) {
 			if withGitDir != "" {
 				t.Setenv("GIT_DIR", withGitDir)
 			}
+			t.Chdir(repo.Dir)
 			runProcessDirRounds(t, repo, repo.Dir, remoteDir, testBranch, filepath.Join(repo.Dir, ".git", "fixprguard-ignored-begin"))
 		})
 
@@ -2394,6 +2394,7 @@ func TestRunInProcessDir(t *testing.T) {
 			if withGitDir != "" {
 				t.Setenv("GIT_DIR", withGitDir)
 			}
+			t.Chdir(wtDir)
 			runProcessDirRounds(t, repo, wtDir, remoteDir, wtBranch, filepath.Join(wtGitDir, "fixprguard-ignored-begin"))
 		})
 	}
