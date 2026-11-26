@@ -65,7 +65,7 @@
     -   ADR：なし。報告の項目は本タスクの中で閉じる。
 -   `make ext-install` は、`make test` と `make lint` が通った後に走らせる（AC-01）。 Go の検査が通らずに止まる取り込みで、ネットワークから取得しないためである。
     -   ADR：なし。手順の順序は本タスクの中で閉じる。
--   本書は、0115 要件定義書の AC-26 の最後の文「`/mergemain` は依存を入れない」と、それを決めた同書の「要件定義の際に決めたこと（2026-11-19）」の「依存を入れる `make ext-install` はネットワークを使い、`/mergemain` の承認の外にある」を改める。拡張の検査が要る取り込みに限り、`/mergemain` の承認が `make ext-install` を含むようにするためである（F-002）。0115 の文書は書き換えない。
+-   本書は、0115 要件定義書の AC-31（承認を 4 つのネットワークの操作に限る）と、AC-26 の最後の文「`/mergemain` は依存を入れない」と、それを決めた同書の「要件定義の際に決めたこと（2026-11-19）」の「依存を入れる `make ext-install` はネットワークを使い、`/mergemain` の承認の外にある」を改める。拡張の検査が要る取り込みに限り、`/mergemain` の承認が `make ext-install` を含むようにするためである（F-002）。0115 の文書は書き換えない。
     -   ADR：ADR-0046 の同じ更新に含める。
 
 ## 2. 目的とスコープ (Goals and Scope)
@@ -80,7 +80,7 @@
 -   `.claude/commands/mergemain.md` の承認の節、禁止事項、手順 7、止まる理由の対応、報告の項目。
 -   CLAUDE.md の「Tool Execution Safety」の `/mergemain` の承認の範囲。
 -   `make ext-install` を人の許可の確認なしに走らせるための設定（要否と形は設計で決める）。
--   `cmd/mergepr/docs_test.go` の `mergemain.md` のガードテスト（変える要否は設計で決める）。
+-   `cmd/mergepr/docs_test.go` の `mergemain.md` のガードテストと、`cmd/yt2column/settings_test.go` の許可の規則のガードテスト（変える要否は設計で決める）。
 -   [ADR-0046](../../dev/adr/0046-chief-of-staff.md) の `/mergemain` の承認と残る危険の更新（本書の PR で行う）。
 
 ### 2.3. スコープ外 (Out of Scope)
@@ -109,9 +109,9 @@
 
 -   **AC-01**: 拡張の検査が要る取り込みでは、`make test` と `make lint` が通った後、`make ext-check` の前に、`make ext-install` を走らせる。`extension/node_modules` がないときも、あるときも走らせる。PR のブランチが `extension/package.json`・`extension/package-lock.json`・`extension/scripts/check-lockfile.ts`・`Makefile` を変えていても、それを理由に止まらない。
 -   **AC-02**: 拡張の検査が要らない取り込みでは、`make ext-install` を走らせない。
--   **AC-03**: `make ext-install` が失敗したとき（Node.js か npm の版が合わない、`check-lockfile` が拒む、`npm ci` が失敗する、ネットワークにつながらないなど）は、`make ext-check` を走らせず、作業の前の状態に戻して、理由の種類「検査の準備がない」で止まる。報告の詳細には、次の 2 点を書く。(1) `make ext-install` が失敗したこと。(2) `extension/node_modules` が欠けているか不完全でありうるため、原因を直した後に人が `make ext-install` を走らせる必要があること。
+-   **AC-03**: `make ext-install` が失敗したとき（Node.js か npm の版が合わない、`check-lockfile` が拒む、`npm ci` が失敗する、ネットワークにつながらない、コマンドが時間の上限で打ち切られるなど）は、`make ext-check` を走らせず、作業の前の状態に戻して、理由の種類「検査の準備がない」で止まる。報告の詳細には、次の 2 点を書く。(1) `make ext-install` が失敗したこと。(2) `extension/node_modules` が欠けているか不完全でありうるため、原因を直した後に人が `make ext-install` を走らせる必要があること。
 -   **AC-04**: `make ext-install` が通った後に `make ext-check` が失敗したときは、今までどおり、作業の前の状態に戻して、理由の種類「検査の失敗」で止まる。
--   **AC-05**: chief が人に尋ねずに送った `/mergemain`（Claude Code の auto mode）でも、`make ext-install` を走らせるときに、人の許可の確認を待って止まらない。人が auto mode の外で打った `/mergemain` では、許可の確認が出てもよい。
+-   **AC-05**: chief が人に尋ねずに送った `/mergemain` でも、`make ext-install` を走らせるときに、人の許可の確認を待って止まらず、許可の判定で拒まれもしない。pane の許可のモードは利用者の設定による（0115 設計書の 3.9「許可の確認」）ので、どのモードを前提にするかは設計で決める（[design_handoff.md](design_handoff.md) の H-01）。人が auto mode の外で打った `/mergemain` では、許可の確認が出てもよい。
 -   **AC-06**: 「解消した」の報告には、`make ext-install` を走らせたかどうかを書く。
 
 #### F-002: 承認の範囲と禁止事項
@@ -121,7 +121,7 @@
 **Acceptance Criteria**:
 
 -   **AC-07**: CLAUDE.md の「Tool Execution Safety」の `/mergemain` の項と、`.claude/commands/mergemain.md` の承認の節は、`/mergemain` の実行が、その PR について、拡張の検査が要る取り込みでの `make ext-install`（`registry.npmjs.org` からの依存の取得を含む）を承認することを書く。CLAUDE.md の差分は、この項に `make ext-install` の承認を足すことと、設計が AC-05 のために許可の規則を足す場合に、その規則と承認の関係を書くことに限る。
--   **AC-08**: `.claude/commands/mergemain.md` の禁止事項は、`make ext-install` を禁じない。`.claude/commands/mergemain.md` の差分は、承認の節、禁止事項の 9、手順 7、止まる理由の対応の「検査の準備がない」の行、報告の項目のうち、`make ext-install` とその失敗に関わる記述に限る。
+-   **AC-08**: `.claude/commands/mergemain.md` の禁止事項は、手順 7 の `make ext-install` を禁じない。手順 7 の外での `make ext-install`（止まって戻した後を含む）と、ほかの方法での依存のインストール（`extension/` での `npm ci`・`npm install`・`npx` など）は、今までどおり禁じる。`.claude/commands/mergemain.md` の差分は、承認の節、禁止事項の 9、手順 7、止まる理由の対応の「検査の準備がない」の行、報告の項目のうち、`make ext-install` とその失敗に関わる記述に限る。
 
 #### F-003: 止まったときの `extension/node_modules`
 
@@ -130,7 +130,7 @@
 **Acceptance Criteria**:
 
 -   **AC-09**: `make ext-install` を走らせた後に止まって戻したとき、`extension/node_modules` は消さない。戻した後の PR のブランチと作業ツリーは、`extension/node_modules` を除き、0115 要件定義書の AC-28 の状態になる。
--   **AC-10**: `/mergemain` が変える無視されたファイルのうち、始める前からあったものは、`make ext-install` が作り直す `extension/node_modules` と、今までどおり `make ext-check` が書くものに限る。
+-   **AC-10**: PR のブランチが `Makefile` と `extension/package.json` を変えていないとき、`/mergemain` が変える無視されたファイルのうち、始める前からあったものは、`make ext-install` が作り直す `extension/node_modules` と、今までどおり `make ext-check` が書くものに限る。ブランチがそれらを変えているときは、ほかの無視されたファイルが変わりうることを残る危険とする（4.2）。
 -   **AC-11**: `make ext-install` が通った後に止まって戻したとき（`make ext-check` の失敗、push の失敗など）は、報告の詳細には、次の 2 点を書く。(1) `make ext-install` を走らせたこと。(2) `extension/node_modules` は merge の後のロックファイルに合わせたもので、戻したブランチのロックファイルと食い違いうるため、拡張を扱う前に人が `make ext-install` を走らせ直す必要があること。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
@@ -144,17 +144,19 @@
 -   `docs/dev/security.md` の発動条件（`yt-dlp` の起動、API キー、キャッシュ、LLM API への送信、信頼できない文字列のプロンプトか記事への埋め込み）には当たらない（N/A）。`docs/dev/security.md` の「`npm ci --ignore-scripts` でインストールする」規則は変えない。
 -   開発ツールの信頼の境界について、次を残る危険として受け入れる。
     -   PR のブランチはレビューの前なので、ブランチが `extension/package.json`・`extension/package-lock.json`・`extension/.npmrc`・`extension/scripts/check-lockfile.ts`・`Makefile` を変えていれば、`make ext-install` はレビューされていない規則で依存を取得する。取得したパッケージは、その後の `make ext-check` が走らせる。今の `make test` と `make ext-check` も、merge の後のツリーのコードを利用者の権限で走らせており、増えるのは、ブランチが指定した、リポジトリの外のパッケージの取得と実行である。
+    -   ブランチが `Makefile` か `extension/package.json` を変えていれば、`make ext-install` と `make ext-check` は、始める前からあったほかの無視されたファイル（`.claude/settings.local.json` など）も書き換えうる。今の `make test` も同じ危険を持つ。
     -   取得したパッケージのインストール時のスクリプトは、merge の後のツリーの `Makefile` が `--ignore-scripts` を保つ限り走らない。ブランチが `Makefile` か `extension/package.json` のスクリプトを変えれば、この守りも外れうる。
 -   この危険を ADR-0046 の「結果」に書く（本書の PR で更新する）。
 
 ### 4.3. 信頼性・可用性 (Reliability/Availability)
 
 -   `make ext-install` の途中の失敗では、`extension/node_modules` が欠けるか不完全なまま残りうる。人が報告を読んで入れ直す（AC-03）。
--   `npm ci` が終わらないとき（ネットワークか registry が応じないなど）の扱いは、設計で決める（[design_handoff.md](design_handoff.md) の H-03）。
+-   `extension/node_modules` がほかの場所を指すシンボリックリンクのときは、`npm ci` はリンクの先の中身を消す。そのような worktree の作り方は今なく、残る危険とする。
+-   `npm ci` が終わらないときや、コマンドの時間の上限で打ち切られたとき（ネットワークか registry が応じないなど）の扱いは、設計で決める（[design_handoff.md](design_handoff.md) の H-03）。
 
 ### 4.4. 互換性 (Compatibility)
 
--   chief が送る `/mergemain` は、ブランチの `mergemain.md` が `origin/main` と同じときだけ送られる（ADR-0046）。変更は `main` に入った後に送られる `/mergemain` から効く。
+-   chief が送る `/mergemain` は、ブランチの `mergemain.md` が `origin/main` と同じときだけ送られる（ADR-0046）。変更は `main` に入った後に送られる `/mergemain` から効く。実装が `main` に入ったときに開いている PR のブランチは古い `mergemain.md` を持つので、人が `main` を取り込むまで、chief はそのブランチに `/mergemain` を送らない。
 
 ### 4.5. 保守性 (Maintainability)
 
@@ -164,7 +166,7 @@
 
 -   `docs/dev/project_overview.md` の「決定済みの方針」「前提・制約」に従う。
 -   CLAUDE.md の「Tool Execution Safety」と、`docs/dev/conventions/dev_tools.md` の Rule 5 に従う。エージェントは開発ツールを入れない（`make ext-install` が入れるのは拡張の開発用の npm パッケージで、開発ツールではない）。
--   0115 要件定義書の AC-26・AC-28・AC-29 は、本書が改める部分（「要件定義の際に決めたこと」）のほかは変えない。
+-   0115 要件定義書の AC-26・AC-28・AC-29・AC-31 は、本書が改める部分（「要件定義の際に決めたこと」）のほかは変えない。
 
 ## 6. 用語集 (Glossary)
 

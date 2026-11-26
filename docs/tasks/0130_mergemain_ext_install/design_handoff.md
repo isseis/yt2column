@@ -6,7 +6,7 @@
 
 -   **事項:** chief が人に尋ねずに送った `/mergemain` は、Claude Code の auto mode で走る。`make ext-install` が許可の確認で止まらない仕組みを決める。今の `.claude/settings.json` の `allow` は `mergepr` の 3 つのサブコマンドを名指しし（`.claude/settings.json:8-10`）、`make` の規則はない。
 -   **理由:** 確認で止まると AC-05 を満たせず、自動送信の目的（人が手を入れずに push まで終える）を果たせない。一方で `allow` に `Bash(make ext-install)` を足すと、`/mergemain` の外のすべてのセッションでも確認なしに走り、CLAUDE.md の「Tool Execution Safety」の「ネットワークを使うコマンドは承認が要る」との関係が変わる。足さずに auto mode の判定と CLAUDE.md の承認の記述に任せると、確認が出ないことの保証がない。規則はセッションを選べないので、(1) を採ると、承認が `/mergemain` の外にも及ぶ。これは信頼の境界の判断なので、人に諮って ADR-0046 に記録する。要件定義書の AC-07 は、規則を足すときの CLAUDE.md の記述を許している。
--   **候補の方針:** (1) `allow` に `Bash(make ext-install)` を足し、CLAUDE.md の承認の記述との関係を書く。`cmd/mergepr/docs_test.go` の `TestSettingsAllowsOnlySafeMergemainSubcommands` は `mergepr` を名指す規則だけを見るので、`make` の規則とはぶつからないことを確かめる。(2) 規則を足さず、auto mode で確認が出ないことを実際に確かめる。
+-   **候補の方針:** (1) `allow` に `Bash(make ext-install)` を足し、CLAUDE.md の承認の記述との関係を書く。`cmd/yt2column/settings_test.go` の `TestSettingsAllowsOnlyVettedCommands` は、`allow` の Bash の規則の最初の語を `unpromptedWords`（「与えられたコマンドを走らせない」と確かめた語）に限るので、`make` の規則はこのガードとその前提に反する。`make ext-install` は作業ツリーの `Makefile` の中身を走らせるので、ほかのセッションで書き換えた `Makefile` が確認なしに走りうる。(2) 規則を足さず、auto mode で確認が出ないことを実際に確かめる。auto mode の判定がコマンドを拒んだときは確認が出ずにエージェントが別の道を探しうるので、「確認が出ない」だけでなく `make ext-install` が実際に走ったことを確かめる。chief が送る pane の許可のモードを前提にできるかも確かめる（0115 設計書の 3.9「許可の確認」）。
 -   **関連:** F-001、F-002、AC-05、AC-07
 
 ## H-02: 手順 7 の `make ext-preflight` の扱いと書き方
@@ -20,5 +20,6 @@
 
 -   **事項:** ネットワークか registry が応じず、`make ext-install` が失敗も成功もせずに続くときに、`/mergemain` がどうなるかを決める。
 -   **理由:** 失敗の終了で返らないので、AC-03 の「検査の準備がない」に移らず、chief の自動送信では pane が実行中のまま残る。人には、止まっていることが表から見えにくい。
+-   **補足:** Claude Code の Bash は前景のコマンドを既定で 120 秒で打ち切る（最大 600 秒）。キャッシュのない `npm ci` がこれを超えると、失敗の終了ではなく打ち切りになり、`node_modules` が不完全なまま残る。
 -   **候補の方針:** コマンドの時間の上限を手順に書き、超えたら失敗として AC-03 のとおり戻して止まる。または、上限を置かずに残る危険とし、その理由を記録する。
 -   **関連:** F-001、AC-03
