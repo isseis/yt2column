@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：AC-14 で全体の実時間を記録だけにし、短くなったかの判定を対象のテストの単独の実行で行う<br>決定の変更で draft に戻した：AC-14 の比較から TestParseSubtitlesArrayElementLimit を外す |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -185,4 +185,5 @@
 ## 変更履歴
 
 - 2026-11-26 承認（isseis、#1170）
-- 2026-11-26 draft への戻し：AC-14 で全体の実時間を記録だけにし、短くなったかの判定を対象のテストの単独の実行で行う；AC-14 の比較から TestParseSubtitlesArrayElementLimit を外す（#未記入）
+- 2026-11-26 draft への戻し：AC-14 で全体の実時間を記録だけにし、短くなったかの判定を対象のテストの単独の実行で行う；AC-14 の比較から TestParseSubtitlesArrayElementLimit を外す（#1179）
+- 2026-11-26 承認（isseis、#1179）
