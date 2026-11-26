@@ -900,6 +900,10 @@ func (ex *fixtureExtractor) handleAssign(s *ast.AssignStmt, env map[string]strin
 				env[ident.Name] = val
 				return nil
 			}
+			if call, ok := s.Rhs[0].(*ast.CallExpr); ok && callName(call.Fun) == "t.TempDir" && len(call.Args) == 0 {
+				env[ident.Name] = "<root>"
+				return nil
+			}
 			delete(env, ident.Name)
 			if call, ok := s.Rhs[0].(*ast.CallExpr); ok {
 				return ex.handleExprCall(call, env, calls, depth)
