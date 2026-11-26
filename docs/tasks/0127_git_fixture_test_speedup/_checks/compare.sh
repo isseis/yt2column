@@ -99,17 +99,20 @@ for s in base after; do
   restrict "$T/$s.leaves" > "$T/$s.leaves.r"
   restrict "$T/$s.skip" > "$T/$s.skip.r"
 done
+# A leaf name can hold a commit ID that changes every run (-g plus 12 hex digits);
+# replace it by one mark for the comparison of the name sets only.
+norm() { sed -E 's/-g[0-9a-f]{12}(\/|$)/-g<id>\1/g' "$1" | LC_ALL=C sort -u; }
 echo "BASE leaves: $(wc -l < "$T/base.leaves.r"), AFTER leaves: $(wc -l < "$T/after.leaves.r"), BASE tops: $(wc -l < "$T/base.tops")"
 
 echo "== names, fail and skip (compare) =="
 [ -s "$T/base.leaves.r" ] || die "BASE has no leaf"
-if diff "$T/base.leaves.r" "$T/after.leaves.r" > "$T/names.diff"; then
+if diff <(norm "$T/base.leaves.r") <(norm "$T/after.leaves.r") > "$T/names.diff"; then
   check "names" 0
 else
   check "names" 1 "$(grep -c '^[<>]' "$T/names.diff") differing names"; head -40 "$T/names.diff"
 fi
 if [ ! -s "$T/base.fail" ] && [ ! -s "$T/after.fail" ]; then check "fail" 0; else check "fail" 1 "fail events present"; fi
-if diff "$T/base.skip.r" "$T/after.skip.r" > "$T/skip.diff"; then
+if diff <(norm "$T/base.skip.r") <(norm "$T/after.skip.r") > "$T/skip.diff"; then
   check "skip" 0
 else
   check "skip" 1 "skip sets differ"; head -40 "$T/skip.diff"
