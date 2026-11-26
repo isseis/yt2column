@@ -108,6 +108,10 @@ type Snapshot[V any] struct {
 // with the tests that might become the builder, so the environment a build
 // sees would depend on which test asked first.
 //
+// build must not call Load for the same kind and key: the build would wait
+// for itself. A test that failed before it asked for the snapshot makes the
+// build count as failed, so every later asker fails with the builder's name.
+//
 // The snapshot is built once per test process, so -count=N reuses it from the
 // second run on; to look for flakiness in a build, run the process once per
 // attempt.
@@ -133,8 +137,9 @@ func Load[V any](t *testing.T, s *Store, kind Kind[V], key []string,
 
 	switch e.outcome {
 	case outcomeBuilt:
+		// A nil value (a nil interface-typed V) is a valid V, not a mismatch.
 		v, ok := e.value.(V)
-		if !ok {
+		if !ok && e.value != nil {
 			t.Fatalf("the shared %s was built with another value type in %s", kind.name, e.builder)
 		}
 		return Snapshot[V]{kind: kind, dir: e.dir, value: v}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -141,8 +142,10 @@ func TestCopyTo(t *testing.T) {
 		t.Errorf("data of a second copy = %q, %v; want original", got, err)
 	}
 
-	if err := copyDir(snapshot.dir, first); err == nil {
-		t.Error("copy over an existing destination succeeded, want an error")
+	// CopyTo would end the test with t.Fatalf, so the refusal is checked on
+	// the function it calls.
+	if err := copyDir(snapshot.dir, first); !errors.Is(err, fs.ErrExist) {
+		t.Errorf("copy over an existing destination = %v, want fs.ErrExist", err)
 	}
 }
 
@@ -223,8 +226,8 @@ func TestLoadPropagatesFailureAndSkip(t *testing.T) {
 		{"skip", "SKIP", "SKIP", false, ""},
 		{"errorf-skip", "FAIL", "FAIL", true, ""},
 		{"goexit", "PASS", "FAIL", true, "failed to build in"},
-		{"link-absolute", "FAIL", "FAIL", true, ""},
-		{"link-outside", "FAIL", "FAIL", true, ""},
+		{"link-absolute", "FAIL", "FAIL", true, "holds a link outside itself"},
+		{"link-outside", "FAIL", "FAIL", true, "holds a link outside itself"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode, func(t *testing.T) {
@@ -254,5 +257,40 @@ func TestLoadPropagatesFailureAndSkip(t *testing.T) {
 					got["builder"], got["latecomer"], tt.builder, tt.latecomer, out)
 			}
 		})
+	}
+}
+
+// TestCloseRemovesBuiltDirectories checks that Close removes what a build
+// wrote, and that closing twice is not an error.
+func TestCloseRemovesBuiltDirectories(t *testing.T) {
+	s := NewStore(t.TempDir())
+	kind := NewKind[string]("closing", nil)
+	var built string
+	Load(t, s, kind, []string{"k"}, func(_ *testing.T, dir string) string {
+		built = dir
+		if err := os.WriteFile(filepath.Join(dir, "f"), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return ""
+	})
+	if err := s.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if _, err := os.Stat(built); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("directory after Close: %v, want not exist", err)
+	}
+	if err := s.Close(); err != nil {
+		t.Errorf("second close: %v", err)
+	}
+}
+
+// TestLoadNilInterfaceValue checks that a build returning a nil value of an
+// interface type is not read as a value of another type.
+func TestLoadNilInterfaceValue(t *testing.T) {
+	s := newTestStore(t)
+	kind := NewKind[error]("nil-error", nil)
+	sn := Load(t, s, kind, []string{"k"}, func(_ *testing.T, _ string) error { return nil })
+	if sn.Value() != nil {
+		t.Errorf("value = %v, want nil", sn.Value())
 	}
 }
