@@ -1076,6 +1076,7 @@ var rrCaseKind = snapshottest.NewKind("rrCase", func(g rrConfigGroup) rrConfigGr
 // core.abbrev and i18n.logOutputEncoding reach a command the script runs
 // (git log for the listed subjects).
 func TestReviewRecordsCoverage(t *testing.T) {
+	t.Parallel()
 	for _, tool := range []string{"git", "awk", "tr"} {
 		if _, err := exec.LookPath(tool); err != nil {
 			t.Fatalf("%s is not on PATH: %v", tool, err)
@@ -1177,6 +1178,7 @@ func rrUnreviewedConfigBranch(f *rrFixture) []string {
 // differences. Each case runs with each bash scriptBashes returns, and the
 // configuration scenarios run on rrUnreviewedConfigBranch.
 func TestReviewRecordsUnreviewed(t *testing.T) {
+	t.Parallel()
 	form := seenRangeForm(t)
 	forms := readCrossCheckForms(t)
 	var cases []rrCase
@@ -1216,6 +1218,7 @@ func TestReviewRecordsUnreviewed(t *testing.T) {
 // cross-check, and its compatibility alias fable fails with no output, so a
 // caller reads it as the failure of its mode.
 func TestReviewRecordsMode(t *testing.T) {
+	t.Parallel()
 	for _, bash := range scriptBashes(t) {
 		for _, mode := range [][]string{nil, {"Coverage"}, {"Unreviewed"}, {"Cross-check"}, {"Fable"}} {
 			f := newRRFixture(t, "")
@@ -2123,6 +2126,7 @@ func rrFableMergeConfigBranch(f *rrFixture) []string {
 // setting reaches today: they fail only when the cross-check mode starts
 // reading through a porcelain command.
 func TestReviewRecordsCrossCheck(t *testing.T) {
+	t.Parallel()
 	form := seenRangeForm(t)
 	forms := readCrossCheckForms(t)
 	realContext := doctestutil.ReadDoc(t, contextPath)
@@ -2245,6 +2249,7 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 // across both bash 3.2 and bash 4+ (representative VALID, MISSING, and
 // fail-closed cases).
 func TestReviewRecordsFableAlias(t *testing.T) {
+	t.Parallel()
 	form := seenRangeForm(t)
 	forms := readCrossCheckForms(t)
 	cases := []rrCase{
