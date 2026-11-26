@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を指し、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。用語は、要件書 6 章と設計書 1.3 のもの（フィクスチャのリポジトリ、末端のサブテスト、実時間、ケースの前提の検査、計測の条件、共有の状態、共通の初期状態、共有する準備、共有する実行の結果、ストア、種別、鍵、作り手、複製、整え直し）を同じ意味で使う。共有の状態の個々の種類の名前（グループのブランチ、設定の前の実行、空の `takeIn`、競合のマージの途中、マージのコミットの後など）は、設計書 3.3・3.4・3.6 のものである。`design_handoff.md` の H-01〜H-05 は、設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。
@@ -424,3 +424,7 @@
 
 -   PR-2 のマージの後、issue #1168 を閉じる（`/runpr` が、タスクの最後の計画の PR の後に提案する）。
 -   `scriptBashes` を使うほかのテストへの適用は、範囲外として残す（設計書 9 章）。
+
+## 変更履歴
+
+- 2026-11-26 承認（isseis、#1188）
