@@ -64,7 +64,8 @@
 | 変更 | `INSTALL.md` | 製品名の 4 箇所（冒頭・ツールバー固定・ビューアタイトル・アンインストール）を更新 |
 | 変更 | `docs/dev/guides/development.md` | 119 行目の開発用のビルド表示名の引用のみを更新 |
 | 変更 | `docs/translation_glossary.md` | コア製品名と Chrome ウェブストア表示名の 2 行を追加 |
-| 変更 | `CLAUDE.md` | 「Document language」に `docs/store/chrome_web_store.md` の位置づけを追記し、「Development Notes」の Go のガードテストの一覧に掲載項目の表と `messages.json` の照合を足す |
+| 変更 | `CLAUDE.md` | 「Document language」に `docs/store/chrome_web_store.md` の位置づけを追記し、「Development Notes」の Go のガードテストの一覧に掲載項目の表と `messages.json` の照合を足す。README だけを 2 言語で持つという記述を、訳文の対で持つ文書は README だけ、に直す |
+| 変更 | `.claude/commands/mktrans.md` | 2 言語で持つ文書は README だけという記述を、訳文の対で持つ文書は README だけ、に直す |
 | 変更 | `docs/dev/adr/0035-language-policy.md` | 実装 PR で `CLAUDE.md` を更新した際に、未反映のずれを示す一文を除去 |
 
 ## 3. コンポーネント設計

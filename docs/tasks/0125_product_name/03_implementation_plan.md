@@ -144,11 +144,12 @@
 
 #### ステップ 2-3: 開発手順の事実整合・`CLAUDE.md` 更新・ADR-0035 のずれ除去と検証
 
-**変更するファイル:** `docs/dev/guides/development.md`、`CLAUDE.md`、`docs/dev/adr/0035-language-policy.md`、本実装計画書（§7 の AC-10〜AC-12・AC-14・AC-15・AC-16 の差分記録）
+**変更するファイル:** `docs/dev/guides/development.md`、`CLAUDE.md`、`.claude/commands/mktrans.md`、`docs/dev/adr/0035-language-policy.md`、本実装計画書（§7 の AC-10〜AC-12・AC-14・AC-15・AC-16 の差分記録）
 
 - [x] `docs/dev/guides/development.md:119` のみを `ヨムドウガ（開発用のビルド）` および `YomuDoga (development build)` へ書き換える（他行は変更しない）
 - [x] `CLAUDE.md` の「Document language」例外に `docs/store/chrome_web_store.md`（日英の Chrome ウェブストア詳細説明文を 1 ファイルで保管し `/mktrans` 同期対象外とする扱い）を追記し、「Development Notes」の Go のガードテストの一覧に掲載項目の表と `messages.json` の照合を足す
-- [x] `docs/dev/adr/0035-language-policy.md` の `## 決定` から `docs/store/chrome_web_store.md` と `CLAUDE.md` の未反映のずれを示す一文を除去し、コミットメッセージに `Editorial correction:` 行を、PR の説明に修正の段落を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」第 2 種）
+- [x] `docs/dev/adr/0035-language-policy.md` の `## 決定` から `docs/store/chrome_web_store.md` と `CLAUDE.md` の未反映のずれを示す一文を除去し、コミットメッセージに `Editorial correction:` 行を、PR の説明に修正の段落を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」第 2 種）。PR の説明の段落は、PR-2 の作成時に `git log` の訂正行から書く（ステップ 5a）
+- [x] `CLAUDE.md` の「The bilingual README」と `.claude/commands/mktrans.md` の「2 言語で持つ文書は README だけ」という記述を、訳文の対で持つ文書は README だけ、に直し、`docs/store/chrome_web_store.md` の位置づけと矛盾しないようにする
 - [x] `make test && make lint` と `make ext-check` がすべて通過することを確認し、AC-10〜AC-12（`README.md`）・AC-14（`INSTALL.md`）・AC-15（`docs/dev/guides/development.md`）・AC-16（`docs/translation_glossary.md`）の差分を `requirements_process.md` §4 の固定コマンドで取得して本実装計画書 §7 の各 `Diff record` に記録する
 
 **完了基準:** すべてのテスト・lint・拡張検査が通過し、§7 の全 `Diff record` が実装コミットに対して記録され、記録後のコミットで比較対象パスが変更されていないこと。

@@ -1,9 +1,9 @@
-<!-- translated-from: README.md 52fe3b8b0e3ca552a8b25d4496ad4da684a9bae6 -->
+<!-- translated-from: README.md c8071d5f50c3a9693e627433b71b4f6939956547 -->
 [日本語](README.md)
 
 # YomuDoga for YouTube™
 
-YomuDoga for YouTube™ is a browser extension that turns YouTube™ video transcripts into magazine- and newspaper-style Japanese column articles. By trimming tangents and repetition in spoken language and editing and proofreading the result, it aims to deliver clear, well-structured reading material whose key points come through even without watching the video. This extension is free. However, the AI service that creates the articles charges a usage fee. You pay the fee directly to the company that provides the AI (Anthropic). You can read the article in the browser, and you can also save it as a file or copy it to the clipboard.
+YomuDoga is a browser extension that turns YouTube™ video transcripts into magazine- and newspaper-style Japanese column articles. By trimming tangents and repetition in spoken language and editing and proofreading the result, it aims to deliver clear, well-structured reading material whose key points come through even without watching the video. This extension is free. However, the AI service that creates the articles charges a usage fee. You pay the fee directly to the company that provides the AI (Anthropic). You can read the article in the browser, and you can also save it as a file or copy it to the clipboard.
 
 > **Status:** early development. It has not been released yet, so it is not publicly available. The installation steps for after the release are collected in [INSTALL.md](INSTALL.md) in preparation for it.
 

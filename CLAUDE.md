@@ -87,8 +87,9 @@ approver give it under these principles.
 
 Exceptions:
 
-- **The bilingual README.** The README is the only document kept in two
-  languages (`README.md` and `README.en.md`). Change `README.md` first, then
+- **The bilingual README.** The README is the only document kept as a
+  translated pair of two files (`README.md` and `README.en.md`). Change
+  `README.md` first, then
   carry the change to `README.en.md` with `/mktrans` ("Translation Guidelines"
   below).
 - **The Chrome Web Store listing in one bilingual file.**

@@ -2,17 +2,14 @@
 
 本書は、Chrome ウェブストアに申請・掲載する情報の確定稿を保管する。表示名と短い説明文は `extension/static/_locales/{ja,en}/messages.json` を正本とし、掲載項目の表はその写しである。詳細説明文は本書を正本とする。
 
-[ADR-0035](../../dev/adr/0035-language-policy.md)（文書の言語方針）のとおり、本書は日本語版と英語版の本文を 1 つのファイルに持ち、`/mktrans` と `TestReadmeSyncMarker` による 2 言語同期の対象外である。内容を改めるときは、日本語版と英語版をあわせて更新する。
+[ADR-0035](../dev/adr/0035-language-policy.md)（文書の言語方針）のとおり、本書は日本語版と英語版の本文を 1 つのファイルに持ち、`/mktrans` と `TestReadmeSyncMarker` による 2 言語同期の対象外である。内容を改めるときは、日本語版と英語版をあわせて更新する。
 
 ## 1. 掲載項目
 
 ### 1.1 製品名
 
-| 項目 | 日本語 | 英語 |
-|---|---|---|
-| コア製品名（UI・README 本文・日常の呼称） | `ヨムドウガ` | `YomuDoga` |
-| Chrome ウェブストア表示名（`extName`） | `ヨムドウガ for YouTube™` | `YomuDoga for YouTube™` |
-| 開発用のビルド表示名（`extNameDev`） | `ヨムドウガ（開発用のビルド）` | `YomuDoga (development build)` |
+- **コア製品名（UI・README 本文・日常の呼称）:** 日本語 `ヨムドウガ`、英語 `YomuDoga`。
+- **Chrome ウェブストア表示名（`extName`）と開発用のビルド表示名（`extNameDev`）:** 次の 1.2 の表に、`messages.json` の写しとして置く。
 
 コア製品名には `YouTube` を含めない。Chrome ウェブストア表示名はコア製品名を先頭にし、末尾に互換性表記として `for YouTube™` を添える。
 
