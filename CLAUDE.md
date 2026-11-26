@@ -248,7 +248,7 @@ prohibitions of this file and `AGENTS.md`, and copies no procedure.
 - `/mergemain <PR>` - Merge `origin/main` into a PR's branch through `mergepr`, resolve allowed conflicts (`.md` files and protocol-number declarations), apply take-in rules, run checks, and push to the PR's head branch (or restore and report on stop)
 - `/japrose <file>` - Japanese prose-quality pass
 - `/mktrans README.md` - Carry `README.md` changes into `README.en.md` (the only translation pair)
-- `/chief [once]` - Show the task workspaces in Herdr, ask the human about what waits on them, and keep watching, sending the next command after a merge by itself; `once` shows and asks once without watching. It also starts a new task from an issue the human names, making its worktree and workspace and sending `/mkreq`, and removes a finished task's workspace that it made, after the human confirms. Run it in a Claude Code pane of its own Herdr workspace ([chief_guide.md](docs/dev/guides/chief_guide.md))
+- `/chief [once]` - Show the task workspaces in Herdr, ask the human about what waits on them, and keep watching, sending the next command after a merge by itself; `once` shows and asks once without watching. It also starts a new task from an issue the human names, making its worktree and workspace and sending `/mkreq`, and removes a finished task's workspace that it made, after the human confirms. It also finds an open PR in a merge conflict and sends `/mergemain` to its workspace by itself when every condition holds, or when the human chooses it; the human decides the merge afterwards. Run it in a Claude Code pane of its own Herdr workspace ([chief_guide.md](docs/dev/guides/chief_guide.md))
 
 Each task PR is handled by two commands. The command that produces it —
 `/mkreq`, `/mkarch`, `/mkplan`, `/mkplan2`, or `/runplan` — works on its own
@@ -1238,8 +1238,11 @@ for the agents that read it, and the Antigravity skill entries point here.
 - Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
 - Invoking `/chief` approves, for that session, the read-only network operations
   the `chief` tool runs while it shows the status, watches, makes a task's
-  workspace, or removes one: `git fetch origin
-  main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`; and,
+  workspace, removes one, or sends a command the human chose: `git fetch origin
+  main`, `git ls-remote`, `gh pr list`, `gh pr view`, and `gh pr checks`; the
+  fetch of one PR head branch into its own remote-tracking ref for the
+  display of `chief detail` (`git fetch --no-tags --no-prune --no-write-fetch-head --refmap= origin
+  +refs/heads/<branch>:refs/remotes/origin/<branch>`); and,
   when the human starts a new task from an issue, the read of that issue
   with the tool's one `gh api graphql` query of `issueOrPullRequest` (its
   number, state, title, and labels). It approves no write (push, merge,

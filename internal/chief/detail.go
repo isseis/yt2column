@@ -426,6 +426,10 @@ type PRDetail struct {
 	// ReportText is the report or the description, capped.
 	ReportText      string
 	ReportTruncated bool
+	// ReportInheritedFrom is the earlier head whose pane report ReportText
+	// is, when the PR's own head has none and inheritReport found one; the
+	// zero value is a report of this head. Display only.
+	ReportInheritedFrom CommitID
 	// DescriptionReason is why no pane's report is shown, with what was
 	// found on each Claude Code pane in ReportPanes; both are unset when a
 	// pane's report is shown, and when a kept detail is used without the
@@ -443,8 +447,11 @@ type PRDetail struct {
 }
 
 // CollectDetail gathers the detail of the workspace's open PR pr and keeps
-// it. Contract: it runs only reads (gh pr view, gh pr checks, and the Claude
-// Code panes' transcripts, never a screen); a failed item is reported as
+// it. Contract: it runs only reads (gh pr view, gh pr checks, the Claude
+// Code panes' transcripts, never a screen, and, for a ReportRecordAllowed
+// display, the git reads of inheritedPaneReport), with one write besides the
+// records: that display may fetch one PR head branch into
+// refs/remotes/origin/<branch> (FetchBranch); a failed item is reported as
 // unavailable and the others are still returned; a record already kept for
 // the PR's head commit supplies the report, so the report survives a pane
 // that was emptied since; a record is written once and never replaced, and
@@ -492,7 +499,84 @@ func CollectDetail(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, 
 	if d.View != nil && err == nil {
 		d.record = &rec
 	}
+	if recording == ReportRecordAllowed && d.View != nil && src != ReportFromPane {
+		d.inheritReport(ctx, deps, ws, pr)
+	}
 	return d
+}
+
+// inheritReport shows the pane report of an earlier head in place of the
+// description when inheritedPaneReport finds one. Contract: display only;
+// d.record keeps the record of this head, so nothing that reads the kept
+// record (the reset, the review-skippable mark) sees the inherited report.
+func (d *PRDetail) inheritReport(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR) {
+	if inherited, from, ok := inheritedPaneReport(ctx, deps, ws, pr, d.View); ok {
+		d.Report, d.ReportText, d.ReportTruncated = ReportFromPane, inherited.Text, inherited.Truncated
+		d.ReportInheritedFrom = from
+		d.DescriptionReason, d.ReportPanes = DescriptionReasonNone, nil
+	}
+}
+
+// maxDetailMergeHops is how many first parents inheritedPaneReport follows
+// from the PR's head before it gives up.
+const maxDetailMergeHops = 10
+
+// inheritedPaneReport finds the report record of an earlier head of the PR
+// that a /mergemain merge commit (or a chain of them) took the head from, for
+// the display of `chief detail`. Contract: it follows the first parent of the
+// head while the commit has exactly two parents and the second parent is in
+// origin/main's history (the other side of the merge is already merged), at
+// most maxDetailMergeHops times, and returns the first pane report record it
+// finds; it never writes a record, and every failure (a commit that cannot be
+// read, a fetch that fails, a parent that is not such a merge, no record) is
+// no inheritance. A head the worktree lacks is fetched first with
+// FetchBranch, which writes only refs/remotes/origin/<branch>, so origin/main
+// is the value the round read.
+func inheritedPaneReport(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, view *prView) (detailRecord, CommitID, bool) {
+	var noCommit CommitID
+	none := func() (detailRecord, CommitID, bool) { return detailRecord{}, noCommit, false }
+	git := NewGitReader(deps.Cmds)
+	head, err := ParseCommitID(view.HeadOID)
+	if pr.CrossRepository || err != nil {
+		return none()
+	}
+	if has, err := git.HasCommit(ctx, ws.Worktree, head); err != nil {
+		return none()
+	} else if !has {
+		if err := git.FetchBranch(ctx, ws.Worktree, view.HeadRef); err != nil {
+			return none()
+		}
+		if has, err := git.HasCommit(ctx, ws.Worktree, head); err != nil || !has {
+			return none()
+		}
+	}
+	main, err := git.OriginMain(ctx, ws.Worktree)
+	if err != nil {
+		return none()
+	}
+	records, err := deps.Store.Records(ws.Tree)
+	if err != nil {
+		return none()
+	}
+	cur := head
+	for range maxDetailMergeHops {
+		parents, err := git.Parents(ctx, ws.Worktree, cur)
+		if err != nil || len(parents) != 2 {
+			return none()
+		}
+		if merged, err := git.IsAncestor(ctx, ws.Worktree, parents[1].String(), main); err != nil || !merged {
+			return none()
+		}
+		cur = parents[0]
+		kept, ok, err := records.keptPaneReport(pr.Number, cur.String())
+		if err != nil {
+			return none()
+		}
+		if ok && kept.Source == ReportFromPane.String() {
+			return kept, cur, true
+		}
+	}
+	return none()
 }
 
 // readChecks reads the PR's CI jobs. A non-zero exit of the codes gh uses for

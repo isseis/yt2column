@@ -199,6 +199,9 @@ func applyConflictSends(view *roundView, store Store, results []ConflictSendResu
 			row.Unreadable = []string{"the conflict resolution send failed after an input, so the workspace is stopped until release"}
 		default:
 			row.ConflictReasons = slices.Clone(r.Reasons)
+			if r.Action != nil {
+				staleOffer(row, r.Reasons)
+			}
 			if r.Action != nil && r.Action.Outcome == OutcomeNotSent && row.PR != nil && i < len(view.found) {
 				if records, ok, err := store.existingRecords(view.found[i].Tree); err != nil {
 					row.Conflict = ConflictRecordsUnreadable
@@ -213,6 +216,21 @@ func applyConflictSends(view *roundView, store Store, results []ConflictSendResu
 			}
 		}
 	}
+}
+
+// staleOffer replaces the offer of a row an automatic send attempt touched:
+// the attempt may have made a record or a stop since the offer was read, so
+// the offer no longer holds. The human sees why the attempt did not send, and
+// a send the human chooses re-checks everything anyway.
+func staleOffer(row *Row, reasons []string) {
+	if row.Offer == nil {
+		return
+	}
+	why := slices.Clone(reasons)
+	if len(why) == 0 {
+		why = []string{conflictReasonSentSince}
+	}
+	row.Offer = &ConflictOffer{Reasons: why, ConversationLost: row.Offer.ConversationLost}
 }
 
 // sentMergemainRunning is the running command of a row an automatic
