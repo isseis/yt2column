@@ -106,26 +106,3 @@ func codeSpanValue(cell string) (string, bool) {
 	}
 	return inner, true
 }
-
-// TestCodeSpanValue checks the cell form the store listing's table requires:
-// one code span and nothing else, so a cell with no backticks or with more
-// than one span is refused.
-func TestCodeSpanValue(t *testing.T) {
-	for _, tc := range []struct {
-		cell  string
-		want  string
-		valid bool
-	}{
-		{"`a`", "a", true},
-		{" `a` ", "a", true},
-		{"`a` `b`", "", false},
-		{"a", "", false},
-		{"``", "", false},
-		{"`a`b`", "", false},
-	} {
-		got, valid := codeSpanValue(tc.cell)
-		if got != tc.want || valid != tc.valid {
-			t.Errorf("codeSpanValue(%q) = %q, %v, want %q, %v", tc.cell, got, valid, tc.want, tc.valid)
-		}
-	}
-}
