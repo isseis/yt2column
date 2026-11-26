@@ -57,6 +57,9 @@ describe("devManifest", () => {
     );
     const manifest = JSON.parse(devManifest(text)) as Record<string, unknown>;
     assert.equal("key" in manifest, false);
+    // The development build points the name at the development message, which
+    // is what chrome://extensions/ shows for it.
+    assert.equal(manifest["name"], "__MSG_extNameDev__");
     for (const locale of ["en", "ja"]) {
       const catalog = JSON.parse(
         readFileSync(

@@ -63,11 +63,10 @@ describe("viewerTitle", () => {
     });
   }
 
-  it("builds the manifest's release name from the release title's core name, in each locale", () => {
+  it("keeps the manifest names consistent with the viewer title, in each locale", () => {
     // The release title ends with the core product name (viewerTitle.name),
     // and the manifest's release name is that name plus the store's note. The
-    // development manifest's name is the extNameDev message, which the build
-    // writes.
+    // development title is the extNameDev message, which the build writes.
     for (const locale of localeList) {
       const messages = JSON.parse(
         readFileSync(
@@ -84,8 +83,8 @@ describe("viewerTitle", () => {
       const coreName = catalogs[locale].viewerTitle.name.release;
       const source: TitleSource = { kind: "url", urlTitle: "V" };
       assert.equal(
-        `${coreName} for YouTube™`,
         messages["extName"]?.message,
+        `${coreName} for YouTube™`,
         locale,
       );
       assert.equal(
