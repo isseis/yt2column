@@ -1037,16 +1037,19 @@ func assertCopiedRejected(t *testing.T, input string, reason error) string {
 // such as a parse that turns quadratic in the input length: the slowest input
 // may slow down about tenfold, and the faster ones far more, before it fails.
 //
-// copiedParseAllocPerByte is defined per build: the race detector's runtime
-// inflates TotalAlloc, so the race build uses a loose bound.
+// copiedParseAllocPerByte and copiedLargeInputSize are defined per build: the
+// race detector's runtime inflates TotalAlloc, so the race build uses a loose
+// bound and, to keep the run short, builds its inputs smaller than
+// copiedLargeInputLimit. copiedLargeInputLimit stays the module's input cap.
 const (
 	copiedLargeInputLimit = 4 << 20
 	copiedParseDeadline   = 3 * time.Second
 )
 
-// TestParseCopiedLargeInputs parses seven synthetic inputs of at most 4 MiB,
+// TestParseCopiedLargeInputs parses seven synthetic inputs of at most
+// copiedLargeInputSize bytes (4 MiB without the race detector, 1 MiB with it),
 // each stressing one path: the shortest form A line repeated (the most
-// segments); one form A line nearly 4 MiB long (a single line's length); many
+// segments); one form A line nearly that long (a single line's length); many
 // consecutive textless form B timestamps followed by one text; one segment
 // followed by zero-length lines (the backward scan of the trailing region, and
 // the most lines); one-byte prefix lines before one segment (the prefix scan);
@@ -1064,18 +1067,18 @@ func TestParseCopiedLargeInputs(t *testing.T) {
 		input        string
 		wantSegments int
 	}{
-		{"shortest form A lines", buildCopiedShortestFormALines(copiedLargeInputLimit), copiedLargeInputLimit / len("0:000 秒x\n")},
-		{"one long form A line", buildCopiedLongFormALine(copiedLargeInputLimit), 1},
-		{"textless form B timestamps", buildCopiedTextlessFormB(copiedLargeInputLimit), 1},
-		{"trailing zero-length lines", buildCopiedTrailingEmptyLines(copiedLargeInputLimit), 1},
-		{"one-byte prefix lines", buildCopiedOneBytePrefixLines(copiedLargeInputLimit), 1},
-		{"form A headings between segments", buildCopiedFormAHeadings(copiedLargeInputLimit), copiedLargeInputLimit / len(copiedFormAHeadingPair)},
-		{"one-byte form B headings", buildCopiedFormBHeadings(copiedLargeInputLimit), 1},
+		{"shortest form A lines", buildCopiedShortestFormALines(copiedLargeInputSize), copiedLargeInputSize / len("0:000 秒x\n")},
+		{"one long form A line", buildCopiedLongFormALine(copiedLargeInputSize), 1},
+		{"textless form B timestamps", buildCopiedTextlessFormB(copiedLargeInputSize), 1},
+		{"trailing zero-length lines", buildCopiedTrailingEmptyLines(copiedLargeInputSize), 1},
+		{"one-byte prefix lines", buildCopiedOneBytePrefixLines(copiedLargeInputSize), 1},
+		{"form A headings between segments", buildCopiedFormAHeadings(copiedLargeInputSize), copiedLargeInputSize / len(copiedFormAHeadingPair)},
+		{"one-byte form B headings", buildCopiedFormBHeadings(copiedLargeInputSize), 1},
 	}
 	for _, tc := range inputs {
 		t.Run(tc.name, func(t *testing.T) {
-			if len(tc.input) > copiedLargeInputLimit {
-				t.Fatalf("input is %d bytes, over the %d limit", len(tc.input), copiedLargeInputLimit)
+			if len(tc.input) > copiedLargeInputSize {
+				t.Fatalf("input is %d bytes, over the %d size", len(tc.input), copiedLargeInputSize)
 			}
 			var before, after runtime.MemStats
 			runtime.ReadMemStats(&before)
