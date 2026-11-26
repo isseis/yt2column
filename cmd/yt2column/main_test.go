@@ -50,12 +50,16 @@ func TestMain(m *testing.M) {
 	os.Exit(runWithSnapshotStore(m))
 }
 
+// snapshotRootPrefix is the name prefix of the store directory; the snapshot
+// comparison test looks for it in a copy to find a builder's path.
+const snapshotRootPrefix = "yt2column-snapshots-"
+
 // runWithSnapshotStore creates the store of shared fixture states, runs the
 // tests, and removes the store before returning m.Run's exit code. The store
 // is created after TestMain's child-process branch, so a CLI child started by
 // a signal test creates none.
 func runWithSnapshotStore(m *testing.M) int {
-	root, err := os.MkdirTemp("", "yt2column-snapshots-")
+	root, err := os.MkdirTemp("", snapshotRootPrefix)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "create the snapshot store directory: %v\n", err)
 		return 1

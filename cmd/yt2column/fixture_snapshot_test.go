@@ -19,18 +19,13 @@ import (
 // build each shared state the way the cases used to (the build function, run
 // in a fresh directory, with no sharing) and compare it with a case's copy.
 
-// snapshotBuilderMarker is part of the name of every directory the snapshot
-// store builds in. A file of a copy that holds it names the builder's
-// directory, which the copy does not own.
-const snapshotBuilderMarker = "yt2column-snapshots-"
-
 // repoShape describes the repository of f by what its copy must preserve: the
 // refs with the tree, subject, and parent count of the commit each names (the
 // commit IDs differ with the commit time, and a parent is named by one), the local configuration, the index
 // entries, the work tree files with their content, and MERGE_HEAD. It fails
-// t when a file of the repository holds the name of a snapshot builder's
-// directory.
-func repoShape(t *testing.T, f *gitFixture) string {
+// t when copied is set and a file of the repository holds the name of a
+// snapshot builder's directory (a rebuilt state has no builder).
+func repoShape(t *testing.T, f *gitFixture, copied bool) string {
 	t.Helper()
 	var b strings.Builder
 	refs := strings.Fields(f.git("for-each-ref", "--format=%(refname)"))
@@ -52,14 +47,14 @@ func repoShape(t *testing.T, f *gitFixture) string {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || filepath.Base(filepath.Dir(path)) == "hooks" {
+		if d.IsDir() {
 			return nil
 		}
 		data, err := os.ReadFile(path) //nolint:gosec // a file of the test's own fixture repository
 		if err != nil {
 			return err
 		}
-		if bytes.Contains(data, []byte(snapshotBuilderMarker)) {
+		if copied && bytes.Contains(data, []byte(snapshotRootPrefix)) {
 			t.Errorf("%s holds the path of a snapshot builder's directory", path)
 		}
 		rel, err := filepath.Rel(f.repo, path)
@@ -96,27 +91,36 @@ func TestFixtureSnapshotsMatchRebuilt(t *testing.T) {
 	single := rrPlanSample(t, "single.md")
 	cases := []struct {
 		name    string
-		copied  func(t *testing.T) *gitFixture
+		copied  func(t *testing.T) (*gitFixture, string)
 		rebuilt func(t *testing.T) *gitFixture
 	}{
 		{
-			name:   "rr_fixture_with_context",
-			copied: func(t *testing.T) *gitFixture { return newRRFixtureWithContext(t, "", realContext).gitFixture },
+			name: "rr_fixture_with_context",
+			copied: func(t *testing.T) (*gitFixture, string) {
+				f := newRRFixtureWithContext(t, "", realContext)
+				requireRRCommits(t, f)
+				return f.gitFixture, f.mb
+			},
 			rebuilt: func(t *testing.T) *gitFixture {
 				return rebuiltFixture(t, func(bt *testing.T, dir string) { buildRRBase(bt, dir, realContext) })
 			},
 		},
 		{
-			name:   "rr_fixture_without_context",
-			copied: func(t *testing.T) *gitFixture { return newRRFixtureWithContext(t, "", "").gitFixture },
+			name: "rr_fixture_without_context",
+			copied: func(t *testing.T) (*gitFixture, string) {
+				f := newRRFixtureWithContext(t, "", "")
+				requireRRCommits(t, f)
+				return f.gitFixture, f.mb
+			},
 			rebuilt: func(t *testing.T) *gitFixture {
 				return rebuiltFixture(t, func(bt *testing.T, dir string) { buildRRBase(bt, dir, "") })
 			},
 		},
 		{
 			name: "hrd_fixture",
-			copied: func(t *testing.T) *gitFixture {
-				return newHRDFixture(t, scriptBash{}, realContext, markers, single).gitFixture
+			copied: func(t *testing.T) (*gitFixture, string) {
+				f := newHRDFixture(t, scriptBash{}, realContext, markers, single)
+				return f.gitFixture, f.mb
 			},
 			rebuilt: func(t *testing.T) *gitFixture {
 				return rebuiltFixture(t, func(bt *testing.T, dir string) { buildHRDBase(bt, dir, realContext, markers, single) })
@@ -126,10 +130,23 @@ func TestFixtureSnapshotsMatchRebuilt(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, want := repoShape(t, tc.copied(t)), repoShape(t, tc.rebuilt(t))
+			f, mb := tc.copied(t)
+			if got := f.rev("refs/remotes/origin/main"); got != mb {
+				t.Errorf("the fixture's mb %s is not origin/main %s", mb, got)
+			}
+			got, want := repoShape(t, f, true), repoShape(t, tc.rebuilt(t), false)
 			if got != want {
 				t.Errorf("the copy differs from the rebuilt state\ncopy:\n%s\nrebuilt:\n%s", got, want)
 			}
 		})
+	}
+}
+
+// requireRRCommits fails t unless the fixture's m0 and mb are the commits of
+// main they name: mb is origin/main and m0 is its parent.
+func requireRRCommits(t *testing.T, f *rrFixture) {
+	t.Helper()
+	if got := f.rev("refs/remotes/origin/main~1"); got != f.m0 {
+		t.Errorf("the fixture's m0 %s is not the parent of origin/main (%s)", f.m0, got)
 	}
 }
