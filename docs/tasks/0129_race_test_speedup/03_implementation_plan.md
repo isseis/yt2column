@@ -429,6 +429,31 @@ index c1b876e934e946e8c4250e3a8f8e84374f9f4d6b..fa729108c25e0c396c5d5d8acaa3b6bf
 
 ````
 
+File list:
+
+````text
+cmd/yt2column/deadcode_test.go
+docs/dev/adr/0038-deadcode-and-race-free-timing.md
+docs/tasks/0129_race_test_speedup/03_implementation_plan.md
+docs/tasks/0129_race_test_speedup/_checks/break_parse.sh
+docs/tasks/0129_race_test_speedup/_checks/breakages/01_shortest_form_a_lines.patch
+docs/tasks/0129_race_test_speedup/_checks/breakages/02_one_long_form_a_line.patch
+docs/tasks/0129_race_test_speedup/_checks/breakages/03_textless_form_b_timestamps.patch
+docs/tasks/0129_race_test_speedup/_checks/breakages/04_trailing_zero_length_lines.patch
+docs/tasks/0129_race_test_speedup/_checks/breakages/05_one_byte_prefix_lines.patch
+docs/tasks/0129_race_test_speedup/_checks/breakages/06_form_a_headings.patch
+docs/tasks/0129_race_test_speedup/_checks/breakages/07_form_b_headings.patch
+docs/tasks/0129_race_test_speedup/_checks/diff_scope.sh
+docs/tasks/0129_race_test_speedup/_checks/measure.sh
+internal/coveragecompare/run_test.go
+internal/coveragecompare/test_helpers.go
+internal/strictjson/strictjson_test.go
+internal/transcript/copied_format_norace_test.go
+internal/transcript/copied_format_race_test.go
+internal/transcript/copied_format_test.go
+internal/ytdlpsource/json3_test.go
+````
+
 食い違いの項（`## 決定` の最後の項の下の 1 行）だけが消え、決定の文は変わっていない。
 
 ### 7.1. 一時スクリプトの記録（`_checks/break_parse.sh`）
