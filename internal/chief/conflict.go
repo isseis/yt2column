@@ -225,6 +225,7 @@ func conflictConditions(f conflictFacts) []string {
 	why = append(why, conflictGitConditions(f)...)
 	why = append(why, conflictAgentAndRecordConditions(f)...)
 	why = append(why, conflictDefAndRouteConditions(f)...)
+	why = append(why, conflictRoundConditions(f)...)
 	return why
 }
 
@@ -318,11 +319,9 @@ func conflictRecordConditions(f conflictFacts) []string {
 // conditions of a /mergemain the human chose that do not hold for f:
 // the PR's base and repository, the git state, the panes and the stop, the
 // definition, and the route. It leaves out the human's input after the task
-// command, the send records, and the other sends of the round. Contract: an empty slice is the only result that allows
-// sending, and it needs f's flags that only an automatic send sets
-// (anotherSent, mergemainRunning, creationLocked, autosentSameRound,
-// workspaceChanged) to stay false; the zero value of conflictFacts never
-// returns empty.
+// command, the send records, and the other sends of the round. Contract: an
+// empty slice is the only result that allows sending; the zero value of
+// conflictFacts never returns empty.
 func manualConflictConditions(f conflictFacts) []string {
 	var why []string
 	why = append(why, conflictPRConditions(f)...)
@@ -416,6 +415,15 @@ func conflictDefAndRouteConditions(f conflictFacts) []string {
 	default:
 		why = append(why, conflictReasonRouteUnreadable)
 	}
+	return why
+}
+
+// conflictRoundConditions returns the reasons the round's own state does not
+// allow an automatic send: the other sends of the round, a running
+// /mergemain, the creation exclusion, and the workspace's identity. A human's
+// choice takes none of them.
+func conflictRoundConditions(f conflictFacts) []string {
+	var why []string
 	if f.anotherSent {
 		why = append(why, conflictReasonAnotherSent)
 	}

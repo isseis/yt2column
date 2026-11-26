@@ -527,7 +527,7 @@ const maxDetailMergeHops = 10
 func inheritedPaneReport(ctx context.Context, deps Deps, ws TaskWorkspace, pr OpenPR, view *prView) (detailRecord, bool) {
 	git := NewGitReader(deps.Cmds)
 	head := view.HeadOID
-	if !commitID.MatchString(head) {
+	if pr.CrossRepository || !commitID.MatchString(head) {
 		return detailRecord{}, false
 	}
 	if has, err := git.HasCommit(ctx, ws.Worktree, head); err != nil {

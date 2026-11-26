@@ -507,10 +507,10 @@ var branchForRefspec = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$`)
 // for a display that needs a commit the worktree lacks. Contract: the refspec
 // names exactly that branch and that remote-tracking ref, and --no-tags and
 // --no-prune keep the fetch from writing any other ref (origin/main
-// included); a branch name outside branchForRefspec, or with "..", "//", a
+// included); main and HEAD, whose tracking refs other readers use, a branch name outside branchForRefspec, or with "..", "//", a
 // trailing "/" or ".", or a ".lock" suffix, is refused without running git.
 func (g GitReader) FetchBranch(ctx context.Context, dir, branch string) error {
-	if !branchForRefspec.MatchString(branch) || strings.Contains(branch, "..") || strings.Contains(branch, "//") ||
+	if branch == mainBranch || branch == "HEAD" || !branchForRefspec.MatchString(branch) || strings.Contains(branch, "..") || strings.Contains(branch, "//") ||
 		strings.HasSuffix(branch, "/") || strings.HasSuffix(branch, ".") || strings.HasSuffix(branch, ".lock") {
 		return fmt.Errorf("%w: branch name %q", errGitOutput, branch)
 	}

@@ -780,6 +780,13 @@ func TestConflictSenderConditions(t *testing.T) {
 		if row.Stopped == nil || row.Urgency != UrgencyNow || row.Turn != TurnHuman {
 			t.Errorf("row after holdWorkspace stop = %+v, want Stopped != nil and UrgencyNow/TurnHuman", row)
 		}
+		// The offer read before the attempt no longer holds, so no item offers
+		// a send.
+		for _, p := range out.Snapshot.Pending {
+			if p.Kind == PendingConflict && p.Conflict.Offer.CanSend {
+				t.Errorf("offer after the attempt = %+v, want no send", p.Conflict.Offer)
+			}
+		}
 	})
 
 	t.Run("autosent_same_round skips workspace already auto-sent by post-merge sender", func(t *testing.T) {

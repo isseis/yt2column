@@ -6,9 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
 )
@@ -379,10 +382,20 @@ func TestDetailInheritsThePaneReport(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		last := chain[maxDetailMergeHops+1]
-		if err := records.store().create(detailName(42, last), detailRecord{PR: 42, Head: last, Source: ReportFromPane.String(), Text: makerReport}); err != nil {
+		keep := func(head string) {
+			if err := records.store().create(detailName(42, head), detailRecord{PR: 42, Head: head, Source: ReportFromPane.String(), Text: makerReport}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// A report on the last commit the walk reaches is found.
+		keep(chain[maxDetailMergeHops])
+		if d := detailOf(t, deps, tree); d.Report != ReportFromPane {
+			t.Error("the walk stopped before the hop limit")
+		}
+		if err := os.Remove(filepath.Join(records.dir, detailName(42, chain[maxDetailMergeHops]))); err != nil {
 			t.Fatal(err)
 		}
+		keep(chain[maxDetailMergeHops+1])
 		if d := detailOf(t, deps, tree); d.Report == ReportFromPane {
 			t.Error("the walk went beyond the hop limit")
 		}
@@ -402,4 +415,136 @@ func TestDetailInheritsThePaneReport(t *testing.T) {
 			t.Error("a detail kept for /runpr inherited a report")
 		}
 	})
+}
+
+// TestManualSendBlocksAutoSendAndFlipsTheItem checks that a send the human
+// chose is recorded like any other: the same head is not sent again
+// automatically, the row then reads as unresolved, and the unresolved item is
+// another item that a send accepts.
+func TestManualSendBlocksAutoSendAndFlipsTheItem(t *testing.T) {
+	cw := newConflictWorld(t)
+	needed := conflictItemOf(t, conflictSnapshot(t, cw), cw.tree)
+	if out, err := Send(context.Background(), cw.deps, cw.owner(), mergemainReq(t, cw, needed.ID)); err != nil || out.Actions[0].Outcome != OutcomeSent {
+		t.Fatalf("Send = %+v, %v", out, err)
+	}
+	before := len(cw.rec.prompts())
+	// The pane finished and the PR still conflicts at the same head.
+	cw.firstPane().Status = "idle"
+	cw.firstPane().screen = readScreenSample(t, "claude-idle.ansi")
+	out := cw.tick()
+	if len(cw.rec.prompts()) != before || len(out.ConflictSends) != 0 {
+		t.Fatalf("a chosen send did not stop the automatic send: %+v", out.ConflictSends)
+	}
+	unresolved := conflictItemOf(t, out.Snapshot, cw.tree)
+	if unresolved.Conflict.Phase != ConflictUnresolved || unresolved.ID == needed.ID {
+		t.Fatalf("item = %+v (ID %s), want an unresolved item other than %s", unresolved.Conflict, unresolved.ID, needed.ID)
+	}
+	if out, err := Send(context.Background(), cw.deps, cw.owner(), mergemainReq(t, cw, unresolved.ID)); err != nil || out.Actions[0].Outcome != OutcomeSent {
+		t.Errorf("Send of the unresolved item = %+v, %v; want sent", out, err)
+	}
+	if _, err := Send(context.Background(), cw.deps, cw.owner(), mergemainReq(t, cw, needed.ID)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestConflictItemNotificationBudget checks how often the human is told: an
+// item is new once, and a new head or an unresolved resolution is told once
+// more, so one PR is announced at most twice for each head.
+func TestConflictItemNotificationBudget(t *testing.T) {
+	store := conflictTestStore(t)
+	now := time.Date(2026, 11, 26, 9, 0, 0, 0, time.UTC)
+	pr := OpenPR{Number: 50, Head: mustCommitID(t, conflictTestHeadA)}
+	next := OpenPR{Number: 50, Head: mustCommitID(t, conflictTestHeadB)}
+	announced := func(id ItemID) bool {
+		items := []PendingItem{{ID: id, Kind: PendingConflict}}
+		if errs := stampPending(store, "session", items, now); len(errs) != 0 {
+			t.Fatal(errs)
+		}
+		return items[0].New
+	}
+	steps := []struct {
+		name string
+		id   ItemID
+		want bool
+	}{
+		{"first sight", conflictItemID("/w", pr, ConflictUnsent), true},
+		{"the phase moves within needed", conflictItemID("/w", pr, ConflictEndedBeforeCommand), false},
+		{"unresolved", conflictItemID("/w", pr, ConflictUnresolved), true},
+		{"unresolved again", conflictItemID("/w", pr, ConflictUnresolved), false},
+		{"a new head", conflictItemID("/w", next, ConflictUnsent), true},
+	}
+	for _, s := range steps {
+		if got := announced(s.id); got != s.want {
+			t.Errorf("%s: new = %v, want %v", s.name, got, s.want)
+		}
+	}
+}
+
+// TestManualConflictConditions checks which conditions the human's choice
+// takes: every one of AC-18 and none of the automatic send's own.
+func TestManualConflictConditions(t *testing.T) {
+	ok := conflictFacts{
+		baseIsMain: true, singleClaudePane: true, branchMatches: true, headMatches: true, clean: true, remoteMatches: true,
+		agentsWaiting: true, defState: mergemainDefSame, routeState: mergemainRouteClaude,
+		// What only the automatic send needs may be as bad as it gets.
+		laterInput: LaterInputAfter, phase: ConflictUnresolved, anotherSent: true, mergemainRunning: true, sentSince: true,
+	}
+	if got := manualConflictConditions(ok); len(got) != 0 {
+		t.Fatalf("conditions = %v, want none", got)
+	}
+	for name, c := range map[string]struct {
+		edit   func(f *conflictFacts)
+		reason string
+	}{
+		"cross repository":  {func(f *conflictFacts) { f.crossRepository = true }, conflictReasonPRCrossRepository},
+		"base is not main":  {func(f *conflictFacts) { f.baseIsMain = false }, conflictReasonPRNotMainBase},
+		"stopped":           {func(f *conflictFacts) { f.stopped = true }, conflictReasonStopped},
+		"two Claude panes":  {func(f *conflictFacts) { f.singleClaudePane = false }, conflictReasonNoSingleClaudePane},
+		"agent not waiting": {func(f *conflictFacts) { f.agentsWaiting = false }, conflictReasonAgentsNotWaiting},
+		"fetch failed":      {func(f *conflictFacts) { f.fetchFailed = true }, conflictReasonFetchFailed},
+	} {
+		f := ok
+		c.edit(&f)
+		if got := manualConflictConditions(f); !slices.Contains(got, c.reason) {
+			t.Errorf("%s: conditions = %v, want %q", name, got, c.reason)
+		}
+	}
+	if got := manualConflictConditions(conflictFacts{}); len(got) == 0 {
+		t.Error("the zero facts allow a send")
+	}
+}
+
+// TestBuildPendingConflictPhases checks which conflict rows get an item: one
+// whose send is under way gets none, and any other phase gets one.
+func TestBuildPendingConflictPhases(t *testing.T) {
+	pr := &OpenPR{Number: 50, Head: mustCommitID(t, conflictTestHeadA)}
+	for _, p := range []ConflictPhase{ConflictRecordsUnreadable, ConflictUnsent, ConflictSending, ConflictEndedBeforeCommand, ConflictOutcomeUnknown, ConflictUnresolved} {
+		items := buildPending([]Row{{Workspace: "/w", State: StateConflict, PR: pr, Conflict: p, Offer: &ConflictOffer{}}})
+		if want := p != ConflictSending; (len(items) == 1) != want {
+			t.Errorf("phase %d: items = %+v, want an item: %v", p, items, want)
+		}
+	}
+	if items := buildPending([]Row{{Workspace: "/w", State: StateConflict, PR: pr, Conflict: ConflictUnsent}}); len(items) != 0 {
+		t.Errorf("a row with no offer read has the item %+v", items)
+	}
+}
+
+// TestStaleOffer checks that an offer read before an automatic attempt
+// offers no send afterwards and says why, keeping the conversation mark.
+func TestStaleOffer(t *testing.T) {
+	row := Row{Offer: &ConflictOffer{CanSend: true, ConversationLost: true}}
+	staleOffer(&row, []string{conflictReasonStopped})
+	if row.Offer.CanSend || !slices.Equal(row.Offer.Reasons, []string{conflictReasonStopped}) || !row.Offer.ConversationLost {
+		t.Errorf("offer = %+v", row.Offer)
+	}
+	row = Row{Offer: &ConflictOffer{CanSend: true}}
+	staleOffer(&row, nil)
+	if row.Offer.CanSend || len(row.Offer.Reasons) == 0 {
+		t.Errorf("offer with no reasons = %+v, want no send with a reason", row.Offer)
+	}
+	row = Row{}
+	staleOffer(&row, nil)
+	if row.Offer != nil {
+		t.Error("an offer was made from none")
+	}
 }
