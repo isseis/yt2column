@@ -121,6 +121,15 @@ func TestConflictItemOffer(t *testing.T) {
 		}
 	})
 
+	t.Run("an unreadable transcript warns too", func(t *testing.T) {
+		cw := newConflictWorld(t)
+		cw.breakTranscript(cw.firstPane())
+		it := conflictItemOf(t, conflictSnapshot(t, cw), cw.tree)
+		if !it.Conflict.Offer.ConversationLost {
+			t.Errorf("offer = %+v, want the warning when the input cannot be read", it.Conflict.Offer)
+		}
+	})
+
 	t.Run("identity", func(t *testing.T) {
 		pr := OpenPR{Number: 50, Head: mustCommitID(t, conflictTestHeadA)}
 		other := OpenPR{Number: 50, Head: mustCommitID(t, conflictTestHeadB)}
