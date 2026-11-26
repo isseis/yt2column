@@ -16,9 +16,10 @@ package transcript
 // their parse time, so the deadline is checked only by the non-race build.
 //
 // copiedLargeInputSize is 1 MiB, a quarter of the 4 MiB input cap the
-// non-race build uses, because the race detector slows the parse of the large
-// inputs several-fold (7.5 s for the seven inputs at 4 MiB, 1.9 s at 1 MiB). 1 MiB
-// is still large enough to tell a quadratic allocation from a linear one: with
+// non-race build uses. The race detector slows the parse by a large factor
+// (about 23 to 31 times, see ADR-0038), and the seven inputs took 7.5 s at 4 MiB
+// but 1.9 s at 1 MiB. 1 MiB is
+// still large enough to tell a quadratic allocation from a linear one: with
 // the allocation of each path made quadratic in turn, the input that stays
 // closest to the bound (the form A headings) allocated about 17,000 bytes per
 // input byte at 1 MiB, 2.1 times the bound. A quadratic allocation grows with
