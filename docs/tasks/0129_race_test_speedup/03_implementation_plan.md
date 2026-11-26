@@ -154,7 +154,7 @@
     - 出力と 2 つのコミットを 7.0 節に書く
     - AC-14 の判定で短くならなかった対象のテストがあれば、結果を記録して作業を止め、人に知らせる。扱いは設計に戻って決め直す（要件書 AC-14）
     - 完了の条件: 7.0 節・7.3 節に記録があり、AC-14 の判定が通っている
-- [ ] **ステップ 3-3**: 差分の範囲のスクリプト
+- [x] **ステップ 3-3**: 差分の範囲のスクリプト
     - 追加するファイル: `docs/tasks/0129_race_test_speedup/_checks/diff_scope.sh`
     - スクリプトは、マージベースと後のコミットの差分で、7.2 節の判定を行う。判定できないときは、通ったと報告しない
     - スクリプトをコミットしてから、各判定が少なくとも 1 つの壊し方で失敗することを確かめ、7.2 節に書く
@@ -259,7 +259,50 @@ PR を開く前の上位モデルのレビューで、テストのファイル�
 
 #### `diff_scope.sh`（AC-02・AC-04〜AC-08・AC-10）
 
-（`/runplan` が差分の範囲の確認で書く。マージベースと後のコミットの完全な ID、スクリプトの出力の全体）
+マージベース `51f82a7109d33691afb287bb03f4e68d2e628b38`、後のコミット `c7faf09791f51bd2f7ec8f4514f7c4b3791614d0`。`git fetch origin main` の後に、作業ツリーの最上位で `docs/tasks/0129_race_test_speedup/_checks/diff_scope.sh` を実行した。終了コードは 0。出力の全体:
+
+```text
+before (merge-base): 51f82a7109d33691afb287bb03f4e68d2e628b38
+after  (HEAD):       c7faf09791f51bd2f7ec8f4514f7c4b3791614d0
+PASS: AC-02 internal/transcript/copied_format_test.go is the same up to the constant's name
+PASS: AC-02 internal/transcript/copied_format_norace_test.go only adds copiedLargeInputSize = copiedLargeInputLimit
+PASS: AC-04 TestMakeDeadcodeScope and its subtests start with t.Parallel()
+PASS: AC-04 TestMakeDeadcodeVerdict and its subtests start with t.Parallel()
+PASS: AC-04 TestParseSubtitlesLimits and its subtests start with t.Parallel()
+PASS: AC-04 TestParseSubtitlesArrayElementLimit and its subtests start with t.Parallel()
+PASS: AC-04 TestAsArrayElementLimit and its subtests start with t.Parallel()
+PASS: AC-05/AC-10 cmd/yt2column/deadcode_test.go changes only by added t.Parallel() lines
+PASS: AC-05/AC-10 internal/ytdlpsource/json3_test.go changes only by added t.Parallel() lines
+PASS: AC-05/AC-10 internal/strictjson/strictjson_test.go changes only by added t.Parallel() lines
+PASS: AC-06 TestParseCopiedLargeInputs does not call t.Parallel()
+PASS: AC-06 TestNeutralizedDisplayMarkdownLinearTime does not call t.Parallel()
+PASS: AC-07 internal/publisher/display_render_test.go is unchanged
+PASS: AC-08 every changed file is in scope
+changed files:
+  M	cmd/yt2column/deadcode_test.go
+  M	docs/dev/adr/0038-deadcode-and-race-free-timing.md
+  M	docs/tasks/0129_race_test_speedup/03_implementation_plan.md
+  A	docs/tasks/0129_race_test_speedup/_checks/break_parse.sh
+  A	docs/tasks/0129_race_test_speedup/_checks/breakages/01_shortest_form_a_lines.patch
+  A	docs/tasks/0129_race_test_speedup/_checks/breakages/02_one_long_form_a_line.patch
+  A	docs/tasks/0129_race_test_speedup/_checks/breakages/03_textless_form_b_timestamps.patch
+  A	docs/tasks/0129_race_test_speedup/_checks/breakages/04_trailing_zero_length_lines.patch
+  A	docs/tasks/0129_race_test_speedup/_checks/breakages/05_one_byte_prefix_lines.patch
+  A	docs/tasks/0129_race_test_speedup/_checks/breakages/06_form_a_headings.patch
+  A	docs/tasks/0129_race_test_speedup/_checks/breakages/07_form_b_headings.patch
+  A	docs/tasks/0129_race_test_speedup/_checks/diff_scope.sh
+  A	docs/tasks/0129_race_test_speedup/_checks/measure.sh
+  M	internal/coveragecompare/run_test.go
+  M	internal/coveragecompare/test_helpers.go
+  M	internal/strictjson/strictjson_test.go
+  M	internal/transcript/copied_format_norace_test.go
+  M	internal/transcript/copied_format_race_test.go
+  M	internal/transcript/copied_format_test.go
+  M	internal/ytdlpsource/json3_test.go
+RESULT: PASS
+```
+
+この実行の後に加えるコミットは、この計画書か空のコミットだけである（`_checks/` のスクリプトの内容も、Go のコードも変えない）。
 
 #### `measure.sh`（AC-13・AC-14）
 
@@ -355,6 +398,8 @@ whole run after: 257.57s 261.39s 262.99s
 RESULT: PASS
 ```
 
+この節の計測の後のコミット（後のコミット `396866766ff2ecc8159b3ebcc87d0d8d144bea91` より新しいもの）は、コメントの変更・この計画書の記録・空のコミットだけで、対象のテストとスクリプトの動作を変えていない。そのため、計測は取り直さない。
+
 スクリプトが実行した単独のコマンドは、出力のテストの合格を読むために `-v` を付けた `go test -tags test -race -count=1 -v -run '^<Test>$' <package>` である（出力の `single command:` の行には `-v` がない。実時間への影響は小さい）。1 回目の前の負荷の平均が高かった（14.40）が、その回の前の各値は 2 回目・3 回目と同じ範囲（`TestParseCopiedLargeInputs` で 9.41・9.37・9.34 秒）で、判定は 1 回目に依らない。
 
 全体の実時間は、前が 262.36・259.32・258.96 秒、後が 257.57・261.39・262.99 秒で、記録だけであり、判定に使っていない（設計書 3.6）。差は機械の負荷のばらつきの範囲で、縮んでいない。
@@ -364,6 +409,27 @@ RESULT: PASS
 Diff record (AC-08):
 
 - Compared paths: `docs/dev/adr/0038-deadcode-and-race-free-timing.md`
+- Merge-base: `51f82a7109d33691afb287bb03f4e68d2e628b38`
+- Compared commit: `c7faf09791f51bd2f7ec8f4514f7c4b3791614d0`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/adr/0038-deadcode-and-race-free-timing.md b/docs/dev/adr/0038-deadcode-and-race-free-timing.md
+index c1b876e934e946e8c4250e3a8f8e84374f9f4d6b..fa729108c25e0c396c5d5d8acaa3b6bfd7ab29c5 100644
+--- a/docs/dev/adr/0038-deadcode-and-race-free-timing.md
++++ b/docs/dev/adr/0038-deadcode-and-race-free-timing.md
+@@ -21,7 +21,6 @@
+ -   **パーサの時間の期限は、`-race` なしのビルドだけで確かめる。** `make test` は、`-race` 付きの実行の後に `make test-parse-norace` を実行し、そこで時間を確かめる。CI の `Test` ジョブも別の手順として同じターゲットを実行する（[.github/workflows/ci.yml](../../../.github/workflows/ci.yml)）。期限が守るのは本番の解析（拡張の記事生成モジュールと CLI）で、本番は `-race` なしでビルドされ、`-race` 付きのビルドの時間は本番のパーサの性能を表さないためである（[0039 要件定義書](../../tasks/0039_large_input_test_timeout/01_requirements.md)「要件定義の際に決めたこと（2026-10-23）」）。`make test` と `make test-parse-norace` の振る舞いは、[CLAUDE.md](../../../CLAUDE.md) の「Test Commands」の `make test` と `make test-parse-norace` の項に従う。
+ -   **`-race` 付きのビルドでも、時間以外は確かめ続ける。** どちらのビルドでも、解析の成功、セグメントの数、メモリの確保量の上限を確かめる。ビルドごとに違う値は、ビルドタグ `race` と `!race` のテストのファイルに置く。手元の計測ではメモリの確保量が単独の実行と並行の実行で 1% 未満しか違わず、0015 が確かめようとした性質（メモリの確保量が入力の長さに比例すること）を、時間の上限を持たずに確かめ続けられるためである（0039 要件定義書「要件定義の際に決めたこと（2026-10-23）」）。
+ -   **`-race` 付きのビルドでは、4 MiB より小さい入力で確かめる。** 4 MiB の入力での確認は `-race` なしのビルドだけが行う。入力の大きさは、確保量が入力の長さの 2 乗に比例するように解析を壊したとき、4 MiB の入力と同じく確保量の上限を超えて失敗する大きさにする。実際に解析を壊して、失敗することを確かめる（[0129 要件定義書](../../tasks/0129_race_test_speedup/01_requirements.md) の AC-03）。`-race` 付きのビルドの時間は本番の性能を表さない。また、4 MiB の入力での確保量は `-race` なしのビルドがより厳しい上限で確かめ続けるので、`-race` 付きのビルドで 4 MiB の入力を解析しても、その時間に見合う確認は得られないためである（[0129 要件定義書](../../tasks/0129_race_test_speedup/01_requirements.md)「要件定義の際に決めたこと（2026-11-26）」）。
+-    -   **食い違い:** `internal/transcript` のテストはまだ、`-race` 付きのビルドでも 4 MiB の入力を解析している。この食い違いは https://github.com/isseis/yt2column/issues/1166 の実装で解消する。
+
+ ## 採らなかった案
+
+````
+
+食い違いの項（`## 決定` の最後の項の下の 1 行）だけが消え、決定の文は変わっていない。
 
 ### 7.1. 一時スクリプトの記録（`_checks/break_parse.sh`）
 
@@ -383,6 +449,7 @@ Diff record (AC-08):
     -   終了コードは 1 だった。
 -   **実行の記録:** 後の実行はコミット `d5e4b8f49815512ec30379a30392797248a716b6`（`origin/main` の `51f82a71` に本タスクの変更を加えたもの）で、前の実行はマージベース `51f82a7109d33691afb287bb03f4e68d2e628b38` で行った。どちらも `-timeout 90m`、`go1.27.1 darwin/arm64` である。どちらも壊さない木で 7 つのサブテストが通り（`unbroken: PASS`）、7 つの壊し方のすべてが確保量の確認のエラー（`parse allocated … want at most 8192 per byte`）で失敗し、`RESULT: PASS (unbroken passes; 7 of 7 caught)` で終わった。2 つの実行は並行して行った（時間は参考値）。
     -   後（1 MiB）の form A の見出しの壊し方は、1 バイトあたり 17,149 で、上限（8,192）の約 2.1 倍である。設計書 3.1.2 の予備の計測（22,292、2.7 倍）とは、壊した箇所が違うため値が違う。大きさの判断（1 MiB）は変わらない。コードのコメントは、この表の値（約 17,000、2.1 倍）で書いた。
+    -   後の実行のコミット `d5e4b8f49815512ec30379a30392797248a716b6` の後に加えたコミットは、`internal/transcript/copied_format_race_test.go` の doc コメントを直したものだけで、Go のコードの動作も、スクリプトも、壊し方のファイルも変えていない（`git diff d5e4b8f4 c7faf09791f51bd2f7ec8f4514f7c4b3791614d0 -- '*.go' '*.sh' '*.patch'` が示すのは、そのファイルのコメントの行だけである）。そのため、この節と 7.4 節・7.5 節・7.7 節の記録は、取り直さずに有効とする。
     -   前（4 MiB）の最初の実行は、実行の間に作業ツリーをほかのコミットに切り替えたため、壊し方のファイルが読めなくなり、4 つ目以降が `cannot apply` になった。`break_parse.sh` が壊し方を一時ディレクトリに写すよう直し、前と後の両方を取り直した。下の表は取り直した実行の結果である。
 
 | 壊し方 | 前の時間 | 前の確保量 / 入力のバイト数（1 バイトあたり） | 後の時間 | 後の確保量 / 入力のバイト数（1 バイトあたり） |
@@ -420,7 +487,7 @@ Diff record (AC-08):
     -   変えないファイル: `display_render_test.go` のパッケージの行に文字を加えた。`FAIL: AC-07 … changed or cannot be read`。
     -   変えたファイルの範囲: `Makefile` に 1 行を加えた。`FAIL: AC-08 a changed file is out of scope`。
     -   どの壊し方でも、最後は `RESULT: FAIL` になった。
--   **実行の記録:** （`/runplan` が書く。`diff` 検証のスクリプトなので、出力と 2 つのコミットは 7.0 節に置き、ここからはその場所を指す）
+-   **実行の記録:** 出力と 2 つのコミットは 7.0 節の `diff_scope.sh` の項にある（全判定が PASS、終了コード 0）。
 
 ### 7.3. 一時スクリプトの記録（`_checks/measure.sh`）
 
