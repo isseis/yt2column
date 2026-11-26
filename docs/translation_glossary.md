@@ -213,3 +213,5 @@
 | インストールと使い方 | Installing and using | `README.md` の節の見出しと `INSTALL.md` のタイトル |
 | プライバシー | Privacy | `README.md` の節の見出し |
 | 開発者向けの文書 | Developer documents | `README.md` の節の見出し |
+| コア製品名 | core product name | `YouTube` を含めない独自名。日本語 `ヨムドウガ`、英語 `YomuDoga`。UI・ビューアタイトル・README 本文での呼称に使う |
+| Chrome ウェブストア表示名 | Chrome Web Store display name | `manifest.json` の `name`（`extName`）および Chrome ウェブストア・`chrome://extensions/`・README の H1 見出しで使う表示名。日本語 `ヨムドウガ for YouTube™`、英語 `YomuDoga for YouTube™` |

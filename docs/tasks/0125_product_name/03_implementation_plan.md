@@ -126,9 +126,9 @@
 
 **変更するファイル:** `docs/store/chrome_web_store.md`（新規）、`cmd/yt2column/store_listing_test.go`（新規）、`docs/translation_glossary.md`
 
-- [ ] `docs/store/chrome_web_store.md` を設計書 3.3 節の構成で作成し、issue #1148 コメント 1・4・5 の表示名・短い説明文・商標運用条件・日本語版および英語版の詳細説明文（`text` コードブロック）を正確に収録する。`extName`・`extNameDev`・`extDescription` は設計書 3.3 節の掲載項目の表（列 `キー`・`日本語`・`英語`）に置く
-- [ ] `cmd/yt2column/store_listing_test.go::TestStoreListingMatchesMessages` を追加する。`internal/doctestutil` の表の読み取りで掲載項目の表を見つけ、3 行がちょうど 1 回ずつあり各値が `extension/static/_locales/{ja,en}/messages.json` の `message` と完全に一致することを確かめる。値のセルの形が違う・行の欠け・重複・知らないキーは失敗とする。表の値を 1 つ変える、行を 1 つ消す、行を重ねる、それぞれで失敗することを確かめ、コミットメッセージに記す
-- [ ] `docs/translation_glossary.md` にコア製品名（`ヨムドウガ` / `YomuDoga`）および Chrome ウェブストア表示名（`ヨムドウガ for YouTube™` / `YomuDoga for YouTube™`）の 2 行を追加する
+- [x] `docs/store/chrome_web_store.md` を設計書 3.3 節の構成で作成し、issue #1148 コメント 1・4・5 の表示名・短い説明文・商標運用条件・日本語版および英語版の詳細説明文（`text` コードブロック）を正確に収録する。`extName`・`extNameDev`・`extDescription` は設計書 3.3 節の掲載項目の表（列 `キー`・`日本語`・`英語`）に置く
+- [x] `cmd/yt2column/store_listing_test.go::TestStoreListingMatchesMessages` を追加する。`internal/doctestutil` の表の読み取りで掲載項目の表を見つけ、3 行がちょうど 1 回ずつあり各値が `extension/static/_locales/{ja,en}/messages.json` の `message` と完全に一致することを確かめる。値のセルの形が違う・行の欠け・重複・知らないキーは失敗とする。表の値を 1 つ変える、行を 1 つ消す、行を重ねる、それぞれで失敗することを確かめ、コミットメッセージに記す
+- [x] `docs/translation_glossary.md` にコア製品名（`ヨムドウガ` / `YomuDoga`）および Chrome ウェブストア表示名（`ヨムドウガ for YouTube™` / `YomuDoga for YouTube™`）の 2 行を追加する
 
 **完了基準:** `docs/store/chrome_web_store.md` が issue #1148 コメント 1・4・5 の内容と過不足なく一致し、`TestStoreListingMatchesMessages` が通り、`docs/translation_glossary.md` に新製品名 2 行が追加されていること。
 
