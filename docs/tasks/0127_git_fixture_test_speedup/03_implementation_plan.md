@@ -18,7 +18,7 @@
 
 ### 1.1. 目的
 
-本計画は、3 つのファイル（`cmd/yt2column/review_records_test.go`・`cmd/yt2column/high_review_decision_test.go`・`internal/mergepr/mergemain_test.go`）のテストの準備を共有の状態の複製に替え、`cmd/yt2column` と `internal/mergepr` の実時間を、変更の前の 75% 以下にする（F-001）。その際、ケースの集まり、bash 3 での実行、ケースの前提の検査、各ケースの隔離は減らさない（F-002・F-003）。
+本計画は、3 つのファイル（`cmd/yt2column/review_records_test.go`・`cmd/yt2column/high_review_decision_test.go`・`internal/mergepr/mergemain_test.go`）のテストの準備を共有の状態の複製に替え、`cmd/yt2column` と `internal/mergepr` の実時間を、変更の前の、`cmd/yt2column` は 80% 以下、`internal/mergepr` は 75% 以下にする（F-001）。その際、ケースの集まり、bash 3 での実行、ケースの前提の検査、各ケースの隔離は減らさない（F-002・F-003）。
 
 ### 1.2. 実装の原則
 
@@ -535,7 +535,7 @@ compare: PASS
     -   実行の合否: `CHECK_PKGS=./nonexistent` → `FAIL: go test failed at BASE round 1`（1）。`CHECK_RUN` が何も選ばない → `FAIL: cannot read the time of ./internal/strictjson at BASE round 1`（1）
     -   機械の情報: コアの数の読み取りを空にした（写したスクリプトで） → `FAIL: cannot read the core count`（1）
     -   元のブランチへの復帰: ブランチへの切り替えを外した（写したスクリプトで） → `STOP: not on the original branch`（1）。その後、手でブランチに戻した
--   **実行の記録:** （`/runplan` が書く。出力と 2 つのコミットは 7.1 節に置き、ここからはその場所を指す）
+-   **実行の記録:** PR-1 の実行は 7.1 節に置いた（出力の全体と 2 つのコミットの ID）。
 
 ### 7.4. 一時スクリプトの記録（`_checks/compare.sh`）
 
@@ -555,7 +555,7 @@ compare: PASS
     -   名前の集まり: AFTER の末端の名前を 1 行消した → `check names: FAIL`（終了コード 1）
     -   `fail`: AFTER の `fail` の事象を 1 件足した → `check fail: FAIL`（1）
     -   `skip`: AFTER の `skip` の集まりに 1 件足した → `check skip: FAIL`（1）
-    -   bash 3 の末端: 対象を `TestReviewRecordsFableAlias` 1 つにして、壊さない実行は `check bin-bash-3: PASS`。名前の `bin-bash-3` を `bin-bash-9` に替えた → `check bin-bash-3: FAIL`（1）
+    -   bash 3 の末端: 狭めた実行では、4 つの関数のうち 1 つにしか末端がないので、そのままでは判定が失敗する。そこで、写したスクリプトの対象の関数の並びを `TestReviewRecordsFableAlias` 1 つに替えて、壊さない実行は `check bin-bash-3: PASS`。名前の `bin-bash-3` を `bin-bash-9` に替えた → `check bin-bash-3: FAIL`（1）
     -   単独の選択: `-run` の式を 1 要素ごとに壊した → `select FAILED` が 3 件、`check single-first-last: FAIL`（1）。BASE にない最上位の名前を渡した → `TestNoSuchTop has no leaf in BASE`、`check single-first-last: FAIL`（1）
     -   中間の名前: 最初の末端を渡した → `is the first or the last`、BASE にない名前を渡した → `is not in BASE`、名前を渡さない → `no middle name given`、いずれも `check single-middle: FAIL`（1）。壊さない実行（中間の名前 1 つ）は `compare: PASS`（0）
     -   shuffle: `-shuffle=on` を外した → シードの行がなく `check shuffle: FAIL`（1）
@@ -563,7 +563,7 @@ compare: PASS
     -   `go test` の失敗: `CHECK_PKGS=./nonexistent` → `STOP: go test failed at BASE`（1）
     -   作業ツリー: 追跡されていないファイルを置いた → `STOP: the work tree is not clean`（1）
     -   元のブランチへの復帰: ブランチへの切り替えを外した → `STOP: not on the original branch`（1）。その後、手でブランチに戻した
--   **実行の記録:** （`/runplan` が書く。`diff` の確かめを含むスクリプトなので、出力と 2 つのコミットは 7.2 節に置き、ここからはその場所を指す）
+-   **実行の記録:** PR-1 の実行は 7.2 節に置いた（出力の全体と 2 つのコミットの ID）。呼び出しの中間の名前は、1.3 節の表の `cmd/yt2column` の 5 つ（`TestReviewRecordsCrossCheck/path-bash/fail-closed_context_validation/valid_mapping_table_control`、`TestHighReviewDecision/values/old_sonnet`、`TestReviewRecordsCoverage/path-bash/git_config/global/core.abbrev`、`TestReviewRecordsCrossCheck/path-bash/git_config_with_a_merge/repository/diff.relative`、`TestReviewRecordsCoverage/path-bash/merge_commit_inside_a_seen_range`）で、`internal/mergepr` の 3 つは PR-2 で渡す。
 
 ### 7.5. 前提の検査の確かめ（AC-07）
 
