@@ -203,6 +203,7 @@ func verdictCases() []verdictCase {
 // standard error, the stub's arguments, whether the stub ran, and that every
 // temporary file the recipe created was removed.
 func TestMakeDeadcodeVerdict(t *testing.T) {
+	t.Parallel()
 	// Read the Makefile from this process before running make: a file the test
 	// process opens is part of the test's cache key, so editing the Makefile
 	// alone cannot leave a cached PASS behind.
@@ -222,6 +223,7 @@ func TestMakeDeadcodeVerdict(t *testing.T) {
 
 	for _, tc := range verdictCases() {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			dir := t.TempDir()
 			// A directory with a space in its name, so every case also checks
 			// that DEADCODECMD reaches the shell quoted.
@@ -302,6 +304,7 @@ func TestMakeDeadcodeVerdict(t *testing.T) {
 	// in the environment must be ignored in favour of the passing command on
 	// PATH, which then records the expected arguments.
 	t.Run("environment_does_not_replace_the_command", func(t *testing.T) {
+		t.Parallel()
 		dir := t.TempDir()
 		passing := writeDeadcodeStub(t, filepath.Join(dir, "passing stub"), "", "", 0)
 		failing := writeDeadcodeStub(t, filepath.Join(dir, "failing stub"), "", "", 1)
@@ -667,6 +670,7 @@ func runDeadcodeCommand(t *testing.T, cmd *exec.Cmd) deadcodeRun {
 // so installing or upgrading the deadcode command can leave a cached SKIP or
 // PASS behind: rerun with -count=1 after either.
 func TestMakeDeadcodeScope(t *testing.T) {
+	t.Parallel()
 	deadcodePath, err := exec.LookPath("deadcode")
 	if err != nil {
 		t.Skip("the deadcode command is not on PATH; install it with go install golang.org/x/tools/cmd/deadcode@latest, then rerun with -count=1")
@@ -703,6 +707,7 @@ func TestMakeDeadcodeScope(t *testing.T) {
 	// function, so one run covers all four; a report names the function, and
 	// the failure message prints it.
 	t.Run("silent_success", func(t *testing.T) {
+		t.Parallel()
 		root := writeDeadcodeFixture(t, nil)
 		got := scope.runTarget(t, root)
 		if got.err != nil {
@@ -717,6 +722,7 @@ func TestMakeDeadcodeScope(t *testing.T) {
 	// is left out of the analysis, so the silent success above shows the target
 	// counting that root.
 	t.Run("isolation", func(t *testing.T) {
+		t.Parallel()
 		root := writeDeadcodeFixture(t, nil)
 		for _, tc := range []struct {
 			name      string
@@ -752,6 +758,7 @@ func TestMakeDeadcodeScope(t *testing.T) {
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 				got := scope.run(t, root, tc.args...)
 				if got.err != nil {
 					t.Fatalf("deadcode %q failed (%s):\n%s", tc.args, scope.note(), got.output())
@@ -767,6 +774,7 @@ func TestMakeDeadcodeScope(t *testing.T) {
 	})
 
 	t.Run("reported", func(t *testing.T) {
+		t.Parallel()
 		for _, tc := range []struct {
 			name     string
 			file     string
@@ -813,6 +821,7 @@ func TestMakeDeadcodeScope(t *testing.T) {
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 				root := writeDeadcodeFixture(t, map[string]string{tc.file: tc.content})
 				got := scope.runTarget(t, root)
 				if got.err == nil {
@@ -829,6 +838,7 @@ func TestMakeDeadcodeScope(t *testing.T) {
 	})
 
 	t.Run("compile_error", func(t *testing.T) {
+		t.Parallel()
 		root := writeDeadcodeFixture(t, map[string]string{
 			"internal/lib/broken.go": "package lib\n\nfunc Broken() { anywhere() }\n",
 		})
