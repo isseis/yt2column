@@ -1,0 +1,325 @@
+# 実装計画書：-race 下の巨大入力テストの軽量化と独立したテストの並列化による Go テストの高速化
+
+## Document Status
+
+| Item | Value |
+|---|---|
+| Status | `draft` |
+| Created | 2026-11-26 |
+| Review date | - |
+| Reviewer | - |
+| Comments | - |
+
+本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を指し、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。用語は設計書の冒頭と要件書 6 章のもの（大きな入力のテスト、大きな出力のテスト、deadcode のテスト、線形の時間のテスト、境界のテスト、対象のテスト、壊した解析、単独の実行、全体の実行、確保量）を同じ意味で使う。`design_handoff.md` の H-01〜H-08 は、設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。
+
+## 1. 実装の概要 (Implementation Overview)
+
+### 1.1. 目的
+
+本計画は、`make test` の `-race` 付きの実行で時間のかかっている対象のテストを短くする（要件書 2.1）。どのテストもテストのファイルの変更だけで短くし、本番の挙動とテストの検証の強さは保つ（F-004）。
+
+-   大きな入力のテストは、`-race` 付きのビルドの入力を 1 MiB にする（F-001）。
+-   大きな出力のテストは、大きな出力を BASE の時点だけで 9 行にする（AC-12）。
+-   deadcode のテストと境界のテストは、並列にする（F-002）。
+
+変更の前と後で、壊した解析の確認・カバレッジ・時間を比べ、本計画書に記録する（AC-03、AC-11、AC-13、AC-14）。
+
+### 1.2. 実装の原則
+
+-   変えるのは、`_test.go` のファイル、`//go:build test` のファイル、本タスクのディレクトリの下、ADR-0038 だけである（AC-08、設計書 1.1）。壊した解析と、テストが失敗できることを確かめるための壊し方は、作業ツリーに一時的に入れ、確かめた後に戻す。コミットはしない。
+-   時間か確保量を測るテスト（大きな入力のテストと線形の時間のテスト）は、`t.Parallel()` を呼ばない（AC-06、設計書 3.1.4）。
+-   変えたテストは、確かめる対象を壊して失敗することを確かめ、そのことをコミットのメッセージに書く（`CLAUDE.md`「Testing Strategy」、設計書 7.1）。`_checks/` のスクリプトの壊し方は、コミットのメッセージではなく、7 章の一時スクリプトの記録に書く（`docs/dev/conventions/requirements_process.md`「Temporary scripts (`_checks/`)」）。
+-   Go のコメント、識別子、文字列リテラルは英語で書く。
+
+### 1.3. 計画の際に決めたこと（2026-11-26）
+
+人間のレビュアーが決めたもの:
+
+-   **PR の分け方:** フェーズを 3 つに分け、実装の PR は 1 本にする。
+    -   理由: AC-13・AC-14 の計測では、後のコミットを「前のコミットにこのタスクの変更だけを加えたもの」にする必要がある（設計書 3.6）。PR を分けると、PR の間に `origin/main` の変更が入り、前と後のコミットを組み立て直す手間がかかる。
+    -   採らなかった案: PR-1 で大きな入力・大きな出力のテストと ADR を、PR-2 で並列化と計測を行う 2 本の PR。
+    -   ADR: なし。本タスクの中で閉じる。
+-   **時間の計測（AC-13・AC-14）:** 一時スクリプト `_checks/measure.sh` で行う。スクリプトは、前と後のコミットを交互にチェックアウトし、キャッシュを温める実行・負荷の記録・実時間の計測・AC-14 の判定を行う（設計書 3.6・6.2）。
+    -   理由: 前後を交互に 3 回以上測ると、実行は約 60 回になる。手で実行すると、順序の偏りやブランチの戻し忘れが入りうる。
+    -   採らなかった案: `/runplan` が設計書 6.2 の手順を手で実行して記録する案。
+    -   ADR: なし。本タスクの中で閉じる。
+-   **壊した解析の確認（AC-03）:** 一時スクリプト `_checks/break_parse.sh` と、7 つの壊し方の差分のファイル（`_checks/breakages/` の下）で行う。
+    -   理由: 7 つの壊し方を前後 2 つのコミットで実行する計 14 回の確認を、同じ手順で繰り返せる。
+    -   採らなかった案: `/runplan` が作業ツリーに壊し方を 1 つずつ手で加えて実行し、記録する案。計画では推奨したが、人はスクリプトを選んだ。
+    -   ADR: なし。本タスクの中で閉じる。
+-   **CI の 3 回の実行（AC-09）:** PR を作った後、エージェントが人の承認を得て、`gh run rerun <run-id> --job <job-id>` で `Test` ジョブを 2 回再実行し、3 回の結果を 7.6 節に記録する。`/runplan` には PR を作った後のステップがない。そのため、実行するのは、`/runplan` の報告の後に、人が同じセッションのエージェントに指示したときとする（7.6 節）。
+    -   理由: CI は `pull_request` でだけ走る（`.github/workflows/ci.yml:3-5`）ので、PR を作る前には実行できない。再実行はネットワークへの書き込みなので、人の承認が要る。
+    -   採らなかった案: レビュアーが GitHub の画面で再実行し、記録も書く案。
+    -   ADR: なし。本タスクの中で閉じる。
+
+計画で決めたもの（人間のレビュアーに諮らず、理由とともに記す）:
+
+-   **差分の範囲の確認:** AC-02・AC-04・AC-05・AC-06・AC-07・AC-08・AC-10 は、一時スクリプト `_checks/diff_scope.sh` が、マージベースと比べたコミットを比べて確かめる。変わるのが Go のコードなので、記録した差分を読む方法（文書の小さな変更のためのもの）ではなくスクリプトにする（`requirements_process.md`「`diff` verification」）。ADR: なし。
+-   **スクリプトの木の作り方:** `break_parse.sh` は、前と後のコミットを `git archive` で一時ディレクトリに展開し、そこで壊し方を当てて実行する。作業ツリーを変えないためである。`measure.sh` は、作業ツリーで前と後のコミットをチェックアウトする。全体の実行には、リポジトリを読むテストが含まれるので、展開した木では AC-13 の「同じコマンド」にならないためである。エージェントは `git worktree add` を使わない（`docs/dev/guides/chief_guide.md` 6 節）。ADR: なし。
+-   **大きな出力のテストの壊し方:** ツールの読み取りの経路に、1 行の上限（1 MiB 未満）と、全体の上限（実際の出力の約 6.8 MB より大きく、8 MiB より小さい）を、1 つずつ一時的に加える。どちらでもテストが失敗することを確かめる（設計書 7.1）。ADR: なし。
+-   **ステップの書き方:** 書き方 A（`- [ ] **ステップ N-M**`）で書く。chief が確実に読める書き方だからである（タスク 0113 の要件書 1 章）。ADR: なし。
+
+### 1.4. 既存コード調査結果
+
+コミット `7fbf234e`（`origin/main`）で確かめた。設計書が確かめた `aa9274fb` から、`internal/transcript`・`internal/coveragecompare`・`cmd/yt2column/deadcode_test.go`・`internal/ytdlpsource`・`internal/strictjson`・`internal/publisher/display_render_test.go`・ADR-0038・`Makefile` を変えたコミットはない（`git log aa9274fb..7fbf234e -- <これらのパス>` の出力が空）。そのため、設計書の `file:line` はこのコミットでも同じ行を指す。
+
+-   **大きな入力のテスト:**
+    -   `copiedLargeInputLimit` を参照するのは、`internal/transcript/copied_format_test.go` の 3 か所だけである。定義（`:1043`）、7 つの入力の表（`:1067-1073`）、大きすぎないことの確認（`:1077-1078`）である（`grep -rn copiedLargeInputLimit internal/transcript/`）。
+    -   4 MiB と書いたコメントは、`:1024`（記事生成モジュールの入力の上限。変えない）、`:1047`、`:1049` にある。`:1040-1041` は、ビルドごとに定める定数の説明である。
+    -   7 つの入力を作る関数（`:1108-1146`）は、大きさを引数に取る。関数そのものは変えなくてよい。
+    -   ビルドタグのファイル（`copied_format_race_test.go`・`copied_format_norace_test.go`）は、どちらも `const` のブロックを 1 つ持つ。
+    -   `copied_format_race_test.go` のコメントにあるとおり、`make lint` は `race` のタグのファイルをコンパイルしない（`copied_format_race_test.go:18-21`）。
+    -   `internal/transcript/makefile_test.go` の `TestMakeTestParseNorace` は、テストの名前と `make test-parse-norace` の引数を確かめる。本タスクは、そのどちらも変えない。
+-   **壊した解析:** `internal/transcript/copied_format.go` は本番のコードで、本タスクでは変えない。そのため、前と後のコミットで同じ内容であり、同じ壊し方の差分を当てられる。壊す場所は設計書 3.1.3 の表のとおりである。
+-   **大きな出力のテスト:**
+    -   `LargeStdout` を立てるのは、`TestRunAcceptsLargeOutput`（`internal/coveragecompare/run_test.go:851-854`）だけである。このテストは、`b.Suites` のすべての時点（`"base"` と `"head"`、`run_test.go:58-61`）に立てる。
+    -   大きな出力は、`test_helpers.go:433-440` が `fakeLargeLines` 行だけ書く。
+    -   ツールは、子のプロセスの標準出力を `cmdrunner` でまとめて受け取り（`internal/coveragecompare/target.go:79-97` の `runSuite`）、`parseGoTestJSON`（`internal/coveragecompare/gotestjson.go:57`）が `splitLines` で行に分ける。読み取りに `bufio.Scanner` は使っていない（`grep -n 'bufio' internal/coveragecompare/*.go` が当たるのは `test_helpers.go:125` のコメントだけ）。
+-   **deadcode のテスト:**
+    -   `t.Setenv`・`t.Chdir`・`os.Setenv` を呼ぶ `cmd/yt2column` のファイルは、`outpath_test.go`・`run_test.go`・`main_test.go` で、`deadcode_test.go` にはない（`grep -rln`）。扱いは設計書 3.3 のとおりである。
+    -   `deadcodeScope`（`deadcode_test.go:610-617`）のフィールドは作った後に書かれない。メソッドは読むだけである（`:621-641`）。
+    -   `isolation` のフィクスチャは、親の `t.TempDir()` の下に作られる（`deadcode_test.go:720`、`:853`）。`t.TempDir()` を消す Cleanup は、並列にしたサブテストがすべて終わってから走る（`go doc testing.T.Cleanup`）。
+-   **境界のテスト:**
+    -   上限は定数である（`internal/ytdlpsource/json3.go:14`・`:16`、`internal/strictjson/strictjson.go:25`）。
+    -   `internal/ytdlpsource` で `t.Setenv` などを呼ぶのは、`exec_test.go`・`ytdlp_test.go`・`test_helpers.go` である。3 つのテストは呼ばない。並列のトップレベルのテストは直列のトップレベルのテストが終わってから再開するので、これらと重ならない（`go doc testing.T.Parallel`）。`internal/strictjson` には、呼ぶファイルがない。
+-   **Lint:** `.golangci.yml` は `paralleltest` も `tparallel` も有効にしていない（`.golangci.yml:7-30`）。`t.Parallel()` の付け方を lint は確かめない。
+-   **CI:** `Test` ジョブは `make test-ci` と `make test-parse-norace` を実行する（`.github/workflows/ci.yml:150-169`）。CI は `pull_request` でだけ走る（`ci.yml:3-5`）。`gh run rerun` の `--job` は、`gh run view <run-id> --json jobs` の `databaseId` を取る（`gh run rerun --help`、gh の手元の版で確かめた）。
+-   **ADR-0038:** 「食い違い」の項は、`## 決定` の 5 つ目の項の下にある（`docs/dev/adr/0038-deadcode-and-race-free-timing.md:24`）。
+-   **計測の機械:** 手元の機械は Apple M3 Pro（12 コア）、メモリ 18 GiB、`go1.27.1 darwin/arm64` である。`deadcode` は `PATH` にある（`which deadcode`）。設計書の計測の機械と同じである。
+-   新しいテストのヘルパーは要らない（`docs/dev/conventions/test_organization.md`）。
+
+## 2. 実装のステップ (Implementation Steps)
+
+### フェーズ 1: 壊した解析と大きな入力のテスト（設計書 3.1・3.8、AC-01〜AC-03、AC-06）
+
+- [ ] **ステップ 1-1**: 壊した解析のスクリプトと、変更の前の確認
+    - 追加するファイル: `docs/tasks/0129_race_test_speedup/_checks/break_parse.sh`、`_checks/breakages/` の下の 7 つの差分のファイル
+    - 差分のファイルは、設計書 3.1.3 の表の経路と単位ごとに 1 つ作る。単位の位置から入力の終わりまで（trailing zero-length lines では入力の始まりまで）のバイト数と同じ長さのバイト列を、中身を写さずに確保する
+    - スクリプトは、与えられたコミットを `git archive` で一時ディレクトリに展開する。そこで差分を 1 つずつ当て、その入力のサブテストだけを `-race` 付きで実行する。確保量の確認のエラーで失敗したものだけを「失敗した」と数える（設計書 3.1.3「失敗の理由の確認」）。壊さない木でも同じサブテストを実行し、通ることを確かめる
+    - `-timeout` は、4 MiB の one long form A line の壊し方を先に 1 回測ってから決める（設計書 3.1.3）
+    - スクリプトをコミットしてから、各判定が少なくとも 1 つの壊し方で失敗することを確かめ、7.1 節に書く
+    - マージベース（変更の前のコミット）で実行し、出力を 7.1 節に書く。7 つのどれかが失敗しなければ、壊し方を直す（設計書 6.1）
+    - 完了の条件: スクリプトがコミットされ、7.1 節に壊し方の記録と変更の前の実行の記録がある
+- [ ] **ステップ 1-2**: `-race` 付きのビルドの入力を小さくする
+    - 変えるファイル: `internal/transcript/copied_format_test.go`、`copied_format_race_test.go`、`copied_format_norace_test.go`
+    - 設計書 3.1.1 のとおり、入力を作る大きさの定数 `copiedLargeInputSize` をビルドタグのファイルに置く。`-race` 付きでは `1 << 20` にし、`-race` なしでは `copiedLargeInputLimit` にする。`-race` 付きのファイルの doc コメントには、1 MiB を選んだ根拠（設計書 3.1.2 の壊した解析の結果）を書く
+    - 7 つの入力の表と、大きすぎないことの確認で、`copiedLargeInputLimit` を `copiedLargeInputSize` に替える。入力を作る関数と `wantSegments` の式の形は変えない
+    - 4 MiB と書いたコメント（`:1040-1041`、`:1047`、`:1049`）を、ビルドごとの大きさに合わせて直す。`:1024` は変えない
+    - `make test-parse-norace` と、`-race` 付きの `go test -tags test -race -count=1 -v -run '^TestParseCopiedLargeInputs$' ./internal/transcript` を通す。後者のログの、7 つの入力のバイト数の行を 7.4 節に書く（AC-01）
+    - コミットの後に、`break_parse.sh` をそのコミットで実行し、出力を 7.1 節に書く（AC-03）。7 つのどれかが失敗しなければ、作業を止めて人に知らせる。大きさか壊し方の見直しは、設計に戻ることになる（設計書 6.1）
+    - 完了の条件: 2 つの実行が通り、7.1 節・7.4 節に記録がある
+- [ ] **ステップ 1-3**: ADR-0038 の食い違いの項を消す
+    - 変えるファイル: `docs/dev/adr/0038-deadcode-and-race-free-timing.md`
+    - 設計書 3.8 のとおり、`git grep -nE 'issues/1166([^0-9]|$)' origin/main -- docs/dev/adr/` で項を探す。決定の中の、この食い違いの項だけを消す。決定の文は変えず、経緯の行も加えない
+    - コミットのメッセージに訂正の行（`Editorial correction: `）を書き、PR の説明に訂正の段落を書く（`requirements_process.md`「Recording in the PR description」）
+    - 完了の条件: 項が消え、訂正の行を含むコミットがある
+
+### フェーズ 2: 大きな出力のテストと並列化（設計書 3.2〜3.4、AC-04・AC-05・AC-10・AC-12）
+
+- [ ] **ステップ 2-1**: 大きな出力のテストを小さくする
+    - 変えるファイル: `internal/coveragecompare/run_test.go`、`internal/coveragecompare/test_helpers.go`
+    - 設計書 3.2 のとおり、`fakeLargeLines` を 9 にし、`LargeStdout` を `"base"` の時点のスイートだけに立てる。確かめること（合格で、BASE のテストが 2 件）は変えない
+    - テストの doc コメントと `fakeLargeLines` のコメントの「over 20 MiB」を、「over 8 MiB」と BASE の時点だけで出すことに直す
+    - 1.3 節の 2 つの壊し方（1 行の上限、全体の上限）を 1 つずつ入れ、それぞれでテストが失敗することを確かめる。コミットのメッセージにそのことを書く
+    - 完了の条件: `go test -tags test -race -run '^TestRunAcceptsLargeOutput$' ./internal/coveragecompare` が通る
+- [ ] **ステップ 2-2**: deadcode のテストを並列にする
+    - 変えるファイル: `cmd/yt2column/deadcode_test.go`
+    - 設計書 3.3 の「並列にするもの」のとおり、2 つのテスト関数とすべてのサブテストの先頭に `t.Parallel()` を加える。それ以外は変えない（AC-05）
+    - 各テスト関数について、確かめる対象を 1 つ壊し（たとえば `Makefile` の `deadcode` のレシピ）、テストが失敗することを確かめる。コミットのメッセージにそのことを書く
+    - 完了の条件: `go test -tags test -race -count=1 -run '^TestMakeDeadcode(Verdict|Scope)$' ./cmd/yt2column` が、`deadcode` のある手元の機械で通る
+- [ ] **ステップ 2-3**: 境界のテストを並列にする
+    - 変えるファイル: `internal/ytdlpsource/json3_test.go`、`internal/strictjson/strictjson_test.go`
+    - 設計書 3.4 のとおり、3 つのテスト関数とすべてのサブテストの先頭に `t.Parallel()` を加える。入力の作り方と確かめる値は変えない（AC-10）
+    - 各テスト関数について、確かめる上限を 1 つ壊し（たとえば上限の定数を一時的に変える）、テストが失敗することを確かめる。コミットのメッセージにそのことを書く
+    - 完了の条件: 2 つのパッケージの `go test -tags test -race -count=1` が通る
+
+### フェーズ 3: 変更の後の確認と計測（設計書 3.6・3.7・7.1、AC-02・AC-04〜AC-11・AC-13・AC-14）
+
+- [ ] **ステップ 3-1**: 差分の範囲のスクリプト
+    - 追加するファイル: `docs/tasks/0129_race_test_speedup/_checks/diff_scope.sh`
+    - スクリプトは、マージベースと比べたコミットの差分で、7.2 節の判定を行う。判定できないときは、通ったと報告しない
+    - スクリプトをコミットしてから、各判定が少なくとも 1 つの壊し方で失敗することを確かめ、7.2 節に書く
+    - `git fetch origin main` の後に実行し、出力と 2 つのコミットを 7.2 節に書く
+    - 完了の条件: すべての判定が通り、7.2 節に記録がある
+- [ ] **ステップ 3-2**: 変更の後のテストの実行とカバレッジ
+    - `go test -tags test -race -count=1 ./...` を 3 回続けて実行し、`make test` と `make lint` を通す。それぞれの終了コードと、実行したコミットを 7.5 節に書く（AC-09）
+    - `make coverage-compare BASE=<マージベース>` を実行する。最後の行が `coverage-compare: PASS` であることを確かめる。コマンドの時間制限は 10 分以上にする（`CLAUDE.md`「Testing Strategy」）。`FAIL` のときは、設計書 3.7 のとおり、変更のない作業ツリーで実行し直し、すべての実行を記録する
+    - 設計書 3.7 のとおり、大きな入力のテストだけを `-race` 付きで実行したプロファイルを、前と後のコミットで取る。`go tool cover -func` の出力を比べ、どの関数の割合も下がっていないことを確かめる
+    - 2 つの比較の出力を 7.7 節に書く（AC-11）
+    - 完了の条件: 7.5 節・7.7 節に記録があり、すべて通っている
+- [ ] **ステップ 3-3**: 時間の計測のスクリプトと計測
+    - 追加するファイル: `docs/tasks/0129_race_test_speedup/_checks/measure.sh`
+    - スクリプトは、設計書 3.6・6.2 のとおりに計測する。前と後のコミットを交互にチェックアウトし、温める実行を記録から外し、各回の前に負荷を記録する。対象のテストの単独の実行と全体の実行を、それぞれ 3 回以上測る。設計書 3.6 の記録の項目を出力し、AC-14 の判定を出す
+    - スクリプトは、変更のない作業ツリーでだけ始める。チェックアウトで自分のファイルが消えても最後まで動き、どの終わり方でも元のブランチに戻す。`deadcode` が `PATH` にないとき、どれかの実行が失敗したとき、値を読めないときは、判定を通ったと報告しない
+    - スクリプトをコミットしてから、各判定が少なくとも 1 つの壊し方で失敗することを確かめ、7.3 節に書く
+    - 計測の前に、同じ機械でほかの重い処理が走っていないかを人に尋ね、走っていないという答えを得てから計測する。人の答えを 7.3 節に書く。`/runplan` のセッションからは、ほかの workspace の負荷を確かめられないためである
+    - コマンドの時間制限を超えないよう、背景で実行する。出力と 2 つのコミットを 7.3 節に書く
+    - AC-14 の判定で短くならなかった対象のテストがあれば、結果を記録して作業を止め、人に知らせる。扱いは設計に戻って決め直す（要件書 AC-14）
+    - 完了の条件: 7.3 節に記録があり、AC-14 の判定が通っている
+
+### PR-1 作成ポイント: race test speedup and its verification records
+
+**対象ステップ**: 1-1 / 1-2 / 1-3 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3
+
+**推奨タイトル**: `test(0129): -race 下の巨大入力テストを軽くし、独立したテストを並列にする`
+
+**レビュー観点**: 並列にしたテストが書き換えられる共有の状態を持たないこと（設計書 3.3・3.4） / 壊した解析と壊し方の確認が、確保量の確認の失敗だけを数えていること / 3 つの一時スクリプトが fail closed で、作業ツリーを元に戻すこと / 7 章の記録が AC-03・AC-11・AC-13・AC-14 を満たしていること
+
+**実装モデル要件**: standard+high-review
+
+**判定理由**: ステップ 2-2・2-3 の並列化が並行性に関わる危険度の高いステップに当たり、ステップ 3-3 の `measure.sh` は作業ツリーのチェックアウトと元への戻しを伴う。高位のロールより軽いモデルが実装すると、共有の状態を見落として結果の不安定なテストを持ち込むか、途中で止まったときにブランチを戻し損ねて作業ツリーを前のコミットに残すおそれがある
+
+**自動送信**: auto
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
+
+### 3.1 マイルストーン
+
+| マイルストーン | 成果物 |
+|---|---|
+| M1（フェーズ 1） | `break_parse.sh` と、前後の確認の記録。1 MiB の入力にした大きな入力のテスト。ADR-0038 の食い違いの項の削除 |
+| M2（フェーズ 2） | 9 行・BASE だけにした大きな出力のテスト。並列にした deadcode のテストと境界のテスト |
+| M3（フェーズ 3） | `diff_scope.sh`・`measure.sh` とその記録。AC-09・AC-11 の記録 |
+
+フェーズの順は、設計書 8 章の優先順位（変更の前の確認 → 大きな入力のテストと ADR → 大きな出力のテスト → 並列化 → 変更の後の確認）のとおりである。
+
+### 3.2 PR 構成
+
+| PR | 対象ステップ | 主な変更内容 | 実装モデル要件 | 自動送信 |
+|---|---|---|---|---|
+| PR-1 | 1-1 / 1-2 / 1-3 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 | 大きな入力・大きな出力のテストの縮小、deadcode のテストと境界のテストの並列化、ADR-0038 の項の削除、3 つの一時スクリプトと前後の確認・計測の記録 | standard+high-review | auto |
+
+## 4. テスト戦略 (Test Strategy)
+
+-   新しいテスト関数は加えない。変えるのは、対象のテストの入力の大きさ・時点・`t.Parallel()` の呼び出しだけである（1.2 節）。
+-   変えたテストが失敗できることは、各ステップの壊し方で確かめ、コミットのメッセージに書く（ステップ 2-1〜2-3）。大きな入力のテストは `break_parse.sh` で確かめる（AC-03）。
+-   変更の前と後の関係（入力が同じ、差分が `t.Parallel()` だけ、変えたファイルの範囲）は、`diff_scope.sh` で確かめる。
+-   本番のコードのカバレッジは、`make coverage-compare` と、`-race` 付きのビルドのプロファイルの比較で確かめる（AC-11）。
+-   安定は、手元の全体の実行 3 回と、CI の `Test` ジョブ 3 回で確かめる（AC-09）。線形の時間のテストの安定も、これで確かめる（設計書 7.1）。
+
+## 5. リスク管理 (Risk Management)
+
+| リスク | 対策 |
+|---|---|
+| 壊した解析が、確保量ではなくタイムアウトやセグメントの数で失敗し、AC-03 を満たしたように見える | `break_parse.sh` は、確保量の確認のエラーで失敗したものだけを数える（設計書 3.1.3） |
+| 4 MiB の one long form A line の壊し方が、`go test` のタイムアウトに先に当たる | 先に 1 回測ってから `-timeout` を決める（ステップ 1-1） |
+| 並列にしたテストが共有の状態を持ち、まれにしか出ない失敗を持ち込む | 設計書 3.3・3.4 の確認のとおりにだけ並列にする。手元と CI でそれぞれ 3 回実行する（AC-09）。PR を開く前に、高位のモデルのレビューを行う（3.2 節） |
+| `measure.sh` のチェックアウトが、途中で止まったときに作業ツリーを前のコミットに残す | スクリプトは、変更のない作業ツリーでだけ始め、どの終わり方でも元のブランチに戻す（ステップ 3-3）。壊し方の確認で、戻すことも確かめる |
+| 機械の負荷のばらつきで、差の小さい `TestParseSubtitlesLimits` が AC-14 を満たさない | 計測の前に重い処理がないことを人に確かめる。満たさなければ止めて設計に戻る（要件書 AC-14、設計書 2.1） |
+| 並列にしたテストで、CI のメモリが足りなくなる | 設計書 3.4 の試作では小さい。CI の 3 回の実行で確かめる（AC-09） |
+| PR のレビューの直しか `origin/main` の取り込みで、テストが変わり、記録が古くなる | 変えた人が、7 章の記録のうち影響を受けるもの（スクリプトの実行、AC-09、AC-11）を実行し直して書き直す（`requirements_process.md`「Temporary script record」の「Rewriting」） |
+
+## 6. 実装チェックリスト (Implementation Checklist)
+
+- [ ] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3）
+
+PR-1 を作った後、マージの前に、7.6 節の CI の 3 回の実行を記録する。
+
+## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
+
+| AC | 種類 | 検証 |
+|---|---|---|
+| AC-01 | `test` | `internal/transcript/copied_format_test.go::TestParseCopiedLargeInputs` の `-race` 付きの実行。7 つの入力のバイト数の行を 7.4 節に書く |
+| AC-01 | `manual` | PR のレビューで、設計書 3.1.2 に、1 MiB とその大きさでの `-race` 付きの実行時間があることを読む |
+| AC-02 | `diff` | `_checks/diff_scope.sh` の「`-race` なしの入力」の判定。出力は 7.2 節 |
+| AC-02 | `test` | `make test-parse-norace`（期限 3 秒と 1 バイトあたり 128 バイトの確認を含む） |
+| AC-03 | `test` | `_checks/break_parse.sh` を前と後のコミットで実行する。記録は 7.1 節 |
+| AC-04 | `diff` | `_checks/diff_scope.sh` の「並列化」の判定。出力は 7.2 節 |
+| AC-04 | `test` | 7.5 節の `-race` 付きの全体の実行 3 回 |
+| AC-05 | `diff` | `_checks/diff_scope.sh` の「`t.Parallel()` だけ」の判定（`cmd/yt2column/deadcode_test.go`）。出力は 7.2 節 |
+| AC-06 | `diff` | `_checks/diff_scope.sh` の「測るテストは直列」の判定。出力は 7.2 節 |
+| AC-07 | `diff` | `_checks/diff_scope.sh` の「変えないファイル」の判定（`internal/publisher/display_render_test.go`）。出力は 7.2 節 |
+| AC-07 | `manual` | PR のレビューで、設計書 3.5 に小さくしない理由があることを読む |
+| AC-08 | `diff` | `_checks/diff_scope.sh` の「変えたファイルの範囲」の判定。出力は 7.2 節 |
+| AC-09 | `test` | 手元の `-race` 付きの全体の実行 3 回、`make test`、`make lint`（7.5 節）。CI の `Test` ジョブ 3 回（7.6 節） |
+| AC-10 | `diff` | `_checks/diff_scope.sh` の「`t.Parallel()` だけ」の判定（`internal/ytdlpsource/json3_test.go`、`internal/strictjson/strictjson_test.go`）。出力は 7.2 節 |
+| AC-11 | `test` | `make coverage-compare BASE=<マージベース>`。出力は 7.7 節 |
+| AC-11 | `diff` | 大きな入力のテストの `-race` 付きのプロファイルの前後の比較（設計書 3.7）。2 つの出力は 7.7 節 |
+| AC-12 | `test` | `internal/coveragecompare/run_test.go::TestRunAcceptsLargeOutput`。1.3 節の 2 つの壊し方で失敗することを、ステップ 2-1 のコミットのメッセージに書く |
+| AC-13 | `diff` | `_checks/measure.sh` の計測。出力と 2 つのコミットは 7.3 節 |
+| AC-13 | `manual` | PR のレビューで、7.3 節に、機械、コマンド、各回の結果があることを読む |
+| AC-14 | `diff` | `_checks/measure.sh` の AC-14 の判定。出力は 7.3 節 |
+
+### 7.1. 一時スクリプトの記録（`_checks/break_parse.sh`）
+
+-   **スクリプト:** `docs/tasks/0129_race_test_speedup/_checks/break_parse.sh` と、`_checks/breakages/` の下の 7 つの差分のファイル。与えられたコミットの木で、7 つの壊し方を 1 つずつ当て、壊した入力のサブテストが確保量の確認で失敗することを確かめる。AC-03 を確かめる。
+-   **判定:**
+    -   壊さない木で、7 つのサブテストが通ること
+    -   7 つの壊し方のそれぞれで、その入力のサブテストが確保量の確認のエラーで失敗すること
+-   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる。壊し方は、コミットした内容の上で作業ツリーに入れ、確かめた後に戻す。
+-   **予定の実行:**
+    -   ステップ 1-1 で、`/runplan` がマージベース（変更の前のコミット）で 1 回実行する。
+    -   ステップ 1-2 のコミットの後に、`/runplan` がそのコミットで 1 回実行する。
+    -   その後にスクリプトか大きな入力のテストが変わったときは、変えた人が後のコミットで実行し直す。前のコミットでの実行も、スクリプトが変わったときは実行し直す（`requirements_process.md`「Temporary script record」の「Rewriting」）。
+-   **テスト:** コミットしない。
+-   **壊し方の記録:** （`/runplan` が書く）
+-   **実行の記録:** （`/runplan` が書く。前と後のそれぞれについて、実行したコミット、7 つの壊し方ごとの結果と確保量のエラーの行）
+
+### 7.2. 一時スクリプトの記録（`_checks/diff_scope.sh`）
+
+-   **スクリプト:** `docs/tasks/0129_race_test_speedup/_checks/diff_scope.sh`。マージベースと比べたコミットの差分を読み、次の判定を行う。AC-02・AC-04・AC-05・AC-06・AC-07・AC-08・AC-10 を確かめる。
+-   **判定:**
+    -   **`-race` なしの入力（AC-02）:** 後の `copied_format_test.go` で `copiedLargeInputSize` を `copiedLargeInputLimit` に置き換え、コメントの行を除くと、前の内容と同じになる。`copied_format_norace_test.go` は、`copiedLargeInputSize = copiedLargeInputLimit` を加えたことのほかは、コメントの行を除いて前と同じである（`copiedParseAllocPerByte = 128` と `copiedParseChecksDeadline = true` が変わらない）。`copiedParseDeadline` の定義が変わらない
+    -   **並列化（AC-04）:** 5 つのテスト関数（`TestMakeDeadcodeScope`、`TestMakeDeadcodeVerdict`、`TestParseSubtitlesLimits`、`TestParseSubtitlesArrayElementLimit`、`TestAsArrayElementLimit`）の本体と、その中のすべての `t.Run` に渡す関数で、`t.Parallel()` を呼ぶ
+    -   **`t.Parallel()` だけ（AC-05・AC-10）:** `cmd/yt2column/deadcode_test.go`、`internal/ytdlpsource/json3_test.go`、`internal/strictjson/strictjson_test.go` の差分は、`t.Parallel()` の行を加えることだけである
+    -   **測るテストは直列（AC-06）:** 比べたコミットの `TestParseCopiedLargeInputs` と `TestNeutralizedDisplayMarkdownLinearTime` が、`t.Parallel()` を呼ばない
+    -   **変えないファイル（AC-07）:** `internal/publisher/display_render_test.go` が変わっていない
+    -   **変えたファイルの範囲（AC-08）:** 変わったファイルのすべてが、`_test.go` のファイル、`//go:build test` で始まるファイル、`docs/tasks/0129_race_test_speedup/` の下、`docs/dev/adr/0038-deadcode-and-race-free-timing.md` のどれかである
+-   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる。壊し方は、コミットした内容の上で作業ツリーに入れ、確かめた後に戻す。
+-   **予定の実行:**
+    -   PR を作る前に、`/runplan` がステップ 3-1 で 1 回実行する。
+    -   その後に比べるファイルかスクリプトが変わったとき（レビューの直し、`origin/main` の取り込み）は、変えた人が実行し直す。
+-   **テスト:** コミットしない。
+-   **壊し方の記録:** （`/runplan` が書く）
+-   **実行の記録:** （`/runplan` が書く。マージベースと比べたコミットの完全な ID、スクリプトの出力の全体）
+
+### 7.3. 一時スクリプトの記録（`_checks/measure.sh`）
+
+-   **スクリプト:** `docs/tasks/0129_race_test_speedup/_checks/measure.sh`。前と後のコミットを交互にチェックアウトし、対象のテストの単独の実行と全体の実行の実時間を測り、AC-14 の判定を出す（設計書 3.6・6.2）。AC-13・AC-14 を確かめる。
+-   **判定:**
+    -   計測の前提（変更のない作業ツリー、`deadcode` が `PATH` にある）が満たされていること
+    -   どの実行も通り、実時間を読めること
+    -   AC-14 の判定: 比較に含める対象のテスト（線形の時間のテストと `TestParseSubtitlesArrayElementLimit` を除く 6 つ）のそれぞれで、後の中央値が前の最小値より小さいこと
+    -   終わった後に、元のブランチに戻っていること
+-   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる。壊し方は、コミットした内容の上で作業ツリーに入れ、確かめた後に戻す。
+-   **予定の実行:**
+    -   PR を作る前に、`/runplan` がステップ 3-3 で、人にほかの重い処理がないことを確かめてから 1 回実行する。
+    -   その後に対象のテストかスクリプトが変わったときは、変えた人が実行し直す。
+-   **テスト:** コミットしない。
+-   **壊し方の記録:** （`/runplan` が書く）
+-   **実行の記録:** （`/runplan` が書く。重い処理がないという人の答え、前と後のコミットの完全な ID、スクリプトの出力の全体）
+
+### 7.4. 大きな入力のテストの入力のバイト数（AC-01）
+
+（`/runplan` が書く。実行したコミットと、`-race` 付きの `TestParseCopiedLargeInputs` のログの 7 つの行）
+
+### 7.5. 手元のテストの実行（AC-09）
+
+（`/runplan` が書く。実行したコミット、`go test -tags test -race -count=1 ./...` の 3 回の終了コード、`make test` と `make lint` の終了コード）
+
+### 7.6. CI の `Test` ジョブの 3 回の実行（AC-09）
+
+（PR を作った後に書く。`/runplan` の報告の後、人が同じセッションのエージェントに指示する。エージェントは人の承認を得て、PR の最初の CI の実行の `Test` ジョブを `gh run rerun <run-id> --job <job-id>` で 2 回再実行する。3 回の実行の URL、結論、実行したコミットを書き、コミットして push する。どれかが失敗したら、原因を記録して人に知らせる）
+
+### 7.7. カバレッジの比較（AC-11）
+
+（`/runplan` が書く。`make coverage-compare` のすべての実行の出力と、`-race` 付きのプロファイルの前と後の `go tool cover -func` の出力。それぞれの実行したコミット）
+
+## 8. 成功基準 (Success Criteria)
+
+-   **機能:** AC-01〜AC-14 の検証が、7 章のとおりに済んでいる。
+-   **品質:** `make test`・`make lint` が通る。本番のコードのカバレッジが下がらない（AC-11）。手元と CI で 3 回ずつ通る（AC-09）。
+-   **セキュリティ:** N/A（要件書 4.2）。
+-   **文書:** ADR-0038 の食い違いの項が消えている。7 章の記録がある。
+
+## 9. 次のステップ (Next Steps)
+
+-   PR を作った後、7.6 節の CI の 3 回の実行を記録する。
+-   PR のマージの後、issue #1166 を閉じる（`/runpr` が、タスクの最後の計画の PR の後に提案する）。
+
+## 変更履歴
