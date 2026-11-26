@@ -443,8 +443,11 @@ type PRDetail struct {
 }
 
 // CollectDetail gathers the detail of the workspace's open PR pr and keeps
-// it. Contract: it runs only reads (gh pr view, gh pr checks, and the Claude
-// Code panes' transcripts, never a screen); a failed item is reported as
+// it. Contract: it runs only reads (gh pr view, gh pr checks, the Claude
+// Code panes' transcripts, never a screen, and, for a ReportRecordAllowed
+// display, the git reads of inheritedPaneReport), with one write besides the
+// records: that display may fetch one PR head branch into
+// refs/remotes/origin/<branch> (FetchBranch); a failed item is reported as
 // unavailable and the others are still returned; a record already kept for
 // the PR's head commit supplies the report, so the report survives a pane
 // that was emptied since; a record is written once and never replaced, and

@@ -227,6 +227,24 @@ func TestSendMergemain(t *testing.T) {
 		cw.git(cw.tree, "show HEAD:"+mergemainDefPath, "# another\n")
 		return item
 	})
+	for name, listed := range map[string]string{
+		"a PR that is gone":        "[]",
+		"a PR that is mergeable":   prListEntryJSON(taskBranch, 50, "Conflict PR", conflictTestHeadA, "MERGEABLE", mainBranch, false),
+		"a PR with another head":   prListEntryJSON(taskBranch, 50, "Conflict PR", conflictTestHeadB, "CONFLICTING", mainBranch, false),
+		"another PR of the branch": prListEntryJSON(taskBranch, 51, "Conflict PR", conflictTestHeadA, "CONFLICTING", mainBranch, false),
+	} {
+		notSent(t, name+" after the fetch", NotSentConditions, func(cw *conflictWorld, item ItemID) ItemID {
+			switched := false
+			cw.rec.replyFunc("git fetch origin main", func() reply { switched = true; return reply{} })
+			cw.rec.replyFunc("gh pr list --head "+taskBranch+" --state open --json "+prListFields, func() reply {
+				if switched {
+					return reply{out: []byte(listed)}
+				}
+				return reply{out: []byte(prListEntryJSON(taskBranch, 50, "Conflict PR", conflictTestHeadA, "CONFLICTING", mainBranch, false))}
+			})
+			return item
+		})
+	}
 	notSent(t, "an agent that starts working during the fetch", NotSentConditions, func(cw *conflictWorld, item ItemID) ItemID {
 		cw.rec.replyFunc("git fetch origin main", func() reply {
 			cw.firstPane().Status = "working"

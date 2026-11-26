@@ -380,18 +380,23 @@ func (m mergemainSend) send(ctx context.Context) ActionResult {
 	cs := &conflictSender{a: &autoSender{deps: m.deps, view: view, herdr: m.herdr, git: m.git, tasks: m.tasks}}
 	// The branch is the one the row (and so the chosen item) was read on: a
 	// worktree switched to another branch during the fetch does not match.
-	facts := cs.gather(ctx, ws, fresh, pr, m.facts.Branch, false, nil)
+	// The PR is read again with the workspace: one that was merged, closed,
+	// resolved, or pushed to during the fetch is not the one the human chose.
+	if fresh.PR == nil || fresh.PR.Number != pr.Number || fresh.PR.Mergeable != MergeableConflicting || fresh.PR.Head != pr.Head {
+		return notSent(base, NotSentConditions, "a condition of the chosen /mergemain does not hold: "+conflictReasonPRChanged)
+	}
+	facts := cs.gather(ctx, ws, fresh, *fresh.PR, m.facts.Branch, false, nil)
 	if reasons := manualConflictConditions(facts); len(reasons) > 0 {
 		return notSent(base, NotSentConditions, "a condition of the chosen /mergemain does not hold: "+strings.Join(reasons, ", "))
 	}
 	// The report is kept before the first input; a report that cannot be
 	// kept is a lost nicety, not a reason to leave the conflict unresolved.
-	_ = keepPaneReport(m.deps, m.loc.ws, pr)
+	_ = keepPaneReport(m.deps, ws, pr)
 	writer, err := NewPaneWriter(m.deps.Cmds, m.loc.chiefPane, m.loc.chief.Workspace)
 	if err != nil {
 		return notSent(base, NotSentUnreadable, err.Error())
 	}
-	sc := sendContext{deps: m.deps, herdr: m.herdr, writer: writer, held: m.held, ws: m.loc.ws, mergemainPR: pr.Number, mergemainHead: pr.Head}
+	sc := sendContext{deps: m.deps, herdr: m.herdr, writer: writer, held: m.held, ws: ws, mergemainPR: pr.Number, mergemainHead: pr.Head}
 	return sc.sendCommand(ctx, cmd, route)
 }
 

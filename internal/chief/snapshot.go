@@ -219,7 +219,8 @@ func readFacts(ctx context.Context, deps Deps) (roundView, error) {
 // records, resets, and removal proposals. view.facts becomes the facts the
 // rows were classified from. Contract: it writes no record and runs no gh
 // command; besides the reads of classifyWorkspace, addRecords, and
-// addRemovals, it reads only the documents of an identified task; history
+// addRemovals, and the git and transcript reads of a conflict row's offer
+// (addConflictOffer), it reads only the documents of an identified task; history
 // is the history of the caller's session, or an empty one for a caller that
 // reads none, which identifies no task; unread are the PRs whose state this
 // round could not read (nil when it read none), and a worktree on main whose

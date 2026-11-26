@@ -556,7 +556,7 @@ flowchart TD
 | 項目 | 型 | 意味 | 定義の使い方 |
 |---|---|---|---|
 | `command` | 文字列 | コマンドの行。引数の番号を含む | 示す |
-| `request` | 文字列 | `send --command` が取る値。`mkreq`・`mkarch`・`mkplan`・`runplan`・`runplan-takeover`・`runpr`・`mergemain` のどれか | 渡す |
+| `request` | 文字列 | `send --command` が取る値。`mkreq`・`mkarch`・`mkplan`・`runplan`・`runplan-takeover`・`runpr` のどれか | 渡す |
 | `sendable` | 真偽 | 示すエージェントとモデルで送れるか。送れなければ `problem` が理由を述べる | 分岐 |
 | `agent` | 文字列 | 送り先のエージェント。`claude_code` か `opencode` | 示す |
 | `model` | 文字列 | 送り先のモデル。外から来た文字列を含みうる | 示す |
