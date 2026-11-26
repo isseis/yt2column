@@ -497,12 +497,33 @@ Keep two session-scoped structures across step 3 and step 4 of this run:
       another form.
 
   Step 4 applies this check once more before each question.
-- **PR review state and waiting.** Evaluate both reviewers' `review-state`
-  results together:
-  - **Waiting condition.** Poll `mentions` and both `review-state` calls about
-    every thirty seconds (waiting between polls rather than spinning) while
-    either of these holds (when both reviewers are active at once, wait until
-    both leave the waiting state):
+- **PR review state and waiting.** On each poll, evaluate both reviewers'
+  `review-state` results together in this order (errors before waiting):
+  - **Errors and immediate stops.** Check both reviewers first, even if the
+    other reviewer is still waiting:
+    - Either reviewer `state == "indeterminate"`, or `state == "unreadable"`
+      with `reason == "rejected"`: stop immediately and report as step 4,
+      "Manual PR review stops", says.
+    - Either reviewer `state == "unreadable"` with `reason == "limit"` when
+      this run was waiting on a manual request (`state == "waiting"` on
+      arrival) for that reviewer: stop immediately and report as step 4,
+      "Manual PR review stops", says.
+    - Either reviewer manual request ended in `rate-limited`, `skipped`,
+      `unrecognized`, or `timed-out` when this run waited on that request (it
+      was `waiting` when this step began): stop immediately and report as step
+      4, "Manual PR review stops", says.
+    - Either reviewer `state == "unreadable"` with `reason == "call-failed"`:
+      track consecutive `call-failed` polls for that reviewer on every poll
+      (regardless of whether the other reviewer is also waiting). Retry about
+      every thirty seconds; once about fifteen minutes of consecutive
+      `call-failed` results have elapsed, stop and report as step 4, "Manual
+      PR review stops", says.
+  - **Waiting condition.** If no immediate stop above fired, poll `mentions`
+    and both `review-state` calls about every thirty seconds (waiting between
+    polls rather than spinning) while any of these holds (when both reviewers
+    are active at once, wait until none of these holds):
+    - either reviewer has `state == "unreadable"` with `reason == "call-failed"`
+      (within the fifteen-minute consecutive retry budget above);
     - either reviewer has `state == "waiting"` (a manual request is in
       progress);
     - Sourcery AI has `autoReview != null` and `autoReview.state == "running"`
@@ -515,22 +536,12 @@ Keep two session-scoped structures across step 3 and step 4 of this run:
       `TIMED_OUT_AUTO` and stop waiting for it (do not stop this command). When
       `autoReview.state == "timed-out"`, also add `(head, autoReview.url)` to
       `TIMED_OUT_AUTO` and stop waiting (do not stop this command).
-  - **Errors and abnormal endings.** Once nothing is waiting:
-    - Either reviewer `state == "indeterminate"`, or `state == "unreadable"`
-      with `reason == "rejected"`: stop and report as step 4, "Manual PR review
-      stops", says.
-    - Either reviewer `state == "unreadable"` with `reason == "call-failed"`:
-      retry about every thirty seconds; stop and report after about fifteen
-      minutes of consecutive `call-failed` results.
-    - Either reviewer `state == "unreadable"` with `reason == "limit"`: stop
-      and report as step 4, "Manual PR review stops", says only if this run was
-      waiting on a manual request (`state == "waiting"` on arrival) for that
-      reviewer; otherwise treat that reviewer's `markers` as empty, continue,
-      and show `読めない（上限）` in step 4's summary.
-    - Either reviewer manual request ended in `rate-limited`, `skipped`,
-      `unrecognized`, or `timed-out`: if this run waited on that request (it
-      was `waiting` when this step began), stop and report as step 4, "Manual PR
-      review stops", says. If it had already ended before this step began,
+  - **Non-stopping outcomes once nothing is waiting.**
+    - Either reviewer `state == "unreadable"` with `reason == "limit"` (not
+      waiting on a manual request): treat that reviewer's `markers` as empty,
+      continue, and show `読めない（上限）` in step 4's summary.
+    - Either reviewer manual request had already ended in `rate-limited`,
+      `skipped`, `unrecognized`, or `timed-out` before this step began:
       continue and show its state in step 4's summary.
     - Sourcery AI `autoReview` ended in `skipped`, `unrecognized`, or
       `timed-out` (or timed out via `TIMED_OUT_AUTO`): never stop; do not count
@@ -747,9 +758,9 @@ fixprguard review-state --protocol 9 --profile <pr-profile> --reviewer <pr-revie
 
 Apply step 3's "Mentions by other accounts" to `mentions` (for `unreadable`
 with `reason == "call-failed"`, discard any preparation when it exists and stop
-immediately here rather than polling, or retry only on a rerun from step 3; for
-any stop, discard any preparation when it exists and stop with no question and
-no merge).
+immediately here rather than polling; a rerun of `/runpr` retries from step 3;
+for any stop, discard any preparation when it exists and stop with no question
+and no merge).
 
 **PR review state and head check (every round).** Using both reviewers'
 `review-state` results:
@@ -759,15 +770,15 @@ no merge).
   discard the preparation when it exists
   (`mergepr discard --protocol 4 --state <state-file>`) and stop with "Manual
   PR review stops" below.
+- When either reviewer is `indeterminate`, or `unreadable` with `reason`
+  `rejected`: unconditionally discard any preparation when it exists
+  (`mergepr discard --protocol 4 --state <state-file>`) and stop with "Manual
+  PR review stops" below.
 - When both calls succeed (`state != "unreadable"`) and their `head` values
   differ, discard the pair and read both again.
-- When either reviewer's `state`, `request.id`, `markers`, or (for Sourcery AI
-  on `head`) `autoReview` changed from what step 3 saw, handle the change
-  before comparing `head`:
-  - `indeterminate`, or `unreadable` with `reason` `rejected`: discard any
-    preparation when it exists
-    (`mergepr discard --protocol 4 --state <state-file>`) and stop with "Manual
-    PR review stops" below.
+- When either reviewer's `state`, `reason`, `request.id`, `markers`, or (for
+  Sourcery AI on `head`) `autoReview` changed from what step 3 saw, handle the
+  change before comparing `head`:
   - `state == "waiting"` for either reviewer: discard any preparation when it
     exists (`mergepr discard --protocol 4 --state <state-file>`) and return to
     step 3 to wait and handle threads.
@@ -1215,7 +1226,7 @@ character as 2) except the kinds the summary names as unlimited; the line shapes
           `unrecognized`, or `timed-out`, or `autoReview.state == "running"`
           with `(head, autoReview.url)` in `TIMED_OUT_AUTO`):
           `PR レビュー (Sourcery AI): 自動 <スキップ|判定できない終わり方（conclusion=<autoReview.conclusion>）|時間切れ>（<autoReview.url>）`
-          (if `markers` is non-empty, append `；直前の完了 <12-hex SHA>（<URL>、本文に指摘やレビューしなかったファイルの知らせがありうる）`);
+          (if `markers` is non-empty, append `；直前の完了 <12-hex SHA>（<URL>、本文に指摘やレビューしなかったファイルの知らせがありうる）`; if an already-ended abnormal manual `request` also exists, append its state and `request.url`);
        4. an already-ended abnormal manual `request` (`rate-limited`,
           `skipped`, `unrecognized`, or `timed-out`):
           `PR レビュー (Sourcery AI): <割り当て切れ|スキップ|判定できない終わり方|時間切れ>（<request.url>）`

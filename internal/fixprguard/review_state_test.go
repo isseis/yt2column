@@ -1544,6 +1544,33 @@ func TestReviewStateSourceryManual(t *testing.T) {
 				withMarkers(marker(1, rsSecond, rsSourceryFinished(71, at("09:00:20"), at("09:02:00")), "")),
 			),
 		},
+		{
+			name: "markers_sorted_by_completed_at_then_check_run_url",
+			in: rsInput{
+				profile: ProfileSourcery,
+				comments: []rsComment{
+					sourceryReqComment(1, rsSourceryReq1, "09:00:00"),
+					sourceryReqComment(2, rsSourceryReq1, "09:01:00"),
+					sourceryReqComment(3, rsSourceryReq2, "09:02:00"),
+				},
+				commits: []rsCommit{
+					rsSourceryCommitOf(rsHead,
+						rsSourceryFinished(90, at("09:00:20"), at("09:05:00")),
+						rsSourceryFinished(92, at("09:01:20"), at("09:03:00")),
+						rsSourceryFinished(91, at("09:02:20"), at("09:03:00")),
+					),
+				},
+			},
+			want: rsWantFor(ProfileSourcery, RequestCompleted,
+				withRequest(3, at("09:02:00")),
+				withResponse(RunFinished, rsSourceryFinished(91, at("09:02:20"), at("09:03:00")), rsHead),
+				withMarkers(
+					marker(3, rsHead, rsSourceryFinished(91, at("09:02:20"), at("09:03:00")), ""),
+					marker(2, rsHead, rsSourceryFinished(92, at("09:01:20"), at("09:03:00")), ""),
+					marker(1, rsHead, rsSourceryFinished(90, at("09:00:20"), at("09:05:00")), ""),
+				),
+			),
+		},
 	}
 	for _, tc := range rows {
 		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })

@@ -139,10 +139,11 @@ pushed by Phase 4.5's `push-review`.
 ## Convergence policy
 
 This loop has no natural end: a review returns findings whenever it is asked.
-Stop by policy, not by exhausting findings. A push does not trigger a PR
-review: automated PR reviews are off; the fix is reviewed locally in Phase 4.5,
-and `runpr.md` requests a manual PR review only when the user chooses it in
-step 4.
+Stop by policy, not by exhausting findings. CodeRabbit's automatic PR reviews
+are off, while Sourcery AI runs automatic PR reviews on every push (`runpr.md`
+step 3 waits for that automatic review when returning after `fixpr`); the fix
+is still reviewed locally in Phase 4.5, and `runpr.md` requests a manual PR
+review only when the user chooses it in step 4.
 
 - **Round**: one fixpr run on the PR. This run's round number is one more than
   the number of fixpr commits already on the branch
