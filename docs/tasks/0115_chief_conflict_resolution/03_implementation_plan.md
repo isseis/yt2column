@@ -336,11 +336,11 @@
 
 **対象ファイル:** `internal/chief/records.go`, `.claude/commands/chief.md`, `docs/dev/guides/chief_guide.md`, `docs/dev/chief_architecture.md`, `docs/dev/conventions/package_reference.md`, `CLAUDE.md`, `cmd/chief/docs_test.go`
 
-- [ ] `internal/chief/records.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` の `--protocol` を合わせる。
-- [ ] `.claude/commands/chief.md` にコンフリクト項目の示し方（理由・会話消失の印）と `chief send --command mergemain --item <項目 ID>` の呼び出しを追記し（AC-36）、`cmd/chief/docs_test.go` の `TestDocumentedInvocationsParse` が新呼び出しを受理することを確認する。
-- [ ] `docs/dev/guides/chief_guide.md` に AC-35 の 4 点（状態の文字列・急ぎの度合い・状態の詳細、自動送信の条件、送り直しの規則、人が選んで送る選択肢）を完成させ、`CLAUDE.md` の「Claude Commands」の `/chief` 説明にコンフリクト解消を追記し（AC-36）、`docs/dev/chief_architecture.md` と `docs/dev/conventions/package_reference.md` を最終仕様へ同期する。
-- [ ] `CLAUDE.md` の「Tool Execution Safety」の `/chief` 段落にある、`/chief` の起動が承認する読み取り操作の一覧に、ステップ 4-3 の PR の head ブランチの取得（`git fetch --no-tags --no-prune origin +refs/heads/<ブランチ>:refs/remotes/origin/<ブランチ>`）を加える。設計書 3.7 はこの取得を既存の承認の範囲内と読んでいるが、一覧の文言どおりに読むと範囲外になるため、一覧に明記して読み違いの余地をなくす。書き込み操作を承認しないという段落の記述は変えない。`.claude/commands/chief.md` に承認する操作の記述があれば、同じ取得を足す。
-- [ ] `docs/dev/adr/0046-chief-of-staff.md` が要件定義書および実装結果と矛盾していないことを確認する（AC-37）。
+- [x] `internal/chief/records.go` の `Protocol` を `main` の値 + 1 に上げ、`.claude/commands/chief.md`・`docs/dev/guides/chief_guide.md` の `--protocol` を合わせる。
+- [x] `.claude/commands/chief.md` にコンフリクト項目の示し方（理由・会話消失の印）と `chief send --command mergemain --item <項目 ID>` の呼び出しを追記し（AC-36）、`cmd/chief/docs_test.go` の `TestDocumentedInvocationsParse` が新呼び出しを受理することを確認する。
+- [x] `docs/dev/guides/chief_guide.md` に AC-35 の 4 点（状態の文字列・急ぎの度合い・状態の詳細、自動送信の条件、送り直しの規則、人が選んで送る選択肢）を完成させ、`CLAUDE.md` の「Claude Commands」の `/chief` 説明にコンフリクト解消を追記し（AC-36）、`docs/dev/chief_architecture.md` と `docs/dev/conventions/package_reference.md` を最終仕様へ同期する。
+- [x] `CLAUDE.md` の「Tool Execution Safety」の `/chief` 段落にある、`/chief` の起動が承認する読み取り操作の一覧に、ステップ 4-3 の PR の head ブランチの取得（`git fetch --no-tags --no-prune origin +refs/heads/<ブランチ>:refs/remotes/origin/<ブランチ>`）を加える。設計書 3.7 はこの取得を既存の承認の範囲内と読んでいるが、一覧の文言どおりに読むと範囲外になるため、一覧に明記して読み違いの余地をなくす。書き込み操作を承認しないという段落の記述は変えない。`.claude/commands/chief.md` に承認する操作の記述があれば、同じ取得を足す。
+- [x] `docs/dev/adr/0046-chief-of-staff.md` が要件定義書および実装結果と矛盾していないことを確認する（AC-37）。
 
 **完了基準:** `make test`・`make lint`・`make deadcode`・`make readme-sync-check` がすべてパスすること。
 
