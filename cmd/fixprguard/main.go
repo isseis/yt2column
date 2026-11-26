@@ -179,6 +179,7 @@ const guidePath = "docs/dev/guides/fixprguard_guide.md"
 
 // env is what a run reaches outside the process; tests replace each part.
 type env struct {
+	dir       fixprguard.WorktreeDir
 	gh        cmdrunner.InputRunner
 	git       cmdrunner.Runner
 	gitList   cmdrunner.Runner
@@ -202,6 +203,7 @@ func main() {
 func osEnv() env {
 	gitEnv := cmdrunner.GitEnv(os.Environ())
 	return env{
+		dir:       fixprguard.CurrentDir(),
 		gh:        cmdrunner.NewOS(cmdrunner.Options{MaxOutput: ghMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),
 		git:       cmdrunner.NewOS(cmdrunner.Options{MaxOutput: gitMaxOutput, WaitDelay: waitDelay, Env: gitEnv}),
 		gitList:   cmdrunner.NewOS(cmdrunner.Options{MaxOutput: gitMaxOutput, WaitDelay: waitDelay, Env: gitEnv, StderrIsFailure: true}),
@@ -405,7 +407,7 @@ func execute(ctx context.Context, inv invocation, e env) (any, int, error) {
 			}
 		}
 	}
-	w := fixprguard.NewWorktree(e.git, e.gitList, e.make)
+	w := fixprguard.NewWorktree(e.dir, e.git, e.gitList, e.make)
 	switch inv.name {
 	case cmdHead:
 		return head(ctx, inv, e)

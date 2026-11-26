@@ -123,21 +123,31 @@ func (r *testRepo) Write(name, content string) {
 	}
 }
 
-// realGit runs git for real with the tool's environment.
-func realGit() cmdrunner.Runner {
-	return cmdrunner.NewOS(cmdrunner.Options{Env: cmdrunner.GitEnv(os.Environ())})
+// mustWorktreeDir builds a WorktreeDir for dir or fails the test.
+func mustWorktreeDir(t *testing.T, dir string) fixprguard.WorktreeDir {
+	t.Helper()
+	wd, err := fixprguard.NewWorktreeDir(dir)
+	if err != nil {
+		t.Fatalf("NewWorktreeDir(%q): %v", dir, err)
+	}
+	return wd
 }
 
-// realGitList runs git for real as osEnv's runner for the listing of ignored
-// files does: standard error output fails it.
-func realGitList() cmdrunner.Runner {
-	return cmdrunner.NewOS(cmdrunner.Options{Env: cmdrunner.GitEnv(os.Environ()), StderrIsFailure: true})
+// realGit runs git for real in dir with the tool's environment.
+func realGit(dir string) cmdrunner.Runner {
+	return cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: cmdrunner.GitEnv(os.Environ())})
+}
+
+// realGitList runs git for real in dir as osEnv's runner for the listing of
+// ignored files does: standard error output fails it.
+func realGitList(dir string) cmdrunner.Runner {
+	return cmdrunner.NewOS(cmdrunner.Options{Dir: dir, Env: cmdrunner.GitEnv(os.Environ()), StderrIsFailure: true})
 }
 
 // Baseline takes a baseline of the repository as begin would.
 func (r *testRepo) Baseline() fixprguard.Baseline {
 	r.t.Helper()
-	base, err := fixprguard.NewWorktree(realGit(), realGitList(), nil).Baseline(r.t.Context())
+	base, err := fixprguard.NewWorktree(mustWorktreeDir(r.t, r.Dir), realGit(r.Dir), realGitList(r.Dir), nil).Baseline(r.t.Context())
 	if err != nil {
 		r.t.Fatalf("Baseline: %v", err)
 	}
@@ -147,7 +157,7 @@ func (r *testRepo) Baseline() fixprguard.Baseline {
 // Begin takes a baseline and writes the begin record file, as begin does.
 func (r *testRepo) Begin() fixprguard.Baseline {
 	r.t.Helper()
-	base, err := fixprguard.NewWorktree(realGit(), realGitList(), nil).Begin(r.t.Context())
+	base, err := fixprguard.NewWorktree(mustWorktreeDir(r.t, r.Dir), realGit(r.Dir), realGitList(r.Dir), nil).Begin(r.t.Context())
 	if err != nil {
 		r.t.Fatalf("Begin: %v", err)
 	}
@@ -166,7 +176,7 @@ func (r *testRepo) Ignore(lines ...string) {
 // print it.
 func (r *testRepo) JudgedSet(base fixprguard.Baseline) fixprguard.JudgedSetID {
 	r.t.Helper()
-	inspection, err := fixprguard.NewWorktree(realGit(), realGitList(), nil).Inspect(r.t.Context(), base, nil)
+	inspection, err := fixprguard.NewWorktree(mustWorktreeDir(r.t, r.Dir), realGit(r.Dir), realGitList(r.Dir), nil).Inspect(r.t.Context(), base, nil)
 	if err != nil {
 		r.t.Fatalf("Inspect: %v", err)
 	}
@@ -192,13 +202,14 @@ type testRun struct {
 	Stderr *bytes.Buffer
 }
 
-func newTestRun(t *testing.T, gh []cmdrunnertestutil.Step, makeSteps ...cmdrunnertestutil.Step) *testRun {
+func newTestRun(t *testing.T, dir string, gh []cmdrunnertestutil.Step, makeSteps ...cmdrunnertestutil.Step) *testRun {
 	t.Helper()
 	r := &testRun{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
 	r.env = env{
+		dir:       mustWorktreeDir(t, dir),
 		gh:        cmdrunnertestutil.New(t, gh...),
-		git:       realGit(),
-		gitList:   realGitList(),
+		git:       realGit(dir),
+		gitList:   realGitList(dir),
 		make:      cmdrunnertestutil.New(t, makeSteps...),
 		stdout:    r.Stdout,
 		stderr:    r.Stderr,
@@ -418,7 +429,7 @@ func threadBodies(t *testing.T, threads ...ghThread) string {
 func fingerprintOf(t *testing.T, th ghThread, lookups ...cmdrunnertestutil.Step) string {
 	t.Helper()
 	steps := append([]cmdrunnertestutil.Step{headStep(sameRepositoryHead), repoStep(), graphqlStep(threadsPage(t, false, th))}, lookups...)
-	r := newTestRun(t, steps)
+	r := newTestRun(t, t.TempDir(), steps)
 	if code := r.Run(t, args(cmdList, "--reviewer", testReviewer, testPR)...); code != exitContinue {
 		t.Fatalf("list exit %d: %s", code, r.Stderr)
 	}

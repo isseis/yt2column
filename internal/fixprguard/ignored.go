@@ -298,11 +298,11 @@ func (w *Worktree) scanTargets(ctx context.Context, lim targetLimits, lstat lsta
 	if err != nil {
 		return targetState{}, err
 	}
-	paths, err := selectTargets(ctx, files, dirs, lim)
+	paths, err := selectTargets(ctx, w.dir, files, dirs, lim)
 	if err != nil {
 		return targetState{}, err
 	}
-	return targetStateOf(ctx, paths, lim, lstat)
+	return targetStateOf(ctx, w.dir, paths, lim, lstat)
 }
 
 // listIgnoredFailure classifies a failed listing. A warning on standard
@@ -363,7 +363,7 @@ func validListedPath(p string) bool {
 // selectTargets keeps the listed files on the watch list, walks every
 // directory item for more, adds settingsLocalPath, and returns the paths in
 // byte order.
-func selectTargets(ctx context.Context, files, dirs []string, lim targetLimits) ([]string, error) {
+func selectTargets(ctx context.Context, workDir WorktreeDir, files, dirs []string, lim targetLimits) ([]string, error) {
 	targets := map[string]struct{}{settingsLocalPath: {}}
 	add := func(p string) error {
 		if _, ok := targets[p]; ok {
@@ -384,12 +384,12 @@ func selectTargets(ctx context.Context, files, dirs []string, lim targetLimits) 
 	}
 	walked := 0
 	for _, dir := range dirs {
-		if err := walkIgnoredDir(ctx, dir, &walked, lim, add); err != nil {
+		if err := walkIgnoredDir(ctx, workDir, dir, &walked, lim, add); err != nil {
 			return nil, err
 		}
 	}
 	for _, top := range watchTopDirs {
-		if err := checkTopDirGitNames(ctx, top.dir, top.gitNameErr, dirs, &walked, lim); err != nil {
+		if err := checkTopDirGitNames(ctx, workDir, top.dir, top.gitNameErr, dirs, &walked, lim); err != nil {
 			return nil, err
 		}
 	}
@@ -407,8 +407,9 @@ func selectTargets(ctx context.Context, files, dirs []string, lim targetLimits) 
 // case when core.ignorecase is on, so a file there would be on the watch list
 // and yet in no listing. A top-level entry that is not a directory is left to
 // the listing.
-func checkTopDirGitNames(ctx context.Context, topDir string, gitNameErr error, dirs []string, walked *int, lim targetLimits) error {
-	info, err := os.Lstat(topDir)
+func checkTopDirGitNames(ctx context.Context, workDir WorktreeDir, topDir string, gitNameErr error, dirs []string, walked *int, lim targetLimits) error {
+	root := workDir.joinName(topDir)
+	info, err := os.Lstat(root)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return nil
@@ -418,10 +419,15 @@ func checkTopDirGitNames(ctx context.Context, topDir string, gitNameErr error, d
 		// Not a directory, or a nested repository walked above.
 		return nil
 	}
-	return filepath.WalkDir(topDir, func(p string, d fs.DirEntry, err error) error {
-		switch {
-		case err != nil:
+	return filepath.WalkDir(root, func(osPath string, d fs.DirEntry, err error) error {
+		if err != nil {
 			return errReadIgnoredDir
+		}
+		p, ok := workDir.relName(osPath)
+		if !ok {
+			return errReadIgnoredDir
+		}
+		switch {
 		case p == topDir:
 			return nil
 		case ctx.Err() != nil:
@@ -450,9 +456,14 @@ func checkTopDirGitNames(ctx context.Context, topDir string, gitNameErr error, d
 // entry against lim.walkEntries, and adds the regular files and links on the
 // watch list. A FIFO or another special file is left out, as git leaves it
 // out of the listing.
-func walkIgnoredDir(ctx context.Context, dir string, walked *int, lim targetLimits, add func(string) error) error {
-	return filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+func walkIgnoredDir(ctx context.Context, workDir WorktreeDir, dir string, walked *int, lim targetLimits, add func(string) error) error {
+	root := workDir.joinName(dir)
+	return filepath.WalkDir(root, func(osPath string, d fs.DirEntry, err error) error {
 		if err != nil {
+			return errReadIgnoredDir
+		}
+		p, ok := workDir.relName(osPath)
+		if !ok {
 			return errReadIgnoredDir
 		}
 		if p == dir {
@@ -479,7 +490,7 @@ func walkIgnoredDir(ctx context.Context, dir string, walked *int, lim targetLimi
 // covers every entry; each record line has the digest of one entry and the
 // path quoted with strconv.QuoteToASCII, so a path with a newline, a control
 // character, or invalid UTF-8 stays on one printable line.
-func targetStateOf(ctx context.Context, paths []string, lim targetLimits, lstat lstatFunc) (targetState, error) {
+func targetStateOf(ctx context.Context, workDir WorktreeDir, paths []string, lim targetLimits, lstat lstatFunc) (targetState, error) {
 	all := sha256.New()
 	var record bytes.Buffer
 	var total int64
@@ -487,7 +498,7 @@ func targetStateOf(ctx context.Context, paths []string, lim targetLimits, lstat 
 		if ctx.Err() != nil {
 			return targetState{}, errIgnoredTimeout
 		}
-		fields, err := targetEntry(p, lim, &total, lstat)
+		fields, err := targetEntry(workDir, p, lim, &total, lstat)
 		if err != nil {
 			return targetState{}, err
 		}
@@ -513,8 +524,9 @@ func entry(kind string, values ...string) []string {
 // link text, and what the link resolves to (linkTarget); or "other", the
 // path, and the type. Modification time, owner, and the read and write bits
 // are left out: they change without changing what runs.
-func targetEntry(p string, lim targetLimits, total *int64, lstat lstatFunc) ([]string, error) {
-	info, err := lstat(p)
+func targetEntry(workDir WorktreeDir, p string, lim targetLimits, total *int64, lstat lstatFunc) ([]string, error) {
+	osPath := workDir.joinName(p)
+	info, err := lstat(osPath)
 	switch {
 	case errors.Is(err, fs.ErrNotExist), errors.Is(err, syscall.ENOTDIR):
 		// Removed after the listing, or settingsLocalPath below a .claude
@@ -525,17 +537,17 @@ func targetEntry(p string, lim targetLimits, total *int64, lstat lstatFunc) ([]s
 	}
 	switch mode := info.Mode(); {
 	case mode.IsRegular():
-		perm, sum, err := readTarget(p, false, lim, total)
+		perm, sum, err := readTarget(workDir, p, false, lim, total)
 		if err != nil {
 			return nil, err
 		}
 		return entry("file", p, perm, sum), nil
 	case mode&fs.ModeSymlink != 0:
-		text, err := os.Readlink(p)
+		text, err := os.Readlink(osPath)
 		if err != nil {
 			return nil, errReadIgnoredFile
 		}
-		resolved, err := linkTarget(p, lim, total)
+		resolved, err := linkTarget(workDir, p, lim, total)
 		if err != nil {
 			return nil, err
 		}
@@ -551,8 +563,8 @@ func targetEntry(p string, lim targetLimits, total *int64, lstat lstatFunc) ([]s
 // loop, or an element is not a directory, so a later target is still a
 // change. A directory stops the pass rather than recording what is below it,
 // and so does any other failure.
-func linkTarget(p string, lim targetLimits, total *int64) ([]string, error) {
-	info, err := os.Stat(p)
+func linkTarget(workDir WorktreeDir, p string, lim targetLimits, total *int64) ([]string, error) {
+	info, err := os.Stat(workDir.joinName(p))
 	switch {
 	case errors.Is(err, fs.ErrNotExist), errors.Is(err, syscall.ELOOP), errors.Is(err, syscall.ENOTDIR):
 		return []string{"unresolved"}, nil
@@ -561,7 +573,7 @@ func linkTarget(p string, lim targetLimits, total *int64) ([]string, error) {
 	case info.IsDir():
 		return nil, errIgnoredLinkToDir
 	case info.Mode().IsRegular():
-		perm, sum, err := readTarget(p, true, lim, total)
+		perm, sum, err := readTarget(workDir, p, true, lim, total)
 		if err != nil {
 			return nil, err
 		}
@@ -579,8 +591,8 @@ func execBits(mode fs.FileMode) string {
 // file, both from the opened file, so a file swapped in after lstat cannot
 // pair the old bits with new content. openRegular opens without blocking and
 // checks the opened file, so a FIFO swapped in fails instead of hanging.
-func readTarget(p string, follow bool, lim targetLimits, total *int64) (perm, sum string, err error) {
-	f, err := openRegular(p, follow)
+func readTarget(workDir WorktreeDir, p string, follow bool, lim targetLimits, total *int64) (perm, sum string, err error) {
+	f, err := openRegular(workDir.joinName(p), follow)
 	if err != nil {
 		return "", "", errReadIgnoredFile
 	}
@@ -655,7 +667,7 @@ func (w *Worktree) WriteBeginRecord(ctx context.Context, base Baseline) error {
 	if !base.usable() {
 		return fmt.Errorf("%w: baseline", ErrInvalidInput)
 	}
-	dirs, err := locateGitDirs()
+	dirs, err := locateGitDirs(w.dir)
 	if err != nil {
 		return err
 	}

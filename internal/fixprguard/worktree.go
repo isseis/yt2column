@@ -45,26 +45,33 @@ func CommitSubject(pr PRNumber) string {
 	return "fix: address PR #" + pr.String() + " review comments"
 }
 
-// Worktree guards the work tree and the git state of the repository in the
-// current directory, which must be the top of the work tree. gitRun runs git
-// and must use the environment cmdrunner.GitEnv returns and an output cap, so
-// truncated output cannot hide a change; listRun runs the listing of ignored
-// files with the same environment and cap and must also set StderrIsFailure,
-// since git skips an unreadable directory with only a warning on standard
-// error; the other git calls cannot, since git add and git commit write there
-// when they succeed. makeRun runs the build checks and needs no cap, since
-// only the tail of a failed target's output is kept.
+// Worktree guards the work tree and the git state of the repository at dir,
+// which must be the top of the work tree. gitRun runs git and must use the
+// environment cmdrunner.GitEnv returns, Dir matching dir (empty for
+// CurrentDir), and an output cap, so truncated output cannot hide a change;
+// listRun runs the listing of ignored files with the same environment, Dir and
+// cap and must also set StderrIsFailure, since git skips an unreadable
+// directory with only a warning on standard error; the other git calls cannot,
+// since git add and git commit write there when they succeed. makeRun runs the
+// build checks and needs no cap, since only the tail of a failed target's
+// output is kept.
 type Worktree struct {
+	dir     WorktreeDir
 	gitRun  cmdrunner.Runner
 	listRun cmdrunner.Runner
 	makeRun cmdrunner.Runner
 	rand    io.Reader
 }
 
-// NewWorktree returns a Worktree that runs git through gitRun, the listing of
-// ignored files through listRun, and make through makeRun.
-func NewWorktree(gitRun, listRun, makeRun cmdrunner.Runner) *Worktree {
-	return &Worktree{gitRun: gitRun, listRun: listRun, makeRun: makeRun, rand: rand.Reader}
+// NewWorktree returns a Worktree that guards the work tree at dir. gitRun,
+// listRun and makeRun must run their commands in dir (cmdrunner.Options.Dir);
+// for CurrentDir that is the process's current directory (an empty Dir). It
+// panics when dir is the zero value.
+func NewWorktree(dir WorktreeDir, gitRun, listRun, makeRun cmdrunner.Runner) *Worktree {
+	if !dir.usable() {
+		panic("fixprguard: WorktreeDir is not set")
+	}
+	return &Worktree{dir: dir, gitRun: gitRun, listRun: listRun, makeRun: makeRun, rand: rand.Reader}
 }
 
 // CheckClean fails with ErrDirtyWorkTree when there is any uncommitted change,
@@ -494,7 +501,7 @@ func (w *Worktree) checkCommit(ctx context.Context, base Baseline, want []change
 	}
 	for _, c := range want {
 		r, ok := byPath[c.path]
-		if !ok || !committedAs(r, c) {
+		if !ok || !committedAs(w.dir, r, c) {
 			return "", judgedSetChanged(want)
 		}
 	}
@@ -504,21 +511,21 @@ func (w *Worktree) checkCommit(ctx context.Context, base Baseline, want []change
 // committedAs reports whether a diff-tree record stores change c: a deletion
 // for a deletion, and otherwise c's mode and a blob of the work tree's
 // content, which must still have c's digest.
-func committedAs(r rawRecord, c change) bool {
+func committedAs(dir WorktreeDir, r rawRecord, c change) bool {
 	if c.kind == ChangeDelete {
 		return r.status == 'D'
 	}
 	if r.status == 'D' || r.newMode != c.mode {
 		return false
 	}
-	blob, digest, err := blobOf(c.path, c.mode, len(r.newOID))
+	blob, digest, err := blobOf(dir, c.path, c.mode, len(r.newOID))
 	return err == nil && digest == c.digest && blob == r.newOID
 }
 
 // blobOf returns the git blob ID (SHA-1 or SHA-256 by oidLength) of a work
 // tree path as git would store it unfiltered, and the digest examine records
 // for it: the content of a regular file, the target of a symbolic link.
-func blobOf(p, mode string, oidLength int) (blob, digest string, err error) {
+func blobOf(dir WorktreeDir, p, mode string, oidLength int) (blob, digest string, err error) {
 	var newHash func() hash.Hash
 	switch oidLength {
 	case sha1OIDLength:
@@ -528,14 +535,15 @@ func blobOf(p, mode string, oidLength int) (blob, digest string, err error) {
 	default:
 		return "", "", fmt.Errorf("%w: object ID length", ErrGitFailed)
 	}
+	osPath := dir.joinName(p)
 	if mode == modeSymlink {
-		target, err := os.Readlink(p)
+		target, err := os.Readlink(osPath)
 		if err != nil {
 			return "", "", err
 		}
 		return objectID(newHash(), []byte(target)), digestString(target), nil
 	}
-	f, err := openRegular(p, false)
+	f, err := openRegular(osPath, false)
 	if err != nil {
 		return "", "", err
 	}
@@ -571,14 +579,14 @@ type ReviewState struct {
 }
 
 // checkReviewInput refuses, before any git runs, a Phase 4 commit not in the
-// accepted shape and a run away from the top of a work tree (no .git here).
+// accepted shape and a run away from the top of a work tree (no .git in dir).
 // A .git that exists in another shape is left to CheckState, which reports
 // it as a config change: rewriting it changes the state compared.
-func checkReviewInput(phase4 string) error {
+func checkReviewInput(dir WorktreeDir, phase4 string) error {
 	if !validOID(phase4) {
 		return fmt.Errorf("%w: commit", ErrInvalidInput)
 	}
-	if _, err := os.Lstat(".git"); errors.Is(err, fs.ErrNotExist) {
+	if _, err := os.Lstat(dir.joinName(".git")); errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("%w: not at the top of a work tree", ErrInvalidInput)
 	}
 	return nil
@@ -589,7 +597,7 @@ func checkReviewInput(phase4 string) error {
 // finds the Phase 4 commit from the git state itself. It reads no push target
 // and changes nothing but the ignored stop record.
 func (w *Worktree) CheckReviewState(ctx context.Context, base Baseline, phase4 string) (ReviewState, error) {
-	if err := checkReviewInput(phase4); err != nil {
+	if err := checkReviewInput(w.dir, phase4); err != nil {
 		return ReviewState{}, err
 	}
 	state, err := w.compareState(ctx, base, headRule{kind: headFollowsPhase4, commit: phase4}, checkLocal)
@@ -651,7 +659,7 @@ func (w *Worktree) pushCommit(ctx context.Context, target pushTarget, commit str
 // one moment; a process that rewrites the configuration or the hooks between
 // the check and the push is not stopped.
 func (w *Worktree) PushReviewed(ctx context.Context, base Baseline, phase4 string) (PushResult, error) {
-	if err := checkReviewInput(phase4); err != nil {
+	if err := checkReviewInput(w.dir, phase4); err != nil {
 		return PushResult{}, err
 	}
 	state, err := w.compareState(ctx, base, headRule{kind: headFollowsPhase4, commit: phase4}, checkWithRemote)

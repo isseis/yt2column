@@ -180,28 +180,29 @@ type gitDirs struct {
 }
 
 // locateGitDirs finds the git directories from the files alone, without
-// running git: a .git directory in the current directory, or a .git file
-// naming a linked worktree's directory; in either case a commondir file in it
-// names the shared directory, as git reads it. The current directory must be
-// the top of the work tree. A failure names the rule only.
-func locateGitDirs() (gitDirs, error) {
-	info, err := os.Lstat(".git")
+// running git: a .git directory in dir, or a .git file naming a linked
+// worktree's directory; in either case a commondir file in it names the shared
+// directory, as git reads it. dir must be the top of the work tree. A failure
+// names the rule only.
+func locateGitDirs(dir WorktreeDir) (gitDirs, error) {
+	gitPath := dir.joinName(".git")
+	info, err := os.Lstat(gitPath)
 	if err != nil {
 		return gitDirs{}, fmt.Errorf("%w: not at the top of a work tree", ErrInvalidInput)
 	}
-	gitDir := ".git"
+	gitDir := gitPath
 	switch {
 	case info.IsDir():
 	case info.Mode().IsRegular():
-		content, err := readSmallFile(".git")
+		content, err := readSmallFile(gitPath)
 		if err != nil {
 			return gitDirs{}, fmt.Errorf("%w: read .git file", ErrInvalidInput)
 		}
-		dir, ok := strings.CutPrefix(strings.TrimSuffix(content, "\n"), "gitdir: ")
-		if !ok || dir == "" || strings.ContainsAny(dir, "\n\x00") {
+		target, ok := strings.CutPrefix(strings.TrimSuffix(content, "\n"), "gitdir: ")
+		if !ok || target == "" || strings.ContainsAny(target, "\n\x00") {
 			return gitDirs{}, fmt.Errorf("%w: .git file shape", ErrInvalidInput)
 		}
-		gitDir = dir
+		gitDir = dir.resolveLocation(target)
 	default:
 		return gitDirs{}, fmt.Errorf("%w: .git is not a directory or a file", ErrInvalidInput)
 	}
@@ -541,7 +542,7 @@ func (w *Worktree) hooksState(ctx context.Context) (string, error) {
 	if dir == "" || strings.ContainsAny(dir, "\n\x00") {
 		return "", fmt.Errorf("%w: rev-parse output", ErrGitFailed)
 	}
-	sum, err := hooksDigest(dir)
+	sum, err := hooksDigest(w.dir.resolveLocation(dir))
 	if err != nil {
 		return "", fmt.Errorf("%w: read hooks", ErrGitFailed)
 	}
@@ -569,7 +570,7 @@ func (w *Worktree) CheckState(ctx context.Context, base Baseline) error {
 	if !base.usable() {
 		return fmt.Errorf("%w: baseline", ErrInvalidInput)
 	}
-	dirs, err := locateGitDirs()
+	dirs, err := locateGitDirs(w.dir)
 	if err != nil {
 		// The work tree was located at begin; losing it now is a change.
 		return &GitStateError{Parts: []string{PartConfig}}
@@ -756,7 +757,7 @@ func (w *Worktree) checkIndexFlags(ctx context.Context) error {
 // WriteBeginRecord first, as begin and Begin do, so no token names a record
 // that was never written.
 func (w *Worktree) Baseline(ctx context.Context) (Baseline, error) {
-	dirs, err := locateGitDirs()
+	dirs, err := locateGitDirs(w.dir)
 	if err != nil {
 		return Baseline{}, err
 	}

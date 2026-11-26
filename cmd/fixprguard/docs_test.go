@@ -33,7 +33,7 @@ func readRepoFile(t *testing.T, rel string) string {
 // file exists, so a user who sees the diagnostic can open it.
 func TestGuidePathExists(t *testing.T) {
 	const guide = "docs/dev/guides/fixprguard_guide.md"
-	r := newTestRun(t, nil)
+	r := newTestRun(t, t.TempDir(), nil)
 	if code := r.Run(t); code != exitUsage {
 		t.Fatalf("no arguments: exit %d, want %d (%s)", code, exitUsage, r.Stderr)
 	}
@@ -740,14 +740,14 @@ func TestGuideIgnoredCommands(t *testing.T) {
 	repo.Ignore("build/")
 	repo.Write("build/kept.go", "package x\n")
 	repo.Write("build/changed.go", "package x\n")
-	r := newTestRun(t, beginSteps(threadsPage(t, false)))
+	r := newTestRun(t, repo.Dir, beginSteps(threadsPage(t, false)))
 	if code := r.Run(t, args(cmdBegin, "--reviewer", testReviewer, testPR)...); code != exitContinue {
 		t.Fatalf("begin: exit %d (%s)", code, r.Stderr)
 	}
 	var out beginJSON
 	r.Decode(t, &out)
 	repo.Write("build/changed.go", "package y\n")
-	inspect := newTestRun(t, nil)
+	inspect := newTestRun(t, repo.Dir, nil)
 	if code := inspect.Run(t, args(cmdInspect, "--reviewer", testReviewer, "--baseline", out.Baseline, testPR)...); code != exitStop {
 		t.Fatalf("inspect: exit %d, want %d (%s)", code, exitStop, inspect.Stderr)
 	}
