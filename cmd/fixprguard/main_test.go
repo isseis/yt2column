@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -46,7 +47,9 @@ func validArgs() map[string][]string {
 		cmdAppendPR: args(cmdAppendPR, "--body-file", "body.md", testPR),
 
 		cmdInteractionLimits: args(cmdInteractionLimits, testPR),
-		cmdReviewState:       args(cmdReviewState, "--reviewer", testReviewer, "--request", testRequest, testPR),
+		cmdReviewState:       args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", testRequest, testPR),
+		cmdMentions:          args(cmdMentions, "--observed-bot", "coderabbit="+testReviewer, "--request", testRequest, testPR),
+		cmdCIChecks:          args(cmdCIChecks, testPR),
 	}
 }
 
@@ -241,7 +244,9 @@ func TestGhTargetEnvRejected(t *testing.T) {
 		cmdAppendPR: args(cmdAppendPR, "--body-file", text, testPR),
 
 		cmdInteractionLimits: args(cmdInteractionLimits, testPR),
-		cmdReviewState:       args(cmdReviewState, "--reviewer", testReviewer, "--request", testRequest, testPR),
+		cmdReviewState:       args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", testRequest, testPR),
+		cmdMentions:          args(cmdMentions, "--observed-bot", "coderabbit="+testReviewer, "--request", testRequest, testPR),
+		cmdCIChecks:          args(cmdCIChecks, testPR),
 	}
 	for name, sp := range specs {
 		if _, ok := lines[name]; sp.usesGH != ok {
@@ -576,7 +581,7 @@ func TestReviewStateRun(t *testing.T) {
 	request := comment(1, "isseis", "User", testRequest)
 	other := comment(2, "alice", "User", testSecret)
 	run := func(title string) string {
-		return `{"databaseId":11,"status":"COMPLETED","conclusion":"SUCCESS","title":"` + title + `","startedAt":"2026-11-20T10:00:20Z",` +
+		return `{"databaseId":11,"name":"CodeRabbit","status":"COMPLETED","conclusion":"SUCCESS","title":"` + title + `","startedAt":"2026-11-20T10:00:20Z",` +
 			`"completedAt":"2026-11-20T10:03:00Z","url":"https://github.com/isseis/yt2column/runs/11","detailsUrl":"https://example.com/` + testSecret + `"}`
 	}
 	commits := func(title string) string {
@@ -591,64 +596,86 @@ func TestReviewStateRun(t *testing.T) {
 	)
 	for _, tc := range []struct {
 		name  string
+		line  []string
 		steps []cmdrunnertestutil.Step
 		want  string
 	}{
 		{
 			name:  "completed",
+			line:  args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", testRequest, testPR),
 			steps: reviewStateSteps(`[`+other+`,`+request+`]`, commits("Finished"), reviews),
-			want: proto + `"state":"completed","reason":"","indeterminateReason":"","head":"` + head + `",` + times + `,` + req + `,` +
+			want: proto + `"profile":"coderabbit","state":"completed","reason":"","indeterminateReason":"","head":"` + head + `",` + times + `,` + req + `,` +
 				`"response":{"kind":"finished","status":"COMPLETED","conclusion":"SUCCESS","commit":"` + head + `","url":"https://github.com/isseis/yt2column/runs/11","startedAt":"2026-11-20T10:00:20Z"},` +
-				`"indeterminateUrls":[],"markers":[{"commit":"` + head + `","requestId":1,"requestUrl":"https://github.com/isseis/yt2column/pull/42#issuecomment-1",` +
+				`"autoReview":null,"indeterminateUrls":[],"markers":[{"commit":"` + head + `","requestId":1,"requestUrl":"https://github.com/isseis/yt2column/pull/42#issuecomment-1",` +
 				`"checkRunUrl":"https://github.com/isseis/yt2column/runs/11","reviewUrl":"https://github.com/isseis/yt2column/pull/42#pullrequestreview-5","completedAt":"2026-11-20T10:03:00Z"}]}`,
 		},
 		{
 			name:  "unrecognized_title_is_not_printed",
+			line:  args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", testRequest, testPR),
 			steps: reviewStateSteps(`[`+request+`]`, commits(testSecret), `[]`),
-			want: proto + `"state":"unrecognized","reason":"","indeterminateReason":"","head":"` + head + `",` + times + `,` + req + `,` +
+			want: proto + `"profile":"coderabbit","state":"unrecognized","reason":"","indeterminateReason":"","head":"` + head + `",` + times + `,` + req + `,` +
 				`"response":{"kind":"unknown","status":"COMPLETED","conclusion":"SUCCESS","commit":"` + head + `","url":"https://github.com/isseis/yt2column/runs/11","startedAt":"2026-11-20T10:00:20Z"},` +
-				`"indeterminateUrls":[],"markers":[]}`,
+				`"autoReview":null,"indeterminateUrls":[],"markers":[]}`,
 		},
 		{
 			name:  "none",
+			line:  args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", testRequest, testPR),
 			steps: reviewStateSteps(`[`+other+`]`, "", ""),
-			want: proto + `"state":"none","reason":"","indeterminateReason":"","head":"` + head + `",` + times + `,"request":null,"response":null,` +
+			want: proto + `"profile":"coderabbit","state":"none","reason":"","indeterminateReason":"","head":"` + head + `",` + times + `,"request":null,"response":null,"autoReview":null,` +
+				`"indeterminateUrls":[],"markers":[]}`,
+		},
+		{
+			name: "sourcery_auto_review_with_multiple_requests",
+			line: args(cmdReviewState, "--profile", "sourcery", "--reviewer", "sourcery-ai", "--request", "sourcery req 1", "--request", "sourcery req 2", testPR),
+			steps: func() []cmdrunnertestutil.Step {
+				gql := `{"data":{"repository":{"pullRequest":{"headRefOid":"` + head + `","commits":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[` +
+					`{"commit":{"oid":"` + head + `","checkSuites":{"pageInfo":{"hasNextPage":false},"nodes":[{"app":{"slug":"sourcery-ai"},"checkRuns":{"pageInfo":{"hasNextPage":false},"nodes":[` +
+					`{"name":"Sourcery review","status":"COMPLETED","conclusion":"SUCCESS","title":"✅ Completed successfully","startedAt":"2026-11-20T10:01:00Z","completedAt":"2026-11-20T10:03:00Z","url":"https://github.com/isseis/yt2column/runs/21"}]}}]}}}]}}}}}`
+				// Sourcery with 0 manual requests reads GraphQL but not reviews.
+				steps := reviewStateSteps(`[`+other+`]`, "", "")
+				return append(steps, ghStep(gql, nil, "api", "graphql", "--input", "-"))
+			}(),
+			want: proto + `"profile":"sourcery","state":"none","reason":"","indeterminateReason":"","head":"` + head + `",` + times + `,"request":null,"response":null,` +
+				`"autoReview":{"state":"completed","kind":"finished","status":"COMPLETED","conclusion":"SUCCESS","commit":"` + head + `","url":"https://github.com/isseis/yt2column/runs/21","startedAt":"2026-11-20T10:01:00Z"},` +
 				`"indeterminateUrls":[],"markers":[]}`,
 		},
 		{
 			name: "pull_call_failed",
+			line: args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", testRequest, testPR),
 			steps: []cmdrunnertestutil.Step{
 				repoStep(),
 				ghStep("", &cmdrunner.ExitError{Code: 1, Stdout: []byte(testSecret), Stderr: []byte("gh: " + testSecret)},
 					"api", "--include", "repos/isseis/yt2column/pulls/"+testPR),
 			},
-			want: proto + `"state":"unreadable","reason":"call-failed","indeterminateReason":"","head":"","now":"","request":null,"response":null,` +
+			want: proto + `"profile":"coderabbit","state":"unreadable","reason":"call-failed","indeterminateReason":"","head":"","now":"","request":null,"response":null,"autoReview":null,` +
 				`"indeterminateUrls":[],"markers":[]}`,
 		},
 		{
 			// The head is read before the user, so a failed gh api user
 			// still reports the head it managed to read.
 			name: "user_call_failed_keeps_the_head",
+			line: args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", testRequest, testPR),
 			steps: []cmdrunnertestutil.Step{
 				repoStep(),
 				ghStep(includedOutput(200, []string{"Date: Fri, 20 Nov 2026 10:05:00 GMT"}, `{"head":{"sha":"`+head+`"}}`), nil,
 					"api", "--include", "repos/isseis/yt2column/pulls/"+testPR),
 				ghStep("", &cmdrunner.ExitError{Code: 1, Stdout: []byte(testSecret), Stderr: []byte("gh: " + testSecret)}, "api", "user"),
 			},
-			want: proto + `"state":"unreadable","reason":"call-failed","indeterminateReason":"","head":"` + head + `","now":"","request":null,"response":null,` +
+			want: proto + `"profile":"coderabbit","state":"unreadable","reason":"call-failed","indeterminateReason":"","head":"` + head + `","now":"","request":null,"response":null,"autoReview":null,` +
 				`"indeterminateUrls":[],"markers":[]}`,
 		},
 		{
 			name:  "unreadable_rejected_keeps_the_head",
+			line:  args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", testRequest, testPR),
 			steps: reviewStateSteps(`{}`, "", ""),
-			want: proto + `"state":"unreadable","reason":"rejected","indeterminateReason":"","head":"` + head + `","now":"","request":null,"response":null,` +
+			want: proto + `"profile":"coderabbit","state":"unreadable","reason":"rejected","indeterminateReason":"","head":"` + head + `","now":"","request":null,"response":null,"autoReview":null,` +
 				`"indeterminateUrls":[],"markers":[]}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newTestRun(t, tc.steps)
-			if code := r.Run(t, args(cmdReviewState, "--reviewer", testReviewer, "--request", testRequest, testPR)...); code != exitContinue {
-				t.Errorf("exit %d, want %d", code, exitContinue)
+			if code := r.Run(t, tc.line...); code != exitContinue {
+				t.Errorf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
 			}
 			got := strings.TrimSuffix(r.Stdout.String(), "\n")
 			if got != tc.want {
@@ -667,12 +694,16 @@ func TestReviewStateRun(t *testing.T) {
 		name string
 		line []string
 	}{
-		{"no_request", args(cmdReviewState, "--reviewer", testReviewer, testPR)},
-		{"empty_request", args(cmdReviewState, "--reviewer", testReviewer, "--request", "", testPR)},
-		{"two_reviewers", args(cmdReviewState, "--reviewer", testReviewer, "--reviewer", testSecondReviewer, "--request", testRequest, testPR)},
-		{"invalid_reviewer", args(cmdReviewState, "--reviewer", "bad name", "--request", testRequest, testPR)},
-		{"no_pr", args(cmdReviewState, "--reviewer", testReviewer, "--request", testRequest)},
-		{"bad_pr", args(cmdReviewState, "--reviewer", testReviewer, "--request", testRequest, "pull/42")},
+		{"no_profile", args(cmdReviewState, "--reviewer", testReviewer, "--request", testRequest, testPR)},
+		{"bad_profile", args(cmdReviewState, "--profile", "unknown", "--reviewer", testReviewer, "--request", testRequest, testPR)},
+		{"two_profiles", args(cmdReviewState, "--profile", "coderabbit", "--profile", "sourcery", "--reviewer", testReviewer, "--request", testRequest, testPR)},
+		{"no_request", args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, testPR)},
+		{"empty_request", args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", "", testPR)},
+		{"duplicate_request", args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", testRequest, "--request", testRequest, testPR)},
+		{"two_reviewers", args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--reviewer", testSecondReviewer, "--request", testRequest, testPR)},
+		{"invalid_reviewer", args(cmdReviewState, "--profile", "coderabbit", "--reviewer", "bad name", "--request", testRequest, testPR)},
+		{"no_pr", args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", testRequest)},
+		{"bad_pr", args(cmdReviewState, "--profile", "coderabbit", "--reviewer", testReviewer, "--request", testRequest, "pull/42")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newTestRun(t, nil)
@@ -684,6 +715,196 @@ func TestReviewStateRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestMentionsRun: mentions exits 0 for both ok and unreadable states with
+// Protocol set and no body text leaked, and exits 2 on invalid arguments.
+func TestMentionsRun(t *testing.T) {
+	const now = "Fri, 20 Nov 2026 10:05:00 GMT"
+	proto := `{"protocol":` + strconv.Itoa(fixprguard.Protocol) + `,`
+	incl := func(body string) string {
+		return includedOutput(200, []string{"Date: " + now, "X-Marker: " + testSecret}, body)
+	}
+	api := func(out, path string) cmdrunnertestutil.Step {
+		return ghStep(incl(out), nil, "api", "--include", "repos/isseis/yt2column/"+path)
+	}
+	issueComments := `[` +
+		`{"id":1,"user":{"login":"isseis","type":"User"},"body":"@coderabbitai review","created_at":"2026-11-20T10:00:00Z","updated_at":"2026-11-20T10:00:00Z","html_url":"https://github.com/isseis/yt2column/pull/42#issuecomment-1"},` +
+		`{"id":2,"user":{"login":"sourcery-ai[bot]","type":"Bot"},"body":"<!-- Generated by sourcery-ai[bot]: start review_guide -->\n@sourcery-ai ` + testSecret + `","created_at":"2026-11-20T10:01:00Z","updated_at":"2026-11-20T10:01:00Z","html_url":"https://github.com/isseis/yt2column/pull/42#issuecomment-2"},` +
+		`{"id":3,"user":{"login":"mallory","type":"User"},"body":"@sourceryai ` + testSecret + `","created_at":"2026-11-20T10:02:00Z","updated_at":"2026-11-20T10:02:00Z","html_url":"https://github.com/isseis/yt2column/pull/42#issuecomment-3"}` +
+		`]`
+	line := args(cmdMentions,
+		"--observed-bot", "coderabbit="+testReviewer,
+		"--observed-bot", "sourcery=sourcery-ai",
+		"--request", "@coderabbitai review",
+		"--request", "@sourcery-ai review",
+		testPR,
+	)
+	t.Run("ok", func(t *testing.T) {
+		r := newTestRun(t, []cmdrunnertestutil.Step{
+			repoStep(),
+			ghStep(`{"login":"isseis"}`, nil, "api", "user"),
+			api(issueComments, "issues/"+testPR+"/comments?per_page=100&page=1"),
+			api(`[]`, "pulls/"+testPR+"/comments?per_page=100&page=1"),
+			api(`[]`, "pulls/"+testPR+"/reviews?per_page=100&page=1"),
+		})
+		if code := r.Run(t, line...); code != exitContinue {
+			t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
+		}
+		want := proto + `"state":"ok","reason":"","stage":"","mentions":[{"source":"issue-comment","url":"https://github.com/isseis/yt2column/pull/42#issuecomment-3","createdAt":"2026-11-20T10:02:00Z","updatedAt":"2026-11-20T10:02:00Z","byUser":false,"byBot":false}]}`
+		if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != want {
+			t.Errorf("stdout = %s\nwant     %s", got, want)
+		}
+		if strings.Contains(r.Stdout.String(), testSecret) || r.Stderr.Len() != 0 {
+			t.Errorf("leaked or wrote stderr: stdout=%q stderr=%q", r.Stdout, r.Stderr)
+		}
+	})
+	t.Run("unreadable_exits_0", func(t *testing.T) {
+		r := newTestRun(t, []cmdrunnertestutil.Step{
+			repoStep(),
+			ghStep("", &cmdrunner.ExitError{Code: 1, Stderr: []byte(testSecret)}, "api", "user"),
+		})
+		if code := r.Run(t, line...); code != exitContinue {
+			t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
+		}
+		want := proto + `"state":"unreadable","reason":"call-failed","stage":"user","mentions":[]}`
+		if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != want {
+			t.Errorf("stdout = %s\nwant     %s", got, want)
+		}
+		if strings.Contains(r.Stdout.String(), testSecret) || r.Stderr.Len() != 0 {
+			t.Errorf("leaked or wrote stderr: stdout=%q stderr=%q", r.Stdout, r.Stderr)
+		}
+	})
+	for _, tc := range []struct {
+		name string
+		line []string
+	}{
+		{"no_observed_bot", args(cmdMentions, "--request", testRequest, testPR)},
+		{"bad_observed_bot", args(cmdMentions, "--observed-bot", "bad", "--request", testRequest, testPR)},
+		{"dup_profile", args(cmdMentions, "--observed-bot", "coderabbit="+testReviewer, "--observed-bot", "coderabbit=other", "--request", testRequest, testPR)},
+		{"dup_login", args(cmdMentions, "--observed-bot", "coderabbit="+testReviewer, "--observed-bot", "sourcery="+testReviewer, "--request", testRequest, testPR)},
+		{"no_request", args(cmdMentions, "--observed-bot", "coderabbit="+testReviewer, testPR)},
+		{"empty_request", args(cmdMentions, "--observed-bot", "coderabbit="+testReviewer, "--request", "", testPR)},
+		{"dup_request", args(cmdMentions, "--observed-bot", "coderabbit="+testReviewer, "--request", testRequest, "--request", testRequest, testPR)},
+		{"no_pr", args(cmdMentions, "--observed-bot", "coderabbit="+testReviewer, "--request", testRequest)},
+		{"bad_pr", args(cmdMentions, "--observed-bot", "coderabbit="+testReviewer, "--request", testRequest, "pull/42")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestRun(t, nil)
+			if code := r.Run(t, tc.line...); code != exitUsage {
+				t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
+			}
+			if r.Stdout.Len() != 0 {
+				t.Errorf("stdout %q, want none", r.Stdout)
+			}
+		})
+	}
+}
+
+// TestCIChecksRun: ci-checks exits 0 for passed, head-changed, and unreadable
+// states with Protocol set, and exits 2 on invalid arguments.
+func TestCIChecksRun(t *testing.T) {
+	const (
+		head  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		other = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	)
+	proto := `{"protocol":` + strconv.Itoa(fixprguard.Protocol) + `,`
+	gqlOut := `{"data":{"repository":{"pullRequest":{"headRefOid":"` + head + `","commits":{"nodes":[` +
+		`{"commit":{"oid":"` + head + `","checkSuites":{"pageInfo":{"hasNextPage":false},"nodes":[` +
+		`{"app":{"slug":"github-actions"},"status":"COMPLETED","conclusion":"SUCCESS","createdAt":"2026-11-20T10:00:00Z",` +
+		`"workflowRun":{"workflow":{"name":"CI"}},"checkRuns":{"pageInfo":{"hasNextPage":false},"nodes":[` +
+		`{"name":"Test","status":"COMPLETED","conclusion":"SUCCESS","url":"https://github.com/isseis/yt2column/runs/1"}]}}]}}}]}}}}}`
+	newCIRun := func(t *testing.T, out string, callErr error) *testRun {
+		t.Helper()
+		r := newTestRun(t, nil)
+		idx := 0
+		r.gh = &ciFakeGH{run: func(_ context.Context, name string, args ...string) ([]byte, error) {
+			if name != "gh" {
+				t.Fatalf("unexpected command %q", name)
+			}
+			idx++
+			switch idx {
+			case 1:
+				if !slices.Equal(args, []string{"repo", "view", "--json", "nameWithOwner"}) {
+					t.Fatalf("call 1 args = %v", args)
+				}
+				return []byte(`{"nameWithOwner":"isseis/yt2column"}`), nil
+			case 2:
+				if len(args) < 2 || args[0] != "api" || args[1] != "graphql" {
+					t.Fatalf("call 2 args = %v", args)
+				}
+				return []byte(out), callErr
+			default:
+				t.Fatalf("unexpected call %d: %v", idx, args)
+				return nil, nil
+			}
+		}}
+		return r
+	}
+	t.Run("passed_with_head", func(t *testing.T) {
+		r := newCIRun(t, gqlOut, nil)
+		if code := r.Run(t, args(cmdCIChecks, "--head", head, testPR)...); code != exitContinue {
+			t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
+		}
+		want := proto + `"state":"passed","reason":"","head":"` + head + `","suites":1,"checks":1,"failing":[]}`
+		if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != want {
+			t.Errorf("stdout = %s\nwant     %s", got, want)
+		}
+		if r.Stderr.Len() != 0 {
+			t.Errorf("stderr %q, want none", r.Stderr)
+		}
+	})
+	t.Run("head_changed_exits_0", func(t *testing.T) {
+		r := newCIRun(t, gqlOut, nil)
+		if code := r.Run(t, args(cmdCIChecks, "--head", other, testPR)...); code != exitContinue {
+			t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
+		}
+		want := proto + `"state":"unreadable","reason":"head-changed","head":"` + head + `","suites":0,"checks":0,"failing":[]}`
+		if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != want {
+			t.Errorf("stdout = %s\nwant     %s", got, want)
+		}
+	})
+	t.Run("without_head", func(t *testing.T) {
+		r := newCIRun(t, gqlOut, nil)
+		if code := r.Run(t, args(cmdCIChecks, testPR)...); code != exitContinue {
+			t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
+		}
+		want := proto + `"state":"passed","reason":"","head":"` + head + `","suites":1,"checks":1,"failing":[]}`
+		if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != want {
+			t.Errorf("stdout = %s\nwant     %s", got, want)
+		}
+	})
+	for _, tc := range []struct {
+		name string
+		line []string
+	}{
+		{"empty_head", args(cmdCIChecks, "--head", "", testPR)},
+		{"bad_head", args(cmdCIChecks, "--head", "not-a-sha", testPR)},
+		{"no_pr", args(cmdCIChecks)},
+		{"bad_pr", args(cmdCIChecks, "pull/42")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestRun(t, nil)
+			if code := r.Run(t, tc.line...); code != exitUsage {
+				t.Errorf("exit %d, want %d (%s)", code, exitUsage, r.Stderr)
+			}
+			if r.Stdout.Len() != 0 {
+				t.Errorf("stdout %q, want none", r.Stdout)
+			}
+		})
+	}
+}
+
+type ciFakeGH struct {
+	run func(ctx context.Context, name string, args ...string) ([]byte, error)
+}
+
+func (f *ciFakeGH) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return f.run(ctx, name, args...)
+}
+
+func (f *ciFakeGH) RunInput(ctx context.Context, _ []byte, name string, args ...string) ([]byte, error) {
+	return f.run(ctx, name, args...)
 }
 
 // beginSteps scripts begin's gh calls: the head check, then Begin's own head

@@ -42,18 +42,23 @@ const (
 	keyHasNextPage = "hasNextPage"
 
 	// Titles and conclusions of the classification table.
-	statusCompleted      = "COMPLETED"
-	conclusionSuccess    = "SUCCESS"
-	conclusionNeutral    = "NEUTRAL"
-	conclusionSkipped    = "SKIPPED"
-	titleFinished        = "Finished"
-	titleRateLimited     = "Review rate limited"
-	titleAutoReviewOff   = "Review skipped: automatic reviews are disabled"
-	botLoginSuffix       = "[bot]"
-	restPerPage          = 100
-	commitsPerPage       = 20
-	sha1HexLength        = 40
-	maxRequestTextLength = 1024
+	keyName               = "name"
+	checkNameCodeRabbit   = "CodeRabbit"
+	checkNameSourcery     = "Sourcery review"
+	statusCompleted       = "COMPLETED"
+	conclusionSuccess     = "SUCCESS"
+	conclusionNeutral     = "NEUTRAL"
+	conclusionSkipped     = "SKIPPED"
+	titleFinished         = "Finished"
+	titleRateLimited      = "Review rate limited"
+	titleAutoReviewOff    = "Review skipped: automatic reviews are disabled"
+	titleSourceryFinished = "✅ Completed successfully"
+	titleSourcerySkipped  = "⏭️ Skipped"
+	botLoginSuffix        = "[bot]"
+	restPerPage           = 100
+	commitsPerPage        = 20
+	sha1HexLength         = 40
+	maxRequestTextLength  = 1024
 
 	// reviewWaitLimit is how long a request is waited for: past it the state is
 	// timed-out, even when a check run of the request is still running.
@@ -100,6 +105,17 @@ func (p ReviewProfile) usable() bool {
 	return p == ProfileCodeRabbit || p == ProfileSourcery
 }
 
+func (p ReviewProfile) checkName() string {
+	switch p {
+	case ProfileCodeRabbit:
+		return checkNameCodeRabbit
+	case ProfileSourcery:
+		return checkNameSourcery
+	default:
+		return ""
+	}
+}
+
 // MarshalText names the profile. ProfileUnknown and any value outside the
 // declared set return errUnknownEnum.
 func (p ReviewProfile) MarshalText() ([]byte, error) {
@@ -131,6 +147,7 @@ const (
 	RunFinished                   // "finished"
 	RunRateLimited                // "rate-limited"
 	RunSkipNotice                 // "skip-notice"; never a response
+	RunSkipped                    // "skipped"; Sourcery terminal SKIPPED
 )
 
 // MarshalText names the kind. A value outside the list is an error.
@@ -146,6 +163,8 @@ func (k RunKind) MarshalText() ([]byte, error) {
 		return []byte("rate-limited"), nil
 	case RunSkipNotice:
 		return []byte("skip-notice"), nil
+	case RunSkipped:
+		return []byte("skipped"), nil
 	default:
 		return nil, fmt.Errorf("%w: run kind", errUnknownEnum)
 	}
@@ -163,6 +182,7 @@ const (
 	RequestWaiting                           // "waiting"
 	RequestCompleted                         // "completed"
 	RequestRateLimited                       // "rate-limited"
+	RequestSkipped                           // "skipped"
 	RequestUnrecognized                      // "unrecognized"
 	RequestTimedOut                          // "timed-out"
 )
@@ -182,6 +202,8 @@ func (s RequestState) MarshalText() ([]byte, error) {
 		return []byte("completed"), nil
 	case RequestRateLimited:
 		return []byte("rate-limited"), nil
+	case RequestSkipped:
+		return []byte("skipped"), nil
 	case RequestUnrecognized:
 		return []byte("unrecognized"), nil
 	case RequestTimedOut:
@@ -196,7 +218,51 @@ func (s RequestState) MarshalText() ([]byte, error) {
 func RequestStates() []RequestState {
 	return []RequestState{
 		RequestIndeterminate, RequestUnreadable, RequestNone, RequestWaiting,
-		RequestCompleted, RequestRateLimited, RequestUnrecognized, RequestTimedOut,
+		RequestCompleted, RequestRateLimited, RequestSkipped, RequestUnrecognized, RequestTimedOut,
+	}
+}
+
+// AutoReviewState is the state of the non-manual CheckRun on head chosen by
+// the four-step priority of AutoReview (ProfileSourcery only; AutoNone when
+// absent or ProfileCodeRabbit).
+type AutoReviewState int
+
+// The states of an automatic PR review on head.
+const (
+	AutoNone         AutoReviewState = iota // "none"
+	AutoRunning                             // "running"
+	AutoCompleted                           // "completed"
+	AutoSkipped                             // "skipped"
+	AutoUnrecognized                        // "unrecognized"
+	AutoTimedOut                            // "timed-out"
+)
+
+// MarshalText names the automatic review state. A value outside the list is an
+// error.
+func (s AutoReviewState) MarshalText() ([]byte, error) {
+	switch s {
+	case AutoNone:
+		return []byte("none"), nil
+	case AutoRunning:
+		return []byte("running"), nil
+	case AutoCompleted:
+		return []byte("completed"), nil
+	case AutoSkipped:
+		return []byte("skipped"), nil
+	case AutoUnrecognized:
+		return []byte("unrecognized"), nil
+	case AutoTimedOut:
+		return []byte("timed-out"), nil
+	default:
+		return nil, fmt.Errorf("%w: auto review state", errUnknownEnum)
+	}
+}
+
+// AutoReviewStates lists every automatic review state, for the guide's
+// document guard.
+func AutoReviewStates() []AutoReviewState {
+	return []AutoReviewState{
+		AutoNone, AutoRunning, AutoCompleted, AutoSkipped, AutoUnrecognized, AutoTimedOut,
 	}
 }
 
@@ -268,7 +334,7 @@ func IndeterminateReasons() []IndeterminateReason {
 
 // RunKinds lists every run kind, for the guide's document guard.
 func RunKinds() []RunKind {
-	return []RunKind{RunUnknown, RunRunning, RunFinished, RunRateLimited, RunSkipNotice}
+	return []RunKind{RunUnknown, RunRunning, RunFinished, RunRateLimited, RunSkipNotice, RunSkipped}
 }
 
 // ReviewRequest is a request comment.
@@ -288,7 +354,20 @@ type ReviewResponse struct {
 	StartedAt  string  `json:"startedAt"`
 }
 
-// ReviewMarker is a completion marker: a finished review of Commit.
+// AutoReview is the non-manual check run on head chosen by the four-step
+// priority (ProfileSourcery only; null when absent or unreadable).
+type AutoReview struct {
+	State      AutoReviewState `json:"state"`
+	Kind       RunKind         `json:"kind"`
+	Status     string          `json:"status"`
+	Conclusion string          `json:"conclusion"`
+	Commit     string          `json:"commit"`
+	URL        string          `json:"url"`
+	StartedAt  string          `json:"startedAt"` // "" when status != COMPLETED and startedAt is null
+}
+
+// ReviewMarker is a completion marker: a finished review of Commit from an
+// unedited manual request.
 type ReviewMarker struct {
 	Commit      string `json:"commit"`
 	RequestID   int64  `json:"requestId"`
@@ -299,11 +378,13 @@ type ReviewMarker struct {
 }
 
 // PRReviewState is the output of review-state. No member holds a comment body, a
-// check run's title, or its details_url. Request and Response are null when
-// they do not exist; Markers and IndeterminateURLs are empty lists, never
-// null.
+// check run's title, or its details_url. Profile is always populated from the
+// request's Profile on every return path. Request, Response, and AutoReview
+// are null when they do not exist; Markers and IndeterminateURLs are empty
+// lists, never null.
 type PRReviewState struct {
 	Protocol            int                 `json:"protocol"`
+	Profile             ReviewProfile       `json:"profile"`             // always populated from req.Profile (including unreadable/none)
 	State               RequestState        `json:"state"`               // the state of the latest request comment
 	Reason              UnreadableReason    `json:"reason"`              // set for state unreadable only
 	IndeterminateReason IndeterminateReason `json:"indeterminateReason"` // set for state indeterminate only
@@ -311,23 +392,28 @@ type PRReviewState struct {
 	Now                 string              `json:"now"`                 // GitHub's clock, RFC 3339 UTC; "" for unreadable
 	Request             *ReviewRequest      `json:"request"`             // the latest request comment; null for none and unreadable
 	Response            *ReviewResponse     `json:"response"`            // its response; null when it has none
+	AutoReview          *AutoReview         `json:"autoReview"`          // non-manual check run on head (ProfileSourcery only); null when absent or unreadable
 	IndeterminateURLs   []string            `json:"indeterminateUrls"`   // competing check run URLs, for competing-runs only
-	Markers             []ReviewMarker      `json:"markers"`             // every completion marker, oldest first
+	Markers             []ReviewMarker      `json:"markers"`             // every completion marker, sorted by CompletedAt then CheckRunURL ascending
 }
 
-// newReviewState returns a state with the lists empty rather than null.
-func newReviewState(state RequestState) PRReviewState {
-	return PRReviewState{State: state, IndeterminateURLs: []string{}, Markers: []ReviewMarker{}}
+// newReviewState returns a state with Profile set and the lists empty rather
+// than null.
+func newReviewState(profile ReviewProfile, state RequestState) PRReviewState {
+	return PRReviewState{Profile: profile, State: state, IndeterminateURLs: []string{}, Markers: []ReviewMarker{}}
 }
 
-// ReviewStateRequest names what PRReviewState reads. Reviewer is the login of
-// the reviewer App whose check runs and PR reviews count; Request is the exact
-// text of a request comment. Only ParseLogin and ParsePRNumber build the
-// usable values.
+// ReviewStateRequest names what PRReviewState reads. Profile chooses the
+// check run naming, classification, automatic-review, and competing-run rules;
+// Reviewer is the login of the reviewer App whose check runs and PR reviews
+// count; Requests is the non-empty list of unique exact texts of manual
+// request comments. Only ParsePRNumber, ParseReviewProfile, and ParseLogin
+// build the usable values.
 type ReviewStateRequest struct {
 	PR       PRNumber
+	Profile  ReviewProfile
 	Reviewer Login
-	Request  string
+	Requests []string
 }
 
 // reviewError is a read failure with the reason it reports. It is a plain
@@ -381,19 +467,34 @@ type checkRun struct {
 	url        string
 }
 
-// kind classifies the run by the table of status, conclusion and title. A
-// COMPLETED run outside the table is RunUnknown and never a finished review.
-func (r checkRun) kind() RunKind {
+// kind classifies the run by the profile's table of status, conclusion and
+// title. A COMPLETED run outside the table is RunUnknown and never a finished
+// review.
+func (r checkRun) kind(profile ReviewProfile) RunKind {
 	if r.status != statusCompleted {
 		return RunRunning
 	}
-	switch {
-	case r.conclusion == conclusionSuccess && r.title == titleFinished:
-		return RunFinished
-	case r.conclusion == conclusionNeutral && r.title == titleRateLimited:
-		return RunRateLimited
-	case r.conclusion == conclusionSkipped && r.title == titleAutoReviewOff:
-		return RunSkipNotice
+	switch profile {
+	case ProfileCodeRabbit:
+		switch {
+		case r.conclusion == conclusionSuccess && r.title == titleFinished:
+			return RunFinished
+		case r.conclusion == conclusionNeutral && r.title == titleRateLimited:
+			return RunRateLimited
+		case r.conclusion == conclusionSkipped && r.title == titleAutoReviewOff:
+			return RunSkipNotice
+		default:
+			return RunUnknown
+		}
+	case ProfileSourcery:
+		switch {
+		case r.conclusion == conclusionSuccess && r.title == titleSourceryFinished:
+			return RunFinished
+		case r.conclusion == conclusionSkipped && r.title == titleSourcerySkipped:
+			return RunSkipped
+		default:
+			return RunUnknown
+		}
 	default:
 		return RunUnknown
 	}
@@ -417,13 +518,17 @@ type reviewReader struct {
 	now  time.Time
 }
 
-// PRReviewState reads the state of the latest request comment of the PR. It
-// returns an error only for an unusable argument; every read failure is the
-// unreadable state with its reason, and no partial result is kept. Protocol
-// is left for the caller to set. It judges no thread.
+// PRReviewState reads the state of the latest request comment of the PR (and
+// for ProfileSourcery, any non-manual automatic check run on head). It returns
+// an error only for an unusable argument; every read failure is the unreadable
+// state with its reason and Profile set, and no partial result is kept.
+// Protocol is left for the caller to set. It judges no thread.
 func (g *GitHub) PRReviewState(ctx context.Context, req ReviewStateRequest) (PRReviewState, error) {
-	if !req.PR.usable() || !req.Reviewer.usable() || req.Request == "" || len(req.Request) > maxRequestTextLength {
+	if !req.PR.usable() || !req.Profile.usable() || !req.Reviewer.usable() {
 		return PRReviewState{}, fmt.Errorf("%w: review state arguments", ErrInvalidInput)
+	}
+	if err := validateRequestTexts(req.Requests); err != nil {
+		return PRReviewState{}, err
 	}
 	// One deadline covers every call; runGH's own bound is no later.
 	ctx, cancel := context.WithTimeout(ctx, githubTimeout)
@@ -434,7 +539,7 @@ func (g *GitHub) PRReviewState(ctx context.Context, req ReviewStateRequest) (PRR
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			failure = failReview(UnreadableCall)
 		}
-		out := newReviewState(RequestUnreadable)
+		out := newReviewState(req.Profile, RequestUnreadable)
 		out.Reason = failure.reason
 		out.Head = r.head
 		return out, nil
@@ -443,10 +548,12 @@ func (g *GitHub) PRReviewState(ctx context.Context, req ReviewStateRequest) (PRR
 }
 
 // read runs the reads in order and stops at the first failure: the
-// repository, the PR's head, the user, the conversation comments (with no
-// request comment, nothing after them is read), the PR's commits with their
-// check runs, then the reviewer's PR reviews. The head is read before the user
-// so that a failed gh api user still reports the head it managed to read.
+// repository, the PR's head, the user, the conversation comments (for
+// ProfileCodeRabbit with no request comment, nothing after them is read; for
+// ProfileSourcery, check runs are still read to build AutoReview), the PR's
+// commits with their check runs, then the reviewer's PR reviews (when at least
+// one request comment exists). The head is read before the user so that a
+// failed gh api user still reports the head it managed to read.
 func (r *reviewReader) read(ctx context.Context, req ReviewStateRequest) (PRReviewState, *reviewError) {
 	repo, err := r.g.resolveRepository(ctx)
 	if err != nil {
@@ -462,24 +569,30 @@ func (r *reviewReader) read(ctx context.Context, req ReviewStateRequest) (PRRevi
 	if failure != nil {
 		return PRReviewState{}, failure
 	}
-	requests, failure := r.readRequests(ctx, user, req.Request)
+	requests, failure := r.readRequests(ctx, user, req.Requests)
+	if failure != nil {
+		return PRReviewState{}, failure
+	}
+	if len(requests) == 0 && req.Profile == ProfileCodeRabbit {
+		out := newReviewState(req.Profile, RequestNone)
+		out.Head, out.Now = r.head, formatReviewTime(r.now)
+		return out, nil
+	}
+	runs, commitIndex, failure := r.readRuns(ctx, req.Profile, req.Reviewer)
 	if failure != nil {
 		return PRReviewState{}, failure
 	}
 	if len(requests) == 0 {
-		out := newReviewState(RequestNone)
+		out := newReviewState(req.Profile, RequestNone)
 		out.Head, out.Now = r.head, formatReviewTime(r.now)
+		out.AutoReview = r.selectAutoReview(runs, nil, false)
 		return out, nil
-	}
-	runs, failure := r.readRuns(ctx, req.Reviewer)
-	if failure != nil {
-		return PRReviewState{}, failure
 	}
 	reviews, failure := r.readReviews(ctx, req.Reviewer)
 	if failure != nil {
 		return PRReviewState{}, failure
 	}
-	return r.decide(requests, runs, reviews), nil
+	return r.decide(req.Profile, requests, runs, commitIndex, reviews), nil
 }
 
 func formatReviewTime(t time.Time) string { return t.UTC().Format(time.RFC3339) }
@@ -601,9 +714,9 @@ func (r *reviewReader) restPages(ctx context.Context, path string, each func(str
 
 // readRequests reads the PR's conversation comments and returns the request
 // comments. A comment is a request only when its author is the user and of
-// kind User, and its body is exactly the request text; the same name as a
+// kind User, and its body matches one of requestTexts; the same name as a
 // Bot, or another user with the same body, is not.
-func (r *reviewReader) readRequests(ctx context.Context, user, request string) ([]requestComment, *reviewError) {
+func (r *reviewReader) readRequests(ctx context.Context, user string, requestTexts []string) ([]requestComment, *reviewError) {
 	var requests []requestComment
 	failure := r.restPages(ctx, "issues/"+r.pr.String()+"/comments", func(item strictjson.Value) error {
 		obj, err := item.AsObject()
@@ -638,7 +751,7 @@ func (r *reviewReader) readRequests(ctx context.Context, user, request string) (
 		if err != nil || !validCommentURL(url) {
 			return rejected("comment html_url")
 		}
-		if isRequestComment(kind, login, user, body, []string{request}) {
+		if isRequestComment(kind, login, user, body, requestTexts) {
 			requests = append(requests, requestComment{id: id, url: url, created: created, updated: updated})
 		}
 		return nil
@@ -715,7 +828,7 @@ func timeMember(members map[string]strictjson.Value, key string) (time.Time, err
 // check runs of each: every check run, not only the latest of its name
 // (checkType: ALL). The page holds few commits so the node count of the query
 // stays under GitHub's limit.
-const reviewCommitsQuery = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
+const reviewCommitsQuery = `query($owner: String!, $name: String!, $number: Int!, $checkName: String!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       headRefOid
@@ -728,9 +841,9 @@ const reviewCommitsQuery = `query($owner: String!, $name: String!, $number: Int!
               pageInfo { hasNextPage }
               nodes {
                 app { slug }
-                checkRuns(first: 100, filterBy: {checkName: "CodeRabbit", checkType: ALL}) {
+                checkRuns(first: 100, filterBy: {checkName: $checkName, checkType: ALL}) {
                   pageInfo { hasNextPage }
-                  nodes { status conclusion title startedAt completedAt url }
+                  nodes { name status conclusion title startedAt completedAt url }
                 }
               }
             }
@@ -741,52 +854,63 @@ const reviewCommitsQuery = `query($owner: String!, $name: String!, $number: Int!
   }
 }`
 
-// commitsPage is one page of reviewCommitsQuery: the reviewer's check runs of
-// its commits, and how to read the next page.
+// commitsPage is one page of reviewCommitsQuery: its commit OIDs in PR order,
+// the reviewer's check runs of its commits, and how to read the next page.
 type commitsPage struct {
-	commits     int
+	commitOIDs  []string
 	runs        []checkRun
 	hasNextPage bool
 	endCursor   string
 }
 
 // readRuns reads every page of the PR's commits and returns the reviewer's
-// check runs. Each page must carry the head read first: a push or a force
-// push in between discards the whole read.
-func (r *reviewReader) readRuns(ctx context.Context, reviewer Login) ([]checkRun, *reviewError) {
+// check runs together with each commit's ordinal position in PR commit order.
+// Each page must carry the head read first: a push or a force push in between
+// discards the whole read.
+func (r *reviewReader) readRuns(ctx context.Context, profile ReviewProfile, reviewer Login) ([]checkRun, map[string]int, *reviewError) {
 	var runs []checkRun
+	commitIndex := make(map[string]int)
 	commits := 0
 	after := ""
+	wantCheckName := profile.checkName()
 	for pages := 1; ; pages++ {
-		variables := map[string]any{"owner": r.repo.owner, "name": r.repo.name, "number": r.pr.n}
+		variables := map[string]any{
+			"owner":     r.repo.owner,
+			"name":      r.repo.name,
+			"number":    r.pr.n,
+			"checkName": wantCheckName,
+		}
 		if after != "" {
 			variables["after"] = after
 		}
 		request, err := json.Marshal(map[string]any{"query": reviewCommitsQuery, "variables": variables})
 		if err != nil {
-			return nil, failReview(UnreadableCall)
+			return nil, nil, failReview(UnreadableCall)
 		}
 		out, err := r.g.runGH(ctx, request, ghAPI, "graphql", "--input", "-")
 		if err != nil {
-			return nil, callFailure(err)
+			return nil, nil, callFailure(err)
 		}
 		if len(out) > maxResponseBytes {
-			return nil, failReview(UnreadableLimit)
+			return nil, nil, failReview(UnreadableLimit)
 		}
-		page, err := parseCommitsPage(out, r.head, reviewer.String())
+		page, err := parseCommitsPage(out, r.head, reviewer.String(), wantCheckName)
 		if err != nil {
-			return nil, parseFailure(err)
+			return nil, nil, parseFailure(err)
 		}
-		commits += page.commits
+		for _, oid := range page.commitOIDs {
+			commitIndex[oid] = commits
+			commits++
+		}
 		if commits > maxPRCommits {
-			return nil, failReview(UnreadableLimit)
+			return nil, nil, failReview(UnreadableLimit)
 		}
 		runs = append(runs, page.runs...)
 		if !page.hasNextPage {
-			return runs, nil
+			return runs, commitIndex, nil
 		}
 		if pages >= maxPRCommitPages {
-			return nil, failReview(UnreadableLimit)
+			return nil, nil, failReview(UnreadableLimit)
 		}
 		after = page.endCursor
 	}
@@ -795,7 +919,7 @@ func (r *reviewReader) readRuns(ctx context.Context, reviewer Login) ([]checkRun
 // parseCommitsPage checks one page of reviewCommitsQuery. A check suite of
 // another App is skipped without reading its runs. A page that holds more
 // suites or runs than the query's page size (hasNextPage) is over a limit.
-func parseCommitsPage(out []byte, wantHead, reviewer string) (commitsPage, error) {
+func parseCommitsPage(out []byte, wantHead, reviewer, wantCheckName string) (commitsPage, error) {
 	data, err := graphqlData(out)
 	if err != nil {
 		return commitsPage{}, err
@@ -834,12 +958,13 @@ func parseCommitsPage(out []byte, wantHead, reviewer string) (commitsPage, error
 	if len(nodes) > commitsPerPage {
 		return commitsPage{}, rejected("commit page size")
 	}
-	page.commits = len(nodes)
+	page.commitOIDs = make([]string, 0, len(nodes))
 	for _, node := range nodes {
-		runs, err := parseCommitNode(node, reviewer)
+		oid, runs, err := parseCommitNode(node, reviewer, wantCheckName)
 		if err != nil {
 			return commitsPage{}, err
 		}
+		page.commitOIDs = append(page.commitOIDs, oid)
 		page.runs = append(page.runs, runs...)
 	}
 	return page, nil
@@ -869,47 +994,48 @@ func parseCommitsPageInfo(commits strictjson.Object) (commitsPage, error) {
 	return page, nil
 }
 
-// parseCommitNode reads the reviewer's check runs of one commit node.
-func parseCommitNode(node strictjson.Value, reviewer string) ([]checkRun, error) {
+// parseCommitNode reads the commit OID and the reviewer's check runs of one
+// commit node.
+func parseCommitNode(node strictjson.Value, reviewer, wantCheckName string) (string, []checkRun, error) {
 	obj, err := node.AsObject()
 	if err != nil {
-		return nil, rejected("commit node")
+		return "", nil, rejected("commit node")
 	}
 	commit, err := memberObject(obj, keyCommit)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	members, err := commit.Collect("oid")
 	if err != nil {
-		return nil, rejected("commit oid")
+		return "", nil, rejected("commit oid")
 	}
 	oid, err := strictjson.RequiredString(members, "oid")
 	if err != nil || !validHex(oid, sha1HexLength) {
-		return nil, rejected("commit oid")
+		return "", nil, rejected("commit oid")
 	}
 	suites, err := memberObject(commit, "checkSuites")
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if err := requireNoNextPage(suites); err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	nodes, err := memberNodes(suites)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if len(nodes) > maxCheckSuites {
-		return nil, errReviewLimit
+		return "", nil, errReviewLimit
 	}
 	var runs []checkRun
 	for _, suiteNode := range nodes {
-		suiteRuns, err := parseSuite(suiteNode, reviewer, oid)
+		suiteRuns, err := parseSuite(suiteNode, reviewer, oid, wantCheckName)
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
 		runs = append(runs, suiteRuns...)
 	}
-	return runs, nil
+	return oid, runs, nil
 }
 
 // requireNoNextPage reports a list that GitHub says continues past the page
@@ -931,7 +1057,7 @@ func requireNoNextPage(list strictjson.Object) error {
 
 // parseSuite reads the check runs of one check suite, or none when the suite
 // belongs to another App (a null app included).
-func parseSuite(node strictjson.Value, reviewer, commit string) ([]checkRun, error) {
+func parseSuite(node strictjson.Value, reviewer, commit, wantCheckName string) ([]checkRun, error) {
 	obj, err := node.AsObject()
 	if err != nil {
 		return nil, rejected("check suite")
@@ -978,7 +1104,7 @@ func parseSuite(node strictjson.Value, reviewer, commit string) ([]checkRun, err
 	}
 	runs := make([]checkRun, 0, len(nodes))
 	for _, runNode := range nodes {
-		run, err := parseCheckRun(runNode, commit)
+		run, err := parseCheckRun(runNode, commit, wantCheckName)
 		if err != nil {
 			return nil, err
 		}
@@ -987,17 +1113,22 @@ func parseSuite(node strictjson.Value, reviewer, commit string) ([]checkRun, err
 	return runs, nil
 }
 
-// parseCheckRun reads one check run. status is required; conclusion, title,
-// startedAt and completedAt are required members that may be null unless the
-// status is COMPLETED, when all four must be strings.
-func parseCheckRun(node strictjson.Value, commit string) (checkRun, error) {
+// parseCheckRun reads one check run. name must equal wantCheckName exactly;
+// status is required; conclusion, title, startedAt and completedAt are required
+// members that may be null unless the status is COMPLETED, when all four must
+// be strings.
+func parseCheckRun(node strictjson.Value, commit, wantCheckName string) (checkRun, error) {
 	obj, err := node.AsObject()
 	if err != nil {
 		return checkRun{}, rejected("check run")
 	}
-	members, err := obj.Collect("status", "conclusion", "title", "startedAt", "completedAt", keyURL)
+	members, err := obj.Collect(keyName, "status", "conclusion", "title", "startedAt", "completedAt", keyURL)
 	if err != nil {
 		return checkRun{}, rejected("check run")
+	}
+	name, err := strictjson.RequiredString(members, keyName)
+	if err != nil || name != wantCheckName {
+		return checkRun{}, rejected("check run name")
 	}
 	run := checkRun{commit: commit}
 	if run.status, err = strictjson.RequiredString(members, "status"); err != nil {
@@ -1112,55 +1243,76 @@ func (r *reviewReader) readReviews(ctx context.Context, reviewer Login) ([]prRev
 }
 
 // decide applies the state rules to what was read. requests is not empty.
-func (r *reviewReader) decide(requests []requestComment, runs []checkRun, reviews []prReview) PRReviewState {
+func (r *reviewReader) decide(profile ReviewProfile, requests []requestComment, runs []checkRun, commitIndex map[string]int, reviews []prReview) PRReviewState {
 	sortRequests(requests)
 	last := len(requests) - 1
 	latest := requests[last]
-	out := newReviewState(RequestWaiting)
+	out := newReviewState(profile, RequestWaiting)
 	out.Head, out.Now = r.head, formatReviewTime(r.now)
 	out.Request = &ReviewRequest{ID: latest.id, URL: latest.url, CreatedAt: formatReviewTime(latest.created)}
+	assigned := make(map[string]struct{})
 	// A completion marker of every earlier request whose response is one
 	// finished run; the latest request's own is added when it completes.
 	for i := range last {
+		if requests[i].edited() {
+			continue
+		}
 		upper := requests[i+1].updated
-		if marker, ok := markerOf(requests[i], &upper, runs, reviews); ok {
-			out.Markers = append(out.Markers, marker)
+		resp, competing := responseOf(profile, requests[i], &upper, runs, commitIndex)
+		if len(competing) == 0 && resp != nil {
+			assigned[resp.url] = struct{}{}
+			if resp.kind(profile) == RunFinished {
+				out.Markers = append(out.Markers, markerFor(requests[i], *resp, reviews))
+			}
 		}
 	}
-	if latest.edited() {
+	switch {
+	case latest.edited():
 		out.State = RequestIndeterminate
 		out.IndeterminateReason = IndeterminateEditedRequest
-		return out
-	}
-	resp, competing := responseOf(latest, nil, runs)
-	if len(competing) > 0 {
-		out.State = RequestIndeterminate
-		out.IndeterminateReason = IndeterminateCompetingRuns
-		for _, run := range competing {
-			out.IndeterminateURLs = append(out.IndeterminateURLs, run.url)
-		}
-		return out
-	}
-	if resp != nil {
-		out.Response = responseOutput(*resp)
-		switch resp.kind() {
-		case RunFinished:
-			out.State = RequestCompleted
-			out.Markers = append(out.Markers, markerFor(latest, *resp, reviews))
-			return out
-		case RunRateLimited:
-			out.State = RequestRateLimited
-			return out
-		case RunRunning:
-			// Still running; check the wait limit below.
+	default:
+		resp, competing := responseOf(profile, latest, nil, runs, commitIndex)
+		switch {
+		case len(competing) > 0:
+			out.State = RequestIndeterminate
+			out.IndeterminateReason = IndeterminateCompetingRuns
+			for _, run := range competing {
+				out.IndeterminateURLs = append(out.IndeterminateURLs, run.url)
+			}
+		case resp != nil:
+			assigned[resp.url] = struct{}{}
+			out.Response = responseOutput(profile, *resp)
+			switch resp.kind(profile) {
+			case RunFinished:
+				out.State = RequestCompleted
+				out.Markers = append(out.Markers, markerFor(latest, *resp, reviews))
+			case RunRateLimited:
+				out.State = RequestRateLimited
+			case RunSkipped:
+				out.State = RequestSkipped
+			case RunRunning:
+				if r.now.Sub(latest.created) > reviewWaitLimit {
+					out.State = RequestTimedOut
+				}
+			default:
+				// RunUnknown, or any unexpected kind, fails secure as unrecognized.
+				out.State = RequestUnrecognized
+			}
 		default:
-			// RunUnknown, or any unexpected kind, fails secure as unrecognized.
-			out.State = RequestUnrecognized
-			return out
+			if r.now.Sub(latest.created) > reviewWaitLimit {
+				out.State = RequestTimedOut
+			}
 		}
 	}
-	if r.now.Sub(latest.created) > reviewWaitLimit {
-		out.State = RequestTimedOut
+	sort.SliceStable(out.Markers, func(i, j int) bool {
+		if out.Markers[i].CompletedAt != out.Markers[j].CompletedAt {
+			return out.Markers[i].CompletedAt < out.Markers[j].CompletedAt
+		}
+		return out.Markers[i].CheckRunURL < out.Markers[j].CheckRunURL
+	})
+	if profile == ProfileSourcery {
+		excludeUnstarted := out.State == RequestWaiting && out.Response == nil
+		out.AutoReview = r.selectAutoReview(runs, assigned, excludeUnstarted)
 	}
 	return out
 }
@@ -1182,17 +1334,23 @@ func sortRequests(requests []requestComment) {
 }
 
 // responseOf finds the response of a request among the runs: the earliest
-// counted run that started strictly after the request was created (and
-// strictly before upper, the next request's last update, when upper is not
-// nil). A skip notice is never counted: it exists without a request. A run
-// that has not started is not counted either. competing lists the runs that
-// compete for the response: two or more that started in the earliest second,
-// or one that started before the earliest finished (the earliest, when it is
-// still running, never finishes before another starts); then resp is nil.
-func responseOf(req requestComment, upper *time.Time, runs []checkRun) (resp *checkRun, competing []checkRun) {
+// counted run that started strictly after the request was created (within
+// reviewWaitLimit for ProfileSourcery, and strictly before upper, the next
+// request's last update, when upper is not nil). A skip notice is never
+// counted: it exists without a request. A run that has not started is not
+// counted either. competing lists the runs that compete for the response: two
+// or more that started in the earliest second, or one that started before the
+// earliest finished (the earliest, when it is still running, never finishes
+// before another starts); for ProfileSourcery, an overlapping run on a later
+// commit (higher commitIndex) does not compete, while one on the same or an
+// earlier commit does. When competing is non-empty, resp is nil.
+func responseOf(profile ReviewProfile, req requestComment, upper *time.Time, runs []checkRun, commitIndex map[string]int) (resp *checkRun, competing []checkRun) {
 	var counted []checkRun
 	for _, run := range runs {
-		if run.kind() == RunSkipNotice || run.started == nil || !run.started.After(req.created) {
+		if run.kind(profile) == RunSkipNotice || run.started == nil || !run.started.After(req.created) {
+			continue
+		}
+		if profile == ProfileSourcery && run.started.Sub(req.created) > reviewWaitLimit {
 			continue
 		}
 		if upper != nil && !run.started.Before(*upper) {
@@ -1208,12 +1366,16 @@ func responseOf(req requestComment, upper *time.Time, runs []checkRun) (resp *ch
 	for _, run := range counted[1:] {
 		sameSecond := run.started.Equal(*earliest.started)
 		beforeEnd := earliest.completed == nil || run.started.Before(*earliest.completed)
-		if sameSecond || beforeEnd {
-			if competing == nil {
-				competing = []checkRun{earliest}
-			}
-			competing = append(competing, run)
+		if !sameSecond && !beforeEnd {
+			continue
 		}
+		if !sameSecond && profile == ProfileSourcery && commitIndex[run.commit] > commitIndex[earliest.commit] {
+			continue
+		}
+		if competing == nil {
+			competing = []checkRun{earliest}
+		}
+		competing = append(competing, run)
 	}
 	if len(competing) > 0 {
 		return nil, competing
@@ -1221,18 +1383,104 @@ func responseOf(req requestComment, upper *time.Time, runs []checkRun) (resp *ch
 	return &earliest, nil
 }
 
-// markerOf returns the completion marker of an earlier request: only when the
-// request was not edited, its response is determined, and that response is a
-// finished run.
-func markerOf(req requestComment, upper *time.Time, runs []checkRun, reviews []prReview) (ReviewMarker, bool) {
-	if req.edited() {
-		return ReviewMarker{}, false
+type autoCandidate struct {
+	priority int
+	state    AutoReviewState
+	kind     RunKind
+	run      checkRun
+}
+
+// selectAutoReview picks the single non-manual check run on r.head for
+// ProfileSourcery by four-step priority:
+// 1. running within reviewWaitLimit (started != nil)
+// 2. running unstarted (started == nil)
+// 3. running past reviewWaitLimit (started != nil -> AutoTimedOut)
+// 4. terminal (finished / skipped / unknown)
+// Ties within a priority prefer the latest startedAt, then the longest URL,
+// then the lexicographically greatest URL. Unstarted runs are excluded while
+// the latest manual request is waiting without a response.
+func (r *reviewReader) selectAutoReview(runs []checkRun, assigned map[string]struct{}, excludeUnstarted bool) *AutoReview {
+	var best *autoCandidate
+	for _, run := range runs {
+		if run.commit != r.head {
+			continue
+		}
+		if _, taken := assigned[run.url]; taken {
+			continue
+		}
+		kind := run.kind(ProfileSourcery)
+		if kind == RunSkipNotice {
+			continue
+		}
+		if excludeUnstarted && run.started == nil {
+			continue
+		}
+		cand := classifyAutoCandidate(run, kind, r.now)
+		if best == nil || betterAutoCandidate(cand, *best) {
+			c := cand
+			best = &c
+		}
 	}
-	resp, competing := responseOf(req, upper, runs)
-	if len(competing) > 0 || resp == nil || resp.kind() != RunFinished {
-		return ReviewMarker{}, false
+	if best == nil {
+		return nil
 	}
-	return markerFor(req, *resp, reviews), true
+	ar := &AutoReview{
+		State:      best.state,
+		Kind:       best.kind,
+		Status:     best.run.status,
+		Conclusion: best.run.conclusion,
+		Commit:     best.run.commit,
+		URL:        best.run.url,
+	}
+	if best.run.started != nil {
+		ar.StartedAt = formatReviewTime(*best.run.started)
+	}
+	return ar
+}
+
+const (
+	autoPriorityStartedRunning = iota + 1
+	autoPriorityUnstartedRunning
+	autoPriorityTimedOut
+	autoPriorityTerminal
+)
+
+func classifyAutoCandidate(run checkRun, kind RunKind, now time.Time) autoCandidate {
+	if kind == RunRunning {
+		if run.started == nil {
+			return autoCandidate{priority: autoPriorityUnstartedRunning, state: AutoRunning, kind: kind, run: run}
+		}
+		if now.Sub(*run.started) > reviewWaitLimit {
+			return autoCandidate{priority: autoPriorityTimedOut, state: AutoTimedOut, kind: kind, run: run}
+		}
+		return autoCandidate{priority: autoPriorityStartedRunning, state: AutoRunning, kind: kind, run: run}
+	}
+	state := AutoUnrecognized
+	switch kind {
+	case RunFinished:
+		state = AutoCompleted
+	case RunSkipped:
+		state = AutoSkipped
+	}
+	return autoCandidate{priority: autoPriorityTerminal, state: state, kind: kind, run: run}
+}
+
+func betterAutoCandidate(a, b autoCandidate) bool {
+	if a.priority != b.priority {
+		return a.priority < b.priority
+	}
+	switch {
+	case a.run.started != nil && b.run.started == nil:
+		return true
+	case a.run.started == nil && b.run.started != nil:
+		return false
+	case a.run.started != nil && b.run.started != nil && !a.run.started.Equal(*b.run.started):
+		return a.run.started.After(*b.run.started)
+	}
+	if len(a.run.url) != len(b.run.url) {
+		return len(a.run.url) > len(b.run.url)
+	}
+	return a.run.url > b.run.url
 }
 
 // markerFor builds the marker of a request answered by a finished run. The PR
@@ -1254,9 +1502,9 @@ func markerFor(req requestComment, resp checkRun, reviews []prReview) ReviewMark
 
 // responseOutput is the output form of a response; a run that has not
 // finished has no conclusion.
-func responseOutput(run checkRun) *ReviewResponse {
+func responseOutput(profile ReviewProfile, run checkRun) *ReviewResponse {
 	out := &ReviewResponse{
-		Kind: run.kind(), Status: run.status, Conclusion: run.conclusion,
+		Kind: run.kind(profile), Status: run.status, Conclusion: run.conclusion,
 		Commit: run.commit, URL: run.url,
 	}
 	if run.started != nil {

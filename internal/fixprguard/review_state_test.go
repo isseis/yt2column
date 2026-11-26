@@ -460,6 +460,8 @@ func TestReviewStateUnreadable(t *testing.T) {
 		{"run_start_not_a_time", with(rsStageGraphQL, bad(`"startedAt":"`+at("10:00:20")+`"`, `"startedAt":"soon"`)), rsUnreadable(UnreadableRejected, rsHead)},
 		{"run_url_not_github", with(rsStageGraphQL, bad(`"url":"https://github.com/`, `"url":"https://example.com/`)), rsUnreadable(UnreadableRejected, rsHead)},
 		{"run_title_duplicated", with(rsStageGraphQL, bad(`"title":"Finished"`, `"title":"Finished","title":"Finished"`)), rsUnreadable(UnreadableRejected, rsHead)},
+		{"run_name_mismatch", with(rsStageGraphQL, bad(`"name":"CodeRabbit"`, `"name":"Other"`)), rsUnreadable(UnreadableRejected, rsHead)},
+		{"run_name_missing", with(rsStageGraphQL, bad(`"name":"CodeRabbit",`, "")), rsUnreadable(UnreadableRejected, rsHead)},
 		{
 			"suites_continue", func() rsInput {
 				in := one
@@ -624,64 +626,92 @@ func TestReviewStateReadBounds(t *testing.T) {
 	})
 }
 
-// TestReviewStateReads: the commit query asks for every check run named after
-// the reviewer (not only the latest of its name), and never for the details
-// URL. The wording of the query is the contract with GitHub, so it is matched
-// as text.
+// TestReviewStateReads: the commit query asks for every check run matching
+// $checkName (not only the latest of its name), asks for name, and never asks
+// for detailsUrl or databaseId. Both profiles send their declared checkName.
 func TestReviewStateReads(t *testing.T) {
-	in := rsInput{
-		comments: defaultComments(),
-		commits:  []rsCommit{rsCommitOf(rsHead), rsCommitOf(rsSecond)},
-	}
-	fake := cmdrunnertestutil.New(t, in.steps(t)...)
-	g, err := NewGitHubWithoutReviewer(fake)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := g.PRReviewState(t.Context(), ReviewStateRequest{PR: mustPR(t), Reviewer: mustLogin(t, testReviewer), Request: rsRequestText}); err != nil {
-		t.Fatal(err)
-	}
-	var queries []string
-	for _, stdin := range fake.Stdin {
-		if stdin == nil {
-			continue
-		}
-		var request struct {
-			Query string `json:"query"`
-		}
-		if err := json.Unmarshal(stdin, &request); err != nil {
-			t.Fatalf("decode request: %v", err)
-		}
-		queries = append(queries, request.Query)
-	}
-	if len(queries) != 1 {
-		t.Fatalf("GraphQL requests = %d, want 1", len(queries))
-	}
-	for _, want := range []string{
-		"pullRequest(number: $number)", "commits(first: 20",
-		`checkName: "CodeRabbit"`, "checkType: ALL", "headRefOid", "checkSuites(first: 50)", "checkRuns(first: 100",
+	for _, tc := range []struct {
+		name      string
+		profile   ReviewProfile
+		reviewer  string
+		requests  []string
+		wantCheck string
+	}{
+		{"coderabbit", ProfileCodeRabbit, testReviewer, []string{rsRequestText}, checkNameCodeRabbit},
+		{"sourcery", ProfileSourcery, rsSourceryReviewer, []string{rsSourceryReq1}, checkNameSourcery},
 	} {
-		if !strings.Contains(queries[0], want) {
-			t.Errorf("query lacks %q", want)
-		}
-	}
-	// The details URL carries a share value of the reviewer's site; it must
-	// not be asked for.
-	if strings.Contains(strings.ToLower(queries[0]), "detailsurl") {
-		t.Error("query asks for detailsUrl")
+		t.Run(tc.name, func(t *testing.T) {
+			in := rsInput{
+				profile:  tc.profile,
+				reviewer: tc.reviewer,
+				requests: tc.requests,
+				comments: []rsComment{{id: 1, login: rsUser, kind: typenameUser, body: tc.requests[0], created: rsCreated}},
+				commits:  []rsCommit{{oid: rsHead}, {oid: rsSecond}},
+			}
+			fake := cmdrunnertestutil.New(t, in.steps(t)...)
+			g, err := NewGitHubWithoutReviewer(fake)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := g.PRReviewState(t.Context(), ReviewStateRequest{
+				PR: mustPR(t), Profile: tc.profile, Reviewer: mustLogin(t, tc.reviewer), Requests: tc.requests,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			type graphqlReq struct {
+				Query     string         `json:"query"`
+				Variables map[string]any `json:"variables"`
+			}
+			var reqs []graphqlReq
+			for _, stdin := range fake.Stdin {
+				if stdin == nil {
+					continue
+				}
+				var req graphqlReq
+				if err := json.Unmarshal(stdin, &req); err != nil {
+					t.Fatalf("decode request: %v", err)
+				}
+				reqs = append(reqs, req)
+			}
+			if len(reqs) != 1 {
+				t.Fatalf("GraphQL requests = %d, want 1", len(reqs))
+			}
+			for _, want := range []string{
+				"$checkName: String!", "pullRequest(number: $number)", "commits(first: 20",
+				"checkName: $checkName", "checkType: ALL", "headRefOid", "checkSuites(first: 50)", "checkRuns(first: 100",
+				"nodes { name status conclusion title startedAt completedAt url }",
+			} {
+				if !strings.Contains(reqs[0].Query, want) {
+					t.Errorf("query lacks %q", want)
+				}
+			}
+			if got := reqs[0].Variables["checkName"]; got != tc.wantCheck {
+				t.Errorf("variables.checkName = %v, want %q", got, tc.wantCheck)
+			}
+			// detailsUrl carries a share value and databaseId overflows 32 bits;
+			// neither may be asked for.
+			for _, forbidden := range []string{"detailsurl", "databaseid"} {
+				if strings.Contains(strings.ToLower(reqs[0].Query), forbidden) {
+					t.Errorf("query asks for %s", forbidden)
+				}
+			}
+		})
 	}
 }
 
 // TestReviewStateOutputHasNoText: no comment body, check run title, details
-// URL or PR review body reaches the output, in any state.
+// URL or PR review body reaches the output, in any state or profile.
 func TestReviewStateOutputHasNoText(t *testing.T) {
 	secret := "secret-text"
 	comments := append(defaultComments(), rsComment{id: 2, login: "alice", kind: typenameUser, body: secret, created: rsCreated})
 	titled := rsRun{id: 11, status: statusCompleted, conclusion: conclusionSuccess, title: secret, started: at("10:00:20"), completed: at("10:00:30")}
+	sourceryTitled := rsRun{id: 12, name: checkNameSourcery, status: statusCompleted, conclusion: "FAILURE", title: secret, started: at("10:00:20"), completed: at("10:00:30")}
 	for _, in := range []rsInput{
 		{comments: comments, commits: []rsCommit{rsCommitOf(rsHead, titled)}, reviews: []rsReview{rsBotReview(1, rsHead, at("10:00:40"))}},
 		{comments: comments, commits: []rsCommit{rsCommitOf(rsHead, rsFinished(11, at("10:00:20"), at("10:03:00")))}, reviews: []rsReview{rsBotReview(1, rsHead, at("10:03:10"))}},
 		{comments: comments, commits: []rsCommit{rsCommitOf(rsHead)}, edit: map[string]func(string) string{rsStageGraphQL: func(string) string { return "{" }}, stop: rsStageGraphQL},
+		{profile: ProfileSourcery, comments: []rsComment{{id: 2, login: "alice", kind: typenameUser, body: secret, created: rsCreated}}, commits: []rsCommit{rsSourceryCommitOf(rsHead, sourceryTitled)}},
+		{profile: ProfileSourcery, comments: []rsComment{{id: 2, login: "alice", kind: typenameUser, body: secret, created: rsCreated}}, commits: []rsCommit{rsSourceryCommitOf(rsHead, rsSourceryFinished(13, at("10:00:20"), at("10:03:00")))}},
 	} {
 		out := mustJSON(t, runReviewState(t, in))
 		for _, leak := range []string{secret, "secret-scope", "secret-review-body", "secret-title", "detailsUrl", "details_url"} {
@@ -695,12 +725,19 @@ func TestReviewStateOutputHasNoText(t *testing.T) {
 // TestReviewStateArguments: an unusable argument is an error, and no call
 // runs.
 func TestReviewStateArguments(t *testing.T) {
-	good := ReviewStateRequest{PR: mustPR(t), Reviewer: mustLogin(t, testReviewer), Request: rsRequestText}
+	good := ReviewStateRequest{
+		PR: mustPR(t), Profile: ProfileCodeRabbit, Reviewer: mustLogin(t, testReviewer), Requests: []string{rsRequestText},
+	}
 	for name, req := range map[string]ReviewStateRequest{
-		"zero_pr":       {Reviewer: good.Reviewer, Request: good.Request},
-		"zero_reviewer": {PR: good.PR, Request: good.Request},
-		"empty_request": {PR: good.PR, Reviewer: good.Reviewer},
-		"long_request":  {PR: good.PR, Reviewer: good.Reviewer, Request: strings.Repeat("x", maxRequestTextLength+1)},
+		"zero_pr":            {Profile: good.Profile, Reviewer: good.Reviewer, Requests: good.Requests},
+		"zero_profile":       {PR: good.PR, Reviewer: good.Reviewer, Requests: good.Requests},
+		"invalid_profile":    {PR: good.PR, Profile: ReviewProfile(99), Reviewer: good.Reviewer, Requests: good.Requests},
+		"zero_reviewer":      {PR: good.PR, Profile: good.Profile, Requests: good.Requests},
+		"empty_requests":     {PR: good.PR, Profile: good.Profile, Reviewer: good.Reviewer},
+		"empty_request_text": {PR: good.PR, Profile: good.Profile, Reviewer: good.Reviewer, Requests: []string{""}},
+		"padded_request":     {PR: good.PR, Profile: good.Profile, Reviewer: good.Reviewer, Requests: []string{" " + rsRequestText}},
+		"duplicate_request":  {PR: good.PR, Profile: good.Profile, Reviewer: good.Reviewer, Requests: []string{rsRequestText, rsRequestText}},
+		"long_request":       {PR: good.PR, Profile: good.Profile, Reviewer: good.Reviewer, Requests: []string{strings.Repeat("x", maxRequestTextLength+1)}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t))
@@ -726,6 +763,7 @@ func TestReviewStateEnumsRejectOutsideValues(t *testing.T) {
 		"run_kind":             RunKind(99).MarshalText,
 		"review_profile_zero":  ProfileUnknown.MarshalText,
 		"review_profile_high":  ReviewProfile(99).MarshalText,
+		"auto_review_state":    AutoReviewState(99).MarshalText,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := marshal(); !errors.Is(err, errUnknownEnum) {
@@ -733,15 +771,35 @@ func TestReviewStateEnumsRejectOutsideValues(t *testing.T) {
 			}
 		})
 	}
-	// The zero values assume least: an unset PRReviewState marshals as
-	// indeterminate and an unset ReviewResponse kind marshals as unknown.
-	zeroState := mustJSON(t, PRReviewState{})
+	// Every declared AutoReviewState marshals cleanly.
+	wantAuto := []string{"none", "running", "completed", "skipped", "unrecognized", "timed-out"}
+	var gotAuto []string
+	for _, s := range AutoReviewStates() {
+		raw, err := s.MarshalText()
+		if err != nil {
+			t.Fatalf("AutoReviewState(%d).MarshalText: %v", s, err)
+		}
+		gotAuto = append(gotAuto, string(raw))
+	}
+	if !slices.Equal(gotAuto, wantAuto) {
+		t.Errorf("AutoReviewStates() = %v, want %v", gotAuto, wantAuto)
+	}
+	// Zero PRReviewState fails closed because ProfileUnknown refuses to marshal.
+	if _, err := json.Marshal(PRReviewState{}); !errors.Is(err, errUnknownEnum) {
+		t.Errorf("json.Marshal(PRReviewState{}) err = %v, want errUnknownEnum", err)
+	}
+	// With Profile set, the zero State assumes least (indeterminate).
+	zeroState := mustJSON(t, PRReviewState{Profile: ProfileCodeRabbit})
 	if !strings.Contains(zeroState, `"state":"indeterminate"`) {
 		t.Errorf("zero PRReviewState JSON = %s, want state indeterminate", zeroState)
 	}
 	zeroResp := mustJSON(t, ReviewResponse{})
 	if !strings.Contains(zeroResp, `"kind":"unknown"`) {
 		t.Errorf("zero ReviewResponse JSON = %s, want kind unknown", zeroResp)
+	}
+	zeroAuto := mustJSON(t, AutoReview{})
+	if !strings.Contains(zeroAuto, `"state":"none"`) || !strings.Contains(zeroAuto, `"kind":"unknown"`) {
+		t.Errorf("zero AutoReview JSON = %s, want state none and kind unknown", zeroAuto)
 	}
 }
 
@@ -814,26 +872,54 @@ func TestIsRequestComment(t *testing.T) {
 
 // TestReviewStateNonPRCommitIgnored: a finished check run belonging to a commit
 // outside the PR's commit list, even if mixed into the GraphQL response outside
-// pullRequest.commits.nodes, is never read as a response or completion marker.
+// pullRequest.commits.nodes, is never read as a response, automatic review, or
+// completion marker.
 func TestReviewStateNonPRCommitIgnored(t *testing.T) {
-	outside := mustJSON(t, rsCommitOf(rsSecond, rsFinished(99, at("10:00:20"), at("10:03:00"))).json())
-	in := rsInput{
-		comments: defaultComments(),
-		commits:  []rsCommit{rsCommitOf(rsHead)},
-		edit: map[string]func(string) string{
-			rsStageGraphQL: func(s string) string {
-				return strings.Replace(s, `"commits":{`, `"otherCommit":`+outside+`,"commits":{`, 1)
+	t.Run("coderabbit", func(t *testing.T) {
+		outside := mustJSON(t, rsCommitOf(rsSecond, rsFinished(99, at("10:00:20"), at("10:03:00"))).json())
+		in := rsInput{
+			comments: defaultComments(),
+			commits:  []rsCommit{rsCommitOf(rsHead)},
+			edit: map[string]func(string) string{
+				rsStageGraphQL: func(s string) string {
+					return strings.Replace(s, `"commits":{`, `"otherCommit":`+outside+`,"commits":{`, 1)
+				},
 			},
-		},
-	}
-	checkReviewState(t, in, rsWant(RequestWaiting))
+		}
+		checkReviewState(t, in, rsWant(RequestWaiting))
+	})
+	t.Run("sourcery_auto", func(t *testing.T) {
+		outside := mustJSON(t, rsSourceryCommitOf(rsHead, rsSourceryFinished(99, at("10:00:20"), at("10:03:00"))).json())
+		in := rsInput{
+			profile: ProfileSourcery,
+			commits: []rsCommit{rsSourceryCommitOf(rsHead)},
+			edit: map[string]func(string) string{
+				rsStageGraphQL: func(s string) string {
+					return strings.Replace(s, `"commits":{`, `"otherCommit":`+outside+`,"commits":{`, 1)
+				},
+			},
+		}
+		checkReviewState(t, in, rsWantFor(ProfileSourcery, RequestNone))
+	})
+	t.Run("sourcery_manual", func(t *testing.T) {
+		outside := mustJSON(t, rsSourceryCommitOf(rsSecond, rsSourceryFinished(99, at("10:00:20"), at("10:03:00"))).json())
+		in := rsInput{
+			profile:  ProfileSourcery,
+			comments: []rsComment{{id: 1, login: rsUser, kind: typenameUser, body: rsSourceryReq1, created: rsCreated}},
+			commits:  []rsCommit{rsSourceryCommitOf(rsHead)},
+			edit: map[string]func(string) string{
+				rsStageGraphQL: func(s string) string {
+					return strings.Replace(s, `"commits":{`, `"otherCommit":`+outside+`,"commits":{`, 1)
+				},
+			},
+		}
+		checkReviewState(t, in, rsWantFor(ProfileSourcery, RequestWaiting))
+	})
 }
 
-// TestReviewStateObserved: a sequence of three requests in one PR, shaped after
-// the responses observed in the probe PR (the SHAs, ids and the request text
-// are synthetic; the members, the check run triples and the order of the runs
-// are as observed), read from files: a finished review, a rate-limited one, and a finished one with a PR
-// review. Unread members and an unread body stay out of the result.
+// TestReviewStateObserved: responses shaped after real probe observations for
+// both CodeRabbit and Sourcery AI, read from files under testdata/review_state.
+// Unread members and unread bodies stay out of the result.
 func TestReviewStateObserved(t *testing.T) {
 	read := func(name string) string {
 		data, err := os.ReadFile(filepath.Join("testdata", "review_state", name))
@@ -842,49 +928,123 @@ func TestReviewStateObserved(t *testing.T) {
 		}
 		return string(data)
 	}
-	const head = "f24ee60a00000000000000000000000000000000"
-	now := "Fri, 20 Nov 2026 04:35:00 GMT"
-	steps := []cmdrunnertestutil.Step{
-		repoStep(),
-		includeStep("pulls/"+testPR, includedOutput(200, []string{"Date: " + now}, read("pull.json")), nil),
-		{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"isseis"}`},
-		includeStep("issues/"+testPR+"/comments?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("comments.json")), nil),
-		graphqlStep(read("commits.json")),
-		includeStep("pulls/"+testPR+"/reviews?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("reviews.json")), nil),
-	}
-	g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, steps...))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := g.PRReviewState(t.Context(), ReviewStateRequest{PR: mustPR(t), Reviewer: mustLogin(t, testReviewer), Request: rsRequestText})
-	if err != nil {
-		t.Fatal(err)
-	}
-	const (
-		first  = "7cefaa5e00000000000000000000000000000000"
-		runURL = "https://github.com/isseis/yt2column/runs/"
-	)
-	want := newReviewState(RequestCompleted)
-	want.Head, want.Now = head, "2026-11-20T04:35:00Z"
-	want.Request = &ReviewRequest{ID: 7030003, URL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030003", CreatedAt: "2026-11-20T04:26:01Z"}
-	want.Response = &ReviewResponse{
-		Kind: RunFinished, Status: statusCompleted, Conclusion: conclusionSuccess, Commit: head,
-		URL: runURL + "64000005", StartedAt: "2026-11-20T04:26:25Z",
-	}
-	want.Markers = []ReviewMarker{
-		{
-			Commit: first, RequestID: 7030001, RequestURL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030001",
-			CheckRunURL: runURL + "64000001", CompletedAt: "2026-11-20T03:22:24Z",
-		},
-		{
-			Commit: head, RequestID: 7030003, RequestURL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030003",
-			CheckRunURL: runURL + "64000005", ReviewURL: "https://github.com/isseis/yt2column/pull/1064#pullrequestreview-4638479000",
-			CompletedAt: "2026-11-20T04:29:18Z",
-		},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, want))
-	}
+	t.Run("coderabbit", func(t *testing.T) {
+		const head = "f24ee60a00000000000000000000000000000000"
+		now := "Fri, 20 Nov 2026 04:35:00 GMT"
+		steps := []cmdrunnertestutil.Step{
+			repoStep(),
+			includeStep("pulls/"+testPR, includedOutput(200, []string{"Date: " + now}, read("pull.json")), nil),
+			{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"isseis"}`},
+			includeStep("issues/"+testPR+"/comments?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("comments.json")), nil),
+			graphqlStep(read("commits.json")),
+			includeStep("pulls/"+testPR+"/reviews?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("reviews.json")), nil),
+		}
+		g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, steps...))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := g.PRReviewState(t.Context(), ReviewStateRequest{
+			PR: mustPR(t), Profile: ProfileCodeRabbit, Reviewer: mustLogin(t, testReviewer), Requests: []string{rsRequestText},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		const (
+			first  = "7cefaa5e00000000000000000000000000000000"
+			runURL = "https://github.com/isseis/yt2column/runs/"
+		)
+		want := newReviewState(ProfileCodeRabbit, RequestCompleted)
+		want.Head, want.Now = head, "2026-11-20T04:35:00Z"
+		want.Request = &ReviewRequest{ID: 7030003, URL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030003", CreatedAt: "2026-11-20T04:26:01Z"}
+		want.Response = &ReviewResponse{
+			Kind: RunFinished, Status: statusCompleted, Conclusion: conclusionSuccess, Commit: head,
+			URL: runURL + "64000005", StartedAt: "2026-11-20T04:26:25Z",
+		}
+		want.Markers = []ReviewMarker{
+			{
+				Commit: first, RequestID: 7030001, RequestURL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030001",
+				CheckRunURL: runURL + "64000001", CompletedAt: "2026-11-20T03:22:24Z",
+			},
+			{
+				Commit: head, RequestID: 7030003, RequestURL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030003",
+				CheckRunURL: runURL + "64000005", ReviewURL: "https://github.com/isseis/yt2column/pull/1064#pullrequestreview-4638479000",
+				CompletedAt: "2026-11-20T04:29:18Z",
+			},
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, want))
+		}
+	})
+
+	t.Run("sourcery", func(t *testing.T) {
+		const (
+			first  = "86a8f47600000000000000000000000000000000"
+			head   = "701e370100000000000000000000000000000000"
+			runURL = "https://github.com/isseis/yt2column/runs/"
+		)
+		now := "Mon, 23 Nov 2026 10:35:00 GMT"
+		steps := []cmdrunnertestutil.Step{
+			repoStep(),
+			includeStep("pulls/"+testPR, includedOutput(200, []string{"Date: " + now}, read("sourcery_pull.json")), nil),
+			{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"isseis"}`},
+			includeStep("issues/"+testPR+"/comments?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("sourcery_comments.json")), nil),
+			graphqlStep(read("sourcery_commits.json")),
+			includeStep("pulls/"+testPR+"/reviews?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("sourcery_reviews.json")), nil),
+		}
+		g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, steps...))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := g.PRReviewState(t.Context(), ReviewStateRequest{
+			PR:       mustPR(t),
+			Profile:  ProfileSourcery,
+			Reviewer: mustLogin(t, rsSourceryReviewer),
+			Requests: []string{rsSourceryReq1, rsSourceryReq2},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := newReviewState(ProfileSourcery, RequestCompleted)
+		want.Head, want.Now = head, "2026-11-23T10:35:00Z"
+		want.Request = &ReviewRequest{
+			ID:        7097744738,
+			URL:       "https://github.com/isseis/yt2column/pull/1094#issuecomment-7097744738",
+			CreatedAt: "2026-11-23T10:17:45Z",
+		}
+		want.Response = &ReviewResponse{
+			Kind:       RunFinished,
+			Status:     statusCompleted,
+			Conclusion: conclusionSuccess,
+			Commit:     first,
+			URL:        runURL + "137624879984",
+			StartedAt:  "2026-11-23T10:17:52Z",
+		}
+		want.AutoReview = &AutoReview{
+			State:      AutoSkipped,
+			Kind:       RunSkipped,
+			Status:     statusCompleted,
+			Conclusion: conclusionSkipped,
+			Commit:     head,
+			URL:        runURL + "137631000000",
+			StartedAt:  "2026-11-23T10:30:00Z",
+		}
+		// Only the manual request's completion on first is a marker; the
+		// overlapping automatic completion on the second commit neither
+		// competes nor enters Markers.
+		want.Markers = []ReviewMarker{
+			{
+				Commit:      first,
+				RequestID:   7097744738,
+				RequestURL:  "https://github.com/isseis/yt2column/pull/1094#issuecomment-7097744738",
+				CheckRunURL: runURL + "137624879984",
+				ReviewURL:   "https://github.com/isseis/yt2column/pull/1094#pullrequestreview-6019960677",
+				CompletedAt: "2026-11-23T10:27:39Z",
+			},
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, want))
+		}
+	})
 }
 
 // TestReviewStateDateHeader: GitHub's clock is the Date header of a REST
@@ -907,7 +1067,9 @@ func TestReviewStateDateHeader(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := g.PRReviewState(t.Context(), ReviewStateRequest{PR: mustPR(t), Reviewer: mustLogin(t, testReviewer), Request: rsRequestText})
+			got, err := g.PRReviewState(t.Context(), ReviewStateRequest{
+				PR: mustPR(t), Profile: ProfileCodeRabbit, Reviewer: mustLogin(t, testReviewer), Requests: []string{rsRequestText},
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -959,7 +1121,9 @@ func TestReviewStateCommitPages(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		state, err := g.PRReviewState(t.Context(), ReviewStateRequest{PR: mustPR(t), Reviewer: mustLogin(t, testReviewer), Request: rsRequestText})
+		state, err := g.PRReviewState(t.Context(), ReviewStateRequest{
+			PR: mustPR(t), Profile: ProfileCodeRabbit, Reviewer: mustLogin(t, testReviewer), Requests: []string{rsRequestText},
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1002,4 +1166,386 @@ func TestReviewStateCommitPages(t *testing.T) {
 			t.Errorf("state = %s, want %s", mustJSON(t, got), mustJSON(t, want))
 		}
 	})
+}
+
+func withAutoReview(state AutoReviewState, kind RunKind, run rsRun, commit string) func(*PRReviewState) {
+	return func(s *PRReviewState) {
+		s.AutoReview = &AutoReview{
+			State:      state,
+			Kind:       kind,
+			Status:     run.status,
+			Conclusion: run.conclusion,
+			Commit:     commit,
+			URL:        rsRunURL(run.id),
+			StartedAt:  run.started,
+		}
+	}
+}
+
+func sourceryReqComment(id int64, body, clock string) rsComment {
+	return rsComment{id: id, login: rsUser, kind: typenameUser, body: body, created: at(clock)}
+}
+
+// TestReviewStateSourceryAuto verifies ProfileSourcery automatic review
+// reading, four-step priority selection, tie-breaking, unstarted exclusion
+// while a manual request is waiting without a response, check-run name
+// verification, Profile population on every path, and that automatic
+// completions never enter Markers.
+func TestReviewStateSourceryAuto(t *testing.T) {
+	finished := rsSourceryFinished(21, at("10:01:00"), at("10:03:00"))
+	skipped := rsSourcerySkipped(22, at("10:01:30"))
+	unrec := rsRun{
+		id: 23, name: checkNameSourcery, status: statusCompleted, conclusion: "FAILURE",
+		title: "Blocking security issue", started: at("10:01:40"), completed: at("10:02:00"),
+	}
+	inLimitRunning := rsSourceryRunning(24, at("10:00:30"))
+	unstarted := rsSourceryQueued(25)
+	timedOutRunning := rsSourceryRunning(26, at("09:49:59")) // 15m01s before rsNow (10:05:00)
+	exactLimitRunning := rsSourceryRunning(27, at("09:50:00"))
+	boom := errors.New("boom")
+
+	rows := []reviewStateCase{
+		{
+			name: "no_requests_no_runs",
+			in:   rsInput{profile: ProfileSourcery, commits: []rsCommit{rsSourceryCommitOf(rsHead)}},
+			want: rsWantFor(ProfileSourcery, RequestNone),
+		},
+		{
+			name: "empty_queued_check_suite_ignored",
+			in: rsInput{
+				profile: ProfileSourcery,
+				commits: []rsCommit{{oid: rsHead, suites: []rsSuite{{app: rsSourceryReviewer, runs: nil}}}},
+			},
+			want: rsWantFor(ProfileSourcery, RequestNone),
+		},
+		{
+			name: "auto_running_within_limit",
+			in:   rsInput{profile: ProfileSourcery, commits: []rsCommit{rsSourceryCommitOf(rsHead, inLimitRunning)}},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoRunning, RunRunning, inLimitRunning, rsHead)),
+		},
+		{
+			name: "auto_running_at_exact_limit",
+			in:   rsInput{profile: ProfileSourcery, commits: []rsCommit{rsSourceryCommitOf(rsHead, exactLimitRunning)}},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoRunning, RunRunning, exactLimitRunning, rsHead)),
+		},
+		{
+			name: "auto_running_unstarted_startedAt_null",
+			in:   rsInput{profile: ProfileSourcery, commits: []rsCommit{rsSourceryCommitOf(rsHead, unstarted)}},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoRunning, RunRunning, unstarted, rsHead)),
+		},
+		{
+			name: "auto_timed_out_past_limit",
+			in:   rsInput{profile: ProfileSourcery, commits: []rsCommit{rsSourceryCommitOf(rsHead, timedOutRunning)}},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoTimedOut, RunRunning, timedOutRunning, rsHead)),
+		},
+		{
+			name: "auto_completed_excluded_from_markers",
+			in:   rsInput{profile: ProfileSourcery, commits: []rsCommit{rsSourceryCommitOf(rsHead, finished)}},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoCompleted, RunFinished, finished, rsHead)),
+		},
+		{
+			name: "auto_skipped",
+			in:   rsInput{profile: ProfileSourcery, commits: []rsCommit{rsSourceryCommitOf(rsHead, skipped)}},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoSkipped, RunSkipped, skipped, rsHead)),
+		},
+		{
+			name: "auto_unrecognized_failure",
+			in:   rsInput{profile: ProfileSourcery, commits: []rsCommit{rsSourceryCommitOf(rsHead, unrec)}},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoUnrecognized, RunUnknown, unrec, rsHead)),
+		},
+		{
+			name: "ancestor_commit_runs_ignored",
+			in: rsInput{
+				profile: ProfileSourcery,
+				commits: []rsCommit{
+					rsSourceryCommitOf(rsSecond, inLimitRunning, finished),
+					rsSourceryCommitOf(rsHead),
+				},
+			},
+			want: rsWantFor(ProfileSourcery, RequestNone),
+		},
+		{
+			name: "priority_1_in_limit_running_beats_2_3_4",
+			in: rsInput{
+				profile: ProfileSourcery,
+				commits: []rsCommit{rsSourceryCommitOf(rsHead, finished, timedOutRunning, unstarted, inLimitRunning)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoRunning, RunRunning, inLimitRunning, rsHead)),
+		},
+		{
+			name: "priority_2_unstarted_beats_3_4",
+			in: rsInput{
+				profile: ProfileSourcery,
+				commits: []rsCommit{rsSourceryCommitOf(rsHead, finished, timedOutRunning, unstarted)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoRunning, RunRunning, unstarted, rsHead)),
+		},
+		{
+			name: "priority_3_timed_out_running_beats_4",
+			in: rsInput{
+				profile: ProfileSourcery,
+				commits: []rsCommit{rsSourceryCommitOf(rsHead, finished, timedOutRunning)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoTimedOut, RunRunning, timedOutRunning, rsHead)),
+		},
+		{
+			name: "tie_break_latest_started_wins",
+			in: rsInput{
+				profile: ProfileSourcery,
+				commits: []rsCommit{rsSourceryCommitOf(rsHead,
+					rsSourceryFinished(31, at("10:01:00"), at("10:02:00")),
+					rsSourcerySkipped(32, at("10:02:30")),
+				)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoSkipped, RunSkipped, rsSourcerySkipped(32, at("10:02:30")), rsHead)),
+		},
+		{
+			name: "tie_break_longest_url_beats_shorter_url",
+			in: rsInput{
+				profile: ProfileSourcery,
+				commits: []rsCommit{rsSourceryCommitOf(rsHead,
+					rsSourceryFinished(999, at("10:01:00"), at("10:02:00")),
+					rsSourceryFinished(1000, at("10:01:00"), at("10:02:00")),
+				)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoCompleted, RunFinished, rsSourceryFinished(1000, at("10:01:00"), at("10:02:00")), rsHead)),
+		},
+		{
+			name: "tie_break_lex_greatest_url_for_unstarted",
+			in: rsInput{
+				profile: ProfileSourcery,
+				commits: []rsCommit{rsSourceryCommitOf(rsHead, rsSourceryQueued(100), rsSourceryQueued(200))},
+			},
+			want: rsWantFor(ProfileSourcery, RequestNone, withAutoReview(AutoRunning, RunRunning, rsSourceryQueued(200), rsHead)),
+		},
+		{
+			name: "unstarted_excluded_while_manual_waiting_without_response",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits:  []rsCommit{rsSourceryCommitOf(rsHead, unstarted)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestWaiting),
+		},
+		{
+			name: "unstarted_excluded_falls_back_to_prior_auto_while_manual_waiting",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits: []rsCommit{rsSourceryCommitOf(rsHead,
+					rsSourcerySkipped(20, at("09:55:00")),
+					unstarted,
+				)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestWaiting, withAutoReview(AutoSkipped, RunSkipped, rsSourcerySkipped(20, at("09:55:00")), rsHead)),
+		},
+		{
+			name: "unstarted_included_once_manual_has_response",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits:  []rsCommit{rsSourceryCommitOf(rsHead, inLimitRunning, unstarted)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestWaiting,
+				withResponse(RunRunning, inLimitRunning, rsHead),
+				withAutoReview(AutoRunning, RunRunning, unstarted, rsHead),
+			),
+		},
+		{
+			name: "name_mismatch_rejected_with_profile_set",
+			in: rsInput{
+				profile: ProfileSourcery,
+				commits: []rsCommit{rsSourceryCommitOf(rsHead, rsFinished(21, at("10:01:00"), at("10:03:00")))},
+				stop:    rsStageGraphQL,
+			},
+			want: rsUnreadableFor(ProfileSourcery, UnreadableRejected, rsHead),
+		},
+		{
+			name: "unreadable_preserves_profile_sourcery",
+			in:   rsInput{profile: ProfileSourcery, fail: map[string]error{rsStageRepo: boom}},
+			want: rsUnreadableFor(ProfileSourcery, UnreadableCall, ""),
+		},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })
+	}
+}
+
+// TestReviewStateSourceryManual verifies ProfileSourcery manual request
+// matching: multiple accepted request texts, 15-minute response window,
+// same/earlier-commit competing runs vs later-commit non-competing runs,
+// RequestSkipped, marker construction (manual only), and exclusion of assigned
+// runs from AutoReview.
+func TestReviewStateSourceryManual(t *testing.T) {
+	manualDone := rsSourceryFinished(41, at("10:00:20"), at("10:03:00"))
+	manualSkipped := rsSourcerySkipped(42, at("10:00:20"))
+	manualUnrec := rsRun{
+		id: 43, name: checkNameSourcery, status: statusCompleted, conclusion: "FAILURE",
+		title: "Error", started: at("10:00:20"), completed: at("10:01:00"),
+	}
+	priorAutoSkipped := rsSourcerySkipped(40, at("09:50:00"))
+	laterCommitAuto := rsSourceryFinished(44, at("10:01:30"), at("10:02:30"))
+	earlierCommitManual := rsSourceryFinished(45, at("10:01:00"), at("10:04:00"))
+
+	rows := []reviewStateCase{
+		{
+			name: "matches_second_accepted_request_text",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq2, "10:00:00")},
+				commits:  []rsCommit{rsSourceryCommitOf(rsHead, manualDone)},
+				reviews:  []rsReview{rsSourceryBotReview(10, rsHead, at("10:02:50"))},
+			},
+			want: rsWantFor(ProfileSourcery, RequestCompleted,
+				withResponse(RunFinished, manualDone, rsHead),
+				withMarkers(marker(1, rsHead, manualDone, rsReviewURL(10))),
+			),
+		},
+		{
+			name: "manual_completed_excludes_assigned_run_from_auto_but_keeps_earlier_auto",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits:  []rsCommit{rsSourceryCommitOf(rsHead, priorAutoSkipped, manualDone)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestCompleted,
+				withResponse(RunFinished, manualDone, rsHead),
+				withAutoReview(AutoSkipped, RunSkipped, priorAutoSkipped, rsHead),
+				withMarkers(marker(1, rsHead, manualDone, "")),
+			),
+		},
+		{
+			name: "manual_skipped",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits:  []rsCommit{rsSourceryCommitOf(rsHead, manualSkipped)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestSkipped, withResponse(RunSkipped, manualSkipped, rsHead)),
+		},
+		{
+			name: "manual_unrecognized",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits:  []rsCommit{rsSourceryCommitOf(rsHead, manualUnrec)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestUnrecognized, withResponse(RunUnknown, manualUnrec, rsHead)),
+		},
+		{
+			name: "run_past_15m_response_window_not_stolen_by_expired_manual_request",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits: []rsCommit{rsSourceryCommitOf(rsHead,
+					rsSourceryFinished(46, at("10:15:01"), at("10:18:00")),
+				)},
+				now: at("10:25:00"),
+			},
+			want: rsWantFor(ProfileSourcery, RequestTimedOut,
+				withNow(at("10:25:00")),
+				withAutoReview(AutoCompleted, RunFinished, rsSourceryFinished(46, at("10:15:01"), at("10:18:00")), rsHead),
+			),
+		},
+		{
+			name: "run_at_exact_15m_response_window_answers_manual_request",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits: []rsCommit{rsSourceryCommitOf(rsHead,
+					rsSourceryFinished(47, at("10:15:00"), at("10:18:00")),
+				)},
+				now: at("10:25:00"),
+			},
+			want: rsWantFor(ProfileSourcery, RequestCompleted,
+				withNow(at("10:25:00")),
+				withResponse(RunFinished, rsSourceryFinished(47, at("10:15:00"), at("10:18:00")), rsHead),
+				withMarkers(marker(1, rsHead, rsSourceryFinished(47, at("10:15:00"), at("10:18:00")), "")),
+			),
+		},
+		{
+			name: "same_commit_overlapping_runs_compete",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits: []rsCommit{rsSourceryCommitOf(rsHead,
+					rsSourceryFinished(51, at("10:00:20"), at("10:03:00")),
+					rsSourceryFinished(52, at("10:02:00"), at("10:04:00")),
+				)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestIndeterminate,
+				indeterminate(IndeterminateCompetingRuns, rsRunURL(51), rsRunURL(52)),
+				// Neither run was assigned to a manual request because they competed.
+				withAutoReview(AutoCompleted, RunFinished, rsSourceryFinished(52, at("10:02:00"), at("10:04:00")), rsHead),
+			),
+		},
+		{
+			name: "later_commit_overlapping_auto_run_does_not_compete",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits: []rsCommit{
+					rsSourceryCommitOf(rsSecond, manualDone),
+					rsSourceryCommitOf(rsHead, laterCommitAuto),
+				},
+			},
+			want: rsWantFor(ProfileSourcery, RequestCompleted,
+				withResponse(RunFinished, manualDone, rsSecond),
+				withAutoReview(AutoCompleted, RunFinished, laterCommitAuto, rsHead),
+				withMarkers(marker(1, rsSecond, manualDone, "")),
+			),
+		},
+		{
+			name: "earlier_commit_overlapping_run_competes_when_later_commit_started_first",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits: []rsCommit{
+					rsSourceryCommitOf(rsSecond, earlierCommitManual),
+					rsSourceryCommitOf(rsHead, manualDone),
+				},
+			},
+			want: rsWantFor(ProfileSourcery, RequestIndeterminate,
+				indeterminate(IndeterminateCompetingRuns, rsRunURL(41), rsRunURL(45)),
+				withAutoReview(AutoCompleted, RunFinished, manualDone, rsHead),
+			),
+		},
+		{
+			name: "same_second_different_commit_competes",
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{sourceryReqComment(1, rsSourceryReq1, "10:00:00")},
+				commits: []rsCommit{
+					rsSourceryCommitOf(rsSecond, rsSourceryFinished(61, at("10:00:20"), at("10:03:00"))),
+					rsSourceryCommitOf(rsHead, rsSourceryFinished(62, at("10:00:20"), at("10:03:05"))),
+				},
+			},
+			want: rsWantFor(ProfileSourcery, RequestIndeterminate,
+				indeterminate(IndeterminateCompetingRuns, rsRunURL(61), rsRunURL(62)),
+				withAutoReview(AutoCompleted, RunFinished, rsSourceryFinished(62, at("10:00:20"), at("10:03:05")), rsHead),
+			),
+		},
+		{
+			name: "earlier_manual_marker_preserved_and_head_auto_completed_not_in_markers",
+			in: rsInput{
+				profile: ProfileSourcery,
+				comments: []rsComment{
+					sourceryReqComment(1, rsSourceryReq1, "09:00:00"),
+					sourceryReqComment(2, rsSourceryReq2, "10:00:00"),
+				},
+				commits: []rsCommit{
+					rsSourceryCommitOf(rsSecond, rsSourceryFinished(71, at("09:00:20"), at("09:02:00"))),
+					rsSourceryCommitOf(rsHead, rsSourceryFinished(72, at("09:50:00"), at("09:52:00"))),
+				},
+			},
+			want: rsWantFor(ProfileSourcery, RequestWaiting,
+				withRequest(2, at("10:00:00")),
+				withAutoReview(AutoCompleted, RunFinished, rsSourceryFinished(72, at("09:50:00"), at("09:52:00")), rsHead),
+				withMarkers(marker(1, rsSecond, rsSourceryFinished(71, at("09:00:20"), at("09:02:00")), "")),
+			),
+		},
+	}
+	for _, tc := range rows {
+		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })
+	}
 }

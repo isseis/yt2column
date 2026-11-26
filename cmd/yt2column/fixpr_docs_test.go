@@ -185,6 +185,9 @@ func TestRunprDocContract(t *testing.T) {
 
 	t.Run("no_unchecked_gh_api", func(t *testing.T) {
 		checkGhAPICalls(t, "runpr.md step 3", step3, step3ReadCalls)
+		if strings.Contains(step3, "gh pr checks --watch") {
+			t.Error("runpr.md step 3 still calls gh pr checks --watch")
+		}
 	})
 }
 
@@ -196,12 +199,10 @@ const bodyMarker = "zq7mark"
 // leftPlaceholder matches angle-bracket placeholders like <number>.
 var leftPlaceholder = regexp.MustCompile(`<[a-z][a-z-]*>`)
 
-// step3ReadCalls are the gh api calls of runpr.md step 3: the three mention
-// listings and reading the user's login.
-var step3ReadCalls = []string{
-	"gh api --paginate ",
-	"gh api user --jq .login",
-}
+// step3ReadCalls is empty: runpr.md step 3 reads PR mentions, review state,
+// review threads, and CI checks exclusively through fixprguard, with no direct
+// gh api call.
+var step3ReadCalls []string
 
 // checkGhAPICalls fails t for a gh api call in section that does not start
 // with one of allowed, so a read that prints whole responses cannot be added
@@ -269,8 +270,11 @@ func TestFixprguardCallSites(t *testing.T) {
 		{"fixpr.md", fixpr, fixprPhase6, "fixprguard append-pr "},
 		{"runpr.md", runpr, runprStep1, "fixprguard head "},
 		{"runpr.md", runpr, runprStep1, "fixprguard interaction-limits "},
+		{"runpr.md", runpr, runprStep3, "fixprguard mentions "},
 		{"runpr.md", runpr, runprStep3, "fixprguard review-state "},
 		{"runpr.md", runpr, runprStep3, "fixprguard list "},
+		{"runpr.md", runpr, runprStep3, "fixprguard ci-checks "},
+		{"runpr.md", runpr, runprStep4, "fixprguard mentions "},
 		{"runpr.md", runpr, runprStep4, "fixprguard review-state "},
 		{"runpr.md", runpr, runprStep4, "fixprguard reply "},
 		{"runpr.md", runpr, runprStep4, "fixprguard edit-pr "},
@@ -386,8 +390,8 @@ func TestFixprBuildChecksMatchTool(t *testing.T) {
 type reviewerRowProblem string
 
 const (
-	// problemRowCount: a reviewer row is missing or repeated, or the old
-	// single-reviewer row is still there.
+	// problemRowCount: a required reviewer row is missing or repeated, or a
+	// retired single-reviewer row is still present.
 	problemRowCount reviewerRowProblem = "row count"
 	// problemListShape: the list value before the first " — " is not
 	// backquoted names separated by ", ".
@@ -396,17 +400,26 @@ const (
 	problemListParse reviewerRowProblem = "list parse"
 	// problemListNames: the list is not exactly wantReviewers.
 	problemListNames reviewerRowProblem = "list names"
-	// problemAwaitedShape: the awaited value before the first " — " is not
-	// exactly one backquoted name.
-	problemAwaitedShape reviewerRowProblem = "awaited shape"
-	// problemAwaitedParse: fixprguard.ParseLogin rejects the awaited name.
-	problemAwaitedParse reviewerRowProblem = "awaited parse"
-	// problemRequestShape: the request value before the first " — " is not
-	// exactly one backquoted text.
-	problemRequestShape reviewerRowProblem = "request shape"
-	// problemRequestMention: the request's first word is not one of the
-	// mentions fixprguard rejects (fixprguard.RejectedMentions).
-	problemRequestMention reviewerRowProblem = "request mention"
+	// problemPRReviewersTable: the ### PR reviewers 5-column table is missing,
+	// repeated, has the wrong columns, or holds an unexpected number of rows.
+	problemPRReviewersTable reviewerRowProblem = "pr reviewers table"
+	// problemPRReviewerLogin: a PR reviewers row's Reviewer cell is not a
+	// single backquoted valid login, or repeats a login.
+	problemPRReviewerLogin reviewerRowProblem = "pr reviewer login"
+	// problemPRReviewerProfile: a PR reviewers row's Profile cell is not a
+	// single backquoted valid ReviewProfile, or repeats a profile.
+	problemPRReviewerProfile reviewerRowProblem = "pr reviewer profile"
+	// problemPRReviewerMode: a PR reviewers row's Mode cell is not a single
+	// backquoted declared mode ("manual" or "auto+manual").
+	problemPRReviewerMode reviewerRowProblem = "pr reviewer mode"
+	// problemPRReviewerRequest: a PR reviewers row's Post request or Accepted
+	// requests cell is malformed, contains a mention outside
+	// fixprguard.RejectedMentions(), repeats an accepted request, or omits
+	// Post request from Accepted requests.
+	problemPRReviewerRequest reviewerRowProblem = "pr reviewer request"
+	// problemPRReviewersValues: the parsed PR reviewers rows do not match
+	// wantPRReviewers.
+	problemPRReviewersValues reviewerRowProblem = "pr reviewers values"
 	// problemRejectedShape: the rejected-mentions value before the first " — "
 	// is not backquoted mentions separated by ", ".
 	problemRejectedShape reviewerRowProblem = "rejected shape"
@@ -415,35 +428,62 @@ const (
 	problemRejectedNames reviewerRowProblem = "rejected names"
 )
 
+// prReviewerSpec is one row of _context.md's ### PR reviewers table.
+type prReviewerSpec struct {
+	reviewer string
+	profile  string
+	mode     string
+	post     string
+	accepted []string
+}
+
+var (
+	prReviewersHeading = "### PR reviewers"
+	prReviewersHeader  = []string{"Reviewer", "Profile", "Mode", "Post request", "Accepted requests"}
+	wantPRReviewers    = []prReviewerSpec{
+		{
+			reviewer: "coderabbitai",
+			profile:  "coderabbit",
+			mode:     "manual",
+			post:     "@coderabbitai review",
+			accepted: []string{"@coderabbitai review"},
+		},
+		{
+			reviewer: "sourcery-ai",
+			profile:  "sourcery",
+			mode:     "auto+manual",
+			post:     "@sourcery-ai review",
+			accepted: []string{"@sourcery-ai review", "@sourceryai review"},
+		},
+	}
+)
+
 // valueSeparator ends the names part of a reviewer row's value; the
 // description follows it.
 const valueSeparator = " — "
 
 var (
-	// reviewerListShape is the strict form of the list's names part: backquoted
-	// names joined by a comma and exactly one space.
+	// reviewerListShape is the strict form of a comma-space separated list of
+	// backquoted values.
 	reviewerListShape = regexp.MustCompile("^`[^`]+`(, `[^`]+`)*$")
-	// awaitedShape is the strict form of the awaited reviewer's names part.
-	awaitedShape = regexp.MustCompile("^`([^`]+)`$")
-	backquoted   = regexp.MustCompile("`([^`]+)`")
+	// singleBackquoted is the strict form of a single backquoted value.
+	singleBackquoted = regexp.MustCompile("^`([^`]+)`$")
+	backquoted       = regexp.MustCompile("`([^`]+)`")
 )
 
 // contextReviewers is what checkContextReviewers reads from _context.md: the
-// list's names, the awaited reviewer's name, and the PR review request. A
-// field is empty when its check failed before reaching it.
+// automated reviewer list and the PR reviewers table.
 type contextReviewers struct {
-	names    []string
-	awaited  string
-	request  string
-	problems []reviewerRowProblem
+	names       []string
+	prReviewers []prReviewerSpec
+	problems    []reviewerRowProblem
 }
 
-// checkContextReviewers reads the reviewer rows of the _context.md text doc
-// and reports every defect it finds. Only the part of a value before the
-// first " — " is read as names, so code in the description such as `[bot]`
-// is never taken for a name. The list goes through fixprguard.ParseReviewers,
-// the function the tool itself parses --reviewer with, so the guard and the
-// tool accept the same names.
+// checkContextReviewers reads the reviewer rows and ### PR reviewers table of
+// _context.md and reports every defect it finds. Only the part of a Name/Value
+// row before the first " — " is read as values. The retired single-reviewer
+// rows (Awaited PR reviewer, PR review request, Automated reviewer) must be
+// absent.
 func checkContextReviewers(doc string) contextReviewers {
 	var got contextReviewers
 	count := map[string][][]string{}
@@ -455,8 +495,8 @@ func checkContextReviewers(doc string) contextReviewers {
 			count[name] = append(count[name], tableRowsWithFirstCell(table, name)...)
 		}
 	}
-	if len(count[reviewerListRow]) != 1 || len(count[awaitedRow]) != 1 || len(count[requestRow]) != 1 ||
-		len(count[rejectedMentionsRow]) != 1 || len(count[oldReviewerRow]) != 0 {
+	if len(count[reviewerListRow]) != 1 || len(count[rejectedMentionsRow]) != 1 ||
+		len(count[awaitedRow]) != 0 || len(count[requestRow]) != 0 || len(count[oldReviewerRow]) != 0 {
 		got.problems = append(got.problems, problemRowCount)
 	}
 
@@ -465,15 +505,10 @@ func checkContextReviewers(doc string) contextReviewers {
 	if rows := count[reviewerListRow]; len(rows) == 1 {
 		got.checkList(valueCell(rows[0]))
 	}
-	if rows := count[awaitedRow]; len(rows) == 1 {
-		got.checkAwaited(valueCell(rows[0]))
-	}
-	if rows := count[requestRow]; len(rows) == 1 {
-		got.checkRequest(valueCell(rows[0]))
-	}
 	if rows := count[rejectedMentionsRow]; len(rows) == 1 {
 		got.checkRejected(valueCell(rows[0]))
 	}
+	got.checkPRReviewers(doc)
 	return got
 }
 
@@ -506,37 +541,132 @@ func (c *contextReviewers) checkList(value string) {
 	c.names = list
 }
 
-// checkAwaited checks the awaited reviewer row's value and records its name.
-func (c *contextReviewers) checkAwaited(value string) {
-	name, _, found := strings.Cut(value, valueSeparator)
-	m := awaitedShape.FindStringSubmatch(name)
-	if !found || m == nil {
-		c.problems = append(c.problems, problemAwaitedShape)
+// checkPRReviewers checks the ### PR reviewers 5-column table.
+func (c *contextReviewers) checkPRReviewers(doc string) {
+	section := doctestutil.SectionByHeading(doc, prReviewersHeading)
+	if strings.TrimSpace(section) == "" {
+		c.problems = append(c.problems, problemPRReviewersTable)
 		return
 	}
-	if _, err := fixprguard.ParseLogin(m[1]); err != nil {
-		c.problems = append(c.problems, problemAwaitedParse)
+	tables := doctestutil.MarkdownTables(section)
+	if len(tables) != 1 {
+		c.problems = append(c.problems, problemPRReviewersTable)
 		return
 	}
-	c.awaited = m[1]
-}
+	table := tables[0]
+	if len(table) < 2 || !slices.Equal(table[0], prReviewersHeader) {
+		c.problems = append(c.problems, problemPRReviewersTable)
+		return
+	}
+	rows := table[1:]
+	if len(rows) != len(wantPRReviewers) {
+		c.problems = append(c.problems, problemPRReviewersTable)
+	}
+	seenLogin := map[string]struct{}{}
+	seenProfile := map[string]struct{}{}
+	rejected := fixprguard.RejectedMentions()
+	var parsed []prReviewerSpec
+	rowProblem := false
+	for _, row := range rows {
+		if len(row) != len(prReviewersHeader) {
+			c.problems = append(c.problems, problemPRReviewersTable)
+			return
+		}
+		mLogin := singleBackquoted.FindStringSubmatch(row[0])
+		if mLogin == nil {
+			c.problems = append(c.problems, problemPRReviewerLogin)
+			rowProblem = true
+			continue
+		}
+		if _, err := fixprguard.ParseLogin(mLogin[1]); err != nil {
+			c.problems = append(c.problems, problemPRReviewerLogin)
+			rowProblem = true
+			continue
+		}
+		if _, dup := seenLogin[mLogin[1]]; dup {
+			c.problems = append(c.problems, problemPRReviewerLogin)
+			rowProblem = true
+			continue
+		}
+		seenLogin[mLogin[1]] = struct{}{}
 
-// checkRequest checks the PR review request row's value and records the
-// request. The request's first word must be one of the mentions the guard tool
-// rejects in replies and PR descriptions, so the tool and the command
-// documents keep out the same mentions.
-func (c *contextReviewers) checkRequest(value string) {
-	request, _, found := strings.Cut(value, valueSeparator)
-	m := awaitedShape.FindStringSubmatch(request)
-	if !found || m == nil {
-		c.problems = append(c.problems, problemRequestShape)
-		return
+		mProfile := singleBackquoted.FindStringSubmatch(row[1])
+		if mProfile == nil {
+			c.problems = append(c.problems, problemPRReviewerProfile)
+			rowProblem = true
+			continue
+		}
+		if _, err := fixprguard.ParseReviewProfile(mProfile[1]); err != nil {
+			c.problems = append(c.problems, problemPRReviewerProfile)
+			rowProblem = true
+			continue
+		}
+		if _, dup := seenProfile[mProfile[1]]; dup {
+			c.problems = append(c.problems, problemPRReviewerProfile)
+			rowProblem = true
+			continue
+		}
+		seenProfile[mProfile[1]] = struct{}{}
+
+		mMode := singleBackquoted.FindStringSubmatch(row[2])
+		if mMode == nil || (mMode[1] != "manual" && mMode[1] != "auto+manual") {
+			c.problems = append(c.problems, problemPRReviewerMode)
+			rowProblem = true
+			continue
+		}
+
+		mPost := singleBackquoted.FindStringSubmatch(row[3])
+		if mPost == nil || !reviewerListShape.MatchString(row[4]) {
+			c.problems = append(c.problems, problemPRReviewerRequest)
+			rowProblem = true
+			continue
+		}
+		var accepted []string
+		seenReq := map[string]struct{}{}
+		badReq := false
+		for _, m := range backquoted.FindAllStringSubmatch(row[4], -1) {
+			words := strings.Fields(m[1])
+			if len(words) == 0 || !slices.Contains(rejected, words[0]) {
+				badReq = true
+				break
+			}
+			if _, dup := seenReq[m[1]]; dup {
+				badReq = true
+				break
+			}
+			seenReq[m[1]] = struct{}{}
+			accepted = append(accepted, m[1])
+		}
+		if words := strings.Fields(mPost[1]); len(words) == 0 || !slices.Contains(rejected, words[0]) || !slices.Contains(accepted, mPost[1]) {
+			badReq = true
+		}
+		if badReq {
+			c.problems = append(c.problems, problemPRReviewerRequest)
+			rowProblem = true
+			continue
+		}
+		parsed = append(parsed, prReviewerSpec{
+			reviewer: mLogin[1],
+			profile:  mProfile[1],
+			mode:     mMode[1],
+			post:     mPost[1],
+			accepted: accepted,
+		})
 	}
-	if words := strings.Fields(m[1]); len(words) == 0 || !slices.Contains(fixprguard.RejectedMentions(), words[0]) {
-		c.problems = append(c.problems, problemRequestMention)
-		return
+	c.prReviewers = parsed
+	if !rowProblem && len(parsed) == len(wantPRReviewers) {
+		same := true
+		for i := range wantPRReviewers {
+			a, b := parsed[i], wantPRReviewers[i]
+			if a.reviewer != b.reviewer || a.profile != b.profile || a.mode != b.mode || a.post != b.post || !slices.Equal(a.accepted, b.accepted) {
+				same = false
+				break
+			}
+		}
+		if !same {
+			c.problems = append(c.problems, problemPRReviewersValues)
+		}
 	}
-	c.request = m[1]
 }
 
 // checkRejected checks the Rejected mentions row's value against
@@ -558,20 +688,20 @@ func (c *contextReviewers) checkRejected(value string) {
 }
 
 // TestContextAndCommandsAgree checks that _context.md is the one place the
-// automated reviewer's name is written: its reviewer rows parse and hold the
-// expected names, its request and rejected mentions match fixprguard, and
-// fixpr.md, runpr.md, mkreq.md, and _lib/task-pr-handoff.md never write a
-// reviewer's name.
+// automated reviewer names are written: its reviewer rows and ### PR reviewers
+// table parse and hold the expected values, its rejected mentions match
+// fixprguard, and fixpr.md, runpr.md, mkreq.md, and _lib/task-pr-handoff.md
+// never write any reviewer's login.
 func TestContextAndCommandsAgree(t *testing.T) {
 	got := checkContextReviewers(doctestutil.ReadDoc(t, contextPath))
 	if len(got.problems) > 0 {
 		t.Fatalf("_context.md reviewer rows have problems %v", got.problems)
 	}
-	if got.awaited != "coderabbitai" {
-		t.Errorf("_context.md %s = %q, want coderabbitai", awaitedRow, got.awaited)
-	}
-	if got.request != "@coderabbitai review" {
-		t.Errorf("_context.md %s = %q, want %q", requestRow, got.request, "@coderabbitai review")
+	allNames := slices.Clone(got.names)
+	for _, pr := range got.prReviewers {
+		if !slices.Contains(allNames, pr.reviewer) {
+			allNames = append(allNames, pr.reviewer)
+		}
 	}
 
 	// The documents write every reviewer value through a placeholder, so a
@@ -584,7 +714,7 @@ func TestContextAndCommandsAgree(t *testing.T) {
 		{"_lib/task-pr-handoff.md", handoffPath},
 	} {
 		doc := doctestutil.ReadDoc(t, tc.path)
-		for _, name := range append(slices.Clone(got.names), got.awaited) {
+		for _, name := range allNames {
 			if strings.Contains(doc, name) {
 				t.Errorf("%s writes the reviewer name %q", tc.name, name)
 			}
@@ -593,18 +723,16 @@ func TestContextAndCommandsAgree(t *testing.T) {
 }
 
 // TestContextReviewerRowsMalformed checks that checkContextReviewers reports
-// each kind of broken reviewer row, on copies of the real _context.md with one
-// row edited, and that it reads the expected names from a description holding
-// backquoted code and a second separator.
+// each kind of broken reviewer row or ### PR reviewers row, on copies of the
+// real _context.md with one line edited, and that it reads the expected names
+// from a description holding backquoted code and a second separator.
 func TestContextReviewerRowsMalformed(t *testing.T) {
 	doc := doctestutil.ReadDoc(t, contextPath)
 	listLine := contextLine(t, doc, reviewerListRow)
-	awaitedLine := contextLine(t, doc, awaitedRow)
-	requestLine := contextLine(t, doc, requestRow)
 	rejectedLine := contextLine(t, doc, rejectedMentionsRow)
+	crRow := "| `coderabbitai` | `coderabbit` | `manual` | `@coderabbitai review` | `@coderabbitai review` |"
+	sourceryRow := "| `sourcery-ai` | `sourcery` | `auto+manual` | `@sourcery-ai review` | `@sourcery-ai review`, `@sourceryai review` |"
 	listRow := func(value string) string { return "| " + reviewerListRow + " | " + value + " |" }
-	awaitedRowLine := func(value string) string { return "| " + awaitedRow + " | " + value + " |" }
-	requestRowLine := func(value string) string { return "| " + requestRow + " | " + value + " |" }
 	rejectedRowLine := func(value string) string { return "| " + rejectedMentionsRow + " | " + value + " |" }
 	const desc = " — the automated reviewers"
 
@@ -620,12 +748,12 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 			listRow("`coderabbitai`, `sourcery-ai` — named in `[bot]`-less form — see `fixpr.md`"), nil,
 		},
 		{"list_row_missing", listLine + "\n", "", []reviewerRowProblem{problemRowCount}},
-		{"awaited_row_missing", awaitedLine + "\n", "", []reviewerRowProblem{problemRowCount}},
 		{"rejected_row_missing", rejectedLine + "\n", "", []reviewerRowProblem{problemRowCount}},
 		{"list_row_twice", listLine, listLine + "\n" + listLine, []reviewerRowProblem{problemRowCount}},
-		{"awaited_row_twice", awaitedLine, awaitedLine + "\n" + awaitedLine, []reviewerRowProblem{problemRowCount}},
 		{"rejected_row_twice", rejectedLine, rejectedLine + "\n" + rejectedLine, []reviewerRowProblem{problemRowCount}},
-		{"old_row_left", awaitedLine, awaitedLine + "\n| " + oldReviewerRow + " | `coderabbitai` — the reviewer |", []reviewerRowProblem{problemRowCount}},
+		{"retired_awaited_row_present", rejectedLine, rejectedLine + "\n| " + awaitedRow + " | `coderabbitai` — retired |", []reviewerRowProblem{problemRowCount}},
+		{"retired_request_row_present", rejectedLine, rejectedLine + "\n| " + requestRow + " | `@coderabbitai review` — retired |", []reviewerRowProblem{problemRowCount}},
+		{"old_row_left", rejectedLine, rejectedLine + "\n| " + oldReviewerRow + " | `coderabbitai` — the reviewer |", []reviewerRowProblem{problemRowCount}},
 		{"list_no_value_cell", listLine, "| " + reviewerListRow + " |", []reviewerRowProblem{problemListShape}},
 		{"list_value_only_description", listLine, listRow(desc), []reviewerRowProblem{problemListShape}},
 		{"no_separator", listLine, listRow("`coderabbitai`, `sourcery-ai`"), []reviewerRowProblem{problemListShape}},
@@ -639,19 +767,17 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 		{"name_missing", listLine, listRow("`coderabbitai`" + desc), []reviewerRowProblem{problemListNames}},
 		{"name_replaced", listLine, listRow("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemListNames}},
 		{"name_case_differs", listLine, listRow("`coderabbitai`, `Sourcery-AI`" + desc), []reviewerRowProblem{problemListNames}},
-		{"awaited_two_names", awaitedLine, awaitedRowLine("`coderabbitai`, `other-bot`" + desc), []reviewerRowProblem{problemAwaitedShape}},
-		{"awaited_no_value_cell", awaitedLine, "| " + awaitedRow + " |", []reviewerRowProblem{problemAwaitedShape}},
-		{"awaited_value_only_description", awaitedLine, awaitedRowLine(desc), []reviewerRowProblem{problemAwaitedShape}},
-		{"awaited_no_separator", awaitedLine, awaitedRowLine("`coderabbitai`"), []reviewerRowProblem{problemAwaitedShape}},
-		{"awaited_outside_grammar", awaitedLine, awaitedRowLine("`coderabbitai[bot]`" + desc), []reviewerRowProblem{problemAwaitedParse}},
-		{"request_row_missing", requestLine + "\n", "", []reviewerRowProblem{problemRowCount}},
-		{"request_row_twice", requestLine, requestLine + "\n" + requestLine, []reviewerRowProblem{problemRowCount}},
-		{"request_two_values", requestLine, requestRowLine("`@coderabbitai review`, `@coderabbitai`" + desc), []reviewerRowProblem{problemRequestShape}},
-		{"request_no_backquotes", requestLine, requestRowLine("@coderabbitai review" + desc), []reviewerRowProblem{problemRequestShape}},
-		{"request_no_separator", requestLine, requestRowLine("`@coderabbitai review`"), []reviewerRowProblem{problemRequestShape}},
-		{"request_other_mention", requestLine, requestRowLine("`@other-bot review`" + desc), []reviewerRowProblem{problemRequestMention}},
-		{"request_longer_mention", requestLine, requestRowLine("`@coderabbitai-bot review`" + desc), []reviewerRowProblem{problemRequestMention}},
-		{"request_mention_not_first", requestLine, requestRowLine("`review @coderabbitai`" + desc), []reviewerRowProblem{problemRequestMention}},
+		{"pr_reviewers_heading_missing", "\n" + prReviewersHeading + "\n", "\n### Other table\n", []reviewerRowProblem{problemPRReviewersTable}},
+		{"pr_reviewers_row_missing", sourceryRow + "\n", "", []reviewerRowProblem{problemPRReviewersTable}},
+		{"pr_reviewers_bad_login", crRow, "| `coderabbitai[bot]` | `coderabbit` | `manual` | `@coderabbitai review` | `@coderabbitai review` |", []reviewerRowProblem{problemPRReviewerLogin}},
+		{"pr_reviewers_dup_login", sourceryRow, "| `coderabbitai` | `sourcery` | `auto+manual` | `@sourcery-ai review` | `@sourcery-ai review`, `@sourceryai review` |", []reviewerRowProblem{problemPRReviewerLogin}},
+		{"pr_reviewers_bad_profile", crRow, "| `coderabbitai` | `unknown` | `manual` | `@coderabbitai review` | `@coderabbitai review` |", []reviewerRowProblem{problemPRReviewerProfile}},
+		{"pr_reviewers_dup_profile", sourceryRow, "| `sourcery-ai` | `coderabbit` | `auto+manual` | `@sourcery-ai review` | `@sourcery-ai review`, `@sourceryai review` |", []reviewerRowProblem{problemPRReviewerProfile}},
+		{"pr_reviewers_bad_mode", crRow, "| `coderabbitai` | `coderabbit` | `auto` | `@coderabbitai review` | `@coderabbitai review` |", []reviewerRowProblem{problemPRReviewerMode}},
+		{"pr_reviewers_post_not_in_accepted", sourceryRow, "| `sourcery-ai` | `sourcery` | `auto+manual` | `@sourcery-ai review` | `@sourceryai review` |", []reviewerRowProblem{problemPRReviewerRequest}},
+		{"pr_reviewers_unknown_mention", crRow, "| `coderabbitai` | `coderabbit` | `manual` | `@other-bot review` | `@other-bot review` |", []reviewerRowProblem{problemPRReviewerRequest}},
+		{"pr_reviewers_mention_not_first", crRow, "| `coderabbitai` | `coderabbit` | `manual` | `review @coderabbitai` | `review @coderabbitai` |", []reviewerRowProblem{problemPRReviewerRequest}},
+		{"pr_reviewers_values_changed", crRow, "| `other-bot` | `coderabbit` | `manual` | `@coderabbitai review` | `@coderabbitai review` |", []reviewerRowProblem{problemPRReviewersValues}},
 		{"rejected_no_value_cell", rejectedLine, "| " + rejectedMentionsRow + " |", []reviewerRowProblem{problemRejectedShape}},
 		{"rejected_no_separator", rejectedLine, rejectedRowLine("`@codex`, `@coderabbitai`, `@sourcery-ai`, `@sourceryai`"), []reviewerRowProblem{problemRejectedShape}},
 		{"rejected_no_backquotes", rejectedLine, rejectedRowLine("@codex, @coderabbitai, @sourcery-ai, @sourceryai" + desc), []reviewerRowProblem{problemRejectedShape}},
@@ -666,8 +792,8 @@ func TestContextReviewerRowsMalformed(t *testing.T) {
 			if !slices.Equal(got.problems, tc.want) {
 				t.Errorf("problems = %v, want %v", got.problems, tc.want)
 			}
-			if tc.want == nil && len(got.names) != len(wantReviewers) {
-				t.Errorf("names = %q, want %d names", got.names, len(wantReviewers))
+			if tc.want == nil && (len(got.names) != len(wantReviewers) || len(got.prReviewers) != len(wantPRReviewers)) {
+				t.Errorf("names = %q, prReviewers = %+v; want %d and %d", got.names, got.prReviewers, len(wantReviewers), len(wantPRReviewers))
 			}
 		})
 	}
