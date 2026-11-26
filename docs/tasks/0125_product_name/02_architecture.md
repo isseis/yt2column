@@ -27,6 +27,12 @@
    - **採らなかった案:** `docs/store/description_ja.txt` と `description_en.txt` の言語別プレーンテキストに分ける案。コピーはしやすいが、表示名や商標条件の注記を別ファイルで管理する必要がある。
    - **ADR:** [ADR-0035](../../dev/adr/0035-language-policy.md) を更新し、具体的な保管先を `docs/store/chrome_web_store.md` として記録した（`CLAUDE.md` への反映は実装 PR で行う）。
 
+### 1.3. 実装の際に決めたこと（2026-11-26）
+
+1. **`catalog.test.ts` の検証を確定値の完全一致に変える:** `optionsPage.title` と `rejection` の再起動案内を、各ロケールのコア製品名を含むことの検査ではなく、AC-05・AC-06 が定める確定値との完全一致で確かめる（3.2 節の文言）。
+   - **理由:** コア製品名を含むだけでは、`ヨムドウガの設定（拡張機能）` のように確定値から外れた文言でも通り、AC の文言の退行を検出できないためである。
+   - **ADR:** なし（テストの確かめ方の変更であり、主要決定ではないため）。
+
 ## 2. システム構成
 
 変更はブラウザ拡張の静的アセット・UI カタログ・テストと、利用者向け文書および関連文書の 2 領域に分かれる。Go の製品コード（`cmd/`・`internal/`）およびビルドスクリプト（`extension/scripts/`）のロジックは変更しない。
@@ -46,7 +52,7 @@
 | 変更 | `extension/test/buildVariant.test.ts` | `extNameDev` の先頭一致検査をロケール別コア製品名へ更新 |
 | 変更 | `extension/test/viewerTitle.test.ts` | ビューアタイトルの期待値と `messages.json` との照合契約をコア製品名基準へ更新 |
 | 変更 | `extension/test/viewerApp.test.ts` | ビューアタイトルのアサーションを `YomuDoga` へ更新 |
-| 変更 | `extension/test/catalog.test.ts` | `optionsPage.title`・`rejection` 手順が各ロケールのコア製品名（`viewerTitle.name.release`）を含むことの性質検証を追加 |
+| 変更 | `extension/test/catalog.test.ts` | `optionsPage.title`・`rejection` 手順が各ロケールの確定値（AC-05・AC-06 の文言）と一致することの検証を追加 |
 | 新規 | `docs/tasks/0125_product_name/_checks/old_name_absent.sh` | 日英カタログ・`messages.json`・静的 HTML に旧名 `yt2column` が残っていないことを一度だけ確かめる移行確認のスクリプト（恒久テストにしない） |
 | 変更 | `extension/test/popupHtml.test.ts` | `popup.html`・`viewer.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
 | 変更 | `extension/test/optionsHtml.test.ts` | `options.html` の静的 `<title>` が `YomuDoga` であることの検証を追加 |
@@ -167,7 +173,7 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
   - `viewerTitle.test.ts`: 日英の公開用・開発用タイトルおよび `messages.json` との整合
   - `viewerApp.test.ts`: `doc.title` の統合確認
   - `optionsApp.test.ts`: `optionsPage.title` の反映
-  - `catalog.test.ts`: 日英カタログの全項目非空・禁止語検査・`optionsPage.title` と `rejection` 手順が各ロケールのコア製品名（`viewerTitle.name.release`）を含むこと
+  - `catalog.test.ts`: 日英カタログの全項目非空・禁止語検査・`optionsPage.title` と `rejection` 手順が各ロケールの確定値（AC-05・AC-06 の文言）と一致すること
   - `popupHtml.test.ts`・`optionsHtml.test.ts`: 静的 `<title>` が `YomuDoga` であること
   - `metadataDocs.test.ts`: `INSTALL.md` の引用文言整合
 - **一度だけの移行確認（`_checks/`）:** 旧名 `yt2column` が UI の文言から消えたことは改名の移行確認であり、新しい仕様の規則ではない。恒久テストにすると、改名が定着した後も文字列を永久に禁じることになるため、`docs/tasks/0125_product_name/_checks/old_name_absent.sh` で PR-1 の実装時に一度だけ確かめ、出力を実装計画書の検証の行に記録する。
@@ -201,3 +207,4 @@ N/A（実行時の処理フローおよびメッセージ授受を変更しな�
 ## 変更履歴
 
 - 2026-11-26 承認（isseis、#1164）
+- 2026-11-26 セッション中の再承認：`catalog.test.ts` の検証を確定値の完全一致に変えた（isseis、#未記入）
