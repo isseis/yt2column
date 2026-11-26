@@ -371,9 +371,9 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
   - `docs/translation_glossary.md`
   - `docs/dev/guides/fixprguard_guide.md`
 - **作業内容:**
-  - [ ] `CLAUDE.md` の `215,249-261` 行目（`/runpr` と PR レビュー体制を CodeRabbit 手動＋Sourcery AI 自動・手動の併用へ更新）、`833-837` 行目（`jq` が必要なテスト記述から `TestRunprDocContract`・`TestHandoffListingPrintsNoBody` を除き `TestFixprPhase6CountFilter` に合わせる）を更新する（AC-29）。
-  - [ ] `docs/translation_glossary.md` の `完了を待つ PR レビュアー`・`手動の PR レビュー`・`完了の印` の定義を CodeRabbit＋Sourcery AI 併用と `### PR reviewers` 表に合わせて更新し、`自動の PR レビュー`（`automatic PR review`）を追加する（AC-30）。
-  - [ ] `docs/dev/guides/fixprguard_guide.md` のうち PR-5 のガード非結合章（1 章の位置付け・7.2.4 `513` 行目の基準値なし一覧への `review-state`/`mentions`/`ci-checks` 追記・7.2.6・10 章の残余リスク〔`02_architecture.md` 5.4：予算超過 1 行目除外・Sourcery PR 本文更新と `current-body-mention`/上書き競合・ruleset `26400325` 監視〕）を更新する（AC-26）。
+  - [x] `CLAUDE.md` の `215,249-261` 行目（`/runpr` と PR レビュー体制を CodeRabbit 手動＋Sourcery AI 自動・手動の併用へ更新）、`833-837` 行目（`jq` が必要なテスト記述から `TestRunprDocContract`・`TestHandoffListingPrintsNoBody` を除き `TestFixprPhase6CountFilter` に合わせる）を更新する（AC-29）。
+  - [x] `docs/translation_glossary.md` の `完了を待つ PR レビュアー`・`手動の PR レビュー`・`完了の印` の定義を CodeRabbit＋Sourcery AI 併用と `### PR reviewers` 表に合わせて更新し、`自動の PR レビュー`（`automatic PR review`）を追加する（AC-30）。
+  - [x] `docs/dev/guides/fixprguard_guide.md` のうち PR-5 のガード非結合章（1 章の位置付け・7.2.4 `513` 行目の基準値なし一覧への `review-state`/`mentions`/`ci-checks` 追記・7.2.6・10 章の残余リスク〔`02_architecture.md` 5.4：予算超過 1 行目除外・Sourcery PR 本文更新と `current-body-mention`/上書き競合・ruleset `26400325` 監視〕）を更新する（AC-26）。
 - **完了条件:**
   - 変更した記述が実装後の `_context.md`・`runpr.md`・`fixprguard` と一致し、`cmd/fixprguard/docs_test.go` が通ること。
 
@@ -384,8 +384,8 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
   - `docs/dev/adr/0015-untrusted-review-threads.md`
   - `docs/dev/adr/0047-runpr-merge-question.md`
 - **作業内容:**
-  - [ ] `git grep -nE 'issues/1095([^0-9]|$)' origin/main -- docs/dev/adr/` で、3 つの ADR の `## 決定` に本タスクの `#1095` の食い違いの記述が残っていないことを確かめる。記述は、それを解消した PR（PR-3・PR-5、PR-1 の分は本書を draft に戻した文書の PR）が取り除く（1.5）。
-  - [ ] 残っている記述があれば（取り除き忘れ）、このステップで取り除き、ADR ごとにコミットメッセージへ `Editorial correction:` 行を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」、AC-27）。
+  - [x] `git grep -nE 'issues/1095([^0-9]|$)' origin/main -- docs/dev/adr/` で、3 つの ADR の `## 決定` に本タスクの `#1095` の食い違いの記述が残っていないことを確かめる。記述は、それを解消した PR（PR-3・PR-5、PR-1 の分は本書を draft に戻した文書の PR）が取り除く（1.5）。
+  - [x] 残っている記述があれば（取り除き忘れ）、このステップで取り除き、ADR ごとにコミットメッセージへ `Editorial correction:` 行を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」、AC-27）。
 - **完了条件:**
   - `go test -tags test ./cmd/yt2column -run TestADRRecords` が通り、3 ADR に `#1095` への食い違い記述が残っていないこと。
 
@@ -394,8 +394,8 @@ issue [#1140](https://github.com/isseis/yt2column/issues/1140) と、#1117（本
 - **対象ファイル:**
   - `internal/chief/screen_test.go`
 - **作業内容:**
-  - [ ] `internal/chief/screen_test.go` に、`internal/chief/testdata/screens/` の既存単一選択サンプルから `plainSample` で派生させたテストケース `TestPickerQuestionRelayable`（画面全体の Go リテラル埋め込みは行わない、`CLAUDE.md` 準拠）を追加し、依頼先選択の 3 択の問い（質問文 `PR #<number> の PR レビューをどのレビュアーに依頼しますか`、選択肢 `CodeRabbit`・`Sourcery AI`・`マージの質問に戻る`）が `parseClaudeScreen` と `parseOpenCodeScreen` の双方で `Merge: false`・`QuestionSingle`・`RelayAllowed`・全選択肢 `Relayable` と判定されることを確かめる（AC-28）。
-  - [ ] 既存の `internal/chief` 全テスト、およびリポジトリ全体の `make test`・`make lint`・`make deadcode`・CI の `doc-guard` と同一コマンド（`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`）を実行してすべて成功することを確認する（AC-28・AC-31）。
+  - [x] `internal/chief/screen_test.go` に、`internal/chief/testdata/screens/` の既存単一選択サンプルから `plainSample` で派生させたテストケース `TestPickerQuestionRelayable`（画面全体の Go リテラル埋め込みは行わない、`CLAUDE.md` 準拠）を追加し、依頼先選択の 3 択の問い（質問文 `PR #<number> の PR レビューをどのレビュアーに依頼しますか`、選択肢 `CodeRabbit`・`Sourcery AI`・`マージの質問に戻る`）が `parseClaudeScreen` と `parseOpenCodeScreen` の双方で `Merge: false`・`QuestionSingle`・`RelayAllowed`・全選択肢 `Relayable` と判定されることを確かめる（AC-28）。
+  - [x] 既存の `internal/chief` 全テスト、およびリポジトリ全体の `make test`・`make lint`・`make deadcode`・CI の `doc-guard` と同一コマンド（`go test -tags test ./cmd/yt2column ./cmd/fixprguard ./cmd/chief ./cmd/mergepr ./cmd/numreserve ./internal/pipeline ./internal/chief`）を実行してすべて成功することを確認する（AC-28・AC-31）。
 - **完了条件:**
   - `make fmt && make test && make lint && make deadcode` と `doc-guard` 相当コマンドがすべて成功すること。
 

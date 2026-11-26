@@ -16,7 +16,7 @@
 
 | 担当 | 内容 |
 |---|---|
-| `fixprguard` バイナリ（`cmd/fixprguard`、`internal/fixprguard`） | 判定、取得、比較、commit・push、GitHub への書き込み。これに加えて、3 つの守りの層の外の役目として、リポジトリの interaction limits の状態を読んで 6 つの状態に分類する（`/runpr` がステップ 1 で 1 回だけ使う。5 章・10 章） |
+| `fixprguard` バイナリ（`cmd/fixprguard`、`internal/fixprguard`） | 判定、取得、比較、commit・push、GitHub への書き込み。これに加えて、3 つの守りの層の外の役目として、リポジトリの interaction limits の状態を読んで 6 つの状態に分類し（`/runpr` がステップ 1 で 1 回だけ使う。5 章・10 章）、PR レビューの状態（`review-state`）・他のアカウントのメンション（`mentions`）・リポジトリの CI のチェック（`ci-checks`）を判定する（`/runpr` がステップ 3 と 4 で使う。5 章） |
 | `/fixpr`・`/runpr` コマンド（`.claude/commands/`） | サブコマンドを呼ぶ順序、利用者への確認、エージェントの起動 |
 | 開発者 | 範囲外の変更や想定外の著者のスレッドについての判断、ツールが止まったときの対処 |
 
@@ -617,7 +617,7 @@ fixprguard ci-checks --protocol 9 --head 0123456789abcdef0123456789abcdef0123456
 - `/fixpr` の Phase 4.5 で、手順が定めない git の起動。`check` を呼ぶのは手順が定める時点だけで、セッションがそれ以外に git を起動すれば、その前には比べない。比較を呼ぶこと自体もコマンドの文書に依存する（7.2.2）。
 - Phase 4 の commit から 1 本につながる commit の出所。`check` は、Phase 4.5 の commit を誰が作ったかを区別しない。修正のフェーズや build checks が残したプロセスが、1 本につながる commit を足しても、`check` は通る。`/fixpr` は、手順が戻った後と `push-review` の直前の `check` で、`commits` とセッションが数えた commit の数を照合し、違えば止まる。最後の照合から `push-review` までの間に足されたものは数えない。
 - HEAD とブランチの 2 回の読み取り。HEAD の OID と、HEAD がいるブランチは、2 回の git の起動で読む。その間にブランチを切り替えられると、切り替え先の OID と、基準値のブランチの名前の組を読みうる。
-- 基準値を持たない `head`・`list`・`reply`・`edit-pr` が `gh` を起動する前の比較。`/fixpr` はこれらを `finish`・`push`（Phase 4.5 の commit があれば `push-review`）の後に呼ぶので、それまでの比較が書き換えを検出するが、最後の push の後の書き換えは検出しない。`/runpr` は `begin` を呼ばずに `head`・`list`・`reply` を使い、3 文書の PR を通常の進め方へ戻すときは `edit-pr` も使うので、その前に基準値との比較はない。`interaction-limits` も基準値を持たず、`/runpr` がステップ 1 で `begin` より前に 1 回だけ呼ぶので、それ以前の比較はない。
+- 基準値を持たない `head`・`list`・`reply`・`edit-pr`・`review-state`・`mentions`・`ci-checks` が `gh` を起動する前の比較。`/fixpr` はこれらを `finish`・`push`（Phase 4.5 の commit があれば `push-review`）の後に呼ぶので、それまでの比較が書き換えを検出するが、最後の push の後の書き換えは検出しない。`/runpr` は `begin` を呼ばずに `head`・`list`・`reply`・`review-state`・`mentions`・`ci-checks` を使い、3 文書の PR を通常の進め方へ戻すときは `edit-pr` も使うので、その前に基準値との比較はない。`interaction-limits` も基準値を持たず、`/runpr` がステップ 1 で `begin` より前に 1 回だけ呼ぶので、それ以前の比較はない。
 - hooks のディレクトリの外にあり、hook が実行するファイル（pre-commit のフレームワークのキャッシュなど）。
 
 #### 7.2.5 git が無視するファイル
@@ -648,6 +648,8 @@ fixprguard ci-checks --protocol 9 --head 0123456789abcdef0123456789abcdef0123456
 
 - 制限が外れている間の自動レビュアーの経路。interaction limits の期限が切れてから利用者が更新するまでの間は、書き込み権限のない人が CodeRabbit や Sourcery AI に指示しうる（Sourcery AI は、外部の人の `@sourcery-ai`・`@sourceryai` のメンションにも応じうるものとして扱う。タスク 0122 の要件定義書 4.2）。指示を受けた Bot が作るスレッドは信頼する著者のスレッドになり、その本文が修正のフェーズのエージェントに届く。`/runpr` は、状態が `none`・`weak`・`predates`・`unverifiable` のとき、および利用者以外の人が書いたメンションがあるときに止まる（5 章・10.4）が、`/fixpr` を単独で実行したときは止まらず、警告も出ない。CodeRabbit は個人のリポジトリでは応答する相手を設定で限れない（タスク 0057 の要件定義書 1 章）。
 - 新しい自動レビュアー。自動レビュアーの一覧に Bot を加えるときは、その Bot が外部の人の指示に応じるかを評価する（#405）。一覧の Bot のスレッドは、どれも信頼する著者のスレッドになる。Sourcery AI（`sourcery-ai`）は、この評価を経て一覧に加えた（タスク 0122）。
+- 予算超過コメントの 1 行目の除外。`mentions` は、`sourcery-ai[bot]` の会話コメントのうち、認証済み利用者の login を含む 7 日間の予算超過の 1 行目に完全一致するものを、観測済み定型コメントとして除外する（5 章）。Sourcery AI が同じ 1 行目の書式で別の内容を送るようになると除外されうるが、`sourcery-ai[bot]` は信頼済みの自動レビュアーであり、外部の `User` が同じ 1 行目を書いても `user.type == "User"` のため停止する（タスク 0122 の設計書 5.4）。
+- Sourcery AI の PR の説明の追記。Sourcery AI はレビューの完了後に PR の説明の末尾へ概要を追記し、レビューのたびに更新する（タスク 0122 の観測の記録 2.1）。追記に拒否するメンションが含まれると、`append-pr` は `current-body-mention` で止まる（停止に倒れる安全側。8 章）。また、`append-pr` は PR の説明全体を書き込むため、Sourcery AI の更新と重なると一方の書き込みが失われうる（未観測。タスク 0122 の設計書 5.4）。
 - 状態を読んだ後の変化。`/runpr` は実行の初めに 1 回だけ状態を読む。実行の途中で期限が来ても止まらず、利用者が制限を外した場合も、次の `/runpr` まで気づかない。14 日の猶予は 1 回の実行より十分に長いので、期限の前に「期限が近い」の警告が出る。
 - 設定の時刻の見積もりと、期限の前の更新。設定の時刻は `expires_at` から UTC の暦で 6 か月を引き、月末は遅い側に寄せて見積もる（5 章）。期間を 6 か月にしてある限り、制限のない期間を経た PR を見逃さないが、この見積もりは GitHub が UTC の暦で 6 か月を足すという 1 回の観測に基づく。6 か月より短い期間で設定すると、見積もりが実際より早くなり、制限のない期間を経た PR を「制限より前の PR」と判定し損なう。また、利用者が期限の前に更新したときも、そのとき開いていた PR は「制限より前の PR」になり、作り直しが要る（10.3）。
 - メンションを消された場合。外部の人が自分のメンションのコメントを消すか、編集でメンションを外すと、利用者以外のメンションの検出では見つけられない。制限が外れていた間のことなら、設定の時刻と PR の作成の時刻の比較が止める。制限が有効な間は、外部の人はコメントを書けない。
@@ -801,6 +803,8 @@ find . -path ./.git -prune -o -type l -print | LC_ALL=C sed 's/\^/^^/g' | LC_ALL
 | push の制限（ruleset） | 利用者以外（GitHub App として入っている Bot を含む）が、PR のブランチを作る、または更新する経路 | なし |
 
 interaction limits の期限が切れてから更新するまでの間は、書き込み権限のない人が再び自動レビュアーに指示しうる。`/runpr` がこの状態を確かめて止まるのは、そのためである（10.4）。
+
+push の制限（ruleset `26400325`）の `bypass_actors` は Repository Admin だけであり、GitHub App は含まれない（タスク 0122 の観測の記録 2.8）。Sourcery AI は `code: read & write` の権限を持つため、この ruleset の bypass に GitHub App が加えられると、Bot が PR のブランチを更新しうる。設定を変えるときは、この前提を確かめ直す（タスク 0122 の設計書 5.4）。
 
 ### 10.2 設定する手順
 
