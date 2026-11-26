@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 本計画の F-NNN・AC-NN は [01_requirements.md](01_requirements.md)（以下、要件書）の項番を指し、節番号は [02_architecture.md](02_architecture.md)（以下、設計書）の節を指す。用語は設計書の冒頭と要件書 6 章のもの（大きな入力のテスト、大きな出力のテスト、deadcode のテスト、線形の時間のテスト、境界のテスト、対象のテスト、壊した解析、単独の実行、全体の実行、確保量）を同じ意味で使う。`design_handoff.md` の H-01〜H-08 は、設計書の付録 A が扱いを記録している。本タスクに `implementation_handoff.md` はない。
@@ -349,3 +349,5 @@ Diff record (AC-08):
 -   PR のマージの後、issue #1166 を閉じる（`/runpr` が、タスクの最後の計画の PR の後に提案する）。
 
 ## 変更履歴
+
+- 2026-11-26 承認（isseis、#1185）
