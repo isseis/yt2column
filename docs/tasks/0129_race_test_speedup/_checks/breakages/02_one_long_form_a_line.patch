@@ -1,0 +1,30 @@
+diff --git a/internal/transcript/copied_format.go b/internal/transcript/copied_format.go
+index a61969cf..c1baf7d7 100644
+--- a/internal/transcript/copied_format.go
++++ b/internal/transcript/copied_format.go
+@@ -338,7 +338,8 @@ func checkCopiedLine(line string, lineNumber int) error {
+ }
+
+ func hasCopiedControlChar(line string) bool {
+-	for _, r := range line {
++	for i, r := range line {
++		copiedBreakSink = make([]byte, len(line)-i)
+ 		if unicode.IsControl(r) {
+ 			return true
+ 		}
+@@ -575,3 +576,15 @@ func readableAsFormA(line string) bool {
+ 	_, _, matched := matchFormALabel(line[consumed:], timestamp, labelNone)
+ 	return matched
+ }
++
++// copiedBreakSink keeps the temporary allocations below from being optimized away.
++var copiedBreakSink []byte
++
++// copiedBreakBytes is the byte length of lines joined with newlines.
++func copiedBreakBytes(lines []string) int {
++	n := 0
++	for _, l := range lines {
++		n += len(l) + 1
++	}
++	return n
++}
