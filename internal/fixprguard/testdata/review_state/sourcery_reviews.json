@@ -1,0 +1,12 @@
+[
+  {
+    "user": {
+      "login": "sourcery-ai[bot]",
+      "type": "Bot"
+    },
+    "commit_id": "86a8f47600000000000000000000000000000000",
+    "submitted_at": "2026-11-23T10:27:34Z",
+    "html_url": "https://github.com/isseis/yt2column/pull/1094#pullrequestreview-6019960677",
+    "body": "Hey - I've found 9 issues"
+  }
+]

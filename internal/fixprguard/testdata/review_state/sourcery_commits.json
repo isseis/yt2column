@@ -1,0 +1,127 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "headRefOid": "701e370100000000000000000000000000000000",
+        "commits": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "commit": {
+                "oid": "86a8f47600000000000000000000000000000000",
+                "checkSuites": {
+                  "pageInfo": {
+                    "hasNextPage": false
+                  },
+                  "nodes": [
+                    {
+                      "app": {
+                        "slug": "sourcery-ai"
+                      },
+                      "checkRuns": {
+                        "pageInfo": {
+                          "hasNextPage": false
+                        },
+                        "nodes": [
+                          {
+                            "name": "Sourcery review",
+                            "status": "COMPLETED",
+                            "conclusion": "SUCCESS",
+                            "title": "✅ Completed successfully",
+                            "startedAt": "2026-11-23T10:17:52Z",
+                            "completedAt": "2026-11-23T10:27:39Z",
+                            "url": "https://github.com/isseis/yt2column/runs/137624879984"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "commit": {
+                "oid": "2ee5001000000000000000000000000000000000",
+                "checkSuites": {
+                  "pageInfo": {
+                    "hasNextPage": false
+                  },
+                  "nodes": [
+                    {
+                      "app": {
+                        "slug": "sourcery-ai"
+                      },
+                      "checkRuns": {
+                        "pageInfo": {
+                          "hasNextPage": false
+                        },
+                        "nodes": [
+                          {
+                            "name": "Sourcery review",
+                            "status": "COMPLETED",
+                            "conclusion": "SUCCESS",
+                            "title": "✅ Completed successfully",
+                            "startedAt": "2026-11-23T10:27:18Z",
+                            "completedAt": "2026-11-23T10:28:55Z",
+                            "url": "https://github.com/isseis/yt2column/runs/137629796204"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "commit": {
+                "oid": "701e370100000000000000000000000000000000",
+                "checkSuites": {
+                  "pageInfo": {
+                    "hasNextPage": false
+                  },
+                  "nodes": [
+                    {
+                      "app": {
+                        "slug": "sourcery-ai"
+                      },
+                      "checkRuns": {
+                        "pageInfo": {
+                          "hasNextPage": false
+                        },
+                        "nodes": []
+                      }
+                    },
+                    {
+                      "app": {
+                        "slug": "sourcery-ai"
+                      },
+                      "checkRuns": {
+                        "pageInfo": {
+                          "hasNextPage": false
+                        },
+                        "nodes": [
+                          {
+                            "name": "Sourcery review",
+                            "status": "COMPLETED",
+                            "conclusion": "SKIPPED",
+                            "title": "⏭️ Skipped",
+                            "startedAt": "2026-11-23T10:30:00Z",
+                            "completedAt": "2026-11-23T10:30:00Z",
+                            "url": "https://github.com/isseis/yt2column/runs/137631000000"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

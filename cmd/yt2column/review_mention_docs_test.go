@@ -87,8 +87,9 @@ const (
 
 // TestMentionsOnlyInAllowedRows checks that none of the mentions in
 // fixprguard.RejectedMentions() appears, in any letter case, in any command
-// document or in CLAUDE.md, except on _context.md's "PR review request" and
-// "Rejected mentions" rows: a document that wrote one elsewhere could lead a
+// document or in CLAUDE.md, except on _context.md's "Rejected mentions" row
+// and in the Post request / Accepted requests columns of _context.md's
+// "### PR reviewers" table: a document that wrote one elsewhere could lead a
 // session to post it from the user's account.
 func TestMentionsOnlyInAllowedRows(t *testing.T) {
 	var paths []string
@@ -99,35 +100,55 @@ func TestMentionsOnlyInAllowedRows(t *testing.T) {
 	if len(rejected) == 0 {
 		t.Fatal("fixprguard.RejectedMentions() is empty")
 	}
-	requestRows := 0
+	prReviewerMentionRows := 0
 	rejectedRowMentions := map[string]int{}
 	for _, path := range append(paths, claudePath) {
 		isContext := filepath.Clean(path) == filepath.Clean(contextPath)
+		inPRReviewers := false
 		for i, line := range strings.Split(doctestutil.ReadDoc(t, path), "\n") {
+			if isContext {
+				switch {
+				case line == prReviewersHeading:
+					inPRReviewers = true
+				case strings.HasPrefix(line, "## ") || strings.HasPrefix(line, "### "):
+					inPRReviewers = false
+				}
+			}
 			low := strings.ToLower(line)
-			onRequestRow := isContext && strings.HasPrefix(line, "| "+requestRow+" | ")
 			onRejectedRow := isContext && strings.HasPrefix(line, "| "+rejectedMentionsRow+" | ")
-			matchedRequest := false
+			onPRReviewerDataRow := isContext && inPRReviewers && strings.HasPrefix(line, "| `")
+			matchedPRReviewer := false
 			for _, mention := range rejected {
-				if !strings.Contains(low, strings.ToLower(mention)) {
+				mLow := strings.ToLower(mention)
+				if !strings.Contains(low, mLow) {
 					continue
 				}
 				switch {
-				case onRequestRow:
-					matchedRequest = true
+				case onPRReviewerDataRow:
+					// Mentions may appear only in Post request (col 4) and
+					// Accepted requests (col 5), never in Reviewer/Profile/Mode.
+					cells := strings.Split(strings.Trim(strings.TrimSpace(line), "|"), "|")
+					if len(cells) != len(prReviewersHeader) ||
+						strings.Contains(strings.ToLower(cells[0]), mLow) ||
+						strings.Contains(strings.ToLower(cells[1]), mLow) ||
+						strings.Contains(strings.ToLower(cells[2]), mLow) {
+						t.Errorf("%s:%d writes %q outside Post request / Accepted requests columns of %s", path, i+1, mention, prReviewersHeading)
+					} else {
+						matchedPRReviewer = true
+					}
 				case onRejectedRow:
 					rejectedRowMentions[mention]++
 				default:
-					t.Errorf("%s:%d writes %q outside _context.md's %q and %q rows", path, i+1, mention, requestRow, rejectedMentionsRow)
+					t.Errorf("%s:%d writes %q outside _context.md's %q row and %s table", path, i+1, mention, rejectedMentionsRow, prReviewersHeading)
 				}
 			}
-			if matchedRequest {
-				requestRows++
+			if matchedPRReviewer {
+				prReviewerMentionRows++
 			}
 		}
 	}
-	if requestRows != 1 {
-		t.Errorf("_context.md's %q row holds a rejected mention on %d lines, want 1", requestRow, requestRows)
+	if prReviewerMentionRows != len(wantPRReviewers) {
+		t.Errorf("_context.md's %s table holds a rejected mention on %d data rows, want %d", prReviewersHeading, prReviewerMentionRows, len(wantPRReviewers))
 	}
 	for _, mention := range rejected {
 		if n := rejectedRowMentions[mention]; n != 1 {
@@ -140,9 +161,8 @@ func TestMentionsOnlyInAllowedRows(t *testing.T) {
 // GitHub runs the mention check's command: the first sentence after its
 // "**Mention check.**" label holds mentionCheckCommand. It also checks that
 // _context.md's "Rejected mentions" row defines <mention-check> (using
-// grep -qiF with -e per value and --) and <rejected-mentions>. Whether any
-// posting command comes before the check is TestPostingCommandsInventory's to
-// judge.
+// grep -qiF with -e per value and --). Whether any posting command comes
+// before the check is TestPostingCommandsInventory's to judge.
 func TestPostingPathsCheckMention(t *testing.T) {
 	const label = "**Mention check.**"
 	for _, ps := range postingSections {
@@ -163,7 +183,7 @@ func TestPostingPathsCheckMention(t *testing.T) {
 			t.Fatalf("_context.md %q row has no description separator %q", rejectedMentionsRow, valueSeparator)
 		}
 		requirePhrases(t, "_context.md "+rejectedMentionsRow, desc,
-			"`<mention-check>`", "`grep -qiF`", "`-e '<mention>'`", "`--`", "`<rejected-mentions>`",
+			"`<mention-check>`", "`grep -qiF`", "`-e '<mention>'`", "`--`",
 		)
 	})
 }
@@ -273,7 +293,7 @@ func TestPostingCommandsInventory(t *testing.T) {
 				continue
 			}
 			line := strings.Count(doc[:m[0]], "\n") + 1
-			if strings.HasPrefix(command, `gh pr comment <number> --body "<review-request>"`) {
+			if strings.HasPrefix(command, `gh pr comment <number> --body "<post-request>"`) {
 				requestPosts++
 				if key != runprKey || m[0] < step4Start || step4End <= m[0] {
 					t.Errorf("%s:%d posts the PR review request (%q) outside runpr.md step 4", path, line, command)
