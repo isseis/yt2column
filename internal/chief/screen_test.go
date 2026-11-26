@@ -228,41 +228,46 @@ func TestParseScreenSamples(t *testing.T) {
 }
 
 // TestPickerQuestionRelayable reads the reviewer picker question of
-// runpr.md step 4 as a relayable single-select question in both parsers, so
-// chief relays it instead of treating it as the merge question.
+// runpr.md step 4 in both parsers. The question starts with "PR #<number>"
+// like the merge question, so it must not set Merge; relayability is the
+// single-select reading the picker also needs. The shape and relay
+// assertions repeat TestParseScreenSamples, whose samples have no
+// picker-shaped row.
 func TestPickerQuestionRelayable(t *testing.T) {
 	const text = "PR #123 の PR レビューをどのレビュアーに依頼しますか"
 	pickerLabels := []string{"CodeRabbit", "Sourcery AI", "マージの質問に戻る"}
+
+	claudeWant := claudeFruitSingle
+	claudeWant.text = text
+	claudeWant.labels = append(append([]string{}, pickerLabels...), "Type something.", "Chat about this")
+	claudeWant.relayable = pickerLabels
+
+	openCodeWant := openCodeFruitSingle
+	openCodeWant.text = text
+	openCodeWant.labels = append(append([]string{}, pickerLabels...), "Type your own answer")
+	openCodeWant.relayable = pickerLabels
+
 	cases := []struct {
 		name   string
 		sample string
+		plain  bool
 		parse  func(string) Screen
 		want   wantScreen
 	}{
-		{"claude", "claude-question-single.ansi", parseClaudeScreen, wantScreen{
-			kind: ScreenQuestion, question: QuestionSingle, relay: RelayAllowed,
-			text:      text,
-			labels:    append(append([]string{}, pickerLabels...), "Type something.", "Chat about this"),
-			relayable: pickerLabels,
-			cursor:    1,
-		}},
-		// plainSample removes the ANSI color that marks the cursor, so the
-		// derived OpenCode screen reads with no cursor.
-		{"opencode", "opencode-question-single.ansi", parseOpenCodeScreen, wantScreen{
-			kind: ScreenQuestion, question: QuestionSingle, relay: RelayAllowed,
-			text:      text,
-			labels:    append(append([]string{}, pickerLabels...), "Type your own answer"),
-			relayable: pickerLabels,
-		}},
+		{"claude", "claude-question-single.ansi", true, parseClaudeScreen, claudeWant},
+		{"opencode", "opencode-question-single.ansi", false, parseOpenCodeScreen, openCodeWant},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			edited := plainSample(t, tc.sample)
+			edited := readScreenSample(t, tc.sample)
+			if tc.plain {
+				edited = sgrSequence.ReplaceAllString(edited, "")
+			}
 			for _, e := range [][2]string{
 				{"Which fruit do you prefer?", text},
-				{"1. Apple", "1. CodeRabbit"},
-				{"2. Banana", "2. Sourcery AI"},
-				{"3. Cherry", "3. マージの質問に戻る"},
+				{"Apple", "CodeRabbit"},
+				{"Banana", "Sourcery AI"},
+				{"Cherry", "マージの質問に戻る"},
 			} {
 				if !strings.Contains(edited, e[0]) {
 					t.Fatalf("the sample does not hold %q", e[0])
