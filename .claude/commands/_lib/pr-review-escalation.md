@@ -59,6 +59,9 @@ criteria only, `runpr.md` decides from the local CLI review's records
    file's answer into a recommendation, its mention checks (`fixprguard mentions`),
    its CI check (`fixprguard ci-checks`), and its comparison
    of `review-state`'s `head` with the prepared `headRefOid` and the local head;
+   the `### PR reviewers` table of `_context.md`, whose accepted request texts
+   decide which comments count as requests and whose reviewer and profile
+   values decide which posts the mention check excludes;
    `_lib/review-records.sh` and the way the command documents run it from
    `origin/main`; the steps of `_lib/local-cli-review.md` that decide an
    attempt's result and the ranges it covers (steps 2 and 6); the sections that

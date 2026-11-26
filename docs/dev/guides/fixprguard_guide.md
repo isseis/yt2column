@@ -373,7 +373,7 @@ fixprguard review-state --protocol 9 --profile coderabbit --reviewer coderabbita
 | `timed-out` | 依頼の時刻から 15 分を過ぎた（応答が `running` でも延ばさない） |
 | `waiting` | 上のどれでもない |
 
-**自動の PR レビューの状態。** `sourcery` で `head` 上に手動依頼へ割り当てられていない CheckRun があるとき、次の 4 段階の優先順位で 1 件を選び（同順位は `startedAt` 最新、次いで `url` の文字数・辞書順最大）、`autoReview.state` に分類する。ただし、最新の手動依頼が `waiting` かつ `response == null` の間は、未開始（`startedAt == null`）の CheckRun を `autoReview` に仮割り当てしない。
+**自動の PR レビューの状態。** `sourcery` で `head` 上に手動依頼へ割り当てられていない CheckRun（編集された依頼の応答は割り当て済みとして扱う）があるとき、次の 4 段階の優先順位で 1 件を選び（同順位は `startedAt` 最新、次いで `url` の文字数・辞書順最大）、`autoReview.state` に分類する。ただし、最新の手動依頼が `waiting` かつ `response == null` の間は、未開始（`startedAt == null`）の CheckRun を `autoReview` に仮割り当てしない。
 
 | `autoReview.state` | 条件 |
 |---|---|

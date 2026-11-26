@@ -1251,25 +1251,22 @@ func (r *reviewReader) decide(profile ReviewProfile, requests []requestComment, 
 	out.Head, out.Now = r.head, formatReviewTime(r.now)
 	out.Request = &ReviewRequest{ID: latest.id, URL: latest.url, CreatedAt: formatReviewTime(latest.created)}
 	assigned := make(map[string]struct{})
-	// A completion marker of every earlier request whose response is one
-	// finished run; the latest request's own is added when it completes.
+	// A completion marker of every unedited earlier request whose response is
+	// one finished run; the latest request's own is added when it completes.
+	// The response of an edited request is assigned too, so it is never shown
+	// as an automatic review, but it is never a completion marker.
 	for i := range last {
-		if requests[i].edited() {
-			continue
-		}
 		upper := requests[i+1].updated
-		resp, competing := responseOf(profile, requests[i], &upper, runs, commitIndex)
-		if len(competing) == 0 && resp != nil {
-			assigned[resp.url] = struct{}{}
-			if resp.kind(profile) == RunFinished {
-				out.Markers = append(out.Markers, markerFor(requests[i], *resp, reviews))
-			}
+		resp := assignResponse(profile, requests[i], &upper, runs, commitIndex, assigned)
+		if resp != nil && !requests[i].edited() && resp.kind(profile) == RunFinished {
+			out.Markers = append(out.Markers, markerFor(requests[i], *resp, reviews))
 		}
 	}
 	switch {
 	case latest.edited():
 		out.State = RequestIndeterminate
 		out.IndeterminateReason = IndeterminateEditedRequest
+		assignResponse(profile, latest, nil, runs, commitIndex, assigned)
 	default:
 		resp, competing := responseOf(profile, latest, nil, runs, commitIndex)
 		switch {
@@ -1315,6 +1312,18 @@ func (r *reviewReader) decide(profile ReviewProfile, requests []requestComment, 
 		out.AutoReview = r.selectAutoReview(runs, assigned, excludeUnstarted)
 	}
 	return out
+}
+
+// assignResponse finds the response of req as responseOf does and, when it is
+// one run without competitors, records it in assigned and returns it; it
+// returns nil otherwise.
+func assignResponse(profile ReviewProfile, req requestComment, upper *time.Time, runs []checkRun, commitIndex map[string]int, assigned map[string]struct{}) *checkRun {
+	resp, competing := responseOf(profile, req, upper, runs, commitIndex)
+	if len(competing) > 0 || resp == nil {
+		return nil
+	}
+	assigned[resp.url] = struct{}{}
+	return resp
 }
 
 // sortRequests orders requests by when they were last updated, oldest first.

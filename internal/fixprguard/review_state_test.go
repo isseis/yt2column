@@ -1424,6 +1424,33 @@ func TestReviewStateSourceryManual(t *testing.T) {
 			),
 		},
 		{
+			// The response of an edited earlier request is assigned to it, so
+			// it is not shown as an automatic review, and it is no marker.
+			name: "edited_earlier_request_response_is_not_auto",
+			in: rsInput{
+				profile: ProfileSourcery,
+				comments: []rsComment{
+					{id: 1, login: rsUser, kind: typenameUser, body: rsSourceryReq1, created: at("09:50:00"), updated: at("09:55:00")},
+					sourceryReqComment(2, rsSourceryReq1, "10:00:00"),
+				},
+				commits: []rsCommit{rsSourceryCommitOf(rsHead, rsSourceryFinished(81, at("09:50:20"), at("09:53:00")))},
+			},
+			want: rsWantFor(ProfileSourcery, RequestWaiting, withRequest(2, at("10:00:00"))),
+		},
+		{
+			// Likewise for an edited latest request: indeterminate, and its
+			// response is not shown as an automatic review.
+			name: "edited_latest_request_response_is_not_auto",
+			in: rsInput{
+				profile: ProfileSourcery,
+				comments: []rsComment{
+					{id: 1, login: rsUser, kind: typenameUser, body: rsSourceryReq1, created: at("10:00:00"), updated: at("10:01:00")},
+				},
+				commits: []rsCommit{rsSourceryCommitOf(rsHead, manualDone)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestIndeterminate, indeterminate(IndeterminateEditedRequest)),
+		},
+		{
 			name: "same_commit_overlapping_runs_compete",
 			in: rsInput{
 				profile:  ProfileSourcery,
