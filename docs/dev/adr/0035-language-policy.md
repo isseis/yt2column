@@ -44,7 +44,7 @@ GitHub に置くものは日本語で書く。一方、squash のコミットは
 - **`INSTALL.md` の配置と期限付きの例外:** `INSTALL.md` は、README と同じくリポジトリのルートに置き、Chrome Web Store に申請するまで日本語だけで持つ。英語版を足す作業と、`/mktrans` と同期の検査の一般化は [#1044](https://github.com/isseis/yt2column/issues/1044) で扱う。
   - **理由:** ルートに置くのは、利用者が README の隣で見つけられ、Releases や zip からも指せるためである。日本語だけで持つことは原則 (c) の期限付きの例外であり、zip で配る初期の利用者は日本語の話者に限られる一方、Web Store に載せると日本語を読めない利用者が来るためである。
   - **規則:** [0116 要件定義書](../../tasks/0116_user_readme/01_requirements.md) の「要件定義の際に決めたこと（2026-11-19）」にある。
-- **Chrome Web Store 掲載文の保管と同期対象外の扱い:** Chrome Web Store 詳細説明文（日本語・英語）は `docs/store/chrome_web_store.md` の 1 ファイルに保管し、`/mktrans` と `TestReadmeSyncMarker` による 2 言語同期の対象外とする。現在 `docs/store/chrome_web_store.md` はまだなく、`CLAUDE.md` の「Document language」にもこの位置づけが未反映であり、[#1148](https://github.com/isseis/yt2column/issues/1148) の実装 PR でファイルを作成し `CLAUDE.md` に追記する。
+- **Chrome Web Store 掲載文の保管と同期対象外の扱い:** Chrome Web Store 詳細説明文（日本語・英語）は `docs/store/chrome_web_store.md` の 1 ファイルに保管し、`/mktrans` と `TestReadmeSyncMarker` による 2 言語同期の対象外とする。
   - **理由:** ストア掲載文は日本語版・英語版の確定稿をストアへ貼り付ける用途であり、`README.md` のような継続的な差分翻訳の仕組みを広げる必要がないためである。
   - **規則:** [0125 要件定義書](../../tasks/0125_product_name/01_requirements.md) の「要件定義の際に決めたこと（2026-11-25）」と [0125 設計書](../../tasks/0125_product_name/02_architecture.md) の「1.2. 設計の際に決めたこと（2026-11-25）」にある。
 

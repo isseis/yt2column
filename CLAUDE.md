@@ -87,10 +87,17 @@ approver give it under these principles.
 
 Exceptions:
 
-- **The bilingual README.** The README is the only document kept in two
-  languages (`README.md` and `README.en.md`). Change `README.md` first, then
+- **The bilingual README.** The README is the only document kept as a
+  translated pair of two files (`README.md` and `README.en.md`). Change
+  `README.md` first, then
   carry the change to `README.en.md` with `/mktrans` ("Translation Guidelines"
   below).
+- **The Chrome Web Store listing in one bilingual file.**
+  `docs/store/chrome_web_store.md` holds both the Japanese and the English
+  detailed description, and it stays outside the two-language sync of
+  `/mktrans` and `TestReadmeSyncMarker` ([ADR-0035](docs/dev/adr/0035-language-policy.md)).
+  Change both languages together in that one file. Reason: the listing is a
+  final text pasted into the store, not a document translated change by change.
 - **`INSTALL.md` in Japanese only (time-bounded).** `INSTALL.md` is an
   end-user document (principle (c)), but it is kept in Japanese only until the
   extension is submitted to the Chrome Web Store, because initial zip users are
@@ -930,7 +937,9 @@ See [Test Organization Guide](docs/dev/conventions/test_organization.md) for tes
   manifest permissions, the
   `project_overview.md` notes (the environment variable names and
   `costPrefix`), the production profile's configuration block and step table in
-  `docs/dev/production_profile.md`, the configuration block of
+  `docs/dev/production_profile.md`, the store listing's table of display names
+  and short descriptions against `messages.json` (`TestStoreListingMatchesMessages`),
+  the configuration block of
   `generation.md`, the values `generation.md`, `cli.md`, and `development.md`
   hold, the
   `/fixpr` and `/runpr` command documents, `cmd/mergepr`'s checks of the

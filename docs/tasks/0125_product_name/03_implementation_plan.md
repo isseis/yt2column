@@ -57,6 +57,10 @@
    - **CLAUDE.md の規則との関係:** CLAUDE.md「Testing Strategy」の「Do not assert that a constant equals its own literal」は、定義をそのまま写した値と比べて何も確かめないテストを禁じる規則である。このテストの期待値は要件定義書の AC-05・AC-06 が定める文言で、カタログの値とは出どころが違う。カタログを AC から外れた文言に変えると失敗するので、この規則には当たらないと判断した。承認済みの計画で `manifest.test.ts` が `extName`・`extNameDev`・`extDescription` の確定値を日英のリテラルで固定しているのと同じ扱いであり、日本語のリテラルもこれと同じく、日本語カタログのメッセージを確かめるテストのリテラルとして置く。
    - **ADR:** なし（テストの確かめ方の変更であり、主要決定ではないため）。
 
+3. **ステップ 2-3 に README だけを 2 言語で持つという記述の直しを足す:** ステップ 2-3 の変更するファイルに `.claude/commands/mktrans.md` を加え、`CLAUDE.md` の「The bilingual README」と `.claude/commands/mktrans.md` の記述を、訳文の対で持つ文書は README だけ、に直す項目を足した。
+   - **理由:** 設計書 1.3 節の決定 2 のとおり、ストア掲載文の例外と元の記述が矛盾するためである。`/mktrans` の振る舞いと同期の対象は変えない。
+   - **ADR:** なし（設計書 1.3 節の決定 2 と同じ理由による）。
+
 ## 2. 実装ステップ
 
 ### フェーズ 1: ブラウザ拡張の製品名・UI 文言・テスト更新
@@ -126,9 +130,9 @@
 
 **変更するファイル:** `docs/store/chrome_web_store.md`（新規）、`cmd/yt2column/store_listing_test.go`（新規）、`docs/translation_glossary.md`
 
-- [ ] `docs/store/chrome_web_store.md` を設計書 3.3 節の構成で作成し、issue #1148 コメント 1・4・5 の表示名・短い説明文・商標運用条件・日本語版および英語版の詳細説明文（`text` コードブロック）を正確に収録する。`extName`・`extNameDev`・`extDescription` は設計書 3.3 節の掲載項目の表（列 `キー`・`日本語`・`英語`）に置く
-- [ ] `cmd/yt2column/store_listing_test.go::TestStoreListingMatchesMessages` を追加する。`internal/doctestutil` の表の読み取りで掲載項目の表を見つけ、3 行がちょうど 1 回ずつあり各値が `extension/static/_locales/{ja,en}/messages.json` の `message` と完全に一致することを確かめる。値のセルの形が違う・行の欠け・重複・知らないキーは失敗とする。表の値を 1 つ変える、行を 1 つ消す、行を重ねる、それぞれで失敗することを確かめ、コミットメッセージに記す
-- [ ] `docs/translation_glossary.md` にコア製品名（`ヨムドウガ` / `YomuDoga`）および Chrome ウェブストア表示名（`ヨムドウガ for YouTube™` / `YomuDoga for YouTube™`）の 2 行を追加する
+- [x] `docs/store/chrome_web_store.md` を設計書 3.3 節の構成で作成し、issue #1148 コメント 1・4・5 の表示名・短い説明文・商標運用条件・日本語版および英語版の詳細説明文（`text` コードブロック）を正確に収録する。`extName`・`extNameDev`・`extDescription` は設計書 3.3 節の掲載項目の表（列 `キー`・`日本語`・`英語`）に置く
+- [x] `cmd/yt2column/store_listing_test.go::TestStoreListingMatchesMessages` を追加する。`internal/doctestutil` の表の読み取りで掲載項目の表を見つけ、3 行がちょうど 1 回ずつあり各値が `extension/static/_locales/{ja,en}/messages.json` の `message` と完全に一致することを確かめる。値のセルの形が違う・行の欠け・重複・知らないキーは失敗とする。表の値を 1 つ変える、行を 1 つ消す、行を重ねる、それぞれで失敗することを確かめ、コミットメッセージに記す
+- [x] `docs/translation_glossary.md` にコア製品名（`ヨムドウガ` / `YomuDoga`）および Chrome ウェブストア表示名（`ヨムドウガ for YouTube™` / `YomuDoga for YouTube™`）の 2 行を追加する
 
 **完了基準:** `docs/store/chrome_web_store.md` が issue #1148 コメント 1・4・5 の内容と過不足なく一致し、`TestStoreListingMatchesMessages` が通り、`docs/translation_glossary.md` に新製品名 2 行が追加されていること。
 
@@ -136,20 +140,21 @@
 
 **変更するファイル:** `README.md`、`README.en.md`、`INSTALL.md`
 
-- [ ] `README.md` を設計書 3.4 節のとおり更新する（H1 の `# ヨムドウガ for YouTube™` への変更、冒頭概要文の刷新、`## 特徴` の 4 項目新設、既存節の維持と製品名更新、ファイル末尾（空行と水平線 `---` の後ろ）への非公式表記と帰属表示（`YouTube is a trademark of Google LLC.`）の追加、Chrome 142 表記と未リリース注記の維持）
-- [ ] `/mktrans README.md` を実行して `README.en.md` を同期し、`README.md` と `README.en.md` を同一コミットに含める
-- [ ] `INSTALL.md` の 4 箇所（冒頭 `:3`、ツールバー固定 `:80`、ビューアタイトル `:201`、アンインストール `:241`）を設計書 3.4 節のとおり更新する（`:62` の Releases URL と既存引用文言・Chrome 142 表記は維持）
+- [x] `README.md` を設計書 3.4 節のとおり更新する（H1 の `# ヨムドウガ for YouTube™` への変更、冒頭概要文の刷新、`## 特徴` の 4 項目新設、既存節の維持と製品名更新、ファイル末尾（空行と水平線 `---` の後ろ）への非公式表記と帰属表示（`YouTube is a trademark of Google LLC.`）の追加、Chrome 142 表記と未リリース注記の維持）
+- [x] `/mktrans README.md` を実行して `README.en.md` を同期し、`README.md` と `README.en.md` を同一コミットに含める
+- [x] `INSTALL.md` の 4 箇所（冒頭 `:3`、ツールバー固定 `:80`、ビューアタイトル `:201`、アンインストール `:241`）を設計書 3.4 節のとおり更新する（`:62` の Releases URL と既存引用文言・Chrome 142 表記は維持）
 
 **完了基準:** `README.md`・`README.en.md`・`INSTALL.md` が要件書 F-004 を満たし、`TestReadmeSyncMarker`・`TestReadmeVersionsShareStructure`・`TestReadmeLinks`・`metadataDocs.test.ts`・`manifest.test.ts` が通過すること。
 
 #### ステップ 2-3: 開発手順の事実整合・`CLAUDE.md` 更新・ADR-0035 のずれ除去と検証
 
-**変更するファイル:** `docs/dev/guides/development.md`、`CLAUDE.md`、`docs/dev/adr/0035-language-policy.md`、本実装計画書（§7 の AC-10〜AC-12・AC-14・AC-15・AC-16 の差分記録）
+**変更するファイル:** `docs/dev/guides/development.md`、`CLAUDE.md`、`.claude/commands/mktrans.md`、`docs/dev/adr/0035-language-policy.md`、本実装計画書（§7 の AC-10〜AC-12・AC-14・AC-15・AC-16 の差分記録）
 
-- [ ] `docs/dev/guides/development.md:119` のみを `ヨムドウガ（開発用のビルド）` および `YomuDoga (development build)` へ書き換える（他行は変更しない）
-- [ ] `CLAUDE.md` の「Document language」例外に `docs/store/chrome_web_store.md`（日英の Chrome ウェブストア詳細説明文を 1 ファイルで保管し `/mktrans` 同期対象外とする扱い）を追記し、「Development Notes」の Go のガードテストの一覧に掲載項目の表と `messages.json` の照合を足す
-- [ ] `docs/dev/adr/0035-language-policy.md` の `## 決定` から `docs/store/chrome_web_store.md` と `CLAUDE.md` の未反映のずれを示す一文を除去し、コミットメッセージに `Editorial correction:` 行を、PR の説明に修正の段落を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」第 2 種）
-- [ ] `make test && make lint` と `make ext-check` がすべて通過することを確認し、AC-10〜AC-12（`README.md`）・AC-14（`INSTALL.md`）・AC-15（`docs/dev/guides/development.md`）・AC-16（`docs/translation_glossary.md`）の差分を `requirements_process.md` §4 の固定コマンドで取得して本実装計画書 §7 の各 `Diff record` に記録する
+- [x] `docs/dev/guides/development.md:119` のみを `ヨムドウガ（開発用のビルド）` および `YomuDoga (development build)` へ書き換える（他行は変更しない）
+- [x] `CLAUDE.md` の「Document language」例外に `docs/store/chrome_web_store.md`（日英の Chrome ウェブストア詳細説明文を 1 ファイルで保管し `/mktrans` 同期対象外とする扱い）を追記し、「Development Notes」の Go のガードテストの一覧に掲載項目の表と `messages.json` の照合を足す
+- [x] `docs/dev/adr/0035-language-policy.md` の `## 決定` から `docs/store/chrome_web_store.md` と `CLAUDE.md` の未反映のずれを示す一文を除去し、コミットメッセージに `Editorial correction:` 行を、PR の説明に修正の段落を記録する（`docs/dev/conventions/adr.md`「Editorial corrections」第 2 種）。PR の説明の段落は、PR-2 の作成時に `git log` の訂正行から書く（ステップ 5a）
+- [x] `CLAUDE.md` の「The bilingual README」と `.claude/commands/mktrans.md` の「2 言語で持つ文書は README だけ」という記述を、訳文の対で持つ文書は README だけ、に直し、`docs/store/chrome_web_store.md` の位置づけと矛盾しないようにする
+- [x] `make test && make lint` と `make ext-check` がすべて通過することを確認し、AC-10〜AC-12（`README.md`）・AC-14（`INSTALL.md`）・AC-15（`docs/dev/guides/development.md`）・AC-16（`docs/translation_glossary.md`）の差分を `requirements_process.md` §4 の固定コマンドで取得して本実装計画書 §7 の各 `Diff record` に記録する
 
 **完了基準:** すべてのテスト・lint・拡張検査が通過し、§7 の全 `Diff record` が実装コミットに対して記録され、記録後のコミットで比較対象パスが変更されていないこと。
 
@@ -167,10 +172,10 @@
 
 **自動送信**: auto
 
-- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
-- [ ] PR を作成した
-- [ ] PR がマージされた
-- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1177
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
 ## 3. 実装順序とマイルストーン
 
@@ -203,7 +208,7 @@
 ## 6. 実装チェックリスト
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3）
-- [ ] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
+- [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -247,26 +252,150 @@ old_name_absent: PASS
 Diff record (AC-10・AC-11・AC-12):
 
 - Compared paths: `README.md`
-- Merge-base: `<PR-2 実装時に記録>`
-- Compared commit: `<PR-2 実装時に記録>`
+- Merge-base: `1fd959779dd3ba8f33d562b066dd7f4e59182b43`
+- Compared commit: `c536007b026bd0832335c36a24c0d4c1fdb3e9a7`
+
+Path diff:
+
+````text
+diff --git a/README.md b/README.md
+index 83b30756e7691841636f7df7d49c0eef51884ba9..c8071d5f50c3a9693e627433b71b4f6939956547 100644
+--- a/README.md
++++ b/README.md
+@@ -1,11 +1,18 @@
+ [English](README.en.md)
+
+-# yt2column
++# ヨムドウガ for YouTube™
+
+-yt2column は、YouTube 動画の内容を、短時間で読める雑誌コラム風の記事にまとめてくれるブラウザ拡張機能です。この拡張機能は無料です。ただし、記事を作る AI のサービスには、利用料がかかります。利用料は、AI を提供する会社（Anthropic 社）に直接支払います。記事はブラウザで読めるほか、ファイルに保存したり、クリップボードにコピーすることも可能です。
++ヨムドウガは、YouTube™ 動画の文字起こしを、新聞・雑誌風の日本語コラム記事に仕立てるブラウザ拡張機能です。話し言葉の脱線や重複を整理し、編集・校正まで行うことで、動画を見なくても論点がすっと頭に入る読み物を目指しました。この拡張機能は無料です。ただし、記事を作る AI のサービスには、利用料がかかります。利用料は、AI を提供する会社（Anthropic 社）に直接支払います。記事はブラウザで読めるほか、ファイルに保存したり、クリップボードにコピーすることも可能です。
+
+ > **状態:** 開発の初期段階です。まだリリースしていないので、今は一般には公開していません。公開後の導入手順を、公開に備えて [INSTALL.md](INSTALL.md) にまとめています。
+
++## 特徴
++
++- **結論が先、重要度順に読める構成:** 冒頭のリード文に主題と最も重要な結論をまとめ、本文も重要度順に並べます。新聞記事のように、途中で読むのをやめても動画の大枠をつかめます。
++- **動画に合った形式への編集と、文字起こしとの突き合わせ:** インタビュー・対談・レビュー・解説コラムから動画に合った形式を選び、字数を整えたうえで、元の文字起こしと突き合わせて誤字や根拠のない記述をチェックします。
++- **画面の変更に強い:** ページを自動操作せず、あなたが選んだ文字起こしだけを受け取るため、YouTube の画面が変わっても安定して使い続けられます。
++- **安心して使える設計:** ボタンを押したときだけ対象のページを読み、中継サーバを持たずにブラウザから AI サービスへ直接通信します。ソースコードやプロンプトはすべてオープンソースで公開しています。
++
+ ## 仕組み
+
+ この拡張機能は、動画の文字起こし（音声を文字にしたもの）のうち、あなたが選んだ部分と、動画の情報を集め、Anthropic 社の有料サービスを利用して AI に記事を書かせます。結果はブラウザの専用タブに表示します。
+@@ -29,7 +36,7 @@ API キーとワークスペース ID の作り方、料金の支払い方、使
+
+ 1. [INSTALL.md](INSTALL.md) に従って、Anthropic 社で API キーを作り（料金の支払いの準備を含みます）、拡張機能を入れて、API キーを保存します（最初の 1 回だけです）。
+ 2. YouTube の動画のページで、文字起こしパネルを開き、パネルに出ている行を選びます。
+-3. ブラウザのツールバーにある yt2column のアイコンを押し、記事の生成を始めます。
++3. ブラウザのツールバーにあるヨムドウガのアイコンを押し、記事の生成を始めます。
+ 4. 記事が専用のタブに表示されます。メモ帳などで開ける文章ファイル（Markdown 形式の `.md`）として保存するか、クリップボードにコピーできます。ブラウザを終了すると記事は消えるので、残したいときは、終了する前に保存かコピーをしてください。
+
+ 入手から最初の記事の保存までの詳しい手順は、[INSTALL.md](INSTALL.md) で説明しています。
+@@ -47,3 +54,7 @@ API キーとワークスペース ID は、使っているブラウザの中に
+ ## 開発者向けの文書
+
+ 開発者向けに、ブラウザでなくコマンドラインで使えるものもあります。記事の生成の仕組みは[記事の生成の詳細](docs/dev/guides/generation.md)、CLI の実行の仕方は[CLI の使い方](docs/dev/guides/cli.md)、開発の手順は[開発の手順](docs/dev/guides/development.md)にあります。
++
++---
++
++本拡張機能は Google LLC または YouTube とは無関係の非公式ツールです。YouTube is a trademark of Google LLC.
+````
 
 Diff record (AC-14):
 
 - Compared paths: `INSTALL.md`
-- Merge-base: `<PR-2 実装時に記録>`
-- Compared commit: `<PR-2 実装時に記録>`
+- Merge-base: `1fd959779dd3ba8f33d562b066dd7f4e59182b43`
+- Compared commit: `caa8b7f18fd06ba077a3efd729ebea59574e37db`
+
+Path diff:
+
+````text
+diff --git a/INSTALL.md b/INSTALL.md
+index 93b0545264deb2813fbbfee4f97cae0c8aaa91d6..14f12c62575427c417d979f768772bad46538695 100644
+--- a/INSTALL.md
++++ b/INSTALL.md
+@@ -1,6 +1,6 @@
+ # インストールと使い方
+
+-本書は、yt2column のブラウザ拡張を入手してから、最初の記事を保存し、更新し、削除するまでの手順を説明します。拡張が何をするかは [README](README.md) にあります。
++本書は、ヨムドウガ（拡張機能の一覧での名前: ヨムドウガ for YouTube™）のブラウザ拡張を入手してから、最初の記事を保存し、更新し、削除するまでの手順を説明します。拡張が何をするかは [README](README.md) にあります。
+
+ 本書は日本語だけで書いています（英語版は用意していません）。画面の文言は、ブラウザの UI の言語が日本語のときの日本語の版を引用します。
+
+@@ -77,7 +77,7 @@ API キーは、作った直後にしか全体を見られないことがあり
+
+ ### ツールバーに固定する
+
+-ブラウザのツールバーの拡張機能のメニュー（パズルのピースの形のアイコン）を開き、yt2column のピンを押して、アイコンをツールバーに固定します。固定しておくと、ポップアップをすぐ開けます。
++ブラウザのツールバーの拡張機能のメニュー（パズルのピースの形のアイコン）を開き、ヨムドウガ for YouTube™ のピンを押して、アイコンをツールバーに固定します。固定しておくと、ポップアップをすぐ開けます。
+
+ ### ブラウザの警告とシークレットモード
+
+@@ -198,7 +198,7 @@ API キーとワークスペース ID は、このブラウザのプロファイ
+
+ ### ビューア
+
+-ビューアは、リンクが正しくない場合を除くどの状態でも、元の動画へのリンクを表示し、記事が完成する前はポップアップと同じ見出しとチャンネル名を表示します。動画のタイトルを読めなかったときは、見出しは動画の URL になります。記事が完成した後は、拡張が整えた動画のタイトルとチャンネル名を表示します（動画のタイトルがないときは、それまでの見出しのまま）。ページのタイトルは「`<動画のタイトル> - yt2column`」で、ブラウザの履歴とタブに出ます。動画のタイトルがないときは、見出しを使います。
++ビューアは、リンクが正しくない場合を除くどの状態でも、元の動画へのリンクを表示し、記事が完成する前はポップアップと同じ見出しとチャンネル名を表示します。動画のタイトルを読めなかったときは、見出しは動画の URL になります。記事が完成した後は、拡張が整えた動画のタイトルとチャンネル名を表示します（動画のタイトルがないときは、それまでの見出しのまま）。ページのタイトルは「`<動画のタイトル> - ヨムドウガ`」で、ブラウザの履歴とタブに出ます。動画のタイトルがないときは、見出しを使います。
+
+ - **準備中**・**読み込み中**: 動く印と、どちらを待っているかを示す文言を表示します。
+ - **生成中**: 3 つの工程のチェックリストと、記事の生成を始めてからの経過時間を表示します。
+@@ -238,7 +238,7 @@ zip の展開ツールが、別名のフォルダや入れ子のフォルダに
+ ## アンインストール
+
+ 1. `chrome://extensions/`（Brave: `brave://extensions/`）を開きます。
+-2. yt2column の **削除** を押します。
++2. ヨムドウガ for YouTube™ の **削除** を押します。
+
+ 拡張を削除すると、保存した API キーとワークスペース ID も消えます。削除した後は、展開したフォルダを消してかまいません。
+
+````
 
 Diff record (AC-15):
 
 - Compared paths: `docs/dev/guides/development.md`
-- Merge-base: `<PR-2 実装時に記録>`
-- Compared commit: `<PR-2 実装時に記録>`
+- Merge-base: `1fd959779dd3ba8f33d562b066dd7f4e59182b43`
+- Compared commit: `91de86d60136916911d4f091dd0c966d91e7f6e9`
+
+Path diff:
+
+````text
+diff --git a/docs/dev/guides/development.md b/docs/dev/guides/development.md
+index a8c55e14eefca27c18395a869478eecd2e594bee..b86c030391a36acaacf7ac3ea04dec4a570ef13e 100644
+--- a/docs/dev/guides/development.md
++++ b/docs/dev/guides/development.md
+@@ -116,7 +116,7 @@ make ext-build-dev FAKE_ARTICLE=long FAKE_FAILURE=timeout FAKE_FAIL_AT=shorten
+ 開発用のビルドは、次の点で公開用のビルドと見分けられる。
+
+ -   manifest が `key` を持たないので、拡張の ID が公開用のビルドと違う。`chrome.storage.local` も別になり、開発用のビルドで保存した値が公開用のビルドの値を上書きしない。
+--   拡張機能のページでの名前が `yt2column（開発用のビルド）`（英語の画面では `yt2column (development build)`）である。
++-   拡張機能のページでの名前が `ヨムドウガ（開発用のビルド）`（英語の画面では `YomuDoga (development build)`）である。
+ -   ビルドの種類を宣言するモジュール（`buildKind.js`）が `dev` を宣言する。
+
+ どちらのビルドも、最後に成果物を検査する。成果物が `tsc` の出力、`static/` の写し、記事生成モジュール、`wasm_exec.js` だけであること、記事生成モジュールを Node.js で読み込んで呼んだ `buildInfo` の main のパッケージと Go の版と LLM の実装（開発用のビルドでは、ビルドに与えたシナリオ）が期待どおりであることを確かめ、合わなければビルドを失敗させる。
+````
 
 Diff record (AC-16):
 
 - Compared paths: `docs/translation_glossary.md`
-- Merge-base: `<PR-2 実装時に記録>`
-- Compared commit: `<PR-2 実装時に記録>`
+- Merge-base: `1fd959779dd3ba8f33d562b066dd7f4e59182b43`
+- Compared commit: `b7d42c95432a118a0348dcd8f882f5d4e9918c84`
+
+Path diff:
+
+````text
+diff --git a/docs/translation_glossary.md b/docs/translation_glossary.md
+index 35d3f48a001ca51fe97564d5cb49e7380eda8371..93b1c62774804a4e3021e21819fba18167f7113c 100644
+--- a/docs/translation_glossary.md
++++ b/docs/translation_glossary.md
+@@ -213,3 +213,5 @@
+ | インストールと使い方 | Installing and using | `README.md` の節の見出しと `INSTALL.md` のタイトル |
+ | プライバシー | Privacy | `README.md` の節の見出し |
+ | 開発者向けの文書 | Developer documents | `README.md` の節の見出し |
++| コア製品名 | core product name | `YouTube` を含めない独自名。日本語 `ヨムドウガ`、英語 `YomuDoga`。UI・ビューアタイトル・README 本文での呼称に使う |
++| Chrome ウェブストア表示名 | Chrome Web Store display name | `manifest.json` の `name`（`extName`）および Chrome ウェブストア・`chrome://extensions/`・README の H1 見出しで使う表示名。日本語 `ヨムドウガ for YouTube™`、英語 `YomuDoga for YouTube™` |
+````
 
 ## 8. 成功基準
 
@@ -285,3 +414,4 @@ Diff record (AC-16):
 - 2026-11-26 承認（isseis、#1164）
 - 2026-11-26 セッション中の再承認：§7 に一時スクリプトの記録の枠を足した（isseis、#1165）
 - 2026-11-26 セッション中の再承認：AC-05・AC-06 の確かめを確定値の完全一致に変えた（isseis、#1165）
+- 2026-11-26 セッション中の再承認：ステップ 2-3 に、訳文の対で持つ文書は README だけ、への記述の直しを足す決定を 1.3 節に記録した（isseis、#1177）

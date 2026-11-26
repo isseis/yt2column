@@ -23,8 +23,8 @@ If no argument is provided, ask the user.
 
 This command translates one pair: `README.md` at the repository root
 (Japanese, the primary version) into `README.en.md` next to it (English). It is
-the only document the project keeps in two languages (`CLAUDE.md`, "Document
-language").
+the only document the project keeps as a translated pair of two files
+(`CLAUDE.md`, "Document language").
 
 - Source `README.md` → output `README.en.md`, **Japanese → English**.
 - Any other file, `README.en.md` included: do not translate. Stop and ask the
