@@ -166,6 +166,14 @@ AC-05 (only allowed files changed): PASS
 exit 0
 ```
 
+-   **変わったファイルの一覧（AC-05。マージベースと `HEAD` の `git diff --name-only`）:** `internal/chief/` 直下の `_test.go` 40 ファイル、`internal/chief/test_helpers.go`、本タスクのディレクトリの下の 2 ファイル（`03_implementation_plan.md`、`_checks/compare.sh`）。`_test.go` でないのは次の 3 つである。
+
+```text
+docs/tasks/0128_chief_test_speedup/03_implementation_plan.md
+docs/tasks/0128_chief_test_speedup/_checks/compare.sh
+internal/chief/test_helpers.go
+```
+
 -   **ばらつきの記録:** 変更前の経過時間は、同じマージベースの木でも実行ごとに変わった。本タスクの途中の実行では、変更前が 51.0 秒（変更後の側は、テストを変えていない `HEAD` で 94.6 秒）・48.8 秒、並列化の途中の実行では 115.4 秒（変更後 28.7 秒、比 0.249）で、上の最終の実行は 44.5 秒（変更後 20.1 秒、比 0.452）だった。変更後の経過時間は、単独の実行で 20〜29 秒だった。比の判定は最終の実行で通ったが、変更前が短く出る実行では、比が 0.5 に近づく。
 
 ### 7.1. 一時スクリプトの記録（`_checks/compare.sh`）
@@ -201,6 +209,8 @@ exit 0
     -   umask に結果が左右される: `TestClearRecordsKeepsTheCreatedRecordWhenAnotherRemovalFails`（`records_test.go`）。`os.WriteFile` で `0o644` のファイルを作り、`privatefile` が拒むことを確かめる。冒頭で `fixUmask` を呼ぶ。`records_test.go` の `:285`・`:945`・`:967` は `os.Chmod` で権限を決めるので、umask に左右されない。`:427` は `MkdirBelow` が作るディレクトリが `0o700` であることを確かめる。umask が `077` で残っても、`0o700` は変わらない。
     -   子プロセスを起こす並列のサブテストの親: `TestMarkerReadingMatchesDecisionScript`（`markers_parity_test.go`）。親は直列に残し、23 のサブテストは並列にした。親が直列なので、サブテストはほかのトップレベルのテストと同時には走らず、サブテストの間だけで並列に走る。理由: このサブテストは git と bash の子プロセスを起こす。子プロセスは、fork から exec までの間、親が開いている fd の複製を持つ。そのため、並列のほかのテストが `cachelock` で取った flock は、そのテストが閉じた後もしばらく保たれ、次の `Acquire` が busy になりうる。親も並列にした最初の実装では、`go test -tags test -race -count=3` の 1 回で `TestAutoSendReportMismatch/Claude_Code:_the_session's_file_is_missing` が `another send to the workspace is under way`（`not_sent busy`）で失敗した。原因の仮説であり、再現させて確かめてはいない。親を直列にした後は、`-count=10` が通った（191.7 秒、コミット `265c199ef89c`）。
     -   子プロセスを起こすテストは、ほかに `newTestRepo` を使うテストと `RealCommands` を使うテストだが、どれも直列である。並列のテストは子プロセスを起こさない。
+    -   この決まり（子プロセスを起こすテストは直列に残すか、直列の親のサブテストにする）は、正しさの義務である（`CLAUDE.md`「Performance」）。`newTestRepo` の説明に書いた（`test_helpers.go`）。後でテストを足す人が `t.Parallel()` を呼んで `newTestRepo` を使っても、コンパイルも `-race` も通り、まれに `busy` で失敗するだけなので、機械的には守れていない。直列に残す仕組み（`t.Setenv` による panic など）は、並列のサブテストが使う `newTestRepo` を直列の目的に使えなくするので、足さなかった。
+    -   サブテストを並列にしたのは、この 23 だけである。ほかのテストのサブテストは、判断を 3.3 節のとおりに行ったのではなく、トップレベルの並列化だけで AC-01 に届いたので、足さなかった（YAGNI）。
     -   共有の値、親の本体の順序、時間に依存する判定が理由で直列に残したテストはない。実際の時間で待つ `TestTranscriptFIFORefused` も並列にしたが、`-race -count=3` で失敗しなかった。
 -   **共有の値を移したテストと、`defer` を `t.Cleanup` に移したテスト:** なし。並列のサブテストを持つのは `TestMarkerReadingMatchesDecisionScript` だけで、親の値は読むだけであり、親に `defer` もない。そのほかのテストのサブテストは直列に実行されるので、親の本体の順序は変わらない。
 -   **`test_helpers.go` の変更:** `fixUmask` を 1 つ足した（`syscall` の import と定数 `fixedUmask` を含む）。umask を `0o022` にし、`t.Cleanup` で元に戻し、`t.Setenv` を呼ぶ。理由は設計書 1 章と 3.2 節のとおり。`records_test.go` の 1 つのテストだけが呼ぶ。

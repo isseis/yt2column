@@ -123,6 +123,11 @@ type testRepo struct {
 
 // newTestRepo creates a repository on branch main with one commit, its
 // signing turned off, in a resolved temporary directory.
+// Contract: a test that calls it (or runs git, bash, or another child process
+// through the helpers of this file) stays serial, or is a subtest of a serial
+// parent. A child process holds a copy of every open file descriptor between
+// fork and exec, so a cachelock flock that a parallel test just closed can stay
+// held for a moment, and that test's next Acquire reports busy.
 func newTestRepo(t *testing.T) *testRepo {
 	t.Helper()
 	if testToolsDir == "" {
