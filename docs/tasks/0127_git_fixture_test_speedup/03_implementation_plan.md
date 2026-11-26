@@ -553,7 +553,7 @@ compare: FAIL
 -   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる（ステップ 6-3）。
 -   **予定の実行:** 7.3 節と同じ時点と人で実行する。
 -   **テスト:** コミットしない。
--   **壊し方の記録:** 確かめたコミット: `cc946ac57728ce55b6676f6c68b6fe5371a825a7`。作業ツリーの外に写したスクリプトに壊し方を入れるか、引数・環境変数で入力を替えて流した（`CHECK_PKGS=./cmd/yt2column`、`CHECK_RUN` と `CHECK_TOPS` で `TestReviewRecordsFableAlias` と `TestHighReviewDecisionCallSite` に狭めた。狭めた実行は記録しない）。どの壊し方も、作業ツリーに残していない。
+-   **壊し方の記録:** 確かめたコミット: `66e2e888394e1a20c310bc077bb3059da8681bf4`（1.5 節の名前の比べ方を足した後のスクリプトで、壊し方の確認を全部やり直した。結果は前回と同じで、壊さない実行は `compare: PASS`）。作業ツリーの外に写したスクリプトに壊し方を入れるか、引数・環境変数で入力を替えて流した（`CHECK_PKGS=./cmd/yt2column`、`CHECK_RUN` と `CHECK_TOPS` で `TestReviewRecordsFableAlias` と `TestHighReviewDecisionCallSite` に狭めた。狭めた実行は記録しない）。どの壊し方も、作業ツリーに残していない。
     -   名前の集まり: AFTER の末端の名前を 1 行消した → `check names: FAIL`（終了コード 1）
     -   `fail`: AFTER の `fail` の事象を 1 件足した → `check fail: FAIL`（1）
     -   `skip`: AFTER の `skip` の集まりに 1 件足した → `check skip: FAIL`（1）
