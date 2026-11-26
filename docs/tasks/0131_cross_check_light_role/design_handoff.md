@@ -4,8 +4,8 @@
 
 ## H-01: Antigravity で `claude-opus-5-5-high` が使えるかの実測
 
--   **懸念:** Antigravity の軽い側のモデル `claude-opus-5-5-high` は、`swarm` のモデル一覧にあるかをまだ確かめていない。タスク 0120 で実測したのは `claude-opus-5-5-medium` だけである（`docs/tasks/0120_harness_independent_commands/02_architecture.md` 1.4）。
--   **重要な理由:** 一覧になければ、Antigravity の軽い側の部分レビューはいつも `not run unavailable` になる。本タスクの目的（軽い側の部分レビューを走らせる）が Antigravity で果たせない。
+-   **懸念:** Antigravity の軽い側のモデル `claude-opus-5-5-high` は、利用者の環境に残っていた 2026-11-21 の `swarm(action: "models", all: true)` の出力で `models` にあり、`quota_remaining` もあった。しかし、実際に走らせてはいない。タスク 0120 で実測したのは `claude-opus-5-5-medium` だけである（`docs/tasks/0120_harness_independent_commands/02_architecture.md` 1.4）。1 PR あたりの割り当ての消費（数 %）も、`claude-opus-5-5-medium` で測った値である。
+-   **重要な理由:** 一覧から消えていれば、Antigravity の軽い側の部分レビューはいつも `not run unavailable` になる。`high` で時間切れになる、出力の形が違う、割り当てを大きく使う、といった場合も、本タスクの目的（軽い側の部分レビューを走らせる）が Antigravity で果たせない。
 -   **候補案:** `/mkarch` の段階で、Antigravity の `swarm(action: "models", all: true)` で `models` に `claude-opus-5-5-high` があることと `quota_remaining` を確かめ、結果を設計書に記録する。なければ、要件の決定の変更として `01_requirements.md` に戻す（要件定義の際に決めたこと）。あわせて、実 PR で 1 回走らせて、時間と指摘の形を確かめるかも決める。
 -   **関連 F-/AC-:** F-001、AC-04
 
@@ -24,10 +24,10 @@
 
 ## H-03: 判定のスクリプトが PR の種類を知る方法
 
--   **懸念:** 判定のスクリプトは `cross-check <ENTRY> <HEAD> <PLAN>` の引数しか受け取らず、計画書のパスからは、重い側の PR か軽い側の PR かを区別できない（`.claude/commands/_lib/cross-check-review.md:101-111`）。F-002 の照合には、PR の種類の入力が要る。種類を渡さない古い呼び出しは重い側とみなし（AC-12）、本タスク自身の PR は新しいスクリプトがまだ `origin/main` にない間も開ける必要がある（AC-13）。今の cross-check のモードは引数の数が違うと失敗する（`.claude/commands/_lib/review-records.sh:888`）。
+-   **懸念:** 判定のスクリプトは `cross-check <ENTRY> <HEAD> <PLAN>` の引数しか受け取らず、計画書のパスからは、重い側の PR か軽い側の PR かを区別できない（`.claude/commands/_lib/cross-check-review.md:101-111`）。F-002 の照合には、PR の種類の入力が要る。種類を渡さない古い呼び出しはどちらの役割の記録も数え（AC-12）、本タスク自身の PR は新しいスクリプトがまだ `origin/main` にない間も開ける必要がある（AC-13）。今の cross-check のモードは引数の数が違うと失敗する（`.claude/commands/_lib/review-records.sh:888`）。
 -   **重要な理由:** 種類を誤ると、重い側の PR が軽い側の記録で有効になる（AC-08 に反する）。宣言した種類を信頼する危険は受け入れた（要件定義の際に決めたこと）が、受け付ける値の形と、引数の足し方は決める必要がある。`/crosscheck` が種類を決める方法には、`CLAUDE.md` の「Declare, don't infer」が関わる。
 -   **候補案:**
-    -   省略できる引数を 1 つ足し（例: `heavy`・`light`）、呼び出し元（コマンドの手順）が宣言する。省略は重い側、ほかの値は失敗とする（AC-11・AC-12）。
+    -   省略できる引数を 1 つ足し（例: `heavy`・`light`）、呼び出し元（コマンドの手順）が宣言する。省略はどちらの役割の記録も数え、ほかの値は失敗とする（AC-11・AC-12）。
     -   本タスクの PR は、手順が引数を渡す前にスクリプトを `main` に入れる順にするか、古いスクリプトが引数を拒否したときに引数なしで呼び直すかを決める（AC-13）。どちらでも、PR の種類を受け付けない版のスクリプトと新しい手順の組み合わせで記録が有効と判定されることを、どう確かめるかも決める。
     -   `/crosscheck` は、利用者が引数で種類を宣言する形（例: `/crosscheck heavy`）か、ブランチが足す文書（`01_requirements.md`・`02_architecture.md`・`03_implementation_plan.md`）と計画書の `PR を作成した` の行から決める形かを選ぶ（AC-22）。
 -   **関連 F-/AC-:** F-002・F-004、AC-08〜AC-13・AC-22・AC-23
@@ -49,7 +49,7 @@
 -   **懸念:** `/crosscheck` は、最後のクロスチェックの記録が `not run` のときにも走る（AC-23）。しかし、判定のスクリプトは `not run` の記録を有効（`VALID`）と判定するので、今の `MISSING <START>` からは範囲が得られない。範囲の決め方と、今の「The standalone path」と「Entry 3」をどう使い回すかを決める必要がある。
 -   **重要な理由:** 範囲が狭いと、走らなかった部分レビューが見るはずだった commit を見ない。広いと、すでに有効な `run` の記録が見た箇所をもう一度見て、費用が増える。
 -   **候補案:**
-    -   最後の記録が `not run` なら、その記録の START から HEAD までを範囲とする（記録の後に merge commit があれば、今の規則どおり merge-base から HEAD まで）。`MISSING` なら、判定の START から HEAD までとする。
+    -   最後に数える `run` の記録の END の後から HEAD までを範囲とし（なければ merge-base から HEAD まで）、その間の `not run` の記録の範囲をすべて含める。範囲に merge commit があれば、今の規則どおり merge-base から HEAD までとする（AC-23）。今の `MISSING <START>` の START は最初の覆われていない commit の第 1 親なので、`not run` の記録の範囲を飛ばしうる。そのまま使わない。
     -   最後の記録の状態（`run` か `not run` か）と範囲の始点は、判定のスクリプトの新しい出力にする（AC-23。判定はスクリプトだけが決めるという規則、`.claude/commands/_lib/cross-check-review.md:864-865`）。新しいモードにするか、今のモードの出力を足すかを決める。
     -   修正の確かめと記録の commit は、「The standalone path」の手順 2〜4 を使い回す。
 -   **関連 F-/AC-:** F-004、AC-23〜AC-26
