@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -157,3 +157,7 @@ issue #1168 の計測（`go test -tags test -race -count=1 ./...`）では、次
 -   **ケースの前提の検査:** ケースの組み立てが、確かめたい規則を実際に働かせる形になっていることを検査し、なっていなければ「so the case checks nothing」などの理由でケースを失敗させるテストの中の検査（AC-07）。一時スクリプトの「前提の確認」とは別のものである。
 -   **計測の条件:** F-001 に定める、変更の前（BASE）と後（AFTER）の時間を比べる条件。
 -   用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-26 承認（isseis、#1174）
