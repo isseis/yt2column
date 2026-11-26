@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding"
 	"errors"
 	"fmt"
 	"maps"
@@ -103,148 +104,77 @@ func TestGuideListsInteractionLimitsValues(t *testing.T) {
 	}
 }
 
+type guideValueListing struct {
+	marker string
+	names  []string
+}
+
+func marshalEnumNames[T encoding.TextMarshaler](t *testing.T, vals []T) []string {
+	t.Helper()
+	names := make([]string, 0, len(vals))
+	for _, v := range vals {
+		name, err := v.MarshalText()
+		if err != nil {
+			t.Fatalf("MarshalText(%v) = %v", v, err)
+		}
+		names = append(names, string(name))
+	}
+	return names
+}
+
+func checkGuideValueTables(t *testing.T, sectionName, heading string, listings []guideValueListing) {
+	t.Helper()
+	sub := subsection(readRepoFile(t, guidePath), heading)
+	for _, l := range listings {
+		table := guideTable(sub, l.marker)
+		if table == "" {
+			t.Errorf("%s: the %s section has no table after %s", guidePath, sectionName, l.marker)
+			continue
+		}
+		for _, name := range l.names {
+			if !strings.Contains(table, "`"+name+"`") {
+				t.Errorf("%s: the %s table after %s does not list `%s`", guidePath, sectionName, l.marker, name)
+			}
+		}
+	}
+}
+
 // TestGuideListsReviewStateValues: the review-state section of chapter 5
 // lists, in code spans, every profile, state, auto-review state, unreadable
 // reason, indeterminate reason and run kind the tool prints, each in its own
 // table. Reading the tables alone keeps the same word elsewhere in the section
 // from standing in for a row.
 func TestGuideListsReviewStateValues(t *testing.T) {
-	sub := subsection(readRepoFile(t, guidePath), "### `review-state ")
-	type listing struct {
-		marker string
-		names  []string
-	}
-	var profiles, states, autoStates, unreadable, indeterminate, kinds []string
-	text := func(v interface{ MarshalText() ([]byte, error) }) string {
-		name, err := v.MarshalText()
-		if err != nil {
-			t.Fatalf("MarshalText(%v) = %v", v, err)
-		}
-		return string(name)
-	}
-	for _, v := range fixprguard.ReviewProfiles() {
-		profiles = append(profiles, text(v))
-	}
-	for _, v := range fixprguard.RequestStates() {
-		states = append(states, text(v))
-	}
-	for _, v := range fixprguard.AutoReviewStates() {
-		autoStates = append(autoStates, text(v))
-	}
-	for _, v := range fixprguard.UnreadableReasons() {
-		unreadable = append(unreadable, text(v))
-	}
-	for _, v := range fixprguard.IndeterminateReasons() {
-		indeterminate = append(indeterminate, text(v))
-	}
-	for _, v := range fixprguard.RunKinds() {
-		kinds = append(kinds, text(v))
-	}
-	for _, l := range []listing{
-		{"**プロファイル。**", profiles},
-		{"**状態。**", states},
-		{"**自動の PR レビューの状態。**", autoStates},
-		{"**読めない理由。**", unreadable},
-		{"**決まらない理由。**", indeterminate},
+	checkGuideValueTables(t, "review-state", "### `review-state ", []guideValueListing{
+		{"**プロファイル。**", marshalEnumNames(t, fixprguard.ReviewProfiles())},
+		{"**状態。**", marshalEnumNames(t, fixprguard.RequestStates())},
+		{"**自動の PR レビューの状態。**", marshalEnumNames(t, fixprguard.AutoReviewStates())},
+		{"**読めない理由。**", marshalEnumNames(t, fixprguard.UnreadableReasons())},
+		{"**決まらない理由。**", marshalEnumNames(t, fixprguard.IndeterminateReasons())},
 		// The classification table of the section, which names the kinds the
 		// tool prints for a check run across all profiles.
-		{"**応答の分類。**", kinds},
-	} {
-		table := guideTable(sub, l.marker)
-		if table == "" {
-			t.Errorf("%s: the review-state section has no table after %s", guidePath, l.marker)
-			continue
-		}
-		for _, name := range l.names {
-			if !strings.Contains(table, "`"+name+"`") {
-				t.Errorf("%s: the review-state table after %s does not list `%s`", guidePath, l.marker, name)
-			}
-		}
-	}
+		{"**応答の分類。**", marshalEnumNames(t, fixprguard.RunKinds())},
+	})
 }
 
 // TestGuideListsMentionsValues: the mentions section of chapter 5 lists every
 // state, unreadable reason, stage, and source in its own table.
 func TestGuideListsMentionsValues(t *testing.T) {
-	sub := subsection(readRepoFile(t, guidePath), "### `mentions ")
-	text := func(v interface{ MarshalText() ([]byte, error) }) string {
-		name, err := v.MarshalText()
-		if err != nil {
-			t.Fatalf("MarshalText(%v) = %v", v, err)
-		}
-		return string(name)
-	}
-	var states, reasons, stages, sources []string
-	for _, v := range fixprguard.MentionScanStates() {
-		states = append(states, text(v))
-	}
-	for _, v := range fixprguard.UnreadableReasons() {
-		reasons = append(reasons, text(v))
-	}
-	for _, v := range fixprguard.MentionScanStages() {
-		stages = append(stages, text(v))
-	}
-	for _, v := range fixprguard.MentionSources() {
-		sources = append(sources, text(v))
-	}
-	for _, l := range []struct {
-		marker string
-		names  []string
-	}{
-		{"**状態。**", states},
-		{"**読めない理由。**", reasons},
-		{"**段。**", stages},
-		{"**発生元。**", sources},
-	} {
-		table := guideTable(sub, l.marker)
-		if table == "" {
-			t.Errorf("%s: the mentions section has no table after %s", guidePath, l.marker)
-			continue
-		}
-		for _, name := range l.names {
-			if !strings.Contains(table, "`"+name+"`") {
-				t.Errorf("%s: the mentions table after %s does not list `%s`", guidePath, l.marker, name)
-			}
-		}
-	}
+	checkGuideValueTables(t, "mentions", "### `mentions ", []guideValueListing{
+		{"**状態。**", marshalEnumNames(t, fixprguard.MentionScanStates())},
+		{"**読めない理由。**", marshalEnumNames(t, fixprguard.UnreadableReasons())},
+		{"**段。**", marshalEnumNames(t, fixprguard.MentionScanStages())},
+		{"**発生元。**", marshalEnumNames(t, fixprguard.MentionSources())},
+	})
 }
 
 // TestGuideListsCIChecksValues: the ci-checks section of chapter 5 lists every
 // ghci state and unreadable reason in its own table.
 func TestGuideListsCIChecksValues(t *testing.T) {
-	sub := subsection(readRepoFile(t, guidePath), "### `ci-checks ")
-	text := func(v interface{ MarshalText() ([]byte, error) }) string {
-		name, err := v.MarshalText()
-		if err != nil {
-			t.Fatalf("MarshalText(%v) = %v", v, err)
-		}
-		return string(name)
-	}
-	var states, reasons []string
-	for _, v := range ghci.States() {
-		states = append(states, text(v))
-	}
-	for _, v := range ghci.UnreadableReasons() {
-		reasons = append(reasons, text(v))
-	}
-	for _, l := range []struct {
-		marker string
-		names  []string
-	}{
-		{"**状態。**", states},
-		{"**読めない理由。**", reasons},
-	} {
-		table := guideTable(sub, l.marker)
-		if table == "" {
-			t.Errorf("%s: the ci-checks section has no table after %s", guidePath, l.marker)
-			continue
-		}
-		for _, name := range l.names {
-			if !strings.Contains(table, "`"+name+"`") {
-				t.Errorf("%s: the ci-checks table after %s does not list `%s`", guidePath, l.marker, name)
-			}
-		}
-	}
+	checkGuideValueTables(t, "ci-checks", "### `ci-checks ", []guideValueListing{
+		{"**状態。**", marshalEnumNames(t, ghci.States())},
+		{"**読めない理由。**", marshalEnumNames(t, ghci.UnreadableReasons())},
+	})
 }
 
 // guideTable returns the lines of the first table after the line of doc that

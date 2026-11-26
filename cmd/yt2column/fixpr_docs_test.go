@@ -185,8 +185,8 @@ func TestRunprDocContract(t *testing.T) {
 
 	t.Run("no_unchecked_gh_api", func(t *testing.T) {
 		checkGhAPICalls(t, "runpr.md step 3", step3, step3ReadCalls)
-		if strings.Contains(step3, "gh pr checks --watch") {
-			t.Error("runpr.md step 3 still calls gh pr checks --watch")
+		if strings.Contains(step3, "gh pr checks") {
+			t.Error("runpr.md step 3 still calls gh pr checks")
 		}
 	})
 }

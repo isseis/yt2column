@@ -740,41 +740,44 @@ func TestMentionsRun(t *testing.T) {
 		"--request", "@sourcery-ai review",
 		testPR,
 	)
-	t.Run("ok", func(t *testing.T) {
-		r := newTestRun(t, []cmdrunnertestutil.Step{
-			repoStep(),
-			ghStep(`{"login":"isseis"}`, nil, "api", "user"),
-			api(issueComments, "issues/"+testPR+"/comments?per_page=100&page=1"),
-			api(`[]`, "pulls/"+testPR+"/comments?per_page=100&page=1"),
-			api(`[]`, "pulls/"+testPR+"/reviews?per_page=100&page=1"),
+	for _, tc := range []struct {
+		name  string
+		steps []cmdrunnertestutil.Step
+		want  string
+	}{
+		{
+			name: "ok",
+			steps: []cmdrunnertestutil.Step{
+				repoStep(),
+				ghStep(`{"login":"isseis"}`, nil, "api", "user"),
+				api(issueComments, "issues/"+testPR+"/comments?per_page=100&page=1"),
+				api(`[]`, "pulls/"+testPR+"/comments?per_page=100&page=1"),
+				api(`[]`, "pulls/"+testPR+"/reviews?per_page=100&page=1"),
+			},
+			want: proto + `"state":"ok","reason":"","stage":"","mentions":[{"source":"issue-comment","url":"https://github.com/isseis/yt2column/pull/42#issuecomment-3","createdAt":"2026-11-20T10:02:00Z","updatedAt":"2026-11-20T10:02:00Z","byUser":false,"byBot":false}]}`,
+		},
+		{
+			name: "unreadable_exits_0",
+			steps: []cmdrunnertestutil.Step{
+				repoStep(),
+				ghStep("", &cmdrunner.ExitError{Code: 1, Stderr: []byte(testSecret)}, "api", "user"),
+			},
+			want: proto + `"state":"unreadable","reason":"call-failed","stage":"user","mentions":[]}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newTestRun(t, tc.steps)
+			if code := r.Run(t, line...); code != exitContinue {
+				t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
+			}
+			if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != tc.want {
+				t.Errorf("stdout = %s\nwant     %s", got, tc.want)
+			}
+			if strings.Contains(r.Stdout.String(), testSecret) || r.Stderr.Len() != 0 {
+				t.Errorf("leaked or wrote stderr: stdout=%q stderr=%q", r.Stdout, r.Stderr)
+			}
 		})
-		if code := r.Run(t, line...); code != exitContinue {
-			t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
-		}
-		want := proto + `"state":"ok","reason":"","stage":"","mentions":[{"source":"issue-comment","url":"https://github.com/isseis/yt2column/pull/42#issuecomment-3","createdAt":"2026-11-20T10:02:00Z","updatedAt":"2026-11-20T10:02:00Z","byUser":false,"byBot":false}]}`
-		if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != want {
-			t.Errorf("stdout = %s\nwant     %s", got, want)
-		}
-		if strings.Contains(r.Stdout.String(), testSecret) || r.Stderr.Len() != 0 {
-			t.Errorf("leaked or wrote stderr: stdout=%q stderr=%q", r.Stdout, r.Stderr)
-		}
-	})
-	t.Run("unreadable_exits_0", func(t *testing.T) {
-		r := newTestRun(t, []cmdrunnertestutil.Step{
-			repoStep(),
-			ghStep("", &cmdrunner.ExitError{Code: 1, Stderr: []byte(testSecret)}, "api", "user"),
-		})
-		if code := r.Run(t, line...); code != exitContinue {
-			t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
-		}
-		want := proto + `"state":"unreadable","reason":"call-failed","stage":"user","mentions":[]}`
-		if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != want {
-			t.Errorf("stdout = %s\nwant     %s", got, want)
-		}
-		if strings.Contains(r.Stdout.String(), testSecret) || r.Stderr.Len() != 0 {
-			t.Errorf("leaked or wrote stderr: stdout=%q stderr=%q", r.Stdout, r.Stderr)
-		}
-	})
+	}
 	for _, tc := range []struct {
 		name string
 		line []string
@@ -841,39 +844,51 @@ func TestCIChecksRun(t *testing.T) {
 		}}
 		return r
 	}
-	t.Run("passed_with_head", func(t *testing.T) {
-		r := newCIRun(t, gqlOut, nil)
-		if code := r.Run(t, args(cmdCIChecks, "--head", head, testPR)...); code != exitContinue {
-			t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
-		}
-		want := proto + `"state":"passed","reason":"","head":"` + head + `","suites":1,"checks":1,"failing":[]}`
-		if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != want {
-			t.Errorf("stdout = %s\nwant     %s", got, want)
-		}
-		if r.Stderr.Len() != 0 {
-			t.Errorf("stderr %q, want none", r.Stderr)
-		}
-	})
-	t.Run("head_changed_exits_0", func(t *testing.T) {
-		r := newCIRun(t, gqlOut, nil)
-		if code := r.Run(t, args(cmdCIChecks, "--head", other, testPR)...); code != exitContinue {
-			t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
-		}
-		want := proto + `"state":"unreadable","reason":"head-changed","head":"` + head + `","suites":0,"checks":0,"failing":[]}`
-		if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != want {
-			t.Errorf("stdout = %s\nwant     %s", got, want)
-		}
-	})
-	t.Run("without_head", func(t *testing.T) {
-		r := newCIRun(t, gqlOut, nil)
-		if code := r.Run(t, args(cmdCIChecks, testPR)...); code != exitContinue {
-			t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
-		}
-		want := proto + `"state":"passed","reason":"","head":"` + head + `","suites":1,"checks":1,"failing":[]}`
-		if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != want {
-			t.Errorf("stdout = %s\nwant     %s", got, want)
-		}
-	})
+	for _, tc := range []struct {
+		name    string
+		line    []string
+		out     string
+		callErr error
+		want    string
+	}{
+		{
+			name: "passed_with_head",
+			line: args(cmdCIChecks, "--head", head, testPR),
+			out:  gqlOut,
+			want: proto + `"state":"passed","reason":"","head":"` + head + `","suites":1,"checks":1,"failing":[]}`,
+		},
+		{
+			name: "head_changed_exits_0",
+			line: args(cmdCIChecks, "--head", other, testPR),
+			out:  gqlOut,
+			want: proto + `"state":"unreadable","reason":"head-changed","head":"` + head + `","suites":0,"checks":0,"failing":[]}`,
+		},
+		{
+			name: "without_head",
+			line: args(cmdCIChecks, testPR),
+			out:  gqlOut,
+			want: proto + `"state":"passed","reason":"","head":"` + head + `","suites":1,"checks":1,"failing":[]}`,
+		},
+		{
+			name:    "call_failed_exits_0",
+			line:    args(cmdCIChecks, "--head", head, testPR),
+			callErr: &cmdrunner.ExitError{Code: 1, Stderr: []byte(testSecret)},
+			want:    proto + `"state":"unreadable","reason":"call-failed","head":"","suites":0,"checks":0,"failing":[]}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newCIRun(t, tc.out, tc.callErr)
+			if code := r.Run(t, tc.line...); code != exitContinue {
+				t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
+			}
+			if got := strings.TrimSuffix(r.Stdout.String(), "\n"); got != tc.want {
+				t.Errorf("stdout = %s\nwant     %s", got, tc.want)
+			}
+			if strings.Contains(r.Stdout.String(), testSecret) || r.Stderr.Len() != 0 {
+				t.Errorf("leaked or wrote stderr: stdout=%q stderr=%q", r.Stdout, r.Stderr)
+			}
+		})
+	}
 	for _, tc := range []struct {
 		name string
 		line []string

@@ -875,52 +875,53 @@ func TestIsRequestComment(t *testing.T) {
 // pullRequest.commits.nodes, is never read as a response, automatic review, or
 // completion marker.
 func TestReviewStateNonPRCommitIgnored(t *testing.T) {
-	t.Run("coderabbit", func(t *testing.T) {
-		outside := mustJSON(t, rsCommitOf(rsSecond, rsFinished(99, at("10:00:20"), at("10:03:00"))).json())
-		in := rsInput{
-			comments: defaultComments(),
-			commits:  []rsCommit{rsCommitOf(rsHead)},
-			edit: map[string]func(string) string{
+	for _, tc := range []struct {
+		name    string
+		outside rsCommit
+		in      rsInput
+		want    PRReviewState
+	}{
+		{
+			name:    "coderabbit",
+			outside: rsCommitOf(rsSecond, rsFinished(99, at("10:00:20"), at("10:03:00"))),
+			in:      rsInput{comments: defaultComments(), commits: []rsCommit{rsCommitOf(rsHead)}},
+			want:    rsWant(RequestWaiting),
+		},
+		{
+			name:    "sourcery_auto",
+			outside: rsSourceryCommitOf(rsHead, rsSourceryFinished(99, at("10:00:20"), at("10:03:00"))),
+			in:      rsInput{profile: ProfileSourcery, commits: []rsCommit{rsSourceryCommitOf(rsHead)}},
+			want:    rsWantFor(ProfileSourcery, RequestNone),
+		},
+		{
+			name:    "sourcery_manual",
+			outside: rsSourceryCommitOf(rsSecond, rsSourceryFinished(99, at("10:00:20"), at("10:03:00"))),
+			in: rsInput{
+				profile:  ProfileSourcery,
+				comments: []rsComment{{id: 1, login: rsUser, kind: typenameUser, body: rsSourceryReq1, created: rsCreated}},
+				commits:  []rsCommit{rsSourceryCommitOf(rsHead)},
+			},
+			want: rsWantFor(ProfileSourcery, RequestWaiting),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			outside := mustJSON(t, tc.outside.json())
+			in := tc.in
+			in.edit = map[string]func(string) string{
 				rsStageGraphQL: func(s string) string {
 					return strings.Replace(s, `"commits":{`, `"otherCommit":`+outside+`,"commits":{`, 1)
 				},
-			},
-		}
-		checkReviewState(t, in, rsWant(RequestWaiting))
-	})
-	t.Run("sourcery_auto", func(t *testing.T) {
-		outside := mustJSON(t, rsSourceryCommitOf(rsHead, rsSourceryFinished(99, at("10:00:20"), at("10:03:00"))).json())
-		in := rsInput{
-			profile: ProfileSourcery,
-			commits: []rsCommit{rsSourceryCommitOf(rsHead)},
-			edit: map[string]func(string) string{
-				rsStageGraphQL: func(s string) string {
-					return strings.Replace(s, `"commits":{`, `"otherCommit":`+outside+`,"commits":{`, 1)
-				},
-			},
-		}
-		checkReviewState(t, in, rsWantFor(ProfileSourcery, RequestNone))
-	})
-	t.Run("sourcery_manual", func(t *testing.T) {
-		outside := mustJSON(t, rsSourceryCommitOf(rsSecond, rsSourceryFinished(99, at("10:00:20"), at("10:03:00"))).json())
-		in := rsInput{
-			profile:  ProfileSourcery,
-			comments: []rsComment{{id: 1, login: rsUser, kind: typenameUser, body: rsSourceryReq1, created: rsCreated}},
-			commits:  []rsCommit{rsSourceryCommitOf(rsHead)},
-			edit: map[string]func(string) string{
-				rsStageGraphQL: func(s string) string {
-					return strings.Replace(s, `"commits":{`, `"otherCommit":`+outside+`,"commits":{`, 1)
-				},
-			},
-		}
-		checkReviewState(t, in, rsWantFor(ProfileSourcery, RequestWaiting))
-	})
+			}
+			checkReviewState(t, in, tc.want)
+		})
+	}
 }
 
 // TestReviewStateObserved: responses shaped after real probe observations for
 // both CodeRabbit and Sourcery AI, read from files under testdata/review_state.
 // Unread members and unread bodies stay out of the result.
 func TestReviewStateObserved(t *testing.T) {
+	const runURL = "https://github.com/isseis/yt2column/runs/"
 	read := func(name string) string {
 		data, err := os.ReadFile(filepath.Join("testdata", "review_state", name))
 		if err != nil {
@@ -928,123 +929,82 @@ func TestReviewStateObserved(t *testing.T) {
 		}
 		return string(data)
 	}
-	t.Run("coderabbit", func(t *testing.T) {
-		const head = "f24ee60a00000000000000000000000000000000"
-		now := "Fri, 20 Nov 2026 04:35:00 GMT"
-		steps := []cmdrunnertestutil.Step{
-			repoStep(),
-			includeStep("pulls/"+testPR, includedOutput(200, []string{"Date: " + now}, read("pull.json")), nil),
-			{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"isseis"}`},
-			includeStep("issues/"+testPR+"/comments?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("comments.json")), nil),
-			graphqlStep(read("commits.json")),
-			includeStep("pulls/"+testPR+"/reviews?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("reviews.json")), nil),
-		}
-		g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, steps...))
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, err := g.PRReviewState(t.Context(), ReviewStateRequest{
-			PR: mustPR(t), Profile: ProfileCodeRabbit, Reviewer: mustLogin(t, testReviewer), Requests: []string{rsRequestText},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		const (
-			first  = "7cefaa5e00000000000000000000000000000000"
-			runURL = "https://github.com/isseis/yt2column/runs/"
-		)
-		want := newReviewState(ProfileCodeRabbit, RequestCompleted)
-		want.Head, want.Now = head, "2026-11-20T04:35:00Z"
-		want.Request = &ReviewRequest{ID: 7030003, URL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030003", CreatedAt: "2026-11-20T04:26:01Z"}
-		want.Response = &ReviewResponse{
-			Kind: RunFinished, Status: statusCompleted, Conclusion: conclusionSuccess, Commit: head,
-			URL: runURL + "64000005", StartedAt: "2026-11-20T04:26:25Z",
-		}
-		want.Markers = []ReviewMarker{
-			{
-				Commit: first, RequestID: 7030001, RequestURL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030001",
-				CheckRunURL: runURL + "64000001", CompletedAt: "2026-11-20T03:22:24Z",
-			},
-			{
-				Commit: head, RequestID: 7030003, RequestURL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030003",
-				CheckRunURL: runURL + "64000005", ReviewURL: "https://github.com/isseis/yt2column/pull/1064#pullrequestreview-4638479000",
-				CompletedAt: "2026-11-20T04:29:18Z",
-			},
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, want))
-		}
-	})
+	crFirst := "7cefaa5e00000000000000000000000000000000"
+	crHead := "f24ee60a00000000000000000000000000000000"
+	crWant := newReviewState(ProfileCodeRabbit, RequestCompleted)
+	crWant.Head, crWant.Now = crHead, "2026-11-20T04:35:00Z"
+	crWant.Request = &ReviewRequest{ID: 7030003, URL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030003", CreatedAt: "2026-11-20T04:26:01Z"}
+	crWant.Response = &ReviewResponse{
+		Kind: RunFinished, Status: statusCompleted, Conclusion: conclusionSuccess, Commit: crHead,
+		URL: runURL + "64000005", StartedAt: "2026-11-20T04:26:25Z",
+	}
+	crWant.Markers = []ReviewMarker{
+		{
+			Commit: crFirst, RequestID: 7030001, RequestURL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030001",
+			CheckRunURL: runURL + "64000001", CompletedAt: "2026-11-20T03:22:24Z",
+		},
+		{
+			Commit: crHead, RequestID: 7030003, RequestURL: "https://github.com/isseis/yt2column/pull/1064#issuecomment-7030003",
+			CheckRunURL: runURL + "64000005", ReviewURL: "https://github.com/isseis/yt2column/pull/1064#pullrequestreview-4638479000",
+			CompletedAt: "2026-11-20T04:29:18Z",
+		},
+	}
 
-	t.Run("sourcery", func(t *testing.T) {
-		const (
-			first  = "86a8f47600000000000000000000000000000000"
-			head   = "701e370100000000000000000000000000000000"
-			runURL = "https://github.com/isseis/yt2column/runs/"
-		)
-		now := "Mon, 23 Nov 2026 10:35:00 GMT"
-		steps := []cmdrunnertestutil.Step{
-			repoStep(),
-			includeStep("pulls/"+testPR, includedOutput(200, []string{"Date: " + now}, read("sourcery_pull.json")), nil),
-			{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"isseis"}`},
-			includeStep("issues/"+testPR+"/comments?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("sourcery_comments.json")), nil),
-			graphqlStep(read("sourcery_commits.json")),
-			includeStep("pulls/"+testPR+"/reviews?per_page=100&page=1", includedOutput(200, []string{"Date: " + now}, read("sourcery_reviews.json")), nil),
-		}
-		g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, steps...))
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, err := g.PRReviewState(t.Context(), ReviewStateRequest{
-			PR:       mustPR(t),
-			Profile:  ProfileSourcery,
-			Reviewer: mustLogin(t, rsSourceryReviewer),
-			Requests: []string{rsSourceryReq1, rsSourceryReq2},
+	sFirst := "86a8f47600000000000000000000000000000000"
+	sHead := "701e370100000000000000000000000000000000"
+	sWant := newReviewState(ProfileSourcery, RequestCompleted)
+	sWant.Head, sWant.Now = sHead, "2026-11-23T10:35:00Z"
+	sWant.Request = &ReviewRequest{
+		ID: 7097744738, URL: "https://github.com/isseis/yt2column/pull/1094#issuecomment-7097744738", CreatedAt: "2026-11-23T10:17:45Z",
+	}
+	sWant.Response = &ReviewResponse{
+		Kind: RunFinished, Status: statusCompleted, Conclusion: conclusionSuccess, Commit: sFirst,
+		URL: runURL + "137624879984", StartedAt: "2026-11-23T10:17:52Z",
+	}
+	sWant.AutoReview = &AutoReview{
+		State: AutoSkipped, Kind: RunSkipped, Status: statusCompleted, Conclusion: conclusionSkipped, Commit: sHead,
+		URL: runURL + "137631000000", StartedAt: "2026-11-23T10:30:00Z",
+	}
+	// Only the manual request's completion on sFirst is a marker; the
+	// overlapping automatic completion on the second commit neither competes
+	// nor enters Markers.
+	sWant.Markers = []ReviewMarker{
+		{
+			Commit: sFirst, RequestID: 7097744738, RequestURL: "https://github.com/isseis/yt2column/pull/1094#issuecomment-7097744738",
+			CheckRunURL: runURL + "137624879984", ReviewURL: "https://github.com/isseis/yt2column/pull/1094#pullrequestreview-6019960677",
+			CompletedAt: "2026-11-23T10:27:39Z",
+		},
+	}
+
+	for _, tc := range []struct {
+		name     string
+		prefix   string
+		now      string
+		profile  ReviewProfile
+		reviewer string
+		requests []string
+		want     PRReviewState
+	}{
+		{"coderabbit", "", "Fri, 20 Nov 2026 04:35:00 GMT", ProfileCodeRabbit, testReviewer, []string{rsRequestText}, crWant},
+		{"sourcery", "sourcery_", "Mon, 23 Nov 2026 10:35:00 GMT", ProfileSourcery, rsSourceryReviewer, []string{rsSourceryReq1, rsSourceryReq2}, sWant},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			steps := []cmdrunnertestutil.Step{
+				repoStep(),
+				includeStep("pulls/"+testPR, includedOutput(200, []string{"Date: " + tc.now}, read(tc.prefix+"pull.json")), nil),
+				{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"isseis"}`},
+				includeStep("issues/"+testPR+"/comments?per_page=100&page=1", includedOutput(200, []string{"Date: " + tc.now}, read(tc.prefix+"comments.json")), nil),
+				graphqlStep(read(tc.prefix + "commits.json")),
+				includeStep("pulls/"+testPR+"/reviews?per_page=100&page=1", includedOutput(200, []string{"Date: " + tc.now}, read(tc.prefix+"reviews.json")), nil),
+			}
+			got := runReviewStateStepsFor(t.Context(), t, steps, ReviewStateRequest{
+				PR: mustPR(t), Profile: tc.profile, Reviewer: mustLogin(t, tc.reviewer), Requests: tc.requests,
+			})
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, tc.want))
+			}
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		want := newReviewState(ProfileSourcery, RequestCompleted)
-		want.Head, want.Now = head, "2026-11-23T10:35:00Z"
-		want.Request = &ReviewRequest{
-			ID:        7097744738,
-			URL:       "https://github.com/isseis/yt2column/pull/1094#issuecomment-7097744738",
-			CreatedAt: "2026-11-23T10:17:45Z",
-		}
-		want.Response = &ReviewResponse{
-			Kind:       RunFinished,
-			Status:     statusCompleted,
-			Conclusion: conclusionSuccess,
-			Commit:     first,
-			URL:        runURL + "137624879984",
-			StartedAt:  "2026-11-23T10:17:52Z",
-		}
-		want.AutoReview = &AutoReview{
-			State:      AutoSkipped,
-			Kind:       RunSkipped,
-			Status:     statusCompleted,
-			Conclusion: conclusionSkipped,
-			Commit:     head,
-			URL:        runURL + "137631000000",
-			StartedAt:  "2026-11-23T10:30:00Z",
-		}
-		// Only the manual request's completion on first is a marker; the
-		// overlapping automatic completion on the second commit neither
-		// competes nor enters Markers.
-		want.Markers = []ReviewMarker{
-			{
-				Commit:      first,
-				RequestID:   7097744738,
-				RequestURL:  "https://github.com/isseis/yt2column/pull/1094#issuecomment-7097744738",
-				CheckRunURL: runURL + "137624879984",
-				ReviewURL:   "https://github.com/isseis/yt2column/pull/1094#pullrequestreview-6019960677",
-				CompletedAt: "2026-11-23T10:27:39Z",
-			},
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, want))
-		}
-	})
+	}
 }
 
 // TestReviewStateDateHeader: GitHub's clock is the Date header of a REST
@@ -1207,7 +1167,7 @@ func TestReviewStateSourceryAuto(t *testing.T) {
 	rows := []reviewStateCase{
 		{
 			name: "no_requests_no_runs",
-			in:   rsInput{profile: ProfileSourcery, commits: []rsCommit{rsSourceryCommitOf(rsHead)}},
+			in:   rsInput{profile: ProfileSourcery, commits: []rsCommit{{oid: rsHead}}},
 			want: rsWantFor(ProfileSourcery, RequestNone),
 		},
 		{
