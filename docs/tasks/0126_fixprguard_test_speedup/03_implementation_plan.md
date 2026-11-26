@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 実装の概要
@@ -483,3 +483,7 @@ PR-3 は製品を変えない。
 
 -   PR-3 のマージの後、issue #1167 を閉じる（`/runpr` が提案する）。
 -   タスク 0127 が同じひな形の補助を要るときは、そのタスクで、`fixprguardtest` をより一般的な場所に移すかを決める（設計書 10 章）。
+
+## 変更履歴
+
+- 2026-11-26 承認（isseis、#1187）
