@@ -48,6 +48,7 @@ restore() {
   else
     git switch --quiet --detach "$orig_sha" || status=1
   fi
+  [ "$(git symbolic-ref --quiet --short HEAD || true)" = "$orig_branch" ] || { echo "compare: STOP: not on the original branch" >&2; status=1; }
   [ "$(git rev-parse HEAD)" = "$orig_sha" ] || { echo "compare: STOP: not back at $orig_sha" >&2; status=1; }
   [ -z "$(git status --porcelain)" ] || { echo "compare: STOP: the work tree is not clean after the run" >&2; status=1; }
   rm -rf "$T"
@@ -186,6 +187,7 @@ for name in "${middles[@]+"${middles[@]}"}"; do
   pkg=$(sed -n "${ln}p" "$T/top.leaves" | cut -f1)
   run_single "$pkg" "$name" || mid_failed=1
 done
+[ "${#middles[@]}" -gt 0 ] || { echo "middle FAILED: no middle name given"; mid_failed=1; }
 check "single-middle" "$mid_failed"
 
 echo "== shuffle (AFTER) =="

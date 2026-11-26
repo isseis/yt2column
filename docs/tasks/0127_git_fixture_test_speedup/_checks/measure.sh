@@ -42,6 +42,7 @@ restore() {
   else
     git switch --quiet --detach "$orig_sha" || status=1
   fi
+  [ "$(git symbolic-ref --quiet --short HEAD || true)" = "$orig_branch" ] || { echo "measure: STOP: not on the original branch" >&2; status=1; }
   [ "$(git rev-parse HEAD)" = "$orig_sha" ] || { echo "measure: FAIL: not back at $orig_sha" >&2; status=1; }
   [ -z "$(git status --porcelain)" ] || { echo "measure: FAIL: the work tree is not clean after the run" >&2; status=1; }
   rm -rf "$CHECK_TMP"
