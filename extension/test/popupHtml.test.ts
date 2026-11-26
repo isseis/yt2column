@@ -52,6 +52,10 @@ describe("popup.html skeleton", () => {
     assert.equal(popupDocument().documentElement.lang, "en");
   });
 
+  it("has the static page title YomuDoga", () => {
+    assert.equal(popupDocument().title, "YomuDoga");
+  });
+
   it("names the rejection card by the reason's sentence", () => {
     const doc = popupDocument();
     assert.equal(
@@ -135,8 +139,8 @@ describe("viewer.html skeleton", () => {
     assert.equal(viewerDocument().documentElement.lang, "en");
   });
 
-  it("has a page title that is not empty before the viewer sets it", () => {
-    assert.notEqual(viewerDocument().title.trim(), "");
+  it("has the static page title YomuDoga before the viewer sets it", () => {
+    assert.equal(viewerDocument().title, "YomuDoga");
   });
 
   it("orders the heading, channel name, video link, existing-article notice, state, article and operations as they are shown", () => {

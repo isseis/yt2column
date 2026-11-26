@@ -24,7 +24,7 @@ export const ja: Catalog = {
       steps: [
         "https://www.youtube.com/watch?v=... のような動画ページを開いてください。",
         "文字起こしパネルを開き、字幕の行を選択してください。",
-        "もう一度 yt2column を起動してください。",
+        "もう一度ヨムドウガを起動してください。",
       ],
     },
     "empty-selection": {
@@ -32,7 +32,7 @@ export const ja: Catalog = {
       steps: [
         "「文字起こしを表示」で文字起こしパネルを開いてください。",
         "字幕の行を選択してください。",
-        "もう一度 yt2column を起動してください。",
+        "もう一度ヨムドウガを起動してください。",
       ],
     },
     "empty-title": { text: "タブにタイトルがありません。", steps: [] },
@@ -276,7 +276,7 @@ export const ja: Catalog = {
     },
   },
   viewerTitle: {
-    name: { release: "yt2column", dev: "yt2column（開発用のビルド）" },
+    name: { release: "ヨムドウガ", dev: "ヨムドウガ（開発用のビルド）" },
     invalidLink: "正しくないリンク",
     untitled: "タイトルのない動画",
   },
@@ -286,7 +286,7 @@ export const ja: Catalog = {
   },
   buildMark: "開発用のビルド",
   optionsPage: {
-    title: "yt2column の設定",
+    title: "ヨムドウガの設定",
     heading: "設定",
     apiKey: "Anthropic の API キー",
     apiKeyHint:

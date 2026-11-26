@@ -1,12 +1,12 @@
 {
   "extName": {
-    "message": "yt2column"
+    "message": "ヨムドウガ for YouTube™"
   },
   "extNameDev": {
-    "message": "yt2column（開発用のビルド）",
+    "message": "ヨムドウガ（開発用のビルド）",
     "description": "The extension's name in the development build's manifest."
   },
   "extDescription": {
-    "message": "選択した YouTube の文字起こしを、ブラウザの中で、自分の Anthropic API キーを使ってコラム記事にします。"
+    "message": "YouTube™ 動画を、さっと読める新聞・雑誌風の日本語コラム記事に。選んだ文字起こしから、AI が読みやすく編集します。"
   }
 }

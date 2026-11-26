@@ -252,24 +252,45 @@ describe("locales", () => {
     }
   });
 
-  it("names the extension the same way and describes it in each language", () => {
+  it("gives each locale the decided release name, development name and description", () => {
     const byLocale = catalogs();
-    // Precondition: the walk reached the catalogs.
-    assert.ok(byLocale.size > 0, "found no catalogs");
-    const descriptions = new Set<string>();
-    for (const [locale, catalog] of byLocale) {
-      assert.equal(messageOf(catalog, "extName", locale), "yt2column", locale);
+    // The extension is named and described by the values decided per locale;
+    // a changed name, note or description fails here.
+    const decided = [
+      {
+        locale: "en",
+        extName: "YomuDoga for YouTube™",
+        extNameDev: "YomuDoga (development build)",
+        extDescription:
+          "Turns YouTube™ videos into readable Japanese magazine-style column articles from your selected transcript with AI.",
+      },
+      {
+        locale: "ja",
+        extName: "ヨムドウガ for YouTube™",
+        extNameDev: "ヨムドウガ（開発用のビルド）",
+        extDescription:
+          "YouTube™ 動画を、さっと読める新聞・雑誌風の日本語コラム記事に。選んだ文字起こしから、AI が読みやすく編集します。",
+      },
+    ];
+    // Precondition: the walk reached exactly the decided locales.
+    assert.equal(byLocale.size, decided.length);
+    for (const { locale, extName, extNameDev, extDescription } of decided) {
+      const catalog = byLocale.get(locale);
+      assert.ok(catalog !== undefined, locale);
+      assert.equal(messageOf(catalog, "extName", locale), extName, locale);
+      assert.equal(
+        messageOf(catalog, "extNameDev", locale),
+        extNameDev,
+        locale,
+      );
       const description = messageOf(catalog, "extDescription", locale);
-      assert.notEqual(description.trim(), "", locale);
+      assert.equal(description, extDescription, locale);
       // Chrome rejects a manifest description longer than 132 characters.
       assert.ok(description.length <= 132, locale);
       // The description is written in its own language: Japanese has
       // Japanese script, English has none.
       assert.equal(hasJapaneseScript(description), locale === "ja", locale);
-      descriptions.add(description.trim());
     }
-    // Each language gets its own description, not the English one copied.
-    assert.equal(descriptions.size, byLocale.size);
   });
 });
 

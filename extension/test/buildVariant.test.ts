@@ -57,6 +57,9 @@ describe("devManifest", () => {
     );
     const manifest = JSON.parse(devManifest(text)) as Record<string, unknown>;
     assert.equal("key" in manifest, false);
+    // The development build points the name at the development message, which
+    // is what chrome://extensions/ shows for it.
+    assert.equal(manifest["name"], "__MSG_extNameDev__");
     for (const locale of ["en", "ja"]) {
       const catalog = JSON.parse(
         readFileSync(
@@ -71,9 +74,13 @@ describe("devManifest", () => {
         ),
       ) as Record<string, { message: string }>;
       const name = catalog["extNameDev"]?.message ?? "";
-      // The development name is told apart from the release name.
+      // The development name is told apart from the release name and starts
+      // with the core product name of its own language.
       assert.notEqual(name, catalog["extName"]?.message, locale);
-      assert.ok(name.startsWith("yt2column"), locale);
+      assert.ok(
+        name.startsWith(locale === "ja" ? "ヨムドウガ" : "YomuDoga"),
+        locale,
+      );
     }
   });
 

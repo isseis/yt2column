@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 
 import type { BuildKind } from "../src/buildKind.d.ts";
+import { catalogs } from "../src/core/i18n/catalog.ts";
 import { locales } from "../src/core/i18n/locale.ts";
 import type { Locale } from "../src/core/i18n/locale.ts";
 import { viewerTitle } from "../src/core/viewerTitle.ts";
@@ -21,38 +22,38 @@ describe("viewerTitle", () => {
       {
         name: "a record's video title",
         source: { kind: "record", videoTitle: "Video", heading: "Tab" },
-        en: "Video - yt2column",
-        ja: "Video - yt2column",
+        en: "Video - YomuDoga",
+        ja: "Video - ヨムドウガ",
       },
       {
         name: "a record's heading when it has no video title",
         source: { kind: "record", videoTitle: "", heading: "Tab" },
-        en: "Tab - yt2column",
-        ja: "Tab - yt2column",
+        en: "Tab - YomuDoga",
+        ja: "Tab - ヨムドウガ",
       },
       {
         name: "a start context's video title",
         source: { kind: "start", videoTitle: "Video", heading: "Tab" },
-        en: "Video - yt2column",
-        ja: "Video - yt2column",
+        en: "Video - YomuDoga",
+        ja: "Video - ヨムドウガ",
       },
       {
         name: "a start context's heading when it has no video title",
         source: { kind: "start", videoTitle: "", heading: "Tab" },
-        en: "Tab - yt2column",
-        ja: "Tab - yt2column",
+        en: "Tab - YomuDoga",
+        ja: "Tab - ヨムドウガ",
       },
       {
         name: "the URL's title when neither is left",
         source: { kind: "url", urlTitle: "From URL" },
-        en: "From URL - yt2column",
-        ja: "From URL - yt2column",
+        en: "From URL - YomuDoga",
+        ja: "From URL - ヨムドウガ",
       },
       {
         name: "the fixed title of an invalid link",
         source: { kind: "invalid-link" },
-        en: "Invalid link - yt2column",
-        ja: "正しくないリンク - yt2column",
+        en: "Invalid link - YomuDoga",
+        ja: "正しくないリンク - ヨムドウガ",
       },
     ];
   for (const { name, source, en, ja } of rows) {
@@ -62,9 +63,10 @@ describe("viewerTitle", () => {
     });
   }
 
-  it("names a build as its manifest does, in each locale", () => {
-    // The development manifest's name is the extNameDev message (the build
-    // writes it), and the release one is extName.
+  it("keeps the manifest names consistent with the viewer title, in each locale", () => {
+    // The release title ends with the core product name (viewerTitle.name),
+    // and the manifest's release name is that name plus the store's note. The
+    // development title is the extNameDev message, which the build writes.
     for (const locale of localeList) {
       const messages = JSON.parse(
         readFileSync(
@@ -78,14 +80,17 @@ describe("viewerTitle", () => {
           "utf8",
         ),
       ) as Record<string, { message: string }>;
+      const coreName = catalogs[locale].viewerTitle.name.release;
       const source: TitleSource = { kind: "url", urlTitle: "V" };
       assert.equal(
-        viewerTitle(source, "release", locale),
-        `V - ${messages["extName"]?.message}`,
+        messages["extName"]?.message,
+        `${coreName} for YouTube™`,
+        locale,
       );
       assert.equal(
         viewerTitle(source, "dev", locale),
         `V - ${messages["extNameDev"]?.message}`,
+        locale,
       );
     }
   });
@@ -97,11 +102,11 @@ describe("viewerTitle", () => {
         "release",
         "en",
       ),
-      "Tab - yt2column",
+      "Tab - YomuDoga",
     );
     assert.equal(
       viewerTitle({ kind: "url", urlTitle: " " }, "release", "en"),
-      "Untitled video - yt2column",
+      "Untitled video - YomuDoga",
     );
   });
 
