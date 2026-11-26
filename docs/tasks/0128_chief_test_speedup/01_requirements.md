@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `simple` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -160,3 +160,7 @@
 -   **変更前の木・変更後の木:** 変更前の木はマージベース（`git merge-base origin/main HEAD`）の木、変更後の木は PR のブランチの `HEAD` の木である。
 -   **パッケージの経過時間:** `go test -json` がパッケージの終わりに出す `pass` の行（`Test` を持たない行）の `Elapsed` の値（秒）である。テストのバイナリの実行の時間で、ビルドの時間は含まない。
 -   用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+- 2026-11-26 承認（isseis、#1176）
