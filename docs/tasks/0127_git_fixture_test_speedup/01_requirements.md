@@ -35,7 +35,7 @@ issue #1168 の計測（`go test -tags test -race -count=1 ./...`）では、次
 
 -   git の設定のシナリオ 1 件（`TestReviewRecordsCoverage/path-bash/git_config/repository/diff.noprefix`）を単独で走らせると 2.14 秒だった。その内訳は、フィクスチャの作成が約 0.24 秒、ブランチの組み立て（`rrConfigBranch`）が約 0.44 秒、`review-records.sh` の 1 回の実行が約 0.93 秒（`PATH` の bash でも `/bin/bash` でも同じ）である。issue の計測で同じ種類のシナリオが 15〜16 秒かかったのは、並列実行での CPU の取り合いのためと推測する（確かめていない）。
 -   したがって、時間の大半はスクリプトの実行であり、issue が挙げる原因（フィクスチャの作り直し）は一部にとどまる。この計測から、issue の改善方針 1・2（テンプレートのリポジトリの複製）だけでは、後述の目標（F-001）に届かないおそれがあることが分かる。
--   `go test -tags test -race -count=1 ./cmd/yt2column ./internal/mergepr`（2 つのパッケージだけ）を 1 回流すと、`cmd/yt2column` が 261.4 秒、`internal/mergepr` が 105.0 秒だった。issue の `./...` での値より短いのは、ほかのパッケージと CPU を取り合わないためと推測する。`cmd/yt2column` には、3 つのファイルのほかにも git のフィクスチャや bash を使うテスト（`cross_check_state_docs_test.go`・`adr_candidates_docs_test.go`）があり、それらは本タスクの短縮の対象にしない。その時間はまだ測っておらず、目標に届くかどうかの見込みは、設計で見積もる（[design_handoff.md](design_handoff.md) の H-02）。
+-   `go test -tags test -race -count=1 ./cmd/yt2column ./internal/mergepr`（2 つのパッケージだけ）を 1 回流すと、`cmd/yt2column` が 261.4 秒、`internal/mergepr` が 105.0 秒だった。issue の `./...` での値より短いのは、ほかのパッケージと CPU を取り合わないためと推測する。`cmd/yt2column` には、3 つのファイルのほかにも git のフィクスチャや bash を使うテスト（`cross_check_state_docs_test.go`・`adr_candidates_docs_test.go`）があり、それらは本タスクの短縮の対象にしない。その時間は、下の「計測の記録」に床として測った（[design_handoff.md](design_handoff.md) の H-02）。
 
 対応 issue: [#1168](https://github.com/isseis/yt2column/issues/1168)
 
@@ -58,11 +58,11 @@ issue #1168 の計測（`go test -tags test -race -count=1 ./...`）では、次
 
 **設計の着手の前の計測で決めたこと（2026-11-26）:**
 
--   **短縮の目標の値:** 当初の 50% 以下を、両方のパッケージとも 75% 以下に下げる（上の「短縮の目標」）。理由: `/mkarch` が設計の前に時間の内訳を測った（[design_handoff.md](design_handoff.md) の H-01・H-02）。その結果、bash 3 での全件の二重の実行（AC-05）を保つ限り、50% 以下には届かない見込みになった。計測の内容は次の「計測の記録」に書く。人は、目標を下げる案と、bash 3 の実行を代表のケースに絞って 50% を保つ案から、目標を下げる案を選び、値には 75% を選んだ。ADR はなし（このタスクの目標で、ほかのタスクを縛らない）。
--   **計測の記録:** 手元（12 コアの macOS、`PATH` の bash は 5.3.15、`/bin/bash` は 3.2.57、Go 1.27.1、`GOMAXPROCS` は設定しない）で、コミット `98456465` の木の上で測った。各値は 1 回の計測である。
-    -   **基準と床:** 計測の条件のコマンドを 1 回流すと、`cmd/yt2column` が 187.5 秒、`internal/mergepr` が 74.8 秒だった。3 つのファイルの最上位のテスト関数を `-skip` で除くと、`cmd/yt2column` が 48.5 秒、`internal/mergepr` が 26.9 秒だった（本タスクで減らさない床）。
-    -   **プロセスの数:** `review_records_test.go` と `high_review_decision_test.go` の基準の実行では、テストの準備（フィクスチャとブランチの組み立て）が git を 15,464 回起動し、そのうち約 8,600 回はフィクスチャの初期状態の組み立てだった。下の試作の後に `PATH` に記録用の git を置いて数えると、git の起動 30,558 回のうち 22,303 回（約 4 分の 3、1 回の実行あたり約 30 回）を `review-records.sh` 自身が行った。`mergemain_test.go` では、git の呼び出しの 68% を、テストする `mergemain` 自身が行った。実行の時間はプロセスの数にほぼ比例し、AC-05 はスクリプトの実行を減らさないので、それが床になる。
-    -   **単独の時間:** 負荷のないときの `review-records.sh` の 1 回の実行は、ふつうのケースで約 0.15 秒、git の設定のシナリオのブランチで約 0.7 秒だった。§1 の約 0.93 秒は、ほかのケースと並列に走ったときの値に近い。
+-   **短縮の目標の値:** 当初の 50% 以下を、両方のパッケージとも 75% 以下に下げる（上の「短縮の目標」）。理由: `/mkarch` が設計の前に時間の内訳を測った（[design_handoff.md](design_handoff.md) の H-01・H-02）。その結果、どちらのパッケージも 50% 以下には届かない見込みになった。`cmd/yt2column` では、bash 3 での全件の二重の実行（AC-05）を保つ限り、スクリプトの実行が床になる。`internal/mergepr` には bash の二重の実行がなく、テストする `mergemain` 自身の git の呼び出しが床になる。計測の内容は次の「計測の記録」に書く。人は、目標を下げる案と、bash 3 の実行を代表のケースに絞って `cmd/yt2column` の 50% を保つ案から、目標を下げる案を選び、値には両方とも 75% を選んだ。`internal/mergepr` の 75% は試作のない見込みに基づくので、届かないおそれが残る。ADR はなし（このタスクの目標で、ほかのタスクを縛らない）。
+-   **計測の記録:** 手元（12 コアの macOS、`PATH` の bash は 5.3.15、`/bin/bash` は 3.2.57、Go 1.27.1、`GOMAXPROCS` は設定しない）で、コミット `98456465` の木の上で測った。各値は 1 回の計測である。基準と試作は、同じセッションの中で続けて測った。
+    -   **基準と床:** 計測の条件のコマンドを 1 回流すと、`cmd/yt2column` が 187.5 秒、`internal/mergepr` が 74.8 秒だった。3 つのファイルの最上位のテスト関数を `-skip` で除くと、`cmd/yt2column` が 48.5 秒、`internal/mergepr` が 26.9 秒だった（本タスクで減らさない床）。§1 の値（`6c60f9f8` の木で 261.4 秒・105.0 秒）とは、2 つのパッケージのテストとスクリプトが同じ（`git diff 6c60f9f8 98456465` に `cmd/yt2column`・`internal/mergepr`・`.claude/commands/_lib` の変更がない）なのに、約 3 割違う。原因は確かめていない（機械の負荷の違いと推測する）。この幅は目標との差より大きいので、BASE と AFTER を同じ状態の機械で測ることが、F-001 の比較の前提になる。
+    -   **プロセスの数:** `review_records_test.go` と `high_review_decision_test.go` の基準の実行では、テストの準備（フィクスチャとブランチの組み立て）が git を 15,464 回起動し、そのうち約 8,600 回はフィクスチャの初期状態の組み立てだった。下の試作の木で `PATH` に記録用の git を置いて数えると、git の起動 30,558 回のうち 22,303 回（約 4 分の 3、1 回の実行あたり約 30 回）を `review-records.sh` 自身が行った。`mergemain_test.go` の基準の実行では、git の呼び出しの 68% を、テストする `mergemain` 自身が行った。この中には、復元や push を確かめるケースが準備として行う `mergemain` の begin と merge も含まれる。実行の時間はプロセスの数にほぼ比例する。AC-05 は、bash ごとの、各ケースのスクリプトの実行を減らすことを許さないので、それが床になる。
+    -   **単独の時間:** 負荷のないときの `review-records.sh` の 1 回の実行は、ふつうのケースで約 0.15 秒、git の設定のシナリオのブランチで約 0.7 秒だった。
     -   **試作:** `review_records_test.go` だけについて、フィクスチャの初期状態をテンプレートから複製し、git の設定のシナリオの設定の前の実行をグループごとに 1 回にし、bash ごとのサブテストを作る 4 つの最上位のテスト関数を並列にする試作（コミットしていない）では、`cmd/yt2column` が 187.5 秒から 143.1 秒（0.76）になった。残りの手段（ケースの準備の、2 本の bash の間での共有など）を足した見込みは 0.6〜0.7、`internal/mergepr` の見込みは 0.6〜0.8（試作なし）である。
 
 ## 2. 目的とスコープ (Goals and Scope)
