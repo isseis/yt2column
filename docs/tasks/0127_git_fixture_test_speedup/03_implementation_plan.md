@@ -209,7 +209,7 @@ ADR: なし（このタスクの目標と手順である）。
 - [x] **ステップ 6-3**: 2 つのスクリプトの壊し方を確かめる
     - スクリプトをコミットしてから、各判定が少なくとも 1 つの壊し方で失敗することを確かめ、7.3 節・7.4 節に書く。作業ツリーの検査に先に当たらないように、壊し方は、作業ツリーの外に写したスクリプトに入れるか、比べるコミットを替えて与える。失敗したのがその判定であることを、出力で確かめる
     - 壊し方の確認の時間を抑えるため、2 つのスクリプトは、対象のパッケージ・`-run`・回数を狭める引数を受け取ってよい。狭めた実行は計測として記録しない
-- [ ] **ステップ 6-4**: PR-1 の計測と記録
+- [x] **ステップ 6-4**: PR-1 の計測と記録
     - `git fetch origin main` の後、BASE を `git merge-base origin/main HEAD`、AFTER を `HEAD` にする
     - ほかの重い処理を走らせておらず、計測の間 `chief` の見張り（ほかの workspace への自動送信）を止めていることを人に問い（select-question）、答えを 7.1 節に書く
     - `measure.sh`、`compare.sh`、`make coverage-compare BASE=<BASE>`、`make test`、`make lint` を、この順に 1 つずつバックグラウンドで流す。前の実行が終わったという通知が来るまで、次の実行を始めず、ほかの重い処理も走らせず、作業ツリーも変えない（2 つのスクリプトは作業ツリーで BASE と AFTER を取り出し、計測は重い処理がないことを前提とするため）。記録は、すべての実行が終わってから 7.1・7.2・7.6・7.7 節に書く。`coverage-compare` が時間で揺れる関数で `FAIL` になったときは、きれいな作業ツリーで流し直し、すべての実行を書く（AC-06）
@@ -366,11 +366,11 @@ ADR: なし（このタスクの目標と手順である）。
 
 （`/runplan` が書く。PR ごとに、計測の前の人の答え、BASE と AFTER の完全な ID、`measure.sh` の出力の全体（機械の情報、6 回のパッケージごとの時間、中央値、割合）。PR-2 の後に、パッケージごとのこのタスクの割合と、ステップ 7-5 を足したかどうか）
 
-**PR-1（2026-11-27、結果: 止めて人に諮る）**
+**PR-1（2026-11-27、結果: 目標を 80% に改めて通った）**
 
 -   人の答え: 「止めた。始めてよい」（ほかの重い処理を走らせておらず、`chief` の見張りを止めている、という問いへの答え）
 -   BASE: `fb71447bb8bd1baa47e113573db52939b41146cd`、AFTER: `8bb968e5c28f44bafd2a3811d190e2fdac2a72ac`（AFTER と、この記録のコミットは、タスクのディレクトリの下だけが異なる）
--   `cmd/yt2column` の割合は 0.777 で、0.75 を超えた。`internal/mergepr` の PR-1 の割合は 1.076 で、1.0 を超えた（PR-1 は `internal/mergepr` を変えていない。BASE と AFTER の中央値は 41.388 秒と 44.518 秒で、6 回の値は 40.4〜45.9 秒に散らばった）。ステップ 6-4 の定めにより、作業を止め、人に知らせる
+-   `cmd/yt2column` の割合は 0.777 で、0.75 を超えた。`internal/mergepr` の PR-1 の割合は 1.076 で、1.0 を超えた（PR-1 は `internal/mergepr` を変えていない。BASE と AFTER の中央値は 41.388 秒と 44.518 秒で、6 回の値は 40.4〜45.9 秒に散らばった）。ステップ 6-4 の定めにより、作業を止めて人に知らせた。人は、`cmd/yt2column` の目標を 80% に下げること（0.777 は届く）と、`internal/mergepr` の 1.076 をぶれとして受け入れることを決めた（1.5 節）
 
 `````text
 == machine ==
@@ -407,24 +407,20 @@ measure: DONE
 
 （`/runplan` が書く。PR ごとに、BASE と AFTER の完全な ID と、`compare.sh` の出力の全体（判定ごとの結果、`-shuffle` の 2 回の実行の各パッケージのシード））
 
-**PR-1（2026-11-27、結果: 名前の集まりの判定が失敗）**
+**PR-1（2026-11-27、結果: 通った）**
 
--   BASE: `fb71447bb8bd1baa47e113573db52939b41146cd`、AFTER: `8bb968e5c28f44bafd2a3811d190e2fdac2a72ac`
--   `names` の失敗は、`internal/mergepr` の `TestBaseCommitReadsTheRefItself` の末端の名前に、実行ごとに変わるコミットの短い ID が入っているため（`feat-1-g<hash>`）。PR-1 は `internal/mergepr` を変えていない。そのほかの判定はすべて通った
+-   BASE: `fb71447bb8bd1baa47e113573db52939b41146cd`、AFTER: `fc82dc79ee53ea64e7d0587cd73449efdf4cebab`（`compare.sh` は、1.5 節の名前の比べ方を足した後のもの）
+-   最初の実行（AFTER `8bb968e5c28f44bafd2a3811d190e2fdac2a72ac`、名前の比べ方を足す前）は、`internal/mergepr` の `TestBaseCommitReadsTheRefItself` の末端の名前に実行ごとに変わるコミットの短い ID（`feat-1-g<hash>`）が入るため、`names` の判定だけが失敗した。そのほかの判定は通った。1.5 節の決定でスクリプトを直し、下の出力はやり直した実行のものである
 
 `````text
 BASE: fb71447bb8bd1baa47e113573db52939b41146cd
-AFTER: 8bb968e5c28f44bafd2a3811d190e2fdac2a72ac
+AFTER: fc82dc79ee53ea64e7d0587cd73449efdf4cebab
 packages: ./cmd/yt2column ./internal/mergepr
 == full runs ==
 full runs: both passed
 BASE leaves:     1994, AFTER leaves:     1994, BASE tops:      267
 == names, fail and skip (compare) ==
-check names: FAIL (2 differing names)
-1581c1581
-< github.com/isseis/yt2column/internal/mergepr	TestBaseCommitReadsTheRefItself/feat-1-g0790332ee4eb
----
-> github.com/isseis/yt2column/internal/mergepr	TestBaseCommitReadsTheRefItself/feat-1-g38b959e2a8a4
+check names: PASS
 check fail: PASS
 check skip: PASS
 == bash 3 leaves ==
@@ -496,11 +492,11 @@ select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/p
 check single-middle: PASS
 == shuffle (AFTER) ==
 shuffle run 1 seeds:
-github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795732527823446000
-github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795732527603826000
+github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795735735733249000
+github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795735735906905000
 shuffle run 2 seeds:
-github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795732674600069000
-github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795732674969957000
+github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795735872266431000
+github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795735871869650000
 check shuffle: PASS
 == changed files (BASE..AFTER) ==
 cmd/yt2column/fixture_snapshot_test.go
@@ -509,6 +505,8 @@ cmd/yt2column/main_test.go
 cmd/yt2column/review_records_test.go
 cmd/yt2column/test_helpers_gitfixture.go
 docs/dev/conventions/package_reference.md
+docs/tasks/0127_git_fixture_test_speedup/01_requirements.md
+docs/tasks/0127_git_fixture_test_speedup/02_architecture.md
 docs/tasks/0127_git_fixture_test_speedup/03_implementation_plan.md
 docs/tasks/0127_git_fixture_test_speedup/_checks/compare.sh
 docs/tasks/0127_git_fixture_test_speedup/_checks/measure.sh
@@ -516,7 +514,7 @@ internal/pipeline/pipeline_test.go
 internal/snapshottest/snapshot.go
 internal/snapshottest/snapshot_test.go
 check range: PASS
-compare: FAIL
+compare: PASS
 `````
 
 ### 7.3. 一時スクリプトの記録（`_checks/measure.sh`）
