@@ -4,12 +4,12 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
-| Comments | 決定の変更で draft に戻した：F-001 の短縮の目標を、基準の 50% 以下から 75% 以下に下げた |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
+| Comments | - |
 
 ## 1. 概要 (Overview)
 
@@ -170,4 +170,5 @@ issue #1168 の計測（`go test -tags test -race -count=1 ./...`）では、次
 ## 変更履歴
 
 - 2026-11-26 承認（isseis、#1174）
-- 2026-11-26 draft への戻し：F-001 の短縮の目標を、基準の 50% 以下から 75% 以下に下げた（#未記入）
+- 2026-11-26 draft への戻し：F-001 の短縮の目標を、基準の 50% 以下から 75% 以下に下げた（#1178）
+- 2026-11-26 承認（isseis、#1178）
