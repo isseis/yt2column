@@ -166,8 +166,8 @@ func TestSendMergemain(t *testing.T) {
 		if err != nil || !ok {
 			t.Fatalf("records = %v, %v", ok, err)
 		}
-		if phase := conflictPhaseOf(records, OpenPR{Number: 50, Head: mustCommitID(t, conflictTestHeadA)}); phase == ConflictUnsent {
-			t.Error("the send left no record of the PR and head")
+		if phase := conflictPhaseOf(records, OpenPR{Number: 50, Head: mustCommitID(t, conflictTestHeadA)}); phase != ConflictUnresolved {
+			t.Errorf("phase after the send = %v, want the record of the PR and head to read as unresolved", phase)
 		}
 	})
 
@@ -294,12 +294,12 @@ func TestDetailInheritsThePaneReport(t *testing.T) {
 		if d.record == nil || d.record.Source == ReportFromPane.String() || d.record.Head != prHead {
 			t.Errorf("record = %+v, want the description record of the head, not the inherited report", d.record)
 		}
-		records, _ := deps.Store.Records(Worktree{path: tree})
-		if _, ok, err := records.keptPaneReport(42, prHead); err != nil || !ok {
-			t.Fatal(ok, err)
+		records, err := deps.Store.Records(Worktree{path: tree})
+		if err != nil {
+			t.Fatal(err)
 		}
-		if kept, _, _ := records.keptPaneReport(42, prHead); kept.Source == ReportFromPane.String() {
-			t.Error("the inherited report was written as the head's record")
+		if kept, ok, err := records.keptPaneReport(42, prHead); err != nil || !ok || kept.Source == ReportFromPane.String() {
+			t.Errorf("record of the head = %+v, %v, %v; want the description record, not the inherited report", kept, ok, err)
 		}
 	})
 	t.Run("not inherited", func(t *testing.T) {
@@ -355,7 +355,6 @@ func TestDetailInheritsThePaneReport(t *testing.T) {
 	})
 	t.Run("a failed fetch inherits nothing", func(t *testing.T) {
 		sw, tree := setup(t)
-		sw.rec.replyIn(tree, "git rev-parse --verify --quiet "+prHead+"^{commit}", nil)
 		sw.rec.failIn(tree, "git rev-parse --verify --quiet "+prHead+"^{commit}", &cmdrunner.ExitError{Code: 1})
 		sw.rec.failIn(tree, "git fetch --no-tags --no-prune origin +refs/heads/"+taskBranch+":refs/remotes/origin/"+taskBranch, errors.New("offline"))
 		deps := sw.finish()
@@ -442,8 +441,11 @@ func TestManualSendBlocksAutoSendAndFlipsTheItem(t *testing.T) {
 	if out, err := Send(context.Background(), cw.deps, cw.owner(), mergemainReq(t, cw, unresolved.ID)); err != nil || out.Actions[0].Outcome != OutcomeSent {
 		t.Errorf("Send of the unresolved item = %+v, %v; want sent", out, err)
 	}
-	if _, err := Send(context.Background(), cw.deps, cw.owner(), mergemainReq(t, cw, needed.ID)); err != nil {
-		t.Fatal(err)
+	// The item of the head's first phase is not the row's item any more.
+	typed := len(cw.rec.prompts())
+	stale, err := Send(context.Background(), cw.deps, cw.owner(), mergemainReq(t, cw, needed.ID))
+	if err != nil || stale.Actions[0].Outcome != OutcomeNotSent || stale.Actions[0].Reason != NotSentNotOffered || len(cw.rec.prompts()) != typed {
+		t.Errorf("Send of the stale item = %+v, %v; want not offered and nothing typed", stale, err)
 	}
 }
 

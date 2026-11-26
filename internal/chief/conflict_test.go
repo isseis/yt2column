@@ -890,7 +890,8 @@ func TestConflictSenderConditions(t *testing.T) {
 				})
 			}, conflictReasonWorkspaceChanged, nil},
 			{"sent_since", func(t *testing.T, cw *conflictWorld) {
-				// Inject a manual send when recheck reads git status the second time.
+				// Inject a manual send when recheck reads git status the third time (the
+				// first read is the offer of buildRows, the second the first consider).
 				calls := 0
 				cw.rec.replyFunc("git status --porcelain --untracked-files=all", func() reply {
 					calls++
