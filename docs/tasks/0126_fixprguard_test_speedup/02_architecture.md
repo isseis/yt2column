@@ -86,7 +86,7 @@ flowchart LR
     -   2026-11-26 に人が選んだ。
     -   ADR: なし。既存の CLI の契約を保つだけである。
 -   **フィクスチャを速くする手段:** ひな形をパッケージで 1 回だけ作り、テストごとにコピーする。パスを含む 2 つの設定（`remote.origin.url` と `core.excludesFile`）は、コピーした `.git/config` に直接書き直してコピー先に合わせる（3.6 節）。
-    -   理由: この機械で計ると、今のフィクスチャと同じ 13 回の git を起動する手順は 1 つ約 240ms、作ったリポジトリを `cp -Rp` でコピーすると 1 つ約 20ms だった（`-race` なし、直列のシェルのループで 20 回ずつ）。コピーなら、テストごとに起動する git は 0 回になる。
+    -   理由: この機械で計ると、今のフィクスチャと同じ 13 回の git を起動する手順は 1 つ約 240ms、作ったリポジトリを `cp -Rp` でコピーすると 1 つ約 20ms だった（`-race` なし、直列のシェルのループで 20 回ずつ）。コピーなら、テストごとに起動する git は、index の stat の情報を合わせる 1 回（3.6 節）だけになる。
     -   採らなかった案: `git config` だけを直接の書き込みに置き換える案（git の起動は `internal/fixprguard` で 13 回から 6 回になるが、1 つ約 110ms 残る見込み）。2 つを組み合わせる案（ひな形を作る費用は 1 回だけなので、組み合わせても得はない）。
     -   2026-11-26 に人が選んだ。
     -   `CLAUDE.md`「Performance」の、正しさの義務を足す最適化に当たる。義務は「コピーしたリポジトリは、今の手順で作ったリポジトリと、テストごとに変わる値を除いて同じであること」で、3.6 節のテストで固定する。義務は実装のコミットメッセージに書き、最適化は振る舞いの変更と別のコミットにする。
@@ -96,7 +96,7 @@ flowchart LR
     -   採らなかった案: 2 つのパッケージにそれぞれ書く案（約 100 行が重複する）。
     -   2026-11-26 に人が選んだ。
     -   ADR: なし。テストの補助の置き場所で、このタスクの中で閉じる。
--   **`TestMain` での作業ディレクトリの変更:** 2 つのパッケージの `TestMain` は、`m.Run` の前に一度だけ、プロセスの作業ディレクトリを空の一時ディレクトリに変え、プロセスの `PWD` もそこに合わせる。その一時ディレクトリが git のリポジトリに含まれないことは、変える前に git で確かめる。含まれるときは、テストを走らせずに失敗する。`m.Run` の後には、作業ディレクトリが空のままであることを確かめる（3.5 節）。AC-04 は、設計書に場所と理由を記録することを条件に、この変更を例外として認めている。場所と理由は 3.5 節に書く。
+-   **`TestMain` での作業ディレクトリの変更:** 2 つのパッケージの `TestMain` は、`m.Run` の前に一度だけ、プロセスの作業ディレクトリを空の一時ディレクトリに変える。プロセスの `PWD` は変えない。その一時ディレクトリが git のリポジトリに含まれないことは、変える前に git で確かめる。含まれるときは、テストを走らせずに失敗する。`m.Run` の後には、作業ディレクトリが空のままであることを確かめる（3.5 節）。AC-04 は、設計書に場所と理由を記録することを条件に、この変更を例外として認めている。場所と理由は 3.5 節に書く。
     -   理由: パッケージのディレクトリ（このリポジトリの中）のままでは、漏れた操作がこのリポジトリを読み書きし、その `origin` に push しうる。空のディレクトリなら、漏れた操作は失敗する（AC-07）。
     -   作成者が決めた（要件書と H-01 の候補のとおり）。PR のレビューで確かめてもらう。
     -   ADR: なし。テストの実行の準備で、このタスクの中で閉じる。
@@ -188,7 +188,7 @@ sequenceDiagram
 | `internal/fixprguard/ignored.go` | 変更 | 無視されたファイルの走査（`:256-600`）は `WorktreeDir` を受け取る。名前は比較と記録に使い、システムコールには結んだパスを渡す |
 | `internal/fixprguard/changes.go` | 変更 | 変更の分類（`:305` の `os.Lstat`、`untrackedChange`・`examine`、`:318-390`）は `WorktreeDir` を受け取る |
 | `cmd/fixprguard/main.go` | 変更 | `env` に `dir fixprguard.WorktreeDir` を足し、`osEnv` は `fixprguard.CurrentDir()` を設定する。`execute`（`:378`）は `NewWorktree(e.dir, ...)` を呼ぶ |
-| `internal/fixprguard/fixprguardtest/*.go` | 追加 | テスト専用のパッケージ。作業ディレクトリの隔離（3.5 節）、テストの環境（3.3 節）、ひな形のコピー（3.6 節） |
+| `internal/fixprguard/fixprguardtest/*.go` | 追加 | テスト専用のパッケージ。作業ディレクトリの隔離（3.5 節）、テストの環境（3.3 節）、ひな形のコピー（3.6 節）。このパッケージ自身のテストも、`TestMain` で `IsolateWorkingDir` を呼び、git にはディレクトリを指定して起動する |
 | `internal/fixprguard/testmain_test.go`、`cmd/fixprguard/testmain_test.go` | 追加 | `TestMain`。作業ディレクトリを隔離し、ひな形を作ってから `m.Run` を呼び、後で作業ディレクトリが空かを確かめる |
 | `internal/fixprguard/test_helpers_git.go` | 変更 | `newTestRepo` は `t.Setenv`・`t.Chdir` を呼ばず、ひな形をコピーする。`newTestWorktree` はディレクトリを受け取り、そこから `WorktreeDir`、runner の `Dir`、環境を作る（3.3 節）。今の作る手順は、ひな形を作る関数として残す（3.6 節） |
 | `cmd/fixprguard/test_helpers.go` | 変更 | 同上。`newTestRun`・`realGit`・`realGitList` と、`NewWorktree(...).Baseline` などを続けて呼ぶ補助（`:140`・`:150`・`:169`）は、ディレクトリを受け取る |
@@ -290,7 +290,7 @@ type Isolation struct {
 
 // IsolateWorkingDir records the current directory, makes a new empty
 // directory, checks with git that no repository contains it, and makes it the
-// process's working directory and PWD. TestMain calls it once before m.Run.
+// process's working directory. TestMain calls it once before m.Run.
 // The returned function checks that the directory is still empty and removes
 // everything it made.
 func IsolateWorkingDir() (Isolation, func() error, error)
@@ -317,14 +317,14 @@ func (t *Template) Copy(dst string) error
 
 ### 3.5. 作業ディレクトリの隔離（`TestMain`）
 
--   **場所:** `internal/fixprguard/testmain_test.go` と `cmd/fixprguard/testmain_test.go` の `TestMain` が、`fixprguardtest.IsolateWorkingDir` を呼ぶ。プロセスの作業ディレクトリを変える `os.Chdir` と、`PWD` を合わせる `os.Setenv("PWD", ...)` は、`IsolateWorkingDir` の中の 1 か所だけにある。AC-04 が認める例外は、この 1 か所である。AC-04 の例外の文言は作業ディレクトリの変更だけを挙げるが、`PWD` の設定は作業ディレクトリの変更に付随するものなので、同じ例外の 1 か所として記録する。
--   **理由:** テストの中で動く fixprguard の操作が、渡したディレクトリを使わずに作業ディレクトリに頼ったとき、その操作がこのリポジトリとその `origin` に届かないようにするためである（AC-07）。空のディレクトリでは、`.git` がないので `locateGitDirs` が失敗し、git は `not a git repository` で失敗する。`PWD` を合わせるのは、`os.Chdir` が `PWD` を変えないためである（`t.Chdir` は変える）。合わせないと、`Env` を通らない子（`osEnv` の runner を使う直列のテスト、漏れた runner）が、このリポジトリの中を指す `PWD` を受け継ぐ。
--   **一時ディレクトリが git の外にあることの確かめ:** `os.MkdirTemp` で作った根の下に、作業ディレクトリにする空の `cwd`、確かめ用の空の `home`、ひな形を置く `template` を作る。`cwd` で、`Env(home, cwd)` の環境の git に `rev-parse --git-dir` を実行させる。
+-   **場所:** `internal/fixprguard/testmain_test.go` と `cmd/fixprguard/testmain_test.go` の `TestMain` が、`fixprguardtest.IsolateWorkingDir` を呼ぶ。プロセスの作業ディレクトリを変える `os.Chdir` は、`IsolateWorkingDir` の中の 1 か所だけにある。AC-04 が認める例外は、この 1 か所である。
+-   **理由:** テストの中で動く fixprguard の操作が、渡したディレクトリを使わずに作業ディレクトリに頼ったとき、その操作がこのリポジトリとその `origin` に届かないようにするためである（AC-07）。空のディレクトリでは、`.git` がないので `locateGitDirs` が失敗し、git は `not a git repository` で失敗する。`os.Chdir` はプロセスの `PWD` を変えないので（`t.Chdir` は変える）、`Env` を通らない子（漏れた runner）は、このリポジトリの中を指す古い `PWD` を受け継ぐ。git は `PWD` が作業ディレクトリと同じ場所を指すときだけ使うので、古い `PWD` は git の対象を変えない。`PWD` を合わせるには `os.Setenv` が要り、AC-04 の例外（作業ディレクトリの変更だけ）の外に出るので、合わせない。`osEnv` の runner を使う直列のテストは `t.Chdir` を使うので、`PWD` は合う。
+-   **一時ディレクトリが git の外にあることの確かめ:** `os.MkdirTemp` で作った根の下に、作業ディレクトリにする空の `cwd`、確かめ用の空の `home`、ひな形を置く `template` を作る。`cwd` で、`Env(home, cwd)` の環境の git に `rev-parse --git-dir` を実行させる。`t.TempDir()` は、`GOTMPDIR` があればその下に作る（Go 1.27.1 の `src/testing/testing.go:1613`）。`GOTMPDIR` があるときは、その下に作った空のディレクトリでも同じ確かめをする。テストが `.git` のない場所として補助に渡す `t.TempDir()` が、このリポジトリの中に入らないようにするためである。
     -   git が終了コード `128` で終わったときだけ先へ進む。`128` は、リポジトリが見つからないときのほか、所有者を git が信頼しないリポジトリ（dubious ownership）や壊れた設定でも返る。どの場合も、漏れた git は同じ環境で同じように拒まれるので、先へ進んで安全である。
     -   git がリポジトリを見つけた（終了コード `0`）とき、ほかの終了コードのとき、git を起動できなかったときは、テストを走らせずに、1 行の診断を標準エラーに出して終了コード `1` で終わる。リポジトリを見つけたときの診断は、`TMPDIR` を git のリポジトリの外に向ければ直ることを示す。
     -   `GitEnv` は `GIT_CEILING_DIRECTORIES` と `GIT_DISCOVERY_ACROSS_FILESYSTEM` も除くので、この確かめと漏れた git は、同じ規則でリポジトリを探す。
 -   **ディレクトリの構成:** git は作業ディレクトリから親の方向にだけリポジトリを探すので、`cwd` と並ぶ `template` のリポジトリは見つからない。
--   **後の確かめ:** `m.Run` の後で、`cwd` が空のままであることを確かめる。空でなければ、1 行の診断を出して終了コード `1` で終わる。結んだパスに直し忘れた、相対パスでの書き込みは、すべてのテストが共有する `cwd` に入る。`.git` の形の書き込みが入ると、それより後の漏れた `os.Lstat(".git")` が成功しうる。この確かめで、そうした書き込みを見つける。`cwd` を読み取り専用にする案は採らない。理由は、`-test.outputdir` がないとき、Go の `testing` パッケージがプロファイルなどの出力を作業ディレクトリからの相対パスに書くからである（Go 1.27.1 の `src/testing/testing.go:2914-2917` の `toOutputDir`）。その後、根を消す。
+-   **後の確かめ:** `m.Run` の後で、`cwd` が空のままであることを確かめる。空でなければ、1 行の診断を出して終了コード `1` で終わる。結んだパスに直し忘れた、相対パスでの書き込みは、すべてのテストが共有する `cwd` に入る。`.git` の形の書き込みが入ると、それより後の漏れた `os.Lstat(".git")` が成功しうる。この確かめで、そうした書き込みを見つける。その後、根を消す。`cwd` を読み取り専用にする案は採らない。書き込みをその場で止められるが、後の確かめで同じ漏れを見つけられるので、仕組みを 2 つにしない。なお、`go test` を通さずにテストのバイナリを直接動かし、プロファイルの出力先を相対パスで指定すると、出力が `cwd` に入って後の確かめが失敗する（`-test.outputdir` がないときの `toOutputDir`、Go 1.27.1 の `src/testing/testing.go:2914-2917`）。そのときは出力先を絶対パスで指定する。
 -   **パッケージのディレクトリから読むテスト:** 作業ディレクトリを変えると、パッケージのディレクトリからの相対パスで読むテストが読めなくなる（H-01）。次のテストは、`Isolation.PackageDir` を起点に読むように変える。どれもファイルを読むだけで、fixprguard の操作も git も起動しないので、AC-07 の対象ではない。`PackageDir` を補助に渡す対象のディレクトリにすることはない（3.3 節）。
     -   `cmd/fixprguard/docs_test.go` の `repoRoot = "../.."`（`:22-23`）と、それを使う `readDoc`・`doctestutil.CommandDocs`。
     -   `internal/fixprguard/review_state_test.go:839` の `testdata/review_state`。
@@ -335,14 +335,15 @@ func (t *Template) Copy(dst string) error
 
 -   **作る手順:** 各パッケージの `build` は、ひな形の根（`Isolation.TemplateRoot` の下のパッケージごとの場所）に、`work`・`remote.git`・`home` を作る。手順は今の `newTestRepo` と同じで、`internal/fixprguard` は git を 13 回（`init` 2 回、`config` 7 回、`remote add`・`add`・`commit`・`push` 1 回ずつ。`internal/fixprguard/test_helpers_git.go:129-169`）、`cmd/fixprguard` は 12 回（`config` 6 回。`cmd/fixprguard/test_helpers.go:54-95`）起動する。`core.excludesFile` が指す空のファイルは、ひな形の `home` の下に作る（今の `pinIgnoreConfig` と同じ）。
 -   **作る時:** `TestMain` が、隔離の後、`m.Run` の前に 1 回だけ作る（`BuildTemplate`）。最初にフィクスチャを使うテスト（直列のテストで、環境変数や作業ディレクトリを変えているものもある）に左右されず、決まった環境で作るためである。失敗したときは、1 行の診断を出してテストを走らせずに終わる。費用は、テストのバイナリごとに約 240ms である。
--   **コピー:** `newTestRepo` は、テストの `t.TempDir()` の下に根をコピーする。コピーは、ディレクトリと通常のファイルの種類・権限の値・中身を保つ。ひな形には、シンボリックリンクとほかの特別なファイルはない。それ以外を見つけたら、コピーは失敗する。
+-   **コピー:** `newTestRepo` は、テストの `t.TempDir()` の下に根をコピーし、コピーした作業ツリーで `git update-index -q --refresh` を 1 回実行する（下の「index の stat の情報」）。コピーは、ディレクトリと通常のファイルの種類・権限の値・中身を保つ。ひな形には、シンボリックリンクとほかの特別なファイルはない。それ以外を見つけたら、コピーは失敗する。
 -   **パスを含む設定の書き直し:** ひな形の根の絶対パスは、`work/.git/config` の 2 つの値（`remote.origin.url` と `core.excludesFile`）にだけ現れる。`Copy` は、この 2 つの値を、コピー先の根から作った値（`<根>/remote.git` と `<根>/home/excludes`）に書き直す。値は、git の設定ファイルの引用符の形（`"` で囲み、`\` と `"` の前に `\` を置く）で書く。`t.TempDir()` の名前には `#` や空白が入りうる（重なったサブテストの名前には `#01` が付く）。引用符で囲まずに書くと、git は `#` から後を注釈として読み、値が切れる。`Copy` は、書き直す前の 2 つの行がひな形の根を含む決まった形（git が引用符で囲んで書いた形を含む）であることを確かめ、そうでなければ失敗する。ほかのファイル（`remote.git/config`、reflog）にはパスが含まれないことを、同等性のテストで確かめる。
--   **テストごとの git の数（AC-10）:** コピーの後、テストがリポジトリを受け取るまでに git は起動しない（0 回）。ひな形を作る git（13 回と 12 回）は、テストのバイナリごとに 1 回だけで、AC-10 の数とは別に数える。前の数（13 回と 12 回）は、上の手順の呼び出しの数である。`newTestRepo` は分岐もループもない直線の手順で、`r.Git`・`r.gitIn` の 1 回の呼び出しが git の 1 回の起動になる（`internal/fixprguard/test_helpers_git.go:178-187`、`cmd/fixprguard/test_helpers.go:102-111`）。前後の数は、この読み方の根拠の行とともに PR の説明に記録する。
--   **index の stat の情報:** コピーした `work/.git/index` は、ひな形のファイルの stat の情報（mtime・inode など）を持つ。コピー先のファイルとは合わないので、git は変更の検出のときにファイルの中身を読み直す。stat の情報が合わないことは、git に中身を読ませる方向にしか働かず、変更を見落とさせることはない。`GitEnv` が `GIT_OPTIONAL_LOCKS=0` を置くので、`git status` が index を書き直すこともない。この差分は、AC-11 が認めるテストごとに変わる値である。テストのファイルのうち index のバイト列を読むのは `TestBaselineIgnoresIndexAndFetchHead`（`internal/fixprguard/gitstate_test.go:317-343`）だけで、これは自分で `git add` した前後を比べるので、コピーの影響を受けない（`grep -n 'index' *_test.go` で確かめた）。
+-   **テストごとの git の数（AC-10）:** コピーの後、テストがリポジトリを受け取るまでに起動する git は、`update-index --refresh` の 1 回である。ひな形を作る git（13 回と 12 回）は、テストのバイナリごとに 1 回だけで、AC-10 の数とは別に数える。前の数（13 回と 12 回）は、上の手順の呼び出しの数である。`newTestRepo` は分岐もループもない直線の手順で、`r.Git`・`r.gitIn` の 1 回の呼び出しが git の 1 回の起動になる（`internal/fixprguard/test_helpers_git.go:178-187`、`cmd/fixprguard/test_helpers.go:102-111`）。前後の数は、この読み方の根拠の行とともに PR の説明に記録する。
+-   **index の stat の情報:** コピーした `work/.git/index` は、ひな形のファイルの stat の情報（mtime・inode など）を持ち、コピー先のファイルと合わない。このままでは、製品が実行する `git diff --raw <木>`（`internal/fixprguard/changes.go:125` から）が、`GIT_OPTIONAL_LOCKS=0` の下でも index を書き直す（git 2.50.1 で確かめた。今の手順で作ったリポジトリでは書き直さない）。index のバイト列を比べるテスト（`TestInspectLeavesWorkTree`、`internal/fixprguard/worktree_flow_test.go:596-611` など）は、それで失敗する。そのため、`newTestRepo` はコピーの後に `git update-index -q --refresh` を 1 回実行し、index の stat の情報をコピー先のファイルに合わせる。これで、その後の `git diff --raw` は index を書き直さなくなる（同じ git で確かめた）。残る差分は stat の値だけで、AC-11 が認めるテストごとに変わる値である。
 -   **コミットの ID:** すべてのコピーは、ひな形と同じコミットとオブジェクトを持つ。今はテストごとにコミットの時刻が違い、コミットの ID も違う。AC-11 が認める差分である。リポジトリはテストごとに別なので、テストの間で ID が同じでも影響しない。
 -   **同等性のテスト（AC-11）:** 各パッケージに、並列のテストを 1 つ足す。今の手順（`build`）でテストの `t.TempDir()` の下に作ったリポジトリと、ひな形のコピーとを比べ、テストごとに変わる値を除いて同じであることを確かめる。コピー先の根の名前には `#` と空白を含める。比べるのは次の値である。
     -   作業ツリーのファイルの一覧、種類、権限の値、中身。
-    -   `work/.git` と `remote.git` の下のすべてのファイルの一覧、種類、権限の値、中身（`HEAD`、`COMMIT_EDITMSG`、`refs/` の下、`config`）。ただし、`index`、`objects/` の下、`logs/` の下（コミットの ID と時刻を含む）は除く。`config` は、根の絶対パスを目印の文字列に置き換えてから比べる。
+    -   `work/.git` と `remote.git` の下のすべてのファイルの一覧、種類、権限の値。中身は、`HEAD` と `COMMIT_EDITMSG` だけを比べる。`refs/` の下はコミットの ID を、`index` は stat の情報を、`objects/` と `logs/` の下はコミットの ID と時刻を持つので、中身は比べない。`config` も、`Copy` が値を常に引用符で囲んで書き、git は `#` や `;` を含むときだけ囲むので、バイト列では比べない。
+    -   `git config --list --local` の出力（2 つのリポジトリそれぞれ。根の絶対パスを目印の文字列に置き換えてから比べる）。
     -   `git config --get remote.origin.url` と `git config --get core.excludesFile` が、それぞれ `<コピー先の根>/remote.git` と `<コピー先の根>/home/excludes` に等しいこと。置き換えの数を数えるだけでは、値が正しく読めることは分からないので、git に読ませて確かめる。
     -   `git ls-files -s`（モード・blob の ID・パス）、`HEAD` の指す先、すべての ref の名前、ref ごとのコミットの木の ID と親の数とメッセージ。
     -   `git status --porcelain` が空であること。
@@ -498,7 +499,7 @@ CLI の流れは変わらない。`main` は `osEnv()` の `env` で `run` を�
 | AC-07 | 6.1 節の確かめ。作業ディレクトリへの依存を 2 種類わざと元に戻して、それぞれテストが失敗することを一度確かめ、PR の説明に記録する |
 | AC-08 | `TestRunInProcessDir`（新しく足す。直列）。<br>準備: `HOME`・`XDG_CONFIG_HOME` を `t.Setenv` でテストごとのディレクトリにしてから `osEnv()` を呼び、その `env` の gh と make を fake に、出力を捕まえる先に差し替える。git・無視の一覧の runner と `dir` は `osEnv()` のまま使い、プロセスの作業ディレクトリを `t.Chdir` で変えて `run` を呼ぶ。<br>サブテストは次の 6 つである。<br>(1) 最上位でない場所で、`begin` が終了コード `2`、`inspect`・`finish`・`push` が `git-state-changed`（`config`）で止まる。<br>(2) `.git` がない場所で、`check`・`push-review` が終了コード `2` で止まり、git を起動しない。git の起動は、`PATH` に置いた数える `git` で確かめる。<br>(3) `.git` の形が誤っているとき、`git-state-changed`（`config`）で止まる。<br>(4) detached HEAD で、`begin` が終了コード `2` で止まる。<br>(5) 最上位で、`begin`・`inspect`・`finish`・`push` の 1 ラウンドと、`check`・`push-review` の 1 ラウンドが成功する。リポジトリには、無視された入れ子のリポジトリ、`.claude/settings.local.json`、フックのディレクトリへのシンボリックリンクを置き、リンクされた作業ツリーでも同じラウンドを動かす。確かめるのは、各サブコマンドの終了コード、出力の JSON の鍵と値（実行ごとに変わる baseline・judged set・nonce を除く）、push の後の remote の head、begin の記録のファイルの中身である。<br>(6) `GIT_DIR` を `t.Setenv` で別の場所に置いてから `osEnv()` を呼び、(5) と同じラウンドが成功する。<br>既存のテストとの関係: コミット `98456465` の `cmd/fixprguard` のテストには、最上位でない場所と detached HEAD を CLI の入口で確かめるものはない（`TestReviewCommandsRefuse` のコメント、`main_test.go:1747-1749`）。`TestGhRunsWithoutGitVariables`・`TestListRunnerRejectsStderr` は、`osEnv` の runner を直接呼んで `GIT_DIR` が届かないことを確かめるテストとして、期待値を変えずに残す。足したテストは AC-15 の記録に含める |
 | AC-09 | `git diff --stat <マージベース> -- docs/dev/guides/fixprguard_guide.md` が空で、`const Protocol` の行の差分が空であることを、PR ごとに確かめる |
-| AC-10 | 3.6 節の数え方で、前（13 回と 12 回）と後（0 回。ひな形は別に 13 回と 12 回）を PR の説明に記録する |
+| AC-10 | 3.6 節の数え方で、前（13 回と 12 回）と後（1 回。ひな形は別に 13 回と 12 回）を PR の説明に記録する |
 | AC-11 | 3.6 節の同等性のテストと分離のテスト。前の手順との一致は、PR のレビューで差分を読んで記録する（3.6 節） |
 | AC-12・AC-13 | 計測の手順（8.2 節）を、タスクを終える PR で実行する |
 | AC-14 | 実装の PR の中で、製品を変えるコミットを先に置く（9 章）。その PR で製品を最後に変えたコミットを `BASE` にして `make coverage-compare` を実行する |
@@ -546,10 +547,10 @@ AC-14 のため、製品を変えるコミットを、テストだけを変え�
 
 | 項目 | 扱い |
 |---|---|
-| H-01（API の形） | `WorktreeDir` と `NewWorktree(dir, ...)`、runner の `Dir` は呼び出し元が設定する（1.3 節、3.2 節、3.3 節）。テストの補助は 1 つのディレクトリから両方を作る。漏れは `TestMain` の隔離（3.5 節）と AC-07 の一度の確かめ（6.1 節）で見つける。隔離したディレクトリは、git で確かめて、どのリポジトリにも含まれないものにする。パッケージのディレクトリから読むテストは `PackageDir` から読む（3.5 節）。`PWD` は、テストでは runner の `Dir` に合わせ、隔離した作業ディレクトリにも合わせる。CLI では今のまま受け継ぐ（1.3 節、3.5 節） |
+| H-01（API の形） | `WorktreeDir` と `NewWorktree(dir, ...)`、runner の `Dir` は呼び出し元が設定する（1.3 節、3.2 節、3.3 節）。テストの補助は 1 つのディレクトリから両方を作る。漏れは `TestMain` の隔離（3.5 節）と AC-07 の一度の確かめ（6.1 節）で見つける。隔離したディレクトリは、git で確かめて、どのリポジトリにも含まれないものにする。パッケージのディレクトリから読むテストは `PackageDir` から読む（3.5 節）。`PWD` は、テストでは runner に渡す環境で `Dir` に合わせる。隔離した作業ディレクトリのプロセスの `PWD` は変えない（3.5 節）。CLI では今のまま受け継ぐ（1.3 節） |
 | H-02（最上位の確かめと相対パスの意味） | CLI は `CurrentDir()` を渡し、`"."` と結んだパスは名前そのものなので、調べ方の意味は変わらない（1.3 節、3.2 節）。`.git` のファイルの相対の `gitdir:` と記録のファイルの置き場所は、作業ツリーのディレクトリから解く（3.2 節）。最上位でない場合、`.git` がない場合、リンクされた作業ツリーの場合は、既存のテストをディレクトリを渡す形にして保ち、CLI の入口では `TestRunInProcessDir` で確かめる（8.1 節の AC-08） |
 | H-03（環境と `HOME` の分離） | `fixprguardtest.Env` が `GitEnv` の結果の `HOME`・`XDG_CONFIG_HOME`・`PWD` を差し替え、製品の runner、準備の git、ひな形を作る git、自分で runner を作るテストに渡す。make と gh は fake でプロセスを起動しない。CLI の `osEnv` は変えない（3.3 節） |
-| H-04（フィクスチャの手段） | ひな形のコピーと、`.git/config` の 2 つの値の直接の書き直しを採る（1.3 節、3.6 節）。ひな形は `TestMain` で 1 回だけ作り、テストはコピーだけを変える。同等性と分離のテストを置く。git の数は、直線の手順の呼び出しの数で数える（3.6 節）。`PATH` に置いて起動の回数を数える wrapper は使わない。数えるのが直線の手順の呼び出しの数だけなので、コードを読めば数が決まるからである。最適化は別のコミットにする（9 章） |
+| H-04（フィクスチャの手段） | ひな形のコピーと、`.git/config` の 2 つの値の直接の書き直しを採る（1.3 節、3.6 節）。ひな形は `TestMain` で 1 回だけ作り、テストはコピーだけを変える。コピーの後に index の stat の情報を合わせる git を 1 回実行する。同等性と分離のテストを置く。git の数は、直線の手順の呼び出しの数で数える（3.6 節）。`PATH` に置いて起動の回数を数える wrapper は使わない。数えるのが直線の手順の呼び出しの数だけなので、コードを読めば数が決まるからである。最適化は別のコミットにする（9 章） |
 | H-05（直列のまま残すテスト） | 4 章の一覧。`.git` のないディレクトリなどに `t.Chdir` するテストは、ディレクトリを補助に渡す形にして並列にする。CLI の入口で作業ディレクトリを読む 1 か所は、`TestRunInProcessDir` で確かめる |
 | H-06（共有される状態） | `gitRouter` などの補助の状態はテストごとに作られる（`newTestWorktree` が毎回作る。`internal/fixprguard/test_helpers_git.go:258-266`）。共有するのは、`TestMain` が書く `Isolation` と、`TestMain` が作るひな形で、どちらもテストは読むだけである（3.4 節）。サブテストが親の値を書き換えないことは、並列にするときに 1 つずつ確かめる（4 章）。`-cpu` を変えた実行は、実装計画で検討する（8.1 節の AC-02） |
 | H-07（計測、名前の比べ方、コミットの順序） | 8.2 節の手順。形（決まったコマンドか一時スクリプトか）は実装計画で決める。コミットの順序は 9 章で、PR の区切りは実装計画で決める。coverage-compare の揺れは、きれいな作業ツリーで比べ直し、すべての回を記録する（8.2 節） |
