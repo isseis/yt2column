@@ -44,7 +44,9 @@ bad "$tmp/after.json" >"$tmp/after.bad" || die "bad after"
 
 fail=0
 ratio=$(awk -v a="$ea" -v b="$eb" 'BEGIN { printf "%.3f", a / b }') || die "ratio"
-if awk -v r="$ratio" 'BEGIN { exit !(r <= 0.5) }'; then r1=PASS; else r1=FAIL; fail=1; fi
+# Decide AC-01 (after <= before / 2) on the unrounded elapsed times; the
+# printed ratio is rounded for the record only.
+if awk -v a="$ea" -v b="$eb" 'BEGIN { exit !(a <= b / 2) }'; then r1=PASS; else r1=FAIL; fail=1; fi
 
 if cmp -s "$tmp/before.names" "$tmp/after.names" && [ ! -s "$tmp/before.bad" ] && [ ! -s "$tmp/after.bad" ]; then r3=PASS; else r3=FAIL; fail=1; fi
 
