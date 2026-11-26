@@ -227,6 +227,25 @@ func TestSendMergemain(t *testing.T) {
 		cw.git(cw.tree, "show HEAD:"+mergemainDefPath, "# another\n")
 		return item
 	})
+	notSent(t, "an agent that starts working during the fetch", NotSentConditions, func(cw *conflictWorld, item ItemID) ItemID {
+		cw.rec.replyFunc("git fetch origin main", func() reply {
+			cw.firstPane().Status = "working"
+			return reply{}
+		})
+		return item
+	})
+	notSent(t, "a worktree switched to another branch during the fetch", NotSentConditions, func(cw *conflictWorld, item ItemID) ItemID {
+		switched := false
+		cw.rec.replyFunc("git fetch origin main", func() reply { switched = true; return reply{} })
+		cw.rec.replyIn(cw.tree, "gh pr list --head user/other --state open --json "+prListFields, []byte("[]"))
+		cw.rec.replyFunc("git rev-parse --abbrev-ref HEAD", func() reply {
+			if switched {
+				return reply{out: []byte("user/other\n")}
+			}
+			return reply{out: []byte(taskBranch + "\n")}
+		})
+		return item
+	})
 	notSent(t, "a routing table the fetch brought in", NotSentConditions, func(cw *conflictWorld, item ItemID) ItemID {
 		orig := string(repoContext(t))
 		row := repositoryRow(t, "mergemain")
