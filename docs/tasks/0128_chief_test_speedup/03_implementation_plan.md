@@ -75,7 +75,7 @@
     - スクリプトをコミットしてから、テストのファイルに変更のない `HEAD` で実行し、AC-01 が通らず、AC-03・AC-05 が通ることを確かめる（設計書 8 章）
     - 各判定が少なくとも 1 つの壊し方で失敗することを確かめる。結果は 7.1 節の一時スクリプトの記録に書く
     - 完了の条件: スクリプトがコミットされ、7.1 節に壊し方の記録がある
-- [ ] **ステップ 1-2**: テストの並列化
+- [x] **ステップ 1-2**: テストの並列化
     - 変えるファイル: `internal/chief/*_test.go`・`internal/chief/test_helpers.go`
     - ファイルごとに設計書 3.3 節を確かめ、独立したテストとサブテストに `t.Parallel()` を足す（設計書 3.2 節）。issue の 6 つのファイルから始め、残りのファイルに広げる
     - 設計書 3.2 節の直列に残すテスト（`t.Setenv`、umask、そのほかのプロセス全体の状態）は、そのテストも祖先も `t.Parallel()` を呼ばないままにする。umask に左右されるテストは、テストの冒頭で `test_helpers.go` に足すヘルパーを呼び、umask を `0o022` にして `t.Cleanup` で元に戻す。ヘルパーは `t.Setenv` も呼ぶ（設計書 1 章・3.2 節）。ヘルパーを呼んだテストも 7.3 節に書く
@@ -176,7 +176,13 @@
 
 ### 7.3. 直列に残したテストと、`t.Parallel()` を足す以上に変えたテスト
 
-（`/runplan` が書く。直列に残したテストとその理由。共有の値をサブテストの中に移したテストと、`defer` を `t.Cleanup` に移したテストと、その変更の内容。`test_helpers.go` を変えたときは、その変更と理由）
+-   **並列にしたテスト:** `internal/chief` の 41 のファイルで、トップレベルのテスト 395 に `t.Parallel()` を足した。`TestMarkerReadingMatchesDecisionScript` の 23 のサブテストにも足した。各サブテストは自分のリポジトリを作り、親の `contextDoc` と `old` を読むだけである。
+-   **直列に残したテスト:** 次の 15 のテストは、そのテストも祖先も `t.Parallel()` を呼ばない。
+    -   `t.Setenv` を呼ぶ（`RealCommands` を通す場合を含む）: `TestWorktreeAddDetached`（`create_test.go`）、`TestWorktreeRemoveKeepsBranch`（`removal_test.go`）、`TestIssueIndexIgnoresGrepPatternType`・`TestIssueTasksReadsTheRealGitGrep`・`TestIssueTasksWithNoLine`（`task_test.go`）、`TestTaskSpaceWorktreeMatchesCanonicalWorktree`（`taskspace_test.go`）、`TestGitWorktreesOfARealRepository`・`TestGitIsAncestor`・`TestGitCleanCountsStagedAndNestedFiles`（`workspace_test.go`）の 9 つ。`TestGitClean`（`autosend_test.go`）。`network_test.go` の 4 つ（`TestSnapshotRunsOnlyReadsInTheRightPlaces`・`TestDetailAndSendRunOnlyReadsInTheRightPlaces`・`TestTickRunsOnlyReadsInTheRightPlaces`・`TestCreateRunsOnlyInTheRightPlaces`）。
+    -   umask に結果が左右される: `TestClearRecordsKeepsTheCreatedRecordWhenAnotherRemovalFails`（`records_test.go`）。`os.WriteFile` で `0o644` のファイルを作り、`privatefile` が拒むことを確かめる。冒頭で `fixUmask` を呼ぶ。`records_test.go` の `:285`・`:945`・`:967` は `os.Chmod` で権限を決めるので、umask に左右されない。`:427` は `MkdirBelow` が作るディレクトリが `0o700` であることを確かめる。umask が `077` で残っても、`0o700` は変わらない。
+    -   共有の値、親の本体の順序、時間に依存する判定が理由で直列に残したテストはない。実際の時間で待つ `TestTranscriptFIFORefused` も並列にしたが、`-race -count=3` で失敗しなかった。
+-   **共有の値を移したテストと、`defer` を `t.Cleanup` に移したテスト:** なし。並列のサブテストを持つのは `TestMarkerReadingMatchesDecisionScript` だけで、親の値は読むだけであり、親に `defer` もない。そのほかのテストのサブテストは直列に実行されるので、親の本体の順序は変わらない。
+-   **`test_helpers.go` の変更:** `fixUmask` を 1 つ足した（`syscall` の import と定数 `fixedUmask` を含む）。umask を `0o022` にし、`t.Cleanup` で元に戻し、`t.Setenv` を呼ぶ。理由は設計書 1 章と 3.2 節のとおり。`records_test.go` の 1 つのテストだけが呼ぶ。
 
 ## 8. 成功基準 (Success Criteria)
 
