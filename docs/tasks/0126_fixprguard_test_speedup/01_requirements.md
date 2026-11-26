@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -166,3 +166,7 @@ issue #1167 の計測（`go test -tags test -race -count=1 ./...`）では、`in
 -   **フィクスチャ:** テストのために用意する、作業ツリーとローカルの bare リポジトリ（`origin`）の組。今は `newTestRepo` が作る。
 -   **直列のまま残すテスト:** `t.Parallel()` を呼ばないテスト。AC-03 の条件に当たるものだけである。
 -   (用語は `docs/translation_glossary.md` と統一する)
+
+## 変更履歴
+
+- 2026-11-26 承認（isseis、#1173）
