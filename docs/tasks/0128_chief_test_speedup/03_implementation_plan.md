@@ -176,10 +176,12 @@
 
 ### 7.3. 直列に残したテストと、`t.Parallel()` を足す以上に変えたテスト
 
--   **並列にしたテスト:** `internal/chief` の 41 のファイルで、トップレベルのテスト 395 に `t.Parallel()` を足した。`TestMarkerReadingMatchesDecisionScript` の 23 のサブテストにも足した。各サブテストは自分のリポジトリを作り、親の `contextDoc` と `old` を読むだけである。
--   **直列に残したテスト:** 次の 15 のテストは、そのテストも祖先も `t.Parallel()` を呼ばない。
+-   **並列にしたテスト:** `internal/chief` の 40 のファイルで、トップレベルのテスト 394 に `t.Parallel()` を足した。`TestMarkerReadingMatchesDecisionScript` の 23 のサブテストにも足した（親は直列、下の「直列に残したテスト」）。各サブテストは自分のリポジトリを作り、親の `contextDoc` と `old` を読むだけである。
+-   **直列に残したテスト:** 次の 16 のテストは、そのテストも祖先も `t.Parallel()` を呼ばない。
     -   `t.Setenv` を呼ぶ（`RealCommands` を通す場合を含む）: `TestWorktreeAddDetached`（`create_test.go`）、`TestWorktreeRemoveKeepsBranch`（`removal_test.go`）、`TestIssueIndexIgnoresGrepPatternType`・`TestIssueTasksReadsTheRealGitGrep`・`TestIssueTasksWithNoLine`（`task_test.go`）、`TestTaskSpaceWorktreeMatchesCanonicalWorktree`（`taskspace_test.go`）、`TestGitWorktreesOfARealRepository`・`TestGitIsAncestor`・`TestGitCleanCountsStagedAndNestedFiles`（`workspace_test.go`）の 9 つ。`TestGitClean`（`autosend_test.go`）。`network_test.go` の 4 つ（`TestSnapshotRunsOnlyReadsInTheRightPlaces`・`TestDetailAndSendRunOnlyReadsInTheRightPlaces`・`TestTickRunsOnlyReadsInTheRightPlaces`・`TestCreateRunsOnlyInTheRightPlaces`）。
     -   umask に結果が左右される: `TestClearRecordsKeepsTheCreatedRecordWhenAnotherRemovalFails`（`records_test.go`）。`os.WriteFile` で `0o644` のファイルを作り、`privatefile` が拒むことを確かめる。冒頭で `fixUmask` を呼ぶ。`records_test.go` の `:285`・`:945`・`:967` は `os.Chmod` で権限を決めるので、umask に左右されない。`:427` は `MkdirBelow` が作るディレクトリが `0o700` であることを確かめる。umask が `077` で残っても、`0o700` は変わらない。
+    -   子プロセスを起こす並列のサブテストの親: `TestMarkerReadingMatchesDecisionScript`（`markers_parity_test.go`）。親は直列に残し、23 のサブテストは並列にした。親が直列なので、サブテストはほかのトップレベルのテストと同時には走らず、サブテストの間だけで並列に走る。理由: このサブテストは git と bash の子プロセスを起こす。子プロセスは、fork から exec までの間、親が開いている fd の複製を持つ。そのため、並列のほかのテストが `cachelock` で取った flock は、そのテストが閉じた後もしばらく保たれ、次の `Acquire` が busy になりうる。親も並列にした最初の実装では、`go test -tags test -race -count=3` の 1 回で `TestAutoSendReportMismatch/Claude_Code:_the_session's_file_is_missing` が `another send to the workspace is under way`（`not_sent busy`）で失敗した。原因の仮説であり、再現させて確かめてはいない。親を直列にした後は、`-count=10` が通った（191.7 秒、コミット `265c199ef89c`）。
+    -   子プロセスを起こすテストは、ほかに `newTestRepo` を使うテストと `RealCommands` を使うテストだが、どれも直列である。並列のテストは子プロセスを起こさない。
     -   共有の値、親の本体の順序、時間に依存する判定が理由で直列に残したテストはない。実際の時間で待つ `TestTranscriptFIFORefused` も並列にしたが、`-race -count=3` で失敗しなかった。
 -   **共有の値を移したテストと、`defer` を `t.Cleanup` に移したテスト:** なし。並列のサブテストを持つのは `TestMarkerReadingMatchesDecisionScript` だけで、親の値は読むだけであり、親に `defer` もない。そのほかのテストのサブテストは直列に実行されるので、親の本体の順序は変わらない。
 -   **`test_helpers.go` の変更:** `fixUmask` を 1 つ足した（`syscall` の import と定数 `fixedUmask` を含む）。umask を `0o022` にし、`t.Cleanup` で元に戻し、`t.Setenv` を呼ぶ。理由は設計書 1 章と 3.2 節のとおり。`records_test.go` の 1 つのテストだけが呼ぶ。
