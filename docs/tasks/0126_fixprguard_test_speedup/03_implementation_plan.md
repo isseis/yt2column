@@ -51,7 +51,7 @@
     -   `NewWorktree` のゼロ値の確かめは、空の合成リテラルとの比較ではなく、フィールドを読むメソッドで書く。`zeroLiteralAllowed` には加えない。
     -   作成者が決めた（計画のレビューの指摘への対策）。ADR: なし。
 -   **ひな形を作る手順（`build`）の形:** `build` は、`*testing.T` を受け取らず、失敗を `error` で返す関数にする。git の起動とファイルの書き込みは、`build` に渡す関数（ディレクトリと引数を受け取り、`Env` の環境で git を起動して `error` を返すもの）を通す。`TestMain`（`BuildTemplate`）と同等性のテストの両方が、この同じ `build` を呼ぶ（設計書 3.4 節が実装計画に委ねた形）。
-    -   前の手順は `t.Fatalf` で失敗を報告するので、この形にするには、`t.Setenv`・`t.Chdir` の削除と環境の受け渡しのほかに、失敗の伝え方も変わる。そのため、設計書 3.6 節の「前の手順との一致」の確かめでは、差分を読んで、git の引数・順序・書くファイルが変わらないことを確かめる。この読み合わせは設計書のとおり PR のレビューで行い、PR の説明に記録する。計画は、それに加えて `testshape fixture-git` で同じことを機械的に比べる（5.1 節）。`fixture-git` が判定できないときは、レビューの読み合わせだけで確かめ、そのことを PR の説明に書く。
+    -   前の手順は `t.Fatalf` で失敗を報告するので、この形にするには、`t.Setenv`・`t.Chdir` の削除と環境の受け渡しのほかに、失敗の伝え方も変わる。そのため、設計書 3.6 節の「前の手順との一致」の確かめでは、差分を読んで、git の引数・順序・書くファイルが変わらないことを確かめる。この読み合わせは設計書のとおり PR のレビューで行い、PR の説明に記録する。計画は、それに加えて、git の引数と順序、テストがリポジトリを受け取るまでの git の起動の数を `testshape fixture-git` で機械的に比べる（5.1 節）。書くファイルはレビューの読み合わせだけで確かめる。`fixture-git` が実際のコードを判定できないときは、AC-10 の確かめがなくなるので、検査を外さずに止めて人に尋ねる（確かめを変えることは決定の変更である）。
     -   作成者が決めた（計画のレビューの指摘への対策）。ADR: なし。
 -   **補助が受け取る `HOME`:** PR-2 で、`newTestWorktree`・`newTestRun`・`realGit`・`realGitList` などの補助は、対象のディレクトリに加えて `HOME` のディレクトリを必須の引数として受け取る。ディレクトリから `HOME` を推し量らない。リポジトリを作ったテストはそのリポジトリの `home` を渡す（`cmd/fixprguard` の `testRepo` に `Home` を足す）。リポジトリのないテストは、補助が別の `t.TempDir()` で作る空のディレクトリを渡す（設計書 3.3 節）。
     -   作成者が決めた。ADR: なし。
@@ -64,7 +64,9 @@
 -   **計測と名前の比較の手順の形:** `_checks/gotest.sh` に、`jq` を使う shell の一時スクリプトとして置く（設計書 8.2 節の「手順の形式」）。
     -   理由: 実装計画に書いたコマンドは、計画を書く時点では実行できない（後の木がまだない）。スクリプトにすれば、計画には性質だけを書き、コマンドはスクリプトに置ける。`jq` は `make test` がすでに求めている（`CLAUDE.md`「Development Notes」）。
     -   作成者が決めた。PR のレビューで確かめてもらう。ADR: なし。
--   **AC-12 の「前」のコミット:** PR-1 のマージベースを使う。ステップ 1-8 で PR-1 の説明にそのコミット ID を書き、ステップ 3-5 とステップ 3-3 の `fixture-git` はそれを読む。後で PR-1 に `main` を取り込んでも、記録した ID は変えない。
+-   **AC-12 の「前」のコミット:** PR-1 を作るときのマージベースを使う。ステップ 1-8 でそのコミット ID を 5.2 節の PR-1 の欄と PR-1 の説明に書き、ステップ 3-3 の `fixture-git` とステップ 3-5 の `measure` はそれを読む。後で PR-1 に `main` を取り込んでも、記録した ID は変えない。
+    -   理由: 前の木を 1 つに決めておけば、どの PR で計っても同じ木と比べられる。前の木と後の木の間には、このタスクのほかに `main` に入った変更も含まれる。これは AC-12 の定め方から避けられないので、ステップ 3-5 で、前と後の間に 2 つのパッケージを変えたこのタスク以外のコミットを PR-3 の説明に書き、計測の結果を読む人が判断できるようにする。
+    -   作成者が決めた。PR のレビューで確かめてもらう。ADR: なし。
     -   作成者が決めた。ADR: なし。
 -   **`fixprguardtest` の置き場所:** 設計書のとおり `internal/fixprguard/fixprguardtest` に置く。[test_organization.md](../../dev/conventions/test_organization.md) の `testutil/` の形ではないが、`testOnlyPackageDirs` に同じ形の前例（`internal/loopbacktest`、`internal/udstest`、`internal/llm/llmhttp/llmhttptest`）がある。
 -   **設計書の行番号のずれ:** 設計書の行番号はコミット `98456465` のものである。その後、0122 の変更で `cmd/fixprguard/main.go`・`main_test.go` と `internal/fixprguard/review_state_test.go` の行番号がずれた（1.4 節）。本書は、コミット `52ca51eb` の行番号か、`grep` のパターンで場所を示す。記号の名前と構造は設計書のとおりで、設計の決定は変わらない。
@@ -101,7 +103,7 @@
 -   **作業:**
     -   [ ] `_checks/gotest.sh` を書く。5.1 節の記録の枠の 5 つのモードを持つ。
     -   [ ] `_checks/testshape/main.go`（`//go:build test`）を書く。5.1 節の記録の枠の 4 つの検査を持つ。直列に残すテストの一覧（設計書 4 章の 6 項目）と、それらが使う補助の名前はプログラムの中に持つ。
-    -   [ ] 2 つのスクリプトをコミットし、5.1 節の破壊の確かめをして、記録を書く。
+    -   [ ] 2 つのスクリプトをコミットし、この時点で成功しうる検査（`estimate`・`names`・`unchanged`・`race`）の破壊の確かめをして、記録を書く。ほかの検査の破壊の確かめは、その検査が初めて成功しうる木で行う（5.1 節の「破壊の確かめの時期」）。
     -   [ ] `gotest.sh estimate` を `origin/main` の木で実行し、設計書 8.2 節の見込みを出す。見込みが変更の前の実行時間の 50% を超えたら、止めて人に尋ねる。結果は 5.1 節の実行の記録に書く。
 -   **完了の条件:** 2 つのスクリプトがコミットされ、破壊の記録と見込みの実行の記録がある。
 
@@ -111,7 +113,7 @@
 -   **作業:**
     -   [ ] 設計書 3.2 節の `WorktreeDir`・`CurrentDir`・`NewWorktreeDir` と、名前を結ぶ操作・場所を解く操作・逆の操作の 3 つの非公開のメソッドを書く。フィールドの名前と、ゼロ値を確かめるメソッドは 1.3 節のとおりにする。
     -   [ ] `NewWorktreeDir` は、設計書 5 章のとおり `ErrInvalidInput` で拒む。メッセージにパスを含めない。
--   **完了の条件:** `go build ./...` が通る。
+-   **完了の条件:** `go build ./internal/fixprguard` が通る。
 
 #### ステップ 1-3: 製品の関数が `WorktreeDir` を受け取るようにする
 
@@ -121,7 +123,7 @@
     -   [ ] 設計書 3.2 節の「`WorktreeDir` を受け取る非公開の関数」の表の関数を、表のとおりに変える。
     -   [ ] 1.4 節の `grep` のパターンを製品のファイルでもう一度実行する。当たった 26 か所のそれぞれについて、呼び出し元をさかのぼって、作業ツリーの中の名前か git が返す場所が届くかを読む。`openRegular` は 1.4 節の呼び出し元のそれぞれを読む。届く箇所は、結ぶ操作か解く操作を通す。届かない箇所（`OpenRegularFile` と `write.go:29`）は変えない。読んだ結果は PR の説明に表で書く。
     -   [ ] `Worktree` のメソッドから上の関数に、`Worktree` が持つ `WorktreeDir` を渡す。
--   **完了の条件:** `go build ./...` が通る。
+-   **完了の条件:** `go build ./internal/fixprguard` が通る（`cmd/fixprguard` はステップ 1-4 で合わせる）。
 
 #### ステップ 1-4: CLI に `env.dir` を足す
 
@@ -164,7 +166,7 @@
 -   **ファイル:** `internal/fixprguard/worktree_flow_test.go`、`cmd/fixprguard/main_test.go`
 -   **作業:**
     -   [ ] `TestWorktreeIgnoresProcessDir` を書く（設計書 8.1 節の AC-06 の行）。
-    -   [ ] `TestRunInProcessDir` と 6 つのサブテストを書く（設計書 8.1 節の AC-08 の行）。`run` のすべての呼び出しで、開発者の環境の `GH_REPO`・`GH_HOST` が届かないようにする（`execute` は、空の値でも設定されていれば拒む。`main.go:403`）。手段は、このテストの中の `t.Setenv` か `lookupEnv` の差し替えから、実装で選ぶ。
+    -   [ ] `TestRunInProcessDir` と 6 つのサブテストを書く（設計書 8.1 節の AC-08 の行）。`run` のすべての呼び出しで、開発者の環境の `GH_REPO`・`GH_HOST` が届かないようにする（`execute` は、空の値でも設定されていれば拒む。`main.go:403`）。`t.Setenv` は空の値を設定するだけで、拒まれるので使わない。`osEnv()` が返す `env` の `lookupEnv` を、`GH_REPO`・`GH_HOST` を未設定と答える関数に差し替える。
     -   [ ] それぞれについて、確かめる対象を壊して失敗することを確かめ、コミットメッセージに書く。`TestRunInProcessDir` では、少なくとも、`osEnv` の `dir` を `CurrentDir()` 以外にしたときと、`GitEnv` で `GIT_DIR` を除かなくしたときに失敗することを確かめる。
 -   **完了の条件:** `make test` と `make lint` が通る。
 
@@ -174,7 +176,7 @@
     -   [ ] `make coverage-compare BASE=<PR-1 で製品を最後に変えたコミット>` を実行する（AC-14）。`FAIL` のときは、設計書 8.2 節の「coverage-compare の揺れ」のとおり、きれいな作業ツリーで比べ直す。すべての回の出力を、最後の行まで PR の説明に書く。
     -   [ ] `gotest.sh names <マージベース>` と `gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-1 の欄に記録する（AC-15、AC-09）。新しく現れた組と、その理由を PR の説明に書く。
     -   [ ] 期待値を変えたテスト（ない見込み）と、準備の変更（`ignored_test.go` の fake）を、PR の説明に書く（AC-16）。
-    -   [ ] PR-1 のマージベースのコミット ID を、AC-12 の「前」のコミットとして PR の説明に書く（1.3 節）。
+    -   [ ] PR-1 のマージベースのコミット ID を、AC-12 の「前」のコミットとして 5.2 節の PR-1 の欄と PR の説明に書く（1.3 節）。
 -   **完了の条件:** 上の結果が PR の説明と 5.2 節にある。
 
 ### PR-1 作成ポイント: worktree directory API in fixprguard
@@ -305,7 +307,7 @@ PR-3 は製品を変えない。
     -   [ ] 2 つのパッケージで、前の `newTestRepo` の手順を、1.3 節の形の `build` にする。`TestMain` は、隔離の後に `BuildTemplate` で 1 回だけひな形を作る。
     -   [ ] `newTestRepo` を、ひな形のコピーと `git update-index -q --refresh` の 1 回にする。
     -   [ ] `build` の差分を前の `newTestRepo` と読み合わせ、git の引数・順序・書くファイルが変わらないことを PR の説明に書く（設計書 3.6 節の「前の手順との一致」）。
-    -   [ ] `testshape fixture-git <PR-1 のマージベース>` を実行し、`build` の git の引数・順序・書くファイルが前の `newTestRepo` と同じであることと、テストがリポジトリを受け取るまでの git の起動の数を確かめる（AC-10、AC-11）。結果は 5.1 節の実行の記録に書く。
+    -   [ ] `testshape fixture-git <AC-12 の前のコミット>` を実行し、`build` の git の引数と順序が前の `newTestRepo` と同じであることと、テストがリポジトリを受け取るまでの git の起動の数を確かめる（AC-10、AC-11）。判定できないときは、止めて人に尋ねる（1.3 節）。結果は 5.1 節の実行の記録に書く。
     -   [ ] `package_reference.md` の `fixprguardtest` の行に、足した公開の名前を加える。
     -   [ ] 正しさの義務をコミットメッセージに書く（設計書 1.3 節）。このコミットはステップ 3-4 のテストと別にする。
 -   **完了の条件:** `make test` と `make lint` が通る。
@@ -323,7 +325,8 @@ PR-3 は製品を変えない。
 
 -   **作業:**
     -   [ ] `gotest.sh race` を、ステップ 3-3 と 3-4 の後の木でもう一度実行し、実行したコミットとともに記録する（AC-02）。
-    -   [ ] `gotest.sh measure <前のコミット>` を実行する（AC-12、AC-13）。前のコミットは、ステップ 1-8 で PR-1 の説明に書いたマージベースである。目標に届かないときは、PR を開く前に止め、結果と原因の見立てを人に示す。
+    -   [ ] `gotest.sh measure <前のコミット>` を実行する（AC-12、AC-13）。前のコミットは、ステップ 1-8 で 5.2 節に書いたマージベースである。目標に届かないときは、PR を開く前に止め、結果と原因の見立てを人に示す。
+    -   [ ] 前のコミットと今の木の間で、2 つのパッケージを変えたこのタスク以外のコミットを、PR の説明に書く（1.3 節）。
     -   [ ] 機械（OS と CPU のコア数、`GOMAXPROCS`）、Go の版、前後のコミット、パッケージごと・回ごとの時間を PR の説明に書く。3 回を超えて繰り返したときは、すべての回と判定に使った 3 回を書く。
     -   [ ] AC-10 の前後の数（前は 13 回と 12 回、後は 1 回。ひな形は別に 13 回と 12 回）と、`testshape fixture-git` の出力を PR の説明に書く（設計書 3.6 節）。
     -   [ ] `make coverage-compare BASE=<マージベース>`、`gotest.sh names <マージベース>`、`gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-3 の欄に記録する（AC-14、AC-15、AC-09）。
@@ -389,11 +392,11 @@ PR-3 は製品を変えない。
 | AC-03 | test、manual | `testshape parallel` が、プログラムが持つ一覧（設計書 4 章の 6 項目）の外で `t.Parallel()` を呼ばないテストを報告しないこと。一覧と設計書 4 章が同じことは、PR-3 のレビューで読む | 3-1、3-5 |
 | AC-04 | test | `testshape process-state` 検査（5.1 節）。PR-2 と PR-3 で実行する | 2-6、3-5 |
 | AC-05 | test | `fixprguardtest` の `Env` のテスト（ステップ 2-2）。`testshape env-source` 検査（5.1 節）。同等性のテストの `home` の比較（ステップ 3-4） | 2-2、2-6、3-4、3-5 |
-| AC-06 | test | `internal/fixprguard/worktree_flow_test.go::TestWorktreeIgnoresProcessDir` | 1-7 |
+| AC-06 | test | 作業ディレクトリが別のリポジトリのとき: `internal/fixprguard/worktree_flow_test.go::TestWorktreeIgnoresProcessDir`（PR-1）。作業ディレクトリに `.git` がないとき: PR-2 からの、`TestMain` の空のディレクトリの下での 2 つのパッケージのテスト全体（設計書 8.1 節）。PR-2 の `make test` で確かめる | 1-7、2-3、2-4 |
 | AC-07 | test、manual | `fixprguardtest` の `IsolateWorkingDir` と後の確かめのテスト（ステップ 2-2）。2 種類の漏れをわざと入れて失敗することの一度の確かめを、PR-2 の説明に記録する | 2-2、2-5 |
 | AC-08 | test、manual | `cmd/fixprguard/main_test.go::TestRunInProcessDir`、`::TestGhRunsWithoutGitVariables`、`::TestListRunnerRejectsStderr`。マージベースにあるテストの期待値の差分が空であることは、AC-16 と同じく PR のレビューで差分を読んで確かめる。要件の AC-16 がこの確かめ方を定めており、期待値の行だけを機械的に取り出す手段はない | 1-7、各 PR |
 | AC-09 | diff | `_checks/gotest.sh` の `unchanged` モード（5.1 節）。PR ごとに実行し、5.2 節に記録する | 1-8、2-6、3-5 |
-| AC-10 | static | `testshape fixture-git` 検査（5.1 節）が、前の `newTestRepo` と後の `newTestRepo` の git の起動の数を出す。前後の数を PR-3 の説明に書く | 3-3、3-5 |
+| AC-10 | static | `testshape fixture-git` 検査（5.1 節）が、前の `newTestRepo` と後の `newTestRepo` の git の起動の数を出す。前後の数を PR-3 の説明に書く。判定できないときは止めて人に尋ねる | 3-3、3-5 |
 | AC-11 | test、static、manual | 同等性のテストと分離のテスト（`internal/fixprguard/fixture_test.go`、`cmd/fixprguard/fixture_test.go`）、`fixprguardtest` の `Copy` のテスト。`build` が前の手順と同じ git を同じ順に起動し、同じファイルを書くことは、`testshape fixture-git` 検査と、PR-3 のレビューでの差分の読み合わせ（設計書 3.6 節） | 3-3、3-4 |
 | AC-12 | diff | `_checks/gotest.sh` の `measure` モード（5.1 節）。5.2 節に記録する | 3-5 |
 | AC-13 | test、manual | `measure` モードが機械・Go の版・前後のコミット・回ごとの時間を出す。その出力を PR-3 の説明に書く | 3-5 |
@@ -406,9 +409,9 @@ PR-3 は製品を変えない。
 
 #### `_checks/gotest.sh`
 
--   **スクリプト:** `docs/tasks/0126_fixprguard_test_speedup/_checks/gotest.sh`（shell、`jq` を使う）。目的は、2 つのパッケージの `go test` の実行と、その `-json` の出力の比較、変えないファイルの比較である。確かめる AC は AC-02、AC-09、AC-12、AC-13、AC-15 である。前の木は `git archive` で作業ツリーの外の一時ディレクトリに展開し、終わりに消す（1.3 節）。`go test` には `-timeout 0` を渡す（前の木の `-race` の実行が既定の 10 分に近いため。計る時間は変わらない）。どの実行でも、パッケージの `pass` の行がないとき、`fail` の行があるとき、前の木の `pass` の組が空のときは、判定せずに失敗する。
+-   **スクリプト:** `docs/tasks/0126_fixprguard_test_speedup/_checks/gotest.sh`（shell、`jq` を使う）。目的は、2 つのパッケージの `go test` の実行と、その `-json` の出力の比較、変えないファイルの比較である。確かめる AC は AC-02、AC-09、AC-12、AC-13、AC-15 である。前の木は `git archive` で作業ツリーの外の一時ディレクトリに展開し、終わりに消す（1.3 節）。`estimate`・`names`・`measure` の `go test` には `-timeout 0` を渡す（前の木の `-race` の実行が既定の 10 分に近いため。計る時間は変わらない）。`race` は AC-02 のコマンドのとおりに動かし、`-timeout` を渡さない。どの実行でも、パッケージの `pass` の行がないとき、`fail` の行があるとき、前の木の `pass` の組が空のときは、判定せずに失敗する。
 -   **検査:**
-    -   `estimate`: `origin/main` の木で 2 つのパッケージを 1 回ずつ実行する。並列にした後の時間の下限の見込みを、(最も長いトップレベルのテスト + 設計書 4 章の直列のテストのうち今あるものの合計) と (テストの時間の合計 ÷ `GOMAXPROCS`) の大きい方として出し、変更の前の実行時間の 50% と比べる。
+    -   `estimate`: `origin/main` の木で 2 つのパッケージを 1 回ずつ実行する。並列にした後の時間の下限の見込みを、(直列に残さないトップレベルのテストのうち最も長いもの + 設計書 4 章の直列のテストのうち今あるものの合計) と (テストの時間の合計 ÷ `GOMAXPROCS`) の大きい方として出し、変更の前の実行時間の 50% と比べる。
     -   `race`: 今の木で、`-race -count=3` と `-race -count=1 -cpu 1,4` を実行する。
     -   `names <base>`: `<base>` の木と今の木で、テストの名前の組を比べる（設計書 8.2 節の「テストの名前」）。
     -   `measure <before>`: `<before>` の木と今の木で、2 つのパッケージを別々に 3 回ずつ実行し、中央値と比を出す（設計書 8.2 節の「計測」）。機械と Go の版も出す。
@@ -419,6 +422,7 @@ PR-3 は製品を変えない。
     -   `names`・`unchanged`: 各 PR を作る前（ステップ 1-8、2-6、3-5）。`/runplan` の実行者が行う。
     -   `race`: ステップ 3-2 と 3-5。`/runplan` の実行者が行う。
     -   `measure`: PR-3 を作る前（ステップ 3-5）。`/runplan` の実行者が行う。
+-   **破壊の確かめの時期:** `estimate`・`names`・`unchanged`・`race` はステップ 1-1、`measure` はステップ 3-5（前の木と後の木が違うとき）。
 -   **テスト:** コミットしない。
 -   **破壊の記録:** （`/runplan` が書く）
 -   **実行の記録:** （実行した者が書く。`names`・`unchanged`・`measure` は 5.2 節を指す）
@@ -436,6 +440,7 @@ PR-3 は製品を変えない。
     -   `process-state`・`env-source`: PR-2 と PR-3 を作る前（ステップ 2-6、3-5）。`/runplan` の実行者が行う。
     -   `parallel`: ステップ 3-1、3-4、3-5。`/runplan` の実行者が行う。
     -   `fixture-git`: ステップ 3-3 と、PR-3 を作る前（ステップ 3-5）。`/runplan` の実行者が行う。
+-   **破壊の確かめの時期:** 健全な木で成功するようになったときに行う。`process-state`・`env-source` はステップ 2-6、`parallel` はステップ 3-1、`fixture-git` はステップ 3-3。それより前の実行は、記録の対象にしない。
 -   **テスト:** コミットしない。
 -   **破壊の記録:** （`/runplan` が書く）
 -   **実行の記録:** （実行した者が書く）
@@ -444,7 +449,7 @@ PR-3 は製品を変えない。
 
 `diff` の確かめ（AC-09、AC-12、AC-15）の出力と、比べた 2 つのコミット ID を、PR ごとに書く。`/runplan` が書く。
 
--   **PR-1:** AC-09（未記入）、AC-15（未記入）
+-   **PR-1:** AC-09（未記入）、AC-15（未記入）、AC-12 の前のコミット（未記入）
 -   **PR-2:** AC-09（未記入）、AC-15（未記入）
 -   **PR-3:** AC-09（未記入）、AC-12（未記入）、AC-15（未記入）
 
@@ -464,7 +469,7 @@ PR-3 は製品を変えない。
 | 実時間で待つテストが並列の負荷で失敗する | AC-02 か `make test` が揺れる | 判定の時間は変えず、止めて人に尋ねる（設計書 4 章） |
 | `coverage-compare` の `signalGroup` の揺れ | AC-14 が `FAIL` になる | きれいな作業ツリーで比べ直し、すべての回を記録する（設計書 8.2 節） |
 | コピーしたリポジトリが前の手順のものと違う | 既存のテストの前提が崩れる | 同等性のテスト（index の stat の情報を含む）と `testshape fixture-git`（ステップ 3-3、3-4） |
-| `testshape fixture-git` が実際のコードを判定できない | AC-10・AC-11 の機械的な比較が得られない | PR のレビューの読み合わせ（設計書 3.6 節）で確かめ、そのことを PR の説明に書く（1.3 節） |
+| `testshape fixture-git` が実際のコードを判定できない | AC-10 の確かめがなくなる | 検査を外さず、止めて人に尋ねる（1.3 節） |
 | 並列の負荷で計測の値が揺れる | AC-12 の判定が回によって変わる | 3 回の中央値で判定し、繰り返したときはすべての回を記録する（AC-13） |
 
 ## 8. 成功の基準
