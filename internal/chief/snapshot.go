@@ -219,7 +219,8 @@ func readFacts(ctx context.Context, deps Deps) (roundView, error) {
 // records, resets, and removal proposals. view.facts becomes the facts the
 // rows were classified from. Contract: it writes no record and runs no gh
 // command; besides the reads of classifyWorkspace, addRecords, and
-// addRemovals, it reads only the documents of an identified task; history
+// addRemovals, and the git and transcript reads of a conflict row's offer
+// (addConflictOffer), it reads only the documents of an identified task; history
 // is the history of the caller's session, or an empty one for a caller that
 // reads none, which identifies no task; unread are the PRs whose state this
 // round could not read (nil when it read none), and a worktree on main whose
@@ -227,6 +228,10 @@ func readFacts(ctx context.Context, deps Deps) (roundView, error) {
 func buildRows(ctx context.Context, deps Deps, view *roundView, history traceHistory, unread map[int]struct{}) {
 	git := NewGitReader(deps.Cmds)
 	tasks := NewTasks(deps.Cmds)
+	// The conflict rows' offers read the same conditions an automatic send
+	// does, through a sender that sends nothing: it has no creation
+	// exclusion and no round, and its view is the round's own.
+	offers := &conflictSender{a: &autoSender{deps: deps, view: view, herdr: NewHerdr(deps.Cmds), git: git, tasks: tasks}}
 	for i, w := range view.found {
 		f := view.facts[i]
 		if f.Head == headMain {
@@ -242,6 +247,7 @@ func buildRows(ctx context.Context, deps Deps, view *roundView, history traceHis
 		} else {
 			view.problems = append(view.problems, addResets(deps.Store, w, &row, view.routing)...)
 		}
+		addConflictOffer(ctx, offers, w, f, &row)
 		view.facts[i] = f
 		view.rows = append(view.rows, row)
 	}

@@ -5,6 +5,7 @@ package fixprguard
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,9 +17,12 @@ import (
 // Fixtures of the review-state tests. Times are UTC; rsCreated is when the
 // request comment under test was created.
 const (
-	rsUser        = "isseis"
-	rsRequestText = "please review"
-	rsCreated     = "2026-11-20T10:00:00Z"
+	rsUser             = "isseis"
+	rsRequestText      = "please review"
+	rsSourceryReviewer = "sourcery-ai"
+	rsSourceryReq1     = "sourcery review"
+	rsSourceryReq2     = "sourcery alias request"
+	rsCreated          = "2026-11-20T10:00:00Z"
 	// rsNow is GitHub's clock five minutes after rsCreated.
 	rsNow = "2026-11-20T10:05:00Z"
 
@@ -78,13 +82,15 @@ func (c rsComment) json() map[string]any {
 	}
 }
 
-func (c rsComment) isRequest() bool {
-	return c.kind == typenameUser && c.login == rsUser && strings.TrimSpace(c.body) == rsRequestText
+func (c rsComment) isRequestFor(requests []string) bool {
+	return isRequestComment(c.kind, c.login, rsUser, c.body, requests)
 }
 
-// rsRun is one check run; an empty string is null. url is derived from id.
+// rsRun is one check run; an empty string is null (except name, which defaults
+// to checkNameCodeRabbit when empty). url is derived from id.
 type rsRun struct {
 	id         int64
+	name       string
 	status     string
 	conclusion string
 	title      string
@@ -110,6 +116,22 @@ func rsRunning(started string) rsRun {
 
 func rsQueued(id int64) rsRun { return rsRun{id: id, status: "QUEUED"} }
 
+func rsSourceryFinished(id int64, started, completed string) rsRun {
+	return rsRun{id: id, name: checkNameSourcery, status: statusCompleted, conclusion: conclusionSuccess, title: titleSourceryFinished, started: started, completed: completed}
+}
+
+func rsSourcerySkipped(id int64, at string) rsRun {
+	return rsRun{id: id, name: checkNameSourcery, status: statusCompleted, conclusion: conclusionSkipped, title: titleSourcerySkipped, started: at, completed: at}
+}
+
+func rsSourceryRunning(id int64, started string) rsRun {
+	return rsRun{id: id, name: checkNameSourcery, status: "IN_PROGRESS", started: started}
+}
+
+func rsSourceryQueued(id int64) rsRun {
+	return rsRun{id: id, name: checkNameSourcery, status: "QUEUED"}
+}
+
 func (r rsRun) json() map[string]any {
 	null := func(s string) any {
 		if s == "" {
@@ -117,8 +139,12 @@ func (r rsRun) json() map[string]any {
 		}
 		return s
 	}
+	name := r.name
+	if name == "" {
+		name = checkNameCodeRabbit
+	}
 	return map[string]any{
-		keyDatabaseID: r.id, "status": r.status, "conclusion": null(r.conclusion), "title": null(r.title),
+		keyDatabaseID: r.id, keyName: name, "status": r.status, "conclusion": null(r.conclusion), "title": null(r.title),
 		"startedAt": null(r.started), "completedAt": null(r.completed), keyURL: rsRunURL(r.id),
 		// Members the tool does not read: they must not matter or be printed.
 		"detailsUrl": "https://coderabbit.example/details?scope=secret-scope",
@@ -139,9 +165,14 @@ type rsCommit struct {
 	more   bool // the suites' hasNextPage
 }
 
-// rsCommitOf is a commit holding runs in one suite of the reviewer.
+// rsCommitOf is a commit holding runs in one suite of the default reviewer.
 func rsCommitOf(oid string, runs ...rsRun) rsCommit {
 	return rsCommit{oid: oid, suites: []rsSuite{{app: testReviewer, runs: runs}}}
+}
+
+// rsSourceryCommitOf is a commit holding runs in one suite of Sourcery.
+func rsSourceryCommitOf(oid string, runs ...rsRun) rsCommit {
+	return rsCommit{oid: oid, suites: []rsSuite{{app: rsSourceryReviewer, runs: runs}}}
 }
 
 func (c rsCommit) json() map[string]any {
@@ -193,11 +224,21 @@ func rsBotReview(id int64, commit, submitted string) rsReview {
 	return rsReview{login: testReviewer + botLoginSuffix, kind: typenameBot, commit: commit, submitted: submitted, id: id}
 }
 
-// rsInput scripts a PRReviewState call. head defaults to rsHead and now to
-// rsNow. edit changes the response text of a stage (the body of each REST
-// page, the whole GraphQL response); fail makes the stage's call fail and ends
-// the script there; stop ends it after the stage.
+// rsSourceryBotReview is a PR review by Sourcery.
+func rsSourceryBotReview(id int64, commit, submitted string) rsReview {
+	return rsReview{login: rsSourceryReviewer + botLoginSuffix, kind: typenameBot, commit: commit, submitted: submitted, id: id}
+}
+
+// rsInput scripts a PRReviewState call. profile defaults to ProfileCodeRabbit,
+// reviewer to testReviewer (or rsSourceryReviewer for ProfileSourcery),
+// requests to []string{rsRequestText} (or Sourcery defaults for ProfileSourcery),
+// head to rsHead, and now to rsNow. edit changes the response text of a stage
+// (the body of each REST page, the whole GraphQL response); fail makes the
+// stage's call fail and ends the script there; stop ends it after the stage.
 type rsInput struct {
+	profile    ReviewProfile
+	reviewer   string
+	requests   []string
 	comments   []rsComment
 	commits    []rsCommit
 	reviews    []rsReview
@@ -209,6 +250,33 @@ type rsInput struct {
 	// stop ends the script after the named stage, for an input that is
 	// rejected there so no later call is made.
 	stop string
+}
+
+func (in rsInput) resolvedProfile() ReviewProfile {
+	if in.profile != ProfileUnknown {
+		return in.profile
+	}
+	return ProfileCodeRabbit
+}
+
+func (in rsInput) resolvedReviewer() string {
+	if in.reviewer != "" {
+		return in.reviewer
+	}
+	if in.resolvedProfile() == ProfileSourcery {
+		return rsSourceryReviewer
+	}
+	return testReviewer
+}
+
+func (in rsInput) resolvedRequests() []string {
+	if len(in.requests) > 0 {
+		return slices.Clone(in.requests)
+	}
+	if in.resolvedProfile() == ProfileSourcery {
+		return []string{rsSourceryReq1, rsSourceryReq2}
+	}
+	return []string{rsRequestText}
 }
 
 // rsDate formats an RFC 3339 time as the Date header gh prints.
@@ -286,26 +354,38 @@ func (in rsInput) steps(t testing.TB) []cmdrunnertestutil.Step {
 	if add(rsStageUser, cmdrunnertestutil.Step{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: userOut}) || in.stop == rsStageUser {
 		return steps
 	}
-	comments := make([]any, 0, len(in.comments))
-	hasRequest := false
-	for _, c := range in.comments {
-		comments = append(comments, c.json())
-		hasRequest = hasRequest || c.isRequest()
-	}
+	comments, hasRequest := in.commentItems()
 	steps = append(steps, in.restSteps(t, rsStageComments, "issues/"+testPR+"/comments", comments)...)
-	if in.fail[rsStageComments] != nil || !hasRequest || in.stop == rsStageComments {
+	if in.fail[rsStageComments] != nil || in.stop == rsStageComments {
+		return steps
+	}
+	if !hasRequest && in.resolvedProfile() == ProfileCodeRabbit {
 		return steps
 	}
 	graphql, broke := in.graphqlSteps(t, head)
 	steps = append(steps, graphql...)
-	if broke || in.stop == rsStageGraphQL {
+	if broke || in.stop == rsStageGraphQL || !hasRequest {
 		return steps
 	}
-	reviews := make([]any, 0, len(in.reviews))
-	for _, r := range in.reviews {
-		reviews = append(reviews, r.json())
+	return append(steps, in.restSteps(t, rsStageReviews, "pulls/"+testPR+"/reviews", in.reviewItems())...)
+}
+
+func (in rsInput) commentItems() (items []any, hasRequest bool) {
+	items = make([]any, 0, len(in.comments))
+	reqTexts := in.resolvedRequests()
+	for _, c := range in.comments {
+		items = append(items, c.json())
+		hasRequest = hasRequest || c.isRequestFor(reqTexts)
 	}
-	return append(steps, in.restSteps(t, rsStageReviews, "pulls/"+testPR+"/reviews", reviews)...)
+	return items, hasRequest
+}
+
+func (in rsInput) reviewItems() []any {
+	items := make([]any, 0, len(in.reviews))
+	for _, r := range in.reviews {
+		items = append(items, r.json())
+	}
+	return items
 }
 
 // pullStep is the gh api --include step for the PR's head.
@@ -364,43 +444,70 @@ func rsCommitsResponse(t testing.TB, head string, nodes []any, more bool, cursor
 	}}}})
 }
 
-// rsWant is the state a call is expected to return: Head and Now as the
-// defaults give them, and the first request (id 1, created at rsCreated) when
-// the state has one.
+// rsWant is the state a call is expected to return for ProfileCodeRabbit:
+// Head and Now as the defaults give them, and the first request (id 1, created
+// at rsCreated) when the state has one.
 func rsWant(state RequestState, edit ...func(*PRReviewState)) PRReviewState {
-	out := newReviewState(state)
+	return rsWantFor(ProfileCodeRabbit, state, edit...)
+}
+
+// rsWantFor builds an expected PRReviewState for profile.
+func rsWantFor(profile ReviewProfile, state RequestState, edit ...func(*PRReviewState)) PRReviewState {
+	out := newReviewState(profile, state)
 	out.Head, out.Now = rsHead, rsNow
-	out.Request = &ReviewRequest{ID: 1, URL: rsURL(1), CreatedAt: rsCreated}
+	if state != RequestNone {
+		out.Request = &ReviewRequest{ID: 1, URL: rsURL(1), CreatedAt: rsCreated}
+	}
 	for _, e := range edit {
 		e(&out)
 	}
 	return out
 }
 
-// rsUnreadable is the unreadable state with its reason; head is "" when the
-// PR's head was not read.
+// rsUnreadable is the unreadable state with its reason for ProfileCodeRabbit;
+// head is "" when the PR's head was not read.
 func rsUnreadable(reason UnreadableReason, head string) PRReviewState {
-	out := newReviewState(RequestUnreadable)
+	return rsUnreadableFor(ProfileCodeRabbit, reason, head)
+}
+
+// rsUnreadableFor is the unreadable state for profile.
+func rsUnreadableFor(profile ReviewProfile, reason UnreadableReason, head string) PRReviewState {
+	out := newReviewState(profile, RequestUnreadable)
 	out.Reason, out.Head = reason, head
 	return out
 }
 
-// runReviewState runs PRReviewState over the scripted calls, with the test
-// reviewer and the request text.
+// runReviewState runs PRReviewState over the scripted calls, with the input's
+// profile, reviewer, and request texts.
 func runReviewState(t *testing.T, in rsInput) PRReviewState {
 	t.Helper()
-	return runReviewStateSteps(t.Context(), t, in.steps(t))
+	return runReviewStateStepsFor(t.Context(), t, in.steps(t), ReviewStateRequest{
+		PR:       mustPR(t),
+		Profile:  in.resolvedProfile(),
+		Reviewer: mustLogin(t, in.resolvedReviewer()),
+		Requests: in.resolvedRequests(),
+	})
 }
 
-// runReviewStateSteps runs PRReviewState under ctx over steps, for a test
-// whose calls rsInput cannot script.
+// runReviewStateSteps runs PRReviewState under ctx over steps for
+// ProfileCodeRabbit, for a test whose calls rsInput cannot script.
 func runReviewStateSteps(ctx context.Context, t *testing.T, steps []cmdrunnertestutil.Step) PRReviewState {
+	t.Helper()
+	return runReviewStateStepsFor(ctx, t, steps, ReviewStateRequest{
+		PR:       mustPR(t),
+		Profile:  ProfileCodeRabbit,
+		Reviewer: mustLogin(t, testReviewer),
+		Requests: []string{rsRequestText},
+	})
+}
+
+func runReviewStateStepsFor(ctx context.Context, t *testing.T, steps []cmdrunnertestutil.Step, req ReviewStateRequest) PRReviewState {
 	t.Helper()
 	g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t, steps...))
 	if err != nil {
 		t.Fatalf("NewGitHubWithoutReviewer: %v", err)
 	}
-	state, err := g.PRReviewState(ctx, ReviewStateRequest{PR: mustPR(t), Reviewer: mustLogin(t, testReviewer), Request: rsRequestText})
+	state, err := g.PRReviewState(ctx, req)
 	if err != nil {
 		t.Fatalf("PRReviewState: %v", err)
 	}

@@ -129,6 +129,27 @@ type ConflictOutput struct {
 	Reasons []string `json:"reasons"`
 }
 
+// ConflictItemOutput is what a conflict item offers the human.
+type ConflictItemOutput struct {
+	// Phase is the phase's name (conflictPhaseName).
+	Phase string `json:"phase"`
+	// CanSend is true when /mergemain can be sent by the human's choice now.
+	CanSend bool `json:"can_send"`
+	// Reasons are the conditions that did not hold, empty when CanSend.
+	Reasons []string `json:"reasons"`
+	// ConversationLost is true when sending clears a conversation the
+	// human had in the pane after the task's last command.
+	ConversationLost bool `json:"conversation_lost"`
+}
+
+// conflictItemOutput converts a conflict item.
+func conflictItemOutput(c *ConflictItem) *ConflictItemOutput {
+	if c == nil {
+		return nil
+	}
+	return &ConflictItemOutput{Phase: conflictPhaseName(c.Phase), CanSend: c.Offer.CanSend, Reasons: sanitizeAll(c.Offer.Reasons), ConversationLost: c.Offer.ConversationLost}
+}
+
 // PendingOutput is one item waiting on the human.
 type PendingOutput struct {
 	ID        ItemID          `json:"id"`
@@ -145,6 +166,8 @@ type PendingOutput struct {
 	// Reasons are the conditions of the automatic send that did not hold
 	// for a proposal after a merge.
 	Reasons []string `json:"reasons"`
+	// Conflict is the offer of a conflict item, null on any other item.
+	Conflict *ConflictItemOutput `json:"conflict"`
 	// ReviewSkippable is set on a review item whose PR detail was gathered
 	// for the current head and judged the review skippable.
 	ReviewSkippable bool      `json:"review_skippable"`
@@ -342,6 +365,7 @@ func (s Snapshot) Output() SnapshotOutput {
 			Proposal:        nextOutput(p.Proposal),
 			Reset:           resetOutput(p.Reset),
 			Removal:         removalOutput(p.Removal),
+			Conflict:        conflictItemOutput(p.Conflict),
 			Reasons:         sanitizeAll(p.Reasons),
 			ReviewSkippable: p.ReviewSkippable,
 			FirstSeen:       p.FirstSeen,
@@ -482,7 +506,7 @@ func progressName(p Progress) string {
 	case ProgressTaskDone:
 		return "task_done"
 	case ProgressConflict:
-		return "conflict"
+		return nameConflict
 	case ProgressConflictUnresolved:
 		return "conflict_unresolved"
 	case ProgressResolving:
@@ -574,6 +598,10 @@ type DetailOutput struct {
 	ReportSource string         `json:"report_source"`
 	Report       string         `json:"report"`
 	ReportCut    bool           `json:"report_truncated"`
+	// ReportInheritedFrom is the earlier head (40 digits) whose pane report
+	// Report is, when a /mergemain merge commit took the head from it, and
+	// empty when Report is of the PR's own head.
+	ReportInheritedFrom string `json:"report_inherited_from"`
 	// DescriptionReason is why no pane's report is shown, null when one is
 	// or when a kept detail was used without the panes being read again.
 	DescriptionReason *DescriptionReasonOutput `json:"description_reason"`
@@ -679,6 +707,11 @@ func (o DetailOutcome) Output() DetailOutput {
 	}
 	out.Workspace, out.Label, out.Task = Sanitize(d.Workspace), Sanitize(d.Label), d.Task
 	out.PR = prOutput(&d.PR)
+	if d.View != nil && out.PR != nil {
+		// The view was read after the list, so a push in between makes its
+		// head the PR's current one, the head the report was read for.
+		out.PR.Head = d.View.HeadOID
+	}
 	out.ViewError, out.ChecksError, out.RecordError = Sanitize(d.ViewErr), Sanitize(d.ChecksErr), Sanitize(d.RecordErr)
 	if d.View != nil {
 		out.Size = &SizeOutput{ChangedFiles: d.View.ChangedFiles, Additions: d.View.Additions, Deletions: d.View.Deletions, Commits: d.View.Commits}
@@ -700,6 +733,7 @@ func (o DetailOutcome) Output() DetailOutput {
 		out.Reviews = nil
 	}
 	out.ReportSource, out.Report, out.ReportCut = d.Report.String(), Sanitize(d.ReportText), d.ReportTruncated
+	out.ReportInheritedFrom = d.ReportInheritedFrom.String()
 	if d.DescriptionReason != DescriptionReasonNone {
 		reason := &DescriptionReasonOutput{Reason: d.DescriptionReason.String(), Panes: []DescriptionPaneOutput{}}
 		for _, p := range d.ReportPanes {

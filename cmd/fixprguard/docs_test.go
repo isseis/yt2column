@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding"
 	"errors"
 	"fmt"
 	"maps"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/fixprguard"
+	"github.com/isseis/yt2column/internal/ghci"
 )
 
 // repoRoot is the repository root relative to this package's directory.
@@ -102,56 +104,77 @@ func TestGuideListsInteractionLimitsValues(t *testing.T) {
 	}
 }
 
-// TestGuideListsReviewStateValues: the review-state section of chapter 5
-// lists, in code spans, every state, unreadable reason, indeterminate reason
-// and run kind the tool prints, each in its own table. Reading the tables
-// alone keeps the same word elsewhere in the section from standing in for a
-// row.
-func TestGuideListsReviewStateValues(t *testing.T) {
-	sub := subsection(readRepoFile(t, guidePath), "### `review-state ")
-	type listing struct {
-		marker string
-		names  []string
-	}
-	var states, unreadable, indeterminate, kinds []string
-	text := func(v interface{ MarshalText() ([]byte, error) }) string {
+type guideValueListing struct {
+	marker string
+	names  []string
+}
+
+func marshalEnumNames[T encoding.TextMarshaler](t *testing.T, vals []T) []string {
+	t.Helper()
+	names := make([]string, 0, len(vals))
+	for _, v := range vals {
 		name, err := v.MarshalText()
 		if err != nil {
 			t.Fatalf("MarshalText(%v) = %v", v, err)
 		}
-		return string(name)
+		names = append(names, string(name))
 	}
-	for _, v := range fixprguard.RequestStates() {
-		states = append(states, text(v))
-	}
-	for _, v := range fixprguard.UnreadableReasons() {
-		unreadable = append(unreadable, text(v))
-	}
-	for _, v := range fixprguard.IndeterminateReasons() {
-		indeterminate = append(indeterminate, text(v))
-	}
-	for _, v := range fixprguard.RunKinds() {
-		kinds = append(kinds, text(v))
-	}
-	for _, l := range []listing{
-		{"**状態。**", states},
-		{"**読めない理由。**", unreadable},
-		{"**決まらない理由。**", indeterminate},
-		// The classification table of the section, which names the kinds the
-		// tool prints for a check run.
-		{"**応答の分類。**", kinds},
-	} {
+	return names
+}
+
+func checkGuideValueTables(t *testing.T, sectionName, heading string, listings []guideValueListing) {
+	t.Helper()
+	sub := subsection(readRepoFile(t, guidePath), heading)
+	for _, l := range listings {
 		table := guideTable(sub, l.marker)
 		if table == "" {
-			t.Errorf("%s: the review-state section has no table after %s", guidePath, l.marker)
+			t.Errorf("%s: the %s section has no table after %s", guidePath, sectionName, l.marker)
 			continue
 		}
 		for _, name := range l.names {
 			if !strings.Contains(table, "`"+name+"`") {
-				t.Errorf("%s: the review-state table after %s does not list `%s`", guidePath, l.marker, name)
+				t.Errorf("%s: the %s table after %s does not list `%s`", guidePath, sectionName, l.marker, name)
 			}
 		}
 	}
+}
+
+// TestGuideListsReviewStateValues: the review-state section of chapter 5
+// lists, in code spans, every profile, state, auto-review state, unreadable
+// reason, indeterminate reason and run kind the tool prints, each in its own
+// table. Reading the tables alone keeps the same word elsewhere in the section
+// from standing in for a row.
+func TestGuideListsReviewStateValues(t *testing.T) {
+	checkGuideValueTables(t, "review-state", "### `review-state ", []guideValueListing{
+		{"**プロファイル。**", marshalEnumNames(t, fixprguard.ReviewProfiles())},
+		{"**状態。**", marshalEnumNames(t, fixprguard.RequestStates())},
+		{"**自動の PR レビューの状態。**", marshalEnumNames(t, fixprguard.AutoReviewStates())},
+		{"**読めない理由。**", marshalEnumNames(t, fixprguard.UnreadableReasons())},
+		{"**決まらない理由。**", marshalEnumNames(t, fixprguard.IndeterminateReasons())},
+		// The classification table of the section, which names the kinds the
+		// tool prints for a check run across all profiles.
+		{"**応答の分類。**", marshalEnumNames(t, fixprguard.RunKinds())},
+	})
+}
+
+// TestGuideListsMentionsValues: the mentions section of chapter 5 lists every
+// state, unreadable reason, stage, and source in its own table.
+func TestGuideListsMentionsValues(t *testing.T) {
+	checkGuideValueTables(t, "mentions", "### `mentions ", []guideValueListing{
+		{"**状態。**", marshalEnumNames(t, fixprguard.MentionScanStates())},
+		{"**読めない理由。**", marshalEnumNames(t, fixprguard.UnreadableReasons())},
+		{"**段。**", marshalEnumNames(t, fixprguard.MentionScanStages())},
+		{"**発生元。**", marshalEnumNames(t, fixprguard.MentionSources())},
+	})
+}
+
+// TestGuideListsCIChecksValues: the ci-checks section of chapter 5 lists every
+// ghci state and unreadable reason in its own table.
+func TestGuideListsCIChecksValues(t *testing.T) {
+	checkGuideValueTables(t, "ci-checks", "### `ci-checks ", []guideValueListing{
+		{"**状態。**", marshalEnumNames(t, ghci.States())},
+		{"**読めない理由。**", marshalEnumNames(t, ghci.UnreadableReasons())},
+	})
 }
 
 // guideTable returns the lines of the first table after the line of doc that
@@ -203,45 +226,73 @@ func TestGuideTable(t *testing.T) {
 	}
 }
 
-// reviewerPlaceholder is the --reviewer value the command documents write for
-// the reviewer-list subcommands. awaitedReviewerPlaceholder and
-// requestPlaceholder are the --reviewer and --request values runpr.md writes
-// for review-state.
+// Placeholders the command documents write instead of literal reviewer logins,
+// profiles, or review request strings.
 const (
 	reviewerPlaceholder        = "<reviewer>"
-	awaitedReviewerPlaceholder = "<awaited-reviewer>"
-	requestPlaceholder         = "\"<review-request>\""
+	prReviewerPlaceholder      = "<pr-reviewer>"
+	prProfilePlaceholder       = "<pr-profile>"
+	acceptedRequestPlaceholder = "\"<accepted-request>\""
+	observedBotPlaceholder     = "<observed-bot>"
 )
 
 var (
-	errReviewerCount = errors.New("--reviewer not given exactly once")
-	errReviewerValue = errors.New("--reviewer is not the placeholder")
-	errRequestValue  = errors.New("--request is not the placeholder")
+	errReviewerCount    = errors.New("--reviewer not given exactly once")
+	errReviewerValue    = errors.New("--reviewer is not the placeholder")
+	errProfileValue     = errors.New("--profile is not the placeholder")
+	errRequestCount     = errors.New("--request not given exactly once")
+	errRequestValue     = errors.New("--request is not the placeholder")
+	errObservedBotCount = errors.New("--observed-bot not given exactly once")
+	errObservedBotValue = errors.New("--observed-bot is not the placeholder")
 )
 
-// checkDocumentedReviewer checks a parsed documented call of a subcommand that
-// takes --reviewer: its collected --reviewer values must be exactly one, the
-// subcommand's placeholder (<awaited-reviewer> for review-state, <reviewer>
-// for the rest), and review-state must pass the <review-request> placeholder.
-// A call of another subcommand has nothing to check (parse refuses --reviewer
-// there).
+// checkDocumentedReviewer checks a parsed documented call: subcommands taking
+// --reviewer must pass it once with their placeholder (<pr-reviewer> for
+// review-state, <reviewer> for the rest), review-state must also pass
+// --profile <pr-profile> and one --request "<accepted-request>", and mentions
+// must pass one --observed-bot <observed-bot> and one --request
+// "<accepted-request>".
 func checkDocumentedReviewer(inv invocation) error {
-	if !slices.Contains(specs[inv.name].flags, flagReviewer) {
-		return nil
+	if slices.Contains(specs[inv.name].flags, flagReviewer) {
+		values := inv.multi[flagReviewer]
+		if len(values) != 1 {
+			return fmt.Errorf("%w: %d values", errReviewerCount, len(values))
+		}
+		wantReviewer := reviewerPlaceholder
+		if inv.name == cmdReviewState {
+			wantReviewer = prReviewerPlaceholder
+		}
+		if values[0] != wantReviewer {
+			return fmt.Errorf("%w: %q", errReviewerValue, values[0])
+		}
 	}
-	values := inv.multi[flagReviewer]
-	if len(values) != 1 {
-		return fmt.Errorf("%w: %d values", errReviewerCount, len(values))
-	}
-	wantReviewer := reviewerPlaceholder
 	if inv.name == cmdReviewState {
-		wantReviewer = awaitedReviewerPlaceholder
+		if got := inv.values[flagProfile]; got != prProfilePlaceholder {
+			return fmt.Errorf("%w: %q", errProfileValue, got)
+		}
+		reqs := inv.multi[flagRequest]
+		if len(reqs) != 1 {
+			return fmt.Errorf("%w: %d values", errRequestCount, len(reqs))
+		}
+		if reqs[0] != acceptedRequestPlaceholder {
+			return fmt.Errorf("%w: %q", errRequestValue, reqs[0])
+		}
 	}
-	if values[0] != wantReviewer {
-		return fmt.Errorf("%w: %q", errReviewerValue, values[0])
-	}
-	if inv.name == cmdReviewState && inv.values[flagRequest] != requestPlaceholder {
-		return fmt.Errorf("%w: %q", errRequestValue, inv.values[flagRequest])
+	if inv.name == cmdMentions {
+		bots := inv.multi[flagObservedBot]
+		if len(bots) != 1 {
+			return fmt.Errorf("%w: %d values", errObservedBotCount, len(bots))
+		}
+		if bots[0] != observedBotPlaceholder {
+			return fmt.Errorf("%w: %q", errObservedBotValue, bots[0])
+		}
+		reqs := inv.multi[flagRequest]
+		if len(reqs) != 1 {
+			return fmt.Errorf("%w: %d values", errRequestCount, len(reqs))
+		}
+		if reqs[0] != acceptedRequestPlaceholder {
+			return fmt.Errorf("%w: %q", errRequestValue, reqs[0])
+		}
 	}
 	return nil
 }
@@ -281,7 +332,7 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 		want []string
 	}{
 		{".claude/commands/fixpr.md", []string{cmdBegin, cmdFence, cmdInspect, cmdFinish, cmdPush, cmdCheck, cmdPushReview, cmdReply, cmdEditPR, cmdAppendPR}},
-		{".claude/commands/runpr.md", []string{cmdHead, cmdInteractionLimits, cmdReviewState, cmdList, cmdReply, cmdEditPR}},
+		{".claude/commands/runpr.md", []string{cmdHead, cmdInteractionLimits, cmdMentions, cmdReviewState, cmdList, cmdCIChecks, cmdReply, cmdEditPR}},
 	} {
 		calls := documentedInvocations(readRepoFile(t, tc.rel))
 		seen := map[string]struct{}{}
@@ -315,9 +366,17 @@ func TestCheckDocumentedReviewer(t *testing.T) {
 	}{
 		{"one_placeholder", args(cmdList, "--reviewer", reviewerPlaceholder, testPR), nil},
 		{"no_reviewer_subcommand", args(cmdHead, testPR), nil},
-		{"review_state_placeholders", args(cmdReviewState, "--reviewer", awaitedReviewerPlaceholder, "--request", requestPlaceholder, testPR), nil},
-		{"review_state_wrong_reviewer", args(cmdReviewState, "--reviewer", reviewerPlaceholder, "--request", requestPlaceholder, testPR), errReviewerValue},
-		{"review_state_wrong_request", args(cmdReviewState, "--reviewer", awaitedReviewerPlaceholder, "--request", "literal", testPR), errRequestValue},
+		{"ci_checks_subcommand", args(cmdCIChecks, "--head", "<head>", testPR), nil},
+		{"review_state_placeholders", args(cmdReviewState, "--profile", prProfilePlaceholder, "--reviewer", prReviewerPlaceholder, "--request", acceptedRequestPlaceholder, testPR), nil},
+		{"review_state_wrong_profile", args(cmdReviewState, "--profile", "coderabbit", "--reviewer", prReviewerPlaceholder, "--request", acceptedRequestPlaceholder, testPR), errProfileValue},
+		{"review_state_wrong_reviewer", args(cmdReviewState, "--profile", prProfilePlaceholder, "--reviewer", reviewerPlaceholder, "--request", acceptedRequestPlaceholder, testPR), errReviewerValue},
+		{"review_state_wrong_request", args(cmdReviewState, "--profile", prProfilePlaceholder, "--reviewer", prReviewerPlaceholder, "--request", "literal", testPR), errRequestValue},
+		{"review_state_two_requests", args(cmdReviewState, "--profile", prProfilePlaceholder, "--reviewer", prReviewerPlaceholder, "--request", acceptedRequestPlaceholder, "--request", acceptedRequestPlaceholder, testPR), errRequestCount},
+		{"mentions_placeholders", args(cmdMentions, "--observed-bot", observedBotPlaceholder, "--request", acceptedRequestPlaceholder, testPR), nil},
+		{"mentions_wrong_bot", args(cmdMentions, "--observed-bot", "coderabbit=coderabbitai", "--request", acceptedRequestPlaceholder, testPR), errObservedBotValue},
+		{"mentions_two_bots", args(cmdMentions, "--observed-bot", observedBotPlaceholder, "--observed-bot", observedBotPlaceholder, "--request", acceptedRequestPlaceholder, testPR), errObservedBotCount},
+		{"mentions_wrong_request", args(cmdMentions, "--observed-bot", observedBotPlaceholder, "--request", "literal", testPR), errRequestValue},
+		{"mentions_two_requests", args(cmdMentions, "--observed-bot", observedBotPlaceholder, "--request", acceptedRequestPlaceholder, "--request", acceptedRequestPlaceholder, testPR), errRequestCount},
 		{"two_placeholders", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", reviewerPlaceholder, testPR), errReviewerCount},
 		{"placeholder_and_name", args(cmdBegin, "--reviewer", reviewerPlaceholder, "--reviewer", testReviewer, testPR), errReviewerCount},
 		{"name_itself", args(cmdInspect, "--reviewer", testReviewer, "--baseline", "<b>", testPR), errReviewerValue},

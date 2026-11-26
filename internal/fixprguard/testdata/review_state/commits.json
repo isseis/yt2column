@@ -28,6 +28,7 @@
                         "nodes": [
                           {
                             "databaseId": 64000001,
+                            "name": "CodeRabbit",
                             "status": "COMPLETED",
                             "conclusion": "SUCCESS",
                             "title": "Finished",
@@ -37,6 +38,7 @@
                           },
                           {
                             "databaseId": 64000002,
+                            "name": "CodeRabbit",
                             "status": "COMPLETED",
                             "conclusion": "SKIPPED",
                             "title": "Review skipped: automatic reviews are disabled",
@@ -81,6 +83,7 @@
                         "nodes": [
                           {
                             "databaseId": 64000005,
+                            "name": "CodeRabbit",
                             "status": "COMPLETED",
                             "conclusion": "SUCCESS",
                             "title": "Finished",
@@ -90,6 +93,7 @@
                           },
                           {
                             "databaseId": 64000004,
+                            "name": "CodeRabbit",
                             "status": "COMPLETED",
                             "conclusion": "NEUTRAL",
                             "title": "Review rate limited",
@@ -99,6 +103,7 @@
                           },
                           {
                             "databaseId": 64000003,
+                            "name": "CodeRabbit",
                             "status": "COMPLETED",
                             "conclusion": "SKIPPED",
                             "title": "Review skipped: automatic reviews are disabled",

@@ -23,6 +23,9 @@ const prURL = "https://github.com/owner/repo/pull/42"
 // prHead is the head commit the detail tests' PR has.
 const prHead = "e229481341330097cfa2b5976837cee8a7cf7718"
 
+// mainHead is origin/main as the detail tests see it.
+const mainHead = "1111111111111111111111111111111111111111"
+
 // viewOf returns a gh pr view sample made into the view of the open PR 42:
 // its number, URL, state, and head changed, and the edit applied.
 func viewOf(t *testing.T, sample string, edit func(map[string]any)) []byte {
@@ -60,6 +63,11 @@ func detailWorldAt(t *testing.T, tree string, kinds ...string) (*sendWorld, stri
 	sw.rec.replyIn(tree, "gh pr view 42 --json "+prViewFields, viewOf(t, "pr-view-867-open.json", nil))
 	sw.rec.replyIn(tree, "gh pr checks 42 --json "+prChecksFields, readTestdata(t, "gh/pr-checks-200-fail.json"))
 	sw.git(tree, "rev-parse HEAD", prHead+"\n")
+	// The head is a commit the worktree holds and has no parents, so a
+	// detail never inherits a report from an earlier head.
+	sw.git(tree, "rev-parse --verify --quiet "+prHead+"^{commit}", prHead+"\n")
+	sw.git(tree, "rev-list --parents -n 1 "+prHead, prHead+"\n")
+	sw.git(tree, "rev-parse refs/remotes/origin/main", mainHead+"\n")
 	// The Claude Code pane is the one that created the PR.
 	if p := sw.byPane["w1:p1"]; p.Kind == "claude" {
 		p.ran = "/mkarch 0001"
