@@ -17,7 +17,7 @@
 
 **背景:**
 
-issue #1167 の計測（`go test -tags test -race -count=1 ./...`）では、`internal/fixprguard` が全パッケージの中で最も遅く（壁時計で 493.0 秒）、`cmd/fixprguard` も 88.0 秒かかる。`make test` は `go test -race ./...` を 1 回実行する（`Makefile:93-95`）。`go test` は既定でパッケージを並列に走らせるので、全体の時間は最も遅いパッケージの時間で決まる。この 2 つのパッケージがテスト全体のボトルネックになっている。
+issue #1167 の計測（`go test -tags test -race -count=1 ./...`）では、`internal/fixprguard` が全パッケージの中で最も遅く（壁時計で 493.0 秒）、`cmd/fixprguard` も 88.0 秒かかる。`make test` は、まず `go test -tags test -race -v ./...` で全パッケージのテストを実行し、続けて `make test-parse-norace` で `TestParseCopiedLargeInputs` だけを race の検出なしで実行する（`Makefile:93-95`）。`go test` は既定でパッケージを並列に走らせるので、前半の時間は最も遅いパッケージの時間で決まる。この 2 つのパッケージがテスト全体のボトルネックになっている。
 
 遅い原因は 2 つある。
 
