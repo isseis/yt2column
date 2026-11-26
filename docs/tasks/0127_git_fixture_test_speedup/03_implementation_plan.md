@@ -186,16 +186,16 @@
 
 ### フェーズ 6: 計測と比較の一時スクリプトと PR-1 の記録（設計書 7.5、8 章の 7）
 
-- [ ] **ステップ 6-1**: 計測のスクリプトを書く
+- [x] **ステップ 6-1**: 計測のスクリプトを書く
     - 追加するファイル: `docs/tasks/0127_git_fixture_test_speedup/_checks/measure.sh`
     - 設計書 7.5「計測のスクリプト」のとおりにする（BASE・AFTER の交互の 6 回、`ok` の行の読み取り、パッケージごとの中央値と割合、機械の情報、元のブランチへの戻し）。言語は bash で、`jq` を使ってよい
-- [ ] **ステップ 6-2**: 比較のスクリプトを書く
+- [x] **ステップ 6-2**: 比較のスクリプトを書く
     - 追加するファイル: `docs/tasks/0127_git_fixture_test_speedup/_checks/compare.sh`
     - 設計書 7.5「比較のスクリプト」のとおりにする（AC-04 の名前・`fail`・`skip` の集まり、AC-11 の単独の選択と `-shuffle=on` の 2 回）。どの `go test` の実行も、終了コードが 0 で、2 つのパッケージの `pass` の事象があるときだけ通ったとする
     - 単独の選択の最上位のテスト関数は、AFTER の 3 つのファイルの `func Test` から取る。中間の名前は、1.3 節の表の名前を引数で受け取り、BASE の名前の集まりにあり、それを使う末端の中で最初でも最後でもないことを確かめる。選択は 1 つずつ別の `go test -count=1` で流し、選んだ末端の名前の `pass` の事象がなければ失敗とする（何も選ばれずに終了コードが 0 になる実行を、合格としない）
     - `/bin/bash` が 3.x の機械で、BASE の 4 つの関数（要件書 AC-05）の下に `bin-bash-3` の末端がなければ失敗とする
     - AC-09 の判定を足す: `requirements_process.md` §4「Fixed commands」の File list のコマンドで BASE と AFTER の間のファイルの一覧を取り、全体を出力する。各ファイルが、要件書 AC-09 の範囲（`cmd/yt2column/`・`internal/mergepr/` の `_test.go` のファイルと最初の行が `//go:build test` のファイル、`_test.go` でないファイルの最初の行がすべて `//go:build test` である `internal/snapshottest/`、`internal/pipeline/pipeline_test.go`、`docs/dev/conventions/package_reference.md`、`docs/tasks/0127_git_fixture_test_speedup/` の下）に入ること。消したファイルは BASE の内容で読み、読めないときは通ったとしない
-- [ ] **ステップ 6-3**: 2 つのスクリプトの壊し方を確かめる
+- [x] **ステップ 6-3**: 2 つのスクリプトの壊し方を確かめる
     - スクリプトをコミットしてから、各判定が少なくとも 1 つの壊し方で失敗することを確かめ、7.3 節・7.4 節に書く。作業ツリーの検査に先に当たらないように、壊し方は、作業ツリーの外に写したスクリプトに入れるか、比べるコミットを替えて与える。失敗したのがその判定であることを、出力で確かめる
     - 壊し方の確認の時間を抑えるため、2 つのスクリプトは、対象のパッケージ・`-run`・回数を狭める引数を受け取ってよい。狭めた実行は計測として記録しない
 - [ ] **ステップ 6-4**: PR-1 の計測と記録
@@ -372,7 +372,11 @@
     -   PR-1 と PR-2 のそれぞれで、PR を作る前に、`/runplan` が人に尋ねてから 1 回実行する（ステップ 6-4・7-4）。ステップ 7-5 を足したときは、その後にもう 1 回実行する。
     -   記録の後に、タスクのディレクトリの外のファイルかスクリプトが変わったとき（PR を開く前のレビューの直し、PR のレビューの直し、`origin/main` の取り込み）は、変えた人が、人への問いからやり直して実行し直す。スクリプトが変わったときは、壊し方の確認もやり直す（`requirements_process.md`「Temporary script record」の「Rewriting」）。
 -   **テスト:** コミットしない。
--   **壊し方の記録:** （`/runplan` が書く）
+-   **壊し方の記録:** 確かめたコミット: `cc946ac57728ce55b6676f6c68b6fe5371a825a7`。`CHECK_PKGS=./internal/strictjson`、`CHECK_ROUNDS=1` に狭めて流した（狭めた実行は計測として記録しない）。壊さない実行は `measure: DONE`（0）で、`BASE 3.051s AFTER 2.858s ratio 0.937` を出した。
+    -   作業ツリー: 追跡されていないファイルを置いた → `FAIL: the work tree is not clean`（1）
+    -   実行の合否: `CHECK_PKGS=./nonexistent` → `FAIL: go test failed at BASE round 1`（1）。`CHECK_RUN` が何も選ばない → `FAIL: cannot read the time of ./internal/strictjson at BASE round 1`（1）
+    -   機械の情報: コアの数の読み取りを空にした（写したスクリプトで） → `FAIL: cannot read the core count`（1）
+    -   元のブランチへの復帰: ブランチへの切り替えを外した（写したスクリプトで） → `STOP: not on the original branch`（1）。その後、手でブランチに戻した
 -   **実行の記録:** （`/runplan` が書く。出力と 2 つのコミットは 7.1 節に置き、ここからはその場所を指す）
 
 ### 7.4. 一時スクリプトの記録（`_checks/compare.sh`）
@@ -389,7 +393,18 @@
 -   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる（ステップ 6-3）。
 -   **予定の実行:** 7.3 節と同じ時点と人で実行する。
 -   **テスト:** コミットしない。
--   **壊し方の記録:** （`/runplan` が書く）
+-   **壊し方の記録:** 確かめたコミット: `cc946ac57728ce55b6676f6c68b6fe5371a825a7`。作業ツリーの外に写したスクリプトに壊し方を入れるか、引数・環境変数で入力を替えて流した（`CHECK_PKGS=./cmd/yt2column`、`CHECK_RUN` と `CHECK_TOPS` で `TestReviewRecordsFableAlias` と `TestHighReviewDecisionCallSite` に狭めた。狭めた実行は記録しない）。どの壊し方も、作業ツリーに残していない。
+    -   名前の集まり: AFTER の末端の名前を 1 行消した → `check names: FAIL`（終了コード 1）
+    -   `fail`: AFTER の `fail` の事象を 1 件足した → `check fail: FAIL`（1）
+    -   `skip`: AFTER の `skip` の集まりに 1 件足した → `check skip: FAIL`（1）
+    -   bash 3 の末端: 対象を `TestReviewRecordsFableAlias` 1 つにして、壊さない実行は `check bin-bash-3: PASS`。名前の `bin-bash-3` を `bin-bash-9` に替えた → `check bin-bash-3: FAIL`（1）
+    -   単独の選択: `-run` の式を 1 要素ごとに壊した → `select FAILED` が 3 件、`check single-first-last: FAIL`（1）。BASE にない最上位の名前を渡した → `TestNoSuchTop has no leaf in BASE`、`check single-first-last: FAIL`（1）
+    -   中間の名前: 最初の末端を渡した → `is the first or the last`、BASE にない名前を渡した → `is not in BASE`、名前を渡さない → `no middle name given`、いずれも `check single-middle: FAIL`（1）。壊さない実行（中間の名前 1 つ）は `compare: PASS`（0）
+    -   shuffle: `-shuffle=on` を外した → シードの行がなく `check shuffle: FAIL`（1）
+    -   差分の範囲: 一覧に `README.md` を足した → `range FAILED: README.md`、`check range: FAIL`（1）
+    -   `go test` の失敗: `CHECK_PKGS=./nonexistent` → `STOP: go test failed at BASE`（1）
+    -   作業ツリー: 追跡されていないファイルを置いた → `STOP: the work tree is not clean`（1）
+    -   元のブランチへの復帰: ブランチへの切り替えを外した → `STOP: not on the original branch`（1）。その後、手でブランチに戻した
 -   **実行の記録:** （`/runplan` が書く。`diff` の確かめを含むスクリプトなので、出力と 2 つのコミットは 7.2 節に置き、ここからはその場所を指す）
 
 ### 7.5. 前提の検査の確かめ（AC-07）
