@@ -134,7 +134,8 @@
 
 - [x] フェーズ 1（ステップ 1-1〜1-3）
 - [x] PR を作成した: https://github.com/isseis/yt2column/pull/1184
-- [ ] PR がマージされた
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（最終の PR のため）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
