@@ -355,9 +355,158 @@
 
 （`/runplan` が書く。PR ごとに、計測の前の人の答え、BASE と AFTER の完全な ID、`measure.sh` の出力の全体（機械の情報、6 回のパッケージごとの時間、中央値、割合）。PR-2 の後に、パッケージごとのこのタスクの割合と、ステップ 7-5 を足したかどうか）
 
+**PR-1（2026-11-27、結果: 止めて人に諮る）**
+
+-   人の答え: 「止めた。始めてよい」（ほかの重い処理を走らせておらず、`chief` の見張りを止めている、という問いへの答え）
+-   BASE: `fb71447bb8bd1baa47e113573db52939b41146cd`、AFTER: `8bb968e5c28f44bafd2a3811d190e2fdac2a72ac`（AFTER と、この記録のコミットは、タスクのディレクトリの下だけが異なる）
+-   `cmd/yt2column` の割合は 0.777 で、0.75 を超えた。`internal/mergepr` の PR-1 の割合は 1.076 で、1.0 を超えた（PR-1 は `internal/mergepr` を変えていない。BASE と AFTER の中央値は 41.388 秒と 44.518 秒で、6 回の値は 40.4〜45.9 秒に散らばった）。ステップ 6-4 の定めにより、作業を止め、人に知らせる
+
+`````text
+== machine ==
+os: Darwin 25.6.0 arm64
+cores: 12
+path-bash: /opt/homebrew/bin/bash 5.3.15(1)-release
+bin-bash: /bin/bash 3.2.57(1)-release
+go: go version go1.27.1 darwin/arm64
+GOMAXPROCS: unset
+BASE: fb71447bb8bd1baa47e113573db52939b41146cd
+AFTER: 8bb968e5c28f44bafd2a3811d190e2fdac2a72ac
+packages: ./cmd/yt2column ./internal/mergepr
+rounds: 3
+== runs ==
+BASE round 1 ./cmd/yt2column 178.275s
+BASE round 1 ./internal/mergepr 41.158s
+AFTER round 1 ./cmd/yt2column 138.453s
+AFTER round 1 ./internal/mergepr 44.518s
+BASE round 2 ./cmd/yt2column 184.690s
+BASE round 2 ./internal/mergepr 45.900s
+AFTER round 2 ./cmd/yt2column 138.962s
+AFTER round 2 ./internal/mergepr 44.706s
+BASE round 3 ./cmd/yt2column 165.649s
+BASE round 3 ./internal/mergepr 41.388s
+AFTER round 3 ./cmd/yt2column 128.060s
+AFTER round 3 ./internal/mergepr 40.359s
+== medians ==
+./cmd/yt2column BASE 178.275s AFTER 138.453s ratio 0.777
+./internal/mergepr BASE 41.388s AFTER 44.518s ratio 1.076
+measure: DONE
+`````
+
 ### 7.2. 比較の記録（AC-04・AC-05・AC-09・AC-11）
 
 （`/runplan` が書く。PR ごとに、BASE と AFTER の完全な ID と、`compare.sh` の出力の全体（判定ごとの結果、`-shuffle` の 2 回の実行の各パッケージのシード））
+
+**PR-1（2026-11-27、結果: 名前の集まりの判定が失敗）**
+
+-   BASE: `fb71447bb8bd1baa47e113573db52939b41146cd`、AFTER: `8bb968e5c28f44bafd2a3811d190e2fdac2a72ac`
+-   `names` の失敗は、`internal/mergepr` の `TestBaseCommitReadsTheRefItself` の末端の名前に、実行ごとに変わるコミットの短い ID が入っているため（`feat-1-g<hash>`）。PR-1 は `internal/mergepr` を変えていない。そのほかの判定はすべて通った
+
+`````text
+BASE: fb71447bb8bd1baa47e113573db52939b41146cd
+AFTER: 8bb968e5c28f44bafd2a3811d190e2fdac2a72ac
+packages: ./cmd/yt2column ./internal/mergepr
+== full runs ==
+full runs: both passed
+BASE leaves:     1994, AFTER leaves:     1994, BASE tops:      267
+== names, fail and skip (compare) ==
+check names: FAIL (2 differing names)
+1581c1581
+< github.com/isseis/yt2column/internal/mergepr	TestBaseCommitReadsTheRefItself/feat-1-g0790332ee4eb
+---
+> github.com/isseis/yt2column/internal/mergepr	TestBaseCommitReadsTheRefItself/feat-1-g38b959e2a8a4
+check fail: PASS
+check skip: PASS
+== bash 3 leaves ==
+check bin-bash-3: PASS
+== single selections (AFTER) ==
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/bin-bash-3/BASH_ENV
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/path-bash/without__context.md
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsUnreviewed/bin-bash-3/BASH_ENV
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsUnreviewed/path-bash/without__context.md
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsMode
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCrossCheck/bin-bash-3/BASH_ENV
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCrossCheck/path-bash/work_then_merge_after_a_record_from_the_merge-base
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsFableAlias/bin-bash-3/MISSING_when_rule_2_fix_uses_codex_seen_range
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsFableAlias/path-bash/fail-closed_on_missing__context.md
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCallSite
+select ok: github.com/isseis/yt2column/cmd/yt2column TestRecordLinePrefixesDistinct
+select ok: github.com/isseis/yt2column/cmd/yt2column TestRecordCommitsCheckMention
+select ok: github.com/isseis/yt2column/cmd/yt2column TestHighReviewDecision/all-high_agent_coverage/commit_covered_by_both_high_and_non-high_records_is_tainted
+select ok: github.com/isseis/yt2column/cmd/yt2column TestHighReviewDecision/values/unreadable
+select ok: github.com/isseis/yt2column/cmd/yt2column TestHighReviewDecisionCallSite
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginRejectsInvalidPRArg/""
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginRejectsInvalidPRArg/"１"
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainZeroPRStopsBeforeAnything
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPRViewReadsNarrowFields
+select ok: github.com/isseis/yt2column/internal/mergepr TestParseMergemainPRRejectsMalformedValues
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginPremisesAndNothingToTakeIn/GH_REPO_set
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginPremisesAndNothingToTakeIn/untracked_file
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeNoFastForward
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeRefusesIgnoredOverwrite
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeChecksArguments
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainConflictClassification/binary_markdown
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainConflictClassification/tool_file_renamed_with_only_its_declaration_line_in_conflict
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainProtocolUpdateAndRuleFacts/protocol_line_conflict_resolved_to_main_plus_one
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainProtocolUpdateAndRuleFacts/unchanged_tool_not_set
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReportsADRConflictFacts/branch_number_free
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReportsADRConflictFacts/same_number_on_both_sides
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainExtCheckHint/English_README
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainExtCheckHint/unrelated_file
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRestoreSafeAndRefusesOtherChanges/MERGE_HEAD_is_another_commit
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRestoreSafeAndRefusesOtherChanges/untracked_file
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushSuccessRejectedAndUnknown/pushed
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushSuccessRejectedAndUnknown/unknown
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsNonHeadOrForce/GH_REPO_set
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsNonHeadOrForce/second_remote
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksParentsAndMain/PR_head_is_not_the_base_head
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksParentsAndMain/tracked_change
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsOutOfScope/go_file_changed
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsOutOfScope/protocol_line_of_a_tool_the_branch_did_not_change
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksProtocolValues/body_of_a_changed_tool_edited
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksProtocolValues/value_the_merge_set
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginMergeRestoreFlow
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginRefusesSubdirectory
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRefusesOtherMergeDrivers/committed_union_driver
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRefusesOtherMergeDrivers/push_of_a_union_merge_main's_rule_allows
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginAcceptsGHDefaultOfOrigin
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBlockingPathIgnoresLetterCase
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReadsNoAttributesOutsideTheBaseHead/ignored_.gitattributes_at_merge
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReadsNoAttributesOutsideTheBaseHead/untracked_.gitattributes_at_push
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeIgnoresConfiguredMergeOptions
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushAfterOriginHasItAsksNoRestore
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushAfterItLandedAsksNoRestore
+select ok: github.com/isseis/yt2column/internal/mergepr TestNewMergemainIgnoresTheCallersGitEnvironment
+check single-first-last: PASS
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCrossCheck/path-bash/fail-closed_context_validation/valid_mapping_table_control
+select ok: github.com/isseis/yt2column/cmd/yt2column TestHighReviewDecision/values/old_sonnet
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/path-bash/git_config/global/core.abbrev
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCrossCheck/path-bash/git_config_with_a_merge/repository/diff.relative
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/path-bash/merge_commit_inside_a_seen_range
+check single-middle: PASS
+== shuffle (AFTER) ==
+shuffle run 1 seeds:
+github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795732527823446000
+github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795732527603826000
+shuffle run 2 seeds:
+github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795732674600069000
+github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795732674969957000
+check shuffle: PASS
+== changed files (BASE..AFTER) ==
+cmd/yt2column/fixture_snapshot_test.go
+cmd/yt2column/high_review_decision_test.go
+cmd/yt2column/main_test.go
+cmd/yt2column/review_records_test.go
+cmd/yt2column/test_helpers_gitfixture.go
+docs/dev/conventions/package_reference.md
+docs/tasks/0127_git_fixture_test_speedup/03_implementation_plan.md
+docs/tasks/0127_git_fixture_test_speedup/_checks/compare.sh
+docs/tasks/0127_git_fixture_test_speedup/_checks/measure.sh
+internal/pipeline/pipeline_test.go
+internal/snapshottest/snapshot.go
+internal/snapshottest/snapshot_test.go
+check range: PASS
+compare: FAIL
+`````
 
 ### 7.3. 一時スクリプトの記録（`_checks/measure.sh`）
 
@@ -424,9 +573,26 @@
 
 （`/runplan` が書く。PR ごとに、`make coverage-compare BASE=<BASE>` のすべての実行の出力の最後の部分と、実行したコミット）
 
+**PR-1（2026-11-27）** 1 回流して通った。実行したコミット: `8bb968e5c28f44bafd2a3811d190e2fdac2a72ac`
+
+`````text
+target    make coverage-compare BASE="fb71447bb8bd1baa47e113573db52939b41146cd"
+base      fb71447bb8bd1baa47e113573db52939b41146cd
+head      8bb968e5c28f44bafd2a3811d190e2fdac2a72ac tree ebe3271f787588de2f8a9265b2013b90fd5a560e
+toolchain go1.27.1
+tests     base 1831 head 1840
+files     base 195 head 195
+functions base 2348 head 2348
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+`````
+
 ### 7.7. テストと lint（AC-12）
 
 （`/runplan` が書く。PR ごとに、実行したコミットと、`make test`・`make lint` の終了コード）
+
+**PR-1（2026-11-27）** 実行したコミット: `8bb968e5c28f44bafd2a3811d190e2fdac2a72ac`。`make test` は終了コード 0、`make lint` は終了コード 0（`0 issues.`）。
 
 ## 8. 成功基準 (Success Criteria)
 
