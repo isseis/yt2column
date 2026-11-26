@@ -24,7 +24,6 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
 -   手動の PR レビューは、利用者がマージの質問で「先に PR レビューを依頼」を選び、続く依頼先を選ぶ単一選択の問いで指定したレビュアーに 1 件だけ頼む（CodeRabbit には `@coderabbitai review`、Sourcery AI には `@sourcery-ai review`）。利用者が手で投稿した `@sourceryai review` も Sourcery AI への手動の依頼として認識する。
     -   理由: 信頼の境界を変える PR などで外部の目を足す手段を残しつつ、CodeRabbit と Sourcery AI のどちらにも `/runpr` から依頼できるようにするためである。
     -   正本: [0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) の F-004、[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md) の F-004、[.claude/commands/_context.md](../../../.claude/commands/_context.md)。
-    -   **食い違い:** `_context.md` と `runpr.md` はまだ CodeRabbit のみを手動の依頼の対象としている。この食い違いは https://github.com/isseis/yt2column/issues/1095 の実装で解消する。
 -   CodeRabbit の自動の PR レビューは止めたままにする。
     -   内容: `.coderabbit.yaml` の `reviews.auto_review.enabled` を `false` にする。
     -   理由: 割り当てを頻繁に使い切り、機能していなかったためである（[0031 要件定義書](../../tasks/0031_codex_pr_review/01_requirements.md) §1）。
@@ -55,7 +54,6 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
     -   「見た」とは、ローカルの CLI レビューがそのコミットを見たことが、ブランチの記録から分かることである。
     -   理由: CodeRabbit の PR レビューを手動に限る決定に合わせつつ、未レビューの変更に信頼の境界を変える変更などが含まれるときに利用者の目を引くためである。基準を信頼の境界・セキュリティ・耐久性とそれ以外に分けるのは、次の実績があるためである。PR を作成した後に手作業で頼んだ Fable のレビューの指摘を直し、その後に PR 再レビューを頼んだ 7 件のうち、新しい指摘が 0 件だったのは 6 件で、残る 1 件は信頼の境界のロジックを書き換えた PR だった。実績と違う種類の変更にこの分け方を当てはめることは、受け入れる危険とする。
     -   正本: [0118 要件定義書](../../tasks/0118_codex_removal/01_requirements.md) の F-005、[0120 要件定義書](../../tasks/0120_harness_independent_commands/01_requirements.md) の F-001、[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md) の F-004、基準は [pr-review-escalation.md](../../../.claude/commands/_lib/pr-review-escalation.md)。
-    -   **食い違い:** `runpr.md` の `LAST_REVIEWED` はまだ CodeRabbit の手動の PR レビューのみを起点としている（https://github.com/isseis/yt2column/issues/1095 の実装で解消する）。
 -   ローカルの CLI レビューの試行がレビューした範囲を、`Local CLI reviewed:` の記録の行としてブランチに残す。
     -   呼び出し元が指定したときは、ローカルの CLI レビューの手順が、記録の行だけを持つ空のコミットを作る。
     -   範囲のすべてのコミットをレビューしたかどうかは、`origin/main` から取り出す判定のスクリプト `.claude/commands/_lib/review-records.sh` が決める。結果は `ALL` か `PARTIAL` で、スクリプトが失敗したときは `PARTIAL` とする。
@@ -76,7 +74,6 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
     -   **本文だけの指摘と、レビューしなかったファイル:** 本文を読まずに分からないものは分からないものとして扱い、完了した PR レビューの要約ではレビューの URL と、本文に指摘やレビューしなかったファイルの知らせがありうることを示す。本文の英語の文言でしか分からず、文言で分岐すると、文言が変わったときに黙って見落とすためである。
     -   理由: 観測では完了・割り当て切れ・レビューしたコミットを本文なしに示すのは CheckRun だけで、CheckRun を作れるのはその GitHub App だけである。要約コメントの「between」の行は割り当て切れのときも書かれ、依頼への返信はコミットを示さないので、どちらも完了の印に使わない。`output.title` を読むのは、エラーも `neutral` で終わりうるためである。手動の依頼が割り当て切れ・エラー・時間切れで終わったときに止まるのは、レビューされていない変更をレビュー済みとしないためである。判定を Go に置くのは `gh api --jq` の重複後勝ちを避けテストで検証するためである（[ADR-0014](0014-deterministic-checks-in-go.md) の 1、[ADR-0015](0015-untrusted-review-threads.md)）。どちらか 1 社の手動の PR レビューの完了で `LAST_REVIEWED` とし、自動の PR レビューのスキップで止めないのは、自動の PR レビューの指摘を活かしつつ割り当て切れや上限到達でマージを塞がないためである。自動の PR レビューの完了を数えないのは、Sourcery AI が push のたびに自動でレビューするので、数えると自動の PR レビューが成功した PR では `LAST_REVIEWED` が `head` になり、エスカレーションの判定とマージの質問の要約の「未レビュー分」の行（[ADR-0050](0050-fable-partial-review.md)）が飛ばされるためである。その場合、レビューの関門を変える変更でも推奨が「マージ」になり、関門が働くかどうかも、変更の中身ではなく自動の PR レビューの予算の残りで決まる。利用者が依頼しておらず、品質も測っていないレビューを、エスカレーションの代わりにしない（[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md)「issue #1140 で決めたこと（2026-11-25）」）。`mergepr prepare` 側も `internal/ghci` で CI 待機を外部レビュアーの CheckRun から分離するのは、`/runpr` step 4 で `mergepr prepare` を呼ぶ際に `gh pr checks --watch --fail-fast` が `Sourcery review` の失敗で停止し、未完了では完了まで待ち続けてしまうためである（[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md)「設計の際に決めたこと（2026-11-24）」）。
     -   正本: [0118 設計書](../../tasks/0118_codex_removal/02_architecture.md) の 1.3・3.3、[0118 の観測の記録](../../tasks/0118_codex_removal/observations.md)、[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md) の F-001・F-004、[0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md) の 1.3・1.4・3.2.2・3.2.4。
-    -   **食い違い:** `fixprguard review-state` と `runpr.md` はまだ CodeRabbit 単体（手動のみ）を判定している。また、`runpr.md` の CI 待機もまだ `gh pr checks` を使っており、外部レビュアーの CheckRun をリポジトリの CI チェックから分離していない。この食い違いは https://github.com/isseis/yt2column/issues/1095 の実装で解消する。
 -   自動レビュアーの投稿は信頼しない入力として読む。
     -   内容: 完了の印は、GitHub App の slug が対象レビュアー（`coderabbitai`・`sourcery-ai`）の CheckRun だけを数え、それが示すコミットとその祖先だけをレビュー済みにする。手動の依頼のコメントは著者の種類が `User` で著者名が利用者のものだけを数える。CodeRabbit では、依頼の応答は、その依頼の後、次の依頼より前に始まった最初の CheckRun とし、それより後の CheckRun は数えない。最初のものを選べないとき（同じ秒に始まった、または実行が重なった）と、観測した形に合わないときは、完了とせずに止まる。Sourcery AI の応答の選び方と重なりの扱いは [0122 設計書](../../tasks/0122_sourcery_trusted_reviewer/02_architecture.md) の 3.2.2 が持つ。CheckRun は PR のコミット一覧にあるコミットのものだけを読み、読み取りの途中で head が変わったときは一覧を捨てて読み直すので、示すコミットはかならず出力する head かその祖先である。
     -   理由: 形を直したり読み替えたりして完了とすると、レビューされていない変更をレビュー済みとしうるためである。
@@ -89,7 +86,6 @@ PR レビューは CodeRabbit（手動）と Sourcery AI（自動・手動）を
     -   内容: 一覧は [.claude/commands/_context.md](../../../.claude/commands/_context.md) の「Automated reviewer list」に 1 か所だけ置き、各名前は GraphQL の `author.login` の形（`[bot]` を付けない）で持つ。PR レビューの待機・依頼の対象と依頼文面は `_context.md` の別項目で定め、REST の `user.login` の形はその名前に `[bot]` を付けて作る。一覧は「誰のスレッドを処理するか」（[ADR-0015](0015-untrusted-review-threads.md)）を決め、PR レビューの待機・依頼の対象は「何をもってレビュー済みとし、誰に手動の依頼をするか」を決める。
     -   理由: 名前を一覧にすると、どの名前に `[bot]` を付け、どの依頼文面で誰を待つかが一覧だけでは決まらないためである。
     -   正本: [0033 要件定義書](../../tasks/0033_multiple_trusted_reviewers/01_requirements.md) の「自動レビュアーの一覧と完了を待つ PR レビュアーを分ける」、[0122 要件定義書](../../tasks/0122_sourcery_trusted_reviewer/01_requirements.md) の F-004。
-    -   **食い違い:** `_context.md` の「Awaited PR reviewer」と「PR review request」はまだ単一の `coderabbitai` のみである。この食い違いは https://github.com/isseis/yt2column/issues/1095 の実装で解消する。
 
 ## 採らなかった案
 

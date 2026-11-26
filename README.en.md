@@ -1,11 +1,18 @@
-<!-- translated-from: README.md 83b30756e7691841636f7df7d49c0eef51884ba9 -->
+<!-- translated-from: README.md c8071d5f50c3a9693e627433b71b4f6939956547 -->
 [日本語](README.md)
 
-# yt2column
+# YomuDoga for YouTube™
 
-yt2column is a browser extension that summarizes the content of a YouTube video into a magazine-column-style article you can read in a short time. This extension is free. However, the AI service that creates the articles charges a usage fee. You pay the fee directly to the company that provides the AI (Anthropic). You can read the article in the browser, and you can also save it as a file or copy it to the clipboard.
+YomuDoga is a browser extension that turns YouTube™ video transcripts into magazine- and newspaper-style Japanese column articles. By trimming tangents and repetition in spoken language and editing and proofreading the result, it aims to deliver clear, well-structured reading material whose key points come through even without watching the video. This extension is free. However, the AI service that creates the articles charges a usage fee. You pay the fee directly to the company that provides the AI (Anthropic). You can read the article in the browser, and you can also save it as a file or copy it to the clipboard.
 
 > **Status:** early development. It has not been released yet, so it is not publicly available. The installation steps for after the release are collected in [INSTALL.md](INSTALL.md) in preparation for it.
+
+## Features
+
+- **Conclusions first, ordered by importance:** The opening lead states the topic and main conclusion, and the sections follow in order of importance. Like a newspaper article, you get the main picture even if you stop reading partway through.
+- **Format-aware editing and checking against the transcript:** It chooses an article format suited to the video (interview, dialogue, review, or explainer column), adjusts the length, and checks the draft against the original transcript for transcription errors or unsupported claims.
+- **Resilient to UI changes:** Because it does not manipulate the page automatically and takes only the transcript you select, it stays reliable even when YouTube's UI changes.
+- **Designed for peace of mind:** It reads the active page only when you click the button, and there is no relay server: requests go directly from your browser to the AI service. All source code and prompts are published as open source.
 
 ## How it works
 
@@ -30,7 +37,7 @@ The flow of use is as follows.
 
 1. Follow [INSTALL.md](INSTALL.md) to create an API key at Anthropic (including preparing to pay), install the extension, and save the API key (only the first time).
 2. On a YouTube video page, open the transcript panel and select the lines shown in the panel.
-3. Click the yt2column icon in the browser's toolbar to start generating the article.
+3. Click the YomuDoga icon in the browser's toolbar to start generating the article.
 4. The article appears in a dedicated tab. You can save it as a text file you can open with Notepad or similar (Markdown format, `.md`), or copy it to the clipboard. The article disappears when you quit the browser, so if you want to keep it, save or copy it before quitting.
 
 The detailed steps from getting the extension to saving the first article are explained in [INSTALL.md](INSTALL.md).
@@ -48,3 +55,7 @@ The address of the tab that shows the article contains the video URL and the tit
 ## Developer documents
 
 There is also a version for developers that you use from the command line rather than the browser. How article generation works is described in [Article generation details](docs/dev/guides/generation.md), how to run the CLI is in [Using the CLI](docs/dev/guides/cli.md), and the development procedures are in [Development procedures](docs/dev/guides/development.md).
+
+---
+
+This extension is an unofficial tool and is not affiliated with Google LLC or YouTube. YouTube is a trademark of Google LLC.

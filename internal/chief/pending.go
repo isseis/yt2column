@@ -42,6 +42,9 @@ const (
 	PendingQuestion
 	// PendingMergeConfirmation is /runpr's merge question.
 	PendingMergeConfirmation
+	// PendingConflict is an open PR in a merge conflict, with the choice to
+	// send /mergemain or the reasons it cannot be sent.
+	PendingConflict
 	// PendingReview is an open PR waiting for review.
 	PendingReview
 	// PendingProposal is a proposed command.
@@ -60,6 +63,8 @@ func (k PendingKind) String() string {
 		return nameQuestion
 	case PendingMergeConfirmation:
 		return "merge_confirmation"
+	case PendingConflict:
+		return nameConflict
 	case PendingReview:
 		return "review"
 	case PendingProposal:
@@ -89,6 +94,8 @@ type PendingItem struct {
 	// Reasons are why a proposal was not sent by itself after a merge: the
 	// conditions of the automatic send that did not hold.
 	Reasons []string
+	// Conflict is what a conflict item offers the human.
+	Conflict *ConflictItem
 	// ReviewSkippable marks a review item whose PR detail, kept for the
 	// worktree's HEAD, judged the review skippable.
 	ReviewSkippable bool
@@ -101,6 +108,13 @@ type PendingItem struct {
 	// item is first seen and kept, never given to another item; 0 when none
 	// could be given.
 	Number int
+}
+
+// ConflictItem is the offer of a conflict item: the phase of the row's
+// resolution and what the human may choose.
+type ConflictItem struct {
+	Phase ConflictPhase
+	Offer ConflictOffer
 }
 
 // itemID builds an opaque identity from parts. The parts are joined with a
@@ -120,8 +134,8 @@ func questionID(workspace string, q Question) ItemID {
 }
 
 // buildPending lists the items waiting on the human in rows: a question or a
-// merge confirmation for each distinct question, a review item for each open
-// PR, a proposal for each next command or takeover, including one that
+// merge confirmation for each distinct question, a conflict item for each
+// conflict row whose phase has one, a review item for each open PR, a proposal for each next command or takeover, including one that
 // cannot be sent as it is (a /mkreq waits for the human's issue number, and
 // any other says why in its Problem), a reset item for each reset the row
 // offers, whatever its state, and a removal item for each row with a removal
@@ -147,6 +161,10 @@ func buildPending(rows []Row) []PendingItem {
 					kind = PendingMergeConfirmation
 				}
 				add(PendingItem{ID: questionID(r.Workspace, q.Question), Kind: kind, Workspace: r.Workspace, Label: r.Label, Question: &q})
+			}
+		case StateConflict:
+			if r.PR != nil && r.Offer != nil && conflictOfferPhase(r.Conflict) {
+				add(PendingItem{ID: conflictItemID(r.Workspace, *r.PR, r.Conflict), Kind: PendingConflict, Workspace: r.Workspace, Label: r.Label, PR: r.PR, Conflict: &ConflictItem{Phase: r.Conflict, Offer: *r.Offer}})
 			}
 		case StateAwaitingReview:
 			if r.PR != nil {
@@ -196,7 +214,7 @@ func mergePending(items, extra []PendingItem) []PendingItem {
 }
 
 // kindRank is the order of kinds: the questions that stop an agent, the
-// merge confirmations, the PRs waiting for review, the other proposals, a
+// merge confirmations, the conflicts, the PRs waiting for review, the other proposals, a
 // reset item among them, then the removals.
 func kindRank(k PendingKind) int {
 	if k == PendingReset {
@@ -210,7 +228,7 @@ func kindRank(k PendingKind) int {
 }
 
 // kindOrder is the order of the kinds in the list of pending items.
-var kindOrder = []PendingKind{PendingQuestion, PendingMergeConfirmation, PendingReview, PendingProposal, PendingRemoval}
+var kindOrder = []PendingKind{PendingQuestion, PendingMergeConfirmation, PendingConflict, PendingReview, PendingProposal, PendingRemoval}
 
 // nameQuestion names the question state and kind in the output.
 const nameQuestion = "question"
