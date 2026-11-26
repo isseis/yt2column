@@ -4,10 +4,10 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-26 |
+| Reviewer | isseis |
 | Comments | - |
 
 本書は [01_requirements.md](01_requirements.md)（要件定義書。以下、要件書）の設計である。既存のファイルについての記述は、コミット `95793184` のファイルで確かめた。`file:line` はこのコミットの行番号を指す。F-NNN・AC-NN は要件書の項番を指す。要件の起草で設計に申し送られた事項（[design_handoff.md](design_handoff.md) の H-01〜H-05）への対応は、付録 A にまとめる。
@@ -525,3 +525,7 @@ PR の分け方は実装計画で決める。`cmd/yt2column`（1〜5）と `inte
 | H-03 | 共通の初期状態はストアに 1 回だけ作り、ケースは自分の `HOME`・`TMPDIR` を持つ。`takeIn` では `remote.origin.url` を書き換え、index の stat の情報を読み直す。作れなかったときは、それに依るケースを失敗させる。複製と作り直しを比べるテストで固定する | 3.1、3.2、3.6、3.8 |
 | H-04 | 共有するのは、同じ共有の状態の上の同じ実行の結果だけにする。設定の前の出力の検査は共有の側で行い、失敗したときはその bash のグループのシナリオをすべて失敗させる。plain git の比較は各シナリオに残す | 3.3、7.4 |
 | H-05 | `_checks/` に計測と比較の 2 つの一時スクリプトを置く。worktree は作らず、作業ツリーで BASE と AFTER を交互に取り出す。機械の情報も同じスクリプトで出す | 1.2、7.5 |
+
+## 変更履歴
+
+- 2026-11-26 承認（isseis、#1186）
