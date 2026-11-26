@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"testing"
+
+	"github.com/isseis/yt2column/internal/snapshottest"
 )
 
 // productionEndpoint is the DeepSeek URL a request from the real client would
@@ -45,7 +47,30 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "proxy setting not in effect: %v\n", err)
 		os.Exit(1)
 	}
-	os.Exit(m.Run())
+	os.Exit(runWithSnapshotStore(m))
+}
+
+// runWithSnapshotStore creates the store of shared fixture states, runs the
+// tests, and removes the store before returning m.Run's exit code. The store
+// is created after TestMain's child-process branch, so a CLI child started by
+// a signal test creates none.
+func runWithSnapshotStore(m *testing.M) int {
+	root, err := os.MkdirTemp("", "yt2column-snapshots-")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "create the snapshot store directory: %v\n", err)
+		return 1
+	}
+	snapshotStore = snapshottest.NewStore(root)
+	code := m.Run()
+	if err := snapshotStore.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "remove the snapshot store: %v\n", err)
+		code = 1
+	}
+	if err := os.RemoveAll(root); err != nil {
+		fmt.Fprintf(os.Stderr, "remove %s: %v\n", root, err)
+		code = 1
+	}
+	return code
 }
 
 // closedLoopbackURL returns the URL of a loopback address whose listener was

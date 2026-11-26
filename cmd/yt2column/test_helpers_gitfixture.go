@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/isseis/yt2column/internal/snapshottest"
 )
 
 // gitFixture is a fixture git repository a test runs a command document's
@@ -22,6 +24,11 @@ type gitFixture struct {
 	t               *testing.T
 	repo, home, tmp string
 }
+
+// snapshotStore holds the fixture states that tests build once per test
+// process and copy (internal/snapshottest). TestMain sets it before any test
+// runs and closes it after the last one.
+var snapshotStore *snapshottest.Store
 
 // fixtureDirMode is the mode of the directories write creates.
 const fixtureDirMode = 0o750

@@ -118,7 +118,7 @@
 - [x] **ステップ 1-3**: 新しいパッケージを登録する
     - 変えるファイル: `internal/pipeline/pipeline_test.go`（`testOnlyPackageDirs` に `internal/snapshottest` を足す）、`docs/dev/conventions/package_reference.md`（`internal/snapshottest` の行）
     - `TestFakesCarryBuildTag` の `testutil` のファイルの数（22）は変えない（設計書 3.9）
-- [ ] **ステップ 1-4**: `cmd/yt2column` のストアを作る
+- [x] **ステップ 1-4**: `cmd/yt2column` のストアを作る
     - 変えるファイル: `cmd/yt2column/main_test.go`、`cmd/yt2column/test_helpers_gitfixture.go`（ストアの変数）
     - 子のプロセスの分岐（`main_test.go:23-25`）の後で `os.MkdirTemp` の場所に `NewStore` を作る。`os.Exit(m.Run())` を、`m.Run` の終了コードを取り、`Close` を呼び、その後で `os.Exit` する形にする（設計書 3.1「寿命」）。`MkdirTemp` か `Close` が失敗したときは、標準エラー出力に書き、0 でない終了コードで終わる
 - 完了の条件: `go test -tags test -race ./internal/snapshottest ./internal/pipeline ./cmd/yt2column`、`make lint` が通る。ステップ 1-1〜1-3 と 1-4 を別のコミットにする
