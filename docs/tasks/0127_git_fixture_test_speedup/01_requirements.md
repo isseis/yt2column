@@ -51,7 +51,7 @@ issue #1168 の計測（`go test -tags test -race -count=1 ./...`）では、次
 
 -   **進め方:** 通常の進め方にする。変わるのはテストだけだが、`internal/mergepr` のテストは、開発ツールの信頼境界を守る `mergepr`（[ADR-0015](../../dev/adr/0015-untrusted-review-threads.md)）の検証である。簡易な進め方から外す条件（`docs/dev/conventions/requirements_process.md`、「Simple Process」の「Excluded changes」）に当たるかどうかは判断が分かれる程度なので、迷うときの規則に従って、外れる変更と判断した。さらに、新しいテストの仕組みを作るので、決めることも多い。この判断のとおり、人は通常の進め方を選んだ。ADR はなし（進め方の選択は、このタスクの中で閉じる）。
 -   **短縮の目標:** 同じ機械で、基準の半分以下にする。同じ機械と条件で変更の前と後を測り、`cmd/yt2column` と `internal/mergepr` の実時間を、どちらも前の 50% 以下にする（F-001）。理由: issue の「大幅に短縮」は測れないので、数値にする。実時間はほかのパッケージの負荷で変わるので、機械ごとの絶対の秒数ではなく、同じ条件で比べた割合で決める。末端のサブテストの時間の合計は、並列実行での CPU の取り合いで膨らむ値なので、目標にしない。ADR はなし（このタスクの目標で、ほかのタスクを縛らない）。
--   **計測の方法:** 2 つのパッケージを 3 回ずつ流し、中央値で比べる。同じ機械で `go test -tags test -race -count=1 ./cmd/yt2column ./internal/mergepr` を変更の前と後で 3 回ずつ流し、パッケージごとの中央値を比べる（AC-03）。理由: 2 つのパッケージだけを流せば、ほかのパッケージの負荷によるぶれが減る。1 回だけでは負荷のぶれを受けやすいので、3 回の中央値にする。`make test` と同じ `-race` を付ける。ADR はなし（このタスクの測り方である）。
+-   **計測の方法:** 2 つのパッケージを 3 回ずつ流し、中央値で比べる。同じ機械で `go test -tags test -race -count=1 ./cmd/yt2column ./internal/mergepr` を変更の前と後で 3 回ずつ流し、パッケージごとの中央値を比べる（AC-03）。理由: 2 つのパッケージだけを流せば、ほかのパッケージの負荷によるぶれが減る。1 回だけでは負荷のぶれを受けやすいので、3 回の中央値にする。`make test` と同じ `-race` を付ける。実装の PR が 2 つ以上になるときは、PR ごとにその merge-base と比べ、PR ごとの割合を掛け合わせる（F-001）。これは、起草の後のレビューで、ほかのタスクが同じ期間に足したテストや製品コードの変更が比較に入る問題が見つかったために、作成者が足した決め方で、人の答えはまだない（PR のレビューで確かめる）。ADR はなし（このタスクの測り方である）。
 -   **bash 3 での二重の実行:** 全件で残す。`review_records_test.go` は、今と同じく、`scriptBashes` が返すすべての bash で全件を走らせる（AC-05）。理由: bash 3.2 での確認は macOS の手元にしかなく、Go のカバレッジは bash の行を測れないので、代表のケースに絞ったときに互換性の確認が減っていないことを確かめる手段がない。短縮は、実行の結果の共有とフィクスチャの再利用で得る。ADR はなし（今のテストの作りを保つだけである）。
 -   **短縮の手段:** 設計に任せる。要件は、目標と、検証の質を保つ条件と、変えてよいファイルの範囲だけを定める。手段は、issue が挙げるテンプレートのリポジトリの複製に限らず、設計で選ぶ（[design_handoff.md](design_handoff.md) の H-01）。理由: 上の計測では時間の大半がスクリプトの実行なので、issue が挙げる手段だけでは目標に届かないおそれがある。ADR はなし（手段の選択はこのタスクの中で閉じる。設計で主要な決定が出れば、`02_architecture.md` で判断する）。
 -   **検証の質の確かめ方:** 次の 4 つで確かめる。(1) 末端のサブテストの名前の集まりが、変更の前と後で同じであること（AC-04）。名前の集まりは、変更の前からあった最上位のテスト関数ごとに比べ、新しく足す最上位のテスト関数（複製の義務を固定するテストなど）は比べる対象に含めない。(2) Go モジュールの製品コードのカバレッジが下がらないこと（AC-06）。(3) 各ケースの前提の検査（§6 で定義。「so the case checks nothing」で失敗させる検査）が、前提が崩れたときに今と同じくケースを失敗させること。これは、前提を壊してケースが失敗するのを見て確かめる（AC-07）。(4) 各ケースの期待する出力と失敗の条件が変わっていないことは、PR のレビューで読む（4.5）。理由: 手段を設計に任せるので、テストの形が変わっても、ケースが減っていないことを機械的に確かめられるようにする。名前の集まりを縛ると、設計はケースをまとめたり名前を変えたりできないが、ケースが減ったことを検出できる利点のほうが大きいと人が判断した。ADR はなし（このタスクの受け入れ基準である）。
@@ -88,26 +88,24 @@ issue #1168 の計測（`go test -tags test -race -count=1 ./...`）では、次
 
 -   **機械:** `/bin/bash` が `PATH` の bash と異なる 3.x である macOS の機械（今の確認の範囲で bash の実行が最も多い環境）。前と後を同じ機械で、ほかの重い処理を走らせずに測る。
 -   **コマンド:** `go test -tags test -race -count=1 ./cmd/yt2column ./internal/mergepr`。`go test` がパッケージごとに出す時間を読む。
--   **前のコミット（BASE）:** このタスクの最初の実装の PR が `main` に入る前の `origin/main` のコミット。最初の実装の PR の中で測るときは、その時点の `origin/main` との merge-base。最初の実装の PR がすでに `main` に入っているときは、その squash のコミットの親。
--   **後のコミット（AFTER）:** このタスクの最後の実装の PR の中の、テストの変更をすべて含むコミット。計測の記録を書くコミットは、AFTER とはタスクのディレクトリの下だけが異なる。
--   **回数:** BASE と AFTER で 3 回ずつ流し、パッケージごとの中央値を比べる。
--   BASE から AFTER までの間に、ほかのタスクが 2 つのパッケージのテストを変えたときは、そのコミットを記録に挙げる。
+-   **比べる組:** このタスクの実装の PR ごとに、その PR の `origin/main` との merge-base（BASE）と、その PR のテストの変更をすべて含む head 側のコミット（AFTER）を比べる。BASE は計測の時点で決める（`origin/main` を取り込んだ後は、取り込んだ後の merge-base）。計測の記録を書くコミットは、AFTER とはタスクのディレクトリの下だけが異なる。
+-   **回数:** PR ごとに、BASE と AFTER で 3 回ずつ流し、パッケージごとの中央値を比べる。PR ごとの割合（AFTER の中央値 ÷ BASE の中央値）を、このタスクのすべての実装の PR について掛け合わせた値を、このタスクの割合とする（実装の PR が 1 つなら、その PR の割合）。PR ごとに比べるのは、ほかのタスクが同じ期間に足したテストや製品コードの変更を、比較に入れないためである。
 
 **Acceptance Criteria**:
-- **AC-01**: 計測の条件で、AFTER の `cmd/yt2column` の時間の中央値が、BASE の中央値の 50% 以下である。
-- **AC-02**: 計測の条件で、AFTER の `internal/mergepr` の時間の中央値が、BASE の中央値の 50% 以下である。
-- **AC-03**: 計測の記録が、実装計画（`03_implementation_plan.md`）の受け入れ基準の検証の節にある。記録は、測った機械（OS・CPU のコア数・`PATH` の bash と `/bin/bash` の版・Go の版・`GOMAXPROCS` を設定したか）、BASE と AFTER のコミットの ID、BASE と AFTER の 6 回すべての、パッケージごとの時間、中央値、割合、BASE から AFTER までの間のほかのタスクのテストの変更を持つ。
+- **AC-01**: 計測の条件で、このタスクの `cmd/yt2column` の割合が 50% 以下である。
+- **AC-02**: 計測の条件で、このタスクの `internal/mergepr` の割合が 50% 以下である。
+- **AC-03**: 計測の記録が、実装計画（`03_implementation_plan.md`）の受け入れ基準の検証の節にある。記録は、測った機械（OS・CPU のコア数・`PATH` の bash と `/bin/bash` の版・Go の版・`GOMAXPROCS` を設定したか）、実装の PR ごとの BASE と AFTER のコミットの ID、BASE と AFTER の 6 回すべての、パッケージごとの時間、中央値、PR ごとの割合、このタスクの割合を持つ。
 
 #### F-002: 検証の質を保つ
 
 3 つのファイルのテストが確かめていることを、変更の後も減らさない。
 
 **Acceptance Criteria**:
-- **AC-04**: 計測の条件の機械で、`go test -tags test -race -count=1 -json ./cmd/yt2column ./internal/mergepr` を BASE と AFTER で流す。`Action` が `pass` の事象の `Test` の値から、末端の名前（ほかのどの名前も、その名前に `/` を足したもので始まらない名前）を取り出す。BASE にあった最上位のテスト関数のそれぞれについて、その関数自身の名前、またはその名前に `/` を足したもので始まる末端の名前の集まりが、BASE と AFTER で同じである。AFTER で新しく足した最上位のテスト関数は、比べる対象に含めない。比べる最上位のテスト関数の下では、BASE と AFTER のどちらにも `fail` の事象がなく、`skip` の事象の `Test` の値の集まりも BASE と AFTER で同じである（失敗や skip のケースが名前の集まりから黙って抜けないようにするため）。
-- **AC-05**: 計測の条件の機械で、bash ごとのサブテストを作る `TestReviewRecordsCoverage`・`TestReviewRecordsUnreviewed`・`TestReviewRecordsCrossCheck`・`TestReviewRecordsFableAlias` の各末端のケースが、`path-bash` と `bin-bash-3` の両方の名前の下で合格する。`TestReviewRecordsMode` は、今と同じく `scriptBashes` が返す各 bash でスクリプトを走らせる（`cmd/yt2column/review_records_test.go:1036-1046`）。`/bin/bash` が 3.x でないか `PATH` の bash と同じ機械では、今と同じく `PATH` の bash だけで走る（`cmd/yt2column/test_helpers_bash.go:47-68`）。`high_review_decision_test.go` は、今と同じく bash 4 以上の 1 本だけで走る（`cmd/yt2column/high_review_decision_test.go:221`）。
-- **AC-06**: `make coverage-compare BASE=<F-001 の BASE>` を AFTER で流すと、最後の行が `coverage-compare: PASS` である。この AC が確かめるのは Go の製品コード（主に `internal/mergepr`）のカバレッジだけで、bash のスクリプトの行は確かめない。`cmdrunner` の signalGroup のように時間で揺れる関数で `FAIL` になったときは、きれいな作業ツリーで流し直し、すべての実行の結果を記録に挙げる。
-- **AC-07**: BASE の 3 つのファイルには、メッセージに `checks nothing` を含む `t.Fatal`・`t.Fatalf`・`t.Error`・`t.Errorf` の呼び出しがある。これがケースの前提の検査である。`6c60f9f8` の時点で、`review_records_test.go` と `high_review_decision_test.go` に計 13 か所（コメントを除く）あり、`mergemain_test.go` にはない。そのそれぞれについて、AFTER でも同じ前提を検査する。前提が崩れたときは、その前提に依るケースが失敗する。確かめは、各検査について前提を崩す変更を一時的に入れ、ケースが失敗することを見て行う。結果は、`CLAUDE.md`「Testing Strategy」のとおり、その検査を変えたコミットのメッセージに書く。
-- **AC-08**: 共通の初期状態や共有する実行の結果を作れなかったとき（git や bash の失敗）、それに依る各ケースは失敗として報告され、合格や skip としては報告されない。
+- **AC-04**: 計測の条件の機械で、実装の PR ごとに、`go test -tags test -race -count=1 -json ./cmd/yt2column ./internal/mergepr` をその PR の BASE と AFTER で流す。`Action` が `pass` の事象の `Test` の値から、末端の名前（ほかのどの名前も、その名前に `/` を足したもので始まらない名前）を取り出す。BASE にあった最上位のテスト関数のそれぞれについて、その関数自身の名前、またはその名前に `/` を足したもので始まる末端の名前の集まりが、BASE と AFTER で同じである。AFTER で新しく足した最上位のテスト関数は、比べる対象に含めない。比べる最上位のテスト関数の下では、BASE と AFTER のどちらにも `fail` の事象がなく、`skip` の事象の `Test` の値の集まりも BASE と AFTER で同じである（失敗や skip のケースが名前の集まりから黙って抜けないようにするため）。
+- **AC-05**: 計測の条件の機械で、bash ごとのサブテストを作る `TestReviewRecordsCoverage`・`TestReviewRecordsUnreviewed`・`TestReviewRecordsCrossCheck`・`TestReviewRecordsFableAlias` の各末端のケースが、`path-bash` と `bin-bash-3` の両方の名前の下で合格し、それぞれの名前の下のケースが確かめるスクリプトの出力は、その名前の bash（`PATH` の bash か `/bin/bash`）で実際に走らせた実行の出力である。ある bash の実行の結果を、ほかの bash の名前の下のケースに使わない。`TestReviewRecordsMode` は、今と同じく `scriptBashes` が返す各 bash でスクリプトを走らせる（`cmd/yt2column/review_records_test.go:1036-1046`）。`/bin/bash` が 3.x でないか `PATH` の bash と同じ機械では、今と同じく `PATH` の bash だけで走る（`cmd/yt2column/test_helpers_bash.go:47-68`）。`high_review_decision_test.go` は、今と同じく bash 4 以上の 1 本だけで走る（`cmd/yt2column/high_review_decision_test.go:221`）。
+- **AC-06**: 実装の PR ごとに、`make coverage-compare BASE=<その PR の BASE>` をその PR の AFTER で流すと、最後の行が `coverage-compare: PASS` である。この AC が確かめるのは Go の製品コード（主に `internal/mergepr`）のカバレッジだけで、bash のスクリプトの行は確かめない。`cmdrunner` の signalGroup のように時間で揺れる関数で `FAIL` になったときは、きれいな作業ツリーで流し直し、すべての実行の結果を記録に挙げる。
+- **AC-07**: BASE の 3 つのファイルには、メッセージに `checks nothing` を含む `t.Fatal`・`t.Fatalf`・`t.Error`・`t.Errorf` の呼び出しがある。これがケースの前提の検査である。`6c60f9f8` の時点で、`review_records_test.go` と `high_review_decision_test.go` に計 13 か所（コメントを除く）あり、`mergemain_test.go` にはない。そのそれぞれについて、AFTER でも同じ前提を検査する。前提が崩れたときは、その前提に依るケースが失敗する。確かめは、各検査について前提を崩す変更を一時的に入れ、ケースが失敗することを見て行う。結果は、`CLAUDE.md`「Testing Strategy」のとおり、その検査か、その検査が確かめるフィクスチャや実行を変えたコミットのメッセージに書く。
+- **AC-08**: 共通の初期状態や共有する実行の結果を作れなかったとき（git や bash の失敗）、それに依るケースは合格や skip として報告されず、そのパッケージの `go test` は失敗する（失敗は、ケースそのものでなく、共有の状態を作る親のテストの失敗として報告されてもよい）。
 
 #### F-003: 隔離と範囲を変えない
 
@@ -116,10 +114,10 @@ issue #1168 の計測（`go test -tags test -race -count=1 ./...`）では、次
 **Acceptance Criteria**:
 - **AC-09**: このタスクの実装の PR の差分（それぞれの PR の、`origin/main` との merge-base から head まで）は、次のファイルに限られる。
     -   `cmd/yt2column/`・`internal/mergepr/` の、`_test.go` のファイルと `//go:build test` のファイル。
-    -   `test` のビルドタグのファイルだけを持つ、テストの補助のパッケージを `internal/` の下に新しく作るときは、そのファイルと、`docs/dev/conventions/package_reference.md` のそのパッケージの行。
+    -   `test` のビルドタグのファイルだけを持つ、テストの補助のパッケージを新しく作るときは、そのファイルと、`docs/dev/conventions/package_reference.md` のそのパッケージの行と、`internal/pipeline/pipeline_test.go` の、テストだけのパッケージを数える箇所（`testOnlyPackageDirs` と `TestFakesCarryBuildTag` の `testutil` のファイルの数、`internal/pipeline/pipeline_test.go:535-585`）。
     -   `docs/tasks/0127_git_fixture_test_speedup/` の下のファイル。
-- **AC-10**: 各ケースは、今と同じく自分の `HOME`・`TMPDIR`・git の設定を持つ。あるケースが書いた git の設定（リポジトリ・グローバル）やファイルは、ほかのケースから読めない。
-- **AC-11**: AFTER で、3 つのファイルの最上位のテスト関数のそれぞれについて、末端のサブテストの名前（AC-04 の BASE の名前の集まり）を名前の順に並べ、最初のものと最後のものを、それぞれ単独で選んで走らせると、どちらも合格する。選ぶには、各階層を `^...$` で囲み、正規表現の記号を逃がした `-run` を使う。`-shuffle=on` を付けて AC-04 の 2 つのパッケージを 2 回走らせると合格し、記録にそれぞれのシードを挙げる。
+- **AC-10**: 各ケースは、今と同じ隔離を保つ。`cmd/yt2column` のフィクスチャのケースは自分の `HOME`・`TMPDIR`（`cmd/yt2column/test_helpers_gitfixture.go:30-46`）を、`internal/mergepr` のケースは自分の `HOME`・`XDG_CONFIG_HOME`（`internal/mergepr/test_helpers_git.go:247-255`）を持ち、どちらも自分のリポジトリを持つ。あるケースが書いた git の設定（リポジトリ・グローバル）やファイルは、ほかのケースから読めない。
+- **AC-11**: AFTER で、3 つのファイルの最上位のテスト関数のそれぞれについて、末端のサブテストの名前（AC-04 の BASE の名前の集まり）を名前の順に並べ、最初のものと最後のものを、それぞれ単独で選んで走らせると、どちらも合格する。さらに、共有する状態（共通の初期状態や共有する実行の結果）の種類ごとに、それを使う末端のサブテストのうち、名前の順で最初でも最後でもないものを 1 つ単独で選んで走らせても合格する。選ぶには、各階層を `^...$` で囲み、正規表現の記号を逃がした `-run` を使う。`-shuffle=on` と `-json` を付けて AC-04 の 2 つのパッケージを 2 回走らせると合格し、記録に、各実行の各パッケージのシード（`-test.shuffle` の行）を挙げる。
 - **AC-12**: AFTER で、`make test` と `make lint` が通る。
 
 ## 4. 非機能要件 (Non-Functional Requirements)
