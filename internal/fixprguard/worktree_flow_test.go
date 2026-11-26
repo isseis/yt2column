@@ -867,3 +867,91 @@ func TestPushStopsOnIgnoredChange(t *testing.T) {
 		t.Errorf("remote moved to %s", got)
 	}
 }
+
+// TestWorktreeIgnoresProcessDir runs Worktree's Begin, Inspect, Finish, Push,
+// CheckReviewState, and PushReviewed against repository A while the process's
+// working directory is a different repository B. Only A and A's remote change;
+// B and B's remote stay untouched. Serial because it calls t.Chdir.
+func TestWorktreeIgnoresProcessDir(t *testing.T) {
+	repoA := newTestRepo(t)
+	repoA.Write(".gitignore", "build/\n.claude/\n")
+	repoA.CommitAll("ignore")
+	repoA.Git("push", "-q", testRemote, "HEAD:"+headsPrefix+testBranch)
+	repoA.Write("build/a.go", "package a\n")
+	repoA.Write(".claude/settings.local.json", `{"permissions":{}}`)
+
+	repoB := newTestRepo(t)
+	// Leave an untracked file in B so any Worktree operation leaking to the
+	// process working directory fails immediately.
+	repoB.Write("docs/notes/b_untracked.md", "dirty in B\n")
+	t.Chdir(repoB.Dir)
+
+	bHeadBefore := repoB.Head()
+	bRemoteBefore := repoB.RemoteHead()
+	bStatusBefore := repoB.Git("status", "--porcelain=v1", "--untracked-files=all")
+
+	w, _ := newTestWorktree(t, repoA.Dir, buildCheckSteps()...)
+	base, err := w.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("Begin(A) = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repoA.Dir, ".git", ignoredBeginRecord)); err != nil {
+		t.Errorf("begin record missing in A: %v", err)
+	}
+
+	repoA.Write(testFile, "fixed in A\n")
+	inspection, err := w.Inspect(t.Context(), base, threadAt(testFile))
+	if err != nil {
+		t.Fatalf("Inspect(A) = %v", err)
+	}
+	if inspection.Changes != 1 || len(inspection.OutOfScope) != 0 {
+		t.Fatalf("Inspect(A) = %+v, want 1 in-scope change", inspection)
+	}
+
+	fin, err := w.Finish(t.Context(), base, inspection.JudgedSet, FinishRequest{PR: mustPR(t)})
+	if err != nil || !fin.Committed || fin.Commit == "" {
+		t.Fatalf("Finish(A) = %+v, %v; want committed", fin, err)
+	}
+	pushed, err := w.Push(t.Context(), base, fin.Commit)
+	if err != nil || !pushed.Pushed || pushed.Commit != fin.Commit {
+		t.Fatalf("Push(A) = %+v, %v; want pushed %s", pushed, err, fin.Commit)
+	}
+	if got := repoA.RemoteHead(); got != fin.Commit {
+		t.Fatalf("A remote after Push = %s, want %s", got, fin.Commit)
+	}
+
+	repoA.Write(testFile, "review fix in A\n")
+	repoA.CommitAll("review fix")
+	reviewHead := repoA.Head()
+
+	revState, err := w.CheckReviewState(t.Context(), base, fin.Commit)
+	if err != nil {
+		t.Fatalf("CheckReviewState(A) = %v", err)
+	}
+	if revState.Base != base.head || revState.Head != reviewHead || revState.Commits != 1 {
+		t.Errorf("CheckReviewState(A) = %+v, want base=%s head=%s commits=1", revState, base.head, reviewHead)
+	}
+	revPush, err := w.PushReviewed(t.Context(), base, fin.Commit)
+	if err != nil || !revPush.Pushed || revPush.Commit != reviewHead {
+		t.Fatalf("PushReviewed(A) = %+v, %v; want pushed %s", revPush, err, reviewHead)
+	}
+	if got := repoA.RemoteHead(); got != reviewHead {
+		t.Errorf("A remote after PushReviewed = %s, want %s", got, reviewHead)
+	}
+
+	// Verify B and its remote were never touched.
+	if got := repoB.Head(); got != bHeadBefore {
+		t.Errorf("B HEAD changed from %s to %s", bHeadBefore, got)
+	}
+	if got := repoB.RemoteHead(); got != bRemoteBefore {
+		t.Errorf("B remote changed from %s to %s", bRemoteBefore, got)
+	}
+	if got := repoB.Git("status", "--porcelain=v1", "--untracked-files=all"); got != bStatusBefore {
+		t.Errorf("B status changed from %q to %q", bStatusBefore, got)
+	}
+	for _, record := range []string{ignoredBeginRecord, ignoredStopRecord} {
+		if _, err := os.Stat(filepath.Join(repoB.Dir, ".git", record)); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("B .git/%s exists or unexpected stat error: %v", record, err)
+		}
+	}
+}

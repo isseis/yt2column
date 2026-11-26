@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -2014,4 +2015,406 @@ func TestReviewCommandsRefuse(t *testing.T) {
 			}
 		})
 	}
+}
+
+// newOSProcessRun starts from osEnv() so dir, git, and gitList are the
+// production implementations bound to the process's working directory and
+// environment, replacing only gh, make, stdio, and lookupEnv (keeping GH_REPO
+// and GH_HOST unset so developer environment variables cannot reach execute).
+func newOSProcessRun(t *testing.T, gh []cmdrunnertestutil.Step, makeSteps ...cmdrunnertestutil.Step) *testRun {
+	t.Helper()
+	e := osEnv()
+	r := &testRun{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
+	e.gh = cmdrunnertestutil.New(t, gh...)
+	e.make = cmdrunnertestutil.New(t, makeSteps...)
+	e.stdout = r.Stdout
+	e.stderr = r.Stderr
+	e.lookupEnv = func(name string) (string, bool) {
+		if slices.Contains(ghTargetVariables, name) {
+			return "", false
+		}
+		return os.LookupEnv(name)
+	}
+	r.env = e
+	return r
+}
+
+// runProcessDirRounds runs begin/inspect/finish/push and check/push-review
+// through osEnv() in workDir (main checkout or linked worktree) with an
+// ignored nested repository, .claude/settings.local.json, and a symlinked
+// hooks directory.
+func runProcessDirRounds(t *testing.T, repo *testRepo, workDir, remoteDir, branch, beginRecordPath string) {
+	t.Helper()
+	buildChecks := func() []cmdrunnertestutil.Step {
+		var steps []cmdrunnertestutil.Step
+		for _, stage := range fixprguard.BuildCheckTargets() {
+			steps = append(steps, cmdrunnertestutil.Step{Name: "make", Args: []string{stage}})
+		}
+		return steps
+	}
+
+	t.Chdir(workDir)
+	baseHead := strings.TrimSpace(repo.gitIn(workDir, "rev-parse", "HEAD"))
+	th := reviewerThread("please fix")
+	thread := accept(t, th)
+
+	// 1. begin
+	beginRun := newOSProcessRun(t, beginSteps(threadsPage(t, false, th), graphqlStep(threadBodies(t, th))))
+	if code := beginRun.Run(t, args(cmdBegin, "--reviewer", testReviewer, testPR)...); code != exitContinue {
+		t.Fatalf("begin: exit %d (%s)", code, beginRun.Stderr)
+	}
+	var beginMap map[string]any
+	beginRun.Decode(t, &beginMap)
+	baselineStr, _ := beginMap["baseline"].(string)
+	nonceStr, _ := beginMap["nonce"].(string)
+	threadsStr, _ := beginMap["threads"].(string)
+	if _, err := fixprguard.ParseBaseline(baselineStr); err != nil {
+		t.Fatalf("begin baseline %q: %v", baselineStr, err)
+	}
+	if nonceStr == "" {
+		t.Fatalf("begin nonce is empty")
+	}
+	lines := fenceLines(t, threadsStr)
+	if len(lines) != 3 || lines[0] != "BEGIN-UNTRUSTED-"+nonceStr || lines[2] != "END-UNTRUSTED-"+nonceStr {
+		t.Fatalf("begin threads fence = %q", lines)
+	}
+	var procThreads []fixprguard.ProcessThread
+	if err := json.Unmarshal([]byte(lines[1]), &procThreads); err != nil || len(procThreads) != 1 || procThreads[0].ThreadID != th.id {
+		t.Fatalf("begin threads = %+v, err=%v; want 1 thread %s", procThreads, err, th.id)
+	}
+	delete(beginMap, "baseline")
+	delete(beginMap, "nonce")
+	delete(beginMap, "threads")
+	wantBegin := map[string]any{
+		"protocol":          float64(fixprguard.Protocol),
+		"number":            float64(42),
+		"capHit":            false,
+		"processCount":      float64(1),
+		"untrusted":         []any{},
+		"changed":           []any{},
+		"acceptNotFound":    []any{},
+		"permissionLookups": map[string]any{"used": float64(0), "remaining": float64(100)},
+	}
+	if !reflect.DeepEqual(beginMap, wantBegin) {
+		t.Errorf("begin output = %#v, want %#v", beginMap, wantBegin)
+	}
+	recordData, err := os.ReadFile(beginRecordPath)
+	if err != nil {
+		t.Fatalf("read begin record %s: %v", beginRecordPath, err)
+	}
+	sum := sha256.Sum256(recordData)
+	fields := strings.Split(baselineStr, ".")
+	if len(fields) != 10 || fields[9] != hex.EncodeToString(sum[:]) {
+		t.Errorf("baseline tenth field does not match begin record SHA-256")
+	}
+	recordText := string(recordData)
+	for _, wantEntry := range []string{`"build/nested/x.go"`, `".claude/settings.local.json"`} {
+		if !strings.Contains(recordText, wantEntry) {
+			t.Errorf("begin record %q missing %s", recordText, wantEntry)
+		}
+	}
+
+	// 2. edit testFile and inspect
+	if err := os.WriteFile(filepath.Join(workDir, testFile), []byte("fixed in process dir\n"), 0o600); err != nil {
+		t.Fatalf("write testFile: %v", err)
+	}
+	inspectRun := newOSProcessRun(t, []cmdrunnertestutil.Step{repoStep(), graphqlStep(threadsPage(t, false, th))})
+	if code := inspectRun.Run(t, args(cmdInspect, "--reviewer", testReviewer, "--baseline", baselineStr, "--thread", thread, testPR)...); code != exitContinue {
+		t.Fatalf("inspect: exit %d (%s)", code, inspectRun.Stderr)
+	}
+	var inspectMap map[string]any
+	inspectRun.Decode(t, &inspectMap)
+	judgedStr, _ := inspectMap["judgedSet"].(string)
+	if _, err := fixprguard.ParseJudgedSetID(judgedStr); err != nil {
+		t.Fatalf("inspect judgedSet %q: %v", judgedStr, err)
+	}
+	delete(inspectMap, "judgedSet")
+	wantInspect := map[string]any{
+		"protocol":   float64(fixprguard.Protocol),
+		"changes":    float64(1),
+		"outOfScope": []any{},
+	}
+	if !reflect.DeepEqual(inspectMap, wantInspect) {
+		t.Errorf("inspect output = %#v, want %#v", inspectMap, wantInspect)
+	}
+
+	// 3. finish
+	finishRun := newOSProcessRun(t, nil, buildChecks()...)
+	if code := finishRun.Run(t, args(cmdFinish, "--baseline", baselineStr, "--judged-set", judgedStr, testPR)...); code != exitContinue {
+		t.Fatalf("finish: exit %d (%s)", code, finishRun.Stderr)
+	}
+	phase4Commit := strings.TrimSpace(repo.gitIn(workDir, "rev-parse", "HEAD"))
+	var finishMap map[string]any
+	finishRun.Decode(t, &finishMap)
+	wantFinish := map[string]any{
+		"protocol":  float64(fixprguard.Protocol),
+		"committed": true,
+		"commit":    phase4Commit,
+	}
+	if !reflect.DeepEqual(finishMap, wantFinish) {
+		t.Errorf("finish output = %#v, want %#v", finishMap, wantFinish)
+	}
+
+	// 4. push
+	pushRun := newOSProcessRun(t, nil)
+	if code := pushRun.Run(t, args(cmdPush, "--baseline", baselineStr, "--commit", phase4Commit)...); code != exitContinue {
+		t.Fatalf("push: exit %d (%s)", code, pushRun.Stderr)
+	}
+	var pushMap map[string]any
+	pushRun.Decode(t, &pushMap)
+	wantPush := map[string]any{
+		"protocol": float64(fixprguard.Protocol),
+		"pushed":   true,
+		"commit":   phase4Commit,
+	}
+	if !reflect.DeepEqual(pushMap, wantPush) {
+		t.Errorf("push output = %#v, want %#v", pushMap, wantPush)
+	}
+	if got := strings.TrimSpace(repo.gitIn(remoteDir, "rev-parse", "refs/heads/"+branch)); got != phase4Commit {
+		t.Errorf("remote %s after push = %s, want %s", branch, got, phase4Commit)
+	}
+
+	// 5. review commit, check, push-review
+	if err := os.WriteFile(filepath.Join(workDir, testFile), []byte("review fix in process dir\n"), 0o600); err != nil {
+		t.Fatalf("write review edit: %v", err)
+	}
+	repo.gitIn(workDir, "add", "-A")
+	repo.gitIn(workDir, "commit", "-q", "-m", "review fix")
+	reviewHead := strings.TrimSpace(repo.gitIn(workDir, "rev-parse", "HEAD"))
+
+	checkRun := newOSProcessRun(t, nil)
+	if code := checkRun.Run(t, args(cmdCheck, "--baseline", baselineStr, "--commit", phase4Commit)...); code != exitContinue {
+		t.Fatalf("check: exit %d (%s)", code, checkRun.Stderr)
+	}
+	var checkMap map[string]any
+	checkRun.Decode(t, &checkMap)
+	wantCheck := map[string]any{
+		"protocol": float64(fixprguard.Protocol),
+		"base":     baseHead,
+		"head":     reviewHead,
+		"commits":  float64(1),
+	}
+	if !reflect.DeepEqual(checkMap, wantCheck) {
+		t.Errorf("check output = %#v, want %#v", checkMap, wantCheck)
+	}
+
+	pushReviewRun := newOSProcessRun(t, nil)
+	if code := pushReviewRun.Run(t, args(cmdPushReview, "--baseline", baselineStr, "--commit", phase4Commit)...); code != exitContinue {
+		t.Fatalf("push-review: exit %d (%s)", code, pushReviewRun.Stderr)
+	}
+	var pushReviewMap map[string]any
+	pushReviewRun.Decode(t, &pushReviewMap)
+	wantPushReview := map[string]any{
+		"protocol": float64(fixprguard.Protocol),
+		"pushed":   true,
+		"commit":   reviewHead,
+	}
+	if !reflect.DeepEqual(pushReviewMap, wantPushReview) {
+		t.Errorf("push-review output = %#v, want %#v", pushReviewMap, wantPushReview)
+	}
+	if got := strings.TrimSpace(repo.gitIn(remoteDir, "rev-parse", "refs/heads/"+branch)); got != reviewHead {
+		t.Errorf("remote %s after push-review = %s, want %s", branch, got, reviewHead)
+	}
+}
+
+// setupProcessDirTargets prepares the ignored nested repository,
+// .claude/settings.local.json, and symlinked hooks directory in a testRepo,
+// and returns the remote bare repository path and symlinked worktree details.
+func setupProcessDirTargets(t *testing.T, repo *testRepo, workDir string) {
+	t.Helper()
+	repo.gitIn(workDir, "init", "-q", "--template=", "build/nested")
+	for rel, content := range map[string]string{
+		"build/nested/x.go":           "package x\n",
+		".claude/settings.local.json": `{"permissions":{}}`,
+	} {
+		p := filepath.Join(workDir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), testDirMode); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+}
+
+// TestRunInProcessDir exercises the CLI entry point run() with osEnv()'s
+// CurrentDir, git, and gitList against the real process working directory.
+// Serial because it calls t.Chdir and t.Setenv.
+func TestRunInProcessDir(t *testing.T) {
+	t.Run("below_top", func(t *testing.T) {
+		repo := newTestRepo(t)
+		base := repo.Begin()
+		t.Chdir(filepath.Join(repo.Dir, "docs"))
+
+		beginRun := newOSProcessRun(t, []cmdrunnertestutil.Step{headStep(sameRepositoryHead)})
+		if code := beginRun.Run(t, args(cmdBegin, "--reviewer", testReviewer, testPR)...); code != exitUsage {
+			t.Errorf("begin below top: exit %d, want %d (%s)", code, exitUsage, beginRun.Stderr)
+		}
+
+		for _, tc := range []struct {
+			name string
+			line []string
+		}{
+			{cmdInspect, args(cmdInspect, "--reviewer", testReviewer, "--baseline", base.String(), testPR)},
+			{cmdFinish, args(cmdFinish, "--baseline", base.String(), "--judged-set", strings.Repeat("a", 64), testPR)},
+			{cmdPush, args(cmdPush, "--baseline", base.String(), "--commit", strings.Repeat("1", 40))},
+		} {
+			r := newOSProcessRun(t, nil)
+			if code := r.Run(t, tc.line...); code != exitStop {
+				t.Errorf("%s below top: exit %d, want %d (%s)", tc.name, code, exitStop, r.Stderr)
+				continue
+			}
+			var out stopJSON
+			r.Decode(t, &out)
+			if out.Stop != fixprguard.StopGitStateChanged || !slices.Equal(out.Parts, []string{fixprguard.PartConfig}) {
+				t.Errorf("%s below top: stop = %+v, want %s [%s]", tc.name, out, fixprguard.StopGitStateChanged, fixprguard.PartConfig)
+			}
+		}
+	})
+
+	t.Run("no_git", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+
+		binDir := t.TempDir()
+		countFile := filepath.Join(t.TempDir(), "git-count")
+		script := "#!/bin/sh\nprintf x >> " + strconv.Quote(countFile) + "\nexit 99\n"
+		if err := os.WriteFile(filepath.Join(binDir, "git"), []byte(script), 0o700); err != nil { //nolint:gosec // a stand-in executable in the test's directory
+			t.Fatalf("write git wrapper: %v", err)
+		}
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		t.Chdir(t.TempDir())
+
+		for _, cmd := range []string{cmdCheck, cmdPushReview} {
+			r := newOSProcessRun(t, nil)
+			line := args(cmd, "--baseline", validBaseline(t), "--commit", strings.Repeat("1", 40))
+			if code := r.Run(t, line...); code != exitUsage {
+				t.Errorf("%s without .git: exit %d, want %d (%s)", cmd, code, exitUsage, r.Stderr)
+			}
+		}
+		if _, err := os.Stat(countFile); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("git was invoked without .git (stat err=%v)", err)
+		}
+	})
+
+	t.Run("malformed_git_file", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, ".git"), []byte("not a gitdir line\n"), 0o600); err != nil {
+			t.Fatalf("write .git: %v", err)
+		}
+		t.Chdir(dir)
+
+		for _, tc := range []struct {
+			name string
+			line []string
+		}{
+			{cmdInspect, args(cmdInspect, "--reviewer", testReviewer, "--baseline", validBaseline(t), testPR)},
+			{cmdCheck, args(cmdCheck, "--baseline", validBaseline(t), "--commit", strings.Repeat("1", 40))},
+		} {
+			r := newOSProcessRun(t, nil)
+			if code := r.Run(t, tc.line...); code != exitStop {
+				t.Errorf("%s with malformed .git: exit %d, want %d (%s)", tc.name, code, exitStop, r.Stderr)
+				continue
+			}
+			var out stopJSON
+			r.Decode(t, &out)
+			if out.Stop != fixprguard.StopGitStateChanged || !slices.Equal(out.Parts, []string{fixprguard.PartConfig}) {
+				t.Errorf("%s with malformed .git: stop = %+v, want %s [%s]", tc.name, out, fixprguard.StopGitStateChanged, fixprguard.PartConfig)
+			}
+		}
+	})
+
+	t.Run("detached_head", func(t *testing.T) {
+		repo := newTestRepo(t)
+		head := strings.TrimSpace(repo.Git("rev-parse", "HEAD"))
+		repo.Git("checkout", "-q", "--detach", head)
+		t.Chdir(repo.Dir)
+
+		r := newOSProcessRun(t, []cmdrunnertestutil.Step{headStep(sameRepositoryHead)})
+		if code := r.Run(t, args(cmdBegin, "--reviewer", testReviewer, testPR)...); code != exitUsage {
+			t.Errorf("begin on detached HEAD: exit %d, want %d (%s)", code, exitUsage, r.Stderr)
+		}
+	})
+
+	runTopVariants := func(t *testing.T, withGitDir string) {
+		t.Helper()
+		prepareRepo := func(t *testing.T) (*testRepo, string) {
+			t.Helper()
+			repo := newTestRepo(t)
+			repo.Ignore("build/", ".claude/")
+			repo.Git("push", "-q", "origin", "HEAD:refs/heads/"+testBranch)
+			realHooks := filepath.Join(filepath.Dir(repo.Dir), "real-hooks")
+			if err := os.MkdirAll(realHooks, testDirMode); err != nil {
+				t.Fatalf("mkdir real-hooks: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(realHooks, "README"), []byte("inert\n"), 0o600); err != nil {
+				t.Fatalf("write hook note: %v", err)
+			}
+			hooksPath := filepath.Join(repo.Dir, ".git", "hooks")
+			if err := os.RemoveAll(hooksPath); err != nil {
+				t.Fatalf("remove hooks dir: %v", err)
+			}
+			if err := os.Symlink(realHooks, hooksPath); err != nil {
+				t.Fatalf("symlink hooks: %v", err)
+			}
+			return repo, filepath.Join(filepath.Dir(repo.Dir), "remote.git")
+		}
+
+		t.Run("main_worktree", func(t *testing.T) {
+			repo, remoteDir := prepareRepo(t)
+			setupProcessDirTargets(t, repo, repo.Dir)
+			if withGitDir != "" {
+				t.Setenv("GIT_DIR", withGitDir)
+			}
+			runProcessDirRounds(t, repo, repo.Dir, remoteDir, testBranch, filepath.Join(repo.Dir, ".git", "fixprguard-ignored-begin"))
+		})
+
+		t.Run("linked_worktree", func(t *testing.T) {
+			repo, remoteDir := prepareRepo(t)
+			wtDir := filepath.Join(filepath.Dir(repo.Dir), "linked")
+			const wtBranch = "linked"
+			repo.Git("worktree", "add", "-q", "-b", wtBranch, wtDir)
+			repo.gitIn(wtDir, "push", "-q", "-u", "origin", wtBranch)
+			setupProcessDirTargets(t, repo, wtDir)
+			gitFile, err := os.ReadFile(filepath.Join(wtDir, ".git"))
+			if err != nil {
+				t.Fatalf("read linked .git: %v", err)
+			}
+			wtGitDir, ok := strings.CutPrefix(strings.TrimSuffix(string(gitFile), "\n"), "gitdir: ")
+			if !ok {
+				t.Fatalf("unexpected linked .git content %q", gitFile)
+			}
+			if !filepath.IsAbs(wtGitDir) {
+				wtGitDir = filepath.Join(wtDir, wtGitDir)
+			}
+			if withGitDir != "" {
+				t.Setenv("GIT_DIR", withGitDir)
+			}
+			runProcessDirRounds(t, repo, wtDir, remoteDir, wtBranch, filepath.Join(wtGitDir, "fixprguard-ignored-begin"))
+		})
+	}
+
+	t.Run("top_of_work_tree", func(t *testing.T) {
+		runTopVariants(t, "")
+	})
+
+	t.Run("ignores_inherited_git_dir", func(t *testing.T) {
+		decoy := newTestRepo(t)
+		decoyHead := strings.TrimSpace(decoy.Git("rev-parse", "HEAD"))
+		decoyRemote := filepath.Join(filepath.Dir(decoy.Dir), "remote.git")
+		decoyRemoteHead := strings.TrimSpace(decoy.gitIn(decoyRemote, "rev-parse", "refs/heads/"+testBranch))
+
+		runTopVariants(t, filepath.Join(decoy.Dir, ".git"))
+
+		if got := strings.TrimSpace(decoy.Git("rev-parse", "HEAD")); got != decoyHead {
+			t.Errorf("decoy HEAD changed from %s to %s", decoyHead, got)
+		}
+		if got := strings.TrimSpace(decoy.gitIn(decoyRemote, "rev-parse", "refs/heads/"+testBranch)); got != decoyRemoteHead {
+			t.Errorf("decoy remote changed from %s to %s", decoyRemoteHead, got)
+		}
+	})
 }
