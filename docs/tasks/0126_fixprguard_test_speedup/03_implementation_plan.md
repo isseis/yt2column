@@ -101,10 +101,10 @@
 
 -   **ファイル:** `docs/tasks/0126_fixprguard_test_speedup/_checks/gotest.sh`、`docs/tasks/0126_fixprguard_test_speedup/_checks/testshape/main.go`
 -   **作業:**
-    -   [ ] `_checks/gotest.sh` を書く。5.1 節の記録の枠の 5 つのモードを持つ。
-    -   [ ] `_checks/testshape/main.go`（`//go:build test`）を書く。5.1 節の記録の枠の 4 つの検査を持つ。直列に残すテストの一覧（設計書 4 章の 6 項目）と、それらが使う補助の名前はプログラムの中に持つ。
-    -   [ ] 2 つのスクリプトをコミットし、この時点で成功しうる検査（`estimate`・`names`・`unchanged`・`race`）の破壊の確かめをして、記録を書く。ほかの検査の破壊の確かめは、その検査が初めて成功しうる木で行う（5.1 節の「破壊の確かめの時期」）。
-    -   [ ] `gotest.sh estimate` を `origin/main` の木で実行し、設計書 8.2 節の見込みを出す。見込みが変更の前の実行時間の 50% を超えたら、止めて人に尋ねる。結果は 5.1 節の実行の記録に書く。
+    -   [x] `_checks/gotest.sh` を書く。5.1 節の記録の枠の 5 つのモードを持つ。
+    -   [x] `_checks/testshape/main.go`（`//go:build test`）を書く。5.1 節の記録の枠の 4 つの検査を持つ。直列に残すテストの一覧（設計書 4 章の 6 項目）と、それらが使う補助の名前はプログラムの中に持つ。
+    -   [x] 2 つのスクリプトをコミットし、この時点で成功しうる検査（`estimate`・`names`・`unchanged`・`race`）の破壊の確かめをして、記録を書く。ほかの検査の破壊の確かめは、その検査が初めて成功しうる木で行う（5.1 節の「破壊の確かめの時期」）。
+    -   [x] `gotest.sh estimate` を `origin/main` の木で実行し、設計書 8.2 節の見込みを出す。見込みが変更の前の実行時間の 50% を超えたら、止めて人に尋ねる。結果は 5.1 節の実行の記録に書く。
 -   **完了の条件:** 2 つのスクリプトがコミットされ、破壊の記録と見込みの実行の記録がある。
 
 #### ステップ 1-2: `WorktreeDir` を足す
@@ -424,8 +424,44 @@ PR-3 は製品を変えない。
     -   `measure`: PR-3 を作る前（ステップ 3-5）。`/runplan` の実行者が行う。
 -   **破壊の確かめの時期:** `estimate`・`names`・`unchanged`・`race` はステップ 1-1、`measure` はステップ 3-5（前の木と後の木が違うとき）。
 -   **テスト:** コミットしない。
--   **破壊の記録:** （`/runplan` が書く）
--   **実行の記録:** （実行した者が書く。`names`・`unchanged`・`measure` は 5.2 節を指す）
+-   **破壊の記録:** 対象コミット `e2a5e8494c0b84e0fee6c38851cb5e70cc9b5c78`
+    -   `unchanged`: `internal/fixprguard/types.go` の `const Protocol = 9` を `10` に書き換えて実行し、終了コード 1（`protocol=FAIL`）で失敗することを確認した。同様に `docs/dev/guides/fixprguard_guide.md` の先頭行を変更して実行し、終了コード 1（`guide=FAIL`）で失敗することを確認した。
+    -   `race`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `panic` を入れて実行し、終了コード 1（`go test failed`）で失敗することを確認した。
+    -   `names`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `t.Skip` を入れて実行し、終了コード 1（`missing=1`, `became_skip=1`, `status=FAIL`）で失敗することを確認した。
+    -   `estimate`: `GOMAXPROCS=1` を指定して並列度を 1 に下げた前提の破壊で実行し、両パッケージとも下限が 50% を超えて終了コード 1（`status=FAIL`）で失敗することを確認した。
+    -   `measure`: PR-3 で実施予定。
+-   **実行の記録:**
+    -   `estimate`（対象コミット `e2a5e8494c0b84e0fee6c38851cb5e70cc9b5c78`、判定対象 `origin/main` = `54b8299393190b3ed19c41031a12868209133c80`、両パッケージとも 50% 以下で `PASS`）:
+
+        ```text
+        mode=estimate
+        commit=54b8299393190b3ed19c41031a12868209133c80
+        os=Darwin 25.6.0 arm64
+        cores=12 gomaxprocs=12
+        go=go version go1.27.1 darwin/arm64
+        package=github.com/isseis/yt2column/internal/fixprguard
+          pkg_elapsed=218.79s
+          target_50pct=109.395s
+          longest_parallel=TestBaselineDetectsChange (25.67s)
+          serial_sum=0.46s
+          bound_serial=26.130000000000003s
+          tests_sum=217.32999999999996s
+          bound_cpu=18.11083333333333s (GOMAXPROCS=12)
+          lower_bound=26.130000000000003s
+          status=PASS
+        package=github.com/isseis/yt2column/cmd/fixprguard
+          pkg_elapsed=31.454s
+          target_50pct=15.727s
+          longest_parallel=TestStopKinds (3.58s)
+          serial_sum=0.8500000000000001s
+          bound_serial=4.43s
+          tests_sum=30.029999999999998s
+          bound_cpu=2.5025s (GOMAXPROCS=12)
+          lower_bound=4.43s
+          status=PASS
+        ```
+
+    -   `names`・`unchanged`・`measure`: 5.2 節を参照。
 
 #### `_checks/testshape/main.go`
 
