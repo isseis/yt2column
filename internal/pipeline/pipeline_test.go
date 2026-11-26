@@ -543,6 +543,7 @@ var testOnlyPackageDirs = []string{
 	"internal/loopbacktest",
 	"internal/llm/llmhttp/llmhttptest",
 	"internal/maketestutil",
+	"internal/snapshottest",
 	"internal/udstest",
 }
 

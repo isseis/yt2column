@@ -99,13 +99,13 @@
 
 ### フェーズ 1: 複製の仕組みとストア（設計書 3.1・3.9、8 章の 1）
 
-- [ ] **ステップ 1-1**: `internal/snapshottest` を作る
+- [x] **ステップ 1-1**: `internal/snapshottest` を作る
     - 追加するファイル: `internal/snapshottest/snapshot.go`（`//go:build test`）
     - 設計書 3.1 の `Store`・`NewStore`・`Close`・`Kind`・`NewKind`・`Snapshot`・`Load`・`CopyTo`・`Value` を作る。作った結果の記録（作った・失敗・skip、記録の前の終わりは失敗）、鍵の長さを付けた連結、作った直後のリンクの検査、`os.CopyFS` での複製は、設計書 3.1 のとおりにする
     - 失敗と skip のメッセージは、設計書 4 章の表の形にする
     - 共有の状態を求めるテストは `t.Setenv` を使わないこと、`-count=N` では共有の状態を作り直さないこと（設計書 3.1「環境」「`-count` との関係」）を、`Load` の doc コメントに書く
     - `gosec` が指摘する行（変数のパスのファイル操作）には、その行だけに理由を付けた `//nolint:gosec` を付ける。ファイル全体には付けない（`.golangci.yml` の `_test.go` の除外は、このファイルに当たらない）
-- [ ] **ステップ 1-2**: `internal/snapshottest` のテストを書く
+- [x] **ステップ 1-2**: `internal/snapshottest` のテストを書く
     - 追加するファイル: `internal/snapshottest/snapshot_test.go`
     - 設計書 7.1 の項目を、次のテストで確かめる
         - `TestLoadBuildsOnce`: 並列のテストから同じ種別と鍵を求めても、作る関数が 1 回だけ走る
@@ -115,7 +115,7 @@
         - `TestCopyTo`: 実行の権限とリンクが写る。1 つの複製を書き換えてから複製し直しても、もとの中身が得られる。複製先がすでにあれば失敗する
         - `TestLoadRejectsOutsideLinks`: 絶対パスを指すリンクと、`../` で外を指す相対パスのリンクの、どちらも「失敗」になる
     - 6 つのテストのそれぞれについて、確かめる仕組みを 1 つ一時的に壊し、そのテストが失敗することを確かめ、コミットのメッセージに書く。`TestLoadPropagatesFailureAndSkip` では、失敗と skip を見る順序の入れ替えも壊し方に含める
-- [ ] **ステップ 1-3**: 新しいパッケージを登録する
+- [x] **ステップ 1-3**: 新しいパッケージを登録する
     - 変えるファイル: `internal/pipeline/pipeline_test.go`（`testOnlyPackageDirs` に `internal/snapshottest` を足す）、`docs/dev/conventions/package_reference.md`（`internal/snapshottest` の行）
     - `TestFakesCarryBuildTag` の `testutil` のファイルの数（22）は変えない（設計書 3.9）
 - [ ] **ステップ 1-4**: `cmd/yt2column` のストアを作る
