@@ -16,7 +16,7 @@
 
 | 担当 | 内容 |
 |---|---|
-| `fixprguard` バイナリ（`cmd/fixprguard`、`internal/fixprguard`） | 判定、取得、比較、commit・push、GitHub への書き込み。これに加えて、3 つの守りの層の外の役目として、リポジトリの interaction limits の状態を読んで 6 つの状態に分類し（`/runpr` がステップ 1 で 1 回だけ使う。5 章・10 章）、PR レビューの状態（`review-state`）・他のアカウントのメンション（`mentions`）・リポジトリの CI のチェック（`ci-checks`）を判定する（`/runpr` がステップ 3 と 4 で使う。5 章） |
+| `fixprguard` バイナリ（`cmd/fixprguard`、`internal/fixprguard`） | 判定、取得、比較、commit・push、GitHub への書き込み。これに加えて、3 つの守りの層の外の役目として、リポジトリの interaction limits の状態を読んで 6 つの状態に分類し（`/runpr` がステップ 1 で 1 回だけ使う。5 章・10 章）、PR レビューの状態（`review-state`）・他のアカウントのメンション（`mentions`）・リポジトリの CI のチェック（`ci-checks`）を判定する（`/runpr` がステップ 3 で `mentions`・`review-state`・`ci-checks` を、ステップ 4 で `mentions`・`review-state` を使う。5 章） |
 | `/fixpr`・`/runpr` コマンド（`.claude/commands/`） | サブコマンドを呼ぶ順序、利用者への確認、エージェントの起動 |
 | 開発者 | 範囲外の変更や想定外の著者のスレッドについての判断、ツールが止まったときの対処 |
 
@@ -617,7 +617,7 @@ fixprguard ci-checks --protocol 9 --head 0123456789abcdef0123456789abcdef0123456
 - `/fixpr` の Phase 4.5 で、手順が定めない git の起動。`check` を呼ぶのは手順が定める時点だけで、セッションがそれ以外に git を起動すれば、その前には比べない。比較を呼ぶこと自体もコマンドの文書に依存する（7.2.2）。
 - Phase 4 の commit から 1 本につながる commit の出所。`check` は、Phase 4.5 の commit を誰が作ったかを区別しない。修正のフェーズや build checks が残したプロセスが、1 本につながる commit を足しても、`check` は通る。`/fixpr` は、手順が戻った後と `push-review` の直前の `check` で、`commits` とセッションが数えた commit の数を照合し、違えば止まる。最後の照合から `push-review` までの間に足されたものは数えない。
 - HEAD とブランチの 2 回の読み取り。HEAD の OID と、HEAD がいるブランチは、2 回の git の起動で読む。その間にブランチを切り替えられると、切り替え先の OID と、基準値のブランチの名前の組を読みうる。
-- 基準値を持たない `head`・`list`・`reply`・`edit-pr`・`review-state`・`mentions`・`ci-checks` が `gh` を起動する前の比較。`/fixpr` はこれらを `finish`・`push`（Phase 4.5 の commit があれば `push-review`）の後に呼ぶので、それまでの比較が書き換えを検出するが、最後の push の後の書き換えは検出しない。`/runpr` は `begin` を呼ばずに `head`・`list`・`reply`・`review-state`・`mentions`・`ci-checks` を使い、3 文書の PR を通常の進め方へ戻すときは `edit-pr` も使うので、その前に基準値との比較はない。`interaction-limits` も基準値を持たず、`/runpr` がステップ 1 で `begin` より前に 1 回だけ呼ぶので、それ以前の比較はない。
+- 基準値を持たない `head`・`list`・`reply`・`edit-pr`・`append-pr`・`review-state`・`mentions`・`ci-checks` が `gh` を起動する前の比較。`/fixpr` はこのうち `reply`・`edit-pr`・`append-pr` を `finish`・`push`（Phase 4.5 の commit があれば `push-review`）の後に呼ぶので、それまでの比較が書き換えを検出するが、最後の push の後の書き換えは検出しない。`/runpr` は `begin` を呼ばずに `head`・`list`・`reply`・`review-state`・`mentions`・`ci-checks` を使い、3 文書の PR を通常の進め方へ戻すときは `edit-pr` も使うので、その前に基準値との比較はない。`interaction-limits` も基準値を持たず、`/runpr` がステップ 1 で `begin` より前に 1 回だけ呼ぶので、それ以前の比較はない。
 - hooks のディレクトリの外にあり、hook が実行するファイル（pre-commit のフレームワークのキャッシュなど）。
 
 #### 7.2.5 git が無視するファイル
