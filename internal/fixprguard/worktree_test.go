@@ -4,10 +4,25 @@ package fixprguard
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestNewWorktreePanicsOnZeroWorktreeDir(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("NewWorktree with zero WorktreeDir did not panic")
+		}
+		if !strings.Contains(fmt.Sprint(r), "WorktreeDir") {
+			t.Errorf("panic = %v, want message naming WorktreeDir", r)
+		}
+	}()
+	NewWorktree(WorktreeDir{}, nil, nil, nil)
+}
 
 func TestBeginRejectsDirtyWorkTree(t *testing.T) {
 	for _, tc := range []struct {
