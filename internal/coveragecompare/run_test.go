@@ -843,16 +843,17 @@ func twoDeletionsRepo(t *testing.T) (*testRepo, string, fakeBehavior, []DeletedF
 }
 
 // TestRunAcceptsLargeOutput checks that the run has no cap of its own on a
-// suite's output: a -json output of over 20 MiB with lines over 1 MiB is read
-// to a verdict.
+// suite's output: a -json output of over 8 MiB with lines over 1 MiB is read
+// to a verdict. Only the BASE suite writes it: the BASE and HEAD outputs go
+// through the same reading path, and the check that BASE ran 2 tests shows that
+// the lines after the large ones were read.
 func TestRunAcceptsLargeOutput(t *testing.T) {
 	t.Parallel()
 	repo, base := goRepo(t)
 	b := goBehavior()
-	for point, s := range b.Suites {
-		s.LargeStdout = true
-		b.Suites[point] = s
-	}
+	baseSuite := b.Suites["base"]
+	baseSuite.LargeStdout = true
+	b.Suites["base"] = baseSuite
 	env := newFakeEnv(t)
 	env.set(b)
 
