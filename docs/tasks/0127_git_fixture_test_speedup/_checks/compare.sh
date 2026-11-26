@@ -181,13 +181,14 @@ check "single-first-last" "$sel_failed"
 
 mid_failed=0
 for name in "${middles[@]+"${middles[@]}"}"; do
-  top=${name%%/*}
-  awk -F'\t' -v t="$top" '$2==t || index($2, t "/")==1' "$T/base.leaves.r" > "$T/top.leaves"
-  n=$(wc -l < "$T/top.leaves" | tr -d ' ')
-  ln=$(awk -F'\t' -v n="$name" '$2==n {print NR; exit}' "$T/top.leaves")
-  if [ -z "$ln" ]; then echo "middle FAILED: $name is not in BASE"; mid_failed=1; continue; fi
-  if [ "$ln" -le 1 ] || [ "$ln" -ge "$n" ]; then echo "middle FAILED: $name is the first or the last of $top"; mid_failed=1; continue; fi
-  pkg=$(sed -n "${ln}p" "$T/top.leaves" | cut -f1)
+  # The leaves that use one shared state span several top-level functions, so
+  # "neither first nor last" is judged among all leaves of the package.
+  pkg=$(awk -F'\t' -v n="$name" '$2==n {print $1; exit}' "$T/base.leaves.r")
+  if [ -z "$pkg" ]; then echo "middle FAILED: $name is not in BASE"; mid_failed=1; continue; fi
+  awk -F'\t' -v p="$pkg" '$1==p' "$T/base.leaves.r" > "$T/pkg.leaves"
+  n=$(wc -l < "$T/pkg.leaves" | tr -d ' ')
+  ln=$(awk -F'\t' -v n="$name" '$2==n {print NR; exit}' "$T/pkg.leaves")
+  if [ "$ln" -le 1 ] || [ "$ln" -ge "$n" ]; then echo "middle FAILED: $name is the first or the last leaf of $pkg"; mid_failed=1; continue; fi
   run_single "$pkg" "$name" || mid_failed=1
 done
 [ "${#middles[@]}" -gt 0 ] || { echo "middle FAILED: no middle name given"; mid_failed=1; }

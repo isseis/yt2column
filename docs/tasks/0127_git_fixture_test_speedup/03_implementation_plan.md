@@ -123,8 +123,9 @@ ADR: なし（このタスクの目標と手順である）。
         - `TestLoadPropagatesFailureAndSkip`: テストのバイナリを子のプロセスで走らせ直し、作り手の 5 つの終わり方（`t.Fatal`、`t.Errorf` の後の正常な戻り、`t.Skip`、`t.Errorf` の後の `t.Skip`、結果の記録の前の終わり）で、後から来たケースが失敗・失敗・skip・失敗・失敗になることを確かめる。skip のほかは、子のプロセスが 0 でない終了コードで終わることも確かめる
         - `TestValueIsCloned`: `Value` を書き換えても、後から来たケースの値は変わらない
         - `TestCopyTo`: 実行の権限とリンクが写る。1 つの複製を書き換えてから複製し直しても、もとの中身が得られる。複製先がすでにあれば失敗する
-        - `TestLoadRejectsOutsideLinks`: 絶対パスを指すリンクと、`../` で外を指す相対パスのリンクの、どちらも「失敗」になる
-    - 6 つのテストのそれぞれについて、確かめる仕組みを 1 つ一時的に壊し、そのテストが失敗することを確かめ、コミットのメッセージに書く。`TestLoadPropagatesFailureAndSkip` では、失敗と skip を見る順序の入れ替えも壊し方に含める
+        - `TestLoadPropagatesFailureAndSkip` の行（`TestChildScenario` の子のプロセスの中）: 絶対パスを指すリンクと、`../` で外を指す相対パスのリンクの、どちらも「失敗」になる。別のテストにはしていない
+        - `TestCloseRemovesBuiltDirectories`: ストアを閉じると、作った後のディレクトリが消える。`TestLoadNilInterfaceValue`: 値が nil のインターフェースでも `Load` が働く
+    - 上のテストのそれぞれについて、確かめる仕組みを 1 つ一時的に壊し、そのテストが失敗することを確かめ、コミットのメッセージに書く。`TestLoadPropagatesFailureAndSkip` では、失敗と skip を見る順序の入れ替えも壊し方に含める
 - [x] **ステップ 1-3**: 新しいパッケージを登録する
     - 変えるファイル: `internal/pipeline/pipeline_test.go`（`testOnlyPackageDirs` に `internal/snapshottest` を足す）、`docs/dev/conventions/package_reference.md`（`internal/snapshottest` の行）
     - `TestFakesCarryBuildTag` の `testutil` のファイルの数（22）は変えない（設計書 3.9）
@@ -313,7 +314,7 @@ ADR: なし（このタスクの目標と手順である）。
 
 ## 4. テスト戦略 (Test Strategy)
 
--   **単体テスト:** `internal/snapshottest` の 6 つのテスト（ステップ 1-2、設計書 7.1）。失敗と skip の伝達は、子のプロセスの出力で確かめる。
+-   **単体テスト:** `internal/snapshottest` の単体テスト（ステップ 1-2、設計書 7.1）。失敗と skip の伝達は、子のプロセスの出力で確かめる。
 -   **複製の義務:** `TestFixtureSnapshotsMatchRebuilt` と `TestTakeInSnapshotsMatchRebuilt` が、複製（`takeIn` では整え直した状態）と作り直した状態を比べる（設計書 3.8）。比べる対象は、それを共有にするフェーズで足す。
 -   **結合テスト:** 3 つのファイルのテストそのものが、共有の状態とスクリプト・`mergemain` の結合テストである。ケースの期待する出力は変えない。ケースが減っていないことは、`compare.sh` の名前の集まりの比較で確かめる（AC-04）。
 -   **前提の検査と失敗の伝達:** 13 か所の前提の検査（AC-07）と、共有の状態を作れなかったときの失敗（AC-08）は、前提や作る関数を一時的に壊して確かめ、コミットのメッセージに書く（ステップ 2-3・3-3・4-5・7-2・7-3）。
