@@ -424,40 +424,40 @@ PR-3 は製品を変えない。
     -   `measure`: PR-3 を作る前（ステップ 3-5）。`/runplan` の実行者が行う。
 -   **破壊の確かめの時期:** `estimate`・`names`・`unchanged`・`race` はステップ 1-1、`measure` はステップ 3-5（前の木と後の木が違うとき）。
 -   **テスト:** コミットしない。
--   **破壊の記録:** 対象コミット `e2a5e8494c0b84e0fee6c38851cb5e70cc9b5c78`
-    -   `unchanged`: `internal/fixprguard/types.go` の `const Protocol = 9` を `10` に書き換えて実行し、終了コード 1（`protocol=FAIL`）で失敗することを確認した。同様に `docs/dev/guides/fixprguard_guide.md` の先頭行を変更して実行し、終了コード 1（`guide=FAIL`）で失敗することを確認した。
+-   **破壊の記録:** 対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`（初回 `e2a5e8494c0b84e0fee6c38851cb5e70cc9b5c78` の後、レビュー修正に合わせて再確認）
+    -   `unchanged`: `internal/fixprguard/types.go` の `const Protocol = 9` を `10` に書き換えて実行し、終了コード 1（`protocol=FAIL`）で失敗することを確認した。同様に `docs/dev/guides/fixprguard_guide.md` に変更を加えて実行し、終了コード 1（`guide=FAIL`）で失敗することを確認した。
     -   `race`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `panic` を入れて実行し、終了コード 1（`go test failed`）で失敗することを確認した。
     -   `names`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `t.Skip` を入れて実行し、終了コード 1（`missing=1`, `became_skip=1`, `status=FAIL`）で失敗することを確認した。
     -   `estimate`: `GOMAXPROCS=1` を指定して並列度を 1 に下げた前提の破壊で実行し、両パッケージとも下限が 50% を超えて終了コード 1（`status=FAIL`）で失敗することを確認した。
     -   `measure`: PR-3 で実施予定。
 -   **実行の記録:**
-    -   `estimate`（対象コミット `e2a5e8494c0b84e0fee6c38851cb5e70cc9b5c78`、判定対象 `origin/main` = `54b8299393190b3ed19c41031a12868209133c80`、両パッケージとも 50% 以下で `PASS`）:
+    -   `estimate`（対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`、判定対象 `origin/main` = `fb71447bb8bd1baa47e113573db52939b41146cd`、両パッケージとも 50% 以下で `PASS`）:
 
         ```text
         mode=estimate
-        commit=54b8299393190b3ed19c41031a12868209133c80
+        commit=fb71447bb8bd1baa47e113573db52939b41146cd
         os=Darwin 25.6.0 arm64
         cores=12 gomaxprocs=12
         go=go version go1.27.1 darwin/arm64
         package=github.com/isseis/yt2column/internal/fixprguard
-          pkg_elapsed=218.79s
-          target_50pct=109.395s
-          longest_parallel=TestBaselineDetectsChange (25.67s)
-          serial_sum=0.46s
-          bound_serial=26.130000000000003s
-          tests_sum=217.32999999999996s
-          bound_cpu=18.11083333333333s (GOMAXPROCS=12)
-          lower_bound=26.130000000000003s
+          pkg_elapsed=238.156s
+          target_50pct=119.078s
+          longest_parallel=TestCheckReviewStateLine (30.11s)
+          serial_sum=0.56s
+          bound_serial=30.669999999999998s
+          tests_sum=236.5999999999999s
+          bound_cpu=19.716666666666658s (GOMAXPROCS=12)
+          lower_bound=30.669999999999998s
           status=PASS
         package=github.com/isseis/yt2column/cmd/fixprguard
-          pkg_elapsed=31.454s
-          target_50pct=15.727s
-          longest_parallel=TestStopKinds (3.58s)
-          serial_sum=0.8500000000000001s
-          bound_serial=4.43s
-          tests_sum=30.029999999999998s
-          bound_cpu=2.5025s (GOMAXPROCS=12)
-          lower_bound=4.43s
+          pkg_elapsed=53.983s
+          target_50pct=26.9915s
+          longest_parallel=TestFinishBodyFileRun (7.07s)
+          serial_sum=0.5s
+          bound_serial=7.57s
+          tests_sum=52.36s
+          bound_cpu=4.363333333333333s (GOMAXPROCS=12)
+          lower_bound=7.57s
           status=PASS
         ```
 
@@ -487,28 +487,28 @@ PR-3 は製品を変えない。
 
 -   **PR-1:**
     -   AC-12 の前のコミット（PR-1 マージベース）: `54b8299393190b3ed19c41031a12868209133c80`
-    -   AC-09（比較: `54b8299393190b3ed19c41031a12868209133c80` → `2750ec20eb167155e2247a0844ab0904a38dcde1`）:
+    -   AC-09（比較: `54b8299393190b3ed19c41031a12868209133c80` → `8d60e0e006bb569ca58cbc16db567109c048cf0a`）:
 
         ```text
         mode=unchanged
         base=54b8299393190b3ed19c41031a12868209133c80
-        head=2750ec20eb167155e2247a0844ab0904a38dcde1
+        head=8d60e0e006bb569ca58cbc16db567109c048cf0a
         guide=PASS (docs/dev/guides/fixprguard_guide.md)
-        protocol=PASS (base: const Protocol = 9 | head: const Protocol = 9)
+        protocol=PASS (base: const Protocol = 9 | head: const Protocol = 9 | worktree: const Protocol = 9)
         status=PASS
         ```
 
-    -   AC-15（比較: `54b8299393190b3ed19c41031a12868209133c80` → `2750ec20eb167155e2247a0844ab0904a38dcde1`）:
+    -   AC-15（比較: `54b8299393190b3ed19c41031a12868209133c80` → `8d60e0e006bb569ca58cbc16db567109c048cf0a`）:
 
         ```text
         mode=names
         base=54b8299393190b3ed19c41031a12868209133c80
-        head=2750ec20eb167155e2247a0844ab0904a38dcde1
+        head=8d60e0e006bb569ca58cbc16db567109c048cf0a
         base_pass=1807
-        head_pass=1859
+        head_pass=1844
         missing=0
         became_skip=0
-        added=52
+        added=37
           ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir
           ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/below_top
           ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/detached_head
@@ -521,7 +521,6 @@ PR-3 は製品を変えない。
           ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/top_of_work_tree/linked_worktree
           ADDED: github.com/isseis/yt2column/cmd/fixprguard::TestRunInProcessDir/top_of_work_tree/main_worktree
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/accept//a/b/c
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/accept//repo
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/accept//tmp/work/repo
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/dot
@@ -535,27 +534,13 @@ PR-3 は製品を変えない。
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/root
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreeDir/reject/trailing_slash
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestNewWorktreePanicsOnZeroWorktreeDir
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_address_of_literal
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_alias
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/reviewers_field_in_worktree_dir_accessor
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_current_dir
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_declaration
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_defined_type
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_assign
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_join_name
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_method_of_other_type
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_named_result
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_other_method
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_in_reviewers_accessor
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_read
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_rel_name
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_resolve_location
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_field_usable
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_in_other_constructor
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_literal_with_field
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_method_named_like_constructor
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_new
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_new_constructor
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_same_shape_struct
-          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_var
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestRestrictedTypesBuiltByConstructors/worktree_dir_zero_literal
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestWorktreeDirOperations
           ADDED: github.com/isseis/yt2column/internal/fixprguard::TestWorktreeDirOperations/absolute_dir
