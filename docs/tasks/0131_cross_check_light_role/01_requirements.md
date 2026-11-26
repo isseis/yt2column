@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-27 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -324,3 +324,7 @@ Antigravity のセッションは、重い側の部分レビューに達した�
 -   **引き継ぎ:** Antigravity のセッションが重い側の部分レビューに達して止まり、利用者が Claude Code で `/crosscheck` を走らせ、Antigravity で同じコマンドを再実行して続ける一連の流れ（F-003）。
 -   **再実行したコマンド:** 引き継ぎの後に Antigravity で再実行した `/mkreq` か `/mkarch`。用語集の「再開した実行」（CLI の `--after`）とは別である。
 -   **単独実行のコマンド:** `/crosscheck`。`.claude/commands/_lib/cross-check-review.md` の「The standalone path」（チェックポイントの入口と push の直前の入口が使う単独の経路）とは別である。`/crosscheck` は、その経路を再利用しうる。
+
+## 変更履歴
+
+- 2026-11-27 承認（isseis、#1190）
