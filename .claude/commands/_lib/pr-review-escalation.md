@@ -1,13 +1,14 @@
 ---
-description: "Internal: whether to recommend a manual CodeRabbit PR review in runpr's merge question (not a command)"
+description: "Internal: whether to recommend a manual PR review in runpr's merge question (not a command)"
 ---
 
 # Shared pattern: PR review escalation
 
-Automatic PR reviews are turned off (`.coderabbit.yaml`), and a manual
-CodeRabbit PR review is requested only when the user chooses it in `runpr.md`
-step 4. Changes are reviewed locally with the local CLI review (CodeRabbit CLI;
-`_lib/local-cli-review.md`).
+CodeRabbit's automatic PR reviews are turned off (`.coderabbit.yaml`), while
+Sourcery AI runs automatic PR reviews on push alongside manual PR reviews.
+A manual PR review (CodeRabbit or Sourcery AI) is requested only when the user
+chooses it in `runpr.md` step 4. Changes are reviewed locally with the local
+CLI review (CodeRabbit CLI; `_lib/local-cli-review.md`).
 
 This file judges whether unreviewed changes since LAST_REVIEWED (or since the
 merge-base with `origin/main` when LAST_REVIEWED is none) are of a kind the
@@ -18,8 +19,10 @@ merge question in step 4 recommends "先に PR レビューを依頼" or merging
 ## Inputs the calling command must supply
 
 - **PR** — the PR number.
-- **LAST_REVIEWED** — the commit of the last completed manual PR review, as
-  `runpr.md` step 3, "LAST_REVIEWED", defines it, or `none` when there is none.
+- **LAST_REVIEWED** — the commit of the last completed manual PR review (the
+  union of CodeRabbit and Sourcery AI manual completion markers; Sourcery AI's
+  automatic PR review completions are not counted), as `runpr.md` step 3,
+  "LAST_REVIEWED", defines it, or `none` when there is none.
   When it is `none`, the range to judge starts at `$(git merge-base origin/main HEAD)`.
 - **HEAD** — the PR's current head commit.
 - **FINDINGS** — the review threads handled since LAST_REVIEWED (their topics and
@@ -53,13 +56,17 @@ criteria only, `runpr.md` decides from the local CLI review's records
    or a ref, or has another side effect that cannot be undone. So does a
    change to a review gate itself: this file's criteria and its Procedure;
    `runpr.md` step 3's definition of LAST_REVIEWED, its rules that turn this
-   file's answer into a recommendation, its mention filters, and its comparison
+   file's answer into a recommendation, its mention checks (`fixprguard mentions`),
+   its CI check (`fixprguard ci-checks`), and its comparison
    of `review-state`'s `head` with the prepared `headRefOid` and the local head;
+   the `### PR reviewers` table of `_context.md`, whose accepted request texts
+   decide which comments count as requests and whose reviewer and profile
+   values decide which posts the mention check excludes;
    `_lib/review-records.sh` and the way the command documents run it from
    `origin/main`; the steps of `_lib/local-cli-review.md` that decide an
    attempt's result and the ranges it covers (steps 2 and 6); the sections that
    define the forms of the review record lines and how they are read; and
-   `fixprguard` (`review-state` included). A change to another part of a
+   `fixprguard` (`review-state`, `mentions`, and `ci-checks` included). A change to another part of a
    command document is judged by the other criteria.
 5. **Add a mechanism the earlier review never saw.** A new code path, concurrency,
    or state that did not exist at `<range-start>`.
