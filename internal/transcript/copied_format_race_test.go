@@ -22,10 +22,10 @@ package transcript
 // the allocation of each path made quadratic in turn, the input that stays
 // closest to the bound (the form A headings) allocated about 17,000 bytes per
 // input byte at 1 MiB, 2.1 times the bound. A quadratic allocation grows with
-// the input length, so at half that size the same input would be at about the
-// bound itself, and a smaller size would not be caught. A degradation about
-// twice shallower than a quadratic one is not caught at 1 MiB; the non-race
-// build's tighter bound on 4 MiB inputs is the main check for those.
+// the input length, so a smaller size leaves less margin; 1 MiB is the size
+// kept. A degradation much shallower than the quadratic one used there is not
+// caught at this size; the non-race build's tighter bound on 4 MiB inputs is the
+// main check for those.
 //
 // This file is built by the -race runs (`make test` and `make test-ci`) but not
 // by `make lint`, which passes only the test,integration build tags. The
