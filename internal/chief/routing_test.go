@@ -46,6 +46,7 @@ func rowWithCell(t *testing.T, row string, i int, cell string) string {
 // TestRoutingReadsRepositoryContext reads the routing table of the
 // repository's own _context.md: every route key has a route.
 func TestRoutingReadsRepositoryContext(t *testing.T) {
+	t.Parallel()
 	routing, err := ParseRouting(repoContext(t))
 	if err != nil {
 		t.Fatalf("ParseRouting(_context.md): %v", err)
@@ -70,6 +71,7 @@ func TestRoutingReadsRepositoryContext(t *testing.T) {
 // TestRoutingRowsMapToTheirKeys gives every row of a table a distinct model
 // and checks that each route key gets its own row's.
 func TestRoutingRowsMapToTheirKeys(t *testing.T) {
+	t.Parallel()
 	rows := map[paneinput.RouteKey]string{
 		paneinput.RouteTaskDocuments:         "task-documents",
 		paneinput.RouteRunplanHigh:           "runplan-high",
@@ -101,6 +103,7 @@ func TestRoutingRowsMapToTheirKeys(t *testing.T) {
 // TestRoutingRowChangesOneRoute moves the standard+high-review row to the other
 // agent in a copy of _context.md and checks that only that route changes.
 func TestRoutingRowChangesOneRoute(t *testing.T) {
+	t.Parallel()
 	doc := string(repoContext(t))
 	before, err := ParseRouting([]byte(doc))
 	if err != nil {
@@ -145,6 +148,7 @@ func TestRoutingRowChangesOneRoute(t *testing.T) {
 // TestRoutingRejects edits the repository's table into shapes the reader
 // must reject as a whole.
 func TestRoutingRejects(t *testing.T) {
+	t.Parallel()
 	doc := string(repoContext(t))
 	review := repositoryRow(t, "runplan-standard+high-review")
 	low := repositoryRow(t, "runplan-low")
@@ -183,6 +187,7 @@ func TestRoutingRejects(t *testing.T) {
 // TestReadRoutingFromOriginMain checks that the table is read from
 // origin/main's _context.md in the worktree.
 func TestReadRoutingFromOriginMain(t *testing.T) {
+	t.Parallel()
 	rec := newRecorder(t)
 	rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", repoContext(t))
 	if _, err := ReadRouting(context.Background(), rec.commands(nil), "/work/tree"); err != nil {
@@ -199,6 +204,7 @@ func TestReadRoutingFromOriginMain(t *testing.T) {
 // still read, with that agent: the restriction to Claude Code is the
 // sender's, not the table reader's.
 func TestRoutingMergemainRow(t *testing.T) {
+	t.Parallel()
 	doc := string(repoContext(t))
 	routing, err := ParseRouting([]byte(doc))
 	if err != nil {

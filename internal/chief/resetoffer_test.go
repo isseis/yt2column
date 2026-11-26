@@ -94,6 +94,7 @@ func resetItems(pending []PendingItem) []PendingItem {
 // lists it again with a number and a notice. No round removes the record
 // or sends the reset.
 func TestResetItemOffered(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	rec := mw.skipOpenCode()
 	mw.skipOpenCode()
@@ -147,6 +148,7 @@ func TestResetItemOffered(t *testing.T) {
 // pane's state, session, or status moved, or the routing table routes the
 // command to another agent.
 func TestResetItemConditions(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name string
 		// claude keeps the skip of the Claude Code pane after /runpr
@@ -216,6 +218,7 @@ func TestResetItemConditions(t *testing.T) {
 // be read is named with its path in the round's problems, gives no item,
 // and is left in place.
 func TestUnreadableSkipRecordIsAProblem(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	records, err := mw.store.Records(Worktree{path: mw.tree})
 	if err != nil {
@@ -269,6 +272,7 @@ func (mw *mergeWorld) shownCheck() CheckValue {
 // any argument for a /mkreq, and the name alone for /runpr); the send is
 // recorded, the record is gone, and the next round offers no item.
 func TestSendOfferedReset(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name  string
 		setup func(mw *mergeWorld)
@@ -324,6 +328,7 @@ func TestSendOfferedReset(t *testing.T) {
 // the send classifies the row from the caller's history as the snapshot
 // did, so the row does not read as one that needs a check.
 func TestSendOfferedResetOnIdentifiedMain(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.skipOpenCode()
 	mw.onMain(mw.tree)
@@ -343,6 +348,7 @@ func TestSendOfferedResetOnIdentifiedMain(t *testing.T) {
 // fails. Each leaves the record, so the item is offered again while its
 // conditions hold.
 func TestSendOfferedResetRefusals(t *testing.T) {
+	t.Parallel()
 	routeRunprToClaude := func(mw *mergeWorld) {
 		mw.rec.reply("git show refs/remotes/origin/main:.claude/commands/_context.md", claudeRunprContext(mw.t))
 	}
@@ -417,6 +423,7 @@ func TestSendOfferedResetRefusals(t *testing.T) {
 // written types nothing and is not offered again; and a failure after the
 // input stops the workspace.
 func TestSendOfferedResetUseAndRecords(t *testing.T) {
+	t.Parallel()
 	// beforeInput runs f on the check of the pane before the input, the
 	// second read of the pane's agent.
 	beforeInput := func(mw *mergeWorld, f func()) {
@@ -509,6 +516,7 @@ func TestSendOfferedResetUseAndRecords(t *testing.T) {
 // TestSendRemovesThePaneSkips checks that a command typed into a pane
 // removes that pane's skip records and leaves another pane's.
 func TestSendRemovesThePaneSkips(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.skipOpenCode()
 	kept := mw.skipPane(mw.byPane["w1:p1"], sceneAfterRunpr, mkarchRan)
@@ -531,6 +539,7 @@ func TestSendRemovesThePaneSkips(t *testing.T) {
 // chooses after a round saw the PR merged counts as a send since then, so
 // the next command is proposed instead of sent automatically.
 func TestChosenResetMakesTheNextSendAProposal(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -552,6 +561,7 @@ func TestChosenResetMakesTheNextSendAProposal(t *testing.T) {
 // TestParseOfferedResetRequest checks that a relative workspace and a check
 // value of another shape are malformed, and a valid pair is accepted.
 func TestParseOfferedResetRequest(t *testing.T) {
+	t.Parallel()
 	check := strings.Repeat("a", 64)
 	if _, err := ParseOfferedResetRequest("/w", check); err != nil {
 		t.Errorf("a valid request: %v", err)
@@ -567,6 +577,7 @@ func TestParseOfferedResetRequest(t *testing.T) {
 // command to a pane no longer offers that pane's reset, which the round
 // read before the send.
 func TestAutoSendDropsTheSentPaneReset(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")

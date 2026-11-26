@@ -200,6 +200,7 @@ func allPassed(checks []CheckResult) bool {
 // the row shows the task done, the issue's task, and the removal proposed,
 // with one removal item whose checks all pass.
 func TestRemovalRow(t *testing.T) {
+	t.Parallel()
 	sw, rs := newRemovalWorld(t)
 	snap := snapshotOf(t, sw)
 	r := rowOf(t, snap, removalLabel)
@@ -222,6 +223,7 @@ func TestRemovalRow(t *testing.T) {
 // a proposal does not need, at a time: the row is then 0088's, and the
 // removal is still proposed with the check that does not pass.
 func TestRemovalRowFallsBack(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		edit   func(sw *sendWorld, rs *removalSetup)
@@ -276,6 +278,7 @@ func TestRemovalRowFallsBack(t *testing.T) {
 // proposal at a time: the workspace is then not proposed, and its row is
 // 0088's detached one.
 func TestRemovalCandidateConditions(t *testing.T) {
+	t.Parallel()
 	notDone := strings.Replace(string(planSample(t, "marker-all-merged.md")), "| Status | `approved` |", "| Status | `draft` |", 1)
 	cases := map[string]func(t *testing.T, sw *sendWorld, rs *removalSetup){
 		"no created record": func(t *testing.T, _ *sendWorld, rs *removalSetup) {
@@ -335,6 +338,7 @@ func assertNotProposed(t *testing.T, snap Snapshot) {
 // and a read of origin/main or Herdr that fails. Each is named among the
 // problems, and none is proposed.
 func TestRemovalCandidateRefusals(t *testing.T) {
+	t.Parallel()
 	type refusal struct {
 		edit func(t *testing.T, sw *sendWorld, rs *removalSetup)
 		// named is the part of the problem that names the read that failed;
@@ -382,6 +386,7 @@ func TestRemovalCandidateRefusals(t *testing.T) {
 // readable created record runs neither the pane list nor the issue line
 // search, and that a record that cannot be read runs neither either.
 func TestRemovalRunsNothingWithoutARecord(t *testing.T) {
+	t.Parallel()
 	search := gitProgram + " " + strings.Join(issueLineSearch, " ")
 	for _, broken := range []bool{false, true} {
 		sw, rs := newRemovalWorld(t)
@@ -407,6 +412,7 @@ func TestRemovalRunsNothingWithoutARecord(t *testing.T) {
 // issue, task, pane count, and every check in order, with a check that did
 // not pass and what could not be read, and the row's mark.
 func TestRemovalProposal(t *testing.T) {
+	t.Parallel()
 	sw, rs := newRemovalWorld(t)
 	sw.git(rs.tree, "status --porcelain --untracked-files=all", "?? notes.txt\n")
 	sw.rec.reply("herdr pane process-info --pane "+removalWS+":p3", []byte("{}"))
@@ -519,6 +525,7 @@ func (cw *checkWorld) check(t *testing.T) []CheckResult {
 // by a read that cannot be made, and checks that only that check does not
 // pass, with what could not be read named only for an unreadable one.
 func TestRemovalChecks(t *testing.T) {
+	t.Parallel()
 	if got := newCheckWorld(t).check(t); !allPassed(got) {
 		t.Fatalf("the passing world gives %+v", got)
 	}
@@ -624,6 +631,7 @@ func TestRemovalChecks(t *testing.T) {
 // table and document rule: each rule is checked first without the mark, so
 // the result comes from the mark's row alone.
 func TestRemovalRowUrgencyAndDocument(t *testing.T) {
+	t.Parallel()
 	detached := positionFacts{head: headDetached}
 	t.Run("urgency", func(t *testing.T) {
 		row := Row{State: StateTaskDone, Idle: true}
@@ -664,6 +672,7 @@ func TestRemovalRowUrgencyAndDocument(t *testing.T) {
 // the mark the row would be a finished task's, which waits too and whose
 // state lists it after the running row.
 func TestRemovalRowSortsLater(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	sw.addTask(fakeWorkspace{ID: "w1", Label: "running", Branch: taskBranch}, "claude")
 	p := sw.byPane["w1:p1"]
@@ -686,6 +695,7 @@ func TestRemovalRowSortsLater(t *testing.T) {
 // is not done: once /mkreq made the task's branch, the row is that task's,
 // by 0088's rules, and nothing is proposed for removal.
 func TestCreatedWorkspaceRows(t *testing.T) {
+	t.Parallel()
 	sw, rs := newRemovalWorld(t)
 	sw.git(rs.tree, "rev-parse --abbrev-ref HEAD", taskBranch+"\n")
 	sw.rec.replyIn(rs.tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields, []byte("[]"))
@@ -706,6 +716,7 @@ func TestCreatedWorkspaceRows(t *testing.T) {
 // /mkreq made its task: the detached row needs a check by 0088's rule and
 // offers no command, /mkreq included, and no removal.
 func TestCreatedDetachedRowOffersNoMkreq(t *testing.T) {
+	t.Parallel()
 	sw, rs := newRemovalWorld(t)
 	sw.rec.failIn(sw.chiefTree, gitProgram+" "+strings.Join(issueLineSearch, " "), &cmdrunner.ExitError{Code: 1})
 	snap := snapshotOf(t, sw)
@@ -725,6 +736,7 @@ func TestCreatedDetachedRowOffersNoMkreq(t *testing.T) {
 // targets of an issue over a world with a removal proposal and checks that
 // the state directory, the created record among it, is as it was.
 func TestRemovalLeavesRecordsOnSnapshotAndTargets(t *testing.T) {
+	t.Parallel()
 	sw, rs := newRemovalWorld(t)
 	sw.issueAnswer(createIssue, reply{out: readTestdata(t, "gh/issue-open-839.json")})
 	deps := sw.finish()
@@ -756,6 +768,7 @@ func TestRemovalLeavesRecordsOnSnapshotAndTargets(t *testing.T) {
 // TestRemovalReaderReadsOnce checks that a round's reader runs the pane list
 // and the issue line search once each, however many workspaces ask.
 func TestRemovalReaderReadsOnce(t *testing.T) {
+	t.Parallel()
 	rec := newRecorder(t)
 	search := gitProgram + " " + strings.Join(issueLineSearch, " ")
 	rec.reply("herdr pane list", paneListOutput(nil))
@@ -784,6 +797,7 @@ func TestRemovalReaderReadsOnce(t *testing.T) {
 // without --force (the recorder allows only those exact lines), and that a
 // closer no constructor made runs nothing.
 func TestWorkspaceCloser(t *testing.T) {
+	t.Parallel()
 	t.Run("every check passes", func(t *testing.T) {
 		cw := newCheckWorld(t)
 		cw.rec.allowWorkspaceClose(removalWS, readTestdata(t, "herdr/workspace-close.json"))
@@ -963,6 +977,7 @@ func (rs *removalSetup) recordFiles() []string {
 // closed the workspace and then removed the worktree, and removed the
 // workspace's records; the output says so.
 func TestRemoveClosesThenRemoves(t *testing.T) {
+	t.Parallel()
 	sw, rs := newRemovalWorld(t)
 	rs.allowRemoval()
 	// A skip record, which a reset skipped for want of a report leaves, is
@@ -1024,6 +1039,7 @@ func TestRemoveClosesThenRemoves(t *testing.T) {
 // workspace with records of its own, and checks that the other workspace's
 // records stay and no write names it.
 func TestRemoveLeavesTheRest(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	other := sw.addTask(fakeWorkspace{ID: "w1", Label: "other", Branch: taskBranch}, "claude")
 	rs := addRemovalWorkspace(t, sw)
@@ -1058,6 +1074,7 @@ func TestRemoveLeavesTheRest(t *testing.T) {
 // while the workspace is closed and its worktree removed, so a send cannot
 // take it then, and that it is free again once the removal ended.
 func TestRemoveHoldsTheExclusion(t *testing.T) {
+	t.Parallel()
 	sw, rs := newRemovalWorld(t)
 	rs.allowRemoval()
 	records, err := sw.store.Records(Worktree{path: rs.tree})
@@ -1089,6 +1106,7 @@ func TestRemoveHoldsTheExclusion(t *testing.T) {
 // the removal is refused with that check not passed, that nothing is
 // written (the recorder allows no write), and that the created record stays.
 func TestRemoveRefusesOnEachCheck(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		check RemovalCheck
@@ -1167,6 +1185,7 @@ func TestRemoveRefusesOnEachCheck(t *testing.T) {
 // no task workspace's worktree (git never runs in it) and a workspace whose
 // exclusion is held; neither writes (the recorder allows no write).
 func TestRemoveRefusals(t *testing.T) {
+	t.Parallel()
 	t.Run("no workspace", func(t *testing.T) {
 		sw, rs := newRemovalWorld(t)
 		elsewhere := filepath.Join(filepath.Dir(rs.tree), "elsewhere")
@@ -1194,6 +1213,7 @@ func TestRemoveRefusals(t *testing.T) {
 // the removal before any check: no git runs in the worktree after it and
 // nothing is written.
 func TestRemoveFetchFailure(t *testing.T) {
+	t.Parallel()
 	sw, rs := newRemovalWorld(t)
 	sw.rec.failIn(sw.chiefTree, "git fetch origin main", errInjected)
 	out := rs.remove(sw.finish(), rs.tree)
@@ -1216,6 +1236,7 @@ func TestRemoveFetchFailure(t *testing.T) {
 // one thing the re-read compares, and checks that nothing is closed or
 // removed and the refusal is changed.
 func TestRemoveRefusesWhenChanged(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		edit func(sw *sendWorld, rs *removalSetup)
@@ -1319,6 +1340,7 @@ func after(sw *sendWorld, line string, n int, changed func() reply) {
 // and checks that the removal stops there, lists what is left by what is
 // really left, and runs no write again or after it.
 func TestRemoveStopsAtEachStage(t *testing.T) {
+	t.Parallel()
 	closeLine := []string{herdrWorkspace, "close", removalWS}
 	closeOK := func(sw *sendWorld, _ *removalSetup) {
 		sw.rec.allowWrite(herdrProgram, "", closeLine, reply{out: readTestdata(sw.t, "herdr/workspace-close.json")})
@@ -1425,6 +1447,7 @@ func TestRemoveStopsAtEachStage(t *testing.T) {
 // origin/main stop reaching it, after the checks, and checks that the
 // workspace is closed but the worktree is not removed.
 func TestRemoveStopsWhenHeadMoved(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		line string
@@ -1481,6 +1504,7 @@ func TestRemoveStopsWhenHeadMoved(t *testing.T) {
 // limit), and checks that the removal stops at the next stage as the
 // deadline, listing what is left and writing nothing more.
 func TestRemoveDeadline(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sw, rs := newRemovalWorld(t)
@@ -1553,6 +1577,7 @@ func (cw *createWorld) allowRemoval() {
 // removes its worktree and records; and the next round shows neither its
 // row nor its removal again.
 func TestCreateToRemove(t *testing.T) {
+	t.Parallel()
 	cw := newCreateWorld(t, nil)
 	cw.allowRemoval()
 	made := cw.create(createIssue)

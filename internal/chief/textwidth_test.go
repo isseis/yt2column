@@ -9,6 +9,7 @@ import "testing"
 // EastAsianWidth.txt (recorded in the plan), not from wideRanges, so a table
 // built wrong from the file fails here.
 func TestUnitWidth(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		text string
@@ -63,6 +64,7 @@ func TestUnitWidth(t *testing.T) {
 // TestWideRangesSortedAndDisjoint checks the order isWide's binary search
 // relies on, which the boundary rows of TestUnitWidth reach only in part.
 func TestWideRangesSortedAndDisjoint(t *testing.T) {
+	t.Parallel()
 	for i, r := range wideRanges {
 		if r.lo > r.hi {
 			t.Errorf("range %d: %#x > %#x", i, r.lo, r.hi)

@@ -121,6 +121,7 @@ func nextLineExamples(section string) []string {
 // lines joined, a word longer than NEXT dropped, and a span that only names
 // the form dropped. The fixtures are not the document's text.
 func TestNextLineExamples(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		section string
@@ -179,6 +180,7 @@ func TestNextLineExamples(t *testing.T) {
 // read, and a route that reads none of them. The fixtures are not the
 // document's text.
 func TestCheckRunprNextExamples(t *testing.T) {
+	t.Parallel()
 	step4 := runprNextSections[0] + "\n"
 	step5 := runprNextSections[1] + "\n"
 	valid := step4 + "\n`- NEXT: /mkplan 4242`\n\n" + step5 + "\n`NEXT: /runplan 4242`\n"
@@ -237,6 +239,7 @@ func TestCheckRunprNextExamples(t *testing.T) {
 // /runpr document's step 4 and step 5 is one the tool reads as none or a
 // command, through each route it reads a report's NEXT by.
 func TestRunprNextExamplesReadable(t *testing.T) {
+	t.Parallel()
 	doc := doctestutil.ReadDoc(t, runprDoc)
 	for _, failure := range checkRunprNextExamples(doc, nextRoutes) {
 		t.Error(failure)

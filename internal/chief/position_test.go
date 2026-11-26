@@ -12,6 +12,7 @@ import (
 // TestStageOf checks each stage of the documents, in the order the next
 // command is decided, including the stages no sampled document reaches.
 func TestStageOf(t *testing.T) {
+	t.Parallel()
 	approvedPlan := &Plan{Status: DocApproved}
 	draftPlan := &Plan{Status: DocDraft}
 	cases := []struct {
@@ -46,6 +47,7 @@ func TestStageOf(t *testing.T) {
 // state outside them, the stop (none, a stop, an unreadable stop record), and
 // the idle mark, and checks each against the table of the design.
 func TestUrgencyTable(t *testing.T) {
+	t.Parallel()
 	type result struct {
 		urgency Urgency
 		turn    Turn
@@ -109,6 +111,7 @@ func TestUrgencyTable(t *testing.T) {
 // one of a phase outside the range: only a send in progress waits on the AI,
 // and every other phase is later and the human's; a stop comes first.
 func TestConflictUrgency(t *testing.T) {
+	t.Parallel()
 	for p := ConflictRecordsUnreadable; p <= ConflictUnresolved+1; p++ {
 		wantUrgency, wantTurn := UrgencyLater, TurnHuman
 		if p == ConflictSending {
@@ -131,6 +134,7 @@ func TestConflictUrgency(t *testing.T) {
 // TestUrgencyIgnoresWhyARowNeedsCheck checks that a row that needs a check
 // is later whatever it says it could not read.
 func TestUrgencyIgnoresWhyARowNeedsCheck(t *testing.T) {
+	t.Parallel()
 	for _, why := range [][]string{nil, {"git fetch origin main failed"}, {"task documents on origin/main", "screen of pane w1:p1"}} {
 		if urgency, turn := urgencyOf(Row{State: StateNeedsCheck, Unreadable: why}); urgency != UrgencyLater || turn != TurnHuman {
 			t.Errorf("urgencyOf(needs check, %v) = %d/%d, want later/human", why, urgency, turn)
@@ -141,6 +145,7 @@ func TestUrgencyIgnoresWhyARowNeedsCheck(t *testing.T) {
 // TestDocumentRule gives documentOf, for each of the rules 1 and 3 to 10 of
 // the design, facts only that rule matches, and checks the document and N.
 func TestDocumentRule(t *testing.T) {
+	t.Parallel()
 	branch := positionFacts{head: headBranch}
 	task := func(stage docStage) positionFacts {
 		return positionFacts{head: headBranch, hasTask: true, stage: stage}
@@ -201,6 +206,7 @@ func TestDocumentRule(t *testing.T) {
 // the first PR, a PR created and not merged, a middle PR, a plan without
 // markers, and a plan whose PRs are all merged.
 func TestDocumentRuleReadsThePlan(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		sample string
 		want   PositionDocument
@@ -237,6 +243,7 @@ func TestDocumentRuleReadsThePlan(t *testing.T) {
 // rule reads on the row for each of the six states, and for the failures that
 // the facts name.
 func TestClassifyKeepsPositionFacts(t *testing.T) {
+	t.Parallel()
 	task := taskID(t, "0001")
 	planDocs := func(plan string) *TaskDocs {
 		return &TaskDocs{Dir: "d", Requirements: docsInfo(DocApproved, ProcessFull), Architecture: docsInfo(DocApproved, ProcessFull), Plan: mustPlan(t, plan)}
@@ -307,6 +314,7 @@ func TestClassifyKeepsPositionFacts(t *testing.T) {
 // mergeable value: only CONFLICTING makes a conflict row, and a row with
 // anything unread, a question, or a working agent keeps its state as before.
 func TestClassifyConflict(t *testing.T) {
+	t.Parallel()
 	prompt := func(status AgentStatus) []agentFacts {
 		return []agentFacts{{Agent: Agent{Kind: paneinput.AgentClaudeCode, Status: status}, ScreenRead: true, Screen: Screen{Kind: ScreenPrompt}}}
 	}
@@ -336,6 +344,7 @@ func TestClassifyConflict(t *testing.T) {
 // TestProgress checks each row of the progress table, a "question" row that
 // holds no question, and a running command of a kind outside the six.
 func TestProgress(t *testing.T) {
+	t.Parallel()
 	merge := QuestionItem{Question: Question{Merge: true}}
 	plain := QuestionItem{Question: Question{}}
 	cases := []struct {
@@ -381,6 +390,7 @@ func TestProgress(t *testing.T) {
 // documents cannot be read through the fake Herdr and checks that the row
 // keeps that as a fact, so the document rule never reads Unreadable's text.
 func TestSnapshotRowKeepsWhyTheDocumentsAreUnknown(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "broken", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: statusDoc("| Status | `approved` |\n| Process | full |\n")}})
 	w.add(fakeWorkspace{ID: "w2", Label: "readable", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved}})
@@ -403,6 +413,7 @@ func TestSnapshotRowKeepsWhyTheDocumentsAreUnknown(t *testing.T) {
 // TestFirstUnmergedPR checks the PR number rule 7 names, including a marker
 // number that cannot be read, which names none.
 func TestFirstUnmergedPR(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		plan Plan
@@ -427,6 +438,7 @@ func TestFirstUnmergedPR(t *testing.T) {
 // process record is broken. The document reader rejects such a record, so
 // only documents built directly reach it.
 func TestDecideNextProcessRecordUnreadable(t *testing.T) {
+	t.Parallel()
 	f := workspaceFacts{Head: headBranch, Branch: taskBranch, Task: taskID(t, "0001"), Docs: &TaskDocs{Dir: "d", Requirements: docsInfo(DocApproved, ProcessUnreadable)}}
 	next, done, why := decideNext(f)
 	if next != nil || done || why != "the process record of the requirements document is unreadable" {

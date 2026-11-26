@@ -143,6 +143,7 @@ func startRecords(t *testing.T, deps Deps, tree string) []SendRecord {
 // with two panes, of the route's agent gets nothing, and that the result
 // lists its panes.
 func TestSendNeedsOnePaneOfTheAgent(t *testing.T) {
+	t.Parallel()
 	for name, kinds := range map[string][]string{
 		"no Claude Code pane":   {"opencode"},
 		"two Claude Code panes": {"claude", "claude", "opencode"},
@@ -167,6 +168,7 @@ func TestSendNeedsOnePaneOfTheAgent(t *testing.T) {
 // when one fails nothing is typed, no send record is written, and the result
 // says why (with the unsent text for an input line that holds some).
 func TestSendChecksBeforeFirstInput(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		kind   string
@@ -221,6 +223,7 @@ func flash(t *testing.T) paneinput.Route { return openCodeRoute(t, openCodeModel
 // Code gets /clear, /model, and the command; OpenCode gets /new and the
 // command; the send's start and end records are written.
 func TestSendInputsInOrder(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		kind  string
@@ -261,6 +264,7 @@ func TestSendInputsInOrder(t *testing.T) {
 // into yet, which has no transcript file, is sent to: /clear starts a new
 // session, and the /model check reads that session's transcript.
 func TestSendToNewSession(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
 	deps := sw.finish()
@@ -281,6 +285,7 @@ func TestSendToNewSession(t *testing.T) {
 // is typed, the workspace is stopped, the send ends as sent-then-failed with
 // the last input typed, and the pane's state and screen are returned.
 func TestSendStopsBetweenInputs(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		react  func(sw *sendWorld, p *simPane, text string) error
@@ -389,6 +394,7 @@ func TestSendStopsBetweenInputs(t *testing.T) {
 // session and its screen showed the empty prompt. The pane reads working for
 // a few reads after the input, then idle, and the send goes through.
 func TestSendWaitsForAnAcceptingPane(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		kind  string
@@ -437,6 +443,7 @@ func TestSendWaitsForAnAcceptingPane(t *testing.T) {
 // stopped takes nothing more: a later send, made by a tool built anew on the
 // same state directory, types nothing and says the workspace is stopped.
 func TestSendFailureAfterInputStops(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
 	deps := sw.finish()
@@ -472,6 +479,7 @@ func TestSendFailureAfterInputStops(t *testing.T) {
 // and a transcript that cannot be read each stop the send before the
 // command.
 func TestClaudeModelSwitchCheck(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		record func(sw *sendWorld, p *simPane) error
@@ -527,6 +535,7 @@ func TestClaudeModelSwitchCheck(t *testing.T) {
 // route model that is a prefix of the shown one sends nothing, the exact one
 // sends, and a pane that shows another model after /new gets no command.
 func TestOpenCodeModelMatch(t *testing.T) {
+	t.Parallel()
 	t.Run("a prefix of the shown model", func(t *testing.T) {
 		sw := newSendWorld(t)
 		sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "opencode")
@@ -560,6 +569,7 @@ func TestOpenCodeModelMatch(t *testing.T) {
 // character the rule does not cover gets its own reason with the remedy (the
 // remedy's wording is checked because it is what the human is shown).
 func TestTranscriptPath(t *testing.T) {
+	t.Parallel()
 	session := sessionPrefix + "01"
 	cases := []struct {
 		env     Env
@@ -632,6 +642,7 @@ const anyItem = "0123456789abcdef0123456789abcdef"
 // TestMkreqTarget checks that /mkreq goes, with the human's issue number,
 // only to a workspace without a task, and never to one with a task.
 func TestMkreqTarget(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	free := sw.addTask(fakeWorkspace{ID: "w1", Label: "free", Branch: "user/feature"}, "claude")
 	busy := sw.addTask(fakeWorkspace{ID: "w2", Label: "task", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
@@ -657,6 +668,7 @@ func TestMkreqTarget(t *testing.T) {
 // kind of offer (NextOutput.Request) makes a request that send reads as that
 // offer, so the /chief session never derives it from the command line.
 func TestRequestNameSendsTheOffer(t *testing.T) {
+	t.Parallel()
 	task, err := paneinput.ParseTaskID("0088")
 	if err != nil {
 		t.Fatal(err)
@@ -702,6 +714,7 @@ func TestRequestNameSendsTheOffer(t *testing.T) {
 // not proposed, a path that is no task workspace), none of which types
 // anything.
 func TestSendArgumentValidation(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ workspace, command, issue, pr, item string }{
 		{"/w", "weakreview", "", "", ""},
 		{"/w", "", "", "", ""},
@@ -774,6 +787,7 @@ func TestSendArgumentValidation(t *testing.T) {
 // that failed after an input has its reason, its last input, the pane's
 // status, and its screen.
 func TestActionResults(t *testing.T) {
+	t.Parallel()
 	run := func(t *testing.T, react func(sw *sendWorld, p *simPane, text string) error, set func(sw *sendWorld)) ActionOutput {
 		t.Helper()
 		sw := newSendWorld(t)
@@ -828,6 +842,7 @@ func TestActionResults(t *testing.T) {
 // when the tool proposes it, to the Claude Code pane with the takeover row's
 // model, though the plan's route is OpenCode.
 func TestSendTakeover(t *testing.T) {
+	t.Parallel()
 	sw, tree, deps := takeoverWorld(t)
 	out, err := Send(context.Background(), deps, sw.owner(), chosenReq(t, deps, sw.owner(), tree, "runplan-takeover"))
 	if err != nil || len(out.Actions) != 1 || out.Actions[0].Outcome != OutcomeSent {
@@ -864,6 +879,7 @@ func takeoverWorld(t *testing.T) (*sendWorld, string, Deps) {
 // TestSendWriterRefusalSendsNothing checks that a prompt the writer refuses
 // before anything was typed ends the send as not sent, without a stop.
 func TestSendWriterRefusalSendsNothing(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
 	deps := sw.finish()
@@ -888,6 +904,7 @@ func TestSendWriterRefusalSendsNothing(t *testing.T) {
 // TestSendStopsWithoutANewSession checks that an OpenCode pane that shows no
 // new session after /new gets no command and stops the workspace.
 func TestSendStopsWithoutANewSession(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "opencode")
 	deps := sw.finish()
@@ -911,6 +928,7 @@ func TestSendStopsWithoutANewSession(t *testing.T) {
 // written: the end is not written either, so the start alone stops the
 // workspace at the next settle.
 func TestSendStopUnwritten(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch}, "claude")
 	deps := sw.finish()
@@ -948,6 +966,7 @@ func TestSendStopUnwritten(t *testing.T) {
 // (the location changed, or the session wrote none yet) is errTranscript, so
 // the check after /model fails instead of reading nothing as no switch.
 func TestTranscriptMissingRefused(t *testing.T) {
+	t.Parallel()
 	_, err := readTranscript(filepath.Join(t.TempDir(), "missing.jsonl"), transcriptLimit)
 	if !errors.Is(err, errTranscript) || !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("err = %v, want errTranscript caused by a missing file", err)
@@ -957,6 +976,7 @@ func TestTranscriptMissingRefused(t *testing.T) {
 // TestTranscriptFIFORefused checks that a FIFO in the transcript's place is
 // refused at once instead of blocking the open until a writer comes.
 func TestTranscriptFIFORefused(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "session.jsonl")
 	if err := syscall.Mkfifo(path, 0o600); err != nil {
 		t.Fatal(err)
@@ -981,6 +1001,7 @@ func TestTranscriptFIFORefused(t *testing.T) {
 // starts working between the first list and the lock makes the row running,
 // so the command is not offered and nothing is typed.
 func TestSendRereadsAgentsUnderTheLock(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "ws", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
 	deps := sw.finish()
@@ -1011,6 +1032,7 @@ func TestSendRereadsAgentsUnderTheLock(t *testing.T) {
 // TestSendRefusesAWorktreeOfTwoWorkspaces checks that a worktree two Herdr
 // workspaces hold gets nothing: neither workspace is chosen.
 func TestSendRefusesAWorktreeOfTwoWorkspaces(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "one", Branch: taskBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved, Plan: planSample(t, "marker-opus.md")}}, "claude")
 	p := &simPane{fakeAgent: fakeAgent{Pane: "w2:p1", Workspace: "w2", Kind: "claude", Status: "idle", Session: sw.newSession(), Dir: tree, Seq: 10}, screen: readScreenSample(t, "claude-idle.ansi")}
@@ -1031,6 +1053,7 @@ func TestSendRefusesAWorktreeOfTwoWorkspaces(t *testing.T) {
 // the workspace's worktree root is a target: not one in another worktree,
 // and not one below the root, where another worktree may be nested.
 func TestTargetPaneStaysInTheWorktree(t *testing.T) {
+	t.Parallel()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -1070,6 +1093,7 @@ const otherItemDetail = "the workspace no longer offers the chosen item (it offe
 // session, another task's event, a record that cannot be read) offers
 // nothing, and refuses for the kind as before.
 func TestSendChecksTheChosenItem(t *testing.T) {
+	t.Parallel()
 	mainWorld := func(t *testing.T) (*sendWorld, string, Deps) {
 		sw := newSendWorld(t)
 		tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "main", Branch: mainBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved}}, "claude")
@@ -1187,6 +1211,7 @@ func assertOtherItem(t *testing.T, sw *sendWorld, deps Deps, req SendRequest, of
 // TestSendMkreqToMainRefused checks that /mkreq is never sent to a worktree
 // on main, whether its history identifies a task or not.
 func TestSendMkreqToMainRefused(t *testing.T) {
+	t.Parallel()
 	for _, identified := range []bool{false, true} {
 		sw := newSendWorld(t)
 		tree := sw.addTask(fakeWorkspace{ID: "w1", Label: "main", Branch: mainBranch, Docs: &fakeDocs{Dir: taskDir, Req: reqApproved, Arch: archApproved}}, "claude")
@@ -1210,6 +1235,7 @@ func TestSendMkreqToMainRefused(t *testing.T) {
 // failing after /clear or /model, failing to write the end record, writer
 // refusal before the first input, and refusing when PR or head is missing.
 func TestSendMergemainUncertainStopsWorkspace(t *testing.T) {
+	t.Parallel()
 	head, err := ParseCommitID(strings.Repeat("b", 40))
 	if err != nil {
 		t.Fatal(err)

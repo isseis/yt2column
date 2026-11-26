@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -95,6 +96,24 @@ func testEnv(home string) []string {
 	}
 }
 
+// fixedUmask is the umask fixUmask sets.
+const fixedUmask = 0o022
+
+// fixUmask sets the process umask to 0o022 for the rest of the test and
+// restores the previous value when the test ends. A test whose result depends
+// on the permissions of a file or directory it creates calls it first.
+// Contract: such a test stays serial, because privatefile.MkdirBelow changes
+// the process umask while it runs, and so do the parallel tests that open a
+// store. The helper therefore also calls t.Setenv, which panics in a test or
+// an ancestor that called t.Parallel, so a later change that makes the test
+// parallel fails at once instead of flaking.
+func fixUmask(t *testing.T) {
+	t.Helper()
+	t.Setenv("CHIEF_TEST_SERIAL_UMASK", "1")
+	previous := syscall.Umask(fixedUmask)
+	t.Cleanup(func() { syscall.Umask(previous) })
+}
+
 // testRepo is a temporary git repository for a test.
 type testRepo struct {
 	t    *testing.T
@@ -104,6 +123,11 @@ type testRepo struct {
 
 // newTestRepo creates a repository on branch main with one commit, its
 // signing turned off, in a resolved temporary directory.
+// Contract: a test that calls it (or runs git, bash, or another child process
+// through the helpers of this file) stays serial, or is a subtest of a serial
+// parent. A child process holds a copy of every open file descriptor between
+// fork and exec, so a cachelock flock that a parallel test just closed can stay
+// held for a moment, and that test's next Acquire reports busy.
 func newTestRepo(t *testing.T) *testRepo {
 	t.Helper()
 	if testToolsDir == "" {

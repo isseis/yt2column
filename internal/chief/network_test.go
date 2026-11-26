@@ -229,6 +229,7 @@ func TestCreateRunsOnlyInTheRightPlaces(t *testing.T) {
 // only writes are the workspace's close and the worktree's removal (the
 // recorder fails any other).
 func TestRemoveRunsOnlyInTheRightPlaces(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	other := sw.addTask(fakeWorkspace{ID: "w1", Label: "other", Branch: taskBranch}, "claude")
 	rs := addRemovalWorkspace(t, sw)

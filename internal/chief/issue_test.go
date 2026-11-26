@@ -38,6 +38,7 @@ func labelsOf(names ...string) string {
 const notFoundAnswer = `{"data":{"repository":{"issueOrPullRequest":null}},"errors":[{"type":"NOT_FOUND","path":["repository","issueOrPullRequest"],"message":"m"}]}`
 
 func TestParseIssueSamples(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		file   string
 		exit   int
@@ -65,6 +66,7 @@ func TestParseIssueSamples(t *testing.T) {
 }
 
 func TestParseIssueStatus(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		answer string
@@ -94,6 +96,7 @@ func TestParseIssueStatus(t *testing.T) {
 }
 
 func TestParseIssueRejects(t *testing.T) {
+	t.Parallel()
 	node := issueNode("OPEN", labelsOf("devenv"))
 	valid := issueAnswer(node)
 	if _, err := parseIssue([]byte(valid), 0, issueNumber(t, "7")); err != nil {
@@ -192,6 +195,7 @@ func TestParseIssueRejects(t *testing.T) {
 }
 
 func TestParseIssueNotFoundIsAccepted(t *testing.T) {
+	t.Parallel()
 	// A message that is not the usual one is no reason to refuse: only the
 	// declared type and path decide.
 	answer := strings.Replace(notFoundAnswer, `"message":"m"`, `"message":"anything at all"`, 1)
@@ -220,6 +224,7 @@ func paddedAnswer(t *testing.T, size int) []byte {
 }
 
 func TestParseIssueSizeLimit(t *testing.T) {
+	t.Parallel()
 	at := paddedAnswer(t, issueResponseMax)
 	if len(at) != issueResponseMax {
 		t.Fatalf("answer is %d bytes", len(at))
@@ -234,6 +239,7 @@ func TestParseIssueSizeLimit(t *testing.T) {
 }
 
 func TestParseIssueTitle(t *testing.T) {
+	t.Parallel()
 	read := func(t *testing.T, title string) Issue {
 		t.Helper()
 		encoded, err := json.Marshal(title)
@@ -278,6 +284,7 @@ func TestParseIssueTitle(t *testing.T) {
 }
 
 func TestReadIssueRuns(t *testing.T) {
+	t.Parallel()
 	dir := "/chief/tree"
 	issue := issueNumber(t, "7")
 	line := "gh " + strings.Join(issueArgs(issue), " ")
@@ -345,6 +352,7 @@ func TestReadIssueRuns(t *testing.T) {
 // rules: only the tool's one git grep passes, and the worktree and herdr
 // operations that write do not.
 func TestRecorderRejectsOtherGitAndHerdrWrites(t *testing.T) {
+	t.Parallel()
 	passes := []recordedCall{
 		{name: gitProgram, args: issueLineSearch},
 		{name: gitProgram, args: []string{"worktree", "list", "--porcelain"}},
@@ -378,6 +386,7 @@ func TestRecorderRejectsOtherGitAndHerdrWrites(t *testing.T) {
 // holds no mutation or subscription. The recorder compares the call with the
 // constant itself, so only this test can see a changed constant.
 func TestIssueQueryIsAQuery(t *testing.T) {
+	t.Parallel()
 	if !strings.HasPrefix(issueQuery, "query(") {
 		t.Errorf("the operation is not a query: %.20s", issueQuery)
 	}
@@ -396,6 +405,7 @@ func TestIssueQueryIsAQuery(t *testing.T) {
 // graphql` is not a read-only prefix, because it can send a mutation or take
 // another method; only the tool's one shape passes.
 func TestRecorderPassesOnlyTheFixedIssueRead(t *testing.T) {
+	t.Parallel()
 	good := issueArgs(issueNumber(t, "7"))
 	if !isReadOnly(recordedCall{name: ghProgram, args: good}) {
 		t.Fatal("the tool's own call is not read-only")

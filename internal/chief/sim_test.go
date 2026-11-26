@@ -310,6 +310,7 @@ func (sw *sendWorld) finish() Deps {
 // does not resend and shows ConflictUnresolved; round 3 after the PR head
 // changes resends for the new head.
 func TestSimConflictAutoSend(t *testing.T) {
+	t.Parallel()
 	cw := newConflictWorld(t)
 	cw.appendTranscript(cw.firstPane(), prURLRecordLine(50, "https://github.com/o/r/pull/50"), answerLine("m1", "PR 50 summary"))
 

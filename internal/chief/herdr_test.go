@@ -15,6 +15,7 @@ import (
 
 // TestReadHerdrSamples reads the real Herdr outputs under testdata/herdr.
 func TestReadHerdrSamples(t *testing.T) {
+	t.Parallel()
 	t.Run("agent list", func(t *testing.T) {
 		agents, err := parseAgentList(readTestdata(t, "herdr/agent-list.json"))
 		if err != nil {
@@ -135,6 +136,7 @@ func TestReadHerdrSamples(t *testing.T) {
 // read, so the rejections of TestHerdrRejectsUnknownShapes are of the bounds
 // alone.
 func TestPaneLayoutWidthBounds(t *testing.T) {
+	t.Parallel()
 	sample := string(readTestdata(t, "herdr/pane-layout-split.json"))
 	for _, width := range []string{"1", "1000"} {
 		edited := strings.Replace(sample, `"width":42`, `"width":`+width, 1)
@@ -149,6 +151,7 @@ func TestPaneLayoutWidthBounds(t *testing.T) {
 // shapes the samples did not show and checks each is unreadable rather than
 // defaulted.
 func TestHerdrRejectsUnknownShapes(t *testing.T) {
+	t.Parallel()
 	sample := string(readTestdata(t, "herdr/agent-get-claude-blocked.json"))
 	edits := map[string][2]string{
 		"unknown status":         {`"agent_status":"blocked"`, `"agent_status":"sleeping"`},
@@ -300,6 +303,7 @@ func TestHerdrRejectsUnknownShapes(t *testing.T) {
 // TestHerdrUnknownAgentIsNoTarget checks that an agent of a name chief does
 // not route to is listed with no kind, not rejected.
 func TestHerdrUnknownAgentIsNoTarget(t *testing.T) {
+	t.Parallel()
 	sample := strings.Replace(string(readTestdata(t, "herdr/agent-get-opencode-done.json")), `"agent":"opencode"`, `"agent":"codex"`, 1)
 	a, err := parseAgentGet([]byte(sample))
 	if err != nil {
@@ -314,6 +318,7 @@ func TestHerdrUnknownAgentIsNoTarget(t *testing.T) {
 // map cannot be read still gives its agents, with the map's error kept, so
 // the table's reading never fails a round.
 func TestAgentListingTabsUnreadable(t *testing.T) {
+	t.Parallel()
 	sample := string(readTestdata(t, "herdr/agent-list.json"))
 	broken := strings.Replace(sample, `"tab_id":"wC:t8",`, ``, 1)
 	cases := map[string]struct {
@@ -350,6 +355,7 @@ func TestAgentListingTabsUnreadable(t *testing.T) {
 // TestTableSourceReadsPassHerdrFailures checks that a failing herdr command
 // fails each table source read with that command's error, before any parse.
 func TestTableSourceReadsPassHerdrFailures(t *testing.T) {
+	t.Parallel()
 	failure := errors.New("herdr failed")
 	rec := newRecorder(t)
 	rec.fail("herdr agent list", failure)
@@ -371,6 +377,7 @@ func TestTableSourceReadsPassHerdrFailures(t *testing.T) {
 // TestHerdrCommandLines checks the herdr command lines each read runs, and
 // that a read without a pane or a source runs nothing.
 func TestHerdrCommandLines(t *testing.T) {
+	t.Parallel()
 	rec := newRecorder(t)
 	rec.reply("herdr agent list", readTestdata(t, "herdr/agent-list.json"))
 	rec.reply("herdr agent get w1N:p3", readTestdata(t, "herdr/agent-get-claude-blocked.json"))
@@ -429,6 +436,7 @@ func TestHerdrCommandLines(t *testing.T) {
 // writer no constructor made all send nothing, while a valid prompt is
 // submitted without --wait and a valid key is pressed.
 func TestWriterRefuses(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	chiefPane := PaneID{id: "wc:p1"}
 	task := Agent{Pane: PaneID{id: "w1:p2"}, Workspace: "w1"}
@@ -522,6 +530,7 @@ func TestWriterRefuses(t *testing.T) {
 // TestReadHerdrCreationSamples reads the real outputs of the Herdr commands
 // that make and close a task's workspace, taken in task 0092's field check.
 func TestReadHerdrCreationSamples(t *testing.T) {
+	t.Parallel()
 	const (
 		dir        = "/Users/user/.herdr/worktrees/yt2column/probe-0092"
 		sessionDir = "/Users/user/.herdr/worktrees/yt2column/chief-task-worktree"
@@ -652,6 +661,7 @@ func TestReadHerdrCreationSamples(t *testing.T) {
 // information the samples did not show: each case breaks one of its
 // conditions.
 func TestShellInForeground(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		info processInfo
 		want bool
@@ -676,6 +686,7 @@ func TestShellInForeground(t *testing.T) {
 // creation and removal commands into shapes the samples did not show and
 // checks each is unreadable rather than defaulted.
 func TestHerdrRejectsUnknownCreationShapes(t *testing.T) {
+	t.Parallel()
 	parsers := map[string]func([]byte) error{
 		"workspace-create.json": func(b []byte) error { _, err := parseWorkspaceCreate(b); return err },
 		"tab-create.json":       func(b []byte) error { _, err := parseTabCreate(b, "w1Y"); return err },

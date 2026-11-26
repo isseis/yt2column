@@ -61,6 +61,7 @@ func (sw *sendWorld) questionPane(kind, sample string) *simPane {
 // it is made of, and not with the agent's status, which a snapshot reads
 // from the agent list and a relay from the agent itself.
 func TestCheckValueChanges(t *testing.T) {
+	t.Parallel()
 	base := Agent{Pane: PaneID{id: "w1:p1"}, Workspace: "w1", Kind: paneinput.AgentClaudeCode, Status: AgentBlocked, Session: "00000000-0000-4000-8000-000000000001", Dir: "/w", StateChangeSeq: 10}
 	question := func() Question {
 		q := parseClaudeScreen(readScreenSample(t, "claude-question-single.ansi")).Question
@@ -124,6 +125,7 @@ func TestCheckValueChanges(t *testing.T) {
 // to each single-select question of a blocked agent and to none of the
 // questions chief does not relay.
 func TestNoCheckValueForUnrelayable(t *testing.T) {
+	t.Parallel()
 	samples := map[string]bool{
 		"claude-question-single.ansi":          true,
 		"claude-merge-question.ansi":           true,
@@ -179,6 +181,7 @@ func TestNoCheckValueForUnrelayable(t *testing.T) {
 // option number the human chose, not the option under the selection, and
 // reports what it sent.
 func TestRelaySendsChosenOption(t *testing.T) {
+	t.Parallel()
 	for kind, agent := range map[string]paneinput.AgentKind{"claude": paneinput.AgentClaudeCode, "opencode": paneinput.AgentOpenCode} {
 		t.Run(kind, func(t *testing.T) {
 			sw := newSendWorld(t)
@@ -224,6 +227,7 @@ func TestRelaySendsChosenOption(t *testing.T) {
 // again just before the key: a question redrawn after the match while
 // Herdr's agent reading stays the same is not given the key.
 func TestRelayRereadsTheScreenBeforeTheKey(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{"claude", "opencode"} {
 		t.Run(kind, func(t *testing.T) {
 			sw := newSendWorld(t)
@@ -257,6 +261,7 @@ func TestRelayRereadsTheScreenBeforeTheKey(t *testing.T) {
 // TestRelayCheckValueMismatch checks that a relay sends nothing when the pane
 // no longer gives the check value the human was shown.
 func TestRelayCheckValueMismatch(t *testing.T) {
+	t.Parallel()
 	cases := map[string]func(sw *sendWorld, p *simPane){
 		"the question was answered": func(sw *sendWorld, p *simPane) {
 			p.Status, p.Seq, p.screen = "idle", p.Seq+1, readScreenSample(sw.t, "claude-idle.ansi")
@@ -317,6 +322,7 @@ func TestRelayCheckValueMismatch(t *testing.T) {
 // TestRelayRereadsBeforeTheKey checks that a pane whose agent changes after
 // its question was matched, and before the key, gets no key.
 func TestRelayRereadsBeforeTheKey(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	p := sw.questionPane("claude", "claude-question-single.ansi")
 	deps := sw.finish()
@@ -345,6 +351,7 @@ func TestRelayRereadsBeforeTheKey(t *testing.T) {
 // tabbed question even with the check value of the question as it is, and
 // likewise to the other shapes chief does not relay.
 func TestRelayRefusesTabbedQuestion(t *testing.T) {
+	t.Parallel()
 	for _, sample := range []string{
 		"claude-question-tabs.ansi", "claude-question-tabs-second.ansi", "claude-question-tabs-review.ansi",
 		"opencode-question-tabs.ansi", "opencode-question-tabs-second.ansi", "opencode-question-tabs-review.ansi",
@@ -369,6 +376,7 @@ func TestRelayRefusesTabbedQuestion(t *testing.T) {
 // TestRelayRefusesOption checks that a relay sends nothing for an option the
 // question does not have or does not relay (its free-text and chat options).
 func TestRelayRefusesOption(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		kind, answer string
 	}{
@@ -397,6 +405,7 @@ func TestRelayRefusesOption(t *testing.T) {
 // TestRelayNeedsAnAgentOnTheQuestion checks that a relay sends nothing to an
 // agent Herdr does not report blocked, whatever its screen shows.
 func TestRelayNeedsAnAgentOnTheQuestion(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{"claude", "opencode"} {
 		for _, status := range []string{"idle", "working"} {
 			t.Run(kind+" "+status, func(t *testing.T) {
@@ -421,6 +430,7 @@ func TestRelayNeedsAnAgentOnTheQuestion(t *testing.T) {
 // question, among the workspace's panes, and the running row then still
 // shows the command chief sent before, not the relay.
 func TestRelayTakesTheSnapshotsValue(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ asking, other, sample string }{
 		{"opencode", "claude", "opencode-question-single.ansi"},
 		{"claude", "opencode", "claude-merge-question.ansi"},
@@ -485,6 +495,7 @@ func TestRelayTakesTheSnapshotsValue(t *testing.T) {
 // TestRelayUnreadablePane checks that a pane that cannot be read is reported
 // as unreadable, not as a changed question.
 func TestRelayUnreadablePane(t *testing.T) {
+	t.Parallel()
 	sw := newSendWorld(t)
 	p := sw.questionPane("claude", "claude-question-single.ansi")
 	deps := sw.finish()
@@ -503,6 +514,7 @@ func TestRelayUnreadablePane(t *testing.T) {
 
 // TestParseRelayRequest checks the argument grammar of chief relay.
 func TestParseRelayRequest(t *testing.T) {
+	t.Parallel()
 	check := strings.Repeat("a", 64)
 	for _, answer := range []string{"1=1", "1=9"} {
 		if _, err := ParseRelayRequest("/w", check, answer); err != nil {
@@ -534,6 +546,7 @@ func TestParseRelayRequest(t *testing.T) {
 // been pressed is not retried: the workspace stops, and a later relay sends
 // nothing until release.
 func TestRelayFailureAfterKeyStops(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		react  func(p *simPane, key string) error
 		reason NotSentReason

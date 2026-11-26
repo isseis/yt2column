@@ -18,6 +18,7 @@ import (
 // the four members that decide a merge conflict are untrusted values taken
 // only in their exact forms, so one element read in part never makes a row.
 func TestParsePRList(t *testing.T) {
+	t.Parallel()
 	const head = "0123456789abcdef0123456789abcdef01234567"
 	element := func(members string) string {
 		return `{"headRefName":"b","number":1,"title":"t","url":"u",` + members + `}`
@@ -121,6 +122,7 @@ func TestParsePRList(t *testing.T) {
 // TestParseCommitID accepts only a full commit ID and gives the zero value
 // for anything else.
 func TestParseCommitID(t *testing.T) {
+	t.Parallel()
 	const id = "0123456789abcdef0123456789abcdef01234567"
 	got, err := ParseCommitID(id)
 	if err != nil || got.String() != id || got.IsZero() {
@@ -134,6 +136,7 @@ func TestParseCommitID(t *testing.T) {
 }
 
 func TestBranch(t *testing.T) {
+	t.Parallel()
 	for out, want := range map[string]string{"user/0001-x-01\n": "user/0001-x-01", "HEAD\n": ""} {
 		rec := newRecorder(t)
 		rec.reply("git rev-parse --abbrev-ref HEAD", []byte(out))
@@ -148,6 +151,7 @@ func TestBranch(t *testing.T) {
 // by the git common directory: the chief's own workspace and a workspace of
 // another repository or of no repository are not task workspaces.
 func TestFindTaskWorkspaces(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	w.add(fakeWorkspace{ID: "w1", Label: "task", Branch: "scratch"})
 	// A second pane of the chief's own workspace must not count.
@@ -196,6 +200,7 @@ func TestFindTaskWorkspaces(t *testing.T) {
 }
 
 func TestParseWorktreeListSample(t *testing.T) {
+	t.Parallel()
 	got, err := parseWorktreeList(readTestdata(t, "git/worktree-list-porcelain.txt"))
 	if err != nil {
 		t.Fatal(err)
@@ -214,6 +219,7 @@ func TestParseWorktreeListSample(t *testing.T) {
 }
 
 func TestParseWorktreeListRejects(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"empty":                  "",
 		"a block with no path":   "HEAD 6f1d\n\n",
@@ -302,6 +308,7 @@ func TestGitIsAncestor(t *testing.T) {
 // TestIsAncestorRefusesBeforeRunningGit checks that an argument that is not a
 // full commit ID never reaches git, where an option could be read.
 func TestIsAncestorRefusesBeforeRunningGit(t *testing.T) {
+	t.Parallel()
 	rec := newRecorder(t)
 	git := NewGitReader(rec.commands(nil))
 	for _, bad := range []string{"--all", "HEAD", "-h", strings.Repeat("A", 40), strings.Repeat("0", 39)} {
