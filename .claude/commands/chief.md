@@ -200,7 +200,8 @@ Offer the `pending` items as the human's choices, in the tool's order, with
   `/mergemain を送る: <label>`, with the PR's number and title, and `解消できず`
   when `conflict.phase` is `unresolved` (an earlier `/mergemain` did not
   resolve it). When `conflict.can_send` is true, say that choosing it sends
-  `/mergemain` with `claude_code` and the model of the `mergemain` route; when
+  `/mergemain` to the workspace's Claude Code pane (the send's result shows the
+  agent and the model); when
   `conflict.conversation_lost` is also true, add a plain line that starts with
   `注意: ` saying that sending first runs `/clear` in the pane, which erases a
   conversation the human may have had there after the task's last command. When
@@ -360,7 +361,8 @@ answer as "Sending again after a model switch" says.
   and go on without waiting for it. When it ends, show its results as step 2
   does. The tool sends only when the row it reads again still offers that item
   and every condition holds, and otherwise answers `not_offered` or
-  `conditions` (the head, the phase, or a condition changed since it was shown).
+  `conditions` (the head, the phase, or a condition changed since it was shown),
+  or another reason of step 2's list.
 - **A reset item** (`reset`): ask nothing more; choosing it is the human's
   decision (requirements AC-08). Run
   `chief reset --workspace <workspace> --check <check> --protocol 10` at
