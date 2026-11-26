@@ -166,6 +166,7 @@
 | ピークの時間帯 | peak window | 時刻で料金が変わるモデルで、高い料金が適用される曜日と時刻の範囲（`pricing_update.md`） |
 | 出力の上限 | output limit | LLM への 1 回のリクエストで受け付ける出力のトークン数の上限。Claude のアダプタの既定値は `defaultMaxOutputTokens`（`claude_output_limit.md`） |
 | 実時間 | wall-clock time | 処理に実際にかかった時間。出力の速さを求める測定に使う（`claude_output_limit.md`） |
+| 下限 | floor | 最適化しても実時間がそれより短くならない値。最適化の対象にしない部分の時間など。「床」とは訳さない。基準の値（base）は「基準」と書き、下限と混同しない |
 | 打ち切り | truncate | LLM の応答が出力の上限に達して途中で終わること。打ち切られた実行の出力は、上限以上であることしか分からない |
 | 生成の後の工程 | post-generation steps | 生成の後に既定で走る、字数の調整と検証・推敲の 2 つの工程（`cli.md`） |
 | 推定の料金 | estimated cost | 料金表から求めた記事の料金の推定。CLI は標準エラーの `cost:` の行に、`--out` のファイルは `estimated_cost_usd` に書く。請求額とは別 |
