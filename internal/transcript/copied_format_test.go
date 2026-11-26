@@ -1078,7 +1078,7 @@ func TestParseCopiedLargeInputs(t *testing.T) {
 	for _, tc := range inputs {
 		t.Run(tc.name, func(t *testing.T) {
 			if len(tc.input) > copiedLargeInputSize {
-				t.Fatalf("input is %d bytes, over the %d size", len(tc.input), copiedLargeInputSize)
+				t.Fatalf("input is %d bytes, over the %d limit", len(tc.input), copiedLargeInputSize)
 			}
 			var before, after runtime.MemStats
 			runtime.ReadMemStats(&before)
