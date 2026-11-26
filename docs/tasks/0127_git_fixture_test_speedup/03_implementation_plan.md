@@ -125,17 +125,17 @@
 
 ### フェーズ 2: `cmd/yt2column` の共通の初期状態（設計書 3.2・3.8、8 章の 2）
 
-- [ ] **ステップ 2-1**: 2 つのフィクスチャの共通の初期状態を複製にする
+- [x] **ステップ 2-1**: 2 つのフィクスチャの共通の初期状態を複製にする
     - 変えるファイル: `cmd/yt2column/test_helpers_gitfixture.go`、`review_records_test.go`、`high_review_decision_test.go`
     - `newGitFixture` に、リポジトリ・`HOME`・`TMPDIR` を作る場所を受け取る形を足す。今の形はそれを `t.TempDir()` で呼ぶ
     - `newRRFixtureWithContext` と `newHRDFixture` を、設計書 3.2 の種別と鍵で `Load` し、ケースの一時ディレクトリに複製する形にする。作る関数は今の手順をそのまま使う。`m0`・`mb` は値で受け取る。ケースの `HOME`・`TMPDIR` は今と同じく `t.TempDir()` で作る（AC-10）
     - 作る関数は、設計書 3.2 のとおり、`dir` の下に自分の `HOME`・`TMPDIR` とリポジトリを作る。`CopyTo` はディレクトリ全体を写すので、ケースの側には空の `HOME`・`TMPDIR` も写るが、ケースはそれを使わず、写したリポジトリだけを使う。作り手のケースも、共有の状態のディレクトリでは作業せず、ほかのケースと同じく複製してから使う
     - 複製の後に index を読み直さない（設計書 3.2）
-- [ ] **ステップ 2-2**: 複製と作り直しを比べるテストを書く
+- [x] **ステップ 2-2**: 複製と作り直しを比べるテストを書く
     - 追加するファイル: `cmd/yt2column/fixture_snapshot_test.go`（`TestFixtureSnapshotsMatchRebuilt`）
     - `rrFixture`（`_context.md` があるものとないもの）と `hrdFixture` の共通の初期状態について、設計書 3.8「比べるもの」を、複製と今の手順で作り直した状態とで比べる。フェーズ 3・4 で、比べる対象を足す
     - 複製の側に作り手のパスを書き足す、ref を 1 つ消す、の 2 つの壊し方で、このテストが失敗することを確かめ、コミットのメッセージに書く
-- [ ] **ステップ 2-3**: refs/replace の前提の検査（`high_review_decision_test.go:546`）と、共通の初期状態の失敗を確かめる
+- [x] **ステップ 2-3**: refs/replace の前提の検査（`high_review_decision_test.go:546`）と、共通の初期状態の失敗を確かめる
     - 前提を一時的に崩し、そのケースが失敗することを見る（AC-07）
     - `rrFixture` と `hrdFixture` の共通の初期状態を作る関数をそれぞれ一時的に失敗させ、それに依るケースが合格や skip にならず、`go test` が失敗することを見る（AC-08）
     - 結果をコミットのメッセージに書く

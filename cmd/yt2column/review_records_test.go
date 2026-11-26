@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/doctestutil"
+	"github.com/isseis/yt2column/internal/snapshottest"
 )
 
 // reviewRecordsPath is the work tree's copy of the review records script.
@@ -131,24 +132,49 @@ func newRRFixture(t *testing.T, form string) *rrFixture {
 	return newRRFixtureWithContext(t, form, doctestutil.ReadDoc(t, contextPath))
 }
 
-// newRRFixtureWithContext builds a fixture repository whose origin/main holds
+// rrBase is the value of an rrFixture's shared state: the two commits of main.
+type rrBase struct{ m0, mb string }
+
+// rrFixtureKind is the kind of the shared state every rrFixture starts from.
+// Its key is the content of _context.md (the plan samples are fixed files of
+// the test binary), so the repository is built once per content and copied
+// into each case. A copy is the same state a rebuild gives
+// (TestFixtureSnapshotsMatchRebuilt).
+var rrFixtureKind = snapshottest.NewKind[rrBase]("rrFixture", nil)
+
+// newRRFixtureWithContext returns a fixture repository whose origin/main holds
 // contextDoc at .claude/commands/_context.md (omitted when contextDoc is "").
 func newRRFixtureWithContext(t *testing.T, form, contextDoc string) *rrFixture {
 	t.Helper()
-	f := &rrFixture{gitFixture: newGitFixture(t), form: form, contextDoc: contextDoc}
+	sn := snapshottest.Load(t, snapshotStore, rrFixtureKind, []string{contextDoc}, func(bt *testing.T, dir string) rrBase {
+		return buildRRBase(bt, dir, contextDoc)
+	})
+	base := sn.Value()
+	return &rrFixture{
+		gitFixture: newGitFixtureFromSnapshot(t, sn),
+		form:       form, contextDoc: contextDoc, m0: base.m0, mb: base.mb,
+	}
+}
+
+// buildRRBase builds the repository of an rrFixture under dir: main has two
+// commits (m0, then mb, which adds the plans and _context.md when provided),
+// refs/remotes/origin/main points at mb, and the branch feature forks from it.
+func buildRRBase(t *testing.T, dir, contextDoc string) rrBase {
+	t.Helper()
+	f := newGitFixtureIn(t, dir)
 	f.write(rrSource, "m0\n")
 	f.commit("m0")
-	f.m0 = f.rev("HEAD")
+	m0 := f.rev("HEAD")
 	f.write(rrMarkersPlan, rrPlanSample(t, "markers.md"))
 	f.write(rrSinglePlan, rrPlanSample(t, "single.md"))
 	if contextDoc != "" {
 		f.write(contextDocRepoPath, contextDoc)
 	}
 	f.commit("add the plans")
-	f.mb = f.rev("HEAD")
-	f.git("update-ref", "refs/remotes/origin/main", f.mb)
+	mb := f.rev("HEAD")
+	f.git("update-ref", "refs/remotes/origin/main", mb)
 	f.git("switch", "-q", "-c", "feature")
-	return f
+	return rrBase{m0: m0, mb: mb}
 }
 
 func (f *rrFixture) head() string {

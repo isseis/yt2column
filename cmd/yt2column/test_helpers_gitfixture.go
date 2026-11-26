@@ -36,10 +36,37 @@ const fixtureDirMode = 0o750
 // newGitFixture creates an empty repository whose first branch is main.
 func newGitFixture(t *testing.T) *gitFixture {
 	t.Helper()
-	f := &gitFixture{t: t, home: t.TempDir(), tmp: t.TempDir()}
-	f.repo = filepath.Join(t.TempDir(), "repo")
-	f.gitIn(filepath.Dir(f.repo), "init", "-q", "-b", "main", f.repo)
+	return newGitFixtureIn(t, t.TempDir())
+}
+
+// newGitFixtureIn creates an empty repository whose first branch is main,
+// with its own HOME and TMPDIR, under dir (home, tmp, and repo). A state
+// built for a snapshot is built in the snapshot's directory this way, and
+// the repository is the only part a case uses of the copy.
+func newGitFixtureIn(t *testing.T, dir string) *gitFixture {
+	t.Helper()
+	f := &gitFixture{t: t, home: filepath.Join(dir, "home"), tmp: filepath.Join(dir, "tmp"), repo: filepath.Join(dir, "repo")}
+	for _, d := range []string{f.home, f.tmp} {
+		if err := os.Mkdir(d, fixtureDirMode); err != nil {
+			t.Fatalf("create %s: %v", d, err)
+		}
+	}
+	f.gitIn(dir, "init", "-q", "-b", "main", f.repo)
 	return f
+}
+
+// newGitFixtureFromSnapshot returns a fixture whose repository is a copy of
+// sn's repository, in a new directory of t, and whose HOME and TMPDIR are new
+// empty directories of t (the case's own, as for newGitFixture). The copy
+// carries the snapshot's empty home and tmp too; the case does not use them.
+// The index is not refreshed after the copy: the scripts under test run git
+// with GIT_OPTIONAL_LOCKS=0 and read only what commits and refs say, and the
+// git commands a case's setup runs refresh the index themselves.
+func newGitFixtureFromSnapshot[V any](t *testing.T, sn snapshottest.Snapshot[V]) *gitFixture {
+	t.Helper()
+	copyDir := filepath.Join(t.TempDir(), "snapshot")
+	sn.CopyTo(t, copyDir)
+	return &gitFixture{t: t, home: t.TempDir(), tmp: t.TempDir(), repo: filepath.Join(copyDir, "repo")}
 }
 
 // env is the allowlisted environment of every git and script run, so no
