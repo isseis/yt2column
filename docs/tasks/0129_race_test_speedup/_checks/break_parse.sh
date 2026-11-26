@@ -22,6 +22,10 @@ trap 'rm -rf "$tmp"' EXIT
 
 full=$(git -C "$repo" rev-parse --verify "$commit^{commit}") || { echo "unknown commit: $commit"; exit 2; }
 git -C "$repo" archive "$full" | tar -x -C "$tmp" || { echo "cannot extract $full"; exit 2; }
+# Keep the breakages in the temporary directory: the work tree may be switched
+# to another commit (which has no _checks/ directory) while this runs.
+cp -R "$here/breakages" "$tmp.breakages" || { echo "cannot copy the breakages"; exit 2; }
+trap 'rm -rf "$tmp" "$tmp.breakages"' EXIT
 echo "commit: $full"
 echo "go: $(go version)"
 
@@ -55,7 +59,7 @@ for entry in "${names[@]}"; do
   patch=${entry%%:*}
   sub=${entry#*:}
   echo "== breakage $patch (subtest $sub) =="
-  if ! (cd "$tmp" && git apply --whitespace=nowarn "$here/breakages/$patch.patch"); then
+  if ! (cd "$tmp" && git apply --whitespace=nowarn "$tmp.breakages/$patch.patch"); then
     echo "$patch: cannot apply"
     status=1
     continue
@@ -63,7 +67,7 @@ for entry in "${names[@]}"; do
   start=$(date +%s)
   run_test "^TestParseCopiedLargeInputs\$/^${sub}\$" "$tmp.out"
   elapsed=$(( $(date +%s) - start ))
-  (cd "$tmp" && git apply -R --whitespace=nowarn "$here/breakages/$patch.patch")
+  (cd "$tmp" && git apply -R --whitespace=nowarn "$tmp.breakages/$patch.patch")
   line=$(grep -E 'parse allocated [0-9]+ bytes for [0-9]+ input bytes, want at most [0-9]+ per byte' "$tmp.out" | head -n 1)
   if grep -qE "^\s+--- FAIL: TestParseCopiedLargeInputs/${sub} " "$tmp.out" \
      && [ -n "$line" ] \
