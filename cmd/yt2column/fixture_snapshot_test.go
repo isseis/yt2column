@@ -193,8 +193,10 @@ func requireRRCommits(t *testing.T, f *rrFixture) {
 	}
 }
 
-// representativeCase is a coverage case whose setup merges origin/main into
-// the branch, so its copy holds a merge commit and a moved origin/main.
+// representativeCase is a coverage case whose setup builds a side branch and
+// merges it into the branch, so its copy holds a merge commit. A case that
+// moves origin/main (mainMerge) is not used: the merge subject names a commit
+// ID, which differs between a copy and a rebuild.
 func representativeCase(t *testing.T) rrCase {
 	t.Helper()
 	const name = "merge commit inside a seen range"
