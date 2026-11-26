@@ -1,0 +1,34 @@
+diff --git a/internal/transcript/copied_format.go b/internal/transcript/copied_format.go
+index a61969cf..2687c117 100644
+--- a/internal/transcript/copied_format.go
++++ b/internal/transcript/copied_format.go
+@@ -372,10 +372,13 @@ func copiedIsOperationLabel(line string) bool {
+ // it is that timestamp's text, so the scan stops there.
+ func copiedTrailingStart(lines []string) int {
+ 	start := len(lines)
++	breakPos := copiedBreakBytes(lines)
+ 	for start > 0 {
+ 		index := start - 1
+ 		line := lines[index]
++		breakPos -= len(line) + 1
+ 		if copiedBlankLine(line) || (copiedIsOperationLabel(line) && !copiedTimestampLineAt(lines, index-1)) {
++			copiedBreakSink = make([]byte, breakPos+len(line)+1)
+ 			start--
+ 			continue
+ 		}
+@@ -575,3 +578,15 @@ func readableAsFormA(line string) bool {
+ 	_, _, matched := matchFormALabel(line[consumed:], timestamp, labelNone)
+ 	return matched
+ }
++
++// copiedBreakSink keeps the temporary allocations below from being optimized away.
++var copiedBreakSink []byte
++
++// copiedBreakBytes is the byte length of lines joined with newlines.
++func copiedBreakBytes(lines []string) int {
++	n := 0
++	for _, l := range lines {
++		n += len(l) + 1
++	}
++	return n
++}
