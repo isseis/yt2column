@@ -143,7 +143,7 @@
     - 設計書 3.7 のとおり、大きな入力のテストだけを `-race` 付きで実行したプロファイルを、前と後のコミットで取る。前のコミットのプロファイルは、マージベースを `git archive` で一時ディレクトリに展開した木で取り、作業ツリーをチェックアウトしない。`go tool cover -func` の出力を比べ、どの関数の割合も下がっていないことを確かめる
     - 2 つの比較の出力と、それぞれの実行したコミットを 7.7 節に書く（AC-11）。7.5 節・7.7 節の記録をコミットしてから、次のステップに進む（`measure.sh` は変更のない作業ツリーでだけ始まる）
     - 完了の条件: 7.5 節・7.7 節に記録があり、すべて通っている
-- [ ] **ステップ 3-2**: 時間の計測のスクリプトと計測
+- [x] **ステップ 3-2**: 時間の計測のスクリプトと計測
     - 追加するファイル: `docs/tasks/0129_race_test_speedup/_checks/measure.sh`
     - スクリプトは、設計書 3.6・6.2 のとおりに計測する。前と後のコミットを交互にチェックアウトし、温める実行を記録から外し、各回の前に負荷を記録する。対象のテストの単独の実行と全体の実行を、それぞれ 3 回以上測る。設計書 3.6 の記録の項目を出力し、AC-14 の判定を出す
     - スクリプトは、変更のない作業ツリーでだけ始める。出力は作業ツリーの外のファイルに書く。チェックアウトで自分のファイルが消えても最後まで動き、どの終わり方でも元のブランチに戻す。`deadcode` が `PATH` にないとき、どれかの実行が失敗したとき、値を読めないときは、判定を通ったと報告しない
@@ -263,7 +263,99 @@ PR を開く前の上位モデルのレビューで、テストのファイル�
 
 #### `measure.sh`（AC-13・AC-14）
 
-（`/runplan` が時間の計測で書く。重い処理がないという人の答え、前と後のコミットの完全な ID、スクリプトの出力の全体）
+**人の答え（計測の前）:** 「この機械で、ほかの重い処理（ほかの workspace の go test・ビルド・make test など）は走っていませんか」という問いに、人は「走っていない」と答えた（2026-11-26、`/runplan` のセッション内）。計測の最初の負荷の平均は 14.40 23.63 17.15 で、その後 7 前後に下がった。直前に同じセッションで実行した全体の実行などの負荷が残っていたとみられ、確かめてはいない。
+
+**コマンドとコミット:** `MEASURE_OUT=<作業ツリーの外のファイル> bash docs/tasks/0129_race_test_speedup/_checks/measure.sh 51f82a7109d33691afb287bb03f4e68d2e628b38 396866766ff2ecc8159b3ebcc87d0d8d144bea91`。前はマージベース `51f82a7109d33691afb287bb03f4e68d2e628b38`、後は `396866766ff2ecc8159b3ebcc87d0d8d144bea91`（前に本タスクの変更と記録だけを加えたもの）。スクリプトのコミットは `1fd0b9ff3328d670c67d01ecf479c3595b88e297`。終了コードは 0 で、元のブランチ（`isseis/0129-race-test-speedup-04`）に戻っていた。
+
+**スクリプトの出力（全体）:**
+
+```text
+machine: Apple M3 Pro, 12 cores, 18 GiB, macOS 26.6.2
+power: Now drawing from 'AC Power'
+go: go version go1.27.1 darwin/arm64
+before: 51f82a7109d33691afb287bb03f4e68d2e628b38
+after:  396866766ff2ecc8159b3ebcc87d0d8d144bea91
+single command: go test -tags test -race -count=1 -run '^<Test>$' <package>
+whole command:  go test -tags test -race -count=1 ./...  (measured: 1)
+rounds: 3
+warm-up (not recorded) at 51f82a7109d33691afb287bb03f4e68d2e628b38
+warm-up (not recorded) at 396866766ff2ecc8159b3ebcc87d0d8d144bea91
+round 1 before 51f82a7109d33691afb287bb03f4e68d2e628b38 load: 14.40 23.63 17.15
+  before TestParseCopiedLargeInputs 9.41s
+  before TestRunAcceptsLargeOutput 8.34s
+  before TestMakeDeadcodeVerdict 9.55s
+  before TestMakeDeadcodeScope 5.05s
+  before TestParseSubtitlesLimits 2.45s
+  before TestParseSubtitlesArrayElementLimit 2.08s
+  before TestAsArrayElementLimit 2.82s
+  before TestNeutralizedDisplayMarkdownLinearTime 2.58s
+  before whole 262.36s
+round 1 after 396866766ff2ecc8159b3ebcc87d0d8d144bea91 load: 8.50 18.36 16.91
+  after TestParseCopiedLargeInputs 3.80s
+  after TestRunAcceptsLargeOutput 3.96s
+  after TestMakeDeadcodeVerdict 8.39s
+  after TestMakeDeadcodeScope 3.33s
+  after TestParseSubtitlesLimits 2.11s
+  after TestParseSubtitlesArrayElementLimit 2.08s
+  after TestAsArrayElementLimit 2.06s
+  after TestNeutralizedDisplayMarkdownLinearTime 2.59s
+  after whole 257.57s
+round 2 before 51f82a7109d33691afb287bb03f4e68d2e628b38 load: 6.80 15.66 16.36
+  before TestParseCopiedLargeInputs 9.37s
+  before TestRunAcceptsLargeOutput 8.31s
+  before TestMakeDeadcodeVerdict 9.61s
+  before TestMakeDeadcodeScope 4.93s
+  before TestParseSubtitlesLimits 2.43s
+  before TestParseSubtitlesArrayElementLimit 2.09s
+  before TestAsArrayElementLimit 2.84s
+  before TestNeutralizedDisplayMarkdownLinearTime 2.78s
+  before whole 259.32s
+round 2 after 396866766ff2ecc8159b3ebcc87d0d8d144bea91 load: 7.55 13.73 15.40
+  after TestParseCopiedLargeInputs 3.78s
+  after TestRunAcceptsLargeOutput 3.95s
+  after TestMakeDeadcodeVerdict 8.52s
+  after TestMakeDeadcodeScope 3.41s
+  after TestParseSubtitlesLimits 2.07s
+  after TestParseSubtitlesArrayElementLimit 2.09s
+  after TestAsArrayElementLimit 2.07s
+  after TestNeutralizedDisplayMarkdownLinearTime 2.58s
+  after whole 261.39s
+round 3 before 51f82a7109d33691afb287bb03f4e68d2e628b38 load: 7.00 13.91 15.34
+  before TestParseCopiedLargeInputs 9.34s
+  before TestRunAcceptsLargeOutput 8.29s
+  before TestMakeDeadcodeVerdict 9.62s
+  before TestMakeDeadcodeScope 4.91s
+  before TestParseSubtitlesLimits 2.46s
+  before TestParseSubtitlesArrayElementLimit 2.09s
+  before TestAsArrayElementLimit 2.84s
+  before TestNeutralizedDisplayMarkdownLinearTime 2.58s
+  before whole 258.96s
+round 3 after 396866766ff2ecc8159b3ebcc87d0d8d144bea91 load: 7.46 14.09 15.22
+  after TestParseCopiedLargeInputs 3.77s
+  after TestRunAcceptsLargeOutput 3.93s
+  after TestMakeDeadcodeVerdict 8.45s
+  after TestMakeDeadcodeScope 3.35s
+  after TestParseSubtitlesLimits 2.15s
+  after TestParseSubtitlesArrayElementLimit 2.09s
+  after TestAsArrayElementLimit 2.08s
+  after TestNeutralizedDisplayMarkdownLinearTime 2.61s
+  after whole 262.99s
+restored: on isseis/0129-race-test-speedup-04 at 396866766ff2ecc8159b3ebcc87d0d8d144bea91
+AC-14 verdict: median(after) < min(before) per compared test
+  TestParseCopiedLargeInputs: before min 9.34s, after median 3.78s: PASS
+  TestRunAcceptsLargeOutput: before min 8.29s, after median 3.95s: PASS
+  TestMakeDeadcodeVerdict: before min 9.55s, after median 8.45s: PASS
+  TestMakeDeadcodeScope: before min 4.91s, after median 3.35s: PASS
+  TestParseSubtitlesLimits: before min 2.43s, after median 2.11s: PASS
+  TestParseSubtitlesArrayElementLimit: recorded, not compared
+  TestAsArrayElementLimit: before min 2.82s, after median 2.07s: PASS
+  TestNeutralizedDisplayMarkdownLinearTime: recorded, not compared
+whole run before: 262.36s 259.32s 258.96s
+whole run after: 257.57s 261.39s 262.99s
+RESULT: PASS
+```
+
+全体の実時間は、前が 262.36・259.32・258.96 秒、後が 257.57・261.39・262.99 秒で、記録だけであり、判定に使っていない（設計書 3.6）。差は機械の負荷のばらつきの範囲で、縮んでいない。
 
 #### ADR-0038 の記録した差分（AC-08）
 
