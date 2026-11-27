@@ -402,28 +402,35 @@ func TestCollectTargetsWalk(t *testing.T) {
 
 // TestCollectTargetsWatchedDirGitNames: git lists nothing below an entry named
 // .git, so one below .claude or .agents stops the pass with its own rule,
-// unless it belongs to a nested repository git listed.
+// unless it belongs to a nested repository git listed. checkTopDirGitNames
+// does not branch on the directory, so .agents runs only the rows that pin
+// its own error.
 func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 	watched := []struct {
 		dir     string
 		wantErr error
+		full    bool // runs every row, not only the everyDir ones
 	}{
-		{".claude", errClaudeGitName},
-		{".agents", errAgentsGitName},
+		{".claude", errClaudeGitName, true},
+		{".agents", errAgentsGitName, false},
 	}
 	for _, w := range watched {
 		t.Run(w.dir, func(t *testing.T) {
 			tests := []struct {
-				name    string
-				file    string
-				wantErr error
+				name     string
+				file     string
+				wantErr  error
+				everyDir bool
 			}{
-				{"git_directory", w.dir + "/commands/.git/x.md", w.wantErr},
-				{"git_directory_upper", w.dir + "/skills/.GIT/SKILL.md", w.wantErr},
-				{"git_file", w.dir + "/agents/.git", w.wantErr},
-				{"git_suffix_only", w.dir + "/commands/a.git/x.md", nil},
+				{"git_directory", w.dir + "/commands/.git/x.md", w.wantErr, true},
+				{"git_directory_upper", w.dir + "/skills/.GIT/SKILL.md", w.wantErr, false},
+				{"git_file", w.dir + "/agents/.git", w.wantErr, false},
+				{"git_suffix_only", w.dir + "/commands/a.git/x.md", nil, false},
 			}
 			for _, tt := range tests {
+				if !w.full && !tt.everyDir {
+					continue
+				}
 				t.Run(tt.name, func(t *testing.T) {
 					r := newTestRepo(t)
 					r.ignore(w.dir + "/")
@@ -454,15 +461,17 @@ func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 					desc:  w.dir + "/.git allowed when git lists " + w.dir,
 				},
 			}
-			for _, tc := range allowed {
-				t.Run(tc.name, func(t *testing.T) {
-					r := newTestRepo(t)
-					r.ignore(w.dir + "/")
-					tc.setup(r)
-					if _, err := collect(t, r.Dir, r.Home, wideLimits()); err != nil {
-						t.Errorf("collectTargets: %v, want %s", err, tc.desc)
-					}
-				})
+			if w.full {
+				for _, tc := range allowed {
+					t.Run(tc.name, func(t *testing.T) {
+						r := newTestRepo(t)
+						r.ignore(w.dir + "/")
+						tc.setup(r)
+						if _, err := collect(t, r.Dir, r.Home, wideLimits()); err != nil {
+							t.Errorf("collectTargets: %v, want %s", err, tc.desc)
+						}
+					})
+				}
 			}
 			// Call selectTargets directly so git ls-files does not fail first
 			// and only checkTopDirGitNames walks w.dir/locked.
