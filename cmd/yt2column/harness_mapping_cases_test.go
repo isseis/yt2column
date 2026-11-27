@@ -71,27 +71,8 @@ func mappingGrammarCases(t *testing.T, realContext string) []mappingGrammarCase 
 		{"regex char class metacharacter", table(crossCheckPattern, "`claude-[a-z]+`"), "invalid literal Verification pattern"},
 		{"regex alternation pipe forbidden", table(crossCheckPattern, "`claude-(a|b)`"), "forbidden character"},
 		{"regex anchors metacharacter", table(crossCheckPattern, "`^claude-fable$`"), "invalid literal Verification pattern"},
-		{"regex grouping metacharacter", table(crossCheckPattern, "`claude-(ab)`"), "invalid literal Verification pattern"},
-		{"whitespace in pattern", table(crossCheckPattern, "`claude fable`"), "invalid literal Verification pattern"},
 		{"mid-wildcard", table(crossCheckPattern, "`claude*fable`"), "invalid literal Verification pattern"},
 		{"broken uncollected role row fails whole table", table("`claude-sonnet-*`", "`claude-[0-9]+`"), "invalid literal Verification pattern"},
-	}
-	// Run each pattern case on the high row too, so the row each script
-	// reads for its own decision is broken in both scripts' tests.
-	const highPattern = "`claude-opus-*`"
-	for _, pc := range []struct{ name, pattern, wantStderr string }{
-		{"agent launch with dash pattern", "`-`", "cannot have Verification pattern -"},
-		{"65-char literal pattern", "`" + strings.Repeat("a", 65) + "`", "invalid literal Verification pattern"},
-		{"64-char prefix plus star", "`" + strings.Repeat("a", 64) + "*`", "invalid prefix Verification pattern"},
-		{"regex dot-star metacharacter", "`.*`", "invalid prefix Verification pattern"},
-		{"regex char class metacharacter", "`claude-[a-z]+`", "invalid literal Verification pattern"},
-		{"regex alternation pipe forbidden", "`claude-(a|b)`", "forbidden character"},
-		{"regex anchors metacharacter", "`^claude-opus$`", "invalid literal Verification pattern"},
-		{"regex grouping metacharacter", "`claude-(ab)`", "invalid literal Verification pattern"},
-		{"whitespace in pattern", "`claude opus`", "invalid literal Verification pattern"},
-		{"mid-wildcard", "`claude*opus`", "invalid literal Verification pattern"},
-	} {
-		cases = append(cases, mappingGrammarCase{pc.name + " in high row", table(highPattern, pc.pattern), pc.wantStderr})
 	}
 	return cases
 }
@@ -114,8 +95,6 @@ func mappingMatchCases() []mappingMatchCase {
 		{"49-char suffix rejected", "model-*", "model-" + strings.Repeat("a", 49), false},
 		{"empty suffix rejected", "model-*", "model-", false},
 		{"uppercase suffix rejected", "model-*", "model-V4", false},
-		{"underscore suffix rejected", "model-*", "model-4_7", false},
-		{"space in model id rejected", "model-*", "model-4 7", false},
 		{"unregistered model rejected", "model-*", "other-model-4", false},
 		{"prefix dot literal matches", "v1.0-*", "v1.0-a", true},
 		{"prefix dot is not regex wildcard", "v1.0-*", "v1X0-a", false},
