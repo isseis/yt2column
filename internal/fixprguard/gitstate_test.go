@@ -575,6 +575,19 @@ func TestConfigListFailureKinds(t *testing.T) {
 		}
 	})
 	exit := func(code int) *cmdrunner.ExitError { return &cmdrunner.ExitError{Code: code} }
+	// CheckState passes a runner failure through configListFailure: a git
+	// failure stays one and is not read as a config change.
+	// TestConfigListUnreadable holds the config change side.
+	t.Run("check_state/output_over_cap", func(t *testing.T) {
+		r := newTestRepo(t)
+		base := mustBaseline(t, r.Dir, r.Home)
+		w, router := newTestWorktree(t, r.Dir, r.Home)
+		router.ConfigList = &configListResult{Err: errors.Join(fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge), exit(1))}
+		err := w.CheckState(t.Context(), base)
+		if _, isState := errors.AsType[*GitStateError](err); isState || !errors.Is(err, ErrGitFailed) {
+			t.Errorf("CheckState = %v, want ErrGitFailed and no *GitStateError", err)
+		}
+	})
 	for _, tc := range []struct {
 		name   string
 		result configListResult
