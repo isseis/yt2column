@@ -186,4 +186,4 @@ issue #1168 の計測（`go test -tags test -race -count=1 ./...`）では、次
 - 2026-11-27 セッション中の再承認：`internal/mergepr` の目標を 75% から 80% 以下に改めた（isseis、#1197）
 - 2026-11-27 セッション中の再承認：冗長テストの削減（C1 は既定 40 末端＋オプトイン全件、C6 削除、6 件の git config シナリオ維持、main 側リネーム 1 ケース追加）を PR-3 としてスコープに追加した（isseis、#1197）
 - 2026-11-27 セッション中の再承認：PR-3 の決定を本文（bash 3 の決定、2.1、2.3、F-002 の AC-04・AC-05、テストの削除の項）に反映し、AC-13 を足した。C2 は、global の git config シナリオを残す縮小版にした（isseis、#1197）
-- 2026-11-27 セッション中の再承認：AC-13 (2) の bash 行カバレッジ一致を「スクリプト全体の実行行集合（line）一致＋全 mode 分岐到達」に改め、M13 のアサーション移動、`_checks/verify_bash_cut.sh` の `set -T`＋`trap DEBUG` 方式、`_checks/compare.sh` の PR-3 用オプション追加を決めた（isseis、#未記入）
+- 2026-11-27 セッション中の再承認：AC-13 (2) の bash 行カバレッジ一致を「スクリプト全体の実行行集合（line）一致＋全 mode 分岐到達」に改め、M13 のアサーション移動、`_checks/verify_bash_cut.sh` の `set -T`＋`trap DEBUG` 方式、`_checks/compare.sh` の PR-3 用オプション追加を決めた（isseis、#1202）
