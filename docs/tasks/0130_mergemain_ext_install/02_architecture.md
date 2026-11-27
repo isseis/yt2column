@@ -14,7 +14,7 @@
 
 ## 1. 設計の全体像 (Design Overview)
 
-本タスクで変えるのは、コマンドの定義 `.claude/commands/mergemain.md` と、`CLAUDE.md` の「Tool Execution Safety」の `/mergemain` の項と、[ADR-0046](../../dev/adr/0046-chief-of-staff.md) の 3 つの文書だけである。Go のコード、`Makefile`、`.claude/settings.json`、ハーネスのアダプタ（`.claude/commands/_lib/harness-*.md`）、ガードテストは変えない。
+本タスクで変えるのは、コマンドの定義 `.claude/commands/mergemain.md` と、`CLAUDE.md` の「Tool Execution Safety」の `/mergemain` の項と、[ADR-0046](../../dev/adr/0046-chief-of-staff.md) と、Antigravity のアダプタ `.claude/commands/_lib/harness-antigravity.md` の 4 つの文書だけである。Go のコード、`Makefile`、`.claude/settings.json`、ほかのハーネスのアダプタ（`.claude/commands/_lib/harness-claude.md`）、ガードテストは変えない。
 
 今の `/mergemain` は、拡張の検査が要る取り込み（要件書 3.1）で、手順 7 の `make test`・`make lint` の後に `make ext-preflight` を走らせ、通れば `make ext-check` を走らせる（`.claude/commands/mergemain.md:251-267`）。本設計では、`make ext-preflight` を `make ext-install` に置き換え、手順 7 を `make test` → `make lint` → `make ext-install` → `make ext-check` の順にする。
 
@@ -24,7 +24,7 @@
 -   **失敗の理由の種類:** どのコマンドが失敗したかで決める。`make ext-install` が通らなかったとき（失敗、時間の上限での打ち切り、許可の判定による拒否）は「検査の準備がない」、`make ext-check` の失敗は「検査の失敗」とする（AC-03・AC-04）。どちらの場合も、作業の前の状態に戻してから止まる。
 -   **許す範囲:** 文書の承認で広げ、設定の規則では広げない。`make ext-install` を確認なしに走らせるために、`.claude/settings.json` の `allow` に規則を足さない。承認は `CLAUDE.md` と `mergemain.md` に書き、確認を出すかどうかは、pane の許可のモードと auto mode（Claude Code の許可のモードの 1 つ。1.2）の判定に任せる（3.3）。
 -   **依存を入れる道:** 手順 7 のほかの道からは入れない。`make ext-install` が拒まれても失敗しても、`npm ci` を直接走らせるなどの別の道を探さず、人に尋ねもせずに、戻して止まる（AC-08）。
--   **コマンドの定義の書き方:** ハーネスに依らない言葉で書く。時間の上限は `shell-run` に渡す値として書き、ハーネスごとの扱いはアダプタの今の規則に任せる（3.3）。
+-   **コマンドの定義の書き方:** ハーネスに依らない言葉で書く。時間の上限は `shell-run` に渡す値として書き、ハーネスごとの扱いはアダプタの規則に任せる（3.3）。Antigravity で `make ext-install` を昇格させる扱いも、`mergemain.md` ではなくアダプタに書く（3.7）。
 
 ### 1.2. 設計の際に決めたこと（2026-11-27）
 
@@ -42,6 +42,16 @@
     -   **採らなかった案:** 上限を置かず、残る危険として受け入れる案。既定の 120 秒の打ち切りで止まりやすく、打ち切りを失敗として扱う決まりも要るためである。
     -   **ADR:** なし。手順の値は本タスクの中で閉じ、ほかのタスクや構成要素を縛らないためである。
 
+-   **Claude Code の外のハーネスでの `make ext-install`**
+    -   **決定:** Antigravity のアダプタ（`.claude/commands/_lib/harness-antigravity.md` の 4 章）の、サンドボックスで失敗したときに昇格（`BypassSandbox: true`）してよいコマンドの種類に、`make ext-install` を足す（3.7）。まずサンドボックスの中で試す規則（4 章の 1）は変えない。OpenCode は OS のサンドボックスを持たないので、変えない。
+    -   **理由:** `/mergemain` は、人が Antigravity で打つこともできる。Antigravity の `shell-run` は、まずサンドボックスの中で走らせ、昇格してよい種類を限っている。そこに `npm` も `make ext-install` もないので、足さないと、`make ext-install` はネットワークに届かずに失敗し、「検査の準備がない」で止まる。`npm ci` は取得の前に `extension/node_modules` を消す。そのため、今は `make ext-preflight` を通って `make ext-check` まで進む worktree でも、`node_modules` を失って止まる。人が Antigravity で打つ `/mergemain` には、これが後退になる。昇格には利用者の承認が要るので、確認なしに走る範囲は広がらない。
+    -   **残ること:** サンドボックスの中での最初の試みが `node_modules` を消してから失敗し、昇格して走らせ直したときに入れ直す。利用者が昇格を断ると、`node_modules` を失ったまま「検査の準備がない」で止まる。報告は、`make ext-install` が失敗したときの項目（3.1 の 5）で、人が入れ直す必要を示す。サンドボックスの中での失敗と、昇格して走らせ直すことは、Antigravity でまだ確かめていない（7.3）。
+    -   **採らなかった案:**
+        -   後退を、chief が送らないハーネスでの制限として受け入れる案。人が Antigravity で打つ `/mergemain` で、今は通る取り込みが止まるようになり、`node_modules` も失うためである。
+        -   `mergemain.md` の手順 7 をハーネスで分け、Antigravity では今の `make ext-preflight` の道を残す案。コマンドの定義はハーネスに依らずに書き、ハーネスごとの扱いはアダプタに置く方針（[ADR-0055](../../dev/adr/0055-harness-independent-commands.md)）に反するためである。
+        -   `make ext-install` だけは、サンドボックスで試さずに初めから昇格する案。`node_modules` を一度消すことは避けられるが、まずサンドボックスで試す規則（ADR-0055 の「標準サンドボックス優先と最小限の昇格」）に例外を作ることになり、ADR-0055 を変える必要が出る。昇格して走らせ直せば入れ直されるので、得るものが小さい。
+    -   **ADR:** なし。ADR-0055 は、ネットワーク通信で拒まれるコマンドに限って昇格すると決めており（`gh`・`git fetch` などを例に挙げる）、`make ext-install` はその種類に当たる。足すのはアダプタの例の一覧で、ADR-0055 の決定は変わらない。
+
 設計で決めたもの（人間のレビュアーに諮らず、理由とともに記す）:
 
 -   **`make ext-preflight` の削除（H-02）:** 手順 7 から `make ext-preflight` を外す。`make ext-install` は走る前に Node.js と npm の版を確かめる（`Makefile:425-426` が `ext_check_versions` を呼ぶ）。`make ext-check` の各段も `ext_preflight` を呼び、版と `extension/node_modules` があることを確かめる（`Makefile:430-441` など）。そのため、`make ext-preflight` を `make ext-install` の前に残すと、`node_modules` のない worktree で必ず失敗する。後に置いても確かめが重なるだけである。外しても、版が合わないことは `make ext-install` の失敗として「検査の準備がない」に写る。ADR: なし。手順の書き方は本タスクの中で閉じる。
@@ -51,7 +61,6 @@
     -   **人が確認の画面で断ったとき:** Claude Code はエージェントの番を終え、人の次の入力を待つと想定する（7.3 で合わせて見る）。そうなると `/mergemain` は、push していない merge コミットを残したまま、戻しも報告もせずに止まる。この振る舞いは `mergemain.md` では変えられない。`mergemain.md` には、人が断った後の指示（確認の画面で断るときに添えた言葉を含む）が何であっても、取り込みの手順を変えず、ほかの道で依存を入れず、手順 9 で戻して「検査の準備がない」で報告すると書く。chief から見ると、PR は同じ head のまま `CONFLICTING` なので、エージェントが入力を待つ状態に戻れば「解消できず」の行になり、人が気づける（ADR-0046 の「解消できなかったこと」の判定）。
     -   **報告:** どちらの拒否も AC-03 の「`make ext-install` が失敗したとき」には当たらないとし、AC-03 の (2) は書かない。`npm ci` が走っておらず、`node_modules` は始める前のままだからである。代わりに、拒まれて走らなかったことを書く（3.1 の 5）。
     -   ADR: なし。ADR-0046 の「拒まれたときは別の道で依存を入れずに戻して止まる」の中の、写し方の細部である。
--   **Claude Code の外のハーネス:** `/mergemain` は、人が Antigravity や OpenCode で打つこともできる。アダプタは変えない。Antigravity の `shell-run` は、まず OS のサンドボックスの中で走らせ、上げてよいコマンドの種類を限っている（`.claude/commands/_lib/harness-antigravity.md` の 4 章）。そこに `npm` はないので、`make ext-install` はネットワークに届かずに失敗し、「検査の準備がない」で止まる。`npm ci` は取得の前に `node_modules` を消すので、今は `make ext-preflight` を通って `make ext-check` まで進む worktree でも、`node_modules` を失って止まる。これは、人が Antigravity で打つ `/mergemain` には後退である。chief が送らないハーネス（Claude Code 以外）での制限として受け入れ、PR のレビューで人に確かめてもらう。ADR: なし。chief が送らない道の制限で、ほかのタスクを縛らないためである。
 
 ### 1.3. 概念モデル
 
@@ -147,7 +156,8 @@ flowchart LR
 | `docs/dev/adr/0046-chief-of-staff.md` | 変更 | 本書の PR で方針を足し、実装の PR で食い違いの文を消す（3.4） |
 | `.claude/settings.json` | 変えない | 規則を足さない（1.2） |
 | `Makefile` | 変えない | 要件書 2.3 |
-| `.claude/commands/_lib/harness-*.md` | 変えない | 1.2 の「Claude Code の外のハーネス」 |
+| `.claude/commands/_lib/harness-antigravity.md` | 変更 | 4 章の昇格してよいコマンドの種類に `make ext-install` を足す（3.7） |
+| `.claude/commands/_lib/harness-claude.md` | 変えない | Claude Code の扱いは 3.3 |
 | `cmd/mergepr/docs_test.go`・`cmd/yt2column/settings_test.go` | 変えない | 3.5 |
 
 ### 2.3. データの流れ
@@ -203,7 +213,7 @@ AC-08 が差分を許す 5 か所だけを変える。どの変更も、`make ex
     -   `make ext-install` が拒まれたか失敗したときに、別の道で依存を入れようとすることと、エージェント自身が人に尋ねること（ハーネスが出す許可の確認の画面は除く）。
 3.  **止まる理由の対応の「検査の準備がない」の行（`.claude/commands/mergemain.md:110`）。** 括弧の中を、「`make ext-install` が失敗した、時間の上限で打ち切られた、または許可の判定で拒まれた」に改める。
 4.  **手順 7（`.claude/commands/mergemain.md:251-267`）。** `make test`・`make lint` と、`git diff --name-only <base-head> HEAD` による判定は変えない。判定が「要る」のときの 2 つの小手順を次に改める。
-    1.  `make ext-install` を、リポジトリの最上位で、引数・変数・ほかのコマンドとのつなぎなしの、それだけのコマンドとして、前景で、上限を 10 分にして走らせる（`_lib/harness.md` の `shell-run`）。上限に達してハーネスが後ろの実行に移したときは、その実行をハーネスの止め方（Claude Code では TaskStop）で止め、打ち切られたものとする。その結果を、通った・失敗した・打ち切られた・拒まれた、のどれかとして手順 10 のために覚える。通らなかったときは、手順 9 を走らせ、手順 10 へ理由の種類「検査の準備がない」で進む。走らせ直しはしない。
+    1.  `make ext-install` を、リポジトリの最上位で、引数・変数・ほかのコマンドとのつなぎなしの、それだけのコマンドとして、前景で、上限を 10 分にして走らせる（`_lib/harness.md` の `shell-run`）。上限に達してハーネスが後ろの実行に移したときは、その実行をハーネスの止め方（Claude Code では TaskStop）で止め、打ち切られたものとする。その結果を、通った・失敗した・打ち切られた・拒まれた、のどれかとして手順 10 のために覚える。通らなかったときは、手順 9 を走らせ、手順 10 へ理由の種類「検査の準備がない」で進む。走らせ直しはしない。アダプタが `shell-run` の中で行う、サンドボックスで失敗した後の昇格しての走らせ直し（3.7）は、この走らせ直しに当たらない。`shell-run` の結果は、昇格した後の結果とする。
         -   許可の判定が拒んだときは、人に尋ねずに手順 9 へ進む。
         -   人が確認の画面で断った後は、人の指示が何であっても、手順 9 へ進む（1.2）。
     2.  `make ext-check` を走らせる。失敗したら、手順 9 を走らせ、手順 10 へ理由の種類「検査の失敗」で進む。
@@ -234,7 +244,7 @@ AC-08 が差分を許す 5 か所だけを変える。どの変更も、`make ex
 | auto mode で、どの規則にも当たらない | auto mode の判定が許すか拒むかを決める。許すと想定し、実装の PR で確かめる（7.3）。拒まれたら「検査の準備がない」で戻して止まる |
 | 確認を出すモード（`default` など）で、どの規則にも当たらない | 許可の確認が出る。人が許せば走る。断ると、エージェントの番が終わる（1.2） |
 | 利用者の設定（`~/.claude/settings.json` や worktree の `.claude/settings.local.json`）の規則に当たるか、確認を出さないモード | その設定のとおりに扱う。リポジトリからは決められない |
-| Claude Code の外のハーネス | アダプタの `shell-run` の規則による。Antigravity ではサンドボックスで失敗しうる（1.2） |
+| Claude Code の外のハーネス | アダプタの `shell-run` の規則による。Antigravity では、サンドボックスの中で失敗した後、利用者の承認で昇格して走らせ直す（1.2・3.7） |
 
 本設計は、chief が人に尋ねずに送る `/mergemain` の pane が auto mode で走ることを前提にする。この前提はリポジトリからは確かめも強制もできない。リポジトリの `.claude/settings.json` には、確認を出さないモードを置かないことになっているためである（`cmd/yt2column/settings_test.go:38-45` の `promptingModes`）。chief のツールも送り先の表も、pane の許可のモードを確かめない。design_handoff.md の H-01 は「chief が送る pane の許可のモードを前提にできるかも確かめる」と挙げていたが、本設計は確かめずに前提とする。前提が成り立たない pane では、`make ext-install` で確認が出る。chief はその行を質問で止まった行として示し、人がその pane で答える（0115 設計書の 3.9）。
 
@@ -267,7 +277,17 @@ AC-08 が差分を許す 5 か所だけを変える。どの変更も、`make ex
 | `CLAUDE.md`「Tool Execution Safety」 | `/mergemain` の承認の範囲 | `make ext-install` を承認に足す |
 | `Makefile` の `ext-install` | 版の確かめ、`check-lockfile`、`npm ci` の引数 | 変えない |
 | `.claude/settings.json` | 確認なしに許す規則と、確認を出す規則 | 変えない |
+| `harness-antigravity.md` | Antigravity での `shell-run` のサンドボックスと昇格の規則 | 昇格してよい種類に `make ext-install` を足す（3.7） |
 | ADR-0046 | 承認と確認の方針、残る危険 | 3.4 のとおり更新する |
+
+### 3.7. Antigravity のアダプタ
+
+`.claude/commands/_lib/harness-antigravity.md` の 4 章の「Sandbox Elevation Rules」の 2 が挙げる、サンドボックスで失敗したときに昇格してよいコマンドの種類に、`make ext-install` を足す。足すのはこの一覧の 1 項目だけで、4 章のほかの規則（まずサンドボックスで試すこと、昇格は 1 つのコマンドに限ること、`toolSummary` を変えないこと）と禁止事項は変えない。
+
+-   **書き方:** コマンドの定義がそれを指示するときに限る、と添える。今それを指示するのは `/mergemain` の手順 7 だけである。アダプタは走らせてよいかを決めず、走らせると決まったコマンドの昇格の扱いだけを決めるためである。要件書 2.3 は、`/mergemain` 以外のコマンドで `make ext-install` を走らせることを範囲の外としている。
+-   **理由の書き方:** ほかの項目と同じく、ネットワーク通信の例として挙げる（`npm ci` がレジストリから取得するため）。
+
+`cmd/yt2column/skills_docs_test.go` と `cmd/yt2column/fixpr_docs_test.go` はこのアダプタを読むが、4 章の昇格の一覧は読まない（前者は入口からのリンク、後者は `gh` の本文の読み方を見る）。そのためガードテストは変えない。
 
 ## 4. エラーハンドリング設計 (Error Handling Design)
 
@@ -423,6 +443,7 @@ flowchart TD
 -   **確かめること:** `make ext-install` が許可の確認なしに実際に走ったこと。確認が出ないことだけでなく、コマンドの出力が Claude Code のセッションの記録（transcript）にあることまで見る。判定が拒むと、確認が出ずにエージェントが止まりうるためである（design_handoff.md の H-01）。確かめた回数と各回の結果を記録する。判定はモデルによるので、1 回の結果は、その時点で許したことの記録にとどまる（5.3）。
 -   **合わせて見ること:** `extension/node_modules` のない worktree で、`make ext-check` まで通ること（AC-01）。報告の「拡張の依存」の項目（AC-06）。人が確認の画面で断ったときに、エージェントの番が終わるか。判定が拒んだ回があれば、その後にエージェントが手順 9 へ進んだか。
 -   **確かめが通らないとき:** 確認が出るか拒まれたら、設計の変更として本書と ADR-0046 に戻り、人と方針を決め直す（1.2）。
+-   **Antigravity:** 実地の確かめは求めない。chief が送らない道で、昇格には利用者の承認が出るので、昇格の一覧が足りなくても、止まる向きに倒れるためである。人が Antigravity で `/mergemain` を打つ機会があれば、サンドボックスの中での失敗と、昇格して走らせ直した結果を実装計画書に記録する。
 
 ### 7.4. セキュリティのテスト
 
@@ -440,6 +461,7 @@ flowchart TD
 | AC-07 | `manual`: 承認の節と CLAUDE.md を読む。`diff`: CLAUDE.md の差分が `/mergemain` の項に限ること |
 | AC-08 | `manual`: 禁止事項を読む。`diff`: `mergemain.md` の差分が 3.1 の 5 か所に限ること |
 | AC-09・AC-10 | `manual`: `Makefile` と `mergemain-restore` を変えないことを、差分のファイルの一覧で読む（理由は 4.2 と 5.2） |
+| （1.2 の Antigravity の決定） | `manual`: `harness-antigravity.md` の差分が、4 章の昇格の一覧の 1 項目に限ることを読む |
 
 ## 8. 実装の優先順位 (Implementation Priorities)
 
@@ -448,10 +470,11 @@ flowchart TD
 1.  `mergemain.md` の 5 か所（3.1）。
 2.  `CLAUDE.md` の `/mergemain` の項（3.2）。
 3.  ADR-0046 の食い違いの文を消す（3.4）。
-4.  `make test`・`make lint` を走らせる。
-5.  7.3 の実地の確かめを行い、その記録を実装計画書に残す。
+4.  `harness-antigravity.md` の昇格の一覧（3.7）。
+5.  `make test`・`make lint` を走らせる。
+6.  7.3 の実地の確かめを行い、その記録を実装計画書に残す。
 
-手順 1〜3 は同じコミットで変える。`mergemain.md` と `CLAUDE.md` の片方だけが `make ext-install` を承認する状態を作らないためである。
+手順 1〜4 は同じコミットで変える。`mergemain.md` と `CLAUDE.md` の片方だけが `make ext-install` を承認する状態と、Antigravity で新しい手順 7 だけが入って昇格の一覧が追いつかない状態を作らないためである。
 
 ## 9. 将来の拡張性 (Future Extensibility)
 
