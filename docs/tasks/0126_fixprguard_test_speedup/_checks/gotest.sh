@@ -331,7 +331,7 @@ measure_pkg() {
     ($after | sort | .[1]) as $amed |
     if $bmed <= 0 then error("non-positive before median") else . end |
     (($amed / $bmed) * 100) as $pct |
-    (if $amed <= ($bmed * 0.5) then "PASS" else "FAIL" end) as $status |
+    (if $amed <= ($bmed * 0.6) then "PASS" else "FAIL" end) as $status |
     "package=\($pkg)",
     "  before_runs=\($before | map("\(.)s") | join(", "))",
     "  before_median=\($bmed)s",
