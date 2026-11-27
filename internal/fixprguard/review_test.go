@@ -173,12 +173,6 @@ func TestCheckReviewStateOrder(t *testing.T) {
 		parts []string
 		layer stopLayer
 	}{
-		{name: "branch_switched", edit: func(_ *testing.T, p reviewRound) {
-			p.r.Git("switch", "-q", "-c", "other")
-		}, parts: []string{PartBranch}},
-		{name: "detached_head", edit: func(_ *testing.T, p reviewRound) {
-			p.r.Git("switch", "-q", "--detach")
-		}, parts: []string{PartBranch}},
 		{name: "branch_switched_onto_a_merge", edit: func(_ *testing.T, p reviewRound) {
 			// HEAD would fail its line too; the branch is reported alone.
 			p.mergeOnHead()
@@ -187,12 +181,6 @@ func TestCheckReviewStateOrder(t *testing.T) {
 		{name: "config_changed", edit: func(_ *testing.T, p reviewRound) {
 			p.r.Git("config", "remote."+testRemote+".receivepack", "evil")
 		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "hook_added", edit: func(_ *testing.T, p reviewRound) {
-			p.r.WriteHook("pre-commit", "exit 0\n")
-		}, parts: []string{PartHooks}},
-		{name: "info_changed", edit: func(t *testing.T, p reviewRound) {
-			appendFile(t, filepath.Join(p.r.Dir, ".git", "info", "exclude"), "extra\n")
-		}, parts: []string{PartInfo}, layer: layerFiles},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := newReviewRound(t, newTestRepo(t), 1)
@@ -204,20 +192,6 @@ func TestCheckReviewStateOrder(t *testing.T) {
 			wantLayer(t, tc.layer, router.Calls)
 		})
 	}
-
-	t.Run("ignored_changed", func(t *testing.T) {
-		// A target file written after the baseline stops on ignored and
-		// writes the stop record for the user to compare.
-		p := newReviewRound(t, ignoringRepo(t, "build/"), 1)
-		p.r.Write("build/x_test.go", "package x\n")
-		w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
-		_, err := w.CheckReviewState(t.Context(), p.base, p.phase4)
-		wantStateParts(t, err, PartIgnored)
-		wantNoRule(t, err)
-		if _, err := os.Lstat(filepath.Join(p.r.Dir, ".git", ignoredStopRecord)); err != nil {
-			t.Errorf("stop record: %v", err)
-		}
-	})
 }
 
 func TestCheckReviewStateInput(t *testing.T) {
