@@ -350,16 +350,17 @@ index e3356a3fcd26569225fa31c73238b82bfa0a7680..f10a6fb84b4f900c06d3e0e82ea2e517
 
 §9.1 の実施後、人がここに記録を記入する（設計書 7.3）。
 
--   **実施日:** （未実施）
--   **対象コミット（実装 PR の head）:** （未実施）
--   **検証用 PR:** （未実施）
--   **前提の確認:** 利用者の設定に `make` の許可規則がないこと／worktree に `extension/node_modules` がないこと
+-   **実施日:** 2026-11-28
+-   **対象コミット（実装 PR の head）:** `05196bad`
+-   **検証用 PR:** #1203（draft。一時ブランチ `isseis/tmp-0130-verify` は、`69d08df7`（#1177）の親 `eb865fe6` から切り、実装 PR の `mergemain.md` と `CLAUDE.md` だけを取り込んだ `5db89a61` から始めた。取り込んだ `origin/main` は `e99525ec`）
+-   **前提の確認:** `~/.claude/settings.json` の `permissions` に `make` に当たる規則はなく、プロジェクトの `.claude/settings.json` にあるのは `deny` の `Bash(make install-*)` だけで、`.claude/settings.local.json` はなかった。検証用の worktree に `extension/node_modules` はなかった。
 -   **実施回数と各回の結果:**
-    -   （回数・確認画面の有無・transcript での `make ext-install` 実行出力の有無・`make ext-check` の結果・報告の「拡張の依存」項目の有無を記録する）
+    -   **1 回目（default のモード、確認の画面で人が断る）:** `make ext-install` の確認の画面が出て、人が断った。`make ext-install` は走らず、`make ext-check` も走らなかった。結果は「止まった」、理由の種類は「検査の準備がない」で、報告の「詳細」に、確認で拒否されて実行しなかったことと、`extension/node_modules` が始める前のままであることが出た。
+    -   **2 回目（auto mode、`/clear` の直後の pane で `/mergemain 1203` だけを入力）:** 確認の画面は出なかった。transcript に `make ext-install` の実行の出力（`npm ci --ignore-scripts --registry=https://registry.npmjs.org/ …`、`added 141 packages`）があり、`make ext-check` は終了状態 0 で通った。結果は「解消した」で、報告に「拡張の依存: make ext-install を実行し、成功しました。」が出た。`mergemain-push` は `status: ok` で、新しい head は `92bbf1c5`。
 -   **合わせて観測したこと:**
-    -   確認を出すモードで人が断ったときの振る舞い: （未実施）
-    -   auto mode の判定が拒んだ回の手順 9 への遷移（該当があれば）: （未実施）
--   **Antigravity での確認（任意・機会があれば記録）:** （未実施）
+    -   確認を出すモードで人が断ったときの振る舞い: エージェントの番が終わって入力待ちになった。人が「続けて」と入力すると、依存を別の道で入れずに手順 9 へ進んだ。`mergepr mergemain-restore` は `.claude/settings.json` の `ask` の規則により確認を出し、人が許すと、ブランチと作業ツリーを `5db89a61` に戻して止まった。push はなく、作業ツリーに変更はなく、`extension/node_modules` もないままだった。
+    -   auto mode の判定が拒んだ回の手順 9 への遷移（該当があれば）: 該当なし（判定が拒んだ回はなかった）。
+-   **Antigravity での確認（任意・機会があれば記録）:** 行っていない。
 
 ## 10. 次のステップ (Next Steps)
 
