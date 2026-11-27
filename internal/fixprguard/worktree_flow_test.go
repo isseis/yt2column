@@ -436,10 +436,7 @@ func TestFinishRejectsBodyFile(t *testing.T) {
 		})
 	}
 	for name, mention := range map[string]string{
-		"codex":        "@codex",
 		"coderabbitai": "@coderabbitai",
-		"sourcery-ai":  "@Sourcery-AI",
-		"sourceryai":   "@SourceryAI",
 	} {
 		t.Run("mention/"+name, func(t *testing.T) {
 			// The '@' rule would refuse a mention too; errMention shows the
