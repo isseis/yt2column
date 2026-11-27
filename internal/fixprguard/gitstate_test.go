@@ -604,40 +604,35 @@ func TestConfigListFailure(t *testing.T) {
 }
 
 // TestConfigListFailureKinds: how a failed or malformed git config --list is
-// reported. In CheckState, after begin listed the configuration, a timeout,
-// a nonzero exit, or a malformed listing is a config change; an output over
-// the cap, a cancellation, or any other failure is a git failure. At begin
-// every one of them is a git failure and no baseline is taken.
+// reported. In CheckState, after begin listed the configuration, a malformed
+// listing is a config change (TestConfigListFailure classifies the runner's
+// failures). At begin every one of them is a git failure and no baseline is
+// taken.
 func TestConfigListFailureKinds(t *testing.T) {
+	malformed := configListResult{Out: []byte("no delimiters")}
+	t.Run("check_state/malformed_listing", func(t *testing.T) {
+		r := newTestRepo(t)
+		base := mustBaseline(t, r.Dir, r.Home)
+		w, router := newTestWorktree(t, r.Dir, r.Home)
+		router.ConfigList = &malformed
+		wantStateParts(t, w.CheckState(t.Context(), base), PartConfig)
+		if !slices.Equal(router.Calls, []string{gitConfigList}) {
+			t.Errorf("calls = %v, want git config --list only", router.Calls)
+		}
+	})
 	exit := func(code int) *cmdrunner.ExitError { return &cmdrunner.ExitError{Code: code} }
 	for _, tc := range []struct {
-		name    string
-		result  configListResult
-		changed bool // a config change in CheckState rather than a git failure
+		name   string
+		result configListResult
 	}{
 		// Joined with an exit error, so the cap is what keeps it a git failure.
 		{name: "output_over_cap", result: configListResult{Err: errors.Join(fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge), exit(1))}},
 		{name: "cancelled", result: configListResult{Err: errors.Join(context.Canceled, exit(-1))}},
-		{name: "timed_out", result: configListResult{Err: errors.Join(context.DeadlineExceeded, exit(-1))}, changed: true},
-		{name: "nonzero_exit", result: configListResult{Err: exit(128)}, changed: true},
+		{name: "timed_out", result: configListResult{Err: errors.Join(context.DeadlineExceeded, exit(-1))}},
+		{name: "nonzero_exit", result: configListResult{Err: exit(128)}},
 		{name: "not_started", result: configListResult{Err: errors.New("exec: not found")}},
-		{name: "malformed_listing", result: configListResult{Out: []byte("no delimiters")}, changed: true},
+		{name: "malformed_listing", result: malformed},
 	} {
-		t.Run("check_state/"+tc.name, func(t *testing.T) {
-			r := newTestRepo(t)
-			base := mustBaseline(t, r.Dir, r.Home)
-			w, router := newTestWorktree(t, r.Dir, r.Home)
-			router.ConfigList = &tc.result
-			err := w.CheckState(t.Context(), base)
-			if tc.changed {
-				wantStateParts(t, err, PartConfig)
-			} else if _, isState := errors.AsType[*GitStateError](err); isState || !errors.Is(err, ErrGitFailed) {
-				t.Errorf("CheckState = %v, want ErrGitFailed and no *GitStateError", err)
-			}
-			if !slices.Equal(router.Calls, []string{gitConfigList}) {
-				t.Errorf("calls = %v, want git config --list only", router.Calls)
-			}
-		})
 		t.Run("begin/"+tc.name, func(t *testing.T) {
 			r := newTestRepo(t)
 			w, router := newTestWorktree(t, r.Dir, r.Home)
