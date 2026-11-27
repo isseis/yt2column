@@ -321,18 +321,18 @@ PR-3 は製品を変えない。テストを足すコミット（ステップ 3-
 
 -   **ファイル:** 2 つのパッケージの `*_test.go`
 -   **作業:**
-    -   [ ] 候補ごとに、削除だけのコミットを 1 つ作る。散らばった行は、読んだ文字列のとおりに 1 つずつ消す。
-    -   [ ] 各コミットで `make coverage-compare BASE=<そのコミットの親>` を、10 分以上の時間の上限を付けるか、バックグラウンドで実行する（AC-18）。`PASS` の出力を最後の行まで、そのコミットのメッセージに書く（メッセージだけを amend し、木の ID を変えない）。`FAIL` のときは、設計書 8.2 節の「coverage-compare の揺れ」のとおり比べ直す。揺れでないときは、その削除をやめる。
-    -   [ ] `make coverage-compare` が見分けられない削除（設計書 8.4 節）は、同じ確かめを持つ残す行をコミットメッセージに書くか、共有するコードを壊して残す行が失敗することを確かめてコミットメッセージに書く。
+    -   [x] 候補ごとに、削除だけのコミットを 1 つ作る。散らばった行は、読んだ文字列のとおりに 1 つずつ消す。
+    -   [x] 各コミットで `make coverage-compare BASE=<そのコミットの親>` を、10 分以上の時間の上限を付けるか、バックグラウンドで実行する（AC-18）。`PASS` の出力を最後の行まで、そのコミットのメッセージに書く（メッセージだけを amend し、木の ID を変えない）。`FAIL` のときは、設計書 8.2 節の「coverage-compare の揺れ」のとおり比べ直す。揺れでないときは、その削除をやめる。
+    -   [x] `make coverage-compare` が見分けられない削除（設計書 8.4 節）は、同じ確かめを持つ残す行をコミットメッセージに書くか、共有するコードを壊して残す行が失敗することを確かめてコミットメッセージに書く。
 -   **完了の条件:** 削除のコミットごとに `PASS` の出力と、必要な残す行の記録がある。`make test` と `make lint` が通る。
 
 #### ステップ 3-4: PR-3 の確かめと記録
 
 -   **作業:**
-    -   [ ] `gotest.sh names <マージベース>` と `gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-3 の欄に記録する（AC-15、AC-09）。`names` の `MISSING` の組が、ステップ 3-3 で消した行とちょうど一致し、`became_skip` が 0 であることを確かめる（1.5 節）。新しく現れた組（ステップ 3-2 の行）を理由とともに PR の説明に書く。
-    -   [ ] `names` が出す 2 つの木のパッケージの時間と、その差を、削除で減った時間として PR の説明に書く（AC-13、1.5 節）。
-    -   [ ] 削除のコミットごとの `make coverage-compare` の出力を、すべての回について最後の行まで PR の説明に書く（AC-18）。
-    -   [ ] 期待値を変えたテスト（ない見込み）と、移した行を記録する（AC-16）。
+    -   [x] `gotest.sh names <マージベース>` と `gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-3 の欄に記録する（AC-15、AC-09）。`names` の `MISSING` の組が、ステップ 3-3 で消した行とちょうど一致し、`became_skip` が 0 であることを確かめる（1.5 節）。新しく現れた組（ステップ 3-2 の行）を理由とともに PR の説明に書く。
+    -   [x] `names` が出す 2 つの木のパッケージの時間と、その差を、削除で減った時間として PR の説明に書く（AC-13、1.5 節）。
+    -   [x] 削除のコミットごとの `make coverage-compare` の出力を、すべての回について最後の行まで PR の説明に書く（AC-18）。
+    -   [x] 期待値を変えたテスト（ない見込み）と、移した行を記録する（AC-16）。
 -   **完了の条件:** 上の結果が PR の説明と 5 章にある。
 
 ### PR-3 作成ポイント: remove redundant fixprguard tests
@@ -660,7 +660,123 @@ PR-4 は製品を変えない。
         added=0
         status=PASS
         ```
--   **PR-3:** AC-09（未記入）、AC-15（未記入）
+-   **PR-3:**
+    -   AC-09（比較: `e7150e43ad90703cc13bd32a6ec3989e931d6be5` → `5d48a15f95c78f3079d9adcdfd6b78ea48f4c5ac`）:
+
+        ```text
+        mode=unchanged
+        base=e7150e43ad90703cc13bd32a6ec3989e931d6be5
+        head=5d48a15f95c78f3079d9adcdfd6b78ea48f4c5ac
+        guide=PASS (docs/dev/guides/fixprguard_guide.md)
+        protocol=PASS (base: const Protocol = 9 | head: const Protocol = 9 | worktree: const Protocol = 9)
+        status=PASS
+        ```
+
+    -   AC-15（同じ 2 つのコミット。`MISSING` の 71 の組は、ステップ 3-3 の削除のコミットで消した行とちょうど一致する。各コミットの差分から消した行の名前を読んで、両方の向きに突き合わせた。表を組み直した C6・C14・C18 では、同じ差分で足し直した行は消えていない。`became_skip` は 0。`ADDED` の 19 の組は、ステップ 3-2 で純粋な関数の表に足した行である。`status=FAIL` は、`MISSING` があることによる（1.5 節）。`elapsed` の行は、それぞれ 1 回の実行の値で、実行の揺れを含む目安である）:
+
+        ```text
+        mode=names
+        base=e7150e43ad90703cc13bd32a6ec3989e931d6be5
+        head=5d48a15f95c78f3079d9adcdfd6b78ea48f4c5ac
+        base_pass=1844
+        head_pass=1792
+        elapsed github.com/isseis/yt2column/internal/fixprguard base=261.857s head=210.762s
+        elapsed github.com/isseis/yt2column/cmd/fixprguard base=36.842s head=55.98s
+        missing=71
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestFinishBodyFileRun/message_rewritten
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestInspectExitCode/instruction_file
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestInspectExitCode/outside_allow_list
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestPushReviewCommand/nothing_to_send
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestReviewCommandsRefuse/push-review/commit_malformed
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestReviewCommandsRefuse/push-review/head_rule
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/current_branch_added
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/current_branch_removed
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/include_added
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/main_branch
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/multi_value_order
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/remote_added
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/remote_push_default
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/two_level_branch_setting
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateInput/commit_empty
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateInput/commit_short
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateLine/push_target_not_moved
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateLine/three_review_commits
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateOrder/branch_switched
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateOrder/detached_head
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateOrder/hook_added
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateOrder/ignored_changed
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateOrder/info_changed
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/agents_skill_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/envrc_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/ignored_agents_md_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/ignored_makefile_rewritten
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/ignored_mk_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/modification_time_only
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/nested_repository_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/new_lower_gitignore
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/settings_local_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/settings_local_rewritten
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/unresolved_link_resolves
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/git_directory_upper
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/git_file
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/git_suffix_only
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/linked_worktree
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/nested_repository
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/top_dir_is_a_nested_repository
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/begin/cancelled
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/begin/not_started
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/begin/output_over_cap
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/cancelled
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/nonzero_exit
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/not_started
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/output_over_cap
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/timed_out
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishAfterOutOfScope/execution_file_as_thread_path
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishCommitBody/ends_with_lf
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishCommitBody/no_trailing_lf
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/at_sign
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/bidi_override
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/carriage_return
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/empty_line
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/escape
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/leading_empty_line
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/line_separator
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/mention/codex
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/mention/sourcery-ai
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/mention/sourceryai
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/no_description
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/noncharacter
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/prefix_not_at_start
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestOtherBranchConfigIgnored/global_config
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestOtherBranchConfigIgnored/include_path_target
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestOtherBranchConfigIgnored/subsection_extends_current_branch
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestOtherBranchConfigIgnored/worktree_config
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestPushRechecks/branch_switched
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestPushRechecks/hooks_changed
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestPushStopsOnIgnoredChange
+        became_skip=0
+        added=19
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/at_sign
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/bidi_override
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/carriage_return
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/empty_line
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/escape
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/leading_empty_line
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/line_separator
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/no_description
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/noncharacter
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/prefix_not_at_start
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitMessageEndsInOneLF
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitMessageEndsInOneLF/ends_with_lf
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitMessageEndsInOneLF/no_trailing_lf
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure/cancelled
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure/nonzero_exit
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure/not_started
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure/output_over_cap
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure/timed_out
+        status=FAIL
+        ```
 -   **PR-4:** AC-09（未記入）、AC-12（未記入）、AC-15（未記入）
 
 ## 6. 実装チェックリスト
