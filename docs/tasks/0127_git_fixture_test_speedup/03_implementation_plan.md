@@ -18,7 +18,7 @@
 
 ### 1.1. 目的
 
-本計画は、3 つのファイル（`cmd/yt2column/review_records_test.go`・`cmd/yt2column/high_review_decision_test.go`・`internal/mergepr/mergemain_test.go`）のテストの準備を共有の状態の複製に替え、`cmd/yt2column` と `internal/mergepr` の実時間を、変更の前の、`cmd/yt2column` は 80% 以下、`internal/mergepr` は 75% 以下にする（F-001）。その際、ケースの集まり、bash 3 での実行、ケースの前提の検査、各ケースの隔離は減らさない（F-002・F-003）。
+本計画は、3 つのファイル（`cmd/yt2column/review_records_test.go`・`cmd/yt2column/high_review_decision_test.go`・`internal/mergepr/mergemain_test.go`）のテストの準備を共有の状態の複製に替え、`cmd/yt2column` と `internal/mergepr` の実時間を、変更の前の 80% 以下にする（F-001）。その際、ケースの集まり、bash 3 での実行、ケースの前提の検査、各ケースの隔離は減らさない（F-002・F-003）。
 
 ### 1.2. 実装の原則
 
@@ -33,6 +33,7 @@
 
 -   **実装の PR は 2 本にする:** PR-1 は `internal/snapshottest`、`cmd/yt2column` の変更（設計書 3.2〜3.5 と 3.8 の `cmd/yt2column` の分）、`_checks/` の 2 つの一時スクリプトである。PR-2 は `internal/mergepr` の変更（設計書 3.6・3.8 の `internal/mergepr` の分と、届かないときの 3.7）である。理由: 1 本の PR ごとに、計測（BASE と AFTER の 3 回ずつ）、AC-04・AC-11 の比較、`make coverage-compare` で、機械を約 1 時間使う。PR ごとの割合を掛け合わせる（F-001）ので、PR を増やすと計測の誤差も重なる。パッケージの境目で切れば、PR-1 で `cmd/yt2column` の割合がほぼ決まり、PR-2 で `internal/mergepr` の割合が決まる。採らなかった案: 3 本（共通の初期状態だけでは `cmd/yt2column` が 0.75 に届かず、届くかどうかが 2 本目まで分からない）と、1 本（レビューの量が大きい）。ADR: なし（このタスクの中で閉じる進め方の選択である）。
 -   **計測は `/runplan` が流す:** 計測と比較の前に、ほかの重い処理を走らせていないことを人に問い（select-question）、答えを得てからバックグラウンドで流す。理由: F-001 は、ほかの重い処理を走らせずに測ることを求める。一方、`chief` は、ほかの workspace にコマンドを並行して送ることがある。人が手で流す案は、PR の前に手作業が入り、自動送信が `hold` になるので採らない。ADR: なし（同上）。
+-   **ステップ 7-5 の `Setup` の手段は候補 (a)（`git fast-import`）にする（2026-11-27）:** ステップ 7-4 の 1 回目の計測で `internal/mergepr` の割合が PR-2 単独 0.809（PR-1 の 1.076 との積 0.870 > 0.75）となったため、人が候補 (a) を選んだ。理由: 候補 (b) は同じ入力の `Setup` にしか効かない一方、候補 (a) はユニークな入力を持つすべての `Setup` 呼び出しの git 起動（16 回 → 3 回）を削減でき、短縮効果が大きい。ADR: なし（このタスクのテスト補助関数の実装の選択である）。
 
 計画で決めたもの（人間のレビュアーに諮らず、理由とともに記す）:
 
@@ -102,6 +103,7 @@ PR-1 の計測（7.1 節）の結果を受けて、人が決めたもの:
 -   **`cmd/yt2column` の目標を 80% 以下にする:** 計測の割合は 0.777 で、75% に届かなかった。要件書の「実装の際に決めたこと（2026-11-27）」のとおり、約 0.80 に下げる。`internal/mergepr` は 75% 以下のままである。
 -   **`internal/mergepr` の PR-1 の割合 1.076 は、ぶれとして受け入れる:** PR-1 は `internal/mergepr` を変えておらず、6 回の値が 40.4〜45.9 秒に散らばったため。
 -   **比較のスクリプトは、名前の中のコミットの短い ID を置き換えて比べる:** `TestBaseCommitReadsTheRefItself` の末端の名前（`feat-1-g<12 桁の 16 進数>`）が実行ごとに変わり、名前の集まりが同じになりえないため。比べるときだけ置き換え、単独の選択では元の名前を使う。スクリプトを変えるので、7.4 節の壊し方の確認と、PR-1 の比較の実行を、やり直す（計測のスクリプト、テストのコード、製品コードは変わらないので、計測、`make coverage-compare`、`make test`、`make lint` の PR-1 の記録は、AFTER `8bb968e5` のものが、タスクのディレクトリの下だけが異なる今の head でも有効である）。
+-   **`internal/mergepr` の目標を 80% 以下にする:** PR-2 のステップ 7-5 後の計測で、`internal/mergepr` は PR-2 単独で 0.737（40.886 秒 → 30.140 秒）と 75% 以下に達したが、PR-1 でぶれとして受け入れた 1.076 との積が 0.793 となり 75% を超えた。要件書の「実装の際に決めたこと（2026-11-27）」のとおり、人が F-001 の積の判定式を維持したまま `internal/mergepr` の目標（AC-02）を 80% 以下に改めることを決めた。
 
 ADR: なし（このタスクの目標と手順である）。
 
@@ -241,28 +243,28 @@ ADR: なし（このタスクの目標と手順である）。
 
 ### フェーズ 7: `internal/mergepr` の共通の初期状態と準備の共有（設計書 3.6〜3.8、8 章の 6）
 
-- [ ] **ステップ 7-1**: `internal/mergepr` のストアを作る
+- [x] **ステップ 7-1**: `internal/mergepr` のストアを作る
     - 追加・変えるファイル: `internal/mergepr/main_test.go`（新規、`//go:build test`、`TestMain`）、`internal/mergepr/test_helpers_git.go`（ストアの変数）
     - ストアの作り方と消し方は、ステップ 1-4 と同じにする。このステップを 1 つのコミットにする
-- [ ] **ステップ 7-2**: 空の `takeIn` を共通の初期状態にする
+- [x] **ステップ 7-2**: 空の `takeIn` を共通の初期状態にする
     - 変えるファイル: `internal/mergepr/test_helpers_git.go`
     - `newTakeIn` の今の手順を作る関数にする。共有の状態のディレクトリには `origin.git` と `work` だけを置き、作る関数の `home` は作り手の `t.TempDir()` に作る。ケース（作り手を含む）は、それを自分の一時ディレクトリに複製し、自分の `home` と `env` を作り、`remote.origin.url` を複製した origin に書き換える（設計書 3.6「整え直し」）。`PR`・`Env`・`GHCalls` は今と同じ既定の値から始める
     - 追加するファイル: `internal/mergepr/takein_snapshot_test.go`（`TestTakeInSnapshotsMatchRebuilt`）。空の `takeIn` について、設計書 3.8「比べるもの」を比べる。複製の側は、ケースが使うのと同じ複製と整え直しの関数で作る。origin のパスは、比べるそれぞれの状態の自分の origin のパスで置き換える
     - `remote.origin.url` の書き換えを外すと `TestTakeInSnapshotsMatchRebuilt` が失敗すること、空の `takeIn` を作る関数を失敗させると `go test` が失敗すること（AC-08）を確かめ、コミットのメッセージに書く
     - このステップを 1 つのコミットにし、そのメッセージに複製の義務を書く
-- [ ] **ステップ 7-3**: 競合のマージの途中とマージのコミットの後を共有する
+- [x] **ステップ 7-3**: 競合のマージの途中とマージのコミットの後を共有する
     - 変えるファイル: `internal/mergepr/mergemain_test.go`、`test_helpers_git.go`
     - 設計書 3.6 の表の 2 つの共有する準備を作る。値（base head、main、begin の結果、merge の結果）は種別の `clone` で写す。作る関数は、準備の merge のエラーが nil であることを確かめる。1.4 節の 12 件と 22 件を、それを複製する形に替え、2 件（`:1071`・`:1240`）は今のままにする
     - 整え直しに、index の stat の情報の読み直し（unmerged の項目を残す）を足す
     - `TestTakeInSnapshotsMatchRebuilt` に、2 つの共有する準備を足す（`git diff-files` の比較を含む）。複製の側では、`git diff-files` より前に index を書く git（`GIT_OPTIONAL_LOCKS=0` のない `git status` など）を走らせない
     - index の読み直しを外すと `TestTakeInSnapshotsMatchRebuilt` が失敗すること、共有する準備を作る関数を失敗させると `go test` が失敗すること（AC-08）を確かめ、コミットのメッセージに書く
     - このステップを 1 つのコミットにし、そのメッセージに整え直しの義務を書く
-- [ ] **ステップ 7-4**: PR-2 の計測と記録
+- [x] **ステップ 7-4**: PR-2 の計測と記録
     - ステップ 6-4 と同じ手順で流し、7.1・7.2・7.6・7.7 節に PR-2 の記録を書く
     - このタスクの割合（PR-1 と PR-2 の割合の積）を、パッケージごとに 7.1 節に書く
     - `cmd/yt2column` のこのタスクの割合が 0.80 を超えたときは、作業を止め、要件書の決定の変更をレビューに諮る（設計書 2.1）
     - `internal/mergepr` のこのタスクの割合が 0.75 を超えたときは、ステップ 7-5 に進む。超えないときは、ステップ 7-5 に「足さなかった」と書いて印を付ける
-- [ ] **ステップ 7-5（条件つき）**: `Setup` の git の起動を減らす（設計書 3.7）
+- [x] **ステップ 7-5（条件つき）**: `Setup` の git の起動を減らす（設計書 3.7）
     - 変えるファイル: `internal/mergepr/test_helpers_git.go`、`takein_snapshot_test.go`
     - 1.4 節の 2 つの候補は、守る義務が違う（(a) はすべての `Setup` の呼び出しで同じ状態・コミットの順序・親子を保つ。(b) は新しい種別と AC-11 の行を足す）。そのため、手段は `/runplan` が決めず、計測の値と 2 つの候補を示して人に問い（select-question）、答えを 1.3 節に書く。`Setup` の後の状態とコミットの順序と親子を今と同じにする
     - 今の `Setup` の手順を、比べるもとの手順として `takein_snapshot_test.go` に残し、`TestTakeInSnapshotsMatchRebuilt` で、新しい `Setup` の後の状態をそれと比べる。新しい `Setup` のコミットの順序か親を変える壊し方で、このテストが失敗することを確かめ、コミットのメッセージに書く
@@ -404,6 +406,52 @@ AFTER round 3 ./internal/mergepr 40.359s
 measure: DONE
 `````
 
+**PR-2（2026-11-27、ステップ 7-5 を足した。結果: 目標を 80% に改めて通った）**
+
+-   **1 回目の計測（ステップ 7-5 の前、BASE `ff1973333e0d08c12108b384a226c110467049cd`、AFTER `ddd9e6034e00873ca4058d5ea06e231195580a3b`）:**
+    -   人の答え: 「止めた。始めてよい」
+    -   `./cmd/yt2column`: BASE 142.939s → AFTER 118.069s、PR-2 割合 `0.826`（PR-1 との積 `0.777 × 0.826 = 0.642`）
+    -   `./internal/mergepr`: BASE 44.343s → AFTER 35.868s、PR-2 割合 `0.809`（PR-1 との積 `1.076 × 0.809 = 0.870 > 0.75`）
+    -   `internal/mergepr` の積が 0.75 を超えたため、ステップ 7-5 に進み、人が候補 (a)（`Setup` の `git fast-import` 化）を選んだ（1.3 節）。
+-   **2 回目の計測（ステップ 7-5 の後、PR-2 の最終記録）:**
+    -   人の答え: 「止めた。始めてよい」
+    -   BASE: `ff1973333e0d08c12108b384a226c110467049cd`、AFTER: `cdd92b731ea27f7a3de6e211acade5f9486e1e47`（AFTER と、この記録のコミットは、タスクのディレクトリの下だけが異なる）
+    -   ステップ 7-5（設計書 3.7）を足した（候補 (a): `takeIn.Setup` の `git fast-import` 化）。
+    -   **このタスクの割合（PR-1 と PR-2 の割合の積）:**
+        -   `cmd/yt2column`: `0.777 × 0.976 = 0.758`（≤ 0.80、AC-01 達成）
+        -   `internal/mergepr`: `1.076 × 0.737 = 0.793`（PR-2 単独は 0.737 ≤ 0.75 だが PR-1 のぶれ 1.076 との積が 0.793 となったため、人が AC-02 の目標を 80% 以下に改めた。≤ 0.80、AC-02 達成）
+
+`````text
+== machine ==
+os: Darwin 25.6.0 arm64
+cores: 12
+path-bash: /opt/homebrew/bin/bash 5.3.15(1)-release
+bin-bash: /bin/bash 3.2.57(1)-release
+go: go version go1.27.1 darwin/arm64
+GOMAXPROCS: unset
+BASE: ff1973333e0d08c12108b384a226c110467049cd
+AFTER: cdd92b731ea27f7a3de6e211acade5f9486e1e47
+packages: ./cmd/yt2column ./internal/mergepr
+rounds: 3
+== runs ==
+BASE round 1 ./cmd/yt2column 135.932s
+BASE round 1 ./internal/mergepr 59.452s
+AFTER round 1 ./cmd/yt2column 114.164s
+AFTER round 1 ./internal/mergepr 32.860s
+BASE round 2 ./cmd/yt2column 115.056s
+BASE round 2 ./internal/mergepr 40.478s
+AFTER round 2 ./cmd/yt2column 113.007s
+AFTER round 2 ./internal/mergepr 29.988s
+BASE round 3 ./cmd/yt2column 115.761s
+BASE round 3 ./internal/mergepr 40.886s
+AFTER round 3 ./cmd/yt2column 112.609s
+AFTER round 3 ./internal/mergepr 30.140s
+== medians ==
+./cmd/yt2column BASE 115.761s AFTER 113.007s ratio 0.976
+./internal/mergepr BASE 40.886s AFTER 30.140s ratio 0.737
+measure: DONE
+`````
+
 ### 7.2. 比較の記録（AC-04・AC-05・AC-09・AC-11）
 
 （`/runplan` が書く。PR ごとに、BASE と AFTER の完全な ID と、`compare.sh` の出力の全体（判定ごとの結果、`-shuffle` の 2 回の実行の各パッケージのシード））
@@ -518,6 +566,103 @@ check range: PASS
 compare: PASS
 `````
 
+**PR-2（2026-11-27、結果: 通った）**
+
+-   BASE: `ff1973333e0d08c12108b384a226c110467049cd`、AFTER: `cdd92b731ea27f7a3de6e211acade5f9486e1e47`
+
+`````text
+BASE: ff1973333e0d08c12108b384a226c110467049cd
+AFTER: cdd92b731ea27f7a3de6e211acade5f9486e1e47
+packages: ./cmd/yt2column ./internal/mergepr
+== full runs ==
+full runs: both passed
+BASE leaves:     1999, AFTER leaves:     1999, BASE tops:      268
+== names, fail and skip (compare) ==
+check names: PASS
+check fail: PASS
+check skip: PASS
+== bash 3 leaves ==
+check bin-bash-3: PASS
+== single selections (AFTER) ==
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/bin-bash-3/BASH_ENV
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/path-bash/without__context.md
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsUnreviewed/bin-bash-3/BASH_ENV
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsUnreviewed/path-bash/without__context.md
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsMode
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCrossCheck/bin-bash-3/BASH_ENV
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCrossCheck/path-bash/work_then_merge_after_a_record_from_the_merge-base
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsFableAlias/bin-bash-3/MISSING_when_rule_2_fix_uses_codex_seen_range
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsFableAlias/path-bash/fail-closed_on_missing__context.md
+select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCallSite
+select ok: github.com/isseis/yt2column/cmd/yt2column TestRecordLinePrefixesDistinct
+select ok: github.com/isseis/yt2column/cmd/yt2column TestRecordCommitsCheckMention
+select ok: github.com/isseis/yt2column/cmd/yt2column TestHighReviewDecision/all-high_agent_coverage/commit_covered_by_both_high_and_non-high_records_is_tainted
+select ok: github.com/isseis/yt2column/cmd/yt2column TestHighReviewDecision/values/unreadable
+select ok: github.com/isseis/yt2column/cmd/yt2column TestHighReviewDecisionCallSite
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginRejectsInvalidPRArg/""
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginRejectsInvalidPRArg/"１"
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainZeroPRStopsBeforeAnything
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPRViewReadsNarrowFields
+select ok: github.com/isseis/yt2column/internal/mergepr TestParseMergemainPRRejectsMalformedValues
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginPremisesAndNothingToTakeIn/GH_REPO_set
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginPremisesAndNothingToTakeIn/untracked_file
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeNoFastForward
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeRefusesIgnoredOverwrite
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeChecksArguments
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainConflictClassification/binary_markdown
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainConflictClassification/tool_file_renamed_with_only_its_declaration_line_in_conflict
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainProtocolUpdateAndRuleFacts/protocol_line_conflict_resolved_to_main_plus_one
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainProtocolUpdateAndRuleFacts/unchanged_tool_not_set
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReportsADRConflictFacts/branch_number_free
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReportsADRConflictFacts/same_number_on_both_sides
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainExtCheckHint/English_README
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainExtCheckHint/unrelated_file
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRestoreSafeAndRefusesOtherChanges/MERGE_HEAD_is_another_commit
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRestoreSafeAndRefusesOtherChanges/untracked_file
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushSuccessRejectedAndUnknown/pushed
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushSuccessRejectedAndUnknown/unknown
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsNonHeadOrForce/GH_REPO_set
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsNonHeadOrForce/second_remote
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksParentsAndMain/PR_head_is_not_the_base_head
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksParentsAndMain/tracked_change
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsOutOfScope/go_file_changed
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushRejectsOutOfScope/protocol_line_of_a_tool_the_branch_did_not_change
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksProtocolValues/body_of_a_changed_tool_edited
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksProtocolValues/value_the_merge_set
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginMergeRestoreFlow
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginRefusesSubdirectory
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRefusesOtherMergeDrivers/committed_union_driver
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRefusesOtherMergeDrivers/push_of_a_union_merge_main's_rule_allows
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBeginAcceptsGHDefaultOfOrigin
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainBlockingPathIgnoresLetterCase
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReadsNoAttributesOutsideTheBaseHead/ignored_.gitattributes_at_merge
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainReadsNoAttributesOutsideTheBaseHead/untracked_.gitattributes_at_push
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainMergeIgnoresConfiguredMergeOptions
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushAfterOriginHasItAsksNoRestore
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushAfterItLandedAsksNoRestore
+select ok: github.com/isseis/yt2column/internal/mergepr TestNewMergemainIgnoresTheCallersGitEnvironment
+check single-first-last: PASS
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainProtocolUpdateAndRuleFacts/protocol_line_conflict_resolved_to_main_plus_one
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainRestoreSafeAndRefusesOtherChanges/other_branch
+select ok: github.com/isseis/yt2column/internal/mergepr TestMergemainPushChecksParentsAndMain/merge_in_progress
+check single-middle: PASS
+== shuffle (AFTER) ==
+shuffle run 1 seeds:
+github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795773553894447000
+github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795773554059666000
+shuffle run 2 seeds:
+github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795773683702969000
+github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795773683465352000
+check shuffle: PASS
+== changed files (BASE..AFTER) ==
+internal/mergepr/main_test.go
+internal/mergepr/mergemain_test.go
+internal/mergepr/takein_snapshot_test.go
+internal/mergepr/test_helpers_git.go
+check range: PASS
+compare: PASS
+`````
+
 ### 7.3. 一時スクリプトの記録（`_checks/measure.sh`）
 
 -   **スクリプト:** `docs/tasks/0127_git_fixture_test_speedup/_checks/measure.sh`。BASE と AFTER を交互に取り出して計測の条件のコマンドを 3 回ずつ流し、パッケージごとの時間、中央値、割合と、機械の情報を出す（設計書 7.5）。AC-01・AC-02・AC-03 を確かめる。
@@ -536,7 +681,7 @@ compare: PASS
     -   実行の合否: `CHECK_PKGS=./nonexistent` → `FAIL: go test failed at BASE round 1`（1）。`CHECK_RUN` が何も選ばない → `FAIL: cannot read the time of ./internal/strictjson at BASE round 1`（1）
     -   機械の情報: コアの数の読み取りを空にした（写したスクリプトで） → `FAIL: cannot read the core count`（1）
     -   元のブランチへの復帰: ブランチへの切り替えを外した（写したスクリプトで） → `STOP: not on the original branch`（1）。その後、手でブランチに戻した
--   **実行の記録:** PR-1 の実行は 7.1 節に置いた（出力の全体と 2 つのコミットの ID）。
+-   **実行の記録:** PR-1 と PR-2 の実行は 7.1 節に置いた（出力の全体と 2 つのコミットの ID）。
 
 ### 7.4. 一時スクリプトの記録（`_checks/compare.sh`）
 
@@ -564,7 +709,7 @@ compare: PASS
     -   `go test` の失敗: `CHECK_PKGS=./nonexistent` → `STOP: go test failed at BASE`（1）
     -   作業ツリー: 追跡されていないファイルを置いた → `STOP: the work tree is not clean`（1）
     -   元のブランチへの復帰: ブランチへの切り替えを外した → `STOP: not on the original branch`（1）。その後、手でブランチに戻した
--   **実行の記録:** PR-1 の実行は 7.2 節に置いた（出力の全体と 2 つのコミットの ID）。呼び出しの中間の名前は、1.3 節の表の `cmd/yt2column` の 5 つ（`TestReviewRecordsCrossCheck/path-bash/fail-closed_context_validation/valid_mapping_table_control`、`TestHighReviewDecision/values/old_sonnet`、`TestReviewRecordsCoverage/path-bash/git_config/global/core.abbrev`、`TestReviewRecordsCrossCheck/path-bash/git_config_with_a_merge/repository/diff.relative`、`TestReviewRecordsCoverage/path-bash/merge_commit_inside_a_seen_range`）で、`internal/mergepr` の 3 つは PR-2 で渡す。
+-   **実行の記録:** PR-1 と PR-2 の実行は 7.2 節に置いた（出力の全体と 2 つのコミットの ID）。PR-1 の中間の名前は 1.3 節の表の `cmd/yt2column` の 5 つ、PR-2 の中間の名前は `internal/mergepr` の 3 つ（`TestMergemainProtocolUpdateAndRuleFacts/protocol_line_conflict_resolved_to_main_plus_one`、`TestMergemainRestoreSafeAndRefusesOtherChanges/other_branch`、`TestMergemainPushChecksParentsAndMain/merge_in_progress`）である。
 
 ### 7.5. 前提の検査の確かめ（AC-07）
 
@@ -598,15 +743,32 @@ no compared function lost coverage
 coverage-compare: PASS
 `````
 
+**PR-2（2026-11-27）** 1 回流して通った。実行したコミット: `cdd92b731ea27f7a3de6e211acade5f9486e1e47`
+
+`````text
+target    make coverage-compare BASE="ff1973333e0d08c12108b384a226c110467049cd"
+base      ff1973333e0d08c12108b384a226c110467049cd
+head      cdd92b731ea27f7a3de6e211acade5f9486e1e47 tree 588d0b9cfbe45cde42a21802b174dbf447a107e4
+toolchain go1.27.1
+tests     base 1845 head 1846
+files     base 196 head 196
+functions base 2354 head 2354
+deleted   0
+no compared function lost coverage
+coverage-compare: PASS
+`````
+
 ### 7.7. テストと lint（AC-12）
 
 （`/runplan` が書く。PR ごとに、実行したコミットと、`make test`・`make lint` の終了コード）
 
 **PR-1（2026-11-27）** 実行したコミット: `8bb968e5c28f44bafd2a3811d190e2fdac2a72ac`。`make test` は終了コード 0、`make lint` は終了コード 0（`0 issues.`）。
 
+**PR-2（2026-11-27）** 実行したコミット: `cdd92b731ea27f7a3de6e211acade5f9486e1e47`。`make test` は終了コード 0、`make lint` は終了コード 0（`0 issues.`）。
+
 ## 8. 成功基準 (Success Criteria)
 
--   **機能:** このタスクの `cmd/yt2column` の割合が 0.80 以下、`internal/mergepr` の割合が 0.75 以下である（AC-01・AC-02）。
+-   **機能:** このタスクの `cmd/yt2column` と `internal/mergepr` の割合が 0.80 以下である（AC-01・AC-02）。
 -   **品質:** ケースの集まりが減らず（AC-04）、製品コードのカバレッジが下がらず（AC-06）、13 か所の前提の検査が働き（AC-07）、`make test` と `make lint` が通る（AC-12）。
 -   **セキュリティ:** N/A（要件書 4.2）。
 -   **文書:** 7 章の記録がそろい、`package_reference.md` に `internal/snapshottest` の行がある。
@@ -620,3 +782,4 @@ coverage-compare: PASS
 
 - 2026-11-26 承認（isseis、#1188）
 - 2026-11-27 セッション中の再承認：`cmd/yt2column` の目標を 80% 以下に改め、比較のスクリプトの名前の比べ方を直し、1.5 節に記録した（isseis、#1193）
+- 2026-11-27 セッション中の再承認：`internal/mergepr` の目標を 80% 以下に改め、1.5 節に記録した（isseis、#未記入）
