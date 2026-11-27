@@ -47,8 +47,15 @@ func takeInShape(t *testing.T, k *takeIn, copied bool) string {
 	writeRepoSummary := func(label, dir string) {
 		b.WriteString(label + " refs:\n")
 		for ref := range strings.FieldsSeq(k.gitIn(dir, "for-each-ref", "--format=%(refname)")) {
-			parents := len(strings.Fields(k.gitIn(dir, "log", "-1", "--format=%P", ref)))
-			fmt.Fprintf(&b, "%s %s|%d parents\n", ref, normOID(strings.TrimSpace(k.gitIn(dir, "log", "-1", "--format=%T|%s", ref))), parents)
+			b.WriteString("ref " + ref + ":\n")
+			for line := range strings.SplitSeq(k.gitIn(dir, "log", "--format=%T|%s|%P", ref), "\n") {
+				if line == "" {
+					continue
+				}
+				parts := strings.SplitN(line, "|", 3)
+				parents := len(strings.Fields(parts[2]))
+				fmt.Fprintf(&b, "  %s|%s|%d parents\n", parts[0], normOID(parts[1]), parents)
+			}
 		}
 		b.WriteString(label + " head: " + strings.TrimSpace(k.gitIn(dir, "symbolic-ref", "HEAD")) + "\n")
 		cfg := strings.ReplaceAll(k.gitIn(dir, "config", "--local", "--list"), k.Origin, "<ORIGIN>")
@@ -103,6 +110,14 @@ func takeInShape(t *testing.T, k *takeIn, copied bool) string {
 		if err != nil {
 			return err
 		}
+		if d.Type()&fs.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			b.WriteString(filepath.ToSlash(rel) + " -> " + target + "\n")
+			return nil
+		}
 		data, err := os.ReadFile(path) //nolint:gosec // a file inside the test's own takeIn work tree
 		if err != nil {
 			return err
@@ -114,6 +129,22 @@ func takeInShape(t *testing.T, k *takeIn, copied bool) string {
 		t.Fatalf("read work tree: %v", err)
 	}
 	return b.String()
+}
+
+// legacySetup is the original Setup procedure (sequential Commit, push, and
+// switch), kept here as the reference for TestTakeInSnapshotsMatchRebuilt.
+func legacySetup(k *takeIn, base, branch, main map[string]string) (baseHead, mainOID string) {
+	k.t.Helper()
+	k.Commit("base", base)
+	k.Git("push", "-q", "origin", mainBranch)
+	k.Git("switch", "-q", "-c", takeInBranch)
+	baseHead = k.Commit("branch", branch)
+	k.Git("push", "-q", "origin", takeInBranch)
+	k.Git("switch", "-q", mainBranch)
+	mainOID = k.Commit("main", main)
+	k.Git("push", "-q", "origin", mainBranch)
+	k.Git("switch", "-q", takeInBranch)
+	return baseHead, mainOID
 }
 
 func TestTakeInSnapshotsMatchRebuilt(t *testing.T) {
@@ -151,6 +182,36 @@ func TestTakeInSnapshotsMatchRebuilt(t *testing.T) {
 			rebuilt: func(t *testing.T) *takeIn {
 				k := buildTakeInBase(t, t.TempDir())
 				buildPushFlowState(t, k)
+				return k
+			},
+		},
+		{
+			name: "setup_matches_legacy",
+			copied: func(t *testing.T) *takeIn {
+				k := newTakeIn(t)
+				base := baseFiles()
+				base["link.md"] = symlinkPrefix + "doc.md"
+				branch := map[string]string{"doc.md": "branch\n", "keep/x.txt": deletedFile, "link.md": symlinkPrefix + "README.md"}
+				main := map[string]string{"doc.md": "main\n", "m.md": "m\n"}
+				baseHead, mainOID := k.Setup(base, branch, main)
+				if got := k.Git("rev-parse", "HEAD"); got != baseHead {
+					t.Errorf("HEAD = %s, want baseHead %s", got, baseHead)
+				}
+				if got := k.Git("rev-parse", "refs/heads/"+mainBranch); got != mainOID {
+					t.Errorf("main = %s, want mainOID %s", got, mainOID)
+				}
+				if k.Git("rev-parse", baseHead+"^") != k.Git("rev-parse", mainOID+"^") {
+					t.Errorf("branch and main do not share the base commit as their parent")
+				}
+				return k
+			},
+			rebuilt: func(t *testing.T) *takeIn {
+				k := buildTakeInBase(t, t.TempDir())
+				base := baseFiles()
+				base["link.md"] = symlinkPrefix + "doc.md"
+				branch := map[string]string{"doc.md": "branch\n", "keep/x.txt": deletedFile, "link.md": symlinkPrefix + "README.md"}
+				main := map[string]string{"doc.md": "main\n", "m.md": "m\n"}
+				legacySetup(k, base, branch, main)
 				return k
 			},
 		},

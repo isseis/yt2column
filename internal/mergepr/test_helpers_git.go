@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
 	"github.com/isseis/yt2column/internal/snapshottest"
@@ -367,8 +368,18 @@ func newTakeIn(t *testing.T) *takeIn {
 // without the final newline.
 func (k *takeIn) gitIn(dir string, args ...string) string {
 	k.t.Helper()
+	return k.gitInput(dir, nil, args...)
+}
+
+// gitInput runs git in dir with stdin as its standard input (none when nil)
+// and the test's environment.
+func (k *takeIn) gitInput(dir string, stdin []byte, args ...string) string {
+	k.t.Helper()
 	cmd := exec.Command(gitCommand, args...) //nolint:gosec // test setup runs git with fixed arguments
 	cmd.Dir = dir
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	cmd.Env = k.env
 	out, err := cmd.Output()
 	if err != nil {
@@ -430,22 +441,113 @@ func (k *takeIn) Commit(subject string, files map[string]string) string {
 	return k.Git("rev-parse", "HEAD")
 }
 
+const (
+	fastImportMarkBase   = 1
+	fastImportMarkBranch = 2
+	fastImportMarkMain   = 3
+)
+
 // Setup builds the usual history: base on main, branch from it on the PR
 // head branch, then main on main, each pushed to origin, and leaves the work
 // tree on the PR head branch. It returns the base head (the branch's commit)
 // and main's commit.
+//
+// Invariant: the resulting origin and work refs, commit trees, subjects,
+// parent relationships, index, and work tree must match committing and pushing
+// base, branch, and main sequentially.
 func (k *takeIn) Setup(base, branch, main map[string]string) (baseHead, mainOID string) {
 	k.t.Helper()
-	k.Commit("base", base)
-	k.Git("push", "-q", "origin", mainBranch)
-	k.Git("switch", "-q", "-c", takeInBranch)
-	baseHead = k.Commit("branch", branch)
-	k.Git("push", "-q", "origin", takeInBranch)
-	k.Git("switch", "-q", mainBranch)
-	mainOID = k.Commit("main", main)
-	k.Git("push", "-q", "origin", mainBranch)
-	k.Git("switch", "-q", takeInBranch)
-	return baseHead, mainOID
+	ts := time.Now().Unix()
+	var originStream bytes.Buffer
+	writeFastImportCommit(&originStream, headsPrefix+mainBranch, fastImportMarkBase, 0, "base", ts, base)
+	writeFastImportCommit(&originStream, headsPrefix+takeInBranch, fastImportMarkBranch, fastImportMarkBase, "branch", ts, branch)
+	writeFastImportCommit(&originStream, headsPrefix+mainBranch, fastImportMarkMain, fastImportMarkBase, "main", ts, main)
+
+	marksPath := filepath.Join(k.t.TempDir(), "marks")
+	k.gitInput(k.Origin, originStream.Bytes(), "fast-import", "--quiet", "--export-marks="+marksPath)
+
+	var workStream bytes.Buffer
+	workStream.Write(originStream.Bytes())
+	workStream.WriteString("reset refs/remotes/origin/" + mainBranch + "\nfrom :3\n")
+	workStream.WriteString("reset refs/remotes/origin/" + takeInBranch + "\nfrom :2\n")
+	k.gitInput(k.Work, workStream.Bytes(), "fast-import", "--quiet")
+	k.Git("checkout", "-q", "-f", takeInBranch)
+
+	marks := readFastImportMarks(k.t, marksPath)
+	return marks[":2"], marks[":3"]
+}
+
+// writeFastImportCommit appends one git fast-import commit command to buf.
+// parentMark == 0 writes a root commit; otherwise it writes `from :<parentMark>`.
+func writeFastImportCommit(buf *bytes.Buffer, ref string, mark, parentMark int, subject string, ts int64, files map[string]string) {
+	fmt.Fprintf(buf, "commit %s\nmark :%d\n", ref, mark)
+	fmt.Fprintf(buf, "author Test <test@example.com> %d +0000\n", ts)
+	fmt.Fprintf(buf, "committer Test <test@example.com> %d +0000\n", ts)
+	msg := subject + "\n"
+	fmt.Fprintf(buf, "data %d\n%s\n", len(msg), msg)
+	if parentMark != 0 {
+		fmt.Fprintf(buf, "from :%d\n", parentMark)
+	}
+	names := make([]string, 0, len(files))
+	for name := range files {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		content := files[name]
+		quoted := quoteFastImportPath(name)
+		if content == deletedFile {
+			fmt.Fprintf(buf, "D %s\n", quoted)
+			continue
+		}
+		if target, ok := strings.CutPrefix(content, symlinkPrefix); ok {
+			fmt.Fprintf(buf, "M 120000 inline %s\ndata %d\n%s\n", quoted, len(target), target)
+			continue
+		}
+		fmt.Fprintf(buf, "M 100644 inline %s\ndata %d\n%s\n", quoted, len(content), content)
+	}
+}
+
+// quoteFastImportPath formats a slash-separated path as a C-quoted string for
+// git fast-import so spaces, quotes, backslashes, and control bytes are safe.
+func quoteFastImportPath(name string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for i := range len(name) {
+		switch ch := name[i]; ch {
+		case '\\', '"':
+			b.WriteByte('\\')
+			b.WriteByte(ch)
+		case '\n':
+			b.WriteString(`\n`)
+		default:
+			b.WriteByte(ch)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
+// readFastImportMarks parses a git fast-import --export-marks file into a map
+// from mark name (":1", ":2", ...) to commit OID.
+func readFastImportMarks(t *testing.T, path string) map[string]string {
+	t.Helper()
+	data, err := os.ReadFile(path) //nolint:gosec // marks file created in t.TempDir()
+	if err != nil {
+		t.Fatalf("read fast-import marks: %v", err)
+	}
+	marks := make(map[string]string)
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		if line == "" {
+			continue
+		}
+		mark, oid, ok := strings.Cut(line, " ")
+		if !ok || oid == "" {
+			t.Fatalf("unexpected fast-import mark line: %q", line)
+		}
+		marks[mark] = oid
+	}
+	return marks
 }
 
 // Tool returns the take-in tool running git in the work tree, with the fake
