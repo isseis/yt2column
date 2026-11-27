@@ -284,7 +284,10 @@ applied to each, and a short summary of the resolution for step 10.
         failed, timed out, or denied. If it did not succeed, do not run
         `make ext-check` and do not retry it (an adapter's elevated rerun
         inside `shell-run` after a sandbox failure does not count as a retry;
-        use the post-elevation result as the `shell-run` outcome): run
+        use the post-elevation result as the `shell-run` outcome, except if
+        that elevated rerun is denied after the sandboxed attempt already ran,
+        record the outcome as failed so step 10 warns that
+        `extension/node_modules` may be missing or incomplete): run
         step 9 and go to step 10 with reason `検査の準備がない`.
         - When permission evaluation denies it, proceed to step 9 without
           asking the human.
