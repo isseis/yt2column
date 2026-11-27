@@ -103,6 +103,14 @@ validate_json_run() {
   ' "$file" >/dev/null || die "go test -json validation failed for $file"
 }
 
+# pkg_elapsed prints the Elapsed of the last package-level pass event of
+# the package in a go test -json file (validate_json_run checked it exists).
+pkg_elapsed() {
+  jq -r -s --arg pkg "$2" '
+    [.[] | select(.Package == $pkg and .Action == "pass" and (has("Test") | not))] | last | .Elapsed
+  ' "$1"
+}
+
 run_json_test() {
   local workdir="$1"
   local outfile="$2"
@@ -262,6 +270,12 @@ cmd_names() {
   echo "head=$head_out"
   echo "base_pass=$base_count"
   echo "head_pass=$head_count"
+  # Package elapsed times of the two runs, for recording what a
+  # deletion-only PR removed; informational, not part of the verdict.
+  local pkg
+  for pkg in "$PKG_INTERNAL" "$PKG_CMD"; do
+    echo "elapsed $pkg base=$(pkg_elapsed "$base_json" "$pkg")s head=$(pkg_elapsed "$head_json" "$pkg")s"
+  done
   echo "missing=$missing_count"
   if [[ "$missing_count" -gt 0 ]]; then
     sed 's/^/  MISSING: /' "$worktmp/missing.txt"
@@ -296,9 +310,7 @@ measure_pkg() {
     jf="$worktmp/before-$i.json"
     run_json_test "$before_tree" "$jf" -tags test -race -count=1 -timeout 0 -json "$rel_pkg"
     validate_json_run "$jf" "$full_pkg"
-    elapsed=$(jq -r -s --arg pkg "$full_pkg" '
-      [.[] | select(.Package == $pkg and .Action == "pass" and (has("Test") | not))] | last | .Elapsed
-    ' "$jf")
+    elapsed=$(pkg_elapsed "$jf" "$full_pkg")
     before_vals+=("$elapsed")
   done
 
@@ -306,9 +318,7 @@ measure_pkg() {
     jf="$worktmp/after-$i.json"
     run_json_test "." "$jf" -tags test -race -count=1 -timeout 0 -json "$rel_pkg"
     validate_json_run "$jf" "$full_pkg"
-    elapsed=$(jq -r -s --arg pkg "$full_pkg" '
-      [.[] | select(.Package == $pkg and .Action == "pass" and (has("Test") | not))] | last | .Elapsed
-    ' "$jf")
+    elapsed=$(pkg_elapsed "$jf" "$full_pkg")
     after_vals+=("$elapsed")
   done
 
