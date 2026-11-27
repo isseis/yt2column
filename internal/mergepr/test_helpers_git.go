@@ -323,8 +323,9 @@ func initTakeInDir(t *testing.T, dir string) *takeIn {
 
 // refreshIndex refreshes the index stat cache after copying the work tree so
 // git diff-files under GIT_OPTIONAL_LOCKS=0 sees only real changes. --unmerged
-// keeps refreshing past conflicted entries; exit code 1 means some entries
-// (such as unmerged paths) remain dirty, which is expected here.
+// keeps refreshing past conflicted entries. With -q and --unmerged the command
+// exits 0 even when entries stay unmerged or modified, so a non-zero status
+// (a corrupt or locked index, a non-repository) is a setup failure.
 func (k *takeIn) refreshIndex() {
 	k.t.Helper()
 	cmd := exec.Command(gitCommand, "update-index", "-q", "--unmerged", "--refresh") //nolint:gosec // test setup runs git with fixed arguments
@@ -332,9 +333,6 @@ func (k *takeIn) refreshIndex() {
 	cmd.Env = k.env
 	out, err := cmd.CombinedOutput()
 	if err == nil {
-		return
-	}
-	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() == 1 {
 		return
 	}
 	k.t.Fatalf("git update-index --refresh: %v: %s", err, out)
@@ -451,6 +449,11 @@ const (
 // head branch, then main on main, each pushed to origin, and leaves the work
 // tree on the PR head branch. It returns the base head (the branch's commit)
 // and main's commit.
+//
+// Limit: a path that .gitignore would ignore, or content that an eol or
+// clean-filter attribute would convert, differs from the legacy procedure
+// (git add -A skips the former; fast-import stores bytes unconverted). No
+// Setup input uses either; add one only after extending setup_matches_legacy.
 //
 // Invariant: the resulting origin and work refs, commit trees, subjects,
 // parent relationships, index, and work tree must match committing and pushing
