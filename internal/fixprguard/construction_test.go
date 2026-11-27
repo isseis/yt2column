@@ -191,14 +191,14 @@ func restrictedName(expr ast.Expr) string {
 
 func TestRestrictedTypesBuiltByConstructors(t *testing.T) {
 	t.Run("package", func(t *testing.T) {
-		paths, err := filepath.Glob("*.go")
+		paths, err := filepath.Glob(filepath.Join(isolation.PackageDir, "*.go"))
 		if err != nil {
 			t.Fatalf("glob: %v", err)
 		}
 		fset := token.NewFileSet()
 		checked := 0
 		for _, path := range paths {
-			if strings.HasSuffix(path, "_test.go") || strings.HasPrefix(path, "test_helpers") {
+			if strings.HasSuffix(path, "_test.go") || strings.HasPrefix(filepath.Base(path), "test_helpers") {
 				continue
 			}
 			src, err := os.ReadFile(path)

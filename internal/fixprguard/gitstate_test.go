@@ -244,10 +244,9 @@ func TestBaselineDetectsChange(t *testing.T) {
 			}
 			r.Write(".git", "gitdir: "+filepath.Join(r.Home, "moved.git")+"\n")
 		}, parts: []string{PartConfig}, layer: layerFiles},
-		{name: "linked_worktree_common_config", setup: func(t *testing.T, r *testRepo) {
+		{name: "linked_worktree_common_config", setup: func(_ *testing.T, r *testRepo) {
 			linked := filepath.Join(r.Home, "linked")
 			r.Git("worktree", "add", "-q", "-b", "linked-branch", linked)
-			t.Chdir(linked)
 		}, targetDir: func(r *testRepo) string { return filepath.Join(r.Home, "linked") }, edit: func(t *testing.T, r *testRepo) {
 			// The shared config lives in the main repository's git directory.
 			appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
@@ -274,13 +273,13 @@ func TestBaselineDetectsChange(t *testing.T) {
 			if tc.targetDir != nil {
 				dir = tc.targetDir(r)
 			}
-			base := mustBaseline(t, dir)
-			w, _ := newTestWorktree(t, dir)
+			base := mustBaseline(t, dir, r.Home)
+			w, _ := newTestWorktree(t, dir, r.Home)
 			if _, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote); err != nil {
 				t.Fatalf("compareState before the edit = %v", err)
 			}
 			tc.edit(t, r)
-			w, router := newTestWorktree(t, dir)
+			w, router := newTestWorktree(t, dir, r.Home)
 			_, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote)
 			wantStateParts(t, err, tc.parts...)
 			wantLayer(t, tc.layer, router.Calls)
@@ -291,8 +290,8 @@ func TestBaselineDetectsChange(t *testing.T) {
 		// A kind outside the list (no declared kind is negative) fails secure:
 		// an error, and the push target is never read.
 		r := newTestRepo(t)
-		base := mustBaseline(t, r.Dir)
-		w, router := newTestWorktree(t, r.Dir)
+		base := mustBaseline(t, r.Dir, r.Home)
+		w, router := newTestWorktree(t, r.Dir, r.Home)
 		_, err := w.compareState(t.Context(), base, headRule{kind: headRuleKind(-1), commit: base.head}, checkWithRemote)
 		if !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("compareState = %v, want ErrInvalidInput", err)
@@ -305,7 +304,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 	t.Run("baseline_refuses_flagged_entry", func(t *testing.T) {
 		r := newTestRepo(t)
 		r.Git("update-index", "--skip-worktree", testFile)
-		w, _ := newTestWorktree(t, r.Dir)
+		w, _ := newTestWorktree(t, r.Dir, r.Home)
 		_, err := w.Baseline(t.Context())
 		wantStateParts(t, err, PartInfo)
 	})
@@ -313,7 +312,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 	t.Run("baseline_refuses_detached_head", func(t *testing.T) {
 		r := newTestRepo(t)
 		r.Git("switch", "-q", "--detach")
-		w, _ := newTestWorktree(t, r.Dir)
+		w, _ := newTestWorktree(t, r.Dir, r.Home)
 		if _, err := w.Baseline(t.Context()); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("Baseline = %v, want ErrInvalidInput", err)
 		}
@@ -322,7 +321,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 
 func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t, r.Dir)
+	base := mustBaseline(t, r.Dir, r.Home)
 	r.Git("fetch", "-q", testRemote)
 	if _, err := os.Stat(filepath.Join(r.Dir, ".git", "FETCH_HEAD")); err != nil {
 		t.Fatalf("fetch wrote no FETCH_HEAD: %v", err)
@@ -341,7 +340,7 @@ func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
 	if after, _ := os.ReadFile(index); bytes.Equal(after, before) {
 		t.Fatal("the index did not change")
 	}
-	w, _ := newTestWorktree(t, r.Dir)
+	w, _ := newTestWorktree(t, r.Dir, r.Home)
 	if _, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote); err != nil {
 		t.Errorf("compareState = %v, want nil", err)
 	}
@@ -349,7 +348,7 @@ func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
 
 func TestBaselineMalformedRejected(t *testing.T) {
 	r := newTestRepo(t)
-	token := mustBaseline(t, r.Dir).String()
+	token := mustBaseline(t, r.Dir, r.Home).String()
 	parsed, err := ParseBaseline(token)
 	if err != nil || parsed.String() != token {
 		t.Fatalf("ParseBaseline(round trip) = %q, %v", parsed.String(), err)
@@ -386,7 +385,7 @@ func TestBaselineMalformedRejected(t *testing.T) {
 		})
 	}
 	t.Run("zero_baseline", func(t *testing.T) {
-		w, router := newTestWorktree(t, t.TempDir())
+		w, router := newTestWorktree(t, t.TempDir(), t.TempDir())
 		if err := w.CheckState(t.Context(), Baseline{}); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("CheckState(zero) = %v, want ErrInvalidInput", err)
 		}
@@ -399,9 +398,9 @@ func TestBaselineMalformedRejected(t *testing.T) {
 func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 	t.Run("inspect", func(t *testing.T) {
 		r := newTestRepo(t)
-		base := mustBaseline(t, r.Dir)
+		base := mustBaseline(t, r.Dir, r.Home)
 		appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
-		w, router := newTestWorktree(t, r.Dir)
+		w, router := newTestWorktree(t, r.Dir, r.Home)
 		_, err := w.Inspect(t.Context(), base, threadAt(testFile))
 		wantStateParts(t, err, PartConfig)
 		if !slices.Equal(router.Calls, []string{gitConfigList}) {
@@ -410,14 +409,14 @@ func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 	})
 	t.Run("finish_after_make_test", func(t *testing.T) {
 		r := newTestRepo(t)
-		base := mustBaseline(t, r.Dir)
+		base := mustBaseline(t, r.Dir, r.Home)
 		r.Write(testFile, "fixed\n")
-		judged := mustInspect(t, r.Dir, base).JudgedSet
+		judged := mustInspect(t, r.Dir, r.Home, base).JudgedSet
 		rewrite := func() error {
 			appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
 			return nil
 		}
-		w, router := newTestWorktree(t, r.Dir, makeStep(StageFmt, nil), makeStep(StageTest, rewrite))
+		w, router := newTestWorktree(t, r.Dir, r.Home, makeStep(StageFmt, nil), makeStep(StageTest, rewrite))
 		_, err := w.Finish(t.Context(), base, judged, FinishRequest{PR: mustPR(t)})
 		wantStateParts(t, err, PartConfig)
 		// After make test changed the config, only git config --list runs:
@@ -436,7 +435,7 @@ func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 // check fails on the call count instead of waiting on the FIFO.
 func TestConfigFileTypeCheckedBeforeGit(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t, r.Dir)
+	base := mustBaseline(t, r.Dir, r.Home)
 	config := filepath.Join(r.Dir, ".git", "config")
 	if err := os.Remove(config); err != nil {
 		t.Fatal(err)
@@ -444,7 +443,7 @@ func TestConfigFileTypeCheckedBeforeGit(t *testing.T) {
 	if err := syscall.Mkfifo(config, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	w, router := newTestWorktree(t, r.Dir)
+	w, router := newTestWorktree(t, r.Dir, r.Home)
 	router.ConfigList = &configListResult{Err: &cmdrunner.ExitError{Code: 128}}
 	_, err := w.Inspect(t.Context(), base, threadAt(testFile))
 	wantStateParts(t, err, PartConfig)
@@ -460,7 +459,7 @@ func TestConfigFileTypeCheckedBeforeGit(t *testing.T) {
 func TestGitEnvKeepsGitOnTheWorktree(t *testing.T) {
 	r := newTestRepo(t)
 	t.Setenv("GIT_DIR", filepath.Join(r.Home, "nowhere"))
-	w, _ := newTestWorktree(t, r.Dir)
+	w, _ := newTestWorktree(t, r.Dir, r.Home)
 	if _, err := w.Baseline(t.Context()); err != nil {
 		t.Errorf("Baseline with GIT_DIR inherited = %v", err)
 	}
@@ -529,7 +528,7 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 			if tc.setup != nil {
 				tc.setup(t, r)
 			}
-			base := mustBaseline(t, r.Dir)
+			base := mustBaseline(t, r.Dir, r.Home)
 			listBefore := r.ConfigList()
 			fileBefore, err := os.ReadFile(repoConfig(r))
 			if err != nil {
@@ -549,7 +548,7 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 			} else if r.ConfigList() == listBefore {
 				t.Fatal("the edit does not change the listing")
 			}
-			w, _ := newTestWorktree(t, r.Dir)
+			w, _ := newTestWorktree(t, r.Dir, r.Home)
 			if tc.checkOnly {
 				if err := w.CheckState(t.Context(), base); err != nil {
 					t.Errorf("CheckState = %v, want nil", err)
@@ -567,9 +566,9 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 // list now is a config change, seen before git rev-parse runs.
 func TestConfigListUnreadable(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t, r.Dir)
+	base := mustBaseline(t, r.Dir, r.Home)
 	appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core\n")
-	w, router := newTestWorktree(t, r.Dir)
+	w, router := newTestWorktree(t, r.Dir, r.Home)
 	wantStateParts(t, w.CheckState(t.Context(), base), PartConfig)
 	if !slices.Equal(router.Calls, []string{gitConfigList}) {
 		t.Errorf("calls = %v, want git config --list only", router.Calls)
@@ -598,8 +597,8 @@ func TestConfigListFailureKinds(t *testing.T) {
 	} {
 		t.Run("check_state/"+tc.name, func(t *testing.T) {
 			r := newTestRepo(t)
-			base := mustBaseline(t, r.Dir)
-			w, router := newTestWorktree(t, r.Dir)
+			base := mustBaseline(t, r.Dir, r.Home)
+			w, router := newTestWorktree(t, r.Dir, r.Home)
 			router.ConfigList = &tc.result
 			err := w.CheckState(t.Context(), base)
 			if tc.changed {
@@ -613,7 +612,7 @@ func TestConfigListFailureKinds(t *testing.T) {
 		})
 		t.Run("begin/"+tc.name, func(t *testing.T) {
 			r := newTestRepo(t)
-			w, router := newTestWorktree(t, r.Dir)
+			w, router := newTestWorktree(t, r.Dir, r.Home)
 			router.ConfigList = &tc.result
 			base, err := w.Baseline(t.Context())
 			if _, isState := errors.AsType[*GitStateError](err); isState || !errors.Is(err, ErrGitFailed) {
@@ -645,7 +644,7 @@ func TestCommitObjectMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 	oid := strings.TrimSpace(r.Git("hash-object", "-t", "commit", "-w", file))
-	w, _ := newTestWorktree(t, r.Dir)
+	w, _ := newTestWorktree(t, r.Dir, r.Home)
 	gotTree, parents, got, err := w.commitObject(t.Context(), oid)
 	if err != nil {
 		t.Fatalf("commitObject = %v", err)

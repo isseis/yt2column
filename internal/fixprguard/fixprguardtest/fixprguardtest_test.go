@@ -87,7 +87,7 @@ func TestIsolateWorkingDirRefusesRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=^$") //nolint:gosec // re-runs this test binary
-	cmd.Env = append(slices.DeleteFunc(os.Environ(), func(e string) bool {
+	cmd.Env = append(slices.DeleteFunc(Env(t.TempDir(), repo), func(e string) bool {
 		return strings.HasPrefix(e, "TMPDIR=") || strings.HasPrefix(e, "GOTMPDIR=")
 	}), "TMPDIR="+tmp)
 	out, err := cmd.CombinedOutput()
