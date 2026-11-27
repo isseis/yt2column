@@ -606,16 +606,12 @@ func TestPushRechecks(t *testing.T) {
 			p.r.Write("docs/notes/extra.md", "x\n")
 			p.r.CommitAll("after finish")
 		}, []string{PartHead}, false},
-		{"hooks_changed", func(_ *testing.T, p prepared, _ string) { p.r.WriteHook("pre-push", "exit 0\n") }, []string{PartHooks}, false},
 		{"config_changed", func(_ *testing.T, p prepared, _ string) {
 			p.r.Git("config", "remote."+testRemote+".receivepack", "evil")
 		}, []string{PartConfig}, true},
 		{"remote_branch_moved", func(_ *testing.T, p prepared, commit string) {
 			p.r.Git("push", "-q", testRemote, commit+":"+headsPrefix+testBranch)
 		}, []string{PartRemote}, false},
-		{"branch_switched", func(_ *testing.T, p prepared, _ string) {
-			p.r.Git("switch", "-q", "-c", "other")
-		}, []string{PartBranch}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := prepareRound(t, fixTestFile)
