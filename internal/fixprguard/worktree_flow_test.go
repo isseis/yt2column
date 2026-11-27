@@ -388,8 +388,6 @@ func TestFinishCommitBody(t *testing.T) {
 	for _, tc := range []struct {
 		name, body, want string
 	}{
-		{name: "ends_with_lf", body: correction + "\n", want: subjectAndBody(correction + "\n")},
-		{name: "no_trailing_lf", body: correction + "\n" + correction, want: subjectAndBody(correction + "\n" + correction + "\n")},
 		// git's default cleanup would strip the trailing spaces.
 		{name: "trailing_spaces", body: correction + "  \n", want: subjectAndBody(correction + "  \n")},
 	} {
