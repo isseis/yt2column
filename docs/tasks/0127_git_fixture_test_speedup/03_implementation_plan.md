@@ -146,7 +146,8 @@ PR-1・PR-2 の計測（7.1 節）の結果を受けて、人が決めたもの:
 -   **`internal/mergepr` の PR-1 の割合 1.076 は、ぶれとして受け入れる:** PR-1 は `internal/mergepr` を変えておらず、6 回の値が 40.4〜45.9 秒に散らばったため。
 -   **比較のスクリプトは、名前の中のコミットの短い ID を置き換えて比べる:** `TestBaseCommitReadsTheRefItself` の末端の名前（`feat-1-g<12 桁の 16 進数>`）が実行ごとに変わり、名前の集まりが同じになりえないため。比べるときだけ置き換え、単独の選択では元の名前を使う。スクリプトを変えるので、7.4 節の壊し方の確認と、PR-1 の比較の実行を、やり直す（計測のスクリプト、テストのコード、製品コードは変わらないので、計測、`make coverage-compare`、`make test`、`make lint` の PR-1 の記録は、AFTER `8bb968e5` のものが、タスクのディレクトリの下だけが異なる今の head でも有効である）。
 -   **`internal/mergepr` の目標を 80% 以下にする:** PR-2 のステップ 7-5 後の計測で、`internal/mergepr` は PR-2 単独で 0.737（40.886 秒 → 30.140 秒）と 75% 以下に達したが、PR-1 でぶれとして受け入れた 1.076 との積が 0.793 となり 75% を超えた。要件書の「実装の際に決めたこと（2026-11-27）」のとおり、人が F-001 の積の判定式を維持したまま `internal/mergepr` の目標（AC-02）を 80% 以下に改めることを決めた。
--   **PR-3（冗長テストの削減）を追加する:** PR-2 マージ後の PR-3 として、冗長テスト候補（Part 1: C1〜C11、Part 2: M1〜M13）の検証と削減をフェーズ 8 に追加する。人が決めた方針: C1 は既定を 40 末端サブセットとしオプトイン環境変数で全件実行を残す、C6 は削除する、6 件の git config シナリオは維持する、`mergemain_test.go` に main 側のみリネームする 1 ケースを追加する。ADR: なし（このタスクのテスト構成と進め方である）。
+-   **PR-3（冗長テストの削減）を追加する:** PR-2 マージ後の PR-3 として、冗長テスト候補（Part 1: C1〜C11、Part 2: M1〜M13）の検証と削減をフェーズ 8 に追加する。人が決めた方針: C1 は既定を構文・行網羅の代表サブセットとしオプトイン環境変数で全件実行を残す、C6 は削除する、6 件の git config シナリオと global シナリオは維持する、`mergemain_test.go` に main 側のみリネームする 1 ケースを追加する。ADR: なし（このタスクのテスト構成と進め方である）。
+-   **PR-3 の bash 行カバレッジ方式と `compare.sh` の PR-3 対応（2026-11-27）:** ステップ 8-1 の現行コード検証を受け、人が次を決めた。(1) `_checks/verify_bash_cut.sh` の行カバレッジ一致は、各 bash でのスクリプト全体の実行行集合（`line`）一致＋`review-records.sh` の全 mode 分岐と `fail()` 分岐への到達とし、C3 は `unreviewed()` 自身の引数検証 3 件（`HEAD of another form`・`PLAN of another form`・`too many arguments`）を残して 53 件削減とし、C1〜C11 を計画どおり実施する。(2) 行記録は bash 3.2 に `BASH_XTRACEFD` がなく `set -x` が `stderr` を汚すため、両スクリプトとも `env -i` 後の `set -T`＋`trap DEBUG`（`TMPDIR` 外のトレースファイルへ追記）とする。(3) PR-3 の AC-09・AC-11 検証は `_checks/compare.sh` に PR-3 用オプション（`CHECK_SKIP_AC04=1`）を足して行い、変更後に `compare.sh` の壊し確認をやり直す。ADR: なし（タスク 0127 の一時スクリプトの検証方式である）。
 
 ADR: なし（このタスクの目標と手順である）。
 
@@ -340,26 +341,25 @@ ADR: なし（このタスクの目標と手順である）。
 ### フェーズ 8: 冗長テストの検証と削減（Part 1・Part 2）
 
 - [ ] **ステップ 8-1**: 削減候補（1.6 節の C1〜C11・M1〜M13）の仮説検証と bash 3 サブセットの再導出
-    - 現在のブランチ上の `review-records.sh`・`high-review-decision.sh`・`internal/mergepr` とテストコードに照らし、各候補が成り立つかを検証して成り立たない候補を除外する
-    - `review-records.sh` の現在のコードから、bash 3.2 依存構文をすべて踏む 40 末端サブセットを再導出する
+    - 現在のブランチ上の `review-records.sh`・`high-review-decision.sh`・`internal/mergepr` とテストコードに照らし、各候補が成り立つかを検証して成り立たない候補を除外する（C3 は `unreviewed()` 自身の引数検証 3 件を残して 53 件削減、C6 は現行 5 件、M13 は `TestMergemainBeginPremisesAndNothingToTakeIn/ok` への統合で成立）
+    - `review-records.sh` の現在のコードから、bash 3.2 依存構文と実行可能 bash 行をすべて踏む代表サブセットを再導出する
 - [ ] **ステップ 8-2**: bash テスト削減の検証用一時スクリプトを作成し壊し確認する
-    - 追加するファイル: `docs/tasks/0127_git_fixture_test_speedup/_checks/verify_bash_cut.sh`
-    - 機能: (1) 一時コピーした `review-records.sh` と `high-review-decision.sh`（`env -i` 後の `set -x`＋`PS4='+${LINENO}: '`）で削減前後の `(mode, line)` 集合が各 bash（`high-review-decision.sh` は bash 4 以上だけ）で一致することを確認、(2) 残す代表ケースに対するミューテーション（`-c i18n.logOutputEncoding` 削除、`widen` 変更、`fable` 削除、C2 の縮小版を採る場合は Unreviewed・CrossCheck の `-c` の上書きの削除）が失敗することを確認する。`GIT_CONFIG_GLOBAL` の削除は、`-c i18n.logOutputEncoding=UTF-8` が global より優先して出力が変わらず検出できないので、ミューテーションに含めない。行カバレッジは設定シナリオを見分けられないので、設定シナリオの削除は (2) の壊し確認でだけ確かめる
-    - 7 章に、この一時スクリプトの記録の節（スクリプト、確かめる内容、流した回数と結果）を置く（7.3 節の `measure.sh` の記録と同じ形）
-    - 壊し確認を行い、7 章の一時スクリプト記録に書く
+    - 追加・変更するファイル: `docs/tasks/0127_git_fixture_test_speedup/_checks/verify_bash_cut.sh`（新規）、`docs/tasks/0127_git_fixture_test_speedup/_checks/compare.sh`（PR-3 用オプション `CHECK_SKIP_AC04=1` 追加）
+    - `verify_bash_cut.sh` の機能: (1) 一時コピーした `review-records.sh` と `high-review-decision.sh`（`env -i` 後の `unset *_CLEAN_ENV` 行に `set -T`＋`trap DEBUG` を 1 行で追記し、`TMPDIR` 外のトレースファイルへ記録して行番号と `stderr` を変えない）で、各 bash（`high-review-decision.sh` は bash 4 以上だけ）における削減前後のスクリプト全体の実行行集合（`line`）が一致し、`review-records.sh` の全 mode 分岐と `fail()` 分岐に到達することを確認、(2) 残す代表ケースに対するミューテーション（`-c i18n.logOutputEncoding` 削除、`widen` 変更、`fable` 削除）が失敗することを確認、(3) `YT2COLUMN_TEST_BASH3_ALL=1` で `bin-bash-3` の末端集合が `path-bash` と一致すること（AC-13 (3)）を確認する。`GIT_CONFIG_GLOBAL` の削除は、`-c i18n.logOutputEncoding=UTF-8` が global より優先して出力が変わらず検出できないので、ミューテーションに含めない。行カバレッジは設定シナリオを見分けられないので、設定シナリオの削除は (2) の壊し確認でだけ確かめる
+    - 7.8 節にこの一時スクリプトの記録を置き、壊し確認を行って記録する。`compare.sh` の変更後、7.4 節の壊し確認もやり直す
 - [ ] **ステップ 8-3**: Part 1（`review_records_test.go`・`high_review_decision_test.go`・`harness_mapping_cases_test.go`・`test_helpers_bash.go`）の検証済み冗長ケースを削減する
-    - C1: 既定は 40 末端サブセットとし、オプトイン環境変数で bash 3 全件実行を残す
+    - C1: 既定は構文・行網羅の代表サブセットとし、オプトイン環境変数 `YT2COLUMN_TEST_BASH3_ALL=1` で bash 3 全件実行を残す
     - C2（縮小版）: Coverage の repository シナリオと global の全シナリオ（および将来の porcelain 移行に備える 6 件の git config シナリオ）を残し、Unreviewed・CrossCheck の重複シナリオだけを、ステップ 8-2 の壊し確認で成り立つと確かめられたときに削除する（成り立たなければ削らない）
-    - C6: 削除する（env クリーンアップは mode 分岐前のため Coverage 側で網羅。件数はステップ 8-1 で現行コードに照らして数える）
-    - C3〜C5・C7〜C11: ステップ 8-1 で検証が成り立ったものを削除・整理する
+    - C6: 削除する（現行 5 件: `HEAD names no commit`・`no origin/main`・`GIT_ variables`・`exported functions`・`BASH_ENV`。env クリーンアップと `load_branch` は Coverage 側で網羅）
+    - C3（53 件、引数検証 3 件は維持）・C4・C5・C7〜C11: ステップ 8-1 で検証が成り立ったものを削除・整理する
     - 削除のまとまり（C1〜C11 の候補ごと）を、削除だけのコミットにし、各コミットの後に `make coverage-compare BASE=<そのコミットの親>`（10 分以上のタイムアウト）を流して、最後の行 `coverage-compare: PASS` までをコミットメッセージと PR の説明に書く（Go の製品コードは変わらないので、これは削除が Go のカバレッジを下げないことの確認にとどまる）
-    - bash スクリプトの行の網羅は `coverage-compare` で見えないので、`verify_bash_cut.sh` を実行して結果を 7 章に記録する（`high_review_decision_test.go` と `harness_mapping_cases_test.go` の削除は、`high-review-decision.sh` の `(mode, line)` 集合の一致で確かめる）
+    - bash スクリプトの行の網羅は `coverage-compare` で見えないので、`verify_bash_cut.sh` を実行して結果を 7.8 節に記録する（`high_review_decision_test.go` と `harness_mapping_cases_test.go` の削除は、`high-review-decision.sh` の実行行集合の一致で確かめる）
 - [ ] **ステップ 8-4**: Part 2（`internal/mergepr/mergemain_test.go`）の検証済み冗長ケースを削減し、main 側リネームの 1 ケースを追加する
-    - M4・M7 はアサーション移動を別コミットにした上で、各テスト削除は削除のみのコミットにし、`make coverage-compare BASE=<parent>`（10 分以上のタイムアウト）の通過出力と指定の壊し確認（M5/M6/M9/M10）をコミットメッセージと PR 説明に記録する
+    - M4・M7・M13 はアサーション移動を別コミットにした上で、各テスト削除は削除のみのコミットにし、`make coverage-compare BASE=<parent>`（10 分以上のタイムアウト）の通過出力と指定の壊し確認（M5/M6/M9/M10）をコミットメッセージと PR 説明に記録する
     - M5 の削除枠の代わりに、main 側のみファイルリネームする 1 ケースを追加する
 - [ ] **ステップ 8-5**: PR-3 の計測とグリーンゲート確認・記録
     - `measure.sh` で PR-3 の BASE と AFTER を測り、PR-3 の割合と、PR-1・PR-2・PR-3 の積（このタスクの割合）を 7.1 節に記録する。判定は AC-01・AC-02（`cmd/yt2column` は `0.758 × r ≤ 0.80`、すなわち PR-3 の割合 r が約 1.055 以下、`internal/mergepr` は `0.793 × r ≤ 0.80`、すなわち r が約 1.008 以下）で行う。超えたときは、きれいな作業ツリーで測り直し、それでも超えるときは作業を止め、要件書の決定の変更をレビューに諮る（PR-2 のノイズ 1.076 と 0.826 / 0.976 のように、変えていないパッケージの割合が 1 を超えうるので、すべての測定値を記録する）。PR-1・PR-2 の時点の「AC-01・AC-02 達成」は、PR-3 の後の再判定まで暫定とする
-    - AC-06（`make coverage-compare BASE=<PR-3 の BASE>`）、AC-09（変更範囲）、AC-11（単独選択とシャッフル。代表は、削除の後に残るケースから選び直し、`compare.sh` にはその名前を渡す）、`make test`・`make lint`・`make deadcode` を PR-3 にも実行し、結果を 7 章に記録する。AC-04・AC-05 は、PR-3 では AC-13 に置き換える
+    - AC-06（`make coverage-compare BASE=<PR-3 の BASE>`）、AC-09（変更範囲）、AC-11（単独選択とシャッフル。代表は、削除の後に残るケースから選び直し、`CHECK_SKIP_AC04=1` を付けて `compare.sh` に渡す）、`make test`・`make lint`・`make deadcode` を PR-3 にも実行し、結果を 7 章に記録する。AC-04・AC-05 は、PR-3 では AC-13 に置き換える
 
 ### PR-3 作成ポイント: remove verified redundant test cases in review_records, high_review_decision, and mergemain
 
@@ -367,7 +367,7 @@ ADR: なし（このタスクの目標と手順である）。
 
 **推奨タイトル**: `test(0127): review_records・high_review_decision・mergemain の冗長なテストケースを検証の上で削減する`
 
-**レビュー観点**: 各削除候補（1.6 節の C1〜C11・M1〜M13）の仮説検証の妥当性と、bash 3.2 の 40 末端サブセット＋オプトイン全件実行の網羅性 / `_checks/verify_bash_cut.sh` の `(mode, line)` 行カバレッジ一致（`review-records.sh` と `high-review-decision.sh`）とミューテーション検出および壊し確認（`GIT_CONFIG_GLOBAL` 削除は検出できないので含めない） / `mergemain_test.go` の各削除コミットが削除のみで `make coverage-compare BASE=<parent>` の通過出力と M5/M6/M9/M10 の壊し確認を持つこと / main 側のみファイルリネームする新規ケースの妥当性 / 7 章の計測・検証記録
+**レビュー観点**: 各削除候補（1.6 節の C1〜C11・M1〜M13）の仮説検証の妥当性と、bash 3.2 の構文・行網羅サブセット＋オプトイン全件実行の網羅性 / `_checks/verify_bash_cut.sh` の実行行集合一致・全 mode 分岐到達（`review-records.sh` と `high-review-decision.sh`）とミューテーション検出および壊し確認（`GIT_CONFIG_GLOBAL` 削除は検出できないので含めない） / `mergemain_test.go` の各削除コミットが削除のみで `make coverage-compare BASE=<parent>` の通過出力と M5/M6/M9/M10 の壊し確認を持つこと / main 側のみファイルリネームする新規ケースの妥当性 / 7 章の計測・検証記録
 
 **実装モデル要件**: high
 
@@ -452,6 +452,7 @@ ADR: なし（このタスクの目標と手順である）。
 | AC-10 | `manual` | PR のレビューで、ケースが自分の `HOME`・`TMPDIR`（`internal/mergepr` では `HOME`・`XDG_CONFIG_HOME`）を作ることを読む（ステップ 2-1・7-2） |
 | AC-11 | `test` | `_checks/compare.sh` の「単独の選択」と「shuffle」の判定。結果は 7.2 節 |
 | AC-12 | `test` | PR ごとの `make test` と `make lint`。結果は 7.7 節 |
+| AC-13 | `test` | PR-3 の削除コミットごとの `make coverage-compare BASE=<parent>`（7.6 節・各コミットメッセージ）、`_checks/verify_bash_cut.sh` の実行行集合一致・mode 到達・ミューテーション検出・`YT2COLUMN_TEST_BASH3_ALL=1` 末端一致（7.8 節）、および `_checks/measure.sh`・`_checks/compare.sh`（7.1・7.2 節） |
 
 ### 7.1. 計測の記録（AC-01〜AC-03、AC-05）
 
@@ -854,6 +855,23 @@ coverage-compare: PASS
 
 **PR-2（2026-11-27）** 実行したコミット: `cdd92b731ea27f7a3de6e211acade5f9486e1e47`。`make test` は終了コード 0、`make lint` は終了コード 0（`0 issues.`）。
 
+### 7.8. 一時スクリプトの記録（`_checks/verify_bash_cut.sh`）
+
+-   **スクリプト:** `docs/tasks/0127_git_fixture_test_speedup/_checks/verify_bash_cut.sh`。BASE と AFTER で一時的に計装した `review-records.sh` と `high-review-decision.sh`（`env -i` 後の `set -T`＋`trap DEBUG` で `TMPDIR` 外のトレースファイルへ記録）を使ってテストを走らせ、各 bash でのスクリプト全体の実行行集合（`line`）一致・全 mode 分岐と `fail()` 分岐への到達・代表ケースへのミューテーション検出・`YT2COLUMN_TEST_BASH3_ALL=1` 時の `bin-bash-3` 末端集合一致を確かめる。AC-13 (2)(3) を確かめる。
+-   **判定:**
+    -   作業ツリーに変更がないこと
+    -   **実行行集合一致（`review-records.sh`・`path-bash`）:** BASE と AFTER で `path-bash` が実行した `review-records.sh` の行集合が一致し、全 mode 分岐と `fail()` 分岐に到達すること
+    -   **実行行集合一致（`review-records.sh`・`bin-bash-3`）:** `/bin/bash` が 3.x の機械で、BASE と AFTER（既定サブセット）で `bin-bash-3` が実行した `review-records.sh` の行集合が一致し、全 mode 分岐と `fail()` 分岐に到達すること
+    -   **実行行集合一致（`high-review-decision.sh`・`path-bash`）:** BASE と AFTER で `path-bash` が実行した `high-review-decision.sh` の行集合が一致すること
+    -   **ミューテーション検出:** AFTER に対して `-c i18n.logOutputEncoding=UTF-8` 削除、`widen` 分岐の変更、`fable` 分岐の削除のそれぞれを入れたとき、対応するテストが失敗すること
+    -   **オプトイン全件一致（AC-13 (3)）:** AFTER で `YT2COLUMN_TEST_BASH3_ALL=1` を付けて走らせた `bin-bash-3` の末端集合が、AFTER の `path-bash` の末端集合（`bin-bash-3` を `path-bash` に読み替えたもの）と一致すること
+    -   終わった後に、元のブランチに戻り作業ツリーがきれいであること
+-   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる（ステップ 8-2）。
+-   **予定の実行:** PR-3 を作る前に `/runplan` が実行し、結果を本節に書く。記録の後にタスクのディレクトリの外のファイルかスクリプトが変わったときはやり直す（スクリプトが変わったときは壊し確認もやり直す）。
+-   **テスト:** コミットしない。
+-   **壊し方の記録:** （ステップ 8-2 で記入）
+-   **実行の記録:** （ステップ 8-3・8-5 で記入）
+
 ## 8. 成功基準 (Success Criteria)
 
 -   **機能:** このタスクの `cmd/yt2column` と `internal/mergepr` の割合が 0.80 以下である（AC-01・AC-02）。
@@ -873,3 +891,4 @@ coverage-compare: PASS
 - 2026-11-27 セッション中の再承認：`internal/mergepr` の目標を 80% 以下に改め、1.5 節に記録した（isseis、#1197）
 - 2026-11-27 セッション中の再承認：冗長テストの削減（フェーズ 8・PR-3）を計画に追加した（isseis、#1197）
 - 2026-11-27 セッション中の再承認：1.6 節に削減候補表を置き、C2 を縮小版にし、フェーズ 8 の検証（`coverage-compare`、`high-review-decision.sh` への適用、停止条件、AC-06・AC-09・AC-11）と、1.3 節・1.5 節・8 章・9 章の旧い記述を直した（isseis、#1197）
+- 2026-11-27 セッション中の再承認：ステップ 8-2 の bash 行カバレッジ方式を `set -T`＋`trap DEBUG` によるスクリプト全体の実行行集合一致＋全 mode 分岐到達とし、7.8 節に `_checks/verify_bash_cut.sh` の記録枠を置き、`_checks/compare.sh` に PR-3 用オプションを足す方針に改めた（isseis、#未記入）
