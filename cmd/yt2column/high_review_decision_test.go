@@ -465,12 +465,19 @@ func TestHighReviewDecision(t *testing.T) {
 	t.Run("fail-closed context validation before early return", func(t *testing.T) {
 		t.Parallel()
 		// The grammar cases are shared with TestReviewRecordsCrossCheck; the
-		// one below holds only for this script, which needs a high agent row.
-		cases := append(mappingGrammarCases(t, realContext), mappingGrammarCase{
-			"no high agent row",
-			replaceMappingSection(t, realContext, strings.Replace(mappingValidTable, "| `Claude Code` | `high` | `agent` |", "| `Claude Code` | `high` | `swarm` |", 1)),
-			"no high-role agent verification pattern",
-		})
+		// two below hold only for this script, which reads the high agent row.
+		cases := append(mappingGrammarCases(t, realContext),
+			mappingGrammarCase{
+				"high row agent launch with dash pattern",
+				replaceMappingSection(t, realContext, replaceContextRow(t, mappingValidTable, "`claude-opus-*`", "`-`")),
+				"cannot have Verification pattern -",
+			},
+			mappingGrammarCase{
+				"no high agent row",
+				replaceMappingSection(t, realContext, strings.Replace(mappingValidTable, "| `Claude Code` | `high` | `agent` |", "| `Claude Code` | `high` | `swarm` |", 1)),
+				"no high-role agent verification pattern",
+			},
+		)
 		// These cases also run on a plan with no value, to show the table is
 		// validated before the early value-absent return.
 		alsoAbsent := map[string]struct{}{
