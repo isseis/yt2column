@@ -552,13 +552,13 @@ compare: PASS
 -   **壊し方の確認:** 各判定が少なくとも 1 つの壊し方で失敗することを確かめる（ステップ 6-3）。
 -   **予定の実行:** 7.3 節と同じ時点と人で実行する。
 -   **テスト:** コミットしない。
--   **壊し方の記録:** 確かめたコミット: `66e2e888394e1a20c310bc077bb3059da8681bf4`（1.5 節の名前の比べ方を足した後のスクリプトで、壊し方の確認を全部やり直した。結果は前回と同じで、壊さない実行は `compare: PASS`）。作業ツリーの外に写したスクリプトに壊し方を入れるか、引数・環境変数で入力を替えて流した（`CHECK_PKGS=./cmd/yt2column`、`CHECK_RUN` と `CHECK_TOPS` で `TestReviewRecordsFableAlias` と `TestHighReviewDecisionCallSite` に狭めた。狭めた実行は記録しない）。どの壊し方も、作業ツリーに残していない。
+-   **壊し方の記録:** 確かめたコミット: `db4e85006b1bddcedeace681aa651faf1b419976`（1.5 節の名前の比べ方を足し、中間の名前の判定を「パッケージの全部の末端のうち、最初でも最後でもない」に直した後のスクリプトで、壊し方の確認を全部やり直した。結果は前回と同じで、壊さない実行は `compare: PASS`）。作業ツリーの外に写したスクリプトに壊し方を入れるか、引数・環境変数で入力を替えて流した（`CHECK_PKGS=./cmd/yt2column`、`CHECK_RUN` と `CHECK_TOPS` で `TestReviewRecordsFableAlias` と `TestHighReviewDecisionCallSite` に狭めた。狭めた実行は記録しない）。どの壊し方も、作業ツリーに残していない。
     -   名前の集まり: AFTER の末端の名前を 1 行消した → `check names: FAIL`（終了コード 1）
     -   `fail`: AFTER の `fail` の事象を 1 件足した → `check fail: FAIL`（1）
     -   `skip`: AFTER の `skip` の集まりに 1 件足した → `check skip: FAIL`（1）
     -   bash 3 の末端: 狭めた実行では、4 つの関数のうち 1 つにしか末端がないので、そのままでは判定が失敗する。そこで、写したスクリプトの対象の関数の並びを `TestReviewRecordsFableAlias` 1 つに替えて、壊さない実行は `check bin-bash-3: PASS`。名前の `bin-bash-3` を `bin-bash-9` に替えた → `check bin-bash-3: FAIL`（1）
     -   単独の選択: `-run` の式を 1 要素ごとに壊した → `select FAILED` が 3 件、`check single-first-last: FAIL`（1）。BASE にない最上位の名前を渡した → `TestNoSuchTop has no leaf in BASE`、`check single-first-last: FAIL`（1）
-    -   中間の名前: 最初の末端を渡した → `is the first or the last`、BASE にない名前を渡した → `is not in BASE`、名前を渡さない → `no middle name given`、いずれも `check single-middle: FAIL`（1）。壊さない実行（中間の名前 1 つ）は `compare: PASS`（0）
+    -   中間の名前: パッケージの最初の末端（`TestHighReviewDecisionCallSite`）を渡した → `is the first or the last leaf of`、BASE にない名前を渡した → `is not in BASE`、名前を渡さない → `no middle name given`、いずれも `check single-middle: FAIL`（1）。壊さない実行（中間の名前 1 つ）は `compare: PASS`（0）
     -   shuffle: `-shuffle=on` を外した → シードの行がなく `check shuffle: FAIL`（1）
     -   差分の範囲: 一覧に `README.md` を足した → `range FAILED: README.md`、`check range: FAIL`（1）
     -   `go test` の失敗: `CHECK_PKGS=./nonexistent` → `STOP: go test failed at BASE`（1）
