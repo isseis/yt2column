@@ -85,6 +85,7 @@ func wantLayer(t *testing.T, layer stopLayer, calls []string) {
 }
 
 func TestBaselineDetectsChange(t *testing.T) {
+	t.Parallel()
 	hook := func(r *testRepo) string { return filepath.Join(r.Dir, ".git", "hooks", "pre-commit") }
 	repoConfig := func(r *testRepo) string { return filepath.Join(r.Dir, ".git", "config") }
 	for _, tc := range []struct {
@@ -236,6 +237,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 		}, parts: []string{PartInfo}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			r := newTestRepo(t)
 			if tc.setup != nil {
 				tc.setup(t, r)
@@ -258,6 +260,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 	}
 
 	t.Run("unknown_head_rule", func(t *testing.T) {
+		t.Parallel()
 		// A kind outside the list (no declared kind is negative) fails secure:
 		// an error, and the push target is never read.
 		r := newTestRepo(t)
@@ -273,6 +276,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 	})
 
 	t.Run("baseline_refuses_flagged_entry", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		r.Git("update-index", "--skip-worktree", testFile)
 		w, _ := newTestWorktree(t, r.Dir, r.Home)
@@ -281,6 +285,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 	})
 
 	t.Run("baseline_refuses_detached_head", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		r.Git("switch", "-q", "--detach")
 		w, _ := newTestWorktree(t, r.Dir, r.Home)
@@ -291,6 +296,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 }
 
 func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	base := mustBaseline(t, r.Dir, r.Home)
 	r.Git("fetch", "-q", testRemote)
@@ -318,6 +324,7 @@ func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
 }
 
 func TestBaselineMalformedRejected(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	token := mustBaseline(t, r.Dir, r.Home).String()
 	parsed, err := ParseBaseline(token)
@@ -350,12 +357,14 @@ func TestBaselineMalformedRejected(t *testing.T) {
 		{"surrounding_space", " " + token},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if _, err := ParseBaseline(tc.token); !errors.Is(err, ErrInvalidInput) {
 				t.Errorf("ParseBaseline = %v, want ErrInvalidInput", err)
 			}
 		})
 	}
 	t.Run("zero_baseline", func(t *testing.T) {
+		t.Parallel()
 		w, router := newTestWorktree(t, t.TempDir(), t.TempDir())
 		if err := w.CheckState(t.Context(), Baseline{}); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("CheckState(zero) = %v, want ErrInvalidInput", err)
@@ -367,7 +376,9 @@ func TestBaselineMalformedRejected(t *testing.T) {
 }
 
 func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
+	t.Parallel()
 	t.Run("inspect", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		base := mustBaseline(t, r.Dir, r.Home)
 		appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
@@ -379,6 +390,7 @@ func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 		}
 	})
 	t.Run("finish_after_make_test", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		base := mustBaseline(t, r.Dir, r.Home)
 		r.Write(testFile, "fixed\n")
@@ -405,6 +417,7 @@ func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 // opens it. git config --list is replaced to fail at once, so a missing type
 // check fails on the call count instead of waiting on the FIFO.
 func TestConfigFileTypeCheckedBeforeGit(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	base := mustBaseline(t, r.Dir, r.Home)
 	config := filepath.Join(r.Dir, ".git", "config")
@@ -437,6 +450,7 @@ func TestGitEnvKeepsGitOnTheWorktree(t *testing.T) {
 }
 
 func TestOtherBranchConfigIgnored(t *testing.T) {
+	t.Parallel()
 	repoConfig := func(r *testRepo) string { return filepath.Join(r.Dir, ".git", "config") }
 	section := "[branch \"x\"]\n\tremote = " + testRemote + "\n\tmerge = refs/heads/x\n"
 	for _, tc := range []struct {
@@ -478,6 +492,7 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 		}, fileOnly: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			r := newTestRepo(t)
 			if tc.setup != nil {
 				tc.setup(t, r)
@@ -519,6 +534,7 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 // TestConfigListUnreadable: a configuration git listed at begin but cannot
 // list now is a config change, seen before git rev-parse runs.
 func TestConfigListUnreadable(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	base := mustBaseline(t, r.Dir, r.Home)
 	appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core\n")
@@ -533,6 +549,7 @@ func TestConfigListUnreadable(t *testing.T) {
 // configuration. A timeout or a nonzero exit is a config change; an output
 // over the cap, a cancellation, or git not starting is a git failure.
 func TestConfigListFailure(t *testing.T) {
+	t.Parallel()
 	exit := func(code int) *cmdrunner.ExitError { return &cmdrunner.ExitError{Code: code} }
 	for _, tc := range []struct {
 		name    string
@@ -547,6 +564,7 @@ func TestConfigListFailure(t *testing.T) {
 		{name: "not_started", err: errors.New("exec: not found")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			err := configListFailure(tc.err)
 			if tc.changed {
 				wantStateParts(t, err, PartConfig)
@@ -563,8 +581,10 @@ func TestConfigListFailure(t *testing.T) {
 // failures). At begin every one of them is a git failure and no baseline is
 // taken.
 func TestConfigListFailureKinds(t *testing.T) {
+	t.Parallel()
 	malformed := configListResult{Out: []byte("no delimiters")}
 	t.Run("check_state/malformed_listing", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		base := mustBaseline(t, r.Dir, r.Home)
 		w, router := newTestWorktree(t, r.Dir, r.Home)
@@ -579,6 +599,7 @@ func TestConfigListFailureKinds(t *testing.T) {
 	// failure stays one and is not read as a config change.
 	// TestConfigListUnreadable holds the config change side.
 	t.Run("check_state/output_over_cap", func(t *testing.T) {
+		t.Parallel()
 		r := newTestRepo(t)
 		base := mustBaseline(t, r.Dir, r.Home)
 		w, router := newTestWorktree(t, r.Dir, r.Home)
@@ -597,6 +618,7 @@ func TestConfigListFailureKinds(t *testing.T) {
 		{name: "malformed_listing", result: malformed},
 	} {
 		t.Run("begin/"+tc.name, func(t *testing.T) {
+			t.Parallel()
 			r := newTestRepo(t)
 			w, router := newTestWorktree(t, r.Dir, r.Home)
 			router.ConfigList = &tc.result
@@ -615,6 +637,7 @@ func TestConfigListFailureKinds(t *testing.T) {
 // header spans several lines, one of them blank but for the leading space, and
 // whose message holds an empty line of its own and trailing spaces.
 func TestCommitObjectMessage(t *testing.T) {
+	t.Parallel()
 	r := newTestRepo(t)
 	tree := strings.TrimSpace(r.Git("rev-parse", "HEAD^{tree}"))
 	parent := r.Head()

@@ -229,7 +229,9 @@ func runMentionsCtx(ctx context.Context, t *testing.T, req MentionScanRequest, i
 }
 
 func TestPRMentions(t *testing.T) {
+	t.Parallel()
 	t.Run("empty_lists_return_ok_with_non_nil_slice", func(t *testing.T) {
+		t.Parallel()
 		got := runMentions(t, defaultMentionRequest(t), msInput{})
 		want := MentionScanResult{Protocol: Protocol, State: MentionScanOK, Mentions: []MentionFinding{}}
 		if !reflect.DeepEqual(got, want) {
@@ -245,6 +247,7 @@ func TestPRMentions(t *testing.T) {
 	// deleted null user), plus null body, null/omitted submitted_at, and
 	// ordering by source then API order.
 	t.Run("mentions_across_endpoints_authors_and_ordering", func(t *testing.T) {
+		t.Parallel()
 		in := msInput{
 			issueComments: []msComment{
 				{id: 1, login: rsUser, kind: typenameUser, body: "note for @CODEX", created: at("10:01:00"), updated: at("10:02:00"), url: rsURL(1)},
@@ -297,6 +300,7 @@ func TestPRMentions(t *testing.T) {
 	// texts in issues/<PR>/comments (full edge-case matrix lives in
 	// TestIsRequestComment) while retaining non-matching user comments.
 	t.Run("manual_request_exclusions", func(t *testing.T) {
+		t.Parallel()
 		in := msInput{
 			issueComments: []msComment{
 				{id: 1, login: rsUser, kind: typenameUser, body: "@coderabbitai review", url: rsURL(1)},
@@ -320,6 +324,7 @@ func TestPRMentions(t *testing.T) {
 
 	// Findings on later pages (past restPerPage) are collected in API order.
 	t.Run("multi_page_pagination", func(t *testing.T) {
+		t.Parallel()
 		comments := make([]msComment, restPerPage+1)
 		for i := range restPerPage {
 			comments[i] = msComment{id: int64(i + 1), login: "alice", kind: typenameUser, body: "clean", url: rsURL(int64(i + 1))}
@@ -341,6 +346,7 @@ func TestPRMentions(t *testing.T) {
 
 	// No body text may appear in the JSON output, whether ok or unreadable.
 	t.Run("output_has_no_body_text", func(t *testing.T) {
+		t.Parallel()
 		const secret = "secret-untrusted-body-marker"
 		okIn := msInput{
 			issueComments: []msComment{{id: 1, login: "mallory", kind: typenameUser, body: secret + " @sourcery-ai", url: rsURL(1)}},
@@ -364,8 +370,10 @@ func TestPRMentions(t *testing.T) {
 }
 
 func TestPRMentionsObservedExclusions(t *testing.T) {
+	t.Parallel()
 	// Observed status comments that MUST be excluded.
 	t.Run("observed_bot_headers_excluded", func(t *testing.T) {
+		t.Parallel()
 		in := msInput{
 			issueComments: []msComment{
 				{id: 1, login: testCRBotLogin, kind: typenameBot, body: testCRHeaderGenerated + "\nUse @coderabbitai review", url: rsURL(1)},
@@ -392,6 +400,7 @@ func TestPRMentionsObservedExclusions(t *testing.T) {
 	// cross-profile headers, another user's budget line, malformed digits, and
 	// undeclared bots MUST NOT be excluded.
 	t.Run("non_observed_and_spoofed_not_excluded", func(t *testing.T) {
+		t.Parallel()
 		in := msInput{
 			issueComments: []msComment{
 				// User spoofing bot login with observed headers -> ByUser=false, ByBot=false (stop).
@@ -468,6 +477,7 @@ func TestPRMentionsObservedExclusions(t *testing.T) {
 
 	// A bot not declared in ObservedBots is not excluded.
 	t.Run("bot_not_in_observed_list_is_not_excluded", func(t *testing.T) {
+		t.Parallel()
 		crOnly, err := ParseObservedBot("coderabbit=" + testReviewer)
 		if err != nil {
 			t.Fatal(err)
@@ -497,6 +507,7 @@ func TestPRMentionsObservedExclusions(t *testing.T) {
 }
 
 func TestPRMentionsErrors(t *testing.T) {
+	t.Parallel()
 	boom := errors.New("boom")
 	wantUnreadable := func(reason UnreadableReason, stage MentionScanStage) MentionScanResult {
 		return MentionScanResult{
@@ -668,6 +679,7 @@ func TestPRMentionsErrors(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := t.Context()
 			if tc.expired {
 				var cancel context.CancelFunc
@@ -683,7 +695,9 @@ func TestPRMentionsErrors(t *testing.T) {
 }
 
 func TestParseObservedBotAndValidation(t *testing.T) {
+	t.Parallel()
 	t.Run("parse_valid", func(t *testing.T) {
+		t.Parallel()
 		got, err := ParseObservedBot("sourcery=sourcery-ai")
 		if err != nil {
 			t.Fatalf("ParseObservedBot = %v", err)
@@ -708,6 +722,7 @@ func TestParseObservedBotAndValidation(t *testing.T) {
 		{"space_in_login", "coderabbit=bad login", []string{"coderabbit=bad login", "bad login"}},
 	} {
 		t.Run("parse_invalid/"+tc.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := ParseObservedBot(tc.raw)
 			if !errors.Is(err, ErrInvalidInput) {
 				t.Fatalf("ParseObservedBot(%q) = %v, want ErrInvalidInput", tc.raw, err)
@@ -743,6 +758,7 @@ func TestParseObservedBotAndValidation(t *testing.T) {
 		"duplicate_request":   {PR: goodPR, ObservedBots: goodBots, Requests: []string{"@coderabbitai review", "@coderabbitai review"}},
 	} {
 		t.Run("request/"+name, func(t *testing.T) {
+			t.Parallel()
 			g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t))
 			if err != nil {
 				t.Fatal(err)
@@ -770,6 +786,7 @@ func checkEnumNames[T encoding.TextMarshaler](t *testing.T, label string, values
 }
 
 func TestMentionEnumsFailClosed(t *testing.T) {
+	t.Parallel()
 	// Exercise every list helper and verify MarshalText succeeds for every
 	// listed value.
 	checkEnumNames(t, "MentionScanStates", MentionScanStates(), []string{"unreadable", "ok"})
@@ -784,6 +801,7 @@ func TestMentionEnumsFailClosed(t *testing.T) {
 		"stage_out_of_range":      MentionScanStage(99).MarshalText,
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			if _, err := marshal(); !errors.Is(err, errUnknownEnum) {
 				t.Errorf("err = %v, want errUnknownEnum", err)
 			}

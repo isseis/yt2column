@@ -79,6 +79,7 @@ func wantNoRule(t *testing.T, err error) {
 }
 
 func TestCheckReviewStateLine(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		edit    func(p reviewRound)
@@ -119,6 +120,7 @@ func TestCheckReviewStateLine(t *testing.T) {
 		}, rule: linePhase4Mismatch},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := newReviewRound(t, newTestRepo(t), 0)
 			if tc.edit != nil {
 				tc.edit(p)
@@ -142,6 +144,7 @@ func TestCheckReviewStateLine(t *testing.T) {
 	}
 
 	t.Run("commit_names_a_review_commit", func(t *testing.T) {
+		t.Parallel()
 		// The value passed only narrows the check: naming another commit of
 		// the line stops instead of moving where the line starts.
 		p := newReviewRound(t, newTestRepo(t), 2)
@@ -152,6 +155,7 @@ func TestCheckReviewStateLine(t *testing.T) {
 }
 
 func TestCheckReviewStateOrder(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name  string
 		edit  func(t *testing.T, p reviewRound)
@@ -168,6 +172,7 @@ func TestCheckReviewStateOrder(t *testing.T) {
 		}, parts: []string{PartConfig}, layer: layerList},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := newReviewRound(t, newTestRepo(t), 1)
 			tc.edit(t, p)
 			w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
@@ -180,6 +185,7 @@ func TestCheckReviewStateOrder(t *testing.T) {
 }
 
 func TestCheckReviewStateInput(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		commit func(p reviewRound) string
@@ -191,6 +197,7 @@ func TestCheckReviewStateInput(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := newReviewRound(t, newTestRepo(t), 1)
 			dir := p.r.Dir
 			if tc.dir != nil {
@@ -208,6 +215,7 @@ func TestCheckReviewStateInput(t *testing.T) {
 	}
 
 	t.Run("git_file_malformed", func(t *testing.T) {
+		t.Parallel()
 		// A .git in another shape is a changed state, not a usage error.
 		p := newReviewRound(t, newTestRepo(t), 1)
 		dir := t.TempDir()
@@ -224,6 +232,7 @@ func TestCheckReviewStateInput(t *testing.T) {
 // TestGitStateErrorText: the one-line diagnostic is the output contract for a
 // head stop (a fixed rule word and never a SHA), so its wording is checked.
 func TestGitStateErrorText(t *testing.T) {
+	t.Parallel()
 	plain := &GitStateError{Parts: []string{PartConfig}}
 	if got, want := plain.Error(), ErrGitStateChanged.Error()+": config"; got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
@@ -251,7 +260,9 @@ func failRemotePushes(t *testing.T, r *testRepo) {
 }
 
 func TestPushReviewed(t *testing.T) {
+	t.Parallel()
 	t.Run("pushes_the_checked_head", func(t *testing.T) {
+		t.Parallel()
 		p := newReviewRound(t, newTestRepo(t), 2)
 		w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
 		got, err := w.PushReviewed(t.Context(), p.base, p.phase4)
@@ -265,6 +276,7 @@ func TestPushReviewed(t *testing.T) {
 	})
 
 	t.Run("head_moved_after_the_check", func(t *testing.T) {
+		t.Parallel()
 		// HEAD moves after the push target is read; the push still sends the
 		// OID that was checked.
 		p := newReviewRound(t, newTestRepo(t), 1)
@@ -284,6 +296,7 @@ func TestPushReviewed(t *testing.T) {
 	})
 
 	t.Run("explicit_refspec", func(t *testing.T) {
+		t.Parallel()
 		// A configured push refspec would send the branch elsewhere, and
 		// followTags would send a tag of the review commit along.
 		r := newTestRepo(t)
@@ -307,6 +320,7 @@ func TestPushReviewed(t *testing.T) {
 	// rule word in the diagnostic, the output contract the fixpr document
 	// reports by, tells them apart.
 	t.Run("push_failure", func(t *testing.T) {
+		t.Parallel()
 		p := newReviewRound(t, newTestRepo(t), 1)
 		failRemotePushes(t, p.r)
 		w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
@@ -317,6 +331,7 @@ func TestPushReviewed(t *testing.T) {
 	})
 
 	t.Run("ls_remote_failure", func(t *testing.T) {
+		t.Parallel()
 		p := newReviewRound(t, newTestRepo(t), 1)
 		w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
 		router.Before = map[string]func(){gitCommand + " ls-remote": func() {
@@ -339,6 +354,7 @@ func wantInvalidInput(t *testing.T, err error) {
 }
 
 func TestPushReviewedStops(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		reviews int
@@ -374,6 +390,7 @@ func TestPushReviewedStops(t *testing.T) {
 		}, layer: layerList, check: func(t *testing.T, err error) { t.Helper(); wantStateParts(t, err, PartConfig) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := newReviewRound(t, newTestRepo(t), tc.reviews)
 			if tc.edit != nil {
 				tc.edit(p)

@@ -190,7 +190,9 @@ func restrictedName(expr ast.Expr) string {
 }
 
 func TestRestrictedTypesBuiltByConstructors(t *testing.T) {
+	t.Parallel()
 	t.Run("package", func(t *testing.T) {
+		t.Parallel()
 		paths, err := filepath.Glob(filepath.Join(isolation.PackageDir, "*.go"))
 		if err != nil {
 			t.Fatalf("glob: %v", err)
@@ -277,6 +279,7 @@ func TestRestrictedTypesBuiltByConstructors(t *testing.T) {
 		{"reviewers_field_in_worktree_dir_accessor", "func CurrentDir(r Reviewers) int { return len(r.logins) }", 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			fset := token.NewFileSet()
 			file, err := parser.ParseFile(fset, "x.go", header+tc.src, 0)
 			if err != nil {

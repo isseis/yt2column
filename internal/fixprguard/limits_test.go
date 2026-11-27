@@ -254,8 +254,10 @@ func limitsCases() []limitsCase {
 // output carries the response is checked where it is printed, in
 // cmd/fixprguard's TestInteractionLimitsRun.
 func TestInteractionLimits(t *testing.T) {
+	t.Parallel()
 	for _, tc := range limitsCases() {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if got := runLimits(t, tc); got != tc.want {
 				t.Errorf("InteractionLimits = %+v, want %+v", got, tc.want)
 			}
@@ -266,6 +268,7 @@ func TestInteractionLimits(t *testing.T) {
 // TestInteractionLimitsUnusablePR: a PR number that never passed its check is
 // unverifiable before any gh call; the fake has no step.
 func TestInteractionLimitsUnusablePR(t *testing.T) {
+	t.Parallel()
 	g, _ := newTestGitHub(t)
 	if got := g.InteractionLimits(t.Context(), PRNumber{}); got != unverifiable(UnverifiablePR) {
 		t.Errorf("InteractionLimits = %+v, want unverifiable with reason pr", got)
@@ -275,6 +278,7 @@ func TestInteractionLimitsUnusablePR(t *testing.T) {
 // TestInteractionLimitsLists checks that the rows reach every state and every
 // reason, and that every rejection names a listed reason.
 func TestInteractionLimitsLists(t *testing.T) {
+	t.Parallel()
 	states := map[InteractionState]struct{}{}
 	reasons := map[UnverifiableReason]struct{}{}
 	for _, tc := range limitsCases() {
@@ -298,6 +302,7 @@ func TestInteractionLimitsLists(t *testing.T) {
 }
 
 func TestInteractionStateText(t *testing.T) {
+	t.Parallel()
 	// The names themselves are checked where they are printed
 	// (cmd/fixprguard) and listed (the guide guard); here, that they differ.
 	names := map[string]struct{}{}
@@ -322,6 +327,7 @@ func TestInteractionStateText(t *testing.T) {
 // sentinel the architecture assigns to every rejection of a GitHub response.
 // InteractionLimits itself returns no error, so this checks the stage.
 func TestLimitsStageErrors(t *testing.T) {
+	t.Parallel()
 	_, failure := parseLimitsResponse([]byte(limitsOK(limitsNow, `null`)))
 	if failure == nil || !errors.Is(failure, ErrResponseRejected) {
 		t.Errorf("parseLimitsResponse = %v, want ErrResponseRejected", failure)
@@ -332,6 +338,7 @@ func TestLimitsStageErrors(t *testing.T) {
 // later than githubTimeout after InteractionLimits returned. Each call's own
 // githubTimeout would give the later calls later deadlines.
 func TestInteractionLimitsSharedDeadline(t *testing.T) {
+	t.Parallel()
 	tc := limitsCase{out: limitsOK(limitsNow, limitsBody("collaborators_only", limitsExpires))}
 	runner := &deadlineRunner{Fake: cmdrunnertestutil.New(t, tc.steps()...)}
 	g, err := NewGitHubWithoutReviewer(runner)

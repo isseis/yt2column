@@ -28,6 +28,7 @@ func writeTextFile(t *testing.T, content string) string {
 }
 
 func TestBodyFileChecks(t *testing.T) {
+	t.Parallel()
 	symlink := func(t *testing.T) string {
 		target := writeTextFile(t, "reply")
 		link := filepath.Join(t.TempDir(), "link.md")
@@ -67,6 +68,7 @@ func TestBodyFileChecks(t *testing.T) {
 		{name: "title_paragraph_separator", path: file("fix: a\u2029title"), title: true, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			name := tc.path(t)
 			read := readTextFile
 			if tc.title {
@@ -98,6 +100,7 @@ func TestBodyFileChecks(t *testing.T) {
 // TestFinishRejectsBodyFile passes a refused body through finish, which
 // shows finish runs the check.
 func TestCommitBodyChecks(t *testing.T) {
+	t.Parallel()
 	const line = "Editorial correction: docs/x.md: a; no decision changed"
 	for _, tc := range []struct {
 		name    string
@@ -119,6 +122,7 @@ func TestCommitBodyChecks(t *testing.T) {
 		{name: "prefix_not_at_start", body: " " + line + "\n", wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			err := checkCommitBody(tc.body)
 			if tc.wantErr {
 				if !errors.Is(err, ErrInvalidInput) {
@@ -188,16 +192,19 @@ func replyRequest(t *testing.T, th testThread, body string) ReplyRequest {
 }
 
 func TestReplyRefusesUntrustedThread(t *testing.T) {
+	t.Parallel()
 	// Another bot needs no permission lookup, so the only failing condition is
 	// trust: the fingerprint and the comment match.
 	th := testThread{id: testThreadID(1), comments: []testComment{botComment(1, "other-bot")}}
 	t.Run("not_named", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, replyLookupSteps(t, []testThread{th})...)
 		if err := g.Reply(t.Context(), replyRequest(t, th, "reply")); !errors.Is(err, ErrThreadNotTrusted) {
 			t.Errorf("Reply = %v, want ErrThreadNotTrusted", err)
 		}
 	})
 	t.Run("named_with_current_fingerprint", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), writeSteps(t, th)...)...)
 		req := replyRequest(t, th, "reply")
 		req.Accept = []Accept{{ThreadID: th.id, Fingerprint: req.Fingerprint}}
@@ -210,6 +217,7 @@ func TestReplyRefusesUntrustedThread(t *testing.T) {
 // TestReplyTrustsEveryReviewer: with two reviewers, the second reviewer's
 // thread is answered without being named.
 func TestReplyTrustsEveryReviewer(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{botComment(1, testSecondReviewer)}}
 	g, _ := newTestGitHubWith(t, bothReviewers, append(replyLookupSteps(t, []testThread{th}), writeSteps(t, th)...)...)
 	if err := g.Reply(t.Context(), replyRequest(t, th, "reply")); err != nil {
@@ -218,6 +226,7 @@ func TestReplyTrustsEveryReviewer(t *testing.T) {
 }
 
 func TestReplyReassesses(t *testing.T) {
+	t.Parallel()
 	// The same thread with the same comments: only alice's permission changes
 	// between the two calls.
 	th := testThread{id: testThreadID(1), comments: []testComment{userComment(1, "alice")}}
@@ -237,6 +246,7 @@ func TestReplyReassesses(t *testing.T) {
 }
 
 func TestReplyRefusesChangedFingerprint(t *testing.T) {
+	t.Parallel()
 	trusted := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	named := testThread{id: testThreadID(2), comments: []testComment{botComment(2, "other-bot")}}
 	threads := []testThread{trusted, named}
@@ -253,6 +263,7 @@ func TestReplyRefusesChangedFingerprint(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, replyLookupSteps(t, threads)...)
 			if err := g.Reply(t.Context(), req(t)); !errors.Is(err, ErrThreadChanged) {
 				t.Errorf("Reply = %v, want ErrThreadChanged", err)
@@ -267,6 +278,7 @@ func TestReplyRefusesChangedFingerprint(t *testing.T) {
 // thread, so the empty-thread check refuses all three; the empty row carries
 // its own fingerprint, so no later check can refuse it instead.
 func TestReplyRefusesMissingThread(t *testing.T) {
+	t.Parallel()
 	resolved := testThread{id: testThreadID(1), resolved: true, comments: []testComment{reviewerComment(1)}}
 	empty := testThread{id: testThreadID(2)}
 	for name, th := range map[string]testThread{
@@ -275,6 +287,7 @@ func TestReplyRefusesMissingThread(t *testing.T) {
 		"empty_thread":    empty,
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, replyLookupSteps(t, []testThread{resolved, empty})...)
 			req := ReplyRequest{
 				PR: mustPR(t), ThreadID: th.id, CommentID: 1,
@@ -288,6 +301,7 @@ func TestReplyRefusesMissingThread(t *testing.T) {
 }
 
 func TestReplyRefusesForeignComment(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1), reviewerComment(3)}}
 	other := testThread{id: testThreadID(2), comments: []testComment{reviewerComment(2)}}
 	for name, id := range map[string]int64{
@@ -296,6 +310,7 @@ func TestReplyRefusesForeignComment(t *testing.T) {
 		"not_first_comment": th.comments[1].id,
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, replyLookupSteps(t, []testThread{th, other})...)
 			req := replyRequest(t, th, "reply")
 			req.CommentID = id
@@ -307,6 +322,7 @@ func TestReplyRefusesForeignComment(t *testing.T) {
 }
 
 func TestReplyRejectsInputBeforeAnyCall(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	for name, edit := range map[string]func(*ReplyRequest){
 		"zero_pr":           func(r *ReplyRequest) { r.PR = PRNumber{} },
@@ -317,6 +333,7 @@ func TestReplyRejectsInputBeforeAnyCall(t *testing.T) {
 		"missing_body_file": func(r *ReplyRequest) { r.BodyFile = filepath.Join(filepath.Dir(r.BodyFile), "none") },
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			// The fake holds no step, so any gh call fails the test.
 			g, _ := newTestGitHub(t)
 			req := replyRequest(t, th, "reply")
@@ -329,6 +346,7 @@ func TestReplyRejectsInputBeforeAnyCall(t *testing.T) {
 }
 
 func TestReplyReadFailurePropagates(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	failed := graphqlStep("")
 	failed.Err = &cmdrunner.ExitError{Code: ghExitFailure}
@@ -358,10 +376,12 @@ var trickyTexts = map[string]string{
 // the fake runs no shell. A shell or a -F/-f flag would fail every row through
 // the argv, and any change to the text fails the rows it alters.
 func TestReplyBodyVerbatim(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	lookups := replyLookupSteps(t, []testThread{th})
 	for name, body := range trickyTexts {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			writes := writeSteps(t, th)
 			g, fake := newTestGitHub(t, append(slices.Clone(lookups), writes...)...)
 			if err := g.Reply(t.Context(), replyRequest(t, th, body)); err != nil {
@@ -388,11 +408,13 @@ func editStep(title string) cmdrunnertestutil.Step {
 }
 
 func TestEditPRVerbatim(t *testing.T) {
+	t.Parallel()
 	for name, text := range trickyTexts {
 		if strings.Contains(text, "\n") {
 			continue // a title is one line; the body case below covers it
 		}
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			body := "## Summary\n" + text + "\nREPLYBODY_EOF\n"
 			g, fake := newTestGitHub(t, editStep(text))
 			req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, text), BodyFile: writeTextFile(t, body)}
@@ -412,6 +434,7 @@ func TestEditPRVerbatim(t *testing.T) {
 		"empty_body_file": {"title", ""},
 	} {
 		t.Run("rejects_before_any_call/"+name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t)
 			req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, files[0]), BodyFile: writeTextFile(t, files[1])}
 			if name == "zero_pr" {
@@ -423,6 +446,7 @@ func TestEditPRVerbatim(t *testing.T) {
 		})
 	}
 	t.Run("gh_failure", func(t *testing.T) {
+		t.Parallel()
 		step := editStep("title")
 		step.Err = &cmdrunner.ExitError{Code: ghExitFailure}
 		g, _ := newTestGitHub(t, step)
@@ -434,6 +458,7 @@ func TestEditPRVerbatim(t *testing.T) {
 }
 
 func TestCheckPostText(t *testing.T) {
+	t.Parallel()
 	for _, mention := range RejectedMentions() {
 		name := strings.TrimPrefix(mention, "@")
 		for _, tc := range []struct {
@@ -452,6 +477,7 @@ func TestCheckPostText(t *testing.T) {
 			{"zero_width_inside", "@\u200b" + name, false},
 		} {
 			t.Run(name+"/"+tc.kind, func(t *testing.T) {
+				t.Parallel()
 				err := checkPostText(tc.text)
 				if tc.reject && !errors.Is(err, errMention) {
 					t.Errorf("checkPostText(%q) = %v, want errMention", tc.text, err)
@@ -484,6 +510,7 @@ func TestCheckPostText(t *testing.T) {
 		{name: "other_mention", text: "@other-bot flagged this"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			err := checkPostText(tc.text)
 			if tc.reject && !errors.Is(err, errMention) {
 				t.Errorf("checkPostText(%q) = %v, want errMention", tc.text, err)
@@ -504,9 +531,11 @@ var mentionTexts = map[string]string{
 }
 
 func TestReplyRejectsMention(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	for name, text := range mentionTexts {
 		t.Run("mention/"+name, func(t *testing.T) {
+			t.Parallel()
 			// The fake holds no step, so any gh call fails the test.
 			g, _ := newTestGitHub(t)
 			if err := g.Reply(t.Context(), replyRequest(t, th, text)); !errors.Is(err, errMention) {
@@ -521,6 +550,7 @@ func TestReplyRejectsMention(t *testing.T) {
 		"invalid_utf8":  mentionTexts["codex"] + "\xff",
 	} {
 		t.Run("file_rejected_first/"+name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t)
 			err := g.Reply(t.Context(), replyRequest(t, th, body))
 			if !errors.Is(err, ErrInvalidInput) || errors.Is(err, errMention) {
@@ -529,6 +559,7 @@ func TestReplyRejectsMention(t *testing.T) {
 		})
 	}
 	t.Run("no_mention_posts", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), writeSteps(t, th)...)...)
 		if err := g.Reply(t.Context(), replyRequest(t, th, "Codex and CodeRabbit agree.")); err != nil {
 			t.Errorf("Reply = %v", err)
@@ -537,12 +568,14 @@ func TestReplyRejectsMention(t *testing.T) {
 }
 
 func TestEditPRRejectsMention(t *testing.T) {
+	t.Parallel()
 	for mentionName, text := range mentionTexts {
 		for field, files := range map[string][2]string{
 			"title": {"fix: " + text, "## Summary\nbody"},
 			"body":  {"fix: a title", "## Summary\n" + text},
 		} {
 			t.Run(field+"/"+mentionName, func(t *testing.T) {
+				t.Parallel()
 				// The fake holds no step, so any gh call fails the test.
 				g, _ := newTestGitHub(t)
 				req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, files[0]), BodyFile: writeTextFile(t, files[1])}
@@ -555,6 +588,7 @@ func TestEditPRRejectsMention(t *testing.T) {
 	// A title readTitleFile rejects is reported as such even when it also
 	// contains a rejected mention.
 	t.Run("file_rejected_first", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t)
 		req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, mentionTexts["coderabbitai"]+"\nmore"), BodyFile: writeTextFile(t, "body")}
 		if err := g.EditPR(t.Context(), req); !errors.Is(err, ErrInvalidInput) || errors.Is(err, errMention) {
@@ -562,6 +596,7 @@ func TestEditPRRejectsMention(t *testing.T) {
 		}
 	})
 	t.Run("no_mention_edits", func(t *testing.T) {
+		t.Parallel()
 		title := "fix: what CodeRabbit flagged"
 		g, _ := newTestGitHub(t, editStep(title))
 		req := EditPRRequest{PR: mustPR(t), TitleFile: writeTextFile(t, title), BodyFile: writeTextFile(t, "Codex and CodeRabbit agree.")}
@@ -572,10 +607,12 @@ func TestEditPRRejectsMention(t *testing.T) {
 }
 
 func TestReplyPostFailureSkipsResolve(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	// No step after the post is scripted, so fetching or resolving after the
 	// failure fails the test.
 	t.Run("github_refused", func(t *testing.T) {
+		t.Parallel()
 		post := postStep()
 		post.Err = &cmdrunner.ExitError{Code: ghExitFailure}
 		g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), post)...)
@@ -594,6 +631,7 @@ func TestReplyPostFailureSkipsResolve(t *testing.T) {
 	noID.Out = `{"body":"x"}`
 	for name, post := range map[string]cmdrunnertestutil.Step{"timed_out": timeout, "cancelled": cancelled, "no_comment_id": noID} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), post)...)
 			if err := g.Reply(t.Context(), replyRequest(t, th, "reply")); !errors.Is(err, ErrReplyNotResolved) || StopKind(err) != StopReplyNotResolved {
 				t.Errorf("Reply = %v, want ErrReplyNotResolved", err)
@@ -603,6 +641,7 @@ func TestReplyPostFailureSkipsResolve(t *testing.T) {
 }
 
 func TestReplyRechecksBeforeResolve(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	edited := withReply(th)
 	edited.comments[0].edited = testLaterAt
@@ -622,6 +661,7 @@ func TestReplyRechecksBeforeResolve(t *testing.T) {
 		"thread_gone":     {},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			// No resolve step is scripted, so resolving fails the test.
 			g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}),
 				postStep(), graphqlStep(stageOneResponse(t, now, false, "")))...)
@@ -634,6 +674,7 @@ func TestReplyRechecksBeforeResolve(t *testing.T) {
 }
 
 func TestReplyResolveFailure(t *testing.T) {
+	t.Parallel()
 	th := testThread{id: testThreadID(1), comments: []testComment{reviewerComment(1)}}
 	failed := graphqlStep("")
 	failed.Err = &cmdrunner.ExitError{Code: ghExitFailure}
@@ -644,6 +685,7 @@ func TestReplyResolveFailure(t *testing.T) {
 		"is_resolved_missing": graphqlStep(`{"data":{"resolveReviewThread":{"thread":{"id":"` + th.id + `"}}}}`),
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			steps := writeSteps(t, th)
 			steps[len(steps)-1] = resolve
 			g, _ := newTestGitHub(t, append(replyLookupSteps(t, []testThread{th}), steps...)...)
@@ -684,6 +726,7 @@ func appendRequest(t *testing.T, text string) AppendPRRequest {
 // empty line, then the file's text, on standard input and without a title
 // (the fake's argv for pr edit has none).
 func TestAppendPR(t *testing.T) {
+	t.Parallel()
 	rows := map[string]struct{ current, want string }{
 		"empty":            {"", appended},
 		"no_trailing_lf":   {"## Summary\nx", "## Summary\nx\n\n" + appended},
@@ -699,6 +742,7 @@ func TestAppendPR(t *testing.T) {
 	}
 	for name, row := range rows {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			g, fake := newTestGitHub(t, viewBodyStep(bodyResponse(t, row.current)), appendStep())
 			if err := g.AppendPR(t.Context(), appendRequest(t, appended)); err != nil {
 				t.Fatalf("AppendPR = %v", err)
@@ -709,6 +753,7 @@ func TestAppendPR(t *testing.T) {
 		})
 	}
 	t.Run("at_size_cap", func(t *testing.T) {
+		t.Parallel()
 		current := strings.Repeat("a", maxTextFileBytes-len("\n\n")-len(appended))
 		g, fake := newTestGitHub(t, viewBodyStep(bodyResponse(t, current)), appendStep())
 		if err := g.AppendPR(t.Context(), appendRequest(t, appended)); err != nil {
@@ -727,6 +772,7 @@ func TestAppendPR(t *testing.T) {
 // current body: its marker is matched as text because keeping the body out
 // of every error is the contract.
 func TestAppendPRRejects(t *testing.T) {
+	t.Parallel()
 	const marker = "marker-c41e"
 	for name, text := range map[string]string{
 		"at_sign":            "see a@b\n",
@@ -734,6 +780,7 @@ func TestAppendPRRejects(t *testing.T) {
 		"rejected_as_a_file": "",
 	} {
 		t.Run("file/"+name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t)
 			if err := g.AppendPR(t.Context(), appendRequest(t, text)); !errors.Is(err, ErrInvalidInput) {
 				t.Errorf("AppendPR = %v, want ErrInvalidInput", err)
@@ -742,6 +789,7 @@ func TestAppendPRRejects(t *testing.T) {
 	}
 	for name, text := range mentionTexts {
 		t.Run("file/mention/"+name, func(t *testing.T) {
+			t.Parallel()
 			// The '@' rule would refuse a mention too; errMention shows the
 			// mention check itself refused it.
 			g, _ := newTestGitHub(t)
@@ -751,6 +799,7 @@ func TestAppendPRRejects(t *testing.T) {
 		})
 	}
 	t.Run("zero_pr", func(t *testing.T) {
+		t.Parallel()
 		g, _ := newTestGitHub(t)
 		req := appendRequest(t, appended)
 		req.PR = PRNumber{}
@@ -772,6 +821,7 @@ func TestAppendPRRejects(t *testing.T) {
 		"current_mention_sourceryai":   {"## Summary\n" + marker + " @SourceryAI summary\n", ErrCurrentBodyMention, StopCurrentBodyMention, true},
 	} {
 		t.Run("result/"+name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, viewBodyStep(bodyResponse(t, row.current)))
 			err := g.AppendPR(t.Context(), appendRequest(t, appended))
 			if !errors.Is(err, row.want) || strings.Contains(err.Error(), marker) {
@@ -786,6 +836,7 @@ func TestAppendPRRejects(t *testing.T) {
 		})
 	}
 	t.Run("edit_fails", func(t *testing.T) {
+		t.Parallel()
 		step := appendStep()
 		step.Err = &cmdrunner.ExitError{Code: ghExitFailure}
 		g, _ := newTestGitHub(t, viewBodyStep(bodyResponse(t, "x")), step)
@@ -805,6 +856,7 @@ func TestAppendPRRejects(t *testing.T) {
 		"duplicate":     viewBodyStep(`{"body":"` + marker + `","body":"x"}`),
 	} {
 		t.Run("view/"+name, func(t *testing.T) {
+			t.Parallel()
 			g, _ := newTestGitHub(t, view)
 			err := g.AppendPR(t.Context(), appendRequest(t, appended))
 			if !errors.Is(err, ErrResponseRejected) || strings.Contains(err.Error(), marker) {

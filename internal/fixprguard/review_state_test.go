@@ -382,8 +382,12 @@ func checkReviewState(t *testing.T, in rsInput, want PRReviewState) {
 }
 
 func TestReviewState(t *testing.T) {
+	t.Parallel()
 	for _, tc := range reviewStateCases() {
-		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			checkReviewState(t, tc.in, tc.want)
+		})
 	}
 }
 
@@ -391,6 +395,7 @@ func TestReviewState(t *testing.T) {
 // shape, and a limit are the unreadable state with their reason. The head is
 // set once it was read and checked, and nothing else is kept.
 func TestReviewStateUnreadable(t *testing.T) {
+	t.Parallel()
 	boom := errors.New("boom")
 	bad := func(old, replacement string) func(string) string {
 		return func(s string) string {
@@ -485,13 +490,17 @@ func TestReviewStateUnreadable(t *testing.T) {
 		{"review_user_type_missing", with(rsStageReviews, whole(`[{"user":{"login":"a"},"commit_id":"x","submitted_at":null,"html_url":"`+rsReviewURL(1)+`"}]`)), rsUnreadable(UnreadableRejected, rsHead)},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			checkReviewState(t, tc.in, tc.want)
+		})
 	}
 }
 
 // TestReviewStateLimits: each fixed limit is a boundary. At the limit the
 // state is read; one over is the unreadable state with reason limit.
 func TestReviewStateLimits(t *testing.T) {
+	t.Parallel()
 	noise := func(n int) []rsComment {
 		out := make([]rsComment, 0, n+1)
 		for i := range n {
@@ -526,7 +535,10 @@ func TestReviewStateLimits(t *testing.T) {
 		{"commits_over_the_limit", rsInput{comments: defaultComments(), commits: commits(maxPRCommits + 1), stop: rsStageGraphQL}, rsUnreadable(UnreadableLimit, rsHead)},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			checkReviewState(t, tc.in, tc.want)
+		})
 	}
 }
 
@@ -535,6 +547,7 @@ func TestReviewStateLimits(t *testing.T) {
 // expired deadline. Each row scripts only the calls up to the bound, so a read
 // that went past it would make an unscripted call.
 func TestReviewStateReadBounds(t *testing.T) {
+	t.Parallel()
 	// upTo is the calls of a read with a request comment, up to and including
 	// the comments.
 	upTo := func(t *testing.T) []cmdrunnertestutil.Step {
@@ -605,6 +618,7 @@ func TestReviewStateReadBounds(t *testing.T) {
 	}
 	for _, tc := range rows {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if got := runReviewStateSteps(t.Context(), t, tc.steps(t)); !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("state = %s\nwant    %s", mustJSON(t, got), mustJSON(t, tc.want))
 			}
@@ -615,6 +629,7 @@ func TestReviewStateReadBounds(t *testing.T) {
 	// the response it failed on: here a head outside the grammar, which is
 	// rejected while the deadline holds.
 	t.Run("deadline_passed", func(t *testing.T) {
+		t.Parallel()
 		in := rsInput{stop: rsStagePull}
 		in.edit = map[string]func(string) string{rsStagePull: func(s string) string { return strings.Replace(s, rsHead, "x", 1) }}
 		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
@@ -630,6 +645,7 @@ func TestReviewStateReadBounds(t *testing.T) {
 // $checkName (not only the latest of its name), asks for name, and never asks
 // for detailsUrl or databaseId. Both profiles send their declared checkName.
 func TestReviewStateReads(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		profile   ReviewProfile
@@ -641,6 +657,7 @@ func TestReviewStateReads(t *testing.T) {
 		{"sourcery", ProfileSourcery, rsSourceryReviewer, []string{rsSourceryReq1}, checkNameSourcery},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			in := rsInput{
 				profile:  tc.profile,
 				reviewer: tc.reviewer,
@@ -702,6 +719,7 @@ func TestReviewStateReads(t *testing.T) {
 // TestReviewStateOutputHasNoText: no comment body, check run title, details
 // URL or PR review body reaches the output, in any state or profile.
 func TestReviewStateOutputHasNoText(t *testing.T) {
+	t.Parallel()
 	secret := "secret-text"
 	comments := append(defaultComments(), rsComment{id: 2, login: "alice", kind: typenameUser, body: secret, created: rsCreated})
 	titled := rsRun{id: 11, status: statusCompleted, conclusion: conclusionSuccess, title: secret, started: at("10:00:20"), completed: at("10:00:30")}
@@ -725,6 +743,7 @@ func TestReviewStateOutputHasNoText(t *testing.T) {
 // TestReviewStateArguments: an unusable argument is an error, and no call
 // runs.
 func TestReviewStateArguments(t *testing.T) {
+	t.Parallel()
 	good := ReviewStateRequest{
 		PR: mustPR(t), Profile: ProfileCodeRabbit, Reviewer: mustLogin(t, testReviewer), Requests: []string{rsRequestText},
 	}
@@ -740,6 +759,7 @@ func TestReviewStateArguments(t *testing.T) {
 		"long_request":       {PR: good.PR, Profile: good.Profile, Reviewer: good.Reviewer, Requests: []string{strings.Repeat("x", maxRequestTextLength+1)}},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t))
 			if err != nil {
 				t.Fatal(err)
@@ -756,6 +776,7 @@ func TestReviewStateArguments(t *testing.T) {
 // the output as a valid word. (That every listed value has its word in the
 // guide is TestGuideListsReviewStateValues' check.)
 func TestReviewStateEnumsRejectOutsideValues(t *testing.T) {
+	t.Parallel()
 	for name, marshal := range map[string]func() ([]byte, error){
 		"request_state":        RequestState(99).MarshalText,
 		"unreadable_reason":    UnreadableReason(99).MarshalText,
@@ -766,6 +787,7 @@ func TestReviewStateEnumsRejectOutsideValues(t *testing.T) {
 		"auto_review_state":    AutoReviewState(99).MarshalText,
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			if _, err := marshal(); !errors.Is(err, errUnknownEnum) {
 				t.Errorf("err = %v, want errUnknownEnum", err)
 			}
@@ -804,6 +826,7 @@ func TestReviewStateEnumsRejectOutsideValues(t *testing.T) {
 }
 
 func TestParseReviewProfile(t *testing.T) {
+	t.Parallel()
 	wantProfiles := []ReviewProfile{ProfileCodeRabbit, ProfileSourcery}
 	wantNames := map[ReviewProfile]string{
 		ProfileCodeRabbit: "coderabbit",
@@ -829,6 +852,7 @@ func TestParseReviewProfile(t *testing.T) {
 	}
 	for _, bad := range []string{"", "CodeRabbit", "SOURCERY", "coderabbitai", "sourcery-ai", " coderabbit", "unknown"} {
 		t.Run("invalid/"+bad, func(t *testing.T) {
+			t.Parallel()
 			got, err := ParseReviewProfile(bad)
 			if !errors.Is(err, ErrInvalidInput) {
 				t.Fatalf("ParseReviewProfile(%q) = %v, want ErrInvalidInput", bad, err)
@@ -845,6 +869,7 @@ func TestParseReviewProfile(t *testing.T) {
 }
 
 func TestIsRequestComment(t *testing.T) {
+	t.Parallel()
 	requests := []string{"@coderabbitai review", "@sourcery-ai review", "@sourceryai review"}
 	for _, tc := range []struct {
 		name  string
@@ -863,6 +888,7 @@ func TestIsRequestComment(t *testing.T) {
 		{"wrong_case", typenameUser, rsUser, "@CodeRabbitAI review", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if got := isRequestComment(tc.kind, tc.login, rsUser, tc.body, requests); got != tc.want {
 				t.Errorf("isRequestComment = %v, want %v", got, tc.want)
 			}
@@ -875,6 +901,7 @@ func TestIsRequestComment(t *testing.T) {
 // pullRequest.commits.nodes, is never read as a response, automatic review, or
 // completion marker.
 func TestReviewStateNonPRCommitIgnored(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		outside rsCommit
@@ -905,6 +932,7 @@ func TestReviewStateNonPRCommitIgnored(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			outside := mustJSON(t, tc.outside.json())
 			in := tc.in
 			in.edit = map[string]func(string) string{
@@ -921,6 +949,7 @@ func TestReviewStateNonPRCommitIgnored(t *testing.T) {
 // both CodeRabbit and Sourcery AI, read from files under testdata/review_state.
 // Unread members and unread bodies stay out of the result.
 func TestReviewStateObserved(t *testing.T) {
+	t.Parallel()
 	const runURL = "https://github.com/isseis/yt2column/runs/"
 	read := func(name string) string {
 		data, err := os.ReadFile(filepath.Join(isolation.PackageDir, "testdata", "review_state", name))
@@ -989,6 +1018,7 @@ func TestReviewStateObserved(t *testing.T) {
 		{"sourcery", "sourcery_", "Mon, 23 Nov 2026 10:35:00 GMT", ProfileSourcery, rsSourceryReviewer, []string{rsSourceryReq1, rsSourceryReq2}, sWant},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			steps := []cmdrunnertestutil.Step{
 				repoStep(),
 				includeStep("pulls/"+testPR, includedOutput(200, []string{"Date: " + tc.now}, read(tc.prefix+"pull.json")), nil),
@@ -1012,6 +1042,7 @@ func TestReviewStateObserved(t *testing.T) {
 // could not be judged, so the read is rejected, and no head is reported when
 // it is the PR's own response that lacks it.
 func TestReviewStateDateHeader(t *testing.T) {
+	t.Parallel()
 	pull := `{"head":{"sha":"` + rsHead + `"}}`
 	for name, headers := range map[string][]string{
 		"missing": nil,
@@ -1019,6 +1050,7 @@ func TestReviewStateDateHeader(t *testing.T) {
 		"twice":   {"Date: " + limitsNow, "Date: " + limitsNow},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			steps := []cmdrunnertestutil.Step{
 				repoStep(),
 				includeStep("pulls/"+testPR, includedOutput(200, headers, pull), nil),
@@ -1045,6 +1077,7 @@ func TestReviewStateDateHeader(t *testing.T) {
 // longer has may carry no commit_id, and a pending review has no
 // submitted_at; the finished run still completes the request.
 func TestReviewStateTolerates(t *testing.T) {
+	t.Parallel()
 	finished := rsFinished(11, at("10:00:20"), at("10:03:00"))
 	in := rsInput{
 		comments: defaultComments(), commits: []rsCommit{rsCommitOf(rsHead, finished)},
@@ -1066,6 +1099,7 @@ func TestReviewStateTolerates(t *testing.T) {
 // later page is read, and a head that differs on any one page, not only the
 // first, discards the read.
 func TestReviewStateCommitPages(t *testing.T) {
+	t.Parallel()
 	const commitCount = 45
 	finished := rsFinished(11, at("10:00:20"), at("10:03:00"))
 	commits := make([]rsCommit, 0, commitCount)
@@ -1091,6 +1125,7 @@ func TestReviewStateCommitPages(t *testing.T) {
 	}
 
 	t.Run("cursors_and_later_pages", func(t *testing.T) {
+		t.Parallel()
 		got, fake := call(t, in.steps(t))
 		want := rsWant(RequestCompleted, withResponse(RunFinished, finished, rsSecond), withMarkers(marker(1, rsSecond, finished, "")))
 		if !reflect.DeepEqual(got, want) {
@@ -1108,6 +1143,7 @@ func TestReviewStateCommitPages(t *testing.T) {
 	})
 
 	t.Run("head_changed_on_the_second_page", func(t *testing.T) {
+		t.Parallel()
 		steps := in.steps(t)
 		var graphql []int
 		for i, step := range steps {
@@ -1152,6 +1188,7 @@ func sourceryReqComment(id int64, body, clock string) rsComment {
 // verification, Profile population on every path, and that automatic
 // completions never enter Markers.
 func TestReviewStateSourceryAuto(t *testing.T) {
+	t.Parallel()
 	finished := rsSourceryFinished(21, at("10:01:00"), at("10:03:00"))
 	skipped := rsSourcerySkipped(22, at("10:01:30"))
 	unrec := rsRun{
@@ -1327,7 +1364,10 @@ func TestReviewStateSourceryAuto(t *testing.T) {
 		},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			checkReviewState(t, tc.in, tc.want)
+		})
 	}
 }
 
@@ -1337,6 +1377,7 @@ func TestReviewStateSourceryAuto(t *testing.T) {
 // RequestSkipped, marker construction (manual only), and exclusion of assigned
 // runs from AutoReview.
 func TestReviewStateSourceryManual(t *testing.T) {
+	t.Parallel()
 	manualDone := rsSourceryFinished(41, at("10:00:20"), at("10:03:00"))
 	manualSkipped := rsSourcerySkipped(42, at("10:00:20"))
 	manualUnrec := rsRun{
@@ -1560,6 +1601,9 @@ func TestReviewStateSourceryManual(t *testing.T) {
 		},
 	}
 	for _, tc := range rows {
-		t.Run(tc.name, func(t *testing.T) { checkReviewState(t, tc.in, tc.want) })
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			checkReviewState(t, tc.in, tc.want)
+		})
 	}
 }

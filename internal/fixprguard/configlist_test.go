@@ -86,6 +86,7 @@ func mustConfigListDigest(t *testing.T, out []byte, branch string) string {
 }
 
 func TestConfigListDigestClassification(t *testing.T) {
+	t.Parallel()
 	base := baseEntries()
 	insert := func(at int, e ...listed) []listed { return slices.Insert(slices.Clone(base), at, e...) }
 	replace := func(at int, e listed) []listed {
@@ -167,6 +168,7 @@ func TestConfigListDigestClassification(t *testing.T) {
 		}()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			branch := tc.branch
 			if branch == "" {
 				branch = testBranch
@@ -190,6 +192,7 @@ func TestConfigListDigestClassification(t *testing.T) {
 }
 
 func TestConfigListDigestRejects(t *testing.T) {
+	t.Parallel()
 	valid := string(configOutput(set(repoOrigin, "core.bare", "false")))
 	// Each input carries "secret" in its origin, name or value, so the error
 	// text can be checked for it. Each row breaks one rule only, with two
@@ -212,6 +215,7 @@ func TestConfigListDigestRejects(t *testing.T) {
 		{"empty_variable", "file:x\x00secret.\nv\x00"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := configListDigest([]byte(tc.out), digestString(testBranch))
 			if !errors.Is(err, errConfigList) || !errors.Is(err, ErrGitFailed) {
 				t.Fatalf("configListDigest = %v, want errConfigList wrapping ErrGitFailed", err)
@@ -235,6 +239,7 @@ func TestConfigListDigestRejects(t *testing.T) {
 		{"not_hex", strings.Repeat("g", digestLength)},
 	} {
 		t.Run("branch_digest/"+tc.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := configListDigest([]byte(valid), tc.digest)
 			if !errors.Is(err, errConfigList) || !errors.Is(err, ErrGitFailed) {
 				t.Fatalf("configListDigest = %v, want errConfigList wrapping ErrGitFailed", err)

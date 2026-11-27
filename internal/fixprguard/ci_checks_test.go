@@ -37,6 +37,7 @@ func ciGraphQLResponse(head, suiteStatus, suiteConclusion, runStatus, runConclus
 }
 
 func TestCIChecks(t *testing.T) {
+	t.Parallel()
 	boom := errors.New("boom")
 
 	// Validate both gh calls through a local runner because ghci's GraphQL
@@ -268,6 +269,7 @@ func TestCIChecks(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := t.Context()
 			if tc.expired {
 				var cancel context.CancelFunc
@@ -294,6 +296,7 @@ func TestCIChecks(t *testing.T) {
 		"non_hex_head":   {PR: mustPR(t), ExpectedHead: strings.Repeat("g", 40)},
 	} {
 		t.Run("invalid/"+name, func(t *testing.T) {
+			t.Parallel()
 			g, err := NewGitHubWithoutReviewer(cmdrunnertestutil.New(t))
 			if err != nil {
 				t.Fatal(err)
@@ -305,6 +308,7 @@ func TestCIChecks(t *testing.T) {
 	}
 
 	t.Run("zero_result_fails_closed", func(t *testing.T) {
+		t.Parallel()
 		if got := mustJSON(t, CIChecksResult{}); !strings.Contains(got, `"state":"unreadable"`) {
 			t.Errorf("zero CIChecksResult JSON = %s, want state unreadable", got)
 		}

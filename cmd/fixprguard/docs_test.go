@@ -34,6 +34,7 @@ func readRepoFile(t *testing.T, rel string) string {
 // TestGuidePathExists: a usage error's diagnostic names the guide, and that
 // file exists, so a user who sees the diagnostic can open it.
 func TestGuidePathExists(t *testing.T) {
+	t.Parallel()
 	const guide = "docs/dev/guides/fixprguard_guide.md"
 	r := newTestRun(t, t.TempDir(), t.TempDir(), nil)
 	if code := r.Run(t); code != exitUsage {
@@ -54,6 +55,7 @@ func TestGuidePathExists(t *testing.T) {
 // there without the guide fails here. Reading the tables alone keeps a code
 // span in the prose around them from standing in for a row.
 func TestGuideCoversStopKindsAndScope(t *testing.T) {
+	t.Parallel()
 	guide := readRepoFile(t, guidePath)
 	for _, kind := range fixprguard.StopKinds() {
 		if !strings.Contains(guide, "`"+kind+"`") {
@@ -84,6 +86,7 @@ func TestGuideCoversStopKindsAndScope(t *testing.T) {
 // keeps the same value elsewhere in the guide (chapter 10 names several) from
 // standing in for a row.
 func TestGuideListsInteractionLimitsValues(t *testing.T) {
+	t.Parallel()
 	sub := subsection(readRepoFile(t, guidePath), "### `interaction-limits PR`")
 	states := guideTable(sub, "**状態。**")
 	reasons := guideTable(sub, "**確かめられない理由。**")
@@ -147,6 +150,7 @@ func checkGuideValueTables(t *testing.T, sectionName, heading string, listings [
 // table. Reading the tables alone keeps the same word elsewhere in the section
 // from standing in for a row.
 func TestGuideListsReviewStateValues(t *testing.T) {
+	t.Parallel()
 	checkGuideValueTables(t, "review-state", "### `review-state ", []guideValueListing{
 		{"**プロファイル。**", marshalEnumNames(t, fixprguard.ReviewProfiles())},
 		{"**状態。**", marshalEnumNames(t, fixprguard.RequestStates())},
@@ -162,6 +166,7 @@ func TestGuideListsReviewStateValues(t *testing.T) {
 // TestGuideListsMentionsValues: the mentions section of chapter 5 lists every
 // state, unreadable reason, stage, and source in its own table.
 func TestGuideListsMentionsValues(t *testing.T) {
+	t.Parallel()
 	checkGuideValueTables(t, "mentions", "### `mentions ", []guideValueListing{
 		{"**状態。**", marshalEnumNames(t, fixprguard.MentionScanStates())},
 		{"**読めない理由。**", marshalEnumNames(t, fixprguard.UnreadableReasons())},
@@ -173,6 +178,7 @@ func TestGuideListsMentionsValues(t *testing.T) {
 // TestGuideListsCIChecksValues: the ci-checks section of chapter 5 lists every
 // ghci state and unreadable reason in its own table.
 func TestGuideListsCIChecksValues(t *testing.T) {
+	t.Parallel()
 	checkGuideValueTables(t, "ci-checks", "### `ci-checks ", []guideValueListing{
 		{"**状態。**", marshalEnumNames(t, ghci.States())},
 		{"**読めない理由。**", marshalEnumNames(t, ghci.UnreadableReasons())},
@@ -204,6 +210,7 @@ func guideTable(doc, marker string) string {
 // TestGuideTable: guideTable takes the table's lines only, stops where the
 // table ends, and finds nothing for a missing marker or table.
 func TestGuideTable(t *testing.T) {
+	t.Parallel()
 	doc := "## 6\n**A.** a `p`\n\n| h |\n|---|\n| `x` |\nafter `y`\n\n| `w` |\n**B.** b\n**C.** c\n\n| `z` |\n"
 	for _, tc := range []struct {
 		name   string
@@ -221,6 +228,7 @@ func TestGuideTable(t *testing.T) {
 		{"missing_marker", doc, "**D.**", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if got := guideTable(tc.doc, tc.marker); got != tc.want {
 				t.Errorf("got %q, want %q", got, tc.want)
 			}
@@ -329,6 +337,7 @@ func documentedInvocations(doc string) [][]string {
 // placeholder for the names in _context.md. Each document must also call the
 // subcommands it uses.
 func TestDocumentedInvocationsParse(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		rel  string
 		want []string
@@ -361,6 +370,7 @@ func TestDocumentedInvocationsParse(t *testing.T) {
 // calls, so a check loosened later fails here and not only when a document
 // happens to break it.
 func TestCheckDocumentedReviewer(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -384,6 +394,7 @@ func TestCheckDocumentedReviewer(t *testing.T) {
 		{"name_itself", args(cmdInspect, "--reviewer", testReviewer, "--baseline", "<b>", testPR), errReviewerValue},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			inv, err := parse(tc.args)
 			if err != nil {
 				t.Fatalf("parse(%q) = %v", tc.args, err)
@@ -443,6 +454,7 @@ func cutSection(doc, heading string, ends ...string) string {
 // subcommand that starts or stops taking the flag fails here until the guide
 // changes too.
 func TestGuideDescribesReviewerList(t *testing.T) {
+	t.Parallel()
 	takesReviewer := map[string]struct{}{}
 	repeats := map[string]struct{}{}
 	for name, sp := range specs {
@@ -492,6 +504,7 @@ var (
 // once, so a guide that stops writing them is not read as agreeing; that
 // fixpr.md and runpr.md write them is TestDocumentedInvocationsParse's check.
 func TestDocumentedProtocolMatches(t *testing.T) {
+	t.Parallel()
 	want := strconv.Itoa(fixprguard.Protocol)
 	check := func(rel, doc string, re *regexp.Regexp, required bool) {
 		t.Helper()
@@ -535,6 +548,7 @@ func fixprguardProtocolMismatches(doc string) []string {
 // only, so a wrong number in a fixprguard call, or in prose naming no tool,
 // is still found next to another tool's call.
 func TestFixprguardProtocolMismatches(t *testing.T) {
+	t.Parallel()
 	right := strconv.Itoa(fixprguard.Protocol)
 	wrong := strconv.Itoa(fixprguard.Protocol + 1)
 	for _, tc := range []struct {
@@ -550,6 +564,7 @@ func TestFixprguardProtocolMismatches(t *testing.T) {
 		{"right_number", "fixprguard head --protocol " + right + "\n", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if got := fixprguardProtocolMismatches(tc.doc); !slices.Equal(got, tc.want) {
 				t.Errorf("mismatches = %q, want %q", got, tc.want)
 			}
@@ -563,6 +578,7 @@ func TestFixprguardProtocolMismatches(t *testing.T) {
 // here. Whether the prose around them is right is checked by review, not
 // pinned by wording.
 func TestGuideDescribesMentionCheck(t *testing.T) {
+	t.Parallel()
 	mentions := fixprguard.RejectedMentions()
 	if len(mentions) == 0 {
 		t.Fatal("fixprguard.RejectedMentions() is empty")
@@ -583,6 +599,7 @@ func TestGuideDescribesMentionCheck(t *testing.T) {
 // should. A section that ran on would let a later passage supply a phrase
 // the checked one lacks.
 func TestCutSection(t *testing.T) {
+	t.Parallel()
 	doc := "intro\n## A\na\n### B\nb\n### C\nc\n## D\nd\n### E\ne\n"
 	for _, tc := range []struct {
 		name string
@@ -597,6 +614,7 @@ func TestCutSection(t *testing.T) {
 		{"missing_heading", subsection(doc, "### F"), ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if tc.got != tc.want {
 				t.Errorf("got %q, want %q", tc.got, tc.want)
 			}
@@ -621,6 +639,7 @@ func codeSpans(text string) map[string]struct{} {
 // the table is read: most items also appear in chapter 6 and in prose, which
 // would hide an item missing from the table.
 func TestGuideListsWatchList(t *testing.T) {
+	t.Parallel()
 	want := map[string]struct{}{}
 	for _, p := range fixprguard.WatchListPatterns() {
 		want[p] = struct{}{}
@@ -635,6 +654,7 @@ func TestGuideListsWatchList(t *testing.T) {
 // row of chapter 8 in the guide names every value parts can hold. Only the
 // list is read, since the row's other cells name parts too.
 func TestGuideNamesGitStateParts(t *testing.T) {
+	t.Parallel()
 	row := singleLine(t, guidePath, readRepoFile(t, guidePath), "| `git-state-changed` |")
 	_, rest, ok := strings.Cut(row, "`parts`（")
 	list, _, closed := strings.Cut(rest, "）")
@@ -654,6 +674,7 @@ func TestGuideNamesGitStateParts(t *testing.T) {
 // chapter 8 names exactly the rules HeadLineRules returns. Only the first
 // column is read, since the meaning column names flags and branches too.
 func TestGuideListsHeadLineRules(t *testing.T) {
+	t.Parallel()
 	want := map[string]struct{}{}
 	for _, rule := range fixprguard.HeadLineRules() {
 		want[rule] = struct{}{}
@@ -675,6 +696,7 @@ func TestGuideListsHeadLineRules(t *testing.T) {
 // "contains ignored, or is .git name below .claude", so every rule must fit
 // that.
 func TestGuideDescribesIgnoredFiles(t *testing.T) {
+	t.Parallel()
 	const claudeGitRule = ".git name below .claude"
 	for _, rule := range fixprguard.IgnoredFailureRules() {
 		if !strings.Contains(rule, fixprguard.PartIgnored) && rule != claudeGitRule {
@@ -713,6 +735,7 @@ func guideBlock(t *testing.T, rel, heading string) string {
 // back to shasum, so it is run once with each alone on PATH; each installed
 // tool runs, and at least one must be installed.
 func TestGuideIgnoredCommands(t *testing.T) {
+	t.Parallel()
 	block := guideBlock(t, guidePath, "### 8.1")
 	// pathWith is a PATH directory holding the block's tools and one of
 	// the two SHA-256 commands, so the block takes that command's branch.

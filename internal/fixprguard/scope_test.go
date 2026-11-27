@@ -39,6 +39,7 @@ func denyListAtPathItself(paths ...string) []scopeCase {
 }
 
 func TestScopeRules(t *testing.T) {
+	t.Parallel()
 	trusted, named := trustedThread, namedThread
 	cases := []scopeCase{
 		// Rules 1 to 3.
@@ -229,6 +230,7 @@ func TestScopeRules(t *testing.T) {
 	)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if got := inScope(tc.changed, tc.kind, tc.threads); got != tc.want {
 				t.Errorf("inScope(%q, %v) = %v, want %v", tc.changed, tc.kind, got, tc.want)
 			}
@@ -242,6 +244,7 @@ func TestScopeRules(t *testing.T) {
 // went missing. Every printed pattern must also be one the matchers enforce,
 // so the printed lists cannot drift from the rules.
 func TestPatternRuleLiterals(t *testing.T) {
+	t.Parallel()
 	if !slices.Contains(ExecutionFilePatterns(), ".*") {
 		t.Errorf("ExecutionFilePatterns() = %q, want it to list .*", ExecutionFilePatterns())
 	}
