@@ -104,6 +104,7 @@ PR-1・PR-2 の計測（7.1 節）の結果を受けて、人が決めたもの:
 -   **`internal/mergepr` の PR-1 の割合 1.076 は、ぶれとして受け入れる:** PR-1 は `internal/mergepr` を変えておらず、6 回の値が 40.4〜45.9 秒に散らばったため。
 -   **比較のスクリプトは、名前の中のコミットの短い ID を置き換えて比べる:** `TestBaseCommitReadsTheRefItself` の末端の名前（`feat-1-g<12 桁の 16 進数>`）が実行ごとに変わり、名前の集まりが同じになりえないため。比べるときだけ置き換え、単独の選択では元の名前を使う。スクリプトを変えるので、7.4 節の壊し方の確認と、PR-1 の比較の実行を、やり直す（計測のスクリプト、テストのコード、製品コードは変わらないので、計測、`make coverage-compare`、`make test`、`make lint` の PR-1 の記録は、AFTER `8bb968e5` のものが、タスクのディレクトリの下だけが異なる今の head でも有効である）。
 -   **`internal/mergepr` の目標を 80% 以下にする:** PR-2 のステップ 7-5 後の計測で、`internal/mergepr` は PR-2 単独で 0.737（40.886 秒 → 30.140 秒）と 75% 以下に達したが、PR-1 でぶれとして受け入れた 1.076 との積が 0.793 となり 75% を超えた。要件書の「実装の際に決めたこと（2026-11-27）」のとおり、人が F-001 の積の判定式を維持したまま `internal/mergepr` の目標（AC-02）を 80% 以下に改めることを決めた。
+-   **PR-3（冗長テストの削減）を追加する:** PR-2 マージ後の PR-3 として、冗長テスト候補（Part 1: C1〜C11、Part 2: M1〜M13）の検証と削減をフェーズ 8 に追加する。人が決めた方針: C1 は既定を 40 末端サブセットとしオプトイン環境変数で全件実行を残す、C6 は削除する、6 件の git config シナリオは維持する、`mergemain_test.go` に main 側のみリネームする 1 ケースを追加する。ADR: なし（このタスクのテスト構成と進め方である）。
 
 ADR: なし（このタスクの目標と手順である）。
 
@@ -294,6 +295,46 @@ ADR: なし（このタスクの目標と手順である）。
 - [ ] PR がマージされた
 - [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
+### フェーズ 8: 冗長テストの検証と削減（Part 1・Part 2）
+
+- [ ] **ステップ 8-1**: 削減候補（C1〜C11・M1〜M13）の仮説検証と bash 3 サブセットの再導出
+    - 現在のブランチ上の `review-records.sh`・`high-review-decision.sh`・`internal/mergepr` とテストコードに照らし、各候補が成り立つかを検証して成り立たない候補を除外する
+    - `review-records.sh` の現在のコードから、bash 3.2 依存構文をすべて踏む 40 末端サブセットを再導出する
+- [ ] **ステップ 8-2**: bash テスト削減の検証用一時スクリプトを作成し壊し確認する
+    - 追加するファイル: `docs/tasks/0127_git_fixture_test_speedup/_checks/verify_bash_cut.sh`
+    - 機能: (1) 一時コピーした `review-records.sh`（`env -i` 後の `set -x`＋`PS4='+${LINENO}: '`）で削減前後の `(mode, line)` 集合が各 bash で一致することを確認、(2) 残す代表ケースに対する 4 件のミューテーション（`GIT_CONFIG_GLOBAL` 削除・`-c i18n.logOutputEncoding` 削除・`widen` 変更・`fable` 削除）が失敗することを確認
+    - 壊し確認を行い、7 章の一時スクリプト記録に書く
+- [ ] **ステップ 8-3**: Part 1（`review_records_test.go`・`high_review_decision_test.go`・`harness_mapping_cases_test.go`・`test_helpers_bash.go`）の検証済み冗長ケースを削減する
+    - C1: 既定は 40 末端サブセットとし、オプトイン環境変数で bash 3 全件実行を残す
+    - C2: Coverage の 8 repository＋global `i18n.logOutputEncoding`（および将来の porcelain 移行に備える 6 件の git config シナリオ）を残し、Unreviewed・CrossCheck と残りの global シナリオを削除する
+    - C6: 削除する（env クリーンアップは mode 分岐前のため Coverage 側で網羅）
+    - C3〜C5・C7〜C11: ステップ 8-1 で検証が成り立ったものを削除・整理する
+    - `verify_bash_cut.sh` を実行して結果を 7 章に記録する
+- [ ] **ステップ 8-4**: Part 2（`internal/mergepr/mergemain_test.go`）の検証済み冗長ケースを削減し、main 側リネームの 1 ケースを追加する
+    - M4・M7 はアサーション移動を別コミットにした上で、各テスト削除は削除のみのコミットにし、`make coverage-compare BASE=<parent>`（10 分以上のタイムアウト）の通過出力と指定の壊し確認（M5/M6/M9/M10）をコミットメッセージと PR 説明に記録する
+    - M5 の削除枠の代わりに、main 側のみファイルリネームする 1 ケースを追加する
+- [ ] **ステップ 8-5**: PR-3 の計測とグリーンゲート確認・記録
+    - `measure.sh`（PR-3 の短縮効果確認）・`make test`・`make lint`・`make deadcode` を実行し、結果を 7 章に記録する
+
+### PR-3 作成ポイント: remove verified redundant test cases in review_records, high_review_decision, and mergemain
+
+**対象ステップ**: 8-1 / 8-2 / 8-3 / 8-4 / 8-5
+
+**推奨タイトル**: `test(0127): review_records・high_review_decision・mergemain の冗長なテストケースを検証の上で削減する`
+
+**レビュー観点**: 各削除候補（C1〜C11・M1〜M13）の仮説検証の妥当性と、bash 3.2 の 40 末端サブセット＋オプトイン全件実行の網羅性 / `_checks/verify_bash_cut.sh` の `(mode, line)` 行カバレッジ一致と 4 件のミューテーション検出および壊し確認 / `mergemain_test.go` の各削除コミットが削除のみで `make coverage-compare BASE=<parent>` の通過出力と M5/M6/M9/M10 の壊し確認を持つこと / main 側のみファイルリネームする新規ケースの妥当性 / 7 章の計測・検証記録
+
+**実装モデル要件**: high
+
+**判定理由**: テストの削除は検証の抜けを招くリスクが高く、現行の `review-records.sh`・`high-review-decision.sh`・`internal/mergepr` を精読して各削減候補の仮説と bash 3.2 依存構文の網羅性を自力で再検証する判断、`CLAUDE.md` Testing Strategy に従った削除単位コミットと `coverage-compare`・壊し確認、および `_checks/` の行カバレッジ・ミューテーション検証スクリプトの設計を要するため
+
+**自動送信**: auto
+
+- [ ] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [ ] PR を作成した
+- [ ] PR がマージされた
+- [ ] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
 ## 3. 実装の順序とマイルストーン (Implementation Order and Milestones)
 
 ### 3.1 マイルストーン
@@ -313,6 +354,7 @@ ADR: なし（このタスクの目標と手順である）。
 |---|---|---|---|---|
 | PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 5-1 / 6-1 / 6-2 / 6-3 / 6-4 | `internal/snapshottest`、`cmd/yt2column` の共通の初期状態・設定のシナリオ・準備の共有と並列化、比較のテスト、2 つの一時スクリプトと PR-1 の記録 | standard+high-review | auto |
 | PR-2 | 7-1 / 7-2 / 7-3 / 7-4 / 7-5 | `internal/mergepr` の共通の初期状態と 2 つの共有する準備、整え直し、比較のテスト、届かないときの `Setup`、PR-2 の記録とこのタスクの割合 | standard+high-review | auto |
+| PR-3 | 8-1 / 8-2 / 8-3 / 8-4 / 8-5 | `review_records`・`high_review_decision`・`harness_mapping_cases`・`mergemain` の検証済み冗長ケースの削減（C1 は既定 40 末端＋オプトイン全件、main 側リネーム 1 ケース追加）と行カバレッジ・ミューテーション・カバレッジ比較検証 | high | auto |
 
 ## 4. テスト戦略 (Test Strategy)
 
@@ -342,6 +384,7 @@ ADR: なし（このタスクの目標と手順である）。
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 2-1 / 2-2 / 2-3 / 3-1 / 3-2 / 3-3 / 4-1 / 4-2 / 4-3 / 4-4 / 4-5 / 5-1 / 6-1 / 6-2 / 6-3 / 6-4）
 - [ ] PR-2 マージ済み（対象ステップ: 7-1 / 7-2 / 7-3 / 7-4 / 7-5）
+- [ ] PR-3 マージ済み（対象ステップ: 8-1 / 8-2 / 8-3 / 8-4 / 8-5）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -783,3 +826,4 @@ coverage-compare: PASS
 - 2026-11-26 承認（isseis、#1188）
 - 2026-11-27 セッション中の再承認：`cmd/yt2column` の目標を 80% 以下に改め、比較のスクリプトの名前の比べ方を直し、1.5 節に記録した（isseis、#1193）
 - 2026-11-27 セッション中の再承認：`internal/mergepr` の目標を 80% 以下に改め、1.5 節に記録した（isseis、#未記入）
+- 2026-11-27 セッション中の再承認：冗長テストの削減（フェーズ 8・PR-3）を計画に追加した（isseis、#1197）

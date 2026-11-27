@@ -71,6 +71,7 @@ issue #1168 の計測（`go test -tags test -race -count=1 ./...`）では、次
 -   **`internal/mergepr` の PR-1 の割合 1.076 は、ぶれとして受け入れる:** PR-1 は `internal/mergepr` を変えておらず、6 回の値が 40.4〜45.9 秒に散らばったので、人が計測のぶれとして受け入れた。判定は、F-001 のとおり PR ごとの割合の積で行う。
 -   **AC-04 の名前の比べ方:** 末端の名前に実行ごとに変わるコミットの短い ID（`-g` と 12 桁の 16 進数）が入っている場合は、その ID を同じ記号に置き換えて比べる（`internal/mergepr` の `TestBaseCommitReadsTheRefItself` の末端が当たる）。比べるのは名前の集まりだけで、単独の選択では元の名前を使う。理由: その名前は、実行ごとに変わるので、BASE と AFTER の集まりが同じになりえない。
 -   **`internal/mergepr` の目標を 80% 以下にする:** PR-2 のステップ 7-5（`Setup` の `git fast-import` 化）後の計測で、`internal/mergepr` の PR-2 単独の割合は 0.737（40.886 秒 → 30.140 秒）と 75% 以下に達したが、PR-1 でぶれとして受け入れた 1.076 との積が 0.793 となり 75% を超えた。人が F-001 の積の判定式を維持したまま `internal/mergepr` の目標（AC-02）を 80% 以下に改めることを決めた。採らなかった案: 変更のないパッケージの PR 割合を 1.0 とみなす案、さらに追加の最適化を試みる案。ADR はなし（このタスクの目標で、ほかのタスクを縛らない）。
+-   **冗長テストの削減を PR-3 として本タスクに組み込む（2026-11-27）:** PR-1・PR-2 でフィクスチャ再利用を終えた後、調査で見つかった冗長テスト候補（`review_records_test.go`・`high_review_decision_test.go`・`harness_mapping_cases_test.go`・`mergemain_test.go`）の検証と削減を、PR-3 として本タスクに追加することを人が決めた。個別方針として、(1) C1（bash 3.2 の実行範囲）は既定を構文網羅の 40 末端サブセットとし、オプトイン環境変数で全件実行を残す、(2) C6（CrossCheck の環境テスト重複 5 件）は削除する、(3) 将来の porcelain 移行に備える 6 件の git config シナリオは残す、(4) `mergemain_test.go` に main 側のみファイルリネームするケースを 1 件追加する、を決めた。PR-3 のテスト削除では、AC-04（名前の集まりの不変）と AC-05（bash 3 全件実行）の代わりに、Go テストは削除コミットごとの `make coverage-compare` と壊し確認、bash スクリプトテストは `_checks/` の行カバレッジ（各 bash の `(mode, line)` 集合一致）とミューテーション確認で検証の質を保つ。ADR はなし（このタスクのテスト構成と削減方針であり、ほかのタスクや製品構成要素を縛らない）。
 
 ## 2. 目的とスコープ (Goals and Scope)
 
@@ -81,7 +82,7 @@ issue #1168 の計測（`go test -tags test -race -count=1 ./...`）では、次
 
 ### 2.2. スコープ (In Scope)
 
--   `cmd/yt2column/review_records_test.go`・`cmd/yt2column/high_review_decision_test.go`・`internal/mergepr/mergemain_test.go` のテストと、それらが使う補助の関数（`cmd/yt2column/test_helpers_*.go`・`internal/mergepr/test_helpers*.go` など、`test` のビルドタグか `_test.go` のファイルにあるもの）の変更。
+-   `cmd/yt2column/review_records_test.go`・`cmd/yt2column/high_review_decision_test.go`・`cmd/yt2column/harness_mapping_cases_test.go`・`internal/mergepr/mergemain_test.go` のテストと、それらが使う補助の関数（`cmd/yt2column/test_helpers_*.go`・`internal/mergepr/test_helpers*.go` など、`test` のビルドタグか `_test.go` のファイルにあるもの）の変更（PR-1・PR-2 のフィクスチャ再利用と PR-3 の冗長テスト削減）。
 -   短縮の前と後の計測と、その記録。
 
 ### 2.3. スコープ外 (Out of Scope)
@@ -181,3 +182,4 @@ issue #1168 の計測（`go test -tags test -race -count=1 ./...`）では、次
 - 2026-11-26 承認（isseis、#1178）
 - 2026-11-27 セッション中の再承認：`cmd/yt2column` の目標を 75% から 80% 以下に改め、AC-04 の名前の比べ方に実行ごとに変わるコミットの短い ID の置き換えを足した（isseis、#1193）
 - 2026-11-27 セッション中の再承認：`internal/mergepr` の目標を 75% から 80% 以下に改めた（isseis、#未記入）
+- 2026-11-27 セッション中の再承認：冗長テストの削減（C1 は既定 40 末端＋オプトイン全件、C6 削除、6 件の git config シナリオ維持、main 側リネーム 1 ケース追加）を PR-3 としてスコープに追加した（isseis、#1197）
