@@ -31,11 +31,24 @@ func takeInShape(t *testing.T, k *takeIn, copied bool) string {
 	// Run diff-files first so no earlier git command can refresh the index.
 	b.WriteString("diff-files:\n" + k.Git("diff-files") + "\n")
 
+	// Commit IDs differ with commit time, so replace this takeIn's own main
+	// commit ID where git embeds it (conflict markers and merge subjects).
+	mainOID := ""
+	if refs := k.gitIn(k.Origin, "for-each-ref", "--format=%(objectname)", "refs/heads/"+mainBranch); refs != "" {
+		mainOID = strings.TrimSpace(refs)
+	}
+	normOID := func(s string) string {
+		if mainOID == "" {
+			return s
+		}
+		return strings.ReplaceAll(s, mainOID, "<MAIN_OID>")
+	}
+
 	writeRepoSummary := func(label, dir string) {
 		b.WriteString(label + " refs:\n")
 		for ref := range strings.FieldsSeq(k.gitIn(dir, "for-each-ref", "--format=%(refname)")) {
 			parents := len(strings.Fields(k.gitIn(dir, "log", "-1", "--format=%P", ref)))
-			fmt.Fprintf(&b, "%s %s|%d parents\n", ref, strings.TrimSpace(k.gitIn(dir, "log", "-1", "--format=%T|%s", ref)), parents)
+			fmt.Fprintf(&b, "%s %s|%d parents\n", ref, normOID(strings.TrimSpace(k.gitIn(dir, "log", "-1", "--format=%T|%s", ref))), parents)
 		}
 		b.WriteString(label + " head: " + strings.TrimSpace(k.gitIn(dir, "symbolic-ref", "HEAD")) + "\n")
 		cfg := strings.ReplaceAll(k.gitIn(dir, "config", "--local", "--list"), k.Origin, "<ORIGIN>")
@@ -94,7 +107,7 @@ func takeInShape(t *testing.T, k *takeIn, copied bool) string {
 		if err != nil {
 			return err
 		}
-		b.WriteString(filepath.ToSlash(rel) + "\n" + string(data) + "\n")
+		b.WriteString(filepath.ToSlash(rel) + "\n" + normOID(string(data)) + "\n")
 		return nil
 	})
 	if err != nil {
@@ -115,6 +128,30 @@ func TestTakeInSnapshotsMatchRebuilt(t *testing.T) {
 			copied: newTakeIn,
 			rebuilt: func(t *testing.T) *takeIn {
 				return buildTakeInBase(t, t.TempDir())
+			},
+		},
+		{
+			name: "conflict_in_progress",
+			copied: func(t *testing.T) *takeIn {
+				k, _ := newConflictInProgressTakeIn(t)
+				return k
+			},
+			rebuilt: func(t *testing.T) *takeIn {
+				k := buildTakeInBase(t, t.TempDir())
+				buildConflictInProgressState(t, k)
+				return k
+			},
+		},
+		{
+			name: "after_merge_commit",
+			copied: func(t *testing.T) *takeIn {
+				k, _ := newPushFlowTakeIn(t)
+				return k
+			},
+			rebuilt: func(t *testing.T) *takeIn {
+				k := buildTakeInBase(t, t.TempDir())
+				buildPushFlowState(t, k)
+				return k
 			},
 		},
 	}

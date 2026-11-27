@@ -290,9 +290,58 @@ func buildTakeInBase(t *testing.T, dir string) *takeIn {
 	return k
 }
 
+// loadTakeInBase returns the shared empty takeIn snapshot.
+func loadTakeInBase(t *testing.T) snapshottest.Snapshot[struct{}] {
+	t.Helper()
+	return snapshottest.Load(t, snapshotStore, takeInBaseKind, nil, func(bt *testing.T, dir string) struct{} {
+		buildTakeInBase(bt, dir)
+		return struct{}{}
+	})
+}
+
+// initTakeInDir copies the shared empty takeIn into dir (which already exists)
+// so dir holds origin.git and work directly, rewrites remote.origin.url to
+// dir/origin.git, and returns a takeIn whose home lives in t.TempDir().
+func initTakeInDir(t *testing.T, dir string) *takeIn {
+	t.Helper()
+	sn := loadTakeInBase(t)
+	staged := filepath.Join(dir, ".init")
+	sn.CopyTo(t, staged)
+	for _, name := range []string{"origin.git", "work"} {
+		if err := os.Rename(filepath.Join(staged, name), filepath.Join(dir, name)); err != nil {
+			t.Fatalf("move %s into snapshot dir: %v", name, err)
+		}
+	}
+	if err := os.Remove(staged); err != nil {
+		t.Fatalf("remove staging dir: %v", err)
+	}
+	k := newTakeInAt(t, dir, filepath.Join(t.TempDir(), "home"))
+	k.Git("config", "remote.origin.url", k.Origin)
+	return k
+}
+
+// refreshIndex refreshes the index stat cache after copying the work tree so
+// git diff-files under GIT_OPTIONAL_LOCKS=0 sees only real changes. --unmerged
+// keeps refreshing past conflicted entries; exit code 1 means some entries
+// (such as unmerged paths) remain dirty, which is expected here.
+func (k *takeIn) refreshIndex() {
+	k.t.Helper()
+	cmd := exec.Command(gitCommand, "update-index", "-q", "--unmerged", "--refresh") //nolint:gosec // test setup runs git with fixed arguments
+	cmd.Dir = k.Work
+	cmd.Env = k.env
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		return
+	}
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() == 1 {
+		return
+	}
+	k.t.Fatalf("git update-index --refresh: %v: %s", err, out)
+}
+
 // copyTakeIn copies a shared takeIn snapshot into a fresh directory owned by t
 // and adjusts its git state so remote.origin.url points at the copy's own
-// origin, never the builder's.
+// origin and the index stat cache matches the copied work tree.
 func copyTakeIn[V any](t *testing.T, sn snapshottest.Snapshot[V]) *takeIn {
 	t.Helper()
 	root := t.TempDir()
@@ -302,6 +351,7 @@ func copyTakeIn[V any](t *testing.T, sn snapshottest.Snapshot[V]) *takeIn {
 	// A copied clone still names the builder's origin in remote.origin.url;
 	// rewrite it to the copy's own origin before any test runs git against it.
 	k.Git("config", "remote.origin.url", k.Origin)
+	k.refreshIndex()
 	return k
 }
 
@@ -310,11 +360,7 @@ func copyTakeIn[V any](t *testing.T, sn snapshottest.Snapshot[V]) *takeIn {
 // not use t.Setenv: see snapshottest.Load.
 func newTakeIn(t *testing.T) *takeIn {
 	t.Helper()
-	sn := snapshottest.Load(t, snapshotStore, takeInBaseKind, nil, func(bt *testing.T, dir string) struct{} {
-		buildTakeInBase(bt, dir)
-		return struct{}{}
-	})
-	return copyTakeIn(t, sn)
+	return copyTakeIn(t, loadTakeInBase(t))
 }
 
 // gitIn runs git in dir with the test's environment and returns its output
