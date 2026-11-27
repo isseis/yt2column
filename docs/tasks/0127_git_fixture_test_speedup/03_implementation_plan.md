@@ -18,7 +18,7 @@
 
 ### 1.1. 目的
 
-本計画は、3 つのファイル（`cmd/yt2column/review_records_test.go`・`cmd/yt2column/high_review_decision_test.go`・`internal/mergepr/mergemain_test.go`）のテストの準備を共有の状態の複製に替え、`cmd/yt2column` と `internal/mergepr` の実時間を、変更の前の 80% 以下にする（F-001）。その際、ケースの集まり、bash 3 での実行、ケースの前提の検査、各ケースの隔離は減らさない（F-002・F-003）。
+本計画は、3 つのファイル（`cmd/yt2column/review_records_test.go`・`cmd/yt2column/high_review_decision_test.go`・`internal/mergepr/mergemain_test.go`）のテストの準備を共有の状態の複製に替え、`cmd/yt2column` と `internal/mergepr` の実時間を、変更の前の 80% 以下にする（F-001）。その際、ケースの集まり、bash 3 での実行、ケースの前提の検査、各ケースの隔離は減らさない（F-002・F-003）。ただし PR-3（フェーズ 8）は、検証で冗長と確かめたケースだけを AC-13 の検証つきで削る。
 
 ### 1.2. 実装の原則
 
@@ -31,9 +31,9 @@
 
 人間のレビュアーが決めたもの:
 
--   **実装の PR は 2 本にする:** PR-1 は `internal/snapshottest`、`cmd/yt2column` の変更（設計書 3.2〜3.5 と 3.8 の `cmd/yt2column` の分）、`_checks/` の 2 つの一時スクリプトである。PR-2 は `internal/mergepr` の変更（設計書 3.6・3.8 の `internal/mergepr` の分と、届かないときの 3.7）である。理由: 1 本の PR ごとに、計測（BASE と AFTER の 3 回ずつ）、AC-04・AC-11 の比較、`make coverage-compare` で、機械を約 1 時間使う。PR ごとの割合を掛け合わせる（F-001）ので、PR を増やすと計測の誤差も重なる。パッケージの境目で切れば、PR-1 で `cmd/yt2column` の割合がほぼ決まり、PR-2 で `internal/mergepr` の割合が決まる。採らなかった案: 3 本（共通の初期状態だけでは `cmd/yt2column` が 0.75 に届かず、届くかどうかが 2 本目まで分からない）と、1 本（レビューの量が大きい）。ADR: なし（このタスクの中で閉じる進め方の選択である）。
+-   **実装の PR は 2 本にする（2026-11-27 に、冗長テストの削減の PR-3 を足して 3 本になった。下の 1.5 節と 1.6 節、フェーズ 8）:** PR-1 は `internal/snapshottest`、`cmd/yt2column` の変更（設計書 3.2〜3.5 と 3.8 の `cmd/yt2column` の分）、`_checks/` の 2 つの一時スクリプトである。PR-2 は `internal/mergepr` の変更（設計書 3.6・3.8 の `internal/mergepr` の分と、届かないときの 3.7）である。理由: 1 本の PR ごとに、計測（BASE と AFTER の 3 回ずつ）、AC-04・AC-11 の比較、`make coverage-compare` で、機械を約 1 時間使う。PR ごとの割合を掛け合わせる（F-001）ので、PR を増やすと計測の誤差も重なる。パッケージの境目で切れば、PR-1 で `cmd/yt2column` の割合がほぼ決まり、PR-2 で `internal/mergepr` の割合が決まる。採らなかった案: 3 本（共通の初期状態だけでは `cmd/yt2column` が 0.75 に届かず、届くかどうかが 2 本目まで分からない）と、1 本（レビューの量が大きい）。ADR: なし（このタスクの中で閉じる進め方の選択である）。
 -   **計測は `/runplan` が流す:** 計測と比較の前に、ほかの重い処理を走らせていないことを人に問い（select-question）、答えを得てからバックグラウンドで流す。理由: F-001 は、ほかの重い処理を走らせずに測ることを求める。一方、`chief` は、ほかの workspace にコマンドを並行して送ることがある。人が手で流す案は、PR の前に手作業が入り、自動送信が `hold` になるので採らない。ADR: なし（同上）。
--   **ステップ 7-5 の `Setup` の手段は候補 (a)（`git fast-import`）にする（2026-11-27）:** ステップ 7-4 の 1 回目の計測で `internal/mergepr` の割合が PR-2 単独 0.809（PR-1 の 1.076 との積 0.870 > 0.75）となったため、人が候補 (a) を選んだ。理由: 候補 (b) は同じ入力の `Setup` にしか効かない一方、候補 (a) はユニークな入力を持つすべての `Setup` 呼び出しの git 起動（16 回 → 3 回）を削減でき、短縮効果が大きい。ADR: なし（このタスクのテスト補助関数の実装の選択である）。
+-   **ステップ 7-5 の `Setup` の手段は候補 (a)（`git fast-import`）にする（2026-11-27）:** ステップ 7-4 の 1 回目の計測で `internal/mergepr` の割合が PR-2 単独 0.809（PR-1 の 1.076 との積 0.870 > 0.75）となったため、人が候補 (a) を選んだ。理由: 候補 (b) は同じ入力の `Setup` にしか効かない一方、候補 (a) はユニークな入力を持つすべての `Setup` 呼び出しの git 起動（15 回 → 3 回）を削減でき、短縮効果が大きい。ADR: なし（このタスクのテスト補助関数の実装の選択である）。
 
 計画で決めたもの（人間のレビュアーに諮らず、理由とともに記す）:
 
@@ -68,6 +68,48 @@
 
     `bin-bash-3` の名前を選ばないのは、`/bin/bash` が 3.x でない機械には、その名前がないためである。競合のマージの途中の 12 件では、名前の順で `MERGE_HEAD_is_another_commit` が最初、`untracked_file` が最後になるので、そのどちらでもない `other_branch` を選んだ。
 
+### 1.6. PR-3 の削減候補表（2026-11-27）
+
+出典: `HEAD 6c60f9f8` の木で `go test -tags test -race -count=1 -json ./...` を macOS で流した、読み取りだけの調査（issue #1168 に付けたメモ）。候補は、スクリプトとコードを読んで得た仮説であり、ミューテーションで確かめていない。ステップ 8-1 で、ブランチのコードに照らして 1 件ずつ検証し、成り立たないものを除く。略称: RR = `.claude/commands/_lib/review-records.sh`、HRD = `.claude/commands/_lib/high-review-decision.sh`、rrt = `cmd/yt2column/review_records_test.go`、hrdt = `cmd/yt2column/high_review_decision_test.go`、hmc = `cmd/yt2column/harness_mapping_cases_test.go`。行番号は調査時のものである。
+
+**Part 1（bash スクリプトのテスト）**
+
+| id | 場所 | 削るもの | 理由 |
+|---|---|---|---|
+| C1 | `test_helpers_bash.go` の `scriptBashes` | bin-bash-3 の末端のうち、構文網羅の 40 末端以外（既定。全件はオプトイン環境変数で残す） | HRD は bash 4 が要るので RR だけが 2 回走る。残す部分集合が bash 版に依存する構文をすべて踏めば、残りは awk と git で、どちらの bash でも同じ実行ファイルである（macOS のみ、約 685 末端秒） |
+| C2（縮小版） | rrt の `checkConfigScenarios`（Unreviewed・CrossCheck の呼び出し） | Unreviewed・CrossCheck の git config シナリオ。Coverage の repository 8 件と global の全シナリオは残す | repository の設定は GIT_OVERRIDES が全 mode の git 呼び出しを守る（RR の `g()`）。ステップ 8-2 で、その mode の `-c` の上書きを外す壊し確認が、Coverage の残す件で失敗することを確かめられたときだけ削る。global は `GIT_CONFIG_GLOBAL` の削除でも出力が変わらず検出できないので、削らない |
+| C3 | rrt の Unreviewed が使う Coverage ケースの再利用 | `widen` に届かない 56 件（計画のチェックボックス 29、seen-range の形 15、環境・読み込み 12） | `widen` が効くのは、START が merge-base でも枝のコミットでもないとき（RR 761-769）とマージのコミット（RR 853）だけである |
+| C4 | hmc の「in high row」の文法ケース | RR の 10 件。HRD は 1 件を残して 9 件 | パターンの検証は Role で分岐しない（RR 398-418、HRD 223-245） |
+| C5 | hrdt の `values/old_*` | `frontier-required`・`frontier-recommended`・`sonnet+opus-review`・`standard`（`opus` と `sonnet` は残す） | 同じ検索ループのデータ行である（HRD 426-431）。`internal/chief` の `markers_parity_test.go` が全値を走らせる |
+| C6 | rrt の CrossCheck の path-bash の環境ケース（GIT_ 変数、export した関数、BASH_ENV、origin/main なし、HEAD がコミットを指さない） | 削除（件数は現行コードで数える） | 環境の掃除は mode の分岐の前にある（RR 226-240）。Coverage 側で網羅する。rrt の注記は繰り返しを意図的と書くが、人が削除を決めた |
+| C7 | rrt の Unreviewed の、準備だけして `t.Skip` する 6 末端 | 何も検査しないので、`t.Run` の前に除く（`unreviewedOverrides` と同様に、使わない名前の一覧と照らす） | |
+| C8 | hmc の `underscore_suffix_rejected`・`space_in_model_id_rejected` | RR と HRD の両方 | 大文字と同じ `SUFFIX_RE` の拒否（RR 503） |
+| C9 | hmc の `regex_grouping_metacharacter`・`whitespace_in_pattern` | RR と HRD の両方 | 文字クラスのケースと同じ、リテラルの正規表現の awk の分岐（RR 413） |
+| C10 | rrt の FableAlias の path-bash | `MISSING_without_record`・`MISSING_when_rule_2_fix_uses_codex_seen_range`（`VALID` と fail-closed のケースは残す） | 別名は case の 1 つの選択肢である（RR 1062、262） |
+| C11 | rrt の Coverage の「another reviewer」 | 削除 | 「codex reviewer」と同じ `SEEN_RE` の不一致 |
+
+C1 の 40 末端の部分集合（63 秒、全件は 748 秒）: Coverage 13（coderabbit が見た、見た範囲の後のコミット、PR 作成済み、PR 1 本のマージ済み、CRLF の計画、略称が枝の名前、LAST_REVIEWED の上限、HEAD と PLAN の別の形、GIT_ 変数、クリーン環境の事前設定、export した関数、BASH_ENV）、Unreviewed 3（見た範囲の中のマージ、マージの前の古い merge-base、README.en.md と CHECKS の修正）、CrossCheck 23（旧 Fable の実行、費用あり・なしの not run、記録の後の README.en.md、記録の後の計画のチェックボックス、not run の行の中の修正、checkpoint の Cross-check の印の後の作業、マージの後のマージの確認、wrong-model と not-opus の not run のマージの確認、CLI が見たマージの確認の修正、merge-base より前の親、ENTRY の別の形、正常な対照、ヘッダの誤り、`_context.md` なし、`_context.md` がシンボリックリンク、high パターンが 0 件、パターンの 6 件）、alias 1（VALID）。これが踏むべき構文は、`env -i` の再実行と `$$` の印、export した関数と `unset -f`、BASH_ENV、`${!GIT_@}`、`set -u` 下の配列、`[[ =~ ]]` と BASH_REMATCH（正規表現ごと）、プロセス置換、`LC_ALL=C` 下の `${x:0:n}` と `${#x}`、case の `$'\n'`、引用したパターンの接頭辞の削り、関数の中の here document、各 mode の `fail` の出力である。ステップ 8-1 で現行の RR から導き直す。
+
+**Part 2（`internal/mergepr/mergemain_test.go`）**
+
+| id | 場所 | 削るもの | 理由 |
+|---|---|---|---|
+| M1 | `ConflictClassification/markdown_content` | 削除 | `MergeIgnoresConfiguredMergeOptions` と同じ入力と検査 |
+| M2 | `ConflictClassification/go_file` | 削除（`test_file` は残す） | `ReadsNoAttributesOutsideTheBaseHead/ignored_.gitattributes_at_merge` と同じ |
+| M3 | `ConflictClassification/markdown_with_merge_attribute_unset` | 削除 | `RefusesOtherMergeDrivers/committed_union_driver` と同じ分岐（`mergemain.go:987`） |
+| M4 | `ConflictClassification/protocol_line_only` | 先に `ProtocolUpdateAndRuleFacts/protocol_line_conflict_resolved_to_main_plus_one` に `ProtocolOnly` の検査を足してから削除 | 同じ入力 |
+| M5 | `markdown_renamed_to_one_path_on_both_sides`・`markdown_renamed_onto_an_addition`（`renamed_and_changed` は残す） | 削除。削除枠の代わりに、main 側だけがファイルをリネームする 1 ケースを足す | `classifyPath` は `renamed[p]` で、ステージの検査より前に返る（`mergemain.go:910`）。main 側だけのリネームを検出するケースが元からなかった |
+| M6 | `RestoreSafeAndRefusesOtherChanges/commit_after_the_merge_commit` | 削除 | 同じ検査（`mergemain_restore.go:97-104`）。`swapped_parents` の方が強い |
+| M7 | `PushSuccessRejectedAndUnknown/pushed` | 先に 2 つの検査（`NewHead == head`、origin == head）を `PushRejectsNonHeadOrForce/push_command` に移してから削除 | |
+| M8 | `PushRejectsNonHeadOrForce/GH_REPO_set`・`second_remote`（`PR_head_branch_is_main` は残す） | 削除 | 同じ `readPR` の分岐を begin から検査している |
+| M9 | `RefusesOtherMergeDrivers/push_of_a_union_merge` | 削除 | `push_of_a_union_merge_after_main_drops_the_rule` の方が強い |
+| M10 | `ExtCheckHint/development_guide`・`unrelated_file` | 削除 | `README.en.md`・`extensions.md` と同じ `extCheckPaths` の分岐 |
+| M11 | `PushChecksProtocolValues/value_changed_to_another_integer` | 削除 | 同じ最終の値のループ（`mergemain_push.go:181-185`） |
+| M12 | `BeginPremisesAndNothingToTakeIn/closed_PR`・`tracked_change` | 削除 | 構文の解析は単体で検査済み。`tracked_change` は `untracked_file` と同じ `!clean` の分岐 |
+| M13 | `TestMergemainPRViewReadsNarrowFields`・`TestMergemainBeginAcceptsGHDefaultOfOrigin` | begin の ok 副テストへ統合（フィクスチャの再利用が済んでいなければ） | 確信が低いので、8-1 で成り立つか見る |
+
+削らないもの: RR と HRD の両方にある文法ケース（別の解析器の写しである）、Coverage の計画のチェックボックスのケース、reviewer の形の確認、`codex alongside, same commit` と `same branch`、CrossCheck の記録・マージ・checkpoint・not-run の理由のケース、replace ref の各形、HRD のほかの群、`markdown_added_on_both_sides`・`protocol_and_another_line`・`test_file` ほか `mergemain_test.go` の調査の「Not redundant」の欄のもの。
+
 ### 1.4. 既存コード調査結果
 
 `file:line` はコミット `51f82a71` の行番号である。
@@ -100,7 +142,7 @@
 
 PR-1・PR-2 の計測（7.1 節）の結果を受けて、人が決めたもの:
 
--   **`cmd/yt2column` の目標を 80% 以下にする:** 計測の割合は 0.777 で、75% に届かなかった。要件書の「実装の際に決めたこと（2026-11-27）」のとおり、約 0.80 に下げる。`internal/mergepr` は 75% 以下のままである。
+-   **`cmd/yt2column` の目標を 80% 以下にする:** 計測の割合は 0.777 で、75% に届かなかった。要件書の「実装の際に決めたこと（2026-11-27）」のとおり、約 0.80 に下げる。`internal/mergepr` は、このときは 75% 以下のままとした（その後、下のとおり 80% 以下に改めた）。
 -   **`internal/mergepr` の PR-1 の割合 1.076 は、ぶれとして受け入れる:** PR-1 は `internal/mergepr` を変えておらず、6 回の値が 40.4〜45.9 秒に散らばったため。
 -   **比較のスクリプトは、名前の中のコミットの短い ID を置き換えて比べる:** `TestBaseCommitReadsTheRefItself` の末端の名前（`feat-1-g<12 桁の 16 進数>`）が実行ごとに変わり、名前の集まりが同じになりえないため。比べるときだけ置き換え、単独の選択では元の名前を使う。スクリプトを変えるので、7.4 節の壊し方の確認と、PR-1 の比較の実行を、やり直す（計測のスクリプト、テストのコード、製品コードは変わらないので、計測、`make coverage-compare`、`make test`、`make lint` の PR-1 の記録は、AFTER `8bb968e5` のものが、タスクのディレクトリの下だけが異なる今の head でも有効である）。
 -   **`internal/mergepr` の目標を 80% 以下にする:** PR-2 のステップ 7-5 後の計測で、`internal/mergepr` は PR-2 単独で 0.737（40.886 秒 → 30.140 秒）と 75% 以下に達したが、PR-1 でぶれとして受け入れた 1.076 との積が 0.793 となり 75% を超えた。要件書の「実装の際に決めたこと（2026-11-27）」のとおり、人が F-001 の積の判定式を維持したまま `internal/mergepr` の目標（AC-02）を 80% 以下に改めることを決めた。
@@ -271,7 +313,7 @@ ADR: なし（このタスクの目標と手順である）。
     - 今の `Setup` の手順を、比べるもとの手順として `takein_snapshot_test.go` に残し、`TestTakeInSnapshotsMatchRebuilt` で、新しい `Setup` の後の状態をそれと比べる。新しい `Setup` のコミットの順序か親を変える壊し方で、このテストが失敗することを確かめ、コミットのメッセージに書く
     - 候補 (b) を選んで新しい種別ができたときは、それを使う末端のうち最初でも最後でもない 1 つを 1.3 節の表に足し（その時点で `-run` で `pass` を確かめる）、`compare.sh` に渡す
     - このステップを 1 つのコミットにし、ステップ 7-4 の計測と記録を、その止まる条件も含めてやり直す。足したことと計測の値を 7.1 節に書く（設計書 3.7「記録」）
-    - それでも `cmd/yt2column` のこのタスクの割合が 0.80 を、`internal/mergepr` の割合が 0.75 を超えるときは、作業を止め、要件書の決定の変更をレビューに諮る（設計書 2.1）
+    - それでも `cmd/yt2column` のこのタスクの割合が 0.80 を、`internal/mergepr` の割合が 0.80 を（この行を書いたときは 0.75。要件書の再承認で 80% に改めた）超えるときは、作業を止め、要件書の決定の変更をレビューに諮る（設計書 2.1）
 - 完了の条件: `go test -tags test -race ./internal/mergepr`、`make test`、`make lint` が通り、7 章の PR-2 の記録がある
 
 ステップ 6-4 の後の段落と同じく、記録の後にタスクのディレクトリの外のファイルか 2 つのスクリプトが変わったときは、ステップ 7-4 をやり直す。
@@ -297,24 +339,27 @@ ADR: なし（このタスクの目標と手順である）。
 
 ### フェーズ 8: 冗長テストの検証と削減（Part 1・Part 2）
 
-- [ ] **ステップ 8-1**: 削減候補（C1〜C11・M1〜M13）の仮説検証と bash 3 サブセットの再導出
+- [ ] **ステップ 8-1**: 削減候補（1.6 節の C1〜C11・M1〜M13）の仮説検証と bash 3 サブセットの再導出
     - 現在のブランチ上の `review-records.sh`・`high-review-decision.sh`・`internal/mergepr` とテストコードに照らし、各候補が成り立つかを検証して成り立たない候補を除外する
     - `review-records.sh` の現在のコードから、bash 3.2 依存構文をすべて踏む 40 末端サブセットを再導出する
 - [ ] **ステップ 8-2**: bash テスト削減の検証用一時スクリプトを作成し壊し確認する
     - 追加するファイル: `docs/tasks/0127_git_fixture_test_speedup/_checks/verify_bash_cut.sh`
-    - 機能: (1) 一時コピーした `review-records.sh`（`env -i` 後の `set -x`＋`PS4='+${LINENO}: '`）で削減前後の `(mode, line)` 集合が各 bash で一致することを確認、(2) 残す代表ケースに対する 4 件のミューテーション（`GIT_CONFIG_GLOBAL` 削除・`-c i18n.logOutputEncoding` 削除・`widen` 変更・`fable` 削除）が失敗することを確認
+    - 機能: (1) 一時コピーした `review-records.sh` と `high-review-decision.sh`（`env -i` 後の `set -x`＋`PS4='+${LINENO}: '`）で削減前後の `(mode, line)` 集合が各 bash（`high-review-decision.sh` は bash 4 以上だけ）で一致することを確認、(2) 残す代表ケースに対するミューテーション（`-c i18n.logOutputEncoding` 削除、`widen` 変更、`fable` 削除、C2 の縮小版を採る場合は Unreviewed・CrossCheck の `-c` の上書きの削除）が失敗することを確認する。`GIT_CONFIG_GLOBAL` の削除は、`-c i18n.logOutputEncoding=UTF-8` が global より優先して出力が変わらず検出できないので、ミューテーションに含めない。行カバレッジは設定シナリオを見分けられないので、設定シナリオの削除は (2) の壊し確認でだけ確かめる
+    - 7 章に、この一時スクリプトの記録の節（スクリプト、確かめる内容、流した回数と結果）を置く（7.3 節の `measure.sh` の記録と同じ形）
     - 壊し確認を行い、7 章の一時スクリプト記録に書く
 - [ ] **ステップ 8-3**: Part 1（`review_records_test.go`・`high_review_decision_test.go`・`harness_mapping_cases_test.go`・`test_helpers_bash.go`）の検証済み冗長ケースを削減する
     - C1: 既定は 40 末端サブセットとし、オプトイン環境変数で bash 3 全件実行を残す
-    - C2: Coverage の 8 repository＋global `i18n.logOutputEncoding`（および将来の porcelain 移行に備える 6 件の git config シナリオ）を残し、Unreviewed・CrossCheck と残りの global シナリオを削除する
-    - C6: 削除する（env クリーンアップは mode 分岐前のため Coverage 側で網羅）
+    - C2（縮小版）: Coverage の repository シナリオと global の全シナリオ（および将来の porcelain 移行に備える 6 件の git config シナリオ）を残し、Unreviewed・CrossCheck の重複シナリオだけを、ステップ 8-2 の壊し確認で成り立つと確かめられたときに削除する（成り立たなければ削らない）
+    - C6: 削除する（env クリーンアップは mode 分岐前のため Coverage 側で網羅。件数はステップ 8-1 で現行コードに照らして数える）
     - C3〜C5・C7〜C11: ステップ 8-1 で検証が成り立ったものを削除・整理する
-    - `verify_bash_cut.sh` を実行して結果を 7 章に記録する
+    - 削除のまとまり（C1〜C11 の候補ごと）を、削除だけのコミットにし、各コミットの後に `make coverage-compare BASE=<そのコミットの親>`（10 分以上のタイムアウト）を流して、最後の行 `coverage-compare: PASS` までをコミットメッセージと PR の説明に書く（Go の製品コードは変わらないので、これは削除が Go のカバレッジを下げないことの確認にとどまる）
+    - bash スクリプトの行の網羅は `coverage-compare` で見えないので、`verify_bash_cut.sh` を実行して結果を 7 章に記録する（`high_review_decision_test.go` と `harness_mapping_cases_test.go` の削除は、`high-review-decision.sh` の `(mode, line)` 集合の一致で確かめる）
 - [ ] **ステップ 8-4**: Part 2（`internal/mergepr/mergemain_test.go`）の検証済み冗長ケースを削減し、main 側リネームの 1 ケースを追加する
     - M4・M7 はアサーション移動を別コミットにした上で、各テスト削除は削除のみのコミットにし、`make coverage-compare BASE=<parent>`（10 分以上のタイムアウト）の通過出力と指定の壊し確認（M5/M6/M9/M10）をコミットメッセージと PR 説明に記録する
     - M5 の削除枠の代わりに、main 側のみファイルリネームする 1 ケースを追加する
 - [ ] **ステップ 8-5**: PR-3 の計測とグリーンゲート確認・記録
-    - `measure.sh`（PR-3 の短縮効果確認）・`make test`・`make lint`・`make deadcode` を実行し、結果を 7 章に記録する
+    - `measure.sh` で PR-3 の BASE と AFTER を測り、PR-3 の割合と、PR-1・PR-2・PR-3 の積（このタスクの割合）を 7.1 節に記録する。判定は AC-01・AC-02（`cmd/yt2column` は `0.758 × r ≤ 0.80`、すなわち PR-3 の割合 r が約 1.055 以下、`internal/mergepr` は `0.793 × r ≤ 0.80`、すなわち r が約 1.008 以下）で行う。超えたときは、きれいな作業ツリーで測り直し、それでも超えるときは作業を止め、要件書の決定の変更をレビューに諮る（PR-2 のノイズ 1.076 と 0.826 / 0.976 のように、変えていないパッケージの割合が 1 を超えうるので、すべての測定値を記録する）。PR-1・PR-2 の時点の「AC-01・AC-02 達成」は、PR-3 の後の再判定まで暫定とする
+    - AC-06（`make coverage-compare BASE=<PR-3 の BASE>`）、AC-09（変更範囲）、AC-11（単独選択とシャッフル）、`make test`・`make lint`・`make deadcode` を PR-3 にも実行し、結果を 7 章に記録する。AC-04・AC-05 は、PR-3 では AC-13 に置き換える
 
 ### PR-3 作成ポイント: remove verified redundant test cases in review_records, high_review_decision, and mergemain
 
@@ -322,7 +367,7 @@ ADR: なし（このタスクの目標と手順である）。
 
 **推奨タイトル**: `test(0127): review_records・high_review_decision・mergemain の冗長なテストケースを検証の上で削減する`
 
-**レビュー観点**: 各削除候補（C1〜C11・M1〜M13）の仮説検証の妥当性と、bash 3.2 の 40 末端サブセット＋オプトイン全件実行の網羅性 / `_checks/verify_bash_cut.sh` の `(mode, line)` 行カバレッジ一致と 4 件のミューテーション検出および壊し確認 / `mergemain_test.go` の各削除コミットが削除のみで `make coverage-compare BASE=<parent>` の通過出力と M5/M6/M9/M10 の壊し確認を持つこと / main 側のみファイルリネームする新規ケースの妥当性 / 7 章の計測・検証記録
+**レビュー観点**: 各削除候補（1.6 節の C1〜C11・M1〜M13）の仮説検証の妥当性と、bash 3.2 の 40 末端サブセット＋オプトイン全件実行の網羅性 / `_checks/verify_bash_cut.sh` の `(mode, line)` 行カバレッジ一致（`review-records.sh` と `high-review-decision.sh`）とミューテーション検出および壊し確認（`GIT_CONFIG_GLOBAL` 削除は検出できないので含めない） / `mergemain_test.go` の各削除コミットが削除のみで `make coverage-compare BASE=<parent>` の通過出力と M5/M6/M9/M10 の壊し確認を持つこと / main 側のみファイルリネームする新規ケースの妥当性 / 7 章の計測・検証記録
 
 **実装モデル要件**: high
 
@@ -812,13 +857,13 @@ coverage-compare: PASS
 ## 8. 成功基準 (Success Criteria)
 
 -   **機能:** このタスクの `cmd/yt2column` と `internal/mergepr` の割合が 0.80 以下である（AC-01・AC-02）。
--   **品質:** ケースの集まりが減らず（AC-04）、製品コードのカバレッジが下がらず（AC-06）、13 か所の前提の検査が働き（AC-07）、`make test` と `make lint` が通る（AC-12）。
+-   **品質:** ケースの集まりが減らず（PR-1・PR-2 は AC-04。PR-3 は検証済みの削除だけで AC-13）、製品コードのカバレッジが下がらず（AC-06）、13 か所の前提の検査が働き（AC-07）、`make test` と `make lint` が通る（AC-12）。
 -   **セキュリティ:** N/A（要件書 4.2）。
 -   **文書:** 7 章の記録がそろい、`package_reference.md` に `internal/snapshottest` の行がある。
 
 ## 9. 次のステップ (Next Steps)
 
--   PR-2 のマージの後、issue #1168 を閉じる（`/runpr` が、タスクの最後の計画の PR の後に提案する）。
+-   PR-3 のマージの後、issue #1168 を閉じる（`/runpr` が、タスクの最後の計画の PR の後に提案する）。
 -   `scriptBashes` を使うほかのテストへの適用は、範囲外として残す（設計書 9 章）。
 
 ## 変更履歴
@@ -827,3 +872,4 @@ coverage-compare: PASS
 - 2026-11-27 セッション中の再承認：`cmd/yt2column` の目標を 80% 以下に改め、比較のスクリプトの名前の比べ方を直し、1.5 節に記録した（isseis、#1193）
 - 2026-11-27 セッション中の再承認：`internal/mergepr` の目標を 80% 以下に改め、1.5 節に記録した（isseis、#未記入）
 - 2026-11-27 セッション中の再承認：冗長テストの削減（フェーズ 8・PR-3）を計画に追加した（isseis、#1197）
+- 2026-11-27 セッション中の再承認：1.6 節に削減候補表を置き、C2 を縮小版にし、フェーズ 8 の検証（`coverage-compare`、`high-review-decision.sh` への適用、停止条件、AC-06・AC-09・AC-11）と、1.3 節・1.5 節・8 章・9 章の旧い記述を直した（isseis、#1197）
