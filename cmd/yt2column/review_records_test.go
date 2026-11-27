@@ -1075,6 +1075,100 @@ var rrCaseKind = snapshottest.NewKind("rrCase", func(g rrConfigGroup) rrConfigGr
 // only when the script starts reading through a porcelain diff. Only
 // core.abbrev and i18n.logOutputEncoding reach a command the script runs
 // (git log for the listed subjects).
+// filterBash3Cases returns cases unchanged for path-bash or when bash3AllEnabled()
+// is set; for bin-bash-3 by default, it returns only the representative cases in
+// keep. It always checks that every name in keep exists in cases so renamed or
+// removed cases fail immediately on every platform.
+func filterBash3Cases(t *testing.T, bash scriptBash, cases []rrCase, keep map[string]struct{}) []rrCase {
+	t.Helper()
+	found := make(map[string]struct{}, len(keep))
+	var filtered []rrCase
+	for _, c := range cases {
+		if _, ok := keep[c.name]; ok {
+			found[c.name] = struct{}{}
+			filtered = append(filtered, c)
+		}
+	}
+	for name := range keep {
+		if _, ok := found[name]; !ok {
+			t.Fatalf("bin-bash-3 subset names %q, which is not in cases", name)
+		}
+	}
+	if bash.name != "bin-bash-3" || bash3AllEnabled() {
+		return cases
+	}
+	return filtered
+}
+
+var (
+	bash3CoverageSubset = map[string]struct{}{
+		"seen by coderabbit":                            {},
+		"commit after the seen range":                   {},
+		"PR created in a marker section":                {},
+		"PR merged and next branch in a marker section": {},
+		"CRLF plan": {},
+		"abbreviation that is also a branch name":  {},
+		"LAST_REVIEWED limits the commits judged":  {},
+		"LAST_REVIEWED is not an ancestor of HEAD": {},
+		"HEAD of another form":                     {},
+		"PLAN of another form":                     {},
+		"no origin/main":                           {},
+		"START outside the branch":                 {},
+		"GIT_ variables":                           {},
+		"clean environment variable preset":        {},
+		"exported functions":                       {},
+		"BASH_ENV":                                 {},
+	}
+
+	bash3UnreviewedSubset = map[string]struct{}{
+		"merge commit inside a seen range":                  {},
+		"seen range from the old merge-base before a merge": {},
+		"README.en.md and a CHECKS fix after the record":    {},
+		"HEAD of another form":                              {},
+	}
+
+	bash3CrossCheckSubset = map[string]struct{}{
+		"no record":               {},
+		"legacy Fable run record": {},
+		"new Cross-check run record with Antigravity model":                      {},
+		"not run record with its cost":                                           {},
+		"not run record without a cost":                                          {},
+		"work after the record":                                                  {},
+		"README.en.md after the record":                                          {},
+		"plan checkbox after the record":                                         {},
+		"fix inside a not-run line of the record's commit":                       {},
+		"work after the Cross-check mark at the checkpoint":                      {},
+		"implementation record after the mark":                                   {},
+		"merge check after the merge":                                            {},
+		"not run merge check with wrong-model and legacy not-opus":               {},
+		"fix of the merge check seen by a CLI":                                   {},
+		"record from a merge-base origin/main moved past":                        {},
+		"parent of the first missing commit behind the merge-base":               {},
+		"merge check naming a merge whose first parent is behind the merge-base": {},
+		"ENTRY of another form":                                                  {},
+	}
+
+	bash3PatternSubset = map[string]struct{}{
+		"48-char suffix accepted":          {},
+		"49-char suffix rejected":          {},
+		"empty suffix rejected":            {},
+		"uppercase suffix rejected":        {},
+		"prefix dot is not regex wildcard": {},
+		"exact dot literal matches":        {},
+	}
+
+	bash3GrammarSubset = map[string]struct{}{
+		"wrong header":        {},
+		"missing _context.md": {},
+		"zero high patterns":  {},
+	}
+
+	bash3FableAliasSubset = map[string]struct{}{
+		"VALID with Cross-check record":      {},
+		"fail-closed on missing _context.md": {},
+	}
+)
+
 func TestReviewRecordsCoverage(t *testing.T) {
 	t.Parallel()
 	for _, tool := range []string{"git", "awk", "tr"} {
@@ -1086,9 +1180,12 @@ func TestReviewRecordsCoverage(t *testing.T) {
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
-			runRRCases(t, bash, "coverage", "PARTIAL\n", form, crossCheckForms{}, coverageCases())
-			checkConfigScenarios(t, "git config", bash, form, crossCheckForms{},
-				"coverage", rrConfigBranch, func(*rrFixture) string { return "PARTIAL 1\n" })
+			runRRCases(t, bash, "coverage", "PARTIAL\n", form, crossCheckForms{},
+				filterBash3Cases(t, bash, coverageCases(), bash3CoverageSubset))
+			if bash.name != "bin-bash-3" || bash3AllEnabled() {
+				checkConfigScenarios(t, "git config", bash, form, crossCheckForms{},
+					"coverage", rrConfigBranch, func(*rrFixture) string { return "PARTIAL 1\n" })
+			}
 		})
 	}
 }
@@ -1207,9 +1304,12 @@ func TestReviewRecordsUnreviewed(t *testing.T) {
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
-			runRRCases(t, bash, "unreviewed", "PARTIAL\n", form, forms, cases)
-			checkConfigScenarios(t, "git config", bash, form, forms, "unreviewed", rrUnreviewedConfigBranch,
-				func(*rrFixture) string { return "PARTIAL 2\n" })
+			runRRCases(t, bash, "unreviewed", "PARTIAL\n", form, forms,
+				filterBash3Cases(t, bash, cases, bash3UnreviewedSubset))
+			if bash.name != "bin-bash-3" || bash3AllEnabled() {
+				checkConfigScenarios(t, "git config", bash, form, forms, "unreviewed", rrUnreviewedConfigBranch,
+					func(*rrFixture) string { return "PARTIAL 2\n" })
+			}
 		})
 	}
 }
@@ -2136,7 +2236,8 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
-			runRRCases(t, bash, "cross-check", "MISSING\n", form, forms, crossCheckCases())
+			runRRCases(t, bash, "cross-check", "MISSING\n", form, forms,
+				filterBash3Cases(t, bash, crossCheckCases(), bash3CrossCheckSubset))
 
 			t.Run("pattern matching", func(t *testing.T) {
 				t.Parallel()
@@ -2157,7 +2258,23 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 						"| `Claude Code` | `cross-check` | `agent` | `fable` | `"+mc.pattern+"` |")
 					cases = append(cases, matchCase{mc.name, ctx, mc.model, mc.match})
 				}
+				foundPat := make(map[string]struct{}, len(bash3PatternSubset))
 				for _, tc := range cases {
+					if _, ok := bash3PatternSubset[tc.name]; ok {
+						foundPat[tc.name] = struct{}{}
+					}
+				}
+				for name := range bash3PatternSubset {
+					if _, ok := foundPat[name]; !ok {
+						t.Fatalf("bin-bash-3 pattern subset names %q, which is not in cases", name)
+					}
+				}
+				for _, tc := range cases {
+					if bash.name == "bin-bash-3" && !bash3AllEnabled() {
+						if _, ok := bash3PatternSubset[tc.name]; !ok {
+							continue
+						}
+					}
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 						f := newRRFixtureWithContext(t, form, tc.ctx)
@@ -2198,11 +2315,27 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 					mappingGrammarCase{"zero cross-check patterns", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `high` | `agent` | `opus` | `claude-opus-*` |\n\n"), "no cross-check verification pattern"},
 					mappingGrammarCase{"zero high patterns", replaceMappingSection(t, realContext, "### Harness model mapping\n\n| Harness | Role | Launch | Model | Verification pattern |\n|---|---|---|---|---|\n| `Claude Code` | `cross-check` | `agent` | `fable` | `claude-fable-*` |\n\n"), "no high-role verification pattern"},
 				)
+				foundGram := make(map[string]struct{}, len(bash3GrammarSubset))
+				for _, tc := range cases {
+					if _, ok := bash3GrammarSubset[tc.name]; ok {
+						foundGram[tc.name] = struct{}{}
+					}
+				}
+				for name := range bash3GrammarSubset {
+					if _, ok := foundGram[name]; !ok {
+						t.Fatalf("bin-bash-3 grammar subset names %q, which is not in cases", name)
+					}
+				}
 				// Every fail-closed rejection exits 1 with "MISSING\n" on
 				// stdout, so matching the stderr diagnostic substring is the
 				// only way to verify that each malformed fixture triggered the
 				// specific validation rule under test rather than an earlier one.
 				for _, tc := range cases {
+					if bash.name == "bin-bash-3" && !bash3AllEnabled() {
+						if _, ok := bash3GrammarSubset[tc.name]; !ok {
+							continue
+						}
+					}
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 						f := newRRFixtureWithContext(t, form, tc.ctx)
@@ -2236,10 +2369,12 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 				})
 			})
 
-			checkConfigScenarios(t, "git config", bash, form, forms, "cross-check", rrFableConfigBranch,
-				func(f *rrFixture) string { return "MISSING " + f.rev("HEAD~1") + "\n" })
-			checkConfigScenarios(t, "git config with a merge", bash, form, forms, "cross-check", rrFableMergeConfigBranch,
-				func(*rrFixture) string { return "VALID\n" })
+			if bash.name != "bin-bash-3" || bash3AllEnabled() {
+				checkConfigScenarios(t, "git config", bash, form, forms, "cross-check", rrFableConfigBranch,
+					func(f *rrFixture) string { return "MISSING " + f.rev("HEAD~1") + "\n" })
+				checkConfigScenarios(t, "git config with a merge", bash, form, forms, "cross-check", rrFableMergeConfigBranch,
+					func(*rrFixture) string { return "VALID\n" })
+			}
 		})
 	}
 }
@@ -2276,7 +2411,8 @@ func TestReviewRecordsFableAlias(t *testing.T) {
 	for _, bash := range scriptBashes(t) {
 		t.Run(bash.name, func(t *testing.T) {
 			t.Parallel()
-			runRRCases(t, bash, "fable", "MISSING\n", form, forms, cases)
+			runRRCases(t, bash, "fable", "MISSING\n", form, forms,
+				filterBash3Cases(t, bash, cases, bash3FableAliasSubset))
 		})
 	}
 }

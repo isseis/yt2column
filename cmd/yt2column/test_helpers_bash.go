@@ -3,12 +3,23 @@
 package main
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 )
+
+// bash3AllEnv enables running every review-records test case under /bin/bash
+// (bash 3.2) instead of the default syntax- and line-covering subset.
+const bash3AllEnv = "YT2COLUMN_TEST_BASH3_ALL"
+
+// bash3AllEnabled reports whether the caller opted into running every test case
+// under bin-bash-3.
+func bash3AllEnabled() bool {
+	return os.Getenv(bash3AllEnv) == "1"
+}
 
 // scriptBash is a bash a test runs a command document's bash script with.
 type scriptBash struct {
