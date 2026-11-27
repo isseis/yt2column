@@ -37,8 +37,8 @@
     -   **採らなかった案:** `allow` に `Bash(make ext-install)` を足す案。設計の承認の前に確かめる案も採らない。今の `mergemain.md` は `make ext-install` を禁じていて、新しい定義の `/mergemain` は承認の前には走らせられないためである。実装の PR での確かめも、chief が送る道そのものではなく人が打つ `/mergemain` で行うが（7.3）、判定が読む入力は新しい定義と承認の文になるので、それで確かめられる。
     -   **ADR:** [ADR-0046](../../dev/adr/0046-chief-of-staff.md) を更新する（「決定」の `/mergemain` の確認の項、「採らなかった案」、「結果」）。確認なしに許す範囲は、開発ツールの信頼の境界に関わる方針で、`.claude/settings.json` を変えるほかのタスクも縛るためである。
 -   **`make ext-install` の時間の上限（H-03）**
-    -   **決定:** 手順 7 に、`make ext-install` を前景で、上限を 10 分にして走らせると書く。上限で打ち切られたら、失敗として戻し、「検査の準備がない」で止まる。走らせ直しも、後ろでの実行もしない。
-    -   **理由:** Claude Code の Bash は、前景のコマンドを既定で 120 秒で打ち切る。最大の値も既定では 600 秒である。キャッシュのない `npm ci` は 120 秒を超えうるので、上限を書かないと、ネットワークが遅いだけで止まりやすくなる。10 分は、Claude Code の Bash が既定で許す最大の値である。利用者がそれより低い最大の値を設定していれば、上限はその値になる。
+    -   **決定:** 手順 7 に、`make ext-install` を前景で、上限を 10 分にして走らせると書く。上限に達したら、そのコマンドを止め、失敗として戻し、「検査の準備がない」で止まる。走らせ直しも、後ろでの実行の続行もしない。
+    -   **理由:** Claude Code の Bash は、前景のコマンドの上限を既定で 120 秒とし、最大の値も既定では 600 秒である。上限に達したコマンドは止まらず、ハーネスが追う後ろの実行に移される（2026-11-27 に、このセッションの Claude Code で 3 秒の上限を超える `sleep` を走らせて確かめた。結果は「上限の内に終わらず、後ろの実行に移した。止めるなら TaskStop で止めよ」という知らせだった）。そのため、手順には、上限に達したら移された実行を止めることまで書く。止めないと、`npm ci` が後ろで続き、手順 9 の後も `extension/node_modules` を書き換えうる。キャッシュのない `npm ci` は 120 秒を超えうるので、上限を書かないと、ネットワークが遅いだけで止まりやすくなる。10 分は、Claude Code の Bash が既定で許す最大の値である。利用者がそれより低い最大の値を設定していれば、上限はその値になる。
     -   **採らなかった案:** 上限を置かず、残る危険として受け入れる案。既定の 120 秒の打ち切りで止まりやすく、打ち切りを失敗として扱う決まりも要るためである。
     -   **ADR:** なし。手順の値は本タスクの中で閉じ、ほかのタスクや構成要素を縛らないためである。
 
@@ -47,11 +47,11 @@
 -   **`make ext-preflight` の削除（H-02）:** 手順 7 から `make ext-preflight` を外す。`make ext-install` は走る前に Node.js と npm の版を確かめる（`Makefile:425-426` が `ext_check_versions` を呼ぶ）。`make ext-check` の各段も `ext_preflight` を呼び、版と `extension/node_modules` があることを確かめる（`Makefile:430-441` など）。そのため、`make ext-preflight` を `make ext-install` の前に残すと、`node_modules` のない worktree で必ず失敗する。後に置いても確かめが重なるだけである。外しても、版が合わないことは `make ext-install` の失敗として「検査の準備がない」に写る。ADR: なし。手順の書き方は本タスクの中で閉じる。
 -   **`make ext-install` の書き場所:** 実行のブロックではなく本文に書く。今の手順 7 は、`make test`・`make lint`・`make ext-preflight`・`make ext-check` を本文の箇条に書いている（`.claude/commands/mergemain.md:252,264-267`）。`make ext-install` も同じ書き方にそろえる。`cmd/mergepr/docs_test.go` の `TestMergemainCommandLinesAreListed` は、囲みのコードブロックの行だけを読み、その範囲を取り込みのサブコマンド・merge コミット・差分に限っている（`cmd/mergepr/docs_test.go:537-547` のコメント）。本文に書けば、このガードの受け付ける形も変わらない。ADR: なし（同上）。
 -   **許可の判定による拒否と、人が断った後の扱い:**
-    -   **auto mode の判定が拒んだとき:** エージェントは人に尋ねず、別の道も探さずに、手順 9 で戻して「検査の準備がない」で止まる。理由: 拒まれたときにエージェントが別の道で依存を入れると、AC-08 に反する。人に尋ねると、chief が送った `/mergemain` は途中の状態のまま止まる。
-    -   **人が確認の画面で断ったとき:** Claude Code はエージェントの番を終え、人の次の入力を待つと想定する（7.3 で合わせて見る）。そうなると `/mergemain` は、push していない merge コミットを残したまま、戻しも報告もせずに止まる。この振る舞いは `mergemain.md` では変えられない。`mergemain.md` には、人が続けるよう指示したら手順 9 で戻して「検査の準備がない」で報告すると書く。chief から見ると、PR は同じ head のまま `CONFLICTING` なので、エージェントが入力を待つ状態に戻れば「解消できず」の行になり、人が気づける（ADR-0046 の「解消できなかったこと」の判定）。
+    -   **auto mode の判定が拒んだとき:** エージェントは人に尋ねず、別の道も探さずに、手順 9 で戻して「検査の準備がない」で止まる。理由: 拒まれたときにエージェントが別の道で依存を入れると、AC-08 に反する。人に尋ねて許しを得る道は採らない。判定が拒んだコマンドを、エージェントの問いで通す形になり、確認なしに許す範囲を判定の外で広げるためである。手順 9 の `mergemain-restore` は今のとおり確認を出すので、人はそこで戻すことを確かめる。拒まれた後もエージェントの番が続き、手順 9 へ進めることは想定で、7.3 で見る（拒否が起きた場合）。
+    -   **人が確認の画面で断ったとき:** Claude Code はエージェントの番を終え、人の次の入力を待つと想定する（7.3 で合わせて見る）。そうなると `/mergemain` は、push していない merge コミットを残したまま、戻しも報告もせずに止まる。この振る舞いは `mergemain.md` では変えられない。`mergemain.md` には、人が断った後の指示（確認の画面で断るときに添えた言葉を含む）が何であっても、取り込みの手順を変えず、ほかの道で依存を入れず、手順 9 で戻して「検査の準備がない」で報告すると書く。chief から見ると、PR は同じ head のまま `CONFLICTING` なので、エージェントが入力を待つ状態に戻れば「解消できず」の行になり、人が気づける（ADR-0046 の「解消できなかったこと」の判定）。
     -   **報告:** どちらの拒否も AC-03 の「`make ext-install` が失敗したとき」には当たらないとし、AC-03 の (2) は書かない。`npm ci` が走っておらず、`node_modules` は始める前のままだからである。代わりに、拒まれて走らなかったことを書く（3.1 の 5）。
     -   ADR: なし。ADR-0046 の「拒まれたときは別の道で依存を入れずに戻して止まる」の中の、写し方の細部である。
--   **Claude Code の外のハーネス:** `/mergemain` は、人が Antigravity や OpenCode で打つこともできる。アダプタは変えない。Antigravity の `shell-run` は、まず OS のサンドボックスの中で走らせ、上げてよいコマンドの種類を限っている（`.claude/commands/_lib/harness-antigravity.md` の 4 章）。そこに `npm` はないので、`make ext-install` はネットワークに届かずに失敗しうる。そのときは「検査の準備がない」で止まる。これを、chief が送らないハーネス（Claude Code 以外）での制限として受け入れる。アダプタの規則で一度だけサンドボックスの外で走らせることは、「走らせ直し」に含めない。ADR: なし。chief が送らない道の制限で、ほかのタスクを縛らないためである。
+-   **Claude Code の外のハーネス:** `/mergemain` は、人が Antigravity や OpenCode で打つこともできる。アダプタは変えない。Antigravity の `shell-run` は、まず OS のサンドボックスの中で走らせ、上げてよいコマンドの種類を限っている（`.claude/commands/_lib/harness-antigravity.md` の 4 章）。そこに `npm` はないので、`make ext-install` はネットワークに届かずに失敗し、「検査の準備がない」で止まる。`npm ci` は取得の前に `node_modules` を消すので、今は `make ext-preflight` を通って `make ext-check` まで進む worktree でも、`node_modules` を失って止まる。これは、人が Antigravity で打つ `/mergemain` には後退である。chief が送らないハーネス（Claude Code 以外）での制限として受け入れ、PR のレビューで人に確かめてもらう。ADR: なし。chief が送らない道の制限で、ほかのタスクを縛らないためである。
 
 ### 1.3. 概念モデル
 
@@ -196,16 +196,16 @@ sequenceDiagram
 
 AC-08 が差分を許す 5 か所だけを変える。どの変更も、`make ext-install` とその失敗に関わる記述に限る。次の 5 項目が、`mergemain.md` の変更の完全な一覧である。
 
-1.  **承認の節（`.claude/commands/mergemain.md:16-28`）。** 4 つのネットワークの操作に加え、手順 7 が拡張の検査を走らせる取り込みに限り、`make ext-install`（`registry.npmjs.org` からの依存の取得を含む）を承認すると書く。「no dependency installation」は、それ以外の依存のインストールを承認しない、という意味に改める（AC-07）。
+1.  **承認の節（`.claude/commands/mergemain.md:16-28`）。** 4 つのネットワークの操作に加え、手順 7 が拡張の検査を走らせる取り込みに限り、`make ext-install`（`registry.npmjs.org` からの依存の取得を含む）を、手順 7 の形（引数もつなぎもない、それだけのコマンド）に限って承認すると書く。「no dependency installation」は、それ以外の依存のインストールを承認しない、という意味に改める（AC-07）。
 2.  **禁止事項の 9（`.claude/commands/mergemain.md:78-80`）。** 括弧の中から `make ext-install` を外す。代わりに、次のことを禁じる（AC-08）。
     -   手順 7 の外で `make ext-install` を走らせること（手順 9 で戻した後を含む）。
     -   ほかの方法で依存を入れること（`extension/` での `npm ci`・`npm install`・`npx` など）。
     -   `make ext-install` が拒まれたか失敗したときに、別の道で依存を入れようとすることと、エージェント自身が人に尋ねること（ハーネスが出す許可の確認の画面は除く）。
 3.  **止まる理由の対応の「検査の準備がない」の行（`.claude/commands/mergemain.md:110`）。** 括弧の中を、「`make ext-install` が失敗した、時間の上限で打ち切られた、または許可の判定で拒まれた」に改める。
 4.  **手順 7（`.claude/commands/mergemain.md:251-267`）。** `make test`・`make lint` と、`git diff --name-only <base-head> HEAD` による判定は変えない。判定が「要る」のときの 2 つの小手順を次に改める。
-    1.  `make ext-install` を前景で、上限を 10 分にして走らせる（`_lib/harness.md` の `shell-run`）。その結果を、通った・失敗した・打ち切られた・拒まれた、のどれかとして手順 10 のために覚える。通らなかったときは、手順 9 を走らせ、手順 10 へ理由の種類「検査の準備がない」で進む。走らせ直しはしない。
+    1.  `make ext-install` を、リポジトリの最上位で、引数・変数・ほかのコマンドとのつなぎなしの、それだけのコマンドとして、前景で、上限を 10 分にして走らせる（`_lib/harness.md` の `shell-run`）。上限に達してハーネスが後ろの実行に移したときは、その実行をハーネスの止め方（Claude Code では TaskStop）で止め、打ち切られたものとする。その結果を、通った・失敗した・打ち切られた・拒まれた、のどれかとして手順 10 のために覚える。通らなかったときは、手順 9 を走らせ、手順 10 へ理由の種類「検査の準備がない」で進む。走らせ直しはしない。
         -   許可の判定が拒んだときは、人に尋ねずに手順 9 へ進む。
-        -   人が確認の画面で断った後に、人が続けるよう指示したときは、手順 9 へ進む。
+        -   人が確認の画面で断った後は、人の指示が何であっても、手順 9 へ進む（1.2）。
     2.  `make ext-check` を走らせる。失敗したら、手順 9 を走らせ、手順 10 へ理由の種類「検査の失敗」で進む。
 
     判定が「要らない」ときは、どちらも走らせず、`make ext-install` の結果は「走らせていない」とする（AC-02）。`make ext-preflight` は手順から消える（1.2）。
@@ -244,11 +244,11 @@ AC-08 が差分を許す 5 か所だけを変える。どの変更も、`make ex
 
 本書の PR で、ADR-0046 を次のように更新する（ADR-0046 の「経緯」に 2026-11-27 の行を足す）。
 
--   **「決定」:** 「マージコンフリクトの解消の自動送信」の、`mergepr` のサブコマンドを確認なしに許す項の後に、次のことを書く。`make ext-install` には `.claude/settings.json` の規則を足さず、chief が送る pane の auto mode の判定に任せる。拒まれたときと失敗したときは、別の道で依存を入れずに戻して止まる。理由として、`make` は作業ツリーの `Makefile` を走らせるので、規則を足すとすべてのセッションで確認なしに走りうることを書く。
+-   **「決定」:** 「マージコンフリクトの解消の自動送信」の、`mergepr` のサブコマンドを確認なしに許す項の後に、次のことを書く。`make ext-install` には `.claude/settings.json` の規則を足さず、chief が送る pane の auto mode の判定に任せる。auto mode の判定に拒まれたときと失敗したときは、別の道で依存を入れずに戻して止まる。理由として、`make` は作業ツリーの `Makefile` を走らせるので、規則を足すとすべてのセッションで確認なしに走りうることを書く。
 -   **「採らなかった案」:** `allow` に `Bash(make ext-install)` を足す案を、理由とともに足す。
 -   **「結果」:** auto mode の判定が `make ext-install` を許すかは、モデルの判定によること。実装の PR で確かめた時点で許していても、後で拒みうること。拒まれると `/mergemain` は「検査の準備がない」で止まり、依存が入らないまま検査が通ることはないこと。
 
-要件書の PR が ADR-0046 に書いた食い違いの文（「CLAUDE.md と `mergemain.md` はまだ `make ext-install` を承認せず…」）は、実装の PR で `mergemain.md` と `CLAUDE.md` を変えるときに消す。本書の PR では残す。
+要件書の PR が ADR-0046 に書いた食い違いの文（「CLAUDE.md と `mergemain.md` はまだ `make ext-install` を承認せず…」）は、実装の PR で `mergemain.md` と `CLAUDE.md` を変えるときに消す。本書の PR では残す。実装の PR では、7.3 の確かめの結果に合わせて、「結果」の「未確認である」の文と、人が断ったときの振る舞いの文も直す。
 
 ### 3.5. 変えないガードテスト
 
@@ -278,21 +278,21 @@ AC-08 が差分を許す 5 か所だけを変える。どの変更も、`make ex
 | 起きたこと | 理由の種類 | 戻すか |
 |---|---|---|
 | `make ext-install` の終了の状態が 0 でない（版が合わない、`check-lockfile` が拒む、`npm ci` が失敗する、ネットワークにつながらない） | `検査の準備がない` | 戻す |
-| `make ext-install` が 10 分の上限で打ち切られた | `検査の準備がない` | 戻す |
+| `make ext-install` が 10 分の上限に達し、移された後ろの実行を止めた | `検査の準備がない` | 戻す |
 | `make ext-install` が auto mode の判定で拒まれた | `検査の準備がない` | 戻す |
-| 人が確認の画面で `make ext-install` を断り、その後に続けるよう指示した | `検査の準備がない` | 戻す |
+| 人が確認の画面で `make ext-install` を断った | `検査の準備がない` | 戻す |
 | `make ext-install` が通った後に `make ext-check` が失敗した | `検査の失敗` | 戻す |
 | `make ext-install` が通った後に push が `push_rejected` で止まった | `push の失敗` | 戻す |
 
 報告の「詳細」に書くことは、3.1 の 5 が定める。
 
-`make ext-check` が時間の上限で打ち切られたときは、今の手順のとおり失敗として「検査の失敗」に写る。`make ext-check` の上限は書かない。AC-08 が `mergemain.md` の差分を `make ext-install` に関わる記述に限っているためである（5.3）。
+`make ext-check` が時間の上限に達したときの扱いは、今の手順のままで、本設計は決めない（Claude Code では後ろの実行に移される）。`make ext-check` の上限は書かない。AC-08 が `mergemain.md` の差分を `make ext-install` に関わる記述に限っているためである（5.3）。
 
 ### 4.2. 失敗の向き
 
 -   **`make ext-install` が通らないとき:** `make ext-check` に進まない。依存が欠けたまま検査を走らせて、検査の失敗と取り違えないためである（AC-03）。
 -   **上限で打ち切られたとき:** コマンドを走らせ直さない。やり直しは、ネットワークか registry が応じないときに `/mergemain` を長く止める。人が報告を読んで入れ直す。
--   **打ち切りの後にプロセスが残る場合。** ハーネスが打ち切ったコマンドのプロセスを止めるかは、確かめていない。残った `npm ci` は、手順 9 の後も `extension/node_modules` を書き換えうる。ただし手順 9 には影響しない。`mergemain-restore` が無視されたファイルで止まるのは、基準の head が追跡するパスにあるときだけで（`internal/mergepr/mergemain_restore.go:32-33`）、基準の head は `extension/node_modules` の下を追跡しないためである（`.gitignore:11`）。問題になるのは、人の入れ直しや次の `/mergemain` と重なったときである。2 つの `npm ci` が同じディレクトリを書き換え、中身を壊しうる。報告は、入れ直す前に残ったプロセスを確かめるよう人に示す（3.1 の 5）。
+-   **止めた後にプロセスが残る場合。** 上限に達して後ろの実行に移されたコマンドは、手順 7 で止める（3.1 の 4）。止めたときに `npm ci` の子のプロセスまで止まるかは、確かめていない。残った `npm ci` は、手順 9 の後も `extension/node_modules` を書き換えうる。ただし手順 9 には影響しない。`mergemain-restore` が無視されたファイルで止まるのは、基準の head が追跡するパスにあるときだけで（`internal/mergepr/mergemain_restore.go:32-33`）、基準の head は `extension/node_modules` の下を追跡しないためである（`.gitignore:11`）。問題になるのは、人の入れ直しや次の `/mergemain` と重なったときである。2 つの `npm ci` が同じディレクトリを書き換え、中身を壊しうる。報告は、入れ直す前に残ったプロセスを確かめるよう人に示す（3.1 の 5）。
 
 ## 5. セキュリティ考慮事項 (Security Considerations)
 
@@ -342,7 +342,7 @@ flowchart LR
 ### 5.2. 守ること
 
 -   **取得の守り:** `Makefile` に任せる。版の確かめ、`check-lockfile` による取得先の限定、`--ignore-scripts`、`--registry` と `--replace-registry-host=never` による取得先の固定（`Makefile:420-428`）は変えない。
--   **書くもの:** `make ext-install` が作業ツリーに書くのは `npm ci` の `extension/node_modules` だけで、版の確かめと `check-lockfile` は読むだけである（`Makefile:425-428`）。そのため、ブランチが `Makefile` と `extension/package.json` を変えていなければ、変わる無視されたファイルは `extension/node_modules` と、今のとおり `make ext-check` が書くものに限られる（AC-10）。
+-   **書くもの:** `make ext-install` が作業ツリーに書くのは `npm ci` の `extension/node_modules` だけで、版の確かめと `check-lockfile` は読むだけである（`Makefile:425-428`）。そのため、ブランチが `Makefile`・`extension/package.json`・`extension/scripts/check-lockfile.ts` を変えていなければ、変わる無視されたファイルは `extension/node_modules` と、今のとおり `make ext-check` が書くものに限られる（AC-10）。AC-10 の条件は `Makefile` と `extension/package.json` だけを挙げるが、`check-lockfile` は `extension/scripts/check-lockfile.ts` を走らせるので、これも書き換えうる。要件書 4.2 はこのファイルを残る危険に挙げている。
 -   **確認なしに許す範囲:** 規則では広げない。`.claude/settings.json` に規則を足さないので、確認を出すモードのセッションでは、`make ext-install` は今と同じに確認が出る。
 -   **依存を入れる手順:** 手順 7 でだけ入れる。拒まれても失敗しても、ほかの道で入れない（3.1 の 2）。
 
@@ -352,8 +352,9 @@ flowchart LR
 
 -   **auto mode の判定の振る舞い。** 判定が `make ext-install` を許すかは、モデルの判定による。実装の PR で確かめた時点で許していても、後で拒みうる。拒まれれば `/mergemain` は「検査の準備がない」で止まる。止まる向きに倒れるので、依存が入らないまま検査が通ることはない。
 -   **auto mode の判定が、承認の範囲の外でも許しうること。** 判定は CLAUDE.md の承認を根拠にしうるが、承認の範囲（その PR の `/mergemain` の手順 7）を判定が守る保証はない。auto mode のほかのセッションも、作業ツリーの `Makefile` を走らせる `make ext-install` を確認なしに走らせうる。規則を足さないことで守られるのは、確認を出すモードのセッションだけである。また、CLAUDE.md は PR のブランチから読まれ、chief が行う定義の比較（ADR-0046）の対象に入っていないので、ブランチが CLAUDE.md の承認の文を広げることもできる。これは ADR-0046 の「結果」の、`/mergemain` がたどる規則のファイルの危険と同じものである。
--   **`make ext-check` の時間。** `extension/node_modules` のない worktree でも、`make ext-check` まで進むようになる。`make ext-check` は 2 つのビルドを含み、最初のビルドでは Go のツールチェーンを取得しうる（`Makefile:455-457` の `ext-build`、CLAUDE.md の「Extension Commands」）。ハーネスの既定の上限（Claude Code では 120 秒）で打ち切られると、「検査の失敗」で止まる。上限を書くことは AC-08 の範囲の外なので、別の issue で扱う。ツールチェーンの取得は本タスクの前からある取得で、`/mergemain` の承認は名指していない。
--   **打ち切りの後に残る `npm ci`。** 4.2 のとおり、人の入れ直しと重なりうる。報告で人に示す。
+-   **`make ext-check` の時間。** `extension/node_modules` のない worktree でも、`make ext-check` まで進むようになる。`make ext-check` は 2 つのビルドを含み、最初のビルドでは Go のツールチェーンを取得しうる（`Makefile:455-457` の `ext-build`、CLAUDE.md の「Extension Commands」）。ハーネスの既定の上限（Claude Code では 120 秒）に達すると、後ろの実行に移され、その後の扱いはエージェントに任される。上限を書くことは AC-08 の範囲の外なので、別の issue で扱う。ツールチェーンの取得は本タスクの前からある取得で、`/mergemain` の承認は名指していない。
+-   **止めた後に残る `npm ci`。** 4.2 のとおり、人の入れ直しと重なりうる。報告で人に示す。
+-   **ほかの道での依存のインストール。** `npm ci`・`npm install`・`npx` を直接走らせることは、`mergemain.md` の禁止事項だけで禁じる。`.claude/settings.json` の `deny` の規則は足さない。auto mode の判定がそれを許せば、`check-lockfile` と取得先の固定を通らない取得が起きうる。
 
 ## 6. 処理フローの詳細 (Processing Flow Details)
 
@@ -418,9 +419,9 @@ flowchart TD
 
 実装の PR のマージの前に、次のことを実地で確かめる。確かめの細部（取り込みの用意の仕方、記録の置き場所）は実装計画書が決める。
 
--   **確かめの形:** chief が送る道そのものは確かめられない。chief は、ブランチの `mergemain.md` が `origin/main` と同じときだけ送り（要件書 4.4、ADR-0046）、新しい定義はマージの前には `origin/main` にないためである。そこで、人が auto mode の Claude Code の pane で打つ `/mergemain` を、その代わりとする。auto mode の判定が読む入力（コマンドの定義と CLAUDE.md の承認の文、pane の許可のモード）は、chief が送ったときと同じになる。取り込む側のブランチは、実装の PR の `mergemain.md` と `CLAUDE.md` を持つこと。`main` の側には、拡張の検査が要る変更が入っていること。
+-   **確かめの形:** chief が送る道そのものは確かめられない。chief は、ブランチの `mergemain.md` が `origin/main` と同じときだけ送り（要件書 4.4、ADR-0046）、新しい定義はマージの前には `origin/main` にないためである。そこで、人が auto mode の Claude Code の pane で打つ `/mergemain` を、その代わりとする。chief が送るときと形を合わせるため、pane は新しいか `/clear` の直後のものとし、人の入力は `/mergemain <PR>` だけにする。利用者の設定に `make` に当たる許可の規則がないことも確かめる。そうすれば、auto mode の判定が読む入力（コマンドの定義、CLAUDE.md の承認の文、pane の許可のモード、会話）は、chief が送ったときと同じになる。取り込む側のブランチは、実装の PR の `mergemain.md` と `CLAUDE.md` を持つこと。`main` の側には、拡張の検査が要る変更が入っていること。
 -   **確かめること:** `make ext-install` が許可の確認なしに実際に走ったこと。確認が出ないことだけでなく、コマンドの出力が Claude Code のセッションの記録（transcript）にあることまで見る。判定が拒むと、確認が出ずにエージェントが止まりうるためである（design_handoff.md の H-01）。確かめた回数と各回の結果を記録する。判定はモデルによるので、1 回の結果は、その時点で許したことの記録にとどまる（5.3）。
--   **合わせて見ること:** `extension/node_modules` のない worktree で、`make ext-check` まで通ること（AC-01）。報告の「拡張の依存」の項目（AC-06）。人が確認の画面で断ったときに、エージェントの番が終わるか。
+-   **合わせて見ること:** `extension/node_modules` のない worktree で、`make ext-check` まで通ること（AC-01）。報告の「拡張の依存」の項目（AC-06）。人が確認の画面で断ったときに、エージェントの番が終わるか。判定が拒んだ回があれば、その後にエージェントが手順 9 へ進んだか。
 -   **確かめが通らないとき:** 確認が出るか拒まれたら、設計の変更として本書と ADR-0046 に戻り、人と方針を決め直す（1.2）。
 
 ### 7.4. セキュリティのテスト
