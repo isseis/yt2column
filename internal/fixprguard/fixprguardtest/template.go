@@ -70,14 +70,14 @@ func copyTree(srcRoot, dstRoot string) error {
 		mode := info.Mode()
 		switch {
 		case mode.IsDir():
-			if err := os.Mkdir(dstPath, mode.Perm()); err != nil { //nolint:gosec // copies a directory inside the test's temporary fixture
+			if err := os.Mkdir(dstPath, dirMode); err != nil { //nolint:gosec // copies a directory inside the test's temporary fixture
 				return fmt.Errorf("mkdir %s: %w", dstPath, err)
-			}
-			if err := os.Chmod(dstPath, mode.Perm()); err != nil { //nolint:gosec // preserves the template directory's permissions
-				return fmt.Errorf("chmod %s: %w", dstPath, err)
 			}
 			if err := copyTree(srcPath, dstPath); err != nil {
 				return err
+			}
+			if err := os.Chmod(dstPath, mode.Perm()); err != nil { //nolint:gosec // preserves the template directory's permissions
+				return fmt.Errorf("chmod %s: %w", dstPath, err)
 			}
 		case mode.IsRegular():
 			if err := copyFile(srcPath, dstPath, mode.Perm()); err != nil {

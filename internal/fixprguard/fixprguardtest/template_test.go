@@ -200,3 +200,32 @@ func TestTemplateCopyQuotesSpecialDestinationChars(t *testing.T) {
 		t.Errorf("copied config missing quoted url %s:\n%s", wantRemote, got)
 	}
 }
+
+func TestGitConfigQuoteRoundTrip(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{
+		`/tmp/plain/path`,
+		`/tmp/with space/#01/dir`,
+		`/tmp/with\backslash/and"quote"/dir`,
+	} {
+		quoted := quoteGitConfigValue(raw)
+		got, err := unquoteGitConfigValue(quoted)
+		if err != nil {
+			t.Errorf("unquoteGitConfigValue(%q) err = %v", quoted, err)
+			continue
+		}
+		if got != raw {
+			t.Errorf("round-trip(%q) = %q", raw, got)
+		}
+	}
+	for _, bad := range []string{
+		`"unescaped"quote"`,
+		`"dangling\`,
+		`"bad\nescape"`,
+		`unquoted # comment`,
+	} {
+		if _, err := unquoteGitConfigValue(bad); !errors.Is(err, errUnexpectedConfig) {
+			t.Errorf("unquoteGitConfigValue(%q) = %v, want errUnexpectedConfig", bad, err)
+		}
+	}
+}

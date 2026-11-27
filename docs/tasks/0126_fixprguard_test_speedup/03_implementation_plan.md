@@ -511,7 +511,6 @@ PR-4 は製品を変えない。
     -   `race`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `panic` を入れて実行し、終了コード 1（`go test failed`）で失敗することを確認した。
     -   `names`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `t.Skip` を入れて実行し、終了コード 1（`missing=1`, `became_skip=1`, `status=FAIL`）で失敗することを確認した。
     -   `estimate`: `GOMAXPROCS=1` を指定して並列度を 1 に下げた前提の破壊で実行し、両パッケージとも下限が 50% を超えて終了コード 1（`status=FAIL`）で失敗することを確認した。
-    -   `measure`: PR-4 で実施予定。
 -   **破壊の記録（`names` のやり直し）:** 対象コミット `7b77d80cd9e56e1dd13791c166a1398171a10bbf`（ステップ 3-1 で時間の行を足した後）
     -   `names`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `t.Skip` を入れ、`names 7b77d80cd9e56e1dd13791c166a1398171a10bbf` を実行し、終了コード 1（`missing=1`, `became_skip=1`, `status=FAIL`）で失敗することを確認した。2 つの木のパッケージの時間の行（`elapsed <パッケージ> base=… head=…`）が出ることも確認した。戻して作業ツリーがきれいなことを確認した。
 -   **破壊の記録（`measure`）:** 対象コミット `35977d6fda089ed353331f1fa34c4e7cda356d07`（ステップ 4-5 で `measure` の閾値を 0.6 に合わせた後。変更前の `bfd67b0bfaff901f6089a3b46f3ce1703a3e21d7` でも同様に確認済み）

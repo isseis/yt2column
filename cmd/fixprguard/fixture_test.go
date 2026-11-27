@@ -116,7 +116,11 @@ func TestFixtureTemplateIsolation(t *testing.T) {
 	r2 := newTestRepo(t)
 
 	origHead := strings.TrimSpace(r2.Git("rev-parse", "HEAD"))
-	origRemote := strings.TrimSpace(r2.Git("rev-parse", "origin/"+testBranch))
+	remoteHead := func(r *testRepo) string {
+		remoteDir := filepath.Join(filepath.Dir(r.Dir), "remote.git")
+		return strings.TrimSpace(r.gitIn(remoteDir, "rev-parse", "refs/heads/"+testBranch))
+	}
+	origRemote := remoteHead(r2)
 
 	// Mutate r1's work tree, .git/config, and remote.git.
 	r1.Write(testFile, "mutated\n")
@@ -145,8 +149,8 @@ func TestFixtureTemplateIsolation(t *testing.T) {
 		if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != origHead {
 			t.Errorf("%s HEAD = %q, want %q", name, got, origHead)
 		}
-		if got := strings.TrimSpace(r.Git("rev-parse", "origin/"+testBranch)); got != origRemote {
-			t.Errorf("%s origin/%s = %q, want %q", name, testBranch, got, origRemote)
+		if got := remoteHead(r); got != origRemote {
+			t.Errorf("%s remote.git refs/heads/%s = %q, want %q", name, testBranch, got, origRemote)
 		}
 	}
 }

@@ -993,7 +993,6 @@ func TestBeginOutputFenced(t *testing.T) {
 // continues, reports zero threads to process, and lists the untrusted ones.
 func TestBeginNothingToProcess(t *testing.T) {
 	t.Parallel()
-	repo := newTestRepo(t)
 	for _, tc := range []struct {
 		name      string
 		steps     []cmdrunnertestutil.Step
@@ -1004,6 +1003,7 @@ func TestBeginNothingToProcess(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			repo := newTestRepo(t)
 			r := newTestRun(t, repo.Dir, repo.Home, tc.steps)
 			if code := r.Run(t, args(cmdBegin, "--reviewer", testReviewer, testPR)...); code != exitContinue {
 				t.Fatalf("exit %d, want %d (%s)", code, exitContinue, r.Stderr)
@@ -1473,15 +1473,14 @@ func TestStopReplyNotResolvedWins(t *testing.T) {
 // and processed; another bot's thread is not.
 func TestReviewerOrderIrrelevant(t *testing.T) {
 	t.Parallel()
-	repo := newTestRepo(t)
 	first, second, other := botThread(1, testReviewer), botThread(2, testSecondReviewer), botThread(3, "other-bot")
 	page := threadsPage(t, false, first, second, other)
 	orders := [][]string{{testReviewer, testSecondReviewer}, {testSecondReviewer, testReviewer}}
-	runBoth := func(t *testing.T, subcommand string, steps func() []cmdrunnertestutil.Step) []string {
+	runBoth := func(t *testing.T, dir, home, subcommand string, steps func() []cmdrunnertestutil.Step) []string {
 		t.Helper()
 		var outs []string
 		for _, order := range orders {
-			r := newTestRun(t, repo.Dir, repo.Home, steps())
+			r := newTestRun(t, dir, home, steps())
 			if code := r.Run(t, args(subcommand, append(reviewerFlags(order...), testPR)...)...); code != exitContinue {
 				t.Fatalf("%s %q: exit %d (%s)", subcommand, order, code, r.Stderr)
 			}
@@ -1494,7 +1493,7 @@ func TestReviewerOrderIrrelevant(t *testing.T) {
 	}
 	t.Run(cmdList, func(t *testing.T) {
 		t.Parallel()
-		outs := runBoth(t, cmdList, func() []cmdrunnertestutil.Step {
+		outs := runBoth(t, t.TempDir(), t.TempDir(), cmdList, func() []cmdrunnertestutil.Step {
 			return []cmdrunnertestutil.Step{headStep(sameRepositoryHead), repoStep(), graphqlStep(page)}
 		})
 		var out struct {
@@ -1516,7 +1515,8 @@ func TestReviewerOrderIrrelevant(t *testing.T) {
 	})
 	t.Run(cmdBegin, func(t *testing.T) {
 		t.Parallel()
-		outs := runBoth(t, cmdBegin, func() []cmdrunnertestutil.Step {
+		repo := newTestRepo(t)
+		outs := runBoth(t, repo.Dir, repo.Home, cmdBegin, func() []cmdrunnertestutil.Step {
 			return beginSteps(page, graphqlStep(threadBodies(t, first, second)))
 		})
 		var out beginJSON
