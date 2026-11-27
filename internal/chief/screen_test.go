@@ -205,6 +205,7 @@ func withCursor(want wantScreen, n int) wantScreen {
 }
 
 func TestParseScreenSamples(t *testing.T) {
+	t.Parallel()
 	readers := []struct {
 		name         string
 		parse, other func(string) Screen
@@ -224,6 +225,58 @@ func TestParseScreenSamples(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestPickerQuestionRelayable reads the reviewer picker question of
+// runpr.md step 4 in both parsers. The question starts with "PR #<number>"
+// like the merge question, so it must not set Merge; relayability is the
+// single-select reading the picker also needs. The shape and relay
+// assertions repeat TestParseScreenSamples, whose samples have no
+// picker-shaped row.
+func TestPickerQuestionRelayable(t *testing.T) {
+	const text = "PR #123 の PR レビューをどのレビュアーに依頼しますか"
+	pickerLabels := []string{"CodeRabbit", "Sourcery AI", "マージの質問に戻る"}
+
+	claudeWant := claudeFruitSingle
+	claudeWant.text = text
+	claudeWant.labels = append(append([]string{}, pickerLabels...), "Type something.", "Chat about this")
+	claudeWant.relayable = pickerLabels
+
+	openCodeWant := openCodeFruitSingle
+	openCodeWant.text = text
+	openCodeWant.labels = append(append([]string{}, pickerLabels...), "Type your own answer")
+	openCodeWant.relayable = pickerLabels
+
+	cases := []struct {
+		name   string
+		sample string
+		plain  bool
+		parse  func(string) Screen
+		want   wantScreen
+	}{
+		{"claude", "claude-question-single.ansi", true, parseClaudeScreen, claudeWant},
+		{"opencode", "opencode-question-single.ansi", false, parseOpenCodeScreen, openCodeWant},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			edited := readScreenSample(t, tc.sample)
+			if tc.plain {
+				edited = sgrSequence.ReplaceAllString(edited, "")
+			}
+			for _, e := range [][2]string{
+				{"Which fruit do you prefer?", text},
+				{"Apple", "CodeRabbit"},
+				{"Banana", "Sourcery AI"},
+				{"Cherry", "マージの質問に戻る"},
+			} {
+				if !strings.Contains(edited, e[0]) {
+					t.Fatalf("the sample does not hold %q", e[0])
+				}
+				edited = strings.ReplaceAll(edited, e[0], e[1])
+			}
+			checkScreen(t, tc.parse(edited), tc.want)
+		})
 	}
 }
 
@@ -282,6 +335,7 @@ func checkScreen(t *testing.T, got Screen, want wantScreen) {
 // question so that two options, or none, are drawn in the selection's color:
 // the question still reads, with no cursor.
 func TestOpenCodeCursorNeedsOneMark(t *testing.T) {
+	t.Parallel()
 	const (
 		gray   = "\x1b[38;2;138;138;138m\x1b[48;2;250;250;250m"
 		accent = "\x1b[38;2;59;125;216m\x1b[48;2;250;250;250m"
@@ -307,6 +361,7 @@ func TestOpenCodeCursorNeedsOneMark(t *testing.T) {
 // read like its first option, drawn in a color other than the gray: the
 // cursor is still read from the options alone.
 func TestOpenCodeCursorSkipsQuestionText(t *testing.T) {
+	t.Parallel()
 	const old = "\x1b[38;2;26;26;26m\x1b[48;2;250;250;250mWhich fruit do you prefer?"
 	base := readScreenSample(t, "opencode-question-single-cursor.ansi")
 	if strings.Count(base, old) != 1 {
@@ -322,6 +377,7 @@ func TestOpenCodeCursorSkipsQuestionText(t *testing.T) {
 // TestClaudeCursorOnChat moves Claude Code's cursor mark from option 1 to the
 // chat option below the widget's rule: the cursor reads as that option.
 func TestClaudeCursorOnChat(t *testing.T) {
+	t.Parallel()
 	base := plainSample(t, "claude-question-single.ansi")
 	if q := parseClaudeScreen(base).Question; q == nil || q.Cursor != 1 {
 		t.Fatalf("the plain sample reads as %+v, want the cursor on 1", q)
@@ -340,6 +396,7 @@ func TestClaudeCursorOnChat(t *testing.T) {
 }
 
 func TestParseScreenOptionDescriptions(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name  string
 		parse func(string) Screen
@@ -365,6 +422,7 @@ func TestParseScreenOptionDescriptions(t *testing.T) {
 // Each base case is first checked to match, so a broken variant that does
 // not match fails for the part the case changed.
 func TestParseScreenRejectsNonMatching(t *testing.T) {
+	t.Parallel()
 	type mutation struct {
 		name     string
 		parse    func(string) Screen
@@ -434,6 +492,7 @@ func TestParseScreenRejectsNonMatching(t *testing.T) {
 // empty only in the style the agent draws it: the same text in another style
 // is unsent input.
 func TestInputPlaceholderNeedsItsStyle(t *testing.T) {
+	t.Parallel()
 	claude := readScreenSample(t, "claude-idle.ansi")
 	if got := parseClaudeScreen(claude); !got.Input.Empty {
 		t.Fatalf("the sample's placeholder is not read as empty: %+v", got.Input)
@@ -455,6 +514,7 @@ func TestInputPlaceholderNeedsItsStyle(t *testing.T) {
 }
 
 func TestOpenCodeNewSessionNeedsOnlyTheLogo(t *testing.T) {
+	t.Parallel()
 	screen := plainSample(t, "opencode-after-new.ansi")
 	if !parseOpenCodeScreen(screen).NewSession {
 		t.Fatal("the sample is not read as a new session")
@@ -476,6 +536,7 @@ func TestOpenCodeNewSessionNeedsOnlyTheLogo(t *testing.T) {
 }
 
 func TestReadRunprNext(t *testing.T) {
+	t.Parallel()
 	report := plainSample(t, "opencode-runpr-report.txt")
 	if got := readRunprNext(report); got != (RunprNext{Kind: NextNone}) {
 		t.Errorf("report sample: %+v, want none", got)
@@ -517,6 +578,7 @@ func TestReadRunprNext(t *testing.T) {
 // TestInputEmptyNeedsThePlaceholderForm checks that styled text counts as an
 // empty input only in the placeholder's whole form, on one line.
 func TestInputEmptyNeedsThePlaceholderForm(t *testing.T) {
+	t.Parallel()
 	claude := readScreenSample(t, "claude-idle.ansi")
 	const placeholder = `Try "refactor launch.ts"`
 	if !strings.Contains(claude, placeholder) {
@@ -553,6 +615,7 @@ func TestInputEmptyNeedsThePlaceholderForm(t *testing.T) {
 // TestQuestionShapesNotSampled checks two shapes the samples did not show: an
 // option numbered 10 or more, and a merge question wrapped across lines.
 func TestQuestionShapesNotSampled(t *testing.T) {
+	t.Parallel()
 	// Drop the padding blanks so whole lines can be replaced.
 	single := regexp.MustCompile(` +\r\n`).ReplaceAllString(plainSample(t, "opencode-question-single.ansi"), "\r\n")
 	const freeTextLine = "  ┃  4. Type your own answer\r\n"
@@ -601,6 +664,7 @@ func TestQuestionShapesNotSampled(t *testing.T) {
 }
 
 func TestParseANSIScreenBounds(t *testing.T) {
+	t.Parallel()
 	atCap := strings.Repeat("x\r\n", screenMaxLines)
 	if _, err := parseANSIScreen(atCap); err != nil {
 		t.Errorf("a screen of %d lines: %v", screenMaxLines, err)
@@ -655,6 +719,7 @@ func TestParseANSIScreenBounds(t *testing.T) {
 // of variants: the last record decides, its model is a whole word of the
 // display name, and a line that is not JSON makes the transcript unreadable.
 func TestReadModelSwitch(t *testing.T) {
+	t.Parallel()
 	sample := readTestdata(t, "transcript/claude-clear-model.jsonl")
 	if got := readModelSwitch(sample); got != (ModelSwitch{Kind: SwitchFound, Model: paneinput.ClaudeModelOpus}) {
 		t.Errorf("the sample = %+v, want the last switch, to Opus", got)
@@ -695,6 +760,7 @@ func TestReadModelSwitch(t *testing.T) {
 // leaves the command the last input; a command is read in the sampled form
 // alone; a line that is not JSON makes the transcript unreadable.
 func TestReadLastHumanInput(t *testing.T) {
+	t.Parallel()
 	sample := strings.TrimSpace(string(readTestdata(t, "transcript/claude-human-input.jsonl")))
 	lines := strings.Split(sample, "\n")
 	queued := strings.Split(strings.TrimSpace(string(readTestdata(t, "transcript/claude-queued-input.jsonl"))), "\n")
@@ -731,6 +797,7 @@ func TestReadLastHumanInput(t *testing.T) {
 // command that is still running: the human's command stays the last human
 // input however many lines the run adds after it.
 func TestReadLastHumanInputOfRunningSessions(t *testing.T) {
+	t.Parallel()
 	running := string(readTestdata(t, "transcript/claude-running-command.jsonl"))
 	afterAnswer := string(readTestdata(t, "transcript/claude-running-after-answer.jsonl"))
 	if !strings.Contains(running, `"kind":"auto-continuation"`) {
@@ -763,6 +830,7 @@ func TestReadLastHumanInputOfRunningSessions(t *testing.T) {
 // inside a line is never read without that line, and one readLastHumanInput
 // cannot read decides nothing.
 func TestReadRunningCommand(t *testing.T) {
+	t.Parallel()
 	type result struct {
 		text    string
 		dropped bool
@@ -938,6 +1006,7 @@ func claudeReportScreenNamingURL(t *testing.T, url string) string {
 // report, and checks that a screen whose last response is not in the sampled
 // shape, or a pane of another agent, gives none.
 func TestReadRunprReport(t *testing.T) {
+	t.Parallel()
 	report, ok := readRunprReport(paneinput.AgentOpenCode, readScreenSample(t, "opencode-runpr-report.txt"))
 	if !ok || report.Next != (RunprNext{Kind: NextNone}) || !slices.Contains(report.PRs, 867) {
 		t.Fatalf("OpenCode report = %+v, %v; want NEXT none naming #867", report, ok)
@@ -997,6 +1066,7 @@ func TestReadRunprReport(t *testing.T) {
 // TestReadScreenNext checks that the NEXT lines of a whole ANSI screen are
 // read, and that a screen the ANSI reader refuses gives none.
 func TestReadScreenNext(t *testing.T) {
+	t.Parallel()
 	next, ok := readScreenNext(readScreenSample(t, "claude-merge-question.ansi"))
 	if !ok || next != (RunprNext{Kind: NextCommand, Command: NextCommandMkarch, Task: taskID(t, "0123")}) {
 		t.Errorf("merge question = %+v, %v", next, ok)

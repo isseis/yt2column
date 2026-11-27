@@ -17,7 +17,7 @@ import (
 // other command.
 func enumerate(t *testing.T, r *testRepo) []change {
 	t.Helper()
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, r.Dir, r.Home)
 	changes, err := w.enumerateChanges(t.Context(), r.Head())
 	if err != nil {
 		t.Fatalf("enumerateChanges: %v", err)
@@ -113,7 +113,7 @@ func TestEnumerateChangesFIFOReplacingTrackedFile(t *testing.T) {
 	if err := syscall.Mkfifo(filepath.Join(r.Dir, "Makefile"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, r.Dir, r.Home)
 	if _, err := w.enumerateChanges(t.Context(), r.Head()); !errors.Is(err, ErrGitFailed) {
 		t.Errorf("enumerateChanges = %v, want ErrGitFailed", err)
 	}
@@ -129,7 +129,7 @@ func TestChangeCaps(t *testing.T) {
 			t.Fatalf("got %d changes, want %d", len(got), maxChanges)
 		}
 		r.Write("docs/many/extra.md", "x\n")
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir, r.Home)
 		_, err := w.enumerateChanges(t.Context(), r.Head())
 		if !errors.Is(err, ErrLimitExceeded) || StopKind(err) != StopChangeCap {
 			t.Errorf("enumerateChanges over the cap = %v, want the change cap", err)

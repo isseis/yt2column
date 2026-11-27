@@ -19,6 +19,7 @@ import (
 // outside each type's range, on either side, is named unknown. A value
 // declared after the last one here and left unnamed is not caught.
 func TestOutputValueNames(t *testing.T) {
+	t.Parallel()
 	if n := runningUnknownName(RunningUnknownNone); n != "" {
 		t.Fatalf("a decided command's running_unknown is %q, want empty", n)
 	}
@@ -60,6 +61,7 @@ func TestOutputValueNames(t *testing.T) {
 // something after is output with later_input set, and one with nothing
 // typed after it without.
 func TestRunningOutputLaterInput(t *testing.T) {
+	t.Parallel()
 	cmd, _, err := newRunningCommand(paneinput.CommandRunplan, "0093")
 	if err != nil {
 		t.Fatal(err)
@@ -84,6 +86,7 @@ func TestRunningOutputLaterInput(t *testing.T) {
 // tab's label: table holds the lines, and table_unreadable is [] and not
 // null.
 func TestSnapshotOutputTable(t *testing.T) {
+	t.Parallel()
 	w := newWorld(t)
 	// The label holds a backslash, which the table shows doubled: the
 	// output must carry the table as it was laid out, not sanitized a

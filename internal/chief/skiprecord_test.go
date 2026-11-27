@@ -58,6 +58,7 @@ func skipJSON(t *testing.T, edit func(map[string]any)) []byte {
 // with its values, and that a second skip of the same pane, session, and
 // state_change_seq is taken as kept already and leaves one record.
 func TestSkipRecordKept(t *testing.T) {
+	t.Parallel()
 	held := heldRecords(t, newStore(t), "/work/a")
 	saved := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	rec, err := newSkipRecord("w1", skipAgent(t), sceneAfterRunpr, mkarchRan, saved)
@@ -82,6 +83,7 @@ func TestSkipRecordKept(t *testing.T) {
 // with an unknown, repeated, missing, or differently cased member, trailing
 // data, or a value outside its accepted form is unreadable, never repaired.
 func TestParseSkipRecord(t *testing.T) {
+	t.Parallel()
 	if _, err := parseSkipRecord(skipJSON(t, nil)); err != nil {
 		t.Fatalf("the valid record: %v", err)
 	}
@@ -161,6 +163,7 @@ func TestParseSkipRecord(t *testing.T) {
 // its identity is unreadable: neither its use nor a send to its pane would
 // remove it.
 func TestSkipRecordUnderAnotherName(t *testing.T) {
+	t.Parallel()
 	held := heldRecords(t, newStore(t), "/work/a")
 	name := skipPrefix + strings.Repeat("0", 64) + recordSuffix
 	if err := os.WriteFile(filepath.Join(held.dir, name), skipJSON(t, nil), 0o600); err != nil {
@@ -176,6 +179,7 @@ func TestSkipRecordUnderAnotherName(t *testing.T) {
 // more than detailMaxAge ago and an unreadable one last changed that long
 // ago, and keeps a newer record and a newer unreadable one.
 func TestStartRemovesOldSkips(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 11, 30, 9, 0, 0, 0, time.UTC)
 	store := newStore(t)
 	held := heldRecords(t, store, "/work/a")

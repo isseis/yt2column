@@ -18,29 +18,31 @@ import (
 
 	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/fixprguard"
+	"github.com/isseis/yt2column/internal/fixprguard/fixprguardtest"
 	"github.com/isseis/yt2column/internal/ghci"
 )
 
-// repoRoot is the repository root relative to this package's directory.
-const repoRoot = "../.."
+// repoRoot returns the repository root, found from the package directory the
+// test binary started in (the working directory is an isolated empty one).
+func repoRoot() string { return filepath.Join(isolation.PackageDir, "..", "..") }
 
 func readRepoFile(t *testing.T, rel string) string {
 	t.Helper()
-	return doctestutil.ReadDoc(t, filepath.Join(repoRoot, filepath.FromSlash(rel)))
+	return doctestutil.ReadDoc(t, filepath.Join(repoRoot(), filepath.FromSlash(rel)))
 }
 
 // TestGuidePathExists: a usage error's diagnostic names the guide, and that
 // file exists, so a user who sees the diagnostic can open it.
 func TestGuidePathExists(t *testing.T) {
 	const guide = "docs/dev/guides/fixprguard_guide.md"
-	r := newTestRun(t, nil)
+	r := newTestRun(t, t.TempDir(), t.TempDir(), nil)
 	if code := r.Run(t); code != exitUsage {
 		t.Fatalf("no arguments: exit %d, want %d (%s)", code, exitUsage, r.Stderr)
 	}
 	if want := "(see " + guide + ")"; !strings.Contains(r.Stderr.String(), want) {
 		t.Errorf("stderr = %q, want it to contain %q", r.Stderr, want)
 	}
-	if _, err := os.Stat(filepath.Join(repoRoot, guide)); err != nil {
+	if _, err := os.Stat(filepath.Join(repoRoot(), guide)); err != nil {
 		t.Errorf("the guide %q does not exist: %v", guide, err)
 	}
 }
@@ -503,7 +505,7 @@ func TestDocumentedProtocolMatches(t *testing.T) {
 			}
 		}
 	}
-	for _, rel := range doctestutil.CommandDocs(t, repoRoot) {
+	for _, rel := range doctestutil.CommandDocs(t, repoRoot()) {
 		for _, text := range fixprguardProtocolMismatches(readRepoFile(t, rel)) {
 			t.Errorf("%s: %q, want %s", rel, text, want)
 		}
@@ -740,14 +742,14 @@ func TestGuideIgnoredCommands(t *testing.T) {
 	repo.Ignore("build/")
 	repo.Write("build/kept.go", "package x\n")
 	repo.Write("build/changed.go", "package x\n")
-	r := newTestRun(t, beginSteps(threadsPage(t, false)))
+	r := newTestRun(t, repo.Dir, repo.Home, beginSteps(threadsPage(t, false)))
 	if code := r.Run(t, args(cmdBegin, "--reviewer", testReviewer, testPR)...); code != exitContinue {
 		t.Fatalf("begin: exit %d (%s)", code, r.Stderr)
 	}
 	var out beginJSON
 	r.Decode(t, &out)
 	repo.Write("build/changed.go", "package y\n")
-	inspect := newTestRun(t, nil)
+	inspect := newTestRun(t, repo.Dir, repo.Home, nil)
 	if code := inspect.Run(t, args(cmdInspect, "--reviewer", testReviewer, "--baseline", out.Baseline, testPR)...); code != exitStop {
 		t.Fatalf("inspect: exit %d, want %d (%s)", code, exitStop, inspect.Stderr)
 	}
@@ -755,7 +757,7 @@ func TestGuideIgnoredCommands(t *testing.T) {
 		t.Helper()
 		cmd := exec.Command("sh", "-c", block) //nolint:gosec // the guide's own code block, run in the test's repository
 		cmd.Dir = repo.Dir
-		cmd.Env = append(os.Environ(), "token="+out.Baseline, "PATH="+path)
+		cmd.Env = append(fixprguardtest.Env(repo.Home, repo.Dir), "token="+out.Baseline, "PATH="+path)
 		got, err := cmd.Output()
 		// diff exits 1 when the records differ; any other failure is one.
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); err != nil && (!ok || exitErr.ExitCode() != 1) {
@@ -776,7 +778,7 @@ func TestGuideIgnoredCommands(t *testing.T) {
 			}
 		}
 	}
-	f, err := os.OpenFile(beginRecordName, os.O_APPEND|os.O_WRONLY, 0)
+	f, err := os.OpenFile(filepath.Join(repo.Dir, beginRecordName), os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

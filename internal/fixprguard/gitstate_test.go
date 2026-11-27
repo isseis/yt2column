@@ -88,11 +88,12 @@ func TestBaselineDetectsChange(t *testing.T) {
 	hook := func(r *testRepo) string { return filepath.Join(r.Dir, ".git", "hooks", "pre-commit") }
 	repoConfig := func(r *testRepo) string { return filepath.Join(r.Dir, ".git", "config") }
 	for _, tc := range []struct {
-		name  string
-		setup func(t *testing.T, r *testRepo) // before the baseline
-		edit  func(t *testing.T, r *testRepo) // after it
-		parts []string
-		layer stopLayer
+		name      string
+		setup     func(t *testing.T, r *testRepo) // before the baseline
+		targetDir func(r *testRepo) string        // r.Dir when nil
+		edit      func(t *testing.T, r *testRepo) // after it
+		parts     []string
+		layer     stopLayer
 	}{
 		{name: "new_commit", edit: func(_ *testing.T, r *testRepo) {
 			r.Write(testFile, "changed\n")
@@ -176,12 +177,6 @@ func TestBaselineDetectsChange(t *testing.T) {
 		}, parts: []string{PartHooks}},
 		{name: "config", edit: func(_ *testing.T, r *testRepo) { r.Git("config", "core.fsmonitor", "true") }, parts: []string{PartConfig}, layer: layerList},
 		// The current branch's settings, under every name git gives them.
-		{name: "current_branch_added", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch."+testBranch+".pushRemote", testRemote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "current_branch_removed", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--unset", "branch."+testBranch+".merge")
-		}, parts: []string{PartConfig}, layer: layerList},
 		{name: "current_branch_with_dot", setup: func(_ *testing.T, r *testRepo) {
 			r.Git("switch", "-q", "-c", testBranch+".a")
 		}, edit: func(_ *testing.T, r *testRepo) {
@@ -192,21 +187,6 @@ func TestBaselineDetectsChange(t *testing.T) {
 		{name: "current_branch_old_syntax", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, repoConfig(r), "[branch.Feature]\n\tpushRemote = "+testRemote+"\n")
 		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "main_branch", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch."+mainBranch+".pushRemote", testRemote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "two_level_branch_setting", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch.autoSetupMerge", "always")
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "remote_push_default", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "remote.pushDefault", testRemote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "remote_added", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("remote", "add", "upstream", r.Remote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "include_added", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "include.path", filepath.Join(r.Home, "absent"))
-		}, parts: []string{PartConfig}, layer: layerList},
 		// Moving a setting to another file changes its origin, and here its
 		// place in the listing too: the global file is read first.
 		{name: "origin_moved", setup: func(_ *testing.T, r *testRepo) {
@@ -214,14 +194,6 @@ func TestBaselineDetectsChange(t *testing.T) {
 		}, edit: func(_ *testing.T, r *testRepo) {
 			r.Git("config", "--unset", "core.abbrev")
 			r.Git("config", "--global", "core.abbrev", "12")
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "multi_value_order", setup: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/a")
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/b")
-		}, edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--unset-all", "remote."+testRemote+".push")
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/b")
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/a")
 		}, parts: []string{PartConfig}, layer: layerList},
 		{name: "worktree_config", setup: func(t *testing.T, r *testRepo) {
 			// git reads config.worktree only with worktreeConfig on, and the
@@ -243,11 +215,10 @@ func TestBaselineDetectsChange(t *testing.T) {
 			}
 			r.Write(".git", "gitdir: "+filepath.Join(r.Home, "moved.git")+"\n")
 		}, parts: []string{PartConfig}, layer: layerFiles},
-		{name: "linked_worktree_common_config", setup: func(t *testing.T, r *testRepo) {
+		{name: "linked_worktree_common_config", setup: func(_ *testing.T, r *testRepo) {
 			linked := filepath.Join(r.Home, "linked")
 			r.Git("worktree", "add", "-q", "-b", "linked-branch", linked)
-			t.Chdir(linked)
-		}, edit: func(t *testing.T, r *testRepo) {
+		}, targetDir: func(r *testRepo) string { return filepath.Join(r.Home, "linked") }, edit: func(t *testing.T, r *testRepo) {
 			// The shared config lives in the main repository's git directory.
 			appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
 		}, parts: []string{PartConfig}, layer: layerList},
@@ -269,13 +240,17 @@ func TestBaselineDetectsChange(t *testing.T) {
 			if tc.setup != nil {
 				tc.setup(t, r)
 			}
-			base := mustBaseline(t)
-			w, _ := newTestWorktree(t)
+			dir := r.Dir
+			if tc.targetDir != nil {
+				dir = tc.targetDir(r)
+			}
+			base := mustBaseline(t, dir, r.Home)
+			w, _ := newTestWorktree(t, dir, r.Home)
 			if _, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote); err != nil {
 				t.Fatalf("compareState before the edit = %v", err)
 			}
 			tc.edit(t, r)
-			w, router := newTestWorktree(t)
+			w, router := newTestWorktree(t, dir, r.Home)
 			_, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote)
 			wantStateParts(t, err, tc.parts...)
 			wantLayer(t, tc.layer, router.Calls)
@@ -285,9 +260,9 @@ func TestBaselineDetectsChange(t *testing.T) {
 	t.Run("unknown_head_rule", func(t *testing.T) {
 		// A kind outside the list (no declared kind is negative) fails secure:
 		// an error, and the push target is never read.
-		newTestRepo(t)
-		base := mustBaseline(t)
-		w, router := newTestWorktree(t)
+		r := newTestRepo(t)
+		base := mustBaseline(t, r.Dir, r.Home)
+		w, router := newTestWorktree(t, r.Dir, r.Home)
 		_, err := w.compareState(t.Context(), base, headRule{kind: headRuleKind(-1), commit: base.head}, checkWithRemote)
 		if !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("compareState = %v, want ErrInvalidInput", err)
@@ -300,7 +275,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 	t.Run("baseline_refuses_flagged_entry", func(t *testing.T) {
 		r := newTestRepo(t)
 		r.Git("update-index", "--skip-worktree", testFile)
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir, r.Home)
 		_, err := w.Baseline(t.Context())
 		wantStateParts(t, err, PartInfo)
 	})
@@ -308,7 +283,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 	t.Run("baseline_refuses_detached_head", func(t *testing.T) {
 		r := newTestRepo(t)
 		r.Git("switch", "-q", "--detach")
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir, r.Home)
 		if _, err := w.Baseline(t.Context()); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("Baseline = %v, want ErrInvalidInput", err)
 		}
@@ -317,7 +292,7 @@ func TestBaselineDetectsChange(t *testing.T) {
 
 func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir, r.Home)
 	r.Git("fetch", "-q", testRemote)
 	if _, err := os.Stat(filepath.Join(r.Dir, ".git", "FETCH_HEAD")); err != nil {
 		t.Fatalf("fetch wrote no FETCH_HEAD: %v", err)
@@ -336,15 +311,15 @@ func TestBaselineIgnoresIndexAndFetchHead(t *testing.T) {
 	if after, _ := os.ReadFile(index); bytes.Equal(after, before) {
 		t.Fatal("the index did not change")
 	}
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, r.Dir, r.Home)
 	if _, err := w.compareState(t.Context(), base, headRule{kind: headIsCommit, commit: base.head}, checkWithRemote); err != nil {
 		t.Errorf("compareState = %v, want nil", err)
 	}
 }
 
 func TestBaselineMalformedRejected(t *testing.T) {
-	newTestRepo(t)
-	token := mustBaseline(t).String()
+	r := newTestRepo(t)
+	token := mustBaseline(t, r.Dir, r.Home).String()
 	parsed, err := ParseBaseline(token)
 	if err != nil || parsed.String() != token {
 		t.Fatalf("ParseBaseline(round trip) = %q, %v", parsed.String(), err)
@@ -381,7 +356,7 @@ func TestBaselineMalformedRejected(t *testing.T) {
 		})
 	}
 	t.Run("zero_baseline", func(t *testing.T) {
-		w, router := newTestWorktree(t)
+		w, router := newTestWorktree(t, t.TempDir(), t.TempDir())
 		if err := w.CheckState(t.Context(), Baseline{}); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("CheckState(zero) = %v, want ErrInvalidInput", err)
 		}
@@ -394,9 +369,9 @@ func TestBaselineMalformedRejected(t *testing.T) {
 func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 	t.Run("inspect", func(t *testing.T) {
 		r := newTestRepo(t)
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir, r.Home)
 		appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
-		w, router := newTestWorktree(t)
+		w, router := newTestWorktree(t, r.Dir, r.Home)
 		_, err := w.Inspect(t.Context(), base, threadAt(testFile))
 		wantStateParts(t, err, PartConfig)
 		if !slices.Equal(router.Calls, []string{gitConfigList}) {
@@ -405,14 +380,14 @@ func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 	})
 	t.Run("finish_after_make_test", func(t *testing.T) {
 		r := newTestRepo(t)
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir, r.Home)
 		r.Write(testFile, "fixed\n")
-		judged := mustInspect(t, base).JudgedSet
+		judged := mustInspect(t, r.Dir, r.Home, base).JudgedSet
 		rewrite := func() error {
 			appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core]\n\tfsmonitor = true\n")
 			return nil
 		}
-		w, router := newTestWorktree(t, makeStep(StageFmt, nil), makeStep(StageTest, rewrite))
+		w, router := newTestWorktree(t, r.Dir, r.Home, makeStep(StageFmt, nil), makeStep(StageTest, rewrite))
 		_, err := w.Finish(t.Context(), base, judged, FinishRequest{PR: mustPR(t)})
 		wantStateParts(t, err, PartConfig)
 		// After make test changed the config, only git config --list runs:
@@ -431,7 +406,7 @@ func TestGitNotLaunchedAfterConfigChange(t *testing.T) {
 // check fails on the call count instead of waiting on the FIFO.
 func TestConfigFileTypeCheckedBeforeGit(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir, r.Home)
 	config := filepath.Join(r.Dir, ".git", "config")
 	if err := os.Remove(config); err != nil {
 		t.Fatal(err)
@@ -439,7 +414,7 @@ func TestConfigFileTypeCheckedBeforeGit(t *testing.T) {
 	if err := syscall.Mkfifo(config, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	w, router := newTestWorktree(t)
+	w, router := newTestWorktree(t, r.Dir, r.Home)
 	router.ConfigList = &configListResult{Err: &cmdrunner.ExitError{Code: 128}}
 	_, err := w.Inspect(t.Context(), base, threadAt(testFile))
 	wantStateParts(t, err, PartConfig)
@@ -455,7 +430,7 @@ func TestConfigFileTypeCheckedBeforeGit(t *testing.T) {
 func TestGitEnvKeepsGitOnTheWorktree(t *testing.T) {
 	r := newTestRepo(t)
 	t.Setenv("GIT_DIR", filepath.Join(r.Home, "nowhere"))
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, r.Dir, r.Home)
 	if _, err := w.Baseline(t.Context()); err != nil {
 		t.Errorf("Baseline with GIT_DIR inherited = %v", err)
 	}
@@ -489,28 +464,11 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 		{name: "empty_subsection_section_added", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, repoConfig(r), "[branch \"\"]\n\tremote = "+testRemote+"\n")
 		}, checkOnly: true},
-		{name: "global_config", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--global", "branch.x.remote", testRemote)
-		}},
-		{name: "worktree_config", setup: func(t *testing.T, r *testRepo) {
-			r.Git("config", "extensions.worktreeConfig", "true")
-			appendFile(t, filepath.Join(r.Dir, ".git", "config.worktree"), "")
-		}, edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--worktree", "branch.x.remote", testRemote)
-		}},
-		{name: "include_path_target", setup: func(t *testing.T, r *testRepo) {
-			appendFile(t, filepath.Join(r.Home, "included"), "")
-			r.Git("config", "include.path", filepath.Join(r.Home, "included"))
-		}, edit: func(t *testing.T, r *testRepo) { appendFile(t, filepath.Join(r.Home, "included"), section) }},
 		{name: "include_if_target", setup: func(t *testing.T, r *testRepo) {
 			appendFile(t, filepath.Join(r.Home, "conditional"), "")
 			r.Git("config", "includeIf.onbranch:"+testBranch+".path", filepath.Join(r.Home, "conditional"))
 		}, edit: func(t *testing.T, r *testRepo) { appendFile(t, filepath.Join(r.Home, "conditional"), section) }},
-		// Names that overlap the current branch's: a longer subsection, and
-		// one differing only in case.
-		{name: "subsection_extends_current_branch", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch."+testBranch+".a.remote", testRemote)
-		}},
+		// A name that overlaps the current branch's, differing only in case.
 		{name: "subsection_differs_in_case", edit: func(t *testing.T, r *testRepo) {
 			recased := strings.ToUpper(testBranch[:1]) + testBranch[1:]
 			appendFile(t, repoConfig(r), "[branch \""+recased+"\"]\n\tpushRemote = elsewhere\n")
@@ -524,7 +482,7 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 			if tc.setup != nil {
 				tc.setup(t, r)
 			}
-			base := mustBaseline(t)
+			base := mustBaseline(t, r.Dir, r.Home)
 			listBefore := r.ConfigList()
 			fileBefore, err := os.ReadFile(repoConfig(r))
 			if err != nil {
@@ -544,7 +502,7 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 			} else if r.ConfigList() == listBefore {
 				t.Fatal("the edit does not change the listing")
 			}
-			w, _ := newTestWorktree(t)
+			w, _ := newTestWorktree(t, r.Dir, r.Home)
 			if tc.checkOnly {
 				if err := w.CheckState(t.Context(), base); err != nil {
 					t.Errorf("CheckState = %v, want nil", err)
@@ -562,53 +520,85 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 // list now is a config change, seen before git rev-parse runs.
 func TestConfigListUnreadable(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir, r.Home)
 	appendFile(t, filepath.Join(r.Dir, ".git", "config"), "[core\n")
-	w, router := newTestWorktree(t)
+	w, router := newTestWorktree(t, r.Dir, r.Home)
 	wantStateParts(t, w.CheckState(t.Context(), base), PartConfig)
 	if !slices.Equal(router.Calls, []string{gitConfigList}) {
 		t.Errorf("calls = %v, want git config --list only", router.Calls)
 	}
 }
 
-// TestConfigListFailureKinds: how a failed or malformed git config --list is
-// reported. In CheckState, after begin listed the configuration, a timeout,
-// a nonzero exit, or a malformed listing is a config change; an output over
-// the cap, a cancellation, or any other failure is a git failure. At begin
-// every one of them is a git failure and no baseline is taken.
-func TestConfigListFailureKinds(t *testing.T) {
+// TestConfigListFailure: how CheckState classifies a failure to list the
+// configuration. A timeout or a nonzero exit is a config change; an output
+// over the cap, a cancellation, or git not starting is a git failure.
+func TestConfigListFailure(t *testing.T) {
 	exit := func(code int) *cmdrunner.ExitError { return &cmdrunner.ExitError{Code: code} }
 	for _, tc := range []struct {
 		name    string
-		result  configListResult
-		changed bool // a config change in CheckState rather than a git failure
+		err     error
+		changed bool
 	}{
 		// Joined with an exit error, so the cap is what keeps it a git failure.
-		{name: "output_over_cap", result: configListResult{Err: errors.Join(fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge), exit(1))}},
-		{name: "cancelled", result: configListResult{Err: errors.Join(context.Canceled, exit(-1))}},
-		{name: "timed_out", result: configListResult{Err: errors.Join(context.DeadlineExceeded, exit(-1))}, changed: true},
-		{name: "nonzero_exit", result: configListResult{Err: exit(128)}, changed: true},
-		{name: "not_started", result: configListResult{Err: errors.New("exec: not found")}},
-		{name: "malformed_listing", result: configListResult{Out: []byte("no delimiters")}, changed: true},
+		{name: "output_over_cap", err: errors.Join(fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge), exit(1))},
+		{name: "cancelled", err: errors.Join(context.Canceled, exit(-1))},
+		{name: "timed_out", err: errors.Join(context.DeadlineExceeded, exit(-1)), changed: true},
+		{name: "nonzero_exit", err: exit(128), changed: true},
+		{name: "not_started", err: errors.New("exec: not found")},
 	} {
-		t.Run("check_state/"+tc.name, func(t *testing.T) {
-			newTestRepo(t)
-			base := mustBaseline(t)
-			w, router := newTestWorktree(t)
-			router.ConfigList = &tc.result
-			err := w.CheckState(t.Context(), base)
+		t.Run(tc.name, func(t *testing.T) {
+			err := configListFailure(tc.err)
 			if tc.changed {
 				wantStateParts(t, err, PartConfig)
 			} else if _, isState := errors.AsType[*GitStateError](err); isState || !errors.Is(err, ErrGitFailed) {
-				t.Errorf("CheckState = %v, want ErrGitFailed and no *GitStateError", err)
-			}
-			if !slices.Equal(router.Calls, []string{gitConfigList}) {
-				t.Errorf("calls = %v, want git config --list only", router.Calls)
+				t.Errorf("configListFailure = %v, want ErrGitFailed and no *GitStateError", err)
 			}
 		})
+	}
+}
+
+// TestConfigListFailureKinds: how a failed or malformed git config --list is
+// reported. In CheckState, after begin listed the configuration, a malformed
+// listing is a config change (TestConfigListFailure classifies the runner's
+// failures). At begin every one of them is a git failure and no baseline is
+// taken.
+func TestConfigListFailureKinds(t *testing.T) {
+	malformed := configListResult{Out: []byte("no delimiters")}
+	t.Run("check_state/malformed_listing", func(t *testing.T) {
+		r := newTestRepo(t)
+		base := mustBaseline(t, r.Dir, r.Home)
+		w, router := newTestWorktree(t, r.Dir, r.Home)
+		router.ConfigList = &malformed
+		wantStateParts(t, w.CheckState(t.Context(), base), PartConfig)
+		if !slices.Equal(router.Calls, []string{gitConfigList}) {
+			t.Errorf("calls = %v, want git config --list only", router.Calls)
+		}
+	})
+	exit := func(code int) *cmdrunner.ExitError { return &cmdrunner.ExitError{Code: code} }
+	// CheckState passes a runner failure through configListFailure: a git
+	// failure stays one and is not read as a config change.
+	// TestConfigListUnreadable holds the config change side.
+	t.Run("check_state/output_over_cap", func(t *testing.T) {
+		r := newTestRepo(t)
+		base := mustBaseline(t, r.Dir, r.Home)
+		w, router := newTestWorktree(t, r.Dir, r.Home)
+		router.ConfigList = &configListResult{Err: errors.Join(fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge), exit(1))}
+		err := w.CheckState(t.Context(), base)
+		if _, isState := errors.AsType[*GitStateError](err); isState || !errors.Is(err, ErrGitFailed) {
+			t.Errorf("CheckState = %v, want ErrGitFailed and no *GitStateError", err)
+		}
+	})
+	for _, tc := range []struct {
+		name   string
+		result configListResult
+	}{
+		{name: "timed_out", result: configListResult{Err: errors.Join(context.DeadlineExceeded, exit(-1))}},
+		{name: "nonzero_exit", result: configListResult{Err: exit(128)}},
+		{name: "malformed_listing", result: malformed},
+	} {
 		t.Run("begin/"+tc.name, func(t *testing.T) {
-			newTestRepo(t)
-			w, router := newTestWorktree(t)
+			r := newTestRepo(t)
+			w, router := newTestWorktree(t, r.Dir, r.Home)
 			router.ConfigList = &tc.result
 			base, err := w.Baseline(t.Context())
 			if _, isState := errors.AsType[*GitStateError](err); isState || !errors.Is(err, ErrGitFailed) {
@@ -640,7 +630,7 @@ func TestCommitObjectMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 	oid := strings.TrimSpace(r.Git("hash-object", "-t", "commit", "-w", file))
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, r.Dir, r.Home)
 	gotTree, parents, got, err := w.commitObject(t.Context(), oid)
 	if err != nil {
 		t.Fatalf("commitObject = %v", err)

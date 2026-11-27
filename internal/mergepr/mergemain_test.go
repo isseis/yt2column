@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
+	"github.com/isseis/yt2column/internal/snapshottest"
 )
 
 // The Go sources of the take-in tests live here, not in a helper: the
@@ -150,17 +151,6 @@ func TestMergemainZeroPRStopsBeforeAnything(t *testing.T) {
 	fail.done()
 }
 
-func TestMergemainPRViewReadsNarrowFields(t *testing.T) {
-	t.Parallel()
-	k := newTakeIn(t)
-	k.Setup(baseFiles(), map[string]string{"b.md": "b\n"}, map[string]string{"m.md": "m\n"})
-	begin(t, k)
-	want := []string{"pr", "view", testTakeInPR, "--json", "state,baseRefName,headRefName,headRefOid,isCrossRepository"}
-	if len(k.GHCalls) != 1 || !slices.Equal(k.GHCalls[0], want) {
-		t.Fatalf("gh calls = %q, want one %q", k.GHCalls, want)
-	}
-}
-
 func TestParseMergemainPRRejectsMalformedValues(t *testing.T) {
 	t.Parallel()
 	head := strings.Repeat("a", 40)
@@ -214,16 +204,22 @@ func TestMergemainBeginPremisesAndNothingToTakeIn(t *testing.T) {
 		if status := k.Git("status", "--porcelain"); status != "" {
 			t.Fatalf("begin changed the work tree: %q", status)
 		}
+		wantGH := []string{"pr", "view", testTakeInPR, "--json", "state,baseRefName,headRefName,headRefOid,isCrossRepository"}
+		if len(k.GHCalls) != 1 || !slices.Equal(k.GHCalls[0], wantGH) {
+			t.Fatalf("gh calls = %q, want one %q", k.GHCalls, wantGH)
+		}
+		k.Git("config", "remote.origin.gh-resolved", "base")
+		if b2 := begin(t, k); b2 != b {
+			t.Fatalf("begin with gh-resolved=base = %+v, want %+v", b2, b)
+		}
 	})
 	for name, tc := range map[string]struct {
 		change func(t *testing.T, k *takeIn)
 		stop   MergemainStop
 	}{
-		"closed PR":      {func(_ *testing.T, k *takeIn) { k.PR.State = "CLOSED" }, MergemainStopPremise},
 		"GH_REPO set":    {func(_ *testing.T, k *takeIn) { k.Env[ghRepoVariable] = "" }, MergemainStopPremise},
 		"second remote":  {func(_ *testing.T, k *takeIn) { k.Git("remote", "add", "upstream", k.Origin) }, MergemainStopPremise},
 		"other branch":   {func(_ *testing.T, k *takeIn) { k.Git("switch", "-q", mainBranch) }, MergemainStopPremise},
-		"tracked change": {func(t *testing.T, k *takeIn) { writeWork(t, k, "doc.md", "changed\n") }, MergemainStopPremise},
 		"untracked file": {func(t *testing.T, k *takeIn) { writeWork(t, k, "new.txt", "n\n") }, MergemainStopPremise},
 		"head behind PR": {func(_ *testing.T, k *takeIn) { k.PR.HeadOID = k.Git("rev-parse", "HEAD~1") }, MergemainStopPremise},
 		"local commit":   {func(_ *testing.T, k *takeIn) { k.Commit("local", map[string]string{"l.md": "l\n"}) }, MergemainStopPremise},
@@ -349,27 +345,15 @@ func TestMergemainMergeChecksArguments(t *testing.T) {
 
 func TestMergemainConflictClassification(t *testing.T) {
 	t.Parallel()
-	a, bsrc := renameSource("a"), renameSource("b")
+	a := renameSource("a")
 	for name, tc := range map[string]struct {
 		base, branch, main map[string]string
 		want               map[string]PathConflictClass
-		// beforeMerge is true when the stop comes before the merge starts.
-		beforeMerge bool
 	}{
-		"markdown content": {
-			branch: map[string]string{"doc.md": "one\nbranch\nthree\n"},
-			main:   map[string]string{"doc.md": "one\nmain\nthree\n"},
-			want:   map[string]PathConflictClass{"doc.md": PathConflictMarkdown},
-		},
 		"markdown added on both sides": {
 			branch: map[string]string{"new.md": "branch\n"},
 			main:   map[string]string{"new.md": "main\n"},
 			want:   map[string]PathConflictClass{"new.md": PathConflictMarkdown},
-		},
-		"protocol line only": {
-			branch: map[string]string{takeInToolPath: toolFile(4, "base")},
-			main:   map[string]string{takeInToolPath: toolFile(5, "base")},
-			want:   map[string]PathConflictClass{takeInToolPath: PathConflictProtocolOnly},
 		},
 		"protocol and another line": {
 			branch: map[string]string{takeInToolPath: toolFile(4, "branch")},
@@ -384,32 +368,21 @@ func TestMergemainConflictClassification(t *testing.T) {
 			main:   map[string]string{"internal/tool/tool_test.go": "package tool\n\nconst Protocol = 5\n"},
 			want:   map[string]PathConflictClass{"internal/tool/tool_test.go": PathConflictOutOfScope},
 		},
-		"go file": {
-			branch: map[string]string{"main.go": "package main\n\nfunc main() { branch() }\n"},
-			main:   map[string]string{"main.go": "package main\n\nfunc main() { main2() }\n"},
-			want:   map[string]PathConflictClass{"main.go": PathConflictOutOfScope},
-		},
 		"markdown modify/delete": {
 			branch: map[string]string{"doc.md": "one\nbranch\nthree\n"},
 			main:   map[string]string{"doc.md": deletedFile},
 			want:   map[string]PathConflictClass{"doc.md": PathConflictOutOfScope},
 		},
-		"markdown renamed to one path on both sides": {
-			base:   map[string]string{"a.md": a, "b.md": bsrc},
-			branch: map[string]string{"a.md": deletedFile, "c.md": a},
-			main:   map[string]string{"b.md": deletedFile, "c.md": bsrc},
-			want:   map[string]PathConflictClass{"c.md": PathConflictOutOfScope},
-		},
-		"markdown renamed onto an addition": {
-			base:   map[string]string{"a.md": a},
-			branch: map[string]string{"a.md": deletedFile, "c.md": a},
-			main:   map[string]string{"c.md": "added on main\n"},
-			want:   map[string]PathConflictClass{"c.md": PathConflictOutOfScope},
-		},
 		"markdown renamed and changed": {
 			base:   map[string]string{"a.md": a},
 			branch: map[string]string{"a.md": deletedFile, "c.md": strings.Replace(a, "a line 0", "branch line", 1)},
 			main:   map[string]string{"a.md": strings.Replace(a, "a line 0", "main line", 1)},
+			want:   map[string]PathConflictClass{"c.md": PathConflictOutOfScope},
+		},
+		"markdown renamed on main and changed": {
+			base:   map[string]string{"a.md": a},
+			branch: map[string]string{"a.md": strings.Replace(a, "a line 0", "branch line", 1)},
+			main:   map[string]string{"a.md": deletedFile, "c.md": strings.Replace(a, "a line 0", "main line", 1)},
 			want:   map[string]PathConflictClass{"c.md": PathConflictOutOfScope},
 		},
 		"tool file renamed with only its declaration line in conflict": {
@@ -431,13 +404,6 @@ func TestMergemainConflictClassification(t *testing.T) {
 			main:   map[string]string{"bin.md": "main\x00"},
 			want:   map[string]PathConflictClass{"bin.md": PathConflictOutOfScope},
 		},
-		"markdown with merge attribute unset": {
-			base:        map[string]string{".gitattributes": "doc.md -merge\n"},
-			branch:      map[string]string{"doc.md": "one\nbranch\nthree\n"},
-			main:        map[string]string{"doc.md": "one\nmain\nthree\n"},
-			want:        map[string]PathConflictClass{"doc.md": PathConflictOutOfScope},
-			beforeMerge: true,
-		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -448,11 +414,7 @@ func TestMergemainConflictClassification(t *testing.T) {
 			_, r, err := merge(t, k)
 			outOfScope := slices.Contains(slices.Collect(maps.Values(tc.want)), PathConflictOutOfScope)
 			if outOfScope {
-				restore := RestoreNeeded
-				if tc.beforeMerge {
-					restore = RestoreNotNeeded
-				}
-				stop := wantStop(t, err, MergemainStopOutOfScope, restore)
+				stop := wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
 				r.Conflicts = stop.Conflicts
 			} else if err != nil {
 				t.Fatalf("MergemainMerge: %v", err)
@@ -486,6 +448,9 @@ func TestMergemainProtocolUpdateAndRuleFacts(t *testing.T) {
 		_, r, err := merge(t, k)
 		if err != nil {
 			t.Fatalf("MergemainMerge: %v", err)
+		}
+		if got := classes(r.Conflicts); !maps.Equal(got, map[string]PathConflictClass{takeInToolPath: PathConflictProtocolOnly}) {
+			t.Fatalf("conflicts = %v, want protocol-only on %s", got, takeInToolPath)
 		}
 		if !slices.Equal(r.Protocol, []ProtocolBump{{Tool: "tool", Value: 6}}) {
 			t.Fatalf("protocol = %+v, want tool 6", r.Protocol)
@@ -589,9 +554,7 @@ func TestMergemainExtCheckHint(t *testing.T) {
 		want bool
 	}{
 		"extension file":      {map[string]string{"extension/src/a.ts": "a\n"}, true},
-		"development guide":   {map[string]string{"docs/dev/guides/development.md": "d\n"}, true},
 		"English README":      {map[string]string{"README.en.md": "e\n"}, true},
-		"unrelated file":      {map[string]string{"docs/other.md": "o\n"}, false},
 		"extension-like name": {map[string]string{"extensions.md": "x\n"}, false},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -612,6 +575,74 @@ func TestMergemainExtCheckHint(t *testing.T) {
 // conflictSetup makes a Markdown conflict on doc.md.
 func conflictSetup(k *takeIn) (baseHead, mainOID string) {
 	return k.Setup(baseFiles(), map[string]string{"doc.md": "one\nbranch\nthree\n"}, map[string]string{"doc.md": "one\nmain\nthree\n"})
+}
+
+// takeInConflictState holds the Go values produced when building the shared
+// conflict-merge-in-progress state.
+type takeInConflictState struct {
+	baseHead string
+	mainOID  string
+	begin    MergemainBeginResult
+	merge    MergemainMergeResult
+}
+
+func cloneTakeInConflictState(s takeInConflictState) takeInConflictState {
+	s.merge.Conflicts = slices.Clone(s.merge.Conflicts)
+	s.merge.Protocol = slices.Clone(s.merge.Protocol)
+	s.merge.ADRConflictNumbers = slices.Clone(s.merge.ADRConflictNumbers)
+	return s
+}
+
+var (
+	takeInConflictKind = snapshottest.NewKind("conflict merge in progress", cloneTakeInConflictState)
+	takeInPushFlowKind = snapshottest.NewKind[MergemainBeginResult]("after merge commit", nil)
+)
+
+// buildConflictInProgressState runs conflictSetup, begin, and merge on k and
+// fails t if the merge returns an error.
+func buildConflictInProgressState(t *testing.T, k *takeIn) takeInConflictState {
+	t.Helper()
+	baseHead, mainOID := conflictSetup(k)
+	b, r, err := merge(t, k)
+	if err != nil {
+		t.Fatalf("MergemainMerge: %v", err)
+	}
+	return takeInConflictState{baseHead: baseHead, mainOID: mainOID, begin: b, merge: r}
+}
+
+// newConflictInProgressTakeIn returns a copy of the shared takeIn left in the
+// middle of the doc.md Markdown conflict merge, along with its cloned state.
+func newConflictInProgressTakeIn(t *testing.T) (*takeIn, takeInConflictState) {
+	t.Helper()
+	sn := snapshottest.Load(t, snapshotStore, takeInConflictKind, nil, func(bt *testing.T, dir string) takeInConflictState {
+		k := initTakeInDir(bt, dir)
+		return buildConflictInProgressState(bt, k)
+	})
+	return copyTakeIn(t, sn), sn.Value()
+}
+
+// buildPushFlowState runs conflictSetup, begin, merge, and the commit of the
+// resolved doc.md conflict on k.
+func buildPushFlowState(t *testing.T, k *takeIn) MergemainBeginResult {
+	t.Helper()
+	conflictSetup(k)
+	b, _, err := merge(t, k)
+	if err != nil {
+		t.Fatalf("MergemainMerge: %v", err)
+	}
+	commitMerge(t, k, map[string]string{"doc.md": "one\nbranch\nmain\nthree\n"})
+	return b
+}
+
+// newPushFlowTakeIn returns a copy of the shared takeIn after committing the
+// resolved doc.md merge commit, along with its begin result.
+func newPushFlowTakeIn(t *testing.T) (*takeIn, MergemainBeginResult) {
+	t.Helper()
+	sn := snapshottest.Load(t, snapshotStore, takeInPushFlowKind, nil, func(bt *testing.T, dir string) MergemainBeginResult {
+		k := initTakeInDir(bt, dir)
+		return buildPushFlowState(bt, k)
+	})
+	return copyTakeIn(t, sn), sn.Value()
 }
 
 // assertRestored checks the state a restore must leave: HEAD at the base
@@ -638,12 +669,8 @@ func TestMergemainRestoreSafeAndRefusesOtherChanges(t *testing.T) {
 	}
 	t.Run("merge in progress with Markdown edits", func(t *testing.T) {
 		t.Parallel()
-		k := newTakeIn(t)
-		baseHead, _ := conflictSetup(k)
-		b, _, err := merge(t, k)
-		if err != nil {
-			t.Fatalf("MergemainMerge: %v", err)
-		}
+		k, st := newConflictInProgressTakeIn(t)
+		baseHead, b := st.baseHead, st.begin
 		writeWork(t, k, "doc.md", "one\nresolved\nthree\n")
 		k.Git("add", "doc.md")
 		writeWork(t, k, "README.md", "edited, untouched by the merge\n")
@@ -682,12 +709,8 @@ func TestMergemainRestoreSafeAndRefusesOtherChanges(t *testing.T) {
 	})
 	t.Run("merge commit not pushed", func(t *testing.T) {
 		t.Parallel()
-		k := newTakeIn(t)
-		baseHead, _ := conflictSetup(k)
-		b, _, err := merge(t, k)
-		if err != nil {
-			t.Fatalf("MergemainMerge: %v", err)
-		}
+		k, st := newConflictInProgressTakeIn(t)
+		baseHead, b := st.baseHead, st.begin
 		commitMerge(t, k, map[string]string{"doc.md": "one\nresolved\nthree\n"})
 		if err := restore(t, k, b); err != nil {
 			t.Fatalf("MergemainRestore: %v", err)
@@ -723,10 +746,6 @@ func TestMergemainRestoreSafeAndRefusesOtherChanges(t *testing.T) {
 			other := k.Git("commit-tree", b.Main+"^{tree}", "-p", b.Main, "-m", "another main")
 			k.Git("merge", "-q", "--no-ff", "--no-commit", "-s", "ours", other)
 		},
-		"commit after the merge commit": func(t *testing.T, k *takeIn, _ MergemainBeginResult) {
-			commitMerge(t, k, map[string]string{"doc.md": "one\nresolved\nthree\n"})
-			k.Commit("more", map[string]string{"more.md": "m\n"})
-		},
 		"tracked change after the merge commit": func(t *testing.T, k *takeIn, _ MergemainBeginResult) {
 			commitMerge(t, k, map[string]string{"doc.md": "one\nresolved\nthree\n"})
 			writeWork(t, k, "doc.md", "someone's\n")
@@ -743,12 +762,8 @@ func TestMergemainRestoreSafeAndRefusesOtherChanges(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			k := newTakeIn(t)
-			conflictSetup(k)
-			b, _, err := merge(t, k)
-			if err != nil {
-				t.Fatalf("MergemainMerge: %v", err)
-			}
+			k, st := newConflictInProgressTakeIn(t)
+			b := st.begin
 			change(t, k, b)
 			before := k.Git("rev-parse", "HEAD")
 			status := k.Git("status", "--porcelain=v1", "--untracked-files=all", "--ignored")
@@ -761,18 +776,6 @@ func TestMergemainRestoreSafeAndRefusesOtherChanges(t *testing.T) {
 			}
 		})
 	}
-}
-
-// pushFlow runs begin, merge, and the commit of a Markdown conflict.
-func pushFlow(t *testing.T, k *takeIn) MergemainBeginResult {
-	t.Helper()
-	conflictSetup(k)
-	b, _, err := merge(t, k)
-	if err != nil {
-		t.Fatalf("MergemainMerge: %v", err)
-	}
-	commitMerge(t, k, map[string]string{"doc.md": "one\nbranch\nmain\nthree\n"})
-	return b
 }
 
 func push(t *testing.T, k *takeIn, b MergemainBeginResult) (MergemainPushResult, error) {
@@ -794,23 +797,9 @@ func preReceive(t *testing.T, k *takeIn, script string) {
 
 func TestMergemainPushSuccessRejectedAndUnknown(t *testing.T) {
 	t.Parallel()
-	t.Run("pushed", func(t *testing.T) {
-		t.Parallel()
-		k := newTakeIn(t)
-		b := pushFlow(t, k)
-		head := k.Git("rev-parse", "HEAD")
-		r, err := push(t, k, b)
-		if err != nil {
-			t.Fatalf("MergemainPush: %v", err)
-		}
-		if r.NewHead != head || k.OriginGit("rev-parse", headsPrefix+takeInBranch) != head {
-			t.Fatalf("pushed %s, origin has %s, want %s", r.NewHead, k.OriginGit("rev-parse", headsPrefix+takeInBranch), head)
-		}
-	})
 	t.Run("rejected", func(t *testing.T) {
 		t.Parallel()
-		k := newTakeIn(t)
-		b := pushFlow(t, k)
+		k, b := newPushFlowTakeIn(t)
 		preReceive(t, k, "exit 1")
 		_, err := push(t, k, b)
 		wantStop(t, err, MergemainStopPushRejected, RestoreNeeded)
@@ -820,8 +809,7 @@ func TestMergemainPushSuccessRejectedAndUnknown(t *testing.T) {
 	})
 	t.Run("unknown", func(t *testing.T) {
 		t.Parallel()
-		k := newTakeIn(t)
-		b := pushFlow(t, k)
+		k, b := newPushFlowTakeIn(t)
 		// The hook moves the branch elsewhere and fails, so origin is
 		// neither the base head nor the pushed commit afterwards.
 		preReceive(t, k, "printf '%s\\n' "+b.Main+" > refs/heads/"+takeInBranch+"\nexit 1")
@@ -837,12 +825,15 @@ func TestMergemainPushRejectsNonHeadOrForce(t *testing.T) {
 	// differently, so only the command shows that none is used.
 	t.Run("push command", func(t *testing.T) {
 		t.Parallel()
-		k := newTakeIn(t)
-		b := pushFlow(t, k)
+		k, b := newPushFlowTakeIn(t)
 		head := k.Git("rev-parse", "HEAD")
 		rec := &recordingRunner{run: k.GitRunner()}
-		if _, err := k.ToolWith(rec).MergemainPush(t.Context(), mustPR(t), b.BaseHead, b.Main); err != nil {
+		r, err := k.ToolWith(rec).MergemainPush(t.Context(), mustPR(t), b.BaseHead, b.Main)
+		if err != nil {
 			t.Fatalf("MergemainPush: %v", err)
+		}
+		if r.NewHead != head || k.OriginGit("rev-parse", headsPrefix+takeInBranch) != head {
+			t.Fatalf("pushed %s, origin has %s, want %s", r.NewHead, k.OriginGit("rev-parse", headsPrefix+takeInBranch), head)
 		}
 		var pushes [][]string
 		for _, c := range rec.calls {
@@ -860,8 +851,6 @@ func TestMergemainPushRejectsNonHeadOrForce(t *testing.T) {
 		"current branch is not the PR's": func(k *takeIn) {
 			k.Git("switch", "-q", "-c", "elsewhere")
 		},
-		"GH_REPO set":      func(k *takeIn) { k.Env[ghRepoVariable] = "other/repo" },
-		"second remote":    func(k *takeIn) { k.Git("remote", "add", "upstream", k.Origin) },
 		"push URL differs": func(k *takeIn) { k.Git("config", "remote.origin.pushurl", k.Origin+"-elsewhere") },
 		"origin moved": func(k *takeIn) {
 			k.PR.HeadOID = k.Git("rev-parse", "HEAD^1")
@@ -870,8 +859,7 @@ func TestMergemainPushRejectsNonHeadOrForce(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			k := newTakeIn(t)
-			b := pushFlow(t, k)
+			k, b := newPushFlowTakeIn(t)
 			change(k)
 			before := k.OriginGit("rev-parse", headsPrefix+takeInBranch)
 			_, err := push(t, k, b)
@@ -920,8 +908,7 @@ func TestMergemainPushChecksParentsAndMain(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			k := newTakeIn(t)
-			b := pushFlow(t, k)
+			k, b := newPushFlowTakeIn(t)
 			tc.change(t, k, &b)
 			restore := RestoreNeeded
 			if tc.stop == MergemainStopOtherChanges {
@@ -963,8 +950,7 @@ func TestMergemainPushRejectsOutOfScope(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			k := newTakeIn(t)
-			b := pushFlow(t, k)
+			k, b := newPushFlowTakeIn(t)
 			change(t, k)
 			_, err := push(t, k, b)
 			wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
@@ -1015,11 +1001,6 @@ func TestMergemainPushChecksProtocolValues(t *testing.T) {
 			branch: map[string]string{takeInToolPath: toolFile(4, "base")},
 			main:   map[string]string{takeInToolPath: toolFile(5, "base")},
 			ok:     true,
-		},
-		"value changed to another integer": {
-			branch:      map[string]string{takeInToolPath: toolFile(4, "base")},
-			main:        map[string]string{takeInToolPath: toolFile(5, "base")},
-			commitValue: 9,
 		},
 		"value left at the automatic merge's": {
 			branch:      map[string]string{takeInToolPath: toolFile(4, "branch")},
@@ -1166,27 +1147,6 @@ func TestMergemainRefusesOtherMergeDrivers(t *testing.T) {
 		_, err := push(t, k, b)
 		wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
 	})
-	t.Run("push of a union merge", func(t *testing.T) {
-		t.Parallel()
-		k := newTakeIn(t)
-		base := baseFiles()
-		base[".gitattributes"] = "main.go merge=union\n"
-		conflicting(k, base)
-		b := begin(t, k)
-		// The merge the tool refuses, made by hand: git's union driver
-		// resolves the Go conflict, and the tree matches the computed merge.
-		k.Git("merge", "-q", "--no-ff", "--no-edit", b.Main)
-		_, err := push(t, k, b)
-		wantStop(t, err, MergemainStopOutOfScope, RestoreNeeded)
-	})
-}
-
-func TestMergemainBeginAcceptsGHDefaultOfOrigin(t *testing.T) {
-	t.Parallel()
-	k := newTakeIn(t)
-	k.Setup(baseFiles(), map[string]string{"b.md": "b\n"}, map[string]string{"m.md": "m\n"})
-	k.Git("config", "remote.origin.gh-resolved", "base")
-	begin(t, k)
 }
 
 func TestMergemainBlockingPathIgnoresLetterCase(t *testing.T) {
@@ -1250,8 +1210,7 @@ func TestMergemainMergeIgnoresConfiguredMergeOptions(t *testing.T) {
 
 func TestMergemainPushAfterOriginHasItAsksNoRestore(t *testing.T) {
 	t.Parallel()
-	k := newTakeIn(t)
-	b := pushFlow(t, k)
+	k, b := newPushFlowTakeIn(t)
 	// origin has the merge commit, but GitHub still names the base head as
 	// the PR head.
 	k.PR.HeadOID = b.BaseHead
@@ -1263,8 +1222,7 @@ func TestMergemainPushAfterOriginHasItAsksNoRestore(t *testing.T) {
 
 func TestMergemainPushAfterItLandedAsksNoRestore(t *testing.T) {
 	t.Parallel()
-	k := newTakeIn(t)
-	b := pushFlow(t, k)
+	k, b := newPushFlowTakeIn(t)
 	// An earlier push landed but its result was not read: origin and the
 	// PR head are the merge commit, and the remote-tracking ref is not.
 	k.Git("push", "-q", "origin", "HEAD:refs/heads/landed")

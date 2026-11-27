@@ -121,6 +121,7 @@ func constructionViolations(t *testing.T, fset *token.FileSet, files []*ast.File
 // that is not a test and finds no literal of, or assignment to a field of, a
 // guarded type outside its constructor.
 func TestGuardedTypesAreBuiltOnlyByTheirConstructors(t *testing.T) {
+	t.Parallel()
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
@@ -149,6 +150,7 @@ func TestGuardedTypesAreBuiltOnlyByTheirConstructors(t *testing.T) {
 // TestConstructionGuardFindsViolations runs the guard on source that breaks
 // it, so the guard cannot pass because it reads nothing.
 func TestConstructionGuardFindsViolations(t *testing.T) {
+	t.Parallel()
 	const src = `package chief
 
 type TaskSpace struct{ path string }
@@ -195,6 +197,7 @@ func (other) NewTaskSpace() TaskSpace { return TaskSpace{path: "x"} }
 // makes a type whose declared value the status table chooses behavior by, in
 // its maker and outside it: only the one outside is reported.
 func TestConstructionGuardCoversDeclaredValues(t *testing.T) {
+	t.Parallel()
 	const src = `package chief
 
 type unitKind int
@@ -233,6 +236,7 @@ func forgedLabel(l tabLabel) tabLabel { l.hasLabel = true; return l }
 // pointer literal, a field assignment, a method, and a closure in another
 // function; only the parser's is not reported.
 func TestConstructionGuardCoversCommitID(t *testing.T) {
+	t.Parallel()
 	const src = `package chief
 
 type CommitID struct{ hex string }

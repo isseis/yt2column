@@ -21,6 +21,7 @@ import (
 // unreadable; a missing file is no report, and its detail says whether the
 // transcript directory is missing too.
 func TestReadClaudeReport(t *testing.T) {
+	t.Parallel()
 	const session = "00000000-0000-4000-8000-000000000001"
 	config := t.TempDir()
 	env := Env{ClaudeConfigDir: config}
@@ -133,6 +134,7 @@ func TestReadClaudeReport(t *testing.T) {
 // whose line never ends, or whose wait fails, is errPartialLine; and one over
 // the cap is errOverCap.
 func TestReadCompleteTranscript(t *testing.T) {
+	t.Parallel()
 	const line = `{"type":"user"}` + "\n"
 	const half = `{"type":"us`
 	cases := []struct {

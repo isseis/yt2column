@@ -165,7 +165,7 @@ func (w *Worktree) enumerateChanges(ctx context.Context, against string) ([]chan
 		if !ok {
 			return nil, fmt.Errorf("%w: diff --numstat output", ErrGitFailed)
 		}
-		c, err := trackedChange(p, entry, lines)
+		c, err := trackedChange(w.dir, p, entry, lines)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +175,7 @@ func (w *Worktree) enumerateChanges(ctx context.Context, against string) ([]chan
 		if _, dup := raw[p]; dup {
 			return nil, fmt.Errorf("%w: path listed twice", ErrGitFailed)
 		}
-		c, err := untrackedChange(p)
+		c, err := untrackedChange(w.dir, p)
 		if err != nil {
 			return nil, err
 		}
@@ -286,7 +286,7 @@ func parseNumstat(out []byte) (map[string]lineCount, error) {
 // trackedChange classifies one tracked change. A type change, a symbolic
 // link or submodule on either side, and anything that is not a regular file
 // in the work tree now are ChangeOther.
-func trackedChange(p string, entry rawEntry, lines lineCount) (change, error) {
+func trackedChange(dir WorktreeDir, p string, entry rawEntry, lines lineCount) (change, error) {
 	c := change{path: p, added: lines.added, deleted: lines.deleted, binary: lines.binary}
 	switch entry.status {
 	case 'A':
@@ -302,21 +302,21 @@ func trackedChange(p string, entry rawEntry, lines lineCount) (change, error) {
 		c.kind = ChangeOther
 	}
 	if c.kind == ChangeDelete {
-		if _, err := os.Lstat(p); !errors.Is(err, fs.ErrNotExist) {
+		if _, err := os.Lstat(dir.joinName(p)); !errors.Is(err, fs.ErrNotExist) {
 			// The path exists again (as a directory, say): not a deletion.
 			c.kind = ChangeOther
 		}
 		return c, nil
 	}
-	c, _, err := examine(c)
+	c, _, err := examine(dir, c)
 	return c, err
 }
 
 // untrackedChange classifies an untracked path; lines are counted from the
 // content examine read. ls-files lists a nested repository as a directory
 // ending in "/".
-func untrackedChange(p string) (change, error) {
-	c, data, err := examine(change{path: p, kind: ChangeAdd})
+func untrackedChange(dir WorktreeDir, p string) (change, error) {
+	c, data, err := examine(dir, change{path: p, kind: ChangeAdd})
 	if err != nil || c.kind != ChangeAdd {
 		return c, err
 	}
@@ -336,8 +336,8 @@ func untrackedChange(p string) (change, error) {
 // is digested by its target. A regular file over the cap is still digested in
 // full but becomes ChangeOther; anything else that is not a regular file is
 // ChangeOther with no digest.
-func examine(c change) (change, []byte, error) {
-	info, err := os.Lstat(strings.TrimSuffix(c.path, "/"))
+func examine(dir WorktreeDir, c change) (change, []byte, error) {
+	info, err := os.Lstat(dir.joinName(strings.TrimSuffix(c.path, "/")))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			c.kind = ChangeOther
@@ -348,7 +348,7 @@ func examine(c change) (change, []byte, error) {
 	mode := info.Mode()
 	switch {
 	case mode&fs.ModeSymlink != 0:
-		target, err := os.Readlink(c.path)
+		target, err := os.Readlink(dir.joinName(c.path))
 		if err != nil {
 			return change{}, nil, fmt.Errorf("%w: read a changed link", ErrGitFailed)
 		}
@@ -358,7 +358,7 @@ func examine(c change) (change, []byte, error) {
 		c.kind, c.mode = ChangeOther, mode.Type().String()
 		return c, nil, nil
 	}
-	data, digest, whole, err := readChanged(c.path)
+	data, digest, whole, err := readChanged(dir, c.path)
 	if err != nil {
 		return change{}, nil, err
 	}
@@ -379,8 +379,8 @@ func gitFileMode(mode fs.FileMode) string {
 // readChanged hashes a changed regular file in full and returns its content
 // too when it is at most maxDigestBytes (whole is then true). It opens the
 // path without following a link and refuses anything but a regular file.
-func readChanged(p string) (data []byte, digest string, whole bool, err error) {
-	f, err := openRegular(p, false)
+func readChanged(dir WorktreeDir, p string) (data []byte, digest string, whole bool, err error) {
+	f, err := openRegular(dir.joinName(p), false)
 	if err != nil {
 		return nil, "", false, fmt.Errorf("%w: open a changed path", ErrGitFailed)
 	}

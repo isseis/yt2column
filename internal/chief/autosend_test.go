@@ -47,6 +47,7 @@ func passingFacts(t *testing.T) autoSendFacts {
 // automatic send holds and breaks one condition at a time: each break must
 // give a reason, so nothing is sent.
 func TestAutoSendConditions(t *testing.T) {
+	t.Parallel()
 	if why := autoSendConditions(passingFacts(t)); len(why) != 0 {
 		t.Fatalf("the passing facts give %v", why)
 	}
@@ -345,6 +346,7 @@ func sentCommand(res AutoSendResult) bool {
 // the Claude Code pane with its inputs and empties the /runpr pane, the row
 // shows the command running, and a later tick sends nothing more.
 func TestAutoSendAfterMerge(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	if out := mw.tick(time.Minute); len(out.AutoSends) != 0 {
 		t.Fatalf("the tick of the open PR sent %+v", out.AutoSends)
@@ -382,6 +384,7 @@ func TestAutoSendAfterMerge(t *testing.T) {
 // from the tool's next command in the command, in the task, or by naming
 // none stops the send, and that the command is proposed with the reason.
 func TestAutoSendReportMismatch(t *testing.T) {
+	t.Parallel()
 	for _, next := range []string{"", "`/mkplan 0001`", "`/mkarch 0002`", "/mkarch"} {
 		t.Run(next, func(t *testing.T) {
 			mw := newMergeWorld(t, mkarchDocs)
@@ -490,6 +493,7 @@ func testClaudeReportMismatch(t *testing.T) {
 // check reads every Claude Code pane of the workspace, not only the pane the
 // command goes to.
 func TestAutoSendClaudeTranscriptStopsOpenCodeSend(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, runplanDocs(t, "marker-sonnet.md"))
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/runplan 0001`")
@@ -511,6 +515,7 @@ func TestAutoSendClaudeTranscriptStopsOpenCodeSend(t *testing.T) {
 // which decided the send: w1:p1 has no report at the round's first reading
 // and an agreeing one when read again.
 func TestAutoSendReportChecksUnderTheExclusion(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -535,6 +540,7 @@ func TestAutoSendReportChecksUnderTheExclusion(t *testing.T) {
 // last line is still being written stops the send, and that the merge is
 // carried so the next round sends once the line is whole.
 func TestAutoSendPartialTranscript(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -561,6 +567,7 @@ func TestAutoSendPartialTranscript(t *testing.T) {
 // TestAutoSendHold checks that a plan PR whose auto-send field is hold is
 // not sent and is proposed with the reason.
 func TestAutoSendHold(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, runplanDocs(t, "marker-hold.md"))
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/runplan 0001`")
@@ -578,6 +585,7 @@ func TestAutoSendHold(t *testing.T) {
 // the merge, and a tick whose previous round is observeWindow or more
 // before it. A previous round just inside the window sends.
 func TestAutoSendUnobservedMerge(t *testing.T) {
+	t.Parallel()
 	t.Run("the first tick", func(t *testing.T) {
 		mw := newMergeWorld(t, mkarchDocs)
 		mw.merge(nextBranch, "`/mkarch 0001`")
@@ -604,6 +612,7 @@ func TestAutoSendUnobservedMerge(t *testing.T) {
 // the previous one never counts: the PR seen open, then a round that could
 // not read the PR list, then the merge.
 func TestAutoSendOlderObservation(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.rec.failIn(mw.tree, "gh pr list --head "+taskBranch+" --state open --json "+prListFields, errors.New("gh failed"))
@@ -619,6 +628,7 @@ func TestAutoSendOlderObservation(t *testing.T) {
 // TestAutoSendTaskMismatch checks that a merged PR whose head branch names
 // another task than the observation's is not sent.
 func TestAutoSendTaskMismatch(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -636,6 +646,7 @@ func TestAutoSendTaskMismatch(t *testing.T) {
 // /runpr pane's last report names the merged PR and the command, and not
 // when it names another PR.
 func TestAutoSendDetached(t *testing.T) {
+	t.Parallel()
 	for pr, sends := range map[int]bool{42: true, 43: false} {
 		mw := newMergeWorld(t, runplanDocs(t, "marker-opus.md"))
 		mw.tick(time.Minute)
@@ -711,6 +722,7 @@ func testClaudeDetached(t *testing.T) {
 // running in the round that saw it merged is sent by the next round, while
 // carryWindow has not run out since the merge was first seen, and not after.
 func TestAutoSendNextRound(t *testing.T) {
+	t.Parallel()
 	for gap, sends := range map[time.Duration]bool{time.Minute: true, carryWindow - time.Second: true, carryWindow: false} {
 		mw := newMergeWorld(t, mkarchDocs)
 		mw.tick(time.Minute)
@@ -740,6 +752,7 @@ func TestAutoSendNextRound(t *testing.T) {
 // TestAutoSendTaskComplete checks that the merge of a task's last PR sends
 // nothing, says the task is complete, and is not carried.
 func TestAutoSendTaskComplete(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, runplanDocs(t, "marker-all-merged.md"))
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "")
@@ -757,6 +770,7 @@ func TestAutoSendTaskComplete(t *testing.T) {
 // automatic-send record cannot be read, and not again after the record was
 // written and the send failed before its first input.
 func TestAutoSendOnce(t *testing.T) {
+	t.Parallel()
 	t.Run("observed again after the send", func(t *testing.T) {
 		mw := newMergeWorld(t, mkarchDocs)
 		mw.tick(time.Minute)
@@ -822,6 +836,7 @@ func TestAutoSendOnce(t *testing.T) {
 // TestAutoSendBusyWorkspace checks that a workspace another send holds is
 // not sent to, nothing is recorded, and the next round sends.
 func TestAutoSendBusyWorkspace(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -853,6 +868,7 @@ func TestAutoSendBusyWorkspace(t *testing.T) {
 // as it is, with the reason, when the command went to that pane or the
 // pane's last report no longer names the merged PR.
 func TestResetAfterAutoSend(t *testing.T) {
+	t.Parallel()
 	t.Run("the command went to the /runpr pane", func(t *testing.T) {
 		mw := newMergeWorld(t, runplanDocs(t, "marker-sonnet.md"))
 		mw.tick(time.Minute)
@@ -975,6 +991,7 @@ func testClaudeResetAfterAutoSend(t *testing.T) {
 // session took it over) and, on its own, by the session chief's pane has
 // now (the session was cleared and nothing took the lock yet).
 func TestAutoSendStopsForANewOwner(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		paneToo bool
@@ -1031,6 +1048,7 @@ func TestAutoSendStopsForANewOwner(t *testing.T) {
 // TestTickWithoutRound checks that a tick whose round cannot be recorded
 // records no observation of the open PR, considers no merge, and says why.
 func TestTickWithoutRound(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	observations := func() int {
@@ -1115,6 +1133,7 @@ func TestGitClean(t *testing.T) {
 // TestParsePRState reads the state of a PR as gh gives it, and rejects a
 // view of another PR, of an unknown state, or without a head branch.
 func TestParsePRState(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		out     string
 		want    PRState
@@ -1139,6 +1158,7 @@ func TestParsePRState(t *testing.T) {
 // exclusion: an agent starts, another send starts, or the next command
 // changes. Each time nothing is typed.
 func TestAutoSendRechecksUnderTheExclusion(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		// call is the read of the merged PR's state (1: the first reading,
@@ -1219,6 +1239,7 @@ func TestAutoSendRechecksUnderTheExclusion(t *testing.T) {
 // with a running agent and checks that the carry window counts from the
 // round that first saw the merge, not from the last carry.
 func TestAutoSendCarryKeepsTheFirstSighting(t *testing.T) {
+	t.Parallel()
 	for last, sends := range map[time.Duration]bool{carryWindow - time.Second: true, carryWindow: false} {
 		mw := newMergeWorld(t, mkarchDocs)
 		mw.tick(time.Minute)
@@ -1240,6 +1261,7 @@ func TestAutoSendCarryKeepsTheFirstSighting(t *testing.T) {
 // records no round, so the next tick still counts the observation before
 // it and sends.
 func TestAutoSendAfterAFailedTick(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	errBusy := errors.New("herdr is busy")
@@ -1260,6 +1282,7 @@ func TestAutoSendAfterAFailedTick(t *testing.T) {
 // reason and says the other conditions were not checked, never claiming a
 // value of a fact it did not read.
 func TestAutoSendUncheckedConditions(t *testing.T) {
+	t.Parallel()
 	notChecked := "the other conditions were not checked, since the merge could not be confirmed"
 	for name, edit := range map[string]func(*autoSendFacts){
 		"the state cannot be read": func(f *autoSendFacts) { f.stateErr = errors.New("gh failed") },
@@ -1277,6 +1300,7 @@ func TestAutoSendUncheckedConditions(t *testing.T) {
 // TestSentSince checks the boundary of SentSince: a send started at the
 // given time counts, one started before it does not.
 func TestSentSince(t *testing.T) {
+	t.Parallel()
 	store := newStore(t)
 	records, err := store.Records(Worktree{path: "/w"})
 	if err != nil {
@@ -1302,6 +1326,7 @@ func TestSentSince(t *testing.T) {
 // after an input: the row needs a check, the workspace is stopped, and the
 // used-up send is not tried again.
 func TestAutoSendFailureAfterInput(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -1336,6 +1361,7 @@ func TestAutoSendFailureAfterInput(t *testing.T) {
 // unreadable in the round of the send, calling the human, and is named as a
 // problem of the round.
 func TestAutoSendStopUnreadableAfterInput(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -1366,6 +1392,7 @@ func TestAutoSendStopUnreadableAfterInput(t *testing.T) {
 // TestAutoSendStateUnreadable checks that a merge whose state cannot be read
 // is not sent, gives that reason, and is not carried to the next round.
 func TestAutoSendStateUnreadable(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -1409,6 +1436,7 @@ func (mw *mergeWorld) sendByHand(pane, command string, at time.Time) {
 // the merge at once, when the merge is carried through a round in which the
 // command ran, and when a start of the same session ran before the tick.
 func TestAutoSendAfterAManualSend(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name         string
 		carry, start bool
@@ -1450,6 +1478,7 @@ func TestAutoSendAfterAManualSend(t *testing.T) {
 // command by hand while the round reads the workspace, the round that sends
 // next still sees the send, so the same command is not sent again.
 func TestTickRecordsTheRoundBeforeItReads(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	// The second round reads the PR open; while it reads the rest, the PR
@@ -1497,6 +1526,7 @@ func (mw *mergeWorld) addSharingWorkspace(status string) {
 // opens after the round read Herdr, which only the reading under the
 // exclusion sees.
 func TestAutoSendSharedWorktree(t *testing.T) {
+	t.Parallel()
 	for _, underExclusion := range []bool{false, true} {
 		t.Run(map[bool]string{false: "in the round", true: "under the exclusion"}[underExclusion], func(t *testing.T) {
 			mw := newMergeWorld(t, mkarchDocs)
@@ -1539,6 +1569,7 @@ func TestAutoSendSharedWorktree(t *testing.T) {
 // while the command was typed, the pane moved (its last message still the
 // report) or chief's session changed.
 func TestResetChecksAgain(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name   string
 		change func(mw *mergeWorld)
@@ -1624,6 +1655,7 @@ func TestResetChecksAgain(t *testing.T) {
 // snapshot's, with the row an automatic send went to showing the command
 // sent and its model, its progress creating, and its urgency wait.
 func TestTickOutputRows(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -1655,6 +1687,7 @@ func TestTickOutputRows(t *testing.T) {
 // the reset's outcome and reason, and the detail of each no_report differs
 // by what the report lacked.
 func TestResetAfterAutoSendSkipOffer(t *testing.T) {
+	t.Parallel()
 	const mkarch = "`/mkarch 0001`"
 	opencode := func(screen func(t *testing.T) string, react func(mw *mergeWorld)) func(t *testing.T) (*mergeWorld, string) {
 		return func(t *testing.T) (*mergeWorld, string) {
@@ -1778,6 +1811,7 @@ func TestResetAfterAutoSendSkipOffer(t *testing.T) {
 // that the tick types nothing, says why, and carries the PR, so the next
 // tick, which takes the exclusion, sends it.
 func TestTickSkipsAutoSendWhileCreating(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -1809,6 +1843,7 @@ func TestTickSkipsAutoSendWhileCreating(t *testing.T) {
 // (no such write is allowed, so one would fail the test), the removal stays
 // a proposal, and every record of the made workspace stays on disk.
 func TestAutoSendLeavesRemovalItems(t *testing.T) {
+	t.Parallel()
 	var rs *removalSetup
 	mw := newMergeWorldWith(t, mkarchDocs, "", func(sw *sendWorld) {
 		rs = addRemovalWorkspace(t, sw)
@@ -1859,6 +1894,7 @@ func TestAutoSendLeavesRemovalItems(t *testing.T) {
 // automatic send went to as it is after the send: running, with the mark
 // and the status word table.go gives the row's urgency and progress.
 func TestTickTableShowsAutoSend(t *testing.T) {
+	t.Parallel()
 	mw := newMergeWorld(t, mkarchDocs)
 	mw.tick(time.Minute)
 	mw.merge(nextBranch, "`/mkarch 0001`")
@@ -1882,6 +1918,7 @@ func TestTickTableShowsAutoSend(t *testing.T) {
 // problems are the same, and the second table is laid out at 80 columns and
 // shows the question pane by its ID, with table_unreadable saying why.
 func TestTickTableSourcesUnreadable(t *testing.T) {
+	t.Parallel()
 	type sent struct {
 		pane, command, model string
 		input                InputKind

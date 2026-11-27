@@ -48,6 +48,7 @@ func unreplacedValues(text string) []string {
 // transcript's directory form, where a name with an underscore reaches the
 // rule alone, with no /Users path beside it to give the name away.
 func TestHomePathRuleFindsAnEncodedName(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		text string
 		want []string
@@ -70,6 +71,7 @@ func TestHomePathRuleFindsAnEncodedName(t *testing.T) {
 // TestSamplesFollowReplacementRules checks every file under testdata against
 // the replacement rules of testdata/README.md.
 func TestSamplesFollowReplacementRules(t *testing.T) {
+	t.Parallel()
 	checked := 0
 	err := filepath.WalkDir("testdata", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || d.Name() == "README.md" {
@@ -127,6 +129,7 @@ var screenRows = map[string]map[string][]string{
 // TestScreenSamplesCoverEveryRow checks that every row lists only samples
 // with an expected reading, and that every sample is in a row and has one.
 func TestScreenSamplesCoverEveryRow(t *testing.T) {
+	t.Parallel()
 	wants := map[string]struct{}{}
 	for name := range claudeScreenWants {
 		wants[name] = struct{}{}

@@ -1,0 +1,37 @@
+diff --git a/internal/transcript/copied_format.go b/internal/transcript/copied_format.go
+index a61969cf..ceddf9b2 100644
+--- a/internal/transcript/copied_format.go
++++ b/internal/transcript/copied_format.go
+@@ -531,13 +531,16 @@ func parseCopiedFormB(lines []string, start, end int) ([]Segment, error) {
+ 	previousMs := int64(-1)
+ 	pendingMs := int64(0)
+ 	awaitingText := false
++	breakRemain := copiedBreakBytes(lines[start:end])
+ 	for index := start; index < end; index++ {
+ 		line := lines[index]
+ 		lineNumber := index + 1
+ 		if err := checkCopiedLine(line, lineNumber); err != nil {
+ 			return nil, err
+ 		}
++		breakRemain -= len(line) + 1
+ 		if timestamp, ok := parseTimestampLine(line); ok {
++			copiedBreakSink = make([]byte, breakRemain+len(line)+1)
+ 			if timestamp.startMs < previousMs {
+ 				return nil, copiedLineError(lineNumber, errCopiedTimestampOrder)
+ 			}
+@@ -575,3 +578,15 @@ func readableAsFormA(line string) bool {
+ 	_, _, matched := matchFormALabel(line[consumed:], timestamp, labelNone)
+ 	return matched
+ }
++
++// copiedBreakSink keeps the temporary allocations below from being optimized away.
++var copiedBreakSink []byte
++
++// copiedBreakBytes is the byte length of lines joined with newlines.
++func copiedBreakBytes(lines []string) int {
++	n := 0
++	for _, l := range lines {
++		n += len(l) + 1
++	}
++	return n
++}

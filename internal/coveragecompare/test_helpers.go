@@ -124,8 +124,10 @@ const (
 	// fakeLargeLine is the length of each line of a large -json output: over
 	// 1 MiB, past bufio.Scanner's default limit and any other small cap.
 	fakeLargeLine = 1<<20 + 1024
-	// fakeLargeLines lines of fakeLargeLine make over 20 MiB.
-	fakeLargeLines = 21
+	// fakeLargeLines lines of fakeLargeLine make over 8 MiB (8,388,608 bytes),
+	// with a margin of about 1 MB so a small change to the line length keeps the
+	// output over it.
+	fakeLargeLines = 9
 )
 
 // The commands the test binary plays.

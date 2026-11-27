@@ -242,7 +242,9 @@ func TestParseSubtitlesDuplicateMembers(t *testing.T) {
 }
 
 func TestParseSubtitlesLimits(t *testing.T) {
+	t.Parallel()
 	t.Run("size at limit", func(t *testing.T) {
+		t.Parallel()
 		data := padToSize([]byte(`{"events":[]}`), maxSubtitlesBytes)
 		segments, err := parseSubtitles("inline.json3", data)
 		if err != nil {
@@ -254,11 +256,13 @@ func TestParseSubtitlesLimits(t *testing.T) {
 	})
 
 	t.Run("size over limit", func(t *testing.T) {
+		t.Parallel()
 		data := padToSize([]byte(`{"events":[]}`), maxSubtitlesBytes+1)
 		assertSubtitlesRejected(t, string(data))
 	})
 
 	t.Run("events at limit", func(t *testing.T) {
+		t.Parallel()
 		segments, err := parseSubtitles("inline.json3", eventsDocument(maxSubtitleEvents))
 		if err != nil {
 			t.Fatalf("parseSubtitles at event limit error = %v", err)
@@ -269,11 +273,13 @@ func TestParseSubtitlesLimits(t *testing.T) {
 	})
 
 	t.Run("events over limit", func(t *testing.T) {
+		t.Parallel()
 		assertSubtitlesRejected(t, string(eventsDocument(maxSubtitleEvents+1)))
 	})
 }
 
 func TestParseSubtitlesArrayElementLimit(t *testing.T) {
+	t.Parallel()
 	// Only the segs case can discriminate internal/strictjson's AsArray cap
 	// (maxArrayElements, 131072): an events array above the cap is already
 	// rejected by maxSubtitleEvents (65,536). Both still surface as
@@ -281,6 +287,7 @@ func TestParseSubtitlesArrayElementLimit(t *testing.T) {
 	const overCap = 131073
 
 	t.Run("segs over the strictjson cap", func(t *testing.T) {
+		t.Parallel()
 		assertSubtitlesRejected(t, string(segsDocument(overCap)))
 	})
 }

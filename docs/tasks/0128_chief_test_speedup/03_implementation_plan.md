@@ -69,13 +69,13 @@
 
 ### フェーズ 1: 比較のスクリプト、並列化、計測（設計書 3 章、AC-01〜AC-06）
 
-- [ ] **ステップ 1-1**: 比較のスクリプト
+- [x] **ステップ 1-1**: 比較のスクリプト
     - 追加するファイル: `docs/tasks/0128_chief_test_speedup/_checks/compare.sh`
     - 設計書 3.5 節のとおりに書く。判定は、時間の比（AC-01）、テストの名前の集合と `fail`・`skip` の有無（AC-03）、変わったファイルの一覧（AC-05）の 3 つである。判定できないときは終了コード 2 を返す
     - スクリプトをコミットしてから、テストのファイルに変更のない `HEAD` で実行し、AC-01 が通らず、AC-03・AC-05 が通ることを確かめる（設計書 8 章）
     - 各判定が少なくとも 1 つの壊し方で失敗することを確かめる。結果は 7.1 節の一時スクリプトの記録に書く
     - 完了の条件: スクリプトがコミットされ、7.1 節に壊し方の記録がある
-- [ ] **ステップ 1-2**: テストの並列化
+- [x] **ステップ 1-2**: テストの並列化
     - 変えるファイル: `internal/chief/*_test.go`・`internal/chief/test_helpers.go`
     - ファイルごとに設計書 3.3 節を確かめ、独立したテストとサブテストに `t.Parallel()` を足す（設計書 3.2 節）。issue の 6 つのファイルから始め、残りのファイルに広げる
     - 設計書 3.2 節の直列に残すテスト（`t.Setenv`、umask、そのほかのプロセス全体の状態）は、そのテストも祖先も `t.Parallel()` を呼ばないままにする。umask に左右されるテストは、テストの冒頭で `test_helpers.go` に足すヘルパーを呼び、umask を `0o022` にして `t.Cleanup` で元に戻す。ヘルパーは `t.Setenv` も呼ぶ（設計書 1 章・3.2 節）。ヘルパーを呼んだテストも 7.3 節に書く
@@ -84,7 +84,7 @@
     - 共有の値をサブテストの中に移したテストと、`defer` を `t.Cleanup` に移したテストを、変えた内容とともに 7.3 節に書く。PR のレビューで、判定と入力が変わっていないことを読む
     - ファイルの組ごとに `go test -tags test -race ./internal/chief` を通してからコミットする
     - 完了の条件: パッケージのテストが通り、7.3 節に記録がある
-- [ ] **ステップ 1-3**: 計測と記録
+- [x] **ステップ 1-3**: 計測と記録
     - 計測の前に、同じ機械でほかのテストやビルドが走っていないかを人に尋ね、走っていないという答えを得てから計測する（要件書 AC-01）。`/runplan` のセッションからは、ほかの workspace の負荷を確かめられないためである。人の答えを記録に書く
     - `git fetch origin main` の後に、`compare.sh` を実行する（コマンドの時間制限を 10 分以上にして実行する）
     - 出力と 2 つのコミットを 7.0 節に書き、7.1 節の実行の記録からその場所を指す（`docs/dev/conventions/requirements_process.md`「Temporary script record」）
@@ -132,9 +132,10 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
-- [ ] フェーズ 1（ステップ 1-1〜1-3）
-- [ ] PR を作成した
-- [ ] PR がマージされた
+- [x] フェーズ 1（ステップ 1-1〜1-3）
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1184
+- [x] PR がマージされた
+- [-] 次のブランチへ切り替えた（最終の PR のため）
 
 ## 7. 受け入れ基準の検証 (Acceptance Criteria Verification)
 
@@ -149,7 +150,32 @@
 
 ### 7.0. `compare.sh` の出力（AC-01・AC-03・AC-05）
 
-（`/runplan` が書く。マージベースと比べたコミットの ID、計測の間にほかのテストやビルドを走らせなかったこと、スクリプトの出力の全体をコードブロックで書く）
+-   **比べたコミット:** マージベース `98456465ab0ee32e35941a6a406b07cf04462d36`（変更前）と、`HEAD` の `2e796dbe64d1fd8b0efb1788a5e4008c2e0b9320`（変更後。作業ツリーはきれい）。
+-   **計測の間の負荷:** 計測の前に、同じ機械でほかのテストやビルドが走っていないかを人に尋ね、「走っていない」という答えを得た（2026-11-26）。
+-   **出力（`git fetch origin main` の後に実行）:**
+
+```text
+before (merge-base): 98456465ab0ee32e35941a6a406b07cf04462d36
+after  (HEAD):       2e796dbe64d1fd8b0efb1788a5e4008c2e0b9320 (work tree clean: yes)
+elapsed before: 44.548s, after: 20.133s, ratio: 0.452
+passing tests before: 2259, after: 2259
+fail/skip before: 0, after: 0
+changed files: 43
+AC-01 (ratio <= 0.5): PASS
+AC-03 (same passing names, no fail/skip): PASS
+AC-05 (only allowed files changed): PASS
+exit 0
+```
+
+-   **変わったファイルの一覧（AC-05。マージベースと `HEAD` の `git diff --name-only`）:** `internal/chief/` 直下の `_test.go` 40 ファイル、`internal/chief/test_helpers.go`、本タスクのディレクトリの下の 2 ファイル（`03_implementation_plan.md`、`_checks/compare.sh`）。`_test.go` でないのは次の 3 つである。
+
+```text
+docs/tasks/0128_chief_test_speedup/03_implementation_plan.md
+docs/tasks/0128_chief_test_speedup/_checks/compare.sh
+internal/chief/test_helpers.go
+```
+
+-   **ばらつきの記録:** 変更前の経過時間は、同じマージベースの木でも実行ごとに変わった。本タスクの途中の実行では、変更前が 51.0 秒（変更後の側は、テストを変えていない `HEAD` で 94.6 秒）・48.8 秒、並列化の途中の実行では 115.4 秒（変更後 28.7 秒、比 0.249）で、上の最終の実行は 44.5 秒（変更後 20.1 秒、比 0.452）だった。変更後の経過時間は、単独の実行で 20〜29 秒だった。比の判定は最終の実行で通ったが、変更前が短く出る実行では、比が 0.5 に近づく。
 
 ### 7.1. 一時スクリプトの記録（`_checks/compare.sh`）
 
@@ -163,16 +189,32 @@
     -   PR を作る前に、`/runplan` が 1 回実行する（2 章の計測と記録の手順）。
     -   その後にスクリプトか `internal/chief` のテストが変わったとき（レビューの直し、`origin/main` の取り込み）は、変えた人が実行し直す（`docs/dev/conventions/requirements_process.md`「Temporary script record」の「Rewriting」）。
 -   **テスト:** コミットしない。
--   **壊し方の記録:** （`/runplan` が書く）
--   **実行の記録:** （`/runplan` が書く。`diff` 検証のスクリプトなので、出力と 2 つのコミットは 7.0 節に置き、ここからはその場所を指す）
+-   **壊し方の記録:** 確かめた内容のコミットは `c5eb58126a69`（スクリプトを追加したコミット）である。壊し方は作業ツリーに入れ、確かめた後に戻した（`git checkout`）。
+    -   AC-01（時間の比）: テストのファイルに変更のない `HEAD` で実行した。時間の比は 1.854 で、判定は `FAIL`、終了コードは 1 だった。壊し方は「`t.Parallel()` を足していない木」で、同じ木の 2 回の実行が、比 1.854 と 0.905 で、どちらも `FAIL` だった（2 回目は AC-03・AC-05 の壊し方を入れた実行）。並列化していない木では、この判定は通らない。比は実行ごとに大きく変わる（7.0 節）。比が 0.5 の近くに出たときは、スクリプトを変えず、機械が空いている状態で実行し直す。
+    -   AC-03（名前の集合と `fail`・`skip`）: `internal/chief/workspace_test.go` の `TestGitIsAncestor` の冒頭に `t.Skip("breakage")` を足して実行した。判定は `FAIL`、`pass` のテストは変更前の 2259 から 2251 に減り、`skip` が 1 つあった。終了コードは 1 だった。
+    -   AC-05（変わったファイル）: `internal/chief/records.go` の末尾に行を足して実行した（AC-03 の壊し方と同じ実行）。判定は `FAIL`、許す範囲の外のファイルとして `internal/chief/records.go` が表示された。終了コードは 1 だった。
+    -   同じ状態で、AC-03・AC-05 の壊し方なしの実行（`HEAD`、変更なし）は、両方 `PASS` だった（変更のないテストの名前の集合は同じで、変わったファイルは `_checks/compare.sh` だけである）。
+-   **実行の記録:** PR を作る前の 1 回の実行は、7.0 節に置いた（`diff` 検証のスクリプトなので、出力と 2 つのコミットは 7.0 節に置く）。確かめた内容のコミットは `2e796dbe64d1`、結果は `PASS`（終了コード 0）である。
 
 ### 7.2. `-race -count=3` の実行の記録
 
-（`/runplan` が書く）
+-   `go test -tags test -race -count=3 ./internal/chief` を、コミット `2e796dbe64d1` で実行した。終了コードは 0、出力は `ok  github.com/isseis/yt2column/internal/chief 60.238s` だった。
+-   親テストを並列にしていた実装（`48fabf346af2`）の `-count=3` では 1 回失敗した。原因と対処は 7.3 節に書いた。対処の後（`265c199ef89c`）の `-count=10` は通った（191.7 秒）。
+-   `make test`（終了コード 0）と `make lint`（`0 issues.`）を、コミット `2e796dbe64d1` で実行した。`make test` を最初に実行したとき、`internal/fixprguard` が既定の 10 分の時間切れで失敗した。同じパッケージだけを実行すると通り（386 秒）、`make test` をもう一度実行すると通った（そのパッケージは 288.9 秒）。本タスクが変えたファイルではなく、ほかのパッケージとの負荷の重なりによる時間切れだった。
 
 ### 7.3. 直列に残したテストと、`t.Parallel()` を足す以上に変えたテスト
 
-（`/runplan` が書く。直列に残したテストとその理由。共有の値をサブテストの中に移したテストと、`defer` を `t.Cleanup` に移したテストと、その変更の内容。`test_helpers.go` を変えたときは、その変更と理由）
+-   **並列にしたテスト:** `internal/chief` の 40 のファイルで、トップレベルのテスト 394 に `t.Parallel()` を足した。`TestMarkerReadingMatchesDecisionScript` の 23 のサブテストにも足した（親は直列、下の「直列に残したテスト」）。各サブテストは自分のリポジトリを作り、親の `contextDoc` と `old` を読むだけである。
+-   **直列に残したテスト:** 次の 16 のテストは、そのテストも祖先も `t.Parallel()` を呼ばない。
+    -   `t.Setenv` を呼ぶ（`RealCommands` を通す場合を含む）: `TestWorktreeAddDetached`（`create_test.go`）、`TestWorktreeRemoveKeepsBranch`（`removal_test.go`）、`TestIssueIndexIgnoresGrepPatternType`・`TestIssueTasksReadsTheRealGitGrep`・`TestIssueTasksWithNoLine`（`task_test.go`）、`TestTaskSpaceWorktreeMatchesCanonicalWorktree`（`taskspace_test.go`）、`TestGitWorktreesOfARealRepository`・`TestGitIsAncestor`・`TestGitCleanCountsStagedAndNestedFiles`（`workspace_test.go`）の 9 つ。`TestGitClean`（`autosend_test.go`）。`network_test.go` の 4 つ（`TestSnapshotRunsOnlyReadsInTheRightPlaces`・`TestDetailAndSendRunOnlyReadsInTheRightPlaces`・`TestTickRunsOnlyReadsInTheRightPlaces`・`TestCreateRunsOnlyInTheRightPlaces`）。
+    -   umask に結果が左右される: `TestClearRecordsKeepsTheCreatedRecordWhenAnotherRemovalFails`（`records_test.go`）。`os.WriteFile` で `0o644` のファイルを作り、`privatefile` が拒むことを確かめる。冒頭で `fixUmask` を呼ぶ。`records_test.go` の `:285`・`:945`・`:967` は `os.Chmod` で権限を決めるので、umask に左右されない。`:427` は `MkdirBelow` が作るディレクトリが `0o700` であることを確かめる。umask が `077` で残っても、`0o700` は変わらない。
+    -   子プロセスを起こす並列のサブテストの親: `TestMarkerReadingMatchesDecisionScript`（`markers_parity_test.go`）。親は直列に残し、23 のサブテストは並列にした。親が直列なので、サブテストはほかのトップレベルのテストと同時には走らず、サブテストの間だけで並列に走る。理由: このサブテストは git と bash の子プロセスを起こす。子プロセスは、fork から exec までの間、親が開いている fd の複製を持つ。そのため、並列のほかのテストが `cachelock` で取った flock は、そのテストが閉じた後もしばらく保たれ、次の `Acquire` が busy になりうる。親も並列にした最初の実装では、`go test -tags test -race -count=3` の 1 回で `TestAutoSendReportMismatch/Claude_Code:_the_session's_file_is_missing` が `another send to the workspace is under way`（`not_sent busy`）で失敗した。原因の仮説であり、再現させて確かめてはいない。親を直列にした後は、`-count=10` が通った（191.7 秒、コミット `265c199ef89c`）。
+    -   子プロセスを起こすテストは、ほかに `newTestRepo` を使うテストと `RealCommands` を使うテストだが、どれも直列である。並列のテストは子プロセスを起こさない。
+    -   この決まり（子プロセスを起こすテストは直列に残すか、直列の親のサブテストにする）は、正しさの義務である（`CLAUDE.md`「Performance」）。`newTestRepo` の説明に書いた（`test_helpers.go`）。後でテストを足す人が `t.Parallel()` を呼んで `newTestRepo` を使っても、コンパイルも `-race` も通り、まれに `busy` で失敗するだけなので、機械的には守れていない。直列に残す仕組み（`t.Setenv` による panic など）は、並列のサブテストが使う `newTestRepo` を直列の目的に使えなくするので、足さなかった。
+    -   サブテストを並列にしたのは、この 23 だけである。ほかのテストのサブテストは、判断を 3.3 節のとおりに行ったのではなく、トップレベルの並列化だけで AC-01 に届いたので、足さなかった（YAGNI）。
+    -   共有の値、親の本体の順序、時間に依存する判定が理由で直列に残したテストはない。実際の時間で待つ `TestTranscriptFIFORefused` も並列にしたが、`-race -count=3` で失敗しなかった。
+-   **共有の値を移したテストと、`defer` を `t.Cleanup` に移したテスト:** なし。並列のサブテストを持つのは `TestMarkerReadingMatchesDecisionScript` だけで、親の値は読むだけであり、親に `defer` もない。そのほかのテストのサブテストは直列に実行されるので、親の本体の順序は変わらない。
+-   **`test_helpers.go` の変更:** `fixUmask` を 1 つ足した（`syscall` の import と定数 `fixedUmask` を含む）。umask を `0o022` にし、`t.Cleanup` で元に戻し、`t.Setenv` を呼ぶ。理由は設計書 1 章と 3.2 節のとおり。`records_test.go` の 1 つのテストだけが呼ぶ。
 
 ## 8. 成功基準 (Success Criteria)
 

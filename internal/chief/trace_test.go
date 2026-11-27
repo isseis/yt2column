@@ -64,6 +64,7 @@ func traceJSON(t *testing.T, e traceEvent) []byte {
 // errRecord under its path and reads no event from it, while the readable
 // record is still read. A record of exactly the size limit is read.
 func TestReadTraceRejects(t *testing.T) {
+	t.Parallel()
 	t1, t2 := taskID(t, "0101"), taskID(t, "0102")
 	open := ev(1, tracePROpen, 7, t1, branchT1)
 	noTaskOpen := ev(1, tracePROpen, 7, paneinput.TaskID{}, "scratch")
@@ -211,6 +212,7 @@ func TestReadTraceRejects(t *testing.T) {
 // and that a worktree directory it cannot list, or an entry of a worktree
 // directory's name that is no directory, is unreadable.
 func TestReadTraceSessionOnly(t *testing.T) {
+	t.Parallel()
 	t1 := taskID(t, "0101")
 	store := newStore(t)
 	mine := ev(1, tracePROpen, 7, t1, branchT1)
@@ -275,6 +277,7 @@ func TestReadTraceSessionOnly(t *testing.T) {
 // TestIdentifyMainTask applies each rule of the identification, in its
 // order, to the events of a worktree on main.
 func TestIdentifyMainTask(t *testing.T) {
+	t.Parallel()
 	t1, t2 := taskID(t, "0101"), taskID(t, "0102")
 	none := paneinput.TaskID{}
 	open := func(n, pr int, task paneinput.TaskID, branch string) traceEvent {
@@ -395,6 +398,7 @@ func TestIdentifyMainTask(t *testing.T) {
 // change only, and nothing is written for a HEAD not read, a PR still open,
 // or a state that was not read.
 func TestTraceWrites(t *testing.T) {
+	t.Parallel()
 	t1, t2 := taskID(t, "0101"), taskID(t, "0102")
 	none := paneinput.TaskID{}
 	openT1 := []traceEvent{ev(1, traceBranchTask, 0, t1, ""), ev(1, tracePROpen, 7, t1, branchT1)}
@@ -485,6 +489,7 @@ func TestTraceWrites(t *testing.T) {
 // replaced, and that an event the reader would refuse or of another
 // worktree is not written.
 func TestWriteTraceUnderTheExclusion(t *testing.T) {
+	t.Parallel()
 	t1 := taskID(t, "0101")
 	store := newStore(t)
 	held := heldRecords(t, store, traceTree.path)

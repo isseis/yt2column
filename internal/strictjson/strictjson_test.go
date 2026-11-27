@@ -557,6 +557,7 @@ func TestValueAsBool(t *testing.T) {
 }
 
 func TestAsArrayElementLimit(t *testing.T) {
+	t.Parallel()
 	build := func(t *testing.T, elements int) Value {
 		t.Helper()
 		var document strings.Builder
@@ -580,6 +581,7 @@ func TestAsArrayElementLimit(t *testing.T) {
 	}
 
 	t.Run("accepts one below the limit", func(t *testing.T) {
+		t.Parallel()
 		values, err := build(t, maxArrayElements-1).AsArray()
 		if err != nil {
 			t.Fatalf("AsArray error = %v", err)
@@ -590,6 +592,7 @@ func TestAsArrayElementLimit(t *testing.T) {
 	})
 
 	t.Run("accepts the limit", func(t *testing.T) {
+		t.Parallel()
 		values, err := build(t, maxArrayElements).AsArray()
 		if err != nil {
 			t.Fatalf("AsArray error = %v", err)
@@ -600,6 +603,7 @@ func TestAsArrayElementLimit(t *testing.T) {
 	})
 
 	t.Run("rejects one above the limit", func(t *testing.T) {
+		t.Parallel()
 		if _, err := build(t, maxArrayElements+1).AsArray(); !errors.Is(err, errTooManyElements) {
 			t.Errorf("AsArray error = %v, want errTooManyElements", err)
 		}

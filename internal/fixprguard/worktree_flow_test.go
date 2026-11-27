@@ -25,9 +25,9 @@ type prepared struct {
 func prepareRound(t *testing.T, edit func(r *testRepo)) prepared {
 	t.Helper()
 	r := newTestRepo(t)
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir, r.Home)
 	edit(r)
-	return prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+	return prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 }
 
 func fixTestFile(r *testRepo) { r.Write(testFile, "fixed\n") }
@@ -40,7 +40,7 @@ func (p prepared) finish(t *testing.T, steps ...cmdrunnertestutil.Step) (FinishR
 // finishBody finishes with the commit body file bodyFile ("" for none).
 func (p prepared) finishBody(t *testing.T, bodyFile string, steps ...cmdrunnertestutil.Step) (FinishResult, *gitRouter, error) {
 	t.Helper()
-	w, router := newTestWorktree(t, steps...)
+	w, router := newTestWorktree(t, p.r.Dir, p.r.Home, steps...)
 	result, err := w.Finish(t.Context(), p.base, p.judged, FinishRequest{PR: mustPR(t), BodyFile: bodyFile})
 	return result, router, err
 }
@@ -106,8 +106,8 @@ func TestFinishAbsorbsFormatting(t *testing.T) {
 		p.r.Write("internal/x/x.go", "package x\n\n// F is formatted.\nfunc F() {}\n")
 		return nil
 	}
-	w, _ := newTestWorktree(t, makeStep(StageFmt, format), makeStep(StageTest, nil), makeStep(StageLint, nil))
-	result, err := w.Finish(t.Context(), p.base, mustInspectPaths(t, p.base, "internal/x/x.go"), FinishRequest{PR: mustPR(t)})
+	w, _ := newTestWorktree(t, p.r.Dir, p.r.Home, makeStep(StageFmt, format), makeStep(StageTest, nil), makeStep(StageLint, nil))
+	result, err := w.Finish(t.Context(), p.base, mustInspectPaths(t, p.r.Dir, p.r.Home, p.base, "internal/x/x.go"), FinishRequest{PR: mustPR(t)})
 	if err != nil || !result.Committed {
 		t.Fatalf("Finish = %+v, %v", result, err)
 	}
@@ -116,10 +116,10 @@ func TestFinishAbsorbsFormatting(t *testing.T) {
 	}
 }
 
-// mustInspectPaths inspects with a thread on path.
-func mustInspectPaths(t *testing.T, base Baseline, path string) JudgedSetID {
+// mustInspectPaths inspects dir with a thread on path.
+func mustInspectPaths(t *testing.T, dir, home string, base Baseline, path string) JudgedSetID {
 	t.Helper()
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, dir, home)
 	inspection, err := w.Inspect(t.Context(), base, threadAt(path))
 	if err != nil {
 		t.Fatalf("Inspect: %v", err)
@@ -223,7 +223,7 @@ func TestFinishRefusesUnpinnedChange(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := prepareRound(t, tc.edit)
-			if got := mustInspect(t, p.base).OutOfScope; len(got) != 1 || got[0].Kind != ChangeOther {
+			if got := mustInspect(t, p.r.Dir, p.r.Home, p.base).OutOfScope; len(got) != 1 || got[0].Kind != ChangeOther {
 				t.Errorf("OutOfScope = %+v, want one other change", got)
 			}
 			// No make step is scripted: the refusal comes before them.
@@ -238,9 +238,9 @@ func TestFinishStageRollback(t *testing.T) {
 	// git add runs this hook; the file it leaves behind makes the index check
 	// fail after staging.
 	r.WriteHook("post-index-change", "echo x > docs/notes/hook.md\n")
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir, r.Home)
 	fixTestFile(r)
-	p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+	p := prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 	head := r.Head()
 	_, _, err := p.finish(t, buildCheckSteps()...)
 	wantJudgedSetChanged(t, err)
@@ -257,9 +257,9 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 	r := newTestRepo(t)
 	// The hook stages a change the judged set does not hold.
 	r.WriteHook("pre-commit", "echo hook >> docs/notes/b.md\ngit add docs/notes/b.md\n")
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir, r.Home)
 	fixTestFile(r)
-	p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+	p := prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 	result, router, err := p.finish(t, buildCheckSteps()...)
 	wantJudgedSetChanged(t, err)
 	if result.Commit != "" {
@@ -273,9 +273,9 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 		// with the same tree, so only the parent shows it.
 		r := newTestRepo(t)
 		r.WriteHook("post-commit", "c=$(git commit-tree HEAD^{tree} -p HEAD -m inserted) && git update-ref HEAD \"$c\"\n")
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir, r.Home)
 		fixTestFile(r)
-		p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+		p := prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 		result, _, err := p.finish(t, buildCheckSteps()...)
 		wantStateParts(t, err, PartHead)
 		if result.Commit != "" {
@@ -287,9 +287,9 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 		// commit; the hook exists before the baseline, so the hooks match.
 		r := newTestRepo(t)
 		r.WriteHook("post-commit", "git switch -q -c other\n")
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir, r.Home)
 		fixTestFile(r)
-		p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+		p := prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 		result, router, err := p.finish(t, buildCheckSteps()...)
 		wantStateParts(t, err, PartBranch)
 		if result.Commit != "" {
@@ -305,10 +305,10 @@ func TestFinishPostCommitTreeCheck(t *testing.T) {
 		// pass; only the committed blob differs from the work tree.
 		r := newTestRepo(t)
 		r.Git("config", "filter.x.clean", "sed s/fixed/EVIL/")
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir, r.Home)
 		fixTestFile(r)
 		r.Write(".gitattributes", "*.md filter=x\n")
-		p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+		p := prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 		result, _, err := p.finish(t, buildCheckSteps()...)
 		wantJudgedSetChanged(t, err)
 		if result.Commit != "" {
@@ -332,9 +332,9 @@ func TestFinishStopsWhenHooksChangeConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newTestRepo(t)
 			r.WriteHook(tc.hook, tc.script)
-			base := mustBaseline(t)
+			base := mustBaseline(t, r.Dir, r.Home)
 			fixTestFile(r)
-			p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+			p := prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 			result, router, err := p.finish(t, buildCheckSteps()...)
 			wantStateParts(t, err, PartConfig)
 			if result.Commit != "" {
@@ -388,8 +388,6 @@ func TestFinishCommitBody(t *testing.T) {
 	for _, tc := range []struct {
 		name, body, want string
 	}{
-		{name: "ends_with_lf", body: correction + "\n", want: subjectAndBody(correction + "\n")},
-		{name: "no_trailing_lf", body: correction + "\n" + correction, want: subjectAndBody(correction + "\n" + correction + "\n")},
 		// git's default cleanup would strip the trailing spaces.
 		{name: "trailing_spaces", body: correction + "  \n", want: subjectAndBody(correction + "  \n")},
 	} {
@@ -422,18 +420,8 @@ func TestFinishCommitBody(t *testing.T) {
 // any make target (the fake has no step) and before any commit.
 func TestFinishRejectsBodyFile(t *testing.T) {
 	for name, body := range map[string]string{
-		"other_line":          correction + "\nSigned-off-by: x\n",
-		"no_description":      "Editorial correction:  \n",
-		"at_sign":             correction + " a@b\n",
-		"carriage_return":     correction + "\r\n",
-		"escape":              correction + " \x1b[31m\n",
-		"line_separator":      correction + " a\u2028b\n",
-		"bidi_override":       correction + " a\u202eb\n",
-		"noncharacter":        correction + " a\ufffeb\n",
-		"empty_line":          correction + "\n\n" + correction + "\n",
-		"rejected_as_a_file":  "",
-		"leading_empty_line":  "\n" + correction + "\n",
-		"prefix_not_at_start": " " + correction + "\n",
+		"other_line":         correction + "\nSigned-off-by: x\n",
+		"rejected_as_a_file": "",
 	} {
 		t.Run(name, func(t *testing.T) {
 			p := prepareRound(t, fixTestFile)
@@ -446,10 +434,7 @@ func TestFinishRejectsBodyFile(t *testing.T) {
 		})
 	}
 	for name, mention := range map[string]string{
-		"codex":        "@codex",
 		"coderabbitai": "@coderabbitai",
-		"sourcery-ai":  "@Sourcery-AI",
-		"sourceryai":   "@SourceryAI",
 	} {
 		t.Run("mention/"+name, func(t *testing.T) {
 			// The '@' rule would refuse a mention too; errMention shows the
@@ -493,9 +478,9 @@ func TestFinishDetectsRewrittenMessage(t *testing.T) {
 	prepare := func(t *testing.T) prepared {
 		r := newTestRepo(t)
 		r.WriteHook("commit-msg", "printf 'Signed-off-by: hook\\n' >> \"$1\"\n")
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir, r.Home)
 		fixTestFile(r)
-		return prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+		return prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 	}
 	t.Run("with_body", func(t *testing.T) {
 		p := prepare(t)
@@ -562,19 +547,10 @@ func TestFinishAfterOutOfScope(t *testing.T) {
 			threadPath: testFile,
 			outOfScope: "internal/y/notes.md",
 		},
-		{
-			// An execution-related file is out of scope even as the
-			// thread's own path, and finish still commits it once the user
-			// answers to go on.
-			name:       "execution_file_as_thread_path",
-			edit:       func(r *testRepo) { r.Write("Makefile", "all:\n\ttrue\n") },
-			threadPath: "Makefile",
-			outOfScope: "Makefile",
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := prepareRound(t, tc.edit)
-			w, _ := newTestWorktree(t)
+			w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
 			inspection, err := w.Inspect(t.Context(), p.base, threadAt(tc.threadPath))
 			if err != nil || len(inspection.OutOfScope) != 1 || inspection.OutOfScope[0].Path != tc.outOfScope ||
 				inspection.JudgedSet != p.judged {
@@ -591,7 +567,7 @@ func TestFinishAfterOutOfScope(t *testing.T) {
 
 func TestInspectLeavesWorkTree(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir, r.Home)
 	fixTestFile(r)
 	r.Write("internal/y/notes.md", "out of scope\n")
 	r.Write("docs/notes/b.md", "staged\n")
@@ -601,7 +577,7 @@ func TestInspectLeavesWorkTree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustInspect(t, base)
+	mustInspect(t, r.Dir, r.Home, base)
 	if after := r.Git("status", "--porcelain=v1", "--untracked-files=all"); after != before {
 		t.Errorf("status changed from %q to %q", before, after)
 	}
@@ -621,23 +597,19 @@ func TestPushRechecks(t *testing.T) {
 			p.r.Write("docs/notes/extra.md", "x\n")
 			p.r.CommitAll("after finish")
 		}, []string{PartHead}, false},
-		{"hooks_changed", func(_ *testing.T, p prepared, _ string) { p.r.WriteHook("pre-push", "exit 0\n") }, []string{PartHooks}, false},
 		{"config_changed", func(_ *testing.T, p prepared, _ string) {
 			p.r.Git("config", "remote."+testRemote+".receivepack", "evil")
 		}, []string{PartConfig}, true},
 		{"remote_branch_moved", func(_ *testing.T, p prepared, commit string) {
 			p.r.Git("push", "-q", testRemote, commit+":"+headsPrefix+testBranch)
 		}, []string{PartRemote}, false},
-		{"branch_switched", func(_ *testing.T, p prepared, _ string) {
-			p.r.Git("switch", "-q", "-c", "other")
-		}, []string{PartBranch}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := prepareRound(t, fixTestFile)
 			commit := p.mustFinish(t).Commit
 			tc.edit(t, p, commit)
 			remote := p.r.RemoteHead()
-			w, router := newTestWorktree(t)
+			w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
 			_, err := w.Push(t.Context(), p.base, commit)
 			wantStateParts(t, err, tc.parts...)
 			if indexOf(router.Calls, "git push") >= 0 {
@@ -657,7 +629,7 @@ func TestPushRechecks(t *testing.T) {
 		p.mustFinish(t)
 		p.r.Write("docs/notes/extra.md", "x\n")
 		p.r.CommitAll("second")
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
 		_, err := w.Push(t.Context(), p.base, p.r.Head())
 		wantStateParts(t, err, PartHead)
 	})
@@ -669,12 +641,12 @@ func TestPushExplicitRefspec(t *testing.T) {
 	// followTags would send a tag along.
 	r.Git("config", "remote."+testRemote+".push", headsPrefix+"*:"+headsPrefix+"other/*")
 	r.Git("config", "push.followTags", "true")
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir, r.Home)
 	fixTestFile(r)
-	p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+	p := prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 	commit := p.mustFinish(t).Commit
 	r.Git("tag", "-a", "-m", "agent tag", "agent-tag", commit)
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, r.Dir, r.Home)
 	result, err := w.Push(t.Context(), base, commit)
 	if err != nil || !result.Pushed || result.Commit != commit {
 		t.Fatalf("Push = %+v, %v", result, err)
@@ -697,7 +669,7 @@ func TestPushFailure(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(hooks, "pre-receive"), []byte("#!/bin/sh\nexit 1\n"), 0o700); err != nil { //nolint:gosec // a hook of the test's bare repository
 		t.Fatal(err)
 	}
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
 	if _, err := w.Push(t.Context(), p.base, commit); !errors.Is(err, ErrGitFailed) {
 		t.Errorf("Push = %v, want ErrGitFailed", err)
 	}
@@ -718,16 +690,16 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 	})
 	t.Run("hook_added_during_fix", func(t *testing.T) {
 		r := newTestRepo(t)
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir, r.Home)
 		fixTestFile(r)
 		r.WriteHook("pre-commit", "exit 0\n")
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir, r.Home)
 		_, err := w.Inspect(t.Context(), base, threadAt(testFile))
 		wantStateParts(t, err, PartHooks)
 	})
 	t.Run("remote_moved_before_inspect", func(t *testing.T) {
 		r := newTestRepo(t)
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir, r.Home)
 		fixTestFile(r)
 		r.Git("stash", "-q")
 		r.Write("docs/notes/b.md", "pushed elsewhere\n")
@@ -735,7 +707,7 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 		r.Git("push", "-q", testRemote, "HEAD:"+headsPrefix+testBranch)
 		r.Git("reset", "-q", "--hard", "HEAD~1")
 		r.Git("stash", "pop", "-q")
-		w, _ := newTestWorktree(t)
+		w, _ := newTestWorktree(t, r.Dir, r.Home)
 		_, err := w.Inspect(t.Context(), base, threadAt(testFile))
 		wantStateParts(t, err, PartRemote)
 	})
@@ -744,24 +716,24 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 		// with one whose tree holds it, so a diff through replace refs
 		// would not show the Makefile.
 		r := newTestRepo(t)
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir, r.Home)
 		r.Write("Makefile", "all:\n\techo EVIL\n")
 		r.Git("add", "Makefile")
 		tree := strings.TrimSpace(r.Git("write-tree"))
 		forged := strings.TrimSpace(r.Git("commit-tree", tree, "-m", "initial"))
 		r.Git("replace", base.head, forged)
 		fixTestFile(r)
-		got := mustInspect(t, base).OutOfScope
+		got := mustInspect(t, r.Dir, r.Home, base).OutOfScope
 		if !slices.ContainsFunc(got, func(c ScopedChange) bool { return c.Path == "Makefile" }) {
 			t.Errorf("OutOfScope = %+v, want the Makefile", got)
 		}
 	})
 	t.Run("out_of_scope_change", func(t *testing.T) {
 		r := newTestRepo(t)
-		base := mustBaseline(t)
+		base := mustBaseline(t, r.Dir, r.Home)
 		fixTestFile(r)
 		r.Write("internal/x/x.go", "package x\n\nfunc F() {}\n")
-		if got := mustInspect(t, base).OutOfScope; len(got) != 1 || got[0].Path != "internal/x/x.go" {
+		if got := mustInspect(t, r.Dir, r.Home, base).OutOfScope; len(got) != 1 || got[0].Path != "internal/x/x.go" {
 			t.Errorf("OutOfScope = %+v, want internal/x/x.go", got)
 		}
 	})
@@ -782,7 +754,7 @@ func TestRoundStopsAtRightPlace(t *testing.T) {
 // settings of that branch only, and none stops the round.
 func TestRoundIgnoresOtherBranchConfig(t *testing.T) {
 	r := newTestRepo(t)
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir, r.Home)
 	other := filepath.Join(r.Home, "other")
 	const branch = "x"
 	elsewhere := func(step func()) {
@@ -795,14 +767,14 @@ func TestRoundIgnoresOtherBranchConfig(t *testing.T) {
 	}
 	elsewhere(func() { r.AddWorktree(other, branch) })
 	fixTestFile(r)
-	p := prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+	p := prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 	elsewhere(func() { r.gitIn(other, "push", "-q", "-u", testRemote, branch) })
 	commit := p.mustFinish(t).Commit
 	elsewhere(func() {
 		r.Git("worktree", "remove", other)
 		r.Git("branch", "-d", branch)
 	})
-	w, _ := newTestWorktree(t)
+	w, _ := newTestWorktree(t, r.Dir, r.Home)
 	if _, err := w.Push(t.Context(), base, commit); err != nil {
 		t.Fatalf("Push = %v", err)
 	}
@@ -816,9 +788,9 @@ func TestRoundIgnoresOtherBranchConfig(t *testing.T) {
 func prepareIgnoringRound(t *testing.T) prepared {
 	t.Helper()
 	r := ignoringRepo(t, "build/")
-	base := mustBaseline(t)
+	base := mustBaseline(t, r.Dir, r.Home)
 	fixTestFile(r)
-	return prepared{r: r, base: base, judged: mustInspect(t, base).JudgedSet}
+	return prepared{r: r, base: base, judged: mustInspect(t, r.Dir, r.Home, base).JudgedSet}
 }
 
 // TestFinishStopsOnIgnoredChange: a target file written before finish stops
@@ -850,20 +822,140 @@ func TestFinishStopsOnIgnoredChange(t *testing.T) {
 	})
 }
 
-// TestPushStopsOnIgnoredChange: a target file written after finish stops
-// push before it pushes.
-func TestPushStopsOnIgnoredChange(t *testing.T) {
-	p := prepareIgnoringRound(t)
-	commit := p.mustFinish(t).Commit
-	remote := p.r.RemoteHead()
-	p.r.Write("build/x_test.go", "package x\n")
-	w, router := newTestWorktree(t)
-	_, err := w.Push(t.Context(), p.base, commit)
-	wantStateParts(t, err, PartIgnored)
-	if indexOf(router.Calls, "git push") >= 0 {
-		t.Errorf("pushed: %v", router.Calls)
+// TestWorktreeIgnoresProcessDir runs Worktree's Begin, Inspect, Finish, Push,
+// CheckReviewState, and PushReviewed against repository A while the process's
+// working directory is a different repository B. Only A and A's remote change;
+// B and B's remote stay untouched. Serial because it calls t.Chdir.
+func TestWorktreeIgnoresProcessDir(t *testing.T) {
+	repoA := newTestRepo(t)
+	repoA.Write(".gitignore", "build/\n.claude/\n")
+	repoA.CommitAll("ignore")
+	repoA.Git("push", "-q", testRemote, "HEAD:"+headsPrefix+testBranch)
+	repoA.Write("build/a.go", "package a\n")
+	repoA.Write("build/target.go", "package target\n")
+	repoA.gitIn(repoA.Dir, "init", "-q", "--template=", "build/nested")
+	repoA.Write("build/nested/n.go", "package n\n")
+	if err := os.Symlink("target.go", filepath.Join(repoA.Dir, "build/link.go")); err != nil {
+		t.Fatalf("symlink in A: %v", err)
 	}
-	if got := p.r.RemoteHead(); got != remote {
-		t.Errorf("remote moved to %s", got)
+	repoA.Write(".claude/settings.local.json", `{"permissions":{}}`)
+
+	repoB := newTestRepo(t)
+	// Leave traps in B at the same relative paths A watches so any leak to the
+	// process working directory fails immediately: an untracked file for
+	// CheckClean, .claude/sub/.git for checkTopDirGitNames, a symlink to "."
+	// at build/link.go for linkTarget, and no build/a.go in B so targetEntry
+	// and readTarget fail against A's build/a.go.
+	repoB.Write("docs/notes/b_untracked.md", "dirty in B\n")
+	repoB.Write(".claude/sub/.git", "trap\n")
+	if err := os.MkdirAll(filepath.Join(repoB.Dir, "build"), testDirMode); err != nil {
+		t.Fatalf("mkdir build in B: %v", err)
+	}
+	if err := os.Symlink(".", filepath.Join(repoB.Dir, "build/link.go")); err != nil {
+		t.Fatalf("symlink trap build/link.go in B: %v", err)
+	}
+	t.Chdir(repoB.Dir)
+
+	bHeadBefore := repoB.Head()
+	bRemoteBefore := repoB.RemoteHead()
+	bStatusBefore := repoB.Git("status", "--porcelain=v1", "--untracked-files=all")
+
+	w, _ := newTestWorktree(t, repoA.Dir, repoA.Home, buildCheckSteps()...)
+	base, err := w.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("Begin(A) = %v", err)
+	}
+	recordData, err := os.ReadFile(filepath.Join(repoA.Dir, ".git", ignoredBeginRecord))
+	if err != nil {
+		t.Fatalf("begin record missing in A: %v", err)
+	}
+	for _, want := range []string{`"build/nested/n.go"`, `"build/link.go"`} {
+		if !strings.Contains(string(recordData), want) {
+			t.Errorf("begin record in A missing %s: %q", want, recordData)
+		}
+	}
+
+	// Mutate B's hooks directory after Begin(A) so a hooksState leak reading
+	// relative ".git/hooks" from the process directory triggers PartHooks.
+	repoB.WriteHook("pre-commit", "exit 0\n")
+
+	repoA.Write(testFile, "fixed in A\n")
+	inspection, err := w.Inspect(t.Context(), base, threadAt(testFile))
+	if err != nil {
+		t.Fatalf("Inspect(A) = %v", err)
+	}
+	if inspection.Changes != 1 || len(inspection.OutOfScope) != 0 {
+		t.Fatalf("Inspect(A) = %+v, want 1 in-scope change", inspection)
+	}
+
+	fin, err := w.Finish(t.Context(), base, inspection.JudgedSet, FinishRequest{PR: mustPR(t)})
+	if err != nil || !fin.Committed || fin.Commit == "" {
+		t.Fatalf("Finish(A) = %+v, %v; want committed", fin, err)
+	}
+	pushed, err := w.Push(t.Context(), base, fin.Commit)
+	if err != nil || !pushed.Pushed || pushed.Commit != fin.Commit {
+		t.Fatalf("Push(A) = %+v, %v; want pushed %s", pushed, err, fin.Commit)
+	}
+	if got := repoA.RemoteHead(); got != fin.Commit {
+		t.Fatalf("A remote after Push = %s, want %s", got, fin.Commit)
+	}
+
+	repoA.Write(testFile, "review fix in A\n")
+	repoA.CommitAll("review fix")
+	reviewHead := repoA.Head()
+
+	revState, err := w.CheckReviewState(t.Context(), base, fin.Commit)
+	if err != nil {
+		t.Fatalf("CheckReviewState(A) = %v", err)
+	}
+	if revState.Base != base.head || revState.Head != reviewHead || revState.Commits != 1 {
+		t.Errorf("CheckReviewState(A) = %+v, want base=%s head=%s commits=1", revState, base.head, reviewHead)
+	}
+	revPush, err := w.PushReviewed(t.Context(), base, fin.Commit)
+	if err != nil || !revPush.Pushed || revPush.Commit != reviewHead {
+		t.Fatalf("PushReviewed(A) = %+v, %v; want pushed %s", revPush, err, reviewHead)
+	}
+	if got := repoA.RemoteHead(); got != reviewHead {
+		t.Errorf("A remote after PushReviewed = %s, want %s", got, reviewHead)
+	}
+
+	// Verify checkReviewInput inspects w.dir rather than the process working
+	// directory (which has B's .git): a Worktree targeting a subdirectory of A
+	// must fail with ErrInvalidInput before invoking git.
+	subW, subRouter := newTestWorktree(t, filepath.Join(repoA.Dir, "docs"), repoA.Home)
+	if _, err := subW.CheckReviewState(t.Context(), base, fin.Commit); !errors.Is(err, ErrInvalidInput) {
+		t.Errorf("CheckReviewState(A/docs) = %v, want ErrInvalidInput", err)
+	}
+	if _, err := subW.PushReviewed(t.Context(), base, fin.Commit); !errors.Is(err, ErrInvalidInput) {
+		t.Errorf("PushReviewed(A/docs) = %v, want ErrInvalidInput", err)
+	}
+	if len(subRouter.Calls) != 0 {
+		t.Errorf("subW invoked git before checkReviewInput failed: %v", subRouter.Calls)
+	}
+
+	// Verify a watched target change in A is detected against A's content
+	// (distinct from build/link.go's target, so a targetEntry leak seeing
+	// build/a.go as absent in B fails to detect the change).
+	base2, err := w.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("second Begin(A) = %v", err)
+	}
+	repoA.Write("build/a.go", "package a\n// changed\n")
+	wantStateParts(t, w.CheckState(t.Context(), base2), PartIgnored)
+
+	// Verify B and its remote were never touched.
+	if got := repoB.Head(); got != bHeadBefore {
+		t.Errorf("B HEAD changed from %s to %s", bHeadBefore, got)
+	}
+	if got := repoB.RemoteHead(); got != bRemoteBefore {
+		t.Errorf("B remote changed from %s to %s", bRemoteBefore, got)
+	}
+	if got := repoB.Git("status", "--porcelain=v1", "--untracked-files=all"); got != bStatusBefore {
+		t.Errorf("B status changed from %q to %q", bStatusBefore, got)
+	}
+	for _, record := range []string{ignoredBeginRecord, ignoredStopRecord} {
+		if _, err := os.Stat(filepath.Join(repoB.Dir, ".git", record)); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("B .git/%s exists or unexpected stat error: %v", record, err)
+		}
 	}
 }

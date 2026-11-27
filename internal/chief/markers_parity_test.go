@@ -41,6 +41,12 @@ func decisionClass(r Requirement) string {
 // origin/main's _context.md is the repository's current file, so the routing
 // table and the other tables in it are checked not to read as old values.
 func TestMarkerReadingMatchesDecisionScript(t *testing.T) {
+	// This parent stays serial on purpose; only its subtests are parallel, and
+	// they run alone, before the parallel top-level tests are released. The
+	// subtests start git and bash processes, and a child process holds a copy
+	// of every open file descriptor between fork and exec: a flock another
+	// parallel test took through cachelock would then stay held for a moment
+	// after that test closed it, and its next Acquire would report busy.
 	if testBash == "" {
 		t.Fatal("bash is not on PATH; the parity test needs bash 4 or later")
 	}
@@ -89,6 +95,7 @@ func TestMarkerReadingMatchesDecisionScript(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.file+" "+c.target, func(t *testing.T) {
+			t.Parallel()
 			doc := planSample(t, c.file)
 			repo := newTestRepo(t)
 			repo.Write(plan, string(doc))

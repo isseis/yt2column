@@ -13,9 +13,15 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/isseis/yt2column/internal/cmdrunner"
+	"github.com/isseis/yt2column/internal/snapshottest"
 )
+
+// snapshotStore holds the shared takeIn states built once per test process by
+// TestMain.
+var snapshotStore *snapshottest.Store
 
 // testMainRef is origin/main's remote-tracking ref, spelled out here rather
 // than taken from the production constant, so a change to how the check names
@@ -240,41 +246,138 @@ type takeIn struct {
 	env     []string
 }
 
-// newTakeIn creates a bare origin with branch main and a clone of it as the
-// work tree.
-func newTakeIn(t *testing.T) *takeIn {
+// takeInBaseKind is the shared empty takeIn (a bare origin with branch main
+// and a clone of it as the work tree).
+var takeInBaseKind = snapshottest.NewKind[struct{}]("empty takeIn", nil)
+
+// takeInEnv creates home and returns a git environment isolated from the
+// user's and the system's git configuration.
+func takeInEnv(t *testing.T, home string) []string {
 	t.Helper()
-	root := t.TempDir()
-	home := filepath.Join(root, "home")
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		t.Fatalf("create home: %v", err)
 	}
 	env := slices.DeleteFunc(cmdrunner.GitEnv(os.Environ()), func(entry string) bool {
 		return strings.HasPrefix(entry, "HOME=") || strings.HasPrefix(entry, "XDG_CONFIG_HOME=")
 	})
-	env = append(env, "HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, ".config"), "GIT_CONFIG_NOSYSTEM=1")
-	k := &takeIn{
+	return append(env, "HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, ".config"), "GIT_CONFIG_NOSYSTEM=1")
+}
+
+// newTakeInAt returns a takeIn pointing at root/origin.git and root/work with
+// its own home directory and default PR, Env, and GHCalls.
+func newTakeInAt(t *testing.T, root, home string) *takeIn {
+	t.Helper()
+	return &takeIn{
 		t:      t,
 		Origin: filepath.Join(root, "origin.git"),
 		Work:   filepath.Join(root, "work"),
 		PR:     takeInPR{State: openState, Base: mainBranch, Branch: takeInBranch},
 		Env:    map[string]string{},
-		env:    env,
+		env:    takeInEnv(t, home),
 	}
-	k.gitIn(root, "init", "-q", "--bare", "--template=", "-b", mainBranch, k.Origin)
-	k.gitIn(root, "clone", "-q", "--template=", k.Origin, k.Work)
+}
+
+// buildTakeInBase creates a bare origin with branch main and a clone of it as
+// the work tree directly under dir. Its home lives in the builder's t.TempDir
+// so only origin.git and work are stored in the snapshot directory.
+func buildTakeInBase(t *testing.T, dir string) *takeIn {
+	t.Helper()
+	k := newTakeInAt(t, dir, filepath.Join(t.TempDir(), "home"))
+	k.gitIn(dir, "init", "-q", "--bare", "--template=", "-b", mainBranch, k.Origin)
+	k.gitIn(dir, "clone", "-q", "--template=", k.Origin, k.Work)
 	for _, kv := range [][2]string{{"user.name", "Test"}, {"user.email", "test@example.com"}, {"commit.gpgSign", gitFalse}, {"core.ignorecase", gitFalse}} {
 		k.Git("config", kv[0], kv[1])
 	}
 	return k
 }
 
+// loadTakeInBase returns the shared empty takeIn snapshot.
+func loadTakeInBase(t *testing.T) snapshottest.Snapshot[struct{}] {
+	t.Helper()
+	return snapshottest.Load(t, snapshotStore, takeInBaseKind, nil, func(bt *testing.T, dir string) struct{} {
+		buildTakeInBase(bt, dir)
+		return struct{}{}
+	})
+}
+
+// initTakeInDir copies the shared empty takeIn into dir (which already exists)
+// so dir holds origin.git and work directly, rewrites remote.origin.url to
+// dir/origin.git, and returns a takeIn whose home lives in t.TempDir().
+func initTakeInDir(t *testing.T, dir string) *takeIn {
+	t.Helper()
+	sn := loadTakeInBase(t)
+	staged := filepath.Join(dir, ".init")
+	sn.CopyTo(t, staged)
+	for _, name := range []string{"origin.git", "work"} {
+		if err := os.Rename(filepath.Join(staged, name), filepath.Join(dir, name)); err != nil {
+			t.Fatalf("move %s into snapshot dir: %v", name, err)
+		}
+	}
+	if err := os.Remove(staged); err != nil {
+		t.Fatalf("remove staging dir: %v", err)
+	}
+	k := newTakeInAt(t, dir, filepath.Join(t.TempDir(), "home"))
+	k.Git("config", "remote.origin.url", k.Origin)
+	return k
+}
+
+// refreshIndex refreshes the index stat cache after copying the work tree so
+// git diff-files under GIT_OPTIONAL_LOCKS=0 sees only real changes. --unmerged
+// keeps refreshing past conflicted entries. With -q and --unmerged the command
+// exits 0 even when entries stay unmerged or modified, so a non-zero status
+// (a corrupt or locked index, a non-repository) is a setup failure.
+func (k *takeIn) refreshIndex() {
+	k.t.Helper()
+	cmd := exec.Command(gitCommand, "update-index", "-q", "--unmerged", "--refresh") //nolint:gosec // test setup runs git with fixed arguments
+	cmd.Dir = k.Work
+	cmd.Env = k.env
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		return
+	}
+	k.t.Fatalf("git update-index --refresh: %v: %s", err, out)
+}
+
+// copyTakeIn copies a shared takeIn snapshot into a fresh directory owned by t
+// and adjusts its git state so remote.origin.url points at the copy's own
+// origin and the index stat cache matches the copied work tree.
+func copyTakeIn[V any](t *testing.T, sn snapshottest.Snapshot[V]) *takeIn {
+	t.Helper()
+	root := t.TempDir()
+	stateDir := filepath.Join(root, "state")
+	sn.CopyTo(t, stateDir)
+	k := newTakeInAt(t, stateDir, filepath.Join(root, "home"))
+	// A copied clone still names the builder's origin in remote.origin.url;
+	// rewrite it to the copy's own origin before any test runs git against it.
+	k.Git("config", "remote.origin.url", k.Origin)
+	k.refreshIndex()
+	return k
+}
+
+// newTakeIn returns a copy of the shared empty takeIn (a bare origin with
+// branch main and a clone of it as the work tree). A test that calls it must
+// not use t.Setenv: see snapshottest.Load.
+func newTakeIn(t *testing.T) *takeIn {
+	t.Helper()
+	return copyTakeIn(t, loadTakeInBase(t))
+}
+
 // gitIn runs git in dir with the test's environment and returns its output
 // without the final newline.
 func (k *takeIn) gitIn(dir string, args ...string) string {
 	k.t.Helper()
+	return k.gitInput(dir, nil, args...)
+}
+
+// gitInput runs git in dir with stdin as its standard input (none when nil)
+// and the test's environment.
+func (k *takeIn) gitInput(dir string, stdin []byte, args ...string) string {
+	k.t.Helper()
 	cmd := exec.Command(gitCommand, args...) //nolint:gosec // test setup runs git with fixed arguments
 	cmd.Dir = dir
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	cmd.Env = k.env
 	out, err := cmd.Output()
 	if err != nil {
@@ -336,22 +439,118 @@ func (k *takeIn) Commit(subject string, files map[string]string) string {
 	return k.Git("rev-parse", "HEAD")
 }
 
+const (
+	fastImportMarkBase   = 1
+	fastImportMarkBranch = 2
+	fastImportMarkMain   = 3
+)
+
 // Setup builds the usual history: base on main, branch from it on the PR
 // head branch, then main on main, each pushed to origin, and leaves the work
 // tree on the PR head branch. It returns the base head (the branch's commit)
 // and main's commit.
+//
+// Limit: a path that .gitignore would ignore, or content that an eol or
+// clean-filter attribute would convert, differs from the legacy procedure
+// (git add -A skips the former; fast-import stores bytes unconverted). No
+// Setup input uses either; add one only after extending setup_matches_legacy.
+//
+// Invariant: the resulting origin and work refs, commit trees, subjects,
+// parent relationships, index, and work tree must match committing and pushing
+// base, branch, and main sequentially.
 func (k *takeIn) Setup(base, branch, main map[string]string) (baseHead, mainOID string) {
 	k.t.Helper()
-	k.Commit("base", base)
-	k.Git("push", "-q", "origin", mainBranch)
-	k.Git("switch", "-q", "-c", takeInBranch)
-	baseHead = k.Commit("branch", branch)
-	k.Git("push", "-q", "origin", takeInBranch)
-	k.Git("switch", "-q", mainBranch)
-	mainOID = k.Commit("main", main)
-	k.Git("push", "-q", "origin", mainBranch)
-	k.Git("switch", "-q", takeInBranch)
-	return baseHead, mainOID
+	ts := time.Now().Unix()
+	var originStream bytes.Buffer
+	writeFastImportCommit(&originStream, headsPrefix+mainBranch, fastImportMarkBase, 0, "base", ts, base)
+	writeFastImportCommit(&originStream, headsPrefix+takeInBranch, fastImportMarkBranch, fastImportMarkBase, "branch", ts, branch)
+	writeFastImportCommit(&originStream, headsPrefix+mainBranch, fastImportMarkMain, fastImportMarkBase, "main", ts, main)
+
+	marksPath := filepath.Join(k.t.TempDir(), "marks")
+	k.gitInput(k.Origin, originStream.Bytes(), "fast-import", "--quiet", "--export-marks="+marksPath)
+
+	var workStream bytes.Buffer
+	workStream.Write(originStream.Bytes())
+	workStream.WriteString("reset refs/remotes/origin/" + mainBranch + "\nfrom :3\n")
+	workStream.WriteString("reset refs/remotes/origin/" + takeInBranch + "\nfrom :2\n")
+	k.gitInput(k.Work, workStream.Bytes(), "fast-import", "--quiet")
+	k.Git("checkout", "-q", "-f", takeInBranch)
+
+	marks := readFastImportMarks(k.t, marksPath)
+	return marks[":2"], marks[":3"]
+}
+
+// writeFastImportCommit appends one git fast-import commit command to buf.
+// parentMark == 0 writes a root commit; otherwise it writes `from :<parentMark>`.
+func writeFastImportCommit(buf *bytes.Buffer, ref string, mark, parentMark int, subject string, ts int64, files map[string]string) {
+	fmt.Fprintf(buf, "commit %s\nmark :%d\n", ref, mark)
+	fmt.Fprintf(buf, "author Test <test@example.com> %d +0000\n", ts)
+	fmt.Fprintf(buf, "committer Test <test@example.com> %d +0000\n", ts)
+	msg := subject + "\n"
+	fmt.Fprintf(buf, "data %d\n%s\n", len(msg), msg)
+	if parentMark != 0 {
+		fmt.Fprintf(buf, "from :%d\n", parentMark)
+	}
+	names := make([]string, 0, len(files))
+	for name := range files {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		content := files[name]
+		quoted := quoteFastImportPath(name)
+		if content == deletedFile {
+			fmt.Fprintf(buf, "D %s\n", quoted)
+			continue
+		}
+		if target, ok := strings.CutPrefix(content, symlinkPrefix); ok {
+			fmt.Fprintf(buf, "M 120000 inline %s\ndata %d\n%s\n", quoted, len(target), target)
+			continue
+		}
+		fmt.Fprintf(buf, "M 100644 inline %s\ndata %d\n%s\n", quoted, len(content), content)
+	}
+}
+
+// quoteFastImportPath formats a slash-separated path as a C-quoted string for
+// git fast-import so spaces, quotes, backslashes, and control bytes are safe.
+func quoteFastImportPath(name string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for i := range len(name) {
+		switch ch := name[i]; ch {
+		case '\\', '"':
+			b.WriteByte('\\')
+			b.WriteByte(ch)
+		case '\n':
+			b.WriteString(`\n`)
+		default:
+			b.WriteByte(ch)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
+// readFastImportMarks parses a git fast-import --export-marks file into a map
+// from mark name (":1", ":2", ...) to commit OID.
+func readFastImportMarks(t *testing.T, path string) map[string]string {
+	t.Helper()
+	data, err := os.ReadFile(path) //nolint:gosec // marks file created in t.TempDir()
+	if err != nil {
+		t.Fatalf("read fast-import marks: %v", err)
+	}
+	marks := make(map[string]string)
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		if line == "" {
+			continue
+		}
+		mark, oid, ok := strings.Cut(line, " ")
+		if !ok || oid == "" {
+			t.Fatalf("unexpected fast-import mark line: %q", line)
+		}
+		marks[mark] = oid
+	}
+	return marks
 }
 
 // Tool returns the take-in tool running git in the work tree, with the fake

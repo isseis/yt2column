@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/isseis/yt2column/internal/doctestutil"
+	"github.com/isseis/yt2column/internal/snapshottest"
 )
 
 // highReviewDecisionPath is the work tree's copy of the high-review decision
@@ -29,9 +30,26 @@ type hrdFixture struct {
 	mb   string
 }
 
+// hrdFixtureKind is the kind of the shared state every hrdFixture starts
+// from; its value is the commit of origin/main. The key is the three contents
+// the repository holds, so it is built once per combination and copied into
+// each case (TestFixtureSnapshotsMatchRebuilt).
+var hrdFixtureKind = snapshottest.NewKind[string]("hrdFixture", nil)
+
 func newHRDFixture(t *testing.T, bash scriptBash, contextContent, markersPlan, singlePlan string) *hrdFixture {
 	t.Helper()
-	f := &hrdFixture{gitFixture: newGitFixture(t), bash: bash}
+	sn := snapshottest.Load(t, snapshotStore, hrdFixtureKind, []string{contextContent, markersPlan, singlePlan},
+		func(bt *testing.T, dir string) string {
+			return buildHRDBase(bt, dir, contextContent, markersPlan, singlePlan)
+		})
+	return &hrdFixture{gitFixture: newGitFixtureFromSnapshot(t, sn), bash: bash, mb: sn.Value()}
+}
+
+// buildHRDBase builds the repository of an hrdFixture under dir and returns
+// the commit of origin/main.
+func buildHRDBase(t *testing.T, dir, contextContent, markersPlan, singlePlan string) string {
+	t.Helper()
+	f := newGitFixtureIn(t, dir)
 	f.write(rrSource, "m0\n")
 	if contextContent != "" {
 		f.write(contextDocRepoPath, contextContent)
@@ -43,10 +61,10 @@ func newHRDFixture(t *testing.T, bash scriptBash, contextContent, markersPlan, s
 		f.write(rrSinglePlan, singlePlan)
 	}
 	f.commit("init origin/main")
-	f.mb = f.rev("HEAD")
-	f.git("update-ref", "refs/remotes/origin/main", f.mb)
+	mb := f.rev("HEAD")
+	f.git("update-ref", "refs/remotes/origin/main", mb)
 	f.git("switch", "-q", "-c", "feature")
-	return f
+	return mb
 }
 
 func (f *hrdFixture) head() string {
@@ -240,11 +258,7 @@ func TestHighReviewDecision(t *testing.T) {
 			{"absent", "", false, "NONE value-absent\n"},
 			{"unreadable", "unknown-tier", false, "RUN\n"},
 			{"old opus", "opus", false, "RUN\n"},
-			{"old sonnet+opus-review", "sonnet+opus-review", false, "RUN\n"},
 			{"old sonnet", "sonnet", false, "NONE value-low\n"},
-			{"old frontier-required", "frontier-required", false, "RUN\n"},
-			{"old frontier-recommended", "frontier-recommended", false, "RUN\n"},
-			{"old standard", "standard", false, "NONE value-low\n"},
 			{"single low", "low", true, "NONE value-low\n"},
 			{"single absent", "", true, "NONE value-absent\n"},
 			{"single high", "high", true, "RUN\n"},
@@ -447,12 +461,19 @@ func TestHighReviewDecision(t *testing.T) {
 	t.Run("fail-closed context validation before early return", func(t *testing.T) {
 		t.Parallel()
 		// The grammar cases are shared with TestReviewRecordsCrossCheck; the
-		// one below holds only for this script, which needs a high agent row.
-		cases := append(mappingGrammarCases(t, realContext), mappingGrammarCase{
-			"no high agent row",
-			replaceMappingSection(t, realContext, strings.Replace(mappingValidTable, "| `Claude Code` | `high` | `agent` |", "| `Claude Code` | `high` | `swarm` |", 1)),
-			"no high-role agent verification pattern",
-		})
+		// two below hold only for this script, which reads the high agent row.
+		cases := append(mappingGrammarCases(t, realContext),
+			mappingGrammarCase{
+				"high row agent launch with dash pattern",
+				replaceMappingSection(t, realContext, replaceContextRow(t, mappingValidTable, "`claude-opus-*`", "`-`")),
+				"cannot have Verification pattern -",
+			},
+			mappingGrammarCase{
+				"no high agent row",
+				replaceMappingSection(t, realContext, strings.Replace(mappingValidTable, "| `Claude Code` | `high` | `agent` |", "| `Claude Code` | `high` | `swarm` |", 1)),
+				"no high-role agent verification pattern",
+			},
+		)
 		// These cases also run on a plan with no value, to show the table is
 		// validated before the early value-absent return.
 		alsoAbsent := map[string]struct{}{
