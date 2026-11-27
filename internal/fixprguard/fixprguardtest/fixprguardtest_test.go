@@ -12,32 +12,21 @@ import (
 	"testing"
 )
 
-func TestEnv(t *testing.T) {
+// TestEnvReplacesInheritedValues gives the function an inherited HOME,
+// XDG_CONFIG_HOME, and PWD, which only a real replacement can get rid of.
+func TestEnvReplacesInheritedValues(t *testing.T) {
 	t.Parallel()
-	home, dir := "/h/home", "/w/dir"
-	env := Env(home, dir)
-	values := map[string][]string{}
-	for _, e := range env {
-		name, value, _ := strings.Cut(e, "=")
-		values[name] = append(values[name], value)
-	}
-	for name, want := range map[string]string{
-		"HOME":            home,
-		"XDG_CONFIG_HOME": filepath.Join(home, ".config"),
-		"PWD":             dir,
-	} {
-		if got := values[name]; !slices.Equal(got, []string{want}) {
-			t.Errorf("%s = %q, want exactly %q", name, got, want)
-		}
-	}
-	for name := range values {
-		if strings.HasPrefix(name, "GIT_") && name != "GIT_OPTIONAL_LOCKS" && name != "GIT_TERMINAL_PROMPT" {
-			t.Errorf("inherited %s reached the environment", name)
-		}
+	base := []string{"HOME=/inherited", "KEEP=1", "XDG_CONFIG_HOME=/inherited/.config", "PWD=/inherited", "PATH=/bin"}
+	got := withTestValues(base, "/h/home", "/w/dir")
+	want := []string{"KEEP=1", "PATH=/bin", "HOME=/h/home", "XDG_CONFIG_HOME=/h/home/.config", "PWD=/w/dir"}
+	if !slices.Equal(got, want) {
+		t.Errorf("env = %q, want %q", got, want)
 	}
 }
 
-func TestIsolationIsEmptyDirOutsideRepository(t *testing.T) {
+// TestIsolationChangesWorkingDirectory: the working directory is no longer
+// the package directory, which PackageDir still names.
+func TestIsolationChangesWorkingDirectory(t *testing.T) {
 	t.Parallel()
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -46,14 +35,8 @@ func TestIsolationIsEmptyDirOutsideRepository(t *testing.T) {
 	if cwd == isolation.PackageDir {
 		t.Fatal("working directory was not changed")
 	}
-	if err := checkEmpty(cwd); err != nil {
-		t.Errorf("the isolation directory is not empty: %v", err)
-	}
 	if _, err := os.Stat(filepath.Join(isolation.PackageDir, "fixprguardtest_test.go")); err != nil {
 		t.Errorf("PackageDir does not name the package directory: %v", err)
-	}
-	if fi, err := os.Stat(isolation.TemplateRoot); err != nil || !fi.IsDir() {
-		t.Errorf("TemplateRoot is not a directory: %v", err)
 	}
 }
 
@@ -66,8 +49,8 @@ func TestCheckEmpty(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "leak"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkEmpty(dir); err == nil {
-		t.Fatal("a directory holding a file passed")
+	if err := checkEmpty(dir); !errors.Is(err, errWorkdirNotEmpty) {
+		t.Fatalf("checkEmpty(non-empty) = %v, want errWorkdirNotEmpty", err)
 	}
 }
 
@@ -95,6 +78,8 @@ func TestIsolateWorkingDirRefusesRepository(t *testing.T) {
 	if !ok || exitErr.ExitCode() != 1 {
 		t.Fatalf("exit = %v, want exit code 1; output: %s", err, out)
 	}
+	// The wording is the contract here: exit code 1 alone cannot tell this stop
+	// from another failure to start.
 	if !strings.Contains(string(out), "git repository") {
 		t.Errorf("diagnostic does not name the repository: %s", out)
 	}

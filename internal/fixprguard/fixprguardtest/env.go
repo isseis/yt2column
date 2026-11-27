@@ -23,7 +23,12 @@ const overridden = 3
 // be shut out with GIT_CONFIG_GLOBAL; replacing HOME shuts it out instead.
 // The system configuration is not shut out, as before this helper existed.
 func Env(home, dir string) []string {
-	base := cmdrunner.GitEnv(os.Environ())
+	return withTestValues(cmdrunner.GitEnv(os.Environ()), home, dir)
+}
+
+// withTestValues drops HOME, XDG_CONFIG_HOME, and PWD from base and appends
+// the per-test values.
+func withTestValues(base []string, home, dir string) []string {
 	env := make([]string, 0, len(base)+overridden)
 	for _, entry := range base {
 		if hasName(entry, "HOME") || hasName(entry, "XDG_CONFIG_HOME") || hasName(entry, "PWD") {

@@ -18,6 +18,7 @@ import (
 
 	"github.com/isseis/yt2column/internal/doctestutil"
 	"github.com/isseis/yt2column/internal/fixprguard"
+	"github.com/isseis/yt2column/internal/fixprguard/fixprguardtest"
 	"github.com/isseis/yt2column/internal/ghci"
 )
 
@@ -756,7 +757,7 @@ func TestGuideIgnoredCommands(t *testing.T) {
 		t.Helper()
 		cmd := exec.Command("sh", "-c", block) //nolint:gosec // the guide's own code block, run in the test's repository
 		cmd.Dir = repo.Dir
-		cmd.Env = append(os.Environ(), "token="+out.Baseline, "PATH="+path)
+		cmd.Env = append(fixprguardtest.Env(repo.Home, repo.Dir), "token="+out.Baseline, "PATH="+path)
 		got, err := cmd.Output()
 		// diff exits 1 when the records differ; any other failure is one.
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); err != nil && (!ok || exitErr.ExitCode() != 1) {

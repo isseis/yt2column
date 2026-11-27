@@ -482,7 +482,12 @@ PR-3 は製品を変えない。
     -   `process-state`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に `t.Setenv` を一時的に入れて実行し、終了コード 1（`disallowed t.Setenv in internal/fixprguard.TestParseJudgedSetID`）で失敗することを確認した。戻して健全な木で `PASS` に戻ることを確認した。
     -   `env-source`: 同じ場所に `os.Environ()` を一時的に入れて実行し、終了コード 1（`disallowed os.Environ in internal/fixprguard.TestParseJudgedSetID`）で失敗することを確認した。戻して `PASS` に戻ることを確認した。
 -   **実行の記録:**
-    -   `process-state`・`env-source`（対象コミット `9502c4943d304b1f4dc56f6935e954c87b39d757`、PR-2）: どちらも `PASS`。
+    -   `process-state`・`env-source`（PR-2。対象コミットは PR を作る直前の `HEAD` で、5.2 節の PR-2 の欄が書く）:
+
+        ```text
+        testshape process-state: PASS
+        testshape env-source: PASS
+        ```
 
 ### 5.2. diff の記録
 

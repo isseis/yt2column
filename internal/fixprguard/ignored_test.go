@@ -615,7 +615,7 @@ func stateWithin(t *testing.T, dir string, paths ...string) (targetState, error)
 	}
 }
 
-// writeFile writes name in the current directory.
+// writeFile writes name, which must be a path inside the test's directory.
 func writeFile(t *testing.T, name, content string) {
 	t.Helper()
 	if err := os.WriteFile(name, []byte(content), 0o600); err != nil {
