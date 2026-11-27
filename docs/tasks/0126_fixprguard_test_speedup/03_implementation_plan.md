@@ -661,28 +661,28 @@ PR-4 は製品を変えない。
         status=PASS
         ```
 -   **PR-3:**
-    -   AC-09（比較: `e7150e43ad90703cc13bd32a6ec3989e931d6be5` → `5d48a15f95c78f3079d9adcdfd6b78ea48f4c5ac`）:
+    -   AC-09（比較: `e7150e43ad90703cc13bd32a6ec3989e931d6be5` → `dfa8faf0049c3ddd0c7bed680b5dd68e21655dcc`）:
 
         ```text
         mode=unchanged
         base=e7150e43ad90703cc13bd32a6ec3989e931d6be5
-        head=5d48a15f95c78f3079d9adcdfd6b78ea48f4c5ac
+        head=dfa8faf0049c3ddd0c7bed680b5dd68e21655dcc
         guide=PASS (docs/dev/guides/fixprguard_guide.md)
         protocol=PASS (base: const Protocol = 9 | head: const Protocol = 9 | worktree: const Protocol = 9)
         status=PASS
         ```
 
-    -   AC-15（同じ 2 つのコミット。`MISSING` の 71 の組は、ステップ 3-3 の削除のコミットで消した行とちょうど一致する。各コミットの差分から消した行の名前を読んで、両方の向きに突き合わせた。表を組み直した C6・C14・C18 では、同じ差分で足し直した行は消えていない。`became_skip` は 0。`ADDED` の 19 の組は、ステップ 3-2 で純粋な関数の表に足した行である。`status=FAIL` は、`MISSING` があることによる（1.5 節）。`elapsed` の行は、それぞれ 1 回の実行の値で、実行の揺れを含む目安である）:
+    -   AC-15（同じ 2 つのコミット。`MISSING` の 70 の組は、ステップ 3-3 の削除のコミットで消した行とちょうど一致する。各コミットの差分から消した行の名前を読んで、両方の向きに突き合わせた。表を組み直した C6・C14・C18 では、同じ差分で足し直した行は消えていない。C6 で消した `TestConfigListFailureKinds/check_state/output_over_cap` は、ローカルのレビューの指摘で後のコミットに戻したので、`MISSING` にない。`became_skip` は 0。`ADDED` の 19 の組は、ステップ 3-2 で純粋な関数の表に足した行である。`status=FAIL` は、`MISSING` があることによる（1.5 節）。`elapsed` の行は、それぞれ 1 回の実行の値で、実行の揺れを含む目安である。行を戻す前の先頭 `5d48a15f95c78f3079d9adcdfd6b78ea48f4c5ac` での 1 回目の実行では、`internal/fixprguard` が base=261.857s・head=210.762s、`cmd/fixprguard` が base=36.842s・head=55.98s だった）:
 
         ```text
         mode=names
         base=e7150e43ad90703cc13bd32a6ec3989e931d6be5
-        head=5d48a15f95c78f3079d9adcdfd6b78ea48f4c5ac
+        head=dfa8faf0049c3ddd0c7bed680b5dd68e21655dcc
         base_pass=1844
-        head_pass=1792
-        elapsed github.com/isseis/yt2column/internal/fixprguard base=261.857s head=210.762s
-        elapsed github.com/isseis/yt2column/cmd/fixprguard base=36.842s head=55.98s
-        missing=71
+        head_pass=1793
+        elapsed github.com/isseis/yt2column/internal/fixprguard base=161.875s head=123.967s
+        elapsed github.com/isseis/yt2column/cmd/fixprguard base=35.98s head=30.347s
+        missing=70
           MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestFinishBodyFileRun/message_rewritten
           MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestInspectExitCode/instruction_file
           MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestInspectExitCode/outside_allow_list
@@ -729,7 +729,6 @@ PR-4 は製品を変えない。
           MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/cancelled
           MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/nonzero_exit
           MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/not_started
-          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/output_over_cap
           MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/timed_out
           MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishAfterOutOfScope/execution_file_as_thread_path
           MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishCommitBody/ends_with_lf
