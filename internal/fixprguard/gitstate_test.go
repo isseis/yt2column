@@ -575,6 +575,34 @@ func TestConfigListUnreadable(t *testing.T) {
 	}
 }
 
+// TestConfigListFailure: how CheckState classifies a failure to list the
+// configuration. A timeout or a nonzero exit is a config change; an output
+// over the cap, a cancellation, or git not starting is a git failure.
+func TestConfigListFailure(t *testing.T) {
+	exit := func(code int) *cmdrunner.ExitError { return &cmdrunner.ExitError{Code: code} }
+	for _, tc := range []struct {
+		name    string
+		err     error
+		changed bool
+	}{
+		// Joined with an exit error, so the cap is what keeps it a git failure.
+		{name: "output_over_cap", err: errors.Join(fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge), exit(1))},
+		{name: "cancelled", err: errors.Join(context.Canceled, exit(-1))},
+		{name: "timed_out", err: errors.Join(context.DeadlineExceeded, exit(-1)), changed: true},
+		{name: "nonzero_exit", err: exit(128), changed: true},
+		{name: "not_started", err: errors.New("exec: not found")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := configListFailure(tc.err)
+			if tc.changed {
+				wantStateParts(t, err, PartConfig)
+			} else if _, isState := errors.AsType[*GitStateError](err); isState || !errors.Is(err, ErrGitFailed) {
+				t.Errorf("configListFailure = %v, want ErrGitFailed and no *GitStateError", err)
+			}
+		})
+	}
+}
+
 // TestConfigListFailureKinds: how a failed or malformed git config --list is
 // reported. In CheckState, after begin listed the configuration, a timeout,
 // a nonzero exit, or a malformed listing is a config change; an output over
