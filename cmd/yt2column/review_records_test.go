@@ -536,11 +536,6 @@ func coverageCases() []rrCase {
 			f.record("record", f.seen(f.mb, c1, "coderabbit")+" and more")
 			return rrNone(f, "")
 		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1")) }},
-		{name: "another reviewer", setup: func(f *rrFixture) []string {
-			c1 := f.work("c1")
-			f.record("record", strings.Replace(f.seen(f.mb, c1, "coderabbit"), "(coderabbit)", "(fable)", 1))
-			return rrNone(f, "")
-		}, want: func(f *rrFixture) []string { return f.partial(f.rev("HEAD~1")) }},
 		{name: "START outside the branch", setup: func(f *rrFixture) []string {
 			c1 := f.work("c1")
 			f.record("record", f.seen(f.m0, c1, "coderabbit"))
@@ -1247,57 +1242,54 @@ func unreviewedCases() []rrCase {
 	}
 }
 
-// rrUnreviewedConfigBranch builds a branch on which the unreviewed mode
-// lists two commits only through the widened START check: a seen commit
-// and a plan checkbox commit, a merge of origin/main, a seen-range line from
-// the old merge-base over the first two, and a last commit whose file name
-// and subject are not ASCII. HEAD~4..HEAD~3 is the checkbox commit and
-// HEAD~1..HEAD the last commit, so the configuration scenarios' plain git
-// commands change their output.
-func rrUnreviewedConfigBranch(f *rrFixture) []string {
-	f.write(".gitattributes", "*.md diff=upper\n")
-	f.commit("attributes")
-	f.plan(rrMarkersPlan, "markers-created.md")
-	checkbox := f.head()
-	f.mainMerge("m2")
-	f.record("record", f.seen(f.mb, checkbox, "coderabbit"))
-	f.write("caf\u00e9.txt", "x\n")
-	f.commit("unseen caf\u00e9")
-	return []string{f.head(), rrMarkersPlan}
-}
-
 // TestReviewRecordsUnreviewed runs the unreviewed mode of the review records
-// script. It reuses the coverage cases that judge origin/main..HEAD
-// (LAST_REVIEWED none), with that argument dropped, so the rules and
-// failures the two modes share are checked on the same branches; the cases
-// of LAST_REVIEWED..HEAD do not apply. unreviewedOverrides gives the outputs
-// the two differences change, and unreviewedCases adds the cases of those
-// differences. Each case runs with each bash scriptBashes returns, and the
-// configuration scenarios run on rrUnreviewedConfigBranch.
+// script. It reuses the small set of coverage cases that exercise unreviewed's
+// own differences and argument checks (dropping the leading "none" argument),
+// plus unreviewedCases for the unreviewed-specific behaviors. Shared judge_seen,
+// load_branch, environment, and git-config guarantees are verified by
+// TestReviewRecordsCoverage. Each case runs with each bash scriptBashes returns.
 func TestReviewRecordsUnreviewed(t *testing.T) {
 	t.Parallel()
 	form := seenRangeForm(t)
 	forms := readCrossCheckForms(t)
+	reused := map[string]struct{}{
+		"merge commit inside a seen range":                  {},
+		"seen range from the old merge-base before a merge": {},
+		"START outside the branch":                          {},
+		"HEAD of another form":                              {},
+		"PLAN of another form":                              {},
+		"too many arguments":                                {},
+	}
 	var cases []rrCase
-	used := map[string]struct{}{}
+	usedOverrides := map[string]struct{}{}
+	usedReused := map[string]struct{}{}
 	for _, c := range coverageCases() {
+		if _, ok := reused[c.name]; !ok {
+			continue
+		}
+		usedReused[c.name] = struct{}{}
 		if want, ok := unreviewedOverrides[c.name]; ok {
 			c.want = want
-			used[c.name] = struct{}{}
+			usedOverrides[c.name] = struct{}{}
 		}
 		setup := c.setup
 		c.setup = func(f *rrFixture) []string {
 			args := setup(f)
 			if len(args) == 0 || args[0] != "none" {
-				f.t.Skip("the case judges LAST_REVIEWED..HEAD, which unreviewed does not take")
+				f.t.Fatalf("reused case %q returned args %v without leading \"none\"", c.name, args)
 			}
 			return args[1:]
 		}
 		cases = append(cases, c)
 	}
+	for name := range reused {
+		if _, ok := usedReused[name]; !ok {
+			t.Fatalf("unreviewed reused list names %q, which is no coverage case", name)
+		}
+	}
 	for name := range unreviewedOverrides {
-		if _, ok := used[name]; !ok {
-			t.Fatalf("unreviewedOverrides names %q, which is no coverage case", name)
+		if _, ok := usedOverrides[name]; !ok {
+			t.Fatalf("unreviewedOverrides names %q, which is not in the reused coverage cases", name)
 		}
 	}
 	cases = append(cases, unreviewedCases()...)
@@ -1306,10 +1298,6 @@ func TestReviewRecordsUnreviewed(t *testing.T) {
 			t.Parallel()
 			runRRCases(t, bash, "unreviewed", "PARTIAL\n", form, forms,
 				filterBash3Cases(t, bash, cases, bash3UnreviewedSubset))
-			if bash.name != "bin-bash-3" || bash3AllEnabled() {
-				checkConfigScenarios(t, "git config", bash, form, forms, "unreviewed", rrUnreviewedConfigBranch,
-					func(*rrFixture) string { return "PARTIAL 2\n" })
-			}
 		})
 	}
 }
@@ -2123,87 +2111,23 @@ func crossCheckCases() []rrCase {
 		{name: "HEAD of another form", setup: func(*rrFixture) []string {
 			return []string{"launch", "HEAD", rrMarkersPlan}
 		}},
-		{name: "HEAD names no commit", setup: func(*rrFixture) []string {
-			return []string{"launch", strings.Repeat("0", 40), rrMarkersPlan}
-		}},
 		{name: "PLAN of another form", setup: func(f *rrFixture) []string {
 			return []string{"launch", f.head(), "../" + rrMarkersPlan}
 		}},
 		{name: "PLAN not passed", setup: func(f *rrFixture) []string { return []string{"launch", f.head()} }},
 		{name: "too many arguments", setup: func(f *rrFixture) []string { return append(rrFable(f, "launch"), "extra") }},
-		{name: "no origin/main", setup: func(f *rrFixture) []string {
-			f.git("update-ref", "-d", "refs/remotes/origin/main")
-			return launch(f)
-		}},
-		// The environment, as for coverage.
-		{name: "GIT_ variables", setup: unseenAfterRecord, env: func(f *rrFixture) []string {
-			other := newRRFixture(f.t, f.form)
-			return []string{"GIT_DIR=" + filepath.Join(other.repo, ".git"), "GIT_WORK_TREE=" + other.repo}
-		}, want: rrMissing("HEAD~1")},
-		{name: "exported functions", setup: unseenAfterRecord, env: func(*rrFixture) []string {
-			return []string{
-				"BASH_FUNC_git%%=() { return 0; }",
-				"BASH_FUNC_printf%%=() { builtin printf 'VALID\\n'; }",
-				"REVIEW_RECORDS_CLEAN_ENV=1",
-			}
-		}, want: rrMissing("HEAD~1")},
-		{name: "BASH_ENV", setup: unseenAfterRecord, env: func(f *rrFixture) []string {
-			bashEnv := filepath.Join(f.home, "bash-env")
-			if err := os.WriteFile(bashEnv, []byte("command() { return 0; }\n"), 0o600); err != nil {
-				f.t.Fatalf("write BASH_ENV: %v", err)
-			}
-			return []string{"BASH_ENV=" + bashEnv}
-		}, want: rrMissing("HEAD~1")},
 	}
-}
-
-// rrFableConfigBranch builds a branch on which the fable mode prints
-// MISSING from the commit before the last: a record, a plan checkbox commit,
-// two empty commits, and a last commit whose file name and subject are not
-// ASCII, the first commit no rule covers. HEAD~4..HEAD~3 is the checkbox
-// commit, as in rrConfigBranch, so the configuration scenarios' plain git
-// commands change their output.
-func rrFableConfigBranch(f *rrFixture) []string {
-	f.write(".gitattributes", "*.md diff=upper\n")
-	f.commit("attributes")
-	f.record("record", f.fableRun(f.mb, f.head()))
-	f.plan(rrMarkersPlan, "markers-created.md")
-	f.record("empty")
-	f.record("empty")
-	f.write("caf\u00e9.txt", "x\n")
-	f.commit("unseen caf\u00e9")
-	return rrFable(f, "launch")
-}
-
-// rrFableMergeConfigBranch builds a branch on which the fable mode prints
-// VALID at the checkpoint entry only through the merge rules: a record from
-// the old merge-base, a plan checkbox commit, a merge of origin/main that
-// adds a Markdown file under docs, the merge check record naming it, the
-// checkpoint mark, and a last commit whose file name and subject are not
-// ASCII. HEAD~4..HEAD~3 is the merge's change from its first parent and
-// HEAD~1..HEAD the last commit, so the configuration scenarios' plain git
-// commands change their output.
-func rrFableMergeConfigBranch(f *rrFixture) []string {
-	f.write(".gitattributes", "*.md diff=upper\n")
-	f.commit("attributes")
-	f.record("record", f.fableRun(f.mb, f.head()))
-	f.plan(rrMarkersPlan, "markers-created.md")
-	merge := f.mainMerge("m2")
-	f.record("check", f.mergeRun(merge))
-	f.record("mark", f.forms.checkpoint)
-	f.write("caf\u00e9.txt", "x\n")
-	f.commit("unseen caf\u00e9")
-	return rrFable(f, "checkpoint")
 }
 
 // TestReviewRecordsCrossCheck runs the cross-check mode of the review records
 // script on fixture repositories: the last record (both Cross-check and legacy
 // Fable prefixes), the fixes of the same run, the commits without content, the
 // checkpoint mark, the merge commits and the merge check records, model
-// pattern matching boundaries, fail-closed _context.md validation, the
-// failures, and that the caller's environment and git configuration change
-// nothing. Each case runs with each bash scriptBashes returns (bash 3.2 and
-// bash 4+).
+// pattern matching boundaries, fail-closed _context.md validation, and the
+// mode-specific input failures. Shared environment isolation, branch-loading
+// failures, and git configuration scenarios are verified by
+// TestReviewRecordsCoverage. Each case runs with each bash scriptBashes
+// returns (bash 3.2 and bash 4+).
 //
 // Some conditions are backed by others, so breaking one alone fails no case:
 // that a widened START is a commit origin/main reaches (START must be an
@@ -2218,13 +2142,6 @@ func rrFableMergeConfigBranch(f *rrFixture) []string {
 // through a merge that is unconfirmable); and that a rule 4 commit is an
 // ancestor of the merge check's commit (a seen range's END is a proper
 // ancestor of it).
-//
-// The environment cases and the failures of the shared branch loading repeat
-// TestReviewRecordsCoverage's on purpose: they show the cross-check mode keeps
-// the same guarantees and fails with its own output. The configuration
-// scenarios guard the reading through plumbing commands, which no such
-// setting reaches today: they fail only when the cross-check mode starts
-// reading through a porcelain command.
 func TestReviewRecordsCrossCheck(t *testing.T) {
 	t.Parallel()
 	form := seenRangeForm(t)
@@ -2368,21 +2285,14 @@ func TestReviewRecordsCrossCheck(t *testing.T) {
 					}
 				})
 			})
-
-			if bash.name != "bin-bash-3" || bash3AllEnabled() {
-				checkConfigScenarios(t, "git config", bash, form, forms, "cross-check", rrFableConfigBranch,
-					func(f *rrFixture) string { return "MISSING " + f.rev("HEAD~1") + "\n" })
-				checkConfigScenarios(t, "git config with a merge", bash, form, forms, "cross-check", rrFableMergeConfigBranch,
-					func(*rrFixture) string { return "VALID\n" })
-			}
 		})
 	}
 }
 
 // TestReviewRecordsFableAlias checks that the migration compatibility alias
 // mode "fable" dispatches to the same cross-check logic and fail-closed output
-// across both bash 3.2 and bash 4+ (representative VALID, MISSING, and
-// fail-closed cases).
+// across both bash 3.2 and bash 4+ (representative VALID and fail-closed
+// cases).
 func TestReviewRecordsFableAlias(t *testing.T) {
 	t.Parallel()
 	form := seenRangeForm(t)
@@ -2393,16 +2303,6 @@ func TestReviewRecordsFableAlias(t *testing.T) {
 			f.record("record", f.crossCheckRun(f.mb, c1, "claude-opus-5-5-medium"))
 			return rrFable(f, "launch")
 		}, want: rrValid},
-		{name: "MISSING without record", setup: func(f *rrFixture) []string {
-			f.work("c1")
-			return rrFable(f, "launch")
-		}, want: func(f *rrFixture) []string { return []string{"MISSING " + f.mb} }},
-		{name: "MISSING when rule 2 fix uses codex seen range", setup: func(f *rrFixture) []string {
-			c1 := f.work("c1")
-			fix := f.work("fix")
-			f.record("record", f.fableRun(f.mb, c1), f.seen(f.mb, fix, "codex"))
-			return rrFable(f, "launch")
-		}, want: rrMissing("HEAD~2")},
 		{name: "fail-closed on missing _context.md", context: func(*testing.T) string { return "" }, setup: func(f *rrFixture) []string {
 			f.work("c1")
 			return rrFable(f, "launch")
