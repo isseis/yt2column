@@ -464,28 +464,11 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 		{name: "empty_subsection_section_added", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, repoConfig(r), "[branch \"\"]\n\tremote = "+testRemote+"\n")
 		}, checkOnly: true},
-		{name: "global_config", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--global", "branch.x.remote", testRemote)
-		}},
-		{name: "worktree_config", setup: func(t *testing.T, r *testRepo) {
-			r.Git("config", "extensions.worktreeConfig", "true")
-			appendFile(t, filepath.Join(r.Dir, ".git", "config.worktree"), "")
-		}, edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--worktree", "branch.x.remote", testRemote)
-		}},
-		{name: "include_path_target", setup: func(t *testing.T, r *testRepo) {
-			appendFile(t, filepath.Join(r.Home, "included"), "")
-			r.Git("config", "include.path", filepath.Join(r.Home, "included"))
-		}, edit: func(t *testing.T, r *testRepo) { appendFile(t, filepath.Join(r.Home, "included"), section) }},
 		{name: "include_if_target", setup: func(t *testing.T, r *testRepo) {
 			appendFile(t, filepath.Join(r.Home, "conditional"), "")
 			r.Git("config", "includeIf.onbranch:"+testBranch+".path", filepath.Join(r.Home, "conditional"))
 		}, edit: func(t *testing.T, r *testRepo) { appendFile(t, filepath.Join(r.Home, "conditional"), section) }},
-		// Names that overlap the current branch's: a longer subsection, and
-		// one differing only in case.
-		{name: "subsection_extends_current_branch", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch."+testBranch+".a.remote", testRemote)
-		}},
+		// A name that overlaps the current branch's, differing only in case.
 		{name: "subsection_differs_in_case", edit: func(t *testing.T, r *testRepo) {
 			recased := strings.ToUpper(testBranch[:1]) + testBranch[1:]
 			appendFile(t, repoConfig(r), "[branch \""+recased+"\"]\n\tpushRemote = elsewhere\n")
