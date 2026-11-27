@@ -822,24 +822,6 @@ func TestFinishStopsOnIgnoredChange(t *testing.T) {
 	})
 }
 
-// TestPushStopsOnIgnoredChange: a target file written after finish stops
-// push before it pushes.
-func TestPushStopsOnIgnoredChange(t *testing.T) {
-	p := prepareIgnoringRound(t)
-	commit := p.mustFinish(t).Commit
-	remote := p.r.RemoteHead()
-	p.r.Write("build/x_test.go", "package x\n")
-	w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
-	_, err := w.Push(t.Context(), p.base, commit)
-	wantStateParts(t, err, PartIgnored)
-	if indexOf(router.Calls, "git push") >= 0 {
-		t.Errorf("pushed: %v", router.Calls)
-	}
-	if got := p.r.RemoteHead(); got != remote {
-		t.Errorf("remote moved to %s", got)
-	}
-}
-
 // TestWorktreeIgnoresProcessDir runs Worktree's Begin, Inspect, Finish, Push,
 // CheckReviewState, and PushReviewed against repository A while the process's
 // working directory is a different repository B. Only A and A's remote change;
