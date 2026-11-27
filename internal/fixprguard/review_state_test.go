@@ -397,19 +397,22 @@ func TestReviewState(t *testing.T) {
 func TestReviewStateUnreadable(t *testing.T) {
 	t.Parallel()
 	boom := errors.New("boom")
-	bad := func(old, replacement string) func(string) string {
-		return func(s string) string {
+	bad := func(old, replacement string) func(testing.TB, string) string {
+		return func(t testing.TB, s string) string {
+			t.Helper()
 			if !strings.Contains(s, old) {
 				t.Fatalf("response %q lacks %q", s, old)
 			}
 			return strings.Replace(s, old, replacement, 1)
 		}
 	}
-	whole := func(text string) func(string) string { return func(string) string { return text } }
+	whole := func(text string) func(testing.TB, string) string {
+		return func(testing.TB, string) string { return text }
+	}
 	one := rsInput{comments: defaultComments(), commits: []rsCommit{rsCommitOf(rsHead, rsFinished(11, at("10:00:20"), at("10:03:00")))}}
-	with := func(stage string, f func(string) string) rsInput {
+	with := func(stage string, f func(testing.TB, string) string) rsInput {
 		in := one
-		in.edit = map[string]func(string) string{stage: f}
+		in.edit = map[string]func(testing.TB, string) string{stage: f}
 		in.stop = stage
 		return in
 	}
@@ -607,12 +610,12 @@ func TestReviewStateReadBounds(t *testing.T) {
 				comments = append(comments, rsComment{id: int64(i + 2), login: "alice", kind: typenameUser, body: "x", created: rsCreated}.json())
 			}
 			in := rsInput{comments: defaultComments(), stop: rsStageComments}
-			in.edit = map[string]func(string) string{rsStageComments: func(string) string { return mustJSON(t, comments) }}
+			in.edit = map[string]func(testing.TB, string) string{rsStageComments: func(t testing.TB, _ string) string { return mustJSON(t, comments) }}
 			return in.steps(t)
 		}, rsUnreadable(UnreadableRejected, rsHead)},
 		{"user_response_over_max_bytes", func(t *testing.T) []cmdrunnertestutil.Step {
 			in := rsInput{stop: rsStageUser}
-			in.edit = map[string]func(string) string{rsStageUser: func(string) string { return strings.Repeat(" ", maxResponseBytes+1) }}
+			in.edit = map[string]func(testing.TB, string) string{rsStageUser: func(testing.TB, string) string { return strings.Repeat(" ", maxResponseBytes+1) }}
 			return in.steps(t)
 		}, rsUnreadable(UnreadableLimit, rsHead)},
 	}
@@ -631,7 +634,7 @@ func TestReviewStateReadBounds(t *testing.T) {
 	t.Run("deadline_passed", func(t *testing.T) {
 		t.Parallel()
 		in := rsInput{stop: rsStagePull}
-		in.edit = map[string]func(string) string{rsStagePull: func(s string) string { return strings.Replace(s, rsHead, "x", 1) }}
+		in.edit = map[string]func(testing.TB, string) string{rsStagePull: func(_ testing.TB, s string) string { return strings.Replace(s, rsHead, "x", 1) }}
 		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 		t.Cleanup(cancel)
 		want := rsUnreadable(UnreadableCall, "")
@@ -727,7 +730,7 @@ func TestReviewStateOutputHasNoText(t *testing.T) {
 	for _, in := range []rsInput{
 		{comments: comments, commits: []rsCommit{rsCommitOf(rsHead, titled)}, reviews: []rsReview{rsBotReview(1, rsHead, at("10:00:40"))}},
 		{comments: comments, commits: []rsCommit{rsCommitOf(rsHead, rsFinished(11, at("10:00:20"), at("10:03:00")))}, reviews: []rsReview{rsBotReview(1, rsHead, at("10:03:10"))}},
-		{comments: comments, commits: []rsCommit{rsCommitOf(rsHead)}, edit: map[string]func(string) string{rsStageGraphQL: func(string) string { return "{" }}, stop: rsStageGraphQL},
+		{comments: comments, commits: []rsCommit{rsCommitOf(rsHead)}, edit: map[string]func(testing.TB, string) string{rsStageGraphQL: func(testing.TB, string) string { return "{" }}, stop: rsStageGraphQL},
 		{profile: ProfileSourcery, comments: []rsComment{{id: 2, login: "alice", kind: typenameUser, body: secret, created: rsCreated}}, commits: []rsCommit{rsSourceryCommitOf(rsHead, sourceryTitled)}},
 		{profile: ProfileSourcery, comments: []rsComment{{id: 2, login: "alice", kind: typenameUser, body: secret, created: rsCreated}}, commits: []rsCommit{rsSourceryCommitOf(rsHead, rsSourceryFinished(13, at("10:00:20"), at("10:03:00")))}},
 	} {
@@ -935,8 +938,8 @@ func TestReviewStateNonPRCommitIgnored(t *testing.T) {
 			t.Parallel()
 			outside := mustJSON(t, tc.outside.json())
 			in := tc.in
-			in.edit = map[string]func(string) string{
-				rsStageGraphQL: func(s string) string {
+			in.edit = map[string]func(testing.TB, string) string{
+				rsStageGraphQL: func(_ testing.TB, s string) string {
 					return strings.Replace(s, `"commits":{`, `"otherCommit":`+outside+`,"commits":{`, 1)
 				},
 			}
@@ -951,7 +954,8 @@ func TestReviewStateNonPRCommitIgnored(t *testing.T) {
 func TestReviewStateObserved(t *testing.T) {
 	t.Parallel()
 	const runURL = "https://github.com/isseis/yt2column/runs/"
-	read := func(name string) string {
+	read := func(t *testing.T, name string) string {
+		t.Helper()
 		data, err := os.ReadFile(filepath.Join(isolation.PackageDir, "testdata", "review_state", name))
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
@@ -1021,11 +1025,11 @@ func TestReviewStateObserved(t *testing.T) {
 			t.Parallel()
 			steps := []cmdrunnertestutil.Step{
 				repoStep(),
-				includeStep("pulls/"+testPR, includedOutput(200, []string{"Date: " + tc.now}, read(tc.prefix+"pull.json")), nil),
+				includeStep("pulls/"+testPR, includedOutput(200, []string{"Date: " + tc.now}, read(t, tc.prefix+"pull.json")), nil),
 				{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: `{"login":"isseis"}`},
-				includeStep("issues/"+testPR+"/comments?per_page=100&page=1", includedOutput(200, []string{"Date: " + tc.now}, read(tc.prefix+"comments.json")), nil),
-				graphqlStep(read(tc.prefix + "commits.json")),
-				includeStep("pulls/"+testPR+"/reviews?per_page=100&page=1", includedOutput(200, []string{"Date: " + tc.now}, read(tc.prefix+"reviews.json")), nil),
+				includeStep("issues/"+testPR+"/comments?per_page=100&page=1", includedOutput(200, []string{"Date: " + tc.now}, read(t, tc.prefix+"comments.json")), nil),
+				graphqlStep(read(t, tc.prefix+"commits.json")),
+				includeStep("pulls/"+testPR+"/reviews?per_page=100&page=1", includedOutput(200, []string{"Date: " + tc.now}, read(t, tc.prefix+"reviews.json")), nil),
 			}
 			got := runReviewStateStepsFor(t.Context(), t, steps, ReviewStateRequest{
 				PR: mustPR(t), Profile: tc.profile, Reviewer: mustLogin(t, tc.reviewer), Requests: tc.requests,
@@ -1082,9 +1086,9 @@ func TestReviewStateTolerates(t *testing.T) {
 	in := rsInput{
 		comments: defaultComments(), commits: []rsCommit{rsCommitOf(rsHead, finished)},
 		reviews: []rsReview{{login: testReviewer + botLoginSuffix, kind: typenameBot, id: 1}, rsBotReview(2, rsHead, at("10:03:10"))},
-		edit: map[string]func(string) string{
-			rsStageGraphQL: func(s string) string { return strings.Replace(s, `"databaseId":11,`, "", 1) },
-			rsStageReviews: func(s string) string {
+		edit: map[string]func(testing.TB, string) string{
+			rsStageGraphQL: func(_ testing.TB, s string) string { return strings.Replace(s, `"databaseId":11,`, "", 1) },
+			rsStageReviews: func(_ testing.TB, s string) string {
 				s = strings.Replace(s, `"commit_id":"",`, `"commit_id":null,`, 1)
 				return strings.Replace(s, `"submitted_at":null,`, "", 1)
 			},

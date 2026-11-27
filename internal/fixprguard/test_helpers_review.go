@@ -245,7 +245,7 @@ type rsInput struct {
 	head       string
 	now        string
 	pullStatus int // HTTP status of the pull response; http.StatusOK when 0
-	edit       map[string]func(string) string
+	edit       map[string]func(testing.TB, string) string
 	fail       map[string]error
 	// stop ends the script after the named stage, for an input that is
 	// rejected there so no later call is made.
@@ -307,7 +307,7 @@ func (in rsInput) restSteps(t testing.TB, stage, path string, items []any) []cmd
 		}
 		body := mustJSON(t, chunk)
 		if f := in.edit[stage]; f != nil {
-			body = f(body)
+			body = f(t, body)
 		}
 		out := includedOutput(http.StatusOK, []string{"Date: " + rsDate(t, now)}, body)
 		steps = append(steps, includeStep(path+"?per_page=100&page="+strconv.Itoa(page), out, in.fail[stage]))
@@ -349,7 +349,7 @@ func (in rsInput) steps(t testing.TB) []cmdrunnertestutil.Step {
 	}
 	userOut := `{"login":"` + rsUser + `","id":1}`
 	if f := in.edit[rsStageUser]; f != nil {
-		userOut = f(userOut)
+		userOut = f(t, userOut)
 	}
 	if add(rsStageUser, cmdrunnertestutil.Step{Name: "gh", Args: []string{ghAPI, ghUserEndpoint}, Out: userOut}) || in.stop == rsStageUser {
 		return steps
@@ -393,7 +393,7 @@ func (in rsInput) pullStep(t testing.TB, head, now string) cmdrunnertestutil.Ste
 	t.Helper()
 	body := `{"head":{"sha":"` + head + `","ref":"feature"},"title":"secret-title"}`
 	if f := in.edit[rsStagePull]; f != nil {
-		body = f(body)
+		body = f(t, body)
 	}
 	status := in.pullStatus
 	if status == 0 {
@@ -418,7 +418,7 @@ func (in rsInput) graphqlSteps(t testing.TB, head string) (steps []cmdrunnertest
 		}
 		out := rsCommitsResponse(t, head, page, more, cursor)
 		if f := in.edit[rsStageGraphQL]; f != nil {
-			out = f(out)
+			out = f(t, out)
 		}
 		step := graphqlStep(out)
 		if err := in.fail[rsStageGraphQL]; err != nil {
