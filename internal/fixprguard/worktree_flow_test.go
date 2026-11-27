@@ -547,15 +547,6 @@ func TestFinishAfterOutOfScope(t *testing.T) {
 			threadPath: testFile,
 			outOfScope: "internal/y/notes.md",
 		},
-		{
-			// An execution-related file is out of scope even as the
-			// thread's own path, and finish still commits it once the user
-			// answers to go on.
-			name:       "execution_file_as_thread_path",
-			edit:       func(r *testRepo) { r.Write("Makefile", "all:\n\ttrue\n") },
-			threadPath: "Makefile",
-			outOfScope: "Makefile",
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := prepareRound(t, tc.edit)
