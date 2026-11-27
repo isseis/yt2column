@@ -410,12 +410,12 @@ measure: DONE
 
 **PR-1（2026-11-27、結果: 通った）**
 
--   BASE: `fb71447bb8bd1baa47e113573db52939b41146cd`、AFTER: `fc82dc79ee53ea64e7d0587cd73449efdf4cebab`（`compare.sh` は、1.5 節の名前の比べ方を足した後のもの）
--   最初の実行（AFTER `8bb968e5c28f44bafd2a3811d190e2fdac2a72ac`、名前の比べ方を足す前）は、`internal/mergepr` の `TestBaseCommitReadsTheRefItself` の末端の名前に実行ごとに変わるコミットの短い ID（`feat-1-g<hash>`）が入るため、`names` の判定だけが失敗した。そのほかの判定は通った。1.5 節の決定でスクリプトを直し、下の出力はやり直した実行のものである
+-   BASE: `fb71447bb8bd1baa47e113573db52939b41146cd`、AFTER: `89151749534247cac4e2faa858aec890384cb462`（`compare.sh` は、1.5 節の名前の比べ方を足した後のもの）
+-   最初の実行（AFTER `8bb968e5c28f44bafd2a3811d190e2fdac2a72ac`、名前の比べ方を足す前）は、`internal/mergepr` の `TestBaseCommitReadsTheRefItself` の末端の名前に実行ごとに変わるコミットの短い ID（`feat-1-g<hash>`）が入るため、`names` の判定だけが失敗した。そのほかの判定は通った。1.5 節の決定でスクリプトを直し、compare.sh を 2 回直したので（1.5 節の名前の比べ方と、クロスチェックの指摘による中間の名前の判定）、下の出力は、最後の直しの後にやり直した実行のものである
 
 `````text
 BASE: fb71447bb8bd1baa47e113573db52939b41146cd
-AFTER: fc82dc79ee53ea64e7d0587cd73449efdf4cebab
+AFTER: 89151749534247cac4e2faa858aec890384cb462
 packages: ./cmd/yt2column ./internal/mergepr
 == full runs ==
 full runs: both passed
@@ -493,11 +493,11 @@ select ok: github.com/isseis/yt2column/cmd/yt2column TestReviewRecordsCoverage/p
 check single-middle: PASS
 == shuffle (AFTER) ==
 shuffle run 1 seeds:
-github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795735735733249000
-github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795735735906905000
+github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795738317091842000
+github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795738316871630000
 shuffle run 2 seeds:
-github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795735872266431000
-github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795735871869650000
+github.com/isseis/yt2column/cmd/yt2column -test.shuffle 1795738446459733000
+github.com/isseis/yt2column/internal/mergepr -test.shuffle 1795738446658981000
 check shuffle: PASS
 == changed files (BASE..AFTER) ==
 cmd/yt2column/fixture_snapshot_test.go
