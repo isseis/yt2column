@@ -4,11 +4,11 @@
 
 | Item | Value |
 |---|---|
-| Status | `draft` |
+| Status | `approved` |
 | Process | `full` |
 | Created | 2026-11-26 |
-| Review date | - |
-| Reviewer | - |
+| Review date | 2026-11-27 |
+| Reviewer | isseis |
 | Comments | - |
 
 ## 1. 概要 (Overview)
@@ -173,3 +173,7 @@
 -   **拡張の検査が要る取り込み:** 3.1 の定義による。
 -   **依存を入れる:** 3.1 の定義による。
 -   用語は `docs/translation_glossary.md` と統一する。
+
+## 変更履歴
+
+-   2026-11-27 承認（isseis、#1189）
