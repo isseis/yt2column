@@ -172,13 +172,13 @@ Diff record (AC-07):
 
 - Compared paths: `CLAUDE.md`
 - Merge-base: `781a2373c4c617cb8061e24b6723842ce7364f22`
-- Compared commit: `ed8232f6364c728d89d5e12e7168761fcd699146`
+- Compared commit: `69eaf2d61a05cea9cb9f29e681b31a26af67bf81`
 
 Path diff:
 
 ````text
 diff --git a/CLAUDE.md b/CLAUDE.md
-index b35691a2b3fa60a089686c78491204fbde3da26a..f82a05c3eeae4a71dde6b969d3e638695c55e6a0 100644
+index b35691a2b3fa60a089686c78491204fbde3da26a..3479fb49425bc81b7904da0617644a23b9c9e3f0 100644
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
 @@ -1256,7 +1256,7 @@ for the agents that read it, and the Antigravity skill entries point here.
@@ -186,7 +186,7 @@ index b35691a2b3fa60a089686c78491204fbde3da26a..f82a05c3eeae4a71dde6b969d3e63869
    deleting the record ruleset that protects these tags also requires the
    user's explicit approval
 -- Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
-+- Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch, as well as `make ext-install` (including fetching dependencies from `registry.npmjs.org`) when the take-in requires extension checks. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
++- Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch. When the take-in requires extension checks, it also approves running `make ext-install` (including fetching dependencies from `registry.npmjs.org`), only in step 7 of `mergemain.md`, before any restore, and only as the bare command (no arguments, variables, or chaining); it never approves it after a restore. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
  - Invoking `/chief` approves, for that session, the read-only network operations
    the `chief` tool runs while it shows the status, watches, makes a task's
    workspace, removes one, or sends a command the human chose: `git fetch origin
