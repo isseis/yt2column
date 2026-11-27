@@ -245,33 +245,76 @@ type takeIn struct {
 	env     []string
 }
 
-// newTakeIn creates a bare origin with branch main and a clone of it as the
-// work tree.
-func newTakeIn(t *testing.T) *takeIn {
+// takeInBaseKind is the shared empty takeIn (a bare origin with branch main
+// and a clone of it as the work tree).
+var takeInBaseKind = snapshottest.NewKind[struct{}]("empty takeIn", nil)
+
+// takeInEnv creates home and returns a git environment isolated from the
+// user's and the system's git configuration.
+func takeInEnv(t *testing.T, home string) []string {
 	t.Helper()
-	root := t.TempDir()
-	home := filepath.Join(root, "home")
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		t.Fatalf("create home: %v", err)
 	}
 	env := slices.DeleteFunc(cmdrunner.GitEnv(os.Environ()), func(entry string) bool {
 		return strings.HasPrefix(entry, "HOME=") || strings.HasPrefix(entry, "XDG_CONFIG_HOME=")
 	})
-	env = append(env, "HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, ".config"), "GIT_CONFIG_NOSYSTEM=1")
-	k := &takeIn{
+	return append(env, "HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, ".config"), "GIT_CONFIG_NOSYSTEM=1")
+}
+
+// newTakeInAt returns a takeIn pointing at root/origin.git and root/work with
+// its own home directory and default PR, Env, and GHCalls.
+func newTakeInAt(t *testing.T, root, home string) *takeIn {
+	t.Helper()
+	return &takeIn{
 		t:      t,
 		Origin: filepath.Join(root, "origin.git"),
 		Work:   filepath.Join(root, "work"),
 		PR:     takeInPR{State: openState, Base: mainBranch, Branch: takeInBranch},
 		Env:    map[string]string{},
-		env:    env,
+		env:    takeInEnv(t, home),
 	}
-	k.gitIn(root, "init", "-q", "--bare", "--template=", "-b", mainBranch, k.Origin)
-	k.gitIn(root, "clone", "-q", "--template=", k.Origin, k.Work)
+}
+
+// buildTakeInBase creates a bare origin with branch main and a clone of it as
+// the work tree directly under dir. Its home lives in the builder's t.TempDir
+// so only origin.git and work are stored in the snapshot directory.
+func buildTakeInBase(t *testing.T, dir string) *takeIn {
+	t.Helper()
+	k := newTakeInAt(t, dir, filepath.Join(t.TempDir(), "home"))
+	k.gitIn(dir, "init", "-q", "--bare", "--template=", "-b", mainBranch, k.Origin)
+	k.gitIn(dir, "clone", "-q", "--template=", k.Origin, k.Work)
 	for _, kv := range [][2]string{{"user.name", "Test"}, {"user.email", "test@example.com"}, {"commit.gpgSign", gitFalse}, {"core.ignorecase", gitFalse}} {
 		k.Git("config", kv[0], kv[1])
 	}
 	return k
+}
+
+// copyTakeIn copies a shared takeIn snapshot into a fresh directory owned by t
+// and adjusts its git state so remote.origin.url points at the copy's own
+// origin, never the builder's.
+func copyTakeIn[V any](t *testing.T, sn snapshottest.Snapshot[V]) *takeIn {
+	t.Helper()
+	root := t.TempDir()
+	stateDir := filepath.Join(root, "state")
+	sn.CopyTo(t, stateDir)
+	k := newTakeInAt(t, stateDir, filepath.Join(root, "home"))
+	// A copied clone still names the builder's origin in remote.origin.url;
+	// rewrite it to the copy's own origin before any test runs git against it.
+	k.Git("config", "remote.origin.url", k.Origin)
+	return k
+}
+
+// newTakeIn returns a copy of the shared empty takeIn (a bare origin with
+// branch main and a clone of it as the work tree). A test that calls it must
+// not use t.Setenv: see snapshottest.Load.
+func newTakeIn(t *testing.T) *takeIn {
+	t.Helper()
+	sn := snapshottest.Load(t, snapshotStore, takeInBaseKind, nil, func(bt *testing.T, dir string) struct{} {
+		buildTakeInBase(bt, dir)
+		return struct{}{}
+	})
+	return copyTakeIn(t, sn)
 }
 
 // gitIn runs git in dir with the test's environment and returns its output
