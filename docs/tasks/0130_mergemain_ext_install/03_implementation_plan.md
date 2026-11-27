@@ -74,11 +74,11 @@
     -   `docs/dev/adr/0046-chief-of-staff.md`
     -   `.claude/commands/_lib/harness-antigravity.md`
 -   **作業内容:**
-    -   [ ] `.claude/commands/mergemain.md` の 5 か所（承認の節、禁止事項の 9、止まる理由の対応の「検査の準備がない」の行、手順 7、手順 10 の報告の項目）を設計書 3.1 の仕様どおり更新する（手順 7 の `make ext-install` は囲みコードブロックではなく本文に書き、`make ext-preflight` を除く）
-    -   [ ] `CLAUDE.md` の「Tool Execution Safety」の `/mergemain` の項（`CLAUDE.md:1259`）に、拡張の検査が要る取り込みでの `make ext-install` の承認を足す（設計書 3.2）
-    -   [ ] `docs/dev/adr/0046-chief-of-staff.md` の「決定」にある食い違いの文（`0046-chief-of-staff.md:85`）を消す（設計書 3.4）
-    -   [ ] `.claude/commands/_lib/harness-antigravity.md` の 4 章「Sandbox Elevation Rules」の 2（`harness-antigravity.md:48-55`）の昇格してよいコマンドの種類に、`make ext-install`（コマンドの定義が指示するときに限る）をネットワーク通信の例として足す（設計書 3.7）
-    -   [ ] 上記 4 ファイルを 1 つのコミットにまとめる（設計書 8 章）
+    -   [x] `.claude/commands/mergemain.md` の 5 か所（承認の節、禁止事項の 9、止まる理由の対応の「検査の準備がない」の行、手順 7、手順 10 の報告の項目）を設計書 3.1 の仕様どおり更新する（手順 7 の `make ext-install` は囲みコードブロックではなく本文に書き、`make ext-preflight` を除く）
+    -   [x] `CLAUDE.md` の「Tool Execution Safety」の `/mergemain` の項（`CLAUDE.md:1259`）に、拡張の検査が要る取り込みでの `make ext-install` の承認を足す（設計書 3.2）
+    -   [x] `docs/dev/adr/0046-chief-of-staff.md` の「決定」にある食い違いの文（`0046-chief-of-staff.md:85`）を消す（設計書 3.4）
+    -   [x] `.claude/commands/_lib/harness-antigravity.md` の 4 章「Sandbox Elevation Rules」の 2（`harness-antigravity.md:48-55`）の昇格してよいコマンドの種類に、`make ext-install`（コマンドの定義が指示するときに限る）をネットワーク通信の例として足す（設計書 3.7）
+    -   [x] 上記 4 ファイルを 1 つのコミットにまとめる（設計書 8 章）
 -   **完了条件:**
     -   変更ファイルが上記 4 文書のみで、`.claude/settings.json`・`Makefile`・Go コード・ガードテストに変更がないこと。
 
@@ -87,10 +87,10 @@
 -   **変更対象ファイル:**
     -   `docs/tasks/0130_mergemain_ext_install/03_implementation_plan.md`（§8 の Diff record の記入）
 -   **作業内容:**
-    -   [ ] `make test` と `make lint` を実行し、既存のガードテスト（`cmd/mergepr/docs_test.go`、`cmd/yt2column/settings_test.go`、`cmd/yt2column/skills_docs_test.go`、`cmd/yt2column/fixpr_docs_test.go` を含む）がすべて通ることを確かめる（設計書 3.5・7.1）
-    -   [ ] `requirements_process.md` §4「`diff` verification」の固定コマンドで AC-07（`CLAUDE.md`）と AC-08（`.claude/commands/mergemain.md`）の差分を取得し、本書の §8 の各 Diff record に記入してコミットする
-    -   [ ] PR を開く前に、`requirements_process.md` §4「Rechecking a record」の手順で Diff record を最新コミットと照合し、一致することを確かめる
-    -   [ ] 実装 PR の説明に、マージ前に人が行う項目として §9.1 の実地の確かめ（AC-01・AC-05・AC-06 の確かめ、§9.2 の記録、ADR-0046「結果」と「経緯」の更新、検証用 PR・一時 worktree・一時ブランチの片付け）を書く。`/runplan` は §9.1 の手順を実行しない
+    -   [x] `make test` と `make lint` を実行し、既存のガードテスト（`cmd/mergepr/docs_test.go`、`cmd/yt2column/settings_test.go`、`cmd/yt2column/skills_docs_test.go`、`cmd/yt2column/fixpr_docs_test.go` を含む）がすべて通ることを確かめる（設計書 3.5・7.1）
+    -   [x] `requirements_process.md` §4「`diff` verification」の固定コマンドで AC-07（`CLAUDE.md`）と AC-08（`.claude/commands/mergemain.md`）の差分を取得し、本書の §8 の各 Diff record に記入してコミットする
+    -   [x] PR を開く前に、`requirements_process.md` §4「Rechecking a record」の手順で Diff record を最新コミットと照合し、一致することを確かめる
+    -   [x] 実装 PR の説明に、マージ前に人が行う項目として §9.1 の実地の確かめ（AC-01・AC-05・AC-06 の確かめ、§9.2 の記録、ADR-0046「結果」と「経緯」の更新、検証用 PR・一時 worktree・一時ブランチの片付け）を書く。`/runplan` は §9.1 の手順を実行しない
 -   **完了条件:**
     -   `make test && make lint` が通り、§8 の Diff record が照合に合格していること。
 
@@ -138,9 +138,9 @@
 
 ## 6. 実装チェックリスト (Implementation Checklist)
 
--   [ ] フェーズ 1 完了
-    -   [ ] ステップ 1-1: `mergemain.md`・`CLAUDE.md`・ADR-0046・`harness-antigravity.md` の更新を 1 コミットで完了
-    -   [ ] ステップ 1-2: `make test && make lint` 通過、AC-07・AC-08 の Diff record 記入と照合完了、PR の説明に §9.1 の人の項目を記載、実装 PR 作成
+-   [x] フェーズ 1 完了
+    -   [x] ステップ 1-1: `mergemain.md`・`CLAUDE.md`・ADR-0046・`harness-antigravity.md` の更新を 1 コミットで完了
+    -   [x] ステップ 1-2: `make test && make lint` 通過、AC-07・AC-08 の Diff record 記入と照合完了、PR の説明に §9.1 の人の項目を記載、実装 PR 作成
 
 ## 7. 完了基準 (Success Criteria)
 
@@ -169,10 +169,157 @@
 Diff record (AC-07):
 
 - Compared paths: `CLAUDE.md`
+- Merge-base: `781a2373c4c617cb8061e24b6723842ce7364f22`
+- Compared commit: `ed8232f6364c728d89d5e12e7168761fcd699146`
+
+Path diff:
+
+````text
+diff --git a/CLAUDE.md b/CLAUDE.md
+index b35691a2b3fa60a089686c78491204fbde3da26a..f82a05c3eeae4a71dde6b969d3e638695c55e6a0 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -1256,7 +1256,7 @@ for the agents that read it, and the Antigravity skill entries point here.
+   `git push` may be executed without approval. Changing, disabling, or
+   deleting the record ruleset that protects these tags also requires the
+   user's explicit approval
+-- Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
++- Invoking `/mergemain` (whether typed by a human or sent by `chief`) approves, for that PR only, the network operations it runs through `mergepr`: `gh pr view`, `git fetch origin`, `git ls-remote` on the PR's head branch, and `git push` (non-force) to the PR's head branch, as well as `make ext-install` (including fetching dependencies from `registry.npmjs.org`) when the take-in requires extension checks. It approves no merge (`gh pr merge`), no PR review request, no write to a PR or review thread, no `numreserve` call, and no push to any branch other than the PR's head branch
+ - Invoking `/chief` approves, for that session, the read-only network operations
+   the `chief` tool runs while it shows the status, watches, makes a task's
+   workspace, removes one, or sends a command the human chose: `git fetch origin
+````
 
 Diff record (AC-08):
 
 - Compared paths: `.claude/commands/mergemain.md`
+- Merge-base: `781a2373c4c617cb8061e24b6723842ce7364f22`
+- Compared commit: `ed8232f6364c728d89d5e12e7168761fcd699146`
+
+Path diff:
+
+````text
+diff --git a/.claude/commands/mergemain.md b/.claude/commands/mergemain.md
+index e3356a3fcd26569225fa31c73238b82bfa0a7680..c8f20cc33a915c15d040f8bbb63ca736371f7188 100644
+--- a/.claude/commands/mergemain.md
++++ b/.claude/commands/mergemain.md
+@@ -24,8 +24,13 @@ for this PR only, the four network operations performed through `mergepr`:
+ - `git ls-remote` on the PR's head branch
+ - `git push` (non-force) to the PR's head branch
+
+-It approves no other network operation, no merge, no PR write, and no dependency
+-installation (`CLAUDE.md`, "Tool Execution Safety").
++In addition, when step 7 determines that extension checks are needed for this
++take-in, it approves running `make ext-install` (including fetching
++dependencies from `registry.npmjs.org`) strictly in step 7's bare standalone
++form (with no arguments, variables, or chaining).
++
++It approves no other network operation, no merge, no PR write, and no other
++dependency installation (`CLAUDE.md`, "Tool Execution Safety").
+
+ ## Tool contract and line protocol
+
+@@ -76,8 +81,13 @@ Never do any of the following during `/mergemain`:
+    state, head branch, head commit, base branch, and whether the head belongs to
+    another repository.
+ 9. Never run `git merge`, `git pull`, `git reset`, or `git push` directly (and never run
+-   `git clean`, `git merge --abort`, or `make ext-install`). Perform taking in,
+-   restoring, and pushing strictly through the `mergepr` take-in subcommands.
++   `git clean` or `git merge --abort`). Perform taking in, restoring, and
++   pushing strictly through the `mergepr` take-in subcommands. Never run
++   `make ext-install` outside step 7 (including after restoring in step 9),
++   never install dependencies by any other means (such as `npm ci`,
++   `npm install`, or `npx` under `extension/`), and when `make ext-install`
++   is denied or fails, never try another way to install dependencies or ask
++   the human yourself (the harness's own permission prompt is excluded).
+
+ **Temporary files.** Never create temporary or working files inside the git work
+ tree. Put any temporary files in the session scratchpad outside the work tree
+@@ -107,7 +117,7 @@ step 9 before reporting:
+ - `ADR の衝突` (ADR number/subject collision, discrepancy statement requiring re-check, or irreconcilable same-ADR edit)
+ - `README の同期の失敗` (`mktrans.md` sub-step stopped or sync check failed unexpectedly)
+ - `検査の失敗` (`make test`, `make lint`, `make ext-check`, or `git commit --no-edit` failed)
+-- `検査の準備がない` (`make ext-preflight` failed)
++- `検査の準備がない` (`make ext-install` failed, timed out, or was denied by permission evaluation or the human)
+
+ ## Procedure
+
+@@ -261,11 +271,34 @@ applied to each, and a short summary of the resolution for step 10.
+
+      If any listed path is under `extension/` or equals `README.md`,
+      `README.en.md`, or `docs/dev/guides/development.md`:
+-     1. Run `make ext-preflight` (never run `make ext-install`). If it fails,
+-        run step 9 and go to step 10 with reason `検査の準備がない`.
++     1. Run `make ext-install` from the repository top level as a bare,
++        standalone command (no arguments, variables, or chaining) in the
++        foreground with a 10-minute timeout (`_lib/harness.md`, `shell-run`),
++        whether or not `extension/node_modules` already exists and without
++        stopping because the PR branch modifies `extension/package.json`,
++        `extension/package-lock.json`, `extension/scripts/check-lockfile.ts`,
++        or `Makefile`. If it reaches the timeout and the harness moves it to
++        the background, stop that background execution using the harness's
++        stop operation (for example, `TaskStop` in Claude Code) and treat it
++        as timed out. Record the outcome for step 10 as one of: succeeded,
++        failed, timed out, or denied. If it did not succeed, do not run
++        `make ext-check` and do not retry it (an adapter's elevated rerun
++        inside `shell-run` after a sandbox failure does not count as a retry;
++        use the post-elevation result as the `shell-run` outcome): run
++        step 9 and go to step 10 with reason `検査の準備がない`.
++        - When permission evaluation denies it, proceed to step 9 without
++          asking the human.
++        - When the human denies it at a permission prompt, regardless of any
++          follow-up instruction the human gives (including text entered when
++          denying), do not alter the take-in procedure or install
++          dependencies by any other means: proceed to step 9 and report with
++          reason `検査の準備がない`.
+      2. Run `make ext-check`. If it fails, run step 9 and go to step 10 with
+         reason `検査の失敗`.
+
++     Otherwise, run neither `make ext-install` nor `make ext-check`, and
++     record the `make ext-install` outcome for step 10 as not run.
++
+ 8. **Push (`mergemain-push`).**
+    Run as a standalone command:
+
+@@ -323,12 +356,36 @@ applied to each, and a short summary of the resolution for step 10.
+         none.
+       - **詳細**: brief summary of what failed, whether the branch and work tree
+         were restored to `<base-head>`, and (when `--protocol` mismatched) the
+-        reinstall instruction (`make install-mergepr` from `main`).
++        reinstall instruction (`make install-mergepr` from `main`). Also
++        include, according to step 7's `make ext-install` outcome:
++        - when `make ext-install` failed or timed out: (1) that
++          `make ext-install` failed and whether it timed out, which stage
++          failed (version check, `check-lockfile`, or `npm ci`), and the last
++          few lines of the error; (2) that `extension/node_modules` may be
++          missing or incomplete, so the user must fix the cause and run
++          `make ext-install`; and (3) if timed out, that the user must verify
++          no `npm` process remains running under `extension/` before
++          reinstalling;
++        - when `make ext-install` was denied: that it did not run because
++          permission evaluation denied it or the human denied it at a prompt
++          (with the reason given by permission evaluation, if any), and that
++          `extension/node_modules` remains as it was before `/mergemain`
++          started;
++        - when `make ext-install` succeeded and step 9 restored the branch and
++          work tree (for example after `make ext-check` failed or
++          `push_rejected`): (1) that `make ext-install` ran; and (2) that
++          `extension/node_modules` matches the post-merge lockfile and may
++          differ from the restored branch's lockfile, so the user must re-run
++          `make ext-install` before working on the extension;
++        - when `make ext-install` succeeded and the branch was not restored
++          (for example `push_unknown` or step 9 overrode the stop reason to
++          `ほかの変更があり戻さなかった`): that `make ext-install` ran.
+     - **When `解消した`:**
+       - **変更したファイルと適用した規則**: for each file `/mergemain` modified
+         (every conflicted file and every file modified by a take-in rule), state
+         the rule applied (`README`・`ADR`・`プロトコル番号`・`両側の変更を保つ`)
+         and a concise summary of how it was resolved, or `なし` if none.
++      - **拡張の依存**: state whether `make ext-install` was run.
+       - **新しい head**: the pushed `new_head` commit ID.
+       - **道具の入れ直し案内** (when any `protocol_tool:` line was reported):
+         list each tool whose protocol number changed and state that the user
+````
 
 ## 9. 実地の確かめの記録
 
