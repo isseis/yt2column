@@ -12,11 +12,12 @@
 
 ## 1. 設計の全体像
 
-本タスクでは、`internal/fixprguard` と `cmd/fixprguard` のテストを並列に実行できるようにし、テストのリポジトリを作る費用を下げる（[01_requirements.md](01_requirements.md) F-001〜F-005）。そのために、次の 3 つを変える。
+本タスクでは、`internal/fixprguard` と `cmd/fixprguard` のテストを並列に実行できるようにし、テストのリポジトリを作る費用を下げる（[01_requirements.md](01_requirements.md) F-001〜F-006）。そのために、次の 4 つを変える。
 
 -   **製品:** `internal/fixprguard` の `Worktree` は、作業ツリーのディレクトリを呼び出し元から受け取る。CLI は、プロセスの作業ディレクトリを表す値を渡す（F-002）。
 -   **テストの補助:** 補助は、`t.Chdir` と `t.Setenv` を使わずに、テストごとのリポジトリと `HOME` を用意する。runner と準備の git には、テストごとの環境を渡す（F-001）。
 -   **フィクスチャ:** フィクスチャは、パッケージで 1 回だけ作ったひな形のコピーにする（F-003）。
+-   **冗長なテスト:** ほかのテストと同じ確かめを持つだけのテストとサブテストを、並列化の前に削除する（F-006、8.4 節）。
 
 本書の行番号は、コミット `98456465`（`origin/main`）で確かめた。H-01〜H-07 は、要件の段階から申し送られた設計の事項（[design_handoff.md](design_handoff.md)）で、各項目の扱いは 11 章にまとめる。
 
@@ -110,6 +111,14 @@ flowchart LR
     -   理由: git は、`PWD` が作業ディレクトリと同じ場所を指すときだけ `PWD` を使う。そのため、古い `PWD` が残っても git の対象は変わらない。ただし、フックのシェルなど、git の子が `PWD` を読む余地を残さないために、テストでは `PWD` を合わせる。CLI は `Dir` を設定しないので、子は今と同じ正しい `PWD` を受け継ぐ。
     -   作成者が決めた（H-01）。PR のレビューで確かめてもらう。
     -   ADR: なし。
+
+### 1.4. 実装の際に決めたこと（2026-11-27）
+
+-   **冗長なテストの削除:** 並列化の前に、ほかのテストと同じ経路と判定を確かめているだけのテストとサブテストを削除する（要件書 F-006）。候補と確かめ方は 8.4 節に置く。
+    -   理由: 消えるテストを速くする手間を省く。`internal/fixprguard` は直列に動くので、削除した葉のテストの時間は、そのまま壁時計の時間から減る。
+    -   採らなかった案: 別のタスクにする案（同じテストを先に速くする手間が無駄になる）。
+    -   人が選んだ。ADR: なし（このタスクの範囲の変更で、[ADR-0037](../../dev/adr/0037-test-deletion-coverage.md) の削除の規則は変えずに当てはめる）。
+-   **削除と計測（AC-12）:** 計測の前の木は変えない。削除で減った時間も短縮に数え、その分をパッケージごとに記録する（8.2 節、要件書 AC-13）。人が選んだ。ADR: なし。
 
 ## 2. システム構成
 
@@ -501,11 +510,12 @@ CLI の流れは変わらない。`main` は `osEnv()` の `env` で `run` を�
 | AC-09 | `git diff --stat <マージベース> -- docs/dev/guides/fixprguard_guide.md` が空で、`const Protocol` の行の差分が空であることを、PR ごとに確かめる |
 | AC-10 | 3.6 節の数え方で、前（13 回と 12 回）と後（1 回。ひな形は別に 13 回と 12 回）を PR の説明に記録する |
 | AC-11 | 3.6 節の同等性のテストと分離のテスト。前の手順との一致は、PR のレビューで差分を読んで記録する（3.6 節） |
-| AC-12・AC-13 | 計測の手順（8.2 節）を、タスクを終える PR で実行する |
-| AC-14 | 実装の PR の中で、製品を変えるコミットを先に置く（9 章）。その PR で製品を最後に変えたコミットを `BASE` にして `make coverage-compare` を実行する |
+| AC-12・AC-13 | 計測の手順（8.2 節）を、タスクを終える PR で実行する。削除で減った時間は、削除の PR のテストの名前の比較（8.2 節）で、2 つの木のパッケージの時間の差として取る |
+| AC-14 | 実装の PR の中で、製品を変えるコミットを先に置く（9 章）。その PR で製品を最後に変えたコミットを `BASE` にして `make coverage-compare` を実行する。削除の PR では、AC-18 の比較が代わる（8.4 節） |
 | AC-15 | テストの名前の比べ方（8.2 節）を、実装の PR ごとに実行する |
 | AC-16 | 期待値を変えたテストを理由とともに PR の説明に記録する。本設計は期待値を変えないので、記録は空になる見込みである。`ignored_test.go:760-770` の fake の比べる名前の変更（3.2 節）は、準備の変更として記録する。製品を変えるコミットのテストの差分が、呼び出しの引数と準備に限られることを、PR のレビューで読む |
 | AC-17 | 実装の PR ごとに `make test` と `make lint` を実行する |
+| AC-18 | 8.4 節の確かめ方。削除のコミットごとの `make coverage-compare BASE=<親>` と、それが見分けられない削除の記録 |
 
 ### 8.2. 計測とテストの名前の比べ方（H-07）
 
@@ -526,6 +536,45 @@ CLI の流れは変わらない。`main` は `osEnv()` の `env` で `run` を�
 -   **セキュリティのテスト:** 信頼の境界の判定のテストは、期待値を変えずに残す。AC-07 の確かめ（6.1 節）と、AC-08 の `TestRunInProcessDir` が、本タスクに特有のセキュリティの確かめである。
 -   **壊して失敗を確かめる:** 新しく足すテストは、それぞれ確かめる対象を壊して失敗することを確かめ、コミットメッセージに書く（`CLAUDE.md`「Testing Strategy」）。
 
+### 8.4. 冗長なテストの削除（F-006）
+
+**候補:** 次の 21 件である。PR-2（#1196）の前のコミット `6c60f9f8` で、`go test -tags test -race -count=1 -json ./...` の時間とテストのコードを読んで挙げた。位置はそのコミットのもので、秒は葉のテストの時間である。表に挙げない `cmd/` のファイルは `internal/fixprguard` のものである。
+
+| ID | 位置 | テスト・サブテスト | 冗長と見る理由 | 秒 |
+|---|---|---|---|---|
+| C1 | `review_test.go:105` | `TestCheckReviewStateLine/line_not_from_the_baseline` | `over_the_limit` と同じ `lineTooLong` の戻り（`gitstate.go:913`）を、同じ n で通る | 5.35 |
+| C2 | `worktree_flow_test.go:425` | `TestFinishRejectsBodyFile` の `no_description`・`at_sign`・`carriage_return`・`escape`・`line_separator`・`bidi_override`・`noncharacter`・`empty_line`・`leading_empty_line`・`prefix_not_at_start` | どの行も、純粋な `checkCommitBody`（`write.go:125-140`）に届くためだけにリポジトリを作る。`TestCommitBodyChecks`（`write_test.go:99`）の純粋な表に移す。`other_line`・`rejected_as_a_file`・`checked_before_the_work_tree`・`file_inside_the_work_tree` は残す | 10.29 |
+| C3 | `worktree_flow_test.go:451` | `TestFinishRejectsBodyFile/mention` の `codex`・`sourcery-ai`・`sourceryai` | `TestCheckPostText` が `RejectedMentions()` のすべてを回す。`coderabbitai` は残す | 3.46 |
+| C4 | `ignored_test.go:1010` | `TestCheckStateIgnoredChanges` の `agents_skill_created`・`ignored_agents_md_created`・`envrc_created`・`ignored_mk_created`・`settings_local_created`・`settings_local_rewritten`・`ignored_makefile_rewritten`・`nested_repository_created`・`unresolved_link_resolves`・`modification_time_only`・`new_lower_gitignore` | 見張るパターンの行は `TestIsWatched` と重なる（`selectTargets`、`ignored.go:366-397` はパターンごとに分岐しない）。`settings_local_created` は `settings_local_not_ignored_created` と、書き直しの行は `env_rewritten` と同じである。残りは `TestTargetEntries`・`TestTargetStateDigest`・`new_lower_gitignore_ignoring_itself` が持つ | 10.79 |
+| C5 | `review_test.go:169` | `TestCheckReviewStateOrder` の `branch_switched`・`detached_head`・`hook_added`・`info_changed`・`ignored_changed` | `TestBaselineDetectsChange` と無視のテストと同じ `compareState`・`CheckState` の経路である。`config_changed` と `branch_switched_onto_a_merge` は残す | 7.74 |
+| C6 | `gitstate_test.go:597` | `TestConfigListFailureKinds/check_state` の `output_over_cap`・`cancelled`・`timed_out`・`not_started`・`nonzero_exit` | 純粋な `configListFailure`（`gitstate.go:520-531`）の表に移す。結合は `TestConfigListUnreadable` が持つ。`malformed_listing` は残す | 6.79 |
+| C7 | `gitstate_test.go:613` | `TestConfigListFailureKinds/begin` の `output_over_cap`・`cancelled`・`not_started`・`timed_out` | `Baseline`（`gitstate.go:775-777`）は誤りの種類で分岐しない。`nonzero_exit` と `malformed_listing` は残す | 3.49 |
+| C8 | `gitstate_test.go:87` | `TestBaselineDetectsChange` の `current_branch_added`・`current_branch_removed`・`main_branch`・`two_level_branch_setting`・`remote_push_default`・`remote_added`・`include_added`・`multi_value_order` | それぞれ `TestConfigListDigestClassification` の行（`configlist.go:120-125`）と重なる。`config` の行が層の確かめを持つ | 5.65 |
+| C9 | `review_test.go:81` | `TestCheckReviewStateLine` の `three_review_commits`・`merge_inside_the_line`・`commit_names_a_review_commit`・`push_target_not_moved` | `one_review_commit`・`at_the_limit`・`head_is_a_merge`（`:903`）・`another_phase4_commit`（`:908`）と同じ分岐である。`push_target_not_moved` では、`checkLocal` が `remoteOID` の前に戻る | 6.91 |
+| C10 | `worktree_flow_test.go:387` | `TestFinishCommitBody` の `ends_with_lf`・`no_trailing_lf` | `commitMessage` の `TrimSuffix`（`worktree.go:340`）だけが違う。純粋な表に移す。`trailing_spaces` は、そのまま保存されることの確かめとして残す | 5.18 |
+| C11 | `gitstate_test.go:464` | `TestOtherBranchConfigIgnored` の `global_config`・`worktree_config`・`include_path_target`・`subsection_extends_current_branch` | digest は設定の出どころを読まない（`configlist.go:27-28`）。単体の表がそれらの出どころを持つ。`include_if_target` は残す | 5.08 |
+| C12 | `worktree_flow_test.go:613` | `TestPushRechecks` の `hooks_changed`・`branch_switched` | `TestBaselineDetectsChange` が持つ。`config_changed`・`head_is_not_the_commit`・`remote_branch_moved`・`commit_not_on_the_baseline` は残す | 4.03 |
+| C13 | `review_test.go:223` | `TestCheckReviewStateInput` の `commit_short`・`commit_empty` | どれも同じ `!validOID` の戻り（`worktree.go:577-585`）を通る。`commit_uppercase` は残す | 3.86 |
+| C14 | `ignored_test.go:405` | `TestCollectTargetsWatchedDirGitNames/.agents` の `git_directory_upper`・`git_file`・`git_suffix_only`・`nested_repository`・`linked_worktree`・`top_dir_is_a_nested_repository` | `checkTopDirGitNames`（`ignored.go:410-451`）はディレクトリで分岐しない。`.claude` の組み合わせと `.agents/git_directory` は残す | 3.22 |
+| C15 | `worktree_flow_test.go:549` | `TestFinishAfterOutOfScope/execution_file_as_thread_path` | `TestScopeRules/makefile_is_path` が持つ。`Finish` は範囲の規則を見ない | 2.96 |
+| C16 | `cmd/fixprguard/main_test.go:786` | `TestInspectExitCode` の `outside_allow_list`・`instruction_file` | 終了コードは `len(OutOfScope)` だけで決まり、規則は `TestScopeRules` が持つ | 2.81 |
+| C17 | `review_test.go:384` | `TestPushReviewedStops` の `commit_malformed`・`below_the_top`・`phase4_push_not_arrived` | `CheckReviewState` と同じ `checkReviewInput` を通る。`phase4_push_not_arrived` は `remote_moved_on` と同じ分岐（`gitstate.go:977`）である | 2.27 |
+| C18 | `cmd/fixprguard/main_test.go:1751` | `TestReviewCommandsRefuse/push-review` の `commit_malformed`・`head_rule` | `check` と `pushReview`（`main.go:714-731`）は、共有する停止を包む対称の関数である。`check/*` は残す | 2.22 |
+| C19 | `cmd/fixprguard/main_test.go:1595` | `TestFinishBodyFileRun/message_rewritten` | 部分は `TestFinishDetectsRewrittenMessage`・`TestStopOutputDetails/parts`・`TestStopKinds` が持つ。`commit_holds_body` は残す | 1.92 |
+| C20 | `worktree_flow_test.go:855` | `TestPushStopsOnIgnoredChange` | `CheckState` を先に呼ぶことは `TestPushRechecks/config_changed` が、停止は `TestCheckStateIgnoredChanges` が持つ | 1.41 |
+| C21 | `cmd/fixprguard/main_test.go:1723` | `TestPushReviewCommand/nothing_to_send` | ライブラリの側は `TestPushReviewedStops/nothing_to_send` が、終了コードの対応は `check/commit_malformed` が持つ | 0.87 |
+
+**冗長でないと判断したもの（削除しない）:** `TestCheckReviewStateLine` の `at_the_limit`・`over_the_limit`（境界の組。費用の 32 のコミットのフィクスチャは並列化で扱う）。フックの digest の行、`info_exclude`・`info_attributes`、`skip_worktree`・`assume_unchanged`、git の設定の一覧を固定する行（`current_branch_with_dot`・`current_branch_old_syntax`・`global_config`・`included_config`・`worktree_config` など）。残す無視の行（`fifo`、`.gitignore` の変種、リンクのフィールド、順序の行）。`Finish` の順序と巻き戻しのテスト。`cmd/fixprguard` の `TestStopKinds`、runner の環境のテスト、出力と順序の契約。
+
+**確かめ方:**
+
+-   **候補の確かめ:** 候補は、コードを読んで立てた仮説である。PR-2 の後のコードで 1 件ずつ、理由がコードで成り立つかを読み、成り立たない候補と行は削除しない。結果は PR の説明に記録する。
+-   **削除のコミット:** 削除は、候補ごとに削除だけのコミットにし、その親を `BASE` にした `make coverage-compare` の `PASS` の出力を、コミットメッセージと PR の説明に記録する（`CLAUDE.md`「Testing Strategy」、AC-18）。
+-   **移す行:** C2・C6・C10 は、新しい行を純粋な関数の表に先にコミットする。各行について、確かめる対象のコードを壊して失敗することを確かめ、コミットメッセージに書く。古い行の削除は、その後の別のコミットにする。
+-   **`coverage-compare` が見分けられない削除:** パターンの一覧のデータの行（C4、C14）、git の振る舞いだけが違う行（C4 の `new_lower_gitignore`、C8 の `multi_value_order`、C11）、順序と配線の確かめ（C5、C12、C17、C18、C20）である。これらは、同じ確かめを持つ残す行をコミットメッセージに書くか、共有するコードを壊して残す行が失敗することを確かめてコミットメッセージに書く。
+-   **終えたタスクの計画書:** タスク 0030、0033、0034、0035（AC-03、C11 の出どころ）、0036（AC-14、C16 の行）、0053、0057（AC-04、C15 の行）、0076、0120、0122 の計画書が、これらのテストを挙げている。削除する行を AC の確かめに挙げているときは、その AC を確かめ続けるテストを PR の説明に記録する。終えた計画書は書き換えない。
+-   **名前の比較（AC-15）:** 削除の PR では、テストの名前の比較（8.2 節）が削除した組を欠けたものとして報告する。AC-15 は削除の規則に従って削除したテストを除くので、欠けた組が削除した行とちょうど一致することを読んで確かめる。
+
 ## 9. 実装の優先順位
 
 AC-14 のため、製品を変えるコミットを、テストだけを変えるコミットより前に置く。PR の区切りは実装計画で決める。次の順序を想定する。
@@ -533,9 +582,10 @@ AC-14 のため、製品を変えるコミットを、テストだけを変え�
 1.  **見込みの確かめ:** 8.2 節の「見込みの確かめ」を行う。
 2.  **製品の変更（製品を変えるコミット）:** `WorktreeDir` を足し、`NewWorktree` と 3.2 節の関数を変える。CLI に `env.dir` を足す。テストは、`NewWorktree` と 3.2 節の関数の呼び出しの引数と、補助がディレクトリを受け取って `WorktreeDir` と runner の `Dir` を作る準備だけを変える。`ignored_test.go:760-770` の fake の比べる名前もここで変える（3.2 節）。この時点では、補助はまだ `t.Chdir`・`t.Setenv` を呼び、テストは直列のままである（AC-16）。
 3.  **隔離と環境（テストだけを変えるコミット）:** `fixprguardtest` の隔離と環境、2 つの `TestMain` を足す。補助から `t.Chdir`・`t.Setenv` を外し、作業ディレクトリを変えていたテストと、相対パスで読み書きしていたテストを、ディレクトリを渡す形にする（3.5 節）。パッケージのディレクトリから読むテストを `PackageDir` から読む形にする。`construction_test.go` と `pipeline_test.go` の一覧に加える。AC-06 と AC-08 の直列のテストを足す。AC-07 の確かめをする。
-4.  **並列化（テストだけを変えるコミット）:** 4 章の一覧のほかのテストとサブテストに `t.Parallel()` を足す。`-race -count=3` で確かめる。
-5.  **フィクスチャの軽量化（テストだけを変える、最適化のコミット）:** ひな形とコピー、同等性と分離のテストを足す。`CLAUDE.md`「Performance」に従い、別のコミットにして、義務をコミットメッセージに書く。
-6.  **計測と記録:** 8.2 節の計測、AC-10・AC-11・AC-15・AC-16 の記録、`package_reference.md` の行を仕上げる。
+4.  **冗長なテストの削除（テストだけを変えるコミット）:** 8.4 節の候補を確かめ、移す行を足してから、削除だけのコミットで削除する。並列化の前に置く。
+5.  **並列化（テストだけを変えるコミット）:** 4 章の一覧のほかのテストとサブテストに `t.Parallel()` を足す。`-race -count=3` で確かめる。
+6.  **フィクスチャの軽量化（テストだけを変える、最適化のコミット）:** ひな形とコピー、同等性と分離のテストを足す。`CLAUDE.md`「Performance」に従い、別のコミットにして、義務をコミットメッセージに書く。
+7.  **計測と記録:** 8.2 節の計測、AC-10・AC-11・AC-15・AC-16 の記録、`package_reference.md` の行を仕上げる。
 
 ## 10. 将来の拡張性
 
@@ -558,3 +608,4 @@ AC-14 のため、製品を変えるコミットを、テストだけを変え�
 ## 変更履歴
 
 - 2026-11-26 承認（isseis、#1180）
+- 2026-11-27 セッション中の再承認：冗長なテストの削除（8.4 節）を足した（isseis、#1201）

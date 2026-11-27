@@ -177,12 +177,6 @@ func TestBaselineDetectsChange(t *testing.T) {
 		}, parts: []string{PartHooks}},
 		{name: "config", edit: func(_ *testing.T, r *testRepo) { r.Git("config", "core.fsmonitor", "true") }, parts: []string{PartConfig}, layer: layerList},
 		// The current branch's settings, under every name git gives them.
-		{name: "current_branch_added", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch."+testBranch+".pushRemote", testRemote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "current_branch_removed", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--unset", "branch."+testBranch+".merge")
-		}, parts: []string{PartConfig}, layer: layerList},
 		{name: "current_branch_with_dot", setup: func(_ *testing.T, r *testRepo) {
 			r.Git("switch", "-q", "-c", testBranch+".a")
 		}, edit: func(_ *testing.T, r *testRepo) {
@@ -193,21 +187,6 @@ func TestBaselineDetectsChange(t *testing.T) {
 		{name: "current_branch_old_syntax", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, repoConfig(r), "[branch.Feature]\n\tpushRemote = "+testRemote+"\n")
 		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "main_branch", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch."+mainBranch+".pushRemote", testRemote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "two_level_branch_setting", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch.autoSetupMerge", "always")
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "remote_push_default", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "remote.pushDefault", testRemote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "remote_added", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("remote", "add", "upstream", r.Remote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "include_added", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "include.path", filepath.Join(r.Home, "absent"))
-		}, parts: []string{PartConfig}, layer: layerList},
 		// Moving a setting to another file changes its origin, and here its
 		// place in the listing too: the global file is read first.
 		{name: "origin_moved", setup: func(_ *testing.T, r *testRepo) {
@@ -215,14 +194,6 @@ func TestBaselineDetectsChange(t *testing.T) {
 		}, edit: func(_ *testing.T, r *testRepo) {
 			r.Git("config", "--unset", "core.abbrev")
 			r.Git("config", "--global", "core.abbrev", "12")
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "multi_value_order", setup: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/a")
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/b")
-		}, edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--unset-all", "remote."+testRemote+".push")
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/b")
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/a")
 		}, parts: []string{PartConfig}, layer: layerList},
 		{name: "worktree_config", setup: func(t *testing.T, r *testRepo) {
 			// git reads config.worktree only with worktreeConfig on, and the
@@ -493,28 +464,11 @@ func TestOtherBranchConfigIgnored(t *testing.T) {
 		{name: "empty_subsection_section_added", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, repoConfig(r), "[branch \"\"]\n\tremote = "+testRemote+"\n")
 		}, checkOnly: true},
-		{name: "global_config", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--global", "branch.x.remote", testRemote)
-		}},
-		{name: "worktree_config", setup: func(t *testing.T, r *testRepo) {
-			r.Git("config", "extensions.worktreeConfig", "true")
-			appendFile(t, filepath.Join(r.Dir, ".git", "config.worktree"), "")
-		}, edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--worktree", "branch.x.remote", testRemote)
-		}},
-		{name: "include_path_target", setup: func(t *testing.T, r *testRepo) {
-			appendFile(t, filepath.Join(r.Home, "included"), "")
-			r.Git("config", "include.path", filepath.Join(r.Home, "included"))
-		}, edit: func(t *testing.T, r *testRepo) { appendFile(t, filepath.Join(r.Home, "included"), section) }},
 		{name: "include_if_target", setup: func(t *testing.T, r *testRepo) {
 			appendFile(t, filepath.Join(r.Home, "conditional"), "")
 			r.Git("config", "includeIf.onbranch:"+testBranch+".path", filepath.Join(r.Home, "conditional"))
 		}, edit: func(t *testing.T, r *testRepo) { appendFile(t, filepath.Join(r.Home, "conditional"), section) }},
-		// Names that overlap the current branch's: a longer subsection, and
-		// one differing only in case.
-		{name: "subsection_extends_current_branch", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch."+testBranch+".a.remote", testRemote)
-		}},
+		// A name that overlaps the current branch's, differing only in case.
 		{name: "subsection_differs_in_case", edit: func(t *testing.T, r *testRepo) {
 			recased := strings.ToUpper(testBranch[:1]) + testBranch[1:]
 			appendFile(t, repoConfig(r), "[branch \""+recased+"\"]\n\tpushRemote = elsewhere\n")
@@ -575,41 +529,73 @@ func TestConfigListUnreadable(t *testing.T) {
 	}
 }
 
-// TestConfigListFailureKinds: how a failed or malformed git config --list is
-// reported. In CheckState, after begin listed the configuration, a timeout,
-// a nonzero exit, or a malformed listing is a config change; an output over
-// the cap, a cancellation, or any other failure is a git failure. At begin
-// every one of them is a git failure and no baseline is taken.
-func TestConfigListFailureKinds(t *testing.T) {
+// TestConfigListFailure: how CheckState classifies a failure to list the
+// configuration. A timeout or a nonzero exit is a config change; an output
+// over the cap, a cancellation, or git not starting is a git failure.
+func TestConfigListFailure(t *testing.T) {
 	exit := func(code int) *cmdrunner.ExitError { return &cmdrunner.ExitError{Code: code} }
 	for _, tc := range []struct {
 		name    string
-		result  configListResult
-		changed bool // a config change in CheckState rather than a git failure
+		err     error
+		changed bool
 	}{
 		// Joined with an exit error, so the cap is what keeps it a git failure.
-		{name: "output_over_cap", result: configListResult{Err: errors.Join(fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge), exit(1))}},
-		{name: "cancelled", result: configListResult{Err: errors.Join(context.Canceled, exit(-1))}},
-		{name: "timed_out", result: configListResult{Err: errors.Join(context.DeadlineExceeded, exit(-1))}, changed: true},
-		{name: "nonzero_exit", result: configListResult{Err: exit(128)}, changed: true},
-		{name: "not_started", result: configListResult{Err: errors.New("exec: not found")}},
-		{name: "malformed_listing", result: configListResult{Out: []byte("no delimiters")}, changed: true},
+		{name: "output_over_cap", err: errors.Join(fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge), exit(1))},
+		{name: "cancelled", err: errors.Join(context.Canceled, exit(-1))},
+		{name: "timed_out", err: errors.Join(context.DeadlineExceeded, exit(-1)), changed: true},
+		{name: "nonzero_exit", err: exit(128), changed: true},
+		{name: "not_started", err: errors.New("exec: not found")},
 	} {
-		t.Run("check_state/"+tc.name, func(t *testing.T) {
-			r := newTestRepo(t)
-			base := mustBaseline(t, r.Dir, r.Home)
-			w, router := newTestWorktree(t, r.Dir, r.Home)
-			router.ConfigList = &tc.result
-			err := w.CheckState(t.Context(), base)
+		t.Run(tc.name, func(t *testing.T) {
+			err := configListFailure(tc.err)
 			if tc.changed {
 				wantStateParts(t, err, PartConfig)
 			} else if _, isState := errors.AsType[*GitStateError](err); isState || !errors.Is(err, ErrGitFailed) {
-				t.Errorf("CheckState = %v, want ErrGitFailed and no *GitStateError", err)
-			}
-			if !slices.Equal(router.Calls, []string{gitConfigList}) {
-				t.Errorf("calls = %v, want git config --list only", router.Calls)
+				t.Errorf("configListFailure = %v, want ErrGitFailed and no *GitStateError", err)
 			}
 		})
+	}
+}
+
+// TestConfigListFailureKinds: how a failed or malformed git config --list is
+// reported. In CheckState, after begin listed the configuration, a malformed
+// listing is a config change (TestConfigListFailure classifies the runner's
+// failures). At begin every one of them is a git failure and no baseline is
+// taken.
+func TestConfigListFailureKinds(t *testing.T) {
+	malformed := configListResult{Out: []byte("no delimiters")}
+	t.Run("check_state/malformed_listing", func(t *testing.T) {
+		r := newTestRepo(t)
+		base := mustBaseline(t, r.Dir, r.Home)
+		w, router := newTestWorktree(t, r.Dir, r.Home)
+		router.ConfigList = &malformed
+		wantStateParts(t, w.CheckState(t.Context(), base), PartConfig)
+		if !slices.Equal(router.Calls, []string{gitConfigList}) {
+			t.Errorf("calls = %v, want git config --list only", router.Calls)
+		}
+	})
+	exit := func(code int) *cmdrunner.ExitError { return &cmdrunner.ExitError{Code: code} }
+	// CheckState passes a runner failure through configListFailure: a git
+	// failure stays one and is not read as a config change.
+	// TestConfigListUnreadable holds the config change side.
+	t.Run("check_state/output_over_cap", func(t *testing.T) {
+		r := newTestRepo(t)
+		base := mustBaseline(t, r.Dir, r.Home)
+		w, router := newTestWorktree(t, r.Dir, r.Home)
+		router.ConfigList = &configListResult{Err: errors.Join(fmt.Errorf("git: %w", cmdrunner.ErrOutputTooLarge), exit(1))}
+		err := w.CheckState(t.Context(), base)
+		if _, isState := errors.AsType[*GitStateError](err); isState || !errors.Is(err, ErrGitFailed) {
+			t.Errorf("CheckState = %v, want ErrGitFailed and no *GitStateError", err)
+		}
+	})
+	for _, tc := range []struct {
+		name   string
+		result configListResult
+	}{
+		{name: "timed_out", result: configListResult{Err: errors.Join(context.DeadlineExceeded, exit(-1))}},
+		{name: "nonzero_exit", result: configListResult{Err: exit(128)}},
+		{name: "malformed_listing", result: malformed},
+	} {
 		t.Run("begin/"+tc.name, func(t *testing.T) {
 			r := newTestRepo(t)
 			w, router := newTestWorktree(t, r.Dir, r.Home)

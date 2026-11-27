@@ -93,9 +93,10 @@ func TestBodyFileChecks(t *testing.T) {
 	}
 }
 
-// TestCommitBodyChecks holds the boundary of the trailing LFs: none and one
-// are accepted, two are not. TestFinishCommitBody passes the other accepted
-// forms through finish, and TestFinishRejectsBodyFile the other rejections.
+// TestCommitBodyChecks holds the boundary of the trailing LFs (none and one
+// are accepted, two are not) and each line rule checkCommitBody refuses.
+// TestFinishRejectsBodyFile passes a refused body through finish, which
+// shows finish runs the check.
 func TestCommitBodyChecks(t *testing.T) {
 	const line = "Editorial correction: docs/x.md: a; no decision changed"
 	for _, tc := range []struct {
@@ -106,6 +107,16 @@ func TestCommitBodyChecks(t *testing.T) {
 		{name: "one_line", body: line},
 		{name: "two_lines_lf", body: line + "\n" + line + "\n"},
 		{name: "two_lfs", body: line + "\n\n", wantErr: true},
+		{name: "no_description", body: "Editorial correction:  \n", wantErr: true},
+		{name: "at_sign", body: line + " a@b\n", wantErr: true},
+		{name: "carriage_return", body: line + "\r\n", wantErr: true},
+		{name: "escape", body: line + " \x1b[31m\n", wantErr: true},
+		{name: "line_separator", body: line + " a\u2028b\n", wantErr: true},
+		{name: "bidi_override", body: line + " a\u202eb\n", wantErr: true},
+		{name: "noncharacter", body: line + " a\ufffeb\n", wantErr: true},
+		{name: "empty_line", body: line + "\n\n" + line + "\n", wantErr: true},
+		{name: "leading_empty_line", body: "\n" + line + "\n", wantErr: true},
+		{name: "prefix_not_at_start", body: " " + line + "\n", wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := checkCommitBody(tc.body)

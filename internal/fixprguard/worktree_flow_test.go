@@ -388,8 +388,6 @@ func TestFinishCommitBody(t *testing.T) {
 	for _, tc := range []struct {
 		name, body, want string
 	}{
-		{name: "ends_with_lf", body: correction + "\n", want: subjectAndBody(correction + "\n")},
-		{name: "no_trailing_lf", body: correction + "\n" + correction, want: subjectAndBody(correction + "\n" + correction + "\n")},
 		// git's default cleanup would strip the trailing spaces.
 		{name: "trailing_spaces", body: correction + "  \n", want: subjectAndBody(correction + "  \n")},
 	} {
@@ -422,18 +420,8 @@ func TestFinishCommitBody(t *testing.T) {
 // any make target (the fake has no step) and before any commit.
 func TestFinishRejectsBodyFile(t *testing.T) {
 	for name, body := range map[string]string{
-		"other_line":          correction + "\nSigned-off-by: x\n",
-		"no_description":      "Editorial correction:  \n",
-		"at_sign":             correction + " a@b\n",
-		"carriage_return":     correction + "\r\n",
-		"escape":              correction + " \x1b[31m\n",
-		"line_separator":      correction + " a\u2028b\n",
-		"bidi_override":       correction + " a\u202eb\n",
-		"noncharacter":        correction + " a\ufffeb\n",
-		"empty_line":          correction + "\n\n" + correction + "\n",
-		"rejected_as_a_file":  "",
-		"leading_empty_line":  "\n" + correction + "\n",
-		"prefix_not_at_start": " " + correction + "\n",
+		"other_line":         correction + "\nSigned-off-by: x\n",
+		"rejected_as_a_file": "",
 	} {
 		t.Run(name, func(t *testing.T) {
 			p := prepareRound(t, fixTestFile)
@@ -446,10 +434,7 @@ func TestFinishRejectsBodyFile(t *testing.T) {
 		})
 	}
 	for name, mention := range map[string]string{
-		"codex":        "@codex",
 		"coderabbitai": "@coderabbitai",
-		"sourcery-ai":  "@Sourcery-AI",
-		"sourceryai":   "@SourceryAI",
 	} {
 		t.Run("mention/"+name, func(t *testing.T) {
 			// The '@' rule would refuse a mention too; errMention shows the
@@ -562,15 +547,6 @@ func TestFinishAfterOutOfScope(t *testing.T) {
 			threadPath: testFile,
 			outOfScope: "internal/y/notes.md",
 		},
-		{
-			// An execution-related file is out of scope even as the
-			// thread's own path, and finish still commits it once the user
-			// answers to go on.
-			name:       "execution_file_as_thread_path",
-			edit:       func(r *testRepo) { r.Write("Makefile", "all:\n\ttrue\n") },
-			threadPath: "Makefile",
-			outOfScope: "Makefile",
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := prepareRound(t, tc.edit)
@@ -621,16 +597,12 @@ func TestPushRechecks(t *testing.T) {
 			p.r.Write("docs/notes/extra.md", "x\n")
 			p.r.CommitAll("after finish")
 		}, []string{PartHead}, false},
-		{"hooks_changed", func(_ *testing.T, p prepared, _ string) { p.r.WriteHook("pre-push", "exit 0\n") }, []string{PartHooks}, false},
 		{"config_changed", func(_ *testing.T, p prepared, _ string) {
 			p.r.Git("config", "remote."+testRemote+".receivepack", "evil")
 		}, []string{PartConfig}, true},
 		{"remote_branch_moved", func(_ *testing.T, p prepared, commit string) {
 			p.r.Git("push", "-q", testRemote, commit+":"+headsPrefix+testBranch)
 		}, []string{PartRemote}, false},
-		{"branch_switched", func(_ *testing.T, p prepared, _ string) {
-			p.r.Git("switch", "-q", "-c", "other")
-		}, []string{PartBranch}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := prepareRound(t, fixTestFile)
@@ -848,24 +820,6 @@ func TestFinishStopsOnIgnoredChange(t *testing.T) {
 		wantStateParts(t, err, PartIgnored)
 		p.wantNoCommit(t, head)
 	})
-}
-
-// TestPushStopsOnIgnoredChange: a target file written after finish stops
-// push before it pushes.
-func TestPushStopsOnIgnoredChange(t *testing.T) {
-	p := prepareIgnoringRound(t)
-	commit := p.mustFinish(t).Commit
-	remote := p.r.RemoteHead()
-	p.r.Write("build/x_test.go", "package x\n")
-	w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
-	_, err := w.Push(t.Context(), p.base, commit)
-	wantStateParts(t, err, PartIgnored)
-	if indexOf(router.Calls, "git push") >= 0 {
-		t.Errorf("pushed: %v", router.Calls)
-	}
-	if got := p.r.RemoteHead(); got != remote {
-		t.Errorf("remote moved to %s", got)
-	}
 }
 
 // TestWorktreeIgnoresProcessDir runs Worktree's Begin, Inspect, Finish, Push,

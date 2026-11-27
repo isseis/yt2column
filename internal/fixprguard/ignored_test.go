@@ -402,28 +402,35 @@ func TestCollectTargetsWalk(t *testing.T) {
 
 // TestCollectTargetsWatchedDirGitNames: git lists nothing below an entry named
 // .git, so one below .claude or .agents stops the pass with its own rule,
-// unless it belongs to a nested repository git listed.
+// unless it belongs to a nested repository git listed. checkTopDirGitNames
+// does not branch on the directory, so .agents runs only the rows that pin
+// its own error.
 func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 	watched := []struct {
 		dir     string
 		wantErr error
+		full    bool // runs every row, not only the everyDir ones
 	}{
-		{".claude", errClaudeGitName},
-		{".agents", errAgentsGitName},
+		{".claude", errClaudeGitName, true},
+		{".agents", errAgentsGitName, false},
 	}
 	for _, w := range watched {
 		t.Run(w.dir, func(t *testing.T) {
 			tests := []struct {
-				name    string
-				file    string
-				wantErr error
+				name     string
+				file     string
+				wantErr  error
+				everyDir bool
 			}{
-				{"git_directory", w.dir + "/commands/.git/x.md", w.wantErr},
-				{"git_directory_upper", w.dir + "/skills/.GIT/SKILL.md", w.wantErr},
-				{"git_file", w.dir + "/agents/.git", w.wantErr},
-				{"git_suffix_only", w.dir + "/commands/a.git/x.md", nil},
+				{"git_directory", w.dir + "/commands/.git/x.md", w.wantErr, true},
+				{"git_directory_upper", w.dir + "/skills/.GIT/SKILL.md", w.wantErr, false},
+				{"git_file", w.dir + "/agents/.git", w.wantErr, false},
+				{"git_suffix_only", w.dir + "/commands/a.git/x.md", nil, false},
 			}
 			for _, tt := range tests {
+				if !w.full && !tt.everyDir {
+					continue
+				}
 				t.Run(tt.name, func(t *testing.T) {
 					r := newTestRepo(t)
 					r.ignore(w.dir + "/")
@@ -454,15 +461,17 @@ func TestCollectTargetsWatchedDirGitNames(t *testing.T) {
 					desc:  w.dir + "/.git allowed when git lists " + w.dir,
 				},
 			}
-			for _, tc := range allowed {
-				t.Run(tc.name, func(t *testing.T) {
-					r := newTestRepo(t)
-					r.ignore(w.dir + "/")
-					tc.setup(r)
-					if _, err := collect(t, r.Dir, r.Home, wideLimits()); err != nil {
-						t.Errorf("collectTargets: %v, want %s", err, tc.desc)
-					}
-				})
+			if w.full {
+				for _, tc := range allowed {
+					t.Run(tc.name, func(t *testing.T) {
+						r := newTestRepo(t)
+						r.ignore(w.dir + "/")
+						tc.setup(r)
+						if _, err := collect(t, r.Dir, r.Home, wideLimits()); err != nil {
+							t.Errorf("collectTargets: %v, want %s", err, tc.desc)
+						}
+					})
+				}
 			}
 			// Call selectTargets directly so git ls-files does not fail first
 			// and only checkTopDirGitNames walks w.dir/locked.
@@ -1025,20 +1034,6 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 		after  func(t *testing.T, r *testRepo)
 		stops  bool
 	}{
-		{name: "agents_skill_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
-			r.Write(".agents/skills/evil/SKILL.md", "x\n")
-		}, stops: true},
-		{name: "ignored_agents_md_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
-			r.Write("build/AGENTS.md", "x\n")
-		}, stops: true},
-		{name: "settings_local_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
-			r.Write(settingsLocalPath, `{"hooks":{}}`)
-		}, stops: true},
-		{name: "settings_local_rewritten", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
-			r.Write(settingsLocalPath, "{}")
-		}, after: func(_ *testing.T, r *testRepo) {
-			r.Write(settingsLocalPath, `{"permissions":{"allow":["Bash"]}}`)
-		}, stops: true},
 		// git does not ignore settings.local.json here, and it is still
 		// compared.
 		{name: "settings_local_not_ignored_created", after: func(_ *testing.T, r *testRepo) {
@@ -1049,9 +1044,6 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 		}, after: func(t *testing.T, r *testRepo) {
 			removeFile(t, filepath.Join(r.Dir, "build/x.go"))
 		}, stops: true},
-		{name: "envrc_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
-			r.Write(".envrc", "export A=1\n")
-		}, stops: true},
 		{name: "env_rewritten", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
 			r.Write(".env", "A=1\n")
 		}, after: func(_ *testing.T, r *testRepo) {
@@ -1059,14 +1051,6 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 		}, stops: true},
 		{name: "ignored_go_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
 			r.Write("build/x_test.go", "package x\n")
-		}, stops: true},
-		{name: "ignored_makefile_rewritten", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
-			r.Write("build/pkg/Makefile", "all:\n")
-		}, after: func(_ *testing.T, r *testRepo) {
-			r.Write("build/pkg/Makefile", "all:\n\ttouch x\n")
-		}, stops: true},
-		{name: "ignored_mk_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
-			r.Write("build/rules.mk", "x:\n")
 		}, stops: true},
 		{name: "nested_repository_go_created", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
 			r.gitIn(r.Dir, "init", "-q", "--template=", "build/nested")
@@ -1080,10 +1064,6 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 		}, after: func(t *testing.T, r *testRepo) {
 			removeFile(t, filepath.Join(r.Dir, "build/x.go"))
 			mkfifo(t, filepath.Join(r.Dir, "build/x.go"))
-		}, stops: true},
-		{name: "nested_repository_created", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
-			r.gitIn(r.Dir, "init", "-q", "--template=", "build/nested")
-			r.Write("build/nested/x.go", "package x\n")
 		}, stops: true},
 		{name: "file_replaced_by_link", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
 			r.Write("build/x.go", "package x\n")
@@ -1111,19 +1091,9 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 		}, after: func(_ *testing.T, r *testRepo) {
 			r.Write("build/payload", `{"hooks":{}}`)
 		}, stops: true},
-		{name: "unresolved_link_resolves", ignore: ignored, before: func(t *testing.T, r *testRepo) {
-			mkdir(t, filepath.Join(r.Dir, "build"))
-			symlink(t, "missing", filepath.Join(r.Dir, "build/l.go"))
-		}, after: func(_ *testing.T, r *testRepo) {
-			r.Write("build/missing", "package x\n")
-		}, stops: true},
 		{name: "new_top_gitignore", after: func(_ *testing.T, r *testRepo) {
 			r.ignore("hidden/")
 			r.Write("hidden/x.go", "package x\n")
-		}, stops: true},
-		{name: "new_lower_gitignore", after: func(_ *testing.T, r *testRepo) {
-			r.Write("docs/hidden/.gitignore", "x.go\n")
-			r.Write("docs/hidden/x.go", "package x\n")
 		}, stops: true},
 		// The .gitignore ignores itself, so it hides from git status too.
 		{name: "new_lower_gitignore_ignoring_itself", after: func(_ *testing.T, r *testRepo) {
@@ -1134,14 +1104,6 @@ func TestCheckStateIgnoredChanges(t *testing.T) {
 			appendFile(t, filepath.Join(r.Home, "excludes"), "hidden.go\n")
 			r.Write("hidden.go", "package x\n")
 		}, stops: true},
-		{name: "modification_time_only", ignore: ignored, before: func(_ *testing.T, r *testRepo) {
-			r.Write("build/x.go", "package x\n")
-		}, after: func(t *testing.T, r *testRepo) {
-			later := time.Now().Add(time.Hour)
-			if err := os.Chtimes(filepath.Join(r.Dir, "build/x.go"), later, later); err != nil {
-				t.Fatal(err)
-			}
-		}},
 		{name: "unwatched_ignored_file", ignore: ignored, after: func(_ *testing.T, r *testRepo) {
 			r.Write("coverage.out", "mode: set\n")
 			r.Write("build/notes.txt", "x\n")

@@ -26,6 +26,27 @@ func TestNewWorktreePanicsOnZeroWorktreeDir(t *testing.T) {
 	NewWorktree(WorktreeDir{}, nil, nil, nil)
 }
 
+// TestCommitMessageEndsInOneLF: the message finish commits with a body file
+// ends in exactly one LF, whether the body ends in one or not.
+// TestFinishCommitBody shows git stores the message as built.
+func TestCommitMessageEndsInOneLF(t *testing.T) {
+	const line = "Editorial correction: docs/x.md: a; no decision changed"
+	subject := CommitSubject(mustPR(t)) + "\n\n"
+	for _, tc := range []struct {
+		name, body, want string
+	}{
+		{name: "ends_with_lf", body: line + "\n", want: subject + line + "\n"},
+		{name: "no_trailing_lf", body: line + "\n" + line, want: subject + line + "\n" + line + "\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := commitMessage(FinishRequest{PR: mustPR(t), BodyFile: writeTextFile(t, tc.body)})
+			if err != nil || got != (finishMessage{text: tc.want, pinned: true}) {
+				t.Errorf("commitMessage = %+v, %v, want %q pinned", got, err, tc.want)
+			}
+		})
+	}
+}
+
 func TestBeginRejectsDirtyWorkTree(t *testing.T) {
 	for _, tc := range []struct {
 		name string

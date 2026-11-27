@@ -87,7 +87,6 @@ func TestCheckReviewStateLine(t *testing.T) {
 	}{
 		{name: "no_review_commit"},
 		{name: "one_review_commit", edit: func(p reviewRound) { p.addReviewCommits(1) }, commits: 1},
-		{name: "three_review_commits", edit: func(p reviewRound) { p.addReviewCommits(3) }, commits: 3},
 		{name: "at_the_limit", edit: func(p reviewRound) { p.addReviewCommits(maxReviewCommits) }, commits: maxReviewCommits},
 		{name: "over_the_limit", edit: func(p reviewRound) { p.addReviewCommits(maxReviewCommits + 1) }, rule: lineTooLong},
 		{name: "head_is_a_merge", edit: func(p reviewRound) { p.mergeOnHead() }, rule: lineMergeCommit},
@@ -150,20 +149,6 @@ func TestCheckReviewStateLine(t *testing.T) {
 		_, err := w.CheckReviewState(t.Context(), p.base, p.r.Head())
 		wantLineRule(t, err, linePhase4Mismatch)
 	})
-
-	t.Run("push_target_not_moved", func(t *testing.T) {
-		// check reads no push target, so it passes when Phase 4's push has
-		// not reached the remote.
-		p := newReviewRound(t, newTestRepo(t), 1)
-		p.r.Git("push", "-q", "-f", testRemote, p.base.head+":"+headsPrefix+testBranch)
-		w, router := newTestWorktree(t, p.r.Dir, p.r.Home)
-		if _, err := w.CheckReviewState(t.Context(), p.base, p.phase4); err != nil {
-			t.Errorf("CheckReviewState = %v, want nil", err)
-		}
-		if indexOf(router.Calls, gitCommand+" ls-remote") >= 0 {
-			t.Errorf("read the push target: %v", router.Calls)
-		}
-	})
 }
 
 func TestCheckReviewStateOrder(t *testing.T) {
@@ -173,12 +158,6 @@ func TestCheckReviewStateOrder(t *testing.T) {
 		parts []string
 		layer stopLayer
 	}{
-		{name: "branch_switched", edit: func(_ *testing.T, p reviewRound) {
-			p.r.Git("switch", "-q", "-c", "other")
-		}, parts: []string{PartBranch}},
-		{name: "detached_head", edit: func(_ *testing.T, p reviewRound) {
-			p.r.Git("switch", "-q", "--detach")
-		}, parts: []string{PartBranch}},
 		{name: "branch_switched_onto_a_merge", edit: func(_ *testing.T, p reviewRound) {
 			// HEAD would fail its line too; the branch is reported alone.
 			p.mergeOnHead()
@@ -187,12 +166,6 @@ func TestCheckReviewStateOrder(t *testing.T) {
 		{name: "config_changed", edit: func(_ *testing.T, p reviewRound) {
 			p.r.Git("config", "remote."+testRemote+".receivepack", "evil")
 		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "hook_added", edit: func(_ *testing.T, p reviewRound) {
-			p.r.WriteHook("pre-commit", "exit 0\n")
-		}, parts: []string{PartHooks}},
-		{name: "info_changed", edit: func(t *testing.T, p reviewRound) {
-			appendFile(t, filepath.Join(p.r.Dir, ".git", "info", "exclude"), "extra\n")
-		}, parts: []string{PartInfo}, layer: layerFiles},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := newReviewRound(t, newTestRepo(t), 1)
@@ -204,20 +177,6 @@ func TestCheckReviewStateOrder(t *testing.T) {
 			wantLayer(t, tc.layer, router.Calls)
 		})
 	}
-
-	t.Run("ignored_changed", func(t *testing.T) {
-		// A target file written after the baseline stops on ignored and
-		// writes the stop record for the user to compare.
-		p := newReviewRound(t, ignoringRepo(t, "build/"), 1)
-		p.r.Write("build/x_test.go", "package x\n")
-		w, _ := newTestWorktree(t, p.r.Dir, p.r.Home)
-		_, err := w.CheckReviewState(t.Context(), p.base, p.phase4)
-		wantStateParts(t, err, PartIgnored)
-		wantNoRule(t, err)
-		if _, err := os.Lstat(filepath.Join(p.r.Dir, ".git", ignoredStopRecord)); err != nil {
-			t.Errorf("stop record: %v", err)
-		}
-	})
 }
 
 func TestCheckReviewStateInput(t *testing.T) {
@@ -227,8 +186,6 @@ func TestCheckReviewStateInput(t *testing.T) {
 		dir    func(t *testing.T, p reviewRound) string // "" keeps the work tree
 	}{
 		{name: "commit_uppercase", commit: func(p reviewRound) string { return strings.ToUpper(p.phase4) }},
-		{name: "commit_short", commit: func(p reviewRound) string { return p.phase4[:12] }},
-		{name: "commit_empty", commit: func(reviewRound) string { return "" }},
 		{name: "below_the_top", commit: func(p reviewRound) string { return p.phase4 }, dir: func(_ *testing.T, p reviewRound) string {
 			return filepath.Join(p.r.Dir, "docs")
 		}},

@@ -14,30 +14,30 @@
 
 ### 1.1. 目的
 
-[01_requirements.md](01_requirements.md) の F-001〜F-005 を、[02_architecture.md](02_architecture.md) の設計どおりに実装する。`internal/fixprguard` と `cmd/fixprguard` のテストを `t.Parallel()` で動く形にし、テストのリポジトリをひな形のコピーで作る。CLI の振る舞いは変えない。設計の中身は設計書を参照し、本書は作業の順序・置き場所・確かめ方を定める。
+[01_requirements.md](01_requirements.md) の F-001〜F-006 を、[02_architecture.md](02_architecture.md) の設計どおりに実装する。`internal/fixprguard` と `cmd/fixprguard` のテストを `t.Parallel()` で動く形にし、テストのリポジトリをひな形のコピーで作る。その前に、ほかのテストと同じ確かめを持つだけの冗長なテストを削除する。CLI の振る舞いは変えない。設計の中身は設計書を参照し、本書は作業の順序・置き場所・確かめ方を定める。
 
 ### 1.2. 実装の原則
 
--   **製品を変えるコミットを先に置く（AC-14）:** PR-1 では、製品を変えるコミット（ステップ 1-2〜1-5）を、テストだけを変えるコミット（ステップ 1-6、1-7）より前に置く。PR-2 と PR-3 は製品を変えない。`make coverage-compare` の `BASE` は、PR-1 では PR-1 で製品を最後に変えたコミット、PR-2 と PR-3 ではマージベースである。`BASE` は PR を作る前とマージの前に決め直す。
+-   **製品を変えるコミットを先に置く（AC-14）:** PR-1 では、製品を変えるコミット（ステップ 1-2〜1-5）を、テストだけを変えるコミット（ステップ 1-6、1-7）より前に置く。PR-2〜PR-4 は製品を変えない。`make coverage-compare` の `BASE` は、PR-1 では PR-1 で製品を最後に変えたコミット、PR-2 と PR-4 ではマージベースである。PR-3 は、削除のコミットごとに、そのコミットの親を `BASE` にする（1.5 節）。`BASE` は PR を作る前とマージの前に決め直す。
 -   **テストだけを変えるコミットの後に製品を直すとき:** レビューの指摘などで、テストだけを変えるコミットの後に製品のコードを直す必要が出たら、AC-14 の順序が崩れる。その場合は、止めて人に尋ねる。対話的な rebase はしない。
 -   **期待値を変えない（AC-16）:** テストの差分は、製品の呼び出しの引数と、テストの準備の変更に限る。期待値を変えざるを得ないテストが見つかったら、設計の決定の変更なので、止めて人に尋ねる。
 -   **設計書と違うことが分かったら止まる:** 設計書 4 章の「実装の際に確かめること」で、並列にできないテストが見つかったときは、止めて人に尋ねる（[requirements_process.md](../../dev/conventions/requirements_process.md)「Editing an approved document」）。
--   **最適化は別のコミット（`CLAUDE.md`「Performance」）:** フィクスチャのひな形のコピー（ステップ 3-3）は、それだけのコミットにする。正しさの義務（設計書 1.3 節の「フィクスチャを速くする手段」）をコミットメッセージに書く。
+-   **最適化は別のコミット（`CLAUDE.md`「Performance」）:** フィクスチャのひな形のコピー（ステップ 4-3）は、それだけのコミットにする。正しさの義務（設計書 1.3 節の「フィクスチャを速くする手段」）をコミットメッセージに書く。
 -   **壊して失敗を確かめる:** 新しく足すテストは、壊し確認（確かめる対象を壊すと失敗することの確認）をして、そのことをコミットメッセージに書く（`CLAUDE.md`「Testing Strategy」）。`_checks/` のスクリプトの破壊の確かめは、一時スクリプトの記録（5.1 節）に書く。
 -   **lint の抑制は行ごと:** `fixprguardtest` は `_test.go` でないので、gosec などが当たる。git の起動やファイルの読み書きで抑制が要るときは、今の `internal/fixprguard/test_helpers_git.go` と同じく、その行だけに `//nolint:<linter>` と、テストの準備に限った理由を書く。ファイルやパッケージの全体には書かない。
 -   **長い実行:** 変更の前の木（1.3 節）の `internal/fixprguard` の `-race` の実行は 1 回で約 500 秒かかる（issue #1167 の計測）。`gotest.sh` の実行と `make coverage-compare` は、10 分以上の時間の上限を付けるか、バックグラウンドで実行する。
 
 ### 1.3. 計画の際に決めたこと（2026-11-26）
 
--   **PR の分け方:** 3 つに分ける。PR-1 は見込みの確かめ、製品の変更、直列に残す新しいテスト。PR-2 は作業ディレクトリの隔離とテストの環境。PR-3 は並列化、フィクスチャの軽量化、計測である（3.2 節）。
-    -   理由: 信頼の境界を守るツールの製品の変更（PR-1）を、大きなテストの書き直しと分けてレビューできる。AC-12 の計測は、タスクを終える PR（PR-3）で行うと要件が定めている。
+-   **PR の分け方:** 3 つに分ける。PR-1 は見込みの確かめ、製品の変更、直列に残す新しいテスト。PR-2 は作業ディレクトリの隔離とテストの環境。PR-4 は並列化、フィクスチャの軽量化、計測である（3.2 節）。2026-11-27 に、冗長なテストの削除の PR-3 を PR-2 と並列化の PR の間に足し、並列化の PR を PR-4 にした（1.5 節）。
+    -   理由: 信頼の境界を守るツールの製品の変更（PR-1）を、大きなテストの書き直しと分けてレビューできる。AC-12 の計測は、タスクを終える PR（PR-4）で行うと要件が定めている。
     -   採らなかった案: 4 つに分けて、並列化とフィクスチャを別の PR にする案。PR ごとの名前の比較と `coverage-compare` が 1 回増える割に、レビューのしやすさはあまり変わらない。2 つに分ける案は、製品の変更が大きなテストの書き直しと同じ PR に入る。
     -   2026-11-26 に人が選んだ。ADR: なし（このタスクの進め方で、ほかのタスクを縛らない）。
 -   **AC-01 などの確かめ:** `_checks/testshape/main.go` に、`go/ast` で 2 つのパッケージのテストを読む Go のプログラムを置く（5.1 節）。
     -   理由: 要件 2.3 節は、`t.Parallel()` を義務づける恒久的な規則や linter を置かないと決めている。そのため、確かめはタスクの一時スクリプトになる。Go の関数の本体と `t.Run` に渡す関数は、shell では正しく読めないので、shell ではなく Go を使う。
     -   採らなかった案: golangci-lint の `paralleltest` を一度だけ動かす案。`t.Setenv` を呼ぶテストの扱いなど、振る舞いがまだ確かめられていない。
     -   2026-11-26 に人が選んだ。ADR: なし（このタスクの確かめ方である）。
--   **AC-02 に足す実行:** PR-3 で、`-race -count=3` に加えて `-race -count=1 -cpu 1,4` を実行して記録する（H-06）。
+-   **AC-02 に足す実行:** PR-4 で、`-race -count=3` に加えて `-race -count=1 -cpu 1,4` を実行して記録する（H-06）。
     -   理由: スケジュールが違う実行を足すと、順序に頼るテストや競合が見つかりやすい。費用は 2 つのパッケージを 2 回分実行する時間だけである。
     -   2026-11-26 に人が選んだ。ADR: なし。
 -   **直列に残す新しいテストを置く PR:** `TestWorktreeIgnoresProcessDir` と `TestRunInProcessDir`（設計書 8.1 節）は、PR-1 の、製品を変えるコミットの後のテストだけを変えるコミットに置く（ステップ 1-7）。設計書 9 章は、この 2 つを「隔離と環境」の段に挙げているが、PR の区切りは実装計画に委ねている。
@@ -56,7 +56,7 @@
 -   **補助が受け取る `HOME`:** PR-2 で、`newTestWorktree`・`newTestRun`・`realGit`・`realGitList` などの補助は、対象のディレクトリに加えて `HOME` のディレクトリを必須の引数として受け取る。ディレクトリから `HOME` を推し量らない。リポジトリを作ったテストはそのリポジトリの `home` を渡す（`cmd/fixprguard` の `testRepo` に `Home` を足す）。リポジトリのないテストは、補助が別の `t.TempDir()` で作る空のディレクトリを渡す（設計書 3.3 節）。
     -   作成者が決めた。ADR: なし。
 -   **一時スクリプトの置き方:** `_checks/` の 2 つのスクリプトは、PR-1 の最初のコミットに置く。`_checks/testshape/main.go` には `//go:build test` を付け、`go run -tags test` で動かす。
-    -   理由: ステップ 1-1 の見込みの確かめにスクリプトが要る。`coverage-compare` は、`test` の build constraint のない Go のファイルを製品のコードに数える（`internal/coveragecompare/product.go` の `isGoProduct`）。build constraint を付ければ、PR-2 と PR-3 でこのファイルを直しても AC-14 の比較は止まらない。
+    -   理由: ステップ 1-1 の見込みの確かめにスクリプトが要る。`coverage-compare` は、`test` の build constraint のない Go のファイルを製品のコードに数える（`internal/coveragecompare/product.go` の `isGoProduct`）。build constraint を付ければ、PR-2 と PR-4 でこのファイルを直しても AC-14 の比較は止まらない。
     -   作成者が決めた。ADR: なし。
 -   **変更の前の木の作り方:** 計測（AC-12）、名前の比較（AC-15）、フィクスチャの git の比較（AC-10、AC-11）の前の木は、`git archive` で作業ツリーの外の一時ディレクトリに展開する（設計書 8.2 節が実装計画に委ねた選択）。
     -   理由: エージェントは `git worktree` の追加と削除を実行しない（[chief_guide.md](../../dev/guides/chief_guide.md) 6 章、`.claude/commands/_lib/harness-claude.md` の shell-run）。`git archive` は、呼び出し元のリポジトリの状態を変えない。計画のレビューで、コミット `52ca51eb` を展開した木で 2 つのパッケージのテストが通ることを確かめた（`-race` なし）。`-race` の実行は、ステップ 1-1 の `estimate` で確かめる。
@@ -64,8 +64,8 @@
 -   **計測と名前の比較の手順の形:** `_checks/gotest.sh` に、`jq` を使う shell の一時スクリプトとして置く（設計書 8.2 節の「手順の形式」）。
     -   理由: 実装計画に書いたコマンドは、計画を書く時点では実行できない（後の木がまだない）。スクリプトにすれば、計画には性質だけを書き、コマンドはスクリプトに置ける。`jq` は `make test` がすでに求めている（`CLAUDE.md`「Development Notes」）。
     -   作成者が決めた。PR のレビューで確かめてもらう。ADR: なし。
--   **AC-12 の「前」のコミット:** PR-1 を作るときのマージベースを使う。ステップ 1-8 でそのコミット ID を 5.2 節の PR-1 の欄と PR-1 の説明に書き、ステップ 3-3 の `fixture-git` とステップ 3-5 の `measure` はそれを読む。後で PR-1 に `main` を取り込んでも、記録した ID は変えない。
-    -   理由: 前の木を 1 つに決めておけば、どの PR で計っても同じ木と比べられる。前の木と後の木の間には、このタスクのほかに `main` に入った変更も含まれる。これは AC-12 の定め方から避けられないので、ステップ 3-5 で、前と後の間に 2 つのパッケージを変えたこのタスク以外のコミットを PR-3 の説明に書き、計測の結果を読む人が判断できるようにする。
+-   **AC-12 の「前」のコミット:** PR-1 を作るときのマージベースを使う。ステップ 1-8 でそのコミット ID を 5.2 節の PR-1 の欄と PR-1 の説明に書き、ステップ 4-3 の `fixture-git` とステップ 4-5 の `measure` はそれを読む。後で PR-1 に `main` を取り込んでも、記録した ID は変えない。
+    -   理由: 前の木を 1 つに決めておけば、どの PR で計っても同じ木と比べられる。前の木と後の木の間には、このタスクのほかに `main` に入った変更も含まれる。これは AC-12 の定め方から避けられないので、ステップ 4-5 で、前と後の間に 2 つのパッケージを変えたこのタスク以外のコミットを PR-4 の説明に書き、計測の結果を読む人が判断できるようにする。
     -   作成者が決めた。PR のレビューで確かめてもらう。ADR: なし。
     -   作成者が決めた。ADR: なし。
 -   **`fixprguardtest` の置き場所:** 設計書のとおり `internal/fixprguard/fixprguardtest` に置く。[test_organization.md](../../dev/conventions/test_organization.md) の `testutil/` の形ではないが、`testOnlyPackageDirs` に同じ形の前例（`internal/loopbacktest`、`internal/udstest`、`internal/llm/llmhttp/llmhttptest`）がある。
@@ -92,6 +92,22 @@
 -   **lint:** gosec などを `_test.go` だけで外している（`.golangci.yml:116-125`）。`//go:build test` の補助の git の起動とファイルの読み書きは、行ごとに `//nolint:gosec` を付けている（`internal/fixprguard/test_helpers_git.go:180`・`:194` など）。
 -   **外の前提の確かめ:** `t.TempDir()` が `GOTMPDIR` の下に作ることは、Go 1.27.1 の `src/testing/testing.go:1613` で確かめた。`docs/tasks/*/_checks/` の Go のファイルが `go run` で動き、`./...` には入らないことは、この機械の Go 1.27.1 で確かめた（`go list ./...` は `_` で始まるディレクトリを無視する）。git 2.50.1 では、`cp -Rp` で写したリポジトリで `git status --porcelain` は空のまま、`git diff-files` は stat の違う項目を報告する（計画のレビューで確かめた）。
 -   **再利用するもの:** `cmdrunner.GitEnv`・`cmdrunner.NewOS`・`cmdrunner.Options.Dir`（`internal/cmdrunner`）、`gitRouter`・`cmdrunnertestutil.Fake`、前の `newTestRepo` の手順（`build` にする）を使う。新しく書くのは、設計書 3.4 節の `fixprguardtest` と 3.2 節の `WorktreeDir` だけである。
+
+### 1.5. 実装の際に決めたこと（2026-11-27）
+
+-   **冗長なテストの削除の PR を足す:** 2 つのパッケージのテストのうち、ほかのテストと同じ経路と判定を確かめているだけの行を削除する PR-3 を、PR-2 と並列化の PR（PR-4）の間に置く（要件書 F-006、設計書 8.4 節）。
+    -   理由: 並列化とフィクスチャの軽量化の前に削除すれば、消えるテストを速くする手間がかからない。候補は、PR-2 の前のコミット `6c60f9f8` で読んだ 21 件である。PR-2 の後のコードで 1 件ずつ確かめ、成り立たないものは削除しない（ステップ 3-1）。
+    -   採らなかった案: 削除を PR-4 の最初のコミットにする案。PR-4 が大きくなり、削除のコミットごとの `coverage-compare` と並列化の確かめが 1 つの PR に混ざる。別のタスクにする案は、同じテストを先に速くする手間が無駄になる。
+    -   2026-11-27 に人が選んだ。ADR: なし（このタスクの範囲と進め方で、ほかのタスクを縛らない）。
+-   **PR-3 の確かめ（AC-14、AC-18）:** PR-3 では、AC-14 の PR 全体の比較の代わりに、削除のコミットごとに、その親を `BASE` にした `make coverage-compare` を実行する。行を純粋な関数の表に移す候補（C2、C6、C10）は、新しい行を先にコミットし、古い行の削除を別のコミットにする。`make coverage-compare` が見分けられない削除は、同じ確かめを持つ残す行をコミットメッセージに書くか、共有するコードを壊して残す行が失敗することを確かめてコミットメッセージに書く（設計書 8.4 節）。
+    -   理由: PR-3 は新しい行を足すので、マージベースからの比較は削除以外の変更を含み、`make coverage-compare` が止まる。削除のコミットごとの比較は、`CLAUDE.md`「Testing Strategy」の削除の規則そのものである。
+    -   2026-11-27 に人が選んだ。ADR: なし（ADR-0037 の規則をそのまま当てはめる）。
+-   **削除の時間の記録（AC-13）:** `gotest.sh names` に、2 つの木のパッケージの時間を出す行を足す（5.1 節）。PR-3 の `names` の実行で、マージベースと PR の先頭のパッケージの時間を出し、その差を削除で減った時間として PR-3 の説明に書く。PR-4 の計測の記録にも、この値を書く。
+    -   理由: AC-12 の前のコミットは変えず、削除で減った時間も短縮に数える（要件書 1 章の「実装の際に決めたこと」）。並列化による短縮と見分けるために、削除の分を記録する。PR-3 の `names` は 2 つの木を `-race` で 1 回ずつ動かす。その時間の差は、それぞれ 1 回の実行で、2 つのパッケージを同時に動かした値なので、実行の揺れを含む目安である。PR の説明にもそう書く。計測のための実行を別に足す案は、`-race` の実行が増えるので採らなかった。
+    -   2026-11-27 に人が選んだ。ADR: なし。
+-   **PR-3 の名前の比較（AC-15）:** PR-3 の `gotest.sh names` は、削除した組を `MISSING` に出し、`status=FAIL` で終わる。AC-15 は削除の規則に従って削除したテストを除くので、`MISSING` の組が削除のコミットで消した行とちょうど一致することを読んで確かめ、5.2 節と PR の説明に書く。`became_skip` は 0 でなければならない。
+    -   理由: `names` に削除の一覧を渡す形にすると、スクリプトの変更が大きくなる。削除の一覧はコミットの差分から読めるので、読み合わせで足りる。
+    -   作成者が決めた。PR のレビューで確かめてもらう。ADR: なし。
 
 ## 2. 実装のステップ
 
@@ -206,7 +222,7 @@ PR-2 は製品を変えない。すべてのコミットがテストだけを変
 
 -   **ファイル:** `internal/fixprguard/fixprguardtest/isolate.go`、`env.go`（追加、`//go:build test`）、`internal/pipeline/pipeline_test.go`、`docs/dev/conventions/package_reference.md`
 -   **作業:**
-    -   [x] 設計書 3.4 節の `Isolation`・`IsolateWorkingDir`・`Env` を書く。隔離の確かめと後の確かめは設計書 3.5 節、`Env` の値は 3.3 節のとおりである。後の確かめ（作業ディレクトリが空か）は、ディレクトリを受け取る非公開の関数に分け、単体で確かめられるようにする。`Template` はステップ 3-3 で足す。
+    -   [x] 設計書 3.4 節の `Isolation`・`IsolateWorkingDir`・`Env` を書く。隔離の確かめと後の確かめは設計書 3.5 節、`Env` の値は 3.3 節のとおりである。後の確かめ（作業ディレクトリが空か）は、ディレクトリを受け取る非公開の関数に分け、単体で確かめられるようにする。`Template` はステップ 4-3 で足す。
     -   [x] `testOnlyPackageDirs` に `internal/fixprguard/fixprguardtest` を加え、`package_reference.md` の「Test-Only Packages」の表に行を足す（同じコミットで。1.4 節）。
 -   **完了の条件:** `go vet -tags test ./internal/fixprguard/fixprguardtest` と `go test -tags test ./internal/pipeline` が通る。
 
@@ -280,11 +296,69 @@ PR-2 は製品を変えない。すべてのコミットがテストだけを変
 - [x] PR がマージされた
 - [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
 
-### フェーズ 3: 並列化、フィクスチャの軽量化、計測
+### フェーズ 3: 冗長なテストの削除
 
-PR-3 は製品を変えない。
+PR-3 は製品を変えない。テストを足すコミット（ステップ 3-2）と、削除だけのコミット（ステップ 3-3）からなる。
 
-#### ステップ 3-1: `t.Parallel()` を足す
+#### ステップ 3-1: 候補の確かめと `names` の時間の行
+
+-   **ファイル:** `docs/tasks/0126_fixprguard_test_speedup/_checks/gotest.sh`
+-   **作業:**
+    -   [x] 設計書 8.4 節の 21 件の候補を、このブランチの先頭のコードで 1 件ずつ確かめる。候補の理由（同じ戻り値、同じ分岐、残す行が同じ判定を持つこと）が成り立つかをコードで読み、成り立たない候補と行は削除しない。候補ごとに、削除する行、残す行、成り立たなかった理由を PR の説明に表で書く。
+    -   [x] 削除する行のそれぞれについて、終えたタスクの実装計画書（0030、0033、0034、0035、0036、0053、0057、0076、0120、0122 など）が AC の確かめに挙げているかを `grep` で調べる。挙げているときは、その AC がほかのテストで確かめられ続けることを確かめ、残すテストの名前とともに PR の説明に書く。終えた計画書は書き換えない。
+    -   [x] `gotest.sh names` に、2 つの木のそれぞれのパッケージの時間（パッケージの `pass` の行の `Elapsed`）を出す行を足す（5.1 節）。判定は変えない。コミットした後、`names` の破壊の確かめをやり直して、5.1 節の破壊の記録を書き直す。
+-   **完了の条件:** 削除する行の一覧が決まり、`gotest.sh` の変更と破壊の記録がコミットされている。
+
+#### ステップ 3-2: 移す行を足す（テストを足すコミット）
+
+-   **ファイル:** `internal/fixprguard/write_test.go`、`internal/fixprguard/gitstate_test.go`、`internal/fixprguard/worktree_test.go` など（移す先の表がある `_test.go`）
+-   **作業:**
+    -   [x] C2・C6・C10 のうちステップ 3-1 で成り立った候補について、古い行が確かめていた場合を、純粋な関数の表の行として足す（設計書 8.4 節）。
+    -   [x] 足した行のそれぞれについて、確かめる対象のコードを壊して失敗することを確かめ、コミットメッセージに書く。
+-   **完了の条件:** `make test` と `make lint` が通る。
+
+#### ステップ 3-3: 削除（削除だけのコミット）
+
+-   **ファイル:** 2 つのパッケージの `*_test.go`
+-   **作業:**
+    -   [x] 候補ごとに、削除だけのコミットを 1 つ作る。散らばった行は、読んだ文字列のとおりに 1 つずつ消す。
+    -   [x] 各コミットで `make coverage-compare BASE=<そのコミットの親>` を、10 分以上の時間の上限を付けるか、バックグラウンドで実行する（AC-18）。`PASS` の出力を最後の行まで、そのコミットのメッセージに書く（メッセージだけを amend し、木の ID を変えない）。`FAIL` のときは、設計書 8.2 節の「coverage-compare の揺れ」のとおり比べ直す。揺れでないときは、その削除をやめる。
+    -   [x] `make coverage-compare` が見分けられない削除（設計書 8.4 節）は、同じ確かめを持つ残す行をコミットメッセージに書くか、共有するコードを壊して残す行が失敗することを確かめてコミットメッセージに書く。
+-   **完了の条件:** 削除のコミットごとに `PASS` の出力と、必要な残す行の記録がある。`make test` と `make lint` が通る。
+
+#### ステップ 3-4: PR-3 の確かめと記録
+
+-   **作業:**
+    -   [x] `gotest.sh names <マージベース>` と `gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-3 の欄に記録する（AC-15、AC-09）。`names` の `MISSING` の組が、ステップ 3-3 で消した行とちょうど一致し、`became_skip` が 0 であることを確かめる（1.5 節）。新しく現れた組（ステップ 3-2 の行）を理由とともに PR の説明に書く。
+    -   [x] `names` が出す 2 つの木のパッケージの時間と、その差を、削除で減った時間として PR の説明に書く（AC-13、1.5 節）。
+    -   [x] 削除のコミットごとの `make coverage-compare` の出力を、すべての回について最後の行まで PR の説明に書く（AC-18）。
+    -   [x] 期待値を変えたテスト（ない見込み）と、移した行を記録する（AC-16）。
+-   **完了の条件:** 上の結果が PR の説明と 5 章にある。
+
+### PR-3 作成ポイント: remove redundant fixprguard tests
+
+**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4
+
+**推奨タイトル**: `test(0126): fixprguard の冗長なテストを削除する`
+
+**レビュー観点**: 削除した行のそれぞれに、同じ判定を持つ残す行があること / 削除のコミットごとの `coverage-compare` の `PASS` と、それが見分けられない削除の記録 / 終えたタスクの計画書が挙げる AC が確かめられ続けること / `names` の `MISSING` が削除した行と一致すること
+
+**実装モデル要件**: standard+high-review
+
+**判定理由**: 信頼の境界を守るツールのテストを減らす変更で、軽いモデルでは、似た名前の行を同じ確かめと読み違えて、境界の判定の 1 つだけを確かめる行を消すおそれがある。`coverage-compare` が見分けられない削除では、その誤りがどの機械の確かめにも現れない
+
+**自動送信**: auto
+
+- [x] グリーンゲート（`_context.md` の "Green gate" 参照）がパスしていることを確認した
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1201
+- [x] PR がマージされた
+- [x] 次のブランチへ切り替えた（次ステップは新しいブランチで作業する）
+
+### フェーズ 4: 並列化、フィクスチャの軽量化、計測
+
+PR-4 は製品を変えない。
+
+#### ステップ 4-1: `t.Parallel()` を足す
 
 -   **ファイル:** 2 つのパッケージの `*_test.go`
 -   **作業:**
@@ -293,13 +367,13 @@ PR-3 は製品を変えない。
     -   [ ] `testshape parallel` を実行し、`t.Parallel()` を呼ばないテストが一覧のものだけであることを確かめる（AC-01、AC-03）。
 -   **完了の条件:** `make test` が通る。
 
-#### ステップ 3-2: 競合の確かめ
+#### ステップ 4-2: 競合の確かめ
 
 -   **作業:**
     -   [ ] `gotest.sh race` を実行する（AC-02。`-race -count=3` と `-race -count=1 -cpu 1,4`）。失敗したら原因を直す。実時間の待ちで失敗するときは、判定の時間を変えずに、止めて人に尋ねる（設計書 4 章）。
 -   **完了の条件:** `gotest.sh race` が成功する。
 
-#### ステップ 3-3: ひな形のコピー（最適化のコミット）
+#### ステップ 4-3: ひな形のコピー（最適化のコミット）
 
 -   **ファイル:** `internal/fixprguard/fixprguardtest/template.go`（追加）、2 つの `testmain_test.go`、`internal/fixprguard/test_helpers_git.go`、`cmd/fixprguard/test_helpers.go`、`docs/dev/conventions/package_reference.md`
 -   **作業:**
@@ -309,10 +383,10 @@ PR-3 は製品を変えない。
     -   [ ] `build` の差分を前の `newTestRepo` と読み合わせ、git の引数・順序・書くファイルが変わらないことを PR の説明に書く（設計書 3.6 節の「前の手順との一致」）。
     -   [ ] `testshape fixture-git <AC-12 の前のコミット>` を実行し、`build` の git の引数と順序が前の `newTestRepo` と同じであることと、テストがリポジトリを受け取るまでの git の起動の数を確かめる（AC-10、AC-11）。判定できないときは、止めて人に尋ねる（1.3 節）。結果は 5.1 節の実行の記録に書く。
     -   [ ] `package_reference.md` の `fixprguardtest` の行に、足した公開の名前を加える。
-    -   [ ] 正しさの義務をコミットメッセージに書く（設計書 1.3 節）。このコミットはステップ 3-4 のテストと別にする。
+    -   [ ] 正しさの義務をコミットメッセージに書く（設計書 1.3 節）。このコミットはステップ 4-4 のテストと別にする。
 -   **完了の条件:** `make test` と `make lint` が通る。
 
-#### ステップ 3-4: ひな形のテスト
+#### ステップ 4-4: ひな形のテスト
 
 -   **ファイル:** `internal/fixprguard/fixprguardtest/template_test.go`、`internal/fixprguard/fixture_test.go`、`cmd/fixprguard/fixture_test.go`（追加）
 -   **作業:**
@@ -321,22 +395,22 @@ PR-3 は製品を変えない。
     -   [ ] それぞれについて、確かめる対象を壊して失敗することを確かめ、コミットメッセージに書く。同等性のテストでは、少なくとも、`Copy` が 2 つの設定の値を書き直さないときと、`update-index --refresh` を外したときに失敗することを確かめる。
 -   **完了の条件:** `make test` と `make lint` が通る。`testshape parallel` が成功する。
 
-#### ステップ 3-5: 計測と PR-3 の確かめ
+#### ステップ 4-5: 計測と PR-4 の確かめ
 
 -   **作業:**
-    -   [ ] `gotest.sh race` を、ステップ 3-3 と 3-4 の後の木でもう一度実行し、実行したコミットとともに記録する（AC-02）。
+    -   [ ] `gotest.sh race` を、ステップ 4-3 と 4-4 の後の木でもう一度実行し、実行したコミットとともに記録する（AC-02）。
     -   [ ] `gotest.sh measure <前のコミット>` を実行する（AC-12、AC-13）。前のコミットは、ステップ 1-8 で 5.2 節に書いたマージベースである。目標に届かないときは、PR を開く前に止め、結果と原因の見立てを人に示す。
     -   [ ] 前のコミットと今の木の間で、2 つのパッケージを変えたこのタスク以外のコミットを、PR の説明に書く（1.3 節）。
-    -   [ ] 機械（OS と CPU のコア数、`GOMAXPROCS`）、Go の版、前後のコミット、パッケージごと・回ごとの時間を PR の説明に書く。3 回を超えて繰り返したときは、すべての回と判定に使った 3 回を書く。
+    -   [ ] 機械（OS と CPU のコア数、`GOMAXPROCS`）、Go の版、前後のコミット、パッケージごと・回ごとの時間を PR の説明に書く。3 回を超えて繰り返したときは、すべての回と判定に使った 3 回を書く。PR-3 で記録した削除で減った時間も書く（1.5 節）。
     -   [ ] AC-10 の前後の数（前は 13 回と 12 回、後は 1 回。ひな形は別に 13 回と 12 回）と、`testshape fixture-git` の出力を PR の説明に書く（設計書 3.6 節）。
-    -   [ ] `make coverage-compare BASE=<マージベース>`、`gotest.sh names <マージベース>`、`gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-3 の欄に記録する（AC-14、AC-15、AC-09）。
+    -   [ ] `make coverage-compare BASE=<マージベース>`、`gotest.sh names <マージベース>`、`gotest.sh unchanged <マージベース>` を実行し、5.2 節の PR-4 の欄に記録する（AC-14、AC-15、AC-09）。
     -   [ ] `testshape parallel`、`testshape process-state`、`testshape env-source` を実行して記録する（AC-01、AC-04、AC-05）。
     -   [ ] 期待値を変えたテストと準備の変更を記録する（AC-16）。
 -   **完了の条件:** 上の結果が PR の説明と 5 章にある。
 
-### PR-3 作成ポイント: parallel fixprguard tests with template fixtures
+### PR-4 作成ポイント: parallel fixprguard tests with template fixtures
 
-**対象ステップ**: 3-1 / 3-2 / 3-3 / 3-4 / 3-5
+**対象ステップ**: 4-1 / 4-2 / 4-3 / 4-4 / 4-5
 
 **推奨タイトル**: `test(0126): fixprguard のテストを並列にし、フィクスチャをひな形のコピーにする`
 
@@ -344,7 +418,7 @@ PR-3 は製品を変えない。
 
 **実装モデル要件**: standard+high-review
 
-**判定理由**: ステップ 3-1 は 2 つのパッケージのテストを並列にする並行性の変更で、ステップ 3-3 は正しさの義務を持つ最適化である。軽いモデルでは、親の値を書き換えるサブテストの見落としや、コピーしたリポジトリと前の手順との差の見落としが、実行の順序によってだけ失敗するテストになりうる
+**判定理由**: ステップ 4-1 は 2 つのパッケージのテストを並列にする並行性の変更で、ステップ 4-3 は正しさの義務を持つ最適化である。軽いモデルでは、親の値を書き換えるサブテストの見落としや、コピーしたリポジトリと前の手順との差の見落としが、実行の順序によってだけ失敗するテストになりうる
 
 **自動送信**: auto
 
@@ -361,7 +435,8 @@ PR-3 は製品を変えない。
 |---|---|---|
 | M1（PR-1） | `WorktreeDir` と、それを受け取る製品の関数・CLI。AC-06・AC-08 の直列のテスト。見込みの確かめの結果 | `make test`・`make lint` が通り、AC-14 の比較が `PASS` |
 | M2（PR-2） | `fixprguardtest` の隔離と環境、2 つの `TestMain`、作業ディレクトリと環境変数に頼らないテスト | 同上。AC-07 の確かめの記録 |
-| M3（PR-3） | 並列のテスト、ひな形のコピー、同等性と分離のテスト | 同上。AC-02 と AC-12 の記録 |
+| M3（PR-3） | 冗長なテストの削除と、移した純粋な関数の表の行 | `make test`・`make lint` が通り、削除のコミットごとの AC-18 の比較が `PASS` |
+| M4（PR-4） | 並列のテスト、ひな形のコピー、同等性と分離のテスト | 同上。AC-02 と AC-12 の記録 |
 
 ### 3.2. PR 構成
 
@@ -369,17 +444,18 @@ PR-3 は製品を変えない。
 |---|---|---|---|---|
 | PR-1 | 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8 | 一時スクリプト、見込みの確かめ、`WorktreeDir` と製品の関数・CLI の変更、呼び出しの引数の変更、構築の規則、直列に残す新しいテスト | high | auto |
 | PR-2 | 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6 | `fixprguardtest` の隔離と環境、`TestMain`、`t.Chdir`・`t.Setenv` の除去、AC-07 の確かめ | standard+high-review | auto |
-| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 / 3-5 | `t.Parallel()`、競合の確かめ、ひな形のコピーとそのテスト、計測 | standard+high-review | auto |
+| PR-3 | 3-1 / 3-2 / 3-3 / 3-4 | 候補の確かめ、移す行の追加、冗長なテストの削除、`names` の時間の行 | standard+high-review | auto |
+| PR-4 | 4-1 / 4-2 / 4-3 / 4-4 / 4-5 | `t.Parallel()`、競合の確かめ、ひな形のコピーとそのテスト、計測 | standard+high-review | auto |
 
-各 PR は、単独でグリーンゲートを通る。PR-1 の後のテストは直列で `t.Chdir` を使う。PR-2 の後のテストは直列のまま作業ディレクトリに頼らない。PR-3 は、PR-2 の `TestMain` と `fixprguardtest` に `Template` を足す。
+各 PR は、単独でグリーンゲートを通る。PR-1 の後のテストは直列で `t.Chdir` を使う。PR-2 の後のテストは直列のまま作業ディレクトリに頼らない。PR-3 は、テストの削除と、移す行の追加だけで、補助は変えない。PR-4 は、PR-2 の `TestMain` と `fixprguardtest` に `Template` を足す。
 
 ## 4. テスト戦略
 
--   **単体テスト:** `WorktreeDir`（ステップ 1-6）、`fixprguardtest` の隔離・環境・ひな形（ステップ 2-2、3-4）。設計書 8.3 節の項目を確かめる。
+-   **単体テスト:** `WorktreeDir`（ステップ 1-6）、`fixprguardtest` の隔離・環境・ひな形（ステップ 2-2、4-4）。設計書 8.3 節の項目を確かめる。
 -   **統合テスト:** 既存の 2 つのパッケージのテストは、本物の git でテストのリポジトリを読み書きする。期待値を変えずに、ディレクトリを補助に渡す形にする（ステップ 1-5、2-4）。
 -   **後方互換（CLI の振る舞い）:** `TestRunInProcessDir`（ステップ 1-7）が、本物のプロセスの作業ディレクトリで CLI の入口を動かし、`CurrentDir()` の側を確かめる。既存の `TestGhRunsWithoutGitVariables`・`TestListRunnerRejectsStderr`・`TestGhTargetEnvRejected` は、期待値を変えずに直列のまま残す。
--   **フィクスチャの同等性:** 各パッケージの同等性のテストと分離のテスト（ステップ 3-4）。分離のテストは設計書 3.6 節のとおり各パッケージに置く。
--   **検証範囲の維持:** PR ごとの `make coverage-compare`（AC-14）と、テストの名前の比較（AC-15）。
+-   **フィクスチャの同等性:** 各パッケージの同等性のテストと分離のテスト（ステップ 4-4）。分離のテストは設計書 3.6 節のとおり各パッケージに置く。
+-   **検証範囲の維持:** PR ごとの `make coverage-compare`（AC-14。PR-3 では削除のコミットごとの比較、AC-18）と、テストの名前の比較（AC-15）。
 -   **並列の安全:** `-race -count=3` と `-race -count=1 -cpu 1,4`（AC-02）。ひな形の後にもう一度実行する。
 -   **カバレッジの目標:** 新しく足す関数（`WorktreeDir` の 3 つの操作、`fixprguardtest` の公開の関数）は、成功の経路と失敗の経路の両方をテストが通る。
 
@@ -387,23 +463,24 @@ PR-3 は製品を変えない。
 
 | AC | 種類 | 確かめ方 | ステップ |
 |---|---|---|---|
-| AC-01 | test | `_checks/testshape/main.go` の `parallel` 検査（5.1 節）。PR-3 で実行する | 3-1、3-5 |
-| AC-02 | test | `_checks/gotest.sh` の `race` モード（5.1 節） | 3-2、3-5 |
-| AC-03 | test、manual | `testshape parallel` が、プログラムが持つ一覧（設計書 4 章の 6 項目）の外で `t.Parallel()` を呼ばないテストを報告しないこと。一覧と設計書 4 章が同じことは、PR-3 のレビューで読む | 3-1、3-5 |
-| AC-04 | test | `testshape process-state` 検査（5.1 節）。PR-2 と PR-3 で実行する | 2-6、3-5 |
-| AC-05 | test | `internal/fixprguard/fixprguardtest/fixprguardtest_test.go::TestEnvReplacesInheritedValues`（ステップ 2-2。`GitEnv` が継承した `GIT_*` を除くことは、`internal/fixprguard/gitstate_test.go::TestGitEnvKeepsGitOnTheWorktree` が確かめる）。`testshape env-source` 検査（5.1 節）。同等性のテストの `home` の比較（ステップ 3-4） | 2-2、2-6、3-4、3-5 |
+| AC-01 | test | `_checks/testshape/main.go` の `parallel` 検査（5.1 節）。PR-4 で実行する | 4-1、4-5 |
+| AC-02 | test | `_checks/gotest.sh` の `race` モード（5.1 節） | 4-2、4-5 |
+| AC-03 | test、manual | `testshape parallel` が、プログラムが持つ一覧（設計書 4 章の 6 項目）の外で `t.Parallel()` を呼ばないテストを報告しないこと。一覧と設計書 4 章が同じことは、PR-4 のレビューで読む | 4-1、4-5 |
+| AC-04 | test | `testshape process-state` 検査（5.1 節）。PR-2 と PR-4 で実行する | 2-6、4-5 |
+| AC-05 | test | `internal/fixprguard/fixprguardtest/fixprguardtest_test.go::TestEnvReplacesInheritedValues`（ステップ 2-2。`GitEnv` が継承した `GIT_*` を除くことは、`internal/fixprguard/gitstate_test.go::TestGitEnvKeepsGitOnTheWorktree` が確かめる）。`testshape env-source` 検査（5.1 節）。同等性のテストの `home` の比較（ステップ 4-4） | 2-2、2-6、4-4、4-5 |
 | AC-06 | test | 作業ディレクトリが別のリポジトリのとき: `internal/fixprguard/worktree_flow_test.go::TestWorktreeIgnoresProcessDir`（PR-1）。作業ディレクトリに `.git` がないとき: PR-2 からの、`TestMain` の空のディレクトリの下での 2 つのパッケージのテスト全体（設計書 8.1 節）。PR-2 の `make test` で確かめる | 1-7、2-3、2-4 |
 | AC-07 | test、manual | `internal/fixprguard/fixprguardtest/fixprguardtest_test.go::TestIsolateWorkingDirRefusesRepository`・`::TestCheckEmpty`・`::TestIsolationChangesWorkingDirectory`（ステップ 2-2）。2 種類の漏れをわざと入れて失敗することの一度の確かめを、PR-2 の説明に記録する | 2-2、2-5 |
 | AC-08 | test、manual | `cmd/fixprguard/main_test.go::TestRunInProcessDir`、`::TestGhRunsWithoutGitVariables`、`::TestListRunnerRejectsStderr`。マージベースにあるテストの期待値の差分が空であることは、AC-16 と同じく PR のレビューで差分を読んで確かめる。要件の AC-16 がこの確かめ方を定めており、期待値の行だけを機械的に取り出す手段はない | 1-7、各 PR |
-| AC-09 | diff | `_checks/gotest.sh` の `unchanged` モード（5.1 節）。PR ごとに実行し、5.2 節に記録する | 1-8、2-6、3-5 |
-| AC-10 | static | `testshape fixture-git` 検査（5.1 節）が、前の `newTestRepo` と後の `newTestRepo` の git の起動の数を出す。前後の数を PR-3 の説明に書く。判定できないときは止めて人に尋ねる | 3-3、3-5 |
-| AC-11 | test、static、manual | 同等性のテストと分離のテスト（`internal/fixprguard/fixture_test.go`、`cmd/fixprguard/fixture_test.go`）、`fixprguardtest` の `Copy` のテスト。`build` が前の手順と同じ git を同じ順に起動し、同じファイルを書くことは、`testshape fixture-git` 検査と、PR-3 のレビューでの差分の読み合わせ（設計書 3.6 節） | 3-3、3-4 |
-| AC-12 | diff | `_checks/gotest.sh` の `measure` モード（5.1 節）。5.2 節に記録する | 3-5 |
-| AC-13 | test、manual | `measure` モードが機械・Go の版・前後のコミット・回ごとの時間を出す。その出力を PR-3 の説明に書く | 3-5 |
-| AC-14 | test | `make coverage-compare BASE=<コミット>`。`BASE` は 1.2 節のとおり。PR ごとに実行し、すべての回の出力を PR の説明に書く | 1-8、2-6、3-5 |
-| AC-15 | diff | `_checks/gotest.sh` の `names` モード（5.1 節）。PR ごとに実行し、5.2 節に記録する | 1-8、2-6、3-5 |
+| AC-09 | diff | `_checks/gotest.sh` の `unchanged` モード（5.1 節）。PR ごとに実行し、5.2 節に記録する | 1-8、2-6、4-5 |
+| AC-10 | static | `testshape fixture-git` 検査（5.1 節）が、前の `newTestRepo` と後の `newTestRepo` の git の起動の数を出す。前後の数を PR-4 の説明に書く。判定できないときは止めて人に尋ねる | 4-3、4-5 |
+| AC-11 | test、static、manual | 同等性のテストと分離のテスト（`internal/fixprguard/fixture_test.go`、`cmd/fixprguard/fixture_test.go`）、`fixprguardtest` の `Copy` のテスト。`build` が前の手順と同じ git を同じ順に起動し、同じファイルを書くことは、`testshape fixture-git` 検査と、PR-4 のレビューでの差分の読み合わせ（設計書 3.6 節） | 4-3、4-4 |
+| AC-12 | diff | `_checks/gotest.sh` の `measure` モード（5.1 節）。5.2 節に記録する | 4-5 |
+| AC-13 | test、manual | `measure` モードが機械・Go の版・前後のコミット・回ごとの時間を出す。その出力を PR-4 の説明に書く。削除で減った時間は、PR-3 の `names` が出す 2 つの木のパッケージの時間の差を、PR-3 と PR-4 の説明に書く（1.5 節） | 3-4、4-5 |
+| AC-14 | test | `make coverage-compare BASE=<コミット>`。`BASE` は 1.2 節のとおり。PR ごとに実行し、すべての回の出力を PR の説明に書く。PR-3 では AC-18 の比較が代わる（1.5 節） | 1-8、2-6、4-5 |
+| AC-15 | diff | `_checks/gotest.sh` の `names` モード（5.1 節）。PR ごとに実行し、5.2 節に記録する。PR-3 では、`MISSING` の組が削除した行と一致することを読んで確かめる（1.5 節） | 1-8、2-6、3-4、4-5 |
 | AC-16 | manual | 期待値を変えたテストと準備の変更を PR の説明に記録し、PR のレビューで差分を読む（要件の AC-16 が定める確かめ方） | 1-5、2-4、各 PR |
 | AC-17 | test | `make test`、`make lint` | 各 PR |
+| AC-18 | test、manual | 削除のコミットごとの `make coverage-compare BASE=<そのコミットの親>`。出力をコミットメッセージと PR-3 の説明に書く。`coverage-compare` が見分けられない削除の、残す行か壊しの確かめの記録は、PR のレビューで読む。終えたタスクの計画書が挙げる AC の記録も PR のレビューで読む | 3-1、3-3、3-4 |
 
 ### 5.1. 一時スクリプトの記録
 
@@ -413,23 +490,25 @@ PR-3 は製品を変えない。
 -   **検査:**
     -   `estimate`: `origin/main` の木で 2 つのパッケージを 1 回ずつ実行する。並列にした後の時間の下限の見込みを、(直列に残さないトップレベルのテストのうち最も長いもの + 設計書 4 章の直列のテストのうち今あるものの合計) と (テストの時間の合計 ÷ `GOMAXPROCS`) の大きい方として出し、変更の前の実行時間の 50% と比べる。
     -   `race`: 今の木で、`-race -count=3` と `-race -count=1 -cpu 1,4` を実行する。
-    -   `names <base>`: `<base>` の木と今の木で、テストの名前の組を比べる（設計書 8.2 節の「テストの名前」）。
+    -   `names <base>`: `<base>` の木と今の木で、テストの名前の組を比べる（設計書 8.2 節の「テストの名前」）。2 つの木のそれぞれのパッケージの時間も出す（PR-3 で足す。1.5 節）。
     -   `measure <before>`: `<before>` の木と今の木で、2 つのパッケージを別々に 3 回ずつ実行し、中央値と比を出す（設計書 8.2 節の「計測」）。機械と Go の版も出す。
     -   `unchanged <base>`: `docs/dev/guides/fixprguard_guide.md` と、`internal/fixprguard/types.go` の `const Protocol` の行が、`<base>` と同じであることを確かめる。
     -   それぞれの検査は、少なくとも 1 つの破壊で失敗することを確かめる。
 -   **実行の予定:**
     -   `estimate`: ステップ 1-1（実装の前）。`/runplan` の実行者が行う。
-    -   `names`・`unchanged`: 各 PR を作る前（ステップ 1-8、2-6、3-5）。`/runplan` の実行者が行う。
-    -   `race`: ステップ 3-2 と 3-5。`/runplan` の実行者が行う。
-    -   `measure`: PR-3 を作る前（ステップ 3-5）。`/runplan` の実行者が行う。
--   **破壊の確かめの時期:** `estimate`・`names`・`unchanged`・`race` はステップ 1-1、`measure` はステップ 3-5（前の木と後の木が違うとき）。
+    -   `names`・`unchanged`: 各 PR を作る前（ステップ 1-8、2-6、3-4、4-5）。`/runplan` の実行者が行う。
+    -   `race`: ステップ 4-2 と 4-5。`/runplan` の実行者が行う。
+    -   `measure`: PR-4 を作る前（ステップ 4-5）。`/runplan` の実行者が行う。
+-   **破壊の確かめの時期:** `estimate`・`names`・`unchanged`・`race` はステップ 1-1、`measure` はステップ 4-5（前の木と後の木が違うとき）。`names` は、時間の行を足したステップ 3-1 でやり直す。
 -   **テスト:** コミットしない。
 -   **破壊の記録:** 対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`（初回 `e2a5e8494c0b84e0fee6c38851cb5e70cc9b5c78` の後、レビュー修正に合わせて再確認）
     -   `unchanged`: `internal/fixprguard/types.go` の `const Protocol = 9` を `10` に書き換えて実行し、終了コード 1（`protocol=FAIL`）で失敗することを確認した。同様に `docs/dev/guides/fixprguard_guide.md` に変更を加えて実行し、終了コード 1（`guide=FAIL`）で失敗することを確認した。
     -   `race`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `panic` を入れて実行し、終了コード 1（`go test failed`）で失敗することを確認した。
     -   `names`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `t.Skip` を入れて実行し、終了コード 1（`missing=1`, `became_skip=1`, `status=FAIL`）で失敗することを確認した。
     -   `estimate`: `GOMAXPROCS=1` を指定して並列度を 1 に下げた前提の破壊で実行し、両パッケージとも下限が 50% を超えて終了コード 1（`status=FAIL`）で失敗することを確認した。
-    -   `measure`: PR-3 で実施予定。
+    -   `measure`: PR-4 で実施予定。
+-   **破壊の記録（`names` のやり直し）:** 対象コミット `7b77d80cd9e56e1dd13791c166a1398171a10bbf`（ステップ 3-1 で時間の行を足した後）
+    -   `names`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に一時的に `t.Skip` を入れ、`names 7b77d80cd9e56e1dd13791c166a1398171a10bbf` を実行し、終了コード 1（`missing=1`, `became_skip=1`, `status=FAIL`）で失敗することを確認した。2 つの木のパッケージの時間の行（`elapsed <パッケージ> base=… head=…`）が出ることも確認した。戻して作業ツリーがきれいなことを確認した。
 -   **実行の記録:**
     -   `estimate`（対象コミット `d05bf0313787ccc59c7e739247e53e7e16f369d0`、判定対象 `origin/main` = `fb71447bb8bd1baa47e113573db52939b41146cd`、両パッケージとも 50% 以下で `PASS`）:
 
@@ -473,12 +552,12 @@ PR-3 は製品を変えない。
     -   `fixture-git <before>`: `<before>` の木の 2 つの `newTestRepo` と、今の木の `build` が起動する git の引数の並びを比べ、同じであることを確かめる。また、前の `newTestRepo` と後の `newTestRepo` が起動する git の数を出す。分岐やループのある本体、読めない呼び出しに当たったときは、判定せずに失敗する。
     -   それぞれの検査は、少なくとも 1 つの破壊で失敗することを確かめる。
 -   **実行の予定:**
-    -   `process-state`・`env-source`: PR-2 と PR-3 を作る前（ステップ 2-6、3-5）。`/runplan` の実行者が行う。
-    -   `parallel`: ステップ 3-1、3-4、3-5。`/runplan` の実行者が行う。
-    -   `fixture-git`: ステップ 3-3 と、PR-3 を作る前（ステップ 3-5）。`/runplan` の実行者が行う。
--   **破壊の確かめの時期:** 健全な木で成功するようになったときに行う。`process-state`・`env-source` はステップ 2-6、`parallel` はステップ 3-1、`fixture-git` はステップ 3-3。それより前の実行は、記録の対象にしない。
+    -   `process-state`・`env-source`: PR-2 と PR-4 を作る前（ステップ 2-6、4-5）。`/runplan` の実行者が行う。
+    -   `parallel`: ステップ 4-1、4-4、4-5。`/runplan` の実行者が行う。
+    -   `fixture-git`: ステップ 4-3 と、PR-4 を作る前（ステップ 4-5）。`/runplan` の実行者が行う。
+-   **破壊の確かめの時期:** 健全な木で成功するようになったときに行う。`process-state`・`env-source` はステップ 2-6、`parallel` はステップ 4-1、`fixture-git` はステップ 4-3。それより前の実行は、記録の対象にしない。
 -   **テスト:** コミットしない。
--   **破壊の記録:** 対象コミット `9502c4943d304b1f4dc56f6935e954c87b39d757`（`process-state`・`env-source` のみ。ほかの検査は PR-3 で記録する）
+-   **破壊の記録:** 対象コミット `9502c4943d304b1f4dc56f6935e954c87b39d757`（`process-state`・`env-source` のみ。ほかの検査は PR-4 で記録する）
     -   `process-state`: `internal/fixprguard/changes_test.go` の `TestParseJudgedSetID` に `t.Setenv` を一時的に入れて実行し、終了コード 1（`disallowed t.Setenv in internal/fixprguard.TestParseJudgedSetID`）で失敗することを確認した。戻して健全な木で `PASS` に戻ることを確認した。
     -   `env-source`: 同じ場所に `os.Environ()` を一時的に入れて実行し、終了コード 1（`disallowed os.Environ in internal/fixprguard.TestParseJudgedSetID`）で失敗することを確認した。戻して `PASS` に戻ることを確認した。
 -   **実行の記録:**
@@ -581,13 +660,130 @@ PR-3 は製品を変えない。
         added=0
         status=PASS
         ```
--   **PR-3:** AC-09（未記入）、AC-12（未記入）、AC-15（未記入）
+-   **PR-3:**
+    -   AC-09（比較: `e7150e43ad90703cc13bd32a6ec3989e931d6be5` → `dfa8faf0049c3ddd0c7bed680b5dd68e21655dcc`）:
+
+        ```text
+        mode=unchanged
+        base=e7150e43ad90703cc13bd32a6ec3989e931d6be5
+        head=dfa8faf0049c3ddd0c7bed680b5dd68e21655dcc
+        guide=PASS (docs/dev/guides/fixprguard_guide.md)
+        protocol=PASS (base: const Protocol = 9 | head: const Protocol = 9 | worktree: const Protocol = 9)
+        status=PASS
+        ```
+
+    -   AC-15（同じ 2 つのコミット。`MISSING` の 70 の組は、ステップ 3-3 の削除のコミットで消した行とちょうど一致する。各コミットの差分から消した行の名前を読んで、両方の向きに突き合わせた。表を組み直した C6・C14・C18 では、同じ差分で足し直した行は消えていない。C6 で消した `TestConfigListFailureKinds/check_state/output_over_cap` は、ローカルのレビューの指摘で後のコミットに戻したので、`MISSING` にない。`became_skip` は 0。`ADDED` の 19 の組は、ステップ 3-2 で純粋な関数の表に足した行である。`status=FAIL` は、`MISSING` があることによる（1.5 節）。`elapsed` の行は、それぞれ 1 回の実行の値で、実行の揺れを含む目安である。行を戻す前の先頭 `5d48a15f95c78f3079d9adcdfd6b78ea48f4c5ac` での 1 回目の実行では、`internal/fixprguard` が base=261.857s・head=210.762s、`cmd/fixprguard` が base=36.842s・head=55.98s だった）:
+
+        ```text
+        mode=names
+        base=e7150e43ad90703cc13bd32a6ec3989e931d6be5
+        head=dfa8faf0049c3ddd0c7bed680b5dd68e21655dcc
+        base_pass=1844
+        head_pass=1793
+        elapsed github.com/isseis/yt2column/internal/fixprguard base=161.875s head=123.967s
+        elapsed github.com/isseis/yt2column/cmd/fixprguard base=35.98s head=30.347s
+        missing=70
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestFinishBodyFileRun/message_rewritten
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestInspectExitCode/instruction_file
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestInspectExitCode/outside_allow_list
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestPushReviewCommand/nothing_to_send
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestReviewCommandsRefuse/push-review/commit_malformed
+          MISSING: github.com/isseis/yt2column/cmd/fixprguard::TestReviewCommandsRefuse/push-review/head_rule
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/current_branch_added
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/current_branch_removed
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/include_added
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/main_branch
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/multi_value_order
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/remote_added
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/remote_push_default
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestBaselineDetectsChange/two_level_branch_setting
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateInput/commit_empty
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateInput/commit_short
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateLine/push_target_not_moved
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateLine/three_review_commits
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateOrder/branch_switched
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateOrder/detached_head
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateOrder/hook_added
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateOrder/ignored_changed
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckReviewStateOrder/info_changed
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/agents_skill_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/envrc_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/ignored_agents_md_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/ignored_makefile_rewritten
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/ignored_mk_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/modification_time_only
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/nested_repository_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/new_lower_gitignore
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/settings_local_created
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/settings_local_rewritten
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCheckStateIgnoredChanges/unresolved_link_resolves
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/git_directory_upper
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/git_file
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/git_suffix_only
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/linked_worktree
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/nested_repository
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestCollectTargetsWatchedDirGitNames/.agents/top_dir_is_a_nested_repository
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/begin/cancelled
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/begin/not_started
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/begin/output_over_cap
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/cancelled
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/nonzero_exit
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/not_started
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailureKinds/check_state/timed_out
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishAfterOutOfScope/execution_file_as_thread_path
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishCommitBody/ends_with_lf
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishCommitBody/no_trailing_lf
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/at_sign
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/bidi_override
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/carriage_return
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/empty_line
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/escape
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/leading_empty_line
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/line_separator
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/mention/codex
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/mention/sourcery-ai
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/mention/sourceryai
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/no_description
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/noncharacter
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestFinishRejectsBodyFile/prefix_not_at_start
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestOtherBranchConfigIgnored/global_config
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestOtherBranchConfigIgnored/include_path_target
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestOtherBranchConfigIgnored/subsection_extends_current_branch
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestOtherBranchConfigIgnored/worktree_config
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestPushRechecks/branch_switched
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestPushRechecks/hooks_changed
+          MISSING: github.com/isseis/yt2column/internal/fixprguard::TestPushStopsOnIgnoredChange
+        became_skip=0
+        added=19
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/at_sign
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/bidi_override
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/carriage_return
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/empty_line
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/escape
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/leading_empty_line
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/line_separator
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/no_description
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/noncharacter
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitBodyChecks/prefix_not_at_start
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitMessageEndsInOneLF
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitMessageEndsInOneLF/ends_with_lf
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestCommitMessageEndsInOneLF/no_trailing_lf
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure/cancelled
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure/nonzero_exit
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure/not_started
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure/output_over_cap
+          ADDED: github.com/isseis/yt2column/internal/fixprguard::TestConfigListFailure/timed_out
+        status=FAIL
+        ```
+-   **PR-4:** AC-09（未記入）、AC-12（未記入）、AC-15（未記入）
 
 ## 6. 実装チェックリスト
 
 - [x] PR-1 マージ済み（対象ステップ: 1-1 / 1-2 / 1-3 / 1-4 / 1-5 / 1-6 / 1-7 / 1-8）
 - [x] PR-2 マージ済み（対象ステップ: 2-1 / 2-2 / 2-3 / 2-4 / 2-5 / 2-6）
-- [ ] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4 / 3-5）
+- [x] PR-3 マージ済み（対象ステップ: 3-1 / 3-2 / 3-3 / 3-4）
+- [ ] PR-4 マージ済み（対象ステップ: 4-1 / 4-2 / 4-3 / 4-4 / 4-5）
 
 ## 7. リスク管理
 
@@ -595,25 +791,27 @@ PR-3 は製品を変えない。
 |---|---|---|
 | 見込みの確かめで、並列にしても 50% に届かない | 実装しても AC-12 を満たせない | ステップ 1-1 で止めて人に尋ねる（設計書 8.2 節） |
 | 名前が届くシステムコールの見落とし | テストが作業ディレクトリに頼り、CLI では確かめが緩む | ステップ 1-3 の 26 か所の読み合わせ、`TestRunInProcessDir`（PR-1）、`TestMain` の隔離、AC-07 の確かめ |
+| 削除した行だけが確かめていた判定があった | 境界の判定の確かめが黙って減る | 候補を PR-2 の後のコードで 1 件ずつ確かめ、削除のコミットごとの `coverage-compare` と、それが見分けられない削除の残す行か壊しの確かめ（ステップ 3-1、3-3） |
 | テストだけを変えるコミットの後に製品を直す必要が出る | AC-14 の順序が崩れる | 止めて人に尋ねる（1.2 節） |
 | 実時間で待つテストが並列の負荷で失敗する | AC-02 か `make test` が揺れる | 判定の時間は変えず、止めて人に尋ねる（設計書 4 章） |
 | `coverage-compare` の `signalGroup` の揺れ | AC-14 が `FAIL` になる | きれいな作業ツリーで比べ直し、すべての回を記録する（設計書 8.2 節） |
-| コピーしたリポジトリが前の手順のものと違う | 既存のテストの前提が崩れる | 同等性のテスト（index の stat の情報を含む）と `testshape fixture-git`（ステップ 3-3、3-4） |
+| コピーしたリポジトリが前の手順のものと違う | 既存のテストの前提が崩れる | 同等性のテスト（index の stat の情報を含む）と `testshape fixture-git`（ステップ 4-3、4-4） |
 | `testshape fixture-git` が実際のコードを判定できない | AC-10 の確かめがなくなる | 検査を外さず、止めて人に尋ねる（1.3 節） |
 | 並列の負荷で計測の値が揺れる | AC-12 の判定が回によって変わる | 3 回の中央値で判定し、繰り返したときはすべての回を記録する（AC-13） |
 
 ## 8. 成功の基準
 
--   **機能:** AC-01〜AC-17 がすべて 5 章の確かめ方で満たされる。
+-   **機能:** AC-01〜AC-18 がすべて 5 章の確かめ方で満たされる。
 -   **品質:** 各 PR で `make test`・`make lint` が通り、`make coverage-compare` が `PASS` で終わる。
 -   **セキュリティ:** CLI の振る舞い（OS に渡すパス、子のコマンドの環境、終了コード）が変わらないことを、`TestRunInProcessDir` と既存のテストが確かめる。テストがこのリポジトリに届かないことを、AC-07 の確かめで記録する。
 -   **文書:** `package_reference.md` に `fixprguardtest` の行がある。`fixprguard_guide.md` は変えない（AC-09）。
 
 ## 9. 次のステップ
 
--   PR-3 のマージの後、issue #1167 を閉じる（`/runpr` が提案する）。
+-   PR-4 のマージの後、issue #1167 を閉じる（`/runpr` が提案する）。
 -   タスク 0127 が同じひな形の補助を要るときは、そのタスクで、`fixprguardtest` をより一般的な場所に移すかを決める（設計書 10 章）。
 
 ## 変更履歴
 
 - 2026-11-26 承認（isseis、#1187）
+- 2026-11-27 セッション中の再承認：冗長なテストを削除する PR-3 を足し、並列化の PR を PR-4 にした（isseis、#1201）
