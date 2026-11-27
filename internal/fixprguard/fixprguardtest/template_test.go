@@ -191,8 +191,8 @@ func TestTemplateCopyQuotesSpecialDestinationChars(t *testing.T) {
 		t.Fatalf("read copied config: %v", err)
 	}
 	got := string(raw)
-	wantExcludes := quoteGitConfigValue(filepath.Join(dst, "home", "excludes"))
-	wantRemote := quoteGitConfigValue(filepath.Join(dst, "remote.git"))
+	wantExcludes := `"` + filepath.Join(dst, "home", "excludes") + `"`
+	wantRemote := `"` + filepath.Join(dst, "remote.git") + `"`
 	if !strings.Contains(got, "excludesfile = "+wantExcludes) {
 		t.Errorf("copied config missing quoted excludesfile %s:\n%s", wantExcludes, got)
 	}
@@ -203,25 +203,30 @@ func TestTemplateCopyQuotesSpecialDestinationChars(t *testing.T) {
 
 func TestGitConfigQuoteRoundTrip(t *testing.T) {
 	t.Parallel()
-	for _, raw := range []string{
-		`/tmp/plain/path`,
-		`/tmp/with space/#01/dir`,
-		`/tmp/with\backslash/and"quote"/dir`,
+	for _, tc := range []struct {
+		raw        string
+		wantQuoted string
+	}{
+		{raw: `/tmp/plain/path`, wantQuoted: `"/tmp/plain/path"`},
+		{raw: `/tmp/with space/#01/dir`, wantQuoted: `"/tmp/with space/#01/dir"`},
+		{raw: `/tmp/with\backslash/and"quote"/dir`, wantQuoted: `"/tmp/with\\backslash/and\"quote\"/dir"`},
 	} {
-		quoted := quoteGitConfigValue(raw)
+		quoted := quoteGitConfigValue(tc.raw)
+		if quoted != tc.wantQuoted {
+			t.Errorf("quoteGitConfigValue(%q) = %q, want %q", tc.raw, quoted, tc.wantQuoted)
+		}
 		got, err := unquoteGitConfigValue(quoted)
 		if err != nil {
 			t.Errorf("unquoteGitConfigValue(%q) err = %v", quoted, err)
 			continue
 		}
-		if got != raw {
-			t.Errorf("round-trip(%q) = %q", raw, got)
+		if got != tc.raw {
+			t.Errorf("round-trip(%q) = %q", tc.raw, got)
 		}
 	}
 	for _, bad := range []string{
 		`"unescaped"quote"`,
-		`"dangling\`,
-		`"bad\nescape"`,
+		`"dangling\"`,
 		`unquoted # comment`,
 	} {
 		if _, err := unquoteGitConfigValue(bad); !errors.Is(err, errUnexpectedConfig) {

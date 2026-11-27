@@ -18,6 +18,11 @@ import (
 func TestFixtureTemplateEquivalence(t *testing.T) {
 	t.Parallel()
 
+	// Verify newTestRepo itself leaves the index stat cache refreshed before any
+	// git command that might rewrite the index.
+	repo := newTestRepo(t)
+	runFixtureGit(t, repo.Home, repo.Dir, []string{"GIT_OPTIONAL_LOCKS=0"}, "diff-files", "--quiet")
+
 	freshRoot := filepath.Join(t.TempDir(), "fresh")
 	if err := os.MkdirAll(freshRoot, 0o700); err != nil {
 		t.Fatalf("mkdir fresh: %v", err)
