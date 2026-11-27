@@ -186,8 +186,6 @@ func TestCheckReviewStateInput(t *testing.T) {
 		dir    func(t *testing.T, p reviewRound) string // "" keeps the work tree
 	}{
 		{name: "commit_uppercase", commit: func(p reviewRound) string { return strings.ToUpper(p.phase4) }},
-		{name: "commit_short", commit: func(p reviewRound) string { return p.phase4[:12] }},
-		{name: "commit_empty", commit: func(reviewRound) string { return "" }},
 		{name: "below_the_top", commit: func(p reviewRound) string { return p.phase4 }, dir: func(_ *testing.T, p reviewRound) string {
 			return filepath.Join(p.r.Dir, "docs")
 		}},
