@@ -91,12 +91,10 @@ func IsolateWorkingDir() (Isolation, func() error, error) {
 		return fail(fmt.Errorf("enter the isolation directory: %w", err))
 	}
 	finish := func() error {
-		empty := checkEmpty(cwd)
-		// Leave the directory before removing it, then remove everything.
-		if err := os.Chdir(packageDir); err != nil {
-			return errors.Join(empty, fmt.Errorf("leave the isolation directory: %w", err))
-		}
-		return errors.Join(empty, os.RemoveAll(root)) //nolint:gosec // a directory this function made
+		// The process stays in the isolation directory: it is the only
+		// os.Chdir of the test binary, and removing the directory a process
+		// is in works on the systems the tests run on.
+		return errors.Join(checkEmpty(cwd), os.RemoveAll(root)) //nolint:gosec // a directory this function made
 	}
 	return iso, finish, nil
 }

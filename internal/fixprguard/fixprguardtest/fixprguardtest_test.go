@@ -61,6 +61,7 @@ func TestIsolateWorkingDirRefusesRepository(t *testing.T) {
 	t.Parallel()
 	repo := t.TempDir()
 	init := exec.Command("git", "init", "-q", repo) //nolint:gosec // test setup runs git with fixed arguments
+	init.Dir = repo
 	init.Env = Env(t.TempDir(), repo)
 	if out, err := init.CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v: %s", err, out)
@@ -69,7 +70,12 @@ func TestIsolateWorkingDirRefusesRepository(t *testing.T) {
 	if err := os.Mkdir(tmp, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(os.Args[0], "-test.run=^$") //nolint:gosec // re-runs this test binary
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(self, "-test.run=^$") //nolint:gosec // re-runs this test binary
+	cmd.Dir = repo
 	cmd.Env = append(slices.DeleteFunc(Env(t.TempDir(), repo), func(e string) bool {
 		return strings.HasPrefix(e, "TMPDIR=") || strings.HasPrefix(e, "GOTMPDIR=")
 	}), "TMPDIR="+tmp)
