@@ -4,6 +4,7 @@ package fixprguard
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,45 +126,125 @@ type testRepo struct {
 	Home   string
 }
 
-// newTestRepo creates the repository with one commit holding testFile.
+// fixtureTemplate is built once by TestMain and copied by newTestRepo.
+var fixtureTemplate *fixprguardtest.Template
+
+// newTestRepo creates the repository with one commit holding testFile by
+// copying the package's fixture template and refreshing the index stat cache.
 func newTestRepo(t *testing.T) *testRepo {
 	t.Helper()
 	root := t.TempDir()
-	r := &testRepo{t: t, Dir: filepath.Join(root, "work"), Remote: filepath.Join(root, "remote.git"), Home: filepath.Join(root, "home")}
-	if err := os.MkdirAll(r.Home, 0o700); err != nil {
-		t.Fatalf("create home: %v", err)
+	if err := fixtureTemplate.Copy(root); err != nil {
+		t.Fatalf("copy fixture template: %v", err)
 	}
-	r.gitIn(root, "init", "-q", "--bare", "--template=", r.Remote)
-	r.gitIn(root, "init", "-q", "--template=", "-b", testBranch, r.Dir)
-	r.pinIgnoreConfig()
-	r.Git("config", "user.name", "Test")
-	r.Git("config", "user.email", "test@example.com")
-	r.Git("config", "commit.gpgSign", "false")
-	r.Git("config", "tag.gpgSign", "false")
-	r.Git("remote", "add", testRemote, r.Remote)
-	r.Write(testFile, "one\ntwo\n")
-	r.Write("docs/notes/b.md", "b\n")
-	r.Write("internal/x/x.go", "package x\n")
-	r.Write("internal/x/x_test.go", "package x\n")
-	r.Write("Makefile", "all:\n")
-	r.CommitAll("initial")
-	r.Git("push", "-q", "-u", testRemote, testBranch)
+	r := &testRepo{t: t, Dir: filepath.Join(root, "work"), Remote: filepath.Join(root, "remote.git"), Home: filepath.Join(root, "home")}
+	r.Git("update-index", "-q", "--refresh")
 	return r
+}
+
+// buildTestRepoTemplate runs buildTestRepo with real git commands using
+// fixprguardtest.Env, for TestMain's BuildTemplate and fixture equivalence tests.
+func buildTestRepoTemplate(root string) error {
+	work := filepath.Join(root, "work")
+	home := filepath.Join(root, "home")
+	gitIn := func(dir string, args ...string) error {
+		cmd := exec.Command(gitCommand, args...) //nolint:gosec // test setup runs git with fixed arguments
+		cmd.Dir = dir
+		cmd.Env = fixprguardtest.Env(home, dir)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("git %v: %w: %s", args, err, out)
+		}
+		return nil
+	}
+	gitWork := func(args ...string) error {
+		return gitIn(work, args...)
+	}
+	return buildTestRepo(root, gitIn, gitWork)
+}
+
+// buildTestRepo creates the initial repository fixture under root using the
+// supplied git callbacks.
+func buildTestRepo(root string, gitIn func(dir string, args ...string) error, gitWork func(args ...string) error) error {
+	work := filepath.Join(root, "work")
+	remote := filepath.Join(root, "remote.git")
+	home := filepath.Join(root, "home")
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		return fmt.Errorf("create home: %w", err)
+	}
+	if err := gitIn(root, "init", "-q", "--bare", "--template=", remote); err != nil {
+		return err
+	}
+	if err := gitIn(root, "init", "-q", "--template=", "-b", testBranch, work); err != nil {
+		return err
+	}
+	if err := pinIgnoreConfig(home, gitWork); err != nil {
+		return err
+	}
+	if err := gitWork("config", "user.name", "Test"); err != nil {
+		return err
+	}
+	if err := gitWork("config", "user.email", "test@example.com"); err != nil {
+		return err
+	}
+	if err := gitWork("config", "commit.gpgSign", "false"); err != nil {
+		return err
+	}
+	if err := gitWork("config", "tag.gpgSign", "false"); err != nil {
+		return err
+	}
+	if err := gitWork("remote", "add", testRemote, remote); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(work, "docs/notes"), testDirMode); err != nil {
+		return fmt.Errorf("create dir for docs/notes: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(work, testFile), []byte("one\ntwo\n"), 0o600); err != nil { //nolint:gosec // a path inside the test's temporary repository
+		return fmt.Errorf("write %s: %w", testFile, err)
+	}
+	if err := os.WriteFile(filepath.Join(work, "docs/notes/b.md"), []byte("b\n"), 0o600); err != nil { //nolint:gosec // a path inside the test's temporary repository
+		return fmt.Errorf("write docs/notes/b.md: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Join(work, "internal/x"), testDirMode); err != nil {
+		return fmt.Errorf("create dir for internal/x: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(work, "internal/x/x.go"), []byte("package x\n"), 0o600); err != nil { //nolint:gosec // a path inside the test's temporary repository
+		return fmt.Errorf("write internal/x/x.go: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(work, "internal/x/x_test.go"), []byte("package x\n"), 0o600); err != nil { //nolint:gosec // a path inside the test's temporary repository
+		return fmt.Errorf("write internal/x/x_test.go: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(work, "Makefile"), []byte("all:\n"), 0o600); err != nil { //nolint:gosec // a path inside the test's temporary repository
+		return fmt.Errorf("write Makefile: %w", err)
+	}
+	if err := commitAll(gitWork, "initial"); err != nil {
+		return err
+	}
+	return gitWork("push", "-q", "-u", testRemote, testBranch)
+}
+
+func commitAll(gitWork func(...string) error, message string) error {
+	if err := gitWork("add", "-A"); err != nil {
+		return err
+	}
+	return gitWork("commit", "-q", "-m", message)
 }
 
 // pinIgnoreConfig makes which files git ignores, and how it compares their
 // names, the same on every machine: the global excludes file is an empty
-// file under Home, and case and Unicode composition are significant, as on a
+// file under home, and case and Unicode composition are significant, as on a
 // Linux CI file system, even on a case-insensitive macOS volume.
-func (r *testRepo) pinIgnoreConfig() {
-	r.t.Helper()
-	excludes := filepath.Join(r.Home, "excludes")
-	if err := os.WriteFile(excludes, nil, 0o600); err != nil {
-		r.t.Fatalf("write excludes: %v", err)
+func pinIgnoreConfig(home string, gitWork func(...string) error) error {
+	excludes := filepath.Join(home, "excludes")
+	if err := os.WriteFile(excludes, nil, 0o600); err != nil { //nolint:gosec // a path inside the test's temporary home
+		return fmt.Errorf("write excludes: %w", err)
 	}
-	r.Git("config", "core.excludesFile", excludes)
-	r.Git("config", "core.ignorecase", "false")
-	r.Git("config", "core.precomposeunicode", "false")
+	if err := gitWork("config", "core.excludesFile", excludes); err != nil {
+		return err
+	}
+	if err := gitWork("config", "core.ignorecase", "false"); err != nil {
+		return err
+	}
+	return gitWork("config", "core.precomposeunicode", "false")
 }
 
 // Git runs git in the work tree for the test's own setup, outside the tool.

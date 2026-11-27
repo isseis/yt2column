@@ -139,17 +139,22 @@ func checkEmpty(dir string) error {
 }
 
 // Run runs the package's tests inside an isolated working directory and
-// returns the exit code TestMain passes to os.Exit. set receives the
-// Isolation before any test runs. A failure to isolate, and a working
-// directory that is not empty afterwards, print one line to standard error and
-// give exit code 1; in the first case no test runs.
-func Run(m *testing.M, set func(Isolation)) int {
+// returns the exit code TestMain passes to os.Exit. setup receives the
+// Isolation before any test runs (for example to store it and build a fixture
+// template). A failure to isolate, a setup error, or a working directory that
+// is not empty afterwards prints one line to standard error and gives exit
+// code 1; in the first two cases no test runs.
+func Run(m *testing.M, setup func(Isolation) error) int {
 	iso, finish, err := IsolateWorkingDir()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "fixprguardtest: "+err.Error())
 		return 1
 	}
-	set(iso)
+	if err := setup(iso); err != nil {
+		_ = finish()
+		fmt.Fprintln(os.Stderr, "fixprguardtest: "+strings.ReplaceAll(err.Error(), "\n", "; "))
+		return 1
+	}
 	code := m.Run()
 	if err := finish(); err != nil {
 		fmt.Fprintln(os.Stderr, "fixprguardtest: "+strings.ReplaceAll(err.Error(), "\n", "; "))
