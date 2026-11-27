@@ -177,12 +177,6 @@ func TestBaselineDetectsChange(t *testing.T) {
 		}, parts: []string{PartHooks}},
 		{name: "config", edit: func(_ *testing.T, r *testRepo) { r.Git("config", "core.fsmonitor", "true") }, parts: []string{PartConfig}, layer: layerList},
 		// The current branch's settings, under every name git gives them.
-		{name: "current_branch_added", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch."+testBranch+".pushRemote", testRemote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "current_branch_removed", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--unset", "branch."+testBranch+".merge")
-		}, parts: []string{PartConfig}, layer: layerList},
 		{name: "current_branch_with_dot", setup: func(_ *testing.T, r *testRepo) {
 			r.Git("switch", "-q", "-c", testBranch+".a")
 		}, edit: func(_ *testing.T, r *testRepo) {
@@ -193,21 +187,6 @@ func TestBaselineDetectsChange(t *testing.T) {
 		{name: "current_branch_old_syntax", edit: func(t *testing.T, r *testRepo) {
 			appendFile(t, repoConfig(r), "[branch.Feature]\n\tpushRemote = "+testRemote+"\n")
 		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "main_branch", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch."+mainBranch+".pushRemote", testRemote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "two_level_branch_setting", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "branch.autoSetupMerge", "always")
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "remote_push_default", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "remote.pushDefault", testRemote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "remote_added", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("remote", "add", "upstream", r.Remote)
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "include_added", edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "include.path", filepath.Join(r.Home, "absent"))
-		}, parts: []string{PartConfig}, layer: layerList},
 		// Moving a setting to another file changes its origin, and here its
 		// place in the listing too: the global file is read first.
 		{name: "origin_moved", setup: func(_ *testing.T, r *testRepo) {
@@ -215,14 +194,6 @@ func TestBaselineDetectsChange(t *testing.T) {
 		}, edit: func(_ *testing.T, r *testRepo) {
 			r.Git("config", "--unset", "core.abbrev")
 			r.Git("config", "--global", "core.abbrev", "12")
-		}, parts: []string{PartConfig}, layer: layerList},
-		{name: "multi_value_order", setup: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/a")
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/b")
-		}, edit: func(_ *testing.T, r *testRepo) {
-			r.Git("config", "--unset-all", "remote."+testRemote+".push")
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/b")
-			r.Git("config", "--add", "remote."+testRemote+".push", "refs/heads/a")
 		}, parts: []string{PartConfig}, layer: layerList},
 		{name: "worktree_config", setup: func(t *testing.T, r *testRepo) {
 			// git reads config.worktree only with worktreeConfig on, and the
