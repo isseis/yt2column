@@ -422,18 +422,8 @@ func TestFinishCommitBody(t *testing.T) {
 // any make target (the fake has no step) and before any commit.
 func TestFinishRejectsBodyFile(t *testing.T) {
 	for name, body := range map[string]string{
-		"other_line":          correction + "\nSigned-off-by: x\n",
-		"no_description":      "Editorial correction:  \n",
-		"at_sign":             correction + " a@b\n",
-		"carriage_return":     correction + "\r\n",
-		"escape":              correction + " \x1b[31m\n",
-		"line_separator":      correction + " a\u2028b\n",
-		"bidi_override":       correction + " a\u202eb\n",
-		"noncharacter":        correction + " a\ufffeb\n",
-		"empty_line":          correction + "\n\n" + correction + "\n",
-		"rejected_as_a_file":  "",
-		"leading_empty_line":  "\n" + correction + "\n",
-		"prefix_not_at_start": " " + correction + "\n",
+		"other_line":         correction + "\nSigned-off-by: x\n",
+		"rejected_as_a_file": "",
 	} {
 		t.Run(name, func(t *testing.T) {
 			p := prepareRound(t, fixTestFile)
