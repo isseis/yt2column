@@ -141,6 +141,8 @@
 -   [x] フェーズ 1 完了
     -   [x] ステップ 1-1: `mergemain.md`・`CLAUDE.md`・ADR-0046・`harness-antigravity.md` の更新を 1 コミットで完了
     -   [x] ステップ 1-2: `make test && make lint` 通過、AC-07・AC-08 の Diff record 記入と照合完了、PR の説明に §9.1 の人の項目を記載、実装 PR 作成
+- [x] PR を作成した: https://github.com/isseis/yt2column/pull/1200
+- [ ] PR がマージされた
 
 ## 7. 完了基準 (Success Criteria)
 
