@@ -45,7 +45,9 @@ orig_branch=$(git symbolic-ref --quiet --short HEAD || true)
 restore() {
   status=$?
   trap - EXIT
-  git checkout -- "$rr_script" "$hrd_script" 2>/dev/null || true
+  # One call per path: a pathspec missing at the current HEAD would make git restore neither.
+  git checkout -- "$rr_script" 2>/dev/null || true
+  git checkout -- "$hrd_script" 2>/dev/null || true
   if [ -n "$orig_branch" ]; then
     git switch --quiet "$orig_branch" || status=1
   else
